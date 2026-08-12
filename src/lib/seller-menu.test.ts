@@ -120,21 +120,21 @@ describe('applyOrderLabel', () => {
   })
 })
 
-describe('resolveOrderVocab — คลังคำ 8 ช่อง (00030 + dateLabel/00033 + fulfillLabel/00036 + itemsLabel,buyerConfirmLabel/00041)', () => {
+describe('resolveOrderVocab — คลังคำ 10 ช่อง (00030 + dateLabel/00033 + fulfillLabel/00036 + itemsLabel,buyerConfirmLabel/00041 + viewLabel,stageOrderedLabel/2026-08-12)', () => {
   it.each([
     // fulfillLabel = ขั้น "ร้านลงมือทำตามที่รับงานมาแล้ว" ในเช็กลิสต์สถานะของตารางรายการ
     // SERVICE_QUEUE ต้องไม่ใช่ 'ให้บริการแล้ว' เปล่า ๆ — ชนกับ APPOINTMENT_STATUS_LABEL.COMPLETED
     // ซึ่งผูกกับคอลัมน์คนละตัว (appointmentStatus) และติ๊กถูกคนละจังหวะกัน
-    ['ONLINE_SALES', 'คำสั่งซื้อ', 'คำสั่งซื้อ', 'สร้างคำสั่งซื้อ', 'สร้างคำสั่งซื้อ', 'วันที่สั่งซื้อ', 'ยืนยันการจัดส่ง', 'รายการสินค้า', 'ยืนยันรับสินค้า'],
+    ['ONLINE_SALES', 'คำสั่งซื้อ', 'คำสั่งซื้อ', 'สร้างคำสั่งซื้อ', 'สร้างคำสั่งซื้อ', 'วันที่สั่งซื้อ', 'ยืนยันการจัดส่ง', 'รายการสินค้า', 'ยืนยันรับสินค้า', 'ดูคำสั่งซื้อ', 'สั่งซื้อแล้ว'],
     // nounShort ย่อจาก 'เข้ารับบริการ' → 'บริการ' (user เคาะ 2026-08-05) — หัวหน้าต่างโมดัลในแชท
     // และแท็บล่างมือถือประกอบคำจากช่องนี้ ("บริการใหม่" แทน "การเข้ารับบริการใหม่")
     // dateLabel ไม่ใช่ "วันที่" + noun — LODGING/SERVICE_QUEUE มีคอลัมน์วันใช้บริการแยกอยู่แล้ว
     // 'วันที่สร้าง' ไม่ใช่ 'วันที่รับงาน' (user เคาะ 2026-08-07) — ร้านคิวงานเปิดบิลตอนลูกค้ามาถึง
     // createLabelShort 'เข้ารับบริการใหม่' → 'งานใหม่' (user สั่ง 2026-08-07) — ปุ่มท้ายแถบเครื่องมือ
     // แชทถูกตัดหายครึ่งคำบนจอ 390px จริง
-    ['SERVICE_QUEUE', 'การเข้ารับบริการ', 'บริการ', 'สร้างการเข้ารับบริการ', 'งานใหม่', 'วันที่สร้าง', 'เริ่มให้บริการแล้ว', 'รายการบริการ', 'ยืนยันรับบริการ'],
-    ['LODGING', 'บิลเข้าพัก', 'บิลเข้าพัก', 'เปิดบิลเข้าพัก', 'เปิดบิลเข้าพัก', 'วันที่เปิดบิล', 'รับเข้าพักแล้ว', 'รายการห้องพัก', 'ยืนยันเข้าพักแล้ว'],
-  ])('%s', (vertical, noun, nounShort, createLabel, createLabelShort, dateLabel, fulfillLabel, itemsLabel, buyerConfirmLabel) => {
+    ['SERVICE_QUEUE', 'การเข้ารับบริการ', 'บริการ', 'สร้างการเข้ารับบริการ', 'งานใหม่', 'วันที่สร้าง', 'เริ่มให้บริการแล้ว', 'รายการบริการ', 'ยืนยันรับบริการ', 'ดูรายละเอียดบริการ', 'รับงานแล้ว'],
+    ['LODGING', 'บิลเข้าพัก', 'บิลเข้าพัก', 'เปิดบิลเข้าพัก', 'เปิดบิลเข้าพัก', 'วันที่เปิดบิล', 'รับเข้าพักแล้ว', 'รายการห้องพัก', 'ยืนยันเข้าพักแล้ว', 'ดูบิลเข้าพัก', 'เปิดบิลแล้ว'],
+  ])('%s', (vertical, noun, nounShort, createLabel, createLabelShort, dateLabel, fulfillLabel, itemsLabel, buyerConfirmLabel, viewLabel, stageOrderedLabel) => {
     expect(resolveOrderVocab(vertical)).toEqual({
       noun,
       nounShort,
@@ -144,6 +144,8 @@ describe('resolveOrderVocab — คลังคำ 8 ช่อง (00030 + dateL
       fulfillLabel,
       itemsLabel,
       buyerConfirmLabel,
+      viewLabel,
+      stageOrderedLabel,
     })
   })
 

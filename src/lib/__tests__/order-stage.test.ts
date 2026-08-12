@@ -228,4 +228,43 @@ describe('deriveOrderStage', () => {
       expect(s?.label).toBe('นัด 17 ส.ค. 69')
     })
   })
+
+  // ── คำของขั้น ORDERED ผันตามประเภทกิจการ — user report 2026-08-12 ────────────
+  // การ์ดในแชทของร้านคิวงานขึ้นชิป "สั่งซื้อแล้ว" ทั้งที่ไม่มีใครสั่งซื้ออะไร
+  describe('ป้ายขั้นแรกผันตามประเภทกิจการ', () => {
+    it.each([
+      ['ONLINE_SALES', 'สั่งซื้อแล้ว'],
+      ['SERVICE_QUEUE', 'รับงานแล้ว'],
+      ['LODGING', 'เปิดบิลแล้ว'],
+    ])('[blocker] %s → "%s"', (vertical, label) => {
+      const s = deriveOrderStage({ ...base, vertical }, NOW)
+      expect(s?.label).toBe(label)
+      // เปลี่ยนแค่คำ — key/สี/ไอคอนต้องเหมือนกันทุก vertical (ตำแหน่งบนเส้นทางเดียวกัน)
+      expect(s?.key).toBe('ORDERED')
+      expect(s?.cls).toBe('bg-primary/15 text-primary-ink')
+      expect(s?.icon).toBe('shopping-cart')
+    })
+
+    it('ไม่ส่ง vertical / ค่าที่ไม่รู้จัก → คำเดิมของ ONLINE_SALES (fail-safe เดียวกับ resolveOrderVocab)', () => {
+      expect(deriveOrderStage(base, NOW)?.label).toBe('สั่งซื้อแล้ว')
+      expect(deriveOrderStage({ ...base, vertical: 'SOMETHING_NEW' }, NOW)?.label).toBe('สั่งซื้อแล้ว')
+      expect(deriveOrderStage({ ...base, vertical: null }, NOW)?.label).toBe('สั่งซื้อแล้ว')
+    })
+
+    it('[blocker] นัดหมายชนะคำของ vertical — ร้านคิวงานที่มีนัดต้องได้ "นัด <วันที่>" ไม่ใช่ "รับงานแล้ว"', () => {
+      // สองตัวผันคำนี้ทับช่องเดียวกัน (ORDERED) ลำดับจึงเป็นเรื่องความหมาย ไม่ใช่เรื่องสไตล์:
+      // "นัดวันไหน" คือสิ่งที่ร้านต้องรู้ระหว่างคุย ส่วน "รับงานแล้ว" บอกแค่ว่าใบถูกเปิดขึ้นมา
+      const s = deriveOrderStage(
+        { ...base, vertical: 'SERVICE_QUEUE', serviceStart: new Date('2026-08-16T02:00:00Z') },
+        NOW,
+      )
+      expect(s?.label).toBe('นัด 16 ส.ค. 69')
+    })
+
+    it('ขั้นอื่นไม่ถูกแตะ — vertical ผันแค่ ORDERED ขั้นเดียว', () => {
+      expect(deriveOrderStage({ ...base, vertical: 'SERVICE_QUEUE', status: 'CANCELLED' }, NOW)?.label).toBe('ยกเลิกแล้ว')
+      expect(deriveOrderStage({ ...base, vertical: 'SERVICE_QUEUE', status: 'CONFIRMED' }, NOW)?.label).toBe('สำเร็จ')
+      expect(deriveOrderStage({ ...base, vertical: 'LODGING', status: 'SHIPPED' }, NOW)?.label).toBe('กำลังจัดส่ง')
+    })
+  })
 })

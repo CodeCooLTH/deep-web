@@ -113,6 +113,7 @@ import {
   type ChatMessageView,
 } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
 import { attachmentDisplayName, formatAttachmentSize } from '@/lib/chat-attachment'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 import { shouldWarnQuoteUnavailable, quoteJumpTargetId } from '@/lib/chat-quote-availability'
 import { useLongPress } from '@/hooks/useLongPress'
 import MessageActionBubble, { type MessageAction, type MessageReactionOption } from './MessageActionBubble'
@@ -1031,6 +1032,8 @@ function OwnProductCardCarousel({
  */
 function OrderCardBubble({ card, onEdit }: { card: ChatOrderCard | null; onEdit: (token: string) => void }) {
   // ชื่อรายการต้องตรงกับประเภทกิจการ — ใช้ hook ที่ไม่บังคับ Provider (การ์ดใบนี้ไม่ได้จะเปิดโมดัล)
+  // ใช้เฉพาะตอนไม่มีการ์ด: เมื่อมีการ์ด คำต้องมาจาก `card.vertical` (ร้านเจ้าของ *ใบนั้น*) ไม่ใช่
+  // ร้านที่ active อยู่ — กล่องแชทรวมหลายร้าน (00037) ทำให้สองอย่างนี้ต่างกันได้
   const vocab = useOrderVocab()
   if (!card) {
     return (
@@ -1042,7 +1045,6 @@ function OrderCardBubble({ card, onEdit }: { card: ChatOrderCard | null; onEdit:
   }
   return (
     <OrderCardView
-      orderNoun={vocab.noun}
       data={card}
       onEdit={() => onEdit(card.token)}
       className="w-64"
@@ -1052,7 +1054,7 @@ function OrderCardBubble({ card, onEdit }: { card: ChatOrderCard | null; onEdit:
           className="bg-primary/5 text-primary hover:bg-primary/10 flex items-center justify-center gap-1.5 border-default-200 border-t px-4 py-2.5 text-sm font-semibold"
         >
           <Icon icon="external-link" className="text-base" />
-          ดูคำสั่งซื้อ
+          {resolveOrderVocab(card.vertical ?? '').viewLabel}
         </Link>
       }
     />

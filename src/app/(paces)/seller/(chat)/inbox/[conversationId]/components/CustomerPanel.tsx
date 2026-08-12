@@ -380,8 +380,10 @@ function OrderCard({
   return (
     <>
     <OrderCardView
-      orderNoun={noun}
       data={{
+        // ตัวผันคำทั้งการ์ด (noun/ชิปสถานะ) — เดิมส่ง noun เข้ามาเป็น prop แยก แล้วชิปสถานะ
+        // ในการ์ดยังพูดว่า "สั่งซื้อแล้ว" อยู่ดี เพราะคนละทาง (user report 2026-08-12)
+        vertical,
         token: o.token,
         orderNo: o.orderNo,
         status: o.status,

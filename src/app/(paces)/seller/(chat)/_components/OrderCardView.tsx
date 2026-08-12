@@ -18,6 +18,7 @@ import { APPOINTMENT_STAGE_META, deriveAppointmentStage } from '@/lib/appointmen
 import { isAllDayAppointment } from '@/lib/appointments'
 import { formatDateTH, formatTimeHM } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 
 export type OrderCardViewData = {
   token: string
@@ -49,6 +50,14 @@ export type OrderCardViewData = {
   /** Order.updatedAt ISO — ใช้เป็น `now` ตอนเรียก deriveOrderStage เพื่อปิด age-decay (ชิปในการ์ด
    *  ไม่หมดอายุ ต่างจากป้ายในรายการแชทโดยเจตนา — การ์ดว่างเปล่ากลางคันแย่กว่าป้ายค้าง) */
   statusAt?: string
+  /**
+   * Shop.vertical ของร้านเจ้าของใบนี้ — ตัวผันคำทั้งการ์ด (`ORDER_VOCAB`)
+   *
+   * อยู่ใน `data` ไม่ใช่ prop แยก เพราะการ์ดใบนี้ถูกเรนเดอร์ทั้งฝั่งร้าน (ซึ่งรู้ร้านที่ active อยู่แล้ว)
+   * และฝั่ง**ลูกค้า**ในแอป Deep (ซึ่งไม่รู้อะไรเลยนอกจากสิ่งที่มากับการ์ด) — ผูกไว้กับตัวใบจึงเป็น
+   * ทางเดียวที่ทั้งสองฝั่งพูดคำเดียวกันได้. ไม่ส่งมา/ค่าไม่รู้จัก → ชุดคำ ONLINE_SALES ตามเดิม
+   */
+  vertical?: string | null
 }
 
 /**
@@ -66,7 +75,15 @@ function ShipmentSection({ data }: { data: OrderCardViewData }) {
   // เหลือช่องว่างเปล่า — statusAt ไม่มี (caller เก่า) age = 0 เหมือนกัน จึงไม่มีทางโดนซ่อน
   const statusAt = data.statusAt ?? new Date(0).toISOString()
   const stage = deriveOrderStage(
-    { status: data.status, statusAt, labelPrintedAt: null, carrierStatus: null, hasShipment: false },
+    {
+      status: data.status,
+      statusAt,
+      labelPrintedAt: null,
+      carrierStatus: null,
+      hasShipment: false,
+      // ร้านคิวงาน/บ้านพักไม่ได้เรียกใบของตัวเองว่า "สั่งซื้อแล้ว" (user report 2026-08-12)
+      vertical: data.vertical,
+    },
     Date.parse(statusAt),
   )
   const stageChip = stage && (
@@ -244,23 +261,20 @@ export default function OrderCardView({
   onEdit,
   footer,
   className = '',
-  orderNoun = 'คำสั่งซื้อ',
 }: {
   data: OrderCardViewData
   /** แตะ body → เปิดโมดัลแก้ไข (ไม่ใส่ = การ์ดไม่คลิก เช่นฝั่ง buyer) */
   onEdit?: () => void
-  /** action ท้ายการ์ด — ส่งเข้าแชท / ดูคำสั่งซื้อ (caller ใส่เอง) */
+  /** action ท้ายการ์ด — ส่งเข้าแชท / เปิดดูใบนี้ (caller ใส่เอง; คำมาจาก ORDER_VOCAB.viewLabel) */
   footer?: React.ReactNode
   className?: string
-  /**
-   * ชื่อเรียกรายการตามประเภทกิจการ (ORDER_VOCAB.noun) — "คำสั่งซื้อ" / "การเข้ารับบริการ" / "บิลเข้าพัก"
-   *
-   * รับเป็น prop ไม่ใช่อ่านจาก DraftOrderProvider โดยตรง เพราะการ์ดใบนี้ตั้งใจให้ใช้ซ้ำนอกกล่องแชทได้
-   * (ดู onEdit — "ไม่ใส่ = การ์ดไม่คลิก เช่นฝั่ง buyer") การผูกกับ context ของแชทจะทำให้พังทันที
-   * ที่มีคนเอาไปใช้จริงตามเจตนานั้น
-   */
-  orderNoun?: string
 }) {
+  /**
+   * ชื่อเรียกรายการตามประเภทกิจการ — resolve จาก `data.vertical` ไม่ใช่รับ noun เป็น prop
+   * และไม่ใช่อ่านจาก DraftOrderProvider: การ์ดใบนี้ตั้งใจให้ใช้ซ้ำนอกกล่องแชทได้ (ดู onEdit —
+   * "ไม่ใส่ = การ์ดไม่คลิก เช่นฝั่ง buyer") การผูกกับ context ของแชทจะพังทันทีที่ใช้ตามเจตนานั้น
+   */
+  const orderNoun = resolveOrderVocab(data.vertical ?? '').noun
   const title = data.items[0]?.name ?? orderNoun
   // เลขคำสั่งซื้อ DP… (fallback โค้ด 8 หลักของ token สำหรับข้อมูลเก่าที่ยังไม่ backfill)
   const displayNo = data.orderNo || data.token.slice(0, 8).toUpperCase()

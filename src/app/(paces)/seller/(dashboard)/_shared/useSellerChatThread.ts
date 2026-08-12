@@ -66,6 +66,22 @@ export type ChatOrderCard = {
   codReceivedAt?: string | null
   /** Order.updatedAt ISO — ให้ deriveOrderStage เรียกแบบปิด age-decay */
   statusAt?: string
+  /**
+   * Shop.vertical ของร้านเจ้าของใบนี้ — ตัวผันคำทั้งการ์ด (noun/ชิปสถานะ/ป้ายลิงก์ท้ายการ์ด)
+   *
+   * ต้องมากับการ์ด ไม่ใช่อ่านจาก context ของหน้าจอ เพราะการ์ดชุดเดียวกันนี้ถูกเรนเดอร์ฝั่ง
+   * **ลูกค้า**ในแอป Deep ด้วย (`(marketing)/(buyer-app)/messages/[shopId]/ChatThread.tsx`)
+   * ซึ่งไม่มี DraftOrderProvider ให้ถาม
+   */
+  vertical?: string | null
+  // ── นัดหมาย (feature 00024) — ชุดเดียวกับที่การ์ดใน right panel ส่งให้ OrderCardView ──
+  /** ช่วงเวลาเข้าใช้บริการ ISO — null/ไม่ส่ง = ใบนี้ไม่มีนัด (walk-in) */
+  serviceStart?: string | null
+  serviceEnd?: string | null
+  /** SCHEDULED | CONFIRMED_BY_BUYER | RESCHEDULE_REQUESTED | COMPLETED | NO_SHOW */
+  appointmentStatus?: string | null
+  /** ยอดมัดจำที่ตกลงกันไว้ "300.00" — ระบบไม่รู้ว่าจ่ายแล้วหรือยัง ห้ามแสดงเป็นสถานะ */
+  depositAmount?: string | null
 }
 
 // optimistic send (composer UX): payload ที่ใช้ resend เมื่อกด "ลองใหม่"

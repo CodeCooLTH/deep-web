@@ -24,7 +24,7 @@ const SLATE = '#808390'
 const ALT_TEXT_MAX = 1500
 
 /** ป้ายบนปุ่มของ action object จำกัด 20 ตัวอักษร — เกินแล้ว LINE ตีข้อความตกทั้งใบ */
-const BUTTON_LABEL = 'เปิดคำสั่งซื้อ'
+const BUTTON_LABEL_MAX = 20
 
 export interface LineFlexOrderCardInput {
   /** ชื่อรายการแรกของออเดอร์ */
@@ -35,6 +35,19 @@ export interface LineFlexOrderCardInput {
   totalText: string
   /** ลิงก์หน้าออเดอร์สาธารณะ — **ต้องเป็น https** (LINE ปฏิเสธ uri action ที่ไม่ใช่ https) */
   url: string
+  /**
+   * ชื่อเรียกใบนี้ตามประเภทกิจการ (`ORDER_VOCAB[vertical].noun`) — ขึ้นบนบรรทัดแรกของการ์ดและใน
+   * `altText`. รับเป็น input ไม่ตั้งเองด้วยเหตุผลเดียวกับ `totalText`: SSOT ของคำอยู่ที่
+   * `src/lib/seller-menu.ts` ที่เดียว (HR16) ไฟล์นี้ต้อง pure และไม่รู้จักโดเมนของร้าน
+   */
+  noun: string
+  /**
+   * ป้ายบนปุ่ม (`ORDER_VOCAB[vertical].viewLabel`)
+   *
+   * 🛑 ถูกตัดที่ 20 ตัวอักษรก่อนส่งเสมอ — เกินแล้ว LINE ปฏิเสธ **ทั้งข้อความ** ไม่ใช่แค่ตัดคำ
+   * (ปุ่มที่คำโดนตัดยังกดได้ · การ์ดที่ส่งไม่ออกคือลูกค้าไม่ได้อะไรเลย)
+   */
+  buttonLabel: string
 }
 
 export interface LineFlexMessage {
@@ -51,7 +64,7 @@ export interface LineFlexMessage {
  */
 export function buildLineFlexOrderCard(input: LineFlexOrderCardInput): LineFlexMessage {
   const bodyContents: Record<string, unknown>[] = [
-    { type: 'text', text: 'คำสั่งซื้อ', size: 'sm', color: SLATE },
+    { type: 'text', text: input.noun, size: 'sm', color: SLATE },
     { type: 'text', text: input.title, weight: 'bold', size: 'lg', color: INK, wrap: true },
   ]
 
@@ -85,7 +98,10 @@ export function buildLineFlexOrderCard(input: LineFlexOrderCardInput): LineFlexM
     },
   )
 
-  const altText = `คำสั่งซื้อ: ${input.title} · ยอดสุทธิ ${input.totalText}`.slice(0, ALT_TEXT_MAX)
+  const altText = `${input.noun}: ${input.title} · ยอดสุทธิ ${input.totalText}`.slice(0, ALT_TEXT_MAX)
+  // นับเป็น code point ไม่ใช่ UTF-16 unit — ไทยอยู่ใน BMP จึงเท่ากัน แต่เขียนให้ถูกไว้ตั้งแต่ต้น
+  // (บทเรียนเดียวกับ chatBarText ของ Rich Menu 00045: `.length` กับ `Array.from` ต่างกันได้เงียบ ๆ)
+  const buttonLabel = Array.from(input.buttonLabel).slice(0, BUTTON_LABEL_MAX).join('')
 
   return {
     altText,
@@ -100,7 +116,7 @@ export function buildLineFlexOrderCard(input: LineFlexOrderCardInput): LineFlexM
             type: 'button',
             style: 'primary',
             color: BRAND,
-            action: { type: 'uri', label: BUTTON_LABEL, uri: input.url },
+            action: { type: 'uri', label: buttonLabel, uri: input.url },
           },
         ],
       },

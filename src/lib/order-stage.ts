@@ -26,6 +26,8 @@ import {
 // นิยาม "เก็บเงินปลายทาง" ตัวเดียวกับที่หน้าออเดอร์/ป้ายชำระเงินใช้ — ห้ามเขียน regex ซ้ำที่นี่
 // ไม่งั้นไทล์กับป้ายบนจอเดียวกันจะตัดสินคนละแบบเมื่อร้านพิมพ์วิธีชำระเป็นข้อความอิสระ
 import { ORDER_STATUS_META, isCODPayment as isCodPayment, type OrderStatusTone } from './order-display'
+// คลังคำตามประเภทกิจการ — SSOT เดียวของคำเหล่านี้ (HR16) ห้ามพิมพ์คำของ vertical ไว้ในไฟล์นี้เอง
+import { resolveOrderVocab } from './seller-menu'
 
 export type OrderStageKey =
   | 'PARCEL_PROBLEM'
@@ -287,6 +289,16 @@ export interface OrderStageInput {
   serviceStart?: Date | string | null
   /** Order.appointmentStatus — null/ค่าที่ไม่รู้จัก = SCHEDULED ตาม default เดียวกับปฏิทิน */
   appointmentStatus?: string | null
+  /**
+   * Shop.vertical ของร้านที่เป็นเจ้าของใบนี้ — ผันคำของขั้น `ORDERED` เท่านั้น
+   * (`ORDER_VOCAB[vertical].stageOrderedLabel`; ไม่ส่งมา/ไม่รู้จัก → ชุด ONLINE_SALES เหมือนเดิม)
+   *
+   * [สำคัญ] ต่างจาก `serviceStart` ข้างบนโดยเจตนา: ตรงนั้นถามว่า "ใบนี้เป็นนัดไหม" ซึ่งเป็น
+   * ข้อเท็จจริงของตัวออเดอร์ ส่วนช่องนี้ถามว่า "ร้านนี้เรียกใบแบบนี้ว่าอะไร" ซึ่งเป็นเรื่องของ
+   * *คำ* ล้วน ๆ จึงต้องอ่านจากร้าน ณ ปัจจุบัน ไม่ใช่จากธงที่ค้างบนแถวออเดอร์
+   * (docs/conventions/stored-flag-vs-owner-truth.md) และห้ามเอาไปตัดสิน *ตรรกะ* ใด ๆ
+   */
+  vertical?: string | null
 }
 
 export interface OrderStageResult {
@@ -376,9 +388,30 @@ export function deriveOrderStage(
 
   return {
     key,
-    ...(appointmentFace(key, order) ?? ORDER_STAGE_META[key]),
+    // ลำดับ: นัดหมาย (เจาะจงที่สุด) → คำตามประเภทกิจการ → คำกลางของระบบ
+    ...(appointmentFace(key, order) ?? verticalFace(key, order) ?? ORDER_STAGE_META[key]),
     ...(printCount > 0 ? { printCount } : {}),
   }
+}
+
+/**
+ * verticalFace — ขั้น "ใบถูกเปิดขึ้นมาแล้ว" ต้องพูดด้วยคำของร้านนั้น
+ * (user report 2026-08-12: การ์ดในแชทของร้านคิวงานขึ้น "สั่งซื้อแล้ว" ทั้งที่ไม่มีใครสั่งซื้ออะไร)
+ *
+ * แทนที่เฉพาะ ORDERED ขั้นเดียวด้วยเหตุผลเดียวกับ appointmentFace: ขั้นพัสดุพูดถึงพัสดุ
+ * (ร้านที่ไม่ส่งของไม่มีทางไปถึงอยู่แล้ว) ส่วน CANCELLED/COMPLETED เป็นคำกลางที่ใช้ได้ทุกกิจการ
+ *
+ * [สำคัญ] เปลี่ยนแค่ `label` — `key`/`cls`/`icon` ต้องเหมือนเดิมทุกประการ เพราะ key คือตัวตนที่
+ * โค้ดอื่น switch อยู่ และสีของขั้นเป็นเรื่องของ "อยู่ตรงไหนบนเส้นทาง" ไม่ใช่ของประเภทกิจการ
+ */
+function verticalFace(
+  key: OrderStageKey,
+  order: OrderStageInput,
+): { label: string; cls: string; icon: string } | null {
+  if (key !== 'ORDERED') return null
+  const label = resolveOrderVocab(order.vertical ?? '').stageOrderedLabel
+  if (label === ORDER_STAGE_META.ORDERED.label) return null
+  return { ...ORDER_STAGE_META.ORDERED, label }
 }
 
 /**

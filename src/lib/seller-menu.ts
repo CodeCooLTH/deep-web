@@ -411,6 +411,25 @@ export type OrderVocab = {
    * สองช่องนี้ผูกกับคนละคน คนละปุ่ม คนละจอ — ห้ามยุบรวมกันเพราะคำมันคล้ายกัน
    */
   buyerConfirmLabel: string
+  /**
+   * ป้ายลิงก์ "เปิดดูใบนี้" ท้ายการ์ดในแชท — ใช้ทั้งฝั่งร้าน (OrderCardView footer) และ
+   * **ฝั่งลูกค้า** (การ์ดในแอป Deep + ปุ่มบน LINE Flex)
+   *
+   * [สำคัญ] ไม่ผันเป็น `"ดู" + noun` — SERVICE_QUEUE จะได้ "ดูการเข้ารับบริการ" ซึ่งอ่านเป็น
+   * *การกระทำที่ลูกค้ากำลังจะไปทำ* ไม่ใช่ *เอกสารที่กำลังจะเปิดดู*. อีกข้อบังคับที่มองไม่เห็นจาก
+   * ที่นี่: ค่านี้ไปลงบน `action.label` ของ LINE ซึ่งจำกัด **20 ตัวอักษร** เกินแล้ว LINE ตี
+   * ข้อความตกทั้งใบ (ไม่ใช่แค่ตัดคำ) — ดู src/lib/line/flex-order-card.ts
+   */
+  viewLabel: string
+  /**
+   * ชิปสถานะขั้นแรกของใบ (`OrderStageKey='ORDERED'`) — ป้ายในรายการแชทและบนการ์ดในเธรด
+   *
+   * [สำคัญ] คนละตัวกับ `fulfillLabel`: ช่องนี้คือ "ใบนี้ถูกเปิดขึ้นมาแล้ว" (ยังไม่มีใครทำอะไรต่อ)
+   * ส่วน fulfillLabel คือขั้นที่ร้านลงมือทำแล้ว. ห้ามใช้คำเดียวกับ APPOINTMENT_STATUS_LABEL
+   * ทุกค่า — ใบที่มีนัดจะถูก `appointmentFace()` แทนที่ป้ายนี้ด้วยสถานะนัดอยู่แล้ว สองชุดคำจึง
+   * โผล่ในช่องเดียวกันสลับกันได้ตามข้อมูล
+   */
+  stageOrderedLabel: string
 }
 
 export const ORDER_VOCAB: Record<string, OrderVocab> = {
@@ -423,6 +442,8 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     fulfillLabel: 'ยืนยันการจัดส่ง',
     itemsLabel: 'รายการสินค้า',
     buyerConfirmLabel: 'ยืนยันรับสินค้า',
+    viewLabel: 'ดูคำสั่งซื้อ',
+    stageOrderedLabel: 'สั่งซื้อแล้ว',
   },
   SERVICE_QUEUE: {
     noun: 'การเข้ารับบริการ',
@@ -454,6 +475,11 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     itemsLabel: 'รายการบริการ',
     // "รับบริการ" ไม่ใช่ "ให้บริการ" — ผู้ซื้อเป็นคนกด ไม่ใช่ร้าน (เทียบ fulfillLabel ข้างบน)
     buyerConfirmLabel: 'ยืนยันรับบริการ',
+    // 18 ตัวอักษร — ใต้เพดาน 20 ของ action.label บน LINE (ดูคอมเมนต์ของช่องนี้)
+    viewLabel: 'ดูรายละเอียดบริการ',
+    // "รับงานแล้ว" ไม่ใช่ "เริ่มให้บริการแล้ว" (= fulfillLabel ขั้นถัดไป) และไม่ใช่ "นัดแล้ว"
+    // (= APPOINTMENT_STATUS_LABEL.SCHEDULED ซึ่งมาแทนที่ป้ายนี้เมื่อใบนั้นมีนัด)
+    stageOrderedLabel: 'รับงานแล้ว',
   },
   LODGING: {
     noun: 'บิลเข้าพัก',
@@ -469,6 +495,9 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     // "เข้าพักแล้ว" ไม่ใช่ "รับเข้าพักแล้ว" — ผู้ซื้อยืนยันว่าตัวเองได้เข้าพักจริง ส่วน fulfillLabel
     // คือร้านกดว่ารับคนเข้าพักแล้ว คนละคนคนละปุ่ม
     buyerConfirmLabel: 'ยืนยันเข้าพักแล้ว',
+    viewLabel: 'ดูบิลเข้าพัก',
+    // ไม่ใช่ "จองแล้ว" — ชนกับเมนู /bookings ซึ่งเป็นคนละสิ่งกับบิล (ดูหมายเหตุเหนือ ORDER_VOCAB)
+    stageOrderedLabel: 'เปิดบิลแล้ว',
   },
 }
 

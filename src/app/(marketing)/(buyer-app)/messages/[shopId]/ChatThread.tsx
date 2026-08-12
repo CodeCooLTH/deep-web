@@ -53,6 +53,8 @@ import { getInitials } from '@/utils/getInitials'
 import { formatDateTH, formatTimeHM } from '@/lib/format-date'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { uploadFileId } from '@/lib/upload-client'
+// คลังคำตามประเภทกิจการ — SSOT เดียวทั้งฝั่งร้านและฝั่งลูกค้า (HR16) ห้ามพิมพ์คำซ้ำที่นี่
+import { resolveOrderVocab } from '@/lib/seller-menu'
 
 type SenderRole = 'BUYER' | 'SHOP'
 // ORDER = การ์ดออเดอร์/ใบเสนอราคาที่ร้านส่งให้ (user 2026-07-24) — buyer เห็นการ์ดเดียวกับฝั่ง seller
@@ -74,6 +76,9 @@ type OrderCardData = {
   status: string
   totalAmount: string
   items: { name: string; qty: number; price: string; imageFileId: string | null }[]
+  /** Shop.vertical ของร้านที่ส่งการ์ดใบนี้มา — ผันคำที่ **ลูกค้า** เห็น (ORDER_VOCAB)
+   *  ไม่ส่งมา/ไม่รู้จัก → ชุดคำ ONLINE_SALES เหมือนเดิม */
+  vertical?: string | null
 }
 
 type ChatMessageView = {
@@ -734,6 +739,10 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                         // เขียวตาม ref); หัว "คำสั่งซื้อ · #เลข" + รายการสินค้าข้างใน + ยอดสุทธิ; ปุ่ม → /o/{token}
                         if (msg.type === 'ORDER') {
                           const card = msg.orderCard
+                          // คำที่ลูกค้าเห็นต้องเป็นคำเดียวกับที่ร้านเห็น (user report 2026-08-12) —
+                          // เดิมจอนี้ hardcode "คำสั่งซื้อ" ทั้งหัวการ์ดและปุ่มท้ายการ์ด ร้านบริการ/
+                          // บ้านพักจึงส่งคำที่ตัวเองไม่ได้ใช้ออกไปหาลูกค้า
+                          const orderVocab = resolveOrderVocab(card?.vertical ?? '')
                           if (!card) {
                             return (
                               <div
@@ -743,12 +752,12 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                               >
                                 <Icon icon='tabler-receipt-off' fontSize={20} className='text-textDisabled' />
                                 <Typography className='text-sm' color='text.disabled'>
-                                  ไม่พบคำสั่งซื้อนี้แล้ว
+                                  ไม่พบ{orderVocab.noun}นี้แล้ว
                                 </Typography>
                               </div>
                             )
                           }
-                          const orderTitle = card.items[0]?.name ?? 'คำสั่งซื้อ'
+                          const orderTitle = card.items[0]?.name ?? orderVocab.noun
                           const orderPriceLabel = `฿${Number(card.totalAmount).toLocaleString('th-TH')}`
                           return (
                             <div
@@ -769,7 +778,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                                     {orderTitle}
                                   </Typography>
                                   <Typography className='truncate text-xs' style={{ color: 'inherit', opacity: 0.9 }}>
-                                    คำสั่งซื้อ · {card.orderNo || card.token.slice(0, 8).toUpperCase()}
+                                    {orderVocab.noun} · {card.orderNo || card.token.slice(0, 8).toUpperCase()}
                                   </Typography>
                                 </div>
                               </div>
@@ -831,7 +840,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                               >
                                 <Icon icon='tabler-external-link' fontSize={16} className='text-primary' />
                                 <Typography className='text-sm font-semibold' color='primary'>
-                                  ดูคำสั่งซื้อ
+                                  {orderVocab.viewLabel}
                                 </Typography>
                               </Link>
                             </div>

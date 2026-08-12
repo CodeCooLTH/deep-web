@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildLineFlexOrderCard } from '@/lib/line/flex-order-card'
+import { ORDER_VOCAB } from '@/lib/seller-menu'
 
 /** เดินลง tree ของ flex เก็บ text ทั้งหมด — เทสจะได้ไม่ผูกกับตำแหน่ง index ที่ขยับได้ทุกครั้งที่จัด layout */
 function allTexts(node: unknown, out: string[] = []): string[] {
@@ -39,6 +40,8 @@ const base = {
   extraItemCount: 0,
   totalText: '฿590',
   url: 'https://deepthailand.app/o/abc123',
+  noun: ORDER_VOCAB.ONLINE_SALES.noun,
+  buttonLabel: ORDER_VOCAB.ONLINE_SALES.viewLabel,
 }
 
 describe('buildLineFlexOrderCard', () => {
@@ -78,6 +81,25 @@ describe('buildLineFlexOrderCard', () => {
     expect(action.uri).toBe('https://deepthailand.app/o/abc123')
     // เกิน 20 ตัว = LINE ตีข้อความตกทั้งใบ ไม่ใช่แค่ตัดป้าย
     expect(String(action.label).length).toBeLessThanOrEqual(20)
+  })
+
+  it('[blocker] viewLabel ของทุกประเภทกิจการต้องไม่เกิน 20 ตัวอักษร — ยาวเกิน = LINE ตีตกทั้งใบ', () => {
+    // ด่านนี้อยู่ที่ ORDER_VOCAB ไม่ใช่ที่การ์ด: ตัวตัดใน builder กันปลายทางไว้แล้ว แต่คำที่ถูกตัด
+    // กลางคันคือคำที่ไม่มีใครตั้งใจให้ลูกค้าอ่าน — เพิ่ม vertical ใหม่แล้วตั้งคำยาวต้องแดงตรงนี้ก่อน
+    for (const [vertical, vocab] of Object.entries(ORDER_VOCAB)) {
+      expect(Array.from(vocab.viewLabel).length, `${vertical}.viewLabel`).toBeLessThanOrEqual(20)
+    }
+  })
+
+  it('[blocker] คำบนการ์ดต้องผันตามประเภทกิจการ — ร้านบริการห้ามส่งคำว่า "คำสั่งซื้อ" ออกไปหาลูกค้า', () => {
+    // user report 2026-08-12: ไฟล์นี้เคย hardcode "คำสั่งซื้อ"/"เปิดคำสั่งซื้อ" ไว้เป็นค่าคงที่
+    // ลูกค้าของร้านคิวงานจึงได้คำที่ร้านนั้นไม่ได้ใช้ทั้ง altText หัวการ์ด และปุ่ม
+    const svc = ORDER_VOCAB.SERVICE_QUEUE
+    const c = buildLineFlexOrderCard({ ...base, noun: svc.noun, buttonLabel: svc.viewLabel })
+    expect(c.altText.startsWith(`${svc.noun}:`)).toBe(true)
+    expect(allTexts(c.contents)).toContain(svc.noun)
+    expect(allTexts(c.contents)).not.toContain('คำสั่งซื้อ')
+    expect((findButton(c.contents)!.action as Record<string, unknown>).label).toBe(svc.viewLabel)
   })
 
   it('ใช้สีแบรนด์ฝั่งผู้ซื้อ ไม่ใช่สี Paces ของฝั่งผู้ขาย (การ์ดนี้ไปโผล่ในแอป LINE ของลูกค้า)', () => {

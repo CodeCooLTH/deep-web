@@ -20,6 +20,8 @@ import {
 } from "@/lib/chat-constants";
 import { describeSendFailure } from "@/lib/chat-send-failure";
 import { buildLineFlexOrderCard } from "@/lib/line/flex-order-card";
+// คลังคำตามประเภทกิจการ — คำที่ลูกค้าเห็นต้องมาจากที่เดียวกับที่ร้านเห็น (HR16)
+import { resolveOrderVocab } from "@/lib/seller-menu";
 import { buildLineFlexAppointmentCard } from "@/lib/line/flex-appointment-card";
 import { buildMetaAppointmentCard } from "@/lib/meta/appointment-card";
 import {
@@ -229,6 +231,16 @@ export async function GET(
             updatedAt: true,
             paymentMethod: true,
             codReceivedAt: true,
+            // นัดหมาย (feature 00024) — ขาด 4 ค่านี้แล้วการ์ดจะตกไปสาขา NO_SHIPPING ของ
+            // OrderCardView แล้วขึ้นแค่ "สถานะ: <ชิปกว้าง ๆ>" แทนวันนัด/มัดจำ โดยไม่มีอะไรฟ้อง
+            // (ทุก prop เป็น optional — tsc/build เขียวหมด) การ์ดใน right panel ส่งมาตั้งแต่
+            // 2026-08-08 แล้ว การ์ดในเธรดเพิ่งตามมา 2026-08-12 หลัง user เจอบน prod
+            serviceStart: true,
+            serviceEnd: true,
+            appointmentStatus: true,
+            depositAmount: true,
+            // ผันคำของการ์ดตามประเภทกิจการ — อ่านจากร้าน ณ ปัจจุบัน ไม่ใช่ธงบนแถวออเดอร์
+            shop: { select: { vertical: true } },
             items: {
               select: { name: true, qty: true, price: true, product: { select: { images: true } } },
             },
@@ -253,6 +265,11 @@ export async function GET(
           statusAt: o.updatedAt.toISOString(),
           paymentMethod: o.paymentMethod,
           codReceivedAt: o.codReceivedAt ? o.codReceivedAt.toISOString() : null,
+          vertical: o.shop.vertical,
+          serviceStart: o.serviceStart ? o.serviceStart.toISOString() : null,
+          serviceEnd: o.serviceEnd ? o.serviceEnd.toISOString() : null,
+          appointmentStatus: o.appointmentStatus,
+          depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
           items: o.items.map((it) => ({
             name: it.name,
             qty: it.qty,
@@ -902,16 +919,21 @@ export async function POST(
             totalAmount: true,
             items: { select: { name: true }, take: 1 },
             _count: { select: { items: true } },
+            // คำที่ลูกค้าเห็นต้องผันตามประเภทกิจการเหมือนที่ร้านเห็น (user report 2026-08-12) —
+            // เดิมฝั่งนี้ hardcode "คำสั่งซื้อ" ทั้ง 3 ที่ (ข้อความลิงก์ Meta, altText/หัวการ์ด Flex,
+            // ชื่อสำรองเมื่อบิลไม่มีรายการ) ร้านบริการจึงส่งคำว่า "คำสั่งซื้อ" ออกไปหาลูกค้าทุกใบ
+            shop: { select: { vertical: true } },
           },
         });
         if (!order) {
           return NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้ในร้าน" }, { status: 400 });
         }
+        const orderVocab = resolveOrderVocab(order.shop.vertical);
         const base = (process.env.NEXT_PUBLIC_BUYER_URL || "https://deepthailand.app").replace(/\/+$/, "");
-        const orderTitle = order.items[0]?.name ?? "คำสั่งซื้อ";
+        const orderTitle = order.items[0]?.name ?? orderVocab.noun;
         const orderTotal = `฿${Number(order.totalAmount).toLocaleString("th-TH")}`;
         const orderUrl = `${base}/o/${orderRefToken}`;
-        const linkText = `คำสั่งซื้อ: ${orderTitle}\nยอดสุทธิ ${orderTotal}\n${orderUrl}`;
+        const linkText = `${orderVocab.noun}: ${orderTitle}\nยอดสุทธิ ${orderTotal}\n${orderUrl}`;
         // (2026-08-11) LINE ได้การ์ด Flex จริง — Messenger/IG ยังได้ลิงก์ข้อความเหมือนเดิมทุกประการ
         // (ไม่มีของเทียบฝั่ง Meta; MetaAdapter ปฏิเสธ part ชนิด flex ตั้งแต่ต้นทางถ้าเผลอส่งไป)
         // 🛑 uri action ของ LINE รับเฉพาะ https — dev ที่ base เป็น http จะโดน LINE ปฏิเสธทั้งข้อความ
@@ -927,6 +949,9 @@ export async function POST(
                 extraItemCount: Math.max(0, order._count.items - 1),
                 totalText: orderTotal,
                 url: orderUrl,
+                // ห้ามให้ lib ตั้งคำเอง — คำมาจาก ORDER_VOCAB ที่เดียวทั้งระบบ (HR16)
+                noun: orderVocab.noun,
+                buttonLabel: orderVocab.viewLabel,
               })
             : undefined,
           orderRefToken: orderRefToken!, // ฝั่งเราเก็บเป็นการ์ด

@@ -71,6 +71,7 @@ type LatestOrderRow = {
   hasShipment: boolean
   serviceStart: Date | null
   appointmentStatus: string | null
+  vertical: string
 }
 
 /**
@@ -114,6 +115,9 @@ export async function enrichWithOrderStage<T extends Linkable>(
       -- serviceStart คือตัวนิยามว่าใบนี้เป็นนัด (ไม่ได้ดูจาก Shop.vertical) ดู appointmentFace()
       o."serviceStart"      AS "serviceStart",
       o."appointmentStatus" AS "appointmentStatus",
+      -- ผันคำของขั้น ORDERED ตามประเภทกิจการ (ร้านคิวงานไม่เรียกใบของตัวเองว่า "สั่งซื้อแล้ว")
+      -- อ่านจากร้าน ณ ปัจจุบัน ไม่ใช่ธงบนแถวออเดอร์ — INNER JOIN ปลอดภัยเพราะ Order.shopId บังคับ NOT NULL
+      sp."vertical"         AS "vertical",
       COALESCE(s."carrierStatusAt", o."updatedAt") AS "statusAt",
       s."labelPrintedAt"  AS "labelPrintedAt",
       s."labelPrintCount" AS "labelPrintCount",
@@ -122,6 +126,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
       -- เพราะพัสดุที่เพิ่งสร้าง (ยังไม่พิมพ์ ขนส่งยังไม่แจ้ง) ทั้งสองคอลัมน์นั้นเป็น null ทั้งคู่
       (s."id" IS NOT NULL) AS "hasShipment"
     FROM "Order" o
+    JOIN "Shop" sp ON sp."id" = o."shopId"
     LEFT JOIN LATERAL (
       SELECT sh."id", sh."labelPrintedAt", sh."labelPrintCount", sh."carrierStatus", sh."carrierStatusAt"
       FROM "OrderShipment" sh
@@ -151,6 +156,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
         hasShipment: r.hasShipment,
         serviceStart: r.serviceStart,
         appointmentStatus: r.appointmentStatus,
+        vertical: r.vertical,
       },
     ]),
   )
