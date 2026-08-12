@@ -100,3 +100,46 @@ describe('POST /api/orders/[token]/cancel — สิทธิ์ฝั่งร�
     expect(cancelOrderMock).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * [blocker] error ที่ไม่ได้ตั้งใจให้เกิด ห้ามหลุด message ดิบกลับไปหาผู้ขาย
+ *
+ * เคสจริง 2026-08-12: CHECK `Order_cancel_reason` ปฏิเสธ `BUYER_NO_SHOW` แล้วผู้ขายได้ error
+ * ของ Postgres เต็มหน้าจอ — ซึ่ง `DETAIL: Failing row contains (...)` พ่วง **ทุกคอลัมน์ของ
+ * ออเดอร์ รวมชื่อและเบอร์โทรลูกค้า** ออกมาด้วย และตอบเป็น 400 ทำให้ดูเหมือนผู้ใช้กรอกผิด
+ */
+describe('POST /api/orders/[token]/cancel — error ที่ไม่รู้จักต้องไม่รั่ว', () => {
+  beforeEach(() => {
+    vi.mocked(getServerSession).mockResolvedValue({ user: { id: OWNER_ID } } as never)
+    prismaMock.shopMember.findUnique.mockResolvedValue(null)
+  })
+
+  it('Prisma/DB error → 500 + ข้อความกลาง ไม่มีเนื้อ error ต้นทางติดไป', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    cancelOrderMock.mockRejectedValue(
+      new Error(
+        'Invalid `prisma.order.update()` invocation: violates check constraint "Order_cancel_reason" ' +
+          'DETAIL: Failing row contains (152fb4ae, 0920791649, Sekson Oonnom, BUYER_NO_SHOW)',
+      ),
+    )
+
+    const res = await POST(makeRequest(), routeParams)
+    const body = (await res.json()) as { error: string }
+
+    expect(res.status).toBe(500)
+    expect(body.error).toBe('ยกเลิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+    // สิ่งที่ห้ามหลุด: ชื่อเทคโนโลยี · ชื่อ constraint · แถวข้อมูล · เบอร์ลูกค้า
+    expect(body.error).not.toMatch(/prisma|constraint|Failing row|0920791649/i)
+    spy.mockRestore()
+  })
+
+  it('สถานะที่ยกเลิกไม่ได้ → 400 เป็นภาษาไทย ไม่ใช่ "Invalid transition: ..."', async () => {
+    cancelOrderMock.mockRejectedValue(new Error('Invalid transition: CONFIRMED → CANCELLED'))
+
+    const res = await POST(makeRequest(), routeParams)
+    const body = (await res.json()) as { error: string }
+
+    expect(res.status).toBe(400)
+    expect(body.error).toBe('คำสั่งซื้อนี้อยู่ในสถานะที่ยกเลิกไม่ได้แล้ว')
+  })
+})

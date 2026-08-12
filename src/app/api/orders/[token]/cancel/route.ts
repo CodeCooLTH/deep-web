@@ -71,7 +71,30 @@ export async function POST(
       return NextResponse.json({ error: "เหตุผลที่เลือกไม่อยู่ในรายการ" }, { status: 400 });
     }
     // assertTransition throw → 400 (invalid state transition, เช่น cancel-after-CONFIRMED)
-    const message = err instanceof Error ? err.message : "Cancel failed";
-    return NextResponse.json({ error: message }, { status: 400 });
+    // ข้อความต้นทางเป็นภาษาอังกฤษเชิงเทคนิค ("Invalid transition: PENDING → CANCELLED")
+    // จึงแปลตรงนี้ ไม่ส่งดิบ
+    const raw = err instanceof Error ? err.message : "";
+    if (raw.startsWith("Invalid transition:")) {
+      return NextResponse.json(
+        { error: "คำสั่งซื้อนี้อยู่ในสถานะที่ยกเลิกไม่ได้แล้ว" },
+        { status: 400 },
+      );
+    }
+    if (raw === "Order not found") {
+      return NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้" }, { status: 404 });
+    }
+
+    // 🛑 ที่เหลือคือ error ที่เราไม่ได้ตั้งใจให้เกิด — ห้ามส่ง message ดิบกลับไป
+    //
+    // เดิมบรรทัดนี้ตอบ `err.message` ของอะไรก็ได้ด้วย 400 ผลคือตอน CHECK constraint
+    // `Order_cancel_reason` ปฏิเสธค่าใหม่ (2026-08-12) ผู้ขายได้ error ของ Postgres เต็มจอ
+    // ซึ่ง **มี `DETAIL: Failing row contains (...)` = ทุกคอลัมน์ของออเดอร์ รวมชื่อและเบอร์
+    // ลูกค้า** ติดไปด้วย — และ 400 ยังทำให้มันดูเหมือน "ผู้ใช้กรอกผิด" ทั้งที่ระบบพัง
+    // ทำให้ทั้งคนใช้และคนดู log เข้าใจผิดพร้อมกัน
+    console.error("[orders/cancel] unexpected error", { token, initiator, err });
+    return NextResponse.json(
+      { error: "ยกเลิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง" },
+      { status: 500 },
+    );
   }
 }
