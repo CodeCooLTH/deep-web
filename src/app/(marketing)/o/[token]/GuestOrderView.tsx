@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * GuestOrderView — หน้าออเดอร์สำหรับผู้ที่ยังไม่ล็อกอิน (feature 00041, มติ D-1 ของ user)
  *
@@ -30,7 +28,7 @@ import { Icon } from '@iconify/react'
 import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFooter'
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { resolveVerifyBadge } from '@/lib/verify-badge'
-import { LinkButton } from '@/app/(marketing)/_components/mui-link'
+import AuthPingLink from './AuthPingLink'
 import { formatOrderNo } from '@/lib/order-no'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
@@ -56,7 +54,7 @@ import type { GuestOrderData } from './guest-order-data'
 const SectionTitle = ({ children }: { children: React.ReactNode }) => (
   <Typography
     component='h2'
-    sx={{ m: 0, mb: 1, fontSize: '0.8125rem', fontWeight: 700, color: 'text.primary', lineHeight: 1.5 }}
+    sx={{ m: 0, mb: 2, fontSize: '0.9375rem', fontWeight: 500, color: 'text.primary', lineHeight: 1.5 }}
   >
     {children}
   </Typography>
@@ -97,25 +95,6 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
   const isClosed = order.status === 'CONFIRMED' || order.status === 'CANCELLED'
   const ctaLabel = isClosed ? 'เข้าสู่ระบบเพื่อดูรายละเอียดคำสั่งซื้อ' : 'เข้าสู่ระบบเพื่อยืนยันรับสินค้า'
 
-  /**
-   * ยิงบันทึกว่า "เริ่ม auth flow จากลิงก์ออเดอร์" แบบ fire-and-forget ก่อนเปลี่ยนหน้า
-   * ไม่ await และไม่สนใจผลลัพธ์ — endpoint คืน 204 เสมอ (ครึ่งแรกของ Login Completion Rate)
-   */
-  const pingAuthFlow = (method: 'facebook' | 'phone_otp' | 'other') => {
-    void fetch(`/api/orders/${order.publicToken}/auth-flow/start`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ method }),
-      keepalive: true, // ต้องส่งให้จบแม้หน้ากำลังจะถูกเปลี่ยน
-    }).catch(() => {})
-  }
-
-  // HR2: ห้าม component={Link} ดิบ — ใช้ LinkButton wrapper ของโปรเจกต์
-  const LoginLink = ({ children, ...rest }: Omit<React.ComponentProps<typeof LinkButton>, 'href'>) => (
-    <LinkButton href={loginHref} onClick={() => pingAuthFlow('other')} {...rest}>
-      {children}
-    </LinkButton>
-  )
 
   return (
     // 🛑 ต้องบวก env(safe-area-inset-bottom) ด้วย — แถบ CTA ล่างจอบวก inset เข้าไปในความสูงของ
@@ -151,6 +130,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
               display: 'grid',
               placeItems: 'center',
               fontSize: 25,
+              // ตัวอักษรแทนรูปร้าน = ทำหน้าที่เป็น "ภาพ" ไม่ใช่ข้อความ จึงคง 800 ได้ (ไม่ใช่ Strong)
               fontWeight: 800,
               // 🛑 text.secondary ไม่ใช่ text.disabled — 0.4 ได้ 2.30:1 ตก AA (audit 2026-08-11)
               color: 'text.secondary',
@@ -177,7 +157,8 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
               m: 0,
               mt: 1,
               fontSize: '1.125rem',
-              fontWeight: 800,
+              // Strong (700) — ขั้นที่ประกาศใน DESIGN.md 2026-08-12; 800 สงวนให้ Metric เท่านั้น
+              fontWeight: 700,
               lineHeight: 1.35,
               display: '-webkit-box',
               WebkitLineClamp: 2,
@@ -277,7 +258,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                   {formatOrderNo(order.publicToken, order.createdAtIso)} · {formatDateTimeTH(order.createdAtIso)}
                 </Typography>
               </Box>
-              <Typography component='h2' sx={{ m: 0, mt: 1, fontSize: '1.125rem', fontWeight: 800, lineHeight: 1.35 }}>
+              <Typography component='h2' sx={{ m: 0, mt: 1, fontSize: '1.125rem', fontWeight: 700, lineHeight: 1.35 }}>
                 {statusHeadline.headline}
               </Typography>
               {order.shipmentTracking && (
@@ -323,7 +304,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                 <Typography variant='body2' color='text.secondary'>
                   ยอดรวม
                 </Typography>
-                <Typography variant='h6' sx={{ fontWeight: 800 }}>
+                <Typography variant='h6' sx={{ fontWeight: 700 }}>
                   {baht.format(order.totalAmount)}
                 </Typography>
               </Box>
@@ -394,7 +375,9 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
               {/* 🛑 minHeight 44 ต้องมีทั้งสองปุ่ม — รอบก่อนผมแก้แค่ปุ่มล่างแล้วรายงานว่า
                   "tap target 44px เสร็จแล้ว" ทั้งที่ปุ่มบนยังสูง ~36-38px (outlined+medium =
                   padding 7px + line-box 22px) เป็นการปิดเคสทั้งคลาสจากการแก้ตัวอย่างเดียว */}
-              <LoginLink
+              <AuthPingLink
+                href={loginHref}
+                publicToken={order.publicToken}
                 fullWidth
                 variant='outlined'
                 color='secondary'
@@ -402,14 +385,16 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                 sx={{ minHeight: 44 }}
               >
                 ติดต่อร้านค้า
-              </LoginLink>
+              </AuthPingLink>
               {/* 🛑 เดิมเป็น `variant='text' size='small'` สูงราว 30px ซึ่งต่ำกว่าเกณฑ์ 44px ที่
                   PRODUCT.md ตั้งไว้เองสำหรับกลุ่มผู้สูงวัย/digital-literacy ต่ำ — และคำอธิบาย
                   ใต้ปุ่มเป็น text.disabled (2.30:1) ซึ่งตก AA. รวมสองบรรทัดเป็นปุ่มใบเดียวที่
                   สูงพอและอ่านออก แทนที่จะมีลิงก์จิ๋วคู่กับข้อความจางที่ดูเหมือนข้อความตาย */}
               {!isClosed && (
                 <Box sx={{ mt: 2 }}>
-                  <LoginLink
+                  <AuthPingLink
+                    href={loginHref}
+                    publicToken={order.publicToken}
                     fullWidth
                     variant='outlined'
                     color='secondary'
@@ -417,7 +402,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                     sx={{ minHeight: 44, justifyContent: 'flex-start' }}
                   >
                     ยังไม่ได้รับสินค้า? แจ้งร้านค้าว่ามีปัญหา
-                  </LoginLink>
+                  </AuthPingLink>
                 </Box>
               )}
             </CardContent>
@@ -452,9 +437,15 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
         }}
       >
         <Box sx={orderContentWidthSx}>
-          <LinkButton href={loginHref} onClick={() => pingAuthFlow('other')} fullWidth variant='contained' size='large'>
+          <AuthPingLink
+            href={loginHref}
+            publicToken={order.publicToken}
+            fullWidth
+            variant='contained'
+            size='large'
+          >
             {ctaLabel}
-          </LinkButton>
+          </AuthPingLink>
           <Typography variant='caption' color='text.secondary' sx={{ display: 'block', textAlign: 'center', mt: 0.75 }}>
             ต้องเข้าสู่ระบบก่อนยืนยัน แนบสลิป เขียนรีวิว หรือแจ้งปัญหา
           </Typography>

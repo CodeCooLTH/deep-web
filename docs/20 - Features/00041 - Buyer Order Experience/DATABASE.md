@@ -366,3 +366,79 @@ ALTER TABLE "Review"
 - ยืนยัน `SELECT pg_get_constraintdef(...)` บนฐานปลายทางก่อนรัน Migration 2 — ถ้าไม่ตรงกับ 15 ค่าที่ระบุ ให้หยุดและสืบก่อน ไม่ใช่รันทับ
 - เช็ค timestamp migration ชนกับ branch อื่นซ้ำก่อน Write
 - `docs/SRS.md` (เอกสารระบบรวม) ต้อง sync ตาม HR11 เมื่อ implement เสร็จ — ไม่ใช่แค่ feature docs
+
+---
+
+## ส่วนขยาย 2026-08-12 — `Order.conversationId`
+
+> งานนี้ไม่ได้อยู่ในขอบเขต TFR ของ 00041 (Review/OrderEvent) โดยตรง — ผูกกับหน้าจอ `/orders` ของผู้ขาย (`OrdersTable.tsx`) แต่ Controller สั่งให้บันทึกต่อท้ายไฟล์นี้ตามรอบงานที่ทำ
+
+### บริบท / ปัญหา
+
+`Order` วันนี้ไม่ได้ผูกกับ **เธรดแชท** ที่สร้างมันเลย มีแค่ `shopChannelId` (2026-08-10) ซึ่งชี้ได้แค่ระดับ **เพจ/LINE OA** ปุ่ม "เปิดแชท" ในหน้า `/orders` (`OrdersTable.tsx:1002`, resolve ที่ `orders/page.tsx:337`) จึงต้องเดาเธรดด้วยการ join ผ่าน `Order → Customer → Conversation` (`convByCustomer.get(customerId) ?? convByBuyer.get(buyerUserId)`) — ลูกค้าที่มีมากกว่า 1 เธรด (ทัก FB แล้วย้ายไป LINE, หรือร้านมี ≥2 เพจ) จะได้เธรดที่ไม่ตรงกับใบที่กำลังดูอยู่จริง
+
+### การตัดสินใจที่ล็อกแล้ว
+
+1. `Order.conversationId String?` — FK → `Conversation`, nullable
+2. **ไม่ backfill** ออเดอร์เก่า — เหตุผลอยู่ที่คอมเมนต์ schema/migration (สรุป: วิธีเดียวที่จะเติมย้อนหลังได้คือวิธีเดาแบบเดิมที่เป็นต้นเหตุบั๊กนี้เอง เขียนทับด้วยค่าที่รู้อยู่แล้วว่าอาจผิดใบจะกลืนหายไปกับของจริงจนแยกไม่ออก)
+3. ฝั่งอ่านต้อง fallback: มีค่า → ใช้ตรง ๆ · เป็น `NULL` → ถอยไปใช้ map เดิม (`convByCustomer`/`convByBuyer`) เหมือนวันนี้ทุกประการ — **นี่คืองานโค้ดแอป ไม่ใช่งาน DB ชิ้นนี้** ยังไม่ได้แก้ `orders/page.tsx`/`OrdersTable.tsx`
+4. `onDelete: SetNull` — มิเรอร์แพตเทิร์นเดียวกับ `shopChannelId`
+5. เขียนค่าตอน `createOrder` เท่านั้น จาก `conversationId?: string` ที่ฟังก์ชันรับเข้ามาอยู่แล้ว (`src/services/order.service.ts:252`, ใช้กับ `findThreadContact`/`relinkThreadCustomer` อยู่แล้ว) — **ยังไม่ได้แก้โค้ดจุดนี้ในรอบนี้** (ดู "ขอบเขตที่ยังไม่ทำ" ด้านล่าง) ไม่มีหน้าจอให้ร้านแก้ทีหลัง เหมือน `shopChannelId`
+
+### Tables changed
+
+| Table | คอลัมน์ใหม่ | Type | Null | Default | Key |
+|-------|--------------|------|:----:|---------|-----|
+| `Order` | `conversationId` | `text` | ✅ | — | FK → `Conversation.id` (`onDelete: SetNull`) |
+
+ไม่มีตารางใหม่ ไม่มีคอลัมน์อื่นถูกแตะ (`Conversation.customerId`/`relinkThreadCustomer` คงเดิมทุกประการ — ห้ามแก้ตามที่ Controller ล็อกไว้)
+
+### Indexes
+
+| Index | คอลัมน์ | Type | เหตุผล |
+|-------|---------|------|--------|
+| `Order_conversationId_idx` | `(conversationId)` | BTREE | ปุ่ม "เปิดแชท" หาเธรดต้นทางของออเดอร์นี้ตรง ๆ ด้วย equality lookup แทนการไล่ join ผ่าน `Customer` — pattern เดียวกับ `Order_shopChannelId_idx` |
+
+### Constraints
+
+- `Order_conversationId_fkey` — `FOREIGN KEY ("conversationId") REFERENCES "Conversation"("id") ON DELETE SET NULL ON UPDATE CASCADE`
+- ไม่มี CHECK/UNIQUE เพิ่ม — 1 ออเดอร์ผูกได้กับ 1 เธรด (many-to-one ปกติ) หลายออเดอร์ผูกเธรดเดียวกันได้ (ลูกค้าสั่งซื้อซ้ำในห้องเดิม)
+
+### Migration file
+
+`prisma/migrations/20260812090000_order_conversation_id/migration.sql` — additive ล้วน (`ADD COLUMN` nullable ไม่มี default, `CREATE INDEX IF NOT EXISTS`, `ADD CONSTRAINT` แบบ `EXCEPTION WHEN duplicate_object` กันรันซ้ำ) ไม่มี `UPDATE`/`DELETE`/backfill script แยก
+
+**ตรวจ timestamp ซ้ำก่อน Write จริงเสมอ** (ตามแบบ Migration 1/2 ด้านบน):
+```bash
+git log --all --name-only --pretty=format: -- 'prisma/migrations/*' \
+  | grep -oE '2026[0-9]{10}_[a-z_0-9]+' | sort -u | tail -5
+```
+ยืนยันแล้ว ณ วันที่เขียน (2026-08-12): migration ล่าสุดในรีโปคือ `20260811180000_auto_reply_rich_menu_context` — `20260812090000` อยู่หลังตัวนั้น ไม่ชนกับ branch อื่น
+
+### Query impact (ยังไม่ implement — บันทึกไว้เป็นสเปกให้ dev ทำต่อ)
+
+| ไฟล์ | จุดที่ต้องแก้ | สิ่งที่ต้องทำ |
+|------|----------------|----------------|
+| `src/services/order.service.ts` (`createOrder`, `orderDataBase`) | บรรทัดเดียวกับที่เขียน `shopChannelId: resolvedShopChannelId ?? undefined` | เพิ่ม `conversationId: data.conversationId ?? undefined` — เขียนค่าที่รับเข้ามาอยู่แล้วตรง ๆ ไม่ต้อง query เพิ่ม |
+| `src/services/order.service.ts` (`updateOrder`) | — | **ห้ามเขียนค่านี้** — มติ #5 ล็อกไว้ว่าเขียนตอน `createOrder` เท่านั้น ไม่มีหน้าจอแก้ทีหลัง |
+| `src/app/(paces)/seller/(dashboard)/orders/page.tsx:337` | จุด resolve `conversationId` ให้แต่ละแถว | เปลี่ยนลำดับ fallback เป็น `o.conversationId ?? convByCustomer.get(o.customerId) ?? convByBuyer.get(o.buyerUserId) ?? null` — มีค่าจริงใช้ก่อนเสมอ ไม่มีค่า (ออเดอร์เก่า/สร้างนอกแชท) ถอยไปพฤติกรรมเดิม |
+| `src/app/(paces)/seller/(dashboard)/orders/components/OrdersTable.tsx:1002` | ปุ่ม "เปิดแชท" | ไม่ต้องแก้ตัวปุ่มเอง (อ่านจาก `row.original.conversationId` ที่ resolve มาจากบรรทัดบนอยู่แล้ว) |
+
+🛑 **ยังไม่แก้ทั้ง 3 จุดข้างต้นในรอบนี้** — ขอบเขตงานนี้คือ schema/migration/เอกสารเท่านั้น (ตาม Controller สั่ง) การเดินสายโค้ดแอปเป็นงานถัดไป
+
+### Rollback notes
+
+```sql
+ALTER TABLE "Order" DROP CONSTRAINT IF EXISTS "Order_conversationId_fkey";
+DROP INDEX IF EXISTS "Order_conversationId_idx";
+ALTER TABLE "Order" DROP COLUMN IF EXISTS "conversationId";
+```
+
+ปลอดภัยไม่มีเงื่อนไขพิเศษ — คอลัมน์นี้ nullable ล้วน ไม่มีแถวไหน "พึ่งพา" ค่านี้เป็นความจริงหนึ่งเดียว (ฝั่งอ่านออกแบบให้ fallback อยู่แล้วตาม §Query impact) ต่างจาก `Review.deletedAt` ใน Migration 1 ด้านบนที่ rollback มีผลข้างเคียงจริง — ที่นี่ rollback แค่ทำให้ปุ่ม "เปิดแชท" กลับไปเดาเธรดแบบเดิม ไม่มีข้อมูลหาย
+
+### Risks
+
+- **Query impact ยังไม่ implement** — มี column/index/FK พร้อมใช้แล้ว แต่จนกว่า dev จะแก้ 3 จุดใน §Query impact ค่านี้จะเป็น `NULL` เสมอทุกแถว (เขียนไม่ถึงเพราะยังไม่แก้ `createOrder`) — ไม่ใช่บั๊กจาก migration นี้ แต่เป็นหนี้ที่ต้องปิดก่อนฟีเจอร์ "เห็นผล" จริงบนหน้าจอ (คลาสเดียวกับ `docs/conventions/known-limitation-vs-unfinished.md`)
+- **Lock/downtime:** ไม่มี — `ADD COLUMN` nullable ไม่มี default ไม่ rewrite ตาราง, `CREATE INDEX` (ไม่ใช้ `CONCURRENTLY` — มิเรอร์ pattern เดิมของ `shopChannelId`/โปรเจกต์นี้ที่ตาราง `Order` ยังเล็กพอสำหรับ `ACCESS EXCLUSIVE` สั้น ๆ ตอน build index)
+- **PII:** ไม่เพิ่มความเสี่ยงใหม่ — `conversationId` เป็นแค่ id อ้างเธรดที่มีอยู่แล้ว ไม่ expose เนื้อหาแชทเพิ่ม
+- **สับสนกับ `shopChannelId`:** มีความเสี่ยงที่ dev ในอนาคตจะใช้สองฟิลด์นี้แทนกันเพราะชื่อดูคล้ายกัน (ทั้งคู่ "ผูกกับที่มาของแชท") — กันไว้แล้วด้วยคอมเมนต์เปรียบเทียบตรง ๆ ทั้งในตัว field และในไฟล์ migration (HR16 pattern)

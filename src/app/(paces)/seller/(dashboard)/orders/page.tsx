@@ -334,7 +334,14 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     })(),
     codReceivedAtISO: o.codReceivedAt ? new Date(o.codReceivedAt).toISOString() : null,
     customerStats: o.customerId ? (statByCustomer.get(o.customerId) ?? null) : null,
+    /* 🛑 ค่าที่บันทึกไว้ตอนสร้างออเดอร์ชนะเสมอ — สอง map ด้านล่างเป็น "การเดา" จากเบอร์โทร
+       (Order → Customer → Conversation) ซึ่งคืนเธรดไหนก็ได้ของลูกค้าคนนั้น ไม่ใช่เธรดที่สร้าง
+       ออเดอร์ใบนี้จริง ⇒ ลูกค้าที่ทัก FB แล้วย้ายไป LINE หรือร้านที่มี ≥2 เพจ ปุ่ม "เปิดแชท"
+       พาไปผิดห้องได้ (บั๊กที่มีอยู่บน prod ก่อน 2026-08-12)
+       ออเดอร์เก่าไม่ถูก backfill โดยตั้งใจ (ดู schema.prisma) จึงยังต้องมี fallback ไว้
+       ไม่งั้นปุ่มจะหายไปจากออเดอร์เก่าทุกใบ = regress หนักกว่าบั๊กเดิม */
     conversationId:
+      o.conversationId ??
       (o.customerId ? convByCustomer.get(o.customerId) : undefined) ??
       (o.buyerUserId ? convByBuyer.get(o.buyerUserId) : undefined) ??
       null,

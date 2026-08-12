@@ -782,6 +782,35 @@ model Order {
   /// (ประวัติการขายของร้าน) และต้องไม่บล็อกการลบช่องทาง (ห้าม Restrict/Cascade เด็ดขาด)
   shopChannelId String?
 
+  /// เธรดแชทที่ "สร้าง" ออเดอร์นี้จริง ๆ (2026-08-12) — FK → Conversation ตรง ๆ (ระดับคน/ห้อง)
+  /// NULL = สร้างออกนอกแชท (หน้าร้าน/POS/ลิงก์ตรง — ไม่มีเธรดต้นทาง) **เดียวกับความหมาย NULL
+  /// ของ shopChannelId** แต่ null ของสองฟิลด์นี้ไม่จำเป็นต้องพร้อมกันเสมอไปสำหรับแถวเก่า (ดูหมายเหตุ
+  /// no-backfill ด้านล่าง)
+  ///
+  /// 🛑 ทำไมต้องมีทั้งที่มี `shopChannelId` (2026-08-10) อยู่แล้ว — คนละระดับกันโดยสิ้นเชิง:
+  ///   - shopChannelId ชี้ **เพจ/LINE OA** (ระดับช่องทาง) — ร้านที่มี ≥2 เพจ หรือลูกค้าที่ทัก
+  ///     FB แล้วย้ายไป LINE ยังตอบไม่ได้ว่า "เธรดไหนที่คนคุยจริง" มีแค่ "เพจไหน"
+  ///   - conversationId ชี้ **ห้องแชทเดียวเป๊ะ** (ระดับคน) — คือเธรดที่ผู้ขายกดสร้างออเดอร์ใบนี้
+  ///     ออกมาจริง ๆ ปุ่ม "เปิดแชท" ในหน้า /orders ต้องพากลับไปห้องนั้น ไม่ใช่ห้องไหนก็ได้ของ
+  ///     ลูกค้าคนเดียวกัน (บั๊กเดิม: resolve ผ่าน Order→Customer→Conversation ที่ join ด้วยเบอร์
+  ///     โทร แล้วเลือกเธรดแบบเดาเมื่อลูกค้ามีหลายเธรด — ดู OrdersTable.tsx/orders/page.tsx)
+  ///
+  /// 🛑 **จงใจไม่ backfill ออเดอร์เก่า** — วิธีเดียวที่จะเติมค่าย้อนหลังได้คือ derive จาก
+  /// `Order → Customer → Conversation` แบบเดียวกับที่ทำให้เกิดบั๊กนี้ (เดาเธรดจากเบอร์โทร ไม่ใช่
+  /// ข้อเท็จจริงที่บันทึกไว้ตอนสร้างออเดอร์จริง) เขียนค่าที่รู้อยู่แล้วว่า **ชี้ผิดใบได้** ลงฐานถาวร
+  /// จะแยกไม่ออกอีกต่อไปว่าแถวไหนเป็นข้อเท็จจริง แถวไหนเป็นการเดา — ออเดอร์เก่าทุกใบปล่อย NULL
+  /// แล้วให้ฝั่งอ่าน fallback ไปใช้ map เดิม (พฤติกรรมเดิมทุกประการ ไม่ regress)
+  ///
+  /// เขียนค่าครั้งเดียวตอน createOrder จาก `conversationId` ที่ caller ส่งเข้ามาอยู่แล้ว
+  /// (order.service.ts รับพารามิเตอร์นี้มาใช้กับ findThreadContact/relinkThreadCustomer อยู่แล้ว —
+  /// ฟีเจอร์นี้แค่เก็บมันลงคอลัมน์ด้วย ไม่ใช่ query ใหม่) **ไม่มีหน้าจอให้ร้านแก้ทีหลัง**
+  /// เหมือน shopChannelId
+  ///
+  /// onDelete: SetNull — ร้านลบ/ถอดเธรดได้ตลอด (เช่นลบบัญชีลูกค้า/ล้างประวัติแชท) ออเดอร์เดิมต้อง
+  /// ไม่หายตามและต้องไม่บล็อกการลบเธรด (แพตเทิร์นเดียวกับ shopChannelId ด้านบน — ห้าม
+  /// Restrict/Cascade เด็ดขาด)
+  conversationId String?
+
   shop             Shop                    @relation(fields: [shopId], references: [id])
   buyer            User?                   @relation("BuyerOrders", fields: [buyerUserId], references: [id])
   createdBy        User?                   @relation("CreatedOrders", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -791,6 +820,8 @@ model Order {
   housekeeper      Housekeeper?            @relation(fields: [housekeeperId], references: [id], onDelete: SetNull)
   // ช่องทางที่ลูกค้าทักเข้ามา (2026-08-10) — ดูคอมเมนต์ที่ field shopChannelId ด้านบน
   shopChannel      ShopChannel?            @relation(fields: [shopChannelId], references: [id], onDelete: SetNull)
+  // เธรดแชทที่สร้างออเดอร์นี้จริง (2026-08-12) — ดูคอมเมนต์ที่ field conversationId ด้านบน
+  conversation     Conversation?           @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   serviceResource  ServiceResource?        @relation(fields: [serviceResourceId], references: [id], onDelete: Restrict) // feature 00024
   reschedules      AppointmentReschedule[] // feature 00024 — ประวัติการเลื่อนนัด (สะสม BR-RSV-30)
   items            OrderItem[]
@@ -838,6 +869,7 @@ model Order {
   @@index([shopId, type, serviceStart], map: "Order_shopId_type_serviceStart_idx") // feat 00024 — ปฏิทินคิวรวมของร้าน
   @@index([shopId, appointmentStatus], map: "Order_shopId_appointmentStatus_idx") // feat 00024 — นัดที่รอร้านตัดสิน
   @@index([shopChannelId], map: "Order_shopChannelId_idx") // 2026-08-10 — หารูป/ชื่อช่องทางต้นทางของออเดอร์ (หน้า /orders คอลัมน์ "ที่มา")
+  @@index([conversationId], map: "Order_conversationId_idx") // 2026-08-12 — ปุ่ม "เปิดแชท" หาเธรดต้นทางของออเดอร์นี้ตรง ๆ (แทนการเดาจาก Customer)
 }
 
 // Customer (feat 00014 — Customer Directory) — ตัวตนลูกค้ากลาง keyed by phone (cross-shop identity).
@@ -1614,6 +1646,9 @@ model Conversation {
   autoReplyTestThreads AutoReplyKeywordTestThread[]
   contextProduct       Product?                     @relation("ConversationContextProduct", fields: [contextProductId], references: [id], onDelete: SetNull)
   aiChatbotTestThreads AiChatbotTestThread[] // แชทที่ถูกเลือกไว้ทดสอบ ChatBot
+  // back-relation ของ Order.conversationId (2026-08-12) — ออเดอร์ที่ถูกสร้างจากเธรดนี้ (0..N,
+  // ปกติมีไม่กี่ใบต่อเธรด) ดูคอมเมนต์เต็มที่ field ใน model Order — nullable, ไม่ backfill ย้อนหลัง
+  orders               Order[]
 
   @@unique([buyerUserId, shopId]) // BR-CHAT-02: 1 conversation ต่อคู่ (buyer, shop) เท่านั้น — กัน race ที่ getOrCreateConversation
   @@unique([shopChannelId, externalContactId]) // 1 เธรดต่อ (Page, PSID) — กัน race แบบเดียวกับ BR-CHAT-02

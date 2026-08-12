@@ -435,6 +435,12 @@ export async function createOrder(shopId: string, data: {
   // "เธรดนี้ผูกกับลูกค้าคนไหนอยู่" (externalContact — ใช้ตอนผูก Customer ด้านล่าง)
   // เดิมแยกกันคนละคิวรีในรอบเดียวกัน = ยิงเธรดเดิมซ้ำสองครั้งต่อการสร้างออเดอร์หนึ่งใบ
   let resolvedShopChannelId: string | null = null;
+  // 🛑 conversationId ที่จะ "เขียนลงออเดอร์" ต้องมาจากคิวรีที่ผ่าน WHERE shopId แล้วเท่านั้น
+  // ห้ามเขียน `data.conversationId` ดิบ ๆ — caller ส่งอะไรมาก็ได้ ถ้าเชื่อตรง ๆ จะผูกออเดอร์
+  // เข้ากับเธรดของร้านอื่นได้ (ownership scope ต้องอยู่ใน WHERE ไม่ใช่เช็คทีหลัง — feedback_rsc_dal_authz)
+  // และต้องเช็ค `conv` ไม่ใช่ `conv?.shopChannelId` เพราะเธรดที่ยังไม่มีช่องทางผูก (shopChannelId
+  // เป็น null ได้) ก็ยังเป็นเธรดที่ถูกต้องของร้านนี้อยู่ดี
+  let resolvedConversationId: string | null = null;
   let threadContact: ThreadContact | null = null;
   if (data.conversationId) {
     const conv = await prisma.conversation.findFirst({
@@ -447,6 +453,7 @@ export async function createOrder(shopId: string, data: {
       },
     });
     resolvedShopChannelId = conv?.shopChannelId ?? null;
+    resolvedConversationId = conv ? data.conversationId : null;
     threadContact = toThreadContact(conv?.externalContact ?? null);
   }
 
@@ -470,6 +477,9 @@ export async function createOrder(shopId: string, data: {
     depositAmount: appointmentDeposit,
     fulfillmentMode,
     shopChannelId: resolvedShopChannelId ?? undefined,
+    // เธรดต้นทางระดับ "ห้อง" (ต่างจาก shopChannelId ที่เป็นระดับ "เพจ") — ดูคอมเมนต์เต็มที่
+    // field ใน schema.prisma. เขียนครั้งเดียวตอนสร้าง ไม่มีหน้าจอให้แก้ทีหลัง
+    conversationId: resolvedConversationId ?? undefined,
     buyerContact: data.buyerContact ?? undefined,
     buyerName: data.buyerName ?? undefined,
     paymentMethod: data.paymentMethod ?? undefined,
