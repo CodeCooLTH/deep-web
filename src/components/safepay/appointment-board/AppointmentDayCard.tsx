@@ -253,13 +253,18 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
             {who}
           </span>
           {/* flex-wrap: ที่ 320px ป้าย "ลูกค้ายืนยันแล้ว" + ชื่อเพจ ยาวเกินหนึ่งบรรทัดเป็นปกติ
-              (flex ตัดสิน wrap จากขนาดเนื้อหาเต็มก่อนหด — flex-header-truncation.md) */}
-          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+              (flex ตัดสิน wrap จากขนาดเนื้อหาเต็มก่อนหด — flex-header-truncation.md)
+
+              🛑 `truncate` เฉย ๆ ไม่พอในกล่อง flex — ต้องมี `min-w-0` ที่ตัวกล่องและ `max-w-full`
+              ที่ลูกด้วย ไม่งั้นชื่อเพจยาว ๆ จะดันกล่องกว้างเกินจอแทนที่จะถูกตัด แล้วเนื้อหาทั้งชีต
+              เลื่อนข้างได้จนการ์ดหลุดขอบซ้าย (เกิดจริงบน prod 2026-08-12 กับเพจชื่อ
+              "BT Premium Auto Xenon คลอง4 ธัญบุรี") */}
+          <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span className={`badge ${meta.cls}`}>{statusLabel}</span>
             {showResourceName && item.resource ? (
-              <span className="text-default-700 truncate text-xs">{item.resource.name}</span>
+              <span className="text-default-700 max-w-full truncate text-xs">{item.resource.name}</span>
             ) : null}
-            <span className="text-default-500 truncate text-2xs">{sourceText}</span>
+            <span className="text-default-500 max-w-full truncate text-2xs">{sourceText}</span>
           </span>
         </span>
         <Icon icon="chevron-right" className="text-default-400 mt-1 size-4 shrink-0" aria-hidden="true" />

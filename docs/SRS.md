@@ -866,6 +866,26 @@ SellerWallet (1) ── (N) WalletTransaction
 > **Auth:** session → `requireActiveShop()` (ไม่มี active shop → `404 NOT_FOUND`) → `canAccessShop()` เป็น defense-in-depth ชั้นสอง (`403 FORBIDDEN`) — ไม่มีเช็ค `role` แยกอีกชั้น เพราะ `ShopMember.role` มีแค่ `OWNER`/`ADMIN` สองค่าเท่านั้นที่มีอยู่จริงในระบบ (ไม่มี STAFF) — `canAccessShop` true ของทั้งคู่พอดีตรงกับ FR-9.12–9.14
 > **Error response shape ต่างจาก endpoint อื่นในเอกสารนี้:** `{error:{code,message,details}}` (ไม่ใช่ flat `{error:"text",code}}`) — error code: `VALIDATION_ERROR`(400) `UNAUTHORIZED`(401) `NOT_FOUND`(404) `FORBIDDEN`(403) `NOT_OWNED`(403, resource ไม่ใช่ของร้านนี้จริง) `CONFLICT`(409, โพสต์ซ้ำในชุดเดียวกัน/ชนกับ partial unique index) — รายละเอียดเต็ม `docs/20 - Features/00035 - Shop Page Builder/API.md` §5
 
+### 7.3c Shops — ปฏิทินคิวงาน (feature 00024)
+
+| Method | Path | Auth | Purpose | Service |
+|--------|------|------|---------|---------|
+| GET | `/api/shops/current/appointments` | Seller (member ของ active shop) | นัดของช่วงเวลา (ปฏิทินยิงครอบทั้งเดือน) — `?from&to` ISO บังคับ, `?resourceId` ไม่บังคับ · **ไม่มีข้อมูลติดต่อลูกค้า** | `appointment.service` (`listAppointments`) |
+| GET | `/api/shops/current/appointments/day` | Seller (member ของ active shop) | นัดของ **หนึ่งวัน** พร้อมข้อมูลติดต่อ — `?date=YYYY-MM-DD` (ปฏิทินไทย) บังคับ, `?resourceId` ไม่บังคับ · คืน `buyerContact` · `customerAvatarUrl` · `source{channel,pageName,pageAvatarUrl}` · `conversationId` | `appointment.service` (`listAppointmentsForDay`) |
+
+> 🛑 **สองตัวนี้ห้ามยุบเป็นตัวเดียว** (TFR-010 ฉบับแก้ 2026-08-11) — หน้า `/queues` อยู่ใต้ client layout
+> ทุก field ถูก serialize เข้า flight payload. ตัวบนยิงครอบทั้งเดือน การเติมเบอร์ลงไปแปลว่าเบอร์ลูกค้า
+> ทั้งเดือน (ร้านที่ยุ่ง 100–200 เบอร์) นอนอยู่ใน page source เพื่อแสดงผลวันเดียว
+>
+> 🛑 ตัวล่าง **รับ `date` ไม่รับ `from`/`to`** โดยตั้งใจ — เพดานถูกบังคับด้วย *รูปร่างของ input*
+> ไม่ใช่ด้วยความตั้งใจของผู้เรียก · `400 VALIDATION_ERROR` เมื่อรูปแบบผิด **หรือเป็นวันที่ไม่มีอยู่จริง**
+> (เช็ค roundtrip ไม่ใช่แค่ regex — `2569-02-31` ผ่าน regex แต่ `Date.UTC` จะม้วนไปวันอื่นเงียบ ๆ)
+>
+> **อีเมลไม่ส่งออกทั้งสองตัว** · รูปลูกค้าหาด้วยคู่ `(shopChannelId, customerId)` เท่านั้น (PSID เป็น page-scoped)
+> · `customerAvatarUrl = null` เป็นค่าปกติ ไม่ใช่ error — Meta บล็อกรูปโปรไฟล์ Messenger ทั้งหมดอยู่
+>
+> รายละเอียดเต็ม: `docs/20 - Features/00024 - Service Appointment Booking/API.md` §4.5 / §4.5b
+
 ### 7.4 Products
 
 | Method | Path | Auth | Purpose | Service |

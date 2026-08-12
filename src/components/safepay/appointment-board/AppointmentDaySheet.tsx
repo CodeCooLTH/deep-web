@@ -42,9 +42,6 @@ type Props = {
   createLabelShort: string
 }
 
-/** ระยะที่ถือว่า "ปัดสำเร็จ" — ต่ำกว่านี้เด้งกลับ (ค่าเดียวกับสัดส่วนที่ SwipeableRow ใช้: ครึ่งทาง) */
-const SWIPE_COMMIT_PX = 72
-
 export default function AppointmentDaySheet({
   dayKey,
   onDayChange,
@@ -143,40 +140,16 @@ export default function AppointmentDaySheet({
     [dayKey, onDayChange],
   )
 
-  // ── ปัดซ้ายขวาเปลี่ยนวัน ───────────────────────────────────────────────────
-  const [dragX, setDragX] = useState(0)
-  const [dragging, setDragging] = useState(false)
-  const startX = useRef(0)
-  const startY = useRef(0)
-  const axis = useRef<'h' | 'v' | null>(null)
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    startX.current = e.touches[0].clientX
-    startY.current = e.touches[0].clientY
-    axis.current = null
-    setDragging(true)
-  }
-  const onTouchMove = (e: React.TouchEvent) => {
-    const dx = e.touches[0].clientX - startX.current
-    const dy = e.touches[0].clientY - startY.current
-    if (axis.current === null) {
-      // ล็อกแกนหลังนิ้วขยับ 6px แล้วไม่เปลี่ยนอีกจนปล่อย — ไม่งั้นการเลื่อนอ่านรายการที่นิ้วเอียง
-      // นิดเดียวจะกระตุกไปมาระหว่างสองแกน (ท่าเดียวกับ SwipeableRow)
-      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return
-      axis.current = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v'
-    }
-    if (axis.current !== 'h') return // แนวตั้ง → ปล่อยให้ scroll (touch-action: pan-y)
-    setDragX(dx)
-  }
-  const onTouchEnd = () => {
-    setDragging(false)
-    const dx = dragX
-    setDragX(0)
-    if (axis.current !== 'h') return
-    // ปัดซ้าย (dx ติดลบ) = วันถัดไป — ทิศเดียวกับปฏิทินทุกตัวที่ผู้ใช้เคยใช้
-    if (dx <= -SWIPE_COMMIT_PX) goDay(1)
-    else if (dx >= SWIPE_COMMIT_PX) goDay(-1)
-  }
+  /**
+   * 🛑 ไม่มีการปัดซ้ายขวาเปลี่ยนวัน — user สั่งถอด 2026-08-12 ("เอา slide ข้าง ออกก็ได้นะ")
+   *
+   * ที่ถอดแล้วไม่เสียอะไร: ลูกศร ‹ › ทำงานได้ทุกกรณีอยู่แล้ว (รวมคีย์บอร์ด/screen reader ที่ปัดไม่ได้เลย)
+   * และ iOS/WebView ก็ยึด "ปัดขวาจากขอบซ้าย" ไว้เป็นปุ่มย้อนกลับอยู่แล้ว การปัดจึงไม่เคยเป็นทางที่
+   * เชื่อถือได้ตั้งแต่แรก
+   *
+   * ที่ได้กลับมา: ไม่ต้องมี transform บนกล่องเลื่อน = ไม่มีทางที่เนื้อหาจะค้างเลื่อนออกไปนอกจอ
+   * และไม่ต้องแย่งแกนกับการเลื่อนอ่านรายการ
+   */
 
   return (
     <div
@@ -263,23 +236,16 @@ export default function AppointmentDaySheet({
 
       {/* ── เนื้อรายการ ────────────────────────────────────────────────────── */}
       {/* overscroll-contain: ชีตประกอบเองด้วย React state — ขาดตัวนี้แล้วลากนิ้วในชีตจะดึงหน้า
-          ข้างหลังตาม (overlay-scroll-lock.md) · touchAction pan-y: ให้เบราว์เซอร์จัดการแนวตั้งเอง
-          แล้วส่ง gesture แนวนอนมาให้ JS (React touch listener เป็น passive จึง preventDefault ไม่ได้) */}
+          ข้างหลังตาม (overlay-scroll-lock.md)
+          🛑 overflow-x-hidden ไม่ใช่ของประดับ: `overflow-y-auto` ทำให้แกน x กลายเป็น `auto` ตาม
+          สเปก CSS โดยอัตโนมัติ ⇒ ลูกที่ล้นแนวนอนแม้พิกเซลเดียวจะทำให้ทั้งกล่อง "เลื่อนข้างได้"
+          แล้วการ์ดจะถูกดันหลุดขอบซ้ายจนอ่านชื่อไม่ได้ (เกิดจริงบน prod 2026-08-12: ชื่อเพจยาว
+          "Messenger · BT Premium Auto Xenon คลอง4 ธัญบุรี" ไม่ถูกตัดเพราะ flex-wrap ไม่มี min-w-0) */}
       <div
-        className="flex-1 overflow-y-auto overscroll-contain px-3 py-3"
-        style={{ touchAction: 'pan-y' }}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        // ต้องมีคู่กับ onTouchEnd เสมอ — เบราว์เซอร์ยิง touchcancel แทน touchend เมื่อมันยึด
-        // gesture ไปทำ scroll เอง ถ้าไม่ดัก เนื้อหาจะค้างเลื่อนออกไปครึ่งจอ
-        onTouchCancel={onTouchEnd}
+        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-3"
         aria-busy={!loaded && !loadError}
       >
-        <div
-          className={dragging ? '' : 'transition-transform duration-200 motion-reduce:transition-none'}
-          style={{ transform: dragX ? `translateX(${dragX}px)` : undefined }}
-        >
+        <div>
           {loadError ? (
             /* บล็อกค้างบนจอ ไม่ใช่ toast ที่หายเอง — และห้ามพูดว่า "ว่าง" เพราะเราไม่รู้
                (กติกาเดียวกับ AppointmentMonthBoard) */

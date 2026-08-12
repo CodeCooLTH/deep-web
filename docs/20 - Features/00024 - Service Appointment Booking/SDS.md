@@ -58,6 +58,15 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[DATABASE]]", "[[API]]"]
 | `orders/[token]/components/RescheduleAppointmentSheet.tsx` | แก้ (feature 00036) — เรียก `AppointmentDateSheet` ร่วม | เลื่อนนัดของออเดอร์ที่มีอยู่ — ดู §3.7 |
 | `queues/components/GranularitySetting.tsx` | ย้ายตำแหน่งเรียกใช้ (2026-08-08) | จากฟอร์มทรัพยากร (`ResourceForm`) มาอยู่ท้ายหน้า `/queues` — ดู §3.9 |
 | `src/lib/chat-service-progress.ts` | **ใหม่ (2026-08-08)** | แกนสถานะนัดในห้องแชทของร้าน `SERVICE_QUEUE` — ดู §3.10 (เจ้าของหลักคือแถบสถานะออเดอร์ในแชท ของ feature 00018/00036 — บันทึกไว้ที่นี่เพราะ input ทั้งหมดเป็นฟิลด์ที่ 00024 เป็นเจ้าของ) |
+| `src/app/api/shops/current/appointments/day/route.ts` | **ใหม่ (2026-08-11)** | API นัดรายวัน + ข้อมูลติดต่อลูกค้า — ดู §3.11 |
+| `src/lib/appointment-day-view.ts` | **ใหม่ (2026-08-11)** | ตรรกะการ์ดรายวัน (จัดกลุ่ม/ยุบกลุ่ม/โผล่ปุ่ม/เดินวัน) — pure + เทส `[blocker]` |
+| `src/lib/appointment-outcome.ts` | **ใหม่ (2026-08-11)** | คำพูดของการปิดผลนัด (HR16 — การกระทำเดียวกันมี 2 จอแล้ว) |
+| `src/lib/appointment-day.ts` | แก้ (2026-08-11) | เพิ่ม `thaiDateBounds(iso)` — ขอบวันของ "วันที่ระบุ" ใช้ SSOT เดียวกับ `appointmentDayBounds` |
+| `components/safepay/appointment-board/AppointmentDayCard.tsx` | **ใหม่ (2026-08-11)** | การ์ดนัดหนึ่งใบ — ดู §3.11 |
+| `components/safepay/appointment-board/AppointmentDayList.tsx` | **ใหม่ (2026-08-11)** | รายการจัดกลุ่มตามช่วงเวลา + เส้น "ตอนนี้" |
+| `components/safepay/appointment-board/AppointmentDaySheet.tsx` | **ใหม่ (2026-08-11)** | ชีตเต็มจอ + เดินวัน — ดู §3.11 |
+| `components/safepay/appointment-board/AppointmentMonthBoard.tsx` | แก้ (2026-08-11) | `<768` เปิดชีตแทน render รายการข้างล่าง · `768–1023` คงซ้ายขวาเดิม |
+| `orders/[token]/components/AppointmentCard.tsx` | แก้ (2026-08-11) | ย้ายข้อความ error/success ไปใช้ `appointment-outcome.ts` ร่วมกับการ์ดในชีต |
 
 🛑 **ห้ามแตะไฟล์ของ feature 00015** (logic การเข้าถึง `/o/{token}`) — เพิ่มเฉพาะส่วนแสดงผลหลังด่านเท่านั้น
 
@@ -504,6 +513,70 @@ stateDiagram-v2
 🛑 **มัดจำในแถบนี้แสดงได้แค่ยอด ไม่ใช่สถานะจ่าย** — ข้อความ "มัดจำที่ตกลงไว้ ฿X" (ไม่ใช่ "มัดจำ" เฉย ๆ ซึ่งอ่านได้ทั้ง "เก็บแล้ว"/"ต้องเก็บ") **ห้ามเป็นสีเขียวและห้ามเป็นขั้นของ timeline** — ระบบไม่มีคอลัมน์ `depositReceivedAt` (BR-RSV-49/50 ตั้งใจไม่กั้นคิวด้วยมัดจำ) ถ้าทำเป็นขั้นที่ติ๊กถูกได้ จะเป็นป้ายที่อ้างสิ่งที่ระบบไม่รู้ (ดู Known Gap)
 
 🛑 **ต้อง sync select กับ `getOrdersByCustomer`:** ฟิลด์ทั้ง 4 ที่ป้อนแกนนี้ (`serviceStart`/`serviceEnd`/`appointmentStatus`/`depositAmount`) ถูก select จาก **2 จุดที่ต้อง sync กันเสมอ**: `inbox/[conversationId]/page.tsx` (20 ใบแรก) และ `getOrdersByCustomer()` ใน `order.service.ts` (ใบที่ 21 ขึ้นไป, lazy-load) — ไม่ sync แล้วออเดอร์หน้าถัดไปจะกลายเป็น walk-in เงียบ ๆ (ดู §4.11 ของ API.md)
+
+---
+
+### 3.11 การ์ดคิวงานรายวัน + ชีตเต็มจอ (เพิ่ม 2026-08-11)
+
+**ทำไมมี:** จอ `/queues` บนมือถือแสดงรายการนัดของวันที่จิ้มไว้ครึ่งล่างของปฏิทิน ซึ่ง (ก) พิมพ์เวลาซ้ำ
+ทุกใบสำหรับนัดที่เวลาเดียวกัน (ข) ไม่บอกว่าลูกค้าเป็นใคร/มาจากช่องทางไหน/โทรยังไง (ค) ปิดผลนัดจากที่นั่น
+ไม่ได้เลย ต้องเข้าออเดอร์ทีละใบ
+
+**โครง (มีผลเฉพาะ `<768px`)** — `768–1023` คงเลย์เอาต์ 2 คอลัมน์เดิม · `≥1024` ไม่แตะ (FullCalendar)
+
+```
+จิ้มวัน → AppointmentDaySheet (fixed inset-0 z-80, ทับหัวแอปด้วย)
+            ├─ หัว: [✕] ‹ วันที่ › + ตัวนับ + แถบความคืบหน้า   (aria-live)
+            ├─ AppointmentDayList  — จัดกลุ่มตามช่วงเวลา + เส้น "ตอนนี้"
+            │    └─ AppointmentDayCard × n
+            └─ ท้าย: ปุ่มสร้างงานของวันที่กำลังดู
+```
+
+**ตรรกะทั้งหมดอยู่ที่ `src/lib/appointment-day-view.ts`** (pure, เทส `[blocker]` 19 เคส พิสูจน์ด้วย
+mutation 5 แบบ) — `groupAppointmentsBySlot` · `appointmentCardAction` · `isSlotFullyClosed` ·
+`summarizeDay` · `shiftDayKey`
+
+| กติกา | เหตุผล |
+|---|---|
+| คีย์กลุ่ม = คู่ **start+end** ไม่ใช่ start | ร้านรับ 09:00–10:00 กับ 09:00–11:00 พร้อมกันเป็นเรื่องปกติ จับด้วย start จะยุบสองช่วงเป็นกลุ่มเดียวแล้วหัวกลุ่มโกหกว่าทุกใบจบ 10:00 |
+| กลุ่ม "ทั้งวัน" อยู่บนสุดเสมอ | ไม่มีตำแหน่งในลำดับเวลา ปล่อยให้เรียงตาม start (00:00) จะไปปนกับนัดเช้า |
+| ปุ่มปิดผลโผล่เมื่อ `now >= start` ∧ ไม่ terminal | BR-RSV-34 · **ไม่ใช่ปุ่ม disabled** — หน้ารายละเอียดมีใบเดียวจึงอธิบายได้ ในลิสต์ 9 ใบจะกลายเป็นปุ่มตายเก้าปุ่ม |
+| `>=` ไม่ใช่ `>` | ต้องตรงกับ `AppointmentCard.tsx` ที่คิดกลับด้าน (`notStarted = start > now`) ไม่งั้นมีหนึ่งวินาทีที่ลิสต์โชว์ปุ่มแต่หน้ารายละเอียดยังกดไม่ได้ |
+| ยุบกลุ่มเมื่อ **ทุกใบ** terminal | เหลือค้างใบเดียวก็กางทั้งกลุ่ม — ใบที่ต้องทำถูกซ่อนหนักกว่าอ่านยาก · กลุ่มว่างไม่ยุบ (vacuous truth ของ `every`) |
+| `RESCHEDULE_REQUESTED` ชนะทุกอย่าง | สถานะเดียวที่ร้านต้องลงมือ · ไม่ผูกกับเวลา (service ไม่ห้ามเลื่อนนัดที่ยังมาไม่ถึง ต่างจากปิดผล) |
+
+**การ์ด — 3 บล็อกแยกกัน ไม่ใช่ปุ่มเดียวทั้งใบ**
+
+1. บล็อกบน (รูป 40px + badge ช่องทาง / ชื่อ / ป้ายสถานะ + ที่มา) = `Link` เปิดออเดอร์
+2. แถวเบอร์ + ปุ่มโทร (`tel:` เมื่อ `normalizePhone` ผ่าน) / ทักแชท (เมื่อมี `conversationId`)
+3. แถวลงมือ — โผล่ตาม `appointmentCardAction`
+
+🛑 ถ้าทำทั้งใบให้กดได้แล้ววางปุ่มซ้อนข้างใน ต้องไล่ `stopPropagation` ทุกปุ่มและพลาดง่ายมาก
+(คลาสเดียวกับ stretched-link ทับปุ่มท้ายการ์ดใน `/products`)
+
+🛑 **เมนู `⋯` เป็นชีตล่างจอ ไม่ใช่ดรอปดาวน์** — ดรอปดาวน์ `absolute` โดน `overflow` ของกล่อง scroll
+ที่ครอบรายการตัดเสมอ และการ์ดใบล่างสุดโดนเต็ม ๆ (`scroll-container-clips-popovers.md`)
+
+🛑 **ตัวย่อคือของหลัก ไม่ใช่ของสำรอง** — Meta บล็อกรูปโปรไฟล์ Messenger ทั้งหมด (ต้อง Advanced Access
+ของ `Business Asset User Profile Access`) ร้านที่ลูกค้าทักจากเพจ Facebook จะเห็นตัวย่อเกือบทั้งจอ
+· IG/LINE ได้รูปจริง · `avatarSyncedAt` มีอยู่แล้ว วันที่สิทธิ์ผ่านรูปจะทยอยขึ้นเองใน 7 วัน
+
+**ชีต — 4 อย่างที่ต้องมีคู่กันเสมอ**
+
+1. `useLockBodyScroll` + `overscroll-contain` — ชีตประกอบเองด้วย React state (`overlay-scroll-lock.md`)
+2. `padding-top: env(safe-area-inset-top)` — ทับหัวแอปแล้วหัวชีตจะไปนอนใต้รอยบาก
+3. `history.pushState` + `popstate` — ปุ่ม back ต้องปิดชีต ไม่ใช่ออกจากหน้า · **cleanup ต้องเช็ค
+   `history.state` ก่อนเรียก `back()`** ไม่งั้นการกดการ์ดไปหน้าออเดอร์จะถูกย้อนทิ้ง
+4. axis lock + `touch-action: pan-y` + ดัก `touchcancel` (ยกจาก `SwipeableRow.tsx`) — ในชีตต้องเลื่อน
+   ขึ้นลงอ่านและปัดซ้ายขวาเปลี่ยนวันพร้อมกัน
+
+**เดินวัน — 3 ทางเข้าเรียกฟังก์ชันเดียวกัน** (ปัด · `‹ ›` · จิ้มวันในปฏิทิน)
+· ปัดในเดือนเดียวกัน **ไม่ยิง API** ของปฏิทิน · ข้ามขอบเดือนต้อง `gotoDate` ให้ปฏิทินข้างหลังตามด้วย
+ไม่งั้นปิดชีตแล้วเจอเดือนเก่า · **ลูกศรห้ามกระโดดข้ามวันว่าง** (เดินไม่เท่ากันทุกครั้ง = เลิกเชื่อว่าเป็น "วันถัดไป")
+
+**ที่จงใจไม่ทำ:** "เลือกเวลาใหม่" พาไปหน้าออเดอร์ ไม่ได้เปิดแผงเลื่อนนัดในชีต —
+`RescheduleAppointmentSheet` ต้องการ `resourceId` + `rescheduleRequestNote` ซึ่ง payload รายวัน
+ไม่มีโดยตั้งใจ (ยิ่งเพิ่ม field ยิ่งขยายสิ่งที่ไหลเข้า flight payload)
 
 ---
 
