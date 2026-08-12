@@ -60,6 +60,12 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:settings',
         'seller:settings-auto-reply',
         'seller:settings-channels',
+        // เพิ่ม 2026-08-12 — เมนู "ประเภทงาน" (ย้ายออกจาก /queues)
+        // slug ใหม่ล้วน ไม่มีแถว SellerShortcutPreference เดิมอ้างถึงได้ จึงเป็นการเพิ่มที่ปลอดภัย
+        // 🛑 การ "แก้เทสให้ผ่าน" ที่ปลอดภัยคือการ *เพิ่ม* เท่านั้น — ถ้าวันไหนต้อง **ลบ/เปลี่ยนชื่อ**
+        // slug ที่เคยมี ห้ามแก้บรรทัดในเทสนี้เฉย ๆ ต้องมี migration ล้าง slug นั้นออกจาก
+        // SellerShortcutPreference.slugs ก่อน ไม่งั้นทางลัดของร้านจะชี้ไปเมนูที่ไม่มีอยู่จริง
+        'seller:settings-job-types',
         'seller:settings-chatbot',
         // เมนู "ตอบกลับคอมเมนต์" (feature 00038) — เพิ่มใน seller-menu.ts แล้วแต่ลืมเติมที่นี่
         // เทสข้อนี้จึงแดงอยู่บน main (พบตอน merge 2026-08-09) ไม่ใช่ของใหม่ที่เพิ่งพัง

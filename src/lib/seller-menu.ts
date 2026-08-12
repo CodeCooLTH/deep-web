@@ -70,7 +70,14 @@ export const sellerMenuItems: MenuItemType[] = [
       // ไม่แตะไอคอนของ "บริการ" ฝั่งโปรไฟล์สาธารณะ — คนละคอนเซปต์ (สิ่งที่ขาย ไม่ใช่คนที่ทำ)
       // ป้าย "คิวงาน" มาจาก user โดยตรง — คำเดิม "ทรัพยากร" อ่านแล้วไม่เข้าใจ
       // ลูกค้ากลุ่มแรกคือร้านตกแต่งไฟหน้ารถ ซึ่งเรียกหน่วยที่รับงานพร้อมกันว่า "คิวงาน"
-      { url: '/queues', slug: 'seller:queues', label: 'คิวงาน', icon: 'user-cog' },
+      // label 'คิวงาน' → 'ตารางงาน' + icon user-cog → calendar-event (user เคาะ 2026-08-12)
+      // เหตุผลเดิมของทั้งคู่หมดอายุพร้อมกัน: ตัวสิ่งของเปลี่ยนชื่อเป็น "ประเภทงาน" และหน้านี้
+      // เหลือแค่ปฏิทิน+ชีตรายวันหลังย้ายส่วนตั้งค่าออกไป — 'user-cog' ถูกเลือกตอน 08-07
+      // ด้วยเหตุผลว่า "คิวงานส่วนใหญ่คือช่างที่รับงาน" ซึ่งไม่ใช่สิ่งที่หน้านี้แสดงอีกแล้ว
+      // 'ตารางงาน' ไม่ใช่ 'ปฏิทินงาน' โดยตั้งใจ — วันหนึ่งถ้าเพิ่มมุมมองรายสัปดาห์/รายการ
+      // คำว่า "ปฏิทิน" จะแคบกว่าของจริง · ซ้ำไอคอนกับ 'ปฏิทินการจอง' ของ LODGING ได้
+      // เพราะคนละ vertical ไม่มีวันเห็นพร้อมกัน (applyVerticalMenu เป็น allow-list fail-closed)
+      { url: '/queues', slug: 'seller:queues', label: 'ตารางงาน', icon: 'calendar-event' },
       // feature 00017 — เห็นเฉพาะร้าน vertical=LODGING (กรองด้วย applyVerticalMenu ด้านล่าง)
       // icon 'building-cottage' verified มีจริงใน tabler (api.iconify.design/tabler.json → found);
       // เลือกแทน 'bed' เพราะ "ห้องพัก" = หน่วยที่ให้จอง ซึ่งอาจเป็นทั้งหลัง ไม่ใช่แค่ห้องนอน
@@ -162,6 +169,12 @@ export const sellerMenuItems: MenuItemType[] = [
       // และจาก callback ของ Facebook เท่านั้น. icon 'plug-connected' ใช้อยู่แล้วในโปรเจกต์
       // สำหรับความหมายเดียวกัน (เชื่อมเพจ FB / เชื่อมขนส่ง iShip) ผู้ใช้จำสัญลักษณ์นี้ได้แล้ว
       { url: '/settings/channels', slug: 'seller:settings-channels', label: 'ช่องทางการขาย', icon: 'plug-connected' },
+      // ประเภทงาน (feature 00024, ย้ายออกจาก /queues เมื่อ 2026-08-12) — เห็นเฉพาะร้าน
+      // vertical=SERVICE_QUEUE (กรองด้วย applyVerticalMenu ด้านล่าง เหมือน seller:queues)
+      // อยู่กลุ่มตั้งค่าร้านไม่ใช่กลุ่มงานประจำวัน เพราะร้านตั้งครั้งเดียวจบ (user ยืนยัน 2026-08-12)
+      // icon 'category' ใช้อยู่แล้วในโปรเจกต์ — "การแบ่งประเภท" ตรงกับแก่นของเมนูนี้ที่สุด
+      // และไม่ชนกับไอคอนของเมนูอื่นในกลุ่มเดียวกัน (truck-delivery / plug-connected)
+      { url: '/settings/job-types', slug: 'seller:settings-job-types', label: 'ประเภทงาน', icon: 'category' },
       // เคยมีรายการ "โปรไฟล์" (ลิงก์ออกไปหน้าร้านจริงบนโดเมนผู้ซื้อ) ต่อจากนี้ — user ให้เอาออก
       // 2026-08-04 ทางเข้าหน้าร้านจริงเหลือที่ dropdown มุมขวาบน (desktop) กับแผงบัญชีในหน้าแรก
       // (มือถือ) ซึ่งเป็นที่ของ "ตัวคน" อยู่แล้ว ไม่ใช่เมนูตั้งค่าร้าน
@@ -308,7 +321,7 @@ export function applyExpenseMenu(
  */
 const LODGING_ONLY_SLUGS = ['seller:rooms', 'seller:calendar', 'seller:bookings', 'seller:housekeepers']
 const ONLINE_SALES_ONLY_SLUGS = ['seller:inventory', 'seller:auctions']
-const SERVICE_QUEUE_ONLY_SLUGS = ['seller:queues']
+const SERVICE_QUEUE_ONLY_SLUGS = ['seller:queues', 'seller:settings-job-types']
 // seller:products ใช้ร่วมกันของ ONLINE_SALES และ SERVICE_QUEUE (matrix §8.1 แถว "สินค้า")
 const SHARED_PRODUCT_SLUGS = ['seller:products']
 

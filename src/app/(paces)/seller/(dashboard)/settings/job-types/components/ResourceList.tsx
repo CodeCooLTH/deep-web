@@ -121,7 +121,7 @@ function ResourceRowMenu({
             className="border-default-300 bg-card min-w-40 overflow-hidden rounded border shadow-lg"
           >
             <Link
-              href={`/queues/${resource.id}`}
+              href={`/settings/job-types/${resource.id}`}
               role="menuitem"
               className="text-default-800 hover:bg-default-100 flex min-h-11 items-center gap-2 px-4 text-sm"
             >
@@ -286,7 +286,7 @@ export default function ResourceList({ resources, footer }: Props) {
             </p>
           </div>
           <Link
-            href="/queues/new"
+            href="/settings/job-types/new"
             className="btn bg-primary min-h-11 text-white hover:bg-primary-hover"
           >
             <Icon icon="tabler:plus" className="me-1 size-4" />
@@ -308,7 +308,7 @@ export default function ResourceList({ resources, footer }: Props) {
           </p>
         </div>
         <Link
-          href="/queues/new"
+          href="/settings/job-types/new"
           className="btn bg-primary min-h-11 text-white hover:bg-primary-hover"
         >
           <Icon icon="tabler:plus" className="me-1 size-4" />
@@ -321,7 +321,7 @@ export default function ResourceList({ resources, footer }: Props) {
         {items.map((resource) => (
           <div key={resource.id} className="p-4">
             <Link
-              href={`/queues/${resource.id}`}
+              href={`/settings/job-types/${resource.id}`}
               className="text-default-800 block truncate font-medium"
             >
               {resource.name}
@@ -377,7 +377,7 @@ export default function ResourceList({ resources, footer }: Props) {
               <tr key={resource.id}>
                 <td className="px-4 py-3">
                   <Link
-                    href={`/queues/${resource.id}`}
+                    href={`/settings/job-types/${resource.id}`}
                     className="text-default-800 font-medium"
                   >
                     {resource.name}
@@ -399,7 +399,7 @@ export default function ResourceList({ resources, footer }: Props) {
                 <td className="px-4 py-3 text-end">
                   <div className="flex items-center justify-end gap-2">
                     <Link
-                      href={`/queues/${resource.id}`}
+                      href={`/settings/job-types/${resource.id}`}
                       className="btn bg-default-100 text-default-700 hover:bg-default-200 min-h-11 px-3 text-sm"
                     >
                       แก้ไข

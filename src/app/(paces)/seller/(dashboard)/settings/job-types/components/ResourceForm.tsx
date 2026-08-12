@@ -152,7 +152,7 @@ export default function ResourceForm({ resource }: Props) {
         return
       }
       pacesToast.success(isEdit ? 'บันทึกแล้ว' : 'เพิ่มคิวงานแล้ว')
-      router.push('/queues')
+      router.push('/settings/job-types')
       router.refresh()
     } catch {
       pacesToast.error('เชื่อมต่อไม่ได้ ลองอีกครั้ง')
@@ -338,7 +338,7 @@ export default function ResourceForm({ resource }: Props) {
       <div className="flex items-center justify-end gap-2">
         <button
           type="button"
-          onClick={() => router.push('/queues')}
+          onClick={() => router.push('/settings/job-types')}
           className="btn bg-default-200 text-default-800 min-h-11"
         >
           ยกเลิก
