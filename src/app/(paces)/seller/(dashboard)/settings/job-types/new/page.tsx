@@ -15,7 +15,7 @@ import { canUseAppointments } from '@/lib/appointments'
 import { requireActiveShop } from '@/lib/shop-context'
 import ResourceForm from '../components/ResourceForm'
 
-export const metadata: Metadata = { title: 'เพิ่มคิวงาน' }
+export const metadata: Metadata = { title: 'เพิ่มประเภทงาน' }
 
 export default async function NewServiceResourcePage() {
   const session = await getServerSession(authOptions)
@@ -29,7 +29,7 @@ export default async function NewServiceResourcePage() {
 
   return (
     <>
-      <PageBreadcrumb title="เพิ่มคิวงาน" subtitle="คิวงาน" />
+      <PageBreadcrumb title="เพิ่มประเภทงาน" subtitle="ประเภทงาน" />
       <ResourceForm />
     </>
   )

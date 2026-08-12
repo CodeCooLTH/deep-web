@@ -71,7 +71,7 @@ export async function GET(
   // ด่านชุดเดียวกับตอนส่งจริง — ถ้าปล่อยผ่านที่นี่ ผู้ขายจะเปิดชีตได้แล้วไปโดนปฏิเสธตอนกดส่ง
   // ซึ่งอ่านเหมือนระบบพัง (ตัวจริงที่บังคับยังเป็น route ส่งข้อความเสมอ ที่นี่คือชั้นบอกล่วงหน้า)
   if (!canUseAppointments(order.shop)) {
-    return NextResponse.json({ error: "ร้านนี้ไม่ได้ใช้ระบบคิวงาน" }, { status: 403 });
+    return NextResponse.json({ error: "ร้านนี้ไม่ได้ใช้ระบบประเภทงาน" }, { status: 403 });
   }
   if (!order.serviceStart) {
     return NextResponse.json({ error: "คำสั่งซื้อนี้ไม่มีนัดหมาย" }, { status: 400 });

@@ -21,7 +21,7 @@ import {
 } from '@/services/service-resource.service'
 import ResourceForm from '../components/ResourceForm'
 
-export const metadata: Metadata = { title: 'แก้ไขคิวงาน' }
+export const metadata: Metadata = { title: 'แก้ไขประเภทงาน' }
 
 export default async function EditServiceResourcePage({
   params,
@@ -48,7 +48,7 @@ export default async function EditServiceResourcePage({
 
   return (
     <>
-      <PageBreadcrumb title={resource.name} subtitle="คิวงาน" />
+      <PageBreadcrumb title={resource.name} subtitle="ประเภทงาน" />
       {/* serializeServiceResource แปลง Decimal → string ก่อนข้าม RSC boundary */}
       <ResourceForm resource={serializeServiceResource(resource)} />
     </>

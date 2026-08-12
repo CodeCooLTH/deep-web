@@ -293,9 +293,9 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
               className='form-select w-full text-sm'
               value={resourceId}
               onChange={e => setResourceId(e.target.value)}
-              aria-label='เลือกคิวงานที่จะดู'
+              aria-label='เลือกประเภทงานที่จะดู'
             >
-              <option value={ALL}>ทุกคิวงาน</option>
+              <option value={ALL}>ทุกประเภทงาน</option>
               {resources.map(r => (
                 <option key={r.id} value={r.id}>
                   {r.name}
@@ -524,10 +524,10 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
                   {/* 🛑 ห้ามใช้คำว่า "วันนี้" ที่นี่ — จอนี้มีปุ่ม "วันนี้" ที่แปลว่ากระโดดไปวัน
                   ปัจจุบัน และผู้ใช้จิ้มดูวันอื่นได้ (กฎนี้เขียนไว้เองที่ตัวนับข้างบนแล้ว)
                   หัวข้อวันที่อยู่เหนือขึ้นไปบอกวันอยู่แล้ว จึงไม่ต้องพูดซ้ำ
-                  ชื่อคิวงานจริงดีกว่า "คิวนี้" และได้มาฟรีเพราะ resources เป็น prop อยู่แล้ว */}
+                  ชื่อประเภทงานจริงดีกว่า "คิวนี้" และได้มาฟรีเพราะ resources เป็น prop อยู่แล้ว */}
                   <p className='text-default-500 text-xs'>
                     {resourceId
-                      ? `ยังไม่มีนัดของ ${resources.find(r => r.id === resourceId)?.name ?? 'คิวงานนี้'}`
+                      ? `ยังไม่มีนัดของ ${resources.find(r => r.id === resourceId)?.name ?? 'ประเภทงานนี้'}`
                       : 'ยังไม่มีนัดเข้ามา'}
                   </p>
                 </div>

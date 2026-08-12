@@ -106,7 +106,7 @@ export default function RescheduleAppointmentSheet({
       .catch(() => {
         // โหลดรายชื่อคิวงานไม่สำเร็จ = เลือกคิวไม่ได้ ซึ่งบันทึกไม่ได้อยู่ดี (resourceId บังคับ)
         // จึงต้องบอกให้รู้ ไม่ปล่อยเงียบแบบตัวนับความว่างที่ล้มแล้วยังกรอกต่อได้
-        if (!cancelled) pacesToast.error('โหลดรายการคิวงานไม่สำเร็จ — ปิดแล้วลองใหม่')
+        if (!cancelled) pacesToast.error('โหลดรายการประเภทงานไม่สำเร็จ — ปิดแล้วลองใหม่')
       })
       .finally(() => {
         if (!cancelled) setLoadingResources(false)
@@ -195,13 +195,13 @@ export default function RescheduleAppointmentSheet({
         const terminal = data.error === 'APPOINTMENT_TERMINAL'
         const message =
           data.error === 'APPOINTMENT_SLOT_FULL'
-            ? `${data.message ?? 'ช่วงเวลานี้เต็มแล้ว'} — เลือกเวลาอื่นหรือคิวงานอื่น`
+            ? `${data.message ?? 'ช่วงเวลานี้เต็มแล้ว'} — เลือกเวลาอื่นหรือประเภทงานอื่น`
             : terminal
               ? 'นัดนี้ถูกปิดผลไปแล้ว จึงเลื่อนไม่ได้'
               : data.error === 'RESOURCE_INACTIVE'
-                ? 'คิวงานนี้ถูกปิดใช้งานแล้ว — เลือกคิวงานอื่น'
+                ? 'ประเภทงานนี้ถูกปิดใช้งานแล้ว — เลือกประเภทงานอื่น'
                 : data.error === 'RESOURCE_NOT_FOUND'
-                  ? 'ไม่พบคิวงานนี้แล้ว — เลือกคิวงานอื่น'
+                  ? 'ไม่พบประเภทงานนี้แล้ว — เลือกประเภทงานอื่น'
                   : data.error === 'APPOINTMENT_NOT_FOUND'
                     ? 'ไม่พบนัดนี้แล้ว — รีเฟรชหน้าเพื่อดูข้อมูลล่าสุด'
                     : data.error === 'INVALID_APPOINTMENT_RANGE'
@@ -283,14 +283,14 @@ export default function RescheduleAppointmentSheet({
             {loadingResources ? (
               <div className="text-default-500 flex items-center gap-2 text-sm">
                 <Icon icon="mdi:loading" className="animate-spin text-base" aria-hidden="true" />
-                กำลังโหลดคิวงาน
+                กำลังโหลดประเภทงาน
               </div>
             ) : resources.length === 0 ? (
               <p className="text-default-500 mb-0 text-sm">
-                ไม่มีคิวงานที่เปิดใช้งานอยู่ — เปิดใช้งานคิวงานก่อนจึงจะเลื่อนนัดได้
+                ไม่มีประเภทงานที่เปิดใช้งานอยู่ — เปิดใช้งานประเภทงานก่อนจึงจะเลื่อนนัดได้
               </p>
             ) : (
-              <div role="group" aria-label="เลือกคิวงาน" className="grid grid-cols-2 gap-2">
+              <div role="group" aria-label="เลือกประเภทงาน" className="grid grid-cols-2 gap-2">
                 {resources.map((r) => {
                   const active = pickedResourceId === r.id
                   return (

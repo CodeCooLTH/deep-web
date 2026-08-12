@@ -925,7 +925,7 @@ export default function AppointmentDateSheet({
               {[
                 /* โหมดภาพรวมไม่มี "ชื่อคิว" ให้พูด — ต้องบอกแทนว่ากำลังดูอะไรอยู่ ไม่งั้นบรรทัดนี้
                    จะเหลือแค่ตัวเลขความจุลอย ๆ ที่อ่านไม่ออกว่าเป็นของใคร */
-                aggregate ? 'ภาพรวมทุกคิวงาน' : resourceName,
+                aggregate ? 'ภาพรวมทุกประเภทงาน' : resourceName,
                 capacity != null && capacity > 0
                   ? byDay
                     ? `รับได้ ${capacity} คิว/วัน`
@@ -1177,7 +1177,7 @@ export default function AppointmentDateSheet({
               {dayItems.length === 0
                 ? aggregate
                   ? 'ยังไม่มีใครจองในวันที่เลือก'
-                  : 'ยังไม่มีใครจองคิวงานนี้'
+                  : 'ยังไม่มีใครจองประเภทงานนี้'
                 : dayRangesPreview}
             </p>
           </div>
@@ -1283,8 +1283,8 @@ export default function AppointmentDateSheet({
                   ? 'ยังไม่มีใครจองในวันที่เลือก — จองได้เลย'
                   : 'ยังไม่มีใครจองในวันที่เลือก — เลือกเวลาได้ตามสะดวก'
                 : byDay
-                  ? 'ยังไม่มีใครจองคิวงานนี้ — จองได้เลย'
-                  : 'ยังไม่มีใครจองคิวงานนี้ — เลือกเวลาได้ตามสะดวก'}
+                  ? 'ยังไม่มีใครจองประเภทงานนี้ — จองได้เลย'
+                  : 'ยังไม่มีใครจองประเภทงานนี้ — เลือกเวลาได้ตามสะดวก'}
             </p>
           </div>
         ) : (
@@ -1520,7 +1520,7 @@ export default function AppointmentDateSheet({
                   >
                     {formatDurationTH(min)}
                     {/* ทำไมชิปนี้ถึงถูกเลือกไว้ให้ — ไม่ใช่ตัวเลขที่โผล่มาลอย ๆ
-                        (ค่านี้ตั้งที่ /queues > คิวงาน > ระยะเวลามาตรฐาน)
+                        (ค่านี้ตั้งที่เมนู ประเภทงาน > ระยะเวลามาตรฐาน — ย้ายจาก /queues เมื่อ 2026-08-12)
                         -ink ด้วยเหตุผลเดียวกับชิปเวลา และตัวนี้เป็น text-xs จึงตกหนักกว่าถ้าใช้ primary */}
                     {isResourceDefault && (
                       <span className={`text-xs ${active ? 'text-primary-ink' : 'text-default-500'}`}>

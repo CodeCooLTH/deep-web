@@ -42,7 +42,7 @@ export function appointmentErrorResponse(e: unknown): Response | null {
     return jsonNoStore(
       {
         error: "RESOURCE_NOT_FOUND",
-        message: "คิวงานที่เลือกไว้ถูกลบไปแล้ว — เลือกคิวงานอื่นก่อนบันทึก",
+        message: "ประเภทงานที่เลือกไว้ถูกลบไปแล้ว — เลือกประเภทงานอื่นก่อนบันทึก",
       },
       { status: 404 },
     );

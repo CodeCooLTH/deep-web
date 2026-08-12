@@ -185,13 +185,13 @@ export default function OnboardingPage() {
 
   // SERVICE_QUEUE — สร้างคิวงานแรกแทนสินค้า (endpoint มีอยู่แล้ว ใช้อยู่ใน ResourceForm.tsx)
   const createQueue = async () => {
-    if (!qName.trim()) return pacesToast.error('กรุณากรอกชื่อคิวงาน')
+    if (!qName.trim()) return pacesToast.error('กรุณากรอกชื่อประเภทงาน')
     const capacity = Number(qCapacity) || 1
     setQLoading(true)
     try {
       const res = await fetch('/api/shops/current/service-resources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: qName.trim(), capacity }) })
-      if (res.ok) { pacesToast.success('เพิ่มคิวงานแล้ว'); await finish() }
-      else { const d = await res.json().catch(() => ({})); pacesToast.error(d?.error === 'VALIDATION_ERROR' ? 'มีบางช่องที่กรอกยังไม่ถูกต้อง' : 'เพิ่มคิวงานไม่สำเร็จ') }
+      if (res.ok) { pacesToast.success('เพิ่มประเภทงานแล้ว'); await finish() }
+      else { const d = await res.json().catch(() => ({})); pacesToast.error(d?.error === 'VALIDATION_ERROR' ? 'มีบางช่องที่กรอกยังไม่ถูกต้อง' : 'เพิ่มประเภทงานไม่สำเร็จ') }
     } catch { pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่') } finally { setQLoading(false) }
   }
 
@@ -211,7 +211,7 @@ export default function OnboardingPage() {
     step === 'address'
       ? { icon: 'map-pin', heading: 'ตั้งที่อยู่ร้าน', subtitle: ADDRESS_SUBTITLE[vertical ?? DEFAULT_SHOP_VERTICAL] }
       : step === 'product' && vertical === 'SERVICE_QUEUE'
-        ? { icon: 'user-cog', heading: 'สร้างคิวงานแรกของคุณ', subtitle: 'เพิ่มคิวงานที่รับได้ เพื่อเริ่มนัดลูกค้า' }
+        ? { icon: 'user-cog', heading: 'สร้างประเภทงานแรกของคุณ', subtitle: 'เพิ่มประเภทงานที่รับได้ เพื่อเริ่มนัดลูกค้า' }
         : step === 'product'
           ? { icon: 'package', heading: 'สร้างสินค้าแรกของคุณ', subtitle: 'เพิ่มสินค้าชิ้นแรกเพื่อให้ลูกค้าเห็นร้าน' }
           : STEP_META[step]
@@ -298,7 +298,7 @@ export default function OnboardingPage() {
         <>
           <div className="flex flex-col gap-4">
             <div>
-              <label className="form-label">ชื่อคิวงาน</label>
+              <label className="form-label">ชื่อประเภทงาน</label>
               <div className="input-icon-group">
                 <Icon icon="user-cog" className="input-icon" />
                 <input className="form-input" placeholder="เช่น หมอนวด A" value={qName} onChange={(e) => setQName(e.target.value)} />
@@ -313,7 +313,7 @@ export default function OnboardingPage() {
             </div>
           </div>
           <div className="mt-5 flex flex-col gap-2">
-            <button type="button" onClick={createQueue} disabled={qLoading} className="btn bg-primary text-white hover:bg-primary-hover w-full disabled:opacity-50">{qLoading ? 'กำลังสร้าง...' : 'เพิ่มคิวงานเลย'}</button>
+            <button type="button" onClick={createQueue} disabled={qLoading} className="btn bg-primary text-white hover:bg-primary-hover w-full disabled:opacity-50">{qLoading ? 'กำลังสร้าง...' : 'เพิ่มประเภทงานเลย'}</button>
             <button type="button" onClick={finish} disabled={qLoading} className="w-full py-1 text-center text-sm text-default-500 disabled:opacity-50">ข้ามไปก่อน เพิ่มทีหลังได้</button>
           </div>
         </>

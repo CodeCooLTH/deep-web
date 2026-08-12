@@ -113,7 +113,7 @@ export default function AppointmentDayRows({ items, showResourceName = false, on
                    (ไม่ตัดข้อมูลออกสักตัว แค่เรียงใหม่ + เติมคำเชื่อม) */
                 aria-label={
                   `เปิดรายละเอียดนัดของ ${who}` +
-                  (showResourceName && it.resource?.name ? ` คิวงาน ${it.resource.name}` : '') +
+                  (showResourceName && it.resource?.name ? ` ประเภทงาน ${it.resource.name}` : '') +
                   (allDay ? ' ทั้งวัน' : ` เวลา ${formatTimeHM(start)} ถึง ${formatTimeHM(end)}`) +
                   ` สถานะ ${label}` +
                   (it.orderNo ? ` เลขที่ ${it.orderNo}` : '')

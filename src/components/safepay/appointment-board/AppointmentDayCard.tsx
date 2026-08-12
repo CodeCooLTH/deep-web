@@ -264,7 +264,7 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
         href={`/orders/${item.orderToken}`}
         aria-label={
           `เปิดรายละเอียดนัดของ ${who}` +
-          (showResourceName && item.resource ? ` คิวงาน ${item.resource.name}` : '') +
+          (showResourceName && item.resource ? ` ประเภทงาน ${item.resource.name}` : '') +
           /* เดิมต่อว่า "จาก ${sourceText}" ซึ่งพังเมื่อค่าไม่ใช่ชื่อสถานที่ (อ่านได้ว่า
              "จาก สร้างนอกแชท") — ใช้คำนำหน้าที่เป็นกลางแทน ใช้ได้กับทุกค่าที่เป็นไปได้ */
           ` สถานะ ${statusLabel} ช่องทาง ${sourceText}` +

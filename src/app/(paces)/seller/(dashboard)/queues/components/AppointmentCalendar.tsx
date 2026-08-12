@@ -295,7 +295,7 @@ export default function AppointmentCalendar({ resources, createLabelShort }: Pro
           <h4 className="card-title">ปฏิทินคิว{title ? ` · ${title}` : ''}</h4>
           {filteredResource ? (
             <p className="text-default-500 mt-0.5 text-sm">
-              กำลังดูเฉพาะ {filteredResource.name} · นัดของคิวงานอื่นถูกซ่อนอยู่
+              กำลังดูเฉพาะ {filteredResource.name} · นัดของประเภทงานอื่นถูกซ่อนอยู่
             </p>
           ) : (
             <p className="text-default-500 mt-0.5 text-sm">
@@ -310,7 +310,7 @@ export default function AppointmentCalendar({ resources, createLabelShort }: Pro
               className="form-select min-h-11"
               value={resourceId}
               onChange={(e) => setResourceId(e.target.value)}
-              aria-label="กรองตามคิวงาน"
+              aria-label="กรองตามประเภทงาน"
             >
               <option value="">ดูทั้งหมด</option>
               {resources.map((r) => (

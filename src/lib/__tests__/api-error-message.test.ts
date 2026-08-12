@@ -12,10 +12,10 @@ const FALLBACK = 'สร้างคำสั่งซื้อไม่สำ�
 describe('[blocker] pickApiErrorMessage', () => {
   it('คอนเวนชัน (ก) — มี message ไทย: ใช้ message เป็นข้อความ และเก็บรหัสไว้อ้างอิง', () => {
     const r = pickApiErrorMessage(
-      { error: 'RESOURCE_NOT_FOUND', message: 'คิวงานที่เลือกไว้ถูกลบไปแล้ว' },
+      { error: 'RESOURCE_NOT_FOUND', message: 'ประเภทงานที่เลือกไว้ถูกลบไปแล้ว' },
       FALLBACK,
     )
-    expect(r.text).toBe('คิวงานที่เลือกไว้ถูกลบไปแล้ว')
+    expect(r.text).toBe('ประเภทงานที่เลือกไว้ถูกลบไปแล้ว')
     expect(r.code).toBe('RESOURCE_NOT_FOUND')
   })
 

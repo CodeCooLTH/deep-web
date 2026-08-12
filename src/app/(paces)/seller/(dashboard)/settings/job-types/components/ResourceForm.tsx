@@ -145,13 +145,13 @@ export default function ResourceForm({ resource }: Props) {
           // feature 00028 BR-SBT-11 — ตัด "บัญชีธุรกิจ" ออก: เงื่อนไขเหลือ vertical เดียว
           // (บัญชีบุคคลที่เป็นร้านสินค้าและบริการใช้คิวงานได้แล้ว) ข้อความเดิมจึงบอกผิด
           FEATURE_NOT_AVAILABLE: 'ระบบนัดหมายใช้ได้เฉพาะร้านประเภทสินค้าและบริการ',
-          RESOURCE_NOT_FOUND: 'ไม่พบคิวงานนี้ในร้าน',
+          RESOURCE_NOT_FOUND: 'ไม่พบประเภทงานนี้ในร้าน',
           FORBIDDEN: 'บัญชีนี้ไม่ได้อยู่ในทีมของร้าน จึงจัดการรายการนี้ไม่ได้',
         }
         pacesToast.error(map[data?.error as string] ?? 'บันทึกไม่สำเร็จ ลองกดบันทึกอีกครั้ง')
         return
       }
-      pacesToast.success(isEdit ? 'บันทึกแล้ว' : 'เพิ่มคิวงานแล้ว')
+      pacesToast.success(isEdit ? 'บันทึกแล้ว' : 'เพิ่มประเภทงานแล้ว')
       router.push('/settings/job-types')
       router.refresh()
     } catch {
@@ -161,22 +161,22 @@ export default function ResourceForm({ resource }: Props) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
-      {/* การรับนัด (รายวัน/ระบุช่วงเวลา) ย้ายออกไปอยู่ท้ายหน้า /queues แล้ว (2026-08-08)
-          — มันเป็นค่าระดับ **ร้าน** ไม่ใช่ของคิวงานใบใดใบหนึ่ง และการฝังไว้ที่นี่แปลว่า
-          ร้านที่ตั้งคิวงานเสร็จแล้วจะหาไม่เจออีกเลย (ร้าน BT รายงานจริง: สรุปว่าระบบระบุ
+      {/* การรับนัด (รายวัน/ระบุช่วงเวลา) ย้ายมาเป็นการ์ดแยกใบในหน้านี้แล้ว (2026-08-08 → แยกหน้า 2026-08-12)
+          — มันเป็นค่าระดับ **ร้าน** ไม่ใช่ของประเภทงานใบใดใบหนึ่ง และการฝังไว้ที่นี่แปลว่า
+          ร้านที่ตั้งประเภทงานเสร็จแล้วจะหาไม่เจออีกเลย (ร้าน BT รายงานจริง: สรุปว่าระบบระบุ
           เวลานัดไม่ได้ ทั้งที่แค่ยังไม่ได้สลับโหมด) ผลพลอยได้: ฟอร์มนี้เหลือปุ่มบันทึก/ยกเลิก
           ชุดเดียวที่คุมทุกอย่างในหน้าจริง ๆ แล้ว ไม่มีการ์ดที่บันทึกทันทีปนอยู่ให้สับสน */}
 
-      {/* ── ข้อมูลคิวงาน ── */}
+      {/* ── ข้อมูลประเภทงาน ── */}
       <div className="card">
         <div className="card-header">
-          <h4 className="card-title">ข้อมูลคิวงาน</h4>
+          <h4 className="card-title">ข้อมูลประเภทงาน</h4>
         </div>
         <div className="card-body">
           <div className="gap-base grid grid-cols-1 lg:grid-cols-2">
             <div className="lg:col-span-2">
               <label htmlFor="res-name" className="form-label">
-                ชื่อคิวงาน<span className="text-danger ms-0.5">*</span>
+                ชื่อประเภทงาน<span className="text-danger ms-0.5">*</span>
               </label>
               <input
                 id="res-name"
@@ -274,7 +274,7 @@ export default function ResourceForm({ resource }: Props) {
         <div className="card-header">
           <h4 className="card-title">มัดจำเริ่มต้น</h4>
           <p className="text-default-500 mt-0.5 text-sm">
-            ใช้เป็นค่าตั้งต้นของคิวงานนี้ ปรับเป็นรายออเดอร์ได้ตอนสร้างออเดอร์
+            ใช้เป็นค่าตั้งต้นของประเภทงานนี้ ปรับเป็นรายออเดอร์ได้ตอนสร้างออเดอร์
           </p>
         </div>
         <div className="card-body">
@@ -349,7 +349,7 @@ export default function ResourceForm({ resource }: Props) {
           className="btn bg-primary min-h-11 text-white hover:bg-primary-hover"
         >
           {isSubmitting && <Icon icon="tabler:loader-2" className="me-1 size-4 animate-spin" />}
-          {isEdit ? 'บันทึก' : 'เพิ่มคิวงาน'}
+          {isEdit ? 'บันทึก' : 'เพิ่มประเภทงาน'}
         </button>
       </div>
     </form>

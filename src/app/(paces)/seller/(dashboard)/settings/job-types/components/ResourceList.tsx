@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * ResourceList — รายการคิวงานที่รับได้ (feature 00024, FR-RSV-01)
+ * ResourceList — รายการประเภทงานที่รับได้ (feature 00024, FR-RSV-01)
  *
  * Base: src/app/(paces)/seller/(dashboard)/rooms/components/RoomList.tsx
  *   — โครงเดียวกัน: .card > .card-header (title + action) > การ์ด mobile / ตาราง desktop
@@ -201,7 +201,7 @@ export default function ResourceList({ resources, footer }: Props) {
     const { default: Swal } = await import('sweetalert2')
     const confirm = await Swal.fire({
       title: `ลบ${resource.name}?`,
-      text: 'ลบออกจากรายการคิวงานที่รับได้ ถ้าต้องการใช้อีกภายหลังต้องเพิ่มใหม่',
+      text: 'ลบออกจากรายการประเภทงานที่รับได้ ถ้าต้องการใช้อีกภายหลังต้องเพิ่มใหม่',
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'ลบ',
@@ -230,7 +230,7 @@ export default function ResourceList({ resources, footer }: Props) {
       if (data?.error === 'RESOURCE_HAS_APPOINTMENTS') {
         const fallback = await Swal.fire({
           title: 'ลบไม่ได้',
-          text: 'ลบไม่ได้เพราะยังมีนัดผูกอยู่ — ปิดการใช้งานแทนได้ คิวงานจะไม่ถูกเลือกสำหรับนัดใหม่ แต่นัดเดิมยังอยู่ครบ',
+          text: 'ลบไม่ได้เพราะยังมีนัดผูกอยู่ — ปิดการใช้งานแทนได้ ประเภทงานจะไม่ถูกเลือกสำหรับนัดใหม่ แต่นัดเดิมยังอยู่ครบ',
           icon: 'error',
           showCancelButton: true,
           confirmButtonText: 'ปิดการใช้งานแทน',
@@ -272,12 +272,12 @@ export default function ResourceList({ resources, footer }: Props) {
             <Icon icon="tabler:user-cog" className="text-default-400 size-7" />
           </div>
           <div>
-            <h5 className="text-default-800 font-medium">เริ่มต้นด้วยการเพิ่มคิวงาน</h5>
+            <h5 className="text-default-800 font-medium">เริ่มต้นด้วยการเพิ่มประเภทงาน</h5>
             {/* ตัวอย่างต้องตรงกับกลุ่มลูกค้าจริง — เดิมยกตัวอย่าง "เตียง ห้อง คลาส" ซึ่งเป็น
                 ร้านนวด/สปา ทำให้ร้านตกแต่งไฟหน้ารถ (ลูกค้ากลุ่มแรก) อ่านแล้วคิดว่า
                 "ไม่ใช่ระบบสำหรับร้านฉัน" (impeccable critique P1 2026-07-31) */}
             <p className="text-default-500 mt-1 text-sm">
-              คิวงานคือสิ่งที่จำกัดว่ารับลูกค้าได้กี่รายพร้อมกัน
+              ประเภทงานคือสิ่งที่จำกัดว่ารับลูกค้าได้กี่รายพร้อมกัน
               <br />
               เช่น ช่องบริการ 1 · ช่างสมชาย · ลิฟต์ยกรถ
             </p>
@@ -290,7 +290,7 @@ export default function ResourceList({ resources, footer }: Props) {
             className="btn bg-primary min-h-11 text-white hover:bg-primary-hover"
           >
             <Icon icon="tabler:plus" className="me-1 size-4" />
-            เพิ่มคิวงาน
+            เพิ่มประเภทงาน
           </Link>
         </div>
       </div>
@@ -302,7 +302,7 @@ export default function ResourceList({ resources, footer }: Props) {
     <div className="card queues-fullbleed -mx-4 md:mx-0">
       <div className="card-header flex items-center justify-between">
         <div>
-          <h4 className="card-title">คิวงานที่รับได้</h4>
+          <h4 className="card-title">ประเภทงานที่รับได้</h4>
           <p className="text-default-500 mt-0.5 text-sm">
             {items.length} รายการ · ใช้งานอยู่ {activeCount}
           </p>
@@ -312,11 +312,11 @@ export default function ResourceList({ resources, footer }: Props) {
           className="btn bg-primary min-h-11 text-white hover:bg-primary-hover"
         >
           <Icon icon="tabler:plus" className="me-1 size-4" />
-          เพิ่มคิวงาน
+          เพิ่มประเภทงาน
         </Link>
       </div>
 
-      {/* mobile: การ์ดต่อคิวงาน */}
+      {/* mobile: การ์ดต่อประเภทงาน */}
       <div className="divide-default-200 divide-y lg:hidden">
         {items.map((resource) => (
           <div key={resource.id} className="p-4">

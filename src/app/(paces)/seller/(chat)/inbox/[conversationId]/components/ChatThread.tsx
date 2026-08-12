@@ -3405,8 +3405,8 @@ export default function ChatThread({
             <button
               type="button"
               onClick={() => setApptSheetOpen(true)}
-              aria-label="ดูตารางว่างคิวงาน"
-              title="ดูตารางว่างคิวงาน"
+              aria-label="ดูตารางว่างประเภทงาน"
+              title="ดูตารางว่างประเภทงาน"
               /* ปุ่มอื่นในแถวนี้เปิด "แผง" จึงใช้ aria-expanded — ตัวนี้เปิด dialog เต็มจอ
                  ซึ่งเป็นคนละสัญญาณ (ผู้ใช้ screen reader ต้องรู้ว่ากำลังจะออกจากบริบทนี้) */
               aria-haspopup="dialog"

@@ -684,7 +684,7 @@ export async function POST(
       // อ่าน vertical ปัจจุบันของร้านเสมอ ไม่ใช่ธงที่เก็บบนแถวออเดอร์ — ร้านเปลี่ยนประเภททีหลังได้
       // (docs/conventions/stored-flag-vs-owner-truth.md)
       if (!canUseAppointments(order.shop)) {
-        return NextResponse.json({ error: "ร้านนี้ไม่ได้ใช้ระบบคิวงาน" }, { status: 403 });
+        return NextResponse.json({ error: "ร้านนี้ไม่ได้ใช้ระบบประเภทงาน" }, { status: 403 });
       }
       if (!order.serviceStart) {
         return NextResponse.json({ error: "คำสั่งซื้อนี้ไม่มีนัดหมาย" }, { status: 400 });

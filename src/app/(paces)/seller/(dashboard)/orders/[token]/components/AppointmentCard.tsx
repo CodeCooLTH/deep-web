@@ -217,7 +217,7 @@ export default function AppointmentCard({
                   <Icon icon="user-cog" className="text-sm" aria-hidden="true" />
                 </span>
                 <span className="text-default-700 truncate text-sm">
-                  <span className="sr-only">คิวงาน </span>
+                  <span className="sr-only">ประเภทงาน </span>
                   {resourceName}
                 </span>
               </div>
