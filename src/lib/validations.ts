@@ -1930,3 +1930,30 @@ export const RichMenuDraftSchema = v.object({
 export const RichMenuChannelRefSchema = v.object({
   shopChannelId: v.pipe(v.string(), v.minLength(1)),
 });
+
+// ── feature 00048 Customer File Library (คลังไฟล์ต่อลูกค้า) ────────────────────
+/**
+ * 🛑 POST รับแค่ `messageId` โดยตั้งใจ — ค่าที่ตัดสิน "เก็บอะไร" (fileId/kind/sentAt/ผู้ส่ง)
+ * ต้องอ่านจากฐานฝั่ง server เสมอ ถ้ารับจาก client จะเปิดช่องยัด fileId ของร้านอื่นเข้าคลังตัวเอง
+ * และทำให้ลำดับในคลังเป็นค่าที่หน้าจอแต่งได้
+ */
+export const LibrarySaveSchema = v.object({
+  messageId: v.pipe(v.string(), v.uuid("รหัสข้อความไม่ถูกต้อง")),
+});
+
+/**
+ * แก้ชื่อไฟล์/โน้ต — ต้องมีอย่างน้อย 1 field นอกจาก fileId ไม่งั้น PATCH ที่ไม่เปลี่ยนอะไรเลย
+ * จะถูกนับเป็นสำเร็จ แล้วผู้ใช้จะเห็น "บันทึกแล้ว" ทั้งที่ไม่มีอะไรเกิดขึ้น
+ * ค่า null ส่งมาได้ = ตั้งใจล้างค่า (ต่างจากไม่ส่ง field มาเลย = ไม่แตะ)
+ */
+export const LibraryPatchSchema = v.pipe(
+  v.object({
+    fileId: v.pipe(v.string(), v.minLength(1, "ต้องระบุไฟล์")),
+    fileName: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(120, "ชื่อไฟล์ยาวได้ไม่เกิน 120 ตัวอักษร")))),
+    note: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(500, "โน้ตยาวได้ไม่เกิน 500 ตัวอักษร")))),
+  }),
+  v.check(
+    (o) => "fileName" in o || "note" in o,
+    "ต้องระบุอย่างน้อยหนึ่งอย่างที่จะแก้ไข",
+  ),
+);

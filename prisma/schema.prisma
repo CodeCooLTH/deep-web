@@ -339,6 +339,9 @@ model Shop {
   pageLayout ShopPageLayout? // สวิตช์เผยแพร่ + ลำดับแท็บของหน้าร้านสาธารณะ (1:1, lazily created ตอนกดบันทึกครั้งแรก)
   pageBlocks ShopPageBlock[] // บล็อกเหนือแถบแท็บ (เหรียญตราเด่น/โพสต์ Facebook) เรียงตาม sortOrder
 
+  // --- Customer File Library (feature 00048, additive) ---
+  customerFiles CustomerFile[] // ไฟล์ที่ทีมร้านคัดเข้าคลังของลูกค้าแต่ละราย
+
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
   @@index([categories], type: Gin, map: "Shop_categories_gin_idx")
@@ -1524,7 +1527,7 @@ model ShopChannel {
   //   reason: 'SIGNATURE_MISMATCH' | 'DESTINATION_NOT_FOUND'
   lineLastInboundFailAt     DateTime?
   lineLastInboundFailReason String?
-  lineInboundFailCount      Int               @default(0)
+  lineInboundFailCount      Int       @default(0)
 
   shop             Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
   contacts         ExternalContact[]
@@ -1584,6 +1587,7 @@ model ExternalContact {
   channel       ShopChannel    @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
   customer      Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
   conversations Conversation[]
+  customerFiles CustomerFile[] // feature 00048 — คลังไฟล์ของผู้ติดต่อรายนี้ (เจ้าของคลังหลัก)
 
   @@unique([shopChannelId, externalUserId]) // PSID เป็น page-scoped — ห้าม dedup ข้าม Page
 }
@@ -1691,6 +1695,8 @@ model Conversation {
   autoReplyTestThreads AutoReplyKeywordTestThread[]
   contextProduct       Product?                     @relation("ConversationContextProduct", fields: [contextProductId], references: [id], onDelete: SetNull)
   aiChatbotTestThreads AiChatbotTestThread[] // แชทที่ถูกเลือกไว้ทดสอบ ChatBot
+  // feature 00048 — คลังไฟล์ที่ผูกกับ "เธรด" โดยตรง ใช้เฉพาะเธรด DEEP ที่ไม่มี ExternalContact
+  customerFiles        CustomerFile[]
   // back-relation ของ Order.conversationId (2026-08-12) — ออเดอร์ที่ถูกสร้างจากเธรดนี้ (0..N,
   // ปกติมีไม่กี่ใบต่อเธรด) ดูคอมเมนต์เต็มที่ field ใน model Order — nullable, ไม่ backfill ย้อนหลัง
   orders               Order[]
@@ -2778,12 +2784,12 @@ model AutoReplyLog {
   normalizedText String? @db.Text // หลัง normalize (AC-010-06 — ใช้ debug ว่าทำไมไม่ match)
 
   // --- ผลการจับคู่ ---
-  keywordId     String?
-  matchedPhrase String?
-  matchType     String?
+  keywordId       String?
+  matchedPhrase   String?
+  matchType       String?
   // เกณฑ์ที่ทำให้ชนะ + กลุ่มที่แพ้ (AC-011-04) — Json เพราะเป็นข้อมูลวินิจฉัย
   // ไม่มี query ไหนกรองด้วยเนื้อในของมัน (มิเรอร์ ChatMessage.scamMatchedRules)
-  matchTrace    Json?
+  matchTrace      Json?
   /// บริบทของคำตอบที่มาจาก "ลูกค้าแตะปุ่มบนเมนูลัด" (feature 00045 FR-RM-09)
   /// { buttonLabel, orderNo } — 🛑 `buttonLabel` ต้องเป็นคำจริงที่ร้านตั้งไว้บนปุ่ม ห้าม hardcode
   /// เพราะร้านแก้คำเองได้ (FR-RM-02) ถ้า hardcode ป๊อปอัปจะโกหกทันทีที่ร้านเปลี่ยนคำ
@@ -3412,4 +3418,63 @@ model LineRichMenu {
   updatedAt       DateTime  @updatedAt
 
   shopChannel ShopChannel @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// feature 00048 — Customer File Library (คลังไฟล์ต่อลูกค้า)
+//
+// แถวในตารางนี้เกิดจาก "ผู้ขายกดเก็บเองทีละใบ" เท่านั้น (มติ D-1) ไม่ใช่ index อัตโนมัติของ
+// ทุกไฟล์ในเธรด — ถ้าวันหนึ่งมีคนอยากทำรายการอัตโนมัติ ให้ทำเป็น query บน ChatMessage ตรง ๆ
+// อย่าเขียนแถวเข้าตารางนี้ ไม่งั้นความหมายของคลัง (ของที่คนคัดแล้ว) จะหายไปเงียบ ๆ
+// ─────────────────────────────────────────────────────────────────────────────
+model CustomerFile {
+  id     String @id @default(uuid())
+  // ร้านเจ้าของ "เธรด" (ไม่ใช่ร้านที่ active — ในกล่องแชทรวมสองอย่างนี้ไม่ใช่สิ่งเดียวกัน)
+  // ทุก query ต้องมีคอลัมน์นี้ในเงื่อนไขเสมอ แม้ owner key จะเจาะจงอยู่แล้ว (defense in depth)
+  shopId String
+
+  // เจ้าของคลัง — มีค่า "อย่างใดอย่างหนึ่ง" เท่านั้น บังคับด้วย CHECK ใน migration
+  // (Prisma ประกาศ CHECK เองไม่ได้ จึงเป็น unmanaged SQL → ห้าม prisma db pull)
+  externalContactId String?
+  conversationId    String?
+
+  // fileId ของ storage — ค่าเดียวกับ ChatMessage.imageUrl (คลังเป็น "การอ้างอิง" ไม่ copy ไฟล์
+  // เพราะไฟล์ขาเข้าจาก Meta/LINE ถูก mirror เข้า storage เราตั้งแต่ ingest แล้ว)
+  fileId String
+  kind   String // "IMAGE" | "VIDEO" | "FILE" — String ตาม convention ของ ChatMessage.type
+
+  // snapshot ณ เวลาที่เก็บ — ต้องอ่านได้แม้ข้อความต้นทางถูกลบไปแล้ว (BR-CFL-15)
+  // fileName ผู้ใช้แก้ไขได้ทีหลัง (FR-CFL-14) จึงไม่ใช่ snapshot บริสุทธิ์
+  fileName String?
+  fileSize Int?
+  note     String?
+
+  // 🛑 sourceMessageId **ไม่ใช่ FK โดยตั้งใจ** — ข้อความถูกลบต้องไม่ลบแถวนี้ ซึ่งคือเหตุผล
+  // ทั้งหมดที่คลังมีอยู่. ใช้กับปุ่ม "ดูในแชท" ที่ซ่อนทั้งปุ่มเมื่อหาข้อความไม่เจอ
+  sourceMessageId String?
+  senderRole      String // "BUYER" | "SHOP"
+  senderName      String?
+  // 🛑 เวลาที่ไฟล์ถูก "ส่งจริง" ในเธรด = ChatMessage.createdAt ไม่ใช่ now() ตอนกดเก็บ
+  // นี่คือคีย์เรียงลำดับของคลัง (BR-CFL-12) — เขียนผิดตัวนี้แล้วไม่มีอะไรฟ้อง
+  sentAt          DateTime
+
+  // ผู้เก็บ: id ไว้อ้างอิง + ชื่อเป็น snapshot เพราะป้าย "เก็บโดย X" ต้องยังอ่านได้แม้คนนั้น
+  // ออกจากทีมร้านไปแล้ว (BR-CFL-11) จึงไม่ join เอาตอนอ่าน
+  savedByUserId String?
+  savedByName   String?
+  savedAt       DateTime @default(now())
+
+  shop            Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  externalContact ExternalContact? @relation(fields: [externalContactId], references: [id], onDelete: Cascade)
+  conversation    Conversation?    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  // กันเก็บซ้ำที่ชั้น DB (BR-CFL-03). NULL ใน Postgres ไม่ชนกันเอง ⇒ แถวที่เจ้าของเป็น conversation
+  // จะเป็น (NULL, fileId) ซึ่งไม่มีวันชน unique ตัวแรก และกลับกัน ⇒ ได้ partial-unique ต่อเจ้าของ
+  // โดยไม่ต้องเขียน partial index เอง
+  @@unique([externalContactId, fileId])
+  @@unique([conversationId, fileId])
+  // keyset pagination: ORDER BY sentAt DESC, id DESC
+  @@index([externalContactId, sentAt(sort: Desc)])
+  @@index([conversationId, sentAt(sort: Desc)])
+  @@index([shopId])
 }
