@@ -11,42 +11,55 @@
 
 import AuthLogo from '@/components/AuthLogo'
 import { currentYear, META_DATA } from '@/config/constants'
+import { getT } from '@/i18n/server'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import SignInForm from './components/SignInForm'
 import AuthCardShell from '../components/AuthCardShell'
+import AuthLocaleSwitch from '../components/AuthLocaleSwitch'
 
-export const metadata: Metadata = { title: 'เข้าสู่ระบบผู้ขาย' }
+/**
+ * title ของแท็บต้องผันตามภาษาด้วย (feature 00047) — reviewer เห็นแถบแท็บเบราว์เซอร์ในคลิป
+ * ต้องเป็น generateMetadata ไม่ใช่ `export const metadata` เพราะค่าคงที่คำนวณตอน build
+ * ซึ่งยังไม่รู้ว่า request นี้เป็นภาษาอะไร
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT()
+  return { title: t.auth.signIn.pageTitle }
+}
 
-export default function SellerSignInPage() {
+export default async function SellerSignInPage() {
+  const t = await getT()
+
   return (
     <AuthCardShell>
+      {/* ตัวสลับภาษา (feature 00047, มติ D-I18N-6) — วางเป็นแถวของตัวเองก่อนโลโก้
+          🛑 เฉพาะหน้านี้เท่านั้น ห้ามย้ายไป AuthCardShell เพราะ shell ใช้ร่วม 5 หน้า auth
+          และ D-I18N-6 กำหนดขอบเขตไว้ที่หน้าเข้าสู่ระบบ (จุดที่ reviewer เริ่มเดินในคลิป) */}
+      <AuthLocaleSwitch />
+
       <div className="mb-7.5 flex flex-col items-center justify-center text-center">
         <AuthLogo />
       </div>
 
       <div>
-        <h4 className="font-bold mb-2 text-default-900 text-lg text-center">
-          ยินดีต้อนรับผู้ขาย
-        </h4>
-        <p className="text-default-400 mb-4 mx-auto w-full text-center lg:w-3/4">
-          กรอกชื่อผู้ใช้และรหัสผ่านเพื่อเข้าสู่ระบบ
-        </p>
+        <h4 className="font-bold mb-2 text-default-900 text-lg text-center">{t.auth.signIn.title}</h4>
+        <p className="text-default-400 mb-4 mx-auto w-full text-center lg:w-3/4">{t.auth.signIn.subtitle}</p>
 
         {/* SignInForm อ่าน ?callbackUrl= ผ่าน useSearchParams — Suspense กัน hydration mismatch
             (pattern เดียวกับ verify-otp/page.tsx) */}
-        <Suspense fallback={<p className="text-center text-default-400 py-8">กำลังโหลด...</p>}>
+        <Suspense fallback={<p className="text-center text-default-400 py-8">{t.auth.signIn.loading}</p>}>
           <SignInForm />
         </Suspense>
 
         <p className="text-default-400 mt-7.5 text-center">
-          ยังไม่มีบัญชี?&nbsp;
+          {t.auth.signIn.noAccount}&nbsp;
           <Link
             href="/auth/sign-up"
             className="text-primary font-semibold underline underline-offset-4"
           >
-            สมัครสมาชิก
+            {t.auth.signIn.signUp}
           </Link>
         </p>
       </div>

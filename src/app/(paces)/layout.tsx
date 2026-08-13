@@ -7,6 +7,8 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 
 import AppProvidersWrapper from '@/components/wrappers/AppProvidersWrapper'
 import { META_DATA } from '@/config/constants'
+import { LocaleProvider } from '@/i18n/LocaleProvider'
+import { getLocale } from '@/i18n/server'
 // favicon ของฝั่ง seller/admin = Paces theme favicon (ไม่ใช้ของ buyer/Deep ที่ root)
 import pacesFavicon from '@/assets/images/paces-favicon.ico'
 
@@ -52,14 +54,27 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 }
 
-export default function RootLayout({
+/**
+ * feature 00047 — `lang` ต้องตรงกับภาษาที่แสดงจริง (BR-I18N-15)
+ *
+ * ต้องตัดสินที่นี่เพราะ `<html>` มีอยู่ที่เดียวคือ root layout และ FR-I18N-05 กำหนดว่าค่านี้
+ * ต้องถูกตั้งแต่การเรนเดอร์ครั้งแรกฝั่งเซิร์ฟเวอร์ (โปรแกรมอ่านหน้าจอตัดสินภาษาที่จะออกเสียง
+ * จาก attribute นี้ — ตั้งทีหลังด้วย JS ไม่ทันรอบแรก)
+ *
+ * ทำให้ layout เป็น async = ทุก route ใต้ (paces) เป็น dynamic — ซึ่ง **ไม่ได้เปลี่ยนอะไร**
+ * เพราะทุกหน้าใต้นี้อ่าน session อยู่แล้วจึง dynamic มาตั้งแต่แรก และ `getLocale()` ถูกห่อ
+ * ด้วย `cache()` ⇒ query ฐานข้อมูลครั้งเดียวต่อ request ใช้ร่วมกับทั้ง tree
+ */
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const locale = await getLocale()
+
   return (
     <html
-      lang="th"
+      lang={locale}
       data-layout="vertical"
       data-sidenav-user="false"
       data-layout-position="fixed"
@@ -84,7 +99,12 @@ export default function RootLayout({
         <Script id="text-scale-init" strategy="beforeInteractive">
           {`(function(){try{var s=window.localStorage.getItem('deep-seller-text-scale');if(s==='lg'||s==='xl'){document.documentElement.setAttribute('data-text-scale',s);}}catch(e){}})();`}
         </Script>
-        <AppProvidersWrapper>{children}</AppProvidersWrapper>
+        {/* feature 00047 — วาง LocaleProvider ไว้ชั้นนอกสุดของ (paces) เพราะครอบทั้งโซนผู้ขาย
+            (รวมหน้า auth ที่ยังไม่ล็อกอิน) และโซนแอดมินในคราวเดียว จุดเดียวเหมือนที่
+            PacesToastContainer ทำ — component ไหนก็เรียก useT() ได้โดยไม่ต้องต่อสายเพิ่ม */}
+        <LocaleProvider locale={locale}>
+          <AppProvidersWrapper>{children}</AppProvidersWrapper>
+        </LocaleProvider>
         <Analytics />
         <SpeedInsights />
       </body>

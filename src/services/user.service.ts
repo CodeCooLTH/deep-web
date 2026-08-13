@@ -63,6 +63,8 @@ export async function updateProfile(
     avatar?: string | null
     /** feature 00037 — มุมมองกล่องข้อความ "SINGLE" | "UNIFIED" */
     chatScopeMode?: string
+    /** feature 00047 — ภาษาของหน้าจอ "th" | "en" (แหล่งความจริงของภาษา ดู src/i18n/server.ts) */
+    locale?: string
   },
 ) {
   return prisma.user.update({
@@ -72,6 +74,7 @@ export async function updateProfile(
       username: data.username,
       avatar: data.avatar,
       chatScopeMode: data.chatScopeMode,
+      locale: data.locale,
     },
     select: {
       id: true,

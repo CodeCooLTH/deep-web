@@ -24,6 +24,7 @@ import { ConnectedAccountsClient } from './components/ConnectedAccountsClient'
 import ProfileForm from './components/ProfileForm'
 import DeleteAccountCard from './components/DeleteAccountCard'
 import NotificationPrefsCard from './components/NotificationPrefsCard'
+import LanguagePrefsCard from './components/LanguagePrefsCard'
 
 export const metadata: Metadata = { title: 'ข้อมูลส่วนตัว' }
 
@@ -121,6 +122,14 @@ export default async function AccountPage() {
             hasPhone={dbUser.phone != null}
           />
         </div>
+
+        {/* ภาษา (feature 00047) — วางระหว่าง "วิธีเข้าสู่ระบบ" กับ "การแจ้งเตือน" ตามลำดับกลุ่ม:
+            ตัวตน (ข้อมูลส่วนตัว) → ความปลอดภัย (วิธีเข้าสู่ระบบ) → การแสดงผล (ภาษา) →
+            การแจ้งเตือน → destructive (ลบบัญชี ท้ายสุดเสมอ)
+
+            อยู่หน้านี้ถูกแล้วเพราะเป็น "ฉันอยากอ่านภาษาอะไร" ไม่ใช่ "ร้านนี้ตั้งค่าไว้ยังไง" —
+            เส้นแบ่งเดียวกับที่ NotificationPrefsCard ใช้ (พนักงานสองคนในร้านเดียวกันตั้งต่างกันได้) */}
+        <LanguagePrefsCard />
 
         {/* การแจ้งเตือน — วางก่อน "ลบบัญชี" เสมอ: ลบบัญชีเป็น destructive ต้องอยู่ท้ายสุดของหน้า
             (ถ้าแทรกการ์ดอื่นต่อจากมัน ปุ่มลบจะไปนอนกลางหน้าแล้วโดนกดพลาดง่ายขึ้น)

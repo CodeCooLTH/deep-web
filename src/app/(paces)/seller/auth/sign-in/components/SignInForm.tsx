@@ -31,25 +31,32 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
+import { useT } from '@/i18n/LocaleProvider'
+import type { Dictionary } from '@/i18n/dictionaries/th'
 import { safeCallbackUrl } from '@/lib/safe-callback-url'
 import { cn } from '@/utils/helpers'
 
-const schema = Yup.object({
-  username: Yup.string()
-    .min(3, 'ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร')
-    .required('กรุณากรอกชื่อผู้ใช้'),
-  password: Yup.string()
-    .min(1, 'กรุณากรอกรหัสผ่าน')
-    .required('กรุณากรอกรหัสผ่าน'),
-})
+/**
+ * schema ต้องสร้างจาก dictionary ไม่ใช่ค่าคงที่ระดับ module (feature 00047)
+ * ข้อความ validation เป็นสิ่งที่ผู้ใช้เห็นบนจอ จึงต้องเปลี่ยนตามภาษาเหมือนข้อความอื่นทุกตัว
+ * ถ้าปล่อยไว้นอก component มันจะถูกผูกกับภาษาที่โหลดตอน bundle แล้วค้างเป็นไทยตลอดไป
+ */
+function makeSchema(t: Dictionary) {
+  return Yup.object({
+    username: Yup.string().min(3, t.auth.signIn.errUsernameMin).required(t.auth.signIn.errUsernameRequired),
+    password: Yup.string().min(1, t.auth.signIn.errPasswordRequired).required(t.auth.signIn.errPasswordRequired),
+  })
+}
 
-type FormValues = Yup.InferType<typeof schema>
+type FormValues = Yup.InferType<ReturnType<typeof makeSchema>>
 
 export default function SignInForm() {
+  const t = useT()
+  const schema = useMemo(() => makeSchema(t), [t])
   const router = useRouter()
   const searchParams = useSearchParams()
   // ปลายทางหลัง login — มาจาก query string จึงต้อง sanitize ทุกครั้ง (open-redirect)
@@ -111,7 +118,7 @@ export default function SignInForm() {
       // ทั้ง 2 field ขึ้น border แดงโดยไม่โชว์ text ซ้อน; ข้อความรวมอยู่ที่ errors.root
       setError('username', { type: 'server', message: '' })
       setError('password', { type: 'server', message: '' })
-      setError('root', { message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' })
+      setError('root', { message: t.auth.signIn.errInvalidCredentials })
     }
   }
 
@@ -136,7 +143,7 @@ export default function SignInForm() {
             className="me-2 flex-shrink-0"
             style={{ color: '#000000' }} // brand asset Apple — carve-out จาก Paces token (Hard Rule 6)
           />
-          เข้าสู่ระบบด้วย Apple
+          {t.auth.signIn.withApple}
         </button>
 
         {/* ปุ่ม Facebook OAuth */}
@@ -154,7 +161,7 @@ export default function SignInForm() {
             className="me-2 flex-shrink-0"
             style={{ color: '#1877f2' }} // brand asset Facebook — carve-out จาก Paces token (Hard Rule 6)
           />
-          เข้าสู่ระบบด้วย Facebook
+          {t.auth.signIn.withFacebook}
         </button>
 
         {/* ปุ่ม LINE OAuth — mirror structure เดียวกับ FB */}
@@ -171,7 +178,7 @@ export default function SignInForm() {
             className="me-2 flex-shrink-0"
             style={{ color: '#06C755' }} // brand asset LINE — carve-out จาก Paces token (Hard Rule 6)
           />
-          เข้าสู่ระบบด้วย LINE
+          {t.auth.signIn.withLine}
         </button>
 
         {/* ปุ่ม Instagram OAuth — flag-off by default (NEXT_PUBLIC_ENABLE_IG_LOGIN) */}
@@ -189,7 +196,7 @@ export default function SignInForm() {
               className="me-2 flex-shrink-0"
               style={{ color: '#E1306C' }} // brand asset Instagram — carve-out จาก Paces token (Hard Rule 6)
             />
-            เข้าสู่ระบบด้วย Instagram
+            {t.auth.signIn.withInstagram}
           </button>
         )}
       </div>
@@ -197,7 +204,7 @@ export default function SignInForm() {
       {/* dashed divider — copy structure จาก base theme ตรง ๆ */}
       <p className="relative my-5 text-center text-default-400 after:absolute after:start-0 after:end-0 after:top-2.75 after:h-0.75 after:border-t after:border-b after:border-dashed after:border-default-300">
         <span className="relative z-10 bg-card font-medium px-4">
-          หรือเข้าด้วย username
+          {t.auth.signIn.orUsername}
         </span>
       </p>
 
@@ -205,7 +212,7 @@ export default function SignInForm() {
         {/* Username field */}
         <div className="mb-5">
           <label htmlFor="username" className="form-label">
-            ชื่อผู้ใช้
+            {t.auth.signIn.usernameLabel}
             <span className="text-danger">*</span>
           </label>
           <div className="input-icon-group">
@@ -228,7 +235,7 @@ export default function SignInForm() {
         {/* Password field */}
         <div className="mb-5">
           <label htmlFor="password" className="form-label">
-            รหัสผ่าน
+            {t.auth.signIn.passwordLabel}
             <span className="text-danger">*</span>
           </label>
           <div className="input-icon-group relative">
@@ -246,7 +253,7 @@ export default function SignInForm() {
             <button
               type="button"
               onClick={() => setShowPw((s) => !s)}
-              aria-label={showPw ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+              aria-label={showPw ? t.auth.signIn.hidePassword : t.auth.signIn.showPassword}
               className="absolute inset-y-0 end-0 flex min-w-11 items-center justify-center text-default-500 hover:text-default-700"
             >
               <Icon icon={showPw ? 'eye-off' : 'eye'} className="text-base" />
@@ -263,7 +270,7 @@ export default function SignInForm() {
             href="/auth/reset-pass"
             className="text-default-400 underline underline-offset-4 text-sm"
           >
-            ลืมรหัสผ่าน?
+            {t.auth.signIn.forgotPassword}
           </Link>
         </div>
 
@@ -281,7 +288,7 @@ export default function SignInForm() {
             disabled={isSubmitting}
             className="btn bg-primary w-full py-3 font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
           >
-            {isSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+            {isSubmitting ? t.auth.signIn.submitting : t.auth.signIn.submit}
           </button>
         </div>
       </form>

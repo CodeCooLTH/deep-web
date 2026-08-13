@@ -10,6 +10,7 @@ import {
 import { isHttpUrl } from "@/lib/order-display";
 import { SHOP_CATEGORY_KEYS } from "@/lib/shop-categories";
 import { CHAT_CHANNELS } from "@/lib/chat-channel";
+import { LOCALES } from "@/i18n/locales";
 import {
   APPOINTMENT_CLOSING_MAX,
   HIDEABLE_APPOINTMENT_SUMMARY_KEYS,
@@ -142,6 +143,13 @@ export const UpdateProfileSchema = v.object({
   // ที่ห้ามเข้ามาเด็ดขาด ดู comment หัว schema) — picklist กันค่าประหลาดตั้งแต่ขาเขียน ส่วนขาอ่าน
   // ยังมี normalizeChatScopeMode ป้องกันซ้ำอีกชั้น (แถวเก่า/แถวที่ถูกแก้จากที่อื่น)
   chatScopeMode: v.optional(v.picklist(["SINGLE", "UNIFIED"])),
+  // locale (feature 00047) — ภาษาของหน้าจอของผู้ใช้เอง เข้าเกณฑ์ allow-list นี้ด้วยเหตุผล
+  // เดียวกับ chatScopeMode เป๊ะ: เป็นค่าที่ "ผู้ใช้ตั้งเองได้จริง" ไม่ใช่สิทธิ์/คะแนน/ตัวตน
+  //
+  // ใช้ LOCALES จาก @/i18n/locales เป็น SSOT ไม่ pin รายชื่อค่าซ้ำที่นี่ — วันที่เพิ่มภาษาที่สาม
+  // จะได้ไม่มีจุดที่ลืมแก้ (คอลัมน์ใน DB ไม่มี CHECK constraint โดยตั้งใจ ด่านขาเขียนคือบรรทัดนี้)
+  // ขาอ่านยังมี toLocale() กันซ้ำอีกชั้น (แถวเก่า/แถวที่ถูกแก้จากที่อื่น)
+  locale: v.optional(v.picklist(LOCALES)),
 });
 
 export const CreateShopSchema = v.object({

@@ -51,6 +51,26 @@ model User {
   // 🛑 ห้ามใส่ CHECK constraint รายชื่อค่าให้คอลัมน์นี้ (docs/conventions/migration-check-constraint-additive.md)
   chatScopeMode String @default("SINGLE")
 
+  // locale (feature 00047) — ภาษาของหน้าจอสำหรับ "คนคนนี้": "th" | "en"
+  //
+  // เก็บที่ User ไม่ใช่ที่ Shop ด้วยเหตุผลเดียวกับ chatScopeMode ด้านบนเป๊ะ: เป็น "วิธีทำงาน
+  // ของคน" ไม่ใช่ "การตั้งค่าของร้าน" — คนคนเดียวสลับไปร้านไหนก็อยากอ่านภาษาเดิมของตัวเอง
+  // ตั้งค่าที่หน้า /account (ตั้งค่าตัวคน) ไม่ใช่ /shop (มติ D-I18N-4)
+  //
+  // 🛑 คอลัมน์นี้คือแหล่งความจริงเดียวของภาษา — cookie `deep_locale` เป็นเพียง "เงา" ที่มีไว้
+  // ให้หน้าที่ยังไม่ล็อกอิน (/auth/sign-in) อ่าน เพราะตอนนั้นยังไม่รู้ว่าเป็นใคร
+  // มี session เมื่อไหร่ ค่าจากคอลัมน์นี้ชนะเสมอ ห้ามให้ cookie เขียนทับ (มติ D-I18N-6)
+  // เหตุผล: เครื่องหนึ่งมีคนใช้ได้หลายคน ถ้าปล่อยให้ทับ คนก่อนหน้ากด EN ทิ้งไว้แล้วเจ้าของ
+  // บัญชีล็อกอินตาม จะถูกเปลี่ยนการตั้งค่าถาวรโดยไม่มีใครตั้งใจและไม่มีอะไรฟ้อง
+  //
+  // default "th" — BR-I18N-01 ผู้ใช้เดิมทุกคนต้องไม่เห็นอะไรเปลี่ยน ไม่ต้อง backfill
+  //
+  // String ไม่ใช่ enum ตาม convention เดิม; validate ด้วย Valibot ที่ชั้น API และค่าที่ไม่รู้จัก
+  // ถูกตีเป็น "th" (fail-closed, ดู toLocale() ใน src/i18n/locales.ts)
+  //
+  // 🛑 ห้ามใส่ CHECK constraint รายชื่อค่าให้คอลัมน์นี้ (เหตุผลเดียวกับ chatScopeMode)
+  locale String @default("th")
+
   authAccounts           AuthAccount[]
   mobileAuthTickets      MobileAuthTicket[]
   shops                  Shop[] // Phase 2 cutover (feature 00008 §4/§6.3) — เดิมเป็น `shop Shop?` (1:1); ตอนนี้ 1 user มีได้หลาย Shop (PERSONAL 1 แถว unique partial + BUSINESS หลายแถว) ใช้ .find(kind==='PERSONAL')/.filter ตามต้องการที่ caller

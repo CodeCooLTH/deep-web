@@ -37,11 +37,17 @@ async function main() {
     select: { id: true, phone: true, isShop: true, isAdmin: true },
   })
 
+  // locale: 'en' (feature 00047) — บัญชีนี้มีผู้ใช้คนเดียวคือ Meta App Reviewer ซึ่งอ่านภาษาไทย
+  // ไม่ได้ ตั้งไว้ตั้งแต่สร้างเพื่อให้ reviewer ได้ UI อังกฤษต่อเนื่องทันทีหลังล็อกอิน โดยไม่ต้อง
+  // พึ่งกลไก cookie หรือให้เขาไปหาเมนูตั้งค่าเอง
+  //
+  // 🛑 ตั้งทุกครั้งที่รัน รวมกิ่ง update ด้วย — สคริปต์นี้ idempotent และถูกรันซ้ำเพื่อรีเซ็ตรหัสผ่าน
+  // ก่อนยื่นแต่ละรอบ ถ้าตั้งเฉพาะตอน create บัญชีที่มีอยู่แล้วจะค้างเป็น 'th' ตลอดไป
   const user = existing
     ? await prisma.user.update({
         where: { id: existing.id },
-        data: { passwordHash, isShop: true, phone: existing.phone ?? PHONE },
-        select: { id: true, username: true, phone: true, isShop: true, isAdmin: true },
+        data: { passwordHash, isShop: true, phone: existing.phone ?? PHONE, locale: 'en' },
+        select: { id: true, username: true, phone: true, isShop: true, isAdmin: true, locale: true },
       })
     : await prisma.user.create({
         data: {
@@ -50,8 +56,9 @@ async function main() {
           phone: PHONE,
           passwordHash,
           isShop: true,
+          locale: 'en',
         },
-        select: { id: true, username: true, phone: true, isShop: true, isAdmin: true },
+        select: { id: true, username: true, phone: true, isShop: true, isAdmin: true, locale: true },
       })
 
   const personal = await prisma.shop.findFirst({
@@ -90,6 +97,8 @@ async function main() {
     shopId: shop.id,
     shopName: shop.shopName,
     slug: shop.slug,
+    // ยืนยันว่า reviewer จะเห็น UI ภาษาอังกฤษ — ถ้าไม่ใช่ 'en' แปลว่าตั้งค่าไม่ติด
+    locale: user.locale,
     login_ok: user.isShop && !user.isAdmin,
     needsRegistration,
     needsOnboarding,
