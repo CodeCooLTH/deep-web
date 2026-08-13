@@ -290,3 +290,149 @@ screencast รายข้อที่อัปไม่ผ่าน) ใช้�
   ข้อมูลพร้อมแล้วทั้ง `OrderShipment` และเส้นเชื่อมห้องแชท↔ลูกค้า↔ออเดอร์ของ
   `order-stage.service`) ลำดับที่ถูกคือ **เช็คราคาส่งก่อน → feature doc → implement →
   ยิง test call → ค่อยยื่นรอบถัดไป** ห้ามยื่นก่อนมีของ (หลักการข้อ 4 หัวเอกสาร)
+
+---
+
+## 5. รอบยื่นที่ 2 — หลังถูกตีกลับ 2026-08-13
+
+### 5.1 ผลรอบแรก (submission `1699582191260173`)
+
+ยื่น 2026-08-01 15:22 → Meta ตรวจเสร็จ **2026-08-13 11:31** (รอ 12 วัน)
+
+| Permission | ผล | หมายเหตุ |
+|---|---|---|
+| `pages_show_list` | ✅ ผ่าน | `access_level` ยังเป็น `standard` |
+| `business_management` | ✅ ผ่าน | `access_level` ยังเป็น `standard` |
+| `pages_manage_metadata` | ❌ ตีกลับ | rejection reason `642518292152406` |
+| `pages_messaging` | ❌ ตีกลับ | รหัสเดียวกัน |
+| `pages_read_engagement` | ❌ ตีกลับ | รหัสเดียวกัน |
+
+🛑 **ทั้ง 3 ตัวตกด้วยเหตุผลเดียวกันใบเดียว** — *Screencast Not Aligned with Use Case Details*
+(Developer Policy 1.6) และ reviewer เขียนเองว่า **"we have determined that your apps' use case
+is allowed"** ⇒ คำอธิบายทั้ง 7 permission ใน §2 **ผ่านแล้ว ไม่ต้องแก้** สิ่งที่ตกคือ **คลิป**
+
+**2 ตัวที่ผ่านใช้ประโยชน์จริงไม่ได้เลย** — ทำได้แค่ "แสดงรายการเพจให้เลือก" กับ "ทำให้เพจใต้
+Business Portfolio โผล่ในรายการนั้น" พอกดเชื่อมจริงต้องใช้ `pages_manage_metadata` ยิง
+`subscribed_apps` ซึ่งตก และต้องมี `pages_messaging` ถึงจะรับ-ส่งข้อความ ซึ่งก็ตก
+
+### 5.2 สิ่งที่ reviewer สั่งมาตรง ๆ (คัดจากใบตีกลับ)
+
+> To verify metadata and webhooks, please re-record: (1) where your app subscribes to Page
+> events or updates Page settings, and (2) a sample webhook event (for example, a new comment
+> notification) arriving in your app, tied to the same Page shown during setup.
+
+พร้อมข้อบังคับทั่วไปของคลิปอีก 5 ข้อ: **Meta login flow เต็มขั้น** · **จอที่ผู้ใช้กดอนุญาต
+permission** · **end-to-end ของ use case** · **ใช้ภาษาอังกฤษเป็นภาษาของ UI + ใส่ caption
+อธิบายปุ่ม** · ถ้าเป็น server-to-server ให้ระบุไว้ในใบยื่น
+
+### 5.3 สถานะจาก API (`devtools_app_review action=requirements`, 2026-08-13)
+
+- `can_submit: true` — **ยื่นใหม่ได้ทันที** ไม่ต้องรออะไร
+- `screencast: is_completed = false` **ทั้ง 5 permission** รวม 2 ตัวที่ผ่านแล้ว ⇒ Meta ล้างคลิปเดิม
+  ต้องอัปใหม่ทุกช่อง
+- `api_precheck: is_completed = false` เฉพาะ 3 ตัวที่ถูกตีกลับ (`business_management` ผ่าน)
+- ⚠️ `call_volume` ย้อนหลัง 30 วัน = **0 calls** ซึ่งตีความไม่ได้จากตรงนี้ — อาจเป็นเพราะ metric
+  ไม่นับ call ที่ใช้ page access token (ของเราใช้ทั้งหมด) หรืออาจแปลว่าแอปไม่ได้เรียก Graph API เลย
+  ตัวที่ทำให้ฟันธงไม่ได้คือ `business_management` มี `api_precheck: true` ทั้งที่ call_volume ก็ 0
+  ⇒ **ต้องพิสูจน์ด้วยการส่งข้อความเข้าเพจจริงแล้วดูว่าเข้ากล่องไหม ก่อนลงแรงอัดคลิป**
+
+---
+
+## 6. แผนอัดคลิปรอบที่ 2 (รวม Instagram)
+
+### 6.0 เตรียมของก่อนกดอัด — ทำให้ครบก่อน ไม่งั้นต้องอัดใหม่ทั้งม้วน
+
+| # | สิ่งที่ต้องเตรียม | ทำไม |
+|---|---|---|
+| 1 | **บัญชี IG เป็น Professional/Business และผูกกับเพจ Facebook ที่จะเชื่อม** | `GET /{page-id}?fields=instagram_business_account` คืนค่าเฉพาะเมื่อผูกไว้ — ถ้าไม่ผูก แอปจะไม่เห็น IG เลยและไม่มีอะไรให้โชว์ |
+| 2 | **เปิด "Allow access to messages" ในการตั้งค่า IG** | ถ้าไม่เปิด webhook ข้อความ IG จะไม่ถูกส่งมาเลย โดยไม่มี error ให้เห็น |
+| 3 | **ถอดเพจออกจาก Deep ก่อน แล้วเชื่อมใหม่ในคลิป** | scope ผูกกับ token ตอนกดอนุญาต — token เดิมไม่มีสิทธิ์ IG และ reviewer สั่งให้เห็นจอ grant permission อยู่แล้ว |
+| 4 | **ตั้งภาษาบัญชี `metareview` เป็น English** | `scripts/create-review-account.ts` ตั้ง `locale='en'` ให้แล้วทุกครั้งที่รัน — หรือกดเองที่ `/account` |
+| 5 | **บัญชีที่สอง 2 ชุด** — Facebook อีกบัญชีสำหรับทัก Messenger และ IG อีกบัญชีสำหรับส่ง DM | ทักจากบัญชีเดียวกับที่ดูแลเพจไม่ได้ |
+| 6 | **เปิดหน้าจอที่จะโชว์ webhook ค้างไว้** | reviewer ต้องเห็นข้อความ "วิ่งเข้ามา" ไม่ใช่เห็นว่ามีอยู่แล้ว |
+
+🛑 **ห้ามตัดต่อ ห้ามสลับเพจกลางคลิป** — reviewer ระบุคำว่า *"tied to the same Page shown during
+setup"* ตรงตัว ถ้าฉาก setup เป็นเพจ A แล้วฉากข้อความเป็นเพจ B จะตกด้วยเหตุผลเดิมซ้ำ
+
+### 6.1 คลิปที่ต้องอัด — 3 ตัว
+
+แยกตาม use case ไม่ใช่ตาม permission เพราะ permission หลายตัวใช้ในเส้นทางเดียวกัน
+
+---
+
+#### คลิป A — Messenger end-to-end
+**ครอบ:** `pages_show_list` · `business_management` · `pages_manage_metadata` · `pages_messaging`
+
+1. เปิด `https://seller.deepthailand.app/auth/sign-in` — **กดปุ่มสลับภาษา `EN` มุมขวาบนให้เห็น**
+   (พิสูจน์ในตัวว่าแอปรองรับอังกฤษจริง ไม่ใช่จอที่จัดฉากมา)
+2. เข้าสู่ระบบด้วยบัญชี `metareview`
+3. เมนูซ้าย → `Sales channels` (`/settings/channels`)
+4. กด `Connect Facebook Page` → **หน้า login ของ Meta เต็มขั้น** → **จอเลือกเพจ + จอให้สิทธิ์ของ
+   Meta ที่แสดงรายการ permission** (ห้ามข้าม — เป็นข้อแรกที่ reviewer สั่ง)
+5. กลับมาที่หน้าเลือกเพจของเรา → ติ๊กเพจ → กด `Connect selected pages`
+6. 🛑 **ฉากที่ 1 ที่ reviewer สั่ง** — ให้เห็นชัดว่าระบบกำลังสมัครรับเหตุการณ์ของเพจนั้น
+   (นี่คือจังหวะที่โค้ดยิง `POST /{page-id}/subscribed_apps`) ค้างจอให้เห็นผลลัพธ์ว่าเพจขึ้นสถานะ
+   เชื่อมแล้ว **พร้อม caption อธิบายว่ากำลังทำอะไร**
+7. สลับไปอีกบัญชี ส่งข้อความเข้าเพจนั้นทาง Messenger
+8. 🛑 **ฉากที่ 2 ที่ reviewer สั่ง** — กลับมาที่ `Messages` **โดยไม่รีเฟรช** ให้เห็นเธรดใหม่
+   **เด้งเข้ามาสด ๆ** พร้อมชื่อผู้ส่งและข้อความ (นี่คือ webhook event ที่เข้ามาจริง)
+9. เปิดเธรด พิมพ์ตอบด้วยมือ กด `Send` → สลับไปหน้าจอ Messenger ให้เห็นว่าลูกค้าได้รับ
+10. กลับไป `Sales channels` → กด `Disconnect` → ส่งข้อความอีกครั้ง → **ไม่เข้าแล้ว**
+    (พิสูจน์ว่า `DELETE /{page-id}/subscribed_apps` ทำงานจริง = เราหยุดรับข้อมูลเมื่อผู้ใช้สั่ง)
+11. เชื่อมกลับ (เพจนี้เป็นของธุรกิจจริง)
+
+---
+
+#### คลิป B — Instagram end-to-end
+**ครอบ:** `instagram_basic` · `instagram_manage_messages`
+
+1. เริ่มจากหน้า `Sales channels` ที่**เพจเดียวกับคลิป A** (ต้องเป็นเพจที่ผูก IG ไว้)
+2. ให้เห็นว่าหลังเชื่อมเพจ ระบบตรวจพบบัญชี Instagram ที่ผูกกับเพจนั้นและแสดงเป็นช่องทางแยก
+   — จังหวะนี้คือ `GET /{page-id}?fields=instagram_business_account` ทำงาน (`instagram_basic`)
+3. สลับไปอีกบัญชี IG → ส่ง DM เข้าบัญชี IG ของร้าน
+4. กลับมาที่ `Messages` → ให้เห็นเธรดเด้งเข้ามาพร้อม **ป้ายช่องทาง Instagram** ที่แยกจาก Messenger
+   ชัดเจน (`ChannelBadge` — จุดนี้สำคัญเพราะพิสูจน์ว่าเราแยกแหล่งที่มาได้จริง ไม่ได้เหมารวม)
+5. เปิดเธรด พิมพ์ตอบด้วยมือ กด `Send` → สลับไปหน้าจอ Instagram ให้เห็นว่าได้รับ
+   (`instagram_manage_messages`)
+6. ให้เห็นว่าทั้งเธรด Messenger และ IG อยู่ในกล่องเดียวกัน — นั่นคือคุณค่าที่คำอธิบาย §2.6/§2.7 อ้างไว้
+
+⚠️ **สิ่งที่ห้ามโชว์ในคลิป B:** ยอดวิว/insights ของ IG — เราถอด `/{media-id}/insights` ออกจากโค้ด
+แล้วเพราะต้องใช้ `instagram_manage_insights` ที่ยังขอไม่ได้ (§4) โชว์ไปจะขัดกับใบยื่น
+
+---
+
+#### คลิป C — Page content ที่เราอ่าน
+**ครอบ:** `pages_read_engagement`
+
+use case ต่างจาก 2 คลิปแรกโดยสิ้นเชิง จึงต้องมีคลิปของตัวเอง — คำอธิบาย §2.4 อ้างไว้ 2 อย่าง
+ต้องโชว์ให้ครบทั้งคู่ ไม่งั้นจะเป็น "เขียนไว้แต่ไม่มีในคลิป" ซึ่งเป็นเหตุผลที่ตกรอบแรก
+
+1. **แบนเนอร์บอกที่มาของบทสนทนา** — ให้ลูกค้าเริ่มแชทจากโพสต์หรือโฆษณาของเพจ แล้วเปิดเธรดนั้น
+   ให้เห็นแบนเนอร์ที่แสดงข้อความ/รูป/ลิงก์ของโพสต์ต้นทาง
+   (`GET /{page-id}_{post-id}?fields=message,full_picture,permalink_url`)
+2. **คลิปของเพจบนหน้าร้าน** — เข้าหน้าจัดหน้าร้าน ให้เห็นรายการรีลของเพจที่ร้านเลือกไปแสดงได้
+   (`GET /{page-id}/video_reels`) แล้วเปิดหน้าร้านสาธารณะให้เห็นคลิปนั้นแสดงจริง
+
+---
+
+### 6.2 ข้อความที่ต้องเพิ่มในใบยื่น
+
+ต่อท้าย reviewer instructions (§3.3) — เปิดช่องที่ Meta ให้มาเองในข้อสุดท้ายของใบตีกลับ:
+
+> Note on architecture: our webhook receiver is a server-to-server component. The Meta login and
+> permission-grant flow is fully visible at the start of the recording, but the webhook delivery
+> itself has no frontend of its own — what the recording shows is the message arriving in the
+> seller's inbox in real time, which is the observable result of that delivery.
+
+และระบุว่าแนบคลิปกี่ตัว ตัวไหนครอบ permission อะไร (ช่อง `documents-web-1` รับหลายไฟล์ ≤2 GB
+ต่อไฟล์ — กว้างกว่าช่อง screencast รายข้อที่เคยอัปไม่ผ่าน)
+
+### 6.3 เช็คลิสต์ก่อนกดส่ง
+
+- [ ] ส่งข้อความเข้าเพจจริงแล้วเข้ากล่อง (พิสูจน์ว่าระบบยังทำงาน ก่อนลงแรงอัด — ดู §5.3)
+- [ ] UI เป็นภาษาอังกฤษตลอดเส้นทางที่เดินในคลิป (เมนูซ้าย · channels · เลือกเพจ · กล่องข้อความ)
+- [ ] คลิป A/B/C อัปครบทุกช่อง `screencast` ของ 7 permission
+- [ ] เพิ่ม `instagram_basic` + `instagram_manage_messages` เข้าใบยื่น (รอบแรกตกไป)
+- [ ] เติมย่อหน้า server-to-server (§6.2)
+- [ ] คลิปทุกตัวมี caption อธิบายปุ่มที่กด
+- [ ] ทุกฉากในคลิปเดียวกันเป็น **เพจเดียวกัน** ตลอด
