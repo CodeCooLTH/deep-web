@@ -25,6 +25,7 @@ export default async function SelectPagesPage() {
     <>
       <PageBreadcrumb
         title={t.channels.selectPageTitle}
+        homeLabel={t.common.home}
         trail={[
           { label: t.channels.breadcrumbSettings, href: '/settings' },
           { label: t.channels.pageTitle, href: '/settings/channels' },

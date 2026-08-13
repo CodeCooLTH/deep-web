@@ -37,6 +37,7 @@ export const th = {
     back: 'ย้อนกลับ',
     loading: 'กำลังโหลด...',
     retry: 'ลองใหม่อีกครั้ง',
+    home: 'หน้าหลัก',
     somethingWentWrong: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
   },
 

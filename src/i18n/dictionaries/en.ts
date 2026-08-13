@@ -30,6 +30,7 @@ export const en: Dictionary = {
     back: 'Back',
     loading: 'Loading…',
     retry: 'Try again',
+    home: 'Home',
     somethingWentWrong: 'Something went wrong. Please try again.',
   },
 
