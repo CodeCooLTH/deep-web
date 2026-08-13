@@ -12,7 +12,7 @@
  * (Photo-Scrim Exception ของ Impeccable) — การ์ด Paces สีขาวลอยกลางจอมืดคือ "การ์ดซ้อนบนพื้น
  * ที่ไม่ใช่การ์ด" ซึ่งผิดหลักมากกว่า (ผู้ใช้เคาะ 2026-08-13)
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Lightbox from 'yet-another-react-lightbox'
 import Zoom from 'yet-another-react-lightbox/plugins/zoom'
 import LightboxDownload from 'yet-another-react-lightbox/plugins/download'
@@ -244,6 +244,19 @@ function CustomerFileDetailCard({
   const src = `/api/files/${item.fileId}`
   const [mediaFailed, setMediaFailed] = useState(false)
   const size = formatAttachmentSize(item.fileSize)
+
+  /**
+   * ESC ปิด — overlay ทุกใบในแอปนี้ปิดด้วย ESC ได้ (CustomerPanelSheet/OrderQrSheet/โมดัลคลัง)
+   * และ Lightbox ก็ทำเอง การ์ดนี้เป็นทางเดียวที่ *ไม่* ทำ ⇒ ผู้ใช้ที่เคยชินจะกด ESC แล้วไม่มีอะไร
+   * เกิดขึ้น ซึ่งอ่านเป็น "ค้าง" ไม่ใช่ "ปุ่มนี้ไม่มี"
+   */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   return (
     <div className="fixed inset-0 z-80 flex items-end justify-center lg:items-center" role="dialog" aria-modal="true" aria-label={LIBRARY_COPY.sectionTitle}>

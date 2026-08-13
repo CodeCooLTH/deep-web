@@ -3,8 +3,8 @@
 /**
  * CustomerFileTile — 1 ช่องในกริดคลังไฟล์ (feature 00048) ใช้ร่วมกันทั้งพรีวิวในแผงและโมดัลดูทั้งหมด
  *
- * Base: PhotoAlbum.tsx:19-70 (AlbumCell) — โครง `<button className="relative block overflow-hidden
- * rounded bg-default-100">` + `<img object-cover>` + จับ error โหลดไม่ขึ้นต่อช่อง
+ * Base: PhotoAlbum.tsx:19-70 (AlbumCell) — โครงปุ่มครอบ (relative + overflow-hidden + rounded +
+ * bg-default-100), รูปแบบ object-cover เต็มช่อง และการจับ error โหลดไม่ขึ้นแยกรายช่อง
  *
  * 🛑 ช่อง "ไฟล์เอกสาร" ต้องต่างจากช่องรูปด้วยสายตา (ไอคอน ไม่ใช่ภาพตัวอย่าง) เพราะ **พฤติกรรม
  * ตอนกดต่างกัน** — รูปเปิด lightbox / เอกสารเปิดการ์ดรายละเอียด. ถ้าหน้าตาเหมือนกันผู้ใช้จะ
