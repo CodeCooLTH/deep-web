@@ -58,6 +58,8 @@ export interface PageInfo {
   accessToken: string
   tasks: string[]
   instagramBusinessAccountId: string | null
+  /** รูปโปรไฟล์ IG — 🛑 CDN URL ที่หมดอายุ ต้อง mirror ก่อนเก็บลงฐาน (ดู listManageablePages) */
+  instagramProfilePictureUrl: string | null
   /** ยอดถูกใจเพจ — null = Graph ไม่ส่งมา (สิทธิ์ไม่ถึง/เพจใหม่) **ไม่ใช่ 0** ผู้เรียกต้องแยกสองอย่างนี้ */
   followerCount: number | null
 }
@@ -115,14 +117,20 @@ export async function listManageablePages(userToken: string): Promise<PageInfo[]
     // followers_count ใช้สิทธิ์ pages_read_engagement ซึ่งอยู่ใน CONNECT_SCOPES มาตั้งแต่ต้นแล้ว
     // (ไม่ใช่ของที่เพิ่งเพิ่มเหมือน pages_read_user_content ที่ token เก่าไม่มี) — ถึงอย่างนั้นก็ยัง
     // เขียนแบบ "ไม่มีก็ไม่พัง": Graph ที่ไม่ส่ง field นี้มาจะได้ null แล้ว UI ซ่อนยอดไปเอง
-    query: { fields: 'id,name,access_token,tasks,instagram_business_account,followers_count' },
+    // ขอ profile_picture_url ของ IG มาพร้อมกันใน call เดิม (ไม่เพิ่มจำนวน request)
+    // — `graph.facebook.com/{id}/picture` ใช้ได้เฉพาะ Page ID; IG business account อยู่คนละ
+    //   ID space จึงต้องถามผ่าน field นี้เท่านั้น (ใช้สิทธิ์ instagram_basic ที่มีใน CONNECT_SCOPES แล้ว)
+    query: {
+      fields:
+        'id,name,access_token,tasks,instagram_business_account{id,profile_picture_url},followers_count',
+    },
   })
   const rows = (json.data ?? []) as Array<{
     id: string
     name: string
     access_token: string
     tasks?: string[]
-    instagram_business_account?: { id: string }
+    instagram_business_account?: { id: string; profile_picture_url?: string }
     followers_count?: number
   }>
 
@@ -134,6 +142,12 @@ export async function listManageablePages(userToken: string): Promise<PageInfo[]
       accessToken: r.access_token,
       tasks: r.tasks ?? [],
       instagramBusinessAccountId: r.instagram_business_account?.id ?? null,
+      /**
+       * 🛑 URL นี้เป็น CDN ของ Meta ที่ "หมดอายุ" ห้ามเก็บลงฐานตรง ๆ
+       * ผู้เรียกต้อง mirror ก่อนเสมอ (mirrorRemoteImage) — รีโปนี้เจอคลาสนี้มาแล้วกับรูปโพสต์
+       * Facebook ที่หายเองใน ~4 วัน โดยไม่มีอะไรฟ้อง (feature 00035/00018)
+       */
+      instagramProfilePictureUrl: r.instagram_business_account?.profile_picture_url ?? null,
       followerCount: typeof r.followers_count === 'number' ? r.followers_count : null,
     }))
 }

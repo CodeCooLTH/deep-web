@@ -49,7 +49,7 @@ import {
 
 const page = {
   id: 'PAGE1', name: 'ร้านทดสอบ', accessToken: 'page_token_plain',
-  tasks: ['MESSAGING', 'MODERATE'], instagramBusinessAccountId: null, followerCount: null,
+  tasks: ['MESSAGING', 'MODERATE'], instagramBusinessAccountId: null, instagramProfilePictureUrl: null, followerCount: null,
 }
 
 describe('shop-channel.service', () => {

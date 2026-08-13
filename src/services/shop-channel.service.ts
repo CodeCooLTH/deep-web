@@ -12,6 +12,8 @@ import {
 import { lineApiRequest, LineApiError } from '@/lib/line/client'
 import { probeLineToken, probeLineWebhook } from '@/lib/line/health-probe'
 import { getChannelLabel } from '@/lib/chat-channel'
+import { toFileUrl } from '@/lib/file-url'
+import { mirrorRemoteImage } from '@/services/channel-chat.service'
 
 // จัดการช่องทางที่ร้านผูกไว้ (feature 00018)
 // กติกาสำคัญ: accessTokenEnc ห้ามออกจากไฟล์นี้ในรูป plaintext ยกเว้นผ่าน
@@ -42,6 +44,30 @@ type ChannelUpsertResult =
 // เท่านั้น: ร้านเดียวกันเชื่อมซ้ำ (เช่น retry หลัง subscribe ล้มเหลวรอบก่อน) ต้องไม่ถือเป็น
 // error — ปล่อยให้ subscribePageToApp ยิงซ้ำได้ (ฝั่ง Meta idempotent) ส่วนร้านอื่นยึด externalId นี้ไปแล้ว
 // (แถว active ของร้านอื่น) ต้องรายงาน skipped และห้ามแตะ subscribe/แถวเดิมของร้านนั้นเด็ดขาด
+/**
+ * ดึงรูปโปรไฟล์ IG มาเก็บไว้เอง แล้วคืน path ที่ `<img src>` ใช้ได้ทันที
+ *
+ * 🛑 ห้ามเก็บ URL ของ Meta ตรง ๆ — CDN ของ Meta หมดอายุ รีโปนี้เจอคลาสนี้มาแล้วกับรูปโพสต์
+ * Facebook ที่หายเองใน ~4 วันโดยไม่มีอะไรฟ้อง (00035/00018) ⇒ ถ้าเก็บดิบ รูปจะขึ้นตอนเชื่อม
+ * แล้วหายไปเองทีหลังโดยที่ไม่มีใครรู้ว่าทำไม
+ *
+ * คืน path เต็ม (`/api/files/…`) ไม่ใช่ storage key ดิบ — `toFileUrl()` เตือนไว้เองว่าการเก็บ key
+ * แล้วสมมติว่าเป็น URL เต็มเคยทำให้รูปไม่ขึ้นทั้งหน้ามาแล้ว 2 ครั้ง การเก็บค่าที่ใช้ได้ทันที
+ * ทำให้ฝั่งอ่านจะเรียก helper หรือไม่ก็ถูกทั้งคู่
+ *
+ * ล้มเหลว → null → UI ถอยไปใช้ไอคอนเหมือนเดิม ไม่ทำให้การเชื่อมเพจล้มทั้งชุด
+ * (เหตุผลเดียวกับ followerCount: ของประกอบต้องไม่ล้มของหลัก)
+ */
+async function mirrorInstagramAvatar(pictureUrl: string | null): Promise<string | null> {
+  if (!pictureUrl) return null
+  try {
+    const fileId = await mirrorRemoteImage(pictureUrl, 'ig-avatar')
+    return toFileUrl(fileId)
+  } catch {
+    return null
+  }
+}
+
 async function upsertChannel(params: {
   shopId: string
   userId: string
@@ -52,6 +78,11 @@ async function upsertChannel(params: {
   /** ยอดผู้ติดตาม ณ ตอนเชื่อม — null = ดึงไม่ได้/ไม่รู้ ห้ามแปลงเป็น 0 (คนละความหมาย)
    *  undefined = ผู้เรียกไม่ได้ตั้งใจอัปเดตค่านี้ → คงค่าเดิมในฐานไว้ ไม่เขียนทับด้วย null */
   followerCount?: number | null
+  /**
+   * รูปประจำช่องทาง — ใช้เมื่อผู้เรียกมีรูปที่ mirror ไว้แล้ว (กรณี INSTAGRAM)
+   * ไม่ส่ง = ใช้กติกาเดิมด้านล่าง (MESSENGER ได้ URL สาธารณะของเพจ, ที่เหลือเป็น null)
+   */
+  avatarUrl?: string | null
   // force: user ยืนยันแล้วว่าต้องการย้ายเพจมาร้านนี้ (เพจติดอยู่กับร้านอื่น) → ตัดแถว active
   // ของร้านอื่นก่อนแล้วสร้างใหม่ให้ร้านนี้ authorization: pages ที่เข้ามาถึงจุดนี้ผ่าน
   // listManageablePages(userToken) มาแล้ว = เป็นเพจที่ user มีสิทธิ์ MESSAGING+MODERATE จริง
@@ -60,11 +91,16 @@ async function upsertChannel(params: {
 }): Promise<ChannelUpsertResult> {
   // รูปเพจ (avatar ฝั่งร้านในเธรด) — URL สาธารณะแบบเสถียรของ Graph (ไม่ต้อง token, ไม่หมดอายุ,
   // redirect ไปรูปปัจจุบันเสมอ) pattern เดียวกับ avatar ผู้ใช้ FB login. เฉพาะ MESSENGER (page id
-  // เป็น public picture); IG business account id คนละ ID space endpoint นี้ไม่คืนรูป → null (fallback initials)
+  // เป็น public picture); IG business account id คนละ ID space endpoint นี้ไม่คืนรูป
+  //
+  // IG จึงต้องให้ผู้เรียกส่ง `avatarUrl` ที่ mirror ไว้แล้วเข้ามาแทน (connectPages ทำให้)
+  // — ไม่ส่งมาก็ยัง null ได้ตามเดิม แล้ว UI ถอยไปใช้ไอคอน (ไม่พัง แค่ไม่มีรูป)
   const avatarUrl =
-    params.provider === 'MESSENGER'
-      ? `https://graph.facebook.com/${params.externalId}/picture?type=large`
-      : null
+    params.avatarUrl !== undefined
+      ? params.avatarUrl
+      : params.provider === 'MESSENGER'
+        ? `https://graph.facebook.com/${params.externalId}/picture?type=large`
+        : null
 
   // เพจนี้ "active" (status != DISCONNECTED) อยู่กับร้านอื่นหรือไม่ — partial unique scope เดียวกับ
   // index จริง (20260722000200_shopchannel_active_partial_unique)
@@ -252,6 +288,14 @@ export async function connectPages(
           page.instagramBusinessAccountId,
           page.accessToken,
         ),
+        /**
+         * รูปโปรไฟล์ IG — mirror เก็บไว้เองก่อนเสมอ ห้ามเก็บ URL ของ Meta ตรง ๆ
+         * (CDN ของ Meta หมดอายุ — รีโปนี้เจอมาแล้วกับรูปโพสต์ที่หายเองใน ~4 วันโดยไม่มีอะไรฟ้อง)
+         *
+         * mirror ล้มเหลว → null → UI ถอยไปใช้ไอคอนเหมือนเดิม ไม่ทำให้การเชื่อมเพจล้มทั้งชุด
+         * (เหตุผลเดียวกับ followerCount ด้านบน: ของประกอบต้องไม่ล้มของหลัก)
+         */
+        avatarUrl: await mirrorInstagramAvatar(page.instagramProfilePictureUrl),
         force: forced, // IG ต้องใช้การยืนยันเดียวกับ Page แม่ ไม่งั้นย้าย Page ได้แต่ IG ค้างร้านเดิม
       })
     }
