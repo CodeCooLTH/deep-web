@@ -23,6 +23,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
 import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 import BuyerAvatar from '../../../orders/components/BuyerAvatar'
 import SellerEmptyState from '../../../_shared/SellerEmptyState'
 
@@ -45,6 +47,7 @@ type LoadPhase = 'loading' | 'ready' | 'expired' | 'error'
 const INSTAGRAM_BRAND = '#E1306C' // Hard Rule 6/7 exception: Instagram brand color (asset color ใช้ตาม ref ได้ — ไม่มี Paces token สำหรับสี brand ภายนอก)
 
 export function SelectPagesClient() {
+  const t = useT()
   const router = useRouter()
   const [phase, setPhase] = useState<LoadPhase>('loading')
   const [shopName, setShopName] = useState<string | null>(null)
@@ -98,7 +101,7 @@ export function SelectPagesClient() {
     if (submitting) return
     const pageIds = [...selected]
     if (pageIds.length === 0) {
-      pacesToast.warning('กรุณาเลือกอย่างน้อย 1 เพจ')
+      pacesToast.warning(t.channels.selectNoneChosen)
       return
     }
 
@@ -106,15 +109,15 @@ export function SelectPagesClient() {
     const movingPages = pages.filter((p) => selected.has(p.id) && p.state === 'other-shop')
     if (movingPages.length > 0) {
       const list = movingPages
-        .map((p) => `<li class="mt-1">${p.name}${p.occupiedBy ? ` <span class="text-default-500">(ร้าน ${p.occupiedBy})</span>` : ''}</li>`)
+        .map((p) => `<li class="mt-1">${p.name}${p.occupiedBy ? ` <span class="text-default-500">(${fmt(t.channels.moveShopSuffix, { shop: p.occupiedBy })})</span>` : ''}</li>`)
         .join('')
       const confirm = await Swal.fire({
-        title: movingPages.length === 1 ? 'ย้ายเพจนี้มาที่ร้านนี้?' : `ย้าย ${movingPages.length} เพจมาที่ร้านนี้?`,
-        html: `<div class="text-start text-sm">เพจต่อไปนี้เชื่อมอยู่กับร้านอื่น การเชื่อมที่ร้านเดิมจะถูกตัด (ข้อความเก่ายังอยู่ครบ):<ul class="list-disc ps-5 mt-2">${list}</ul></div>`,
+        title: movingPages.length === 1 ? t.channels.moveOneTitle : fmt(t.channels.moveManyTitle, { n: movingPages.length }),
+        html: `<div class="text-start text-sm">${t.channels.moveBody}<ul class="list-disc ps-5 mt-2">${list}</ul></div>`,
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: 'ย้ายมาที่นี่',
-        cancelButtonText: 'ยกเลิก',
+        confirmButtonText: t.channels.moveConfirm,
+        cancelButtonText: t.channels.selectCancel,
         buttonsStyling: false,
         customClass: { confirmButton: 'btn bg-primary text-white', cancelButton: 'btn bg-light text-default-700 ms-2' },
       })
@@ -134,7 +137,7 @@ export function SelectPagesClient() {
       }
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        pacesToast.error(body?.error ?? 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.error(body?.error ?? t.channels.errGeneric)
         setSubmitting(false)
         return
       }
@@ -147,7 +150,7 @@ export function SelectPagesClient() {
       }
       router.replace(`/settings/channels?${params.toString()}`)
     } catch {
-      pacesToast.error('เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่')
+      pacesToast.error(t.channels.errGeneric)
       setSubmitting(false)
     }
   }
@@ -178,8 +181,8 @@ export function SelectPagesClient() {
         <SellerEmptyState
           compact
           icon="clock-exclamation"
-          title="เซสชันหมดอายุ"
-          description="ลิงก์เลือกเพจหมดอายุแล้ว กรุณาเริ่มเชื่อม Facebook Page ใหม่อีกครั้ง"
+          title={t.channels.selectExpiredTitle}
+          description={t.channels.selectExpiredDesc}
         />
         <div className="flex justify-center">
           <a
@@ -187,7 +190,7 @@ export function SelectPagesClient() {
             className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2"
           >
             <Icon icon="tabler:brand-facebook" className="text-base" aria-hidden="true" />
-            เริ่มเชื่อมใหม่
+            {t.channels.selectExpiredAction}
           </a>
         </div>
       </div>
@@ -200,8 +203,8 @@ export function SelectPagesClient() {
         <SellerEmptyState
           compact
           icon="alert-triangle"
-          title="โหลดรายการเพจไม่สำเร็จ"
-          description="เกิดข้อผิดพลาดในการดึงเพจจาก Facebook กรุณาลองใหม่อีกครั้ง"
+          title={t.channels.selectLoadErrorTitle}
+          description={t.channels.selectLoadErrorDesc}
         />
         <div className="flex justify-center">
           <a
@@ -209,7 +212,7 @@ export function SelectPagesClient() {
             className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2"
           >
             <Icon icon="tabler:refresh" className="text-base" aria-hidden="true" />
-            ลองใหม่
+            {t.channels.selectLoadErrorAction}
           </a>
         </div>
       </div>
@@ -223,8 +226,8 @@ export function SelectPagesClient() {
         <SellerEmptyState
           compact
           icon="brand-facebook"
-          title="ไม่พบเพจที่มีสิทธิ์จัดการข้อความ"
-          description="บัญชี Facebook ของคุณต้องเป็นแอดมินของเพจ และเปิดสิทธิ์จัดการข้อความ (Messaging)"
+          title={t.channels.selectEmptyTitle}
+          description={t.channels.selectEmptyDesc}
         />
       </div>
     )
@@ -234,8 +237,8 @@ export function SelectPagesClient() {
     <div className="card-body">
       <div className="flex flex-col gap-3 pb-3 border-b border-default-200 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-default-500 text-sm">
-          เลือกเพจที่จะเชื่อมเข้า
-          {shopName ? <span className="font-medium text-default-800"> {shopName}</span> : ' ร้านนี้'} — เฉพาะเพจที่เลือกเท่านั้นที่จะรับข้อความเข้ามาที่ Deep
+          {t.channels.selectIntro}
+          {shopName ? <span className="font-medium text-default-800"> {shopName}</span> : ` ${t.channels.selectIntroThisShop}`} {t.channels.selectIntroTail}
         </p>
         <button
           type="button"
@@ -243,7 +246,7 @@ export function SelectPagesClient() {
           className="btn btn-sm border-default-300 shrink-0 inline-flex items-center gap-1.5 self-start sm:self-auto"
         >
           <Icon icon={allSelected ? 'tabler:square-off' : 'tabler:checks'} className="text-sm" aria-hidden="true" />
-          {allSelected ? 'ล้างที่เลือก' : 'เลือกทั้งหมด'}
+          {allSelected ? t.channels.selectClear : t.channels.selectAll}
         </button>
       </div>
 
@@ -269,7 +272,7 @@ export function SelectPagesClient() {
                   <span
                     className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full ring-2 ring-card"
                     style={{ backgroundColor: INSTAGRAM_BRAND }}
-                    title="เพจนี้มี Instagram ผูกอยู่"
+                    title={t.channels.pageHasInstagramTitle}
                   >
                     <Icon icon="tabler:brand-instagram" className="text-2xs text-white" aria-hidden="true" />
                   </span>
@@ -286,19 +289,19 @@ export function SelectPagesClient() {
                   {page.state === 'connected-here' && (
                     <span className="inline-flex items-center gap-1 text-xs font-medium text-success bg-success/15 px-2 py-0.5 rounded">
                       <Icon icon="tabler:check" className="text-xs" aria-hidden="true" />
-                      เชื่อมกับร้านนี้อยู่แล้ว
+                      {t.channels.pageAlreadyHere}
                     </span>
                   )}
                   {page.state === 'other-shop' && (
                     <span className="inline-flex items-center gap-1 text-xs font-medium text-warning bg-warning/15 px-2 py-0.5 rounded">
                       <Icon icon="tabler:alert-triangle" className="text-xs" aria-hidden="true" />
-                      {page.occupiedBy ? `เชื่อมกับร้าน ${page.occupiedBy}` : 'เชื่อมกับร้านอื่น'}
+                      {page.occupiedBy ? fmt(t.channels.pageInOtherShopNamed, { shop: page.occupiedBy }) : t.channels.pageInOtherShop}
                     </span>
                   )}
                   {page.hasInstagram && (
                     <span className="inline-flex items-center gap-1 text-xs font-medium text-default-500 bg-default-100 px-2 py-0.5 rounded">
                       <Icon icon="tabler:brand-instagram" className="text-xs" aria-hidden="true" />
-                      มี Instagram
+                      {t.channels.pageHasInstagram}
                     </span>
                   )}
                 </div>
@@ -324,11 +327,11 @@ export function SelectPagesClient() {
             ท่านี้ยกมาจากแถวอื่นในไฟล์เดียวกันที่ทำ flex-col sm:flex-row อยู่แล้ว */}
         <div className="mx-auto flex max-w-3xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <span className="text-sm text-default-500">
-            เลือกแล้ว <span className="font-semibold text-default-800">{selected.size}</span> เพจ
+            {fmt(t.channels.selectedCount, { n: selected.size })}
           </span>
           <div className="flex items-center gap-2">
             <a href="/settings/channels" className="btn bg-light text-default-700 hover:bg-light-hover shrink-0">
-              ยกเลิก
+              {t.channels.selectCancel}
             </a>
             <button
               type="button"
@@ -339,12 +342,12 @@ export function SelectPagesClient() {
               {submitting ? (
                 <>
                   <Icon icon="tabler:loader-2" className="text-base animate-spin" aria-hidden="true" />
-                  กำลังเชื่อม
+                  {t.channels.selectConfirming}
                 </>
               ) : (
                 <>
                   <Icon icon="tabler:plug-connected" className="text-base" aria-hidden="true" />
-                  เชื่อมเพจที่เลือก
+                  {t.channels.selectConfirm}
                 </>
               )}
             </button>

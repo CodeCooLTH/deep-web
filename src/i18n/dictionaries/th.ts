@@ -103,6 +103,86 @@ export const th = {
     settingsJobTypes: 'ประเภทงาน',
   },
 
+  /**
+   * หน้า "ช่องทางการขาย" (`/settings/channels`) และหน้าเลือกเพจ
+   * เป็นเส้นทางที่ Meta App Reviewer ต้องเดินผ่านในคลิป A และ B ทั้งคู่
+   *
+   * ข้อความที่มี `{n}` ต้องเรียกผ่าน `fmt()` — ห้ามต่อสตริงในโค้ด เพราะลำดับคำของสองภาษา
+   * ไม่ตรงกัน ("เชื่อมต่อสำเร็จ {n} ช่องทาง" vs "Connected {n} channels")
+   */
+  channels: {
+    pageTitle: 'ช่องทางแชท',
+    breadcrumbSettings: 'ตั้งค่า',
+    intro: 'เชื่อม Facebook Page เพื่อรับข้อความ Messenger และ Instagram เข้ามาที่ Deep โดยตรง',
+    resync: 'ซิงก์การแจ้งเตือน',
+    connectPage: 'เชื่อม Facebook Page',
+    emptyTitle: 'ยังไม่ได้เชื่อมช่องทางแชท',
+    connected: 'เชื่อมแล้ว',
+    tokenExpired: 'โทเคนหมดอายุ',
+    reconnect: 'เชื่อมต่อใหม่',
+    disconnect: 'ถอด',
+    tokenExpiredBanner: 'มี {n} ช่องทางที่โทเคนหมดอายุ ต้องเชื่อมต่อใหม่',
+
+    disconnectTitle: 'ยกเลิกการเชื่อมต่อ {name}?',
+    disconnectText: 'ข้อความเก่ายังอยู่ แต่จะไม่ได้รับข้อความใหม่จากเพจนี้อีก',
+    disconnectConfirm: 'ยกเลิกการเชื่อมต่อ',
+    disconnectCancel: 'ปิด',
+    disconnectSuccess: 'ถอดการเชื่อมต่อ {provider} สำเร็จ',
+    disconnectError: 'ถอดการเชื่อมต่อไม่สำเร็จ กรุณาลองใหม่',
+
+    connectSuccess: 'เชื่อมต่อสำเร็จ {n} ช่องทาง',
+    connectSuccessMoved: 'เชื่อมต่อสำเร็จ {n} ช่องทาง (ย้ายมา {moved} เพจ)',
+    connectNoNew: 'ไม่มีเพจใหม่ที่เชื่อมเพิ่ม',
+    connectSubscribeFailed: 'บางเพจยังไม่ได้รับการแจ้งเตือน: {n} — ลองกด "ซิงก์การแจ้งเตือน"',
+
+    resyncError: 'ซิงก์ไม่สำเร็จ กรุณาลองใหม่',
+    resyncPartial: 'ซิงก์สำเร็จ {ok} เพจ · ไม่สำเร็จ {failed} เพจ (ลองเชื่อมเพจนั้นใหม่)',
+    resyncSuccess: 'ซิงก์การแจ้งเตือนสำเร็จ {ok} เพจ',
+    resyncSuccessShops: 'ซิงก์การแจ้งเตือนสำเร็จ {ok} เพจ จาก {shops} ร้าน',
+
+    /** ข้อความผิดพลาดที่ callback ของ Facebook ส่งกลับมาทาง query string */
+    errCancelled: 'ยกเลิกการเชื่อมต่อแล้ว',
+    errStateMismatch: 'เซสชันหมดอายุ กรุณาลองใหม่',
+    errNoShop: 'ไม่พบร้านค้าของคุณ',
+    errNoEligiblePage: 'ไม่พบเพจที่คุณมีสิทธิ์จัดการข้อความ',
+    errGeneric: 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่',
+
+    selectPageTitle: 'เลือกเพจที่จะเชื่อม',
+    selectBreadcrumb: 'เลือกเพจ',
+
+    selectIntro: 'เลือกเพจที่จะเชื่อมเข้า',
+    selectIntroThisShop: 'ร้านนี้',
+    selectIntroTail: '— เฉพาะเพจที่เลือกเท่านั้นที่จะรับข้อความเข้ามาที่ Deep',
+    selectAll: 'เลือกทั้งหมด',
+    selectClear: 'ล้างที่เลือก',
+    selectedCount: 'เลือกแล้ว {n} เพจ',
+    selectConfirm: 'เชื่อมเพจที่เลือก',
+    selectConfirming: 'กำลังเชื่อม',
+    selectCancel: 'ยกเลิก',
+    selectNoneChosen: 'กรุณาเลือกอย่างน้อย 1 เพจ',
+
+    pageHasInstagram: 'มี Instagram',
+    pageHasInstagramTitle: 'เพจนี้มี Instagram ผูกอยู่',
+    pageAlreadyHere: 'เชื่อมกับร้านนี้อยู่แล้ว',
+    pageInOtherShopNamed: 'เชื่อมกับร้าน {shop}',
+    pageInOtherShop: 'เชื่อมกับร้านอื่น',
+
+    moveOneTitle: 'ย้ายเพจนี้มาที่ร้านนี้?',
+    moveManyTitle: 'ย้าย {n} เพจมาที่ร้านนี้?',
+    moveBody: 'เพจต่อไปนี้เชื่อมอยู่กับร้านอื่น การเชื่อมที่ร้านเดิมจะถูกตัด (ข้อความเก่ายังอยู่ครบ):',
+    moveShopSuffix: 'ร้าน {shop}',
+    moveConfirm: 'ย้ายมาที่นี่',
+
+    selectExpiredTitle: 'เซสชันหมดอายุ',
+    selectExpiredDesc: 'ลิงก์เลือกเพจหมดอายุแล้ว กรุณาเริ่มเชื่อม Facebook Page ใหม่อีกครั้ง',
+    selectExpiredAction: 'เริ่มเชื่อมใหม่',
+    selectLoadErrorTitle: 'โหลดรายการเพจไม่สำเร็จ',
+    selectLoadErrorDesc: 'เกิดข้อผิดพลาดในการดึงเพจจาก Facebook กรุณาลองใหม่อีกครั้ง',
+    selectLoadErrorAction: 'ลองใหม่',
+    selectEmptyTitle: 'ไม่พบเพจที่มีสิทธิ์จัดการข้อความ',
+    selectEmptyDesc: 'บัญชี Facebook ของคุณต้องเป็นแอดมินของเพจ และเปิดสิทธิ์จัดการข้อความ (Messaging)',
+  },
+
   auth: {
     signIn: {
       /** title ของแท็บเบราว์เซอร์ — reviewer เห็นในคลิป */

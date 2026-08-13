@@ -12,18 +12,23 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Icon from '@/components/wrappers/Icon'
 import type { Metadata } from 'next'
 import { SelectPagesClient } from './SelectPagesClient'
+import { getT } from '@/i18n/server'
 
-export const metadata: Metadata = { title: 'เลือกเพจที่จะเชื่อม' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT()
+  return { title: t.channels.selectPageTitle }
+}
 
-export default function SelectPagesPage() {
+export default async function SelectPagesPage() {
+  const t = await getT()
   return (
     <>
       <PageBreadcrumb
-        title="เลือกเพจที่จะเชื่อม"
+        title={t.channels.selectPageTitle}
         trail={[
-          { label: 'ตั้งค่า', href: '/settings' },
-          { label: 'ช่องทางแชท', href: '/settings/channels' },
-          { label: 'เลือกเพจ' },
+          { label: t.channels.breadcrumbSettings, href: '/settings' },
+          { label: t.channels.pageTitle, href: '/settings/channels' },
+          { label: t.channels.selectBreadcrumb },
         ]}
       />
 
@@ -32,7 +37,7 @@ export default function SelectPagesPage() {
         <div className="card-header">
           <h5 className="bg-light/15 border-default-300 flex items-center gap-1.5 rounded border border-dashed p-1.25 text-sm uppercase w-full justify-center">
             <Icon icon="brand-facebook" className="text-base" aria-hidden="true" />
-            เลือกเพจที่จะเชื่อม
+            {t.channels.selectPageTitle}
           </h5>
         </div>
 

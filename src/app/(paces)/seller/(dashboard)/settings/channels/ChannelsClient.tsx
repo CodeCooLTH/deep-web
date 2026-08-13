@@ -27,6 +27,9 @@ import { useEffect, useState } from 'react'
 import { Icon } from '@iconify/react'
 import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
+import type { Dictionary } from '@/i18n/dictionaries/th'
 import BuyerAvatar from '../../orders/components/BuyerAvatar'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 
@@ -67,16 +70,23 @@ function providerConfig(provider: string): ProviderVisual {
 // ─── Status → toast mapping (จาก query param ?status= ที่ callback ส่งกลับ) ───
 // ตาม Content outline ของสเปก "หน้า: ตั้งค่าช่องทางแชท" — no_code ไม่มี copy แยกในสเปก
 // จึงใช้ข้อความเดียวกับ 'error' (เคสเดียวกันในเชิงผลลัพธ์: เชื่อมต่อไม่สำเร็จ)
-const CALLBACK_STATUS_MESSAGE: Record<string, string> = {
-  cancelled: 'ยกเลิกการเชื่อมต่อแล้ว',
-  state_mismatch: 'เซสชันหมดอายุ กรุณาลองใหม่',
-  no_code: 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่',
-  no_shop: 'ไม่พบร้านค้าของคุณ',
-  no_eligible_page: 'ไม่พบเพจที่คุณมีสิทธิ์จัดการข้อความ',
-  error: 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่',
+//
+// feature 00047: เป็นฟังก์ชันไม่ใช่ค่าคงที่ระดับ module เพราะข้อความต้องเปลี่ยนตามภาษา
+// ถ้าปล่อยไว้นอก component มันจะถูกผูกกับภาษาที่โหลดตอน bundle แล้วค้างเป็นไทยตลอดไป
+function callbackStatusMessage(t: Dictionary): Record<string, string> {
+  const c = t.channels
+  return {
+    cancelled: c.errCancelled,
+    state_mismatch: c.errStateMismatch,
+    no_code: c.errGeneric,
+    no_shop: c.errNoShop,
+    no_eligible_page: c.errNoEligiblePage,
+    error: c.errGeneric,
+  }
 }
 
 export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
+  const t = useT()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -99,21 +109,26 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
       const subscribeFailed = searchParams.get('subscribeFailed')
       if (connected > 0) {
         pacesToast.success(
-          moved > 0 ? `เชื่อมต่อสำเร็จ ${connected} ช่องทาง (ย้ายมา ${moved} เพจ)` : `เชื่อมต่อสำเร็จ ${connected} ช่องทาง`,
+          moved > 0
+            ? fmt(t.channels.connectSuccessMoved, { n: connected, moved })
+            : fmt(t.channels.connectSuccess, { n: connected }),
         )
       } else {
-        pacesToast.info('ไม่มีเพจใหม่ที่เชื่อมเพิ่ม')
+        pacesToast.info(t.channels.connectNoNew)
       }
       if (subscribeFailed) {
-        pacesToast.warning(`บางเพจยังไม่ได้รับการแจ้งเตือน: ${subscribeFailed} — ลองกด "ซิงก์การแจ้งเตือน"`)
+        pacesToast.warning(fmt(t.channels.connectSubscribeFailed, { n: subscribeFailed }))
       }
     } else {
-      const message = CALLBACK_STATUS_MESSAGE[status] ?? 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่'
-      pacesToast.error(message)
+      pacesToast.error(callbackStatusMessage(t)[status] ?? t.channels.errGeneric)
     }
     // ลบ query string เพื่อกัน toast ซ้ำเมื่อ user reload
     router.replace('/settings/channels')
-  }, [searchParams, router])
+    // `t` ใส่ได้ปลอดภัย — เป็น module-level constant ต่อภาษา identity จึงไม่เปลี่ยนทุก render
+    // (ต่างจากอ็อบเจกต์ที่ hook สร้างใหม่ทุกครั้ง ซึ่งเคยทำให้ /inbox/comments ยิง API ไม่หยุด —
+    //  docs/conventions/hook-return-identity-in-deps.md) และถ้า locale เปลี่ยนจริง effect จะรันซ้ำ
+    // แล้วออกที่ `if (!status) return` เพราะ query string ถูกลบไปแล้วบรรทัดบน
+  }, [searchParams, router, t])
 
   // ─── Disconnect handler ─────────────────────────────────────────────────────
   // ซิงก์ subscription ของทุกเพจในร้าน — Meta ล็อกชุด event ไว้ตั้งแต่ตอนเชื่อมครั้งแรก เพจเก่า
@@ -126,22 +141,22 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
       const res = await fetch('/api/channels', { method: 'POST' })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        pacesToast.error(body?.error ?? 'ซิงก์ไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.error(body?.error ?? t.channels.resyncError)
         return
       }
       if (body?.failed > 0) {
-        pacesToast.warning(`ซิงก์สำเร็จ ${body.ok} เพจ · ไม่สำเร็จ ${body.failed} เพจ (ลองเชื่อมเพจนั้นใหม่)`)
+        pacesToast.warning(fmt(t.channels.resyncPartial, { ok: body.ok, failed: body.failed }))
       } else {
         // บอกจำนวนร้านด้วย (2026-08-08) — ปุ่มนี้ครอบ "ทุกร้านที่คุณเข้าถึงได้" แล้ว ไม่ใช่ร้านเดียว
         // ถ้าไม่บอก ผู้ใช้หลายร้านจะยังเข้าใจว่าต้องสลับร้านไปกดซ้ำอยู่ดี
         pacesToast.success(
           body?.shops > 1
-            ? `ซิงก์การแจ้งเตือนสำเร็จ ${body?.ok ?? 0} เพจ จาก ${body.shops} ร้าน`
-            : `ซิงก์การแจ้งเตือนสำเร็จ ${body?.ok ?? 0} เพจ`,
+            ? fmt(t.channels.resyncSuccessShops, { ok: body?.ok ?? 0, shops: body.shops })
+            : fmt(t.channels.resyncSuccess, { ok: body?.ok ?? 0 }),
         )
       }
     } catch {
-      pacesToast.error('ซิงก์ไม่สำเร็จ กรุณาลองใหม่')
+      pacesToast.error(t.channels.resyncError)
     } finally {
       setResyncing(false)
     }
@@ -153,12 +168,12 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
     // Sweet Alert ยืนยัน — pattern จาก ConnectedAccountsClient.handleDisconnect (ตัดขั้น OTP ออก
     // เพราะช่องทางแชทไม่ใช่ login-linked account — ตามสเปก "ไม่ต้องมีขั้น OTP เพิ่ม")
     const confirmResult = await Swal.fire({
-      title: `ยกเลิกการเชื่อมต่อ ${channel.name}?`,
-      text: 'ข้อความเก่ายังอยู่ แต่จะไม่ได้รับข้อความใหม่จากเพจนี้อีก',
+      title: fmt(t.channels.disconnectTitle, { name: channel.name }),
+      text: t.channels.disconnectText,
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonText: 'ยกเลิกการเชื่อมต่อ',
-      cancelButtonText: 'ปิด',
+      confirmButtonText: t.channels.disconnectConfirm,
+      cancelButtonText: t.channels.disconnectCancel,
       showCloseButton: true,
       buttonsStyling: false,
       customClass: {
@@ -174,15 +189,15 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
       const res = await fetch(`/api/channels/${channel.id}`, { method: 'DELETE' })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        pacesToast.error(body?.error ?? 'ถอดการเชื่อมต่อไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.error(body?.error ?? t.channels.disconnectError)
         return
       }
 
       setChannels((prev) => prev.filter((c) => c.id !== channel.id))
-      pacesToast.success(`ถอดการเชื่อมต่อ ${providerLabel} สำเร็จ`)
+      pacesToast.success(fmt(t.channels.disconnectSuccess, { provider: providerLabel }))
       router.refresh()
     } catch {
-      pacesToast.error('ถอดการเชื่อมต่อไม่สำเร็จ กรุณาลองใหม่')
+      pacesToast.error(t.channels.disconnectError)
     } finally {
       setDisconnectingId(null)
     }
@@ -196,7 +211,7 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
       {/* description + CTA เชื่อม Page — บนสุดเสมอไม่ว่าจะมีช่องทางอยู่แล้วหรือไม่ */}
       <div className="flex flex-col gap-3 pb-4 border-b border-default-200 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-default-500 text-sm">
-          เชื่อม Facebook Page เพื่อรับข้อความ Messenger และ Instagram เข้ามาที่ Deep โดยตรง
+          {t.channels.intro}
         </p>
         {/* endpoint นี้ตอบ 302 redirect ไป Facebook OAuth ตรง ๆ — ต้องเป็น <a> ธรรมดา
             ห้าม fetch/onClick (จุดที่พลาดง่าย #1 ของ T6) */}
@@ -221,7 +236,7 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
                 className={`text-base ${resyncing ? 'animate-spin' : ''}`}
                 aria-hidden="true"
               />
-              ซิงก์การแจ้งเตือน
+              {t.channels.resync}
             </button>
           )}
           <a
@@ -229,7 +244,7 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
             className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2"
           >
             <Icon icon="tabler:brand-facebook" className="text-base" aria-hidden="true" />
-            เชื่อม Facebook Page
+            {t.channels.connectPage}
           </a>
         </div>
       </div>
@@ -237,13 +252,13 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
       {allTokenInvalid && (
         <div className="flex items-center gap-2 mt-4 px-3 py-2.5 rounded-lg bg-danger/15 text-danger text-sm">
           <Icon icon="tabler:alert-triangle" className="text-base shrink-0" aria-hidden="true" />
-          มี {channels.length} ช่องทางที่โทเคนหมดอายุ ต้องเชื่อมต่อใหม่
+          {fmt(t.channels.tokenExpiredBanner, { n: channels.length })}
         </div>
       )}
 
       {/* รายการช่องทาง — 1 แถวต่อ 1 ShopChannel (ไม่ใช่ 1 ต่อ provider เหมือน ConnectedAccountsClient) */}
       {channels.length === 0 ? (
-        <SellerEmptyState compact icon="brand-facebook" title="ยังไม่ได้เชื่อมช่องทางแชท" />
+        <SellerEmptyState compact icon="brand-facebook" title={t.channels.emptyTitle} />
       ) : (
         <div className="mt-2">
           {channels.map((channel) => {
@@ -281,13 +296,13 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
                     {isActive && (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-success bg-success/15 px-2 py-0.5 rounded mt-1">
                         <Icon icon="tabler:check" className="text-xs" aria-hidden="true" />
-                        เชื่อมแล้ว
+                        {t.channels.connected}
                       </span>
                     )}
                     {isTokenInvalid && (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-danger bg-danger/15 px-2 py-0.5 rounded mt-1">
                         <Icon icon="tabler:alert-triangle" className="text-xs" aria-hidden="true" />
-                        โทเคนหมดอายุ
+                        {t.channels.tokenExpired}
                       </span>
                     )}
                   </div>
@@ -301,7 +316,7 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
                       className="btn btn-sm bg-primary/15 text-primary hover:bg-primary/25 inline-flex items-center gap-1.5"
                     >
                       <Icon icon="tabler:refresh" className="text-sm" aria-hidden="true" />
-                      เชื่อมต่อใหม่
+                      {t.channels.reconnect}
                     </a>
                   )}
                   <button
@@ -313,7 +328,7 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
                     {isDisconnecting ? (
                       <span className="size-4 border-2 border-danger border-t-transparent rounded-full animate-spin inline-block" />
                     ) : (
-                      'ถอด'
+                      t.channels.disconnect
                     )}
                   </button>
                 </div>

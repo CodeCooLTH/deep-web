@@ -84,6 +84,81 @@ export const en: Dictionary = {
     settingsJobTypes: 'Service types',
   },
 
+  channels: {
+    pageTitle: 'Chat channels',
+    breadcrumbSettings: 'Settings',
+    intro: 'Connect a Facebook Page to receive Messenger and Instagram messages directly in Deep.',
+    resync: 'Sync notifications',
+    // ชื่อ "Facebook Page" เป็นคำของ Meta เอง ห้ามแปล — reviewer ต้องจับคู่ปุ่มบนจอกับ
+    // คำอธิบาย permission ในใบยื่นได้ทันที
+    connectPage: 'Connect Facebook Page',
+    emptyTitle: 'No chat channels connected yet',
+    connected: 'Connected',
+    tokenExpired: 'Token expired',
+    reconnect: 'Reconnect',
+    disconnect: 'Remove',
+    tokenExpiredBanner: '{n} channel(s) have an expired token and need to be reconnected',
+
+    disconnectTitle: 'Disconnect {name}?',
+    disconnectText: 'Past messages stay, but this Page will no longer send new messages here.',
+    disconnectConfirm: 'Disconnect',
+    disconnectCancel: 'Close',
+    disconnectSuccess: 'Disconnected {provider}',
+    disconnectError: "Couldn't disconnect. Please try again.",
+
+    connectSuccess: 'Connected {n} channel(s)',
+    connectSuccessMoved: 'Connected {n} channel(s) ({moved} page(s) moved here)',
+    connectNoNew: 'No new pages were connected',
+    connectSubscribeFailed: 'Some pages are not receiving notifications yet: {n} — try "Sync notifications"',
+
+    resyncError: "Couldn't sync. Please try again.",
+    resyncPartial: 'Synced {ok} page(s) · {failed} failed (try reconnecting those pages)',
+    resyncSuccess: 'Synced notifications for {ok} page(s)',
+    resyncSuccessShops: 'Synced notifications for {ok} page(s) across {shops} shop(s)',
+
+    errCancelled: 'Connection cancelled',
+    errStateMismatch: 'Your session expired. Please try again.',
+    errNoShop: 'We could not find your shop',
+    errNoEligiblePage: 'No Page found where you can manage messages',
+    errGeneric: "Couldn't connect. Please try again.",
+
+    selectPageTitle: 'Choose pages to connect',
+    selectBreadcrumb: 'Choose pages',
+
+    selectIntro: 'Choose the pages to connect to',
+    selectIntroThisShop: 'this shop',
+    selectIntroTail: '— only the pages you select will send messages into Deep',
+    selectAll: 'Select all',
+    selectClear: 'Clear selection',
+    selectedCount: '{n} page(s) selected',
+    selectConfirm: 'Connect selected pages',
+    selectConfirming: 'Connecting',
+    selectCancel: 'Cancel',
+    selectNoneChosen: 'Please select at least one page',
+
+    pageHasInstagram: 'Has Instagram',
+    pageHasInstagramTitle: 'This Page has an Instagram account linked',
+    pageAlreadyHere: 'Already connected to this shop',
+    pageInOtherShopNamed: 'Connected to {shop}',
+    pageInOtherShop: 'Connected to another shop',
+
+    moveOneTitle: 'Move this Page to this shop?',
+    moveManyTitle: 'Move {n} pages to this shop?',
+    moveBody: 'These pages are connected to another shop. That connection will be removed (past messages are kept):',
+    moveShopSuffix: '{shop}',
+    moveConfirm: 'Move here',
+
+    selectExpiredTitle: 'Session expired',
+    selectExpiredDesc: 'This page-selection link has expired. Please start connecting your Facebook Page again.',
+    selectExpiredAction: 'Start again',
+    selectLoadErrorTitle: "Couldn't load your pages",
+    selectLoadErrorDesc: 'Something went wrong while fetching pages from Facebook. Please try again.',
+    selectLoadErrorAction: 'Try again',
+    selectEmptyTitle: 'No Page found where you can manage messages',
+    // ยืนยันว่าคำอธิบายตรงกับเงื่อนไขจริงในโค้ด: เราคัดเพจด้วย tasks ที่มี MESSAGING และ MODERATE
+    selectEmptyDesc: 'Your Facebook account must be an admin of the Page with the Messaging permission enabled.',
+  },
+
   auth: {
     signIn: {
       pageTitle: 'Seller sign-in',

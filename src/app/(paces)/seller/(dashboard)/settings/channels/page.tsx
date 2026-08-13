@@ -33,11 +33,16 @@ import type { Metadata } from 'next'
 import { ChannelsClient } from './ChannelsClient'
 import { LineChannelCard } from './LineChannelCard'
 import { headers } from 'next/headers'
+import { getT } from '@/i18n/server'
 import { getLineChannelsHealth } from '@/services/line-channel-health.service'
 
-export const metadata: Metadata = { title: 'ช่องทางแชท' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT()
+  return { title: t.channels.pageTitle }
+}
 
 export default async function ChannelsSettingsPage() {
+  const t = await getT()
   const session = await getServerSession(authOptions)
   const user = (session as { user?: { id: string; activeShopId?: string | null } } | null)?.user
   if (!user) return null
@@ -73,8 +78,8 @@ export default async function ChannelsSettingsPage() {
   return (
     <>
       <PageBreadcrumb
-        title="ช่องทางแชท"
-        trail={[{ label: 'ตั้งค่า', href: '/settings' }, { label: 'ช่องทางแชท' }]}
+        title={t.channels.pageTitle}
+        trail={[{ label: t.channels.breadcrumbSettings, href: '/settings' }, { label: t.channels.pageTitle }]}
       />
 
       <div className="card">
@@ -82,7 +87,7 @@ export default async function ChannelsSettingsPage() {
         <div className="card-header">
           <h5 className="bg-light/15 border-default-300 flex items-center gap-1.5 rounded border border-dashed p-1.25 text-sm uppercase w-full justify-center">
             <Icon icon="message-circle" className="text-base" aria-hidden="true" />
-            ช่องทางแชท
+            {t.channels.pageTitle}
           </h5>
         </div>
 
