@@ -303,7 +303,17 @@ export async function getShopProfileStats(shopId: string) {
       where: { shopId, status: "ACTIVE" },
       // followerCount อ่านจากคอลัมน์ ไม่ยิง Graph ตอนมีคนเปิดหน้าร้าน (ช้า + ชนลิมิต Meta)
       // null = ยังไม่รู้ (เพจที่เชื่อมก่อนมีคอลัมน์นี้) — UI ต้องซ่อนยอด ไม่ใช่แสดง 0
-      select: { provider: true, name: true, avatarUrl: true, externalId: true, followerCount: true },
+      // basicId: LINE Basic ID (ขึ้นต้น `@`) — คนละตัวกับ externalId ซึ่งเป็น user/bot id ภายใน
+      // ต้องมีถึงจะประกอบลิงก์ LINE ได้ (src/lib/official-channel-link.ts) เดิมไม่ได้ select
+      // ทำให้ปุ่มทักของช่องทาง LINE ประกอบ URL ไม่ได้เลย
+      select: {
+        provider: true,
+        name: true,
+        avatarUrl: true,
+        externalId: true,
+        followerCount: true,
+        basicId: true,
+      },
     }),
   ]);
 

@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Variant C · Reputation Timeline — โปรไฟล์สาธารณะ (mockup 2026-08-13)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#7367F0; --verified:#28C76F; --verified-ink:#18804A;
+  --gold-ink:#874C00; --amber:#FF9F43;
+  --ink:#2F2B3D; --mist:#F8F7FA; --paper:#fff;
+  --divider:rgba(47,43,61,.12); --hover:rgba(47,43,61,.06);
+  --t1:rgba(47,43,61,.9); --t2:rgba(47,43,61,.7); --t3:rgba(47,43,61,.4);
+  --tier-grad:linear-gradient(135deg,#e08400 0%,#FF9F43 45%,#ffd1a3 100%);
+  --tier-bg:rgba(255,159,67,.18); --tier-fg:#874C00;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9e7ef;font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;color:var(--t1);-webkit-font-smoothing:antialiased}
+.page{max-width:1800px;margin:0 auto;padding:32px 20px 64px}
+h1.doc{font-size:22px;font-weight:800;margin:0 0 4px}
+p.doc{margin:0 0 6px;font-size:15px;color:var(--t2);max-width:70ch;line-height:1.55}
+.note{margin:16px 0 28px;padding:12px 14px;border-radius:8px;background:#fff8e6;border:1px solid #ffd1a3;font-size:13px;color:#5c3300;max-width:100ch;line-height:1.6}
+.frames{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+.frame{background:var(--paper);border-radius:12px;box-shadow:0 4px 18px rgba(47,43,61,.14);overflow:hidden;flex-shrink:0}
+.frame-label{font-size:13px;font-weight:600;color:var(--t2);margin:0 0 8px}
+.w390{width:390px}.w768{width:768px}.w1200{width:1200px}
+.scroll{max-height:900px;overflow-y:auto}
+
+.cover{position:relative;background:var(--tier-grad)}
+.w390 .cover{height:144px}.w768 .cover{height:176px}.w1200 .cover{height:176px}
+.brand{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;gap:6px;background:var(--paper);border-radius:999px;padding:5px 12px;box-shadow:0 1px 3px rgba(47,43,61,.2);font-size:13px;font-weight:700}
+.brand .dot{width:14px;height:14px;border-radius:4px;background:var(--primary);display:inline-block}
+
+.head{text-align:center;padding:0 20px;margin-top:-42px;position:relative}
+.avatar{position:relative;width:84px;height:84px;margin:0 auto 10px}
+.avatar .img{width:100%;height:100%;border-radius:999px;border:4px solid var(--paper);background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;overflow:hidden}
+.lvl{position:absolute;right:-2px;bottom:-2px;height:34px;width:24px;border-radius:4px 4px 10px 10px;background:linear-gradient(180deg,#28C76F,#18804A);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;filter:drop-shadow(0 1px 2px rgba(47,43,61,.35))}
+.name{font-size:22px;font-weight:800;line-height:1.2;margin:0}
+.chiprow{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+.chip-tier{border-radius:999px;padding:4px 10px;font-size:13px;font-weight:700;background:var(--tier-bg);color:var(--tier-fg);font-variant-numeric:tabular-nums}
+.chip-star{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:4px 10px;font-size:13px;font-weight:700;background:var(--hover);font-variant-numeric:tabular-nums}
+.chip-star .s{color:var(--amber)}
+.chip-star .c{color:var(--t2);font-weight:500}
+.handle{font-size:13px;color:var(--t2);margin:4px 0 0}
+.bio{font-size:15px;line-height:1.55;margin:8px auto 0;max-width:46ch;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+.channels{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 20px;margin-top:12px}
+.ch-av{width:26px;height:26px;border-radius:999px;background:#1877F2;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ch-txt{font-size:13px;color:var(--t2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-txt b{color:var(--t1);font-weight:600}
+
+/* ── เส้นเรื่อง ── */
+.tl-wrap{padding:20px 20px 0}
+.tl-wrap h2{font-size:18px;font-weight:700;margin:0 0 4px}
+.tl-wrap .lead{font-size:13px;color:var(--t2);margin:0 0 16px;line-height:1.5}
+.tl{list-style:none;margin:0 auto;padding:0;max-width:680px}
+.tl li{display:flex;gap:12px}
+.rail{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.dot{width:32px;height:32px;border-radius:999px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.line{width:1px;flex:1;min-height:16px;background:var(--divider)}
+.node{min-width:0;flex:1;padding-bottom:20px}
+.node:last-child{padding-bottom:4px}
+.when{font-size:13px;color:var(--t3);display:block}
+.what{font-size:15px;font-weight:600;line-height:1.35}
+.why{font-size:13px;color:var(--t2);display:block;margin-top:2px;line-height:1.45}
+
+.tabs{display:flex;gap:24px;border-bottom:1px solid var(--divider);padding:0 20px;margin-top:16px;overflow-x:auto}
+.tab{padding:12px 0;min-height:44px;font-size:15px;font-weight:600;color:var(--t3);white-space:nowrap;position:relative;display:inline-flex;align-items:center;gap:6px}
+.tab.on{color:var(--t1)}
+.tab.on::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2.5px;border-radius:2px;background:var(--primary)}
+.panel{padding:16px 20px 28px}
+
+.grid{display:grid;gap:10px}
+.w390 .grid{grid-template-columns:repeat(2,1fr)}
+.w768 .grid{grid-template-columns:repeat(3,1fr)}
+.w1200 .grid{grid-template-columns:repeat(4,1fr)}
+.prod{border-radius:8px;overflow:hidden;background:var(--paper);border:1px solid var(--divider)}
+.prod .ph{aspect-ratio:1;background:linear-gradient(135deg,#efedf5,#e3e0ec)}
+.prod .pb{padding:8px}
+.prod .pn{font-size:14px;font-weight:600;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.prod .pp{font-size:15px;font-weight:700;margin-top:4px}
+.prod .ps{font-size:13px;color:var(--t3);margin-top:2px}
+
+.placeholder{position:relative;border:1px dashed rgba(47,43,61,.28);background:rgba(47,43,61,.02);border-radius:8px;padding:12px;margin-top:16px;max-width:680px;margin-left:auto;margin-right:auto}
+.placeholder .tag{display:flex;align-items:center;gap:4px;font-size:13px;font-weight:600;color:var(--t3);margin-bottom:6px}
+.placeholder .inner2{opacity:.72}
+.placeholder .need{font-size:13px;color:var(--t3);margin-top:6px;display:block;line-height:1.5}
+.ico{width:17px;height:17px;flex-shrink:0}
+.chatline{font-size:13px;color:var(--t2);max-width:680px;margin:12px auto 0}
+svg{display:block}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 class="doc">Variant C · Reputation Timeline — โปรไฟล์สาธารณะ</h1>
+  <p class="doc">สมมติฐาน: ความน่าเชื่อถือที่ <b>สะสมมา</b> น่าเชื่อกว่าความน่าเชื่อถือที่ <b>ประกาศไว้</b> — บัญชีปลอมสร้างตัวเลขได้ในวันเดียว แต่สร้างประวัติที่มีวันที่กำกับย้อนหลังไม่ได้</p>
+  <p class="doc">หัวยังเป็นโซเชียล (จัดกลาง เหมือนของจริง) แต่ใต้หัวเป็น <b>เส้นเรื่องเรียงตามเวลา</b> แทนแผงตัวเลข · สินค้า/รีวิวยังอยู่หลังแท็บเหมือนเดิม (ตั้งใจไม่รื้อสองอย่างพร้อมกัน จะได้แยกออกว่าอะไรได้ผล)</p>
+
+  <div class="note">
+    <b>ข้อจำกัดข้อมูลที่ยอมรับตรง ๆ ไม่กลบ:</b> ระบบ<b>ไม่มี "วันที่ออเดอร์แรก"</b> (มีแต่ตัวนับสะสม) node ธุรกรรมจึงเขียนว่า "สะสมถึงปัจจุบัน" แทนวันที่ ไม่แอบวางให้อ่านเหมือนเหตุการณ์วันใดวันหนึ่ง · ระบบดึงรีวิวมาแค่ 10 ใบล่าสุด จึงใช้คำว่า <b>"รีวิวล่าสุด"</b> เท่านั้น ห้ามเขียน "รีวิวแรก" · ไม่มี timestamp ตอนเชื่อมเพจ ช่องทางจึงอยู่<b>นอก</b>เส้นเรื่อง · เขียวสงวนให้ระดับยืนยันที่ผ่านการตรวจจริง ไม่แจกให้ node "ปิดออเดอร์ครบ" (เขียวที่แจกง่ายคือเขียวที่ไม่มีความหมาย)
+  </div>
+
+  <div class="frames">
+    <!-- ══════════ MOBILE 390 ══════════ -->
+    <div>
+      <p class="frame-label">Mobile · 390px</p>
+      <div class="frame w390 scroll">
+        <div class="cover"><span class="brand"><i class="dot"></i>Deep</span></div>
+        <div class="head">
+          <div class="avatar"><div class="img">บ</div><div class="lvl">2</div></div>
+          <h1 class="name">บ้านสวนกาแฟดริป by พี่หนึ่ง</h1>
+          <div class="chiprow">
+            <span class="chip-tier">74/100 · Deep Gold</span>
+            <span class="chip-star"><span class="s">★</span>4.9<span class="c">(37)</span></span>
+          </div>
+          <p class="handle">@baansuankafae · เปิดร้านมาแล้ว 1 ปี 1 เดือน</p>
+          <p class="bio">คั่วเองทุกสัปดาห์ ส่งภายในวันถัดไป รับประกันความสดทุกถุง ทักมาถามได้ตลอดครับ</p>
+        </div>
+        <div class="channels"><span class="ch-av">f</span><span class="ch-txt"><b>บ้านสวนกาแฟดริป by พี่หนึ่ง — สั่งกาแฟ</b> · Facebook · 1.2K</span></div>
+
+        <div class="tl-wrap">
+          <h2>เส้นทางของร้านนี้</h2>
+          <p class="lead">ทุกบรรทัดมาจากสิ่งที่เกิดขึ้นจริงในระบบ ไม่ใช่ข้อความที่ร้านเขียนเอง</p>
+          <ol class="tl">
+            <li>
+              <div class="rail"><span class="dot" style="background:var(--hover);color:var(--t2)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l1.5-5h15L21 10"/><path d="M4 10v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9"/></svg></span><span class="line"></span></div>
+              <div class="node"><span class="when">ก.ค. 2568</span><div class="what">เปิดร้าน "บ้านสวนกาแฟดริป by พี่หนึ่ง" บน Deep</div><span class="why">หมวด อาหารและเครื่องดื่ม</span></div>
+            </li>
+            <li>
+              <div class="rail"><span class="dot" style="background:rgba(47,43,61,.08);color:rgba(47,43,61,.75)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h4l2 5-2.5 1.5a12 12 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg></span><span class="line"></span></div>
+              <div class="node"><span class="when">ส.ค. 2568</span><div class="what">ยืนยันเบอร์โทรศัพท์แล้ว</div><span class="why">พิสูจน์ว่าเบอร์ติดต่อได้จริง</span></div>
+            </li>
+            <li>
+              <div class="rail"><span class="dot" style="background:rgba(40,199,111,.12);color:#18804A"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h9l5 5v13H5z"/><path d="M9 14l2 2 4-4"/></svg></span><span class="line"></span></div>
+              <div class="node"><span class="when">ต.ค. 2568</span><div class="what" style="color:#18804A">ยืนยันเอกสารตัวตนแล้ว</div><span class="why">ทีมงาน Deep ตรวจเอกสารตัวตนของเจ้าของร้าน</span></div>
+            </li>
+            <li>
+              <div class="rail"><span class="dot" style="background:var(--hover);color:var(--t2)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8"/></svg></span><span class="line"></span></div>
+              <div class="node"><span class="when">สะสมถึงปัจจุบัน</span><div class="what">ปิดออเดอร์สำเร็จแล้ว 128 ครั้ง</div><span class="why">ลูกค้า 89 คน · กลับมาซื้อซ้ำ 26% · ปิดจบสำเร็จ 97% จาก 132 ใบ</span></div>
+            </li>
+            <li>
+              <div class="rail"><span class="dot" style="background:var(--hover);color:var(--t2)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="14" r="6"/><path d="M9 3h6l-1.5 5h-3z"/></svg></span><span class="line"></span></div>
+              <div class="node"><span class="when">พ.ค. 2569</span><div class="what">ได้เหรียญสะสม 5 ใบ</div><span class="why">ล่าสุด "ร้านแนะนำ" · ระบบมอบให้เองจากพฤติกรรมจริง ร้านขอเองไม่ได้</span></div>
+            </li>
+            <li>
+              <div class="rail"><span class="dot" style="background:var(--hover);color:var(--t2)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.6 6.3.9-4.5 4.3 1 6.2L12 17l-5.5 3 1-6.2L3 9.5l6.3-.9z"/></svg></span></div>
+              <div class="node"><span class="when">10 ส.ค. 2569</span><div class="what">รีวิวล่าสุด 5 ดาว</div><span class="why">"กาแฟหอมมาก บดละเอียดตามที่สั่ง ส่งไวได้ของวันรุ่งขึ้…" — จาก 37 รีวิวทั้งหมด</span></div>
+            </li>
+          </ol>
+
+          <p class="chatline">ตอบแชท 92% ภายใน 15 นาที (วัดจากแชทล่าสุด)</p>
+
+          <div class="placeholder">
+            <div class="tag"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/></svg>ตัวอย่างดีไซน์ — ยังไม่มีข้อมูลจริง</div>
+            <div class="inner2" style="display:flex;gap:10px;align-items:flex-start">
+              <svg class="ico" style="color:var(--t2);margin-top:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+              <div><div style="font-size:14px;font-weight:600">ตลอดเส้นทางนี้ ไม่มีเรื่องร้องเรียนที่ค้างอยู่</div><div style="font-size:13px;color:var(--t2);line-height:1.45">การเคยถูกแจ้งไม่ได้แปลว่าทำผิด — บรรทัดนี้บอกสถานะปัจจุบัน ไม่ใช่ประวัติทั้งหมด</div></div>
+            </div>
+            <span class="need">ต้องต่อ backend: ผูก ScamReport เข้ากับ Shop/User + นิยาม "ค้างอยู่" vs "แก้ไขแล้ว"</span>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <span class="tab on"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8"/></svg>สินค้า</span>
+          <span class="tab"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>เกี่ยวกับร้าน</span>
+          <span class="tab"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.6 6.3.9-4.5 4.3 1 6.2L12 17l-5.5 3 1-6.2L3 9.5l6.3-.9z"/></svg>รีวิว 4.9</span>
+        </div>
+        <div class="panel">
+          <div class="grid">
+            <div class="prod"><div class="ph"></div><div class="pb"><div class="pn">เมล็ดกาแฟคั่วกลาง ดอยช้าง 250 ก.</div><div class="pp">฿320</div><div class="ps">ขายแล้ว 84</div></div></div>
+            <div class="prod"><div class="ph"></div><div class="pb"><div class="pn">ดริปแบ็ก 10 ซอง คั่วเข้ม</div><div class="pp">฿180</div><div class="ps">ขายแล้ว 61</div></div></div>
+            <div class="prod"><div class="ph"></div><div class="pb"><div class="pn">ชุดเริ่มต้นดริป พร้อมดริปเปอร์</div><div class="pp">฿890</div><div class="ps">ขายแล้ว 12</div></div></div>
+            <div class="prod"><div class="ph"></div><div class="pb"><div class="pn">เมล็ดคั่วอ่อน เอธิโอเปีย 200 ก.</div><div class="pp">฿380</div><div class="ps">ขายแล้ว 29</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ TABLET 768 ══════════ -->
+    <div>
+      <p class="frame-label">Tablet · 768px</p>
+      <div class="frame w768 scroll">
+        <div class="cover"><span class="brand"><i class="dot"></i>Deep</span></div>
+        <div class="head">
+          <div class="avatar"><div class="img">บ</div><div class="lvl">2</div></div>
+          <h1 class="name">บ้านสวนกาแฟดริป by พี่หนึ่ง</h1>
+          <div class="chiprow"><span class="chip-tier">74/100 · Deep Gold</span><span class="chip-star"><span class="s">★</span>4.9<span class="c">(37)</span></span></div>
+          <p class="handle">@baansuankafae · เปิดร้านมาแล้ว 1 ปี 1 เดือน</p>
+          <p class="bio">คั่วเองทุกสัปดาห์ ส่งภายในวันถัดไป รับประกันความสดทุกถุง ทักมาถามได้ตลอดครับ</p>
+        </div>
+        <div class="channels"><span class="ch-av">f</span><span class="ch-txt"><b>บ้านสวนกาแฟดริป by พี่หนึ่ง — สั่งกาแฟ</b> · Facebook · 1.2K</span></div>
+
+        <div class="tl-wrap">
+          <h2 style="text-align:center">เส้นทางของร้านนี้</h2>
+          <p class="lead" style="text-align:center">ทุกบรรทัดมาจากสิ่งที่เกิดขึ้นจริงในระบบ ไม่ใช่ข้อความที่ร้านเขียนเอง</p>
+          <ol class="tl">
+            <li><div class="rail"><span class="dot" style="background:var(--hover);color:var(--t2)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l1.5-5h15L21 10"/><path d="M4 10v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9"/></svg></span><span class="line"></span></div><div class="node"><span class="when">ก.ค. 2568</span><div class="what">เปิดร้าน "บ้านสวนกาแฟดริป by พี่หนึ่ง" บน Deep</div><span class="why">หมวด อาหารและเครื่องดื่ม</span></div></li>
+            <li><div class="rail"><span class="dot" style="background:rgba(47,43,61,.08);color:rgba(47,43,61,.75)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h4l2 5-2.5 1.5a12 12 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg></span><span class="line"></span></div><div class="node"><span class="when">ส.ค. 2568</span><div class="what">ยืนยันเบอร์โทรศัพท์แล้ว</div><span class="why">พิสูจน์ว่าเบอร์ติดต่อได้จริง</span></div></li>
+            <li><div class="rail"><span class="dot" style="background:rgba(40,199,111,.12);color:#18804A"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h9l5 5v13H5z"/><path d="M9 14l2 2 4-4"/></svg></span><span class="line"></span></div><div class="node"><span class="when">ต.ค. 2568</span><div class="what" style="color:#18804A">ยืนยันเอกสารตัวตนแล้ว</div><span class="why">ทีมงาน Deep ตรวจเอกสารตัวตนของเจ้าของร้าน</span></div></li>
+            <li><div class="rail"><span class="dot" style="background:var(--hover);color:var(--t2)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8"/></svg></span><span class="line"></span></div><div class="node"><span class="when">สะสมถึงปัจจุบัน</span><div class="what">ปิดออเดอร์สำเร็จแล้ว 128 ครั้ง</div><span class="why">ลูกค้า 89 คน · กลับมาซื้อซ้ำ 26% · ปิดจบสำเร็จ 97% จาก 132 ใบ</span></div></li>
+            <li><div class="rail"><span class="dot" style="background:var(--hover);color:var(--t2)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="14" r="6"/><path d="M9 3h6l-1.5 5h-3z"/></svg></span><span class="line"></span></div><div class="node"><span class="when">พ.ค. 2569</span><div class="what">ได้เหรียญสะสม 5 ใบ</div><span class="why">ล่าสุด "ร้านแนะนำ" · ระบบมอบให้เองจากพฤติกรรมจริง ร้านขอเองไม่ได้</span></div></li>
+            <li><div class="rail"><span class="dot" style="background:var(--hover);color:var(--t2)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.6 6.3.9-4.5 4.3 1 6.2L12 17l-5.5 3 1-6.2L3 9.5l6.3-.9z"/></svg></span></div><div class="node"><span class="when">10 ส.ค. 2569</span><div class="what">รีวิวล่าสุด 5 ดาว</div><span class="why">"กาแฟหอมมาก บดละเอียดตามที่สั่ง ส่งไวได้ของวันรุ่งขึ้…" — จาก 37 รีวิวทั้งหมด</span></div></li>
+          </ol>
+          <p class="chatline">ตอบแชท 92% ภายใน 15 นาที (วัดจากแชทล่าสุด)</p>
+          <div class="placeholder">
+            <div class="tag"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/></svg>ตัวอย่างดีไซน์ — ยังไม่มีข้อมูลจริง</div>
+            <div class="inner2" style="display:flex;gap:10px;align-items:flex-start">
+              <svg class="ico" style="color:var(--t2);margin-top:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+              <div><div style="font-size:14px;font-weight:600">ตลอดเส้นทางนี้ ไม่มีเรื่องร้องเรียนที่ค้างอยู่</div><div style="font-size:13px;color:var(--t2)">การเคยถูกแจ้งไม่ได้แปลว่าทำผิด</div></div>
+            </div>
+            <span class="need">ต้องต่อ backend: ผูก ScamReport เข้ากับ Shop/User</span>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <span class="tab on">สินค้า</span><span class="tab">เกี่ยวกับร้าน</span><span class="tab">รีวิว 4.9</span>
+        </div>
+        <div class="panel">
+          <div class="grid">
+            <div class="prod"><div class="ph"></div><div class="pb"><div class="pn">เมล็ดกาแฟคั่วกลาง ดอยช้าง 250 ก.</div><div class="pp">฿320</div><div class="ps">ขายแล้ว 84</div></div></div>
+            <div class="prod"><div class="ph"></div><div class="pb"><div class="pn">ดริปแบ็ก 10 ซอง คั่วเข้ม</div><div class="pp">฿180</div><div class="ps">ขายแล้ว 61</div></div></div>
+            <div class="prod"><div class="ph"></div><div class="pb"><div class="pn">ชุดเริ่มต้นดริป พร้อมดริปเปอร์</div><div class="pp">฿890</div><div class="ps">ขายแล้ว 12</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ DESKTOP 1200 ══════════ -->
+    <div>
+      <p class="frame-label">Desktop · 1200px (เส้นเรื่องจำกัด 680px เพื่อการอ่าน · สินค้าเต็ม 960)</p>
+      <div class="frame w1200 scroll" style="background:var(--mist)">
+        <div style="background:var(--paper);max-width:960px;margin:0 auto">
+          <div class="cover"><span class="brand"><i class="dot"></i>Deep</span></div>
+          <div class="head">
+            <div class="avatar"><div class="img">บ</div><div class="lvl">2</div></div>
+            <h1 class="name">บ้านสวนกาแฟดริป by พี่หนึ่ง</h1>
+            <div class="chiprow"><span class="chip-tier">74/100 · Deep Gold</span><span class="chip-star"><span class="s">★</span>4.9<span class="c">(37)</span></span></div>
+            <p class="handle">@baansuankafae · เปิดร้านมาแล้ว 1 ปี 1 เดือน</p>
+            <p class="bio">คั่วเองทุกสัปดาห์ ส่งภายในวันถัดไป รับประกันความสดทุกถุง ทักมาถามได้ตลอดครับ</p>
+          </div>
+          <div class="channels" style="justify-content:center"><span class="ch-av">f</span><span class="ch-txt"><b>บ้านสวนกาแฟดริป by พี่หนึ่ง — สั่งกาแฟ</b> · Facebook · 1.2K</span></div>
+
+          <div class="tl-wrap">
+            <h2 style="text-align:center">เส้นทางของร้านนี้</h2>
+            <p class="lead" style="text-align:center">ทุกบรรทัดมาจากสิ่งที่เกิดขึ้นจริงในระบบ ไม่ใช่ข้อความที่ร้านเขียนเอง</p>
+            <ol class="tl">
+              <li><div class="rail"><span class="dot" style="background:var(--hover);color:var(--t2)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l1.5-5h15L21 10"/><path d="M4 10v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9"/></svg></span><span class="line"></span></div><div class="node"><span class="when">ก.ค. 2568</span><div class="what">เปิดร้าน "บ้านสวนกาแฟดริป by พี่หนึ่ง" บน Deep</div><span class="why">หมวด อาหารและเครื่องดื่ม</span></div></li>
+              <li><div class="rail"><span class="dot" style="background:rgba(47,43,61,.08);color:rgba(47,43,61,.75)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h4l2 5-2.5 1.5a12 12 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg></span><span class="line"></span></div><div class="node"><span class="when">ส.ค. 2568</span><div class="what">ยืนยันเบอร์โทรศัพท์แล้ว</div><span class="why">พิสูจน์ว่าเบอร์ติดต่อได้จริง</span></div></li>
+              <li><div class="rail"><span class="dot" style="background:rgba(40,199,111,.12);color:#18804A"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h9l5 5v13H5z"/><path d="M9 14l2 2 4-4"/></svg></span><span class="line"></span></div><div class="node"><span class="when">ต.ค. 2568</span><div class="what" style="color:#18804A">ยืนยันเอกสารตัวตนแล้ว</div><span class="why">ทีมงาน Deep ตรวจเอกสารตัวตนของเจ้าของร้าน</span></div></li>
+              <li><div class="rail"><span class="dot" style="background:var(--hover);color:var(--t2)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8"/></svg></span><span class="line"></span></div><div class="node"><span class="when">สะสมถึงปัจจุบัน</span><div class="what">ปิดออเดอร์สำเร็จแล้ว 128 ครั้ง</div><span class="why">ลูกค้า 89 คน · กลับมาซื้อซ้ำ 26% · ปิดจบสำเร็จ 97% จาก 132 ใบ</span></div></li>
+              <li><div class="rail"><span class="dot" style="background:var(--hover);color:var(--t2)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="14" r="6"/><path d="M9 3h6l-1.5 5h-3z"/></svg></span><span class="line"></span></div><div class="node"><span class="when">พ.ค. 2569</span><div class="what">ได้เหรียญสะสม 5 ใบ</div><span class="why">ล่าสุด "ร้านแนะนำ" · ระบบมอบให้เองจากพฤติกรรมจริง ร้านขอเองไม่ได้</span></div></li>
+              <li><div class="rail"><span class="dot" style="background:var(--hover);color:var(--t2)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.6 6.3.9-4.5 4.3 1 6.2L12 17l-5.5 3 1-6.2L3 9.5l6.3-.9z"/></svg></span></div><div class="node"><span class="when">10 ส.ค. 2569</span><div class="what">รีวิวล่าสุด 5 ดาว</div><span class="why">"กาแฟหอมมาก บดละเอียดตามที่สั่ง ส่งไวได้ของวันรุ่งขึ้…" — จาก 37 รีวิวทั้งหมด</span></div></li>
+            </ol>
+            <p class="chatline">ตอบแชท 92% ภายใน 15 นาที (วัดจากแชทล่าสุด)</p>
+            <div class="placeholder">
+              <div class="tag"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/></svg>ตัวอย่างดีไซน์ — ยังไม่มีข้อมูลจริง</div>
+              <div class="inner2" style="display:flex;gap:10px;align-items:flex-start">
+                <svg class="ico" style="color:var(--t2);margin-top:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+                <div><div style="font-size:14px;font-weight:600">ตลอดเส้นทางนี้ ไม่มีเรื่องร้องเรียนที่ค้างอยู่</div><div style="font-size:13px;color:var(--t2)">การเคยถูกแจ้งไม่ได้แปลว่าทำผิด — บรรทัดนี้บอกสถานะปัจจุบัน ไม่ใช่ประวัติทั้งหมด</div></div>
+              </div>
+              <span class="need">ต้องต่อ backend: ผูก ScamReport เข้ากับ Shop/User + นิยาม "ค้างอยู่" vs "แก้ไขแล้ว"</span>
+            </div>
+          </div>
+
+          <div class="tabs"><span class="tab on">สินค้า</span><span class="tab">เกี่ยวกับร้าน</span><span class="tab">รีวิว 4.9</span></div>
+          <div class="panel">
+            <div class="grid">
+              <div class="prod"><div class="ph"></div><div class="pb"><div class="pn">เมล็ดกาแฟคั่วกลาง ดอยช้าง 250 ก.</div><div class="pp">฿320</div><div class="ps">ขายแล้ว 84</div></div></div>
+              <div class="prod"><div class="ph"></div><div class="pb"><div class="pn">ดริปแบ็ก 10 ซอง คั่วเข้ม</div><div class="pp">฿180</div><div class="ps">ขายแล้ว 61</div></div></div>
+              <div class="prod"><div class="ph"></div><div class="pb"><div class="pn">ชุดเริ่มต้นดริป พร้อมดริปเปอร์</div><div class="pp">฿890</div><div class="ps">ขายแล้ว 12</div></div></div>
+              <div class="prod"><div class="ph"></div><div class="pb"><div class="pn">เมล็ดคั่วอ่อน เอธิโอเปีย 200 ก.</div><div class="pp">฿380</div><div class="ps">ขายแล้ว 29</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

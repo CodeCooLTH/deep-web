@@ -313,6 +313,8 @@ export default async function BusinessShopProfilePage({ params }: Props) {
               // บรรทัดนี้อยู่ติดกับ @username และวันเปิดร้าน ผู้ซื้อใช้อ่านยืนยันว่ามาถูกร้าน
               category: shopCategoryLabel(shop.category),
               memberSince: formatMonthYearTH(shop.createdAt),
+              // ISO เต็มสำหรับคำนวณ "เปิดร้านมาแล้ว …" — memberSince เป็นแค่เดือน-ปี ผู้อ่านต้องคิดเอง
+              createdAtIso: shop.createdAt.toISOString(),
               // imageUrl = artwork จริงของเหรียญ — `achievements` ด้านบนส่งอยู่แล้ว แต่ hero ไม่เคยส่ง
               // ชิปเหรียญในหัวจึงตกไปใช้ไอคอนเส้น fallback ตลอดเวลา ทั้งที่รูปมีอยู่ในโปรเจกต์
               badges: businessBadges.map((ub) => ({
@@ -340,7 +342,6 @@ export default async function BusinessShopProfilePage({ params }: Props) {
               // พอ Task 4 คำนวณ isOwnShop จริง (เพื่อใช้กับ publish gate) การคง true ไว้จะทำให้เจ้าของ
               // เห็นปุ่มทักแชทบนหน้าร้านตัวเอง ซึ่งเป็นเคสที่ self-chat guard (feat 00011 B3) กันอยู่
               // sync กับ /u/[username]:277 ที่เขียนเงื่อนไขนี้ถูกมาตั้งแต่แรก
-              canChat: !isOwnShop,
               // แผงอธิบายคะแนนใช้บอก "อีกกี่คะแนนถึงระดับถัดไป" — ค่าเดียวกับที่ profileTab ใช้อยู่แล้ว
               // (getNextTierInfo เรียกไปแล้วด้านบน ไม่ได้ยิงเพิ่ม)
               nextTierLabel: nextTier?.nextTierLabel ?? null,

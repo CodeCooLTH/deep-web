@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Variant D · A+B Showcase — ข้อมูลจริงจาก /b/tanapathardware (mockup 2026-08-13 rev9)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#7367F0; --verified:#28C76F; --verified-ink:#18804A;
+  --gold-ink:#874C00; --amber:#FF9F43;
+  --ink:#2F2B3D; --mist:#F8F7FA; --paper:#fff;
+  --divider:rgba(47,43,61,.12); --hover:rgba(47,43,61,.06);
+  --t1:rgba(47,43,61,.9); --t2:rgba(47,43,61,.7); --t3:rgba(47,43,61,.4);
+  /* Deep Classic ช่วง C (40–59) — ร้านจริงได้ 41 คะแนน ไม่ใช่ Gold แบบที่ม็อกอัพรอบก่อนสมมติไว้ */
+  --tier-grad:linear-gradient(135deg,#b36700 0%,#e08400 55%,#ffd1a3 100%);
+  --tier-bg:rgba(179,103,0,.18); --tier-fg:#874C00;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9e7ef;font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;color:var(--t1);-webkit-font-smoothing:antialiased}
+.page{max-width:1800px;margin:0 auto;padding:32px 20px 64px}
+h1.doc{font-size:22px;font-weight:800;margin:0 0 4px}
+p.doc{margin:0 0 6px;font-size:15px;color:var(--t2);max-width:78ch;line-height:1.55}
+.note{margin:14px 0 0;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.6;max-width:104ch;background:#eef7f1;border:1px solid #b8e3ca;color:#0f5132}
+.note.warn{background:#fff8e6;border-color:#ffd1a3;color:#5c3300}
+.note.info{background:#eef2ff;border-color:#c7cffe;color:#312a7a}
+.frames{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;margin-top:24px}
+.frame{background:var(--paper);border-radius:12px;box-shadow:0 4px 18px rgba(47,43,61,.14);overflow:hidden;flex-shrink:0}
+.frame-label{font-size:13px;font-weight:600;color:var(--t2);margin:0 0 8px}
+.w390{width:390px}.w768{width:768px}.w1200{width:1200px}
+.scroll{max-height:940px;overflow-y:auto}
+.fold{border:0;border-top:2px dashed #c8324b;position:relative;margin:0}
+.fold::after{content:'ขอบจอที่ 1 (มือถือ ~780px)';position:absolute;right:6px;top:2px;font-size:11px;color:#c8324b;font-weight:700;background:var(--paper);padding:0 4px}
+
+.cover{position:relative;background:var(--tier-grad)}
+.w390 .cover{height:128px}.w768 .cover{height:160px}.w1200 .cover{height:176px}
+.brand{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;gap:6px;background:var(--paper);border-radius:999px;padding:5px 12px;box-shadow:0 1px 3px rgba(47,43,61,.2);font-size:13px;font-weight:700}
+.brand .dot{width:14px;height:14px;border-radius:4px;background:var(--primary);display:inline-block}
+.body{padding:0 20px}
+.avatar{position:relative;width:88px;height:88px;margin-top:-44px;margin-bottom:10px}
+.avatar .img{width:100%;height:100%;border-radius:999px;border:4px solid var(--paper);background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:800;overflow:hidden}
+/* ตราระดับ 1 = โทนกลาง ไม่ใช่เขียว (verify-badge.ts: เขียวสงวนให้สิ่งที่ปลอมยาก L2/L3) */
+.lvl{position:absolute;right:-2px;bottom:-2px;height:34px;width:24px;border-radius:4px 4px 10px 10px;background:linear-gradient(180deg,#8b8798,#5c5870);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;filter:drop-shadow(0 1px 2px rgba(47,43,61,.35))}
+.nameline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.name{font-size:22px;font-weight:800;line-height:1.2;margin:0}
+.chip-tier{border-radius:999px;padding:4px 10px;font-size:13px;font-weight:700;background:var(--tier-bg);color:var(--tier-fg);font-variant-numeric:tabular-nums}
+.handle{font-size:15px;color:var(--t2);margin:2px 0 0}
+.bio{font-size:15px;line-height:1.55;margin:8px 0 0;position:relative;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+/* พื้นทึบ ไม่ใช่โปร่ง — line-clamp ไม่ได้ลบข้อความ ตัวอักษรจริงยังอยู่ข้างใต้ */
+.bio .more{position:absolute;right:0;bottom:0;padding-left:8px;font-size:13px;font-weight:600;color:var(--primary);background:var(--paper)}
+.socialstats{display:flex;gap:24px;margin:16px 0 0;overflow-x:auto}
+.socialstats .n{font-size:22px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
+.socialstats .l{font-size:13px;color:var(--t2);margin-top:2px;display:block}
+.actions{display:flex;gap:8px;margin-top:12px}
+.btn{min-height:44px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:15px;font-weight:600;cursor:pointer;border:0;font-family:inherit}
+.btn-primary{flex:1;background:var(--primary);color:#fff}
+.btn-ghost{width:52px;background:transparent;border:1px solid var(--divider);color:var(--t1)}
+
+/* ── แผงหลักฐาน: 3 บรรทัด ไม่ใช่ไทล์ 2×2 อีกแล้ว ── */
+.trustband{margin-top:16px;padding:16px 20px;border-top:1px solid var(--divider);border-bottom:1px solid var(--divider);background:var(--mist)}
+.trustband h2{font-size:15px;font-weight:700;margin:0 0 10px}
+.ev{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.ev li{display:flex;align-items:flex-start;gap:8px}
+.ev .txt{font-size:15px;line-height:1.35;min-width:0}
+.ev .txt b{font-weight:600}
+.ev .txt .tail{font-size:14px;color:var(--t2);font-variant-numeric:tabular-nums}
+
+/* ── ช่องทางทางการ ── */
+.official{margin:16px 20px 0;border:1px solid var(--divider);border-radius:8px;overflow:hidden}
+.of-head{display:flex;align-items:center;gap:8px;padding:12px 16px 8px}
+.of-head h2{font-size:15px;font-weight:700;margin:0}
+.of-list{list-style:none;margin:0;padding:0 16px}
+.of-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--divider);min-height:44px}
+.of-list li:last-child .of-row{border-bottom:0}
+.of-av{width:38px;height:38px;border-radius:8px;flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px}
+.of-av.fb{background:#1877F2}
+.of-av.ig{background:linear-gradient(45deg,#f09433,#dc2743,#bc1888)}
+.of-tick{position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:999px;background:var(--verified);border:2px solid var(--paper);display:flex;align-items:center;justify-content:center}
+.of-meta{min-width:0;flex:1}
+.of-name{display:block;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.of-sub{display:block;font-size:13px;color:var(--t2)}
+.of-sub b{color:var(--t1);font-variant-numeric:tabular-nums}
+.of-open{font-size:13px;font-weight:600;color:var(--primary);flex-shrink:0;display:flex;align-items:center;gap:4px}
+.of-foot{padding:12px 16px;border-top:1px solid var(--divider);background:var(--mist);display:flex;gap:8px;align-items:flex-start}
+.of-foot .fx{font-size:13px;color:var(--t2);line-height:1.6}
+.of-foot .fx .strong{display:block;margin-top:4px;font-weight:600;color:var(--t1)}
+
+.sechead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 12px;padding:0 20px}
+.sechead h2{font-size:18px;font-weight:700;margin:0}
+.sechead .hint{font-size:13px;color:var(--t2);flex-shrink:0;font-variant-numeric:tabular-nums}
+.sec{padding-top:20px}
+
+.clips{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.clip{position:relative;aspect-ratio:9/16;background:linear-gradient(160deg,#d9d5e6,#bfb9d2);overflow:hidden}
+.clip .meta{position:absolute;left:6px;bottom:6px;color:#fff;font-size:11px;font-weight:600;display:flex;gap:8px;text-shadow:0 1px 3px rgba(0,0,0,.6);z-index:2}
+.clip .plat{position:absolute;right:6px;top:6px;width:16px;height:16px;border-radius:4px;background:#fff;z-index:2}
+.clip::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.28) 0%,transparent 32%,transparent 52%,rgba(0,0,0,.72) 100%)}
+
+.reel{display:flex;gap:12px;overflow-x:auto;list-style:none;margin:0;padding:0 20px 4px;scroll-snap-type:x mandatory}
+.reel li{width:156px;flex-shrink:0;scroll-snap-align:start}
+.w768 .reel li{width:176px}.w1200 .reel li{width:190px}
+.reel .ph{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:linear-gradient(135deg,#efedf5,#e3e0ec)}
+.pinbadge{position:absolute;left:6px;top:6px;display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 8px;font-size:13px;font-weight:600;background:var(--paper);box-shadow:0 1px 3px rgba(47,43,61,.2)}
+.pinbadge i{width:11px;height:11px;background:var(--primary);border-radius:2px;display:inline-block}
+.reel .pn{font-size:14px;font-weight:600;line-height:1.3;margin-top:6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.reel .pp{font-size:15px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums}
+.reel .ps{font-size:13px;color:var(--t2);margin-top:2px;display:flex;gap:8px;font-variant-numeric:tabular-nums}
+
+.iggrid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.igtile{position:relative;aspect-ratio:1;background:linear-gradient(135deg,#efedf5,#e3e0ec)}
+.badges{display:flex;gap:16px;overflow-x:auto;margin:0;padding:0 20px 4px;list-style:none}
+.badges li{width:76px;flex-shrink:0;text-align:center}
+.badges .ring{width:60px;height:60px;margin:0 auto;border-radius:999px;background:var(--hover);display:flex;align-items:center;justify-content:center}
+.badges .cap{font-size:13px;color:var(--t2);display:block;margin-top:4px;line-height:1.25}
+.emptyrev{margin:0 20px;padding:16px;border-radius:8px;background:var(--mist);font-size:14px;color:var(--t2);line-height:1.55;text-align:center}
+.placeholder{border:1px dashed rgba(47,43,61,.28);background:rgba(47,43,61,.02);border-radius:8px;padding:12px;margin-top:16px}
+.placeholder .tag{display:flex;align-items:center;gap:4px;font-size:13px;font-weight:600;color:var(--t3);margin-bottom:6px}
+.placeholder .inner2{opacity:.72}
+.placeholder .need{font-size:13px;color:var(--t3);margin-top:6px;display:block;line-height:1.5}
+.ico{width:17px;height:17px;flex-shrink:0}
+/* ── เหรียญ: แถวสรุปแบบ IG ── */
+.badgerow{margin-top:12px;padding-top:12px;border-top:1px solid var(--divider);display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer}
+.stack{display:flex;flex-shrink:0}
+.bcircle{width:28px;height:28px;border-radius:999px;background:var(--paper);box-shadow:0 0 0 2px var(--paper);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.bcircle+.bcircle{margin-left:-8px}
+.btext{font-size:13px;color:var(--t2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btext strong{color:var(--t1);font-weight:600}
+.btext .more{color:var(--primary);font-weight:600}
+/* ── หน้าเต็มของเหรียญ ── */
+.bp-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--divider);background:var(--paper)}
+.bp-head .back{width:44px;height:44px;border-radius:999px;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.bp-head h1{font-size:18px;font-weight:700;margin:0}
+.bp-body{padding:20px}
+.bp-shop{font-size:14px;color:var(--t2)}
+.bp-count{font-size:22px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums}
+.bp-why{font-size:14px;color:var(--t2);line-height:1.6;margin:8px 0 20px}
+.bp-list{list-style:none;margin:0;padding:0}
+.bp-list li{display:flex;gap:12px;align-items:flex-start;padding:16px 0;border-bottom:1px solid var(--divider)}
+.bp-list li:last-child{border-bottom:0}
+.bp-av{width:56px;height:56px;border-radius:999px;background:var(--hover);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.bp-n{font-size:15px;font-weight:600;line-height:1.3}
+.bp-c{font-size:14px;color:var(--t2);line-height:1.35;margin-top:2px}
+.bp-d{font-size:13px;color:var(--t3);margin-top:4px;display:block}
+/* ── ช่องทาง: ผังเดียวกับ ChannelStrip ของ prod + บรรทัดกำกับ ── */
+.chanwrap{margin:14px 20px 0;display:flex;flex-direction:column;gap:4px}
+.chan-label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t2)}
+.chan-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 20px}
+.chan{display:flex;align-items:center;gap:8px;min-height:44px;text-decoration:none;color:inherit;min-width:0}
+.cav{width:20px;height:20px;border-radius:6px;flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700}
+.cav.fb{background:#1877F2}.cav.ig{background:linear-gradient(45deg,#f09433,#dc2743,#bc1888)}.cav.ln{background:#06C755}
+.ctick{position:absolute;right:-3px;bottom:-3px;width:12px;height:12px;border-radius:999px;background:var(--verified);border:2px solid var(--paper);display:flex;align-items:center;justify-content:center}
+.cmeta{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.cname{font-size:13px;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.csub{font-size:13px;color:var(--t2)}
+.csub b{color:var(--t1);font-variant-numeric:tabular-nums}
+.cmore{display:flex;align-items:center;gap:4px;min-height:44px;border:0;background:transparent;padding:0;font-family:inherit;font-size:13px;font-weight:600;color:var(--primary);cursor:pointer}
+.cp-warn{margin-top:20px;border-radius:8px;padding:12px 16px;background:var(--mist);display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:1.6}
+/* ── แท็บ: ผังเดียวกับ ProfileTabs ของ prod ── */
+.tabs{display:flex;gap:24px;border-bottom:1px solid var(--divider);padding:0 20px;margin-top:14px;overflow-x:auto}
+.tab{display:inline-flex;align-items:center;gap:6px;padding:12px 0;min-height:44px;font-size:15px;font-weight:600;color:var(--t3);white-space:nowrap;position:relative}
+.tab.on{color:var(--t1)}
+.tab.on::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2.5px;border-radius:2px;background:var(--primary)}
+.tabpanel{padding:16px 0 28px}
+/* ── ตัวเลขนำของแผงหลักฐาน (อัตราสำเร็จ) ── */
+.lead{margin-bottom:12px}
+.lead .n{font-size:22px;font-weight:800;letter-spacing:-.025em;font-variant-numeric:tabular-nums;line-height:1;color:#18804A}
+.lead .n.muted{color:var(--t2)}
+.lead .lbl{font-size:15px;font-weight:600;margin-left:6px}
+.lead .cap{display:block;font-size:13px;color:var(--t2);margin-top:2px;font-variant-numeric:tabular-nums}
+.chip-tier{cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+/* ── แผงอธิบายคะแนน ── */
+.sheet{border:1px solid var(--divider);border-radius:10px;overflow:hidden;max-width:420px}
+.sheet-h{display:flex;align-items:center;justify-content:space-between;padding:12px 20px 8px}
+.sheet-h b{font-size:15px;font-weight:600}
+.sheet-b{padding:0 20px 24px}
+.sheet .big{font-size:32px;font-weight:800;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.sheet .tierpill{border-radius:8px;padding:4px 10px;font-size:13px;font-weight:600;background:var(--hover);color:var(--t2);margin-left:10px}
+.sheet p{font-size:14px;line-height:1.55;margin:8px 0 0}
+.sheet p.sec{color:var(--t2)}
+.sheet .fh{font-size:14px;font-weight:600;margin:16px 0 8px}
+.sheet ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.sheet li{display:flex;align-items:center;gap:10px;font-size:14px}
+.sheet li .w{margin-left:auto;color:var(--t2);font-variant-numeric:tabular-nums}
+.sheet .foot{font-size:13px;color:var(--t2);margin-top:16px;display:block;line-height:1.5}
+svg{display:block}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 class="doc">Variant D · A+B Showcase — <span style="font-weight:600">rev9 ใช้ข้อมูลจริงจาก <code>/b/tanapathardware</code></span></h1>
+  <p class="doc">แก้ 2 อย่างตามที่ทักมา: <b>(1)</b> แผงหลักฐานเหลือ 3 บรรทัด (เดิมไทล์ 2×2 = 12 บรรทัด) <b>(2)</b> ช่องทางโซเชียลกลายเป็นบล็อก "ช่องทางทางการ" ที่พูดออกมาตรง ๆ ว่ายืนยันความเป็นเจ้าของแล้ว</p>
+
+  <div class="note">
+    <b>ทำไมแผงหลักฐานเดิมถึงอ่านยาก — ไม่ใช่แค่ข้อความเยอะ แต่มัน "ซ้ำ"</b><br>
+    3 ใน 4 ไทล์พูดเรื่องเดียวกับแถวตัวเลขที่อยู่เหนือมันไม่ถึง 40px (ออเดอร์ · ลูกค้า · ซื้อซ้ำ · คะแนนรีวิว) ผู้ชมต้องอ่านของเดิมสองรอบในสองรูปแบบ แล้วสงสัยว่าเลขสองชุดต่างกันตรงไหน<br>
+    แผงนี้จึงเหลือเฉพาะสิ่งที่แถวตัวเลข<b>บอกไม่ได้</b>: การยืนยันตัวตน · อัตราสำเร็จ · ความเร็วตอบแชท — <b>3 บรรทัด</b> · กรอบ "คำถาม → คำตอบ" ยังอยู่ครบใน <code>?variant=b</code> ซึ่งมีพื้นที่แบบแถวเต็มให้มันจริง ๆ
+  </div>
+
+  <div class="note info">
+    <b>เพจทางการ — รอบสามกลับไปยึดผังที่ prod ใช้อยู่แล้ว</b><br>
+    รอบก่อนผมทำเป็นการ์ดเต็มใบ ~200px และโต<b>เป็นเชิงเส้นตามจำนวนเพจ</b> (4 เพจ ≈ 300px+) ⇒ ร้านที่ควรได้ประโยชน์จากบล็อกนี้มากที่สุด กลับโดนมันดันเนื้อหาตกจอมากที่สุด<br>
+    ผังของ prod (<code>ChannelStrip</code>) <b>กะทัดรัดอยู่แล้ว</b> — เพจเรียงแนวนอน มีรูป+เช็ค / ชื่อ / แพลตฟอร์ม + ยอดติดตาม ครบใน ~44px · ที่ผมเกือบทำรอบสอง (รูปซ้อน + ชื่อเดียว) <b>แย่กว่า prod</b> เพราะสูงเท่ากันแต่เสียชื่อเพจใบที่สอง เสียแพลตฟอร์ม เสียยอดติดตาม<br>
+    <b>แก้แค่ 2 จุดที่ขาดจริง:</b> (1) เพิ่มบรรทัดกำกับ ~18px ที่มีคำว่า "ทางการ" — ของเดิมความหมายอยู่ในเช็ค 9px + tooltip ที่มือถือเข้าไม่ถึง (2) <code>VISIBLE=2</code> แล้ว "อีก N" ของ prod <b>กางต่อในหน้า</b> ⇒ เปลี่ยนเป็นเปิด<b>หน้าเต็ม</b> ⇒ ความสูงคงที่ไม่ว่าจะกี่เพจ (ดูเฟรม "กรณี 4 เพจ" ล่างสุด)<br>
+    ข้อความกันเพจปลอมย้ายไปหน้าเต็ม — <b>ยอมรับข้อแลกเปลี่ยนนี้โดยตั้งใจ</b>: คนที่สงสัยคือคนที่จะกดเข้าไปอ่าน ส่วนที่ยังทำงานโดยไม่ต้องอ่านคือเช็คเขียว + คำว่า "ช่องทางทางการ" + ชื่อเพจ
+  </div>
+
+  <div class="note info" style="display:none">
+    <b>ช่องทางทางการ — ของเดิมมีหลักฐานอยู่แล้ว แต่มองไม่เห็น</b><br>
+    <code>ChannelStrip</code> ที่หน้าจริงใช้อยู่ <b>มีเช็คเขียวอยู่แล้ว ขนาด 9px</b> และความหมายทั้งหมดฝากไว้กับ <code>title=</code> + tooltip ที่ต้องแตะค้าง ⇒ <b>บนมือถือผู้ชมไม่มีทางรู้เลย</b> ว่าเพจนี้ต่างจากลิงก์ที่ใครก็พิมพ์ใส่ได้<br>
+    กลไกที่ทำให้เชื่อได้คือ <b>OAuth</b> — ร้านเข้าสู่ระบบกับแพลตฟอร์มเองแล้วกดอนุญาต ชื่อและรูปจึงถูกดึงจากแพลตฟอร์มโดยตรง ไม่ใช่ข้อความที่ร้านพิมพ์<br>
+    <b>สองอย่างที่ห้ามเขียนเด็ดขาด:</b> ห้ามเขียนว่า "Deep ตรวจสอบแล้วว่าเป็นเพจของร้าน" (เราไม่ได้ตรวจ เรารับผลจาก OAuth) · ห้ามเขียนว่าเพจที่ไม่อยู่ในรายการ<b>เป็นเพจปลอม</b> (ร้านอาจมีเพจจริงที่ยังไม่ได้เชื่อม) — ประโยคที่พูดได้จริงคือ <b>"ยังไม่ได้ยืนยันกับ Deep"</b> ซึ่งพอสำหรับการตัดสินใจอยู่แล้ว
+  </div>
+
+  <div class="note info">
+    <b>เหรียญ — เด่นด้วย "ตำแหน่ง + ปลายทาง" ไม่ใช่ด้วยพื้นที่</b><br>
+    "ให้เด่นขึ้น" กับ "ลดพื้นที่" ไปด้วยกันไม่ได้ถ้าคิดแค่เรื่องขนาด — แถวสรุปแบบ IG สูงราว <b>40px</b> (กริดชื่อใต้ไอคอนเดิมสูง ~96px) แต่ย้ายขึ้นมาอยู่<b>ในแผงหลักฐานเดียวกัน</b> ใต้บรรทัดยืนยันตัวตน แล้วมี <b>"+ อีก N" ที่กดไปหน้าเต็มได้จริง</b><br>
+    <b>ปลายทางนี้คือของที่ระบบยังไม่เคยมี</b> — <code>ProfileHero.tsx</code> เขียนกำกับไว้เองว่า "ไม่มีลิงก์ ดูทั้งหมด เพราะยังไม่มีปลายทางให้ไป" แถวสรุปบนมือถือของหน้าจริงจึง<b>กดไม่ได้มาตลอด</b> ทั้งที่ <code>criteriaLabel</code> + <code>earnedAtIso</code> ถูกส่งมาถึงหน้าจอครบแล้ว ⇒ ผู้ใช้มือถือไม่เคยรู้เลยว่าเหรียญแต่ละใบได้มายังไง<br>
+    เหรียญอยู่<b>ในแผงหลักฐาน</b>ไม่ใช่บล็อกแยก เพราะมันคือหลักฐานชนิดหนึ่ง (ระบบมอบให้เองจากพฤติกรรมจริง ร้านขอเองหรือซื้อไม่ได้) — แยกออกไปเมื่อไหร่มันจะอ่านเป็นของประดับ ซึ่ง DESIGN.md ห้ามไว้ตรงตัว
+  </div>
+
+  <div class="note info">
+    <b>คำอธิบายร้าน — ย่อ 2 บรรทัด กดที่ตัวข้อความเพื่อกาง</b><br>
+    ของจริงใน <code>ProfileHero</code> ทำแบบนี้อยู่แล้ว แต่ variant D รอบก่อนผมลืมยกมา ปล่อยเป็นข้อความเต็ม 4 บรรทัด<br>
+    🛑 หัวใจของแพตเทิร์นนี้คือ <b>ปุ่มโผล่จากการวัดว่าล้นจริง ไม่ใช่นับจำนวนตัวอักษร</b> — ภาษาไทยไม่มีช่องว่างระหว่างคำ จำนวนอักขระบอกไม่ได้ว่าจะตก 2 บรรทัดไหม (เคยพลาดจนปุ่มโผล่ตลอดแม้ข้อความสั้น — ที่มาของ <code>lib/clamp-overflow.ts</code>) · คำว่า "เพิ่มเติม" ซ้อนท้ายบรรทัดสุดท้ายบนพื้นทึบ ไม่กินบรรทัดใหม่
+  </div>
+
+  <div class="note info">
+    <b>แท็บกลับมาแล้ว — ผมถอดออกเองโดยไม่ได้บอก</b><br>
+    ผมเอาแท็บออกตั้งแต่ variant A (เหตุผลตอนนั้น: หลักฐานถูกซ่อนหลังแท็บที่คนส่วนใหญ่ไม่กด) แล้ว D สืบทอดมา<br>
+    🛑 แต่ "ถอดแท็บ" กับ "ชูของให้เด่น" <b>ขัดกันเองบนมือถือ</b>: ไม่มีแท็บ = คลิป + สินค้า + รีวิว + เกี่ยวกับร้าน ต่อกันเป็นหน้าเดียวยาวมาก ยิ่งของเยอะยิ่งยาว ⇒ ของที่อยู่ล่างสุดไม่มีใครเห็นอยู่ดี <b>การซ่อนไว้หลังแท็บที่กดได้ ดีกว่าการวางไว้ล่างสุดที่ไม่มีใครเลื่อนถึง</b><br>
+    ทางออก: เอาแท็บกลับ (ผังเดียวกับ prod) แล้วยก <b>แถวโชว์ไว้เหนือแท็บ</b> — ของที่ร้านอยากให้เห็นจึงเห็นทันทีโดยไม่ต้องกดแท็บ<br>
+    <b>ต่างจาก prod จุดเดียว:</b> แท็บรีวิว<b>แสดงเสมอ</b>แม้ยังไม่มีรีวิว — prod ตัดทั้งแท็บทิ้งเมื่อ 0 รีวิว ซึ่งอ่านว่า "หน้านี้ไม่มีเรื่องรีวิว" ไม่ใช่ "ร้านนี้ยังไม่มีใครรีวิว" (ร้านจริงที่ดู: 179 ออเดอร์ / 0 รีวิว)
+  </div>
+
+  <div class="note">
+    <b>rev9 — แก้ม็อกอัพที่ขัดกันเอง + ตามที่ user เคาะ</b><br>
+    rev8 ใส่ "95% ตัวใหญ่" ไม่ครบทุกเฟรม (มือถือได้ทั้งตัวใหญ่<b>และ</b>บรรทัดในลิสต์ = เลขซ้ำสองที่ · เดสก์ท็อปไม่ได้เลย) ⇒ เทียบกับเฟรมไหนก็เห็นคนละแบบ<br>
+    <b>user เคาะให้เป็น 3 บรรทัดเท่ากัน</b> — ถอดตัวเลขนำออกทุกเฟรม อัตราสำเร็จกลับเป็นบรรทัดเดียวเท่าบรรทัดอื่น · <b>ข้อแลกเปลี่ยนที่รับไว้:</b> 95% จะเล็กกว่า "ซื้อซ้ำ 8" ในแถวตัวเลขด้านบน ทั้งที่เป็นหลักฐานที่แข็งกว่า (critique P1 เคยชี้จุดนี้)
+  </div>
+
+  <div class="note info">
+    <b>คำว่า "Official Page" ในภาษาไทย → ใช้ "เพจทางการ"</b><br>
+    เทียบตัวเลือก: <b>"เพจทางการ"</b> = คำที่คนไทยใช้เรียกของสิ่งนี้จริง อ่านออกทันที · "ช่องทางทางการ" (ที่ผมใช้รอบก่อน) = ตรงกับศัพท์ภายในระบบ (<code>ShopChannel</code>, หน้าตั้งค่าฝั่งผู้ขาย) แต่ "ทางการ" ซ้อน "ช่องทาง" อ่านแข็งแบบราชการ ซึ่งขัด Brand Personality ("credibility ที่อบอุ่น ไม่ใช่ข่มขู่") · "บัญชีทางการ" = คำที่ LINE ใช้เอง แต่คนไม่ใช้กับ Facebook<br>
+    <b>ข้อแลกเปลี่ยนที่รับไว้:</b> แถว Instagram / LINE OA ไม่ใช่ "เพจ" ตามนิยามเคร่งครัด — แต่ป้ายแพลตฟอร์มรายแถวบอกชนิดไว้แล้ว และบนบรรทัดที่มีไว้กันเพจปลอม <b>คำที่คนอ่านออกทันทีสำคัญกว่าความถูกต้องทางเทคนิค</b><br>
+    🛑 ถ้าเลือกคำนี้ ต้องเปลี่ยน<b>ทุกที่ที่ผู้ซื้อเห็น</b>พร้อมกัน (แท็บ "เกี่ยวกับร้าน" ของหน้าจริงยังเขียน "ช่องทางที่เชื่อมต่อ") — สองคำสำหรับของสิ่งเดียวกันบนหน้าเดียวคือสิ่งที่ HR16 ห้าม
+  </div>
+
+  <div class="note">
+    <b>rev8 — แก้ตามผล critique รอบ 2 (คะแนน 19/40)</b><br>
+    <b>P0:</b> ชิป <b>41/100 กดได้แล้ว</b> เปิดแผงอธิบาย (เฟรมล่างสุด) ที่ยกจาก <code>ProfileHero</code> ทั้งชุดไม่แก้ถ้อยคำ — รวมประโยค <b>"ร้านไม่สามารถซื้อหรือปลอมคะแนนได้"</b> ซึ่ง PRODUCT.md สร้างจุดยืนทั้งหมดไว้บนมัน และหน้านี้เคยลบที่เดียวที่พูดมันออกไป<br>
+    <b>P1:</b> ยก <b>95% อัตราสำเร็จ</b> ขึ้นเป็นตัวเลขนำของแผงหลักฐาน 22px สี Verified Ink <code>#18804A</code> — รอบก่อนผมลดตัวเลขโซเชียลลง 18px แต่ไม่เคยยกตัวที่ดีขึ้น ทำให้ <code>2 ซื้อซ้ำ</code> ยังดังกว่า <code>95%</code> ทั้งที่ 95% จาก 168 ใบคือหลักฐานแข็งที่สุดที่ร้านนี้มี<br>
+    <b>+ แก้ regression 2 ตัวที่ผมสร้างเองรอบก่อน</b> (ไม่เห็นในม็อกอัพ เพราะเป็น a11y): ถอด <code>aria-label</code> ที่บังราคาจาก screen reader · ย้าย <code>&lt;h2&gt;</code> ออกนอก <code>&lt;button&gt;</code> ที่ทำให้ heading ถูกถอดจาก a11y tree
+  </div>
+
+  <div class="note warn">
+    <b>ข้อมูลจริงจาก prod ล้มสิ่งที่ผมสมมติไว้รอบก่อน 4 ข้อ</b> — ร้านนี้ <b>ไม่มีรีวิวเลยสักใบ</b> (ไม่มีแท็บรีวิวบนหน้าจริง) ทั้งที่มี 179 ออเดอร์ · <b>ยืนยันแค่ระดับ 1</b> (เบอร์โทร) จึง<b>ไม่ใช่สีเขียว</b>ตามกฎ Verified-Means-Green · คะแนน <b>41/100 = Deep Classic</b> ไม่ใช่ Gold แบบที่ผมสมมติ ปกจึงเป็นโทนอำพันเข้ม · <b>เปิดร้านเดือนที่แล้ว</b> (ก.ค. 2569) แต่ทำได้ 179 ออเดอร์<br>
+    ⇒ ม็อกอัพรอบก่อนที่ใช้ร้านกาแฟสมมติ (Gold · 37 รีวิว · ยืนยัน 2 ระดับ) <b>ทำให้ดีไซน์ดูดีเกินจริง</b> — เคสที่ต้องออกแบบให้รอดคือเคสนี้<br>
+    <b>ค่าเดียวที่ยังสมมติ:</b> ตัวหารของอัตราสำเร็จ ("จาก 168 ใบ") — หน้า public ซ่อนไว้หลังการแตะ อ่านจาก HTML ไม่ได้
+  </div>
+
+  <div class="frames">
+    <!-- ══════════ MOBILE 390 ══════════ -->
+    <div>
+      <p class="frame-label">Mobile · 390px — เส้นประแดง = ขอบจอแรก</p>
+      <div class="frame w390 scroll">
+        <div class="cover"><span class="brand"><i class="dot"></i>Deep</span></div>
+        <div class="body">
+          <div class="avatar"><div class="img">ธ</div><div class="lvl">1</div></div>
+          <div class="nameline">
+            <h1 class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์</h1>
+            <span class="chip-tier"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 11v5M12 8h.01"/></svg>41/100 · Deep Classic</span>
+          </div>
+          <p class="handle">@tanapathardware · ยานยนต์ · เปิดร้านมาแล้ว 1 เดือน</p>
+          <p class="bio">ศูนย์รวมอะไหล่มอเตอร์ไซค์ Honda WAVE, DREAM และรถสามล้อ ครบทั้งโช๊คหน้า-หลัง ชุดโซ่สเตอร์ ผ้าเบรคหน้า หลัง จานดิส ล้อแม็ก คัดคุณภาพ ราคาส่ง พร้อมส่งทั่วไทย เก็บเงินปลายทางได้<span class="more">เพิ่มเติม</span></p>
+          <div class="socialstats">
+            <div><span class="n">179</span><span class="l">ออเดอร์</span></div>
+            <div><span class="n">177</span><span class="l">ลูกค้า</span></div>
+            <div><span class="n">2</span><span class="l">ซื้อซ้ำ</span></div>
+            <div><span class="n">—</span><span class="l">รีวิว</span></div>
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary"><svg class="ico" style="color:#fff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20l1.3-3.9A9 9 0 1 1 7.9 19.7L3 20z"/></svg>ทักผ่านเพจ</button>
+            <button class="btn btn-ghost" aria-label="แชร์โปรไฟล์นี้"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
+          </div>
+        </div>
+
+        <div class="trustband">
+          <h2>ทำไมร้านนี้ถึงเชื่อได้</h2>
+          <ul class="ev">
+            <li>
+              <!-- ระดับ 1 = ครึ่งวง สีอำพัน ไม่ใช่เช็คเขียว (OTP ซื้อซิมเติมเงินก็ทำได้) -->
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="#874C00" stroke-width="2" style="margin-top:2px"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20z" fill="#874C00" stroke="none"/></svg>
+              <span class="txt"><b>ยืนยันเบอร์แล้ว</b><span class="tail"> · ยืนยันแล้ว 1 จาก 3 ระดับ</span></span>
+            </li>
+            <li>
+              <svg class="ico" viewBox="0 0 24 24" fill="#18804A" style="margin-top:2px"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5" stroke="#fff" stroke-width="2" fill="none"/></svg>
+              <span class="txt"><b>อัตราสำเร็จ 95%</b><span class="tail"> · จาก 168 ใบที่ปิดจบ</span></span>
+            </li>
+            <li>
+              <!-- ร้านนี้ยังไม่มีข้อมูลตอบแชทพอ (ต้อง ≥3 แชท) → บรรทัดนี้ "ไม่ render เลย" บนของจริง
+                   แสดงไว้จาง ๆ ในม็อกอัพเพื่อให้เห็นว่ามันจะหน้าตายังไงเมื่อมีข้อมูล -->
+              <svg class="ico" viewBox="0 0 24 24" fill="#18804A" style="margin-top:2px;opacity:.35"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5" stroke="#fff" stroke-width="2" fill="none"/></svg>
+              <span class="txt" style="opacity:.35"><b>ตอบกลับ 92% ใน 15 นาที</b><span class="tail"> · (ร้านนี้ข้อมูลยังไม่พอ → ซ่อนบรรทัด)</span></span>
+            </li>
+          </ul>
+          <div class="badgerow">
+            <span class="stack">
+              <span class="bcircle"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><circle cx="12" cy="14" r="6"/><path d="M9 3h6l-1.5 5h-3z"/></svg></span>
+              <span class="bcircle"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><path d="M12 3l2.7 5.6 6.3.9-4.5 4.3 1 6.2L12 17l-5.5 3 1-6.2L3 9.5l6.3-.9z"/></svg></span>
+              <span class="bcircle"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg></span>
+            </span>
+            <span class="btext">เหรียญ <strong>ร้อยออเดอร์, ร้านค้าขายอดนิยม</strong><span class="more"> + อีก 4</span></span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(47,43,61,.4)" stroke-width="2" style="flex-shrink:0"><path d="M9 6l6 6-6 6"/></svg>
+          </div>
+        </div>
+
+        <div class="chanwrap">
+          <div class="chan-label"><svg width="15" height="15" viewBox="0 0 24 24" fill="#28C76F"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5" stroke="#fff" stroke-width="2" fill="none"/></svg>เพจทางการ · ยืนยันความเป็นเจ้าของแล้ว</div>
+          <div class="chan-row">
+            <a class="chan"><span class="cav fb">f<i class="ctick"><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></i></span><span class="cmeta"><span class="cname">ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</span><span class="csub">Facebook Page · <b>6.1K</b> ถูกใจ</span></span></a>
+            <a class="chan"><span class="cav ig">ig<i class="ctick"><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></i></span><span class="cmeta"><span class="cname">@tanapat.hardware</span><span class="csub">Instagram · <b>307</b> ผู้ติดตาม</span></span></a>
+          </div>
+        </div>
+
+        <hr class="fold">
+
+        <div class="sec">
+          <div class="sechead"><h2>ร้านนี้อยากให้ดู</h2><span class="hint">4 รายการ</span></div>
+          <ul class="reel">
+            <li><div class="ph"><span class="pinbadge"><i></i>ปักหมุด</span></div><div class="pn">โช๊คหลัง WAVE 110i แท้ศูนย์</div><div class="pp">฿1,250</div><div class="ps"><span>ขายแล้ว 46</span></div></li>
+            <li><div class="ph"><span class="pinbadge"><i></i>ปักหมุด</span></div><div class="pn">ชุดโซ่สเตอร์ DREAM ครบชุด</div><div class="pp">฿680</div><div class="ps"><span>ขายแล้ว 31</span></div></li>
+            <li><div class="ph"><span class="pinbadge"><i></i>ปักหมุด</span></div><div class="pn">ผ้าเบรคหน้า-หลัง รถสามล้อ</div><div class="pp">฿320</div><div class="ps"><span>ขายแล้ว 24</span></div></li>
+            <li><div class="ph"><span class="pinbadge"><i></i>ปักหมุด</span></div><div class="pn">ล้อแม็ก WAVE ลายใหม่</div><div class="pp">฿2,400</div><div class="ps"><span>ขายแล้ว 8</span></div></li>
+          </ul>
+        </div>
+        <div class="tabs">
+          <span class="tab on"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9z"/></svg>ปักหมุด</span>
+          <span class="tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8"/></svg>สินค้า</span>
+          <span class="tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>เกี่ยวกับร้าน</span>
+          <span class="tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.6 6.3.9-4.5 4.3 1 6.2L12 17l-5.5 3 1-6.2L3 9.5l6.3-.9z"/></svg>รีวิว</span>
+        </div>
+        <div class="tabpanel">
+          <div class="clips">
+            <div class="clip"><span class="plat"></span><span class="meta">1.0M · 6.8K</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">43K · 172</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">34K · 271</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">26K · 205</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">7.5K · 80</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">6.7K · 65</span></div>
+          </div>
+        </div>
+
+
+        <div class="sec" style="padding-bottom:28px">
+          <div class="body">
+            <div class="placeholder">
+              <div class="tag"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/></svg>ตัวอย่างดีไซน์ — ยังไม่มีข้อมูลจริง</div>
+              <div class="inner2" style="display:flex;gap:10px;align-items:flex-start">
+                <svg class="ico" style="color:var(--t2);margin-top:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+                <div><div style="font-size:14px;font-weight:600">ไม่มีเรื่องร้องเรียนที่ค้างอยู่</div><div style="font-size:13px;color:var(--t2)">การเคยถูกแจ้งไม่ได้แปลว่าทำผิด</div></div>
+              </div>
+              <span class="need">ต้องต่อ backend: ผูก ScamReport เข้ากับ Shop/User</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ TABLET 768 ══════════ -->
+    <div>
+      <p class="frame-label">Tablet · 768px</p>
+      <div class="frame w768 scroll">
+        <div class="cover"><span class="brand"><i class="dot"></i>Deep</span></div>
+        <div class="body">
+          <div class="avatar"><div class="img">ธ</div><div class="lvl">1</div></div>
+          <div class="nameline"><h1 class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์</h1><span class="chip-tier"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 11v5M12 8h.01"/></svg>41/100 · Deep Classic</span></div>
+          <p class="handle">@tanapathardware · ยานยนต์ · เปิดร้านมาแล้ว 1 เดือน</p>
+          <p class="bio">ศูนย์รวมอะไหล่มอเตอร์ไซค์ Honda WAVE, DREAM และรถสามล้อ ครบทั้งโช๊คหน้า-หลัง ชุดโซ่สเตอร์ ผ้าเบรคหน้า หลัง จานดิส ล้อแม็ก คัดคุณภาพ ราคาส่ง พร้อมส่งทั่วไทย เก็บเงินปลายทางได้<span class="more">เพิ่มเติม</span></p>
+          <div class="socialstats">
+            <div><span class="n">179</span><span class="l">ออเดอร์</span></div>
+            <div><span class="n">177</span><span class="l">ลูกค้า</span></div>
+            <div><span class="n">2</span><span class="l">ซื้อซ้ำ</span></div>
+            <div><span class="n">—</span><span class="l">รีวิว</span></div>
+          </div>
+          <div class="actions" style="max-width:420px">
+            <button class="btn btn-primary">ทักผ่านเพจ</button>
+            <button class="btn btn-ghost" aria-label="แชร์โปรไฟล์นี้"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
+          </div>
+        </div>
+        <div class="trustband">
+          <h2>ทำไมร้านนี้ถึงเชื่อได้</h2>
+          <ul class="ev">
+            <li><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="#874C00" stroke-width="2" style="margin-top:2px"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20z" fill="#874C00" stroke="none"/></svg><span class="txt"><b>ยืนยันเบอร์แล้ว</b><span class="tail"> · ยืนยันแล้ว 1 จาก 3 ระดับ</span></span></li>
+            <li>
+              <svg class="ico" viewBox="0 0 24 24" fill="#18804A" style="margin-top:2px"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5" stroke="#fff" stroke-width="2" fill="none"/></svg>
+              <span class="txt"><b>อัตราสำเร็จ 95%</b><span class="tail"> · จาก 168 ใบที่ปิดจบ</span></span>
+            </li>
+          </ul>
+          <div class="badgerow">
+            <span class="stack">
+              <span class="bcircle"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><circle cx="12" cy="14" r="6"/><path d="M9 3h6l-1.5 5h-3z"/></svg></span>
+              <span class="bcircle"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><path d="M12 3l2.7 5.6 6.3.9-4.5 4.3 1 6.2L12 17l-5.5 3 1-6.2L3 9.5l6.3-.9z"/></svg></span>
+              <span class="bcircle"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg></span>
+            </span>
+            <span class="btext">เหรียญ <strong>ร้อยออเดอร์, ร้านค้าขายอดนิยม</strong><span class="more"> + อีก 4</span></span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(47,43,61,.4)" stroke-width="2" style="flex-shrink:0"><path d="M9 6l6 6-6 6"/></svg>
+          </div>
+        </div>
+        <div class="chanwrap">
+          <div class="chan-label"><svg width="15" height="15" viewBox="0 0 24 24" fill="#28C76F"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5" stroke="#fff" stroke-width="2" fill="none"/></svg>เพจทางการ · ยืนยันความเป็นเจ้าของแล้ว</div>
+          <div class="chan-row">
+            <a class="chan"><span class="cav fb">f<i class="ctick"><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></i></span><span class="cmeta"><span class="cname">ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</span><span class="csub">Facebook Page · <b>6.1K</b> ถูกใจ</span></span></a>
+            <a class="chan"><span class="cav ig">ig<i class="ctick"><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></i></span><span class="cmeta"><span class="cname">@tanapat.hardware</span><span class="csub">Instagram · <b>307</b> ผู้ติดตาม</span></span></a>
+          </div>
+        </div>
+        <div class="sec">
+          <div class="sechead"><h2>ร้านนี้อยากให้ดู</h2><span class="hint">4 รายการ</span></div>
+          <ul class="reel">
+            <li><div class="ph"><span class="pinbadge"><i></i>ปักหมุด</span></div><div class="pn">โช๊คหลัง WAVE 110i แท้ศูนย์</div><div class="pp">฿1,250</div><div class="ps"><span>ขายแล้ว 46</span></div></li>
+            <li><div class="ph"><span class="pinbadge"><i></i>ปักหมุด</span></div><div class="pn">ชุดโซ่สเตอร์ DREAM ครบชุด</div><div class="pp">฿680</div><div class="ps"><span>ขายแล้ว 31</span></div></li>
+            <li><div class="ph"><span class="pinbadge"><i></i>ปักหมุด</span></div><div class="pn">ผ้าเบรคหน้า-หลัง รถสามล้อ</div><div class="pp">฿320</div><div class="ps"><span>ขายแล้ว 24</span></div></li>
+            <li><div class="ph"><span class="pinbadge"><i></i>ปักหมุด</span></div><div class="pn">ล้อแม็ก WAVE ลายใหม่</div><div class="pp">฿2,400</div><div class="ps"><span>ขายแล้ว 8</span></div></li>
+          </ul>
+        </div>
+        <div class="tabs">
+          <span class="tab on"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9z"/></svg>ปักหมุด</span>
+          <span class="tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8"/></svg>สินค้า</span>
+          <span class="tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>เกี่ยวกับร้าน</span>
+          <span class="tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.6 6.3.9-4.5 4.3 1 6.2L12 17l-5.5 3 1-6.2L3 9.5l6.3-.9z"/></svg>รีวิว</span>
+        </div>
+        <div class="tabpanel">
+          <div class="clips">
+            <div class="clip"><span class="plat"></span><span class="meta">1.0M · 6.8K</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">43K · 172</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">34K · 271</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">26K · 205</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">7.5K · 80</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">6.7K · 65</span></div>
+          </div>
+        </div>
+
+        <div class="sec" style="padding-bottom:28px">
+          <div class="sechead"><h2>สินค้าอื่นทั้งหมด</h2><span class="hint">12 รายการ</span></div>
+          <div class="iggrid">
+            <div class="igtile"></div><div class="igtile"></div><div class="igtile"></div>
+            <div class="igtile"></div><div class="igtile"></div><div class="igtile"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ DESKTOP 1200 ══════════ -->
+    <div>
+      <p class="frame-label">Desktop · 1200px — คอนเทนต์ 960 กลางจอ</p>
+      <div class="frame w1200 scroll" style="background:var(--mist)">
+        <div style="background:var(--paper);max-width:960px;margin:0 auto">
+          <div class="cover"><span class="brand"><i class="dot"></i>Deep</span></div>
+          <div class="body">
+            <div class="avatar"><div class="img">ธ</div><div class="lvl">1</div></div>
+            <div class="nameline"><h1 class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์</h1><span class="chip-tier"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 11v5M12 8h.01"/></svg>41/100 · Deep Classic</span></div>
+            <p class="handle">@tanapathardware · ยานยนต์ · เปิดร้านมาแล้ว 1 เดือน</p>
+            <p class="bio">ศูนย์รวมอะไหล่มอเตอร์ไซค์ Honda WAVE, DREAM และรถสามล้อ ครบทั้งโช๊คหน้า-หลัง ชุดโซ่สเตอร์ ผ้าเบรคหน้า หลัง จานดิส ล้อแม็ก คัดคุณภาพ ราคาส่ง พร้อมส่งทั่วไทย เก็บเงินปลายทางได้<span class="more">เพิ่มเติม</span></p>
+            <div class="socialstats">
+              <div><span class="n">179</span><span class="l">ออเดอร์</span></div>
+              <div><span class="n">177</span><span class="l">ลูกค้า</span></div>
+              <div><span class="n">2</span><span class="l">ซื้อซ้ำ</span></div>
+              <div><span class="n">—</span><span class="l">รีวิว</span></div>
+            </div>
+            <div class="actions" style="max-width:420px">
+              <button class="btn btn-primary">ทักผ่านเพจ</button>
+              <button class="btn btn-ghost" aria-label="แชร์โปรไฟล์นี้"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
+            </div>
+          </div>
+          <div class="trustband">
+            <h2>ทำไมร้านนี้ถึงเชื่อได้</h2>
+            <ul class="ev">
+              <li><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="#874C00" stroke-width="2" style="margin-top:2px"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20z" fill="#874C00" stroke="none"/></svg><span class="txt"><b>ยืนยันเบอร์แล้ว</b><span class="tail"> · ยืนยันแล้ว 1 จาก 3 ระดับ</span></span></li>
+            <li>
+              <svg class="ico" viewBox="0 0 24 24" fill="#18804A" style="margin-top:2px"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5" stroke="#fff" stroke-width="2" fill="none"/></svg>
+              <span class="txt"><b>อัตราสำเร็จ 95%</b><span class="tail"> · จาก 168 ใบที่ปิดจบ</span></span>
+            </li>
+            </ul>
+          <div class="badgerow">
+            <span class="stack">
+              <span class="bcircle"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><circle cx="12" cy="14" r="6"/><path d="M9 3h6l-1.5 5h-3z"/></svg></span>
+              <span class="bcircle"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><path d="M12 3l2.7 5.6 6.3.9-4.5 4.3 1 6.2L12 17l-5.5 3 1-6.2L3 9.5l6.3-.9z"/></svg></span>
+              <span class="bcircle"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg></span>
+            </span>
+            <span class="btext">เหรียญ <strong>ร้อยออเดอร์, ร้านค้าขายอดนิยม</strong><span class="more"> + อีก 4</span></span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(47,43,61,.4)" stroke-width="2" style="flex-shrink:0"><path d="M9 6l6 6-6 6"/></svg>
+          </div>
+          </div>
+          <div class="chanwrap">
+          <div class="chan-label"><svg width="15" height="15" viewBox="0 0 24 24" fill="#28C76F"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5" stroke="#fff" stroke-width="2" fill="none"/></svg>เพจทางการ · ยืนยันความเป็นเจ้าของแล้ว</div>
+          <div class="chan-row">
+            <a class="chan"><span class="cav fb">f<i class="ctick"><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></i></span><span class="cmeta"><span class="cname">ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</span><span class="csub">Facebook Page · <b>6.1K</b> ถูกใจ</span></span></a>
+            <a class="chan"><span class="cav ig">ig<i class="ctick"><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></i></span><span class="cmeta"><span class="cname">@tanapat.hardware</span><span class="csub">Instagram · <b>307</b> ผู้ติดตาม</span></span></a>
+          </div>
+        </div>
+          <div class="sec">
+            <div class="sechead"><h2>ร้านนี้อยากให้ดู</h2><span class="hint">4 รายการ</span></div>
+            <ul class="reel">
+              <li><div class="ph"><span class="pinbadge"><i></i>ปักหมุด</span></div><div class="pn">โช๊คหลัง WAVE 110i แท้ศูนย์</div><div class="pp">฿1,250</div><div class="ps"><span>ขายแล้ว 46</span></div></li>
+              <li><div class="ph"><span class="pinbadge"><i></i>ปักหมุด</span></div><div class="pn">ชุดโซ่สเตอร์ DREAM ครบชุด</div><div class="pp">฿680</div><div class="ps"><span>ขายแล้ว 31</span></div></li>
+              <li><div class="ph"><span class="pinbadge"><i></i>ปักหมุด</span></div><div class="pn">ผ้าเบรคหน้า-หลัง รถสามล้อ</div><div class="pp">฿320</div><div class="ps"><span>ขายแล้ว 24</span></div></li>
+              <li><div class="ph"><span class="pinbadge"><i></i>ปักหมุด</span></div><div class="pn">ล้อแม็ก WAVE ลายใหม่</div><div class="pp">฿2,400</div><div class="ps"><span>ขายแล้ว 8</span></div></li>
+            </ul>
+          </div>
+          <div class="sec" style="padding-bottom:32px">
+            <div class="sechead"><h2>รีวิว</h2></div>
+            <div class="emptyrev">ยังไม่มีรีวิวจากผู้ซื้อ<br><span style="font-size:13px">ร้านนี้ปิดออเดอร์ไปแล้ว 179 ครั้ง แต่ยังไม่มีผู้ซื้อคนไหนกลับมาเขียนรีวิว</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ หน้าเต็มของเหรียญ (กด "+ อีก 4") ══════════ -->
+    <div>
+      <p class="frame-label">หน้าเต็ม · 390px — ปลายทางของ "+ อีก N"</p>
+      <div class="frame w390 scroll">
+        <div class="bp-head">
+          <button class="back" aria-label="ย้อนกลับ"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(47,43,61,.9)" stroke-width="2"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
+          <h1>เหรียญของร้าน</h1>
+        </div>
+        <div class="bp-body">
+          <div class="bp-shop">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+          <div class="bp-count">6 เหรียญ</div>
+          <p class="bp-why">เหรียญทั้งหมดนี้ระบบมอบให้เองจากพฤติกรรมจริงของร้าน ร้านขอเองหรือซื้อไม่ได้</p>
+          <ul class="bp-list">
+              <li>
+                <span class="bp-av"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><circle cx="12" cy="14" r="6"/><path d="M9 3h6l-1.5 5h-3z"/></svg></span>
+                <div style="min-width:0">
+                  <div class="bp-n">ร้อยออเดอร์</div>
+                  <div class="bp-c">ปิดออเดอร์สำเร็จครบ 100 รายการ</div>
+                  <span class="bp-d">ได้รับเมื่อ 5 ส.ค. 2569</span>
+                </div>
+              </li>
+              <li>
+                <span class="bp-av"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><path d="M12 3l2.7 5.6 6.3.9-4.5 4.3 1 6.2L12 17l-5.5 3 1-6.2L3 9.5l6.3-.9z"/></svg></span>
+                <div style="min-width:0">
+                  <div class="bp-n">ร้านค้าขายอดนิยม</div>
+                  <div class="bp-c">มียอดขายสูงต่อเนื่องในหมวดของร้าน</div>
+                  <span class="bp-d">ได้รับเมื่อ 2 ส.ค. 2569</span>
+                </div>
+              </li>
+              <li>
+                <span class="bp-av"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg></span>
+                <div style="min-width:0">
+                  <div class="bp-n">ร้านกำลังโต</div>
+                  <div class="bp-c">ยอดขายเติบโตต่อเนื่อง 3 เดือน</div>
+                  <span class="bp-d">ได้รับเมื่อ 28 ก.ค. 2569</span>
+                </div>
+              </li>
+              <li>
+                <span class="bp-av"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M17 11h4M19 9v4"/></svg></span>
+                <div style="min-width:0">
+                  <div class="bp-n">เริ่มมีลูกค้า</div>
+                  <div class="bp-c">มีลูกค้าที่ซื้อสำเร็จครบ 10 คน</div>
+                  <span class="bp-d">ได้รับเมื่อ 20 ก.ค. 2569</span>
+                </div>
+              </li>
+              <li>
+                <span class="bp-av"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><path d="M3 10l1.5-5h15L21 10"/><path d="M4 10v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9"/></svg></span>
+                <div style="min-width:0">
+                  <div class="bp-n">เปิดหน้าร้าน</div>
+                  <div class="bp-c">เผยแพร่หน้าร้านสาธารณะเป็นครั้งแรก</div>
+                  <span class="bp-d">ได้รับเมื่อ 14 ก.ค. 2569</span>
+                </div>
+              </li>
+              <li>
+                <span class="bp-av"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#7367F0" stroke-width="1.6"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"/></svg></span>
+                <div style="min-width:0">
+                  <div class="bp-n">สมาชิกผู้ก่อตั้ง 2026</div>
+                  <div class="bp-c">เปิดร้านบน Deep ในปีแรกของแพลตฟอร์ม</div>
+                  <span class="bp-d">ได้รับเมื่อ 14 ก.ค. 2569</span>
+                </div>
+              </li>
+          </ul>
+        </div>
+        <div class="tabs">
+          <span class="tab on"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9z"/></svg>ปักหมุด</span>
+          <span class="tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8"/></svg>สินค้า</span>
+          <span class="tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>เกี่ยวกับร้าน</span>
+          <span class="tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.6 6.3.9-4.5 4.3 1 6.2L12 17l-5.5 3 1-6.2L3 9.5l6.3-.9z"/></svg>รีวิว</span>
+        </div>
+        <div class="tabpanel">
+          <div class="clips">
+            <div class="clip"><span class="plat"></span><span class="meta">1.0M · 6.8K</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">43K · 172</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">34K · 271</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">26K · 205</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">7.5K · 80</span></div>
+            <div class="clip"><span class="plat"></span><span class="meta">6.7K · 65</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════ กรณีร้านมี 4 เพจ + หน้าเต็มช่องทาง ══════════ -->
+    <div>
+      <p class="frame-label">กรณี 4 เพจ · 390px — ความสูงเท่าเดิม เพราะเกิน 2 ยุบเป็น "อีก N"</p>
+      <div class="frame w390" style="padding:16px 0">
+        <div class="chanwrap" style="margin-top:0">
+          <div class="chan-label"><svg width="15" height="15" viewBox="0 0 24 24" fill="#28C76F"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5" stroke="#fff" stroke-width="2" fill="none"/></svg>เพจทางการ · ยืนยันความเป็นเจ้าของแล้ว</div>
+          <div class="chan-row">
+            <a class="chan"><span class="cav fb">f<i class="ctick"><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></i></span><span class="cmeta"><span class="cname">ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</span><span class="csub">Facebook Page · <b>6.1K</b> ถูกใจ</span></span></a>
+            <a class="chan"><span class="cav ig">ig<i class="ctick"><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></i></span><span class="cmeta"><span class="cname">@tanapat.hardware</span><span class="csub">Instagram · <b>307</b> ผู้ติดตาม</span></span></a>
+            <button class="cmore">ดูทั้งหมด 4 เพจ<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <p class="frame-label" style="margin-top:24px">หน้าเต็ม · เพจทางการ</p>
+      <div class="frame w390 scroll">
+        <div class="bp-head">
+          <button class="back" aria-label="ย้อนกลับ"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(47,43,61,.9)" stroke-width="2"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
+          <h1>เพจทางการ</h1>
+        </div>
+        <div class="bp-body">
+          <div class="bp-shop">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+          <div class="bp-count">4 เพจ</div>
+          <p class="bp-why">ร้านเชื่อมเพจเหล่านี้เองด้วยการเข้าสู่ระบบกับแพลตฟอร์ม ชื่อและรูปดึงมาจากแพลตฟอร์มโดยตรง ไม่ใช่ข้อความที่ร้านพิมพ์เข้ามา</p>
+          <ul class="bp-list">
+            <li><span class="cav fb" style="width:44px;height:44px;border-radius:8px;font-size:18px">f<i class="ctick"><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></i></span><div style="min-width:0;flex:1"><div class="bp-n">ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</div><div class="bp-c">Facebook Page · 6.1K ถูกใจ</div></div><span class="of-open">เปิดเพจ</span></li>
+            <li><span class="cav ig" style="width:44px;height:44px;border-radius:8px;font-size:14px">ig<i class="ctick"><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></i></span><div style="min-width:0;flex:1"><div class="bp-n">@tanapat.hardware</div><div class="bp-c">Instagram · 307 ผู้ติดตาม</div></div><span class="of-open">เปิดเพจ</span></li>
+            <li><span class="cav fb" style="width:44px;height:44px;border-radius:8px;font-size:18px">f<i class="ctick"><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></i></span><div style="min-width:0;flex:1"><div class="bp-n">ธนภัทร์ อะไหล่ฯ สาขาสอง</div><div class="bp-c">Facebook Page · 1.4K ถูกใจ</div></div><span class="of-open">เปิดเพจ</span></li>
+            <li><span class="cav ln" style="width:44px;height:44px;border-radius:8px;font-size:13px">LINE<i class="ctick"><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></i></span><div style="min-width:0;flex:1"><div class="bp-n">@tanapathardware</div><div class="bp-c">LINE Official Account · 892 ผู้ติดตาม</div></div></li>
+          </ul>
+          <div class="cp-warn">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="rgba(47,43,61,.7)" stroke-width="2" style="flex-shrink:0;margin-top:2px"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg>
+            <span>หากพบเพจอื่นที่อ้างว่าเป็น "ธนภัทร์ อะไหล่มอเตอร์ไซค์" แต่ไม่อยู่ในรายการนี้ แปลว่ายังไม่ได้ยืนยันกับ Deep</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ แผงอธิบายคะแนน (กดที่ชิป 41/100) ══════════ -->
+    <div>
+      <p class="frame-label">แผงอธิบายคะแนน · กดชิป 41/100 — ของที่เคยถูกลบไปแล้วเอากลับมา</p>
+      <div class="frame" style="width:420px;padding:20px">
+        <div class="sheet">
+          <div class="sheet-h"><b>คะแนนความน่าเชื่อถือ</b><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(47,43,61,.7)" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+          <div class="sheet-b">
+            <div style="display:flex;align-items:baseline"><span class="big">41/100</span><span class="tierpill">Deep Classic</span></div>
+            <p class="sec">คะแนนนี้เพิ่มขึ้นได้เรื่อย ๆ ตามประวัติจริงของร้าน และไม่มีการหักคะแนน</p>
+            <p>อีก 19 คะแนน ถึง Deep Silver</p>
+            <div class="fh">คะแนนนี้คำนวณจากอะไร</div>
+            <ul>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(47,43,61,.7)" stroke-width="2" style="opacity:.7"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"/></svg>ยืนยันตัวตน<span class="w">35%</span></li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(47,43,61,.7)" stroke-width="2" style="opacity:.7"><path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8"/></svg>ประวัติออเดอร์<span class="w">25%</span></li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(47,43,61,.7)" stroke-width="2" style="opacity:.7"><path d="M12 3l2.7 5.6 6.3.9-4.5 4.3 1 6.2L12 17l-5.5 3 1-6.2L3 9.5l6.3-.9z"/></svg>คะแนนรีวิว<span class="w">20%</span></li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(47,43,61,.7)" stroke-width="2" style="opacity:.7"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>อายุร้าน<span class="w">10%</span></li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(47,43,61,.7)" stroke-width="2" style="opacity:.7"><circle cx="12" cy="14" r="6"/><path d="M9 3h6l-1.5 5h-3z"/></svg>เหรียญตรา<span class="w">10%</span></li>
+            </ul>
+            <span class="foot">คำนวณจากพฤติกรรมจริงบน Deep เท่านั้น ร้านไม่สามารถซื้อหรือปลอมคะแนนได้</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Public Profile · 3 ทิศทางความงาม — ข้อมูลจริงจาก /b/qa-online (2026-08-13)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── โทเคนชุดเดียวกับของจริง (DESIGN.md + lib/trust-tier.ts) ────────────────
+   ห้ามคิดสีใหม่ในม็อกอัพ ไม่งั้นสิ่งที่อนุมัติจะสร้างขึ้นจริงไม่ได้ */
+:root{
+  --primary:#7367F0; --primary-dark:#5E52E6;
+  --verified:#28C76F; --verified-ink:#18804A;
+  --gold-ink:#874C00; --amber:#FF9F43;
+  --ink:#2F2B3D; --mist:#F8F7FA; --paper:#fff;
+  --divider:rgba(47,43,61,.12); --hover:rgba(47,43,61,.06);
+  --t1:rgba(47,43,61,.9); --t2:rgba(47,43,61,.7); --t3:rgba(47,43,61,.4);
+  /* Deep Classic (41 คะแนน อยู่ช่วง 40–59) — ไม่ใช่ Gold */
+  --tier-bg:rgba(179,103,0,.18); --tier-fg:#874C00; --tier-solid:#b36700;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9e7ef;font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;color:var(--t1);-webkit-font-smoothing:antialiased}
+.doc{max-width:1800px;margin:0 auto;padding:28px 20px 72px}
+h1.d{font-size:22px;font-weight:800;margin:0 0 6px}
+p.d{margin:0 0 8px;font-size:15px;color:var(--t2);max-width:82ch;line-height:1.6}
+.note{margin:12px 0 0;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.65;max-width:104ch;background:#eef2ff;border:1px solid #c7cffe;color:#312a7a}
+.note.warn{background:#fff8e6;border-color:#ffd1a3;color:#5c3300}
+.note.ok{background:#eef7f1;border-color:#b8e3ca;color:#0f5132}
+
+h2.sec{font-size:19px;font-weight:800;margin:40px 0 2px;padding-top:20px;border-top:2px solid rgba(47,43,61,.18)}
+.sub{font-size:14px;color:var(--t2);margin:0 0 4px;max-width:88ch;line-height:1.6}
+.frames{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap;margin-top:18px}
+.wrap{flex-shrink:0}
+.flabel{font-size:13px;font-weight:600;color:var(--t2);margin:0 0 8px}
+.frame{border-radius:12px;box-shadow:0 4px 18px rgba(47,43,61,.16);overflow:hidden;max-height:900px;overflow-y:auto}
+.w390 .frame{width:390px}.w768 .frame{width:768px}.w1200 .frame{width:1200px}
+
+/* ══ โครงร่วม (ทุกทิศทางใช้ IA เดียวกัน ต่างกันแค่ผิว) ══════════════════ */
+.app{background:var(--paper)}
+.cover{position:relative;height:132px;background:linear-gradient(120deg,#c9b79c,#8e8071)}
+.w768 .cover{height:164px}.w1200 .cover{height:184px}
+.cover img{width:100%;height:100%;object-fit:cover;display:block}
+.brand{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;gap:6px;background:var(--paper);border-radius:999px;padding:5px 12px;box-shadow:0 1px 3px rgba(47,43,61,.2);font-size:13px;font-weight:700;color:var(--ink)}
+.brand .mk{width:15px;height:13px;background:var(--primary);display:inline-block;clip-path:polygon(50% 100%,0 30%,18% 0,50% 26%,82% 0,100% 30%)}
+
+.idw{padding:0 20px;position:relative}
+.av{position:relative;width:88px;height:88px;margin-top:-44px;margin-bottom:10px}
+.w1200 .av{width:120px;height:120px;margin-top:-60px}
+.av .ph{width:100%;height:100%;border-radius:999px;border:4px solid var(--paper);overflow:hidden;background:var(--primary)}
+.av .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.av .lv{position:absolute;right:-6px;bottom:-2px;height:36px;width:26px;border-radius:5px 5px 11px 11px;background:linear-gradient(180deg,#8b8798,#5c5870);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;padding-bottom:3px;filter:drop-shadow(0 1px 2px rgba(47,43,61,.35))}
+.w1200 .av .lv{height:44px;width:32px}
+
+.acts{position:absolute;right:20px;top:50px;display:flex;gap:8px}
+.w1200 .acts{top:82px}
+.btn{height:38px;border:0;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;padding:0 16px;white-space:nowrap}
+.btn-p{background:var(--primary);color:#fff}
+.btn-g{width:38px;padding:0;background:transparent;border:1px solid var(--divider);color:var(--t1)}
+
+.nameline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.name{font-size:22px;font-weight:800;line-height:1.2;margin:0;color:var(--t1)}
+.tier{display:inline-flex;border-radius:999px;overflow:hidden;font-weight:800;line-height:1}
+.tier .a{background:var(--t1);color:#fff;font-size:15px;padding:5px 8px;display:inline-flex;align-items:center}
+.tier .a i{font-style:normal;font-size:11px;font-weight:700;opacity:.65}
+.tier .b{background:var(--tier-bg);color:var(--tier-fg);font-size:13px;padding:5px 10px;display:inline-flex;align-items:center}
+.handle{font-size:15px;color:var(--t2);margin:2px 0 0}
+.bio{font-size:15px;line-height:1.55;margin:8px 0 0;color:var(--t1);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+.stats{display:flex;gap:24px;margin:16px 0 0}
+.stats .n{font-size:32px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1;color:var(--t1);display:block}
+.stats .l{font-size:13px;color:var(--t2);margin-top:2px;display:block}
+
+.ev h2{font-size:18px;font-weight:700;margin:0 0 10px;color:var(--t1)}
+.ev ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.ev li{display:flex;align-items:flex-start;gap:8px;font-size:15px;line-height:1.35}
+.ev b{font-weight:600}
+.ev .tail{font-size:14px;color:var(--t2);font-variant-numeric:tabular-nums;font-weight:400}
+.dot{flex:0 0 17px;height:17px;border-radius:999px;margin-top:2px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700}
+.dot.g{background:var(--verified)}
+.dot.o{background:transparent;border:2px solid var(--gold-ink);position:relative;overflow:hidden}
+.dot.o::after{content:'';position:absolute;left:0;top:0;bottom:0;width:50%;background:var(--gold-ink)}
+.dot.i{background:transparent;border:1.5px solid var(--t3);border-radius:4px}
+
+.badges{display:flex;align-items:center;gap:10px;font-size:15px}
+.badges .stack{display:flex}
+.badges .stack span{width:30px;height:30px;border-radius:999px;background:var(--mist);border:2px solid var(--paper);display:inline-flex;align-items:center;justify-content:center;font-size:14px;margin-left:-8px}
+.badges .stack span:first-child{margin-left:0}
+.badges .more{color:var(--primary-dark);font-weight:600}
+.badges .chev{margin-left:auto;color:var(--t3)}
+
+.offhead{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t2)}
+.offhead .all{margin-left:auto;color:var(--primary-dark);font-weight:600;font-size:13px}
+.pages{display:flex;flex-wrap:wrap;gap:6px 20px;margin-top:4px}
+.pg{display:flex;align-items:center;gap:8px;min-height:44px}
+.pg .ic{width:20px;height:20px;border-radius:6px;position:relative;flex:0 0 20px}
+.pg .ic.fb{background:#1877F2}.pg .ic.ig{background:linear-gradient(45deg,#f09433,#dc2743,#bc1888)}
+.pg .ic::after{content:'✓';position:absolute;right:-4px;bottom:-4px;width:11px;height:11px;border-radius:999px;background:var(--verified);color:#fff;font-size:7px;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--paper)}
+.pg .tx{line-height:1.25}
+.pg .t1{font-size:13px;font-weight:600;display:block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pg .t2{font-size:13px;color:var(--t2);display:block}
+.pg .t2 b{color:var(--t1)}
+
+.tabs{display:flex;gap:22px;border-bottom:1px solid var(--divider);padding:0 20px}
+.tab{padding:12px 0;font-size:15px;color:var(--t2);display:inline-flex;align-items:center;gap:6px;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:var(--t1);font-weight:700;border-bottom-color:var(--primary)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:2px 0 0}
+.w768 .grid,.w1200 .grid{grid-template-columns:repeat(4,1fr)}
+.cell{aspect-ratio:1;background:#d9d5e0;position:relative;overflow:hidden}
+.cell img{width:100%;height:100%;object-fit:cover;display:block}
+.cell .fb{position:absolute;right:8px;top:8px;width:20px;height:20px;border-radius:999px;background:#1877F2;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
+
+/* ══ A · Card & Depth ═══════════════════════════════════════════════════ */
+.A .app{background:var(--mist);padding-bottom:2px}
+.A .card{background:var(--paper);border-radius:0;overflow:hidden;box-shadow:0 1px 2px rgba(47,43,61,.06)}
+.w768 .A .card,.w1200 .A .card{border-radius:16px;margin:16px;box-shadow:0 6px 24px rgba(47,43,61,.10)}
+.A .cover::after{content:'';position:absolute;inset:auto 0 0 0;height:56px;background:linear-gradient(to top,rgba(47,43,61,.30),transparent)}
+.A .ev{margin:16px 20px 0;background:var(--mist);border:1px solid var(--divider);border-radius:12px;padding:16px}
+.A .badges{margin-top:14px;padding-top:14px;border-top:1px solid var(--divider)}
+.A .off{margin:12px 20px 16px;border:1px solid var(--divider);border-radius:12px;padding:12px 14px}
+.A .tabs{padding:0 20px}
+.A .grid{padding:2px 0 0}
+.A .btn-p{box-shadow:0 4px 12px rgba(115,103,240,.35)}
+
+/* ══ B · Editorial ══════════════════════════════════════════════════════ */
+.B .name{font-size:26px;letter-spacing:-.01em}
+.w1200 .B .name{font-size:30px}
+.B .bio{font-size:16px;line-height:1.72;margin-top:12px;color:var(--t2)}
+.B .handle{margin-top:6px}
+.B .stats{margin-top:28px;gap:40px}
+.B .stats .n{font-size:32px}
+.B .ev{margin:28px 20px 0;padding:24px 0 0;border-top:1px solid var(--divider)}
+.B .ev h2{font-size:15px;font-weight:600;color:var(--t2);margin-bottom:14px}
+.B .ev ul{gap:14px}
+.B .ev li{font-size:16px;line-height:1.5}
+.B .badges{margin:22px 0 0;padding-top:22px;border-top:1px solid var(--divider)}
+.B .off{margin:24px 20px 28px;padding-top:22px;border-top:1px solid var(--divider)}
+.B .pages{margin-top:10px;gap:10px 28px}
+.B .tabs{gap:28px;border-top:1px solid var(--divider);padding-top:2px}
+.B .tab{padding:16px 0}
+.B .grid{gap:8px;padding:8px 20px 20px}
+.B .cell{border-radius:10px}
+
+/* ══ C · Tinted Trust ═══════════════════════════════════════════════════ */
+.C .cover::after{content:'';position:absolute;inset:0;background:linear-gradient(160deg,rgba(179,103,0,.42),rgba(179,103,0,0) 55%),linear-gradient(to top,rgba(179,103,0,.55),transparent 60%)}
+.C .av .ph{border-color:#fff;box-shadow:0 0 0 2px var(--tier-bg)}
+.C .ev{margin:16px 0 0;padding:16px 20px;background:linear-gradient(180deg,rgba(179,103,0,.09),rgba(179,103,0,.03));border-top:1px solid rgba(179,103,0,.22);border-bottom:1px solid rgba(179,103,0,.22);position:relative}
+.C .ev h2{color:var(--tier-fg)}
+.C .badges{margin-top:14px;padding-top:14px;border-top:1px solid rgba(179,103,0,.22)}
+.C .badges .stack span{background:rgba(179,103,0,.10)}
+.C .off{padding:14px 20px 16px}
+.C .tabs{padding:0 20px}
+
+/* ══ B+C · ทิศทางที่ user เลือก (2026-08-13) ═════════════════════════════
+   จังหวะ/ตัวอักษรของ B + สีประจำระดับของ C
+   🛑 จุดที่สองทิศทางขัดกันตรง ๆ คือ "แผงหลักฐาน": B บอกว่าห้ามมีพื้นสีเลย
+   ส่วน C บอกว่าให้ย้อมสีระดับ — เลือกตาม C **เฉพาะบล็อกนี้บล็อกเดียว** เพราะเป็นที่เดียว
+   ที่สีทำงานสื่อความหมาย (ระดับของร้าน) ที่เหลือทั้งหน้าตาม B คือไม่มีพื้นสีสักที่
+   ⇒ ผลข้างเคียงที่ตั้งใจ: บล็อกเดียวที่มีสีในหน้าขาวล้วน กลายเป็นจุดที่ตาไปหยุดเอง
+   โดยไม่ต้องใช้ตัวหนาหรือขนาดมาแย่งความสนใจ */
+.BC .name{font-size:26px;letter-spacing:-.01em}
+.w1200 .BC .name{font-size:30px}
+.BC .handle{margin-top:6px}
+.BC .bio{font-size:16px;line-height:1.72;margin-top:12px;color:var(--t2)}
+.BC .stats{margin-top:28px;gap:40px}
+.BC .cover::after{content:'';position:absolute;inset:0;background:linear-gradient(160deg,rgba(179,103,0,.42),rgba(179,103,0,0) 55%),linear-gradient(to top,rgba(179,103,0,.55),transparent 60%)}
+.BC .av .ph{border-color:#fff;box-shadow:0 0 0 2px var(--tier-bg)}
+.BC .ev{margin:28px 0 0;padding:22px 20px;background:linear-gradient(180deg,rgba(179,103,0,.09),rgba(179,103,0,.03));border-top:1px solid rgba(179,103,0,.22);border-bottom:1px solid rgba(179,103,0,.22)}
+.BC .ev h2{font-size:15px;font-weight:600;color:var(--tier-fg);margin-bottom:14px}
+.BC .ev ul{gap:14px}
+.BC .ev li{font-size:16px;line-height:1.5}
+.BC .badges{margin-top:20px;padding-top:20px;border-top:1px solid rgba(179,103,0,.22)}
+.BC .badges .stack span{background:rgba(179,103,0,.10)}
+.BC .off{margin:0 20px 28px;padding-top:22px}
+.BC .pages{margin-top:10px;gap:10px 28px}
+.BC .tabs{gap:28px;border-top:1px solid var(--divider);padding:2px 20px 0}
+.BC .tab{padding:16px 0}
+.BC .grid{gap:8px;padding:8px 20px 20px}
+.BC .cell{border-radius:10px}
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1 class="d">Public Profile · 3 ทิศทางความงาม</h1>
+  <p class="d">
+    โครงข้อมูล (IA) เหมือนกันทั้ง 3 ทิศทางเป๊ะ — ลำดับ · ถ้อยคำ · ตัวเลข ไม่มีอะไรเปลี่ยน
+    เปลี่ยนแค่ <b>ผิว</b>: พื้นผิว/ความลึก/จังหวะช่องไฟ/การใช้สีประจำระดับ
+    ข้อมูลทั้งหมดเป็นของจริงจาก <code>/b/qa-online</code> (ธนภัทร์ อะไหล่มอเตอร์ไซค์ · 41/100 · Deep Classic)
+  </p>
+  <div class="note">
+    <b>ทำไมไม่ใช่ <code>?variant=</code> ตามสูตร prototype:</b> skill นั้นบังคับว่า variant ต้องต่างกัน
+    <b>เชิงโครงสร้าง</b> และเขียนไว้ตรงตัวว่า “ต่างกันแค่สี/ระยะห่าง = วอลเปเปอร์ ไม่ใช่ prototype”
+    แต่โครงหน้านี้ตัดสินไปแล้ว (D ชนะ → ขึ้น prod → ไล่แก้กับข้อมูลจริง ~20 รอบ) คำถามที่เหลือคือ
+    “สวยขึ้นได้ยังไง” ซึ่งเป็นคำถามเรื่องผิว ⇒ เทียบด้วยม็อกอัพเร็วกว่าและไม่ต้องเอาโค้ดชั่วคราวไปใส่ prod
+  </div>
+  <div class="note warn">
+    <b>ทั้ง 3 กรอบต่อทิศทางเรนเดอร์จาก template เดียวด้วย JS</b> — รอบก่อน (rev8) ผมแก้ HTML ด้วย regex
+    แล้วมันแมตช์แค่ 1 ใน 3 กรอบ ⇒ มือถือโชว์เลขซ้ำ เดสก์ท็อปไม่โชว์เลย และ user เห็นความไม่ตรงกันนั้น
+    ก่อนผม การเรนเดอร์จากต้นแบบเดียวปิดคลาสบั๊กนั้นทั้งคลาส
+  </div>
+  <div class="note ok">
+    <b>สิ่งที่ทั้ง 3 ทิศทางห้ามแตะเหมือนกัน:</b> เขียว <code>#28C76F</code> สงวนให้สิ่งที่ยืนยันแล้วจริง
+    (ระดับ 1 = OTP ห้ามเป็นเขียว) · ม่วง ≤10% ของจอ (One Voice) · % ต้องมาคู่ตัวหารเสมอ (BR-OSM-07) ·
+    ไม่มี emoji เป็นไอคอน · ตัวเลขใช้ขั้น Metric 32/22/20 ของ DESIGN.md
+  </div>
+
+  <h2 class="sec">A · Card &amp; Depth — เนื้อหาลอยบนการ์ด มีพื้นและความลึก</h2>
+  <p class="sub">
+    พื้นเพจเป็นสีหมอก เนื้อหาอยู่บนการ์ดขาวมุมมนมีเงา · ปกมีฉากทับล่างให้ขอบรูปโปรไฟล์ไม่จม ·
+    <b>แผงหลักฐานเลิกเป็นแถบเทาเต็มขอบ</b> กลายเป็นการ์ดในตัวที่มีขอบ+มุมมน (ของเดิมกินขอบซ้าย-ขวาจนอ่านเป็น
+    “แถบแจ้งเตือนของระบบ” มากกว่าเนื้อหาที่ร้านภูมิใจ) · บล็อกเพจทางการก็เป็นกล่องมีขอบเช่นกัน
+    <br><b>ได้:</b> ลำดับชั้นชัดที่สุด แต่ละกลุ่มแยกจากกันด้วยพื้น ไม่ต้องพึ่งเส้น · คุ้นตาที่สุดกับ Vuexy ที่เหลือทั้งระบบ
+    <b>เสีย:</b> ขอบ+เงาเยอะขึ้น = “แอป” มากกว่า “โปรไฟล์คน” · บนมือถือกินความกว้างไป 2 ชั้น (การ์ดนอก + การ์ดใน)
+  </p>
+  <div class="frames" data-render="A"></div>
+
+  <h2 class="sec">B · Editorial — ไม่มีกล่องเลย ให้ที่ว่างกับตัวอักษรทำงาน</h2>
+  <p class="sub">
+    ขาวล้วนทั้งหน้า ไม่มีพื้นสีสักบล็อก · คั่นด้วยเส้นบางเฉียบ + ช่องไฟที่กว้างขึ้นราว 1.5 เท่า ·
+    ชื่อร้านขึ้นเป็น 26–30px · บรรทัดหลักฐานขึ้นเป็น 16px กับ leading 1.5 · หัวข้อ “ทำไมร้านนี้ถึงเชื่อได้”
+    ลดจากหัวข้อหนา 18px เหลือป้ายเบา 15px (มันเป็นป้ายกำกับ ไม่ใช่หัวเรื่องที่ต้องแข่งกับชื่อร้าน)
+    <br><b>ได้:</b> สงบ พรีเมียม อ่านสบายที่สุด · เหมาะกับหน้าที่ทั้งหน้าคือ “การอ่านเพื่อตัดสินใจ”
+    <b>เสีย:</b> หน้ายาวขึ้นชัดเจน (จอแรกได้เนื้อหาน้อยลง) · ถ้าร้านไม่มีปก/รูปสวย จะดูโล่งจนเหมือนหน้ายังโหลดไม่เสร็จ
+  </p>
+  <div class="frames" data-render="B"></div>
+
+  <h2 class="sec">C · Tinted Trust — ใช้สีประจำระดับเป็นบรรยากาศทั้งหน้า</h2>
+  <p class="sub">
+    สีของระดับ (Deep Classic = โทนอำพัน) ไล่จากปกลงมา · แผงหลักฐานย้อมอ่อน ๆ ด้วยสีเดียวกันแทนสีเทากลาง ·
+    รูปโปรไฟล์มีวงแหวนสีระดับ · <b>ทั้งหน้ากลายเป็นของร้านนี้ ไม่ใช่เทมเพลตที่ใช้ซ้ำได้ทุกร้าน</b>
+    และร้านคนละระดับจะหน้าตาต่างกันทันทีตั้งแต่ยังไม่อ่าน
+    <br><b>ได้:</b> จำได้ · สีทำงานสื่อความหมายจริง ไม่ใช่ของประดับ · ต่อยอดกับปกที่ใช้สีระดับอยู่แล้วได้พอดี
+    <b>เสีย:</b> เสี่ยงที่สุด — โทนอำพันของ Classic อยู่ใกล้สี “คำเตือน” มาก ถ้าอัลฟาสูงไปนิดเดียวจะอ่านเป็น
+    “ร้านนี้มีปัญหา” ทันที · และร้าน Deep Gold/Platinum จะได้หน้าที่ฉูดฉาดกว่าโดยไม่ได้ตั้งใจ
+  </p>
+  <div class="frames" data-render="C"></div>
+
+  <h2 class="sec" style="border-top-color:var(--primary)">B + C · ทิศทางที่เลือก ✔</h2>
+  <p class="sub">
+    <b>จังหวะและตัวอักษรของ B + สีประจำระดับของ C</b> — user เลือก 2026-08-13
+    <br>🛑 สองทิศทางนี้ขัดกันตรง ๆ อยู่จุดเดียว: <b>แผงหลักฐาน</b> — B บอกว่าห้ามมีพื้นสีสักบล็อก
+    ส่วน C บอกว่าให้ย้อมสีระดับ · ตัดสินตาม C <b>เฉพาะบล็อกนี้บล็อกเดียว</b> เพราะเป็นที่เดียวในหน้า
+    ที่สีทำงานสื่อความหมายจริง (ระดับของร้าน) ที่เหลือตาม B คือขาวล้วนไม่มีพื้นสีเลย
+    <br><b>ผลข้างเคียงที่ตั้งใจ:</b> พอทั้งหน้าไม่มีสีอื่น บล็อกเดียวที่มีสีจึงกลายเป็นจุดที่ตาไปหยุดเอง
+    โดยไม่ต้องใช้ตัวหนาหรือขนาดมาแย่งความสนใจจากชื่อร้าน — ซึ่งตรงกับหน้าที่ของหน้านี้พอดี
+  </p>
+  <div class="frames" data-render="BC"></div>
+
+  <div class="note warn" style="margin-top:34px">
+    <b>ยังไม่ได้ลงโค้ดจริง</b> — นี่คือม็อกอัพ ถ้าโอเคผมลงให้เลย จุดที่จะแตะจริงมี 4 ไฟล์:
+    <code>ProfileIdentity</code> (ปก/วงแหวน/ตัวอักษร/ช่องไฟ) · <code>EvidencePanel</code> (พื้นย้อม + ขนาดบรรทัด) ·
+    <code>OfficialChannelsBlock</code> (ช่องไฟ) · <code>ShopProfile</code> (แท็บ/กริด)
+  </div>
+</div>
+
+<script>
+/* ── ต้นแบบเดียว เรนเดอร์ 3 กรอบต่อทิศทาง ────────────────────────────────
+   ข้อมูลทุกตัวคัดจากหน้าจริง /b/qa-online (2026-08-13) ห้ามแต่งค่าเอง:
+   ค่าที่แต่งเองคือเหตุผลที่ม็อกอัพไม่เคยเจอบั๊ก "ชื่อเพจ 34 ตัวอักษรดันกล่องหลุดจอ" */
+const D = {
+  cover: 'https://picsum.photos/seed/deepcover/1200/400',
+  avatar: 'https://picsum.photos/seed/deepshop/200/200',
+  name: 'ธนภัทร์ อะไหล่มอเตอร์ไซค์',
+  score: 41, tier: 'Deep Classic',
+  handle: '@qa-online · ยานยนต์-อะไหล่ · เปิดร้านมาแล้ว ไม่ถึง 1 เดือน',
+  bio: 'ศูนย์รวมอะไหล่มอเตอร์ไซค์ Honda WAVE, DREAM และรถสามล้อ ครบทั้งโช๊คหน้า-หลัง ชุดโซ่สเตอร์ ผ้าเบรคหน้า หลัง จานดิส ล้อแม็ก คัดคุณภาพ ราคาส่ง พร้อมส่งทั่วไทย เก็บเงินปลายทางได้ ทักถามรุ่นรถได้เลยครับ ยินดีให้คำแนะนำ',
+  stats: [[38,'ออเดอร์'],[30,'ลูกค้า'],[8,'ซื้อซ้ำ'],[12,'รีวิว']],
+  ev: [
+    ['o','ยืนยันเบอร์แล้ว','ยืนยันแล้ว 1 จาก 3 ระดับ'],
+    ['g','อัตราสำเร็จ 95%','จาก 40 ใบที่ปิดจบ'],
+    ['i','ตอบกลับ 92% ใน 13 นาที','']
+  ],
+  pages: [
+    ['fb','ธนภัทร์ อะไหล่มอเตอร์ไซค์','Facebook Page','6.1K','ถูกใจ'],
+    ['ig','@tanapat_parts','Instagram','307','ผู้ติดตาม']
+  ],
+  pageCount: 6,
+  tabs: ['ปักหมุด','สินค้า','รีวิว 4.7','เกี่ยวกับร้าน'],
+  cells: ['a','b','c','d']
+}
+
+const evIcon = k => k === 'g' ? '<span class="dot g">✓</span>'
+  : k === 'o' ? '<span class="dot o"></span>'
+  : '<span class="dot i"></span>'
+
+const tpl = (dir) => `
+<div class="app ${dir}">
+ <div class="card">
+  <div class="cover"><img src="${D.cover}" alt=""><div class="brand"><i class="mk"></i>Deep</div></div>
+  <div class="idw">
+    <div class="av"><div class="ph"><img src="${D.avatar}" alt=""></div><div class="lv">1</div></div>
+    <div class="acts">
+      <button class="btn btn-p">◌ ติดต่อร้านค้า</button>
+      <button class="btn btn-g">↥</button>
+    </div>
+    <div class="nameline">
+      <h1 class="name">${D.name}</h1>
+      <span class="tier"><span class="a">${D.score}<i>/100</i></span><span class="b">${D.tier}</span></span>
+    </div>
+    <p class="handle">${D.handle}</p>
+    <p class="bio">${D.bio}</p>
+    <div class="stats">${D.stats.map(([n,l]) => `<div><span class="n">${n}</span><span class="l">${l}</span></div>`).join('')}</div>
+  </div>
+
+  <div class="ev">
+    <h2>ทำไมร้านนี้ถึงเชื่อได้</h2>
+    <ul>${D.ev.map(([k,t,tail]) => `<li>${evIcon(k)}<span><b>${t}</b>${tail ? `<span class="tail"> · ${tail}</span>` : ''}</span></li>`).join('')}</ul>
+    <div class="badges">
+      <span class="stack"><span>◆</span><span>◆</span><span>◆</span></span>
+      <span>เหรียญ <b>ร้านคะแนนเต็ม, ร้านค้าขายอดนิยม</b> <span class="more">+ อีก 8</span></span>
+      <span class="chev">›</span>
+    </div>
+  </div>
+
+  <div class="off">
+    <div class="offhead"><span style="color:var(--verified)">✔</span> เพจทางการ <span class="all">ทั้งหมด ${D.pageCount} เพจ ›</span></div>
+    <div class="pages">${D.pages.map(([ic,nm,plat,cnt,unit]) => `
+      <div class="pg"><span class="ic ${ic}"></span><span class="tx"><span class="t1">${nm}</span><span class="t2">${plat} · <b>${cnt}</b> ${unit}</span></span></div>`).join('')}
+    </div>
+  </div>
+
+  <div class="tabs">${D.tabs.map((t,i) => `<span class="tab${i === 0 ? ' on' : ''}">${t}</span>`).join('')}</div>
+  <div class="grid">${D.cells.map(s => `<div class="cell"><img src="https://picsum.photos/seed/deep${s}/400/400" alt=""><span class="fb">f</span></div>`).join('')}</div>
+ </div>
+</div>`
+
+const SIZES = [['w390','Mobile 390'],['w768','Tablet 768'],['w1200','Desktop 1200']]
+document.querySelectorAll('[data-render]').forEach(host => {
+  const dir = host.dataset.render
+  host.innerHTML = SIZES.map(([cls,label]) =>
+    `<div class="wrap ${cls}"><p class="flabel">${label}</p><div class="frame">${tpl(dir)}</div></div>`
+  ).join('')
+})
+</script>
+</body>
+</html>

@@ -23,13 +23,20 @@
  */
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
-import ProfileHero, { type ProfileHeroData } from './ProfileHero'
+import Typography from '@mui/material/Typography'
+
+import { Icon } from '@iconify/react'
+
+import ProfileIdentity from './ProfileIdentity'
+import EvidencePanel from './EvidencePanel'
+import OfficialChannelsBlock from './OfficialChannelsBlock'
+import type { HeroBadge } from './BadgeShowcase'
 import PageBlocksSection, { type PageBlockItem } from './PageBlocksSection'
 import ProfileTabs from './ProfileTabs'
 import PublicRoomList, { type PublicRoom } from './PublicRoomList'
 import PublicServiceList, { type PublicService } from './PublicServiceList'
 import AvailabilityCalendar, { type AvailabilityData } from './AvailabilityCalendar'
-import { ChannelStrip, type OfficialChannel } from './OfficialChannels'
+import type { OfficialChannel } from './OfficialChannels'
 import ReviewSummary, { type RatingBucket } from './ReviewSummary'
 import ReviewList, { type ReviewListItem } from './ReviewList'
 import ShopVideos, { type ShopVideoItem } from './ShopVideos'
@@ -37,9 +44,47 @@ import AboutOverview, { type AboutData } from '../profile/AboutOverview'
 import { ProfileRightContent } from '../profile'
 import type { SerializedProduct } from '../profile'
 import { applyTabOrder, computeVisibleTabKeys, type ProfileTabKey } from '@/lib/profile-tab-keys'
+import { shopStatVocab } from '@/lib/shop-stat-vocab'
+import { getTierAccentColor } from '@/lib/trust-tier'
+
+/** ข้อมูลหัวโปรไฟล์ — คงรูปเดิมของ `ProfileHeroData` ไว้เพื่อไม่ให้ทั้งสอง page ต้องรื้อ mapping
+ *  เพิ่มเฉพาะ `createdAtIso` ที่ ProfileIdentity ต้องใช้คำนวณ "เปิดร้านมาแล้ว …" */
+export type ShopProfileHeroData = {
+  shopName: string
+  username: string
+  avatar: string | null
+  coverImage: string | null
+  tierGradient: string
+  trustScore: number
+  tierLabel: string
+  avgRating?: number | null
+  reviewCount?: number
+  maxVerifyLevel: number
+  category: string | null
+  memberSince: string
+  /** ISO ของวันเปิดร้าน — ใช้แสดงอายุร้านเป็นคำ ไม่ให้ผู้อ่านต้องคำนวณเอง */
+  createdAtIso: string
+  bio?: string | null
+  badges: HeroBadge[]
+  totalBadgeCount: number
+  completedOrders: number | null
+  customerCount: number | null
+  repeatCustomerCount: number | null
+  completionRate: number | null
+  completionDenominator?: number
+  completionExcluded?: number
+  completionBelowMinSample?: boolean
+  nextTierLabel?: string | null
+  pointsToNext?: number | null
+  isLodging?: boolean
+  isServiceQueue?: boolean
+  chatResponseRate?: number | null
+  chatMedianResponseSec?: number | null
+  chatResponseSampleSize?: number | null
+}
 
 export type ShopProfileData = {
-  hero: ProfileHeroData
+  hero: ShopProfileHeroData
   isLodging: boolean
   /** feature 00028 — ร้านประเภทสินค้าและบริการ (Shop.vertical === 'SERVICE_QUEUE') */
   isServiceQueue: boolean
@@ -105,6 +150,7 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
   const effectiveBlocks = data.blocks ?? []
 
   const hasItems = data.pinnedProducts.length + data.otherProducts.length > 0
+  const L = shopStatVocab(data.isLodging, data.isServiceQueue)
 
   // feature 00035 (SRS TFR-002/TFR-003) — ตรรกะ "แท็บไหนมีข้อมูลจริง" ย้ายไป src/lib/profile-tab-keys.ts
   // เพื่อให้หน้า builder ฝั่ง seller รู้ชุดแท็บเดียวกันได้โดยไม่ต้องเขียนเงื่อนไขซ้ำ (กัน drift)
@@ -117,7 +163,10 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
     isServiceQueue: data.isServiceQueue,
     hasServices: data.services.length > 0,
     hasItems,
-    hasReviews: data.ratingDistribution != null && data.avgRating != null,
+    /* 🛑 แท็บรีวิว **แสดงเสมอ** แม้ยังไม่มีรีวิว — เดิมตัดทั้งแท็บทิ้งเมื่อ 0 รีวิว ซึ่งอ่านได้ว่า
+       "หน้านี้ไม่มีเรื่องรีวิว" ไม่ใช่ "ร้านนี้ยังไม่มีใครรีวิว" · สองอย่างนี้ต่างกันมากสำหรับคนที่
+       กำลังตัดสินใจโอนเงิน และเคสร้านที่ปิดออเดอร์ไปหลายร้อยครั้งแต่ 0 รีวิว เกิดจริงบน prod */
+    hasReviews: true,
   })
 
   // label/content ของแต่ละแท็บ — ยกมาจากของเดิมทั้งหมด ไม่แก้ถ้อยคำ
@@ -179,7 +228,8 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
       /* "รีวิว 5.0" ไม่ใช่ "รีวิว 5/5" (user 2026-08-11) — ตัวหารซ้ำกับดาวที่อยู่ข้าง ๆ อยู่แล้ว
          และทำให้ป้ายยาวขึ้นจนแถบแท็บต้องเลื่อน · toFixed(1) ให้ 5 กับ 4.9 กว้างเท่ากันเสมอ
          ป้ายจึงไม่ขยับตอนคะแนนเปลี่ยน */
-      label: `รีวิว ${(data.avgRating ?? 0).toFixed(1)}`,
+      /* ป้ายมีคะแนนต่อท้ายเฉพาะตอนมีรีวิวจริง — "รีวิว 0.0" อ่านเป็นคะแนนศูนย์ ไม่ใช่ยังไม่มีรีวิว */
+      label: data.avgRating != null ? `รีวิว ${data.avgRating.toFixed(1)}` : 'รีวิว',
       content:
         data.ratingDistribution && data.avgRating != null ? (
           <>
@@ -190,13 +240,87 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
             />
             <ReviewList items={data.reviews} />
           </>
-        ) : null,
+        ) : (
+          /* empty state ที่แยก "ยังไม่มีใครรีวิว" ออกจาก "ร้านนี้ไม่มีประวัติ" ให้ชัด
+             และบอกด้วยว่า **ใครรีวิวได้** ซึ่งเปลี่ยนการไม่มีรีวิวจากข้อด้อยเป็นหลักฐานความเข้มงวด */
+          <div className='plb-8 text-center'>
+            <Icon icon='tabler:message-star' width={40} className='text-[var(--mui-palette-text-disabled)] mli-auto' />
+            <Typography variant='body2' color='text.secondary' className='mbs-2'>
+              ยังไม่มีผู้ซื้อเขียนรีวิว
+            </Typography>
+            <Typography variant='caption' color='text.secondary' className='block mbs-1 mli-auto max-is-[42ch]'>
+              รีวิวบน Deep มาจากผู้ซื้อที่ยืนยันรับของแล้วเท่านั้น ร้านเขียนเองหรือจ้างรีวิวไม่ได้
+            </Typography>
+            {data.hero.completedOrders != null && data.hero.completedOrders > 0 && (
+              <Typography variant='caption' color='text.secondary' className='block mbs-1 tabular-nums'>
+                {`ร้านนี้${L.verb}ไปแล้ว ${data.hero.completedOrders.toLocaleString('th-TH')} ครั้ง`}
+              </Typography>
+            )}
+          </div>
+        ),
     },
   }
 
   return (
     <div className='mli-auto max-is-[960px]'>
-      <ProfileHero data={{ ...data.hero, shopId: data.shopId }} channels={data.channels} />
+      <ProfileIdentity
+        data={{
+          shopName: data.hero.shopName,
+          username: data.hero.username,
+          avatar: data.hero.avatar,
+          coverImage: data.hero.coverImage,
+          tierGradient: data.hero.tierGradient,
+          trustScore: data.hero.trustScore,
+          tierLabel: data.hero.tierLabel,
+          /* 🛑 คำนวณที่นี่ที่เดียวแล้วส่งลงไป — ห้ามให้ลูกแต่ละตัวเรียก `getTierAccentColor` เอง
+             ไม่งั้นวันที่มีคนส่งคะแนนคนละตัวเข้าไป (เช่น score ของ user vs ของ shop ซึ่งเคยไม่ตรงกัน
+             มาแล้วในหน้านี้) ปกกับแผงหลักฐานจะย้อมคนละสีโดยไม่มีอะไรฟ้อง */
+          tierAccent: getTierAccentColor(data.hero.trustScore),
+          nextTierLabel: data.hero.nextTierLabel ?? null,
+          pointsToNext: data.hero.pointsToNext ?? null,
+          maxVerifyLevel: data.hero.maxVerifyLevel,
+          category: data.hero.category,
+          createdAtIso: data.hero.createdAtIso,
+          bio: data.hero.bio ?? null,
+          avgRating: data.hero.avgRating ?? null,
+          reviewCount: data.hero.reviewCount ?? 0,
+          channels: data.channels,
+          /* แสดงครบ 4 ช่องเสมอแม้เป็น 0 — ซ่อนบางช่องแล้ว layout ขยับไปมาระหว่างร้าน
+             และผู้ซื้อแยกไม่ออกว่าช่องที่หายคือ "ไม่มี" หรือ "ไม่แสดง" (มติ 2026-07-26) */
+          stats: [
+            { value: data.hero.completedOrders ?? 0, label: L.orders },
+            { value: data.hero.customerCount ?? 0, label: L.customers },
+            { value: data.hero.repeatCustomerCount ?? 0, label: L.repeat },
+            { value: data.reviewCount > 0 ? data.reviewCount : null, label: 'รีวิว' },
+          ],
+        }}
+      />
+
+      <EvidencePanel
+        data={{
+          maxVerifyLevel: data.hero.maxVerifyLevel,
+          verifiedLevels: data.about.verifiedLevels ?? [],
+          completionRate: data.hero.completionRate,
+          completionDenominator: data.hero.completionDenominator ?? 0,
+          completionExcluded: data.hero.completionExcluded ?? 0,
+          completionBelowMinSample: data.hero.completionBelowMinSample ?? false,
+          unitLabel: L.unitLabel,
+          chat: {
+            chatResponseRate: data.hero.chatResponseRate,
+            chatMedianResponseSec: data.hero.chatMedianResponseSec,
+            chatResponseSampleSize: data.hero.chatResponseSampleSize,
+          },
+          badges: data.hero.badges,
+          totalBadgeCount: data.hero.totalBadgeCount,
+          shopName: data.hero.shopName,
+          tierAccent: getTierAccentColor(data.hero.trustScore),
+        }}
+      />
+
+      {/* pbs-6 (24px) ไม่ใช่ 16 — ทิศทาง B: บล็อกที่ไม่มีพื้นสีคั่นต้องใช้ที่ว่างทำหน้าที่แทนกล่อง */}
+      <div className='pli-5 pbs-6'>
+        <OfficialChannelsBlock channels={data.channels} shopName={data.hero.shopName} />
+      </div>
 
       <PageBlocksSection blocks={effectiveBlocks} />
 

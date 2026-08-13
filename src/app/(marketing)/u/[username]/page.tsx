@@ -298,6 +298,8 @@ export default async function PublicProfilePage({ params }: Props) {
               // แก้ที่เดียวไม่พอเสมอ เพราะ public profile มี 2 เส้น)
               category: shopCategoryLabel(user.shop?.category),
               memberSince: formatMonthYearTH(user.createdAt),
+              // ISO เต็มสำหรับคำนวณ "เปิดร้านมาแล้ว …" — memberSince เป็นแค่เดือน-ปี ผู้อ่านต้องคิดเอง
+              createdAtIso: user.createdAt.toISOString(),
               // imageUrl = artwork จริงของเหรียญ (sync กับ /b/[slug] — แก้เส้นเดียวไม่พอเสมอ)
               badges: sellerContextBadges.map((ub) => ({
                 id: ub.id,
@@ -320,7 +322,6 @@ export default async function PublicProfilePage({ params }: Props) {
               completionDenominator: profileStats?.completionDenominator ?? 0,
               completionExcluded: profileStats?.completionExcluded ?? 0,
               completionBelowMinSample: profileStats?.completionBelowMinSample ?? false,
-              canChat: !!user.shop && !isOwnShop,
               // แผงอธิบายคะแนนใช้บอก "อีกกี่คะแนนถึงระดับถัดไป" — ค่าเดียวกับที่ profileTab ใช้อยู่แล้ว
               nextTierLabel: nextTier?.nextTierLabel ?? null,
               pointsToNext: nextTier?.pointsToNext ?? null,

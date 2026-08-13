@@ -1,0 +1,202 @@
+'use client'
+
+/**
+ * EvidencePanel — แผง "ทำไมร้านนี้ถึงเชื่อได้" บนโปรไฟล์สาธารณะ
+ *
+ * รวมหลักฐานที่ผู้ซื้อใช้ตัดสินใจไว้ที่เดียว: อัตราสำเร็จ (ตัวเลขนำ) · การยืนยันตัวตน ·
+ * ความเร็วในการตอบแชท · เหรียญที่ระบบมอบให้เอง
+ *
+ * ── กติกาที่แผงนี้ยึด (มาจากการรีวิว 2 รอบ อย่าย้อนกลับโดยไม่มีเหตุผลใหม่) ──────
+ *
+ * 🛑 **ห้ามเติมออเดอร์/ลูกค้า/ซื้อซ้ำ/คะแนนรีวิวกลับเข้ามาที่นี่** — ทั้งสี่ตัวอยู่ในแถวตัวเลข
+ * ที่ห่างขึ้นไปไม่ถึง 40px แล้ว การพูดซ้ำในรูปแบบที่ต่างออกไปทำให้ผู้ชมต้องอ่านของเดิมสองรอบ
+ * แล้วสงสัยว่าเลขสองชุดต่างกันตรงไหน (user ทัก 2026-08-13: "ข้อความเยอะเกิน อ่านยาก")
+ * แผงนี้เหลือเฉพาะสิ่งที่แถวตัวเลข **บอกไม่ได้**
+ *
+ * 🛑 **ทุกบรรทัดน้ำหนักเท่ากัน** (user เคาะ 2026-08-13 เทียบกับม็อกอัพ) — เคยยกอัตราสำเร็จ
+ * เป็นตัวเลขนำขนาด Metric ตาม critique P1 แล้ว user เลือกแบบเรียงเท่ากัน
+ * ข้อแลกเปลี่ยนที่รับไว้: 95% เล็กกว่า "ซื้อซ้ำ 8" ในแถวตัวเลขด้านบน ทั้งที่เป็นหลักฐานแข็งกว่า
+ *
+ * 🛑 **บรรทัดตอบแชทเป็นโทนกลางเสมอ ห้ามเป็นเช็คเขียว** — `resolveChatResponse()` คืนแค่ตัวเลข
+ * ไม่มี field บอกว่า "ดีหรือไม่ดี" การให้เช็คเขียวจึงเป็นการเดาคุณภาพที่ไม่มี SSOT รองรับ และ
+ * ร้านที่ตอบ 40% ใน "2 วันขึ้นไป" จะได้เขียวเท่าร้านที่ตอบ 100% ใน 1 นาที = สัญญาณเฟ้อ
+ * ซึ่งเป็นสิ่งเดียวกับที่ `verify-badge.ts` กันไว้ตอนห้าม L1 เป็นเขียว
+ *
+ * 🛑 **`% ต้องมาคู่ตัวหารเสมอ` (BR-OSM-07)** และเมื่อมีใบที่หักออกต้องบอกด้วย — % ที่ผู้ซื้อ
+ * คำนวณย้อนกลับไม่ได้คือ % ที่ไม่มีใครเชื่อ
+ */
+import Typography from '@mui/material/Typography'
+
+import { Icon } from '@iconify/react'
+
+import BadgeShowcase, { type HeroBadge } from './BadgeShowcase'
+
+import { resolveVerifyBadge, VERIFY_BADGE_PALETTE } from '@/lib/verify-badge'
+import { resolveChatResponse, type ChatResponseInput } from '@/lib/chat-response-display'
+import { COMPLETION_RATE_MIN_SAMPLE } from '@/lib/order-stats'
+
+export type EvidencePanelData = {
+  /** ระดับยืนยันสูงสุดที่อนุมัติแล้ว (0 = ยังไม่ยืนยันอะไรเลย) */
+  maxVerifyLevel: number
+  /** ระดับที่ผ่านจริง — **ไม่รับประกันว่าต่อเนื่อง** ห้าม derive จาก maxVerifyLevel ด้วย `>=` */
+  verifiedLevels: number[]
+  completionRate: number | null
+  completionDenominator: number
+  completionExcluded: number
+  completionBelowMinSample: boolean
+  /** ลักษณนามตามประเภทกิจการ ("ใบ" / "ครั้ง" / "งาน") — ห้าม hardcode "ใบ" */
+  unitLabel: string
+  chat: ChatResponseInput
+  badges: HeroBadge[]
+  totalBadgeCount: number
+  shopName: string
+  /** สี accent ของระดับ (SSOT: `getTierAccentColor`) — ย้อมพื้น/ขอบ/หัวข้อของแผงนี้
+   *  🛑 ห้ามส่งสีที่คิดเอง ต้องมาจากฟังก์ชันนั้น ไม่งั้นสีระดับจะมี 2 นิยามในระบบ (HR16) */
+  tierAccent: string
+}
+
+type LineState = 'yes' | 'partial' | 'unknown' | 'info'
+
+/** บรรทัดหลักฐานหนึ่งข้อ — ข้อความหลัก + ส่วนขยายในบรรทัดเดียวกัน */
+function EvidenceLine({ text, tail, state }: { text: string; tail?: string | null; state: LineState }) {
+  /* รูปทรงต่างกัน ไม่ใช่แค่สี (WCAG 1.4.1) — ทึบมีเช็ค / ครึ่งวง / เส้นประ / ไอคอนข้อมูล */
+  const icon =
+    state === 'yes'
+      ? 'tabler:circle-check-filled'
+      : state === 'partial'
+        ? 'tabler:circle-half-2'
+        : state === 'info'
+          ? 'tabler:message-dots'
+          : 'tabler:circle-dashed'
+  const color =
+    state === 'yes'
+      ? VERIFY_BADGE_PALETTE.green.fg
+      : state === 'partial'
+        ? VERIFY_BADGE_PALETTE.gold.fg
+        : undefined
+
+  return (
+    <li className='flex items-start gap-2'>
+      <Icon icon={icon} width={17} style={{ flexShrink: 0, marginBlockStart: 2, color }} />
+      <Typography
+        /* 🛑 **15px ไม่ใช่ 16px** — ramp ของ DESIGN.md เดิน 15 → 18 → 24 ไม่มี 16 อยู่เลย
+           ทิศทาง B ขอ "ตัวใหญ่ขึ้น" แต่ขั้นถัดไปจริง ๆ คือ 18px ซึ่งเป็นขั้นหัวข้อย่อย (h5)
+           ⇒ ใช้กับรายการเนื้อหาไม่ได้ · ความโปร่งที่ B ต้องการจึงมาจาก **leading + ช่องไฟ**
+           (1.47 → 1.6 และ gap 8 → 14px) ไม่ใช่จากขนาด ซึ่งตรงกับนิยามของ editorial อยู่แล้ว
+           (ผมตั้ง 16px ก่อนเพราะ "อยากให้ใหญ่ขึ้นหน่อย" — เลขที่ดูพอดีแต่ไม่มีในระบบ
+           เป็นความผิดพลาดเดียวกับ 14px และ 26px ที่ detector จับได้ก่อนหน้านี้ในวันเดียวกัน) */
+        className='text-[15px] min-is-0'
+        style={{ lineHeight: 1.6 }}
+        sx={{ color: state === 'unknown' ? 'text.secondary' : 'text.primary' }}
+      >
+        <span className='font-semibold'>{text}</span>
+        {tail && <span className='text-sm text-[var(--mui-palette-text-secondary)] tabular-nums'>{` · ${tail}`}</span>}
+      </Typography>
+    </li>
+  )
+}
+
+export default function EvidencePanel({ data }: { data: EvidencePanelData }) {
+  const verifyBadge = resolveVerifyBadge(data.maxVerifyLevel)
+  const chat = resolveChatResponse(data.chat)
+
+  const lines: { text: string; tail?: string | null; state: LineState }[] = [
+    {
+      text: verifyBadge ? verifyBadge.label : 'ยังไม่ได้ยืนยันตัวตน',
+      /* 🛑 ห้ามเขียนว่า "ทีมงาน Deep ตรวจแล้ว N ระดับ" แบบรวม ๆ — **ระดับ 1 คือ OTP อัตโนมัติ
+         ไม่มีคนตรวจ** มีแต่ระดับ 2/3 ที่แอดมินเปิดเอกสารดูจริง ร้านที่ผ่านแค่ระดับ 1 (พบมากที่สุด
+         บน prod) จะได้ประโยคที่อ้างการตรวจสอบที่ไม่เคยเกิดขึ้น */
+      tail: verifyBadge
+        ? `ยืนยันแล้ว ${data.verifiedLevels.length} จาก 3 ระดับ`
+        : 'ร้านยังไม่ได้ส่งอะไรมาให้ตรวจ',
+      state: data.maxVerifyLevel >= 2 ? 'yes' : data.maxVerifyLevel === 1 ? 'partial' : 'unknown',
+    },
+    /* ── อัตราสำเร็จ ──
+       user เคาะ 2026-08-13: เป็น **บรรทัดเท่ากับบรรทัดอื่น** ไม่ใช่ตัวเลขนำขนาด Metric
+       (รอบก่อนผมยกเป็น 22px ตาม critique P1 แล้ว user เทียบกับม็อกอัพแล้วเลือกแบบเรียงเท่ากัน)
+       🛑 ข้อแลกเปลี่ยนที่รับไว้: 95% จะเล็กกว่า "ซื้อซ้ำ 8" ที่ 18px ในแถวตัวเลขด้านบน
+       ทั้งที่มันเป็นหลักฐานที่แข็งกว่า — ถ้าวันหนึ่งอยากกลับไปแบบตัวเลขนำ ให้ดู critique P1
+       🛑 BR-OSM-07 ยังบังคับเหมือนเดิม: % ต้องมาคู่ตัวหารเสมอ และบอกใบที่หักออกเมื่อมี */
+    ...(data.completionRate != null
+      ? [
+          {
+            text: `อัตราสำเร็จ ${data.completionRate}%`,
+            tail:
+              data.completionExcluded > 0
+                ? `จาก ${data.completionDenominator} ${data.unitLabel}ที่ปิดจบ · ไม่นับ ${data.completionExcluded} ${data.unitLabel}ที่ผู้ซื้อไม่รับของ`
+                : `จาก ${data.completionDenominator} ${data.unitLabel}ที่ปิดจบ`,
+            state: 'yes' as const,
+          },
+        ]
+      : data.completionBelowMinSample
+        ? [
+            {
+              /* ยังสรุปไม่ได้ ≠ 0% — ต้องบอกว่าทำไม ไม่ใช่ซ่อนบรรทัดหรือแสดงศูนย์ */
+              text: 'อัตราสำเร็จยังสรุปไม่ได้',
+              tail: `ต้องมีอย่างน้อย ${COMPLETION_RATE_MIN_SAMPLE} ${data.unitLabel}ที่ปิดจบ`,
+              state: 'unknown' as const,
+            },
+          ]
+        : []),
+    ...(chat
+      ? [
+          {
+            text: `ตอบกลับ ${chat.ratePercent}%${chat.timeLabel ? ` ใน ${chat.timeLabel}` : ''}`,
+            tail: null,
+            /* โทนกลาง ไม่ใช่เขียว — ดูเหตุผลหัวไฟล์ */
+            state: 'info' as const,
+          },
+        ]
+      : []),
+  ]
+
+  return (
+    /* 🛑 `mbs-7` ไม่ใช่ของประดับ — บล็อกตัวตนด้านบนจบที่ป้ายใต้แถวตัวเลขพอดี ไม่มี padding ล่าง
+       ถ้าไม่มีระยะตรงนี้ เส้นขอบบนของแผงจะมาชิดป้าย "ออเดอร์/ลูกค้า" จนอ่านเป็นเส้นขีดฆ่า
+
+       ── ทิศทาง B+C (user เลือก 2026-08-13) ──────────────────────────────
+       🛑 **นี่คือบล็อกเดียวในหน้าที่มีพื้นสี** — ที่เหลือขาวล้วนตามทิศทาง B
+       สองทิศทางที่ user เลือกขัดกันตรงจุดนี้พอดี (B ห้ามมีพื้นสีเลย · C ให้ย้อมสีระดับ)
+       ตัดสินตาม C เฉพาะบล็อกนี้ เพราะเป็นที่เดียวที่สีทำงาน *สื่อความหมาย* จริง (ระดับของร้าน)
+       ผลข้างเคียงที่ตั้งใจ: พอทั้งหน้าไม่มีสีอื่น บล็อกนี้จึงเป็นจุดที่ตาไปหยุดเองโดยไม่ต้องใช้
+       ตัวหนา/ขนาดมาแย่งความสนใจจากชื่อร้าน — ตรงกับหน้าที่ของหน้านี้พอดี
+       🛑 ถ้าวันหนึ่งมีคนเติมพื้นสีให้บล็อกอื่น กลไกทั้งหมดนี้หายไปทันทีโดยไม่มีอะไรฟ้อง */
+    <div
+      className='mbs-7 pli-5 plb-6'
+      style={{
+        background: `linear-gradient(180deg, ${data.tierAccent}17, ${data.tierAccent}08)`,
+        borderBlock: `1px solid ${data.tierAccent}38`,
+      }}
+    >
+      {/* 15px/600 ไม่ใช่ 18px/bold — มันคือ **ป้ายกำกับของบล็อก** ไม่ใช่หัวเรื่องที่ต้องแข่งกับชื่อร้าน
+
+          🛑 **สีหัวข้อห้ามเป็น `tierAccent`** ถึงแม้ทิศทาง C จะสวยกว่าก็ตาม — วัดจริงแล้ว
+          accent บนพื้นย้อมของตัวเอง **ตกเกณฑ์ 4.5:1 ทั้ง 6 ระดับ**:
+            Star 3.82 · Diamond 2.16 · Gold **1.92** · Silver 3.95 · Classic C 3.87 · Classic D 2.61
+          Gold ที่ 1.92 คือแทบมองไม่เห็น และผมเขียนมันขึ้นมาแล้วดูสกรีนช็อตว่า "สวยดี" ก่อนจะวัด
+          (ตัวหนังสือสีอ่อนบนพื้นสีเดียวกันจาง ๆ หลอกตาได้เสมอ — ต้องวัด ไม่ใช่มอง)
+          ทางแก้ที่ *ไม่* เลือก: ทำ accent เวอร์ชันเข้มขึ้นเอง ⇒ จะกลายเป็นนิยามที่สองของสีระดับ
+          ในระบบ (HR16) และขัด `contrast-fix-keeps-hue.md` ที่ห้ามคิดเฉดใหม่นอก SSOT
+          ทางแก้ที่เลือก: หัวข้อใช้หมึกกลาง — **พื้นย้อมแบกความเป็นระดับไว้ทั้งบล็อกอยู่แล้ว**
+          หัวข้อไม่ต้องย้ำอีกครั้งด้วยสีที่อ่านไม่ออก */}
+      <Typography component='h2' className='text-[15px] font-semibold mbe-3.5' color='text.secondary'>
+        ทำไมร้านนี้ถึงเชื่อได้
+      </Typography>
+
+      <ul className='flex flex-col gap-3.5 m-0 p-0 list-none'>
+        {lines.map((l) => (
+          <EvidenceLine key={l.text} {...l} />
+        ))}
+      </ul>
+
+      {/* เหรียญอยู่ **ในแผงเดียวกับหลักฐานอื่น** ไม่ใช่บล็อกแยก — มันคือหลักฐานชนิดหนึ่ง
+          (ระบบมอบให้เองจากพฤติกรรมจริง ร้านขอเองไม่ได้) การแยกออกไปทำให้อ่านเป็นของประดับ
+          ซึ่ง DESIGN.md ห้ามไว้ตรงตัว */}
+      {data.badges.length > 0 && (
+        <div className='mbs-5 pbs-5' style={{ borderBlockStart: `1px solid ${data.tierAccent}38` }}>
+          <BadgeShowcase badges={data.badges} total={data.totalBadgeCount} shopName={data.shopName} />
+        </div>
+      )}
+    </div>
+  )
+}
