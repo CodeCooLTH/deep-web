@@ -200,7 +200,12 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
         </p>
         {/* endpoint นี้ตอบ 302 redirect ไป Facebook OAuth ตรง ๆ — ต้องเป็น <a> ธรรมดา
             ห้าม fetch/onClick (จุดที่พลาดง่าย #1 ของ T6) */}
-        <div className="flex shrink-0 items-center gap-2">
+        {/* 🛑 ต้อง stack แนวตั้งที่ <640px (feature 00047 — พบโดย safepay-ux audit)
+            งบพื้นที่ที่ 320px: card-body padding 20px×2 เหลือ 280px แต่ปุ่ม 2 ตัวเมื่อแปลเป็น
+            อังกฤษ ("Sync notifications" + "Connect Facebook Page") รวมกัน ~390px ⇒ ดันกล่อง
+            จนทั้งหน้าเลื่อนแนวนอนได้ ภาษาไทยพอดีมาตลอดจึงไม่มีใครเห็น
+            ยกท่าเดียวกับแถวแม่ (บรรทัดเหนือขึ้นไป) ที่ทำ flex-col sm:flex-row อยู่แล้ว */}
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
           {/* ซิงก์การแจ้งเตือน — Meta ล็อกชุด event ที่ส่งมาให้เราไว้ตั้งแต่ตอนกดเชื่อมเพจครั้งแรก
               เพจที่เชื่อมไว้นานแล้วจึงไม่ได้รับ event ที่เพิ่มมาทีหลัง (เช่น "ลูกค้าอ่านข้อความแล้ว")
               ปุ่มนี้สั่ง subscribe ใหม่ด้วยชุดล่าสุด — ปลอดภัย กดซ้ำได้ ไม่กระทบข้อความเดิม */}
@@ -267,7 +272,11 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
                     </span>
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-default-800 truncate">{channel.name}</p>
+                    {/* title= จำเป็นเพราะชื่อถูกตัด และหางของชื่อคือที่ที่เพจของร้านเดียวกันต่างกัน
+                        (พบโดย safepay-ux audit 2026-08-13) */}
+                    <p className="text-sm font-medium text-default-800 truncate" title={channel.name}>
+                      {channel.name}
+                    </p>
                     <p className="text-xs text-default-400">{config.label}</p>
                     {isActive && (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-success bg-success/15 px-2 py-0.5 rounded mt-1">

@@ -359,3 +359,24 @@ html[data-theme="dark"] .chat-header-logo {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* เมนูซ้ายต้องตัดชื่อที่ยาวเกิน ไม่ใช่ดันจนเกิดแถบเลื่อนแนวนอน (feature 00047)
+   พบโดย safepay-ux audit ตอนเตรียมแปล UI เป็นอังกฤษ
+
+   ต้นเหตุ: `_sidenav.css` ประกาศ `.menu-text { white-space: nowrap }` เฉย ๆ โดย "ไม่มี"
+   overflow/text-overflow/min-width ⇒ ข้อความที่ยาวกว่าความกว้างเมนู (245px คงที่) จะดันกล่อง
+   ออกไป แล้ว SimpleBar ที่ครอบเมนูเปิด overflow ทั้งสองแกน ⇒ ได้แถบเลื่อน "แนวนอน" ในเมนูแนวตั้ง
+   ผู้ใช้ต้องลากข้างเพื่ออ่านชื่อเมนู
+
+   ทำไมเพิ่งโผล่: ชื่อเมนูภาษาไทยสั้นกว่าความกว้าง 245px ทุกตัวพอดี บั๊กจึงหลับมาตลอด —
+   เป็นคลาสเดียวกับที่บันทึกไว้ใน docs/conventions/flex-header-truncation.md ว่าฟีเจอร์ที่ทำให้
+   ค่าที่แสดงยาวขึ้น "ปลุกบั๊กที่หลับอยู่" ไม่ได้สร้างบั๊กใหม่
+
+   🛑 override ที่นี่ ไม่ใช่แก้ `_sidenav.css` ตรง ๆ เพราะนั่นเป็นไฟล์ theme (HR1/HR7)
+   และมีผลกับ (paces)/admin ด้วย ไม่ใช่เฉพาะ seller — root cause เดียวกัน แก้ที่เดียวจบ */
+.side-nav .menu-link > .menu-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

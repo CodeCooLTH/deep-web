@@ -351,7 +351,11 @@ export function LineChannelCard({ initialChannels }: LineChannelCardProps) {
                         </span>
                       </span>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-default-800 truncate">{channel.name}</p>
+                        {/* title= จำเป็นเพราะชื่อถูกตัด และหางของชื่อคือที่ที่ OA ของร้านเดียวกันต่างกัน
+                            (พบโดย safepay-ux audit 2026-08-13) */}
+                        <p className="text-sm font-medium text-default-800 truncate" title={channel.name}>
+                          {channel.name}
+                        </p>
                         {channel.basicId && <p className="text-xs text-default-400 truncate">{channel.basicId}</p>}
                         {/* (ส่วนขยาย 2026-08-12) ป้ายสถานะ — แสดง **ตัวร้ายแรงสุดตัวเดียว**
                             ไม่ใช่รายการ 6 บรรทัด (AC-CH-23) และ **เขียวได้เฉพาะ HEALTHY เท่านั้น**

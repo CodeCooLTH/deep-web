@@ -276,7 +276,12 @@ export function SelectPagesClient() {
                 )}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-default-800 truncate">{page.name}</p>
+                {/* title= จำเป็นเพราะชื่อถูกตัด และ "หางของชื่อคือที่ที่มันต่างกัน" — ร้านที่มีหลายเพจ
+                    แบรนด์เดียวกัน ("ร้าน A - สาขาสยาม" / "ร้าน A - สาขาลาดพร้าว") จะแยกไม่ออกเลย
+                    ถ้าไม่มีทางอ่านชื่อเต็ม (พบโดย safepay-ux audit 2026-08-13) */}
+                <p className="text-sm font-medium text-default-800 truncate" title={page.name}>
+                  {page.name}
+                </p>
                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
                   {page.state === 'connected-here' && (
                     <span className="inline-flex items-center gap-1 text-xs font-medium text-success bg-success/15 px-2 py-0.5 rounded">
@@ -309,19 +314,27 @@ export function SelectPagesClient() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-default-200 bg-card px-4 py-3"
         style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
       >
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
+        {/* 🛑 ต้อง stack แนวตั้งที่ <640px (feature 00047 — พบโดย safepay-ux audit)
+            งบพื้นที่ที่ 320px: px-4 สองข้าง เหลือ 288px แต่ "Cancel" (~72px) +
+            "Connect selected pages" (~215px) + gap = ~295px เกินแล้วก่อนนับป้าย "n selected" ด้วยซ้ำ
+
+            ร้ายกว่าจุดอื่นเพราะแถบนี้เป็น `position:fixed` ⇒ ส่วนที่ล้นออกไป "เลื่อนตามไปกดไม่ได้"
+            ต่างจาก overflow ปกติที่ยังไล่ตามเจอทีหลัง — และนี่คือปุ่มยืนยันปุ่มเดียวของทั้งหน้า
+            (ถ้าล้น = เชื่อมเพจไม่ได้เลย ซึ่งเป็นขั้นตอนที่ Meta reviewer ต้องกดในคลิปพอดี)
+            ท่านี้ยกมาจากแถวอื่นในไฟล์เดียวกันที่ทำ flex-col sm:flex-row อยู่แล้ว */}
+        <div className="mx-auto flex max-w-3xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <span className="text-sm text-default-500">
             เลือกแล้ว <span className="font-semibold text-default-800">{selected.size}</span> เพจ
           </span>
           <div className="flex items-center gap-2">
-            <a href="/settings/channels" className="btn bg-light text-default-700 hover:bg-light-hover">
+            <a href="/settings/channels" className="btn bg-light text-default-700 hover:bg-light-hover shrink-0">
               ยกเลิก
             </a>
             <button
               type="button"
               onClick={handleConfirm}
               disabled={submitting || selected.size === 0}
-              className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2 disabled:opacity-60"
+              className="btn bg-primary text-white hover:bg-primary-hover inline-flex grow items-center justify-center gap-2 disabled:opacity-60 sm:grow-0"
             >
               {submitting ? (
                 <>
