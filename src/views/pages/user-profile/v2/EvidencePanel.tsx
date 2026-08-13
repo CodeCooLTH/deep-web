@@ -121,10 +121,19 @@ export default function EvidencePanel({ data }: { data: EvidencePanelData }) {
       ? [
           {
             text: `อัตราสำเร็จ ${data.completionRate}%`,
+            /* 🛑 ต้องบอกว่า "ปิดจบ" รวมใบที่ยกเลิกด้วย — ไม่งั้นตัวหารนี้จะขัดกับช่อง "ออเดอร์"
+               ในแถวตัวเลขที่อยู่เหนือขึ้นไปไม่ถึง 100px (เคสจริง: 38 กับ 40) โดยไม่มีอะไรอธิบาย
+               สองเลขนี้ใช้ **ฐานคนละชุดโดยตั้งใจ** (`shop.service.ts` เขียนกำกับไว้เอง):
+                 ช่อง "ออเดอร์" = ออเดอร์ที่นับได้ตาม BR-POC-01/03 (ผู้ซื้อยืนยันเอง *หรือ*
+                   ขนส่งขยับพัสดุจริงแล้ว)
+                 ตัวหารนี้ = สำเร็จ + ยกเลิก − ใบที่หักออก
+               คนที่กำลังจะโอนเงินคือคนที่บวกเลขตาม แล้วเจอ 2 ใบที่หายไปโดยไม่มีคำอธิบาย —
+               ความไม่ตรงเล็ก ๆ บนหน้าที่ทั้งหน้าขอให้เชื่อตัวเลข มีน้ำหนักมากกว่าปกติ (HR16)
+               วงเล็บนี้ไม่ต้องใช้ข้อมูลใหม่เลย เป็นความจริงตามนิยามของสูตรอยู่แล้ว */
             tail:
               data.completionExcluded > 0
-                ? `จาก ${data.completionDenominator} ${data.unitLabel}ที่ปิดจบ · ไม่นับ ${data.completionExcluded} ${data.unitLabel}ที่ผู้ซื้อไม่รับของ`
-                : `จาก ${data.completionDenominator} ${data.unitLabel}ที่ปิดจบ`,
+                ? `จาก ${data.completionDenominator} ${data.unitLabel}ที่ปิดจบ (นับทั้งที่สำเร็จและถูกยกเลิก) · ไม่นับ ${data.completionExcluded} ${data.unitLabel}ที่ผู้ซื้อไม่รับของ`
+                : `จาก ${data.completionDenominator} ${data.unitLabel}ที่ปิดจบ (นับทั้งที่สำเร็จและถูกยกเลิก)`,
             state: 'yes' as const,
           },
         ]

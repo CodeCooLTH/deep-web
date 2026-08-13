@@ -154,11 +154,14 @@ function VideoCell({ item, onOpen }: { item: ShopVideoItem; onOpen: () => void }
         </span>
       </span>
 
-      {/* ชื่อบัญชี + ยอด — ซ่อนช่องที่ไม่มีค่า ไม่แสดงศูนย์ */}
+      {/* ยอด — ซ่อนช่องที่ไม่มีค่า ไม่แสดงศูนย์
+          🛑 **ไม่แสดงชื่อบัญชีบนไทล์** (critique 2026-08-13) — บนโปรไฟล์สาธารณะ คลิปทุกใบเป็น
+          ของร้านเจ้าของหน้าอยู่แล้ว บรรทัดนี้จึงขึ้น `@ชื่อร้าน` ซ้ำกันครบทุกใบ **และถูกตัดทุกใบ**
+          (ไทล์กว้าง ~127px ที่ 390px) = ใช้บรรทัดเดียวที่มีไปกับข้อมูลที่ผู้ชมรู้อยู่แล้ว
+          ขณะที่สิ่งที่เขาอยากรู้ ("คลิปนี้เกี่ยวกับอะไร") ไม่มีที่อยู่
+          🛑 ห้ามเอากลับมาโดยไม่ตอบก่อนว่า *ไทล์ใบไหนมีชื่อไม่ตรงกับเจ้าของหน้า* — ถ้าวันหนึ่ง
+          หน้านี้รวมคลิปจากหลายบัญชี ค่อยกลับมาแสดง และตอนนั้นต้องแสดง **เฉพาะใบที่ต่าง** */}
       <span className='absolute bottom-0 inline-start-0 inline-end-0 p-2 text-white text-start'>
-        {item.accountName && (
-          <span className='block text-[11px] font-semibold truncate'>{`@${item.accountName}`}</span>
-        )}
         <span className='flex items-center gap-2.5 text-[11px] mbs-0.5'>
           {item.viewCount != null && (
             <span className='flex items-center gap-1'>

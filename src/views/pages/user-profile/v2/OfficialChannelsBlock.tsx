@@ -82,9 +82,23 @@ const BRAND_ICON: Record<string, string> = {
   LINE: 'lucide:message-circle',
 }
 
-/** รูปเพจ + เช็คเขียว — ใช้ทั้งแถวสรุป (เล็ก) และหน้าเต็ม (ใหญ่) */
+/**
+ * รูปเพจ + **badge แพลตฟอร์มมุมขวาล่าง** — ใช้ทั้งแถวสรุป (เล็ก) และหน้าเต็ม (ใหญ่)
+ *
+ * 🛑 มุมนี้เคยเป็นเช็คเขียว แล้วบล็อกนี้ **ทำงานไม่ได้เลยตอนรูปเพจโหลดสำเร็จ** (user ส่งภาพ
+ * หน้าจอจริงมา 2026-08-13): ร้านที่มีเพจ Facebook กับ Instagram ชื่อเดียวกัน — ซึ่งเป็นกรณี
+ * *ปกติที่สุด* ของร้านที่ทำการตลาดจริงจัง — จะได้สองแถวที่ **รูปเหมือนกัน ชื่อเหมือนกัน
+ * เช็คเขียวเหมือนกัน** ต่างกันแค่ตัวหนังสือบรรทัดล่าง ทั้งที่ทั้งบล็อกมีไว้ให้ผู้ซื้อเทียบว่า
+ * "เพจที่ฉันเห็นในฟีดคือใบไหน" ⇒ ข้อมูลที่ *ขาด* คือแพลตฟอร์ม ไม่ใช่สถานะยืนยัน
+ *
+ * ส่วนเช็คเขียวไม่ได้หายไปไหน — หัวบล็อกมี `✓ เพจทางการ` กำกับทั้งรายการอยู่แล้ว การย้ำที่ทุก
+ * แถวจึงเป็นการใช้พื้นที่ที่มีค่าที่สุด (มุมของรูป) ไปกับข้อมูลที่ซ้ำ
+ *
+ * Base: `OrderSourceLogo.tsx` ฝั่งผู้ขาย (รูปเพจ + badge แพลตฟอร์มห้อยมุม + ring คั่นให้อ่าน
+ * เป็นคนละชั้น) — แพตเทิร์นเดียวกับ avatar+channel badge ในกล่องแชท (sibling-surface-parity)
+ */
 function ChannelMark({ c, size }: { c: OfficialChannel; size: number }) {
-  const tick = Math.max(12, Math.round(size * 0.42))
+  const badge = Math.max(14, Math.round(size * 0.42))
 
   return (
     <span className='shrink-0 relative' style={{ inlineSize: size, blockSize: size }}>
@@ -102,14 +116,14 @@ function ChannelMark({ c, size }: { c: OfficialChannel; size: number }) {
       >
         <Icon icon={BRAND_ICON[c.provider] ?? 'lucide:link'} width={Math.round(size * 0.5)} />
       </CustomAvatar>
-      {/* เช็คเขียวถูกกฎ Verified-Means-Green: ความเป็นเจ้าของพิสูจน์ผ่าน OAuth ปลอมไม่ได้
-          (ต่างจากระดับยืนยันตัวตน L1 ที่เป็นแค่ OTP จึงไม่ได้เขียว) */}
+      {/* สีแบรนด์ของแพลตฟอร์มเป็น carve-out ของ HR6 (asset ของเจ้าของแพลตฟอร์ม ไม่ใช่สีเรา)
+          ring สีพื้นการ์ดคั่นไว้ ไม่งั้น badge จะจมไปกับรูปเพจที่สีใกล้กัน */}
       <span
-        className='absolute -bottom-0.5 -inline-end-0.5 rounded-full bg-success text-white flex items-center justify-center border-2 border-[var(--mui-palette-background-paper)]'
-        style={{ inlineSize: tick, blockSize: tick }}
+        className='absolute -bottom-0.5 -inline-end-0.5 rounded-full text-white flex items-center justify-center border-2 border-[var(--mui-palette-background-paper)]'
+        style={{ inlineSize: badge, blockSize: badge, background: BRAND_BG[c.provider] ?? '#6b7280' }}
         aria-hidden
       >
-        <Icon icon='lucide:check' width={Math.round(tick * 0.55)} />
+        <Icon icon={BRAND_ICON[c.provider] ?? 'lucide:link'} width={Math.round(badge * 0.6)} />
       </span>
     </span>
   )
@@ -178,7 +192,9 @@ export default function OfficialChannelsBlock({
 
             const inner = (
               <>
-                <ChannelMark c={c} size={20} />
+                {/* 28px ไม่ใช่ 20 — badge แพลตฟอร์มบนรูป 20px จะเหลือ ~9px ซึ่งอ่านไม่ออก
+                    และแถวนี้สูง ~40px อยู่แล้วเพราะชื่อเพจยาวได้ 2 บรรทัด จึงไม่ได้กินที่เพิ่ม */}
+                <ChannelMark c={c} size={28} />
                 <span className='flex flex-col leading-tight min-is-0'>
                   {/* 🛑 2 บรรทัดแทน truncate บรรทัดเดียว (critique 2026-08-13 P0)
                       ชื่อเพจจริงยาว 34 ตัวอักษร และ **หางของชื่อคือที่ที่เพจของร้านเดียวกันต่างกัน**
@@ -212,7 +228,11 @@ export default function OfficialChannelsBlock({
               </>
             )
 
-            const cls = 'flex items-center gap-2 min-bs-[44px] no-underline text-[color:inherit] min-is-0'
+            /* 🛑 `items-start` ไม่ใช่ `items-center` — ชื่อเพจยาวได้ 2 บรรทัด (ชื่อจริงยาวถึง 34
+               ตัวอักษร) พอจัดกึ่งกลาง รูปจะลอยอยู่ระหว่างบรรทัด แถวสองแถวที่ชื่อยาวไม่เท่ากันจะ
+               ไม่มีเส้นฐานร่วมกันเลย · `pbs-0.5` ดันรูปให้เสมอบรรทัดแรกของชื่อพอดี */
+            const cls =
+              'flex items-start gap-2 pbs-0.5 min-bs-[44px] no-underline text-[color:inherit] min-is-0'
 
             return href ? (
               <a

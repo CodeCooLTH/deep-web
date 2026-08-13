@@ -137,10 +137,32 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
       setBioOverflows(isClampOverflowing(el.scrollHeight, el.clientHeight))
     }
     update()
+
+    /* 🛑 **ResizeObserver อย่างเดียวไม่พอ และนี่คือเหตุผลที่ปุ่มไม่เคยโผล่เลย** (critique 2026-08-13)
+       กล่องที่โดน `-webkit-line-clamp` มีความสูง **คงที่ 2 บรรทัดเสมอ** ไม่ว่าข้อความจะยาวแค่ไหน
+       ⇒ ตอนฟอนต์ Anuphan โหลดเสร็จแล้วข้อความ reflow จาก 2 เป็น 3 บรรทัด **ขนาดกล่องไม่เปลี่ยน**
+       RO จึงไม่ยิงสักครั้ง ค่าที่วัดไว้ตอนยังเป็นฟอนต์สำรอง (ซึ่ง "ไม่ล้น") ค้างอยู่ตลอดอายุหน้า
+       สิ่งที่เปลี่ยนคือ `scrollHeight` ซึ่งไม่มี observer ตัวไหนในเบราว์เซอร์คอยดูให้
+       วัดจริงบนหน้า: scrollHeight 79 · clientHeight 53 = ล้นชัดเจน แต่ปุ่มไม่เคยขึ้น
+       ⇒ ต้องวัดซ้ำหลัง `document.fonts.ready` เสมอ (guard `cancelled` กัน setState หลัง unmount) */
+    let cancelled = false
+
+    document.fonts?.ready.then(() => {
+      if (!cancelled) update()
+    })
+
     const ro = new ResizeObserver(update)
+
     ro.observe(el)
-    return () => ro.disconnect()
-  }, [bioExpanded, data.bio])
+
+    return () => {
+      cancelled = true
+      ro.disconnect()
+    }
+    /* `bioOverflows` อยู่ใน deps เพราะตอนมันกลายเป็น true อิลิเมนต์เปลี่ยนแท็กจาก `<p>` เป็น
+       `<button>` ⇒ โหนดเดิมถูก unmount และ RO ตัวเก่าจะเฝ้าโหนดที่หลุดจาก DOM ไปแล้ว
+       ไม่มีลูป เพราะ `update()` เซ็ตค่าเดิม React จึงไม่ re-render ซ้ำ */
+  }, [bioExpanded, bioOverflows, data.bio])
 
   const share = async () => {
     const url = typeof window !== 'undefined' ? window.location.href : ''
@@ -288,11 +310,17 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
               {data.trustScore}
               <span className='text-[11px] font-bold opacity-65'>{`/${TRUST_SCORE_MAX}`}</span>
             </span>
+            {/* 🛑 ลูกศรท้ายพิลคือสัญญาณเดียวว่า "กดได้" — บนมือถือไม่มี cursor ไม่มี hover
+                และ ⓘ ถูกถอดไปตามคำสั่ง user (2026-08-11) ⇒ ก่อนหน้านี้พิลนี้ไม่มีสัญญาณเลย
+                ทั้งที่มันเป็น **ทางเข้าเดียว** ของแผงที่อธิบายว่า 41/100 แปลว่าอะไร
+                (จอนี้ไม่มีเช็คเขียวหลังชื่อร้านเป็นทางเข้าที่สองแบบของเดิม เพราะ L1 ห้ามเป็นเขียว)
+                วางท้ายพิลไม่ใช่หน้าตัวเลข จึงไม่แย่งพื้นที่จากสิ่งที่คนมาอ่าน */}
             <span
-              className='inline-flex items-center plb-1 pli-2.5 text-[13px] font-bold leading-none'
+              className='inline-flex items-center gap-0.5 plb-1 pis-2.5 pie-1.5 text-[13px] font-bold leading-none'
               style={{ background: tierTone.bg, color: tierTone.text }}
             >
               {data.tierLabel}
+              <Icon icon='tabler:chevron-right' width={13} aria-hidden />
             </span>
           </button>
           {/* 🛑 ไม่มีชิปคะแนนรีวิวตรงนี้ (user ถอดออก 2026-08-13) — เลขเดียวกันโผล่ 3 ที่ในจอเดียว
@@ -317,8 +345,15 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
             onClick={bioOverflows ? () => setBioExpanded((v) => !v) : undefined}
             aria-expanded={bioOverflows ? bioExpanded : undefined}
             className={`m-0 mbs-3 border-0 bg-transparent p-0 font-[inherit] text-start ${
+              /* 🛑 **ห้ามมี `block` ตรงนี้** — utility ของ Tailwind ชนะ `display` ที่ `sx` ตั้งไว้
+                 พอกลายเป็น `display:block` แล้ว `-webkit-line-clamp` **ไม่ทำงานเลย** (มันต้องการ
+                 `-webkit-box` เท่านั้น) ⇒ ข้อความกางเต็มทั้ง 3 บรรทัด แต่ป้าย "เพิ่มเติม" ยังโผล่
+                 กลายเป็นคำเชิญให้กดสิ่งที่กางอยู่แล้ว (วัดได้: display=block · clientH=scrollH=79)
+                 อาการนี้เกิดเฉพาะตอนแท็กเปลี่ยนเป็น `<button>` เท่านั้น เพราะคลาสชุดนี้ผูกกับกิ่งนั้น
+                 — ตอนเป็น `<p>` ไม่มี `block` จึง clamp ถูกมาตลอด ทำให้บั๊กซ่อนอยู่หลังบั๊กแรก
+                 `is-full` ยังต้องมี (ปุ่มไม่ยืดเต็มความกว้างเอง พื้นที่กดจะเหลือเท่าข้อความ) */
               bioOverflows
-                ? 'cursor-pointer relative block is-full rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
+                ? 'cursor-pointer relative is-full rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
                 : ''
             }`}
             sx={{
@@ -373,7 +408,18 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
               >
                 {s.value != null ? compactCount(s.value) : '—'}
               </span>
-              <Typography variant='caption' color='text.secondary' className='block mbs-0.5'>
+              {/* 🛑 บังคับสีผ่าน `sx` ไม่ใช่ prop `color` — `variant='caption'` ของธีมชนะ prop
+                  แล้วป้ายออกมาเป็น `text.disabled` (0.4) = **2.29:1** ซึ่งตกเกณฑ์ 4.5:1 เกินครึ่ง
+                  (วัดจากหน้าจริง critique 2026-08-13 · `text.secondary` 0.7 ให้ 5.24:1)
+                  ป้ายพวกนี้คือสิ่งเดียวที่ทำให้ตัวเลข 32px มีความหมาย ถ้าอ่านไม่ออกก็เหลือเลขลอย ๆ
+                  และ PRODUCT.md ระบุกลุ่มผู้ใช้เป็นผู้สูงวัย/digital-literacy ต่ำไว้ตรงตัว
+                  🛑 `color='text.secondary'` ที่ประกาศไว้ **ไม่มีผลจริง** — คลาสเดียวกับ `color`
+                  บน `<h1>` ที่ออกมาเป็น 0.7 ทั้งที่สั่ง `text.primary` (ประกาศ ≠ ผลลัพธ์) */}
+              <Typography
+                variant='caption'
+                className='block mbs-0.5'
+                sx={{ color: 'var(--mui-palette-text-secondary)' }}
+              >
                 {s.label}
               </Typography>
             </div>
