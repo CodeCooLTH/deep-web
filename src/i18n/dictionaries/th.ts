@@ -101,6 +101,9 @@ export const th = {
     settings: 'การจัดส่ง',
     settingsChannels: 'ช่องทางการขาย',
     settingsJobTypes: 'ประเภทงาน',
+    /** ป้ายบน badge ของเมนู — คนละฟิลด์กับ label จึงไม่ถูกแปลไปพร้อมชื่อเมนู (user เจอบน prod) */
+    badgeLocked: 'ถูกล็อก',
+    badgeChoosePlan: 'เลือกแพ็กเกจ',
   },
 
   /**

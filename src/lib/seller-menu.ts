@@ -15,6 +15,19 @@ import type { ExpenseAccessDecision } from '@/services/expense-access.service'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 
 /**
+ * ข้อความบน badge ของเมนู (feature 00047)
+ *
+ * ยกเป็นค่าคงที่เพื่อให้ `applyMenuLocale` เทียบกับ "symbol เดียวกัน" ไม่ใช่เทียบสตริงลอย ๆ
+ * ที่พิมพ์ซ้ำไว้คนละที่ — ถ้าใครแก้คำไทยตรงนี้ ตัวแปลจะยังจับคู่ได้ถูกโดยอัตโนมัติ
+ *
+ * 🛑 badge ไม่ได้อยู่ในฟิลด์ `label` จึงไม่ถูกแปลไปพร้อมกับชื่อเมนู — ผู้ใช้รายงานเองบน prod
+ * 2026-08-13 ว่าเมนูเป็นอังกฤษหมดแล้วแต่ยังเห็นป้าย "เลือกแพ็กเกจ" เป็นไทยอยู่
+ * ('Pro' และตัวเลขข้อความยังไม่อ่านไม่ต้องแปล — อ่านออกทั้งสองภาษาอยู่แล้ว)
+ */
+export const MENU_BADGE_LOCKED = 'ถูกล็อก'
+export const MENU_BADGE_CHOOSE_PLAN = 'เลือกแพ็กเกจ'
+
+/**
  * โครงกลุ่ม 5 กลุ่ม (user เคาะ 2026-08-04 — spec `docs/superpowers/specs/2026-08-04-seller-menu-ia-design.md`)
  *
  * เดิมมี 8 กลุ่มที่โตตามลำดับที่ feature ถูกสร้าง ไม่ใช่ตามวิธีที่ผู้ขายคิด — กลุ่ม STORE
@@ -220,8 +233,8 @@ export function applyInventoryGate(
   }
 
   const badge = entitlement.status === 'LOCKED'
-    ? { className: 'bg-danger', text: 'ถูกล็อก' }
-    : { className: 'bg-primary', text: 'เลือกแพ็กเกจ' } // NOT_SUBSCRIBED
+    ? { className: 'bg-danger', text: MENU_BADGE_LOCKED }
+    : { className: 'bg-primary', text: MENU_BADGE_CHOOSE_PLAN } // NOT_SUBSCRIBED
 
   return items.map((group) => !group.children ? group : {
     ...group,
@@ -782,9 +795,30 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:settings-job-types': m.settingsJobTypes,
   }
 
+  /**
+   * badge อยู่คนละฟิลด์กับ label จึงต้องแปลแยก — ผู้ใช้เจอบน prod 2026-08-13 ว่าเมนูเป็น
+   * อังกฤษหมดแล้วแต่ยังเห็นป้าย "เลือกแพ็กเกจ" เป็นไทยติดอยู่ข้างเมนู Stock
+   *
+   * เทียบกับค่าคงที่ที่ export จากไฟล์นี้เอง ไม่ใช่สตริงที่พิมพ์ซ้ำ — ถ้าใครแก้คำไทยที่ต้นทาง
+   * ตัวแปลจะยังจับคู่ได้ถูกโดยไม่ต้องแก้สองที่
+   *
+   * badge อื่น ('Pro' และตัวเลขข้อความยังไม่อ่าน) อ่านออกทั้งสองภาษาอยู่แล้ว ไม่ต้องแตะ
+   */
+  const BADGE_TEXT: Record<string, string> = {
+    [MENU_BADGE_LOCKED]: m.badgeLocked,
+    [MENU_BADGE_CHOOSE_PLAN]: m.badgeChoosePlan,
+  }
+
   const translate = (item: MenuItemType): MenuItemType => {
     const label = item.slug ? BY_SLUG[item.slug] : undefined
-    const next = label ? { ...item, label } : item
+    let next = label ? { ...item, label } : item
+
+    // เช็ค badge ทั้งก้อนก่อน ไม่ใช่แค่ .text — TypeScript ต้องรู้ว่า className มีจริง
+    // (badge เป็น { className: string; text: string } ไม่ใช่ optional field)
+    const badge = next.badge
+    const translatedText = badge?.text ? BADGE_TEXT[badge.text] : undefined
+    if (badge && translatedText) next = { ...next, badge: { ...badge, text: translatedText } }
+
     return next.children?.length ? { ...next, children: next.children.map(translate) } : next
   }
 

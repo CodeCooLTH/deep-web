@@ -110,6 +110,21 @@ describe('applyMenuLocale — ทุกเมนูต้องมีคำแ�
     }
   })
 
+  it('[blocker] badge บนเมนูต้องถูกแปลด้วย ไม่ใช่แค่ label', async () => {
+    // ผู้ใช้เจอบน prod 2026-08-13: เมนูเป็นอังกฤษหมดแล้วแต่ยังเห็น "เลือกแพ็กเกจ" ติดอยู่
+    // เพราะ badge อยู่คนละฟิลด์กับ label — เทสเดิมสแกนแค่ label จึงมองไม่เห็น
+    const { applyMenuLocale, applyInventoryGate, sellerMenuItems, flattenSellerMenu } = await import('@/lib/seller-menu')
+
+    for (const status of ['LOCKED', 'NOT_SUBSCRIBED'] as const) {
+      const gated = applyInventoryGate(sellerMenuItems, { status, package: null } as never)
+      const translated = flattenSellerMenu(applyMenuLocale(gated, en, 'ONLINE_SALES'))
+      const thaiBadges = translated
+        .filter((item) => item.badge?.text && THAI_CHAR.test(item.badge.text))
+        .map((item) => `${status}: ${item.slug} badge="${item.badge?.text}"`)
+      expect(thaiBadges).toEqual([])
+    }
+  })
+
   it('[blocker] ป้ายเมนู /orders ต้องต่างกันตามประเภทร้าน ไม่ใช่คำเดียวรวบ (BR-I18N-09)', async () => {
     const { applyMenuLocale, sellerMenuItems, flattenSellerMenu } = await import('@/lib/seller-menu')
 

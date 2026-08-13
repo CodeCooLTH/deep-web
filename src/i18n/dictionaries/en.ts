@@ -82,6 +82,8 @@ export const en: Dictionary = {
     settings: 'Shipping',
     settingsChannels: 'Sales channels',
     settingsJobTypes: 'Service types',
+    badgeLocked: 'Locked',
+    badgeChoosePlan: 'Choose a plan',
   },
 
   channels: {
