@@ -2003,7 +2003,7 @@ export default function ChatThread({
       icon: 'building-store',
       // ประโยคสมบูรณ์ในตัวเอง → ไม่มีคำนำประเภท (ดู `label` ใน ThreadContextBar)
       label: null,
-      short: `ตอบในนามร้าน ${shopName}`,
+      short: fmt(t.inbox.contextBar.shopReplyingShort, { shop: shopName }),
       detail: (
         /* feature 00037 — display-only โดยตั้งใจ (มติ Q-3): กดไม่ได้ — บนมือถือ ChatHeader ถูกซ่อน
            ในหน้าเธรดอยู่แล้ว การทำให้ดูกดได้แล้วพาไปที่ที่เข้าไม่ถึงแย่กว่าไม่ให้กด
@@ -2015,23 +2015,30 @@ export default function ChatThread({
         >
           <Icon icon="building-store" className="text-default-700 shrink-0 text-sm" />
           <span className="min-w-0 truncate">
-            กำลังตอบในนามร้าน <span className="font-semibold">{shopName}</span>
+            {t.inbox.contextBar.shopReplyingPrefix} <span className="font-semibold">{shopName}</span>
           </span>
         </div>
       ),
     })
   }
   if (commentOrigin) {
+    /**
+     * ข้อความที่จะแสดงแทนคอมเมนต์ — คำนวณครั้งเดียวแล้วใช้ทั้งบรรทัดยุบและตัวกาง
+     * (ของเดิมเขียนนิพจน์เดียวกันซ้ำ 2 ที่ ⇒ แปลจุดหนึ่งแล้วลืมอีกจุดได้โดยไม่มีอะไรฟ้อง)
+     */
+    const commentText =
+      commentOrigin.message?.trim() ||
+      (commentOrigin.attachmentUrl
+        ? t.inbox.contextBar.commentImageOnly
+        : t.inbox.contextBar.commentTextEmpty)
     contextItems.push({
       key: 'comment',
       thumbUrl: commentOrigin.postThumbnailUrl,
       icon: 'photo',
-      label: 'จากคอมเมนต์',
+      label: t.inbox.contextBar.commentLabel,
       // คำพูดของลูกค้าคือสิ่งที่ตอบ "เปิดห้องมาแล้วต้องคุยเรื่องอะไร" ได้เร็วที่สุด
       // (ชื่อโพสต์เป็นบริบทรอง อยู่ในตัวกาง)
-      short:
-        commentOrigin.message?.trim() ||
-        (commentOrigin.attachmentUrl ? 'ส่งรูปมาในคอมเมนต์' : 'คอมเมนต์ไม่มีข้อความ'),
+      short: commentText,
       detail: (
         /**
          * ที่มาของเธรด: คอมเมนต์ใต้โพสต์ — แถวเดียวติดหัวแชท ที่เดียวกับแบนเนอร์โฆษณา
@@ -2075,15 +2082,21 @@ export default function ChatThread({
               className="text-default-800 truncate text-sm font-semibold"
               title={commentOrigin.postMessage ?? undefined}
             >
-              {commentOrigin.postMessage?.trim() || 'โพสต์ไม่มีข้อความ'}
+              {commentOrigin.postMessage?.trim() || t.inbox.contextBar.commentPostEmpty}
             </p>
             <div className="flex min-w-0 items-center gap-2">
               {/* ไอคอนนำหน้าทำให้แยกออกทันทีว่าบรรทัดนี้คือ "คำพูดของลูกค้า" ไม่ใช่ส่วนต่อของ
                   ข้อความโพสต์ด้านบน — สองก้อนเป็นข้อความยาวคล้ายกันวางติดกัน (ux ทักไว้) */}
               <Icon icon="message-2" className="text-default-500 size-3.5 shrink-0" aria-hidden="true" />
-              <span className="text-default-700 truncate text-sm" title={commentOrigin.message ?? undefined}>
-                {commentOrigin.message?.trim() ||
-                  (commentOrigin.attachmentUrl ? 'ส่งรูปมาในคอมเมนต์' : 'คอมเมนต์ไม่มีข้อความ')}
+              {/* min-w-0: flex item มี min-width:auto เป็นค่าตั้งต้น ⇒ truncate อย่างเดียวไม่ทำให้
+                  span หดต่ำกว่าเนื้อหาได้ พอลิงก์ "ดูคอมเมนต์" (shrink-0) แย่งพื้นที่ไปด้วย
+                  แถวจะล้นแทนที่จะถูกตัด — ชัดขึ้นเมื่อ chrome เป็นอังกฤษซึ่งยาวกว่าไทย
+                  (docs/conventions/flex-header-truncation.md) */}
+              <span
+                className="text-default-700 min-w-0 truncate text-sm"
+                title={commentOrigin.message ?? undefined}
+              >
+                {commentText}
               </span>
               {commentOrigin.url && (
                 <a
@@ -2092,7 +2105,7 @@ export default function ChatThread({
                   rel="noopener noreferrer"
                   className="text-primary shrink-0 text-sm font-medium hover:underline"
                 >
-                  ดูคอมเมนต์
+                  {t.inbox.contextBar.viewComment}
                 </a>
               )}
             </div>
@@ -2102,14 +2115,27 @@ export default function ChatThread({
     })
   }
   if (showAdBanner && adReferral) {
+    /**
+     * ลำดับ: ข้อความโฆษณาจริง > ชื่อ ad ใน Ads Manager > รหัสโฆษณา — ใช้ทั้งบรรทัดยุบและตัวกาง
+     *
+     * กิ่งสุดท้ายกันกรณีที่ `adId` เป็น null ด้วย ซึ่ง server บอกว่าเกิดไม่ได้ (กรองมาแล้วว่าต้องมี
+     * อย่างน้อยหนึ่งใน adBody/adTitle/adId — ดู type ที่บรรทัด ~688) แต่ชนิดฝั่ง client ยังเป็น
+     * nullable ⇒ ของเดิมเขียนเป็น template literal ซึ่งจะพิมพ์คำว่า "null" ออกจอเงียบ ๆ
+     * โดย tsc ไม่ทัก (template literal รับ null ได้)
+     */
+    const adText =
+      adReferral.adBody ??
+      adReferral.adTitle ??
+      (adReferral.adId
+        ? fmt(t.inbox.contextBar.adIdFallback, { adId: adReferral.adId })
+        : t.inbox.contextBar.adBannerTitle)
     contextItems.push({
       key: 'ad',
       // mirror เข้า storage เราแล้วตอนรับ webhook — ไม่ hotlink CDN Meta ที่ URL หมดอายุ
       thumbUrl: adReferral.photoFileId ? `/api/files/${adReferral.photoFileId}` : null,
       icon: 'speakerphone',
-      label: 'จากโฆษณา',
-      // ลำดับ: ข้อความโฆษณาจริง > ชื่อ ad ใน Ads Manager > รหัสโฆษณา
-      short: adReferral.adBody ?? adReferral.adTitle ?? `รหัสโฆษณา ${adReferral.adId}`,
+      label: t.inbox.contextBar.adLabel,
+      short: adText,
       detail: (
         /* feature 00018 E5 — ที่มาจากโฆษณา: รูปโฆษณา + "ตอบกลับจากโฆษณา" + ชื่อโฆษณา (เลิกใช้ badge
            เล็กบนหัวเธรดแบบเดิม ซึ่งชื่อโฆษณายาว ๆ ถูกตัดจนอ่านไม่ออกและไม่เห็นว่าเป็นโฆษณาชิ้นไหน)
@@ -2134,14 +2160,15 @@ export default function ChatThread({
             </span>
           )}
           <div className="min-w-0 flex-1">
-            <p className="text-default-800 text-sm font-semibold">แชทนี้ตอบกลับจากโฆษณาของคุณ</p>
+            <p className="text-default-800 text-sm font-semibold">{t.inbox.contextBar.adBannerTitle}</p>
             <div className="flex min-w-0 items-center gap-2">
-              {/* adBody คือตัวที่ผู้ขายอ่านแล้วรู้ทันทีว่าโฆษณาชิ้นไหน — ad_title เป็นชื่อภายใน */}
+              {/* adBody คือตัวที่ผู้ขายอ่านแล้วรู้ทันทีว่าโฆษณาชิ้นไหน — ad_title เป็นชื่อภายใน
+                  min-w-0 ด้วยเหตุผลเดียวกับแถวคอมเมนต์ด้านบน (truncate ในกล่อง flex ต้องมาเป็นชุด) */}
               <span
-                className="text-default-700 truncate text-sm"
+                className="text-default-700 min-w-0 truncate text-sm"
                 title={adReferral.adBody ?? adReferral.adTitle ?? undefined}
               >
-                {adReferral.adBody ?? adReferral.adTitle ?? `รหัสโฆษณา ${adReferral.adId}`}
+                {adText}
               </span>
               {adReferral.permalink && (
                 <a
@@ -2150,7 +2177,7 @@ export default function ChatThread({
                   rel="noopener noreferrer"
                   className="text-primary shrink-0 text-sm font-medium hover:underline"
                 >
-                  ดูโฆษณา
+                  {t.inbox.contextBar.viewAd}
                 </a>
               )}
             </div>
@@ -2158,8 +2185,8 @@ export default function ChatThread({
           <button
             type="button"
             onClick={dismissAdBanner}
-            title="ปิดป้ายที่มาของโฆษณา"
-            aria-label="ปิดป้ายที่มาของโฆษณา"
+            title={t.inbox.contextBar.dismissAdSource}
+            aria-label={t.inbox.contextBar.dismissAdSource}
             className="btn btn-icon text-default-700 hover:bg-default-100 shrink-0"
           >
             <Icon icon="x" className="text-lg" />

@@ -20,6 +20,7 @@
 
 import { useState } from 'react'
 import { pacesConfirm } from '@/lib/paces-swal'
+import { useT } from '@/i18n/LocaleProvider'
 import { pacesToast } from '@/lib/paces-toast'
 import Icon from '@/components/wrappers/Icon'
 
@@ -29,6 +30,7 @@ interface PublishToggleClientProps {
 }
 
 export default function PublishToggleClient({ initial }: PublishToggleClientProps) {
+  const t = useT()
   const [checked, setChecked] = useState(initial)
   const [pending, setPending] = useState(false)
 
@@ -42,13 +44,15 @@ export default function PublishToggleClient({ initial }: PublishToggleClientProp
       })
       if (!res.ok) {
         setChecked(!next) // revert
-        pacesToast.error('ไม่สามารถเปลี่ยนสถานะการเผยแพร่ได้')
+        pacesToast.error(t.publicProfile.visibility.saveError)
         return
       }
-      pacesToast.success(next ? 'เผยแพร่หน้าร้านแล้ว' : 'ปิดการแสดงผลหน้าร้านแล้ว')
+      pacesToast.success(
+        next ? t.publicProfile.visibility.publishedToast : t.publicProfile.visibility.unpublishedToast,
+      )
     } catch {
       setChecked(!next) // revert — network error
-      pacesToast.error('ไม่สามารถเปลี่ยนสถานะการเผยแพร่ได้')
+      pacesToast.error(t.publicProfile.visibility.saveError)
     } finally {
       setPending(false)
     }
@@ -61,9 +65,11 @@ export default function PublishToggleClient({ initial }: PublishToggleClientProp
     if (!next) {
       // ปิด (true→false) = risk — ผู้เยี่ยมชมทั่วไปมองไม่เห็นหน้าร้าน ต้อง confirm ก่อนเสมอ
       const confirmed = await pacesConfirm.warning(
-        'ปิดการแสดงผลหน้าร้าน?',
-        'ผู้เยี่ยมชมทั่วไปจะมองไม่เห็นหน้าร้านของคุณ จนกว่าคุณจะเปิดอีกครั้ง — เปิดกลับมาได้ทุกเมื่อในหน้านี้',
-        { confirmButtonText: 'ปิดการแสดงผล' },
+        t.publicProfile.visibility.confirmTitle,
+        t.publicProfile.visibility.confirmBody,
+        // cancelButtonText ต้องส่งเสมอ — ค่า default ใน paces-swal.ts เป็น 'ยกเลิก' ตายตัว
+        // ไม่ส่ง = โมดัลเป็นอังกฤษทั้งใบแต่ปุ่มยกเลิกค้างเป็นไทยกลางจอ
+        { confirmButtonText: t.publicProfile.visibility.confirmButton, cancelButtonText: t.common.cancel },
       )
       if (!confirmed) {
         setChecked(true) // ยกเลิก → กลับค่าเดิม (เปิด), ไม่ยิง API
@@ -78,19 +84,19 @@ export default function PublishToggleClient({ initial }: PublishToggleClientProp
   return (
     <div className="card mb-base">
       <div className="card-header">
-        <h4 className="card-title">การมองเห็นหน้าร้าน</h4>
+        <h4 className="card-title">{t.publicProfile.visibility.cardTitle}</h4>
       </div>
       <div className="card-body">
         <div className="flex items-start gap-3">
           <Icon icon="world" className="text-default-500 mt-0.5 size-5 shrink-0" aria-hidden="true" />
           <div className="min-w-0 flex-1">
             <label htmlFor="publish-toggle" className="text-default-900 text-sm font-medium">
-              เผยแพร่หน้าร้านสาธารณะ
+              {t.publicProfile.visibility.switchLabel}
             </label>
             <p className="text-default-400 mt-0.5 text-xs">
               {checked
-                ? 'ลูกค้าทั่วไปเปิดดูหน้าร้านของคุณได้ตามปกติ'
-                : 'ผู้เยี่ยมชมทั่วไปจะเห็นข้อความว่าหน้านี้ปิดการแสดงผลชั่วคราว — คุณยังเปิดดูหน้าร้านของตัวเองได้เสมอ'}
+                ? t.publicProfile.visibility.descriptionOn
+                : t.publicProfile.visibility.descriptionOff}
             </p>
           </div>
           <input
@@ -105,7 +111,7 @@ export default function PublishToggleClient({ initial }: PublishToggleClientProp
 
         {!checked && (
           <div className="bg-warning/15 text-warning-ink mt-3 rounded-lg p-3 text-xs">
-            หน้าร้านนี้ปิดการแสดงผลอยู่ ผู้เยี่ยมชมทั่วไปจะมองไม่เห็น
+            {t.publicProfile.visibility.hiddenBanner}
           </div>
         )}
       </div>

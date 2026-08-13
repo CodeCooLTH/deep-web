@@ -19,6 +19,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Icon } from '@iconify/react'
 
 import { pacesToast } from '@/lib/paces-toast'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 // จาก lib ไม่ใช่จาก service — service import prisma ซึ่งลากเข้า bundle ฝั่ง client ไม่ได้
 import { MAX_SHOP_VIDEOS } from '@/lib/shop-video'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
@@ -82,6 +84,7 @@ interface SelectedVideo {
 }
 
 export default function ShopVideosClient() {
+  const t = useT()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [available, setAvailable] = useState<AvailableVideo[]>([])
@@ -98,7 +101,7 @@ export default function ShopVideosClient() {
     try {
       const res = await fetch('/api/shops/current/videos', { cache: 'no-store' })
       if (!res.ok) {
-        pacesToast.error('โหลดรายการคลิปไม่สำเร็จ')
+        pacesToast.error(t.publicProfile.videos.loadError)
         return
       }
       const data = (await res.json()) as {
@@ -109,7 +112,7 @@ export default function ShopVideosClient() {
       }
       // รายการอาจไม่ครบเพราะถามแพลตฟอร์มไม่สำเร็จ ต้องบอกร้าน ไม่ปล่อยให้เข้าใจว่าคลิปหาย
       if (data.partial) {
-        pacesToast.warning('บางช่องทางดึงคลิปไม่สำเร็จ รายการที่เห็นอาจไม่ครบ')
+        pacesToast.warning(t.publicProfile.videos.partialWarning)
       }
       setAvailable(data.available)
       setMax(data.max)
@@ -130,15 +133,17 @@ export default function ShopVideosClient() {
       // ไม่เตือนเมื่อดึงมาไม่ครบ เพราะที่หายอาจแค่ยังไม่ได้โหลด ไม่ใช่ถูกลบจริง
       if (!data.partial && stillValid.length < saved.length) {
         pacesToast.warning(
-          `มี ${saved.length - stillValid.length} คลิปที่ไม่พบในบัญชีแล้ว (อาจถูกลบไป) จึงเอาออกจากรายการที่เลือกไว้`,
+          fmt(t.publicProfile.videos.prunedWarning, { n: saved.length - stillValid.length }),
         )
       }
     } catch {
-      pacesToast.error('เกิดข้อผิดพลาดขณะโหลด')
+      pacesToast.error(t.publicProfile.videos.loadException)
     } finally {
       setLoading(false)
     }
-  }, [])
+    // `t` เป็นค่าคงที่ระดับ module ต่อภาษา (LocaleProvider คืน dictionary ไม่ใช่ object literal)
+    // ⇒ identity เสถียร ใส่ dep array ได้โดยไม่เกิดลูป (docs/conventions/hook-return-identity-in-deps.md)
+  }, [t])
 
   useEffect(() => {
     void load()
@@ -149,7 +154,7 @@ export default function ShopVideosClient() {
     setChosen((prev) => {
       if (prev.includes(videoId)) return prev.filter((v) => v !== videoId)
       if (prev.length >= max) {
-        pacesToast.warning(`เลือกได้สูงสุด ${max} คลิป`)
+        pacesToast.warning(fmt(t.publicProfile.videos.maxReachedWarning, { max }))
         return prev
       }
       return [...prev, videoId]
@@ -170,18 +175,19 @@ export default function ShopVideosClient() {
         }),
       })
       if (res.ok) {
-        pacesToast.success('บันทึกคลิปที่จะแสดงแล้ว')
+        pacesToast.success(t.publicProfile.videos.saveSuccess)
         return
       }
       const data = (await res.json().catch(() => null)) as { error?: string; code?: string } | null
       // แยกข้อความ: ตรวจไม่สำเร็จ = ลองใหม่ได้ / ไม่ใช่เจ้าของ = ต้องเลือกใหม่
+      // `data.error` มาจาก API ซึ่งยังตอบเป็นไทยเสมอ — ตัวที่แปลได้คือ fallback ฝั่งเรา
       if (data?.code === 'VERIFY_UNAVAILABLE') {
-        pacesToast.warning(data.error ?? 'ตรวจสอบไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.warning(data.error ?? t.publicProfile.videos.verifyUnavailable)
         return
       }
-      pacesToast.error(data?.error ?? 'บันทึกไม่สำเร็จ')
+      pacesToast.error(data?.error ?? t.publicProfile.videos.saveError)
     } catch {
-      pacesToast.error('เกิดข้อผิดพลาดขณะบันทึก')
+      pacesToast.error(t.publicProfile.videos.saveException)
     } finally {
       setSaving(false)
     }
@@ -213,7 +219,7 @@ export default function ShopVideosClient() {
       <div className="card">
         <div className="card-body flex items-center gap-2 text-default-500">
           <Icon icon="tabler:loader-2" className="animate-spin text-base" />
-          กำลังโหลดคลิปจากบัญชีที่เชื่อมไว้...
+          {t.publicProfile.videos.loading}
         </div>
       </div>
     )
@@ -222,9 +228,9 @@ export default function ShopVideosClient() {
   return (
     <div className="card">
       <div className="card-header">
-        <h4 className="card-title">คลิปที่แสดงบนหน้าร้าน</h4>
+        <h4 className="card-title">{t.publicProfile.videos.cardTitle}</h4>
         <p className="text-default-500 mt-1 text-sm">
-          เลือกได้สูงสุด {max} คลิป จะแสดงตามลำดับที่เลือก
+          {fmt(t.publicProfile.videos.subtitle, { max })}
         </p>
       </div>
 
@@ -232,9 +238,9 @@ export default function ShopVideosClient() {
         {available.length === 0 ? (
           <SellerEmptyState
             icon="video"
-            title="ยังไม่มีคลิปให้เลือก"
-            description="คลิปจะดึงมาจากเพจ Facebook และบัญชี Instagram ที่เชื่อมไว้กับร้าน หากยังไม่ได้เชื่อม ให้ไปเชื่อมที่หน้าช่องทางแชทก่อน"
-            action={{ label: 'ไปหน้าช่องทางแชท', href: '/settings/channels' }}
+            title={t.publicProfile.videos.emptyTitle}
+            description={t.publicProfile.videos.emptyDescription}
+            action={{ label: t.publicProfile.videos.emptyAction, href: '/settings/channels' }}
             compact
           />
         ) : (
@@ -243,7 +249,11 @@ export default function ShopVideosClient() {
                 Base: src/app/(paces)/seller/(dashboard)/dashboard/components/SalesReport.tsx (nav tabs)
                 ใช้ class ของ Paces แต่คุม active ด้วย React ไม่ใช่ data-hs-tab ของ Preline
                 เพราะหน้านี้ re-render ทุกครั้งที่ติ๊กเลือก ซึ่งเป็นเคสที่ Preline เคยพังในโปรเจกต์นี้ */}
-            <nav className="mb-base flex gap-x-1 overflow-x-auto" aria-label="ช่องทาง" role="tablist">
+            <nav
+              className="mb-base flex gap-x-1 overflow-x-auto"
+              aria-label={t.publicProfile.videos.channelsTabLabel}
+              role="tablist"
+            >
               {sources.map((src) => {
                 const on = src.key === activeSource
                 const picked = chosen.filter((k) => k.startsWith(`${src.provider}:`)).length
@@ -334,8 +344,8 @@ export default function ShopVideosClient() {
             </div>
 
             <div className="mt-base flex items-center justify-between gap-3">
-              <span className="text-default-500 text-sm">
-                เลือกแล้ว {chosen.length} จาก {max}
+              <span className="text-default-500 min-w-0 truncate text-sm">
+                {fmt(t.publicProfile.videos.selectedCount, { n: chosen.length, max })}
               </span>
               <button
                 type="button"
@@ -343,7 +353,7 @@ export default function ShopVideosClient() {
                 onClick={save}
                 disabled={saving}
               >
-                {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+                {saving ? t.publicProfile.videos.saving : t.common.save}
               </button>
             </div>
           </>

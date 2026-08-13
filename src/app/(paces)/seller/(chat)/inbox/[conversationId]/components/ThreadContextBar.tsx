@@ -29,6 +29,8 @@
 
 import { useId, useState, type ReactNode } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 
 export interface ThreadContextItem {
   key: string
@@ -59,6 +61,7 @@ export interface ThreadContextItem {
  */
 
 export default function ThreadContextBar({ items }: { items: ThreadContextItem[] }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   /** ภาพย่อที่โหลดไม่ขึ้น — คุมในคอมโพเนนต์เอง ผู้เรียกไม่ต้องรู้และไม่มีทางลืมส่งธง
    *  (ของเดิมเป็น prop ที่มีแต่รายการคอมเมนต์ wire มาให้ รูปโฆษณาจึงขึ้นเป็นกล่องรูปแตก) */
@@ -82,7 +85,7 @@ export default function ThreadContextBar({ items }: { items: ThreadContextItem[]
           className="border-default-200 text-default-700 hover:bg-default-100 flex min-h-11 w-full shrink-0 items-center gap-1.5 border-b px-4 text-start text-xs font-medium"
         >
           <Icon icon="chevron-up" className="text-sm" />
-          ย่อที่มาของแชท
+          {t.inbox.contextBar.collapse}
         </button>
         <div id={detailsId}>
           {items.map((it) => (
@@ -110,7 +113,9 @@ export default function ThreadContextBar({ items }: { items: ThreadContextItem[]
       // ไม่มี aria-controls ตอนยุบ — IDREF ที่ชี้ไป element ที่ยังไม่ถูก render คือ IDREF ที่ค้าง
       // (ตัวกางถึงมีจริง จึงใส่เฉพาะสาขานั้น)
       aria-label={
-        items.length > 1 ? `ดูที่มาของแชททั้ง ${items.length} รายการ` : 'ดูรายละเอียดที่มาของแชท'
+        items.length > 1
+          ? fmt(t.inbox.contextBar.expandMultiple, { n: items.length })
+          : t.inbox.contextBar.expandSingle
       }
       className="border-default-200 hover:bg-default-100 flex min-h-11 w-full shrink-0 items-center gap-2 border-b px-4 text-start text-xs"
     >

@@ -192,6 +192,89 @@ export const en: Dictionary = {
     sendWithNote: 'Send — {note}',
     backToList: 'Back to list',
     customerInfo: 'Customer info',
+
+    contextBar: {
+      shopReplyingShort: 'Replying as {shop}',
+      shopReplyingPrefix: "You're replying as",
+
+      commentLabel: 'From comment',
+      commentPostEmpty: 'Post has no caption',
+      commentTextEmpty: 'Comment has no text',
+      commentImageOnly: 'Sent a photo in the comment',
+      viewComment: 'View comment',
+
+      adLabel: 'From ad',
+      // "Ad ID" เป็นศัพท์ที่ Meta ใช้เองใน Ads Manager — reviewer จับคู่กับ ad_id ในใบยื่นได้ทันที
+      adIdFallback: 'Ad ID {adId}',
+      adBannerTitle: 'This chat replied to your ad',
+      viewAd: 'View ad',
+      dismissAdSource: 'Dismiss ad source',
+
+      collapse: 'Hide chat context',
+      expandMultiple: 'View all {n} context items',
+      expandSingle: 'View chat context details',
+    },
+  },
+
+  publicProfile: {
+    pageTitle: 'Public profile',
+    breadcrumbOverview: 'Overview',
+    builderCta: 'Customize storefront',
+
+    visibleCardTitle: 'What visitors see',
+    visibleCardBody:
+      'Your shop name, logo, cover photo, and category are set on the shop settings page. This page is for choosing what else to show.',
+    shopSettingsCta: 'Shop settings',
+
+    linkCardTitle: 'Your storefront link',
+    copy: 'Copy',
+    copiedToast: 'Link copied',
+    viewMyStorefront: 'View my storefront',
+    noLinkYet: "Your shop doesn't have a username or storefront link yet — set one up on the shop settings page",
+
+    mobileBuilderNoticeTitle: 'Arrange storefront blocks on a computer',
+    mobileBuilderNoticeBody:
+      'Reordering and choosing what to show needs a wider screen. Open this page on a computer when you can — the other settings here work fine on mobile.',
+
+    visibility: {
+      cardTitle: 'Storefront visibility',
+      switchLabel: 'Publish your storefront',
+      descriptionOn: 'Anyone can view your storefront as usual',
+      descriptionOff:
+        "Visitors will see a message that this page is temporarily unpublished — you can still view your own storefront anytime",
+      hiddenBanner: "This storefront is unpublished. Visitors can't see it.",
+      confirmTitle: 'Unpublish storefront?',
+      confirmBody:
+        "Visitors won't be able to see your storefront until you publish it again — you can turn it back on anytime from this page",
+      confirmButton: 'Unpublish',
+      saveError: "Couldn't change the publish status",
+      publishedToast: 'Storefront published',
+      unpublishedToast: 'Storefront unpublished',
+    },
+
+    videos: {
+      cardTitle: 'Videos shown on your storefront',
+      subtitle: "You can select up to {max} clip(s). They'll show in the order you pick them.",
+      loading: 'Loading clips from your connected accounts…',
+      loadError: "Couldn't load the clip list",
+      partialWarning: 'Some channels failed to load clips — the list may be incomplete',
+      loadException: 'Something went wrong while loading',
+      prunedWarning:
+        'Removed {n} clip(s) that are no longer in your account (they may have been deleted) from your selection',
+      emptyTitle: 'No clips to choose from yet',
+      emptyDescription:
+        "Clips are pulled from the Facebook Pages and Instagram accounts connected to your shop. If you haven't connected one yet, go to chat channels first.",
+      // ตรงกับ `channels.pageTitle` = 'Chat channels' ซึ่งเป็นหน้าปลายทางจริงของปุ่มนี้
+      emptyAction: 'Go to chat channels',
+      channelsTabLabel: 'Channels',
+      maxReachedWarning: 'You can select up to {max} clip(s)',
+      selectedCount: 'Selected {n} of {max}',
+      saving: 'Saving…',
+      saveSuccess: 'Saved the clips to show',
+      verifyUnavailable: 'Verification failed. Please try again.',
+      saveError: "Couldn't save",
+      saveException: 'Something went wrong while saving',
+    },
   },
 
   auth: {

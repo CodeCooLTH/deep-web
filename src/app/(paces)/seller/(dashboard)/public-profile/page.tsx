@@ -29,6 +29,7 @@ import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { prisma } from '@/lib/prisma'
 import { getShopPageLayout } from '@/services/shop-page-layout.service'
+import { getT } from '@/i18n/server'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Icon from '@/components/wrappers/Icon'
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
@@ -36,9 +37,19 @@ import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/comp
 import ShopVideosClient from './components/ShopVideosClient'
 import PublishToggleClient from './components/PublishToggleClient'
 
-export const metadata: Metadata = { title: 'โปรไฟล์สาธารณะ' }
+/**
+ * title ของแท็บต้องผันตามภาษา (feature 00047) — reviewer เปิดหน้านี้ค้างไว้ทั้งฉากในคลิป C
+ * ต้องเป็น generateMetadata ไม่ใช่ `export const metadata` เพราะค่าคงที่คำนวณตอน build
+ * ซึ่งยังไม่รู้ว่า request นี้เป็นภาษาอะไร
+ * Base: src/app/(paces)/seller/auth/sign-in/page.tsx
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT()
+  return { title: t.publicProfile.pageTitle }
+}
 
 export default async function PublicProfileSettingsPage() {
+  const t = await getT()
   const session = await getServerSession(authOptions)
   const active = await requireActiveShop(
     session as unknown as { user: { id: string; activeShopId?: string | null } },
@@ -76,8 +87,8 @@ export default async function PublicProfileSettingsPage() {
   return (
     <>
       <PageBreadcrumb
-        title="โปรไฟล์สาธารณะ"
-        trail={[{ label: 'ภาพรวม' }]}
+        title={t.publicProfile.pageTitle}
+        trail={[{ label: t.publicProfile.breadcrumbOverview }]}
         action={
           // desktop-only (TD-007) — ตัวจัดเรียงบล็อกต้องเห็นคลัง/พื้นที่จัด/พรีวิวพร้อมกัน บีบลง
           // จอมือถือแล้วเสียเหตุผลของเครื่องมือ (มติผู้ใช้ 2026-08-07); มือถือมีแถบ info แทนด้านล่าง
@@ -86,26 +97,23 @@ export default async function PublicProfileSettingsPage() {
             className="btn bg-primary text-white hover:bg-primary-hover hidden min-h-11 items-center gap-1.5 xl:inline-flex"
           >
             <Icon icon="layout-grid" className="text-base" />
-            จัดหน้าร้าน
+            {t.publicProfile.builderCta}
           </a>
         }
       />
 
       <div className="card mb-base">
         <div className="card-header">
-          <h4 className="card-title">หน้าร้านที่คนนอกเห็น</h4>
+          <h4 className="card-title">{t.publicProfile.visibleCardTitle}</h4>
         </div>
         <div className="card-body">
-          <p className="text-default-500 text-sm">
-            ชื่อร้าน โลโก้ ภาพหน้าปก และหมวดหมู่ ตั้งค่าได้ที่หน้าตั้งค่าร้านค้า
-            ส่วนหน้านี้ใช้เลือกว่าจะเอาอะไรไปโชว์เพิ่ม
-          </p>
+          <p className="text-default-500 text-sm">{t.publicProfile.visibleCardBody}</p>
           <div className="mt-base flex flex-wrap gap-2">
             <a
               className="btn bg-default-100 text-default-900 hover:bg-default-200 inline-flex min-h-11 items-center"
               href="/shop"
             >
-              ตั้งค่าร้านค้า
+              {t.publicProfile.shopSettingsCta}
             </a>
           </div>
         </div>
@@ -113,12 +121,19 @@ export default async function PublicProfileSettingsPage() {
 
       <div className="card mb-base">
         <div className="card-header">
-          <h4 className="card-title">ลิงก์หน้าร้านของคุณ</h4>
+          <h4 className="card-title">{t.publicProfile.linkCardTitle}</h4>
         </div>
         <div className="card-body">
           {publicUrl ? (
             <>
-              <CopyLinkButton value={publicUrl} showPreview label="คัดลอก" />
+              {/* successMessage ต้องส่งเสมอ — ค่า default ใน CopyLinkButton เป็นไทยตายตัว
+                  ไม่ส่ง = ปุ่มเป็นอังกฤษแต่ toast ตอนกดคัดลอกโผล่เป็นไทย */}
+              <CopyLinkButton
+                value={publicUrl}
+                showPreview
+                label={t.publicProfile.copy}
+                successMessage={t.publicProfile.copiedToast}
+              />
               <a
                 href={publicUrl}
                 target="_blank"
@@ -126,13 +141,11 @@ export default async function PublicProfileSettingsPage() {
                 className="btn bg-primary text-white hover:bg-primary-hover mt-3 flex min-h-11 w-full items-center justify-center gap-1.5"
               >
                 <Icon icon="external-link" className="text-base" />
-                ดูหน้าร้านของฉัน
+                {t.publicProfile.viewMyStorefront}
               </a>
             </>
           ) : (
-            <p className="text-default-500 text-sm">
-              ร้านยังไม่มีชื่อผู้ใช้/ลิงก์สำหรับหน้าร้าน — ตั้งค่าได้ที่หน้าตั้งค่าร้านค้า
-            </p>
+            <p className="text-default-500 text-sm">{t.publicProfile.noLinkYet}</p>
           )}
         </div>
       </div>
@@ -148,11 +161,8 @@ export default async function PublicProfileSettingsPage() {
       >
         <Icon icon="info-circle" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
         <div>
-          <div className="font-medium">จัดเรียงบล็อกบนหน้าร้าน ใช้บนคอมพิวเตอร์</div>
-          <p className="mt-1">
-            การสลับลำดับและเลือกเนื้อหาที่จะโชว์ ต้องใช้พื้นที่จอกว้าง เปิดหน้านี้บนคอมพิวเตอร์เมื่อสะดวก
-            — การตั้งค่าอื่นบนหน้านี้ใช้บนมือถือได้ตามปกติ
-          </p>
+          <div className="font-medium">{t.publicProfile.mobileBuilderNoticeTitle}</div>
+          <p className="mt-1">{t.publicProfile.mobileBuilderNoticeBody}</p>
         </div>
       </div>
     </>
