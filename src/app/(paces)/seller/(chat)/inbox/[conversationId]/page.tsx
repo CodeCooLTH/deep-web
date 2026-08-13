@@ -64,6 +64,8 @@ import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErr
 import ChatShopAutoSwitch from './components/ChatShopAutoSwitch'
 import ChatThread from './components/ChatThread'
 import CustomerPanel, { type CustomerPanelData, type CustomerPanelOrder } from './components/CustomerPanel'
+import { resolveLibraryOwner } from '@/lib/customer-file-library'
+import { listSavedFileIds } from '@/services/customer-file-library.service'
 // SSOT ของ "ลูกค้าคนนี้มีพฤติกรรมอะไรบ้าง" — ใช้ร่วมกับป้ายท้ายชื่อลูกค้าในตาราง /orders (HR16)
 import { summarizeCustomerBehavior, type CustomerBehavior } from '@/lib/customer-behavior'
 
@@ -137,6 +139,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       referralAdId: true,
       referralPhotoFileId: true,
       buyerUserId: true,
+      // feature 00048 — ตัวตัดสินว่าคลังไฟล์ผูกกับ "คน" (ExternalContact) หรือ "เธรด" (DEEP)
+      externalContactId: true,
       buyer: { select: { id: true, displayName: true, avatar: true } },
       externalContact: {
         select: {
@@ -566,6 +570,17 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     )
   }
 
+  /**
+   * feature 00048 — fileId ที่อยู่ในคลังของลูกค้ารายนี้แล้ว (query เดียว ไม่มี N+1)
+   *
+   * ทำที่ server เพราะ ChatThread ต้องรู้ตั้งแต่ paint แรกว่าไฟล์ไหนเก็บไปแล้ว — ถ้าให้ client
+   * ไปถามเอง ปุ่มจะขึ้น "เก็บเข้าคลัง" ก่อนแล้วค่อยกระพริบเป็น "เอาออกจากคลัง" ซึ่งอ่านเป็นบั๊ก
+   */
+  const savedFileIds = await listSavedFileIds(
+    threadShopId,
+    resolveLibraryOwner({ id: conversation.id, externalContactId: conversation.externalContactId }),
+  )
+
   // RSC PII: เบอร์โทร mask ที่นี่เสมอ ก่อนลง prop ที่ถูก serialize เข้า flight ของ client layout
   const customerPanelData: CustomerPanelData = {
     conversationId: conversation.id,
@@ -659,6 +674,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         hidePayments={await shouldHidePayments()}
         commentOrigin={commentOrigin}
         customerPanelData={customerPanelData}
+        savedFileIds={savedFileIds}
       />
       {/* bug fix 2026-08-01 (user report: iPad Pro เพี้ยน): เดิม `lg:block` = โผล่ที่ 1024px พร้อมกับ
           rail (384px) ทำให้สองข้างกิน 768px เหลือคอลัมน์แชทแค่ 256px — ข้อความตัดบรรทัดทุก 3-4 คำ

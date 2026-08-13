@@ -1,0 +1,146 @@
+'use client'
+
+/**
+ * CustomerFileLibrarySection — section "คลังไฟล์" ท้ายแท็บ "ข้อมูลลูกค้า" (feature 00048)
+ *
+ * อยู่ **ล่างสุด** โดยตั้งใจ: ของที่อยู่เหนือมัน (โปรไฟล์ CRM / ป้าย Meta / สถิติ) คือสิ่งที่ผู้ขาย
+ * ต้องอ่านก่อนตอบทุกครั้ง ส่วนคลังไฟล์คือสิ่งที่ "ไปหาเมื่อต้องการ" — ดันขึ้นบนแล้วกริดรูป 9 ช่อง
+ * จะผลักโน้ต/เบอร์ตกจอทุกครั้งที่เปิดแผง
+ *
+ * 🛑 คลังว่างต้อง **แสดง section พร้อมวิธีเก็บ ห้ามซ่อน** — ซ่อนแล้วไม่มีใครค้นพบว่ามีฟีเจอร์นี้
+ * (รอยเดิมของรีโปนี้: สวิตช์ที่ 12/12 ร้านไม่เคยเจอเพราะไม่มีอะไรบอกว่ามีอยู่)
+ */
+import { useCallback, useEffect, useState } from 'react'
+import Icon from '@/components/wrappers/Icon'
+import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
+import { LIBRARY_COPY, LIBRARY_ICONS, LIBRARY_PREVIEW_TAKE } from '@/lib/customer-file-library'
+import type { LibraryItem } from '@/services/customer-file-library.service'
+import CustomerFileTile from './CustomerFileTile'
+import CustomerFileViewer from './CustomerFileViewer'
+import CustomerFileLibraryModal from './CustomerFileLibraryModal'
+
+export default function CustomerFileLibrarySection({
+  conversationId,
+  customerName,
+}: {
+  conversationId: string
+  customerName: string
+}) {
+  const [items, setItems] = useState<LibraryItem[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
+  const [active, setActive] = useState<LibraryItem | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+
+  /**
+   * 🛑 dep เฉพาะ conversationId — ห้ามผูกกับ state ที่เปลี่ยนทุกครั้งที่ fetch เสร็จ
+   * (docs/conventions/hook-return-identity-in-deps.md: `/inbox/comments` เคยยิง API รัวไม่หยุด
+   * เพราะ effect dep กับค่าที่เปลี่ยน identity ทุก render)
+   */
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/chat/conversations/${conversationId}/library?take=${LIBRARY_PREVIEW_TAKE}`)
+    if (!res.ok) throw new Error('load failed')
+    return (await res.json()) as { items: LibraryItem[]; total: number }
+  }, [conversationId])
+
+  const refresh = useCallback(() => {
+    setLoading(true)
+    setFailed(false)
+    load()
+      .then((d) => {
+        setItems(d.items)
+        setTotal(d.total)
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false))
+  }, [load])
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setFailed(false)
+    load()
+      .then((d) => {
+        if (cancelled) return
+        setItems(d.items)
+        setTotal(d.total)
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [load])
+
+  return (
+    <div className="border-default-200 mt-4 border-t border-dashed pt-4">
+      <div className="mb-2.5 flex items-center gap-1.5">
+        <h4 className="text-default-900 text-sm font-semibold">{LIBRARY_COPY.sectionTitle}</h4>
+        {/* badge จำนวน — 0 ไม่ render (แสดง empty state แทน ไม่ใช่ badge "0") */}
+        {total > 0 ? <span className="badge bg-default-100 text-default-700 text-2xs">{total}</span> : null}
+      </div>
+
+      {loading && items.length === 0 ? (
+        // skeleton แพตเทิร์นเดียวกับ crmSlot ในไฟล์แม่ (CustomerPanel.tsx)
+        <div className="bg-default-100 h-40 animate-pulse rounded-lg" />
+      ) : failed ? (
+        <div className="text-default-700 flex flex-col items-center gap-2 py-6 text-sm">
+          <span>{LIBRARY_COPY.loadFailed}</span>
+          <button type="button" onClick={refresh} className="btn bg-light hover:text-default-800">
+            <Icon icon="refresh" className="me-1" /> {LIBRARY_COPY.retry}
+          </button>
+        </div>
+      ) : items.length === 0 ? (
+        <SellerEmptyState compact icon={LIBRARY_ICONS.empty} title={LIBRARY_COPY.emptyTitle} description={LIBRARY_COPY.emptyBody} />
+      ) : (
+        <>
+          {/* กริด 3 คอลัมน์คงที่ทุก breakpoint — ช่องโตตาม container ไม่เพิ่มคอลัมน์
+              (แผงกว้าง 384px บนเดสก์ท็อป และเต็มความกว้างในโหมด sheet) */}
+          <div className="grid grid-cols-3 gap-1">
+            {items.map((it) => (
+              <CustomerFileTile key={it.id} item={it} onOpen={setActive} />
+            ))}
+          </div>
+
+          {/* ลิงก์โผล่เฉพาะเมื่อมีของเกินที่โชว์จริง — ปุ่มที่กดแล้วเห็นของเท่าเดิมคือปุ่มที่หลอกให้กด */}
+          {total > LIBRARY_PREVIEW_TAKE ? (
+            <div className="mt-2.5 text-center">
+              <button type="button" onClick={() => setModalOpen(true)} className="text-primary inline-flex items-center gap-0.5 text-sm font-medium">
+                {LIBRARY_COPY.seeAll(total)}
+                <Icon icon="chevron-right" className="text-base" aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
+
+      <CustomerFileViewer
+        conversationId={conversationId}
+        items={items}
+        active={active}
+        onClose={() => setActive(null)}
+        onRemoved={(fileId) => {
+          setItems((prev) => prev.filter((i) => i.fileId !== fileId))
+          setTotal((t) => Math.max(0, t - 1))
+          // ถ้ายังมีของเหลือเกิน 9 ใบ การลบทำให้ต้องดึงใบถัดไปขึ้นมาแทนช่องที่หายไป
+          refresh()
+        }}
+        onPatched={(updated) => setItems((prev) => prev.map((i) => (i.fileId === updated.fileId ? updated : i)))}
+      />
+
+      {modalOpen ? (
+        <CustomerFileLibraryModal
+          conversationId={conversationId}
+          customerName={customerName}
+          onClose={() => setModalOpen(false)}
+          onChanged={refresh}
+        />
+      ) : null}
+    </div>
+  )
+}

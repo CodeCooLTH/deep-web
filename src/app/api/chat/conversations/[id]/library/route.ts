@@ -21,8 +21,12 @@ import {
  * ownership: resolveConversationShopId() scope สิทธิ์ใน WHERE ตั้งแต่คำสั่งแรก และคืน null
  * เหมือนกันทั้ง "ไม่มีเธรด" กับ "ไม่มีสิทธิ์" → ตอบ 404 ทั้งคู่ (403 = ยืนยันว่าเธรดมีอยู่จริง)
  *
- * 🛑 ห้ามใช้ `(session.user as { id: string }).id` — "มี session" ไม่ใช่ "รู้ว่าเป็นใคร"
- * (docs/conventions/session-exists-is-not-identity.md) ใช้ sessionUserId() ที่คืน string|null
+ * 🛑 "มี session" ไม่ใช่ "รู้ว่าเป็นใคร" — ห้าม cast `session.user` เป็นชนิดที่มี id แล้ว deref
+ * ต่อทันที (docs/conventions/session-exists-is-not-identity.md) ใช้ `sessionUserId()` ที่คืน
+ * `string | null` แล้วให้ผู้เรียกตัดสินเองว่าจะ 401 หรือถอยไปทางอื่น
+ *
+ * (เขียนบรรยายแทนการยกโค้ดตัวอย่างโดยตั้งใจ — เทส [blocker] ที่คุมกฎนี้ทั้งรีโป grep หา
+ * "สตริงดิบ" ใน src/app โดยไม่ตัดคอมเมนต์ ตัวอย่างในคอมเมนต์จึงทำให้ gate แดงทั้งที่ไม่มีการละเมิด)
  */
 export const dynamic = "force-dynamic";
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" };

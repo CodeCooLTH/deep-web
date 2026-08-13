@@ -37,6 +37,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+import CustomerFileLibrarySection from './CustomerFileLibrarySection'
 import { generateInitials } from '@/utils/helpers'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import { ORDER_VOCAB, resolveOrderVocab } from '@/lib/seller-menu'
@@ -846,6 +847,11 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
               </p>
             )}
           </div>
+
+          {/* feature 00048 — คลังไฟล์ต่อลูกค้า อยู่ล่างสุดของแท็บนี้โดยตั้งใจ: ของด้านบนคือสิ่งที่
+              ผู้ขายต้องอ่านก่อนตอบทุกครั้ง ส่วนคลังไฟล์คือสิ่งที่ "ไปหาเมื่อต้องการ" — ดันขึ้นบน
+              แล้วกริดรูป 9 ช่องจะผลักโน้ต/เบอร์ตกจอทุกครั้งที่เปิดแผง */}
+          <CustomerFileLibrarySection conversationId={data.conversationId} customerName={data.contactName} />
         </div>
 
         {/* แท็บโน้ต — โน้ตภายในร้านต่อผู้ติดต่อ (ลูกค้าไม่เห็น; AI ใช้เป็นบริบทตอนช่วยร่าง) */}

@@ -106,9 +106,16 @@ related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]"]
 
 | กลุ่ม | จำนวน | สถานะ |
 |---|---|---|
-| Unit (lib) | 11 | ต้องเขียนใน T2 |
-| Unit (service) | 9 | ต้องเขียนใน T3 |
-| Guard (สแกนซอร์ส) | 3 | ต้องเขียนใน T7 |
-| API | 8 | ต้องเขียนใน T4 |
-| Browser QA | 21 | **ยังไม่เคยกดสักเคส** |
-| E2E | 0 | ยังไม่เขียน |
+| Unit (lib) — `src/lib/customer-file-library.test.ts` | 20 | ✅ เขียว · พิสูจน์ด้วย mutation แล้ว (ถอดด่านสติกเกอร์ + fail-open + สลับลำดับเจ้าของ → แดง 4 เคส) |
+| Guard สแกนซอร์ส — `src/services/customer-file-library.guards.test.ts` | 11 | ✅ เขียว · พิสูจน์ด้วย mutation แล้ว (find-then-create + `sentAt: new Date()` + ถอด `rawMessage: true` → แดง 3 เคส) |
+| Unit (service, mock prisma) | 0 | ❌ **ยังไม่เขียน** — TC-25..TC-28 ถูกครอบด้วย guard ที่สแกนซอร์สแทนบางส่วน แต่พฤติกรรมรันจริง (ลำดับ/`total`/trim) ยังไม่มีเทส |
+| API (integration) | 0 | ❌ **ยังไม่เขียน** — TC-40..TC-47 |
+| Browser QA | 21 | ❌ **ยังไม่เคยกดสักเคส** |
+| E2E | 0 | ❌ ยังไม่เขียน |
+
+**ผลรันจริงทั้งรีโป ณ 2026-08-13:** `npx vitest run src/` → **233 ไฟล์ / 2703 เทส เขียวทั้งหมด**
+(ไม่มีเทสแดงค้างเลย) · `tsc --noEmit` → 0 · `next build` → exit 0 · `theme-guard.sh` → exit 0
+
+🛑 **เทสที่ยังไม่เขียน (service + API) คือหนี้จริง ไม่ใช่ "ครอบด้วย guard แล้ว"** — guard
+ยืนยันได้แค่ว่า *โค้ดมีรูปร่างที่ถูก* ไม่ได้ยืนยันว่า *มันทำงานถูก* (เช่น keyset cursor
+ข้ามแถวหรือวนซ้ำไหม, `total` ตรงกับจำนวนจริงไหมเมื่อมีเกิน 1 หน้า)

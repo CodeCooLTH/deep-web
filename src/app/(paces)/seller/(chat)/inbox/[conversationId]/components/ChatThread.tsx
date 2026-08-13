@@ -142,6 +142,10 @@ import QuickMessageBar from './QuickMessageBar'
 import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
 import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
+// feature 00048 — คลังไฟล์ต่อลูกค้า (คำทั้งหมดมาจาก SSOT เดียว ห้ามพิมพ์ซ้ำที่นี่ — HR16)
+import { LIBRARY_COPY, LIBRARY_ICONS, isLibraryEligible } from '@/lib/customer-file-library'
+import SaveToLibraryButton from './SaveToLibraryButton'
+import { JUMP_TO_MESSAGE_EVENT } from './CustomerFileViewer'
 
 /**
  * แถวรีแอ็กชันลัด 6 ตัว — ชุดเดียวกับแถวที่ Messenger โชว์ตอนกดค้าง (user ส่งภาพจริงมาเทียบ
@@ -748,6 +752,9 @@ type Props = {
   humanAgentExpiresAt?: string | null
   /** feature 00018 T5 — ข้อมูล Customer Panel เดียวกับที่ desktop column ใช้ (สำหรับ sheet มือถือ) */
   customerPanelData: CustomerPanelData
+  /** feature 00048 — fileId ที่อยู่ในคลังของลูกค้ารายนี้แล้ว (server query ครั้งเดียวตอน render หน้า)
+   *  ใช้สลับ label/ไอคอนของ action "เก็บเข้าคลัง" ทั้ง 3 ทางเข้าให้ตรงกัน */
+  savedFileIds: string[]
 }
 
 // feature 00018 — ดู comment หัวไฟล์ (badge "ส่งไม่สำเร็จ")
@@ -1092,6 +1099,7 @@ export default function ChatThread({
   humanAgentOpen = false,
   humanAgentExpiresAt = null,
   customerPanelData,
+  savedFileIds,
 }: Props) {
   const t = useT()
   const { data: session } = useSession()
@@ -1137,6 +1145,80 @@ export default function ChatThread({
   // ดูรูปเต็มจอ — index ของรูปที่เปิดอยู่ใน imageSlides (-1 = ปิด) ตาม Base Gallery.tsx:58
   // (ต้องประกาศตรงนี้กับ hook ตัวอื่น ห้ามย้ายลงไปหลัง early return ของ errorState/loadingInitial)
   const [lightboxIndex, setLightboxIndex] = useState(-1)
+
+  /**
+   * feature 00048 — คลังไฟล์ต่อลูกค้า: สถานะ "ไฟล์ไหนอยู่ในคลังแล้ว" ของทั้งเธรด
+   *
+   * เก็บเป็น Set ของ fileId (ไม่ใช่ messageId) เพราะคลังผูกกับ **ไฟล์** — ข้อความคนละใบที่ชี้
+   * ไฟล์เดียวกันต้องแสดงสถานะตรงกัน และคีย์ที่ API ใช้ลบก็เป็น fileId เช่นกัน
+   *
+   * optimistic ทั้งเพิ่มและถอน แล้ว rollback เมื่อล้ม — ผู้ขายกดแล้วต้องเห็นผลทันที
+   * ไม่ใช่รอ round-trip (คลังคือของที่กดระหว่างอ่านข้อความ ไม่ใช่ฟอร์มที่ตั้งใจมากรอก)
+   */
+  const [savedFiles, setSavedFiles] = useState<Set<string>>(() => new Set(savedFileIds))
+  const [savingFileId, setSavingFileId] = useState<string | null>(null)
+  /**
+   * สไลด์ที่กำลังดูอยู่ใน Lightbox — ต่างจาก lightboxIndex ที่เป็นแค่ "จุดเริ่ม" ตอนเปิด
+   *
+   * 🛑 ต้อง sync ตอนเปิดทุกครั้ง ไม่ใช่รอ `on.view` อย่างเดียว: ถ้าไม่ sync ค่าจะค้างจากรอบก่อน
+   * แล้วปุ่ม "เก็บเข้าคลัง" ในแถบเครื่องมือจะสะท้อนสถานะของ **รูปคนละใบ** ในเสี้ยววินาทีแรก
+   * ซึ่งเป็นความผิดที่ tsc/build มองไม่เห็นเพราะชนิดถูกทุกตัว
+   */
+  const [lightboxViewIndex, setLightboxViewIndex] = useState(0)
+  useEffect(() => {
+    if (lightboxIndex >= 0) setLightboxViewIndex(lightboxIndex)
+  }, [lightboxIndex])
+
+  async function toggleLibrary(m: { id: string; imageUrl?: string | null }) {
+    const fileId = m.imageUrl
+    if (!fileId || savingFileId) return
+    const wasSaved = savedFiles.has(fileId)
+    setSavingFileId(fileId)
+    setSavedFiles((prev) => {
+      const next = new Set(prev)
+      if (wasSaved) next.delete(fileId)
+      else next.add(fileId)
+      return next
+    })
+    try {
+      const res = wasSaved
+        ? await fetch(`/api/chat/conversations/${conversationId}/library?fileId=${encodeURIComponent(fileId)}`, {
+            method: 'DELETE',
+          })
+        : await fetch(`/api/chat/conversations/${conversationId}/library`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messageId: m.id }),
+          })
+      if (!res.ok) throw new Error(String(res.status))
+      pacesToast.success(wasSaved ? LIBRARY_COPY.removedToast : LIBRARY_COPY.savedToast)
+    } catch {
+      // rollback: ปล่อยให้ไอคอนค้างในสถานะที่ไม่ตรงกับฐานคือการโกหกผู้ขาย
+      setSavedFiles((prev) => {
+        const next = new Set(prev)
+        if (wasSaved) next.add(fileId)
+        else next.delete(fileId)
+        return next
+      })
+      pacesToast.error(wasSaved ? LIBRARY_COPY.removeFailed : LIBRARY_COPY.saveFailed)
+    } finally {
+      setSavingFileId(null)
+    }
+  }
+
+  /**
+   * ฟังคำขอ "ดูในแชท" จากคลังไฟล์ (แผงลูกค้าเป็นพี่น้องกับเธรดบนเดสก์ท็อป ส่ง prop ถึงกันไม่ได้)
+   * jumpToMessage มีตัวบอกอยู่แล้วเมื่อข้อความยังไม่ถูกโหลด จึงไม่ต้องเช็คซ้ำที่นี่
+   */
+  useEffect(() => {
+    const onJump = (e: Event) => {
+      const id = (e as CustomEvent<{ messageId?: string }>).detail?.messageId
+      if (id) jumpToMessage(id)
+    }
+    window.addEventListener(JUMP_TO_MESSAGE_EVENT, onJump)
+    return () => window.removeEventListener(JUMP_TO_MESSAGE_EVENT, onJump)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // composer improvement #1 (feature 00018) — emoji picker; append ต่อท้ายข้อความ ไม่ปิด picker
   // (ผู้ใช้เลือกหลายตัวต่อกันได้ ปิดเองด้วยคลิกนอก/Escape)
   const [emojiOpen, setEmojiOpen] = useState(false)
@@ -1530,6 +1612,32 @@ export default function ChatThread({
           }),
       })
     }
+    /**
+     * feature 00048 — เก็บไฟล์เข้าคลังของลูกค้ารายนี้ (ทางเข้าที่ 1 จาก 3)
+     *
+     * เกณฑ์อยู่ใน isLibraryEligible ที่เดียว ไม่เขียนเงื่อนไขซ้ำตรงนี้ — สติกเกอร์ถูกเก็บเป็น
+     * type='IMAGE' เหมือนรูปทุกประการ (แยกด้วย m.isSticker ที่ API derive จาก rawMessage)
+     * ถ้าคัดลอกเงื่อนไขมาเขียนเองแล้วลืมข้อใดข้อหนึ่ง สติกเกอร์จะหลุดเข้าคลังโดยไม่มีอะไรฟ้อง
+     */
+    if (
+      isLibraryEligible({
+        type: m.type,
+        isSticker: m.isSticker,
+        fromCard: false,
+        hasFile: Boolean(m.imageUrl),
+      }) &&
+      !m.isDeleted &&
+      !m._status &&
+      !m.id.startsWith('local-')
+    ) {
+      const saved = Boolean(m.imageUrl && savedFiles.has(m.imageUrl))
+      list.push({
+        key: 'save-to-library',
+        icon: saved ? LIBRARY_ICONS.saved : LIBRARY_ICONS.save,
+        label: saved ? LIBRARY_COPY.unsave : LIBRARY_COPY.save,
+        onSelect: () => void toggleLibrary(m),
+      })
+    }
     if (m.body) {
       list.push({
         key: 'copy',
@@ -1703,15 +1811,36 @@ export default function ChatThread({
   // ของแต่ละข้อความไว้ เพื่อให้คลิกรูปไหนก็เปิดที่รูปนั้นแล้วเลื่อนดูใบอื่นต่อได้ (ไม่ใช่เปิดทีละใบ
   // แยกกัน) — เฉพาะ type='IMAGE'; VIDEO/AUDIO มี control ของตัวเอง, FILE เปิดแท็บใหม่อยู่แล้ว
   // download: ตั้งชื่อไฟล์ตอนบันทึกจาก storage key (ไม่งั้นได้ชื่อเป็น path ของ /api/files)
-  const imageSlides: { src: string; download: { url: string; filename: string } }[] = []
+  /**
+   * feature 00048 — สไลด์ต้องพก `libraryFileId`/`libraryMessageId` ไปด้วย ไม่ใช่แค่ src/download
+   *
+   * 🛑 เพราะชุดสไลด์นี้ **ปนของสองชนิด**: รูปที่ลูกค้า/ร้านส่ง (เก็บเข้าคลังได้) กับรูปในการ์ด
+   * carousel ของ Facebook (เก็บไม่ได้ — มติ D-4) ถ้าไม่แยกให้ออกต่อสไลด์ ปุ่ม "เก็บเข้าคลัง"
+   * จะโผล่บนการ์ดสินค้า/คำขอชำระเงินของ Meta ด้วย ทั้งที่กฎห้ามไว้ — และไม่มี gate ไหนจับได้
+   * เพราะทุกอย่างเป็นสตริงที่ถูกต้องตามชนิด
+   */
+  const imageSlides: {
+    src: string
+    download: { url: string; filename: string }
+    libraryFileId?: string
+    libraryMessageId?: string
+  }[] = []
   const slideIndexByMessageId = new Map<string, number>()
   for (const m of messages) {
     if (m.type === 'IMAGE' && m.imageUrl) {
       slideIndexByMessageId.set(m.id, imageSlides.length)
       const url = mediaSrc(m.imageUrl)
+      const eligible = isLibraryEligible({
+        type: m.type,
+        isSticker: m.isSticker,
+        fromCard: false,
+        hasFile: true,
+      })
       imageSlides.push({
         src: url,
         download: { url, filename: m.imageUrl.split('/').filter(Boolean).pop() || 'image' },
+        // ไม่เข้าเกณฑ์ (สติกเกอร์) → ไม่ใส่คีย์เลย = ปุ่มไม่ render บนสไลด์นั้น
+        ...(eligible ? { libraryFileId: m.imageUrl, libraryMessageId: m.id } : {}),
       })
     }
     // การ์ดสินค้าแบบ carousel จาก Facebook (2026-08-09) — หลายรูปต่อ 1 ข้อความ คีย์ด้วย
@@ -1730,6 +1859,9 @@ export default function ChatThread({
       })
     }
   }
+
+  /** สไลด์ที่กำลังแสดงอยู่จริง (อาจ undefined ระหว่างที่ยังไม่เปิด — ผู้เรียกเช็คด้วย ?.) */
+  const lightboxSlide = imageSlides[lightboxViewIndex]
 
   // ── สถานะห้อง (user report 2026-08-02: alert box ซ้อนกันรกจอ) ───────────────────────
   // ประกอบเป็นรายการเดียวเรียงตามความสำคัญ แล้วให้ ThreadStatusBar ตัดสินใจเรื่องการแสดงผล
@@ -2455,6 +2587,13 @@ export default function ChatThread({
                       {mine && (
                         <div className="flex items-start gap-0.5">
                           <ReplyMessageButton onReply={() => setReplyingTo(ms[0])} />
+                          {/* feature 00048 — ปุ่มผูกกับ "รูปนำของกลุ่ม" (ms[0]) เหมือนที่ reply/react
+                              ทำอยู่แล้ว. รูปใบที่ 2 เป็นต้นไปเก็บได้จากใน lightbox ซึ่งมีปุ่มรายสไลด์ */}
+                          <SaveToLibraryButton
+                            saved={Boolean(ms[0].imageUrl && savedFiles.has(ms[0].imageUrl))}
+                            busy={savingFileId === ms[0].imageUrl}
+                            onToggle={() => void toggleLibrary(ms[0])}
+                          />
                           <ReactMessageButton
                             onOpen={(rect) =>
                               setActionTarget({
@@ -2511,6 +2650,22 @@ export default function ChatThread({
                           </div>
                         )}
                       </div>
+                      {/**
+                       * feature 00048 — อัลบั้ม "ฝั่งลูกค้า" ไม่เคยมีชุดปุ่ม hover เลย (ของเดิมมีเฉพาะ
+                       * ฝั่งร้าน ซึ่งวางไว้ *ก่อน* บับเบิลเพราะข้อความร้านชิดขวา) — ซึ่งเป็นเคสหลักของ
+                       * ฟีเจอร์นี้พอดี: ลูกค้าส่งสลิปติดกันหลายใบแล้วถูกยุบเป็นอัลบั้ม
+                       * เติมเฉพาะปุ่มของฟีเจอร์นี้ ไม่เติม reply/react (นั่นเป็นช่องว่างเดิมคนละเรื่อง
+                       * ที่ต้องตัดสินแยก ไม่ใช่ของแถมที่แอบใส่มากับงานนี้)
+                       */}
+                      {!mine && (
+                        <div className="flex items-start gap-0.5">
+                          <SaveToLibraryButton
+                            saved={Boolean(ms[0].imageUrl && savedFiles.has(ms[0].imageUrl))}
+                            busy={savingFileId === ms[0].imageUrl}
+                            onToggle={() => void toggleLibrary(ms[0])}
+                          />
+                        </div>
+                      )}
                     </div>
                   )
                 }
@@ -2661,11 +2816,34 @@ export default function ChatThread({
                 // action cluster (hover) — ตอบกลับ (ทุกชนิด) + คัดลอก (เฉพาะข้อความมี text). ตอบกลับไม่ได้ถ้า:
                 // ข้อความถูกลบ, หรือยังเป็น optimistic (id ยังไม่ใช่ uuid จริง — route.replyToMessageId ต้องเป็น uuid)
                 const canReply = !m.isDeleted && !m._status && !m.id.startsWith('local-')
+                /**
+                 * feature 00048 — ปุ่ม "เก็บเข้าคลัง" ฝั่งเดสก์ท็อป (ทางเข้าที่ 2 จาก 3)
+                 * เงื่อนไขมาจาก isLibraryEligible ตัวเดียวกับเมนูกดค้างของมือถือ — ห้ามคัดลอก
+                 * เงื่อนไขมาเขียนซ้ำ ไม่งั้นสองทางเข้าจะเพี้ยนกันโดยไม่มีอะไรฟ้อง
+                 */
+                const libEligible =
+                  isLibraryEligible({
+                    type: m.type,
+                    isSticker: m.isSticker,
+                    fromCard: false,
+                    hasFile: Boolean(m.imageUrl),
+                  }) &&
+                  !m.isDeleted &&
+                  !m._status &&
+                  !m.id.startsWith('local-')
+                const libBtn = libEligible ? (
+                  <SaveToLibraryButton
+                    saved={Boolean(m.imageUrl && savedFiles.has(m.imageUrl))}
+                    busy={savingFileId === m.imageUrl}
+                    onToggle={() => void toggleLibrary(m)}
+                  />
+                ) : null
                 const actionCluster =
-                  canReply || copyBtn ? (
+                  canReply || copyBtn || libBtn ? (
                     // ปุ่มตอบกลับ + คัดลอก เรียง "ข้างกัน" (user 2026-07-25) ไม่ใช่บน-ล่าง
                     <div className="flex items-start gap-0.5">
                       {canReply && <ReplyMessageButton onReply={() => setReplyingTo(m)} />}
+                      {libBtn}
                       {copyBtn}
                       {/* รีแอ็กชัน (user 2026-08-03) — เงื่อนไขเดียวกับ canReply: ต้องเป็นข้อความจริง
                           ที่ถึง Meta แล้ว ไม่งั้นไม่มี mid ให้ผูก. y = ขอบบนของปุ่ม ให้แผงเด้งเหนือปุ่ม */}
@@ -3798,6 +3976,33 @@ export default function ChatThread({
       close={() => setLightboxIndex(-1)}
       controller={{ closeOnBackdropClick: true }}
       plugins={[Zoom, LightboxDownload]}
+      /* feature 00048 — ต้องรู้ว่ากำลังดูสไลด์ไหนอยู่ "ตอนนี้" ไม่ใช่สไลด์ที่เปิดมาตอนแรก
+         ไม่งั้นเลื่อนไปรูปถัดไปแล้วปุ่มยังสะท้อนสถานะของรูปแรกอยู่ */
+      on={{ view: ({ index }) => setLightboxViewIndex(index) }}
+      toolbar={{
+        buttons: [
+          // ปุ่มโผล่เฉพาะสไลด์ที่เก็บเข้าคลังได้ (ไม่ใช่สติกเกอร์/รูปการ์ด carousel)
+          lightboxSlide?.libraryFileId && lightboxSlide.libraryMessageId ? (
+            <button
+              key="save-to-library"
+              type="button"
+              className="yarl__button"
+              disabled={savingFileId === lightboxSlide.libraryFileId}
+              aria-label={savedFiles.has(lightboxSlide.libraryFileId) ? LIBRARY_COPY.unsave : LIBRARY_COPY.save}
+              title={savedFiles.has(lightboxSlide.libraryFileId) ? LIBRARY_COPY.unsave : LIBRARY_COPY.save}
+              onClick={() =>
+                void toggleLibrary({ id: lightboxSlide.libraryMessageId!, imageUrl: lightboxSlide.libraryFileId })
+              }
+            >
+              <Icon
+                icon={savedFiles.has(lightboxSlide.libraryFileId) ? LIBRARY_ICONS.saved : LIBRARY_ICONS.save}
+                className="text-xl"
+              />
+            </button>
+          ) : null,
+          'close',
+        ],
+      }}
       // มือถือ: ให้ปุ่มในหน้าดูรูปเต็มจอเข้าคลังรูปเหมือนปุ่มใต้รูป (ค่าเริ่มต้นของ plugin
       // บันทึกลง Downloads ซึ่ง user บอกว่าเอาไปใช้ต่อยาก) — desktop คงพฤติกรรมเดิมของ plugin
       download={{

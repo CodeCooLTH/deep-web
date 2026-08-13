@@ -170,3 +170,60 @@ export const pacesConfirm: PacesConfirmFn = Object.assign(base, {
   question: (title: string, text?: string, opts?: Partial<PacesConfirmOptions>) =>
     base({ confirmSemantic: 'primary', icon: 'question', ...opts, title, text }),
 })
+
+/**
+ * pacesEditTextFields — โมดัลแก้ค่าข้อความ 2 ช่อง (ชื่อ + โน้ต) สำหรับคลังไฟล์ (feature 00048)
+ *
+ * ทำไมต้องมีตัวใหม่แทนใช้ `input:'text'` ของ Swal: Swal รองรับ input ได้ช่องเดียวต่อโมดัล
+ * ส่วนงานนี้ต้องแก้ 2 ค่าพร้อมกัน — ประกอบ html เองแล้วอ่านค่ากลับใน preConfirm
+ *
+ * 🛑 ช่องกรอกใช้ `h-11` (44px) ตรง ๆ ไม่พึ่ง `.form-input` เพราะคลาสนั้นเป็น `h-11 lg:h-9.25`
+ * และ `lg:` เป็น **viewport query ไม่ใช่ container query** — โมดัลนี้ถูกเปิดจากคอลัมน์กว้าง 384px
+ * บนจอกว้าง จึงจะได้ช่องสูง 37px ทั้งที่นิ้วมีที่แตะเท่ามือถือ
+ * (docs/conventions/unlayered-css-beats-utilities.md)
+ *
+ * คืน null = ผู้ใช้กดยกเลิก
+ */
+export const pacesEditTextFields = async (options: {
+  title: string
+  nameLabel: string
+  noteLabel: string
+  notePlaceholder?: string
+  nameValue: string
+  noteValue: string
+  nameMaxLength: number
+  noteMaxLength: number
+  confirmButtonText: string
+  cancelButtonText: string
+}): Promise<{ name: string; note: string } | null> => {
+  const Swal = await loadSwal()
+  const esc = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+  const result = await Swal.fire({
+    buttonsStyling: false,
+    title: options.title,
+    html: `
+      <div class="text-start">
+        <label for="paces-edit-name" class="text-default-700 mb-1 block text-xs">${esc(options.nameLabel)}</label>
+        <input id="paces-edit-name" type="text" maxlength="${options.nameMaxLength}"
+               class="border-default-300 text-default-900 mb-3 h-11 w-full rounded-lg border px-3 text-sm"
+               value="${esc(options.nameValue)}" />
+        <label for="paces-edit-note" class="text-default-700 mb-1 block text-xs">${esc(options.noteLabel)}</label>
+        <textarea id="paces-edit-note" maxlength="${options.noteMaxLength}"
+                  placeholder="${esc(options.notePlaceholder ?? '')}"
+                  class="border-default-300 text-default-900 min-h-24 w-full rounded-lg border px-3 py-2 text-sm">${esc(options.noteValue)}</textarea>
+      </div>`,
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: options.confirmButtonText,
+    cancelButtonText: options.cancelButtonText,
+    customClass: { confirmButton: CONFIRM_BTN.primary, cancelButton: CANCEL_BTN },
+    preConfirm: () => ({
+      name: (document.getElementById('paces-edit-name') as HTMLInputElement | null)?.value ?? '',
+      note: (document.getElementById('paces-edit-note') as HTMLTextAreaElement | null)?.value ?? '',
+    }),
+  })
+
+  return result.isConfirmed && result.value ? (result.value as { name: string; note: string }) : null
+}

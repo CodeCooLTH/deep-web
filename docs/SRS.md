@@ -427,6 +427,8 @@ Shop (1) ──────── (N) ShopPageBlock              [feature 00035]
 ShopPageBlock (N) ─ (0..1) FacebookPost          [feature 00035 — onDelete Cascade]
 ShopChannel (1) ─── (N) CommentReplyLog          [feature 00038 — onDelete Cascade]
 PageComment (1) ─── (0..1) CommentReplyLog       [feature 00038 — commentId, onDelete Cascade]
+ExternalContact (1) ─ (N) CustomerFile           [feature 00048 — onDelete Cascade]
+Conversation (1) ──── (N) CustomerFile           [feature 00048 — เฉพาะเธรด DEEP ที่ไม่มี ExternalContact]
 
 Order (1) ──────── (N) OrderItem
 Order (1) ──────── (0..1) ShipmentTracking
@@ -436,6 +438,20 @@ Order (1) ──────── (N) OrderEvent [Activity Log — insert-only]
 
 SellerWallet (1) ── (N) WalletTransaction
 ```
+
+### 6.1a `CustomerFile` (feature 00048 — คลังไฟล์ต่อลูกค้า)
+
+ไฟล์ที่ผู้ขาย **คัดเข้ามาเองทีละใบ** จากเธรดแชท (ไม่ใช่ index อัตโนมัติของทุกไฟล์ในห้อง)
+
+| กติกา | รายละเอียด |
+|-------|-----------|
+| เจ้าของคลัง | `externalContactId` **หรือ** `conversationId` อย่างใดอย่างหนึ่งเท่านั้น — บังคับด้วย CHECK `CustomerFile_owner_exactly_one_check` (unmanaged SQL) |
+| กันเก็บซ้ำ | `@@unique([externalContactId, fileId])` + `@@unique([conversationId, fileId])` — NULL ใน Postgres ไม่ชนกันเอง จึงได้ผลเป็น partial-unique ต่อเจ้าของโดยไม่ต้องเขียน partial index |
+| ชนิดไฟล์ | CHECK `kind IN ('IMAGE','VIDEO','FILE')` — 🛑 เพิ่มค่าที่ 4 ต้องเขียน migration แบบ **additive** (อ่านนิยามเดิมมาต่อท้าย) ตาม `docs/conventions/migration-check-constraint-additive.md` |
+| `sourceMessageId` | **ไม่ใช่ FK โดยตั้งใจ** — ข้อความถูกลบ/unsend ต้องไม่ลบแถวคลัง (นี่คือเหตุผลทั้งหมดที่คลังมีอยู่) |
+| `sentAt` | เวลาที่ไฟล์ถูกส่งจริง (`ChatMessage.createdAt`) = **คีย์เรียงลำดับของคลัง** ไม่ใช่ `savedAt` |
+| `savedByName` | snapshot ชื่อผู้เก็บ — ต้องยังอ่านได้แม้คนนั้นออกจากทีมร้านไปแล้ว จึงไม่ join ตอนอ่าน |
+| Cascade | ร้าน/ผู้ติดต่อ/เธรดถูกลบ → แถวคลังหายตาม **แต่ไฟล์ใน storage ไม่ถูกลบ** (ยังถูกอ้างจาก `ChatMessage`) |
 
 ### 6.2 Models
 
@@ -1081,6 +1097,24 @@ SellerWallet (1) ── (N) WalletTransaction
 | การ์ดสรุปนัดหมาย (ส่วนขยาย 00024, เพิ่ม 2026-08-11) | `POST /api/chat/conversations/[id]/messages` รับ **`type="APPOINTMENT"`** (`+ orderRefToken, hiddenKeys[], closing`) — 🛑 **ที่ระดับ API เท่านั้น ฝั่งฐานข้อมูลยังเก็บเป็น `ChatMessage.type='ORDER'` + `orderRefToken` ตัวเดิม ไม่มีค่า enum ใหม่ ไม่มี migration** (`type` ใน request = "อยากให้ประกอบอะไร" ส่วน `ChatMessage.type` = "ของที่เก็บคือชนิดไหน" — precedent เดียวกับ `IMAGE_GRID`) · เนื้อหาและ**คำ**ทั้งหมดมาจาก `buildAppointmentSummary()` (`src/lib/appointment-summary.ts`, pure) ซึ่งเป็น SSOT เดียวกับที่ `OrderProgressBar` ใช้แสดงช่วงเวลานัด — ห้ามเขียนสูตรวันเวลาหรือคำว่า "มัดจำที่ตกลงไว้" ซ้ำที่อื่น (HR16) · ปลายทาง: LINE = `flex-appointment-card.ts` · Messenger/IG = `meta/appointment-card.ts` · Deep = การ์ดในระบบ · **`text` ส่งเสมอทุกกรณี** (ทางถอยของช่องทางที่ไม่รองรับการ์ด + เก็บลง `body` ให้ร้านค้นหาเจอ) · 🛑 การเก็บ `body` และคำใน `lastMessagePreview` (`[สรุปนัดหมาย]`) ต้องส่ง **`isAppointmentCard: true`** เข้า service เสมอ — `type='ORDER'` เปล่า ๆ จะได้ `body=null` + คำของออเดอร์ ซึ่งเป็นบั๊กที่ขึ้น prod ไปแล้วรอบหนึ่ง (แก้ 2026-08-12; ดู `value-fate-decided-at-write-site.md`) · ปุ่มบนการ์ดชี้ `/o/{token}` ซึ่งลูกค้ากด "ยืนยันนัด"/"ขอเลื่อนนัด" ได้ (เขียน `appointmentStatus`) · ด่าน fail-closed 6 ข้อ ดู `docs/20 - Features/00024 …/EXTENSIONS-2026-08-11.md` FR-APS-05 — ที่สำคัญคือ **`hiddenKeys` ห้ามมี `'when'`** และ **นัดที่ `COMPLETED`/`NO_SHOW` ส่งไม่ได้** |
 | การ์ดคำขอชำระเงินของ Meta (feature 00018, สัญญาแก้ 2026-08-09) | `parseMetaOrderCard(body)` (`src/lib/meta-order-card.ts`, pure module) แปลงข้อความ `ChatMessage.body` ที่ Meta ส่งมา (`"[การ์ดจาก Facebook] ฿N order — <status>"` หรือรูปเก่าไม่มีคำนำหน้า/สถานะ) เป็น `{ amount, status: string \| null }` — `status` เป็นคำอังกฤษดิบของ Meta ห้ามแปลไทย/จำแนกสี, `null` = ไม่รู้สถานะ. ผู้เรียก: `ChatThread.tsx` (render `MetaOrderCardBubble`, ต้องเช็คก่อน `parseMetaSystemNotice` เสมอ — ทั้งสองจับคำนำหน้าเดียวกันได้), `channel-chat.service.ts` (preview รายการแชท ทั้งเส้น webhook และ backfill) — รายละเอียดเต็มดู `docs/20 - Features/00018 - Facebook Chat Integration/EXTENSIONS-2026-08-09.md` |
 
+#### 7.14a คลังไฟล์ต่อลูกค้า (feature 00048)
+
+| Method | Path | Auth | Purpose | Service |
+|--------|------|------|---------|---------|
+| GET | `/api/chat/conversations/[id]/library` | Seller (`resolveConversationShopId`) | รายการไฟล์ในคลังของเธรดนี้ (keyset `?take=&cursorSentAt=&cursorId=`) + `total` จริง | `customer-file-library.service` |
+| POST | `/api/chat/conversations/[id]/library` | เหมือนกัน | เก็บไฟล์เข้าคลัง — **รับแค่ `{ messageId }`** ค่าอื่นอ่านจากฐานฝั่ง server; idempotent (ชน `@@unique` → `created:false` ไม่ใช่ error) | เหมือนกัน |
+| DELETE | `/api/chat/conversations/[id]/library?fileId=` | เหมือนกัน | เอาออกจากคลัง (hard delete, idempotent — ไม่มีแถวก็ตอบ 200 `removed:false`) | เหมือนกัน |
+| PATCH | `/api/chat/conversations/[id]/library` | เหมือนกัน | แก้ `fileName`/`note` ของไฟล์ในคลัง | เหมือนกัน |
+
+> 🛑 **POST ห้ามรับ `fileId`/`kind`/`sentAt` จาก client** — ค่าที่ตัดสิน "เก็บอะไร" ต้องอ่านจาก
+> `ChatMessage` ฝั่ง server เสมอ (รับจาก client = เปิดช่องยัดไฟล์ของร้านอื่นเข้าคลังตัวเอง
+> และทำให้ลำดับในคลังเป็นค่าที่หน้าจอแต่งได้)
+> 🛑 **`sentAt` = `ChatMessage.createdAt` ไม่ใช่ `now()`** — เป็นคีย์เรียงลำดับของคลัง (BR-CFL-12)
+> 🛑 เกณฑ์ "เก็บได้ไหม" อยู่ที่ `isLibraryEligible()` (`src/lib/customer-file-library.ts`) ที่เดียว —
+> สติกเกอร์ถูกเก็บเป็น `type='IMAGE'` เหมือนรูปทุกประการ แยกได้จาก `rawMessage.payload.kind`
+> เท่านั้น และ `rawMessage` ถูก **omit เป็นค่าตั้งต้นของ Prisma client** ⇒ ต้องขอใน `select`
+> ไม่งั้นสติกเกอร์หลุดเข้าคลังเงียบ ๆ โดย `tsc`/build ผ่านหมด
+
 ### 7.15 Comment Auto-Reply (feature 00038)
 
 | Method | Path | Auth | Purpose | Service |
@@ -1465,6 +1499,13 @@ SellerWallet (1) ── (N) WalletTransaction
 | `billingPeriod` | picklist: `MONTHLY` / `YEARLY` / `CUSTOM` — nullable (optional) |
 | `billingPeriodDays` | int 1-365 — nullable (optional) |
 | `cost` | number ≥0 — **optional/nullable** (ราคาทุน feature 00016) · `undefined` = ไม่แตะค่าเดิม · `null` = ล้างค่า · `≥0` = ตั้งค่า · ไม่มี gate ของแพ็กเกจแล้ว (D-EXT-1 2026-08-07) |
+
+### 10.3a Customer File Library (feature 00048)
+
+| Schema | ใช้ที่ | กติกา |
+|--------|--------|-------|
+| `LibrarySaveSchema` | `POST .../library` | `{ messageId: uuid }` เท่านั้น — ไม่รับ metadata ใด ๆ จาก client |
+| `LibraryPatchSchema` | `PATCH .../library` | `fileId` บังคับ + ต้องมี `fileName` หรือ `note` อย่างน้อยหนึ่ง (`v.check`) · `fileName` ≤120 · `note` ≤500 · `null` = ตั้งใจล้างค่า ต่างจากไม่ส่ง field มาเลย = ไม่แตะ · ค่าที่ trim แล้วว่าง → เก็บเป็น `null` ผ่าน `normalizeLibraryText()` |
 
 ### 10.3b CSV Import — สต็อก + ต้นทุน (`CsvImportRowSchema`, Inventory Add-on PRO)
 
