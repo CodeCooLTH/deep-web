@@ -441,3 +441,103 @@ use case ต่างจาก 2 คลิปแรกโดยสิ้นเ�
 - [ ] เติมย่อหน้า server-to-server (§6.2)
 - [ ] คลิปทุกตัวมี caption อธิบายปุ่มที่กด
 - [ ] ทุกฉากในคลิปเดียวกันเป็น **เพจเดียวกัน** ตลอด
+- [x] **แก้ reviewer instructions ที่บอกว่า UI เป็นไทย** — §3.3 เดิมเขียน "the seller interface is
+      in Thai; the English translation of each button is in brackets" ซึ่งไม่จริงแล้วหลัง 00047
+      (ถ้าปล่อยไว้ reviewer จะหาปุ่มไทยที่ไม่มีอยู่บนจอ = ไม่ตรงกันอีกแบบหนึ่ง) → ฉบับใหม่ §7.3
+
+---
+
+## 7. คู่มืออัดคลิป รอบ 2 (2026-08-13)
+
+### 7.1 เตรียมก่อนกดอัด
+
+| # | สิ่งที่ต้องทำ | ถ้าไม่ทำจะเป็นยังไง |
+|---|---|---|
+| 1 | บัญชี `metareview` ตั้งภาษาเป็น **English** (`/account` → การ์ด Language) | UI เป็นไทยทั้งคลิป = ตกข้อ "use English as the app UI language" |
+| 2 | **ถอดเพจออกจาก Deep ก่อน** | scope ผูกกับ token ตอนกดอนุญาต + reviewer สั่งให้เห็นจอ grant อยู่แล้ว |
+| 3 | IG เป็น Professional + ผูกกับเพจ + เปิด **Allow access to messages** | DM ไม่เข้าเลยโดยไม่มี error (ดู §6.0) |
+| 4 | บัญชีที่สอง 2 ชุด: Facebook สำหรับทัก Messenger · Instagram สำหรับส่ง DM | ทักจากบัญชีที่ดูแลเพจเองไม่ได้ |
+| 5 | เตรียมเธรดที่ **เริ่มจากโพสต์/โฆษณาของเพจ** ไว้สำหรับคลิป C | ไม่มีแบนเนอร์ให้ถ่าย |
+| 6 | เปิดหน้า `Messages` ค้างไว้ก่อนให้อีกบัญชีทัก | ต้องเห็นข้อความ "วิ่งเข้ามา" ไม่ใช่เห็นว่ามีอยู่แล้ว |
+
+🛑 **ห้ามตัดต่อ · ห้ามสลับเพจกลางคลิป** — reviewer เขียนว่า *"tied to the same Page shown during setup"*
+
+### 7.2 สคริปต์ทีละฉาก (ชื่อปุ่มด้านล่าง = คำที่อยู่บนจอจริงหลังสลับเป็น EN)
+
+#### คลิป A — Messenger end-to-end
+`pages_show_list` · `business_management` · `pages_manage_metadata` · `pages_messaging`
+
+| ฉาก | สิ่งที่ทำบนจอ | caption อังกฤษที่ต้องขึ้น |
+|---|---|---|
+| 1 | เปิด `seller.deepthailand.app/auth/sign-in` → กดปุ่ม **`EN`** มุมขวาบนให้เห็น | Deep's seller workspace, switching the interface to English. |
+| 2 | เข้าสู่ระบบด้วย `metareview` | — |
+| 3 | เมนูซ้าย → **`Sales channels`** | — |
+| 4 | กด **`Connect Facebook Page`** → หน้า login ของ Meta → **จอเลือกเพจ + จอให้สิทธิ์** (ค้างให้เห็นรายการ permission เต็ม ๆ) | The seller grants Deep access to the Page they manage. |
+| 5 | กลับมาที่ **`Choose pages to connect`** → ติ๊กเพจ → **`Connect selected pages`** → toast `Connected 1 channel(s)` แถวเพจขึ้น **`Connected`** | Deep calls `POST /{page-id}/subscribed_apps` to subscribe to this Page's messaging webhooks. |
+| 6 | 🎯 **กด `Sync notifications`** → toast `Synced notifications for 1 page(s)` | Re-subscribing the same Page to its webhook fields — this button's only job is to call `POST /{page-id}/subscribed_apps`. |
+| 7 | สลับไปอีกบัญชี ส่งข้อความเข้าเพจทาง Messenger | A customer sends a message to the Page. |
+| 8 | 🎯 กลับมาที่ **`Messages`** **โดยไม่รีเฟรช** → เธรดใหม่เด้งเข้ามาเอง | The `messages` webhook event arrives for the same Page connected above, and the thread appears in real time. |
+| 9 | เปิดเธรด พิมพ์ในช่อง `Type a message, or paste a file here…` → กด **`Send`** → สลับไปจอ Messenger ให้เห็นว่าลูกค้าได้รับ | The seller replies by hand; Deep sends it with the Page access token. |
+| 10 | กลับ **`Sales channels`** → กด **`Remove`** → ป๊อปอัป `Disconnect {ชื่อเพจ}?` → กด **`Disconnect`** → ให้อีกบัญชีส่งอีกครั้ง → **ไม่เข้าแล้ว** | Deep calls `DELETE /{page-id}/subscribed_apps`; new messages no longer reach the app. |
+| 11 | กด `Connect Facebook Page` เชื่อมกลับ (เพจนี้เป็นของธุรกิจจริง) | Reconnecting, since this is a live business Page. |
+
+**ฉาก 6 คือคำตอบตรงตัวของข้อ (1) ที่ reviewer สั่ง** — ฉาก 5 ก็ยิง call เดียวกันแต่ปนอยู่กับขั้นตอนอื่น
+ปุ่ม `Sync notifications` ทำงานเดียวคือ subscribe จึงถ่ายให้เห็น "แอปกำลัง subscribe" ได้ชัดที่สุด
+**ฉาก 8 คือข้อ (2)** — เพจเดียวกับฉาก 4-6 ตลอด
+
+#### คลิป B — Instagram end-to-end
+`instagram_basic` · `instagram_manage_messages` — **เพจเดียวกับคลิป A**
+
+| ฉาก | สิ่งที่ทำบนจอ | caption |
+|---|---|---|
+| 1 | หน้า `Sales channels` ให้เห็นว่าเพจมีชิป **`Has Instagram`** และมีแถว Instagram แยกออกมา | Deep calls `GET /{page-id}?fields=instagram_business_account` and shows the linked Instagram account as its own channel. |
+| 2 | อีกบัญชี IG ส่ง DM เข้าบัญชี IG ของร้าน | A customer sends an Instagram direct message. |
+| 3 | กลับมา `Messages` → เธรดเด้งพร้อม **ป้ายช่องทาง Instagram** แยกจาก Messenger ชัดเจน | The Instagram messaging webhook arrives on the same Page's subscription. |
+| 4 | เปิดเธรด พิมพ์ตอบ กด `Send` → สลับไปแอป IG ให้เห็นว่าได้รับ | The seller replies from Deep; delivered through the Instagram Messaging API. |
+| 5 | ให้เห็นว่าเธรด Messenger และ Instagram อยู่ในกล่องเดียวกัน | Both channels share one inbox — the value described in the use case. |
+
+⚠️ **ห้ามโชว์ยอดวิว/insights ของ IG** — เราถอด `/{media-id}/insights` ออกจากโค้ดแล้ว เพราะต้องใช้
+`instagram_manage_insights` ที่ยังขอไม่ได้ (§4) โชว์ไปจะขัดกับใบยื่นเอง
+
+#### คลิป C — Page content ที่เราอ่าน
+`pages_read_engagement` — คำอธิบาย §2.4 อ้างไว้ 2 อย่าง **ต้องโชว์ให้ครบทั้งคู่**
+
+| ฉาก | สิ่งที่ทำบนจอ | caption |
+|---|---|---|
+| 1 | เปิดเธรดที่ลูกค้าเริ่มจากโพสต์/โฆษณา → แถบที่มาบนหัวเธรด (`This chat replied to your ad` / `From comment` + ปุ่ม `View ad` / `View comment`) กดกางให้เห็นรูปกับข้อความโพสต์ | Deep calls `GET /{page-id}_{post-id}` and shows the source post above the conversation, so the seller knows which product is being asked about. |
+| 2 | เมนูซ้าย → **`Storefront`** → การ์ด **`Videos shown on your storefront`** → รีลของเพจโผล่ในกริด | Deep calls `GET /{page-id}/video_reels` to list the seller's own reels. |
+| 3 | ติ๊กเลือกรีล → ตัวเลข `Selected 1 of 6` เปลี่ยน → กด **`Save`** → toast `Saved the clips to show` | The seller picks which of their own reels to feature. |
+| 4 | กด **`View my storefront`** → หน้าร้านสาธารณะเปิดขึ้น → รีลที่เลือกแสดงอยู่จริง | The seller's public shop page — the reels selected in the previous step now appear here. This page is customer-facing and shown in Thai, the language of our market. |
+
+🛑 **ฉาก 4 เป็นภาษาไทย** (อยู่คนละ route group คนละโดเมนกับ cookie ภาษา — มติ D-I18N-7)
+caption ต้องอธิบายเหตุผลไว้ในตัว ตามข้อความในตาราง ห้ามตัดฉากนี้ทิ้งเพราะคำอธิบาย §2.4
+จบประโยคด้วยคำว่า *"to feature on their public Deep shop page"* ตรงตัว
+
+### 7.3 reviewer instructions ฉบับแก้ (แทนที่ของเดิมใน §3.3)
+
+> Deep (deepthailand.app) is a customer-service and order-management tool for Thai online sellers. It has two surfaces:
+>   • deepthailand.app — public site and buyer area.
+>   • seller.deepthailand.app — the seller workspace, where the Messenger and Instagram inbox lives. Every permission in this submission is used here.
+>
+> Confirmation on Facebook Login: yes, Facebook Login is integrated and in active use, in two distinct places.
+> 1. Signing in. On both deepthailand.app and seller.deepthailand.app a person can sign in with "Sign in with Facebook" (email, public_profile). We read only the Facebook id, name, email, and profile picture, and use them to create or match the person's Deep account.
+> 2. Connecting a Page. Inside the seller workspace, the "Connect Facebook Page" button starts a Facebook Login flow requesting the Page and Instagram permissions in this submission, so the seller can connect a Page they own and answer their customers inside Deep.
+>
+> The seller workspace is available in English. The test account below is already set to English; you can also switch at any time with the "EN / TH" control at the top right of the sign-in page, or under Language on the account page.
+>
+> How to test:
+>
+> Step 1. In your browser, sign in to facebook.com with the Facebook test account provided below.
+> Step 2. Open `https://seller.deepthailand.app/auth/sign-in` and sign in with the Deep test account provided below. On this same page you can also verify Facebook Login itself using the "Sign in with Facebook" button.
+> Step 3. In the left menu open "Sales channels", then click "Connect Facebook Page". Complete Meta's dialog and allow access to a Page you administer.
+> Step 4. You return to the page picker "Choose pages to connect". Tick the Page and click "Connect selected pages". The Page appears with the badge "Connected". At this point Deep has called `POST /{page-id}/subscribed_apps` for that Page. You can trigger the same call again at any time with the "Sync notifications" button on that screen.
+> Step 5. From a different Facebook account, send a message to that Page. In Deep, click "Messages" in the left menu — the conversation appears at the top within a few seconds, without reloading the page. Open it, type a reply and click "Send"; the reply is delivered in Messenger.
+> Step 6. For the Page content we read: open a conversation that started from one of the Page's posts or ads — a bar above the conversation shows the source post. Then open "Storefront" in the left menu; the card "Videos shown on your storefront" lists the Page's own reels so the seller can choose which to feature, and "View my storefront" opens the public shop page where they appear. The public shop page is customer-facing and is shown in Thai, the language of our market.
+> Step 7. To confirm we stop receiving data when asked, return to "Sales channels" and click "Remove" on both the Messenger row and the Instagram row of that Page, then confirm with "Disconnect". Deep then calls `DELETE /{page-id}/subscribed_apps` and new messages no longer reach the inbox. This Page belongs to a live business, so please click "Connect Facebook Page" once more afterwards to reconnect it.
+>
+> Note on architecture: our webhook receiver is a server-to-server component. The Meta login and permission-grant flow is fully visible at the start of the recording, but the webhook delivery itself has no frontend of its own — what the recording shows is the message arriving in the seller's inbox in real time, which is the observable result of that delivery.
+>
+> Screen recordings attached:
+>   • Recording A — Messenger end-to-end: signing in, granting permissions, subscribing the Page to webhooks, a customer message arriving live, the seller replying by hand, disconnecting the Page, and reconnecting it. Covers `pages_show_list`, `business_management`, `pages_manage_metadata`, `pages_messaging`.
+>   • Recording B — Instagram end-to-end on the same Page: the linked Instagram account detected, a direct message arriving, and the seller replying. Covers `instagram_basic`, `instagram_manage_messages`.
+>   • Recording C — Page content we read: the source-post bar above a conversation, and the Page's reels listed for the seller to feature on their public shop page. Covers `pages_read_engagement`.
