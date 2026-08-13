@@ -39,6 +39,7 @@ import ChatSearchBox from '@/layouts/components/TopBar/components/ChatSearchBox'
 import TextScaleToggler from '@/layouts/components/TopBar/components/TextScaleToggler'
 import ThemeDropdown from '@/layouts/components/TopBar/components/ThemeDropdown'
 import { CHAT_SOUND_EVENT, isChatSoundMuted, primeChatSound, setChatSoundMuted } from '@/lib/chat-sound'
+import { useT } from '@/i18n/LocaleProvider'
 
 export default function ChatHeader({
   /** โหมดมุมมองกล่องข้อความของผู้ใช้ (feature 00037) — resolve ที่ layout (server) ส่งลงมา
@@ -47,6 +48,7 @@ export default function ChatHeader({
 }: {
   chatScopeMode?: 'SINGLE' | 'UNIFIED'
 }) {
+  const t = useT()
   // มือถือ/แท็บเล็ต (<1024px) ตอนเปิดอ่านแชท: ซ่อน header นี้ให้เธรดกินเต็มจอแบบแอปแชทจริง
   // (user request 2026-07-23 "เหมือน Facebook ที่จะไม่มี logo แล้ว") — จอเล็กเป็น drill-down
   // list→thread เต็มจอ พื้นที่มีค่ามาก โลโก้/ช่องค้นหา/ปุ่มกลับหน้าหลักไม่มีประโยชน์ในหน้าเธรด
@@ -91,7 +93,7 @@ export default function ChatHeader({
     >
       {/* โลโก้ — คลิกกลับหน้าหลักได้เหมือนทุกแอป แต่ยังต้องมีปุ่มข้อความ "กลับหน้าหลัก" แยกต่างหาก
           (ด้านล่าง) ตามที่ user สั่งชัดว่าต้อง "หาเจอง่าย" ไม่ใช่พึ่งแค่คลิกโลโก้เฉย ๆ */}
-      <Link href="/dashboard" className="chat-header-logo shrink-0" aria-label="กลับหน้าหลัก">
+      <Link href="/dashboard" className="chat-header-logo shrink-0" aria-label={t.inbox.backToDashboard}>
         <AppLogo />
       </Link>
 
@@ -106,8 +108,8 @@ export default function ChatHeader({
           type="button"
           onClick={() => setChatSoundMuted(!muted)}
           aria-pressed={muted}
-          title={muted ? 'เปิดเสียงแจ้งเตือนข้อความใหม่' : 'ปิดเสียงแจ้งเตือนข้อความใหม่'}
-          aria-label={muted ? 'เปิดเสียงแจ้งเตือนข้อความใหม่' : 'ปิดเสียงแจ้งเตือนข้อความใหม่'}
+          title={muted ? t.inbox.soundOn : t.inbox.soundOff}
+          aria-label={muted ? t.inbox.soundOn : t.inbox.soundOff}
           className={`btn btn-icon inline-flex size-11 items-center justify-center ${
             muted ? 'text-default-700' : 'text-dark'
           }`}

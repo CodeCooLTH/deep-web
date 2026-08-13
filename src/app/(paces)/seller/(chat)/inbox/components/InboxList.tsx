@@ -98,6 +98,7 @@ import { buildChatListParams, DEFAULT_CHAT_FILTER, type ChatFilterState } from '
 import { type RowAction } from './ConversationRowMenu'
 import ChatContextMenu, { type ChatRowAnchor } from './ChatContextMenu'
 import SwipeableRow from './SwipeableRow'
+import { useT } from '@/i18n/LocaleProvider'
 import {
   ChannelBadgeOverlay,
   ChannelMark,
@@ -296,6 +297,7 @@ export default function InboxList({
   activeShopId = null,
   chatMuted = false,
 }: Props) {
+  const t = useT()
   // ชื่อเรียกรายการตามประเภทกิจการ — อ่านจาก DraftOrderProvider ที่ครอบทั้ง (chat) อยู่แล้ว
   // (ป้ายสถานะออเดอร์ล่าสุดในรายการแชทเคยเขียน "คำสั่งซื้อ" ตายตัว ทั้งที่ร้านบริการ/บ้านพัก
   //  เรียกคนละชื่อ — ตัวเลขและป้ายเดียวกันโผล่หลายที่ต้องมาจากคำชุดเดียวกัน)
@@ -971,7 +973,7 @@ export default function InboxList({
               type="search"
               value={localSearchInput}
               onChange={(e) => setLocalSearchInput(e.target.value)}
-              placeholder="ค้นหาชื่อ ลูกค้า เบอร์ หรือข้อความในแชท"
+              placeholder={t.inbox.searchPlaceholder}
               className="form-input bg-light/30"
             />
           </div>
@@ -985,14 +987,14 @@ export default function InboxList({
             filter กระชับ) — ไหลลงบรรทัดใหม่เองเมื่อแคบ ไม่ใช่ 2 แถวตายตัว. relative สำหรับ popover
             (InboxFilterPanel/PageFilterDropdown) ที่ใช้ inset-x-0 อ้างอิงแถวนี้ (กว้างเท่าแถว ไม่ล้นจอ) */}
         <div className="relative flex flex-wrap items-center gap-1.5">
-          <div className="bg-light flex w-full items-center gap-0.5 rounded-lg p-1" aria-label="ตัวกรองช่องทาง" role="tablist">
+          <div className="bg-light flex w-full items-center gap-0.5 rounded-lg p-1" aria-label={t.inbox.channelFilterLabel} role="tablist">
           {/* segmented control — พื้นเทาก้อนเดียว ตัวที่เลือกเป็นการ์ดขาวยกขึ้น (mockup V1, 2026-07-31)
               เดิมเป็น pill 4 ก้อนลอยแยกกัน ทำให้ดูเป็นของ 4 ชิ้นทั้งที่เป็นตัวเลือกชุดเดียวกัน
               และแย่งความเด่นกับปุ่มตัวกรอง — user รายงานว่า "รก ดูไม่ออกว่าอะไรสำคัญ" */}
           {CHANNEL_TABS.map((tab) => {
             const active = channelTab === tab
             const display = tab === 'ALL' ? null : getChannelDisplay(tab)
-            const label = tab === 'ALL' ? 'ทั้งหมด' : display!.label
+            const label = tab === 'ALL' ? t.inbox.channelAll : display!.label
             return (
               <button
                 key={tab}

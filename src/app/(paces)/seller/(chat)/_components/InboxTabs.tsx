@@ -25,10 +25,14 @@ import { useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { subscribeShopChat } from '@/lib/chat-shop-realtime'
 import { subscribeShopComments } from '@/lib/comment-realtime'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 
+// label ไม่อยู่ตรงนี้ (feature 00047) — resolve ตอน render จาก dictionary เพราะค่าคงที่ระดับ
+// module ถูกผูกกับภาษาที่โหลดตอน bundle แล้วค้างเป็นไทยตลอดไปไม่ว่าผู้ใช้เลือกอะไร
 const TABS = [
-  { href: '/inbox', label: 'ข้อความ', icon: 'message-2' },
-  { href: '/inbox/comments', label: 'ความคิดเห็น', icon: 'message-circle-2' },
+  { href: '/inbox', icon: 'message-2' },
+  { href: '/inbox/comments', icon: 'message-circle-2' },
 ] as const
 
 /** ทุก 60 วิ เท่ากับ throttle ของ badge สแปม/พัสดุมีปัญหาใน InboxList — ตัวเลขนี้ไม่ใช่ realtime */
@@ -85,6 +89,7 @@ export default function InboxTabs({
   /** ร้านที่กล่องข้อความครอบคลุม (feature 00037) — subscribe ทุกตัวเพื่อให้ badge สดทุกร้าน */
   shopIds?: string[]
 }) {
+  const t = useT()
   const pathname = usePathname()
   // /inbox/[conversationId] ยังถือว่าอยู่แท็บ "ข้อความ" — เทียบ prefix ไม่ใช่ค่าเป๊ะ
   const isComments = pathname?.startsWith('/inbox/comments') ?? false
@@ -146,23 +151,26 @@ export default function InboxTabs({
         isChatThreadPath(pathname) ? 'hidden lg:flex' : 'flex'
       }`}
     >
-      {TABS.map((t) => {
-        const active = t.href === '/inbox/comments' ? isComments : !isComments
-        const count = t.href === '/inbox/comments' ? counts.unanswered : counts.unread
-        const badgeLabel =
-          t.href === '/inbox/comments' ? `ยังไม่ตอบ ${count} ความคิดเห็น` : `ยังไม่อ่าน ${count} แชท`
+      {TABS.map((tab) => {
+        const isCommentsTab = tab.href === '/inbox/comments'
+        const active = isCommentsTab ? isComments : !isComments
+        const count = isCommentsTab ? counts.unanswered : counts.unread
+        const badgeLabel = fmt(
+          isCommentsTab ? t.inbox.unansweredComments : t.inbox.unreadChats,
+          { n: count },
+        )
         return (
           <Link
-            key={t.href}
-            href={t.href}
+            key={tab.href}
+            href={tab.href}
             className={`-mb-px flex min-h-11 items-center gap-1.5 border-b-2 px-3 text-sm font-medium ${
               active
                 ? 'border-primary text-primary'
                 : 'text-default-700 hover:text-default-800 border-transparent'
             }`}
           >
-            <Icon icon={t.icon} className="text-base" />
-            {t.label}
+            <Icon icon={tab.icon} className="text-base" />
+            {isCommentsTab ? t.inbox.tabComments : t.inbox.tabMessages}
             {count > 0 && (
               // ย่อลงให้เท่า badge ที่ยังไม่อ่านในแถวรายการแชท (InboxList.tsx: h-4.5 min-w-4.5
               // text-2xs) — user สั่ง 2026-08-04 ว่าของเดิมใหญ่ไป; ตัวเลขบนแท็บกับในแถวเป็นของ

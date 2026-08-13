@@ -161,6 +161,21 @@ export const en: Dictionary = {
     selectEmptyDesc: 'Your Facebook account must be an admin of the Page with the Messaging permission enabled.',
   },
 
+  inbox: {
+    tabMessages: 'Messages',
+    tabComments: 'Comments',
+    unreadChats: '{n} unread chat(s)',
+    unansweredComments: '{n} comment(s) awaiting reply',
+
+    backToDashboard: 'Back to dashboard',
+    soundOn: 'Turn on new-message sound',
+    soundOff: 'Turn off new-message sound',
+
+    searchPlaceholder: 'Search by name, customer, phone, or message',
+    channelFilterLabel: 'Filter by channel',
+    channelAll: 'All',
+  },
+
   auth: {
     signIn: {
       pageTitle: 'Seller sign-in',
