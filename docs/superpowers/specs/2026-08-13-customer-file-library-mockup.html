@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>00048 — คลังไฟล์ต่อลูกค้า (Customer File Library) · Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+  /* ── Paces tokens (ยกจาก theme/paces — น้ำเงิน #236dc9 ไม่ใช่ม่วง Vuexy) ───────── */
+  :root{
+    --primary:#236dc9; --primary-ink:#1b56a0;
+    --card:#ffffff; --body-bg:#f5f6fa;
+    --default-100:#eef0f4; --default-200:#e3e6ec; --default-300:#cbd1db;
+    --default-700:#5b6577; --default-900:#1f2733;
+    --warning:#f7a34a; --warning-ink:#8a5210;
+    --info:#42a5f5; --info-ink:#1c5f92;
+    --danger:#ef4c58; --danger-ink:#9b2028;
+    --dark:#111827;
+    --radius:.5rem;
+    --shadow-lg:0 10px 30px -8px rgb(31 39 51 / .18);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#e9ecf2;font-family:Anuphan,system-ui,sans-serif;color:var(--default-900)}
+  .page{max-width:1600px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:22px;font-weight:700;margin:0 0 4px}
+  .sub{color:var(--default-700);font-size:14px;margin:0 0 28px;line-height:1.7}
+  .sub code{background:#fff;padding:1px 5px;border-radius:4px;font-size:12px}
+  h2{font-size:15px;font-weight:600;margin:36px 0 12px;padding-top:20px;border-top:1px solid var(--default-300)}
+  .note{font-size:12.5px;color:var(--default-700);margin:-6px 0 14px;line-height:1.6}
+  .row{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+
+  /* device frames */
+  .device{background:#fff;border-radius:14px;box-shadow:var(--shadow-lg);overflow:hidden;position:relative}
+  .device-label{font-size:11px;font-weight:600;color:var(--default-700);margin-bottom:6px;letter-spacing:.02em}
+  .d375{width:375px} .d820{width:520px} .d1440{width:960px}
+
+  /* ── ชิ้นส่วน Paces ────────────────────────────────────────────────────────── */
+  .card{background:var(--card);border-radius:var(--radius);border:1px solid var(--default-200)}
+  .badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:500}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:var(--radius);
+       font-family:inherit;font-size:13px;font-weight:500;padding:9px 14px;cursor:pointer}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-light{background:var(--default-100);color:var(--default-900)}
+  .btn-icon{width:37px;height:37px;padding:0}
+  .link{color:var(--primary);font-size:13.5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;
+        background:none;border:0;cursor:pointer;font-family:inherit}
+
+  /* panel chrome */
+  .sheet-grip{width:36px;height:4px;border-radius:999px;background:var(--default-300);margin:8px auto 12px}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;padding:0 16px 8px}
+  .panel-head h3{font-size:15px;font-weight:700;margin:0}
+  .cust{display:flex;align-items:center;gap:10px;padding:4px 16px 12px;min-width:0}
+  .avatar{width:38px;height:38px;border-radius:999px;background:var(--default-200);flex:0 0 auto;
+          display:flex;align-items:center;justify-content:center;color:var(--default-700);font-weight:600;font-size:14px}
+  .cust-meta{min-width:0}
+  .cust-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .cust-chan{font-size:11.5px;color:var(--default-700);display:flex;align-items:center;gap:4px;
+             white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .tabs{display:flex;gap:6px;padding:0 16px;border-bottom:1px solid var(--default-200)}
+  .tab{padding:10px 10px;font-size:13.5px;color:var(--default-700);border-bottom:2px solid transparent;
+       display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  .tab.on{color:var(--primary);border-bottom-color:var(--primary);font-weight:500}
+  .body{padding:16px}
+  .stat{display:flex;justify-content:space-between;font-size:13px;padding:5px 0}
+  .stat span:first-child{color:var(--default-700)}
+  .stat span:last-child{font-weight:600}
+  .blk-title{font-size:12px;color:var(--default-700);margin:0 0 6px}
+
+  /* ── section คลังไฟล์ ─────────────────────────────────────────────────────── */
+  .lib{margin-top:18px;padding-top:16px;border-top:1px dashed var(--default-200)}
+  .lib-head{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+  .lib-head h4{font-size:13.5px;font-weight:600;margin:0}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+  .tile{position:relative;aspect-ratio:4/5;border-radius:var(--radius);overflow:hidden;background:var(--default-100);
+        border:0;padding:0;cursor:pointer;display:block;width:100%}
+  .tile img{width:100%;height:100%;object-fit:cover;display:block}
+  .tile-file{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:6px;
+             text-align:center;line-height:1.25}
+  .tile-file .fname{font-size:9.5px;color:var(--default-700);width:100%;
+                    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+  .play{position:absolute;right:5px;bottom:5px;width:22px;height:22px;border-radius:999px;background:rgb(17 24 39 / .6);
+        color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px}
+  .gone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--default-700);
+        background:var(--default-100);height:100%}
+  .gone span{font-size:9.5px}
+  .lib-more{text-align:center;margin-top:10px}
+
+  /* empty state */
+  .empty{text-align:center;padding:18px 8px;color:var(--default-700)}
+  .empty .ic{width:40px;height:40px;border-radius:999px;background:var(--default-100);display:flex;
+             align-items:center;justify-content:center;margin:0 auto 8px;font-size:20px}
+  .empty b{display:block;font-size:13px;color:var(--default-900);font-weight:600;margin-bottom:2px}
+  .empty p{margin:0;font-size:12px;line-height:1.6}
+
+  /* ── เมนูกดค้าง (มือถือ) ──────────────────────────────────────────────────── */
+  .thread-bg{background:var(--body-bg);height:520px;position:relative;overflow:hidden}
+  .thread-blur{filter:blur(3px);padding:14px;display:flex;flex-direction:column;gap:8px}
+  .bub{max-width:70%;padding:8px 12px;border-radius:14px;font-size:13px;line-height:1.5}
+  .bub.them{background:#fff;align-self:flex-start;border:1px solid var(--default-200)}
+  .bub.me{background:var(--primary);color:#fff;align-self:flex-end}
+  .lp-wrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+  .lp-clone{width:150px;aspect-ratio:3/4;border-radius:12px;overflow:hidden;box-shadow:var(--shadow-lg);transform:scale(1.04)}
+  .lp-clone img{width:100%;height:100%;object-fit:cover;display:block}
+  .lp-menu{background:#fff;border-radius:14px;box-shadow:var(--shadow-lg);padding:6px;width:280px}
+  .lp-react{display:flex;gap:2px;padding:4px 2px 8px;border-bottom:1px solid var(--default-200);justify-content:space-between}
+  .lp-react div{width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:17px}
+  .lp-acts{display:flex;padding-top:6px}
+  .lp-act{flex:1;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+          font-size:11px;color:var(--default-900);border-radius:10px}
+  .lp-act.hi{background:rgb(35 109 201 / .1);color:var(--primary);font-weight:600}
+  .lp-act iconify-icon{font-size:19px}
+
+  /* ── ปุ่ม hover เดสก์ท็อป ────────────────────────────────────────────────── */
+  .hoverrow{display:flex;align-items:flex-start;gap:6px;padding:14px;background:var(--body-bg);border-radius:10px}
+  .hovbub{width:170px;aspect-ratio:3/4;border-radius:12px;overflow:hidden;border:1px solid var(--default-200)}
+  .hovbub img{width:100%;height:100%;object-fit:cover;display:block}
+  .hovbtns{display:flex;gap:2px;padding-top:4px}
+  .hovbtn{width:28px;height:28px;border-radius:999px;background:#fff;border:1px solid var(--default-200);
+          display:flex;align-items:center;justify-content:center;color:var(--default-700);font-size:15px}
+  .hovbtn.on{color:var(--primary);border-color:rgb(35 109 201 / .35);background:rgb(35 109 201 / .08)}
+
+  /* ── lightbox ─────────────────────────────────────────────────────────────── */
+  .lb{background:#0b0d11;border-radius:12px;overflow:hidden;position:relative}
+  .lb-top{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;color:#fff}
+  .lb-tools{display:flex;gap:14px;font-size:19px;opacity:.92}
+  .lb-tools .on{color:#8fbcf5}
+  .lb-stage{height:280px;display:flex;align-items:center;justify-content:center;position:relative}
+  .lb-stage img{max-height:100%;max-width:70%;object-fit:contain}
+  .lb-nav{position:absolute;top:50%;transform:translateY(-50%);color:#fff;opacity:.6;font-size:26px}
+  .lb-foot{background:rgb(0 0 0 / .55);padding:12px 16px 14px;color:#fff}
+  .lb-foot .l1{font-size:12.5px;opacity:.95}
+  .lb-foot .l2{font-size:12.5px;opacity:.7;margin-top:2px}
+  .lb-acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .lb-btn{background:rgb(255 255 255 / .13);color:#fff;border:0;border-radius:8px;padding:7px 12px;font-size:12.5px;
+          font-family:inherit;display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+
+  /* ── modal ────────────────────────────────────────────────────────────────── */
+  .modal{background:#fff;border-radius:14px;box-shadow:var(--shadow-lg);overflow:hidden}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--default-200)}
+  .modal-head h3{margin:0;font-size:15px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .modal-body{padding:18px;max-height:420px;overflow:auto}
+  .loading{display:flex;align-items:center;justify-content:center;gap:8px;color:var(--default-700);font-size:12.5px;padding:16px 0}
+  .spin{width:16px;height:16px;border-radius:999px;border:2px solid var(--default-200);border-top-color:var(--primary);
+        animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* ── การ์ดรายละเอียด (วิดีโอ/เอกสาร) ─────────────────────────────────────── */
+  .detail{width:340px;background:#fff;border-radius:14px;box-shadow:var(--shadow-lg);overflow:hidden}
+  .detail-head{display:flex;align-items:flex-start;gap:10px;padding:14px 16px 10px}
+  .detail-head .ic{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .detail-head .t{min-width:0;flex:1}
+  .detail-head .t b{display:block;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+  .detail-head .t span{font-size:11.5px;color:var(--default-700)}
+  .detail-meta{padding:0 16px 12px;font-size:12px;color:var(--default-700);line-height:1.7}
+  .detail-acts{padding:0 16px 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .detail-acts .full{grid-column:1/-1}
+  .vidbox{margin:0 16px 12px;border-radius:10px;overflow:hidden;background:#0b0d11;height:150px;position:relative;
+          display:flex;align-items:center;justify-content:center}
+  .vidbox img{width:100%;height:100%;object-fit:cover;opacity:.75}
+  .vidbox .pl{position:absolute;width:44px;height:44px;border-radius:999px;background:rgb(255 255 255 / .9);
+              display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--default-900)}
+
+  .cap{font-size:11.5px;color:var(--default-700);margin-top:8px;line-height:1.6}
+  .measure{font-family:ui-monospace,monospace;font-size:11px;color:var(--primary-ink);background:rgb(35 109 201 / .07);
+           padding:6px 9px;border-radius:6px;display:inline-block;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>00048 — คลังไฟล์ต่อลูกค้า (Customer File Library)</h1>
+  <p class="sub">
+    Mockup ประกอบ <code>UX-Design-Spec.md</code> · ธีม Paces (primary น้ำเงิน <code>#236dc9</code>) · ฟอนต์ Anuphan · ไม่มี emoji ในตัว UI (ไอคอน tabler จริงทั้งหมด)<br>
+    ใช้ <b>ข้อมูลยาวจริง</b> ทุกจุดตามที่ตกลง: ชื่อลูกค้า “ณัฐธิดา ศรีสุวรรณวัฒนกุล” (22 ตัวอักษร) · ชื่อเพจ “BT Premium Motorbike Rental Chiang Mai” (38) · ชื่อไฟล์ “ใบเสนอราคา-ณัฐธิดา-ศรีสุวรรณวัฒนกุล-ฉบับแก้ไข-2.pdf” (48)
+  </p>
+
+  <!-- ══════════════════ 1. section คลังไฟล์ ══════════════════ -->
+  <h2>1 · section “คลังไฟล์” — ล่างสุดของแท็บ “ข้อมูลลูกค้า” (3 จอ)</h2>
+  <p class="note">
+    จุดเปลี่ยนจริงของแผงนี้คือ <b>1024px</b> (sheet → modal กลางจอ) และ <b>1280px</b> (คอลัมน์ persistent) —
+    ที่ 820px จึงยังเป็น bottom-sheet เหมือน 375px ทุกประการ ต่างแค่ความกว้าง
+  </p>
+
+  <div class="row">
+
+    <!-- 375 -->
+    <div>
+      <div class="device-label">MOBILE 375px — bottom-sheet</div>
+      <div class="device d375">
+        <div class="sheet-grip"></div>
+        <div class="panel-head"><h3>ข้อมูลลูกค้า</h3><iconify-icon icon="tabler:x" style="font-size:19px;color:var(--default-700)"></iconify-icon></div>
+        <div class="cust">
+          <div class="avatar">ณธ</div>
+          <div class="cust-meta">
+            <div class="cust-name">ณัฐธิดา ศรีสุวรรณวัฒนกุล</div>
+            <div class="cust-chan"><iconify-icon icon="tabler:brand-messenger"></iconify-icon> BT Premium Motorbike Rental Chiang Mai</div>
+          </div>
+        </div>
+        <div class="tabs">
+          <div class="tab on"><iconify-icon icon="tabler:user-circle"></iconify-icon>ข้อมูลลูกค้า</div>
+          <div class="tab"><iconify-icon icon="tabler:shopping-cart"></iconify-icon>คำสั่งซื้อ <span class="badge" style="background:var(--default-100);color:var(--default-700)">12</span></div>
+          <div class="tab"><iconify-icon icon="tabler:notes"></iconify-icon>โน้ต</div>
+        </div>
+        <div class="body">
+          <div class="stat"><span>จำนวนออเดอร์</span><span>12</span></div>
+          <div class="stat"><span>รวมยอดซื้อ</span><span>฿48,500</span></div>
+          <div class="stat"><span>เป็นลูกค้ามา</span><span>3 เดือน</span></div>
+
+          <div class="lib">
+            <div class="lib-head">
+              <h4>คลังไฟล์</h4>
+              <span class="badge" style="background:var(--default-100);color:var(--default-700)">12</span>
+            </div>
+            <div class="grid3">
+              <button class="tile"><img src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=300&q=60" alt="" /></button>
+              <button class="tile"><img src="https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=300&q=60" alt="" /></button>
+              <button class="tile">
+                <div class="tile-file" style="height:100%">
+                  <span class="badge" style="background:rgb(247 163 74 / .15);color:var(--warning-ink);padding:6px;border-radius:8px">
+                    <iconify-icon icon="tabler:file-type-pdf" style="font-size:18px"></iconify-icon>
+                  </span>
+                  <span class="fname">ใบเสนอราคา-ณัฐธิดา-ศรีสุวรรณวัฒนกุล-ฉบับแก้ไข-2.pdf</span>
+                </div>
+              </button>
+              <button class="tile">
+                <img src="https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=300&q=60" alt="" />
+                <span class="play"><iconify-icon icon="tabler:player-play-filled"></iconify-icon></span>
+              </button>
+              <button class="tile"><img src="https://images.unsplash.com/photo-1583394838336-acd977736f90?w=300&q=60" alt="" /></button>
+              <button class="tile"><img src="https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=300&q=60" alt="" /></button>
+              <button class="tile"><img src="https://images.unsplash.com/photo-1596526131083-e8c633c948d2?w=300&q=60" alt="" /></button>
+              <button class="tile">
+                <div class="gone">
+                  <iconify-icon icon="tabler:photo-off" style="font-size:20px"></iconify-icon>
+                  <span>ไฟล์ถูกลบแล้ว</span>
+                </div>
+              </button>
+              <button class="tile"><img src="https://images.unsplash.com/photo-1503602642458-232111445657?w=300&q=60" alt="" /></button>
+            </div>
+            <div class="lib-more"><button class="link">ดูไฟล์ทั้งหมด (12) <iconify-icon icon="tabler:chevron-right"></iconify-icon></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="measure">320px: (320−32−8)/3 = 93.3px/ช่อง · สูง 116.7px (4:5) ✓ เกิน 44px</div>
+    </div>
+
+    <!-- 820 -->
+    <div>
+      <div class="device-label">TABLET 820px — ยังเป็น bottom-sheet (ตัดให้เห็นเฉพาะ section)</div>
+      <div class="device d820">
+        <div class="sheet-grip"></div>
+        <div class="panel-head"><h3>ข้อมูลลูกค้า</h3><iconify-icon icon="tabler:x" style="font-size:19px;color:var(--default-700)"></iconify-icon></div>
+        <div class="cust">
+          <div class="avatar">ณธ</div>
+          <div class="cust-meta">
+            <div class="cust-name">ณัฐธิดา ศรีสุวรรณวัฒนกุล</div>
+            <div class="cust-chan"><iconify-icon icon="tabler:brand-messenger"></iconify-icon> BT Premium Motorbike Rental Chiang Mai</div>
+          </div>
+        </div>
+        <div class="body" style="padding-top:6px">
+          <div class="lib" style="margin-top:0;border-top:0;padding-top:0">
+            <div class="lib-head">
+              <h4>คลังไฟล์</h4>
+              <span class="badge" style="background:var(--default-100);color:var(--default-700)">12</span>
+            </div>
+            <div class="grid3">
+              <button class="tile"><img src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&q=60" alt="" /></button>
+              <button class="tile"><img src="https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=400&q=60" alt="" /></button>
+              <button class="tile">
+                <div class="tile-file" style="height:100%">
+                  <span class="badge" style="background:rgb(247 163 74 / .15);color:var(--warning-ink);padding:9px;border-radius:10px">
+                    <iconify-icon icon="tabler:file-type-pdf" style="font-size:26px"></iconify-icon>
+                  </span>
+                  <span class="fname" style="font-size:11px">ใบเสนอราคา-ณัฐธิดา-ศรีสุวรรณวัฒนกุล-ฉบับแก้ไข-2.pdf</span>
+                </div>
+              </button>
+              <button class="tile">
+                <img src="https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=400&q=60" alt="" />
+                <span class="play" style="width:26px;height:26px"><iconify-icon icon="tabler:player-play-filled"></iconify-icon></span>
+              </button>
+              <button class="tile"><img src="https://images.unsplash.com/photo-1583394838336-acd977736f90?w=400&q=60" alt="" /></button>
+              <button class="tile"><img src="https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=400&q=60" alt="" /></button>
+            </div>
+            <div class="lib-more"><button class="link">ดูไฟล์ทั้งหมด (12) <iconify-icon icon="tabler:chevron-right"></iconify-icon></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="measure">กริดยัง 3 คอลัมน์เสมอ — ช่องโตขึ้นตาม container ไม่เพิ่มคอลัมน์</div>
+    </div>
+
+    <!-- empty state -->
+    <div>
+      <div class="device-label">EMPTY STATE (ทุกจอ) — ห้ามซ่อน section</div>
+      <div class="device d375" style="width:340px">
+        <div class="body">
+          <div class="stat"><span>จำนวนออเดอร์</span><span>0</span></div>
+          <div class="lib">
+            <div class="lib-head"><h4>คลังไฟล์</h4></div>
+            <div class="empty">
+              <div class="ic"><iconify-icon icon="tabler:folder"></iconify-icon></div>
+              <b>ยังไม่มีไฟล์ในคลัง</b>
+              <p>กดค้างที่รูป วิดีโอ หรือไฟล์ในแชท<br>แล้วเลือก “เก็บเข้าคลัง”</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="cap">ไม่มี badge “0” · ไม่เติมช่องเทาให้ครบ 9 · ข้อความบอก <b>วิธีเก็บ</b> ไม่ใช่แค่ “ยังไม่มีไฟล์”</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ 2. เดสก์ท็อป ══════════════════ -->
+  <h2>2 · เดสก์ท็อป ≥1280px — คอลัมน์ persistent (w-96 = 384px)</h2>
+  <div class="row">
+    <div>
+      <div class="device-label">DESKTOP 1440px — เธรด + แผงลูกค้าด้านขวา</div>
+      <div class="device d1440" style="display:flex;height:560px">
+        <div style="flex:1;background:var(--body-bg);padding:16px;display:flex;flex-direction:column;gap:8px;border-right:1px solid var(--default-200)">
+          <div style="font-size:12px;color:var(--default-700)">— เธรดแชท (ย่อ) —</div>
+          <div class="bub them">สวัสดีค่ะ สนใจเช่ารถรุ่นนี้ค่ะ</div>
+          <div class="bub me">ได้เลยครับ รบกวนส่งบัตรประชาชนด้วยนะครับ</div>
+          <div class="hoverrow" style="align-self:flex-start;background:transparent;padding:0">
+            <div class="hovbub"><img src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=300&q=60" alt="" /></div>
+            <div class="hovbtns">
+              <div class="hovbtn"><iconify-icon icon="tabler:arrow-back-up"></iconify-icon></div>
+              <div class="hovbtn on"><iconify-icon icon="tabler:bookmark-plus"></iconify-icon></div>
+              <div class="hovbtn"><iconify-icon icon="tabler:mood-smile"></iconify-icon></div>
+              <div class="hovbtn"><iconify-icon icon="tabler:receipt"></iconify-icon></div>
+            </div>
+          </div>
+          <div class="cap">ปุ่มไอคอนโผล่ตอน hover — <b>ไม่ใช่ popover</b> (popover ของเดสก์ท็อปแสดงแค่รีแอ็กชัน)</div>
+        </div>
+
+        <div style="width:384px;background:#fff;overflow:auto">
+          <div class="cust" style="padding-top:14px">
+            <div class="avatar">ณธ</div>
+            <div class="cust-meta">
+              <div class="cust-name">ณัฐธิดา ศรีสุวรรณวัฒนกุล</div>
+              <div class="cust-chan"><iconify-icon icon="tabler:brand-messenger"></iconify-icon> BT Premium Motorbike Rental Chiang Mai</div>
+            </div>
+          </div>
+          <div class="tabs">
+            <div class="tab on"><iconify-icon icon="tabler:user-circle"></iconify-icon>ข้อมูลลูกค้า</div>
+            <div class="tab"><iconify-icon icon="tabler:shopping-cart"></iconify-icon>คำสั่งซื้อ</div>
+            <div class="tab"><iconify-icon icon="tabler:notes"></iconify-icon>โน้ต</div>
+          </div>
+          <div class="body">
+            <div class="stat"><span>จำนวนออเดอร์</span><span>12</span></div>
+            <div class="stat"><span>รวมยอดซื้อ</span><span>฿48,500</span></div>
+            <div class="stat"><span>เป็นลูกค้ามา</span><span>3 เดือน</span></div>
+            <p class="blk-title" style="margin-top:14px">การเชื่อมกับลูกค้าในระบบ</p>
+            <div style="font-size:12.5px;display:flex;align-items:center;gap:6px">
+              <iconify-icon icon="tabler:link" style="color:var(--primary)"></iconify-icon> เชื่อมแล้ว · 08X-XXX-1234
+            </div>
+
+            <div class="lib">
+              <div class="lib-head"><h4>คลังไฟล์</h4><span class="badge" style="background:var(--default-100);color:var(--default-700)">12</span></div>
+              <div class="grid3">
+                <button class="tile"><img src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=300&q=60" alt="" /></button>
+                <button class="tile"><img src="https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=300&q=60" alt="" /></button>
+                <button class="tile">
+                  <div class="tile-file" style="height:100%">
+                    <span class="badge" style="background:rgb(247 163 74 / .15);color:var(--warning-ink);padding:7px;border-radius:9px">
+                      <iconify-icon icon="tabler:file-type-pdf" style="font-size:20px"></iconify-icon>
+                    </span>
+                    <span class="fname">ใบเสนอราคา-ณัฐธิดา-ศรีสุวรรณวัฒนกุล-ฉบับแก้ไข-2.pdf</span>
+                  </div>
+                </button>
+                <button class="tile">
+                  <img src="https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=300&q=60" alt="" />
+                  <span class="play"><iconify-icon icon="tabler:player-play-filled"></iconify-icon></span>
+                </button>
+                <button class="tile"><img src="https://images.unsplash.com/photo-1583394838336-acd977736f90?w=300&q=60" alt="" /></button>
+                <button class="tile"><img src="https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=300&q=60" alt="" /></button>
+                <button class="tile"><img src="https://images.unsplash.com/photo-1596526131083-e8c633c948d2?w=300&q=60" alt="" /></button>
+                <button class="tile"><div class="gone"><iconify-icon icon="tabler:photo-off" style="font-size:20px"></iconify-icon><span>ไฟล์ถูกลบแล้ว</span></div></button>
+                <button class="tile"><img src="https://images.unsplash.com/photo-1503602642458-232111445657?w=300&q=60" alt="" /></button>
+              </div>
+              <div class="lib-more"><button class="link">ดูไฟล์ทั้งหมด (12) <iconify-icon icon="tabler:chevron-right"></iconify-icon></button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="measure">384px: (384−32−8)/3 = 114.7px/ช่อง · สูง 143.3px</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ 3. เมนูกดค้าง ══════════════════ -->
+  <h2>3 · ทางเข้าที่ 1 — กดค้างบนมือถือ (เมนูเดิม + item ใหม่)</h2>
+  <p class="note">ปุ่มในแถวสืบทอด <code>min-h-11</code> (44px) จาก <code>MessageActionBubble</code> เดิม — ไม่ต้องแก้อะไรในไฟล์นั้นเลย นอกจากรับ item เพิ่ม</p>
+  <div class="row">
+    <div>
+      <div class="device-label">MOBILE 375px — longpress</div>
+      <div class="device d375">
+        <div class="thread-bg">
+          <div class="thread-blur">
+            <div class="bub them">สวัสดีค่ะ สนใจเช่ารถรุ่นนี้ค่ะ</div>
+            <div class="bub me">ได้เลยครับ รบกวนส่งบัตรประชาชนด้วยนะครับ</div>
+            <div class="bub them">ส่งให้แล้วนะคะ</div>
+            <div class="bub me">รับเรียบร้อยครับ</div>
+            <div class="bub them">โอนแล้วค่ะ แนบสลิปมาด้วย</div>
+          </div>
+          <div class="lp-wrap">
+            <div class="lp-clone"><img src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=300&q=60" alt="" /></div>
+            <div class="lp-menu">
+              <div class="lp-react">
+                <div>👍</div><div>❤️</div><div>😂</div><div>😮</div><div>😢</div><div>🙏</div>
+                <div style="background:var(--default-100)"><iconify-icon icon="tabler:plus" style="font-size:16px;color:var(--default-700)"></iconify-icon></div>
+              </div>
+              <div class="lp-acts">
+                <div class="lp-act"><iconify-icon icon="tabler:arrow-back-up"></iconify-icon>ตอบกลับ</div>
+                <div class="lp-act"><iconify-icon icon="tabler:receipt"></iconify-icon>สร้างออเดอร์</div>
+                <div class="lp-act hi"><iconify-icon icon="tabler:bookmark-plus"></iconify-icon>เก็บเข้าคลัง</div>
+                <div class="lp-act"><iconify-icon icon="tabler:copy"></iconify-icon>คัดลอก</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="cap">อิโมจิในภาพนี้คือ <b>ตัวเลือกรีแอ็กชันซึ่งเป็นข้อมูล</b> (carve-out ของ HR12) ไม่ใช่ไอคอนตกแต่ง — ปุ่มคำสั่งทุกตัวใช้ไอคอน tabler จริง</div>
+    </div>
+
+    <div>
+      <div class="device-label">สถานะหลังเก็บแล้ว — label + ไอคอนสลับ</div>
+      <div class="device" style="width:300px;padding:14px">
+        <div class="lp-menu" style="width:auto;box-shadow:none">
+          <div class="lp-acts">
+            <div class="lp-act"><iconify-icon icon="tabler:arrow-back-up"></iconify-icon>ตอบกลับ</div>
+            <div class="lp-act"><iconify-icon icon="tabler:receipt"></iconify-icon>สร้างออเดอร์</div>
+            <div class="lp-act hi"><iconify-icon icon="tabler:bookmark-filled"></iconify-icon>เอาออกจากคลัง</div>
+            <div class="lp-act"><iconify-icon icon="tabler:copy"></iconify-icon>คัดลอก</div>
+          </div>
+        </div>
+      </div>
+      <div class="cap">
+        ใช้ <code>bookmark-filled</code> ไม่ใช่ <code>bookmark-off</code> — <code>-off</code> สื่อว่า “ปิดใช้งาน” ไม่ใช่ “อยู่ในคลังแล้ว”<br><br>
+        <b>ซ่อน action ทั้งตัว</b> เมื่อเป็น: สติกเกอร์ · ไฟล์เสียง · รูปในการ์ด carousel ของ Facebook
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ 4. lightbox ══════════════════ -->
+  <h2>4 · ทางเข้าที่ 3 — ปุ่มใน Lightbox + แถบรายละเอียด</h2>
+  <p class="note">โทนเข้มต่อเนื่องจากปุ่ม Zoom/Download เดิมของไลบรารี (Photo-Scrim Exception ของ Impeccable) · ไม่มี toast ในบริบทนี้ — ใช้ไอคอนสลับเป็น feedback</p>
+  <div class="row">
+    <div style="flex:1;min-width:520px">
+      <div class="device-label">LIGHTBOX (เต็มจอทุก breakpoint)</div>
+      <div class="lb">
+        <div class="lb-top">
+          <iconify-icon icon="tabler:x" style="font-size:20px"></iconify-icon>
+          <div class="lb-tools">
+            <iconify-icon icon="tabler:bookmark-filled" class="on"></iconify-icon>
+            <iconify-icon icon="tabler:zoom-in"></iconify-icon>
+            <iconify-icon icon="tabler:download"></iconify-icon>
+          </div>
+        </div>
+        <div class="lb-stage">
+          <iconify-icon icon="tabler:chevron-left" class="lb-nav" style="left:12px"></iconify-icon>
+          <img src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=700&q=70" alt="" />
+          <iconify-icon icon="tabler:chevron-right" class="lb-nav" style="right:12px"></iconify-icon>
+        </div>
+        <div class="lb-foot">
+          <div class="l1">ส่งโดย ณัฐธิดา ศรีสุวรรณวัฒนกุล · 08 ส.ค. 2569 14:32</div>
+          <div class="l2">เก็บโดย ร้านค้าดี (คุณ) · 12 ส.ค. 2569 09:15</div>
+          <div class="lb-acts">
+            <button class="lb-btn"><iconify-icon icon="tabler:pencil"></iconify-icon>แก้ไข</button>
+            <button class="lb-btn"><iconify-icon icon="tabler:download"></iconify-icon>ดาวน์โหลด</button>
+            <button class="lb-btn"><iconify-icon icon="tabler:message"></iconify-icon>ดูในแชท</button>
+            <button class="lb-btn"><iconify-icon icon="tabler:bookmark-off"></iconify-icon>เอาออกจากคลัง</button>
+          </div>
+        </div>
+      </div>
+      <div class="cap">
+        สไลด์ในชุดนี้ = <b>เฉพาะไฟล์ในคลัง</b> ไม่ปนรูปทั้งเธรด ·
+        ปุ่ม “ดูในแชท” <b>หายไปทั้งปุ่ม</b> เมื่อข้อความต้นทางไม่มีอยู่จริงแล้ว (ไม่ใช่กดแล้วเงียบ) ·
+        ปุ่ม bookmark ในแถบเครื่องมือต้องซ่อนเมื่อสไลด์นั้นเป็นสติกเกอร์/รูปการ์ด — ต้องอ่านจาก <code>libraryEligible</code> ต่อสไลด์
+      </div>
+    </div>
+
+    <div>
+      <div class="device-label">วิดีโอ / ไฟล์เอกสาร — การ์ดรายละเอียด (ไม่ใช่ lightbox)</div>
+      <div class="detail">
+        <div class="detail-head">
+          <div class="ic" style="background:rgb(35 109 201 / .15);color:var(--primary-ink)"><iconify-icon icon="tabler:video" style="font-size:20px"></iconify-icon></div>
+          <div class="t">
+            <b title="วิดีโอสภาพรถก่อนส่งมอบ-ณัฐธิดา.mp4">วิดีโอสภาพรถก่อนส่งมอบ-ณัฐธิดา.mp4</b>
+            <span>18.4 MB</span>
+          </div>
+          <iconify-icon icon="tabler:x" style="font-size:18px;color:var(--default-700)"></iconify-icon>
+        </div>
+        <div class="vidbox">
+          <img src="https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=500&q=60" alt="" />
+          <div class="pl"><iconify-icon icon="tabler:player-play-filled"></iconify-icon></div>
+        </div>
+        <div class="detail-meta">
+          ส่งโดย ณัฐธิดา ศรีสุวรรณวัฒนกุล · 08 ส.ค. 2569<br>
+          เก็บโดย ร้านค้าดี (คุณ) · 12 ส.ค. 2569
+        </div>
+        <div class="detail-acts">
+          <button class="btn btn-primary"><iconify-icon icon="tabler:external-link"></iconify-icon>เปิดไฟล์</button>
+          <button class="btn btn-light"><iconify-icon icon="tabler:download"></iconify-icon>ดาวน์โหลด</button>
+          <button class="btn btn-light"><iconify-icon icon="tabler:pencil"></iconify-icon>แก้ไข</button>
+          <button class="btn btn-light"><iconify-icon icon="tabler:message"></iconify-icon>ดูในแชท</button>
+          <button class="btn btn-light full" style="color:var(--default-700)"><iconify-icon icon="tabler:bookmark-off"></iconify-icon>เอาออกจากคลัง</button>
+        </div>
+      </div>
+      <div class="cap">
+        วิดีโอ<b>ไม่เข้า lightbox</b> เพราะชุดสไลด์ปัจจุบันไม่มี slide ชนิดวิดีโอเลย (มติ Q36) ·
+        “เอาออกจากคลัง” <b>ไม่ใช้สีแดงและไม่ต้อง confirm</b> — ย้อนกลับได้ในคลิกเดียว
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ 5. modal ══════════════════ -->
+  <h2>5 · โมดัล “ดูไฟล์ทั้งหมด” — เปิดในหน้าเดิม ไม่ navigate</h2>
+  <div class="row">
+    <div>
+      <div class="device-label">DESKTOP ≥1024 — modal กลางจอ max-w-3xl (768px) · 4 คอลัมน์</div>
+      <div class="modal" style="width:768px">
+        <div class="modal-head">
+          <h3>คลังไฟล์ · ณัฐธิดา ศรีสุวรรณวัฒนกุล</h3>
+          <iconify-icon icon="tabler:x" style="font-size:19px;color:var(--default-700)"></iconify-icon>
+        </div>
+        <div class="modal-body">
+          <div class="grid4">
+            <button class="tile"><img src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=300&q=60" alt="" /></button>
+            <button class="tile"><img src="https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=300&q=60" alt="" /></button>
+            <button class="tile">
+              <div class="tile-file" style="height:100%">
+                <span class="badge" style="background:rgb(247 163 74 / .15);color:var(--warning-ink);padding:9px;border-radius:10px">
+                  <iconify-icon icon="tabler:file-type-pdf" style="font-size:24px"></iconify-icon>
+                </span>
+                <span class="fname" style="font-size:10.5px">ใบเสนอราคา-ณัฐธิดา-ศรีสุวรรณวัฒนกุล-ฉบับแก้ไข-2.pdf</span>
+              </div>
+            </button>
+            <button class="tile">
+              <img src="https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=300&q=60" alt="" />
+              <span class="play"><iconify-icon icon="tabler:player-play-filled"></iconify-icon></span>
+            </button>
+            <button class="tile"><img src="https://images.unsplash.com/photo-1583394838336-acd977736f90?w=300&q=60" alt="" /></button>
+            <button class="tile"><img src="https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=300&q=60" alt="" /></button>
+            <button class="tile"><img src="https://images.unsplash.com/photo-1596526131083-e8c633c948d2?w=300&q=60" alt="" /></button>
+            <button class="tile"><div class="gone"><iconify-icon icon="tabler:photo-off" style="font-size:22px"></iconify-icon><span>ไฟล์ถูกลบแล้ว</span></div></button>
+            <button class="tile"><img src="https://images.unsplash.com/photo-1503602642458-232111445657?w=300&q=60" alt="" /></button>
+            <button class="tile"><img src="https://images.unsplash.com/photo-1520175480921-4edfa2983e0f?w=300&q=60" alt="" /></button>
+            <button class="tile">
+              <div class="tile-file" style="height:100%">
+                <span class="badge" style="background:rgb(66 165 245 / .15);color:var(--info-ink);padding:9px;border-radius:10px">
+                  <iconify-icon icon="tabler:file-text" style="font-size:24px"></iconify-icon>
+                </span>
+                <span class="fname" style="font-size:10.5px">สัญญาเช่ารถจักรยานยนต์-ฉบับลงนาม.docx</span>
+              </div>
+            </button>
+            <button class="tile"><img src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&q=60" alt="" /></button>
+          </div>
+          <div class="loading"><div class="spin"></div>กำลังโหลด...</div>
+        </div>
+      </div>
+      <div class="measure">768px: (768−36−3×4)/4 = 180px/ช่อง · โหลดเพิ่มหน้าละ 60 เมื่อเลื่อนถึง sentinel</div>
+    </div>
+
+    <div>
+      <div class="device-label">MOBILE &lt;1024 — bottom-sheet เต็มจอ · 3 คอลัมน์</div>
+      <div class="device d375">
+        <div class="sheet-grip"></div>
+        <div class="panel-head">
+          <h3 style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">คลังไฟล์ · ณัฐธิดา ศรีสุวรรณวัฒนกุล</h3>
+          <iconify-icon icon="tabler:x" style="font-size:19px;color:var(--default-700);flex:0 0 auto"></iconify-icon>
+        </div>
+        <div class="body" style="max-height:420px;overflow:auto">
+          <div class="grid3">
+            <button class="tile"><img src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=300&q=60" alt="" /></button>
+            <button class="tile"><img src="https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=300&q=60" alt="" /></button>
+            <button class="tile"><div class="tile-file" style="height:100%"><span class="badge" style="background:rgb(247 163 74 / .15);color:var(--warning-ink);padding:6px;border-radius:8px"><iconify-icon icon="tabler:file-type-pdf" style="font-size:18px"></iconify-icon></span><span class="fname">ใบเสนอราคา-ณัฐธิดา-ศรีสุวรรณวัฒนกุล-ฉบับแก้ไข-2.pdf</span></div></button>
+            <button class="tile"><img src="https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=300&q=60" alt="" /><span class="play"><iconify-icon icon="tabler:player-play-filled"></iconify-icon></span></button>
+            <button class="tile"><img src="https://images.unsplash.com/photo-1583394838336-acd977736f90?w=300&q=60" alt="" /></button>
+            <button class="tile"><img src="https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=300&q=60" alt="" /></button>
+            <button class="tile"><img src="https://images.unsplash.com/photo-1596526131083-e8c633c948d2?w=300&q=60" alt="" /></button>
+            <button class="tile"><div class="gone"><iconify-icon icon="tabler:photo-off" style="font-size:20px"></iconify-icon><span>ไฟล์ถูกลบแล้ว</span></div></button>
+            <button class="tile"><img src="https://images.unsplash.com/photo-1503602642458-232111445657?w=300&q=60" alt="" /></button>
+          </div>
+          <div class="loading"><div class="spin"></div>กำลังโหลด...</div>
+        </div>
+      </div>
+      <div class="cap">ต้องเรียก <code>useLockBodyScroll</code> + <code>overscroll-contain</code> ทุกกล่องที่เลื่อนได้ (ชีตที่ประกอบเองด้วย React state ไม่ได้ล็อกฟรีจาก Preline)</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ 6. Swal ══════════════════ -->
+  <h2>6 · แก้ไขชื่อ/โน้ต — Sweet Alert 2 ช่อง (ไม่ถามตอนกดเก็บ)</h2>
+  <div class="row">
+    <div>
+      <div class="device-label">SWAL</div>
+      <div class="modal" style="width:400px">
+        <div style="padding:20px 22px 18px">
+          <h3 style="margin:0 0 16px;font-size:16px;font-weight:700;text-align:center">แก้ไขไฟล์</h3>
+          <label style="font-size:12px;color:var(--default-700);display:block;margin-bottom:4px">ชื่อไฟล์</label>
+          <input value="สลิปมัดจำ 5,000 บาท" style="width:100%;height:44px;border:1px solid var(--default-300);border-radius:8px;
+                 padding:0 12px;font-family:inherit;font-size:13.5px;margin-bottom:14px" />
+          <label style="font-size:12px;color:var(--default-700);display:block;margin-bottom:4px">โน้ต</label>
+          <textarea placeholder="จดไว้ว่าทำไมถึงเก็บไฟล์นี้..." style="width:100%;min-height:96px;border:1px solid var(--default-300);
+                    border-radius:8px;padding:10px 12px;font-family:inherit;font-size:13.5px;resize:vertical"></textarea>
+          <div style="display:flex;gap:8px;margin-top:18px">
+            <button class="btn btn-light" style="flex:1">ยกเลิก</button>
+            <button class="btn btn-primary" style="flex:1">บันทึก</button>
+          </div>
+        </div>
+      </div>
+      <div class="cap">
+        คำว่า <b>“บันทึก”</b> ปรากฏจุดเดียวคือปุ่มยืนยันฟอร์มนี้ — คนละบริบทกับ “ดาวน์โหลด” และ “เก็บเข้าคลัง” จึงไม่ชนกันตาม HR16<br>
+        ช่องกรอกใช้ความสูง <b>44px</b> ตรง ๆ ไม่พึ่ง <code>.form-input</code> ที่ <code>lg:</code> เป็น viewport query แล้วหดเหลือ 37px ในคอลัมน์แคบ
+      </div>
+    </div>
+
+    <div style="max-width:420px">
+      <div class="device-label">สรุปกฎที่ต้องไม่พลาดตอน implement</div>
+      <div class="card" style="padding:16px;font-size:12.5px;line-height:1.85;color:var(--default-900)">
+        <div>· กริดพรีวิว <b>9 ช่องเสมอ</b> · ลิงก์ “ดูไฟล์ทั้งหมด (N)” โผล่<b>เฉพาะ N&gt;9</b> และ N = ยอดรวมจริง</div>
+        <div>· เรียงตาม <b>เวลาที่ส่งจริง</b> ใหม่→เก่า (ไม่ใช่เวลาที่กดเก็บ) แต่บันทึก <code>savedAt</code> ทุกแถว</div>
+        <div>· ไม่มีข้อความบนช่อง — ทุกช่องมี <code>aria-label</code> “รูปจาก/วิดีโอจาก/{ชื่อไฟล์} จาก {ชื่อ} · {วันที่}”</div>
+        <div>· ช่องไฟล์หาย <b>กดเปิด lightbox ไม่ได้</b> แต่เปิดการ์ดรายละเอียดได้เพื่อเอาออกจากคลัง</div>
+        <div>· toast <b>บนขวา</b> ทุกที่ · ยกเว้นใน lightbox ที่ใช้ไอคอนสลับแทน</div>
+        <div>· ไม่ใช้ <b>สีเขียว</b> เลยทั้งฟีเจอร์ (ไม่มีสถานะ “ยืนยันแล้ว”) และไม่ใช้ <b>สีแดง</b> กับ “เอาออกจากคลัง”</div>
+        <div>· ไม่เพิ่มปุ่มใหม่บนแถบเครื่องมือแชทมือถือ</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
