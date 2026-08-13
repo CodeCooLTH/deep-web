@@ -90,6 +90,39 @@ describe('i18n dictionaries', () => {
   })
 })
 
+describe('applyMenuLocale — ทุกเมนูต้องมีคำแปล', () => {
+  /**
+   * ช่องที่ `tsc` ปิดไม่ได้และ dictionary parity ก็ปิดไม่ได้:
+   * parity บังคับว่า "คีย์ที่ประกาศแล้วต้องมีครบทั้ง 2 ภาษา" แต่ไม่ได้บังคับว่า
+   * "ทุก slug ในเมนูต้องมีคีย์" ⇒ คนเพิ่มเมนูใหม่แล้วลืมเติมคำแปล จะได้เมนูไทยโผล่กลาง
+   * เมนูอังกฤษโดยไม่มีอะไรฟ้อง (applyMenuLocale คงป้ายเดิมโดยตั้งใจ เพราะเมนูหายทั้งบรรทัด
+   * แย่กว่าเมนูที่ยังเป็นไทย) — เทสนี้คือสิ่งเดียวที่จับได้
+   */
+  it('[blocker] ไม่มี slug ไหนหลุดเป็นภาษาไทยหลังสลับเป็นอังกฤษ', async () => {
+    const { applyMenuLocale, sellerMenuItems, flattenSellerMenu } = await import('@/lib/seller-menu')
+
+    for (const vertical of ['ONLINE_SALES', 'SERVICE_QUEUE', 'LODGING']) {
+      const translated = flattenSellerMenu(applyMenuLocale(sellerMenuItems, en, vertical))
+      const leftInThai = translated
+        .filter((item) => typeof item.label === 'string' && THAI_CHAR.test(item.label))
+        .map((item) => `${vertical}: ${item.slug} = "${item.label}"`)
+      expect(leftInThai).toEqual([])
+    }
+  })
+
+  it('[blocker] ป้ายเมนู /orders ต้องต่างกันตามประเภทร้าน ไม่ใช่คำเดียวรวบ (BR-I18N-09)', async () => {
+    const { applyMenuLocale, sellerMenuItems, flattenSellerMenu } = await import('@/lib/seller-menu')
+
+    const labelFor = (vertical: string) =>
+      flattenSellerMenu(applyMenuLocale(sellerMenuItems, en, vertical)).find((i) => i.slug === 'seller:orders')?.label
+
+    const labels = ['ONLINE_SALES', 'SERVICE_QUEUE', 'LODGING'].map(labelFor)
+    expect(new Set(labels).size).toBe(3)
+    // vertical ที่ไม่รู้จักต้องถอยไปคำของร้านขายของ ไม่ใช่ undefined (fail-safe เดียวกับ applyVerticalMenu)
+    expect(labelFor('SOMETHING_NEW')).toBe(labelFor('ONLINE_SALES'))
+  })
+})
+
 describe('toLocale / isLocale — fail-closed (BR-I18N-05)', () => {
   it('ยอมรับเฉพาะภาษาที่ระบบรองรับ', () => {
     for (const locale of LOCALES) expect(isLocale(locale)).toBe(true)

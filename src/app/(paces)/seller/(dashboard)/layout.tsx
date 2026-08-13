@@ -6,7 +6,8 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireActiveShop } from '@/lib/shop-context'
 import { resolveExpenseAccess, type ExpenseAccessDecision } from '@/services/expense-access.service'
-import { sellerMenuItems, applyChatBadge, resolveVisibleSellerMenu, resolveOrderVocab } from '@/lib/seller-menu'
+import { sellerMenuItems, applyChatBadge, applyMenuLocale, resolveVisibleSellerMenu, resolveOrderVocab } from '@/lib/seller-menu'
+import { getT } from '@/i18n/server'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
@@ -152,15 +153,28 @@ export default async function DashboardLayout({ children }: { children: React.Re
    */
   const hidePayments = await shouldHidePayments()
 
-  const menuItems = applyChatBadge(
-    resolveVisibleSellerMenu(sellerMenuItems, {
-      entitlement: entitlementInfo,
-      staff: { kind: active.kind, role: active.role },
-      expense: expenseAccessDecision,
-      shop: { kind: active.kind, vertical: shop.vertical },
-      hidePayments,
-    }),
-    unreadChatCount,
+  /**
+   * applyMenuLocale อยู่ "ชั้นนอกสุด" (feature 00047) — แปลป้ายหลังกรองเสร็จทุกตัว
+   *
+   * วางหลัง applyChatBadge ได้เพราะ badge เกาะที่ `badge` ไม่ใช่ `label` จึงไม่ทับกัน และวางหลัง
+   * ตัวกรองทั้งหมดเพื่อไม่ต้องแปลป้ายของเมนูที่จะถูกซ่อนอยู่แล้ว
+   *
+   * ส่ง `shop.vertical` เข้าไปด้วยเพราะป้ายเมนู /orders ผันตามประเภทร้าน 3 แบบ — ถ้าไม่ส่ง
+   * จะได้ "Orders" คำเดียวทุกร้าน = ลบความแตกต่างที่ตั้งใจสร้างไว้ตั้งแต่ 2026-08-04 ทิ้ง
+   */
+  const menuItems = applyMenuLocale(
+    applyChatBadge(
+      resolveVisibleSellerMenu(sellerMenuItems, {
+        entitlement: entitlementInfo,
+        staff: { kind: active.kind, role: active.role },
+        expense: expenseAccessDecision,
+        shop: { kind: active.kind, vertical: shop.vertical },
+        hidePayments,
+      }),
+      unreadChatCount,
+    ),
+    await getT(),
+    shop.vertical,
   )
 
   // ป้ายเมนู/แท็บของ /orders ต้องเป็นคำเดียวกันทั้ง sidebar, แถบล่างมือถือ และชื่อหน้าบนมือถือ

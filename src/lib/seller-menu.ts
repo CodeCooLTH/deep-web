@@ -12,6 +12,7 @@
 import { type MenuItemType } from '@/types'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import type { ExpenseAccessDecision } from '@/services/expense-access.service'
+import type { Dictionary } from '@/i18n/dictionaries/th'
 
 /**
  * โครงกลุ่ม 5 กลุ่ม (user เคาะ 2026-08-04 — spec `docs/superpowers/specs/2026-08-04-seller-menu-ia-design.md`)
@@ -726,4 +727,66 @@ export function flattenSellerMenu(items: MenuItemType[]): MenuItemType[] {
     if (item.children?.length) out.push(...flattenSellerMenu(item.children))
   }
   return out
+}
+
+/**
+ * applyMenuLocale — แปลป้ายเมนูซ้ายตามภาษาที่ผู้ใช้เลือก (feature 00047)
+ *
+ * ทำเป็น transform ชั้นนอกด้วยเหตุผลเดียวกับ applyChatBadge/applyOrderLabel เป๊ะ:
+ * `sellerMenuItems` เป็น module-level constant ที่ถูก import ตอน module load ซึ่งยังไม่รู้ว่า
+ * request นี้เป็นภาษาอะไร
+ *
+ * คีย์ใน dictionary ผูกกับ `slug` ไม่ใช่ข้อความไทย — slug เป็นตัวระบุที่เสถียร มีเทส contract
+ * คุมอยู่แล้ว (seller-menu.test.ts) และไม่ขยับตามการแก้คำ
+ *
+ * 🛑 slug ที่ไม่มีคีย์ใน dictionary จะ "คงป้ายเดิม" ไม่ใช่กลายเป็นช่องว่าง
+ * เมนูที่หายไปทั้งบรรทัดคือความเสียหายที่หนักกว่าเมนูที่ยังเป็นภาษาไทยมาก และเป็นสิ่งที่
+ * เกิดขึ้นได้จริงตอนมีคนเพิ่มเมนูใหม่แล้วลืมเติมคำแปล — dictionary parity ที่บังคับด้วย tsc
+ * คุมได้เฉพาะคีย์ที่ประกาศแล้ว ไม่ได้คุมว่า "ทุก slug ต้องมีคีย์"
+ *
+ * 🛑 `seller:orders` ผันตาม vertical ต้องส่ง `vertical` เข้ามาด้วยเสมอ
+ * ป้ายนี้เป็น "คำสั่งซื้อ / การเข้ารับบริการ / บิลเข้าพัก" ตามประเภทร้านมาตั้งแต่ 2026-08-04
+ * ถ้าแปลรวบเป็นคำเดียวจะลบความแตกต่างที่ตั้งใจสร้างไว้ทิ้งในภาษาที่สอง (BR-I18N-09)
+ */
+export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertical: string): MenuItemType[] {
+  const m = dict.menu
+
+  const BY_SLUG: Record<string, string> = {
+    'seller:dashboard': m.dashboard,
+    'seller:sales': m.sales,
+    'seller:orders': m.orders[vertical as keyof typeof m.orders] ?? m.orders.ONLINE_SALES,
+    'seller:auctions': m.auctions,
+    'seller:products': m.products,
+    'seller:inventory': m.inventory,
+    'seller:queues': m.queues,
+    'seller:rooms': m.rooms,
+    'seller:calendar': m.calendar,
+    'seller:bookings': m.bookings,
+    'seller:housekeepers': m.housekeepers,
+    'seller:customers': m.customers,
+    'seller:expenses': m.expenses,
+    'seller:inbox': m.inbox,
+    'seller:settings-auto-reply': m.settingsAutoReply,
+    'seller:settings-comment-reply': m.settingsCommentReply,
+    'seller:settings-chatbot': m.settingsChatbot,
+    'seller:reviews': m.reviews,
+    'seller:verification': m.verification,
+    'seller:badges': m.badges,
+    'seller:wallet': m.wallet,
+    'seller:subscriptions': m.subscriptions,
+    'seller:admins': m.admins,
+    'seller:shop': m.shop,
+    'seller:public-profile': m.publicProfile,
+    'seller:settings': m.settings,
+    'seller:settings-channels': m.settingsChannels,
+    'seller:settings-job-types': m.settingsJobTypes,
+  }
+
+  const translate = (item: MenuItemType): MenuItemType => {
+    const label = item.slug ? BY_SLUG[item.slug] : undefined
+    const next = label ? { ...item, label } : item
+    return next.children?.length ? { ...next, children: next.children.map(translate) } : next
+  }
+
+  return items.map(translate)
 }

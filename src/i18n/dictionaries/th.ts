@@ -59,6 +59,50 @@ export const th = {
     enCode: 'EN',
   },
 
+  /**
+   * ป้ายเมนูซ้าย — คีย์ตรงกับ `slug` ใน src/lib/seller-menu.ts (ตัดคำนำหน้า `seller:` ออก)
+   * ใช้ slug เป็นคีย์เพราะเป็นตัวระบุที่เสถียรอยู่แล้ว มีเทส contract คุมอยู่ และไม่ผูกกับข้อความ
+   *
+   * 🛑 `orders` แยกตามประเภทร้าน 3 แบบ ห้ามยุบเหลือคำเดียว (BR-I18N-09)
+   * ป้ายเมนูนี้ผันตาม `Shop.vertical` มาตั้งแต่ 2026-08-04 (ORDER_VOCAB.noun) — ร้านขายของเห็น
+   * "คำสั่งซื้อ" ร้านบริการเห็น "การเข้ารับบริการ" บ้านพักเห็น "บิลเข้าพัก" ถ้าแปลรวบเป็น "Orders"
+   * คำเดียว เท่ากับลบความแตกต่างที่ตั้งใจสร้างไว้ทิ้งในภาษาที่สอง
+   */
+  menu: {
+    dashboard: 'ภาพรวมร้านค้า',
+    sales: 'ภาพรวมกำไร/ขาดทุน',
+    orders: {
+      ONLINE_SALES: 'คำสั่งซื้อ',
+      SERVICE_QUEUE: 'การเข้ารับบริการ',
+      LODGING: 'บิลเข้าพัก',
+    },
+    auctions: 'การประมูล',
+    products: 'สินค้า',
+    inventory: 'จัดการสต็อก',
+    queues: 'ตารางงาน',
+    rooms: 'ห้องพัก',
+    calendar: 'ปฏิทินการจอง',
+    bookings: 'การจอง',
+    housekeepers: 'แม่บ้าน',
+    customers: 'ลูกค้า',
+    expenses: 'ค่าใช้จ่าย',
+    inbox: 'ข้อความ',
+    settingsAutoReply: 'ตอบกลับอัตโนมัติ',
+    settingsCommentReply: 'ตอบกลับคอมเมนต์',
+    settingsChatbot: 'ผู้ช่วยอัตโนมัติ',
+    reviews: 'รีวิว',
+    verification: 'ระดับร้าน',
+    badges: 'ความสำเร็จ',
+    wallet: 'กระเป๋าเงิน',
+    subscriptions: 'แพ็กเกจของฉัน',
+    admins: 'พนักงาน',
+    shop: 'ร้านค้า',
+    publicProfile: 'ตั้งค่าหน้าร้าน',
+    settings: 'การจัดส่ง',
+    settingsChannels: 'ช่องทางการขาย',
+    settingsJobTypes: 'ประเภทงาน',
+  },
+
   auth: {
     signIn: {
       /** title ของแท็บเบราว์เซอร์ — reviewer เห็นในคลิป */

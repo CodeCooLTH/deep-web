@@ -43,6 +43,47 @@ export const en: Dictionary = {
     enCode: 'EN',
   },
 
+  menu: {
+    dashboard: 'Shop overview',
+    // "ภาพรวมกำไร/ขาดทุน" — ใช้ P&L ซึ่งเป็นศัพท์บัญชีสากล สั้นกว่า "Profit and loss" มาก
+    // และเมนูซ้ายกว้างคงที่ 245px (BR-I18N-17)
+    sales: 'P&L overview',
+    orders: {
+      ONLINE_SALES: 'Orders',
+      // ไม่ใช่ "Services" เฉย ๆ — ของเดิมคือ "การเข้ารับบริการ" ซึ่งหมายถึงใบงานที่ลูกค้าเข้ามารับ
+      // บริการ ไม่ใช่รายการบริการที่ร้านมีขาย (อันหลังคือเมนู "ประเภทงาน")
+      SERVICE_QUEUE: 'Service visits',
+      LODGING: 'Stay bills',
+    },
+    auctions: 'Auctions',
+    products: 'Products',
+    inventory: 'Stock',
+    queues: 'Schedule',
+    rooms: 'Rooms',
+    calendar: 'Booking calendar',
+    bookings: 'Bookings',
+    housekeepers: 'Housekeepers',
+    customers: 'Customers',
+    expenses: 'Expenses',
+    inbox: 'Messages',
+    settingsAutoReply: 'Auto-reply',
+    settingsCommentReply: 'Comment replies',
+    settingsChatbot: 'AI assistant',
+    reviews: 'Reviews',
+    verification: 'Shop level',
+    badges: 'Achievements',
+    wallet: 'Wallet',
+    subscriptions: 'My plan',
+    admins: 'Staff',
+    shop: 'Shop',
+    publicProfile: 'Storefront',
+    // "การจัดส่ง" — เมนูนี้ตั้งค่าการจัดส่งของร้าน ไม่ใช่หน้าตั้งค่าทั่วไป (ชื่อ slug เป็น
+    // seller:settings ด้วยเหตุผลทางประวัติศาสตร์ ป้ายถูกเปลี่ยนเป็น "การจัดส่ง" ไปแล้ว)
+    settings: 'Shipping',
+    settingsChannels: 'Sales channels',
+    settingsJobTypes: 'Service types',
+  },
+
   auth: {
     signIn: {
       pageTitle: 'Seller sign-in',
