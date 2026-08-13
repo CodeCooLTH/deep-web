@@ -16,13 +16,14 @@ import { useEffect, useMemo, useState } from 'react'
 import Lightbox from 'yet-another-react-lightbox'
 import Zoom from 'yet-another-react-lightbox/plugins/zoom'
 import LightboxDownload from 'yet-another-react-lightbox/plugins/download'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesEditTextFields } from '@/lib/paces-swal'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { formatDateTH } from '@/lib/format-date'
 import {
-  LIBRARY_COPY,
   LIBRARY_ICONS,
   LIBRARY_NAME_MAX,
   LIBRARY_NOTE_MAX,
@@ -70,15 +71,19 @@ async function callRemove(conversationId: string, fileId: string) {
 
 /** แถวข้อมูล "ส่งโดย / เก็บโดย" — ใช้ทั้งใน Lightbox (โทนเข้ม) และการ์ด (โทนสว่าง) */
 function MetaLines({ item, tone }: { item: LibraryItem; tone: 'dark' | 'light' }) {
+  const t = useT()
   const l1 = tone === 'dark' ? 'text-white/95' : 'text-default-900'
   const l2 = tone === 'dark' ? 'text-white/70' : 'text-default-700'
   return (
     <>
       <p className={`text-xs ${l1}`}>
-        ส่งโดย {librarySenderLabel(item)} · {formatDateTH(item.sentAt)}
+        {fmt(t.inbox.librarySentBy, { who: librarySenderLabel(item, t.inbox), when: formatDateTH(item.sentAt) })}
       </p>
       <p className={`mt-0.5 text-xs ${l2}`}>
-        เก็บโดย {item.savedByName?.trim() || 'ทีมร้าน'} · {formatDateTH(item.savedAt)}
+        {fmt(t.inbox.librarySavedBy, {
+          who: item.savedByName?.trim() || t.inbox.librarySavedByFallback,
+          when: formatDateTH(item.savedAt),
+        })}
       </p>
       {item.note ? <p className={`mt-1.5 text-xs ${l2}`}>{item.note}</p> : null}
     </>
@@ -93,6 +98,7 @@ export default function CustomerFileViewer({
   onRemoved,
   onPatched,
 }: Props) {
+  const t = useT()
   const [busy, setBusy] = useState(false)
   const isImage = active?.kind === 'IMAGE'
   // การ์ด (วิดีโอ/เอกสาร) เป็น overlay ที่เราประกอบเอง → ต้องล็อก scroll เอง
@@ -113,25 +119,25 @@ export default function CustomerFileViewer({
 
   async function handleEdit(item: LibraryItem) {
     const input = await pacesEditTextFields({
-      title: LIBRARY_COPY.editTitle,
-      nameLabel: LIBRARY_COPY.editNameLabel,
-      noteLabel: LIBRARY_COPY.editNoteLabel,
-      notePlaceholder: LIBRARY_COPY.editNotePlaceholder,
+      title: t.inbox.libraryEditTitle,
+      nameLabel: t.inbox.libraryEditNameLabel,
+      noteLabel: t.inbox.libraryEditNoteLabel,
+      notePlaceholder: t.inbox.libraryEditNotePlaceholder,
       nameValue: item.fileName ?? '',
       noteValue: item.note ?? '',
       nameMaxLength: LIBRARY_NAME_MAX,
       noteMaxLength: LIBRARY_NOTE_MAX,
-      confirmButtonText: LIBRARY_COPY.editSubmit,
-      cancelButtonText: LIBRARY_COPY.cancel,
+      confirmButtonText: t.inbox.libraryEditSubmit,
+      cancelButtonText: t.inbox.libraryCancel,
     })
     if (!input) return
     setBusy(true)
     try {
       const { item: updated } = await callPatch(conversationId, item.fileId, input.name, input.note)
       onPatched(updated)
-      pacesToast.success(LIBRARY_COPY.editSaved)
+      pacesToast.success(t.inbox.libraryEditSaved)
     } catch {
-      pacesToast.error(LIBRARY_COPY.saveFailed)
+      pacesToast.error(t.inbox.librarySaveFailed)
     } finally {
       setBusy(false)
     }
@@ -143,9 +149,9 @@ export default function CustomerFileViewer({
       await callRemove(conversationId, item.fileId)
       onRemoved(item.fileId)
       onClose()
-      pacesToast.success(LIBRARY_COPY.removedToast)
+      pacesToast.success(t.inbox.libraryRemovedToast)
     } catch {
-      pacesToast.error(LIBRARY_COPY.removeFailed)
+      pacesToast.error(t.inbox.libraryRemoveFailed)
     } finally {
       setBusy(false)
     }
@@ -178,12 +184,12 @@ export default function CustomerFileViewer({
               <div className={'absolute inset-x-0 bottom-0 bg-black/55 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.875rem)]' /* HR7 carve-out: safe-area ไม่มี token ใน Paces scale และแถบนี้ยึดขอบล่าง viewport โดยตรง */}>
                 <MetaLines item={it} tone="dark" />
                 <div className="mt-2.5 flex flex-wrap gap-2">
-                  <LbButton icon="pencil" label={LIBRARY_COPY.edit} disabled={busy} onClick={() => handleEdit(it)} />
+                  <LbButton icon="pencil" label={t.inbox.libraryEdit} disabled={busy} onClick={() => handleEdit(it)} />
                   {/* ปุ่ม "ดูในแชท" หายไปทั้งปุ่มเมื่อไม่รู้ต้นทาง — ปุ่มที่กดแล้วเงียบคือบั๊กที่ไม่มีอะไรฟ้อง */}
                   {it.sourceMessageId ? (
-                    <LbButton icon="message" label={LIBRARY_COPY.seeInChat} onClick={() => handleSeeInChat(it)} />
+                    <LbButton icon="message" label={t.inbox.librarySeeInChat} onClick={() => handleSeeInChat(it)} />
                   ) : null}
-                  <LbButton icon={LIBRARY_ICONS.remove} label={LIBRARY_COPY.unsave} disabled={busy} onClick={() => handleRemove(it)} />
+                  <LbButton icon={LIBRARY_ICONS.remove} label={t.inbox.libraryUnsave} disabled={busy} onClick={() => handleRemove(it)} />
                 </div>
               </div>
             )
@@ -241,6 +247,7 @@ function CustomerFileDetailCard({
   onRemove: (i: LibraryItem) => void
   onSeeInChat: (i: LibraryItem) => void
 }) {
+  const t = useT()
   const src = `/api/files/${item.fileId}`
   const [mediaFailed, setMediaFailed] = useState(false)
   const size = formatAttachmentSize(item.fileSize)
@@ -259,7 +266,7 @@ function CustomerFileDetailCard({
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-80 flex items-end justify-center lg:items-center" role="dialog" aria-modal="true" aria-label={LIBRARY_COPY.sectionTitle}>
+    <div className="fixed inset-0 z-80 flex items-end justify-center lg:items-center" role="dialog" aria-modal="true" aria-label={t.inbox.librarySectionTitle}>
       {/* HR7 carve-out: z-80 = viewport overlay lock (precedent CustomerPanelSheet/OrderQrSheet) */}
       <button type="button" aria-label="ปิด" onClick={onClose} className="bg-default-900/40 absolute inset-0 backdrop-blur-xs" />
       <div className={'bg-card relative max-h-[85dvh] w-full overflow-y-auto overscroll-contain rounded-t-2xl pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-4 shadow-lg lg:w-full lg:max-w-md lg:rounded-2xl lg:pb-5' /* HR7 carve-out: dvh + safe-area ไม่มี token ใน Paces scale — precedent CustomerPanelSheet.tsx บรรทัดเดียวกัน */}>
@@ -270,7 +277,7 @@ function CustomerFileDetailCard({
           {/* min-w-0 ที่กล่อง + max-w-full ที่ลูก — ชุดที่ต้องมาด้วยกันกับ truncate เสมอ */}
           <div className="min-w-0 flex-1">
             <p className="text-default-900 max-w-full truncate text-sm font-semibold" title={item.fileName ?? undefined}>
-              {item.fileName?.trim() || 'ไฟล์แนบ'}
+              {item.fileName?.trim() || t.inbox.libraryFileFallbackName}
             </p>
             {size ? <p className="text-default-700 text-xs">{size}</p> : null}
           </div>
@@ -288,7 +295,7 @@ function CustomerFileDetailCard({
         {mediaFailed ? (
           <div className="text-default-700 mt-3 flex flex-col items-center gap-1 px-4 py-6">
             <Icon icon={LIBRARY_ICONS.missing} className="text-2xl" aria-hidden="true" />
-            <span className="text-xs">{LIBRARY_COPY.missingFile}</span>
+            <span className="text-xs">{t.inbox.libraryMissingFile}</span>
           </div>
         ) : null}
 
@@ -302,28 +309,28 @@ function CustomerFileDetailCard({
             <>
               <a href={src} target="_blank" rel="noopener noreferrer" className="btn bg-primary text-white hover:bg-primary-hover">
                 <Icon icon="external-link" className="me-1 text-base" aria-hidden="true" />
-                {LIBRARY_COPY.openFile}
+                {t.inbox.libraryOpenFile}
               </a>
               <a href={src} download={item.fileName ?? undefined} className="btn bg-light hover:text-default-800">
                 <Icon icon="download" className="me-1 text-base" aria-hidden="true" />
-                {LIBRARY_COPY.download}
+                {t.inbox.libraryDownload}
               </a>
             </>
           )}
           <button type="button" disabled={busy} onClick={() => onEdit(item)} className="btn bg-light hover:text-default-800">
             <Icon icon="pencil" className="me-1 text-base" aria-hidden="true" />
-            {LIBRARY_COPY.edit}
+            {t.inbox.libraryEdit}
           </button>
           {item.sourceMessageId ? (
             <button type="button" onClick={() => onSeeInChat(item)} className="btn bg-light hover:text-default-800">
               <Icon icon="message" className="me-1 text-base" aria-hidden="true" />
-              {LIBRARY_COPY.seeInChat}
+              {t.inbox.librarySeeInChat}
             </button>
           ) : null}
           {/* "เอาออกจากคลัง" ไม่ใช่การทำลายถาวร (ย้อนกลับได้ในคลิกเดียว) → ไม่ใช้สีอันตราย ไม่ต้อง confirm */}
           <button type="button" disabled={busy} onClick={() => onRemove(item)} className="btn bg-light text-default-700 hover:text-default-800 col-span-2">
             <Icon icon={LIBRARY_ICONS.remove} className="me-1 text-base" aria-hidden="true" />
-            {LIBRARY_COPY.unsave}
+            {t.inbox.libraryUnsave}
           </button>
         </div>
       </div>

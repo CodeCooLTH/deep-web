@@ -15,10 +15,12 @@
  * ทิ้งการล็อก scroll ที่เคยได้ฟรีไปทุกใบ (docs/conventions/overlay-scroll-lock.md)
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 import Icon from '@/components/wrappers/Icon'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { pacesToast } from '@/lib/paces-toast'
-import { LIBRARY_COPY, LIBRARY_PAGE_TAKE } from '@/lib/customer-file-library'
+import { LIBRARY_PAGE_TAKE } from '@/lib/customer-file-library'
 import type { LibraryItem } from '@/services/customer-file-library.service'
 import CustomerFileTile from './CustomerFileTile'
 import CustomerFileViewer from './CustomerFileViewer'
@@ -37,6 +39,7 @@ export default function CustomerFileLibraryModal({
   /** แจ้งแผงด้านหลังให้ refetch พรีวิว 9 ช่อง — เรียกตอนปิด ไม่ใช่ทุกครั้งที่แก้ (มติ D-19 ไม่ทำ realtime) */
   onChanged: () => void
 }) {
+  const t = useT()
   const [items, setItems] = useState<LibraryItem[]>([])
   const [cursor, setCursor] = useState<Cursor | null>(null)
   const [loading, setLoading] = useState(true)
@@ -110,7 +113,7 @@ export default function CustomerFileLibraryModal({
             setItems((prev) => [...prev, ...d.items])
             setCursor(d.nextCursor)
           })
-          .catch(() => pacesToast.error(LIBRARY_COPY.loadFailed))
+          .catch(() => pacesToast.error(t.inbox.libraryLoadFailed))
           .finally(() => setLoading(false))
       },
       { rootMargin: '160px' },
@@ -125,7 +128,7 @@ export default function CustomerFileLibraryModal({
   }
 
   return (
-    <div className="fixed inset-0 z-80 flex items-end justify-center lg:items-center" role="dialog" aria-modal="true" aria-label={LIBRARY_COPY.sectionTitle}>
+    <div className="fixed inset-0 z-80 flex items-end justify-center lg:items-center" role="dialog" aria-modal="true" aria-label={t.inbox.librarySectionTitle}>
       {/* HR7 carve-out: z-80 = viewport overlay lock (precedent CustomerPanelSheet/OrderQrSheet) */}
       <button type="button" aria-label="ปิด" onClick={handleClose} className="bg-default-900/40 absolute inset-0 backdrop-blur-xs" />
 
@@ -137,7 +140,7 @@ export default function CustomerFileLibraryModal({
           {/* min-w-0 ที่กล่อง + max-w-full ที่ลูก — ชื่อลูกค้ายาว 30+ ตัวอักษรต้องถูกตัด
               ไม่ใช่ดันหัวโมดัลกว้างเกินจอ (เกิดบน prod มาแล้ว 2026-08-12) */}
           <h3 className="text-default-900 min-w-0 max-w-full truncate text-base font-bold">
-            {LIBRARY_COPY.modalTitle(customerName)}
+            {fmt(t.inbox.libraryModalTitle, { name: customerName })}
           </h3>
           <button type="button" onClick={handleClose} aria-label="ปิด" className="btn btn-icon text-default-700 hover:bg-default-100 shrink-0">
             <Icon icon="x" className="text-lg" />
@@ -147,9 +150,9 @@ export default function CustomerFileLibraryModal({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
           {failed ? (
             <div className="text-default-700 flex flex-col items-center gap-2 py-10 text-sm">
-              <span>{LIBRARY_COPY.loadFailed}</span>
+              <span>{t.inbox.libraryLoadFailed}</span>
               <button type="button" onClick={() => loadPage(null).then((d) => { setItems(d.items); setCursor(d.nextCursor); setFailed(false) }).catch(() => setFailed(true))} className="btn bg-light hover:text-default-800">
-                <Icon icon="refresh" className="me-1" /> {LIBRARY_COPY.retry}
+                <Icon icon="refresh" className="me-1" /> {t.inbox.libraryRetry}
               </button>
             </div>
           ) : (

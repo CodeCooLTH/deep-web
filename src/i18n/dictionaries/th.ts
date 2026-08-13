@@ -260,6 +260,53 @@ export const th = {
       expandMultiple: 'ดูที่มาของแชททั้ง {n} รายการ',
       expandSingle: 'ดูรายละเอียดที่มาของแชท',
     },
+
+    /**
+     * คลังไฟล์ต่อลูกค้า (feature 00048) — section ท้ายแท็บ "ข้อมูลลูกค้า" + โมดัล + แถบใน Lightbox
+     *
+     * 🛑 ห้ามใช้คำว่า "บันทึก" กับการเก็บเข้าคลัง — ในเธรดเดียวกันมี "บันทึกวิดีโอ"/"บันทึกรูป"
+     * ที่แปลว่าโหลดลงเครื่องอยู่แล้ว (มีเทส [blocker] กันไว้). `librarySave` ในภาษาอังกฤษจึงเป็น
+     * "Save to library" ได้ เพราะฝั่ง EN ปุ่มโหลดลงเครื่องคือ "Download" ไม่ชนกัน
+     */
+    librarySave: 'เก็บเข้าคลัง',
+    libraryUnsave: 'เอาออกจากคลัง',
+    librarySectionTitle: 'คลังไฟล์',
+    librarySavedToast: 'เก็บเข้าคลังแล้ว',
+    libraryRemovedToast: 'เอาออกจากคลังแล้ว',
+    librarySaveFailed: 'เก็บเข้าคลังไม่สำเร็จ ลองใหม่อีกครั้ง',
+    libraryRemoveFailed: 'เอาออกจากคลังไม่สำเร็จ ลองใหม่อีกครั้ง',
+    libraryLoadFailed: 'โหลดคลังไฟล์ไม่สำเร็จ',
+    libraryRetry: 'ลองใหม่',
+    libraryLoading: 'กำลังโหลด...',
+    libraryEmptyTitle: 'ยังไม่มีไฟล์ในคลัง',
+    /** ต้องครอบทั้งสองท่า — "กดค้าง" ไม่มีอยู่จริงบนเดสก์ท็อป (useLongPress รับ touch เท่านั้น) */
+    libraryEmptyBody: 'ที่รูป วิดีโอ หรือไฟล์ในแชท เลือก "เก็บเข้าคลัง" — บนมือถือกดค้างที่ข้อความ บนคอมเลื่อนเมาส์ไปที่ข้อความ',
+    libraryMissingFile: 'ไฟล์ถูกลบแล้ว',
+    libraryOpenFile: 'เปิดไฟล์',
+    libraryDownload: 'ดาวน์โหลด',
+    libraryEdit: 'แก้ไข',
+    librarySeeInChat: 'ดูในแชท',
+    libraryEditTitle: 'แก้ไขไฟล์',
+    libraryEditNameLabel: 'ชื่อไฟล์',
+    libraryEditNoteLabel: 'โน้ต',
+    libraryEditNotePlaceholder: 'จดไว้ว่าทำไมถึงเก็บไฟล์นี้...',
+    /** คำว่า "บันทึก" ใช้ได้เฉพาะปุ่มยืนยันฟอร์มนี้ — คนละบริบทกับ download/เก็บเข้าคลัง */
+    libraryEditSubmit: 'บันทึก',
+    libraryEditSaved: 'บันทึกแล้ว',
+    libraryCancel: 'ยกเลิก',
+    librarySeeAll: 'ดูไฟล์ทั้งหมด ({n})',
+    libraryModalTitle: 'คลังไฟล์ · {name}',
+    libraryFileFallbackName: 'ไฟล์แนบ',
+    /** ชื่อผู้ส่ง/ผู้เก็บที่ระบบไม่รู้ — ผูกกับ "ฝั่ง" ไม่ใช่คำว่า "ไม่ทราบ" */
+    librarySenderBuyer: 'ลูกค้า',
+    librarySenderShop: 'ร้าน',
+    librarySavedByFallback: 'ทีมร้าน',
+    /** aria-label ของช่องในกริด — ผันตามชนิดไฟล์จริง ห้าม hardcode "รูปจาก" ให้ทุกชนิด */
+    libraryAriaImage: 'รูปจาก {who} · {when}',
+    libraryAriaVideo: 'วิดีโอจาก {who} · {when}',
+    libraryAriaFile: '{name} จาก {who} · {when}',
+    librarySentBy: 'ส่งโดย {who} · {when}',
+    librarySavedBy: 'เก็บโดย {who} · {when}',
   },
 
   /**

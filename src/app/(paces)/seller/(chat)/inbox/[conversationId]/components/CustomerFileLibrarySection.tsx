@@ -11,9 +11,11 @@
  * (รอยเดิมของรีโปนี้: สวิตช์ที่ 12/12 ร้านไม่เคยเจอเพราะไม่มีอะไรบอกว่ามีอยู่)
  */
 import { useCallback, useEffect, useState } from 'react'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 import Icon from '@/components/wrappers/Icon'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
-import { LIBRARY_COPY, LIBRARY_ICONS, LIBRARY_PREVIEW_TAKE } from '@/lib/customer-file-library'
+import { LIBRARY_ICONS, LIBRARY_PREVIEW_TAKE } from '@/lib/customer-file-library'
 import type { LibraryItem } from '@/services/customer-file-library.service'
 import CustomerFileTile from './CustomerFileTile'
 import CustomerFileViewer from './CustomerFileViewer'
@@ -26,6 +28,7 @@ export default function CustomerFileLibrarySection({
   conversationId: string
   customerName: string
 }) {
+  const t = useT()
   const [items, setItems] = useState<LibraryItem[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -80,7 +83,7 @@ export default function CustomerFileLibrarySection({
   return (
     <div className="border-default-200 mt-4 border-t border-dashed pt-4">
       <div className="mb-2.5 flex items-center gap-1.5">
-        <h4 className="text-default-900 text-sm font-semibold">{LIBRARY_COPY.sectionTitle}</h4>
+        <h4 className="text-default-900 text-sm font-semibold">{t.inbox.librarySectionTitle}</h4>
         {/* badge จำนวน — 0 ไม่ render (แสดง empty state แทน ไม่ใช่ badge "0") */}
         {total > 0 ? <span className="badge bg-default-100 text-default-700 text-2xs">{total}</span> : null}
       </div>
@@ -90,13 +93,13 @@ export default function CustomerFileLibrarySection({
         <div className="bg-default-100 h-40 animate-pulse rounded-lg" />
       ) : failed ? (
         <div className="text-default-700 flex flex-col items-center gap-2 py-6 text-sm">
-          <span>{LIBRARY_COPY.loadFailed}</span>
+          <span>{t.inbox.libraryLoadFailed}</span>
           <button type="button" onClick={refresh} className="btn bg-light hover:text-default-800">
-            <Icon icon="refresh" className="me-1" /> {LIBRARY_COPY.retry}
+            <Icon icon="refresh" className="me-1" /> {t.inbox.libraryRetry}
           </button>
         </div>
       ) : items.length === 0 ? (
-        <SellerEmptyState compact icon={LIBRARY_ICONS.empty} title={LIBRARY_COPY.emptyTitle} description={LIBRARY_COPY.emptyBody} />
+        <SellerEmptyState compact icon={LIBRARY_ICONS.empty} title={t.inbox.libraryEmptyTitle} description={t.inbox.libraryEmptyBody} />
       ) : (
         <>
           {/* กริด 3 คอลัมน์คงที่ทุก breakpoint — ช่องโตตาม container ไม่เพิ่มคอลัมน์
@@ -111,7 +114,7 @@ export default function CustomerFileLibrarySection({
           {total > LIBRARY_PREVIEW_TAKE ? (
             <div className="mt-2.5 text-center">
               <button type="button" onClick={() => setModalOpen(true)} className="text-primary inline-flex items-center gap-0.5 text-sm font-medium">
-                {LIBRARY_COPY.seeAll(total)}
+                {fmt(t.inbox.librarySeeAll, { n: total })}
                 <Icon icon="chevron-right" className="text-base" aria-hidden="true" />
               </button>
             </div>

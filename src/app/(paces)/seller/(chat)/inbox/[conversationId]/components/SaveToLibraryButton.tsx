@@ -14,8 +14,9 @@
  * 🛑 ต่างจาก CopyMessageButton ตรงที่นี่เป็น **สถานะจริง ไม่ใช่ flash ชั่วคราว** — ไอคอนสะท้อนว่า
  * ไฟล์อยู่ในคลังหรือยัง ไม่ใช่ว่าเพิ่งกดไปเมื่อกี้
  */
+import { useT } from '@/i18n/LocaleProvider'
 import Icon from '@/components/wrappers/Icon'
-import { LIBRARY_COPY, LIBRARY_ICONS } from '@/lib/customer-file-library'
+import { LIBRARY_ICONS } from '@/lib/customer-file-library'
 
 export default function SaveToLibraryButton({
   saved,
@@ -26,7 +27,8 @@ export default function SaveToLibraryButton({
   busy: boolean
   onToggle: () => void
 }) {
-  const label = saved ? LIBRARY_COPY.unsave : LIBRARY_COPY.save
+  const t = useT()
+  const label = saved ? t.inbox.libraryUnsave : t.inbox.librarySave
   return (
     <button
       type="button"

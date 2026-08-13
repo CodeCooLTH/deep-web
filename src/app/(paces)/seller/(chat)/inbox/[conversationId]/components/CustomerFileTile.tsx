@@ -14,8 +14,9 @@
  * ช่องเทาว่างอ่านเป็น "ระบบพัง" ส่วนคำอธิบายอ่านเป็น "ของหายไปแล้ว" ซึ่งเป็นคนละเรื่อง (BR-CFL-16)
  */
 import { useState } from 'react'
+import { useT } from '@/i18n/LocaleProvider'
 import Icon from '@/components/wrappers/Icon'
-import { LIBRARY_COPY, LIBRARY_ICONS, libraryTileAriaLabel } from '@/lib/customer-file-library'
+import { LIBRARY_ICONS, libraryTileAriaLabel } from '@/lib/customer-file-library'
 import type { LibraryItem } from '@/services/customer-file-library.service'
 
 /** ไอคอนของช่องไฟล์เอกสาร — bg-{semantic}/15 + -ink ตามเกณฑ์คอนทราสต์ของ Paces
@@ -29,8 +30,9 @@ export default function CustomerFileTile({
   item: LibraryItem
   onOpen: (item: LibraryItem) => void
 }) {
+  const t = useT()
   const [failed, setFailed] = useState(false)
-  const label = libraryTileAriaLabel(item)
+  const label = libraryTileAriaLabel(item, t.inbox)
   const src = `/api/files/${item.fileId}`
 
   // aspect-4/5 เป็น fraction utility ของ Tailwind 4 (ไม่ใช่ arbitrary value) — precedent
@@ -40,10 +42,10 @@ export default function CustomerFileTile({
 
   if (failed) {
     return (
-      <button type="button" onClick={() => onOpen(item)} aria-label={`${label} — ${LIBRARY_COPY.missingFile}`} className={shell}>
+      <button type="button" onClick={() => onOpen(item)} aria-label={`${label} — ${t.inbox.libraryMissingFile}`} className={shell}>
         <span className="text-default-700 flex size-full flex-col items-center justify-center gap-1 px-1 text-center">
           <Icon icon={LIBRARY_ICONS.missing} className="text-xl" aria-hidden="true" />
-          <span className="text-2xs leading-tight">{LIBRARY_COPY.missingFile}</span>
+          <span className="text-2xs leading-tight">{t.inbox.libraryMissingFile}</span>
         </span>
       </button>
     )

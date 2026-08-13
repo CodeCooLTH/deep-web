@@ -13,45 +13,19 @@
  * "ถ้าเขียนกลับด้านแล้วจะมีอะไรจับได้ไหม" (docs/conventions/ui-boolean-needs-a-testable-home.md)
  */
 import { formatDateTH } from '@/lib/format-date'
+import { fmt } from '@/i18n/fmt'
 
-// ─── คำ (SSOT) ────────────────────────────────────────────────────────────────
-export const LIBRARY_COPY = {
-  /** action ตอนไฟล์ยังไม่อยู่ในคลัง */
-  save: 'เก็บเข้าคลัง',
-  /** action ตอนไฟล์อยู่ในคลังแล้ว (toggle) */
-  unsave: 'เอาออกจากคลัง',
-  sectionTitle: 'คลังไฟล์',
-  savedToast: 'เก็บเข้าคลังแล้ว',
-  removedToast: 'เอาออกจากคลังแล้ว',
-  saveFailed: 'เก็บเข้าคลังไม่สำเร็จ ลองใหม่อีกครั้ง',
-  removeFailed: 'เอาออกจากคลังไม่สำเร็จ ลองใหม่อีกครั้ง',
-  loadFailed: 'โหลดคลังไฟล์ไม่สำเร็จ',
-  retry: 'ลองใหม่',
-  emptyTitle: 'ยังไม่มีไฟล์ในคลัง',
-  /**
-   * 🛑 ต้องครอบทั้งสองท่า — ของเดิมเขียนแค่ "กดค้าง" ซึ่ง **ไม่มีอยู่จริงบนเดสก์ท็อป**
-   * (`useLongPress` รับ touch เท่านั้น) ⇒ ผู้ขายที่นั่งคอมจะทำตามคำแนะนำแล้วไม่เกิดอะไรขึ้น
-   * ซึ่งแย่กว่าไม่มีคำแนะนำเลย เพราะมันบอกว่าเขาทำผิด ทั้งที่ระบบไม่รองรับท่านั้นตรงนั้น
-   */
-  emptyBody: 'ที่รูป วิดีโอ หรือไฟล์ในแชท เลือก "เก็บเข้าคลัง" — บนมือถือกดค้างที่ข้อความ บนคอมเลื่อนเมาส์ไปที่ข้อความ',
-  /** สถานะเมื่อไฟล์จริงหายจาก storage — ห้ามปล่อยเป็นช่องเทาว่าง (BR-CFL-16) */
-  missingFile: 'ไฟล์ถูกลบแล้ว',
-  openFile: 'เปิดไฟล์',
-  download: 'ดาวน์โหลด',
-  edit: 'แก้ไข',
-  /** ปุ่มกระโดดกลับข้อความต้นทาง — ซ่อนทั้งปุ่มเมื่อกระโดดไม่ได้จริง (BR-CFL-14) */
-  seeInChat: 'ดูในแชท',
-  editTitle: 'แก้ไขไฟล์',
-  editNameLabel: 'ชื่อไฟล์',
-  editNoteLabel: 'โน้ต',
-  editNotePlaceholder: 'จดไว้ว่าทำไมถึงเก็บไฟล์นี้...',
-  /** ปุ่มยืนยันฟอร์มแก้ไข — คำว่า "บันทึก" ใช้ได้เฉพาะที่นี่ (คนละบริบทกับ download/เก็บเข้าคลัง) */
-  editSubmit: 'บันทึก',
-  editSaved: 'บันทึกแล้ว',
-  cancel: 'ยกเลิก',
-  seeAll: (total: number) => `ดูไฟล์ทั้งหมด (${total})`,
-  modalTitle: (customerName: string) => `คลังไฟล์ · ${customerName}`,
-} as const
+// ─── คำ ──────────────────────────────────────────────────────────────────────
+/**
+ * 🛑 **คำทั้งหมดย้ายไป dictionary ของ 00047 แล้ว** (`src/i18n/dictionaries/{th,en}.ts` → `inbox.library*`)
+ *
+ * เดิมไฟล์นี้เคยถือ `LIBRARY_COPY` เป็นค่าคงที่ระดับ module ซึ่งเป็นรูปแบบที่บันทึกของ 00047
+ * เขียนไว้เองว่า **"ค่าคงที่ระดับ module ฝังข้อความไทย = ค้างเป็นไทยตลอดไป"** — สลับภาษาแล้ว
+ * คลังไฟล์จะยังเป็นไทยทั้งก้อน ซึ่งตรงกับเคสที่ 00047 ถูกสร้างมาแก้พอดี (Meta App Review ขอ UI EN)
+ *
+ * ที่ยังอยู่ในไฟล์นี้คือ **ตรรกะและค่าที่ไม่ใช่คำพูด** เท่านั้น (ไอคอน/เพดาน/เกณฑ์) เพราะ service
+ * ฝั่ง server ก็ import ไฟล์นี้ — ยก `useT()` เข้ามาทั้งดุ้นไม่ได้
+ */
 
 /**
  * ไอคอน (tabler) — `bookmark-filled` ไม่ใช่ `bookmark-off` สำหรับสถานะ "เก็บแล้ว"
@@ -132,13 +106,29 @@ export function resolveLibraryOwner(c: {
 }
 
 /**
+ * ชุดคำที่ฟังก์ชันในไฟล์นี้ต้องใช้ — ประกาศเป็น structural type ของคีย์ที่ต้องใช้จริง
+ * ผู้เรียกส่ง `t.inbox` เข้ามาตรง ๆ ได้เลย (tsc ตรวจให้ว่าคีย์ครบ)
+ */
+export type LibraryLabelCopy = {
+  libraryAriaImage: string
+  libraryAriaVideo: string
+  libraryAriaFile: string
+  libraryFileFallbackName: string
+  librarySenderBuyer: string
+  librarySenderShop: string
+}
+
+/**
  * ชื่อผู้ส่งที่แสดงได้เสมอ — snapshot อาจว่าง (ผู้ติดต่อที่ Meta ยังไม่ให้ชื่อ) จึงต้องมีตัวสำรอง
  * ที่ผูกกับ "ฝั่ง" ไม่ใช่คำว่า "ไม่ทราบ"
  */
-export function librarySenderLabel(item: { senderName: string | null; senderRole: string }): string {
+export function librarySenderLabel(
+  item: { senderName: string | null; senderRole: string },
+  copy: Pick<LibraryLabelCopy, 'librarySenderBuyer' | 'librarySenderShop'>,
+): string {
   const name = item.senderName?.trim()
   if (name) return name
-  return item.senderRole === 'SHOP' ? 'ร้าน' : 'ลูกค้า'
+  return item.senderRole === 'SHOP' ? copy.librarySenderShop : copy.librarySenderBuyer
 }
 
 /**
@@ -146,20 +136,24 @@ export function librarySenderLabel(item: { senderName: string | null; senderRole
  * screen reader จะอ่านไม่ออกทั้งกริด (docs/conventions/aria-name-requires-supporting-role.md)
  *
  * 🛑 ต้องผันตามชนิดจริง ห้าม hardcode "รูปจาก" — คลังมีวิดีโอและไฟล์เอกสารด้วย
+ * 🛑 ประกอบด้วย fmt() ไม่ใช่ต่อสตริงเอง — ลำดับคำของ TH/EN ไม่ตรงกัน (ดู src/i18n/fmt.ts)
  */
-export function libraryTileAriaLabel(item: {
-  kind: LibraryKind
-  fileName: string | null
-  senderName: string | null
-  senderRole: string
-  sentAt: string | Date
-}): string {
-  const who = librarySenderLabel(item)
+export function libraryTileAriaLabel(
+  item: {
+    kind: LibraryKind
+    fileName: string | null
+    senderName: string | null
+    senderRole: string
+    sentAt: string | Date
+  },
+  copy: LibraryLabelCopy,
+): string {
+  const who = librarySenderLabel(item, copy)
   const when = formatDateTH(item.sentAt)
-  if (item.kind === 'IMAGE') return `รูปจาก ${who} · ${when}`
-  if (item.kind === 'VIDEO') return `วิดีโอจาก ${who} · ${when}`
-  const name = item.fileName?.trim() || 'ไฟล์แนบ'
-  return `${name} จาก ${who} · ${when}`
+  if (item.kind === 'IMAGE') return fmt(copy.libraryAriaImage, { who, when })
+  if (item.kind === 'VIDEO') return fmt(copy.libraryAriaVideo, { who, when })
+  const name = item.fileName?.trim() || copy.libraryFileFallbackName
+  return fmt(copy.libraryAriaFile, { name, who, when })
 }
 
 /** ค่าที่ผู้ใช้กรอกแล้วเหลือแต่ช่องว่าง = ไม่มีค่า (ไม่ใช่สตริงว่างที่แสดงเป็นชื่อว่าง ๆ) */

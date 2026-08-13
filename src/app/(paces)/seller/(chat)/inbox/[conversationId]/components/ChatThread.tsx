@@ -143,7 +143,7 @@ import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPane
 import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
 // feature 00048 — คลังไฟล์ต่อลูกค้า (คำทั้งหมดมาจาก SSOT เดียว ห้ามพิมพ์ซ้ำที่นี่ — HR16)
-import { LIBRARY_COPY, LIBRARY_ICONS, isLibraryEligible } from '@/lib/customer-file-library'
+import { LIBRARY_ICONS, isLibraryEligible } from '@/lib/customer-file-library'
 import SaveToLibraryButton from './SaveToLibraryButton'
 import { JUMP_TO_MESSAGE_EVENT } from './CustomerFileViewer'
 
@@ -1191,7 +1191,7 @@ export default function ChatThread({
             body: JSON.stringify({ messageId: m.id }),
           })
       if (!res.ok) throw new Error(String(res.status))
-      pacesToast.success(wasSaved ? LIBRARY_COPY.removedToast : LIBRARY_COPY.savedToast)
+      pacesToast.success(wasSaved ? t.inbox.libraryRemovedToast : t.inbox.librarySavedToast)
     } catch {
       // rollback: ปล่อยให้ไอคอนค้างในสถานะที่ไม่ตรงกับฐานคือการโกหกผู้ขาย
       setSavedFiles((prev) => {
@@ -1200,7 +1200,7 @@ export default function ChatThread({
         else next.delete(fileId)
         return next
       })
-      pacesToast.error(wasSaved ? LIBRARY_COPY.removeFailed : LIBRARY_COPY.saveFailed)
+      pacesToast.error(wasSaved ? t.inbox.libraryRemoveFailed : t.inbox.librarySaveFailed)
     } finally {
       setSavingFileId(null)
     }
@@ -1634,7 +1634,7 @@ export default function ChatThread({
       list.push({
         key: 'save-to-library',
         icon: saved ? LIBRARY_ICONS.saved : LIBRARY_ICONS.save,
-        label: saved ? LIBRARY_COPY.unsave : LIBRARY_COPY.save,
+        label: saved ? t.inbox.libraryUnsave : t.inbox.librarySave,
         onSelect: () => void toggleLibrary(m),
       })
     }
@@ -3988,8 +3988,8 @@ export default function ChatThread({
               type="button"
               className="yarl__button"
               disabled={savingFileId === lightboxSlide.libraryFileId}
-              aria-label={savedFiles.has(lightboxSlide.libraryFileId) ? LIBRARY_COPY.unsave : LIBRARY_COPY.save}
-              title={savedFiles.has(lightboxSlide.libraryFileId) ? LIBRARY_COPY.unsave : LIBRARY_COPY.save}
+              aria-label={savedFiles.has(lightboxSlide.libraryFileId) ? t.inbox.libraryUnsave : t.inbox.librarySave}
+              title={savedFiles.has(lightboxSlide.libraryFileId) ? t.inbox.libraryUnsave : t.inbox.librarySave}
               onClick={() =>
                 void toggleLibrary({ id: lightboxSlide.libraryMessageId!, imageUrl: lightboxSlide.libraryFileId })
               }

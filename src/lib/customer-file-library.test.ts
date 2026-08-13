@@ -6,8 +6,9 @@
  * tsc/build/detector/grep จะผ่านหมดเพราะชนิดถูกทุกตัวอักษร — สิ่งที่ผิดคือความหมาย
  */
 import { describe, it, expect } from 'vitest'
+import { th } from '@/i18n/dictionaries/th'
+import { en } from '@/i18n/dictionaries/en'
 import {
-  LIBRARY_COPY,
   LIBRARY_ICONS,
   isLibraryEligible,
   toLibraryKind,
@@ -86,30 +87,31 @@ describe('resolveLibraryOwner', () => {
 
 describe('libraryTileAriaLabel', () => {
   const base = { senderName: 'ณัฐธิดา ศรีสุวรรณวัฒนกุล', senderRole: 'BUYER', sentAt: '2026-08-08T07:32:11.000Z' }
+  // ป้อน dictionary จริง ไม่ใช่ค่าปลอม — เทสจึงพังทันทีถ้ามีคนลบคีย์ออกจาก th.ts
 
   it('TC-09: ผันตามชนิดจริง ไม่ hardcode "รูปจาก"', () => {
-    expect(libraryTileAriaLabel({ ...base, kind: 'IMAGE', fileName: null })).toContain('รูปจาก ณัฐธิดา')
-    expect(libraryTileAriaLabel({ ...base, kind: 'VIDEO', fileName: null })).toContain('วิดีโอจาก ณัฐธิดา')
-    expect(libraryTileAriaLabel({ ...base, kind: 'FILE', fileName: 'ใบเสนอราคา.pdf' })).toContain(
+    expect(libraryTileAriaLabel({ ...base, kind: 'IMAGE', fileName: null }, th.inbox)).toContain('รูปจาก ณัฐธิดา')
+    expect(libraryTileAriaLabel({ ...base, kind: 'VIDEO', fileName: null }, th.inbox)).toContain('วิดีโอจาก ณัฐธิดา')
+    expect(libraryTileAriaLabel({ ...base, kind: 'FILE', fileName: 'ใบเสนอราคา.pdf' }, th.inbox)).toContain(
       'ใบเสนอราคา.pdf จาก ณัฐธิดา',
     )
   })
 
   it('ไฟล์เอกสารที่ไม่มีชื่อ ต้องไม่อ่านออกมาเป็นชื่อว่าง', () => {
-    expect(libraryTileAriaLabel({ ...base, kind: 'FILE', fileName: '   ' })).toContain('ไฟล์แนบ จาก')
+    expect(libraryTileAriaLabel({ ...base, kind: 'FILE', fileName: '   ' }, th.inbox)).toContain('ไฟล์แนบ จาก')
   })
 
   it('ทุกชนิดต้องมีวันที่ต่อท้ายเสมอ', () => {
     for (const kind of ['IMAGE', 'VIDEO', 'FILE'] as const) {
-      expect(libraryTileAriaLabel({ ...base, kind, fileName: 'x.pdf' })).toMatch(/ · \d+ .+ 2569$/)
+      expect(libraryTileAriaLabel({ ...base, kind, fileName: 'x.pdf' }, th.inbox)).toMatch(/ · \d+ .+ 2569$/)
     }
   })
 })
 
 describe('librarySenderLabel', () => {
   it('ไม่มีชื่อ → ใช้ฝั่งผู้ส่งแทน ไม่ใช่คำว่า "ไม่ทราบ"', () => {
-    expect(librarySenderLabel({ senderName: null, senderRole: 'BUYER' })).toBe('ลูกค้า')
-    expect(librarySenderLabel({ senderName: '  ', senderRole: 'SHOP' })).toBe('ร้าน')
+    expect(librarySenderLabel({ senderName: null, senderRole: 'BUYER' }, th.inbox)).toBe('ลูกค้า')
+    expect(librarySenderLabel({ senderName: '  ', senderRole: 'SHOP' }, th.inbox)).toBe('ร้าน')
   })
 })
 
@@ -127,29 +129,56 @@ describe('normalizeLibraryText', () => {
   })
 })
 
-describe('LIBRARY_COPY (Hard Rule 16)', () => {
-  it('[blocker] TC-11: คำสั่งเก็บ/เอาออก ห้ามมีคำว่า "บันทึก" — ชนกับ "บันทึกวิดีโอ" ที่แปลว่าโหลดลงเครื่อง', () => {
+describe('คำในคลังไฟล์ (Hard Rule 16 + i18n 00047)', () => {
+  it('[blocker] TC-11: คำสั่งเก็บ/เอาออก ห้ามมีคำว่า "บันทึก" — ชนกับ "บันทึกวิดีโอ"/"บันทึกรูป" ที่แปลว่าโหลดลงเครื่อง', () => {
     const actionCopy = [
-      LIBRARY_COPY.save,
-      LIBRARY_COPY.unsave,
-      LIBRARY_COPY.savedToast,
-      LIBRARY_COPY.removedToast,
-      LIBRARY_COPY.saveFailed,
-      LIBRARY_COPY.removeFailed,
-      LIBRARY_COPY.sectionTitle,
-      LIBRARY_COPY.emptyTitle,
-      LIBRARY_COPY.emptyBody,
+      th.inbox.librarySave,
+      th.inbox.libraryUnsave,
+      th.inbox.librarySavedToast,
+      th.inbox.libraryRemovedToast,
+      th.inbox.librarySaveFailed,
+      th.inbox.libraryRemoveFailed,
+      th.inbox.librarySectionTitle,
+      th.inbox.libraryEmptyTitle,
+      th.inbox.libraryEmptyBody,
     ]
     for (const s of actionCopy) expect(s).not.toContain('บันทึก')
   })
 
   it('คำว่า "บันทึก" ใช้ได้เฉพาะปุ่มยืนยันฟอร์มแก้ไข (คนละบริบท)', () => {
-    expect(LIBRARY_COPY.editSubmit).toBe('บันทึก')
+    expect(th.inbox.libraryEditSubmit).toBe('บันทึก')
   })
 
   it('[blocker] สถานะ "เก็บแล้ว" ต้องใช้ bookmark-filled ไม่ใช่ bookmark-off', () => {
     // -off สื่อว่า "ปิดใช้งาน" ไม่ใช่ "อยู่ในคลังแล้ว" (ผู้ใช้เคาะ 2026-08-13)
     expect(LIBRARY_ICONS.saved).toBe('bookmark-filled')
     expect(LIBRARY_ICONS.saved).not.toBe(LIBRARY_ICONS.remove)
+  })
+
+  it('[blocker] ทุกคีย์ของคลังไฟล์ต้องมีครบทั้ง th และ en และห้ามเป็นค่าว่าง', () => {
+    // 00047 บันทึกไว้เองว่า "ค่าคงที่ระดับ module ฝังข้อความไทย = ค้างเป็นไทยตลอดไป"
+    // เทสนี้คือด่านที่กันไม่ให้คีย์ใหม่ของฟีเจอร์นี้ตกกลับไปเป็นแบบนั้น
+    const keys = Object.keys(th.inbox).filter((k) => k.startsWith('library'))
+    expect(keys.length).toBeGreaterThan(20)
+    for (const k of keys) {
+      const thv = (th.inbox as unknown as Record<string, string>)[k]
+      const env = (en.inbox as unknown as Record<string, string>)[k]
+      expect(typeof env, `en ขาดคีย์ ${k}`).toBe('string')
+      expect(env.trim(), `en.${k} ว่าง`).not.toBe('')
+      // en ที่ลอกไทยมาทั้งดุ้น = ยังไม่ได้แปล (ยกเว้นคีย์ที่เป็น placeholder ล้วน)
+      expect(env, `en.${k} ยังเป็นข้อความไทยเดิม`).not.toBe(thv)
+    }
+  })
+
+  it('[blocker] เทมเพลตที่มี placeholder ต้องมี placeholder ครบทั้งสองภาษา', () => {
+    const templated = ['librarySeeAll', 'libraryModalTitle', 'libraryAriaImage', 'libraryAriaVideo', 'libraryAriaFile', 'librarySentBy', 'librarySavedBy'] as const
+    for (const k of templated) {
+      const thv = (th.inbox as unknown as Record<string, string>)[k]
+      const env = (en.inbox as unknown as Record<string, string>)[k]
+      const slots = (v: string) => (v.match(/\{(\w+)\}/g) ?? []).sort().join(',')
+      // ลืม placeholder ในภาษาใดภาษาหนึ่ง = ค่าหายไปจากประโยคเงียบ ๆ เฉพาะภาษานั้น
+      expect(slots(env), `${k}: placeholder ของ en ไม่ตรงกับ th`).toBe(slots(thv))
+      expect(slots(thv), `${k}: ไม่มี placeholder เลย`).not.toBe('')
+    }
   })
 })
