@@ -180,18 +180,27 @@ surface" — และย้ำว่า reviewer ต้องใช้ **บั
 (ถ้าขาดเบอร์โทรหรือ slug อย่างใดอย่างหนึ่ง `proxy.ts` จะเด้ง reviewer เข้า `/register`
 หรือ `/onboarding` ซึ่งบังคับ OTP มือถือ = reviewer ไปต่อไม่ได้ตั้งแต่ขั้นที่ 2)
 
-ข้อความที่วางในช่อง step-by-step (UI เป็นไทย จึงวงเล็บอังกฤษกำกับทุกปุ่ม):
+ข้อความที่วางในช่อง step-by-step
 
-> The seller-facing UI is in Thai; English translations are in brackets.
+🛑 **ฉบับเดิม (ยื่นไปรอบแรก) ผิด 2 อย่าง — แก้แล้ว 2026-08-13**
+1. เขียนว่า UI เป็นไทยแล้ววงเล็บอังกฤษกำกับทุกปุ่ม — **ไม่จริงแล้วหลัง feature 00047**
+   reviewer ที่ทำตามจะไล่หาปุ่มไทยที่ไม่มีอยู่บนจอ
+2. 🛑 **สั่งให้เปิดเมนู "บัญชีที่เชื่อมต่อ" [Connected accounts] ซึ่งไม่ใช่หน้าเชื่อมเพจแล้ว**
+   ตั้งแต่ feature 00026 (หน้านั้นย้ายไปเป็น "วิธีล็อกอินของบัญชีตัวเอง" ที่ `/account`)
+   หน้าที่เชื่อมเพจคือ **"ช่องทางการขาย" / "Sales channels"** (`/settings/channels`,
+   `seller-menu.ts:185`) ⇒ ฉบับเดิมพา reviewer ไปผิดหน้าตั้งแต่ Step 2 ทั้งที่ใบนี้ตกด้วยเหตุผล
+   ว่า "ไม่ตรงกัน" — ชื่อปุ่มด้านล่างคัดจาก `src/i18n/dictionaries/en.ts` ทุกตัว ไม่ได้แปลเอง
+
+> The seller workspace is in English. The account below is already set to English; you can switch anytime with the "EN / TH" control at the top right of the sign-in page.
 >
 > Step 1. Deep is a Page management surface, so please use the temporary seller account we created for you: `https://seller.deepthailand.app/auth/sign-in` — username `metareview`, password `<PASSWORD>`.
-> Step 2. In the left menu open "บัญชีที่เชื่อมต่อ" [Connected accounts], then click the blue button "เชื่อม Facebook Page" [Connect Facebook Page].
+> Step 2. In the left menu open "Sales channels", then click the blue button "Connect Facebook Page".
 > Step 3. Complete Meta's login dialog with your own reviewer account (granted the Tester role in App Roles) and allow access to a Page you administer.
-> Step 4. You are returned to Deep on the page picker "เลือกเพจที่จะเชื่อม" [Choose pages to connect]. Tick your Page and click "เชื่อมเพจที่เลือก" [Connect selected pages]. The Page now appears with the badge "เชื่อมแล้ว" [Connected].
+> Step 4. You are returned to Deep on the page picker "Choose pages to connect". Tick your Page and click "Connect selected pages". The Page now appears with the badge "Connected". At this point Deep has called `POST /{page-id}/subscribed_apps` for that Page; the "Sync notifications" button on the same screen calls it again at any time.
 > Step 5. From a different Facebook account, open `m.me/<your-page>` and send any message to that Page.
-> Step 6. Back in Deep, click "ข้อความ" [Messages] in the left menu. The new conversation appears at the top of the list within a few seconds, with the customer's name and their message.
-> Step 7. Open the conversation, type any text in the box "พิมพ์ข้อความ..." [Type a message] and click "ส่ง" [Send]. The reply is delivered to the customer in Messenger — you can confirm it in the Messenger window from Step 5.
-> Step 8. To verify we stop receiving data on request: go back to "บัญชีที่เชื่อมต่อ" and click "ถอด" [Disconnect] on **both** the Messenger and the Instagram row of that Page. Deep then calls `DELETE /{page-id}/subscribed_apps`; new messages to the Page no longer reach the inbox.
+> Step 6. Back in Deep, click "Messages" in the left menu. The new conversation appears at the top of the list within a few seconds — without reloading the page — with the customer's name and their message.
+> Step 7. Open the conversation, type any text in the message box and click "Send". The reply is delivered to the customer in Messenger — you can confirm it in the Messenger window from Step 5.
+> Step 8. To verify we stop receiving data on request: go back to "Sales channels" and click "Remove" on **both** the Messenger and the Instagram row of that Page, then confirm with "Disconnect". Deep then calls `DELETE /{page-id}/subscribed_apps`; new messages to the Page no longer reach the inbox.
 
 ---
 
@@ -454,7 +463,8 @@ use case ต่างจาก 2 คลิปแรกโดยสิ้นเ�
 | # | สิ่งที่ต้องทำ | ถ้าไม่ทำจะเป็นยังไง |
 |---|---|---|
 | 1 | บัญชี `metareview` ตั้งภาษาเป็น **English** (`/account` → การ์ด Language) | UI เป็นไทยทั้งคลิป = ตกข้อ "use English as the app UI language" |
-| 2 | **ถอดเพจออกจาก Deep ก่อน** | scope ผูกกับ token ตอนกดอนุญาต + reviewer สั่งให้เห็นจอ grant อยู่แล้ว |
+| 2 | **ถอดเพจออกจาก Deep ก่อน** แล้วในคลิปค่อยเชื่อมเข้าร้านของ `metareview` | scope ผูกกับ token ตอนกดอนุญาต + reviewer สั่งให้เห็นจอ grant อยู่แล้ว · ถอดก่อน = ตอนเชื่อมจะ**ไม่มีโมดัล "Move this Page to this shop?"** มาแทรกกลางคลิป (เพจไม่ได้ผูกกับร้านไหนอยู่) · ประวัติแชทไม่หาย ระบบเขียนไว้เองว่า "Past messages stay" |
+| 2.1 | เพจที่ใช้คือ **Code CooL ซึ่งเป็นเพจทดสอบของเราเอง** — ปล่อยให้ค้างอยู่ในร้านของ `metareview` ได้เลยหลังอัดเสร็จ | ไม่ต้องเชิญ `metareview` เข้าร้านอื่น (ซึ่งต้องเป็นร้าน BUSINESS + มี Business Package ที่ ACTIVE ถึงจะ accept ลิงก์ได้ — `invite-link.service.ts:158-166` fail-closed เป็น `ADMIN_QUOTA_EXCEEDED`) และไม่ต้องย้ายเพจกลับก่อนยื่น เพราะไม่มีข้อมูลลูกค้าจริงให้ reviewer เห็น |
 | 3 | IG เป็น Professional + ผูกกับเพจ + เปิด **Allow access to messages** | DM ไม่เข้าเลยโดยไม่มี error (ดู §6.0) |
 | 4 | บัญชีที่สอง 2 ชุด: Facebook สำหรับทัก Messenger · Instagram สำหรับส่ง DM | ทักจากบัญชีที่ดูแลเพจเองไม่ได้ |
 | 5 | เตรียมเธรดที่ **เริ่มจากโพสต์/โฆษณาของเพจ** ไว้สำหรับคลิป C | ไม่มีแบนเนอร์ให้ถ่าย |
