@@ -293,17 +293,21 @@ export default async function SellerInboxPage() {
     return <SellerErrorState />
   }
 
-  if (items.length === 0) {
-    return (
-      <SellerEmptyState
-        icon="message-circle"
-        title="ยังไม่มีข้อความ"
-        description="เมื่อลูกค้าทักแชทมาที่ร้าน จะแสดงในหน้านี้"
-        // edge state: ยังไม่เคยเชื่อมช่องทางนอกเลย — CTA รองไปเชื่อม (ดู Edge states ของสเปก)
-        action={hasAnyChannel ? undefined : { label: 'เชื่อม Facebook Page', href: '/settings/channels' }}
-      />
-    )
-  }
+  /**
+   * 🛑 ห้าม early-return เป็น empty state ตอน items ว่าง (bugfix 2026-08-13)
+   *
+   * เดิมที่นี่ `if (items.length === 0) return <SellerEmptyState/>` ซึ่งทำให้ `InboxList`
+   * ไม่ถูก render เลยแม้แต่ตัวเดียว — และกลไกที่ทำให้รายการอัปเดตอยู่ใน InboxList ทั้งหมด
+   * (subscribe realtime `chat:shop:{id}`, poll ทุก 20 วิ, refresh ตอน focus/visibility)
+   * ⇒ ตัดขาดทุกเส้นทางพร้อมกัน ลูกค้า "คนแรก" ที่ทักเข้ามาจึงไม่ขึ้นในรายการจนกว่าจะ F5 เอง
+   *
+   * เป็นเคสที่แย่ที่สุดเท่าที่จะเป็นไปได้ของกล่องข้อความ เพราะคนที่ยังไม่เคยคุยกันคือคนที่ร้าน
+   * อยากตอบเร็วที่สุด แต่กลับเป็นเคสเดียวที่ไม่มีอะไรทำงานเลย ส่วนลูกค้าเก่าที่ทักซ้ำเด้งทันที
+   * — กลับหัวกับความสำคัญพอดี (user เจอเองบน prod)
+   *
+   * empty state ย้ายเข้าไปอยู่ใน InboxList แล้ว (แยก "ยังไม่มีใครทัก" ออกจาก "กรองแล้วไม่เจอ"
+   * ด้วย isChatListFiltering) — ที่นั่นรายการว่างก็ยัง mount ครบทุกกลไก
+   */
 
   return (
     <>
@@ -326,6 +330,7 @@ export default async function SellerInboxPage() {
           unified={isUnified}
           activeShopId={scope.activeShopId}
           chatMuted={chatMuted}
+          hasAnyChannel={hasAnyChannel}
           railMode
         />
       </div>

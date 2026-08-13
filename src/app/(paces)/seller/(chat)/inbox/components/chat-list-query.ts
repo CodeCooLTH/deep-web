@@ -85,3 +85,38 @@ export function buildChatListParams(
   if (filter.readState !== 'all') params.set('readState', filter.readState)
   return params
 }
+
+/**
+ * ผู้ใช้กำลังกรองอะไรอยู่หรือเปล่า (feature 00018 bugfix 2026-08-13)
+ *
+ * 🛑 ต้องเป็นฟังก์ชันบริสุทธิ์ ไม่ใช่เทอร์นารีกลาง JSX
+ * มันตัดสินว่ารายการที่ว่างจะพูดว่า "ยังไม่มีใครทักเลย" หรือ "กรองแล้วไม่เจอ" ซึ่งเป็นคนละ
+ * ความหมายกันสิ้นเชิง — ถ้าเขียนกลับด้าน ผู้ใช้ที่ยังไม่เคยมีลูกค้าจะถูกบอกให้ "ล้างตัวกรอง"
+ * ที่เขาไม่เคยตั้ง และไม่มี gate ไหนจับได้เพราะเป็น boolean ที่ถูกต้องตามชนิดทุกประการ
+ * (docs/conventions/ui-boolean-needs-a-testable-home.md)
+ *
+ * นับ "กำลังกรอง" จากทุกแกนที่ผู้ใช้กดได้เอง — ตัวกรองหลัก, แท็บช่องทาง, เพจ, คำค้นหา, กลุ่ม
+ */
+export function isChatListFiltering(input: {
+  filter: ChatFilterState
+  channelTab: string
+  pageFilter: string
+  query: string
+  chatGroupId: string | null
+}): boolean {
+  const { filter, channelTab, pageFilter, query, chatGroupId } = input
+  if (channelTab !== 'ALL') return true
+  if (pageFilter !== '') return true
+  if (query.trim() !== '') return true
+  if (chatGroupId !== null) return true
+
+  return (
+    filter.status !== DEFAULT_CHAT_FILTER.status ||
+    filter.spam !== DEFAULT_CHAT_FILTER.spam ||
+    filter.customerLinked !== DEFAULT_CHAT_FILTER.customerLinked ||
+    filter.hidden !== DEFAULT_CHAT_FILTER.hidden ||
+    filter.readState !== DEFAULT_CHAT_FILTER.readState ||
+    filter.shipment !== DEFAULT_CHAT_FILTER.shipment ||
+    filter.tags.length > 0
+  )
+}

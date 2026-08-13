@@ -94,7 +94,7 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import PageFilterDropdown from './PageFilterDropdown'
 import InboxFilterPanel from './InboxFilterPanel'
-import { buildChatListParams, DEFAULT_CHAT_FILTER, type ChatFilterState } from './chat-list-query'
+import { buildChatListParams, DEFAULT_CHAT_FILTER, isChatListFiltering, type ChatFilterState } from './chat-list-query'
 import { type RowAction } from './ConversationRowMenu'
 import ChatContextMenu, { type ChatRowAnchor } from './ChatContextMenu'
 import SwipeableRow from './SwipeableRow'
@@ -282,6 +282,11 @@ type Props = {
    * ตัวเองปิดแจ้งเตือนไว้ แล้วพลาดข้อความสำคัญโดยไม่รู้ว่าทำไม
    */
   chatMuted?: boolean
+  /**
+   * ร้านนี้เชื่อมช่องทางแชทไว้แล้วหรือยัง — ใช้เฉพาะตอนรายการว่าง "และไม่ได้กรองอะไรอยู่"
+   * เพื่อเลือกว่าจะชวนไปเชื่อมเพจหรือแค่บอกว่ายังไม่มีใครทัก
+   */
+  hasAnyChannel?: boolean
 }
 
 export default function InboxList({
@@ -296,6 +301,7 @@ export default function InboxList({
   unified = false,
   activeShopId = null,
   chatMuted = false,
+  hasAnyChannel = true,
 }: Props) {
   const t = useT()
   // ชื่อเรียกรายการตามประเภทกิจการ — อ่านจาก DraftOrderProvider ที่ครอบทั้ง (chat) อยู่แล้ว
@@ -555,6 +561,15 @@ export default function InboxList({
       setOpenPanel((p) => (p === 'page' ? null : p))
     }
   }
+
+  // ตัดสินว่ารายการว่างเพราะ "ยังไม่เคยมีใครทัก" หรือ "กรองแล้วไม่เจอ" — คนละข้อความกันสิ้นเชิง
+  const isFiltering = isChatListFiltering({
+    filter,
+    channelTab,
+    pageFilter,
+    query: debouncedQuery,
+    chatGroupId: activeGroupId,
+  })
 
   const clearFilters = () => {
     setChannelTab('ALL')
@@ -1321,7 +1336,25 @@ export default function InboxList({
 
       {items.length === 0 ? (
         <div className="card-body">
-          {filter.hidden ? (
+          {!isFiltering && !filter.hidden ? (
+            /**
+             * 🛑 "ยังไม่มีใครทักเลย" ต้องแยกจาก "กรองแล้วไม่เจอ" — เดิมหน้ากลาง (inbox/page.tsx)
+             * early-return เป็น empty state ของตัวเองตอน items ว่าง ซึ่งทำให้ InboxList ไม่ถูก
+             * render เลย ⇒ ไม่มีใคร subscribe realtime, ไม่มีใคร poll 20 วิ, ไม่มีใคร refresh
+             * ตอน focus ⇒ ลูกค้า "คนแรก" ที่ทักเข้ามาไม่ขึ้นในรายการจนกว่าจะรีเฟรชหน้าเอง
+             * (user เจอเองบน prod 2026-08-13 — เป็นเคสที่สำคัญที่สุดของกล่องข้อความพอดี
+             *  เพราะคนที่ยังไม่เคยคุยกันคือคนที่ร้านอยากตอบเร็วที่สุด)
+             *
+             * ย้ายมาไว้ที่นี่แทน: รายการว่างก็ยัง mount ครบทุกกลไก ข้อความแรกจึงเด้งเองได้
+             */
+            <SellerEmptyState
+              compact
+              icon="message-circle"
+              title="ยังไม่มีข้อความ"
+              description="เมื่อลูกค้าทักแชทมาที่ร้าน จะแสดงในหน้านี้"
+              action={hasAnyChannel ? undefined : { label: 'เชื่อม Facebook Page', href: '/settings/channels' }}
+            />
+          ) : filter.hidden ? (
             // edge state เฉพาะโหมด "ที่ซ่อนอยู่" — ไม่เด่นปุ่มล้างตัวกรอง (ผู้ใช้ตั้งใจเข้ามาดูโหมดนี้)
             <SellerEmptyState
               compact
