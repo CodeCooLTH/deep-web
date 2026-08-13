@@ -121,6 +121,8 @@ import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmp
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
 import { ChannelBadgeOverlay } from '../../components/ChannelBadge'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 import OrderCardView from '../../../_components/OrderCardView'
 import { useDraftOrders, useOrderVocab, useThreadShopId } from '../../../_components/DraftOrderProvider'
 import CustomerPanelSheet from './CustomerPanelSheet'
@@ -1091,6 +1093,7 @@ export default function ChatThread({
   humanAgentExpiresAt = null,
   customerPanelData,
 }: Props) {
+  const t = useT()
   const { data: session } = useSession()
   const shopUsername = (session?.user as { username?: string } | undefined)?.username
   // แตะการ์ดคำสั่งซื้อในแชท → เปิดโมดัลแก้ไข (user 2026-07-25: เหมือนแตะการ์ดใน right panel)
@@ -1177,16 +1180,16 @@ export default function ChatThread({
   const [nowTs, setNowTs] = useState(() => Date.now())
   useEffect(() => {
     if (!isExternal || !windowOpen) return // นับเฉพาะช่องทางนอกที่ window ยังเปิดตอนโหลด
-    const t = setInterval(() => setNowTs(Date.now()), 1000)
-    return () => clearInterval(t)
+    const timer = setInterval(() => setNowTs(Date.now()), 1000)
+    return () => clearInterval(timer)
   }, [isExternal, windowOpen])
   const liveRemaining = Math.max(0, expiryTs - nowTs)
   const liveWindowOpen = windowOpen && liveRemaining > 0
   // tick หยาบ ๆ (ทุก 15 วิ) ให้เวลาข้อความล่าสุด "หายไปเอง" หลังส่งเกิน 1 นาที (user request 2026-07-23)
   const [, setMetaTick] = useState(0)
   useEffect(() => {
-    const t = setInterval(() => setMetaTick((x) => x + 1), 15000)
-    return () => clearInterval(t)
+    const timer = setInterval(() => setMetaTick((x) => x + 1), 15000)
+    return () => clearInterval(timer)
   }, [])
 
   // E5 — แบนเนอร์ "ตอบกลับจากโฆษณา" ปิดได้แบบ Messenger. เก็บสถานะที่ localStorage ต่อเธรด
@@ -2187,8 +2190,8 @@ export default function ChatThread({
         <div className="flex min-w-0 items-center gap-3">
           <Link
             href="/inbox"
-            title="กลับรายการ"
-            aria-label="กลับรายการ"
+            title={t.inbox.backToList}
+            aria-label={t.inbox.backToList}
             className="btn btn-icon border-default-300 shrink-0 lg:hidden"
           >
             <Icon icon="arrow-left" className="text-lg" />
@@ -2259,8 +2262,8 @@ export default function ChatThread({
         <button
           type="button"
           onClick={() => setSheetOpen(true)}
-          title="ข้อมูลลูกค้า"
-          aria-label="ข้อมูลลูกค้า"
+          title={t.inbox.customerInfo}
+          aria-label={t.inbox.customerInfo}
           className="btn btn-sm border-default-300 text-default-700 hover:bg-default-100 ms-auto inline-flex shrink-0 items-center gap-1 xl:hidden"
         >
           <Icon icon="user-circle" className="text-base" />
@@ -3201,8 +3204,8 @@ export default function ChatThread({
           <AiSuggestPanel
             conversationId={conversationId}
             hidePayments={hidePayments}
-            onPick={(t) => {
-              setText(t)
+            onPick={(picked) => {
+              setText(picked)
               setActivePanel(null)
             }}
             onClose={() => setActivePanel(null)}
@@ -3611,11 +3614,11 @@ export default function ChatThread({
               placeholder={
                 composerDisabled
                   ? lineQuotaCaption?.blocking && !tokenInvalid
-                    ? 'โควตาข้อความหมดแล้ว ส่งไม่ได้ตอนนี้'
-                    : 'ส่งข้อความไม่ได้ในตอนนี้'
+                    ? t.inbox.composerQuotaExhausted
+                    : t.inbox.composerDisabled
                   : pendingImages.length > 0
-                    ? 'เพิ่มคำบรรยาย (ไม่บังคับ)'
-                    : 'พิมพ์ข้อความ หรือวางไฟล์ที่นี่...'
+                    ? t.inbox.composerCaptionPlaceholder
+                    : t.inbox.composerPlaceholder
               }
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -3658,7 +3661,7 @@ export default function ChatThread({
                 // ตัวเลขบนปุ่มบอกแค่ "290/300" ซึ่งอ่านออกด้วยตาเพราะมีบริบทรอบตัว แต่ screen reader
                 // อ่านทีละ element จะได้ "ส่ง 290/300" ที่ไม่มีทางรู้ว่าเป็นโควตา — ให้ชื่อที่เข้าถึงได้
                 // เป็นประโยคเต็มแทน (ยังขึ้นต้นด้วย "ส่ง" ที่มองเห็น จึงไม่ผิด WCAG 2.5.3 Label in Name)
-                aria-label={lineQuotaCaption ? `ส่ง — ${lineQuotaCaption.fullText}` : undefined}
+                aria-label={lineQuotaCaption ? fmt(t.inbox.sendWithNote, { note: lineQuotaCaption.fullText }) : t.inbox.send}
                 title={lineQuotaCaption?.fullText}
                 // btn-sm + rounded-full = ทรงพิลล์เล็กตามภาพอ้างอิง (user 2026-08-06) — ทั้งคู่เป็น
                 // primitive ของธีม (_buttons.css `.btn-sm`, Tailwind `rounded-full`) ไม่ใช่ arbitrary

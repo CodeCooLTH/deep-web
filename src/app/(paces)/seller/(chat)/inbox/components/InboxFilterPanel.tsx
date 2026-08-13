@@ -30,6 +30,7 @@ export { DEFAULT_CHAT_FILTER } from './chat-list-query'
 export type { ChatFilterState, ShipmentFilterValue } from './chat-list-query'
 import type { ChatFilterState, ShipmentFilterValue } from './chat-list-query'
 import { DEFAULT_CHAT_FILTER } from './chat-list-query'
+import { useT } from '@/i18n/LocaleProvider'
 
 /**
  * จำนวนตัวกรองที่ "ไม่ใช่ค่าเริ่มต้น" — โชว์เป็น badge บนปุ่ม
@@ -140,6 +141,7 @@ export default function InboxFilterPanel({
   allTags,
   hasShipping,
 }: Props) {
+  const t = useT()
   const ref = useRef<HTMLDivElement>(null)
   // ร่าง — sync จากค่าจริงทุกครั้งที่เปิด ไม่ให้ค้างค่าที่เคยเลือกแล้วไม่ได้กดใช้จากรอบก่อน
   const [draft, setDraft] = useState<ChatFilterState>(value)
@@ -206,7 +208,7 @@ export default function InboxFilterPanel({
           role="menu"
         >
           <div className="border-default-200 flex items-center justify-between border-b px-3 py-2">
-            <span className="text-default-800 text-sm font-semibold">ตัวกรอง</span>
+            <span className="text-default-800 text-sm font-semibold">{t.inbox.filters}</span>
             <button
               type="button"
               onClick={() => onOpenChange(false)}

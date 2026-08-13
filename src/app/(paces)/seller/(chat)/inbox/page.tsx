@@ -59,10 +59,12 @@ import { syncShipmentStatuses } from '@/services/iship.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import InboxList, { type ConversationListItem, type ChannelFilterOption } from './components/InboxList'
+import { getT } from '@/i18n/server'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
 
 export default async function SellerInboxPage() {
+  const t = await getT()
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
@@ -340,8 +342,8 @@ export default async function SellerInboxPage() {
           <SellerEmptyState
             compact
             icon="message-circle"
-            title="เลือกข้อความ"
-            description="เลือกรายการแชททางซ้ายมือเพื่อเริ่มอ่านและตอบข้อความ"
+            title={t.inbox.emptyTitle}
+            description={t.inbox.emptyDesc}
           />
         </div>
         {/* คอลัมน์ขวาของ empty-state ถูกถอดออก 2026-08-04 (user: "ไม่จำเป็นต้องมีด้านขวา เพราะ

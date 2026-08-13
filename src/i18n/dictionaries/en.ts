@@ -174,6 +174,23 @@ export const en: Dictionary = {
     searchPlaceholder: 'Search by name, customer, phone, or message',
     channelFilterLabel: 'Filter by channel',
     channelAll: 'All',
+
+    filters: 'Filters',
+    statusResolved: 'Resolved',
+    statusSpam: 'Spam',
+    groups: 'Groups',
+
+    emptyTitle: 'Select a conversation',
+    emptyDesc: 'Pick a chat from the list on the left to start reading and replying',
+
+    composerPlaceholder: 'Type a message, or paste a file here…',
+    composerCaptionPlaceholder: 'Add a caption (optional)',
+    composerDisabled: "You can't send messages right now",
+    composerQuotaExhausted: 'Message quota used up — sending is unavailable',
+    send: 'Send',
+    sendWithNote: 'Send — {note}',
+    backToList: 'Back to list',
+    customerInfo: 'Customer info',
   },
 
   auth: {

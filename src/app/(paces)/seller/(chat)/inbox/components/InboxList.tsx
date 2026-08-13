@@ -1118,8 +1118,8 @@ export default function InboxList({
                 สแปมใช้สี danger ตั้งแต่ยังไม่ถูกเลือก เพราะเป็นถังที่ "ไม่ควรมีอะไรอยู่" (user สั่ง) */}
             {([
               { key: 'ALL', label: 'ทั้งหมด', icon: null, danger: false },
-              { key: 'RESOLVED', label: 'ปิดงาน', icon: 'circle-check', danger: false },
-              { key: 'SPAM', label: 'สแปม', icon: 'alert-octagon', danger: true },
+              { key: 'RESOLVED', label: t.inbox.statusResolved, icon: 'circle-check', danger: false },
+              { key: 'SPAM', label: t.inbox.statusSpam, icon: 'alert-octagon', danger: true },
             ] as const).map((t) => {
               const on = activeViewTab === t.key
               return (

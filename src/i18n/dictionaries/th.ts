@@ -206,6 +206,26 @@ export const th = {
     searchPlaceholder: 'ค้นหาชื่อ ลูกค้า เบอร์ หรือข้อความในแชท',
     channelFilterLabel: 'ตัวกรองช่องทาง',
     channelAll: 'ทั้งหมด',
+
+    /** แท็บย่อยสถานะเหนือรายการแชท + แผงตัวกรอง */
+    filters: 'ตัวกรอง',
+    statusResolved: 'ปิดงาน',
+    statusSpam: 'สแปม',
+    groups: 'กลุ่ม',
+
+    /** จอว่างตรงกลางก่อนเลือกเธรด — ฉากแรกที่ reviewer เห็นเมื่อเปิดกล่องข้อความ */
+    emptyTitle: 'เลือกข้อความ',
+    emptyDesc: 'เลือกรายการแชททางซ้ายมือเพื่อเริ่มอ่านและตอบข้อความ',
+
+    /** ห้องแชท — จังหวะที่ reviewer พิมพ์ตอบในคลิป */
+    composerPlaceholder: 'พิมพ์ข้อความ หรือวางไฟล์ที่นี่...',
+    composerCaptionPlaceholder: 'เพิ่มคำบรรยาย (ไม่บังคับ)',
+    composerDisabled: 'ส่งข้อความไม่ได้ในตอนนี้',
+    composerQuotaExhausted: 'โควตาข้อความหมดแล้ว ส่งไม่ได้ตอนนี้',
+    send: 'ส่ง',
+    sendWithNote: 'ส่ง — {note}',
+    backToList: 'กลับรายการ',
+    customerInfo: 'ข้อมูลลูกค้า',
   },
 
   auth: {
