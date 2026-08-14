@@ -144,6 +144,7 @@ import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
 // feature 00048 — คลังไฟล์ต่อลูกค้า (คำทั้งหมดมาจาก SSOT เดียว ห้ามพิมพ์ซ้ำที่นี่ — HR16)
 import { LIBRARY_ICONS, isLibraryEligible, emitLibraryChanged } from '@/lib/customer-file-library'
+import { toFileUrl } from '@/lib/file-url'
 import SaveToLibraryButton from './SaveToLibraryButton'
 import { JUMP_TO_MESSAGE_EVENT } from './CustomerFileViewer'
 
@@ -827,7 +828,19 @@ function ChatAvatar({
   fallback?: React.ReactNode
 }) {
   const [failed, setFailed] = useState(false)
-  const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
+  /**
+   * 🛑 ต้องผ่าน `toFileUrl` เท่านั้น ห้ามประกอบ URL เอง (bugfix 2026-08-14)
+   *
+   * ที่มา (user เจอเองบน prod): พนักงานที่ตั้งรูปโปรไฟล์ไว้แล้ว แต่ avatar ท้ายบับเบิลของข้อความ
+   * ที่ตัวเองส่ง ขึ้นเป็นไอคอนคนสีเทาเสมอ — `/account` เซฟค่าเป็น **`/api/files/{id}`**
+   * (ProfileForm.tsx: `const next = \`/api/files/\${fileId}\``) ส่วนที่นี่เคยเช็คแค่ `startsWith('http')`
+   * ⇒ ค่าที่ขึ้นต้นด้วย `/` ตกไป else แล้วได้ `/api/files//api/files/{id}` → 404 → onError → fallback
+   *
+   * `toFileUrl` มีกิ่ง `startsWith('/')` อยู่แล้วและ docstring ของมันเขียนเตือนเคสนี้ไว้ตรงตัว
+   * (`AccountAvatar` ก็เจอบั๊กเดียวกันนี้เมื่อ 2026-07-26 "รูปร้านไม่ขึ้น" แล้วแก้ไปฝั่งเดียว)
+   * — ยังมีจุดอื่นในรีโปที่ประกอบเองอยู่ ดูรายการใน `src/lib/file-url.ts`
+   */
+  const src = toFileUrl(avatar)
   if (!src || failed) {
     if (fallback !== undefined) return <>{fallback}</>
     return (
