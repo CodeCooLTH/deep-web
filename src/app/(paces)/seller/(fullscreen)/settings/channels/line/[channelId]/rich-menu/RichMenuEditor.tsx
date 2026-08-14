@@ -18,13 +18,29 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import { uploadToStorage } from '@/lib/upload-client'
 import {
   RICH_MENU_LAYOUTS,
+  addCell,
+  addRow,
+  bumpCellWidth,
+  bumpRowHeight,
+  canAddCell,
+  canAddRow,
+  canRemoveCell,
+  canRemoveRow,
+  cellIndexOf,
+  cellWidthPct,
+  countCells,
   countChatBarText,
   encodeCustomTemplateKey,
   layoutBounds,
-  layoutCellCount,
   layoutRows,
+  matchPresetKey,
   parseTemplateKey,
+  removeCell,
+  removeRow,
+  rowHeightPct,
+  tooSmallCellIndexes,
   type RichMenuButton,
+  type RichMenuLayout,
   type RichMenuLayoutKey,
 } from '@/lib/line/rich-menu'
 import { RICH_MENU_CANVAS_HEIGHT, RICH_MENU_CANVAS_WIDTH, RICH_MENU_CHAT_BAR_MAX } from '@/lib/line/constants'
@@ -81,7 +97,7 @@ export default function RichMenuEditor(props: {
   // ── โหมดภาพ (D-RM-2b) ────────────────────────────────────────────────────
   const initial = parseTemplateKey(props.templateKey)
   const [mode, setMode] = useState<'AUTO' | 'CUSTOM'>(initial.mode)
-  const [layoutKey, setLayoutKey] = useState<RichMenuLayoutKey>(initial.layoutKey ?? 'grid-2x2')
+  const [layout, setLayout] = useState<RichMenuLayout>(initial.layout ?? layoutRows('grid-2x2'))
   /** ภาพที่ร้านอัปโหลด — เก็บแยกจาก previewUrl ของโหมด auto เพื่อให้สลับโหมดไปมาแล้วไม่ต้องอัปใหม่ */
   const [customUrl, setCustomUrl] = useState<string | null>(null)
   const [customFileId, setCustomFileId] = useState<string | null>(null)
@@ -90,7 +106,33 @@ export default function RichMenuEditor(props: {
   const [focusIndex, setFocusIndex] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const cellCount = mode === 'CUSTOM' ? layoutCellCount(layoutKey) : props.initialButtons.length
+  /**
+   * แถบ "เลิกทำ" หลังลบแถว/ช่อง — ป้องกันชั้นที่ **สอง** ต่อจาก confirm
+   *
+   * 🛑 ไม่ใช่ของซ้ำซ้อนกับ confirm: กลุ่มผู้ใช้เป้าหมาย (ผู้สูงวัย/digital-literacy ต่ำ) กด dialog ผ่าน
+   * โดยไม่อ่านครบเป็นเรื่องปกติ และ BR-RM-03 ทำให้ปุ่มที่มี action พิเศษ (เช่นตอบสถานะพัสดุ)
+   * **ตั้งกลับเองไม่ได้** ถ้าลบผิด — ค่าเสียหายของการกดพลาดจึงไม่สมมาตรกับความรำคาญของแถบนี้
+   */
+  const [undo, setUndo] = useState<{ layout: RichMenuLayout; message: string } | null>(null)
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const dropLayout = useCallback(
+    (next: RichMenuLayout, message: string) => {
+      setUndo({ layout, message })
+      setLayout(next)
+      if (undoTimer.current) clearTimeout(undoTimer.current)
+      undoTimer.current = setTimeout(() => setUndo(null), 10000)
+    },
+    [layout],
+  )
+
+  // เก็บกวาด timer ตอน unmount — ไม่งั้น setState หลัง unmount
+  useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current) }, [])
+
+  const cellCount = mode === 'CUSTOM' ? countCells(layout) : props.initialButtons.length
+  /** ไฮไลต์ชิปเทมเพลตแบบ live — derive จากเลย์เอาต์ปัจจุบัน ไม่ใช่ state แยกที่หลุด sync ได้ */
+  const presetKey = matchPresetKey(layout)
+  const tooSmall = useMemo(() => new Set(tooSmallCellIndexes(layout)), [layout])
 
   /**
    * 🛑 จำนวนปุ่มต้องเท่าจำนวนช่องของเลย์เอาต์เสมอ — เปลี่ยนเลย์เอาต์แล้วต้องเติม/ตัดปุ่มตาม
@@ -174,7 +216,7 @@ export default function RichMenuEditor(props: {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         shopChannelId: props.channelId,
-        templateKey: mode === 'CUSTOM' ? encodeCustomTemplateKey(layoutKey) : props.templateKey,
+        templateKey: mode === 'CUSTOM' ? encodeCustomTemplateKey(layout) : props.templateKey,
         chatBarText: chatBarText.trim(),
         buttons,
         imageFileId: fileId,
@@ -186,7 +228,7 @@ export default function RichMenuEditor(props: {
       return false
     }
     return true
-  }, [buttons, chatBarText, props.channelId, props.templateKey, mode, layoutKey, customFileId])
+  }, [buttons, chatBarText, props.channelId, props.templateKey, mode, layout, customFileId])
 
   async function handlePickFile(file: File | null) {
     if (!file) return
@@ -213,9 +255,41 @@ export default function RichMenuEditor(props: {
     }
   }
 
+  /**
+   * 🛑 ลบช่อง/แถว = **ปุ่มหายไปด้วย** เพราะจำนวนปุ่มต้องเท่าจำนวนช่องเป๊ะเสมอ
+   * ต้องบอกชื่อปุ่มที่จะหายให้ตรงใบ ไม่ใช่ถามลอย ๆ ว่า "แน่ใจไหม" — ชื่อมาจาก `cellIndexOf()`
+   * ไม่ใช่นับเองในนี้ (นับเองพลาด = ร้านเห็นชื่อผิดแล้วกดตกลงทั้งที่กำลังลบของที่ไม่ได้ตั้งใจ)
+   */
+  async function confirmDropCells(indexes: number[], what: string): Promise<boolean> {
+    const names = indexes
+      .map((i) => buttons[i])
+      .filter(Boolean)
+      .map((b) => `“${b!.label}” (${ACTION_HINT[b!.action.type] ?? 'ปุ่ม'})`)
+    if (names.length === 0) return true
+    return pacesConfirm.warning(`ลบ${what}นี้?`, `ปุ่มที่ผูกไว้จะหายไปด้วย: ${names.join(' · ')}`, {
+      confirmButtonText: 'ลบ',
+      cancelButtonText: 'ยกเลิก',
+    })
+  }
+
+  async function handleRemoveRow(rowIndex: number) {
+    const row = layout[rowIndex]
+    if (!row || !canRemoveRow(layout)) return
+    const dropped = row.cols.map((_, c) => cellIndexOf(layout, rowIndex, c))
+    if (!(await confirmDropCells(dropped, `แถวที่ ${rowIndex + 1}`))) return
+    dropLayout(removeRow(layout, rowIndex), `ลบแถวที่ ${rowIndex + 1} แล้ว`)
+  }
+
+  async function handleRemoveCell(rowIndex: number, colIndex: number) {
+    if (!canRemoveCell(layout, rowIndex)) return
+    const n = cellIndexOf(layout, rowIndex, colIndex)
+    if (!(await confirmDropCells([n], `ช่อง #${n + 1}`))) return
+    dropLayout(removeCell(layout, rowIndex, colIndex), `ลบช่อง #${n + 1} แล้ว`)
+  }
+
   async function handleBlueprint() {
     try {
-      const blob = await renderRichMenuBlueprint(buttons.map((b) => b.label), layoutKey)
+      const blob = await renderRichMenuBlueprint(buttons.map((b) => b.label), layout)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -382,7 +456,7 @@ export default function RichMenuEditor(props: {
 
         <div className="mt-4 grid gap-6 lg:grid-cols-2">
           <div>
-            <p className="text-default-700 mb-3 text-sm font-semibold">{props.templateTitle}</p>
+            <p className="text-default-700 mb-3 text-sm font-semibold">{presetKey || mode !== 'CUSTOM' ? props.templateTitle : `โครง ${layout.length} แถว ${cellCount} ช่อง — ปรับเอง`}</p>
 
             {/* แหล่งภาพเมนู — segmented control (Base: settings/chatbot/ChatbotTabs.tsx)
                 สลับโหมดแล้วไม่ล้าง state ของอีกโหมด: ร้านที่อัปโหลดรูปไว้แล้วสลับไปดูของระบบ
@@ -414,24 +488,128 @@ export default function RichMenuEditor(props: {
 
             {mode === 'CUSTOM' && (
               <>
-                <p className="text-default-800 mb-2 text-sm font-semibold">รูปแบบการวางช่อง</p>
-                <div className="mb-3 grid grid-cols-2 gap-2">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-default-800 text-sm font-semibold">โครงช่อง</p>
+                  <span
+                    className={`text-xs tabular-nums ${cellCount >= 20 ? 'text-danger-ink font-semibold' : 'text-default-400'}`}
+                  >
+                    {cellCount >= 18 ? `${cellCount}/20 ช่อง` : `${cellCount} ช่อง`}
+                  </span>
+                </div>
+
+                <p className="text-default-500 mb-2 text-xs">เริ่มจากเทมเพลต (ไม่บังคับ)</p>
+                <div className="mb-3 flex flex-wrap gap-2">
                   {(Object.keys(RICH_MENU_LAYOUTS) as RichMenuLayoutKey[]).map((k) => (
                     <button
                       key={k}
                       type="button"
-                      aria-pressed={layoutKey === k}
-                      onClick={() => setLayoutKey(k)}
-                      className={`min-h-11 rounded-lg border px-3 py-2 text-start text-xs ${
-                        layoutKey === k
-                          ? 'border-primary bg-primary/10 text-primary font-semibold'
-                          : 'border-default-200 text-default-700'
+                      aria-pressed={presetKey === k}
+                      onClick={() => setLayout(layoutRows(k))}
+                      className={`btn min-h-11 px-3 text-xs sm:min-h-0 ${
+                        presetKey === k ? 'bg-primary/15 text-primary-ink font-semibold' : 'bg-light text-default-700'
                       }`}
                     >
+                      {presetKey === k && <Icon icon="check" className="text-sm" aria-hidden="true" />}
                       {RICH_MENU_LAYOUTS[k].label}
                     </button>
                   ))}
                 </div>
+
+                <div className="mb-3 flex flex-col gap-3">
+                  {layout.map((row, r) => (
+                    <div key={r} className="card">
+                      <div className="border-default-200 flex items-center justify-between gap-2 border-b px-3 py-2">
+                        <span className="text-default-800 text-sm font-semibold">แถวที่ {r + 1}</span>
+                        <button
+                          type="button"
+                          disabled={!canRemoveRow(layout)}
+                          onClick={() => void handleRemoveRow(r)}
+                          aria-label={`ลบแถวที่ ${r + 1}`}
+                          className="btn btn-icon text-danger hover:bg-danger/15 min-h-11 disabled:opacity-40 sm:min-h-0"
+                        >
+                          <Icon icon="trash" className="size-4.5" aria-hidden="true" />
+                        </button>
+                      </div>
+                      <div className="p-3">
+                        <Stepper
+                          label="ความสูงของแถวนี้"
+                          ariaTarget={`ความสูงของแถวที่ ${r + 1}`}
+                          pct={rowHeightPct(layout, r)}
+                          onMinus={() => setLayout(bumpRowHeight(layout, r, -1))}
+                          onPlus={() => setLayout(bumpRowHeight(layout, r, 1))}
+                        />
+                        <hr className="border-default-200 my-3" />
+                        {row.cols.map((_, c) => (
+                          <Stepper
+                            key={c}
+                            /* 🛑 เลขต้องเป็นลำดับ global (เดียวกับ badge บนพรีวิวและลิสต์ "แก้ข้อความบนปุ่ม")
+                               ไม่ใช่นับใหม่ต่อแถว — ไม่งั้นแถวที่ 2 จะมี "ช่อง #1" ซ้ำกับแถวแรก
+                               ทั้งที่คนละช่อง และไม่ตรงกับเลขที่ผู้ขายเห็นบนพรีวิวเลย */
+                            label={`ช่อง #${cellIndexOf(layout, r, c) + 1} · ความกว้าง`}
+                            ariaTarget={`ความกว้างของช่อง #${cellIndexOf(layout, r, c) + 1}`}
+                            pct={cellWidthPct(layout, r, c)}
+                            warn={tooSmall.has(cellIndexOf(layout, r, c))}
+                            onMinus={() => setLayout(bumpCellWidth(layout, r, c, -1))}
+                            onPlus={() => setLayout(bumpCellWidth(layout, r, c, 1))}
+                            onRemove={canRemoveCell(layout, r) ? () => void handleRemoveCell(r, c) : undefined}
+                          />
+                        ))}
+                        <button
+                          type="button"
+                          disabled={!canAddCell(layout, r)}
+                          onClick={() => setLayout(addCell(layout, r))}
+                          className="btn bg-light text-default-700 mt-2 min-h-11 w-full text-xs disabled:opacity-40 sm:min-h-0"
+                        >
+                          <Icon icon="plus" className="size-4" aria-hidden="true" />
+                          เพิ่มช่องในแถวนี้
+                        </button>
+                        {!canAddCell(layout, r) && (
+                          <p className="text-default-400 mt-1 text-xs">
+                            {/* 🛑 สองเพดานคนละเหตุผล ต้องบอกให้ตรงเหตุ ไม่งั้นร้านไปลบผิดที่ */}
+                            {row.cols.length >= 10 ? 'แถวนี้เต็ม 10 ช่องแล้ว' : 'ทั้งเมนูเต็ม 20 ช่องแล้ว (เพดานของ LINE)'}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={!canAddRow(layout)}
+                  onClick={() => setLayout(addRow(layout))}
+                  className="btn bg-light text-default-700 mb-3 min-h-11 w-full disabled:opacity-40 sm:min-h-0"
+                >
+                  <Icon icon="plus" className="text-base" aria-hidden="true" />
+                  เพิ่มแถวใหม่
+                </button>
+                {!canAddRow(layout) && (
+                  <p className="text-default-400 -mt-2 mb-3 text-xs">
+                    {layout.length >= 10 ? 'เต็ม 10 แถวแล้ว' : 'ทั้งเมนูเต็ม 20 ช่องแล้ว (เพดานของ LINE)'}
+                  </p>
+                )}
+                {undo && (
+                  <div className="bg-default-100 mb-3 flex items-center justify-between gap-2 rounded-lg px-3 py-2">
+                    <span className="text-default-700 text-sm">{undo.message}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLayout(undo.layout)
+                        setUndo(null)
+                        if (undoTimer.current) clearTimeout(undoTimer.current)
+                      }}
+                      className="btn text-primary-ink hover:bg-primary/15 min-h-11 px-3 text-sm font-semibold sm:min-h-0"
+                    >
+                      เลิกทำ
+                    </button>
+                  </div>
+                )}
+                {tooSmall.size > 0 && (
+                  <p className="text-warning-ink bg-warning/15 mb-3 rounded-lg px-3 py-2 text-xs">
+                    <Icon icon="alert-triangle" className="me-1 inline size-4" aria-hidden="true" />
+                    มี {tooSmall.size} ช่องที่เล็กกว่าปลายนิ้ว ลูกค้าอาจกดไม่ค่อยโดนบนมือถือ — ยังเปิดใช้ได้ตามปกติ
+                  </p>
+                )}
 
                 <button
                   type="button"
@@ -549,7 +727,7 @@ export default function RichMenuEditor(props: {
                     <img src={customUrl} alt="ภาพเมนูที่คุณอัปโหลด" className="block w-full" />
                     {showGrid && (
                       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-                        {layoutBounds(layoutRows(layoutKey)).map((c, i) => {
+                        {layoutBounds(layout).map((c, i) => {
                           /* ตำแหน่งคำนวณจาก layoutBounds() ตัวเดียวกับที่ส่งพิกัดให้ LINE — ห้ามวาด
                              ด้วยสูตรอื่น ไม่งั้นร้านเห็นตรงแต่ลูกค้ากดผิดช่อง (TD-RM-6)
                              เป็น inline style ที่คำนวณจากข้อมูลจริง ไม่ใช่ arbitrary class (HR7) */
@@ -613,5 +791,73 @@ export default function RichMenuEditor(props: {
         {actionButtons}
       </div>
     </>
+  )
+}
+
+/**
+ * สเต็ปเปอร์ปรับสัดส่วน — `−` / เปอร์เซ็นต์ / `+`
+ *
+ * ux เลือกท่านี้แทน "ลากเส้นแบ่ง" เพราะทำงานเหมือนกันทุกจอ รวมมือถือซึ่งเป็นจอหลักของผู้ขาย
+ * (การลากบนภาพย่อขนาด 375px แม่นยำไม่พอ และต้องเขียน ARIA slider ใหม่ทั้งชุด)
+ *
+ * เปอร์เซ็นต์อยู่ใน `aria-live` เพื่อให้ screen reader อ่านค่าที่เปลี่ยนหลังกด — ปุ่มสองตัวนี้
+ * ไม่มีข้อความบอกผลลัพธ์ในตัวเอง ถ้าไม่ประกาศ ผู้ใช้ที่มองไม่เห็นจะกดแล้วไม่รู้ว่าเกิดอะไรขึ้น
+ */
+function Stepper(props: {
+  label: string
+  /**
+   * ชื่อที่ screen reader ได้ยิน — 🛑 ต้องแยกจาก `label` ที่ตาเห็น
+   * ถ้าประกอบจาก `label` ตรง ๆ จะได้ "เพิ่มช่อง #3 · ความกว้าง" ซึ่งฟังแล้วแยกไม่ออกจากปุ่ม
+   * "เพิ่มช่องในแถวนี้" ที่อยู่ห่างไปไม่กี่บรรทัดและทำคนละเรื่องกันคนละเรื่อง (เพิ่มจำนวนช่อง ไม่ใช่ขยายช่อง)
+   */
+  ariaTarget: string
+  pct: number
+  warn?: boolean
+  onMinus: () => void
+  onPlus: () => void
+  onRemove?: () => void
+}) {
+  return (
+    <div className="mt-2 first:mt-0">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        {/* text-sm ไม่ใช่ text-xs — นี่คือ label ของกลไกหลักที่เพิ่งเพิ่ม ไม่ใช่ metadata รอง
+            และ PRODUCT.md สัญญาว่าขนาดตัวอักษร default ใหญ่กว่ามาตรฐานเล็กน้อยเพื่อผู้สูงวัย */}
+        <span className={`text-sm ${props.warn ? 'text-warning-ink font-semibold' : 'text-default-700'}`}>
+          {props.warn && <Icon icon="alert-triangle" className="me-1 inline size-3.5" aria-hidden="true" />}
+          {props.label}
+        </span>
+        {props.onRemove && (
+          <button
+            type="button"
+            onClick={props.onRemove}
+            aria-label={`ลบ${props.ariaTarget}`}
+            className="btn btn-icon text-danger hover:bg-danger/15 min-h-11 sm:min-h-0"
+          >
+            <Icon icon="trash" className="size-4" aria-hidden="true" />
+          </button>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={props.onMinus}
+          aria-label={`ลด${props.ariaTarget}`}
+          className="btn btn-icon bg-light text-default-700 min-h-11 sm:min-h-0"
+        >
+          <Icon icon="minus" className="size-4.5" aria-hidden="true" />
+        </button>
+        <span aria-live="polite" className="text-default-900 flex-1 text-center text-sm font-semibold tabular-nums">
+          {props.pct}%
+        </span>
+        <button
+          type="button"
+          onClick={props.onPlus}
+          aria-label={`เพิ่ม${props.ariaTarget}`}
+          className="btn btn-icon bg-light text-default-700 min-h-11 sm:min-h-0"
+        >
+          <Icon icon="plus" className="size-4.5" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
   )
 }

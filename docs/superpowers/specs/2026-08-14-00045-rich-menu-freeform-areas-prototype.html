@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PROTOTYPE (ของทิ้ง) — วาดพื้นที่ปุ่มเองบนเมนูลัด LINE (00045)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --card:#fff; --body-bg:#f6f7fb; --ink:#313a46; --muted:#58626b; --line:#eef2f7;
+    --accent:#236dc9; --accent-15:rgba(35,109,201,.15); --accent-ink:#1e3a8a;
+    --ok:#18804A; --ok-15:rgba(34,197,94,.15);
+    --warn-ink:#92400e; --warn-15:rgba(245,158,11,.15);
+    --bad-ink:#7f1d1d; --bad-15:rgba(239,68,68,.15);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:28px 20px 60px;font-family:Anuphan,system-ui,sans-serif;background:var(--body-bg);color:var(--ink);line-height:1.6}
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{font-size:21px;margin:0 0 6px}
+  h2{font-size:15px;margin:0 0 10px}
+  .lede{color:var(--muted);font-size:14px;margin:0 0 16px;max-width:82ch}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+  .box.dash{border-style:dashed;border-color:var(--muted);background:transparent}
+  .small{font-size:12px;color:var(--muted)}
+  .cols{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+  .col-canvas{flex:1 1 560px;min-width:320px}
+  .col-state{flex:0 0 360px;min-width:300px}
+
+  /* แคนวาส */
+  #stage{position:relative;width:100%;aspect-ratio:2500/1686;background:#e2e8f0;border-radius:10px;overflow:hidden;touch-action:none;cursor:crosshair;user-select:none}
+  #stage .bgtext{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px;pointer-events:none}
+  .gap{position:absolute;background:repeating-linear-gradient(45deg,rgba(239,68,68,.16) 0 6px,transparent 6px 12px);pointer-events:none}
+  .ar{position:absolute;border:2px solid var(--accent);background:var(--accent-15);cursor:move;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--accent-ink);font-weight:600;overflow:hidden}
+  .ar.sel{background:rgba(35,109,201,.30);box-shadow:0 0 0 2px #fff inset}
+  .ar.bad{border-color:#b91c1c;background:var(--bad-15);color:var(--bad-ink)}
+  .ar .h{position:absolute;right:-1px;bottom:-1px;width:16px;height:16px;background:var(--accent);cursor:nwse-resize;border:2px solid #fff;border-radius:3px}
+  .ar.bad .h{background:#b91c1c}
+
+  /* ปุ่ม */
+  .btn{border:0;border-radius:8px;font-family:inherit;font-size:12px;font-weight:600;padding:8px 13px;cursor:pointer;background:var(--line);color:var(--ink)}
+  .btn:hover{filter:brightness(.96)}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-danger{background:var(--bad-15);color:var(--bad-ink)}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+  /* แผงสถานะ */
+  .kv{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .kv:last-child{border-bottom:0}
+  .kv b{font-weight:600}
+  .verdict{border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:10px;font-weight:600}
+  .v-ok{background:var(--ok-15);color:var(--ok)}
+  .v-warn{background:var(--warn-15);color:var(--warn-ink)}
+  .v-bad{background:var(--bad-15);color:var(--bad-ink)}
+  .issue{font-size:12px;font-weight:400;margin-top:6px;padding-left:14px;text-indent:-14px}
+  .arealist{font-size:12px;margin-top:10px}
+  .arealist .r{display:flex;justify-content:space-between;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer}
+  .arealist .r:hover{background:var(--line)}
+  .arealist .r.on{background:var(--accent-15);color:var(--accent-ink);font-weight:600}
+  .changed{font-size:12px;color:var(--accent-ink);background:var(--accent-15);border-radius:6px;padding:5px 9px;margin-bottom:10px}
+
+  /* แท็บสถานการณ์ */
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--muted)}
+  .tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .steps{counter-reset:s}
+  .step{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px dashed var(--line)}
+  .step:last-child{border-bottom:0}
+  .step .n{flex:0 0 22px;height:22px;border-radius:999px;background:var(--line);color:var(--muted);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .step.done .n{background:var(--ok-15);color:var(--ok)}
+  .step.now .n{background:var(--accent);color:#fff}
+  .step .txt{flex:1 1 auto;font-size:13px}
+  .step .txt .why{font-size:12px;color:var(--muted)}
+  pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:12px;font-size:11px;overflow:auto;max-height:230px;margin:10px 0 0;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>วาดพื้นที่ปุ่มเองบนเมนูลัด LINE — ต้นแบบของทิ้ง</h1>
+<p class="lede">
+  ทุกวันนี้พื้นที่ปุ่มมาจาก <b>เลย์เอาต์สำเร็จ 6 แบบ</b> (<span style="font-family:monospace">RichMenuLayout = number[]</span> = จำนวนคอลัมน์ต่อแถว)
+  ซึ่ง <b>การันตีโดยโครงสร้าง</b> ว่าช่องปูเต็มใบพอดี — ไม่มีรูโหว่ ไม่มีช่องซ้อน
+  ต้นแบบนี้ถามว่า: <b>ถ้าให้ร้านลากวาดช่องเอง เราจะเสียการันตีนั้นไป แล้วเกิดอะไรขึ้น และเราจะบอกร้านว่าอะไร?</b>
+</p>
+
+<div class="box dash">
+  <b>ของทิ้ง</b> — ไม่ต่อ API ไม่มี state จริง ไม่มีเทส เปิดด้วยการดับเบิลคลิก · ฟีเจอร์จริงคือ 00045 ที่ขึ้น prod แล้ว ต้นแบบนี้เป็น <b>ส่วนขยายที่ยังไม่มีของจริง</b><br />
+  <span class="small">ค่าทุกตัวยกมาจากโค้ดจริง: แคนวาส 2500×1686 · สูงสุด 20 ช่อง · แถบเปิดเมนู 14 ตัวอักษร (<span style="font-family:monospace">src/lib/line/constants.ts</span>)</span>
+</div>
+
+<div class="cols">
+  <!-- ซ้าย: แคนวาส -->
+  <div class="col-canvas">
+    <div class="box">
+      <h2>ภาพเมนู <span class="small" style="font-weight:400">— ลากบนที่ว่างเพื่อวาดช่องใหม่ · ลากตัวช่องเพื่อย้าย · ลากมุมขวาล่างเพื่อปรับขนาด</span></h2>
+      <div id="stage"><div class="bgtext" id="bgtext">ลากเพื่อวาดช่องแรก</div></div>
+      <div class="btnrow">
+        <button class="btn btn-primary" id="bAdd">เพิ่มช่องตรงกลาง</button>
+        <button class="btn" id="bDel">ลบช่องที่เลือก</button>
+        <button class="btn" id="bTile3">จัดเต็มใบ — 3 ช่อง (แบบเดิม)</button>
+        <button class="btn" id="bTile6">จัดเต็มใบ — 6 ช่อง (แบบเดิม)</button>
+        <button class="btn" id="bSnap">ดูดเข้ากริด: เปิด</button>
+        <button class="btn btn-danger" id="bClear">ล้างทั้งหมด</button>
+      </div>
+      <p class="small" style="margin:10px 0 0">
+        ลายทางแดง = พื้นที่ที่ <b>ไม่มีช่องไหนคลุม</b> ลูกค้ากดตรงนั้นแล้วจะไม่เกิดอะไรขึ้นเลย และไม่มีอะไรฟ้อง
+      </p>
+    </div>
+  </div>
+
+  <!-- ขวา: สถานะ -->
+  <div class="col-state">
+    <div class="box">
+      <h2>สถานะตอนนี้</h2>
+      <div id="changed" class="changed" style="display:none"></div>
+      <div id="verdict"></div>
+      <div class="kv"><span>จำนวนช่อง</span><b id="kCount">0 / 20</b></div>
+      <div class="kv"><span>พื้นที่ที่ถูกคลุม</span><b id="kCover">0%</b></div>
+      <div class="kv"><span>คู่ที่ซ้อนกัน</span><b id="kOverlap">0</b></div>
+      <div class="kv"><span>ช่องที่เล็กกว่านิ้ว</span><b id="kSmall">0</b></div>
+      <div class="kv"><span>ส่งให้ LINE ได้ไหม</span><b id="kSend">—</b></div>
+      <div class="arealist" id="areaList"></div>
+    </div>
+    <div class="box">
+      <h2>สิ่งที่จะถูกส่งไป LINE</h2>
+      <p class="small" style="margin:0">พิกัดเป็นพิกเซลบนภาพ 2500×1686 — นี่คือของจริงที่ <span style="font-family:monospace">buildRichMenuPayload()</span> ประกอบ</p>
+      <pre id="payload"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- สถานการณ์ -->
+<div class="box">
+  <h2>สถานการณ์ให้ลองกด</h2>
+  <p class="small" style="margin:-4px 0 12px">แต่ละอันเริ่มจากศูนย์เสมอ กดตามลำดับแล้วดูแผงสถานะทางขวาเปลี่ยน</p>
+  <div class="tabs" id="tabs"></div>
+  <p id="scDesc" style="font-size:13px;margin:0 0 10px"></p>
+  <div class="steps" id="steps"></div>
+</div>
+
+<div class="box dash">
+  <b>คำถามที่ต้องตอบให้ได้ก่อนตัดสินใจสร้างจริง</b>
+  <div class="small" style="margin-top:8px">
+    1. รูโหว่ — <b>ห้ามบันทึก</b> หรือ <b>เตือนแล้วให้ผ่าน</b>? (BR-RSV-18 ของ 00024 เคยตัดสินไว้ว่า “เต็มแล้ว” เป็นคำเตือนไม่ใช่ตัวบล็อก — เคสนี้เหมือนหรือต่าง?)<br />
+    2. ช่องซ้อน — LINE เลือก <b>ช่องแรกในลิสต์ที่คลุมจุดนั้น</b> ร้านจะไม่มีวันรู้ว่าช่องไหนชนะถ้าเราไม่บอก จะบอกยังไง?<br />
+    3. ช่องเล็กกว่านิ้ว — LINE รับ แต่ลูกค้ากดไม่โดน จะห้าม หรือเตือน?<br />
+    4. คุ้มไหมที่จะรื้อ <span style="font-family:monospace">RichMenuLayout = number[]</span> เป็น x/y/w/h รายช่อง ทั้งที่แบบเดิมกันปัญหา 1–3 ให้ฟรีทั้งหมด
+  </div>
+</div>
+
+</div>
+
+<script>
+/* ============================================================================
+   โมดูลบริสุทธิ์ — ไม่แตะ DOM เลย ยกไปวางใน src/lib/line/ ได้ตรง ๆ
+   ตอบคำถาม: โมเดล "พื้นที่อิสระ" มีสถานะแย่ ๆ อะไรได้บ้าง และตรวจเจอไหม
+   ============================================================================ */
+var AreaModel = (function () {
+  var CANVAS_W = 2500, CANVAS_H = 1686;   // src/lib/line/constants.ts
+  var MAX_AREAS = 20;                      // RICH_MENU_MAX_AREAS
+  var SNAP = 50;
+  // (เลิกใช้ตารางหยาบแล้ว — ดู analyze())
+
+  /* นิ้วคน 44px บนจอกว้าง 375 → ภาพ 2500 ย่อเหลือ 375 = สเกล 0.15
+     ดังนั้น 44 ÷ 0.15 ≈ 293 พิกเซลบนภาพ ปัดเป็น 290 */
+  var MIN_TAP = 290;
+
+  var nextId = 1;
+
+  function clampRect(r) {
+    var w = Math.max(1, Math.min(r.width, CANVAS_W));
+    var h = Math.max(1, Math.min(r.height, CANVAS_H));
+    var x = Math.max(0, Math.min(r.x, CANVAS_W - w));
+    var y = Math.max(0, Math.min(r.y, CANVAS_H - h));
+    return { x: Math.round(x), y: Math.round(y), width: Math.round(w), height: Math.round(h) };
+  }
+  function snapRect(r, on) {
+    if (!on) return r;
+    var s = function (n) { return Math.round(n / SNAP) * SNAP; };
+    return clampRect({ x: s(r.x), y: s(r.y), width: Math.max(SNAP, s(r.width)), height: Math.max(SNAP, s(r.height)) });
+  }
+
+  function empty() { return { areas: [] }; }
+
+  function add(st, rect, snap) {
+    if (st.areas.length >= MAX_AREAS) return st;
+    var r = snapRect(clampRect(rect), snap);
+    return { areas: st.areas.concat([{ id: nextId++, x: r.x, y: r.y, width: r.width, height: r.height }]) };
+  }
+  function update(st, id, patch, snap) {
+    return { areas: st.areas.map(function (a) {
+      if (a.id !== id) return a;
+      var r = snapRect(clampRect({ x: patch.x != null ? patch.x : a.x, y: patch.y != null ? patch.y : a.y,
+        width: patch.width != null ? patch.width : a.width, height: patch.height != null ? patch.height : a.height }), snap);
+      return { id: a.id, x: r.x, y: r.y, width: r.width, height: r.height };
+    }) };
+  }
+  function remove(st, id) { return { areas: st.areas.filter(function (a) { return a.id !== id; }) }; }
+
+  /* จัดเต็มใบแบบเลย์เอาต์เดิม — คัดลอกพฤติกรรม layoutBounds() รวมการ "กลืนเศษ" */
+  function tile(rows) {
+    var out = [], n = rows.length, baseH = Math.floor(CANVAS_H / n);
+    for (var r = 0; r < n; r++) {
+      var cols = rows[r], y = r * baseH, height = (r === n - 1) ? CANVAS_H - y : baseH;
+      var baseW = Math.floor(CANVAS_W / cols);
+      for (var c = 0; c < cols; c++) {
+        var x = c * baseW;
+        out.push({ id: nextId++, x: x, y: y, width: (c === cols - 1) ? CANVAS_W - x : baseW, height: height });
+      }
+    }
+    return { areas: out };
+  }
+
+  function intersects(a, b) {
+    return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  }
+
+  /** ตรวจทุกอย่างในครั้งเดียว — คืนผลที่หน้าจอเอาไปพูดกับร้านได้ตรง ๆ */
+  function analyze(st) {
+    var as = st.areas;
+    var overlaps = [];
+    for (var i = 0; i < as.length; i++)
+      for (var j = i + 1; j < as.length; j++)
+        if (intersects(as[i], as[j])) overlaps.push([i, j]);
+
+    /* พื้นที่ที่ไม่มีใครคลุม — คำนวณตรง ๆ ด้วยการบีบพิกัด (ไม่ใช่สุ่มตารางหยาบ)
+       🛑 เคยใช้ตารางหยาบ 100px แล้วได้ 72% ทั้งที่ความจริงคือ 75% เพราะ 1686 หาร 100 ไม่ลงตัว
+       ตัวเลขที่เพี้ยน 3 จุดคือตัวเลขที่ทำให้คนอ่านตัดสินใจผิด — ต้องเป๊ะ
+       วิธี: ตัดแคนวาสตามขอบของทุกช่อง ได้กริดไม่สม่ำเสมอที่แต่ละเซลล์ "ถูกคลุมทั้งเซลล์ หรือไม่ถูกเลย"
+       เท่านั้น จึงบวกพื้นที่ได้ตรง และเซลล์ที่เหลือใช้วาดลายรูโหว่ได้เลย */
+    var xs = [0, CANVAS_W], ys = [0, CANVAS_H];
+    as.forEach(function (a) { xs.push(a.x, a.x + a.width); ys.push(a.y, a.y + a.height); });
+    var uniq = function (arr) {
+      return arr.filter(function (v) { return v >= 0; }).sort(function (p, q) { return p - q; })
+                .filter(function (v, i, s) { return i === 0 || v !== s[i - 1]; });
+    };
+    xs = uniq(xs); ys = uniq(ys);
+    var uncovered = [], uncoveredArea = 0;
+    for (var yi = 0; yi < ys.length - 1; yi++) {
+      for (var xi = 0; xi < xs.length - 1; xi++) {
+        var cw = xs[xi + 1] - xs[xi], chh = ys[yi + 1] - ys[yi];
+        if (cw <= 0 || chh <= 0) continue;
+        var px = xs[xi] + cw / 2, py = ys[yi] + chh / 2;
+        var hit = as.some(function (a) {
+          return px >= a.x && px < a.x + a.width && py >= a.y && py < a.y + a.height;
+        });
+        if (!hit) { uncovered.push({ x: xs[xi], y: ys[yi], width: cw, height: chh }); uncoveredArea += cw * chh; }
+      }
+    }
+    var totalArea = CANVAS_W * CANVAS_H;
+    var tooSmall = as.filter(function (a) { return a.width < MIN_TAP || a.height < MIN_TAP; }).map(function (a) { return a.id; });
+
+    return {
+      count: as.length, max: MAX_AREAS,
+      coverage: Math.round(((totalArea - uncoveredArea) / totalArea) * 100),
+      uncovered: uncovered,
+      overlaps: overlaps,
+      tooSmall: tooSmall,
+      /* LINE รับ payload นี้ไหม — ตรวจเท่าที่ LINE ตรวจจริงเท่านั้น */
+      lineAccepts: as.length > 0 && as.length <= MAX_AREAS,
+      perfectTiling: uncovered.length === 0 && overlaps.length === 0
+    };
+  }
+
+  function payload(st) {
+    return st.areas.map(function (a, i) {
+      return { bounds: { x: a.x, y: a.y, width: a.width, height: a.height },
+               action: { type: 'message', label: 'ปุ่ม ' + (i + 1), text: 'ปุ่ม ' + (i + 1) } };
+    });
+  }
+
+  return { CANVAS_W: CANVAS_W, CANVAS_H: CANVAS_H, MAX_AREAS: MAX_AREAS, MIN_TAP: MIN_TAP,
+           empty: empty, add: add, update: update, remove: remove, tile: tile,
+           analyze: analyze, payload: payload };
+})();
+
+/* ============================================================================
+   เปลือกหน้าจอ — ของทิ้งล้วน ๆ
+   ============================================================================ */
+var state = AreaModel.empty(), selected = null, snapOn = true, lastChange = '';
+var stage = document.getElementById('stage');
+
+function sx() { return stage.clientWidth / AreaModel.CANVAS_W; }
+function toCanvas(e) {
+  var b = stage.getBoundingClientRect(), s = sx();
+  return { x: (e.clientX - b.left) / s, y: (e.clientY - b.top) / s };
+}
+function setState(next, note) { state = next; lastChange = note || ''; render(); }
+
+function render() {
+  var a = AreaModel.analyze(state), s = sx();
+  Array.prototype.slice.call(stage.querySelectorAll('.ar,.gap')).forEach(function (n) { n.remove(); });
+  document.getElementById('bgtext').style.display = state.areas.length ? 'none' : 'flex';
+
+  a.uncovered.forEach(function (c) {
+    var d = document.createElement('div');
+    d.className = 'gap';
+    d.style.cssText = 'left:' + c.x * s + 'px;top:' + c.y * s + 'px;width:' + c.width * s + 'px;height:' + c.height * s + 'px';
+    stage.appendChild(d);
+  });
+
+  state.areas.forEach(function (ar, i) {
+    var bad = a.tooSmall.indexOf(ar.id) >= 0 || a.overlaps.some(function (p) { return p[0] === i || p[1] === i; });
+    var d = document.createElement('div');
+    d.className = 'ar' + (selected === ar.id ? ' sel' : '') + (bad ? ' bad' : '');
+    d.style.cssText = 'left:' + ar.x * s + 'px;top:' + ar.y * s + 'px;width:' + ar.width * s + 'px;height:' + ar.height * s + 'px';
+    d.textContent = 'ปุ่ม ' + (i + 1);
+    d.dataset.id = ar.id;
+    var h = document.createElement('div'); h.className = 'h'; h.dataset.handle = '1'; d.appendChild(h);
+    stage.appendChild(d);
+  });
+
+  document.getElementById('kCount').textContent = a.count + ' / ' + a.max;
+  document.getElementById('kCover').textContent = a.coverage + '%';
+  document.getElementById('kOverlap').textContent = a.overlaps.length;
+  document.getElementById('kSmall').textContent = a.tooSmall.length;
+  document.getElementById('kSend').textContent = a.lineAccepts ? 'ได้' : 'ไม่ได้ (ต้องมีอย่างน้อย 1 ช่อง)';
+
+  var v = document.getElementById('verdict'), html = '', cls = 'v-ok', head = 'เรียบร้อย — ปูเต็มใบ ไม่มีช่องซ้อน';
+  if (!a.count) { cls = 'v-warn'; head = 'ยังไม่มีช่องเลย'; }
+  else {
+    if (a.overlaps.length) { cls = 'v-bad'; head = 'มีปัญหาที่ลูกค้าจะเจอ'; }
+    else if (a.uncovered.length || a.tooSmall.length) { cls = 'v-warn'; head = 'ส่งได้ แต่มีจุดที่ลูกค้าจะสะดุด'; }
+    if (a.uncovered.length) html += '<div class="issue">• มีพื้นที่ ' + (100 - a.coverage) + '% ที่กดแล้วไม่เกิดอะไร — LINE ไม่ฟ้อง ร้านไม่รู้ ลูกค้าเงิบ</div>';
+    if (a.overlaps.length) html += '<div class="issue">• ช่องซ้อนกัน ' + a.overlaps.length + ' คู่ — LINE จะเลือก <b>ช่องที่อยู่ก่อนในลิสต์</b> อีกช่องกดไม่โดนตลอดกาล</div>';
+    if (a.tooSmall.length) html += '<div class="issue">• ' + a.tooSmall.length + ' ช่องเล็กกว่า ' + AreaModel.MIN_TAP + 'px (≈ นิ้วคน 44px บนมือถือ) — LINE รับ แต่กดไม่ค่อยโดน</div>';
+    if (a.perfectTiling && !a.tooSmall.length) html += '<div class="issue">• เทียบเท่าการันตีที่เลย์เอาต์สำเร็จให้ฟรีอยู่แล้ว</div>';
+  }
+  v.className = 'verdict ' + cls; v.innerHTML = head + html;
+
+  var ch = document.getElementById('changed');
+  if (lastChange) { ch.style.display = 'block'; ch.textContent = 'เพิ่งเปลี่ยน: ' + lastChange; } else ch.style.display = 'none';
+
+  document.getElementById('areaList').innerHTML = state.areas.map(function (ar, i) {
+    return '<div class="r' + (selected === ar.id ? ' on' : '') + '" data-pick="' + ar.id + '">' +
+      '<span>ปุ่ม ' + (i + 1) + '</span><span>' + ar.x + ', ' + ar.y + ' · ' + ar.width + '×' + ar.height + '</span></div>';
+  }).join('');
+  document.getElementById('payload').textContent = JSON.stringify(AreaModel.payload(state), null, 1);
+}
+
+/* ลาก/วาด/ปรับขนาด */
+var drag = null;
+stage.addEventListener('pointerdown', function (e) {
+  var t = e.target, p = toCanvas(e);
+  stage.setPointerCapture(e.pointerId);
+  if (t.dataset.handle) {
+    var id = +t.parentNode.dataset.id, ar = state.areas.find(function (x) { return x.id === id; });
+    selected = id; drag = { kind: 'resize', id: id, ox: p.x, oy: p.y, w0: ar.width, h0: ar.height };
+  } else if (t.classList.contains('ar')) {
+    var id2 = +t.dataset.id, ar2 = state.areas.find(function (x) { return x.id === id2; });
+    selected = id2; drag = { kind: 'move', id: id2, ox: p.x, oy: p.y, x0: ar2.x, y0: ar2.y };
+  } else {
+    drag = { kind: 'draw', sx: p.x, sy: p.y, id: null };
+    selected = null;
+  }
+  render();
+});
+stage.addEventListener('pointermove', function (e) {
+  if (!drag) return;
+  var p = toCanvas(e);
+  if (drag.kind === 'move') {
+    setState(AreaModel.update(state, drag.id, { x: drag.x0 + (p.x - drag.ox), y: drag.y0 + (p.y - drag.oy) }, false), 'ย้ายช่อง');
+  } else if (drag.kind === 'resize') {
+    setState(AreaModel.update(state, drag.id, { width: drag.w0 + (p.x - drag.ox), height: drag.h0 + (p.y - drag.oy) }, false), 'ปรับขนาดช่อง');
+  } else if (drag.kind === 'draw') {
+    var r = { x: Math.min(drag.sx, p.x), y: Math.min(drag.sy, p.y), width: Math.abs(p.x - drag.sx), height: Math.abs(p.y - drag.sy) };
+    if (r.width < 20 || r.height < 20) return;
+    if (drag.id == null) {
+      var before = state.areas.length;
+      var ns = AreaModel.add(state, r, false);
+      if (ns.areas.length === before) { drag = null; setState(state, 'เพิ่มไม่ได้ — ครบ ' + AreaModel.MAX_AREAS + ' ช่องแล้ว'); return; }
+      drag.id = ns.areas[ns.areas.length - 1].id; selected = drag.id; setState(ns, 'วาดช่องใหม่');
+    } else {
+      setState(AreaModel.update(state, drag.id, r, false), 'วาดช่องใหม่');
+    }
+  }
+});
+function endDrag() {
+  if (drag && drag.id != null && snapOn) {
+    var ar = state.areas.find(function (x) { return x.id === drag.id; });
+    if (ar) setState(AreaModel.update(state, drag.id, ar, true), 'ปล่อยแล้วดูดเข้ากริด 50px');
+  }
+  drag = null;
+}
+stage.addEventListener('pointerup', endDrag);
+stage.addEventListener('pointercancel', endDrag);
+
+document.getElementById('areaList').addEventListener('click', function (e) {
+  var r = e.target.closest('[data-pick]'); if (!r) return;
+  selected = +r.dataset.pick; render();
+});
+
+/* ปุ่มเล่นอิสระ */
+document.getElementById('bAdd').onclick = function () {
+  setState(AreaModel.add(state, { x: 900, y: 600, width: 700, height: 450 }, snapOn), 'เพิ่มช่องตรงกลาง');
+};
+document.getElementById('bDel').onclick = function () {
+  if (selected == null) return setState(state, 'ยังไม่ได้เลือกช่อง');
+  setState(AreaModel.remove(state, selected), 'ลบช่อง'); selected = null; render();
+};
+document.getElementById('bTile3').onclick = function () { selected = null; setState(AreaModel.tile([1, 2]), 'จัดเต็มใบแบบ 1 บน + 2 ล่าง'); };
+document.getElementById('bTile6').onclick = function () { selected = null; setState(AreaModel.tile([3, 3]), 'จัดเต็มใบแบบ 3×2'); };
+document.getElementById('bClear').onclick = function () { selected = null; setState(AreaModel.empty(), 'ล้างทั้งหมด'); };
+document.getElementById('bSnap').onclick = function () {
+  snapOn = !snapOn;
+  document.getElementById('bSnap').textContent = 'ดูดเข้ากริด: ' + (snapOn ? 'เปิด' : 'ปิด');
+  setState(state, 'ดูดเข้ากริด ' + (snapOn ? 'เปิด' : 'ปิด'));
+};
+
+/* สถานการณ์ */
+var SCENARIOS = [
+  { name: 'ทางปกติ', desc: 'วาดเองจนปูเต็มใบพอดี — ผลลัพธ์ควรดีเท่าเลย์เอาต์สำเร็จ ไม่ใช่ดีกว่า สังเกตว่าต้องพยายามแค่ไหนกว่าจะได้ 100%',
+    steps: [
+      { t: 'ล้างทั้งหมด', why: 'เริ่มจากศูนย์', run: function () { selected = null; return AreaModel.empty(); } },
+      { t: 'วาดครึ่งบน', why: 'เต็มความกว้าง สูงครึ่งใบ', run: function () { return AreaModel.add(state, { x: 0, y: 0, width: 2500, height: 843 }, false); } },
+      { t: 'วาดครึ่งล่างซ้าย', why: '', run: function () { return AreaModel.add(state, { x: 0, y: 843, width: 1250, height: 843 }, false); } },
+      { t: 'วาดครึ่งล่างขวา', why: 'ตอนนี้ควรได้ 100% และไม่มีช่องซ้อน', run: function () { return AreaModel.add(state, { x: 1250, y: 843, width: 1250, height: 843 }, false); } }
+    ] },
+  { name: 'ลืมไปช่องหนึ่ง (รูโหว่)', desc: 'ร้านวาด 3 ช่องแล้วคิดว่าเสร็จ แต่เหลือมุมขวาล่างที่ไม่มีใครคลุม — LINE รับ payload นี้ปกติ ไม่มี error ไม่มีคำเตือน ลูกค้ากดตรงนั้นแล้วเงียบสนิท',
+    steps: [
+      { t: 'ล้างทั้งหมด', why: '', run: function () { selected = null; return AreaModel.empty(); } },
+      { t: 'วาดครึ่งบน', why: '', run: function () { return AreaModel.add(state, { x: 0, y: 0, width: 2500, height: 843 }, false); } },
+      { t: 'วาดล่างซ้าย', why: 'เว้นขวาล่างไว้', run: function () { return AreaModel.add(state, { x: 0, y: 843, width: 1250, height: 843 }, false); } },
+      { t: 'ดูผล', why: 'พื้นที่ถูกคลุม 75% — “ส่งให้ LINE ได้ไหม” ยังตอบว่าได้ นี่คือหัวใจของปัญหา', run: function () { return state; } }
+    ] },
+  { name: 'ช่องซ้อนกัน', desc: 'สองช่องทับกัน LINE ไม่ปฏิเสธ แต่จะเลือก “ช่องแรกในลิสต์ที่คลุมจุดนั้น” เสมอ แปลว่าช่องที่วาดทีหลังจะกดไม่โดนตลอดกาล และร้านจะไม่มีทางรู้เลยถ้าเราไม่บอก',
+    steps: [
+      { t: 'ล้างทั้งหมด', why: '', run: function () { selected = null; return AreaModel.empty(); } },
+      { t: 'วาดช่องใหญ่เต็มใบ', why: 'ปุ่ม 1', run: function () { return AreaModel.add(state, { x: 0, y: 0, width: 2500, height: 1686 }, false); } },
+      { t: 'วาดช่องเล็กทับตรงกลาง', why: 'ปุ่ม 2 — อยู่ทีหลังในลิสต์ จึงแพ้เสมอ', run: function () { return AreaModel.add(state, { x: 900, y: 600, width: 700, height: 450 }, false); } },
+      { t: 'ดูผล', why: 'คลุม 100% ครบถ้วน แต่ปุ่ม 2 ตายสนิท — ตัวเลข “คลุม 100%” จึงเชื่อไม่ได้ถ้าไม่ดูช่องซ้อนคู่กัน', run: function () { return state; } }
+    ] },
+  { name: 'ช่องเล็กกว่านิ้ว', desc: 'LINE ไม่มีข้อกำหนดขนาดขั้นต่ำ วาดช่อง 100×100 ก็ผ่าน แต่บนมือถือจริงภาพถูกย่อเหลือกว้าง ~375px ช่องนั้นจะเล็กกว่าปลายนิ้ว',
+    steps: [
+      { t: 'ล้างทั้งหมด', why: '', run: function () { selected = null; return AreaModel.empty(); } },
+      { t: 'วาดช่องจิ๋วมุมซ้ายบน', why: '150×150 บนภาพ = ~22px บนมือถือ', run: function () { return AreaModel.add(state, { x: 0, y: 0, width: 150, height: 150 }, false); } },
+      { t: 'ดูผล', why: 'ขึ้นเตือนว่าเล็กกว่า 290px แต่ “ส่งให้ LINE ได้ไหม” ยังตอบว่าได้ — ต้องตัดสินว่าจะห้ามหรือเตือน', run: function () { return state; } }
+    ] },
+  { name: 'ชนเพดาน 20 ช่อง', desc: 'LINE จำกัด 20 พื้นที่ต่อเมนู เลย์เอาต์สำเร็จสูงสุดมีแค่ 6 ช่อง จึงไม่เคยชนเพดานนี้เลย พอวาดเองได้ เพดานนี้จะโผล่มาเป็นครั้งแรก',
+    steps: [
+      { t: 'ล้างทั้งหมด', why: '', run: function () { selected = null; return AreaModel.empty(); } },
+      { t: 'ใส่ 20 ช่องรวด', why: 'ตาราง 5×4 พอดีเพดาน', run: function () { return AreaModel.tile([5, 5, 5, 5]); } },
+      { t: 'ลองเพิ่มช่องที่ 21', why: 'ต้องไม่เพิ่มให้ และต้องบอกเหตุผล ไม่ใช่เงียบ', run: function () { return AreaModel.add(state, { x: 900, y: 600, width: 400, height: 300 }, false); } }
+    ] }
+];
+var scIdx = 0, scStep = 0;
+function drawTabs() {
+  document.getElementById('tabs').innerHTML = SCENARIOS.map(function (s, i) {
+    return '<button class="tab' + (i === scIdx ? ' on' : '') + '" data-sc="' + i + '">' + s.name + '</button>';
+  }).join('');
+  document.getElementById('scDesc').textContent = SCENARIOS[scIdx].desc;
+  drawSteps();
+}
+function drawSteps() {
+  document.getElementById('steps').innerHTML = SCENARIOS[scIdx].steps.map(function (st, i) {
+    var cls = i < scStep ? 'done' : (i === scStep ? 'now' : '');
+    return '<div class="step ' + cls + '"><div class="n">' + (i + 1) + '</div><div class="txt">' +
+      '<button class="btn' + (i === scStep ? ' btn-primary' : '') + '" data-step="' + i + '"' + (i === scStep ? '' : ' disabled') + '>' + st.t + '</button>' +
+      (st.why ? '<div class="why">' + st.why + '</div>' : '') + '</div></div>';
+  }).join('');
+}
+document.getElementById('tabs').addEventListener('click', function (e) {
+  var b = e.target.closest('[data-sc]'); if (!b) return;
+  scIdx = +b.dataset.sc; scStep = 0; selected = null;
+  setState(AreaModel.empty(), 'เริ่มสถานการณ์: ' + SCENARIOS[scIdx].name);
+  drawTabs();
+});
+document.getElementById('steps').addEventListener('click', function (e) {
+  var b = e.target.closest('[data-step]'); if (!b || b.disabled) return;
+  var st = SCENARIOS[scIdx].steps[+b.dataset.step];
+  setState(st.run(), st.t);
+  scStep = Math.min(scStep + 1, SCENARIOS[scIdx].steps.length);
+  drawSteps();
+});
+
+drawTabs();
+render();
+window.addEventListener('resize', render);
+</script>
+</body>
+</html>

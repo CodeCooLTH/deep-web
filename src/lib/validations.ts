@@ -1916,7 +1916,14 @@ export const RichMenuButtonSchema = v.object({
 
 export const RichMenuDraftSchema = v.object({
   shopChannelId: v.pipe(v.string(), v.minLength(1)),
-  templateKey: v.pipe(v.string(), v.minLength(1), v.maxLength(60)),
+  /**
+   * 🛑 เพดาน 120 มาจากการคำนวณ ไม่ใช่เลขกลม — รูป `custom:g:<สเปก>` (D-RM-2c) ยาวได้จริงถึง 98:
+   * `custom:g:` (9) + ต่อแถว `<h>*<cols>` = 3n+2 เมื่อ n = จำนวนช่องในแถว (น้ำหนักสูงสุด 12 = 2 หลัก)
+   * รวมทุกแถว 3×(ช่องรวม 20) + 2×(แถว 10) = 80 + ตัวคั่น `|` อีก 9 = 89 · 89 + 9 = 98
+   * ของเดิมตั้งไว้ 60 ซึ่ง **ตัดเลย์เอาต์ที่ถูกกฎทิ้งเป็น 400** โดยที่ไม่มีเทสไหนจับได้
+   * เพราะ `isValidLayout()` ผ่านแล้วแต่ยังไปไม่ถึงมัน — ด่านนอกสุดปฏิเสธไปก่อน
+   */
+  templateKey: v.pipe(v.string(), v.minLength(1), v.maxLength(120)),
   /**
    * 🛑 นับเป็น **code point** ไม่ใช่ `String.length` — `v.maxLength()` ของ Valibot นับ UTF-16 unit
    * ซึ่งไม่ตรงกับที่ LINE นับ (อักขระนอก BMP นับเป็น 2) ถ้าใช้ maxLength ตรง ๆ ผู้ขายที่ใส่

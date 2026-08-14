@@ -230,7 +230,7 @@ export async function activate(params: {
     name,
     chatBarText: row.chatBarText,
     buttons: row.buttons as unknown as RichMenuButton[],
-    layoutKey: parseTemplateKey(row.templateKey).layoutKey ?? undefined,
+    layout: parseTemplateKey(row.templateKey).layout ?? undefined,
   })
 
   let newId: string

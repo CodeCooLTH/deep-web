@@ -22,12 +22,11 @@ import {
   RICH_MENU_IMAGE_MIN_WIDTH,
 } from './constants'
 import {
-  defaultLayoutKeyForCount,
+  countCells,
   layoutBounds,
-  layoutCellCount,
-  layoutRows,
+  resolveLayout,
   type RichMenuButton,
-  type RichMenuLayoutKey,
+  type RichMenuLayout,
 } from './rich-menu'
 
 /**
@@ -92,13 +91,12 @@ export type RenderRichMenuResult = { blob: Blob; width: number; height: number }
  */
 export async function renderRichMenuImage(
   buttons: Pick<RichMenuButton, 'label'>[],
-  /** เลย์เอาต์ที่ร้านเลือก — ไม่ส่ง = โหมด auto เดาจากจำนวนปุ่ม (ต้องตรงกับที่ payload ใช้เสมอ) */
-  layoutKey?: RichMenuLayoutKey,
+  /** เลย์เอาต์ที่ร้านเลือก/ปรับเอง — ไม่ส่ง = โหมด auto เดาจากจำนวนปุ่ม (ต้องตรงกับที่ payload ใช้เสมอ) */
+  layout?: RichMenuLayout,
 ): Promise<RenderRichMenuResult> {
-  const key = layoutKey ?? defaultLayoutKeyForCount(buttons.length)
-  if (!key) throw new Error('RICH_MENU_LAYOUT_UNSUPPORTED')
+  const grid = resolveLayout(layout, buttons.length)
   // 🛑 ภาพกับพิกัดต้องมาจากเลย์เอาต์เดียวกันเป๊ะ — ถ้าจำนวนไม่ตรง ช่องบนภาพกับพื้นที่กดจะเหลื่อมกัน
-  if (buttons.length !== layoutCellCount(key)) throw new Error('RICH_MENU_BUTTON_COUNT_MISMATCH')
+  if (buttons.length !== countCells(grid)) throw new Error('RICH_MENU_BUTTON_COUNT_MISMATCH')
 
   /**
    * 🛑 ต้องรอฟอนต์ก่อนวาด — ถ้าไม่รอ ตัวอักษรไทยจะถูกวาดด้วยฟอนต์ fallback แล้ว **ฝังลงภาพจริง**
@@ -118,7 +116,7 @@ export async function renderRichMenuImage(
   ctx.fillStyle = COLOR.bg
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  const cells = layoutBounds(layoutRows(key))
+  const cells = layoutBounds(grid)
 
   // เส้นแบ่ง — วาดตามขอบของแต่ละช่อง แล้วเส้นรอบนอกจะถูกทับด้วยขอบภาพเอง
   ctx.strokeStyle = COLOR.divider
@@ -243,10 +241,9 @@ export async function prepareCustomMenuImage(file: File): Promise<PreparedImage>
  */
 export async function renderRichMenuBlueprint(
   labels: string[],
-  layoutKey?: RichMenuLayoutKey,
+  layout?: RichMenuLayout,
 ): Promise<Blob> {
-  const key = layoutKey ?? defaultLayoutKeyForCount(labels.length)
-  if (!key) throw new Error('RICH_MENU_LAYOUT_UNSUPPORTED')
+  const grid = resolveLayout(layout, labels.length)
   if (typeof document !== 'undefined' && document.fonts?.ready) await document.fonts.ready
 
   const canvas = document.createElement('canvas')
@@ -258,7 +255,7 @@ export async function renderRichMenuBlueprint(
   ctx.fillStyle = '#FFFFFF'
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  const cells = layoutBounds(layoutRows(key))
+  const cells = layoutBounds(grid)
   ctx.strokeStyle = '#B0B0B0'
   ctx.lineWidth = 6
   ctx.setLineDash([28, 20])

@@ -24,6 +24,16 @@ import {
   defaultLayoutKeyForCount,
   isRichMenuLayoutKey,
   layoutBounds,
+  uniformRows,
+  countCells,
+  isValidLayout,
+  matchPresetKey,
+  resolveLayout,
+  addRow, removeRow, addCell, removeCell,
+  canAddRow, canAddCell, canRemoveRow, canRemoveCell,
+  bumpRowHeight, bumpCellWidth, cellIndexOf,
+  rowHeightPct, cellWidthPct, tooSmallCellIndexes,
+  type RichMenuLayout,
   layoutCellCount,
   layoutRows,
   type RichMenuLayoutKey,
@@ -171,7 +181,7 @@ describe('เลย์เอาต์พิกัดปุ่ม', () => {
    * ใช้ขนาดย่อ) — เทสจึงยิงด้วยขนาดที่หารไม่ลงตัวเพื่อให้กิ่งนั้นมีของพิสูจน์จริง ๆ
    */
   it('[blocker] แถวสุดท้ายกลืนเศษแนวตั้งเมื่อความสูงหารไม่ลงตัว', () => {
-    const b = layoutBounds([1, 2], 2500, 1687) // 1687/2 = 843.5
+    const b = layoutBounds(uniformRows([1, 2]), 2500, 1687) // 1687/2 = 843.5
     expect(b[0]!.height).toBe(843)
     expect(b[1]!.height).toBe(844) // แถวล่างกลืนเศษ
     const area = b.reduce((s, c) => s + c.width * c.height, 0)
@@ -184,7 +194,7 @@ describe('เลย์เอาต์พิกัดปุ่ม', () => {
         name: 'n',
         chatBarText: 'เมนู',
         buttons: [btn('a'), btn('b')],
-        layoutKey: 'grid-2x2', // 4 ช่อง แต่ส่งมา 2 ปุ่ม
+        layout: layoutRows('grid-2x2'), // 4 ช่อง แต่ส่งมา 2 ปุ่ม
       }),
     ).toThrow('RICH_MENU_BUTTON_COUNT_MISMATCH')
   })
@@ -194,14 +204,14 @@ describe('เลย์เอาต์พิกัดปุ่ม', () => {
       name: 'n',
       chatBarText: 'เมนู',
       buttons: [btn('a'), btn('b'), btn('c')],
-      layoutKey: 'row-3',
+      layout: layoutRows('row-3'),
     })
     // 1×3 → ทุกช่องสูงเต็มภาพ (ต่างจาก T-split ที่แถวบนสูงครึ่งเดียว)
     expect(p.areas.every((a) => a.bounds.height === RICH_MENU_CANVAS_HEIGHT)).toBe(true)
   })
 
   it('แถวที่มี 3 คอลัมน์: ช่องสุดท้ายกลืนเศษ (2500/3 ไม่ลงตัว)', () => {
-    const b = layoutBounds([3, 3])
+    const b = layoutBounds(uniformRows([3, 3]))
     expect(b[0]!.width).toBe(833)
     expect(b[1]!.width).toBe(833)
     expect(b[2]!.width).toBe(834) // 2500 - 833*2
@@ -390,12 +400,16 @@ describe('เทมเพลต', () => {
 describe('โหมดภาพ (D-RM-2b)', () => {
   it('เข้ารหัส/ถอดรหัสไป-กลับได้ทุกเลย์เอาต์', () => {
     for (const key of Object.keys(RICH_MENU_LAYOUTS) as RichMenuLayoutKey[]) {
-      expect(parseTemplateKey(encodeCustomTemplateKey(key))).toEqual({ mode: 'CUSTOM', layoutKey: key })
+      expect(parseTemplateKey(encodeCustomTemplateKey(layoutRows(key)))).toEqual({
+        mode: 'CUSTOM',
+        layoutKey: key,
+        layout: layoutRows(key),
+      })
     }
   })
 
   it('เทมเพลตของระบบ = โหมด AUTO', () => {
-    expect(parseTemplateKey('online_sales_v1')).toEqual({ mode: 'AUTO', layoutKey: null })
+    expect(parseTemplateKey('online_sales_v1')).toEqual({ mode: 'AUTO', layoutKey: null, layout: null })
   })
 
   /**
@@ -403,7 +417,325 @@ describe('โหมดภาพ (D-RM-2b)', () => {
    * ซึ่งยังประกอบ payload ได้ ไม่ใช่ CUSTOM ที่มี layout พังแล้วพังทั้งเส้นทางเปิดใช้เมนู
    */
   it('[blocker] custom: ที่ตามด้วยคีย์ที่ไม่รู้จัก ต้องถอยไป AUTO ไม่ใช่ CUSTOM ที่พัง', () => {
-    expect(parseTemplateKey('custom:grid-9x9')).toEqual({ mode: 'AUTO', layoutKey: null })
-    expect(parseTemplateKey('custom:')).toEqual({ mode: 'AUTO', layoutKey: null })
+    expect(parseTemplateKey('custom:grid-9x9')).toEqual({ mode: 'AUTO', layoutKey: null, layout: null })
+    expect(parseTemplateKey('custom:')).toEqual({ mode: 'AUTO', layoutKey: null, layout: null })
+  })
+})
+
+/**
+ * เลย์เอาต์ที่ปรับสัดส่วนเองได้ (ส่วนขยาย 2026-08-14)
+ *
+ * 🛑 ทั้งกลุ่มนี้คุ้มกันสิ่งเดียวกัน: **การปูกระเบื้องต้องยังเป๊ะ** หลังเปิดให้ปรับสัดส่วน
+ * ถ้าแดง แปลว่าเมนูที่ร้านสร้างจะมีพื้นที่ที่ลูกค้ากดแล้วเงียบ หรือมีปุ่มที่กดไม่โดนตลอดกาล
+ * ซึ่ง **LINE ไม่ปฏิเสธทั้งสองอย่าง** และไม่มี tsc/build/theme-guard ตัวไหนเห็น
+ */
+describe('[blocker] เลย์เอาต์ปรับสัดส่วน — การปูกระเบื้องต้องเป๊ะเสมอ', () => {
+  const CASES: { name: string; layout: RichMenuLayout }[] = [
+    { name: 'บนสูง 2 ส่วน ล่างแบ่ง 2:1', layout: [{ h: 2, cols: [1] }, { h: 1, cols: [2, 1] }] },
+    { name: 'สามแถวสูงไม่เท่ากัน', layout: [{ h: 3, cols: [1] }, { h: 1, cols: [1, 1, 1] }, { h: 2, cols: [5, 3] }] },
+    { name: 'แถวเดียวแบ่ง 7:3', layout: [{ h: 1, cols: [7, 3] }] },
+    { name: 'น้ำหนักสูงสุด', layout: [{ h: 12, cols: [12, 1] }, { h: 1, cols: [1] }] },
+    ...(Object.keys(RICH_MENU_LAYOUTS) as RichMenuLayoutKey[]).map((k) => ({
+      name: `เทมเพลตเดิม ${k}`,
+      layout: layoutRows(k),
+    })),
+  ]
+
+  it.each(CASES)('$name — ผลรวมพื้นที่เท่าภาพเป๊ะ (จับได้ทั้งรูโหว่และช่องซ้อนในเงื่อนไขเดียว)', ({ layout }) => {
+    const cells = layoutBounds(layout)
+    expect(cells).toHaveLength(countCells(layout))
+    const area = cells.reduce((s, c) => s + c.width * c.height, 0)
+    expect(area).toBe(RICH_MENU_CANVAS_WIDTH * RICH_MENU_CANVAS_HEIGHT)
+    expect(cells.every((c) => c.width > 0 && c.height > 0)).toBe(true)
+    expect(cells.every((c) => c.x >= 0 && c.y >= 0)).toBe(true)
+    expect(cells.every((c) => c.x + c.width <= RICH_MENU_CANVAS_WIDTH)).toBe(true)
+    expect(cells.every((c) => c.y + c.height <= RICH_MENU_CANVAS_HEIGHT)).toBe(true)
+  })
+
+  it.each(CASES)('$name — ไม่มีคู่ไหนซ้อนกันเลย', ({ layout }) => {
+    const c = layoutBounds(layout)
+    for (let i = 0; i < c.length; i++) {
+      for (let j = i + 1; j < c.length; j++) {
+        const a = c[i]!, b = c[j]!
+        const hit = a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+        expect(hit, `ช่อง ${i} ซ้อนกับช่อง ${j}`).toBe(false)
+      }
+    }
+  })
+
+  it('สัดส่วนออกมาตามน้ำหนักจริง ไม่ใช่แบ่งเท่ากันเงียบ ๆ', () => {
+    const b = layoutBounds([{ h: 2, cols: [1] }, { h: 1, cols: [2, 1] }])
+    expect(b[0]!.height).toBe(1124) // floor(1686 * 2/3)
+    expect(b[1]!.height).toBe(562) // แถวสุดท้ายกลืนเศษ: 1686 - 1124
+    expect(b[1]!.width).toBe(1666) // floor(2500 * 2/3)
+    expect(b[2]!.width).toBe(834) // ช่องสุดท้ายกลืนเศษ: 2500 - 1666
+  })
+
+  it('เลย์เอาต์ที่ตรงกับเทมเพลตสำเร็จ ต้องให้พิกัดเดิมเป๊ะทุกช่อง (ของเก่าบน prod ห้ามขยับ)', () => {
+    for (const k of Object.keys(RICH_MENU_LAYOUTS) as RichMenuLayoutKey[]) {
+      expect(layoutBounds(layoutRows(k))).toEqual(layoutBounds(uniformRows(
+        RICH_MENU_LAYOUTS[k].rows.map((r) => r.cols.length),
+      )))
+    }
+  })
+})
+
+describe('[blocker] isValidLayout — fail-closed กับค่าที่มาจากภายนอก', () => {
+  it('ยอมรับเลย์เอาต์ที่ถูกต้อง', () => {
+    expect(isValidLayout([{ h: 1, cols: [1] }])).toBe(true)
+    expect(isValidLayout([{ h: 2, cols: [3, 1] }, { h: 1, cols: [1] }])).toBe(true)
+  })
+
+  it.each([
+    ['ว่างเปล่า', []],
+    ['แถวไม่มีช่อง', [{ h: 1, cols: [] }]],
+    ['น้ำหนักเป็น 0', [{ h: 0, cols: [1] }]],
+    ['น้ำหนักติดลบ', [{ h: 1, cols: [-1] }]],
+    ['น้ำหนักไม่ใช่จำนวนเต็ม', [{ h: 1.5, cols: [1] }]],
+    ['น้ำหนักเกินเพดาน', [{ h: 99, cols: [1] }]],
+    ['ไม่ใช่อาร์เรย์', 'custom'],
+    ['null', null],
+    ['ขาดคีย์ cols', [{ h: 1 }]],
+    ['cols เป็นสตริง', [{ h: 1, cols: ['1'] }]],
+    ['ช่องเกิน 20', Array.from({ length: 7 }, () => ({ h: 1, cols: [1, 1, 1] }))],
+  ])('ปฏิเสธ: %s', (_n, bad) => {
+    expect(isValidLayout(bad)).toBe(false)
+  })
+
+  it('buildRichMenuPayload ต้องโยนทิ้งเมื่อเลย์เอาต์ใช้ไม่ได้ ไม่ใช่ซ่อมให้', () => {
+    expect(() =>
+      buildRichMenuPayload({
+        name: 'n',
+        chatBarText: 'เมนู',
+        buttons: [{ key: 'a', label: 'ก', action: { type: 'message', text: 'x' } }],
+        layout: [{ h: 0, cols: [1] }] as unknown as RichMenuLayout,
+      }),
+    ).toThrow('RICH_MENU_LAYOUT_UNSUPPORTED')
+  })
+})
+
+describe('[blocker] templateKey — เก็บสัดส่วนได้โดยไม่ทำของเดิมพัง', () => {
+  it('เลย์เอาต์ที่ตรงเทมเพลต ยังเขียนเป็นสตริงเดิมเป๊ะ (แถวเดิมบน prod อ่านได้เหมือนเดิม)', () => {
+    for (const k of Object.keys(RICH_MENU_LAYOUTS) as RichMenuLayoutKey[]) {
+      expect(encodeCustomTemplateKey(layoutRows(k))).toBe(`custom:${k}`)
+    }
+  })
+
+  it('เลย์เอาต์ที่ปรับเอง เข้ารหัส/ถอดรหัสไป-กลับได้ครบ', () => {
+    const custom: RichMenuLayout = [{ h: 2, cols: [1] }, { h: 1, cols: [2, 1] }]
+    const encoded = encodeCustomTemplateKey(custom)
+    expect(encoded).toBe('custom:g:2*1|1*2-1')
+    const parsed = parseTemplateKey(encoded)
+    expect(parsed.mode).toBe('CUSTOM')
+    expect(parsed.layout).toEqual(custom)
+    expect(parsed.layoutKey).toBeNull() // ไม่ตรงเทมเพลตไหน
+  })
+
+  it.each([
+    'custom:g:',
+    'custom:g:abc',
+    'custom:g:0*1',
+    'custom:g:1*',
+    'custom:g:1*1|',
+    'custom:g:1*99',
+    'custom:g:1*1-1-1|1*1-1-1|1*1-1-1|1*1-1-1|1*1-1-1|1*1-1-1|1*1-1-1',
+  ])('สเปกที่อ่านไม่ออก/เกินเพดาน ต้องถอยไป AUTO: %s', (k) => {
+    expect(parseTemplateKey(k)).toEqual({ mode: 'AUTO', layoutKey: null, layout: null })
+  })
+
+  it('matchPresetKey บอกได้ว่าเลย์เอาต์นี้ตรงเทมเพลตไหน', () => {
+    expect(matchPresetKey(layoutRows('grid-2x2'))).toBe('grid-2x2')
+    expect(matchPresetKey([{ h: 2, cols: [1] }, { h: 1, cols: [2, 1] }])).toBeNull()
+  })
+})
+
+describe('[blocker] resolveLayout — ภาพกับพื้นที่กดต้องมาจากตัวเดียวกัน', () => {
+  it('ส่งเลย์เอาต์มา = ใช้ตัวนั้น ไม่เดาจากจำนวนปุ่ม', () => {
+    const custom: RichMenuLayout = [{ h: 1, cols: [3, 1] }]
+    expect(resolveLayout(custom, 999)).toEqual(custom)
+  })
+
+  it('ไม่ส่งมา = เดาจากจำนวนปุ่ม และโยนทิ้งเมื่อไม่มีเลย์เอาต์รองรับ', () => {
+    expect(resolveLayout(undefined, 4)).toEqual(layoutRows('grid-2x2'))
+    expect(() => resolveLayout(undefined, 5)).toThrow('RICH_MENU_LAYOUT_UNSUPPORTED')
+  })
+})
+
+/**
+ * 🛑 ด่านนอกสุด (Valibot) ต้องยอมให้เลย์เอาต์ที่ยาวที่สุดที่ `isValidLayout` ยอมรับ ผ่านไปได้
+ * ไม่งั้นจะเกิดสภาพ "โมเดลบอกว่าใช้ได้ แต่ API ตอบ 400" ซึ่งเทสของ lib จับไม่ได้เลย
+ * (เดิมตั้ง maxLength 60 ขณะที่สตริงยาวได้จริง 98)
+ */
+describe('[blocker] ความยาว templateKey ที่ยาวที่สุดต้องไม่เกินเพดานของ Valibot', () => {
+  it('เลย์เอาต์ที่ยาวที่สุดเท่าที่ถูกกฎ ยังสั้นกว่าเพดาน 120', () => {
+    const worst: RichMenuLayout = Array.from({ length: 10 }, () => ({ h: 12, cols: [12, 12] }))
+    expect(isValidLayout(worst)).toBe(true)
+    expect(countCells(worst)).toBe(20)
+    const encoded = encodeCustomTemplateKey(worst)
+    expect(encoded.length).toBeLessThanOrEqual(120)
+    expect(parseTemplateKey(encoded).layout).toEqual(worst)
+
+    const wide: RichMenuLayout = [
+      { h: 12, cols: Array.from({ length: 10 }, () => 12) },
+      { h: 12, cols: Array.from({ length: 10 }, () => 12) },
+    ]
+    expect(isValidLayout(wide)).toBe(true)
+    expect(encodeCustomTemplateKey(wide).length).toBeLessThanOrEqual(120)
+  })
+})
+
+/**
+ * เส้นทางที่ `line-rich-menu.service.ts` ประกอบจริง (บรรทัด ~233):
+ *   แถวในฐาน → `parseTemplateKey(row.templateKey).layout` → `buildRichMenuPayload({ layout })`
+ * เทสอื่นพิสูจน์ทีละชิ้น อันนี้พิสูจน์ว่า **ต่อกันแล้วยังถูก** ซึ่งเป็นจุดที่ของจริงวิ่งผ่าน
+ */
+describe('[blocker] เส้นทางฝั่ง server: templateKey ในฐาน → payload ที่ยิงให้ LINE', () => {
+  const btns = (n: number): RichMenuButton[] =>
+    Array.from({ length: n }, (_, i) => ({ key: `k${i}`, label: `ปุ่ม ${i + 1}`, action: { type: 'message' as const, text: `t${i}` } }))
+
+  it('แถวที่เก็บ custom:g: ต้องได้พิกัดตามสัดส่วนที่ร้านตั้งไว้', () => {
+    const stored = 'custom:g:2*1|1*2-1' // เหมือนค่าที่อยู่ในคอลัมน์จริง
+    const info = parseTemplateKey(stored)
+    expect(info.mode).toBe('CUSTOM')
+
+    const payload = buildRichMenuPayload({
+      name: 'n',
+      chatBarText: 'เมนู',
+      buttons: btns(3),
+      layout: info.layout ?? undefined,
+    })
+    expect(payload.areas).toHaveLength(3)
+    expect(payload.areas[0]!.bounds).toEqual({ x: 0, y: 0, width: 2500, height: 1124 })
+    expect(payload.areas[1]!.bounds).toEqual({ x: 0, y: 1124, width: 1666, height: 562 })
+    expect(payload.areas[2]!.bounds).toEqual({ x: 1666, y: 1124, width: 834, height: 562 })
+    const area = payload.areas.reduce((s, a) => s + a.bounds.width * a.bounds.height, 0)
+    expect(area).toBe(RICH_MENU_CANVAS_WIDTH * RICH_MENU_CANVAS_HEIGHT)
+  })
+
+  it('แถวเก่าที่เก็บ custom:<preset> ต้องได้ผลเหมือนก่อนเปลี่ยนโมเดลทุกประการ', () => {
+    const info = parseTemplateKey('custom:grid-2x2')
+    const payload = buildRichMenuPayload({ name: 'n', chatBarText: 'เมนู', buttons: btns(4), layout: info.layout ?? undefined })
+    expect(payload.areas.map((a) => a.bounds)).toEqual(layoutBounds(layoutRows('grid-2x2')))
+  })
+
+  it('แถวที่ templateKey เพี้ยน ต้องยังประกอบ payload ได้ (ถอยไป AUTO ไม่ใช่พังทั้งเส้นทาง)', () => {
+    const info = parseTemplateKey('custom:g:พัง')
+    expect(info.layout).toBeNull()
+    // layout = undefined → เดาจากจำนวนปุ่ม ซึ่งยังเปิดเมนูได้ ไม่ใช่ throw
+    const payload = buildRichMenuPayload({ name: 'n', chatBarText: 'เมนู', buttons: btns(4), layout: info.layout ?? undefined })
+    expect(payload.areas).toHaveLength(4)
+  })
+})
+
+/**
+ * การแก้โครงช่องจากหน้าจอ (D-RM-2c)
+ *
+ * 🛑 ทุกตัวคุ้มกันสิ่งเดียวกัน: **สถานะที่หน้าจอสร้างได้ ต้องเป็นสถานะที่ `isValidLayout` ยอมรับเสมอ**
+ * ถ้าหลุด ร้านจะกดปุ่มบนหน้าจอจนได้เลย์เอาต์ที่ API ปฏิเสธ แล้วเจอ error ที่แก้ไม่ถูก
+ */
+describe('[blocker] แก้โครงช่องจากหน้าจอ — ต้องออกมาเป็นเลย์เอาต์ที่ถูกกฎเสมอ', () => {
+  const L2x2 = (): RichMenuLayout => layoutRows('grid-2x2')
+
+  it('เพิ่ม/ลบแถวและช่อง แล้วยังผ่าน isValidLayout ทุกครั้ง', () => {
+    let l = L2x2()
+    l = addRow(l); expect(isValidLayout(l)).toBe(true); expect(l).toHaveLength(3)
+    l = addCell(l, 2); expect(isValidLayout(l)).toBe(true)
+    l = removeCell(l, 2, 0); expect(isValidLayout(l)).toBe(true)
+    l = removeRow(l, 2); expect(isValidLayout(l)).toBe(true); expect(l).toEqual(L2x2())
+  })
+
+  it('ไม่แก้ของเดิม (immutable) — ไม่งั้น React มองไม่เห็นการเปลี่ยนแปลง', () => {
+    const before = L2x2()
+    const snapshot = JSON.parse(JSON.stringify(before))
+    addRow(before); addCell(before, 0); bumpRowHeight(before, 0, 1); removeRow(before, 0)
+    expect(before).toEqual(snapshot)
+  })
+
+  it('เพดานแถว 10 — เพิ่มไม่ได้และคืนของเดิม', () => {
+    let l: RichMenuLayout = Array.from({ length: 10 }, () => ({ h: 1, cols: [1] }))
+    expect(canAddRow(l)).toBe(false)
+    expect(addRow(l)).toBe(l)
+    l = Array.from({ length: 9 }, () => ({ h: 1, cols: [1] }))
+    expect(canAddRow(l)).toBe(true)
+  })
+
+  it('เพดานช่องรวม 20 บล็อกทั้งการเพิ่มแถวและเพิ่มช่อง (คนละเหตุผลกับเพดานแถว)', () => {
+    /**
+     * 🛑 ต้องใช้ **5 แถว × 4 ช่อง** ไม่ใช่ 10 แถว × 2 ช่อง — ทั้งคู่ได้ 20 ช่องเท่ากัน
+     * แต่แบบ 10 แถวจะชนเพดาน "แถว" ไปก่อน ทำให้เทสเขียวแม้ถอดเงื่อนไขช่องรวมออกจาก
+     * `canAddRow` (พิสูจน์ด้วย mutation แล้วว่ารอดจริง) — เคสนี้แถวยังเหลือ 5 แถว
+     * ตัวที่ต้องบล็อกจึงเป็นเพดานช่องรวมล้วน ๆ
+     */
+    const l: RichMenuLayout = Array.from({ length: 5 }, () => ({ h: 1, cols: [1, 1, 1, 1] }))
+    expect(countCells(l)).toBe(20)
+    expect(l.length).toBeLessThan(10) // แถวยังไม่เต็ม — เพดานที่บล็อกต้องเป็นช่องรวมเท่านั้น
+    expect(canAddRow(l)).toBe(false)
+    expect(addRow(l)).toBe(l)
+    expect(canAddCell(l, 0)).toBe(false)
+    expect(addCell(l, 0)).toBe(l)
+  })
+
+  it('เพดานช่องต่อแถว 10', () => {
+    const l: RichMenuLayout = [{ h: 1, cols: Array.from({ length: 10 }, () => 1) }]
+    expect(canAddCell(l, 0)).toBe(false)
+    expect(addCell(l, 0)).toBe(l)
+  })
+
+  it('ลบแถวสุดท้าย/ช่องสุดท้ายไม่ได้ — เมนูที่ไม่มีช่องประกอบ payload ไม่ได้', () => {
+    const one: RichMenuLayout = [{ h: 1, cols: [1] }]
+    expect(canRemoveRow(one)).toBe(false)
+    expect(removeRow(one, 0)).toBe(one)
+    expect(canRemoveCell(one, 0)).toBe(false)
+    expect(removeCell(one, 0, 0)).toBe(one)
+    expect(isValidLayout(removeRow(one, 0))).toBe(true)
+  })
+
+  it('น้ำหนักตัดที่เพดาน ไม่วนกลับ (กด + แล้วช่องต้องไม่หดลง)', () => {
+    let l: RichMenuLayout = [{ h: 12, cols: [12, 1] }]
+    expect(bumpRowHeight(l, 0, 1)).toBe(l) // ชนเพดานบน คืนของเดิม
+    expect(bumpCellWidth(l, 0, 0, 1)).toBe(l)
+    l = [{ h: 1, cols: [1, 5] }]
+    expect(bumpRowHeight(l, 0, -1)).toBe(l) // ชนเพดานล่าง
+    expect(bumpCellWidth(l, 0, 0, -1)).toBe(l)
+    expect(bumpCellWidth(l, 0, 1, -1)[0]!.cols[1]).toBe(4)
+  })
+
+  it('ทุกการกดที่เป็นไปได้ ต้องไม่พาไปสู่เลย์เอาต์ที่ผิดกฎ', () => {
+    let l = L2x2()
+    for (let step = 0; step < 300; step++) {
+      const r = step % (l.length || 1)
+      l = [addRow, (x: RichMenuLayout) => addCell(x, r), (x: RichMenuLayout) => removeCell(x, r, 0),
+           (x: RichMenuLayout) => removeRow(x, r), (x: RichMenuLayout) => bumpRowHeight(x, r, step % 3 === 0 ? 1 : -1),
+           (x: RichMenuLayout) => bumpCellWidth(x, r, 0, step % 2 === 0 ? 1 : -1)][step % 6]!(l)
+      expect(isValidLayout(l), `พังที่ step ${step}`).toBe(true)
+    }
+  })
+
+  it('cellIndexOf ตรงกับลำดับปุ่มจริง (ใช้บอกร้านว่าจะลบปุ่มไหน)', () => {
+    const l: RichMenuLayout = [{ h: 1, cols: [1, 1, 1] }, { h: 1, cols: [1, 1] }]
+    expect(cellIndexOf(l, 0, 0)).toBe(0)
+    expect(cellIndexOf(l, 0, 2)).toBe(2)
+    expect(cellIndexOf(l, 1, 0)).toBe(3)
+    expect(cellIndexOf(l, 1, 1)).toBe(4)
+    expect(layoutBounds(l)).toHaveLength(countCells(l))
+  })
+
+  it('เปอร์เซ็นต์ที่โชว์ตรงกับสัดส่วนจริง', () => {
+    const l: RichMenuLayout = [{ h: 2, cols: [1] }, { h: 1, cols: [2, 1] }]
+    expect(rowHeightPct(l, 0)).toBe(67)
+    expect(rowHeightPct(l, 1)).toBe(33)
+    expect(cellWidthPct(l, 1, 0)).toBe(67)
+    expect(cellWidthPct(l, 1, 1)).toBe(33)
+  })
+
+  it('เตือนช่องที่เล็กกว่านิ้ว โดยวัดจากพิกเซลจริงทั้งสองแกน', () => {
+    expect(tooSmallCellIndexes(layoutRows('grid-2x2'))).toEqual([]) // 1250×843 สบาย
+    // 10 ช่องในแถวเดียว = กว้าง 250px < 290 ⇒ เตือนทุกช่อง
+    const wide: RichMenuLayout = [{ h: 1, cols: Array.from({ length: 10 }, () => 1) }]
+    expect(tooSmallCellIndexes(wide)).toHaveLength(10)
+    // แคบเพราะ "เตี้ย" ไม่ใช่เพราะ "แคบ" — เปอร์เซ็นต์แกนเดียวมองไม่เห็นเคสนี้
+    const short: RichMenuLayout = [{ h: 12, cols: [1] }, { h: 1, cols: [1] }]
+    expect(layoutBounds(short)[1]!.height).toBeLessThan(290)
+    expect(tooSmallCellIndexes(short)).toEqual([1])
   })
 })
