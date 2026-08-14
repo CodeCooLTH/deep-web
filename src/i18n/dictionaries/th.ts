@@ -229,6 +229,10 @@ export const th = {
     sendWithNote: 'ส่ง — {note}',
     backToList: 'กลับรายการ',
     customerInfo: 'ข้อมูลลูกค้า',
+    threadSoundTitle: 'เสียงแจ้งเตือนข้อความใหม่',
+    threadSoundAllApp: 'ทั้งแอป (ทุกแชท)',
+    threadSoundThisChat: 'เฉพาะแชทนี้',
+    threadSoundMutedHint: 'ปิดอยู่เพราะปิดเสียงทั้งแอป — เปิดสวิตช์ด้านบนก่อน',
     threadMoreMenu: 'ตัวเลือกเพิ่มเติม',
     libraryOpen: 'คลังไฟล์',
 
@@ -271,6 +275,13 @@ export const th = {
      */
     customerPanel: {
       tabNote: 'โน้ต',
+      /**
+       * 🛑 คำบนแถบแท็บต้องสั้นกว่าหัวข้อเต็ม — แผงกว้าง 384px มี 4 แท็บ ถ้าใช้คำเต็ม
+       * ("ข้อมูลลูกค้า"/"คลังไฟล์") แถบจะตกบรรทัด (user เจอเองบน prod 2026-08-14)
+       * ห้ามเอาไปใช้เป็นหัวข้อ/aria-label ที่อื่น — ที่นั่นใช้ `customerInfo`/`librarySectionTitle` คำเต็ม
+       */
+      tabCustomer: 'ข้อมูล',
+      tabFiles: 'ไฟล์',
       statOrderCount: 'จำนวนออเดอร์',
       statTotalSpent: 'รวมยอดซื้อ',
       statCustomerSince: 'เป็นลูกค้ามา',

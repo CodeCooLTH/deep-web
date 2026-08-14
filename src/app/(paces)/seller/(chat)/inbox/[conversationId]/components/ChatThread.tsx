@@ -2473,6 +2473,27 @@ export default function ChatThread({
             เดิมที่นี่เป็นปุ่มกระดิ่งรายเธรดที่ถูกซ่อนเมื่อปิดเสียงระดับแอป และสวิตช์ระดับแอปอยู่ใน
             ChatHeader ซึ่ง hidden lg:flex ในหน้าเธรด ⇒ **บนมือถือในห้องแชทไม่มีสวิตช์เสียงให้แตะเลย**
             แทนที่ 1:1 ไม่เพิ่มปุ่มใหม่ (งบพื้นที่หัวเธรดที่ 320px ตึงอยู่แล้ว — flex-header-truncation) */}
+        {/**
+         * ข้อมูลลูกค้า — ปุ่มของตัวเองเมื่อ "มีที่ว่างพอ" เท่านั้น (2026-08-14,
+         * user: "พวก action อื่นก็ควรแสดงไหม ถ้ามีพื้นที่พอ")
+         *
+         *   <768px   ซ่อน — งบพื้นที่หัวเธรดที่ 320px เหลือให้ชื่อลูกค้าแค่ 85px อยู่แล้ว
+         *            (ดูเลขเต็มในหัว ThreadOverflowMenu) ปุ่มที่ 3 จะกินส่วนนั้นทันที
+         *   768–1279 โผล่ — ที่ 768px หัวเธรดใช้ไป 284px เหลือให้ชื่อ ~484px มีที่เหลือเฟือ
+         *            และเมนู ⋯ ซ่อนรายการเดียวกันนี้ด้วย `md:hidden` ⇒ ไม่มีของซ้ำบนจอเดียว
+         *   ≥1280px  ซ่อน — CustomerPanel เป็นคอลัมน์ถาวรอยู่ข้าง ๆ แล้ว (ต้องตรงกับ `xl:block`
+         *            ของคอลัมน์ขวาใน page.tsx เสมอ — ช่วง iPad Pro 1024–1279 เคยตกหล่นมาแล้ว)
+         */}
+        <button
+          type="button"
+          onClick={() => openPanel('customer')}
+          title={t.inbox.customerInfo}
+          aria-label={t.inbox.customerInfo}
+          className="btn btn-icon border-default-300 text-default-700 hover:bg-default-100 hidden shrink-0 md:inline-flex xl:hidden"
+        >
+          <Icon icon="user-circle" className="text-lg" />
+        </button>
+
         <ThreadOverflowMenu
           conversationId={conversationId}
           ordersLabel={resolveTabNoun(t, customerPanelData.vertical)}

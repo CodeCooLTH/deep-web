@@ -226,16 +226,17 @@ export function resolveTabNoun(t: Dictionary, vertical: ShopVertical): string {
 /** แท็บของ right panel — เคยเป็นค่าคงที่ระดับ module จึงค้างเป็นไทยตลอดไป (feature 00047) */
 function buildTabs(t: Dictionary, vertical: ShopVertical): { key: Tab; label: string; icon: string }[] {
   return [
-    { key: 'customer', label: t.inbox.customerInfo, icon: 'user-circle' },
+    { key: 'customer', label: t.inbox.customerPanel.tabCustomer, icon: 'user-circle' },
     { key: 'orders', label: resolveTabNoun(t, vertical), icon: 'shopping-cart' },
     /**
      * แท็บคลังไฟล์ (2026-08-14) — user: "เวลาอยู่ใน Mobile จะเข้าไปดูไฟล์ที่ใช้ร่วมกันยากมาก"
      * เดิมคลังไฟล์อยู่ล่างสุดของแท็บ 'customer' ⇒ ทางไปไฟล์บนมือถือคือ 4 ชั้น
      *
-     * 🛑 ใช้คีย์ `librarySectionTitle` ตัวเดียวกับหัวข้อในตัว section ไม่สร้างคีย์ `tabFiles` ใหม่ —
-     * ชื่อแท็บกับหัวข้อข้างในต้องพูดตรงกันเสมอ คีย์แยกคือช่องให้สองที่นี้เพี้ยนกันโดยไม่มีอะไรฟ้อง (HR16)
+     * 🛑 คำบนแท็บสั้นกว่าหัวข้อในตัว section โดยตั้งใจ ("ไฟล์" vs "คลังไฟล์") — แผงกว้าง 384px
+     * มี 4 แท็บ ใช้คำเต็มแล้วแถบตกบรรทัด (user เจอเองบน prod 2026-08-14). เก็บเป็นคีย์แยกใน
+     * `customerPanel.tab*` ซึ่งเป็นกลุ่มของ "คำบนแถบแท็บ" ทั้งชุด ไม่ใช่คีย์ลอยที่ไม่มีใครรู้ที่มา
      */
-    { key: 'files', label: t.inbox.librarySectionTitle, icon: 'folder' },
+    { key: 'files', label: t.inbox.customerPanel.tabFiles, icon: 'folder' },
     { key: 'note', label: t.inbox.customerPanel.tabNote, icon: 'notes' },
   ]
 }
@@ -775,7 +776,14 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
              ดันแท็บไปลอยกลางจอและดันเนื้อหาตกไปล่างสุด (user เจอจริง 2026-07-23) → `h-auto`
           3) ไม่มีเส้น rail ของตัวเอง → ใส่ border-b ที่ nav แล้วให้แท็บ active วางทับด้วย -mb-px */}
       <nav
-        className="nav-tabs border-default-200 my-0 me-0 h-auto border-b px-4"
+        /* 🛑 `flex-nowrap` + `px-2` (2026-08-14): แท็บที่ 4 ทำให้แถบตกบรรทัดบนแผงกว้าง 384px
+            `.nav-tabs` ของ Paces เป็น flex-wrap — และ **flex ตัดสินว่าจะ wrap ไหมจากขนาดเนื้อหา
+            เต็มก่อนหด** (docs/conventions/flex-header-truncation.md) การใส่ truncate/min-w-0
+            อย่างเดียวจึงไม่มีผลเลย ต้องปิด wrap ก่อนกลไกอื่นถึงจะทำงาน
+            user สั่งเองว่า "ไม่อยากให้ slide ได้ด้วย ต้อง fit พอดี" ⇒ ห้ามใส่ overflow-x-auto
+            งบที่ 384px: px-4 นอก 32 → เหลือ 352 · ต่อแท็บ = px-2(16) + ไอคอน 16 + gap 6 + คำ
+            คำสั้น 4 ตัว (ข้อมูล/คำสั่งซื้อ+badge/ไฟล์/โน้ต) รวม ~310px ⇒ เหลือที่ว่าง ไม่ตกบรรทัด */
+        className="nav-tabs border-default-200 my-0 me-0 h-auto flex-nowrap border-b px-4"
         role="tablist"
         aria-label={t.inbox.customerInfo}
       >
@@ -790,12 +798,14 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
             tabIndex={tab === tabDef.key ? 0 : -1}
             onKeyDown={onTabKeyDown}
             onClick={() => setTab(tabDef.key)}
-            className={`nav-link -mb-px inline-flex items-center gap-1.5 px-3 py-3 text-sm ${
+            className={`nav-link -mb-px inline-flex min-w-0 items-center gap-1.5 px-2 py-3 text-sm ${
               tab === tabDef.key ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent'
             }`}
           >
-            <Icon icon={tabDef.icon} className="text-base" />
-            {tabDef.label}
+            <Icon icon={tabDef.icon} className="shrink-0 text-base" />
+            {/* truncate = ตาข่ายกันเหนียวสำหรับภาษาที่คำยาวกว่านี้ในอนาคต — ไม่ใช่ตัวแก้หลัก
+                (ตัวแก้หลักคือ flex-nowrap ที่ nav + คำสั้นใน dictionary) */}
+            <span className="truncate">{tabDef.label}</span>
             {/* จำนวนออเดอร์บนแท็บ — เดิมต้องคลิกเข้าไปถึงจะรู้ว่ามี 0 (critique P1-C)
                 ใช้ customerStats (aggregate จริง) แทน summary.count (cap 20) ให้ตรงกับแถวสถิติในแท็บ */}
             {tabDef.key === 'orders' && (data.customerStats?.orderCount ?? 0) > 0 && (

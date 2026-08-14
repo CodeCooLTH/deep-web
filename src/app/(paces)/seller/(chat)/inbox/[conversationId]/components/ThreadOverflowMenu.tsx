@@ -118,6 +118,16 @@ export default function ThreadOverflowMenu({
         aria-orientation="vertical"
         aria-labelledby={`${uid}-more-trigger`}
       >
+        {/**
+         * 🛑 รายการนำทางโผล่เฉพาะ `<md` (2026-08-14, user: "ตรงนี้ใน desktop ไม่น่าจะต้องมีนะ")
+         *
+         *   <768px   ไม่มีที่อื่นให้กด → ต้องมีในเมนู
+         *   768–1279 มีปุ่ม "ข้อมูลลูกค้า" ของตัวเองในหัวเธรดแล้ว → มีในเมนูด้วย = ของซ้ำบนจอเดียว
+         *   ≥1280px  CustomerPanel เป็นคอลัมน์ถาวรอยู่ข้าง ๆ → เมนูเหลือแต่สวิตช์เสียง
+         *
+         * ใช้ `md:hidden` ไม่ใช่ `xl:hidden` เพราะตัวที่ทำให้ซ้ำคือปุ่มในหัวเธรดที่โผล่ตั้งแต่ md
+         * ไม่ใช่คอลัมน์ที่โผล่ตอน xl
+         */}
         <button
           type="button"
           role="menuitem"
@@ -125,7 +135,7 @@ export default function ThreadOverflowMenu({
             closeMenu()
             onOpenPanel('customer')
           }}
-          className="dropdown-item flex w-full items-center gap-2.5"
+          className="dropdown-item flex w-full items-center gap-2.5 md:hidden"
         >
           <Icon icon="user-circle" className="text-default-500 text-base" />
           {t.inbox.customerInfo}
@@ -138,19 +148,19 @@ export default function ThreadOverflowMenu({
             closeMenu()
             onOpenPanel('orders')
           }}
-          className="dropdown-item flex w-full items-center gap-2.5"
+          className="dropdown-item flex w-full items-center gap-2.5 md:hidden"
         >
           <Icon icon="shopping-cart" className="text-default-500 text-base" />
           {ordersLabel}
         </button>
 
-        <hr className="dropdown-divider" />
+        <hr className="dropdown-divider md:hidden" />
 
-        <h6 className="text-default-800 px-2.75 py-2 font-semibold">เสียงแจ้งเตือนข้อความใหม่</h6>
+        <h6 className="text-default-800 px-2.75 py-2 font-semibold">{t.inbox.threadSoundTitle}</h6>
 
         <div className="flex items-center justify-between gap-3 px-2.75 py-2">
           <label htmlFor={`${uid}-app`} className="text-default-700 mb-0 text-sm">
-            ทั้งแอป (ทุกแชท)
+            {t.inbox.threadSoundAllApp}
           </label>
           <input
             id={`${uid}-app`}
@@ -167,7 +177,7 @@ export default function ThreadOverflowMenu({
               htmlFor={`${uid}-thread`}
               className={`mb-0 text-sm ${appMuted ? 'text-default-500' : 'text-default-700'}`}
             >
-              เฉพาะแชทนี้
+              {t.inbox.threadSoundThisChat}
             </label>
             <input
               id={`${uid}-thread`}
@@ -181,7 +191,7 @@ export default function ThreadOverflowMenu({
           </div>
           {appMuted && (
             <p className="text-default-500 mt-1 mb-0 text-2xs">
-              ปิดอยู่เพราะปิดเสียงทั้งแอป — เปิดสวิตช์ด้านบนก่อน
+              {t.inbox.threadSoundMutedHint}
             </p>
           )}
         </div>

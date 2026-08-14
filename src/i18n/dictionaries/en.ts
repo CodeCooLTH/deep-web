@@ -193,6 +193,10 @@ export const en: Dictionary = {
     sendWithNote: 'Send — {note}',
     backToList: 'Back to list',
     customerInfo: 'Customer info',
+    threadSoundTitle: 'New message sound',
+    threadSoundAllApp: 'All chats',
+    threadSoundThisChat: 'This chat only',
+    threadSoundMutedHint: 'Muted because all chats are muted — turn on the switch above first.',
     threadMoreMenu: 'More options',
     libraryOpen: 'File library',
 
@@ -222,6 +226,9 @@ export const en: Dictionary = {
 
     customerPanel: {
       tabNote: 'Notes',
+      /** สั้นกว่าหัวข้อเต็มโดยตั้งใจ — ดูเหตุผลในไฟล์ th.ts */
+      tabCustomer: 'Info',
+      tabFiles: 'Files',
       statOrderCount: 'Orders',
       statTotalSpent: 'Total spent',
       statCustomerSince: 'Customer for',
