@@ -45,6 +45,25 @@ export const SHOP_VERTICAL_HINTS: Record<ShopVertical, string> = {
   LODGING: 'ให้เช่าที่พักรายคืน มีระบบห้องพัก ปฏิทินว่าง และการจอง',
 }
 
+/** ร้านประเภทนี้ต้องมี "ที่อยู่ + หมุดแผนที่" ไหม — ลูกค้าต้องเดินทางมาที่ร้านหรือเปล่า
+ *
+ *  🛑 SSOT ของคำถามนี้ (HR16) — ห้ามเขียน `v === 'SERVICE_QUEUE' || v === 'LODGING'` ซ้ำที่อื่น
+ *  เพื่อตอบคำถามเดียวกัน. เงื่อนไขรูปนี้มีอยู่หลายที่ในรีโปแต่ **ตอบคนละคำถาม** อย่าเอามารวมกัน:
+ *    - `shipping-address-status.ts:34` = "ร้านนี้ต้องจัดส่งของไหม" (ที่อยู่ *ผู้ซื้อ*)
+ *    - `VerticalTaxonomyPicker.tsx:154` = "จัดกลุ่มเป็น BOOKING หรือ SALES"
+ *    - `orders/[token]/edit/page.tsx:97` = "ออเดอร์ใบนี้เป็นการจองไหม"
+ *  ตัวนี้ตอบเรื่องที่ตั้ง *ร้าน* อย่างเดียว
+ *
+ *  ทำไมต้องมี: BusinessCreateModal ใช้ค่านี้ตัดสิน 2 อย่างที่ต้องตรงกันเสมอ — (1) จะมีขั้น
+ *  "ที่ตั้งร้าน" ในวิซาร์ดไหม (2) จะส่ง address/latitude/longitude ไป API ไหม. ตอน 2026-08-14
+ *  สองอย่างนี้เคยแยกกันอยู่คนละที่ ผลคือวิซาร์ด "บังคับปักหมุด" แต่ payload ไม่เคยส่งพิกัดเลย
+ *  ⇒ ทั้งฐาน prod ไม่มีร้านไหนมีพิกัดสักร้าน (ดู docs/conventions/value-fate-decided-at-write-site.md)
+ */
+export function verticalRequiresStorefrontLocation(vertical: string | null | undefined): boolean {
+  const v = resolveShopVertical(vertical)
+  return v === 'SERVICE_QUEUE' || v === 'LODGING'
+}
+
 // ---------------------------------------------------------------------------
 // สิ่งอำนวยความสะดวกของห้องพัก (Room.facilities)
 // ---------------------------------------------------------------------------

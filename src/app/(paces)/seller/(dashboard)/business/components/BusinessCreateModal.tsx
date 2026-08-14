@@ -34,8 +34,13 @@ import { pacesToast } from '@/lib/paces-toast'
 import { uploadFileId } from '@/lib/upload-client'
 import CategoryMultiSelect from '../../dashboard/components/CategoryMultiSelect'
 import { SHOP_CATEGORY_LABELS } from '@/lib/shop-categories'
-import { SHOP_VERTICAL_KEYS, type ShopVertical } from '@/lib/lodging'
+import {
+  SHOP_VERTICAL_KEYS,
+  verticalRequiresStorefrontLocation,
+  type ShopVertical,
+} from '@/lib/lodging'
 import { isValidSlugFormat, isReservedSlug, normalizeSlug } from '@/lib/shop-slug'
+import { buildCreateBusinessShopPayload } from '@/lib/business-shop-payload'
 import ThaiAddressSearch from '@/components/safepay/ThaiAddressSearch'
 
 // Leaflet แตะ window ตอน import — ต้อง ssr:false (pattern เดียวกับที่ dashboard ใช้อยู่)
@@ -116,7 +121,9 @@ type StepKey = keyof typeof STEP_DEFS
  * ไม่ใช่ค้างที่ 6 แล้วกระโดดข้ามหนึ่งช่อง
  */
 function stepsFor(vertical: string): StepKey[] {
-  const needsLocation = vertical === 'SERVICE_QUEUE' || vertical === 'LODGING'
+  // ใช้ SSOT ตัวเดียวกับที่ buildCreateBusinessShopPayload ใช้ตัดสินว่าจะส่งพิกัดไหม —
+  // เงื่อนไขสองอย่างนี้แยกกันเมื่อไรคือรูปร่างของบั๊ก 2026-08-14 (วิซาร์ดถาม แต่ payload ไม่ส่ง)
+  const needsLocation = verticalRequiresStorefrontLocation(vertical)
   return needsLocation
     ? ['info', 'vertical', 'location', 'owner', 'slug', 'review']
     : ['info', 'vertical', 'owner', 'slug', 'review']
@@ -277,13 +284,16 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
 
   const onSubmit = async (v: FormValues) => {
     try {
-      const body = {
-        shopName: v.shopName,
-        businessType: v.businessType,
-        vertical: v.vertical,
-        categories: v.categories,
-        description: v.description,
-      }
+      /**
+       * 🛑 ห้ามประกอบ body ตรงนี้ด้วยมืออีก — ต้องผ่าน buildCreateBusinessShopPayload เท่านั้น
+       *
+       * บั๊ก 2026-08-14: object literal ที่เคยอยู่ตรงนี้มีแค่ 5 คีย์ ส่วน slug/logo/address/
+       * latitude/longitude ที่ผู้ใช้กรอกและยืนยันผ่านหน้าจอไปแล้วถูกทิ้งเงียบ ๆ ผู้ใช้เข้า
+       * /shop แล้วเจอ "ตั้ง URL หน้าร้าน" ว่างเปล่าทั้งที่เพิ่งกรอกไป และร้าน SERVICE_QUEUE/
+       * LODGING เสียหมุดแผนที่ทุกใบทั้งที่วิซาร์ดบังคับปักก่อนกดถัดไปได้
+       * ฟังก์ชันนั้นมีเทส [blocker] ที่แดงทันทีถ้าคีย์ไหนหลุด — literal ตรงนี้ไม่มีอะไรเฝ้า
+       */
+      const body = buildCreateBusinessShopPayload(v)
       const res = await fetch('/api/business/shops', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -297,7 +307,14 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
         return
       }
       await res.json()
-      pacesToast.success('สร้างธุรกิจสำเร็จ')
+      /**
+       * บอก URL จริงที่บันทึกแล้ว ไม่ใช่คำชมลอย ๆ — "สร้างธุรกิจสำเร็จ" เฉย ๆ ไม่ได้ยืนยันว่า
+       * สิ่งที่ผู้ใช้กรอกถูกเก็บจริงหรือเปล่า ซึ่งเป็นช่องว่างที่ทำให้บั๊ก 2026-08-14 ผ่านตาไป
+       * ถึงหน้า /shop (ผู้ใช้เพิ่งเห็นคำว่า "สำเร็จ" มาหมาด ๆ แล้วเจอช่อง URL ว่าง)
+       */
+      pacesToast.success(
+        body.slug ? `สร้างธุรกิจสำเร็จ — เปิดที่ deepthailand.app/b/${body.slug}` : 'สร้างธุรกิจสำเร็จ',
+      )
       /**
        * รีเฟรช session ก่อน navigate — ตัวสลับบัญชีมุมขวาอ่านรายชื่อร้านจาก session
        * ถ้าไม่สั่ง update() ร้านใหม่จะยังไม่โผล่จนกว่าผู้ใช้จะ refresh หน้าเอง
@@ -610,8 +627,11 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
             {stepKey === 'review' && (
               <>
                 <p className="text-default-900 mb-1 text-xl font-semibold">ตรวจทานก่อนสร้าง</p>
+                {/* "2 อย่าง" ไม่ใช่ "หนึ่งอย่าง" — ตั้งแต่ payload ส่ง slug จริง (2026-08-14)
+                    URL ร้านก็กลายเป็นค่าถาวรเหมือน vertical: setShopSlug ปฏิเสธการเขียนทับ
+                    ด้วย SLUG_ALREADY_SET แล้ว ไม่ใช่แค่หน้าจอไม่มีช่องให้แก้ */}
                 <p className="text-default-400 mb-5 text-xs">
-                  มีข้อมูลหนึ่งอย่างที่แก้ทีหลังไม่ได้ ตรวจให้แน่ใจก่อนกดสร้าง
+                  มีข้อมูล 2 อย่างที่แก้ทีหลังไม่ได้ ตรวจให้แน่ใจก่อนกดสร้าง
                 </p>
                 {/* Base: src/app/(paces)/seller/(dashboard)/account/components/ConnectedAccountsClient.tsx:342
                     (โครงแถว: flex items-center justify-between + border-b py-3 last:border-0) */}
@@ -642,11 +662,25 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
                     v={values.businessType === 'COMPANY' ? 'นิติบุคคล' : 'บุคคลธรรมดา'}
                   />
                   <Row k="คำอธิบาย" v={values.description || null} />
-                  <Row k="URL ร้าน" v={values.slug ? `deepthailand.app/b/${values.slug}` : null} />
+                  {/* แถวนี้ไม่ใช้ Row() แล้ว — ต้องมี badge ล็อกเหมือนแถว "ประเภทกิจการ"
+                      เพราะ URL ร้านเป็นค่าถาวรพอกัน (ดู subtitle ด้านบน) */}
+                  <div className="border-default-200 flex items-center justify-between gap-3 border-b py-3 last:border-0">
+                    <dt className="text-default-400 shrink-0 text-xs">URL ร้าน</dt>
+                    <dd className="text-default-900 text-right text-sm font-medium">
+                      {values.slug ? `deepthailand.app/b/${values.slug}` : '—'}
+                      <span className="text-warning-ink mt-0.5 flex items-center justify-end gap-1 text-2xs font-medium">
+                        <Icon icon="lock" className="size-3" />
+                        เปลี่ยนภายหลังไม่ได้
+                      </span>
+                    </dd>
+                  </div>
                   {steps.includes('location') && <Row k="ที่อยู่ร้าน" v={values.address || null} />}
                 </dl>
+                {/* ข้อความเดิมบอกว่าต้องไปตั้งลิงก์ร้าน/หมวดหมู่ต่อที่หน้าตั้งค่า — เป็นคำที่เขียนไว้
+                    ตอนที่ payload ยังไม่ส่ง slug จริง พอแก้บั๊กแล้วมันจะกลายเป็นคำโกหกทันที
+                    สิ่งเดียวที่วิซาร์ดนี้ยังไม่ถามจริง ๆ คือภาพหน้าปกร้าน (coverImage) */}
                 <p className="text-default-400 mt-4 text-xs">
-                  สร้างเสร็จแล้วจะพาไปตั้งค่าร้าน (ลิงก์ร้าน และหมวดหมู่) ก่อนเริ่มใช้งาน
+                  ข้อมูลทุกอย่างในหน้านี้ถูกบันทึกทันทีที่กดสร้าง — แก้ไขเพิ่มเติมได้ภายหลังที่หน้าตั้งค่าร้าน เช่น ภาพหน้าปกร้าน
                 </p>
               </>
             )}
