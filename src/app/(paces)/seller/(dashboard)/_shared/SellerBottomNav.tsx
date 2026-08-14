@@ -28,6 +28,10 @@ import type { OrderVocab } from '@/lib/seller-menu'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
+import { byVertical } from '@/i18n/vertical'
+import type { Dictionary } from '@/i18n/dictionaries/th'
 
 // ─── FAB_ACTIONS — reuse ตรงจาก CreateFab (href verified จากไฟล์นั้น) ────────
 // short path ไม่มี /seller prefix ตาม Paces routing convention
@@ -37,21 +41,21 @@ import { useEffect, useRef, useState } from 'react'
 // ตรงกับ scope acceptance S-7 (ห้ามสลับลำดับ array โดยไม่ดูทิศ flex-col)
 // feature 00030: ป้ายของ action ออเดอร์ผันตามประเภทกิจการ จึงเป็นฟังก์ชันไม่ใช่ constant
 // (อีก 2 ตัวคงที่ — สินค้า/หมวดหมู่ ไม่ผูกกับ vertical)
-const buildFabActions = (vocab: OrderVocab) =>
+const buildFabActions = (vocab: OrderVocab, t: Dictionary, vertical: string | null | undefined) =>
   [
     {
-      label: 'สร้างหมวดหมู่',
+      label: t.dashboard.navCreateCategory,
       href: '/categories',
       icon: 'category-plus',
     },
     {
-      label: 'สร้างสินค้า',
+      label: t.dashboard.navCreateProduct,
       href: '/products/new',
       icon: 'package-plus',
     },
     {
       // createLabelShort ไม่ใช่ createLabel — pill ลอยกลางจอ คำเต็มของร้านบริการยาวเกินสวย
-      label: vocab.createLabelShort,
+      label: byVertical(t.vocab.createLabelShort, vertical),
       href: '/orders/new',
       icon: 'shopping-cart-plus',
     },
@@ -81,6 +85,13 @@ interface SellerBottomNavProps {
    * กว้าง ~64px ที่ 320px) และ createLabelShort (pill ของ FAB)
    */
   orderVocab: OrderVocab
+  /**
+   * `Shop.vertical` — ใช้เลือกคำนามที่แปลแล้วจาก dictionary
+   *
+   * ทำไมไม่ derive จาก `orderVocab`: อ็อบเจกต์นั้นเก็บ *คำไทย* ไว้แล้ว การเดาย้อนกลับจากคำ
+   * ไปเป็นประเภทร้านคือการผูกความหมายไว้กับข้อความ ซึ่งพังทันทีที่คำเปลี่ยน
+   */
+  shopVertical?: string | null
 }
 
 // ─── SpeedDialAction pill — sub-component (ใช้เฉพาะใน SellerBottomNav) ────────
@@ -106,8 +117,9 @@ function SpeedDialAction({ href, label, icon, innerRef }: SpeedDialActionProps) 
 }
 
 // ─── SellerBottomNav — main component ─────────────────────────────────────────
-export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVocab }: SellerBottomNavProps) {
-  const fabActions = buildFabActions(orderVocab)
+export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVocab, shopVertical }: SellerBottomNavProps) {
+  const t = useT()
+  const fabActions = buildFabActions(orderVocab, t, shopVertical)
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
@@ -241,7 +253,7 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
           /* arbitrary: safe-area iOS notch/home bar — ไม่มี token แทน */
           'pb-[env(safe-area-inset-bottom)]',
         ].join(' ')}
-        aria-label="เมนูหลัก"
+        aria-label={t.dashboard.navMenuAria}
       >
         {/* ช่อง 1: หน้าหลัก */}
         {/* gap-1 (4px token) ระหว่าง icon กับ label ทุกช่อง — เลิก arbitrary gap-[3px] */}
@@ -252,12 +264,12 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
               ? 'text-primary'
               : 'text-default-500'
           }`}
-          aria-label="หน้าหลัก"
+          aria-label={t.dashboard.navHome}
           aria-current={isActive('/dashboard', true) ? 'page' : undefined}
         >
           {/* nav icon = text-2xl (24px token) แทน inline fontSize 23px — ทุกช่องใช้ขนาดนี้ */}
           <Icon icon="home-2" className="text-2xl" />
-          <span className="text-xs font-medium">หน้าหลัก</span>
+          <span className="text-xs font-medium">{t.dashboard.navHome}</span>
         </Link>
 
         {/* ช่อง 2: คำสั่งซื้อ + badge */}
@@ -268,11 +280,11 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
               ? 'text-primary'
               : 'text-default-500'
           }`}
-          aria-label={`${orderVocab.noun}${pendingCount > 0 ? ` (${pendingCount} รายการรอดำเนินการ)` : ''}`}
+          aria-label={`${byVertical(t.vocab.orderNoun, shopVertical)}${pendingCount > 0 ? ` (${fmt(t.dashboard.navPendingAria, { n: pendingCount })})` : ''}`}
           aria-current={isActive('/orders', false) ? 'page' : undefined}
         >
           <Icon icon="clipboard-list" className="text-2xl" />
-          <span className="text-xs font-medium leading-tight">{orderVocab.nounShort}</span>
+          <span className="text-xs font-medium leading-tight">{byVertical(t.vocab.orderNounShort, shopVertical)}</span>
           {/* badge — แสดงเฉพาะเมื่อ pendingCount > 0 */}
           {pendingCount > 0 && (
             <span
@@ -303,7 +315,7 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
             type="button"
             onClick={() => setOpen((prev) => !prev)}
             aria-expanded={open}
-            aria-label={open ? 'ปิดเมนูสร้าง' : 'เปิดเมนูสร้าง'}
+            aria-label={open ? t.dashboard.navCreateClose : t.dashboard.navCreateOpen}
             className={[
               /* arbitrary: raised FAB ขนาด/ตำแหน่ง — Paces ไม่มี token สำหรับ center raised button
                  -30px (เดิม -26): แถบสูงขึ้น 8px → จุดกึ่งกลาง cell เลื่อนลง 4px ต้องชดเชยเพื่อให้
@@ -326,7 +338,7 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
             className="text-xs font-medium text-default-500"
             style={{ marginTop: '30px' }}
           >
-            สร้าง
+            {t.dashboard.navCreate}
           </span>
         </div>
 
@@ -339,11 +351,11 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
               ? 'text-primary'
               : 'text-default-500'
           }`}
-          aria-label={`แชท${unreadChatCount > 0 ? ` (${unreadChatCount} ข้อความยังไม่อ่าน)` : ''}`}
+          aria-label={`${t.dashboard.navChat}${unreadChatCount > 0 ? ` (${fmt(t.dashboard.navUnreadAria, { n: unreadChatCount })})` : ''}`}
           aria-current={isActive('/inbox', false) ? 'page' : undefined}
         >
           <Icon icon="message-circle" className="text-2xl" />
-          <span className="text-xs font-medium">แชท</span>
+          <span className="text-xs font-medium">{t.dashboard.navChat}</span>
           {unreadChatCount > 0 && (
             <span
               aria-hidden="true"
@@ -370,11 +382,11 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
               ? 'text-primary'
               : 'text-default-500'
           }`}
-          aria-label="ร้านค้า"
+          aria-label={t.dashboard.navShop}
           aria-current={isActive('/shop', false) ? 'page' : undefined}
         >
           <Icon icon="building-store" className="text-2xl" />
-          <span className="text-xs font-medium">ร้านค้า</span>
+          <span className="text-xs font-medium">{t.dashboard.navShop}</span>
         </Link>
       </nav>
     </>

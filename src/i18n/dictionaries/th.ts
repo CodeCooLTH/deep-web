@@ -136,6 +136,20 @@ export const th = {
       SERVICE_QUEUE: 'การเข้ารับบริการ',
       LODGING: 'บิลเข้าพัก',
     },
+    /**
+     * รูปสั้นสำหรับที่แคบ — ORDER_VOCAB.nounShort / createLabelShort
+     * bottom nav มี 5 ช่องบนจอ 320px และ pill ของปุ่มสร้างลอยกลางจอ ⇒ คำเต็มไม่พอที่
+     */
+    orderNounShort: {
+      ONLINE_SALES: 'คำสั่งซื้อ',
+      SERVICE_QUEUE: 'บริการ',
+      LODGING: 'บิลเข้าพัก',
+    },
+    createLabelShort: {
+      ONLINE_SALES: 'สร้างคำสั่งซื้อ',
+      SERVICE_QUEUE: 'งานใหม่',
+      LODGING: 'เปิดบิลเข้าพัก',
+    },
     /** ปุ่ม/ประโยคชวนสร้างใบใหม่ — ORDER_VOCAB.createLabel */
     createLabel: {
       ONLINE_SALES: 'สร้างคำสั่งซื้อ',
@@ -281,6 +295,44 @@ export const th = {
     achievementNoneEarned: 'ยังไม่มีรางวัล — เริ่มขายเพื่อสะสม',
     achievementMoreCount: '+{n} รางวัล',
     achievementAllEarned: 'คุณได้รับทุกรางวัลแล้ว',
+
+    /* ── Command Center (มือถือ, < lg) ───────────────────────────────────── */
+    heroReviews: 'รีวิว',
+    heroNotifications: 'การแจ้งเตือน',
+    heroTopUp: 'เติมเงิน',
+    heroPackageLocked: 'ต่ออายุไม่สำเร็จ',
+    /** {tier} = ชื่อแพ็กเกจ · {state} = ' ต่ออายุไม่สำเร็จ' หรือว่าง */
+    heroPackageAria: 'แพ็กเกจร้านค้า {tier}{state} ไปที่หน้าแพ็กเกจ',
+
+    salesCardTitle: 'ยอดขาย',
+    salesCardRangeAria: 'ช่วงเวลา',
+    chartConfirmed: 'ยืนยันแล้ว',
+    chartUnconfirmed: 'รอยืนยัน',
+    chartToday: 'วันนี้',
+    chartAvg: 'เฉลี่ย {n}',
+    compareAvgDays: 'จากค่าเฉลี่ย {n} วัน',
+    compareLastMonth: 'จากเดือนก่อน',
+    /** ป้ายเสียงของการ์ดยอดขายทั้งใบ — {range}/{amount}/{count}/{noun}/{confirmed}/{unconfirmed} */
+    salesCardAria:
+      'ยอดขาย{range} {amount} บาท จาก {count} {noun} ยืนยันแล้ว {confirmed} บาท รอยืนยัน {unconfirmed} บาท กดเพื่อดูรายงานฉบับเต็ม',
+
+    shortcutsTitle: 'เมนูลัด',
+    shortcutsEmptyTitle: 'ยังไม่มีเมนูลัด',
+    shortcutsEmptyDesc: 'เลือกเมนูที่ใช้บ่อยมาไว้ตรงนี้ เพื่อกดถึงได้ในคลิกเดียว',
+    shortcutsSetup: 'ตั้งเมนูลัด',
+
+    navMenuAria: 'เมนูหลัก',
+    navHome: 'หน้าหลัก',
+    navCreate: 'สร้าง',
+    navChat: 'แชท',
+    navShop: 'ร้านค้า',
+    navCreateOpen: 'เปิดเมนูสร้าง',
+    navCreateClose: 'ปิดเมนูสร้าง',
+    navCreateCategory: 'สร้างหมวดหมู่',
+    navCreateProduct: 'สร้างสินค้า',
+    /** {n} = จำนวน — ป้ายเสียงของช่องออเดอร์/แชทบน bottom nav */
+    navPendingAria: '{n} รายการรอดำเนินการ',
+    navUnreadAria: '{n} ข้อความยังไม่อ่าน',
 
     checklistTitle: 'ตั้งค่าร้านค้าให้ครบ',
     checklistLoading: 'กำลังโหลด checklist',

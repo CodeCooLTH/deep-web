@@ -68,6 +68,8 @@ export type CommandCenterData = {
    * แล้วให้ปลายทางเรียก resolveProductVocab เอง
    */
   orderNoun?: string
+  /** คำเดียวกันแต่ใช้ยืนเดี่ยวเป็นหัวการ์ด — อังกฤษต้องเป็นพหูพจน์ตัวใหญ่ ("Orders" ไม่ใช่ "order") */
+  orderNounTitle?: string
   shopVertical?: string
 
   /** ตัดออก 2026-08-04 — "กิจกรรมล่าสุด" ถูกถอดจากหน้าแรก (user: "ดูยาก เอาออก")

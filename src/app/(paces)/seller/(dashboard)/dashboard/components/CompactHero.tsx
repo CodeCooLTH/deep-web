@@ -30,6 +30,8 @@ import {
   type BusinessPackageStatusApp,
   type BusinessPackageTier,
 } from '@/lib/business-package'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 
 export interface CompactHeroProps {
   shopName: string
@@ -71,7 +73,7 @@ export default function CompactHero({
   walletBalance,
   shopSlug,
   orderCount,
-  orderNoun = 'คำสั่งซื้อ',
+  orderNoun,
   reviewCount,
   avgRating,
   notiCount = 0,
@@ -79,6 +81,9 @@ export default function CompactHero({
   packageTier,
   hidePayments = false,
 }: CompactHeroProps) {
+  const t = useT()
+  // คำนามผันตามประเภทร้าน — ผู้เรียกส่งคำที่แปลแล้วมา; ไม่ส่ง = ถอยไปคำของร้านขายออนไลน์
+  const noun = orderNoun || t.vocab.orderNoun.ONLINE_SALES
   /** ความกว้าง/สูงของวง trust ring (HR7 carve-out เดิมของไฟล์นี้ — Paces ไม่มี token progress ring)
    *  ประกาศเป็นค่าเดียวเพราะบรรทัดสถิติที่อยู่นอกปุ่มสลับบัญชีต้องเยื้องตามความกว้างนี้เป๊ะ */
   const AVATAR_SIZE = 58
@@ -110,9 +115,12 @@ export default function CompactHero({
   const packageConfig = packageTier ? BUSINESS_PACKAGE_TIER_CONFIG[packageTier] : null
   // Free = pseudo tier (ไม่มี row ใน BUSINESS_PACKAGE_TIER_CONFIG) — NOT_SUBSCRIBED เท่านั้นที่ไม่มี config
   const packageTierLabel = packageConfig?.label ?? 'Free'
-  const packageAriaLabel = `แพ็กเกจร้านค้า ${packageTierLabel}${isPackageLocked ? ' ต่ออายุไม่สำเร็จ' : ''} ไปที่หน้าแพ็กเกจ`
+  const packageAriaLabel = fmt(t.dashboard.heroPackageAria, {
+    tier: packageTierLabel,
+    state: isPackageLocked ? ` ${t.dashboard.heroPackageLocked}` : '',
+  })
   const packageIcon = isPackageLocked ? 'tabler:alert-triangle' : 'tabler:crown'
-  const packageChipLabel = isPackageLocked ? 'ต่ออายุไม่สำเร็จ' : packageTierLabel
+  const packageChipLabel = isPackageLocked ? t.dashboard.heroPackageLocked : packageTierLabel
   /* ไม่ใช้เขียวแม้ ACTIVE — เขียวสงวนให้ trust verified (Verified-Means-Green Rule)
      ปกติ = outline ขาวโปร่ง (ไม่แย่งความเด่นจากชื่อร้านที่อยู่บรรทัดบน)
      LOCKED = แดงทึบ สงวนน้ำหนักภาพไว้ให้สถานะที่ต้องสะดุดตาจริงเท่านั้น */
@@ -261,12 +269,12 @@ export default function CompactHero({
               <div className="flex items-center gap-1.5 min-w-0 overflow-hidden whitespace-nowrap">
                 <span>
                   <strong className="text-white font-semibold">{orderCount.toLocaleString('th-TH')}</strong>{' '}
-                  {orderNoun}
+                  {noun}
                 </span>
                 <span className="opacity-50">·</span>
                 <span>
                   <strong className="text-white font-semibold">{reviewCount.toLocaleString('th-TH')}</strong>{' '}
-                  รีวิว
+                  {t.dashboard.heroReviews}
                 </span>
                 <span className="opacity-50">·</span>
                 <span className="inline-flex items-center gap-0.5">
@@ -291,7 +299,7 @@ export default function CompactHero({
           {/* Bell — ใช้ next/link ตรง (RSC ห้าม component={Link}) */}
           <Link
             href="/notifications"
-            aria-label="การแจ้งเตือน"
+            aria-label={t.dashboard.heroNotifications}
             className="relative flex-shrink-0 text-white flex items-center justify-center"
             style={{ minWidth: 44, minHeight: 44 }}
           >
@@ -334,7 +342,7 @@ export default function CompactHero({
               className="btn btn-sm bg-white text-primary rounded-full font-bold text-xs flex-shrink-0 inline-flex items-center gap-1"
             >
               <Icon icon="solar:add-circle-bold-duotone" className="text-base" />
-              เติมเงิน
+              {t.dashboard.heroTopUp}
             </Link>
           )}
 

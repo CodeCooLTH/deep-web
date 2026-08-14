@@ -27,6 +27,7 @@ import SellerEmptyState from '../../_shared/SellerEmptyState'
 import ShortcutEditSheet from './ShortcutEditSheet'
 import { getShortcutTileIcon } from '../_constants/shortcut-icons'
 import type { ShortcutCatalogItemDto, ShortcutStateDto } from '../_constants/command-center'
+import { useT } from '@/i18n/LocaleProvider'
 
 type Props = {
   initialTiles: ShortcutCatalogItemDto[]
@@ -51,6 +52,7 @@ function fmtBadge(n: number): string {
 }
 
 export default function CarouselGrid({ initialTiles, liveAuctionCount = 0 }: Props) {
+  const t = useT()
   // ถือ state เองเพื่อให้การ์ดอัปเดตทันทีที่แก้ในชีต ไม่ต้องรอปิดชีตหรือ reload หน้า
   const [tiles, setTiles] = useState(initialTiles)
   const [editing, setEditing] = useState(false)
@@ -61,7 +63,7 @@ export default function CarouselGrid({ initialTiles, liveAuctionCount = 0 }: Pro
         <div className="card-header !py-3">
           <h4 className="card-title flex items-center gap-1.5">
             <Icon icon="layout-grid" className="size-4 text-primary" />
-            เมนูลัด
+            {t.dashboard.shortcutsTitle}
           </h4>
           {/* min-h-11 + negative margin: tap target ≥44px โดยไม่ดันความสูง card-header ให้โป่ง
               (บราวเซอร์นับพื้นที่กดจากกล่องของ element ที่กดได้เท่านั้น — .card-header เองกดไม่ได้) */}
@@ -71,7 +73,7 @@ export default function CarouselGrid({ initialTiles, liveAuctionCount = 0 }: Pro
             className="text-primary -my-2.5 inline-flex min-h-11 items-center gap-1 py-2.5 text-sm font-medium"
           >
             <Icon icon="pencil" className="size-4" />
-            แก้ไข
+            {t.common.edit}
           </button>
         </div>
 
@@ -84,8 +86,8 @@ export default function CarouselGrid({ initialTiles, liveAuctionCount = 0 }: Pro
               <SellerEmptyState
                 compact
                 icon="apps-off"
-                title="ยังไม่มีเมนูลัด"
-                description="เลือกเมนูที่ใช้บ่อยมาไว้ตรงนี้ เพื่อกดถึงได้ในคลิกเดียว"
+                title={t.dashboard.shortcutsEmptyTitle}
+                description={t.dashboard.shortcutsEmptyDesc}
               />
               <div className="flex justify-center">
                 <button
@@ -93,7 +95,7 @@ export default function CarouselGrid({ initialTiles, liveAuctionCount = 0 }: Pro
                   onClick={() => setEditing(true)}
                   className="btn bg-primary hover:bg-primary-hover min-h-11 rounded-full px-6 text-sm font-medium text-white"
                 >
-                  ตั้งเมนูลัด
+                  {t.dashboard.shortcutsSetup}
                 </button>
               </div>
             </div>

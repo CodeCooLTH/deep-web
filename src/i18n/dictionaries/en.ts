@@ -99,6 +99,16 @@ export const en: Dictionary = {
       SERVICE_QUEUE: 'Service visits',
       LODGING: 'Stay bills',
     },
+    orderNounShort: {
+      ONLINE_SALES: 'Orders',
+      SERVICE_QUEUE: 'Services',
+      LODGING: 'Stays',
+    },
+    createLabelShort: {
+      ONLINE_SALES: 'New order',
+      SERVICE_QUEUE: 'New job',
+      LODGING: 'New stay bill',
+    },
     createLabel: {
       ONLINE_SALES: 'Create an order',
       SERVICE_QUEUE: 'Create a job',
@@ -221,6 +231,40 @@ export const en: Dictionary = {
     achievementNoneEarned: 'No achievements yet — start selling to collect them.',
     achievementMoreCount: '+{n} more',
     achievementAllEarned: 'You have earned every achievement.',
+
+    heroReviews: 'reviews',
+    heroNotifications: 'Notifications',
+    heroTopUp: 'Top up',
+    heroPackageLocked: 'Renewal failed',
+    heroPackageAria: 'Shop package {tier}{state} — go to the package page',
+
+    salesCardTitle: 'Sales',
+    salesCardRangeAria: 'Time range',
+    chartConfirmed: 'Confirmed',
+    chartUnconfirmed: 'Awaiting confirmation',
+    chartToday: 'Today',
+    chartAvg: 'Avg {n}',
+    compareAvgDays: 'vs {n}-day average',
+    compareLastMonth: 'vs last month',
+    salesCardAria:
+      'Sales {range}: {amount} baht from {count} {noun} — {confirmed} baht confirmed, {unconfirmed} baht awaiting confirmation. Tap to open the full report.',
+
+    shortcutsTitle: 'Shortcuts',
+    shortcutsEmptyTitle: 'No shortcuts yet',
+    shortcutsEmptyDesc: 'Pin the pages you use most so they are one tap away.',
+    shortcutsSetup: 'Set up shortcuts',
+
+    navMenuAria: 'Main menu',
+    navHome: 'Home',
+    navCreate: 'Create',
+    navChat: 'Chat',
+    navShop: 'Shop',
+    navCreateOpen: 'Open create menu',
+    navCreateClose: 'Close create menu',
+    navCreateCategory: 'New category',
+    navCreateProduct: 'New product',
+    navPendingAria: '{n} awaiting action',
+    navUnreadAria: '{n} unread messages',
 
     checklistTitle: 'Finish setting up your shop',
     checklistLoading: 'Loading checklist',

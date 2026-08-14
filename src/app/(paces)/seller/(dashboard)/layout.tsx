@@ -199,6 +199,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           pendingCount={pendingCount}
           unreadChatCount={unreadChatCount}
           orderVocab={orderVocab}
+          shopVertical={shop.vertical}
         />
       }
       sidenavFooterSlot={<OnboardingGate />}

@@ -525,8 +525,11 @@ export default async function SellerDashboardPage() {
             shippingStageCounts,
             // ร้านคิวงาน: ไทล์ที่ 2 = "นัดวันนี้" แทน "กำลังจัดส่ง" (user เคาะ 2026-08-07)
             appointmentTodayCount,
-            // คำที่ผันตามประเภทกิจการ (SSOT = src/lib/seller-menu.ts) — ส่งได้เฉพาะสตริง
-            orderNoun,
+            // คำที่ผันตามประเภทกิจการ — ส่ง "คำที่แปลแล้ว" ไม่ใช่ค่าดิบจาก ORDER_VOCAB
+            // 🛑 เดิมส่ง `orderNoun` (ไทยเสมอ) ทำให้หัวการ์ดบนมือถืออ่านว่า "Status of คำสั่งซื้อ"
+            //    เมื่อผู้ใช้ตั้งภาษาเป็นอังกฤษ — เทมเพลตแปลแล้วแต่คำที่เสียบเข้าไปยังเป็นไทย
+            orderNoun: byVertical(t.vocab.orderNoun, shopVertical),
+            orderNounTitle: byVertical(t.vocab.orderNounTitle, shopVertical),
             shopVertical,
             promoBanner: PROMO_BANNER,
             // v8: header card + wallet (S-6/S-8)

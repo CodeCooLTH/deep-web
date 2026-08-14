@@ -61,6 +61,7 @@ export default function CommandCenter({ data }: Props) {
         shipping={data.shippingStageCounts}
         appointmentToday={data.appointmentTodayCount}
         orderNoun={data.orderNoun}
+        orderNounTitle={data.orderNounTitle}
       />
 
       {/* สินค้าขายดี — จิ้ม→สร้างออเดอร์พร้อมสินค้านั้น (feature Quick Create); ว่าง→ไม่ render */}
