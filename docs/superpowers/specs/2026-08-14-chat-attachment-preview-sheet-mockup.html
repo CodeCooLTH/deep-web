@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ชีตพรีวิวไฟล์แนบเต็มจอ (มือถือ) · กล่องแชทผู้ขาย · Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+  /* ── Paces tokens (ยกจาก theme/paces — น้ำเงิน #236dc9 ไม่ใช่ม่วง Vuexy) ───────── */
+  :root{
+    --primary:#236dc9; --primary-ink:#1b56a0; --primary-hover:#1f61b4;
+    --card:#ffffff; --body-bg:#f5f6fa;
+    --default-50:#f7f8fa; --default-100:#eef0f4; --default-200:#e3e6ec; --default-300:#cbd1db;
+    --default-600:#707b8f; --default-700:#5b6577; --default-800:#3a4354; --default-900:#1f2733;
+    --warning:#f7a34a; --warning-ink:#8a5210;
+    --info:#42a5f5; --info-ink:#1c5f92;
+    --success:#28c76f; --success-ink:#136c39;
+    --danger:#ef4c58; --danger-ink:#9b2028;
+    --dark:#313a46;
+    --radius:.5rem;
+    --shadow-lg:0 10px 30px -8px rgb(31 39 51 / .18);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#e9ecf2;font-family:Anuphan,system-ui,sans-serif;color:var(--default-900)}
+  .page{max-width:1600px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:22px;font-weight:700;margin:0 0 4px}
+  .sub{color:var(--default-700);font-size:14px;margin:0 0 28px;line-height:1.7}
+  .sub code{background:#fff;padding:1px 5px;border-radius:4px;font-size:12px}
+  h2{font-size:15px;font-weight:600;margin:36px 0 12px;padding-top:20px;border-top:1px solid var(--default-300)}
+  .note{font-size:12.5px;color:var(--default-700);margin:-6px 0 14px;line-height:1.65;max-width:900px}
+  .note b{color:var(--default-900);font-weight:600}
+  .note code{background:#fff;padding:1px 5px;border-radius:4px;font-size:11.5px}
+  .row{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+
+  /* device frames */
+  .device{background:#fff;border-radius:14px;box-shadow:var(--shadow-lg);overflow:hidden;position:relative}
+  .device-label{font-size:11px;font-weight:600;color:var(--default-700);margin-bottom:6px;letter-spacing:.02em}
+  .d320{width:320px} .d390{width:390px} .d960{width:960px}
+
+  /* ── primitive ────────────────────────────────────────────────────────────── */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:var(--radius);
+       font-family:inherit;font-size:13px;font-weight:500;padding:9px 14px;cursor:pointer}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-icon{width:37px;height:37px;padding:0;background:none;color:var(--default-600);border-radius:var(--radius)}
+  .btn-icon.on-info{background:rgb(66 165 245 / .1);color:var(--info)}
+  .btn-icon.on-primary{background:rgb(35 109 201 / .1);color:var(--primary)}
+  .btn-icon.on-success{color:var(--success)}
+  .badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:500}
+
+  /* ── โครงห้องแชท (พื้นหลังของชีต) ────────────────────────────────────────── */
+  .thread{background:var(--body-bg);height:210px;position:relative;overflow:hidden;
+          padding:10px 12px;display:flex;flex-direction:column;gap:8px;justify-content:flex-end}
+  .bub{max-width:74%;padding:8px 11px;border-radius:14px;font-size:13px;line-height:1.5}
+  .bub.in{background:#fff;border:1px solid var(--default-200);align-self:flex-start;border-bottom-left-radius:4px}
+  .bub.out{background:var(--primary);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+  .thread-head{position:absolute;inset:0 0 auto 0;background:#fff;border-bottom:1px solid var(--default-200);
+               padding:8px 12px;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+  .thread-head .av{width:28px;height:28px;border-radius:999px;background:var(--default-200);flex:0 0 auto}
+
+  /* ── composer ─────────────────────────────────────────────────────────────── */
+  .composer{background:#fff;border-top:1px solid var(--default-200);padding:8px 12px 10px}
+  .tools{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-bottom:8px}
+  .tools .spacer{margin-left:auto}
+  .inputbox{border:1px solid var(--default-300);border-radius:var(--radius);background:#fff}
+  .inputbox .ta{padding:10px 12px;font-size:13px;color:var(--default-600)}
+  .inputbox .sendrow{display:flex;justify-content:flex-end;padding:0 8px 8px}
+  .pill{background:var(--primary);color:#fff;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:500;
+        display:inline-flex;align-items:center;gap:4px;min-height:44px;box-sizing:border-box}
+  .strip{display:flex;gap:8px;overflow-x:auto;padding:8px 8px 0}
+  .strip .th{position:relative;flex:0 0 auto;height:76px;border-radius:var(--radius);overflow:hidden}
+  .strip .th img{height:100%;display:block}
+
+  /* ── ชีตพรีวิว (ของใหม่) ─────────────────────────────────────────────────── */
+  .sheetwrap{position:relative}
+  .scrim{position:absolute;inset:0;background:rgb(31 39 51 / .38)}
+  .sheet{position:absolute;inset:0;background:#fff;display:flex;flex-direction:column;animation:up .3s ease}
+  @keyframes up{from{transform:translateY(14%);opacity:.4}to{transform:none;opacity:1}}
+  .sheet-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--default-200);flex:0 0 auto}
+  .sheet-close{width:44px;height:44px;flex:0 0 auto;border:0;border-radius:var(--radius);background:var(--default-100);
+               color:var(--default-800);display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .sheet-title{min-width:0}
+  .sheet-title b{display:block;font-size:15px;font-weight:600;line-height:1.3}
+  .sheet-title small{display:block;font-size:11.5px;color:var(--default-700);margin-top:1px}
+  .sheet-body{flex:1;overflow-y:auto;padding:12px}
+  .sheet-foot{flex:0 0 auto;border-top:1px solid var(--default-200);padding:10px 12px calc(10px + 14px)}
+  .send-full{width:100%;min-height:44px;border-radius:var(--radius);background:var(--primary);color:#fff;border:0;
+             font-family:inherit;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer}
+  .capline{display:flex;align-items:flex-start;gap:6px;font-size:12px;color:var(--default-700);
+           margin-bottom:8px;line-height:1.45;min-width:0}
+  .capline .txt{min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .homebar{position:absolute;left:50%;transform:translateX(-50%);bottom:5px;width:110px;height:4px;
+           border-radius:999px;background:var(--default-300)}
+
+  /* กริด */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+  .cell{position:relative;aspect-ratio:1/1;border-radius:var(--radius);overflow:hidden;background:var(--default-100)}
+  .cell img,.cell .ph{width:100%;height:100%;object-fit:cover;display:block}
+  .ph{display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600;letter-spacing:.02em}
+  .cell-x{position:absolute;top:4px;right:4px;width:36px;height:36px;border-radius:999px;background:rgb(49 58 70 / .6);
+          color:#fff;border:0;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .cell-play{position:absolute;right:4px;bottom:4px;width:22px;height:22px;border-radius:999px;background:rgb(49 58 70 / .6);
+             color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px}
+  .cell-file{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;height:100%;padding:6px;text-align:center}
+  .cell-file .chip{border-radius:var(--radius);padding:7px;display:inline-flex;font-size:17px}
+  .chip-file{background:rgb(247 163 74 / .15);color:var(--warning-ink)}
+  .chip-audio{background:rgb(40 199 111 / .15);color:var(--success-ink)}
+  .cell-file .nm{font-size:10.5px;color:var(--default-700);line-height:1.25;width:100%;
+                 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cell-file .sz{font-size:10px;color:var(--default-700)}
+  .cell-add{width:100%;height:100%;border:1px dashed rgb(35 109 201 / .4);background:rgb(35 109 201 / .05);
+            border-radius:var(--radius);color:var(--primary);display:flex;flex-direction:column;align-items:center;
+            justify-content:center;gap:4px;font-size:11.5px;font-weight:500;cursor:pointer;font-family:inherit}
+
+  /* toast */
+  .toast{position:absolute;top:8px;right:8px;left:auto;max-width:82%;background:#fff;border-radius:var(--radius);
+         box-shadow:var(--shadow-lg);border-left:3px solid var(--danger);padding:8px 10px;font-size:12px;
+         display:flex;gap:7px;align-items:flex-start;line-height:1.4;z-index:5}
+  .toast iconify-icon{color:var(--danger);flex:0 0 auto;margin-top:1px}
+
+  .cap{font-size:11.5px;color:var(--default-700);margin-top:8px;line-height:1.55;max-width:390px}
+  .cap b{color:var(--default-900)}
+  .tagrow{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+  .tag{background:#fff;border:1px solid var(--default-300);border-radius:999px;padding:2px 9px;font-size:11px;color:var(--default-700)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>ชีตพรีวิวไฟล์แนบเต็มจอ (มือถือ) — กล่องแชทผู้ขาย</h1>
+  <p class="sub">
+    2026-08-14 · <code>src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx</code><br />
+    เลือกรูปจาก picker ของ OS เหมือนเดิม → <b>ชีตของเราขึ้นมารับช่วงต่อ</b> เป็นกริดเต็มจอ + ปุ่ม “ส่ง N รายการ” ค้างล่างจอ<br />
+    <span style="color:var(--danger)">สีในกริดคือแผ่นสีแทนรูปจริง</span> — ของจริงคือ thumbnail จากเครื่องผู้ใช้
+  </p>
+
+  <div class="tagrow">
+    <span class="tag">มือถือ &lt;768px เท่านั้น</span>
+    <span class="tag">เดสก์ท็อป/แท็บเล็ตไม่เปลี่ยน</span>
+    <span class="tag">ไม่มีช่องพิมพ์ในชีต</span>
+    <span class="tag">back / ESC = ปิดชีต</span>
+    <span class="tag">Paces primitive ล้วน</span>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <h2>จอ A — 320px · เพิ่งเลือกมา 1 รูป</h2>
+  <p class="note">
+    สถานะพื้นฐานที่สุด. ช่องเส้นประ “เพิ่มไฟล์” อยู่ท้ายกริดเสมอ (กดแล้วเปิด picker ซ้ำ ไฟล์ใหม่ merge เข้าคิวเดิม ไม่เปิดชีตซ้อน).
+    ที่ว่างด้านล่างกริดเป็นเรื่องปกติเมื่อไฟล์ยังน้อย — ปุ่มส่งไม่ลอยขึ้นมาชิดกริด เพราะมันต้องอยู่ตำแหน่งเดิมเสมอไม่ว่าจะมีกี่ไฟล์
+  </p>
+  <div class="row">
+    <div>
+      <div class="device-label">iPhone SE · 320 × ชีตเปิด</div>
+      <div class="device d320">
+        <div class="sheetwrap">
+          <div class="thread">
+            <div class="thread-head"><div class="av"></div><span>คุณ Sekson</span></div>
+            <div class="bub in">รบกวนขอดูรูปสินค้าหน่อยครับ</div>
+            <div class="bub out">ได้เลยค่ะ เดี๋ยวส่งให้นะคะ</div>
+          </div>
+          <div class="scrim"></div>
+          <div class="sheet">
+            <div class="sheet-head">
+              <button class="sheet-close" aria-label="ปิด กลับไปพิมพ์ข้อความ"><iconify-icon icon="tabler:x" width="20"></iconify-icon></button>
+              <div class="sheet-title"><b>ไฟล์ที่จะส่ง</b></div>
+            </div>
+            <div class="sheet-body">
+              <div class="grid3">
+                <div class="cell">
+                  <div class="ph" style="background:linear-gradient(135deg,#7f9cf5,#4c6ef5)">รูปสินค้า</div>
+                  <button class="cell-x" aria-label="เอา IMG_0412.jpg ออก"><iconify-icon icon="tabler:x" width="16"></iconify-icon></button>
+                </div>
+                <div class="cell" style="background:none">
+                  <button class="cell-add">
+                    <iconify-icon icon="tabler:plus" width="20"></iconify-icon>
+                    เพิ่มไฟล์
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="sheet-foot">
+              <button class="send-full">ส่ง 1 รายการ <iconify-icon icon="tabler:send-2" width="17"></iconify-icon></button>
+            </div>
+            <div class="homebar"></div>
+          </div>
+        </div>
+      </div>
+      <p class="cap">
+        <b>ปุ่มปิด 44×44</b> ซ้ายบน · <b>ปุ่มส่งเต็มความกว้าง</b> ค้างล่างสุด เว้น safe-area ให้ home indicator ของ iPhone
+      </p>
+    </div>
+
+    <div>
+      <div class="device-label">320 · ก่อนเปิดชีต (แถวเครื่องมือที่มีปุ่ม “รูปภาพ” ใหม่)</div>
+      <div class="device d320">
+        <div class="thread" style="height:150px">
+          <div class="thread-head"><div class="av"></div><span>คุณ Sekson</span></div>
+          <div class="bub in">รบกวนขอดูรูปสินค้าหน่อยครับ</div>
+        </div>
+        <div class="composer">
+          <div class="tools">
+            <button class="btn btn-icon" title="ข้อความสำเร็จรูป"><iconify-icon icon="tabler:bolt" width="19"></iconify-icon></button>
+            <button class="btn btn-icon" title="เลือกสินค้า"><iconify-icon icon="tabler:package" width="19"></iconify-icon></button>
+            <button class="btn btn-icon" title="แนบไฟล์"><iconify-icon icon="tabler:paperclip" width="19"></iconify-icon></button>
+            <button class="btn btn-icon on-info" title="รูปภาพ"><iconify-icon icon="tabler:photo" width="19"></iconify-icon></button>
+            <button class="btn btn-icon" title="อิโมจิ"><iconify-icon icon="tabler:mood-smile" width="19"></iconify-icon></button>
+            <button class="btn btn-icon on-success" title="AI"><iconify-icon icon="tabler:sparkles" width="19"></iconify-icon></button>
+            <button class="btn btn-icon spacer" title="สร้างคำสั่งซื้อ"><iconify-icon icon="tabler:shopping-cart-plus" width="19"></iconify-icon></button>
+          </div>
+          <div class="inputbox">
+            <div class="ta">พิมพ์ข้อความ…</div>
+            <div class="sendrow"><span class="pill">ส่ง <iconify-icon icon="tabler:send-2" width="15"></iconify-icon></span></div>
+          </div>
+        </div>
+      </div>
+      <p class="cap">
+        <b>งบพื้นที่ 320px:</b> หลัง <code>px-4</code> เหลือ 288px · ปุ่มไอคอน 7 ตัว = 7×37 + 6×4 = <b>283px</b> → ยังอยู่บรรทัดเดียว เหลือ 5px<br />
+        ร้านคิวงาน/ช่องทางที่ส่งสติกเกอร์ได้ (9 ปุ่ม) จะ wrap ปุ่มสร้างออเดอร์ลงบรรทัดสอง — <b>พฤติกรรมเดิมที่ออกแบบไว้แล้ว</b> ไม่ใช่ของใหม่
+      </p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <h2>จอ B — 390px · หลายไฟล์ · กำลังอัปโหลดต่อ · มีไฟล์ล้ม · มีข้อความค้างไว้</h2>
+  <p class="note">
+    สถานะหนักสุดที่ต้องรับให้ไหวพร้อมกัน 4 อย่าง — <b>(1)</b> กริดยาวจนต้องเลื่อน <b>(2)</b> ตัวนับ “กำลังอัปโหลด 6/8” ใต้หัวชีต
+    <b>(3)</b> ไฟล์ที่ระบบปฏิเสธขึ้น toast ทะลุชีต (toast <code>z-1080</code> &gt; ชีต <code>z-80</code>) ไม่หายเงียบ
+    <b>(4)</b> ข้อความที่พิมพ์ค้างไว้ก่อนแนบรูป โชว์เป็นบรรทัดอ่านอย่างเดียวเหนือปุ่มส่ง — กันกรณีส่งข้อความที่ลืมไปโดยไม่ตั้งใจ
+  </p>
+  <div class="row">
+    <div>
+      <div class="device-label">iPhone 14 · 390 × ชีตเปิด (เลื่อนอยู่กลางกริด)</div>
+      <div class="device d390">
+        <div class="sheetwrap">
+          <div class="thread" style="height:250px">
+            <div class="thread-head"><div class="av"></div><span>คุณ Sekson</span></div>
+            <div class="bub in">รบกวนขอดูรูปสินค้าหน่อยครับ</div>
+            <div class="bub out">ได้เลยค่ะ เดี๋ยวส่งให้นะคะ</div>
+          </div>
+          <div class="scrim"></div>
+          <div class="sheet">
+            <div class="toast">
+              <iconify-icon icon="tabler:alert-triangle" width="15"></iconify-icon>
+              <span>ไฟล์ใหญ่เกิน 25MB ส่งไม่ได้ ลองลดขนาดหรือตัดคลิปให้สั้นลง</span>
+            </div>
+            <div class="sheet-head">
+              <button class="sheet-close" aria-label="ปิด กลับไปพิมพ์ข้อความ"><iconify-icon icon="tabler:x" width="20"></iconify-icon></button>
+              <div class="sheet-title">
+                <b>ไฟล์ที่จะส่ง</b>
+                <small aria-live="polite">กำลังอัปโหลด 6/8</small>
+              </div>
+            </div>
+            <div class="sheet-body">
+              <div class="grid3">
+                <div class="cell">
+                  <div class="ph" style="background:linear-gradient(135deg,#7f9cf5,#4c6ef5)">รูป 1</div>
+                  <button class="cell-x"><iconify-icon icon="tabler:x" width="16"></iconify-icon></button>
+                </div>
+                <div class="cell">
+                  <div class="ph" style="background:linear-gradient(135deg,#f0a868,#e0752d)">รูป 2</div>
+                  <button class="cell-x"><iconify-icon icon="tabler:x" width="16"></iconify-icon></button>
+                </div>
+                <div class="cell">
+                  <div class="ph" style="background:linear-gradient(135deg,#63c8a4,#2f9e78)">รูป 3</div>
+                  <button class="cell-x"><iconify-icon icon="tabler:x" width="16"></iconify-icon></button>
+                </div>
+                <div class="cell">
+                  <div class="ph" style="background:linear-gradient(135deg,#8e9bb3,#5b6577)">คลิป</div>
+                  <span class="cell-play"><iconify-icon icon="tabler:player-play-filled" width="11"></iconify-icon></span>
+                  <button class="cell-x"><iconify-icon icon="tabler:x" width="16"></iconify-icon></button>
+                </div>
+                <div class="cell">
+                  <div class="cell-file">
+                    <span class="chip chip-file"><iconify-icon icon="tabler:file-text" width="17"></iconify-icon></span>
+                    <span class="nm">ใบเสนอราคา-สิงหาคม-2569.pdf</span>
+                    <span class="sz">340 KB</span>
+                  </div>
+                  <button class="cell-x"><iconify-icon icon="tabler:x" width="16"></iconify-icon></button>
+                </div>
+                <div class="cell">
+                  <div class="cell-file">
+                    <span class="chip chip-audio"><iconify-icon icon="tabler:volume" width="17"></iconify-icon></span>
+                    <span class="nm">เสียงลูกค้า.m4a</span>
+                    <span class="sz">2.1 MB</span>
+                  </div>
+                  <button class="cell-x"><iconify-icon icon="tabler:x" width="16"></iconify-icon></button>
+                </div>
+                <div class="cell">
+                  <div class="ph" style="background:linear-gradient(135deg,#c9a7e8,#9560cc)">รูป 4</div>
+                  <button class="cell-x"><iconify-icon icon="tabler:x" width="16"></iconify-icon></button>
+                </div>
+                <div class="cell" style="background:none">
+                  <button class="cell-add">
+                    <iconify-icon icon="tabler:plus" width="20"></iconify-icon>
+                    เพิ่มไฟล์
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="sheet-foot">
+              <div class="capline">
+                <iconify-icon icon="tabler:message-2" width="14" style="flex:0 0 auto;margin-top:2px"></iconify-icon>
+                <span class="txt">จะส่งข้อความนี้ไปด้วย: “ตัวนี้ใช้ดีมากค่ะ จากที่ทางร้านได้จำหน่ายมา มีรีวิวจากลูกค้าเก่า ลูกค้าสบายใจได้เลยนะคะ”</span>
+              </div>
+              <button class="send-full">ส่ง 7 รายการ <iconify-icon icon="tabler:send-2" width="17"></iconify-icon></button>
+            </div>
+            <div class="homebar"></div>
+          </div>
+        </div>
+      </div>
+      <p class="cap">
+        กริด <b>3 คอลัมน์จัตุรัส</b> (ไม่ใช่ 4/5 แบบคลังไฟล์) — เพราะอ้างอิง camera roll ที่ผู้ใช้คุ้นอยู่แล้ว<br />
+        ไฟล์เอกสาร/เสียง = <b>ชิปไอคอน + ชื่อ + ขนาด</b> ไม่ใช่กรอบเทาว่าง (เอกสารไม่มีอะไรให้ดู กรอบเปล่าบอกไม่ได้ว่าแนบอะไรไป)
+      </p>
+    </div>
+
+    <div>
+      <div class="device-label">390 · ชีตปิดแล้ว (ยังไม่ส่ง — กลับมาพิมพ์ต่อได้)</div>
+      <div class="device d390">
+        <div class="thread" style="height:170px">
+          <div class="thread-head"><div class="av"></div><span>คุณ Sekson</span></div>
+          <div class="bub in">รบกวนขอดูรูปสินค้าหน่อยครับ</div>
+        </div>
+        <div class="composer">
+          <div class="tools">
+            <button class="btn btn-icon"><iconify-icon icon="tabler:bolt" width="19"></iconify-icon></button>
+            <button class="btn btn-icon"><iconify-icon icon="tabler:package" width="19"></iconify-icon></button>
+            <button class="btn btn-icon"><iconify-icon icon="tabler:paperclip" width="19"></iconify-icon></button>
+            <button class="btn btn-icon on-info"><iconify-icon icon="tabler:photo" width="19"></iconify-icon></button>
+            <button class="btn btn-icon"><iconify-icon icon="tabler:mood-smile" width="19"></iconify-icon></button>
+            <button class="btn btn-icon on-success"><iconify-icon icon="tabler:sparkles" width="19"></iconify-icon></button>
+            <button class="btn btn-icon spacer"><iconify-icon icon="tabler:shopping-cart-plus" width="19"></iconify-icon></button>
+          </div>
+          <div class="inputbox">
+            <div class="strip">
+              <div class="th"><div class="ph" style="width:76px;background:linear-gradient(135deg,#7f9cf5,#4c6ef5)">รูป 1</div></div>
+              <div class="th"><div class="ph" style="width:76px;background:linear-gradient(135deg,#f0a868,#e0752d)">รูป 2</div></div>
+              <div class="th"><div class="ph" style="width:76px;background:linear-gradient(135deg,#63c8a4,#2f9e78)">รูป 3</div></div>
+            </div>
+            <div class="ta" style="color:var(--default-900)">ตัวนี้ใช้ดีมากค่ะ จากที่ทางร้าน…</div>
+            <div class="sendrow"><span class="pill">ส่ง <iconify-icon icon="tabler:send-2" width="15"></iconify-icon></span></div>
+          </div>
+        </div>
+      </div>
+      <p class="cap">
+        กดปิดชีต (X / back / ESC) → กลับมาเห็น <b>แถบ thumbnail เดิม</b> ที่ยังทำงานปกติทุกอย่าง ไฟล์ไม่หาย
+        แล้วพิมพ์ข้อความต่อได้ · กด “ส่ง” ตรงนี้ก็ส่งได้เหมือนเดิม (ชีตเป็นทางลัด ไม่ใช่ทางเดียว)
+      </p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <h2>จอ C — ≥768px (เดสก์ท็อป/แท็บเล็ต) · ต้องไม่เปลี่ยนอะไรเลย</h2>
+  <p class="note">
+    ชีตไม่ mount เลยที่ breakpoint นี้ (<code>isMobileComposer === false</code>) — เส้นทางโค้ดเดิมวิ่งเหมือนก่อนแก้ 100%
+    สิ่งเดียวที่เปลี่ยนบนเดสก์ท็อปคือ <b>มีปุ่ม “รูปภาพ” เพิ่มมา 1 ตัว</b> ในแถวเครื่องมือ
+  </p>
+  <div class="row">
+    <div>
+      <div class="device-label">Desktop 960 · composer เดิม + ปุ่มรูปภาพใหม่</div>
+      <div class="device d960">
+        <div class="thread" style="height:150px">
+          <div class="thread-head"><div class="av"></div><span>คุณ Sekson Oonnom</span></div>
+          <div class="bub in">รบกวนขอดูรูปสินค้าหน่อยครับ</div>
+          <div class="bub out">ได้เลยค่ะ เดี๋ยวส่งให้นะคะ</div>
+        </div>
+        <div class="composer">
+          <div class="tools">
+            <button class="btn btn-icon"><iconify-icon icon="tabler:bolt" width="19"></iconify-icon></button>
+            <button class="btn btn-icon"><iconify-icon icon="tabler:package" width="19"></iconify-icon></button>
+            <button class="btn btn-icon"><iconify-icon icon="tabler:paperclip" width="19"></iconify-icon></button>
+            <button class="btn btn-icon on-info" title="รูปภาพ (ใหม่)"><iconify-icon icon="tabler:photo" width="19"></iconify-icon></button>
+            <button class="btn btn-icon"><iconify-icon icon="tabler:mood-smile" width="19"></iconify-icon></button>
+            <button class="btn btn-icon"><iconify-icon icon="tabler:sticker" width="19"></iconify-icon></button>
+            <button class="btn btn-icon on-success"><iconify-icon icon="tabler:sparkles" width="19"></iconify-icon></button>
+            <button class="btn btn-icon spacer"><iconify-icon icon="tabler:shopping-cart-plus" width="19"></iconify-icon></button>
+          </div>
+          <div class="inputbox">
+            <div class="strip">
+              <div class="th"><div class="ph" style="width:76px;background:linear-gradient(135deg,#7f9cf5,#4c6ef5)">รูป 1</div></div>
+              <div class="th"><div class="ph" style="width:76px;background:linear-gradient(135deg,#f0a868,#e0752d)">รูป 2</div></div>
+              <div class="th" style="height:76px">
+                <div style="display:flex;align-items:center;gap:9px;height:76px;width:200px;border:1px solid var(--default-300);
+                            background:var(--default-50);border-radius:8px;padding:9px 28px 9px 9px">
+                  <span class="chip chip-file" style="border-radius:8px;padding:8px;display:inline-flex"><iconify-icon icon="tabler:file-text" width="17"></iconify-icon></span>
+                  <span style="min-width:0">
+                    <span style="display:block;font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">ใบเสนอราคา.pdf</span>
+                    <span style="display:block;font-size:11px;color:var(--default-700);margin-top:2px">340 KB</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="ta">พิมพ์ข้อความ หรือวางไฟล์ที่นี่…</div>
+            <div class="sendrow"><span class="pill" style="min-height:30px">ส่ง <iconify-icon icon="tabler:send-2" width="15"></iconify-icon></span></div>
+          </div>
+        </div>
+      </div>
+      <p class="cap">แถบ thumbnail แนวนอนเดิม · ปุ่มส่งพิลล์เล็กเดิม · ไม่มีชีต ไม่มีปุ่มเต็มความกว้าง</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <h2>สิ่งที่ทำไม่ได้ (และทำไม)</h2>
+  <p class="note">
+    ครึ่งบนของภาพที่พี่ส่งมา — <b>กริดคลังรูปในเครื่อง + dropdown “Recents” + ปุ่ม HD</b> — ทำในเว็บไม่ได้
+    ไม่ว่าจะเปิดใน Safari หรือใน WebView ของแอปเรา เพราะไม่มี API ให้ JavaScript อ่านคลังรูปมาวาดเอง
+    เว็บเรียกได้แค่ <code>&lt;input type="file"&gt;</code> ซึ่งยกหน้าจอเลือกรูปทั้งหมดให้ OS<br /><br />
+    ข้อดีคือ picker ของ iOS 14+ / Android 13+ <b>หน้าตาใกล้ของ Messenger อยู่แล้ว</b> (เต็มจอ กริด badge ตัวเลข ปุ่มยืนยันล่างจอ)
+    และการเพิ่ม <code>accept="image/*"</code> ที่ปุ่ม “รูปภาพ” ใหม่ ทำให้ iOS <b>เข้ากริดรูปตรง ๆ ลดการแตะไป 1 ชั้น</b>
+    (ปุ่ม “แนบไฟล์” เดิมยังไม่ใส่ <code>accept</code> เหมือนเดิม — มีเหตุผลเขียนกำกับไว้ในโค้ดว่า Safari บางเวอร์ชันซ่อนไฟล์บางชนิด)
+  </p>
+
+</div>
+</body>
+</html>
