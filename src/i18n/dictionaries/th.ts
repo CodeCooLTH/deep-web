@@ -469,17 +469,9 @@ export const th = {
     composerQuotaExhausted: 'โควตาข้อความหมดแล้ว ส่งไม่ได้ตอนนี้',
     send: 'ส่ง',
     sendWithNote: 'ส่ง — {note}',
-    /** แนบไฟล์ + ชีตพรีวิวเต็มจอบนมือถือ (2026-08-14)
-     *  attachUploading/attachRemove ใช้ร่วมกัน 2 ที่ (แถบ thumbnail เดิม + ชีต) — คำเดียวกัน
-     *  ต้องมาจากคีย์เดียว ไม่ใช่พิมพ์ซ้ำคนละที่ (Hard Rule 16) */
-    attachPhotos: 'รูปภาพ',
+    /** คิวไฟล์แนบเหนือช่องพิมพ์ (2026-08-14) — ย้ายออกจากสตริงดิบใน ChatThread */
     attachUploading: 'กำลังอัปโหลด {done}/{total}',
     attachRemove: 'เอา {name} ออก',
-    attachSheetTitle: 'ไฟล์ที่จะส่ง',
-    attachSheetClose: 'ปิด กลับไปพิมพ์ข้อความ',
-    attachSheetAddMore: 'เพิ่มไฟล์',
-    attachSheetSend: 'ส่ง {count} รายการ',
-    attachSheetCaption: 'จะส่งข้อความนี้ไปด้วย: “{text}”',
     backToList: 'กลับรายการ',
     customerInfo: 'ข้อมูลลูกค้า',
     threadSoundTitle: 'เสียงแจ้งเตือนข้อความใหม่',

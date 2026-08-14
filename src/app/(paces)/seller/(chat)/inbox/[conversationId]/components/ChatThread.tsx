@@ -118,7 +118,6 @@ import {
 import { attachmentDisplayName, formatAttachmentSize } from '@/lib/chat-attachment'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import { shouldWarnQuoteUnavailable, quoteJumpTargetId } from '@/lib/chat-quote-availability'
-import { shouldShowAttachPreviewSheet } from '@/lib/chat-attach-sheet'
 import { useLongPress } from '@/hooks/useLongPress'
 import MessageActionBubble, { type MessageAction, type MessageReactionOption } from './MessageActionBubble'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
@@ -130,7 +129,6 @@ import { fmt } from '@/i18n/fmt'
 import OrderCardView from '../../../_components/OrderCardView'
 import { useDraftOrders, useOrderVocab, useThreadShopId } from '../../../_components/DraftOrderProvider'
 import CustomerPanelSheet from './CustomerPanelSheet'
-import AttachmentPreviewSheet from './AttachmentPreviewSheet'
 import EmojiPicker, { rememberRecentSticker } from './EmojiPicker'
 
 /**
@@ -1175,40 +1173,6 @@ export default function ChatThread({
     return () => mq.removeEventListener('change', sync)
   }, [])
 
-  /**
-   * ต่ำกว่า 768px = ใช้ชีตพรีวิวไฟล์แนบเต็มจอแทนแถบ thumbnail แนวนอน (2026-08-14)
-   *
-   * 🛑 ค่า 767.98 ต้องคู่กับ `md:hidden` ในตัวชีตเสมอ — ตัดสินด้วย matchMedia เพราะการ mount/unmount
-   * ต้องเกิดจริง (ชีตล็อก body scroll + pushState ⇒ ซ่อนด้วย CSS อย่างเดียวไม่พอ ผลข้างเคียงยังอยู่)
-   * Base: แพตเทิร์นเดียวกับ isXlUp ด้านบน
-   */
-  const [isMobileComposer, setIsMobileComposer] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767.98px)').matches,
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767.98px)')
-    const sync = () => setIsMobileComposer(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
-
-  /**
-   * ชีตพรีวิวไฟล์แนบเปิดอยู่ไหม
-   *
-   * 🛑 เป็น state ของ "การกระทำ" ไม่ใช่ derive จาก `pendingImages.length > 0` — คิวไฟล์มีคนเขียน
-   * 3 ราย และมีแค่รายเดียวที่หมายถึง "ผู้ใช้กำลังจะส่งไฟล์":
-   *   - เลือก/วาง/ลากไฟล์  → ใช่ (เปิดชีต)
-   *   - ข้อความสำเร็จรูปที่มีรูป (handleQuickPick) → ไม่ใช่ — ผู้ขายเพิ่งเลือก "ข้อความ" และเนื้อหา
-   *     ถูกเติมลงช่องพิมพ์ ชีตเต็มจอจะบังสิ่งที่เพิ่งเติมไปพอดี
-   *   - เลือกสินค้า (handleProductPick) → ไม่ใช่ ด้วยเหตุผลเดียวกัน
-   * ถ้า derive จากความยาวอาร์เรย์ สองเคสหลังจะเปิดชีตขึ้นมาเองโดยไม่มีใครสั่ง
-   *
-   * 🛑 และการปิดต้องเป็น false ค้างไว้จนกว่าจะมีการเลือกไฟล์ใหม่ — ห้ามผูกกับความยาวอาร์เรย์
-   * เพราะไฟล์ในคิวอัปโหลดเสร็จทีละใบ ชีตที่เพิ่งปิดจะเด้งกลับมาทุกครั้งที่ไฟล์ถัดไปเสร็จ
-   */
-  const [attachSheetOpen, setAttachSheetOpen] = useState(false)
-
   const [sheetOpen, setSheetOpen] = useState(false)
   /** แท็บที่ชีตข้อมูลลูกค้าจะเปิดมาลง (2026-08-14) — ปุ่มคลังไฟล์ในหัวเธรดส่ง 'files' มา ⇒ ไฟล์ = 1 แตะ */
   const [sheetTab, setSheetTab] = useState<CustomerPanelTab>('customer')
@@ -1487,24 +1451,6 @@ export default function ChatThread({
     quotaExceeded,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
-
-  /**
-   * ทางเข้า "ผู้ใช้เพิ่มไฟล์เอง" ทั้ง 3 ทาง = ที่เดียวที่เปิดชีตได้ (ดูคอมเมนต์ attachSheetOpen)
-   * เลือกจากปุ่ม / วางจากคลิปบอร์ด / ลากมาวาง — บนเดสก์ท็อปตั้งค่าไปก็ไม่มีผล เพราะเงื่อนไข
-   * เรนเดอร์ยังต้องผ่าน isMobileComposer อีกชั้น
-   */
-  const handleFilePick = (e: Parameters<typeof handleFileChange>[0]) => {
-    setAttachSheetOpen(true)
-    handleFileChange(e)
-  }
-  const handlePastePick = (e: Parameters<typeof handlePaste>[0]) => {
-    setAttachSheetOpen(true)
-    handlePaste(e)
-  }
-  const handleDropPick = (files: Parameters<typeof handleDropFiles>[0]) => {
-    setAttachSheetOpen(true)
-    return handleDropFiles(files)
-  }
 
   // ── แตะกล่อง quote แล้วเลื่อนไปหาข้อความต้นทาง (user report 2026-08-11) ──────────────
   //
@@ -2699,7 +2645,7 @@ export default function ChatThread({
           dragDepth.current = 0
           setDragOver(false)
           if (attachDisabled || composerDisabled) return
-          void handleDropPick(e.dataTransfer.files)
+          void handleDropFiles(e.dataTransfer.files)
         }}
       >
       {/* overlay ตอนลากไฟล์ผ่าน — inset-2 ให้เห็นขอบการ์ดเดิมด้วย จะได้รู้ว่า "วางได้ตรงนี้"
@@ -3708,42 +3654,25 @@ export default function ChatThread({
               multiple
               aria-label={attachDisabled ? 'ยังไม่รองรับการแนบไฟล์ในช่องทางนี้' : 'แนบไฟล์'}
               className="hidden"
-              onChange={handleFilePick}
+              onChange={handleFileChange}
               disabled={attachDisabled || composerDisabled || uploading || sending}
             />
             <Icon icon={uploading ? 'loader-2' : 'paperclip'} className={`text-lg ${uploading ? 'animate-spin' : ''}`} />
           </label>
 
-          {/* รูปภาพ — ปุ่มแยกที่ใส่ `accept="image/*"` (user เคาะ 2026-08-14)
-              บน iOS ปุ่มที่ไม่ระบุชนิดไฟล์จะเด้ง action sheet "คลังภาพ/ถ่ายรูป/เลือกไฟล์" คั่นก่อน
-              ⇒ กว่าจะถึงกริดรูปต้องแตะ 2 ชั้น. ปุ่มนี้พาเข้ากริดรูปตรง ๆ ในแตะเดียว
-
-              🛑 นี่คือปุ่ม **เพิ่ม** ไม่ใช่การแก้ปุ่มแนบไฟล์เดิม — ปุ่มเดิมต้องไม่มี `accept` ต่อไป
-              (เหตุผลอยู่ในคอมเมนต์เหนือปุ่มนั้น: Safari บางเวอร์ชันซ่อนไฟล์บางชนิดเมื่อเจอ wildcard)
-              ทั้งสองปุ่มเติมเข้าคิว `pendingImages` เดียวกัน ไม่มี state แยก
-
-              ชื่อสำหรับ AT อยู่บน `<input>` ไม่ใช่ `<label>` ด้วยเหตุผลเดียวกับปุ่มแนบไฟล์ */}
-          <label
-            className={`btn btn-icon text-default-600 hover:bg-default-100 shrink-0 ${attachDisabled || composerDisabled ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
-            title={t.inbox.attachPhotos}
-          >
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              aria-label={t.inbox.attachPhotos}
-              className="hidden"
-              onChange={handleFilePick}
-              disabled={attachDisabled || composerDisabled || uploading || sending}
-            />
-            <Icon icon="photo" className="text-lg" />
-          </label>
+          {/* 🛑 อย่าเพิ่มปุ่ม "รูปภาพ" ที่ใส่ `accept="image/*"` เพื่อหวังข้ามเมนูของ iOS —
+              ลองมาแล้วและ **ไม่ได้ผล** (ขึ้น prod 2026-08-14 แล้วถอดออกวันเดียวกัน user เป็นคนจับได้)
+              iOS ขึ้นเมนู "Photo Library / Take Photo / Choose Files" เหมือนเดิมทุกประการ เพราะเว็บ
+              ไม่มีวิธีสั่งปลายทางของ picker ได้เลย — `capture` มีค่าเดียวที่ใช้ได้จริงคือ "เปิดกล้อง"
+              ไม่มีค่าที่แปลว่า "คลังรูป". ทางเดียวที่ทำได้คือฝั่ง native ดักการกดแล้วเปิด image picker
+              ของเครื่องเอง แล้วส่งไฟล์กลับเข้าเว็บผ่าน native-bridge
+              รายละเอียด: docs/superpowers/specs/2026-08-14-chat-attachment-preview-sheet.md */}
 
           {/* ความคืบหน้าตอนแนบหลายไฟล์ — spinner เปล่าบอกได้แค่ "กำลังทำอะไรอยู่" ซึ่งไม่พอเมื่อคิว
               มี 8 ไฟล์และแต่ละไฟล์ใช้เวลาไม่เท่ากัน (ร้านจะไม่รู้ว่าค้างหรือกำลังไป) */}
           {uploadProgress && uploadProgress.total > 1 && (
             <span className="text-default-700 shrink-0 text-xs" aria-live="polite">
-              {/* คำเดียวกับที่ชีตพรีวิวใช้ — ต้องมาจากคีย์เดียว ไม่ใช่พิมพ์ซ้ำคนละที่ (HR16) */}
+              {/* ย้ายจากสตริงดิบมาเป็นคีย์ i18n — ข้อความนี้ผู้ขายเห็นตอนแนบหลายไฟล์ */}
               {fmt(t.inbox.attachUploading, {
                 done: String(uploadProgress.done + 1),
                 total: String(uploadProgress.total),
@@ -4022,7 +3951,7 @@ export default function ChatThread({
                         onClick={() => handleRemoveImage(att.fileId)}
                         aria-label={fmt(t.inbox.attachRemove, { name: label })}
                         // bg-dark/60 ไม่ใช่ bg-black/50 — overlay ผสมหมึกตาม Impeccable และให้ตรงกับ
-                        // ชีตพรีวิว/CustomerFileTile/PhotoAlbum ที่ใช้ token เดียวกันอยู่แล้ว
+                        // CustomerFileTile/PhotoAlbum ในโฟลเดอร์เดียวกันที่ใช้ token นี้อยู่แล้ว
                         className="bg-dark/60 hover:bg-dark/80 absolute end-1 top-1 flex size-6 items-center justify-center rounded-full text-white"
                       >
                         <Icon icon="x" className="text-sm" />
@@ -4051,7 +3980,7 @@ export default function ChatThread({
               }
               value={text}
               onChange={(e) => setText(e.target.value)}
-              onPaste={handlePastePick} // วางรูปจากคลิปบอร์ด (screenshot/Line/Ctrl+C) → แนบเลย (user 2026-07-25)
+              onPaste={handlePaste} // วางรูปจากคลิปบอร์ด (screenshot/Line/Ctrl+C) → แนบเลย (user 2026-07-25)
               // enterKeyHint="enter" → คีย์บอร์ดมือถือขึ้นปุ่ม "ขึ้นบรรทัดใหม่" ไม่ใช่ "ส่ง"
               // ให้ป้ายบนปุ่มตรงกับสิ่งที่เกิดขึ้นจริงตาม handler ข้างล่าง
               enterKeyHint="enter"
@@ -4190,44 +4119,6 @@ export default function ChatThread({
     {/* feature 00018 T5 — sheet มือถือ/tablet (<1024px); ปุ่มเปิดอยู่ใน composer ด้านบน */}
     {sheetOpen && (
       <CustomerPanelSheet data={customerPanelData} initialTab={sheetTab} onClose={() => setSheetOpen(false)} />
-    )}
-
-    {/* ชีตพรีวิวไฟล์แนบเต็มจอ (มือถือ) — user สั่ง 2026-08-14
-        เงื่อนไขปิดชีตเองเมื่อลบไฟล์จนเหลือ 0 อยู่ที่ `pendingImages.length > 0` ตรงนี้เอง
-        (ไม่ต้องมี handler แยก) และแถบ thumbnail เดิมยังเรนเดอร์อยู่ข้างหลังเสมอ — ปิดชีตแล้ว
-        ผู้ขายจึงเห็นไฟล์ครบและพิมพ์ต่อได้ทันทีโดยไม่มีการคำนวณ layout ใหม่ */}
-    {shouldShowAttachPreviewSheet({
-      isMobileComposer,
-      requestedOpen: attachSheetOpen,
-      pendingCount: pendingImages.length,
-    }) && (
-      <AttachmentPreviewSheet
-        items={pendingImages}
-        caption={text.trim()}
-        uploadProgress={uploadProgress}
-        uploading={uploading}
-        sending={sending}
-        composerDisabled={composerDisabled}
-        disabledReason={
-          // ชุดเดียวกับ placeholder ของ textarea — ปิดเพราะโควตา ≠ ปิดเพราะการเชื่อมต่อพัง
-          composerDisabled
-            ? lineQuotaCaption?.blocking && !tokenInvalid
-              ? t.inbox.composerQuotaExhausted
-              : t.inbox.composerDisabled
-            : null
-        }
-        sendAriaLabel={
-          lineQuotaCaption ? fmt(t.inbox.sendWithNote, { note: lineQuotaCaption.fullText }) : t.inbox.send
-        }
-        quotaRingClass={lineQuotaCaption ? QUOTA_BUTTON_RING_CLASS[lineQuotaCaption.tone] : ''}
-        onFileChange={handleFilePick}
-        onRemove={handleRemoveImage}
-        onSend={() => {
-          setAttachSheetOpen(false)
-          handleSend()
-        }}
-        onClose={() => setAttachSheetOpen(false)}
-      />
     )}
 
     {/* ดูรูปเต็มจอ — Base Gallery.tsx:100 (เพิ่ม plugin Zoom + แปลป้าย a11y เป็นไทย) */}
