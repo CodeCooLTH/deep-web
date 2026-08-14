@@ -15,7 +15,7 @@ import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import Icon from '@/components/wrappers/Icon'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
-import { LIBRARY_ICONS, LIBRARY_PREVIEW_TAKE } from '@/lib/customer-file-library'
+import { LIBRARY_ICONS, LIBRARY_PREVIEW_TAKE, LIBRARY_CHANGED_EVENT } from '@/lib/customer-file-library'
 import type { LibraryItem } from '@/services/customer-file-library.service'
 import CustomerFileTile from './CustomerFileTile'
 import CustomerFileViewer from './CustomerFileViewer'
@@ -79,6 +79,27 @@ export default function CustomerFileLibrarySection({
       cancelled = true
     }
   }, [load])
+
+  /**
+   * เก็บ/เอาออกจากคลังเกิดที่ **เธรด** (ปุ่ม hover เดสก์ท็อป · เมนูกดค้างมือถือ · แถบ lightbox)
+   * ซึ่งเป็นพี่น้องกับแผงนี้ ส่ง prop ถึงกันไม่ได้ → ฟัง CustomEvent แทน (ทิศตรงข้ามของ
+   * `JUMP_TO_MESSAGE_EVENT`; เหตุผลเต็มอยู่ที่ `LIBRARY_CHANGED_EVENT` ใน lib)
+   *
+   * 🛑 dep เป็น `refresh` ซึ่งเป็น `useCallback` ที่ identity นิ่ง (ผูกกับ conversationId เท่านั้น)
+   * ห้ามเปลี่ยนไป dep กับค่าที่ fetch แล้วเปลี่ยน identity ทุกรอบ — จะกลายเป็นลูปยิง API ไม่หยุด
+   * (docs/conventions/hook-return-identity-in-deps.md)
+   *
+   * กรองด้วย conversationId: เธรดที่ปิดไปแล้วอาจยัง unmount ไม่ทันในจังหวะสลับห้อง การรับ
+   * ทุก event จะทำให้แผงของอีกห้องยิงโหลดค่าที่ไม่เกี่ยวกับตัวเอง
+   */
+  useEffect(() => {
+    const onChanged = (e: Event) => {
+      const id = (e as CustomEvent<{ conversationId?: string }>).detail?.conversationId
+      if (id === conversationId) refresh()
+    }
+    window.addEventListener(LIBRARY_CHANGED_EVENT, onChanged)
+    return () => window.removeEventListener(LIBRARY_CHANGED_EVENT, onChanged)
+  }, [conversationId, refresh])
 
   return (
     <div className="border-default-200 mt-4 border-t border-dashed pt-4">

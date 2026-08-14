@@ -143,7 +143,7 @@ import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPane
 import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
 // feature 00048 — คลังไฟล์ต่อลูกค้า (คำทั้งหมดมาจาก SSOT เดียว ห้ามพิมพ์ซ้ำที่นี่ — HR16)
-import { LIBRARY_ICONS, isLibraryEligible } from '@/lib/customer-file-library'
+import { LIBRARY_ICONS, isLibraryEligible, emitLibraryChanged } from '@/lib/customer-file-library'
 import SaveToLibraryButton from './SaveToLibraryButton'
 import { JUMP_TO_MESSAGE_EVENT } from './CustomerFileViewer'
 
@@ -1192,6 +1192,10 @@ export default function ChatThread({
           })
       if (!res.ok) throw new Error(String(res.status))
       pacesToast.success(wasSaved ? t.inbox.libraryRemovedToast : t.inbox.librarySavedToast)
+      // แผงลูกค้าเป็นพี่น้องกัน ส่ง prop ถึงกันไม่ได้ — ต้องบอกให้มันโหลดกริดใหม่เอง ไม่งั้น toast
+      // บอกว่าสำเร็จแต่กริดยังเขียนว่า "ยังไม่มีไฟล์ที่เก็บไว้" (user เจอเองบน prod 2026-08-14)
+      // วางหลัง res.ok เท่านั้น — ยิงตอนล้มเหลวคือสั่งให้แผงไปดึงค่าที่ยังไม่เปลี่ยนมาแสดง
+      emitLibraryChanged(conversationId)
     } catch {
       // rollback: ปล่อยให้ไอคอนค้างในสถานะที่ไม่ตรงกับฐานคือการโกหกผู้ขาย
       setSavedFiles((prev) => {

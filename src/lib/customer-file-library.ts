@@ -52,6 +52,30 @@ export const LIBRARY_PAGE_TAKE = 60
 export const LIBRARY_NAME_MAX = 120
 export const LIBRARY_NOTE_MAX = 500
 
+// ─── สัญญาณข้ามแผง ───────────────────────────────────────────────────────────
+/**
+ * "คลังของเธรดนี้เพิ่งเปลี่ยน" — ปุ่มเก็บเข้าคลังอยู่ใน **เธรด** (`ChatThread`) ส่วนกริดที่ต้อง
+ * อัปเดตอยู่ใน **แผงลูกค้า** (`CustomerFileLibrarySection`) ซึ่งเป็นพี่น้องกันคนละ subtree
+ * บนเดสก์ท็อป — ส่ง prop ถึงกันต้องลากผ่าน page.tsx และยังไม่ครอบโหมด sheet บนมือถือที่แผงอยู่
+ * *ข้างใน* เธรดอีกทรงหนึ่ง. ใช้ CustomEvent ด้วยเหตุผลเดียวกับ `JUMP_TO_MESSAGE_EVENT`
+ * (ทิศตรงข้าม: แผง → เธรด) ซึ่งทำงานได้จริงกับทั้งสองทรงอยู่แล้ว
+ *
+ * 🛑 ที่มา (user เจอเองบน prod 2026-08-14): กด "เก็บเข้าคลัง" แล้ว toast ขึ้นว่าสำเร็จ แต่กริด
+ * ในแผงยังเขียนว่า "ยังไม่มีไฟล์ที่เก็บไว้" จนกว่าจะรีเฟรช — เดิม `toggleLibrary` อัปเดตแค่
+ * `savedFiles` (state ในเธรด) แล้วจบ ไม่มีใครบอกแผง ส่วนแผงโหลดครั้งเดียวตอน mount
+ * ⇒ **ทุกทางที่แก้คลังจากในแผงเองรีเฟรชครบหมด ขาดทางเดียวคือทางที่ผู้ใช้ใช้จริง**
+ *
+ * ทำไมอยู่ในไฟล์นี้ทั้งที่ service ฝั่ง server ก็ import: เป็นค่าคงที่ + ฟังก์ชันที่แตะ `window`
+ * *ในตัวฟังก์ชัน* เท่านั้น (มี guard) ไม่ใช่ตอน import — และนี่คือไฟล์ที่ทั้งเธรดและแผง import
+ * อยู่แล้วทั้งคู่ การวางไว้ที่ component ฝั่งใดฝั่งหนึ่งจะลากไฟล์ก้อนใหญ่เข้า bundle ของอีกฝั่ง
+ */
+export const LIBRARY_CHANGED_EVENT = 'deep:library-changed'
+
+export function emitLibraryChanged(conversationId: string): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent(LIBRARY_CHANGED_EVENT, { detail: { conversationId } }))
+}
+
 export type LibraryKind = 'IMAGE' | 'VIDEO' | 'FILE'
 
 /** 3 ชนิดที่เก็บเข้าคลังได้ — allow-list, ห้ามเขียนเป็น deny-list (ค่าที่ 4 จะหลุดเข้ามาเงียบ ๆ) */
