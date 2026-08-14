@@ -61,6 +61,7 @@ import { ORDER_STATUS_META, isCODPayment } from '@/lib/order-display'
 import ListBusyOverlay, { type ListBusy } from '../../_shared/ListBusyOverlay'
 // ป้ายพฤติกรรมลูกค้า — นิยามเดียวกับหัวแผงลูกค้าในกล่องแชท (HR16)
 import { customerBadges } from '@/lib/customer-behavior'
+import { useT } from '@/i18n/LocaleProvider'
 
 // ─── status badge config ──────────────────────────────────────────────────────
 // อ่านจาก SSOT ตัวเดียวกับหน้ารายละเอียดออเดอร์และการ์ดมือถือ (src/lib/order-display.ts) —
@@ -182,6 +183,7 @@ export default function OrdersTable({
   appointmentFilter,
   apptDayFilter,
 }: Props) {
+  const t = useT()
   const router = useRouter()
   const [globalFilter,   setGlobalFilter]   = useState('')
   const [sorting,        setSorting]        = useState<SortingState>([])
@@ -389,7 +391,9 @@ export default function OrdersTable({
                 returnedParcels: stats.returned,
                 problemOrders: stats.cancelledByBuyer + stats.returned,
               },
-              { hasHistory: true, orderNoun: vocab.noun },
+              // ป้ายชุดนี้เป็นตัวเดียวกับที่โผล่ในกล่องข้อความ (SSOT `customerBadges`) จึงต้องส่งคำ
+              // จาก dictionary เข้าไปด้วย ไม่งั้นลูกค้าคนเดียวกันจะได้ป้ายคนละภาษาสองหน้าจอ (HR16)
+              { hasHistory: true, orderNoun: vocab.noun, copy: t.inbox.customerPanel },
             )
           : []
         return (

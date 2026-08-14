@@ -49,6 +49,9 @@ import OrderOverflowMenu from '@/app/(paces)/seller/(dashboard)/orders/[token]/c
 import { getOrderActionSet } from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/order-action-set'
 import { ChannelBadge } from '../../components/ChannelBadge'
 // SSOT ของป้ายพฤติกรรมลูกค้า — ป้ายท้ายชื่อลูกค้าในตาราง /orders ใช้ตัวเดียวกัน (HR16)
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
+import type { Dictionary } from '@/i18n/dictionaries/th'
 import { customerBadges, type CustomerBehavior } from '@/lib/customer-behavior'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
@@ -210,12 +213,24 @@ function StatRow({ label, value }: { label: string; value: string }) {
 
 type Tab = 'customer' | 'orders' | 'note'
 
-/** แท็บของ right panel — label ของ 'orders' มาจาก vertical (คำสั่งซื้อ/การจอง) จึงเว้นว่างไว้ */
-const TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: 'customer', label: 'ข้อมูลลูกค้า', icon: 'user-circle' },
-  { key: 'orders', label: '', icon: 'shopping-cart' },
-  { key: 'note', label: 'โน้ต', icon: 'notes' }, // สะกด "โน้ต" ให้ตรงกับเนื้อหาในแท็บ (user ยืนยัน 2026-07-23)
-]
+/**
+ * คำนามของแท็บที่สอง ผันตาม vertical — ดึงจากคีย์ที่มีอยู่แล้วใน dictionary ไม่ตั้งคำชุดใหม่
+ * (`menu.orders[vertical]` / `menu.bookings` มีค่าตรงกับ `VERTICAL_CTA.tabLabel` ทุกตัวอักษร)
+ *
+ * 🛑 LODGING ตั้งใจให้ tabLabel ("การจอง") ต่างจาก noun ของ /orders ("บิลเข้าพัก") — ห้ามยุบรวม
+ */
+function resolveTabNoun(t: Dictionary, vertical: ShopVertical): string {
+  return vertical === 'LODGING' ? t.menu.bookings : t.menu.orders[vertical]
+}
+
+/** แท็บของ right panel — เคยเป็นค่าคงที่ระดับ module จึงค้างเป็นไทยตลอดไป (feature 00047) */
+function buildTabs(t: Dictionary, vertical: ShopVertical): { key: Tab; label: string; icon: string }[] {
+  return [
+    { key: 'customer', label: t.inbox.customerInfo, icon: 'user-circle' },
+    { key: 'orders', label: resolveTabNoun(t, vertical), icon: 'shopping-cart' },
+    { key: 'note', label: t.inbox.customerPanel.tabNote, icon: 'notes' },
+  ]
+}
 
 
 /** การ์ดออเดอร์ 1 ใบ (user request 2026-07-24: ข้อมูลเบื้องต้น = ชื่อสินค้า/จำนวนรายการ/ยอด/สถานะ)
@@ -587,6 +602,7 @@ function OrdersList({
  * ฝั่ง client อีกต่อไป — เดิม summarize() นับจาก orders 20 แถวที่ list ใช้ ซึ่งเพี้ยนถ้าลูกค้าซื้อเกิน 20
  */
 export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
+  const t = useT()
   // user request 2026-07-25 — เปิดจากไอคอนตะกร้าใน inbox (?panel=orders) → เด้งแท็บออเดอร์ทันที
   // ใช้ useEffect sync ตาม param (ไม่พึ่ง useState initializer อย่างเดียว) เพราะ App Router อาจ reuse
   // component ตอนสลับเธรด (ไม่ remount) — initializer จะไม่ถูกเรียกซ้ำ. effect ยิงเมื่อ param เปลี่ยน:
@@ -598,6 +614,9 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
     setTab(wantOrders ? 'orders' : 'customer')
   }, [wantOrders])
   const cta = VERTICAL_CTA[data.vertical]
+  /** คำนามที่ผันตาม vertical — ใช้แทน `cta.tabLabel` ทุกจุดที่เป็นข้อความบนจอ */
+  const tabNoun = resolveTabNoun(t, data.vertical)
+  const TABS = buildTabs(t, data.vertical)
   /**
    * ป้ายพฤติกรรมลูกค้า — คำนามผันตาม vertical ด้วย `resolveOrderVocab().noun`
    *
@@ -611,6 +630,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
     ? customerBadges(data.customerBehavior, {
         hasHistory: !!data.customerStats,
         orderNoun: resolveOrderVocab(data.vertical).noun,
+        copy: t.inbox.customerPanel,
       })
     : []
   const { openDraft } = useDraftOrders()
@@ -678,7 +698,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
   /** arrow-key navigation ของ tablist ตาม ARIA tabs pattern (critique P2 — เดิมประกาศ role ไว้
    *  แต่ไม่มี keyboard support และไม่มี roving tabIndex) */
   const onTabKeyDown = (e: React.KeyboardEvent) => {
-    const i = TABS.findIndex((t) => t.key === tab)
+    const i = TABS.findIndex((x) => x.key === tab)
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
       e.preventDefault()
       const next = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length]!
@@ -744,28 +764,28 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
       <nav
         className="nav-tabs border-default-200 my-0 me-0 h-auto border-b px-4"
         role="tablist"
-        aria-label="ข้อมูลลูกค้า"
+        aria-label={t.inbox.customerInfo}
       >
-        {TABS.map((t) => (
+        {TABS.map((tabDef) => (
           <button
-            key={t.key}
+            key={tabDef.key}
             type="button"
             role="tab"
-            id={`${uid}-tab-${t.key}`}
-            aria-selected={tab === t.key}
-            aria-controls={`${uid}-panel-${t.key}`}
-            tabIndex={tab === t.key ? 0 : -1}
+            id={`${uid}-tab-${tabDef.key}`}
+            aria-selected={tab === tabDef.key}
+            aria-controls={`${uid}-panel-${tabDef.key}`}
+            tabIndex={tab === tabDef.key ? 0 : -1}
             onKeyDown={onTabKeyDown}
-            onClick={() => setTab(t.key)}
+            onClick={() => setTab(tabDef.key)}
             className={`nav-link -mb-px inline-flex items-center gap-1.5 px-3 py-3 text-sm ${
-              tab === t.key ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent'
+              tab === tabDef.key ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent'
             }`}
           >
-            <Icon icon={t.icon} className="text-base" />
-            {t.key === 'orders' ? cta.tabLabel : t.label}
+            <Icon icon={tabDef.icon} className="text-base" />
+            {tabDef.label}
             {/* จำนวนออเดอร์บนแท็บ — เดิมต้องคลิกเข้าไปถึงจะรู้ว่ามี 0 (critique P1-C)
                 ใช้ customerStats (aggregate จริง) แทน summary.count (cap 20) ให้ตรงกับแถวสถิติในแท็บ */}
-            {t.key === 'orders' && (data.customerStats?.orderCount ?? 0) > 0 && (
+            {tabDef.key === 'orders' && (data.customerStats?.orderCount ?? 0) > 0 && (
               <span className="badge bg-default-100 text-default-700 text-2xs">{data.customerStats!.orderCount}</span>
             )}
           </button>
@@ -794,7 +814,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
               **ระบบเติมให้เอง แก้ไม่ได้** — ไม่มีปุ่ม X เหมือน tag ที่ร้านตั้งเอง */}
           {data.adReferralId && (
             <div>
-              <p className="text-default-700 mb-1 text-xs">ป้ายกำกับจาก Meta</p>
+              <p className="text-default-700 mb-1 text-xs">{t.inbox.customerPanel.adBadgeLabel}</p>
               <div className="flex flex-wrap items-center gap-1.5">
                 <span
                   className="badge bg-default-100 text-default-700 text-2xs inline-flex max-w-full items-center gap-1"
@@ -816,13 +836,13 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
               อธิบายอยู่แล้ว ตัวเลขมาจาก aggregate จริงทั้งหมด (ไม่ใช่ 20 แถวของ list) — show don't tell */}
           {data.customerStats && (
             <div>
-              <StatRow label="จำนวนออเดอร์" value={data.customerStats.orderCount.toLocaleString('th-TH')} />
+              <StatRow label={t.inbox.customerPanel.statOrderCount} value={data.customerStats.orderCount.toLocaleString('th-TH')} />
               <StatRow
-                label="รวมยอดซื้อ"
+                label={t.inbox.customerPanel.statTotalSpent}
                 value={`฿${Number(data.customerStats.totalSpent).toLocaleString('th-TH')}`}
               />
               <StatRow
-                label="เป็นลูกค้ามา"
+                label={t.inbox.customerPanel.statCustomerSince}
                 value={relativeTimeTh(new Date(data.customerStats.since).getTime())}
               />
             </div>
@@ -833,18 +853,18 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
               กรอกเบอร์ กดบันทึก ได้ toast สำเร็จ แต่รหัสยังเป็น "—" (critique P0-2)
               ตอนนี้พูดเป็นสถานะภาษาคน + บอกวิธีทำให้เกิดขึ้นจริง; id ยังดูได้จาก title */}
           <div>
-            <p className="text-default-700 mb-0.5 text-xs">การเชื่อมกับลูกค้าในระบบ</p>
+            <p className="text-default-700 mb-0.5 text-xs">{t.inbox.customerPanel.linkStatusTitle}</p>
             {data.customer ? (
               <p
                 className="text-default-800 mb-0 flex items-center gap-1.5 text-sm"
                 title={`รหัสลูกค้า ${data.customer.id}`}
               >
                 <Icon icon="link" className="text-success text-base" />
-                เชื่อมแล้ว · {data.customer.phoneMasked}
+                {t.inbox.customerPanel.linked} · {data.customer.phoneMasked}
               </p>
             ) : (
               <p className="text-default-800 mb-0 text-sm">
-                ยังไม่เชื่อม — จะเชื่อมอัตโนมัติเมื่อสร้าง{cta.tabLabel}ด้วยเบอร์ของลูกค้ารายนี้
+                {fmt(t.inbox.customerPanel.notLinked, { noun: tabNoun })}
               </p>
             )}
           </div>
@@ -874,26 +894,26 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
         {/* header ในแท็บ (user request 2026-07-24): "รายการคำสั่งซื้อ" + ปุ่มสร้าง — ปุ่มแสดงเสมอ
             (ไม่ผูกกับ empty-state) เปิดโมดัลพับได้แทน navigate ออกจากแชท */}
         <div className="mb-3 flex items-center justify-between gap-2">
-          <p className="text-default-900 mb-0 text-sm font-semibold">รายการ{cta.tabLabel}</p>
+          <p className="text-default-900 mb-0 text-sm font-semibold">{fmt(t.inbox.customerPanel.listHeading, { noun: tabNoun })}</p>
           <button
             type="button"
             onClick={startCreateOrder}
             className="btn btn-sm bg-primary text-white hover:bg-primary-hover inline-flex shrink-0 items-center gap-1 text-nowrap"
           >
             <Icon icon={cta.icon} className="size-4" />
-            สร้าง{cta.tabLabel}
+            {fmt(t.inbox.customerPanel.createCta, { noun: tabNoun })}
           </button>
         </div>
 
         {data.customer ? (
           data.orders.length === 0 ? (
-            <p className="text-default-700 mb-0 text-sm">{cta.emptyLabel}</p>
+            <p className="text-default-700 mb-0 text-sm">{fmt(t.inbox.customerPanel.noHistory, { noun: tabNoun })}</p>
           ) : (
             <OrdersList conversationId={data.conversationId} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} pageAvatarUrl={data.channelAvatarUrl} vertical={data.vertical} />
           )
         ) : (
           <p className="text-default-700 mb-0 text-sm">
-            ยังไม่เชื่อมกับลูกค้าในระบบ จึงยังไม่มีประวัติให้ดู — สร้าง{cta.tabLabel}ด้วยเบอร์ของลูกค้ารายนี้แล้วระบบจะเชื่อมให้เอง
+            {fmt(t.inbox.customerPanel.notLinkedNoHistory, { noun: tabNoun })}
           </p>
         )}
         </div>

@@ -5,6 +5,13 @@ import {
   hasBehaviorWarning,
   type CustomerOrderEvidence,
 } from '@/lib/customer-behavior'
+import { th } from '@/i18n/dictionaries/th'
+
+/**
+ * คำไทยจริงจาก dictionary — เทสชุดนี้ยืนยัน "รูปประโยคของป้าย" (มีตัวเลข/คำนามถูกที่)
+ * ไม่ได้ยืนยันคำแปล ถ้าคำเปลี่ยนที่ dictionary เทสยังถูกต้องอยู่
+ */
+const copy = th.inbox.customerPanel
 
 const order = (o: Partial<CustomerOrderEvidence> = {}): CustomerOrderEvidence => ({
   status: 'CONFIRMED',
@@ -135,11 +142,11 @@ describe('customerBadges', () => {
 
   it('[blocker] ยังไม่ผูกกับลูกค้าในระบบ → ไม่มีป้ายเลย แม้แต่ "ลูกค้าใหม่"', () => {
     // ป้าย "ลูกค้าใหม่" ในเธรดที่ยังไม่มีออเดอร์สักใบ = ยืนยันสิ่งที่ยังไม่เกิด
-    expect(customerBadges(behavior({ orders: 0 }), { hasHistory: false, orderNoun: noun })).toEqual([])
+    expect(customerBadges(behavior({ orders: 0 }), { hasHistory: false, orderNoun: noun, copy })).toEqual([])
   })
 
   it('สั่งใบเดียว → ลูกค้าใหม่', () => {
-    const b = customerBadges(behavior({ orders: 1, completed: 1 }), { hasHistory: true, orderNoun: noun })
+    const b = customerBadges(behavior({ orders: 1, completed: 1 }), { hasHistory: true, orderNoun: noun, copy })
     expect(b.map((x) => x.key)).toEqual(['NEW'])
   })
 
@@ -147,13 +154,14 @@ describe('customerBadges', () => {
     const b = customerBadges(behavior({ orders: 5, completed: 0, cancelledByBuyer: 5, cancelledTotal: 5, problemOrders: 5 }), {
       hasHistory: true,
       orderNoun: noun,
+      copy,
     })
     expect(b.map((x) => x.key)).not.toContain('REGULAR')
     expect(b.map((x) => x.key)).toContain('CANCELLED_BY_BUYER')
   })
 
   it('ลูกค้าเก่าผันคำนามตาม vertical — ไม่ต่อคำเอง', () => {
-    const b = customerBadges(behavior({ orders: 4, completed: 4 }), { hasHistory: true, orderNoun: 'การจอง' })
+    const b = customerBadges(behavior({ orders: 4, completed: 4 }), { hasHistory: true, orderNoun: 'การจอง', copy })
     expect(b[0]!.label).toBe('ลูกค้าเก่า · 4 การจอง')
   })
 
@@ -161,6 +169,7 @@ describe('customerBadges', () => {
     const b = customerBadges(behavior({ orders: 6, completed: 4, returnedParcels: 1, cancelledByBuyer: 1, cancelledTotal: 1, problemOrders: 2 }), {
       hasHistory: true,
       orderNoun: noun,
+      copy,
     })
     expect(b.every((x) => x.tone === 'info' || x.tone === 'warning')).toBe(true)
     expect(b.map((x) => x.key)).toEqual(['REGULAR', 'RETURNED', 'CANCELLED_BY_BUYER'])
@@ -171,6 +180,7 @@ describe('customerBadges', () => {
     const b = customerBadges(behavior({ orders: 2, completed: 1, returnedParcels: 1, problemOrders: 1 }), {
       hasHistory: true,
       orderNoun: noun,
+      copy,
     })
     const returned = b.find((x) => x.key === 'RETURNED')!
     expect(returned.label).toBe('ตีกลับ 1 รายการ')
@@ -181,7 +191,7 @@ describe('customerBadges', () => {
   it('[blocker] ป้ายยกเลิกนับ "ทุกใบ" ตามที่ user ระบุ + ขยายความใน tooltip เมื่อรู้ต้นเรื่อง', () => {
     const b = customerBadges(
       behavior({ orders: 5, completed: 2, cancelledTotal: 3, cancelledByBuyer: 1, problemOrders: 1 }),
-      { hasHistory: true, orderNoun: noun },
+      { hasHistory: true, orderNoun: noun, copy },
     )
     const cancelled = b.find((x) => x.key === 'CANCELLED_BY_BUYER')!
     expect(cancelled.label).toBe('ยกเลิก 3 รายการ')
@@ -192,6 +202,7 @@ describe('customerBadges', () => {
     const b = customerBadges(behavior({ orders: 3, completed: 1, cancelledTotal: 2 }), {
       hasHistory: true,
       orderNoun: noun,
+      copy,
     })
     const cancelled = b.find((x) => x.key === 'CANCELLED_BY_BUYER')!
     expect(cancelled.label).toBe('ยกเลิก 2 รายการ')
@@ -199,7 +210,7 @@ describe('customerBadges', () => {
   })
 
   it('ลูกค้าปกติที่ไม่เข้าเงื่อนไขไหนเลย → ไม่มีป้าย (ค่าเริ่มต้นของระบบ)', () => {
-    expect(customerBadges(behavior({ orders: 2, completed: 2 }), { hasHistory: true, orderNoun: noun })).toEqual([])
+    expect(customerBadges(behavior({ orders: 2, completed: 2 }), { hasHistory: true, orderNoun: noun, copy })).toEqual([])
     expect(hasBehaviorWarning([])).toBe(false)
   })
 })

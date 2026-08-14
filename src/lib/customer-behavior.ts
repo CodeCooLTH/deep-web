@@ -197,19 +197,39 @@ export const CUSTOMER_BADGE_THRESHOLDS = {
  * คำนาม (`orderNoun`) ผันตาม vertical ของร้าน — ผู้เรียกส่งมาจาก `ORDER_VOCAB` ห้ามต่อคำเอง
  * (ร้านบ้านพักต้องอ่านว่า "3 การจอง" ไม่ใช่ "3 คำสั่งซื้อ")
  */
+/**
+ * คำที่ป้ายพวกนี้ใช้ — ไฟล์นี้เป็นฟังก์ชันบริสุทธิ์ ไม่มี React จึงรับ "ชิ้นส่วนของ dictionary"
+ * เข้ามาแทนการเรียก `useT()` เอง (ท่าเดียวกับเหตุผลที่ `chat-channel.ts` แยกออกจาก component)
+ * รับเฉพาะคีย์ที่ใช้จริง ไม่ผูกกับ `Dictionary` ทั้งก้อน
+ */
+import { fmt } from '@/i18n/fmt'
+
+export type CustomerBadgeCopy = {
+  badgeNew: string
+  badgeRegular: string
+  badgeReturned: string
+  badgeCancelled: string
+  badgeCancelledDetail: string
+}
+
 export function customerBadges(
   b: CustomerBehavior,
-  opts: { hasHistory: boolean; orderNoun: string },
+  opts: { hasHistory: boolean; orderNoun: string; copy: CustomerBadgeCopy },
 ): CustomerBadge[] {
   if (!opts.hasHistory) return []
   const out: CustomerBadge[] = []
 
   if (b.orders <= CUSTOMER_BADGE_THRESHOLDS.newMaxOrders) {
-    out.push({ key: 'NEW', label: 'ลูกค้าใหม่', icon: 'sparkles', tone: 'info' })
+    out.push({ key: 'NEW', label: opts.copy.badgeNew, icon: 'sparkles', tone: 'info' })
   } else if (b.completed >= CUSTOMER_BADGE_THRESHOLDS.regularCompleted) {
     // นับจาก `completed` ไม่ใช่ `orders` ดิบ — ลูกค้าที่สั่ง 5 ครั้งแล้วยกเลิกทั้ง 5 ต้องไม่ได้ป้ายบวก
     // คำว่า "ลูกค้าเก่า" ยืมจาก CustomerQuickBlock.tsx ที่ใช้อยู่ก่อนแล้ว — ห้ามตั้งคำที่สองให้ของเดียวกัน
-    out.push({ key: 'REGULAR', label: `ลูกค้าเก่า · ${b.completed} ${opts.orderNoun}`, icon: 'user-check', tone: 'info' })
+    out.push({
+      key: 'REGULAR',
+      label: fmt(opts.copy.badgeRegular, { count: b.completed, noun: opts.orderNoun }),
+      icon: 'user-check',
+      tone: 'info',
+    })
   }
 
   if (b.returnedParcels > 0) {
@@ -219,7 +239,7 @@ export function customerBadges(
     // ใช้ตามที่ user เขียนมา (เดิมเป็น "ครั้ง")
     out.push({
       key: 'RETURNED',
-      label: `ตีกลับ ${b.returnedParcels} รายการ`,
+      label: fmt(opts.copy.badgeReturned, { count: b.returnedParcels }),
       icon: 'arrow-back-up',
       tone: 'warning',
     })
@@ -228,11 +248,18 @@ export function customerBadges(
     // user ระบุเองว่า "[ยกเลิก 2 รายการ] สำหรับคนที่มียกเลิก (สั่งแล้วแต่ยกเลิกก่อน)" — นับทุกใบ
     // ถ้อยคำเป็นกลางจึงไม่ใช่การกล่าวหา (ต่างจาก "ยกเลิกเอง" เดิมที่ชี้ตัวคนทำ)
     // tooltip/aria ขยายความเมื่อรู้ว่าลูกค้าเป็นต้นเรื่อง — ข้อมูลที่มีก็บอก ไม่ต้องซ่อน
-    const byBuyerNote = b.cancelledByBuyer > 0 ? ` (ลูกค้าขอเอง ${b.cancelledByBuyer})` : ''
+    // มีคนซื้อกดยกเลิกเองบ้าง → ใช้ข้อความยาวที่บอกจำนวนย่อย; ไม่มี → ใช้ข้อความสั้นตัวเดียวกับ label
+    // (ต่อสตริงในโค้ดไม่ได้ ลำดับคำสองภาษาไม่ตรงกัน — จึงเป็นคนละคีย์ ไม่ใช่คีย์เดียวต่อหาง)
     out.push({
       key: 'CANCELLED_BY_BUYER',
-      label: `ยกเลิก ${b.cancelledTotal} รายการ`,
-      detail: `ยกเลิก ${b.cancelledTotal} รายการ${byBuyerNote}`,
+      label: fmt(opts.copy.badgeCancelled, { count: b.cancelledTotal }),
+      detail:
+        b.cancelledByBuyer > 0
+          ? fmt(opts.copy.badgeCancelledDetail, {
+              count: b.cancelledTotal,
+              byBuyer: b.cancelledByBuyer,
+            })
+          : fmt(opts.copy.badgeCancelled, { count: b.cancelledTotal }),
       icon: 'flag',
       tone: 'warning',
     })

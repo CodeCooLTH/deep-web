@@ -22,6 +22,7 @@ import { useEffect } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { CustomerPanelBody, type CustomerPanelData } from './CustomerPanel'
+import { useT } from '@/i18n/LocaleProvider'
 
 type Props = {
   data: CustomerPanelData
@@ -29,6 +30,7 @@ type Props = {
 }
 
 export default function CustomerPanelSheet({ data, onClose }: Props) {
+  const t = useT()
   // ตรึงหน้าข้างหลัง — sheet นี้ mount เฉพาะตอนเปิดอยู่แล้ว จึงล็อกตลอดอายุของมัน
   // (React-controlled overlay ไม่ได้การล็อกจาก Preline เหมือน hs-overlay — ดู useLockBodyScroll)
   useLockBodyScroll(true)
@@ -48,12 +50,12 @@ export default function CustomerPanelSheet({ data, onClose }: Props) {
       className="fixed inset-0 z-80 flex items-end justify-center lg:items-center"
       role="dialog"
       aria-modal="true"
-      aria-label="ข้อมูลลูกค้า"
+      aria-label={t.inbox.customerInfo}
     >
       {/* scrim — คลิกเพื่อปิด (precedent AccountSwitcherSheet/OrderQrSheet) */}
       <button
         type="button"
-        aria-label="ปิด"
+        aria-label={t.common.close}
         onClick={onClose}
         className="absolute inset-0 bg-default-900/40 backdrop-blur-xs"
       />
@@ -68,11 +70,11 @@ export default function CustomerPanelSheet({ data, onClose }: Props) {
         <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-default-300 lg:hidden" />
 
         <div className="mb-2 flex items-center justify-between px-4">
-          <h3 className="text-base font-bold text-default-900">ข้อมูลลูกค้า</h3>
+          <h3 className="text-base font-bold text-default-900">{t.inbox.customerInfo}</h3>
           <button
             type="button"
             onClick={onClose}
-            aria-label="ปิด"
+            aria-label={t.common.close}
             className="btn btn-icon text-default-700 hover:bg-default-100"
           >
             <Icon icon="x" className="text-lg" />

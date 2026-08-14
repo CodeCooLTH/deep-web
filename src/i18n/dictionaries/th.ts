@@ -230,6 +230,81 @@ export const th = {
     backToList: 'กลับรายการ',
     customerInfo: 'ข้อมูลลูกค้า',
 
+    /** ใช้ร่วมกัน 2 ที่: หัวข้อในแผงตัวกรอง และป้ายฟิลด์ในแผงข้อมูลลูกค้า — ของเดียวกัน */
+    tagsLabel: 'แท็ก',
+    /** ปุ่มในดรอปดาวน์ "กลุ่ม" ของรายการแชท (คีย์ `groups` คือชื่อปุ่มดรอปดาวน์เอง) */
+    createGroup: 'สร้างกลุ่มใหม่',
+
+    /**
+     * แผงตัวกรองของกล่องข้อความ — popover ที่เปิดจากปุ่ม `filters` บนแถบเครื่องมือ
+     * 🛑 ค่าตัวเลือกทั้ง 3 ชุดเคยเป็นค่าคงที่ระดับ module จึงค้างเป็นไทยตลอดไป ต้องย้ายเข้า component
+     */
+    filterPanel: {
+      unread: 'ยังไม่อ่าน',
+      read: 'อ่านแล้ว',
+      linked: 'ผูกลูกค้าแล้ว',
+      unlinked: 'ยังไม่ผูกลูกค้า',
+      shipmentNone: 'ยังไม่สร้างพัสดุ',
+      shipmentUnprinted: 'สร้างแล้ว ยังไม่พิมพ์',
+      shipmentPrinted: 'พิมพ์แล้ว',
+      shipmentProblem: 'พัสดุมีปัญหา',
+      sectionChannel: 'ช่องทาง',
+      /** คนละคำกับ `channelAll` ('ทั้งหมด') โดยตั้งใจ — อันนี้เป็นชิปเลือก "ทุกเพจ" */
+      allChannels: 'ทุกช่องทาง',
+      tagsHint: 'เลือกได้หลายอัน (ติดอันใดก็ได้)',
+      sectionShipment: 'พัสดุ (iShip)',
+      sectionRead: 'การอ่าน',
+      sectionOther: 'อื่น ๆ',
+      hiddenLabel: 'ที่ซ่อนไว้',
+      clear: 'ล้างตัวกรอง',
+      apply: 'ใช้ตัวกรอง',
+    },
+
+    /**
+     * แผงขวาในห้องแชท — กระจายอยู่ 4 ไฟล์ (`CustomerPanel`, `CustomerCrmSection`,
+     * `CustomerPanelSheet` ของมือถือ และ `src/lib/customer-behavior.ts` ที่เป็นฟังก์ชันบริสุทธิ์)
+     *
+     * 🛑 คำนามของ "ออเดอร์" ไม่มีคีย์ของตัวเองที่นี่ — ผันตาม `Shop.vertical` โดยดึงจาก
+     * `menu.orders[vertical]` / `menu.bookings` ที่มีอยู่แล้ว (ค่าตรงกันทุกตัวอักษรกับ ORDER_VOCAB)
+     */
+    customerPanel: {
+      tabNote: 'โน้ต',
+      statOrderCount: 'จำนวนออเดอร์',
+      statTotalSpent: 'รวมยอดซื้อ',
+      statCustomerSince: 'เป็นลูกค้ามา',
+      linkStatusTitle: 'การเชื่อมกับลูกค้าในระบบ',
+      /** คีย์ของตัวเอง ไม่ reuse `channels.connected` — คนละความหมาย (ผูกลูกค้า vs เชื่อมเพจ) */
+      linked: 'เชื่อมแล้ว',
+      notLinked: 'ยังไม่เชื่อม — จะเชื่อมอัตโนมัติเมื่อสร้าง{noun}ด้วยเบอร์ของลูกค้ารายนี้',
+      adBadgeLabel: 'ป้ายกำกับจาก Meta',
+
+      /** แท็บ "คำสั่งซื้อ" — `{noun}` ผันตาม vertical เช่นเดียวกับ `notLinked` */
+      listHeading: 'รายการ{noun}',
+      createCta: 'สร้าง{noun}',
+      noHistory: 'ยังไม่มีประวัติ{noun}',
+      notLinkedNoHistory:
+        'ยังไม่เชื่อมกับลูกค้าในระบบ จึงยังไม่มีประวัติให้ดู — สร้าง{noun}ด้วยเบอร์ของลูกค้ารายนี้แล้วระบบจะเชื่อมให้เอง',
+
+      aliasLabel: 'ชื่อในแชท',
+      realNameLabel: 'ชื่อจริง',
+      salesStatusLabel: 'สถานะการขาย',
+      salesStatusUnspecified: 'ยังไม่ระบุ',
+      salesStatusInterested: 'สนใจ',
+      salesStatusNotInterested: 'ไม่สนใจ',
+      phoneLabel: 'เบอร์โทร',
+      addressLabel: 'ที่อยู่',
+      externalOnlyNotice: 'แท็ก/สถานะการขาย ใช้ได้เฉพาะแชทช่องทางภายนอก (Messenger/Instagram)',
+      crmLoading: 'กำลังโหลดข้อมูลลูกค้า',
+      crmLoadError: 'โหลดข้อมูลลูกค้าไม่สำเร็จ',
+
+      /** ป้ายพฤติกรรมลูกค้าเหนือแท็บ — โผล่เองไม่ต้องกด และโผล่ในรายการแชทกับหน้า /orders ด้วย */
+      badgeNew: 'ลูกค้าใหม่',
+      badgeRegular: 'ลูกค้าเก่า · {count} {noun}',
+      badgeReturned: 'ตีกลับ {count} รายการ',
+      badgeCancelled: 'ยกเลิก {count} รายการ',
+      badgeCancelledDetail: 'ยกเลิก {count} รายการ (ลูกค้าขอเอง {byBuyer})',
+    },
+
     /**
      * แถบ "ที่มาของแชท" ใต้หัวเธรด (ThreadContextBar + บล็อก contextItems ใน ChatThread)
      *

@@ -31,6 +31,7 @@ export type { ChatFilterState, ShipmentFilterValue } from './chat-list-query'
 import type { ChatFilterState, ShipmentFilterValue } from './chat-list-query'
 import { DEFAULT_CHAT_FILTER } from './chat-list-query'
 import { useT } from '@/i18n/LocaleProvider'
+import type { Dictionary } from '@/i18n/dictionaries/th'
 
 /**
  * จำนวนตัวกรองที่ "ไม่ใช่ค่าเริ่มต้น" — โชว์เป็น badge บนปุ่ม
@@ -48,25 +49,36 @@ export function countActiveFilters(f: ChatFilterState, pageFilter = ''): number 
   return n
 }
 
-const READ_OPTIONS: { value: ChatFilterState['readState']; label: string }[] = [
-  { value: 'all', label: 'ทั้งหมด' },
-  { value: 'unread', label: 'ยังไม่อ่าน' },
-  { value: 'read', label: 'อ่านแล้ว' },
-]
-const LINKED_OPTIONS: { value: ChatFilterState['customerLinked']; label: string }[] = [
-  { value: 'all', label: 'ทั้งหมด' },
-  { value: 'linked', label: 'ผูกลูกค้าแล้ว' },
-  { value: 'unlinked', label: 'ยังไม่ผูกลูกค้า' },
-]
-const SHIPMENT_OPTIONS: { value: ShipmentFilterValue; label: string }[] = [
-  { value: 'all', label: 'ทั้งหมด' },
-  { value: 'none', label: 'ยังไม่สร้างพัสดุ' },
-  { value: 'unprinted', label: 'สร้างแล้ว ยังไม่พิมพ์' },
-  { value: 'printed', label: 'พิมพ์แล้ว' },
-  // อยู่ในดรอปดาวน์ด้วยเพื่อให้ล้าง/สลับได้จากที่เดียวกับตัวอื่น — ส่วนชิปแดงในแถบตัวกรอง
-  // มีไว้เพราะตัวเลขของมันมีความหมายแม้ยังไม่ได้กรอง (บอกว่ามีกี่เคสรอจัดการ)
-  { value: 'problem', label: 'พัสดุมีปัญหา' },
-]
+/**
+ * 🛑 เคยเป็นค่าคงที่ระดับ module ⇒ ผูกกับภาษาที่โหลดตอน bundle แล้วค้างเป็นไทยตลอดไป
+ * (กับดักเดิมของ feature 00047 — เจอมาแล้วที่ Yup schema / CALLBACK_STATUS_MESSAGE / TABS)
+ * ตอนนี้เป็นฟังก์ชันรับ dictionary เรียกในตัว component ที่มี `useT()` อยู่แล้ว
+ */
+function readOptions(t: Dictionary): { value: ChatFilterState['readState']; label: string }[] {
+  return [
+    { value: 'all', label: t.inbox.channelAll },
+    { value: 'unread', label: t.inbox.filterPanel.unread },
+    { value: 'read', label: t.inbox.filterPanel.read },
+  ]
+}
+function linkedOptions(t: Dictionary): { value: ChatFilterState['customerLinked']; label: string }[] {
+  return [
+    { value: 'all', label: t.inbox.channelAll },
+    { value: 'linked', label: t.inbox.filterPanel.linked },
+    { value: 'unlinked', label: t.inbox.filterPanel.unlinked },
+  ]
+}
+function shipmentOptions(t: Dictionary): { value: ShipmentFilterValue; label: string }[] {
+  return [
+    { value: 'all', label: t.inbox.channelAll },
+    { value: 'none', label: t.inbox.filterPanel.shipmentNone },
+    { value: 'unprinted', label: t.inbox.filterPanel.shipmentUnprinted },
+    { value: 'printed', label: t.inbox.filterPanel.shipmentPrinted },
+    // อยู่ในดรอปดาวน์ด้วยเพื่อให้ล้าง/สลับได้จากที่เดียวกับตัวอื่น — ส่วนชิปแดงในแถบตัวกรอง
+    // มีไว้เพราะตัวเลขของมันมีความหมายแม้ยังไม่ได้กรอง (บอกว่ามีกี่เคสรอจัดการ)
+    { value: 'problem', label: t.inbox.filterPanel.shipmentProblem },
+  ]
+}
 
 function Chip({
   on,
@@ -194,7 +206,7 @@ export default function InboxFilterPanel({
         }`}
       >
         <Icon icon="adjustments-horizontal" className="size-4" />
-        ตัวกรอง
+        {t.inbox.filters}
         {activeCount > 0 && (
           <span className="badge bg-primary text-2xs rounded-full px-1.5 text-white">{activeCount}</span>
         )}
@@ -213,7 +225,7 @@ export default function InboxFilterPanel({
               type="button"
               onClick={() => onOpenChange(false)}
               className="text-default-700 hover:text-default-800 flex size-6 items-center justify-center rounded"
-              aria-label="ปิด"
+              aria-label={t.common.close}
             >
               <Icon icon="x" className="size-4" />
             </button>
@@ -225,8 +237,8 @@ export default function InboxFilterPanel({
             {showPages && (
               // feature 00025 S-14a — หัวข้อ "เพจ" → "ช่องทาง" เพราะรายการนี้ตอนนี้มีทั้งเพจ
               // Facebook และ LINE OA ปนกัน (LINE ไม่ใช่ "เพจ") คำเดิมไม่ครอบทุกตัวเลือกอีกต่อไป
-              <Section title="ช่องทาง">
-                <Chip on={draftPage === ''} label="ทุกช่องทาง" onClick={() => setDraftPage('')} />
+              <Section title={t.inbox.filterPanel.sectionChannel}>
+                <Chip on={draftPage === ''} label={t.inbox.filterPanel.allChannels} onClick={() => setDraftPage('')} />
                 {pageOptions.map((p, i) => (
                   // ชื่อเพจอย่างเดียวไม่พอ — ร้านที่ตั้งชื่อเพจ Facebook กับ Instagram เหมือนกัน
                   // จะเห็นชิปสองอันข้อความเดียวกันเป๊ะ เลือกไม่ถูก (user report 2026-07-31)
@@ -256,7 +268,7 @@ export default function InboxFilterPanel({
             )}
 
             {allTags.length > 0 && (
-              <Section title="แท็ก" hint="เลือกได้หลายอัน (ติดอันใดก็ได้)">
+              <Section title={t.inbox.tagsLabel} hint={t.inbox.filterPanel.tagsHint}>
                 {allTags.map((t) => (
                   <Chip key={t} on={draft.tags.includes(t)} label={t} onClick={() => toggleTag(t)} />
                 ))}
@@ -264,8 +276,8 @@ export default function InboxFilterPanel({
             )}
 
             {hasShipping && (
-              <Section title="พัสดุ (iShip)">
-                {SHIPMENT_OPTIONS.map((o) => (
+              <Section title={t.inbox.filterPanel.sectionShipment}>
+                {shipmentOptions(t).map((o) => (
                   <Chip
                     key={o.value}
                     on={draft.shipment === o.value}
@@ -276,8 +288,8 @@ export default function InboxFilterPanel({
               </Section>
             )}
 
-            <Section title="การอ่าน">
-              {READ_OPTIONS.map((o) => (
+            <Section title={t.inbox.filterPanel.sectionRead}>
+              {readOptions(t).map((o) => (
                 <Chip
                   key={o.value}
                   on={draft.readState === o.value}
@@ -287,8 +299,8 @@ export default function InboxFilterPanel({
               ))}
             </Section>
 
-            <Section title="ลูกค้า">
-              {LINKED_OPTIONS.map((o) => (
+            <Section title={t.menu.customers}>
+              {linkedOptions(t).map((o) => (
                 <Chip
                   key={o.value}
                   on={draft.customerLinked === o.value}
@@ -298,13 +310,13 @@ export default function InboxFilterPanel({
               ))}
             </Section>
 
-            <Section title="อื่น ๆ">
+            <Section title={t.inbox.filterPanel.sectionOther}>
               {/* สวิตช์ ไม่ใช่ชิป (user สั่ง 2026-07-31 "อยากให้เป็น toggle เหมือนเดิม") —
                   หัวข้ออื่นเป็นชุดตัวเลือกที่ต้องเลือกหนึ่งอัน แต่อันนี้เป็นเปิด/ปิดเดี่ยว ๆ
                   ชิปเดี่ยวบอกไม่ได้ว่าตอนนี้ปิดอยู่หรือแค่ยังไม่ได้เลือก
                   Base: src/app/(paces)/seller/(dashboard)/settings/ai/AiSettingForm.tsx (form-switch controlled) */}
               <label className="flex w-full cursor-pointer items-center justify-between gap-3">
-                <span className="text-default-800 text-sm font-medium">ที่ซ่อนไว้</span>
+                <span className="text-default-800 text-sm font-medium">{t.inbox.filterPanel.hiddenLabel}</span>
                 <input
                   type="checkbox"
                   className="form-switch shrink-0"
@@ -328,7 +340,7 @@ export default function InboxFilterPanel({
               }}
               className="text-default-600 hover:text-default-800 text-sm underline underline-offset-4"
             >
-              ล้างตัวกรอง
+              {t.inbox.filterPanel.clear}
             </button>
             <button
               type="button"
@@ -338,7 +350,7 @@ export default function InboxFilterPanel({
               }}
               className="btn btn-sm bg-primary hover:bg-primary-hover text-white"
             >
-              ใช้ตัวกรอง
+              {t.inbox.filterPanel.apply}
             </button>
           </div>
         </div>

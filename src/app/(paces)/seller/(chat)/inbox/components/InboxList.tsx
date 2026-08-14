@@ -100,6 +100,7 @@ import { type RowAction } from './ConversationRowMenu'
 import ChatContextMenu, { type ChatRowAnchor } from './ChatContextMenu'
 import SwipeableRow from './SwipeableRow'
 import { useT } from '@/i18n/LocaleProvider'
+import { salesStatusMeta } from '../[conversationId]/components/CustomerCrmSection'
 import {
   ChannelBadgeOverlay,
   ChannelMark,
@@ -190,16 +191,13 @@ type ChannelTab = 'ALL' | ChatChannel
 const CHANNEL_TABS: ChannelTab[] = ['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM', 'LINE']
 
 // feature 00018 CRM — badge สถานะการขายในแถว (UNSPECIFIED ไม่โชว์). ต้องตรงกับ CustomerCrmSection
-const SALES_STATUS_META: Record<string, { label: string; cls: string }> = {
-  // 🛑 "สนใจ" เคยเป็นเขียว (bg-success/15 text-success) — เปลี่ยนเป็น info 2026-08-09 ด้วย 2 เหตุผล
-  // ที่แยกกันคนละเรื่อง: (1) Verified-Means-Green — เขียวสงวนไว้กับ "ยืนยันแล้ว/สำเร็จ" เท่านั้น
-  // "สนใจ" คือความตั้งใจของลูกค้าที่ยังไม่ได้ยืนยันอะไรเลยและพลิกกลับได้ทุกเมื่อ ใช้เขียวทำให้
-  // สัญญาณความเชื่อใจเฟ้อ ซึ่งอันตรายเป็นพิเศษกับ product ที่ขายความน่าเชื่อถือ
-  // (2) คอนทราสต์ — text-success บนพื้น /15 วัดได้ 2.11:1 (src/lib/order-stage.ts:44) ตก AA ที่ 11px
-  // ต้องใช้คู่ -ink เสมอเมื่อวางตัวหนังสือบนพื้น semantic แบบโปร่ง
-  INTERESTED: { label: 'สนใจ', cls: 'bg-info/15 text-info-ink' },
-  NOT_INTERESTED: { label: 'ไม่สนใจ', cls: 'bg-default-200 text-default-700' },
-}
+/**
+ * ป้ายสถานะการขาย — import จาก `CustomerCrmSection` ตัวเดียว ไม่ประกาศซ้ำ (Hard Rule 16)
+ *
+ * 🛑 เดิมไฟล์นี้มีก็อปของตัวเอง แล้ว **ดริฟต์จากกันจริง**: ที่นี่แก้ "สนใจ" จากเขียวเป็น info
+ * ไปแล้ว 2026-08-09 (Verified-Means-Green + คอนทราสต์ 2.11:1 ตก AA) แต่ก็อปในแผงลูกค้ายังเขียวอยู่
+ * ⇒ ป้ายอันเดียวกันของลูกค้าคนเดียวกันคนละสีในสองหน้าจอ. รวมเป็นตัวเดียวแล้วทั้งสองที่ได้สีที่แก้แล้ว
+ */
 
 /** จำนวนข้อความที่ยังไม่ได้อ่านของแถวนี้ (0 = อ่านแล้ว → ไม่ขึ้น badge, ตัวหนังสือเทา)
  *
@@ -305,6 +303,9 @@ export default function InboxList({
   hasAnyChannel = true,
 }: Props) {
   const t = useT()
+  // ประกาศเป็น Record<string,…> เหมือนก็อปเดิมของไฟล์นี้ — `contactSalesStatus` มาจาก API เป็น
+  // string ธรรมดา (ไม่ใช่ union) การ index จึงต้องยอมรับคีย์ที่ไม่รู้จักแล้วตกไป fallback ด้านล่าง
+  const SALES_STATUS_META: Record<string, { label: string; cls: string }> = salesStatusMeta(t)
   // ชื่อเรียกรายการตามประเภทกิจการ — อ่านจาก DraftOrderProvider ที่ครอบทั้ง (chat) อยู่แล้ว
   // (ป้ายสถานะออเดอร์ล่าสุดในรายการแชทเคยเขียน "คำสั่งซื้อ" ตายตัว ทั้งที่ร้านบริการ/บ้านพัก
   //  เรียกคนละชื่อ — ตัวเลขและป้ายเดียวกันโผล่หลายที่ต้องมาจากคำชุดเดียวกัน)
@@ -1018,7 +1019,7 @@ export default function InboxList({
                 role="tab"
                 aria-selected={active}
                 title={label}
-                aria-label={tab === 'ALL' ? 'ทั้งหมด' : `กรองเฉพาะช่องทาง ${label}`}
+                aria-label={tab === 'ALL' ? label : `กรองเฉพาะช่องทาง ${label}`}
                 onClick={() => handleChannelTabChange(tab)}
                 className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-nowrap ${
                   active ? 'bg-card text-dark shadow-sm font-semibold' : 'text-default-600'
@@ -1133,7 +1134,7 @@ export default function InboxList({
             {/* แท็บข้อความมีเส้นใต้ (mockup V1) — น้ำหนักต่างจาก segmented ด้านบนชัดเจน ไม่แย่งกันเด่น
                 สแปมใช้สี danger ตั้งแต่ยังไม่ถูกเลือก เพราะเป็นถังที่ "ไม่ควรมีอะไรอยู่" (user สั่ง) */}
             {([
-              { key: 'ALL', label: 'ทั้งหมด', icon: null, danger: false },
+              { key: 'ALL', label: t.inbox.channelAll, icon: null, danger: false },
               { key: 'RESOLVED', label: t.inbox.statusResolved, icon: 'circle-check', danger: false },
               { key: 'SPAM', label: t.inbox.statusSpam, icon: 'alert-octagon', danger: true },
             ] as const).map((t) => {
@@ -1210,7 +1211,7 @@ export default function InboxList({
                   <span className="max-w-28 truncate">{activeGroupName}</span>
                 ) : (
                   <>
-                    กลุ่ม
+                    {t.inbox.groups}
                     {groups.length > 0 && <span className="text-default-700">{groups.length}</span>}
                   </>
                 )}
@@ -1239,7 +1240,7 @@ export default function InboxList({
                     className="dropdown-item text-sm"
                   >
                     <Icon icon="check" className={`size-4 ${activeGroupId === null ? 'text-primary' : 'opacity-0'}`} />
-                    ทั้งหมด
+                    {t.inbox.channelAll}
                   </button>
 
                   {groups.map((g) => (
@@ -1302,7 +1303,7 @@ export default function InboxList({
                       className="dropdown-item text-primary text-sm"
                     >
                       <Icon icon="plus" className="size-4" />
-                      สร้างกลุ่มใหม่
+                      {t.inbox.createGroup}
                     </button>
                   )}
                 </div>
@@ -1409,7 +1410,11 @@ export default function InboxList({
             // ป้ายพฤติกรรมลูกค้า — SSOT เดียวกับหัวแผงลูกค้า/ตาราง /orders
             // `hasHistory` = ผูกกับลูกค้าในระบบแล้ว (null = ยังไม่ผูก → ไม่มีป้ายเลย)
             const behaviorBadges = c.customerBehavior
-              ? customerBadges(c.customerBehavior, { hasHistory: true, orderNoun: orderVocab.noun })
+              ? customerBadges(c.customerBehavior, {
+                  hasHistory: true,
+                  orderNoun: orderVocab.noun,
+                  copy: t.inbox.customerPanel,
+                })
               : []
             // ชื่อกลุ่มที่เธรดนี้อยู่ — โชว์เฉพาะแท็บ "ทั้งหมด" (activeGroupId===null); ในแท็บกลุ่มเองไม่ต้อง
             // ย้ำ. หาจาก groups ที่โหลดมาแล้ว (ไม่ query เพิ่ม) — กลุ่มถูกลบ = หาไม่เจอ → ไม่โชว์ชิป

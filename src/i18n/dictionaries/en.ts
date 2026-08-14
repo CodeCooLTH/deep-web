@@ -194,6 +194,68 @@ export const en: Dictionary = {
     backToList: 'Back to list',
     customerInfo: 'Customer info',
 
+    tagsLabel: 'Tags',
+    createGroup: 'Create a group',
+
+    filterPanel: {
+      unread: 'Unread',
+      read: 'Read',
+      linked: 'Linked to a customer',
+      unlinked: 'Not linked',
+      shipmentNone: 'No shipment yet',
+      shipmentUnprinted: 'Created, not printed',
+      shipmentPrinted: 'Printed',
+      shipmentProblem: 'Shipment issue',
+      sectionChannel: 'Channel',
+      allChannels: 'All channels',
+      tagsHint: 'Pick several — matches any of them',
+      // "iShip" เป็นชื่อผู้ให้บริการ ห้ามแปล
+      sectionShipment: 'Shipping (iShip)',
+      sectionRead: 'Read status',
+      sectionOther: 'Other',
+      hiddenLabel: 'Hidden chats',
+      clear: 'Clear filters',
+      apply: 'Apply filters',
+    },
+
+    customerPanel: {
+      tabNote: 'Notes',
+      statOrderCount: 'Orders',
+      statTotalSpent: 'Total spent',
+      statCustomerSince: 'Customer for',
+      linkStatusTitle: 'Link to customer record',
+      linked: 'Linked',
+      notLinked:
+        "Not linked yet — we'll link automatically when you create a {noun} with this customer's phone number",
+      // "Meta" เป็นชื่อแบรนด์ และป้ายพวกนี้ (ad_id./instagram_ads) เป็นค่าที่ Meta ส่งมาเอง ไม่แปล
+      adBadgeLabel: 'Labelled by Meta',
+
+      listHeading: '{noun} history',
+      createCta: 'New {noun}',
+      noHistory: 'No {noun} history yet',
+      notLinkedNoHistory:
+        "Not linked to a customer record yet, so there's no history to show — create a {noun} with this customer's phone number and we'll link them automatically",
+
+      aliasLabel: 'Chat display name',
+      realNameLabel: 'Real name',
+      salesStatusLabel: 'Sales status',
+      salesStatusUnspecified: 'Not set',
+      salesStatusInterested: 'Interested',
+      salesStatusNotInterested: 'Not interested',
+      phoneLabel: 'Phone',
+      addressLabel: 'Address',
+      externalOnlyNotice:
+        'Tags and sales status are only available on external channels (Messenger/Instagram)',
+      crmLoading: 'Loading customer info',
+      crmLoadError: "Couldn't load customer info",
+
+      badgeNew: 'New customer',
+      badgeRegular: 'Returning · {count} {noun}',
+      badgeReturned: '{count} returned',
+      badgeCancelled: '{count} cancelled',
+      badgeCancelledDetail: '{count} cancelled ({byBuyer} by the customer)',
+    },
+
     contextBar: {
       shopReplyingShort: 'Replying as {shop}',
       shopReplyingPrefix: "You're replying as",

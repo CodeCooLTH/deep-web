@@ -13,6 +13,8 @@ import { useId, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import TagInput from '../../components/TagInput'
+import { useT } from '@/i18n/LocaleProvider'
+import type { Dictionary } from '@/i18n/dictionaries/th'
 
 type SalesStatus = 'UNSPECIFIED' | 'INTERESTED' | 'NOT_INTERESTED'
 
@@ -27,16 +29,23 @@ type Crm = {
   phones: string[]
 }
 
-export const SALES_STATUS_META: Record<SalesStatus, { label: string; cls: string }> = {
-  UNSPECIFIED: { label: 'ยังไม่ระบุ', cls: 'bg-default-100 text-default-700' },
-  INTERESTED: { label: 'สนใจ', cls: 'bg-success/15 text-success' },
-  NOT_INTERESTED: { label: 'ไม่สนใจ', cls: 'bg-default-200 text-default-600' },
+/**
+ * ป้ายสถานะการขาย — เคยเป็นค่าคงที่ระดับ module จึงค้างเป็นไทยตลอดไป (feature 00047)
+ * คลาสสี (`cls`) คงเดิมทุกตัว งานนี้แตะแต่คำ ไม่แตะสี
+ */
+export function salesStatusMeta(t: Dictionary): Record<SalesStatus, { label: string; cls: string }> {
+  return {
+    UNSPECIFIED: { label: t.inbox.customerPanel.salesStatusUnspecified, cls: 'bg-default-100 text-default-700' },
+    INTERESTED: { label: t.inbox.customerPanel.salesStatusInterested, cls: 'bg-success/15 text-success' },
+    NOT_INTERESTED: { label: t.inbox.customerPanel.salesStatusNotInterested, cls: 'bg-default-200 text-default-600' },
+  }
 }
 const STATUS_ORDER: SalesStatus[] = ['UNSPECIFIED', 'INTERESTED', 'NOT_INTERESTED']
 
 /** แถวข้อมูล view-mode — label เล็กบนหัว ค่าอยู่ล่าง
  *  text-xs (12px) ไม่ใช่ text-2xs: PRODUCT.md กำหนดว่า default ขนาดตัวอักษรต้องใหญ่กว่ามาตรฐาน
  *  เล็กน้อยเพื่อกลุ่ม digital-literacy ต่ำ/ผู้สูงวัย — 2xs กับ label ไทยที่มีสระบน-ล่างอ่านยากเกินไป */
+
 function ViewRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -92,6 +101,8 @@ export default function CustomerCrmSection({
   /** parent เก็บ crm ที่อัปเดตแล้วต่อ (แชร์ระหว่างแท็บ) */
   onSaved: (next: Crm) => void
 }) {
+  const t = useT()
+  const SALES_STATUS_META = salesStatusMeta(t)
   const isNote = variant === 'note'
   const fieldId = useId()
   const [editing, setEditing] = useState(false)
@@ -196,15 +207,15 @@ export default function CustomerCrmSection({
           <EditButton onClick={startEdit} />
         </div>
 
-        {crm.alias && <ViewRow label="ชื่อในแชท">{crm.alias}</ViewRow>}
-        <ViewRow label="ชื่อจริง">{crm.realName || <EmptyValue />}</ViewRow>
+        {crm.alias && <ViewRow label={t.inbox.customerPanel.aliasLabel}>{crm.alias}</ViewRow>}
+        <ViewRow label={t.inbox.customerPanel.realNameLabel}>{crm.realName || <EmptyValue />}</ViewRow>
 
         {crm.external ? (
           <>
-            <ViewRow label="สถานะการขาย">
+            <ViewRow label={t.inbox.customerPanel.salesStatusLabel}>
               <span className={`badge text-2xs ${status.cls}`}>{status.label}</span>
             </ViewRow>
-            <ViewRow label="แท็ก">
+            <ViewRow label={t.inbox.tagsLabel}>
               {crm.tags.length ? (
                 <div className="flex flex-wrap gap-1">
                   {crm.tags.map((t) => (
@@ -215,18 +226,18 @@ export default function CustomerCrmSection({
                 <EmptyValue />
               )}
             </ViewRow>
-            <ViewRow label="เบอร์โทร">
+            <ViewRow label={t.inbox.customerPanel.phoneLabel}>
               {crm.phones.length ? (
                 <div className="space-y-0.5">{crm.phones.map((p) => <p key={p} className="mb-0">{p}</p>)}</div>
               ) : (
                 <EmptyValue />
               )}
             </ViewRow>
-            <ViewRow label="ที่อยู่">{crm.address || <EmptyValue />}</ViewRow>
+            <ViewRow label={t.inbox.customerPanel.addressLabel}>{crm.address || <EmptyValue />}</ViewRow>
             {/* โน้ตย้ายไปแท็บ "โน้ต" แล้ว (user สั่ง 2026-07-23) — ไม่แสดงซ้ำที่นี่ */}
           </>
         ) : (
-          <p className="text-default-700 text-xs">แท็ก/สถานะการขาย ใช้ได้เฉพาะแชทช่องทางภายนอก (Messenger/Instagram)</p>
+          <p className="text-default-700 text-xs">{t.inbox.customerPanel.externalOnlyNotice}</p>
         )}
       </div>
     )
