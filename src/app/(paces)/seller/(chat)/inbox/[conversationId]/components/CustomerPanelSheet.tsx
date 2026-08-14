@@ -21,15 +21,20 @@
 import { useEffect } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
-import { CustomerPanelBody, type CustomerPanelData } from './CustomerPanel'
+import { CustomerPanelBody, type CustomerPanelData, type Tab } from './CustomerPanel'
 import { useT } from '@/i18n/LocaleProvider'
 
 type Props = {
   data: CustomerPanelData
   onClose: () => void
+  /**
+   * แท็บที่จะลงตอนเปิด (2026-08-14) — ชีตนี้ mount ใหม่ทุกครั้งที่เปิด ค่านี้จึงมีผลทุกครั้ง
+   * ปุ่ม "คลังไฟล์" ในหัวเธรดส่ง 'files' มา ส่วนเมนู ⋯ ส่ง 'customer'/'orders'
+   */
+  initialTab?: Tab
 }
 
-export default function CustomerPanelSheet({ data, onClose }: Props) {
+export default function CustomerPanelSheet({ data, onClose, initialTab }: Props) {
   const t = useT()
   // ตรึงหน้าข้างหลัง — sheet นี้ mount เฉพาะตอนเปิดอยู่แล้ว จึงล็อกตลอดอายุของมัน
   // (React-controlled overlay ไม่ได้การล็อกจาก Preline เหมือน hs-overlay — ดู useLockBodyScroll)
@@ -81,7 +86,7 @@ export default function CustomerPanelSheet({ data, onClose }: Props) {
           </button>
         </div>
 
-        <CustomerPanelBody data={data} />
+        <CustomerPanelBody data={data} initialTab={initialTab} />
       </div>
     </div>
   )

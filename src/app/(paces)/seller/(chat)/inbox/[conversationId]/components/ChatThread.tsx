@@ -70,7 +70,7 @@
  */
 import Icon from '@/components/wrappers/Icon'
 import AutoReplyTag from './AutoReplyTag'
-import NotificationSoundMenu from './NotificationSoundMenu'
+import ThreadOverflowMenu from './ThreadOverflowMenu'
 import BotPausedBanner, { getBotPausedSummary } from './BotPausedBanner'
 import ThreadStatusBar, { type ThreadStatusItem } from './ThreadStatusBar'
 import ThreadContextBar, { type ThreadContextItem } from './ThreadContextBar'
@@ -654,7 +654,7 @@ function buildAlbumRows(items: ChatMessageView[]): AlbumRow[] {
   flush()
   return rows
 }
-import { VERTICAL_CTA, type CustomerPanelData } from './CustomerPanel'
+import { VERTICAL_CTA, resolveTabNoun, type CustomerPanelData, type Tab as CustomerPanelTab } from './CustomerPanel'
 
 type Props = {
   conversationId: string
@@ -1147,6 +1147,12 @@ export default function ChatThread({
    */
   const [apptSheetOpen, setApptSheetOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
+  /** แท็บที่ชีตข้อมูลลูกค้าจะเปิดมาลง (2026-08-14) — ปุ่มคลังไฟล์ในหัวเธรดส่ง 'files' มา ⇒ ไฟล์ = 1 แตะ */
+  const [sheetTab, setSheetTab] = useState<CustomerPanelTab>('customer')
+  const openPanel = (tab: CustomerPanelTab) => {
+    setSheetTab(tab)
+    setSheetOpen(true)
+  }
   // user request 2026-07-25 — กดไอคอนตะกร้าใน inbox (?panel=orders) บนจอเล็ก (<1024px) → เด้ง sheet
   // ข้อมูลลูกค้า (แท็บออเดอร์เปิดเองใน CustomerPanelBody). เดสก์ท็อปมี panel persistent ไม่ต้องเปิด sheet
   const searchParams = useSearchParams()
@@ -2435,22 +2441,43 @@ export default function ChatThread({
             แถบเครื่องมือถูกถอดทิ้ง — ไม่ให้มีปุ่มเดียวกัน 2 ที่บนจอเดียว
             <768px ยุบเหลือไอคอน: หัวเธรดมีชื่อลูกค้า+ชิปช่องทาง+นับถอยหลังอยู่แล้ว ป้ายเต็มจะดันชื่อ
             จนถูกตัด. มุมขวาบนเป็นตำแหน่งที่คนมองหาข้อมูลคู่สนทนาอยู่แล้ว (ต่างจากแถบล่างที่เคยหาไม่เจอ) */}
+        {/**
+         * คลังไฟล์ — ปุ่มระดับหนึ่งในหัวเธรด (2026-08-14, แบบ A ในม็อกอัพ)
+         *
+         * ที่มา: user เจอเองบนมือถือ "จะเข้าไปดูไฟล์ที่ใช้ร่วมกันยากมาก" — เดิมทางไปไฟล์คือ 4 ชั้น
+         * (ปุ่มข้อมูลลูกค้า → ชีต → แท็บ customer → เลื่อนลงล่างสุด) ตอนนี้เหลือ **1 แตะ**
+         *
+         * 🛑 ตัวนับมาจาก `savedFiles.size` ซึ่ง server seed มาแล้ว (`listSavedFileIds` ใน page.tsx)
+         * และ `toggleLibrary` อัปเดตแบบ optimistic อยู่แล้ว ⇒ **ไม่มี request เพิ่มแม้แต่ใบเดียว**
+         * และตัวเลขขยับทันทีที่กดเก็บ ไม่ต้องรอ refetch
+         *
+         * ซ่อนที่ `xl` เหมือนปุ่มเดิม — ที่ ≥1280px มี CustomerPanel เป็นคอลัมน์ถาวรอยู่ข้าง ๆ แล้ว
+         * (breakpoint ต้องตรงกับ `xl:block` ของคอลัมน์ขวาใน page.tsx เสมอ)
+         */}
         <button
           type="button"
-          onClick={() => setSheetOpen(true)}
-          title={t.inbox.customerInfo}
-          aria-label={t.inbox.customerInfo}
-          className="btn btn-sm border-default-300 text-default-700 hover:bg-default-100 ms-auto inline-flex shrink-0 items-center gap-1 xl:hidden"
+          onClick={() => openPanel('files')}
+          title={t.inbox.libraryOpen}
+          aria-label={t.inbox.libraryOpen}
+          className="btn btn-icon border-default-300 text-default-700 hover:bg-default-100 relative ms-auto shrink-0 xl:hidden"
         >
-          <Icon icon="user-circle" className="text-base" />
-          <span className="hidden md:inline">ข้อมูลลูกค้า</span>
+          <Icon icon="folder" className="text-lg" />
+          {savedFiles.size > 0 && (
+            <span className="bg-primary border-card absolute -end-1 -top-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full border-2 px-1 text-2xs font-bold text-white">
+              {savedFiles.size > 99 ? '99+' : savedFiles.size}
+            </span>
+          )}
         </button>
 
         {/* เสียงแจ้งเตือน — เมนูเดียวคุมทั้ง "ทั้งแอป" และ "เฉพาะแชทนี้" (user report 2026-08-10)
             เดิมที่นี่เป็นปุ่มกระดิ่งรายเธรดที่ถูกซ่อนเมื่อปิดเสียงระดับแอป และสวิตช์ระดับแอปอยู่ใน
             ChatHeader ซึ่ง hidden lg:flex ในหน้าเธรด ⇒ **บนมือถือในห้องแชทไม่มีสวิตช์เสียงให้แตะเลย**
             แทนที่ 1:1 ไม่เพิ่มปุ่มใหม่ (งบพื้นที่หัวเธรดที่ 320px ตึงอยู่แล้ว — flex-header-truncation) */}
-        <NotificationSoundMenu conversationId={conversationId} />
+        <ThreadOverflowMenu
+          conversationId={conversationId}
+          ordersLabel={resolveTabNoun(t, customerPanelData.vertical)}
+          onOpenPanel={openPanel}
+        />
       </div>
 
       {/**
@@ -3982,7 +4009,7 @@ export default function ChatThread({
 
     {/* feature 00018 T5 — sheet มือถือ/tablet (<1024px); ปุ่มเปิดอยู่ใน composer ด้านบน */}
     {sheetOpen && (
-      <CustomerPanelSheet data={customerPanelData} onClose={() => setSheetOpen(false)} />
+      <CustomerPanelSheet data={customerPanelData} initialTab={sheetTab} onClose={() => setSheetOpen(false)} />
     )}
 
     {/* ดูรูปเต็มจอ — Base Gallery.tsx:100 (เพิ่ม plugin Zoom + แปลป้าย a11y เป็นไทย) */}

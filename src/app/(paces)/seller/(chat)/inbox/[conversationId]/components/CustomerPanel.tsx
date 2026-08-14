@@ -211,7 +211,7 @@ function StatRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-type Tab = 'customer' | 'orders' | 'note'
+export type Tab = 'customer' | 'orders' | 'files' | 'note'
 
 /**
  * คำนามของแท็บที่สอง ผันตาม vertical — ดึงจากคีย์ที่มีอยู่แล้วใน dictionary ไม่ตั้งคำชุดใหม่
@@ -219,7 +219,7 @@ type Tab = 'customer' | 'orders' | 'note'
  *
  * 🛑 LODGING ตั้งใจให้ tabLabel ("การจอง") ต่างจาก noun ของ /orders ("บิลเข้าพัก") — ห้ามยุบรวม
  */
-function resolveTabNoun(t: Dictionary, vertical: ShopVertical): string {
+export function resolveTabNoun(t: Dictionary, vertical: ShopVertical): string {
   return vertical === 'LODGING' ? t.menu.bookings : t.menu.orders[vertical]
 }
 
@@ -228,6 +228,14 @@ function buildTabs(t: Dictionary, vertical: ShopVertical): { key: Tab; label: st
   return [
     { key: 'customer', label: t.inbox.customerInfo, icon: 'user-circle' },
     { key: 'orders', label: resolveTabNoun(t, vertical), icon: 'shopping-cart' },
+    /**
+     * แท็บคลังไฟล์ (2026-08-14) — user: "เวลาอยู่ใน Mobile จะเข้าไปดูไฟล์ที่ใช้ร่วมกันยากมาก"
+     * เดิมคลังไฟล์อยู่ล่างสุดของแท็บ 'customer' ⇒ ทางไปไฟล์บนมือถือคือ 4 ชั้น
+     *
+     * 🛑 ใช้คีย์ `librarySectionTitle` ตัวเดียวกับหัวข้อในตัว section ไม่สร้างคีย์ `tabFiles` ใหม่ —
+     * ชื่อแท็บกับหัวข้อข้างในต้องพูดตรงกันเสมอ คีย์แยกคือช่องให้สองที่นี้เพี้ยนกันโดยไม่มีอะไรฟ้อง (HR16)
+     */
+    { key: 'files', label: t.inbox.librarySectionTitle, icon: 'folder' },
     { key: 'note', label: t.inbox.customerPanel.tabNote, icon: 'notes' },
   ]
 }
@@ -601,7 +609,7 @@ function OrdersList({
  * สถิติลูกค้า (count/total/since) มาจาก page.tsx aggregate แล้ว (data.customerStats) ไม่คำนวณ
  * ฝั่ง client อีกต่อไป — เดิม summarize() นับจาก orders 20 แถวที่ list ใช้ ซึ่งเพี้ยนถ้าลูกค้าซื้อเกิน 20
  */
-export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
+export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelData; initialTab?: Tab }) {
   const t = useT()
   // user request 2026-07-25 — เปิดจากไอคอนตะกร้าใน inbox (?panel=orders) → เด้งแท็บออเดอร์ทันที
   // ใช้ useEffect sync ตาม param (ไม่พึ่ง useState initializer อย่างเดียว) เพราะ App Router อาจ reuse
@@ -609,10 +617,15 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
   // มี panel=orders → orders, ไม่มี → customer (การกดแท็บเองไม่ทำ param เปลี่ยน จึงไม่โดน effect ทับ)
   const searchParams = useSearchParams()
   const wantOrders = searchParams.get('panel') === 'orders'
-  const [tab, setTab] = useState<Tab>(wantOrders ? 'orders' : 'customer')
+  /**
+   * `initialTab` (2026-08-14) — ผู้เรียกสั่งได้ว่าเปิดมาให้ลงแท็บไหน ใช้โดยชีตบนมือถือซึ่ง mount
+   * ใหม่ทุกครั้งที่เปิด ⇒ ปุ่ม "คลังไฟล์" ในหัวเธรดเปิดมาเจอไฟล์ทันที ส่วนเมนู ⋯ เปิดมาเจอข้อมูลลูกค้า
+   * ชนะ `?panel=orders` เพราะเป็นเจตนาที่เพิ่งกดเดี๋ยวนี้ ส่วน query param คือของที่ค้างอยู่ใน URL
+   */
+  const [tab, setTab] = useState<Tab>(initialTab ?? (wantOrders ? 'orders' : 'customer'))
   useEffect(() => {
-    setTab(wantOrders ? 'orders' : 'customer')
-  }, [wantOrders])
+    setTab(initialTab ?? (wantOrders ? 'orders' : 'customer'))
+  }, [wantOrders, initialTab])
   const cta = VERTICAL_CTA[data.vertical]
   /** คำนามที่ผันตาม vertical — ใช้แทน `cta.tabLabel` ทุกจุดที่เป็นข้อความบนจอ */
   const tabNoun = resolveTabNoun(t, data.vertical)
@@ -869,9 +882,25 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
             )}
           </div>
 
-          {/* feature 00048 — คลังไฟล์ต่อลูกค้า อยู่ล่างสุดของแท็บนี้โดยตั้งใจ: ของด้านบนคือสิ่งที่
-              ผู้ขายต้องอ่านก่อนตอบทุกครั้ง ส่วนคลังไฟล์คือสิ่งที่ "ไปหาเมื่อต้องการ" — ดันขึ้นบน
-              แล้วกริดรูป 9 ช่องจะผลักโน้ต/เบอร์ตกจอทุกครั้งที่เปิดแผง */}
+        </div>
+
+        {/**
+         * แท็บคลังไฟล์ (2026-08-14) — ย้ายออกมาจากล่างสุดของแท็บ 'customer'
+         *
+         * เหตุผลเดิมที่วางไว้ล่างสุดยังถูกอยู่ ("ของด้านบนคือสิ่งที่ต้องอ่านก่อนตอบทุกครั้ง ส่วนคลังไฟล์
+         * คือสิ่งที่ไปหาเมื่อต้องการ") — แต่ข้อสรุปนั้นถูกต่อยอดผิดเป็น "จึงต้องเลื่อนหาเอา" ทั้งที่
+         * ทางออกที่ถูกคือ **แยกออกไปเป็นที่ของตัวเองที่ไปถึงได้ตรง ๆ** ไม่ใช่ฝังไว้ท้ายกอง
+         *
+         * 🛑 ต้อง mount ค้างไว้เหมือนแท็บอื่น (ซ่อนด้วย `hidden` ไม่ใช่ conditional render) — ตัวมัน
+         * subscribe `LIBRARY_CHANGED_EVENT` เพื่อรีเฟรชกริดตอนกดเก็บไฟล์จากในเธรด ถ้า unmount
+         * ตามแท็บ สัญญาณจะตกทุกครั้งที่ผู้ขายไม่ได้เปิดแท็บนี้ค้างไว้พอดี
+         */}
+        <div
+          role="tabpanel"
+          id={`${uid}-panel-files`}
+          aria-labelledby={`${uid}-tab-files`}
+          className={tab === 'files' ? '' : 'hidden'}
+        >
           <CustomerFileLibrarySection conversationId={data.conversationId} customerName={data.contactName} />
         </div>
 

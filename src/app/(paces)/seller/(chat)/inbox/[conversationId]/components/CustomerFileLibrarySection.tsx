@@ -102,7 +102,9 @@ export default function CustomerFileLibrarySection({
   }, [conversationId, refresh])
 
   return (
-    <div className="border-default-200 mt-4 border-t border-dashed pt-4">
+    // ไม่มีเส้นคั่นบน/ระยะห่างบนแล้ว (2026-08-14): ย้ายจาก "ท้ายแท็บข้อมูลลูกค้า" มาเป็นแท็บของ
+    // ตัวเอง — เส้นประที่เคยใช้แยกมันออกจากบล็อกเหนือขึ้นไปจึงกลายเป็นเส้นลอยที่ไม่ได้แยกอะไรเลย
+    <div>
       <div className="mb-2.5 flex items-center gap-1.5">
         <h4 className="text-default-900 text-sm font-semibold">{t.inbox.librarySectionTitle}</h4>
         {/* badge จำนวน — 0 ไม่ render (แสดง empty state แทน ไม่ใช่ badge "0") */}

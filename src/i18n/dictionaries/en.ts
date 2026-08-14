@@ -193,6 +193,8 @@ export const en: Dictionary = {
     sendWithNote: 'Send — {note}',
     backToList: 'Back to list',
     customerInfo: 'Customer info',
+    threadMoreMenu: 'More options',
+    libraryOpen: 'File library',
 
     tagsLabel: 'Tags',
     createGroup: 'Create a group',

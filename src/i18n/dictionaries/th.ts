@@ -229,6 +229,8 @@ export const th = {
     sendWithNote: 'ส่ง — {note}',
     backToList: 'กลับรายการ',
     customerInfo: 'ข้อมูลลูกค้า',
+    threadMoreMenu: 'ตัวเลือกเพิ่มเติม',
+    libraryOpen: 'คลังไฟล์',
 
     /** ใช้ร่วมกัน 2 ที่: หัวข้อในแผงตัวกรอง และป้ายฟิลด์ในแผงข้อมูลลูกค้า — ของเดียวกัน */
     tagsLabel: 'แท็ก',
