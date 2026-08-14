@@ -134,7 +134,7 @@ import EmojiPicker, { rememberRecentSticker } from './EmojiPicker'
  * 2026-08-04 ให้เห็นรูปสติกเกอร์ทันทีพร้อม spinner เหมือนส่งข้อความ ไม่ใช่รอเงียบ ๆ แล้วคิดว่าหาย
  */
 function mediaSrc(key: string): string {
-  return key.startsWith('http') ? key : `/api/files/${key}`
+  return fileUrlOf(key)
 }
 import AiSuggestPanel from './AiSuggestPanel'
 import AppointmentDateSheet from '@/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentDateSheet'
@@ -144,7 +144,7 @@ import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
 // feature 00048 — คลังไฟล์ต่อลูกค้า (คำทั้งหมดมาจาก SSOT เดียว ห้ามพิมพ์ซ้ำที่นี่ — HR16)
 import { LIBRARY_ICONS, isLibraryEligible, emitLibraryChanged } from '@/lib/customer-file-library'
-import { toFileUrl } from '@/lib/file-url'
+import { toFileUrl, fileUrlOf } from '@/lib/file-url'
 import SaveToLibraryButton from './SaveToLibraryButton'
 import { JUMP_TO_MESSAGE_EVENT } from './CustomerFileViewer'
 

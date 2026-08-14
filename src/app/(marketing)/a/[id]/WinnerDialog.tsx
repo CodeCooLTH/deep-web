@@ -20,6 +20,7 @@ import CustomAvatar from '@core/components/mui/Avatar'
 import { getInitials } from '@/utils/getInitials'
 import { LEVEL_STYLE } from './AuctionBidHistory'
 import type { AuctionLevel } from '@/lib/auction-level'
+import { fileUrlOf } from '@/lib/file-url'
 
 type Props = {
   open: boolean
@@ -41,9 +42,7 @@ export default function WinnerDialog({
   finalPrice,
 }: Props) {
   const avatarSrc = winnerAvatar
-    ? winnerAvatar.startsWith('http')
-      ? winnerAvatar
-      : `/api/files/${winnerAvatar}`
+    ? fileUrlOf(winnerAvatar)
     : undefined
   const lv = LEVEL_STYLE[winnerLevel.level] ?? LEVEL_STYLE[1]
 

@@ -7,11 +7,12 @@ import { getTierDisplay } from '@/services/trust-score.service'
 import { getTierColor } from '@/lib/trust-tier'
 import type { TierChipColor } from '@/lib/trust-tier'
 import { MPageTitle, MEmpty } from '../_components/ui'
+import { fileUrlOf } from '@/lib/file-url'
 
 export const metadata: Metadata = { title: 'ประมูล' }
 
 const baht = new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 })
-const resolveImg = (u: string) => (u.startsWith('http') ? u : `/api/files/${u}`)
+const resolveImg = (u: string) => (fileUrlOf(u))
 const tierBg = (c: TierChipColor) =>
   c === 'default' ? 'var(--mui-palette-action-selected)' : `var(--mui-palette-${c}-lightOpacity)`
 const tierFg = (c: TierChipColor) =>

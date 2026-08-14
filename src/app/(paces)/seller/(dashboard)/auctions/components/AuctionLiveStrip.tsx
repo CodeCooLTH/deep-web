@@ -23,6 +23,7 @@ import Icon from '@/components/wrappers/Icon'
 import AuctionCountdown from '../../_shared/AuctionCountdown'
 import { formatDateTime } from '@/lib/format-date'
 import { useAuctionPresence } from '@/hooks/useAuctionPresence'
+import { fileUrlOf } from '@/lib/file-url'
 
 /** viewer count ต่อ live card (feat 00006) — presence channel ต่อ auction; แสดงเมื่อ >0 */
 function LiveCardViewers({ auctionId }: { auctionId: string }) {
@@ -73,7 +74,7 @@ function CoverThumb({ src, alt }: { src?: string; alt: string }) {
 
 function resolveImg(imageUrl: string): string | undefined {
   if (!imageUrl) return undefined
-  return imageUrl.startsWith('http') ? imageUrl : `/api/files/${imageUrl}`
+  return fileUrlOf(imageUrl)
 }
 
 export default function AuctionLiveStrip({ items }: { items: LiveStripItem[] }) {

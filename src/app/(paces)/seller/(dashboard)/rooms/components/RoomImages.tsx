@@ -24,6 +24,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import { uploadFileId } from '@/lib/upload-client'
 import FileUploader from '@/components/FileUploader'
 import { MAX_ROOM_IMAGES } from '@/lib/lodging'
+import { fileUrlOf } from '@/lib/file-url'
 
 interface RoomImagesProps {
   value: string[]
@@ -34,7 +35,7 @@ type UploadingItem = { key: string; name: string; previewUrl: string }
 
 /** รูปอาจเป็น full URL (seed/CDN) หรือ storage fileId — mirror guard ของหน้าสินค้า */
 function imageSrc(id: string): string {
-  return id.startsWith('http') ? id : `/api/files/${id}`
+  return fileUrlOf(id)
 }
 
 export default function RoomImages({ value, onChange }: RoomImagesProps) {

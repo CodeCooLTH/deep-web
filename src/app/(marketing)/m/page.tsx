@@ -12,11 +12,12 @@ import { topAuctions, recentEndedAuctions, listCategoriesWithImage } from '@/ser
 
 import HomeFeed, { type CategoryItem, type TrustedShopCard, type AuctionCard, type TrustSnapshot } from './_components/HomeFeed'
 import { sessionUserId } from '@/lib/session-user'
+import { fileUrlOf } from '@/lib/file-url'
 
 export const metadata: Metadata = { title: 'หน้าแรก' }
 
 // storage key → URL (http = external ปล่อยตรง, else prefix /api/files/)
-const resolveImg = (u: string) => (u.startsWith('http') ? u : `/api/files/${u}`)
+const resolveImg = (u: string) => (fileUrlOf(u))
 
 // รูป cover curated ต่อหมวด (bundle ใน /public — ใช้เป็น fallback เมื่อยังไม่มี listing จริงในหมวดนั้น)
 // ที่มา: Wikimedia Commons (CC/PD) → รับประกันทุกหมวดมีรูปสินค้าจริงตั้งแต่ DB ว่าง

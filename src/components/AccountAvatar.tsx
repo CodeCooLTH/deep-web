@@ -9,6 +9,7 @@
 
 import Icon from '@/components/wrappers/Icon'
 import { useState } from 'react'
+import { toFileUrl } from '@/lib/file-url'
 
 interface Props {
   src: string | null | undefined
@@ -23,11 +24,7 @@ const AccountAvatar = ({ src, kind, className }: Props) => {
   // resolve src (bug fix 2026-07-26: รูปร้านไม่ขึ้น) — Shop.logo/avatar เก็บเป็น storage fileId
   // (เช่น "2026/07/26/uuid.jpg") ต้องเสิร์ฟผ่าน /api/files/; รูป FB เป็น http URL เต็มใช้ตรง ๆ
   // (pattern เดียวกับ ChatAvatar/PanelAvatar). absolute path (/...) และ http(s) ใช้ตามเดิม
-  const resolvedSrc = src
-    ? src.startsWith('http') || src.startsWith('/')
-      ? src
-      : `/api/files/${src}`
-    : null
+  const resolvedSrc = toFileUrl(src)
 
   if (resolvedSrc && !failed) {
     return (

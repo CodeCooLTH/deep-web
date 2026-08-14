@@ -18,6 +18,7 @@ import { authOptions } from '@/lib/auth'
 import { formatDateTime } from '@/lib/format-date'
 import { prisma } from '@/lib/prisma'
 import ReviewActions from './ReviewActions'
+import { fileUrlOf } from '@/lib/file-url'
 
 export const metadata: Metadata = { title: 'ตรวจสอบคำขอยืนยันตัวตน' }
 
@@ -169,7 +170,7 @@ export default async function VerificationDetailPage({ params }: PageProps) {
                             {DOC_FIELD_LABEL[key]}
                           </span>
                           <a
-                            href={`/api/files/${fileId}`}
+                            href={fileUrlOf(fileId)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-primary inline-flex items-center gap-1 text-xs font-medium hover:underline"
@@ -183,7 +184,7 @@ export default async function VerificationDetailPage({ params }: PageProps) {
                               browser will show a broken image; user can click "เปิดไฟล์" above. */}
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={`/api/files/${fileId}`}
+                            src={fileUrlOf(fileId)}
                             alt={DOC_FIELD_LABEL[key]}
                             className="max-h-80 w-full object-contain"
                           />

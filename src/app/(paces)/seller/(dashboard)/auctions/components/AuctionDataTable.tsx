@@ -31,6 +31,7 @@ import type { SellerAuctionListItemDTO } from '@/services/auction.service'
 import { STATUS_BADGE_CLASS, STATUS_LABEL } from './data'
 import AuctionMeta from './AuctionMeta'
 import AuctionRowMenu from './AuctionRowMenu'
+import { toFileUrl } from '@/lib/file-url'
 
 const columnHelper = createColumnHelper<SellerAuctionListItemDTO>()
 
@@ -52,9 +53,7 @@ export default function AuctionDataTable({ auctions, onPublishRequest, onCancelR
       cell: ({ row }) => {
         const a = row.original
         const imageUrl = a.imageUrl
-          ? a.imageUrl.startsWith('http')
-            ? a.imageUrl
-            : `/api/files/${a.imageUrl}`
+          ? toFileUrl(a.imageUrl)
           : null
         return (
           <div className="flex items-center gap-2.5">

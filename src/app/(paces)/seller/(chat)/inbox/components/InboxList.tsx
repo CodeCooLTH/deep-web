@@ -80,6 +80,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+import { toFileUrl } from '@/lib/file-url'
 // ป้ายพฤติกรรมลูกค้า — SSOT เดียวกับหัวแผงลูกค้าในเธรด และป้ายท้ายชื่อในตาราง /orders (HR16)
 import { customerBadges, type CustomerBehavior } from '@/lib/customer-behavior'
 import { generateInitials } from '@/utils/helpers'
@@ -225,7 +226,7 @@ function unreadCountOf(c: ConversationListItem, localReadAt?: string): number {
 /** avatar คู่สนทนา — รูปจริง (http URL หรือ storage fileId) + fallback initials */
 function BuyerAvatar({ avatar, name }: { avatar: string | null; name: string }) {
   const [failed, setFailed] = useState(false)
-  const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
+  const src = avatar ? (toFileUrl(avatar)) : null
   if (!src || failed) {
     return (
       // size-10 (40px) ไม่ใช่ size-9: user report 2026-07-23 ว่า badge ช่องทางบังจนรูปโปรไฟล์ดูเล็ก

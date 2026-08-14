@@ -20,6 +20,7 @@ import { Icon } from '@iconify/react'
 import CustomAvatar from '@core/components/mui/Avatar'
 import { getInitials } from '@/utils/getInitials'
 import type { BidDTO } from '@/services/auction.service'
+import { fileUrlOf } from '@/lib/file-url'
 
 type Props = {
   title: string
@@ -66,7 +67,7 @@ export default function AuctionLiveComment({ title, latestBid }: Props) {
             size={23}
             skin="filled"
             color="primary"
-            src={latestBid.avatar ? (latestBid.avatar.startsWith('http') ? latestBid.avatar : `/api/files/${latestBid.avatar}`) : undefined}
+            src={latestBid.avatar ? (fileUrlOf(latestBid.avatar)) : undefined}
             sx={{ border: '1.5px solid rgba(255,255,255,.45)', fontSize: 8, flexShrink: 0 }}
           >
             {getInitials(latestBid.bidder)}

@@ -6,8 +6,9 @@ import { browseShops } from '@/services/shop.service'
 import { getTierDisplay } from '@/services/trust-score.service'
 import { getTierColor } from '@/lib/trust-tier'
 import type { TierChipColor } from '@/lib/trust-tier'
+import { toFileUrl } from '@/lib/file-url'
 
-const resolveImg = (u: string) => (u.startsWith('http') ? u : `/api/files/${u}`)
+const resolveImg = (u: string) => (toFileUrl(u))
 
 export type ShopItem = {
   username: string

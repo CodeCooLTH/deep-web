@@ -377,7 +377,7 @@ export default async function SellerDashboardPage() {
               id: p.id,
               name: p.name,
               price: Number(p.price),
-              image: first ? (first.startsWith('http') ? first : `/api/files/${first}`) : null,
+              image: first ? (toFileUrl(first)) : null,
               soldCount: p.soldCount,
             }
           })

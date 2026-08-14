@@ -32,6 +32,7 @@ import { toast } from 'react-toastify'
 import CustomAvatar from '@core/components/mui/Avatar'
 import { getInitials } from '@/utils/getInitials'
 import type { BidDTO } from '@/services/auction.service'
+import { fileUrlOf } from '@/lib/file-url'
 
 type Props = {
   open: boolean
@@ -268,7 +269,7 @@ export default function AuctionBidHistoryModal({ open, onClose, auctionId, bidCo
                   size={32}
                   skin="light"
                   color={isLeader ? 'primary' : undefined}
-                  src={bid.avatar ? (bid.avatar.startsWith('http') ? bid.avatar : `/api/files/${bid.avatar}`) : undefined}
+                  src={bid.avatar ? (fileUrlOf(bid.avatar)) : undefined}
                 >
                   {getInitials(bid.bidder)}
                 </CustomAvatar>

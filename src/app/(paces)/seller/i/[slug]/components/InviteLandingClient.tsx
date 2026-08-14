@@ -32,6 +32,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { generateInitials } from '@/utils/helpers'
 import PhoneAuthSteps from './PhoneAuthSteps'
+import { toFileUrl } from '@/lib/file-url'
 
 interface InviteLandingClientProps {
   shopName: string
@@ -52,7 +53,7 @@ function ShopAvatar({
   size?: 'sm' | 'lg'
 }) {
   const [failed, setFailed] = useState(false)
-  const src = shopLogo ? (shopLogo.startsWith('http') ? shopLogo : `/api/files/${shopLogo}`) : null
+  const src = shopLogo ? (toFileUrl(shopLogo)) : null
   const box = size === 'lg' ? 'size-20' : 'size-11'
   const text = size === 'lg' ? 'text-2xl' : 'text-base'
   // ขอบขาว + เงาเฉพาะขนาดใหญ่ ให้โลโก้ลอยเด่นจากพื้นการ์ด

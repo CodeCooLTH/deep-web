@@ -15,12 +15,13 @@ import SignOutButton from '@/app/(marketing)/(buyer-app)/dashboard/SignOutButton
 import DeleteAccountSection from '@/app/(marketing)/(buyer-app)/_components/DeleteAccountSection'
 import AvatarEditable from './AvatarEditable'
 import { sessionUserId } from '@/lib/session-user'
+import { toFileUrl } from '@/lib/file-url'
 
 export const metadata: Metadata = { title: 'บัญชีของฉัน' }
 
 // avatar → URL. avatar ถูกเก็บเป็น path เต็ม (/api/files/<id>) จาก AvatarEditable/AccountSidebar หรือ http (FB)
 // → ปล่อยผ่านถ้าเป็น http/ขึ้นต้น '/'; prefix เฉพาะกรณี key ดิบ (กัน bug prefix ซ้ำ = /api/files//api/files/xxx)
-const resolveImg = (u: string | null) => (!u ? undefined : u.startsWith('http') || u.startsWith('/') ? u : `/api/files/${u}`)
+const resolveImg = (u: string | null) => toFileUrl(u) ?? undefined
 
 type SemColor = 'warning' | 'info' | 'success' | 'error'
 const semBg = (c: SemColor) => `var(--mui-palette-${c}-lightOpacity)`

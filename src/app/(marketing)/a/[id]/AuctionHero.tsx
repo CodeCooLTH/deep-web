@@ -23,6 +23,7 @@ import IconButton from '@mui/material/IconButton'
 
 import { Icon } from '@iconify/react'
 import { useKeenSlider } from 'keen-slider/react'
+import { toFileUrl } from '@/lib/file-url'
 import 'keen-slider/keen-slider.min.css'
 
 type Props = {
@@ -35,7 +36,7 @@ type Props = {
 }
 
 // imageUrl/images จาก DTO เป็น storage key ดิบ (เช่น "xxx.jpeg") — prefix /api/files/ (http = external ปล่อยตรง)
-const resolveImg = (u: string) => (u.startsWith('http') ? u : `/api/files/${u}`)
+const resolveImg = (u: string) => (toFileUrl(u))
 
 export default function AuctionHero({ imageUrl, images, variant, children }: Props) {
   const slides = (images && images.length > 0 ? images : imageUrl ? [imageUrl] : []).map(resolveImg)

@@ -26,6 +26,7 @@ import ProductsListing from './components/ProductsListing'
 import ProductStats from './components/ProductStats'
 import type { ProductRow } from './components/data'
 import type { StatType } from './components/ProductStats'
+import { fileUrlOf } from '@/lib/file-url'
 
 export const metadata: Metadata = { title: 'สินค้า' }
 
@@ -97,7 +98,7 @@ export default async function ProductsPage() {
       description: p.description ?? '',
       // guard: ถ้า images[0] เป็น full URL (seed picsum / CDN) → ใช้ตรง; ไม่งั้น wrap /api/files/ (storage key)
       image: Array.isArray(p.images) && p.images.length > 0
-        ? (String(p.images[0]).startsWith('http') ? String(p.images[0]) : `/api/files/${p.images[0]}`)
+        ? fileUrlOf(String(p.images[0]))
         : '',
       price: Number(p.price ?? 0),
       // Decimal → number ที่ server boundary (ข้ามเส้น RSC ดิบไม่ได้); null คงเป็น null ไม่แปลงเป็น 0

@@ -35,6 +35,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import ProductThumb from '@/app/(paces)/seller/(dashboard)/orders/new/components/ProductThumb'
 import { useThreadShopId } from '@/app/(paces)/seller/(chat)/_components/DraftOrderProvider'
+import { fileUrlOf } from '@/lib/file-url'
 import {
   describeProductSelection,
   maxSelectableProducts,
@@ -85,7 +86,7 @@ type Props = {
 function imageSrc(images: string[]): string | null {
   const first = images[0]
   if (!first) return null
-  return String(first).startsWith('http') ? String(first) : `/api/files/${first}`
+  return fileUrlOf(String(first))
 }
 
 const priceText = (p: number) => `฿${p.toLocaleString('th-TH')}`

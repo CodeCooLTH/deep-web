@@ -23,6 +23,7 @@ import { formatTime } from '@/lib/format-date'
 import { useSellerChatThread, groupByDate, type ChatProductCard } from './useSellerChatThread'
 import SellerEmptyState from './SellerEmptyState'
 import SellerErrorState from './SellerErrorState'
+import { toFileUrl } from '@/lib/file-url'
 
 type Props = {
   conversationId: string
@@ -34,7 +35,7 @@ type Props = {
  * เช่น InboxList.tsx BuyerAvatar/ChatThread.tsx ChatAvatar — ไม่คุ้ม extract component แยก) */
 function ChatAvatar({ avatar, name, size = 'size-7' }: { avatar: string | null; name: string; size?: string }) {
   const [failed, setFailed] = useState(false)
-  const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
+  const src = avatar ? (toFileUrl(avatar)) : null
   if (!src || failed) {
     return (
       <span className={`bg-primary/10 text-primary flex ${size} shrink-0 items-center justify-center rounded-full text-sm font-semibold`}>

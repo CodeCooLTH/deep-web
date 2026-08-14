@@ -18,6 +18,7 @@ import type { SellerAuctionListItemDTO } from '@/services/auction.service'
 import { STATUS_BADGE_CLASS, STATUS_LABEL } from './data'
 import AuctionMeta from './AuctionMeta'
 import AuctionRowMenu from './AuctionRowMenu'
+import { fileUrlOf } from '@/lib/file-url'
 
 type Props = {
   auction: SellerAuctionListItemDTO
@@ -49,9 +50,7 @@ function Thumb({ src, alt }: { src?: string; alt: string }) {
 
 export default function AuctionRow({ auction, onPublishRequest, onCancelRequest }: Props) {
   const imageUrl = auction.imageUrl
-    ? auction.imageUrl.startsWith('http')
-      ? auction.imageUrl
-      : `/api/files/${auction.imageUrl}`
+    ? fileUrlOf(auction.imageUrl)
     : undefined
 
   return (

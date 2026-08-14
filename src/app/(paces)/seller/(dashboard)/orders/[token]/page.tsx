@@ -65,6 +65,7 @@ import { resolveExpenseAccess } from '@/services/expense-access.service'
 import { countsAsRevenue } from '@/lib/order-revenue'
 import { computeOrderProfit } from '@/lib/order-profit'
 import { resolveOrderSource } from '@/lib/order-source-channel'
+import { toFileUrl } from '@/lib/file-url'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ (constant ไม่รู้จัก shop ของ request)
@@ -315,9 +316,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
           const rawImages = Array.isArray(item.product?.images) ? item.product.images : []
           const firstImg: string = rawImages[0] ?? ''
           const imageUrl: string | null = firstImg
-            ? firstImg.startsWith('http')
-              ? firstImg
-              : `/api/files/${firstImg}`
+            ? toFileUrl(firstImg)
             : null
           return {
             id: item.id,

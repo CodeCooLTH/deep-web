@@ -32,6 +32,7 @@ import { isOrderDateInWindow } from '@/lib/order-date-window'
 // ย้ายออกไป lib + มีเทสคลุม (2026-08-10) — ตอนอยู่ในไฟล์นี้ LINE ตกหล่นจาก if/else เงียบ ๆ
 // จนออเดอร์จากแชท LINE ถูกบันทึกเป็น STOREFRONT ทุกใบ ดู lib/chat-sales-channel.ts
 import { chatChannelToSalesChannel } from '@/lib/chat-sales-channel'
+import { toFileUrl } from '@/lib/file-url'
 
 type Channel = 'DEEP' | 'MESSENGER' | 'INSTAGRAM' | string
 
@@ -166,7 +167,7 @@ function DraftAvatar({
   onSolid?: boolean
 }) {
   const [failed, setFailed] = useState(false)
-  const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
+  const src = avatar ? (toFileUrl(avatar)) : null
   return (
     <span className="relative shrink-0">
       {!src || failed ? (

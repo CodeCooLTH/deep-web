@@ -21,6 +21,7 @@ import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { STATUS_BADGE_CLASS, STATUS_LABEL, type AuctionStatus } from '../../components/data'
 import { useAuctionActions } from './useAuctionActions'
+import { fileUrlOf } from '@/lib/file-url'
 
 type Props = {
   id: string
@@ -34,7 +35,7 @@ type Props = {
 export default function ConsoleHead({ id, title, imageUrl, status, viewerCount = 0 }: Props) {
   const { endEarly, endingEarly, cancel, cancelling, publish, publishing, share } = useAuctionActions(id)
 
-  const thumbSrc = imageUrl.startsWith('http') ? imageUrl : `/api/files/${imageUrl}`
+  const thumbSrc = fileUrlOf(imageUrl)
 
   return (
     <div className="card">

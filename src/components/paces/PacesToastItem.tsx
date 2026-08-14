@@ -21,6 +21,7 @@ import { Icon } from '@iconify/react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { toFileUrl } from '@/lib/file-url'
 
 const VARIANT: Record<PacesToastType, { icon: string; color: string }> = {
   success: { icon: 'tabler:circle-check', color: 'text-success' },
@@ -42,7 +43,7 @@ const EXIT_MS = 300 // ต้องตรงกับ `transition-all duration-3
  */
 function SenderAvatar({ avatar, name }: { avatar: string | null; name: string }) {
   const [failed, setFailed] = useState(false)
-  const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
+  const src = avatar ? (toFileUrl(avatar)) : null
   if (!src || failed) {
     return (
       <span className="bg-primary/10 text-primary flex size-12 shrink-0 items-center justify-center rounded-full font-semibold">

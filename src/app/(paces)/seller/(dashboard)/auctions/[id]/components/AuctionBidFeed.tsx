@@ -28,6 +28,7 @@ import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import type { BidDTO } from '@/services/auction.service'
+import { toFileUrl } from '@/lib/file-url'
 
 type ConnectionState = 'live' | 'reconnecting'
 
@@ -54,7 +55,7 @@ function getInitial(name: string): string {
 /** avatar bidder (รูปจริง + fallback initials) — avatar อาจเป็น http URL (FB) หรือ storage key */
 function BidderAvatar({ avatar, name, isLeader }: { avatar: string | null; name: string; isLeader: boolean }) {
   const [failed, setFailed] = useState(false)
-  const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
+  const src = avatar ? (toFileUrl(avatar)) : null
   if (!src || failed) {
     return (
       <span

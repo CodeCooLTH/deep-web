@@ -18,6 +18,7 @@ import { relativeTimeTh } from '@/lib/relative-time-th'
 import { pacesToast } from '@/lib/paces-toast'
 import SellerEmptyState from './SellerEmptyState'
 import SellerErrorState from './SellerErrorState'
+import { toFileUrl } from '@/lib/file-url'
 
 export type ConversationListItem = {
   id: string
@@ -44,7 +45,7 @@ function isUnread(c: ConversationListItem): boolean {
 /** avatar ผู้ซื้อ — copy ตรงจาก InboxList.tsx BuyerAvatar (duplicate เล็ก ๆ ตาม convention เดิม) */
 function BuyerAvatar({ avatar, name }: { avatar: string | null; name: string }) {
   const [failed, setFailed] = useState(false)
-  const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
+  const src = avatar ? (toFileUrl(avatar)) : null
   if (!src || failed) {
     return (
       <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold">

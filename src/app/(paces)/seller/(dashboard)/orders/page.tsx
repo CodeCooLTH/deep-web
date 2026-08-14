@@ -34,6 +34,7 @@ import OrdersStatCard from './components/OrdersStatCard'
 // นิยาม "พัสดุตีกลับ" อยู่ที่ lib/iship/status.ts ที่เดียว — ห้ามเขียนรายชื่อสถานะซ้ำที่นี่
 import { RETURNED_CARRIER_STATUSES } from '@/lib/iship/status'
 import { cancelReasonCountsAgainstGuest } from '@/lib/lodging'
+import { toFileUrl } from '@/lib/file-url'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ จึงเป็น generateMetadata ไม่ใช่ constant
@@ -354,9 +355,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       // images[] เก็บได้ทั้ง file id (อัปโหลดจริง → /api/files/{id}) และ full URL (seed/external)
       // เดิม wrap /api/files/ ทุกกรณี → full URL กลายเป็น /api/files/https://... = 404 (รูปไม่ขึ้น)
       const imageUrl = firstImage
-        ? firstImage.startsWith('http')
-          ? firstImage
-          : `/api/files/${firstImage}`
+        ? toFileUrl(firstImage)
         : null
       return {
         id: item.id,

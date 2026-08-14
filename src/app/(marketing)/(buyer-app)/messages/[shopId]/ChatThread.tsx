@@ -55,6 +55,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { uploadFileId } from '@/lib/upload-client'
 // คลังคำตามประเภทกิจการ — SSOT เดียวทั้งฝั่งร้านและฝั่งลูกค้า (HR16) ห้ามพิมพ์คำซ้ำที่นี่
 import { resolveOrderVocab } from '@/lib/seller-menu'
+import { fileUrlOf } from '@/lib/file-url'
 
 type SenderRole = 'BUYER' | 'SHOP'
 // ORDER = การ์ดออเดอร์/ใบเสนอราคาที่ร้านส่งให้ (user 2026-07-24) — buyer เห็นการ์ดเดียวกับฝั่ง seller
@@ -162,11 +163,9 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
   const myUserId = sessionUser?.id ?? null
   const myDisplayName = sessionUser?.displayName ?? 'ฉัน'
   const myAvatarSrc = sessionUser?.avatar
-    ? sessionUser.avatar.startsWith('http')
-      ? sessionUser.avatar
-      : `/api/files/${sessionUser.avatar}`
+    ? fileUrlOf(sessionUser.avatar)
     : undefined
-  const shopAvatarSrc = shopLogo ? (shopLogo.startsWith('http') ? shopLogo : `/api/files/${shopLogo}`) : undefined
+  const shopAvatarSrc = shopLogo ? (fileUrlOf(shopLogo)) : undefined
 
   const [conversation, setConversation] = useState<ConversationSummary | null>(null)
   const [convError, setConvError] = useState<'not-found' | 'generic' | null>(null)

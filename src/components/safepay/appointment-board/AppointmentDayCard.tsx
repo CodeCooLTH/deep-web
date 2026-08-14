@@ -46,6 +46,7 @@ import {
   SALES_CHANNEL_LABELS,
 } from '@/app/(paces)/seller/(dashboard)/orders/components/data'
 import type { AppointmentDayApiItem } from './types'
+import { toFileUrl } from '@/lib/file-url'
 
 type Props = {
   item: AppointmentDayApiItem
@@ -76,7 +77,7 @@ function CustomerAvatar({
 }) {
   const [failed, setFailed] = useState(false)
   // ค่าที่ขึ้นต้นด้วย http = URL ดิบ (หมดอายุได้) · ที่เหลือคือ fileId ใน storage — กติกาเดียวกับกล่องแชท
-  const src = avatarUrl ? (avatarUrl.startsWith('http') ? avatarUrl : `/api/files/${avatarUrl}`) : null
+  const src = avatarUrl ? (toFileUrl(avatarUrl)) : null
 
   return (
     <span className="relative shrink-0">

@@ -14,9 +14,24 @@
  */
 export function toFileUrl(value: string | null | undefined): string | null {
   if (!value) return null;
+  return fileUrlOf(value);
+}
 
-  // ค่าที่ขึ้นต้นด้วย "/" เป็น URL path ในเว็บเราอยู่แล้ว (เช่น /images/badges/x.png ที่มาจาก seed)
-  // ถ้าเติม prefix ให้จะกลายเป็น /api/files//images/... ซึ่งพัง — เช็คก่อนเสมอ
+/**
+ * เหมือน `toFileUrl` ทุกประการ ต่างกันแค่ "สัญญาเรื่อง null" — ตัวนี้รับค่าที่ผู้เรียกกันไว้แล้วว่า
+ * ไม่ว่าง (เช่นอยู่หลัง `x ? … : null` หรือเป็นพารามิเตอร์ที่ประกาศเป็น `string`) จึงคืน `string` เสมอ
+ *
+ * 🛑 มีสองตัวโดยตั้งใจ และวางติดกันตาม Hard Rule 16 — **ตรรกะอยู่ที่นี่ที่เดียว** `toFileUrl`
+ * เรียกตัวนี้ต่อ ไม่ได้ก็อปเงื่อนไขไปเขียนซ้ำ ผลลัพธ์ของทั้งคู่จึงเหมือนกันเป๊ะเสมอสำหรับค่าที่ไม่ว่าง
+ *
+ * ทำไมไม่ให้ call site เขียน `toFileUrl(x)!` แทน: `!` คือ cast ที่ปิดตา tsc ไม่ให้ตรวจ ซึ่งเป็น
+ * แพตเทิร์นที่รีโปนี้เคยเจ็บมาแล้ว (`session-exists-is-not-identity.md` — cast ทำให้ `undefined`
+ * ไหลเข้า query จนทั้งหน้าเป็น 500 โดย tsc ไม่ฟ้องสักบรรทัด)
+ */
+export function fileUrlOf(value: string): string {
+  // ค่าที่ขึ้นต้นด้วย "/" เป็น URL path ในเว็บเราอยู่แล้ว — ทั้ง /images/badges/x.png ที่มาจาก seed
+  // และ /api/files/{id} ที่หน้า /account เซฟลง User.avatar (ProfileForm.tsx)
+  // ถ้าเติม prefix ให้จะกลายเป็น /api/files//api/files/... ซึ่งพัง 404 — เช็คก่อนเสมอ
   if (value.startsWith("http") || value.startsWith("/")) return value;
 
   return `/api/files/${value}`;

@@ -57,6 +57,7 @@ import AppointmentSummarySheet from '../../../_components/AppointmentSummaryShee
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
 import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
+import { toFileUrl } from '@/lib/file-url'
 
 export type CustomerPanelOrder = {
   id: string
@@ -128,7 +129,7 @@ export type CustomerPanelData = {
  *  (user report 2026-07-24: right panel ไม่มีรูป). ตรรกะ src เดียวกับ ChatAvatar ใน ChatThread.tsx */
 function PanelAvatar({ avatar, name }: { avatar: string | null; name: string }) {
   const [failed, setFailed] = useState(false)
-  const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
+  const src = avatar ? (toFileUrl(avatar)) : null
   if (!src || failed) {
     return (
       <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
