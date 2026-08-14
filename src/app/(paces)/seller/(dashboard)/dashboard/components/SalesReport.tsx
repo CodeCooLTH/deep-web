@@ -15,6 +15,7 @@ import Icon from '@/components/wrappers/Icon'
 import { getColor } from '@/utils/helpers'
 import { ApexOptions } from 'apexcharts'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
+import { useT } from '@/i18n/LocaleProvider'
 
 /** แต่ละ data point ต่อเดือน — ส่งผ่าน RSC boundary เป็น plain object */
 export type SalesSeriesPoint = {
@@ -35,16 +36,24 @@ type SalesReportProps = {
   summary: SalesSummary
 }
 
-/** สร้าง ApexOptions จาก real series data */
-export const buildSalesReportChart = (series: SalesSeriesPoint[]): ApexOptions => ({
+/**
+ * สร้าง ApexOptions จาก real series data
+ *
+ * ชื่อเส้นรับเข้ามาเป็นพารามิเตอร์ ไม่ได้อ่าน dictionary เอง — ฟังก์ชันนี้อยู่ระดับ module
+ * จึงเรียก hook ไม่ได้ และการฝังข้อความไว้ตรงนี้จะทำให้กราฟเป็นภาษาเดียวตลอดอายุ bundle
+ */
+export const buildSalesReportChart = (
+  series: SalesSeriesPoint[],
+  seriesNames: { revenue: string; orders: string },
+): ApexOptions => ({
   series: [
     {
-      name: 'รายได้รวม',
+      name: seriesNames.revenue,
       type: 'area',
       data: series.map((s) => Math.round(s.revenue / 1000)), // แสดงในหน่วย k
     },
     {
-      name: 'ออเดอร์',
+      name: seriesNames.orders,
       type: 'line',
       data: series.map((s) => s.orderCount),
     },
@@ -100,17 +109,19 @@ export const buildSalesReportChart = (series: SalesSeriesPoint[]): ApexOptions =
 })
 
 const SalesReport = ({ series, summary }: SalesReportProps) => {
+  const t = useT()
   const isEmpty = summary.totalOrders === 0
+  const seriesNames = { revenue: t.dashboard.salesSeriesRevenue, orders: t.dashboard.salesSeriesOrders }
 
   return (
     <div className="card h-full">
       <div className="card-header md:py-0 pt-6 pb-0">
-        <h4 className="card-title">รายงานยอดขาย</h4>
+        <h4 className="card-title">{t.dashboard.salesTitle}</h4>
         {/* เดิมตรงนี้เป็นแท็บ "วันนี้/รายเดือน/รายปี" ที่ติดมากับธีมแต่กดแล้วไม่ทำอะไรเลย
             (hs-tab ชี้ panel ที่ไม่มีจริง — id "annual-atb" สะกดผิดด้วยซ้ำ) พอหน้ามี filter
             วันนี้/เดือนนี้ ของจริงที่แถวหัวแล้ว ปุ่มปลอมชุดนี้ยิ่งหลอกตา — ตัดทิ้ง เหลือป้ายนิ่ง
             บอกตรง ๆ ว่ากราฟใบนี้เป็นรายเดือนย้อนหลัง (ไม่ตาม filter ระดับหน้า) */}
-        <span className="text-default-500 text-xs">ยอดขายรายเดือน</span>
+        <span className="text-default-500 text-xs">{t.dashboard.salesSubtitle}</span>
       </div>
 
       {isEmpty ? (
@@ -119,8 +130,8 @@ const SalesReport = ({ series, summary }: SalesReportProps) => {
           <SellerEmptyState
             compact
             icon="chart-bar-off"
-            title="ยังไม่มียอดขาย"
-            description="กราฟจะแสดงเมื่อเริ่มมีออเดอร์"
+            title={t.dashboard.salesEmptyTitle}
+            description={t.dashboard.salesEmptyDesc}
           />
         </div>
       ) : (
@@ -129,7 +140,7 @@ const SalesReport = ({ series, summary }: SalesReportProps) => {
           <div className="bg-light/25 border-b border-default-300 border-dashed">
             <div className={`grid ${summary.growth != null ? 'md:grid-cols-3' : 'md:grid-cols-2'} grid-cols-2 md:gap-base text-center`}>
               <div>
-                <p className="text-default-400 mt-5 mb-1.25">รายได้</p>
+                <p className="text-default-400 mt-5 mb-1.25">{t.dashboard.salesSummaryRevenue}</p>
                 <h4 className="flex justify-center items-center mb-4 text-lg font-semibold">
                   <Icon icon="wallet" className="text-success me-2" />
                   <span>
@@ -138,7 +149,7 @@ const SalesReport = ({ series, summary }: SalesReportProps) => {
                 </h4>
               </div>
               <div>
-                <p className="text-default-400 mt-5 mb-1.25">ออเดอร์</p>
+                <p className="text-default-400 mt-5 mb-1.25">{t.dashboard.salesSummaryOrders}</p>
                 <h4 className="flex justify-center items-center mb-4 text-lg font-semibold">
                   <Icon icon="basket" className="text-success me-2" />
                   <span>
@@ -149,7 +160,7 @@ const SalesReport = ({ series, summary }: SalesReportProps) => {
               {/* ซ่อน growth column เมื่อคำนวณไม่ได้ (ไม่มี prev period) */}
               {summary.growth != null && (
                 <div>
-                  <p className="text-default-400 mt-5 mb-1.25">อัตราเติบโต</p>
+                  <p className="text-default-400 mt-5 mb-1.25">{t.dashboard.salesSummaryGrowth}</p>
                   <h4 className="flex justify-center items-center mb-4 text-lg font-semibold">
                     <Icon icon="trending-up" className="text-success me-2" />
                     <span>
@@ -164,8 +175,8 @@ const SalesReport = ({ series, summary }: SalesReportProps) => {
             <div>
               <div className="apex-charts">
                 <ApexChart
-                  getOptions={() => buildSalesReportChart(series)}
-                  series={buildSalesReportChart(series).series}
+                  getOptions={() => buildSalesReportChart(series, seriesNames)}
+                  series={buildSalesReportChart(series, seriesNames).series}
                   type="line"
                   height={359}
                 />

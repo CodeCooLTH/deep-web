@@ -18,6 +18,8 @@ import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { resolveProductVocab } from '@/lib/seller-menu'
 import ProductThumb from '../../orders/new/components/ProductThumb'
+import { getT } from '@/i18n/server'
+import { byVertical } from '@/i18n/vertical'
 
 const formatThb = (n: number) =>
   new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(n)
@@ -43,20 +45,21 @@ type Props = {
   vertical?: string
 }
 
-const TopSellingProducts = ({ products, vertical }: Props) => {
+const TopSellingProducts = async ({ products, vertical }: Props) => {
   const vocab = resolveProductVocab(vertical ?? 'ONLINE_SALES')
+  const t = await getT()
 
   return (
     <div className="card h-full">
       <div className="card-header">
         <div className="flex items-center gap-2">
-          <h4 className="card-title">{vocab.bestSellerTitle}</h4>
+          <h4 className="card-title">{byVertical(t.vocab.bestSellerTitle, vertical)}</h4>
           {/* ป้ายช่วงเวลาแบบเดียวกับโดนัท/แผนที่ — การ์ดนี้เป็นยอดสะสมตลอดชีพ ไม่ตาม filter
               วันนี้/เดือนนี้ ของหน้า ถ้าไม่บอก ผู้ใช้ที่เพิ่งกด "วันนี้" จะอ่าน soldCount เป็นยอดวันนี้ */}
-          <span className="badge bg-default-100 text-default-700 text-xs">ตลอดชีพ</span>
+          <span className="badge bg-default-100 text-default-700 text-xs">{t.dashboard.bestSellerLifetime}</span>
         </div>
         <Link href="/products" className="text-primary text-sm">
-          {vocab.viewAllLabel} ›
+          {byVertical(t.vocab.bestSellerViewAll, vertical)} ›
         </Link>
       </div>
 
@@ -67,8 +70,8 @@ const TopSellingProducts = ({ products, vertical }: Props) => {
             <span className="flex items-center justify-center rounded-full bg-default-100 text-default-400 size-12">
               <Icon icon={vocab.soldIcon} className="text-2xl" />
             </span>
-            <p className="text-sm font-semibold">{vocab.emptyTitle}</p>
-            <p className="text-xs text-default-500">{vocab.emptyHint}</p>
+            <p className="text-sm font-semibold">{byVertical(t.vocab.bestSellerEmptyTitle, vertical)}</p>
+            <p className="text-xs text-default-500">{byVertical(t.vocab.bestSellerEmptyHint, vertical)}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -78,7 +81,12 @@ const TopSellingProducts = ({ products, vertical }: Props) => {
                   {/* "สั่งซื้อ"/"ยอดสั่งซื้อ" นับ PENDING+SHIPPED+CONFIRMED (ไม่รวม CANCELLED) — ต่างจาก
                       "รายได้" ใน KPI card/SalesReport/expenses ที่นับเฉพาะ CONFIRMED เท่านั้น ห้ามเปลี่ยน
                       กลับเป็น "รายได้"/"ขายแล้ว" ที่นี่ (ดูเหตุผลที่ product.service.ts getBestSellerProducts) */}
-                  {[vocab.itemColLabel, 'ราคา', vocab.countColLabel, vocab.amountColLabel].map((h, i) => (
+                  {[
+                    byVertical(t.vocab.itemCol, vertical),
+                    t.dashboard.bestSellerPriceCol,
+                    byVertical(t.vocab.countCol, vertical),
+                    byVertical(t.vocab.amountCol, vertical),
+                  ].map((h, i) => (
                     <th
                       key={h}
                       className={`text-default-500 px-4 py-3 text-sm font-medium ${i === 0 ? 'text-start' : 'text-end'}`}

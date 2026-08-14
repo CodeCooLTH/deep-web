@@ -48,6 +48,7 @@ import {
   type LineHealthAction,
 } from '@/lib/line/channel-health-presentation'
 import { formatDate, formatDateTime } from '@/lib/format-date'
+import { useT } from '@/i18n/LocaleProvider'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -124,6 +125,7 @@ const CHAT_MODE_NOT_BOT_MESSAGE =
   'โหมดแชทของ LINE OA นี้ยังไม่ได้ตั้งเป็น Bot — ข้อความจากลูกค้าอาจไม่เข้า Deep จนกว่าจะเปลี่ยนที่ LINE Official Account Manager → การตั้งค่า → การตอบกลับ → โหมดแชท → Bot'
 
 export function LineChannelCard({ initialChannels }: LineChannelCardProps) {
+  const t = useT()
   const router = useRouter()
   const [channels, setChannels] = useState<LineChannelRow[]>(initialChannels)
   const [wizard, setWizard] = useState<WizardState | null>(null)
@@ -263,7 +265,7 @@ export function LineChannelCard({ initialChannels }: LineChannelCardProps) {
       {channels.length === 0 && !wizard && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-default-500 text-sm">
-            เชื่อม LINE OA ของร้านเพื่อรับและตอบข้อความ LINE จากอินบ็อกซ์เดียวกับช่องทางอื่น
+            {t.channels.lineIntro}
           </p>
           <button
             type="button"
@@ -273,7 +275,7 @@ export function LineChannelCard({ initialChannels }: LineChannelCardProps) {
             {/* โลโก้จริง LINE — brand asset (Hard Rule 6 carve-out), มีอยู่แล้วใน public/images/logos */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/images/logos/line.svg" alt="" aria-hidden="true" width={16} height={16} className="shrink-0" />
-            เชื่อม LINE OA
+            {t.channels.lineConnect}
           </button>
         </div>
       )}

@@ -110,6 +110,185 @@ export const th = {
   },
 
   /**
+   * คำนามที่ผันตามประเภทกิจการ — เงาภาษาของ `ORDER_VOCAB`/`PRODUCT_VOCAB` ใน `src/lib/seller-menu.ts`
+   *
+   * 🛑 ทำไมต้องมีที่นี่ทั้งที่ SSOT อยู่ที่ `seller-menu.ts`
+   * ไฟล์นั้นเก็บ `soldLine: (n) => ...` ซึ่งเป็น **ฟังก์ชัน** — ค่าใน dictionary ต้อง serialize ได้
+   * เสมอ (ดูเหตุผลหัวไฟล์) จึงยกมาทั้งก้อนไม่ได้ ที่นี่เก็บเฉพาะ *คำ* ที่โผล่บนหน้าแรกของผู้ขาย
+   * และใช้ `{n}` + `fmt()` แทนฟังก์ชัน
+   *
+   * โครงเป็น `Record<vertical, string>` ท่าเดียวกับ `menu.orders` ที่มีอยู่แล้ว — ผู้เรียกอ่านด้วย
+   * คีย์ vertical แล้วถอยไป `ONLINE_SALES` เมื่อเจอค่าที่ไม่รู้จัก (fail-closed เหมือน seller-menu)
+   */
+  vocab: {
+    /** ชื่อของ "หนึ่งใบ" — ORDER_VOCAB.noun */
+    orderNoun: {
+      ONLINE_SALES: 'คำสั่งซื้อ',
+      SERVICE_QUEUE: 'การเข้ารับบริการ',
+      LODGING: 'บิลเข้าพัก',
+    },
+    /**
+     * คำเดียวกันแต่ใช้เป็น "หัวการ์ด" — ไทยใช้คำเดิมทุกตัวอักษร ส่วนอังกฤษต้องเป็นพหูพจน์
+     * ขึ้นต้นด้วยตัวใหญ่ ("Orders" ไม่ใช่ "order") เพราะยืนเดี่ยวเป็นชื่อหัวข้อ ไม่ได้อยู่กลางประโยค
+     */
+    orderNounTitle: {
+      ONLINE_SALES: 'คำสั่งซื้อ',
+      SERVICE_QUEUE: 'การเข้ารับบริการ',
+      LODGING: 'บิลเข้าพัก',
+    },
+    /** ปุ่ม/ประโยคชวนสร้างใบใหม่ — ORDER_VOCAB.createLabel */
+    createLabel: {
+      ONLINE_SALES: 'สร้างคำสั่งซื้อ',
+      SERVICE_QUEUE: 'สร้างงาน',
+      LODGING: 'สร้างบิลเข้าพัก',
+    },
+    bestSellerTitle: {
+      ONLINE_SALES: 'สินค้าขายดี',
+      SERVICE_QUEUE: 'บริการยอดนิยม',
+      LODGING: 'ห้องพักยอดนิยม',
+    },
+    bestSellerViewAll: {
+      ONLINE_SALES: 'ดูสินค้าทั้งหมด',
+      SERVICE_QUEUE: 'ดูบริการทั้งหมด',
+      LODGING: 'ดูห้องพักทั้งหมด',
+    },
+    bestSellerEmptyTitle: {
+      ONLINE_SALES: 'ยังไม่มีสินค้าขายดี',
+      SERVICE_QUEUE: 'ยังไม่มีบริการยอดนิยม',
+      LODGING: 'ยังไม่มีห้องพักยอดนิยม',
+    },
+    bestSellerEmptyHint: {
+      ONLINE_SALES: 'อันดับจะขึ้นทันทีที่มีคำสั่งซื้อเข้ามา ไม่ต้องรอยืนยัน',
+      SERVICE_QUEUE: 'อันดับจะขึ้นทันทีที่มีการเข้ารับบริการเข้ามา ไม่ต้องรอยืนยัน',
+      LODGING: 'อันดับจะขึ้นทันทีที่มีการเข้าพักเข้ามา ไม่ต้องรอยืนยัน',
+    },
+    /** หัวคอลัมน์ตาราง "ขายดี" — ชื่อสิ่งของ / จำนวน / ยอดเงินรวม */
+    itemCol: {
+      ONLINE_SALES: 'สินค้า',
+      SERVICE_QUEUE: 'บริการ',
+      LODGING: 'ห้องพัก',
+    },
+    countCol: {
+      ONLINE_SALES: 'สั่งซื้อ',
+      SERVICE_QUEUE: 'ใช้บริการ',
+      LODGING: 'เข้าพัก',
+    },
+    amountCol: {
+      ONLINE_SALES: 'ยอดสั่งซื้อ',
+      SERVICE_QUEUE: 'ยอดใช้บริการ',
+      LODGING: 'ยอดเข้าพัก',
+    },
+  },
+
+  /**
+   * หน้าแรกของผู้ขาย (`/dashboard`) ฝั่งเดสก์ท็อป
+   *
+   * เป็น **จอแรกที่ Meta App Reviewer เห็นทันทีหลังกด Sign in** — ใบยื่นรอบแรกตกด้วยเหตุผล
+   * "Screencast Not Aligned with Use Case Details" ซึ่งรวมข้อบังคับให้ใช้ภาษาอังกฤษเป็นภาษาของ UI
+   * (ดู `docs/20 - Features/00018 …/APP-REVIEW.md` §5.2)
+   *
+   * ข้อความที่ประกอบจากคำนามผันตาม vertical ใช้ `{noun}`/`{create}` + `fmt()` — ห้ามต่อสตริงในโค้ด
+   * เพราะไทยวางคำขยายไว้หลัง ("คำสั่งซื้อล่าสุด") ส่วนอังกฤษวางไว้หน้า ("Recent orders")
+   */
+  dashboard: {
+    metaTitle: 'แดชบอร์ด',
+    pageTitle: 'ภาพรวมร้านค้า',
+    breadcrumbOverview: 'ภาพรวม',
+    shopFallback: 'ร้านค้าของคุณ',
+    unknownContact: 'ไม่ระบุ',
+    welcome: 'ยินดีต้อนรับ,',
+    shopIllustrationAlt: 'ภาพประกอบร้านค้า',
+
+    rangeToday: 'วันนี้',
+    rangeMonth: 'เดือนนี้',
+    /**
+     * ชุดเดียวกันแต่ใช้ "กลางประโยค" — ไทยเป็นคำเดียวกันเป๊ะ แต่อังกฤษต้องเป็นตัวเล็ก
+     * ("No orders today" ไม่ใช่ "No orders Today") ⇒ แยกคีย์ ไม่ใช่ lowercase ในโค้ด
+     * เพราะภาษาที่ไม่มีตัวพิมพ์ใหญ่/เล็กจะถูกทำลายด้วยการ lowercase แบบเหมารวม
+     */
+    rangeTodayInline: 'วันนี้',
+    rangeMonthInline: 'เดือนนี้',
+    rangeAria: 'ช่วงเวลาที่แสดงในหน้านี้',
+    rangeLoading: 'กำลังโหลดข้อมูล',
+    /** ประกาศให้ screen reader ตอนสลับช่วง — {range} คือ rangeToday/rangeMonth */
+    rangeAnnounce: 'แสดงข้อมูล{range}',
+
+    statOrders: 'ออเดอร์',
+    statRevenue: 'รายได้',
+    vsLastMonth: 'เทียบเดือนที่แล้ว',
+
+    channelsTitle: 'ช่องทางการขาย',
+    /** {range} = "วันนี้"/"เดือนนี้" — ไทยเอาช่วงเวลาขึ้นก่อน อังกฤษเอาไว้ท้ายประโยค */
+    channelsEmptyTitle: '{range}ยังไม่มีออเดอร์',
+    channelsEmptyDesc: 'เมื่อมีคำสั่งซื้อ สัดส่วนช่องทางจะแสดงที่นี่',
+    channelsOrdersUnit: '{n} ออเดอร์',
+
+    salesTitle: 'รายงานยอดขาย',
+    salesSubtitle: 'ยอดขายรายเดือน',
+    salesEmptyTitle: 'ยังไม่มียอดขาย',
+    salesEmptyDesc: 'กราฟจะแสดงเมื่อเริ่มมีออเดอร์',
+    salesSeriesRevenue: 'รายได้รวม',
+    salesSeriesOrders: 'ออเดอร์',
+    salesSummaryRevenue: 'รายได้',
+    salesSummaryOrders: 'ออเดอร์',
+    salesSummaryGrowth: 'อัตราเติบโต',
+
+    bestSellerLifetime: 'ตลอดชีพ',
+    bestSellerPriceCol: 'ราคา',
+
+    /** หัวการ์ด "สถานะคำสั่งซื้อ" — {noun} = vocab.orderNoun ของร้านนั้น */
+    statusBandTitle: 'สถานะ{noun}',
+    viewAll: 'ดูทั้งหมด',
+    statusPending: 'รอดำเนินการ',
+    statusShipped: 'กำลังจัดส่ง',
+    statusConfirmed: 'สำเร็จ',
+    statusCancelled: 'ยกเลิก',
+    stageAwaitingParcel: 'รอเลขพัสดุ',
+    stageAwaitingPickup: 'รอรับเข้า',
+    stageInTransit: 'กำลังจัดส่ง',
+    stageCodPending: 'รอเงิน COD',
+    stageProblem: 'พัสดุมีปัญหา',
+    appointmentToday: 'นัดวันนี้',
+
+    /** หัวการ์ดตารางใบล่าสุด — {noun} = vocab.orderNoun */
+    recentOrdersTitle: '{noun}ล่าสุด',
+    recentOrdersExport: 'ส่งออก',
+    recentOrdersImport: 'นำเข้า',
+    recentOrdersEmptyTitle: 'ยังไม่มี{noun}',
+    recentOrdersEmptyDesc: 'เมื่อมี{noun}เข้ามา จะแสดงที่นี่',
+    recentOrdersNoMatch: 'ไม่พบ{noun}',
+    colCode: 'รหัส',
+    colBuyer: 'ผู้ซื้อ',
+    colDate: 'วันที่',
+    colAmount: 'ยอด',
+    colType: 'ประเภท',
+    colStatus: 'สถานะ',
+    typePhysical: 'สินค้า',
+    typeDigital: 'ดิจิทัล',
+    typeService: 'บริการ',
+
+    activityTitle: 'กิจกรรมล่าสุด',
+    /** {create} = vocab.createLabel — ของเดิมคือ `${createLabel}แรกเลย` */
+    activityEmptyTitle: '{create}แรกเลย',
+    activityEmptyDesc: 'กิจกรรมจะปรากฏที่นี่เมื่อคุณเริ่มใช้งาน',
+
+    achievementTitle: 'ระดับความสำเร็จ',
+    achievementEarned: 'ได้รับแล้ว',
+    achievementInProgress: 'ใกล้ได้รับ',
+    achievementNotStarted: 'ยังไม่เริ่ม',
+
+    checklistTitle: 'ตั้งค่าร้านค้าให้ครบ',
+    checklistLoading: 'กำลังโหลด checklist',
+    /** ป้ายรายข้อ — ประกอบที่ `GET /api/account/onboarding-checklist` ฝั่งเซิร์ฟเวอร์ */
+    checklistSlug: 'URL ร้าน',
+    checklistSalesChannels: 'ช่องทางการขาย',
+    checklistCategories: 'หมวดหมู่',
+    checklistAddress: 'ที่อยู่',
+    checklistMapPin: 'ปักพิกัด',
+    checklistFirstProduct: 'สร้างสินค้าแรก',
+  },
+
+  /**
    * หน้า "ช่องทางการขาย" (`/settings/channels`) และหน้าเลือกเพจ
    * เป็นเส้นทางที่ Meta App Reviewer ต้องเดินผ่านในคลิป A และ B ทั้งคู่
    *
@@ -186,6 +365,12 @@ export const th = {
     selectLoadErrorDesc: 'เกิดข้อผิดพลาดในการดึงเพจจาก Facebook กรุณาลองใหม่อีกครั้ง',
     selectLoadErrorAction: 'ลองใหม่',
     selectEmptyTitle: 'ไม่พบเพจที่มีสิทธิ์จัดการข้อความ',
+    /**
+     * การ์ด "LINE Official Account" — เฉพาะสถานะยังไม่เชื่อม (คำอธิบาย + ปุ่ม)
+     * ตัว wizard ข้างในยังเป็นไทยทั้งก้อน (หนี้ที่บันทึกไว้) — reviewer ไม่ได้เดินผ่าน
+     */
+    lineIntro: 'เชื่อม LINE OA ของร้านเพื่อรับและตอบข้อความ LINE จากอินบ็อกซ์เดียวกับช่องทางอื่น',
+    lineConnect: 'เชื่อม LINE OA',
     selectEmptyDesc: 'บัญชี Facebook ของคุณต้องเป็นแอดมินของเพจ และเปิดสิทธิ์จัดการข้อความ (Messaging)',
   },
 

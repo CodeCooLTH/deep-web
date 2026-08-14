@@ -42,6 +42,8 @@ import { resolveOrderVocab } from '@/lib/seller-menu'
 import { canUseAppointments } from '@/lib/appointments'
 import { getTodayAppointmentCount } from '@/services/appointment.service'
 import type { Metadata } from 'next'
+import { getT } from '@/i18n/server'
+import { byVertical } from '@/i18n/vertical'
 import { getServerSession } from 'next-auth'
 import RecentOrder from './components/RecentOrder'
 import SalesReport from './components/SalesReport'
@@ -84,14 +86,21 @@ import TopSellingProducts from './components/TopSellingProducts'
 import RecentActivityFeed from './components/RecentActivityFeed'
 import ProvinceSalesMap from '@/components/safepay/ProvinceSalesMap'
 
-export const metadata: Metadata = { title: 'แดชบอร์ด' }
+/**
+ * ชื่อแท็บเบราว์เซอร์ต้องตามภาษาที่ผู้ใช้เลือกด้วย ⇒ ต้องเป็น `generateMetadata` (async)
+ * ไม่ใช่ `const metadata` ซึ่งถูกประเมินตอน build ครั้งเดียวและไม่เห็น request
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT()
+  return { title: t.dashboard.metaTitle }
+}
 
 /** PDPA masking — แสดงเฉพาะ 4 ตัวท้าย ปิดส่วนที่เหลือด้วย bullet
  *  คัดลอก logic จาก customers/page.tsx และ orders/[token]/components/CustomerDetails.tsx
  *  เพื่อความสม่ำเสมอ (S5-pdpafix)
  */
-function maskContact(c: string | null | undefined): string {
-  if (!c || c.length <= 4) return c ?? 'ไม่ระบุ'
+function maskContact(c: string | null | undefined, unknownLabel: string): string {
+  if (!c || c.length <= 4) return c ?? unknownLabel
   return '•'.repeat(Math.max(0, c.length - 4)) + c.slice(-4)
 }
 
@@ -111,7 +120,10 @@ export default async function SellerDashboardPage() {
   // filter ช่วงเวลา (desktop) — ค่าที่ไม่รู้จัก/ไม่มี cookie ตกเป็น 'month' (พฤติกรรมเดิมของหน้า)
   const range: DashboardRange =
     (await cookies()).get('seller_dashboard_range')?.value === 'today' ? 'today' : 'month'
-  const rangeLabel = range === 'today' ? 'วันนี้' : 'เดือนนี้'
+  const t = await getT()
+  const rangeLabel = range === 'today' ? t.dashboard.rangeToday : t.dashboard.rangeMonth
+  // รูปเดียวกันแต่ใช้กลางประโยค ("today" ไม่ใช่ "Today") — ใช้กับ empty state ของโดนัท
+  const rangeLabelInline = range === 'today' ? t.dashboard.rangeTodayInline : t.dashboard.rangeMonthInline
 
   const session = await getServerSession(authOptions)
   const user = (session as { user?: { id?: string; trustScore?: number; name?: string; needsOnboarding?: boolean; needsPhoneVerify?: boolean; displayName?: string } } | null)?.user
@@ -122,7 +134,7 @@ export default async function SellerDashboardPage() {
   let score = 0
   let level = 'D'
   let levelColor = 'text-danger'
-  let shopName = 'ร้านค้าของคุณ'
+  let shopName = t.dashboard.shopFallback
   // ออเดอร์ล่าสุดสำหรับ RecentOrder widget (real data)
   let recentOrders: OrderType[] = []
   // stat counters — คำนวณจาก rawOrders ที่ fetch ครั้งเดียว (ไม่ duplicate query)
@@ -428,7 +440,7 @@ export default async function SellerDashboardPage() {
         recentOrders = rawOrders.slice(0, 8).map((o) => ({
           token: o.publicToken,
           // mask ก่อนข้าม RSC boundary — ห้ามส่ง raw contact ไปยัง client payload (S5-pdpafix)
-          buyerLabel: maskContact(o.buyerContact),
+          buyerLabel: maskContact(o.buyerContact, t.dashboard.unknownContact),
           createdAtISO: o.createdAt.toISOString(),
           totalAmount: Number(o.totalAmount),
           type: o.type,
@@ -488,8 +500,8 @@ export default async function SellerDashboardPage() {
   // ออเดอร์/รายได้ ตาม filter วันนี้/เดือนนี้ (มี periodLabel กำกับ) — Trust Score ไม่ผูกช่วงเวลา
   // จึงไม่มีป้าย: การมี/ไม่มีป้ายคือตัวบอกว่าใบไหนตาม filter
   const statData: StatType[] = [
-    { title: 'ออเดอร์', value: rangeOrderCount, periodLabel: rangeLabel, icon: 'shopping-cart' },
-    { title: 'รายได้', value: rangeRevenueK, prefix: '฿', suffix: 'k', periodLabel: rangeLabel, icon: 'pig-money' },
+    { title: t.dashboard.statOrders, value: rangeOrderCount, periodLabel: rangeLabel, icon: 'shopping-cart' },
+    { title: t.dashboard.statRevenue, value: rangeRevenueK, prefix: '฿', suffix: 'k', periodLabel: rangeLabel, icon: 'pig-money' },
     { title: 'Trust Score', value: score, suffix: '/100', icon: 'shield-check' },
   ]
 
@@ -556,7 +568,7 @@ export default async function SellerDashboardPage() {
         {/* Provider ครอบทั้ง filter pill (ที่แถวหัว) และเนื้อหา — แชร์สถานะ isPending ให้
             DashboardRangeFade จางเนื้อหาระหว่างรอ RSC refresh ตอนสลับช่วง */}
         <DashboardRangeProvider initialRange={range}>
-          <PageBreadcrumb title="ภาพรวมร้านค้า" trail={[{ label: 'ภาพรวม' }]} action={<DashboardRangePills />} />
+          <PageBreadcrumb title={t.dashboard.pageTitle} trail={[{ label: t.dashboard.breadcrumbOverview }]} action={<DashboardRangePills />} />
           <DashboardRangeFade>
 
         {/* แถว 1: UserCard + StatCards (5 คอล) | ช่องทางการขาย (7 คอล)
@@ -578,7 +590,7 @@ export default async function SellerDashboardPage() {
             </div>
           </div>
           <div className="xl:col-span-7">
-            <SalesChannelDonut slices={salesChannels} rangeLabel={rangeLabel} />
+            <SalesChannelDonut slices={salesChannels} rangeLabel={rangeLabel} rangeLabelInline={rangeLabelInline} />
           </div>
         </div>
 
@@ -593,7 +605,8 @@ export default async function SellerDashboardPage() {
             counts={orderStatusCounts}
             shipping={shippingStageCounts}
             appointmentToday={appointmentTodayCount}
-            orderNoun={orderNoun}
+            orderNoun={byVertical(t.vocab.orderNoun, shopVertical)}
+            orderNounTitle={byVertical(t.vocab.orderNounTitle, shopVertical)}
           />
         </div>
 
@@ -608,10 +621,10 @@ export default async function SellerDashboardPage() {
             หลังการ์ดถูกถอดออกจากมือถือ 2026-08-04 — รอบนี้เอากลับมาใช้ตัวเดิม ไม่สร้างใหม่ซ้อน */}
         <div className="grid xl:grid-cols-12 grid-cols-1 gap-base">
           <div className="xl:col-span-5">
-            <RecentOrder orders={recentOrders} orderNoun={orderNoun} />
+            <RecentOrder orders={recentOrders} orderNoun={byVertical(t.vocab.orderNoun, shopVertical)} />
           </div>
           <div className="xl:col-span-7">
-            <RecentActivityFeed items={recentActivity} createLabel={orderVocab.createLabel} />
+            <RecentActivityFeed items={recentActivity} createLabel={byVertical(t.vocab.createLabel, shopVertical)} />
           </div>
         </div>
 

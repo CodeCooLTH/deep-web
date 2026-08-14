@@ -20,10 +20,12 @@
 
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
-import { th } from 'date-fns/locale'
+import { th, enUS } from 'date-fns/locale'
 import { cn } from '@/utils/helpers'
 import Icon from '@/components/wrappers/Icon'
 import type { ActivityItem } from '@/services/activity.service'
+import { getT, getLocale } from '@/i18n/server'
+import { fmt } from '@/i18n/fmt'
 
 // ─── ACTIVITY_STYLE map ────────────────────────────────────────────────────────
 // ทำไม: ใช้ literal class string เต็ม (ไม่ dynamic) เพื่อกัน Tailwind v4 purge
@@ -70,12 +72,16 @@ type Props = {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-const RecentActivityFeed = ({ items, createLabel = 'สร้างออเดอร์' }: Props) => {
+const RecentActivityFeed = async ({ items, createLabel }: Props) => {
+  const t = await getT()
+  const create = createLabel || t.vocab.createLabel.ONLINE_SALES
+  // "2 ชั่วโมงที่แล้ว" / "2 hours ago" — date-fns มี locale ของตัวเอง ไม่ได้อ่านจาก dictionary
+  const dateLocale = (await getLocale()) === 'en' ? enUS : th
   return (
     <div className="card">
       {/* card-header: title ซ้าย + "ดูทั้งหมด ›" ขวา */}
       <div className="card-header flex items-center justify-between">
-        <h4 className="card-title">กิจกรรมล่าสุด</h4>
+        <h4 className="card-title">{t.dashboard.activityTitle}</h4>
         <Link href="/notifications" className="text-primary text-sm">
           ดูทั้งหมด ›
         </Link>
@@ -91,8 +97,8 @@ const RecentActivityFeed = ({ items, createLabel = 'สร้างออเด�
               <Icon icon="shopping-cart-plus" className="text-4xl" />
             </span>
             <div className="text-center space-y-1">
-              <p className="text-sm font-semibold">{createLabel}แรกเลย</p>
-              <p className="text-xs text-default-500">กิจกรรมจะปรากฏที่นี่เมื่อคุณเริ่มใช้งาน</p>
+              <p className="text-sm font-semibold">{fmt(t.dashboard.activityEmptyTitle, { create })}</p>
+              <p className="text-xs text-default-500">{t.dashboard.activityEmptyDesc}</p>
             </div>
             {/* NF-4: min-height 44px → h-11 = 44px ผ่าน touch target
                 convention: .btn bg-primary hover:bg-primary-hover (เหมือน WalletCard / หน้า seller อื่น) */}
@@ -151,7 +157,7 @@ const RecentActivityFeed = ({ items, createLabel = 'สร้างออเด�
 
                     {/* relative time ภาษาไทย — text-default-500 (ไม่ใช่ default-400) เพื่อ a11y WCAG */}
                     <p className="text-xs text-default-500 mt-0.5">
-                      {formatDistanceToNow(item.at, { addSuffix: true, locale: th })}
+                      {formatDistanceToNow(item.at, { addSuffix: true, locale: dateLocale })}
                     </p>
                   </div>
                 </div>

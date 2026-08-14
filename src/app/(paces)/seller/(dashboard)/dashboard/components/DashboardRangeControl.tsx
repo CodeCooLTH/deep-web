@@ -23,6 +23,8 @@
 import { createContext, useContext, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 import { cn } from '@/utils/helpers'
 
 export type DashboardRange = 'today' | 'month'
@@ -65,6 +67,7 @@ export function DashboardRangeProvider({
 
 export function DashboardRangePills() {
   const { range, isPending, select } = useRange()
+  const t = useT()
 
   // aria-disabled ไม่ใช่ disabled จริง — disabled attribute ระหว่าง transition ทำ keyboard focus
   // หลุดไป body แล้วผู้ใช้คีย์บอร์ดต้อง Tab ไล่กลับมาใหม่ทั้งหน้า; การกันคลิกซ้อนอยู่ใน
@@ -80,11 +83,15 @@ export function DashboardRangePills() {
       {isPending && <Icon icon="loader-2" className="size-4 animate-spin text-default-400" aria-hidden="true" />}
       {/* ประกาศผลการสลับให้ screen reader — ข้อมูลทั้งหน้าเปลี่ยนโดยไม่มี navigation ให้รับรู้ */}
       <span className="sr-only" aria-live="polite">
-        {isPending ? 'กำลังโหลดข้อมูล' : `แสดงข้อมูล${range === 'today' ? 'วันนี้' : 'เดือนนี้'}`}
+        {isPending
+          ? t.dashboard.rangeLoading
+          : fmt(t.dashboard.rangeAnnounce, {
+              range: range === 'today' ? t.dashboard.rangeTodayInline : t.dashboard.rangeMonthInline,
+            })}
       </span>
       <div
         role="group"
-        aria-label="ช่วงเวลาที่แสดงในหน้านี้"
+        aria-label={t.dashboard.rangeAria}
         className="flex items-center gap-0.5 rounded-lg bg-default-100 p-0.5"
       >
         <button
@@ -94,7 +101,7 @@ export function DashboardRangePills() {
           aria-disabled={isPending || undefined}
           className={pillClass(range === 'today')}
         >
-          วันนี้
+          {t.dashboard.rangeToday}
         </button>
         <button
           type="button"
@@ -103,7 +110,7 @@ export function DashboardRangePills() {
           aria-disabled={isPending || undefined}
           className={pillClass(range === 'month')}
         >
-          เดือนนี้
+          {t.dashboard.rangeMonth}
         </button>
       </div>
     </div>

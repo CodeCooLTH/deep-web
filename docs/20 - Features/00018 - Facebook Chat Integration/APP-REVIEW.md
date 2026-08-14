@@ -334,7 +334,7 @@ Business Portfolio โผล่ในรายการนั้น" พอก�
 permission** · **end-to-end ของ use case** · **ใช้ภาษาอังกฤษเป็นภาษาของ UI + ใส่ caption
 อธิบายปุ่ม** · ถ้าเป็น server-to-server ให้ระบุไว้ในใบยื่น
 
-### 5.3 สถานะจาก API (`devtools_app_review action=requirements`, 2026-08-13)
+### 5.3 สถานะจาก API (`devtools_app_review action=requirements`, 2026-08-13) — **ล้าสมัยแล้ว ดู §5.4**
 
 - `can_submit: true` — **ยื่นใหม่ได้ทันที** ไม่ต้องรออะไร
 - `screencast: is_completed = false` **ทั้ง 5 permission** รวม 2 ตัวที่ผ่านแล้ว ⇒ Meta ล้างคลิปเดิม
@@ -344,6 +344,30 @@ permission** · **end-to-end ของ use case** · **ใช้ภาษาอ�
   ไม่นับ call ที่ใช้ page access token (ของเราใช้ทั้งหมด) หรืออาจแปลว่าแอปไม่ได้เรียก Graph API เลย
   ตัวที่ทำให้ฟันธงไม่ได้คือ `business_management` มี `api_precheck: true` ทั้งที่ call_volume ก็ 0
   ⇒ **ต้องพิสูจน์ด้วยการส่งข้อความเข้าเพจจริงแล้วดูว่าเข้ากล่องไหม ก่อนลงแรงอัดคลิป**
+
+### 5.4 🛑 สถานะใบยื่นปัจจุบัน (2026-08-14) — เปลี่ยนจาก §5.3 ทั้งกระดาน
+
+ใบร่างใหม่ **`1717697219448670`** (`submission_status: UNSUBMITTED`) — ใบเก่า `1699582191260173`
+ปิดไปแล้วสถานะ `ACTIONED`
+
+| สิ่งที่ตรวจ | ค่า ณ 2026-08-14 | ผลต่อการกดส่ง |
+|---|---|---|
+| **permission ที่อยู่ในใบร่าง** | มีแค่ `instagram_basic` + `instagram_manage_messages` (2 ตัวนี้เท่านั้นที่ `in_current_submission: true`) | 🛑 **3 ตัวที่ถูกตีกลับไม่อยู่ในใบร่างเลย** (`pages_manage_metadata` · `pages_messaging` · `pages_read_engagement` ทั้งหมด `in_current_submission: false`) ⇒ **กดส่งตอนนี้ = ไม่ได้ยื่นส่วนที่ถูก reject แม้แต่ตัวเดียว** และคลิป A/C ที่อัดมาจะไม่มีช่อง `screencast` ให้อัปด้วยซ้ำ |
+| `can_submit` | **`false`** (08-13 ยังเป็น `true`) | เหตุผลที่ API คืนมา: *"ไม่สามารถส่งการตรวจสอบแอปได้ ขณะที่การส่งก่อนหน้ายังอยู่ระหว่างการตรวจสอบ"* 🛑 **ขัดกับที่ระบบเดียวกันคืนมาเอง** — `action=history` โชว์ใบเดียวสถานะ `ACTIONED` (ตรวจจบ 08-13) และ `action=status` คืน `is_pending: false` ⇒ **ห้ามเชื่อค่าใดค่าหนึ่งแล้วเดินต่อ ต้องเปิด App Dashboard ดูด้วยตาว่าค้างอะไรอยู่** |
+| ขั้นของ 2 ตัวที่อยู่ในใบร่าง | `use_case` · `screencast` · `api_precheck` · `data_use_checkup` = **`false` ครบทั้ง 4 ทั้งสองตัว** | 🛑 **`data_use_checkup` เป็นขั้นที่เอกสารฉบับก่อนไม่เคยพูดถึงเลย** — คนละช่องกับแบบสอบถาม Data handling ใน §3.2 (อันนั้นอยู่ในใบยื่น อันนี้เป็น Data Use Checkup ระดับแอป) |
+| `instagram_manage_messages` | `dependent_permission: true` · `prerequisite_privileges: ["instagram_basic"]` | ยื่นตัวเดียวไม่ได้ ต้องมี `instagram_basic` ในใบเดียวกัน |
+| `app_settings_valid` | `has_privacy_policy: true` · `business_verification_passes: true` | 2 ด่านนี้ผ่านแล้ว ไม่ต้องแตะ |
+
+🛑 **กับดักการอ่านผล `action=privileges`: `grant_status: "REJECTED"` แปลว่า "ยังไม่ได้รับสิทธิ์" ไม่ใช่ "Meta ตีกลับ"**
+ในผลชุดเดียวกัน `gaming_profile` · `Instant Games Zero Permission Access` · `pages_utility_messaging`
+(ตัวที่**เราถอดออกเอง**ตาม §4) · `Human Agent` (ที่**ยังไม่เคยยื่นสักครั้ง** ดูหัวข้อท้ายเอกสาร) ขึ้น
+`REJECTED` เหมือนกันหมด — อ่านจากคำนี้อย่างเดียวจะสรุปว่าโดนตีกลับ 14 ตัว ทั้งที่ของจริงคือ **3 ตัว**
+ตามใบ `642518292152406` ตัวชี้ที่เชื่อได้คือ **`access_level`** (`standard` = ได้แล้ว · `none` = ยังไม่ได้)
+ตอนนี้ `standard` มี 3 ตัว: `pages_show_list` · `business_management` · `email`/`public_profile`
+
+**มติ 2026-08-14 (ผู้ใช้เคาะ): ยื่นรวมทั้ง 5 ตัวในใบเดียว** — 3 ตัวที่ถูกตีกลับ + 2 ตัวของ Instagram
+ไม่แยกรอบ ⇒ **งานแรกก่อนอย่างอื่นคือเพิ่ม 3 ตัวนั้นกลับเข้าใบร่าง** ที่หน้า App Dashboard →
+Permissions and Features (กด Request/Add ให้ `in_current_submission` กลายเป็น `true`) แล้วค่อยอัปคลิป
 
 ---
 
@@ -438,15 +462,31 @@ use case ต่างจาก 2 คลิปแรกโดยสิ้นเ�
 
 ### 6.3 เช็คลิสต์ก่อนกดส่ง
 
+**ด่านแรกสุด — สถานะใบร่าง (ตรวจ 2026-08-14 ดู §5.4) ทำ 2 ข้อนี้ก่อนแตะเรื่องคลิป**
+
+- [ ] 🛑 **เพิ่ม `pages_manage_metadata` · `pages_messaging` · `pages_read_engagement` กลับเข้าใบร่าง**
+      ตอนนี้ไม่อยู่ในใบเลย (`in_current_submission: false`) — ยืนยันซ้ำด้วย
+      `devtools_app_review action=requirements` ว่าทั้ง 3 ตัวโผล่ใน `requested_privileges` แล้ว
+      **ห้ามใช้ "เห็นชื่อในหน้า Permissions and Features" เป็นหลักฐาน** ทุกตัวที่แอปเคยแตะจะอยู่ในหน้านั้นเสมอ
+- [ ] 🛑 **เคลียร์ `can_submit: false`** — API บอกว่ามีใบก่อนหน้าค้างตรวจอยู่ แต่ `history` บอกว่าตรวจจบแล้ว
+      เปิด App Dashboard ดูด้วยตาว่าค้างอะไร (ปุ่ม Submit จะกดไม่ได้จนกว่าจะเคลียร์ — รู้ตอนนี้ดีกว่ารู้ตอนอัดคลิปเสร็จ)
+- [ ] `data_use_checkup` ของทั้ง 5 permission (ขั้นที่เพิ่งรู้ว่ามี — ไม่ใช่ §3.2)
+
+**จากนั้นค่อยไล่ของเดิม**
+
 - [ ] ส่งข้อความเข้าเพจจริงแล้วเข้ากล่อง (พิสูจน์ว่าระบบยังทำงาน ก่อนลงแรงอัด — ดู §5.3)
 - [x] UI เป็นภาษาอังกฤษตลอดเส้นทางที่เดินในคลิป (เมนูซ้าย · channels · เลือกเพจ · กล่องข้อความ)
+      🛑 **เคยติ๊กข้อนี้ไว้ทั้งที่ยังไม่จริง — คลิป A ม้วนแรก (2026-08-14) พิสูจน์ว่าผิด** ดู §9
       **+ เส้นทางคลิป C แปลแล้ว 2026-08-13** — แบนเนอร์ที่มาของแชท (โฆษณา/คอมเมนต์) และหน้า
       `/public-profile` ทั้งหน้า (สวิตช์เผยแพร่ + ตัวเลือกคลิปที่จะขึ้นหน้าร้าน)
       🛑 **ยกเว้นหน้าร้านสาธารณะ `/u/[username]`/`/b/[slug]` ซึ่งยังเป็นไทย** (อยู่คนละ route group
       คนละโดเมนกับ cookie ภาษา — มติ D-I18N-7 ใน PRD 00047 §11.2) ⇒ ฉากเปิดหน้าร้านจริงในคลิป C
       ต้องมี caption อังกฤษกำกับ กริดรีลเป็นรูปล้วนอยู่แล้ว ไทยที่เหลือคือชื่อแท็บกับข้อความรีวิว
-- [ ] คลิป A/B/C อัปครบทุกช่อง `screencast` ของ 7 permission
-- [ ] เพิ่ม `instagram_basic` + `instagram_manage_messages` เข้าใบยื่น (รอบแรกตกไป)
+- [ ] คลิป A/B/C อัปครบทุกช่อง `screencast` ของ 5 permission ที่อยู่ในใบร่าง
+      (`screencast` ของ `pages_show_list`/`business_management` ที่ผ่านแล้วไม่มีช่องให้อัปอีก —
+      สองตัวนั้นไม่อยู่ในใบร่างรอบนี้ แต่คลิป A ก็เดินผ่านมันอยู่ดี)
+- [x] **เพิ่ม `instagram_basic` + `instagram_manage_messages` เข้าใบยื่น** — ทำแล้ว ยืนยัน 2026-08-14
+      ทั้งคู่ `in_current_submission: true` (แต่ทั้ง 4 ขั้นของมันยังเป็น `false` หมด)
 - [ ] เติมย่อหน้า server-to-server (§6.2)
 - [ ] คลิปทุกตัวมี caption อธิบายปุ่มที่กด
 - [ ] ทุกฉากในคลิปเดียวกันเป็น **เพจเดียวกัน** ตลอด
@@ -467,6 +507,12 @@ use case ต่างจาก 2 คลิปแรกโดยสิ้นเ�
 | 2.1 | เพจที่ใช้คือ **Code CooL ซึ่งเป็นเพจทดสอบของเราเอง** — ปล่อยค้างไว้หลังอัดเสร็จได้ ไม่ต้องย้ายกลับ | ไม่มีข้อมูลลูกค้าจริงให้ reviewer เห็น |
 | 2.2 | 🛑 **`metareview` เข้าร้านในฐานะ "ผู้ดูแล" (ShopMember role=ADMIN) ของร้านธุรกิจที่ถือเพจ** — มติผู้ใช้ 2026-08-14 (ทางเลือก B) ทำไปแล้ว: หน้าจอขึ้น `MetaReview · ผู้ดูแล` | ตรวจกับโค้ดแล้วว่า ADMIN เดินครบทุกขั้นของคลิป — route เชื่อมเพจ (`facebook/connect`, `facebook/confirm`) และถอดเพจ (`DELETE /api/channels/[id]`) **ไม่เช็ค role แยก** แค่ resolve `activeShopId` ผ่าน `requireActiveShop` ซึ่งคืนได้ทั้ง OWNER และ ADMIN |
 | 2.3 | **ตั้ง active shop ของ `metareview` ให้เป็นร้านที่ถือเพจ ก่อนส่งใบยื่น** | `activeShopId` ถูกเก็บในแถว User และค้างข้ามการล็อกอิน ⇒ reviewer จะลงจอที่ร้านล่าสุดที่บัญชีนี้ใช้ **ตั้งค้างไว้ให้ถูก = ไม่ต้องเขียนขั้น "สลับร้าน" ในคำสั่งเลย** ซึ่งเป็นอีกขั้นที่ reviewer พลาดได้ (แผงสลับร้านแปลอังกฤษแล้ว `a3134f3a` แต่ไม่มีขั้นนี้ยังดีกว่ามี) |
+
+**เรื่องชื่อร้าน — ปิดแล้ว 2026-08-14:** เคยค้างอยู่ว่าจะ *เปลี่ยนชื่อร้าน* หรือ *สร้างร้านใหม่* ให้ตรงกับ
+ชื่อที่อยากใช้ในคลิป **ผู้ใช้เคาะว่าใช้ร้านเดิมที่ `metareview` เป็นผู้ดูแลอยู่แล้ว ไม่เปลี่ยนชื่อ ไม่สร้างใหม่**
+⇒ ข้อสรุปทั้งหมดในหัวข้อนี้ยังใช้ได้ตามเดิม (role = ADMIN ไม่ใช่ OWNER) และ **ไม่ต้องไปยุ่งกับ
+`Shop.vertical`** ซึ่งเปลี่ยนไม่ได้แล้วเมื่อร้านมี slug (`/api/shops/update` → `409 VERTICAL_LOCKED`)
+— ข้อจำกัดนี้เคยเป็นตัวที่บังคับให้ต้องสร้างร้านใหม่ถ้าเลือกอีกทาง
 
 **สิ่งที่ ADMIN ทำไม่ได้ (ห้ามเขียนลงสคริปต์คลิป/คำสั่งทดสอบ):** เมนู **"พนักงาน" (`/admins`) ถูกซ่อนสนิท**
 สำหรับ role ADMIN (`applyStaffMenu` — `seller-menu.ts:281`, mirror guard ของหน้านั้นเอง + API invite-links)
@@ -562,3 +608,158 @@ caption ต้องอธิบายเหตุผลไว้ในตัว
 >   • Recording A — Messenger end-to-end: signing in, granting permissions, subscribing the Page to webhooks, a customer message arriving live, the seller replying by hand, disconnecting the Page, and reconnecting it. Covers `pages_show_list`, `business_management`, `pages_manage_metadata`, `pages_messaging`.
 >   • Recording B — Instagram end-to-end on the same Page: the linked Instagram account detected, a direct message arriving, and the seller replying. Covers `instagram_basic`, `instagram_manage_messages`.
 >   • Recording C — Page content we read: the source-post bar above a conversation, and the Page's reels listed for the seller to feature on their public shop page. Covers `pages_read_engagement`.
+
+---
+
+## 8. ขั้นตอนยื่นรอบ 2 ทีละข้อ (เขียน 2026-08-14)
+
+เรียงตามลำดับที่ต้องทำจริง — **ห้ามข้ามไปอัดคลิปก่อน** เพราะขั้น 1–2 อาจทำให้ต้องอัดใหม่ทั้งชุด
+ทุกขั้นมีช่อง "พิสูจน์ยังไง" เพราะการเห็นหน้าจอว่า "ดูเหมือนถูก" ไม่ใช่หลักฐาน (บทเรียนใบแรก)
+
+### S1 — เพิ่ม 3 permission ที่ถูกตีกลับกลับเข้าใบร่าง 🛑 ทำก่อนอย่างอื่น
+
+App Dashboard → **App Review → Permissions and Features** → หา `pages_manage_metadata`,
+`pages_messaging`, `pages_read_engagement` แล้วกด **Request Advanced Access** ทีละตัว
+
+- **พิสูจน์:** `devtools_app_review action=requirements` ต้องเห็นทั้ง 3 ตัวใน `requested_privileges`
+  (ตอนนี้เห็นแค่ `instagram_basic` + `instagram_manage_messages`)
+- 🛑 **ห้ามใช้ "เห็นชื่อในหน้า Permissions and Features" เป็นหลักฐาน** — ทุก permission ที่แอปเคยแตะ
+  อยู่ในหน้านั้นตลอดไม่ว่าจะอยู่ในใบร่างหรือไม่ ตัวที่บอกความจริงคือ `in_current_submission`
+- ถ้า Meta ไม่ให้กด Request เพราะเพิ่งตีกลับ → ไปทำ S2 ก่อนแล้วกลับมา
+
+### S2 — เคลียร์ `can_submit: false`
+
+API คืนเหตุผลว่า *"ใบก่อนหน้ายังอยู่ระหว่างการตรวจสอบ"* แต่ `action=history` โชว์ใบเดียวสถานะ
+`ACTIONED` และ `action=status` คืน `is_pending: false` — **สองที่ในระบบเดียวกันไม่ตรงกัน**
+
+- เปิด App Dashboard → App Review → **Requests** ดูด้วยตาว่ามีใบไหนค้างสถานะ Pending/In review
+  (อาจเป็นใบของ use case อื่นที่ไม่โผล่ใน `history` ของ API ตัวนี้)
+- ถ้ามีใบค้าง → ยกเลิกหรือรอให้จบก่อน · ถ้าไม่มีเลย → เป็นความไม่สอดคล้องฝั่ง Meta ให้ลองกด Submit
+  จริงดูว่าติดจริงไหม **แต่ต้องรู้ผลข้อนี้ก่อนลงแรงอัดคลิป ไม่ใช่หลังอัดเสร็จ**
+- **พิสูจน์:** `requirements` คืน `can_submit: true`
+
+### S3 — เตรียมของก่อนกดอัด (รายละเอียดเต็มใน §7.1)
+
+| # | ทำอะไร | พิสูจน์ |
+|---|---|---|
+| 3.1 | `metareview` ภาษา **English** | เปิด `/account` → การ์ด Language ขึ้น English |
+| 3.2 | **ตั้ง active shop ของ `metareview` = ร้านที่ถือเพจ** (ทางเลือก B: ร้านเดิม role ADMIN) | ล็อกอินใหม่แล้วลงจอที่ร้านนั้นเลย ไม่ต้องกดสลับ |
+| 3.3 | **ถอดเพจ Code CooL ออกจาก Deep** เพื่อให้ในคลิปได้เชื่อมสด ๆ | `/settings/channels` ไม่มีแถวเพจนั้น (ประวัติแชทไม่หาย) |
+| 3.4 | IG `codecoolth` Professional + ผูกเพจ + เปิด **Allow access to messages** | Business Suite → Inbox → แท็บ Instagram **ไม่มี**ป้าย "Confirm access" |
+| 3.5 | บัญชีสำรอง 2 ชุด (FB สำหรับทัก Messenger · IG สำหรับ DM) **ต้องมี role บนแอป** | App Roles มีชื่อทั้งคู่ |
+| 3.6 | เธรดที่เริ่มจากโพสต์/คอมเมนต์ของเพจ ไว้ใช้คลิป C | เปิดเธรดแล้วเห็นแถบ `From comment` / `This chat replied to your ad` |
+
+### S4 — เดินเส้นทางคลิปให้จบ 1 รอบก่อนกดอัด
+
+ทำตามสคริปต์ §7.2 คลิป A ตั้งแต่ต้นจนจบ **โดยยังไม่อัด** — ปิดเช็คลิสต์ §6.3 ข้อ "ส่งข้อความเข้าเพจ
+จริงแล้วเข้ากล่อง" ไปในตัว และเจอสะดุดตอนนี้ถูกกว่าเจอตอนอัดม้วนที่ 3
+
+- **พิสูจน์:** ข้อความจากบัญชีสำรองเด้งเข้า `Messages` เองโดยไม่รีเฟรช + ตอบกลับแล้วอีกฝั่งได้รับ
+- ⚠️ `call_volume` 30 วัน = 0 **ไม่ใช่หลักฐานว่าระบบพัง** (metric ไม่นับ call ที่ใช้ page access token)
+
+### S5–S7 — อัดคลิป A / B / C ตามสคริปต์ §7.2
+
+| คลิป | ครอบ | ฉากที่ reviewer สั่งมาตรง ๆ |
+|---|---|---|
+| A | `pages_show_list` · `business_management` · `pages_manage_metadata` · `pages_messaging` | **ฉาก 6** ปุ่ม `Sync notifications` = ข้อ (1) · **ฉาก 8** เธรดเด้งเข้ามาเอง = ข้อ (2) |
+| B | `instagram_basic` · `instagram_manage_messages` | เพจเดียวกับคลิป A |
+| C | `pages_read_engagement` | ต้องมี **ทั้ง** แถบที่มาของแชท **และ** รีลบนหน้าร้าน |
+
+🛑 **ห้ามตัดต่อ · ห้ามสลับเพจกลางคลิป** (*"tied to the same Page shown during setup"*) ·
+ทุกฉากมี caption อังกฤษตามตารางใน §7.2 · ฉาก 4 ของคลิป C เป็นหน้าร้านภาษาไทย ต้องมี caption อธิบาย
+
+### S8 — กรอกใบยื่น
+
+| ช่อง | ใช้ข้อความจาก | หมายเหตุ |
+|---|---|---|
+| Describe how your app uses this permission (5 ตัว) | **§2 ตามเดิม ไม่ต้องแก้สักตัวอักษร** | reviewer เขียนเองว่า *"your apps' use case is allowed"* — ที่ตกคือคลิป |
+| `screencast` ราย permission | คลิป A/B/C | ถ้าอัปไม่ผ่าน ใช้ `documents-web-1` แทน (รับหลายไฟล์ ≤2 GB/ไฟล์) |
+| Test and reproduce (`pages_messaging`) | **§3.1 ฉบับแก้** | 🛑 ฉบับที่ยื่นรอบแรกพา reviewer ไปหน้าผิดตั้งแต่ Step 2 |
+| Reviewer instructions | **§7.3** (ไม่ใช่ §3.3 ซึ่งเป็นฉบับเก่าที่เขียนว่า UI เป็นไทย) | |
+| ย่อหน้า server-to-server | §6.2 | ต่อท้าย instructions |
+| Data handling | §3.2 | ตอบไว้ครบแล้ว |
+
+### S9 — ปิดขั้นที่เหลือแล้วกดส่ง
+
+- `data_use_checkup` ทั้ง 5 permission (ขั้นที่เพิ่งรู้ว่ามี — คนละช่องกับ §3.2)
+- `api_precheck` ของ 3 ตัวที่ถูกตีกลับ — ผ่านได้ด้วยการมี call จริง ซึ่ง S4 ทำให้แล้ว
+- **พิสูจน์ก่อนกด Submit:** `requirements` คืน `can_submit: true` และทุก `step_name` ของทั้ง 5 ตัว
+  เป็น `is_completed: true`
+- **หลังกดส่ง:** `action=status` ต้องคืน `submission_status` ที่ไม่ใช่ `UNSUBMITTED` และ
+  `action=history` ต้องมีใบที่สองโผล่มาพร้อม `requested_privileges` ครบ 5 ตัว — **ถ้าใบที่สองมีแค่ 2
+  ตัวของ Instagram แปลว่า S1 ไม่สำเร็จ** และรอบนี้เสียเปล่าเหมือนรอบแรก
+
+---
+
+## 9. ผลตรวจคลิป A ม้วนแรก (2026-08-14) + รอบแปลภาษาที่ตามมา
+
+### 9.1 สิ่งที่คลิปม้วนแรกทำได้ครบแล้ว — โครงถูกทั้งหมด ไม่ต้องรื้อสคริปต์
+
+ตรวจจากไฟล์จริง `Meta Review A.mov` (5:20, 2560×1410) ทีละเฟรม
+
+| ฉากที่ reviewer สั่ง | เวลาในคลิป | หลักฐานบนจอ |
+|---|---|---|
+| Meta login + **จอ grant permission** | 0:32–0:56 | เลื่อนดูครบทุกบรรทัด รวม `Manage accounts, settings, and webhooks` |
+| **(1) แอปสมัครรับ event ของเพจ** | 1:36 | `Sync notifications` → toast `Synced notifications for 1 page(s)` |
+| **(2) webhook event เข้ามา เพจเดียวกับตอน setup** | 2:08 | เธรดใหม่เด้งเข้า `Messages` เองโดยไม่รีเฟรช |
+| ตอบด้วยมือ + ถึงจริง | 2:24–2:56 | พิมพ์ → `Send` → เห็นในหน้าต่าง Messenger |
+| ถอดเพจแล้วหยุดรับจริง | 3:20–3:52 | `Disconnect Code CooL?` → ลูกค้าส่งซ้ำ → **ไม่เข้ากล่อง** |
+| เชื่อมกลับ | 4:00–4:48 | ข้อความไหลต่อ |
+
+### 9.2 🛑 ตัวที่ทำให้ต้องอัดใหม่ — UI ยังไม่เป็นอังกฤษทั้งเส้นทาง
+
+เป็นข้อเดียวกับที่ทำให้ใบแรกตก (*"use English as the app UI language"* ใน §5.2) และ **เช็คลิสต์
+§6.3 ติ๊กข้อนี้ไว้แล้วว่าเสร็จ** — คลิปคือสิ่งเดียวที่พิสูจน์ว่าไม่จริง (คลาสเดียวกับ
+`rule-must-be-enforced-not-described.md`: เขียนว่าเสร็จ ≠ บังคับได้)
+
+| ที่ | เวลา | อาการ |
+|---|---|---|
+| **หน้า Dashboard** | 0:16 · 5:20 | **จอแรกหลังกด Sign in และไทยเกือบทั้งจอ** — ภาพรวมร้านค้า · ยินดีต้อนรับ · ออเดอร์ · รายได้ · สถานะคำสั่งซื้อ · รายงานยอดขาย · สินค้าขายดี · คำสั่งซื้อล่าสุด · กิจกรรมล่าสุด |
+| การ์ด LINE ในหน้า Chat channels | 0:24 | คำอธิบาย + ปุ่ม `เชื่อม LINE OA` |
+| เช็คลิสต์มุมล่างซ้าย | อยู่ในเฟรมเกือบทั้งคลิป | ตั้งค่าร้านค้าให้ครบ 4/6 · URL ร้าน · ช่องทางการขาย · … |
+| กล่องข้อความ | 2:08–5:00 | ช่องค้นหา · `วันนี้` · `กำลังส่ง`/`ส่งแล้ว`/`อ่านแล้ว` · แถบเตือนตอนถอดเพจ |
+
+**ไม่มี caption สักตัวในม้วนแรก** — reviewer สั่งให้มี โดยเฉพาะ 3 จังหวะ 1:36 / 2:08 / 3:44→3:52
+
+### 9.3 ของที่ควรแก้ตอนอัดใหม่ (ไม่ถึงกับตก แต่เสี่ยงเปล่า ๆ)
+
+- **จอ grant ของ Meta ติ๊กไว้ 4 เพจ** รวมเพจลูกค้าจริง แล้วเชื่อมจริงแค่ Code CooL —
+  ติ๊กเฉพาะ Code CooL ให้ตรงกับคำว่า *"the same Page"*
+- **หน้าต่างแชทลูกค้าจริงเปิดค้างในเฟรม** ตลอดฉาก Messenger (ข้อความไทยของลูกค้าคนอื่น)
+- **คนที่ทักเข้ามาคือเจ้าของเพจเอง** (`Continue as Sekson Oonnom?` ตอนเชื่อมกลับ) อ่านได้ว่าคุยกับตัวเอง
+  — §7.1 ข้อ 4 ให้ใช้บัญชีที่สอง
+- 🛑 **ร้านในคลิปเป็นร้านส่วนตัว `Meta Review · Personal`** ไม่ใช่ร้านธุรกิจตามที่ §7.1 บันทึกไว้
+  (ทางเลือก B / ADMIN) — **ต้องเลือกอันเดียวแล้วให้ runbook + คำสั่งทดสอบตรงกัน** ไม่งั้น reviewer
+  เปิดมาเจอคนละร้านกับที่เขียนไว้
+
+### 9.4 รอบแปลภาษาที่ทำหลังดูคลิป (2026-08-14)
+
+ปิด 3 จุดแรกของ §9.2 แล้ว — เพิ่ม namespace `vocab` + `dashboard` ใน `src/i18n/dictionaries/`
+และต่อสาย `getT()`/`useT()` ให้ 14 ไฟล์
+
+- `src/i18n/vertical.ts` (ใหม่) = `byVertical()` อ่านคำที่ผันตาม `Shop.vertical` แบบ fail-closed
+  (คอลัมน์เป็น `String` ไม่มี type ให้ TS บังคับ ⇒ index ตรง ๆ ได้ `undefined` เงียบ ๆ)
+- 🛑 **ค่าคงที่ระดับ module เก็บ "คีย์" ไม่ใช่ "ข้อความ"** (`OrderStatusBand.SHIPPING_STAGES`,
+  `RecentOrder.STATUS_LABEL_KEY`) — ของเดิมถูกประเมินตอน import ครั้งเดียว จะเป็นภาษาเดียว
+  ตลอดอายุ bundle (กับดักเดิมที่ 00047 เจอมาแล้ว 4 ครั้ง)
+- 🛑 **`PageBreadcrumb` เป็น `'use client'` ไม่ใช่ async server component** — มี `loading.tsx`
+  **13 ไฟล์** ที่เรนเดอร์มันเป็น Suspense fallback; fallback ที่ suspend เองคือ fallback ที่ไม่มี
+  อะไรให้แสดง ⇒ จอว่างแทนโครงหน้า (ปลอดภัยเพราะผู้เรียกทั้ง 72 ไฟล์อยู่ใต้ `(paces)/layout.tsx`
+  ซึ่ง mount `LocaleProvider` แล้ว)
+- **`dashboard/loading.tsx` แปลด้วย** — เป็นจอแรกที่เห็นตอนเปลี่ยนหน้า ถ้าไม่แปลจะเห็นไทยแวบหนึ่ง
+  ทุกครั้งก่อนเนื้อหาจริงมาเป็นอังกฤษ (คลิปจับได้)
+- ป้ายเช็คลิสต์แปลที่ `GET /api/account/onboarding-checklist` ฝั่งเซิร์ฟเวอร์ ไม่ใช่ที่ client
+  (ไม่งั้นต้องมี map คีย์→คำสองที่ — HR16)
+
+**พิสูจน์:** `tsc` 0 · `next build` exit 0 · vitest 2737 เขียว (238 ไฟล์) ·
+mutation: ใส่ไทยลง `dashboard.pageTitle` ของ `en.ts` → เทส `[blocker]` แดง 1 ข้อ, คืนค่า → เขียวครบ
+
+**หนี้ที่เหลือ (ตั้งใจไม่แตะรอบนี้):**
+- **กล่องข้อความยังมีไทยปน** (สถานะส่ง/อ่าน · ตัวคั่นวันที่ · ช่องค้นหา · แถบเตือนตอนถอดเพจ)
+  → ผู้ใช้เคาะว่าใช้ caption กำกับแทน
+- `thMonths` แกน x ของกราฟยอดขาย ยังเป็นไทย + พ.ศ. — **ไม่ใช่งานแปล แต่เป็นการตัดสินใจเรื่อง
+  ระบบปฏิทิน** (`docs/conventions/date-format.md` บังคับ พ.ศ. ทั้งระบบ) และกราฟว่างอยู่แล้วในคลิป
+- wizard ข้างในการ์ด LINE ยังเป็นไทยทั้งก้อน — reviewer ไม่ได้เดินผ่าน
+- **ไม่ได้ผ่าน `safepay-ux` (HR8) และไม่ได้รัน `/impeccable critique`** — session ห้ามเรียก subagent
+  (หนี้เดียวกับ 3 รอบก่อน); งานรอบนี้ต่อสาย `t()` ไม่ได้แตะ layout จึงเสี่ยงต่ำ แต่ควรตรวจย้อนหลัง
+- `AchievementLevel.tsx:83` มี finding `design-system-font-size` (9px) ของเดิมก่อนรอบนี้ ไม่ได้แก้

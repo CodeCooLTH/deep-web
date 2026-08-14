@@ -21,11 +21,18 @@ import { SalesChannelLogo, getSalesChannelDisplay } from '@/components/safepay/S
 import { getColor } from '@/utils/helpers'
 import type { ApexOptions } from 'apexcharts'
 import type { SalesChannelSlice } from '@/services/dashboard.service'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 
 type Props = {
   slices: SalesChannelSlice[]
   /** ช่วงเวลาที่ข้อมูลชุดนี้ครอบ ("วันนี้"/"เดือนนี้") — ตาม filter ระดับหน้า */
   rangeLabel: string
+  /**
+   * รูปเดียวกันแต่ใช้กลางประโยค ("today" ไม่ใช่ "Today") — ใช้กับ empty state เท่านั้น
+   * ไทยเป็นคำเดิมทุกตัวอักษร จึงส่งค่าเดียวกันได้; แยก prop เพราะภาษาอังกฤษต้องต่างจริง
+   */
+  rangeLabelInline?: string
 }
 
 /**
@@ -46,7 +53,8 @@ const CHANNEL_COLOR_TOKEN: Record<string, string> = {
 
 const colorOf = (channel: string) => getColor(CHANNEL_COLOR_TOKEN[channel] ?? 'chart-gray')
 
-const SalesChannelDonut = ({ slices, rangeLabel }: Props) => {
+const SalesChannelDonut = ({ slices, rangeLabel, rangeLabelInline }: Props) => {
+  const t = useT()
   const total = slices.reduce((sum, s) => sum + s.orderCount, 0)
 
   const getOptions = (): ApexOptions => ({
@@ -62,7 +70,7 @@ const SalesChannelDonut = ({ slices, rangeLabel }: Props) => {
             total: {
               showAlways: true,
               show: true,
-              label: 'ออเดอร์',
+              label: t.dashboard.statOrders,
               formatter: () => String(total),
             },
           },
@@ -74,7 +82,7 @@ const SalesChannelDonut = ({ slices, rangeLabel }: Props) => {
     colors: slices.map((s) => colorOf(s.channel)),
     dataLabels: { enabled: false },
     tooltip: {
-      y: { formatter: (v: number) => `${v.toLocaleString('th-TH')} ออเดอร์` },
+      y: { formatter: (v: number) => fmt(t.dashboard.channelsOrdersUnit, { n: v.toLocaleString('th-TH') }) },
     },
     responsive: [{ breakpoint: 480, options: { chart: { width: 180 } } }],
   })
@@ -82,7 +90,7 @@ const SalesChannelDonut = ({ slices, rangeLabel }: Props) => {
   return (
     <div className="card h-full">
       <div className="card-header">
-        <h4 className="card-title">ช่องทางการขาย</h4>
+        <h4 className="card-title">{t.dashboard.channelsTitle}</h4>
         <span className="badge bg-default-100 text-default-700 text-xs">{rangeLabel}</span>
       </div>
       <div className="card-body">
@@ -92,8 +100,8 @@ const SalesChannelDonut = ({ slices, rangeLabel }: Props) => {
             <span className="flex items-center justify-center rounded-full bg-default-100 text-default-400 size-12">
               <Icon icon="chart-donut" className="text-2xl" />
             </span>
-            <p className="text-sm font-semibold">{rangeLabel}ยังไม่มีออเดอร์</p>
-            <p className="text-xs text-default-500">เมื่อมีคำสั่งซื้อ สัดส่วนช่องทางจะแสดงที่นี่</p>
+            <p className="text-sm font-semibold">{fmt(t.dashboard.channelsEmptyTitle, { range: rangeLabelInline ?? rangeLabel })}</p>
+            <p className="text-xs text-default-500">{t.dashboard.channelsEmptyDesc}</p>
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-4">

@@ -23,6 +23,7 @@ import { useEffect, useState } from 'react'
 // ─── types ────────────────────────────────────────────────────────────────────
 
 import type { ModalStep } from './OnboardingModal'
+import { useT } from '@/i18n/LocaleProvider'
 
 interface ChecklistSidebarProps {
   onOpenModal: (initialStep: ModalStep) => void
@@ -69,6 +70,7 @@ const KEY_TO_STEP: Partial<Record<ChecklistItemKey, ModalStep>> = {
 // ─── component ────────────────────────────────────────────────────────────────
 
 export default function ChecklistSidebar({ onOpenModal, refreshKey }: ChecklistSidebarProps) {
+  const t = useT()
   const [data, setData] = useState<ChecklistResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -104,7 +106,7 @@ export default function ChecklistSidebar({ onOpenModal, refreshKey }: ChecklistS
   if (loading) {
     // skeleton กลืนพื้น sidebar มืด (ไม่ใช่ bg-default-100 ขาว)
     return (
-      <div className="animate-pulse bg-white/10 h-44 rounded-md" aria-busy="true" aria-label="กำลังโหลด checklist" />
+      <div className="animate-pulse bg-white/10 h-44 rounded-md" aria-busy="true" aria-label={t.dashboard.checklistLoading} />
     )
   }
 
@@ -125,7 +127,7 @@ export default function ChecklistSidebar({ onOpenModal, refreshKey }: ChecklistS
       {/* header สไตล์ section-title ของเมนู + badge นับ pending */}
       <div className="mb-1 flex items-center gap-2 px-2.5">
         <Icon icon="clipboard-check" className="text-(--sidenav-item-color) size-4 shrink-0" />
-        <span className="text-(--sidenav-item-color) text-xs font-semibold">ตั้งค่าร้านค้าให้ครบ</span>
+        <span className="text-(--sidenav-item-color) text-xs font-semibold">{t.dashboard.checklistTitle}</span>
         <span className="badge bg-white/10 text-(--sidenav-item-hover-color) ms-auto rounded-full text-xs">
           {pendingCount}/{total}
         </span>

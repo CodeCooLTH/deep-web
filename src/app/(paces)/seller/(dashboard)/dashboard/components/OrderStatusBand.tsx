@@ -16,6 +16,18 @@
 
 import Link from 'next/link'
 import { Icon } from '@iconify/react'
+import { getT } from '@/i18n/server'
+import { fmt } from '@/i18n/fmt'
+import type { Dictionary } from '@/i18n/dictionaries/th'
+
+/**
+ * ป้ายของไทล์เก็บเป็น "คีย์" ไม่ใช่ "ข้อความ"
+ *
+ * ค่าคงที่ระดับ module ถูกประเมินตอน import ครั้งเดียว ⇒ ถ้าเก็บข้อความไว้ตรงนั้นจะเป็นภาษาเดียว
+ * ตลอดอายุ bundle ไม่ว่าผู้ใช้เลือกภาษาอะไร (กับดักเดิมที่ feature 00047 เจอมาแล้ว 4 ครั้ง)
+ * เก็บเป็นคีย์แล้วให้ `tsc` บังคับว่าคีย์นั้นมีอยู่จริงใน dictionary ทั้งสองภาษา
+ */
+type DashboardLabelKey = keyof Dictionary['dashboard']
 
 export interface OrderStatusBandProps {
   counts: {
@@ -52,6 +64,13 @@ export interface OrderStatusBandProps {
   appointmentToday?: number
   /** ชื่อของสิ่งที่นับ ผันตาม vertical (ORDER_VOCAB.noun) — default = ชุด ONLINE_SALES */
   orderNoun?: string
+  /**
+   * คำเดียวกันแต่ใช้ยืนเดี่ยวเป็น "หัวการ์ด"
+   *
+   * ไทยใช้คำเดิม แต่อังกฤษต้องเป็นพหูพจน์ขึ้นต้นตัวใหญ่ ("Orders" ไม่ใช่ "order") ⇒ แยก prop
+   * ไม่ใช่ capitalize ในโค้ด เพราะภาษาที่ไม่มีตัวพิมพ์ใหญ่/เล็กจะถูกทำลายด้วยการแปลงแบบเหมารวม
+   */
+  orderNounTitle?: string
 }
 
 const ICON_SIZE_CLS = 'size-[30px]' // HR7 carve-out: Paces size-* ไม่มี 30px (size-7=28 เล็กไป, size-8=32 ใหญ่ไป) — 30px ตรง mockup .os-ic
@@ -65,7 +84,7 @@ function fmtBadge(n: number): string {
 
 const STATUSES: {
   key: keyof OrderStatusBandProps['counts']
-  label: string
+  labelKey: DashboardLabelKey
   icon: string
   // สี Paces token ตาม mockup — ห้าม hardcode hex
   iconClass: string
@@ -74,28 +93,28 @@ const STATUSES: {
 }[] = [
   {
     key: 'PENDING',
-    label: 'รอดำเนินการ',
+    labelKey: 'statusPending',
     icon: 'solar:clock-circle-bold-duotone',
     iconClass: 'text-warning',
     showBadge: true,
   },
   {
     key: 'SHIPPED',
-    label: 'กำลังจัดส่ง',
+    labelKey: 'statusShipped',
     icon: 'solar:delivery-bold-duotone',
     iconClass: 'text-info',
     showBadge: true,
   },
   {
     key: 'CONFIRMED',
-    label: 'สำเร็จ',
+    labelKey: 'statusConfirmed',
     icon: 'solar:check-circle-bold-duotone',
     iconClass: 'text-success',
     showBadge: false,
   },
   {
     key: 'CANCELLED',
-    label: 'ยกเลิก',
+    labelKey: 'statusCancelled',
     icon: 'solar:close-circle-bold-duotone',
     // text-default-500 — โทน muted สำหรับสถานะ inactive (ยกเลิก)
     iconClass: 'text-default-500',
@@ -109,25 +128,25 @@ const STATUSES: {
  */
 const SHIPPING_STAGES: {
   key: keyof NonNullable<OrderStatusBandProps['shipping']>
-  label: string
+  labelKey: DashboardLabelKey
   icon: string
   iconClass: string
 }[] = [
   {
     key: 'AWAITING_PARCEL',
-    label: 'รอเลขพัสดุ',
+    labelKey: 'stageAwaitingParcel',
     icon: 'solar:clipboard-list-bold-duotone',
     iconClass: 'text-warning',
   },
   {
     key: 'AWAITING_PICKUP',
-    label: 'รอรับเข้า',
+    labelKey: 'stageAwaitingPickup',
     icon: 'solar:box-bold-duotone',
     iconClass: 'text-primary',
   },
   {
     key: 'SHIPPING',
-    label: 'กำลังจัดส่ง',
+    labelKey: 'stageInTransit',
     icon: 'solar:delivery-bold-duotone',
     iconClass: 'text-info',
   },
@@ -137,29 +156,34 @@ const SHIPPING_STAGES: {
     // warning ซ้ำกับ "รอเลขพัสดุ" โดยตั้งใจ — ทั้งคู่คือ "รอให้ไปทำอะไรสักอย่าง" ไม่ใช่เหตุด่วน
     // แบบ PROBLEM (danger) และ Paces เหลือ semantic ที่ไม่ใช่เขียวแค่ 4 ตัวซึ่งถูกใช้ครบแล้ว
     key: 'AWAITING_COD',
-    label: 'รอเงิน COD',
+    labelKey: 'stageCodPending',
     icon: 'solar:hand-money-bold-duotone',
     iconClass: 'text-warning',
   },
   {
     key: 'PROBLEM',
-    label: 'พัสดุมีปัญหา',
+    labelKey: 'stageProblem',
     icon: 'solar:danger-triangle-bold-duotone',
     iconClass: 'text-danger',
   },
 ]
 
-export default function OrderStatusBand({
+export default async function OrderStatusBand({
   counts,
   shipping,
   appointmentToday,
-  orderNoun = 'คำสั่งซื้อ',
+  orderNoun,
+  orderNounTitle,
 }: OrderStatusBandProps) {
+  const t = await getT()
+  // คำนามของ "หนึ่งใบ" — ผู้เรียกส่งคำที่แปลแล้วมา; ไม่ส่ง = ถอยไปคำของร้านขายออนไลน์
+  const noun = orderNoun || t.vocab.orderNoun.ONLINE_SALES
+  const nounTitle = orderNounTitle || t.vocab.orderNounTitle.ONLINE_SALES
   // ชุด "ของอยู่ไหน" (ร้านขายออนไลน์) หรือชุด "สถานะการขาย" เดิม — เลือกที่ระดับ props ไม่ใช่ในลูป
   const tiles = shipping
     ? SHIPPING_STAGES.map((st) => ({
         key: st.key,
-        label: st.label,
+        label: t.dashboard[st.labelKey],
         icon: st.icon,
         iconClass: st.iconClass,
         count: shipping[st.key],
@@ -177,7 +201,7 @@ export default function OrderStatusBand({
         st.key === 'SHIPPED' && appointmentToday !== undefined
           ? {
               key: st.key,
-              label: 'นัดวันนี้',
+              label: t.dashboard.appointmentToday,
               // icon/สี ยกจาก shortcut-icons.ts ('seller:bookings') ไม่ได้เลือกใหม่ — ไอคอนของ
               // "การนัด" ในโปรเจกต์นี้ถูกตัดสินไว้แล้วที่นั่น (sibling-surface-parity)
               icon: 'solar:calendar-mark-bold-duotone',
@@ -199,7 +223,7 @@ export default function OrderStatusBand({
             }
           : {
               key: st.key,
-              label: st.label,
+              label: t.dashboard[st.labelKey],
               icon: st.icon,
               iconClass: st.iconClass,
               count: counts[st.key],
@@ -217,10 +241,10 @@ export default function OrderStatusBand({
       <div className="card-header !py-3 flex items-center justify-between">
         <h4 className="card-title flex items-center gap-1.5">
           <Icon icon="tabler:clipboard-list" className="size-4 text-primary" />
-          {shipping ? `สถานะ${orderNoun}` : orderNoun}
+          {shipping ? fmt(t.dashboard.statusBandTitle, { noun }) : nounTitle}
         </h4>
         <Link href="/orders" className="text-primary text-sm font-medium inline-flex items-center gap-0.5">
-          ดูทั้งหมด
+          {t.dashboard.viewAll}
           <Icon icon="tabler:chevron-right" className="size-4" />
         </Link>
       </div>

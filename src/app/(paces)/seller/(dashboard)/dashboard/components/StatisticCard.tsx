@@ -8,6 +8,7 @@
  */
 import { CountUp } from '@/components/wrappers/CountUp'
 import Icon from '@/components/wrappers/Icon'
+import { getT } from '@/i18n/server'
 import { cn } from '@/utils/helpers'
 
 export type StatType = {
@@ -23,8 +24,9 @@ export type StatType = {
   icon: string
 }
 
-const StatisticCard = ({ stat }: { stat: StatType }) => {
+const StatisticCard = async ({ stat }: { stat: StatType }) => {
   const { title, value, prefix, suffix, change, periodLabel, icon } = stat
+  const t = await getT()
   return (
     <div className="card h-full">
       <div className="card-body">
@@ -50,7 +52,7 @@ const StatisticCard = ({ stat }: { stat: StatType }) => {
                   {change > 0 ? <Icon icon="arrow-up" /> : change < 0 ? <Icon icon="arrow-down" /> : null}
                   {Math.abs(change)}%
                 </span>
-                <span>เทียบเดือนที่แล้ว</span>
+                <span>{t.dashboard.vsLastMonth}</span>
               </p>
             )}
           </div>

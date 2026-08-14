@@ -24,6 +24,7 @@ import { BadgeImage } from '../../badges/BadgeImage'
 // SSOT ของ % บนแถบ — ต้องเป็นตัวเดียวกับหน้า /badges ไม่งั้นการ์ดนี้กับหน้าเต็มโชว์เลขคนละตัว
 import { displayProgressPct } from '../../badges/_constants/badge-labels'
 import { useRouter } from 'next/navigation'
+import { useT } from '@/i18n/LocaleProvider'
 
 export type AchievementLevelProps = {
   score: number           // 0-100
@@ -40,6 +41,7 @@ export default function AchievementLevel({
   earnedBadges,
   topInProgress,
 }: AchievementLevelProps) {
+  const t = useT()
   const router = useRouter()
 
   // Ring constants
@@ -57,7 +59,7 @@ export default function AchievementLevel({
 
       {/* card-header: title ซ้าย + SVG ring (size-14 = 56px) ขวา */}
       <div className="card-header flex items-center justify-between">
-        <h4 className="card-title">ระดับความสำเร็จ</h4>
+        <h4 className="card-title">{t.dashboard.achievementTitle}</h4>
 
         {/* Circular score ring ย่อ size-14 (56px) — คง score/level/levelColor metric */}
         <div className="relative size-14">
@@ -91,7 +93,7 @@ export default function AchievementLevel({
         <section>
           {/* section header — count pill + divider (copy pattern จาก BadgeGrid.tsx บรรทัด ~35-41) */}
           <div className="flex items-center gap-3 mb-3">
-            <h5 className="text-sm font-bold text-default-800 shrink-0">ได้รับแล้ว</h5>
+            <h5 className="text-sm font-bold text-default-800 shrink-0">{t.dashboard.achievementEarned}</h5>
             <span className="bg-default-800 text-default-50 text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0">
               {earnedBadges.length}
             </span>
@@ -130,7 +132,7 @@ export default function AchievementLevel({
         <section>
           {/* section header — count pill + divider (copy pattern จาก BadgeGrid.tsx) */}
           <div className="flex items-center gap-3 mb-3">
-            <h5 className="text-sm font-bold text-default-800 shrink-0">ใกล้ได้รับ</h5>
+            <h5 className="text-sm font-bold text-default-800 shrink-0">{t.dashboard.achievementInProgress}</h5>
             <span className="bg-default-800 text-default-50 text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0">
               {topInProgress.length}
             </span>
@@ -162,7 +164,7 @@ export default function AchievementLevel({
                         {item.badge.name}
                       </span>
                       <span className="text-xs font-bold text-default-500 tabular-nums shrink-0">
-                        {item.progressLabel ?? 'ยังไม่เริ่ม'}
+                        {item.progressLabel ?? t.dashboard.achievementNotStarted}
                       </span>
                     </div>
                     {/* progress bar — Base: IssueDetailModal.tsx lines 54-56 */}

@@ -13,13 +13,15 @@ import Icon from '@/components/wrappers/Icon'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { formatDate, formatTime } from '@/lib/format-date'
+import { useT } from '@/i18n/LocaleProvider'
 
 type UserCardProps = {
   shopName?: string
   trustScore?: number
 }
 
-const UserCard = ({ shopName = 'ร้านค้าของคุณ', trustScore = 0 }: UserCardProps) => {
+const UserCard = ({ shopName, trustScore = 0 }: UserCardProps) => {
+  const t = useT()
   const [currentTime, setCurrentTime] = useState('')
   // currentDate guard เดียวกับ currentTime — ป้องกัน hydration mismatch
   // (new Date() ที่ server vs client อาจ diff; ต้องรอ mount ก่อน)
@@ -46,16 +48,16 @@ const UserCard = ({ shopName = 'ร้านค้าของคุณ', trustS
         <div className="flex justify-between items-center">
           <div className="overflow-hidden">
             <h3 className="font-normal text-xl mb-2">
-              <span className="text-default-400 text-sm uppercase font-medium">ยินดีต้อนรับ,</span>
+              <span className="text-default-400 text-sm uppercase font-medium">{t.dashboard.welcome}</span>
               <br />
-              <b>{shopName}</b>
+              <b>{shopName || t.dashboard.shopFallback}</b>
             </h3>
             <p className="text-default-400 text-xs mt-1">
               Trust Score: <span className="font-semibold text-primary">{trustScore}/100</span>
             </p>
           </div>
           <div className="text-end">
-            <Image className="xl:block hidden" src={email} width={110} alt="ภาพประกอบร้านค้า" />
+            <Image className="xl:block hidden" src={email} width={110} alt={t.dashboard.shopIllustrationAlt} />
           </div>
         </div>
       </div>

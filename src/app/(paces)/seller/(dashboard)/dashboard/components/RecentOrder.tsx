@@ -26,18 +26,28 @@ import {
 } from '@tanstack/react-table'
 import { useState } from 'react'
 import type { OrderType } from './data'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
+import type { Dictionary } from '@/i18n/dictionaries/th'
 
 const columnHelper = createColumnHelper<OrderType>()
 
-// แปลงสถานะจาก state machine ใหม่เป็นภาษาไทยสำหรับ badge
-const STATUS_LABEL: Record<string, string> = {
-  PENDING:   'รอดำเนินการ',
-  SHIPPED:   'กำลังจัดส่ง',
-  CONFIRMED: 'สำเร็จ',
-  CANCELLED: 'ยกเลิก',
+/**
+ * สถานะ → คีย์ใน dictionary (ไม่ใช่ข้อความ)
+ *
+ * ค่าคงที่ระดับ module ถูกประเมินตอน import ⇒ เก็บข้อความไว้ตรงนี้จะเป็นภาษาเดียวตลอดอายุ bundle
+ * เก็บเป็นคีย์แล้ว `tsc` บังคับว่าคีย์นั้นมีจริงทั้งสองภาษา
+ */
+const STATUS_LABEL_KEY: Record<string, keyof Dictionary['dashboard']> = {
+  PENDING:   'statusPending',
+  SHIPPED:   'statusShipped',
+  CONFIRMED: 'statusConfirmed',
+  CANCELLED: 'statusCancelled',
 }
 
-const RecentOrder = ({ orders = [], orderNoun = 'ออเดอร์' }: { orders?: OrderType[]; /** ชื่อของสิ่งที่แถวในตารางนี้เป็น ผันตามประเภทกิจการ (ORDER_VOCAB.noun) */ orderNoun?: string }) => {
+const RecentOrder = ({ orders = [], orderNoun }: { orders?: OrderType[]; /** ชื่อของสิ่งที่แถวในตารางนี้เป็น ผันตามประเภทกิจการ (ORDER_VOCAB.noun) */ orderNoun?: string }) => {
+  const t = useT()
+  const noun = orderNoun || t.vocab.orderNoun.ONLINE_SALES
   const [data] = useState<OrderType[]>(orders)
   const [sorting, setSorting] = useState<SortingState>([])
   const [pagination, setPagination] = useState({
@@ -47,7 +57,7 @@ const RecentOrder = ({ orders = [], orderNoun = 'ออเดอร์' }: { ord
 
   const columns = [
     columnHelper.accessor('token', {
-      header: 'รหัส',
+      header: t.dashboard.colCode,
       // เลขคำสั่งซื้อ DP… (user 2026-07-25); ห้าม font-mono (Anuphan ไม่มี mono → fallback Courier หลุดธีม)
       cell: ({ row }) => (
         <span className="text-xs text-default-500">
@@ -57,14 +67,14 @@ const RecentOrder = ({ orders = [], orderNoun = 'ออเดอร์' }: { ord
     }),
 
     columnHelper.accessor('buyerLabel', {
-      header: 'ผู้ซื้อ',
+      header: t.dashboard.colBuyer,
       cell: ({ getValue }) => (
         <span className="font-semibold">{getValue()}</span>
       ),
     }),
 
     columnHelper.accessor('createdAtISO', {
-      header: 'วันที่',
+      header: t.dashboard.colDate,
       cell: ({ getValue }) => {
         // format วันที่ผ่าน util กลาง (พ.ศ., tz ไทย) — date-only, ไม่มีเวลาใน column นี้
         return formatDateTime(getValue())
@@ -72,7 +82,7 @@ const RecentOrder = ({ orders = [], orderNoun = 'ออเดอร์' }: { ord
     }),
 
     columnHelper.accessor('totalAmount', {
-      header: 'ยอด',
+      header: t.dashboard.colAmount,
       cell: ({ getValue }) =>
         new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 }).format(
           getValue()
@@ -80,19 +90,19 @@ const RecentOrder = ({ orders = [], orderNoun = 'ออเดอร์' }: { ord
     }),
 
     columnHelper.accessor('type', {
-      header: 'ประเภท',
+      header: t.dashboard.colType,
       cell: ({ getValue }) => {
         const typeLabel: Record<string, string> = {
-          PHYSICAL: 'สินค้า',
-          DIGITAL: 'ดิจิทัล',
-          SERVICE: 'บริการ',
+          PHYSICAL: t.dashboard.typePhysical,
+          DIGITAL: t.dashboard.typeDigital,
+          SERVICE: t.dashboard.typeService,
         }
         return typeLabel[getValue()] ?? getValue()
       },
     }),
 
     columnHelper.accessor('status', {
-      header: 'สถานะ',
+      header: t.dashboard.colStatus,
       cell: ({ row }) => {
         const s = row.original.status
         return (
@@ -104,7 +114,7 @@ const RecentOrder = ({ orders = [], orderNoun = 'ออเดอร์' }: { ord
               'bg-danger/15 text-danger':   s === 'CANCELLED',
             })}
           >
-            {STATUS_LABEL[s] ?? toPascalCase(s)}
+            {(STATUS_LABEL_KEY[s] && t.dashboard[STATUS_LABEL_KEY[s]]) ?? toPascalCase(s)}
           </span>
         )
       },
@@ -136,14 +146,14 @@ const RecentOrder = ({ orders = [], orderNoun = 'ออเดอร์' }: { ord
     <div className="card h-full">
       <div className="card-header">
         <h4 className="card-title">
-          {orderNoun}ล่าสุด
+          {fmt(t.dashboard.recentOrdersTitle, { noun })}
         </h4>
         <div>
           <button className="btn btn-sm border-default-300 hover:border-default-400 font-semibold me-1">
-            <Icon icon="cloud-upload" /> ส่งออก
+            <Icon icon="cloud-upload" /> {t.dashboard.recentOrdersExport}
           </button>
           <button className="btn btn-sm bg-light hover:text-primary font-semibold">
-            <Icon icon="download" /> นำเข้า
+            <Icon icon="download" /> {t.dashboard.recentOrdersImport}
           </button>
         </div>
       </div>
@@ -153,11 +163,11 @@ const RecentOrder = ({ orders = [], orderNoun = 'ออเดอร์' }: { ord
           <SellerEmptyState
             compact
             icon="shopping-cart-off"
-            title={`ยังไม่มี${orderNoun}`}
-            description={`เมื่อมี${orderNoun}เข้ามา จะแสดงที่นี่`}
+            title={fmt(t.dashboard.recentOrdersEmptyTitle, { noun })}
+            description={fmt(t.dashboard.recentOrdersEmptyDesc, { noun })}
           />
         ) : (
-          <DataTable<OrderType> table={table} emptyMessage={`ไม่พบ${orderNoun}`} className="table-centered table-hover" />
+          <DataTable<OrderType> table={table} emptyMessage={fmt(t.dashboard.recentOrdersNoMatch, { noun })} className="table-centered table-hover" />
         )}
       </div>
       {data.length > 0 && (
