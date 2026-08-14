@@ -167,16 +167,25 @@ export default function ChatRail({
         <div className="px-4 pt-4 pb-4">
           <SellerEmptyState compact icon="alert-circle" title="โหลดรายการแชทไม่สำเร็จ" description="ลองรีเฟรชหน้าใหม่อีกครั้ง" />
         </div>
-      ) : items.length === 0 ? (
-        <div className="px-4 pt-4 pb-4">
-          <SellerEmptyState
-            compact
-            icon="message-circle"
-            title="ยังไม่มีข้อความ"
-            description="เมื่อลูกค้าทักแชทมาที่ร้าน จะแสดงในหน้านี้"
-          />
-        </div>
       ) : (
+        /**
+         * 🛑 ห้าม early-return เป็น empty state ตอน items ว่าง (bugfix 2026-08-14)
+         *
+         * บั๊กเดียวกับที่ปิดไปแล้วที่ `inbox/page.tsx` เมื่อ 2026-08-13 — แต่ปิดไปแค่ surface เดียว
+         * (<1024px) ส่วน rail เดสก์ท็อปตัวนี้ยังกั้น `items.length === 0` อยู่ ผู้ใช้จึงเจออาการเดิม
+         * เป๊ะ ๆ อีกครั้งบน prod: ลูกค้า "คนแรก" ที่ทักเข้ามาไม่ขึ้นในรายการจนกว่าจะ F5 เอง
+         *
+         * กลไกที่ทำให้รายการอัปเดตอยู่ใน InboxList ทั้งหมด (subscribe realtime `chat:shop:{id}`,
+         * poll ทุก 20 วิ, refresh ตอน focus/visibility) — กั้นไม่ให้มัน render = ตัดขาดทุกเส้นทาง
+         * พร้อมกัน. ที่หลอกตายิ่งกว่าคือ badge "ข้อความ" บนแท็บยังเด้ง เพราะ `InboxTabs` poll
+         * `/api/chat/inbox-tab-counts` ของตัวเองแยกอีกเส้น ⇒ จอบอกว่ามี 1 ข้อความ แต่ข้างล่าง
+         * เขียนว่า "ยังไม่มีข้อความ" พร้อมกัน
+         *
+         * empty state ที่ถูกต้องอยู่ใน InboxList แล้ว (แยก "ยังไม่มีใครทัก" ออกจาก "กรองแล้วไม่เจอ"
+         * ด้วย isChatListFiltering) — ที่นั่นรายการว่างก็ยัง mount ครบทุกกลไก
+         *
+         * ปักหมุดด้วย `chat-rail-no-empty-early-return.test.ts` (สแกนผู้เรียก InboxList ทุกตัว)
+         */
         <InboxList
           initialItems={items}
           initialNextCursor={nextCursor}
@@ -187,6 +196,10 @@ export default function ChatRail({
           activeShopId={activeShopId}
           chatMuted={chatMuted}
           hasShipping={hasShipping}
+          /* แหล่งเดียวกับที่ inbox/page.tsx ใช้คำนวณ `hasAnyChannel` เป๊ะ ๆ — `channels` prop
+             มาจาก `listChannelsForShops(scope.shopIds)` ที่ (chat)/layout.tsx เรียกให้แล้ว
+             (ไม่มีเพจเลย → empty state ต้องชวนไปเชื่อมเพจ ไม่ใช่บอกให้รอลูกค้าทัก) */
+          hasAnyChannel={channels.length > 0}
           railMode
         />
       )}
