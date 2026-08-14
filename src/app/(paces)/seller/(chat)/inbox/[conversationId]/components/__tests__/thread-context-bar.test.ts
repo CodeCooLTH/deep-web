@@ -26,7 +26,7 @@ import { join } from 'node:path'
 
 const DIR = 'src/app/(paces)/seller/(chat)/inbox/[conversationId]/components'
 const THREAD = join(process.cwd(), DIR, 'ChatThread.tsx')
-const BAR = join(process.cwd(), DIR, 'ThreadContextBar.tsx')
+const STRIP = join(process.cwd(), DIR, 'ThreadChipStrip.tsx')
 
 describe('ThreadContextBar — ลำดับความสำคัญของที่มา', () => {
   const src = readFileSync(THREAD, 'utf8')
@@ -59,22 +59,32 @@ describe('ThreadContextBar — ลำดับความสำคัญขอ�
     expect(posOf('comment')).toBeLessThan(posOf('ad'))
   })
 
-  it('ยังส่งรายการเข้า ThreadContextBar อยู่ (ไม่มีใครถอดแถบกลับไปเป็น 3 บล็อกซ้อน)', () => {
-    expect(src).toMatch(/<ThreadContextBar\s+items=\{contextItems\}/)
+  it('ยังไหลเข้าแถวชิปอยู่ (ไม่มีใครถอดกลับไปเป็นบล็อกซ้อน)', () => {
+    // 🛑 2026-08-14: เดิมข้อนี้เช็ค `<ThreadContextBar items={contextItems}` ตรงตัว แล้วแดงทันที
+    // ที่ 3 แถบถูกยุบเป็น `ThreadChipStrip` **ทั้งที่ของยังครบทุกอย่าง** — ด่านที่ผูกกับ *วิธีเขียน*
+    // พังเมื่อ refactor ไม่ใช่เมื่อของหาย (รอยเดิม: ด่าน provider="apple" ที่แดงตอนแถวถูกรวบเป็น .map)
+    // เช็ค "ของยังถูกส่งเข้าแถวเดียวกัน" แทน ซึ่งเป็นเจตนาจริงของข้อนี้
+    expect(src).toMatch(/<ThreadChipStrip/)
+    expect(src).toMatch(/\.\.\.contextItems\.map/)
+    expect(src).toMatch(/\.\.\.threadStatuses\.map/)
   })
 })
 
-describe('ThreadContextBar — โทนสีต้องเบากว่าแถบคำเตือนที่อยู่ใต้มัน', () => {
-  const src = readFileSync(BAR, 'utf8')
+describe('ชิป "ที่มา" — โทนต้องเบากว่าชิปคำเตือนที่อยู่แถวเดียวกัน', () => {
+  const src = readFileSync(STRIP, 'utf8')
 
-  it('ไม่มีพื้นสี semantic ในตัวแถบ', () => {
+  it('โทน context ไม่มีพื้นสี semantic', () => {
     // ตัดคอมเมนต์ออกก่อน: หัวไฟล์ *พูดถึง* คลาสพวกนี้เพื่ออธิบายว่าทำไมถึงห้ามใช้
     // (บทเรียน HR9 2026-08-02→08-03: gate ที่ match คำเปล่า ๆ จะแดงตลอดกาลกับไฟล์ที่ทำถูกกฎ)
     const code = src
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/^\s*\/\/.*$/gm, '')
-    expect(code).not.toMatch(/bg-(danger|warning|info|success)\//)
-    expect(code).not.toMatch(/bg-primary\//)
+    // ตอนนี้ไฟล์เดียวถือทุกโทน (คำเตือน *ต้อง* มีพื้นสี) จึงเช็คเฉพาะบรรทัดของ `context`
+    const line = code.split('\n').find((l) => l.trim().startsWith('context:'))
+    expect(line, 'ไม่เจอโทน context ใน TONE_CLS').toBeTruthy()
+    expect(line).not.toMatch(/bg-(danger|warning|info|success|primary)\//)
+    // และคำเตือนต้องยังมีพื้นสีอยู่จริง ไม่งั้น "เบากว่า" ไม่มีความหมาย
+    expect(code).toMatch(/danger:\s*'bg-danger\/15/)
   })
 
   it('ปุ่มยุบ/กางประกาศสถานะให้ screen reader (WCAG 4.1.2)', () => {

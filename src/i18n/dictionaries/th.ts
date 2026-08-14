@@ -230,6 +230,7 @@ export const th = {
     backToList: 'กลับรายการ',
     customerInfo: 'ข้อมูลลูกค้า',
     threadSoundTitle: 'เสียงแจ้งเตือนข้อความใหม่',
+    threadChipCollapse: 'ย่อ',
     threadSoundAllApp: 'ทั้งแอป (ทุกแชท)',
     threadSoundThisChat: 'เฉพาะแชทนี้',
     threadSoundMutedHint: 'ปิดอยู่เพราะปิดเสียงทั้งแอป — เปิดสวิตช์ด้านบนก่อน',

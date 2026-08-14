@@ -71,10 +71,13 @@
 import Icon from '@/components/wrappers/Icon'
 import AutoReplyTag from './AutoReplyTag'
 import ThreadOverflowMenu from './ThreadOverflowMenu'
+import ThreadChipStrip, {
+  type ThreadChipItem,
+  type ThreadStatusItem,
+  type ThreadContextItem,
+} from './ThreadChipStrip'
 import BotPausedBanner, { getBotPausedSummary } from './BotPausedBanner'
-import ThreadStatusBar, { type ThreadStatusItem } from './ThreadStatusBar'
-import ThreadContextBar, { type ThreadContextItem } from './ThreadContextBar'
-import OrderProgressBar from './OrderProgressBar'
+import OrderProgressBar, { orderProgressChip } from './OrderProgressBar'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { parseMetaOrderCard } from '@/lib/meta-order-card'
@@ -1146,6 +1149,29 @@ export default function ChatThread({
    * อยากรู้ว่าวันไหนพอรับได้
    */
   const [apptSheetOpen, setApptSheetOpen] = useState(false)
+  /**
+   * จอ ≥1280px หรือยัง — ใช้ตัดสินว่าจะใส่ "ชิปสถานะออเดอร์" ลงในแถวชิปไหม (2026-08-14)
+   *
+   * 🛑 ต้องเป็น matchMedia ไม่ใช่คลาส `xl:hidden` เพราะสิ่งที่ต้องตัดคือ **สมาชิกในอาร์เรย์**
+   * ไม่ใช่ element — ซ่อนด้วย CSS จะได้ชิปที่ยังนับอยู่ใน items แต่มองไม่เห็น แล้ว `action`
+   * ที่ ThreadChipStrip ยกขึ้นแถวอาจถูกยกมาจากชิปที่ผู้ใช้ไม่เห็นตัว
+   *
+   * 🛑 ค่า 1280 ต้องตรงกับ `xl:block` ของคอลัมน์ขวาใน page.tsx เสมอ — ช่วง iPad Pro 1024–1279
+   * เคยตกหล่นทั้งสองทางมาแล้ว (ทั้งซ้ำและหายไปเลย)
+   *
+   * Base: แพตเทิร์น matchMedia + addEventListener('change') จาก EmojiPicker.tsx:277-287
+   */
+  const [isXlUp, setIsXlUp] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)')
+    const sync = () => setIsXlUp(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+
   const [sheetOpen, setSheetOpen] = useState(false)
   /** แท็บที่ชีตข้อมูลลูกค้าจะเปิดมาลง (2026-08-14) — ปุ่มคลังไฟล์ในหัวเธรดส่ง 'files' มา ⇒ ไฟล์ = 1 แตะ */
   const [sheetTab, setSheetTab] = useState<CustomerPanelTab>('customer')
@@ -2150,6 +2176,11 @@ export default function ChatThread({
    * `detail` ของแต่ละตัวคือ JSX ก้อนเดิมยกมาทั้งดุ้น ไม่แก้เนื้อใน — งานนี้เปลี่ยน "ที่เก็บ"
    * ไม่ได้ออกแบบเนื้อหาใหม่
    */
+  /** สรุปชิปสถานะออเดอร์ — คำและไอคอนมาจาก OrderProgressBar ที่เดียว ห้ามประกอบเองที่นี่ (HR16) */
+  const orderChip = customerPanelData
+    ? orderProgressChip({ orders: customerPanelData.orders, vertical: customerPanelData.vertical })
+    : null
+
   const contextItems: ThreadContextItem[] = []
   if (shopName) {
     contextItems.push({
@@ -2510,28 +2541,70 @@ export default function ChatThread({
        * อยู่ "เหนือ" ThreadStatusBar เหมือนตำแหน่งเดิมของก้อนที่มันแทนที่: บริบท → คำเตือน →
        * ความคืบหน้า (แถบนี้เป็นส่วนต่อของหัวเธรด ส่วนคำเตือนเป็นการ์ดลอยที่แทรกเข้ามา)
        */}
-      <ThreadContextBar items={contextItems} />
-
-      {/* แถบสถานะห้อง — ยุบเป็นบรรทัดเดียว กดกางดูรายละเอียด (user report 2026-08-02:
-          "alert box เยอะ ๆ ไม่ work มันรกหน้าจอมาก") ลำดับใน array = ลำดับความสำคัญ:
-          ส่งไม่ได้เลย > ส่งได้แบบมีเงื่อนไข > บอทเงียบ > โหมดทดสอบ
-          ตัวแรกคือตัวที่โชว์ตอนยุบ ที่เหลือนับเป็น +N */}
-      <ThreadStatusBar items={threadStatuses} />
-
-      {/* แถบสถานะออเดอร์ (Order Progress 2026-08-05) — อยู่ใต้แถบสถานะห้องเสมอ (alert ชนะ
-          progress) · เฉพาะ <1280px เพราะจอ xl มี CustomerPanel เห็นการ์ด+timeline อยู่แล้ว */}
-      {customerPanelData && (
-        <OrderProgressBar
-          orders={customerPanelData.orders}
-          // ร้านคิวงานไล่แกน "นัดถึงขั้นไหน" ไม่ใช่ "ของอยู่ไหน" (user report 2026-08-08)
-          vertical={customerPanelData.vertical}
-          conversationId={conversationId}
-          customerName={buyerName}
-          channel={channel}
-          customerAvatar={buyerAvatar}
-          pageAvatarUrl={channelAvatarUrl}
-        />
-      )}
+      {/**
+       * แถวชิปเดียวใต้หัวเธรด (2026-08-14) — แทนที่ 3 แถบที่เคยเรียงซ้อนกัน
+       * (ThreadContextBar "ที่มา" + ThreadStatusBar "คำเตือน" + OrderProgressBar "สถานะออเดอร์")
+       *
+       * ลำดับใน array = ลำดับความสำคัญบนแถว และเป็นตัวตัดสินว่า `action` ของใครถูกยกขึ้นแถว:
+       *   คำเตือน (ต้องลงมือ) → สถานะออเดอร์ (กำลังเกิดขึ้น) → ที่มาของแชท (อ้างอิง)
+       * ซึ่งเป็นลำดับเดิมของ 3 แถบเป๊ะ ๆ แค่เปลี่ยนจาก "เรียงลงมา" เป็น "เรียงไปทางขวา"
+       *
+       * เหตุผลของลำดับภายในแต่ละกลุ่มอยู่ที่จุดที่ประกอบ array นั้น (`threadStatuses`/`contextItems`)
+       */}
+      <ThreadChipStrip
+        items={[
+          ...threadStatuses.map<ThreadChipItem>((it) => ({
+            key: `status:${it.key}`,
+            tone: it.tone,
+            icon: it.icon,
+            short: it.short,
+            detail: it.detail,
+            action: it.action,
+          })),
+          /**
+           * ชิปสถานะออเดอร์ — เฉพาะ <1280px เหมือนเดิม (จอ xl มี CustomerPanel เห็นการ์ด+timeline
+           * อยู่แล้ว) 🛑 breakpoint ต้องตรงกับ `xl:block` ของคอลัมน์ขวาใน page.tsx เสมอ —
+           * ช่วง iPad Pro 1024–1279 เคยตกหล่นทั้งสองทางมาแล้ว
+           *
+           * ตัดสินด้วย `isXlUp` (matchMedia) ไม่ใช่ `xl:hidden` เพราะที่นี่เป็น **ข้อมูลในอาร์เรย์**
+           * ไม่ใช่ element — ซ่อนด้วย CSS จะได้ชิปที่ยังนับอยู่ใน items แต่มองไม่เห็น (แถวว่างที่ยัง
+           * กินความสูง + `action` ที่ถูกยกจากชิปที่ไม่มีใครเห็น)
+           */
+          ...(!isXlUp && customerPanelData && orderChip
+            ? [
+                {
+                  key: 'order',
+                  tone: 'order' as const,
+                  icon: orderChip.icon,
+                  short: orderChip.count > 1 ? `${orderChip.short} +${orderChip.count - 1}` : orderChip.short,
+                  detail: (
+                    <OrderProgressBar
+                      variant="detail"
+                      orders={customerPanelData.orders}
+                      // ร้านคิวงานไล่แกน "นัดถึงขั้นไหน" ไม่ใช่ "ของอยู่ไหน" (user report 2026-08-08)
+                      vertical={customerPanelData.vertical}
+                      conversationId={conversationId}
+                      customerName={buyerName}
+                      channel={channel}
+                      customerAvatar={buyerAvatar}
+                      pageAvatarUrl={channelAvatarUrl}
+                    />
+                  ),
+                },
+              ]
+            : []),
+          ...contextItems.map<ThreadChipItem>((it) => ({
+            key: `ctx:${it.key}`,
+            tone: 'context',
+            icon: it.icon,
+            thumbUrl: it.thumbUrl,
+            // ชิปมีที่แค่บรรทัดเดียวสั้น ๆ — คำนำประเภท ("จากโฆษณา") สำคัญกว่าเนื้อหา
+            // เพราะเนื้อหาเต็มอยู่ในตัวกางอยู่แล้ว และผู้ขายต้องรู้ก่อนว่า "ที่มาแบบไหน"
+            short: it.label ?? it.short,
+            detail: it.detail,
+          })),
+        ]}
+      />
 
       {/* scroll body — plain div + ref (ไม่ SimpleBar ตาม spec, ต้อง programmatic scroll) */}
       {/* overscroll-contain (user report prod 2026-07-23: "เวลา scroll มันไปถึง fixed ด้านบนเลย

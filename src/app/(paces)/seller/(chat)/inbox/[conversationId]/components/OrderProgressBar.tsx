@@ -39,6 +39,46 @@ import type { ShopVertical } from '@/lib/lodging'
  * มีเทส [blocker] ตรึงไว้ว่าสองที่ต้องคืนสตริงเดียวกัน — ห้ามก็อปสูตรกลับมาไว้ที่นี่
  */
 
+/** เลขที่แสดงของออเดอร์ — module scope เพื่อให้ทั้ง component และ `orderProgressChip` ใช้ตัวเดียวกัน */
+const displayNo = (o: CustomerPanelOrder) => o.orderNo || o.token.slice(0, 8).toUpperCase()
+
+/**
+ * สรุปสำหรับ "ชิป" ใน ThreadChipStrip — คืน null เมื่อไม่มีออเดอร์ที่ยังไม่จบงาน
+ *
+ * 🛑 อยู่ไฟล์เดียวกับแถบโดยตั้งใจ (HR16): ก่อนหน้านี้คำบนบรรทัดยุบถูกประกอบในตัว component
+ * ถ้าปล่อยให้ผู้เรียกประกอบคำเอง จะกลายเป็นสองที่ที่ตอบคำถามเดียวกัน ("ออเดอร์นี้ถึงขั้นไหน")
+ * แล้วเพี้ยนจากกันได้โดยไม่มี tsc/เทสตัวไหนฟ้อง — เกณฑ์ทั้งหมดยังมาจาก lib ชุดเดิม
+ * (`filterActiveOrders`/`orderShippingStage`/`SERVICE_STAGE_CHIP_META`) ไม่ได้เขียนเงื่อนไขใหม่
+ */
+export function orderProgressChip({
+  orders,
+  vertical,
+}: {
+  orders: CustomerPanelOrder[]
+  vertical: ShopVertical
+}): { icon: string; short: string; count: number } | null {
+  const isService = vertical === 'SERVICE_QUEUE'
+  const active = isService ? filterActiveServiceOrders(orders) : filterActiveOrders(orders)
+  if (active.length === 0) return null
+
+  const head = active[0]
+  const headServiceStage = serviceProgressStage(head)
+  const headMeta = headServiceStage === 'DONE' ? null : SERVICE_STAGE_CHIP_META[headServiceStage]
+  const headStage = orderShippingStage(head)
+  const label = isService
+    ? (headMeta?.label ?? '')
+    : headStage === 'DONE'
+      ? ''
+      : SHIPPING_STAGE_LABEL[headStage]
+
+  return {
+    // ไอคอนต้องบอกแกนของร้าน — รถบรรทุกกับร้านที่ไม่เคยส่งของคือสัญลักษณ์ที่พูดผิดเรื่อง
+    icon: isService ? (headMeta?.icon ?? 'calendar-event') : 'truck-delivery',
+    short: label ? `${displayNo(head)} · ${label}` : displayNo(head),
+    count: active.length,
+  }
+}
+
 export default function OrderProgressBar({
   orders,
   vertical,
@@ -47,6 +87,7 @@ export default function OrderProgressBar({
   channel,
   customerAvatar,
   pageAvatarUrl,
+  variant = 'bar',
 }: {
   orders: CustomerPanelOrder[]
   /**
@@ -62,6 +103,14 @@ export default function OrderProgressBar({
   customerAvatar: string | null
   /** รูปเพจของเธรด — badge มุม avatar ในหน้าต่าง/ชิปที่ย่อไว้ (user สั่ง 2026-08-07) */
   pageAvatarUrl: string | null
+  /**
+   * 'bar' (เดิม) = แถบยุบ/กางของตัวเอง · 'detail' = เนื้อหาที่กางแล้วล้วน ๆ ไม่มีแถบ ไม่มีปุ่มย่อ
+   *
+   * 'detail' เกิดขึ้นตอนยุบ 3 แถบใต้หัวเธรดเป็นแถวชิปเดียว (2026-08-14) — `ThreadChipStrip`
+   * เป็นเจ้าของการยุบ/กาง/ปุ่มย่อ/ระยะขอบแทน ตัวนี้จึงเหลือหน้าที่เดียวคือ "การ์ดออเดอร์"
+   * 🛑 ห้ามใส่ `xl:hidden` ในโหมดนี้ — คนตัดสินว่าจะโผล่ที่จอไหนคือ strip (ที่เดียว)
+   */
+  variant?: 'bar' | 'detail'
 }) {
   const [open, setOpen] = useState(false)
   /** token ของนัดที่กำลังเปิดชีต "ส่งสรุปนัด" (ส่วนขยาย 00024 2026-08-11) — null = ปิด
@@ -88,7 +137,6 @@ export default function OrderProgressBar({
     : headStage === 'DONE'
       ? ''
       : SHIPPING_STAGE_LABEL[headStage]
-  const displayNo = (o: CustomerPanelOrder) => o.orderNo || o.token.slice(0, 8).toUpperCase()
 
   // ข้อความ/พฤติกรรมชุดเดียวกับปุ่มคัดลอกในโมดัลพัสดุ (ShipmentStatusView.handleCopy) —
   // clipboard ต้องการ https บน dev ที่ไม่ใช่ https จะล้มเหลว ต้องบอกตามตรงไม่ใช่เงียบ
@@ -131,8 +179,8 @@ export default function OrderProgressBar({
           orderToken={apptToken}
         />
       )}
-      <div className="px-4 pt-4 xl:hidden">
-      {open ? (
+      <div className={variant === 'detail' ? '' : 'px-4 pt-4 xl:hidden'}>
+      {open || variant === 'detail' ? (
         <div className="space-y-2">
           {/* เกิน ~4 ใบให้เลื่อนในตัวเอง — แถบกางห้ามดันเธรดจนข้อความหายทั้งจอ */}
           <div className="max-h-80 space-y-2 overflow-y-auto">
@@ -304,6 +352,7 @@ export default function OrderProgressBar({
               )
             })}
           </div>
+          {variant === 'detail' ? null : (
           <button
             type="button"
             onClick={() => setOpen(false)}
@@ -316,6 +365,7 @@ export default function OrderProgressBar({
             <Icon icon="chevron-up" className="text-sm" />
             {isService ? 'ย่อสถานะการให้บริการ' : 'ย่อสถานะออเดอร์'}
           </button>
+          )}
         </div>
       ) : (
         <div className="bg-primary/15 text-primary-ink flex items-center gap-2 rounded-lg px-3 py-2 text-sm">

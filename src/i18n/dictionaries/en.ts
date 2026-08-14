@@ -194,6 +194,7 @@ export const en: Dictionary = {
     backToList: 'Back to list',
     customerInfo: 'Customer info',
     threadSoundTitle: 'New message sound',
+    threadChipCollapse: 'Collapse',
     threadSoundAllApp: 'All chats',
     threadSoundThisChat: 'This chat only',
     threadSoundMutedHint: 'Muted because all chats are muted — turn on the switch above first.',
