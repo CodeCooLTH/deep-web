@@ -31,6 +31,7 @@ export const en: Dictionary = {
     loading: 'Loading…',
     retry: 'Try again',
     home: 'Home',
+    signOut: 'Sign out',
     somethingWentWrong: 'Something went wrong. Please try again.',
   },
 
@@ -251,6 +252,53 @@ export const en: Dictionary = {
     libraryAriaFile: '{name} from {who} · {when}',
     librarySentBy: 'Sent by {who} · {when}',
     librarySavedBy: 'Saved by {who} · {when}',
+  },
+
+  accountSwitcher: {
+    roleOwner: 'Owner',
+    roleAdmin: 'Admin',
+    rolePersonal: 'Personal',
+
+    allAccounts: 'All accounts',
+    switchAccount: 'Switch account',
+    fallbackUser: 'User',
+
+    loadError: "Couldn't load your accounts. Try reloading this page.",
+    lockedError: "This account is temporarily locked — you can't switch to it right now.",
+    noAccessError: 'You no longer have access to this account',
+    switchError: "Couldn't switch accounts. Please try again.",
+
+    createPersonalTitle: 'Create my personal shop',
+    createPersonalDesc: 'Sell under your own name',
+    createPersonalDescOnce: 'Sell under your own name — you can only create one',
+    createBusinessTitle: 'Create a new business',
+    // สั้นกว่าไทยเล็กน้อยโดยตั้งใจ — บรรทัดนี้ wrap อยู่ในดรอปดาวน์กว้างคงที่ 288px
+    // แปลตรงตัวทั้งประโยคจะกลายเป็น 3 บรรทัดแล้วปุ่มบวมกว่าที่ผู้ใช้ไทยเห็น
+    createBusinessDesc: 'Sell under a business name and add teammates',
+
+    confirmCreateTitle: 'Create your personal shop?',
+    confirmCreateBody:
+      "This shop is tied to you personally and can only be created once — we'll take you to shop setup right after you confirm.",
+    confirmCreateYes: 'Create it',
+    confirmCreateNo: 'Not now',
+    createError: "Couldn't create the shop. Please try again.",
+    creatingLabel: 'Setting up your personal shop…',
+    creatingSubLabel: "We'll take you to shop setup in a moment",
+
+    switchingTo: 'Switching to "{name}"…',
+    switchingGeneric: 'Switching accounts…',
+    switchingSubLabel: 'Please wait while we load your data',
+    switchingAriaLabel: 'Switching shop',
+
+    personalInfo: 'Personal info',
+    storefront: 'Storefront',
+
+    inboxView: 'Inbox view',
+    viewAllShops: 'All shops',
+    viewThisShop: 'This shop',
+    viewChangeError: "Couldn't change the view. Please try again.",
+    switcherAriaUnified: 'Switch shop — currently viewing messages from all shops',
+    switcherAriaSingle: 'Switch shop — currently viewing messages for {name}',
   },
 
   publicProfile: {

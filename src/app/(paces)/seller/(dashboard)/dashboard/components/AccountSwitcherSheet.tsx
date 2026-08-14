@@ -18,6 +18,7 @@
 import AccountAvatar from '@/components/AccountAvatar'
 import ShopSwitchOverlay from '@/components/paces/ShopSwitchOverlay'
 import Icon from '@/components/wrappers/Icon'
+import { useT } from '@/i18n/LocaleProvider'
 import { pacesToast } from '@/lib/paces-toast'
 import { useShopSwitcher } from '@/hooks/useShopSwitcher'
 import { useCreatePersonalShop } from '@/hooks/useCreatePersonalShop'
@@ -59,13 +60,18 @@ export default function AccountSwitcherSheet() {
   const user = session?.user as SessionUser | undefined
 
   const activeShopId = user?.activeShopId
-  const displayName = user?.displayName ?? user?.username ?? 'ผู้ใช้'
+  const t = useT()
+  const displayName = user?.displayName ?? user?.username ?? t.accountSwitcher.fallbackUser
 
   // identity ปัจจุบัน (ใช้เป็น fallback row เมื่อ fetch context ล้ม)
   const isBusiness = user?.activeShopKind === 'BUSINESS'
-  const activeName = isBusiness ? (user?.activeShopName ?? 'ร้านค้า') : displayName
+  const activeName = isBusiness ? (user?.activeShopName ?? t.menu.shop) : displayName
   const activeLogo = isBusiness ? (user?.activeShopLogo ?? null) : (user?.avatar ?? null)
-  const activeRoleLabel = isBusiness ? (user?.activeShopRole === 'ADMIN' ? 'ผู้ดูแล' : 'เจ้าของ') : 'ส่วนตัว'
+  const activeRoleLabel = isBusiness
+    ? user?.activeShopRole === 'ADMIN'
+      ? t.accountSwitcher.roleAdmin
+      : t.accountSwitcher.roleOwner
+    : t.accountSwitcher.rolePersonal
 
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
   const [fetchFailed, setFetchFailed] = useState(false)
@@ -110,7 +116,7 @@ export default function AccountSwitcherSheet() {
   ) {
     if (isActive) return
     if (locked) {
-      pacesToast.error('บัญชีนี้ถูกล็อกชั่วคราว — ไม่สามารถสลับเข้าใช้งานได้')
+      pacesToast.error(t.accountSwitcher.lockedError)
       return
     }
     switchShop(shopId, targetInfo)
@@ -143,7 +149,7 @@ export default function AccountSwitcherSheet() {
           </h3>
           <button
             type="button"
-            aria-label="ปิด"
+            aria-label={t.common.close}
             data-hs-overlay="#account-switcher-sheet"
             className="flex size-11 items-center justify-center"
           >
@@ -187,7 +193,7 @@ export default function AccountSwitcherSheet() {
                 >
                   <AccountAvatar src={user?.avatar ?? null} kind="personal" className="size-9" />
                   <span className="min-w-0 flex-1 truncate font-medium">{displayName}</span>
-                  <span className="badge bg-default-100 text-default-500 shrink-0">ส่วนตัว</span>
+                  <span className="badge bg-default-100 text-default-500 shrink-0">{t.accountSwitcher.rolePersonal}</span>
                   {context.personal.shopId === activeShopId && (
                     <Icon icon="circle-check" className="text-primary shrink-0" aria-hidden="true" />
                   )}
@@ -209,8 +215,8 @@ export default function AccountSwitcherSheet() {
                     aria-hidden="true"
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block font-medium">สร้างร้านส่วนตัวของฉัน</span>
-                    <span className="text-default-500 block text-xs">ขายของในนามตัวเอง — สร้างได้ครั้งเดียว</span>
+                    <span className="block font-medium">{t.accountSwitcher.createPersonalTitle}</span>
+                    <span className="text-default-500 block text-xs">{t.accountSwitcher.createPersonalDescOnce}</span>
                   </span>
                   <Icon icon="chevron-right" className="text-default-400 shrink-0" aria-hidden="true" />
                 </button>
@@ -236,7 +242,7 @@ export default function AccountSwitcherSheet() {
                         b.role === 'OWNER' ? 'bg-primary/15 text-primary' : 'bg-info/15 text-info'
                       }`}
                     >
-                      {b.role === 'OWNER' ? 'เจ้าของ' : 'ผู้ดูแล'}
+                      {b.role === 'OWNER' ? t.accountSwitcher.roleOwner : t.accountSwitcher.roleAdmin}
                     </span>
                     {b.locked && (
                       <span className="badge bg-danger/15 text-danger inline-flex shrink-0 items-center">
@@ -260,7 +266,7 @@ export default function AccountSwitcherSheet() {
               className="hover:bg-default-100 flex w-full items-center gap-3 rounded-lg px-3 py-3 text-start"
             >
               <Icon icon="user-circle" className="text-default-500 size-5 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 flex-1 font-medium">ข้อมูลส่วนตัว</span>
+              <span className="min-w-0 flex-1 font-medium">{t.accountSwitcher.personalInfo}</span>
               <Icon icon="chevron-right" className="text-default-400 shrink-0" aria-hidden="true" />
             </Link>
 
@@ -282,7 +288,7 @@ export default function AccountSwitcherSheet() {
                 className="hover:bg-default-100 flex w-full items-center gap-3 rounded-lg px-3 py-3 text-start"
               >
                 <Icon icon="building-store" className="text-default-500 size-5 shrink-0" aria-hidden="true" />
-                <span className="min-w-0 flex-1 font-medium">โปรไฟล์</span>
+                <span className="min-w-0 flex-1 font-medium">{t.accountSwitcher.storefront}</span>
                 <Icon icon="external-link" className="text-default-400 size-4 shrink-0" aria-hidden="true" />
               </a>
             )}
@@ -296,8 +302,8 @@ export default function AccountSwitcherSheet() {
       {/* ยังไม่มีร้านให้เอ่ยชื่อตอนสร้าง — override ข้อความ ไม่งั้นขึ้น "กำลังสลับบัญชี" ซึ่งผิดเหตุการณ์ */}
       <ShopSwitchOverlay
         show={creating}
-        label="กำลังเปิดร้านส่วนตัวให้คุณ…"
-        subLabel="อีกสักครู่จะพาไปตั้งค่าร้านต่อ"
+        label={t.accountSwitcher.creatingLabel}
+        subLabel={t.accountSwitcher.creatingSubLabel}
       />
     </>
   )

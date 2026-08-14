@@ -8,6 +8,8 @@ import { signOut, useSession } from 'next-auth/react'
 import { Fragment, useEffect, useState } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import { pacesToast } from '@/lib/paces-toast'
+import { useT } from '@/i18n/LocaleProvider'
+import type { Dictionary } from '@/i18n/dictionaries/th'
 import { useShopSwitcher } from '@/hooks/useShopSwitcher'
 import { useCreatePersonalShop } from '@/hooks/useCreatePersonalShop'
 
@@ -38,11 +40,16 @@ interface BusinessContextResponse {
 
 // เหลือเฉพาะ sign-out — ตัด บัญชีของฉัน/การแจ้งเตือน/ตั้งค่าบัญชี/ช่วยเหลือ
 // ที่ลิงก์ไป /my-account (404) หรือ '#' ออก จนกว่าจะมี route จริง (consistent กับ UserProfileSettings)
-const userProfileMenuData: UserProfileMenuType[] = [
-  { label: 'ออกจากระบบ', icon: 'logout', link: '#', action: 'sign-out', className: 'font-semibold' },
+// 🛑 ต้องเป็นฟังก์ชันรับ dictionary ห้ามเป็นค่าคงที่ระดับ module (feature 00047)
+// array ที่ประกาศนอก component ถูกประเมินครั้งเดียวตอน import ก่อน React เรนเดอร์ ⇒ ข้อความจะผูก
+// กับภาษาที่โหลดตอน bundle แล้วค้างอยู่อย่างนั้นตลอดไปไม่ว่าผู้ใช้เลือกอะไร (กับดักเดียวกับ
+// callbackStatusMessage ใน ChannelsClient.tsx — เจอมาแล้ว 3 ครั้งในฟีเจอร์นี้)
+const buildUserProfileMenu = (t: Dictionary): UserProfileMenuType[] => [
+  { label: t.common.signOut, icon: 'logout', link: '#', action: 'sign-out', className: 'font-semibold' },
 ]
 
 const UserDropdown = () => {
+  const t = useT()
   const { data: session } = useSession()
   const user = (session as any)?.user as
     | {
@@ -63,16 +70,22 @@ const UserDropdown = () => {
       }
     | undefined
 
-  const displayName = user?.displayName ?? user?.username ?? 'ผู้ใช้'
+  const userProfileMenuData = buildUserProfileMenu(t)
+
+  const displayName = user?.displayName ?? user?.username ?? t.accountSwitcher.fallbackUser
 
   const hasBusinessMembership = user?.hasBusinessMembership === true
   const activeShopId = user?.activeShopId
 
   // identity ที่โชว์ (topbar button + active box) — business active → ร้าน, ไม่งั้น personal
   const isBusiness = user?.activeShopKind === 'BUSINESS'
-  const activeName = isBusiness ? (user?.activeShopName ?? 'ร้านค้า') : displayName
+  const activeName = isBusiness ? (user?.activeShopName ?? t.menu.shop) : displayName
   const activeLogo = isBusiness ? (user?.activeShopLogo ?? null) : (user?.avatar ?? null)
-  const activeRoleLabel = isBusiness ? (user?.activeShopRole === 'ADMIN' ? 'ผู้ดูแล' : 'เจ้าของ') : 'ส่วนตัว'
+  const activeRoleLabel = isBusiness
+    ? user?.activeShopRole === 'ADMIN'
+      ? t.accountSwitcher.roleAdmin
+      : t.accountSwitcher.roleOwner
+    : t.accountSwitcher.rolePersonal
 
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
   const { switching, target, switchShop } = useShopSwitcher()
@@ -111,7 +124,7 @@ const UserDropdown = () => {
   ) => {
     if (switching || shopId === activeShopId) return
     if (locked) {
-      pacesToast.error('บัญชีนี้ถูกล็อกชั่วคราว — ไม่สามารถสลับเข้าใช้งานได้')
+      pacesToast.error(t.accountSwitcher.lockedError)
       return
     }
     switchShop(shopId, targetInfo)
@@ -152,7 +165,7 @@ const UserDropdown = () => {
             list ไม่รวมบัญชีที่ active — มันอยู่ในกล่องไฮไลต์ด้านบนแล้ว */}
         <>
             <div className="px-2 pt-3 pb-1">
-              <span className="text-default-400 text-xs">บัญชีทั้งหมด</span>
+              <span className="text-default-400 text-xs">{t.accountSwitcher.allAccounts}</span>
             </div>
 
             {/* โหลดรายการไม่สำเร็จ — บอกตรง ๆ ดีกว่าปล่อยหัวข้อลอยไม่มีอะไรอยู่ใต้มัน
@@ -160,7 +173,7 @@ const UserDropdown = () => {
                 useEffect([]) จึงไม่ยิงซ้ำตอนเปิดใหม่ — ทางเดียวที่ fetch ใหม่คือโหลดหน้าใหม่ */}
             {contextFailed && (
               <div className="text-default-400 px-3 py-2 text-xs">
-                โหลดรายการบัญชีไม่สำเร็จ ลองโหลดหน้านี้ใหม่อีกครั้ง
+                {t.accountSwitcher.loadError}
               </div>
             )}
 
@@ -181,7 +194,7 @@ const UserDropdown = () => {
               >
                 <AccountAvatar src={user?.avatar} kind="personal" className="size-7" />
                 <span className="flex-1 truncate">{displayName}</span>
-                <span className="badge bg-default-100 text-default-500 shrink-0">ส่วนตัว</span>
+                <span className="badge bg-default-100 text-default-500 shrink-0">{t.accountSwitcher.rolePersonal}</span>
               </button>
             )}
 
@@ -202,8 +215,8 @@ const UserDropdown = () => {
                   aria-hidden="true"
                 />
                 <span className="min-w-0">
-                  <span className="block font-medium">สร้างร้านส่วนตัวของฉัน</span>
-                  <span className="text-default-500 block text-xs">ขายของในนามตัวเอง</span>
+                  <span className="block font-medium">{t.accountSwitcher.createPersonalTitle}</span>
+                  <span className="text-default-500 block text-xs">{t.accountSwitcher.createPersonalDesc}</span>
                 </span>
               </button>
             )}
@@ -227,7 +240,7 @@ const UserDropdown = () => {
                       b.role === 'OWNER' ? 'bg-primary/15 text-primary' : 'bg-info/15 text-info'
                     }`}
                   >
-                    {b.role === 'OWNER' ? 'เจ้าของ' : 'ผู้ดูแล'}
+                    {b.role === 'OWNER' ? t.accountSwitcher.roleOwner : t.accountSwitcher.roleAdmin}
                   </span>
                   {b.locked && (
                     <span className="badge bg-danger/15 text-danger inline-flex shrink-0 items-center">
@@ -253,10 +266,10 @@ const UserDropdown = () => {
               >
                 <Icon icon="plus" className="mt-0.5 shrink-0" aria-hidden="true" />
                 <span className="min-w-0 flex-1">
-                  <span className="block font-medium">สร้างธุรกิจใหม่</span>
+                  <span className="block font-medium">{t.accountSwitcher.createBusinessTitle}</span>
                   {/* คำอธิบายต้องตอบ "ทำไมต้องมี" ไม่ใช่พูดชื่อปุ่มซ้ำ — คู่ขนานกับปุ่มร้านส่วนตัว
                       ที่บอกว่า "ขายของในนามตัวเอง" อันนี้จึงบอกสิ่งที่ร้านส่วนตัวทำไม่ได้ */}
-                  <span className="text-default-500 block text-xs">ขายในนามร้าน เพิ่มทีมงานช่วยดูแลได้</span>
+                  <span className="text-default-500 block text-xs">{t.accountSwitcher.createBusinessDesc}</span>
                 </span>
                 <Icon icon="chevron-right" className="text-default-400 mt-0.5 shrink-0" aria-hidden="true" />
               </Link>
@@ -271,7 +284,7 @@ const UserDropdown = () => {
             dropdown นี้เหลือเฉพาะของ "ตัวคน" ไม่ปนกับของร้าน */}
         <Link href="/account" className="dropdown-item">
           <Icon icon="user-circle" className="me-1 fs-lg align-middle" />
-          <span className="align-middle">ข้อมูลส่วนตัว</span>
+          <span className="align-middle">{t.accountSwitcher.personalInfo}</span>
         </Link>
 
         {/* โปรไฟล์ = หน้าร้านจริงที่ลูกค้าเห็น (ป้ายเดิม "เปิดหน้าร้าน" — ใช้คำเดียวกับเมนูซ้ายแล้ว)
@@ -289,7 +302,7 @@ const UserDropdown = () => {
             className="dropdown-item"
           >
             <Icon icon="building-store" className="me-1 fs-lg align-middle" />
-            <span className="align-middle">โปรไฟล์</span>
+            <span className="align-middle">{t.accountSwitcher.storefront}</span>
             <Icon icon="external-link" className="ms-auto size-3.5 align-middle" />
           </a>
         )}
@@ -317,8 +330,8 @@ const UserDropdown = () => {
         ซึ่งบรรยายผิดเหตุการณ์ */}
     <ShopSwitchOverlay
       show={creating}
-      label="กำลังเปิดร้านส่วนตัวให้คุณ…"
-      subLabel="อีกสักครู่จะพาไปตั้งค่าร้านต่อ"
+      label={t.accountSwitcher.creatingLabel}
+      subLabel={t.accountSwitcher.creatingSubLabel}
     />
     </>
   )

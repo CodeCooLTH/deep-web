@@ -18,6 +18,8 @@
 import AccountAvatar from '@/components/AccountAvatar'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 
 interface Props {
   show: boolean
@@ -31,6 +33,7 @@ interface Props {
 }
 
 export default function ShopSwitchOverlay({ show, targetName, targetLogo, targetKind, label, subLabel }: Props) {
+  const t = useT()
   // mounted guard — createPortal ต้องมี document (client เท่านั้น) กัน SSR/hydration mismatch
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
@@ -39,8 +42,12 @@ export default function ShopSwitchOverlay({ show, targetName, targetLogo, target
 
   if (!show || !mounted) return null
 
-  const primaryText = label ?? (targetName ? `กำลังสลับไปที่ร้าน "${targetName}"` : 'กำลังสลับบัญชี…')
-  const secondaryText = subLabel ?? 'กรุณารอสักครู่ ระบบกำลังโหลดข้อมูลใหม่'
+  const primaryText =
+    label ??
+    (targetName
+      ? fmt(t.accountSwitcher.switchingTo, { name: targetName })
+      : t.accountSwitcher.switchingGeneric)
+  const secondaryText = subLabel ?? t.accountSwitcher.switchingSubLabel
 
   // z-[1070] จำเป็น: สูงกว่า sheet/dropdown/backdrop z-80, ต่ำกว่า toast z-[1080] — HR7 exception
   // (precedent: overlay เดิมใน UserDropdownDetailed.tsx / AccountSwitcherSheet.tsx)
@@ -49,7 +56,7 @@ export default function ShopSwitchOverlay({ show, targetName, targetLogo, target
       className="fixed inset-0 z-[1070] flex flex-col items-center justify-center gap-3 bg-white"
       role="status"
       aria-live="polite"
-      aria-label="กำลังสลับร้าน"
+      aria-label={t.accountSwitcher.switchingAriaLabel}
     >
       {targetLogo || targetName ? (
         <div className="relative flex items-center justify-center">

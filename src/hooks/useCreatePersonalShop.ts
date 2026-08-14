@@ -18,6 +18,7 @@
 
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
+import { useT } from '@/i18n/LocaleProvider'
 import { useSession } from 'next-auth/react'
 import { useCallback, useRef, useState } from 'react'
 
@@ -30,6 +31,7 @@ const ONBOARDING_PATH = '/onboarding'
 export const PREV_SHOP_ID_KEY = 'deep:prev-shop-id'
 
 export function useCreatePersonalShop() {
+  const t = useT()
   const { data: session, update } = useSession()
   const [creating, setCreating] = useState(false)
   // ref กันดับเบิลคลิกยิงซ้ำระหว่างที่ setCreating(true) ยังไม่ re-render (pattern เดียวกับ useShopSwitcher)
@@ -39,9 +41,12 @@ export function useCreatePersonalShop() {
     if (creatingRef.current) return
 
     const confirmed = await pacesConfirm.question(
-      'สร้างร้านส่วนตัวของคุณ?',
-      'ร้านนี้ผูกกับตัวคุณโดยตรงและสร้างได้ครั้งเดียว — พอยืนยันแล้วเราจะพาไปตั้งค่าร้านต่อทันที',
-      { confirmButtonText: 'สร้างร้านเลย', cancelButtonText: 'ยังไม่สร้างตอนนี้' },
+      t.accountSwitcher.confirmCreateTitle,
+      t.accountSwitcher.confirmCreateBody,
+      {
+        confirmButtonText: t.accountSwitcher.confirmCreateYes,
+        cancelButtonText: t.accountSwitcher.confirmCreateNo,
+      },
     )
     if (!confirmed) return
 
@@ -63,7 +68,7 @@ export function useCreatePersonalShop() {
       const res = await fetch('/api/shops/open-personal', { method: 'POST' })
       if (!res.ok) {
         // ข้อความเดียวกับ ChooseShopClient — เหตุการณ์เดียวกันต้องใช้คำเดียวกันทั้งแอป
-        pacesToast.error('เปิดร้านไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.error(t.accountSwitcher.createError)
         creatingRef.current = false
         setCreating(false)
         return
@@ -77,11 +82,12 @@ export function useCreatePersonalShop() {
       // ไม่ setCreating(false) — ปล่อย overlay ค้างจน browser unload หน้านี้จริง
       window.location.href = ONBOARDING_PATH
     } catch {
-      pacesToast.error('เปิดร้านไม่สำเร็จ กรุณาลองใหม่')
+      pacesToast.error(t.accountSwitcher.createError)
       creatingRef.current = false
       setCreating(false)
     }
-  }, [session, update])
+    // ดูเหตุผลของ dep `t` ที่ useShopSwitcher.ts
+  }, [session, update, t])
 
   return { creating, createPersonalShop }
 }

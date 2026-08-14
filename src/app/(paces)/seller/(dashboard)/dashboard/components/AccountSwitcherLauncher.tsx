@@ -18,6 +18,7 @@
 
 import Icon from '@/components/wrappers/Icon'
 import type { ReactNode } from 'react'
+import { useT } from '@/i18n/LocaleProvider'
 import AccountSwitcherSheet from './AccountSwitcherSheet'
 
 interface Props {
@@ -25,6 +26,8 @@ interface Props {
 }
 
 export default function AccountSwitcherLauncher({ children }: Props) {
+  const t = useT()
+
   return (
     <>
       <button
@@ -32,7 +35,7 @@ export default function AccountSwitcherLauncher({ children }: Props) {
         data-hs-overlay="#account-switcher-sheet"
         aria-haspopup="dialog"
         aria-controls="account-switcher-sheet"
-        aria-label="สลับบัญชี"
+        aria-label={t.accountSwitcher.switchAccount}
         className="flex items-center gap-3 flex-1 min-w-0 text-start active:opacity-80 transition-opacity"
       >
         {children}

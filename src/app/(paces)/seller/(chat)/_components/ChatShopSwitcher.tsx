@@ -27,6 +27,8 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 import { pacesToast } from '@/lib/paces-toast'
 import { useShopSwitcher } from '@/hooks/useShopSwitcher'
 
@@ -74,15 +76,20 @@ export default function ChatShopSwitcher({ chatScopeMode }: { chatScopeMode: 'SI
   const { data: session } = useSession()
   const user = session?.user as SessionUser | undefined
 
-  const displayName = user?.displayName ?? user?.username ?? 'ผู้ใช้'
+  const t = useT()
+  const displayName = user?.displayName ?? user?.username ?? t.accountSwitcher.fallbackUser
   const hasBusinessMembership = user?.hasBusinessMembership === true
   const activeShopId = user?.activeShopId
 
   // identity ที่ active ตอนนี้ (business → ร้าน, ไม่งั้น personal)
   const isBusiness = user?.activeShopKind === 'BUSINESS'
-  const activeName = isBusiness ? (user?.activeShopName ?? 'ร้านค้า') : displayName
+  const activeName = isBusiness ? (user?.activeShopName ?? t.menu.shop) : displayName
   const activeLogo = isBusiness ? (user?.activeShopLogo ?? null) : (user?.avatar ?? null)
-  const activeRoleLabel = isBusiness ? (user?.activeShopRole === 'ADMIN' ? 'ผู้ดูแล' : 'เจ้าของ') : 'ส่วนตัว'
+  const activeRoleLabel = isBusiness
+    ? user?.activeShopRole === 'ADMIN'
+      ? t.accountSwitcher.roleAdmin
+      : t.accountSwitcher.roleOwner
+    : t.accountSwitcher.rolePersonal
 
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
 
@@ -111,7 +118,7 @@ export default function ChatShopSwitcher({ chatScopeMode }: { chatScopeMode: 'SI
       router.refresh()
     } catch {
       setScopeMode(before)
-      pacesToast.error('เปลี่ยนมุมมองไม่สำเร็จ ลองใหม่อีกครั้ง')
+      pacesToast.error(t.accountSwitcher.viewChangeError)
     } finally {
       setSavingScope(false)
     }
@@ -144,7 +151,7 @@ export default function ChatShopSwitcher({ chatScopeMode }: { chatScopeMode: 'SI
   ) => {
     if (switching || shopId === activeShopId) return
     if (locked) {
-      pacesToast.error('บัญชีนี้ถูกล็อกชั่วคราว — ไม่สามารถสลับเข้าใช้งานได้')
+      pacesToast.error(t.accountSwitcher.lockedError)
       return
     }
     switchShop(shopId, targetInfo)
@@ -161,8 +168,8 @@ export default function ChatShopSwitcher({ chatScopeMode }: { chatScopeMode: 'SI
           aria-expanded="false"
           aria-label={
             hasBusinessMembership && scopeMode === 'UNIFIED'
-              ? 'สลับร้าน — ขณะนี้ดูข้อความรวมทุกร้าน'
-              : `สลับร้าน — ขณะนี้ดูข้อความร้าน ${activeName}`
+              ? t.accountSwitcher.switcherAriaUnified
+              : fmt(t.accountSwitcher.switcherAriaSingle, { name: activeName })
           }
         >
           <AccountAvatar src={activeLogo} kind={isBusiness ? 'business' : 'personal'} className="size-9" />
@@ -197,13 +204,13 @@ export default function ChatShopSwitcher({ chatScopeMode }: { chatScopeMode: 'SI
           {hasBusinessMembership && (
             <>
               <div className="px-2 pt-1 pb-1">
-                <span className="text-default-700 text-xs">มุมมองกล่องข้อความ</span>
+                <span className="text-default-700 text-xs">{t.accountSwitcher.inboxView}</span>
               </div>
-              <div className="bg-light mb-2 flex gap-1 rounded-lg p-1" role="group" aria-label="มุมมองกล่องข้อความ">
+              <div className="bg-light mb-2 flex gap-1 rounded-lg p-1" role="group" aria-label={t.accountSwitcher.inboxView}>
                 {(
                   [
-                    { key: 'UNIFIED' as const, label: 'ร้านทั้งหมด', icon: 'layout-grid' },
-                    { key: 'SINGLE' as const, label: 'ร้านนี้', icon: 'building-store' },
+                    { key: 'UNIFIED' as const, label: t.accountSwitcher.viewAllShops, icon: 'layout-grid' },
+                    { key: 'SINGLE' as const, label: t.accountSwitcher.viewThisShop, icon: 'building-store' },
                   ]
                 ).map((opt) => (
                   <button
@@ -239,7 +246,7 @@ export default function ChatShopSwitcher({ chatScopeMode }: { chatScopeMode: 'SI
           {hasBusinessMembership && (
             <>
               <div className="px-2 pt-3 pb-1">
-                <span className="text-default-700 text-xs">สลับบัญชี</span>
+                <span className="text-default-700 text-xs">{t.accountSwitcher.switchAccount}</span>
               </div>
 
               {/* Personal (ซ่อนถ้า personal = active) */}
@@ -259,7 +266,7 @@ export default function ChatShopSwitcher({ chatScopeMode }: { chatScopeMode: 'SI
                 >
                   <AccountAvatar src={user?.avatar} kind="personal" className="size-7" />
                   <span className="flex-1 truncate">{displayName}</span>
-                  <span className="badge bg-default-100 text-default-700 shrink-0">ส่วนตัว</span>
+                  <span className="badge bg-default-100 text-default-700 shrink-0">{t.accountSwitcher.rolePersonal}</span>
                 </button>
               )}
 
@@ -282,7 +289,7 @@ export default function ChatShopSwitcher({ chatScopeMode }: { chatScopeMode: 'SI
                         b.role === 'OWNER' ? 'bg-primary/15 text-primary' : 'bg-info/15 text-info'
                       }`}
                     >
-                      {b.role === 'OWNER' ? 'เจ้าของ' : 'ผู้ดูแล'}
+                      {b.role === 'OWNER' ? t.accountSwitcher.roleOwner : t.accountSwitcher.roleAdmin}
                     </span>
                     {b.locked && (
                       <span className="badge bg-danger/15 text-danger inline-flex shrink-0 items-center">
@@ -296,9 +303,9 @@ export default function ChatShopSwitcher({ chatScopeMode }: { chatScopeMode: 'SI
 
           <div className="dropdown-divider"></div>
 
-          <Link href="/dashboard" className="dropdown-item" aria-label="กลับหน้าหลัก">
+          <Link href="/dashboard" className="dropdown-item" aria-label={t.inbox.backToDashboard}>
             <Icon icon="home-2" className="fs-lg me-1 align-middle" />
-            <span className="align-middle">กลับหน้าหลัก</span>
+            <span className="align-middle">{t.inbox.backToDashboard}</span>
           </Link>
         </div>
       </div>

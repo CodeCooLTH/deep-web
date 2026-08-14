@@ -16,6 +16,7 @@
  */
 
 import { pacesToast } from '@/lib/paces-toast'
+import { useT } from '@/i18n/LocaleProvider'
 import { useSession } from 'next-auth/react'
 import { useCallback, useRef, useState } from 'react'
 
@@ -55,6 +56,7 @@ function sleep(ms: number) {
 }
 
 export function useShopSwitcher(options?: UseShopSwitcherOptions) {
+  const t = useT()
   const landingPath = options?.landingPath ?? DASHBOARD_PATH
   const minOverlayMs = options?.minOverlayMs ?? MIN_OVERLAY_MS
   const { update } = useSession()
@@ -79,13 +81,13 @@ export function useShopSwitcher(options?: UseShopSwitcherOptions) {
           body: JSON.stringify({ shopId }),
         })
         if (res.status === 403) {
-          pacesToast.error('ไม่มีสิทธิ์เข้าถึงบัญชีนี้แล้ว')
+          pacesToast.error(t.accountSwitcher.noAccessError)
           switchingRef.current = false
           setSwitching(false)
           return
         }
         if (!res.ok) {
-          pacesToast.error('สลับบัญชีไม่สำเร็จ กรุณาลองใหม่')
+          pacesToast.error(t.accountSwitcher.switchError)
           switchingRef.current = false
           setSwitching(false)
           return
@@ -93,7 +95,7 @@ export function useShopSwitcher(options?: UseShopSwitcherOptions) {
         // jwt callback จะ re-verify membership อีกชั้นก่อนเชื่อค่านี้จริง (API.md §4.15, 2-layer verify)
         await update({ activeShopId: shopId })
       } catch {
-        pacesToast.error('สลับบัญชีไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.error(t.accountSwitcher.switchError)
         switchingRef.current = false
         setSwitching(false)
         return
@@ -109,7 +111,9 @@ export function useShopSwitcher(options?: UseShopSwitcherOptions) {
       // ไม่ setSwitching(false) ตรงนี้ — ปล่อย overlay ค้างจน browser unload หน้านี้จริง
       window.location.href = landingPath
     },
-    [update, landingPath, minOverlayMs],
+    // `t` เป็นค่าคงที่ระดับ module ต่อภาษา (LocaleProvider คืน dictionary ไม่ใช่ object literal)
+    // identity จึงเสถียร ใส่ dep ได้โดยไม่เกิดลูป (docs/conventions/hook-return-identity-in-deps.md)
+    [update, landingPath, minOverlayMs, t],
   )
 
   return { switching, target, switchShop }
