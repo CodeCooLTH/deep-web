@@ -282,13 +282,14 @@ function MetaGenericCardCarousel({
 }) {
   return (
     <div>
-      {/* ป้ายที่มา — ยกตำแหน่ง/ขนาดจาก reply-quote caption ที่มีอยู่แล้วในไฟล์นี้ (mb-1 flex justify-end + text-2xs) */}
-      <div className="mb-1 flex justify-end">
-        <span className="text-default-700 flex items-center gap-1 text-2xs">
-          <Icon icon="brand-facebook" className="text-xs" />
-          {`การ์ดจาก Facebook${cards.length > 1 ? ` · ${cards.length} รายการ` : ''}`}
-        </span>
-      </div>
+      {/* 🛑 ไม่มีป้าย "การ์ดจาก Facebook" เหนือแถวนี้ ตั้งใจ (user สั่งถอด 2026-08-14) — อย่าใส่กลับ
+          โดยไม่ถามก่อน. สิ่งที่ยังบอกว่านี่ไม่ใช่การ์ดของร้านเองเหลืออยู่ที่ "รูปทรง" ไม่ใช่ "คำ":
+          aspect-video + object-contain (OwnProductCardCarousel ใช้ aspect-square + object-cover)
+          และการ์ดนี้ไม่มีลิงก์ "ดูสินค้า" สีน้ำเงินสักใบ — ห้ามใส่ต่อ (One Voice; ดูคอมเมนต์หัวฟังก์ชัน)
+          ตัวนับ "· N รายการ" หายไปพร้อมป้ายด้วยโดยตั้งใจ: peek ของใบถัดไปที่โผล่ขอบขวาบอกว่าเลื่อนได้
+          อยู่แล้ว (w-44 แคบกว่า w-56 ของ OwnProductCardCarousel ซึ่งไม่เคยมีตัวนับมาตั้งแต่แรก)
+          หมายเหตุขอบเขต: `CARD_PREFIX` = "[การ์ดจาก Facebook]" ใน channel-chat.service.ts เป็นคนละ
+          ระบบ (คำนำหน้า body ของการ์ดที่ไม่มี cards[]/รูป → ขึ้นเป็นบรรทัดระบบ) **ห้ามลบตามไปด้วย** */}
       {/* items-stretch ประกาศชัด (แม้จะเป็นค่า default ของ flex) — ทุกใบต้องสูงเท่ากันแม้ชื่อ
           จะ 1 หรือ 2 บรรทัด ถ้ามีใครมาเปลี่ยน align ทีหลังการ์ดจะเตี้ยไม่เท่ากันทันที */}
       <div className="flex snap-x snap-mandatory items-stretch gap-2 overflow-x-auto pb-1">

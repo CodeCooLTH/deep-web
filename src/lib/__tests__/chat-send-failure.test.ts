@@ -194,6 +194,102 @@ describe('[blocker] describeSendFailure — retryable ของกฎ Meta เ�
   })
 })
 
+// (2026-08-14) 2 สาเหตุที่ prod เจอจริงแต่ยังไม่มีกฎ — ร้านจึงอ่านภาษาอังกฤษดิบมาตลอด
+// raw ทั้งสองสตริงคัดมาจากคอลัมน์ `ChatMessage.failureReason` บนฐาน prod ตรง ๆ ห้ามแก้ตัวอักษร
+describe('[blocker] describeSendFailure — เอเจนต์ AI ของ Meta ถือสิทธิ์คุมเธรด (#10 thread control)', () => {
+  const RAW = '(#10) Message failed to send because another app is controlling this thread now.'
+  const WINDOW_RAW =
+    '(#10) This message is sent outside of allowed window. Learn more about the new policy here: https://developers.facebook.com/docs/messenger-platform/policy-overview'
+
+  it('[blocker] แปลเป็นไทยตามสเปก ux + metaCode=10 + known=true', () => {
+    const out = describeSendFailure(RAW)
+    expect(out.known).toBe(true)
+    expect(out.metaCode).toBe(10)
+    expect(out.text).toBe(
+      'เอเจนต์ AI ของ Meta กำลังดูแลแชทนี้อยู่ — เข้าไปดูแลแชทนี้เองที่ Business Suite ของเพจนี้ก่อน จึงจะส่งข้อความได้',
+    )
+  })
+
+  it('[blocker] retryable=false — ข้อมูล prod: ไม่มีสักเคสที่ "กดซ้ำเฉย ๆ แล้วผ่าน"', () => {
+    // 31 เคส (08-08→08-14) ทุกเคสมี viaStandby นำหน้า และทุกครั้งที่แอปเราส่งสำเร็จตามมา
+    // มีข้อความ "took over/ดูแลแชทนี้" คั่นเสมอ (4/4) ⇒ ต้องให้สิทธิ์ย้ายมาก่อน กดซ้ำอย่างเดียวไม่พอ
+    expect(describeSendFailure(RAW).retryable).toBe(false)
+  })
+
+  it('[blocker] ห้ามสัญญาสิ่งที่แอปเราทำไม่ได้ — สั่ง Meta AI หยุดตอบ/รับเรื่องต่อแทนผู้ขายไม่ได้', () => {
+    // พิสูจน์กับ Graph แล้ว 2026-08-08: take_thread_control ไม่ผ่าน + ไม่รู้ app id ของ Meta AI
+    const { text } = describeSendFailure(RAW)
+    expect(text).not.toContain('หยุดตอบ')
+    expect(text).not.toContain('ระบบจะ')
+    // ต้องชี้ที่ Business Suite เท่านั้น — ห้ามแนะนำ Messenger แข่งกับ confirmTakeOverFromAi()
+    expect(text).toContain('Business Suite')
+    expect(text).not.toContain('Messenger')
+  })
+
+  it('[blocker] ไม่แย่งกฎหน้าต่าง 24 ชม. ที่เป็น code #10 เหมือนกัน (ทั้งสองทิศ)', () => {
+    // ทิศ 1 — window ต้องไม่ตกไปเป็น thread-control
+    expect(describeSendFailure(WINDOW_RAW).text).toContain('24 ชม.')
+    expect(describeSendFailure(WINDOW_RAW).retryable).toBe(true)
+    // ทิศ 2 — thread-control ต้องไม่ถูก window rule (ที่อยู่เหนือกว่า) แย่งไปก่อน
+    expect(describeSendFailure(RAW).text).not.toContain('24 ชม.')
+    // ทิศ 3 (ตัวที่จับ mutation ได้จริง) — #10 ถ้อยคำที่สาม ต้องตกเป็น "ไม่รู้จัก" ไม่ใช่ถูกกฎนี้
+    // กลืน. สองทิศแรกจับ `code === 10` ไม่ได้เพราะ window rule อยู่เหนือกว่าและชนะไปก่อนอยู่แล้ว
+    const out = describeSendFailure('(#10) Some other policy problem we have never seen.')
+    expect(out.known).toBe(false)
+    expect(out.text).not.toContain('เอเจนต์ AI')
+  })
+
+  it('[blocker] comment-origin ต้องได้ข้อความเดิม — สาเหตุนี้ไม่ได้อ้างหน้าต่างเวลาของลูกค้า', () => {
+    const a = describeSendFailure(RAW)
+    const b = describeSendFailure(RAW, { commentOriginNoInbound: true })
+    expect(b.text).toBe(a.text)
+    expect(b.retryable).toBe(false)
+  })
+
+  it('regression: "(#100) calling app is not the thread owner" (thread-control อีกตัว) ต้องไม่ถูกกฎนี้กลืน', () => {
+    // ถ้อยคำคนละชุด แม้เป็นเรื่องสิทธิ์คุมเธรดเหมือนกัน — เราไม่รู้ทางแก้ของตัวนี้ จึงห้ามแปะคำแนะนำ
+    const raw = '(#100) calling app is not the thread owner'
+    const out = describeSendFailure(raw)
+    expect(out.known).toBe(false)
+    expect(out.text).toContain(raw)
+    expect(out.retryable).toBe(true)
+  })
+})
+
+describe('[blocker] describeSendFailure — Meta ขัดข้องชั่วคราว (#-1 unexpected internal error)', () => {
+  const RAW = '(#-1) Unexpected internal error'
+
+  it('[blocker] แปลเป็นไทย + known=true + retryable=true (หลักฐาน: ส่งซ้ำผ่านใน 25 วินาที)', () => {
+    const out = describeSendFailure(RAW)
+    expect(out.known).toBe(true)
+    expect(out.retryable).toBe(true)
+    expect(out.text).toBe('ระบบฝั่ง Meta ขัดข้องชั่วคราว — ลองส่งข้อความอีกครั้ง')
+  })
+
+  it('[blocker] META_CODE ต้องแกะเลขติดลบได้ — ไม่งั้นกฎที่ผูกกับ code จะไม่มีวันยิง', () => {
+    // 🛑 regex เดิม `\(#(\d+)\)` คืน null ให้ทั้งตระกูลนี้ โดยไม่มี gate ไหนฟ้อง
+    expect(describeSendFailure(RAW).metaCode).toBe(-1)
+    // เลขบวกของกฎเดิมต้องไม่เปลี่ยนความหมายจากการเติม `-?`
+    expect(describeSendFailure("(#551) This person isn't available right now.").metaCode).toBe(551)
+    expect(describeSendFailure('(#12345) Something nobody has seen before.').metaCode).toBe(12345)
+  })
+
+  it('[blocker] ห้ามสั่งให้ "รอ" — หลักฐานคือส่งซ้ำได้ทันที ไม่ใช่ต้องรอรอบเวลาแบบ rate limit', () => {
+    const { text } = describeSendFailure(RAW)
+    expect(text).not.toContain('รอ')
+    // และต้องไม่เดาสาเหตุที่ไม่ได้พิสูจน์ (token/โควตา/หน้าต่างเวลา ปกติหมดตอนเกิด)
+    expect(text).not.toContain('หมดอายุ')
+    expect(text).not.toContain('24 ชม.')
+  })
+
+  it('regression: ไม่ไปแย่ง rate limit ที่อยู่เหนือกว่า และไม่ถูก rate limit แย่ง', () => {
+    expect(describeSendFailure('(#613) Calls to this api have exceeded the rate limit.').text).toContain(
+      'ส่งถี่เกิน',
+    )
+    expect(describeSendFailure(RAW).text).not.toContain('ส่งถี่เกิน')
+  })
+})
+
 describe('[blocker] describeSendFailure — LINE (S-8 feature 00025) 4 รหัสธุรกิจ', () => {
   // raw ของ LINE คือรหัส literal ตรง ๆ (route ส่ง e.message เข้ามาตรง ๆ — ดู channel-chat.service.ts
   // ::sendOutboundLineMessage ที่ throw new Error(<รหัส>))
