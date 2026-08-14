@@ -30,7 +30,12 @@ import {
   type BusinessPackageStatusApp,
   type BusinessPackageTier,
 } from '@/lib/business-package'
-import { useT } from '@/i18n/LocaleProvider'
+/* 🛑 ต้องเป็น `getT()` (server) ไม่ใช่ `useT()` (client) — ไฟล์นี้เป็น RSC ไม่มี 'use client'
+   873a63a6 ต่อสาย useT() เข้ามาตรง ๆ ⇒ หน้าแรกผู้ขายเป็น 500 ทั้งหน้าบน prod ทันทีที่ deploy
+   ("Attempted to call useT() from the server" digest 1923900057) โดย tsc/next build ผ่านหมด
+   เพราะชนิดถูกทุกตัวอักษร — พังตอน render เท่านั้น และหน้านี้เป็น dynamic จึงไม่มีอะไรลองเรนเดอร์
+   ตอน build. AccountSwitcherLauncher/ShopLinkButtons แยกเป็น client อยู่แล้วด้วยเหตุผลนี้เป๊ะ */
+import { getT } from '@/i18n/server'
 import { fmt } from '@/i18n/fmt'
 
 export interface CompactHeroProps {
@@ -66,7 +71,7 @@ export interface CompactHeroProps {
      ทางเข้าหน้าแพ็กเกจบนมือถือ = เมนู "แพ็กเกจของฉัน" ใน sidebar */
 }
 
-export default function CompactHero({
+export default async function CompactHero({
   shopName,
   avatarUrl,
   trustScore,
@@ -81,7 +86,7 @@ export default function CompactHero({
   packageTier,
   hidePayments = false,
 }: CompactHeroProps) {
-  const t = useT()
+  const t = await getT()
   // คำนามผันตามประเภทร้าน — ผู้เรียกส่งคำที่แปลแล้วมา; ไม่ส่ง = ถอยไปคำของร้านขายออนไลน์
   const noun = orderNoun || t.vocab.orderNoun.ONLINE_SALES
   /** ความกว้าง/สูงของวง trust ring (HR7 carve-out เดิมของไฟล์นี้ — Paces ไม่มี token progress ring)
