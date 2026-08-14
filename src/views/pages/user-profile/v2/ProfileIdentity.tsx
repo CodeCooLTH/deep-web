@@ -192,20 +192,27 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
       >
         <ProfileImg src={data.coverImage} alt='' className='absolute inset-0 is-full bs-full object-cover' />
 
-        {/* ── ฉากทับสีประจำระดับ (ทิศทาง B+C ที่ user เลือก 2026-08-13) ──
-            ปกของร้านเป็นรูปอะไรก็ได้ (สต๊อกโฟโต้/รูปหน้าร้าน/รูปสินค้า) ⇒ หน้าจะหน้าตาเป็นของ
-            "รูปนั้น" ไม่ใช่ของ "ร้านนี้" การไล่เฉดด้วยสีระดับทำให้ **ร้านคนละระดับหน้าตาต่างกัน
-            ตั้งแต่ยังไม่อ่านตัวหนังสือ** และผูกปกเข้ากับชิปคะแนนที่อยู่ใต้มันไม่ถึง 60px
-            🛑 สีมาจาก `getTierAccentColor()` เท่านั้น ห้ามคิดเฉดเอง — Tier Lists คือ SSOT ของสีระดับ
-            🛑 อัลฟาต้องต่ำ: โทนอำพันของ Classic อยู่ใกล้สี "คำเตือน" มาก เข้มไปนิดเดียวจะอ่านเป็น
-            "ร้านนี้มีปัญหา" ทันที (ความเสี่ยงที่บันทึกไว้ตอนเลือกทิศทางนี้) */}
-        <span
-          aria-hidden
-          className='absolute inset-0 pointer-events-none'
-          style={{
-            background: `linear-gradient(160deg, ${data.tierAccent}6B, transparent 55%), linear-gradient(to top, ${data.tierAccent}8C, transparent 60%)`,
-          }}
-        />
+        {/* 🛑 **ห้ามเอาฉากทับสีประจำระดับกลับมาที่ปก** (ถอดออก 2026-08-14 หลัง ux audit)
+            ผมเคยใส่ `linear-gradient(160deg, ${'{tierAccent}'}6B …)` + scrim `8C` ไว้ตรงนี้ตามทิศทาง
+            B+C แล้วมันคือการ **สร้างการละเมิดเดิมขึ้นมาใหม่บนอิลิเมนต์เดิม tier เดิม**:
+
+            `getTierAccentColor()` คืน **`#7367F0` ให้ Deep Star ซึ่งคือ primary ของทั้งระบบ**
+            ⇒ แทนค่าแล้วบรรทัดนั้นอ่านว่า "ไล่สีม่วง gradient ตกแต่ง" ซึ่ง DESIGN.md เขียนแบนไว้
+            ด้วยคำเดียวกันเป๊ะ 2 จุด (บรรทัด 137 "ม่วงคือ accent ทึบ ไม่ใช่ gradient ตกแต่ง"
+            และบรรทัด 370 รายการ Don't ข้อแรก)
+
+            🛑 และ `Tier Lists.md` §ประวัติ 2026-08-10 บันทึกไว้เองว่าเคยเจอปัญหานี้แล้ว แก้แล้ว
+            และ **ล็อกด้วยเทส `[blocker]` ใน `trust-tier.test.ts`** — ครั้งนั้นต้นเหตุคือ "ปกสูงขึ้น
+            ~27% ทำให้พื้นที่ม่วงโตเกินเพดาน One Voice" ส่วนของผมคือทับม่วง **ทั้งใบที่ ~42–55%**
+            ซึ่งมากกว่าเหตุการณ์นั้นหลายเท่า — ผมไม่ได้อ่าน SSOT ก่อนลงมือ
+
+            ผลพลอยได้ที่ถอดออกแล้วได้มาด้วย: Gold accent `#FF9F43` = **`warning-amber.canonical`
+            ตัวเดียวกับที่ใช้สื่อ "ยืนยันแค่บางส่วน"** ในแผงหลักฐานที่อยู่ใต้ปกลงมา — การย้อมปก
+            ด้วยเฉดนั้นทำให้ร้าน Gold ได้จอที่พูดว่า "ดีเยี่ยม" กับ "ยังไม่ครบ" ด้วยสีเดียวกัน
+
+            ตัวตนของระดับยังสื่อครบโดยไม่ต้องมีชั้นนี้ 3 ทาง: `tierGradient` (พื้นปกตอนไม่มีรูป —
+            ผ่านการทบทวนมาแล้วเมื่อ 2026-08-10) · พื้นย้อมของแผงหลักฐาน (อัลฟาต่ำ มีความหมาย) ·
+            พิลระดับข้างชื่อร้าน */}
 
         {/* ตราแบรนด์ — พื้นทึบ ไม่ใช่ไล่เงา เพราะปกมี 2 กรณี (รูปจริง / ไล่สี tier) พื้นทึบอ่านออกทั้งคู่
             p-2.5 เป็น hit-area ที่มองไม่เห็น ดัน tap target รวมให้ถึง 44px ขณะที่พิลที่ตาเห็นสูง ~30px */}
@@ -306,7 +313,12 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
             className='relative inline-flex items-stretch rounded-full overflow-hidden border-0 p-0 bg-transparent cursor-pointer font-[inherit] after:absolute after:inset-[-13px] after:content-[""] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
           >
             {/* 15px = ขั้น Subtitle/Body ของ ramp — ไม่ใช่ 14px ซึ่งไม่อยู่บน ramp เลย */}
-            <span className='inline-flex items-center plb-1 pli-2 text-[15px] font-extrabold tabular-nums leading-none bg-[var(--mui-palette-text-primary)] text-[var(--mui-palette-background-paper)]'>
+            {/* 🛑 `font-bold` (700 = ขั้น Strong) ไม่ใช่ 800 — DESIGN.md สงวน 800 ให้ **Metric เท่านั้น**
+                ซึ่งมีขนาดของตัวเองคือ 32/22/20px · 15px/800 จึงไม่ใช่ทั้ง Strong และ Metric
+                เป็นคู่ผสมที่สามที่ไม่มีชื่อในระบบ (ux audit 2026-08-14)
+                นี่คือแพตเทิร์นเดียวกับที่ทำให้ต้องประกาศขั้น Strong เพิ่มเมื่อ 2026-08-12 —
+                แต่ละไฟล์เลือกน้ำหนักกันเองจนไม่มีตัวไหนอยู่ใน vocab */}
+            <span className='inline-flex items-center plb-1 pli-2 text-[15px] font-bold tabular-nums leading-none bg-[var(--mui-palette-text-primary)] text-[var(--mui-palette-background-paper)]'>
               {data.trustScore}
               <span className='text-[11px] font-bold opacity-65'>{`/${TRUST_SCORE_MAX}`}</span>
             </span>

@@ -162,7 +162,9 @@ function VideoCell({ item, onOpen }: { item: ShopVideoItem; onOpen: () => void }
           🛑 ห้ามเอากลับมาโดยไม่ตอบก่อนว่า *ไทล์ใบไหนมีชื่อไม่ตรงกับเจ้าของหน้า* — ถ้าวันหนึ่ง
           หน้านี้รวมคลิปจากหลายบัญชี ค่อยกลับมาแสดง และตอนนั้นต้องแสดง **เฉพาะใบที่ต่าง** */}
       <span className='absolute bottom-0 inline-start-0 inline-end-0 p-2 text-white text-start'>
-        <span className='flex items-center gap-2.5 text-[11px] mbs-0.5'>
+        {/* `font-semibold` = ขั้น Dense overlay ของ DESIGN.md ("600, 11px") — เดิมมีแต่ขนาด
+            ไม่มีน้ำหนัก จึงตรง token แค่ครึ่งเดียว (ux audit 2026-08-14) */}
+        <span className='flex items-center gap-2.5 text-[11px] font-semibold mbs-0.5'>
           {item.viewCount != null && (
             <span className='flex items-center gap-1'>
               <Icon icon='lucide:play' width={11} />

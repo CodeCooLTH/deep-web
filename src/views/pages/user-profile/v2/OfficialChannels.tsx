@@ -217,8 +217,25 @@ export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
           <>
             <ChannelMark src={c.avatarUrl} provider={c.provider} icon={meta.icon} bg={meta.bg} />
             <span className='flex flex-col leading-tight min-is-0'>
-              {/* ชื่อเพจตัดที่ 150px — สั้นกว่านี้อ่านไม่ออกว่าเพจไหน ยาวกว่านี้สองช่องทางไม่พอบรรทัดเดียว */}
-              <span className='text-[13px] font-semibold truncate max-is-[150px]'>{c.name}</span>
+              {/* 🛑 2 บรรทัดแทน `truncate` บรรทัดเดียว — backport จาก `OfficialChannelsBlock.tsx`
+                  (ux audit 2026-08-14: บั๊กเดียวกันถูกแก้ที่โปรไฟล์สาธารณะแล้วแต่ค้างที่นี่)
+                  ชื่อเพจจริงยาวได้ถึง 34 ตัวอักษร และ **หางของชื่อคือที่ที่เพจของร้านเดียวกันต่างกัน**
+                  ("… สายซิ่ง" vs "… สาขาสอง") ตัดหางทิ้งทำให้สองเพจเหลือข้อความเหมือนกันเป๊ะ
+                  ซึ่งทำลายเหตุผลทั้งหมดที่บล็อกนี้มีอยู่ (ใช้เทียบกับเพจที่เจอที่อื่น)
+                  🛑 ไฟล์นี้ถูกใช้โดย `/o/[token]` (`ShopEvidence.tsx`) ซึ่งเป็นจอที่ผู้ซื้อคนเดียวกัน
+                  เห็นห่างจากโปรไฟล์ไม่กี่วินาที — ตัดหางที่จอหนึ่งแต่ไม่ตัดที่อีกจอ คือความแม่นยำ
+                  ที่ไม่ตรงกัน ไม่ใช่แค่สไตล์ที่ต่างกัน */}
+              <span
+                className='text-[13px] font-semibold max-is-[150px]'
+                style={{
+                  display: '-webkit-box',
+                  WebkitBoxOrient: 'vertical',
+                  WebkitLineClamp: 2,
+                  overflow: 'hidden',
+                }}
+              >
+                {c.name}
+              </span>
               <span className='text-[11px] text-[var(--mui-palette-text-secondary)]'>
                 {meta.label}
                 {/* ยอดต่อท้ายชื่อช่องทางในบรรทัดเดียวกัน ไม่แยกไปชิดขวา — ทั้งก้อนจึงอ่านเป็น
