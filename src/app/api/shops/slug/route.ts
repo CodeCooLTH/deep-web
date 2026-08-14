@@ -49,6 +49,11 @@ export async function POST(req: NextRequest) {
     if (e instanceof Error && e.message === 'SLUG_UNAVAILABLE') {
       return NextResponse.json({ error: 'URL นี้มีคนใช้แล้ว' }, { status: 409 })
     }
+    // ร้านนี้ตั้ง URL ไปแล้ว — ข้อความต้องต่างจาก "มีคนใช้แล้ว" เพราะเป็นคนละเรื่องกัน
+    // (อันนั้นแก้ได้ด้วยการเปลี่ยนชื่อ อันนี้แก้ไม่ได้เลย) ดูด่านใน setShopSlug
+    if (e instanceof Error && e.message === 'SLUG_ALREADY_SET') {
+      return NextResponse.json({ error: 'ร้านนี้ตั้ง URL ไปแล้ว เปลี่ยนภายหลังไม่ได้' }, { status: 409 })
+    }
     throw e
   }
 }

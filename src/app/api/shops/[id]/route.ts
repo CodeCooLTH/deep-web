@@ -29,6 +29,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const body = await request.json();
-  const updated = await updateShop(id, body);
-  return NextResponse.json(updated);
+  try {
+    const updated = await updateShop(id, body);
+    return NextResponse.json(updated);
+  } catch (e) {
+    /**
+     * error ใหม่จาก updateShop (2026-08-14) ต้องมี route-catch เสมอ ไม่งั้นค่าพิกัดที่ผิดจะ
+     * กลายเป็น 500 ที่ client อ่านเหตุผลไม่ได้ แล้วผู้ใช้จะเห็นแค่ "บันทึกไม่สำเร็จ ลองใหม่"
+     * ซึ่งเชิญให้กดวนสิ่งที่ไม่มีทางผ่าน (docs/conventions/service-error-route-mapping.md)
+     */
+    const code = e instanceof Error ? e.message : "";
+    if (code === "GEO_PAIR_REQUIRED" || code === "GEO_OUT_OF_RANGE") {
+      return NextResponse.json({ error: code }, { status: 400 });
+    }
+    throw e;
+  }
 }

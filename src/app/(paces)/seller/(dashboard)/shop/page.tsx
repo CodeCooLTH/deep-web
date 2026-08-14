@@ -21,6 +21,7 @@ import { BUSINESS_DELETE_RETENTION_DAYS } from '@/lib/business-package'
 import ShopQuickLinks from './components/ShopQuickLinks'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDateTime } from '@/lib/format-date'
+import { verticalRequiresStorefrontLocation } from '@/lib/lodging'
 
 export const metadata: Metadata = { title: 'ตั้งค่าร้าน' }
 
@@ -119,6 +120,19 @@ export default async function ShopSettingsPage() {
         dangerZone={
           shopKind === 'BUSINESS' && shopRole === 'OWNER' && isExisting
             ? { shopId: shop.id, shopName: shop.shopName, retentionDays: BUSINESS_DELETE_RETENTION_DAYS }
+            : undefined
+        }
+        /* ที่อยู่ + หมุดแผนที่ (2026-08-14) — เกณฑ์เดียวกับที่วิซาร์ดสร้างธุรกิจใช้บังคับ
+           ขั้น "ที่ตั้งร้าน" ไม่แยกตาม kind: ร้านส่วนตัวที่เป็นคิวงาน/บ้านพักก็ตันเหมือนกัน
+           (ตั้งพิกัดได้ครั้งเดียวตอน onboarding แล้วไม่มีทางแก้) */
+        locationSetup={
+          isExisting && verticalRequiresStorefrontLocation(shop.vertical)
+            ? {
+                shopId: shop.id,
+                address: shop.address ?? null,
+                latitude: shop.latitude ?? null,
+                longitude: shop.longitude ?? null,
+              }
             : undefined
         }
       />

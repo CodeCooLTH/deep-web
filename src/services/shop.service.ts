@@ -4,6 +4,7 @@ import { countableOrderWhere } from "@/lib/public-order-count";
 import { normalizeSlug, isValidSlugFormat, isReservedSlug } from "@/lib/shop-slug";
 import { getTierScoreRange } from "@/lib/trust-tier";
 import { computeCompletionRate, isRateExcludedCancellation } from "@/lib/order-stats";
+import { isThaiCoordinate } from "@/lib/geo-thailand";
 
 export async function createShop(userId: string, data: {
   shopName: string;
@@ -49,12 +50,47 @@ const SHOP_UPDATABLE_FIELDS = [
 
 type ShopUpdatableField = (typeof SHOP_UPDATABLE_FIELDS)[number];
 
-export async function updateShop(shopId: string, data: Partial<Record<ShopUpdatableField, string>>) {
-  const safe: Partial<Record<ShopUpdatableField, string>> = {};
+export type ShopUpdateInput = Partial<Record<ShopUpdatableField, string>> & {
+  latitude?: number | null;
+  longitude?: number | null;
+};
+
+export async function updateShop(shopId: string, data: ShopUpdateInput) {
+  const safe: Partial<Record<ShopUpdatableField, string>> & {
+    latitude?: number;
+    longitude?: number;
+  } = {};
   for (const key of SHOP_UPDATABLE_FIELDS) {
     const value = (data as Record<string, unknown>)?.[key];
     if (typeof value === "string") safe[key] = value;
   }
+
+  /**
+   * พิกัดร้าน (เพิ่ม 2026-08-14) — ไม่ได้อยู่ใน SHOP_UPDATABLE_FIELDS เพราะ loop ข้างบนรับเฉพาะ
+   * ค่าที่เป็น `string` ตามด่านความปลอดภัยเดิม (body มาจาก request.json() ชนิด any)
+   *
+   * ทำไมต้องเปิดให้แก้ทีหลังได้: ก่อนหน้านี้ **ไม่มีทางไหนในระบบแก้พิกัดร้านได้เลย** —
+   * `POST /api/shops/update` เป็นทางเดียวที่เขียนคอลัมน์นี้ แต่ hardcode `kind:'PERSONAL'`
+   * และถูกเรียกจาก onboarding เท่านั้น ร้าน BUSINESS จึงตันสนิท (ยืนยันกับฐาน prod 2026-08-14:
+   * ทั้งฐานไม่มีร้านไหนมีพิกัดสักร้าน เพราะ surface เดียวที่ถามพิกัดคือ BusinessCreateModal
+   * ซึ่งทิ้งค่าตอนประกอบ payload)
+   *
+   * 🛑 กติกา 2 ข้อที่ต้องบังคับที่นี่ ไม่ใช่ฝากไว้กับหน้าจอ:
+   *   1. lat/lng ต้องมาคู่กันเสมอ — หมุดที่มีแต่ละติจูดวางบนแผนที่ไม่ได้
+   *   2. ต้องอยู่ในกรอบประเทศไทย — กัน 0,0 (ค่าตั้งต้นของตัวแปรที่ลืมเซ็ต ซึ่งจะผ่านด่าน
+   *      `!= null` ไปเขียนลงฐานได้สบาย ๆ) และกันพิกัดสลับ lat/lng
+   * ทั้งสองข้อ throw ไม่ใช่ ignore เงียบ — ค่าที่ผิดต้องกลับไปถึงคนกด ไม่ใช่หายไปแบบที่
+   * บั๊กต้นเรื่องของรอบนี้เป็น (docs/conventions/value-fate-decided-at-write-site.md)
+   */
+  const hasLat = data?.latitude != null;
+  const hasLng = data?.longitude != null;
+  if (hasLat !== hasLng) throw new Error("GEO_PAIR_REQUIRED");
+  if (hasLat && hasLng) {
+    if (!isThaiCoordinate(data.latitude, data.longitude)) throw new Error("GEO_OUT_OF_RANGE");
+    safe.latitude = data.latitude as number;
+    safe.longitude = data.longitude as number;
+  }
+
   return prisma.shop.update({ where: { id: shopId }, data: safe });
 }
 
@@ -230,6 +266,27 @@ export async function isSlugAvailable(rawSlug: string): Promise<boolean> {
 /** ตั้ง slug ให้ shop — throw ถ้าไม่ available (กัน TOCTOU เบื้องต้น; unique index = guard ชั้นสุดท้าย) */
 export async function setShopSlug(shopId: string, rawSlug: string) {
   const slug = normalizeSlug(rawSlug);
+
+  /**
+   * 🛑 ด่าน "ตั้งได้ครั้งเดียว" — เพิ่ม 2026-08-14
+   *
+   * กฎนี้ถูก *เขียนไว้* 3 ที่มาตลอด (คอมเมนต์ใน api/shops/slug/route.ts:33 ว่า "ไม่มีทางเข้า
+   * เขียนทับที่ไหนในระบบ" · ข้อความบนจอ ShopSlugField "ตั้งแล้ว เปลี่ยนภายหลังไม่ได้ในตอนนี้" ·
+   * กล่องยืนยันก่อนกด) แต่ **ไม่เคยมีโค้ดบรรทัดไหนบังคับ** — สิ่งเดียวที่กันอยู่คือ
+   * ShopSlugField `return` ออกไปตั้งแต่ต้นเมื่อมี slug แล้ว จึงไม่มีช่องกรอกให้เห็น
+   * ⇒ ยิง POST /api/shops/slug ตรง ๆ เขียนทับได้ทันที และ URL ที่ลูกค้าบุ๊กมาร์กไว้จะตายเงียบ
+   * (docs/conventions/rule-must-be-enforced-not-described.md — กฎที่เขียนไว้ ≠ กฎที่บังคับได้)
+   *
+   * ตั้งค่าเดิมซ้ำ = ผ่าน (idempotent) เพราะไม่ได้เปลี่ยนอะไร กดปุ่มซ้ำ/ยิงซ้ำจากเน็ตกระตุก
+   * ไม่ควรกลายเป็น error
+   */
+  const current = await prisma.shop.findUnique({ where: { id: shopId }, select: { slug: true } });
+  if (current?.slug && current.slug !== slug) {
+    throw new Error("SLUG_ALREADY_SET");
+  }
+  // ตั้งค่าเดิมซ้ำ — ไม่เขียนอะไร แต่คืนรูปเดิม (Shop เต็มใบ) ให้ผู้เรียกไม่ต้องแยกเคส
+  if (current?.slug === slug) return prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
+
   if (!(await isSlugAvailable(slug))) {
     throw new Error("SLUG_UNAVAILABLE");
   }

@@ -9,6 +9,12 @@ import {
 // isHttpUrl — ใช้ logic เดียวกับ render layer (S-10) เพื่อ validate accessUrl (S-3)
 import { isHttpUrl } from "@/lib/order-display";
 import { SHOP_CATEGORY_KEYS } from "@/lib/shop-categories";
+import {
+  THAILAND_LAT_MIN,
+  THAILAND_LAT_MAX,
+  THAILAND_LNG_MIN,
+  THAILAND_LNG_MAX,
+} from "@/lib/geo-thailand";
 import { CHAT_CHANNELS } from "@/lib/chat-channel";
 import { LOCALES } from "@/i18n/locales";
 import {
@@ -95,8 +101,8 @@ export const CategoriesSchema = v.object({
 export const ShopUpdateWithGeoSchema = v.object({
   category: v.optional(ShopCategorySchema),
   address: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500))),
-  latitude: v.optional(v.pipe(v.number(), v.minValue(5), v.maxValue(21))),
-  longitude: v.optional(v.pipe(v.number(), v.minValue(97), v.maxValue(106))),
+  latitude: v.optional(v.pipe(v.number(), v.minValue(THAILAND_LAT_MIN), v.maxValue(THAILAND_LAT_MAX))),
+  longitude: v.optional(v.pipe(v.number(), v.minValue(THAILAND_LNG_MIN), v.maxValue(THAILAND_LNG_MAX))),
   vertical: v.optional(v.picklist(SHOP_VERTICAL_KEYS)),
 });
 
@@ -803,8 +809,9 @@ export const CreateBusinessShopSchema = v.object({
   slug: v.optional(ShopSlugSchema),
   address: v.optional(v.pipe(v.string(), v.maxLength(300))),
   // พิกัดไทย: lat 5-21N / lng 97-106E (validate ที่ app layer ตาม schema.prisma:147-148)
-  latitude: v.optional(v.pipe(v.number(), v.minValue(5), v.maxValue(21))),
-  longitude: v.optional(v.pipe(v.number(), v.minValue(97), v.maxValue(106))),
+  // ขอบเขตมาจาก @/lib/geo-thailand ที่เดียว — ห้ามพิมพ์ตัวเลขซ้ำที่นี่อีก (HR16)
+  latitude: v.optional(v.pipe(v.number(), v.minValue(THAILAND_LAT_MIN), v.maxValue(THAILAND_LAT_MAX))),
+  longitude: v.optional(v.pipe(v.number(), v.minValue(THAILAND_LNG_MIN), v.maxValue(THAILAND_LNG_MAX))),
   // feature 00017 — ประเภทกิจการ; optional เพื่อ backward-compat (ผู้เรียกเดิมไม่ส่ง = GENERAL)
   // ตั้งได้ครั้งเดียวตอนสร้างเท่านั้น เปลี่ยนภายหลังไม่ได้ (BR-LODG-30)
   vertical: v.optional(v.picklist(SHOP_VERTICAL_KEYS)),

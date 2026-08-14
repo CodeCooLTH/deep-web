@@ -18,6 +18,7 @@
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
 import ShopSlugField from './ShopSlugField'
+import ShopLocationField from './ShopLocationField'
 import BusinessDangerZone from './BusinessDangerZone'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -82,6 +83,19 @@ interface ShopFormProps {
    * "ข้อมูลร้าน" อยู่แล้วโดยความหมาย
    */
   slugSetup?: { slug: string | null; publicUrl: string | null; publicOrigin: string }
+  /**
+   * ที่อยู่ + หมุดแผนที่ (2026-08-14) — undefined = ไม่มีการ์ดนี้ และช่อง "ที่อยู่" แบบข้อความ
+   * ทำงานตามเดิม
+   *
+   * ส่งมาเฉพาะร้านที่ลูกค้าต้องเดินทางมา (SERVICE_QUEUE/LODGING) เกณฑ์เดียวกับที่วิซาร์ด
+   * สร้างธุรกิจใช้บังคับขั้น "ที่ตั้งร้าน" — ร้านขายออนไลน์ไม่ต้องมีหมุด ที่อยู่เป็นข้อความพอ
+   */
+  locationSetup?: {
+    shopId: string
+    address: string | null
+    latitude: number | null
+    longitude: number | null
+  }
 }
 
 // ข้อมูล step ที่เก็บไว้ใน SafePay MVP (2 step จาก 12 step ของ theme)
@@ -90,7 +104,14 @@ const BASE_STEPS = [
   { icon: 'photo', title: 'โลโก้ร้าน', subtitle: 'อัปโหลดภาพ' },
 ]
 
-export default function ShopForm({ shop, isExisting, ageText = null, dangerZone, slugSetup }: ShopFormProps) {
+export default function ShopForm({
+  shop,
+  isExisting,
+  ageText = null,
+  dangerZone,
+  slugSetup,
+  locationSetup,
+}: ShopFormProps) {
   const router = useRouter()
 
   // แท็บที่ 3 โผล่เฉพาะร้านที่ลบได้ — ประกอบใน component เพราะขึ้นกับ prop
@@ -166,11 +187,20 @@ export default function ShopForm({ shop, isExisting, ageText = null, dangerZone,
       const url = isExisting ? `/api/shops/${shop!.id}` : '/api/shops'
       const method = isExisting ? 'PATCH' : 'POST'
 
+      /**
+       * 🛑 ไม่ส่ง address เมื่อการ์ด "ตำแหน่งร้าน" เป็นเจ้าของฟิลด์นี้แทน
+       *
+       * ช่องที่อยู่ถูกซ่อนไปแล้วก็จริง แต่ react-hook-form ไม่ล้างค่าของ field ที่ไม่ได้ mount
+       * (shouldUnregister ตั้งต้นเป็น false) ⇒ `values.address` ยังเป็นค่าเดิม *ตอนโหลดหน้า*
+       * อยู่เสมอ และ `router.refresh()` ไม่ทำให้ defaultValues ถูกคำนวณใหม่ (component ไม่ได้
+       * remount) ⇒ ถ้าปล่อยไว้ ผู้ใช้ที่เพิ่งแก้ที่อยู่ผ่านการ์ดแล้วกด "บันทึกการเปลี่ยนแปลง"
+       * จะโดนค่าเก่าเขียนทับกลับ โดยหน้าจอขึ้นว่า "บันทึกแล้ว" ทั้งสองครั้ง
+       */
       const body = {
         shopName: values.shopName,
         description: values.description ?? '',
         category: values.category ?? '',
-        address: values.address ?? '',
+        ...(locationSetup ? {} : { address: values.address ?? '' }),
         businessType: values.businessType,
         ...(logoFileId ? { logo: logoFileId } : {}),
         ...(coverFileId ? { coverImage: coverFileId } : {}),
@@ -312,6 +342,18 @@ export default function ShopForm({ shop, isExisting, ageText = null, dangerZone,
                       publicOrigin={slugSetup.publicOrigin}
                     />
                   )}
+                  {/* ที่อยู่ + หมุดแผนที่ (2026-08-14) — โผล่เฉพาะร้านที่ลูกค้าต้องเดินทางมา
+                      (SERVICE_QUEUE/LODGING) เกณฑ์เดียวกับที่วิซาร์ดสร้างธุรกิจใช้บังคับขั้น
+                      "ที่ตั้งร้าน" · เมื่อการ์ดนี้โผล่ ช่อง "ที่อยู่" แบบข้อความด้านล่างจะถูกซ่อน
+                      เพื่อไม่ให้มีช่องที่อยู่ 2 ที่ในหน้าเดียวที่บันทึกคนละจังหวะกัน */}
+                  {locationSetup && (
+                    <ShopLocationField
+                      shopId={locationSetup.shopId}
+                      initialAddress={locationSetup.address}
+                      initialLat={locationSetup.latitude}
+                      initialLng={locationSetup.longitude}
+                    />
+                  )}
                     <div className="col-span-1 mb-5 grid lg:grid-cols-2 gap-base">
                       {/* ชื่อร้าน */}
                       <div>
@@ -348,22 +390,27 @@ export default function ShopForm({ shop, isExisting, ageText = null, dangerZone,
                         )}
                       </div>
 
-                      {/* ที่อยู่ */}
-                      <div>
-                        <label className="form-label">
-                          ที่อยู่{' '}
-                          <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
-                        </label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          placeholder="เช่น 123 ถ.สุขุมวิท กรุงเทพฯ"
-                          {...register('address')}
-                        />
-                        {errors.address && (
-                          <p className="text-danger mt-1 text-sm">{errors.address.message}</p>
-                        )}
-                      </div>
+                      {/* ที่อยู่ — ซ่อนเมื่อการ์ด "ตำแหน่งร้าน" ทำหน้าที่นี้แทนแล้ว
+                          ถ้าโชว์ทั้งคู่ ผู้ใช้จะเจอช่องที่อยู่ 2 ที่ในหน้าเดียว: ช่องนี้รอปุ่ม
+                          "บันทึกการเปลี่ยนแปลง" ส่วนการ์ดบันทึกทันที — แก้ที่หนึ่งแล้วอีกที่
+                          ยังโชว์ค่าเก่าค้างไว้ */}
+                      {!locationSetup && (
+                        <div>
+                          <label className="form-label">
+                            ที่อยู่{' '}
+                            <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
+                          </label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="เช่น 123 ถ.สุขุมวิท กรุงเทพฯ"
+                            {...register('address')}
+                          />
+                          {errors.address && (
+                            <p className="text-danger mt-1 text-sm">{errors.address.message}</p>
+                          )}
+                        </div>
+                      )}
 
                       {/* ประเภทธุรกิจ */}
                       <div>

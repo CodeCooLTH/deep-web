@@ -888,9 +888,22 @@ SellerWallet (1) ── (N) WalletTransaction
 |--------|------|------|---------|---------|
 | POST | `/api/shops` | Buyer | สร้างร้าน (set `isShop=true`) | `shop.service` |
 | GET | `/api/shops/[id]` | — | ดู shop detail | `shop.service` |
-| PATCH | `/api/shops/[id]` | Seller-owner | แก้ข้อมูลร้าน | `shop.service` |
+| PATCH | `/api/shops/[id]` | Seller-owner | แก้ข้อมูลร้าน (รวม `latitude`/`longitude` ตั้งแต่ 2026-08-14 — ดู FR-SHOP-GEO) | `shop.service` |
 | GET | `/api/shops/check-slug` | Guest | ตรวจ slug ว่าง/ซ้ำ/reserved → `{available:bool}` | `shop.service` (isSlugAvailable) |
-| POST | `/api/shops/slug` | Seller (authed) | ตั้ง `Shop.slug` (ครั้งแรกเท่านั้น; ถ้ามีแล้ว → 409) | `shop.service` (setShopSlug) |
+| POST | `/api/shops/slug` | Seller (authed) | ตั้ง `Shop.slug` (ครั้งแรกเท่านั้น; ถ้ามีแล้ว → 409 `SLUG_ALREADY_SET`) | `shop.service` (setShopSlug) |
+
+**FR-SHOP-GEO — พิกัดร้าน (`Shop.latitude`/`Shop.longitude`)**
+
+| กฎ | รายละเอียด |
+|---|---|
+| ทางเข้าที่เขียนคอลัมน์นี้ได้ | `POST /api/business/shops` (ตอนสร้างธุรกิจ) · `POST /api/shops/update` (onboarding ร้านส่วนตัว) · **`PATCH /api/shops/[id]`** (แก้ทีหลัง — เพิ่ม 2026-08-14) |
+| ต้องมาเป็นคู่ | ส่ง `latitude` หรือ `longitude` มาตัวเดียว → `400 GEO_PAIR_REQUIRED` (หมุดที่มีแต่ละติจูดวางบนแผนที่ไม่ได้) |
+| ขอบเขต | lat 5–21N · lng 97–106E — นอกกรอบ → `400 GEO_OUT_OF_RANGE`. ค่าคงที่อยู่ที่ `src/lib/geo-thailand.ts` **ที่เดียว** (HR16) — `ShopUpdateWithGeoSchema` และ `CreateBusinessShopSchema` import ไปใช้ ห้ามพิมพ์ตัวเลขซ้ำ |
+| เจตนาของด่านขอบเขต | กัน `0,0` (ค่าตั้งต้นของตัวแปรที่ลืมเซ็ต ซึ่งผ่านด่าน `!= null` ได้) และกัน lat/lng สลับกัน — ไม่ใช่การตรวจว่าอยู่ในเขตแดนจริง |
+| หน้าจอที่แก้ได้ | `/shop` → การ์ด "ตำแหน่งร้าน" (`ShopLocationField`) — โผล่เฉพาะร้าน `SERVICE_QUEUE`/`LODGING` ตาม `verticalRequiresStorefrontLocation()` เกณฑ์เดียวกับที่วิซาร์ดสร้างธุรกิจใช้บังคับขั้น "ที่ตั้งร้าน" |
+| ที่ค่านี้ถูกใช้ | ปุ่มเปิด Google Maps บนโปรไฟล์สาธารณะ (`AboutOverview.tsx` เช็ค `hasPin`) · `channel-chat.service` / LINE webhook |
+
+> 🛑 **บันทึกเหตุ 2026-08-14:** ก่อนวันนี้ **ไม่มีทางไหนแก้พิกัดร้านได้เลยหลังสร้าง** (`POST /api/shops/update` hardcode `kind:'PERSONAL'` และถูกเรียกจาก onboarding เท่านั้น) และวิซาร์ดสร้างธุรกิจ **ทิ้งพิกัดไปทั้งดุ้นตอนประกอบ payload** ⇒ ตรวจฐาน prod วันเดียวกันแล้ว **ไม่มีร้านไหนมีพิกัดสักร้าน (0 จาก 9)** ทั้งที่ขั้น "ปักหมุด" บังคับกรอกและกดผ่านไม่ได้ ⇒ ปุ่มดูแผนที่บนโปรไฟล์สาธารณะไม่เคยขึ้นให้ร้านไหนเลยตั้งแต่วันแรก
 
 ### 7.3b Shops — ตัวจัดหน้าร้าน (Page Builder, feature 00035)
 
@@ -1348,7 +1361,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | สร้างร้าน | — | ✅ | — | — |
 | แก้ข้อมูลร้าน | — | — | ✅ | — |
 | CRUD product | — | — | ✅ | — |
-| ตั้ง slug (`POST /api/shops/slug`) | — | — | ✅ (ครั้งแรก; หลังตั้งแล้ว = 409) | — |
+| ตั้ง slug (`POST /api/shops/slug`) | — | — | ✅ (ครั้งแรก; หลังตั้งแล้ว = 409 `SLUG_ALREADY_SET` — บังคับใน `setShopSlug()` ตั้งแต่ 2026-08-14 ก่อนหน้านั้นบรรทัดนี้เป็นคำอธิบายที่ไม่มีด่านจริง กันได้แค่ด้วยการที่หน้าจอไม่มีช่องกรอกให้) | — |
 | ตรวจ slug (`GET /api/shops/check-slug`) | ✅ | ✅ | ✅ | ✅ |
 | เข้า `/onboarding` | — | — | ✅ (seller authed เท่านั้น) | — |
 
