@@ -271,11 +271,16 @@ export const th = {
     /** {create} = vocab.createLabel — ของเดิมคือ `${createLabel}แรกเลย` */
     activityEmptyTitle: '{create}แรกเลย',
     activityEmptyDesc: 'กิจกรรมจะปรากฏที่นี่เมื่อคุณเริ่มใช้งาน',
+    /** ตัวมือถือ (ActivityTimeline) ใช้หัวข้อสั้นกว่า — ไม่มีปุ่ม CTA ใต้ข้อความ */
+    activityEmptyNone: 'ยังไม่มีกิจกรรม',
 
     achievementTitle: 'ระดับความสำเร็จ',
     achievementEarned: 'ได้รับแล้ว',
     achievementInProgress: 'ใกล้ได้รับ',
     achievementNotStarted: 'ยังไม่เริ่ม',
+    achievementNoneEarned: 'ยังไม่มีรางวัล — เริ่มขายเพื่อสะสม',
+    achievementMoreCount: '+{n} รางวัล',
+    achievementAllEarned: 'คุณได้รับทุกรางวัลแล้ว',
 
     checklistTitle: 'ตั้งค่าร้านค้าให้ครบ',
     checklistLoading: 'กำลังโหลด checklist',

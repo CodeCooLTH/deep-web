@@ -212,11 +212,15 @@ export const en: Dictionary = {
     activityTitle: 'Recent activity',
     activityEmptyTitle: '{create} to get started',
     activityEmptyDesc: 'Activity appears here once you start using Deep.',
+    activityEmptyNone: 'No activity yet',
 
     achievementTitle: 'Achievement level',
     achievementEarned: 'Earned',
     achievementInProgress: 'Almost there',
     achievementNotStarted: 'Not started',
+    achievementNoneEarned: 'No achievements yet — start selling to collect them.',
+    achievementMoreCount: '+{n} more',
+    achievementAllEarned: 'You have earned every achievement.',
 
     checklistTitle: 'Finish setting up your shop',
     checklistLoading: 'Loading checklist',

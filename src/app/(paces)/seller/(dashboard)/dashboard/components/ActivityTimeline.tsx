@@ -23,6 +23,7 @@ import Link from 'next/link'
 import { Icon } from '@iconify/react'
 import { formatDateTime } from '@/lib/format-date'
 import type { ActivityItem } from '@/services/activity.service'
+import { getT } from '@/i18n/server'
 
 // ─── ICON MAP ─────────────────────────────────────────────────────────────────
 // ทำไม: literal class string เต็ม (ไม่ dynamic) เพื่อกัน Tailwind v4 purge
@@ -66,17 +67,18 @@ type Props = {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-const ActivityTimeline = ({ items }: Props) => {
+const ActivityTimeline = async ({ items }: Props) => {
+  const t = await getT()
   return (
     <div className="card">
       {/* card-header: title ซ้าย + "ดูทั้งหมด ›" + icon ขวา */}
       <div className="card-header flex items-center justify-between">
-        <h4 className="card-title">กิจกรรมล่าสุด</h4>
+        <h4 className="card-title">{t.dashboard.activityTitle}</h4>
         <Link
           href="/notifications"
           className="text-primary text-sm inline-flex items-center gap-0.5"
         >
-          ดูทั้งหมด
+          {t.dashboard.viewAll}
           {/* solar:alt-arrow-right-linear ตาม spec §4.4 "ดูทั้งหมด ›" */}
           <Icon icon="solar:alt-arrow-right-linear" className="text-base" />
         </Link>
@@ -97,8 +99,8 @@ const ActivityTimeline = ({ items }: Props) => {
               style={{ fontSize: '40px' }}
             />
             <div className="text-center space-y-1">
-              <p className="text-sm font-semibold">ยังไม่มีกิจกรรม</p>
-              <p className="text-xs text-default-500">กิจกรรมจะปรากฏที่นี่เมื่อคุณเริ่มใช้งาน</p>
+              <p className="text-sm font-semibold">{t.dashboard.activityEmptyNone}</p>
+              <p className="text-xs text-default-500">{t.dashboard.activityEmptyDesc}</p>
             </div>
             {/* NF-4: min-height 44px → h-11 = 44px touch target
                 path /orders/new ยืนยันจาก RecentActivityFeed.tsx (empty state เดิม) */}

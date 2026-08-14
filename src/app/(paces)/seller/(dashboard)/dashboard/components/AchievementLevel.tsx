@@ -25,6 +25,7 @@ import { BadgeImage } from '../../badges/BadgeImage'
 import { displayProgressPct } from '../../badges/_constants/badge-labels'
 import { useRouter } from 'next/navigation'
 import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 
 export type AchievementLevelProps = {
   score: number           // 0-100
@@ -102,7 +103,7 @@ export default function AchievementLevel({
 
           {earnedBadges.length === 0 ? (
             <p className="text-xs text-default-400">
-              ยังไม่มีรางวัล — เริ่มขายเพื่อสะสม
+              {t.dashboard.achievementNoneEarned}
             </p>
           ) : (
             <div className="flex flex-wrap gap-2 items-center">
@@ -121,7 +122,7 @@ export default function AchievementLevel({
               ))}
               {earnedOverflow > 0 && (
                 <span className="text-xs font-bold text-default-500 bg-default-100 rounded-full px-2 py-0.5 shrink-0">
-                  +{earnedOverflow} รางวัล
+                  {fmt(t.dashboard.achievementMoreCount, { n: earnedOverflow })}
                 </span>
               )}
             </div>
@@ -141,7 +142,7 @@ export default function AchievementLevel({
 
           {topInProgress.length === 0 ? (
             <p className="text-xs text-default-400">
-              คุณได้รับทุกรางวัลแล้ว
+              {t.dashboard.achievementAllEarned}
             </p>
           ) : (
             <div className="space-y-3">
@@ -190,7 +191,7 @@ export default function AchievementLevel({
           onClick={() => router.push('/badges')}
           className="text-sm text-primary hover:underline"
         >
-          ดูทั้งหมด →
+          {t.dashboard.viewAll} →
         </button>
       </div>
 

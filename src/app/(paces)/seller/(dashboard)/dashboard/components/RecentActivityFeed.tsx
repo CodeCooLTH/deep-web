@@ -83,7 +83,7 @@ const RecentActivityFeed = async ({ items, createLabel }: Props) => {
       <div className="card-header flex items-center justify-between">
         <h4 className="card-title">{t.dashboard.activityTitle}</h4>
         <Link href="/notifications" className="text-primary text-sm">
-          ดูทั้งหมด ›
+          {t.dashboard.viewAll} ›
         </Link>
       </div>
 
