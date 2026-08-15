@@ -33,6 +33,7 @@ import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
 import { uploadToStorage } from '@/lib/upload-client'
 import { visibleTopLevelComments } from '@/lib/comment-tree-visibility'
+import { renderCommentReplyText } from '@/lib/comment-reply-template'
 // ย้ายออกจากไฟล์นี้เมื่อ 2026-08-10 ตอนการ์ดคอมเมนต์ต้นเหตุในห้องแชทต้องใช้กติกาเดียวกัน (HR16)
 import { isVideoPost } from '@/lib/facebook-post'
 import ListBusyOverlay, { useListBusy } from '@/app/(paces)/seller/(dashboard)/_shared/ListBusyOverlay'
@@ -1976,9 +1977,12 @@ export default function CommentsClient({
       {privateReplyComment && (
         <PrivateReplyModal
           fromName={privateReplyComment.fromName}
-          defaultValue={
-            channels.find((ch) => ch.id === selectedPost?.channel.id)?.commentPrivateReplyText ?? ''
-          }
+          // แทน {ชื่อ} ตั้งแต่ตอน prefill — คนที่กดปุ่มนี้กำลังจะทักคนคนนี้อยู่แล้ว ปล่อยให้เห็น
+          // token ดิบในช่องพิมพ์คือการโยนงานหาแทนคืนให้คนกด (และเสี่ยงกดส่งทั้งอย่างนั้น)
+          defaultValue={renderCommentReplyText(
+            channels.find((ch) => ch.id === selectedPost?.channel.id)?.commentPrivateReplyText ?? '',
+            privateReplyComment.fromName,
+          )}
           sending={sendingPrivateReplyId === privateReplyComment.id}
           onClose={() => setPrivateReplyComment(null)}
           onSend={handlePrivateReplySend}

@@ -54,6 +54,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import { pacesAlert } from '@/lib/paces-swal'
 import { escapeHtml } from '@/lib/html-escape'
 import { formatDateTimeTH } from '@/lib/format-date'
+import { COMMENT_NAME_PLACEHOLDER, hasNamePlaceholder } from '@/lib/comment-reply-template'
 import { ChannelBadgeOverlay } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
 import { PageAvatar } from '@/app/(paces)/seller/(chat)/inbox/components/PageFilterDropdown'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
@@ -124,7 +125,60 @@ export default function CommentReplyClient({ channels, instagramChannel, initial
   )
 }
 
+/**
+ * ปุ่มแทรก `{ชื่อ}` + คำอธิบายว่ามันจะกลายเป็นอะไร (user สั่ง 2026-08-15)
+ *
+ * ประกาศไว้นอก render ของ CommentReplyCard โดยตั้งใจ — component ที่ประกาศในตัว render เป็นชนิด
+ * ใหม่ทุก re-render แล้ว React จะ unmount/mount ใหม่ทั้งซับทรี ซึ่งในที่นี้แปลว่า **โฟกัสหลุด
+ * จาก textarea ทุกตัวอักษรที่ร้านพิมพ์** (docs/conventions/component-declared-in-render.md)
+ */
+function NamePlaceholderRow({
+  targetRef,
+  value,
+  onChange,
+  disabled,
+}: {
+  targetRef: React.RefObject<HTMLTextAreaElement | null>
+  value: string
+  onChange: (next: string) => void
+  disabled: boolean
+}) {
+  const insert = () => {
+    const el = targetRef.current
+    const start = el?.selectionStart ?? value.length
+    const end = el?.selectionEnd ?? value.length
+    onChange(value.slice(0, start) + COMMENT_NAME_PLACEHOLDER + value.slice(end))
+    // คืนโฟกัสให้ช่องพิมพ์แล้ววางเคอร์เซอร์ถัดจากคำที่เพิ่งแทรก — ต้องรอ React เขียน value ใหม่ลง
+    // DOM ก่อน ไม่งั้น setSelectionRange จะอ้างอิงข้อความเวอร์ชันเก่าแล้วเคอร์เซอร์ไปผิดที่
+    requestAnimationFrame(() => {
+      const at = start + COMMENT_NAME_PLACEHOLDER.length
+      targetRef.current?.focus()
+      targetRef.current?.setSelectionRange(at, at)
+    })
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+      <button
+        type="button"
+        onClick={insert}
+        disabled={disabled}
+        className="btn btn-sm btn-light inline-flex shrink-0 items-center gap-1.5"
+      >
+        <Icon icon="user" className="text-sm" aria-hidden="true" />
+        แทรกชื่อลูกค้า
+      </button>
+      <span className="text-default-500 text-2xs">
+        {COMMENT_NAME_PLACEHOLDER} จะกลายเป็นชื่อ Facebook ของคนที่คอมเมนต์ — เป็นตัวหนังสือ ไม่ใช่การแท็ก
+        {hasNamePlaceholder(value) ? ' · คอมเมนต์ที่ระบบอ่านชื่อไม่ได้ จะตัดคำนี้ทิ้งให้อัตโนมัติ' : ''}
+      </span>
+    </div>
+  )
+}
+
 function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
+  const publicTextRef = useRef<HTMLTextAreaElement>(null)
+  const privateTextRef = useRef<HTMLTextAreaElement>(null)
   const [publicEnabled, setPublicEnabled] = useState(channel.commentPublicReplyEnabled)
   const [publicText, setPublicText] = useState(channel.commentPublicReplyText ?? '')
   const [privateEnabled, setPrivateEnabled] = useState(channel.commentPrivateReplyEnabled)
@@ -261,6 +315,7 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
             />
           </label>
           <textarea
+            ref={publicTextRef}
             rows={3}
             className={`form-textarea mt-3 ${publicError ? 'is-invalid' : ''}`}
             placeholder="เปิดสวิตช์เพื่อตั้งข้อความ"
@@ -271,6 +326,15 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
             }}
             disabled={!publicEnabled || cardLocked}
             aria-describedby={publicHintId}
+          />
+          <NamePlaceholderRow
+            targetRef={publicTextRef}
+            value={publicText}
+            onChange={(next) => {
+              setPublicText(next)
+              if (publicError) setPublicError(null)
+            }}
+            disabled={!publicEnabled || cardLocked}
           />
           <div className="mt-1 flex items-center justify-between gap-2">
             <span id={publicHintId} className="text-default-500 inline-flex items-center gap-1 text-2xs">
@@ -312,6 +376,7 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
             />
           </label>
           <textarea
+            ref={privateTextRef}
             rows={3}
             className={`form-textarea mt-3 ${privateError ? 'is-invalid' : ''}`}
             placeholder="เปิดสวิตช์เพื่อตั้งข้อความ"
@@ -322,6 +387,15 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
             }}
             disabled={!privateEnabled || cardLocked}
             aria-describedby={privateHintId}
+          />
+          <NamePlaceholderRow
+            targetRef={privateTextRef}
+            value={privateText}
+            onChange={(next) => {
+              setPrivateText(next)
+              if (privateError) setPrivateError(null)
+            }}
+            disabled={!privateEnabled || cardLocked}
           />
           <p id={privateHintId} className="text-default-500 mt-1 inline-flex items-center gap-1 text-2xs">
             <Icon icon="info-circle" className="text-sm" aria-hidden="true" />

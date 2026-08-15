@@ -29,6 +29,7 @@ function okRow(over: Record<string, unknown> = {}) {
     postId: 'post-1',
     shopChannelId: 'ch-1',
     fromExternalId: 'psid-1',
+    fromName: 'Jiravut Sungkakul',
     isFromPage: false,
     parentExternalId: null,
     isDeleted: false,
@@ -199,6 +200,72 @@ describe('processCommentAutoReply', () => {
     privateReply.mockRejectedValue(new Error('boom'))
 
     await expect(processCommentAutoReply('cmt-1')).resolves.toBeUndefined()
+  })
+
+  /** สร้าง okRow ที่ทับข้อความตั้งค่าของเพจ (ซ้อนลึกใน post.channel จึงเขียนเป็น helper) */
+  function rowWithTexts(over: { publicText?: string | null; privateText?: string | null; fromName?: string | null }) {
+    const base = okRow()
+    return {
+      ...base,
+      fromName: over.fromName === undefined ? base.fromName : over.fromName,
+      post: {
+        ...base.post,
+        channel: {
+          ...base.post.channel,
+          ...(over.publicText !== undefined ? { commentPublicReplyText: over.publicText } : {}),
+          ...(over.privateText !== undefined ? { commentPrivateReplyText: over.privateText } : {}),
+        },
+      },
+    }
+  }
+
+  // [blocker] user สั่ง 2026-08-15 "แทรกชื่อ facebook ที่ reply ได้ไหม" — ถ้าตัวแทนชื่อไม่ถูกแทน
+  // ลูกค้าจะเห็นคำว่า {ชื่อ} โผล่ในคอมเมนต์สาธารณะ ซึ่งแย่กว่าไม่มีฟีเจอร์นี้เลย
+  it('[blocker] แทน {ชื่อ} ด้วยชื่อผู้คอมเมนต์ทั้งฝั่งตอบใต้คอมเมนต์และฝั่งทักแชท', async () => {
+    vi.mocked(prisma.pageComment.findUnique).mockResolvedValue(
+      rowWithTexts({
+        publicText: 'แอดมิน {ชื่อ} ขออนุญาติทักไปให้ข้อมูลนะคะ',
+        privateText: 'สวัสดีค่ะคุณ {ชื่อ}',
+        fromName: 'Jiravut Sungkakul',
+      }) as never,
+    )
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(publicReply).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'แอดมิน Jiravut Sungkakul ขออนุญาติทักไปให้ข้อมูลนะคะ' }),
+    )
+    expect(privateReply).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'สวัสดีค่ะคุณ Jiravut Sungkakul' }),
+    )
+  })
+
+  it('[blocker] คอมเมนต์ที่ไม่มีชื่อ -> ตัด {ชื่อ} ทิ้ง ห้ามส่งคำนั้นออกไปดิบ ๆ', async () => {
+    vi.mocked(prisma.pageComment.findUnique).mockResolvedValue(
+      rowWithTexts({ publicText: 'สวัสดีค่ะ {ชื่อ} สนใจสอบถามได้เลย', fromName: null }) as never,
+    )
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(publicReply).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'สวัสดีค่ะ สนใจสอบถามได้เลย' }),
+    )
+  })
+
+  // [blocker] ข้อความที่มีแต่ {ชื่อ} + ไม่มีชื่อ = สตริงว่าง — ถ้าด่านตัดสินจากข้อความ **ดิบ**
+  // (ซึ่งไม่ว่าง) จะจองแถว log ไว้เฉย ๆ แล้วยิงข้อความเปล่าออกไปหา Meta
+  it('[blocker] ข้อความเหลือว่างหลังแทนชื่อ -> ไม่ยิงอะไรเลย และบันทึก DISABLED', async () => {
+    vi.mocked(prisma.pageComment.findUnique).mockResolvedValue(
+      rowWithTexts({ publicText: '{ชื่อ}', privateText: '{ชื่อ}', fromName: null }) as never,
+    )
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(publicReply).not.toHaveBeenCalled()
+    expect(privateReply).not.toHaveBeenCalled()
+    expect(logCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ skipReason: 'DISABLED' }) }),
+    )
   })
 
   it('ไม่พบคอมเมนต์ -> ไม่ throw และไม่เรียกอะไร', async () => {

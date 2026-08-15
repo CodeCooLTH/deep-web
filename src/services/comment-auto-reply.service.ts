@@ -5,6 +5,7 @@
  * ออกไปทุกกรณี ไม่งั้น Meta จะ retry ทั้ง batch แล้วปัญหาบานปลาย (ดู docstring processCommentAutoReply)
  */
 import { prisma } from '@/lib/prisma'
+import { renderCommentReplyText } from '@/lib/comment-reply-template'
 import { replyToComment } from '@/services/page-comment.service'
 import { sendPrivateReplyToCommentById } from '@/services/comment-private-reply.service'
 
@@ -127,6 +128,15 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
 
     const channel = comment.post.channel
 
+    // แทน `{ชื่อ}` ด้วยชื่อผู้คอมเมนต์ (user สั่ง 2026-08-15) — ทำ **ก่อนด่านคัดกรอง** ไม่ใช่ก่อนส่ง
+    //
+    // 🛑 ข้อความที่มีแต่ `{ชื่อ}` เมื่อเจอคอมเมนต์ที่ไม่มีชื่อจะเหลือสตริงว่าง ถ้าให้ด่านตัดสิน
+    // จากข้อความ **ดิบ** ด่านจะปล่อยผ่าน (ดิบไม่ว่าง) แล้วเราจะจองแถว log ไว้เฉย ๆ โดยไม่ส่งอะไร
+    // และไม่มี skipReason ติดมาด้วย = แถวเปล่าที่อธิบายตัวเองไม่ได้ ซึ่งคือคลาสของบั๊กที่รอบนี้
+    // กำลังปิดอยู่พอดี ป้อนข้อความที่ "จะส่งจริง" เข้าด่านตั้งแต่แรกจึงตกที่ DISABLED เองตามธรรมชาติ
+    const publicMessage = renderCommentReplyText(channel.commentPublicReplyText ?? '', comment.fromName)
+    const privateMessage = renderCommentReplyText(channel.commentPrivateReplyText ?? '', comment.fromName)
+
     const gateInputWithoutDbFlags = {
       isFromPage: comment.isFromPage,
       parentExternalId: comment.parentExternalId,
@@ -134,9 +144,9 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
       fromExternalId: comment.fromExternalId,
       channelStatus: channel.status,
       publicEnabled: channel.commentPublicReplyEnabled,
-      publicText: channel.commentPublicReplyText,
+      publicText: publicMessage,
       privateEnabled: channel.commentPrivateReplyEnabled,
-      privateText: channel.commentPrivateReplyText,
+      privateText: privateMessage,
     }
 
     const recordSkip = async (reason: CommentSkipReason) => {
@@ -211,14 +221,15 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
       throw err
     }
 
-    const publicOn = channel.commentPublicReplyEnabled && !!channel.commentPublicReplyText?.trim()
-    const privateOn = channel.commentPrivateReplyEnabled && !!channel.commentPrivateReplyText?.trim()
+    // เกณฑ์เดียวกับที่ด่านใช้เป๊ะ (ข้อความหลังแทนชื่อแล้ว) — ห้ามคำนวณจากข้อความดิบที่นี่
+    const publicOn = channel.commentPublicReplyEnabled && !!publicMessage.trim()
+    const privateOn = channel.commentPrivateReplyEnabled && !!privateMessage.trim()
 
     if (publicOn) {
       try {
         await replyToComment({
           commentId: comment.id,
-          message: channel.commentPublicReplyText as string,
+          message: publicMessage,
           actorUserId: null, // system actor — ไม่ใช่ user จริง (feature 00038)
         })
         await prisma.commentReplyLog.update({
@@ -261,7 +272,7 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
       // ผ่าน findFirst ของตัวเองแล้ว trip ALREADY_SENT ทันที (Fix round 1, ดู docstring บนฟังก์ชันนี้)
       const result = await sendPrivateReplyToCommentById({
         commentId: comment.id,
-        text: channel.commentPrivateReplyText as string,
+        text: privateMessage,
         trigger: 'AUTO',
         reservedLogId: logId,
       })

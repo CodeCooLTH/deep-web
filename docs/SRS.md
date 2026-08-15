@@ -777,7 +777,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | Field | Type | หมายเหตุ |
 |-------|------|---------|
 | `commentPublicReplyEnabled` | Boolean default `false` | สวิตช์ "ตอบใต้คอมเมนต์" ต่อเพจ |
-| `commentPublicReplyText` | String? `@db.Text` | ข้อความสวิตช์ A — เปิดสวิตช์แล้วข้อความว่างไม่ได้ (บังคับที่ Valibot) |
+| `commentPublicReplyText` | String? `@db.Text` | ข้อความสวิตช์ A — เปิดสวิตช์แล้วข้อความว่างไม่ได้ (บังคับที่ Valibot) · **เก็บเป็น template:** `{ชื่อ}` = ชื่อ Facebook ของผู้คอมเมนต์ แทนค่าตอนส่งด้วย `renderCommentReplyText()` (`src/lib/comment-reply-template.ts` — SSOT ที่เดียว) ⇒ **ค่าที่เก็บกับค่าที่ลูกค้าเห็นไม่ใช่สตริงเดียวกัน** ห้ามเทียบตรง ๆ · ข้อความที่เหลือว่างหลังแทนชื่อถือเป็น `DISABLED` ไม่ส่งออก |
 | `commentPrivateReplyEnabled` | Boolean default `false` | สวิตช์ "ทักแชทส่วนตัว" ต่อเพจ — แยกอิสระจากสวิตช์ A |
 | `commentPrivateReplyText` | String? `@db.Text` | ข้อความสวิตช์ B |
 
