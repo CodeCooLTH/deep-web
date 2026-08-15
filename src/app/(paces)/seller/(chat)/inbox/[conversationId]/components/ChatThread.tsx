@@ -126,6 +126,7 @@ import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/S
 import { ChannelBadgeOverlay } from '../../components/ChannelBadge'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
+import type { Dictionary } from '@/i18n/dictionaries/th'
 import OrderCardView from '../../../_components/OrderCardView'
 import { useDraftOrders, useOrderVocab, useThreadShopId } from '../../../_components/DraftOrderProvider'
 import CustomerPanelSheet from './CustomerPanelSheet'
@@ -798,13 +799,17 @@ const MINUTE_MS = 60 * 1000
  * tier "หมดแล้ว"/TOKEN_INVALID ตัดสินที่ caller เพราะข้อความคงที่ ไม่ต้องคำนวณเวลา) */
 const SECOND_MS = 1000
 
-/** ถอยหลังละเอียดถึงวินาที "X ชั่วโมง Y นาที Z วินาที" (ตัดชั่วโมงทิ้งเมื่อ 0 ให้อ่านง่าย) */
-function formatCountdown(ms: number): string {
+/**
+ * ถอยหลังละเอียดถึงวินาที (ตัดชั่วโมงทิ้งเมื่อ 0 ให้อ่านง่าย)
+ *
+ * รับ dictionary เข้ามา ไม่ได้อ่านเอง — ฟังก์ชันระดับ module เรียก hook ไม่ได้
+ */
+function formatCountdown(ms: number, t: Dictionary): string {
   const total = Math.max(0, Math.floor(ms / SECOND_MS))
   const h = Math.floor(total / 3600)
   const m = Math.floor((total % 3600) / 60)
   const s = total % 60
-  return h > 0 ? `${h} ชั่วโมง ${m} นาที ${s} วินาที` : `${m} นาที ${s} วินาที`
+  return h > 0 ? fmt(t.inbox.countdownHms, { h, m, s }) : fmt(t.inbox.countdownMs, { m, s })
 }
 
 /** ถอยหลังแบบสั้น "H:MM:SS"/"MM:SS" — ใช้บนจอแคบที่หัวเธรดมีที่ไม่พอสำหรับรูปแบบเต็ม
@@ -2453,12 +2458,12 @@ export default function ChatThread({
         {isExternal && channel !== 'LINE' && !tokenInvalid && liveWindowOpen && liveRemaining <= FOUR_HOURS_MS && (
           <span
             className="text-warning ms-auto flex shrink-0 items-center gap-1.5 text-sm"
-            title={`ใกล้หมดเวลาตอบ — เหลือ ${formatCountdown(liveRemaining)}`}
+            title={fmt(t.inbox.windowClosingSoon, { remaining: formatCountdown(liveRemaining, t) })}
           >
             <Icon icon="alert-triangle" className="shrink-0 text-base" />
             {/* จอแคบเหลือ "เหลือ M:SS" — ยังเป็นคำ ไม่ใช่ไอคอนลอย ๆ ให้เดาความหมาย */}
             <span className="lg:hidden">เหลือ {formatCountdownShort(liveRemaining)}</span>
-            <span className="hidden lg:inline">ใกล้หมดเวลาตอบ — เหลือ {formatCountdown(liveRemaining)}</span>
+            <span className="hidden lg:inline">{fmt(t.inbox.windowClosingSoon, { remaining: formatCountdown(liveRemaining, t) })}</span>
           </span>
         )}
 
@@ -3110,7 +3115,7 @@ export default function ChatThread({
                             const inner = (
                               <>
                                 <p className="text-default-700 mb-0 text-2xs font-medium">
-                                  ตอบกลับ{quote.senderRole === 'SHOP' ? 'ข้อความของร้าน' : buyerName}
+                                  {fmt(t.inbox.quotedReplyTo, { name: quote.senderRole === 'SHOP' ? t.inbox.quotedShopMessage : buyerName })}
                                 </p>
                                 {/* รูปย่อแทนคำว่า "[รูปภาพ]" — ในเธรดที่ลูกค้าส่งรูปติดกันหลายใบ ข้อความนั้น
                                     บอกไม่ได้เลยว่าหมายถึงใบไหน (user เทียบกับ Messenger ที่แสดงรูปย่อ)
@@ -3848,7 +3853,7 @@ export default function ChatThread({
             <Icon icon="arrow-back-up" className="text-primary mt-0.5 shrink-0 text-base" />
             <div className="min-w-0 grow">
               <p className="text-primary mb-0 text-2xs font-semibold">
-                ตอบกลับ{replyingTo.senderRole === 'SHOP' ? 'ข้อความของร้าน' : buyerName}
+                {fmt(t.inbox.quotedReplyTo, { name: replyingTo.senderRole === 'SHOP' ? t.inbox.quotedShopMessage : buyerName })}
               </p>
               <p className="text-default-600 mb-0 line-clamp-2 text-xs">
                 {replyingTo.body ??
