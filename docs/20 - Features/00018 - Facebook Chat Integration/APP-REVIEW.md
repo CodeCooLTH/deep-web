@@ -345,7 +345,7 @@ permission** · **end-to-end ของ use case** · **ใช้ภาษาอ�
   ตัวที่ทำให้ฟันธงไม่ได้คือ `business_management` มี `api_precheck: true` ทั้งที่ call_volume ก็ 0
   ⇒ **ต้องพิสูจน์ด้วยการส่งข้อความเข้าเพจจริงแล้วดูว่าเข้ากล่องไหม ก่อนลงแรงอัดคลิป**
 
-### 5.4 🛑 สถานะใบยื่นปัจจุบัน (2026-08-14) — เปลี่ยนจาก §5.3 ทั้งกระดาน
+### 5.4 สถานะใบยื่นระหว่างเตรียม (2026-08-14) — **ปิดแล้ว ดู §10**
 
 ใบร่างใหม่ **`1717697219448670`** (`submission_status: UNSUBMITTED`) — ใบเก่า `1699582191260173`
 ปิดไปแล้วสถานะ `ACTIONED`
@@ -763,3 +763,78 @@ mutation: ใส่ไทยลง `dashboard.pageTitle` ของ `en.ts` → �
 - **ไม่ได้ผ่าน `safepay-ux` (HR8) และไม่ได้รัน `/impeccable critique`** — session ห้ามเรียก subagent
   (หนี้เดียวกับ 3 รอบก่อน); งานรอบนี้ต่อสาย `t()` ไม่ได้แตะ layout จึงเสี่ยงต่ำ แต่ควรตรวจย้อนหลัง
 - `AchievementLevel.tsx:83` มี finding `design-system-font-size` (9px) ของเดิมก่อนรอบนี้ ไม่ได้แก้
+
+---
+
+## 10. ✅ ยื่นรอบ 2 สำเร็จ — 2026-08-15 14:39 น.
+
+ใบ **`1717697219448670`** · `submission_status: PENDING` · `submitted_time: 1786781962`
+Meta แจ้งว่าส่วนใหญ่ตรวจภายใน **20 วัน** (รอบแรกใช้ 12 วัน)
+
+### 10.1 สิ่งที่อยู่ในใบ
+
+| กลุ่ม | Permission |
+|---|---|
+| New requests (5) | `pages_read_engagement` · `pages_messaging` · `pages_manage_metadata` · `instagram_basic` · `instagram_manage_messages` |
+| Existing access for renewal (2) | `pages_show_list` · `business_management` |
+
+🛑 **3 ตัวที่ถูกตีกลับอยู่ในใบจริง** — จุดที่เกือบพลาด: ใบร่างเดิมมีแค่ 2 ตัวของ Instagram
+ต้องไปกด **`Actions ▾` → `Add to App Review`** ที่หน้า Permissions and Features ทีละตัว
+(หน้า App Review → Requests ไม่มีปุ่มเพิ่ม มีแต่ถังขยะสำหรับถอดออก)
+
+### 10.2 คลิปที่แนบ (มี caption ฝังในวิดีโอ ไม่ใช่ .srt)
+
+| คลิป | ไฟล์ | ใส่ที่ permission |
+|---|---|---|
+| A (4:06) | `~/Documents/Meta Review A (Caption).mov` | `pages_messaging` · `pages_manage_metadata` |
+| B (4:20) | `~/Documents/Meta Review B (Caption).mov` | `instagram_basic` · `instagram_manage_messages` |
+| C (1:58) | `~/Documents/Meta Review C (Caption).mov` | `pages_read_engagement` |
+
+ต้นฉบับไม่มี caption อยู่ที่ `~/Desktop/Meta Review (3).mov` · `Meta Review B (1).mov` · `Meta Review C (1).mov`
+
+### 10.3 แก้อะไรไปบ้างเทียบรอบแรก
+
+| รอบแรกตกเพราะ | รอบนี้ |
+|---|---|
+| คลิปไม่มีฉาก subscribe / webhook เข้ามา | ฉาก `Sync notifications` + เธรดเด้งเข้าเอง + ถอดเพจแล้วข้อความไม่เข้า ครบใน A พร้อม caption ชี้จุด |
+| UI เป็นภาษาไทย | แปลเพิ่ม 5 คอมมิต (หน้าแรกผู้ขาย · Command Center มือถือ · แท็บความคิดเห็นทั้งโฟลเดอร์ · แบนเนอร์หัวเธรด) |
+| instructions พาไปเมนู "บัญชีที่เชื่อมต่อ" ที่ย้ายไปแล้วตั้งแต่ 00026 | ใช้ §7.3 ชี้ **Sales channels** |
+| ไม่มี Instagram ในใบ | มีครบ + คลิป B ที่มีจอ grant เฉพาะ IG |
+| ไม่ได้บอกว่าเป็น server-to-server | เขียนไว้ 2 ที่ (ช่อง reproduce ของ `pages_messaging` + reviewer instructions) |
+
+### 10.4 ของใหม่ที่เพิ่งรู้ในรอบนี้
+
+- **`test_page`** — `pages_messaging` มีช่อง `Select a Page` บังคับ ใส่ **Code CooL**
+- **`data_use_checkup`** — ขั้นระดับแอป คนละช่องกับ Data handling (§3.2)
+- 🛑 **`instagram_manage_messages` ของแอปที่ทำให้ธุรกิจอื่น** ต้องอธิบายเพิ่ม 3 อย่างตาม
+  [apps-for-other-businesses](https://developers.facebook.com/documentation/business-messaging/instagram-messaging/app-review/apps-for-other-businesses):
+  custom inbox ที่เจ้าหน้าที่จัดการเอง · การจัดการ **ข้อความที่ผู้ส่งลบ (unsent)** · วิธีที่ reviewer เริ่มบทสนทนา
+  → เติม 2 ย่อหน้าท้ายคำอธิบายแล้ว โดยยึดโค้ดจริง (`channel-chat.service.ts:994` ล้าง
+  `body`/`imageUrl`/`reactionEmoji` เป็น null ตอน `is_deleted`) และ **ประกาศตรง ๆ ว่าเราลบข้อความ
+  บน Instagram แทนผู้ขายไม่ได้** เพราะแอปไม่มีฟังก์ชันนั้น
+
+### 10.5 🛑 MCP `devtools_app_review` เชื่อไม่ได้ในเรื่องสถานะใบ
+
+ตลอดรอบนี้ API ให้ค่าที่ขัดกับหน้าจอ **2 เรื่อง** และหน้าจอถูกทั้งสองครั้ง:
+
+| API บอก | ความจริง |
+|---|---|
+| `can_submit: false` เหตุผล *"ใบก่อนหน้ายังอยู่ระหว่างตรวจ"* | ใบก่อนหน้า `ACTIONED` ไปแล้ว · กด Next/Submit ผ่านทุกขั้น |
+| `screencast: is_completed = false` ทั้ง 5 ตัว | คลิปติดครบ · ทุกหัวข้อเขียว · ส่งได้จริง |
+
+**บทเรียน: ใช้ API ตรวจ *เนื้อหา* ของใบได้ (`requested_privileges` ว่ามีกี่ตัว) แต่ตรวจ *ความพร้อมส่ง*
+ไม่ได้ — ต้องดูหน้าจอ** ผมเกือบพาไปอัดคลิปใหม่/ย่อไฟล์เพราะเชื่อ `screencast: false`
+(ค่าที่เชื่อได้จาก API: `submission_status` · `submitted_time` · `requested_privileges` · `access_level`)
+
+### 10.6 ห้ามแตะระหว่างรอผล
+
+- เพจ **Code CooL** ต้องเชื่อมอยู่กับร้านของ `metareview` ตลอด
+- บัญชี `metareview` — ห้ามเปลี่ยนรหัส/ลบ/ย้าย active shop
+- URL `privacy` · `terms` · `data-deletion` ห้ามแก้
+- deploy โค้ดได้ตามปกติ **แต่ห้ามเปลี่ยนชื่อปุ่ม/ย้ายเมนูบนเส้นทางที่เขียนไว้ในคำสั่งทดสอบ**
+  (Sales channels · Connect Facebook Page · Choose pages to connect · Sync notifications ·
+  Messages · Storefront · Videos shown on your storefront · View my storefront · Remove/Disconnect)
+
+### 10.7 ยังไม่ได้ยื่น
+
+`human_agent` — โค้ดพร้อมทั้งเส้น รอ env `META_HUMAN_AGENT_ENABLED` ยื่นรอบถัดไปตามมติ 2026-08-13
