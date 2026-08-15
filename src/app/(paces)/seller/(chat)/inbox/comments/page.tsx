@@ -19,11 +19,16 @@ import { prisma } from '@/lib/prisma'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import CommentsClient, { type CommentPostItem } from './CommentsClient'
+import { getT } from '@/i18n/server'
 
-export const metadata: Metadata = { title: 'ความคิดเห็น' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT()
+  return { title: t.comments.metaTitle }
+}
 export const dynamic = 'force-dynamic'
 
 export default async function CommentsPage() {
+  const t = await getT()
   const session = await getServerSession(authOptions)
   const user = session?.user as { id: string; activeShopId?: string | null } | undefined
   if (!user?.id) redirect('/auth/sign-in')
@@ -33,7 +38,7 @@ export default async function CommentsPage() {
     user: { id: user.id, activeShopId: user.activeShopId ?? null },
   })
   if (!scope) {
-    return <SellerErrorState title="ไม่พบร้านที่กำลังใช้งาน" message="ลองสลับร้านอีกครั้ง หรือรีเฟรชหน้านี้" />
+    return <SellerErrorState title={t.comments.noShopTitle} message={t.comments.noShopMessage} />
   }
 
   /**
@@ -117,8 +122,8 @@ export default async function CommentsPage() {
         <div className="p-4">
           <SellerEmptyState
             icon="alert-circle"
-            title="โหลดความคิดเห็นไม่สำเร็จ"
-            description="ลองรีเฟรชหน้านี้อีกครั้ง"
+            title={t.comments.loadErrorTitle}
+            description={t.comments.loadErrorDesc}
           />
         </div>
       ) : (

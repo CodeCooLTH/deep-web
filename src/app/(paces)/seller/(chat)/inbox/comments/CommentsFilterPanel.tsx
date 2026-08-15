@@ -23,6 +23,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChannelBadgeOverlay } from '../components/ChannelBadge'
 import { PageAvatar } from '../components/PageFilterDropdown'
 import type { ChannelOption } from './CommentsClient'
+import { useT } from '@/i18n/LocaleProvider'
 
 /**
  * ตัวกรอง "แสดงอะไรในลิสต์" (feature 00038 UX-Design-Spec §3.2)
@@ -59,6 +60,7 @@ type Props = {
 }
 
 export default function CommentsFilterPanel({ pageOptions, value, show, onApply, open, onOpenChange }: Props) {
+  const t = useT()
   const ref = useRef<HTMLDivElement>(null)
   // ร่าง — sync จากค่าจริงทุกครั้งที่เปิด ไม่ให้ค้างค่าที่เคยเลือกแล้วไม่ได้กดใช้จากรอบก่อน
   const [draftPage, setDraftPage] = useState<string | null>(value)
@@ -106,7 +108,7 @@ export default function CommentsFilterPanel({ pageOptions, value, show, onApply,
         }`}
       >
         <Icon icon="adjustments-horizontal" className="size-4" />
-        ตัวกรอง
+        {t.inbox.filters}
         {activeCount > 0 && (
           <span className="badge bg-primary text-2xs rounded-full px-1.5 text-white">{activeCount}</span>
         )}
@@ -119,12 +121,12 @@ export default function CommentsFilterPanel({ pageOptions, value, show, onApply,
           role="menu"
         >
           <div className="border-default-200 flex items-center justify-between border-b px-3 py-2">
-            <span className="text-default-800 text-sm font-semibold">ตัวกรอง</span>
+            <span className="text-default-800 text-sm font-semibold">{t.inbox.filters}</span>
             <button
               type="button"
               onClick={() => onOpenChange(false)}
               className="text-default-700 hover:text-default-800 flex size-6 items-center justify-center rounded"
-              aria-label="ปิด"
+              aria-label={t.common.close}
             >
               <Icon icon="x" className="size-4" />
             </button>
@@ -138,13 +140,13 @@ export default function CommentsFilterPanel({ pageOptions, value, show, onApply,
             <div className="mb-4 flex flex-wrap gap-1.5">
               <Chip
                 on={draftShow.shopComments}
-                label="คอมเมนต์ของร้าน"
+                label={t.comments.shopComments}
                 onClick={() => setDraftShow((d) => ({ ...d, shopComments: !d.shopComments }))}
               />
             </div>
-            <p className="text-default-700 mb-2 text-xs font-medium">เพจ</p>
+            <p className="text-default-700 mb-2 text-xs font-medium">{t.comments.pageLabel}</p>
             <div className="flex flex-wrap gap-1.5">
-              <Chip on={draftPage === null} label="ทุกเพจ" onClick={() => setDraftPage(null)} />
+              <Chip on={draftPage === null} label={t.comments.allPages} onClick={() => setDraftPage(null)} />
               {pageOptions.map((p) => (
                 // ชื่อเพจอย่างเดียวไม่พอ — ร้านที่ตั้งชื่อเพจ Facebook กับ Instagram เหมือนกันจะเห็น
                 // ชิปสองอันข้อความเดียวกันเป๊ะ (เหตุผลเดียวกับ InboxFilterPanel)
@@ -175,7 +177,7 @@ export default function CommentsFilterPanel({ pageOptions, value, show, onApply,
               }}
               className="btn btn-sm text-default-800 hover:bg-light"
             >
-              ล้างตัวกรอง
+              {t.comments.clearFilters}
             </button>
             <button
               type="button"
@@ -185,7 +187,7 @@ export default function CommentsFilterPanel({ pageOptions, value, show, onApply,
               }}
               className="btn btn-sm bg-primary hover:bg-primary-hover text-white"
             >
-              ใช้ตัวกรอง
+              {t.comments.applyFilters}
             </button>
           </div>
         </div>

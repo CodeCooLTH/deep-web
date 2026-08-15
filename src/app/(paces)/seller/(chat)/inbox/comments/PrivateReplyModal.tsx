@@ -26,6 +26,8 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -44,6 +46,7 @@ type Props = {
 }
 
 export default function PrivateReplyModal({ fromName, defaultValue, sending, onClose, onSend }: Props) {
+  const t = useT()
   // parent render โมดัลนี้ใต้ `{comment && <PrivateReplyModal/>}` เท่านั้น — mount = เปิดอยู่แล้ว
   useLockBodyScroll(true)
 
@@ -112,10 +115,10 @@ export default function PrivateReplyModal({ fromName, defaultValue, sending, onC
     onSend(trimmed)
   }
 
-  const title = fromName ? `ทักแชทถึง ${fromName}` : 'ทักแชทส่วนตัว'
+  const title = fromName ? fmt(t.comments.prTitleWithName, { name: fromName }) : t.comments.prTitle
   const scopeText = fromName
-    ? `ข้อความนี้เห็นเฉพาะ ${fromName} เป็นการส่วนตัว`
-    : 'ข้อความนี้เห็นเฉพาะคนที่คอมเมนต์ เป็นการส่วนตัว'
+    ? fmt(t.comments.prScopeWithName, { name: fromName })
+    : t.comments.prScope
 
   return (
     <div
@@ -142,7 +145,7 @@ export default function PrivateReplyModal({ fromName, defaultValue, sending, onC
             </h3>
             <button
               type="button"
-              aria-label="ปิด"
+              aria-label={t.common.close}
               onClick={dismiss}
               disabled={sending}
               className="btn btn-icon text-default-700 min-h-11 min-w-11 disabled:opacity-50"
@@ -157,16 +160,16 @@ export default function PrivateReplyModal({ fromName, defaultValue, sending, onC
                 ใน card-body ที่ตาเห็นก่อนช่องพิมพ์เสมอ ไม่ว่าจะพิมพ์ยาวแค่ไหน */}
             <div className="bg-danger/15 text-danger-ink flex items-start gap-2 rounded-lg p-3 text-start text-sm font-semibold">
               <Icon icon="alert-triangle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
-              <span>ส่งได้ครั้งเดียว กดพลาดแล้วแก้ไม่ได้</span>
+              <span>{t.comments.prOnceOnly}</span>
             </div>
 
             <p className="text-default-700 text-start text-sm">
-              {scopeText} ทักได้ภายใน 7 วันนับจากเวลาคอมเมนต์ และคุยต่อได้เมื่อเขาตอบกลับเข้ามา
+              {fmt(t.comments.prWindowNote, { scope: scopeText })}
             </p>
 
             <div>
               <label htmlFor="privateReplyText" className="form-label">
-                ข้อความ
+                {t.comments.prMessageLabel}
               </label>
               {/* 🛑 ไม่ใช้ `maxLength` ตัดดิบ — ท่าเดียวกับหน้าตั้งค่า (CommentReplyClient) ซึ่งยอมให้
                   เกินแล้วเตือน: วางข้อความยาวมาแล้วค่อยตัดคือ workflow จริง ส่วน maxLength จะกลืน
@@ -175,7 +178,7 @@ export default function PrivateReplyModal({ fromName, defaultValue, sending, onC
               <textarea
                 id="privateReplyText"
                 rows={3}
-                placeholder="พิมพ์ข้อความส่วนตัว..."
+                placeholder={t.comments.prPlaceholder}
                 className={`form-textarea ${overLimit ? 'is-invalid' : ''}`}
                 value={value}
                 disabled={sending}
@@ -191,7 +194,7 @@ export default function PrivateReplyModal({ fromName, defaultValue, sending, onC
               </p>
               {overLimit && (
                 <p className="text-danger-ink mt-1 text-xs">
-                  ยาวเกิน {MAX_LENGTH.toLocaleString('th-TH')} ตัวอักษร กรุณาตัดให้สั้นลงก่อนส่ง
+                  {fmt(t.comments.prTooLong, { n: MAX_LENGTH.toLocaleString('th-TH') })}
                 </p>
               )}
             </div>
@@ -209,7 +212,7 @@ export default function PrivateReplyModal({ fromName, defaultValue, sending, onC
               disabled={sending}
               className="btn bg-light text-dark hover:bg-light-hover min-h-11 disabled:opacity-60"
             >
-              ยกเลิก
+              {t.common.cancel}
             </button>
             <button
               type="button"
@@ -220,12 +223,12 @@ export default function PrivateReplyModal({ fromName, defaultValue, sending, onC
               {sending ? (
                 <>
                   <Icon icon="loader-2" className="animate-spin" aria-hidden="true" />
-                  กำลังส่ง...
+                  {t.comments.sending}
                 </>
               ) : (
                 <>
                   <Icon icon="send" aria-hidden="true" />
-                  ส่งข้อความ
+                  {t.comments.prSend}
                 </>
               )}
             </button>

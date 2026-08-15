@@ -346,6 +346,133 @@ export const th = {
   },
 
   /**
+   * แท็บ "ความคิดเห็น" ในกล่องแชท (`/inbox/comments`, feature 00029/00038)
+   *
+   * เป็นก้อนสุดท้ายของ feature 00047 ที่ยังไม่เคยมี `useT()` เลยสักบรรทัด — ผู้ใช้ที่ตั้งภาษา
+   * อังกฤษจึงเห็นทั้งหน้าเป็นไทยขณะที่ส่วนอื่นของกล่องแชทแปลไปแล้ว (user เจอเองบน prod 2026-08-15)
+   *
+   * คำที่ใช้ร่วมกับที่อื่นแล้วไม่ mint ใหม่: `common.close/cancel/loading/edit` และ `inbox.filters`
+   */
+  comments: {
+    metaTitle: 'ความคิดเห็น',
+    noShopTitle: 'ไม่พบร้านที่กำลังใช้งาน',
+    noShopMessage: 'ลองสลับร้านอีกครั้ง หรือรีเฟรชหน้านี้',
+    loadErrorTitle: 'โหลดความคิดเห็นไม่สำเร็จ',
+    loadErrorDesc: 'ลองรีเฟรชหน้านี้อีกครั้ง',
+    loadingComments: 'กำลังโหลดความคิดเห็น...',
+
+    /* ── แผงตัวกรอง ─────────────────────────────────────────────────────── */
+    shopComments: 'คอมเมนต์ของร้าน',
+    pageLabel: 'เพจ',
+    allPages: 'ทุกเพจ',
+    clearFilters: 'ล้างตัวกรอง',
+    applyFilters: 'ใช้ตัวกรอง',
+    channelFilterAria: 'ตัวกรองช่องทาง',
+    filterChannelAria: 'กรองเฉพาะช่องทาง {name}',
+    selectedPage: 'เพจที่เลือก',
+    clearPageFilter: 'ล้างตัวกรองเพจ',
+    statusFilterAria: 'สถานะการตอบ',
+    all: 'ทั้งหมด',
+    unanswered: 'ยังไม่ตอบ',
+    unansweredN: 'ยังไม่ตอบ {n}',
+
+    /* ── หน้าต่างทักแชทส่วนตัว (7 วันของ Facebook) ────────────────────────── */
+    windowExpired: 'หมดเวลาทักแชท',
+    windowRemaining: 'คงเหลือ {remaining}',
+    windowLeftShort: 'ทักแชทได้อีก {remaining}',
+    unitDay: '{n} วัน',
+    unitHour: '{n} ชั่วโมง',
+    unitMinute: '{n} นาที',
+
+    prTitleWithName: 'ทักแชทถึง {name}',
+    prTitle: 'ทักแชทส่วนตัว',
+    prScopeWithName: 'ข้อความนี้เห็นเฉพาะ {name} เป็นการส่วนตัว',
+    prScope: 'ข้อความนี้เห็นเฉพาะคนที่คอมเมนต์ เป็นการส่วนตัว',
+    prOnceOnly: 'ส่งได้ครั้งเดียว กดพลาดแล้วแก้ไม่ได้',
+    prWindowNote: '{scope} ทักได้ภายใน 7 วันนับจากเวลาคอมเมนต์ และคุยต่อได้เมื่อเขาตอบกลับเข้ามา',
+    prMessageLabel: 'ข้อความ',
+    prPlaceholder: 'พิมพ์ข้อความส่วนตัว...',
+    prTooLong: 'ยาวเกิน {n} ตัวอักษร กรุณาตัดให้สั้นลงก่อนส่ง',
+    prSend: 'ส่งข้อความ',
+    sending: 'กำลังส่ง...',
+
+    /* ── toast / ข้อความผิดพลาด ─────────────────────────────────────────── */
+    loadFailed: 'โหลดความคิดเห็นไม่สำเร็จ',
+    loadFailedNetwork: 'โหลดความคิดเห็นไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่',
+    uploadFailed: 'อัปโหลดรูปไม่สำเร็จ',
+    replyFailed: 'ตอบความคิดเห็นไม่สำเร็จ',
+    commentFailed: 'คอมเมนต์ไม่สำเร็จ',
+    replySuccess: 'ตอบความคิดเห็นแล้ว',
+    commentSuccess: 'คอมเมนต์แล้ว',
+    replyFailedNetwork: 'ตอบความคิดเห็นไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่',
+    errWindowExpired: 'เกิน 7 วันแล้ว ทักแชทไม่ได้อีก',
+    errChannelNotActive: 'เพจนี้เชื่อมต่อไม่อยู่แล้ว ต้องเชื่อมต่อใหม่ก่อน',
+    errUpstream: 'ส่งไม่สำเร็จ ลองใหม่อีกครั้ง',
+    errValidation: 'พิมพ์ข้อความก่อนส่ง',
+    prSentSuccess: 'ส่งข้อความสำเร็จ — เกิดห้องแชทใหม่แล้ว',
+    prAlreadySent: 'คอมเมนต์นี้ถูกทักไปแล้ว',
+
+    /* ── ช่องเขียนคำตอบ ─────────────────────────────────────────────────── */
+    replyingTo: 'ตอบ {name}',
+    fbUser: 'ผู้ใช้ Facebook',
+    pageFallback: 'เพจ',
+    cancelReply: 'ยกเลิกการตอบ',
+    removeImage: 'เอารูปออก',
+    ariaReplyPublic: 'พิมพ์คำตอบสาธารณะ',
+    ariaCommentAsPage: 'เขียนความคิดเห็นในนามเพจ',
+    placeholderReply: 'พิมพ์คำตอบ...',
+    placeholderComment: 'แสดงความคิดเห็นในนาม {page}...',
+    pickEmoji: 'เลือกอิโมจิ',
+    attachImage: 'แนบรูปในคำตอบ',
+    sendReply: 'ส่งคำตอบ',
+    sendComment: 'ส่งความคิดเห็น',
+    publicWarning: 'คอมเมนต์นี้เป็นสาธารณะ — ห้ามพิมพ์เบอร์โทรหรือที่อยู่ลูกค้า',
+
+    /* ── รายการโพสต์ / รายการคอมเมนต์ ───────────────────────────────────── */
+    emptyFilteredTitle: 'ไม่พบความคิดเห็นตามตัวกรอง',
+    emptyFilteredDesc: 'ลองเปลี่ยนช่องทาง/เพจ/สถานะ หรือล้างตัวกรองเพื่อดูทั้งหมด',
+    emptyTitle: 'ยังไม่มีความคิดเห็น',
+    emptyDesc: 'เมื่อมีคนคอมเมนต์ใต้โพสต์ของเพจ จะแสดงที่นี่',
+    emptyInPost: 'ยังไม่มีความคิดเห็นในโพสต์นี้',
+    postNoText: 'โพสต์ไม่มีข้อความ',
+    commentCountN: '{n} ความคิดเห็น',
+    reactionsN: '{n} รีแอ็กชัน',
+    sharesN: 'แชร์ {n}',
+    botAnswered: 'บอทตอบแล้ว',
+    loadMore: 'โหลดโพสต์เก่ากว่านี้',
+    backToPosts: 'กลับไปรายการโพสต์',
+    commentListTitle: 'รายการความคิดเห็น',
+    selectCommentTitle: 'เลือกความคิดเห็น',
+    selectCommentDesc: 'เลือกโพสต์ทางซ้ายมือเพื่อเริ่มอ่านและตอบความคิดเห็น',
+    openOnFacebook: 'เปิดโพสต์นี้บน Facebook',
+    openPostOnFacebook: 'เปิดโพสต์บน Facebook',
+    postVideo: 'วิดีโอของโพสต์',
+    playVideo: 'เล่นวิดีโอ',
+    seeMore: 'ดูเพิ่มเติม',
+    collapse: 'ย่อลง',
+    resizeAria: 'ปรับความสูงของรายการความคิดเห็น',
+    sortRelevant: 'เกี่ยวข้องที่สุด',
+    sortNewest: 'ใหม่สุด',
+
+    /* ── คอมเมนต์รายอัน ─────────────────────────────────────────────────── */
+    autoReply: 'ตอบอัตโนมัติ',
+    pageAdmin: 'ผู้ดูแลเพจ',
+    deleted: 'ความคิดเห็นถูกลบ',
+    noText: '(ไม่มีข้อความ)',
+    attachmentAlt: 'รูปแนบจาก {name}',
+    edited: 'แก้ไขแล้ว',
+    answered: 'ตอบแล้ว',
+    reply: 'ตอบ',
+    privateReply: 'ทักแชท',
+    privateReplyTitle: 'ทักแชทส่วนตัวได้ภายใน 7 วันนับจากเวลาคอมเมนต์ ({time})',
+    privateReplySentTitle: 'ทักแชทส่วนตัวไปแล้วเมื่อ {time}',
+    privateReplySent: 'ทักแล้ว · {time}',
+    openChat: 'เปิดห้องแชท',
+    windowExpiredTitle:
+      'Facebook ให้ทักแชทส่วนตัวจากคอมเมนต์ได้ภายใน 7 วันเท่านั้น — ตอบสาธารณะใต้คอมเมนต์ยังทำได้ตลอด',
+  },
+
+  /**
    * หน้า "ช่องทางการขาย" (`/settings/channels`) และหน้าเลือกเพจ
    * เป็นเส้นทางที่ Meta App Reviewer ต้องเดินผ่านในคลิป A และ B ทั้งคู่
    *

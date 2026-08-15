@@ -43,6 +43,9 @@ import CommentsFilterPanel, {
 } from './CommentsFilterPanel'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import type { CommentAnswerState, CommentPostCounts, CommentChannelFilter } from '@/services/page-comment.service'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
+import type { Dictionary } from '@/i18n/dictionaries/th'
 
 export type ChannelOption = {
   id: string
@@ -162,7 +165,11 @@ const PRIVATE_REPLY_URGENT_MS = 24 * 60 * 60 * 1000
 /** โทนสีของเส้นตายทักแชท — ใช้ค่านี้ทุกที่ที่แสดงเวลาคงเหลือ ห้ามเลือกสีเองที่ call site */
 type PrivateReplyTone = 'danger' | 'warning'
 
-function privateReplyWindow(createdTime: string): {
+/**
+ * 🛑 รับ dictionary เป็นพารามิเตอร์ ไม่ได้อ่านเอง — ฟังก์ชันนี้อยู่ระดับ module จึงเรียก hook ไม่ได้
+ * และการฝังข้อความไว้ตรงนี้จะทำให้นับถอยหลังเป็นภาษาไทยตลอดอายุ bundle
+ */
+function privateReplyWindow(createdTime: string, t: Dictionary): {
   text: string
   /** เวลาที่เหลือแบบไม่มีคำนำหน้า ("6 วัน 14 ชั่วโมง 3 นาที") — สำหรับประโยคที่มีคำนำหน้าของตัวเอง */
   remaining: string
@@ -171,18 +178,18 @@ function privateReplyWindow(createdTime: string): {
 } {
   const left = new Date(createdTime).getTime() + PRIVATE_REPLY_WINDOW_MS - Date.now()
   if (!Number.isFinite(left)) return { text: '', remaining: '', expired: false, tone: 'warning' }
-  if (left <= 0) return { text: 'หมดเวลาทักแชท', remaining: '', expired: true, tone: 'danger' }
+  if (left <= 0) return { text: t.comments.windowExpired, remaining: '', expired: true, tone: 'danger' }
   const tone: PrivateReplyTone = left <= PRIVATE_REPLY_URGENT_MS ? 'danger' : 'warning'
   const days = Math.floor(left / 86_400_000)
   const hours = Math.floor((left % 86_400_000) / 3_600_000)
   const minutes = Math.floor((left % 3_600_000) / 60_000)
   const parts = [
-    days > 0 ? `${days} วัน` : '',
-    days > 0 || hours > 0 ? `${hours} ชั่วโมง` : '',
-    `${minutes} นาที`,
+    days > 0 ? fmt(t.comments.unitDay, { n: days }) : '',
+    days > 0 || hours > 0 ? fmt(t.comments.unitHour, { n: hours }) : '',
+    fmt(t.comments.unitMinute, { n: minutes }),
   ].filter(Boolean)
   const remaining = parts.join(' ')
-  return { text: `คงเหลือ ${remaining}`, remaining, expired: false, tone }
+  return { text: fmt(t.comments.windowRemaining, { remaining }), remaining, expired: false, tone }
 }
 
 /**
@@ -218,10 +225,10 @@ function commentTimeLabel(input: string | null): string {
  */
 type PrivateReplyState = 'SENT' | 'SENDING' | 'EXPIRED' | 'AVAILABLE'
 
-function resolvePrivateReplyState(c: CommentItem, sendingId: string | null): PrivateReplyState {
+function resolvePrivateReplyState(c: CommentItem, sendingId: string | null, t: Dictionary): PrivateReplyState {
   if (c.privateReplySentAt) return 'SENT'
   if (sendingId === c.id) return 'SENDING'
-  if (privateReplyWindow(c.createdTime).expired) return 'EXPIRED'
+  if (privateReplyWindow(c.createdTime, t).expired) return 'EXPIRED'
   return 'AVAILABLE'
 }
 
@@ -245,6 +252,7 @@ export default function CommentsClient({
   /** เพจที่ร้านเชื่อมไว้ — ใช้ทำตัวกรอง (user 2026-08-03: 'มีสิทธิ์ได้มาจากหลาย page ที่เชื่อม') */
   channels: ChannelOption[]
 }) {
+  const t = useT()
   const [posts, setPosts] = useState(initialPosts)
   // feature 00038 — ตัวนับ 4 กลุ่มจากเซิร์ฟเวอร์ (listCommentPosts) ตัวเดียวที่ badge/แท็บ/ตัวกรอง
   // ใช้ร่วมกัน (BR-CR-S4) — ต้องเข้าคู่กับ `posts` เสมอ (อัปเดตพร้อมกันทุกจุดที่ fetch)
@@ -576,13 +584,13 @@ export default function CommentsClient({
       if (!res.ok) {
         if (!opts?.silent) {
           const body = (await res.json().catch(() => null)) as { error?: string } | null
-          pacesToast.error(body?.error ?? 'โหลดความคิดเห็นไม่สำเร็จ')
+          pacesToast.error(body?.error ?? t.comments.loadFailed)
         }
         return
       }
       setThread((await res.json()) as ThreadData)
     } catch {
-      if (!opts?.silent) pacesToast.error('โหลดความคิดเห็นไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+      if (!opts?.silent) pacesToast.error(t.comments.loadFailedNetwork)
     } finally {
       if (!opts?.silent) setLoadingThread(false)
     }
@@ -795,7 +803,7 @@ export default function CommentsClient({
       setPendingFile({ fileId: data.fileId, previewUrl: URL.createObjectURL(file) })
     } catch (err) {
       // ข้อความจาก server พร้อมโชว์อยู่แล้ว (บอกทั้งเหตุและทางออก) — อย่ากลบด้วยข้อความกลาง ๆ
-      pacesToast.error(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
+      pacesToast.error(err instanceof Error ? err.message : t.comments.uploadFailed)
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -819,16 +827,16 @@ export default function CommentsClient({
       })
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null
-        pacesToast.error(body?.error ?? (replyTo ? 'ตอบความคิดเห็นไม่สำเร็จ' : 'คอมเมนต์ไม่สำเร็จ'))
+        pacesToast.error(body?.error ?? (replyTo ? t.comments.replyFailed : t.comments.commentFailed))
         return
       }
       setReplyText('')
       setPendingFile(null)
-      pacesToast.success(replyTo ? 'ตอบความคิดเห็นแล้ว' : 'คอมเมนต์แล้ว')
+      pacesToast.success(replyTo ? t.comments.replySuccess : t.comments.commentSuccess)
       setReplyTo(null)
       if (selectedId) await loadThread(selectedId)
     } catch {
-      pacesToast.error('ตอบความคิดเห็นไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+      pacesToast.error(t.comments.replyFailedNetwork)
     } finally {
       setSending(false)
     }
@@ -852,11 +860,12 @@ export default function CommentsClient({
    * แก้ไขอะไรต่อ (ส่งสำเร็จ/ถูกส่งไปแล้วก่อนหน้า) ส่วน error จริง (หมดเวลา/เพจหลุด/upstream ล้ม) คืน
    * false ให้โมดัลเปิดค้างไว้เพื่อกดลองใหม่ได้โดยไม่ต้องพิมพ์ข้อความซ้ำ
    */
-  const PRIVATE_REPLY_ERROR_TEXT: Record<string, string> = {
-    WINDOW_EXPIRED: 'เกิน 7 วันแล้ว ทักแชทไม่ได้อีก',
-    CHANNEL_NOT_ACTIVE: 'เพจนี้เชื่อมต่อไม่อยู่แล้ว ต้องเชื่อมต่อใหม่ก่อน',
-    UPSTREAM_ERROR: 'ส่งไม่สำเร็จ ลองใหม่อีกครั้ง',
-    VALIDATION_ERROR: 'พิมพ์ข้อความก่อนส่ง',
+  /** เก็บ "คีย์" ไม่ใช่ "ข้อความ" — tsc บังคับว่าคีย์นั้นมีจริงทั้งสองภาษา */
+  const PRIVATE_REPLY_ERROR_KEY: Record<string, keyof Dictionary['comments']> = {
+    WINDOW_EXPIRED: 'errWindowExpired',
+    CHANNEL_NOT_ACTIVE: 'errChannelNotActive',
+    UPSTREAM_ERROR: 'errUpstream',
+    VALIDATION_ERROR: 'errValidation',
   }
 
   async function sendPrivateReply(comment: CommentItem, message: string): Promise<boolean> {
@@ -877,7 +886,7 @@ export default function CommentsClient({
         | null
 
       if (res.ok && body && 'conversationId' in body) {
-        pacesToast.success('ส่งข้อความสำเร็จ — เกิดห้องแชทใหม่แล้ว')
+        pacesToast.success(t.comments.prSentSuccess)
         setThread((prev) =>
           prev
             ? {
@@ -900,14 +909,14 @@ export default function CommentsClient({
 
       const code = body && 'code' in body ? body.code : undefined
       if (code === 'ALREADY_SENT') {
-        pacesToast.info('คอมเมนต์นี้ถูกทักไปแล้ว')
+        pacesToast.info(t.comments.prAlreadySent)
         if (selectedId) void loadThread(selectedId, { silent: true })
         return true
       }
-      pacesToast.error((code && PRIVATE_REPLY_ERROR_TEXT[code]) ?? 'ส่งไม่สำเร็จ ลองใหม่อีกครั้ง')
+      pacesToast.error((code && t.comments[PRIVATE_REPLY_ERROR_KEY[code]]) ?? t.comments.errUpstream)
       return false
     } catch {
-      pacesToast.error('ส่งไม่สำเร็จ ลองใหม่อีกครั้ง')
+      pacesToast.error(t.comments.errUpstream)
       return false
     } finally {
       setSendingPrivateReplyId(null)
@@ -1001,12 +1010,12 @@ export default function CommentsClient({
         <div className="text-default-700 mb-1 flex items-center gap-1 text-2xs">
           <Icon icon="arrow-back-up" width={12} height={12} className="shrink-0" />
           <span className="min-w-0 flex-1 truncate">
-            ตอบ <span className="text-default-900 font-semibold">{replyTo.fromName ?? 'ผู้ใช้ Facebook'}</span>
+            {fmt(t.comments.replyingTo, { name: '' })}<span className="text-default-900 font-semibold">{replyTo.fromName ?? t.comments.fbUser}</span>
           </span>
           <button
             type="button"
             onClick={() => setReplyTo(null)}
-            aria-label="ยกเลิกการตอบ"
+            aria-label={t.comments.cancelReply}
             className="hover:bg-default-100 text-default-700 flex size-6 shrink-0 items-center justify-center rounded"
           >
             <Icon icon="x" width={12} height={12} />
@@ -1020,7 +1029,7 @@ export default function CommentsClient({
           <button
             type="button"
             onClick={() => setPendingFile(null)}
-            aria-label="เอารูปออก"
+            aria-label={t.comments.removeImage}
             className="absolute end-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/50 text-white"
           >
             <Icon icon="x" className="text-sm" />
@@ -1039,9 +1048,9 @@ export default function CommentsClient({
           <textarea
             ref={replyBoxRef}
             rows={1}
-            aria-label={replyTo ? 'พิมพ์คำตอบสาธารณะ' : 'เขียนความคิดเห็นในนามเพจ'}
+            aria-label={replyTo ? t.comments.ariaReplyPublic : t.comments.ariaCommentAsPage}
             className="text-default-800 placeholder:text-default-500 min-h-9 w-0 flex-1 resize-none appearance-none border-0 bg-transparent py-2 text-sm shadow-none outline-none focus:border-0 focus:ring-0 focus:outline-none"
-            placeholder={replyTo ? 'พิมพ์คำตอบ...' : `แสดงความคิดเห็นในนาม ${thread?.channel.name ?? 'เพจ'}...`}
+            placeholder={replyTo ? t.comments.placeholderReply : fmt(t.comments.placeholderComment, { page: thread?.channel.name ?? t.comments.pageFallback })}
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
             // enterKeyHint="enter" → คีย์บอร์ดมือถือขึ้นปุ่ม "ขึ้นบรรทัดใหม่" ให้ตรงกับสิ่งที่
@@ -1084,7 +1093,7 @@ export default function CommentsClient({
             <button
               type="button"
               onClick={() => setEmojiOpen((v) => !v)}
-              aria-label="เลือกอิโมจิ"
+              aria-label={t.comments.pickEmoji}
               aria-expanded={emojiOpen}
               // aria-expanded ที่ไม่บอกว่า "ขยายอะไร" ทำให้ AT ประกาศสถานะลอย ๆ โดยผู้ใช้หา
               // แผงที่เปิดขึ้นมาไม่เจอ — ต้องชี้ไปที่กล่องของแผงเสมอ
@@ -1107,7 +1116,7 @@ export default function CommentsClient({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading || sending}
-            aria-label="แนบรูปในคำตอบ"
+            aria-label={t.comments.attachImage}
             className="hover:bg-default-200 text-default-700 flex size-9 shrink-0 items-center justify-center rounded-full"
           >
             <Icon icon={uploading ? 'loader-2' : 'camera'} className={`text-lg ${uploading ? 'animate-spin' : ''}`} />
@@ -1117,7 +1126,7 @@ export default function CommentsClient({
               type="button"
               onClick={submitReply}
               disabled={sending}
-              aria-label={replyTo ? 'ส่งคำตอบ' : 'ส่งความคิดเห็น'}
+              aria-label={replyTo ? t.comments.sendReply : t.comments.sendComment}
               className="bg-primary hover:bg-primary-hover flex size-9 shrink-0 items-center justify-center rounded-full text-white"
             >
               <Icon icon={sending ? 'loader-2' : 'send-2'} className={`text-lg ${sending ? 'animate-spin' : ''}`} />
@@ -1130,7 +1139,7 @@ export default function CommentsClient({
           และไม่แย่งความเด่นจาก pill. คงสี warning-ink ไว้ (contrast 6.57:1 — critique P0 เดิม) */}
       <p className="text-warning-ink mt-1 flex items-center gap-1 text-2xs">
         <Icon icon="alert-triangle" width={12} height={12} className="shrink-0" />
-        คอมเมนต์นี้เป็นสาธารณะ — ห้ามพิมพ์เบอร์โทรหรือที่อยู่ลูกค้า
+        {t.comments.publicWarning}
       </p>
     </div>
   )
@@ -1169,11 +1178,11 @@ export default function CommentsClient({
                 ไม่มี (panel ที่แท้จริงถูกคุมโดยแท็บสถานะข้างล่าง) AT จะประกาศ "tab 1 of 4" แล้ว
                 หา panel ไม่เจอ · radiogroup + aria-checked ตรงกับสิ่งที่มันเป็นจริง และได้กติกา
                 ลูกศรซ้าย/ขวามาด้วย (impeccable critique 2026-08-09 — persona Sam + Alex) */}
-            <div className="bg-light flex w-full items-center gap-0.5 rounded-lg p-1" role="radiogroup" aria-label="ตัวกรองช่องทาง">
+            <div className="bg-light flex w-full items-center gap-0.5 rounded-lg p-1" role="radiogroup" aria-label={t.comments.channelFilterAria}>
               {(['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM'] as const).map((tab, idx, arr) => {
                 const active = channelTab === tab
                 const display = tab === 'ALL' ? null : getChannelDisplay(tab)
-                const label = tab === 'ALL' ? 'ทั้งหมด' : display!.label
+                const label = tab === 'ALL' ? t.comments.all : display!.label
                 return (
                   <button
                     key={tab}
@@ -1193,7 +1202,7 @@ export default function CommentsClient({
                       group?.querySelectorAll<HTMLElement>('[role="radio"]')[arr.indexOf(next)]?.focus()
                     }}
                     title={label}
-                    aria-label={tab === 'ALL' ? 'ทั้งหมด' : `กรองเฉพาะช่องทาง ${label}`}
+                    aria-label={tab === 'ALL' ? t.comments.all : fmt(t.comments.filterChannelAria, { name: label })}
                     onClick={() => setChannelTab(tab)}
                     className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-nowrap ${
                       active ? 'bg-card text-dark font-semibold shadow-sm' : 'text-default-600'
@@ -1233,11 +1242,11 @@ export default function CommentsClient({
                 InboxList.tsx:867-882) — ปุ่มตัวกรองไม่ได้โชว์ชื่อเพจบนหน้าปุ่ม ชิปจึงจำเป็น */}
             {channelId && (
               <span className="badge bg-primary/15 text-primary-ink text-2xs inline-flex items-center gap-1">
-                {channels.find((c) => c.id === channelId)?.name ?? 'เพจที่เลือก'}
+                {channels.find((c) => c.id === channelId)?.name ?? t.comments.selectedPage}
                 <button
                   type="button"
                   onClick={() => setChannelId(null)}
-                  aria-label="ล้างตัวกรองเพจ"
+                  aria-label={t.comments.clearPageFilter}
                   className="inline-flex items-center"
                 >
                   <Icon icon="x" width={12} height={12} />
@@ -1271,12 +1280,12 @@ export default function CommentsClient({
               onScroll={updateStatusTabFade}
               className="border-default-200 flex min-w-0 items-center gap-3 overflow-x-auto border-b"
               role="tablist"
-              aria-label="สถานะการตอบ"
+              aria-label={t.comments.statusFilterAria}
             >
           {([
             // ป้ายกลาง (ไม่ใช่ semantic color) — แท็บ "ทั้งหมด" ไม่ใช่สถานะงาน จึงไม่ควรมีสีแดง/เหลือง/
             // เขียวเหมือน 3 แท็บที่เหลือ (user report prod: ไม่มีเลขคู่กับมีเลขปนกัน ดูเหมือนโหลดไม่ครบ)
-            { key: 'ALL', label: 'ทั้งหมด', icon: null, badgeClass: 'bg-default-200 text-default-700', count: counts.all },
+            { key: 'ALL', label: t.comments.all, icon: null, badgeClass: 'bg-default-200 text-default-700', count: counts.all },
             // ยังไม่ตอบ = แดง (ยังไม่มีใครแตะ)
             //
             // เหลือ 2 แท็บ (user สั่ง 2026-08-09 "tab ด้านบน ให้มีแค่ 2 tab พอ คือ ทั้งหมด ยังไม่ตอบ")
@@ -1284,7 +1293,7 @@ export default function CommentsClient({
             // "เหลืออะไรต้องทำ" ผู้ขายเปิดหน้านี้เพื่อเคลียร์คิว ไม่ได้มาแยกแยะว่าใครตอบ
             // สถานะทั้งสองยังมีอยู่ครบฝั่งข้อมูล (ป้ายบนแถวโพสต์ + ตัวกรอง `?state=` ที่ server)
             // ถอดแค่แท็บออก ไม่ได้ถอดความหมาย
-            { key: 'UNANSWERED', label: 'ยังไม่ตอบ', icon: 'alert-circle', badgeClass: 'bg-danger text-white', count: counts.unanswered },
+            { key: 'UNANSWERED', label: t.comments.unanswered, icon: 'alert-circle', badgeClass: 'bg-danger text-white', count: counts.unanswered },
           ] as const).map((t, idx, arr) => {
             const on = postTab === t.key
             return (
@@ -1360,15 +1369,15 @@ export default function CommentsClient({
                 <SellerEmptyState
                   compact
                   icon="search-off"
-                  title="ไม่พบความคิดเห็นตามตัวกรอง"
-                  description="ลองเปลี่ยนช่องทาง/เพจ/สถานะ หรือล้างตัวกรองเพื่อดูทั้งหมด"
+                  title={t.comments.emptyFilteredTitle}
+                  description={t.comments.emptyFilteredDesc}
                 />
               ) : (
                 <SellerEmptyState
                   compact
                   icon="message-circle"
-                  title="ยังไม่มีความคิดเห็น"
-                  description="เมื่อมีคนคอมเมนต์ใต้โพสต์ของเพจ จะแสดงที่นี่"
+                  title={t.comments.emptyTitle}
+                  description={t.comments.emptyDesc}
                 />
               )}
               {/* 🛑 ปุ่มนี้ต้องล้าง **ทุกแกนที่กรองอยู่** ไม่ใช่แค่แกนที่บังเอิญอยู่ใกล้ตา —
@@ -1386,7 +1395,7 @@ export default function CommentsClient({
                     }}
                     className="btn bg-default-100 text-default-800 hover:bg-default-200 min-h-11"
                   >
-                    ล้างตัวกรอง
+                    {t.comments.clearFilters}
                   </button>
                 </div>
               )}
@@ -1443,7 +1452,7 @@ export default function CommentsClient({
                       แสดงผลไม่เหมือนกัน") */}
                   <span className="min-w-0 flex-1 overflow-hidden">
                     <span className="text-default-900 line-clamp-2 text-xs font-semibold">
-                      {p.message?.trim() || 'โพสต์ไม่มีข้อความ'}
+                      {p.message?.trim() || t.comments.postNoText}
                     </span>
                     {/* บรรทัดที่ 2 = "ลูกค้าถามอะไร" ไม่ใช่ตัวเลขที่ตัดสินใจอะไรไม่ได้ (critique P1)
                         แบบเดียวกับ preview ข้อความล่าสุดในแท็บข้อความ */}
@@ -1457,8 +1466,8 @@ export default function CommentsClient({
                     )}
                     <span className="text-default-700 mt-0.5 block truncate text-2xs">
                       {p.lastCommentText
-                        ? `${p.lastCommenterName ?? 'ผู้ใช้ Facebook'}: ${p.lastCommentText}`
-                        : `${p.commentCount} ความคิดเห็น`}
+                        ? `${p.lastCommenterName ?? t.comments.fbUser}: ${p.lastCommentText}`
+                        : fmt(t.comments.commentCountN, { n: p.commentCount })}
                     </span>
                     {/* บรรทัดที่ 3 — โผล่เฉพาะแถวที่ยังมีอะไรค้าง (user สั่ง 2026-08-04, ขยาย feature
                         00038 UX-Design-Spec §3.2): ตัดสินจาก p.postStatus (ตัวที่แย่ที่สุดชนะ,
@@ -1473,7 +1482,7 @@ export default function CommentsClient({
                       <span className="mt-1 flex flex-wrap items-center gap-1">
                         <span className="badge bg-danger/15 text-danger-ink text-2xs inline-flex items-center gap-1">
                           <Icon icon="alert-circle" width={11} height={11} className="shrink-0" />
-                          ยังไม่ตอบ
+                          {t.comments.unanswered}
                         </span>
                         {/* เส้นตายทักแชท: มีค่า = ยังมีคอมเมนต์ค้างที่ทักได้ (นับถอยหลังอันที่ใกล้สุด)
                             null = ของที่ค้างพ้น 7 วันไปหมดแล้ว → บอกว่าทักไม่ได้แล้ว แต่ยัง
@@ -1488,7 +1497,7 @@ export default function CommentsClient({
                             // privateReplyWindow() สองรอบแล้ว `.replace('คงเหลือ ', '')` แกะสตริง
                             // ที่ SSOT ประกอบมาแล้ว (คำนำหน้าเปลี่ยนเมื่อไหร่ก็อ่านเป็น
                             // "ทักแชทได้อีก คงเหลือ 3 วัน" โดยไม่มีอะไรฟ้อง)
-                            const w = privateReplyWindow(p.oldestUnansweredAt!)
+                            const w = privateReplyWindow(p.oldestUnansweredAt!, t)
                             // 🛑 oldestUnansweredAt มาจาก server ซึ่งเก่าได้ถึง 60 วิ ขณะที่นาฬิกา
                             // client เดินอยู่ — ในนาทีที่เส้นตายผ่านพอดี ของเดิมอ่านว่า
                             // "ทักแชทได้อีก หมดเวลาทักแชท" ซึ่งเป็นนาทีที่ข้อความนี้สำคัญที่สุด
@@ -1496,7 +1505,7 @@ export default function CommentsClient({
                               return (
                                 <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
                                   <Icon icon="clock-off" width={11} height={11} className="shrink-0" />
-                                  หมดเวลาทักแชท
+                                  {t.comments.windowExpired}
                                 </span>
                               )
                             }
@@ -1507,14 +1516,14 @@ export default function CommentsClient({
                                 }`}
                               >
                                 <Icon icon="clock" width={11} height={11} className="shrink-0" />
-                                <span className="truncate">ทักแชทได้อีก {w.remaining}</span>
+                                <span className="truncate">{fmt(t.comments.windowLeftShort, { remaining: w.remaining })}</span>
                               </span>
                             )
                           })()
                         ) : (
                           <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
                             <Icon icon="clock-off" width={11} height={11} className="shrink-0" />
-                            หมดเวลาทักแชท
+                            {t.comments.windowExpired}
                           </span>
                         )}
                       </span>
@@ -1525,7 +1534,7 @@ export default function CommentsClient({
                       <span className="mt-1 flex flex-wrap items-center gap-1">
                         <span className="badge bg-warning/15 text-warning-ink text-2xs inline-flex items-center gap-1">
                           <Icon icon="robot" width={11} height={11} className="shrink-0" />
-                          บอทตอบแล้ว
+                          {t.comments.botAnswered}
                         </span>
                       </span>
                     )}
@@ -1550,7 +1559,7 @@ export default function CommentsClient({
                     disabled={loadingMore}
                     className="btn bg-default-100 text-default-800 hover:bg-default-200 min-h-11 w-full disabled:opacity-60"
                   >
-                    {loadingMore ? 'กำลังโหลด...' : 'โหลดโพสต์เก่ากว่านี้'}
+                    {loadingMore ? t.common.loading : t.comments.loadMore}
                   </button>
                 </div>
               )}
@@ -1571,12 +1580,12 @@ export default function CommentsClient({
             <button
               type="button"
               onClick={() => setSelectedId(null)}
-              aria-label="กลับไปรายการโพสต์"
+              aria-label={t.comments.backToPosts}
               className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg"
             >
               <Icon icon="arrow-left" className="text-lg" />
             </button>
-            <span className="text-default-800 text-sm font-medium">รายการความคิดเห็น</span>
+            <span className="text-default-800 text-sm font-medium">{t.comments.commentListTitle}</span>
           </div>
         )}
         {!selectedPost ? (
@@ -1587,8 +1596,8 @@ export default function CommentsClient({
             <SellerEmptyState
               compact
               icon="message-circle"
-              title="เลือกความคิดเห็น"
-              description="เลือกโพสต์ทางซ้ายมือเพื่อเริ่มอ่านและตอบความคิดเห็น"
+              title={t.comments.selectCommentTitle}
+              description={t.comments.selectCommentDesc}
             />
           </div>
         ) : (
@@ -1610,7 +1619,7 @@ export default function CommentsClient({
               <button
                 type="button"
                 onClick={() => setSelectedId(null)}
-                aria-label="กลับไปรายการโพสต์"
+                aria-label={t.comments.backToPosts}
                 className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg lg:hidden"
               >
                 <Icon icon="arrow-left" className="text-lg" />
@@ -1628,21 +1637,21 @@ export default function CommentsClient({
                     href={selectedPost.permalink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title="เปิดโพสต์นี้บน Facebook"
+                    title={t.comments.openOnFacebook}
                     className="text-default-800 hover:text-primary mb-0 flex items-center gap-1 truncate text-sm font-semibold"
                   >
-                    <span className="truncate">{selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}</span>
+                    <span className="truncate">{selectedPost.message?.trim() || t.comments.postNoText}</span>
                     <Icon icon="external-link" className="text-default-600 size-3.5 shrink-0" />
                   </a>
                 ) : (
                   <p className="text-default-800 mb-0 truncate text-sm font-semibold">
-                    {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
+                    {selectedPost.message?.trim() || t.comments.postNoText}
                   </p>
                 )}
                 <p className="text-default-700 mb-0 truncate text-xs">
-                  {selectedPost.reactionCount ?? '–'} รีแอ็กชัน ·{' '}
-                  {thread?.post.fbCommentCount ?? selectedPost.commentCount} ความคิดเห็น
-                  {selectedPost.shareCount != null && ` · แชร์ ${selectedPost.shareCount}`}
+                  {fmt(t.comments.reactionsN, { n: selectedPost.reactionCount ?? '–' })} ·{' '}
+                  {fmt(t.comments.commentCountN, { n: thread?.post.fbCommentCount ?? selectedPost.commentCount })}
+                  {selectedPost.shareCount != null && ` · ${fmt(t.comments.sharesN, { n: selectedPost.shareCount })}`}
                   {thread?.post.createdTime && ` · ${formatDateTH(thread.post.createdTime)}`}
                 </p>
               </div>
@@ -1677,7 +1686,7 @@ export default function CommentsClient({
                       {/* ชั้นในโฟลว์ — จองความสูงของ "3 บรรทัด + ปุ่ม" ไว้เสมอ */}
                       <div className={`w-full p-3 ${messageExpanded ? 'invisible' : ''}`} aria-hidden={messageExpanded}>
                         <p className="text-default-800 mb-0 line-clamp-3 whitespace-pre-wrap text-sm">
-                          {text || 'โพสต์ไม่มีข้อความ'}
+                          {text || t.comments.postNoText}
                         </p>
                         {looksLong && (
                           <button
@@ -1686,7 +1695,7 @@ export default function CommentsClient({
                             tabIndex={messageExpanded ? -1 : 0}
                             className="text-primary mt-1 text-xs font-semibold hover:underline"
                           >
-                            ดูเพิ่มเติม
+                            {t.comments.seeMore}
                           </button>
                         )}
                       </div>
@@ -1696,14 +1705,14 @@ export default function CommentsClient({
                       {messageExpanded && (
                         <div className="border-default-200 bg-card absolute inset-x-0 top-0 z-10 max-h-80 w-full overflow-y-auto border-b p-3">
                           <p className="text-default-800 mb-0 whitespace-pre-wrap text-sm">
-                            {text || 'โพสต์ไม่มีข้อความ'}
+                            {text || t.comments.postNoText}
                           </p>
                           <button
                             type="button"
                             onClick={() => setMessageExpanded(false)}
                             className="text-primary mt-1 text-xs font-semibold hover:underline"
                           >
-                            ย่อลง
+                            {t.comments.collapse}
                           </button>
                         </div>
                       )}
@@ -1737,7 +1746,7 @@ export default function CommentsClient({
                         src={`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(
                           selectedPost.permalink,
                         )}&show_text=false&autoplay=true&width=${playerWidth}`}
-                        title="วิดีโอของโพสต์"
+                        title={t.comments.postVideo}
                         className="size-full border-0"
                         allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
                         allowFullScreen
@@ -1760,7 +1769,7 @@ export default function CommentsClient({
                   // มือถือ: ให้สื่อมีความสูงขั้นต่ำ (min-h-40) แล้วค่อยยืดตามที่เหลือ — ไม่ใช่ยุบตาม
                   // flex จนเหลือเสี้ยวเดียวเมื่อผู้ใช้ลากแผงคอมเมนต์ขึ้นสูง (user report 2026-08-04)
                   className="bg-default-100 relative block min-h-40 w-full flex-1 lg:min-h-0"
-                  aria-label={isVideoPost(selectedPost.mediaType) ? 'เล่นวิดีโอ' : 'เปิดโพสต์บน Facebook'}
+                  aria-label={isVideoPost(selectedPost.mediaType) ? t.comments.playVideo : t.comments.openPostOnFacebook}
                 >
                   {/* เดสก์ท็อป: สูงเท่าที่เหลือในคอลัมน์ (h-full) — ของเดิม max-h คงที่ทำให้เหลือ
                       ที่ว่างใต้รูปเปล่า ๆ; มือถือคุมที่ 288px ไม่ให้กินจอจนคอมเมนต์หาย */}
@@ -1803,7 +1812,7 @@ export default function CommentsClient({
                   {selectedPost.shareCount ?? '–'}
                 </span>
                 {selectedPost.unansweredCount > 0 && (
-                  <span className="text-danger-ink font-medium">ยังไม่ตอบ {selectedPost.unansweredCount}</span>
+                  <span className="text-danger-ink font-medium">{fmt(t.comments.unansweredN, { n: selectedPost.unansweredCount })}</span>
                 )}
               </div>
             </div>
@@ -1813,7 +1822,7 @@ export default function CommentsClient({
             {isNarrow && (
               <div
                 role="separator"
-                aria-label="ปรับความสูงของรายการความคิดเห็น"
+                aria-label={t.comments.resizeAria}
                 // 🛑 `separator` ที่ปรับค่าได้ต้องโฟกัสได้ + มีค่าให้ AT อ่าน + เดินด้วยลูกศรได้
                 // เดิมมีแต่ pointer handler จึงประกาศตัวว่า "ปรับได้" กับ screen reader แล้วผู้ใช้
                 // คีย์บอร์ดแตะไม่ได้เลย — สัญญาที่ทำไม่ได้แย่กว่าไม่สัญญา
@@ -1882,9 +1891,9 @@ export default function CommentsClient({
                       value={commentOrder}
                       onChange={(v) => setCommentOrder(v as 'RELEVANT' | 'NEWEST' | 'ALL')}
                       options={[
-                        { value: 'RELEVANT', label: 'เกี่ยวข้องที่สุด' },
-                        { value: 'NEWEST', label: 'ใหม่สุด' },
-                        { value: 'ALL', label: 'ทั้งหมด' },
+                        { value: 'RELEVANT', label: t.comments.sortRelevant },
+                        { value: 'NEWEST', label: t.comments.sortNewest },
+                        { value: 'ALL', label: t.comments.all },
                       ]}
                     />
                     <button
@@ -1896,14 +1905,14 @@ export default function CommentsClient({
                       }`}
                     >
                       <Icon icon="alert-circle" width={12} height={12} />
-                      ยังไม่ตอบ {tree.reduce((n, t) => n + t.unansweredHere, 0)}
+                      {fmt(t.comments.unansweredN, { n: tree.reduce((n, x) => n + x.unansweredHere, 0) })}
                     </button>
                   </div>
                 )}
               {loadingThread && !thread ? (
                 <CommentsThreadSkeleton />
               ) : visibleTree.length === 0 ? (
-                <SellerEmptyState compact icon="message-circle" title="ยังไม่มีความคิดเห็นในโพสต์นี้" />
+                <SellerEmptyState compact icon="message-circle" title={t.comments.emptyInPost} />
               ) : (
                 visibleTree.map(({ comment, replies, publiclyAnswered }) => (
                   <div key={comment.id} className="mb-5">
@@ -2008,6 +2017,7 @@ function CommentBubble({
   /** feature 00038 Task 8 — เปิดโมดัลยืนยันทักแชท */
   onOpenPrivateReply: (c: CommentItem) => void
 }) {
+  const t = useT()
   /**
    * โครงตามภาพ Facebook จริงที่ user ส่งมา 2026-08-03 ("ต้องดูรู้เรื่องกว่านี้ ตอนนี้มันดูยาก แยกยาก"):
    *   [รูป]  ┌ ชื่อ (หนา) · ป้ายผู้ดูแลเพจ ┐
@@ -2024,15 +2034,15 @@ function CommentBubble({
    * ทั้งคู่เป็น token ของ Paces ตัวอักษรยังเป็น text-default-800 คอนทราสต์เท่าเดิม
    */
   const displayName = c.isFromPage
-    ? (c.fromName ?? channel?.name ?? 'เพจ')
-    : (c.fromName ?? 'ผู้ใช้ Facebook')
+    ? (c.fromName ?? channel?.name ?? t.comments.pageFallback)
+    : (c.fromName ?? t.comments.fbUser)
   const avatarSize = isReply ? 'size-7' : 'size-8'
 
-  const chatWindow = c.isFromPage || c.isDeleted ? null : privateReplyWindow(c.createdTime)
+  const chatWindow = c.isFromPage || c.isDeleted ? null : privateReplyWindow(c.createdTime, t)
   // feature 00038 Task 8 — ปุ่มไม่ render เลยเมื่อ isFromPage/isDeleted (UX-Design-Spec §2.5) เหมือน
   // เดิม; ไม่ผูกกับสวิตช์อัตโนมัติ (D-6/BR-CR-15) — render เสมอไม่ว่าสวิตช์ B จะเปิดหรือปิด
   const privateReplyState =
-    c.isFromPage || c.isDeleted ? null : resolvePrivateReplyState(c, privateReplySendingId)
+    c.isFromPage || c.isDeleted ? null : resolvePrivateReplyState(c, privateReplySendingId, t)
 
   /**
    * กดที่แถวคอมเมนต์ = เตรียมช่องตอบให้เลย (user สั่ง 2026-08-04: "ยังไม่ auto reply เวลากดเข้า
@@ -2106,37 +2116,37 @@ function CommentBubble({
               (c.isAutoReply ? (
                 <span className="text-warning-ink inline-flex items-center gap-0.5 text-2xs font-medium">
                   <Icon icon="robot" className="text-2xs" />
-                  ตอบอัตโนมัติ
+                  {t.comments.autoReply}
                 </span>
               ) : (
                 <span className="text-primary inline-flex items-center gap-0.5 text-2xs font-medium">
                   <Icon icon="pencil" className="text-2xs" />
-                  ผู้ดูแลเพจ
+                  {t.comments.pageAdmin}
                 </span>
               ))}
           </p>
           <p className="text-default-800 mb-0 whitespace-pre-wrap text-sm">
-            {c.isDeleted ? 'ความคิดเห็นถูกลบ' : (c.message ?? '(ไม่มีข้อความ)')}
+            {c.isDeleted ? t.comments.deleted : (c.message ?? t.comments.noText)}
           </p>
           {c.attachmentUrl && !c.isDeleted && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={c.attachmentUrl} alt={`รูปแนบจาก ${displayName}`} className="mt-2 max-h-40 rounded-lg" />
+            <img src={c.attachmentUrl} alt={fmt(t.comments.attachmentAlt, { name: displayName })} className="mt-2 max-h-40 rounded-lg" />
           )}
         </div>
 
         {/* เวลา + ปุ่มตอบ อยู่นอกบับเบิล ตัวเล็กสีจาง — จังหวะเดียวกับ Facebook */}
         <div className="text-default-700 mt-0.5 flex flex-wrap items-center gap-3 ps-3 text-xs">
           <span title={formatDateTimeTH(c.createdTime)}>{commentTimeLabel(c.createdTime)}</span>
-          {c.editedAt && <span>แก้ไขแล้ว</span>}
+          {c.editedAt && <span>{t.comments.edited}</span>}
           {publiclyAnswered && !c.isFromPage && (
             <span className="text-success-ink inline-flex items-center gap-0.5">
               <Icon icon="circle-check" className="text-sm" />
-              ตอบแล้ว
+              {t.comments.answered}
             </span>
           )}
           {!c.isDeleted && (
             <button type="button" onClick={onReply} className="font-medium hover:underline">
-              ตอบ
+              {t.comments.reply}
             </button>
           )}
           {/* ปุ่ม "ทักแชท" 4 สถานะ (feature 00038 Task 8, UX-Design-Spec §2) — Meta ให้ทักแชทจาก
@@ -2151,14 +2161,14 @@ function CommentBubble({
                 className="btn btn-sm border-default-300 text-default-800 hover:border-default-400 inline-flex items-center gap-1 border"
               >
                 <Icon icon="message-reply" className="text-sm" />
-                ทักแชท
+                {t.comments.privateReply}
               </button>
               {chatWindow && (
                 // สีเดียวกับ badge บนแถวโพสต์เสมอ (privateReplyWindow().tone) — เดิมตรงนี้ hardcode
                 // danger จึงแดงตั้งแต่ยังเหลือเกือบ 7 วัน
                 <span
                   className={chatWindow.tone === 'danger' ? 'text-danger-ink font-semibold' : 'text-warning-ink font-medium'}
-                  title={`ทักแชทส่วนตัวได้ภายใน 7 วันนับจากเวลาคอมเมนต์ (${formatDateTimeTH(c.createdTime)})`}
+                  title={fmt(t.comments.privateReplyTitle, { time: formatDateTimeTH(c.createdTime) })}
                 >
                   {chatWindow.text}
                 </span>
@@ -2172,7 +2182,7 @@ function CommentBubble({
               className="btn btn-sm bg-default-200 text-default-500 inline-flex items-center gap-1 cursor-not-allowed"
             >
               <span className="border-default-500 size-3 inline-block animate-spin rounded-full border-2 border-t-transparent" />
-              กำลังส่ง...
+              {t.comments.sending}
             </button>
           )}
           {/* 🛑 SENT/EXPIRED เป็น **badge ไม่ใช่ปุ่ม** — ทั้งคู่ไม่มีวันกดได้: "ทักแล้ว" คือ
@@ -2187,10 +2197,10 @@ function CommentBubble({
                   (ต่างจาก "บอทตอบแล้ว" ซึ่งยังไม่มีคนยืนยัน จึงเป็นเหลือง) */}
               <span
                 className="badge bg-success/15 text-success-ink text-2xs inline-flex items-center gap-1"
-                title={`ทักแชทส่วนตัวไปแล้วเมื่อ ${formatDateTimeTH(c.privateReplySentAt)}`}
+                title={fmt(t.comments.privateReplySentTitle, { time: formatDateTimeTH(c.privateReplySentAt) })}
               >
                 <Icon icon="circle-check" width={11} height={11} className="shrink-0" />
-                ทักแล้ว · {commentTimeLabel(c.privateReplySentAt)}
+                {fmt(t.comments.privateReplySent, { time: commentTimeLabel(c.privateReplySentAt) })}
               </span>
               {c.privateReplyConversationId && (
                 // ขั้นถัดไปหลังทักสำเร็จ ต้องไม่ใช่สิ่งที่มองเห็นยากที่สุดบนแถว — เดิมเป็นข้อความ
@@ -2200,7 +2210,7 @@ function CommentBubble({
                   className="btn btn-sm border-default-300 text-default-800 hover:border-default-400 inline-flex items-center gap-1 border"
                 >
                   <Icon icon="message-2" className="text-sm" />
-                  เปิดห้องแชท
+                  {t.comments.openChat}
                 </Link>
               )}
             </>
@@ -2208,10 +2218,10 @@ function CommentBubble({
           {privateReplyState === 'EXPIRED' && (
             <span
               className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1"
-              title="Facebook ให้ทักแชทส่วนตัวจากคอมเมนต์ได้ภายใน 7 วันเท่านั้น — ตอบสาธารณะใต้คอมเมนต์ยังทำได้ตลอด"
+              title={t.comments.windowExpiredTitle}
             >
               <Icon icon="clock-off" width={11} height={11} className="shrink-0" />
-              หมดเวลาทักแชท
+              {t.comments.windowExpired}
             </span>
           )}
         </div>

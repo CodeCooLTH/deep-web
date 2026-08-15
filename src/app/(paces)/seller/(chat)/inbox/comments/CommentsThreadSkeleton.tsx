@@ -1,3 +1,5 @@
+'use client'
+
 /**
  * CommentsThreadSkeleton — skeleton ของ "คอลัมน์ความคิดเห็น" ตอนกำลังโหลดคอมเมนต์ของโพสต์
  *
@@ -12,6 +14,7 @@
  * คอมเมนต์ = avatar size-8 + บับเบิลกว้างไม่เต็มแถว, คำตอบของเพจย่อหน้า ms-10, ระยะห่างกลุ่ม mb-5
  */
 import { PulseBar } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
+import { useT } from '@/i18n/LocaleProvider'
 
 /** 1 กลุ่ม = คอมเมนต์ลูกค้า + (ถ้ามี) คำตอบของเพจย่อหน้าอยู่ใต้ — โครงเดียวกับ CommentBubble จริง */
 const Group = ({ withReply, width }: { withReply?: boolean; width: string }) => (
@@ -34,9 +37,10 @@ const Group = ({ withReply, width }: { withReply?: boolean; width: string }) => 
 )
 
 export default function CommentsThreadSkeleton() {
+  const t = useT()
   return (
     <div aria-busy="true">
-      <span className="sr-only">กำลังโหลดความคิดเห็น...</span>
+      <span className="sr-only">{t.comments.loadingComments}</span>
       {/* ความกว้างบับเบิลไม่เท่ากันตั้งใจ — เท่ากันหมดจะอ่านเป็นตาราง ไม่ใช่บทสนทนา */}
       <Group width="w-3/4" withReply />
       <Group width="w-1/2" />
