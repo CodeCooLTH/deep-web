@@ -32,6 +32,7 @@ import { sessionUserId } from '@/lib/session-user'
 import { verifyReclaimTicket } from '@/lib/link-intent'
 import { classifyLinkConflict, shouldCloseHolder } from '@/lib/link-conflict'
 import { ACCOUNT_DELETE_REASON } from '@/lib/account-deletion'
+import { SHOP_DELETE_REASON } from '@/lib/business-package'
 
 /** ต้องตรงกับ oauthMap ใน lib/auth.ts — provider ที่แมปเป็น enum ของ AuthAccount ได้ */
 const PROVIDER_ENUM: Record<string, 'FACEBOOK' | 'LINE' | 'INSTAGRAM' | 'APPLE'> = {
@@ -144,11 +145,31 @@ export async function POST(request: Request) {
       data: { userId },
     })
     if (closedHolder) {
+      /**
+       * 🛑 ต้องทำให้ครบชุดเดียวกับ `deleteAccount()` — ไม่ใช่แค่ตั้ง `deletedAt`
+       *
+       * การปิดบัญชีคือ 4 อย่าง ไม่ใช่อย่างเดียว และตัวที่ลืมง่ายที่สุดคือ **PushToken**:
+       * `/api/seller/push-token` ต้องการแค่ session ไม่มีด่าน onboarding ⇒ บัญชีค้างที่ยืน
+       * อยู่หน้า /register ในแอปก็ลงทะเบียน token ไปแล้ว ถ้าไม่ถอน เครื่องนั้นจะยังถือ token
+       * ที่ผูกกับบัญชีซึ่งถูกปิดไปแล้ว (คลาสเดียวกับที่ `buildPushScript` ฝั่งแอปเขียนเตือนไว้ว่า
+       * ต้องถอน token ก่อน signOut เสมอ)
+       *
+       * ร้าน/สมาชิก: เกณฑ์ RECLAIM บังคับให้ทั้งคู่เป็น 0 อยู่แล้ว คำสั่งนี้จึงเป็น no-op
+       * ในทางปฏิบัติ — แต่เขียนไว้เพื่อไม่ให้ "ปิดบัญชี" ที่นี่กับที่ `deleteAccount()`
+       * แปลว่าคนละอย่าง วันที่เกณฑ์ถูกผ่อนลง จะได้ไม่มีของตกค้างเงียบ ๆ
+       */
+      const now = new Date()
       // updateMany + deletedAt:null = optimistic guard กันเขียนทับกรณีถูกปิดไปแล้วพร้อมกัน
       await tx.user.updateMany({
         where: { id: existing.userId, deletedAt: null },
-        data: { deletedAt: new Date(), deletedReason: ACCOUNT_DELETE_REASON.USER_DELETED },
+        data: { deletedAt: now, deletedReason: ACCOUNT_DELETE_REASON.ABANDONED_RECLAIMED },
       })
+      await tx.shop.updateMany({
+        where: { userId: existing.userId, deletedAt: null },
+        data: { deletedAt: now, deletedReason: SHOP_DELETE_REASON.OWNER_DELETED },
+      })
+      await tx.pushToken.deleteMany({ where: { userId: existing.userId } })
+      await tx.shopMember.deleteMany({ where: { userId: existing.userId } })
     }
   })
 

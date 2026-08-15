@@ -92,6 +92,37 @@ describe('ยึดคืนการเชื่อมบัญชี — ต�
     expect(tx, 'การปิดบัญชีต้องอยู่ในทรานแซกชันเดียวกัน').toContain('user.updateMany(')
   })
 
+  it('[blocker] ปิดบัญชีค้างต้องทำครบชุดเดียวกับ deleteAccount()', () => {
+    /**
+     * "ปิดบัญชี" คือ 4 อย่าง ไม่ใช่การตั้ง `deletedAt` อย่างเดียว — ตัวที่ลืมง่ายที่สุดคือ
+     * **PushToken**: `/api/seller/push-token` ต้องการแค่ session ไม่มีด่าน onboarding
+     * ⇒ บัญชีค้างที่ยืนอยู่หน้า /register ในแอปก็ลงทะเบียน token ไปแล้ว ไม่ถอน = เครื่องนั้น
+     * ยังถือ token ที่ผูกกับบัญชีที่ถูกปิดไปแล้ว
+     *
+     * ผมทำไม่ครบในรอบแรก (ตั้ง deletedAt อย่างเดียว) — จับได้ตอน user สั่งให้ไล่ตรวจซ้ำ
+     * ไม่ใช่จาก tsc/เทส เพราะโค้ดถูกทุกตัวอักษร แค่ทำงานไม่ครบ
+     */
+    const tx = route.match(/\$transaction\(async \(tx\) => \{[\s\S]*?\n  \}\)/)?.[0] ?? ''
+    expect(tx).not.toBe('')
+    for (const [what, needle] of [
+      ['ปิดบัญชี', 'user.updateMany('],
+      ['soft-delete ร้าน', 'shop.updateMany('],
+      ['ถอน push token', 'pushToken.deleteMany('],
+      ['ถอดสมาชิกร้าน', 'shopMember.deleteMany('],
+    ] as const) {
+      expect(tx, `ทรานแซกชันยึดคืนต้อง${what}`).toContain(needle)
+    }
+  })
+
+  it('[blocker] เหตุผลที่บันทึกต้องตรงกับสิ่งที่เกิดจริง ไม่ใช่ USER_DELETED', () => {
+    /**
+     * ผู้ใช้ไม่ได้กดปุ่มลบบัญชีนั้นด้วยตัวเอง — เราปิดให้เพราะเขาขอย้ายตัวตนคืน
+     * ประวัติที่บอกเหตุผลผิดคือประวัติที่หลอกคนอ่านในวันที่ต้องสืบสวนย้อนหลัง
+     */
+    expect(route).toContain('ACCOUNT_DELETE_REASON.ABANDONED_RECLAIMED')
+    expect(route, 'ห้ามใช้ USER_DELETED ที่นี่').not.toContain('ACCOUNT_DELETE_REASON.USER_DELETED')
+  })
+
   it('[blocker] UI ต้องถามยืนยันก่อนยิง endpoint ยึดคืน', () => {
     const fn = card.match(/const askReclaim = useCallback\([\s\S]*?\n  \)/)?.[0] ?? ''
     expect(fn, 'หา askReclaim ไม่เจอ').not.toBe('')

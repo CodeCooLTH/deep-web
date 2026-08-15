@@ -349,8 +349,7 @@ export function ConnectedAccountsClient({
    *      ทุก component ที่อ่าน session ไม่ใช่แค่การ์ดนี้
    *
    * ห่อ `startTransition` เพื่อไม่ให้การรอ RSC มาบล็อกการกดปุ่มถัดไป
-   */
-  /**
+   *
    * 🛑 `update` เก็บใน ref ไม่ใส่ลง dep array — `useSession()` คืนอ็อบเจกต์ใหม่ทุก render
    * ตัว `update` จึงอาจเป็นฟังก์ชันคนละตัวทุกครั้ง ถ้าใส่เป็น dep มันจะไหลไปทำให้
    * `markLinked` → `handleDisconnect` → effect ที่อ่าน query params เปลี่ยน identity ตามกันทั้งสาย

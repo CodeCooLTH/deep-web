@@ -20,6 +20,12 @@ export const ACCOUNT_DELETE_RETENTION_DAYS = 30
 /** เหตุผลที่บัญชีถูกปิด — มิเรอร์รูปแบบ SHOP_DELETE_REASON (เผื่อ ADMIN_BANNED ในอนาคต) */
 export const ACCOUNT_DELETE_REASON = {
   USER_DELETED: 'USER_DELETED',
+  /**
+   * บัญชีค้างที่ถูกปิดตอนเจ้าของตัวตน OAuth ขอย้ายการเชื่อมกลับไปบัญชีจริงของตัวเอง
+   * (`POST /api/account/link/reclaim`) — **ผู้ใช้ไม่ได้กดปุ่มลบบัญชีนั้นด้วยตัวเอง**
+   * จึงต้องแยกจาก USER_DELETED ไม่งั้นประวัติจะบอกเหตุผลที่ไม่ตรงกับสิ่งที่เกิดขึ้นจริง
+   */
+  ABANDONED_RECLAIMED: 'ABANDONED_RECLAIMED',
 } as const
 
 export type AccountDeleteReason = (typeof ACCOUNT_DELETE_REASON)[keyof typeof ACCOUNT_DELETE_REASON]
