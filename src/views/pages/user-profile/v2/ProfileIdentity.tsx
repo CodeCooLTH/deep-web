@@ -25,6 +25,7 @@
  *
  * Base: v2/ProfileHero.tsx (ปก/รูป/แผงคะแนน/ProfileImg — ยกมาทั้งกลไกและถ้อยคำ)
  */
+import type { ReactNode } from 'react'
 import { useState, useEffect, useRef } from 'react'
 
 import NextLink from 'next/link'
@@ -111,6 +112,45 @@ function ProfileImg({
   return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />
 }
 
+/**
+ * จำนวนบรรทัดที่คำอธิบายร้านถูกย่อไว้ — **ค่าเดียวคุมทั้งการย่อและการวัด**
+ * ถ้าแยกกันเมื่อไหร่ ปุ่ม "เพิ่มเติม" จะโผล่ผิดจังหวะโดยไม่มีอะไรฟ้อง (Hard Rule 16)
+ */
+const BIO_CLAMP_LINES = 2
+
+/**
+ * ตัวห่อของคำอธิบายร้าน — เป็นปุ่มเมื่อข้อความยาวจนต้องย่อ ไม่งั้นเป็นย่อหน้าเปล่า
+ *
+ * 🛑 ต้องประกาศ **นอก** ตัว render ของ `ProfileIdentity` (docs/conventions/component-declared-in-render.md)
+ * 🛑 ทั้งสองกิ่งต้องกว้างเท่ากันเป๊ะ (block เต็มความกว้าง ไม่มี padding/border) เพราะ `<span>`
+ *    ข้างในคือโหนดที่ถูกวัดว่า "ล้นไหม" — ถ้าความกว้างต่างกันแม้พิกเซลเดียว ผลการวัดจะต่างกัน
+ *    ระหว่างสองสถานะ แล้วบั๊กสลับไม่หยุดจะกลับมาในรูปใหม่
+ */
+function BioShell({
+  interactive,
+  expanded,
+  onToggle,
+  children,
+}: {
+  interactive: boolean
+  expanded: boolean
+  onToggle: () => void
+  children: ReactNode
+}) {
+  if (!interactive) return <p className='m-0'>{children}</p>
+
+  return (
+    <button
+      type='button'
+      onClick={onToggle}
+      aria-expanded={expanded}
+      className='m-0 is-full border-0 bg-transparent p-0 cursor-pointer font-[inherit] text-start whitespace-normal rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
+    >
+      {children}
+    </button>
+  )
+}
+
 export default function ProfileIdentity({ data }: { data: ProfileIdentityData }) {
   const [copied, setCopied] = useState(false)
   const [scorePanelOpen, setScorePanelOpen] = useState(false)
@@ -125,44 +165,56 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
      จำนวนอักขระบอกไม่ได้ว่าจะตก 2 บรรทัดไหม (ที่มาของ lib/clamp-overflow.ts)
      🛑 วัดตอน "ย่ออยู่" เท่านั้น — ตอนกางแล้ว scrollHeight = clientHeight เสมอ ถ้าวัดตอนนั้น
      ปุ่มจะหายทันทีที่กด แล้วผู้ใช้ย่อกลับไม่ได้ */
-  const bioRef = useRef<HTMLParagraphElement>(null)
+  /** โพรบที่ซ่อนไว้ — ข้อความชุดเดียวกันแบบ **ไม่ย่อ** ไว้วัดความสูงจริง (ดูเหตุผลที่ JSX) */
+  const bioProbeRef = useRef<HTMLElement>(null)
+  /** ตัวห่อชั้นนอกที่ **ไม่เคยเปลี่ยน** ไม่ว่าสถานะไหน — จุดเฝ้าความกว้างที่เชื่อถือได้ */
+  const bioHostRef = useRef<HTMLDivElement>(null)
   const [bioExpanded, setBioExpanded] = useState(false)
   const [bioOverflows, setBioOverflows] = useState(false)
 
   useEffect(() => {
-    const el = bioRef.current
+    const el = bioProbeRef.current
     if (!el) return
     const update = () => {
-      if (bioExpanded) return
-      setBioOverflows(isClampOverflowing(el.scrollHeight, el.clientHeight))
+      /* 🛑 เทียบ "ความสูงจริงของข้อความ" กับ "ความสูงที่โควตาให้ (2 บรรทัด)"
+         ไม่ใช่ `scrollHeight` vs `clientHeight` ของกล่องที่ถูก clamp — ค่านั้นเชื่อไม่ได้:
+         Chrome รุ่นใหม่ตัดเนื้อหาที่เกินออกจาก `scrollHeight` ด้วย ⇒ ได้ 53 เท่ากับ 53
+         (= "ไม่ล้น") ตอนโหลดครั้งแรก แล้วกลายเป็น 105 หลัง reflow — คำตอบขึ้นกับจังหวะที่วัด
+         โพรบไม่มี clamp จึงคืนความสูงเต็มเสมอทุกเอนจินทุกจังหวะ */
+      const lh = parseFloat(getComputedStyle(el).lineHeight)
+
+      if (!Number.isFinite(lh) || lh <= 0) return
+      setBioOverflows(isClampOverflowing(el.scrollHeight, lh * BIO_CLAMP_LINES))
     }
     update()
 
-    /* 🛑 **ResizeObserver อย่างเดียวไม่พอ และนี่คือเหตุผลที่ปุ่มไม่เคยโผล่เลย** (critique 2026-08-13)
-       กล่องที่โดน `-webkit-line-clamp` มีความสูง **คงที่ 2 บรรทัดเสมอ** ไม่ว่าข้อความจะยาวแค่ไหน
-       ⇒ ตอนฟอนต์ Anuphan โหลดเสร็จแล้วข้อความ reflow จาก 2 เป็น 3 บรรทัด **ขนาดกล่องไม่เปลี่ยน**
-       RO จึงไม่ยิงสักครั้ง ค่าที่วัดไว้ตอนยังเป็นฟอนต์สำรอง (ซึ่ง "ไม่ล้น") ค้างอยู่ตลอดอายุหน้า
-       สิ่งที่เปลี่ยนคือ `scrollHeight` ซึ่งไม่มี observer ตัวไหนในเบราว์เซอร์คอยดูให้
-       วัดจริงบนหน้า: scrollHeight 79 · clientHeight 53 = ล้นชัดเจน แต่ปุ่มไม่เคยขึ้น
-       ⇒ ต้องวัดซ้ำหลัง `document.fonts.ready` เสมอ (guard `cancelled` กัน setState หลัง unmount) */
+    /* 🛑 **ต้องวัดซ้ำหลังฟอนต์โหลดเสร็จเสมอ** (critique 2026-08-13 — เหตุผลที่ปุ่มไม่เคยโผล่เลย)
+       ตอน Anuphan โหลดเสร็จข้อความ reflow จาก 2 เป็น 3 บรรทัด ถ้าวัดแค่ตอน mount จะได้คำตอบ
+       ของฟอนต์สำรอง (ซึ่ง "ไม่ล้น") ค้างอยู่ตลอดอายุหน้า
+       (guard `cancelled` กัน setState หลัง unmount) */
     let cancelled = false
 
     document.fonts?.ready.then(() => {
       if (!cancelled) update()
     })
 
-    const ro = new ResizeObserver(update)
+    /* เฝ้า **ตัวห่อชั้นนอกที่ไม่เคยเปลี่ยน** — ความกว้างที่เปลี่ยน (หมุนจอ/เปลี่ยนขนาดหน้าต่าง)
+       คือสิ่งเดียวที่ทำให้คำตอบเปลี่ยน และ host เป็นโหนดเดียวในบล็อกนี้ที่ไม่เคยถูก unmount */
+    const host = bioHostRef.current
+    const ro = host ? new ResizeObserver(update) : null
 
-    ro.observe(el)
+    if (host && ro) ro.observe(host)
 
     return () => {
       cancelled = true
-      ro.disconnect()
+      ro?.disconnect()
     }
-    /* `bioOverflows` อยู่ใน deps เพราะตอนมันกลายเป็น true อิลิเมนต์เปลี่ยนแท็กจาก `<p>` เป็น
-       `<button>` ⇒ โหนดเดิมถูก unmount และ RO ตัวเก่าจะเฝ้าโหนดที่หลุดจาก DOM ไปแล้ว
-       ไม่มีลูป เพราะ `update()` เซ็ตค่าเดิม React จึงไม่ re-render ซ้ำ */
-  }, [bioExpanded, bioOverflows, data.bio])
+    /* 🛑 **`bioOverflows` ต้องไม่อยู่ใน deps** — มันคือผลลัพธ์ของ effect นี้เอง การใส่มันกลับเข้าไป
+       ทำให้ "วัด → เปลี่ยนสถานะ → วัดใหม่" กลายเป็นวงจรปิด ซึ่งวนไม่หยุดทันทีที่ค่าที่วัดได้ใน
+       สองสถานะไม่ตรงกัน (เกิดจริงบน iOS Safari — ดูคอมเมนต์ที่ตัว bio)
+       🛑 **`bioExpanded` ก็ไม่ต้องอยู่ด้วย** — โพรบไม่เคยถูกย่อ ความสูงของมันจึงไม่ขึ้นกับว่า
+       ผู้ใช้กางอยู่หรือไม่ (เดิมต้องกันไว้เพราะวัดจากตัวข้อความจริงซึ่งกางแล้ว scrollH = clientH) */
+  }, [data.bio])
 
   const share = async () => {
     const url = typeof window !== 'undefined' ? window.location.href : ''
@@ -347,52 +399,85 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
         </Typography>
 
         {data.bio?.trim() ? (
-          /* ตัวข้อความเองเป็นปุ่ม ไม่มีปุ่มแยกบรรทัด — "เพิ่มเติม" ซ้อนท้ายบรรทัดสุดท้าย
-             🛑 ตัวซ้อนต้องมีพื้น paper **ทึบ** — line-clamp ไม่ได้ลบข้อความ แค่ซ่อน
-             ถ้าโปร่งจะเห็นตัวอักษรซ้อนกันเป็นเงา */
-          <Typography
-            ref={bioRef}
-            component={bioOverflows ? 'button' : 'p'}
-            color='text.primary'
-            onClick={bioOverflows ? () => setBioExpanded((v) => !v) : undefined}
-            aria-expanded={bioOverflows ? bioExpanded : undefined}
-            className={`m-0 mbs-3 border-0 bg-transparent p-0 font-[inherit] text-start ${
+          /* 🛑 **โหนดที่ถูกวัด ต้องไม่เปลี่ยนหน้าตาตามผลการวัด** (บั๊ก prod 2026-08-15)
+             เดิมอิลิเมนต์ตัวเดียวกันสลับแท็ก `p` ↔ `button` ตามค่า `bioOverflows` ซึ่งเป็นค่าที่
+             ได้จากการวัด **อิลิเมนต์นั้นเอง** = ป้อนกลับเข้าตัวเอง บนเอนจินที่ `-webkit-line-clamp`
+             ไม่ทำงานกับ `<button>` (WebKit — iOS Safari) ค่าที่วัดได้ในสองสถานะจึงไม่ตรงกัน:
+               `<p>` clamp ติด → scrollH > clientH → true  → เปลี่ยนเป็น `<button>`
+               `<button>` clamp หลุด → scrollH = clientH → false → เปลี่ยนกลับเป็น `<p>` → วนไม่จบ
+             ⇒ ทุกอย่างใต้บรรทัดนี้ขยับขึ้นลงทุกเฟรมตลอดเวลา user ส่งคลิปจาก iPhone มายืนยัน
+             (2 บรรทัด ↔ 3 บรรทัด + "เพิ่มเติม" สลับตลอด 3.6 วินาทีที่อัด)
+             ตอนนี้ตัวที่ถูกวัดคือ `<span>` ที่แท็ก/คลาส/sx **เหมือนกันทุกสถานะ** ส่วนความเป็นปุ่ม
+             ย้ายออกไปอยู่ที่ตัวห่อ ⇒ ผลการวัดไม่ขึ้นกับผลการวัดอีกต่อไป
+             (`<button>` ห่อ `<span>` เป็น HTML ที่ถูก — button รับได้เฉพาะ phrasing content
+             ซึ่งเป็นบทเรียนเดียวกับที่ `OfficialChannelsBlock` เคยพลาดกับ `<h2>`) */
+          <div ref={bioHostRef} className='relative mbs-3'>
+            {/* 🛑 โพรบวัดความสูง — ข้อความชุดเดียวกันแบบ **ไม่ย่อ** ซ่อนไว้ทับที่เดิม
+                มีไว้เพราะ "ล้นไหม" ต้องตอบได้โดย **ไม่ต้องวัดกล่องที่ถูกย่อ**:
+                  · กล่องที่ถูก clamp ให้ `scrollHeight` ไม่ตรงกันระหว่างเอนจิน และไม่ตรงกันแม้แต่
+                    ในเอนจินเดียวกันคนละจังหวะ (Chrome: 53 ตอนโหลด → 105 หลัง reflow)
+                  · ถ้าไปวัดกล่องจริง ผลการวัดจะขึ้นกับสถานะที่ผลการวัดเป็นคนกำหนด = วนไม่จบ
+                โพรบไม่มี clamp ไม่มีปุ่ม ไม่เคยเปลี่ยนรูปร่าง ⇒ ให้คำตอบเดิมเสมอ
+                `absolute` + `invisible` = วัดได้แต่ไม่กินที่และไม่มีใครเห็น (ห้าม `hidden`
+                ของ Tailwind หรือ `display:none` — ความสูงจะกลายเป็น 0)
+                `aria-hidden` เพราะข้อความชุดนี้ถูกอ่านจากตัวจริงอยู่แล้ว */}
+            <Typography
+              ref={bioProbeRef}
+              component='span'
+              aria-hidden
+              className='absolute inset-inline-0 inset-block-start-0 invisible pointer-events-none select-none'
+              sx={{ fontSize: '15px', lineHeight: 1.75 }}
+            >
+              {data.bio.trim()}
+            </Typography>
+            <BioShell
+              interactive={bioOverflows}
+              expanded={bioExpanded}
+              onToggle={() => setBioExpanded((v) => !v)}
+            >
+            {/* ตัวข้อความเอง — "เพิ่มเติม" ซ้อนท้ายบรรทัดสุดท้าย ไม่มีปุ่มแยกบรรทัด
+                🛑 ตัวซ้อนต้องมีพื้น paper **ทึบ** — line-clamp ไม่ได้ลบข้อความ แค่ซ่อน
+                ถ้าโปร่งจะเห็นตัวอักษรซ้อนกันเป็นเงา */}
+            <Typography
+              component='span'
+              color='text.primary'
               /* 🛑 **ห้ามมี `block` ตรงนี้** — utility ของ Tailwind ชนะ `display` ที่ `sx` ตั้งไว้
-                 พอกลายเป็น `display:block` แล้ว `-webkit-line-clamp` **ไม่ทำงานเลย** (มันต้องการ
-                 `-webkit-box` เท่านั้น) ⇒ ข้อความกางเต็มทั้ง 3 บรรทัด แต่ป้าย "เพิ่มเติม" ยังโผล่
-                 กลายเป็นคำเชิญให้กดสิ่งที่กางอยู่แล้ว (วัดได้: display=block · clientH=scrollH=79)
-                 อาการนี้เกิดเฉพาะตอนแท็กเปลี่ยนเป็น `<button>` เท่านั้น เพราะคลาสชุดนี้ผูกกับกิ่งนั้น
-                 — ตอนเป็น `<p>` ไม่มี `block` จึง clamp ถูกมาตลอด ทำให้บั๊กซ่อนอยู่หลังบั๊กแรก
-                 `is-full` ยังต้องมี (ปุ่มไม่ยืดเต็มความกว้างเอง พื้นที่กดจะเหลือเท่าข้อความ) */
-              bioOverflows
-                ? 'cursor-pointer relative is-full rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
-                : ''
-            }`}
-            sx={{
-              /* 🛑 คงที่ 15px (ขั้น Body ของ ramp) — ความโปร่งของทิศทาง B มาจาก **leading 1.75**
-                 ไม่ใช่จากขนาด เพราะ ramp ไม่มี 16px และขั้นถัดไปคือ 18px ซึ่งเป็นขั้นหัวข้อย่อย
-                 สีเป็น text.secondary เพราะ bio ไม่ควรแข่งน้ำหนักกับชื่อร้านที่อยู่เหนือมัน 2 บรรทัด */
-              fontSize: '15px',
-              lineHeight: 1.75,
-              color: 'var(--mui-palette-text-secondary)',
-              ...(bioExpanded
-                ? {}
-                : { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden' }),
-            }}
-          >
-            {data.bio.trim()}
-            {bioOverflows && !bioExpanded && (
-              <span
-                aria-hidden
-                /* primary.dark ไม่ใช่ primary.main — 13px ไม่เข้าเกณฑ์ large text ของ WCAG
-                   จึงต้องผ่าน 4.5:1 แบบ body (#7367F0 บนขาวได้ ~4.25:1) */
-                className='absolute inset-be-0 inline-end-0 pis-2 text-[13px] font-semibold bg-[var(--mui-palette-background-paper)]'
-                style={{ color: 'var(--mui-palette-primary-dark)' }}
-              >
-                เพิ่มเติม
-              </span>
-            )}
-          </Typography>
+                 พอกลายเป็น `display:block` แล้ว `-webkit-line-clamp` ไม่ทำงาน (ต้องการ `-webkit-box`)
+                 ⇒ ข้อความกางเต็ม แต่ป้าย "เพิ่มเติม" ยังโผล่ = คำเชิญให้กดสิ่งที่กางอยู่แล้ว
+                 `relative` ต้องอยู่ที่โหนดนี้ เพราะป้ายซ้อนวางตัวเทียบกับกล่องข้อความ ไม่ใช่กับปุ่ม */
+              className='relative m-0 font-[inherit] text-start'
+              sx={{
+                /* 🛑 คงที่ 15px (ขั้น Body ของ ramp) — ความโปร่งของทิศทาง B มาจาก **leading 1.75**
+                   ไม่ใช่จากขนาด เพราะ ramp ไม่มี 16px และขั้นถัดไปคือ 18px ซึ่งเป็นขั้นหัวข้อย่อย
+                   สีเป็น text.secondary เพราะ bio ไม่ควรแข่งน้ำหนักกับชื่อร้านที่อยู่เหนือมัน 2 บรรทัด */
+                fontSize: '15px',
+                lineHeight: 1.75,
+                color: 'var(--mui-palette-text-secondary)',
+                ...(bioExpanded
+                  ? { display: 'block' }
+                  : {
+                      display: '-webkit-box',
+                      WebkitBoxOrient: 'vertical',
+                      WebkitLineClamp: BIO_CLAMP_LINES,
+                      overflow: 'hidden',
+                    }),
+              }}
+            >
+              {data.bio.trim()}
+              {bioOverflows && !bioExpanded && (
+                <span
+                  aria-hidden
+                  /* primary.dark ไม่ใช่ primary.main — 13px ไม่เข้าเกณฑ์ large text ของ WCAG
+                     จึงต้องผ่าน 4.5:1 แบบ body (#7367F0 บนขาวได้ ~4.25:1) */
+                  className='absolute inset-be-0 inline-end-0 pis-2 text-[13px] font-semibold bg-[var(--mui-palette-background-paper)]'
+                  style={{ color: 'var(--mui-palette-primary-dark)' }}
+                >
+                  เพิ่มเติม
+                </span>
+              )}
+            </Typography>
+            </BioShell>
+          </div>
         ) : null}
 
         {/* ── แถวตัวเลข ──
