@@ -14,6 +14,11 @@ import AuthCardShell from '../auth/components/AuthCardShell'
 import AuthLogo from '@/components/AuthLogo'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import {
+  OAUTH_PROVIDER_LABEL,
+  providerFromUsername,
+  type OAuthProviderKey,
+} from '@/lib/oauth-provider-display'
 import Swal from 'sweetalert2'
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -22,13 +27,24 @@ import { useEffect, useRef, useState } from 'react'
 type Step = 'info' | 'warning' | 'otp' | 'success'
 type Check = 'idle' | 'checking' | 'ok' | 'taken' | 'invalid'
 
-// chip "เข้าสู่ระบบด้วย X" — derive provider จาก username prefix (line/ig/fb) ของ OAuth user ที่เพิ่งสมัคร
-// (ไม่ต้องเก็บ provider ใน JWT). LINE/IG สี brand = inline style (Hard Rule 6 exception); FB ใช้ token text-info เดิม
-function loginProviderChip(username: string | undefined): { icon: string; label: string; iconClassName: string; iconStyle?: { color: string } } {
-  const u = username ?? ''
-  if (u.startsWith('line')) return { icon: 'brand-line', label: 'LINE', iconClassName: 'size-3.5', iconStyle: { color: '#06C755' } }
-  if (u.startsWith('ig')) return { icon: 'brand-instagram', label: 'Instagram', iconClassName: 'size-3.5', iconStyle: { color: '#E1306C' } }
-  return { icon: 'brand-facebook', label: 'Facebook', iconClassName: 'size-3.5 text-info' }
+/**
+ * ไอคอน/สีของชิป "เข้าสู่ระบบด้วย X" — ชื่อ provider มาจาก SSOT ที่ `oauth-provider-display.ts`
+ *
+ * 🛑 เดิมเป็น if/else ที่รู้จักแค่ line/ig แล้ว **ตกท้ายเป็น Facebook** ⇒ คนที่สมัครด้วย Apple
+ * เห็นชิป "เข้าสู่ระบบด้วย Facebook" (user เจอเอง 2026-08-15) — คลาสเดียวกับ ternary ที่ตกท้าย
+ * เป็น 'Instagram' ใน /account เมื่อ 2026-08-12 เป๊ะ ห่างกัน 3 วันคนละไฟล์
+ *
+ * ตอนนี้เป็น Record ที่ TypeScript บังคับให้มีครบทุกคีย์ ⇒ เพิ่ม provider ใหม่แล้วลืมที่นี่
+ * จะ **คอมไพล์ไม่ผ่าน** ไม่ใช่เงียบแล้วบอกผู้ใช้ผิด
+ *
+ * สี brand = inline style (Hard Rule 6 exception — brand asset ใช้ตาม ref ได้)
+ * Apple ใช้ `text-default-900` ไม่ใช่ดำสนิท ตาม Impeccable (Ink Plum)
+ */
+const PROVIDER_CHIP_ICON: Record<OAuthProviderKey, { icon: string; className: string; style?: { color: string } }> = {
+  apple: { icon: 'brand-apple', className: 'size-3.5 text-default-900' },
+  facebook: { icon: 'brand-facebook', className: 'size-3.5 text-info' },
+  line: { icon: 'brand-line', className: 'size-3.5', style: { color: '#06C755' } },
+  instagram: { icon: 'brand-instagram', className: 'size-3.5', style: { color: '#E1306C' } },
 }
 
 /**
@@ -190,10 +206,14 @@ export default function RegisterPage() {
             <span className="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary text-2xl font-bold">{(user.displayName || 'D').slice(0, 1)}</span>
           )}
           {(() => {
-            const p = loginProviderChip(user.username)
+            // ไม่รู้จัก = ไม่แสดงชิปเลย ดีกว่าเดาแล้วบอกผู้ใช้ผิด (fail-closed)
+            const key = providerFromUsername(user.username)
+            if (!key) return null
+            const chip = PROVIDER_CHIP_ICON[key]
             return (
               <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-default-100 px-3 py-1 text-xs text-default-500">
-                <Icon icon={p.icon} className={p.iconClassName} style={p.iconStyle} /> เข้าสู่ระบบด้วย {p.label}
+                <Icon icon={chip.icon} className={chip.className} style={chip.style} /> เข้าสู่ระบบด้วย{' '}
+                {OAUTH_PROVIDER_LABEL[key]}
               </span>
             )
           })()}

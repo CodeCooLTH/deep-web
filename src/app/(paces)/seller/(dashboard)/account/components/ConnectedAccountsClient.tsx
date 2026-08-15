@@ -30,6 +30,7 @@ import Icon from '@/components/wrappers/Icon'
 import Swal from 'sweetalert2'
 import { pacesAlert, pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
+import { OAUTH_PROVIDER_LABEL } from '@/lib/oauth-provider-display'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -39,13 +40,12 @@ import { pacesToast } from '@/lib/paces-toast'
  */
 type ProviderKey = 'apple' | 'facebook' | 'line' | 'instagram'
 
-/** ชื่อที่ผู้ใช้เห็น — รวมไว้ที่เดียว กันคำใน Swal ยืนยันกับป้ายบนแถวไม่ตรงกัน (Hard Rule 16) */
-const PROVIDER_LABEL: Record<ProviderKey, string> = {
-  apple: 'Apple',
-  facebook: 'Facebook',
-  line: 'LINE',
-  instagram: 'Instagram',
-}
+/**
+ * ชื่อที่ผู้ใช้เห็น — ย้ายไปเป็น SSOT ที่ `@/lib/oauth-provider-display` แล้ว (2026-08-15)
+ * เพราะหน้า /register ก็ต้องใช้ชุดเดียวกัน และตอนที่ต่างคนต่างประกาศ ทั้งสองหน้าเคยบอกชื่อ
+ * ผู้ให้บริการผิดคนละแบบ (Hard Rule 16)
+ */
+const PROVIDER_LABEL = OAUTH_PROVIDER_LABEL
 
 interface ConnectedAccountsClientProps {
   appleLinked: boolean
