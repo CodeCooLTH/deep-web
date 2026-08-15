@@ -35,6 +35,7 @@ import { subscribeShopComments } from '@/lib/comment-realtime'
 import { uploadToStorage } from '@/lib/upload-client'
 import { visibleTopLevelComments } from '@/lib/comment-tree-visibility'
 import { renderCommentReplyText } from '@/lib/comment-reply-template'
+import { pickCommentFocusTarget } from '@/lib/comment-focus-target'
 // ย้ายออกจากไฟล์นี้เมื่อ 2026-08-10 ตอนการ์ดคอมเมนต์ต้นเหตุในห้องแชทต้องใช้กติกาเดียวกัน (HR16)
 import { isVideoPost } from '@/lib/facebook-post'
 import ListBusyOverlay, { useListBusy } from '@/app/(paces)/seller/(dashboard)/_shared/ListBusyOverlay'
@@ -648,19 +649,20 @@ export default function CommentsClient({
   useEffect(() => {
     if (!focusReplyOnLoad.current || !thread) return
     focusReplyOnLoad.current = false
-    const list = thread.comments
-    const byNewest = list
-      .filter((c) => !c.isFromPage && !c.isDeleted)
-      .sort((a, b) => new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime())
-    const target =
-      byNewest.find(
-        (c) => !list.some((r) => r.isFromPage && r.parentExternalId === c.externalCommentId),
-      ) ?? byNewest[0]
+    // 🛑 ต้องส่ง highlightCommentId เข้าไปด้วยเสมอ — ตั้งแต่แถวซ้ายกลายเป็น "1 แถว = 1 คอมเมนต์"
+    // (feb297d4) ใบที่ผู้ใช้กดคือเจตนาตรง ๆ ถ้าไม่ส่ง ตัวเลือกจะตกไปใช้กฎ "ใบล่าสุดที่ยังไม่ถูกตอบ"
+    // แล้วโพสต์ที่มี 199 คอมเมนต์จะเด้งไปคนละใบกับที่กดทุกครั้ง (user รายงานเอง 2026-08-15)
+    const target = pickCommentFocusTarget(thread.comments, highlightCommentId)
     if (!target) return
     setReplyTo(target)
     document
       .querySelector(`[data-comment-id="${target.id}"]`)
-      ?.scrollIntoView({ block: 'nearest' })
+      // 'center' ไม่ใช่ 'nearest' — 'nearest' **ไม่เลื่อนอะไรเลย** ถ้า element อยู่ในกรอบที่มองเห็น
+      // อยู่แล้ว ซึ่งเป็นกรณีปกติของใบล่าสุด (อยู่บนสุดพอดี) ⇒ ดูเหมือนฟีเจอร์ไม่ทำงานมาตลอด
+      ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    // highlightCommentId เป็น ref-like input ของ effect นี้ (อ่านตอนเธรดโหลดเสร็จ) ไม่ใช่ตัวกระตุ้น
+    // — ใส่ใน deps ไม่ได้ เพราะมันถูก set พร้อม selectedId ตอนกด ก่อนเธรดจะโหลดเสร็จเสมอ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thread])
 
   /**
