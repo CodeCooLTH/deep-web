@@ -34,19 +34,30 @@ vi.mock('@/lib/shop-context', () => ({
 }))
 
 import { Prisma } from '@prisma/client'
-import { countUnansweredForShops, countCommentPostStatesByShop } from '@/services/page-comment.service'
+import {
+  countUnansweredForShops,
+  countCommentPostStatesByShop,
+  countCommentStatesByShop,
+} from '@/services/page-comment.service'
 
-describe('countUnansweredForShops() กับ counts.unanswered (listCommentPosts) ต้องตรงกันเสมอ', () => {
+/**
+ * 🛑 อัปเดต 2026-08-15 — คอลัมน์ซ้ายเปลี่ยนเป็น "1 แถว = 1 คอมเมนต์" (ผู้ใช้เคาะ)
+ * badge จึงย้ายไปนับ **คอมเมนต์** ผ่าน `countCommentStatesByShop` และ `listComments` ก็เรียก
+ * ตัวเดียวกัน — ความตรงกันที่เทสชุดนี้ปกป้องยังเป็นเรื่องเดิมเป๊ะ (ตัวเลขบน badge กับตัวเลข
+ * บนแท็บต้องมาจาก **ฟังก์ชันเดียวกัน** ไม่ใช่ SQL คนละชุดที่ "น่าจะตรงกัน") เปลี่ยนแค่ว่า
+ * ฟังก์ชันนั้นคือตัวไหน
+ */
+describe('countUnansweredForShops() กับ counts.unanswered (listComments) ต้องตรงกันเสมอ', () => {
   beforeEach(() => {
     calls = []
   })
 
   it('ยิง $queryRaw ด้วย SQL template ข้อความเดียวกันไบต์ต่อไบต์ เมื่อ scope เดียวกัน — proof by construction', async () => {
     await countUnansweredForShops({ shopIds: ['shop-1', 'shop-2'], actorUserId: 'user-1' })
-    await countCommentPostStatesByShop({ shopIds: ['shop-1', 'shop-2'] })
+    await countCommentStatesByShop({ shopIds: ['shop-1', 'shop-2'] })
 
     expect(calls).toHaveLength(2)
-    // countUnansweredForShops ไม่มี $queryRaw ของตัวเองแล้ว — มันเรียก countCommentPostStatesByShop
+    // countUnansweredForShops ไม่มี $queryRaw ของตัวเองแล้ว — มันเรียก countCommentStatesByShop
     // ตัวเดียวกัน ทั้งสอง call จึงมาจาก call site เดียวกันในซอร์ส (tagged template เดียวกัน) เนื้อหา
     // ของ literal segments ต้องเหมือนกันเป๊ะ — ถ้าในอนาคตมีใครแยก $queryRaw ออกเป็นสองก้อนอีกครั้ง
     // (regression กลับไปเป็นสภาพก่อนแก้) segment ทั้งสองฝั่งจะไม่เท่ากันอีกต่อไปและเทสนี้ต้องแดง
@@ -55,7 +66,7 @@ describe('countUnansweredForShops() กับ counts.unanswered (listCommentPost
 
   it('ตัวเลข unanswered ที่คืนออกมาเท่ากันเสมอ — countUnansweredForShops คือ .unanswered ของอีกฟังก์ชันตัวเดียวกัน', async () => {
     const unanswered = await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1' })
-    const counts = await countCommentPostStatesByShop({ shopIds: ['shop-1'] })
+    const counts = await countCommentStatesByShop({ shopIds: ['shop-1'] })
     expect(unanswered).toBe(counts.unanswered)
     expect(unanswered).toBe(4)
   })

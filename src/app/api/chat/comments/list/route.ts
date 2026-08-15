@@ -2,22 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveChatScope } from "@/lib/chat-scope";
-import { listCommentPosts, type CommentChannelFilter } from "@/services/page-comment.service";
+import { listComments, type CommentChannelFilter } from "@/services/page-comment.service";
 import { sessionUserId } from "@/lib/session-user";
 
 /**
- * GET /api/chat/comments/posts — รายการโพสต์ที่มีคอมเมนต์ ของร้านที่ active (feature 00029)
+ * GET /api/chat/comments/list — รายการ **คอมเมนต์** ของร้านที่ active
+ *
+ * 🛑 1 แถว = 1 คอมเมนต์ (ผู้ใช้เคาะ 2026-08-15) แทนของเดิมที่เป็น 1 แถว = 1 โพสต์
+ * คอลัมน์กลาง/ขวายังทำงานระดับโพสต์เหมือนเดิม แถวจึงพกบริบทโพสต์ติดมาให้ client resolve ได้ว่า
+ * กดแล้วต้องโหลดเธรดของโพสต์ไหน — เส้นทาง `/posts/[postId]` (เธรด + เขียนคอมเมนต์) ไม่เปลี่ยน
  * query: `q` = ค้นหา (ข้อความคอมเมนต์ / ชื่อผู้คอมเมนต์ / ข้อความโพสต์)
  *        `channelId` = กรองเฉพาะเพจเดียว (ร้านเชื่อมได้หลายเพจ)
- *        `state` = feature 00038 — 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN' กรองที่ server
- *          (ค่า derived จาก derivePostState ไม่มีคอลัมน์ในฐาน กรองที่ client ไม่ได้แล้ว)
+ *        `state` = 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN' กรองที่ server
+ *          (ค่า derived จาก deriveCommentState ไม่มีคอลัมน์ในฐาน กรองที่ client ไม่ได้)
  *
  * per-user authenticated data — ห้าม shared cache (เหตุผลเดียวกับ chat/groups)
  *
- * response: { posts, counts, rawCount } — เปลี่ยนจาก { items } เดิม (feature 00038 Task 9) เพราะ
- * ตัวนับ 4 กลุ่ม ต้องมาจาก symbol เดียวกับที่ filter รายการ (BR-CR-S4) — ดู listCommentPosts()
- * `counts` = ทั้งร้าน (feature 00038 หนี้ #1) · `rawCount` = จำนวนโพสต์ดิบที่ query รอบนี้ได้มา
- * (ก่อนกรองด้วย `state`) ใช้คำนวณ skip/hasMore ของหน้าถัดไปที่ client เท่านั้น ไม่ใช่ตัวเลขแสดงผล
+ * response: { comments, counts, rawCount }
+ * `counts` = **ทั้งร้าน นับเป็นคอมเมนต์** (หน่วยเดียวกับแถว — badge บนแท็บก็นับหน่วยนี้แล้ว
+ * ไม่งั้นจะได้เลขบน badge ไม่ตรงกับจำนวนแถว) · `rawCount` = จำนวนแถวดิบที่ query รอบนี้ได้มา
+ * (ก่อนกรองด้วย `state`) ใช้คำนวณ skip/hasMore ที่ client เท่านั้น ไม่ใช่ตัวเลขแสดงผล
  */
 export const dynamic = "force-dynamic";
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" };
@@ -49,7 +53,7 @@ export async function GET(request: NextRequest) {
     const providerRaw = request.nextUrl.searchParams.get("provider");
     const provider: CommentChannelFilter =
       providerRaw === "DEEP" || providerRaw === "MESSENGER" || providerRaw === "INSTAGRAM" ? providerRaw : "ALL";
-    const { posts, counts, rawCount } = await listCommentPosts({
+    const { comments, counts, rawCount } = await listComments({
       shopIds: scope.shopIds,
       actorUserId: userId,
       q,
@@ -58,11 +62,11 @@ export async function GET(request: NextRequest) {
       state,
       provider,
     });
-    return NextResponse.json({ posts, counts, rawCount }, { headers: NO_STORE_HEADERS });
+    return NextResponse.json({ comments, counts, rawCount }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";
     if (msg === "FORBIDDEN") return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงร้านนี้" }, { status: 403 });
-    console.error("[GET /api/chat/comments/posts]", msg || e);
+    console.error("[GET /api/chat/comments/list]", msg || e);
     return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
   }
 }

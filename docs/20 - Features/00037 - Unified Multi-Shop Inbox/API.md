@@ -44,7 +44,7 @@ related: ["[[SRS]]", "[[SDS]]"]
 | `GET /api/chat/inbox-tab-counts` | นับ 2 แท็บข้ามร้าน |
 | `GET /api/chat/spam-unread` | นับข้ามร้าน |
 | `GET /api/chat/problem-count` | นับข้ามร้าน |
-| `GET /api/chat/comments/posts` | โพสต์ของทุกเพจในขอบเขต; แต่ละแถวมี `shop: { id, name }` |
+| `GET /api/chat/comments/list` | คอมเมนต์ของทุกเพจในขอบเขต; แต่ละแถวมี `shop: { id, name }` — **แทน `GET /api/chat/comments/posts` ที่ถูกลบ 2026-08-15** ตอนคอลัมน์ซ้ายเปลี่ยนเป็น 1 แถว = 1 คอมเมนต์ (00038 `EXTENSIONS-2026-08-15.md`) |
 | `GET /api/chat/tags` | union แท็กข้ามร้านในขอบเขต (รับ `?shopId=` เพื่อจำกัดร้านเดียวได้) |
 | `PATCH /api/chat/conversations/[id]` | ร้านมาจาก **เธรด** (`resolveConversationShopId`) ไม่ใช่ร้าน active; เธรดนอกขอบเขต = 404 ก่อนแตะ service |
 | `GET/PATCH /api/chat/conversations/[id]/crm` | เหมือนข้างบน |

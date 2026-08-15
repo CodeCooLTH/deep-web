@@ -70,15 +70,23 @@ function firstBranchFor(sql: string, result: string) {
 /**
  * เฉพาะ CASE **ระดับคอมเมนต์** (CTE `customer_comments`) — ต้องตัดออกมาก่อนเสมอ
  *
- * SQL นี้มี CASE สองชั้น: ชั้นคอมเมนต์ (ตัวที่กฎทั้งหมดพูดถึง) และชั้นโพสต์ (`post_states`
- * ที่รวบด้วย bool_or แบบ "แย่สุดชนะ") ชั้นโพสต์มี `THEN 'UNANSWERED'` แบบเชิงบวกซึ่ง**ถูกต้อง
- * แล้ว** — ถ้าไม่ตัด scope ก่อน เทสจะไปจับตัวนั้นแล้วแดงโดยไม่มีอะไรผิดจริง
+ * ตัวนับระดับ **โพสต์** (`countCommentPostStatesByShop`) มี CASE สองชั้น: ชั้นคอมเมนต์ (ตัวที่กฎ
+ * ทั้งหมดพูดถึง) และชั้นโพสต์ (`post_states` ที่รวบด้วย bool_or แบบ "แย่สุดชนะ") ชั้นโพสต์มี
+ * `THEN 'UNANSWERED'` แบบเชิงบวกซึ่ง**ถูกต้องแล้ว** — ถ้าไม่ตัด scope ก่อน เทสจะไปจับตัวนั้น
+ * แล้วแดงโดยไม่มีอะไรผิดจริง
+ *
+ * 🛑 ตั้งแต่ 2026-08-15 badge เปลี่ยนไปใช้ตัวนับระดับ **คอมเมนต์** (`countCommentStatesByShop`)
+ * ซึ่ง **ไม่มีชั้น `post_states`** เพราะไม่ต้องรวบขึ้นเป็นโพสต์อีก ⇒ ตัวตัดต้องยอมรับทั้งสองรูป
+ * ไม่ใช่บังคับว่าต้องเจอ `post_states AS (` (ของเดิมบังคับ แล้วแดงทันทีที่หน่วยเปลี่ยน ทั้งที่
+ * กฎที่เทสปกป้องยังถูกทุกข้อ — เทสที่ผูกกับ *วิธีเขียน* พังเมื่อ refactor ทั้งที่ของยังครบ
+ * `rule-must-be-enforced-not-described.md`)
  */
 function commentCaseSql(sql: string): string {
   const start = sql.indexOf('customer_comments AS (')
-  const end = sql.indexOf('post_states AS (')
   expect(start).toBeGreaterThanOrEqual(0)
-  expect(end).toBeGreaterThan(start)
+  const postLayer = sql.indexOf('post_states AS (')
+  // ไม่มีชั้นโพสต์ = ตัวนับระดับคอมเมนต์ → CASE ทั้งก้อนที่เหลือคือชั้นคอมเมนต์อยู่แล้ว
+  const end = postLayer > start ? postLayer : sql.length
   return sql.slice(start, end)
 }
 

@@ -64,6 +64,7 @@ rg "resolveActiveShopContext|requireActiveShop" "src/app/(paces)/seller/(chat)/"
 | `enrichWithOrderStage(items, shopId)` | `enrichWithOrderStage(items, shopIds)` — `Linkable` ต้องมี `shopId` |
 | `countUnansweredForShop({shopId,…})` | `countUnansweredForShops({shopIds,…})` |
 | `listCommentPosts({shopId,…})` | `listCommentPosts({shopIds,…})` — คืน `shop: {id,name}` เพิ่ม |
+| — | `listComments({shopIds,…})` (2026-08-15) — รายการ **คอมเมนต์** ที่คอลัมน์ซ้ายใช้จริง ตอนนี้; `listCommentPosts` ยังอยู่สำหรับที่ที่นับเป็นโพสต์ |
 | `getShopTags(shopId)` | `getShopTags(shopIds)` |
 | — | `listChannelsForShops(shopIds)` (ใหม่ — คืน `shopId`/`shopName` ต่อเพจ) |
 

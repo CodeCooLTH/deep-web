@@ -15,6 +15,7 @@
  * โหลดรูปจากโดเมนภายนอกทั้งชุด จึงเลี่ยงไปก่อนใน v1
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { COMMENT_LIST_PAGE_SIZE } from '@/lib/comment-list-page'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
@@ -60,28 +61,43 @@ export type ChannelOption = {
   commentPrivateReplyText?: string | null
 }
 
-export type CommentPostItem = {
+/**
+ * 1 แถวของคอลัมน์ซ้าย = **1 คอมเมนต์ของลูกค้า** (ผู้ใช้เคาะ 2026-08-15 "ต่อให้จะมี 10 comments
+ * ใน post เดียวก็ต้องขึ้น lists 10 อัน") — รูปแบบ serialize ของ `CommentListRow` ฝั่ง service
+ * วันที่เป็น string เพราะข้ามเส้น RSC
+ *
+ * 🛑 layout ของแถวไม่เปลี่ยน (ผู้ใช้กำชับ "แต่ layout ต้องเหมือนเดิมนะ") — ยังเป็นรูปปกโพสต์ +
+ * ป้ายเพจมุมล่างขวา + สองบรรทัด + ป้ายสถานะ + เวลาทางขวา เปลี่ยนแค่ว่าแต่ละช่องพูดเรื่องอะไร
+ */
+export type CommentListItem = {
+  /** `PageComment.id` */
   id: string
-  externalPostId: string
-  channel: ChannelOption
-  /** feature 00037 — ร้านเจ้าของโพสต์ (badge บนการ์ดในโหมดรวมหลายร้าน) */
-  shop?: { id: string; name: string }
+  externalCommentId: string
+  /** true = เป็นคำตอบใต้คอมเมนต์อื่น — ลูกค้าที่ตอบกลับมาก็คืองานที่ต้องตอบ จึงมีแถวของตัวเอง */
+  isReply: boolean
+  fromName: string | null
   message: string | null
-  thumbnailUrl: string | null
-  permalink: string | null
-  lastCommentAt: string | null
-  commentCount: number
-  unansweredCount: number
-  /** feature 00038 — สถานะรวมของโพสต์ (ตัวที่แย่ที่สุดชนะ) ตัดสิน badge แถวนี้ (UX-Design-Spec §3.2) */
-  postStatus: CommentAnswerState
-  /** เวลาของคอมเมนต์ที่ยังไม่ตอบและ "เก่าที่สุด" — เส้นตายทักแชท 7 วันที่มาถึงก่อน (null = ตอบครบ) */
-  oldestUnansweredAt: string | null
-  lastCommenterName: string | null
-  lastCommentText: string | null
-  mediaType: string | null
-  reactionCount: number | null
-  fbCommentCount: number | null
-  shareCount: number | null
+  attachmentUrl: string | null
+  createdTime: string
+  /** สถานะของ **คอมเมนต์ใบนี้** (deriveCommentState) ไม่ใช่สถานะรวมของโพสต์อีกต่อไป */
+  state: CommentAnswerState
+  privateReplySentAt: string | null
+  privateReplyConversationId: string | null
+  /** โพสต์ที่คอมเมนต์นี้อยู่ใต้ — คอลัมน์กลาง/ขวายังทำงานระดับโพสต์เหมือนเดิม */
+  post: {
+    id: string
+    externalPostId: string
+    message: string | null
+    thumbnailUrl: string | null
+    permalink: string | null
+    mediaType: string | null
+    reactionCount: number | null
+    fbCommentCount: number | null
+    shareCount: number | null
+  }
+  channel: ChannelOption
+  /** feature 00037 — ร้านเจ้าของโพสต์ (โหมดรวมหลายร้าน) */
+  shop?: { id: string; name: string }
 }
 
 type CommentItem = {
@@ -234,15 +250,15 @@ function resolvePrivateReplyState(c: CommentItem, sendingId: string | null, t: D
 }
 
 export default function CommentsClient({
-  initialPosts,
+  initialComments,
   initialRawCount,
   initialCounts,
   shopIds,
   unified = false,
   channels,
 }: {
-  initialPosts: CommentPostItem[]
-  /** จำนวนโพสต์ดิบที่ RSC ดึงมาในหน้าแรก (ไม่ใช่ยอดทั้งร้าน) — ใช้เป็น skip ของหน้าถัดไป */
+  initialComments: CommentListItem[]
+  /** จำนวนแถวดิบที่ RSC ดึงมาในหน้าแรก (ไม่ใช่ยอดทั้งร้าน) — ใช้เป็น skip ของหน้าถัดไป */
   initialRawCount: number
   /** feature 00038 — ตัวนับ 4 กลุ่มของหน้าแรก มาจาก listCommentPosts เดียวกับที่ page.tsx fetch */
   initialCounts: CommentPostCounts
@@ -254,7 +270,7 @@ export default function CommentsClient({
   channels: ChannelOption[]
 }) {
   const t = useT()
-  const [posts, setPosts] = useState(initialPosts)
+  const [comments, setComments] = useState(initialComments)
   // feature 00038 — ตัวนับ 4 กลุ่มจากเซิร์ฟเวอร์ (listCommentPosts) ตัวเดียวที่ badge/แท็บ/ตัวกรอง
   // ใช้ร่วมกัน (BR-CR-S4) — ต้องเข้าคู่กับ `posts` เสมอ (อัปเดตพร้อมกันทุกจุดที่ fetch)
   const [counts, setCounts] = useState<CommentPostCounts>(initialCounts)
@@ -332,6 +348,10 @@ export default function CommentsClient({
   // เริ่มที่ null เสมอ — มือถือต้องเห็น "รายการ" ก่อน ไม่ใช่ถูกโยนเข้าโพสต์ใดโพสต์หนึ่ง
   // (critique P0) เดสก์ท็อปมี 2 คอลัมน์อยู่แล้ว จึง auto-select ให้เฉพาะ ≥1024px
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // 1 แถว = 1 คอมเมนต์ แต่คอลัมน์กลาง/ขวายังทำงานระดับ "โพสต์" ⇒ ต้องจำแยกว่า "เปิดโพสต์ไหน"
+  // (selectedId) กับ "ผู้ใช้กดคอมเมนต์ใบไหน" (ตัวนี้) ใช้ตัวเดียวกันไม่ได้ เพราะแถวอื่นของโพสต์
+  // เดียวกันจะถูกไฮไลต์พร้อมกันทั้งกลุ่ม ซึ่งอ่านเหมือนระบบเลือกให้เองมั่ว ๆ ทั้งที่ผู้ขายกดใบเดียว
+  const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null)
   const [thread, setThread] = useState<ThreadData | null>(null)
   const [loadingThread, setLoadingThread] = useState(false)
   const [replyTo, setReplyTo] = useState<CommentItem | null>(null)
@@ -350,7 +370,8 @@ export default function CommentsClient({
   const [loadingMore, setLoadingMore] = useState(false)
   // initialCounts.all = จำนวนดิบที่หน้าแรก fetch มา (ไม่ผ่าน state filter — page.tsx เรียกแบบ ALL
   // เสมอ) ใช้ตัวนี้แทน initialPosts.length ให้สอดคล้องกับ rawFetchedRef ด้านล่าง
-  const [hasMore, setHasMore] = useState(initialRawCount >= 25)
+  // เกณฑ์ "ยังมีอีก" ต้องเท่ากับขนาดหน้าที่ server ใช้จริง จึงอ่านจากค่าคงที่ตัวเดียวกัน
+  const [hasMore, setHasMore] = useState(initialRawCount >= COMMENT_LIST_PAGE_SIZE)
   // ในเธรด: ดูเฉพาะคอมเมนต์ที่ยังไม่มีคำตอบของเพจ
   const [unansweredOnly, setUnansweredOnly] = useState(false)
   /**
@@ -506,16 +527,16 @@ export default function CommentsClient({
       // ไม่ตรงกับรายการใต้มัน (impeccable critique 2026-08-09 P1)
       if (provider !== 'ALL') params.set('provider', provider)
       const qs = params.toString()
-      const res = await fetch(`/api/chat/comments/posts${qs ? `?${qs}` : ''}`)
+      const res = await fetch(`/api/chat/comments/list${qs ? `?${qs}` : ''}`)
       if (!res.ok) return
-      const data = (await res.json()) as { posts: CommentPostItem[]; counts: CommentPostCounts; rawCount: number }
-      setPosts(data.posts)
+      const data = (await res.json()) as { comments: CommentListItem[]; counts: CommentPostCounts; rawCount: number }
+      setComments(data.comments)
       // counts เป็น global ทั้งร้านแล้ว (feature 00038 หนี้ #1) — set ตรง ๆ ไม่บวกสะสม
       setCounts(data.counts)
       // rawCount = จำนวนโพสต์ดิบที่ query รอบนี้ได้มา (ก่อนกรอง state) ใช้แค่คำนวณ skip/hasMore
       // ของหน้าถัดไป คนละความหมายกับ counts.all ซึ่งเป็นตัวเลขแสดงผลทั้งร้านแล้ว
       rawFetchedRef.current = data.rawCount
-      setHasMore(data.rawCount >= 25)
+      setHasMore(data.rawCount >= COMMENT_LIST_PAGE_SIZE)
     } catch {
       // โหลดไม่สำเร็จ = คงรายการเดิมไว้ ไม่ต้องรบกวนผู้ใช้
     }
@@ -552,20 +573,20 @@ export default function CommentsClient({
       if (show.postStatus !== 'ALL') params.set('state', show.postStatus)
       // ต้องตรงกับ refreshPosts เสมอ — ไม่งั้น "โหลดเพิ่ม" จะพาโพสต์ของช่องทางอื่นเข้ามาปนกลางรายการ
       if (channelTab !== 'ALL') params.set('provider', channelTab)
-      const res = await fetch(`/api/chat/comments/posts?${params.toString()}`)
+      const res = await fetch(`/api/chat/comments/list?${params.toString()}`)
       if (!res.ok) return
-      const data = (await res.json()) as { posts: CommentPostItem[]; counts: CommentPostCounts; rawCount: number }
+      const data = (await res.json()) as { comments: CommentListItem[]; counts: CommentPostCounts; rawCount: number }
       // กันซ้ำด้วย id — poll/realtime อาจแทรกโพสต์ใหม่เข้ามาระหว่างที่กำลังโหลดหน้าถัดไป
-      setPosts((prev) => {
-        const seen = new Set(prev.map((p) => p.id))
-        return [...prev, ...data.posts.filter((p) => !seen.has(p.id))]
+      setComments((prev) => {
+        const seen = new Set(prev.map((c) => c.id))
+        return [...prev, ...data.comments.filter((c) => !seen.has(c.id))]
       })
       // counts เป็น global ทั้งร้านอยู่แล้ว (feature 00038 หนี้ #1) — set ตรง ๆ ไม่บวกสะสมกับของเดิม
       // (เดิมบวก prev+ผลของ batch นี้ ซึ่งถูกต้องตอน counts ยังเป็น batch scope แต่ตอนนี้ counts
       // ที่ server ส่งมาคือทั้งร้านอยู่แล้วในทุกการเรียก บวกซ้ำจะทำให้ตัวเลขพุ่งเกินจริงทุกครั้งที่เลื่อน)
       setCounts(data.counts)
       rawFetchedRef.current += data.rawCount
-      setHasMore(data.rawCount >= 25)
+      setHasMore(data.rawCount >= COMMENT_LIST_PAGE_SIZE)
     } finally {
       setLoadingMore(false)
     }
@@ -942,7 +963,7 @@ export default function CommentsClient({
   // แต่ลืมไปว่า `counts` มาจาก server → กดพิลล์ Instagram แล้วได้ "ยังไม่ตอบ 12" อยู่เหนือ
   // "ไม่พบความคิดเห็นตามตัวกรอง" (impeccable critique 2026-08-09 P1). ตัวเลขกับรายการต้องมาจาก
   // scope เดียวกันโดยโครงสร้าง — เหตุผลเดียวกับที่ `state` ถูกย้ายมา server ไปแล้วก่อนหน้านี้
-  const postsByChannel = posts
+  const commentsByChannel = comments
   /**
    * feature 00038 — แท็บสถานะ (state) กรองที่ server แล้ว (ดู refreshPosts/loadMorePosts) `posts`
    * ที่ได้กลับมาจึงตรงกับ show.postStatus อยู่แล้วเสมอ ไม่ต้อง filter ซ้ำที่ client อีกชั้น
@@ -951,7 +972,7 @@ export default function CommentsClient({
    * ตัวนับบนแท็บทั้ง 4 มาจาก `counts` ที่ server คำนวณแบบทั้งร้าน (feature 00038 หนี้ #1) — ไม่ผูกกับ
    * ขนาดของ `posts` ที่โหลดมาแล้วอีกต่อไป จึงตรงกับ badge บน tab "ความคิดเห็น" เสมอ (BR-CR-S4)
    */
-  const visiblePosts = postsByChannel
+  const visibleComments = commentsByChannel
 
   /**
    * 🛑 โพสต์ที่เปิดอยู่ต้องไม่หายไปจากแผงขวาเพียงเพราะมันหลุดจาก **รายการที่ถูกกรอง**
@@ -967,11 +988,27 @@ export default function CommentsClient({
    *
    * snapshot ถูกล้างเมื่อผู้ใช้กดออกเอง (selectedId = null) เท่านั้น
    */
-  const selectedPostRef = useRef<CommentPostItem | null>(null)
-  const foundPost = posts.find((p) => p.id === selectedId) ?? null
+  const selectedPostRef = useRef<CommentListItem['post'] | null>(null)
+  // แถวเป็นคอมเมนต์แล้ว — โพสต์ที่เปิดอยู่จึง derive จากคอมเมนต์ใบแรกที่อยู่ใต้โพสต์นั้น
+  const foundPost = comments.find((c) => c.post.id === selectedId)?.post ?? null
   if (foundPost) selectedPostRef.current = foundPost
   else if (!selectedId) selectedPostRef.current = null
   const selectedPost = selectedId ? (foundPost ?? selectedPostRef.current) : null
+  /** เพจของโพสต์ที่เปิดอยู่ — เดิมอ่านจาก `selectedPost.channel` ตอนที่แถวยังเป็นโพสต์ */
+  const selectedChannel = comments.find((c) => c.post.id === selectedId)?.channel ?? null
+  /**
+   * "ยังไม่ตอบ" ของโพสต์ที่เปิดอยู่ — นับจากเธรดที่โหลดมาแล้ว (มีคอมเมนต์ครบทั้งโพสต์)
+   * ไม่นับจาก `comments` เพราะนั่นคือรายการที่ถูกกรอง/แบ่งหน้าแล้ว จะได้เลขต่ำกว่าจริงเสมอ
+   */
+  const selectedUnanswered = thread
+    ? thread.comments.filter(
+        (c) =>
+          !c.isFromPage &&
+          !c.isDeleted &&
+          !c.privateReplySentAt &&
+          !thread.comments.some((r) => r.parentExternalId === c.externalCommentId && r.isFromPage),
+      ).length
+    : 0
 
   /**
    * ช่องพิมพ์ตัวเดียว เรนเดอร์ได้ 2 ที่ (user สั่ง 2026-08-04 พร้อมภาพ Business Suite)
@@ -1360,7 +1397,7 @@ export default function CommentsClient({
           className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain"
         >
           <ListBusyOverlay busy={listBusy.busy} />
-          {visiblePosts.length === 0 ? (
+          {visibleComments.length === 0 ? (
             <div className="p-4">
               {/* แยกกรณี "กรองแล้วไม่เจอ" ออกจาก "ยังไม่มีเลย" — ของเดิมบอกว่าไม่มีความคิดเห็น
                   ทั้งที่กรองอยู่ ทำให้เข้าใจผิดว่าระบบพัง (critique P1)
@@ -1403,30 +1440,35 @@ export default function CommentsClient({
             </div>
           ) : (
             <div className="divide-default-200 divide-y">
-              {visiblePosts.map((p) => (
+              {visibleComments.map((c) => (
                 <button
-                  key={p.id}
+                  key={c.id}
                   type="button"
                   onClick={() => {
                     // ธงนี้ทำให้ effect หลังเธรดโหลดเสร็จรู้ว่าควรจ่อตอบให้ (ดู focusReplyOnLoad)
                     focusReplyOnLoad.current = true
-                    setSelectedId(p.id)
+                    // แถวเป็นคอมเมนต์ แต่คอลัมน์กลาง/ขวายังทำงานระดับโพสต์ — เปิดโพสต์ของมัน
+                    // แล้วจำไว้ว่าผู้ใช้กดคอมเมนต์ใบไหน เพื่อไฮไลต์ให้ถูกใบ
+                    setSelectedId(c.post.id)
+                    setHighlightCommentId(c.id)
                   }}
                   className={`flex w-full items-start gap-3 p-3 text-start ${
-                    p.id === selectedId ? 'bg-primary/5' : 'hover:bg-default-100'
+                    c.id === highlightCommentId ? 'bg-primary/5' : 'hover:bg-default-100'
                   }`}
                 >
                   {/* รูปโพสต์ + ป้ายเพจมุมล่างขวา (user 2026-08-03 'ต้องมี icon page ติดไว้ด้วย
-                      ว่าเป็นของเพจไหน') — pattern overlay เดียวกับ ChannelBadge บน avatar ในแท็บข้อความ */}
+                      ว่าเป็นของเพจไหน') — pattern overlay เดียวกับ ChannelBadge บน avatar ในแท็บข้อความ
+                      🛑 คลาสทุกตัวในแถวยกมาจากตอนที่แถวเป็นโพสต์แบบไม่แตะ (ผู้ใช้กำชับ 2026-08-15
+                      "layout ต้องเหมือนเดิม") เปลี่ยนแค่ว่าแต่ละช่องพูดเรื่องอะไร */}
                   <span className="relative shrink-0">
-                    {p.thumbnailUrl && !brokenThumbs.has(p.id) ? (
+                    {c.post.thumbnailUrl && !brokenThumbs.has(c.post.id) ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={p.thumbnailUrl}
+                        src={c.post.thumbnailUrl}
                         alt=""
                         className="size-12 rounded-lg object-cover"
                         // โหลดไม่ขึ้น → ใช้กิ่งเดียวกับ "ไม่มีรูป" (ดูเหตุผลที่ brokenThumbs)
-                        onError={() => markThumbBroken(p.id)}
+                        onError={() => markThumbBroken(c.post.id)}
                       />
                     ) : (
                       <span className="bg-default-100 text-default-700 flex size-12 items-center justify-center rounded-lg">
@@ -1436,8 +1478,8 @@ export default function CommentsClient({
                     {/* ใช้ ChannelBadgeOverlay ตัวเดียวกับ badge ช่องทางในแท็บข้อความ — มีโลโก้
                         Facebook เป็นไฟล์ asset อยู่แล้ว (/images/logos/facebook.svg) ไม่ต้อง
                         hardcode สีแบรนด์ซ้ำที่นี่ และหน้าตาตรงกันทั้งสองแท็บโดยอัตโนมัติ */}
-                    <ChannelBadgeOverlay channel={p.channel.provider} imageUrl={p.channel.avatarUrl ?? undefined} />
-                    {isVideoPost(p.mediaType) && (
+                    <ChannelBadgeOverlay channel={c.channel.provider} imageUrl={c.channel.avatarUrl ?? undefined} />
+                    {isVideoPost(c.post.mediaType) && (
                       // โพสต์วิดีโอ — บอกตั้งแต่รายการ ไม่ต้องเปิดเข้าไปถึงจะรู้
                       <span className="absolute inset-0 flex items-center justify-center">
                         <span className="flex size-6 items-center justify-center rounded-full bg-black/50 text-white">
@@ -1452,86 +1494,76 @@ export default function CommentsClient({
                       แม้โครงจะเหมือนกัน (user report 2026-08-04 "chatlist + comment lists
                       แสดงผลไม่เหมือนกัน") */}
                   <span className="min-w-0 flex-1 overflow-hidden">
+                    {/* บรรทัดที่ 1 = สิ่งที่ทำให้แถวนี้ต่างจากแถวอื่น "ใครถามอะไร"
+                        (เดิมเป็นข้อความโพสต์ ซึ่งจะซ้ำกันทุกแถวของโพสต์เดียวกันเมื่อ 1 แถว = 1 คอมเมนต์)
+                        ไอคอนลูกศรนำหน้าเฉพาะคอมเมนต์ที่เป็นการตอบใต้คอมเมนต์อื่น — เป็น glyph
+                        ในบรรทัดข้อความ ไม่ใช่การเยื้องแถว จึงไม่ขยับ layout ของรายการ */}
                     <span className="text-default-900 line-clamp-2 text-xs font-semibold">
-                      {p.message?.trim() || t.comments.postNoText}
+                      {c.isReply && (
+                        <Icon icon="corner-down-right" className="me-0.5 inline-block size-3 shrink-0 align-[-1px]" />
+                      )}
+                      {`${c.fromName ?? t.comments.fbUser}: ${c.message?.trim() || t.comments.noText}`}
                     </span>
-                    {/* บรรทัดที่ 2 = "ลูกค้าถามอะไร" ไม่ใช่ตัวเลขที่ตัดสินใจอะไรไม่ได้ (critique P1)
-                        แบบเดียวกับ preview ข้อความล่าสุดในแท็บข้อความ */}
                     {/* ชื่อร้านเจ้าของโพสต์ (feature 00037) — เฉพาะโหมดรวม; ข้อความไม่ใช่ badge รูป
                         ด้วยเหตุผลเดียวกับแถวในแท็บข้อความ (รูปเพจซ้ำกันได้ระหว่างสาขา) */}
-                    {unified && p.shop && (
+                    {unified && c.shop && (
                       <span className="text-default-500 text-2xs mt-0.5 flex items-center gap-0.5 truncate">
                         <Icon icon="building-store" className="size-3 shrink-0" />
-                        <span className="truncate">{p.shop.name}</span>
+                        <span className="truncate">{c.shop.name}</span>
                       </span>
                     )}
+                    {/* บรรทัดที่ 2 = บริบทว่าคอมเมนต์ใบนี้อยู่ใต้โพสต์ไหน (เดิมเป็นคอมเมนต์ล่าสุด
+                        ของโพสต์ ซึ่งตอนนี้เป็นเนื้อของแถวไปแล้ว) */}
                     <span className="text-default-700 mt-0.5 block truncate text-2xs">
-                      {p.lastCommentText
-                        ? `${p.lastCommenterName ?? t.comments.fbUser}: ${p.lastCommentText}`
-                        : fmt(t.comments.commentCountN, { n: p.commentCount })}
+                      {c.post.message?.trim() || t.comments.postNoText}
                     </span>
                     {/* บรรทัดที่ 3 — โผล่เฉพาะแถวที่ยังมีอะไรค้าง (user สั่ง 2026-08-04, ขยาย feature
-                        00038 UX-Design-Spec §3.2): ตัดสินจาก p.postStatus (ตัวที่แย่ที่สุดชนะ,
-                        BR-CR-S2) ตัวเดียวกับที่แท็บใช้ — UNANSWERED โชว์ badge เดิมทั้งคู่ (ไม่แตะ)
-                        · BOT_ANSWERED โชว์ badge ใหม่สีเหลืองตำแหน่งเดียวกัน · HUMAN_ANSWERED
-                        ไม่โชว์อะไรเลย (โพสต์ที่จบงานแล้วไม่ควรมีป้ายค้างทุกแถวตลอดไป) */}
-                    {p.postStatus === 'UNANSWERED' && (
+                        00038 UX-Design-Spec §3.2) ตอนนี้ตัดสินจากสถานะของ **คอมเมนต์ใบนี้**
+                        (deriveCommentState ตัวเดียวกับตัวนับบนแท็บ BR-CR-S4) ไม่ใช่สถานะรวมของโพสต์
+                        แบบ "ตัวที่แย่ที่สุดชนะ" อีกต่อไป — แถวเป็นคอมเมนต์แล้ว ป้ายจึงต้องพูดถึงใบนั้น */}
+                    {c.state === 'UNANSWERED' && (
                       /* ป้ายสองใบใต้ preview — เป็น `badge` จริงไม่ใช่ข้อความสีแดงลอย ๆ
-                         (user report 2026-08-04 "ยังไม่ตอบ มันไม่เห็น label ด้วย" + ส่งภาพชิป
-                         สนใจ/DEV มาเทียบ) ชุดเดียวกับชิปแท็กในรายการแชท: badge + พื้นจาง 15%
-                         ป้ายเวลาแยกใบเพราะเป็นข้อมูลคนละเรื่อง (สถานะงาน vs เส้นตายของ Meta) */
+                         (user report 2026-08-04 "ยังไม่ตอบ มันไม่เห็น label ด้วย") ชุดเดียวกับชิปแท็ก
+                         ในรายการแชท: badge + พื้นจาง 15% ป้ายเวลาแยกใบเพราะเป็นข้อมูลคนละเรื่อง
+                         (สถานะงาน vs เส้นตายของ Meta) */
                       <span className="mt-1 flex flex-wrap items-center gap-1">
                         <span className="badge bg-danger/15 text-danger-ink text-2xs inline-flex items-center gap-1">
                           <Icon icon="alert-circle" width={11} height={11} className="shrink-0" />
                           {t.comments.unanswered}
                         </span>
-                        {/* เส้นตายทักแชท: มีค่า = ยังมีคอมเมนต์ค้างที่ทักได้ (นับถอยหลังอันที่ใกล้สุด)
-                            null = ของที่ค้างพ้น 7 วันไปหมดแล้ว → บอกว่าทักไม่ได้แล้ว แต่ยัง
-                            "ยังไม่ตอบ" อยู่ (ตอบสาธารณะใต้โพสต์ได้ตลอด)
-                            เดิมบรรทัดนี้อ่าน oldestUnansweredAt ที่เป็น "เก่าสุดทั้งกอง" จึงขึ้น
-                            "หมดเวลาทักแชท" ทุกแถวทั้งที่ในเธรดยังเหลือ 6 วัน — แก้ที่ service แล้ว */}
-                        {p.oldestUnansweredAt ? (
-                          // โทนมาจาก privateReplyWindow() ตัวเดียว — badge นี้กับข้อความในเธรด
-                          // ต้องเปลี่ยนสีพร้อมกันเสมอ (HR16)
-                          (() => {
-                            // อ่านผลลัพธ์ครั้งเดียวแล้วใช้ทั้ง tone/expired/remaining — เดิมเรียก
-                            // privateReplyWindow() สองรอบแล้ว `.replace('คงเหลือ ', '')` แกะสตริง
-                            // ที่ SSOT ประกอบมาแล้ว (คำนำหน้าเปลี่ยนเมื่อไหร่ก็อ่านเป็น
-                            // "ทักแชทได้อีก คงเหลือ 3 วัน" โดยไม่มีอะไรฟ้อง)
-                            const w = privateReplyWindow(p.oldestUnansweredAt!, t)
-                            // 🛑 oldestUnansweredAt มาจาก server ซึ่งเก่าได้ถึง 60 วิ ขณะที่นาฬิกา
-                            // client เดินอยู่ — ในนาทีที่เส้นตายผ่านพอดี ของเดิมอ่านว่า
-                            // "ทักแชทได้อีก หมดเวลาทักแชท" ซึ่งเป็นนาทีที่ข้อความนี้สำคัญที่สุด
-                            if (w.expired) {
-                              return (
-                                <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
-                                  <Icon icon="clock-off" width={11} height={11} className="shrink-0" />
-                                  {t.comments.windowExpired}
-                                </span>
-                              )
-                            }
+                        {/* เส้นตายทักแชท 7 วัน **ของคอมเมนต์ใบนี้เอง** — ตรงกว่าของเดิมที่ต้องส่ง
+                            "ใบที่เก่าที่สุดที่ยังไม่ตอบในโพสต์" มาให้ทั้งแถว โทนมาจาก
+                            privateReplyWindow() ตัวเดียว: badge นี้กับข้อความในเธรดต้องเปลี่ยนสี
+                            พร้อมกันเสมอ (HR16)
+                            🛑 createdTime มาจาก server ซึ่งเก่าได้ถึง 60 วิ ขณะที่นาฬิกา client
+                            เดินอยู่ — ในนาทีที่เส้นตายผ่านพอดีต้องอ่านว่า "หมดเวลาทักแชท" เฉย ๆ
+                            ไม่ใช่ "ทักแชทได้อีก หมดเวลาทักแชท" ซึ่งเป็นนาทีที่ข้อความนี้สำคัญที่สุด */}
+                        {(() => {
+                          const w = privateReplyWindow(c.createdTime, t)
+                          if (w.expired) {
                             return (
-                              <span
-                                className={`badge text-2xs inline-flex max-w-full items-center gap-1 ${
-                                  w.tone === 'danger' ? 'bg-danger/15 text-danger-ink' : 'bg-warning/15 text-warning-ink'
-                                }`}
-                              >
-                                <Icon icon="clock" width={11} height={11} className="shrink-0" />
-                                <span className="truncate">{fmt(t.comments.windowLeftShort, { remaining: w.remaining })}</span>
+                              <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
+                                <Icon icon="clock-off" width={11} height={11} className="shrink-0" />
+                                {t.comments.windowExpired}
                               </span>
                             )
-                          })()
-                        ) : (
-                          <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
-                            <Icon icon="clock-off" width={11} height={11} className="shrink-0" />
-                            {t.comments.windowExpired}
-                          </span>
-                        )}
+                          }
+                          return (
+                            <span
+                              className={`badge text-2xs inline-flex max-w-full items-center gap-1 ${
+                                w.tone === 'danger' ? 'bg-danger/15 text-danger-ink' : 'bg-warning/15 text-warning-ink'
+                              }`}
+                            >
+                              <Icon icon="clock" width={11} height={11} className="shrink-0" />
+                              <span className="truncate">{fmt(t.comments.windowLeftShort, { remaining: w.remaining })}</span>
+                            </span>
+                          )
+                        })()}
                       </span>
                     )}
-                    {/* feature 00038 — บอทตอบแล้วทุกคอมเมนต์ของโพสต์นี้ แต่ยังไม่มีคนยืนยัน
+                    {/* feature 00038 — บอทตอบคอมเมนต์ใบนี้แล้ว แต่ยังไม่มีคนยืนยัน
                         (Verified-Means-Green: เหลืองไม่ใช่เขียว เพราะยังไม่มีมนุษย์ยืนยัน) */}
-                    {p.postStatus === 'BOT_ANSWERED' && (
+                    {c.state === 'BOT_ANSWERED' && (
                       <span className="mt-1 flex flex-wrap items-center gap-1">
                         <span className="badge bg-warning/15 text-warning-ink text-2xs inline-flex items-center gap-1">
                           <Icon icon="robot" width={11} height={11} className="shrink-0" />
@@ -1543,12 +1575,7 @@ export default function CommentsClient({
                   <span className="flex shrink-0 flex-col items-end gap-1.25">
                     {/* เวลาแบบสัมพัทธ์ (เมื่อกี้ / 3 ชม. / 2 วัน) — HH:MM เดิมทำให้เมื่อวานกับ
                         เมื่อครู่หน้าตาเหมือนกัน (critique P1) ตัวเดียวกับที่แท็บข้อความใช้ */}
-                    <span className="text-default-700 text-2xs">
-                      {p.lastCommentAt ? formatChatListTime(p.lastCommentAt) : ''}
-                    </span>
-                    {/* วงกลมตัวเลขท้ายแถวถูกถอดออก 2026-08-04 (user: "เอาตรงนี้ออกให้หน่อย") —
-                        ข้อมูลเดียวกันอยู่ในป้าย "ยังไม่ตอบ" ใต้ preview แล้ว ตัวเลขซ้ำสองที่ในแถวเดียว
-                        ทำให้ต้องอ่านสองรอบว่ามันคือเรื่องเดียวกันหรือเปล่า */}
+                    <span className="text-default-700 text-2xs">{formatChatListTime(c.createdTime)}</span>
                   </span>
                 </button>
               ))}
@@ -1580,7 +1607,10 @@ export default function CommentsClient({
           <div className="border-default-200 flex shrink-0 items-center gap-3 border-b px-3 py-2 lg:hidden">
             <button
               type="button"
-              onClick={() => setSelectedId(null)}
+              onClick={() => {
+                  setSelectedId(null)
+                  setHighlightCommentId(null)
+                }}
               aria-label={t.comments.backToPosts}
               className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg"
             >
@@ -1619,7 +1649,10 @@ export default function CommentsClient({
             <div className="border-default-200 flex shrink-0 items-center gap-3 border-b px-3 py-2">
               <button
                 type="button"
-                onClick={() => setSelectedId(null)}
+                onClick={() => {
+                  setSelectedId(null)
+                  setHighlightCommentId(null)
+                }}
                 aria-label={t.comments.backToPosts}
                 className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg lg:hidden"
               >
@@ -1651,7 +1684,7 @@ export default function CommentsClient({
                 )}
                 <p className="text-default-700 mb-0 truncate text-xs">
                   {fmt(t.comments.reactionsN, { n: selectedPost.reactionCount ?? '–' })} ·{' '}
-                  {fmt(t.comments.commentCountN, { n: thread?.post.fbCommentCount ?? selectedPost.commentCount })}
+                  {fmt(t.comments.commentCountN, { n: thread?.post.fbCommentCount ?? selectedPost.fbCommentCount ?? '–' })}
                   {selectedPost.shareCount != null && ` · ${fmt(t.comments.sharesN, { n: selectedPost.shareCount })}`}
                   {thread?.post.createdTime && ` · ${formatDateTH(thread.post.createdTime)}`}
                 </p>
@@ -1806,14 +1839,14 @@ export default function CommentsClient({
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Icon icon="message-circle-2" className="text-base" />
-                  {thread?.post.fbCommentCount ?? selectedPost.commentCount}
+                  {thread?.post.fbCommentCount ?? selectedPost.fbCommentCount ?? '–'}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Icon icon="share-3" className="text-base" />
                   {selectedPost.shareCount ?? '–'}
                 </span>
-                {selectedPost.unansweredCount > 0 && (
-                  <span className="text-danger-ink font-medium">{fmt(t.comments.unansweredN, { n: selectedPost.unansweredCount })}</span>
+                {selectedUnanswered > 0 && (
+                  <span className="text-danger-ink font-medium">{fmt(t.comments.unansweredN, { n: selectedUnanswered })}</span>
                 )}
               </div>
             </div>
@@ -1979,8 +2012,9 @@ export default function CommentsClient({
           fromName={privateReplyComment.fromName}
           // แทน {ชื่อ} ตั้งแต่ตอน prefill — คนที่กดปุ่มนี้กำลังจะทักคนคนนี้อยู่แล้ว ปล่อยให้เห็น
           // token ดิบในช่องพิมพ์คือการโยนงานหาแทนคืนให้คนกด (และเสี่ยงกดส่งทั้งอย่างนั้น)
+          // เพจอ่านจาก selectedChannel — `selectedPost` ไม่มี `.channel` แล้วตั้งแต่แถวเป็นคอมเมนต์
           defaultValue={renderCommentReplyText(
-            channels.find((ch) => ch.id === selectedPost?.channel.id)?.commentPrivateReplyText ?? '',
+            channels.find((ch) => ch.id === selectedChannel?.id)?.commentPrivateReplyText ?? '',
             privateReplyComment.fromName,
           )}
           sending={sendingPrivateReplyId === privateReplyComment.id}

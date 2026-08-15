@@ -13,12 +13,12 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveChatScope } from '@/lib/chat-scope'
-import { listCommentPosts, backfillPagePosts, backfillMissingPostThumbnails } from '@/services/page-comment.service'
+import { listComments, backfillPagePosts, backfillMissingPostThumbnails } from '@/services/page-comment.service'
 import { listChannelsForShops } from '@/services/shop-channel.service'
 import { prisma } from '@/lib/prisma'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
-import CommentsClient, { type CommentPostItem } from './CommentsClient'
+import CommentsClient, { type CommentListItem } from './CommentsClient'
 import { getT } from '@/i18n/server'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -62,14 +62,15 @@ export default async function CommentsPage() {
     await backfillMissingPostThumbnails({ shopIds: backfillShopIds })
   })
 
-  let posts: CommentPostItem[] = []
-  // feature 00038 — ตัวนับ 4 กลุ่มของหน้าแรก มาจาก listCommentPosts เดียวกับที่ดึง posts
-  // (BR-CR-S4: badge/แท็บ/ตัวกรองต้องมาจาก symbol เดียว) ค่าตั้งต้น 0 ทั้งชุดถ้าโหลดพัง
+  let comments: CommentListItem[] = []
+  // ตัวนับ 4 กลุ่มของหน้าแรก มาจาก listComments เดียวกับที่ดึงรายการ (BR-CR-S4: badge/แท็บ/
+  // ตัวกรองต้องมาจาก symbol เดียว) — **นับเป็นคอมเมนต์** ตั้งแต่ 2026-08-15 ให้ตรงกับหน่วยของแถว
+  // ค่าตั้งต้น 0 ทั้งชุดถ้าโหลดพัง
   let counts = { all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0 }
   /**
-   * จำนวนโพสต์ "ดิบ" ที่ query ของหน้าแรกดึงมาได้จริง — คนละความหมายกับ `counts.all` ซึ่งเป็นยอด
-   * **ทั้งร้าน** (ดู listCommentPosts) client ใช้ตัวนี้เป็น skip ของหน้าถัดไป ส่งผิดแล้วปุ่ม
-   * "โหลดโพสต์เก่ากว่านี้" จะข้ามโพสต์เป็นสิบ (impeccable critique 2026-08-09 รอบ 2)
+   * จำนวนแถว "ดิบ" ที่ query ของหน้าแรกดึงมาได้จริง — คนละความหมายกับ `counts.all` ซึ่งเป็นยอด
+   * **ทั้งร้าน** (ดู listComments) client ใช้ตัวนี้เป็น skip ของหน้าถัดไป ส่งผิดแล้วปุ่ม
+   * โหลดเพิ่มจะข้ามแถวเป็นสิบ (impeccable critique 2026-08-09 รอบ 2)
    */
   let rawCount = 0
   let failed = false
@@ -101,11 +102,11 @@ export default async function CommentsPage() {
     commentPrivateReplyText: privateTextByChannelId.get(c.id) ?? null,
   }))
   try {
-    const result = await listCommentPosts({ shopIds: scope.shopIds, actorUserId: user.id })
-    posts = result.posts.map((p) => ({
-      ...p,
-      lastCommentAt: p.lastCommentAt ? p.lastCommentAt.toISOString() : null,
-      oldestUnansweredAt: p.oldestUnansweredAt ? p.oldestUnansweredAt.toISOString() : null,
+    const result = await listComments({ shopIds: scope.shopIds, actorUserId: user.id })
+    comments = result.comments.map((c) => ({
+      ...c,
+      createdTime: c.createdTime.toISOString(),
+      privateReplySentAt: c.privateReplySentAt ? c.privateReplySentAt.toISOString() : null,
     }))
     counts = result.counts
     rawCount = result.rawCount
@@ -127,10 +128,10 @@ export default async function CommentsPage() {
           />
         </div>
       ) : (
-        // key: ขอบเขตเปลี่ยน = รายการโพสต์คนละชุด (ดู comment scopeKey ที่ (chat)/layout.tsx)
+        // key: ขอบเขตเปลี่ยน = รายการคนละชุด (ดู comment scopeKey ที่ (chat)/layout.tsx)
         <CommentsClient
           key={`${scope.mode}:${scope.shopIds.join(',')}`}
-          initialPosts={posts}
+          initialComments={comments}
           initialRawCount={rawCount}
           initialCounts={counts}
           shopIds={scope.shopIds}

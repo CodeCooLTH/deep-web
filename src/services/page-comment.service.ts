@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client'
+import { COMMENT_LIST_PAGE_SIZE } from '@/lib/comment-list-page'
 import { prisma } from '@/lib/prisma'
 import { canAccessShop, assertShopsAccessible } from '@/lib/shop-context'
 import { decryptToken } from '@/lib/token-crypto'
@@ -561,6 +562,306 @@ export async function countCommentPostStatesByShop(params: {
     botAnswered: Number(row?.botAnswered ?? 0),
     humanAnswered: Number(row?.humanAnswered ?? 0),
   }
+}
+
+/**
+ * ตัวนับ **ระดับคอมเมนต์** ทั้งร้าน (feature 00029 ส่วนขยาย 2026-08-15)
+ *
+ * 🛑 ทำไมต้องมีตัวนี้ทั้งที่มี `countCommentPostStatesByShop` อยู่แล้ว
+ * คอลัมน์ซ้ายเปลี่ยนจาก "1 แถว = 1 โพสต์" เป็น "1 แถว = 1 คอมเมนต์" (ผู้ใช้เคาะ 2026-08-15)
+ * ⇒ หน่วยของแถวเปลี่ยน ตัวนับบนแท็บต้องเปลี่ยนตาม ไม่งั้นจะได้จอที่เขียนว่า "ยังไม่ตอบ 7"
+ * นั่งอยู่เหนือรายการ 12 แถว ซึ่งไฟล์นี้ถือเป็นบาปมหันต์ของตัวเองมาตลอด
+ * (`sibling-surface-parity.md` — จอนี้เคยโชว์ "ยังไม่ตอบ 7 กับ 8" พร้อมกันมาแล้ว)
+ *
+ * 🛑 CASE ข้างในต้องเรียง WHEN ตรงกับ `deriveCommentState()` บรรทัดต่อบรรทัด เหมือนที่
+ * `countCommentPostStatesByShop` ทำ — คัดลอก CTE `customer_comments` มาทั้งก้อนโดยตั้งใจ
+ * แล้วต่างกันแค่ชั้นสุดท้าย (อันนั้นยุบเป็นโพสต์ อันนี้นับคอมเมนต์ตรง ๆ)
+ */
+export async function countCommentStatesByShop(params: {
+  shopIds: string[]
+  shopChannelId?: string
+  /** ต้อง trim แล้วก่อนส่งเข้ามา (caller รับผิดชอบ) — ต้องส่งค่าเดียวกับ `listComments` เสมอ */
+  q?: string
+  provider?: CommentChannelFilter
+}): Promise<CommentPostCounts> {
+  if (params.shopIds.length === 0) return EMPTY_COMMENT_POST_COUNTS
+
+  const channelFilter = params.shopChannelId ? Prisma.sql`AND sc.id = ${params.shopChannelId}` : Prisma.empty
+  /**
+   * ค้นหา: ตรงกับตัวคอมเมนต์เอง (ข้อความ/ชื่อคนคอมเมนต์) หรือข้อความของโพสต์ที่มันอยู่ใต้
+   *
+   * ต่างจากตัวนับระดับโพสต์โดยตั้งใจ — ที่นั่นถามว่า "โพสต์นี้เข้าเกณฑ์ไหม" ที่นี่ถามว่า
+   * "คอมเมนต์ใบนี้เข้าเกณฑ์ไหม" ⇒ ต้องเทียบกับ `listComments` ให้ตรง ไม่ใช่กับของเดิม
+   */
+  const searchFilter = params.q
+    ? Prisma.sql`AND (
+        c.message ILIKE ${'%' + params.q + '%'}
+        OR c."fromName" ILIKE ${'%' + params.q + '%'}
+        OR EXISTS (SELECT 1 FROM "FacebookPost" qp WHERE qp.id = c."postId" AND qp.message ILIKE ${'%' + params.q + '%'})
+      )`
+    : Prisma.empty
+
+  const rows = await prisma.$queryRaw<
+    Array<{ all: bigint; unanswered: bigint; botAnswered: bigint; humanAnswered: bigint }>
+  >`
+    WITH scoped_channels AS (
+      SELECT sc.id FROM "ShopChannel" sc
+      WHERE sc."shopId" IN (${Prisma.join(params.shopIds)})
+        AND sc.provider = ${resolveCommentProvider(params.provider)}
+        ${channelFilter}
+    ),
+    customer_comments AS (
+      SELECT
+        CASE
+          WHEN EXISTS (
+            SELECT 1 FROM "PageComment" r
+            WHERE r."parentExternalId" = c."externalCommentId" AND r."isFromPage" = true AND r."isAutoReply" = false
+          ) THEN 'HUMAN_ANSWERED'
+          WHEN EXISTS (
+            SELECT 1 FROM "PageComment" r
+            WHERE r."parentExternalId" = c."externalCommentId" AND r."isFromPage" = true
+          ) THEN 'BOT_ANSWERED'
+          WHEN EXISTS (
+            SELECT 1 FROM "CommentReplyLog" l
+            WHERE l."commentId" = c."id" AND l."privateReplyStatus" = 'SENT' AND l."trigger" = 'MANUAL'
+          ) THEN 'HUMAN_ANSWERED'
+          WHEN EXISTS (
+            SELECT 1 FROM "CommentReplyLog" l
+            WHERE l."commentId" = c."id" AND l."privateReplyStatus" = 'SENT'
+          ) THEN 'BOT_ANSWERED'
+          ELSE 'UNANSWERED'
+        END AS state
+      FROM "PageComment" c
+      WHERE c."shopChannelId" IN (SELECT id FROM scoped_channels)
+        AND c."isFromPage" = false
+        AND c."isDeleted" = false
+        ${searchFilter}
+    )
+    SELECT
+      count(*)::bigint AS "all",
+      count(*) FILTER (WHERE state = 'UNANSWERED')::bigint AS "unanswered",
+      count(*) FILTER (WHERE state = 'BOT_ANSWERED')::bigint AS "botAnswered",
+      count(*) FILTER (WHERE state = 'HUMAN_ANSWERED')::bigint AS "humanAnswered"
+    FROM customer_comments
+  `
+  const row = rows[0]
+  return {
+    all: Number(row?.all ?? 0),
+    unanswered: Number(row?.unanswered ?? 0),
+    botAnswered: Number(row?.botAnswered ?? 0),
+    humanAnswered: Number(row?.humanAnswered ?? 0),
+  }
+}
+
+/**
+ * 1 แถว = 1 คอมเมนต์ของลูกค้า (feature 00029 ส่วนขยาย 2026-08-15)
+ *
+ * แทนที่ `listCommentPosts` ในการป้อนคอลัมน์ซ้าย — คอลัมน์กลาง/ขวายังทำงานเป็น "ระดับโพสต์"
+ * เหมือนเดิม (ผู้ใช้เคาะให้คง 3 คอลัมน์) แถวจึงพกบริบทของโพสต์ติดมาด้วยเพื่อให้ client
+ * resolve ได้ว่ากดแล้วต้องโหลดเธรดของโพสต์ไหน และไฮไลต์คอมเมนต์ใบไหน
+ *
+ * 🛑 คำตอบใต้คอมเมนต์อื่น (reply ของลูกค้า) **มีแถวของตัวเอง** (ผู้ใช้เคาะ) — ลูกค้าที่ตอบกลับ
+ * มาใต้คอมเมนต์ตัวเองก็คืองานที่ต้องตอบ ไม่ควรหายจากคิว. คอมเมนต์ของ **เพจเอง** ไม่มีแถว
+ * (`isFromPage = false`) ด้วยเหตุผลเดิม: เพจไม่ต้องตอบตัวเอง
+ */
+export interface CommentListRow {
+  /** `PageComment.id` — คีย์ที่ `CommentReplyLog.commentId` อ้าง ใช้เป็น id ของแถว */
+  id: string
+  externalCommentId: string
+  /** true = เป็นคำตอบใต้คอมเมนต์อื่น — ใช้เยื้องแถวให้เห็นลำดับชั้น */
+  isReply: boolean
+  fromName: string | null
+  message: string | null
+  attachmentUrl: string | null
+  createdTime: Date
+  state: CommentAnswerState
+  privateReplySentAt: Date | null
+  privateReplyConversationId: string | null
+  /** โพสต์ที่คอมเมนต์นี้อยู่ใต้ — คอลัมน์กลางยังแสดงเป็นระดับโพสต์ */
+  post: {
+    id: string
+    externalPostId: string
+    message: string | null
+    thumbnailUrl: string | null
+    permalink: string | null
+    mediaType: string | null
+    /** ยอด engagement ของโพสต์ — คอลัมน์กลางยังแสดงหัวโพสต์แบบเดิม (layout ไม่เปลี่ยน) */
+    reactionCount: number | null
+    fbCommentCount: number | null
+    shareCount: number | null
+  }
+  channel: { id: string; name: string; provider: string; avatarUrl: string | null }
+  shop: { id: string; name: string }
+}
+
+export async function listComments(params: {
+  shopIds: string[]
+  actorUserId: string
+  q?: string
+  take?: number
+  skip?: number
+  shopChannelId?: string
+  state?: 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN'
+  provider?: CommentChannelFilter
+}): Promise<{
+  comments: CommentListRow[]
+  /** ทั้งร้าน — มาจาก `countCommentStatesByShop()` ไม่ใช่ batch นี้ (เหตุผลเดียวกับของเดิม) */
+  counts: CommentPostCounts
+  /** จำนวนแถวดิบที่ query ได้ (ก่อนกรองด้วย `state`) — ใช้คำนวณ skip/hasMore เท่านั้น ห้ามแสดง */
+  rawCount: number
+}> {
+  if (params.shopIds.length === 0) return { comments: [], counts: EMPTY_COMMENT_POST_COUNTS, rawCount: 0 }
+  await assertShopsAccessible(params.shopIds, params.actorUserId)
+
+  const channels = await prisma.shopChannel.findMany({
+    where: {
+      shopId: { in: params.shopIds },
+      provider: resolveCommentProvider(params.provider),
+      ...(params.shopChannelId ? { id: params.shopChannelId } : {}),
+    },
+    select: { id: true },
+  })
+  const channelIds = channels.map((c) => c.id)
+  if (channelIds.length === 0) return { comments: [], counts: EMPTY_COMMENT_POST_COUNTS, rawCount: 0 }
+
+  const q = params.q?.trim()
+  const rows = await prisma.pageComment.findMany({
+    where: {
+      shopChannelId: { in: channelIds },
+      isFromPage: false,
+      isDeleted: false,
+      ...(q
+        ? {
+            OR: [
+              { message: { contains: q, mode: 'insensitive' as const } },
+              { fromName: { contains: q, mode: 'insensitive' as const } },
+              { post: { message: { contains: q, mode: 'insensitive' as const } } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { createdTime: 'desc' },
+    take: params.take ?? COMMENT_LIST_PAGE_SIZE,
+    skip: params.skip ?? 0,
+    include: {
+      // ช่องทางมาทาง post.channel — `PageComment` มีแต่ `shopChannelId` เป็นคอลัมน์ ไม่มี relation ตรง
+      post: {
+        select: {
+          id: true,
+          externalPostId: true,
+          message: true,
+          mirroredFileId: true,
+          thumbnailUrl: true,
+          permalink: true,
+          mediaType: true,
+          reactionCount: true,
+          fbCommentCount: true,
+          shareCount: true,
+          channel: {
+            select: {
+              id: true,
+              name: true,
+              provider: true,
+              avatarUrl: true,
+              shop: { select: { id: true, shopName: true } },
+            },
+          },
+        },
+      },
+    },
+  })
+
+  /**
+   * สถานะรายคอมเมนต์ — batch 2 query ครอบทั้งหน้า กัน N+1
+   * ต้องผ่าน `deriveCommentState()` ตัวเดียวกับที่เธรดและตัวนับใช้ (BR-CR-S4)
+   */
+  const externalIds = rows.map((c) => c.externalCommentId)
+  const commentIds = rows.map((c) => c.id)
+  const [replies, sentPrivateReplies] = await Promise.all([
+    externalIds.length > 0
+      ? prisma.pageComment.findMany({
+          where: { parentExternalId: { in: externalIds } },
+          select: { parentExternalId: true, isFromPage: true, isAutoReply: true },
+        })
+      : Promise.resolve([]),
+    commentIds.length > 0
+      ? prisma.commentReplyLog.findMany({
+          where: { commentId: { in: commentIds }, privateReplyStatus: 'SENT' },
+          select: { commentId: true, trigger: true, createdAt: true, conversationId: true },
+        })
+      : Promise.resolve([]),
+  ])
+
+  const repliesByParent = new Map<string, Array<{ isFromPage: boolean; isAutoReply: boolean }>>()
+  for (const r of replies) {
+    if (!r.parentExternalId) continue
+    const list = repliesByParent.get(r.parentExternalId) ?? []
+    list.push({ isFromPage: r.isFromPage, isAutoReply: r.isAutoReply })
+    repliesByParent.set(r.parentExternalId, list)
+  }
+  const logByCommentId = new Map(sentPrivateReplies.map((l) => [l.commentId, l]))
+
+  const mapped: CommentListRow[] = rows.map((c) => {
+    const log = logByCommentId.get(c.id) ?? null
+    return {
+      id: c.id,
+      externalCommentId: c.externalCommentId,
+      isReply: c.parentExternalId !== null,
+      fromName: c.fromName,
+      message: c.message,
+      attachmentUrl: c.attachmentUrl,
+      createdTime: c.createdTime,
+      state: deriveCommentState(
+        repliesByParent.get(c.externalCommentId) ?? [],
+        log ? (log.trigger === 'MANUAL' ? 'MANUAL' : 'AUTO') : null,
+      ),
+      privateReplySentAt: log?.createdAt ?? null,
+      privateReplyConversationId: log?.conversationId ?? null,
+      post: {
+        id: c.post.id,
+        externalPostId: c.post.externalPostId,
+        message: c.post.message,
+        // สำเนาที่เราเก็บเองชนะ URL ของ Meta เสมอ (fbcdn หมดอายุ ~4 วัน) — เหตุผลเดียวกับ listCommentPosts
+        thumbnailUrl: resolvePostThumbnail(c.post),
+        permalink: c.post.permalink,
+        mediaType: c.post.mediaType,
+        reactionCount: c.post.reactionCount,
+        fbCommentCount: c.post.fbCommentCount,
+        shareCount: c.post.shareCount,
+      },
+      channel: {
+        id: c.post.channel.id,
+        name: c.post.channel.name,
+        provider: c.post.channel.provider,
+        avatarUrl: c.post.channel.avatarUrl,
+      },
+      shop: { id: c.post.channel.shop.id, name: c.post.channel.shop.shopName },
+    }
+  })
+
+  const counts = await countCommentStatesByShop({
+    shopIds: params.shopIds,
+    shopChannelId: params.shopChannelId,
+    q,
+    provider: params.provider,
+  })
+
+  /**
+   * กรองด้วย `state` **หลัง** คำนวณ เหมือน `listCommentPosts` — สถานะเป็นค่า derived ไม่ใช่คอลัมน์
+   * `rawCount` คือจำนวนก่อนกรอง ใช้เป็น skip ของหน้าถัดไปเท่านั้น
+   */
+  const filtered =
+    !params.state || params.state === 'ALL'
+      ? mapped
+      : mapped.filter((c) =>
+          params.state === 'UNANSWERED'
+            ? c.state === 'UNANSWERED'
+            : params.state === 'BOT'
+              ? c.state === 'BOT_ANSWERED'
+              : c.state === 'HUMAN_ANSWERED',
+        )
+
+  return { comments: filtered, counts, rawCount: rows.length }
 }
 
 /** จำนวนโพสต์ต่อรอบที่ยอมให้ไล่ mirror รูปย้อนหลัง — ดูเหตุผลที่ `backfillMissingPostThumbnails` */
@@ -1193,27 +1494,23 @@ export async function countUnansweredForShops(params: {
   if (params.shopIds.length === 0) return 0
   await assertShopsAccessible(params.shopIds, params.actorUserId)
   /**
-   * นับ **จำนวนโพสต์** ที่ยังมีคอมเมนต์ค้าง ไม่ใช่จำนวนคอมเมนต์ (user ถาม 2026-08-04 "มันควรเป็น 8 ไหม"
-   * ตอนแท็บขึ้น 26 แต่รายการมี 8 แถว)
+   * นับ **จำนวนคอมเมนต์** ที่ยังไม่ถูกตอบ (เปลี่ยนหน่วยจาก "โพสต์" เมื่อ 2026-08-15)
    *
-   * เหตุผลที่หน่วยต้องเป็น "โพสต์": badge ที่อยู่ข้างกันบนแถบเดียวกัน (`ข้อความ`) นับด้วย
-   * countUnreadConversations = **จำนวนเธรด** ไม่ใช่จำนวนข้อความ — สองแท็บบนแถบเดียวกันต้องเป็น
-   * หน่วยเดียวกัน คือ "มีกี่รายการในลิสต์ที่ต้องจัดการ" และตรงกับจำนวนแถวที่ผู้ใช้เห็นจริง
-   * (รอบก่อนผมเปลี่ยนเป็นนับคอมเมนต์เพราะ user บอกว่าเลข 24/5/3,7,3,8,3 ดูขัดกัน — ตอนนั้นแถวยังมี
-   *  วงกลมตัวเลขต่อโพสต์อยู่ พอถอดวงกลมออกตามที่สั่งทีหลัง เลขจำนวนคอมเมนต์ก็ไม่มีอะไรบนจอให้อ้างอิง)
+   * 🛑 หน่วยของ badge ต้องเท่ากับ "จำนวนแถวในลิสต์ที่ต้องจัดการ" เสมอ — นั่นคือกติกาเดิมที่
+   * ตัวนับนี้ยึดมาตลอด ไม่ใช่กติกาใหม่. เดิมลิสต์เป็น 1 แถว = 1 โพสต์ หน่วยจึงเป็นโพสต์
+   * (และเทียบกับ badge แท็บ "ข้อความ" ที่นับ *เธรด* ได้พอดี) พอผู้ใช้เคาะให้คอลัมน์ซ้ายเป็น
+   * **1 แถว = 1 คอมเมนต์** หน่วยของ badge ต้องตามไปด้วย ไม่งั้นจะได้ badge "7" นั่งอยู่เหนือ
+   * รายการ 12 แถว ซึ่งเป็นอาการเดียวกับที่จอนี้เคยโชว์ "ยังไม่ตอบ 7 กับ 8" พร้อมกันมาแล้ว
+   * (`sibling-surface-parity.md` — ตัวเลขเดียวกันที่โผล่ >1 ที่ ต้องมาจาก symbol เดียว)
    *
-   * feature 00038 Fix round 1 — ตั้งใจ "ไม่" แยกบอท/คนในนิยาม "ยังไม่ตอบ" (ย้อนกลับ
-   * `AND r."isAutoReply" = false` ที่ Task 9 เติมเข้ามาตามบรีฟ ซึ่งบรีฟผิด ขัดกับ BRD ที่ user
-   * อนุมัติแล้ว): AC-CR-25 เขียนตรง ๆ ว่า "บอทตอบทุกคอมเมนต์ในโพสต์ → ตัวเลขบนแท็บ 'ความคิดเห็น'
-   * ต้องไม่นับโพสต์นั้น" และ BR-CR-S1 นิยาม "ยังไม่ตอบ" = ไม่มีคำตอบของเพจเลย (ไม่ว่าบอทหรือคน)
-   * เติมเงื่อนไข isAutoReply เข้ามาจะทำให้โพสต์ที่บอทเคลียร์หมดแล้วค้างอยู่ใน badge นี้ตลอดกาล
-   * ผิด AC-CR-25 และตัวนับไร้ความหมาย (เตือนซ้ำไม่มีวันหายแม้บอทตอบครบ)
+   * feature 00038 Fix round 1 — ตั้งใจ "ไม่" แยกบอท/คนในนิยาม "ยังไม่ตอบ": AC-CR-25 เขียนตรง ๆ
+   * ว่าบอทตอบครบแล้วต้องไม่ถูกนับ และ BR-CR-S1 นิยาม "ยังไม่ตอบ" = ไม่มีคำตอบของเพจเลย
+   * (ไม่ว่าบอทหรือคน) — ตรรกะนั้นอยู่ใน CASE ของ `countCommentStatesByShop` ซึ่งเรียงตรงกับ
+   * `deriveCommentState()` บรรทัดต่อบรรทัด
    *
-   * feature 00038 หนี้ #1 — เดิมฟังก์ชันนี้มี $queryRaw ของตัวเอง แยกจาก counts ที่ listCommentPosts
-   * คำนวณ (ซึ่งตอนนั้นเป็น batch scope ≤25 โพสต์อยู่แล้ว) สอง query ที่ "น่าจะตรงกัน" นี้คือความเสี่ยง
-   * — เปลี่ยนมาเรียก countCommentPostStatesByShop() ตัวเดียวกับที่ listCommentPosts ใช้แทน ไม่มี
-   * shopChannelId/q filter (บาดจ์นี้ไม่รู้จักตัวกรองพวกนั้น) จึงเท่ากับนับทั้งร้านเสมอ
+   * ไม่มี shopChannelId/q filter — badge นี้ไม่รู้จักตัวกรองพวกนั้น จึงนับทั้งร้านเสมอ
    */
-  const counts = await countCommentPostStatesByShop({ shopIds: params.shopIds })
+  const counts = await countCommentStatesByShop({ shopIds: params.shopIds })
   return counts.unanswered
 }
+
