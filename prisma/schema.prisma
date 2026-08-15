@@ -318,6 +318,7 @@ model Shop {
   aiSuggestUsageEvents AiSuggestUsageEvent[] // NEW (feature 00019 ext 2026-07-29) — audit log ai-suggest ทุก path (FREE/CREDIT/UNLIMITED_PLAN)
   shippingAccount      ShopShippingAccount? // NEW (feature 00022) — การเชื่อมต่อขนส่ง iShip + ค่าตั้งต้น (1:1, เฉพาะ vertical=ONLINE_SALES)
   orderShipments       OrderShipment[] // NEW (feature 00022) — พัสดุที่ร้านนี้เปิดกับขนส่ง (denorm scope)
+  commentReplyRules    CommentReplyRule[] // NEW (feature 00038 E2) — กฎตอบคอมเมนต์ตามคีย์เวิร์ดของร้านนี้
   shipmentPickups      ShipmentPickup[] // NEW (feature 00022) — คำขอเรียกรถเข้ารับ (ระดับร้าน ไม่ใช่ระดับออเดอร์)
 
   // --- feature 00023 Chat Auto-Reply (additive) ---
@@ -1539,19 +1540,21 @@ model ShopChannel {
   lineLastInboundFailReason String?
   lineInboundFailCount      Int       @default(0)
 
-  shop             Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  contacts         ExternalContact[]
-  posts            FacebookPost[]
+  shop              Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  contacts          ExternalContact[]
+  posts             FacebookPost[]
   // back-relation ของ Conversation.shopChannel — Prisma บังคับต้องประกาศทั้งสองฝั่งของ relation
-  conversations    Conversation[]
+  conversations     Conversation[]
   // back-relation ของ AutoReplyRule.shopChannelId (feature 00023, additive) — เงื่อนไขเพจของกฎคำตอบ
-  autoReplyRules   AutoReplyRule[]
+  autoReplyRules    AutoReplyRule[]
   // back-relation ของ CommentReplyLog.shopChannelId (feature 00038, additive)
-  commentReplyLogs CommentReplyLog[]
+  commentReplyLogs  CommentReplyLog[]
+  // back-relation ของ CommentReplyRule.shopChannelId (feature 00038 E2, additive)
+  commentReplyRules CommentReplyRule[]
   // back-relation ของ Order.shopChannelId (2026-08-10) — ช่องทางที่ลูกค้าทักเข้ามาตอนสร้างออเดอร์
-  orders           Order[]
+  orders            Order[]
   // back-relation ของ LineRichMenu.shopChannelId (feature 00045) — 0..1 เฉพาะเพจ provider=LINE
-  richMenu         LineRichMenu?
+  richMenu          LineRichMenu?
 
   // เดิม @@unique([provider, externalId]) = "1 เพจ 1 ร้านตลอดกาล" แม้ถอดแล้ว (status=DISCONNECTED)
   // ก็ยังกอด constraint ไว้ ทำให้ย้ายเพจไปร้านอื่นไม่ได้ (ชน P2002 ตลอดกาล) — แก้เป็น partial unique
@@ -3233,12 +3236,19 @@ model CommentReplyLog {
   ///      ฝั่งสาธารณะถูกล้างทิ้งทุกครั้ง** ร้านเห็นป้าย "ไม่สำเร็จ" เปล่า ๆ ไม่มีเหตุผลเลย
   ///      (user ชี้เองว่าเคสนี้เกิดจริง: "reply ไม่ผ่าน อาจจะทักแชทได้ก็ได้")
   /// สองงานนี้เป็นอิสระต่อกัน (BR-CR-A5 — public ล้มไม่หยุด private) จึงต้องมีที่เก็บของตัวเอง
-  errorMessage        String? @db.Text
+  errorMessage        String?   @db.Text
   /// เหตุผลที่ "ตอบใต้คอมเมนต์" ล้มเหลว — คู่กับ publicReplyStatus='FAILED' เท่านั้น
-  publicErrorMessage  String? @db.Text
+  publicErrorMessage  String?   @db.Text
   /// เหตุผลที่ "ทักแชท" ล้มเหลว — คู่กับ privateReplyStatus='FAILED' เท่านั้น
-  privateErrorMessage String? @db.Text
+  privateErrorMessage String?   @db.Text
   conversationId      String? // ห้องที่เกิดจาก private reply
+  /// กฎตามคีย์เวิร์ดที่ถูกเลือกให้คอมเมนต์นี้ (ส่วนขยาย E2) — `null` = ไม่มีกฎไหน match
+  /// จึงตกไปใช้ข้อความ fallback ของเพจ
+  ///
+  /// 🛑 มีไว้เพื่อให้หน้าประวัติตอบได้ว่า "ทำไมคอมเมนต์นี้ได้คำตอบแบบนี้" — ร้านที่มีกฎ 10 ข้อ
+  /// แล้วเห็นแต่คำตอบสุดท้ายจะสืบเองไม่ได้เลย ซึ่งเป็นคลาสปัญหาเดียวกับที่รอบนี้เพิ่งปิดไป
+  /// (การข้ามที่ไม่มีร่องรอย) — SetNull ไม่ใช่ Cascade: ลบกฎแล้วประวัติต้องไม่หายตาม
+  matchedRuleId       String?
   /// เวลาที่ **จองสิทธิ์** ทักแชทอัตโนมัติของ (shopChannelId, postId, fromExternalId) — เขียน
   /// **ก่อน** ยิง Graph เสมอ ไม่ใช่หลัง
   ///
@@ -3252,9 +3262,10 @@ model CommentReplyLog {
 
   createdAt DateTime @default(now())
 
-  channel ShopChannel  @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
-  post    FacebookPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  comment PageComment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  channel     ShopChannel       @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+  post        FacebookPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment     PageComment       @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  matchedRule CommentReplyRule? @relation(fields: [matchedRuleId], references: [id], onDelete: SetNull)
 
   // unique 3 ตัวเป็น partial index เขียนมือใน migration.sql — Prisma ประกาศเองไม่ได้:
   //   AUTO    ครั้งเดียวต่อ commentId                                   (กัน webhook retry)
@@ -3262,6 +3273,67 @@ model CommentReplyLog {
   //   MANUAL  ครั้งเดียวต่อ commentId
   @@index([shopChannelId, createdAt])
   @@index([commentId])
+}
+
+// ── feature 00038 ส่วนขยาย E2 (2026-08-15): ตอบคอมเมนต์ต่างกันตามคีย์เวิร์ด ──────────────
+//
+// ทำไมไม่ reuse AutoReplyKeyword/AutoReplyRule ของแชท (00023) — D-EXT2-1:
+//   * AutoReplyKeyword.status มีโหมด TEST ที่ผูกกับ AutoReplyKeywordTestThread = **เธรดแชท**
+//     ซึ่งไม่มีสิ่งเทียบเท่าในโลกของคอมเมนต์ ยัดเข้าไปจะได้ค่าที่ไม่มีความหมายในบริบทหนึ่งเสมอ
+//   * AutoReplyRule มีมิติ adId/productId + specificity bitmask ที่ออกแบบเพื่อ 8 ระดับของแชท
+//     การเติม discriminator scope='COMMENT' เข้าตารางที่ engine ตัวอื่นอ่านอยู่ = ความเสี่ยงที่
+//     กฎคอมเมนต์รั่วไปตอบในแชท (คลาส "guard ที่หายไป = หายทั้งคลาส")
+//   * ร้านแก้กลุ่มคำเพื่อแชท แล้วพฤติกรรมคอมเมนต์เปลี่ยนตามโดยไม่รู้ตัว = ผลข้างเคียงที่มองไม่เห็น
+// ยกมาใช้ซ้ำเฉพาะ normalizeMessage() ซึ่งเป็นส่วนที่ยากและต้องมีนิยามเดียวทั้งระบบ (HR16)
+model CommentReplyRule {
+  id            String  @id @default(uuid())
+  shopId        String
+  /// NULL = ใช้กับ **ทุกเพจ** ของร้าน (D-EXT2-2)
+  /// 🛑 กฎที่ระบุเพจตรงกันต้องชนะกฎ NULL เสมอ ไม่งั้นตัวเลือก "ต่อเพจ" ไม่มีความหมายเลย
+  /// บังคับที่ตัวเรียงใน src/lib/comment-rule-match.ts (ไม่ใช่ ORDER BY ใน SQL — ดู index ท้ายโมเดล)
+  shopChannelId String?
+
+  /// ชื่อกฎที่ร้านตั้งเอง เช่น "ถามราคา" — ใช้ในหน้าจอ/ประวัติเท่านั้น ไม่มีผลต่อการ match
+  name String
+
+  /// คำที่ร้านพิมพ์ (เก็บของเดิมไว้แสดงใน UI) — คู่กับ normalizedPhrases ที่ใช้เทียบจริง
+  phrases           String[] @default([])
+  /// 🛑 ผลของ normalizeMessage() เก็บไว้ที่ฐาน ไม่ normalize ตอน match
+  /// ⇒ **แก้ src/lib/auto-reply-normalize.ts เมื่อไหร่ ต้อง backfill คอลัมน์นี้ทั้งตารางในรอบ
+  /// deploy เดียวกัน** (ข้อผูกมัดเดียวกับ AutoReplyPhrase.normalizedPhrase ที่เขียนเตือนไว้แล้ว)
+  /// ไม่งั้นกฎที่ร้านตั้งไว้เดิมจะ match ไม่ตรงแบบเงียบ ๆ — ไม่มี error ไม่มี log
+  normalizedPhrases String[] @default([])
+
+  /// D-EXT2-4 — สั่งแยกได้ว่ากฎนี้จะตอบใต้คอมเมนต์ / ทักแชท / ทั้งคู่ (ช่องว่าง = ไม่ทำช่องนั้น)
+  ///
+  /// 🛑 ว่างทั้งสองช่องไม่ได้ (บังคับที่ Valibot + service): กฎที่ match แล้วไม่ทำอะไรเลยจะ
+  /// **"กิน" คอมเมนต์นั้นไปจาก fallback ของเพจด้วย** = เงียบกว่าตอนไม่มีกฎเสียอีก
+  publicReplyText   String? @db.Text
+  /// fileId ของ storage (ห้ามเก็บ URL — presigned อายุ 1 ชม.) เหตุผลเดียวกับ ShopChannel.commentPublicReplyFileId
+  publicReplyFileId String?
+  privateReplyText  String? @db.Text
+
+  /// มากกว่า = ถูกเลือกก่อน (เกณฑ์ที่ 2 รองจาก "เจาะจงเพจ")
+  priority Int     @default(100)
+  isActive Boolean @default(true)
+
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shop    Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /// SetNull ไม่ใช่ Cascade — ถอดเพจแล้วกฎต้องไม่หายไปเฉย ๆ (กลายเป็นกฎ "ทุกเพจ" แล้วให้ร้าน
+  /// ตัดสินใจเอง) หลักเดียวกับ AutoReplyRule.shopChannelId
+  channel ShopChannel? @relation(fields: [shopChannelId], references: [id], onDelete: SetNull)
+
+  // query เดียวที่ hot path ใช้: "กฎที่เปิดอยู่ของร้านนี้" แล้วคัด/เรียงต่อในหน่วยความจำ
+  // (กฎต่อร้านเป็นหลักสิบ — เรียงใน SQL ไม่ช่วยอะไร และทำให้กติกาการเรียงกระจายไปอยู่ 2 ที่
+  //  ซึ่งเป็นที่ที่มันจะแตกกันเงียบ ๆ)
+  /// back-relation ของ CommentReplyLog.matchedRuleId
+  logs CommentReplyLog[]
+
+  @@index([shopId, isActive])
+  @@index([shopChannelId])
 }
 
 // ── feature 00031: Order Activity Log (additive) ───────────────────────────

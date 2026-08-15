@@ -1706,6 +1706,41 @@ export const CommentReplyConfigSchema = v.pipe(
   ),
 )
 
+/**
+ * POST/PATCH /api/shops/comment-reply/rules — กฎตอบคอมเมนต์ตามคีย์เวิร์ด (00038 ส่วนขยาย E2)
+ *
+ * 🛑 ด่านนี้เห็นเฉพาะ payload เดี่ยว ๆ — เช็ค "ว่างทั้งสองช่อง" ได้ที่นี่ แต่เช็ค "เพจเป็นของร้านนี้
+ * จริงไหม" / "กฎเกินเพดานหรือยัง" ไม่ได้ ต้องอยู่ที่ service (comment-reply-rule.service.ts)
+ * เหตุผลเดียวกับที่ CommentReplyConfigSchema เช็ค BR-CR-05 ให้ครบไม่ได้
+ */
+export const CommentReplyRuleSchema = v.pipe(
+  v.object({
+    name: v.pipe(v.string(), v.trim(), v.minLength(1, "ตั้งชื่อกฎก่อน"), v.maxLength(80)),
+    /** null = ใช้กับทุกเพจของร้าน (D-EXT2-2) */
+    shopChannelId: v.nullable(v.pipe(v.string(), v.uuid())),
+    phrases: v.pipe(
+      v.array(v.pipe(v.string(), v.maxLength(200))),
+      v.minLength(1, "ใส่คำที่จะให้ระบบตรวจจับอย่างน้อย 1 คำ"),
+      v.maxLength(30, "ใส่คำได้สูงสุด 30 คำต่อกฎ"),
+    ),
+    publicReplyText: v.nullable(v.pipe(v.string(), v.maxLength(1000))),
+    publicReplyFileId: v.nullable(v.pipe(v.string(), v.minLength(1), v.maxLength(500))),
+    privateReplyText: v.nullable(v.pipe(v.string(), v.maxLength(1000))),
+    priority: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(9999)),
+    isActive: v.boolean(),
+  }),
+  v.forward(
+    v.check(
+      // 🛑 กฎที่ match แล้วไม่ทำอะไรเลยจะ "กิน" คอมเมนต์นั้นไปจาก fallback ของเพจด้วย
+      // = เงียบกว่าตอนไม่มีกฎเสียอีก ต้องกันตั้งแต่ตอนบันทึก ไม่ใช่ปล่อยให้ไปเงียบตอนรัน
+      (i) =>
+        !!i.publicReplyText?.trim() || !!i.publicReplyFileId || !!i.privateReplyText?.trim(),
+      "กรอกคำตอบอย่างน้อยหนึ่งช่อง (ตอบใต้คอมเมนต์ หรือ ทักแชท)",
+    ),
+    ["publicReplyText"],
+  ),
+);
+
 /** GET /api/shops/comment-reply/logs — query (API.md §4.3, offset cursor pattern มิเรอร์ BuilderLibraryQuerySchema) */
 export const CommentReplyLogsQuerySchema = v.object({
   shopChannelId: v.optional(v.pipe(v.string(), v.uuid())),

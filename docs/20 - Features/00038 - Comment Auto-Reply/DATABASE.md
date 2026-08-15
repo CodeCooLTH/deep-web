@@ -174,6 +174,29 @@ erDiagram
 | `CommentReplyLog` | `(shopChannelId, postId, fromExternalId)` **WHERE `trigger='AUTO' AND privateAttemptedAt IS NOT NULL`** | `UNIQUE (partial)` | กันทักแชทซ้ำ — "1 ครั้ง/คน/โพสต์" (BR-CR-A2b) จองสิทธิ์ด้วยการเขียน `privateAttemptedAt` **ก่อน** ยิง Graph จึงเป็น claim แบบ atomic ไม่ใช่ find-then-check |
 | `CommentReplyLog` | `(commentId)` **WHERE `trigger='MANUAL'`** | `UNIQUE (partial)` | กันซ้ำโหมดแมนนวล — "1 ครั้ง/คอมเมนต์" (เพดานจริงของ Meta) |
 
+### ส่วนขยาย E2 (2026-08-15) — ตาราง `CommentReplyRule`
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `shopChannelId` | `TEXT?` | `NULL` = ใช้กับ **ทุกเพจ** ของร้าน (D-EXT2-2) · FK `SetNull` — ถอดเพจแล้วกฎกลายเป็น "ทุกเพจ" ไม่หายไป |
+| `phrases` / `normalizedPhrases` | `TEXT[]` | คำที่ร้านพิมพ์ / รูปที่ผ่าน `normalizeMessage()` แล้ว 🛑 **แก้ `auto-reply-normalize.ts` เมื่อไหร่ ต้อง backfill คอลัมน์หลังทั้งตารางในรอบ deploy เดียวกัน** ไม่งั้นกฎเดิม match ไม่ตรงแบบเงียบ ๆ |
+| `publicReplyText` / `publicReplyFileId` / `privateReplyText` | nullable | ว่างช่องไหน = ไม่ทำช่องนั้น (D-EXT2-4) 🛑 **ว่างทั้งหมดไม่ได้** — กฎที่ match แล้วไม่ทำอะไรเลยจะกินคอมเมนต์ไปจาก fallback ด้วย บังคับที่ Valibot + service |
+| `priority` | `INT` | มากกว่าถูกเลือกก่อน (เกณฑ์ที่ 2 รองจาก "เจาะจงเพจ") |
+
+**ลำดับการเลือกกฎ** (`src/lib/comment-rule-match.ts` — ฟังก์ชันบริสุทธิ์ ที่เดียว ห้ามมีครึ่งหนึ่งใน `ORDER BY`):
+เจาะจงเพจก่อน → `priority` มากกว่า → `createdAt` เก่ากว่า → `id` น้อยกว่า
+สองเกณฑ์ท้ายไม่ใช่ของประดับ — ถ้าไม่มี กฎที่ `priority` เท่ากันจะสลับกันชนะตามลำดับที่ Postgres
+บังเอิญคืนมา แล้วร้านเห็นคำตอบไม่เหมือนเดิมกับคอมเมนต์ที่หน้าตาเหมือนกัน โดยไม่มีอะไรอธิบายได้
+
+### ส่วนขยาย E1/E2 — คอลัมน์ที่เพิ่มบนตารางเดิม
+
+| ตาราง | คอลัมน์ | หมายเหตุ |
+|---|---|---|
+| `ShopChannel` | `commentPublicReplyFileId` | รูปที่แนบไปกับคำตอบอัตโนมัติ 🛑 เก็บ **fileId ห้ามเก็บ URL** (presigned อายุ 1 ชม.) · **มีรูปอย่างเดียวไม่มีข้อความก็ส่งได้** ⇒ เกณฑ์ "สวิตช์ใช้งานได้ไหม" = ข้อความ **หรือ** รูป (ต้องตรงกัน 4 ที่: `evaluateCommentGate` · Valibot · merge ใน PATCH · ปุ่มบันทึกฝั่ง client) |
+| `CommentReplyLog` | `matchedRuleId` | กฎที่ถูกเลือกให้คอมเมนต์นี้ (`NULL` = ไม่มีกฎ match) · FK `SetNull` — ลบกฎแล้วประวัติต้องไม่หายตาม · มีไว้ให้หน้าประวัติตอบได้ว่า "ทำไมคอมเมนต์นี้ได้คำตอบแบบนี้" |
+
+---
+
 **ทำไมต้องแยก 2 partial unique index แทน composite unique ธรรมดา 1 ตัว:**
 
 | ระดับ | ขอบเขต | เหตุผลที่ต้องแยก |

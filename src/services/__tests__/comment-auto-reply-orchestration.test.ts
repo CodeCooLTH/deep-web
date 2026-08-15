@@ -4,6 +4,7 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     pageComment: { findUnique: vi.fn(), findFirst: vi.fn() },
     commentReplyLog: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+    commentReplyRule: { findMany: vi.fn() },
   },
 }))
 vi.mock('@/services/page-comment.service', () => ({ replyToComment: vi.fn() }))
@@ -19,6 +20,7 @@ import { processCommentAutoReply } from '@/services/comment-auto-reply.service'
 const publicReply = vi.mocked(replyToComment)
 const privateReply = vi.mocked(sendPrivateReplyToCommentById)
 const logCreate = vi.mocked(prisma.commentReplyLog.create)
+const ruleFindMany = vi.mocked(prisma.commentReplyRule.findMany)
 const logUpdate = vi.mocked(prisma.commentReplyLog.update)
 
 /** คอมเมนต์ที่ผ่านทุกด่าน เพจเปิดทั้ง 2 สวิตช์ */
@@ -30,6 +32,7 @@ function okRow(over: Record<string, unknown> = {}) {
     shopChannelId: 'ch-1',
     fromExternalId: 'psid-1',
     fromName: 'Jiravut Sungkakul',
+    message: 'ชุดนี้ราคาเท่าไหร่ครับ',
     isFromPage: false,
     parentExternalId: null,
     isDeleted: false,
@@ -57,6 +60,7 @@ beforeEach(() => {
   vi.mocked(prisma.pageComment.findUnique).mockResolvedValue(okRow() as never)
   vi.mocked(prisma.pageComment.findFirst).mockResolvedValue(null as never) // ไม่มีคนตอบ
   vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue(null as never) // ยังไม่เคยตอบ
+  ruleFindMany.mockResolvedValue([] as never) // ไม่มีกฎ = พฤติกรรมเดิม (ใช้ข้อความ fallback ของเพจ)
   logCreate.mockResolvedValue({ id: 'log-1' } as never)
   logUpdate.mockResolvedValue({ id: 'log-1' } as never)
   publicReply.mockResolvedValue({ id: 'reply-1' } as never)
@@ -299,6 +303,121 @@ describe('processCommentAutoReply', () => {
     expect(publicReply).toHaveBeenCalledWith(
       expect.objectContaining({ message: '', fileId: 'file-abc' }),
     )
+  })
+
+  /** กฎเดียวที่จับคำว่า "ราคา" — override เฉพาะช่องที่เทสสนใจ */
+  function priceRule(over: Record<string, unknown> = {}) {
+    return {
+      id: 'rule-price',
+      shopChannelId: null,
+      normalizedPhrases: ['ราคา'],
+      priority: 100,
+      createdAt: new Date('2026-08-01'),
+      publicReplyText: 'ชุดนี้ 1,500 บาทครับ',
+      publicReplyFileId: null,
+      privateReplyText: 'ทักมาได้เลยครับ',
+      ...over,
+    }
+  }
+
+  // [blocker] ส่วนขยาย E2 — 35% ของคอมเมนต์บน prod ถามราคาตรง ๆ ถ้ากฎไม่ชนะ fallback
+  // ทั้งฟีเจอร์ก็ไม่มีความหมายเลย
+  it('[blocker] คอมเมนต์เข้ากฎ -> ใช้ข้อความของกฎ ไม่ใช่ข้อความ fallback ของเพจ', async () => {
+    ruleFindMany.mockResolvedValue([priceRule()] as never)
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(publicReply).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'ชุดนี้ 1,500 บาทครับ' }),
+    )
+    expect(privateReply).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'ทักมาได้เลยครับ' }),
+    )
+  })
+
+  it('[blocker] บันทึกว่าใช้กฎไหน -> ประวัติต้องอธิบายคำตอบนั้นได้', async () => {
+    ruleFindMany.mockResolvedValue([priceRule()] as never)
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(logCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ matchedRuleId: 'rule-price' }) }),
+    )
+  })
+
+  it('ไม่เข้ากฎไหนเลย -> ตกไปใช้ข้อความ fallback ของเพจ (พฤติกรรมเดิม) และ matchedRuleId เป็น null', async () => {
+    ruleFindMany.mockResolvedValue([priceRule({ normalizedPhrases: ['ผ่อน'] })] as never)
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(publicReply).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'ขอบคุณที่สนใจครับ' }),
+    )
+    expect(logCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ matchedRuleId: null }) }),
+    )
+  })
+
+  // [blocker] D-EXT2-4 — ร้านตั้งใจว่า "คนพิมพ์ว่าสวย ขอบคุณพอ ไม่ต้องทัก" ถ้าฝั่งทักแชทตกกลับไป
+  // ใช้ข้อความ fallback ของเพจ ลูกค้าจะยังโดนทักอยู่ดี = ตรงข้ามกับสิ่งที่สั่งไว้เป๊ะ ๆ
+  it('[blocker] กฎสั่งเฉพาะตอบใต้คอมเมนต์ -> ห้ามทักแชทด้วยข้อความ fallback ของเพจ', async () => {
+    ruleFindMany.mockResolvedValue([priceRule({ privateReplyText: null })] as never)
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(publicReply).toHaveBeenCalledTimes(1)
+    expect(privateReply).not.toHaveBeenCalled()
+  })
+
+  it('[blocker] กฎสั่งเฉพาะทักแชท -> ห้ามตอบใต้คอมเมนต์ด้วยข้อความ fallback ของเพจ', async () => {
+    ruleFindMany.mockResolvedValue([
+      priceRule({ publicReplyText: null, publicReplyFileId: null }),
+    ] as never)
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(publicReply).not.toHaveBeenCalled()
+    expect(privateReply).toHaveBeenCalledTimes(1)
+  })
+
+  // [blocker] กฎต้องไม่กลายเป็นทางลัดข้ามสวิตช์หลัก — ปิดสวิตช์แล้วต้องเงียบจริง
+  // ไม่งั้นการปิดฟีเจอร์ไม่ได้ปิดอะไรเลย ซึ่งเป็นสิ่งที่ผู้ใช้ไว้ใจไม่ได้ที่สุด
+  it('[blocker] ปิดสวิตช์ทั้งสองของเพจ -> กฎก็ต้องไม่ยิงอะไรเลย', async () => {
+    ruleFindMany.mockResolvedValue([priceRule()] as never)
+    vi.mocked(prisma.pageComment.findUnique).mockResolvedValue(
+      withChannel({ commentPublicReplyEnabled: false, commentPrivateReplyEnabled: false }) as never,
+    )
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(publicReply).not.toHaveBeenCalled()
+    expect(privateReply).not.toHaveBeenCalled()
+  })
+
+  // [blocker] เคสที่แยกได้จริงว่า "สวิตช์ยังคูณอยู่ไหม" — ปิดทั้งสองสวิตช์ด่าน DISABLED จะตัดจบ
+  // ก่อนถึงบรรทัดนั้นเสมอ เทสจึงจับไม่ได้ ต้องปิดทีละข้างถึงจะเห็นความต่าง
+  it('[blocker] ปิดเฉพาะสวิตช์ตอบใต้คอมเมนต์ -> กฎมีข้อความสาธารณะก็ต้องไม่ตอบ', async () => {
+    ruleFindMany.mockResolvedValue([priceRule()] as never)
+    vi.mocked(prisma.pageComment.findUnique).mockResolvedValue(
+      withChannel({ commentPublicReplyEnabled: false }) as never,
+    )
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(publicReply).not.toHaveBeenCalled()
+    expect(privateReply).toHaveBeenCalledTimes(1) // ฝั่งที่ยังเปิดอยู่ต้องทำงานตามปกติ
+  })
+
+  it('[blocker] ปิดเฉพาะสวิตช์ทักแชท -> กฎมีข้อความทักแชทก็ต้องไม่ทัก', async () => {
+    ruleFindMany.mockResolvedValue([priceRule()] as never)
+    vi.mocked(prisma.pageComment.findUnique).mockResolvedValue(
+      withChannel({ commentPrivateReplyEnabled: false }) as never,
+    )
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(privateReply).not.toHaveBeenCalled()
+    expect(publicReply).toHaveBeenCalledTimes(1)
   })
 
   it('ไม่พบคอมเมนต์ -> ไม่ throw และไม่เรียกอะไร', async () => {

@@ -113,14 +113,23 @@ type Props = {
   channels: CommentReplyChannel[]
   instagramChannel: InstagramChannel | null
   initialLogs: LogsPage
+  /** การ์ดกฎตามคีย์เวิร์ด (ส่วนขยาย E2) — ส่งเป็น element จาก RSC เพราะข้อมูลกฎถูกอ่านที่ page.tsx
+      ด้วย service ตัวเดียวกับ API (ลำดับต้องตรงกับที่ระบบเลือกจริง) ไฟล์นี้ไม่ต้องรู้จักมัน */
+  rulesCard?: React.ReactNode
 }
 
-export default function CommentReplyClient({ channels, instagramChannel, initialLogs }: Props) {
+export default function CommentReplyClient({
+  channels,
+  instagramChannel,
+  initialLogs,
+  rulesCard,
+}: Props) {
   return (
     <div className="space-y-5">
       {channels.map((channel) => (
         <CommentReplyCard key={channel.shopChannelId} channel={channel} />
       ))}
+      {rulesCard}
       {instagramChannel && <InstagramComingSoonCard channel={instagramChannel} />}
       <CommentReplyHistoryCard channels={channels} initialLogs={initialLogs} />
     </div>

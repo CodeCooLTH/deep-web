@@ -38,6 +38,8 @@ import CommentReplyClient, { type CommentReplyChannel, type CommentReplyLogRow }
 // พร้อมคอมเมนต์ว่า "แก้ที่หนึ่งต้องแก้อีกไฟล์ด้วย" ซึ่งกันอะไรไม่ได้เลย (หน้าแรกมาจากไฟล์นี้
 // หน้าถัดไปมาจาก logs/route.ts — ผู้ใช้เลื่อนหน้าเดียวก็เห็นคำคนละชุดได้โดยไม่มีอะไรฟ้อง)
 import { describeCommentReplyFailure, describeSkipReason } from '@/lib/comment-reply-reason'
+import { listCommentRules } from '@/services/comment-reply-rule.service'
+import CommentRulesCard from './CommentRulesCard'
 
 export const metadata: Metadata = { title: 'ตอบกลับคอมเมนต์' }
 
@@ -135,6 +137,11 @@ export default async function CommentReplySettingsPage() {
     }),
     prisma.commentReplyLog.count({ where: logsWhere }),
   ])
+
+  // กฎตามคีย์เวิร์ด (ส่วนขยาย E2) — อ่านผ่าน service ตัวเดียวกับที่ API ใช้ เพื่อให้ **ลำดับที่
+  // หน้าจอแสดง = ลำดับที่ระบบใช้เลือกจริง** ถ้าหน้านี้ query เองแล้วเรียงคนละแบบ ร้านจะตั้งกฎแล้ว
+  // งงว่าทำไมอีกข้อชนะ โดยไม่มีอะไรอธิบายได้
+  const rules = await listCommentRules(activeCtx.shopId)
   const initialLogs: CommentReplyLogRow[] = logRows.map((r) => ({
     id: r.id,
     createdAt: r.createdAt.toISOString(),
@@ -157,6 +164,12 @@ export default async function CommentReplySettingsPage() {
         channels={messengerChannels}
         instagramChannel={instagramChannel}
         initialLogs={{ logs: initialLogs, total: logsTotal }}
+        rulesCard={
+          <CommentRulesCard
+            initialRules={rules}
+            channels={messengerChannels.map((c) => ({ id: c.shopChannelId, name: c.name }))}
+          />
+        }
       />
     </>
   )

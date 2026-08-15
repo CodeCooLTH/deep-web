@@ -6,6 +6,8 @@
  */
 import { prisma } from '@/lib/prisma'
 import { renderCommentReplyText } from '@/lib/comment-reply-template'
+import { normalizeMessage } from '@/lib/auto-reply-normalize'
+import { matchCommentRule } from '@/lib/comment-rule-match'
 import { replyToComment } from '@/services/page-comment.service'
 import { sendPrivateReplyToCommentById } from '@/services/comment-private-reply.service'
 
@@ -183,7 +185,7 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
       return
     }
 
-    const [autoLogForComment, humanReply] = await Promise.all([
+    const [autoLogForComment, humanReply, activeRules] = await Promise.all([
       // คอมเมนต์ **ใบนี้** เคยถูกประมวลผลไปแล้วไหม (ไม่ใช่ "คนนี้บนโพสต์นี้" อีกต่อไป — ดูข้อ 6/7
       // ของ docstring) ตรงกับ partial unique index CommentReplyLog_auto_once_per_comment
       prisma.commentReplyLog.findFirst({
@@ -194,6 +196,22 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
           parentExternalId: comment.externalCommentId,
           isFromPage: true,
           isAutoReply: false,
+        },
+      }),
+      // กฎตามคีย์เวิร์ดของร้านนี้ (ส่วนขยาย E2) — ดึงเฉพาะที่เปิดอยู่ แล้วคัด/เรียงในหน่วยความจำ
+      // ด้วย matchCommentRule() ซึ่งเป็นฟังก์ชันบริสุทธิ์ (กติกาการเรียงต้องอยู่ที่เดียว ไม่ใช่
+      // ครึ่งหนึ่งใน ORDER BY อีกครึ่งใน TS ซึ่งเป็นที่ที่มันจะแตกกันเงียบ ๆ)
+      prisma.commentReplyRule.findMany({
+        where: { shopId: channel.shopId, isActive: true },
+        select: {
+          id: true,
+          shopChannelId: true,
+          normalizedPhrases: true,
+          priority: true,
+          createdAt: true,
+          publicReplyText: true,
+          publicReplyFileId: true,
+          privateReplyText: true,
         },
       }),
     ])
@@ -210,6 +228,26 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
       return
     }
 
+    // ── ส่วนขยาย E2: กฎตามคีย์เวิร์ดชนะข้อความ fallback ของเพจ ───────────────────────────
+    //
+    // 🛑 กฎ **ไม่ใช่** ตัวข้ามสวิตช์หลักของเพจ — ปิดสวิตช์แล้วต้องเงียบจริง ไม่งั้นการปิดฟีเจอร์
+    // ไม่ได้ปิดอะไรเลย ซึ่งเป็นสิ่งที่ผู้ใช้ไว้ใจไม่ได้ที่สุด สวิตช์จึงยังคูณอยู่ใน publicOn/privateOn
+    //
+    // 🛑 กฎที่ match แล้วสั่งเฉพาะช่องเดียว **ต้องไม่ตกกลับไปใช้ข้อความ fallback ของอีกช่อง**
+    // (D-EXT2-4) ไม่งั้นร้านที่ตั้งใจว่า "คนพิมพ์ว่าสวย ขอบคุณพอ ไม่ต้องทัก" จะยังโดนทักอยู่ดี
+    // ⇒ พอมีกฎ match ข้อความของ **ทั้งสองช่อง** ต้องมาจากกฎนั้นเท่านั้น ห้ามผสมกับของเพจ
+    const matchedRule = matchCommentRule(normalizeMessage(comment.message), activeRules, channel.id)
+
+    const effectivePublicText = matchedRule
+      ? renderCommentReplyText(matchedRule.publicReplyText ?? '', comment.fromName)
+      : publicMessage
+    const effectivePublicFileId = matchedRule
+      ? matchedRule.publicReplyFileId
+      : channel.commentPublicReplyFileId
+    const effectivePrivateText = matchedRule
+      ? renderCommentReplyText(matchedRule.privateReplyText ?? '', comment.fromName)
+      : privateMessage
+
     // จองแถว log ก่อนยิงตัวส่งใด ๆ — partial unique index กันซ้ำทั้งระบบของ public+private ฝั่ง AUTO
     let logId: string
     try {
@@ -220,6 +258,9 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
           commentId: comment.id,
           fromExternalId: comment.fromExternalId,
           trigger: 'AUTO',
+          // ประวัติต้องตอบได้ว่า "ทำไมคอมเมนต์นี้ได้คำตอบแบบนี้" — ร้านที่มีกฎ 10 ข้อแล้วเห็นแต่
+          // คำตอบสุดท้ายจะสืบเองไม่ได้เลย (คลาสเดียวกับการข้ามที่ไม่มีร่องรอยที่เพิ่งปิดไปเมื่อเช้า)
+          matchedRuleId: matchedRule?.id ?? null,
         },
       })
       logId = created.id
@@ -231,18 +272,18 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
 
     // เกณฑ์เดียวกับที่ด่านใช้เป๊ะ (ข้อความหลังแทนชื่อแล้ว) — ห้ามคำนวณจากข้อความดิบที่นี่
     const publicOn =
-      channel.commentPublicReplyEnabled && (!!publicMessage.trim() || !!channel.commentPublicReplyFileId)
-    const privateOn = channel.commentPrivateReplyEnabled && !!privateMessage.trim()
+      channel.commentPublicReplyEnabled && (!!effectivePublicText.trim() || !!effectivePublicFileId)
+    const privateOn = channel.commentPrivateReplyEnabled && !!effectivePrivateText.trim()
 
     if (publicOn) {
       try {
         await replyToComment({
           commentId: comment.id,
-          message: publicMessage,
+          message: effectivePublicText,
           actorUserId: null, // system actor — ไม่ใช่ user จริง (feature 00038)
           // ส่วนขยาย E1 — ส่ง fileId ต่อ ไม่ใช่ URL: replyToComment() แปลงเป็น presigned URL
           // อายุ 1 ชม. ให้เองทุกครั้งที่ยิง (URL ที่เก็บค้างไว้จะตายภายในชั่วโมงเดียว)
-          fileId: channel.commentPublicReplyFileId,
+          fileId: effectivePublicFileId,
         })
         await prisma.commentReplyLog.update({
           where: { id: logId },
@@ -284,7 +325,7 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
       // ผ่าน findFirst ของตัวเองแล้ว trip ALREADY_SENT ทันที (Fix round 1, ดู docstring บนฟังก์ชันนี้)
       const result = await sendPrivateReplyToCommentById({
         commentId: comment.id,
-        text: privateMessage,
+        text: effectivePrivateText,
         trigger: 'AUTO',
         reservedLogId: logId,
       })

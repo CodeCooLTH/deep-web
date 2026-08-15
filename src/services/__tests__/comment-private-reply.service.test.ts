@@ -32,6 +32,9 @@ vi.mock('@/lib/prisma', () => {
   const db: Record<string, unknown> = {
     pageComment: { findUnique: vi.fn(), findFirst: vi.fn() },
     commentReplyLog: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+    // ส่วนขยาย E2 — processCommentAutoReply ตัวจริง (เทส integration ท้ายไฟล์) query ตารางนี้ด้วย
+    // ถ้าไม่ mock จะ throw แล้วถูก try/catch ชั้นนอกของ orchestration กลืน = เทสแดงแบบไม่บอกสาเหตุ
+    commentReplyRule: { findMany: vi.fn() },
     shopChannel: { findUnique: vi.fn() },
     externalContact: { upsert: vi.fn() },
     conversation: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
@@ -98,6 +101,10 @@ beforeEach(() => {
   vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-default' } as never)
   vi.mocked(prisma.commentReplyLog.update).mockResolvedValue({} as never)
   vi.mocked(prisma.commentReplyLog.updateMany).mockResolvedValue({ count: 1 } as never)
+  // ส่วนขยาย E2 — ต้องตั้ง default เป็น [] ไม่ใช่ปล่อย vi.fn() คืน undefined: ตอนนี้เทสผ่านได้
+  // เพราะ fixture ไม่มี `message` ทำให้ matchCommentRule คืน null ที่ด่านข้อความว่างก่อนแตะ rules
+  // — เป็นการผ่านด้วยเหตุบังเอิญ วันที่ใครเติม message ให้ fixture จะพังแบบไม่บอกสาเหตุ
+  vi.mocked(prisma.commentReplyRule.findMany).mockResolvedValue([] as never)
   // ค่าเริ่มต้น: ผ่านสิทธิ์เสมอ — เทสที่อยากลอง FORBIDDEN ต้อง override เป็น false เอง
   vi.mocked(canAccessShop).mockResolvedValue(true)
   // pageComment.findFirst ใช้เฉพาะ describe block integration ท้ายไฟล์ (humanReply check ของ
