@@ -88,3 +88,67 @@ export function verifyLinkIntent(token: string): { userId: string; provider: str
     return null
   }
 }
+
+// ─── Reclaim ticket ────────────────────────────────────────────────────────────
+
+/**
+ * ตั๋ว "ยึดคืนการเชื่อมบัญชี" — ออกให้ตอน signIn callback เจอว่า OAuth id มีเจ้าของเป็น
+ * บัญชีค้างที่ไม่มีตัวตนจริง (ดู `classifyLinkConflict()`)
+ *
+ * ทำไมต้องมีตั๋ว ไม่ยึดให้เลยตรงนั้น: **การลบบัญชีของผู้ใช้ต้องถามก่อนเสมอ** ต่อให้บัญชีนั้น
+ * ว่างเปล่า — "ข้อมูลว่าง" ตอบว่า *ความเสียหายน้อย* ไม่ได้ตอบว่า *มีสิทธิ์ทำโดยไม่ถามไหม*
+ * (user ทักท้วงแบบร่างแรกของผมที่ยึดอัตโนมัติ 2026-08-15 — และเขาถูก)
+ *
+ * ทำไมต้องเซ็น ไม่ส่ง providerAccountId เปล่า ๆ ใน URL: ไม่งั้นใครก็ยิง endpoint ยึดคืนด้วย
+ * id ของคนอื่นได้ · ผูก `userId` ไว้ด้วย ⇒ ตั๋วหลุดก็ใช้ไม่ได้เพราะปลายทางเทียบกับ session จริง
+ *
+ * TTL 10 นาที — ยาวกว่า link-intent (5 นาที) เพราะนับจาก "กลับมาถึงหน้าเว็บแล้ว" ต้องเผื่อ
+ * เวลาที่ผู้ใช้อ่านคำถามและตัดสินใจ ไม่ใช่เวลาเดินทางไป OAuth
+ */
+export interface ReclaimTicketPayload {
+  /** บัญชีที่จะรับการเชื่อมไป (ผู้ขอ) */
+  userId: string
+  /** provider id ของ next-auth (apple/facebook/line/instagram) */
+  provider: string
+  /** id ฝั่งผู้ให้บริการ */
+  providerAccountId: string
+  /** บัญชีค้างที่ถืออยู่ตอนออกตั๋ว — ปลายทางต้องเทียบซ้ำ กันสถานะเปลี่ยนระหว่างที่ผู้ใช้คิดอยู่ */
+  holderUserId: string
+  exp: number
+}
+
+export function signReclaimTicket(
+  params: Omit<ReclaimTicketPayload, 'exp'>,
+): string {
+  const payload: ReclaimTicketPayload = { ...params, exp: Date.now() + 10 * 60 * 1000 }
+  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url')
+  const sig = crypto.createHmac('sha256', SECRET!).update(payloadB64).digest('base64url')
+  return `${payloadB64}.${sig}`
+}
+
+/** ตรวจตั๋ว — fail-closed ทุก error path เหมือน verifyLinkIntent */
+export function verifyReclaimTicket(token: string): ReclaimTicketPayload | null {
+  if (!token) return null
+  try {
+    const dot = token.indexOf('.')
+    if (dot === -1) return null
+    const payloadB64 = token.slice(0, dot)
+    const expectedSig = crypto.createHmac('sha256', SECRET!).update(payloadB64).digest('base64url')
+    const provided = Buffer.from(token.slice(dot + 1))
+    const expected = Buffer.from(expectedSig)
+    if (provided.length !== expected.length) return null
+    if (!crypto.timingSafeEqual(provided, expected)) return null
+
+    const p = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8')) as ReclaimTicketPayload
+    if (
+      typeof p.userId !== 'string' || !p.userId ||
+      typeof p.provider !== 'string' || !p.provider ||
+      typeof p.providerAccountId !== 'string' || !p.providerAccountId ||
+      typeof p.holderUserId !== 'string' || !p.holderUserId ||
+      typeof p.exp !== 'number' || Date.now() > p.exp
+    ) return null
+    return p
+  } catch {
+    return null
+  }
+}

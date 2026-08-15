@@ -17,7 +17,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
-import { signIn } from 'next-auth/react'
+import { signIn, useSession } from 'next-auth/react'
 /**
  * 🛑 ต้องเป็น wrapper ไม่ใช่ `{ Icon } from '@iconify/react'` ตรง ๆ
  *
@@ -280,6 +280,8 @@ export function ConnectedAccountsClient({
 }: ConnectedAccountsClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  // update() = บังคับ next-auth ดึง JWT ใหม่ (ชั้นที่ 3 ของ syncAfterLinkChange)
+  const { update } = useSession()
 
   /**
    * state mirror ของสถานะการเชื่อม — เก็บเป็น record เดียว ไม่แยกตัวแปรต่อ provider
@@ -312,6 +314,101 @@ export function ConnectedAccountsClient({
   const [busyProvider, setBusyProvider] = useState<ProviderKey | null>(null)
   const [, startTransition] = useTransition()
 
+  /**
+   * เคลียร์ทุกชั้นที่จำสถานะการเชื่อมไว้ — เรียกที่เดียวหลังทุกการเปลี่ยนแปลง
+   *
+   * 🛑 user สั่งตรง ๆ 2026-08-15: "จะเป็นการ login apple หรือ เชื่อมต่อ หรือ ยกเลิกการเชื่อมต่อ
+   * ก็ตาม ต้องเคลียร์ข้อมูลให้ครบ ไม่ต้องเปิดปิด app ใหม่ กลัวติดแคชกดไปแล้วไม่พาไปไหน"
+   *
+   * มี **3 ชั้นที่จำค่าเก่าไว้คนละที่** และเคลียร์ชั้นเดียวไม่พอ:
+   *
+   *   1. `linkedMap` (state ในหน้านี้) — `useState(initial)` ไม่ sync กับ prop หลัง mount
+   *      จึงต้อง setState เอง ตัวนี้คือตัวเดียวที่เปลี่ยนภาพบนจอทันที
+   *   2. RSC payload ที่ Next แคชไว้ฝั่ง client — ไม่ล้างแล้วกดออกไปหน้าอื่นแล้วกดกลับมา
+   *      จะเห็นสถานะก่อนหน้า (นี่คือ "แคช" ที่ user กลัว)
+   *   3. **JWT/session ของ next-auth** — `update()` บังคับให้ next-auth ดึง token ใหม่
+   *      ถ้าไม่เรียก `session.user` จะยังถือค่าเดิมไว้จนกว่าจะรีเฟรชหน้าเอง ซึ่งกระทบ
+   *      ทุก component ที่อ่าน session ไม่ใช่แค่การ์ดนี้
+   *
+   * ห่อ `startTransition` เพื่อไม่ให้การรอ RSC มาบล็อกการกดปุ่มถัดไป
+   */
+  /**
+   * 🛑 `update` เก็บใน ref ไม่ใส่ลง dep array — `useSession()` คืนอ็อบเจกต์ใหม่ทุก render
+   * ตัว `update` จึงอาจเป็นฟังก์ชันคนละตัวทุกครั้ง ถ้าใส่เป็น dep มันจะไหลไปทำให้
+   * `markLinked` → `handleDisconnect` → effect ที่อ่าน query params เปลี่ยน identity ตามกันทั้งสาย
+   * (คลาสเดียวกับ `docs/conventions/hook-return-identity-in-deps.md` ที่เคยทำให้ /inbox/comments
+   * ยิง API ไม่หยุด) — ที่นี่ยังมี ref กันไว้อีกชั้นจึงไม่ลูป แต่ไม่มีเหตุผลให้เสี่ยง
+   */
+  const updateRef = useRef(update)
+  updateRef.current = update
+  const syncAfterLinkChange = useCallback(() => {
+    void updateRef.current()
+    startTransition(() => router.refresh())
+  }, [router, startTransition])
+
+  /** อัปเดตแถวบนจอ + เคลียร์แคชทุกชั้น (ใช้ทั้งตอนเชื่อมสำเร็จและตอนถอด) */
+  const markLinked = useCallback(
+    (provider: ProviderKey, linked: boolean) => {
+      setLinkedMap((prev) => ({ ...prev, [provider]: linked }))
+      syncAfterLinkChange()
+    },
+    [syncAfterLinkChange],
+  )
+
+  /**
+   * ถามยืนยันก่อน "ยึดคืน" การเชื่อมจากบัญชีค้าง
+   *
+   * 🛑 ต้องถามเสมอ ห้ามทำให้เลย — ผมเสนอแบบยึดอัตโนมัติในร่างแรกด้วยเหตุผลว่า "บัญชีนั้น
+   * ว่างเปล่า ไม่มีอะไรจะเสีย" แล้ว user ทักท้วง (2026-08-15) และเขาถูก: "ข้อมูลว่างเปล่า"
+   * ตอบว่า *ความเสียหายน้อย* ไม่ได้ตอบว่า *มีสิทธิ์ทำโดยไม่ถามไหม* — และเราไม่มีทางรู้ว่า
+   * เขาตั้งใจทิ้งบัญชีนั้นจริงหรือกำลังสมัครค้างไว้อีกเครื่อง
+   *
+   * ต้องบอกให้ครบว่าจะเกิดอะไรขึ้นทั้งสองฝั่ง (ได้อะไร / เสียอะไร) ไม่ใช่แค่ถาม "ตกลงไหม"
+   */
+  const askReclaim = useCallback(
+    async (ticket: string) => {
+      if (!ticket) return
+      const r = await Swal.fire({
+        icon: 'question',
+        title: 'บัญชีนี้เคยสร้างค้างไว้',
+        html:
+          'ตอนกดปุ่มครั้งก่อน ระบบสร้างบัญชีใหม่ให้โดยที่คุณยังไม่ได้กรอกข้อมูลอะไรเลย<br/><br/>' +
+          '<b>ถ้าตกลง:</b> เราจะปิดบัญชีที่ค้างนั้น แล้วย้ายมาเชื่อมกับบัญชีที่คุณใช้อยู่ตอนนี้<br/>' +
+          '<b>ถ้ายกเลิก:</b> ทุกอย่างคงเดิม บัญชีค้างยังอยู่ และยังเชื่อมกับบัญชีนี้ไม่ได้',
+        showCancelButton: true,
+        confirmButtonText: 'ปิดบัญชีค้าง แล้วเชื่อมกับบัญชีนี้',
+        cancelButtonText: 'ยกเลิก',
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: 'btn bg-primary text-white hover:bg-primary-hover me-2 mt-2',
+          cancelButton: 'btn bg-light text-dark hover:bg-light-hover mt-2',
+        },
+      })
+      if (!r.isConfirmed) return
+
+      try {
+        const res = await fetch('/api/account/link/reclaim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticket }),
+        })
+        const body = (await res.json().catch(() => ({}))) as { closedHolder?: boolean; error?: string }
+        if (!res.ok) {
+          pacesToast.error(body.error ?? 'ยึดคืนไม่สำเร็จ กรุณาลองใหม่')
+          return
+        }
+        pacesToast.success(
+          body.closedHolder ? 'เชื่อมต่อสำเร็จ — ปิดบัญชีที่ค้างให้แล้ว' : 'เชื่อมต่อสำเร็จ',
+        )
+        // ไม่รู้ provider จาก response — ให้ RSC เป็นคนบอกความจริง แล้ว sync ทุกชั้น
+        syncAfterLinkChange()
+      } catch {
+        pacesToast.error('ยึดคืนไม่สำเร็จ กรุณาลองใหม่')
+      }
+    },
+    [syncAfterLinkChange],
+  )
+
   // IG flag — render เฉพาะเมื่อ env เปิด (FR-LO-15 prepared/flag-off)
   const enableIg = process.env.NEXT_PUBLIC_ENABLE_IG_LOGIN === 'true'
 
@@ -340,9 +437,28 @@ export function ConnectedAccountsClient({
       pacesToast.success(`เชื่อมต่อ ${providerLabel} สำเร็จ`)
       // อัปเดตแถวทันทีโดยไม่ต้องรอ RSC (ค่าที่ server ส่งมาตอนโหลดหน้านี้ยังเป็นค่าก่อนเชื่อม
       // ในกรณีที่ callback กลับมาถึงก่อน RSC จะ re-render)
-      setLinkedMap((prev) => ({ ...prev, [linked as ProviderKey]: true }))
+      markLinked(linked as ProviderKey, true)
+    } else if (linkError === 'reclaimable') {
+      // Apple/FB/LINE id นี้ติดอยู่กับ "บัญชีค้าง" ที่ไม่มีตัวตนจริง — ถามก่อนเสมอ ห้ามยึดเงียบ ๆ
+      void askReclaim(searchParams.get('ticket') ?? '')
     } else if (linkError === 'taken') {
-      pacesToast.error('บัญชีนี้ถูกใช้กับบัญชีอื่นแล้ว')
+      /**
+       * 🛑 บัญชีปลายทางมีตัวตนจริง (ยืนยันเบอร์/มีร้าน/มีออเดอร์) — เราแตะไม่ได้
+       *
+       * ข้อความเดิม "บัญชีนี้ถูกใช้กับบัญชีอื่นแล้ว" ถูกทุกตัวอักษรแต่ผู้ใช้อ่านแล้วไปต่อไม่ถูก
+       * ต้องบอก **ทางออกที่เขาทำเองได้จริง** ไม่งั้นเขาจะกดวนอยู่ตรงนี้แล้วสรุปว่าระบบพัง
+       */
+      void Swal.fire({
+        icon: 'warning',
+        title: 'บัญชีนี้ถูกใช้กับอีกบัญชีอยู่แล้ว',
+        html:
+          'บัญชีนั้นลงทะเบียนครบและมีข้อมูลอยู่ เราจึงย้ายให้อัตโนมัติไม่ได้<br/><br/>' +
+          'ถ้าเป็นบัญชีของคุณเอง ให้<b>เข้าสู่ระบบด้วยบัญชีนั้น</b> แล้วยกเลิกการเชื่อมต่อ ' +
+          '(หรือลบบัญชี) ที่หน้า <b>ข้อมูลส่วนตัว</b> ก่อน แล้วค่อยกลับมาเชื่อมใหม่',
+        confirmButtonText: 'เข้าใจแล้ว',
+        buttonsStyling: false,
+        customClass: { confirmButton: 'btn bg-primary text-white hover:bg-primary-hover mt-2' },
+      })
     }
 
     /**
@@ -361,8 +477,10 @@ export function ConnectedAccountsClient({
      * กดปุ่มจากหน้านี้ (user report 2026-08-12 — คนละจุดกับ redirect ฝั่ง backend ใน 7e1dd961
      * ต้องแก้ทั้งสองที่ถึงจะหาย)
      */
+    // ล้าง ticket ออกจาก URL ด้วย — ตั๋วเซ็นชื่อไม่ควรค้างในแถบที่อยู่/ประวัติเบราว์เซอร์
+    // (ใช้ครั้งเดียวและผูกกับ session อยู่แล้ว แต่ไม่มีเหตุผลให้แสดงต่อ)
     window.history.replaceState(null, '', '/account')
-  }, [searchParams])
+  }, [searchParams, markLinked, askReclaim])
 
   // ─── Connect Handler ────────────────────────────────────────────────────────
   const handleConnect = useCallback(async (provider: ProviderKey) => {
@@ -500,25 +618,16 @@ export function ConnectedAccountsClient({
       }
 
       // สำเร็จ — อัปเดตแถวทันที (ไม่ต้องไล่ if ทีละ provider อีกต่อไป) + toast + refresh
-      setLinkedMap((prev) => ({ ...prev, [provider]: false }))
+      markLinked(provider, false)
 
       pacesToast.success(`ยกเลิกการเชื่อมต่อ ${providerLabel} สำเร็จ`)
 
-      /**
-       * sync ฝั่ง server ไว้เบื้องหลัง — จอถูกอัปเดตด้วย setLinkedMap ไปแล้วบรรทัดบน
-       *
-       * ห่อ startTransition เพื่อให้ React ถือว่าเป็นงานที่ขัดจังหวะได้: ผู้ใช้กดปุ่มถัดไปได้ทันที
-       * ไม่ต้องรอ RSC payload กลับมา (ถ้าไม่ห่อ การ re-render จากผลของ refresh จะเป็นงานด่วน
-       * แข่งกับการตอบสนองปุ่ม = สะดุดบนเครื่องช้า)
-       *
-       * ยังต้องเรียกอยู่ ไม่ใช่ของเกิน: หน้านี้ถูก client-side cache ไว้ ถ้าไม่บอกให้ทิ้ง
-       * ผู้ใช้กดออกไปหน้าอื่นแล้วกดกลับมาจะเห็นสถานะก่อนยกเลิกอีกครั้ง
-       */
-      startTransition(() => router.refresh())
+      // การเคลียร์แคชทุกชั้นทำใน markLinked() ไปแล้วบรรทัดบน (state + RSC + JWT)
+      // อย่าเรียก router.refresh() ซ้ำตรงนี้ — จะดึง RSC payload สองรอบต่อการกดหนึ่งครั้ง
     } finally {
       setBusyProvider(null)
     }
-  }, [router, startTransition])
+  }, [markLinked])
 
   // ─── Provider Row Renderer ────────────────────────────────────────────────
 
