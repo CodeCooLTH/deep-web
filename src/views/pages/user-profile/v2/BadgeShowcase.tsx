@@ -33,7 +33,6 @@ import IconButton from '@mui/material/IconButton'
 
 import { Icon } from '@iconify/react'
 
-import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { formatDateTH } from '@/lib/format-date'
 
 /**
@@ -91,11 +90,15 @@ export default function BadgeShowcase({
 }) {
   const [pageOpen, setPageOpen] = useState(false)
 
-  /* 🛑 overlay ที่ประกอบเองด้วย React state ต้องล็อก scroll ของหน้าหลัง —
-     MUI Dialog สั่งให้อยู่แล้ว แต่เรียกซ้ำไม่เสียหาย และกันไว้เผื่อวันที่เปลี่ยนไปใช้ div เปล่า
-     (docs/conventions/overlay-scroll-lock.md — แพตเทิร์น "แปลง overlay เป็น controlled div"
-     ของโปรเจกต์นี้เคยทิ้งการล็อกที่เคยได้ฟรีไปทุกใบโดยไม่มีใครสังเกต) */
-  useLockBodyScroll(pageOpen)
+  /* 🛑 ห้ามเรียก `useLockBodyScroll` ที่นี่ — `<Dialog>` ล็อก scroll ให้เองอยู่แล้ว และ
+     "เรียกซ้ำไม่เสียหาย" (คำที่เคยเขียนไว้ตรงนี้) **ผิด**: MUI จำค่า `body.style.overflow`
+     ตอน mount ไว้เพื่อคืนตอนปิด ⇒ ถ้า hook ของเราล็อกไปก่อน (effect ของ component แม่รันก่อน
+     ตัวล็อกของ Modal) MUI จะจำว่าค่าเดิมคือ `hidden` แล้ว **คืนค่าเป็น hidden หลัง transition
+     จบ** ทับ cleanup ของ hook ที่คืนถูกไปแล้ว ⇒ หน้าเลื่อนไม่ได้อีกเลยจนกว่าจะรีโหลด
+     (เกิดจริงบน prod 2026-08-15 user เจอเอง — ปิดด้วยเทส
+     `src/__tests__/overlay-scroll-lock-single-owner.test.ts`)
+     hook นั้นมีไว้สำหรับ overlay ที่ประกอบเองล้วน ๆ เท่านั้น เช่น `ProfileLightbox.tsx`
+     — docs/conventions/overlay-scroll-lock.md */
 
   if (badges.length === 0) return null
 

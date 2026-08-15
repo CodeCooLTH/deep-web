@@ -52,7 +52,6 @@ import CustomAvatar from '@core/components/mui/Avatar'
 import { Icon } from '@iconify/react'
 
 import type { OfficialChannel } from './OfficialChannels'
-import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import {
   channelProfileUrl,
   CHANNEL_FULL_LABEL,
@@ -137,7 +136,11 @@ export default function OfficialChannelsBlock({
   shopName: string
 }) {
   const [pageOpen, setPageOpen] = useState(false)
-  useLockBodyScroll(pageOpen)
+
+  /* 🛑 ห้ามเรียก `useLockBodyScroll` ที่นี่ — `<Dialog>` ล็อก scroll ให้เองอยู่แล้ว การล็อกซ้อน
+     ทำให้ MUI จำค่า `body.style.overflow` ผิดเป็น `hidden` แล้ว "คืนค่า" เป็น hidden หลังปิด
+     ⇒ หน้าเลื่อนไม่ได้อีกเลยจนกว่าจะรีโหลด (prod 2026-08-15)
+     เหตุผลเต็ม + ด่านกันซ้ำ: `src/__tests__/overlay-scroll-lock-single-owner.test.ts` */
 
   if (channels.length === 0) return null
 
