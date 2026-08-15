@@ -45,6 +45,25 @@ describe('ยึดคืนการเชื่อมบัญชี — ต�
     expect(auth).toContain('link_error=reclaimable')
   })
 
+  it('[blocker] username ชนกัน ต้องตั้งชื่อใหม่ ไม่ใช่ล้มทั้งการล็อกอิน', () => {
+    /**
+     * username ตั้งจาก id ของผู้ให้บริการซึ่งคงที่ตลอดกาล — ชนได้แม้ไม่มีใครล็อกอินอยู่
+     * (บัญชีที่ถูกปิดไปแล้วยังถือชื่อไว้จนกว่าจะถึงรอบล้างข้อมูลจริง)
+     *
+     * เคสจริง 2026-08-15: เชื่อม Apple → ยกเลิกการเชื่อม → ออกจากระบบ → ล็อกอิน Apple เดิม
+     * ⇒ P2002 บน `username` ไม่ใช่บน AuthAccount ⇒ ตัวดักเดิมหา AuthAccount ไม่เจอแล้ว throw
+     * ⇒ **ล็อกอินค้าง ไม่พาไปไหนเลย** (ผู้ใช้ไม่มีทางรู้เลยว่าเกิดอะไรขึ้น)
+     *
+     * ⇒ P2002 มี 2 สาเหตุที่ต้องแยกกัน ห้ามเหมารวมว่าเป็น race เสมอ
+     */
+    expect(auth, 'ต้องมีชื่อฐานแยกไว้เพื่อเติมส่วนต่อท้ายได้').toContain('baseUsername')
+    expect(auth, 'ต้องมีการลองชื่อใหม่ ไม่ใช่ throw ทันทีเมื่อไม่ใช่ race').toMatch(
+      /attempt >= \d+\) throw err/,
+    )
+    // ต้องยังคืน user ของอีก request เมื่อชนที่ AuthAccount จริง ๆ (เส้นทาง race เดิมห้ามหาย)
+    expect(auth).toMatch(/if \(existing\) return existing\.id/)
+  })
+
   it('[blocker] endpoint ยึดคืนต้องผูกตั๋วกับ session ของผู้กดยืนยัน', () => {
     // ตั๋วเดินทางใน URL → ติด Referer/ประวัติเบราว์เซอร์ได้ ต้องถือว่าอาจรั่วเสมอ
     expect(route, 'ต้องเทียบ ticket.userId กับ session').toMatch(/ticket\.userId\s*!==\s*userId/)

@@ -60,11 +60,27 @@ async function upsertOAuthUser(
     // LINE/IG=false: LINE email claim ไม่ verified + ไม่ขอ scope → ห้ามเก็บ/ใช้ link history
     // (security R1 — กัน auto-link buyer history ผิดคนถ้ามีใครเพิ่ม email scope ภายหลัง)
     const trustedEmail = linkEmail ? user?.email || undefined : undefined;
-    try {
-      dbUser = await prisma.user.create({
+    /**
+     * 🛑 username ตั้งจาก id ของผู้ให้บริการ ซึ่ง **คงที่ตลอดกาลต่อบัญชีหนึ่งใบ** — จึงชนได้
+     * ทั้งที่ไม่มีใครล็อกอินอยู่ตอนนั้น
+     *
+     * เคสจริง 2026-08-15: ผู้ใช้เชื่อม Apple → กดยกเลิกการเชื่อม (แถว AuthAccount ถูกลบ) →
+     * ออกจากระบบ → ล็อกอิน Apple ID เดิมอีกครั้ง ⇒ ไม่เจอ AuthAccount จึงมาสร้าง user ใหม่
+     * ด้วย username เดิม **ซึ่งบัญชีที่ถูกปิดไปแล้วยังถืออยู่** (soft delete ไม่ปล่อยชื่อคืน
+     * จนกว่าจะถึงรอบล้างข้อมูลจริง) → P2002 บนคอลัมน์ `username` ไม่ใช่บน AuthAccount
+     * → ตัวดักเดิมหา AuthAccount ที่ชนไม่เจอ → `throw` → **ล็อกอินค้าง ไม่พาไปไหนเลย**
+     *
+     * ⇒ ต้องแยก 2 สาเหตุของ P2002 ออกจากกัน ไม่ใช่เหมารวมว่าเป็น race เสมอ:
+     *   - ชนที่ AuthAccount = แข่งกันล็อกอินครั้งแรก → คืน user ที่อีก request สร้างไปแล้ว
+     *   - ชนที่ username   = ชื่อถูกจองไว้ → **ตั้งชื่อใหม่ ไม่ใช่ล้ม** (ชื่อเป็นแค่ค่าตั้งต้น
+     *     ผู้ใช้เปลี่ยนเองได้ทีหลังอยู่แล้ว ไม่มีเหตุผลให้มันบล็อกการสมัคร)
+     */
+    const baseUsername = `${usernamePrefix}${account.providerAccountId}`;
+    const createUser = (username: string) =>
+      prisma.user.create({
         data: {
           displayName: user?.name || "User",
-          username: `${usernamePrefix}${account.providerAccountId}`,
+          username,
           avatar: user?.image,
           email: trustedEmail,
           authAccounts: {
@@ -76,16 +92,28 @@ async function upsertOAuthUser(
           },
         },
       });
-    } catch (err: unknown) {
-      // P2002 = concurrent first-login race: อีก request สร้าง AuthAccount เดียวกันไปก่อน
-      // → ดึง user ที่มีอยู่กลับมาใช้แทนปล่อย 500 (security R3 hardening)
-      if (err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "P2002") {
+
+    // 4 ครั้งพอ: ครั้งแรกใช้ชื่อฐาน + สุ่มท้าย 3 ครั้ง (โอกาสชนซ้ำติดกันต่ำมาก และถ้าชนครบ
+    // ทุกครั้งแปลว่ามีอย่างอื่นผิด ควรดังออกมาให้เห็น ไม่ใช่วนไปเรื่อย ๆ)
+    for (let attempt = 0; ; attempt++) {
+      try {
+        dbUser = await createUser(
+          attempt === 0 ? baseUsername : `${baseUsername}-${Math.random().toString(36).slice(2, 8)}`,
+        );
+        break;
+      } catch (err: unknown) {
+        const code = err && typeof err === "object" && "code" in err ? (err as { code?: string }).code : undefined;
+        if (code !== "P2002") throw err;
+
+        // ชนที่ AuthAccount = อีก request ล็อกอินคนเดียวกันสร้างไปแล้ว → ใช้ของเขา
         const existing = await prisma.user.findFirst({
           where: { authAccounts: { some: { provider: providerEnum, providerAccountId: account.providerAccountId } } },
         });
         if (existing) return existing.id;
+
+        // ไม่ใช่ race → ชนที่ username → ลองชื่อใหม่
+        if (attempt >= 3) throw err;
       }
-      throw err;
     }
     // Auto-link guest history by email (PRD FR-8) — เฉพาะ provider ที่ email เชื่อถือได้ (linkEmail)
     if (dbUser.email) {
