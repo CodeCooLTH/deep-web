@@ -19,7 +19,9 @@
 |----|---------|----------|
 | FR-1.1 | รองรับ Facebook OAuth Login — **buyer + seller** (`FacebookProvider` ใน `lib/auth.ts`); avatar ดึงจาก `graph.facebook.com/{id}/picture?type=large` (~200px); `next.config.ts` ขาว `graph.facebook.com`; `jwt` callback อัปเดต avatar ทุก login ถ้ารูปเปลี่ยน; username เริ่มต้น = `fb{facebookId}` | Must |
 | FR-1.2 | รองรับ Phone OTP Login (SMS) — OTP store ปัจจุบัน in-memory (Redis = Phase 2) | Must |
-| FR-1.3 | 1 user ผูก auth provider ได้ (AuthAccount) — link เฉพาะตอน signup เท่านั้น | Must |
+| FR-1.3 | 1 user ผูก auth provider ได้หลายเจ้า (AuthAccount) — **ผูกเพิ่มภายหลังได้ที่ `/account`** ผ่าน link-intent cookie (HMAC, TTL 5 นาที) ไม่ใช่เฉพาะตอน signup อีกต่อไป (แก้ข้อความเดิมที่ล้าสมัยตั้งแต่ feature 00026) | Must |
+| FR-1.3a | OAuth id ที่มีเจ้าของเป็น **บัญชีที่ยังลงทะเบียนไม่จบ** (ไม่มีเบอร์/รหัสผ่าน/ร้านที่ตั้ง slug/ออเดอร์/สมาชิกร้าน/OAuth เจ้าอื่น) หรือ **บัญชีที่ถูกปิดแล้ว** → เสนอให้ผู้ใช้ย้ายการเชื่อมมาบัญชีปัจจุบัน **ต้องถามยืนยันก่อนเสมอ ห้ามทำอัตโนมัติ** · บัญชีที่มีตัวตนจริง → ปฏิเสธ + บอกวิธีที่เจ้าตัวทำเองได้ · เกณฑ์ = `src/lib/link-conflict.ts::classifyLinkConflict()` (fail-closed) | Must |
+| FR-1.3b | สมัครผ่าน OAuth ต้องไม่ล้มเมื่อชนคอลัมน์ `@unique` ของ `User` — `username` ชน → ตั้งชื่อใหม่ · `email` ชน → ไม่เก็บอีเมล · unique อื่น → throw. **ค่าทั้งสองมาจาก id ของผู้ให้บริการซึ่งคงที่ตลอดกาล และบัญชีที่ถูกปิดยังถือไว้จนกว่าจะถึงรอบล้างข้อมูล** ⇒ ชนได้แม้ไม่มีใครล็อกอินอยู่ | Must |
 | FR-1.4 | Session แยกตาม subdomain (buyer / seller / admin) — host-scoped cookie ต่อ hostname | Must |
 | FR-1.5 | Login แยกแต่ละ subdomain, logout ฝั่งหนึ่งไม่กระทบอีกฝั่ง | Must |
 | FR-1.6 | **ตัดถาวร:** Email+Password, multi-provider linking หลัง signup | — |
@@ -864,6 +866,10 @@ SellerWallet (1) ── (N) WalletTransaction
 | POST | `/api/login` | — | Phone-OTP login (custom endpoint) | `lib/auth.ts` |
 | POST | `/api/otp/send` | Guest | ส่ง OTP SMS — rate-limit 3/10min/เบอร์; คืน `isNewUser` | `lib/otp.ts` |
 | POST | `/api/otp/verify` | Guest | ตรวจ OTP 6-digit | `lib/otp.ts` |
+| POST | `/api/account/link/start` | Seller | เริ่มผูก OAuth เพิ่ม — ออก link-intent cookie (HMAC, TTL 5 นาที; Apple = `SameSite=None` เพราะ `response_mode=form_post` เป็น cross-site POST) | `lib/link-intent.ts` |
+| POST | `/api/account/link/send-otp` | Seller | ส่ง OTP ยืนยันก่อนถอดการเชื่อม — **400 ถ้าบัญชีไม่มีเบอร์** | `lib/otp.ts` |
+| POST | `/api/account/link/remove` | Seller | ถอดการเชื่อม (ต้องมี OTP) | `lib/auth.ts` |
+| POST | `/api/account/link/reclaim` | Seller | ย้ายการเชื่อมคืนจากบัญชีค้าง **หลังผู้ใช้กดยืนยัน** — รับ ticket เซ็นชื่อ (HMAC, TTL 10 นาที, ผูก `userId` ผู้ขอ) แล้ว **ตรวจสถานะซ้ำทั้งหมดอีกรอบ** ก่อนย้าย+ปิดบัญชีค้างในทรานแซกชันเดียว | `lib/link-conflict.ts` |
 
 ### 7.2 Users
 
@@ -1180,6 +1186,15 @@ SellerWallet (1) ── (N) WalletTransaction
 | `SHIPPED` | seller ใส่ tracking แล้ว (SHIPPED เท่านั้น) | ไม่ |
 | `CONFIRMED` | buyer ยืนยัน — นับ trust/badge | ✅ |
 | `CANCELLED` | ยกเลิกก่อน CONFIRMED | ✅ |
+
+### 8.0b Account Delete Reason (`src/lib/account-deletion.ts::ACCOUNT_DELETE_REASON`)
+
+| ค่า | ปิดโดยใคร | เมื่อไหร่ |
+|-----|---------|---------|
+| `USER_DELETED` | ผู้ใช้เอง | กดปุ่ม "ลบบัญชี" ที่ `/account` (พิมพ์ข้อความยืนยัน) |
+| `ABANDONED_RECLAIMED` | **ระบบ** | บัญชีค้างถูกปิดตอนเจ้าของตัวตน OAuth ขอย้ายการเชื่อมกลับบัญชีจริง (`/api/account/link/reclaim`) — **ผู้ใช้ไม่ได้กดลบบัญชีนั้นเอง** จึงต้องแยกจาก `USER_DELETED` ไม่งั้นประวัติบอกเหตุผลที่ไม่ตรงกับสิ่งที่เกิดจริง |
+
+> `deletedReason` เป็น **audit ล้วน** ไม่มี logic ไหนอ่านค่านี้ไปตัดสินใจ (ยืนยันด้วย grep 2026-08-15)
 
 ### 8.1b OrderEvent Type (`src/lib/order-event.ts::ORDER_EVENT_TYPES`)
 
