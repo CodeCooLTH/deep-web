@@ -31,6 +31,44 @@ function loginProviderChip(username: string | undefined): { icon: string; label:
   return { icon: 'brand-facebook', label: 'Facebook', iconClassName: 'size-3.5 text-info' }
 }
 
+/**
+ * เบอร์ที่กรอกมีบัญชีอื่นถืออยู่แล้ว — บอก "ทางออก" ไม่ใช่แค่บอกว่าผิด
+ *
+ * 🛑 นี่คือวินาทีเดียวที่ระบบ **รู้แน่ชัด** ว่าคนตรงหน้ามีบัญชีอยู่แล้ว จึงเป็นที่เดียวที่อธิบายได้
+ * ตรงจุด — เพราะเส้นทางที่พามาถึงตรงนี้อธิบายตัวเองไม่ได้เลย: ผู้ใช้ที่มีบัญชี Deep อยู่แล้ว
+ * กดปุ่ม "เข้าสู่ระบบด้วย Apple/Facebook/LINE" ที่หน้าล็อกอินโดยที่ยังไม่เคยเชื่อมบัญชีนั้นไว้
+ * ระบบ **สร้างบัญชีใหม่คนละใบให้ทันทีโดยไม่มีอะไรเตือน** (ถูกตามกลไก — ไม่มีทางรู้ล่วงหน้าว่า
+ * Apple ID นี้เป็นของใครจนกว่าจะเคยเชื่อม และการเดาจากอีเมลที่ตรงกันคือช่องโหว่ความปลอดภัย)
+ * แล้วมาตันที่นี่เพราะเบอร์ตั้งได้ครั้งเดียว เปลี่ยนไม่ได้
+ *
+ * ข้อความเดิม (`pacesToast.error('เบอร์นี้มีบัญชีแล้ว')`) ถูกทุกตัวอักษรแต่ไม่ช่วยอะไร —
+ * ผู้ใช้อ่านแล้วงงว่าทำไมเบอร์ **ของตัวเอง** ใช้ไม่ได้ (เจอจริง 2026-08-12 ตอนทดสอบ Apple
+ * ต้องเข้าไปลบบัญชีที่ค้างบน prod ด้วยมือ)
+ *
+ * ปุ่มหลักพากลับไปล็อกอินด้วยวิธีเดิม ทิ้งบัญชีเปล่าที่เพิ่งสร้าง (ไม่มีเบอร์/ร้าน/ข้อมูลใด ๆ)
+ * `signOut` จำเป็นจริง ไม่ใช่แค่ `router.push` — proxy บังคับ `needsRegistration` กลับมาที่นี่
+ * ทุก route ตราบใดที่ session ของบัญชีใหม่ยังอยู่
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/plugins/sweet-alerts/components/SweetAlerts.tsx
+ *   (confirmAlert — icon warning + showCancelButton + buttonsStyling:false + customClass)
+ *   ปุ่มรองเป็น `bg-light` ไม่ใช่ `bg-danger` ของ theme: ที่นี่ "ปิด" = กรอกเบอร์อื่นต่อ
+ *   ซึ่งไม่ใช่การกระทำอันตราย (ต่างจาก confirmAlert ต้นฉบับที่ปุ่มรองคือยกเลิกการลบ)
+ *   ท่าเดียวกับ Swal "ยกเลิกการสร้างบัญชี?" ในไฟล์นี้ที่ปรับ mapping เดียวกันไปแล้ว
+ */
+async function phoneTakenDialog() {
+  const r = await Swal.fire({
+    icon: 'warning',
+    title: 'เบอร์นี้มีบัญชีอยู่แล้ว',
+    html: 'คุณเคยสมัคร Deep ด้วยเบอร์นี้ไว้แล้ว<br/>เข้าสู่ระบบด้วยวิธีเดิมก่อน แล้วเชื่อมบัญชีเพิ่มได้ที่ <b>ข้อมูลส่วนตัว</b> เพื่อให้ครั้งหน้าเข้าด้วยวิธีใหม่ได้เลย',
+    showCancelButton: true,
+    confirmButtonText: 'ไปหน้าเข้าสู่ระบบ',
+    cancelButtonText: 'ใช้เบอร์อื่น',
+    buttonsStyling: false,
+    customClass: { confirmButton: 'btn bg-primary text-white hover:bg-primary-hover me-2 mt-2', cancelButton: 'btn bg-light text-dark hover:bg-light-hover mt-2' },
+  })
+  if (r.isConfirmed) signOut({ callbackUrl: '/auth/sign-in' })
+}
+
 export default function RegisterPage() {
   const { data: session, status, update } = useSession()
   const router = useRouter()
@@ -86,7 +124,7 @@ export default function RegisterPage() {
     try {
       const pRes = await fetch(`/api/users/check-phone?phone=${encodeURIComponent(phone)}`)
       const pData = await pRes.json().catch(() => ({}))
-      if (pRes.ok && pData.available === false) { setInfoLoading(false); return pacesToast.error('เบอร์นี้มีบัญชีแล้ว') }
+      if (pRes.ok && pData.available === false) { setInfoLoading(false); return phoneTakenDialog() }
       const res = await fetch('/api/account/shop-info', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ displayName: (user.displayName || 'ร้านค้า').trim(), username }),
