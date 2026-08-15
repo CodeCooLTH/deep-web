@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { composeStructuredText, extractGenericCards, CARD_PREFIX } from '@/services/channel-chat.service'
+import {
+  composeStructuredText,
+  extractGenericCards,
+  CARD_PREFIX,
+  META_SERVICE_CARD_TEXT,
+} from '@/services/channel-chat.service'
 import { parseMetaSystemNotice } from '@/lib/meta-system-notice'
 
 /**
@@ -73,8 +78,21 @@ describe('composeStructuredText — การ์ดจาก Meta', () => {
     )
   })
 
-  it('template ที่ Meta ส่งมาเปล่า ๆ (ไม่มี payload) → null ให้ผู้เรียกตกไป placeholder', () => {
-    expect(composeStructuredText('template', undefined)).toBeNull()
+  /**
+   * เดิมเทสข้อนี้ยืนยันว่า `template` ที่ไม่มี payload ต้องคืน `null` เพื่อให้ตกไป placeholder
+   * "[ข้อความจากระบบ (ออเดอร์/ชำระเงิน) — เปิดดูใน Messenger]"
+   *
+   * 🛑 กลับมติ 2026-08-15 หลังสแกนฐาน prod + user เปิดดูของจริงใน Messenger: ใบพวกนี้คือ
+   * **กล่องโฆษณา "Automatically verify bank slips" ที่ Meta แปะใต้สลิปทุกใบ** ไม่ใช่ออเดอร์/
+   * การชำระเงินที่ตกหล่น (60 ใบ · 58 ใบมีรูปของคนเดียวกันมาคู่ภายใน 60 วิ · ตัวสลิป mirror
+   * เข้าระบบครบอยู่แล้ว) ⇒ ข้อความเดิมส่งร้านไปเปิด Messenger ตามของที่ไม่มีอยู่จริง
+   *
+   * เทสเดิมจึง "เขียวอยู่บนพฤติกรรมที่ผิด" มาตลอด — เปลี่ยนความคาดหวังพร้อมหลักฐาน ไม่ใช่แค่
+   * แก้ให้ผ่าน (คลาสเดียวกับบทเรียน 2026-08-09 เรื่องเทสที่ยืนยันบั๊กให้เขียว)
+   */
+  it('template ที่ Meta ส่งมาเปล่า ๆ (ไม่มี payload) → บอกว่าเป็นกล่องบริการของ Meta', () => {
+    expect(composeStructuredText('template', undefined)).toBe(META_SERVICE_CARD_TEXT)
+    // payload มีจริงแต่ไม่มีเนื้อหาให้ประกอบ → ยังคืน null เหมือนเดิม (คนละเคสกัน)
     expect(composeStructuredText('template', { template_type: 'generic' })).toBeNull()
   })
 })

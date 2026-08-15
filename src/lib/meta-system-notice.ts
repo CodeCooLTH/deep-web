@@ -59,6 +59,10 @@ const PLAIN_NOTICE_PATTERNS: RegExp[] = [
   // ไม่ใช่แอดมิน (คงบทเรียน 2026-07-31 ไว้แม้ตอนนี้เราจะรู้เนื้อหาแล้วก็ตาม)
   // ผูกกับ CARD_PREFIX ใน channel-chat.service.ts — แก้ที่นั่นต้องแก้ที่นี่ด้วย
   /^\[การ์ดจาก Facebook\] /,
+  // กล่องบริการที่ Meta แนบมาเอง (ผูกกับ META_SERVICE_CARD_TEXT ใน channel-chat.service.ts —
+  // แก้ที่นั่นต้องแก้ที่นี่ด้วย เหมือน CARD_PREFIX บรรทัดบน) ต้องเป็นบรรทัดระบบจาง ๆ ไม่ใช่บับเบิล
+  // ของลูกค้า: มันไม่ใช่สิ่งที่ลูกค้าพิมพ์ แม้ webhook จะส่งมาในนามลูกค้าก็ตาม (user เคาะ 2026-08-15)
+  /^\[กล่องบริการจาก Meta — /,
   // บรรทัดแจ้งว่าลูกค้าโอนเงินผ่าน Messenger — Meta ส่งเป็น `message` เปล่า ๆ ในนาม **ลูกค้า**
   // (user report prod 2026-08-07 พร้อม screenshot: ขึ้นเป็นบับเบิลซ้ายพร้อมรูปโปรไฟล์ลูกค้า
   // ดูเหมือนลูกค้าพิมพ์ประโยคนี้เอง) พบจริง 3 รูป: "<ชื่อ> sent a ฿15,000.00 payment." ·
@@ -68,6 +72,19 @@ const PLAIN_NOTICE_PATTERNS: RegExp[] = [
   // Meta ชวนลูกค้าเชื่อมบัญชีธนาคารเพื่อให้ระบบตรวจสลิปให้ — ประโยคคงที่ ส่งในนามลูกค้าเช่นกัน
   // (พบจริง 3 ครั้ง; ไม่มี rawMessage เพราะเข้ามาก่อน 2026-08-03)
   /^เชื่อมต่อบัญชีธนาคารของคุณเพื่อตรวจสอบความถูกต้องของสลิป/,
+  /**
+   * รอบกวาดข้อความอังกฤษดิบทั้งฐาน prod (2026-08-15) — 3 ประโยคนี้ขึ้นเป็น **บับเบิลฝั่งร้าน**
+   * มาตลอด ทำให้ดูเหมือนแอดมินพิมพ์เอง (บั๊กคลาสเดียวกับ 2026-07-31 ที่แก้ไปแล้วบางส่วน)
+   * ทุกประโยคคัดจากฐานจริงคำต่อคำ ไม่ได้เดา — จำนวนที่พบ ณ วันกวาดกำกับไว้ท้ายบรรทัด
+   */
+  // "Messenger automatically created a transfer request. Learn more" (35 ใบ) — คำอธิบายที่ Meta
+  // แนบมาคู่กับการ์ด Transfer requested. ไม่เข้า PATTERN แบบมีลิงก์เพราะ "Learn more" ไม่มี (url)
+  // ต่อท้าย (Meta ส่งมาเป็นข้อความเปล่า ๆ)
+  /^Messenger automatically created a transfer request\./i,
+  // "The calling window has been reset to 7 days from the end of the previous call." (15 ใบ)
+  /^The calling window has been reset to /i,
+  // "This message was automatically moved to spam." (8 ใบ) — Meta บอกว่าย้ายข้อความไปสแปมเอง
+  /^This message was automatically moved to spam\./i,
 ]
 
 /**
@@ -141,6 +158,20 @@ const AI_HANDOFF_NOTICES: AiHandoffNotice[] = [
   {
     en: 'Your AI agent transferred this chat to you because your customer is ready to buy.',
     th: 'เอเจนต์ AI ส่งต่อแชทนี้ให้คุณดูแล เพราะลูกค้าพร้อมสั่งซื้อแล้ว',
+    hasLink: true,
+    control: 'HUMAN',
+  },
+  /**
+   * รูปสั้นของประโยคเดียวกับข้างบน — Meta ส่งทั้งแบบมีและไม่มีส่วนขยายท้ายประโยค
+   *
+   * 🛑 `parseMetaAiHandoffNotice` เทียบ `n.en === line` แบบ **ตรงทั้งประโยค** ⇒ รูปสั้นไม่เคย
+   * match สักครั้ง ตกไปเป็นบับเบิลอังกฤษฝั่งร้าน (พบจริงบนฐาน prod 20 ใบ ล่าสุด 2026-08-15)
+   * เจอตอนกวาดข้อความอังกฤษดิบทั้งฐาน 2026-08-15 — 2 รูปยาวถูกดักไว้ตั้งแต่ 08-08 แต่รูปสั้น
+   * หลุดมาตลอดเพราะตอนนั้น query เห็นแต่รูปยาว
+   */
+  {
+    en: 'Your AI agent transferred this chat to you.',
+    th: 'เอเจนต์ AI ส่งต่อแชทนี้ให้คุณดูแล',
     hasLink: true,
     control: 'HUMAN',
   },

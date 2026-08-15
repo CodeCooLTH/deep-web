@@ -392,6 +392,13 @@ interface BackfillContent {
 export const CARD_PREFIX = '[การ์ดจาก Facebook]'
 
 /**
+ * กล่องบริการที่ Meta แนบมาเองโดยไม่มีเนื้อหา (2026-08-15) — เหตุผลเต็มอยู่ที่จุดที่ใช้ใน
+ * `composeStructuredText`. ลงท้ายด้วย "]" และไม่มี "— เปิดดูใน Messenger" โดยตั้งใจ:
+ * ไม่มีอะไรให้ไปเปิดดูจริง ๆ การเชิญให้ไปตามคือการส่งร้านไปเสียเวลาเปล่า
+ */
+export const META_SERVICE_CARD_TEXT = '[กล่องบริการจาก Meta — ไม่มีข้อความจากลูกค้า]'
+
+/**
  * การ์ดจาก **Graph backfill** → `ChatMessage.cards` (2026-08-10, user report พร้อมภาพจาก Messenger)
  *
  * 🛑 การ์ดของ Facebook เข้าระบบได้ **2 ทาง และคนละโครง** — ทางนี้ถูกลืมไปทั้งเส้น
@@ -590,7 +597,24 @@ const MIRROR_ALLOWED_HOSTS_EXACT = new Set([
   'fbsbx.com',
   'stickershop.line-scdn.net',
 ])
-const MIRROR_ALLOWED_HOST_SUFFIXES = ['.fbcdn.net', '.cdninstagram.com', '.fbsbx.com']
+/**
+ * `.giphy.com` (2026-08-15, user report "ส่ง .gif จาก IG เข้ามาก็ยังไม่รองรับ")
+ *
+ * 🛑 **GIF ใน DM ของ Instagram ไม่ได้อยู่บน CDN ของ Meta** — webhook ส่ง url ของ GIPHY มาตรง ๆ
+ * (`https://media3.giphy.com/media/v1.<...>/200.gif`) allow-list เดิมรับเฉพาะ Meta/LINE ⇒ ถูกปฏิเสธ
+ * ตั้งแต่ก่อนยิง fetch ⇒ `mirroredFileId = null` ⇒ ตกไปเป็น "[ลูกค้าส่งรูปภาพ — เปิดดูใน Messenger]"
+ * ทั้งที่ทุกชั้นอื่นพร้อมหมด (พบบนฐาน prod 2 ใบ 08-13 และ 08-15 ทั้งคู่อยู่ในเธรดของ Meta Review)
+ *
+ * ยืนยันก่อนแก้ ไม่ได้เดา: ยิง url จริงได้ `200 image/gif` และ **ไม่มี redirect** (ด่านเช็ค host
+ * หลัง 302 จึงไม่ติด) · bucket รับ `image/gif` แล้วตั้งแต่ตั้ง `allowed_mime_types = NULL`
+ * (retro 2026-07-25 — ก่อนหน้านั้น S3 ตอบ 415 InvalidMimeType กับ gif/mp4/ogg)
+ *
+ * ทำไมเป็น suffix ไม่ใช่ exact แบบ stickershop ของ LINE: GIPHY สลับ shard ตามภาระ
+ * (`media0..media4.giphy.com`, `i.giphy.com`) เลขไม่คงที่และไม่มีเพดานที่ประกาศไว้ — ปักหมุดรายตัว
+ * แล้ววันหนึ่งจะพังเงียบอีกรอบด้วยอาการเดิมเป๊ะ. โดเมนนี้เป็น CDN ล้วน ไม่มี endpoint ภายในให้ยิง
+ * ⇒ ความเสี่ยง SSRF ที่ allow-list นี้กันอยู่ (ยิงเข้า 169.254.169.254 ฯลฯ) ไม่ได้เพิ่มขึ้น
+ */
+const MIRROR_ALLOWED_HOST_SUFFIXES = ['.fbcdn.net', '.cdninstagram.com', '.fbsbx.com', '.giphy.com']
 
 function isAllowedMirrorHost(hostname: string): boolean {
   const h = hostname.toLowerCase()
@@ -809,6 +833,34 @@ type AttPayloadStructured = {
     buttons?: { title?: string; url?: string; type?: string }[]
   }[]
   coordinates?: { lat: number; long: number }
+  /**
+   * การ์ดสินค้าจากแคตตาล็อกของเพจ (2026-08-15) — **โครงซ้อนอีกชั้น ไม่ใช่ `elements` ระดับบน**
+   * `{ product: { elements: [{ id, title, subtitle, image_url, retailer_id }] } }`
+   * และ **ไม่มี `template_type` เลย** ⇒ เงื่อนไขเดิมที่เช็ค `template_type==='generic'` มองไม่เห็น
+   * ทั้งชุด (พบบนฐาน prod 12 ใบ ทั้งหมดเป็นการ์ดที่ร้านส่งออกไปเอง `is_echo=true`)
+   */
+  product?: { elements?: AttPayloadStructured['elements'] }
+  /** button template — ปุ่ม CTA ที่ร้านส่งให้ลูกค้ากด (พบจริง 7 ใบ ร้านส่งเองทุกใบ) */
+  buttons?: { title?: string; type?: string }[]
+}
+
+/**
+ * ราคาบนการ์ดสินค้าของ Meta มาเป็น `$390.00` ทั้งที่สินค้าราคา 390 **บาท** — Meta ใช้ `$` เป็น
+ * สัญลักษณ์ตั้งต้นของแคตตาล็อกโดยไม่สนสกุลเงินจริงของร้าน (ยืนยันจาก payload prod 2026-08-15:
+ * "โช๊คหลัง เวฟ 100" subtitle `$390.00` ซึ่งร้านขาย 390 บาท)
+ *
+ * user เคาะ 2026-08-15 ให้แปลงเป็น `฿` ตอนแสดงผล — ร้านไทยขายบาททั้งหมด (ทั้งระบบผูกกับพร้อมเพย์
+ * และธนาคารไทย) การปล่อย `$` ไว้คือเลขที่อ่านแล้วเข้าใจผิดได้ทันที
+ *
+ * 🛑 แปลงเฉพาะเมื่อ **ทั้งสตริง** เป็นรูปราคาล้วน — ถ้า subtitle เป็นประโยคที่บังเอิญมี `$` ปนอยู่
+ * ปล่อยผ่านทั้งก้อน (ไม่ไล่ replace ในประโยค เพราะนั่นคือการเดาความหมายของข้อความที่เราไม่รู้จัก)
+ */
+export function metaPriceToBaht(text: string): string {
+  const m = /^\$([\d,]+)(?:\.(\d{2}))?$/.exec(text.trim())
+  if (!m) return text
+  // ตัด .00 ทิ้ง (ไทยไม่เขียนสตางค์เมื่อเป็นศูนย์) แต่คงไว้เมื่อมีเศษจริง
+  const cents = m[2] && m[2] !== '00' ? `.${m[2]}` : ''
+  return `฿${m[1]}${cents}`
 }
 
 /**
@@ -854,8 +906,10 @@ export function extractGenericCards(
   attType: string | undefined,
   payload: AttPayloadStructured | undefined,
 ): GenericCardElement[] | null {
-  if (attType !== 'template' || payload?.template_type !== 'generic') return null
-  const els = payload.elements
+  if (attType !== 'template') return null
+  // การ์ดสินค้าจากแคตตาล็อกซ่อนอยู่ใต้ `product.elements` และไม่มี template_type (ดู AttPayloadStructured)
+  const els =
+    payload?.template_type === 'generic' ? payload.elements : (payload?.product?.elements ?? null)
   if (!els || els.length === 0) return null
   const real = els.filter((el) => isRealCard(el))
   if (real.length === 0) return null
@@ -876,7 +930,8 @@ export function extractGenericCards(
   if (!real.some((el) => el.image_url)) return null
   return real.slice(0, MAX_GENERIC_CARDS).map((el) => ({
     title: el.title?.trim() || null,
-    subtitle: el.subtitle?.trim() || null,
+    // subtitle ของการ์ดสินค้าคือ "ราคา" ที่ Meta ส่งมาเป็นดอลลาร์เสมอ — ดู metaPriceToBaht
+    subtitle: el.subtitle?.trim() ? metaPriceToBaht(el.subtitle.trim()) : null,
     imageUrl: el.image_url ?? null,
   }))
 }
@@ -924,7 +979,24 @@ export function composeStructuredText(
   attType: string | undefined,
   payload: AttPayloadStructured | undefined,
 ): string | null {
-  if (!attType || !payload) return null
+  if (!attType) return null
+  /**
+   * `{ type: 'template' }` เปล่า ๆ ไม่มีคีย์ `payload` เลย = **กล่องบริการที่ Meta แนบมาเอง**
+   * ไม่ใช่ข้อความของลูกค้าและไม่มีอะไรให้กู้
+   *
+   * หลักฐาน (สแกนฐาน prod 2026-08-15 + ภาพหน้าจอจาก user): พบ 60 ใบ **58 ใบมีรูปของคนเดียวกัน
+   * มาคู่กันภายใน 60 วินาที** และภาพที่ user เปิดดูใน Messenger คือกล่อง "Automatically verify
+   * bank slips — Add bank account to get slips verified with no fees" ที่ Meta แปะใต้สลิปทุกใบ
+   * ⇒ **ตัวสลิปเข้าระบบเราครบอยู่แล้ว** (mirror สำเร็จ เป็นข้อความ IMAGE ปกติ) ใบนี้คือส่วนโฆษณา
+   *
+   * เดิมตกไปเป็น "[ข้อความจากระบบ (ออเดอร์/ชำระเงิน) — เปิดดูใน Messenger]" ซึ่งชวนให้ร้านเข้าใจว่า
+   * มีข้อมูลออเดอร์/การชำระเงินตกหล่นแล้วต้องไปเปิด Messenger ตาม — ทั้งที่ไม่มีอะไรให้ตามเลย
+   *
+   * 🛑 ถ้อยคำต้องไม่ฟันธงว่าเป็น "กล่องตรวจสลิป" เสมอ — อีก 2 ใบใน 60 ห่างจากรูปที่ใกล้ที่สุด
+   * 5–8 ชั่วโมง ยังไม่รู้ว่าคืออะไร ประโยคนี้จึงพูดเท่าที่พิสูจน์ได้ทุกใบ: มาจาก Meta และไม่มีเนื้อหา
+   */
+  if (attType === 'template' && !payload) return META_SERVICE_CARD_TEXT
+  if (!payload) return null
   if (attType === 'location' && payload.coordinates) {
     const { lat, long } = payload.coordinates
     return `[ตำแหน่งที่ตั้ง] เปิดใน Google Maps: https://maps.google.com/?q=${lat},${long}`
@@ -939,8 +1011,24 @@ export function composeStructuredText(
     }
     // button template (คำขอชำระเงิน/ดูออเดอร์) มี text สรุปในตัว เช่น "You requested ฿590..."
     if (payload.text && payload.text.trim().length > 0) return payload.text
+    /**
+     * button template ที่ **ไม่มี `text`** — มีแต่ `buttons[]` (พบจริง 7 ใบ ร้านส่งเองทุกใบ
+     * `is_echo=true` เช่น ปุ่ม "สั่งซื้อโช๊ค 590.-") เดิมตกไป placeholder เพราะโค้ดมองหาแต่
+     * `text`/`elements` ⇒ ร้านไม่เห็นเลยว่าตัวเองส่งการ์ดปุ่มอะไรออกไป
+     *
+     * 🛑 ไม่ขัดกับกติกา "ไม่เอาชื่อปุ่มมาแสดง" ที่เขียนไว้ใต้ block generic — กติกานั้นคุ้มครองกรณี
+     * การ์ดของ **ลูกค้า/Meta** ที่เรากดแทนไม่ได้ (การโฆษณาสิ่งที่กดไม่ได้) แต่ใบพวกนี้ร้านเป็นคนส่ง
+     * ปุ่มมีไว้ให้ *ลูกค้า* กด ⇒ ชื่อปุ่มคือเนื้อหาเดียวที่บอกว่าร้านส่งอะไรออกไป
+     */
+    if (payload.template_type === 'button') {
+      const labels = (payload.buttons ?? [])
+        .map((b) => b.title?.replace(/\s+/g, ' ').trim())
+        .filter((t): t is string => !!t)
+      if (labels.length > 0) return `${CARD_PREFIX} การ์ดปุ่ม — ${labels.join(' · ')}`
+    }
     // generic/carousel/icon-template → ชื่อรายการแรก + จำนวนที่เหลือ
-    const els = payload.elements
+    // การ์ดสินค้าจากแคตตาล็อกอยู่ใต้ `product.elements` (ไม่มี template_type) — ดู AttPayloadStructured
+    const els = payload.elements ?? payload.product?.elements
     if (els && els.length > 0 && els[0]?.title) {
       const el = els[0]
       const more = els.length > 1 ? ` และอีก ${els.length - 1} รายการ` : ''
@@ -949,7 +1037,8 @@ export function composeStructuredText(
       // ปุ่มบนการ์ด (`buttons[].title` เช่น "Attach bank slip") ไม่เอามาแสดง — เรากดแทนลูกค้าไม่ได้
       // การเขียนชื่อปุ่มลงไปคือการโฆษณาสิ่งที่กดไม่ได้
       if (isRealCard(el)) {
-        const sub = el.subtitle?.trim() ? ` — ${el.subtitle.replace(/\s+/g, ' ').trim()}` : ''
+        const rawSub = el.subtitle?.replace(/\s+/g, ' ').trim()
+        const sub = rawSub ? ` — ${metaPriceToBaht(rawSub)}` : ''
         return `${CARD_PREFIX} ${el.title!.replace(/\s+/g, ' ').trim()}${sub}${more}`
       }
       return `${el.title}${more}`
@@ -1336,7 +1425,9 @@ export async function ingestInboundMessage(params: {
       // ด้านบนเสมอ — concept เดียวกันต้องอ่านเป็นคำเดียวกันทั้ง 2 ทางเข้า
       parseMetaOrderCard(displayText)
       ? `คำขอชำระเงิน ${parseMetaOrderCard(displayText)!.amount}`
-      : displayText?.startsWith(CARD_PREFIX)
+      : // กล่องบริการของ Meta ก็ใช้ label สั้นตัวเดียวกัน — ในรายการแชทมันไม่ได้บอกอะไรที่ต้องรีบอ่าน
+        // และประโยคเต็ม 43 ตัวอักษรจะไปเบียดชื่อลูกค้า/ข้อความจริงในแถวเดียวกัน
+        displayText?.startsWith(CARD_PREFIX) || displayText === META_SERVICE_CARD_TEXT
       ? '[ข้อความจากระบบ]'
       : hasDisplayText
       ? displayText!.slice(0, 100)
