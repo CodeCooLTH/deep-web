@@ -448,13 +448,34 @@ export default function ProfileForm({ user }: Props) {
           </div>
         </div>
 
-        <div className="mt-5">
+        {/*
+          ปุ่มบันทึก — ต้องหน้าตาเหมือนของหน้า "ร้านค้า" (user สั่ง 2026-08-15 "ต้องเหมือนกันด้วย")
+          ทั้งสองหน้าคือ "ฟอร์มตั้งค่าในการ์ดเดียว" เหมือนกัน ผู้ใช้สลับไปมาระหว่างสองหน้านี้บ่อย
+          ปุ่มที่หน้าตาต่างกันทำให้ต้องมองหาใหม่ทุกครั้งว่าปุ่มบันทึกอยู่ตรงไหน
+
+          กติกาที่แชร์กับ ShopForm.tsx:
+            - อยู่ **ในการ์ด** ท้ายเนื้อหา ไม่ลอย ไม่อยู่ใต้การ์ด
+            - เส้นคั่นบน + `mt-6` กันอ่านเป็นฟิลด์อีกช่อง
+            - มือถือเต็มความกว้าง / เดสก์ท็อปกว้างตามเนื้อหา
+            - มีไอคอน `device-floppy` + สถานะ "กำลังบันทึก..." พร้อมสปินเนอร์
+        */}
+        <div className="border-default-200 mt-6 border-t pt-5">
           <button
             type="submit"
             disabled={saveBlocked}
-            className="btn bg-primary text-white hover:bg-primary-hover min-h-11 disabled:opacity-50"
+            className="btn bg-primary hover:bg-primary-hover min-h-11 inline-flex w-full items-center justify-center gap-2 text-white disabled:opacity-50 lg:w-auto"
           >
-            {saving ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
+            {saving ? (
+              <>
+                <Icon icon="loader-2" className="animate-spin" />
+                กำลังบันทึก...
+              </>
+            ) : (
+              <>
+                <Icon icon="device-floppy" />
+                บันทึกการเปลี่ยนแปลง
+              </>
+            )}
           </button>
         </div>
       </div>
