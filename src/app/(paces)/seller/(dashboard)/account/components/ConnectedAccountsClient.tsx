@@ -28,6 +28,7 @@ import { signIn, useSession } from 'next-auth/react'
  */
 import Icon from '@/components/wrappers/Icon'
 import Swal from 'sweetalert2'
+import { pacesAlert, pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -315,6 +316,23 @@ export function ConnectedAccountsClient({
   const [, startTransition] = useTransition()
 
   /**
+   * 🛑 ค่าจาก server คือความจริง — sync ลง state ทุกครั้งที่ RSC ส่งค่าใหม่มา
+   *
+   * `useState(initial)` **ไม่อัปเดตตาม prop ที่เปลี่ยนหลัง mount** — คอมเมนต์ด้านล่างเขียนเตือน
+   * ไว้เองแล้ว แต่ผมยังพลาดซ้ำตอนทำ "ยึดคืน": เรียก `router.refresh()` แล้วคิดว่าจอจะขยับเอง
+   * ผลคือ alert ขึ้นว่าสำเร็จแต่ปุ่มยังเขียนว่า "เชื่อมต่อ" ต้องออกแล้วเข้าใหม่
+   * (user เจอทันที 2026-08-15: "มันไม่รีเฟรชปะนะ")
+   *
+   * ตัวนี้ทำให้ **ทุกเส้นทางหายเองหมด** ไม่ใช่แค่เส้นที่นึกออก — ใครเพิ่มปุ่มใหม่ที่เปลี่ยน
+   * สถานะการเชื่อมแล้วลืมอัปเดต state เอง ก็ยังถูกต้องตราบใดที่เรียก `router.refresh()`
+   *
+   * dep เป็น boolean ล้วน ⇒ ยิงเฉพาะตอนค่าจาก server เปลี่ยนจริง ไม่ลูป
+   */
+  useEffect(() => {
+    setLinkedMap({ apple: initialApple, facebook: initialFb, line: initialLine, instagram: initialIg })
+  }, [initialApple, initialFb, initialLine, initialIg])
+
+  /**
    * เคลียร์ทุกชั้นที่จำสถานะการเชื่อมไว้ — เรียกที่เดียวหลังทุกการเปลี่ยนแปลง
    *
    * 🛑 user สั่งตรง ๆ 2026-08-15: "จะเป็นการ login apple หรือ เชื่อมต่อ หรือ ยกเลิกการเชื่อมต่อ
@@ -368,23 +386,15 @@ export function ConnectedAccountsClient({
   const askReclaim = useCallback(
     async (ticket: string) => {
       if (!ticket) return
-      const r = await Swal.fire({
-        icon: 'question',
-        title: 'บัญชีนี้เคยสร้างค้างไว้',
+      const confirmed = await pacesConfirm.question('บัญชีนี้เคยสร้างค้างไว้', undefined, {
         html:
           'ตอนกดปุ่มครั้งก่อน ระบบสร้างบัญชีใหม่ให้โดยที่คุณยังไม่ได้กรอกข้อมูลอะไรเลย<br/><br/>' +
           '<b>ถ้าตกลง:</b> เราจะปิดบัญชีที่ค้างนั้น แล้วย้ายมาเชื่อมกับบัญชีที่คุณใช้อยู่ตอนนี้<br/>' +
           '<b>ถ้ายกเลิก:</b> ทุกอย่างคงเดิม บัญชีค้างยังอยู่ และยังเชื่อมกับบัญชีนี้ไม่ได้',
-        showCancelButton: true,
         confirmButtonText: 'ปิดบัญชีค้าง แล้วเชื่อมกับบัญชีนี้',
         cancelButtonText: 'ยกเลิก',
-        buttonsStyling: false,
-        customClass: {
-          confirmButton: 'btn bg-primary text-white hover:bg-primary-hover me-2 mt-2',
-          cancelButton: 'btn bg-light text-dark hover:bg-light-hover mt-2',
-        },
       })
-      if (!r.isConfirmed) return
+      if (!confirmed) return
 
       try {
         const res = await fetch('/api/account/link/reclaim', {
@@ -392,21 +402,30 @@ export function ConnectedAccountsClient({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ticket }),
         })
-        const body = (await res.json().catch(() => ({}))) as { closedHolder?: boolean; error?: string }
+        const body = (await res.json().catch(() => ({}))) as {
+          closedHolder?: boolean
+          provider?: string
+          error?: string
+        }
         if (!res.ok) {
           pacesToast.error(body.error ?? 'ยึดคืนไม่สำเร็จ กรุณาลองใหม่')
           return
         }
+        const label = PROVIDER_LABEL[body.provider as ProviderKey] ?? 'บัญชี'
         pacesToast.success(
-          body.closedHolder ? 'เชื่อมต่อสำเร็จ — ปิดบัญชีที่ค้างให้แล้ว' : 'เชื่อมต่อสำเร็จ',
+          body.closedHolder
+            ? `เชื่อมต่อ ${label} สำเร็จ — ปิดบัญชีที่ค้างให้แล้ว`
+            : `เชื่อมต่อ ${label} สำเร็จ`,
         )
-        // ไม่รู้ provider จาก response — ให้ RSC เป็นคนบอกความจริง แล้ว sync ทุกชั้น
-        syncAfterLinkChange()
+        // อัปเดตแถวทันทีด้วย provider ที่ endpoint คืนมา + เคลียร์แคชทุกชั้น
+        // (effect ที่ sync จาก prop ด้านบนเป็นตาข่ายรองอีกชั้นเมื่อ RSC มาถึง)
+        if (body.provider) markLinked(body.provider as ProviderKey, true)
+        else syncAfterLinkChange()
       } catch {
         pacesToast.error('ยึดคืนไม่สำเร็จ กรุณาลองใหม่')
       }
     },
-    [syncAfterLinkChange],
+    [syncAfterLinkChange, markLinked],
   )
 
   // IG flag — render เฉพาะเมื่อ env เปิด (FR-LO-15 prepared/flag-off)
@@ -448,7 +467,7 @@ export function ConnectedAccountsClient({
        * ข้อความเดิม "บัญชีนี้ถูกใช้กับบัญชีอื่นแล้ว" ถูกทุกตัวอักษรแต่ผู้ใช้อ่านแล้วไปต่อไม่ถูก
        * ต้องบอก **ทางออกที่เขาทำเองได้จริง** ไม่งั้นเขาจะกดวนอยู่ตรงนี้แล้วสรุปว่าระบบพัง
        */
-      void Swal.fire({
+      void pacesAlert({
         icon: 'warning',
         title: 'บัญชีนี้ถูกใช้กับอีกบัญชีอยู่แล้ว',
         html:
@@ -456,8 +475,6 @@ export function ConnectedAccountsClient({
           'ถ้าเป็นบัญชีของคุณเอง ให้<b>เข้าสู่ระบบด้วยบัญชีนั้น</b> แล้วยกเลิกการเชื่อมต่อ ' +
           '(หรือลบบัญชี) ที่หน้า <b>ข้อมูลส่วนตัว</b> ก่อน แล้วค่อยกลับมาเชื่อมใหม่',
         confirmButtonText: 'เข้าใจแล้ว',
-        buttonsStyling: false,
-        customClass: { confirmButton: 'btn bg-primary text-white hover:bg-primary-hover mt-2' },
       })
     }
 
@@ -536,7 +553,7 @@ export function ConnectedAccountsClient({
       buttonsStyling: false,
       customClass: {
         confirmButton: 'btn bg-primary text-white hover:bg-primary-hover mt-2 me-2',
-        cancelButton: 'btn bg-danger text-white hover:bg-danger-hover mt-2',
+        cancelButton: 'btn bg-light hover:text-default-800 mt-2',
       },
     })
 
@@ -581,7 +598,7 @@ export function ConnectedAccountsClient({
       buttonsStyling: false,
       customClass: {
         confirmButton: 'btn bg-primary text-white hover:bg-primary-hover mt-2 me-2',
-        cancelButton: 'btn bg-danger text-white hover:bg-danger-hover mt-2',
+        cancelButton: 'btn bg-light hover:text-default-800 mt-2',
       },
       preConfirm: (val: string) => {
         if (!val || val.length !== 6 || !/^\d{6}$/.test(val)) {

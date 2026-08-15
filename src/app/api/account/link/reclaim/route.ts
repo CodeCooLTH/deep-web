@@ -82,11 +82,12 @@ export async function POST(request: Request) {
     await prisma.authAccount.create({
       data: { userId, provider: providerEnum, providerAccountId: ticket.providerAccountId },
     })
-    return NextResponse.json({ ok: true, closedHolder: false })
+    return NextResponse.json({ ok: true, closedHolder: false, provider: ticket.provider })
   }
 
   // ผูกกับเราอยู่แล้ว (กดยืนยันซ้ำ / อีกแท็บทำไปแล้ว) → idempotent
-  if (existing.userId === userId) return NextResponse.json({ ok: true, closedHolder: false })
+  if (existing.userId === userId)
+    return NextResponse.json({ ok: true, closedHolder: false, provider: ticket.provider })
 
   // เจ้าของเปลี่ยนมือระหว่างที่ผู้ใช้กำลังตัดสินใจ → ตั๋วใช้กับเจ้าของคนใหม่ไม่ได้
   if (existing.userId !== ticket.holderUserId) {
@@ -151,5 +152,11 @@ export async function POST(request: Request) {
     }
   })
 
-  return NextResponse.json({ ok: true, closedHolder })
+  /**
+   * 🛑 ต้องคืน `provider` กลับไปด้วย — ฝั่ง UI เก็บสถานะการเชื่อมไว้ใน `useState` ซึ่ง
+   * **ไม่ sync กับ prop ที่เปลี่ยนหลัง mount** ⇒ `router.refresh()` อย่างเดียวไม่ทำให้แถวขยับ
+   * (ผมพลาดข้อนี้รอบแรกทั้งที่คอมเมนต์ในไฟล์นั้นเขียนเตือนไว้เอง — user เจอทันที:
+   * "มี alert บอก แต่ปุ่มยังไม่เชื่อมให้ ต้องออกเข้าใหม่")
+   */
+  return NextResponse.json({ ok: true, closedHolder, provider: ticket.provider })
 }

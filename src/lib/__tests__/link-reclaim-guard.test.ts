@@ -76,12 +76,19 @@ describe('ยึดคืนการเชื่อมบัญชี — ต�
   it('[blocker] UI ต้องถามยืนยันก่อนยิง endpoint ยึดคืน', () => {
     const fn = card.match(/const askReclaim = useCallback\([\s\S]*?\n  \)/)?.[0] ?? ''
     expect(fn, 'หา askReclaim ไม่เจอ').not.toBe('')
-    const confirmAt = fn.indexOf('Swal.fire(')
+    /**
+     * 🛑 ตรวจ "ถามก่อนทำ" ไม่ใช่ตรวจชื่อฟังก์ชัน — ด่านที่ผูกกับ *วิธีเขียน* จะแดงทุกครั้งที่
+     * refactor ทั้งที่พฤติกรรมยังถูก (เจอเองรอบนี้ตอนเปลี่ยนจาก `Swal.fire` ดิบมาใช้
+     * `pacesConfirm` ซึ่งเป็นตัวมาตรฐานของโปรเจกต์ — ด่านแดงทันทีทั้งที่ยังถามผู้ใช้อยู่)
+     * สิ่งที่ต้องคงไว้จริง ๆ คือ **มีการถาม และการถามเกิดก่อนการยิง**
+     */
+    const confirmAt = fn.search(/pacesConfirm\.|pacesAlert\(|Swal\.fire\(/)
     const fetchAt = fn.indexOf("fetch('/api/account/link/reclaim'")
-    expect(confirmAt, 'ต้องมี Swal ถามยืนยัน').toBeGreaterThan(-1)
+    expect(confirmAt, 'ต้องมีการถามยืนยัน').toBeGreaterThan(-1)
     expect(fetchAt, 'ต้องมีการยิง endpoint').toBeGreaterThan(-1)
-    expect(confirmAt, 'Swal ต้องมาก่อนการยิง endpoint').toBeLessThan(fetchAt)
-    expect(fn, 'ผู้ใช้กดยกเลิกต้องไม่ยิงอะไรเลย').toMatch(/if \(!r\.isConfirmed\) return/)
+    expect(confirmAt, 'การถามต้องมาก่อนการยิง endpoint').toBeLessThan(fetchAt)
+    // ผู้ใช้กดยกเลิก = ต้องออกจากฟังก์ชันทันที ไม่ยิงอะไรเลย
+    expect(fn, 'ต้องมีทางออกเมื่อผู้ใช้ไม่ยืนยัน').toMatch(/if \(!(confirmed|r\.isConfirmed)\) return/)
   })
 
   it('[blocker] ทุกการเปลี่ยนสถานะเชื่อม/ถอด ต้องเคลียร์แคชครบ 3 ชั้น', () => {
