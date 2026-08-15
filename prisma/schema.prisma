@@ -3229,6 +3229,16 @@ model CommentReplyLog {
   /// เหตุผลที่ "ทักแชท" ล้มเหลว — คู่กับ privateReplyStatus='FAILED' เท่านั้น
   privateErrorMessage String? @db.Text
   conversationId      String? // ห้องที่เกิดจาก private reply
+  /// เวลาที่ **จองสิทธิ์** ทักแชทอัตโนมัติของ (shopChannelId, postId, fromExternalId) — เขียน
+  /// **ก่อน** ยิง Graph เสมอ ไม่ใช่หลัง
+  ///
+  /// 🛑 คอลัมน์นี้ไม่ได้มีไว้ให้ UI อ่าน มันคือ "ตั๋ว" ของ partial unique index
+  /// `CommentReplyLog_auto_private_once_per_person_post` ซึ่งเป็นตัวบังคับกฎ BR-CR-A2b
+  /// (ทักแชทอัตโนมัติครั้งเดียวต่อคนต่อโพสต์) ที่ชั้นฐานข้อมูล การเขียนคอลัมน์นี้จึงเป็น
+  /// การ claim แบบ atomic — ชน P2002 = มีคอมเมนต์ใบอื่นของคนเดียวกันบนโพสต์เดียวกันถือสิทธิ์
+  /// ไปแล้ว ต้องข้ามฝั่งทักแชท (ห้ามเปลี่ยนเป็น findFirst-แล้วค่อย-update: สองคำขอที่มาพร้อมกัน
+  /// จะเห็น "ยังไม่มีใครทัก" พร้อมกันแล้วส่ง DM ซ้ำสองใบ)
+  privateAttemptedAt  DateTime?
 
   createdAt DateTime @default(now())
 
@@ -3236,7 +3246,10 @@ model CommentReplyLog {
   post    FacebookPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   comment PageComment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
-  // unique 2 ตัวเป็น partial index เขียนมือใน migration.sql — Prisma ประกาศเองไม่ได้
+  // unique 3 ตัวเป็น partial index เขียนมือใน migration.sql — Prisma ประกาศเองไม่ได้:
+  //   AUTO    ครั้งเดียวต่อ commentId                                   (กัน webhook retry)
+  //   AUTO    ครั้งเดียวต่อ (channel, post, from) เมื่อ privateAttemptedAt != null  (BR-CR-A2b)
+  //   MANUAL  ครั้งเดียวต่อ commentId
   @@index([shopChannelId, createdAt])
   @@index([commentId])
 }

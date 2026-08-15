@@ -117,20 +117,27 @@ API) และ browser-driven (UI ปุ่มแมนนวล/หน้าต
   `/inbox` ของลูกค้าคนนั้น; `CommentReplyLog` มี 1 แถว `trigger='AUTO'`,
   `publicReplyStatus='SENT'`, `privateReplyStatus='SENT'`
 
-### TC-CR-AUTO-02: คนเดิมคอมเมนต์เพิ่มอีก 4 ครั้งบนโพสต์เดียวกัน → ไม่มีคำตอบ/ข้อความเพิ่ม
+### TC-CR-AUTO-02: คนเดิมคอมเมนต์เพิ่มอีก 4 ครั้งบนโพสต์เดียวกัน → ตอบใต้คอมเมนต์ทุกใบ แต่ทักแชทใบเดียว
 
-- **Linked to:** AC-CR-08 / BR-CR-A2
+> **แก้ 2026-08-15** — เดิมเคสนี้คาดหวังว่า "ไม่มีคำตอบเพิ่ม + 4 แถว `skipReason='ALREADY_HANDLED'`"
+> ซึ่ง **เป็นไปไม่ได้ทั้งสองข้อ**: กฎเดิมทำให้ลูกค้าที่กลับมาถามใหม่เงียบสนิท (user เจอเองบน prod)
+> และค่า `ALREADY_HANDLED` เขียนลงฐานไม่ได้เลยเพราะชน partial unique index ตัวเดียวกับที่มันอธิบาย
+
+- **Linked to:** AC-CR-08 / BR-CR-A2a + BR-CR-A2b
 - **Precondition:** สืบเนื่องจาก TC-CR-AUTO-01 (ลูกค้าคนเดิมเคยถูกตอบแล้วบนโพสต์นี้)
 - **Steps:**
   1. ลูกค้าคนเดิมคอมเมนต์เพิ่ม 4 ครั้งบนโพสต์เดียวกัน
   2. รอ webhook ประมวลผลแต่ละครั้ง
   3. ตรวจจำนวนคำตอบและข้อความ
-- **Expected Result:** ไม่มีคำตอบใต้คอมเมนต์เพิ่ม ไม่มีข้อความส่วนตัวเพิ่ม — `CommentReplyLog` มี
-  4 แถวใหม่ (`trigger='AUTO'`) ทุกแถว `skipReason='ALREADY_HANDLED'`
+- **Expected Result:** มีคำตอบใต้คอมเมนต์เพิ่ม **ครบทั้ง 4 ใบ** (BR-CR-A2a) แต่ **ไม่มีข้อความส่วนตัว
+  เพิ่มแม้แต่ใบเดียว** (BR-CR-A2b) — `CommentReplyLog` มี 4 แถวใหม่ (`trigger='AUTO'`) ทุกแถว
+  `publicReplyStatus='SENT'` · `privateReplyStatus='SKIPPED'` · `privateErrorMessage='ALREADY_SENT'`
+  · `privateAttemptedAt IS NULL` (จองสิทธิ์ไม่ผ่านจึงไม่เคยถูกเขียน) และหน้าประวัติต้องแสดง
+  "ทักคนนี้ไปแล้วก่อนหน้านี้" ใต้ป้าย "ข้าม" ของช่องทักแชท — **ห้ามเงียบ**
 
 ### TC-CR-AUTO-03: ลูกค้าคนเดิมไปคอมเมนต์บนโพสต์อื่น → ได้รับการตอบตามปกติ
 
-- **Linked to:** AC-CR-09 / BR-CR-A2
+- **Linked to:** AC-CR-09 / BR-CR-A2b
 - **Precondition:** ลูกค้าคนเดิมจาก TC-CR-AUTO-01 (เคยถูกตอบบนโพสต์ A แล้ว)
 - **Steps:**
   1. ลูกค้าคนเดิมคอมเมนต์บนโพสต์ B (คนละโพสต์)

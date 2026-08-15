@@ -19,6 +19,7 @@ import { processCommentAutoReply } from '@/services/comment-auto-reply.service'
 const publicReply = vi.mocked(replyToComment)
 const privateReply = vi.mocked(sendPrivateReplyToCommentById)
 const logCreate = vi.mocked(prisma.commentReplyLog.create)
+const logUpdate = vi.mocked(prisma.commentReplyLog.update)
 
 /** คอมเมนต์ที่ผ่านทุกด่าน เพจเปิดทั้ง 2 สวิตช์ */
 function okRow(over: Record<string, unknown> = {}) {
@@ -55,6 +56,7 @@ beforeEach(() => {
   vi.mocked(prisma.pageComment.findFirst).mockResolvedValue(null as never) // ไม่มีคนตอบ
   vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue(null as never) // ยังไม่เคยตอบ
   logCreate.mockResolvedValue({ id: 'log-1' } as never)
+  logUpdate.mockResolvedValue({ id: 'log-1' } as never)
   publicReply.mockResolvedValue({ id: 'reply-1' } as never)
   privateReply.mockResolvedValue({ sent: true, conversationId: 'conv-1', messageId: 'mid-1' } as never)
 })
@@ -115,13 +117,71 @@ describe('processCommentAutoReply', () => {
     )
   })
 
-  it('ตอบคนนี้บนโพสต์นี้ไปแล้ว -> ข้าม ALREADY_HANDLED', async () => {
+  it('คอมเมนต์ใบนี้เคยถูกประมวลผลแล้ว (Meta ส่ง webhook ซ้ำ) -> หยุดเงียบ ไม่เขียนแถวใหม่', async () => {
     vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue({ id: 'log-old' } as never)
 
     await processCommentAutoReply('cmt-1')
 
     expect(publicReply).not.toHaveBeenCalled()
     expect(privateReply).not.toHaveBeenCalled()
+    expect(logCreate).not.toHaveBeenCalled()
+  })
+
+  /** ทำให้เฉพาะ "การจองสิทธิ์ทักแชท" (update ที่มี privateAttemptedAt) ชน P2002 — update อื่นปกติ */
+  function rejectPrivateClaimWithP2002() {
+    logUpdate.mockImplementation((async (args: { data?: Record<string, unknown> }) =>
+      args?.data?.privateAttemptedAt
+        ? Promise.reject(Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }))
+        : ({ id: 'log-1' } as never)) as never)
+  }
+
+  // [blocker] 2026-08-15 — เคสที่ user เจอเองบน prod: ลูกค้าคนเดิมคอมเมนต์ใบที่ 2 บนโพสต์เดิม
+  // (fromExternalId 27753759930971545 / โพสต์ 32ce13f4…) แล้วเงียบสนิททั้งแถว ไม่มีแม้แต่บรรทัด
+  // ในหน้าประวัติ — เพราะกฎ "ครั้งเดียวต่อคนต่อโพสต์" เดิมครอบฝั่งตอบใต้คอมเมนต์ไปด้วย
+  // BR-CR-A2a: ฝั่งสาธารณะไม่มีเพดานนี้แล้ว ลูกค้าถามใหม่ต้องได้คำตอบใหม่เสมอ
+  it('[blocker] คอมเมนต์ใบใหม่ของคนเดิมบนโพสต์เดิม -> ยังตอบใต้คอมเมนต์เสมอ', async () => {
+    // จำลองโลกจริง: มีแถว AUTO ของ "คนนี้บนโพสต์นี้" อยู่แล้วจากคอมเมนต์ใบก่อน แต่ยังไม่มีแถว
+    // ของ "คอมเมนต์ใบนี้" — ด่านต้องถามคำถามที่สอง ไม่ใช่คำถามแรก ถ้าใครย้ายคีย์กลับไปเป็น
+    // (shopChannelId, postId, fromExternalId) เทสนี้จะแดงทันที
+    vi.mocked(prisma.commentReplyLog.findFirst).mockImplementation((async (args: {
+      where?: Record<string, unknown>
+    }) => (args?.where?.commentId ? null : { id: 'log-เมื่อวาน' })) as never)
+    rejectPrivateClaimWithP2002()
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(publicReply).toHaveBeenCalledTimes(1)
+  })
+
+  // [blocker] อีกครึ่งของกฎเดียวกัน: DM ซ้ำใบที่สองคือสแปมจริง ๆ และ Facebook ให้ทักได้ครั้งเดียว
+  // ต่อคอมเมนต์อยู่แล้ว — การจองสิทธิ์ต้องกันได้ **และต้องบันทึกให้ผู้ขายเห็นเหตุผล** ไม่ใช่เงียบ
+  it('[blocker] จองสิทธิ์ทักแชทชน P2002 -> ไม่ยิง DM ซ้ำ และบันทึก SKIPPED/ALREADY_SENT', async () => {
+    rejectPrivateClaimWithP2002()
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(privateReply).not.toHaveBeenCalled()
+    expect(logUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { privateReplyStatus: 'SKIPPED', privateErrorMessage: 'ALREADY_SENT' },
+      }),
+    )
+  })
+
+  it('[blocker] ต้องจองสิทธิ์ (เขียน privateAttemptedAt) ก่อนเรียกตัวส่ง DM เสมอ', async () => {
+    const order: string[] = []
+    logUpdate.mockImplementation((async (args: { data?: Record<string, unknown> }) => {
+      if (args?.data?.privateAttemptedAt) order.push('claim')
+      return { id: 'log-1' } as never
+    }) as never)
+    privateReply.mockImplementation((async () => {
+      order.push('send')
+      return { sent: true, conversationId: 'conv-1' } as never
+    }) as never)
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(order).toEqual(['claim', 'send'])
   })
 
   it('จองแถว log แล้วชน P2002 (อีกเธรดชนะ) -> หยุดเงียบ ไม่ยิงซ้ำ', async () => {

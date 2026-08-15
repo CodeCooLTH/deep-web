@@ -157,7 +157,7 @@ erDiagram
 | `NO_SENDER_ID` | ไม่มี `fromExternalId` — กันซ้ำไม่ได้ | FR-CR-05 ข้อ 4 |
 | `CHANNEL_INACTIVE` | เพจไม่ได้เชื่อมต่ออยู่ (`status != 'ACTIVE'`) | FR-CR-05 ข้อ 5, BR-CR §4.3 |
 | `DISABLED` | ปิดทั้ง 2 สวิตช์ หรือเปิดแต่ข้อความว่าง | FR-CR-05 ข้อ 6 |
-| `ALREADY_HANDLED` | เคยตอบอัตโนมัติคนนี้บนโพสต์นี้แล้ว | BR-CR-A2 |
+| ~~`ALREADY_HANDLED`~~ | **ถอดออก 2026-08-15** — ค่านี้เขียนลงฐานไม่ได้เลยแม้แต่แถวเดียวตั้งแต่วันแรก เพราะ `recordSkip()` ใช้คีย์เดียวกับ partial unique index ที่แถวรอบก่อนถือครองอยู่ → ชน P2002 → ถูกกลืน (ยืนยันกับ prod: มีแต่ `FROM_PAGE`/`DISABLED`/`NOT_TOP_LEVEL`) ตอนนี้ "เคยทักคนนี้บนโพสต์นี้แล้ว" บันทึกที่ `privateReplyStatus='SKIPPED'` + `privateErrorMessage='ALREADY_SENT'` **รายคอมเมนต์** แทน | BR-CR-A2b |
 | `HUMAN_ANSWERED` | มีคนในทีมตอบคอมเมนต์นี้ไปแล้ว | BR-CR-A3 |
 | `WINDOW_EXPIRED` | เกิน 7 วันจากเวลาคอมเมนต์ — เฉพาะช่อง `privateReplyStatus` | BR-CR-11 |
 
@@ -169,7 +169,9 @@ erDiagram
 |-------|---------|------|--------------------------------------|
 | `CommentReplyLog` | `(shopChannelId, createdAt)` | `BTREE` | หน้าประวัติ — เรียงตามเวลาล่าสุดของเพจหนึ่ง (`GET /api/shops/comment-reply/logs`) |
 | `CommentReplyLog` | `(commentId)` | `BTREE` | ตรวจสถานะปุ่ม "ทักแชท" ของคอมเมนต์เดียว (ดู API.md §4.3) |
-| `CommentReplyLog` | `(shopChannelId, postId, fromExternalId)` **WHERE `trigger='AUTO'`** | `UNIQUE (partial)` | กันซ้ำโหมดอัตโนมัติ — "1 ครั้ง/คน/โพสต์" (D-3, กฎของ Deep) |
+| ~~`CommentReplyLog`~~ | ~~`(shopChannelId, postId, fromExternalId)` **WHERE `trigger='AUTO'`**~~ | ~~`UNIQUE (partial)`~~ | **ถอดออก 2026-08-15** (migration `20260815100000`) — ครอบทั้งสองช่องทางเกินจริง แถมทำให้ `recordSkip()` เขียน `ALREADY_HANDLED` ไม่ได้เลย |
+| `CommentReplyLog` | `(commentId)` **WHERE `trigger='AUTO'`** | `UNIQUE (partial)` | กันซ้ำโหมดอัตโนมัติระดับคอมเมนต์ — idempotency ของ webhook retry (BR-CR-A2a: ตอบใต้คอมเมนต์ได้ทุกใบ) |
+| `CommentReplyLog` | `(shopChannelId, postId, fromExternalId)` **WHERE `trigger='AUTO' AND privateAttemptedAt IS NOT NULL`** | `UNIQUE (partial)` | กันทักแชทซ้ำ — "1 ครั้ง/คน/โพสต์" (BR-CR-A2b) จองสิทธิ์ด้วยการเขียน `privateAttemptedAt` **ก่อน** ยิง Graph จึงเป็น claim แบบ atomic ไม่ใช่ find-then-check |
 | `CommentReplyLog` | `(commentId)` **WHERE `trigger='MANUAL'`** | `UNIQUE (partial)` | กันซ้ำโหมดแมนนวล — "1 ครั้ง/คอมเมนต์" (เพดานจริงของ Meta) |
 
 **ทำไมต้องแยก 2 partial unique index แทน composite unique ธรรมดา 1 ตัว:**

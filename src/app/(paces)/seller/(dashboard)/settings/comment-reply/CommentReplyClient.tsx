@@ -429,14 +429,20 @@ function ReplyStatusBadge({
 }) {
   if (!status) return <span className="text-default-300 text-xs">—</span>
   const meta = REPLY_STATUS_META[status] ?? REPLY_STATUS_META.SKIPPED
-  const showReasonText = revealSkipReason && status === 'SKIPPED' && Boolean(skipReasonText)
+  // เหตุผลของ "ข้าม" มาได้ 2 ทาง: `skipReasonText` = ข้ามทั้งแถว (FROM_PAGE/DISABLED/…) ส่วน
+  // `failReasonText` = ข้ามเฉพาะฝั่งนี้ ซึ่งตอนนี้มีของจริงแล้ว (privateReplyStatus='SKIPPED' +
+  // privateErrorMessage='ALREADY_SENT' เมื่อคอมเมนต์ใบก่อนของคนเดียวกันบนโพสต์เดียวกันทักไปแล้ว)
+  // ถ้าไม่ fallback มาที่ตัวหลัง ป้าย "ข้าม" ของเคสนั้นจะไม่มีเหตุผลติดมาเลยสักคำ — ซึ่งคือ
+  // อาการเดิมที่กำลังแก้อยู่พอดี (user 2026-08-15: "บางอันตอบได้บางอันว่าง")
+  const skipWhyText = status === 'SKIPPED' ? (skipReasonText ?? failReasonText) : null
+  const showReasonText = revealSkipReason && Boolean(skipWhyText)
   // ผู้เรียกส่งเหตุผล "ของฝั่งนี้" มาให้แล้ว จึงไม่ต้องมีกฎว่าแสดงได้เฉพาะฝั่งไหน
   // (เดิมต้องจำกัดไว้ที่ฝั่งทักแชท เพราะฐานเก็บเหตุผลไว้คอลัมน์เดียว — แยกคอลัมน์แล้วข้อจำกัดนั้นหมดไป)
   const showFailReason = status === 'FAILED' && Boolean(failReasonText)
   return (
     <span className="inline-flex flex-col items-start gap-0.5">
       <span className="inline-flex flex-wrap items-center gap-1.5">
-        <span className={`badge text-2xs ${meta.className}`} title={status === 'SKIPPED' ? (skipReasonText ?? undefined) : undefined}>
+        <span className={`badge text-2xs ${meta.className}`} title={skipWhyText ?? undefined}>
           {meta.label}
         </span>
         {kind === 'private' && status === 'SENT' && conversationId && !hideLink && (
@@ -445,7 +451,7 @@ function ReplyStatusBadge({
           </Link>
         )}
       </span>
-      {showReasonText && <span className="text-default-500 text-2xs">{skipReasonText}</span>}
+      {showReasonText && <span className="text-default-500 text-2xs">{skipWhyText}</span>}
       {/* ข้อความเหตุผลไม่ตัดสั้น — ตัดแล้วร้านต้องไปหาต่ออีกที่ ซึ่งคือปัญหาเดิมที่กำลังแก้อยู่
           ใช้ text-danger-ink ไม่ใช่ text-danger เปล่า ๆ (คู่สี soft ที่ตกคอนทราสต์ — ui-guideline §6) */}
       {showFailReason && <span className="text-danger-ink text-2xs max-w-56 text-pretty">{failReasonText}</span>}
@@ -499,9 +505,12 @@ function statusBlockHtml(kind: 'public' | 'private', log: CommentReplyLogRow): s
     kind === 'private' && status === 'SENT' && log.conversationId
       ? ` <a href="/inbox/${encodeURIComponent(log.conversationId)}" class="text-primary text-xs font-medium hover:underline">เปิดห้อง</a>`
       : ''
+  // fallback ไป failReason เมื่อ SKIPPED — เงื่อนไขเดียวกับ `skipWhyText` ใน ReplyStatusBadge เป๊ะ
+  // (เหตุผลข้ามรายฝั่งเก็บอยู่ใน `*ErrorMessage` เช่น ALREADY_SENT ของฝั่งทักแชท)
+  const skipWhy = status === 'SKIPPED' ? (log.skipReasonText ?? failReason) : null
   const reasonHtml =
-    status === 'SKIPPED' && log.skipReasonText
-      ? `<p class="text-default-500 mt-1 text-xs">${escapeHtml(log.skipReasonText)}</p>`
+    skipWhy
+      ? `<p class="text-default-500 mt-1 text-xs">${escapeHtml(skipWhy)}</p>`
       : // เหตุผลของ FAILED — เงื่อนไขเดียวกับ ReplyStatusBadge เป๊ะ โมดัลกับตารางต้องพูดตรงกัน
         status === 'FAILED' && failReason
         ? `<p class="text-danger-ink mt-1 text-xs">${escapeHtml(failReason)}</p>`

@@ -1242,7 +1242,7 @@ SellerWallet (1) ── (N) WalletTransaction
 |------|-----|
 | `CommentReplyLog.trigger` | `AUTO` (ระบบ) / `MANUAL` (คนกด) |
 | `CommentReplyLog.publicReplyStatus` / `privateReplyStatus` | `SENT` / `SKIPPED` / `FAILED` (`NULL` = ยังไม่ตัดสิน/ไม่เกี่ยวข้อง) |
-| `CommentReplyLog.skipReason` | `FROM_PAGE` / `NOT_TOP_LEVEL` / `COMMENT_DELETED` / `NO_SENDER_ID` / `CHANNEL_INACTIVE` / `DISABLED` / `ALREADY_HANDLED` / `HUMAN_ANSWERED` / `WINDOW_EXPIRED` |
+| `CommentReplyLog.skipReason` | `FROM_PAGE` / `NOT_TOP_LEVEL` / `COMMENT_DELETED` / `NO_SENDER_ID` / `CHANNEL_INACTIVE` / `DISABLED` / `HUMAN_ANSWERED` / `WINDOW_EXPIRED` — 🛑 `ALREADY_HANDLED` ถอดออก 2026-08-15 (เขียนลงฐานไม่ได้เลยเพราะชน partial unique index ตัวเดียวกับที่มันอธิบาย) "เคยทักคนนี้บนโพสต์นี้แล้ว" ย้ายไปเป็น `privateReplyStatus='SKIPPED'` + `privateErrorMessage='ALREADY_SENT'` รายคอมเมนต์ |
 | สถานะ 3 ชั้นของคอมเมนต์ (คำนวณ ไม่ใช่คอลัมน์) | "ยังไม่ตอบ" / "บอทตอบแล้ว" / "คนตอบแล้ว" — ดู `docs/20 - Features/00038 - Comment Auto-Reply/SRS.md` TFR-009 |
 
 ### 8.3 Verification

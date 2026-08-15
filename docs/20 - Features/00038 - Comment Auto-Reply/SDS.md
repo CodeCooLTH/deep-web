@@ -252,6 +252,13 @@ sequenceDiagram
   AUTO ต้องกันที่ระดับ "คน+โพสต์" ไม่ใช่ "คอมเมนต์" (BR-CR-A2 "หนึ่งคน ได้รับการตอบอัตโนมัติครั้งเดียว
   ต่อโพสต์" ไม่ใช่ต่อคอมเมนต์) — unique ที่ `commentId` เดี่ยว ๆ จะปล่อยให้บอทตอบคอมเมนต์ที่ 2/3/4
   ของคนเดิมบนโพสต์เดิมได้ ซึ่งขัด D-3 ตรง ๆ
+- 🛑 **แก้ 2026-08-15 (migration `20260815100000`) — ย่อหน้าข้างบนถูกกลับมติ:** "ปล่อยให้บอทตอบ
+  คอมเมนต์ที่ 2/3/4 ของคนเดิมบนโพสต์เดิมได้" **คือสิ่งที่ต้องการ** สำหรับฝั่งตอบใต้คอมเมนต์
+  (BR-CR-A2a) — เคสจริงบน prod: ลูกค้าคนเดิมกลับมาถามใหม่ใต้โพสต์เดิม 5 วันให้หลังแล้วเงียบสนิท
+  ทั้งแถว ไม่มีแม้แต่บรรทัดเดียวในหน้าประวัติ เพราะ `recordSkip()` ก็ชน index ตัวนี้เหมือนกัน
+  ตอนนี้ AUTO ใช้ **สอง** partial unique index: `(commentId)` สำหรับ idempotency ของ webhook และ
+  `(shopChannelId, postId, fromExternalId) WHERE privateAttemptedAt IS NOT NULL` สำหรับกฎ
+  "ทักแชท 1 ครั้ง/คน/โพสต์" (BR-CR-A2b) ซึ่งเป็นเพดานที่ยังจำเป็นอยู่จริง
 - **ผลกระทบ:** ต่อ DEV — ต้องเขียน migration SQL มือ (Prisma DSL ประกาศ partial index ไม่ได้) มี
   ตัวอย่างให้ลอกแล้วที่ `prisma/migrations/20260722000200_shopchannel_active_partial_unique/`.
   ต่อ service — `sendPrivateReplyToComment` และ `comment-auto-reply.service` ต้องแยกชัดว่ากำลังสร้าง

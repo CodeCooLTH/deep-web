@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 /**
  * feature 00038 หนี้ #3 (minor) — `ingestFeedComment` เดิมคืน id เสมอไม่ว่า verb จะเป็นอะไร (ตราบใด
  * ที่ไม่ใช่ remove) → webhook เรียก `processCommentAutoReply` ทุกครั้งที่ลูกค้าแก้คอมเมนต์ที่เคยตอบ
- * ไปแล้ว ปลอดภัยเพราะด่าน ALREADY_HANDLED กันไว้อีกชั้น แต่เสีย DB round-trip เปล่า ๆ ทุกครั้ง
+ * ไปแล้ว ปลอดภัยเพราะด่าน "มี log ของคอมเมนต์ใบนี้แล้วไหม" กันไว้อีกชั้น แต่เสีย DB round-trip เปล่า ๆ
  *
  * เทสนี้พิสูจน์ 2 อย่างพร้อมกัน: (1) verb=edited/edit ยังบันทึก/อัปเดตคอมเนต์ตามปกติ (upsert ถูกเรียก
  * จริง ไม่ใช่ early-return ก่อนบันทึก) (2) แต่คืน null ไม่ trigger auto-reply — ต่างจาก verb=add ที่คืน

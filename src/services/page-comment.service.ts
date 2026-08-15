@@ -161,7 +161,8 @@ export async function ingestFeedComment(params: {
   // feature 00038 หนี้ #3 — คอมเมนต์ที่ถูกแก้ไข (ไม่ใช่คอมเมนต์ใหม่) ไม่ควร trigger การตอบอัตโนมัติซ้ำ
   // ข้อความก็ถูกบันทึก/อัปเดตไปแล้วด้านบนตามปกติ แค่ไม่ส่ง id กลับให้ caller เอาไปยิง
   // processCommentAutoReply — เดิมคืน id เสมอ ทำให้ลูกค้าแก้คอมเมนต์กี่ครั้งก็เรียกซ้ำทุกครั้ง
-  // (ปลอดภัยเพราะด่าน ALREADY_HANDLED ใน orchestration กันไว้อีกชั้น แต่เสีย DB round-trip เปล่า ๆ)
+  // (ปลอดภัยเพราะ orchestration เช็ค "มี log ของคอมเมนต์ใบนี้แล้วไหม" กันไว้อีกชั้น + partial unique
+  //  index `CommentReplyLog_auto_once_per_comment` เป็นด่านสุดท้าย แต่เสีย DB round-trip เปล่า ๆ)
   if (val.verb === 'edited' || val.verb === 'edit') return null
 
   return saved.id

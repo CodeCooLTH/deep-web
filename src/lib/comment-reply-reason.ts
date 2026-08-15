@@ -26,7 +26,10 @@ export const SKIP_REASON_TEXT: Record<string, string> = {
   NO_SENDER_ID: 'ไม่พบผู้คอมเมนต์',
   CHANNEL_INACTIVE: 'เพจยังไม่ได้เชื่อมต่อ',
   DISABLED: 'ปิดการตอบกลับอัตโนมัติไว้ หรือยังไม่ได้กรอกข้อความ',
-  ALREADY_HANDLED: 'เคยตอบอัตโนมัติคนนี้บนโพสต์นี้ไปแล้ว',
+  // 🛑 ไม่มี ALREADY_HANDLED แล้ว (2026-08-15) — ค่านั้นเขียนลงฐานไม่ได้เลยตั้งแต่วันแรกเพราะชน
+  // partial unique index ตัวเดียวกับที่มันพยายามอธิบาย ตอนนี้ "เคยทักคนนี้บนโพสต์นี้แล้ว" ถูก
+  // บันทึกเป็น privateReplyStatus='SKIPPED' + privateErrorMessage='ALREADY_SENT' รายคอมเมนต์แทน
+  // (ดู FAIL_REASON_TEXT.ALREADY_SENT ด้านล่าง) ส่วนการตอบใต้คอมเมนต์ไม่มีเพดานนี้แล้ว
   HUMAN_ANSWERED: 'มีคนในทีมตอบคอมเมนต์นี้ไปแล้ว',
   WINDOW_EXPIRED: 'เกิน 7 วันนับจากเวลาคอมเมนต์',
 }
