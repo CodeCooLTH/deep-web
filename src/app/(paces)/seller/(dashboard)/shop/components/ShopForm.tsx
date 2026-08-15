@@ -131,7 +131,8 @@ export default function ShopForm({
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    reset,
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
     defaultValues: {
@@ -142,6 +143,24 @@ export default function ShopForm({
       businessType: (shop?.businessType as FormValues['businessType']) ?? 'INDIVIDUAL',
     },
   })
+
+  /**
+   * ปุ่มบันทึกถูกปิดเมื่อยังไม่มีอะไรเปลี่ยน — ให้ตรงกับหน้า "ข้อมูลส่วนตัว" (user สั่ง 2026-08-15)
+   *
+   * 🛑 `isDirty` ของ react-hook-form รู้จักเฉพาะ field ที่ `register` ไว้ — **ไม่รู้จักโลโก้กับ
+   * ภาพหน้าปก** ซึ่งเก็บใน `useState` แยกต่างหาก (อัปโหลดผ่าน API ได้ fileId มา ไม่ใช่ค่าในฟอร์ม)
+   * ถ้าเชื่อ `isDirty` อย่างเดียว ผู้ใช้ที่เปลี่ยนแค่รูปจะกดบันทึกไม่ได้เลย
+   *
+   * 🛑 **บังคับเฉพาะตอนแก้ร้านที่มีอยู่** — ตอนสร้างร้านใหม่ค่าตั้งต้นว่างทั้งหมด ถ้าเอา
+   * เกณฑ์เดียวกันมาใช้ ปุ่ม "สร้างร้านค้า" จะถูกปิดตั้งแต่เปิดหน้า และ**สร้างร้านไม่ได้เลย**
+   * (ฟอร์มสร้างพึ่ง yup validation เป็นด่านอยู่แล้ว ไม่ต้องพึ่ง dirty)
+   *
+   * ระหว่างอัปโหลดรูปก็ปิดด้วย — กดบันทึกตอนนั้นจะได้ fileId เก่า/ว่าง โดยผู้ใช้ไม่รู้ตัว
+   * (เกณฑ์เดียวกับที่ ProfileForm ปิดตอน `uStatus === 'checking'`)
+   */
+  const imagesChanged = logoFileId !== (shop?.logo ?? '') || coverFileId !== (shop?.coverImage ?? '')
+  const dirty = isDirty || imagesChanged
+  const saveBlocked = isSubmitting || logoUploading || coverUploading || (isExisting && !dirty)
 
   // อัปโหลดภาพหน้าปกร้าน — pattern เดียวกับโลโก้ทุกอย่าง ต่างแค่ field ปลายทาง
   // ใช้เป็นภาพนำของหน้าลิงก์คำสั่งซื้อที่ผู้ซื้อเปิดจากแชท (จุดที่ต้องพิสูจน์ว่าร้านมีตัวตนจริง)
@@ -219,6 +238,20 @@ export default function ShopForm({
       }
 
       pacesToast.success('บันทึกแล้ว')
+      /**
+       * 🛑 ต้อง `reset(values)` ด้วย ไม่ใช่ `router.refresh()` อย่างเดียว
+       *
+       * `refresh()` ไม่ทำให้ `defaultValues` ของ react-hook-form ถูกคำนวณใหม่ (component
+       * ไม่ได้ remount — คอมเมนต์เรื่องนี้อยู่ที่ body ด้านบนแล้ว) ⇒ `isDirty` ค้างเป็น true
+       * ตลอดไป และปุ่มบันทึกจะไม่กลับไปเป็นสีเทาแม้บันทึกสำเร็จแล้ว
+       *
+       * ต่างจาก ProfileForm ที่เทียบกับ prop ตรง ๆ จึงกลับเป็นสะอาดเองเมื่อ RSC ส่งค่าใหม่มา —
+       * ที่นี่ baseline อยู่ใน RHF ต้องบอกมันเองว่า "ค่าชุดนี้คือค่าใหม่ที่บันทึกแล้ว"
+       *
+       * ส่วนโลโก้/ภาพหน้าปกไม่ต้องทำอะไร: `imagesChanged` เทียบกับ prop `shop` ซึ่งอัปเดต
+       * เองหลัง refresh
+       */
+      reset(values)
       router.refresh()
     } catch {
       pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
@@ -600,7 +633,7 @@ export default function ShopForm({
                   ) : activeStep === BASE_STEPS.length - 1 ? (
                     <button
                       type="submit"
-                      disabled={isSubmitting}
+                      disabled={saveBlocked}
                       className="btn bg-primary text-white hover:bg-primary-hover disabled:opacity-60 inline-flex items-center gap-2"
                     >
                       {isSubmitting ? (
@@ -642,7 +675,7 @@ export default function ShopForm({
                 <div className="border-default-200 mt-6 border-t pt-5 lg:hidden">
                   <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={saveBlocked}
                     className="btn bg-primary hover:bg-primary-hover min-h-11 inline-flex w-full items-center justify-center gap-2 text-white disabled:opacity-50"
                   >
                     {isSubmitting ? (
