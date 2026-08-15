@@ -43,6 +43,7 @@ function okRow(over: Record<string, unknown> = {}) {
         status: 'ACTIVE',
         commentPublicReplyEnabled: true,
         commentPublicReplyText: 'ขอบคุณที่สนใจครับ',
+        commentPublicReplyFileId: null,
         commentPrivateReplyEnabled: true,
         commentPrivateReplyText: 'สวัสดีครับ',
       },
@@ -202,6 +203,12 @@ describe('processCommentAutoReply', () => {
     await expect(processCommentAutoReply('cmt-1')).resolves.toBeUndefined()
   })
 
+  /** ทับค่าตั้งค่าของเพจตรง ๆ (ซ้อนลึกใน post.channel) */
+  function withChannel(over: Record<string, unknown>) {
+    const base = okRow()
+    return { ...base, post: { ...base.post, channel: { ...base.post.channel, ...over } } }
+  }
+
   /** สร้าง okRow ที่ทับข้อความตั้งค่าของเพจ (ซ้อนลึกใน post.channel จึงเขียนเป็น helper) */
   function rowWithTexts(over: { publicText?: string | null; privateText?: string | null; fromName?: string | null }) {
     const base = okRow()
@@ -265,6 +272,32 @@ describe('processCommentAutoReply', () => {
     expect(privateReply).not.toHaveBeenCalled()
     expect(logCreate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ skipReason: 'DISABLED' }) }),
+    )
+  })
+
+  // [blocker] ส่วนขยาย E1 — ต้องส่ง fileId ต่อเข้า replyToComment ไม่ใช่ปล่อย null ทิ้งเหมือนเดิม
+  // (ท่อส่งรูปมีมาตั้งแต่ 2026-08-03 และโหมด "ตอบเอง" ใช้จริงแล้ว 134 ใบ ขาดแค่โหมดอัตโนมัติ)
+  it('[blocker] เพจตั้งรูปไว้ -> ส่ง fileId ต่อเข้า replyToComment', async () => {
+    vi.mocked(prisma.pageComment.findUnique).mockResolvedValue(
+      withChannel({ commentPublicReplyFileId: 'file-abc' }) as never,
+    )
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(publicReply).toHaveBeenCalledWith(expect.objectContaining({ fileId: 'file-abc' }))
+  })
+
+  // [blocker] คู่กับด่านใน evaluateCommentGate — ถ้าที่นี่ยังคิด publicOn จากข้อความอย่างเดียว
+  // ด่านจะปล่อยผ่าน (เพราะนับรูป) แล้วมาเงียบตรงนี้แทน = จองแถว log ไว้เฉย ๆ ไม่ส่งอะไร
+  it('[blocker] มีรูปแต่ไม่มีข้อความ -> ยังตอบใต้คอมเมนต์ (ส่งรูปเปล่า)', async () => {
+    vi.mocked(prisma.pageComment.findUnique).mockResolvedValue(
+      withChannel({ commentPublicReplyText: null, commentPublicReplyFileId: 'file-abc' }) as never,
+    )
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(publicReply).toHaveBeenCalledWith(
+      expect.objectContaining({ message: '', fileId: 'file-abc' }),
     )
   })
 

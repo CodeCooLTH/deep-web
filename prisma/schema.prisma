@@ -1497,6 +1497,16 @@ model ShopChannel {
   // ต้อง select ระบุคอลัมน์เสมอ ห้ามคืนทั้งแถว
   commentPublicReplyEnabled  Boolean @default(false)
   commentPublicReplyText     String? @db.Text
+  /// รูปที่แนบไปกับคำตอบใต้คอมเมนต์อัตโนมัติ (ส่วนขยาย E1 2026-08-15)
+  ///
+  /// 🛑 เก็บ **fileId** ของ storage ห้ามเก็บ URL — presigned URL อายุ 1 ชม. ค่าที่เก็บในคอลัมน์
+  /// ตั้งค่าจะตายภายในชั่วโมงเดียวโดยไม่มีอะไรฟ้อง `replyToComment()` สร้าง URL ใหม่ทุกครั้งที่ยิง
+  ///
+  /// 🛑 มีรูปอย่างเดียวไม่มีข้อความ = ส่งได้ (Graph บังคับแค่ "อย่างน้อยหนึ่งใน message /
+  /// attachment_url") ⇒ เกณฑ์ "สวิตช์ A ใช้งานได้ไหม" คือ **ข้อความ หรือ รูป** ไม่ใช่ข้อความอย่างเดียว
+  /// เกณฑ์นี้อยู่ 3 ที่ที่ต้องตรงกันเสมอ: evaluateCommentGate · CommentReplyConfigSchema ·
+  /// การ merge ใน PATCH /api/shops/comment-reply/config
+  commentPublicReplyFileId   String?
   commentPrivateReplyEnabled Boolean @default(false)
   commentPrivateReplyText    String? @db.Text
 

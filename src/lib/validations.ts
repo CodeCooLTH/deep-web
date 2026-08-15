@@ -1674,13 +1674,26 @@ export const CommentReplyConfigSchema = v.pipe(
     shopChannelId: v.pipe(v.string(), v.uuid()),
     commentPublicReplyEnabled: v.optional(v.boolean()),
     commentPublicReplyText: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(1000)))),
+    /**
+     * fileId ของรูปที่แนบไปกับคำตอบ (ส่วนขยาย E1) — `null` = ถอดรูปออก
+     *
+     * ตรวจแค่รูปแบบเหมือน `imageFileIds` ของ 00023: ระบบไม่มีตารางทะเบียนไฟล์ให้เช็คเจ้าของย้อนหลัง
+     * ความเป็นเจ้าของถูกบังคับตอน **claim/commit** (ticket ผูก userId อายุ 15 นาที) ไม่ใช่ตอนนี้
+     */
+    commentPublicReplyFileId: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1), v.maxLength(500)))),
     commentPrivateReplyEnabled: v.optional(v.boolean()),
     commentPrivateReplyText: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(1000)))),
   }),
   v.forward(
     v.check(
-      (i) => i.commentPublicReplyEnabled !== true || !!i.commentPublicReplyText?.trim(),
-      "ต้องกรอกข้อความก่อนเปิดใช้งาน",
+      // 🛑 "ข้อความ **หรือ** รูป" ไม่ใช่ข้อความอย่างเดียว — Graph ยอมรับคอมเมนต์ที่มีแต่ attachment_url
+      // ถ้าด่านนี้ยังบังคับข้อความ ร้านที่อยากตอบด้วยรูปใบเดียว (เช่นตารางราคา) จะบันทึกไม่ได้เลย
+      // เกณฑ์นี้ต้องตรงกับ evaluateCommentGate และการ merge ใน route เป๊ะทั้ง 3 ที่
+      (i) =>
+        i.commentPublicReplyEnabled !== true ||
+        !!i.commentPublicReplyText?.trim() ||
+        !!i.commentPublicReplyFileId,
+      "ต้องกรอกข้อความหรือแนบรูปก่อนเปิดใช้งาน",
     ),
     ["commentPublicReplyText"],
   ),

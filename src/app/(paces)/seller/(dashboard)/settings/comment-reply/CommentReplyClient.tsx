@@ -55,6 +55,7 @@ import { pacesAlert } from '@/lib/paces-swal'
 import { escapeHtml } from '@/lib/html-escape'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { COMMENT_NAME_PLACEHOLDER, hasNamePlaceholder } from '@/lib/comment-reply-template'
+import { uploadFileId } from '@/lib/upload-client'
 import { ChannelBadgeOverlay } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
 import { PageAvatar } from '@/app/(paces)/seller/(chat)/inbox/components/PageFilterDropdown'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
@@ -79,6 +80,7 @@ export type CommentReplyChannel = {
   status: string
   commentPublicReplyEnabled: boolean
   commentPublicReplyText: string | null
+  commentPublicReplyFileId: string | null
   commentPrivateReplyEnabled: boolean
   commentPrivateReplyText: string | null
 }
@@ -176,11 +178,100 @@ function NamePlaceholderRow({
   )
 }
 
+/**
+ * แถวแนบรูปของคำตอบใต้คอมเมนต์ (ส่วนขยาย E1 2026-08-15)
+ *
+ * ประกาศนอก render ของ CommentReplyCard ด้วยเหตุผลเดียวกับ NamePlaceholderRow
+ * (`docs/conventions/component-declared-in-render.md`)
+ *
+ * 🛑 อัปโหลดผ่าน `@/lib/upload-client` เท่านั้น — ห้ามยิงไฟล์เข้า body ของ API route
+ * (เพดาน 4.5MB ของ Vercel ตอบ 413 ก่อนถึงโค้ดเรา ด้วย body ที่อ่านเหตุผลไม่ได้)
+ */
+function ReplyImageRow({
+  fileId,
+  onChange,
+  uploading,
+  setUploading,
+  disabled,
+}: {
+  fileId: string | null
+  onChange: (next: string | null) => void
+  uploading: boolean
+  setUploading: (v: boolean) => void
+  disabled: boolean
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    // เคลียร์ค่าทันที ไม่งั้นเลือกไฟล์ "ใบเดิม" ซ้ำจะไม่ยิง onChange อีกเลย (input file เทียบด้วย value)
+    e.target.value = ''
+    if (!file) return
+    setUploading(true)
+    try {
+      onChange(await uploadFileId(file, 'IMAGE'))
+    } catch (err) {
+      pacesToast.error(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ ลองใหม่อีกครั้ง')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-2">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handlePick}
+        disabled={disabled}
+      />
+      {fileId ? (
+        <span className="border-default-300 inline-flex items-center gap-2 rounded-lg border p-1 pe-2">
+          {/* รูปที่ร้านอัปเอง ขนาด/สัดส่วนอะไรก็ได้ — object-cover กันกรอบเบี้ยว และ ring กันรูปพื้นขาว
+              จมหายไปกับการ์ดสีขาว (docs/conventions/user-supplied-image-assets.md) */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- /api/files เป็น route ของเราเอง ไม่ได้อยู่ใน next.config images */}
+          <img
+            src={`/api/files/${fileId}`}
+            alt="รูปที่จะแนบไปกับคำตอบ"
+            className="ring-default-200 size-10 rounded-md object-cover ring-1"
+          />
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            disabled={disabled}
+            className="text-default-500 hover:text-danger-ink inline-flex items-center gap-1 text-2xs"
+          >
+            <Icon icon="trash" className="text-sm" aria-hidden="true" />
+            เอารูปออก
+          </button>
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={disabled}
+          className="btn btn-sm btn-light inline-flex shrink-0 items-center gap-1.5"
+        >
+          <Icon icon={uploading ? 'loader-2' : 'photo'} className={`text-sm ${uploading ? 'animate-spin' : ''}`} aria-hidden="true" />
+          {uploading ? 'กำลังอัปโหลด…' : 'แนบรูป'}
+        </button>
+      )}
+      <span className="text-default-500 text-2xs">
+        แนบได้ 1 รูป · รูปอย่างเดียวไม่มีข้อความก็ส่งได้
+      </span>
+    </div>
+  )
+}
+
 function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
   const publicTextRef = useRef<HTMLTextAreaElement>(null)
   const privateTextRef = useRef<HTMLTextAreaElement>(null)
   const [publicEnabled, setPublicEnabled] = useState(channel.commentPublicReplyEnabled)
   const [publicText, setPublicText] = useState(channel.commentPublicReplyText ?? '')
+  const [publicFileId, setPublicFileId] = useState<string | null>(channel.commentPublicReplyFileId)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [privateEnabled, setPrivateEnabled] = useState(channel.commentPrivateReplyEnabled)
   const [privateText, setPrivateText] = useState(channel.commentPrivateReplyText ?? '')
   const [publicError, setPublicError] = useState<string | null>(null)
@@ -188,13 +279,15 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
   const [saving, setSaving] = useState(false)
 
   const isTokenInvalid = channel.status === 'TOKEN_INVALID'
-  const cardLocked = isTokenInvalid || saving
+  // อัปโหลดค้างอยู่ = ห้ามกดบันทึก ไม่งั้นบันทึกทับด้วย fileId เก่าแล้วรูปที่เพิ่งเลือกหายเงียบ
+  const cardLocked = isTokenInvalid || saving || uploadingImage
   const publicOverLimit = publicText.length > REPLY_MAX
   const privateOverLimit = privateText.length > REPLY_MAX
 
   function handleCancel() {
     setPublicEnabled(channel.commentPublicReplyEnabled)
     setPublicText(channel.commentPublicReplyText ?? '')
+    setPublicFileId(channel.commentPublicReplyFileId)
     setPrivateEnabled(channel.commentPrivateReplyEnabled)
     setPrivateText(channel.commentPrivateReplyText ?? '')
     setPublicError(null)
@@ -205,8 +298,9 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
     if (saving) return
     // BR-CR-05 (client-side — server กันซ้ำอีกชั้นที่ config/route.ts): เปิดสวิตช์แล้วข้อความว่างไม่ได้
     let hasError = false
-    if (publicEnabled && !publicText.trim()) {
-      setPublicError('กรอกข้อความก่อนเปิดใช้งาน')
+    // เกณฑ์เดียวกับ CommentReplyConfigSchema / route / evaluateCommentGate — "ข้อความ หรือ รูป"
+    if (publicEnabled && !publicText.trim() && !publicFileId) {
+      setPublicError('กรอกข้อความหรือแนบรูปก่อนเปิดใช้งาน')
       hasError = true
     } else {
       setPublicError(null)
@@ -230,6 +324,7 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
           shopChannelId: channel.shopChannelId,
           commentPublicReplyEnabled: publicEnabled,
           commentPublicReplyText: publicText.trim() === '' ? null : publicText,
+          commentPublicReplyFileId: publicFileId,
           commentPrivateReplyEnabled: privateEnabled,
           commentPrivateReplyText: privateText.trim() === '' ? null : privateText,
         }),
@@ -334,6 +429,16 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
               setPublicText(next)
               if (publicError) setPublicError(null)
             }}
+            disabled={!publicEnabled || cardLocked}
+          />
+          <ReplyImageRow
+            fileId={publicFileId}
+            onChange={(next) => {
+              setPublicFileId(next)
+              if (publicError) setPublicError(null)
+            }}
+            uploading={uploadingImage}
+            setUploading={setUploadingImage}
             disabled={!publicEnabled || cardLocked}
           />
           <div className="mt-1 flex items-center justify-between gap-2">

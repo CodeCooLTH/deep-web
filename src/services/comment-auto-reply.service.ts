@@ -43,6 +43,12 @@ export function evaluateCommentGate(input: {
   channelStatus: string
   publicEnabled: boolean
   publicText: string | null
+  /**
+   * รูปที่แนบไปกับคำตอบ (ส่วนขยาย E1) — **มีรูปอย่างเดียวไม่มีข้อความก็ส่งได้**
+   * Graph บังคับแค่ "อย่างน้อยหนึ่งใน message / attachment_url" ⇒ ถ้าด่านนี้ยังนับแต่ข้อความ
+   * ร้านที่ตอบด้วยรูปใบเดียว (ตารางราคา/โปรโมชัน) จะตกที่ DISABLED ทั้งที่ตั้งค่าไว้ถูกแล้ว
+   */
+  publicFileId: string | null
   privateEnabled: boolean
   privateText: string | null
   hasHumanReply: boolean
@@ -55,7 +61,7 @@ export function evaluateCommentGate(input: {
   if (!input.fromExternalId) return { pass: false, reason: 'NO_SENDER_ID' }
   if (input.channelStatus !== 'ACTIVE') return { pass: false, reason: 'CHANNEL_INACTIVE' }
 
-  const publicOn = input.publicEnabled && !!input.publicText?.trim()
+  const publicOn = input.publicEnabled && (!!input.publicText?.trim() || !!input.publicFileId)
   const privateOn = input.privateEnabled && !!input.privateText?.trim()
   if (!publicOn && !privateOn) return { pass: false, reason: 'DISABLED' }
 
@@ -116,6 +122,7 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
                 status: true,
                 commentPublicReplyEnabled: true,
                 commentPublicReplyText: true,
+                commentPublicReplyFileId: true,
                 commentPrivateReplyEnabled: true,
                 commentPrivateReplyText: true,
               },
@@ -145,6 +152,7 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
       channelStatus: channel.status,
       publicEnabled: channel.commentPublicReplyEnabled,
       publicText: publicMessage,
+      publicFileId: channel.commentPublicReplyFileId,
       privateEnabled: channel.commentPrivateReplyEnabled,
       privateText: privateMessage,
     }
@@ -222,7 +230,8 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
     }
 
     // เกณฑ์เดียวกับที่ด่านใช้เป๊ะ (ข้อความหลังแทนชื่อแล้ว) — ห้ามคำนวณจากข้อความดิบที่นี่
-    const publicOn = channel.commentPublicReplyEnabled && !!publicMessage.trim()
+    const publicOn =
+      channel.commentPublicReplyEnabled && (!!publicMessage.trim() || !!channel.commentPublicReplyFileId)
     const privateOn = channel.commentPrivateReplyEnabled && !!privateMessage.trim()
 
     if (publicOn) {
@@ -231,6 +240,9 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
           commentId: comment.id,
           message: publicMessage,
           actorUserId: null, // system actor — ไม่ใช่ user จริง (feature 00038)
+          // ส่วนขยาย E1 — ส่ง fileId ต่อ ไม่ใช่ URL: replyToComment() แปลงเป็น presigned URL
+          // อายุ 1 ชม. ให้เองทุกครั้งที่ยิง (URL ที่เก็บค้างไว้จะตายภายในชั่วโมงเดียว)
+          fileId: channel.commentPublicReplyFileId,
         })
         await prisma.commentReplyLog.update({
           where: { id: logId },

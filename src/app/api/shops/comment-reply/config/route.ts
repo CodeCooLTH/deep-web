@@ -76,6 +76,7 @@ export async function PATCH(request: NextRequest) {
       status: true,
       commentPublicReplyEnabled: true,
       commentPublicReplyText: true,
+      commentPublicReplyFileId: true,
       commentPrivateReplyEnabled: true,
       commentPrivateReplyText: true,
     },
@@ -95,10 +96,15 @@ export async function PATCH(request: NextRequest) {
   const finalPrivateEnabled = patch.commentPrivateReplyEnabled ?? existing.commentPrivateReplyEnabled;
   const finalPrivateText =
     patch.commentPrivateReplyText !== undefined ? patch.commentPrivateReplyText : existing.commentPrivateReplyText;
+  // ส่วนขยาย E1 — รูปนับเป็น "มีอะไรจะส่ง" เท่ากับข้อความ (Graph ยอมรับ attachment_url เดี่ยว ๆ)
+  const finalPublicFileId =
+    patch.commentPublicReplyFileId !== undefined ? patch.commentPublicReplyFileId : existing.commentPublicReplyFileId;
 
-  if (finalPublicEnabled && !finalPublicText?.trim()) {
+  // 🛑 เกณฑ์เดียวกับ evaluateCommentGate และ CommentReplyConfigSchema เป๊ะ — สามที่นี้ต้องตรงกันเสมอ
+  // ไม่งั้นจะได้สถานะที่ "บันทึกได้แต่ไม่ยิง" หรือ "ยิงได้แต่บันทึกไม่ได้" ซึ่งไม่มี gate ไหนจับ
+  if (finalPublicEnabled && !finalPublicText?.trim() && !finalPublicFileId) {
     return NextResponse.json(
-      { error: "ต้องกรอกข้อความก่อนเปิดใช้งาน", code: "VALIDATION_ERROR" },
+      { error: "ต้องกรอกข้อความหรือแนบรูปก่อนเปิดใช้งาน", code: "VALIDATION_ERROR" },
       { status: 400, headers: NO_STORE_HEADERS },
     );
   }
@@ -126,6 +132,9 @@ export async function PATCH(request: NextRequest) {
         ? { commentPublicReplyEnabled: patch.commentPublicReplyEnabled }
         : {}),
       ...(patch.commentPublicReplyText !== undefined ? { commentPublicReplyText: patch.commentPublicReplyText } : {}),
+      ...(patch.commentPublicReplyFileId !== undefined
+        ? { commentPublicReplyFileId: patch.commentPublicReplyFileId }
+        : {}),
       ...(patch.commentPrivateReplyEnabled !== undefined
         ? { commentPrivateReplyEnabled: patch.commentPrivateReplyEnabled }
         : {}),
@@ -137,6 +146,7 @@ export async function PATCH(request: NextRequest) {
       id: true,
       commentPublicReplyEnabled: true,
       commentPublicReplyText: true,
+      commentPublicReplyFileId: true,
       commentPrivateReplyEnabled: true,
       commentPrivateReplyText: true,
     },
@@ -147,6 +157,7 @@ export async function PATCH(request: NextRequest) {
       shopChannelId: updated.id,
       commentPublicReplyEnabled: updated.commentPublicReplyEnabled,
       commentPublicReplyText: updated.commentPublicReplyText,
+      commentPublicReplyFileId: updated.commentPublicReplyFileId,
       commentPrivateReplyEnabled: updated.commentPrivateReplyEnabled,
       commentPrivateReplyText: updated.commentPrivateReplyText,
     },

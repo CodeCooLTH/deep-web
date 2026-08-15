@@ -11,6 +11,7 @@ function ok(over: Partial<Parameters<typeof evaluateCommentGate>[0]> = {}) {
     channelStatus: 'ACTIVE',
     publicEnabled: true,
     publicText: 'ขอบคุณที่สนใจครับ',
+    publicFileId: null,
     privateEnabled: true,
     privateText: 'สวัสดีครับ',
     hasHumanReply: false,
@@ -59,6 +60,23 @@ describe('evaluateCommentGate', () => {
     expect(evaluateCommentGate(ok({ publicText: '  ', privateText: null }))).toEqual({
       pass: false, reason: 'DISABLED',
     })
+  })
+
+  // [blocker] ส่วนขยาย E1 — Graph บังคับแค่ "อย่างน้อยหนึ่งใน message / attachment_url" ⇒ รูป
+  // อย่างเดียวส่งได้จริง ถ้าด่านนี้ยังนับแต่ข้อความ ร้านที่ตอบด้วยรูปใบเดียว (ตารางราคา/โปรโมชัน)
+  // จะตกที่ DISABLED ทั้งที่ตั้งค่าไว้ถูกทุกอย่าง — และหน้าจอจะไม่มีอะไรบอกว่าทำไม
+  it('[blocker] ไม่มีข้อความแต่มีรูป -> ผ่าน (รูปอย่างเดียวส่งได้)', () => {
+    expect(
+      evaluateCommentGate(ok({ publicText: '  ', publicFileId: 'file-1', privateText: null })),
+    ).toEqual({ pass: true })
+  })
+
+  it('[blocker] ปิดสวิตช์ A ไว้ แม้มีรูป -> ยังต้อง DISABLED (รูปไม่ใช่ตัวเปิดสวิตช์แทนร้าน)', () => {
+    expect(
+      evaluateCommentGate(
+        ok({ publicEnabled: false, publicFileId: 'file-1', privateEnabled: false, privateText: null }),
+      ),
+    ).toEqual({ pass: false, reason: 'DISABLED' })
   })
 
   it('เปิดแค่สวิตช์เดียวและมีข้อความ -> ผ่าน', () => {

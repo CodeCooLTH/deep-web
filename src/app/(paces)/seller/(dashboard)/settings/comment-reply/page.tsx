@@ -71,6 +71,7 @@ export default async function CommentReplySettingsPage() {
       status: true,
       commentPublicReplyEnabled: true,
       commentPublicReplyText: true,
+      commentPublicReplyFileId: true,
       commentPrivateReplyEnabled: true,
       commentPrivateReplyText: true,
     },
@@ -85,6 +86,7 @@ export default async function CommentReplySettingsPage() {
       status: c.status,
       commentPublicReplyEnabled: c.commentPublicReplyEnabled,
       commentPublicReplyText: c.commentPublicReplyText,
+      commentPublicReplyFileId: c.commentPublicReplyFileId,
       commentPrivateReplyEnabled: c.commentPrivateReplyEnabled,
       commentPrivateReplyText: c.commentPrivateReplyText,
     }))
