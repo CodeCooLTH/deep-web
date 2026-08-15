@@ -45,6 +45,42 @@ describe('ยึดคืนการเชื่อมบัญชี — ต�
     expect(auth).toContain('link_error=reclaimable')
   })
 
+  it('[blocker] ต้องจัดการคอลัมน์ @unique ของ User ให้ครบทุกตัว ไม่ใช่ไล่ปะทีละอาการ', () => {
+    /**
+     * 🛑 บทเรียนตรง ๆ ของรอบนี้: ผมแก้ `username` ไปแล้วประกาศว่าจบ — user ทดสอบแล้วยังค้าง
+     * เหมือนเดิม เพราะชนต่อที่ `email` ซึ่งบัญชีที่ถูกปิดถือไว้เหมือนกัน
+     *
+     * `User` มี unique 3 ตัว: username · email · phone
+     *   username/email ← มาจากข้อมูลของผู้ให้บริการ คงที่ตลอดกาล ⇒ ชนได้ ต้องจัดการ
+     *   phone          ← ไม่ได้ตั้งตอนสมัคร (null) ⇒ ชนไม่ได้ในเส้นทางนี้
+     *
+     * เทสนี้ผูกกับ **จำนวนคอลัมน์ unique จริงในสคีมา** — เพิ่มคอลัมน์ unique ใหม่แล้วจะแดง
+     * บังคับให้คนเพิ่มมาทบทวนว่าเส้นทางสมัคร OAuth ต้องรับมือกับมันไหม
+     */
+    const userModel = read('prisma/schema.prisma').match(/^model User \{[\s\S]*?^\}/m)?.[0] ?? ''
+    const uniqueCols = [...userModel.matchAll(/^\s+(\w+)\s+\S+\s+@unique/gm)].map((m) => m[1])
+    expect(uniqueCols.sort()).toEqual(['email', 'phone', 'username'])
+
+    expect(auth, 'ต้องอ่าน meta.target เพื่อรู้ว่าชนคอลัมน์ไหน').toContain('meta?.target')
+
+    /**
+     * 🛑 ต้องเช็คว่า **ทำอะไรกับสิ่งที่ตรวจเจอ** ไม่ใช่แค่ว่า "ตรวจเจอ"
+     *
+     * ร่างแรกของเทสนี้เช็คแค่ `target.includes("email")` ซึ่งเป็นแค่การ *ตรวจจับ* —
+     * พิสูจน์ด้วย mutation แล้วพบว่าลบบรรทัดที่ *แก้ปัญหา* ทิ้ง (`trustedEmail = undefined`)
+     * เทสยังเขียวอยู่ = ด่านที่ผ่านตลอดคือด่านที่ไม่มีอยู่จริง
+     */
+    expect(auth, 'ชน username แล้วต้องเปลี่ยนชื่อจริง').toMatch(
+      /if \(hitUsername\) username = /,
+    )
+    expect(auth, 'ชน email แล้วต้องทิ้งอีเมลจริง').toMatch(
+      /if \(hitEmail\) trustedEmail = undefined/,
+    )
+    expect(auth, 'unique ตัวที่ไม่รู้จักต้อง throw ห้ามกลืนเงียบ').toMatch(
+      /if \(!hitUsername && !hitEmail\) throw err/,
+    )
+  })
+
   it('[blocker] username ชนกัน ต้องตั้งชื่อใหม่ ไม่ใช่ล้มทั้งการล็อกอิน', () => {
     /**
      * username ตั้งจาก id ของผู้ให้บริการซึ่งคงที่ตลอดกาล — ชนได้แม้ไม่มีใครล็อกอินอยู่

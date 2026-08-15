@@ -59,47 +59,55 @@ async function upsertOAuthUser(
     // linkEmail=true เฉพาะ provider ที่ email ถูก platform ยืนยัน + user consent (FB graph).
     // LINE/IG=false: LINE email claim ไม่ verified + ไม่ขอ scope → ห้ามเก็บ/ใช้ link history
     // (security R1 — กัน auto-link buyer history ผิดคนถ้ามีใครเพิ่ม email scope ภายหลัง)
-    const trustedEmail = linkEmail ? user?.email || undefined : undefined;
     /**
-     * 🛑 username ตั้งจาก id ของผู้ให้บริการ ซึ่ง **คงที่ตลอดกาลต่อบัญชีหนึ่งใบ** — จึงชนได้
-     * ทั้งที่ไม่มีใครล็อกอินอยู่ตอนนั้น
+     * 🛑 การสมัครผ่าน OAuth ชนคอลัมน์ `@unique` ได้ **ทั้งที่ไม่มีใครล็อกอินอยู่ตอนนั้น**
      *
-     * เคสจริง 2026-08-15: ผู้ใช้เชื่อม Apple → กดยกเลิกการเชื่อม (แถว AuthAccount ถูกลบ) →
-     * ออกจากระบบ → ล็อกอิน Apple ID เดิมอีกครั้ง ⇒ ไม่เจอ AuthAccount จึงมาสร้าง user ใหม่
-     * ด้วย username เดิม **ซึ่งบัญชีที่ถูกปิดไปแล้วยังถืออยู่** (soft delete ไม่ปล่อยชื่อคืน
-     * จนกว่าจะถึงรอบล้างข้อมูลจริง) → P2002 บนคอลัมน์ `username` ไม่ใช่บน AuthAccount
-     * → ตัวดักเดิมหา AuthAccount ที่ชนไม่เจอ → `throw` → **ล็อกอินค้าง ไม่พาไปไหนเลย**
+     * `User` มีคอลัมน์ unique 3 ตัว: `username` · `email` · `phone` และ 2 ตัวแรกถูกกำหนดจาก
+     * ข้อมูลที่ผู้ให้บริการส่งมา ซึ่ง **คงที่ตลอดกาลต่อบัญชีหนึ่งใบ** ⇒ ถ้ามีแถวเก่าถือไว้อยู่
+     * (บัญชีที่ถูกปิดแล้วยังถือทั้งชื่อและอีเมลจนกว่าจะถึงรอบล้างข้อมูลจริง) จะชนทุกครั้งไป
      *
-     * ⇒ ต้องแยก 2 สาเหตุของ P2002 ออกจากกัน ไม่ใช่เหมารวมว่าเป็น race เสมอ:
-     *   - ชนที่ AuthAccount = แข่งกันล็อกอินครั้งแรก → คืน user ที่อีก request สร้างไปแล้ว
-     *   - ชนที่ username   = ชื่อถูกจองไว้ → **ตั้งชื่อใหม่ ไม่ใช่ล้ม** (ชื่อเป็นแค่ค่าตั้งต้น
-     *     ผู้ใช้เปลี่ยนเองได้ทีหลังอยู่แล้ว ไม่มีเหตุผลให้มันบล็อกการสมัคร)
+     * เคสจริง 2026-08-15 — เจอ 2 รอบติดกันเพราะรอบแรกผมแก้แค่คอลัมน์เดียว:
+     *   เชื่อม Apple → กดยกเลิกการเชื่อม (AuthAccount ถูกลบ) → ออกจากระบบ → ล็อกอิน Apple เดิม
+     *   ⇒ ไม่เจอ AuthAccount → สร้าง user ใหม่ → P2002 ที่ `username` (รอบแรก)
+     *   ⇒ แก้ให้สุ่มชื่อใหม่ → ยังค้าง เพราะชนต่อที่ `email` (รอบสอง)
+     * ตัวดักเดิมเหมาว่า P2002 = race เสมอ พอหา AuthAccount ที่ชนไม่เจอก็ `throw`
+     * → NextAuth ตาย → **ค้างที่หน้าล็อกอิน มีวงกลมหมุน แต่ไม่พาไปไหนเลย**
+     *
+     * ⇒ ต้อง **อ่านว่าชนคอลัมน์ไหน** แล้วจัดการตามชนิด ไม่ใช่ไล่ปะทีละอาการ:
+     *   AuthAccount → แข่งกันล็อกอินครั้งแรกจริง ๆ → คืน user ที่อีก request สร้างไปแล้ว
+     *   username    → ตั้งชื่อใหม่ (ชื่อเป็นแค่ค่าตั้งต้น ผู้ใช้เปลี่ยนเองได้ทีหลัง)
+     *   email       → **ทิ้งอีเมลไป** เพราะมันเป็นของแถวอื่น เราไปยึดมาไม่ได้
+     *                 (`email` nullable และระบบนี้ยึด "เบอร์" เป็นตัวตนหลัก ไม่ใช่อีเมล
+     *                  ผลข้างเคียงคือไม่ auto-link ประวัติผู้ซื้อเก่า ซึ่งถูกแล้ว —
+     *                  อีเมลนั้นผูกกับบัญชีอื่นอยู่ จะเอามาจับคู่ประวัติไม่ได้)
+     *   อื่น ๆ       → `throw` ให้ดัง ห้ามกลืน (คอลัมน์ unique ใหม่ที่ยังไม่มีใครคิดถึง)
      */
     const baseUsername = `${usernamePrefix}${account.providerAccountId}`;
-    const createUser = (username: string) =>
-      prisma.user.create({
-        data: {
-          displayName: user?.name || "User",
-          username,
-          avatar: user?.image,
-          email: trustedEmail,
-          authAccounts: {
-            create: {
-              provider: providerEnum,
-              providerAccountId: account.providerAccountId,
-              accessToken: account.access_token,
-            },
-          },
-        },
-      });
+    // linkEmail=true เฉพาะ provider ที่ email ถูก platform ยืนยัน + user consent (FB graph/Apple).
+    // LINE/IG=false: LINE email claim ไม่ verified + ไม่ขอ scope → ห้ามเก็บ/ใช้ link history
+    // (security R1 — กัน auto-link buyer history ผิดคนถ้ามีใครเพิ่ม email scope ภายหลัง)
+    let username = baseUsername;
+    let trustedEmail = linkEmail ? user?.email || undefined : undefined;
 
-    // 4 ครั้งพอ: ครั้งแรกใช้ชื่อฐาน + สุ่มท้าย 3 ครั้ง (โอกาสชนซ้ำติดกันต่ำมาก และถ้าชนครบ
-    // ทุกครั้งแปลว่ามีอย่างอื่นผิด ควรดังออกมาให้เห็น ไม่ใช่วนไปเรื่อย ๆ)
+    // 4 ครั้งพอ: ชนได้มากสุด 2 คอลัมน์ (username/email) + เผื่อสุ่มชื่อชนซ้ำ — ถ้ายังไม่ผ่าน
+    // แปลว่ามีอย่างอื่นผิด ควรดังออกมาให้เห็น ไม่ใช่วนไปเรื่อย ๆ
     for (let attempt = 0; ; attempt++) {
       try {
-        dbUser = await createUser(
-          attempt === 0 ? baseUsername : `${baseUsername}-${Math.random().toString(36).slice(2, 8)}`,
-        );
+        dbUser = await prisma.user.create({
+          data: {
+            displayName: user?.name || "User",
+            username,
+            avatar: user?.image,
+            email: trustedEmail,
+            authAccounts: {
+              create: {
+                provider: providerEnum,
+                providerAccountId: account.providerAccountId,
+                accessToken: account.access_token,
+              },
+            },
+          },
+        });
         break;
       } catch (err: unknown) {
         const code = err && typeof err === "object" && "code" in err ? (err as { code?: string }).code : undefined;
@@ -111,7 +119,18 @@ async function upsertOAuthUser(
         });
         if (existing) return existing.id;
 
-        // ไม่ใช่ race → ชนที่ username → ลองชื่อใหม่
+        /**
+         * `meta.target` บอกว่าชนคอลัมน์ไหน — Prisma ส่งมาเป็น `string[]` หรือ `string`
+         * (ชื่อ constraint) แล้วแต่ไดรเวอร์ ⇒ แปลงเป็นสตริงเดียวแล้วค้นคำ ปลอดภัยกว่าเดารูปแบบ
+         */
+        const target = String((err as { meta?: { target?: unknown } }).meta?.target ?? "");
+        const hitUsername = target.includes("username");
+        const hitEmail = target.includes("email");
+        if (!hitUsername && !hitEmail) throw err; // unique ตัวอื่นที่ยังไม่รู้จัก — ห้ามกลืน
+
+        if (hitUsername) username = `${baseUsername}-${Math.random().toString(36).slice(2, 8)}`;
+        if (hitEmail) trustedEmail = undefined;
+
         if (attempt >= 3) throw err;
       }
     }
