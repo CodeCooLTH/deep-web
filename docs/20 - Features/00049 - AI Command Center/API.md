@@ -47,9 +47,10 @@ API ชุดนี้เป็นตัวกลาง**เดียว**ระ
 ```
 # feature 00049 — จอที่ admin.deepthailand.app/command-center
 # PAT ของ "จอ" — คนละตัวกับ PAT ของเครื่อง Hermes (D-1 แยกอำนาจ)
-#   scope: Issues (RW) · Pull requests (RW) · Actions (R — check-run + repository variable)
+#   สิทธิ์: Issues (RW) · Pull requests (RW) · Variables (R)
 #   🛑 ห้ามมีสิทธิ์ workflows
-#   ⚠️ scope ที่แน่ชัดสำหรับอ่าน repository variable ยังไม่เคยทดสอบจริง (SRS §9 ข้อ 5)
+#   ⚠️ แก้ 2026-08-16: เดิมเขียน `Actions (R)` ผิด — repository variable อยู่ใต้สิทธิ์ **Variables**
+#      ตามเอกสาร GitHub (ชื่อ endpoint มี actions อยู่จึงเดาผิดง่าย) ยังไม่เคยยิงด้วย token จริง
 COMMAND_CENTER_GITHUB_TOKEN=
 COMMAND_CENTER_GITHUB_REPO="CodeCooLTH/deep-web"
 ```
