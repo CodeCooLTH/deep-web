@@ -55,7 +55,7 @@ function assertLocalhost() {
         `  DATABASE_URL = ${url.replace(/:[^:@]+@/, ":***@") || "(ว่าง)"}`,
         `  DIRECT_URL   = ${direct.replace(/:[^:@]+@/, ":***@") || "(ว่าง)"}`,
         "",
-        "🛑 .env ของโปรเจกต์นี้ชี้ Supabase prod — ต้องปักหมุด URL ในคำสั่งเอง",
+        "หยุด: .env ของโปรเจกต์นี้ชี้ Supabase prod — ต้องปักหมุด URL ในคำสั่งเอง",
         '  DATABASE_URL="postgresql://safepay:safepay@localhost:5434/safepay" \\',
         '  DIRECT_URL="postgresql://safepay:safepay@localhost:5434/safepay" \\',
         "  npx tsx scripts/seed-service-queue-demo.ts",

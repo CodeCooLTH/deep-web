@@ -290,7 +290,7 @@ export async function countUnpaidJobsToday(shopId: string): Promise<number> {
     WHERE o."shopId" = ${shopId}
       AND o."status" <> 'CANCELLED'
       AND o."serviceStart" IS NOT NULL
-      -- 🛑 ต้องสะท้อน appointmentDayWhere('today') เป๊ะ ไม่ใช่ "ใกล้เคียง"
+      -- [สำคัญ] ต้องสะท้อน appointmentDayWhere('today') เป๊ะ ไม่ใช่ "ใกล้เคียง"
       --    (ห้ามใส่ backtick ในคอมเมนต์นี้ — มันอยู่ใน template literal จะปิดสตริงกลางคัน)
       --    เลขนี้ถูกเอาไปเทียบกับ getTodayAppointmentCount() บนการ์ดเดียวกัน
       --    (ค้าง N งาน vs มีงานวันนี้กี่งาน) ⇒ เกณฑ์วันต่างกันแม้แต่ขอบเดียว
