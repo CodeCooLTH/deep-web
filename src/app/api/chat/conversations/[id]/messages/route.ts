@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -210,15 +210,33 @@ export async function GET(
   }
 
   try {
-    // เติมข้อความที่ webhook ไม่เคยส่งมา (ตอบกลับอัตโนมัติของ Meta — ดู syncMissingMessagesFromMeta)
-    // ทำก่อน getMessages เพื่อให้ข้อความที่เพิ่งเติมโผล่ในรอบเดียวกันเลย ไม่ต้องรอ poll รอบหน้า
-    // เฉพาะการโหลดหน้าแรก (ไม่มี cursor) — เลื่อนดูประวัติย้อนหลังไม่ต้อง sync ซ้ำ
-    // ฟังก์ชันไม่ throw และมี throttle ในตัว จึงไม่ต้องห่อ try เพิ่มและไม่ถ่วงทุกครั้งที่ poll
+    /**
+     * เติมข้อความที่ webhook ไม่เคยส่งมา (ตอบกลับอัตโนมัติของ Meta — ดู syncMissingMessagesFromMeta)
+     *
+     * 🛑 **ห้ามเอากลับมา await ในเส้นทางนี้เด็ดขาด** — วัดบน prod 2026-08-16 (Server-Timing จาก
+     * เครื่องผู้ใช้จริง): sync = 1,740.6ms จาก total 1,915.2ms = **91% ของเวลาทั้งหน้า** และรอบนั้น
+     * `outcome=nothing-missing, added=0` คือวิ่งไปหา Meta ครบทุกขั้นเพื่อเติม **ศูนย์** ข้อความ
+     * ทุกอย่างที่เหลือรวมกันแค่ 174.5ms (auth 52 · msgs 40.6 · enrich 67.6 · watermark 14.3)
+     *
+     * ที่แพงคือ Graph `/me/conversations?fields=messages.limit(50){...,attachments}` ซึ่งขอ 50
+     * ข้อความพร้อมไฟล์แนบ — ไม่ใช่ query ของเราช้า และไม่ใช่ cold start
+     *
+     * ยังเรียก **ทุกครั้งที่ไม่มี cursor เหมือนเดิม** (รวม poll ทุก 6 วิ — `refetchNewer()` ยิงแบบ
+     * ไม่มี cursor) เพราะข้อความที่ Meta ไม่ส่ง webhook เกิดระหว่างที่คุยกันอยู่ได้จริง ซึ่งเป็นเคส
+     * ที่ฟีเจอร์นี้ถูกสร้างมาแก้ (user report 2026-07-30) — throttle 5 นาทีในตัวฟังก์ชันยังกันความถี่
+     * ให้เหมือนเดิมทุกประการ สิ่งที่เปลี่ยนคือ "ใครรอ" ไม่ใช่ "ทำบ่อยแค่ไหน"
+     *
+     * ข้อความที่เติมทีหลังไปถึงจอได้ 2 ทางโดยไม่ต้องพึ่ง websocket: trigger
+     * `chat_message_realtime_broadcast_trigger` (AFTER INSERT FOR EACH ROW บน prod) และ **poll 6
+     * วินาทีที่ `useSellerChatThread` ตั้งไว้เป็น safety-net ของ realtime ที่หลุดอยู่แล้ว** —
+     * poll นั้นยิงแบบไม่มี cursor = ขอหน้าแรกใหม่ทั้งหน้า จึงเห็นข้อความที่เติมย้อนหลังได้จริง
+     * และเป็น **หน้าต่างเดียวกับเดิมเป๊ะ** (ทั้งสองทางส่งผ่าน query "30 ใบล่าสุด" ตัวเดียวกัน)
+     *
+     * แลกไปข้อเดียว: เดิมข้อความที่เติมอยู่ใน response เดียวกัน ตอนนี้มาช้ากว่านั้น ≤6 วินาที
+     */
     if (!parsed.output.cursor) {
-      const sync = await syncMissingMessagesFromMeta(id);
-      // desc บอกว่ารอบนี้จบเพราะอะไร — 0ms ของ "throttled" กับ 800ms ของ "nothing-missing"
-      // เป็นคนละเรื่องกันสิ้นเชิงเวลาไล่ว่าใครกินเวลา แต่ตัวเลขอย่างเดียวแยกไม่ออกว่าอันไหนคืออันไหน
-      timer.mark("sync", `${sync.outcome}:${sync.added}`);
+      after(syncMissingMessagesFromMeta(id));
+      timer.mark("sync", "deferred");
     } else {
       timer.mark("sync", "skipped-cursor");
     }
