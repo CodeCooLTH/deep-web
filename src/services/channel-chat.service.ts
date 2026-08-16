@@ -233,6 +233,18 @@ export async function syncInboundWindowFromMeta(conversationId: string): Promise
 }
 
 /**
+ * ผลของ syncMissingMessagesFromMeta — `outcome` มีไว้ให้ผู้เรียก **วัด** ได้ว่ารอบนั้นจบเพราะอะไร
+ *
+ * 🛑 เดิมคืนแค่ `{ added: 0 }` เหมือนกันหมดทั้ง "โดน throttle ตัดตั้งแต่บรรทัดแรก" (0ms) และ
+ * "ยิง Graph ไปแล้วไม่มีอะไรต้องเติม" (หลายร้อย ms) — สองอันนี้ต่างกันคนละเรื่องเวลาไล่หาว่า
+ * ทำไมคำขอนี้ช้า แต่หน้าตาผลลัพธ์เหมือนกันเป๊ะ จึงแยกไม่ออกเลยจากฝั่งผู้เรียก
+ */
+export type SyncMissingResult = {
+  added: number
+  outcome: 'throttled' | 'not-eligible' | 'nothing-missing' | 'added' | 'error'
+}
+
+/**
  * syncMissingMessagesFromMeta — เติมข้อความที่ webhook ไม่เคยส่งมาให้ (user report 2026-07-30
  * "แชทเข้ามาไม่ครบ")
  *
@@ -252,7 +264,7 @@ export async function syncInboundWindowFromMeta(conversationId: string): Promise
  */
 export async function syncMissingMessagesFromMeta(
   conversationId: string,
-): Promise<{ added: number }> {
+): Promise<SyncMissingResult> {
   // throttle ต่อเธรด — route ที่เรียกฟังก์ชันนี้ถูกยิงทุกครั้งที่ client poll ไม่ใช่แค่ตอนเปิดเธรด
   // ถ้าไม่กัน จะได้ Graph call ทุกไม่กี่วินาทีต่อคนที่เปิดแชทค้างไว้ (โดนจำกัดอัตราแน่นอน)
   // in-memory + globalThis: pattern เดียวกับ lib/api-rate-limit.ts — known-gap เดียวกันคือ
@@ -261,7 +273,7 @@ export async function syncMissingMessagesFromMeta(
   const store = (globalThis as { __fbSyncAt?: Map<string, number> }).__fbSyncAt ??
     ((globalThis as { __fbSyncAt?: Map<string, number> }).__fbSyncAt = new Map())
   const last = store.get(conversationId)
-  if (last && now - last < SYNC_THROTTLE_MS) return { added: 0 }
+  if (last && now - last < SYNC_THROTTLE_MS) return { added: 0, outcome: 'throttled' }
   store.set(conversationId, now)
 
   try {
@@ -277,12 +289,12 @@ export async function syncMissingMessagesFromMeta(
       !conv.externalContact ||
       conv.shopChannel.status !== 'ACTIVE'
     ) {
-      return { added: 0 }
+      return { added: 0, outcome: 'not-eligible' }
     }
 
     const pageToken = decryptToken(conv.shopChannel.accessTokenEnc)
     const remote = await fetchThreadMessages(conv.externalContact.externalUserId, pageToken, 50)
-    if (remote.length === 0) return { added: 0 }
+    if (remote.length === 0) return { added: 0, outcome: 'nothing-missing' }
 
     const known = new Set(
       (
@@ -293,7 +305,7 @@ export async function syncMissingMessagesFromMeta(
       ).map((m) => m.externalMessageId),
     )
     const missing = remote.filter((m) => !known.has(m.id))
-    if (missing.length === 0) return { added: 0 }
+    if (missing.length === 0) return { added: 0, outcome: 'nothing-missing' }
 
     // pageId = externalId ของ ShopChannel — ใช้แยกว่าใครเป็นคนส่ง (Graph คืน from.id ของเพจสำหรับ
     // ข้อความฝั่งร้าน รวมถึงข้อความที่ระบบอัตโนมัติส่งแทนเพจด้วย)
@@ -337,14 +349,14 @@ export async function syncMissingMessagesFromMeta(
       })
     }
 
-    return { added: result.count }
+    return { added: result.count, outcome: 'added' }
   } catch (e) {
     console.error(
       '[fb-sync] ดึงข้อความย้อนหลังไม่สำเร็จ',
       conversationId,
       e instanceof Error ? e.message : e,
     )
-    return { added: 0 }
+    return { added: 0, outcome: 'error' }
   }
 }
 

@@ -154,6 +154,34 @@ function mapChatServiceError(e: unknown, context: string) {
 }
 
 /**
+ * ตัวจับเวลารายเฟสของ GET — ปล่อยออกทาง `Server-Timing` ให้อ่านได้จาก DevTools ของเครื่องจริง
+ *
+ * 🛑 ทำไมเป็น header ไม่ใช่ `console.log`: **แพลนนี้ query runtime log ย้อนหลังไม่ได้**
+ * (`/v1/deployments/{id}/runtime-logs` ตอบ 404 — ยืนยันแล้วตอน 2026-08-08) log ที่อ่านย้อนหลัง
+ * ไม่ได้มีค่าเท่ากับไม่มี ส่วน header เดินทางกลับมาถึงเครื่องที่ร้องเรียนว่าช้าพอดี
+ *
+ * ตั้งใจให้ค้างไว้ในโค้ดหลังแก้เสร็จด้วย — ครั้งหน้าที่มีคนบอกว่า "ช้า" จะได้ไม่ต้องเริ่มจากศูนย์
+ * ค่านี้ไม่มี PII และไม่เปิดเผยโครงสร้างภายในอะไรที่คนนอกใช้ประโยชน์ได้
+ */
+function createTimer() {
+  const marks: string[] = [];
+  const t0 = performance.now();
+  let last = t0;
+  return {
+    /** ปิดเฟสที่เพิ่งจบ — `desc` ใช้บอก "จบเพราะอะไร" ซึ่งตัวเลขอย่างเดียวบอกไม่ได้ */
+    mark(name: string, desc?: string) {
+      const now = performance.now();
+      const dur = (now - last).toFixed(1);
+      last = now;
+      marks.push(desc ? `${name};desc="${desc}";dur=${dur}` : `${name};dur=${dur}`);
+    },
+    header(): string {
+      return [...marks, `total;dur=${(performance.now() - t0).toFixed(1)}`].join(", ");
+    },
+  };
+}
+
+/**
  * GET /api/chat/conversations/[id]/messages — ประวัติข้อความ cursor-paginated (ใหม่→เก่า)
  * ownership verify ใน service (assertParticipant) — ไม่ trust caller
  */
@@ -161,12 +189,14 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const timer = createTimer();
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const userId = (session.user as any).id as string;
   const { id } = await params;
+  timer.mark("auth");
 
   const { searchParams } = request.nextUrl;
   const rawTake = searchParams.get("take");
@@ -185,13 +215,19 @@ export async function GET(
     // เฉพาะการโหลดหน้าแรก (ไม่มี cursor) — เลื่อนดูประวัติย้อนหลังไม่ต้อง sync ซ้ำ
     // ฟังก์ชันไม่ throw และมี throttle ในตัว จึงไม่ต้องห่อ try เพิ่มและไม่ถ่วงทุกครั้งที่ poll
     if (!parsed.output.cursor) {
-      await syncMissingMessagesFromMeta(id);
+      const sync = await syncMissingMessagesFromMeta(id);
+      // desc บอกว่ารอบนี้จบเพราะอะไร — 0ms ของ "throttled" กับ 800ms ของ "nothing-missing"
+      // เป็นคนละเรื่องกันสิ้นเชิงเวลาไล่ว่าใครกินเวลา แต่ตัวเลขอย่างเดียวแยกไม่ออกว่าอันไหนคืออันไหน
+      timer.mark("sync", `${sync.outcome}:${sync.added}`);
+    } else {
+      timer.mark("sync", "skipped-cursor");
     }
 
     const result = await getMessages(id, userId, {
       cursor: parsed.output.cursor,
       take: parsed.output.take,
     });
+    timer.mark("msgs", `n=${result.items.length}`);
 
     // extension #1 Chat Product Context Card (S-18) — enrich ข้อความ type='PRODUCT' ด้วย productCard
     // (additive เท่านั้น ไม่แตะ ChatMessageView core); batch fetch กัน N+1
@@ -390,6 +426,9 @@ export async function GET(
     const senderMap = new Map(
       senderRows.map((u) => [u.id, { name: u.displayName, avatar: u.avatar }]),
     );
+    // 4 query ข้างบนนี้ (สินค้า/ออเดอร์/ข้อความที่ถูกอ้างถึง/ผู้ส่ง) เรียงต่อกันทีละตัว — วัดรวมไว้
+    // ก่อน ถ้าเลขก้อนนี้โต ค่อยแยกวัดทีละตัวแล้วพิจารณายุบเป็น Promise.all
+    timer.mark("enrich", `p=${productIds.length},o=${orderTokens.length},r=${replyMids.length},s=${senderIds.length}`);
 
     const items = result.items.map((m) => ({
       ...m,
@@ -461,12 +500,17 @@ export async function GET(
       where: { id },
       select: { externalReadAt: true, externalDeliveredAt: true },
     });
-    return NextResponse.json({
-      items,
-      nextCursor: result.nextCursor,
-      externalReadAt: conv?.externalReadAt ? conv.externalReadAt.toISOString() : null,
-      externalDeliveredAt: conv?.externalDeliveredAt ? conv.externalDeliveredAt.toISOString() : null,
-    });
+    timer.mark("watermark");
+    return NextResponse.json(
+      {
+        items,
+        nextCursor: result.nextCursor,
+        externalReadAt: conv?.externalReadAt ? conv.externalReadAt.toISOString() : null,
+        externalDeliveredAt: conv?.externalDeliveredAt ? conv.externalDeliveredAt.toISOString() : null,
+      },
+      // Timing-Allow-Origin ไม่ต้องใส่ — client อ่านจากโดเมนเดียวกัน (seller.deepthailand.app)
+      { headers: { "Server-Timing": timer.header() } },
+    );
   } catch (e: unknown) {
     return mapChatServiceError(e, "GET /api/chat/conversations/[id]/messages");
   }
