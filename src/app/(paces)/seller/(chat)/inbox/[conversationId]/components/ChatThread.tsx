@@ -120,6 +120,9 @@ import { resolveOrderVocab } from '@/lib/seller-menu'
 import { shouldWarnQuoteUnavailable, quoteJumpTargetId } from '@/lib/chat-quote-availability'
 import { useLongPress } from '@/hooks/useLongPress'
 import MessageActionBubble, { type MessageAction, type MessageReactionOption } from './MessageActionBubble'
+import RecordPaymentSheet from '../../../_components/RecordPaymentSheet'
+import { computeOrderMoneyFromSerialized } from '@/lib/order-payment'
+import { resolveSlipTarget } from '@/lib/chat-order-actions'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
@@ -1610,6 +1613,33 @@ export default function ChatThread({
     if (message && bubble) setActionTarget({ mode: 'menu', message, bubble })
   })
 
+  /**
+   * ── กดค้างบนรูปสลิป → บันทึกการรับเงิน (feature 00050) ─────────────────────────────
+   *
+   * หัวหน้าสั่งว่าอยากให้ "กดง่าย ๆ ที่หน้า chat" — เส้นทางเดิมคือ เปิดแผงลูกค้า → หาการ์ดใบที่ใช่
+   * → กดรับเงิน → พิมพ์ยอด ส่วนตรงนี้คือกดค้างบนรูปที่ลูกค้าเพิ่งส่งมาแล้วยอดถูกเติมให้เลย
+   *
+   * 🛑 ไม่โผล่เมื่อ **มีใบค้างมากกว่าหนึ่ง** — `resolveSlipTarget()` คืน null เพราะการเดาผิดใบ
+   * ทำให้ผิดพร้อมกันสองใบ (ดูเหตุผลเต็มในไฟล์นั้น) ผู้ใช้ยังกดจากการ์ดของใบที่ต้องการได้เสมอ
+   */
+  const slipTarget =
+    customerPanelData?.vertical === 'SERVICE_QUEUE'
+      ? resolveSlipTarget(
+          customerPanelData.orders.map((o) => ({
+            token: o.token,
+            label: o.orderNo || o.token.slice(0, 8).toUpperCase(),
+            orderStatus: o.status,
+            money: computeOrderMoneyFromSerialized({
+              totalAmount: o.totalAmount,
+              depositAmount: o.depositAmount ?? null,
+              payments: o.payments,
+            }),
+          })),
+        )
+      : null
+  /** fileId ของรูปที่กดค้างมา — null = ชีตปิด (เก็บ fileId ไม่ใช่ boolean เพราะชีตต้องใช้ค่านี้) */
+  const [slipPayFileId, setSlipPayFileId] = useState<string | null>(null)
+
   const actionTargetActions: MessageAction[] = (() => {
     const m = actionTarget?.message
     if (!m || actionTarget?.mode === 'reactions') return []
@@ -1691,6 +1721,27 @@ export default function ChatThread({
         icon: saved ? LIBRARY_ICONS.saved : LIBRARY_ICONS.save,
         label: saved ? t.inbox.libraryUnsave : t.inbox.librarySave,
         onSelect: () => void toggleLibrary(m),
+      })
+    }
+    /**
+     * บันทึกการรับเงินจากรูปนี้ — เฉพาะรูปจริง (ไม่ใช่สติกเกอร์/การ์ด) และมีใบที่ค้างชัดเจนใบเดียว
+     *
+     * 🛑 **"แนบสลิป ≠ ได้รับเงิน"** (มติหัวหน้าข้อ 1) — ปุ่มนี้เปิดชีตให้คนยืนยันยอดเอง
+     * ไม่ได้บันทึกเงินให้ทันที การอ่านตัวเลขจากรูปแล้วบันทึกเองคือการแต่งข้อเท็จจริงทางการเงิน
+     */
+    if (
+      slipTarget &&
+      m.type === 'IMAGE' &&
+      m.imageUrl &&
+      !m.isSticker &&
+      !m.isDeleted &&
+      !m._status
+    ) {
+      list.push({
+        key: 'record-payment',
+        icon: 'cash-banknote',
+        label: 'บันทึกรับเงิน',
+        onSelect: () => setSlipPayFileId(m.imageUrl!),
       })
     }
     if (m.body) {
@@ -2594,6 +2645,8 @@ export default function ChatThread({
                       channel={channel}
                       customerAvatar={buyerAvatar}
                       pageAvatarUrl={channelAvatarUrl}
+                      // ร้านของเธรด ไม่ใช่ร้านที่ active — เปิดเธรดข้ามร้านได้ (BR-UNI-07)
+                      shopId={shopId}
                     />
                   ),
                 },
@@ -4062,6 +4115,22 @@ export default function ChatThread({
         )}
       </div>
     </div>
+
+    {/* ชีตรับเงินที่เปิดจากการกดค้างบนรูปสลิป (feature 00050) — ชีตตัวเดียวกับที่การ์ดออเดอร์
+        เรียก ไม่มีชีตคู่ขนาน · อยู่นอกเงื่อนไขของ MessageActionBubble เพราะเมนูปิดตัวเองทันที
+        ที่เลือก แต่ชีตต้องอยู่ต่อ (ถ้าอยู่ข้างใน มันจะถูกถอดพร้อมเมนูในเฟรมเดียวกัน) */}
+    {slipTarget && slipPayFileId && (
+      <RecordPaymentSheet
+        open
+        onClose={() => setSlipPayFileId(null)}
+        orderToken={slipTarget.token}
+        orderLabel={slipTarget.label}
+        shopId={shopId}
+        money={slipTarget.money}
+        initialSlipFileId={slipPayFileId}
+        onChanged={() => router.refresh()}
+      />
+    )}
 
     {/* กดค้างบนข้อความ (มือถือ) → เบลอทั้งเธรด + ยกบับเบิลนั้นขึ้นมาพร้อมเมนู — ทางเข้าเดียวของ
         ตอบกลับ/คัดลอกบนจอสัมผัส เพราะปุ่มข้างบับเบิลเป็น lg:group-hover (desktop-only)

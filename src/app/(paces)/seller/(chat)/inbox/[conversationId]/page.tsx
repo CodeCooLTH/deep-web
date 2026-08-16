@@ -490,6 +490,16 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           serviceEnd: true,
           appointmentStatus: true,
           depositAmount: true,
+          /**
+           * เงินที่ **ได้รับจริง** ของออเดอร์ใบนี้ (feature 00050) — `depositAmount` ข้างบนคือ
+           * *ข้อตกลง* คนละเรื่องกัน (BR-SQ-02) ปุ่มเรื่องเงินในแชทตัดสินจากชุดนี้เท่านั้น
+           *
+           * เอามาพร้อมออเดอร์ ไม่ให้การ์ดแต่ละใบยิง API ถามเอง (ลิสต์ 20 ใบ = 20 คำขอ) —
+           * ดึงทุก vertical ไม่แยกเงื่อนไข: ร้านที่ยังไม่ใช้ฟีเจอร์นี้ได้ `[]` ซึ่งอ่านเป็น
+           * "ยังไม่มีบันทึกการรับเงิน" ถูกต้องอยู่แล้ว และการแยก shape ตาม vertical คือที่ที่
+           * ความต่างจะงอกขึ้นเงียบ ๆ (index `(orderId)` ครอบ query นี้พอดี)
+           */
+          payments: { select: { kind: true, amount: true, voidedAt: true } },
           // Order Progress (2026-08-05) — AWAITING_COD ต้องรู้วิธีชำระ + เวลากดรับเงิน
           paymentMethod: true,
           codReceivedAt: true,
@@ -522,6 +532,11 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     serviceEnd: o.serviceEnd ? o.serviceEnd.toISOString() : null,
     appointmentStatus: o.appointmentStatus,
     depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
+    payments: o.payments.map((p) => ({
+      kind: p.kind,
+      amount: p.amount.toFixed(2),
+      voidedAt: p.voidedAt ? p.voidedAt.toISOString() : null,
+    })),
     paymentMethod: o.paymentMethod,
     codReceivedAt: o.codReceivedAt ? o.codReceivedAt.toISOString() : null,
     items: o.items.map((it) => ({
@@ -611,6 +626,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   // RSC PII: เบอร์โทร mask ที่นี่เสมอ ก่อนลง prop ที่ถูก serialize เข้า flight ของ client layout
   const customerPanelData: CustomerPanelData = {
     conversationId: conversation.id,
+    // ร้านของเธรด (`threadShopId` = Conversation.shopId) ไม่ใช่ร้านที่ active — BR-UNI-07
+    shopId: threadShopId,
     contactName: buyerDisplayName,
     avatar: buyerAvatar, // user report 2026-07-24: right panel ไม่มีรูป — ส่งชุดเดียวกับ ChatThread header
     channel: conversation.channel,

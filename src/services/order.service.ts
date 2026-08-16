@@ -1202,6 +1202,29 @@ export async function getOrderByToken(publicToken: string) {
       // relation nullable เช่นกัน: ออเดอร์ที่ไม่มีนัดได้ null ไม่กระทบเส้นทางเดิม
       // select แค่ name — ไม่ดึงความจุ/มัดจำเริ่มต้นมาเพราะลูกค้าไม่ต้องเห็นค่าตั้งค่าของร้าน
       serviceResource: { select: { name: true } },
+      /**
+       * feature 00050 — เงินที่ได้รับจริงของใบนี้ สำหรับหน้า `/o/[token]` (AC-SQ-06:
+       * ลูกค้าต้องตอบได้เองว่า *จ่ายไปเท่าไร ค้างเท่าไร* โดยไม่ต้องถามร้าน)
+       *
+       * 🛑 กรอง `voidedAt: null` **ที่ query** — รายการที่ร้านยกเลิกเพราะกรอกผิดเป็นเรื่องภายใน
+       * ลูกค้าไม่ควรเห็นเงินโผล่แล้วหายไป · ผลลัพธ์ของ `computeOrderMoney` เท่าเดิมทุกกรณี
+       * เพราะมันตัดแถวที่ voided ทิ้งอยู่แล้ว
+       *
+       * 🛑 allow-list ห้ามใส่ `note` / `receivedByUserId` — สองอันนั้นเป็นบันทึกภายในของร้าน
+       * และปลายทางเป็น client component (ทุกคีย์ถูก serialize ลง flight payload)
+       */
+      payments: {
+        where: { voidedAt: null },
+        select: { kind: true, amount: true, method: true, receivedAt: true, voidedAt: true },
+        orderBy: { receivedAt: 'asc' },
+      },
+      /**
+       * feature 00050 — เพจ/ช่องทางที่ออเดอร์ใบนี้เกิดขึ้น (AC-SQ-06: *มาจากเพจไหน*)
+       *
+       * 🛑 allow-list 3 คีย์ **ห้าม `include`** — แถว `ShopChannel` มี `accessTokenEnc`
+       * (page access token) อยู่ด้วย ซึ่งสคีมาเขียนกำกับเองว่าห้ามส่งกลับ client ทุกกรณี
+       */
+      shopChannel: { select: { provider: true, name: true, avatarUrl: true } },
       shop: {
         include: {
           user: {
@@ -1266,6 +1289,17 @@ export async function getOrderForShop(publicToken: string, shopId: string) {
       // ทรัพยากรที่รับงานนัดนี้ (feature 00036) — การ์ด "การนัดหมาย" ต้องบอกว่าใคร/ช่องไหนรับ
       // select แคบ ๆ เพราะการ์ดใช้แค่ชื่อ; ช่วงเวลา/สถานะเป็น scalar บน Order มาแล้วจาก include
       serviceResource: { select: { id: true, name: true } },
+      /**
+       * feature 00050 — เงินที่ได้รับจริงของใบนี้ (หน้าออเดอร์ฝั่งร้าน)
+       *
+       * 🛑 ต่างจาก `getOrderByToken` (หน้าลูกค้า) ตรงที่ **ที่นี่ดู `note` ได้** — จอนี้เป็นของร้าน
+       * บันทึกภายในคือสิ่งที่พนักงานคนถัดไปต้องอ่าน · แต่ยังไม่ดึง `receivedByUserId` เพราะ
+       * การ์ดยังไม่แสดงชื่อคนรับ (เพิ่มเมื่อมีที่แสดงจริง ไม่ใช่ดึงเผื่อ)
+       */
+      payments: {
+        select: { kind: true, amount: true, method: true, note: true, receivedAt: true, voidedAt: true },
+        orderBy: { receivedAt: 'desc' },
+      },
       // shipments — 3 field แคบ ๆ พอให้ countsAsRevenue() ตัดสินได้ว่าใบนี้นับเป็นยอดขายแล้วหรือยัง
       // (feature 00016 ส่วนขยาย FR-EXP-14) ห้ามใช้ shipmentPanel.shipment ที่หน้าโหลดอยู่แล้ว
       // ตัดสินแทน — นั่นคือใบ active ใบเดียว ส่วน revenueOrderWhere พิจารณา shipments ทั้งหมด
@@ -1451,10 +1485,31 @@ export async function syncOrderPaymentToParcel(
   return { kind: "changed", message: decision.message };
 }
 
-export async function getOrdersByShop(shopId: string, status?: string) {
+export async function getOrdersByShop(
+  shopId: string,
+  status?: string,
+  /**
+   * `withPayments` — ดึงเงินที่ร้าน "ยืนยันว่าได้รับแล้ว" มาด้วย (feature 00050 · AC-SQ-07)
+   *
+   * 🛑 เป็น opt-in ต่อ **ประเภทร้าน** ไม่ใช่เปิดให้ทุกคน: ร้านขายออนไลน์ไม่มีเส้นทางบันทึกเงิน
+   * รายใบเลย การ join ตารางที่ว่างเปล่าให้ทุกแถวของทุกร้าน คือค่าใช้จ่ายที่ไม่ได้แลกอะไรกลับมา
+   * (query นี้ไม่มีการแบ่งหน้า — ดึงออเดอร์ทั้งร้านในครั้งเดียว ต้นทุนจึงโตตามจำนวนออเดอร์)
+   *
+   * ผู้เรียกต้องกั้นด้วย `shop.vertical === 'SERVICE_QUEUE'` — ห้ามกั้นด้วย "ร้านนี้มีมัดจำไหม"
+   */
+  opts?: { withPayments?: boolean },
+) {
   return prisma.order.findMany({
     where: { shopId, ...(status ? { status } : {}) },
     include: {
+      /**
+       * แถวเงินของใบนี้ — ป้ายสถานะในรายการต้องมาจากตัวเลขชุดเดียวกับหน้ารายละเอียด
+       * ไม่งั้นใบเดียวกันขึ้น "รอดำเนินการ" ในรายการ แล้วขึ้น "ชำระเงินแล้ว" เมื่อกดเข้าไป
+       * (`voidedAt` ต้องมาด้วยเสมอ — ตัวตัดยอดที่ถูกยกเลิกอยู่ใน computeOrderMoney ไม่ใช่ที่ where)
+       */
+      ...(opts?.withPayments
+        ? { payments: { select: { kind: true, amount: true, voidedAt: true } } }
+        : {}),
       // items: เพิ่ม product.images เพื่อ resolve imageUrl → /api/files/{id} ใน OrderCard (F2)
       // pattern เดียวกับ new/page.tsx L67 ที่ resolve image จาก p.images[0]
       items: {
@@ -1532,6 +1587,8 @@ export async function getOrdersByCustomer(
     serviceEnd: string | null;
     appointmentStatus: string | null;
     depositAmount: string | null;
+    /** เงินที่ได้รับจริง (feature 00050) — ว่าง = ยังไม่มีใครกดยืนยันรับเงิน */
+    payments: { kind: string; amount: string; voidedAt: string | null }[];
     items: { name: string; qty: number; price: string; imageFileId: string | null }[];
     /** พัสดุ iShip ที่ยังใช้งานอยู่ (feature 00022) — null = ยังไม่เปิดพัสดุ */
     shipment: { trackingNo: string | null; courierName: string | null } | null;
@@ -1569,6 +1626,9 @@ export async function getOrdersByCustomer(
       serviceEnd: true,
       appointmentStatus: true,
       depositAmount: true,
+      // feature 00050 — เงินที่ได้รับจริง (คนละเรื่องกับ depositAmount ซึ่งเป็นข้อตกลง)
+      // ต้องตรงกับ select ใน inbox/[conversationId]/page.tsx เสมอ (ใบที่ 21 ขึ้นไปโหลดผ่านนี่)
+      payments: { select: { kind: true, amount: true, voidedAt: true } },
       // การ์ด right panel แสดงเหมือนในแชท (user 2026-07-25): ชื่อ/จำนวน/ราคา/รูปสินค้า
       items: { select: { name: true, qty: true, price: true, product: { select: { images: true } } } },
       // feature 00022 — พอรู้ว่ามีพัสดุแล้วหรือยัง ปุ่มบนการ์ดจะได้บอกล่วงหน้าว่ากดแล้วเจออะไร
@@ -1601,6 +1661,11 @@ export async function getOrdersByCustomer(
       serviceEnd: o.serviceEnd ? o.serviceEnd.toISOString() : null,
       appointmentStatus: o.appointmentStatus,
       depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
+      payments: o.payments.map((p) => ({
+        kind: p.kind,
+        amount: p.amount.toFixed(2),
+        voidedAt: p.voidedAt ? p.voidedAt.toISOString() : null,
+      })),
       paymentMethod: o.paymentMethod,
       codReceivedAt: o.codReceivedAt ? o.codReceivedAt.toISOString() : null,
       items: o.items.map((it) => ({

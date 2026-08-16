@@ -13,9 +13,16 @@
  * Base: ./ThreadStatusBar.tsx (โครงยุบ/กาง + truncate + badge +N + ปุ่มย่อ)
  */
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { completionWarning, computeOrderMoneyFromSerialized } from '@/lib/order-payment'
+import { chatMoneySummary, chatOrderActions } from '@/lib/chat-order-actions'
+import { ARRIVAL_MODE_META, resolveArrivalMode } from '@/lib/arrival-mode'
+import RecordPaymentSheet from '../../../_components/RecordPaymentSheet'
+import StartWalkInSheet from '../../../_components/StartWalkInSheet'
+import { markServedFlow } from '../../../_components/mark-served'
 import { formatDateTime } from '@/lib/format-date'
 import { courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
@@ -87,6 +94,7 @@ export default function OrderProgressBar({
   channel,
   customerAvatar,
   pageAvatarUrl,
+  shopId,
   variant = 'bar',
 }: {
   orders: CustomerPanelOrder[]
@@ -104,6 +112,13 @@ export default function OrderProgressBar({
   /** รูปเพจของเธรด — badge มุม avatar ในหน้าต่าง/ชิปที่ย่อไว้ (user สั่ง 2026-08-07) */
   pageAvatarUrl: string | null
   /**
+   * ร้านของเธรดนี้ (feature 00050) — ส่งต่อเป็น `?shopId=` ให้ทุก API ที่ปุ่มในการ์ดยิง
+   *
+   * 🛑 ห้ามปล่อยให้ server เดาจาก `activeShopId`: เธรดของร้าน B เปิดได้ขณะ active อยู่ร้าน A
+   * (BR-UNI-07) ⇒ ปุ่มจะ "หาไม่เจอ" แล้วกดกี่ครั้งก็ไม่ผ่าน (บทเรียน iShip retry 2026-08-06)
+   */
+  shopId: string | null
+  /**
    * 'bar' (เดิม) = แถบยุบ/กางของตัวเอง · 'detail' = เนื้อหาที่กางแล้วล้วน ๆ ไม่มีแถบ ไม่มีปุ่มย่อ
    *
    * 'detail' เกิดขึ้นตอนยุบ 3 แถบใต้หัวเธรดเป็นแถวชิปเดียว (2026-08-14) — `ThreadChipStrip`
@@ -116,8 +131,32 @@ export default function OrderProgressBar({
   /** token ของนัดที่กำลังเปิดชีต "ส่งสรุปนัด" (ส่วนขยาย 00024 2026-08-11) — null = ปิด
    *  เก็บเป็น token ไม่ใช่ boolean เพราะแถบกางแสดงได้หลายใบพร้อมกัน */
   const [apptToken, setApptToken] = useState<string | null>(null)
+  /** token ของใบที่กำลังเปิดชีตรับเงิน (feature 00050) — เหตุผลเดียวกับ apptToken */
+  const [payToken, setPayToken] = useState<string | null>(null)
+  /** token ของใบที่กำลังบันทึกผลนัด — ปิดปุ่มเฉพาะใบนั้น ไม่ใช่ทั้งแถบ */
+  const [markingToken, setMarkingToken] = useState<string | null>(null)
+  /** token ของใบที่กำลังเปิดชีต "เริ่มงานเลย" (feature 00050) */
+  const [walkInToken, setWalkInToken] = useState<string | null>(null)
   const { openDraft } = useDraftOrders()
+  const router = useRouter()
+  const [, startTransition] = useTransition()
   const isService = vertical === 'SERVICE_QUEUE'
+
+
+  /** ข้อมูลเงินเปลี่ยน → ให้ server ส่งออเดอร์ชุดใหม่ลงมา (ตัวเลขบนการ์ดมาจาก server เสมอ) */
+  const refresh = () => startTransition(() => router.refresh())
+
+  /** ปิดผลนัด — ตรรกะ/คำ/การแปล error อยู่ที่ `markServedFlow` ที่เดียว (ใช้ร่วมกับแผงขวา) */
+  async function markServed(token: string, label: string, warning: string | null) {
+    setMarkingToken(token)
+    try {
+      if (await markServedFlow({ orderToken: token, shopId, label, outstandingWarning: warning })) {
+        refresh()
+      }
+    } finally {
+      setMarkingToken(null)
+    }
+  }
 
   /**
    * "ยังไม่จบงาน" — คนละเกณฑ์ตามแกนของร้าน ห้ามเขียนเงื่อนไขซ้ำที่นี่ทั้งสองทาง
@@ -126,17 +165,39 @@ export default function OrderProgressBar({
    * DONE เลยเพราะไม่มีพัสดุให้เดินหน้า มันจึงค้างอยู่ในแถบนี้ตลอดกาล
    */
   const active = isService ? filterActiveServiceOrders(orders) : filterActiveOrders(orders)
-  if (active.length === 0) return null
 
   const head = active[0]
-  const headStage = orderShippingStage(head)
-  const headServiceStage = serviceProgressStage(head)
+  const headStage = head ? orderShippingStage(head) : 'DONE'
+  const headServiceStage = head ? serviceProgressStage(head) : 'DONE'
   const headMeta = headServiceStage === 'DONE' ? null : SERVICE_STAGE_CHIP_META[headServiceStage]
   const headLabel = isService
     ? (headMeta?.label ?? '')
     : headStage === 'DONE'
       ? ''
       : SHIPPING_STAGE_LABEL[headStage]
+
+  /**
+   * ใบที่กำลังเปิดชีตรับเงิน — derive จาก `payToken` ไม่เก็บ money ซ้อนไว้ใน state
+   *
+   * 🛑 ถ้าเก็บ `money` ลง state ตอนกดปุ่ม มันจะค้างเป็นภาพนิ่ง ณ วินาทีที่กด: `router.refresh()`
+   * ส่งตัวเลขชุดใหม่ลงมาแล้วแต่ชีตยังโชว์ของเก่า ⇒ เพื่อนร่วมทีมบันทึกเงินพร้อมกันแล้วยอดค้าง
+   * บนชีตไม่ตรงกับบนการ์ดในจอเดียวกัน (`stored-flag-vs-owner-truth.md` — ภาพนิ่ง ≠ ความจริงปัจจุบัน)
+   */
+  const walkInOrder = walkInToken ? active.find((o) => o.token === walkInToken) : undefined
+  const payOrder = payToken ? active.find((o) => o.token === payToken) : undefined
+  const payMoney = payOrder
+    ? {
+        token: payOrder.token,
+        label: displayNo(payOrder),
+        money: computeOrderMoneyFromSerialized({
+          totalAmount: payOrder.totalAmount,
+          depositAmount: payOrder.depositAmount ?? null,
+          payments: payOrder.payments,
+        }),
+      }
+    : null
+
+  if (active.length === 0) return null
 
   // ข้อความ/พฤติกรรมชุดเดียวกับปุ่มคัดลอกในโมดัลพัสดุ (ShipmentStatusView.handleCopy) —
   // clipboard ต้องการ https บน dev ที่ไม่ใช่ https จะล้มเหลว ต้องบอกตามตรงไม่ใช่เงียบ
@@ -179,6 +240,30 @@ export default function OrderProgressBar({
           orderToken={apptToken}
         />
       )}
+      {/* ชีตรับเงิน — เหตุผลเดียวกับชีตด้านบน: อยู่นอก `xl:hidden` และ render ครั้งเดียวนอกลูป
+          หา money ของใบที่เปิดจาก token (เปิดได้ทีละใบอยู่แล้ว) ⇒ ไม่ต้องถือ state ซ้อน */}
+      {/* เริ่มงาน walk-in — ใบที่ยังไม่มีเวลาเริ่มยังไม่มีที่ยืนในตารางงานเลย (BR-SQ-21) */}
+      {walkInOrder && (
+        <StartWalkInSheet
+          open
+          onClose={() => setWalkInToken(null)}
+          orderToken={walkInOrder.token}
+          orderLabel={displayNo(walkInOrder)}
+          shopId={shopId}
+          onStarted={refresh}
+        />
+      )}
+      {payMoney && (
+        <RecordPaymentSheet
+          open
+          onClose={() => setPayToken(null)}
+          orderToken={payMoney.token}
+          orderLabel={payMoney.label}
+          shopId={shopId}
+          money={payMoney.money}
+          onChanged={refresh}
+        />
+      )}
       <div className={variant === 'detail' ? '' : 'px-4 pt-4 xl:hidden'}>
       {open || variant === 'detail' ? (
         <div className="space-y-2">
@@ -192,6 +277,33 @@ export default function OrderProgressBar({
               const logo = courierLogoUrl(sh?.courierCode, sh?.courierName)
               const courierLabel = sh?.courierName ?? sh?.courierCode ?? 'ขนส่ง'
               const deposit = Number(o.depositAmount ?? 0)
+              /**
+               * เงินของใบนี้ — คำนวณจาก SSOT ตัวเดียว ห้ามบวกเองในการ์ด (HR16)
+               * คิดเฉพาะร้านบริการ: ร้านอื่นยังไม่มีปุ่มเรื่องเงินในแชท (AC-SQ-07)
+               */
+              const money = isService
+                ? computeOrderMoneyFromSerialized({
+                    totalAmount: o.totalAmount,
+                    depositAmount: o.depositAmount ?? null,
+                    payments: o.payments,
+                  })
+                : null
+              /**
+               * วิธีเข้ารับบริการ (หัวหน้าถาม 2026-08-15: *"อยากรู้ว่าคนนี้เข้ามารับบริการยังไง"*)
+               * derive จาก serviceStart เทียบ createdAt — ไม่มีคอลัมน์ใหม่ ตอบข้อมูลเก่าได้ทันที
+               */
+              const arrival = isService
+                ? resolveArrivalMode({ serviceStart: o.serviceStart ?? null, createdAt: o.createdAt })
+                : null
+              const payActions =
+                money !== null
+                  ? chatOrderActions({
+                      orderStatus: o.status,
+                      appointmentStatus: o.appointmentStatus ?? null,
+                      hasAppointment: Boolean(o.serviceStart),
+                      money,
+                    })
+                  : []
               return (
                 /* การ์ดเป็น <div> + แผ่นลิงก์คลุมทั้งใบ ไม่ใช่ <button> ก้อนเดียวเหมือนเดิม —
                    ปุ่มคัดลอกเลขพัสดุอยู่ข้างใน ปุ่มซ้อนปุ่มเป็น HTML ที่ใช้ไม่ได้จริง
@@ -201,10 +313,16 @@ export default function OrderProgressBar({
                   key={o.id}
                   className="border-default-200 bg-card relative rounded-lg border px-3 py-2.5"
                 >
-                  {/* ร้านคิวงานไม่มีหน้าต่างให้เปิด — DraftKind มีแค่ 'ORDER' | 'SHIPMENT'
-                      และออเดอร์บริการไม่มีพัสดุ การใส่แผ่นลิงก์ที่กดแล้วเปิดหน้าต่างพัสดุเปล่า
-                      จะแย่กว่าไม่มีอะไรให้กด จึงเป็นการ์ดอ่านอย่างเดียวไปก่อน
-                      (ถ้าจะให้กดได้ ต้องมี DraftKind ใหม่สำหรับนัด = งานรอบถัดไป ผ่าน ux) */}
+                  {/**
+                    * ไม่มีแผ่นลิงก์คลุมทั้งใบสำหรับร้านคิวงาน — ออเดอร์บริการไม่มีพัสดุ
+                    * การกดแล้วเปิดหน้าต่างพัสดุเปล่าจะแย่กว่าไม่มีอะไรให้กด
+                    *
+                    * 🛑 อัปเดต 2026-08-16: คอมเมนต์เดิมเขียนว่า "ร้านคิวงานไม่มีหน้าต่างให้เปิด"
+                    * ซึ่ง **ไม่จริงแล้ว** — `openDraft({ editOrderToken })` เปิดฟอร์มแก้ไขใบเดิม
+                    * ในหน้าต่างลอยได้ตั้งแต่มี `editOrderToken` (แผงขวาเดสก์ท็อปใช้อยู่จริง)
+                    * ที่ขาดคือ *ปุ่มบนมือถือ* ไม่ใช่ความสามารถ ⇒ อยู่ในแถวปุ่มด้านล่างแล้ว
+                    * (หัวหน้าสั่ง 2026-08-15: *"และต้องจัดการสินค้าได้ด้วย"*)
+                    */}
                   {!isService && (
                     <button
                       type="button"
@@ -231,6 +349,22 @@ export default function OrderProgressBar({
                             {SHIPPING_STAGE_LABEL[stage]}
                           </span>
                         )}
+                    {/**
+                      * ชิป "วิธีเข้ารับบริการ" — ตอบคำถามหัวหน้า *"อยากรู้ว่าคนนี้เข้ามารับยังไง"*
+                      *
+                      * 🛑 แสดงเฉพาะตอนที่ **มีอะไรให้รู้จริง** — "จองล่วงหน้า" เป็นค่าปกติของร้านจอง
+                      * ติดป้ายทุกใบจะกลายเป็นเสียงรบกวนที่ตาข้ามไปเอง แล้ววันที่มีใบ "ยังไม่ระบุเวลา"
+                      * (ซึ่งเป็นใบที่ต้องลงมือ) ป้ายนั้นก็จะถูกข้ามไปด้วย
+                      */}
+                    {arrival && arrival !== 'BOOKED' && (
+                      <span
+                        className={`${ARRIVAL_MODE_META[arrival].cls} inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium`}
+                        title={ARRIVAL_MODE_META[arrival].hint}
+                      >
+                        <Icon icon={ARRIVAL_MODE_META[arrival].icon} className="text-2xs" aria-hidden="true" />
+                        {ARRIVAL_MODE_META[arrival].label}
+                      </span>
+                    )}
                     <span className="text-primary ms-auto text-xs font-bold">
                       ฿{Number(o.totalAmount).toLocaleString('th-TH')}
                     </span>
@@ -239,16 +373,40 @@ export default function OrderProgressBar({
                   {isService ? (
                     <>
                       {/* มัดจำ — บรรทัดข้อมูลเฉย ๆ **ไม่ใช่ขั้นของ timeline และห้ามเป็นสีเขียว**
-                          ระบบไม่มีคอลัมน์ที่บอกว่ามัดจำถูกจ่ายแล้วหรือยัง (ไม่มี depositReceivedAt
+                          ค่านี้คือ "ข้อตกลง" ไม่ใช่เงินที่เข้าแล้ว (เงินจริงอยู่ที่ตาราง OrderPayment ตั้งแต่ feature 00050
                           — BR-RSV-49/50 ตั้งใจไม่กั้นคิวด้วยมัดจำ ไม่มี flow แนบสลิปแบบบ้านพัก)
                           ถ้าทำเป็นขั้นที่ติ๊กถูกได้ จะเป็นป้ายที่อ้างสิ่งที่ระบบไม่รู้ — คลาสเดียวกับ
                           "รอเลขพัสดุ" ที่เรากำลังแก้อยู่นี่เอง */}
                       {/* "มัดจำที่ตกลงไว้" ไม่ใช่ "มัดจำ" เฉย ๆ — คำหลังอ่านได้ทั้ง "เก็บแล้ว"
                           และ "ต้องเก็บ" และเมื่อวางใต้ยอดรวมกับวันนัดซึ่งเป็นข้อเท็จจริงที่เกิดแล้ว
-                          น้ำหนักจะเอนไปทาง "เก็บแล้ว" ซึ่งเป็นสิ่งที่ระบบไม่รู้ (ไม่มี depositReceivedAt) */}
+                          น้ำหนักจะเอนไปทาง "เก็บแล้ว" ซึ่งเป็นคนละเรื่องกับยอดที่ตกลงไว้ (BR-SQ-02) */}
                       {deposit > 0 && (
                         <p className="text-default-700 mb-0 mt-1.5 text-xs">
                           มัดจำที่ตกลงไว้ ฿{deposit.toLocaleString('th-TH')}
+                        </p>
+                      )}
+                      {/**
+                       * บรรทัด "เงินที่รับจริง" — **บรรทัดใหม่ ไม่ใช่การเปลี่ยนความหมายของบรรทัดบน**
+                       *
+                       * บรรทัดบนติดป้ายให้ `Order.depositAmount` ซึ่งคือ *ข้อตกลง* และความหมายของมัน
+                       * ไม่เปลี่ยนเลยแม้ระบบจะรู้เรื่องเงินที่รับแล้ว (BR-SQ-02) — สองบรรทัดนี้ตอบ
+                       * คนละคำถาม จึงต้องอยู่คู่กัน ไม่ใช่แทนกัน
+                       *
+                       * สีตามสถานะ: ครบแล้ว = success · ยังค้าง = warning-ink บนพื้นโปร่ง
+                       * (ไม่ใช้จุดสีเปล่า ๆ — non-text ต้องการ 3:1 ซึ่งเคยตกมาแล้วที่ชิปเวลา 00024)
+                       */}
+                      {money && (
+                        <p
+                          className={`mb-0 mt-1.5 flex items-center gap-1.5 text-xs font-medium ${
+                            money.fullyPaid ? 'text-success-ink' : 'text-warning-ink'
+                          }`}
+                        >
+                          <Icon
+                            icon={money.fullyPaid ? 'circle-check' : 'cash-banknote'}
+                            className="shrink-0 text-sm"
+                            aria-hidden="true"
+                          />
+                          <span className="min-w-0">{chatMoneySummary(money)}</span>
                         </p>
                       )}
                       {o.serviceStart ? (
@@ -284,16 +442,94 @@ export default function OrderProgressBar({
                        *
                        * เฉพาะใบที่ "มีนัดจริง" — walk-in ไม่มีนัดให้สรุป (BR-RSV-04)
                        */}
-                      {o.serviceStart && (
-                        <button
-                          type="button"
-                          onClick={() => setApptToken(o.token)}
-                          aria-label={`ส่งสรุปนัดของ ${displayNo(o)} เข้าแชท`}
-                          className="btn bg-primary/10 text-primary-ink hover:bg-primary/20 mt-2 min-h-11 w-full gap-1"
-                        >
-                          <Icon icon="calendar-check" className="text-sm" aria-hidden="true" />
-                          ส่งสรุปนัด
-                        </button>
+                      {/**
+                       * แถวปุ่ม — รายการปุ่มมาจาก `chatOrderActions()` ที่เดียว (feature 00050)
+                       *
+                       * 🛑 `HANDLER` เป็น `Record<ChatOrderActionKey, …>` โดยตั้งใจ: เพิ่มปุ่มใหม่
+                       * ในไลบรารีแล้วลืมต่อสายที่นี่ = `tsc` แดงทันที ไม่ใช่ปุ่มที่หายเงียบ ๆ
+                       *
+                       * 🛑 `REQUEST_DEPOSIT` ชี้ไปที่ **ชีตสรุปนัดตัวเดิม** ไม่ได้สร้างทางส่งใหม่ —
+                       * การ์ดสรุปนัดมีบรรทัด "มัดจำที่ตกลงไว้" อยู่ในนั้นแล้ว (`appointment-summary.ts`)
+                       * การทำตัวส่งที่สองสำหรับเรื่องเดียวกันคือที่ที่คำสองชุดจะเพี้ยนจากกัน (HR16)
+                       * ⇒ ปุ่ม "ส่งสรุปนัด" เดิมจึงถูกกลืนเข้าแถวนี้ ไม่ได้อยู่ซ้ำเป็นใบที่สอง
+                       */}
+                      {(payActions.length > 0 || o.serviceStart || isService) && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {payActions.map((a) => {
+                            const HANDLER: Record<typeof a.key, () => void> = {
+                              START_WALK_IN: () => setWalkInToken(o.token),
+                              REQUEST_DEPOSIT: () => setApptToken(o.token),
+                              RECORD_PAYMENT: () => setPayToken(o.token),
+                              MARK_SERVED: () =>
+                                void markServed(
+                                  o.token,
+                                  displayNo(o),
+                                  money ? completionWarning(money) : null,
+                                ),
+                            }
+                            const busy = a.key === 'MARK_SERVED' && markingToken === o.token
+                            return (
+                              <button
+                                key={a.key}
+                                type="button"
+                                onClick={HANDLER[a.key]}
+                                disabled={busy}
+                                aria-label={`${a.label} — ${displayNo(o)}`}
+                                className={`btn min-h-11 flex-1 basis-32 items-center justify-center gap-1 disabled:opacity-60 ${
+                                  a.primary
+                                    ? 'bg-primary hover:bg-primary-hover text-white'
+                                    : 'bg-primary/10 text-primary-ink hover:bg-primary/20'
+                                }`}
+                              >
+                                <Icon
+                                  icon={busy ? 'loader-2' : a.icon}
+                                  className={`text-sm ${busy ? 'animate-spin' : ''}`}
+                                  aria-hidden="true"
+                                />
+                                {a.label}
+                              </button>
+                            )
+                          })}
+                          {/**
+                            * แก้ไขรายการในบิล — หัวหน้าสั่ง *"ต้องจัดการสินค้าได้ด้วย"*
+                            *
+                            * เปิด **ฟอร์มเดิม** (`OrderCreateForm` ในหน้าต่างลอย) ที่แผงขวา
+                            * เดสก์ท็อปใช้อยู่แล้ว ไม่ได้สร้างทางแก้ไขเส้นที่สอง — ยอดรวมเปลี่ยน
+                            * แล้วยอดค้างคำนวณใหม่เองเพราะทุกจออ่านจาก `computeOrderMoney`
+                            * ตัวเดียว (BR-SQ-31)
+                            */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openDraft({
+                                conversationId,
+                                customerName,
+                                channel,
+                                customerAvatar,
+                                pageAvatarUrl,
+                                editOrderToken: o.token,
+                              })
+                            }
+                            aria-label={`แก้ไขรายการของ ${displayNo(o)}`}
+                            className="btn bg-default-100 text-default-800 hover:bg-default-200 min-h-11 flex-1 basis-32 gap-1"
+                          >
+                            <Icon icon="edit" className="text-sm" aria-hidden="true" />
+                            แก้ไขรายการ
+                          </button>
+                          {/* ส่งสรุปนัด — คงไว้ตามเดิมเมื่อไม่มีปุ่ม "แจ้งมัดจำ" มาแทน
+                              (ปุ่มเดียวกัน คำเดียวกัน ไม่ใช่สองใบบนการ์ดเดียว) */}
+                          {o.serviceStart && !payActions.some((a) => a.key === 'REQUEST_DEPOSIT') && (
+                            <button
+                              type="button"
+                              onClick={() => setApptToken(o.token)}
+                              aria-label={`ส่งสรุปนัดของ ${displayNo(o)} เข้าแชท`}
+                              className="btn bg-primary/10 text-primary-ink hover:bg-primary/20 min-h-11 flex-1 basis-32 gap-1"
+                            >
+                              <Icon icon="calendar-check" className="text-sm" aria-hidden="true" />
+                              ส่งสรุปนัด
+                            </button>
+                          )}
+                        </div>
                       )}
                     </>
                   ) : sh?.status != null ? (

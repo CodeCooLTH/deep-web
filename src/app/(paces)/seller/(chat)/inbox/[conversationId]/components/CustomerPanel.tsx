@@ -35,7 +35,7 @@
  * ถูก serialize เข้า flight payload หมด ไม่ว่าจะ render จริงหรือไม่
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import CustomerFileLibrarySection from './CustomerFileLibrarySection'
 import { generateInitials } from '@/utils/helpers'
@@ -43,6 +43,15 @@ import { relativeTimeTh } from '@/lib/relative-time-th'
 import { ORDER_VOCAB, resolveOrderVocab } from '@/lib/seller-menu'
 import { type OrderStatus } from '@/lib/order-display'
 import type { ShopVertical } from '@/lib/lodging'
+import {
+  completionWarning,
+  computeOrderMoneyFromSerialized,
+  type SerializedPaymentRow,
+} from '@/lib/order-payment'
+import { chatOrderActions } from '@/lib/chat-order-actions'
+import RecordPaymentSheet from '../../../_components/RecordPaymentSheet'
+import StartWalkInSheet from '../../../_components/StartWalkInSheet'
+import { markServedFlow } from '../../../_components/mark-served'
 // import ข้ามกลุ่มโฟลเดอร์ตาม precedent ใน OrderActionBar.tsx — reuse ⋮ + SSOT ของ action
 // เดียวกับหน้า order detail แทนประดิษฐ์ dropdown/เงื่อนไขสถานะใหม่ (sibling-surface-parity)
 import OrderOverflowMenu from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/OrderOverflowMenu'
@@ -79,9 +88,13 @@ export type CustomerPanelOrder = {
   /** SCHEDULED | CONFIRMED_BY_BUYER | RESCHEDULE_REQUESTED | COMPLETED | NO_SHOW */
   appointmentStatus?: string | null
   /** ยอดมัดจำที่ตกลงกันไว้ "300.00" — snapshot ตอนสร้าง ไม่ใช่สูตรสด (BR-RSV-46/47)
-   *  IMPORTANT: ระบบ**ไม่มี**ข้อมูลว่าจ่ายแล้วหรือยัง (ไม่มีคอลัมน์ depositReceivedAt)
-   *  ห้ามแสดงเป็นสถานะ/ขั้นที่สื่อว่า "เสร็จแล้ว" — แสดงได้แค่จำนวนเงินที่ตกลงกัน */
+   *  IMPORTANT: ค่านี้คือ **ข้อตกลง** ไม่ใช่เงินที่เข้าแล้ว — ห้ามแสดงเป็นสถานะที่สื่อว่า
+   *  "เก็บแล้ว" (BR-SQ-02) · เงินที่รับจริงอยู่ที่ตาราง `OrderPayment` ตั้งแต่ feature 00050
+   *  ใช้ `computeOrderMoney()` เป็นตัวรวม อย่าบวกลบเองในคอมโพเนนต์ (Hard Rule 16) */
   depositAmount?: string | null
+  /** เงินที่ **ได้รับจริง** ของออเดอร์ใบนี้ (feature 00050) — คนละเรื่องกับ depositAmount ข้างบน
+   *  แปลงเป็นตัวเลขด้วย `computeOrderMoneyFromSerialized()` เท่านั้น ห้ามบวกเองในคอมโพเนนต์ */
+  payments?: SerializedPaymentRow[]
   // รายการสินค้า (user 2026-07-25: การ์ด right panel แสดงเหมือนในแชท — ชื่อ/จำนวน/ราคา/รูป)
   items: { name: string; qty: number; price: string; imageFileId: string | null }[]
   /** พัสดุ iShip ที่ยังใช้งานอยู่ (feature 00022) — null = ยังไม่เปิดพัสดุ
@@ -115,6 +128,13 @@ export type CustomerPanelData = {
    *  (user สั่ง 2026-08-07 "ถ้า page มี logo ให้ใช้ logo page แทน") null = Deep/เพจไม่มีรูป */
   channelAvatarUrl: string | null
   vertical: ShopVertical
+  /**
+   * ร้านของเธรดนี้ (feature 00050) — ส่งต่อเป็น `?shopId=` ให้ API ที่ปุ่มบนการ์ดยิง
+   *
+   * 🛑 ต้องมาจาก `Conversation.shopId` ไม่ใช่ `activeShopId`: เธรดของร้าน B เปิดได้ขณะ
+   * active อยู่ร้าน A (BR-UNI-07) ⇒ ปุ่มจะหาออเดอร์ไม่เจอแล้วกดกี่ครั้งก็ไม่ผ่าน
+   */
+  shopId: string
   /** null = ยังไม่ผูก Customer — phoneMasked ผ่าน maskPhone() มาแล้วเสมอ (ห้ามส่งเบอร์เต็ม) */
   customer: { id: string; phoneMasked: string } | null
   /** สถิติลูกค้า (aggregate จริงทั้งหมด ไม่ใช่แค่ orders 20 แถวที่ list ใช้) — null = ยังไม่ผูก Customer
@@ -256,6 +276,7 @@ function OrderCard({
   customerAvatar,
   pageAvatarUrl,
   vertical,
+  shopId,
   onCancelled,
 }: {
   o: CustomerPanelOrder
@@ -265,11 +286,14 @@ function OrderCard({
   customerAvatar: string | null
   pageAvatarUrl: string | null
   vertical: ShopVertical
+  /** ร้านของเธรด — ดูเหตุผลที่ `CustomerPanelData.shopId` */
+  shopId: string
   /** แจ้ง OrdersList อัปเดต status ใน local state — ไม่ router.refresh() เพราะจะรบกวน
    *  scroll/​state ของห้องแชทที่เปิดค้างอยู่ (pattern เดียวกับ CRM section ในไฟล์นี้) */
   onCancelled: (id: string) => void
 }) {
   const { openDraft } = useDraftOrders()
+  const router = useRouter()
   const [sending, setSending] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   /** ชีต "ส่งสรุปนัด" (ส่วนขยาย 00024 2026-08-11) — ชีตขอข้อมูลเองจาก token ไม่รับ prop
@@ -286,6 +310,31 @@ function OrderCard({
    * คิวงานไม่มีนัดผูก (BR-RSV-04) ส่งสรุปนัดของสิ่งที่ไม่มีนัดไม่ได้
    */
   const isAppointment = vertical === 'SERVICE_QUEUE' && !!o.serviceStart
+  /** ชีตรับเงิน (feature 00050) — ใบนี้ใบเดียว จึงเป็น boolean ไม่ใช่ token เหมือนแถบมือถือ */
+  const [payOpen, setPayOpen] = useState(false)
+  /** ชีต "เริ่มงานเลย" (feature 00050) — ใบที่ยังไม่มีเวลาเริ่ม */
+  const [walkInOpen, setWalkInOpen] = useState(false)
+  const [marking, setMarking] = useState(false)
+  /**
+   * เงินของใบนี้ — คำนวณจาก SSOT ตัวเดียวกับแถบมือถือ (HR16)
+   * เฉพาะร้านบริการ: ร้านอื่นยังไม่มีปุ่มเรื่องเงินในแชท (AC-SQ-07)
+   */
+  const money =
+    vertical === 'SERVICE_QUEUE'
+      ? computeOrderMoneyFromSerialized({
+          totalAmount: o.totalAmount,
+          depositAmount: o.depositAmount ?? null,
+          payments: o.payments,
+        })
+      : null
+  const payActions = money
+    ? chatOrderActions({
+        orderStatus: o.status,
+        appointmentStatus: o.appointmentStatus ?? null,
+        hasAppointment: Boolean(o.serviceStart),
+        money,
+      })
+    : []
   // IMPORTANT: ใช้ noun ไม่ใช่ cta.tabLabel — LODGING สองค่านี้ตั้งใจไม่เท่ากัน (tabLabel="การจอง" เรียกลิสต์,
   // noun="บิลเข้าพัก" คือ Order entity ที่ confirm/toast ต้องพูดถึงให้ตรงกับหน้า order detail)
   const noun = resolveOrderVocab(vertical).noun
@@ -439,8 +488,62 @@ function OrderCard({
           // (user report 2026-08-06 "มันเบิ้ล")
           undefined
         ) : (
-          <div className="border-default-200 flex gap-2 border-t p-2">
-            {isAppointment ? (
+          /* flex-wrap: แผงขวากว้าง ~300px ปุ่มเรื่องเงินสูงสุด 3 ใบ + ปุ่มเดิม + ⋮ ใส่แถวเดียว
+             ไม่พอ — ตัวหนังสือจะถูกบีบจนอ่านไม่ออกแทนที่จะตกลงบรรทัดใหม่
+             (บทเรียน 00038: action row ที่คอมเมนต์อ้างว่า wrap ได้ แต่ไม่มี `flex-wrap` จริง) */
+          <div className="border-default-200 flex flex-wrap gap-2 border-t p-2">
+            {/* ปุ่มเรื่องเงิน — รายการมาจาก `chatOrderActions()` ที่เดียว ตรงกับแถบมือถือเป๊ะ
+                `HANDLER` เป็น Record ⇒ เพิ่มปุ่มในไลบรารีแล้วลืมต่อสายที่นี่ = tsc แดง */}
+            {payActions.map((a) => {
+              const HANDLER: Record<typeof a.key, () => void> = {
+                START_WALK_IN: () => setWalkInOpen(true),
+                REQUEST_DEPOSIT: () => setApptOpen(true),
+                RECORD_PAYMENT: () => setPayOpen(true),
+                MARK_SERVED: () => {
+                  setMarking(true)
+                  void markServedFlow({
+                    orderToken: o.token,
+                    shopId,
+                    label: o.orderNo || o.token.slice(0, 8).toUpperCase(),
+                    outstandingWarning: money ? completionWarning(money) : null,
+                  })
+                    .then((done) => {
+                      if (done) router.refresh()
+                    })
+                    .finally(() => setMarking(false))
+                },
+              }
+              const busy = a.key === 'MARK_SERVED' && marking
+              return (
+                <button
+                  key={a.key}
+                  type="button"
+                  onClick={(e) => {
+                    // การ์ดทั้งใบเป็นพื้นที่กด "แก้ไข" อยู่แล้ว — ปุ่มในนั้นต้องหยุด bubble
+                    e.preventDefault()
+                    e.stopPropagation()
+                    HANDLER[a.key]()
+                  }}
+                  disabled={busy || cancelling}
+                  aria-label={`${a.label} — ${o.orderNo || o.token.slice(0, 8).toUpperCase()}`}
+                  className={`btn btn-sm min-h-11 flex-1 basis-28 items-center justify-center gap-1 disabled:opacity-60 ${
+                    a.primary
+                      ? 'bg-primary hover:bg-primary-hover text-white'
+                      : 'bg-primary/10 text-primary-ink hover:bg-primary/20'
+                  }`}
+                >
+                  <Icon
+                    icon={busy ? 'loader-2' : a.icon}
+                    className={`text-sm ${busy ? 'animate-spin' : ''}`}
+                    aria-hidden="true"
+                  />
+                  {a.label}
+                </button>
+              )
+            })}
+            {/* "ส่งสรุปนัด" ถูกกลืนเข้าแถวบนเมื่อมีปุ่ม "แจ้งมัดจำ" — ปุ่มเดียวกัน คำเดียวกัน
+                ไม่ใช่สองใบบนการ์ดเดียว (เหตุผลเดียวกับแถบมือถือ) */}
+            {isAppointment && payActions.some((a) => a.key === 'REQUEST_DEPOSIT') ? null : isAppointment ? (
               /* ไม่มี pacesConfirm ตรงนี้ — ชีตพรีวิว **คือ** ขั้นยืนยันแล้ว (มติ D-B3)
                  ซ้อน Swal ทับอีกชั้นคือการถามคำถามเดิมสองครั้ง */
               <button
@@ -517,6 +620,29 @@ function OrderCard({
     />
     {/* ส่งสรุปนัด (ส่วนขยาย 00024) — ชีตเดียวกับอีก 2 จุดเรียก ทั้งหมดเปิดตัวนี้ ไม่มีจุดไหน
         "ส่งเลย" ข้ามชีต (ทางลัดที่มีแค่บางจุดคือกฎที่ผู้ใช้เดาไม่ถูก) */}
+    {/* ชีตรับเงิน (feature 00050) — ตัวเดียวกับที่แถบมือถือเรียก ไม่มีชีตคู่ขนาน
+        เปิดเมื่อ money มีค่าเท่านั้น (ร้านที่ไม่ใช่ SERVICE_QUEUE ไม่มีปุ่มให้กดอยู่แล้ว) */}
+    {money && (
+      <StartWalkInSheet
+        open={walkInOpen}
+        onClose={() => setWalkInOpen(false)}
+        orderToken={o.token}
+        orderLabel={o.orderNo || o.token.slice(0, 8).toUpperCase()}
+        shopId={shopId}
+        onStarted={() => router.refresh()}
+      />
+    )}
+    {money && (
+      <RecordPaymentSheet
+        open={payOpen}
+        onClose={() => setPayOpen(false)}
+        orderToken={o.token}
+        orderLabel={o.orderNo || o.token.slice(0, 8).toUpperCase()}
+        shopId={shopId}
+        money={money}
+        onChanged={() => router.refresh()}
+      />
+    )}
     {isAppointment && (
       <AppointmentSummarySheet
         open={apptOpen}
@@ -541,6 +667,7 @@ function OrdersList({
   customerAvatar,
   pageAvatarUrl,
   vertical,
+  shopId,
 }: {
   conversationId: string
   initial: CustomerPanelOrder[]
@@ -549,6 +676,8 @@ function OrdersList({
   customerAvatar: string | null
   pageAvatarUrl: string | null
   vertical: ShopVertical
+  /** ร้านของเธรด — ดูเหตุผลที่ `CustomerPanelData.shopId` */
+  shopId: string
 }) {
   const [orders, setOrders] = useState<CustomerPanelOrder[]>(initial)
 
@@ -591,7 +720,7 @@ function OrdersList({
   return (
     <div className="space-y-2">
       {orders.map((o) => (
-        <OrderCard key={o.id} o={o} conversationId={conversationId} contactName={contactName} channel={channel} customerAvatar={customerAvatar} pageAvatarUrl={pageAvatarUrl} vertical={vertical} onCancelled={markCancelled} />
+        <OrderCard key={o.id} o={o} conversationId={conversationId} contactName={contactName} channel={channel} customerAvatar={customerAvatar} pageAvatarUrl={pageAvatarUrl} vertical={vertical} shopId={shopId} onCancelled={markCancelled} />
       ))}
       {cursor && (
         <div ref={sentinelRef} className="flex items-center justify-center gap-2 py-3">
@@ -948,7 +1077,7 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
           data.orders.length === 0 ? (
             <p className="text-default-700 mb-0 text-sm">{fmt(t.inbox.customerPanel.noHistory, { noun: tabNoun })}</p>
           ) : (
-            <OrdersList conversationId={data.conversationId} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} pageAvatarUrl={data.channelAvatarUrl} vertical={data.vertical} />
+            <OrdersList conversationId={data.conversationId} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} pageAvatarUrl={data.channelAvatarUrl} vertical={data.vertical} shopId={data.shopId} />
           )
         ) : (
           <p className="text-default-700 mb-0 text-sm">

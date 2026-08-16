@@ -22,7 +22,13 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const ctx = await requireShopMember();
+  /**
+   * `?shopId=` — ปุ่ม "เข้ารับบริการ" ถูกกดจากกล่องแชทตั้งแต่ feature 00050 ซึ่งเปิดเธรดของ
+   * ร้าน B ได้ขณะ active อยู่ร้าน A (BR-UNI-07) ⇒ ถ้าเชื่อ `activeShopId` อย่างเดียว
+   * `setAppointmentOutcome` จะหาออเดอร์ไม่เจอแล้วผู้ใช้ได้ปุ่มที่กดกี่ครั้งก็ไม่ผ่าน
+   * ไม่ส่งมา = พฤติกรรมเดิมทุกประการ (หน้า `/orders/[token]` และปฏิทินยังเรียกแบบเดิม)
+   */
+  const ctx = await requireShopMember({ shopId: request.nextUrl.searchParams.get("shopId") });
   if ("error" in ctx) return ctx.error;
 
   const body = await request.json().catch(() => null);

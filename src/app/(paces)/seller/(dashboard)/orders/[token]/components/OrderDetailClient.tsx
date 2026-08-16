@@ -41,7 +41,7 @@ import type { ShipmentContextJson } from '@/lib/iship/context'
 import OrderActionBar from '@/components/safepay/OrderActionBar'
 import CodCard from './CodCard'
 import dynamic from 'next/dynamic'
-import OrderSummary from './OrderSummary'
+import OrderSummary, { type OrderSummaryProps } from './OrderSummary'
 import type { OrderFactsItem } from './order-detail-shared'
 import { getOrderActionSet } from './order-action-set'
 import type { ShipmentSource } from './order-action-set'
@@ -128,6 +128,8 @@ export interface OrderDetailClientProps {
   vatAmount: unknown
   /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) */
   orderNoun?: string
+  /** ป้ายสถานะของร้านบริการ (คำนวณที่ server) — null = ใช้ป้ายเดิม */
+  serviceBadge?: OrderSummaryProps['serviceBadge']
 
   /** การ์ดที่ยัง server-render ได้ — ส่งมาจาก page.tsx เป็น ReactNode ไม่ลากเข้า client bundle */
   shippingActivity: React.ReactNode
@@ -173,6 +175,7 @@ export default function OrderDetailClient({
   vatRate,
   vatAmount,
   orderNoun,
+  serviceBadge,
   shippingActivity,
   customerCard,
   profitCard,
@@ -394,6 +397,9 @@ export default function OrderDetailClient({
       <div className="grid grid-cols-1 gap-base lg:grid-cols-4">
         <div className="space-y-base lg:col-span-3">
           <OrderSummary
+            /* ร้านบริการได้ป้ายจากเงินที่รับจริง (จอง/รอชำระ/ชำระเงินแล้ว) —
+               `serviceBadge` เป็น null สำหรับ vertical อื่นเสมอ ⇒ ป้ายเดิมไม่ขยับ (AC-SQ-07) */
+            serviceBadge={serviceBadge}
             actionSet={actionSet}
             createdAtISO={createdAtISO}
             internalNote={internalNote}

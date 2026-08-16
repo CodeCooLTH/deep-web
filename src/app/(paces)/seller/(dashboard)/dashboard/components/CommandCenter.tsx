@@ -17,6 +17,7 @@
 import type { CommandCenterData } from '../_constants/command-center'
 import CompactHero from './CompactHero'
 import OrderStatusBand from './OrderStatusBand'
+import MoneyReceivedTodayCard from './MoneyReceivedTodayCard'
 import BestSellerStrip from './BestSellerStrip'
 import CarouselGrid from './CarouselGrid'
 import SalesChartCard from './SalesChartCard'
@@ -56,6 +57,13 @@ export default function CommandCenter({ data }: Props) {
       {/* คำสั่งซื้อ — ร้านขายออนไลน์ได้ชุด "ของอยู่ไหน" (รอเลขพัสดุ/รอรับเข้า/กำลังจัดส่ง/มีปัญหา)
           vertical อื่นได้ชุดสถานะการขายเดิม (บ้านพัก/คิวงานไม่มีพัสดุให้ไล่)
           ร้านคิวงานได้ไทล์ที่ 2 เป็น "นัดวันนี้" แทน "กำลังจัดส่ง" ที่เข้าไม่ถึงตลอดกาล */}
+      {/* เงินที่รับจริงวันนี้ (feature 00050) — วางติดกับ OrderStatusBand เพราะทั้งคู่คือ
+          "ข้อเท็จจริงของวันนี้" ต่างจากกราฟยอดขายด้านบนที่เป็นข้อมูลย้อนหลังทั้งเดือน
+          ไม่มีค่า = ไม่ render (ร้านที่ไม่ใช่บริการ หรือ query ล้ม) ไม่ใช่การ์ด ฿0.00 */}
+      {data.moneyReceivedToday && (
+        <MoneyReceivedTodayCard money={data.moneyReceivedToday} jobsToday={data.appointmentTodayCount} />
+      )}
+
       <OrderStatusBand
         counts={data.orderStatusCounts}
         shipping={data.shippingStageCounts}

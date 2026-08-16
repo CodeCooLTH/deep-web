@@ -36,7 +36,7 @@ import BuyerAvatar from './BuyerAvatar'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import OrderActions from './OrderActions'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
-import { ORDER_STATUS_TONE_BORDER } from '@/lib/order-display'
+import { ORDER_STATUS_TONE_BORDER, resolveServiceOrderBadge } from '@/lib/order-display'
 import { resolveOrderStatusBadge } from '@/lib/order-stage'
 
 // ── status badge — อ่านจาก SSOT ตัวเดียวกับตารางเดสก์ท็อปและหน้ารายละเอียด (lib/order-display.ts)
@@ -128,7 +128,16 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
   const itemCount = order.items.length
   const visibleItems = expanded ? order.items : order.items.slice(0, 1)
 
-  const statusCfg = resolveOrderStatusBadge(order.status, order.shippingStage)
+  /* ป้ายสถานะ — ร้านบริการอ่านจากแกนเงิน (จอง/รอชำระ/ชำระเงินแล้ว) ร้านอื่นใช้แกนเดิม
+     `order.money` มีค่าเฉพาะร้าน SERVICE_QUEUE ที่ผ่าน `hasMoneyStory` ที่ server (AC-SQ-07)
+     ⇒ ไม่ต้องเช็ค vertical ซ้ำที่นี่ และร้านอื่นไม่มีทางเปลี่ยนป้ายโดยบังเอิญ */
+  const statusCfg = order.money
+    ? resolveServiceOrderBadge({
+        status: order.status,
+        money: order.money,
+        hasAppointment: Boolean(order.appointment),
+      })
+    : resolveOrderStatusBadge(order.status, order.shippingStage)
   const strip = ORDER_STATUS_TONE_BORDER[statusCfg.tone] ?? 'border-default-300'
   // sourceChannel ผูกกับ sourceLogoUrl แหล่งเดียวกัน (ไม่ใช่ salesChannel ดิบ) — ผสมกันจะได้รูป
   // ช่องทางหนึ่งคู่กับ badge อีกช่องทางหนึ่ง (2026-08-10)

@@ -26,7 +26,12 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const ctx = await requireShopMember();
+    /**
+   * `?shopId=` — ถูกเรียกจากกล่องแชทตั้งแต่ feature 00050 ซึ่งเปิดเธรดของร้าน B ได้ขณะ
+   * active อยู่ร้าน A (BR-UNI-07) ⇒ ถ้าเชื่อ `activeShopId` อย่างเดียวจะหาไม่เจอแล้วผู้ใช้
+   * ได้ปุ่มที่กดกี่ครั้งก็ไม่ผ่าน · ไม่ส่งมา = พฤติกรรมเดิมทุกประการ
+   */
+  const ctx = await requireShopMember({ shopId: request.nextUrl.searchParams.get("shopId") });
   if ("error" in ctx) return ctx.error;
 
   const activeOnly = request.nextUrl.searchParams.get("activeOnly") === "1";

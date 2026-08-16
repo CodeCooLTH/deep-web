@@ -25,6 +25,7 @@ import { formatDateTimeTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
 import { getPaymentBadge } from '@/lib/order-display'
 import { resolveOrderStatusBadge, type ShippingStageKey } from '@/lib/order-stage'
+import type { OrderStatusTone } from '@/lib/order-display'
 import type { OrderStatus } from '@/lib/order-display'
 import { SalesChannelLogo, getSalesChannelDisplay } from '@/components/safepay/SalesChannelBadge'
 import OrderSourceLogo from '../../components/OrderSourceLogo'
@@ -53,6 +54,13 @@ export type OrderSummaryProps = {
   isCod: boolean
   paymentMethod: string | null
   slipFileId: string | null
+  /**
+   * ป้ายสถานะที่ผู้เรียกคำนวณมาแล้ว (ร้านบริการ) — null = ใช้ป้ายเดิมจาก `status`
+   *
+   * 🛑 รับ **ผลลัพธ์** ไม่ใช่ `money` ดิบ: การ์ดนี้ใช้ร่วมทุก vertical ถ้าให้มันตัดสินเอง
+   * ว่าใบไหนเป็นร้านบริการ จะกลายเป็นด่าน vertical ตัวที่สองที่ต้องดูแลคู่กันไปตลอด
+   */
+  serviceBadge?: { label: string; cls: string; icon: string; tone: OrderStatusTone } | null
   isFromAuction: boolean
   items: OrderFactsItem[]
   discount: unknown
@@ -86,10 +94,11 @@ export default function OrderSummary({
   actionSet,
   onAction,
   orderNoun = 'คำสั่งซื้อ',
+  serviceBadge = null,
 }: OrderSummaryProps) {
   // ป้ายหัวต้องรวมสถานะพัสดุด้วย ไม่ใช่อ่าน status ดิบ — ใบ COD ที่ส่งถึงแล้วแต่ร้านยังไม่ได้
   // กดรับเงิน เดิมขึ้น "กำลังจัดส่ง" ขัดกับการ์ด "เก็บเงินปลายทาง" ที่อยู่ขวามือในหน้าเดียวกัน
-  const meta = resolveOrderStatusBadge(status, shippingStage)
+  const meta = serviceBadge ?? resolveOrderStatusBadge(status, shippingStage)
   const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId)
   const channelLabel = getSalesChannelDisplay(salesChannel || 'OTHER').label
 

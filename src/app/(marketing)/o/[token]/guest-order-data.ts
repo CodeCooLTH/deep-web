@@ -57,6 +57,21 @@ export type GuestOrderData = {
   /** เห็นได้เฉพาะ 3 ตัวท้าย — null = ไม่แสดงแถวนี้เลย (ไม่ใช่ "ไม่ระบุ") */
   maskedPhone: string | null
   maskedShippingAddress: MaskedShippingAddress | null
+  /**
+   * เวลานัดของงานบริการ — `null` เมื่อร้านไม่ใช่ SERVICE_QUEUE หรือใบนี้ยังไม่ระบุเวลา
+   *
+   * 🛑 เพิ่มเข้า allow-list อย่างตั้งใจ (ไฟล์นี้เป็น allow-list ไม่ใช่ deny-list): ก่อนหน้านี้
+   * ผู้ซื้อร้านบริการที่เปิดลิงก์ก่อนล็อกอิน **ไม่เห็นวันนัดของตัวเองเลยสักที่ในหน้า** ทั้งที่
+   * นั่นคือข้อเท็จจริงเดียวที่เขาเปิดหน้านี้มาหา — เห็นแค่ "รอดำเนินการ" กับยอดเงิน
+   *
+   * ที่รับความเสี่ยงได้: ค่านี้บอก *เวลาของบิลใบนี้* ไม่ได้บอกว่าใคร (ชื่อไม่เคยส่งมาที่จอนี้
+   * เบอร์ mask เหลือ 3 ตัวท้าย) คนที่ถือลิงก์ต่อจึงไม่ได้ตัวตนเพิ่มจากที่ลิงก์ให้อยู่แล้ว
+   *
+   * กั้นด้วย **vertical** ไม่ใช่ "มี serviceStart ไหม" (AC-SQ-07) — คอลัมน์นี้เป็นของ
+   * ร้านบริการ แต่ไม่มีอะไรใน schema ห้ามร้านประเภทอื่นมีค่าค้างอยู่
+   */
+  serviceStartIso: string | null
+  serviceEndIso: string | null
 }
 
 /**
@@ -67,6 +82,9 @@ type OrderLike = {
   publicToken: string
   status: string
   createdAt: Date
+  /** งานบริการ: ช่วงเวลานัด (scalar ของ Order — มากับ findUnique อยู่แล้ว ไม่เพิ่ม query) */
+  serviceStart: Date | null
+  serviceEnd: Date | null
   totalAmount: unknown
   buyerContact: string | null
   shippingAddress: unknown
@@ -119,6 +137,7 @@ export function buildGuestOrderData(
   stats: GuestShopStats = EMPTY_SHOP_STATS,
 ): GuestOrderData {
   const shipment = order.shipments?.[0]
+  const isServiceShop = order.shop.vertical === 'SERVICE_QUEUE'
 
   return {
     publicToken: order.publicToken,
@@ -195,5 +214,8 @@ export function buildGuestOrderData(
     maskedShippingAddress: maskShippingAddressForGuest(
       (order.shippingAddress as ShippingAddressLike | null) ?? null,
     ),
+    // ด่าน vertical มาก่อนเสมอ — เหตุผลเต็มอยู่ที่ประกาศฟิลด์ใน GuestOrderData
+    serviceStartIso: isServiceShop && order.serviceStart ? order.serviceStart.toISOString() : null,
+    serviceEndIso: isServiceShop && order.serviceEnd ? order.serviceEnd.toISOString() : null,
   }
 }

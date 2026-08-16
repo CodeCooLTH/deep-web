@@ -751,6 +751,9 @@ model Order {
   // แยกจาก Order.status โดยสิ้นเชิง — งานแม่บ้านไม่กระทบสถานะการจองและ Trust Score
   housekeepingStatus String?
 
+  /// เงินที่ได้รับจริงของออเดอร์นี้ (feature 00050) — ต่างจาก depositAmount ซึ่งเป็น "ข้อตกลง"
+  payments OrderPayment[]
+
   // --- feature 00024: Service Appointment Booking (additive nullable ทั้งหมด) ---
   // การนัดหมาย = Order ที่ type = "SERVICE" ไม่ใช่ตารางแยก (BR-RSV-10) — รูปแบบเดียวกับ 00017
   // field กลุ่มนี้เป็น NULL เสมอสำหรับออเดอร์สินค้าปกติและการจองบ้านพัก (zero-regression BR-RSV-04)
@@ -2146,6 +2149,59 @@ model ShopShippingAccount {
 }
 
 // OrderShipment — พัสดุ 1 ใบที่เปิดกับขนส่ง ผูกกับคำสั่งซื้อ 1 รายการ
+/**
+ * OrderPayment — เงินที่ "ได้รับจริง" ของออเดอร์หนึ่งใบ (feature 00050)
+ *
+ * 🛑 ทำไมต้องเป็นตารางแยก ไม่ใช่คอลัมน์บน Order
+ *
+ * งานบริการเก็บเงิน **2 ก้อน** (มัดจำ + ส่วนที่เหลือ — มติ D-1) และแต่ละก้อนมีสลิปของตัวเอง
+ * `Order.slipFileId` เดิมเก็บได้ใบเดียว · การเพิ่มคอลัมน์คู่ที่สอง (`slipFileId2`…) คือทางที่
+ * พังตอนวันที่ต้องการก้อนที่สาม และตอบไม่ได้ว่า "ใครกดรับ เมื่อไหร่"
+ *
+ * 🛑 **ยอดที่ตกลง ≠ ยอดที่ได้รับ** (BR-SQ-02) — `Order.depositAmount` คือ *ข้อตกลง*
+ * ตารางนี้คือ *ข้อเท็จจริง* ก่อนหน้านี้ระบบมีแต่ตัวแรก จึงต้องเลี่ยงไปใช้คำว่า
+ * "มัดจำที่ตกลงไว้" บนการ์ดที่ส่งให้ลูกค้ามาตลอด (ดู `appointment-summary.ts:34-40`)
+ *
+ * 🛑 **แถวนี้แก้ไม่ได้** (หัวหน้า 2026-08-15: "จ่ายมาแล้ว แก้ไม่ได้") — กรอกผิดให้ `voidedAt`
+ * แล้วบันทึกใหม่ ไม่ใช่ UPDATE ทับ (แบบเดียวกับการกลับรายการทางบัญชี) ประวัติเงินที่แก้ทับได้
+ * ไม่ใช่ประวัติ
+ *
+ * `Order.slipFileId` เดิม **ไม่ถูกแตะ** — `ONLINE_SALES` ยังใช้ช่องนั้นตามเดิมทุกประการ
+ */
+model OrderPayment {
+  id      String @id @default(uuid())
+  orderId String
+  /// denormalized — รวมยอดเงินรับจริงระดับร้าน/รายวัน (dashboard) โดยไม่ต้อง join Order
+  shopId  String
+
+  /// "DEPOSIT" = มัดจำ · "BALANCE" = ส่วนที่เหลือ/เต็มจำนวน — String ตาม convention ของโปรเจกต์
+  kind   String
+  amount Decimal @db.Decimal(12, 2)
+  /// "TRANSFER" | "CASH" | "OTHER" — เงินสดหน้าร้านต้องบันทึกได้โดยไม่มีสลิป (BR-SQ-13)
+  method String  @default("TRANSFER")
+
+  /// สลิปของก้อนนี้ (storage fileId) — null ได้ เช่นจ่ายเงินสด
+  slipFileId String?
+
+  receivedAt     DateTime @default(now())
+  /// ใครกดรับ — ทีมมีหลายคน (ร้านอ้างอิงมี 7) เรื่องเงินต้องรู้ว่าใครยืนยัน (BR-SQ-04)
+  receivedByUserId String
+  note             String?
+
+  /// ยกเลิกรายการ (กรอกผิด) — ไม่ใช่ลบทิ้ง ประวัติต้องเหลือไว้
+  voidedAt         DateTime?
+  voidedByUserId   String?
+  voidedReason     String?
+
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// รวมยอดของวัน: WHERE shopId + receivedAt range + voidedAt IS NULL
+  @@index([shopId, receivedAt])
+  @@index([orderId])
+}
+
 model OrderShipment {
   id             String  @id @default(uuid())
   orderId        String

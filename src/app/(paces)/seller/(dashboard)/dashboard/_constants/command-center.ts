@@ -58,6 +58,12 @@ export type CommandCenterData = {
    * ตลอดกาล) เป็น "นัดวันนี้" — ดูเหตุผลเต็มใน OrderStatusBandProps.appointmentToday
    */
   appointmentTodayCount?: number
+  /**
+   * เงินที่รับจริงวันนี้ แยกมัดจำ/ยอดที่เหลือ (feature 00050 AC-SQ-04) — เฉพาะร้านบริการ
+   * ไม่ส่ง = ไม่แสดงการ์ด (ร้านประเภทอื่น หรือ query ล้ม) **ห้ามส่ง 0 แทน**: ตัวเลขที่ผิด
+   * เป็นข้ออ้างให้ไปตามเก็บเงินจากคนที่จ่ายมาแล้ว
+   */
+  moneyReceivedToday?: { deposit: number; balance: number; total: number; unpaidJobs: number }
 
   /**
    * คำเรียก order ของร้านนี้ (ORDER_VOCAB.noun) — resolve ที่ page.tsx แล้วส่งเป็น "สตริง"

@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
     return jsonNoStore({
       items: items.map((i) => ({
         ...i,
+        createdAt: i.createdAt.toISOString(),
         start: i.start.toISOString(),
         end: i.end.toISOString(),
       })),

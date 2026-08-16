@@ -16,6 +16,7 @@ import { resolveShopVertical } from '@/lib/lodging'
 import { prisma } from '@/lib/prisma'
 import { getOrdersByShop } from '@/services/order.service'
 import { deriveShippingStage } from '@/lib/order-stage'
+import { computeOrderMoneyFromSerialized, hasMoneyStory } from '@/lib/order-payment'
 import { deriveAppointmentStage } from '@/lib/appointment-stage'
 import { canUseAppointments, isAllDayAppointment } from '@/lib/appointments'
 import { requireActiveShop } from '@/lib/shop-context'
@@ -95,10 +96,22 @@ export default async function OrdersPage({ searchParams }: PageProps) {
           .catch(() => false)
       : false
 
+  /**
+   * แกน "สถานะนัดหมาย" ของร้านคิวงาน (feature 00036) — คู่ขนานกับแกนพัสดุด้านล่าง
+   * ร้านหนึ่งมีแกนเสริมได้แกนเดียว จึงไม่มีทางที่สองเงื่อนไขนี้จะจริงพร้อมกัน
+   *
+   * 🛑 ประกาศไว้ **เหนือ** จุดดึงข้อมูล เพราะเป็นตัวเดียวกับที่ตัดสินว่าจะดึงแถวเงินมาไหม —
+   * ถ้าปล่อยให้จุดดึงเขียน `shop.vertical === 'SERVICE_QUEUE'` เองอีกครั้ง สองที่จะแยกจากกัน
+   * ได้เงียบ ๆ แล้วเกิดเคสที่ "คำนวณเงินโดยไม่มีแถวเงินอยู่ในมือ" = ป้ายบอกว่ายังไม่จ่าย
+   * ทั้งที่ลูกค้าจ่ายแล้ว (ค่าที่หายไปตอนดึง อ่านไม่ต่างจากค่าที่เป็นศูนย์จริง)
+   */
+  const isServiceQueue = canUseAppointments(shop)
+
   let rawOrders: any[] = []
   try {
     // ดึงทุก order ของร้าน — client component ทำ status filter เอง
-    rawOrders = await getOrdersByShop(shop.id)
+    // ด่าน vertical (AC-SQ-07) — เงินรายใบดึงเฉพาะร้านบริการ ไม่ใช่ทุกร้าน
+    rawOrders = await getOrdersByShop(shop.id, undefined, { withPayments: isServiceQueue })
   } catch {
     rawOrders = []
   }
@@ -107,9 +120,6 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // กองงานตามสถานะพัสดุ — ต้องมาจาก deriveShippingStage ตัวเดียวกับที่ตัวนับบน Command Center ใช้
   // ไม่งั้นกดไทล์ที่บอก 5 แล้วเข้ามาเจอ 4 ใบ (ดูคอมเมนต์ที่ตัวฟังก์ชันใน lib/order-stage.ts)
   const isOnlineSales = shop.vertical === 'ONLINE_SALES'
-  // แกน "สถานะนัดหมาย" ของร้านคิวงาน (feature 00036) — คู่ขนานกับแกนพัสดุข้างบน
-  // ร้านหนึ่งมีแกนเสริมได้แกนเดียว จึงไม่มีทางที่สองเงื่อนไขนี้จะจริงพร้อมกัน
-  const isServiceQueue = canUseAppointments(shop)
 
   // legacy fallback (ออเดอร์ก่อน 2026-08-10 ไม่มี Order.shopChannelId) — คอลัมน์ "ที่มา" (user สั่ง
   // 2026-08-06): ชี้รูปเพจได้เฉพาะร้านที่เชื่อมเพจ MESSENGER ACTIVE "เพจเดียว" (หลายเพจ = กำกวม
@@ -284,6 +294,35 @@ export default async function OrdersPage({ searchParams }: PageProps) {
             resourceName: o.serviceResource?.name ?? null,
             stage,
           }
+        })(),
+    /**
+     * เงินของใบนี้ (feature 00050 · AC-SQ-07) — undefined = ร้านที่ไม่ใช่ SERVICE_QUEUE
+     *
+     * 🛑 ด่านเดียวกับที่ `withPayments` ใช้ ไม่ใช่ "แถวนี้มี payments ไหม" — ถ้าเช็คจาก
+     * ข้อมูล ร้านที่บังเอิญมีแถวค้างจะได้ป้ายของร้านบริการโดยไม่มีอะไรฟ้อง
+     *
+     * ผ่าน `computeOrderMoney` เท่านั้น ห้ามบวกเองที่นี่ — ตัวตัดยอดที่ถูกยกเลิก (`voidedAt`)
+     * อยู่ในนั้น (HR16: ป้ายในรายการกับหน้ารายละเอียดต้องมาจากนิยามเดียวกัน)
+     */
+    money: !isServiceQueue
+      ? undefined
+      : (() => {
+          const m = computeOrderMoneyFromSerialized({
+            totalAmount: o.totalAmount.toFixed(2),
+            depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
+            payments: (o.payments ?? []).map(
+              (p: { kind: string; amount: { toFixed: (n: number) => string }; voidedAt: Date | null }) => ({
+                kind: p.kind,
+                amount: p.amount.toFixed(2),
+                voidedAt: p.voidedAt ? p.voidedAt.toISOString() : null,
+              }),
+            ),
+          })
+          /* 🛑 เกณฑ์ที่สองต้องเป็น `hasMoneyStory` ตัวเดียวกับหน้ารายละเอียด — ถ้าที่นี่ปล่อยผ่าน
+             ทุกใบ ใบที่ยังไม่มีเรื่องเงินจะได้ป้าย "รอชำระ" ในรายการ แต่หน้ารายละเอียดยังขึ้น
+             ป้ายเดิม = ย้ายอาการ "สองจอพูดคนละคำ" ไปอยู่อีกกลุ่มหนึ่งแทนที่จะแก้ */
+          if (!hasMoneyStory(m)) return undefined
+          return { totalAmount: m.totalAmount, totalReceived: m.totalReceived, outstanding: m.outstanding }
         })(),
     shippingStage: isOnlineSales
       ? deriveShippingStage({

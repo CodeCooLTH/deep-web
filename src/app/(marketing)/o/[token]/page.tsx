@@ -40,6 +40,7 @@ import PhoneVerifyPrompt from './PhoneVerifyPrompt'
 import type { PublicOrderData } from './OrderDetailMobile'
 // feature 00024 — ชนิดสถานะนัด (SSOT เดียวกับที่ service/UI ใช้)
 import type { AppointmentStatus } from '@/lib/appointments'
+import { computeOrderMoneyFromSerialized, hasMoneyStory } from '@/lib/order-payment'
 import BookingGuestView from './BookingGuestView'
 import GuestOrderView from './GuestOrderView'
 import { buildGuestOrderData } from './guest-order-data'
@@ -390,6 +391,60 @@ export default async function PublicOrderPage({ params }: Props) {
       // feature 00024 — วันเข้าใช้บริการ (FR-RSV-05) เติมที่จุดนี้เท่านั้น คือ "หลังผ่าน grant"
       // แล้ว ไม่แตะกลไกด่านของ feature 00015 เหนือบรรทัดนี้เลย
       // ออเดอร์ที่ไม่มีนัด → null → การ์ดไม่ถูก render เลย DOM เหมือนเดิมทุกประการ
+      /**
+       * feature 00050 (AC-SQ-06) — เงินที่ร้านยืนยันแล้ว + ยอดค้าง
+       *
+       * 🛑 render เฉพาะเมื่อ "มีเรื่องเงินให้พูดถึงจริง" (เคยรับเงิน หรือ ตกลงมัดจำไว้) —
+       * ออเดอร์ขายออนไลน์ทั่วไปจะได้ `null` แล้วหน้าเดิมไม่เปลี่ยนแม้แต่ node เดียว (AC-SQ-07)
+       * ตัวเลขทุกตัวมาจาก `computeOrderMoney` ตัวเดียวกับฝั่งร้าน — ห้ามบวกเองที่นี่ (HR16)
+       */
+      money: (() => {
+    /**
+     * 🛑 กั้นด้วย **vertical** ไม่ใช่แค่ "มีมัดจำไหม" (AC-SQ-07)
+     *
+     * เกณฑ์เดิม (`hasDeposit || totalReceived > 0`) ปลอดภัยวันนี้เพราะ **ข้อมูลบังเอิญเป็นแบบนั้น**
+     * — ONLINE_SALES 269 ใบบน prod ไม่มีมัดจำเลยสักใบ และยังไม่มีร้านบ้านพัก
+     * แต่บ้านพัก **เก็บมัดจำเป็นปกติ** (`booking.service.ts` เขียน `depositAmount` ทุกใบ)
+     * ⇒ วันแรกที่มีร้านบ้านพักเปิดใช้ การ์ดนี้จะโผล่บนจอที่ไม่ได้ขอ โดยไม่มีอะไรฟ้อง
+     * "ปลอดภัยเพราะยังไม่มีใครเดินผ่านเส้นทางนั้น" ไม่ใช่ด่าน
+     */
+    if (order.shop.vertical !== 'SERVICE_QUEUE') return null
+        const m = computeOrderMoneyFromSerialized({
+          totalAmount: order.totalAmount.toFixed(2),
+          depositAmount: order.depositAmount ? order.depositAmount.toFixed(2) : null,
+          payments: order.payments.map((p) => ({
+            kind: p.kind,
+            amount: p.amount.toFixed(2),
+            voidedAt: p.voidedAt ? p.voidedAt.toISOString() : null,
+          })),
+        })
+        if (!hasMoneyStory(m)) return null
+        return {
+          totalAmount: m.totalAmount,
+          depositAgreed: m.depositAgreed,
+          totalReceived: m.totalReceived,
+          outstanding: m.outstanding,
+          fullyPaid: m.fullyPaid,
+          hasDeposit: m.hasDeposit,
+          entries: order.payments.map((p) => ({
+            kind: p.kind,
+            amount: Number(p.amount),
+            method: p.method,
+            receivedAtIso: p.receivedAt.toISOString(),
+          })),
+        }
+      })(),
+      /* feature 00050 (AC-SQ-06) — เพจต้นทาง · relation select ไว้แล้วเป็น allow-list 3 คีย์
+         (แถว ShopChannel มี accessTokenEnc อยู่ด้วย ห้าม include) */
+      // คำบนจอผันตามประเภทร้าน — แยกจากด่าน `money` ที่ตอบคนละคำถาม
+      isServiceShop: order.shop.vertical === 'SERVICE_QUEUE',
+      originPage: order.shopChannel
+        ? {
+            channel: order.shopChannel.provider,
+            pageName: order.shopChannel.name,
+            pageAvatarUrl: order.shopChannel.avatarUrl,
+          }
+        : null,
       appointment:
         order.serviceStart && order.serviceEnd && order.serviceResource
           ? {

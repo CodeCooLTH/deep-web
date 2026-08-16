@@ -25,6 +25,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { cn } from '@/utils/helpers'
+import { ARRIVAL_MODE_META, resolveArrivalMode } from '@/lib/arrival-mode'
 import {
   formatDateTH,
   formatDateTimeTH,
@@ -62,6 +63,14 @@ type Props = {
    * null = ใบที่ไม่รู้ชื่อ (ผู้ซื้อ guest ที่ร้านไม่ได้กรอกชื่อ) → ตัดวลีชื่อออกจากประโยคทั้งก้อน
    */
   buyerLabel: string | null
+  /**
+   * เวลาที่เปิดบิล — ใช้ derive "วิธีเข้ารับบริการ" (หัวหน้าถาม 2026-08-15)
+   *
+   * 🛑 ต้องรับ `createdAt` เข้ามา ไม่ใช่คำนวณจาก `startISO` อย่างเดียว — ตัวที่แยก
+   * "จองล่วงหน้า" ออกจาก "เดินเข้ามา" คือ *ระยะห่างระหว่างเวลานัดกับเวลาที่เปิดบิล*
+   * ไม่ใช่ตัวเวลานัดเอง
+   */
+  createdAtISO: string
 }
 
 export default function AppointmentCard({
@@ -75,6 +84,7 @@ export default function AppointmentCard({
   rescheduleCount,
   rescheduleRequestNote,
   buyerLabel,
+  createdAtISO,
 }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState<'COMPLETED' | 'NO_SHOW' | null>(null)
@@ -168,6 +178,8 @@ export default function AppointmentCard({
     }
   }
 
+  const arrival = resolveArrivalMode({ serviceStart: startISO, createdAt: createdAtISO })
+
   return (
     <div
       className={cn(
@@ -177,8 +189,25 @@ export default function AppointmentCard({
         awaitingReschedule && 'border-info border-s-3',
       )}
     >
-      <div className="card-header flex items-center justify-between gap-2">
+      <div className="card-header flex flex-wrap items-center justify-between gap-2">
         <h4 className="card-title">การนัดหมาย</h4>
+        {/**
+          * ชิป "วิธีเข้ารับบริการ" — โผล่เฉพาะ "เดินเข้ามา" (ไม่ใช่ค่าปกติของร้านจอง)
+          * "จองล่วงหน้า" เป็นค่าปกติ ติดป้ายทุกใบจะกลายเป็นเสียงรบกวนที่ตาข้ามไปเอง
+          * (การ์ดนี้ render เฉพาะใบที่มีเวลานัดแล้ว ⇒ ไม่มีเคส "ยังไม่ระบุเวลา" มาถึงที่นี่)
+          */}
+        {arrival === 'WALK_IN' && (
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
+              ARRIVAL_MODE_META.WALK_IN.cls,
+            )}
+            title={ARRIVAL_MODE_META.WALK_IN.hint}
+          >
+            <Icon icon={ARRIVAL_MODE_META.WALK_IN.icon} className="shrink-0 text-sm" aria-hidden="true" />
+            {ARRIVAL_MODE_META.WALK_IN.label}
+          </span>
+        )}
         <span
           className={cn(
             'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
