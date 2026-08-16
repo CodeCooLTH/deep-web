@@ -318,7 +318,8 @@ cron เฝ้าระบบอยู่บนเครื่องเดีย
 3. Hermes poll เจองานใหม่ → `safepay-planner` วางแผน → comment สรุปไฟล์ที่ต้องแตะ → `stage:build`
    (ข้ามขั้น UX เพราะแผนระบุว่าไม่แตะ frontend)
 4. `safepay-developer` เขียนโค้ด เปิด PR → `stage:review`
-5. `reviewer` ผ่าน → `stage:qa` → `qa` ผ่าน → `stage:docs` → `docs` sync เอกสารแล้วส่งต่อรอ user
+5. `reviewer` ผ่าน → `stage:qa` → `qa` ผ่าน → `stage:docs` → `docs` sync เอกสารเสร็จ → **`stage:ready`**
+   (สายพาน agent จบตรงนี้ — ป้าย `พร้อมขึ้น` เป็นของ user เท่านั้น ดู SRS §1.4)
 6. `verify.yml` วิ่งเขียวทุกครั้งที่มี push — ถ้าแดง เห็นทันทีบนจอ
 7. user กลับมาเห็นใบนี้ในคอลัมน์ "รอเคาะ" อ่านสรุปทั้ง 6 ขั้นในที่เดียว แล้วกด "พร้อมขึ้น"
 8. `auto-merge.yml` ตรวจครบ 6 ด่าน → merge → Vercel build → ขึ้น prod
@@ -335,7 +336,8 @@ cron เฝ้าระบบอยู่บนเครื่องเดีย
 
 1. เปิด branch protection บน `main` — บังคับผ่าน `verify.yml` ก่อน merge
 2. ออก fine-grained PAT ให้เครื่อง Hermes (**ห้ามมีสิทธิ์ `workflows`**)
-3. สร้างป้าย 7 ใบ: `stage:plan` `stage:ux` `stage:build` `stage:review` `stage:qa` `stage:docs` `พร้อมขึ้น`
+3. สร้างป้าย **9 ใบ**: `stage:plan` `stage:ux` `stage:build` `stage:review` `stage:qa` `stage:docs`
+   **`stage:ready`** `พร้อมขึ้น` `แตะด่าน` (+ `hermes:offline` ให้ `watchdog.yml` — SDS TD-004)
 4. ตั้ง `CODEOWNERS` บังคับ user รีวิว path คุ้มครอง (§4.1 BR-CC-05)
 
 ### 10.3 สถาปัตยกรรม 3 ชั้น

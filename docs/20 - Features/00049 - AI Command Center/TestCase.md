@@ -72,7 +72,7 @@ GitHub + ด่านบน Actions) และเคสที่ **ยังท�
 - **Steps:**
   1. รัน `gh label list --repo CodeCooLTH/deep-web --limit 50`
   2. ตรวจว่ามีป้ายครบ: `stage:plan`, `stage:ux`, `stage:build`, `stage:review`, `stage:qa`,
-     `stage:docs`, `พร้อมขึ้น`, `แตะด่าน`
+     `stage:docs`, **`stage:ready`** (เพิ่ม 2026-08-16 · D-10), `พร้อมขึ้น`, `แตะด่าน`
 - **Expected Result:** ป้ายครบ 8 ชื่อ ตรงตัวอักษรเป๊ะกับที่ `verify.yml`/`auto-merge.yml` อ้างถึง
   ในโค้ด (`LABEL="พร้อมขึ้น"`, `OVERRIDE_LABEL="แตะด่าน"`)
 - **Status:** ✅ **ทดสอบแล้วผ่าน** — หลักฐาน: `gh label list` (2026-08-16) คืนครบทั้ง 8 ป้าย พร้อม

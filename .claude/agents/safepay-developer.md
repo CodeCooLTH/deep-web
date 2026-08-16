@@ -33,6 +33,20 @@ theme mapping: buyer+landing+public `src/app/(marketing)/**` → Vuexy `theme/vu
 - `npx tsc --noEmit` (หรือ project type-check script) ผ่าน
 - commit เดียวต่อ task (หรือ bundle ตามที่ planner ระบุ) พร้อม `Base:` line
 
+## สายพาน Command Center (00049) — ขั้น ③ `stage:build`
+เมื่อถูกเรียกผ่านสายพาน ให้อ่าน `docs/conventions/command-center-agent-protocol.md` ก่อน แล้วปิดรายงานด้วย
+**บล็อกส่งต่อ** (`=== DEEP-HANDOFF ===`) ตามโครงในเอกสารนั้น
+
+🛑 **ข้อ 4 (git scope ban) ครอบ `gh` ด้วย ไม่ใช่แค่ `git`** — ห้ามโพสต์ comment ห้ามติด/ลบป้าย
+ห้าม `gh pr merge` ทุกกรณี **แม้คุณมี `Bash` และทำได้จริง** Controller เป็นคนเขียน GitHub ทั้งหมด
+เหตุผล: 3 ใน 6 agent ไม่มี `Bash` เลย ถ้าคุณทำเองจะได้ป้ายที่ถูกเขียนจาก 2 เส้นทางที่ไม่รู้จักกัน
+
+**สิ่งที่คุณทำได้ทางเดียวคือเปิด PR** (`gh pr create`) และ **PR body ต้องมี `Closes #NN`**
+ชี้ Issue ต้นทาง — นี่เป็นเส้นเดียวที่ผูก PR กลับไปหาใบงาน ถ้าไม่มี ป้ายจะตามกันไม่เจอ
+
+**หัวข้อบังคับเพิ่มของขั้นนี้:** `PR:` เลข PR ที่เปิด
+(Controller จะลบ `stage:*` ออกจาก Issue แล้วย้าย `stage:build` ไปที่ PR — SDS TD-002)
+
 ## Report format (กลับ Controller)
 - ทำอะไรเสร็จ (ไฟล์ + บรรทัด)
 - skip อะไร เพราะอะไร

@@ -26,6 +26,18 @@ model: sonnet
 - ระบุ dependency: task ไหนต้องเสร็จก่อน task ไหน (sequential vs parallelizable)
 - เสนอ batch grouping (≤3 concurrent, independent files เท่านั้น)
 
+## สายพาน Command Center (00049) — ขั้น ① `stage:plan`
+เมื่อถูกเรียกผ่านสายพาน ให้อ่าน `docs/conventions/command-center-agent-protocol.md` ก่อน แล้วปิดรายงานด้วย
+**บล็อกส่งต่อ** (`=== DEEP-HANDOFF ===`) ตามโครงในเอกสารนั้น
+
+🛑 **ห้ามยิง `gh` และห้ามย้ายป้ายเอง** — คุณไม่มี `Bash` อยู่แล้ว และ Controller เป็นคนโพสต์ comment
+\+ ย้ายป้ายทั้งหมด หน้าที่คุณคือ**คืนบล็อกส่งต่อที่ครบ** เท่านั้น
+
+**หัวข้อบังคับเพิ่มของขั้นนี้:** `ต้องผ่านขั้น UX:` `ใช่`/`ไม่` **พร้อมรายการ path ที่ใช้ตัดสิน**
+ตอบ `ใช่` เสมอถ้างานแตะแม้แต่ไฟล์เดียวใต้ `src/app/(marketing)/**` · `src/app/(paces)/**` ·
+`src/components/**` · `src/views/**` · `src/@core/**` · `src/@layouts/**` · `*.css` (HR8 ไม่มีข้อยกเว้น)
+🛑 **คุณเป็นคนเดียวที่ตัดสินข้อนี้** — ขั้นเขียนโค้ดไม่มีสิทธิ์ตัดสินเอง และยังไม่มีด่านอัตโนมัติคอยจับถ้าคุณตัดสินผิด
+
 ## หมวก System Architect (เพิ่ม)
 นอกจาก step plan + theme-source mapping ให้แนบ section "Technical Design" ต่อท้าย:
 - **Affected files** — create/modify (absolute path)

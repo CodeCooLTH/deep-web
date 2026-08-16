@@ -98,6 +98,11 @@ COMMAND_CENTER_GITHUB_REPO="CodeCooLTH/deep-web"
 | `stage` | `string` | คอลัมน์ที่อยู่ |
 | `stageEnteredAt` | ISO 8601 \| null | เวลาที่ label ปัจจุบันถูกติด — `null` ถ้า Timeline API หาไม่เจอ (ป้ายถูกติดมือก่อนระบบเริ่ม track) |
 | `touchesMigration` | `boolean` | `true` เฉพาะ item ที่ `stage==="ready"` และแตะ `prisma/migrations/**` · item อื่น `false` เสมอ (ไม่คำนวณเพื่อประหยัดโควตา) |
+| `awaitingApproval` | `boolean` | 🛑 `true` = **ยังไม่ถูกเคาะ** (มี `stage:ready` แต่**ไม่มี** `พร้อมขึ้น`) → UI แสดงปุ่ม "เคาะ" · `false` = เคาะแล้ว รอ `auto-merge.yml` → UI แสดงสถานะแทนปุ่ม · item นอกคอลัมน์ `ready` เป็น `false` เสมอ |
+
+🛑 **คอลัมน์ `ready` ถือ 2 สถานะ** (`stage:ready` = รอกด · `พร้อมขึ้น` = กดแล้ว) — ดู [[SRS]] §1.4
+ใบที่มีทั้งสองป้ายนับ **ครั้งเดียว** · `POST /approve` กับใบที่ `awaitingApproval:false` = idempotent
+success ไม่ error (ป้ายที่ต้องการมีอยู่แล้ว)
 
 **Error:** `403` ไม่ใช่ admin · `502` อ่าน GitHub ไม่ได้และไม่มี cache (บอร์ด block ทั้งหน้า) ·
 `200 + degraded:true` โควตาหมดแต่มี cache (**ไม่ใช่ error HTTP**)
@@ -109,8 +114,12 @@ COMMAND_CENTER_GITHUB_REPO="CodeCooLTH/deep-web"
       "items": [{ "number": 41, "kind": "issue", "title": "แก้บั๊กหน้าแรกโหลดช้า",
                   "url": "https://github.com/CodeCooLTH/deep-web/issues/41",
                   "stage": "plan", "stageEnteredAt": "2026-08-16T07:00:00Z",
-                  "touchesMigration": false }] },
-    { "stage": "ready", "label": "รอเคาะ", "agent": null, "count": 0, "items": [] }
+                  "touchesMigration": false, "awaitingApproval": false }] },
+    { "stage": "ready", "label": "รอเคาะ", "agent": null, "count": 1,
+      "items": [{ "number": 35, "kind": "pr", "title": "แก้บั๊กหน้าแรกโหลดช้า",
+                  "url": "https://github.com/CodeCooLTH/deep-web/pull/35",
+                  "stage": "ready", "stageEnteredAt": "2026-08-16T08:00:00Z",
+                  "touchesMigration": false, "awaitingApproval": true }] }
   ],
   "generatedAt": "2026-08-16T10:00:00Z",
   "degraded": false,

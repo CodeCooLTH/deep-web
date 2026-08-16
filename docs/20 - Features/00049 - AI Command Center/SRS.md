@@ -34,12 +34,31 @@ NFR + หัวข้อบังคับ **"สิ่งที่ยังพ�
 | คำ | ความหมาย |
 |---|---|
 | **ใบงาน** | GitHub Issue ที่เกิดจาก "สั่งงานใหม่" — มีป้าย `stage:*` เสมอ |
-| **stage label** | `stage:plan` `stage:ux` `stage:build` `stage:review` `stage:qa` `stage:docs` |
-| **ready label** | `พร้อมขึ้น` (ยึดตาม `auto-merge.yml` `LABEL: พร้อมขึ้น`) |
+| **stage label** | `stage:plan` `stage:ux` `stage:build` `stage:review` `stage:qa` `stage:docs` **`stage:ready`** (7 ตัว) |
+| **`stage:ready`** | 🛑 **ขั้น ⑦ ไม่มี agent** — `safepay-docs` จบแล้ว Controller ติดป้ายนี้ แปลว่า "สายพานเดินจบ รอ user เคาะ" · ดู §1.4 |
+| **ready label** | `พร้อมขึ้น` (ยึดตาม `auto-merge.yml` `LABEL: พร้อมขึ้น`) — **คนละตัวกับ `stage:ready`** ดู §1.4 |
 | **override label** | `แตะด่าน` — ให้คนที่มีสิทธิ์เขียนรีโป bypass ด่าน 0 ของ `verify.yml` |
 | **watchdog label** | `hermes:offline` — ป้ายที่ `watchdog.yml` ใช้หา issue แจ้งเตือนใบเดิม (ดู SDS TD-004) |
 | **fail-closed** | อ่านค่าที่จำเป็นไม่ได้ = ถือว่า "ไม่ผ่าน/ไม่ทำ" เสมอ |
 | **degraded mode** | endpoint อ่านคืน cache เก่าพร้อม `degraded:true` แทน error เต็ม เมื่อโควตา GitHub หมด |
+
+### 1.4 🛑 `stage:ready` กับ `พร้อมขึ้น` — คนละตัว ห้ามยุบรวม (D-10 · 2026-08-16)
+
+| | `stage:ready` | `พร้อมขึ้น` |
+|---|---|---|
+| แปลว่า | สายพาน agent เดินจบแล้ว — **รอ user กด** | **user กดแล้ว** — รอ `auto-merge.yml` เก็บ |
+| ใครติดได้ | Controller (หลัง `safepay-docs` จบ) | **user เท่านั้น** (ปุ่มบนจอ / ติดเองบน GitHub) |
+| `auto-merge.yml` สนใจไหม | ❌ ไม่อ่านเลย | ✅ **นี่คือตัวสั่ง merge** |
+
+**ทำไมต้องมี `stage:ready`:** state machine (§4.2) เขียนว่า `docs --> ready` แต่ `ready` เดิมถูกนิยาม
+ด้วยป้าย `พร้อมขึ้น` ซึ่ง TFR-CC-11 ห้าม agent ติดเด็ดขาด ⇒ **ไม่มีป้ายไหนแทนสถานะ "เอกสารเสร็จแล้ว
+รอคุณกด" เลย** ใบที่จบขั้น docs จะ *หายจากบอร์ด* (ไม่มี `stage:*` = ไม่ถูก bucket ตาม TFR-CC-13 ข้อ 3)
+หรือค้างคอลัมน์ "เอกสาร" ทั้งที่ทำเสร็จแล้ว — user ไม่มีทางรู้ว่ามีอะไรรอตัวเองอยู่
+
+⇒ คอลัมน์ "รอเคาะ" ถือ **2 สถานะ** และต้องแยกให้เห็นด้วยตา (ดู [[UX-Design-Spec]] §3)
+
+🛑 **ห้ามยุบเป็นป้ายเดียว** — วันที่ยุบ คือวันที่ agent ติดป้ายที่สั่ง merge ได้เอง = ประตูอนุมัติเดียว
+ของทั้งระบบหายไปโดยไม่มีอะไรฟ้อง (D-1)
 
 ---
 
@@ -89,8 +108,19 @@ known-gap ของ `api-rate-limit.ts` ที่บันทึกไว้แ�
 เพราะ Hermes รัน subagent เอง service ของเราไม่ได้อยู่ในเส้นทางที่เขียน comment นั้น
 บอร์ด**ไม่ parse เนื้อ comment** — สิ่งเดียวที่โค้ดเราพึ่งคือหา `stageEnteredAt` (TFR-CC-13)
 
+**implement แล้ว (P3 · 2026-08-16)** → `docs/conventions/command-center-agent-protocol.md` (SSOT)
+🛑 **ไม่มี subagent ตัวไหนยิง `gh` เลย — Controller โพสต์ comment + ย้ายป้ายทั้งหมด** เหตุผลไม่ใช่
+ความชอบ แต่มาจากสิ่งที่ตรวจได้จาก `.claude/agents/*.md` เอง: **`safepay-planner` · `safepay-ux` ·
+`safepay-docs` ไม่มี `Bash` ในรายการ `tools:`** ⇒ เรียก `gh` ไม่ได้อยู่แล้ว 3 ใน 6 ตัว
+ถ้าปล่อยให้อีก 3 ตัวที่มี Bash ทำเอง จะได้ป้ายที่ถูกเขียนจาก **2 เส้นทางที่ไม่รู้จักกัน** (คลาสเดียวกับ HR16)
+· agent คืน "บล็อกส่งต่อ" (`=== DEEP-HANDOFF ===`) ในรายงาน Controller อ่านแล้วเขียนให้
+· **ลำดับบังคับ: comment สำเร็จก่อน → ค่อยย้ายป้าย** (AC-03-3) comment ล้ม = ไม่ย้ายป้าย
+· ด่าน: `src/lib/__tests__/command-center-agent-protocol.test.ts` `[blocker]` 34 เคส (mutation 5 แบบแดงครบ)
+
 ### TFR-CC-04 ข้ามขั้น UX เมื่อไม่แตะ frontend → FR-CC-04
 ตัดสินโดย `safepay-planner` ตอนเขียน comment ขั้น ① (P3) — Command Center **ไม่ตรวจ path เอง**
+รายการ path ที่บังคับให้ผ่านขั้น UX อยู่ใน `command-center-agent-protocol.md` §6 (ผูกด้วยเทส `[blocker]`)
+· ชั้นที่สอง: `safepay-reviewer` ต้อง REWORK งาน UI ที่ไม่เคยผ่าน `stage:ux` (ขั้น ④)
 🛑 **Edge case:** ถ้า planner ตัดสินผิด (ข้ามขั้น UX ทั้งที่แตะ `(paces)/**`) — HR8 **ยังไม่มีด่าน
 อัตโนมัติบังคับ** ในเฟสนี้ เป็นความเสี่ยงที่รับไว้ (§8 R-3)
 
@@ -164,6 +194,8 @@ event payload) (2) กรอง `stage:*` ออกทั้งหมด (3) เ
    field `.pull_request`) พร้อม `If-None-Match`
 2. 304 → ใช้ body ที่ cache (ไม่นับโควตา — §9 ข้อ 5)
 3. bucket ตาม `.labels[].name` — item ที่ไม่มี `stage:*`/`พร้อมขึ้น` เลย = **ไม่แสดงบนบอร์ด**
+   🛑 คอลัมน์ `ready` = **`stage:ready` หรือ `พร้อมขึ้น`** (§1.4) · ใบที่มีทั้งคู่นับ **ครั้งเดียว**
+   · `awaitingApproval: true` เฉพาะใบที่ **ยังไม่มี** `พร้อมขึ้น` (ตัวที่ปุ่ม "เคาะ" ผูกอยู่)
 4. `stageEnteredAt` จาก Timeline API + cache (SDS TD-003)
 5. `touchesMigration` เฉพาะ item ป้าย `พร้อมขึ้น`
 
@@ -229,8 +261,9 @@ stateDiagram-v2
     review --> qa
     qa --> build: เจอบั๊ก
     qa --> docs
-    docs --> ready: sync เอกสารเสร็จ
-    ready --> [*]: user เคาะ + auto-merge
+    docs --> ready: sync เอกสารเสร็จ (Controller ติด stage:ready)
+    ready --> approved: user เคาะ (เพิ่มป้าย พร้อมขึ้น)
+    approved --> [*]: auto-merge.yml ผ่านด่าน 0-6
     plan --> [*]: หยุด (TFR-CC-12)
     build --> [*]: หยุด
 ```
@@ -304,8 +337,10 @@ stateDiagram-v2
    timestamp โดยไม่ต้องมี preview header ไหม · `If-None-Match`→304 ไม่นับโควตาจริงไหม ·
    fine-grained PAT scope ที่พอสำหรับอ่าน repository variable
 6. **TFR-CC-06 พิสูจน์จากโค้ดในรีโปนี้ไม่ได้เลย** — เป็นการตั้งค่าฝั่ง GitHub ทั้งหมด ต้อง manual-verify
-7. **P3 ยังไม่เริ่ม** — `.claude/agents/*` ทั้ง 6 ตัวยังไม่รู้จักโปรโตคอล comment/label ของฟีเจอร์นี้
-   (D-7 ยืนยันแค่ว่า agent มีอยู่ครบ ไม่ได้แปลว่ามันรู้จักสายงานนี้)
+7. **P3 เขียนแล้ว แต่ยังไม่เคยเดินจริงสักใบ** (2026-08-16) — `.claude/agents/*` ทั้ง 6 ตัวรู้จัก
+   โปรโตคอลแล้ว และมีเทส `[blocker]` กันคำสั่งหาย **แต่สิ่งที่พิสูจน์ได้คือ "คำสั่งยังอยู่ใน prompt"
+   ไม่ใช่ "agent ทำตาม"** — อย่างหลังพิสูจน์ได้ทางเดียวคือสั่งงานจริงผ่าน Hermes (P5 ซึ่งยังไม่มี)
+   ⇒ ยังเป็น *ข้อตกลงที่เขียนไว้* ไม่ใช่ *พฤติกรรมที่สังเกตแล้ว*
 8. **P4 ยังไม่เริ่ม** — ไม่มี `command-center/**` และไม่มี entry ใน `_admin-menu.ts`
 
 ---
@@ -316,7 +351,7 @@ stateDiagram-v2
 |---|---|---|---|
 | FR-CC-01 | TFR-CC-01 | API `tasks` | Draft (P4) |
 | FR-CC-02 | TFR-CC-02 | — (negative req) | ✅ ยืนยันจากการไม่มีโค้ด |
-| FR-CC-03/04 | TFR-CC-03/04 | `.claude/agents/*` | ยังไม่ implement (P3) |
+| FR-CC-03/04 | TFR-CC-03/04 | `.claude/agents/*` + `command-center-agent-protocol.md` | ✅ P3 เขียนแล้ว (ยังไม่เคยเดินจริง — §9 ข้อ 7) |
 | FR-CC-05 | TFR-CC-05 | API `reject` | Draft (P4) |
 | FR-CC-06 | TFR-CC-06 | GitHub settings | ต้อง manual verify |
 | FR-CC-07 | TFR-CC-07 | `verify.yml` | ✅ **Done — รันจริง เขียวครบ 5 ด่าน** |
