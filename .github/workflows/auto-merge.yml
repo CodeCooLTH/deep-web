@@ -1,0 +1,204 @@
+name: เก็บ PR ติดป้าย "พร้อมขึ้น"
+
+# ตาข่ายเก็บ PR ที่ user เคาะแล้ว — ประตูอนุมัติเดียวของทั้งระบบ (00049 §6.2 · BRD FR-CC-08/09)
+#
+# 🛑 เดิมพันของเราสูงกว่าต้นแบบ (CodeCooLTH/12tees) ที่ยกโครงนี้มา:
+#    vercel.json ของเราคือ `prisma migrate deploy && prisma generate && next build`
+#    ⇒ **merge = migration รันบนฐาน prod ทันที** (HR15) ของเขา merge แล้วแค่ deploy โค้ด
+#    จึงมีด่าน 5 ที่ต้นแบบไม่มี: PR ที่แตะ prisma/migrations/** ห้าม auto-merge เด็ดขาด
+#
+# ทำไมอยู่ใน repo ไม่ใช่ cron บนเครื่อง: cron ที่อยู่ในกล่องเดียวกับสิ่งที่มันเฝ้าและคนที่จะ
+# สังเกตว่าพัง จะตายพร้อมกันทั้งชุด — ต้นแบบเจอแบบนี้ เงียบไป 178 รอบโดยไม่มีใครรู้
+# Actions อ่านความจริงจาก GitHub เอง
+#
+# fail-closed ทุกด่าน: อ่านค่าที่จำเป็นไม่ได้ = ไม่ merge ไม่ใช่ผ่านโดยปริยาย
+
+on:
+  schedule:
+    # ทุก 30 นาที ในหน้าต่าง 08:00–21:30 น. ไทย (UTC+7)
+    # merge = ขึ้น prod ทันที · พังตี 3 = ไม่มีใครเห็นจนเช้า
+    - cron: '*/30 1-14 * * *'
+  # ติดป้ายแล้วเริ่มทันที ไม่ต้องรอรอบ
+  pull_request_target:
+    types: [labeled]
+  workflow_dispatch:
+
+# allow-list — ตกไป 1 บรรทัด = 403 = fail-closed = ตาข่ายไม่ merge อะไรเลยแบบเงียบ
+# (เกิดกับต้นแบบจริง 3 วัน เพราะรอบที่ไม่มีใบติดป้ายเขียวตลอด ไม่เคยเดินถึงด่านที่พัง)
+# แต่ละบรรทัดผูกกับ API ที่สคริปต์เรียกจริง:
+#   contents: write       → gh pr merge (เขียน main) + อ่าน commit ของ main
+#   pull-requests: write  → gh pr list/view/merge --delete-branch
+#   actions: read         → gh api .../actions/workflows/<wf>/runs (ด่านผล CI บน main)
+#   checks: read          → gh pr checks (check-runs ของใบ)
+#   statuses: read        → gh pr checks (ตัวที่มาเป็น commit status ไม่ใช่ check-run)
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+  checks: read
+  statuses: read
+
+concurrency:
+  group: auto-merge
+  cancel-in-progress: false   # ต่างจาก verify.yml — ห้ามยกเลิกกลางคัน ของกำลังจะแตะ prod
+
+jobs:
+  merge:
+    name: เก็บทีละ 1 ใบ (fail-closed ทุกด่าน)
+    runs-on: ubuntu-latest
+    # ป้ายอื่นไม่ต้องปลุก
+    if: github.event_name != 'pull_request_target' || github.event.label.name == 'พร้อมขึ้น'
+    steps:
+      - name: ไล่ด่านแล้ว merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          LABEL: พร้อมขึ้น
+          # วัดจริง 2026-08-16: `next build` บน runner = 2 นาที 39 วิ
+          # Vercel รัน `prisma migrate deploy && prisma generate && next build` เพิ่มอีกเล็กน้อย
+          # ⇒ merge→live ประมาณ 4–6 นาที · ตั้ง 8 = มาร์จิ้นราว 2 เท่า
+          #
+          # ⚠️ ยังไม่ได้วัด merge→live **ของจริงบน Vercel** (CLI ไม่คืนเวลา ready)
+          #    ตัวเลขนี้มาจากคำสั่งเดียวกันบน runner ซึ่งเป็นตัวแทน ไม่ใช่ของจริง
+          #    ต้องวัดใหม่หลัง merge อัตโนมัติใบแรก แล้วแก้เลขนี้ให้ตรง
+          #
+          # ห้ามลอกเลข 20 ของต้นแบบมาดื้อ ๆ — build เขาหนักกว่ามาก (timeout 30 นาที)
+          # และ commit บน main ของเราห่างกันจริง 13–21 นาที ⇒ 20 จะบล็อกแทบทุกใบ
+          QUIET_MIN: '8'
+        run: |
+          set -euo pipefail
+          say() { echo "$@"; echo "$@" >> "$GITHUB_STEP_SUMMARY"; }
+
+          # ── ด่าน 0: หน้าต่างเวลา 08:00–22:00 ไทย ──────────────────────────
+          HOUR=$(TZ=Asia/Bangkok date +%-H)
+          if [ "$HOUR" -lt 8 ] || [ "$HOUR" -ge 22 ]; then
+            say "⏸️ นอกหน้าต่าง 08:00–22:00 น. ไทย (ตอนนี้ ${HOUR}:xx) — ปล่อยใบรอรอบเช้า"
+            exit 0
+          fi
+
+          # ── ด่าน 1: หา PR ที่ติดป้าย ──────────────────────────────────────
+          # 🛑 ห้ามใช้ `gh pr list --label` เป็นคำตอบสุดท้าย — ตัวกรองฝั่ง GitHub
+          #    คืนใบที่ไม่มีป้ายออกมาด้วย (ต้นแบบพิสูจน์แล้ว 2026-08-01: ป้ายอยู่ใบเดียว
+          #    แต่ --label คืนอีกใบมาเป็นใบแรก โดย .labels ของใบนั้นว่างเปล่า)
+          #    ⇒ สคริปต์ที่เชื่อตัวกรองแล้ว head -1 จะ merge ใบที่ไม่มีป้ายขึ้น prod
+          PRS=$(gh pr list --repo "$REPO" --state open --limit 100 \
+                  --json number,title,mergeable,isDraft,labels \
+                  --jq "[.[] | select((.labels // []) | map(.name) | index(\"${LABEL}\"))]
+                        | sort_by(.number) | .[]
+                        | \"\(.number)|\(.mergeable)|\(.isDraft)|\(.title)\"") \
+            || { say "❌ อ่านรายการ PR ไม่ได้ — ไม่แตะอะไร รอรอบหน้า"; exit 1; }
+
+          if [ -z "$PRS" ]; then
+            echo "ไม่มี PR ติดป้าย \"$LABEL\" — จบรอบ"
+            exit 0
+          fi
+
+          # ── ด่าน 2: main ต้อง "สงบ" ≥ QUIET_MIN นาที ─────────────────────
+          # กันเคส merge ทับตอนของใบก่อนหน้ายัง deploy ไม่เสร็จ
+          MAIN=$(gh api "repos/${REPO}/commits/main" --jq '.sha + "|" + .commit.committer.date') \
+            || { say "❌ อ่านคอมมิตล่าสุดของ main ไม่ได้ — ไม่แตะอะไร"; exit 1; }
+          MAIN_SHA=${MAIN%%|*}
+          AGE_MIN=$(( ( $(date -u +%s) - $(date -u -d "${MAIN#*|}" +%s) ) / 60 ))
+          if [ "$AGE_MIN" -lt "$QUIET_MIN" ]; then
+            say "⏳ main เพิ่งขยับ $AGE_MIN นาทีที่แล้ว (< $QUIET_MIN) — ของก่อนหน้าน่าจะยังขึ้นไม่เสร็จ รอรอบหน้า"
+            exit 0
+          fi
+
+          # ── ด่าน 3: main ต้องไม่แดง ───────────────────────────────────────
+          # ผูกกับ head_sha ของ main ตอนนี้เท่านั้น — ไม่เอา run ล่าสุดของ branch เฉย ๆ
+          # (ไม่งั้นได้ "เขียว" ตลอดกาลจากผลของคอมมิตอื่นที่ค้างอยู่)
+          # ไม่ใช้ regex จับชื่อ check-run เพราะ scheduled workflow ก็รายงานลงหัว main ด้วย
+          GATE_WORKFLOWS="verify.yml"
+          for WF in $GATE_WORKFLOWS; do
+            RUN=$(gh api "repos/${REPO}/actions/workflows/${WF}/runs?branch=main&per_page=20" \
+                    --jq "[.workflow_runs[] | select(.head_sha == \"${MAIN_SHA}\")][0]
+                          | if . == null then \"none\" else .status + \"|\" + (.conclusion // \"\") end") \
+              || { say "❌ อ่านผล $WF บน main ไม่ได้ — fail-closed ไม่ merge"; exit 1; }
+            case "$RUN" in
+              # verify.yml ยิงเฉพาะตอนมี PR ไม่ยิงตอน push main ⇒ main ไม่มีด่านให้เฝ้า
+              # เก็บด่านนี้ไว้เพื่อให้ทำงานเองทันทีที่วันหนึ่งมีคนเปิด CI บน main
+              none) echo "ℹ️ $WF ไม่มีผลของ main@${MAIN_SHA:0:7} — ไม่มีด่าน CI บน main ให้ตรวจ" ;;
+              completed\|success|completed\|skipped) echo "✅ $WF บน main@${MAIN_SHA:0:7}: ${RUN#*|}" ;;
+              completed\|*) say "🔴 main แดง ($WF = ${RUN#*|}) — หยุด auto-merge จนกว่าจะเขียว"; exit 1 ;;
+              *) say "⏳ $WF บน main ยังวิ่งอยู่ (${RUN%%|*}) — รอรอบหน้า"; exit 0 ;;
+            esac
+          done
+
+          # ── เอาใบแรก (รอบละ 1 ใบ) ────────────────────────────────────────
+          FIRST=$(echo "$PRS" | head -1)
+          NUM=${FIRST%%|*};  REST=${FIRST#*|}
+          MERGEABLE=${REST%%|*}; REST=${REST#*|}
+          DRAFT=${REST%%|*}
+          TITLE=${REST#*|}
+
+          [ "$DRAFT" = "false" ]         || { say "⏭️ #$NUM ยังเป็น draft — ข้าม"; exit 0; }
+          [ "$MERGEABLE" = "MERGEABLE" ] || { say "⏭️ #$NUM mergeable=$MERGEABLE (ชนกับ main?) — ข้าม"; exit 0; }
+
+          # ── ด่าน 4: CI ของใบนั้นต้องเขียวครบ ─────────────────────────────
+          # 🛑 รอบที่ถูกปลุกด้วย pull_request_target สร้าง check-run ของ **job ตัวเอง**
+          #    ลงบนหัวใบนั้น และตอนลูปนี้กำลังวิ่ง check-run นั้นย่อม pending เสมอ
+          #    ⇒ ตกเคส pending → "รอรอบหน้า" ทุกครั้ง ⇒ กติกา "ติดป้ายแล้วเริ่มทันที"
+          #    ไม่เคยทำงานสักใบ (ต้นแบบเจอเอง 08-04 กว่าจะรู้)
+          # ถามชื่อ job จาก API ไม่ hardcode — เปลี่ยนชื่อ job เมื่อไหร่ก็ยังถูก
+          # ⚠️ ตรงนี้ fail-**open** ได้ เพราะ "อ่านไม่ได้ = ไม่ข้ามอะไรเลย = ช้า ไม่ใช่หลุด"
+          SELF_JOBS=$(gh api "repos/${REPO}/actions/runs/${GITHUB_RUN_ID}/jobs" --jq '.jobs[].name' 2>/dev/null || true)
+          [ -n "$SELF_JOBS" ] || echo "ℹ️ อ่านชื่อ job ของรอบนี้ไม่ได้ — ไม่ข้ามด่านไหน (อาจตกไปรอรอบ cron)"
+
+          # `gh pr checks --json` ให้ bucket เป็นตัวพิมพ์เล็ก (pass/fail/pending/skipping/cancel)
+          # ส่วน state เป็นตัวพิมพ์ใหญ่ — ห้ามเอามาเทียบสลับกัน
+          CHECKS=$(gh pr checks "$NUM" --repo "$REPO" --json name,state,bucket) \
+            || { say "⏭️ #$NUM อ่าน CI ไม่ได้ — fail-closed ไม่ merge"; exit 0; }
+          [ "$(echo "$CHECKS" | jq 'length')" -gt 0 ] \
+            || { say "⏭️ #$NUM ไม่มีด่าน CI สักตัว — fail-closed ไม่ merge"; exit 0; }
+
+          while IFS= read -r line; do
+            NAME=$(echo "$line" | jq -r '.name')
+            BUCKET=$(echo "$line" | jq -r '.bucket // ""')
+            if [ -n "$SELF_JOBS" ] && grep -Fxq "$NAME" <<< "$SELF_JOBS"; then
+              say "⚙️ ข้ามด่าน \"$NAME\" — นี่คือ job ของตาข่ายเอง ไม่ใช่ด่าน CI ของโค้ด"
+              continue
+            fi
+            # 🛑 ไม่มี ADVISORY_PATTERN โดยตั้งใจ — ต้นแบบมีและคอมเมนต์ในโค้ดเขาเขียนเองว่า
+            #    "นี่คือการยอมรับหนี้ ไม่ใช่การแก้" ของเราไม่เปิดช่องนั้นตั้งแต่แรก
+            case "$BUCKET" in
+              pass|skipping) ;;
+              pending) say "⏳ #$NUM ยังรอ CI ($NAME) — รอรอบหน้า"; exit 0 ;;
+              *)       say "🔴 #$NUM ตกด่าน CI ($NAME = ${BUCKET:-ว่าง}) — ไม่ merge"; exit 0 ;;
+            esac
+          done < <(echo "$CHECKS" | jq -c '.[]')
+
+          # ── ด่าน 5: 🛑 แตะ migration ไหม (ด่านที่ต้นแบบไม่มี) ────────────
+          # merge = `prisma migrate deploy` รันบนฐาน prod ทันที (HR15)
+          # ฐาน prod ของโปรเจกต์นี้เคยถูกล้างทั้ง 64 ตารางมาแล้ว (2026-07-31)
+          # ⇒ SQL ที่จะรันบนฐานจริง ต้องมีคนอ่านด้วยตาก่อนเสมอ ไม่มีข้อยกเว้น
+          FILES=$(gh pr view "$NUM" --repo "$REPO" --json files --jq '.files[].path') \
+            || { say "❌ #$NUM อ่านรายการไฟล์ไม่ได้ — fail-closed ไม่ merge"; exit 0; }
+          MIG=$(printf '%s\n' "$FILES" | grep -E '^prisma/migrations/' || true)
+          if [ -n "$MIG" ]; then
+            say "## 🛑 #$NUM แตะ migration — ไม่ auto-merge"
+            say '```'
+            say "$MIG"
+            say '```'
+            say "merge = \`prisma migrate deploy\` รันบนฐาน prod ทันที"
+            say "ต้องมีคนอ่าน SQL แล้วกด merge เองบน GitHub — ไม่มีทางลัด"
+            exit 0
+          fi
+
+          # ── ด่าน 6: ตรวจป้ายซ้ำจากตัวใบเอง ก่อนแตะ prod ─────────────────
+          # กันทั้งตัวกรองที่เชื่อไม่ได้ (ด่าน 1) และเคสถอดป้ายระหว่างที่รอบนี้ไล่ด่านอยู่
+          gh pr view "$NUM" --repo "$REPO" --json labels \
+            --jq "if ((.labels // []) | map(.name) | index(\"${LABEL}\")) then \"ok\" else error(\"no-label\") end" >/dev/null \
+            || { say "🛑 #$NUM ไม่มีป้าย \"$LABEL\" ตอนจะ merge จริง — ไม่แตะ"; exit 0; }
+
+          # ── MERGE ────────────────────────────────────────────────────────
+          # merge-commit ไม่ใช่ squash — PR ที่ stack ต่อกันจะได้ไม่กำพร้า
+          if gh pr merge "$NUM" --repo "$REPO" --merge --delete-branch; then
+            say "## 🚀 ขึ้น prod แล้ว"
+            say "✅ $REPO · PR #$NUM — $TITLE"
+            say ""
+            say "⚠️ GitHub ไม่มีด่าน CI บน main ให้เฝ้า — ผลจริงต้องดูที่ Vercel"
+            say "⏱️ ถ้าจับเวลา merge→live ได้จริง ให้เอาไปแก้ QUIET_MIN (ตอนนี้ $QUIET_MIN นาที เป็นค่าประมาณ)"
+          else
+            say "❌ $REPO · PR #$NUM merge ไม่ผ่าน (สิทธิ์ token? branch protection?) — ต้องมีคนดู"
+            exit 1
+          fi
