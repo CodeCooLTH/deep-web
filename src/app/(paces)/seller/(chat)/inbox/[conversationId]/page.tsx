@@ -62,6 +62,8 @@ import { findConversationShopForUser } from '@/services/chat.service'
 import { resolvePostThumbnail } from '@/services/page-comment.service'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import ChatShopAutoSwitch from './components/ChatShopAutoSwitch'
+import RscTiming from './components/RscTiming'
+import { createRscTimer } from '@/lib/rsc-timer'
 import ChatThread from './components/ChatThread'
 import CustomerPanel, { type CustomerPanelData, type CustomerPanelOrder } from './components/CustomerPanel'
 import { resolveLibraryOwner } from '@/lib/customer-file-library'
@@ -74,14 +76,21 @@ export const metadata: Metadata = { title: 'ข้อความ' }
 type PageProps = {
   params: Promise<{ conversationId: string }>
   /** `switched=1` = เพิ่งสลับร้านมารอบหนึ่งแล้ว — ตัวกันวนซ้ำ (ดู ChatShopAutoSwitch ด้านล่าง) */
-  searchParams: Promise<{ switched?: string }>
+  searchParams: Promise<{ switched?: string; debug?: string }>
 }
 
 export default async function SellerInboxThreadPage({ params, searchParams }: PageProps) {
   const { conversationId } = await params
-  const { switched } = await searchParams
+  const { switched, debug } = await searchParams
+
+  /**
+   * ตัวจับเวลารายเฟสของ RSC — ผลไหลออกทาง console เมื่อส่ง `?debug=timing` เท่านั้น
+   * (ดู `src/lib/rsc-timer.ts` ว่าทำไมใช้ Server-Timing ไม่ได้กับ page ของ App Router)
+   */
+  const { mark, marks: timingMarks } = createRscTimer()
 
   const session = await getServerSession(authOptions)
+  mark('auth')
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
@@ -91,6 +100,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   const scope = await resolveChatScope({
     user: { id: user.id as string, activeShopId: (user.activeShopId as string | null | undefined) ?? null },
   })
+  mark('resolveChatScope')
   if (!scope) {
     return (
       <SellerErrorState
@@ -229,6 +239,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   // active. ในกล่องแชทรวม สองค่านี้ไม่ใช่สิ่งเดียวกันอีกต่อไป — ถ้าใช้ร้านที่ active ผู้ใช้จะเห็น
   // ป้ายบอท/คำเรียกรายการ/โลโก้ ของอีกร้านมาแปะบนเธรดนี้ โดยที่ทุกอย่างดูปกติดี
   const threadShopId = conversation.shopId
+  mark('conversation')
   const [shopRow, chatbotCfg, testThread, liveKeywordCount, keywordTestThread] = await Promise.all([
     prisma.shop.findUnique({
       where: { id: threadShopId },
@@ -306,6 +317,9 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   if (!isLineThread && conversation.channel !== 'DEEP' && !getWindowState(effectiveLastInbound).open) {
     effectiveLastInbound = await syncInboundWindowFromMeta(conversation.id)
   }
+  // 🛑 เฟสนี้ยิง Graph ของ Meta เมื่อหน้าต่าง 24 ชม. ปิด — บน prod **92.1% ของเธรด Messenger
+  // (2,438/2,647) หน้าต่างปิดแล้ว** จึงเป็นเฟสที่คาดว่าจะแพงที่สุดสำหรับเธรดส่วนใหญ่
+  mark('syncInboundWindow(Meta)')
 
   // LINE คืนรูปร่างเดียวกัน (`open`/`msRemaining`) จึงส่งลง prop เดิมได้โดยไม่ต้องแตะสัญญาของ
   // ChatThread — ตัวจับเวลาฝั่ง client ที่มีอยู่แล้วจะพลิก "ส่งฟรี" เป็นสถานะโควตาเองเมื่อครบเวลา
@@ -342,6 +356,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   //
   // ข้อมูลมีอยู่ครบแล้วในฐาน ไม่ต้องยิง Graph ใหม่ — CommentReplyLog ผูก conversationId ↔ commentId
   // ไว้ตั้งแต่ตอนสร้างห้อง และ PageComment เก็บทั้งข้อความ/ชื่อ/เวลา/ไฟล์แนบ
+  mark('shop+chatbot+keyword')
   const commentOriginLog = await prisma.commentReplyLog.findFirst({
     where: { conversationId: conversation.id },
     select: {
@@ -411,6 +426,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     isLineThread && conversation.shopChannel?.id
       ? await getLineQuotaByChannelId(conversation.shopChannel.id)
       : null
+  mark('lineQuota')
 
   // ชื่อเพจที่เธรดนี้ผูกอยู่ (null = เธรด Deep / ไม่มี ShopChannel) — badge ใช้แทนชื่อช่องทาง
   const channelName = conversation.shopChannel?.name ?? null
@@ -576,6 +592,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
    * ทำที่ server เพราะ ChatThread ต้องรู้ตั้งแต่ paint แรกว่าไฟล์ไหนเก็บไปแล้ว — ถ้าให้ client
    * ไปถามเอง ปุ่มจะขึ้น "เก็บเข้าคลัง" ก่อนแล้วค่อยกระพริบเป็น "เอาออกจากคลัง" ซึ่งอ่านเป็นบั๊ก
    */
+  mark('customerPanel(orders/stats/behavior)')
   const savedFileIds = await listSavedFileIds(
     threadShopId,
     resolveLibraryOwner({ id: conversation.id, externalContactId: conversation.externalContactId }),
@@ -599,6 +616,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     orders: panelOrders,
   }
 
+  mark('savedFileIds')
+
   return (
     // rewrite (chat-standalone): ไม่มี PageBreadcrumb (ตัดออกตั้งแต่ก่อนหน้านี้แล้ว — หน้าแชท
     // เต็มจอไม่มี breadcrumb) — buyerName ยังเห็นที่ ChatThread card-header อยู่แล้ว
@@ -612,6 +631,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     // feature 00037 — ThreadShopProvider ฉีด "ร้านของเธรดนี้" ให้ทุก openDraft ที่อยู่ข้างใน
     // โดยที่ 8 จุดเรียกเดิมไม่ต้องแก้เลย (และจุดที่เพิ่มใหม่ทีหลังก็จะได้ถูกต้องเอง)
     <ThreadShopProvider shopId={shop.id}>
+    {/* วัดเวลาของ RSC — ไม่ render เลยถ้าไม่ได้ส่ง ?debug=timing มา (ดู components/RscTiming.tsx) */}
+    {debug === 'timing' && <RscTiming marks={timingMarks} />}
     <div className="flex h-full">
       <ChatThread
         conversationId={conversation.id}

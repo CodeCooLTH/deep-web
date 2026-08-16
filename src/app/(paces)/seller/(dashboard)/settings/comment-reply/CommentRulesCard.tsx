@@ -21,6 +21,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { COMMENT_NAME_PLACEHOLDER } from '@/lib/comment-reply-template'
+import SellerEmptyState from '../../_shared/SellerEmptyState'
 
 /** ต้องตรงกับ CommentReplyRuleSchema (validations.ts) และ service */
 const RULE_TEXT_MAX = 1000
@@ -202,10 +203,17 @@ export default function CommentRulesCard({
       </div>
 
       <div className="card-body space-y-3">
+        {/* ใช้ SellerEmptyState ตัวเดียวกับการ์ด "ประวัติการตอบอัตโนมัติ" ที่อยู่หน้าเดียวกัน
+            (`docs/conventions/sibling-surface-parity.md`) — เดิมเป็นข้อความลอยไม่มี icon ทำให้สอง
+            การ์ดในสโครลเดียวกันดูคนละคุณภาพ · icon 'filter' user เป็นคนเลือก (ห้ามเดาชื่อ icon เอง
+            ตาม `docs/conventions/no-emoji-use-icons.md`) */}
         {rules.length === 0 && editingId === null && (
-          <p className="text-default-500 text-sm">
-            ยังไม่มีกฎ — ตอนนี้ทุกคอมเมนต์ได้ข้อความตั้งต้นของเพจเหมือนกันหมด
-          </p>
+          <SellerEmptyState
+            compact
+            icon="filter"
+            title="ยังไม่มีกฎ"
+            description="ตอนนี้ทุกคอมเมนต์ได้ข้อความตั้งต้นของเพจเหมือนกันหมด — เพิ่มกฎเพื่อตอบคนที่ถามราคาให้ต่างออกไป"
+          />
         )}
 
         <ul className="divide-default-200 divide-y">
