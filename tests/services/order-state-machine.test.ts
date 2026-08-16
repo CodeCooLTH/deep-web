@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { prisma, cleanDatabase } from "../setup";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { prisma, deleteTestData } from "../setup";
 import {
   createOrder,
   confirmOrder,
@@ -7,6 +7,20 @@ import {
   cancelOrder,
   VALID_TRANSITIONS,
 } from "@/services/order.service";
+
+// ─── id ที่เทสสร้าง — เก็บไว้ลบเฉพาะของตัวเองใน afterEach (Hard Rule 13) ────────
+
+let userIds: string[] = [];
+let shopIds: string[] = [];
+
+function resetTrackedIds() {
+  userIds = [];
+  shopIds = [];
+}
+
+async function cleanupTrackedIds() {
+  await deleteTestData({ userIds, shopIds });
+}
 
 // ─── Seed helper ──────────────────────────────────────────────────────────────
 
@@ -18,9 +32,11 @@ async function seedShopProduct(fulfillmentMode: "SHIPPED" | "NO_SHIPPING") {
   const user = await prisma.user.create({
     data: { displayName: "ร้านค้าทดสอบ", username: `shop_${Date.now()}`, isShop: true },
   });
+  userIds.push(user.id);
   const shop = await prisma.shop.create({
     data: { userId: user.id, shopName: "Shop Test", businessType: "INDIVIDUAL" },
   });
+  shopIds.push(shop.id);
   const product = await prisma.product.create({
     data: {
       shopId: shop.id,
@@ -36,7 +52,8 @@ async function seedShopProduct(fulfillmentMode: "SHIPPED" | "NO_SHIPPING") {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("OMS State Machine — createOrder", () => {
-  beforeEach(cleanDatabase);
+  beforeEach(resetTrackedIds);
+  afterEach(cleanupTrackedIds);
 
   it("createOrder → status = PENDING", async () => {
     const { shop } = await seedShopProduct("SHIPPED");
@@ -83,7 +100,8 @@ describe("OMS State Machine — createOrder", () => {
 });
 
 describe("OMS State Machine — NO_SHIPPING flow", () => {
-  beforeEach(cleanDatabase);
+  beforeEach(resetTrackedIds);
+  afterEach(cleanupTrackedIds);
 
   it("PENDING → confirmOrder → CONFIRMED (direct terminal สำหรับ NO_SHIPPING)", async () => {
     const { shop, product } = await seedShopProduct("NO_SHIPPING");
@@ -99,7 +117,8 @@ describe("OMS State Machine — NO_SHIPPING flow", () => {
 });
 
 describe("OMS State Machine — SHIPPED flow", () => {
-  beforeEach(cleanDatabase);
+  beforeEach(resetTrackedIds);
+  afterEach(cleanupTrackedIds);
 
   it("PENDING → shipOrder → SHIPPED → confirmOrder → CONFIRMED", async () => {
     const { shop, product } = await seedShopProduct("SHIPPED");
@@ -131,7 +150,8 @@ describe("OMS State Machine — SHIPPED flow", () => {
 });
 
 describe("OMS State Machine — cancelOrder", () => {
-  beforeEach(cleanDatabase);
+  beforeEach(resetTrackedIds);
+  afterEach(cleanupTrackedIds);
 
   it("cancelOrder(seller) จาก PENDING → CANCELLED + cancelInitiator = seller", async () => {
     const { shop } = await seedShopProduct("SHIPPED");

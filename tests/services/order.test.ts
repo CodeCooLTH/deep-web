@@ -1,20 +1,29 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { prisma, cleanDatabase } from "../setup";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { prisma, deleteTestData } from "../setup";
 // completeOrder ถูกลบใน OMS redesign Task 2 — ดู tests/services/order-state-machine.test.ts
 import { createOrder, confirmOrder, shipOrder, VALID_TRANSITIONS } from "@/services/order.service";
 
 describe("OrderService", () => {
   let shopId: string;
+  let userIds: string[] = [];
+  let shopIds: string[] = [];
 
   beforeEach(async () => {
-    await cleanDatabase();
+    userIds = [];
+    shopIds = [];
     const user = await prisma.user.create({
       data: { displayName: "Seller", username: "seller_order", isShop: true },
     });
+    userIds.push(user.id);
     const shop = await prisma.shop.create({
       data: { userId: user.id, shopName: "TestShop", businessType: "INDIVIDUAL" },
     });
+    shopIds.push(shop.id);
     shopId = shop.id;
+  });
+
+  afterEach(async () => {
+    await deleteTestData({ userIds, shopIds });
   });
 
   it("creates order with PENDING status and public token", async () => {

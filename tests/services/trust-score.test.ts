@@ -1,16 +1,25 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { prisma, cleanDatabase } from "../setup";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { prisma, deleteTestData } from "../setup";
 import { recalculateTrustScore, getTrustLevel } from "@/services/trust-score.service";
 
 describe("TrustScoreService", () => {
-  beforeEach(async () => {
-    await cleanDatabase();
+  let userIds: string[] = [];
+  let shopIds: string[] = [];
+
+  beforeEach(() => {
+    userIds = [];
+    shopIds = [];
+  });
+
+  afterEach(async () => {
+    await deleteTestData({ userIds, shopIds });
   });
 
   it("returns 0 for new user with no activity", async () => {
     const user = await prisma.user.create({
       data: { displayName: "Test", username: "test1" },
     });
+    userIds.push(user.id);
     const score = await recalculateTrustScore(user.id);
     expect(score).toBe(0);
   });
@@ -19,6 +28,7 @@ describe("TrustScoreService", () => {
     const user = await prisma.user.create({
       data: { displayName: "Test", username: "test2" },
     });
+    userIds.push(user.id);
     await prisma.verificationRecord.create({
       data: { userId: user.id, type: "PHONE_OTP", level: 1, status: "APPROVED" },
     });
@@ -30,6 +40,7 @@ describe("TrustScoreService", () => {
     const user = await prisma.user.create({
       data: { displayName: "Test", username: "test3" },
     });
+    userIds.push(user.id);
     await prisma.verificationRecord.createMany({
       data: [
         { userId: user.id, type: "PHONE_OTP", level: 1, status: "APPROVED" },
@@ -45,9 +56,11 @@ describe("TrustScoreService", () => {
     const seller = await prisma.user.create({
       data: { displayName: "Seller", username: "seller1", isShop: true },
     });
+    userIds.push(seller.id);
     const shop = await prisma.shop.create({
       data: { userId: seller.id, shopName: "Shop", businessType: "INDIVIDUAL" },
     });
+    shopIds.push(shop.id);
     for (let i = 0; i < 3; i++) {
       const order = await prisma.order.create({
         data: {
