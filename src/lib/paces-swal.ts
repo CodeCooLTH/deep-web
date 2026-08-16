@@ -162,6 +162,48 @@ export const pacesConfirmWithReason = async (options: {
   return result.isConfirmed && typeof result.value === 'string' ? result.value : null
 }
 
+/**
+ * เหมือน `pacesConfirmWithReason` ทุกอย่าง ต่างที่รับ **ข้อความอิสระ** แทนการเลือกจากลิสต์
+ *
+ * ใช้เมื่อเหตุผลไม่ใช่ชุดค่าคงที่ — เช่นตีกลับใบงานของ Command Center (00049 FR-CC-05)
+ * ที่ต้องบอก *สิ่งที่ต้องแก้* ให้ agent ขั้นถัดไปอ่าน ซึ่งเขียนเป็น dropdown ไม่ได้
+ * วางติดกับตัวเดิมในไฟล์เดียวกันโดยตั้งใจ (UX spec §9 ข้อ 2) เพื่อให้คนที่มาหาอันหนึ่งเห็นอีกอัน
+ *
+ * คืน string = ข้อความที่กรอก (trim แล้ว) · null = ผู้ใช้กดยกเลิก
+ */
+export const pacesConfirmWithText = async (options: {
+  title: string
+  html?: string
+  placeholder?: string
+  validationMessage: string
+  confirmButtonText?: string
+  cancelButtonText?: string
+  maxLength?: number
+}): Promise<string | null> => {
+  const Swal = await loadSwal()
+
+  const result = await Swal.fire({
+    buttonsStyling: false,
+    allowOutsideClick: false,
+    icon: 'warning',
+    title: options.title,
+    html: options.html,
+    input: 'textarea',
+    inputPlaceholder: options.placeholder ?? 'พิมพ์เหตุผล',
+    inputAttributes: { maxlength: String(options.maxLength ?? 2000) },
+    // บังคับกรอกก่อน — ไม่ปิดโมดัล ไม่ยิง request ถ้ายังว่าง
+    // (ตีกลับโดยไม่มีเหตุผล = ใบที่ขั้นถัดไปรับต่อแล้วไม่รู้ว่าต้องแก้อะไร)
+    inputValidator: (value) =>
+      value && value.trim() ? undefined : options.validationMessage,
+    showCancelButton: true,
+    confirmButtonText: options.confirmButtonText ?? 'ยืนยัน',
+    cancelButtonText: options.cancelButtonText ?? 'ไม่ใช่ตอนนี้',
+    customClass: { confirmButton: CONFIRM_BTN.danger, cancelButton: CANCEL_BTN },
+  })
+
+  return result.isConfirmed && typeof result.value === 'string' ? result.value.trim() : null
+}
+
 export const pacesConfirm: PacesConfirmFn = Object.assign(base, {
   danger: (title: string, text?: string, opts?: Partial<PacesConfirmOptions>) =>
     base({ confirmSemantic: 'danger', icon: 'warning', ...opts, title, text }),

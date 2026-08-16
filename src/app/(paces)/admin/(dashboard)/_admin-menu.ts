@@ -33,4 +33,15 @@ export const adminMenuItems: MenuItemType[] = [
       { url: '/badges', slug: 'admin:badges', label: 'ตราสัญลักษณ์', icon: 'award' },
     ],
   },
+  {
+    // กลุ่มใหม่ "ระบบ" — เครื่องมือ ops ภายใน ไม่ใช่ข้อมูลธุรกิจแบบ orders/topups
+    // เอาไปปนกลุ่ม "ธุรกิจ" จะทำให้เมนูนั้นอ่านผิดความหมาย (UX spec §9 ข้อ 1)
+    icon: 'settings-2',
+    slug: 'admin-system',
+    label: 'ระบบ',
+    isTitle: true,
+    children: [
+      { url: '/command-center', slug: 'admin:command-center', label: 'สายพานงาน AI', icon: 'robot' },
+    ],
+  },
 ]
