@@ -11,10 +11,9 @@ name: ตรวจก่อน merge
 #   - อ่านค่าที่จำเป็นไม่ได้ = ไม่ผ่าน (fail-closed) ไม่ใช่ผ่านโดยปริยาย
 #   - เชลล์ล้วน ไม่มีโมเดล AI อยู่ในเส้นทางตัดสิน (00049 D-4)
 #
-# 🛑 สิ่งที่ด่านนี้ **ยังไม่ครอบ** และจะประกาศดัง ๆ ทุกรอบ (ห้ามเงียบ):
-#   `vitest run tests/` (12 ไฟล์ ต้องมี Postgres) — เข้าด่านได้เมื่อ P0.1 ปิด
-#   ณ 2026-08-16: แดง 13 ตัว ซึ่งไม่ใช่บั๊กใหม่ แต่เป็นสมมติฐานเก่าที่เพิ่งถูกเปิดโปง
-#   หลังเลิกล้างทั้งฐานก่อนทุกเทส (ดู commit adc48b52)
+# ✅ ครอบครบแล้วตั้งแต่ 2026-08-16 — `vitest run tests/` เข้าด่านที่ ด่าน 4 พร้อม
+#    Postgres service container (ปิด P0.1: เดิม 8 ไฟล์เรียก `cleanDatabase()` ที่ถูกถอด
+#    ตาม HR13 แดง 80 ตัว → ตามด้วย fixture เก่าอีก 13 → ตอนนี้ 126/126 เขียว)
 
 on:
   pull_request:
@@ -168,27 +167,59 @@ jobs:
 
       # scope `src/` เท่านั้น — ไม่ใช่ `npx vitest run` เปล่า ๆ
       # vitest.config exclude แค่ node_modules/e2e/.next ⇒ ตัวเปล่าจะดูด tests/ เข้ามาด้วย
-      # ซึ่งต้องมี Postgres และยังแดง 13 ตัว (P0.1 ยังไม่ปิด)
+      # ซึ่งต้องมี Postgres — แยกไปอยู่ ด่าน 4 ที่มี service container ให้
+      # (แยก job กันโดยตั้งใจ: ด่านนี้ไม่ต้องรอฐานขึ้น และแดงคนละเรื่องกันชัดเจน)
       #
       # ไม่มีลิสต์ยกเว้น ไม่มี baseline — วัดแล้ว 2026-08-16 เขียวหมด 2,945/2,945
       # แดง 1 ตัวก็ตก
       - run: npx vitest run src/
 
-      - name: ประกาศสิ่งที่ด่านนี้ยังไม่ครอบ
-        if: always()
-        run: |
-          {
-            echo "### ⚠️ ยังไม่อยู่ในด่านนี้"
-            echo ""
-            echo '`vitest run tests/` (12 ไฟล์ · ต้องมี Postgres) — **ยังไม่ถูกรันใน CI**'
-            echo ""
-            echo "จะเข้าด่านเมื่อ P0.1 ปิด: ยังแดง 13 ตัวจากสมมติฐานเก่าที่ถูกเปิดโปง"
-            echo "หลังเลิกล้างทั้งฐานก่อนทุกเทส (10 = โค้ดโปรดักต์เปลี่ยนแต่เทสไม่ตาม ·"
-            echo "3 = เทสคิดว่าในฐานมีแต่ badge ที่ตัวเองสร้าง) และ CI ต้องเพิ่ม"
-            echo "service container \`postgres:16\` ก่อน"
-            echo ""
-            echo "ประกาศไว้ตรงนี้ทุกรอบโดยตั้งใจ — ด่านที่ครอบไม่ครบต้องดัง ไม่ใช่เงียบ"
-          } >> "$GITHUB_STEP_SUMMARY"
+  # ── ด่าน 4: integration test ที่ต้องมีฐานข้อมูล ───────────────────────────
+  # ปิด P0.1 แล้ว — เดิม 8 ไฟล์เรียก `cleanDatabase()` ที่ถูกถอดตาม HR13 (แดง 80)
+  # ตามด้วย fixture เก่าที่ไม่ตามโค้ดโปรดักต์อีก 13 ⇒ ตอนนี้ 126/126 เขียว
+  integration:
+    name: ด่าน 4 — vitest (tests/ + Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: safepay
+          POSTGRES_PASSWORD: safepay
+          POSTGRES_DB: safepay
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # 🛑 ปักหมุด localhost ตรง ๆ ทั้ง 2 ตัว (HR14) — ฐานนี้เป็น container ที่เกิดและตาย
+      # พร้อม job ไม่มีทางเป็นฐานอื่นได้ · `tests/setup.ts` มี allowlist fail-closed
+      # อีกชั้นที่ผ่านเฉพาะ localhost/127.0.0.1/host.docker.internal
+      DATABASE_URL: postgresql://safepay:safepay@localhost:5432/safepay
+      DIRECT_URL: postgresql://safepay:safepay@localhost:5432/safepay
+      NEXTAUTH_SECRET: ci-dummy-secret-not-used-for-anything-real
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npx prisma generate
+
+      # `migrate deploy` = รันไฟล์ใน prisma/migrations/ ตามลำดับ ไม่ drop อะไร
+      # HR14 อนุญาตชัดเจน (ต่างจาก migrate dev / db push --force-reset / migrate reset)
+      # และปลายทางคือ container ที่ปักหมุด localhost ไว้ในคำสั่งเอง
+      - name: สร้าง schema บนฐานของ job นี้
+        run: npx prisma migrate deploy
+
+      # ⚠️ ฐานนี้ว่างเปล่า ไม่มี seed — ต่างจากฐาน dev บนเครื่องที่มีข้อมูล seed จริง
+      # เทสที่ผ่านบนเครื่องแต่ตกตรงนี้ = เทสนั้นแอบพึ่ง seed data โดยไม่ได้ตั้งใจ
+      # ซึ่งเป็นสิ่งที่เราอยากรู้ ไม่ใช่สิ่งที่ควรกลบ
+      - run: npx vitest run tests/
 
   # ── ด่าน 3: theme compliance ──────────────────────────────────────────────
   # HR7 (arbitrary value) / 9 (react-toastify) / 10 (chart lib) / 12 (emoji)
