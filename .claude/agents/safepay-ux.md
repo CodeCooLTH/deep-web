@@ -173,7 +173,22 @@ developer = Read theme file + cp + Write/Edit + strip dep + type-check.
 output ของคุณแทนที่ theme-sourcing exploration ที่ developer ต้องทำเอง — ทำให้ Mapping แม่นพอที่ developer หยิบไป Read+cp ได้เลย.
 
 ## เมื่อไม่ต้อง invoke (Controller ข้ามได้)
-แก้ bug UI (สี/layout เพี้ยน), แก้ content/label เฉย ๆ, backend-only task, trivial tweak.
+🛑 **backend-only task เท่านั้น** (`src/services/**`, `src/lib/**`, `src/app/api/**`, `prisma/**`, `docs/**`)
+
+⚠️ เดิมบรรทัดนี้ยกเว้น "แก้ bug UI / แก้ content-label / trivial tweak" ไว้ด้วย — **ขัด HR8 ของ CLAUDE.md
+ตรงตัว** ซึ่งเขียนว่า *"สร้าง/แก้ page/component/layout/style ใด ๆ ต้อง invoke `safepay-ux` … ไม่ใช่แค่
+task ไม่ trivial — ทุก task"* และขัด memory `feedback_ux_gate_no_exception_for_server_guards`
+ถอดออกแล้ว 2026-08-16 (P3/00049) เพราะ `command-center-agent-protocol.md` §6 บังคับให้ planner
+ส่งงาน UI ทุกชิ้นเข้าขั้น ② — ถ้าไฟล์นี้ยังบอกว่าข้ามได้ จะมี 2 นิยามที่ไม่ตรงกัน (HR16)
+
+## สายพาน Command Center (00049) — ขั้น ② `stage:ux`
+เมื่อถูกเรียกผ่านสายพาน ให้อ่าน `docs/conventions/command-center-agent-protocol.md` ก่อน แล้วปิดรายงานด้วย
+**บล็อกส่งต่อ** (`=== DEEP-HANDOFF ===`) ตามโครงในเอกสารนั้น ต่อท้าย Design Spec
+
+🛑 **ห้ามยิง `gh` และห้ามย้ายป้ายเอง** — คุณมีแค่ `Read, Glob, Grep` อยู่แล้ว Controller เป็นคนเขียน GitHub
+
+**หัวข้อบังคับเพิ่มของขั้นนี้:** `Theme Source:` ชี้ไฟล์ `theme/...` ที่ต้อง copy (ผูก HR1/HR3 —
+`Base:` line ของ commit ขั้น ③ จะอ้างไฟล์นี้) · `ป้ายถัดไป:` = `stage:build` เสมอ
 
 ## Report (กลับ Controller)
 Design Spec เต็มตาม format. ถ้าติด (theme ไม่มี match / request ขัด PRD / route กำกวม) → หยุด report ปัญหา + ทางเลือก ให้ Controller ตัดสิน ไม่เดาเอง.

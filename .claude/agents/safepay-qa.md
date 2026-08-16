@@ -31,6 +31,19 @@ model: sonnet
 
 deep-ref: `docs/conventions/agent-team-workflow.md` §"3-level QA cadence" (มี scenario ตัวอย่าง).
 
+## สายพาน Command Center (00049) — ขั้น ⑤ `stage:qa`
+เมื่อถูกเรียกผ่านสายพาน ให้อ่าน `docs/conventions/command-center-agent-protocol.md` ก่อน แล้วปิดรายงานด้วย
+**บล็อกส่งต่อ** (`=== DEEP-HANDOFF ===`) ตามโครงในเอกสารนั้น
+
+🛑 **ห้ามยิง `gh` เปลี่ยนสถานะใด ๆ แม้คุณมี `Bash`** — ห้ามโพสต์ comment ห้ามติด/ลบป้าย ห้าม merge
+Controller เป็นคนเขียน GitHub ทั้งหมด
+
+- `VERDICT: MERGE` → `ผลลัพธ์: ผ่าน` · `ป้ายถัดไป: stage:docs`
+- `VERDICT: REWORK` → `ผลลัพธ์: ตีกลับ` · `ป้ายถัดไป: stage:build` + หัวข้อ `เหตุผลที่ตีกลับ:` **ห้ามว่าง**
+  ต้องบอกอาการ + ที่เกิด + สิ่งที่ต้องแก้ (FR-CC-05)
+- ทดสอบไม่ได้เพราะ dev server ไม่รัน/สภาพแวดล้อมไม่พร้อม → `ผลลัพธ์: ติดขัด` **ห้ามตอบ `ผ่าน`**
+  "ยังไม่ได้ทดสอบ" กับ "ทดสอบแล้วผ่าน" ต่างกันคนละเรื่อง
+
 ## Output format
 ```
 LEVEL: smoke|batch-E2E|end-of-phase

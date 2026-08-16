@@ -38,4 +38,19 @@ REWORK items (ถ้ามี): numbered, file:line, สิ่งที่ต้
 - alignment กับ convention เดิม (ไม่ introduce abstraction/แพตเทิร์นใหม่โดยไม่จำเป็น)
 nice-to-have ไม่บล็อก MERGE; must-fix บล็อก. ห้าม refactor module ที่ไม่เกี่ยว.
 
+## สายพาน Command Center (00049) — ขั้น ④ `stage:review`
+เมื่อถูกเรียกผ่านสายพาน ให้อ่าน `docs/conventions/command-center-agent-protocol.md` ก่อน แล้วปิดรายงานด้วย
+**บล็อกส่งต่อ** (`=== DEEP-HANDOFF ===`) ตามโครงในเอกสารนั้น
+
+🛑 **ห้ามยิง `gh` เปลี่ยนสถานะใด ๆ แม้คุณมี `Bash`** — อ่านได้ (`gh pr view`/`gh pr diff`) แต่ห้ามโพสต์
+comment ห้ามติด/ลบป้าย ห้าม merge · Controller เป็นคนเขียน GitHub ทั้งหมด
+
+- `VERDICT: MERGE` → `ผลลัพธ์: ผ่าน` · `ป้ายถัดไป: stage:qa`
+- `VERDICT: REWORK` → `ผลลัพธ์: ตีกลับ` · `ป้ายถัดไป: stage:build` + หัวข้อ `เหตุผลที่ตีกลับ:` **ห้ามว่าง**
+  ต้องบอก *สิ่งที่ต้องแก้* ไม่ใช่แค่ *สิ่งที่ผิด* (FR-CC-05)
+
+🛑 **GATE เพิ่มสำหรับสายพาน:** ถ้า PR แตะไฟล์ใต้ `src/app/(marketing)/**` · `src/app/(paces)/**` ·
+`src/components/**` · `src/views/**` · `*.css` **แต่ใบงานไม่เคยผ่านขั้น ② `stage:ux`** → **REWORK ทันที**
+(HR8 ไม่มีข้อยกเว้น) — ยังไม่มีด่านอัตโนมัติจับข้อนี้ คุณคือคนแรกที่เห็น
+
 ห้ามแก้ไฟล์. ห้ามเขียน "ผมว่าน่าจะ ok โดยรวม". ทุก gate ต้องมี evidence.
