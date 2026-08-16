@@ -25,6 +25,7 @@ on:
 # (08-01→08-03) เพราะรอบที่ไม่มีอะไรให้ตรวจเขียวตลอด ไม่เคยเดินถึงด่านที่พัง
 permissions:
   contents: read
+  pull-requests: read   # ด่าน 0 ถามป้ายสด ๆ จาก API — ห้ามเชื่อ snapshot ใน event payload
 
 concurrency:
   group: verify-${{ github.ref }}
@@ -47,9 +48,11 @@ jobs:
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
           # ป้ายนี้ = คนตั้งใจแก้ด่านเอง (ติดได้เฉพาะคนที่มีสิทธิ์เขียนรีโป)
           OVERRIDE_LABEL: แตะด่าน
-          HAS_OVERRIDE: ${{ contains(github.event.pull_request.labels.*.name, 'แตะด่าน') }}
         run: |
           set -euo pipefail
           say() { echo "$@"; echo "$@" >> "$GITHUB_STEP_SUMMARY"; }
@@ -87,6 +90,14 @@ jobs:
           say "$protected"
           say '```'
 
+          # 🛑 ถามป้ายสด ๆ จาก API — **ห้ามใช้ `github.event.pull_request.labels`**
+          # payload ของ event คือภาพนิ่ง ณ ตอนที่ event ยิง (PR ถูกสร้าง) ป้ายที่ติดทีหลัง
+          # จะมองไม่เห็นทั้งที่มีอยู่จริง — พลาดจริงในรอบแรก 2026-08-16 (PR #5)
+          # คลาสเดียวกับ docs/conventions/stored-flag-vs-owner-truth.md
+          # อ่านไม่ได้ = ไม่มีป้าย (fail-closed) ไม่ใช่ปล่อยผ่าน
+          HAS_OVERRIDE=$(gh api "repos/${REPO}/issues/${PR}/labels" \
+                           --jq "any(.name == \"${OVERRIDE_LABEL}\")" 2>/dev/null || echo "false")
+
           if [ "$HAS_OVERRIDE" = "true" ]; then
             say "⚠️ ผ่านเพราะมีป้าย \"$OVERRIDE_LABEL\" — คนตั้งใจแก้ด่านเอง"
             say "   ต้องอ่าน diff ด้วยตาก่อน merge เสมอ ป้ายนี้ไม่ได้แปลว่าถูกต้อง"
@@ -97,10 +108,35 @@ jobs:
           say "   ถ้าตั้งใจแก้จริง ให้คนติดป้าย \"$OVERRIDE_LABEL\" บน PR นี้แล้วรันใหม่"
           exit 1
 
-  # ── ด่าน 1: TypeScript ────────────────────────────────────────────────────
+  # ── ด่าน 1: type error ผ่าน next build ────────────────────────────────────
+  # 🛑 **ห้ามใช้ `npx tsc --noEmit` เปล่า ๆ — พิสูจน์แล้วว่าใช้ไม่ได้ (PR #5 รอบแรก)**
+  # `next-env.d.ts` ถูก gitignore (บรรทัด 46) เพราะเป็นไฟล์ที่ Next generate เอง และมันคือ
+  # ตัวที่ประกาศชนิดของ `*.svg`/`*.ico` (`/// <reference types="next/image-types/global" />`)
+  # \+ import route types จาก `.next/types/` ⇒ บน CI ที่ checkout สะอาด tsc จะแดง
+  # `Cannot find module '@/assets/images/*.svg'` เป็นสิบตัวทั้งที่โค้ดไม่มีอะไรผิดเลย
+  #
+  # `next build` ทำ type-check ให้ครบ **และ**เป็นคำสั่งเดียวกับที่ Vercel รันจริง
+  # ⇒ ด่านนี้ทดสอบสิ่งที่มีผลจริง ไม่ใช่ของใกล้เคียง
   typecheck:
-    name: ด่าน 1 — tsc
+    name: ด่าน 1 — next build (type errors)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # ค่าปลอมทั้งหมด — โมดูลหลายตัวใน src/lib/ throw ตอน import ถ้าไม่มี NEXTAUTH_SECRET
+      # (upload-ticket, scam-identifier, mobile-ticket, link-intent, app-token,
+      #  account-merge-ticket) ⇒ build ล้มก่อนถึง type-check ด้วยซ้ำ
+      NEXTAUTH_SECRET: ci-dummy-secret-not-used-for-anything-real
+      # 🛑 ต้องเป็น localhost เท่านั้น (HR14) — `npm run build` = `next build` ล้วน
+      # **ไม่ได้รัน `prisma migrate deploy`** (ตัวนั้นอยู่ใน buildCommand ของ vercel.json
+      # ไม่ใช่ใน npm script) ⇒ ด่านนี้ไม่แตะฐานข้อมูลใด ๆ ทั้งสิ้น
+      DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
+      DIRECT_URL: postgresql://dummy:dummy@localhost:5432/dummy
+      NEXT_PUBLIC_SUPABASE_URL: https://dummy.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-dummy-anon-key
+      NEXT_PUBLIC_BUYER_URL: https://deepthailand.app
+      NEXT_PUBLIC_SELLER_URL: https://seller.deepthailand.app
+      NEXT_TELEMETRY_DISABLED: '1'
+      NODE_OPTIONS: --max-old-space-size=4096
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -110,11 +146,11 @@ jobs:
 
       - run: npm ci
 
-      # จำเป็นก่อน tsc — Prisma client ถูก generate เข้า node_modules ไม่ได้อยู่ในรีโป
+      # Prisma client ถูก generate เข้า node_modules ไม่ได้อยู่ในรีโป
       # `prisma generate` **ไม่แตะฐานข้อมูล** (HR14 อนุญาตชัดเจน) ต่างจาก migrate/db push
       - run: npx prisma generate
 
-      - run: npx tsc --noEmit
+      - run: npm run build
 
   # ── ด่าน 2: unit test ─────────────────────────────────────────────────────
   unit:
