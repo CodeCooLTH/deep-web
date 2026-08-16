@@ -8,7 +8,9 @@ related: ["[[SDS]]", "[[SRS]]"]
 ---
 
 > **โมดูล:** 00049 - AI Command Center · **เวอร์ชัน:** 1.0 · **วันที่:** 2026-08-16
-> **สถานะ:** Draft — **ยังไม่มี route ใดตามสัญญานี้ implement จริง (P4 ยังไม่เริ่ม)**
+> **สถานะ:** ✅ **implement ครบทั้ง 6 route แล้ว (P4.2 · 2026-08-16)** —
+> `src/app/api/admin/command-center/**` + `src/services/command-center.service.ts`
+> **ยังไม่เคยยิงกับ GitHub จริงสักครั้ง** (ต้องตั้ง `COMMAND_CENTER_GITHUB_TOKEN` ก่อน)
 
 # API Contract: AI Command Center
 
@@ -203,7 +205,7 @@ success ไม่ error (ป้ายที่ต้องการมีอย�
 
 ---
 
-## 6. Sequence: `POST /reject` — ต้องอ่าน label สดก่อนเขียน
+## 6. Sequence: `POST /reject` — อ่าน label สดก่อนเขียน · comment ก่อนป้าย
 
 ```mermaid
 sequenceDiagram
@@ -221,17 +223,22 @@ sequenceDiagram
         R-->>C: 404
     else 200
         GH-->>S: labels สดจริง (ห้ามเชื่อ label ที่ client ส่งมา)
-        S->>S: กรอง label ขึ้นต้น "stage:" ออก
-        S->>GH: PUT issues/{n}/labels [...ป้ายอื่น, "stage:build"]
         S->>GH: POST issues/{n}/comments {body: reason}
         alt comment ล้ม
-            S-->>R: GithubUnreachableError (label เปลี่ยนไปแล้ว — ไม่ atomic โดยตั้งใจ)
+            S-->>R: GithubUnreachableError (ป้ายยังไม่ขยับ — ใบค้างขั้นเดิมพร้อมให้กดซ้ำ)
             R-->>C: 502
-        else สำเร็จ
+        else comment สำเร็จ
+            S->>S: กรอง label ขึ้นต้น "stage:" ออก
+            S->>GH: PUT issues/{n}/labels [...ป้ายอื่น, "stage:build"]
             R-->>C: 200 {ok:true}
         end
     end
 ```
+
+🛑 **ลำดับ comment→ป้าย แก้ 2026-08-16 (P4.1)** — เดิมไดอะแกรมนี้เขียนกลับกันและกำกับว่า
+"ไม่ atomic โดยตั้งใจ" ทั้งที่ทิศที่เลือกเป็นทิศที่แย่กว่า: ป้ายขยับแล้ว comment ล้ม =
+ใบเด้งไป `stage:build` โดยไม่มีเหตุผลสักบรรทัด ซึ่งเป็นสิ่งที่ FR-CC-05 มีอยู่เพื่อป้องกัน
+ยึด **BRD AC-05-1** (comment ก่อน) ซึ่งเป็นความต้องการ — ดู [[SRS]] TFR-CC-05
 
 ---
 

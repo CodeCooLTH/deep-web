@@ -80,8 +80,8 @@ flowchart LR
 | `verify.yml` (ด่าน 0–4) | **มีอยู่จริง รันจริง เขียวครบ** |
 | `auto-merge.yml` (ด่าน 0–6) | **มีอยู่จริง** — merge จริงยังไม่เคยเกิด (§9) |
 | `watchdog.yml` | **มีอยู่จริง** — ยังไม่เคยมีชีพจรจริงเข้ามา (§9) |
-| `.claude/agents/*` 6 ตัว | มีอยู่แล้ว — **ยังไม่รู้จักโปรโตคอลของฟีเจอร์นี้** (P3) |
-| Command Center page + API | **ยังไม่มีไฟล์** (P4) |
+| `.claude/agents/*` 6 ตัว | ✅ **รู้จักโปรโตคอลแล้ว** (P3) — `command-center-agent-protocol.md` · ยังไม่เคยเดินจริง (§9 ข้อ 7) |
+| Command Center page + API | ✅ **มีไฟล์ครบแล้ว** (P4) — ยังไม่เคยยิง GitHub จริง (§9 ข้อ 8) |
 
 ⚠️ **cache เป็น per-instance บน Vercel serverless** — ไม่การันตี hit ข้าม instance (คลาสเดียวกับ
 known-gap ของ `api-rate-limit.ts` ที่บันทึกไว้แล้วในโปรเจกต์) กระทบความเร็ว ไม่กระทบความถูกต้อง
@@ -127,9 +127,22 @@ known-gap ของ `api-rate-limit.ts` ที่บันทึกไว้แ�
 ### TFR-CC-05 ตีกลับพร้อมเหตุผล → FR-CC-05
 `POST /items/{n}/reject` → validate `reason` (1–2000, ห้ามว่าง) → (1) `GET issues/{n}` อ่าน label
 **สดจริง** (🛑 ห้ามเชื่อ label ที่ client ส่งมา — คลาสเดียวกับที่ `verify.yml` คอมเมนต์ไว้ว่าห้ามเชื่อ
-event payload) (2) กรอง `stage:*` ออกทั้งหมด (3) เพิ่ม `stage:build` (4) โพสต์ comment
-· ต้องโพสต์ comment สำเร็จก่อนตอบ 200 · เรียกกับใบที่ไม่มี `stage:*` แล้ว → ยัง apply ได้ ไม่ error
-(fail-open เฉพาะจุดนี้ เพราะผลลัพธ์ปลอดภัยกว่าการปฏิเสธ)
+event payload) → **(2) โพสต์ comment ก่อน** → (3) กรอง `stage:*` ออกทั้งหมด (4) เพิ่ม `stage:build`
+· เรียกกับใบที่ไม่มี `stage:*` แล้ว → ยัง apply ได้ ไม่ error (fail-open เฉพาะจุดนี้)
+
+🛑 **แก้ลำดับ 2026-08-16 (P4.1)** — เดิมข้อนี้เขียนว่า *ป้ายก่อน → comment ทีหลัง* ซึ่ง**ขัด
+BRD FR-CC-05 AC-05-1** ที่เขียนว่า *"เขียนเหตุผลเป็น comment **ก่อน**เปลี่ยนป้ายกลับ `stage:build`"*
+BRD เป็น *ความต้องการ* ส่วน SRS/API เป็น *เอกสารอนุพันธ์* ⇒ ยึด BRD
+
+ทำไมลำดับนี้สำคัญจริง ไม่ใช่แค่ความเรียบร้อยของเอกสาร:
+
+| ล้มตรงไหน | ผลลัพธ์ |
+|---|---|
+| comment สำเร็จ → ป้ายล้ม | ใบค้างที่ `stage:review` **พร้อมเหตุผลครบ** — คนกดซ้ำได้ |
+| ป้ายสำเร็จ → comment ล้ม | ใบเด้งไป `stage:build` **โดยไม่มีเหตุผลสักบรรทัด** — `safepay-developer` รับงานต่อแล้วไม่รู้ว่าต้องแก้อะไร |
+
+อย่างหลังคือสิ่งที่ FR-CC-05 มีอยู่เพื่อป้องกันพอดี · ตรงกับลำดับของโปรโตคอล agent ด้วย
+(`command-center-agent-protocol.md` §3 — comment ก่อน ป้ายทีหลัง)
 
 ### TFR-CC-06 agent เปิด PR ได้อย่างเดียว → FR-CC-06 / BR-CC-01
 🛑 **บังคับด้วยการตั้งค่านอกโค้ดทั้งหมด** — branch protection · PAT ของ Hermes ไม่มีสิทธิ์ `workflows`
@@ -341,7 +354,9 @@ stateDiagram-v2
    โปรโตคอลแล้ว และมีเทส `[blocker]` กันคำสั่งหาย **แต่สิ่งที่พิสูจน์ได้คือ "คำสั่งยังอยู่ใน prompt"
    ไม่ใช่ "agent ทำตาม"** — อย่างหลังพิสูจน์ได้ทางเดียวคือสั่งงานจริงผ่าน Hermes (P5 ซึ่งยังไม่มี)
    ⇒ ยังเป็น *ข้อตกลงที่เขียนไว้* ไม่ใช่ *พฤติกรรมที่สังเกตแล้ว*
-8. **P4 ยังไม่เริ่ม** — ไม่มี `command-center/**` และไม่มี entry ใน `_admin-menu.ts`
+8. **P4 เขียนครบแล้ว แต่ยังไม่เคยยิง GitHub จริง** (2026-08-16) — service + 6 route + จอ + เมนู
+   ครบ **แต่ `COMMAND_CENTER_GITHUB_TOKEN` ยังไม่ถูกตั้ง** ⇒ ทุก endpoint คืน 500 จนกว่าจะตั้งค่า
+   ⇒ ยังไม่มีใครยืนยันว่า shape ของ Timeline API / repository variable ตรงกับที่โค้ดคาดจริง
 
 ---
 
@@ -349,10 +364,10 @@ stateDiagram-v2
 
 | BRD FR | SRS TFR | Component | สถานะ |
 |---|---|---|---|
-| FR-CC-01 | TFR-CC-01 | API `tasks` | Draft (P4) |
+| FR-CC-01 | TFR-CC-01 | API `tasks` | ✅ implement แล้ว (ยังไม่เคยยิง GitHub จริง) |
 | FR-CC-02 | TFR-CC-02 | — (negative req) | ✅ ยืนยันจากการไม่มีโค้ด |
 | FR-CC-03/04 | TFR-CC-03/04 | `.claude/agents/*` + `command-center-agent-protocol.md` | ✅ P3 เขียนแล้ว (ยังไม่เคยเดินจริง — §9 ข้อ 7) |
-| FR-CC-05 | TFR-CC-05 | API `reject` | Draft (P4) |
+| FR-CC-05 | TFR-CC-05 | API `reject` | ✅ implement แล้ว (comment ก่อนป้าย ตาม BRD) |
 | FR-CC-06 | TFR-CC-06 | GitHub settings | ต้อง manual verify |
 | FR-CC-07 | TFR-CC-07 | `verify.yml` | ✅ **Done — รันจริง เขียวครบ 5 ด่าน** |
 | FR-CC-08 | TFR-CC-08 | `auto-merge.yml` | ✅ Done (merge จริงยังไม่เคยเกิด) |
