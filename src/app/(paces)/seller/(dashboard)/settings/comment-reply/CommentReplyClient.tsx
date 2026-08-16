@@ -174,7 +174,7 @@ function NamePlaceholderRow({
         type="button"
         onClick={insert}
         disabled={disabled}
-        className="btn btn-sm btn-light inline-flex shrink-0 items-center gap-1.5"
+        className="btn btn-sm bg-light text-default-700 hover:bg-light-hover inline-flex shrink-0 items-center gap-1.5"
       >
         <Icon icon="user" className="text-sm" aria-hidden="true" />
         แทรกชื่อลูกค้า
@@ -261,7 +261,7 @@ function ReplyImageRow({
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={disabled}
-          className="btn btn-sm btn-light inline-flex shrink-0 items-center gap-1.5"
+          className="btn btn-sm bg-light text-default-700 hover:bg-light-hover inline-flex shrink-0 items-center gap-1.5"
         >
           <Icon icon={uploading ? 'loader-2' : 'photo'} className={`text-sm ${uploading ? 'animate-spin' : ''}`} aria-hidden="true" />
           {uploading ? 'กำลังอัปโหลด…' : 'แนบรูป'}

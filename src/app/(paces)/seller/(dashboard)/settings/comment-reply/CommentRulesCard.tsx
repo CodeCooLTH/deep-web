@@ -194,7 +194,7 @@ export default function CommentRulesCard({
           type="button"
           onClick={startNew}
           disabled={editingId !== null}
-          className="btn btn-sm btn-light inline-flex shrink-0 items-center gap-1.5"
+          className="btn btn-sm bg-light text-default-700 hover:bg-light-hover inline-flex shrink-0 items-center gap-1.5"
         >
           <Icon icon="plus" className="text-sm" aria-hidden="true" />
           เพิ่มกฎ
@@ -251,7 +251,7 @@ export default function CommentRulesCard({
                       type="button"
                       onClick={() => startEdit(rule)}
                       disabled={editingId !== null}
-                      className="btn btn-sm btn-light inline-flex items-center gap-1"
+                      className="btn btn-sm bg-light text-default-700 hover:bg-light-hover inline-flex items-center gap-1"
                     >
                       <Icon icon="pencil" className="text-sm" aria-hidden="true" />
                       แก้ไข
@@ -261,7 +261,7 @@ export default function CommentRulesCard({
                       onClick={() => handleDelete(rule)}
                       disabled={editingId !== null}
                       aria-label={`ลบกฎ ${rule.name}`}
-                      className="btn btn-sm bg-danger/15 text-danger-ink hover:bg-danger/25 inline-flex items-center"
+                      className="btn btn-icon btn-sm bg-danger/15 text-danger-ink hover:bg-danger/25"
                     >
                       <Icon icon="trash" className="text-sm" aria-hidden="true" />
                     </button>

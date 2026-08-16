@@ -122,7 +122,10 @@ export default function NotificationPrefsCard({ shops }: { shops: NotificationSh
               <p className="mb-2">
                 ตราบใดที่ยังปิดอยู่ จะไม่มีแจ้งเตือนเด้งเลยไม่ว่าจะเปิดสวิตช์ร้านไหนไว้ก็ตาม
               </p>
-              {/* btn-primary ไม่ใช่ btn-warning — ธีม Paces มีเฉพาะ btn-primary/btn-light
+              {/* 🛑 แก้ 2026-08-16: ประโยคเดิมตรงนี้ผิด — `_buttons.css` ของธีมมีแค่ .btn/.btn-lg/.btn-sm/
+                  .btn-icon **ไม่มีทั้ง btn-primary และ btn-light** (btn-light ที่ grep เจอคือ
+                  `.btn-light.active` ใน plugins/_apexcharts.css = สไตล์ toolbar ของกราฟ)
+                  สีของปุ่มมาจาก utility เสมอ: `btn bg-light text-default-700 hover:bg-light-hover`
                   (grep theme/paces: btn-warning ไม่มีอยู่จริง จะได้ปุ่มไร้สไตล์ คลาสเดียวกับ
                   btn-ghost ที่เคยพลาดใน feature 00033) */}
               <button type="button" className="btn btn-sm btn-primary" onClick={openNativeNotificationSettings}>

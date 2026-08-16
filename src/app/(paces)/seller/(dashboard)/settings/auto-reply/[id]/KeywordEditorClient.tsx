@@ -1599,8 +1599,12 @@ function SimulatePanel({
           {turns.length > 0 && (
             /* CL-4 (ซ้ำรอบสาม): `btn-soft-default` ไม่มีนิยามใน Paces และ `.btn` เองไม่มีพื้นหลัง
                → ปุ่มเรนเดอร์เป็นตัวหนังสือลอย ๆ · ยืนยันด้วย
-               `rg '\.btn-[a-z-]+' src/assets/css/` = มีแค่ btn-icon|btn-lg|btn-light|
-               btn-on-hover-icon|btn-sm|btn-theme-setting · ครึ่งซ้ายของหน้าเลี่ยงไปใช้ utility
+               🛑 แก้ 2026-08-16: รายชื่อบรรทัดล่างนี้ **หลอก** — `rg -o '\.btn-[a-z-]+'` คืนสตริง
+               มาโดยไม่บอกว่ามาจากไฟล์ไหน `btn-light` ที่ติดมาคือ `.btn-light.active` ใน
+               plugins/_apexcharts.css (สไตล์ toolbar ของกราฟ) ไม่ใช่ปุ่ม variant ·
+               ของจริงใน _buttons.css มีแค่ .btn/.btn-lg/.btn-sm/.btn-icon
+               (เคสจริง 2026-08-15: เชื่อคอมเมนต์บรรทัดนี้แล้ว ship `btn btn-sm btn-light` ขึ้น prod
+                4 ปุ่ม ได้ตัวหนังสือลอยไม่มีพื้นหลัง — ux gate จับได้ตอนตรวจย้อนหลัง) · ครึ่งซ้ายของหน้าเลี่ยงไปใช้ utility
                จริงตั้งแต่แรก แต่แผงขวาถูกข้าม ทั้งที่ critique 2026-07-31 แจ้งเป็น [P0] แล้ว */
             <button
               className="btn btn-sm bg-light text-dark hover:bg-light-hover flex-none"
