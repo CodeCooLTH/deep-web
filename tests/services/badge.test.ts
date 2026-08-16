@@ -158,8 +158,15 @@ describe("BadgeService", () => {
     });
     await evaluateBadges(user.id);
     await evaluateBadges(user.id); // run twice
-    const count = await prisma.userBadge.count({ where: { userId: user.id } });
-    expect(count).toBe(1); // First Sale only, not duplicated
+    // นับเฉพาะ "First Sale" — ห้ามนับรวมทุก badge ของ user เพราะ 2026_BADGE
+    // (SIGNUP_YEAR, audience:"ANY") ถูกแจกให้ user ใหม่ทุกคนในปีนี้อย่างถูกต้องด้วย
+    // (ดู CLAUDE.md 2026-08-16 กลุ่ม B) — เทสนี้สนใจแค่ว่า First Sale ไม่ถูกแจกซ้ำ
+    const badges = await prisma.userBadge.findMany({
+      where: { userId: user.id },
+      include: { badge: true },
+    });
+    const firstSaleCount = badges.filter((b) => b.badge.nameEN === "First Sale").length;
+    expect(firstSaleCount).toBe(1); // First Sale only, not duplicated
   });
 });
 
@@ -590,9 +597,15 @@ describe("H1 — evaluateBadges: award + idempotent + unknown-type skip", () => 
     await createCompletedOrder(shop.id);
     await evaluateBadges(user.id);
     await evaluateBadges(user.id);
-    const count = await prisma.userBadge.count({ where: { userId: user.id } });
+    // นับเฉพาะ "First Sale" — 2026_BADGE (SIGNUP_YEAR, audience:"ANY") ก็ถูกแจกให้
+    // user ใหม่ทุกคนในปีนี้อย่างถูกต้องด้วย ไม่ใช่ badge ที่เทสนี้สนใจ
+    const badges = await prisma.userBadge.findMany({
+      where: { userId: user.id },
+      include: { badge: true },
+    });
+    const firstSaleCount = badges.filter((b) => b.badge.nameEN === "First Sale").length;
     // ต้องได้ badge ไม่ซ้ำ — DB @@unique enforce ไว้แล้ว
-    expect(count).toBe(1);
+    expect(firstSaleCount).toBe(1);
   });
 
   it("unknown criteria.type → ไม่ throw + ไม่ award + console.warn ถูกเรียก", async () => {
@@ -617,9 +630,14 @@ describe("H1 — evaluateBadges: award + idempotent + unknown-type skip", () => 
     } finally {
       warnSpy.mockRestore();
     }
-    // ไม่ควร award badge ที่ไม่รู้จัก criteria
-    const count = await prisma.userBadge.count({ where: { userId: user.id } });
-    expect(count).toBe(0);
+    // ไม่ควร award badge ที่ไม่รู้จัก criteria — เช็คเจาะจงชื่อ ไม่ใช่นับรวมทุก badge
+    // เพราะ 2026_BADGE (SIGNUP_YEAR, audience:"ANY") ยังถูกแจกให้ user คนนี้ได้ตามปกติ
+    const badges = await prisma.userBadge.findMany({
+      where: { userId: user.id },
+      include: { badge: true },
+    });
+    const names = badges.map((b) => b.badge.nameEN);
+    expect(names).not.toContain("Unknown Badge");
   });
 });
 

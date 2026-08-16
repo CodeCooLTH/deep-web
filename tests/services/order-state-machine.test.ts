@@ -30,7 +30,7 @@ async function cleanupTrackedIds() {
  */
 async function seedShopProduct(fulfillmentMode: "SHIPPED" | "NO_SHIPPING") {
   const user = await prisma.user.create({
-    data: { displayName: "ร้านค้าทดสอบ", username: `shop_${Date.now()}`, isShop: true },
+    data: { displayName: "ร้านค้าทดสอบ", username: `shop_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, isShop: true },
   });
   userIds.push(user.id);
   const shop = await prisma.shop.create({
@@ -49,6 +49,24 @@ async function seedShopProduct(fulfillmentMode: "SHIPPED" | "NO_SHIPPING") {
   return { user, shop, product };
 }
 
+// buyer แยกจาก seller — confirmOrder เช็ค order.buyerUserId === buyerUserId (TD-004,
+// ดู order.service.ts) ในโค้ดจริง ownership ผูกตอน guaranteeOrderLink() (claim-time)
+// ที่ route เรียกก่อนหน้า — จำลองด้วยการ prisma.order.update ตรง ๆ ในแต่ละเทส
+async function createBuyer(suffix: string) {
+  const buyer = await prisma.user.create({
+    data: {
+      displayName: `ผู้ซื้อทดสอบ ${suffix}`,
+      username: `buyer_${suffix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    },
+  });
+  userIds.push(buyer.id);
+  return buyer;
+}
+
+// FR-6.5: ออเดอร์ SHIPPED ต้องมีที่อยู่ครบ line1+province+postcode ไม่งั้น createOrder
+// throw ShippingAddressRequiredError — ใช้ร่วมกันทุกเทสที่ items ต้องจัดส่ง
+const TEST_SHIPPING_ADDRESS = { line1: "99 ถ.ทดสอบ", province: "กรุงเทพ", postcode: "10110" };
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("OMS State Machine — createOrder", () => {
@@ -60,6 +78,7 @@ describe("OMS State Machine — createOrder", () => {
     const order = await createOrder(shop.id, {
       items: [{ name: "กล่องสินค้า", qty: 1, price: 200 }],
       type: "PHYSICAL",
+      shippingAddress: TEST_SHIPPING_ADDRESS,
     });
     expect(order.status).toBe("PENDING");
   });
@@ -69,6 +88,7 @@ describe("OMS State Machine — createOrder", () => {
     const order = await createOrder(shop.id, {
       items: [{ productId: product.id, name: product.name, qty: 1, price: 100 }],
       type: "PHYSICAL",
+      shippingAddress: TEST_SHIPPING_ADDRESS,
     });
     // fulfillmentMode อยู่ใน column ที่ยังไม่ใน generated client (Task 1 authored-not-applied)
     // cast ผ่าน unknown เพื่ออ่านค่า — จะ type-safe หลัง cutover
@@ -93,6 +113,7 @@ describe("OMS State Machine — createOrder", () => {
       // item พิมพ์เอง (productId=null) + type=PHYSICAL → fallback SHIPPED
       items: [{ name: "สินค้าพิมพ์เอง", qty: 2, price: 150 }],
       type: "PHYSICAL",
+      shippingAddress: TEST_SHIPPING_ADDRESS,
     });
     const fm = (order as unknown as { fulfillmentMode?: string }).fulfillmentMode;
     expect(fm).toBe("SHIPPED");
@@ -105,12 +126,15 @@ describe("OMS State Machine — NO_SHIPPING flow", () => {
 
   it("PENDING → confirmOrder → CONFIRMED (direct terminal สำหรับ NO_SHIPPING)", async () => {
     const { shop, product } = await seedShopProduct("NO_SHIPPING");
+    const buyer = await createBuyer("noship");
     const order = await createOrder(shop.id, {
       items: [{ productId: product.id, name: product.name, qty: 1, price: 100 }],
       type: "DIGITAL",
+      buyerContact: "0899999999",
     });
     expect(order.status).toBe("PENDING");
-    const confirmed = await confirmOrder(order.publicToken, "0899999999");
+    await prisma.order.update({ where: { id: order.id }, data: { buyerUserId: buyer.id } });
+    const confirmed = await confirmOrder(order.publicToken, buyer.id);
     expect(confirmed.status).toBe("CONFIRMED");
     expect(confirmed.buyerContact).toBe("0899999999");
   });
@@ -122,9 +146,11 @@ describe("OMS State Machine — SHIPPED flow", () => {
 
   it("PENDING → shipOrder → SHIPPED → confirmOrder → CONFIRMED", async () => {
     const { shop, product } = await seedShopProduct("SHIPPED");
+    const buyer = await createBuyer("shippedflow");
     const order = await createOrder(shop.id, {
       items: [{ productId: product.id, name: product.name, qty: 1, price: 100 }],
       type: "PHYSICAL",
+      shippingAddress: TEST_SHIPPING_ADDRESS,
     });
     expect(order.status).toBe("PENDING");
 
@@ -133,7 +159,8 @@ describe("OMS State Machine — SHIPPED flow", () => {
     expect(shipped.status).toBe("SHIPPED");
 
     // step 2: buyer confirm
-    const confirmed = await confirmOrder(order.publicToken, "0811111111");
+    await prisma.order.update({ where: { id: order.id }, data: { buyerUserId: buyer.id } });
+    const confirmed = await confirmOrder(order.publicToken, buyer.id);
     expect(confirmed.status).toBe("CONFIRMED");
   });
 
@@ -158,8 +185,12 @@ describe("OMS State Machine — cancelOrder", () => {
     const order = await createOrder(shop.id, {
       items: [{ name: "สินค้า", qty: 1, price: 100 }],
       type: "PHYSICAL",
+      shippingAddress: TEST_SHIPPING_ADDRESS,
     });
-    const cancelled = await cancelOrder(order.publicToken, "seller");
+    // feature 00039 (FR-OSM-04): initiator="seller" บังคับ reason เสมอ (เว้น BOOKING) —
+    // ร้านที่สร้าง shop ผ่าน seedShopProduct ไม่ได้ตั้ง vertical เอง → default ONLINE_SALES
+    // (resolveShopVertical) → ใช้ค่าที่ isValidCancelReason ยอมรับสำหรับ vertical นั้น
+    const cancelled = await cancelOrder(order.publicToken, "seller", "SHOP_ISSUE");
     expect(cancelled.status).toBe("CANCELLED");
     // cancelInitiator ใน column ที่ยังไม่ใน generated client — cast ผ่าน unknown
     const ci = (cancelled as unknown as { cancelInitiator?: string }).cancelInitiator;
@@ -171,6 +202,7 @@ describe("OMS State Machine — cancelOrder", () => {
     const order = await createOrder(shop.id, {
       items: [{ name: "สินค้า", qty: 1, price: 100 }],
       type: "PHYSICAL",
+      shippingAddress: TEST_SHIPPING_ADDRESS,
     });
     const cancelled = await cancelOrder(order.publicToken, "buyer");
     const ci = (cancelled as unknown as { cancelInitiator?: string }).cancelInitiator;
@@ -179,11 +211,13 @@ describe("OMS State Machine — cancelOrder", () => {
 
   it("cancel หลัง CONFIRMED → rejects (terminal ยกเลิกไม่ได้)", async () => {
     const { shop, product } = await seedShopProduct("NO_SHIPPING");
+    const buyer = await createBuyer("cancelafterconfirm");
     const order = await createOrder(shop.id, {
       items: [{ productId: product.id, name: product.name, qty: 1, price: 100 }],
       type: "DIGITAL",
     });
-    await confirmOrder(order.publicToken, "0822222222");
+    await prisma.order.update({ where: { id: order.id }, data: { buyerUserId: buyer.id } });
+    await confirmOrder(order.publicToken, buyer.id);
     // CONFIRMED เป็น terminal — VALID_TRANSITIONS["CONFIRMED"] = [] → ต้อง throw
     await expect(cancelOrder(order.publicToken, "seller")).rejects.toThrow();
   });
