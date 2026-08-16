@@ -1,0 +1,208 @@
+name: ตรวจก่อน merge
+
+# ด่านแรกของรีโปนี้ — ก่อนหน้านี้ไม่มี .github/workflows/ เลยแม้แต่ไฟล์เดียว
+# ทุก gate (tsc / vitest / theme-guard / blocker tests) รันเฉพาะบนเครื่อง dev
+# เฉพาะตอนที่คนนึกได้ ⇒ "ไม่มีอะไรฟ้อง" คือคลาสความล้มเหลวอันดับ 1 ของโปรเจกต์นี้
+#
+# หลักการ (00049 §6.1 · BRD FR-CC-07):
+#   - บล็อกเต็มตัวตั้งแต่วันแรก **ไม่มีระยะ advisory** — ไม่มี "เตือนแล้วปล่อยผ่าน"
+#     ต้นแบบ (CodeCooLTH/12tees) มี ADVISORY_PATTERN ให้ข้ามด่านที่แดงถาวร และ
+#     คอมเมนต์ในโค้ดเขาเขียนเองว่า "นี่คือการยอมรับหนี้ ไม่ใช่การแก้" — เราไม่เอาท่านั้น
+#   - อ่านค่าที่จำเป็นไม่ได้ = ไม่ผ่าน (fail-closed) ไม่ใช่ผ่านโดยปริยาย
+#   - เชลล์ล้วน ไม่มีโมเดล AI อยู่ในเส้นทางตัดสิน (00049 D-4)
+#
+# 🛑 สิ่งที่ด่านนี้ **ยังไม่ครอบ** และจะประกาศดัง ๆ ทุกรอบ (ห้ามเงียบ):
+#   `vitest run tests/` (12 ไฟล์ ต้องมี Postgres) — เข้าด่านได้เมื่อ P0.1 ปิด
+#   ณ 2026-08-16: แดง 13 ตัว ซึ่งไม่ใช่บั๊กใหม่ แต่เป็นสมมติฐานเก่าที่เพิ่งถูกเปิดโปง
+#   หลังเลิกล้างทั้งฐานก่อนทุกเทส (ดู commit adc48b52)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+# ค่า default ของรีโปกว้างเกินจำเป็น — ประกาศเป็น allow-list
+# บทเรียนจากต้นแบบ: ตกไป 1 บรรทัด = 403 = fail-closed = ด่านไม่ทำงานเลยแบบเงียบ 3 วัน
+# (08-01→08-03) เพราะรอบที่ไม่มีอะไรให้ตรวจเขียวตลอด ไม่เคยเดินถึงด่านที่พัง
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── ด่าน 0: root safety — agent แก้ตัวที่ตัดสินตัวเองไม่ได้ ─────────────────
+  # ai-agent-book บทที่ 9: safety mechanisms must not be self-modifiable
+  # ไม่งั้น agent ลดเกณฑ์เทสแล้วเรียกการถอยหลังว่าความก้าวหน้าได้
+  # รันก่อนทุกอย่างเพราะถูกที่สุดและสำคัญที่สุด
+  protected-paths:
+    name: ด่าน 0 — path คุ้มครอง
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: ตรวจว่า PR แตะตัวด่านเองไหม
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          # ป้ายนี้ = คนตั้งใจแก้ด่านเอง (ติดได้เฉพาะคนที่มีสิทธิ์เขียนรีโป)
+          OVERRIDE_LABEL: แตะด่าน
+          HAS_OVERRIDE: ${{ contains(github.event.pull_request.labels.*.name, 'แตะด่าน') }}
+        run: |
+          set -euo pipefail
+          say() { echo "$@"; echo "$@" >> "$GITHUB_STEP_SUMMARY"; }
+
+          # workflow_dispatch ไม่มี PR ให้เทียบ — ข้ามด่านนี้อย่างเปิดเผย
+          if [ -z "${BASE:-}" ]; then
+            say "ℹ️ ไม่ใช่ PR (workflow_dispatch) — ข้ามด่าน path คุ้มครอง"
+            exit 0
+          fi
+
+          changed=$(git diff --name-only "$BASE" "$HEAD") \
+            || { say "❌ อ่าน diff ไม่ได้ — fail-closed ไม่ปล่อยผ่าน"; exit 1; }
+
+          # เทสที่มี marker [blocker] = ด่านที่พิสูจน์ด้วย mutation แล้ว
+          # ต้องหาจากเนื้อไฟล์ ไม่ใช่จากชื่อ — ชื่อไฟล์ไม่ได้บอกว่ามี blocker ไหม
+          blocker_hits=""
+          while IFS= read -r f; do
+            [ -f "$f" ] || continue
+            case "$f" in
+              *.test.ts|*.test.tsx) grep -q '\[blocker\]' "$f" && blocker_hits="${blocker_hits}${f}"$'\n' ;;
+            esac
+          done <<< "$changed"
+
+          protected=$(printf '%s\n' "$changed" | grep -E '^(\.github/workflows/|\.claude/hooks/)' || true)
+          protected="${protected}"$'\n'"${blocker_hits}"
+          protected=$(printf '%s' "$protected" | sed '/^$/d')
+
+          if [ -z "$protected" ]; then
+            echo "✅ ไม่แตะ path คุ้มครอง"
+            exit 0
+          fi
+
+          say "## PR นี้แตะ path คุ้มครอง"
+          say '```'
+          say "$protected"
+          say '```'
+
+          if [ "$HAS_OVERRIDE" = "true" ]; then
+            say "⚠️ ผ่านเพราะมีป้าย \"$OVERRIDE_LABEL\" — คนตั้งใจแก้ด่านเอง"
+            say "   ต้องอ่าน diff ด้วยตาก่อน merge เสมอ ป้ายนี้ไม่ได้แปลว่าถูกต้อง"
+            exit 0
+          fi
+
+          say "🛑 ไม่ผ่าน — ไฟล์กลุ่มนี้คือตัวที่ตัดสินว่าอะไรผ่านได้"
+          say "   ถ้าตั้งใจแก้จริง ให้คนติดป้าย \"$OVERRIDE_LABEL\" บน PR นี้แล้วรันใหม่"
+          exit 1
+
+  # ── ด่าน 1: TypeScript ────────────────────────────────────────────────────
+  typecheck:
+    name: ด่าน 1 — tsc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # จำเป็นก่อน tsc — Prisma client ถูก generate เข้า node_modules ไม่ได้อยู่ในรีโป
+      # `prisma generate` **ไม่แตะฐานข้อมูล** (HR14 อนุญาตชัดเจน) ต่างจาก migrate/db push
+      - run: npx prisma generate
+
+      - run: npx tsc --noEmit
+
+  # ── ด่าน 2: unit test ─────────────────────────────────────────────────────
+  unit:
+    name: ด่าน 2 — vitest (src/)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npx prisma generate
+
+      # scope `src/` เท่านั้น — ไม่ใช่ `npx vitest run` เปล่า ๆ
+      # vitest.config exclude แค่ node_modules/e2e/.next ⇒ ตัวเปล่าจะดูด tests/ เข้ามาด้วย
+      # ซึ่งต้องมี Postgres และยังแดง 13 ตัว (P0.1 ยังไม่ปิด)
+      #
+      # ไม่มีลิสต์ยกเว้น ไม่มี baseline — วัดแล้ว 2026-08-16 เขียวหมด 2,945/2,945
+      # แดง 1 ตัวก็ตก
+      - run: npx vitest run src/
+
+      - name: ประกาศสิ่งที่ด่านนี้ยังไม่ครอบ
+        if: always()
+        run: |
+          {
+            echo "### ⚠️ ยังไม่อยู่ในด่านนี้"
+            echo ""
+            echo '`vitest run tests/` (12 ไฟล์ · ต้องมี Postgres) — **ยังไม่ถูกรันใน CI**'
+            echo ""
+            echo "จะเข้าด่านเมื่อ P0.1 ปิด: ยังแดง 13 ตัวจากสมมติฐานเก่าที่ถูกเปิดโปง"
+            echo "หลังเลิกล้างทั้งฐานก่อนทุกเทส (10 = โค้ดโปรดักต์เปลี่ยนแต่เทสไม่ตาม ·"
+            echo "3 = เทสคิดว่าในฐานมีแต่ badge ที่ตัวเองสร้าง) และ CI ต้องเพิ่ม"
+            echo "service container \`postgres:16\` ก่อน"
+            echo ""
+            echo "ประกาศไว้ตรงนี้ทุกรอบโดยตั้งใจ — ด่านที่ครอบไม่ครบต้องดัง ไม่ใช่เงียบ"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── ด่าน 3: theme compliance ──────────────────────────────────────────────
+  # HR7 (arbitrary value) / 9 (react-toastify) / 10 (chart lib) / 12 (emoji)
+  # + ธีมผิด subdomain — ใช้ hook ตัวเดียวกับที่รันบนเครื่อง dev ไม่เขียนใหม่
+  # (เขียนใหม่ = drift แบบ prod-db-guard ที่เพิ่งเจอ commit cace9a0e)
+  theme:
+    name: ด่าน 3 — theme-guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: รัน theme-guard กับไฟล์ที่ PR แตะ
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -uo pipefail
+          say() { echo "$@"; echo "$@" >> "$GITHUB_STEP_SUMMARY"; }
+
+          if [ -z "${BASE:-}" ]; then
+            say "ℹ️ ไม่ใช่ PR — ข้ามด่าน theme"
+            exit 0
+          fi
+
+          changed=$(git diff --name-only --diff-filter=d "$BASE" "$HEAD") \
+            || { say "❌ อ่าน diff ไม่ได้ — fail-closed"; exit 1; }
+
+          fail=0
+          checked=0
+          while IFS= read -r f; do
+            [ -n "$f" ] && [ -f "$f" ] || continue
+            case "$f" in
+              *.tsx|*.ts|*.css) ;;
+              *) continue ;;
+            esac
+            checked=$((checked+1))
+            # hook รับ JSON ทาง stdin (`.tool_input.file_path`) เหมือนตอน PostToolUse
+            # ป้อนรูปเดิมเป๊ะ จะได้ไม่ต้องแก้สคริปต์ซึ่งเป็น path คุ้มครอง
+            out=$(jq -nc --arg p "$f" '{tool_input:{file_path:$p}}' \
+                  | bash .claude/hooks/theme-guard.sh 2>&1) || {
+              say "🛑 $f"
+              say '```'
+              say "$out"
+              say '```'
+              fail=1
+            }
+          done <<< "$changed"
+
+          echo "ตรวจแล้ว $checked ไฟล์"
+          [ "$fail" -eq 0 ] || { say ""; say "แก้ให้ผ่านก่อน หรือถ้าจำเป็นจริงให้เขียน comment กำกับบรรทัดเดียวกับ class (HR7)"; exit 1; }
+          echo "✅ ผ่าน"
