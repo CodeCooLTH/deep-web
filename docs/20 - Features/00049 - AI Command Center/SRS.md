@@ -343,20 +343,34 @@ stateDiagram-v2
 2. **`watchdog.yml` ยังไม่เคยมีชีพจรจริงเข้ามา** — ทดสอบได้แค่ตรรกะท้องถิ่น 4 กิ่ง (P5 ยังไม่เริ่ม)
 3. **`QUIET_MIN=8`** มาจาก `next build` บน runner **ไม่ใช่** merge→live จริงบน Vercel (ที่รวม
    `prisma migrate deploy` + `generate` + build + deploy propagation) — ต้องวัดใหม่หลัง auto-merge ใบแรก
-4. **ป้าย `แตะด่าน` และ `hermes:offline` ไม่เคยอยู่ใน PRD §10.2 checklist** — ป้ายทั้งสองสร้างแล้วบน
-   GitHub แต่ PRD ยังระบุแค่ 7 ป้าย ต้อง sync
-5. **GitHub REST behavior ที่ SDS อ้างแต่ยังไม่เคยยิงจริงจากโค้ดนี้** (ต้อง spike ตอนเริ่ม P4):
-   `GET issues` คืน PR ปนจริงไหม + `.pull_request` แยกได้จริงไหม · Timeline API คืน `labeled` พร้อม
-   timestamp โดยไม่ต้องมี preview header ไหม · `If-None-Match`→304 ไม่นับโควตาจริงไหม ·
-   fine-grained PAT scope ที่พอสำหรับอ่าน repository variable
+4. ~~ป้าย `แตะด่าน`/`hermes:offline` ไม่อยู่ใน PRD §10.2~~ **sync แล้ว 2026-08-16** (PRD ระบุ 9 ใบ)
+9. 🛑 **สิทธิ์จริงของ PAT กว้างกว่าที่ระบุไว้** (ตรวจ 2026-08-16) — นอกจาก Issues/PR/Variables
+   token ยังอ่าน `actions/workflows` (200) และ `contents/.github/workflows/verify.yml` (200) ได้
+   ⇒ มีสิทธิ์ **Actions (read)** และ **Contents (read)** ติดมาด้วย · `actions/secrets` = 403 (ดี)
+   **อ่านอย่างเดียวยังไม่อันตราย** แต่ **BR-CC-05/D-1 ("จอแก้ตัวด่านเองไม่ได้") พิสูจน์ไม่ได้จากที่นี่** —
+   ต้องเปิดหน้า token บน GitHub ดูด้วยตาว่า `Workflows` และ `Contents (write)` **ไม่ถูกติ๊ก**
+   (ทดสอบด้วยการยิง write ไม่ได้ เพราะนั่นคือการแก้รีโปจริง)
+5. **GitHub REST behavior** — ยิงด้วย PAT จริงแล้วบางส่วน (2026-08-16):
+   ✅ `GET issues` = **200** · `GET issues/{n}` = **200** · `GET pulls/{n}/files` = **200**
+   ⚠️ `GET actions/variables/HERMES_HEARTBEAT` = **404** — *สอดคล้อง*กับ "สิทธิ์ผ่าน แต่ยังไม่มีตัวแปร"
+   (P5 ยังไม่เขียนชีพจร) **แต่ยังไม่ใช่ข้อพิสูจน์** เพราะ GitHub คืน 404 แทน 403 ได้เพื่อไม่บอกว่ามี
+   resource อยู่จริงไหม — ตัดสินได้แน่ตอน P5 เขียนชีพจรใบแรกแล้วอ่านได้/ไม่ได้
+   🛑 **สิทธิ์ที่ถูกต้องคือ `Variables` (Read) ไม่ใช่ `Actions`** — เอกสารเดิมเขียนผิดทั้ง `.env.example`
+   และ `API.md` (ชื่อ endpoint มีคำว่า `actions` อยู่จึงเดาผิดง่าย) แก้แล้ว `e14adb5b`
+   ⬜ **ยังไม่ได้ยืนยัน:** Timeline API คืน `labeled` พร้อม timestamp ไหม · `If-None-Match`→304
+   ไม่นับโควตาจริงไหม (ทั้งคู่ต้องมีใบงานจริงที่ถูกติดป้ายก่อน)
 6. **TFR-CC-06 พิสูจน์จากโค้ดในรีโปนี้ไม่ได้เลย** — เป็นการตั้งค่าฝั่ง GitHub ทั้งหมด ต้อง manual-verify
 7. **P3 เขียนแล้ว แต่ยังไม่เคยเดินจริงสักใบ** (2026-08-16) — `.claude/agents/*` ทั้ง 6 ตัวรู้จัก
    โปรโตคอลแล้ว และมีเทส `[blocker]` กันคำสั่งหาย **แต่สิ่งที่พิสูจน์ได้คือ "คำสั่งยังอยู่ใน prompt"
    ไม่ใช่ "agent ทำตาม"** — อย่างหลังพิสูจน์ได้ทางเดียวคือสั่งงานจริงผ่าน Hermes (P5 ซึ่งยังไม่มี)
    ⇒ ยังเป็น *ข้อตกลงที่เขียนไว้* ไม่ใช่ *พฤติกรรมที่สังเกตแล้ว*
-8. **P4 เขียนครบแล้ว แต่ยังไม่เคยยิง GitHub จริง** (2026-08-16) — service + 6 route + จอ + เมนู
-   ครบ **แต่ `COMMAND_CENTER_GITHUB_TOKEN` ยังไม่ถูกตั้ง** ⇒ ทุก endpoint คืน 500 จนกว่าจะตั้งค่า
-   ⇒ ยังไม่มีใครยืนยันว่า shape ของ Timeline API / repository variable ตรงกับที่โค้ดคาดจริง
+8. **P4 เขียนครบแล้ว · token ตั้งแล้ว · แต่ยังไม่เคยเปิดหน้าจริง** (2026-08-16)
+   `COMMAND_CENTER_GITHUB_TOKEN` + `_REPO` ใส่ครบทั้ง `.env.local` และ Vercel **Production** แล้ว
+   (Preview ยังไม่ได้ — CLI 51.6.1 วนถาม `git_branch_required` ซ้ำแม้ใช้คำสั่งที่มันแนะนำเอง
+   ต้องอัปเกรด CLI หรือเพิ่มผ่าน dashboard)
+   ⚠️ **ไม่ต้อง redeploy ตอนนี้** — โค้ด `command-center/**` ยังไม่อยู่บน `main` (PR #6 ยังไม่ merge)
+   ตัวแปรจะมีผลเองตอน merge แล้ว Vercel build ใหม่ (HR15)
+   ⬜ **ยังไม่มีใครเปิดหน้าจริงสักครั้ง** — board/heartbeat ยังไม่เคยถูกเรียกผ่าน UI
 
 ---
 
