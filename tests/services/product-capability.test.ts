@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { prisma, cleanDatabase } from "../setup";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { prisma, deleteTestData } from "../setup";
 import {
   createProduct,
   updateProduct,
@@ -8,16 +8,25 @@ import {
 
 describe("ProductService capability flags", () => {
   let shopId: string;
+  let userIds: string[] = [];
+  let shopIds: string[] = [];
 
   beforeEach(async () => {
-    await cleanDatabase();
+    userIds = [];
+    shopIds = [];
     const user = await prisma.user.create({
       data: { displayName: "Cap Seller", username: "cap-seller", isShop: true },
     });
+    userIds.push(user.id);
     const shop = await prisma.shop.create({
       data: { userId: user.id, shopName: "Cap Shop", businessType: "INDIVIDUAL" },
     });
+    shopIds.push(shop.id);
     shopId = shop.id;
+  });
+
+  afterEach(async () => {
+    await deleteTestData({ userIds, shopIds });
   });
 
   it("creates PHYSICAL product with default capability flags (SHIPPED + ONE_TIME)", async () => {

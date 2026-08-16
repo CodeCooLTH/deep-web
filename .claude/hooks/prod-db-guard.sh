@@ -20,7 +20,11 @@
 # หลักการ: allowlist / fail-closed เหมือน tests/setup.ts — คำสั่งที่ล้างฐานได้
 # ต้อง "พิสูจน์ได้จากตัวคำสั่งเอง" ว่าเป้าหมายคือ Postgres บนเครื่องตัวเอง
 # อะไรที่พิสูจน์ไม่ได้ (command substitution, ตัวแปร, host ปลายทางอื่น) = บล็อก
-# เหตุผล: dev DB = prod DB ตัวเดียวกัน (Supabase แชร์) เดาผิดครั้งเดียว = ข้อมูลลูกค้าหาย
+# เหตุผล: เดิม dev DB = prod DB ตัวเดียวกัน (Supabase แชร์) — **แยกกันแล้วตั้งแต่ 2026-08**
+# (ยืนยัน 2026-08-16: .env/.env.local ชี้ localhost:5434 ทั้ง DATABASE_URL และ DIRECT_URL)
+# guard ยังอยู่เพราะการแยกเป็น "ค่า config" ที่ย้อนกลับเงียบ ๆ ได้ — pull env จาก Vercel,
+# แก้ .env ผิดบรรทัด, หรือ worktree ที่ถือไฟล์เก่า — และเหตุ 07-31 มาทาง DIRECT_URL
+# ไม่ใช่ DATABASE_URL ⇒ guard ไม่มีต้นทุนตอนที่ไม่มีอะไรผิด เดาผิดครั้งเดียว = ข้อมูลหาย
 #
 # วิธีเลี่ยงเมื่อจำเป็นจริง: ปักหมุด URL localhost ไว้ในคำสั่งตรง ๆ เช่น
 #   DATABASE_URL="postgresql://safepay:safepay@localhost:5544/safepay" npx prisma migrate dev
@@ -72,6 +76,38 @@ if printf '%s' "$raw" | grep -qE '(bash|sh|zsh|ssh)[[:space:]]+-c|os\.system|sub
   code="$code $raw"
 fi
 
+# ── กาง npm/pnpm/yarn run <script> ออกเป็นคำสั่งจริง ────────────────────────
+# guard ตัวนี้ตรวจ "ข้อความของคำสั่ง" — พอคำสั่งอันตรายถูกห่อไว้ใน npm script ชื่อของมัน
+# จะหายไปหมด: `npm run migrate` ไม่มีคำว่า prisma หรือ migrate dev สักคำ ทั้งที่กางออกมา
+# คือ `dotenv -e .env -- npx prisma migrate dev` (เจอ 2026-08-01 ตอน scan — guard เดิม
+# คืน exit=0 ให้คำสั่งที่ reset ฐานได้)
+#
+# **ต้องอยู่หลัง `code` ถูกคำนวณเสร็จ** และค้นชื่อ script จาก `$code` ไม่ใช่ `$raw`:
+# ถ้าค้นจาก raw จะไปกางชื่อที่อยู่ในเครื่องหมายคำพูดด้วย — `grep "npm run e2e" file`
+# ที่แค่อ่านไฟล์จะถูกกางเป็น `playwright test` แล้วโดนบล็อก ทำลาย carve-out เดิมทั้งอัน
+# (เกิดจริงตอนทดสอบแพตช์นี้: guard บล็อกสคริปต์ที่ใช้ทดสอบตัวมันเอง)
+#
+# 2 รอบ เพราะ script เรียก script ต่อกันได้อีกชั้น. หา package.json ไม่เจอ = กางไม่ได้
+# แต่ pattern เดิมยังตรวจตามปกติ (ไม่ได้เปิดช่องใหม่ แค่ไม่ได้ข้อมูลเพิ่ม)
+pkg="${CLAUDE_PROJECT_DIR:-$PWD}/package.json"
+[ -f "$pkg" ] || pkg="$PWD/package.json"
+if [ -f "$pkg" ]; then
+  for _pass in 1 2; do
+    expanded=""
+    for name in $(printf '%s' "$code" \
+        | grep -oE '(npm|pnpm|yarn)[[:space:]]+(run[[:space:]]+)?[A-Za-z0-9:_-]+' \
+        | awk '{print $NF}'); do
+      body=$(jq -r --arg n "$name" '.scripts[$n] // empty' "$pkg" 2>/dev/null)
+      [ -n "$body" ] && expanded="${expanded} ${body}"
+    done
+    [ -z "$expanded" ] && break
+    case "$code" in *"$expanded"*) break ;; esac   # กางซ้ำของเดิม = พอแล้ว
+    # ต่อเข้าทั้งสองตัว: `code` สำหรับ pattern คำสั่ง, `raw` สำหรับ has_local_pin/ค่า URL
+    code="${code} ${expanded}"
+    raw="${raw} ${expanded}"
+  done
+fi
+
 violations=""
 add() { violations="${violations}$1"$'\n'; }
 
@@ -83,13 +119,32 @@ is_local_url() {
     | grep -qE '^postgres(ql)?://([^@/]*@)?(localhost|127\.0\.0\.1|\[?::1\]?|host\.docker\.internal)([:/]|$)'
 }
 
-# คำสั่งมีการปักหมุด DATABASE_URL=localhost ไว้ตรง ๆ ไหม
+# คำสั่งปักหมุดปลายทางเป็น localhost ไว้ตรง ๆ ครบทุกตัวแปรไหม
+#
+# ต้องครบ *ทั้ง* DATABASE_URL และ DIRECT_URL — prisma/schema.prisma ประกาศ
+#   url = env("DATABASE_URL")   directUrl = env("DIRECT_URL")
+# และงาน migration ทุกชนิด (migrate reset/dev/deploy, db push) วิ่งผ่าน **directUrl**
+# ไม่ใช่ url. ของเดิมยอมรับตัวใดตัวหนึ่ง → ปักหมุดตัวที่ Prisma ไม่ได้ใช้ก็ผ่าน guard
+# แล้ว DIRECT_URL ก็หลุดมาจาก .env.local ตามเดิม:
+#
+#   DATABASE_URL=postgresql://a@localhost:5434/x npx dotenv -e .env.local -- \
+#     npx prisma migrate reset          ← guard เดิมคืน exit=0
+#
+# เป็นรูปเดียวกับเหตุ 2026-07-31 เป๊ะ: ตัวแปรที่ "ลืมตรวจ" คือตัวที่พาไปหาฐานผิด
 has_local_pin() {
-  local v
-  for v in $(printf '%s' "$raw" | grep -oE '(DATABASE_URL|DIRECT_URL)=[^[:space:]]+' | cut -d= -f2-); do
-    is_local_url "$v" && return 0
+  local var v found_any pinned
+  for var in DATABASE_URL DIRECT_URL; do
+    found_any=false
+    pinned=false
+    for v in $(printf '%s' "$raw" | grep -oE "(^|[[:space:]])${var}=[^[:space:]]+" | cut -d= -f2-); do
+      found_any=true
+      is_local_url "$v" && pinned=true
+    done
+    # ไม่ได้ปักหมุดเลย = ค่าจะมาจาก .env ที่ guard มองไม่เห็น = พิสูจน์ไม่ได้ = ไม่ผ่าน
+    $found_any || return 1
+    $pinned || return 1
   done
-  return 1
+  return 0
 }
 
 # ── 1. shadow database — ต้นเหตุของเหตุการณ์ 2026-07-31 ──────────────────────
@@ -164,11 +219,13 @@ if [ -n "$violations" ]; then
     echo "🛑 Prod DB Guard — คำสั่งนี้ทำลายฐานข้อมูลที่ใช้ร่วมกับ prod ได้"
     echo
     printf '%s' "$violations"
-    echo "บริบท: dev DB = prod DB ตัวเดียวกัน (Supabase แชร์) — คำสั่งพวกนี้ลบข้อมูลลูกค้าจริง"
+    echo "บริบท: ฐาน dev แยกจาก prod แล้ว (localhost:5434) แต่การแยกเป็นค่า config ที่ย้อนกลับเงียบ ๆ ได้"
     echo "เคยเกิดแล้ว: 2026-07-31 22:37 น. ฐานถูกล้างทั้ง 64 ตารางด้วย --shadow-database-url ที่ชี้ prod"
     echo
-    echo "ถ้าตั้งใจทำกับ Postgres บนเครื่องตัวเอง ให้ปักหมุด URL ในคำสั่งตรง ๆ:"
-    echo "   DATABASE_URL=\"postgresql://safepay:safepay@localhost:5544/safepay\" <คำสั่ง>"
+    echo "ถ้าตั้งใจทำกับ Postgres บนเครื่องตัวเอง ให้ปักหมุด URL ในคำสั่งตรง ๆ"
+    echo "**ทั้งสองตัว** — Prisma ใช้ DIRECT_URL สำหรับงาน migration ไม่ใช่ DATABASE_URL:"
+    echo "   DATABASE_URL=\"postgresql://safepay:safepay@localhost:5544/safepay\" \\"
+    echo "   DIRECT_URL=\"postgresql://safepay:safepay@localhost:5544/safepay\" <คำสั่ง>"
     echo "ห้ามใช้ \$(...) หรือตัวแปรอ่านจาก .env.local — guard พิสูจน์ไม่ได้ จึงถือว่าเป็น prod"
     echo
     echo "ดู CLAUDE.md Hard Rule 14 + docs/conventions/prod-db-safety.md"

@@ -1,0 +1,275 @@
+name: ตรวจก่อน merge
+
+# ด่านแรกของรีโปนี้ — ก่อนหน้านี้ไม่มี .github/workflows/ เลยแม้แต่ไฟล์เดียว
+# ทุก gate (tsc / vitest / theme-guard / blocker tests) รันเฉพาะบนเครื่อง dev
+# เฉพาะตอนที่คนนึกได้ ⇒ "ไม่มีอะไรฟ้อง" คือคลาสความล้มเหลวอันดับ 1 ของโปรเจกต์นี้
+#
+# หลักการ (00049 §6.1 · BRD FR-CC-07):
+#   - บล็อกเต็มตัวตั้งแต่วันแรก **ไม่มีระยะ advisory** — ไม่มี "เตือนแล้วปล่อยผ่าน"
+#     ต้นแบบ (CodeCooLTH/12tees) มี ADVISORY_PATTERN ให้ข้ามด่านที่แดงถาวร และ
+#     คอมเมนต์ในโค้ดเขาเขียนเองว่า "นี่คือการยอมรับหนี้ ไม่ใช่การแก้" — เราไม่เอาท่านั้น
+#   - อ่านค่าที่จำเป็นไม่ได้ = ไม่ผ่าน (fail-closed) ไม่ใช่ผ่านโดยปริยาย
+#   - เชลล์ล้วน ไม่มีโมเดล AI อยู่ในเส้นทางตัดสิน (00049 D-4)
+#
+# ✅ ครอบครบแล้วตั้งแต่ 2026-08-16 — `vitest run tests/` เข้าด่านที่ ด่าน 4 พร้อม
+#    Postgres service container (ปิด P0.1: เดิม 8 ไฟล์เรียก `cleanDatabase()` ที่ถูกถอด
+#    ตาม HR13 แดง 80 ตัว → ตามด้วย fixture เก่าอีก 13 → ตอนนี้ 126/126 เขียว)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+# ค่า default ของรีโปกว้างเกินจำเป็น — ประกาศเป็น allow-list
+# บทเรียนจากต้นแบบ: ตกไป 1 บรรทัด = 403 = fail-closed = ด่านไม่ทำงานเลยแบบเงียบ 3 วัน
+# (08-01→08-03) เพราะรอบที่ไม่มีอะไรให้ตรวจเขียวตลอด ไม่เคยเดินถึงด่านที่พัง
+permissions:
+  contents: read
+  pull-requests: read   # ด่าน 0 ถามป้ายสด ๆ จาก API — ห้ามเชื่อ snapshot ใน event payload
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── ด่าน 0: root safety — agent แก้ตัวที่ตัดสินตัวเองไม่ได้ ─────────────────
+  # ai-agent-book บทที่ 9: safety mechanisms must not be self-modifiable
+  # ไม่งั้น agent ลดเกณฑ์เทสแล้วเรียกการถอยหลังว่าความก้าวหน้าได้
+  # รันก่อนทุกอย่างเพราะถูกที่สุดและสำคัญที่สุด
+  protected-paths:
+    name: ด่าน 0 — path คุ้มครอง
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: ตรวจว่า PR แตะตัวด่านเองไหม
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          # ป้ายนี้ = คนตั้งใจแก้ด่านเอง (ติดได้เฉพาะคนที่มีสิทธิ์เขียนรีโป)
+          OVERRIDE_LABEL: แตะด่าน
+        run: |
+          set -euo pipefail
+          say() { echo "$@"; echo "$@" >> "$GITHUB_STEP_SUMMARY"; }
+
+          # workflow_dispatch ไม่มี PR ให้เทียบ — ข้ามด่านนี้อย่างเปิดเผย
+          if [ -z "${BASE:-}" ]; then
+            say "ℹ️ ไม่ใช่ PR (workflow_dispatch) — ข้ามด่าน path คุ้มครอง"
+            exit 0
+          fi
+
+          changed=$(git diff --name-only "$BASE" "$HEAD") \
+            || { say "❌ อ่าน diff ไม่ได้ — fail-closed ไม่ปล่อยผ่าน"; exit 1; }
+
+          # เทสที่มี marker [blocker] = ด่านที่พิสูจน์ด้วย mutation แล้ว
+          # ต้องหาจากเนื้อไฟล์ ไม่ใช่จากชื่อ — ชื่อไฟล์ไม่ได้บอกว่ามี blocker ไหม
+          blocker_hits=""
+          while IFS= read -r f; do
+            [ -f "$f" ] || continue
+            case "$f" in
+              *.test.ts|*.test.tsx) grep -q '\[blocker\]' "$f" && blocker_hits="${blocker_hits}${f}"$'\n' ;;
+            esac
+          done <<< "$changed"
+
+          protected=$(printf '%s\n' "$changed" | grep -E '^(\.github/workflows/|\.claude/hooks/)' || true)
+          protected="${protected}"$'\n'"${blocker_hits}"
+          protected=$(printf '%s' "$protected" | sed '/^$/d')
+
+          if [ -z "$protected" ]; then
+            echo "✅ ไม่แตะ path คุ้มครอง"
+            exit 0
+          fi
+
+          say "## PR นี้แตะ path คุ้มครอง"
+          say '```'
+          say "$protected"
+          say '```'
+
+          # 🛑 ถามป้ายสด ๆ จาก API — **ห้ามใช้ `github.event.pull_request.labels`**
+          # payload ของ event คือภาพนิ่ง ณ ตอนที่ event ยิง (PR ถูกสร้าง) ป้ายที่ติดทีหลัง
+          # จะมองไม่เห็นทั้งที่มีอยู่จริง — พลาดจริงในรอบแรก 2026-08-16 (PR #5)
+          # คลาสเดียวกับ docs/conventions/stored-flag-vs-owner-truth.md
+          # อ่านไม่ได้ = ไม่มีป้าย (fail-closed) ไม่ใช่ปล่อยผ่าน
+          HAS_OVERRIDE=$(gh api "repos/${REPO}/issues/${PR}/labels" \
+                           --jq "any(.name == \"${OVERRIDE_LABEL}\")" 2>/dev/null || echo "false")
+
+          if [ "$HAS_OVERRIDE" = "true" ]; then
+            say "⚠️ ผ่านเพราะมีป้าย \"$OVERRIDE_LABEL\" — คนตั้งใจแก้ด่านเอง"
+            say "   ต้องอ่าน diff ด้วยตาก่อน merge เสมอ ป้ายนี้ไม่ได้แปลว่าถูกต้อง"
+            exit 0
+          fi
+
+          say "🛑 ไม่ผ่าน — ไฟล์กลุ่มนี้คือตัวที่ตัดสินว่าอะไรผ่านได้"
+          say "   ถ้าตั้งใจแก้จริง ให้คนติดป้าย \"$OVERRIDE_LABEL\" บน PR นี้แล้วรันใหม่"
+          exit 1
+
+  # ── ด่าน 1: type error ผ่าน next build ────────────────────────────────────
+  # 🛑 **ห้ามใช้ `npx tsc --noEmit` เปล่า ๆ — พิสูจน์แล้วว่าใช้ไม่ได้ (PR #5 รอบแรก)**
+  # `next-env.d.ts` ถูก gitignore (บรรทัด 46) เพราะเป็นไฟล์ที่ Next generate เอง และมันคือ
+  # ตัวที่ประกาศชนิดของ `*.svg`/`*.ico` (`/// <reference types="next/image-types/global" />`)
+  # \+ import route types จาก `.next/types/` ⇒ บน CI ที่ checkout สะอาด tsc จะแดง
+  # `Cannot find module '@/assets/images/*.svg'` เป็นสิบตัวทั้งที่โค้ดไม่มีอะไรผิดเลย
+  #
+  # `next build` ทำ type-check ให้ครบ **และ**เป็นคำสั่งเดียวกับที่ Vercel รันจริง
+  # ⇒ ด่านนี้ทดสอบสิ่งที่มีผลจริง ไม่ใช่ของใกล้เคียง
+  typecheck:
+    name: ด่าน 1 — next build (type errors)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # ค่าปลอมทั้งหมด — โมดูลหลายตัวใน src/lib/ throw ตอน import ถ้าไม่มี NEXTAUTH_SECRET
+      # (upload-ticket, scam-identifier, mobile-ticket, link-intent, app-token,
+      #  account-merge-ticket) ⇒ build ล้มก่อนถึง type-check ด้วยซ้ำ
+      NEXTAUTH_SECRET: ci-dummy-secret-not-used-for-anything-real
+      # 🛑 ต้องเป็น localhost เท่านั้น (HR14) — `npm run build` = `next build` ล้วน
+      # **ไม่ได้รัน `prisma migrate deploy`** (ตัวนั้นอยู่ใน buildCommand ของ vercel.json
+      # ไม่ใช่ใน npm script) ⇒ ด่านนี้ไม่แตะฐานข้อมูลใด ๆ ทั้งสิ้น
+      DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
+      DIRECT_URL: postgresql://dummy:dummy@localhost:5432/dummy
+      NEXT_PUBLIC_SUPABASE_URL: https://dummy.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-dummy-anon-key
+      NEXT_PUBLIC_BUYER_URL: https://deepthailand.app
+      NEXT_PUBLIC_SELLER_URL: https://seller.deepthailand.app
+      NEXT_TELEMETRY_DISABLED: '1'
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Prisma client ถูก generate เข้า node_modules ไม่ได้อยู่ในรีโป
+      # `prisma generate` **ไม่แตะฐานข้อมูล** (HR14 อนุญาตชัดเจน) ต่างจาก migrate/db push
+      - run: npx prisma generate
+
+      - run: npm run build
+
+  # ── ด่าน 2: unit test ─────────────────────────────────────────────────────
+  unit:
+    name: ด่าน 2 — vitest (src/)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npx prisma generate
+
+      # scope `src/` เท่านั้น — ไม่ใช่ `npx vitest run` เปล่า ๆ
+      # vitest.config exclude แค่ node_modules/e2e/.next ⇒ ตัวเปล่าจะดูด tests/ เข้ามาด้วย
+      # ซึ่งต้องมี Postgres — แยกไปอยู่ ด่าน 4 ที่มี service container ให้
+      # (แยก job กันโดยตั้งใจ: ด่านนี้ไม่ต้องรอฐานขึ้น และแดงคนละเรื่องกันชัดเจน)
+      #
+      # ไม่มีลิสต์ยกเว้น ไม่มี baseline — วัดแล้ว 2026-08-16 เขียวหมด 2,945/2,945
+      # แดง 1 ตัวก็ตก
+      - run: npx vitest run src/
+
+  # ── ด่าน 4: integration test ที่ต้องมีฐานข้อมูล ───────────────────────────
+  # ปิด P0.1 แล้ว — เดิม 8 ไฟล์เรียก `cleanDatabase()` ที่ถูกถอดตาม HR13 (แดง 80)
+  # ตามด้วย fixture เก่าที่ไม่ตามโค้ดโปรดักต์อีก 13 ⇒ ตอนนี้ 126/126 เขียว
+  integration:
+    name: ด่าน 4 — vitest (tests/ + Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: safepay
+          POSTGRES_PASSWORD: safepay
+          POSTGRES_DB: safepay
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # 🛑 ปักหมุด localhost ตรง ๆ ทั้ง 2 ตัว (HR14) — ฐานนี้เป็น container ที่เกิดและตาย
+      # พร้อม job ไม่มีทางเป็นฐานอื่นได้ · `tests/setup.ts` มี allowlist fail-closed
+      # อีกชั้นที่ผ่านเฉพาะ localhost/127.0.0.1/host.docker.internal
+      DATABASE_URL: postgresql://safepay:safepay@localhost:5432/safepay
+      DIRECT_URL: postgresql://safepay:safepay@localhost:5432/safepay
+      NEXTAUTH_SECRET: ci-dummy-secret-not-used-for-anything-real
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npx prisma generate
+
+      # `migrate deploy` = รันไฟล์ใน prisma/migrations/ ตามลำดับ ไม่ drop อะไร
+      # HR14 อนุญาตชัดเจน (ต่างจาก migrate dev / db push --force-reset / migrate reset)
+      # และปลายทางคือ container ที่ปักหมุด localhost ไว้ในคำสั่งเอง
+      - name: สร้าง schema บนฐานของ job นี้
+        run: npx prisma migrate deploy
+
+      # ⚠️ ฐานนี้ว่างเปล่า ไม่มี seed — ต่างจากฐาน dev บนเครื่องที่มีข้อมูล seed จริง
+      # เทสที่ผ่านบนเครื่องแต่ตกตรงนี้ = เทสนั้นแอบพึ่ง seed data โดยไม่ได้ตั้งใจ
+      # ซึ่งเป็นสิ่งที่เราอยากรู้ ไม่ใช่สิ่งที่ควรกลบ
+      - run: npx vitest run tests/
+
+  # ── ด่าน 3: theme compliance ──────────────────────────────────────────────
+  # HR7 (arbitrary value) / 9 (react-toastify) / 10 (chart lib) / 12 (emoji)
+  # + ธีมผิด subdomain — ใช้ hook ตัวเดียวกับที่รันบนเครื่อง dev ไม่เขียนใหม่
+  # (เขียนใหม่ = drift แบบ prod-db-guard ที่เพิ่งเจอ commit cace9a0e)
+  theme:
+    name: ด่าน 3 — theme-guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: รัน theme-guard กับไฟล์ที่ PR แตะ
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -uo pipefail
+          say() { echo "$@"; echo "$@" >> "$GITHUB_STEP_SUMMARY"; }
+
+          if [ -z "${BASE:-}" ]; then
+            say "ℹ️ ไม่ใช่ PR — ข้ามด่าน theme"
+            exit 0
+          fi
+
+          changed=$(git diff --name-only --diff-filter=d "$BASE" "$HEAD") \
+            || { say "❌ อ่าน diff ไม่ได้ — fail-closed"; exit 1; }
+
+          fail=0
+          checked=0
+          while IFS= read -r f; do
+            [ -n "$f" ] && [ -f "$f" ] || continue
+            case "$f" in
+              *.tsx|*.ts|*.css) ;;
+              *) continue ;;
+            esac
+            checked=$((checked+1))
+            # hook รับ JSON ทาง stdin (`.tool_input.file_path`) เหมือนตอน PostToolUse
+            # ป้อนรูปเดิมเป๊ะ จะได้ไม่ต้องแก้สคริปต์ซึ่งเป็น path คุ้มครอง
+            out=$(jq -nc --arg p "$f" '{tool_input:{file_path:$p}}' \
+                  | bash .claude/hooks/theme-guard.sh 2>&1) || {
+              say "🛑 $f"
+              say '```'
+              say "$out"
+              say '```'
+              fail=1
+            }
+          done <<< "$changed"
+
+          echo "ตรวจแล้ว $checked ไฟล์"
+          [ "$fail" -eq 0 ] || { say ""; say "แก้ให้ผ่านก่อน หรือถ้าจำเป็นจริงให้เขียน comment กำกับบรรทัดเดียวกับ class (HR7)"; exit 1; }
+          echo "✅ ผ่าน"

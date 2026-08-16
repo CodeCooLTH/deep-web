@@ -14,10 +14,14 @@
  *
  * Mock OTP: vi.mock('@/lib/otp') — mock verifyOtp ให้ return true (bypass SMS)
  *   ป้องกันไม่ให้ส่ง SMS จริง. logic ทุกอย่างหลัง OTP (user create, badge award) รันจริง.
+ *
+ * ทำไมเก็บ userIds เอง (Hard Rule 13): user ในไฟล์นี้ถูกสร้างผ่าน simulatePhoneOtpSignup()
+ * (service เป็นคนสร้าง ไม่ใช่เทสสร้างตรง ๆ) — ทุก helper ที่นี่ return ค่า user ที่สร้างแล้ว
+ * เสมอ จึง push id ได้ทันทีที่ helper คืนค่า ไม่ต้อง query แบบ scope กว้าง
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { prisma, cleanDatabase } from "../setup";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { prisma, deleteTestData } from "../setup";
 import {
   evaluateSignupYearBadge,
   evaluateBadges,
@@ -36,21 +40,41 @@ vi.mock("@/lib/otp", () => ({
   toE164Thai: vi.fn((phone: string) => "+66" + phone.slice(1)),
 }));
 
-// ── ฟังก์ชัน seed badge 2026_BADGE จาก defaultBadges (criteria SIGNUP_YEAR 2026) ──
+// ─── id ที่เทสสร้าง — เก็บไว้ลบเฉพาะของตัวเองใน afterEach (Hard Rule 13) ────────
+// badgeNameENs แยกจาก deleteTestData เพราะ Badge เป็นตารางกลาง (nameEN @unique)
+// ไม่ผูกกับ user/shop — ต้องลบเองแบบ scope ด้วยรายชื่อที่เทสสร้างจริงเท่านั้น
+let userIds: string[] = [];
+let shopIds: string[] = [];
+let badgeNameENs: string[] = [];
+
+// ทำไม findUnique ก่อนสร้างเสมอ: `{thisYear}_BADGE`/"First Sale" เป็นส่วนหนึ่งของ
+// defaultBadges จริงที่ prisma/seed.ts upsert ไว้แล้วบน DB dev เครื่องนี้ (nameEN
+// ชนกับของจริง โดยเฉพาะปีปัจจุบันที่ hardcode ไว้ใน badge-seed-data.ts) — สร้างทับ
+// + track ไปลบโดยไม่เช็คก่อนจะลบ badge ที่ seed จริงทิ้ง (เกิดขึ้นจริงมาแล้วรอบหนึ่ง
+// กับ "First Sale"/"Fully Verified" ในไฟล์พี่น้อง badge.test.ts — กู้คืนด้วย
+// `npm run seed:local`) ต้อง track ใน badgeNameENs เฉพาะตัวที่เทสสร้างเองเท่านั้น
+async function ensureTestBadge(data: Parameters<typeof prisma.badge.create>[0]["data"]) {
+  const nameEN = (data as { nameEN: string }).nameEN;
+  const existing = await prisma.badge.findUnique({ where: { nameEN } });
+  if (existing) return existing;
+  const created = await prisma.badge.create({ data });
+  badgeNameENs.push(nameEN);
+  return created;
+}
+
+// ── ฟังก์ชัน seed badge {year}_BADGE จาก defaultBadges (criteria SIGNUP_YEAR) ──
 // เหมือน pattern badge.test.ts แต่ seed เฉพาะ badge ที่ test นี้ต้องการ
 async function seedSignupYearBadges() {
   const thisYear = new Date().getFullYear();
-  // 2026_BADGE (ปีปัจจุบัน — ถ้ารันปี 2026 จะ match; test ใช้ getFullYear() จริงเสมอ)
-  await prisma.badge.create({
-    data: {
-      name: `สมาชิกปี ${thisYear}`,
-      nameEN: `${thisYear}_BADGE`,
-      icon: null,
-      type: "ACHIEVEMENT",
-      audience: "ANY",
-      criteria: { type: "SIGNUP_YEAR", year: thisYear },
-      imageUrl: `/images/badges/deep-${thisYear}.svg`,
-    },
+  // {thisYear}_BADGE — test ใช้ getFullYear() จริงเสมอ จึง match ทุกปีที่รัน
+  await ensureTestBadge({
+    name: `สมาชิกปี ${thisYear}`,
+    nameEN: `${thisYear}_BADGE`,
+    icon: null,
+    type: "ACHIEVEMENT",
+    audience: "ANY",
+    criteria: { type: "SIGNUP_YEAR", year: thisYear },
+    imageUrl: `/images/badges/deep-${thisYear}.svg`,
   });
 }
 
@@ -86,6 +110,7 @@ async function simulatePhoneOtpSignup(phone: string, displayName: string, userna
       },
     },
   });
+  userIds.push(user.id); // เก็บ id ทันทีที่ service สร้าง user สำเร็จ
 
   // เรียก evaluateSignupYearBadge — เหมือน auth.ts line 118
   // รันจริง (ไม่ mock) เพื่อ verify ว่า badge logic ทำงานถูกต้องใน integration context
@@ -98,8 +123,17 @@ async function simulatePhoneOtpSignup(phone: string, displayName: string, userna
 
 describe("สมัครสมาชิกใหม่ → OTP จำลอง → ได้ achievement", () => {
   beforeEach(async () => {
-    await cleanDatabase();
+    userIds = [];
+    shopIds = [];
+    badgeNameENs = [];
     await seedSignupYearBadges();
+  });
+
+  afterEach(async () => {
+    await deleteTestData({ userIds, shopIds });
+    if (badgeNameENs.length > 0) {
+      await prisma.badge.deleteMany({ where: { nameEN: { in: badgeNameENs } } });
+    }
   });
 
   // ── Test 1 (หลัก): signup ปีปัจจุบัน → ได้ SIGNUP_YEAR badge ────────────────
@@ -137,15 +171,13 @@ describe("สมัครสมาชิกใหม่ → OTP จำลอง 
     const otherYear = thisYear - 1; // ปีที่แล้ว
 
     // seed badge ปีที่แล้วเพิ่ม — user ที่สมัครปีนี้ไม่ควรได้
-    await prisma.badge.create({
-      data: {
-        name: `สมาชิกปี ${otherYear}`,
-        nameEN: `${otherYear}_BADGE`,
-        icon: null,
-        type: "ACHIEVEMENT",
-        audience: "ANY",
-        criteria: { type: "SIGNUP_YEAR", year: otherYear },
-      },
+    await ensureTestBadge({
+      name: `สมาชิกปี ${otherYear}`,
+      nameEN: `${otherYear}_BADGE`,
+      icon: null,
+      type: "ACHIEVEMENT",
+      audience: "ANY",
+      criteria: { type: "SIGNUP_YEAR", year: otherYear },
     });
 
     const user = await simulatePhoneOtpSignup(
@@ -169,15 +201,12 @@ describe("สมัครสมาชิกใหม่ → OTP จำลอง 
   // ── Test 3 (optional): สร้าง CONFIRMED order → evaluateBadges → ได้ First Sale ─
   it("Test 3: หลังสมัคร + สร้าง 1 CONFIRMED order → evaluateBadges → ได้ First Sale", async () => {
     // seed First Sale badge (FIRST_ORDER, audience SELLER)
-    await prisma.badge.create({
-      data: {
-        name: "เปิดหน้าร้าน",
-        nameEN: "First Sale",
-        icon: "🏪",
-        type: "ACHIEVEMENT",
-        audience: "SELLER",
-        criteria: { type: "FIRST_ORDER" },
-      },
+    await ensureTestBadge({
+      name: "เปิดหน้าร้าน",
+      nameEN: "First Sale",
+      type: "ACHIEVEMENT",
+      audience: "SELLER",
+      criteria: { type: "FIRST_ORDER" },
     });
 
     const user = await simulatePhoneOtpSignup(
@@ -195,6 +224,7 @@ describe("สมัครสมาชิกใหม่ → OTP จำลอง 
         businessType: "INDIVIDUAL",
       },
     });
+    shopIds.push(shop.id);
     await prisma.user.update({
       where: { id: user.id },
       data: { isShop: true },

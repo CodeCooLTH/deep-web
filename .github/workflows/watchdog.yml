@@ -1,0 +1,114 @@
+name: เฝ้าชีพจรเครื่อง Hermes
+
+# 🛑 หัวใจของ workflow นี้คือ **มันต้องไม่ได้อยู่บนเครื่องที่มันเฝ้า**
+#
+# ต้นแบบ (CodeCooLTH/12tees) เคยวาง cron เฝ้าระบบไว้บนเครื่องเดียวกับ webhook
+# และคนที่จะสังเกตว่าพัง ⇒ ตายพร้อมกันทั้งชุด **เงียบไป 178 รอบโดยไม่มีใครรู้**
+# คอมเมนต์ในไฟล์เขาเขียนไว้เองว่า "Actions อ่านความจริงจาก GitHub เอง"
+#
+# ⚠️ ณ 2026-08-16 ยังไม่มีเครื่อง Hermes ตัวไหนเขียนชีพจรเข้ามาเลย (P5 ยังไม่เริ่ม)
+#    workflow นี้จะรายงานว่า "ยังไม่เคยมีชีพจร" ทุกรอบ **โดยตั้งใจ** — ไม่ใช่เงียบ
+#    ด่านที่ยังไม่มีข้อมูลต้องบอกว่าไม่มี ไม่ใช่แกล้งเขียว
+#
+# ฝั่งเครื่อง Hermes เขียนชีพจรด้วย (ไม่สร้าง commit ไม่สร้าง notification):
+#   gh api -X PATCH repos/:owner/:repo/actions/variables/HERMES_HEARTBEAT \
+#     -f name=HERMES_HEARTBEAT -f value="$(date -u +%s)"
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # ทุก 30 นาที ตลอด 24 ชม. — เครื่องตายตอนไหนก็ต้องรู้
+  workflow_dispatch:
+
+permissions:
+  contents: read       # อ่าน repo variable
+  issues: write        # เปิด/อัปเดต/ปิด issue แจ้งเตือน
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: ตรวจว่าเครื่องยังส่งสัญญาณอยู่ไหม
+    runs-on: ubuntu-latest
+    steps:
+      - name: อ่านชีพจรแล้วตัดสิน
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEARTBEAT: ${{ vars.HERMES_HEARTBEAT }}
+          STALE_HOURS: '2'
+          TITLE: 'เครื่อง Hermes ขาดการติดต่อ'
+        run: |
+          set -euo pipefail
+          say() { echo "$@"; echo "$@" >> "$GITHUB_STEP_SUMMARY"; }
+
+          # หา issue แจ้งเตือนที่เปิดค้างอยู่ (ถ้ามี) — ใช้ title เป็นตัวจับคู่
+          # อ่านไม่ได้ = ถือว่าไม่มี แล้วเปิดใบใหม่ (ยอมซ้ำ ดีกว่าเงียบ)
+          EXISTING=$(gh issue list --repo "$REPO" --state open --limit 50 \
+                       --json number,title \
+                       --jq "[.[] | select(.title == \"${TITLE}\")][0].number // empty" 2>/dev/null || echo "")
+
+          # ── กรณี 1: ยังไม่เคยมีชีพจรเลย ────────────────────────────────
+          if [ -z "${HEARTBEAT:-}" ]; then
+            say "ℹ️ ยังไม่เคยมีเครื่อง Hermes เขียนชีพจรเข้ามาเลย (repo variable \`HERMES_HEARTBEAT\` ว่าง)"
+            say ""
+            say "นี่คือสถานะที่คาดไว้ตอนนี้ — P5 (ลูป poll บนเครื่อง Hermes) ยังไม่เริ่ม"
+            say "workflow นี้จะเริ่มมีความหมายเมื่อเครื่องเริ่มเขียนชีพจร"
+            say ""
+            say "**ไม่เปิด issue แจ้งเตือน** เพราะ \"ยังไม่เคยมี\" ต่างจาก \"เคยมีแล้วหายไป\""
+            say "การเตือนเรื่องที่ยังไม่เริ่มทำ = สัญญาณเฟ้อ ที่จะทำให้คนเลิกสนใจสัญญาณจริง"
+            exit 0
+          fi
+
+          # ── ตรวจว่าค่าที่อ่านมาเป็นตัวเลขจริง (fail-closed) ─────────────
+          case "$HEARTBEAT" in
+            ''|*[!0-9]*)
+              say "🔴 ค่า \`HERMES_HEARTBEAT\` ไม่ใช่ตัวเลข epoch: \`${HEARTBEAT}\`"
+              say "อ่านค่าไม่ได้ = ถือว่าเครื่องมีปัญหา (fail-closed) ไม่ใช่ปล่อยผ่าน"
+              STALE=1 ;;
+            *)
+              NOW=$(date -u +%s)
+              AGE_MIN=$(( (NOW - HEARTBEAT) / 60 ))
+              LIMIT_MIN=$(( STALE_HOURS * 60 ))
+              if [ "$AGE_MIN" -ge "$LIMIT_MIN" ]; then STALE=1; else STALE=0; fi
+              ;;
+          esac
+
+          # ── กรณี 2: ชีพจรสด ────────────────────────────────────────────
+          if [ "${STALE}" = "0" ]; then
+            say "✅ เครื่อง Hermes ส่งสัญญาณล่าสุด $AGE_MIN นาทีที่แล้ว (เกณฑ์ ${LIMIT_MIN} นาที)"
+            if [ -n "$EXISTING" ]; then
+              gh issue comment "$EXISTING" --repo "$REPO" \
+                --body "✅ เครื่องกลับมาแล้ว — สัญญาณล่าสุด $AGE_MIN นาทีที่แล้ว ปิดใบนี้อัตโนมัติ" >/dev/null || true
+              gh issue close "$EXISTING" --repo "$REPO" >/dev/null || true
+              say "ปิด issue #$EXISTING ที่ค้างอยู่แล้ว"
+            fi
+            exit 0
+          fi
+
+          # ── กรณี 3: ขาดการติดต่อ ───────────────────────────────────────
+          # heredoc ต้องเยื้องอยู่ในบล็อก `run: |` ทั้งก้อน — บรรทัดที่เริ่มคอลัมน์ 0
+          # จะทำให้ YAML มองว่าหลุดออกจากบล็อก (พลาดจริงตอนเขียนไฟล์นี้ ตัวตรวจจับได้)
+          BODY=$(cat <<MSG
+          เครื่อง Hermes ไม่ส่งสัญญาณมา **${AGE_MIN:-?} นาที** (เกณฑ์ ${LIMIT_MIN:-120} นาที)
+
+          งานที่ค้างอยู่ในสายพานจะไม่ขยับจนกว่าเครื่องจะกลับมาออนไลน์ — ใบงานยังอยู่ครบที่ป้าย \`stage:*\` เดิม ไม่หายไปไหน
+
+          ตรวจ: เครื่องเปิดอยู่ไหม · เน็ตต่อไหม · ลูป poll ยังรันอยู่ไหม
+
+          ใบนี้จะปิดเองอัตโนมัติเมื่อชีพจรกลับมา
+          MSG
+          )
+          # ตัดช่องว่างนำหน้าที่ใส่ไว้เพื่อ YAML ออกก่อนส่งเป็นเนื้อ issue
+          BODY=$(printf '%s\n' "$BODY" | sed 's/^          //')
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "$REPO" --body "$BODY" >/dev/null \
+              || { say "❌ เขียน comment ลง issue #$EXISTING ไม่ได้"; exit 1; }
+            say "🔴 ยังขาดการติดต่อ — อัปเดต issue #$EXISTING"
+          else
+            URL=$(gh issue create --repo "$REPO" --title "$TITLE" --body "$BODY") \
+              || { say "❌ เปิด issue แจ้งเตือนไม่ได้ — ต้องมีคนดู"; exit 1; }
+            say "🔴 เครื่อง Hermes ขาดการติดต่อ — เปิด issue แล้ว: $URL"
+          fi

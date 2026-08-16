@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, cleanDatabase } from "../setup";
+import { prisma, deleteTestData } from "../setup";
 import {
   evaluateBadges,
   evaluateSignupYearBadge,
@@ -16,16 +16,49 @@ import {
   checkSignupYear,
 } from "@/services/badge.service";
 
+// ─── id ที่เทสสร้าง — เก็บไว้ลบเฉพาะของตัวเองใน afterEach ของแต่ละ describe (Hard
+// Rule 13) — module-level เพราะไฟล์นี้มีหลาย describe ที่แยก beforeEach/afterEach
+// กันเอง แต่ vitest รัน test ในไฟล์เดียวกันตามลำดับ (ไม่ concurrent) จึงแชร์ตัวแปร
+// เดียวกันได้อย่างปลอดภัย ตราบใดที่ทุก describe reset ตอนต้น + cleanup ตอนจบเอง
+//
+// badgeNameENs แยกจาก deleteTestData เพราะ Badge เป็นตารางกลาง (nameEN @unique)
+// ไม่ผูกกับ user/shop — ต้องลบเองแบบ scope ด้วยรายชื่อที่เทสสร้างจริงเท่านั้น
+let userIds: string[] = [];
+let shopIds: string[] = [];
+let badgeNameENs: string[] = [];
+
+function resetTrackedIds() {
+  userIds = [];
+  shopIds = [];
+  badgeNameENs = [];
+}
+
+async function cleanupTrackedIds() {
+  await deleteTestData({ userIds, shopIds });
+  if (badgeNameENs.length > 0) {
+    await prisma.badge.deleteMany({ where: { nameEN: { in: badgeNameENs } } });
+  }
+}
+
+// ทำไมต้อง findUnique ก่อนเสมอ: Badge เป็นตารางกลางที่ prisma/seed.ts upsert badge
+// จริงไว้แล้วทั้งชุด (defaultBadges — รวม "First Sale"/"Fully Verified") บน DB dev
+// เครื่องนี้ nameEN พวกนี้จึงชนกับของจริงได้ — ถ้าสร้างทับ+track ไปลบแบบไม่เช็คก่อน
+// จะลบ badge ที่ seed ไว้จริงทิ้ง (เกิดขึ้นจริงระหว่างพัฒนาไฟล์นี้ — กู้คืนด้วย
+// `npm run seed:local`) ต้อง track ใน badgeNameENs เฉพาะตัวที่เทสสร้างเองเท่านั้น
+async function ensureTestBadge(data: Parameters<typeof prisma.badge.create>[0]["data"]) {
+  const nameEN = (data as { nameEN: string }).nameEN;
+  const existing = await prisma.badge.findUnique({ where: { nameEN } });
+  if (existing) return existing;
+  const created = await prisma.badge.create({ data });
+  badgeNameENs.push(nameEN);
+  return created;
+}
+
 // seedDefaultBadges ถูกลบออกใน Phase-4 Batch 1 Unit B (data-driven engine)
 // seed เฉพาะ badge ที่ test ต้องการแทน — single source of truth คือ prisma/seed.ts
 async function seedTestBadges() {
-  await prisma.badge.createMany({
-    data: [
-      { name: "เปิดหน้าร้าน",    nameEN: "First Sale",    icon: "🏪", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "FIRST_ORDER" } },
-      { name: "ยืนยันครบถ้วน",   nameEN: "Fully Verified", icon: "✅", type: "VERIFICATION", audience: "ANY",    criteria: { type: "FULL_VERIFICATION" } },
-    ],
-    skipDuplicates: true,
-  });
+  await ensureTestBadge({ name: "เปิดหน้าร้าน",    nameEN: "First Sale",    type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "FIRST_ORDER" } });
+  await ensureTestBadge({ name: "ยืนยันครบถ้วน",   nameEN: "Fully Verified", type: "VERIFICATION", audience: "ANY",    criteria: { type: "FULL_VERIFICATION" } });
 }
 
 // ─── helpers สร้าง user + shop ────────────────────────────────────────────────
@@ -34,9 +67,11 @@ async function createUserWithShop(suffix: string) {
   const user = await prisma.user.create({
     data: { displayName: `User ${suffix}`, username: `u_${suffix}`, isShop: true },
   });
+  userIds.push(user.id);
   const shop = await prisma.shop.create({
     data: { userId: user.id, shopName: `Shop ${suffix}`, businessType: "INDIVIDUAL" },
   });
+  shopIds.push(shop.id);
   return { user, shop };
 }
 
@@ -56,14 +91,16 @@ async function createCompletedOrder(shopId: string) {
 
 describe("BadgeService", () => {
   beforeEach(async () => {
-    await cleanDatabase();
+    resetTrackedIds();
     await seedTestBadges();
   });
+  afterEach(cleanupTrackedIds);
 
   it("awards Fully Verified badge when all levels approved", async () => {
     const user = await prisma.user.create({
       data: { displayName: "Test", username: "badge1" },
     });
+    userIds.push(user.id);
     await prisma.verificationRecord.createMany({
       data: [
         { userId: user.id, type: "PHONE_OTP", level: 1, status: "APPROVED" },
@@ -84,9 +121,11 @@ describe("BadgeService", () => {
     const user = await prisma.user.create({
       data: { displayName: "Seller", username: "badge2", isShop: true },
     });
+    userIds.push(user.id);
     const shop = await prisma.shop.create({
       data: { userId: user.id, shopName: "Shop", businessType: "INDIVIDUAL" },
     });
+    shopIds.push(shop.id);
     await prisma.order.create({
       data: {
         shopId: shop.id, type: "DIGITAL", totalAmount: 100, status: "CONFIRMED",
@@ -106,9 +145,11 @@ describe("BadgeService", () => {
     const user = await prisma.user.create({
       data: { displayName: "Test", username: "badge3", isShop: true },
     });
+    userIds.push(user.id);
     const shop = await prisma.shop.create({
       data: { userId: user.id, shopName: "Shop", businessType: "INDIVIDUAL" },
     });
+    shopIds.push(shop.id);
     await prisma.order.create({
       data: {
         shopId: shop.id, type: "DIGITAL", totalAmount: 100, status: "CONFIRMED",
@@ -117,15 +158,23 @@ describe("BadgeService", () => {
     });
     await evaluateBadges(user.id);
     await evaluateBadges(user.id); // run twice
-    const count = await prisma.userBadge.count({ where: { userId: user.id } });
-    expect(count).toBe(1); // First Sale only, not duplicated
+    // นับเฉพาะ "First Sale" — ห้ามนับรวมทุก badge ของ user เพราะ 2026_BADGE
+    // (SIGNUP_YEAR, audience:"ANY") ถูกแจกให้ user ใหม่ทุกคนในปีนี้อย่างถูกต้องด้วย
+    // (ดู CLAUDE.md 2026-08-16 กลุ่ม B) — เทสนี้สนใจแค่ว่า First Sale ไม่ถูกแจกซ้ำ
+    const badges = await prisma.userBadge.findMany({
+      where: { userId: user.id },
+      include: { badge: true },
+    });
+    const firstSaleCount = badges.filter((b) => b.badge.nameEN === "First Sale").length;
+    expect(firstSaleCount).toBe(1); // First Sale only, not duplicated
   });
 });
 
 // ─── H1: Criteria handler unit tests ─────────────────────────────────────────
 
 describe("H1 — checkFirstOrder", () => {
-  beforeEach(cleanDatabase);
+  beforeEach(resetTrackedIds);
+  afterEach(cleanupTrackedIds);
 
   it("met=true + count≥1 เมื่อมี order COMPLETED", async () => {
     const { shop } = await createUserWithShop("fo1");
@@ -136,9 +185,10 @@ describe("H1 — checkFirstOrder", () => {
   });
 
   it("met=false + count=0 เมื่อไม่มี shop", async () => {
-    await prisma.user.create({
+    const user = await prisma.user.create({
       data: { displayName: "No Shop", username: "fo_noshop" },
     });
+    userIds.push(user.id);
     const result = await checkFirstOrder(null);
     expect(result.met).toBe(false);
     expect(result.count).toBe(0);
@@ -159,7 +209,8 @@ describe("H1 — checkFirstOrder", () => {
 });
 
 describe("H1 — checkOrderCount", () => {
-  beforeEach(cleanDatabase);
+  beforeEach(resetTrackedIds);
+  afterEach(cleanupTrackedIds);
 
   it("met=true เมื่อ count ถึง threshold", async () => {
     const { shop } = await createUserWithShop("oc1");
@@ -180,9 +231,10 @@ describe("H1 — checkOrderCount", () => {
   });
 
   it("met=false + count=0 เมื่อไม่มี shop", async () => {
-    await prisma.user.create({
+    const user = await prisma.user.create({
       data: { displayName: "No Shop", username: "oc_noshop" },
     });
+    userIds.push(user.id);
     const result = await checkOrderCount(null, { type: "ORDER_COUNT", count: 1 });
     expect(result.met).toBe(false);
     expect(result.count).toBe(0);
@@ -190,7 +242,8 @@ describe("H1 — checkOrderCount", () => {
 });
 
 describe("H1 — checkPerfectRating", () => {
-  beforeEach(cleanDatabase);
+  beforeEach(resetTrackedIds);
+  afterEach(cleanupTrackedIds);
 
   it("met=true เมื่อ avg=5 และ reviewCount ถึง minReviews", async () => {
     const { shop } = await createUserWithShop("pr1");
@@ -237,7 +290,8 @@ describe("H1 — checkPerfectRating", () => {
 });
 
 describe("H1 — checkHighRating", () => {
-  beforeEach(cleanDatabase);
+  beforeEach(resetTrackedIds);
+  afterEach(cleanupTrackedIds);
 
   it("met=true เมื่อ avg >= minRating และ reviewCount ถึง minReviews", async () => {
     const { shop } = await createUserWithShop("hr1");
@@ -266,7 +320,8 @@ describe("H1 — checkHighRating", () => {
 });
 
 describe("H1 — checkZeroComplaint", () => {
-  beforeEach(cleanDatabase);
+  beforeEach(resetTrackedIds);
+  afterEach(cleanupTrackedIds);
 
   it("met=true เมื่อ completed >= minOrders และไม่มี CANCELLED", async () => {
     const { shop } = await createUserWithShop("zc1");
@@ -303,10 +358,12 @@ describe("H1 — checkZeroComplaint", () => {
 });
 
 describe("H1 — checkVeteran", () => {
-  beforeEach(cleanDatabase);
-  // ทำไม afterEach: veteran tests สร้าง order ด้วย custom createdAt — ทำให้ FK
-  // ใน cleanDatabase ต่อไปอาจ fail ถ้า PgBouncer ล้าง order ไม่ครบก่อน shop
-  afterEach(cleanDatabase);
+  // ทำไม reset+cleanup ทุกเทส: veteran tests สร้าง user/order ด้วย custom createdAt
+  // — เก็บ id เองแล้วลบแบบ scope กันชนกับ describe อื่นที่รันคู่ขนานในไฟล์เดียวกันไม่ได้
+  // (vitest รัน test ในไฟล์เดียวกันตามลำดับอยู่แล้ว แต่ resetTrackedIds/cleanupTrackedIds
+  // ยังจำเป็นเพื่อไม่ให้ id ของเทสก่อนหน้าเล็ดลอดมาลบซ้ำ)
+  beforeEach(resetTrackedIds);
+  afterEach(cleanupTrackedIds);
 
   it("met=true เมื่อ user เก่าพอ + มี order ล่าสุด 30 วัน", async () => {
     // สร้าง user ที่ createdAt เก่า 400 วัน
@@ -314,9 +371,11 @@ describe("H1 — checkVeteran", () => {
     const user = await prisma.user.create({
       data: { displayName: "Veteran", username: "vet1", isShop: true, createdAt: oldDate },
     });
+    userIds.push(user.id);
     const shop = await prisma.shop.create({
       data: { userId: user.id, shopName: "VetShop", businessType: "INDIVIDUAL" },
     });
+    shopIds.push(shop.id);
     // order ล่าสุด (updatedAt ≈ now → ตรง where clause)
     await prisma.order.create({
       data: {
@@ -338,7 +397,8 @@ describe("H1 — checkVeteran", () => {
 });
 
 describe("H1 — checkFastShipping", () => {
-  beforeEach(cleanDatabase);
+  beforeEach(resetTrackedIds);
+  afterEach(cleanupTrackedIds);
 
   it("met=true เมื่อ avgHours <= maxHours และ orders ถึง minOrders", async () => {
     const { shop } = await createUserWithShop("fs1");
@@ -373,12 +433,14 @@ describe("H1 — checkFastShipping", () => {
 });
 
 describe("H1 — checkFullVerification", () => {
-  beforeEach(cleanDatabase);
+  beforeEach(resetTrackedIds);
+  afterEach(cleanupTrackedIds);
 
   it("met=true เมื่อ user มี level 1, 2, 3 APPROVED", async () => {
     const user = await prisma.user.create({
       data: { displayName: "FullVerified", username: "fv1" },
     });
+    userIds.push(user.id);
     await prisma.verificationRecord.createMany({
       data: [
         { userId: user.id, type: "PHONE_OTP", level: 1, status: "APPROVED" },
@@ -397,6 +459,7 @@ describe("H1 — checkFullVerification", () => {
     const user = await prisma.user.create({
       data: { displayName: "PartVerified", username: "fv2" },
     });
+    userIds.push(user.id);
     await prisma.verificationRecord.createMany({
       data: [
         { userId: user.id, type: "PHONE_OTP", level: 1, status: "APPROVED" },
@@ -412,6 +475,7 @@ describe("H1 — checkFullVerification", () => {
     const user = await prisma.user.create({
       data: { displayName: "NoVerify", username: "fv3" },
     });
+    userIds.push(user.id);
     const result = await checkFullVerification({ userId: user.id, shopId: null });
     expect(result.met).toBe(false);
     expect(result.levels.size).toBe(0);
@@ -419,7 +483,8 @@ describe("H1 — checkFullVerification", () => {
 });
 
 describe("H1 — checkUniqueReviewers", () => {
-  beforeEach(cleanDatabase);
+  beforeEach(resetTrackedIds);
+  afterEach(cleanupTrackedIds);
 
   it("met=true เมื่อ unique reviewerUserId ถึง count", async () => {
     const { shop } = await createUserWithShop("ur1");
@@ -429,6 +494,7 @@ describe("H1 — checkUniqueReviewers", () => {
       prisma.user.create({ data: { displayName: "B2", username: "urb2" } }),
       prisma.user.create({ data: { displayName: "B3", username: "urb3" } }),
     ]);
+    userIds.push(...buyers.map((b) => b.id));
     for (const buyer of buyers) {
       const order = await createCompletedOrder(shop.id);
       await prisma.review.create({
@@ -443,6 +509,7 @@ describe("H1 — checkUniqueReviewers", () => {
   it("met=false เมื่อ unique reviewers น้อยกว่า count", async () => {
     const { shop } = await createUserWithShop("ur2");
     const buyer = await prisma.user.create({ data: { displayName: "B1", username: "urb_single" } });
+    userIds.push(buyer.id);
     // reviewer คนเดียว review 2 ออเดอร์ — unique ยังคง 1
     for (let i = 0; i < 2; i++) {
       const order = await createCompletedOrder(shop.id);
@@ -462,9 +529,10 @@ describe("H1 — checkUniqueReviewers", () => {
   });
 
   it("met=false เมื่อไม่มี shop", async () => {
-    await prisma.user.create({
+    const user = await prisma.user.create({
       data: { displayName: "No Shop", username: "ur_noshop" },
     });
+    userIds.push(user.id);
     const result = await checkUniqueReviewers(null, { type: "UNIQUE_REVIEWERS", count: 1 });
     expect(result.met).toBe(false);
     expect(result.uniqueCount).toBe(0);
@@ -472,13 +540,15 @@ describe("H1 — checkUniqueReviewers", () => {
 });
 
 describe("H1 — checkSignupYear", () => {
-  beforeEach(cleanDatabase);
+  beforeEach(resetTrackedIds);
+  afterEach(cleanupTrackedIds);
 
   it("met=true เมื่อ createdAt ปีตรงกับ criteria.year", async () => {
     const signupYear = new Date().getFullYear();
     const user = await prisma.user.create({
       data: { displayName: "New User", username: "sy1" },
     });
+    userIds.push(user.id);
     // user.createdAt = now → ปีนี้
     const result = await checkSignupYear(user.id, { type: "SIGNUP_YEAR", year: signupYear });
     expect(result.met).toBe(true);
@@ -488,6 +558,7 @@ describe("H1 — checkSignupYear", () => {
     const user = await prisma.user.create({
       data: { displayName: "Old User", username: "sy2" },
     });
+    userIds.push(user.id);
     const result = await checkSignupYear(user.id, { type: "SIGNUP_YEAR", year: 2020 });
     expect(result.met).toBe(false);
   });
@@ -502,9 +573,10 @@ describe("H1 — checkSignupYear", () => {
 
 describe("H1 — evaluateBadges: award + idempotent + unknown-type skip", () => {
   beforeEach(async () => {
-    await cleanDatabase();
+    resetTrackedIds();
     await seedTestBadges();
   });
+  afterEach(cleanupTrackedIds);
 
   it("award badge ที่ user ผ่าน criteria และ skip ที่ยังไม่ผ่าน", async () => {
     const { user, shop } = await createUserWithShop("ev1");
@@ -525,23 +597,28 @@ describe("H1 — evaluateBadges: award + idempotent + unknown-type skip", () => 
     await createCompletedOrder(shop.id);
     await evaluateBadges(user.id);
     await evaluateBadges(user.id);
-    const count = await prisma.userBadge.count({ where: { userId: user.id } });
+    // นับเฉพาะ "First Sale" — 2026_BADGE (SIGNUP_YEAR, audience:"ANY") ก็ถูกแจกให้
+    // user ใหม่ทุกคนในปีนี้อย่างถูกต้องด้วย ไม่ใช่ badge ที่เทสนี้สนใจ
+    const badges = await prisma.userBadge.findMany({
+      where: { userId: user.id },
+      include: { badge: true },
+    });
+    const firstSaleCount = badges.filter((b) => b.badge.nameEN === "First Sale").length;
     // ต้องได้ badge ไม่ซ้ำ — DB @@unique enforce ไว้แล้ว
-    expect(count).toBe(1);
+    expect(firstSaleCount).toBe(1);
   });
 
   it("unknown criteria.type → ไม่ throw + ไม่ award + console.warn ถูกเรียก", async () => {
     // seed badge ที่ criteria.type ไม่รู้จัก
-    await prisma.badge.create({
-      data: {
-        name: "ทดสอบ Unknown", nameEN: "Unknown Badge",
-        type: "ACHIEVEMENT", audience: "SELLER",
-        criteria: { type: "TOTALLY_UNKNOWN_TYPE_XYZ" },
-      },
+    await ensureTestBadge({
+      name: "ทดสอบ Unknown", nameEN: "Unknown Badge",
+      type: "ACHIEVEMENT", audience: "SELLER",
+      criteria: { type: "TOTALLY_UNKNOWN_TYPE_XYZ" },
     });
     const user = await prisma.user.create({
       data: { displayName: "Unknown User", username: "ev_unknown" },
     });
+    userIds.push(user.id);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       await expect(evaluateBadges(user.id)).resolves.toBeUndefined();
@@ -553,9 +630,14 @@ describe("H1 — evaluateBadges: award + idempotent + unknown-type skip", () => 
     } finally {
       warnSpy.mockRestore();
     }
-    // ไม่ควร award badge ที่ไม่รู้จัก criteria
-    const count = await prisma.userBadge.count({ where: { userId: user.id } });
-    expect(count).toBe(0);
+    // ไม่ควร award badge ที่ไม่รู้จัก criteria — เช็คเจาะจงชื่อ ไม่ใช่นับรวมทุก badge
+    // เพราะ 2026_BADGE (SIGNUP_YEAR, audience:"ANY") ยังถูกแจกให้ user คนนี้ได้ตามปกติ
+    const badges = await prisma.userBadge.findMany({
+      where: { userId: user.id },
+      include: { badge: true },
+    });
+    const names = badges.map((b) => b.badge.nameEN);
+    expect(names).not.toContain("Unknown Badge");
   });
 });
 
@@ -563,31 +645,28 @@ describe("H1 — evaluateBadges: award + idempotent + unknown-type skip", () => 
 
 describe("H1 — evaluateSignupYearBadge", () => {
   beforeEach(async () => {
-    await cleanDatabase();
+    resetTrackedIds();
     // seed SIGNUP_YEAR badge สำหรับปีนี้และปีที่แล้ว
     const thisYear = new Date().getFullYear();
-    await prisma.badge.createMany({
-      data: [
-        {
-          name: `สมาชิกปี ${thisYear}`, nameEN: `Member ${thisYear}`,
-          type: "ACHIEVEMENT", audience: "ANY",
-          criteria: { type: "SIGNUP_YEAR", year: thisYear },
-        },
-        {
-          name: "สมาชิกปีเก่า", nameEN: "Member Old",
-          type: "ACHIEVEMENT", audience: "ANY",
-          criteria: { type: "SIGNUP_YEAR", year: 2020 },
-        },
-      ],
-      skipDuplicates: true,
+    await ensureTestBadge({
+      name: `สมาชิกปี ${thisYear}`, nameEN: `Member ${thisYear}`,
+      type: "ACHIEVEMENT", audience: "ANY",
+      criteria: { type: "SIGNUP_YEAR", year: thisYear },
+    });
+    await ensureTestBadge({
+      name: "สมาชิกปีเก่า", nameEN: "Member Old",
+      type: "ACHIEVEMENT", audience: "ANY",
+      criteria: { type: "SIGNUP_YEAR", year: 2020 },
     });
   });
+  afterEach(cleanupTrackedIds);
 
   it("award SIGNUP_YEAR badge เมื่อ createdAt ตรงกับ criteria.year", async () => {
     // user สมัครปีนี้ (createdAt = now)
     const user = await prisma.user.create({
       data: { displayName: "New Member", username: "sy_ev1" },
     });
+    userIds.push(user.id);
     await evaluateSignupYearBadge(user.id);
     const badges = await prisma.userBadge.findMany({
       where: { userId: user.id },
@@ -602,6 +681,7 @@ describe("H1 — evaluateSignupYearBadge", () => {
     const user = await prisma.user.create({
       data: { displayName: "Current Member", username: "sy_ev2" },
     });
+    userIds.push(user.id);
     await evaluateSignupYearBadge(user.id);
     const badges = await prisma.userBadge.findMany({
       where: { userId: user.id },
@@ -615,6 +695,7 @@ describe("H1 — evaluateSignupYearBadge", () => {
     const user = await prisma.user.create({
       data: { displayName: "Secure Member", username: "sy_ev3" },
     });
+    userIds.push(user.id);
     // เรียกแค่ userId — ถ้า signature รับ year ด้วยจะ compile error ในตัวมันเอง
     await evaluateSignupYearBadge(user.id);
     const thisYear = new Date().getFullYear();
@@ -642,31 +723,27 @@ describe("H1 — evaluateSignupYearBadge", () => {
 
 describe("H1 — getBadgeProgress", () => {
   beforeEach(async () => {
-    await cleanDatabase();
-    await prisma.badge.createMany({
-      data: [
-        // ORDER_COUNT — countable type
-        {
-          name: "นักขายมือใหม่", nameEN: "Starter Seller",
-          type: "ACHIEVEMENT", audience: "SELLER",
-          criteria: { type: "ORDER_COUNT", count: 10 },
-        },
-        // FULL_VERIFICATION — boolean type
-        {
-          name: "ยืนยันครบ", nameEN: "Full Verified GP",
-          type: "VERIFICATION", audience: "ANY",
-          criteria: { type: "FULL_VERIFICATION" },
-        },
-        // SIGNUP_YEAR — boolean type
-        {
-          name: `สมาชิกปีนี้ GP`, nameEN: "Member This Year GP",
-          type: "ACHIEVEMENT", audience: "ANY",
-          criteria: { type: "SIGNUP_YEAR", year: new Date().getFullYear() },
-        },
-      ],
-      skipDuplicates: true,
+    resetTrackedIds();
+    // ORDER_COUNT — countable type
+    await ensureTestBadge({
+      name: "นักขายมือใหม่", nameEN: "Starter Seller",
+      type: "ACHIEVEMENT", audience: "SELLER",
+      criteria: { type: "ORDER_COUNT", count: 10 },
+    });
+    // FULL_VERIFICATION — boolean type
+    await ensureTestBadge({
+      name: "ยืนยันครบ", nameEN: "Full Verified GP",
+      type: "VERIFICATION", audience: "ANY",
+      criteria: { type: "FULL_VERIFICATION" },
+    });
+    // SIGNUP_YEAR — boolean type
+    await ensureTestBadge({
+      name: `สมาชิกปีนี้ GP`, nameEN: "Member This Year GP",
+      type: "ACHIEVEMENT", audience: "ANY",
+      criteria: { type: "SIGNUP_YEAR", year: new Date().getFullYear() },
     });
   });
+  afterEach(cleanupTrackedIds);
 
   it("ORDER_COUNT ที่ยังไม่ครบ → progressRatio เป็น partial + Thai label", async () => {
     const { user, shop } = await createUserWithShop("gp1");
@@ -701,6 +778,7 @@ describe("H1 — getBadgeProgress", () => {
     const user = await prisma.user.create({
       data: { displayName: "Unverified", username: "gp3" },
     });
+    userIds.push(user.id);
     const progress = await getBadgeProgress(user.id, "SELLER");
     const fvBadge = progress.find((p) => p.badge.nameEN === "Full Verified GP");
     expect(fvBadge).toBeDefined();
@@ -712,6 +790,7 @@ describe("H1 — getBadgeProgress", () => {
     const user = await prisma.user.create({
       data: { displayName: "FullVerify", username: "gp4" },
     });
+    userIds.push(user.id);
     await prisma.verificationRecord.createMany({
       data: [
         { userId: user.id, type: "PHONE_OTP", level: 1, status: "APPROVED" },
@@ -728,6 +807,7 @@ describe("H1 — getBadgeProgress", () => {
     const user = await prisma.user.create({
       data: { displayName: "Year User", username: "gp5" },
     });
+    userIds.push(user.id);
     const progress = await getBadgeProgress(user.id, "ANY");
     const yearBadge = progress.find((p) => p.badge.nameEN === "Member This Year GP");
     expect(yearBadge).toBeDefined();
@@ -757,34 +837,31 @@ describe("H1 — getBadgeProgress", () => {
 
 describe("H1 — audience filter", () => {
   beforeEach(async () => {
-    await cleanDatabase();
+    resetTrackedIds();
     // seed badge audience แตกต่างกัน
-    await prisma.badge.createMany({
-      data: [
-        {
-          name: "เฉพาะ Seller", nameEN: "Seller Only Badge",
-          type: "ACHIEVEMENT", audience: "SELLER",
-          criteria: { type: "FULL_VERIFICATION" },
-        },
-        {
-          name: "เฉพาะ Buyer", nameEN: "Buyer Only Badge",
-          type: "ACHIEVEMENT", audience: "BUYER",
-          criteria: { type: "FULL_VERIFICATION" },
-        },
-        {
-          name: "ทุกคน", nameEN: "Any Audience Badge",
-          type: "ACHIEVEMENT", audience: "ANY",
-          criteria: { type: "FULL_VERIFICATION" },
-        },
-      ],
-      skipDuplicates: true,
+    await ensureTestBadge({
+      name: "เฉพาะ Seller", nameEN: "Seller Only Badge",
+      type: "ACHIEVEMENT", audience: "SELLER",
+      criteria: { type: "FULL_VERIFICATION" },
+    });
+    await ensureTestBadge({
+      name: "เฉพาะ Buyer", nameEN: "Buyer Only Badge",
+      type: "ACHIEVEMENT", audience: "BUYER",
+      criteria: { type: "FULL_VERIFICATION" },
+    });
+    await ensureTestBadge({
+      name: "ทุกคน", nameEN: "Any Audience Badge",
+      type: "ACHIEVEMENT", audience: "ANY",
+      criteria: { type: "FULL_VERIFICATION" },
     });
   });
+  afterEach(cleanupTrackedIds);
 
   it("audience='SELLER' → include SELLER+ANY, exclude BUYER", async () => {
     const user = await prisma.user.create({
       data: { displayName: "Seller Aud", username: "aud_seller" },
     });
+    userIds.push(user.id);
     await prisma.verificationRecord.createMany({
       data: [
         { userId: user.id, type: "PHONE_OTP", level: 1, status: "APPROVED" },
@@ -808,6 +885,7 @@ describe("H1 — audience filter", () => {
     const user = await prisma.user.create({
       data: { displayName: "Buyer Aud", username: "aud_buyer" },
     });
+    userIds.push(user.id);
     await prisma.verificationRecord.createMany({
       data: [
         { userId: user.id, type: "PHONE_OTP", level: 1, status: "APPROVED" },
@@ -830,6 +908,7 @@ describe("H1 — audience filter", () => {
     const user = await prisma.user.create({
       data: { displayName: "GP Seller", username: "aud_gp_seller" },
     });
+    userIds.push(user.id);
     const progress = await getBadgeProgress(user.id, "SELLER");
     const names = progress.map((p) => p.badge.nameEN);
     expect(names).toContain("Seller Only Badge");

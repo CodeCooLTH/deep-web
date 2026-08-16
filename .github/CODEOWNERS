@@ -1,0 +1,27 @@
+# CODEOWNERS — ชั้นที่สองของ root safety (00049 BR-CC-05)
+#
+# ชั้นแรกคือ `verify.yml` ด่าน 0 ที่ตก PR ทันทีถ้าแตะ path เหล่านี้โดยไม่มีป้าย "แตะด่าน"
+# ชั้นนี้บังคับให้ต้องมีคนรีวิวจริงในฐานะเจ้าของไฟล์ — สองชั้นซ้อนกันโดยตั้งใจ
+#
+# ที่มา (ai-agent-book บทที่ 9): safety mechanisms must not be self-modifiable
+# ถ้า agent แก้ตัวที่ตัดสินตัวเองได้ มันลดเกณฑ์เทสแล้วเรียกการถอยหลังว่าความก้าวหน้าได้
+#
+# ⚠️ CODEOWNERS มีผลจริงก็ต่อเมื่อเปิด branch protection ที่ติ๊ก
+#    "Require review from Code Owners" — ไม่งั้นไฟล์นี้เป็นแค่เอกสาร ไม่ใช่ด่าน
+#    (นี่คือคลาสความล้มเหลว "กฎที่เขียนไว้แต่บังคับไม่ได้" — docs/conventions/rule-must-be-enforced-not-described.md)
+
+# ── ตัวด่านเอง ────────────────────────────────────────────────────────────
+/.github/workflows/   @shinobu22
+/.github/CODEOWNERS   @shinobu22
+
+# ── hook ที่กันฐานข้อมูล — เคยล้าง prod ทั้ง 64 ตารางมาแล้ว (2026-07-31) ──
+/.claude/hooks/       @shinobu22
+
+# ── ตัวตั้งค่าที่กระทบ prod โดยตรง ───────────────────────────────────────
+# vercel.json มี `prisma migrate deploy` ใน buildCommand ⇒ merge = migrate บน prod (HR15)
+/vercel.json          @shinobu22
+/prisma/migrations/   @shinobu22
+/prisma/schema.prisma @shinobu22
+
+# ── กติกาของโปรเจกต์ ─────────────────────────────────────────────────────
+/CLAUDE.md            @shinobu22
