@@ -438,6 +438,18 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
 
   // T5 — หา Customer ที่ผูกไว้: ช่องทางนอกผูกผ่าน ExternalContact.customerId, DEEP ผูกผ่าน
   // Customer.userId (Phase 2 link — ดู schema.prisma Customer model comment)
+  /**
+   * 🛑 เริ่มยิงทันทีตรงนี้ แต่ await ท้ายสุด — ไม่ขึ้นกับ linkedCustomer/orders เลยสักนิด
+   *
+   * วัดบน prod 2026-08-16: SQL ของกลุ่มแผงขวา **execute 0.07–0.10ms ต่อ query** (index ครบทุกตัว)
+   * แต่เฟสนี้กิน ~150ms ⇒ เวลาไม่ได้อยู่ที่ฐานข้อมูล **มันอยู่ที่จำนวน await ที่เรียงต่อกัน**
+   * (Prisma overhead + acquire connection ต่อรอบ) ⇒ ตัวที่ต้องลดคือ "จำนวนรอบ" ไม่ใช่ "ความเร็ว SQL"
+   */
+  const savedFileIdsPromise = listSavedFileIds(
+    threadShopId,
+    resolveLibraryOwner({ id: conversation.id, externalContactId: conversation.externalContactId }),
+  )
+
   let linkedCustomer: { id: string; phone: string; createdAt: Date } | null = null
   if (conversation.channel !== 'DEEP') {
     if (conversation.externalContact?.customer) {
@@ -538,11 +550,27 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   /** ตัวเลขดิบของป้ายพฤติกรรม — ป้ายจริงประกอบที่ client ด้วย `customerBadges` (SSOT เดียวกับ /orders) */
   let customerBehavior: CustomerBehavior | null = null
   if (linkedCustomer) {
-    const [orderCount, spentAgg] = await Promise.all([
+    // 🛑 behaviorRows อยู่ในก้อนนี้ด้วย (เดิม await แยกทีหลัง) — ทั้งสามตัวขึ้นกับ linkedCustomer
+    // เท่านั้น ไม่ขึ้นกับกันเอง การเรียงต่อกันจึงเป็นการจ่ายค่า round-trip ฟรี ๆ หนึ่งรอบ
+    const [orderCount, spentAgg, behaviorRows] = await Promise.all([
       prisma.order.count({ where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter } }),
       prisma.order.aggregate({
         where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter, status: { not: 'CANCELLED' } },
         _sum: { totalAmount: true },
+      }),
+      prisma.order.findMany({
+        where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter },
+        select: {
+          status: true,
+          cancelInitiator: true,
+          cancelReason: true,
+          shipments: {
+            where: { status: { not: 'CANCELLED' } },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { carrierStatus: true },
+          },
+        },
       }),
     ])
     customerStats = {
@@ -562,20 +590,6 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
      *
      * `shipments.where` ชุดเดียวกับที่ panelOrders ใช้ด้านบน — นิยาม "พัสดุของใบนี้" ต้องมีชุดเดียว
      */
-    const behaviorRows = await prisma.order.findMany({
-      where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter },
-      select: {
-        status: true,
-        cancelInitiator: true,
-        cancelReason: true,
-        shipments: {
-          where: { status: { not: 'CANCELLED' } },
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          select: { carrierStatus: true },
-        },
-      },
-    })
     customerBehavior = summarizeCustomerBehavior(
       behaviorRows.map((o) => ({
         status: o.status,
@@ -593,10 +607,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
    * ไปถามเอง ปุ่มจะขึ้น "เก็บเข้าคลัง" ก่อนแล้วค่อยกระพริบเป็น "เอาออกจากคลัง" ซึ่งอ่านเป็นบั๊ก
    */
   mark('customerPanel(orders/stats/behavior)')
-  const savedFileIds = await listSavedFileIds(
-    threadShopId,
-    resolveLibraryOwner({ id: conversation.id, externalContactId: conversation.externalContactId }),
-  )
+  const savedFileIds = await savedFileIdsPromise
 
   // RSC PII: เบอร์โทร mask ที่นี่เสมอ ก่อนลง prop ที่ถูก serialize เข้า flight ของ client layout
   const customerPanelData: CustomerPanelData = {
