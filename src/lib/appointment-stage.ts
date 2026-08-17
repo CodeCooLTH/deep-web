@@ -86,6 +86,11 @@ export function isAppointmentStatus(v: string | null | undefined): v is Appointm
 /**
  * แถวหนึ่งอยู่กองไหน — null = ไม่มีนัด (walk-in) ซึ่ง *ไม่ใช่* กองหนึ่ง แต่คือ "ไม่อยู่ในแกนนี้เลย"
  *
+ * 🛑 อัปเดต 2026-08-15 (feature 00050 · BR-SQ-21): ประโยคข้างบนยังจริงสำหรับใบที่ `serviceStart`
+ * เป็น null — **แต่การอยู่นอกแกนไม่ใช่ปลายทางของ walk-in อีกต่อไป** ร้านกด "เริ่มงานเลย"
+ * ในแชทได้ (`StartWalkInSheet`) ซึ่งตั้งเวลาเริ่ม = เวลาที่กด แล้วใบนั้นเข้าแกนนี้ทันที
+ * อย่าอ่านคอมเมนต์นี้ว่า "งาน walk-in ไม่มีวันอยู่ในตารางงาน" — นั่นคือสภาพก่อน 00050
+ *
  * ตัดสินจาก serviceStart ก่อน appointmentStatus โดยตั้งใจ: appointmentStatus เป็นคอลัมน์ nullable
  * ที่ไม่มีอะไรบังคับว่าต้องมีคู่กับ serviceStart เสมอ — ตัวที่นิยาม "ใบนี้เป็นนัด" คือการมีช่วงเวลา
  * (เงื่อนไขเดียวกับที่ setAppointmentOutcome ใช้ตัดสิน 404 ที่ appointment.service.ts:319)

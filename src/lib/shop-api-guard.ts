@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { requireActiveShop, requireShopForRequest } from "@/lib/shop-context";
+import { requireShopForRequest } from "@/lib/shop-context";
 import { prisma } from "@/lib/prisma";
 
 // Guard ร่วมของ endpoint ใต้ /api/shops/current/** (feature 00017 ดึงออกมาตอน P2
@@ -18,8 +18,20 @@ export function jsonNoStore(body: unknown, init?: { status?: number }) {
 // additive: caller เดิมที่อ่านแค่ shopId ไม่กระทบ
 type GuardResult = { error: NextResponse } | { shopId: string; userId: string };
 
-/** ต้องเป็นสมาชิกของร้านปัจจุบัน (OWNER หรือ ADMIN) */
-export async function requireShopMember(): Promise<GuardResult> {
+/**
+ * ต้องเป็นสมาชิกของร้านปัจจุบัน (OWNER หรือ ADMIN)
+ *
+ * opts.shopId — ร้านที่คำขอนี้ทำงานด้วย (feature 00050) ไม่ส่ง = ร้านที่ active (พฤติกรรมเดิมทุกประการ)
+ *
+ * 🛑 ทำไมต้องรับค่านี้: endpoint ที่ถูกกดจาก**กล่องแชท** เชื่อ `activeShopId` ไม่ได้เสมอไป —
+ * เธรดของร้าน B เปิดได้ขณะ active อยู่ร้าน A (BR-UNI-07) ⇒ query ที่ scope ด้วยร้านผิดจะ
+ * "หาไม่เจอ" แล้วผู้ใช้ได้ปุ่มที่**กดกี่ครั้งก็ไม่มีวันผ่าน** (คลาสเดียวกับบทเรียน iShip retry
+ * 2026-08-06 และเป็นเหตุผลเดียวกับที่ `requireGeneralShop` งอก opts.shopId มาก่อนที่ 00037)
+ *
+ * ด่านไม่ผ่อน: `requireShopForRequest` re-verify membership ของร้านที่ระบุมาเสมอ และ
+ * **ระบุร้านมาแล้วเข้าไม่ถึง = 403 ห้ามถอยไปใช้ร้านที่ active** (ถอยเมื่อไร = ทำงานผิดร้านเงียบ ๆ)
+ */
+export async function requireShopMember(opts?: { shopId?: string | null }): Promise<GuardResult> {
   const session = await getServerSession(authOptions);
   if (!session?.user) return { error: jsonNoStore({ error: "unauthorized" }, { status: 401 }) };
   // cast จำเป็น: NextAuth Session.user ไม่ประกาศ id/activeShopId และโปรเจกต์ไม่มี d.ts
@@ -27,9 +39,9 @@ export async function requireShopMember(): Promise<GuardResult> {
   const typedSession = session as unknown as {
     user: { id: string; activeShopId?: string | null };
   };
-  const active = await requireActiveShop(typedSession);
-  if (!active) return { error: jsonNoStore({ error: "FORBIDDEN" }, { status: 403 }) };
-  return { shopId: active.shop.id, userId: typedSession.user.id };
+  const resolved = await requireShopForRequest(typedSession, opts?.shopId);
+  if (!resolved.ok) return { error: jsonNoStore({ error: "FORBIDDEN" }, { status: 403 }) };
+  return { shopId: resolved.target.shop.id, userId: typedSession.user.id };
 }
 
 /**

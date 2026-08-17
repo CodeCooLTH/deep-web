@@ -29,6 +29,7 @@ import {
   type AppointmentSummary,
 } from "@/lib/appointment-summary";
 import { canUseAppointments, isTerminalAppointmentStatus } from "@/lib/appointments";
+import { publicOrderUrl } from "@/lib/public-order-url";
 import { buildLineFlexProductCarousel } from "@/lib/line/flex-product-card";
 import { buildMetaProductCarousel } from "@/lib/meta/product-card";
 import {
@@ -773,11 +774,10 @@ export async function POST(
         return NextResponse.json({ error: "นัดนี้จบแล้ว ส่งสรุปไม่ได้" }, { status: 400 });
       }
 
-      const base = (process.env.NEXT_PUBLIC_BUYER_URL || "https://deepthailand.app").replace(
-        /\/+$/,
-        "",
-      );
-      appointmentUrl = `${base}/o/${orderRefToken}`;
+      // ลิงก์ประกอบจากตัวกลางตัวเดียว — ชีตพรีวิวใช้ตัวเดียวกัน ไม่งั้นพรีวิวเพี้ยนจากของจริง
+      // `orderRefToken` เป็น optional ตาม schema — โค้ดเดิมยัดลง template literal ได้เพราะ
+      // JS แปลง undefined เป็นสตริง (ลิงก์ /o/undefined) ตอนนี้ tsc จับให้แล้ว กันไว้ตรง ๆ
+      appointmentUrl = orderRefToken ? publicOrderUrl(orderRefToken) : null;
       const deposit = Number(order.depositAmount ?? 0);
       appointmentSummary = buildAppointmentSummary(
         {

@@ -21,6 +21,7 @@
  */
 
 import { useState } from 'react'
+import { ARRIVAL_MODE_META, resolveArrivalMode } from '@/lib/arrival-mode'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { ChannelBadgeOverlay } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
@@ -199,6 +200,8 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
 
   /** เบอร์ที่โทรออกได้จริง — ค่าที่ไม่ใช่รูปเบอร์ไทย (อีเมล/ข้อความอิสระ) ยังแสดงแต่ไม่มีปุ่มโทร */
   const dialable = item.buyerContact ? normalizePhone(item.buyerContact) : null
+  // วิธีเข้ารับบริการ — derive จากเวลานัดเทียบเวลาเปิดบิล (ไม่มีคอลัมน์ใหม่)
+  const arrival = resolveArrivalMode({ serviceStart: item.start, createdAt: item.createdAt })
 
   /**
    * "ลูกค้ามาจากไหน" — ทุกคำมาจาก SSOT ห้ามพิมพ์เองที่นี่ (HR16)
@@ -334,6 +337,18 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
               "BT Premium Auto Xenon คลอง4 ธัญบุรี") */}
           <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span className={`badge ${meta.cls}`}>{statusLabel}</span>
+            {/**
+              * ชิป "เดินเข้ามา" — ตอบคำถามหัวหน้า *"อยากรู้ว่าคนนี้เข้ามารับบริการยังไง"*
+              *
+              * แสดงเฉพาะ walk-in: "จองล่วงหน้า" เป็นค่าปกติของตารางงาน ติดป้ายทุกใบจะกลายเป็น
+              * เสียงรบกวนที่ตากวาดข้ามไปเอง แล้วใบที่ต่างจริงจะถูกข้ามไปด้วย
+              * (ตารางงานแสดงเฉพาะใบที่มีเวลานัดแล้ว ⇒ ไม่มีเคส "ยังไม่ระบุเวลา" มาถึงที่นี่)
+              */}
+            {arrival === 'WALK_IN' ? (
+              <span className={`badge ${ARRIVAL_MODE_META.WALK_IN.cls}`} title={ARRIVAL_MODE_META.WALK_IN.hint}>
+                {ARRIVAL_MODE_META.WALK_IN.label}
+              </span>
+            ) : null}
             {showResourceName && item.resource ? (
               <span className="text-default-700 max-w-full truncate text-xs">{item.resource.name}</span>
             ) : null}

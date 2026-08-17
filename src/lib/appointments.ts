@@ -340,3 +340,31 @@ export class InvalidAppointmentRangeError extends Error {
     this.name = "InvalidAppointmentRangeError";
   }
 }
+
+/**
+ * ช่วงเวลาของงาน walk-in (feature 00050 · BR-SQ-21)
+ *
+ * 🛑 **walk-in ไม่ใช่ "นัดที่ไม่มีเวลา"** — มันคืองานที่เริ่ม ณ เวลาที่กด ต้องมีเวลาเริ่มจริง
+ * ระบบเดิมปล่อย `serviceStart = null` แล้วงานหายจากทุกจอ: ตารางงานรายวันกรองด้วย
+ * `serviceStart < to AND serviceEnd > from` ซึ่ง `null` ไม่เข้าเงื่อนไขทั้งคู่
+ * ⇒ ร้านมีงานที่ทำอยู่จริงแต่ตารางบอกว่าวันนี้ว่าง โดยไม่มีอะไรฟ้อง
+ *
+ * ปัดวินาที/มิลลิวินาทีทิ้ง: เวลาที่ผู้ใช้เห็นบนตารางคือ "13:04" อยู่แล้ว การเก็บ 13:04:37.812
+ * ทำให้ช่วงเวลาสองงานที่ดูเหมือนต่อกันพอดี **ไม่ต่อกันจริง** ในสายตาของ EXCLUDE constraint
+ * (`tstzrange('[)')`) แล้วเกิดช่องว่าง 23 วินาทีที่ไม่มีใครอธิบายได้
+ *
+ * ระยะเวลาที่ไม่สมเหตุสมผล (0/ติดลบ/NaN) ตกไปใช้ค่ามาตรฐาน — **ห้ามคืนช่วงว่างเปล่า**
+ * เพราะ `assertValidRange` จะโยน error แล้วผู้ใช้เห็นแค่ "ข้อมูลไม่ถูกต้อง" โดยไม่รู้ว่าอะไรผิด
+ */
+export function walkInWindow(
+  now: Date,
+  durationMinutes: number | null | undefined,
+): { start: Date; end: Date } {
+  const start = new Date(now.getTime());
+  start.setSeconds(0, 0);
+  const minutes =
+    typeof durationMinutes === "number" && Number.isFinite(durationMinutes) && durationMinutes > 0
+      ? Math.floor(durationMinutes)
+      : DEFAULT_APPOINTMENT_DURATION_MIN;
+  return { start, end: new Date(start.getTime() + minutes * 60_000) };
+}

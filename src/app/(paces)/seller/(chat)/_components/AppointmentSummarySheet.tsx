@@ -20,6 +20,7 @@ import Icon from '@/components/wrappers/Icon'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { pacesToast } from '@/lib/paces-toast'
 import { getChannelLabel } from '@/lib/chat-channel'
+import { publicOrderUrl } from '@/lib/public-order-url'
 import { formatDateTimeTH } from '@/lib/format-date'
 import {
   APPOINTMENT_CLOSING_MAX,
@@ -207,7 +208,19 @@ export default function AppointmentSummarySheet({
   }, [open])
 
   const summary = useMemo(
-    () => (loaded ? buildAppointmentSummary(loaded.data, { hiddenKeys: hidden, closing }) : null),
+    () =>
+      loaded
+        ? buildAppointmentSummary(loaded.data, {
+            hiddenKeys: hidden,
+            closing,
+            /**
+             * 🛑 ต้องส่ง `url` เท่ากับตอนส่งจริง — ก่อนหน้านี้พรีวิวไม่ส่ง แต่ route ส่ง
+             * ⇒ ผู้ขายเห็นข้อความไม่มีลิงก์ แล้วลูกค้าได้ข้อความที่มีลิงก์ (พรีวิวโกหก)
+             * ลิงก์นี้คือสิ่งที่ลูกค้าใช้ตรวจบิล/แนบสลิป/กดยืนยัน — ต้องเห็นก่อนกดส่ง
+             */
+            url: publicOrderUrl(orderToken),
+          })
+        : null,
     [loaded, hidden, closing],
   )
 

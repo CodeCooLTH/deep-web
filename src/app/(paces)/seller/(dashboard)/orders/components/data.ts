@@ -80,6 +80,18 @@ export type OrderRow = {
     resourceName: string | null
     stage: AppointmentStatus
   } | null
+  /**
+   * เงินของใบนี้ (feature 00050 · AC-SQ-04/07) — **undefined = ป้ายสถานะไม่เปลี่ยน**
+   *
+   * มีค่าเฉพาะร้าน SERVICE_QUEUE ที่ใบนั้น "มีเรื่องเงินให้พูดถึง" แล้ว (`hasMoneyStory`)
+   * ตัวเลขมาจาก `computeOrderMoney` ที่ server ตัวเดียวกับหน้ารายละเอียด — ห้าม client
+   * บวกเอง เพราะตัวตัดยอดที่ถูกยกเลิก (`voidedAt`) อยู่ในนั้น (HR16)
+   *
+   * 🛑 เหตุผลที่ต้องมีบนแถว: ก่อนหน้านี้รายการอ่าน `resolveOrderStatusBadge` (แกน `Order.status`
+   * + พัสดุ) ขณะที่หน้ารายละเอียดอ่าน `resolveServiceOrderBadge` (แกนเงิน) ⇒ **ใบเดียวกัน
+   * ขึ้น "รอดำเนินการ" ในรายการ แล้วขึ้น "ชำระเงินแล้ว" เมื่อกดเข้าไป** ห่างกันหนึ่งคลิก
+   */
+  money?: { totalAmount: number; totalReceived: number; outstanding: number }
   id: string            // publicToken short (8-char)
   publicToken: string
   /** short-code 8 ตัวสำหรับ copy/share link; null = order เก่าก่อน backfill (fallback publicToken) */

@@ -5,6 +5,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:local": "DATABASE_URL=\"postgresql://safepay:safepay@localhost:5434/safepay\" DIRECT_URL=\"postgresql://safepay:safepay@localhost:5434/safepay\" next dev --turbopack",
+    "db:local:migrate": "DATABASE_URL=\"postgresql://safepay:safepay@localhost:5434/safepay\" DIRECT_URL=\"postgresql://safepay:safepay@localhost:5434/safepay\" prisma migrate deploy",
+    "db:local:seed": "DATABASE_URL=\"postgresql://safepay:safepay@localhost:5434/safepay\" DIRECT_URL=\"postgresql://safepay:safepay@localhost:5434/safepay\" tsx scripts/seed-service-queue-demo.ts",
+    "db:local:studio": "DATABASE_URL=\"postgresql://safepay:safepay@localhost:5434/safepay\" DIRECT_URL=\"postgresql://safepay:safepay@localhost:5434/safepay\" prisma studio",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

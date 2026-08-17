@@ -4,11 +4,15 @@
  * pure module — ห้าม import prisma/server-only (ใช้ทั้งฝั่ง server ที่ประกอบ where และฝั่ง client
  * ที่กรองแถวในตาราง)
  *
- * ทำไมต้องมี: ไทล์ "นัดวันนี้" บนหน้าแรกลิงก์เข้า `/orders?apptDay=today` แล้ว ตัวเลขบนไทล์กับ
- * จำนวนแถวที่กรองได้ต้องตรงกันเสมอ (BR-SOV-06 — บทเรียนจาก deriveShippingStage ที่เคยนับด้วย SQL
+ * ทำไมต้องมี: ตัวนับ "นัดวันนี้" (ฝั่ง DB) กับตัวกรอง `/orders?apptDay=today` (ฝั่ง client)
+ * ต้องให้ผลตรงกันเสมอ (BR-SOV-06 — บทเรียนจาก deriveShippingStage ที่เคยนับด้วย SQL
  * แล้วกรองด้วย TS จนกดไทล์ที่บอก 5 เข้าไปเจอ 4). ตัวนับอยู่ฝั่ง DB ส่วนตัวกรองอยู่ฝั่ง client
  * จึงใช้ "ฟังก์ชันเดียวกัน" ตรง ๆ ไม่ได้ — ที่ทำได้คือให้ทั้งคู่ประกอบจาก **นิยามเดียว** ในไฟล์นี้
  * แล้วผูกเทส `[blocker]` ที่เดินทั้งสองทางบน fixture ชุดเดียวกันไว้กันเพี้ยน
+ *
+ * 🛑 อัปเดต 2026-08-15 (AC-SQ-05): **ไทล์บนหน้าแรกไม่ได้ลิงก์มาที่ `/orders` แล้ว** มันพาไป
+ * `/queues` — แต่ไฟล์นี้ยังจำเป็นเหมือนเดิม เพราะตัวกรอง `?apptDay=` ยังอยู่ (เข้าถึงจากชีต
+ * ตารางงานรายวัน) และตัวนับบนไทล์ยังใช้ `appointmentDayWhere()` ตัวนี้อยู่
  *
  * 🛑 นิยามนี้แก้ความไม่ตรงที่มีอยู่ก่อนแล้ว: `getTodayAppointmentCount` เดิมคัดด้วย
  *   `serviceResourceId != null` ส่วนแถวใน /orders คัดด้วย `serviceStart` (ตาม deriveAppointmentStage)
@@ -16,7 +20,7 @@
  *   ทั้งคู่ (เกณฑ์เดียวกับที่ใช้นิยามคำว่า "ใบนี้เป็นนัด" ทั้งระบบ — appointment-stage.ts:89-92)
  */
 
-import { thaiMidnightUtc, todayThaiIsoDate } from './date-range'
+import { thaiMidnightUtc, thaiTodayBounds } from './date-range'
 
 /** ค่าที่ `?apptDay=` รับได้ — มีค่าเดียวเพราะยังไม่มีใครขอ "พรุ่งนี้/สัปดาห์นี้" */
 export const APPOINTMENT_DAY_KEYS = ['today'] as const
@@ -40,10 +44,9 @@ export function appointmentDayBounds(
 ): { from: Date; to: Date } {
   // ตอนนี้มีคีย์เดียว — เมื่อเพิ่มคีย์ใหม่ให้ switch ที่นี่ที่เดียว ห้ามคำนวณขอบวันที่อื่น
   void key
-  const iso = todayThaiIsoDate(now)
-  const [y, m, d] = iso.split('-').map(Number)
-  const from = thaiMidnightUtc(y, m - 1, d)
-  return { from, to: new Date(from.getTime() + 24 * 60 * 60 * 1000) }
+  // 🛑 เรียก `thaiTodayBounds` ไม่คำนวณเอง — การ์ด "เงินที่รับวันนี้" บนหน้าแรกเดียวกัน
+  // ถามคำถามนี้ด้วย (feature 00050) สองนิยามบนจอเดียวคือเลขที่ไม่ตรงกันโดยไม่มีอะไรฟ้อง
+  return thaiTodayBounds(now)
 }
 
 /** รูปแบบวันที่ที่รับได้จาก query string — ปฏิทินไทย ไม่ใช่ UTC */

@@ -45,8 +45,9 @@ import { toast } from 'react-toastify'
 
 import CustomAvatar from '@core/components/mui/Avatar'
 
-import { getOrderTimeline, isCODPayment, isHttpUrl, showSlipZone, ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
+import { getOrderTimeline, getServiceTimeline, isCODPayment, isHttpUrl, showSlipZone, ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
 import { resolveOrderStatusBadge } from '@/lib/order-stage'
+import { resolveServiceOrderBadge } from '@/lib/order-display'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
 import type { TimelineState, TimelineStep } from '@/lib/order-display'
@@ -63,6 +64,8 @@ import TrustPill from './TrustPill'
 import ReviewForm from './ReviewForm'
 // feature 00024 — การ์ดนัดหมาย (render เฉพาะออเดอร์ที่มีนัด)
 import AppointmentCard, { type PublicAppointment } from './AppointmentCard'
+import PaymentSummaryCard from './PaymentSummaryCard'
+import { getChannelLabel } from '@/lib/chat-channel'
 
 export type PublicOrderData = {
   publicToken: string
@@ -141,7 +144,43 @@ export type PublicOrderData = {
   disputeOpenedAtIso: string | null
   accessUrl: string | null
   // feature 00024 — วันเข้าใช้บริการ (FR-RSV-05) null = ออเดอร์นี้ไม่มีนัด → ไม่ render การ์ดเลย
-  appointment: import('./AppointmentCard').PublicAppointment | null
+  appointment: PublicAppointment | null
+  /**
+   * feature 00050 (AC-SQ-06) — เงินที่ร้าน **ยืนยันว่าได้รับแล้ว** ของใบนี้
+   *
+   * 🛑 ไม่ใช่ "สลิปที่แนบไว้" — ลูกค้าแนบสลิปแล้วยอดยังไม่ขยับจนกว่าร้านจะกดยืนยัน (BR-SQ-12)
+   * คำบนจอจึงต้องพูดว่า "ร้านยืนยันรับแล้ว" ไม่ใช่ "จ่ายแล้ว" ไม่งั้นลูกค้าที่เพิ่งแนบสลิปจะ
+   * เห็นเลขเดิมแล้วคิดว่าระบบไม่รับสลิป
+   *
+   * null = ยังไม่เคยมีการบันทึกรับเงิน **และ** ไม่มีมัดจำที่ตกลงไว้ → ไม่ render การ์ดเลย
+   * (ออเดอร์ขายออนไลน์ทั่วไปไม่ต้องเห็นบล็อกนี้ — AC-SQ-07)
+   */
+  money: {
+    totalAmount: number
+    depositAgreed: number
+    totalReceived: number
+    outstanding: number
+    fullyPaid: boolean
+    hasDeposit: boolean
+    /** รายการที่ร้านยืนยันแล้ว เรียงเก่า→ใหม่ · ไม่มีบันทึกภายในของร้านติดมา */
+    entries: { kind: string; amount: number; method: string; receivedAtIso: string }[]
+  } | null
+  /**
+   * feature 00050 (AC-SQ-06) — เพจ/ช่องทางที่ออเดอร์ใบนี้เกิดขึ้น · null = สร้างในระบบตรง ๆ
+   *
+   * ลูกค้าที่ทักมาจากเพจหนึ่งแล้วได้ลิงก์นี้ ต้องเห็นว่า "ใบนี้คือของที่คุยไว้กับเพจนั้น"
+   * — ร้านหนึ่งผูกได้หลายเพจ และชื่อเพจมักไม่เหมือนชื่อร้าน
+   */
+  originPage: { channel: string; pageName: string | null; pageAvatarUrl: string | null } | null
+  /**
+   * ร้านนี้เป็นร้านบริการไหม — ใช้เลือก **คำ** บนจอ (ไม่ใช่เลือกว่าจะแสดงอะไร)
+   *
+   * 🛑 แยกจาก `money !== null` โดยตั้งใจ แม้วันนี้สองอันจะจริงพร้อมกันเสมอ:
+   * `money` ตอบว่า *"มีเรื่องเงินให้พูดถึงไหม"* ส่วนตัวนี้ตอบว่า *"เรียกของในบิลว่าอะไร"*
+   * วันที่ร้านบริการเปิดบิลเปล่า (ยอด 0 ไม่มีมัดจำ) `money` จะเป็น null แต่คำก็ยังต้องถูก
+   * — ผูกคำไว้กับเงินคือบั๊กที่รอเกิด
+   */
+  isServiceShop: boolean
 }
 
 type Props = {
@@ -466,6 +505,18 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   const canReview =
     !order.hasReview &&
     (order.status === 'CONFIRMED' || order.status === 'SHIPPED')
+  /**
+   * ป้ายสถานะที่จะแสดง — ร้านบริการได้ป้ายจากเงิน ที่เหลือได้ป้ายเดิม
+   * (คำ/สี/โทน มาจาก SSOT ตัวเดียวทั้งคู่ ห้ามประกอบเองที่นี่ — HR16)
+   */
+  const statusBadge = order.money
+    ? resolveServiceOrderBadge({
+        status: order.status,
+        money: order.money,
+        hasAppointment: order.appointment !== null,
+      })
+    : resolveOrderStatusBadge(order.status)
+
   const isCancelled = order.status === 'CANCELLED'
 
   // แสดง cancel button เฉพาะ PENDING + onCancel มีค่า (parent ตัดสิน)
@@ -568,7 +619,19 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   const avatarLetter = order.shop.user.displayName.slice(0, 1)
 
   // timeline จาก order-display.ts (T2/T3) — status pill ใช้ SSOT ด้านบนแทน getStatusPill (freeze ตาม UX spec)
-  const timeline = getOrderTimeline(order.status, order.fulfillmentMode, order.paymentMethod)
+  /**
+   * เส้นทางที่ลูกค้าเห็น — ร้านบริการใช้ชุดของตัวเอง (จองแล้ว → เข้ารับบริการ → ยืนยันแล้ว)
+   *
+   * 🛑 ชุดเดิมสำหรับ NO_SHIPPING เขียนว่า "ส่งมอบแล้ว" เป็นขั้นปัจจุบันตั้งแต่บิลยัง PENDING
+   * ⇒ ลูกค้าที่ยังไม่ได้รับบริการเห็นคำที่อ้างสิ่งที่ยังไม่เกิด บนหน้าที่เขาใช้ตัดสินใจโอนเงิน
+   */
+  const timeline = order.isServiceShop
+    ? getServiceTimeline({
+        status: order.status,
+        serviceStart: order.appointment?.startIso ?? null,
+        appointmentStatus: order.appointment?.status ?? null,
+      })
+    : getOrderTimeline(order.status, order.fulfillmentMode, order.paymentMethod)
 
   // ใช้กับแถว "วิธีชำระเงิน" ด้านล่าง — จงใจไม่เกี่ยวกับป้ายปุ่มหลักอีกต่อไป (ดูเหตุผลถัดไป)
   const isCOD = isCODPayment(order.paymentMethod)
@@ -586,9 +649,12 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
    */
   const ctaLabel = submitting
     ? 'กำลังยืนยัน...'
-    : order.fulfillmentMode !== 'SHIPPED' // NO_SHIPPING (digital/service/subscription) — ไม่มีของให้ "รับ"
-      ? 'ยืนยันว่าได้รับแล้ว'
-      : 'ยืนยันรับสินค้า'
+    : order.isServiceShop
+      // ร้านบริการ: ไม่มี "ของ" ให้รับ สิ่งที่ลูกค้ายืนยันคือ *ได้รับบริการแล้ว*
+      ? 'ยืนยันว่ารับบริการแล้ว'
+      : order.fulfillmentMode !== 'SHIPPED' // NO_SHIPPING (digital/subscription) — ไม่มีของให้ "รับ"
+        ? 'ยืนยันว่าได้รับแล้ว'
+        : 'ยืนยันรับสินค้า'
 
   // total label ตาม status
   const totalLabel = order.status === 'PENDING' ? 'ยอดที่ต้องชำระ' : 'ยอดรวม'
@@ -649,7 +715,11 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                   height: 84,
                   border: '4px solid',
                   borderColor: 'background.paper',
-                  boxShadow: 4,
+                  /* customShadows.md ไม่ใช่ `boxShadow: 4` — ตัวหลังดึงจาก elevation array ของ
+                     Material Design ซึ่งเป็นคนละตระกูลกับเงาที่การ์ดใบอื่นในหน้าเดียวกันใช้
+                     (เหตุผลเดียวกับที่การ์ดสถานะบนจอ guest เลิกใช้ไปแล้ว) และต้องเป็นค่าเดียวกับ
+                     โลโก้บนจอ guest — ร้านเดียวกัน ห่างกันไม่กี่วินาที ต้องดูเหมือนกัน */
+                  boxShadow: 'var(--mui-customShadows-md)',
                   fontSize: '1.75rem',
                   fontWeight: 800,
                   bgcolor: 'primary.lightOpacity',
@@ -736,14 +806,60 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           </Box>
         </Box>
 
+        {/**
+         * ── เพจต้นทางของออเดอร์ใบนี้ (feature 00050 · AC-SQ-06) ──
+         *
+         * ร้านหนึ่งผูกได้หลายเพจ และ **ชื่อเพจมักไม่เหมือนชื่อร้าน** — ลูกค้าที่ทักมาจากเพจหนึ่ง
+         * แล้วได้ลิงก์นี้ ต้องเห็นว่า "ใบนี้คือของที่คุยไว้กับเพจนั้น" ไม่งั้นหน้าที่ขึ้นชื่อร้าน
+         * ที่เขาไม่เคยได้ยิน บนหน้าที่กำลังจะให้เขาโอนเงิน อ่านได้ตรง ๆ ว่าเป็นลิงก์หลอก
+         *
+         * 🛑 ต่างจากบล็อก `ShopEvidence` ด้านบนซึ่งลิสต์ **ทุกเพจของร้าน** (หลักฐานว่าร้านมีตัวตน)
+         * — อันนี้คือ *เพจเดียวที่ออเดอร์ใบนี้เกิดขึ้น* คนละคำถาม จึงอยู่คนละที่และห้ามยุบรวม
+         */}
+        {order.originPage && (
+          <Box
+            sx={{
+              bgcolor: 'background.paper',
+              px: 2.25,
+              pb: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+            }}
+          >
+            {order.originPage.pageAvatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={order.originPage.pageAvatarUrl}
+                alt=''
+                width={20}
+                height={20}
+                style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+              />
+            ) : (
+              <Icon icon='tabler-message-circle' style={{ fontSize: 16, opacity: 0.6 }} />
+            )}
+            <Typography variant='caption' color='text.secondary' sx={{ minWidth: 0 }} noWrap>
+              จากการคุยที่ {order.originPage.pageName ?? getChannelLabel(order.originPage.channel)}
+            </Typography>
+          </Box>
+        )}
+
         {/* ── 3. Status line — pill + meta ── */}
         <Box sx={{ bgcolor: 'background.paper', px: 2.25, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
           {/* ป้ายสถานะใช้ `TrustPill` เหมือนจอ guest — คำ/สีมาจาก SSOT เดียวกันอยู่แล้ว
               (`resolveOrderStatusBadge`) ที่ต่างคือทรง ซึ่งไม่มีเหตุผลให้ต่าง */}
+          {/**
+            * ป้ายสถานะ — ร้านบริการใช้ป้ายที่ derive จาก **เงินที่รับจริง** (จอง / รอชำระ /
+            * ชำระเงินแล้ว) แทน "รอดำเนินการ" ที่ไม่ได้บอกอะไรเลย
+            *
+            * 🛑 `order.money` เป็น null สำหรับ vertical อื่นเสมอ (กั้นไว้ที่ page.tsx)
+            * ⇒ ร้านขายออนไลน์/บ้านพักได้ป้ายเดิมทุกตัวอักษร (AC-SQ-07)
+            */}
           <TrustPill
             tone='tier'
-            tierColor={ORDER_STATUS_TONE_TO_MUI[resolveOrderStatusBadge(order.status).tone]}
-            label={resolveOrderStatusBadge(order.status).label}
+            tierColor={ORDER_STATUS_TONE_TO_MUI[statusBadge.tone]}
+            label={statusBadge.label}
           />
           <Typography variant='caption' color='text.disabled' sx={{ ml: 'auto' }}>
             {formatOrderNo(order.publicToken, order.createdAtIso)} · {formatDateTimeTH(order.createdAtIso)}
@@ -784,11 +900,29 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             />
           )}
 
+          {/**
+           * การชำระเงิน (feature 00050 · AC-SQ-06)
+           *
+           * 🛑 อยู่ **นอก** เงื่อนไขของการ์ดนัดโดยตั้งใจ — งาน walk-in ที่ร้านยังไม่กด "เริ่มงาน"
+           * ไม่มี `appointment` แต่มีเรื่องเงินอยู่แล้ว ถ้าเอาไปซ้อนในนั้นการ์ดจะหายไปทั้งที่
+           * ลูกค้ากำลังจะโอนเงินอยู่พอดี (คลาสเดียวกับที่ FAB หายไปพร้อม SellerBottomNav)
+           *
+           * 🛑 วางไว้ **ใต้การ์ดนัด** ไม่ใช่เหนือ — คอมเมนต์ของ feature 00024 เหนือการ์ดนัด
+           * ตัดสินไว้แล้วว่า *"นัดวันไหน คือข้อมูลที่ลูกค้าต้องการที่สุดของหน้านี้"* ร่างแรกของ
+           * feature นี้วางเงินไว้เหนือมันโดยไม่ได้อ่านมติเดิม — ลำดับที่ถูกคือ
+           * เมื่อไหร่ → จ่ายเท่าไหร่ → ทำอะไรบ้าง
+           *
+           * null = ไม่มีเรื่องเงินให้พูดถึง (ออเดอร์ขายออนไลน์ทั่วไป) → DOM เหมือนเดิมทุก node
+           */}
+          {order.money && <PaymentSummaryCard money={order.money} />}
+
           {/* ── 6. Items card ── */}
           <Card>
             <Box sx={{ px: 1.75, pt: 1.5, pb: 0.75 }}>
+              {/* ร้านบริการไม่ได้ขาย "สินค้า" — ลูกค้าที่จ้างล้างแอร์เห็นคำนี้แล้วสะดุด
+                  (หัวหน้า 2026-08-15: "order detail ดูไม่รู้เรื่อง") */}
               <Typography variant='overline' color='text.disabled' sx={{ lineHeight: 1 }}>
-                รายการสินค้า
+                {order.isServiceShop ? 'รายการบริการ' : 'รายการสินค้า'}
               </Typography>
             </Box>
 

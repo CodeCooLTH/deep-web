@@ -74,6 +74,23 @@ export function todayThaiIsoDate(now?: Date): string {
   return isoOf(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate())
 }
 
+/**
+ * ขอบของ "วันนี้" ตามปฏิทินไทย `[from, to)` — **นิยามเดียวของคำว่าวันนี้ทั้งระบบ**
+ *
+ * 🛑 อยู่ที่นี่ไม่ใช่ที่ `appointment-day.ts` เพราะคำถามว่า "วันนี้เริ่มและจบตอนไหน" ไม่ได้เป็น
+ * ของโดเมนนัดหมาย — ตั้งแต่ feature 00050 การ์ด "เงินที่รับวันนี้" บนหน้าแรกก็ถามคำถามเดียวกัน
+ * ถ้าปล่อยให้แต่ละโดเมนตัดวันเอง หน้าแรกจะมี "วันนี้" สองนิยามบนจอเดียว แล้วเลขไม่ตรงกัน
+ * โดยไม่มีอะไรฟ้อง (บทเรียน 00033: /sales กับ /orders เคยตัดคนละแบบกับ dashboard)
+ *
+ * `now` รับเข้ามาได้เพื่อให้เทสกำหนดเวลาเองได้ (ไม่ส่ง = เวลาจริง)
+ */
+export function thaiTodayBounds(now?: Date): { from: Date; to: Date } {
+  const iso = todayThaiIsoDate(now)
+  const [y, m, d] = iso.split('-').map(Number)
+  const from = thaiMidnightUtc(y, m - 1, d)
+  return { from, to: new Date(from.getTime() + DAY_MS) }
+}
+
 export function resolveDateRange(
   preset: DateRangePreset,
   customStart?: string,

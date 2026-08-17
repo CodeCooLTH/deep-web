@@ -95,7 +95,7 @@ describe('buildAppointmentSummary — บรรทัดที่ไม่มี
 })
 
 describe('buildAppointmentSummary — คำที่ห้ามเพี้ยน (HR16)', () => {
-  it('มัดจำต้องเรียกว่า "มัดจำที่ตกลงไว้" — ระบบไม่รู้ว่าจ่ายแล้วหรือยัง (ไม่มี depositReceivedAt)', () => {
+  it('มัดจำต้องเรียกว่า "มัดจำที่ตกลงไว้" — ป้ายนี้ติดให้ *ข้อตกลง* ไม่ใช่เงินที่เข้าแล้ว (BR-SQ-02)', () => {
     expect(APPOINTMENT_SUMMARY_LABEL.deposit).toBe('มัดจำที่ตกลงไว้')
     const s = buildAppointmentSummary(BASE)
     expect(s.text).toContain('มัดจำที่ตกลงไว้: ฿300')

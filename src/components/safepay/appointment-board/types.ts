@@ -35,6 +35,14 @@ export type AppointmentBoardItem = {
 export type AppointmentDayApiItem = {
   orderToken: string
   orderNo: string | null
+  /**
+   * เวลาที่เปิดบิล (ISO) — ใช้ derive "วิธีเข้ารับบริการ" ด้วย `resolveArrivalMode()`
+   *
+   * 🛑 อยู่เฉพาะใน type ของ **คำขอรายวัน** ไม่ใส่ใน `AppointmentBoardItem` (คำขอรายเดือน)
+   * เพราะปฏิทินเดือนไม่ได้ถามคำถามนี้ — เพิ่ม field ที่ไม่มีใครใช้เข้าคำขอเดือน
+   * = โยนข้อมูลลง flight payload ทั้งเดือนเปล่า ๆ (เหตุผลเดียวกับที่แยกสอง type นี้ตั้งแต่แรก)
+   */
+  createdAt: string
   /** ISO string */
   start: string
   end: string

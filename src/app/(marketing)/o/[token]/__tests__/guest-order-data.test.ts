@@ -109,6 +109,9 @@ describe('buildGuestOrderData', () => {
         'reviewCount',
         'channels',
         'latestReview',
+        // เวลานัดของงานบริการ — เพิ่มเข้า allow-list โดยตั้งใจ (เหตุผลที่ guest-order-data.ts)
+        'serviceStartIso',
+        'serviceEndIso',
       ].sort(),
     )
   })
@@ -221,5 +224,66 @@ describe('[blocker] buildGuestOrderData ส่ง shop.vertical ต่อให�
       1,
     )
     expect(out.shop.vertical).toBe('LODGING')
+  })
+})
+
+/**
+ * ── เวลานัดของงานบริการบนจอ guest (AC-SQ-07) ──────────────────────────────────────
+ *
+ * 🛑 ด่านนี้กั้นด้วย **vertical ของร้าน** ไม่ใช่ "แถวนี้มี serviceStart ไหม" — ไม่มีอะไรใน
+ * schema ห้ามร้านประเภทอื่นมีค่าค้างอยู่ในคอลัมน์นี้ (คลาสเดียวกับ `Product.fulfillmentMode`
+ * ที่ติดธงค้างจากร้านที่เปลี่ยน vertical ทีหลัง — stored-flag-vs-owner-truth.md)
+ * ถ้ากั้นด้วย "มีค่าไหม" ร้านขายออนไลน์ที่มีค่าค้างจะได้การ์ด "วันนัด" โผล่บนจอผู้ซื้อ
+ * โดยไม่มี gate ไหนฟ้อง เพราะค่าที่หลุดออกไปก็เป็น ISO string ที่ถูกต้องทุกตัวอักษร
+ */
+describe('[blocker] เวลานัดบนจอ guest ต้องกั้นด้วย vertical', () => {
+  const SERVICE_SHOP = {
+    shopName: 'ร้านบริการ',
+    vertical: 'SERVICE_QUEUE',
+    logo: null,
+    user: { displayName: 'ช่าง', username: 'svc1', trustScore: 30, avatar: null },
+  }
+  const ONLINE_SHOP = { ...SERVICE_SHOP, vertical: 'ONLINE_SALES' }
+  const START = new Date('2026-08-15T02:00:00.000Z')
+  const END = new Date('2026-08-15T03:00:00.000Z')
+
+  it('ร้านบริการที่มีนัด → ส่งช่วงเวลาไปให้จอ', () => {
+    const out = buildGuestOrderData(
+      makeOrder({ shop: SERVICE_SHOP, serviceStart: START, serviceEnd: END }),
+      1,
+    )
+    expect(out.serviceStartIso).toBe(START.toISOString())
+    expect(out.serviceEndIso).toBe(END.toISOString())
+  })
+
+  it('ร้านที่ไม่ใช่ SERVICE_QUEUE → ไม่ส่งออกไปเลย แม้แถวจะมีค่าค้างอยู่', () => {
+    const out = buildGuestOrderData(
+      makeOrder({ shop: ONLINE_SHOP, serviceStart: START, serviceEnd: END }),
+      1,
+    )
+    expect(out.serviceStartIso).toBeNull()
+    expect(out.serviceEndIso).toBeNull()
+  })
+
+  it('ร้านบริการที่ยังไม่ระบุเวลา (เดินเข้ามาแล้วยังไม่เริ่มงาน) → null ไม่ใช่สตริงว่าง', () => {
+    const out = buildGuestOrderData(
+      makeOrder({ shop: SERVICE_SHOP, serviceStart: null, serviceEnd: null }),
+      1,
+    )
+    expect(out.serviceStartIso).toBeNull()
+    expect(out.serviceEndIso).toBeNull()
+  })
+
+  /**
+   * นัดที่มีเวลาเริ่มแต่ยังไม่มีเวลาจบมีจริง — จอต้องได้ค่าเริ่มไปแสดงเดี่ยว ๆ ไม่ใช่ถูกตัดทิ้ง
+   * ทั้งคู่เพราะอีกฝั่งว่าง (ฝั่งจอเลือกแสดงเวลาเดียวเมื่อ end เป็น null)
+   */
+  it('มีเวลาเริ่มแต่ไม่มีเวลาจบ → ส่งเฉพาะเวลาเริ่ม', () => {
+    const out = buildGuestOrderData(
+      makeOrder({ shop: SERVICE_SHOP, serviceStart: START, serviceEnd: null }),
+      1,
+    )
+    expect(out.serviceStartIso).toBe(START.toISOString())
+    expect(out.serviceEndIso).toBeNull()
   })
 })

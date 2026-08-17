@@ -852,6 +852,54 @@ SellerWallet (1) ── (N) WalletTransaction
 
 ---
 
+### 6.x OrderPayment — เงินที่ "ได้รับจริง" (feature 00050, 2026-08-15)
+
+> migration `20260815190000_service_queue_order_payment` — **additive ล้วน ไม่แตะคอลัมน์เดิม**
+
+🛑 **แยกจาก `Order.depositAmount` และ `Order.slipFileId` โดยเจตนา** — สองอันนั้นคือ *ข้อตกลง*
+กับ *รูปภาพ* ส่วนตารางนี้คือ *ข้อเท็จจริงว่ามีคนกดยืนยันว่าเงินเข้าแล้ว* ก่อนหน้านี้ระบบไม่มี
+ที่เก็บคำตอบนี้เลย (โค้ดเขียนสารภาพไว้เองที่ `APPOINTMENT_SUMMARY_LABEL.deposit`)
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `id` | TEXT PK | |
+| `orderId` | FK → `Order.id` | ON DELETE CASCADE (เหมือน `OrderItem`/`OrderEvent`) |
+| `shopId` | TEXT | **denormalized** — รวมยอดระดับร้าน/รายวันโดยไม่ต้อง join |
+| `kind` | TEXT | `DEPOSIT` \| `BALANCE` |
+| `amount` | DECIMAL(12,2) | CHECK `> 0` (`OrderPayment_amount_positive`) |
+| `method` | TEXT | `TRANSFER` \| `CASH` \| `OTHER` · default `TRANSFER` |
+| `slipFileId` | TEXT? | สลิปของ **ก้อนนี้** — 1 งานมีหลายก้อน/หลายสลิปได้ |
+| `receivedAt` | TIMESTAMP | เวลาที่ **ได้รับเงิน** (≠ `createdAt` — บันทึกย้อนหลังได้) |
+| `receivedByUserId` | TEXT | 🛑 บังคับมีเสมอ — "มีสลิป ≠ ได้รับเงิน" ต้องมีคนยืนยัน |
+| `note` | TEXT? | **บันทึกภายในของร้าน ห้ามส่งลงหน้าลูกค้า** |
+| `voidedAt` / `voidedByUserId` / `voidedReason` | | ยกเลิกรายการ (soft) — ไม่ลบแถว |
+
+**Index:** `@@index([shopId, receivedAt])` (dashboard รายวัน) · `@@index([orderId])` (relation load)
+
+**Relation ใหม่บน `Order`:** `payments OrderPayment[]` — ไม่เปลี่ยนโครงตาราง `Order`
+
+🛑 **ไม่มีทาง `update` ยอดเงิน** ทั้งใน service และ API (มติหัวหน้า *"จ่ายมาแล้ว แก้ไม่ได้"*)
+กรอกผิด = ยกเลิกรายการแล้วบันทึกใหม่ (การกลับรายการทางบัญชี)
+
+#### 6.x.1 ตัวคำนวณและเกณฑ์ที่ผูกกับตารางนี้ — `src/lib/order-payment.ts` (SSOT · HR16)
+
+| ฟังก์ชัน | ตอบคำถาม | ห้าม |
+|---|---|---|
+| `computeOrderMoney()` | ยอดรวม/มัดจำ/รับแล้ว/ค้าง ของใบหนึ่ง | ห้ามบวกเองที่จอ — ตัวตัดยอดที่ถูกยกเลิก (`voidedAt`) อยู่ในนี้ |
+| `computeOrderMoneyFromSerialized()` | เหมือนบน แต่รับค่าที่ข้าม RSC/JSON boundary มาแล้ว | ห้ามแต่ละจอ `Number(x)`/`new Date(y)` เอง |
+| `hasMoneyStory()` | "ใบนี้มีเรื่องเงินให้พูดถึงไหม" = `totalReceived > 0 \|\| hasDeposit` | ห้ามเขียนนิพจน์ซ้ำที่จุดเรียก · **ไม่ใช่ด่าน vertical และใช้แทนกันไม่ได้** |
+
+🛑 `hasMoneyStory()` ตัดสิน **3 จอพร้อมกัน** (รายการ `/orders` · หน้ารายละเอียดฝั่งร้าน ·
+หน้าลูกค้า `/o/[token]`) เดิมเป็นนิพจน์ดิบเขียนซ้ำ 2 ที่โดยไม่มีเทสผูก — และรอบที่เพิ่มหน้ารายการ
+เข้ามาเป็นที่ที่สาม ก็เกือบเขียนซ้ำอีก. เพี้ยนที่เดียว = **ใบเดียวกันขึ้นป้ายคนละคำในสองจอ
+ห่างกันหนึ่งคลิก** โดยไม่มี `tsc`/build ตัวไหนฟ้อง เพราะทุกนิพจน์ถูกตามชนิด
+
+**`getOrdersByShop(shopId, status?, opts?)`** รับ `opts.withPayments` — join แถวเงินเฉพาะร้าน
+`SERVICE_QUEUE` (query นี้ไม่มีการแบ่งหน้า ดึงออเดอร์ทั้งร้านครั้งเดียว ต้นทุนโตตามจำนวนออเดอร์)
+🛑 เงื่อนไขที่ใช้ดึง กับเงื่อนไขที่ใช้คำนวณ ต้องเป็น **สัญลักษณ์ตัวเดียวกัน** — แยกกันเมื่อไรจะเกิด
+เคส "คำนวณเงินโดยไม่มีแถวเงินอยู่ในมือ" ซึ่งอ่านไม่ต่างจาก "ยังไม่จ่ายสักบาท" เลย
+(ด่าน: `src/lib/__tests__/service-queue-vertical-gate.test.ts`)
+
 ## §7 API Reference
 
 > ทุก endpoint อยู่ใต้ `/api/` — ดู `src/app/api/**/route.ts`
@@ -1176,9 +1224,46 @@ SellerWallet (1) ── (N) WalletTransaction
 
 ---
 
+### 7.17 เงินที่ได้รับของออเดอร์ (`/api/orders/[token]/payments/**`) — feature 00050 2026-08-15
+
+| Method | Path | หมายเหตุ |
+|---|---|---|
+| POST | `/api/orders/{token}/payments` | บันทึกรับเงิน 1 ก้อน · คืน `{ paymentId, money }` |
+| GET | `/api/orders/{token}/payments` | ประวัติ (รวมแถวที่ยกเลิก — จอนี้เป็นของร้าน) |
+| DELETE | `/api/orders/{token}/payments/{paymentId}` | soft void · บังคับส่ง `reason` |
+
+🛑 **ไม่มี PATCH โดยเจตนา** — ดู §6.x
+
+#### 7.17b `?shopId=` — กติกาที่ข้ามฟีเจอร์
+
+endpoint ที่ถูกกดจาก **กล่องแชท** เชื่อ `activeShopId` ไม่ได้: เธรดของร้าน B เปิดได้ขณะ active
+อยู่ร้าน A (BR-UNI-07) ⇒ query จะ scope ผิดร้านแล้ว "หาไม่เจอ" ⇒ ผู้ใช้ได้ปุ่มที่
+**กดกี่ครั้งก็ไม่มีวันผ่าน** (คลาสเดียวกับบทเรียน iShip retry 2026-08-06)
+
+`requireShopMember(opts?: { shopId?: string | null })` รับพารามิเตอร์นี้แล้ว (2026-08-15) —
+**additive: ไม่ส่ง = พฤติกรรมเดิมทุกประการ** · ส่งมาแล้วไม่มีสิทธิ์ = **403 ห้ามถอยไปใช้ร้านที่ active**
+
+route ที่รับ `?shopId=` แล้ว: `payments/**` (ใหม่) · `PATCH /api/orders/{token}/appointment` ·
+`POST /api/orders/{token}/appointment/outcome` · `GET /api/shops/current/service-resources`
+
 ## §8 Enums & Constants
 
 > enum ทั้งหมดเป็น String ใน Prisma (ไม่ใช่ PostgreSQL enum type) — convention ของ project
+
+### 8.0c Order Payment Kind / Method (`src/lib/order-payment.ts`)
+
+| `kind` | ความหมาย |
+|---|---|
+| `DEPOSIT` | มัดจำ |
+| `BALANCE` | ยอดที่เหลือ / เต็มจำนวน |
+
+| `method` | ความหมาย |
+|---|---|
+| `TRANSFER` | โอนเงิน (default) |
+| `CASH` | เงินสด — **ต้องบันทึกได้โดยไม่มีสลิป** (BR-SQ-13) |
+| `OTHER` | อื่น ๆ |
+
+> คำไทยอยู่ที่ `ORDER_PAYMENT_KIND_LABEL` / `ORDER_PAYMENT_METHOD_LABEL` — ห้ามพิมพ์ซ้ำที่จออื่น (HR16)
 
 ### 8.1 Order Status
 

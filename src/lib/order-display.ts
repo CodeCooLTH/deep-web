@@ -258,3 +258,124 @@ export function resolveBuyerDisplayName(input: {
   // คำสองคำนี้ต้องตรงกับที่ OrderFactsCard ใช้อยู่แล้ว — คนละคำ = ผู้ใช้คิดว่าคนละเรื่อง
   return input.hasContact ? 'ไม่ระบุชื่อ' : 'ยังไม่มีผู้ซื้อยืนยัน'
 }
+
+/**
+ * ป้ายสถานะของ **งานร้านบริการ** — แทนคำว่า "รอดำเนินการ" ที่ไม่ได้บอกอะไรเลย
+ *
+ * ## ทำไมต้องมี
+ *
+ * หัวหน้าเขียนไว้ 2 บรรทัดติดกัน (2026-08-15):
+ *   *"เมนูรอยืนยัน คือจอง"* · *"ถ้าเข้ามาหน้าร้านจ่ายเลย ถึงจะเป็นชำระเงินแล้ว"*
+ * ⇒ เขากำลังอธิบาย **วงจรของงาน** ไม่ได้ขอเปลี่ยนคำเฉย ๆ
+ *
+ * ป้ายเดิม `PENDING = "รอดำเนินการ"` ทำให้ **งานที่ลูกค้าจองไว้เดือนหน้า** กับ
+ * **งานที่ลูกค้ายืนอยู่หน้าร้านแล้วยังไม่จ่าย** ขึ้นคำเดียวกันเป๊ะ — ร้านบริการไม่มีแกนขนส่ง
+ * ป้ายสถานะจึงว่างเปล่ามาตลอด ทั้งที่คำถามเดียวที่ร้านถามจริงคือ *"จ่ายหรือยัง"*
+ *
+ * ## 🛑 derive ไม่ใช่เปลี่ยนชื่อสถานะ
+ *
+ * เปลี่ยน `ORDER_STATUS_META.PENDING.label` เป็น "จอง" ตรง ๆ จะ **โกหกงาน walk-in**
+ * (21 ใบบน prod ที่ลูกค้าเดินเข้ามาเอง ไม่ได้จองอะไร) — ป้ายต้องมาจากข้อเท็จจริงที่ระบบรู้
+ * ซึ่งเพิ่งรู้ได้ตั้งแต่มีตาราง `OrderPayment`
+ *
+ * 🛑 ป้ายนี้ **ผสม 2 แกน** (สถานะออเดอร์ + สถานะเงิน) ซึ่งปกติเป็นสิ่งที่ต้องเลี่ยง (HR16)
+ * ที่ยอมตรงนี้เพราะร้านบริการไม่มีแกนขนส่งให้ผสมด้วย และ "จ่ายหรือยัง" คือแกนเดียวที่มีความหมาย
+ * — ห้ามยกแพตเทิร์นนี้ไปใช้กับ `ONLINE_SALES` ซึ่งมีทั้งพัสดุและ COD อยู่แล้ว
+ */
+export function resolveServiceOrderBadge(input: {
+  /** `Order.status` — CANCELLED เป็น terminal ห้ามถูกทับด้วยเรื่องเงิน */
+  status: string;
+  /** ผลจาก `computeOrderMoney()` — ห้ามคำนวณเองที่ผู้เรียก */
+  money: { totalAmount: number; totalReceived: number; outstanding: number };
+  /** ใบนี้มีนัดผูกอยู่ไหม — walk-in ไม่ได้ "จอง" จึงต้องได้คนละคำ */
+  hasAppointment: boolean;
+}): { label: string; cls: string; icon: string; tone: OrderStatusTone } {
+  // ยกเลิกแล้วคือจบ — เรื่องเงินไม่เปลี่ยนข้อเท็จจริงนั้น
+  if (input.status === "CANCELLED") return ORDER_STATUS_META.CANCELLED;
+
+  const { totalAmount, totalReceived, outstanding } = input.money;
+
+  /**
+   * บิลยอด 0 (ยังไม่ได้ใส่รายการ) — ไม่มีอะไรให้เก็บ จึงห้ามขึ้นว่า "ชำระเงินแล้ว"
+   * ซึ่งเป็นคำที่อ้างว่ามีธุรกรรมเกิดขึ้นทั้งที่ไม่มี · ตกกลับไปใช้ป้ายเดิม
+   */
+  if (totalAmount <= 0) return ORDER_STATUS_META[input.status] ?? ORDER_STATUS_META.PENDING;
+
+  if (outstanding <= 0) {
+    return {
+      label: "ชำระเงินแล้ว",
+      cls: "bg-success/15 text-success-ink",
+      icon: "circle-check",
+      tone: "success",
+    };
+  }
+
+  /**
+   * "จอง" = มีนัดไว้ **และยังไม่ได้จ่ายสักบาท** — ตรงกับที่หัวหน้าอธิบาย
+   * จ่ายมัดจำมาแล้วแต่ยังค้าง ต้องเป็น "รอชำระ" ไม่ใช่ "จอง" เพราะขั้นตอนเดินหน้าไปแล้ว
+   */
+  if (input.hasAppointment && totalReceived === 0) {
+    return { label: "จอง", cls: "bg-warning/15 text-warning-ink", icon: "calendar-event", tone: "warning" };
+  }
+
+  return { label: "รอชำระ", cls: "bg-warning/15 text-warning-ink", icon: "cash-banknote", tone: "warning" };
+}
+
+/**
+ * เส้นทางของ **งานร้านบริการ** ที่ลูกค้าเห็นบนหน้า `/o/{token}`
+ *
+ * ## 🛑 บั๊กที่ฟังก์ชันนี้แก้ — timeline เดิมโกหก
+ *
+ * `getOrderTimeline()` สำหรับ `NO_SHIPPING + PENDING` คืน
+ *   สั่งซื้อแล้ว(done) → **ส่งมอบแล้ว(cur)** → ยืนยันรับ(up)
+ *
+ * ลูกค้าที่จองล้างแอร์ไว้วันนี้ 09:00 และ **ยังไม่ได้รับบริการ** เปิดหน้านี้แล้วเห็นคำว่า
+ * "ส่งมอบแล้ว" เป็นขั้นปัจจุบัน — คำที่อ้างสิ่งที่ยังไม่เกิด บนหน้าที่เขาใช้ตัดสินใจว่าจะโอนเงินไหม
+ * (หัวหน้า 2026-08-15: *"order detail ดูไม่รู้เรื่อง"*)
+ *
+ * เดิมทำอย่างอื่นไม่ได้เพราะระบบไม่รู้อะไรเลยนอกจาก `Order.status` — ตอนนี้รู้ทั้ง
+ * **เวลานัด** และ **เงินที่รับจริง** จึงบอกความจริงได้
+ *
+ * ## ขั้นตอน
+ *
+ * | ขั้น | done เมื่อ |
+ * |---|---|
+ * | จองแล้ว | เสมอ (มีบิลแล้ว) |
+ * | เข้ารับบริการ | ปิดผลนัดแล้ว (`COMPLETED`) · กำลังถึงคิวเมื่อเลยเวลานัดมาแล้ว |
+ * | ยืนยันแล้ว | `Order.status === 'CONFIRMED'` |
+ */
+export function getServiceTimeline(input: {
+  status: OrderStatus;
+  /** ISO/Date ของเวลานัด — null = ยังไม่ระบุเวลา (walk-in ที่ร้านยังไม่กดเริ่ม) */
+  serviceStart: string | Date | null | undefined;
+  appointmentStatus: string | null | undefined;
+  now?: Date;
+}): TimelineStep[] {
+  if (input.status === "CANCELLED") {
+    return [
+      { label: "จองแล้ว", state: "done" },
+      { label: "ยกเลิก", state: "cx" },
+      { label: "ยืนยัน", state: "mute" },
+    ];
+  }
+
+  const served = input.appointmentStatus === "COMPLETED" || input.appointmentStatus === "NO_SHOW";
+  const startMs = input.serviceStart ? new Date(input.serviceStart).getTime() : NaN;
+  const nowMs = (input.now ?? new Date()).getTime();
+  /**
+   * "ถึงคิวแล้ว" ตัดสินจากเวลาที่ผ่านไป ไม่ใช่จากสถานะที่ร้านกด — ร้านที่ยุ่งจะกดปิดผลทีหลัง
+   * ถ้ารอให้ร้านกดก่อน ลูกค้าที่นั่งอยู่ในร้านจะเห็นว่า "ยังไม่ถึงคิว" ซึ่งขัดกับสิ่งที่เขาเห็นด้วยตา
+   */
+  const arrived = Number.isFinite(startMs) && nowMs >= startMs;
+
+  const confirmed = input.status === "CONFIRMED";
+
+  return [
+    { label: "จองแล้ว", state: "done" },
+    {
+      label: "เข้ารับบริการ",
+      state: served || confirmed ? "done" : arrived ? "cur" : "up",
+    },
+    { label: "ยืนยันแล้ว", state: confirmed ? "fin" : "up" },
+  ];
+}

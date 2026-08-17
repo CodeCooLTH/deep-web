@@ -558,6 +558,12 @@ export async function listAppointments(args: {
 export type AppointmentDayItem = {
   orderToken: string;
   orderNo: string | null;
+  /**
+   * เวลาที่เปิดบิล (feature ร้านบริการ 2026-08-16) — ใช้ derive "วิธีเข้ารับบริการ"
+   * ตัวที่แยก "เดินเข้ามา" ออกจาก "จองล่วงหน้า" คือระยะห่างระหว่างเวลานัดกับเวลาเปิดบิล
+   * ไม่ใช่ตัวเวลานัดเอง จึงต้องส่งมาคู่กันเสมอ
+   */
+  createdAt: Date;
   start: Date;
   end: Date;
   appointmentStatus: string | null;
@@ -628,6 +634,7 @@ export async function listAppointmentsForDay(args: {
     select: {
       publicToken: true,
       orderNo: true,
+      createdAt: true,
       serviceStart: true,
       serviceEnd: true,
       appointmentStatus: true,
@@ -722,6 +729,7 @@ export async function listAppointmentsForDay(args: {
     return {
       orderToken: r.publicToken,
       orderNo: r.orderNo,
+      createdAt: r.createdAt,
       start: r.serviceStart!,
       end: r.serviceEnd!,
       appointmentStatus: r.appointmentStatus,
@@ -766,9 +774,10 @@ export async function listAppointmentsForDay(args: {
  * นับรวมนัดที่จบไปแล้ววันนี้ (COMPLETED/NO_SHOW) โดยตั้งใจ — ป้ายเขียนว่า "นัดวันนี้" ซึ่งเป็น
  * ข้อเท็จจริงของทั้งวัน ไม่ใช่ "ที่ยังไม่ได้ทำ" ตัดออกเฉพาะ CANCELLED เหมือน listAppointments
  *
- * 🛑 2026-08-10: นิยามย้ายไป `src/lib/appointment-day.ts` ทั้งก้อน เพราะไทล์นี้ลิงก์เข้า
- * `/orders?apptDay=today` แล้ว — ตัวเลขบนไทล์กับจำนวนแถวที่กรองได้ต้องมาจากนิยามเดียวกัน
- * (BR-SOV-06). พร้อมกันนั้นเกณฑ์คัดเปลี่ยนจาก `serviceResourceId != null` เป็น `serviceStart != null`
+ * 🛑 2026-08-10: นิยามย้ายไป `src/lib/appointment-day.ts` ทั้งก้อน — ตัวเลขบนไทล์กับจำนวนแถว
+ * ที่ตัวกรอง `?apptDay=` คัดได้ ต้องมาจากนิยามเดียวกัน (BR-SOV-06).
+ * 🛑 2026-08-15 (AC-SQ-05): ไทล์เปลี่ยนปลายทางไป `/queues` แล้ว ตัวนับยังใช้นิยามเดิมทุกประการ
+ * — เลขตรงกับตารางงานเพราะ `serviceStart`/`serviceResourceId` ถูกเขียนคู่กันเสมอโดย `allocateSeat()`. พร้อมกันนั้นเกณฑ์คัดเปลี่ยนจาก `serviceResourceId != null` เป็น `serviceStart != null`
  * ให้ตรงกับที่รายการใช้ — ของเดิมสองที่ไม่ตรงกันอยู่แล้วสำหรับนัดที่ถูกถอด resource ออกภายหลัง
  */
 export async function getTodayAppointmentCount(shopId: string): Promise<number> {

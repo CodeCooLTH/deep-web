@@ -17,6 +17,8 @@
 
 import Icon from '@/components/wrappers/Icon'
 import { getPaymentBadge } from '@/lib/order-display'
+import { formatDateTime } from '@/lib/format-date'
+import { ORDER_PAYMENT_KIND_LABEL, type OrderPaymentKind } from '@/lib/order-payment'
 import SalesChannelBadge from '@/components/safepay/SalesChannelBadge'
 import { PAYMENT_LABELS, PAYMENT_ICONS } from '../../components/data'
 import SlipViewer from './SlipViewer'
@@ -26,15 +28,36 @@ export type BillingDetailsProps = {
   paymentMethod: string | null
   salesChannel: string | null
   slipFileId: string | null
+  /**
+   * เงินที่ **ได้รับจริง** ของใบนี้ (feature 00050) · null = ไม่มีเรื่องเงินให้พูดถึง
+   *
+   * 🛑 ทำไมต้องมีที่นี่ด้วย ทั้งที่ปุ่มรับเงินอยู่ในแชท: ก่อนหน้านี้จอนี้บอกได้แค่ "มีสลิปไหม"
+   * ขณะที่ **หน้า `/o/[token]` ของลูกค้าบอกยอดที่รับแล้วและยอดค้าง** ⇒ ร้านรู้น้อยกว่าลูกค้า
+   * บนจอของตัวเอง ซึ่งเป็นสภาพที่ผู้ขายต้องเปิดแชทหาทุกครั้งที่ลูกค้าถาม
+   */
+  money: {
+    totalAmount: number
+    depositAgreed: number
+    totalReceived: number
+    outstanding: number
+    fullyPaid: boolean
+    hasDeposit: boolean
+    entries: { kind: string; amount: number; method: string; note: string | null; receivedAtIso: string; voided: boolean }[]
+  } | null
 }
+
+const baht = (n: number) =>
+  `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 export default function BillingDetails({
   status,
   paymentMethod,
   salesChannel,
   slipFileId,
+  money,
 }: BillingDetailsProps) {
-  const hasPaymentInfo = paymentMethod !== null || salesChannel !== null
+  // มีเรื่องเงินให้พูดถึง = ถือว่ามีข้อมูลการชำระ แม้ยังไม่ได้ระบุวิธีชำระ/ช่องทาง
+  const hasPaymentInfo = paymentMethod !== null || salesChannel !== null || money !== null
   const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId)
   const paymentIcon = paymentMethod ? (PAYMENT_ICONS[paymentMethod] ?? 'wallet') : 'credit-card-off'
   const paymentLabel = paymentMethod ? (PAYMENT_LABELS[paymentMethod] ?? paymentMethod) : 'ยังไม่ระบุวิธีชำระ'
@@ -75,6 +98,55 @@ export default function BillingDetails({
               <li>
                 <p className="text-default-800 mb-1 text-2xs">สลิปโอนเงิน</p>
                 <SlipViewer slipFileId={slipFileId} />
+              </li>
+            )}
+            {money && (
+              <li>
+                {/* 🛑 "รับแล้ว/ค้าง" คนละบรรทัดกับ "มัดจำที่ตกลงไว้" เสมอ — สองอันตอบคนละคำถาม
+                    (ข้อตกลง vs ข้อเท็จจริง · BR-SQ-02) ห้ามยุบรวมเป็นบรรทัดเดียว */}
+                <p className="text-default-800 mb-1 text-2xs">เงินที่รับแล้ว</p>
+                <div className="bg-default-100 rounded-lg p-2.5">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-success-ink text-sm font-semibold tabular-nums">
+                      {baht(money.totalReceived)}
+                    </span>
+                    <span
+                      className={`text-2xs font-medium ${
+                        money.fullyPaid ? 'text-success-ink' : 'text-warning-ink'
+                      }`}
+                    >
+                      {money.fullyPaid ? 'ครบแล้ว' : `ค้าง ${baht(money.outstanding)}`}
+                    </span>
+                  </div>
+                  {money.hasDeposit && (
+                    <p className="text-default-600 mb-0 mt-1.5 border-t border-dashed pt-1.5 text-2xs">
+                      มัดจำที่ตกลงไว้ {baht(money.depositAgreed)}
+                    </p>
+                  )}
+                  {money.entries.length === 0 ? (
+                    /* ห้ามเขียนว่า "ยังไม่ได้จ่าย" — ระบบรู้แค่ว่ายังไม่มีใครกดยืนยัน */
+                    <p className="text-default-600 mb-0 mt-1.5 text-2xs">
+                      ยังไม่มีใครกดยืนยันรับเงิน — กดได้ที่การ์ดงานในแชท
+                    </p>
+                  ) : (
+                    <ul className="mt-1.5 space-y-1">
+                      {money.entries.map((e, k) => (
+                        <li
+                          key={k}
+                          className={`flex items-baseline gap-1.5 text-2xs ${
+                            e.voided ? 'text-default-400' : 'text-default-700'
+                          }`}
+                        >
+                          <span className={`tabular-nums font-medium ${e.voided ? 'line-through' : ''}`}>
+                            {baht(e.amount)}
+                          </span>
+                          <span>{ORDER_PAYMENT_KIND_LABEL[e.kind as OrderPaymentKind] ?? e.kind}</span>
+                          <span className="ms-auto">{formatDateTime(new Date(e.receivedAtIso))}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </li>
             )}
           </ul>

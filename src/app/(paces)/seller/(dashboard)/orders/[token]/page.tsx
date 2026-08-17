@@ -37,6 +37,8 @@ import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { prisma } from '@/lib/prisma'
 import { getOrderForShop } from '@/services/order.service'
+import { computeOrderMoneyFromSerialized, hasMoneyStory } from '@/lib/order-payment'
+import { resolveServiceOrderBadge } from '@/lib/order-display'
 import { getShipmentPanel } from '@/services/iship.service'
 import { toShipmentContextJson } from '@/lib/iship/context'
 import { redirect, notFound } from 'next/navigation'
@@ -114,6 +116,53 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // cast any เพื่อรองรับ field ที่เข้าถึงแบบ dynamic (เช่น order.buyer ที่ไม่มีใน Prisma include)
   // runtime จะ return undefined ตามปกติ — ไม่กระทบ logic
   const order: any = orderRaw
+
+  /**
+   * เงินที่ได้รับจริงของใบนี้ (feature 00050) — null = ไม่มีเรื่องเงินให้พูดถึง
+   *
+   * เกณฑ์เดียวกับหน้า `/o/[token]` ของลูกค้าเป๊ะ: ไม่เคยรับเงิน **และ** ไม่มีมัดจำที่ตกลงไว้
+   * ⇒ ไม่แสดงบล็อกเลย (ออเดอร์ขายออนไลน์ทั่วไปไม่ได้บล็อกใหม่ที่ไม่ได้ขอ — AC-SQ-07)
+   * ตัวเลขทุกตัวมาจาก `computeOrderMoney` ตัวเดียวกับทุกจอ ห้ามบวกเองที่นี่ (HR16)
+   */
+  const orderMoney = (() => {
+    /**
+     * 🛑 กั้นด้วย **vertical** ไม่ใช่แค่ "มีมัดจำไหม" (AC-SQ-07)
+     *
+     * เกณฑ์เดิม (`hasDeposit || totalReceived > 0`) ปลอดภัยวันนี้เพราะ **ข้อมูลบังเอิญเป็นแบบนั้น**
+     * — ONLINE_SALES 269 ใบบน prod ไม่มีมัดจำเลยสักใบ และยังไม่มีร้านบ้านพัก
+     * แต่บ้านพัก **เก็บมัดจำเป็นปกติ** (`booking.service.ts` เขียน `depositAmount` ทุกใบ)
+     * ⇒ วันแรกที่มีร้านบ้านพักเปิดใช้ การ์ดนี้จะโผล่บนจอที่ไม่ได้ขอ โดยไม่มีอะไรฟ้อง
+     * "ปลอดภัยเพราะยังไม่มีใครเดินผ่านเส้นทางนั้น" ไม่ใช่ด่าน
+     */
+    if (shop.vertical !== 'SERVICE_QUEUE') return null
+    const m = computeOrderMoneyFromSerialized({
+      totalAmount: orderRaw.totalAmount.toFixed(2),
+      depositAmount: orderRaw.depositAmount ? orderRaw.depositAmount.toFixed(2) : null,
+      payments: orderRaw.payments.map((p) => ({
+        kind: p.kind,
+        amount: p.amount.toFixed(2),
+        voidedAt: p.voidedAt ? p.voidedAt.toISOString() : null,
+      })),
+    })
+    if (!hasMoneyStory(m)) return null
+    return {
+      totalAmount: m.totalAmount,
+      depositAgreed: m.depositAgreed,
+      totalReceived: m.totalReceived,
+      outstanding: m.outstanding,
+      fullyPaid: m.fullyPaid,
+      hasDeposit: m.hasDeposit,
+      // จอนี้เป็นของร้าน จึงแสดงแถวที่ยกเลิกด้วย (ขีดฆ่า) — ประวัติเงินต้องเห็นครบ
+      entries: orderRaw.payments.map((p) => ({
+        kind: p.kind,
+        amount: Number(p.amount),
+        method: p.method,
+        note: p.note,
+        receivedAtIso: p.receivedAt.toISOString(),
+        voided: p.voidedAt !== null,
+      })),
+    }
+  })()
 
   // ที่มาของออเดอร์ (หัวหน้า order detail — user 2026-08-06 + ต่อสาย shopChannel 2026-08-10):
   // รูป+badge ต้องมาจากแหล่งเดียวกันเสมอ (resolveOrderSource) ห้ามผสม pageLogoUrl จาก shopChannel
@@ -289,6 +338,17 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
       <OrderDetailClient
         vocab={vocab}
+        /* ป้ายสถานะของร้านบริการ — derive จากเงินที่รับจริง (จอง/รอชำระ/ชำระเงินแล้ว)
+           `orderMoney` เป็น null สำหรับ vertical อื่นเสมอ ⇒ ป้ายเดิมไม่ขยับ (AC-SQ-07) */
+        serviceBadge={
+          orderMoney
+            ? resolveServiceOrderBadge({
+                status: order.status,
+                money: orderMoney,
+                hasAppointment: Boolean(order.serviceStart),
+              })
+            : null
+        }
         vertical={resolveShopVertical(shop.vertical)}
         hasDeductedStock={hasDeductedStock}
         publicToken={order.publicToken}
@@ -364,6 +424,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
               <AppointmentCard
                 publicToken={order.publicToken}
                 startISO={new Date(order.serviceStart).toISOString()}
+                // เวลาที่เปิดบิล — ใช้แยก "เดินเข้ามา" ออกจาก "จองล่วงหน้า"
+                createdAtISO={new Date(order.createdAt).toISOString()}
                 endISO={order.serviceEnd ? new Date(order.serviceEnd).toISOString() : null}
                 allDay={
                   order.serviceEnd
@@ -435,6 +497,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 salesChannel={order.salesChannel ?? null}
                 slipFileId={order.slipFileId ?? null}
                 status={order.status}
+                money={orderMoney}
               />
             )}
             {showReviewCard && <OrderReviewCard orderNoun={vocab.noun} review={reviewData} />}

@@ -29,7 +29,7 @@ import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { resolveVerifyBadge } from '@/lib/verify-badge'
 import AuthPingLink from './AuthPingLink'
 import { formatOrderNo } from '@/lib/order-no'
-import { formatDateTimeTH } from '@/lib/format-date'
+import { formatDateTimeTH, formatTimeHM, formatTimeRangeHM, formatWeekdayDateTH } from '@/lib/format-date'
 import { ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
 import { ORDER_VOCAB } from '@/lib/seller-menu'
 import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
@@ -59,6 +59,26 @@ const SectionTitle = ({ children }: { children: React.ReactNode }) => (
     {children}
   </Typography>
 )
+
+/**
+ * เมตริกของแถบ CTA ล่างจอ — **ที่ว่างที่หน้าเว้นไว้ต้องคำนวณจากตัวเลขชุดเดียวกับที่แถบใช้จริง**
+ *
+ * 🛑 ของเดิมเป็นเลข `112` เขียนดิบไว้คนละที่กับแถบ ⇒ ทุกครั้งที่ปุ่ม/แคปชันเปลี่ยนความสูง
+ * (ป้ายปุ่มยาวขึ้นจนตกบรรทัด · แคปชันตกบรรทัดบนจอ 320px) ตัวเลขนั้นจะขาดไปเงียบ ๆ แล้ว
+ * ท้ายหน้าถูกแถบทับ โดยไม่มี `tsc`/build/เทสตัวไหนฟ้อง เพราะทั้งสองฝั่ง "ถูก" ในตัวเอง
+ *
+ * เผื่อแคปชัน 2 บรรทัดเสมอ — สองทิศไม่เท่ากัน: เผื่อเกิน = ช่องว่างท้ายหน้าที่ไม่มีใครเห็น
+ * (footer อยู่เหนือมัน) · เผื่อขาด = เนื้อหาถูกทับ ซึ่งคือสิ่งที่กำลังแก้อยู่
+ */
+const CTA_BAR_PT = 12
+const CTA_BAR_PB = 12
+/** ปักความสูงปุ่มไว้ ไม่ปล่อยให้ธีมตัดสิน — เลขข้างล่างจะได้ไม่ผูกกับค่า default ที่แก้ที่อื่นได้ */
+const CTA_BUTTON_HEIGHT = 48
+const CTA_CAPTION_GAP = 10
+/** 1 บรรทัดของแคปชัน 13px ที่ lineHeight 1.7 (ไทยต้องการที่ให้สระบน-ล่าง) */
+const CTA_CAPTION_LINE = 22
+const CTA_BAR_RESERVE =
+  CTA_BAR_PT + CTA_BUTTON_HEIGHT + CTA_CAPTION_GAP + CTA_CAPTION_LINE * 2 + CTA_BAR_PB
 
 const baht = new Intl.NumberFormat('th-TH', {
   style: 'currency',
@@ -106,7 +126,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
     // 🛑 ต้องบวก env(safe-area-inset-bottom) ด้วย — แถบ CTA ล่างจอบวก inset เข้าไปในความสูงของ
     // ตัวเอง แต่ที่เผื่อไว้ตรงนี้เป็นค่าคงที่ ⇒ บน iPhone ที่มี home indicator (34px) เนื้อหา
     // ท้ายหน้าถูกแถบทับไป 34px พอดี (audit 2026-08-11)
-    <Box sx={{ pb: 'calc(112px + env(safe-area-inset-bottom))' }}>
+    <Box sx={{ pb: `calc(${CTA_BAR_RESERVE}px + env(safe-area-inset-bottom))` }}>
       <Box sx={orderContentWidthSx}>
         {/* ══ โครงหน้า "ร้านนำแบบย่อ" (user เลือกแบบ ค จาก mockup 2026-08-11) ══════════════
             คงลำดับเดิม (ร้านก่อน สถานะทีหลัง) แต่บีบบล็อกร้านจาก ~370px เหลือ ~200px แล้วยก
@@ -122,15 +142,31 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
             แบนเนอร์ไล่สีที่หน้าตาเหมือนรางวัล (ดูเหตุผลเต็มที่ prop ของ ShopCover) */}
         <ShopCover trustScore={order.shop.user.trustScore} isNewShop={order.completedOrders == null} />
 
-        <Box component='header' sx={{ bgcolor: 'background.paper', px: 4, pb: 4, textAlign: 'center' }}>
+        {/* 🛑 `position: relative` ไม่ใช่ของประดับ — `ShopCover` เป็น element ที่ positioned
+            ส่วนบล็อกนี้ไม่ใช่ ⇒ ตามลำดับการวาดของ CSS ปกจะถูกวาด **ทับ** ลูกทุกตัวของบล็อกนี้
+            รวมโลโก้ร้านที่ยื่นขึ้นไป 32px (`mt: -32px`) ⇒ **โลโก้ถูกปกกินหายไปครึ่งใบ**
+            ทั้งที่ CSS ทุกบรรทัดถูกต้องและไม่มี gate ไหนฟ้อง (user เจอเองจากรูปหน้าจอ 2026-08-16)
+            จอหลังล็อกอินไม่เป็นเพราะที่นั่นห่อ avatar ด้วย `position: relative` อยู่แล้ว —
+            ความต่างที่ไม่มีใครตั้งใจให้ต่าง */}
+        <Box component='header' sx={{ position: 'relative', bgcolor: 'background.paper', px: 4, pb: 4, textAlign: 'center' }}>
+          {/* ── ทำไมโลโก้ต้อง "ลอย" ออกจากปก ──
+              การทับปกครึ่งใบ (`mt: -32px`) คงไว้ตามเดิม — สิ่งที่เปลี่ยนคือ **ความคมชัดของขอบ**
+              ปกเป็นไล่สีตาม tier ซึ่งเปลี่ยนไปได้ทุกร้าน ⇒ โลโก้เข้มบนปกเทา/โลโก้อ่อนบนปกสว่าง
+              จะกลืนกับพื้นหลังเป็นบางร้านโดยที่ไม่มีใครเห็นตอนพัฒนา (ร้านที่ใช้ทดสอบมีปกเดียว)
+              ขอบขาวหนา 4px + เงา + **พื้นในเป็นขาว ไม่ใช่เทา** จึงเป็นสิ่งที่รับประกันว่าโลโก้
+              ทุกแบบมีเส้นแบ่งกับปกเสมอ ไม่ใช่แค่ร้านที่บังเอิญสีตัดกัน
+              (docs/conventions/user-supplied-image-assets.md — รูปที่ผู้ใช้อัปเองต้องมี ring)
+              4px + customShadows.md = ชุดเดียวกับจอหลังล็อกอิน ร้านเดียวกันต้องดูเหมือนกัน */}
           <Box
             sx={{
               width: 64,
               height: 64,
               borderRadius: '50%',
-              border: '3px solid',
+              border: '4px solid',
               borderColor: 'background.paper',
-              bgcolor: 'action.hover',
+              // พื้นขาว ไม่ใช่ `action.hover` (เทาจาง) — โลโก้โปร่งใส/ขอบอ่อนจะได้ไม่จมไปกับปก
+              bgcolor: 'background.paper',
+              boxShadow: 'var(--mui-customShadows-md)',
               mx: 'auto',
               mt: '-32px',
               display: 'grid',
@@ -281,6 +317,43 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
               <Typography component='h2' sx={{ m: 0, mt: 1, fontSize: '1.125rem', fontWeight: 700, lineHeight: 1.35 }}>
                 {statusHeadline.headline}
               </Typography>
+              {/* ── วันนัด — ข้อเท็จจริงที่ผู้ซื้อร้านบริการเปิดหน้านี้มาหา ──
+                  🛑 ก่อนหน้านี้จอนี้ **ไม่บอกวันนัดเลยสักที่** ผู้ซื้อที่จองไว้เห็นแค่
+                  "รอดำเนินการ" กับยอดเงิน แล้วต้องล็อกอินถึงจะรู้ว่าตัวเองนัดกี่โมง —
+                  ทั้งที่ค่าถูกโหลดมากับออเดอร์ใบเดียวกันอยู่แล้ว (ไม่เพิ่ม query สักตัว)
+                  วางไว้ใน "การ์ดที่เด่นที่สุดในหน้า" ไม่ใช่การ์ดใหม่ท้ายหน้า เพราะมันคือ
+                  ส่วนหนึ่งของคำตอบว่า "ใบนี้ถึงไหนแล้ว" ไม่ใช่ข้อมูลประกอบ */}
+              {order.serviceStartIso && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.25,
+                    mt: 2,
+                    p: 1.5,
+                    borderRadius: 2,
+                    bgcolor: 'action.hover',
+                  }}
+                >
+                  <Icon icon='tabler-calendar-event' fontSize={20} style={{ flexShrink: 0, color: VERIFIED_INK }} />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant='caption' color='text.secondary' sx={{ display: 'block' }}>
+                      วันนัด
+                    </Typography>
+                    {/* ไม่มีเวลาสิ้นสุด → แสดงเวลาเริ่มอย่างเดียว ไม่เดาช่วงให้ผู้ใช้
+                        (formatTimeRangeHM คืน '—' เมื่อขาดฝั่งใดฝั่งหนึ่ง — '—' บนวันนัด
+                        อ่านเป็น "ระบบไม่รู้" ซึ่งแย่กว่าการบอกเท่าที่รู้จริง) */}
+                    <Typography sx={{ fontSize: '0.9375rem', fontWeight: 700, lineHeight: 1.5 }}>
+                      {formatWeekdayDateTH(order.serviceStartIso)}
+                      {' · '}
+                      {order.serviceEndIso
+                        ? `${formatTimeRangeHM(order.serviceStartIso, order.serviceEndIso)} น.`
+                        : `${formatTimeHM(order.serviceStartIso)} น.`}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+
               {/* บรรทัด "{provider} · {trackingNo}" ที่เคยอยู่ตรงนี้ถูกถอดออก — ParcelTimeline
                   แสดงทั้งคู่อยู่แล้ว (และเลขพัสดุที่นั่นกดคัดลอกได้) ปล่อยไว้ = ข้อมูลเดียวกัน
                   สองที่ ห่างกัน 8px โดยฝั่งบนกดไม่ได้ */}
@@ -419,7 +492,12 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                     startIcon={<Icon icon='tabler-alert-circle' fontSize={18} />}
                     sx={{ minHeight: 44, justifyContent: 'flex-start' }}
                   >
-                    ยังไม่ได้รับสินค้า? แจ้งร้านค้าว่ามีปัญหา
+                    {/* 🛑 เดิมเขียน "ยังไม่ได้รับสินค้า?" ตายตัว — ไฟล์นี้ผันคำทั้งหน้าด้วย
+                        `vocab` อยู่แล้ว (หัวข้อรายการ · ป้ายปุ่มหลัก) แต่บรรทัดนี้หลุด ⇒
+                        ร้านบริการ/บ้านพักได้คำว่า "สินค้า" โผล่มาที่เดียวในหน้า
+                        ไม่ผันด้วย `noun` เพราะ `"ยังไม่ได้รับ" + noun` ได้ "ยังไม่ได้รับ
+                        การเข้ารับบริการ" — เขียนใหม่ให้ไม่ต้องพึ่ง noun เลยแทน */}
+                    มีปัญหากับรายการนี้? แจ้งร้านค้า
                   </AuthPingLink>
                 </Box>
               )}
@@ -446,11 +524,11 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
           borderTop: '1px solid',
           borderColor: 'divider',
           px: 2,
-          pt: 1.5,
+          pt: `${CTA_BAR_PT}px`,
           // 🛑 (marketing)/layout.tsx ตั้ง viewportFit:'cover' แล้ว env() จึงคืนค่าจริงบนเส้นทางนี้
           // แถบ fixed ของจอที่ล็อกอินแล้วใส่ไว้ถูก แต่แถบนี้ (จอแรกที่ผู้ซื้อทุกคนเจอ) ไม่มีเลย
           // ⇒ บน iPhone ที่มีแถบ home indicator ปุ่มหลักไปนอนอยู่ใต้แถบนั้น
-          pb: 'calc(12px + max(0px, env(safe-area-inset-bottom)))',
+          pb: `calc(${CTA_BAR_PB}px + max(0px, env(safe-area-inset-bottom)))`,
           zIndex: 10,
         }}
       >
@@ -461,10 +539,23 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
             fullWidth
             variant='contained'
             size='large'
+            sx={{ minHeight: CTA_BUTTON_HEIGHT }}
           >
             {ctaLabel}
           </AuthPingLink>
-          <Typography variant='caption' color='text.secondary' sx={{ display: 'block', textAlign: 'center', mt: 0.75 }}>
+          {/* 🛑 ระยะห่าง 10px + lineHeight 1.7 ไม่ใช่ 6px ที่ค่าเริ่มต้นให้ — ปุ่ม contained ของ
+              Vuexy มีเงาสีม่วงแผ่ลงมาใต้กล่องตัวเอง และสระบนของไทย (ื ่ ) กินที่เหนือบรรทัด
+              สองอย่างรวมกันทำให้บรรทัดนี้ดูเหมือนถูกปุ่มทับ ทั้งที่ระยะตามกล่องยังไม่ชนกัน */}
+          <Typography
+            variant='caption'
+            color='text.secondary'
+            sx={{
+              display: 'block',
+              textAlign: 'center',
+              mt: `${CTA_CAPTION_GAP}px`,
+              lineHeight: `${CTA_CAPTION_LINE}px`,
+            }}
+          >
             ต้องเข้าสู่ระบบก่อนยืนยัน แนบสลิป เขียนรีวิว หรือแจ้งปัญหา
           </Typography>
         </Box>
