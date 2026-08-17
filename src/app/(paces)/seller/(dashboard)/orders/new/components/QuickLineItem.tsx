@@ -172,7 +172,11 @@ export default function QuickLineItem({
               if (ok) itemsCtl.remove(index)
             }}
             aria-label={hasProduct ? `ลบรายการ ${item.name}` : 'ลบรายการ'}
-            className="flex size-11 shrink-0 items-center justify-center rounded-md text-default-300 hover:bg-danger/10 hover:text-danger"
+            /* 🛑 `text-danger` เป็นสีตั้งต้น ไม่ใช่รอ hover — เดิม `text-default-300` แล้วค่อยแดงตอน hover
+               ซึ่งบนมือถือ **ไม่มี hover เลย** ⇒ ปุ่มลบเป็นเทาจางตลอดกาล (user เจอบน TestFlight 2026-08-17)
+               และ default-300 บนพื้นขาวตกเกณฑ์คอนทราสต์ของ non-text (ต้องการ 3:1)
+               การลบเป็น destructive — DESIGN.md ให้ Error Coral กับ "ผิดพลาด/ปฏิเสธ/ยกเลิก/ความเสี่ยง" ตรงตัว */
+            className="flex size-11 shrink-0 items-center justify-center rounded-md text-danger hover:bg-danger/10"
           >
             <Icon icon="trash" className="size-4" />
           </button>

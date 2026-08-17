@@ -136,8 +136,13 @@ export default function CustomerDetails({
                   </span>
                   {buyer.buyerContact ? (
                     // ลิงก์เดียวของการ์ดนี้ที่กดแล้วทำอะไรจริง — ร้านต้องโทรหาลูกค้าตอนแพ็คของ
+                    /* 🛑 ต้องเป็น `inline-flex items-center` ไม่ใช่ `<a>` เปล่า ๆ ที่ใส่ `min-h-11`
+                       `<a>` ที่เป็นลูกของ flex ถูก **blockify** ⇒ `min-height: 44px` มีผลจริง
+                       แต่ตัวอักษรไปนอนบนสุดของกล่อง 44px นั้น ขณะที่ไอคอน 24px ถูก `items-center`
+                       จัดกลางแถว ⇒ **เบอร์ลอยสูงกว่าไอคอน** (user เจอบน TestFlight 2026-08-17)
+                       จัดกลางในตัวเองแล้ว ได้ทั้ง tap target 44px และบรรทัดที่ตรงกับไอคอน */
                     <a
-                      className="text-primary hover:text-primary-hover min-h-11 text-sm font-medium transition-all sm:min-h-0"
+                      className="text-primary hover:text-primary-hover inline-flex min-h-11 items-center text-sm font-medium transition-all sm:min-h-0"
                       href={`tel:${buyer.buyerContact}`}
                     >
                       {buyer.buyerContact}

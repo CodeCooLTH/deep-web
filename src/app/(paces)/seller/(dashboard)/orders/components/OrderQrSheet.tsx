@@ -12,7 +12,8 @@
  *       in-app precedent: AccountSwitcherSheet.tsx (scrim bg-default-900/40 + grip + close)
  */
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import Icon from '@/components/wrappers/Icon'
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
@@ -40,10 +41,29 @@ export default function OrderQrSheet({ order, url, onClose }: Props) {
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  /**
+   * 🛑 ต้อง portal ออก `document.body` — `z-80` อย่างเดียวไม่พอ
+   *
+   * ชีตนี้ถูกเรนเดอร์จาก `QrCodeButton` ซึ่งอยู่ในแถบปุ่มของการ์ดที่ห่อด้วย `relative z-10`
+   * (ยกปุ่มขึ้นเหนือแผ่นลิงก์ที่ทับทั้งการ์ด) — `z-index` ที่ไม่ใช่ `auto` **สร้าง stacking context**
+   * ⇒ `z-80` ของชีตแข่งได้แค่ *ภายในกลุ่มปุ่มนั้น* ไม่ได้แข่งกับทั้งหน้า
+   * ผลคือปุ่มของการ์ดใบอื่นและลิงก์ "ดูเพิ่มเติม" ทะลุขึ้นมาทับ QR
+   * (user เจอบน TestFlight 2026-08-17 — QR สแกนไม่ติดเพราะมีปุ่มพาดอยู่กลางรูป)
+   *
+   * คลาสเดียวกับ `HoverPanel` ในโฟลเดอร์เดียวกันที่ portal ด้วยเหตุผลนี้เป๊ะ
+   * และกับ `scroll-container-clips-popovers.md` — ไล่เพิ่ม z-index ไม่มีวันแก้ได้
+   *
+   * `mounted` กัน hydration mismatch: SSR ไม่มี `document` (แพตเทิร์นเดียวกับ HoverPanel)
+   */
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
   // เลขคำสั่งซื้อ DP… (user 2026-07-25) — ตรงกับหน้าการ์ด/ตาราง
   const cardId = formatOrderNo(order.publicToken, order.createdAtISO)
 
-  return (
+  if (!mounted) return null
+
+  return createPortal(
     // HR7: z-80 = viewport overlay lock (Paces ไม่มี token; precedent SalesChartSheet/AccountSwitcherSheet)
     <div
       className="fixed inset-0 z-80 flex items-end justify-center lg:items-center"
@@ -103,6 +123,7 @@ export default function OrderQrSheet({ order, url, onClose }: Props) {
           <CopyLinkButton value={url} label="คัดลอก" showPreview />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
