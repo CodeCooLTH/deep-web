@@ -349,6 +349,8 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
   const scrollRef = useRef<HTMLDivElement>(null)
   const topSentinelRef = useRef<HTMLDivElement>(null)
   const markReadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** ตัวหน่วงของเส้นทาง focus/visibility — ดู scheduleRefetchOnReturn */
+  const returnRefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didInitialScrollRef = useRef(false)
   // user อยู่ล่างสุด (ภายใน 120px) หรือเปล่า — ตัดสินว่าจะ auto-scroll ตอนข้อความใหม่เข้ามาไหม
   // (persistent ต่างจาก pinned ใน effect initial ที่อยู่แค่ 4 วิ) default true = เปิดเธรดมาอยู่ล่างสุด
@@ -561,16 +563,36 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     }
   }, [conversationId, refetchNewer, markReadDebounced])
 
-  // ── fallback: refetch เมื่อ tab กลับมา focus (กัน realtime หลุดเงียบ) ──
+  /**
+   * ── fallback: refetch เมื่อ tab กลับมา focus (กัน realtime หลุดเงียบ) ──
+   *
+   * 🛑 **ต้องหน่วง** — การกลับมาหนึ่งครั้งของผู้ใช้ยิง **สองเหตุการณ์**: `visibilitychange`
+   * (กลับมามองเห็น) และ `window.focus` เดิม handler เรียก `refetchNewer()` ตรง ๆ จึงได้
+   * `GET .../messages?take=30` **2 ใบต่อการกลับมา 1 ครั้ง** (พิสูจน์จากเครื่องผู้ใช้จริง
+   * 2026-08-17: คลิก DevTools แล้วคลิกกลับเข้าหน้าเว็บ → messages 2 ใบ · conversations 1 ใบ)
+   *
+   * ที่ `conversations` ได้ใบเดียวเพราะ `InboxList.scheduleRefresh()` หน่วง 400ms อยู่แล้ว —
+   * ไฟล์พี่น้องแก้ปัญหาเดียวกันนี้ไว้ก่อนแล้ว ที่นี่แค่ยกท่ามาใช้ให้ตรงกัน
+   * (`docs/conventions/sibling-surface-parity.md`)
+   *
+   * 🛑 หน่วงเฉพาะเส้นทางนี้ **ห้ามไปหน่วงเส้น realtime broadcast** (บรรทัด ~542) — ข้อความใหม่
+   * ต้องเด้งทันที การถ่วง 400ms ตรงนั้นคือการทำให้แชทรู้สึกช้าลงเพื่อประหยัดสิ่งที่ไม่ได้เปลือง
+   *
+   * ไม่ใช่ของถูก: `refetchNewer` ดึงหน้าแรกทั้งหน้า (30 ข้อความ + query enrich ครบชุด)
+   * ผู้ขายที่สลับแอปไป-มาทั้งวันจ่ายค่านี้ซ้ำทุกครั้งที่กลับมา
+   */
   useEffect(() => {
-    const handler = () => {
-      if (document.visibilityState === 'visible') refetchNewer()
+    const scheduleRefetchOnReturn = () => {
+      if (document.visibilityState !== 'visible') return
+      if (returnRefetchTimer.current) clearTimeout(returnRefetchTimer.current)
+      returnRefetchTimer.current = setTimeout(() => refetchNewer(), 400)
     }
-    document.addEventListener('visibilitychange', handler)
-    window.addEventListener('focus', handler)
+    document.addEventListener('visibilitychange', scheduleRefetchOnReturn)
+    window.addEventListener('focus', scheduleRefetchOnReturn)
     return () => {
-      document.removeEventListener('visibilitychange', handler)
-      window.removeEventListener('focus', handler)
+      document.removeEventListener('visibilitychange', scheduleRefetchOnReturn)
+      window.removeEventListener('focus', scheduleRefetchOnReturn)
+      if (returnRefetchTimer.current) clearTimeout(returnRefetchTimer.current)
     }
   }, [refetchNewer])
 
