@@ -62,6 +62,7 @@ import ShopCover from './ShopCover'
 import ShopEvidence from './ShopEvidence'
 import TrustPill from './TrustPill'
 import ReviewForm from './ReviewForm'
+import SectionTitle from './SectionTitle'
 // feature 00024 — การ์ดนัดหมาย (render เฉพาะออเดอร์ที่มีนัด)
 import AppointmentCard, { type PublicAppointment } from './AppointmentCard'
 import PaymentSummaryCard from './PaymentSummaryCard'
@@ -721,6 +722,9 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                      โลโก้บนจอ guest — ร้านเดียวกัน ห่างกันไม่กี่วินาที ต้องดูเหมือนกัน */
                   boxShadow: 'var(--mui-customShadows-md)',
                   fontSize: '1.75rem',
+                  /* 800 ที่นี่ไม่ขัด "ห้าม 800 กับข้อความ" (DESIGN.md §Strong step) — ตัวอักษรแทน
+                     โลโก้ร้านทำหน้าที่เป็น **ภาพ** ไม่ใช่ข้อความ คลาสเดียวกับ Metric
+                     (จอ guest เขียนเหตุผลนี้ไว้แล้ว ที่นี่เคยไม่มี จึงอ่านเหมือนหลุดกฎ) */
                   fontWeight: 800,
                   bgcolor: 'primary.lightOpacity',
                   color: 'primary.main',
@@ -761,7 +765,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             component={Link}
             href={`/u/${order.shop.user.username}`}
             variant='h6'
-            sx={{ display: 'block', textDecoration: 'none', color: 'text.primary', fontWeight: 800 }}
+            sx={{ display: 'block', textDecoration: 'none', color: 'text.primary', fontWeight: 700 }}
           >
             {order.shop.shopName}
           </Typography>
@@ -868,9 +872,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
 
         {/* ── 4. Horizontal Timeline 3-step — flat (ไม่มี card รอบ) ── */}
         <Box sx={{ bgcolor: 'background.paper', px: 2.25, pt: 1, pb: 1.5 }}>
-          <Typography variant='overline' color='text.disabled' sx={{ display: 'block', mb: 1, lineHeight: 1 }}>
-            ขั้นตอน
-          </Typography>
+          <SectionTitle>ขั้นตอน</SectionTitle>
           <HorizontalTimeline steps={timeline} />
         </Box>
 
@@ -921,9 +923,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             <Box sx={{ px: 1.75, pt: 1.5, pb: 0.75 }}>
               {/* ร้านบริการไม่ได้ขาย "สินค้า" — ลูกค้าที่จ้างล้างแอร์เห็นคำนี้แล้วสะดุด
                   (หัวหน้า 2026-08-15: "order detail ดูไม่รู้เรื่อง") */}
-              <Typography variant='overline' color='text.disabled' sx={{ lineHeight: 1 }}>
-                {order.isServiceShop ? 'รายการบริการ' : 'รายการสินค้า'}
-              </Typography>
+              <SectionTitle>{order.isServiceShop ? 'รายการบริการ' : 'รายการสินค้า'}</SectionTitle>
             </Box>
 
             {order.items.map((item, idx) => (
@@ -950,7 +950,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             {/* total row — pattern จาก OrderDetailsCard.tsx totals-row (label…value, bold final) */}
             <Box sx={{ px: 1.75, py: 1.5, display: 'flex', justifyContent: 'space-between', bgcolor: 'action.hover' }}>
               <Typography variant='body2' color='text.secondary'>{totalLabel}</Typography>
-              <Typography sx={{ fontSize: '1.0625rem', fontWeight: 800 }}>
+              <Typography sx={{ fontSize: '1.125rem', fontWeight: 700 }}>
                 {baht.format(order.totalAmount)}
               </Typography>
             </Box>
@@ -988,7 +988,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                     {order.shipmentTracking.provider}
                   </Typography>
                   {/* trackingNo — monospace ที่อนุญาต (Hard Rule 5 exception) */}
-                  <Typography sx={{ fontSize: '0.8125rem', fontWeight: 700, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                  <Typography sx={{ fontSize: '0.8125rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums', letterSpacing: '.04em', wordBreak: 'break-all' }}>
                     {order.shipmentTracking.trackingNo}
                   </Typography>
                 </Box>
@@ -1029,9 +1029,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 /* ── slip-empty: ยังไม่แนบสลิป ── */
                 <Card>
                   <Box sx={{ px: 1.75, py: 2.25, textAlign: 'center' }}>
-                    <Typography variant='overline' color='text.disabled' sx={{ display: 'block', mb: 1.5, textAlign: 'left' }}>
-                      แนบสลิป
-                    </Typography>
+                    <SectionTitle>แนบสลิป</SectionTitle>
 
                     <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
                       <CustomAvatar skin='light' variant='rounded' color='primary' size={42}>
@@ -1108,9 +1106,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           {order.hasReview && order.review && editingReview && (
             <Card>
               <Box sx={{ px: 1.75, py: 2 }}>
-                <Typography variant='overline' color='text.disabled' sx={{ display: 'block', mb: 1.25 }}>
-                  แก้ไขรีวิว
-                </Typography>
+                <SectionTitle>แก้ไขรีวิว</SectionTitle>
                 <ReviewForm
                   token={order.publicToken}
                   mode='edit'
@@ -1128,9 +1124,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           {order.hasReview && order.review && !editingReview && (
             <Card>
               <Box sx={{ px: 1.75, py: 1.75 }}>
-                <Typography variant='overline' color='text.disabled' sx={{ display: 'block', mb: 1.25 }}>
-                  รีวิวของคุณ
-                </Typography>
+                <SectionTitle>รีวิวของคุณ</SectionTitle>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                   <Box sx={{ display: 'flex', gap: 0.25 }}>
                     {Array.from({ length: 5 }).map((_, i) => (
@@ -1231,11 +1225,11 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           {canReview && (
             <Card>
               <Box sx={{ px: 1.75, py: 2 }}>
-                <Typography variant='overline' color='text.disabled' sx={{ display: 'block', mb: 1.25 }}>
-                  รีวิวร้านค้า
-                </Typography>
-                <Typography variant='subtitle1' sx={{ fontWeight: 800, mb: 0.25 }}>
-                  สินค้าถึงมือคุณแล้ว
+                <SectionTitle>รีวิวร้านค้า</SectionTitle>
+                {/* คำผันตามประเภทร้าน — ร้านบริการไม่มี "สินค้า" ให้ "ถึงมือ"
+                    (คลาสเดียวกับหัวข้อ "รายการบริการ" ที่แก้ไปแล้วเหนือขึ้นไป) */}
+                <Typography variant='subtitle1' sx={{ fontWeight: 700, mb: 0.25 }}>
+                  {order.isServiceShop ? 'รับบริการเรียบร้อยแล้ว' : 'สินค้าถึงมือคุณแล้ว'}
                 </Typography>
                 <Typography variant='body2' color='text.disabled' sx={{ mb: 1.75 }}>
                   ให้คะแนนร้านนี้เพื่อช่วยผู้ซื้อคนอื่น
@@ -1287,9 +1281,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               เพราะตอนออกแบบปุ่มยัง disabled ถาวร ตำแหน่งจึงไม่มีนัยอะไร ── */}
           <Card>
             <Box sx={{ px: 1.75, py: 1.75 }}>
-              <Typography variant='overline' color='text.disabled' sx={{ display: 'block', mb: 1.25 }}>
-                ต้องการความช่วยเหลือ?
-              </Typography>
+              <SectionTitle>ต้องการความช่วยเหลือ?</SectionTitle>
 
               {/* BR-BOE-16: ไม่มีเงื่อนไขสถานะ — ติดต่อร้านได้เสมอ */}
               <Button
@@ -1337,7 +1329,9 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                         size='small'
                         onClick={() => setDisputeDialogOpen(true)}
                       >
-                        ยังไม่ได้รับสินค้า?
+                        {/* เขียนให้ไม่ต้องพึ่งคำนาม แทนการผัน — จอ guest ใช้ประโยคเดียวกันนี้
+                            ("ยังไม่ได้รับ" + noun ได้ "ยังไม่ได้รับการเข้ารับบริการ") */}
+                        มีปัญหากับรายการนี้?
                       </Button>
                       <Typography variant='caption' color='text.disabled' sx={{ display: 'block' }}>
                         แจ้งร้านค้าว่าคำสั่งซื้อนี้มีปัญหา
@@ -1458,8 +1452,10 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
       >
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', pt: 5, pb: 2, px: 4 }}>
           <Icon icon='tabler-circle-check' style={{ fontSize: '3.5rem', marginBottom: '1rem', color: 'var(--mui-palette-success-main)' }} />
+          {/* 🛑 ต้องผันคำเหมือน `ctaLabel` ของปุ่มที่เพิ่งกด — เดิมปุ่มเขียน "ยืนยันว่ารับบริการแล้ว"
+              แต่ไดอะล็อกที่เด้งตามมาเขียน "ได้รับสินค้า" = คนละคำในการกดครั้งเดียว */}
           <Typography id='confirm-dialog-title' variant='h5' sx={{ mb: 1 }}>
-            ยืนยันว่าได้รับสินค้าแล้ว?
+            {order.isServiceShop ? 'ยืนยันว่ารับบริการแล้ว?' : 'ยืนยันว่าได้รับสินค้าแล้ว?'}
           </Typography>
           <Typography variant='body2' color='text.secondary'>
             ยืนยันแล้วจะแจ้งปัญหากับคำสั่งซื้อนี้ไม่ได้อีก — ถ้ายังไม่ได้รับของ อย่าเพิ่งกดยืนยัน

@@ -145,7 +145,7 @@ function CardActionSheet({
         onClick={onClose}
         className="bg-default-900/40 absolute inset-0"
       />
-      <div className="bg-card relative w-full rounded-t-2xl p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+      <div className="bg-card relative w-full rounded-t-2xl p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"> {/* carve-out HR7: safe-area ไม่มี token — ชีตยึดขอบล่างจอ ต้องบวก inset เองไม่งั้นเนื้อหาไปนอนใต้ home indicator */}
         {/* carve-out HR7: safe-area ไม่มี token ในธีม */}
         <p className="text-default-500 mb-2 px-2 text-xs">{who}</p>
         <Link

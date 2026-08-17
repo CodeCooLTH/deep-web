@@ -320,7 +320,7 @@ export default function StartWalkInSheet({
           )}
         </div>
 
-        <div className="border-default-200 shrink-0 border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="border-default-200 shrink-0 border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"> {/* carve-out HR7: safe-area ไม่มี token ในธีม Paces — แถบปุ่มยึดขอบจอจึงต้องรับ inset เอง */}
           {/* carve-out HR7: safe-area ไม่มี token ในธีม Paces */}
           <div className="flex gap-3">
             <button

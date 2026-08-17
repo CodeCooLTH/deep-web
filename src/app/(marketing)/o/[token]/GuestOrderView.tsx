@@ -28,6 +28,7 @@ import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFoot
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { resolveVerifyBadge } from '@/lib/verify-badge'
 import AuthPingLink from './AuthPingLink'
+import SectionTitle from './SectionTitle'
 import { formatOrderNo } from '@/lib/order-no'
 import { formatDateTimeTH, formatTimeHM, formatTimeRangeHM, formatWeekdayDateTH } from '@/lib/format-date'
 import { ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
@@ -41,24 +42,6 @@ import ShopEvidence from './ShopEvidence'
 import TrustPill, { VERIFIED_BG, VERIFIED_INK } from './TrustPill'
 import type { GuestOrderData } from './guest-order-data'
 
-/**
- * SectionTitle — หัวข้อของแต่ละบล็อก
- *
- * 🛑 แทน `variant='overline' color='text.disabled'` ที่เคยใช้ 4 จุด ด้วยเหตุผล 2 ข้อ:
- *   1. `text.disabled` = หมึกที่ opacity 0.4 → **2.30:1** บนพื้นขาว ตก AA (เกณฑ์ 4.5:1)
- *      ซึ่งเจ็บเป็นพิเศษเพราะ PRODUCT.md ผูกกลุ่มผู้ใช้ไว้กับผู้สูงวัย/digital-literacy ต่ำ
- *   2. DESIGN.md เขียน "eyebrow ตัวพิมพ์เล็กจิ๋วเหนือทุก section" ไว้ใน **anti-reference ตรงตัว**
- *      และกำกับ Overline ว่า "ใช้น้อยมาก"
- * เป็น <h2> จริงด้วย ไม่ใช่ <span> — ทั้งหน้าเดิมไม่มี heading ให้ screen reader กระโดดตามเลย
- */
-const SectionTitle = ({ children }: { children: React.ReactNode }) => (
-  <Typography
-    component='h2'
-    sx={{ m: 0, mb: 2, fontSize: '0.9375rem', fontWeight: 500, color: 'text.primary', lineHeight: 1.5 }}
-  >
-    {children}
-  </Typography>
-)
 
 /**
  * เมตริกของแถบ CTA ล่างจอ — **ที่ว่างที่หน้าเว้นไว้ต้องคำนวณจากตัวเลขชุดเดียวกับที่แถบใช้จริง**
