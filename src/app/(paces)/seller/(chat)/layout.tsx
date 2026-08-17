@@ -30,8 +30,7 @@
  * bg-card (โทเคน Paces — ขาวโหมด light, การ์ดเข้มโหมด dark ตาม theme/paces/.../config/_root.css)
  * ไม่ hardcode ขาว ตามที่สั่ง "ต้องถูกทั้ง light และ dark mode"
  */
-import { authOptions } from '@/lib/auth'
-import { getServerSession } from 'next-auth'
+import { getCachedSession } from '@/lib/session-cache'
 import { redirect } from 'next/navigation'
 import { ChatSearchProvider } from '@/context/useChatSearchContext'
 import { resolveChatScope } from '@/lib/chat-scope'
@@ -66,7 +65,7 @@ const toCatalog = (p: any): CatalogProduct => ({
 })
 
 export default async function ChatLayout({ children }: { children: React.ReactNode }) {
-  const session = await getServerSession(authOptions)
+  const session = await getCachedSession()
   const user = (session as any)?.user as { id: string; activeShopId?: string | null } | undefined
   if (!session || !user?.id) redirect('/auth/sign-in')
 

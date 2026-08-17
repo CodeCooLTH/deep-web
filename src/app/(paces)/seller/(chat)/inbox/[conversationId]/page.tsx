@@ -44,8 +44,7 @@
  */
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getCachedSession } from '@/lib/session-cache'
 import { prisma } from '@/lib/prisma'
 import { shouldHidePayments } from '@/lib/app-shell-server'
 import { resolveChatScope } from '@/lib/chat-scope'
@@ -89,7 +88,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
    */
   const { mark, marks: timingMarks } = createRscTimer()
 
-  const session = await getServerSession(authOptions)
+  const session = await getCachedSession()
   mark('auth')
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
