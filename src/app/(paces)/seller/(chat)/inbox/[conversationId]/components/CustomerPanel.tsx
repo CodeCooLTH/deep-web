@@ -62,7 +62,7 @@ import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 import { customerBadges, type CustomerBehavior } from '@/lib/customer-behavior'
-import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
+import CustomerCrmSection, { type ConversationCrm, type CrmSection } from './CustomerCrmSection'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import OrderCardView from '../../../_components/OrderCardView'
 import AppointmentSummarySheet from '../../../_components/AppointmentSummarySheet'
@@ -101,11 +101,16 @@ export type CustomerPanelOrder = {
    *  status/carrierStatus/courierCode เพิ่ม 2026-08-05 (Order Progress): ให้ stepper 4 ขั้น +
    *  โลโก้ขนส่ง render ได้จาก data ที่มากับลิสต์ ไม่ต้องยิง API ต่อใบ */
   shipment?: {
+    /** OrderShipment.id — ใช้ดึงไทม์ไลน์ traces (มีเฉพาะพัสดุที่ผ่าน iShip) */
+    id?: string
     trackingNo: string | null
     courierName: string | null
     courierCode: string | null
     status: string
     carrierStatus: string | null
+    /** ข้อความสถานะล่าสุดจากขนส่ง + เวลาที่ขนส่งแจ้ง (denormalize จาก ShipmentEvent ล่าสุด) */
+    carrierStatusText?: string | null
+    carrierStatusAt?: string | null
   } | null
   /** วิธีชำระ + เวลากดรับเงิน COD — ให้ deriveShippingStage แยก AWAITING_COD ได้ (Order Progress) */
   paymentMethod?: string | null
@@ -220,18 +225,94 @@ export const VERTICAL_CTA: Record<ShopVertical, VerticalCta> = {
   },
 }
 
-/** แถวสถิติลูกค้า — label ซ้าย ค่าขวา (ตามภาพที่ user ส่ง 2026-07-24) เส้นคั่นบาง ๆ ระหว่างแถว
- *  ค่าใช้ font-semibold ให้เด่นกว่า label (ค่าคือสิ่งที่ผู้ขายอยากอ่าน) — token Paces ล้วน (HR7) */
-function StatRow({ label, value }: { label: string; value: string }) {
+/**
+ * StatTiles — สถิติลูกค้าแบบการ์ด 3 ช่อง (แบบ V1 · user เลือกจากม็อกอัพ 2026-08-18)
+ *
+ * เดิมเป็น `StatRow` 3 แถว label:value หน้าตาเหมือนกันเป๊ะ วางซ้อนกันในแท็บ "ข้อมูล"
+ * ⇒ ไม่มีลำดับชั้น กวาดตาแล้วไม่เกาะ และต้องเปิดแท็บถูกก่อนถึงจะเห็น
+ * ย้ายขึ้นหัวแผงเป็นการ์ด **ตัวเลขนำ ป้ายรอง** ⇒ ตอบ "ลูกค้าคนนี้เป็นใคร" ได้ทันทีที่เปิด
+ * โดยไม่ต้องกดอะไรเลย ซึ่งเป็นทั้งหมดของ V1
+ */
+function StatTiles({ orderCount, totalSpent, since }: { orderCount: string; totalSpent: string; since: string }) {
+  const tiles: [string, string][] = [
+    [orderCount, 'ออเดอร์'],
+    [totalSpent, 'ยอดซื้อรวม'],
+    [since, 'เป็นลูกค้ามา'],
+  ]
   return (
-    <div className="flex items-center justify-between border-b border-default-200 py-2.5 text-sm last:border-0">
-      <span className="text-default-700">{label}</span>
-      <span className="text-default-900 font-semibold">{value}</span>
+    <div className="grid grid-cols-3 gap-2">
+      {tiles.map(([v, k]) => (
+        <div key={k} className="bg-default-100 rounded-lg px-2 py-2.5 text-center">
+          <span className="text-default-900 block truncate text-sm font-bold" title={v}>
+            {v}
+          </span>
+          <span className="text-default-700 text-2xs block">{k}</span>
+        </div>
+      ))}
     </div>
   )
 }
 
-export type Tab = 'customer' | 'orders' | 'files' | 'note'
+/**
+ * Fold — กล่องยุบได้ที่ใช้แทนแถบแท็บ (แบบ V1)
+ *
+ * ทำไมทิ้งแท็บ: ของที่ผู้ขายดูบ่อยที่สุดเคยกระจายอยู่ 3 แท็บ (เบอร์อยู่ CRM · ยอดอยู่สถิติ ·
+ * ออเดอร์อยู่อีกแท็บ) ⇒ ตอบคำถามเดียวต้องเดิน 3 ที่ และ "ของอยู่หลังแท็บไหน" เป็นสิ่งที่ต้องจำ
+ * ส่วนกล่องยุบเรียงต่อกันเลื่อนเจอได้หมดโดยไม่ต้องเดา
+ *
+ * 🛑 **ซ่อนด้วย `hidden` ห้าม conditional render** — ข้อจำกัดเดิมของแท็บที่ต้องรักษาไว้ทุกตัวอักษร:
+ * ถ้า unmount `CustomerCrmSection` โน้ตที่พิมพ์ค้างไว้จะหายเงียบ ๆ + re-fetch + skeleton กระพริบ
+ * ทุกครั้งที่ยุบ/กาง (critique P0-1 ที่เคยแก้ไปแล้ว — ห้ามทำพังซ้ำ)
+ */
+function Fold({
+  title,
+  icon,
+  badge,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string
+  icon: string
+  badge?: string
+  open: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  const id = useId()
+  return (
+    <div className="border-default-200 border-b last:border-b-0">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={id}
+        className="flex min-h-11 w-full items-center gap-2 py-2.5 text-start"
+      >
+        <Icon icon={icon} className="text-default-400 shrink-0 text-base" aria-hidden="true" />
+        <span className="text-default-800 min-w-0 flex-1 truncate text-sm font-semibold">{title}</span>
+        {badge && <span className="badge bg-default-100 text-default-700 text-2xs shrink-0">{badge}</span>}
+        <Icon
+          icon={open ? 'chevron-up' : 'chevron-down'}
+          className="text-default-400 shrink-0 text-base"
+          aria-hidden="true"
+        />
+      </button>
+      {/* hidden ไม่ใช่ {open && …} — ดูเหตุผลในหัว component */}
+      <div id={id} className={open ? 'pb-3' : 'hidden'}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * คีย์ของ "กล่องยุบได้" ในแผงข้อมูลลูกค้า — ชื่อ type ยังเป็น `Tab` เพราะเป็น prop สาธารณะที่
+ * ผู้เรียกหลายที่ส่งเข้ามา (`initialTab`) การเปลี่ยนชื่อจะลามไปทั้งสาย โดยไม่ได้อะไรกลับมา
+ * 🛑 `'meta'` เป็นกล่องที่ **ไม่มีทางเข้าจากภายนอก** — ไม่มีปุ่มไหนส่งค่านี้มาเป็น `initialTab`
+ * มีไว้ให้ `openFolds` ใช้เท่านั้น
+ */
+export type Tab = 'customer' | 'orders' | 'files' | 'note' | 'meta' | 'tags' | 'address'
 
 /**
  * คำนามของแท็บที่สอง ผันตาม vertical — ดึงจากคีย์ที่มีอยู่แล้วใน dictionary ไม่ตั้งคำชุดใหม่
@@ -244,22 +325,6 @@ export function resolveTabNoun(t: Dictionary, vertical: ShopVertical): string {
 }
 
 /** แท็บของ right panel — เคยเป็นค่าคงที่ระดับ module จึงค้างเป็นไทยตลอดไป (feature 00047) */
-function buildTabs(t: Dictionary, vertical: ShopVertical): { key: Tab; label: string; icon: string }[] {
-  return [
-    { key: 'customer', label: t.inbox.customerPanel.tabCustomer, icon: 'user-circle' },
-    { key: 'orders', label: resolveTabNoun(t, vertical), icon: 'shopping-cart' },
-    /**
-     * แท็บคลังไฟล์ (2026-08-14) — user: "เวลาอยู่ใน Mobile จะเข้าไปดูไฟล์ที่ใช้ร่วมกันยากมาก"
-     * เดิมคลังไฟล์อยู่ล่างสุดของแท็บ 'customer' ⇒ ทางไปไฟล์บนมือถือคือ 4 ชั้น
-     *
-     * 🛑 คำบนแท็บสั้นกว่าหัวข้อในตัว section โดยตั้งใจ ("ไฟล์" vs "คลังไฟล์") — แผงกว้าง 384px
-     * มี 4 แท็บ ใช้คำเต็มแล้วแถบตกบรรทัด (user เจอเองบน prod 2026-08-14). เก็บเป็นคีย์แยกใน
-     * `customerPanel.tab*` ซึ่งเป็นกลุ่มของ "คำบนแถบแท็บ" ทั้งชุด ไม่ใช่คีย์ลอยที่ไม่มีใครรู้ที่มา
-     */
-    { key: 'files', label: t.inbox.customerPanel.tabFiles, icon: 'folder' },
-    { key: 'note', label: t.inbox.customerPanel.tabNote, icon: 'notes' },
-  ]
-}
 
 
 /** การ์ดออเดอร์ 1 ใบ (user request 2026-07-24: ข้อมูลเบื้องต้น = ชื่อสินค้า/จำนวนรายการ/ยอด/สถานะ)
@@ -752,14 +817,46 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
    * ใหม่ทุกครั้งที่เปิด ⇒ ปุ่ม "คลังไฟล์" ในหัวเธรดเปิดมาเจอไฟล์ทันที ส่วนเมนู ⋯ เปิดมาเจอข้อมูลลูกค้า
    * ชนะ `?panel=orders` เพราะเป็นเจตนาที่เพิ่งกดเดี๋ยวนี้ ส่วน query param คือของที่ค้างอยู่ใน URL
    */
-  const [tab, setTab] = useState<Tab>(initialTab ?? (wantOrders ? 'orders' : 'customer'))
+  /**
+   * 🛑 เลิกใช้แท็บแล้ว (V1 · user เลือกจากม็อกอัพ 2026-08-18) — state ตัวนี้กลายเป็น
+   * "กล่องไหนกางอยู่บ้าง" ซึ่งเป็น **เซ็ต** ไม่ใช่ค่าเดียว เพราะกล่องหลายใบกางพร้อมกันได้
+   *
+   * `initialTab` / `?panel=orders` ยังทำงานเหมือนเดิมทุกประการ เปลี่ยนแค่ความหมายปลายทาง
+   * จาก "เปิดแท็บนี้" เป็น "กางกล่องนี้ให้" — ผู้เรียก (ชีตมือถือ · เมนู ⋯ · ไอคอนตะกร้าใน inbox)
+   * ไม่ต้องแก้อะไรเลย
+   *
+   * ไม่มีเจตนาเจาะจง → กาง **ข้อมูลลูกค้า + ออเดอร์** ซึ่งเป็นสองอย่างที่ผู้ขายเปิดแผงนี้มาดู
+   * เกือบทุกครั้ง (ไฟล์/โน้ตคือของที่ "ไปหาเมื่อต้องการ") — ทั้งหมดเลื่อนเจอได้โดยไม่ต้องเดาว่า
+   * ของอยู่หลังแท็บไหน ซึ่งเป็นทั้งหมดของปัญหาที่ V1 มาแก้
+   */
+  /**
+   * 🛑 `'customer'` **ไม่นับเป็นเจตนาเจาะจง** — มันคือประตูทั่วไปของแผงนี้ (ปุ่มรูปคนบนหัวเธรด
+   * และเมนู ⋯ ส่งค่านี้มาแปลว่า "เปิดแผง" เฉย ๆ ไม่ได้แปลว่า "ขอดูเฉพาะข้อมูลติดต่อ")
+   * ถ้านับเป็นเจตนา กล่องคำสั่งซื้อจะยุบทุกครั้งที่เข้าทางมือถือ = ยังต้องกดอีกทีถึงจะเห็นออเดอร์
+   * ซึ่งคือปัญหาเดิมของแท็บที่ V1 มาแก้ แค่เปลี่ยนหน้าตา
+   *
+   * เจตนาที่นับจริงมี 3 ทาง: ปุ่มคลังไฟล์ (`files`) · โน้ต (`note`) · ไอคอนตะกร้าใน inbox
+   * และ `?panel=orders` (`orders`)
+   */
+  const requested: Tab | null =
+    (initialTab && initialTab !== 'customer' ? initialTab : null) ?? (wantOrders ? 'orders' : null)
+  const [openFolds, setOpenFolds] = useState<Set<Tab>>(
+    () => new Set<Tab>(requested ? [requested] : ['customer', 'orders']),
+  )
   useEffect(() => {
-    setTab(initialTab ?? (wantOrders ? 'orders' : 'customer'))
-  }, [wantOrders, initialTab])
+    setOpenFolds(new Set<Tab>(requested ? [requested] : ['customer', 'orders']))
+  }, [requested])
+  const toggleFold = (k: Tab) =>
+    setOpenFolds((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(k)) next.add(k)
+      return next
+    })
+  /** จำนวนไฟล์ในคลัง — ถูกส่งขึ้นมาจาก section ลูก เพื่อให้เห็นได้ตอนกล่อง "คลังไฟล์" ยุบอยู่ */
+  const [libraryTotal, setLibraryTotal] = useState(0)
   const cta = VERTICAL_CTA[data.vertical]
   /** คำนามที่ผันตาม vertical — ใช้แทน `cta.tabLabel` ทุกจุดที่เป็นข้อความบนจอ */
   const tabNoun = resolveTabNoun(t, data.vertical)
-  const TABS = buildTabs(t, data.vertical)
   /**
    * ป้ายพฤติกรรมลูกค้า — คำนามผันตาม vertical ด้วย `resolveOrderVocab().noun`
    *
@@ -787,13 +884,14 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
       pageAvatarUrl: data.channelAvatarUrl,
     })
   // orderHref ย้ายไป module-level (ใช้ใน OrderCard) — CustomerPanelBody ไม่อ้างตรง ๆ แล้ว
-  const uid = useId() // prefix id ของ tab/panel — desktop panel กับ sheet มือถืออยู่ใน DOM พร้อมกันได้
 
   // ── CRM: fetch ครั้งเดียวที่นี่ แล้วส่งลงทั้งแท็บ "ข้อมูลลูกค้า" และ "โน้ต" ──
   // (เดิมแต่ละแท็บ fetch เอง + unmount ทุกครั้งที่สลับ → draft หาย, skeleton กระพริบ, fail แล้วเงียบ)
   const [crm, setCrm] = useState<ConversationCrm | null>(null)
   const [crmLoading, setCrmLoading] = useState(true)
   const [crmFailed, setCrmFailed] = useState(false)
+  /** โหมดแก้ไข CRM ถูกยกมาไว้ที่นี่ — 3 กล่องที่ซอยตาม V1 ต้องเห็นสถานะเดียวกัน (ดู `crmEditSlot`) */
+  const [crmEditing, setCrmEditing] = useState(false)
 
   const loadCrm = useCallback(async () => {
     setCrmLoading(true)
@@ -817,12 +915,43 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
   }, [loadCrm])
 
   /** เนื้อหา CRM ของแต่ละแท็บ — กันเคส "แท็บว่างเปล่าสนิท" ตอนโหลดไม่สำเร็จ (critique P0-1) */
-  const crmSlot = (variant: 'profile' | 'note') => {
-    if (crmLoading) return <div className="bg-default-100 h-40 animate-pulse rounded-lg" role="status" aria-label="กำลังโหลดข้อมูลลูกค้า" />
+  const crmSlot = (variant: 'profile' | 'note', section?: CrmSection) => {
+    /**
+     * 🛑 CRM ก้อนเดียวถูก render 3 กล่อง (V1) ⇒ skeleton/ข้อความ error จะซ้ำ 3 ชุดเรียงกันถ้าไม่กั้น
+     * ทั้งที่มันคือเหตุการณ์เดียว. ให้ **กล่องแรกของชุด ('contact') เป็นคนพูด** กล่องที่เหลือเงียบ
+     * — ผู้ขายที่กางครบ 3 กล่องจะเห็นคำอธิบายครั้งเดียวพร้อมปุ่มลองใหม่ปุ่มเดียว ไม่ใช่ 3 ปุ่มที่ทำงาน
+     * เหมือนกันเป๊ะ (โหลดสำเร็จแล้วทั้ง 3 กล่องมีข้อมูลพร้อมกันอยู่ดี เพราะ fetch ครั้งเดียวที่ parent)
+     */
+    const speaks = !section || section === 'contact'
+    if (crmLoading)
+      return speaks ? (
+        <div className="bg-default-100 h-40 animate-pulse rounded-lg" role="status" aria-label="กำลังโหลดข้อมูลลูกค้า" />
+      ) : null
     if (crmFailed || !crm)
-      return (
-        <div className="space-y-3 py-2 text-center">
-          <p className="text-default-700 mb-0 text-sm">โหลดข้อมูลลูกค้าไม่สำเร็จ</p>
+      return !speaks ? null : (
+        /**
+         * 🛑 คำต้องบอก "อะไรล้ม" ให้ตรงขอบเขตจริง — เดิมเขียนว่า "โหลดข้อมูลลูกค้าไม่สำเร็จ"
+         * ซึ่งกว้างเกินไป: สิ่งที่ล้มคือ **เฉพาะ CRM ที่ร้านกรอกเอง** (แท็ก/สถานะ/ที่อยู่/โน้ต)
+         * ส่วนสถิติที่อยู่ใต้ข้อความนี้ (จำนวนออเดอร์ · ยอดซื้อ · เป็นลูกค้ามา · การเชื่อมกับลูกค้า)
+         * มาจาก server prop คนละเส้นทาง **ถูกต้องเสมอ** ⇒ ผู้ขายอ่านคำเดิมแล้วแยกไม่ออกว่า
+         * ตัวเลขไหนเชื่อได้ ซึ่งอันตรายกว่าไม่มีตัวเลขเลย (partial-data-must-be-labeled-or-filled.md)
+         *
+         * แยกคำตามแท็บเพราะเนื้อหาที่หายไปคนละชุด: แท็บข้อมูลมี 5 ฟิลด์ + มีสถิติอยู่ข้างล่าง
+         * ส่วนแท็บโน้ตมีแค่โน้ตและไม่มีอะไรต่อท้าย จึงไม่ต้องมีประโยคปลอบใจ
+         *
+         * ไม่บอก "เพราะอะไร" เพราะระบบไม่รู้จริง (เน็ตหลุด / 400 / 500 แยกไม่ออกจากตรงนี้)
+         * role="status" เพื่อให้ screen reader ประกาศ — ของเดิมเป็น <p> เปล่า ผู้ใช้ที่ใช้
+         * โปรแกรมอ่านหน้าจอจะไม่รู้เลยว่าโหลดล้ม (ตัว skeleton มี role="status" อยู่แล้ว)
+         */
+        <div className="space-y-3 py-2 text-center" role="status">
+          <p className="text-default-700 mb-0 text-sm">
+            {variant === 'note' ? 'โหลดโน้ตไม่สำเร็จ' : 'โหลดแท็ก สถานะการขาย และที่อยู่ไม่สำเร็จ'}
+          </p>
+          {/* 🛑 "ด้านบน" ไม่ใช่ "ด้านล่าง" — การ์ดสถิติย้ายขึ้นไปอยู่หัวแผงตั้งแต่ V1 (2026-08-18)
+              คำเดิมชี้ผิดทิศทันทีที่ย้าย และไม่มี gate ไหนจับได้เพราะมันเป็นสตริงที่ถูกไวยากรณ์ */}
+          {variant !== 'note' && (
+            <p className="text-default-700 mb-0 text-xs">ตัวเลขด้านบนไม่ได้รับผลกระทบ</p>
+          )}
           <button type="button" onClick={loadCrm} className="btn border-default-300 min-h-11">
             <Icon icon="refresh" className="me-1" /> ลองใหม่
           </button>
@@ -832,237 +961,203 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
       <CustomerCrmSection
         conversationId={data.conversationId}
         variant={variant}
+        section={section}
+        onRequestEdit={section ? () => setCrmEditing(true) : undefined}
         crm={crm}
         onSaved={setCrm}
       />
     )
   }
 
-  /** arrow-key navigation ของ tablist ตาม ARIA tabs pattern (critique P2 — เดิมประกาศ role ไว้
-   *  แต่ไม่มี keyboard support และไม่มี roving tabIndex) */
-  const onTabKeyDown = (e: React.KeyboardEvent) => {
-    const i = TABS.findIndex((x) => x.key === tab)
-    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-      e.preventDefault()
-      const next = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length]!
-      setTab(next.key)
-      document.getElementById(`${uid}-tab-${next.key}`)?.focus()
-    }
+  /**
+   * ฟอร์มแก้ไข CRM — ตัวเดียวสำหรับทั้ง 3 กล่อง (ติดต่อ · แท็กและสถานะ · ที่อยู่)
+   * user เคาะ 2026-08-18: "ให้ทุกกล่องมีปุ่มแก้ไขเปิดฟอร์มเดียวกัน"
+   *
+   * 🛑 ตอนแก้ไข **ไม่ render 3 กล่องเดิมเลย** ไม่ใช่เปิดฟอร์มซ้อนในกล่องที่กด — ไม่งั้นที่อยู่
+   * (ฯลฯ) จะโผล่ 2 ที่พร้อมกัน: ช่องกรอกในฟอร์ม กับแถวอ่านอย่างเดียวในอีกกล่อง ⇒ ผู้ขายไม่รู้ว่า
+   * อันไหนคือค่าที่กำลังจะถูกบันทึก
+   *
+   * instance นี้ mount ใหม่ตอนเข้าโหมดแก้ไข → draft ถูกเติมจาก `crm` สด ๆ เสมอ และเมื่ออยู่ใน
+   * `Fold` (ซ่อนด้วย `hidden` ไม่ใช่ unmount) ผู้ขายจะยุบ/กางกล่องอื่นระหว่างพิมพ์ได้โดยไม่เสีย draft
+   */
+  const crmEditSlot = () => {
+    if (!crm) return null
+    return (
+      <CustomerCrmSection
+        conversationId={data.conversationId}
+        variant="profile"
+        forceEdit
+        onExitEdit={() => setCrmEditing(false)}
+        crm={crm}
+        onSaved={setCrm}
+      />
+    )
   }
 
   return (
     <>
       {/* p-4 + gap-3 ให้เท่ากับ .card-body ของ Paces — user feedback บน prod ว่า padding เดิม
-          (px-4 py-3) อึดอัด หัวการ์ดชิดขอบเกินไป */}
-      <div className="flex items-center gap-3 border-b border-default-200 border-dashed p-4">
+          (px-4 py-3) อึดอัด หัวการ์ดชิดขอบเกินไป
+          items-start ไม่ใช่ items-center: แถวชิปใต้ชื่อตกบรรทัดได้ (ป้ายพฤติกรรมมาอยู่แถวเดียวกับ
+          ช่องทางแล้ว) ถ้ายังจัดกลางแนวตั้ง รูปโปรไฟล์จะลอยไปอยู่กลางบล็อกที่สูงไม่เท่ากันในแต่ละเธรด */}
+      <div className="flex items-start gap-3 border-b border-default-200 border-dashed p-4">
         <PanelAvatar avatar={data.avatar} name={data.contactName} />
         <div className="min-w-0">
           <p className="text-default-900 mb-1 truncate text-sm font-semibold">{data.contactName}</p>
-          <ChannelBadge channel={data.channel} label={data.channelName} />
+          {/**
+           * ป้ายพฤติกรรมลูกค้า (user สั่ง 2026-08-11 "เตือน seller ไว้ว่าลูกค้าคนนี้พฤติกรรมเป็นอย่างไร")
+           * มาอยู่แถวเดียวกับชิปช่องทาง (user สั่ง 2026-08-18 "หาที่ไว้ได้ไหม")
+           *
+           * เดิมกินแถบเต็มความกว้างของตัวเองพร้อมเส้นประอีกเส้น เพื่อวางชิปใบเดียวขนาด 2 นิ้วมือ
+           * ⇒ จ่ายพื้นที่แนวตั้งไปหนึ่งแถบเต็มให้ข้อมูลบรรทัดเดียว บนชีตมือถือที่สูงจำกัด
+           * ทั้งสองอย่างเป็น "คุณสมบัติของคนคนนี้" เหมือนกัน (มาจากช่องทางไหน · เป็นลูกค้าแบบไหน)
+           * อยู่แถวเดียวกันจึงอ่านเป็นกลุ่มเดียว ไม่ใช่ของสองชนิดที่บังเอิญวางติดกัน
+           *
+           * 🛑 เหตุผลเดิมที่ห้ามฝังในแท็บ "ข้อมูลลูกค้า" ยังบังคับอยู่ — ตอนนี้แข็งแรงกว่าเดิมด้วยซ้ำ
+           * เพราะกล่องยุบได้ ถ้าอยู่ในกล่องแล้วผู้ขายยุบมันไป ป้ายจะหายทั้งที่กำลังจะตัดสินใจเปิดพัสดุ
+           * ⇒ ต้องอยู่ในหัวแผงซึ่งยุบไม่ได้เท่านั้น
+           *
+           * flex-wrap: ป้ายมีได้หลายใบ + ชื่อเพจยาวได้ ⇒ ตกบรรทัดแทนการดันกล่องกว้างเกินจอ
+           * (docs/conventions/flex-header-truncation.md — `truncate` ที่ชิปช่องทางไม่ได้กันอันนี้)
+           * ไม่มีป้ายสักใบ → ไม่ render อะไรเลย (ค่าเริ่มต้นของระบบคือเงียบ ไม่ใช่ "ไม่มีข้อมูล")
+           */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <ChannelBadge channel={data.channel} label={data.channelName} />
+            {behaviorBadges.map((b) => (
+              <span
+                key={b.key}
+                // role="img" + aria-label: `<span>` เปล่าไม่รองรับ "ชื่อจากผู้เขียน" — ป้ายที่มีแต่
+                // ข้อความก็จริง แต่ไอคอนข้างในต้องไม่ถูกอ่านเป็นอักขระประหลาด (aria-name-requires-supporting-role.md)
+                role="img"
+                aria-label={b.detail ?? b.label}
+                title={b.detail ?? b.label}
+                className={`badge inline-flex max-w-full items-center gap-1 text-2xs ${
+                  b.tone === 'warning' ? 'bg-warning/15 text-warning-ink' : 'bg-info/15 text-info-ink'
+                }`}
+              >
+                <Icon icon={b.icon} className="shrink-0 text-xs" aria-hidden="true" />
+                <span className="truncate">{b.label}</span>
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* ป้ายเตือนพฤติกรรมลูกค้า (user สั่ง 2026-08-11 "เตือน seller ไว้ว่าลูกค้าคนนี้พฤติกรรมเป็นอย่างไร")
-          🛑 อยู่ **นอกแท็บ** โดยตั้งใจ — ฝังในแท็บ "ข้อมูลลูกค้า" แล้วป้ายจะหายทันทีที่ผู้ขายกดดูแท็บ
-          "คำสั่งซื้อ" ซึ่งเป็นแท็บที่ป้ายนี้มีประโยชน์ที่สุด (กำลังจะตัดสินใจว่าจะเปิดพัสดุให้ไหม)
-          ไม่ซ้ำกับแถวสถิติในแท็บ: ที่นั่นเป็นจำนวนออเดอร์/ยอดซื้อ ไม่มีที่ไหนบอก "ตีกลับ/ยกเลิกเอง"
-          ไม่มีป้ายสักใบ → ไม่ render อะไรเลย (ค่าเริ่มต้นของระบบคือเงียบ ไม่ใช่ "ไม่มีข้อมูล") */}
-      {behaviorBadges.length > 0 && (
-        <div className="border-default-200 flex flex-wrap gap-1.5 border-b border-dashed px-4 pb-3">
-          {behaviorBadges.map((b) => (
-            <span
-              key={b.key}
-              // role="img" + aria-label: `<span>` เปล่าไม่รองรับ "ชื่อจากผู้เขียน" — ป้ายที่มีแต่
-              // ข้อความก็จริง แต่ไอคอนข้างในต้องไม่ถูกอ่านเป็นอักขระประหลาด (aria-name-requires-supporting-role.md)
-              role="img"
-              aria-label={b.detail ?? b.label}
-              title={b.detail ?? b.label}
-              className={`badge inline-flex items-center gap-1 text-2xs ${
-                b.tone === 'warning' ? 'bg-warning/15 text-warning-ink' : 'bg-info/15 text-info-ink'
-              }`}
-            >
-              <Icon icon={b.icon} className="text-xs" aria-hidden="true" />
-              {b.label}
-            </span>
-          ))}
+      {/**
+       * การ์ดสถิติ 3 ช่อง — ย้ายขึ้นมาจากกลางแท็บ "ข้อมูล" (V1)
+       *
+       * เดิมเป็น 3 แถว label:value ที่อยู่หลังแท็บ ⇒ คำถามที่ผู้ขายถามบ่อยที่สุดตอนเปิดแผงนี้
+       * ("ลูกค้าคนนี้ซื้อบ่อยแค่ไหน คุ้มไหมที่จะให้ส่วนลด") ต้องกดก่อนถึงจะตอบได้
+       * ตอนนี้ตอบได้ตั้งแต่แผงเปิด โดยไม่ได้เพิ่มข้อมูลใหม่สักตัว — แค่ย้ายที่
+       *
+       * เฉพาะลูกค้าที่ผูกในระบบแล้ว (มี customerStats) — คนที่ยังไม่ผูก กล่อง "ข้อมูลลูกค้า"
+       * มีแถวสถานะการเชื่อมอธิบายอยู่แล้ว
+       */}
+      {data.customerStats && (
+        <div className="border-default-200 border-b border-dashed px-4 pb-3">
+          <StatTiles
+            orderCount={data.customerStats.orderCount.toLocaleString('th-TH')}
+            totalSpent={`฿${Number(data.customerStats.totalSpent).toLocaleString('th-TH')}`}
+            since={relativeTimeTh(new Date(data.customerStats.since).getTime())}
+          />
         </div>
       )}
 
-      {/* แถบสรุป 1 บรรทัดเหนือแท็บถูกย้ายลงไปเป็น "แถวสถิติ" ในแท็บข้อมูลลูกค้าแทน (user สั่ง 2026-07-24
-          ส่งภาพรูปแบบ label-ซ้าย/ค่า-ขวามาให้) — เดิมโชว์ count+total เหนือแท็บ ซึ่งจะซ้ำกับแถวใหม่
-          ถ้าเก็บไว้ทั้งคู่ (ตัวเลขเดียวกันโผล่ 2 ที่ในกรอบ 384px = สิ่งที่ critique เคยเตือน) */}
-
-      {/* tabs — 3 ตัว (user สั่ง 2026-07-23): ข้อมูลลูกค้า / คำสั่งซื้อ|การจอง / โน๊ต พร้อมไอคอน
-          (ไอคอน user เลือกเอง: user-circle / shopping-cart / notes — ไม่ได้เดา ตาม convention
-          docs/conventions/no-emoji-use-icons.md ที่ห้าม emoji และห้ามเดา icon ที่ spec ไม่ระบุ)
-          px-4 ให้ tab แรกเริ่มตรงกับ padding ของหัวการ์ดและเนื้อหา ไม่ชิดขอบซ้าย
-          text-sm + gap-1.5: 3 แท็บพร้อมไอคอนต้องพอดีความกว้าง 384px ของคอลัมน์นี้โดยไม่ตกบรรทัด */}
-      {/* `.nav-tabs` ของ Paces ถูกออกแบบมาให้ฝังใน `.card-header` (สูงคงที่ py-3.75) จึงมี 3 อย่าง
-          ที่พังทันทีเมื่อเอามาใช้เป็นแถบเดี่ยวในการ์ดที่สูงเต็มคอลัมน์ — ต้องล้างทั้งสาม:
-          1) `-my-3.75 -me-3` margin ติดลบ ดันแถบขึ้นจนเส้น border-b ของแท็บ active ไปตกในพื้นที่
-             เนื้อหา (เห็นเป็นเส้นลอยเหนือหัวข้อ) → `my-0 me-0`
-          2) `h-full` (!) — พออยู่ใน flex column ที่มีความสูงจริง แถบแท็บจะยืดกินความสูงทั้งการ์ด
-             ดันแท็บไปลอยกลางจอและดันเนื้อหาตกไปล่างสุด (user เจอจริง 2026-07-23) → `h-auto`
-          3) ไม่มีเส้น rail ของตัวเอง → ใส่ border-b ที่ nav แล้วให้แท็บ active วางทับด้วย -mb-px */}
-      <nav
-        /* 🛑 `flex-nowrap` + `px-2` (2026-08-14): แท็บที่ 4 ทำให้แถบตกบรรทัดบนแผงกว้าง 384px
-            `.nav-tabs` ของ Paces เป็น flex-wrap — และ **flex ตัดสินว่าจะ wrap ไหมจากขนาดเนื้อหา
-            เต็มก่อนหด** (docs/conventions/flex-header-truncation.md) การใส่ truncate/min-w-0
-            อย่างเดียวจึงไม่มีผลเลย ต้องปิด wrap ก่อนกลไกอื่นถึงจะทำงาน
-            user สั่งเองว่า "ไม่อยากให้ slide ได้ด้วย ต้อง fit พอดี" ⇒ ห้ามใส่ overflow-x-auto
-            งบที่ 384px: px-4 นอก 32 → เหลือ 352 · ต่อแท็บ = px-2(16) + ไอคอน 16 + gap 6 + คำ
-            คำสั้น 4 ตัว (ข้อมูล/คำสั่งซื้อ+badge/ไฟล์/โน้ต) รวม ~310px ⇒ เหลือที่ว่าง ไม่ตกบรรทัด */
-        className="nav-tabs border-default-200 my-0 me-0 h-auto flex-nowrap border-b px-4"
-        role="tablist"
-        aria-label={t.inbox.customerInfo}
-      >
-        {TABS.map((tabDef) => (
-          <button
-            key={tabDef.key}
-            type="button"
-            role="tab"
-            id={`${uid}-tab-${tabDef.key}`}
-            aria-selected={tab === tabDef.key}
-            aria-controls={`${uid}-panel-${tabDef.key}`}
-            tabIndex={tab === tabDef.key ? 0 : -1}
-            onKeyDown={onTabKeyDown}
-            onClick={() => setTab(tabDef.key)}
-            className={`nav-link -mb-px inline-flex min-w-0 items-center gap-1.5 px-2 py-3 text-sm ${
-              tab === tabDef.key ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent'
-            }`}
-          >
-            <Icon icon={tabDef.icon} className="shrink-0 text-base" />
-            {/* truncate = ตาข่ายกันเหนียวสำหรับภาษาที่คำยาวกว่านี้ในอนาคต — ไม่ใช่ตัวแก้หลัก
-                (ตัวแก้หลักคือ flex-nowrap ที่ nav + คำสั้นใน dictionary) */}
-            <span className="truncate">{tabDef.label}</span>
-            {/* จำนวนออเดอร์บนแท็บ — เดิมต้องคลิกเข้าไปถึงจะรู้ว่ามี 0 (critique P1-C)
-                ใช้ customerStats (aggregate จริง) แทน summary.count (cap 20) ให้ตรงกับแถวสถิติในแท็บ */}
-            {tabDef.key === 'orders' && (data.customerStats?.orderCount ?? 0) > 0 && (
-              <span className="badge bg-default-100 text-default-700 text-2xs">{data.customerStats!.orderCount}</span>
-            )}
-          </button>
-        ))}
-      </nav>
-
-      {/* min-h-0 + flex-1 + overflow-y-auto: การ์ดสูงเต็มคอลัมน์ (ดู shell ด้านล่าง) แล้วให้ "เนื้อหา"
-          เป็นส่วนที่เลื่อน ไม่ใช่ทั้งการ์ด — หัวการ์ด (ชื่อ+ช่องทาง) กับแถบแท็บจึงค้างอยู่เสมอ
-          เหมือนแผงข้อมูลของแอปแชทจริง. ในโหมด sheet (มือถือ) parent เป็น block + scroll เองอยู่แล้ว
-          flex-1 จึงไม่มีผลและไม่เกิด scroll ซ้อน */}
-      {/* ทุกแท็บ mount ค้างไว้ ซ่อนด้วย `hidden` (ไม่ใช่ conditional render) — ไม่งั้นสลับแท็บแล้ว
-          CustomerCrmSection ถูก unmount: โน้ตที่พิมพ์ค้างหายเงียบ ๆ + re-fetch + skeleton กระพริบ
-          ทุกครั้ง (critique P0-1) */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
-        <div
-          role="tabpanel"
-          id={`${uid}-panel-customer`}
-          aria-labelledby={`${uid}-tab-customer`}
-          className={tab === 'customer' ? 'space-y-4' : 'hidden'}
-        >
-          {/* feature 00018 CRM — แก้ไข tag/สถานะ/เบอร์/ที่อยู่/ชื่อในแชท ต่อผู้ติดต่อ */}
-          {crmSlot('profile')}
-
-          {/* feature 00018 E5 (user request 2026-07-26) — ป้ายกำกับอัตโนมัติจาก Meta แบบ Business
-              Suite: บอกว่าลูกค้าคนนี้มาจากโฆษณาไหน. แยกจาก tag ของ CRM ด้านบนชัดเจนเพราะอันนี้
-              **ระบบเติมให้เอง แก้ไม่ได้** — ไม่มีปุ่ม X เหมือน tag ที่ร้านตั้งเอง */}
-          {data.adReferralId && (
-            <div>
-              <p className="text-default-700 mb-1 text-xs">{t.inbox.customerPanel.adBadgeLabel}</p>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span
-                  className="badge bg-default-100 text-default-700 text-2xs inline-flex max-w-full items-center gap-1"
-                  title={`ad_id.${data.adReferralId}`}
-                >
-                  <Icon icon="brand-meta" className="size-3.5 shrink-0" />
-                  <span className="truncate">ad_id.{data.adReferralId}</span>
-                </span>
-                <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
-                  <Icon icon="brand-meta" className="size-3.5 shrink-0" />
-                  {data.channel === 'INSTAGRAM' ? 'instagram_ads' : 'messenger_ads'}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* สถิติลูกค้า (user สั่ง 2026-07-24) — label-ซ้าย/ค่า-ขวา ตามภาพที่ส่งมา; เฉพาะลูกค้าที่ผูก
-              ในระบบแล้ว (มี customerStats) — คนที่ยังไม่ผูก แถว "การเชื่อมกับลูกค้าในระบบ" ด้านล่าง
-              อธิบายอยู่แล้ว ตัวเลขมาจาก aggregate จริงทั้งหมด (ไม่ใช่ 20 แถวของ list) — show don't tell */}
-          {data.customerStats && (
-            <div>
-              <StatRow label={t.inbox.customerPanel.statOrderCount} value={data.customerStats.orderCount.toLocaleString('th-TH')} />
-              <StatRow
-                label={t.inbox.customerPanel.statTotalSpent}
-                value={`฿${Number(data.customerStats.totalSpent).toLocaleString('th-TH')}`}
-              />
-              <StatRow
-                label={t.inbox.customerPanel.statCustomerSince}
-                value={relativeTimeTh(new Date(data.customerStats.since).getTime())}
-              />
-            </div>
-          )}
-          {/* สถานะการผูกลูกค้า — เดิมเป็นแถว "รหัสลูกค้า #A3F19C22 / —" ซึ่ง (ก) โชว์ id ดิบของ DB
-              ให้แม่ค้า (ข) ขัดกับแถว "เบอร์โทร" ที่อยู่เหนือมัน 40px เพราะเบอร์ที่กรอกใน CRM เก็บที่
-              ExternalContact.phones ซึ่ง *ไม่เกี่ยวกับ* customerId ที่เป็นตัวตัดสินรหัสลูกค้าเลย →
-              กรอกเบอร์ กดบันทึก ได้ toast สำเร็จ แต่รหัสยังเป็น "—" (critique P0-2)
-              ตอนนี้พูดเป็นสถานะภาษาคน + บอกวิธีทำให้เกิดขึ้นจริง; id ยังดูได้จาก title */}
-          <div>
-            <p className="text-default-700 mb-0.5 text-xs">{t.inbox.customerPanel.linkStatusTitle}</p>
-            {data.customer ? (
-              <p
-                className="text-default-800 mb-0 flex items-center gap-1.5 text-sm"
-                title={`รหัสลูกค้า ${data.customer.id}`}
-              >
-                <Icon icon="link" className="text-success text-base" />
-                {t.inbox.customerPanel.linked} · {data.customer.phoneMasked}
-              </p>
-            ) : (
-              <p className="text-default-800 mb-0 text-sm">
-                {fmt(t.inbox.customerPanel.notLinked, { noun: tabNoun })}
-              </p>
-            )}
-          </div>
-
-        </div>
-
+      {/**
+       * เดสก์ท็อป (≥xl): การ์ดสูงเต็มคอลัมน์ แล้วให้ "เนื้อหา" เป็นส่วนที่เลื่อน ไม่ใช่ทั้งการ์ด
+       * — หัวการ์ด (ชื่อ + ช่องทาง + การ์ดสถิติ) จึงค้างอยู่เสมอ เหมือนแผงข้อมูลของแอปแชทจริง
+       *
+       * 🛑 **ต่ำกว่า xl ต้องไม่เป็นกล่องเลื่อน** (`xl:` ทั้งคู่ ไม่ใช่ใส่ลอย ๆ) — user รายงาน
+       * 2026-08-18 ว่า "scroll ไม่ได้" บนชีตมือถือ:
+       *   ในโหมดชีต ตัวที่เลื่อนคือเปลือกชีต (`max-h-[85dvh] overflow-y-auto`) ส่วนกล่องนี้เป็นลูก
+       *   ที่ **สูงเท่าเนื้อหาเสมอ** (parent เป็น block ⇒ `flex-1` ไม่มีผล) ⇒ `scrollHeight === clientHeight`
+       *   = ไม่มีอะไรให้เลื่อน **แต่ยังนับเป็น scroll container อยู่ดี** และ `overscroll-contain`
+       *   สั่งห้าม chaining ⇒ นิ้วที่แตะบริเวณนี้ (ซึ่งกินพื้นที่เกือบทั้งชีต) เลื่อนอะไรไม่ได้เลย
+       *   ทั้งที่เปลือกชีตข้างนอกเลื่อนได้จริง (วัดแล้ว: inner 750/750 · outer 717/987)
+       *
+       * คอมเมนต์เดิมเขียนว่า "โหมด sheet …ไม่เกิด scroll ซ้อน" — จริงแค่ครึ่งเดียว: มันไม่เกิด
+       * scroll *ซ้อน* ก็จริง แต่เกิด scroll container *ที่ว่างเปล่าและกินอินพุต* ซึ่งแย่กว่า
+       * และมองไม่เห็นจากเดสก์ท็อปเลย (ที่นั่นกล่องนี้มีของให้เลื่อนจริง ทุกอย่างจึงทำงานปกติ)
+       */}
+      {/* 🛑 ทุกกล่อง mount ค้างไว้ ซ่อนด้วย `hidden` (ไม่ใช่ conditional render) — กติกาเดิมสมัยเป็น
+          แท็บที่ยังต้องรักษาทุกตัวอักษร: ถ้า unmount `CustomerCrmSection` โน้ตที่พิมพ์ค้างหายเงียบ ๆ
+          + re-fetch + skeleton กระพริบทุกครั้งที่ยุบ/กาง (critique P0-1) — บังคับอยู่ใน `Fold` */}
+      <div className="min-h-0 flex-1 px-4 xl:overflow-y-auto xl:overscroll-contain">
         {/**
-         * แท็บคลังไฟล์ (2026-08-14) — ย้ายออกมาจากล่างสุดของแท็บ 'customer'
+         * 3 กล่อง CRM ตามม็อกอัพ V1 (user เคาะ 2026-08-18) — เดิมเป็นกล่องเดียว "ข้อมูลลูกค้า"
+         * ที่กองทุกฟิลด์รวมกัน ⇒ เบอร์โทรซึ่งเป็นของที่หยิบใช้บ่อยสุดอยู่กลางกอง ต้องกวาดตาหา
          *
-         * เหตุผลเดิมที่วางไว้ล่างสุดยังถูกอยู่ ("ของด้านบนคือสิ่งที่ต้องอ่านก่อนตอบทุกครั้ง ส่วนคลังไฟล์
-         * คือสิ่งที่ไปหาเมื่อต้องการ") — แต่ข้อสรุปนั้นถูกต่อยอดผิดเป็น "จึงต้องเลื่อนหาเอา" ทั้งที่
-         * ทางออกที่ถูกคือ **แยกออกไปเป็นที่ของตัวเองที่ไปถึงได้ตรง ๆ** ไม่ใช่ฝังไว้ท้ายกอง
+         * "ติดต่อ" กางมาตั้งแต่เปิด ส่วนแท็ก/ที่อยู่ยุบไว้ — ไม่ใช่การซ่อน แต่เป็นการบอกลำดับ
+         * ความสำคัญด้วยรูปร่าง: หัวกล่องทั้งสามอ่านได้พร้อมกันในจอเดียว รู้ทันทีว่ามีอะไรอยู่ที่ไหน
          *
-         * 🛑 ต้อง mount ค้างไว้เหมือนแท็บอื่น (ซ่อนด้วย `hidden` ไม่ใช่ conditional render) — ตัวมัน
-         * subscribe `LIBRARY_CHANGED_EVENT` เพื่อรีเฟรชกริดตอนกดเก็บไฟล์จากในเธรด ถ้า unmount
-         * ตามแท็บ สัญญาณจะตกทุกครั้งที่ผู้ขายไม่ได้เปิดแท็บนี้ค้างไว้พอดี
+         * 🛑 ตอน `crmEditing` เป็นจริง กล่องทั้งสามหายไป เหลือกล่องฟอร์มเดียว — ดูเหตุผลที่ `crmEditSlot`
          */}
-        <div
-          role="tabpanel"
-          id={`${uid}-panel-files`}
-          aria-labelledby={`${uid}-tab-files`}
-          className={tab === 'files' ? '' : 'hidden'}
-        >
-          <CustomerFileLibrarySection conversationId={data.conversationId} customerName={data.contactName} />
-        </div>
+        {crmEditing ? (
+          <Fold
+            title={t.inbox.customerPanel.editTitle}
+            icon="pencil"
+            open={openFolds.has('customer')}
+            onToggle={() => toggleFold('customer')}
+          >
+            {crmEditSlot()}
+          </Fold>
+        ) : (
+          <>
+            <Fold
+              title={t.inbox.customerPanel.foldContact}
+              icon="user-circle"
+              open={openFolds.has('customer')}
+              onToggle={() => toggleFold('customer')}
+            >
+              <div className="space-y-4">
+                {crmSlot('profile', 'contact')}
+            {/* สถานะการผูกลูกค้า — เดิมเป็นแถว "รหัสลูกค้า #A3F19C22 / —" ซึ่ง (ก) โชว์ id ดิบของ DB
+                ให้แม่ค้า (ข) ขัดกับแถว "เบอร์โทร" ที่อยู่เหนือมัน 40px เพราะเบอร์ที่กรอกใน CRM เก็บที่
+                ExternalContact.phones ซึ่ง *ไม่เกี่ยวกับ* customerId ที่เป็นตัวตัดสินรหัสลูกค้าเลย →
+                กรอกเบอร์ กดบันทึก ได้ toast สำเร็จ แต่รหัสยังเป็น "—" (critique P0-2)
+                ตอนนี้พูดเป็นสถานะภาษาคน + บอกวิธีทำให้เกิดขึ้นจริง; id ยังดูได้จาก title */}
+            <div>
+              <p className="text-default-700 mb-0.5 text-xs">{t.inbox.customerPanel.linkStatusTitle}</p>
+              {data.customer ? (
+                <p
+                  className="text-default-800 mb-0 flex items-center gap-1.5 text-sm"
+                  title={`รหัสลูกค้า ${data.customer.id}`}
+                >
+                  <Icon icon="link" className="text-success text-base" />
+                  {t.inbox.customerPanel.linked} · {data.customer.phoneMasked}
+                </p>
+              ) : (
+                <p className="text-default-800 mb-0 text-sm">
+                  {fmt(t.inbox.customerPanel.notLinked, { noun: tabNoun })}
+                </p>
+              )}
+            </div>
+              </div>
+            </Fold>
+          </>
+        )}
 
-        {/* แท็บโน้ต — โน้ตภายในร้านต่อผู้ติดต่อ (ลูกค้าไม่เห็น; AI ใช้เป็นบริบทตอนช่วยร่าง) */}
-        <div
-          role="tabpanel"
-          id={`${uid}-panel-note`}
-          aria-labelledby={`${uid}-tab-note`}
-          className={tab === 'note' ? '' : 'hidden'}
+        <Fold
+          title={fmt(t.inbox.customerPanel.listHeading, { noun: tabNoun })}
+          icon="shopping-cart"
+          badge={
+            (data.customerStats?.orderCount ?? 0) > 0 ? String(data.customerStats!.orderCount) : undefined
+          }
+          open={openFolds.has('orders')}
+          onToggle={() => toggleFold('orders')}
         >
-          {crmSlot('note')}
-        </div>
-
-        <div
-          role="tabpanel"
-          id={`${uid}-panel-orders`}
-          aria-labelledby={`${uid}-tab-orders`}
-          className={tab === 'orders' ? '' : 'hidden'}
-        >
-        {/* header ในแท็บ (user request 2026-07-24): "รายการคำสั่งซื้อ" + ปุ่มสร้าง — ปุ่มแสดงเสมอ
-            (ไม่ผูกกับ empty-state) เปิดโมดัลพับได้แทน navigate ออกจากแชท */}
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <p className="text-default-900 mb-0 text-sm font-semibold">{fmt(t.inbox.customerPanel.listHeading, { noun: tabNoun })}</p>
+        {/**
+         * หัวข้อ "รายการคำสั่งซื้อ" ย้ายขึ้นไปเป็นหัวกล่องแล้ว เหลือปุ่มสร้างชิดขวา
+         * ไม่ผูกกับ empty-state (แสดงแม้มีออเดอร์แล้ว) และเปิดโมดัลพับได้แทน navigate ออกจากแชท
+         *
+         * 🛑 `hidden xl:flex` — **มือถือไม่มีปุ่มนี้** (user สั่ง 2026-08-18 "ให้เค้าไปกดข้างนอก")
+         * ต่ำกว่า xl แผงนี้เป็นชีตทับจอ ⇒ ปุ่มสร้างมีอยู่แล้วที่แถบเครื่องมือของห้องแชทซึ่งเป็นที่
+         * ที่ผู้ขายกดจริงตอนกำลังคุย ไม่ต้องเปิดแผงข้อมูลลูกค้าก่อน. ปุ่มซ้ำในชีตจึงเป็นทางที่ยาวกว่า
+         * และกินพื้นที่แนวตั้งที่ชีตมีจำกัดอยู่แล้ว
+         * ซ่อนทั้งกล่องครอบไม่ใช่แค่ตัวปุ่ม — ไม่งั้นเหลือ `div` เปล่ากับ `mb-3` เป็นช่องว่างลอย
+         * xl = breakpoint เดียวกับที่ `page.tsx` สลับแผงนี้ระหว่าง "คอลัมน์ขวา" กับ "ชีต" (isXlUp)
+         */}
+        <div className="mb-3 hidden justify-end xl:flex">
           <button
             type="button"
             onClick={startCreateOrder}
@@ -1084,7 +1179,113 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
             {fmt(t.inbox.customerPanel.notLinkedNoHistory, { noun: tabNoun })}
           </p>
         )}
-        </div>
+        </Fold>
+
+        {/**
+         * แท็ก/ที่อยู่ หายไประหว่างแก้ไข เพราะฟิลด์ของทั้งคู่อยู่ในฟอร์มด้านบนแล้ว
+         * ส่วนกล่องคำสั่งซื้อยังอยู่เสมอ — มันไม่ใช่ของที่ฟอร์มนี้แก้ และเป็นสิ่งที่ผู้ขายมักต้องเหลือบดู
+         * ระหว่างกรอก (กรอกที่อยู่จากออเดอร์ใบก่อน)
+         */}
+        {!crmEditing && (
+          <>
+            <Fold
+              title={t.inbox.customerPanel.foldTags}
+              icon="tag"
+              open={openFolds.has('tags')}
+              onToggle={() => toggleFold('tags')}
+            >
+              {crmSlot('profile', 'tags')}
+            </Fold>
+
+            <Fold
+              title={t.inbox.customerPanel.foldAddress}
+              icon="map-pin"
+              open={openFolds.has('address')}
+              onToggle={() => toggleFold('address')}
+            >
+              {crmSlot('profile', 'address')}
+            </Fold>
+          </>
+        )}
+
+        {/* โน้ตภายในร้านต่อผู้ติดต่อ (ลูกค้าไม่เห็น; AI ใช้เป็นบริบทตอนช่วยร่าง) */}
+        <Fold
+          title={t.inbox.customerPanel.tabNote}
+          icon="notes"
+          open={openFolds.has('note')}
+          onToggle={() => toggleFold('note')}
+        >
+          {crmSlot('note')}
+        </Fold>
+
+
+
+        {/**
+         * คลังไฟล์ (2026-08-14) — ย้ายออกมาจากล่างสุดของแท็บ 'customer'
+         *
+         * เหตุผลเดิมที่วางไว้ล่างสุดยังถูกอยู่ ("ของด้านบนคือสิ่งที่ต้องอ่านก่อนตอบทุกครั้ง ส่วนคลังไฟล์
+         * คือสิ่งที่ไปหาเมื่อต้องการ") — แต่ข้อสรุปนั้นถูกต่อยอดผิดเป็น "จึงต้องเลื่อนหาเอา" ทั้งที่
+         * ทางออกที่ถูกคือ **แยกออกไปเป็นที่ของตัวเองที่ไปถึงได้ตรง ๆ** ไม่ใช่ฝังไว้ท้ายกอง
+         *
+         * 🛑 ต้อง mount ค้างไว้เหมือนแท็บอื่น (ซ่อนด้วย `hidden` ไม่ใช่ conditional render) — ตัวมัน
+         * subscribe `LIBRARY_CHANGED_EVENT` เพื่อรีเฟรชกริดตอนกดเก็บไฟล์จากในเธรด ถ้า unmount
+         * ตามแท็บ สัญญาณจะตกทุกครั้งที่ผู้ขายไม่ได้เปิดแท็บนี้ค้างไว้พอดี
+         */}
+        <Fold
+          title={t.inbox.librarySectionTitle}
+          icon="folder"
+          badge={libraryTotal > 0 ? String(libraryTotal) : undefined}
+          open={openFolds.has('files')}
+          onToggle={() => toggleFold('files')}
+        >
+          {/* หัวข้อในตัว section ถูกปิด — หัวกล่องพูดแทนแล้ว (เหตุผลเดียวกับที่แท็บโน้ตไม่มีหัวข้อซ้ำ
+              ชื่อแท็บ: หัวเรื่อง 2 ชั้นซ้อนกันไม่เพิ่มข้อมูลอะไร) ตัวนับย้ายขึ้นมาเป็น badge ของหัวกล่อง
+              จึงเห็นได้ตอนยุบด้วย ซึ่งเป็นตอนที่มันมีประโยชน์ที่สุด */}
+          <CustomerFileLibrarySection
+            conversationId={data.conversationId}
+            customerName={data.contactName}
+            hideHeading
+            onTotalChange={setLibraryTotal}
+          />
+        </Fold>
+
+
+
+        {/**
+         * ที่มาจาก Meta — ป้ายกำกับที่ระบบเติมให้เอง แก้ไม่ได้ (feature 00018 E5, 2026-07-26)
+         * บอกว่าลูกค้าคนนี้ทักมาจากโฆษณาไหน แยกจากแท็กของ CRM ชัดเจน (อันนั้นร้านตั้งเอง มีปุ่ม X)
+         *
+         * 🛑 ถูกลดชั้นลงมาเป็นกล่องล่างสุด (V1) — เดิมอยู่กลางกล่อง "ข้อมูลลูกค้า" คั่นระหว่าง
+         * ฟอร์ม CRM กับสถานะการเชื่อมลูกค้า ทั้งที่เป็น **ข้อมูลอ้างอิง** ที่แทบไม่ถูกใช้ตัดสินใจ
+         * ตอนกำลังคุย (ตัวเลข ad_id 17 หลักไม่ได้บอกอะไรกับผู้ขายระหว่างพิมพ์ตอบ)
+         * ไม่มี ad referral → ไม่ render กล่องนี้เลย (ไม่ใช่กล่องเปล่าที่กางแล้วว่าง)
+         */}
+        {data.adReferralId && (
+          <Fold
+            title={t.inbox.customerPanel.adBadgeLabel}
+            icon="tag-starred"
+            open={openFolds.has('meta')}
+            onToggle={() => toggleFold('meta')}
+          >
+
+              <div>
+                <p className="text-default-700 mb-1 text-xs">{t.inbox.customerPanel.adBadgeLabel}</p>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span
+                    className="badge bg-default-100 text-default-700 text-2xs inline-flex max-w-full items-center gap-1"
+                    title={`ad_id.${data.adReferralId}`}
+                  >
+                    <Icon icon="brand-meta" className="size-3.5 shrink-0" />
+                    <span className="truncate">ad_id.{data.adReferralId}</span>
+                  </span>
+                  <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
+                    <Icon icon="brand-meta" className="size-3.5 shrink-0" />
+                    {data.channel === 'INSTAGRAM' ? 'instagram_ads' : 'messenger_ads'}
+                  </span>
+                </div>
+              </div>
+          </Fold>
+        )}
       </div>
     </>
   )

@@ -24,13 +24,24 @@ import CustomerFileLibraryModal from './CustomerFileLibraryModal'
 export default function CustomerFileLibrarySection({
   conversationId,
   customerName,
+  hideHeading = false,
+  onTotalChange,
 }: {
   conversationId: string
   customerName: string
+  /** ผู้เรียกมีหัวข้อของตัวเองอยู่แล้ว (หัวกล่องยุบได้ใน CustomerPanel) → ไม่ต้องมีหัวเรื่องซ้อนกัน 2 ชั้น */
+  hideHeading?: boolean
+  /** ส่งจำนวนไฟล์ขึ้นไปให้ผู้เรียกโชว์ตอนกล่องยุบ — ตัวเลขยังเป็นของ section นี้เจ้าเดียว (SSOT ไม่แตก) */
+  onTotalChange?: (n: number) => void
 }) {
   const t = useT()
   const [items, setItems] = useState<LibraryItem[]>([])
   const [total, setTotal] = useState(0)
+  // แจ้งจำนวนขึ้นผู้เรียกใน effect (ไม่ใช่ตอน render / ไม่ใช่ใน fetch handler) — ผู้เรียก setState
+  // ระหว่าง render ของลูกไม่ได้ และ dep เป็นตัวเลขจึงยิงเฉพาะตอนค่าเปลี่ยนจริง
+  useEffect(() => {
+    onTotalChange?.(total)
+  }, [total, onTotalChange])
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const [active, setActive] = useState<LibraryItem | null>(null)
@@ -105,11 +116,13 @@ export default function CustomerFileLibrarySection({
     // ไม่มีเส้นคั่นบน/ระยะห่างบนแล้ว (2026-08-14): ย้ายจาก "ท้ายแท็บข้อมูลลูกค้า" มาเป็นแท็บของ
     // ตัวเอง — เส้นประที่เคยใช้แยกมันออกจากบล็อกเหนือขึ้นไปจึงกลายเป็นเส้นลอยที่ไม่ได้แยกอะไรเลย
     <div>
-      <div className="mb-2.5 flex items-center gap-1.5">
-        <h4 className="text-default-900 text-sm font-semibold">{t.inbox.librarySectionTitle}</h4>
-        {/* badge จำนวน — 0 ไม่ render (แสดง empty state แทน ไม่ใช่ badge "0") */}
-        {total > 0 ? <span className="badge bg-default-100 text-default-700 text-2xs">{total}</span> : null}
-      </div>
+      {!hideHeading && (
+        <div className="mb-2.5 flex items-center gap-1.5">
+          <h4 className="text-default-900 text-sm font-semibold">{t.inbox.librarySectionTitle}</h4>
+          {/* badge จำนวน — 0 ไม่ render (แสดง empty state แทน ไม่ใช่ badge "0") */}
+          {total > 0 ? <span className="badge bg-default-100 text-default-700 text-2xs">{total}</span> : null}
+        </div>
+      )}
 
       {loading && items.length === 0 ? (
         // skeleton แพตเทิร์นเดียวกับ crmSlot ในไฟล์แม่ (CustomerPanel.tsx)

@@ -541,6 +541,10 @@ export const en: Dictionary = {
       /** สั้นกว่าหัวข้อเต็มโดยตั้งใจ — ดูเหตุผลในไฟล์ th.ts */
       tabCustomer: 'Info',
       tabFiles: 'Files',
+      foldContact: 'Contact',
+      foldTags: 'Tags & status',
+      foldAddress: 'Address',
+      editTitle: 'Edit customer',
       statOrderCount: 'Orders',
       statTotalSpent: 'Total spent',
       statCustomerSince: 'Customer for',

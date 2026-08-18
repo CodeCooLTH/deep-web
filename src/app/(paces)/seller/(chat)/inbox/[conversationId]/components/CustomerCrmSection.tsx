@@ -79,6 +79,20 @@ function EditButton({ onClick }: { onClick: () => void }) {
  *  (PATCH เป็น partial อยู่แล้ว — ส่งเฉพาะฟิลด์ของ variant นั้น ฟิลด์ที่ไม่ส่ง = ไม่ถูกแตะ) */
 type CrmVariant = 'profile' | 'note'
 
+/**
+ * `section` — ซอย **โหมดดู** ของ variant 'profile' ออกเป็น 3 กล่องตามม็อกอัพ V1
+ * (user เคาะ 2026-08-18: "ซอยตาม V1 เลย ให้ทุกกล่องมีปุ่มแก้ไขเปิดฟอร์มเดียวกัน")
+ *
+ * 🛑 ซอยเฉพาะ **โหมดดู** เท่านั้น — โหมดแก้ไขยังเป็นฟอร์มเดียวเสมอ เพราะ:
+ *   1) `PATCH /crm` เป็น partial ก็จริง แต่ฟิลด์พวกนี้ผู้ขายมักแก้พร้อมกันในรอบเดียว
+ *      (ได้เบอร์มาพร้อมที่อยู่จากข้อความเดียวของลูกค้า) แยกฟอร์มคือบังคับให้กดบันทึก 3 รอบ
+ *   2) draft state ชุดเดียวกันทั้งหมด แยกฟอร์ม = ต้องมี draft 3 ชุดที่ต้องคอย sync กันเอง
+ * ⇒ ผู้เรียกจึงต้องเลิก render 3 กล่องแล้วเปิดฟอร์มเดียวแทนตอนเข้าโหมดแก้ไข (ดู `forceEdit`)
+ *
+ * `undefined` = ไม่ซอย (แสดงครบทุกฟิลด์) — ท่าเดิมก่อน V1 ที่ยังต้องรองรับ
+ */
+export type CrmSection = 'contact' | 'tags' | 'address'
+
 /** CRM state ถูกยกไปไว้ที่ CustomerPanelBody (parent) แล้ว — เหตุผล (impeccable critique P0-1):
  *  1) เดิม fetch อยู่ในนี้ และ component ถูก unmount ทุกครั้งที่สลับแท็บ → โน้ตที่พิมพ์ค้างหายเงียบ ๆ
  *     + ยิง GET ใหม่ + skeleton กระพริบทุกครั้ง (แม่ค้าเปิดวันละหลายสิบเธรด = กระพริบหลายร้อยครั้ง)
@@ -92,11 +106,25 @@ export type { Crm as ConversationCrm }
 export default function CustomerCrmSection({
   conversationId,
   variant = 'profile',
+  section,
+  forceEdit = false,
+  onRequestEdit,
+  onExitEdit,
   crm,
   onSaved,
 }: {
   conversationId: string
   variant?: CrmVariant
+  /** ซอยโหมดดูเป็นกล่องย่อย (ดู `CrmSection`) — ไม่มีผลกับโหมดแก้ไข */
+  section?: CrmSection
+  /**
+   * เปิดมาเป็นฟอร์มแก้ไขทันที — instance นี้ **mount ใหม่ตอนเข้าโหมดแก้ไข** ⇒ draft ถูกเติมจาก
+   * `crm` ที่ initializer ไม่ต้องผ่าน `startEdit()` และไม่มี draft ค้างจากรอบก่อนหลุดมา
+   */
+  forceEdit?: boolean
+  /** ผู้เรียกคุมโหมดแก้ไขเอง (กล่องซอยตาม V1) — ไม่ส่งมา = component คุมเองแบบเดิม */
+  onRequestEdit?: () => void
+  onExitEdit?: () => void
   crm: Crm
   /** parent เก็บ crm ที่อัปเดตแล้วต่อ (แชร์ระหว่างแท็บ) */
   onSaved: (next: Crm) => void
@@ -105,16 +133,20 @@ export default function CustomerCrmSection({
   const SALES_STATUS_META = salesStatusMeta(t)
   const isNote = variant === 'note'
   const fieldId = useId()
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(forceEdit)
   const [saving, setSaving] = useState(false)
 
-  // draft state (edit mode)
-  const [alias, setAlias] = useState('')
-  const [note, setNote] = useState('')
-  const [address, setAddress] = useState('')
-  const [salesStatus, setSalesStatus] = useState<SalesStatus>('UNSPECIFIED')
-  const [tags, setTags] = useState<string[]>([])
-  const [phones, setPhones] = useState<string[]>([])
+  /** ออกจากโหมดแก้ไข — ผู้เรียกที่คุมเอง (V1) เป็นคนถอด instance นี้ทิ้ง ไม่ใช่ setState ที่นี่ */
+  const leaveEdit = () => (onExitEdit ? onExitEdit() : setEditing(false))
+
+  // draft state (edit mode) — เติมจาก crm ตั้งแต่ initializer เพื่อให้ `forceEdit` ใช้ได้โดยไม่ต้อง
+  // ผ่าน startEdit(); ท่าเดิม (กดดินสอในตัวเอง) ยังเรียก startEdit() เติมทับอีกทีตามปกติ
+  const [alias, setAlias] = useState(crm?.alias ?? '')
+  const [note, setNote] = useState(crm?.note ?? '')
+  const [address, setAddress] = useState(crm?.address ?? '')
+  const [salesStatus, setSalesStatus] = useState<SalesStatus>(crm?.salesStatus ?? 'UNSPECIFIED')
+  const [tags, setTags] = useState<string[]>(crm?.tags ?? [])
+  const [phones, setPhones] = useState<string[]>(crm?.phones ?? [])
 
   function startEdit() {
     if (!crm) return
@@ -158,7 +190,7 @@ export default function CustomerCrmSection({
       }
       const data: Crm = await res.json()
       onSaved(data)
-      setEditing(false)
+      leaveEdit()
       pacesToast.chat.success(isNote ? 'บันทึกโน้ตแล้ว' : 'บันทึกข้อมูลลูกค้าแล้ว')
     } catch {
       pacesToast.chat.error('บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง')
@@ -170,6 +202,7 @@ export default function CustomerCrmSection({
   // ── VIEW MODE ──
   if (!editing) {
     const status = SALES_STATUS_META[crm.salesStatus]
+    const show = (k: CrmSection) => !section || section === k
 
     // แท็บ "โน๊ต" — โน้ตอย่างเดียว (ใช้ได้เฉพาะแชทช่องทางภายนอก เหมือนฟิลด์ CRM อื่น)
     if (isNote) {
@@ -204,40 +237,56 @@ export default function CustomerCrmSection({
       <div className="space-y-3">
         {/* หัวข้อซ้ำชื่อแท็บถูกตัดออก — ดูเหตุผลที่ variant โน้ต */}
         <div className="flex justify-end">
-          <EditButton onClick={startEdit} />
+          <EditButton onClick={onRequestEdit ?? startEdit} />
         </div>
 
-        {crm.alias && <ViewRow label={t.inbox.customerPanel.aliasLabel}>{crm.alias}</ViewRow>}
-        <ViewRow label={t.inbox.customerPanel.realNameLabel}>{crm.realName || <EmptyValue />}</ViewRow>
+        {/* 🛑 `show(...)` = ตัวเดียวที่ตัดสินว่าฟิลด์ไหนอยู่กล่องไหน — ไม่มี section ส่งมา = แสดงครบ
+            (ท่าเดิมก่อน V1 ที่ยังมีผู้เรียกอยู่) เพิ่ม section ใหม่ต้องมาแก้ที่นี่ที่เดียว */}
+        {show('contact') && (
+          <>
+            {crm.alias && <ViewRow label={t.inbox.customerPanel.aliasLabel}>{crm.alias}</ViewRow>}
+            <ViewRow label={t.inbox.customerPanel.realNameLabel}>{crm.realName || <EmptyValue />}</ViewRow>
+          </>
+        )}
 
         {crm.external ? (
           <>
-            <ViewRow label={t.inbox.customerPanel.salesStatusLabel}>
-              <span className={`badge text-2xs ${status.cls}`}>{status.label}</span>
-            </ViewRow>
-            <ViewRow label={t.inbox.tagsLabel}>
-              {crm.tags.length ? (
-                <div className="flex flex-wrap gap-1">
-                  {crm.tags.map((t) => (
-                    <span key={t} className="badge bg-primary/15 text-primary text-xs">{t}</span>
-                  ))}
-                </div>
-              ) : (
-                <EmptyValue />
-              )}
-            </ViewRow>
-            <ViewRow label={t.inbox.customerPanel.phoneLabel}>
-              {crm.phones.length ? (
-                <div className="space-y-0.5">{crm.phones.map((p) => <p key={p} className="mb-0">{p}</p>)}</div>
-              ) : (
-                <EmptyValue />
-              )}
-            </ViewRow>
-            <ViewRow label={t.inbox.customerPanel.addressLabel}>{crm.address || <EmptyValue />}</ViewRow>
+            {show('tags') && (
+              <>
+                <ViewRow label={t.inbox.customerPanel.salesStatusLabel}>
+                  <span className={`badge text-2xs ${status.cls}`}>{status.label}</span>
+                </ViewRow>
+                <ViewRow label={t.inbox.tagsLabel}>
+                  {crm.tags.length ? (
+                    <div className="flex flex-wrap gap-1">
+                      {crm.tags.map((t) => (
+                        <span key={t} className="badge bg-primary/15 text-primary text-xs">{t}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyValue />
+                  )}
+                </ViewRow>
+              </>
+            )}
+            {show('contact') && (
+              <ViewRow label={t.inbox.customerPanel.phoneLabel}>
+                {crm.phones.length ? (
+                  <div className="space-y-0.5">{crm.phones.map((p) => <p key={p} className="mb-0">{p}</p>)}</div>
+                ) : (
+                  <EmptyValue />
+                )}
+              </ViewRow>
+            )}
+            {show('address') && (
+              <ViewRow label={t.inbox.customerPanel.addressLabel}>{crm.address || <EmptyValue />}</ViewRow>
+            )}
             {/* โน้ตย้ายไปแท็บ "โน้ต" แล้ว (user สั่ง 2026-07-23) — ไม่แสดงซ้ำที่นี่ */}
           </>
         ) : (
-          <p className="text-default-700 text-xs">{t.inbox.customerPanel.externalOnlyNotice}</p>
+          /* คำอธิบาย "ใช้ได้เฉพาะช่องทางภายนอก" ขึ้นกล่องเดียวพอ — 3 กล่องพูดประโยคเดียวกัน
+             เรียงต่อกันคือเสียงรบกวน ไม่ใช่ข้อมูลเพิ่ม (กล่องแรกของชุดเป็นคนพูด) */
+          show('contact') && <p className="text-default-700 text-xs">{t.inbox.customerPanel.externalOnlyNotice}</p>
         )}
       </div>
     )
@@ -350,7 +399,7 @@ export default function CustomerCrmSection({
         <button type="button" onClick={save} disabled={saving} className="btn bg-primary text-white hover:bg-primary-hover min-h-11 disabled:opacity-60">
           <Icon icon={saving ? 'loader-2' : 'check'} className={`me-1 ${saving ? 'animate-spin' : ''}`} /> บันทึก
         </button>
-        <button type="button" onClick={() => setEditing(false)} className="btn border-default-300 min-h-11">
+        <button type="button" onClick={leaveEdit} className="btn border-default-300 min-h-11">
           ยกเลิก
         </button>
       </div>
