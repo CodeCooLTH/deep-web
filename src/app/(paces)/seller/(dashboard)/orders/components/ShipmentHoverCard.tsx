@@ -21,20 +21,12 @@ import { Fragment, useCallback, useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import HoverPanel from './HoverPanel'
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
-import { TONE_DOT_SOLID, TONE_DOT_TINT } from '@/components/safepay/iship/tone'
+// ไทม์ไลน์ถูกแยกออกไปเป็น component ใช้ร่วมกับ sheet ในห้องแชท (2026-08-17)
+import ShipmentTraceList, { type TraceEvent } from '@/components/safepay/iship/ShipmentTraceList'
 import { cn } from '@/utils/helpers'
-import { formatDateTimeTH } from '@/lib/format-date'
-import { SHIPMENT_STAGES, describeCarrierStatus } from '@/lib/iship/status'
+import { SHIPMENT_STAGES } from '@/lib/iship/status'
 import type { ShippingStageKey } from '@/lib/order-stage'
 
-/** เหตุการณ์ที่ /api/seller/iship/shipments/[id]/traces คืนมา (รูปเดียวกับ ShippingCard) */
-type TraceEvent = {
-  status: string | null
-  statusText: string | null
-  statusDesc: string | null
-  location: string | null
-  occurredAt: string | null
-}
 
 /** จุดปัจจุบันต่อ stage — ต้องตรงกับ MiniShipmentTimeline เป๊ะ (จอเดียวกันห้ามพูดคนละขั้น) */
 const CURRENT_INDEX: Record<ShippingStageKey, number | null> = {
@@ -235,63 +227,7 @@ export default function ShipmentHoverCard({
             ) : visible.length === 0 ? (
               <p className="text-default-700 mb-0 text-xs">ขนส่งยังไม่บันทึกการเดินทางของพัสดุใบนี้</p>
             ) : (
-              <div>
-                {visible.map((t, i) => {
-                  const meta = describeCarrierStatus(t.status)
-                  const latest = i === 0
-                  const isLast = i === visible.length - 1
-                  return (
-                    <div className="flex gap-x-2.5" key={`${t.occurredAt ?? ''}-${i}`}>
-                      {/* เส้นประเป็น element จริง ไม่ใช่ ::after แบบธีม — ของธีมคำนวณ offset จาก
-                          ขนาดจุดคงที่ พอจุดแถวล่าสุดใหญ่กว่าแถวประวัติ (28 vs 24) เส้นจะไม่ต่อกัน
-                          บทเรียนเดียวกับ ShippingActivity.tsx ที่วัดจริงแล้วได้เส้นสูง 0px */}
-                      <div className="flex shrink-0 flex-col items-center">
-                        <span
-                          className={cn(
-                            'flex shrink-0 items-center justify-center rounded-full',
-                            latest ? 'size-7' : 'size-6',
-                            (latest ? TONE_DOT_SOLID : TONE_DOT_TINT)[meta.tone],
-                          )}
-                        >
-                          <Icon
-                            icon={meta.icon}
-                            className={latest ? 'text-base' : 'text-sm'}
-                            aria-hidden="true"
-                          />
-                        </span>
-                        {!isLast && <span className="border-default-300 w-px flex-1 border-e border-dashed" />}
-                      </div>
-
-                      {/* px-2 เท่ากันทุกแถวเพื่อให้ข้อความเรียงตรงกัน — แถวล่าสุดต่างแค่มีพื้นทินท์
-                          พื้นเป็น default (เทากลาง) ไม่ใช่สี semantic: กรอบนี้แปลว่า "อันนี้คือ
-                          อันล่าสุด" ไม่ได้แปลว่าสถานะดี/ร้าย ความหมายนั้นอยู่ที่สีของจุดแล้ว */}
-                      <div
-                        className={cn(
-                          'min-w-0 flex-1 rounded-lg px-2 py-1',
-                          latest && 'bg-default-50',
-                          !isLast && 'mb-2',
-                        )}
-                      >
-                        <p
-                          className={cn(
-                            'mb-0 text-xs break-words',
-                            latest ? 'text-default-900 font-semibold' : 'text-default-800 font-medium',
-                          )}
-                        >
-                          {t.statusText ?? t.statusDesc ?? meta.text}
-                        </p>
-                        {/* เวลาอยู่บรรทัดที่ 2 ไม่ใช่คอลัมน์ซ้ายแบบธีม — วันที่ไทยเต็ม
-                            "07 ส.ค. 2569 09:58" กินคอลัมน์ ~100px จาก 312px ที่ panel มี
-                            เหลือให้ข้อความสถานะ+สถานที่ไม่พอจนตัดเป็น 3 บรรทัดทุกแถว */}
-                        <p className="text-default-700 mb-0 text-2xs tabular-nums">
-                          {t.occurredAt ? formatDateTimeTH(t.occurredAt) : '—'}
-                          {t.location && <span> · {t.location}</span>}
-                        </p>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+              <ShipmentTraceList traces={visible} />
             )}
           </div>
         )}

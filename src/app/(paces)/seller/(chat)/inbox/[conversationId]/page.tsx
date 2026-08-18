@@ -511,7 +511,19 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
             where: { status: { not: 'CANCELLED' } },
             orderBy: { createdAt: 'desc' },
             take: 1,
-            select: { trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true },
+            // carrierStatusText/At เพิ่ม 2026-08-16: แถบพัสดุตอนกางแสดง "อัปเดตล่าสุดจากขนส่ง"
+            // — เป็นคอลัมน์ denormalize ที่ webhook/poll เขียนไว้แล้ว (ไม่ต้อง join ShipmentEvent
+            // ซึ่งจะกลายเป็น query ต่อใบ) ดู ShipmentEvent ถ้าวันหนึ่งอยากได้ประวัติเต็ม
+            select: {
+              id: true, // ใช้ยิง /api/seller/iship/shipments/[id]/traces จาก sheet ในห้องแชท
+              trackingNo: true,
+              courierName: true,
+              courierCode: true,
+              status: true,
+              carrierStatus: true,
+              carrierStatusText: true,
+              carrierStatusAt: true,
+            },
           },
         },
       })
@@ -547,11 +559,16 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     })),
     shipment: o.shipments[0]
       ? {
+          id: o.shipments[0].id,
           trackingNo: o.shipments[0].trackingNo,
           courierName: o.shipments[0].courierName,
           courierCode: o.shipments[0].courierCode,
           status: o.shipments[0].status,
           carrierStatus: o.shipments[0].carrierStatus,
+          carrierStatusText: o.shipments[0].carrierStatusText,
+          carrierStatusAt: o.shipments[0].carrierStatusAt
+            ? o.shipments[0].carrierStatusAt.toISOString()
+            : null,
         }
       : null,
   }))

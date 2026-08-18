@@ -76,6 +76,11 @@ import ThreadChipStrip, {
   type ThreadStatusItem,
   type ThreadContextItem,
 } from './ThreadChipStrip'
+// แถบปักท้ายเหนือช่องพิมพ์ (แบบ B2 · มือถือเท่านั้น) — ดูเหตุผลของโครงในหัวไฟล์นั้น
+import { ShipmentTailBar, StatusTailBar } from './ThreadTailBars'
+import ChatBottomSheet from './ChatBottomSheet'
+import { courierLogoUrl } from '@/lib/iship/courier'
+import { filterActiveOrders, orderShippingStage, STAGE_CHIP_CLS } from '@/lib/chat-order-progress'
 import BotPausedBanner, { getBotPausedSummary } from './BotPausedBanner'
 import OrderProgressBar, { orderProgressChip } from './OrderProgressBar'
 import { pacesToast } from '@/lib/paces-toast'
@@ -104,7 +109,7 @@ import { deriveLineQuotaCaption } from '@/lib/line/quota-caption'
 import type { LineQuotaLevel } from '@/lib/line/quota'
 import { formatBaht } from '@/lib/format-money'
 import Swal from 'sweetalert2'
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import {
@@ -2238,6 +2243,36 @@ export default function ChatThread({
     ? orderProgressChip({ orders: customerPanelData.orders, vertical: customerPanelData.vertical })
     : null
 
+  /** พัสดุของ "ใบที่แถบพูดถึง" — ใช้ filterActiveOrders ตัวเดียวกับ orderProgressChip เพื่อให้
+   *  โลโก้ขนส่งบนแถบยุบตรงกับเลขออเดอร์ที่เขียนอยู่บนแถบเดียวกันเสมอ (HR16) */
+  const headActiveOrder = customerPanelData ? (filterActiveOrders(customerPanelData.orders)[0] ?? null) : null
+  const headActiveShipment = headActiveOrder?.shipment ?? null
+  /**
+   * โทนของแถบพัสดุ = โทนของ "ขั้น" ที่ SSOT ตัดสิน ไม่ใช่สีคงที่
+   * (PROBLEM=danger · AWAITING_COD=warning · SHIPPING=info · ที่เหลือ=primary)
+   * ร้านคิวงานไม่มีแกนพัสดุ → ปล่อย undefined ให้ ThreadTailBars ใช้ค่าตั้งต้น
+   */
+  const headStageCls =
+    headActiveOrder && customerPanelData?.vertical !== 'SERVICE_QUEUE'
+      ? (STAGE_CHIP_CLS[orderShippingStage(headActiveOrder) as keyof typeof STAGE_CHIP_CLS] ?? undefined)
+      : undefined
+
+  /**
+   * ═══ มติ D-ORIGIN-1 (user สั่ง 2026-08-16) ═══
+   * "reply comment, reply ads ใช้แบบนี้เหมือนเดิมครับ ถ้าอันไหนล่าสุดให้แสดงแค่อันเดียวครับ"
+   *
+   * บนมือถือ ที่มาของแชทแสดงเป็น **การ์ดเต็มแบบเดิม** (`detail` ก้อนเดียวกับที่ชิปกางออกมา
+   * ไม่ได้ออกแบบใหม่) และถ้ามีทั้งคอมเมนต์และโฆษณา ให้เหลือ **อันล่าสุดอันเดียว**
+   *
+   * 🛑 ตัดสิน "ล่าสุด" จาก **เวลา** ไม่ใช่ลำดับใน array — `contextItems` ถูก push ตามลำดับโค้ด
+   *    (shop → comment → ad เสมอ) ซึ่งไม่ใช่ลำดับเวลาจริง. ใช้ `commentOrigin.createdTime`
+   *    ที่ server ส่งมาให้อยู่แล้วแต่ **ไม่เคยถูกใช้เลย** (เดิม grep เจอครั้งเดียวคือบรรทัดประกาศ type)
+   *    เทียบกับเวลาข้อความแรกของเธรดฝั่งโฆษณา — ไม่มีข้อมูลเวลาทั้งคู่ → ให้โฆษณาชนะ
+   *    (โฆษณาคือสิ่งที่พาลูกค้าเข้ามา "รอบนี้" ส่วนคอมเมนต์มักเก่ากว่า)
+   *
+   * 🛑 `shop` ไม่ใช่ "ที่มา" — มันคือ "กำลังตอบในนามร้านไหน" (โหมดรวมหลายร้าน 00037)
+   *    จึงไม่เข้ากติกา "เหลืออันเดียว" และต้องแสดงคู่กับที่มาได้เสมอ
+   */
   const contextItems: ThreadContextItem[] = []
   if (shopName) {
     contextItems.push({
@@ -2439,6 +2474,30 @@ export default function ChatThread({
     })
   }
 
+  /**
+   * ที่มาที่จะปักไว้ใต้หัวเธรดบนมือถือ — shop (ถ้ามี) + ที่มาล่าสุด **อันเดียว** (D-ORIGIN-1)
+   * เหตุผลของกติกาแต่ละข้ออยู่ที่คอมเมนต์เหนือ `contextItems` ด้านบน
+   */
+  const originItems = contextItems.filter((it) => it.key === 'comment' || it.key === 'ad')
+  const latestOrigin =
+    originItems.length <= 1
+      ? (originItems[0] ?? null)
+      : // มีทั้งคู่ → ใช้เวลาคอมเมนต์ตัดสิน; ไม่รู้เวลา = ให้โฆษณาชนะ (ดูเหตุผลด้านบน)
+        (() => {
+          const commentAt = commentOrigin?.createdTime ? Date.parse(commentOrigin.createdTime) : NaN
+          const adItem = originItems.find((it) => it.key === 'ad')!
+          const commentItem = originItems.find((it) => it.key === 'comment')!
+          if (Number.isNaN(commentAt)) return adItem
+          // เธรดที่มาจากโฆษณาไม่มี timestamp ของตัวเอง — ใช้ข้อความแรกของเธรดเป็นตัวแทน
+          const firstMsgAt = messages.length > 0 ? Date.parse(messages[0].createdAt) : NaN
+          if (Number.isNaN(firstMsgAt)) return adItem
+          return firstMsgAt >= commentAt ? adItem : commentItem
+        })()
+  const pinnedContextItems = [
+    ...contextItems.filter((it) => it.key === 'shop'),
+    ...(latestOrigin ? [latestOrigin] : []),
+  ]
+
   return (
     <>
     <div className="card min-w-0 h-full flex-1 flex flex-col"> {/* h-full: parent คุมความสูงที่เหลือให้แล้ว (ดู comment หัวไฟล์) */}
@@ -2542,21 +2601,18 @@ export default function ChatThread({
          * ซ่อนที่ `xl` เหมือนปุ่มเดิม — ที่ ≥1280px มี CustomerPanel เป็นคอลัมน์ถาวรอยู่ข้าง ๆ แล้ว
          * (breakpoint ต้องตรงกับ `xl:block` ของคอลัมน์ขวาใน page.tsx เสมอ)
          */}
-        <button
-          type="button"
-          onClick={() => openPanel('files')}
-          title={t.inbox.libraryOpen}
-          aria-label={t.inbox.libraryOpen}
-          className="btn btn-icon border-default-300 text-default-700 hover:bg-default-100 relative ms-auto shrink-0 xl:hidden"
-        >
-          <Icon icon="folder" className="text-lg" />
-          {savedFiles.size > 0 && (
-            <span className="bg-primary border-card absolute -end-1 -top-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full border-2 px-1 text-2xs font-bold text-white">
-              {savedFiles.size > 99 ? '99+' : savedFiles.size}
-            </span>
-          )}
-        </button>
-
+        {/**
+         * 🛑 2026-08-16/17: ตรงนี้เคยมี **ปุ่มคลังไฟล์** (`openPanel('files')`)
+         * user สั่งให้ "เน้น profile ลูกค้ามากกว่า folder รูป" + "กด profile แล้วสลับไปดูรูปได้ในแผงเดียวกัน"
+         *
+         * รอบแรกผมทำผิดวิธี — **แปลงปุ่มโฟลเดอร์ให้กลายเป็นปุ่มข้อมูลลูกค้า** โดยไม่ได้เช็คว่า
+         * ปุ่มข้อมูลลูกค้า **มีอยู่แล้ว** อีกตัวข้างล่างนี้ ⇒ ได้ไอคอนคน 2 อันติดกันตั้งแต่ 768px ขึ้นไป
+         * (user เห็นเองบนจอ 2026-08-17)
+         *
+         * วิธีที่ถูกคือ **ลบปุ่มโฟลเดอร์ทิ้งไปเลย** แล้วให้ปุ่มข้อมูลลูกค้าตัวเดิมโผล่ทุกความกว้าง
+         * (ดูข้างล่าง) — คลังไฟล์ยังเข้าถึงได้ผ่านแท็บ "ไฟล์" ใน `CustomerPanelSheet` ตามที่ user ขอ
+         * ตัวนับไฟล์ย้ายไปเกาะปุ่มข้อมูลลูกค้าแทน เพื่อไม่ให้ผู้ขายเสียสัญญาณว่า "มีไฟล์เก็บไว้อยู่"
+         */}
         {/* เสียงแจ้งเตือน — เมนูเดียวคุมทั้ง "ทั้งแอป" และ "เฉพาะแชทนี้" (user report 2026-08-10)
             เดิมที่นี่เป็นปุ่มกระดิ่งรายเธรดที่ถูกซ่อนเมื่อปิดเสียงระดับแอป และสวิตช์ระดับแอปอยู่ใน
             ChatHeader ซึ่ง hidden lg:flex ในหน้าเธรด ⇒ **บนมือถือในห้องแชทไม่มีสวิตช์เสียงให้แตะเลย**
@@ -2572,14 +2628,25 @@ export default function ChatThread({
          *   ≥1280px  ซ่อน — CustomerPanel เป็นคอลัมน์ถาวรอยู่ข้าง ๆ แล้ว (ต้องตรงกับ `xl:block`
          *            ของคอลัมน์ขวาใน page.tsx เสมอ — ช่วง iPad Pro 1024–1279 เคยตกหล่นมาแล้ว)
          */}
+        {/* ms-auto: ปุ่มโฟลเดอร์ที่เคยถือ ms-auto ถูกลบไปแล้ว ตัวนี้จึงต้องรับหน้าที่ดันกลุ่มปุ่มชิดขวาแทน
+            เอา `hidden md:inline-flex` ออก — เดิมมือถือ (<768px) ไม่มีปุ่มนี้เลยเพราะพึ่งปุ่มโฟลเดอร์
+            อยู่ ตอนนี้โฟลเดอร์ไม่มีแล้ว ถ้ายังซ่อนไว้ **มือถือจะเปิดข้อมูลลูกค้าไม่ได้ทั้งจอ**
+            ยังคง xl:hidden ตามเดิม (≥1280px มี CustomerPanel เป็นคอลัมน์ขวาอยู่แล้ว) */}
         <button
           type="button"
           onClick={() => openPanel('customer')}
           title={t.inbox.customerInfo}
           aria-label={t.inbox.customerInfo}
-          className="btn btn-icon border-default-300 text-default-700 hover:bg-default-100 hidden shrink-0 md:inline-flex xl:hidden"
+          className="btn btn-icon border-default-300 text-default-700 hover:bg-default-100 relative ms-auto shrink-0 xl:hidden"
         >
           <Icon icon="user-circle" className="text-lg" />
+          {/* ตัวนับไฟล์ย้ายมาจากปุ่มโฟลเดอร์ที่ถูกลบ — บอกว่ามีของรออยู่ในแท็บ "ไฟล์" ของแผงนี้
+              ถ้าถอดทิ้ง ผู้ขายจะไม่มีทางรู้ว่ามีไฟล์เก็บไว้จนกว่าจะเปิดแผงแล้วสลับแท็บเอง */}
+          {savedFiles.size > 0 && (
+            <span className="bg-primary border-card absolute -end-1 -top-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full border-2 px-1 text-2xs font-bold text-white">
+              {savedFiles.size > 99 ? '99+' : savedFiles.size}
+            </span>
+          )}
         </button>
 
         <ThreadOverflowMenu
@@ -2608,6 +2675,20 @@ export default function ChatThread({
        *
        * เหตุผลของลำดับภายในแต่ละกลุ่มอยู่ที่จุดที่ประกอบ array นั้น (`threadStatuses`/`contextItems`)
        */}
+      {/**
+       * ═══ มือถือ (<1280px) = แบบ B2 · เดสก์ท็อป (≥1280px) = แถวชิปเดิมทุกประการ ═══
+       * (user เคาะแบบ B แล้วสั่งแก้ 2026-08-15/16 — ขอบเขต "มือถือเท่านั้น")
+       *
+       * มือถือ: คำเตือน + สถานะออเดอร์ ย้ายลงไปเป็นแถบปักท้ายเหนือช่องพิมพ์ (ThreadTailBars)
+       *         เหลือเหนือสตรีมแค่ "ที่มาของแชท" ซึ่งแสดงเป็น **การ์ดเต็มแบบเดิม อันล่าสุด
+       *         อันเดียว** (มติ D-ORIGIN-1) แทนที่จะเป็นชิปที่ถูก truncate จนอ่านไม่ออก
+       *
+       * 🛑 `isXlUp` ตัวเดียวกับที่ชิปออเดอร์ใช้อยู่แล้ว — breakpoint ต้องตรงกับ `xl:block`
+       *    ของคอลัมน์ขวาใน page.tsx เสมอ (ช่วง iPad Pro 1024–1279 เคยตกหล่นทั้งสองทางมาแล้ว)
+       */}
+      {!isXlUp && pinnedContextItems.map((it) => <Fragment key={`ctx:${it.key}`}>{it.detail}</Fragment>)}
+
+      {isXlUp && (
       <ThreadChipStrip
         items={[
           ...threadStatuses.map<ThreadChipItem>((it) => ({
@@ -2664,6 +2745,7 @@ export default function ChatThread({
           })),
         ]}
       />
+      )}
 
       {/* scroll body — plain div + ref (ไม่ SimpleBar ตาม spec, ต้อง programmatic scroll) */}
       {/* overscroll-contain (user report prod 2026-07-23: "เวลา scroll มันไปถึง fixed ด้านบนเลย
@@ -2718,11 +2800,20 @@ export default function ChatThread({
         </div>
       )}
       {quickOpen && (
-        <QuickMessageBar
-          onPick={handleQuickPick}
-          disabled={composerDisabled}
+        /* บนมือถือเป็น sheet เหมือนแผงอื่น — เดสก์ท็อปยังวางทับพื้นที่ข้อความเหมือนเดิม
+           contentClassName ไม่ต้องหักล้างอะไร เพราะแผงนี้ไม่ได้ใช้ negative margin แบบ AI/สินค้า */
+        <PanelShell
+          title="ข้อความสำเร็จรูป"
+          icon="bolt"
+          mobile={!isXlUp}
           onClose={() => setActivePanel(null)}
-        />
+        >
+          <QuickMessageBar
+            onPick={handleQuickPick}
+            disabled={composerDisabled}
+            onClose={() => setActivePanel(null)}
+          />
+        </PanelShell>
       )}
       <div
         ref={scrollRef}
@@ -3540,6 +3631,47 @@ export default function ChatThread({
       </div>
       </div>
 
+      {/**
+       * ═══ แถบปักท้าย (แบบ B2) — มือถือเท่านั้น ═══
+       * ของที่ต้องลงมือย้ายมาอยู่ติดนิ้วที่กำลังจะพิมพ์ แทนที่จะอยู่บนสุดของจอ
+       * 🛑 พัสดุกับคำเตือนเป็น **คนละแถบ** ห้ามยุบรวม (ดูเหตุผลใน ThreadTailBars.tsx)
+       * วางไว้ "นอก" กล่อง composer เพื่อไม่ให้ถูกแทนที่ตอน token ตาย/Meta AI ถือห้อง —
+       * สองสถานะนั้นแทนที่เฉพาะแถบเครื่องมือ+textarea ส่วนสถานะห้องยังต้องอ่านได้อยู่
+       */}
+      {!isXlUp && (
+        <>
+          {customerPanelData && orderChip && (
+            <ShipmentTailBar
+              short={orderChip.short}
+              icon={orderChip.icon}
+              count={orderChip.count}
+              /* ใบเดียวกับที่ orderProgressChip หยิบมาทำคำบนแถบ — ใช้ filterActiveOrders ตัวเดียวกัน
+                 ไม่งั้นโลโก้จะเป็นของอีกใบกับเลขออเดอร์ที่แสดง (HR16) */
+              courierLogo={courierLogoUrl(
+                headActiveShipment?.courierCode,
+                headActiveShipment?.courierName,
+              )}
+              courierName={headActiveShipment?.courierName ?? null}
+              toneCls={headStageCls}
+              shipmentId={headActiveShipment?.id ?? null}
+              detail={
+                <OrderProgressBar
+                  variant="detail"
+                  orders={customerPanelData.orders}
+                  vertical={customerPanelData.vertical}
+                  conversationId={conversationId}
+                  customerName={buyerName}
+                  channel={channel}
+                  customerAvatar={buyerAvatar}
+                  pageAvatarUrl={channelAvatarUrl}
+                />
+              }
+            />
+          )}
+          <StatusTailBar items={threadStatuses} />
+        </>
+      )}
+
       {/* composer — pattern ChatPage.tsx:99-109 + auto-upload preview chip
           relative: ยึดตำแหน่งแผง AI (absolute bottom-full) ให้ลอยเหนือ composer */}
       <div className="border-t border-default-300 border-dashed relative px-4 py-3 sm:px-6 sm:py-3.75">
@@ -3603,6 +3735,7 @@ export default function ChatThread({
             ทั้งสามใช้โครง/สไตล์เดียวกัน ต่างแค่ accent (AI = success, สำเร็จรูป = primary,
             เลือกสินค้า = info) */}
         {aiOpen && (
+          <PanelShell title="AI ช่วยร่างคำตอบ" icon="sparkles" mobile={!isXlUp} onClose={() => setActivePanel(null)} contentClassName="px-4 pt-3 sm:px-6">
           <AiSuggestPanel
             conversationId={conversationId}
             hidePayments={hidePayments}
@@ -3612,6 +3745,7 @@ export default function ChatThread({
             }}
             onClose={() => setActivePanel(null)}
           />
+          </PanelShell>
         )}
 
         {/* แผงข้อความสำเร็จรูปย้ายไปวางทับพื้นที่ข้อความด้านบนแล้ว (ดู relative wrapper) —
@@ -3627,6 +3761,7 @@ export default function ChatThread({
              unmount แล้วรายการสินค้าของร้าน A ค้างทับบริบทร้าน B (จอโกหก). remount ทั้ง subtree
              เคลียร์ items/selected/q/loading ให้เองโดยไม่ต้องไล่ผูก dep รายตัว — แพตเทิร์นเดียว
              กับ key={scopeKey} ที่ (chat)/layout.tsx และ inbox/comments/page.tsx ใช้อยู่แล้ว */
+          <PanelShell title="เลือกสินค้า" icon="box" mobile={!isXlUp} onClose={() => setActivePanel(null)} contentClassName="px-4 pt-3 sm:px-6">
           <ProductPickerPanel
             key={threadShopIdForPanels}
             onPick={handleProductPick}
@@ -3639,6 +3774,7 @@ export default function ChatThread({
               return res
             }}
           />
+          </PanelShell>
         )}
 
         {/* layout ตามที่ user สั่ง 2026-07-23 (ref 12Tees — HR6: เอาโครงจาก ref, skin เป็น Paces):
@@ -4251,5 +4387,50 @@ export default function ChatThread({
       }}
     />
     </>
+  )
+}
+
+/**
+ * PanelShell — ห่อแผงเหนือช่องพิมพ์ (AI / เลือกสินค้า) ให้เป็น **slide-up sheet บนมือถือ**
+ * ส่วนเดสก์ท็อปยังแทรกในหน้าเหมือนเดิมทุกประการ
+ *
+ * user สั่ง 2026-08-16: "panel quickmessage, เลือกสินค้า ให้เป็น slide modal up ใน mobile ให้หมด"
+ * — เหตุผลเดียวกับที่ยุบแถบพัสดุ/สถานะเป็น sheet: ห้องแชทเคยมี 3 ท่าเปิดที่ต้องเรียนรู้แยกกัน
+ *
+ * 🛑 `px-4 pt-3 sm:px-6` ไม่ใช่ระยะที่ตั้งขึ้นเอง — มันคือตัวหักล้าง negative margin ที่ตัวแผง
+ * ใช้เจาะออกจาก padding ของ composer (`-mx-4 -mt-3 sm:-mx-6 sm:-mt-3.75`) พอย้ายมาอยู่ใน sheet
+ * ซึ่งไม่มี padding นั้นให้เจาะ ขอบจะติดลบออกนอกกรอบ. ทำที่นี่แทนการแก้ไฟล์แผงทั้งสอง
+ * เพราะบนเดสก์ท็อปแผงยังต้องเจาะขอบเหมือนเดิม
+ *
+ * 🛑 breakpoint = `!isXlUp` ตัวเดียวกับแถบปักท้ายและชิปออเดอร์ — ต้องตรงกับ `xl:block` ของ
+ * คอลัมน์ขวาใน page.tsx เสมอ (ช่วง iPad Pro 1024–1279 เคยตกหล่นทั้งสองทางมาแล้ว)
+ */
+function PanelShell({
+  title,
+  icon,
+  mobile,
+  onClose,
+  children,
+  contentClassName,
+}: {
+  title: string
+  icon: string
+  mobile: boolean
+  onClose: () => void
+  children: React.ReactNode
+  contentClassName?: string
+}) {
+  if (!mobile) return <>{children}</>
+  return (
+    <ChatBottomSheet
+      title={title}
+      icon={icon}
+      onClose={onClose}
+      contentClassName={contentClassName}
+      /* แผงทั้ง 3 ตัวมีหัว (ชื่อ + ปุ่มปิด) ของตัวเองครบอยู่แล้ว — วาดซ้ำ = หัวซ้อน 2 ชั้น */
+      hideHeader
+    >
+      {children}
+    </ChatBottomSheet>
   )
 }
