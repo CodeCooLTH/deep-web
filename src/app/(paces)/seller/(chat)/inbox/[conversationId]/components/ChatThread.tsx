@@ -3664,6 +3664,10 @@ export default function ChatThread({
                   channel={channel}
                   customerAvatar={buyerAvatar}
                   pageAvatarUrl={channelAvatarUrl}
+                  /* ร้านของ "เธรด" ไม่ใช่ activeShopId — ปุ่มเรื่องเงิน (00050) ยิง API ด้วยค่านี้
+                     เธรดของร้าน B เปิดได้ขณะ active อยู่ร้าน A (BR-UNI-07) ⇒ ส่งผิดใบ = กดไม่ผ่าน
+                     ตัวแปร `shopId` ของคอมโพเนนต์นี้มาจาก prop ของหน้าเธรดอยู่แล้ว (จุดอื่นใช้ตัวเดียวกัน) */
+                  shopId={shopId}
                 />
               }
             />
