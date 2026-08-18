@@ -179,6 +179,23 @@ export default function QuickMessageManager({
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'))
   }, [localItems])
 
+  /**
+   * มีข้อความสักอันที่แนบรูปไหม — ตัวตัดสินว่าคอลัมน์ "รูป" ควรมีอยู่หรือไม่
+   *
+   * ทำไมต้องมี: เซลล์รูปที่ว่างจะ render `<span className="block size-10">` เป็น **ตัวค้ำ 40px**
+   * (จงใจ — กันแถวสูงไม่เท่ากันเมื่อบางอันมีรูปบางอันไม่มี) แต่ถ้า **ทั้งลิสต์ไม่มีรูปเลย**
+   * ตัวค้ำนั้นกลายเป็นช่องว่างตาย ~64px (40 + padding) หน้าคอลัมน์หัวข้อทุกแถว บนจอที่แคบที่สุด
+   * — คือดันเนื้อหาหลักออกจากขอบซ้ายโดยไม่ได้ให้ข้อมูลอะไรกลับมา
+   *
+   * 🛑 อ่านจาก `localItems` (ทั้งชุด) ไม่ใช่ `visibleItems` (หลังกรอง) โดยตั้งใจ — ถ้าผูกกับผลกรอง
+   * คอลัมน์จะโผล่/หายระหว่างพิมพ์ค้นหา = ตารางกระโดดทุกตัวอักษร ความนิ่งสำคัญกว่าการประหยัด
+   * ที่ว่างอีกนิดในเคสที่กรองจนรูปหายหมด
+   *
+   * ตรรกะเดียวกับตัวกรองหมวดที่ซ่อนทั้งอันเมื่อ `categories.length === 0` (ในไฟล์นี้เอง) —
+   * ของที่ไม่มีข้อมูลจะไม่กินที่บนจอ
+   */
+  const hasAnyImage = useMemo(() => localItems.some((it) => imagesOf(it).length > 0), [localItems])
+
   // โหมดจัดลำดับต้องแสดงทั้งชุดเสมอ — ลากสลับบน "ผลค้นหา" จะเขียนลำดับผิด เพราะ orderedIds
   // ที่ส่งไปจะมีแค่ตัวที่ตรงคำค้น ตัวที่ถูกกรองออกจะโดนดันไปท้ายทั้งหมด (เหตุผลเดียวกับ bar)
   const visibleItems = useMemo(() => {
@@ -379,8 +396,11 @@ export default function QuickMessageManager({
             <span className="truncate">
               {sortMode ? 'จัดลำดับข้อความสำเร็จรูป' : 'จัดการข้อความสำเร็จรูป'}
             </span>
+            {/* 🛑 `-ink` เพราะนี่คือ **ตัวเลข** ไม่ใช่ไอคอน — เกณฑ์ 4.5:1 ไม่ใช่ 3:1
+                `text-primary` บนพื้น `/15` ได้ 3.47:1 · `-ink` ได้ 8.34:1 สว่าง / 8.72:1 มืด
+                คู่ ink-on-tint เดียวกับที่ `STAGE_CHIP_CLS` ใช้ทั้งชุด */}
             {!loading && !error && (
-              <span className="badge bg-primary/15 text-primary shrink-0">{localItems.length}</span>
+              <span className="badge bg-primary/15 text-primary-ink shrink-0">{localItems.length}</span>
             )}
           </h5>
           <button type="button" onClick={onClose} className="btn btn-icon border-default-300 shrink-0" aria-label="ปิด">
@@ -399,10 +419,13 @@ export default function QuickMessageManager({
             >
               <Icon icon="arrow-left" className="text-lg" />
             </button>
+            {/* ชื่อรายการที่กำลังแก้ — สีทำหน้าที่ "แยกชื่อออกจากคำว่าแก้ไข" ไม่ใช่สีแบรนด์
+                `text-primary` บนขาวที่ 14px semibold = 4.24:1 ตก AA · `-ink` = 10.36:1
+                คงเฉดน้ำเงินเดิม เปลี่ยนแค่ความเข้ม (contrast-fix-keeps-hue.md) */}
             <span className="text-default-800 min-w-0 grow truncate text-sm font-semibold">
               {isEditing ? (
                 <>
-                  แก้ไข: <span className="text-primary">{title || 'ข้อความสำเร็จรูป'}</span>
+                  แก้ไข: <span className="text-primary-ink">{title || 'ข้อความสำเร็จรูป'}</span>
                 </>
               ) : (
                 formHeading
@@ -433,7 +456,20 @@ export default function QuickMessageManager({
                   />
                 </div>
               )}
-              <div className="flex items-center gap-2">
+              {/**
+               * งบพื้นที่ของแถวนี้บนมือถือ (Anuphan 14px · วัดจากความยาวคำ):
+               *   หมวด ~106px + จัดลำดับ ~118px + เพิ่มข้อความ ~141px + gap 16 = ~381px
+               * ที่ 390px หลัง `p-4` เหลือ **358px** ⇒ เกิน · ที่ 320px เหลือ 288px ⇒ เกินหนัก
+               * (user รายงาน 2026-08-17: "ปุ่มมันใหญ่แปลก ๆ")
+               *
+               * แก้ 3 อย่าง ไม่ใช่ย่อขนาดปุ่ม (ความสูง 44px คือ tap target ตาม PRODUCT.md ห้ามลด):
+               *   1. ป้าย "จัดลำดับ" เป็นไอคอนล้วนบนมือถือ — คืนที่ ~62px ให้ปุ่มหลัก
+               *   2. `flex-wrap` เป็นตาข่ายรับ ไม่ให้ล้นออกนอกจอที่ความกว้างไหนก็ตาม
+               *   3. ปุ่มหลัก `grow` กินที่ที่เหลือบนมือถือ — แทน `ms-auto` ที่ดันมันชิดขวาแล้ว
+               *      เกิดช่องว่างกลางแถว (ปุ่ม 2 ตัวซ้าย 1 ตัวลอยขวา = ต้นเหตุของ "แปลก ๆ")
+               *      ผลพลอยได้: ปุ่มหลักกลายเป็นปุ่มที่กว้างที่สุด = ลำดับชั้นอ่านออกทันที
+               */}
+              <div className="flex flex-wrap items-center gap-2">
                 {/* ไม่มีใครตั้งหมวดเลย → ตัวกรองไม่มีประโยชน์ ซ่อนทั้งอัน */}
                 {!sortMode && categories.length > 0 && (
                   <FilterDropdown
@@ -454,18 +490,29 @@ export default function QuickMessageManager({
                     type="button"
                     onClick={() => setSortMode((s) => !s)}
                     aria-pressed={sortMode}
-                    className={`btn h-11 text-nowrap ${sortMode ? 'bg-primary text-white' : 'bg-light text-dark'}`}
+                    /* 🛑 `bg-light text-dark` ตกคอนทราสต์ใน dark mode: token คู่นี้พลิกเป็น
+                       พื้น #252630 กับหมึก #4b4d5c = **1.80:1** (_root.css:157,160) ซึ่งเข้มพอกัน
+                       จนอ่านไม่ออก — dark mode ในโปรเจกต์นี้กดสลับได้จริง. `default-100/800`
+                       มี override ฝั่ง dark ครบทั้งคู่ จึงผ่าน AA ทั้งสองโหมด */
+                    className={`btn h-11 text-nowrap ${sortMode ? 'bg-primary text-white' : 'bg-default-100 text-default-800'}`}
                     aria-label={sortMode ? 'เสร็จสิ้นการจัดลำดับ' : 'จัดลำดับข้อความสำเร็จรูป'}
                   >
                     <Icon icon={sortMode ? 'check' : 'arrows-sort'} className="text-base" />
-                    <span className="sm:sr-only">{sortMode ? 'เสร็จสิ้น' : 'จัดลำดับ'}</span>
+                    {/* 🛑 เดิมเป็น `sm:sr-only` = ซ่อนคำตั้งแต่ 640px ขึ้นไป ⇒ **จอแคบที่สุดคือจอ
+                        ที่คำโผล่** ส่วนจอกว้างที่มีที่เหลือเฟือกลับเป็นไอคอนเปล่า — กลับด้านกับ
+                        ที่ควรเป็น และ `sm:sr-only` ปรากฏครั้งเดียวในทั้ง repo คือบรรทัดนี้
+                        (ไม่มี precedent). ชื่อที่ screen reader อ่านยังครบจาก aria-label ข้างบน */}
+                    <span className="sr-only sm:not-sr-only">{sortMode ? 'เสร็จสิ้น' : 'จัดลำดับ'}</span>
                   </button>
                 )}
                 {!sortMode && (
                   <button
                     type="button"
                     onClick={startAdd}
-                    className="btn bg-primary hover:bg-primary-hover ms-auto h-11 text-nowrap text-white sm:ms-0"
+                    /* grow เฉพาะมือถือ: กินที่ที่เหลือในแถวแทนการถูก `ms-auto` ดันชิดขวา
+                       ⇒ ไม่มีช่องว่างค้างกลางแถว และปุ่มหลักกว้างสุด = ลำดับชั้นชัด
+                       ≥640px คืนเป็นความกว้างตามเนื้อหา (แถวนี้ต่อท้ายช่องค้นหาในแถวเดียวกัน) */
+                    className="btn bg-primary hover:bg-primary-hover h-11 grow text-nowrap text-white sm:grow-0"
                   >
                     <Icon icon="plus" className="text-base" />
                     เพิ่มข้อความ
@@ -484,7 +531,11 @@ export default function QuickMessageManager({
               ) : error ? (
                 /* แยกจาก empty state ให้ชัด — เดิมโหลดพังแล้วขึ้น "ยังไม่มีข้อความ" ผู้ใช้นึกว่าข้อมูลหาย */
                 <div className="flex flex-col items-center gap-2 py-12 text-center">
-                  <span className="bg-warning/15 text-warning flex size-12 items-center justify-center rounded-lg">
+                  {/* 🛑 ไอคอนบนพื้น `/15` ต้องใช้ `-ink` เสมอ — สี semantic เต็มถูกเลือกมาให้เป็น *พื้น*
+                      ไม่ใช่ *หมึก* วัดแล้วได้ 1.52:1 (เกณฑ์ non-text 3:1) ตรงกับตารางที่รีโปวัดไว้เอง
+                      ใน `lib/order-stage.ts` (warning 1.53:1 → -ink 6.56:1) · ที่นี่ -ink ได้ 6.63:1
+                      โหมดมืดก็ผ่าน (8.1:1) เพราะ `--color-warning-ink` มี override ฝั่ง dark แยกไว้แล้ว */}
+                  <span className="bg-warning/15 text-warning-ink flex size-12 items-center justify-center rounded-lg">
                     <Icon icon="alert-triangle" className="text-2xl" />
                   </span>
                   <span className="text-default-800 text-sm font-semibold">โหลดข้อความสำเร็จรูปไม่สำเร็จ</span>
@@ -539,7 +590,7 @@ export default function QuickMessageManager({
                     <thead className="font-semibold">
                       <tr>
                         {sortMode && <th className="w-10">ลำดับ</th>}
-                        {!sortMode && <th className="w-1">รูป</th>}
+                        {!sortMode && hasAnyImage && <th className="w-1">รูป</th>}
                         <th>หัวข้อ</th>
                         {!sortMode && <th className="hidden sm:table-cell">หมวด</th>}
                         {!sortMode && <th className="hidden lg:table-cell">ข้อความ</th>}
@@ -618,25 +669,29 @@ export default function QuickMessageManager({
                             onClick={() => startEdit(qm)}
                             className={`cursor-pointer ${editingId === qm.id ? 'bg-primary/5' : ''}`}
                           >
-                            <td>
-                              {imgs.length > 0 ? (
-                                <span className="border-default-200 relative block size-10 overflow-hidden rounded border">
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={`/api/files/${imgs[0]}`} alt="" className="size-full object-cover" />
-                                  {/* มีหลายรูป → ป้ายจำนวนมุมล่างขวา (เห็นจากตารางโดยไม่ต้องกดเข้าไปดู) */}
-                                  {imgs.length > 1 && (
-                                    <span className="bg-default-900/70 absolute end-0 bottom-0 px-1 text-2xs text-white">
-                                      +{imgs.length - 1}
-                                    </span>
-                                  )}
-                                </span>
-                              ) : (
-                                /* ไม่มีรูป → เว้นว่างจริง ๆ ไม่ใส่กล่องเทา (กล่องเทาอ่านเป็น "รูปเสีย"
-                                   ทั้งคอลัมน์ — user ติว่า UI ดูไม่ทันสมัย 2026-07-31)
-                                   ความสูงแถวมาจากปุ่ม 44px ในคอลัมน์จัดการอยู่แล้ว ไม่ต้องค้ำ */
-                                <span className="block size-10" aria-hidden="true" />
-                              )}
-                            </td>
+                            {/* คอลัมน์นี้หายทั้งคอลัมน์เมื่อทั้งลิสต์ไม่มีรูป — ต้องกดเงื่อนไข
+                                เดียวกับ <th> เป๊ะ ไม่งั้นจำนวนเซลล์ไม่ตรงกับหัวตาราง */}
+                            {hasAnyImage && (
+                              <td>
+                                {imgs.length > 0 ? (
+                                  <span className="border-default-200 relative block size-10 overflow-hidden rounded border">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={`/api/files/${imgs[0]}`} alt="" className="size-full object-cover" />
+                                    {/* มีหลายรูป → ป้ายจำนวนมุมล่างขวา (เห็นจากตารางโดยไม่ต้องกดเข้าไปดู) */}
+                                    {imgs.length > 1 && (
+                                      <span className="bg-default-900/70 absolute end-0 bottom-0 px-1 text-2xs text-white">
+                                        +{imgs.length - 1}
+                                      </span>
+                                    )}
+                                  </span>
+                                ) : (
+                                  /* ไม่มีรูป → เว้นว่างจริง ๆ ไม่ใส่กล่องเทา (กล่องเทาอ่านเป็น "รูปเสีย"
+                                     ทั้งคอลัมน์ — user ติว่า UI ดูไม่ทันสมัย 2026-07-31)
+                                     ความสูงแถวมาจากปุ่ม 44px ในคอลัมน์จัดการอยู่แล้ว ไม่ต้องค้ำ */
+                                  <span className="block size-10" aria-hidden="true" />
+                                )}
+                              </td>
+                            )}
                             <td>
                               <span className="block min-w-0">
                                 <span className="text-default-800 block truncate font-medium">{qm.title}</span>
@@ -645,11 +700,14 @@ export default function QuickMessageManager({
                                 <span className="text-default-700 line-clamp-1 text-2xs lg:hidden">{qm.body}</span>
                               </span>
                             </td>
+                            {/* "—" = ไม่มีหมวด · เป็นข้อความที่สื่อความหมาย ไม่ใช่เส้นตกแต่ง
+                                เดิม default-300 (#e7e9eb) บนขาว = 1.15:1 แทบมองไม่เห็น
+                                default-400 = 4.95:1 สว่าง / 5.11:1 มืด — ยังเป็นสีรองชัดเจน */}
                             <td className="hidden sm:table-cell">
                               {qm.category ? (
                                 <span className="badge bg-default-100 text-default-700 text-2xs">{qm.category}</span>
                               ) : (
-                                <span className="text-default-300">—</span>
+                                <span className="text-default-400">—</span>
                               )}
                             </td>
                             <td className="hidden max-w-xs lg:table-cell">
@@ -666,7 +724,10 @@ export default function QuickMessageManager({
                                     e.stopPropagation()
                                     startEdit(qm)
                                   }}
-                                  className="text-default-700 hover:bg-light hover:text-primary flex size-11 items-center justify-center rounded-lg"
+                                  /* hover พื้นกลางใช้ default-100 ให้ตรงกับปุ่มจัดลำดับในแถบเครื่องมือ
+                                     (เปลี่ยนจาก bg-light รอบเดียวกัน) — ปุ่มลบยังใช้ danger/10 ต่อไป
+                                     เพราะสีนั้น *มีความหมาย* (การกระทำที่ย้อนไม่ได้) ไม่ใช่แค่พื้น hover */
+                                  className="text-default-700 hover:bg-default-100 hover:text-primary flex size-11 items-center justify-center rounded-lg"
                                   aria-label={`แก้ไข ${qm.title}`}
                                 >
                                   <Icon icon="pencil" className="text-base" />
@@ -748,7 +809,12 @@ export default function QuickMessageManager({
                 />
                 <p
                   className={`mb-0 mt-1 text-end text-2xs ${
-                    bodyLen > BODY_WARN ? 'text-warning' : 'text-default-700'
+                    /* 🛑 `-ink` ไม่ใช่ `text-warning`: ตัวนับนี้เป็นตัวอักษร 11px บนพื้นขาว
+                       สี warning เต็มได้ 1.66:1 (ต้องการ 4.5:1) — และมันแย่ตรงที่ **ตอนที่ผู้ใช้
+                       พิมพ์ใกล้เต็มโควตาคือตอนที่ต้องอ่านออกที่สุด แต่กลับเป็นตอนที่สีจางที่สุด**
+                       (เทาเข้ม 9.7:1 → เหลือง 1.66:1). -ink ได้ 7.24:1 สว่าง/11.4:1 มืด
+                       ยังเป็นโทนเหลือง-ส้มเหมือนเดิม ไม่ได้สลับเฉด (contrast-fix-keeps-hue.md) */
+                    bodyLen > BODY_WARN ? 'text-warning-ink' : 'text-default-700'
                   }`}
                 >
                   {bodyLen} / {BODY_MAX}
@@ -807,9 +873,24 @@ export default function QuickMessageManager({
                     const target = localItems.find((i) => i.id === editingId)
                     if (target) handleDelete(target)
                   }}
-                  className="text-danger flex min-h-11 items-center gap-2 text-sm font-semibold"
+                  /**
+                   * ชิปพื้นจาง ไม่ใช่ตัวหนังสือสีลอย — ตามแพตเทิร์นปุ่มลบที่มีป้ายใน `(paces)` ซึ่งมีอยู่
+                   * แล้ว 3 ที่ (`RowActionDeleteButton` `DeleteAccountCard` `products/DeleteButton`)
+                   * ล้วนเป็น `bg-danger/15` ทั้งหมด ไม่มีที่ไหนใช้ตัวหนังสือแดงเปล่า ๆ
+                   *
+                   * 🛑 ทำไมเคสนี้ใช้ `-ink` ได้ ทั้งที่ 2026-08-03 เคยไล่เปลี่ยน `text-{tone}` → `-ink`
+                   * 55 จุดแล้วต้องย้อนทั้งหมด ("ปุ่ม danger กลายเป็นเลือดหมู"): รอบนั้นเปลี่ยนสีของ
+                   * element ที่อยู่บน **พื้นเปล่า** ซึ่งสีจัดคือตัวตนของมันเอง — ส่วนนี่คือหมึกบน **พื้น
+                   * tint `/15`** ซึ่งเป็นคู่ที่รีโปนิยามไว้เองแล้วใน `ORDER_STAGE_META`/`STAGE_CHIP_CLS`
+                   * (`bg-danger/15 text-danger-ink`) คนละกรณีกัน
+                   *
+                   * วัดแล้ว: 8.49:1 สว่าง · 7.12:1 มืด (เดิม `text-danger` บนขาว = 3.17:1 ตก AA)
+                   * ผลพลอยได้: การลบที่ย้อนไม่ได้ได้น้ำหนักทางสายตาสมกับผลของมัน ต่างจากลิงก์สีแดงจาง ๆ
+                   */
+                  className="btn bg-danger/15 text-danger-ink hover:bg-danger/25 min-h-11 gap-2 text-sm font-semibold"
                 >
                   <Icon icon="trash" />
+                  {/* จอแคบเหลือไอคอน — ทิศทางนี้ถูกแล้ว (ต่างจากปุ่มจัดลำดับที่เคยกลับด้าน) */}
                   <span className="hidden sm:inline">ลบข้อความนี้</span>
                 </button>
               )}
