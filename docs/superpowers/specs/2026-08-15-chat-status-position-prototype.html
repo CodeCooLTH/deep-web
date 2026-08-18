@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>สถานะอยู่ตำแหน่งไหนบนจอ (2026-08-15)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROTOTYPE — โค้ดทิ้ง
+
+   คำถาม: สถานะคำสั่งซื้อ / สถานะการเข้ารับบริการ / คำเตือน 24 ชม.
+   **ไปนั่งตรงไหนของจอ** ในโครง D (ที่เลือกไว้ว่าไม่มีพื้นที่กลาง)
+
+   🛑 ช่องว่างที่พบ: D กำหนดไว้แค่ คำเตือน→เกาะช่องพิมพ์ · ที่มา→ในสตรีม ·
+   บริบทลูกค้า→บรรทัด 2 ของหัว — **แต่ไม่เคยบอกว่าสถานะออเดอร์อยู่ไหน**
+   ไฟล์นี้เทียบ 4 ตำแหน่งที่เป็นไปได้ ในจอจริง
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --color-body-bg:#f2f6fb; --color-card:#fff;
+  --color-primary:#0a74ff; --color-primary-ink:#1e3a8a;
+  --color-info:#1aa0e8; --color-info-ink:#1e40af;
+  --color-warning:#ff8f1f; --color-warning-ink:#92400e;
+  --color-danger:#f43f5e; --color-danger-ink:#7f1d1d;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-600:#4a5358;
+  --color-default-700:#40454a; --color-default-800:#343a40; --color-default-900:#313a46;
+  --radius:4px; --shadow:0px 1px 4px 0px rgba(130,143,163,.15);
+  --shadow-lg:0 .25rem 1rem rgba(76,76,92,.2);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Anuphan',system-ui,sans-serif;background:#e9eef6;color:var(--color-default-900);
+  padding:24px 16px 60px;line-height:1.5}
+.doc{max-width:1300px;margin:0 auto}
+.paper{background:#fff;border-radius:12px;padding:20px 24px;box-shadow:var(--shadow);margin-bottom:22px}
+h1{font-size:22px;font-weight:700;margin-bottom:5px}
+h2{font-size:18px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+.sub{color:var(--color-default-500);font-size:14px;margin-bottom:16px}
+.qbox{background:var(--color-default-100);border-left:3px solid var(--color-primary);padding:12px 14px;
+  border-radius:0 6px 6px 0;font-size:14px}
+.qbox b{color:var(--color-primary-ink)}
+.qbox code{background:var(--color-default-200);padding:1px 5px;border-radius:3px;font-family:inherit;font-size:12px}
+.num{background:var(--color-default-900);color:#fff;width:26px;height:26px;border-radius:6px;flex:none;
+  display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.desc{font-size:13px;color:var(--color-default-700);margin-bottom:12px}
+.desc code{background:var(--color-default-200);padding:1px 5px;border-radius:3px;font-family:inherit;font-size:12px}
+.verdict{font-size:13px;padding:9px 12px;border-radius:8px;margin-top:12px}
+.verdict.good{background:rgba(15,157,122,.12);color:#0b6b53}
+.verdict.bad{background:rgba(255,143,31,.13);color:var(--color-warning-ink)}
+
+.grid{display:flex;gap:20px;flex-wrap:wrap;justify-content:center}
+.fl{text-align:center;font-size:12px;font-weight:600;color:var(--color-default-500);margin-bottom:7px}
+.fl b{color:var(--color-default-800)}
+.device{background:var(--color-body-bg);border:7px solid #2b3038;border-radius:22px;overflow:hidden;
+  box-shadow:var(--shadow-lg);width:378px}
+.screen{width:364px;height:600px;display:flex;flex-direction:column;background:var(--color-card)}
+
+/* ═══ ชิ้นส่วน ═══ */
+.card-header{display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:10px;
+  border-bottom:1px dashed var(--color-default-300);padding:11px 16px;background:var(--color-card);flex:none}
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--radius);
+  border:1px solid transparent;background:transparent;cursor:pointer}
+.btn-icon{width:36px;height:36px;flex:none}
+.btn-sm.btn-icon{width:30px;height:30px}
+.border-default-300{border-color:var(--color-default-300)}
+.avatar{width:34px;height:34px;border-radius:50%;flex:none;position:relative;background:#dbe7fb;color:#3b6bb5;
+  display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px}
+.ch-badge{position:absolute;right:-2px;bottom:-2px;width:15px;height:15px;border-radius:50%;
+  border:2px solid #fff;background:#e11d48;display:flex;align-items:center;justify-content:center}
+.ch-badge svg{width:8px;height:8px;color:#fff}
+h5.name{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.line2{font-size:11px;display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;margin-top:1px;color:var(--color-default-500)}
+.line2 svg{width:11px;height:11px;flex:none}
+.line2.order{color:var(--color-primary-ink);font-weight:600}
+.cnt{position:absolute;top:-4px;right:-4px;min-width:17px;height:17px;border-radius:999px;font-size:10px;
+  display:flex;align-items:center;justify-content:center;font-weight:700;padding:0 4px;
+  background:var(--color-primary);color:#fff;border:2px solid #fff}
+.cnt.warn{background:var(--color-warning)}
+.dotwarn{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:999px;
+  background:var(--color-warning);border:2px solid #fff}
+
+/* แถบเต็มกว้าง */
+.bar{display:flex;align-items:center;gap:7px;padding:7px 14px;font-size:12.5px;font-weight:500;flex:none}
+.bar svg{width:14px;height:14px;flex:none}
+.bar .a{margin-left:auto;flex:none;font-size:11.5px;font-weight:600;text-decoration:underline}
+.bar.order{background:rgba(10,116,255,.13);color:var(--color-primary-ink);
+  border-bottom:1px solid var(--color-default-200)}
+.bar.warn{background:rgba(255,143,31,.15);color:var(--color-warning-ink)}
+.bar.info{background:rgba(26,160,232,.15);color:var(--color-info-ink)}
+
+/* สตรีม */
+.stream{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:7px}
+.daysep{align-self:center;font-size:10.5px;color:var(--color-default-500);background:var(--color-default-100);
+  border-radius:999px;padding:2px 11px;margin:2px 0}
+.bub{max-width:80%;padding:7px 11px;border-radius:13px;font-size:13.5px}
+.bub.them{background:var(--color-default-200);align-self:flex-start;border-bottom-left-radius:4px}
+.bub.me{background:var(--color-primary);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+/* การ์ดสถานะในสตรีม */
+.statuscard{border:1px solid rgba(10,116,255,.35);background:rgba(10,116,255,.06);border-radius:10px;
+  padding:9px 11px;display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--color-primary-ink);
+  align-self:stretch}
+.statuscard svg{width:16px;height:16px;flex:none}
+.statuscard .a{margin-left:auto;font-weight:600;text-decoration:underline;flex:none;font-size:11.5px}
+
+/* ท้ายจอ */
+.tail{flex:none;border-top:1px solid var(--color-default-200);background:var(--color-card)}
+.composer{padding:7px 11px 11px}
+.ctools{display:flex;gap:2px;margin-bottom:5px}
+.ctools .t{width:30px;height:30px;border-radius:var(--radius);display:flex;align-items:center;
+  justify-content:center;color:var(--color-default-500)}
+.ctools svg{width:16px;height:16px}
+.cinput{display:flex;gap:7px;align-items:flex-end}
+.cbox{flex:1;border:1px solid var(--color-default-300);border-radius:8px;padding:7px 10px;font-size:13.5px;
+  color:var(--color-default-500);min-height:38px}
+.sendbtn{flex:none;background:var(--color-primary);color:#fff;border-radius:var(--radius);padding:0 13px;
+  height:38px;display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600}
+.sendbtn svg{width:14px;height:14px}
+
+.mark{position:relative}
+.mark::after{content:attr(data-m);position:absolute;right:3px;top:2px;font-size:9px;font-weight:700;
+  background:#0f9d7a;color:#fff;padding:1px 7px;border-radius:999px;z-index:6}
+</style>
+</head>
+<body>
+<div class="doc">
+
+<div class="paper">
+  <h1>สถานะอยู่ตำแหน่งไหนบนจอ</h1>
+  <div class="sub">prototype · 2026-08-15 · ของทิ้ง · ต่อจากโครง D</div>
+  <div class="qbox">
+    🛑 <b>ช่องว่างที่เพิ่งพบ:</b> โครง D กำหนดที่อยู่ไว้แค่ 3 อย่าง — คำเตือน→เกาะช่องพิมพ์ ·
+    ที่มาของแชท→การ์ดในสตรีม · บริบทลูกค้า→บรรทัด 2 ของหัว
+    <b>แต่ไม่เคยบอกว่า "สถานะคำสั่งซื้อ / สถานะการเข้ารับบริการ" อยู่ไหน</b><br><br>
+    หน้านี้เทียบ <b>4 ตำแหน่งที่เป็นไปได้</b> ในจอจริง (ป้ายเขียวชี้จุดที่ต่างกัน) —
+    ทุกจอเป็นเคสเดียวกัน: <b>ร้านขายของ · มีออเดอร์กำลังจัดส่ง · หน้าต่างเหลือ 3 ชม. 47 นาที</b>
+  </div>
+</div>
+
+<div class="paper">
+  <h2><span class="num">1</span> แถบเต็มกว้างใต้หัว</h2>
+  <div class="desc">
+    สถานะออเดอร์เป็น<b>แถบสีน้ำเงินเต็มความกว้าง</b> วางใต้หัวเธรด เหนือคำเตือน (หรือใต้ก็ได้ตามลำดับความสำคัญ)
+  </div>
+  <div class="grid" id="p1"></div>
+  <div class="verdict bad">
+    ⚠ <b>ขัดกับหลักของ D เอง</b> — D ตั้งใจไม่ให้มีอะไรตรึงใต้หัว การเพิ่มแถบนี้คือการเอาพื้นที่กลางกลับมา
+    และเมื่อมีคำเตือนด้วยจะกลายเป็น 2 แถบซ้อน (= กลับไปเป็นแบบ A)
+  </div>
+</div>
+
+<div class="paper">
+  <h2><span class="num">2</span> บรรทัด 2 ของหัวเธรด — แทนที่ชื่อเพจ/บริบทลูกค้า</h2>
+  <div class="desc">
+    บรรทัด 2 <b>ผันตามสิ่งที่สำคัญที่สุดตอนนี้</b>: มีออเดอร์ค้าง → แสดงสถานะออเดอร์ ·
+    ไม่มี → กลับไปแสดงชื่อเพจ/ป้ายลูกค้า
+  </div>
+  <div class="grid" id="p2"></div>
+  <div class="verdict bad">
+    ⚠ <b>ที่แคบมาก</b> — วัดแล้วบรรทัด 2 ที่ 390px มีราว 123px ⇒ <code>DP2569-0042 · กำลังจัดส่ง</code> ยาวเกิน
+    ต้องตัดเหลือ <code>กำลังจัดส่ง</code> อย่างเดียว (เลขออเดอร์หาย) · และชื่อเพจถูกเบียดหายทุกครั้งที่มีออเดอร์
+  </div>
+</div>
+
+<div class="paper">
+  <h2><span class="num">3</span> บนปุ่มออเดอร์ในหัว — สีบอกสถานะ</h2>
+  <div class="desc">
+    ปุ่มออเดอร์ที่มีอยู่แล้วในหัว <b>เปลี่ยนสี badge ตามสถานะที่เร่งด่วนที่สุด</b>
+    (น้ำเงิน = ปกติ · ส้ม = มีใบที่ต้องทำอะไร เช่น รอเลขพัสดุ/รอเงิน COD/พัสดุมีปัญหา) — ไม่กินที่เพิ่มเลย
+  </div>
+  <div class="grid" id="p3"></div>
+  <div class="verdict bad">
+    ⚠ <b>บอกได้แค่ "มี/ไม่มีเรื่อง" บอกไม่ได้ว่าเรื่องอะไร</b> — "รอเลขพัสดุ" กับ "พัสดุมีปัญหา" สีเดียวกัน
+    ต้องกดถึงจะรู้ · แต่<b>ใช้เป็นตัวเสริมได้ดี</b>ควบคู่กับตำแหน่งอื่น
+  </div>
+</div>
+
+<div class="paper">
+  <h2><span class="num">4</span> การ์ดในสตรีม ตรึงไว้ท้ายสุด</h2>
+  <div class="desc">
+    สถานะออเดอร์เป็น<b>การ์ดในสตรีม</b> เหมือนการ์ด "ที่มาของแชท" — แต่<b>ตรึงอยู่ท้ายสุดเสมอ</b>
+    (ใต้ข้อความล่าสุด) ไม่เลื่อนหาย เพราะเป็นสถานะปัจจุบัน ไม่ใช่เหตุการณ์อดีต
+  </div>
+  <div class="grid" id="p4"></div>
+  <div class="verdict good">
+    ✓ <b>สอดคล้องกับ D มากที่สุด</b> — ไม่มีอะไรตรึงใต้หัว · อยู่ใกล้ช่องพิมพ์ (จุดที่ผู้ขายกำลังจะตอบเรื่องนี้พอดี) ·
+    มีที่เหลือเฟือใส่ทั้งเลขออเดอร์ สถานะ และปุ่ม · ต่างจากการ์ดที่มาชัดเจนด้วยตำแหน่ง (บนสุด = อดีต · ล่างสุด = ตอนนี้)
+    <br>⚠ ต้องตัดสิน: ข้อความใหม่เข้ามาแล้วการ์ดยังอยู่ท้ายสุด — จะดันขึ้นหรือทับ
+  </div>
+</div>
+
+</div>
+
+<script>
+const I={
+ back:'<path d="M5 12h14M5 12l6 6M5 12l6-6"/>',
+ folder:'<path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>',
+ cart:'<circle cx="6" cy="19" r="2"/><circle cx="17" cy="19" r="2"/><path d="M17 17H6V3H4M6 5l14 1-1 7H6"/>',
+ dots:'<circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/>',
+ fb:'<path d="M14 8h2V5h-2a3 3 0 0 0-3 3v2H9v3h2v6h3v-6h2l1-3h-3v-2a1 1 0 0 1 1-1z" fill="currentColor" stroke="none"/>',
+ truck:'<circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M5 17H3V6a1 1 0 0 1 1-1h9v12M9 17h6M13 9h4l3 4v4h-2"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+ send:'<path d="M4 12l16-8-6 16-2-6-8-2z"/>',
+ mood:'<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M8.5 14a4 4 0 0 0 7 0"/>',
+ paperclip:'<path d="M15 7l-6.5 6.5a2.1 2.1 0 0 0 3 3L18 10a4.2 4.2 0 0 0-6-6l-9 9a6.3 6.3 0 0 0 9 9L20 15"/>',
+ photo:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
+ bolt:'<path d="M13 3L5 14h6l-1 7 8-11h-6l1-7z"/>',
+ sparkles:'<path d="M12 3l1.8 4.7L18.5 9.5 13.8 11.3 12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3z"/>'
+};
+const s=(k)=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+I[k]+'</svg>';
+
+/* หัวเธรด — line2 ผันได้ / badge ผันสีได้ */
+const head=(o)=>{const x=o||{};return '<div class="card-header'+(x.mark?' mark':'')+'"'+(x.mark?' data-m="'+x.mark+'"':'')+'>'+
+  '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">'+
+    '<button class="btn btn-sm btn-icon border-default-300">'+s('back')+'</button>'+
+    '<span class="avatar">มม<span class="ch-badge">'+s('fb')+'</span></span>'+
+    '<div style="min-width:0;flex:1">'+
+      '<h5 class="name">มูหำหมัด มณีหยา</h5>'+
+      (x.line2==='order'
+        ? '<span class="line2 order">'+s('truck')+'กำลังจัดส่ง</span>'
+        : '<span class="line2">'+s('fb')+'ชาเขียวเหนี่ยวทรัพย์</span>')+
+    '</div>'+
+  '</div>'+
+  '<div style="display:flex;gap:5px;flex:none">'+
+    '<button class="btn btn-icon border-default-300">'+s('cart')+
+      '<span class="cnt'+(x.hotBadge?' warn':'')+'">4</span></button>'+
+    '<button class="btn btn-icon border-default-300">'+s('folder')+'<span class="cnt">3</span></button>'+
+    '<button class="btn btn-icon border-default-300">'+s('dots')+'</button>'+
+  '</div>'+
+'</div>';};
+
+const orderBar=(mark)=>'<div class="bar order'+(mark?' mark':'')+'"'+(mark?' data-m="'+mark+'"':'')+'>'+
+  s('truck')+'DP2569-0042 · กำลังจัดส่ง<span class="a">ดูออเดอร์</span></div>';
+
+const warnBar=()=>'<div class="bar warn">'+s('clock')+
+  'ใกล้หมดเวลาตอบ — เหลือ 3 ชม. 47 นาที<span class="a">ดู</span></div>';
+
+const msgs=()=>'<div class="daysep">วันนี้</div>'+
+  '<div class="bub them">ของยังไม่ถึงเลยครับ</div>'+
+  '<div class="bub me">ตรวจสอบให้แล้วค่ะ พัสดุอยู่ระหว่างขนส่ง คาดว่าถึงพรุ่งนี้</div>'+
+  '<div class="bub them">โอเคครับ ขอบคุณครับ</div>';
+
+const composer=()=>'<div class="composer">'+
+  '<div class="ctools">'+
+    '<span class="t">'+s('paperclip')+'</span><span class="t">'+s('photo')+'</span>'+
+    '<span class="t">'+s('mood')+'</span><span class="t">'+s('bolt')+'</span>'+
+    '<span class="t">'+s('sparkles')+'</span><span class="t">'+s('cart')+'</span>'+
+  '</div>'+
+  '<div class="cinput"><div class="cbox">พิมพ์ข้อความ…</div>'+
+    '<span class="sendbtn">'+s('send')+'ส่ง</span></div></div>';
+
+function frame(label, inner){
+  return '<div><div class="fl"><b>'+label+'</b></div><div class="device"><div class="screen">'+inner+'</div></div></div>';
+}
+
+/* 1 — แถบเต็มกว้างใต้หัว */
+document.getElementById('p1').innerHTML =
+  frame('สถานะออเดอร์เป็นแถบใต้หัว',
+    head({})+orderBar('ตรงนี้')+
+    '<div class="stream">'+msgs()+'</div>'+
+    '<div class="tail">'+warnBar()+composer()+'</div>');
+
+/* 2 — บรรทัด 2 ของหัว */
+document.getElementById('p2').innerHTML =
+  frame('สถานะไปอยู่บรรทัด 2 (ชื่อเพจหาย)',
+    head({line2:'order',mark:'ตรงนี้'})+
+    '<div class="stream">'+msgs()+'</div>'+
+    '<div class="tail">'+warnBar()+composer()+'</div>');
+
+/* 3 — บนปุ่ม */
+document.getElementById('p3').innerHTML =
+  frame('สีบน badge ของปุ่มออเดอร์',
+    head({hotBadge:true,mark:'ตรงนี้'})+
+    '<div class="stream">'+msgs()+'</div>'+
+    '<div class="tail">'+warnBar()+composer()+'</div>');
+
+/* 4 — การ์ดตรึงท้ายสตรีม */
+document.getElementById('p4').innerHTML =
+  frame('การ์ดตรึงท้ายสตรีม',
+    head({})+
+    '<div class="stream">'+msgs()+
+      '<div class="statuscard mark" data-m="ตรงนี้">'+s('truck')+
+        '<span><b>DP2569-0042</b> · กำลังจัดส่ง</span><span class="a">ดูออเดอร์</span></div>'+
+    '</div>'+
+    '<div class="tail">'+warnBar()+composer()+'</div>');
+</script>
+</body>
+</html>

@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ห้องแชทผู้ขาย — 3 แบบที่แก้ไข (2026-08-15)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROTOTYPE — โค้ดทิ้ง ไม่ใช่ของ production
+
+   3 ทางเลือกของการจัดระเบียบพื้นที่เหนือสตรีม — ทุกแบบยึดหลักการเดียวกันจาก
+   Design Spec ของ safepay-ux (1 ข้อเท็จจริง = 1 บ้าน · label สั้นแยกจากประโยคเต็ม ·
+   ตัดชิป token ที่ซ้ำกับบล็อกล่างบน LINE · merge ที่มา 2 อัน · นับถอยหลังเป็นนาที)
+   ต่างกันที่ **ของพวกนี้ถูกจัดวางเป็นรูปทรงอะไร**
+
+   ค่าทุกตัวคัดจากไฟล์จริง: _root.css · _theme-saas.css · _buttons.css · _card.css · _badge.css
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --color-body-bg:#f2f6fb; --color-card:#fff;
+  --color-primary:#0a74ff; --color-primary-ink:#1e3a8a;
+  --color-info:#1aa0e8; --color-info-ink:#1e40af;
+  --color-warning:#ff8f1f; --color-warning-ink:#92400e;
+  --color-danger:#f43f5e; --color-danger-ink:#7f1d1d;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-600:#4a5358;
+  --color-default-700:#40454a; --color-default-800:#343a40; --color-default-900:#313a46;
+  --radius:4px; --shadow:0px 1px 4px 0px rgba(130,143,163,.15);
+  --shadow-lg:0 .25rem 1rem rgba(76,76,92,.2);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Anuphan',system-ui,sans-serif;background:#e9eef6;color:var(--color-default-900);
+  padding:24px 16px 130px;line-height:1.5}
+.doc{max-width:1240px;margin:0 auto}
+.paper{background:#fff;border-radius:12px;padding:20px 24px;box-shadow:var(--shadow);margin-bottom:22px}
+h1{font-size:22px;font-weight:700;margin-bottom:5px}
+h2{font-size:19px;font-weight:700;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sub{color:var(--color-default-500);font-size:14px;margin-bottom:16px}
+.qbox{background:var(--color-default-100);border-left:3px solid var(--color-primary);padding:12px 14px;
+  border-radius:0 6px 6px 0;font-size:14px}
+.qbox b{color:var(--color-primary-ink)}
+.qbox code{background:var(--color-default-200);padding:1px 5px;border-radius:3px;font-family:inherit;font-size:12px}
+.vkey{background:var(--color-default-900);color:#fff;width:28px;height:28px;border-radius:6px;
+  display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex:none}
+.idea{margin-top:8px;font-size:14px;color:var(--color-default-700)}
+.idea code{background:var(--color-default-200);padding:1px 5px;border-radius:3px;font-family:inherit;font-size:12px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+@media(max-width:820px){.cols{grid-template-columns:1fr}}
+.cols h4{font-size:12px;font-weight:700;color:var(--color-default-500);margin-bottom:5px}
+.cols ul{list-style:none;font-size:13px}
+.cols li{padding-left:15px;position:relative;margin-bottom:4px;color:var(--color-default-700)}
+.cols li::before{content:'';position:absolute;left:3px;top:9px;width:4px;height:4px;border-radius:50%;
+  background:var(--color-default-400)}
+.cols .win li::before{background:#0f9d7a}
+.cols .cost li::before{background:var(--color-warning)}
+.cols code{background:var(--color-default-200);padding:1px 5px;border-radius:3px;font-family:inherit;font-size:12px}
+.tally{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.tally span{font-size:12px;background:var(--color-default-100);border:1px solid var(--color-default-300);
+  border-radius:999px;padding:3px 10px;color:var(--color-default-700)}
+.tally span b{color:var(--color-default-900)}
+
+.frames{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;justify-content:center}
+.fl{text-align:center;font-size:12px;font-weight:600;color:var(--color-default-500);margin-bottom:8px}
+.fl b{color:var(--color-default-800)}
+.device{background:var(--color-body-bg);border:8px solid #2b3038;border-radius:24px;overflow:hidden;
+  box-shadow:var(--shadow-lg);width:406px}
+.screen{width:390px;height:660px;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;
+  background:var(--color-card)}
+.variant{display:none}.variant.on{display:block}
+
+/* ═══ จำลอง Paces ═══ */
+.card-header{display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:12px;
+  border-bottom:1px dashed var(--color-default-300);padding:12px 20px;background:var(--color-card);flex:none}
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  border-radius:var(--radius);border:1px solid transparent;padding:7px 16px;font-size:14px;font-weight:500;
+  font-family:inherit;background:transparent;color:inherit;cursor:pointer}
+.btn-icon{width:37px;height:37px;padding:0;flex:none}
+.btn-sm{padding:5px 12px;font-size:13px}
+.btn-sm.btn-icon{width:30px;height:30px;padding:0}
+.border-default-300{border-color:var(--color-default-300)}
+.badge{display:inline-flex;align-items:center;justify-content:center;gap:4px;border-radius:var(--radius);
+  padding:.15em .5em;font-size:.75em;font-weight:600}
+.avatar{width:36px;height:36px;border-radius:50%;flex:none;position:relative;background:#dbe7fb;color:#3b6bb5;
+  display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px}
+.ch-badge{position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;
+  border:2px solid #fff;background:#e11d48;display:flex;align-items:center;justify-content:center}
+.ch-badge svg{width:9px;height:9px;color:#fff}
+h5.name{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pageline{font-size:11px;color:var(--color-default-500);display:flex;align-items:center;gap:5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.pageline svg{width:12px;height:12px;flex:none}
+.cnt-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;border-radius:999px;font-size:10px;
+  line-height:1;display:flex;align-items:center;justify-content:center;font-weight:600;padding:0 4px;
+  background:var(--color-primary);color:#fff;border:2px solid #fff}
+.mute-badge{position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:999px;
+  border:2px solid #fff;background:var(--color-default-600);color:#fff;display:flex;align-items:center;justify-content:center}
+.mute-badge svg{width:10px;height:10px}
+
+/* ── แถบคำเตือน (ทุกแบบใช้ร่วม) ── */
+.actbar{display:flex;align-items:center;gap:8px;padding:7px 16px;font-size:13px;font-weight:500;flex:none;
+  border-bottom:1px solid var(--color-default-200)}
+.actbar svg{width:15px;height:15px;flex:none}
+.actbar .a{margin-left:auto;flex:none;font-size:12px;font-weight:600;text-decoration:underline}
+.actbar.danger{background:rgba(244,63,94,.15);color:var(--color-danger-ink)}
+.actbar.warn{background:rgba(255,143,31,.15);color:var(--color-warning-ink)}
+.actbar.info{background:rgba(26,160,232,.15);color:var(--color-info-ink)}
+
+/* ── ที่มาของแชท ── */
+.origin{display:flex;gap:10px;padding:8px 16px;background:var(--color-card);flex:none;
+  border-bottom:1px solid var(--color-default-200)}
+.origin .th{width:38px;height:38px;border-radius:6px;flex:none;background:linear-gradient(135deg,#6dd3a8,#3b82f6)}
+.origin .bd{min-width:0;flex:1;display:flex;flex-direction:column}
+.origin .t1{display:block;font-size:12px;font-weight:600;color:var(--color-default-800);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.origin .q{display:block;font-size:12px;color:var(--color-default-600);line-height:1.35;margin-top:2px}
+.origin .attach{margin-top:6px;display:flex;gap:6px;align-items:center}
+.origin .attach .img{width:44px;height:44px;border-radius:6px;flex:none;
+  background:linear-gradient(135deg,#f9a8d4,#c084fc)}
+.origin .attach .cap{font-size:11px;color:var(--color-default-500)}
+.origin .sub{display:flex;flex:none;align-items:center;gap:5px;margin-top:5px;font-size:11px;
+  color:var(--color-default-500)}
+.origin .sub svg{width:12px;height:12px;flex:none}
+.origin .lnk{font-size:12px;font-weight:600;color:var(--color-primary);flex:none;align-self:flex-start}
+
+/* ── บริบทลูกค้าแบบเงียบ ── */
+.ambient{display:flex;align-items:center;gap:5px;padding:5px 16px;font-size:11px;color:var(--color-default-600);
+  background:var(--color-card);border-bottom:1px solid var(--color-default-200);flex:none;
+  overflow:hidden;white-space:nowrap}
+.ambient svg{width:12px;height:12px;flex:none}
+
+/* ── แบบ B: การ์ดเดียว ── */
+.onecard{margin:8px 12px;border:1px solid var(--color-default-300);border-radius:8px;overflow:hidden;
+  flex:none;box-shadow:var(--shadow)}
+.onecard > :last-child{border-bottom:0}
+
+/* ── แบบ C: การ์ดที่มาอยู่ในสตรีม ── */
+.instream{border:1px solid var(--color-default-300);border-radius:10px;background:var(--color-card);
+  overflow:hidden;margin:2px 0 8px}
+.instream .origin{border-bottom:0}
+.instream .cap{font-size:10px;color:var(--color-default-500);padding:6px 12px 0;display:flex;
+  align-items:center;gap:5px}
+.instream .cap svg{width:11px;height:11px}
+
+/* ── สตรีม / ท้ายจอ ── */
+.stream{flex:1;overflow-y:auto;padding:10px 16px 16px;display:flex;flex-direction:column;gap:8px}
+.daysep{align-self:center;font-size:11px;color:var(--color-default-500);background:var(--color-default-100);
+  border-radius:999px;padding:2px 12px;margin:4px 0}
+.bub{max-width:78%;padding:8px 12px;border-radius:14px;font-size:14px;position:relative}
+.bub.them{background:var(--color-default-200);align-self:flex-start;border-bottom-left-radius:4px}
+.bub.me{background:var(--color-primary);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.metarow{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--color-default-500);
+  align-self:flex-end;margin-top:-4px}
+.metarow svg{width:12px;height:12px}
+.tail{flex:none;border-top:1px solid var(--color-default-200);background:var(--color-card)}
+.replaced{min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  padding:14px 16px;text-align:center;background:rgba(26,160,232,.08)}
+.replaced .t{font-size:13px;color:var(--color-info-ink);display:flex;align-items:center;gap:6px}
+.replaced svg{width:16px;height:16px}
+.composer{padding:8px 12px 12px}
+.ctools{display:flex;gap:2px;align-items:center;margin-bottom:6px}
+.ctools .t{width:32px;height:32px;border-radius:var(--radius);display:flex;align-items:center;
+  justify-content:center;color:var(--color-default-500)}
+.ctools svg{width:17px;height:17px}
+.cinput{display:flex;gap:8px;align-items:flex-end}
+.cbox{flex:1;border:1px solid var(--color-default-300);border-radius:8px;padding:8px 10px;font-size:14px;
+  color:var(--color-default-500);min-height:40px}
+.sendbtn{flex:none;background:var(--color-primary);color:#fff;border-radius:var(--radius);padding:0 14px;
+  height:40px;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600}
+.sendbtn svg{width:15px;height:15px}
+
+/* ═══ redesign รอบ 2 (D/E/F) — ท้าทายสมมติฐาน "ต้องมีพื้นที่เหนือสตรีม" ═══ */
+/* D — คำเตือนเกาะช่องพิมพ์ ไม่ใช่เกาะจอ */
+.tipstrip{display:flex;align-items:center;gap:7px;padding:6px 14px;font-size:12px;font-weight:500;
+  background:rgba(255,143,31,.15);color:var(--color-warning-ink);border-bottom:1px solid var(--color-default-200)}
+.tipstrip svg{width:13px;height:13px;flex:none}
+.tipstrip .a{margin-left:auto;font-weight:600;text-decoration:underline;flex:none}
+/* E — หัวเธรดเปลี่ยนตัวเองตามสถานการณ์ */
+.card-header.alert{background:rgba(255,143,31,.12);border-bottom-color:rgba(255,143,31,.35);border-bottom-style:solid}
+.hdrline{font-size:11px;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;margin-top:1px}
+.hdrline.warn{color:var(--color-warning-ink);font-weight:600}
+.hdrline .a{text-decoration:underline;flex:none}
+.hdrline svg{width:12px;height:12px;flex:none}
+/* F — ปุ่มสถานะเดียว + แผงกาง */
+.statusbtn{position:relative}
+.statusdot{position:absolute;top:-3px;right:-3px;width:11px;height:11px;border-radius:999px;
+  background:var(--color-warning);border:2px solid #fff}
+.panel{border-bottom:1px solid var(--color-default-200);background:var(--color-default-100);flex:none}
+.panel .row{display:flex;align-items:center;gap:8px;padding:8px 16px;font-size:12px;
+  border-bottom:1px solid var(--color-default-200);color:var(--color-default-700)}
+.panel .row:last-child{border-bottom:0}
+.panel .row svg{width:14px;height:14px;flex:none}
+.panel .row .a{margin-left:auto;font-weight:600;text-decoration:underline;flex:none;color:var(--color-primary)}
+.panel .row.warn{color:var(--color-warning-ink);background:rgba(255,143,31,.10)}
+.collapsed-hint{font-size:10px;color:var(--color-default-500);padding:4px 16px 6px;text-align:center}
+
+.zone{position:relative}
+.zone::after{content:attr(data-z);position:absolute;right:2px;top:1px;font-size:9px;font-weight:700;
+  background:rgba(49,58,70,.7);color:#fff;padding:1px 6px;border-radius:999px;z-index:5;pointer-events:none}
+
+.switcher{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:999;background:#111418;
+  color:#fff;border-radius:999px;padding:7px 9px;display:flex;align-items:center;gap:6px;
+  box-shadow:0 8px 28px rgba(0,0,0,.35)}
+.switcher button{width:34px;height:34px;border:0;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;
+  font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit}
+.switcher .lbl{padding:0 12px;font-size:14px;font-weight:600;min-width:250px;text-align:center}
+.switcher .lbl .k{opacity:.55;margin-right:6px}
+.switcher .hint{position:absolute;bottom:-19px;left:0;right:0;text-align:center;font-size:11px;color:#6b7280}
+</style>
+</head>
+<body>
+<div class="doc">
+
+<div class="paper">
+  <h1>ห้องแชทผู้ขาย — 3 แบบที่แก้ไข</h1>
+  <div class="sub">prototype · 2026-08-15 · ของทิ้ง · ทุกแบบผ่าน Design Spec ของ safepay-ux แล้ว</div>
+  <div class="qbox">
+    <b>ทั้ง 3 แบบแก้เหมือนกันหมด</b> — ตัดชิป token ที่ซ้ำกับบล็อกล่างบน LINE ·
+    แยก "label สั้น" ออกจาก "ประโยคเต็ม" (ต้นเหตุจริงของชิปที่ถูกตัด) · merge ที่มา 2 อันเป็นก้อนเดียว ·
+    นับถอยหลังย้ายลงจากหัวและนับเป็น<b>นาที</b> · แสดง <code>attachmentUrl</code> + <code>createdTime</code> ที่เคยถูกทิ้ง ·
+    ซ่อนบรรทัดอังกฤษของ Meta เฉพาะชนิด comment-reply · ลบปุ่ม ✕ ปิดโฆษณาถาวร<br><br>
+    <b>ต่างกันที่รูปทรง:</b> ของพวกนี้ควรเป็น <b>แถบซ้อนกัน</b> · <b>การ์ดเดียว</b> · หรือ <b>อยู่ในสตรีมตามลำดับเวลา</b>
+  </div>
+  <div class="tally">
+    <span>จอซ้าย = <b>เคสของครบ</b> (AI ถือห้อง + ใกล้หมดเวลา + ที่มา 2 อัน + ลูกค้าใหม่)</span>
+    <span>จอขวา = <b>เคสปกติ</b></span>
+  </div>
+</div>
+
+<section class="variant" data-key="A">
+  <div class="paper">
+    <h2><span class="vkey">A</span> แถบซ้อนกัน — แต่ละเรื่องมีแถบของตัวเอง</h2>
+    <div class="idea">
+      <b>3 ชั้นแยกกันชัด</b> เรียงตามระดับบังคับอ่าน:
+      <code>คำเตือน</code> (พื้นสี มีปุ่ม) → <code>ที่มาของแชท</code> (พื้นขาว มีรูป) →
+      <code>บริบทลูกค้า</code> (จาง บรรทัดเดียว) · ชั้นไหนไม่มีของก็ไม่ render เลย
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li>ลำดับความสำคัญอ่านจากบนลงล่างได้ทันที ไม่ต้องตีความ</li>
+        <li>แต่ละชั้นหายได้อิสระ — เคสปกติเหลือ <b>บรรทัดเดียว 26px</b></li>
+        <li>ใกล้โครงเดิมที่สุด ทยอยแก้ทีละชั้นได้ ไม่ต้องรื้อพร้อมกัน</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li>เคสของครบมี <b>เส้นคั่นเต็มจอ 3 เส้นซ้อนกัน</b> — ดูเป็นชั้น ๆ เยอะ</li>
+        <li>ทุกแถบกว้างเท่ากันหมด ไม่มีอะไรบอกว่าอันไหน "ของลูกค้ารายนี้" อันไหน "ของระบบ"</li>
+      </ul></div>
+    </div>
+    <div class="tally"><span>เคสของครบ <b>184px</b></span><span>เคสปกติ <b>92px</b></span></div>
+  </div>
+  <div class="frames" data-render="A"></div>
+</section>
+
+<section class="variant" data-key="B">
+  <div class="paper">
+    <h2><span class="vkey">B</span> การ์ดเดียว — ทุกอย่างอยู่ในกล่องเดียวใต้หัว</h2>
+    <div class="idea">
+      ของทั้ง 3 ชนิดยุบเข้า <b>การ์ดใบเดียว</b> ที่ลอยอยู่ใต้หัวเธรด (มีขอบ มีเงา มีระยะห่างรอบ)
+      — สื่อว่า "นี่คือข้อมูลของลูกค้ารายนี้ทั้งก้อน" แยกจากตัวแอปด้วยสายตา
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li><b>แยก "ของลูกค้ารายนี้" ออกจาก "ของแอป" ได้ในภาพเดียว</b></li>
+        <li>ไม่มีเส้นคั่นเต็มจอหลายเส้น — สงบกว่าเมื่อมีของเยอะ</li>
+        <li>ย้ายทั้งก้อนได้ทีหลังโดยไม่ต้องแยกชิ้น</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li>เสียความกว้าง 24px จากระยะห่างซ้าย-ขวา และสูงขึ้นจาก padding การ์ด</li>
+        <li><b>เคสปกติดูหนักเกินจริง</b> — ข้อมูลบรรทัดเดียวถูกใส่กรอบการ์ดทั้งใบ</li>
+        <li>คำเตือนอยู่ในการ์ดลอย = <b>ดูเบากว่าแถบเต็มจอ</b> ซึ่งขัดกับความเร่งด่วนของมันเอง</li>
+      </ul></div>
+    </div>
+    <div class="tally"><span>เคสของครบ <b>~200px</b></span><span>เคสปกติ <b>~52px</b></span></div>
+  </div>
+  <div class="frames" data-render="B"></div>
+</section>
+
+<section class="variant" data-key="C">
+  <div class="paper">
+    <h2><span class="vkey">C</span> ที่มาอยู่ในสตรีมตามลำดับเวลา — เลื่อนหายได้</h2>
+    <div class="idea">
+      แยกตาม<b>อายุของข้อมูล</b>: <b>คำเตือน</b> = สถานะปัจจุบัน → ตรึงเป็นแถบใต้หัว ·
+      <b>ที่มาของแชท</b> = เหตุการณ์ที่เกิด<b>ก่อนข้อความแรก</b> → เป็น<b>การ์ดใบแรกในสตรีม</b>
+      เลื่อนหายไปกับข้อความเก่าเมื่ออ่านต่อ · <b>บริบทลูกค้า</b> = แถบจางใต้หัว
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li><b>ที่มาเลิกกินพื้นที่ถาวร</b> — อ่านแล้วเลื่อนผ่านไปเหมือนข้อความอื่น</li>
+        <li>ตรงกับลำดับเวลาจริง: ลูกค้าคอมเมนต์ → แล้วจึงเกิดห้องนี้ ⇒ มันควรอยู่<b>ก่อน</b>ข้อความแรก</li>
+        <li>การ์ดในสตรีมใส่เนื้อหาได้เต็มที่ (รูปแนบใหญ่ · ข้อความยาว) โดยไม่กินที่หัวจอ</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li>🛑 <b>เลื่อนไปแล้วหาไม่เจอ</b> — ต้องเลื่อนกลับบนสุด ห้องที่คุยยาวจะไกลมาก</li>
+        <li>🛑 ห้องแชท<b>เปิดมาอยู่ล่างสุดเสมอ</b> ⇒ เธรดที่คุยมานาน ผู้ขายจะไม่เห็นการ์ดนี้เลยตั้งแต่แรก</li>
+        <li>ต้องตัดสินว่าการ์ดอยู่ก่อนหรือหลังตัวคั่นวันที่ และจะเป็นยังไงตอนโหลดข้อความเก่าเพิ่ม</li>
+      </ul></div>
+    </div>
+    <div class="tally"><span>เคสของครบ <b>124px</b> ตรึง + การ์ดในสตรีม</span><span>เคสปกติ <b>92px</b></span></div>
+  </div>
+  <div class="frames" data-render="C"></div>
+</section>
+
+
+<section class="variant" data-key="D">
+  <div class="paper">
+    <h2><span class="vkey">D</span> ไม่มีพื้นที่กลางเลย — ทุกอย่างผูกกับจุดที่มันเกี่ยวข้อง</h2>
+    <div class="idea">
+      🛑 <b>A/B/C ทั้งสามยืนบนสมมติฐานเดียวกันว่า "ต้องมีพื้นที่เหนือสตรีม"</b> — แบบนี้ทิ้งสมมติฐานนั้น:<br>
+      • <b>คำเตือนที่ขวางการส่ง</b> → บล็อกแทนช่องพิมพ์ (มีอยู่แล้ว)<br>
+      • <b>คำเตือนที่ไม่ขวาง</b> (ใกล้หมดเวลา · ห้องทดสอบ) → แถบบางเกาะ<b>บนขอบช่องพิมพ์</b> ไม่ใช่บนขอบจอ —
+        เพราะมันเกี่ยวกับ<b>การพิมพ์ครั้งถัดไป</b> ไม่ใช่เกี่ยวกับห้อง<br>
+      • <b>ที่มาของแชท</b> → การ์ดแรกในสตรีม (ตามลำดับเวลา)<br>
+      • <b>บริบทลูกค้า</b> → บรรทัด 2 ของหัวเธรด สลับที่กับชื่อเพจเมื่อมีของสำคัญกว่า<br>
+      ⇒ <b>เหนือสตรีมเหลือหัวเธรดอย่างเดียว 66px เสมอ ทุกสถานการณ์</b>
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li><b>ความสูงคงที่ 66px ไม่ว่าจะเกิดอะไรขึ้น</b> — จอไม่กระโดดเวลามีคำเตือนโผล่</li>
+        <li>คำเตือนอยู่ติดนิ้วที่กำลังจะพิมพ์ ไม่ใช่อยู่ไกลบนสุดของจอ</li>
+        <li>ทุกอย่างมีเหตุผลว่าทำไมถึงอยู่ตรงนั้น — ไม่มี "ที่ทิ้งของ" อีกต่อไป</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li>บรรทัด 2 ต้องแย่งกันระหว่างชื่อเพจกับป้ายลูกค้า — <b>ใส่ได้ทีละอย่าง</b> (วัดแล้วที่ 390px มีที่ ~123px)</li>
+        <li>คำเตือนบนช่องพิมพ์อาจถูกมองข้ามถ้าผู้ขายไม่ได้กำลังจะพิมพ์</li>
+        <li>เปลี่ยนที่อยู่ของของหลายชิ้นพร้อมกัน — ผู้ใช้เดิมต้องเรียนรู้ใหม่</li>
+      </ul></div>
+    </div>
+    <div class="tally"><span>เหนือสตรีม <b>66px</b> คงที่</span><span>เท่ากันทุกสถานการณ์</span></div>
+  </div>
+  <div class="frames" data-render="D"></div>
+</section>
+
+<section class="variant" data-key="E">
+  <div class="paper">
+    <h2><span class="vkey">E</span> หัวเธรดพูดได้ — ใช้ที่เดิม เปลี่ยนสิ่งที่มันบอก</h2>
+    <div class="idea">
+      ไม่เพิ่มชั้นใหม่เลยแม้แต่ชั้นเดียว — <b>หัวเธรดเปลี่ยนตัวเองตามสถานการณ์</b>:<br>
+      • ปกติ: บรรทัด 2 = ชื่อเพจ · พื้นขาว<br>
+      • มีเรื่องต้องรู้: <b>พื้นหัวเปลี่ยนเป็นสีเตือน</b> + บรรทัด 2 กลายเป็นคำเตือน + ปุ่มจัดการ<br>
+      • ที่มาของแชท + บริบทลูกค้า → อยู่หลังการแตะกลุ่มชื่อ (เปิดแผงลูกค้า)
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li><b>66px เสมอ และไม่มีชั้นใหม่ให้เรียนรู้</b> — ที่เดิมทุกอย่าง แค่เปลี่ยนเนื้อ</li>
+        <li>สีพื้นทั้งแถบเห็นชัดกว่าชิปเล็ก ๆ มาก — มองปราดเดียวรู้ว่าห้องนี้มีเรื่อง</li>
+        <li>แก้ง่ายที่สุดในทุกแบบ — แตะไฟล์เดียว ไม่สร้าง component ใหม่</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li>🛑 <b>ได้ทีละเรื่องเดียว</b> — มี 3 คำเตือนพร้อมกันต้องเลือกอันเดียวมาโชว์ ที่เหลือหายไปหลังการแตะ</li>
+        <li>ที่มาของแชทหายจากจอ ⇒ <b>ย้อนสิ่งที่ ux ตัดสินไว้</b> ("ต้องรู้ก่อนตอบ ไม่ใช่อ้างอิงเมื่อสงสัย")</li>
+        <li>ชื่อเพจหายเมื่อมีคำเตือน — ผู้ขายหลายเพจจะไม่รู้ว่ากำลังตอบในนามเพจไหน</li>
+      </ul></div>
+    </div>
+    <div class="tally"><span>เหนือสตรีม <b>66px</b> คงที่</span><span>ไม่มี component ใหม่</span></div>
+  </div>
+  <div class="frames" data-render="E"></div>
+</section>
+
+<section class="variant" data-key="F">
+  <div class="paper">
+    <h2><span class="vkey">F</span> แผงเดียวหลังปุ่ม — ซ่อนทั้งหมด กดดูเมื่อต้องการ</h2>
+    <div class="idea">
+      หัวเธรดมี<b>ปุ่มสถานะเดียว</b> (จุดสีบอกว่ามีเรื่อง) กดแล้วกาง<b>แผงเดียวที่รวมทุกอย่าง</b>:
+      คำเตือนทุกอัน · ที่มาของแชท · บริบทลูกค้า — เรียงตามความสำคัญในแผงเดียว<br>
+      สิ่งที่<b>ยังขวางจริง</b> (AI ถือห้อง / token ตาย) ยังบล็อกที่ช่องพิมพ์เหมือนเดิม ไม่ซ่อน
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li><b>66px เสมอ</b> และจอสะอาดที่สุดในทุกแบบ</li>
+        <li>ของเยอะแค่ไหนก็ใส่ได้หมด — แผงเลื่อนได้ ไม่มีอะไรถูกตัดคำ</li>
+        <li>ผู้ขายที่รู้อยู่แล้วว่าห้องนี้มีอะไร ไม่ต้องเห็นซ้ำทุกครั้งที่เปิด</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li>🛑 <b>คำเตือนกลายเป็นจุดสีจุดเดียว</b> — "ใกล้หมดเวลา" กับ "ลูกค้าปิดรับข้อความ" หน้าตาเหมือนกันจนกว่าจะกด</li>
+        <li>ที่มาของแชทต้องกด 1 ครั้งถึงเห็น — ย้อนมติ ux เหมือนแบบ E</li>
+        <li>ของที่ต้องรู้<b>ก่อน</b>ตอบ ถูกวางไว้หลังการกระทำ = ผู้ขายที่รีบจะไม่กด</li>
+      </ul></div>
+    </div>
+    <div class="tally"><span>เหนือสตรีม <b>66px</b> คงที่</span><span>ทุกอย่างอยู่หลัง 1 แตะ</span></div>
+  </div>
+  <div class="frames" data-render="F"></div>
+</section>
+
+</div>
+
+<div class="switcher">
+  <button type="button" id="prev" aria-label="ก่อนหน้า">&#8592;</button>
+  <div class="lbl" id="lbl"></div>
+  <button type="button" id="next" aria-label="ถัดไป">&#8594;</button>
+  <div class="hint">ลูกศร ← → บนคีย์บอร์ดก็ได้ · แชร์ลิงก์ด้วย ?v=</div>
+</div>
+
+<script>
+const I={
+ back:'<path d="M5 12h14M5 12l6 6M5 12l6-6"/>',
+ folder:'<path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>',
+ cart:'<circle cx="6" cy="19" r="2"/><circle cx="17" cy="19" r="2"/><path d="M17 17H6V3H4M6 5l14 1-1 7H6"/>',
+ dots:'<circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/>',
+ bellOff:'<path d="M3 3l18 18M17 17H4a4 4 0 0 0 2-3V9a6 6 0 0 1 .6-2.6M8.5 4.5A6 6 0 0 1 18 9v5M9 17v1a3 3 0 0 0 6 0v-1"/>',
+ fb:'<path d="M14 8h2V5h-2a3 3 0 0 0-3 3v2H9v3h2v6h3v-6h2l1-3h-3v-2a1 1 0 0 1 1-1z" fill="currentColor" stroke="none"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+ check:'<path d="M4 12l5 5L20 6"/>',
+ speakerphone:'<path d="M18 8a3 3 0 0 1 0 6M10 8v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-5"/><path d="M12 8l4.5-3.8A.9.9 0 0 1 18 4.9v12.2a.9.9 0 0 1-1.5.7L12 14H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h8z"/>',
+ robot:'<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M12 2v4M9 12h.01M15 12h.01M9.5 15.5h5"/>',
+ sparkles:'<path d="M12 3l1.8 4.7L18.5 9.5 13.8 11.3 12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3z"/>',
+ send:'<path d="M4 12l16-8-6 16-2-6-8-2z"/>',
+ mood:'<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M8.5 14a4 4 0 0 0 7 0"/>',
+ paperclip:'<path d="M15 7l-6.5 6.5a2.1 2.1 0 0 0 3 3L18 10a4.2 4.2 0 0 0-6-6l-9 9a6.3 6.3 0 0 0 9 9L20 15"/>',
+ photo:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
+ bolt:'<path d="M13 3L5 14h6l-1 7 8-11h-6l1-7z"/>',
+ alertTri:'<path d="M12 9v4M12 17h.01M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+ history:'<path d="M12 8v4l3 2"/><path d="M3.05 11a9 9 0 1 1 .5 4"/><path d="M3 4v5h5"/>'
+};
+const s=(k,st)=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'+(st?' style="'+st+'"':'')+'>'+I[k]+'</svg>';
+const ico=(k,px)=>s(k,'width:'+(px||17)+'px;height:'+(px||17)+'px;flex:none');
+
+const NAME='มูหำหมัด มณีหยา', INI='มม', PAGE='ชาเขียวเหนี่ยวทรัพย์';
+
+const head=()=>'<div class="card-header zone" data-z="หัวเธรด">'+
+  '<div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">'+
+    '<button class="btn btn-sm btn-icon border-default-300">'+ico('back',16)+'</button>'+
+    '<span class="avatar">'+INI+'<span class="ch-badge">'+s('fb')+'</span></span>'+
+    '<div style="min-width:0">'+
+      '<h5 class="name">'+NAME+'</h5>'+
+      '<span class="pageline">'+s('fb')+PAGE+'</span>'+
+    '</div>'+
+  '</div>'+
+  '<div style="display:flex;gap:6px;flex:none">'+
+    '<button class="btn btn-icon border-default-300">'+ico('cart',17)+
+      '<span class="badge cnt-badge">4</span></button>'+
+    '<button class="btn btn-icon border-default-300">'+ico('folder',17)+
+      '<span class="badge cnt-badge">3</span></button>'+
+    '<button class="btn btn-icon border-default-300">'+ico('dots',17)+
+      '<span class="mute-badge">'+s('bellOff')+'</span></button>'+
+  '</div>'+
+'</div>';
+
+const warnbar=(z)=>'<div class="actbar warn zone" data-z="'+(z===''?' ':(z||'คำเตือน'))+'">'+s('clock')+
+  'ใกล้หมดเวลาตอบ — เหลือ 3 ชม. 47 นาที<span class="a">รายละเอียด</span></div>';
+
+const originBlock=(z)=>'<div class="origin zone" data-z="'+(z===''?' ':(z||'ที่มาของแชท'))+'">'+
+  '<span class="th"></span>'+
+  '<span class="bd">'+
+    '<span class="t1">ชาเขียวสูตรใหม่ลดน้ำหนักได้จริงไหม</span>'+
+    '<span class="q">&ldquo;ลดได้จริงป่าวคะ ราคาเท่าไหร่&rdquo;</span>'+
+    '<span class="attach"><span class="img"></span><span class="cap">รูปที่ลูกค้าแนบมา</span></span>'+
+    '<span class="sub">'+s('speakerphone')+'จากโพสต์โฆษณา · 2 ชม.ที่แล้ว</span>'+
+  '</span>'+
+  '<span class="lnk">ดูคอมเมนต์</span>'+
+'</div>';
+
+const ambient=(txt,z)=>'<div class="ambient zone" data-z="'+(z===''?' ':(z||'บริบทลูกค้า'))+'">'+
+  s('sparkles')+txt+'</div>';
+
+const streamFull=(pre)=>'<div class="stream">'+
+  '<div class="daysep">วันนี้</div>'+(pre||'')+
+  '<div class="bub them">ลดได้จริงป่าวคะ ราคาเท่าไหร่</div>'+
+'</div>';
+
+const streamNormal=()=>'<div class="stream">'+
+  '<div class="daysep">วันนี้</div>'+
+  '<div class="bub them">โช้ครถฮ้อนด้าดรีมมีไหม</div>'+
+  '<div class="bub me">สวัสดีค่ะคุณ มูหำหมัด ทางร้านมีโช้คสำหรับ Honda Dream เลยค่ะ</div>'+
+  '<div class="metarow">'+s('check')+'อ่านแล้ว</div>'+
+  '<div class="bub them">ราคาเท่าไหร่คะ</div>'+
+  '<div class="bub me">ตัวสเปกเดิม 390 บาท ส่งฟรีค่ะ</div>'+
+  '<div class="metarow">'+s('check')+'อ่านแล้ว</div>'+
+'</div>';
+
+const aiBlock=()=>'<div class="tail"><div class="replaced zone" data-z="แทนช่องพิมพ์">'+
+  '<div class="t">'+s('robot')+'ตอนนี้ Meta AI กำลังตอบลูกค้าในแชทนี้อยู่</div>'+
+  '<button class="btn btn-sm border-default-300">ตอบเอง</button></div></div>';
+
+const composer=()=>'<div class="tail"><div class="composer">'+
+  '<div class="ctools">'+
+    '<span class="t">'+s('paperclip')+'</span><span class="t">'+s('photo')+'</span>'+
+    '<span class="t">'+s('mood')+'</span><span class="t">'+s('bolt')+'</span>'+
+    '<span class="t">'+s('sparkles')+'</span><span class="t">'+s('cart')+'</span>'+
+  '</div>'+
+  '<div class="cinput"><div class="cbox">พิมพ์ข้อความ…</div>'+
+    '<span class="sendbtn">'+s('send')+'ส่ง</span></div>'+
+'</div></div>';
+
+/* ═══ A — แถบซ้อนกัน ═══ */
+const A_full=()=>'<div class="screen">'+head()+warnbar()+originBlock()+
+  ambient('ลูกค้าใหม่')+streamFull()+aiBlock()+'</div>';
+const A_norm=()=>'<div class="screen">'+head()+
+  ambient('ลูกค้าเก่า · 4 ออเดอร์')+streamNormal()+composer()+'</div>';
+
+/* ═══ B — การ์ดเดียว ═══ */
+const B_full=()=>'<div class="screen">'+head()+
+  '<div class="onecard zone" data-z="การ์ดเดียว">'+warnbar('')+originBlock('')+ambient('ลูกค้าใหม่','')+'</div>'+
+  streamFull()+aiBlock()+'</div>';
+const B_norm=()=>'<div class="screen">'+head()+
+  '<div class="onecard zone" data-z="การ์ดเดียว">'+ambient('ลูกค้าเก่า · 4 ออเดอร์','')+'</div>'+
+  streamNormal()+composer()+'</div>';
+
+/* ═══ C — ที่มาอยู่ในสตรีม ═══ */
+const C_full=()=>'<div class="screen">'+head()+warnbar()+ambient('ลูกค้าใหม่')+
+  streamFull(
+    '<div class="instream zone" data-z="ในสตรีม">'+
+      '<div class="cap">'+s('history')+'ลูกค้าเริ่มจากคอมเมนต์นี้</div>'+
+      originBlock('')+
+    '</div>'
+  )+aiBlock()+'</div>';
+const C_norm=()=>'<div class="screen">'+head()+
+  ambient('ลูกค้าเก่า · 4 ออเดอร์')+streamNormal()+composer()+'</div>';
+
+/* ═══════════ redesign รอบ 2 ═══════════ */
+/* หัวเธรดที่บรรทัด 2 สลับเนื้อได้ */
+const head2=(o)=>{const x=o||{};return '<div class="card-header'+(x.alert?' alert':'')+' zone" data-z="หัวเธรด">'+
+  '<div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">'+
+    '<button class="btn btn-sm btn-icon border-default-300">'+ico('back',16)+'</button>'+
+    '<span class="avatar">'+INI+'<span class="ch-badge">'+s('fb')+'</span></span>'+
+    '<div style="min-width:0;flex:1">'+
+      '<h5 class="name">'+NAME+'</h5>'+
+      (x.line2==='warn'
+        ? '<span class="hdrline warn">'+s('clock')+'ใกล้หมดเวลาตอบ — เหลือ 3 ชม. 47 นาที<span class="a">ดู</span></span>'
+        : x.line2==='cust'
+        ? '<span class="hdrline" style="color:var(--color-default-500)">'+s('sparkles')+'ลูกค้าใหม่ · จากโฆษณา</span>'
+        : '<span class="pageline">'+s('fb')+PAGE+'</span>')+
+    '</div>'+
+  '</div>'+
+  '<div style="display:flex;gap:6px;flex:none">'+
+    (x.status
+      ? '<button class="btn btn-icon border-default-300 statusbtn">'+ico('alertTri',17)+
+          '<span class="statusdot"></span></button>'
+      : '')+
+    '<button class="btn btn-icon border-default-300">'+ico('cart',17)+
+      '<span class="badge cnt-badge">4</span></button>'+
+    (x.hideFiles?'':'<button class="btn btn-icon border-default-300">'+ico('folder',17)+
+      '<span class="badge cnt-badge">3</span></button>')+
+    '<button class="btn btn-icon border-default-300">'+ico('dots',17)+
+      '<span class="mute-badge">'+s('bellOff')+'</span></button>'+
+  '</div>'+
+'</div>';};
+
+/* แถบคำเตือนที่เกาะช่องพิมพ์ (แบบ D) */
+const tipstrip=()=>'<div class="tipstrip zone" data-z="เกาะช่องพิมพ์">'+s('clock')+
+  'ใกล้หมดเวลาตอบ — เหลือ 3 ชม. 47 นาที<span class="a">ดู</span></div>';
+
+/* การ์ดที่มาในสตรีม (ใช้ร่วม C/D) */
+const originCard=()=>'<div class="instream zone" data-z="ในสตรีม">'+
+  '<div class="cap">'+s('history')+'ลูกค้าเริ่มจากคอมเมนต์นี้</div>'+originBlock('')+'</div>';
+
+/* ═══ D — ไม่มีพื้นที่กลาง ═══ */
+const D_full=()=>'<div class="screen">'+head2({line2:'cust'})+
+  streamFull(originCard())+
+  '<div class="tail">'+tipstrip()+
+    '<div class="replaced zone" data-z="แทนช่องพิมพ์" style="border-top:0">'+
+      '<div class="t">'+s('robot')+'ตอนนี้ Meta AI กำลังตอบลูกค้าในแชทนี้อยู่</div>'+
+      '<button class="btn btn-sm border-default-300">ตอบเอง</button></div></div>'+
+'</div>';
+const D_norm=()=>'<div class="screen">'+head2({})+streamNormal()+composer()+'</div>';
+
+/* ═══ E — หัวเธรดพูดได้ ═══ */
+const E_full=()=>'<div class="screen">'+head2({alert:true,line2:'warn'})+
+  streamFull()+aiBlock()+'</div>';
+const E_norm=()=>'<div class="screen">'+head2({})+streamNormal()+composer()+'</div>';
+
+/* ═══ F — แผงเดียวหลังปุ่ม ═══ */
+const F_full=()=>'<div class="screen">'+head2({status:true,hideFiles:true})+
+  '<div class="panel zone" data-z="แผงที่กางแล้ว">'+
+    '<div class="row warn">'+s('clock')+'ใกล้หมดเวลาตอบ — เหลือ 3 ชม. 47 นาที<span class="a">ดู</span></div>'+
+    '<div class="row">'+s('speakerphone')+'มาจากคอมเมนต์ใต้โพสต์โฆษณา · 2 ชม.ที่แล้ว<span class="a">ดู</span></div>'+
+    '<div class="row">'+s('sparkles')+'ลูกค้าใหม่ · ยังไม่เคยสั่งซื้อ</div>'+
+  '</div>'+
+  '<div class="collapsed-hint">(แตะปุ่มสถานะเพื่อยุบแผงนี้)</div>'+
+  streamFull()+aiBlock()+'</div>';
+const F_norm=()=>'<div class="screen">'+head2({})+streamNormal()+composer()+'</div>';
+
+const R={
+  A:[{l:'เคสของครบ',v:A_full},{l:'เคสปกติ',v:A_norm}],
+  B:[{l:'เคสของครบ',v:B_full},{l:'เคสปกติ',v:B_norm}],
+  C:[{l:'เคสของครบ',v:C_full},{l:'เคสปกติ',v:C_norm}],
+  D:[{l:'เคสของครบ',v:D_full},{l:'เคสปกติ',v:D_norm}],
+  E:[{l:'เคสของครบ',v:E_full},{l:'เคสปกติ',v:E_norm}],
+  F:[{l:'เคสของครบ (แผงกางอยู่)',v:F_full},{l:'เคสปกติ',v:F_norm}]
+};
+const META={
+  D:{k:'D',n:'ไม่มีพื้นที่กลาง'},E:{k:'E',n:'หัวเธรดพูดได้'},F:{k:'F',n:'แผงเดียวหลังปุ่ม'},
+  A:{k:'A',n:'แถบซ้อนกัน'},B:{k:'B',n:'การ์ดเดียว'},C:{k:'C',n:'ที่มาอยู่ในสตรีม'}
+};
+const KEYS=['D','E','F','A','B','C'];
+
+document.querySelectorAll('[data-render]').forEach(h=>{
+  const k=h.dataset.render;
+  h.innerHTML=R[k].map(f=>
+    '<div><div class="fl"><b>'+f.l+'</b> · 390px</div><div class="device">'+f.v()+'</div></div>'
+  ).join('');
+});
+
+const lbl=document.getElementById('lbl');
+function show(k){
+  document.querySelectorAll('.variant').forEach(v=>v.classList.toggle('on',v.dataset.key===k));
+  lbl.innerHTML='<span class="k">'+META[k].k+'</span>'+META[k].n;
+  const u=new URL(location.href);u.searchParams.set('v',k);history.replaceState(null,'',u);
+  window.scrollTo({top:0});
+}
+function step(d){
+  const i=KEYS.indexOf(new URL(location.href).searchParams.get('v'));
+  const j=i<0?0:i;
+  show(KEYS[((j+d)%KEYS.length+KEYS.length)%KEYS.length]);
+}
+document.getElementById('prev').onclick=()=>step(-1);
+document.getElementById('next').onclick=()=>step(1);
+document.addEventListener('keydown',e=>{
+  const t=e.target;
+  if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;
+  if(e.key==='ArrowLeft')step(-1);
+  if(e.key==='ArrowRight')step(1);
+});
+const q=new URL(location.href).searchParams.get('v');
+show(KEYS.includes(q)?q:'D');
+</script>
+</body>
+</html>

@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>แถวหัวห้องแชทบนมือถือ — prototype 2026-08-14</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROTOTYPE — โค้ดทิ้ง ไม่ใช่ของ production
+
+   🛑 CSS ก้อนนี้คือการ "จำลอง Paces" ไม่ใช่การออกแบบใหม่ — ทุกค่าคัดจากไฟล์จริง:
+     .btn / .btn-icon / .btn-sm      → src/assets/css/custom/_buttons.css
+     .card-header                    → src/assets/css/custom/_card.css
+     .badge                          → src/assets/css/custom/_badge.css
+     token สีทั้งหมด                  → src/assets/css/config/_root.css + _theme-saas.css
+   markup ด้านล่างใช้ **คลาส Paces จริง** ⇒ แปลงเป็น JSX ได้ 1:1
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --color-body-bg:#f2f6fb; --color-card:#fff;
+  --color-primary:#0a74ff; --color-primary-ink:#1e3a8a;
+  --color-warning:#ff8f1f; --color-warning-ink:#92400e;
+  --color-danger:#f43f5e;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-600:#4a5358;
+  --color-default-700:#40454a; --color-default-800:#343a40; --color-default-900:#313a46;
+  --radius:4px;
+  --shadow:0px 1px 4px 0px rgba(130,143,163,.15);
+  --shadow-lg:0 .25rem 1rem rgba(76,76,92,.2);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Anuphan',system-ui,sans-serif;background:#e9eef6;color:var(--color-default-900);padding:24px 16px 130px;line-height:1.5}
+
+/* ── เอกสาร ─────────────────────────────────────────────────────────────── */
+.doc{max-width:1200px;margin:0 auto}
+.paper{background:#fff;border-radius:12px;padding:20px 24px;box-shadow:var(--shadow);margin-bottom:22px}
+h1{font-size:22px;font-weight:700;margin-bottom:5px}
+.sub{color:var(--color-default-500);font-size:14px;margin-bottom:16px}
+.qbox{background:var(--color-default-100);border-left:3px solid var(--color-primary);padding:12px 14px;border-radius:0 6px 6px 0;font-size:14px}
+.qbox b{color:var(--color-primary-ink)}
+.scope{margin-top:12px;padding:12px 14px;background:rgba(255,143,31,.10);border-radius:6px;font-size:13px;color:var(--color-warning-ink)}
+.scope b{font-weight:700}
+
+table.find{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px}
+table.find th{text-align:left;font-weight:700;font-size:12px;color:var(--color-default-500);padding:6px 8px;border-bottom:2px solid var(--color-default-200)}
+table.find td{padding:7px 8px;border-bottom:1px solid var(--color-default-200);vertical-align:top}
+table.find code{background:var(--color-default-200);padding:1px 5px;border-radius:3px;font-family:inherit;font-size:12px}
+.ok{color:#0f9d7a;font-weight:700}
+.no{color:var(--color-danger);font-weight:700}
+
+/* ── variant ────────────────────────────────────────────────────────────── */
+.variant{display:none}.variant.on{display:block}
+h2{font-size:19px;font-weight:700;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.vkey{background:var(--color-default-900);color:#fff;width:26px;height:26px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex:none}
+.idea{margin-top:8px;font-size:14px;color:var(--color-default-700)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+@media(max-width:760px){.cols{grid-template-columns:1fr}}
+.cols h4{font-size:12px;font-weight:700;color:var(--color-default-500);margin-bottom:5px}
+.cols ul{list-style:none;font-size:13px}
+.cols li{padding-left:15px;position:relative;margin-bottom:4px;color:var(--color-default-700)}
+.cols li::before{content:'';position:absolute;left:3px;top:9px;width:4px;height:4px;border-radius:50%;background:var(--color-default-400)}
+.cols .win li::before{background:#0f9d7a}
+.cols .cost li::before{background:var(--color-warning)}
+.cols code{background:var(--color-default-200);padding:1px 5px;border-radius:3px;font-family:inherit;font-size:12px}
+
+/* ── กรอบเครื่อง ────────────────────────────────────────────────────────── */
+.frames{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;justify-content:center}
+.fl{text-align:center;font-size:12px;font-weight:600;color:var(--color-default-500);margin-bottom:7px}
+.fl b{color:var(--color-default-800)}
+.device{background:var(--color-body-bg);border:8px solid #2b3038;border-radius:24px;overflow:hidden;box-shadow:var(--shadow-lg)}
+.screen{height:430px;overflow-y:auto;overflow-x:hidden}
+.w320 .device{width:336px}.w320 .screen{width:320px}
+.w390 .device{width:406px}.w390 .screen{width:390px}
+.w768 .device{width:784px}.w768 .screen{width:768px}
+@media(max-width:900px){.w768{display:none}}
+.budget{margin-top:9px;font-size:11px;text-align:center;color:var(--color-default-500);line-height:1.7}
+.budget b{color:var(--color-default-800)}
+
+/* ═══ จำลอง Paces (ค่าจากไฟล์จริง — ห้ามแต่งเพิ่ม) ═══════════════════════ */
+.card{background:var(--color-card);min-height:100%}
+/* _card.css: flex flex-wrap items-center justify-between gap-3 border-b border-dashed border-default-300 px-5 py-3.75 */
+.card-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;
+  border-bottom:1px dashed var(--color-default-300);padding:15px 20px;background:var(--color-card)}
+.flex-nowrap{flex-wrap:nowrap}
+.py-3{padding-top:12px;padding-bottom:12px}
+/* _buttons.css */
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--radius);
+  border:1px solid transparent;padding:7px 16px;font-size:14px;font-weight:500;font-family:inherit;
+  background:transparent;color:inherit;cursor:pointer;transition:all .15s;text-align:center}
+.btn-icon{width:37px;height:37px;padding:0;flex:none}
+.btn-sm{padding:5px 12px;font-size:13px}
+.btn-sm.btn-icon{width:30px;height:30px;padding:0}
+.border-default-300{border-color:var(--color-default-300)}
+.text-default-500{color:var(--color-default-500)}
+.text-default-700{color:var(--color-default-700)}
+.text-default-900{color:var(--color-default-900)}
+/* _badge.css: inline-flex items-center justify-center gap-1 rounded px-[.5em] py-[.15em] text-[.75em] font-semibold */
+.badge{display:inline-flex;align-items:center;justify-content:center;gap:4px;border-radius:var(--radius);
+  padding:.15em .5em;font-size:.75em;font-weight:600}
+.badge.rounded-full{border-radius:999px;padding-left:.75em;padding-right:.75em}
+.bg-primary{background:var(--color-primary)}
+.bg-danger{background:var(--color-danger)}
+.text-white{color:#fff}
+.border-card{border-color:var(--color-card)}
+
+/* ชิ้นส่วนของเรา (มีอยู่แล้วบน prod) */
+.avatar{width:36px;height:36px;border-radius:50%;flex:none;position:relative;background:#dbe7fb;color:#3b6bb5;
+  display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px}
+.ch-badge{position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;
+  border:2px solid var(--color-card);background:#e11d48;display:flex;align-items:center;justify-content:center}
+.ch-badge svg{width:9px;height:9px;color:#fff}
+h5.name{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+/* ChatPage.tsx:49 — <p class="text-default-400 flex items-center leading-tight gap-1.5"> */
+p.subline{color:var(--color-default-500);display:flex;align-items:center;gap:6px;line-height:1.25;font-size:13px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+p.subline svg{width:13px;height:13px;flex:none}
+.mb-125{margin-bottom:5px}
+.min-w-0{min-width:0}
+.grow{flex:1;min-width:0}
+.gap-15{gap:6px}
+.gap-3{gap:12px}
+/* badge นับ — NotificationDropdownPeople.tsx:16 */
+/* badge นับ — ค่าจริงจาก ChatThread.tsx:2498 (-end-1 -top-1 h-4.5 min-w-4.5 border-2) */
+.cnt-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;border-radius:999px;
+  font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;font-weight:600;padding:0 4px}
+/* indicator ปิดเสียง — NotificationDropdownPeople.tsx:33 (มี border-2 border-card + มุมบนเสมอ)
+   ขนาด/ตำแหน่งยึด badge นับไฟล์ที่อยู่ปุ่มข้าง ๆ เป๊ะ (ChatThread.tsx:2498 = -end-1 -top-1 h-4.5 min-w-4.5 border-2)
+   สี bg-default-600 (เทากลาง) ไม่ใช่ semantic tone — "ปิดเสียง" ไม่ใช่สถานะบวก/ลบ
+   🛑 ห้าม bg-secondary: Paces token นี้ = #7b70ef (ม่วง) ผิดความหมายสีทั้งระบบ */
+.mute-badge{position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:999px;
+  border:2px solid var(--color-card);background:var(--color-default-600);color:#fff;
+  display:flex;align-items:center;justify-content:center}
+.mute-badge svg{width:10px;height:10px}
+
+/* แถวชิป + สตรีม — ของเดิม ไม่แตะ แสดงไว้ให้เห็นบริบท */
+.chipstrip{border-bottom:1px solid var(--color-default-200);background:var(--color-card);opacity:.72}
+.chiprow{display:flex;gap:6px;overflow-x:auto;padding:8px 16px}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 10px;font-size:13px;font-weight:500;
+  flex:none;border:1px solid var(--color-default-300);color:var(--color-default-700);background:transparent;font-family:inherit}
+.chip .thumb{width:16px;height:16px;border-radius:3px;flex:none;background:linear-gradient(135deg,#6dd3a8,#3b82f6)}
+.chip svg{width:14px;height:14px}
+.sysline{text-align:center;font-size:13px;color:var(--color-default-500);padding:8px 24px;opacity:.72}
+.stream{padding:4px 16px 24px;display:flex;flex-direction:column;gap:10px;opacity:.72}
+.bub{max-width:76%;padding:8px 12px;border-radius:14px;font-size:14px}
+.bub.them{background:var(--color-default-200);align-self:flex-start;border-bottom-left-radius:4px}
+.bub.me{background:var(--color-primary);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+/* แถบข้อมูลลูกค้าแบบ 2 ระดับ (แบบ G) */
+.subrow{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:6px 16px;background:var(--color-default-100);
+  border-bottom:1px solid var(--color-default-200);font-size:var(--text-2xs);color:var(--color-default-500)}
+.subrow .sep{opacity:.4;flex:none}
+.subrow .it{display:inline-flex;align-items:center;gap:4px;flex:none;white-space:nowrap}
+.subrow svg{width:12px;height:12px;flex:none}
+.chip.warn{background:rgba(255,143,31,.15);color:var(--color-warning-ink);border-color:transparent}
+.chip.info{background:rgba(26,160,232,.15);color:var(--color-info-ink);border-color:transparent}
+.chip.order{background:rgba(10,116,255,.15);color:var(--color-primary-ink);border-color:transparent}
+.chip.plain{border-color:var(--color-default-300)}
+/* ═══ re-design รอบ 2 (H/I/J) ═══ */
+/* H — แถบคำเตือนเต็มความกว้าง โผล่เฉพาะเมื่อมี */
+.alertbar{display:flex;align-items:center;gap:8px;padding:7px 16px;font-size:var(--text-xs);font-weight:500;
+  border-bottom:1px solid transparent}
+.alertbar.warn{background:rgba(255,143,31,.15);color:var(--color-warning-ink)}
+.alertbar.danger{background:rgba(244,63,94,.15);color:var(--color-danger-ink)}
+.alertbar svg{width:15px;height:15px;flex:none}
+.alertbar .act{margin-left:auto;flex:none;font-weight:600;text-decoration:underline;font-size:var(--text-2xs)}
+/* บรรทัด 2 แบบ inline — ไม่มีกรอบชิป คั่นด้วยจุด */
+.metaline{display:flex;align-items:center;gap:5px;overflow:hidden;font-size:var(--text-2xs);
+  color:var(--color-default-500);line-height:1.3;white-space:nowrap;min-width:0}
+.metaline svg{width:12px;height:12px;flex:none}
+.metaline .dot{opacity:.4;flex:none}
+.metaline .hot{color:var(--color-warning-ink);font-weight:600}
+.metaline .grp{display:inline-flex;align-items:center;gap:4px;flex:none}
+/* I — แถบเดียวผสมสีกับจาง */
+.mixrow{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:7px 16px;
+  border-bottom:1px solid var(--color-default-200);background:var(--color-card)}
+.mixrow .sev{display:inline-flex;align-items:center;gap:5px;flex:none;border-radius:999px;padding:3px 9px;
+  font-size:var(--text-2xs);font-weight:600}
+.mixrow .sev.warn{background:rgba(255,143,31,.15);color:var(--color-warning-ink)}
+.mixrow .sev.order{background:rgba(10,116,255,.15);color:var(--color-primary-ink)}
+.mixrow .qt{display:inline-flex;align-items:center;gap:4px;flex:none;font-size:var(--text-2xs);
+  color:var(--color-default-500)}
+.mixrow svg{width:13px;height:13px;flex:none}
+.mixrow .dot{opacity:.35;flex:none;font-size:var(--text-2xs)}
+/* J — จุดเตือนบนปุ่ม */
+.warn-dot{position:absolute;top:-4px;right:-4px;width:10px;height:10px;border-radius:999px;
+  background:var(--color-warning);border:2px solid var(--color-card)}
+.frozen{position:relative}
+.frozen::after{content:'ส่วนนี้ไม่แตะ — คงเดิม';position:absolute;right:8px;top:4px;font-size:10px;
+  background:var(--color-default-200);color:var(--color-default-500);padding:1px 7px;border-radius:999px}
+
+/* ── switcher ───────────────────────────────────────────────────────────── */
+.switcher{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:999;background:#111418;color:#fff;
+  border-radius:999px;padding:7px 9px;display:flex;align-items:center;gap:6px;box-shadow:0 8px 28px rgba(0,0,0,.35)}
+.switcher button{width:34px;height:34px;border:0;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;
+  font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit}
+.switcher button:hover{background:rgba(255,255,255,.24)}
+.switcher .lbl{padding:0 12px;font-size:14px;font-weight:600;min-width:250px;text-align:center}
+.switcher .lbl .k{opacity:.55;margin-right:6px}
+.switcher .hint{position:absolute;bottom:-19px;left:0;right:0;text-align:center;font-size:11px;color:#6b7280}
+</style>
+</head>
+<body>
+<div class="doc">
+
+<div class="paper">
+  <h1>แถวหัวห้องแชทบนมือถือ</h1>
+  <div class="sub">prototype · 2026-08-14 · ของทิ้ง ไม่ใช่โค้ด production</div>
+  <div class="qbox">
+    <b>คำถาม:</b> ในแถวหัวแถวเดียว (~61px × 320–390px) จะจัด 4 อย่างนี้ยังไงให้ดีกว่าเดิม —
+    ปุ่มย้อนกลับ · ตัวตนลูกค้า (รูป+ตราเพจ+ชื่อ) · คลังไฟล์+ตัวนับ · <code>⋯</code>
+  </div>
+  <div class="scope">
+    <b>ขอบเขต:</b> แถวหัวเท่านั้น — แถวชิป "From ad" · บรรทัด "เอเจนต์ AI ของ Meta…" ·
+    บล็อก "ตอนนี้ Meta AI กำลังตอบลูกค้าในแชทนี้อยู่" · ตัวนับ 24 ชม. · สตรีมข้อความ
+    <b>คงเดิมทุกประการ</b> (ในม็อกอัพวาดไว้แบบจาง ๆ เพื่อให้เห็นบริบทเท่านั้น)
+  </div>
+</div>
+
+<div class="paper">
+  <h2 style="font-size:16px">สิ่งที่พบเมื่อเทียบโค้ดเรากับธีม Paces ต้นฉบับ</h2>
+  <div class="idea" style="margin-bottom:4px">
+    ต้นฉบับที่หัวแชทของเราก็อปมาคือ <code>theme/paces/Admin/TS/src/app/(admin)/apps/chat/components/ChatPage.tsx</code>
+    + <code>ChatToolbar.tsx</code> — <b>5 ข้อนี้เราหลุดจากธีมไปเอง ไม่ใช่การตัดสินใจ</b>
+  </div>
+  <table class="find">
+    <tr><th style="width:30px">#</th><th>ของเราตอนนี้</th><th>ธีมต้นฉบับ</th><th>ผลที่เห็นบนจอ</th></tr>
+    <tr>
+      <td>1</td>
+      <td><code>⋯</code> ไม่มี <code>border-default-300</code></td>
+      <td><code>ChatToolbar.tsx:21</code><br><code>hs-dropdown-toggle btn btn-icon border-default-300 hover:border-default-400/75</code></td>
+      <td class="no">ปุ่ม 3 ตัวมี 3 หน้าตา — ข้อ 1 ที่ user ทัก</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>ปุ่มขวาลอยเดี่ยวใน <code>card-header</code> ที่ <code>gap-3</code> (12px)</td>
+      <td><code>ChatToolbar.tsx:10</code> ห่อด้วย <code>&lt;div class="flex gap-1.5"&gt;</code> (6px)</td>
+      <td class="no">กินความกว้างเกิน 6px ต่อช่อง</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>ปุ่มย้อนกลับ <code>btn btn-icon</code> = 37px</td>
+      <td><code>ChatPage.tsx:39</code> ปุ่มนำทางฝั่งซ้าย = <code>btn btn-sm btn-icon</code> = 30px<br><span style="color:var(--color-default-500)">ธีมแยกขนาดโดยตั้งใจ: นำทาง 30 / action 37</span></td>
+      <td class="no">กินเกิน 7px</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td>ชื่อบรรทัดเดียว ไม่มีบรรทัดรอง</td>
+      <td><code>ChatPage.tsx:43-52</code><br><code>&lt;h5 class="text-base mb-1.25"&gt;</code> + <code>&lt;p class="text-default-400 flex items-center leading-tight gap-1.5"&gt;</code></td>
+      <td class="no">ชื่อเพจไม่มีที่อยู่ — บรรทัด 2 <b>มีในธีมอยู่แล้ว</b> เราถอดออกเอง</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td>ตัวบอกปิดเสียง <code>-end-0.5 -bottom-0.5 bg-card</code> ไม่มีขอบ</td>
+      <td><code>NotificationDropdownPeople.tsx:33</code><br><code>absolute -top-3 -end-2 border-2 border-card bg-{tone} …</code></td>
+      <td class="no">ล้นออกนอกปุ่ม ไม่มีขอบตัดกับพื้น — ข้อ 3 ที่ user ทัก</td>
+    </tr>
+  </table>
+  <div class="scope" style="background:rgba(10,116,255,.08);color:var(--color-primary-ink)">
+    <b>ข้อ 2 + 3 คืนความกว้างให้ชื่อ 13px (85 → 98px) โดยไม่ต้องออกแบบอะไรใหม่เลย</b> —
+    แค่กลับไปเขียนตามธีม ทั้ง 3 แบบข้างล่างจึงตั้งต้นจากการซ่อม 5 ข้อนี้เหมือนกันหมด แล้วต่างกันที่ <b>ปุ่มฝั่งขวาเป็นอะไร</b>
+  </div>
+</div>
+
+<section class="variant" data-key="NOW">
+  <div class="paper">
+    <h2><span class="vkey">0</span> ของปัจจุบัน</h2>
+    <div class="idea">ตัวเทียบ — สภาพบน prod ตามภาพที่ส่งมา ยังไม่ซ่อมข้อ 1–5</div>
+  </div>
+  <div class="frames" data-render="NOW"></div>
+</section>
+
+<section class="variant" data-key="A">
+  <div class="paper">
+    <h2><span class="vkey">A</span> ซ่อมตามธีม — ไอคอน 2 ตัวเหมือนเดิม</h2>
+    <div class="idea">
+      ซ่อม 5 ข้อ ไม่เพิ่มไม่ลดอะไรเลย · บรรทัด 2 ใส่ <b>ชื่อเพจ</b> (ที่ที่ธีมเตรียมไว้ให้อยู่แล้ว)
+      · ปุ่มขวายังเป็นไอคอน 2 ตัว แต่ห่อกลุ่ม <code>gap-1.5</code> และมีกรอบเท่ากันทั้งคู่
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li>แรงน้อยที่สุด — ทุกบรรทัดที่แก้มีต้นทางในธีมชี้ได้</li>
+        <li>ชื่อเพจอ่านได้บนมือถือครั้งแรก (เดิมมีแต่ <code>title=</code> ที่ iOS ไม่แสดง)</li>
+        <li>ปุ่มหน้าตาเดียวกันทั้งแถว · ตัวบอกปิดเสียงไม่ล้นแล้ว</li>
+        <li>ชื่อได้ <b>98px</b> ที่ 320px (จาก 85)</li>
+      </ul></div>
+      <div class="cost"><h4>ยังไม่แก้</h4><ul>
+        <li><b>ปุ่มยังเป็นไอคอนเปล่า</b> — ข้อ 2 ที่ user ทัก ("ไม่รู้ว่าปุ่มไหนคืออะไร") ยังอยู่ครบ</li>
+        <li>ชื่อยาว ๆ ยังถูกตัดที่ 320px</li>
+      </ul></div>
+    </div>
+  </div>
+  <div class="frames" data-render="A"></div>
+</section>
+
+<section class="variant" data-key="B">
+  <div class="paper">
+    <h2><span class="vkey">B</span> ปุ่มไฟล์มีคำ — <code>btn btn-sm</code> แทนไอคอนเปล่า</h2>
+    <div class="idea">
+      ซ่อม 5 ข้อเหมือน A แล้ว<b>เปลี่ยนปุ่มคลังไฟล์จากไอคอนเปล่าเป็นปุ่มมีคำ</b>
+      <code>[ไอคอน] ไฟล์ 3</code> (<code>btn btn-sm border-default-300</code>) — ตัวเลขเป็น <code>badge</code> ในปุ่ม ไม่ใช่จุดลอยมุม
+      · <code>⋯</code> คงเป็นไอคอน
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li><b>แก้ข้อ 2 ตรง ๆ</b> — คำว่า "ไฟล์" อยู่บนจอ ไม่ต้องเดา ไม่ต้อง hover</li>
+        <li>ตอบ report ต้นเรื่องที่ทำให้ปุ่มนี้เกิดขึ้น ("จะเข้าไปดูไฟล์ใช้ร่วมกันยากมาก")</li>
+        <li>ตัวนับอยู่ในปุ่มเป็น <code>badge</code> = pattern ที่ธีมใช้จริง แทน badge ลอยมุมที่ชนขอบ</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li>ปุ่มกว้าง ~76px แทน 37 ⇒ ชื่อเหลือ <b>59px</b> ที่ 320px — <b>แคบกว่าปัจจุบัน</b></li>
+        <li>ที่ 320px ชื่อจะเหลือ ~4 ตัวอักษร ต้องยอมให้ตัด หรือให้ปุ่มยุบเป็นไอคอนที่ <code>&lt;375px</code></li>
+        <li>ปุ่มเดียวมีคำ อีกปุ่มไม่มี — ต้องยอมรับว่าไม่สมมาตร (แลกกับการที่ ⋯ เป็นสัญลักษณ์สากลอยู่แล้ว)</li>
+      </ul></div>
+    </div>
+  </div>
+  <div class="frames" data-render="B"></div>
+</section>
+
+<section class="variant" data-key="C">
+  <div class="paper">
+    <h2><span class="vkey">C</span> ตัวตนกดได้ — ปุ่มขวาเหลือ <code>⋯</code> ตัวเดียว</h2>
+    <div class="idea">
+      ซ่อม 5 ข้อ + ทั้งกลุ่ม <b>รูป + ชื่อ + ชื่อเพจ</b> เป็นปุ่มเดียวที่เปิดแผงข้อมูลลูกค้า (เป้าแตะ ~180×40)
+      · ปุ่มขวาเหลือ <code>⋯</code> ตัวเดียว โดย<b>คลังไฟล์ย้ายไปเป็นรายการแรกในเมนู พร้อมคำและตัวนับ</b>
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li>ชื่อได้ <b>141px</b> ที่ 320px — กว้างสุดในทั้ง 3 แบบ</li>
+        <li>เป้าแตะใหญ่ที่สุด และตรงกับที่คนแตะโดยสัญชาตญาณอยู่แล้ว (ชื่อคู่สนทนา)</li>
+        <li>แถวหัวสะอาดที่สุด ปุ่มเดียวจบ</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li>🛑 <b>คลังไฟล์ลึกลง 1 ชั้น (1 แตะ → 2 แตะ)</b> ซึ่งสวนทางกับ report ที่ทำให้ปุ่มนี้ถูกยกขึ้นมาเมื่อเช้า — แลกกับการที่ในเมนูมีคำว่า "คลังไฟล์" ให้อ่าน</li>
+        <li>"แตะชื่อ = เปิดแผง" ไม่มีสัญญาณในตัวเอง ต้องมี <code>chevron-right</code> จาง ๆ กำกับ</li>
+        <li>ตัวนับไฟล์ไม่เห็นจากภายนอกเมนู เว้นแต่ทำจุดบนปุ่ม <code>⋯</code> ซึ่งจะชนกับตัวบอกปิดเสียงที่อยู่มุมเดียวกัน</li>
+      </ul></div>
+    </div>
+  </div>
+  <div class="frames" data-render="C"></div>
+</section>
+
+<section class="variant" data-key="E">
+  <div class="paper">
+    <h2><span class="vkey">E</span> ออเดอร์เป็นปุ่มหลัก · ไฟล์โผล่เฉพาะเมื่อมี <span style="font-size:12px;font-weight:600;background:rgba(10,116,255,.12);color:var(--color-primary-ink);padding:3px 10px;border-radius:999px">จาก feedback ลูกค้าจริง</span></h2>
+    <div class="idea">
+      ลูกค้าบอกว่า <b>ผู้ขายบนมือถือดูรายการออเดอร์ของลูกค้ามากกว่าดูไฟล์</b> — แต่ของจริงกลับกัน:
+      ไฟล์ = 1 แตะ · ออเดอร์ = <b>2 แตะ</b> (<code>⋯</code> → คำสั่งซื้อ) และไม่มีตัวเลขบอกว่ามีกี่ใบ<br>
+      แบบนี้จึง <b>สลับลำดับความสำคัญ</b>: ปุ่มออเดอร์เป็นปุ่มระดับหนึ่งเสมอพร้อมตัวนับ ·
+      ปุ่มไฟล์ยังอยู่ระดับหนึ่งเหมือนเดิม <b>แต่โผล่เฉพาะเมื่อ <code>savedFiles.size &gt; 0</code></b>
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li>งานที่ทำบ่อยสุดเหลือ <b>1 แตะ</b> และเห็นตัวเลขจากหน้าจอโดยไม่ต้องเปิดอะไร</li>
+        <li><b>ไม่มีอะไรถูกดันลึกลง</b> — ไฟล์ยังเป็น 1 แตะเหมือนเดิมเมื่อมีไฟล์ (ไม่ย้อนงานเมื่อเช้า)</li>
+        <li>เธรดที่ยังไม่มีไฟล์ (ส่วนใหญ่) ได้ชื่อกว้างเท่าแบบ A — ปุ่มที่กดไปเจอความว่างเปล่าไม่ควรกินที่ตั้งแต่แรก</li>
+        <li>ตัวนับทั้งคู่มาจากข้อมูลที่ server ส่งมาแล้ว (<code>customerPanelData.orders</code> / <code>savedFiles</code>) — <b>ไม่มี request เพิ่มแม้แต่ใบเดียว</b></li>
+      </ul></div>
+      <div class="cost"><h4>ต้องตัดสินต่อ</h4><ul>
+        <li>🛑 <b>ตัวนับบนปุ่มออเดอร์นับอะไร</b> — ถ้านับ "ที่ยังดำเนินอยู่" จะซ้ำกับชิปในแถวชิปที่นับเลขเดียวกัน (HR16 เลขเดียวกันต้องมาจาก symbol เดียว) ⇒ ม็อกอัพนี้นับ <b>ทั้งหมดของลูกค้าคนนี้</b> = "เคยสั่งกี่ครั้ง" ซึ่งเป็นคนละคำถามกับชิป</li>
+        <li>ปุ่มโผล่/หายตามข้อมูล — ผู้ใช้อาจงงว่าปุ่มหายไปไหน (บรรเทาด้วยการที่ไฟล์ยังอยู่ใน <code>⋯</code> เสมอ)</li>
+        <li>ที่ 320px เมื่อมีไฟล์ ชื่อจะแคบกว่าทุกแบบ — วัดจริงในกรอบซ้าย</li>
+      </ul></div>
+    </div>
+  </div>
+  <div class="frames" data-render="E"></div>
+</section>
+
+<section class="variant" data-key="K">
+  <div class="paper">
+    <h2><span class="vkey">K</span> สังเคราะห์: คำเตือนแบบ H + ข้อมูลแบบ G <span style="font-size:12px;font-weight:600;background:rgba(15,157,122,.15);color:#0b6b53;padding:3px 10px;border-radius:999px">ที่แนะนำหลัง re-design</span></h2>
+    <div class="idea">
+      <b>H กับ I ล้มด้วยเหตุผลเชิงเรขาคณิต ไม่ใช่เรื่องรสนิยม</b> — ชื่อเพจกว้าง <b>104px</b>
+      แต่บรรทัดใต้ชื่อที่ 390px มีที่แค่ <b>~123px</b> ⇒ ใส่ได้อย่างเดียวเท่านั้น
+      ป้ายลูกค้าที่ตั้งใจจะโชว์เลยไม่โผล่เลยบนจอที่ต้องการมันที่สุด<br>
+      <b>แถบเต็มความกว้างมี 358px ที่ 390px — จุของได้เกือบ 3 เท่า</b> ⇒ ข้อมูลลูกค้าต้องอยู่แถบเต็มกว้าง ไม่ใช่ใต้ชื่อ<br>
+      K จึงหยิบของที่ดีที่สุดของแต่ละแบบมาประกอบ:
+      <b>หัวแบบ E</b> (ชื่อ + ชื่อเพจใต้ชื่อ + 3 ปุ่ม) ·
+      <b>คำเตือนแบบ H</b> (แถบสีเต็มกว้าง มีปุ่มในตัว โผล่เฉพาะเมื่อมี) ·
+      <b>ข้อมูลลูกค้าแบบ G</b> (แถบจางเต็มกว้าง บรรทัดเดียว)
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li>คำเตือน<b>อ่านไม่พลาด</b> — เต็มความกว้าง มีสี ปุ่มอยู่ในตัว ไม่ต้องเลื่อนหา (จุดที่ชิปเดิมทำได้แย่ที่สุด)</li>
+        <li>ป้ายลูกค้า + ที่มา <b>อ่านได้ครบบนมือถือจริง</b> เพราะได้ความกว้างเต็มจอ</li>
+        <li>ชื่อเพจยังอยู่ใต้ชื่อลูกค้า ไม่ต้องแย่งที่กับข้อมูลลูกค้า</li>
+        <li>เธรดปกติ (ไม่มีคำเตือน) = <b>66 + 26 = 92px</b> (จาก 105) · มีคำเตือน = 123px</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li>คำเตือนหลายอันพร้อมกัน = หลายแถบซ้อน (ชิปเดิมเรียงในแถวเดียวได้) — ต้องจำกัดว่าโชว์กี่แถบ แล้วที่เหลือยุบ</li>
+        <li>ข้อมูลนิ่งกดกางดูรายละเอียดไม่ได้ (เหมือน G) — ที่มาของแชทเคยกดดูรูปโฆษณาต้นทางได้</li>
+        <li>เมื่อมีคำเตือน = <b>3 ชั้น</b> (หัว + แถบเตือน + แถบจาง) สูงกว่าเดิม 18px</li>
+      </ul></div>
+    </div>
+  </div>
+  <div class="frames" data-render="K"></div>
+</section>
+
+<section class="variant" data-key="H">
+  <div class="paper">
+    <h2><span class="vkey">H</span> หัวเดียวจบ — ข้อมูลลูกค้าอยู่ใต้ชื่อ · คำเตือนเป็นแถบแยก <span style="font-size:12px;font-weight:600;background:rgba(10,116,255,.12);color:var(--color-primary-ink);padding:3px 10px;border-radius:999px">re-design</span></h2>
+    <div class="idea">
+      <b>ทิ้งแนวคิด "แถวชิป" ทั้งดุ้น</b> — ของ 2 ชนิดที่เคยปนกันในแถวเดียวถูกแยกตามธรรมชาติของมัน:<br>
+      • <b>ข้อมูลนิ่ง</b> (เพจ · ลูกค้าเก่า · ตีกลับ · ที่มา) ขึ้นไปอยู่ <b>บรรทัดที่ 2 ใต้ชื่อ</b> เป็นข้อความ inline คั่นจุด ไม่มีกรอบ<br>
+      • <b>คำเตือน</b> ลงมาเป็น <b>แถบสีเต็มความกว้าง</b> ที่โผล่<b>เฉพาะเมื่อมี</b> — เหมือนแถบแจ้งเตือนของระบบ ไม่ใช่ชิปที่ต้องไปหาในแถว
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li><b>เธรดปกติเหลือชั้นเดียว 66px</b> (จาก 105) — ไม่มีแถวว่างที่มีชิปเดียวอีกต่อไป</li>
+        <li>คำเตือนอ่านไม่พลาด — เต็มความกว้าง มีสี มีปุ่มในตัว ไม่ต้องเลื่อนหา</li>
+        <li>ข้อมูลลูกค้าอยู่ติดชื่อ = อ่านเป็นประโยคเดียวกับ "กำลังคุยกับใคร"</li>
+        <li>ไม่มีอะไรถูกดันพ้นขอบจอ เพราะบรรทัด 2 ตัดท้ายด้วย <code>truncate</code> ตามลำดับความสำคัญ</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li>ข้อมูลนิ่ง<b>กดกางดูรายละเอียดไม่ได้อีก</b> (เดิมกดชิปกางดูรูปโฆษณา/คอมเมนต์ต้นทางได้) — ต้องเข้าแผงลูกค้าแทน</li>
+        <li>บรรทัด 2 มีที่จำกัด ~200px ที่ 390px ⇒ ใส่ได้ ~3 อย่าง ที่เหลือถูกตัด</li>
+        <li>คำเตือนหลายอันพร้อมกัน = หลายแถบซ้อน (เดิมเป็นชิปเรียงในแถวเดียว)</li>
+      </ul></div>
+    </div>
+  </div>
+  <div class="frames" data-render="H"></div>
+</section>
+
+<section class="variant" data-key="I">
+  <div class="paper">
+    <h2><span class="vkey">I</span> แถบเดียวผสม — เรียงตามความสำคัญ ไม่แยกชั้น <span style="font-size:12px;font-weight:600;background:rgba(10,116,255,.12);color:var(--color-primary-ink);padding:3px 10px;border-radius:999px">re-design</span></h2>
+    <div class="idea">
+      หัวสั้นเหลือ <b>ชื่อบรรทัดเดียว</b> (ไม่มีบรรทัดรอง) แล้วยุบทุกอย่างลง <b>แถบเดียวใต้หัว</b> ที่
+      <b>ผสมทั้งของที่ต้องลงมือและของที่ควรรู้ในบรรทัดเดียวกัน</b> — ต่างกันด้วย<b>รูปทรง</b> ไม่ใช่ตำแหน่ง:
+      เรื่องต้องลงมือ = เม็ดยาพื้นสี · เรื่องควรรู้ = ข้อความเปล่าคั่นจุด · เรียงซ้าย→ขวาตามความสำคัญ
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li>ยังเป็น 2 ชั้นเท่าเดิม แต่<b>ชั้นล่างจุของได้มากกว่าเดิมมาก</b> เพราะของที่ไม่ต้องลงมือไม่กินกรอบ</li>
+        <li>ลำดับความสำคัญอ่านได้จากซ้ายไปขวาเป็นเส้นเดียว ไม่ต้องกวาดตา 2 แถว</li>
+        <li>ใกล้โครงเดิมที่สุด — <code>ThreadChipStrip</code> แค่เพิ่มชนิด "ข้อความเปล่า" เข้าไป</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li>ชื่อเพจหลุดจากหัว (ไปอยู่ในแถบ) ⇒ "คุยกับใคร" กับ "เพจไหน" ไม่ได้อยู่ติดกันแล้ว</li>
+        <li>ของ 2 ชนิดในบรรทัดเดียว ถ้าคำเตือนยาว ข้อมูลลูกค้าจะถูกดันพ้นขอบทันที (โรคเดียวกับ F)</li>
+        <li>ยังต้องเลื่อนแนวนอนอยู่ดีเมื่อมีของเยอะ</li>
+      </ul></div>
+    </div>
+  </div>
+  <div class="frames" data-render="I"></div>
+</section>
+
+<section class="variant" data-key="J">
+  <div class="paper">
+    <h2><span class="vkey">J</span> ชั้นเดียวล้วน — ตัวเลขอยู่บนปุ่ม ไม่มีแถวที่ 2 <span style="font-size:12px;font-weight:600;background:rgba(10,116,255,.12);color:var(--color-primary-ink);padding:3px 10px;border-radius:999px">re-design</span></h2>
+    <div class="idea">
+      สุดขั้วอีกทาง: <b>ไม่มีแถบใต้หัวเลย</b> พื้นที่บนสุดเหลือ <b>61px ชั้นเดียว</b><br>
+      ข้อมูลถูกบีบให้เหลือเฉพาะที่แสดงเป็น<b>ตัวเลขหรือจุดสีบนปุ่มได้</b>: ออเดอร์ = ตัวเลขบนปุ่มรถเข็น ·
+      ไฟล์ = ตัวเลขบนโฟลเดอร์ · <b>มีเรื่องต้องลงมือ = จุดส้มบนปุ่ม <code>⋯</code></b> ·
+      ที่เหลือทั้งหมด (ป้ายลูกค้า · ที่มา · รายละเอียดคำเตือน) อยู่หลังการแตะ
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li><b>61px — ประหยัดที่สุดในทุกแบบ</b> คืนพื้นที่อ่านข้อความ 44px</li>
+        <li>จอสะอาดมาก ไม่มีอะไรแย่งความสนใจจากบทสนทนา</li>
+        <li>ชื่อลูกค้าได้ที่กว้างที่สุดเท่าที่เป็นไปได้</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย — หนักที่สุด</h4><ul>
+        <li>🛑 <b>คำเตือนกลายเป็นจุดสีจุดเดียว</b> — "บอทหยุดตอบ" กับ "โควตาหมดส่งไม่ได้" หน้าตาเหมือนกันเป๊ะ ผู้ขายไม่รู้ว่าเรื่องด่วนแค่ไหนจนกว่าจะกด</li>
+        <li>ป้ายพฤติกรรมลูกค้ากลับไปซ่อนในแผงเหมือนเดิม = ย้อนสิ่งที่ feedback ลูกค้าเพิ่งบอกมา</li>
+        <li>ปุ่มที่เคยกดได้ทันที (เช่น "ให้บอทตอบต่อ") ลึกลง 1 ชั้น</li>
+        <li><b>ใส่ไว้เป็นขั้วเปรียบเทียบ ไม่ได้เสนอให้ใช้จริง</b> — มีไว้ให้เห็นว่า "ประหยัดที่สุด" แลกอะไรไปบ้าง</li>
+      </ul></div>
+    </div>
+  </div>
+  <div class="frames" data-render="J"></div>
+</section>
+
+<section class="variant" data-key="F">
+  <div class="paper">
+    <h2><span class="vkey">F</span> แถวชิป: เติมป้ายลูกค้าเข้าไป (โครงเดิม)</h2>
+    <div class="idea">
+      หัวใช้แบบ <b>E</b> · แถวชิปคงโครงเดิมทุกอย่าง (ยุบ/กาง · เลื่อนแนวนอน · โทนตามความสำคัญ)
+      แต่<b>เติมของที่มีข้อมูลพร้อมอยู่แล้วแต่ไม่เคยแสดงที่นี่</b> เข้าไปในลำดับที่ 3:<br>
+      คำเตือน → สถานะออเดอร์ → <b>ป้ายลูกค้า (ใหม่)</b> → ที่มาของแชท
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li>ป้าย "ตีกลับ 2 รายการ / ยกเลิก 1 รายการ" ที่สั่งทำไว้เมื่อ 11 ส.ค. <b>โผล่ตอนที่มันมีประโยชน์ที่สุด</b> — ตอนกำลังคุยกับลูกค้า ไม่ใช่ตอนเปิดแผงไปดู</li>
+        <li>ไม่ต้องแตะโครง <code>ThreadChipStrip</code> เลย — เพิ่มรายการเข้า array เท่านั้น</li>
+        <li>ข้อมูลมาถึงหน้านี้อยู่แล้ว (<code>customerBehavior</code>, <code>customerStats</code>) <b>ไม่มี request เพิ่ม</b></li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li>แถวยาวขึ้น ต้องเลื่อนบ่อยขึ้น — ของสำคัญ (คำเตือน) ยังอยู่ซ้ายสุดเสมอ แต่ที่มาของแชทจะถูกดันพ้นขอบจอบ่อย</li>
+        <li>ชิป 4 ชนิดหน้าตาใกล้กันมาก ต่างแค่สี — ผู้ใช้ต้องอ่านทุกใบเพื่อรู้ว่าอันไหนคืออะไร</li>
+        <li>ป้ายลูกค้าเป็น <b>ข้อมูลนิ่ง</b> (ไม่เปลี่ยนทั้งวัน) อยู่ปนกับคำเตือนที่ <b>ต้องลงมือ</b></li>
+      </ul></div>
+    </div>
+  </div>
+  <div class="frames" data-render="F"></div>
+</section>
+
+<section class="variant" data-key="G">
+  <div class="paper">
+    <h2><span class="vkey">G</span> แถวชิป: แยก 2 ระดับ — เรื่องที่ต้องลงมือ vs เรื่องที่ควรรู้</h2>
+    <div class="idea">
+      หัวใช้แบบ <b>E</b> · <b>แถวชิป (พื้นขาว) เหลือเฉพาะสิ่งที่ต้องลงมือ</b> — คำเตือน + สถานะออเดอร์
+      · <b>ข้อมูลนิ่งย้ายลงแถบจางบรรทัดเดียว</b> (พื้นเทา ตัวเล็ก ไม่มีกรอบชิป): ป้ายลูกค้า · ที่มาของแชท<br>
+      ไม่มีคำเตือนเลย → <b>แถวชิปหายทั้งแถว</b> เหลือแค่แถบจาง 26px (จาก 44px)
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li><b>อ่านออกใน 1 วินาที</b>ว่ามีอะไรต้องทำไหม — ถ้าไม่มีชิปสี = ไม่มีอะไรค้าง</li>
+        <li>เธรดปกติ (ส่วนใหญ่) chrome ลดจาก 44px เหลือ <b>26px</b></li>
+        <li>ข้อมูลลูกค้าได้ที่อยู่ถาวรโดยไม่แย่งความสนใจกับคำเตือน</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li>เพิ่ม<b>รูปแบบใหม่</b>ให้หน้าจอ (แถบจาง) — ไม่มี precedent ตรง ๆ ในธีม ต้องหา pattern รองรับก่อน</li>
+        <li>ที่มาของแชทเคย<b>กดกางดูรายละเอียดได้</b> (รูปโฆษณา/คอมเมนต์ต้นทาง) พอเป็นแถบจางต้องตัดสินว่ายังกดได้ไหม</li>
+        <li>2 แถบซ้อนกันเมื่อมีคำเตือน = 44 + 26 = <b>70px</b> สูงกว่าเดิม</li>
+      </ul></div>
+    </div>
+  </div>
+  <div class="frames" data-render="G"></div>
+</section>
+
+<section class="variant" data-key="D">
+  <div class="paper">
+    <h2><span class="vkey">D</span> A + คำเฉพาะจอที่มีที่พอ <span style="font-size:12px;font-weight:600;background:rgba(10,116,255,.12);color:var(--color-primary-ink);padding:3px 10px;border-radius:999px">ที่ผมแนะนำ</span></h2>
+    <div class="idea">
+      ฐานคือ <b>A</b> (ซ่อม 5 ข้อตามธีม) แล้วปุ่มคลังไฟล์ <b>ผันตามความกว้างจอ</b>:
+      <code>&lt;375px</code> เป็นไอคอนเปล่าเหมือน A · <code>≥375px</code> กางเป็นปุ่มมีคำ "ไฟล์" เหมือน B
+      — <b>ดู 3 กรอบข้างล่างเทียบกัน จะเห็นความต่างทันที</b>
+    </div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li>ได้คำกำกับบนจอที่ผู้ใช้จริงเกือบทั้งหมดใช้ (iPhone SE รุ่นเล็กสุดที่ยังขายอยู่ = 375px)</li>
+        <li>ที่ 320px ไม่ทำให้ชื่อพัง — ยังได้ <b>98px</b> เท่า A</li>
+        <li>ไม่มีอะไรหาย ไม่มีอะไรลึกลง — ต่างจาก C ที่ดันไฟล์กลับเข้าเมนู</li>
+        <li>เขียนด้วย <code>hidden min-[375px]:inline</code> ครอบคำ ไม่ต้องมี component แยก</li>
+      </ul></div>
+      <div class="cost"><h4>ต้องยอม</h4><ul>
+        <li>ปุ่มเปลี่ยนรูปร่างตามจอ — ผู้ใช้คนเดียวที่สลับ 320↔390 จะเห็นไม่เหมือนกัน (ในทางปฏิบัติแทบไม่เกิด เครื่องเดียวความกว้างคงที่)</li>
+        <li>ต้องใช้ arbitrary breakpoint <code>min-[375px]</code> — ธีมไม่มี <code>xs</code> ⇒ <b>ต้องเขียนคอมเมนต์กำกับตาม HR7</b> หรือใช้ <code>sm:</code> (640px) แทนซึ่งกว้างไปมาก</li>
+        <li>ปุ่มเดียวมีคำ อีกปุ่มไม่มี (ยอมรับได้ — <code>⋯</code> เป็นสัญลักษณ์สากล)</li>
+      </ul></div>
+    </div>
+  </div>
+  <div class="frames" data-render="D"></div>
+</section>
+
+</div>
+
+<div class="switcher">
+  <button type="button" id="prev" aria-label="แบบก่อนหน้า">&#8592;</button>
+  <div class="lbl" id="lbl"></div>
+  <button type="button" id="next" aria-label="แบบถัดไป">&#8594;</button>
+  <div class="hint">ลูกศร ← → บนคีย์บอร์ดก็ได้ · แชร์ลิงก์ด้วย ?variant=</div>
+</div>
+
+<script>
+/* ไอคอนแบบ tabler (stroke 2, viewBox 24) — ห้าม emoji ตาม HR12 */
+const I={
+ back:'<path d="M5 12h14M5 12l6 6M5 12l6-6"/>',
+ folder:'<path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>',
+ dots:'<circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/>',
+ bellOff:'<path d="M3 3l18 18M17 17H4a4 4 0 0 0 2-3V9a6 6 0 0 1 .6-2.6M8.5 4.5A6 6 0 0 1 18 9v5M9 17v1a3 3 0 0 0 6 0v-1"/>',
+ right:'<path d="M9 6l6 6-6 6"/>',
+ down:'<path d="M6 9l6 6 6-6"/>',
+ robotOff:'<path d="M3 3l18 18M6 6h1m4 0h7a2 2 0 0 1 2 2v7m-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2M12 2v4M9 12h.01M15 12h.01"/>',
+ truck:'<circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M5 17H3V6a1 1 0 0 1 1-1h9v12M9 17h6M13 9h4l3 4v4h-2"/>',
+ packageOff:'<path d="M3 3l18 18M12 3l8 4.5v9L12 21l-8-4.5v-9z"/>',
+ sparkles:'<path d="M12 3l1.8 4.7L18.5 9.5 13.8 11.3 12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3zM19 16l.7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7L19 16z"/>',
+ speakerphone:'<path d="M18 8a3 3 0 0 1 0 6M10 8v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-5"/><path d="M12 8l4.5-3.8A.9.9 0 0 1 18 4.9v12.2a.9.9 0 0 1-1.5.7L12 14H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h8z"/>',
+ cash:'<rect x="2" y="7" width="20" height="10" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+ cart:'<circle cx="6" cy="19" r="2"/><circle cx="17" cy="19" r="2"/><path d="M17 17H6V3H4M6 5l14 1-1 7H6"/>',
+ fb:'<path d="M14 8h2V5h-2a3 3 0 0 0-3 3v2H9v3h2v6h3v-6h2l1-3h-3v-2a1 1 0 0 1 1-1z" fill="currentColor" stroke="none"/>'
+};
+const s=(k,st)=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'+(st?' style="'+st+'"':'')+'>'+I[k]+'</svg>';
+const ico=(k,px)=>s(k,'width:'+(px||17)+'px;height:'+(px||17)+'px;flex:none');
+
+const NAME='มูหำหมัด มณีหยา', INI='มม', PAGE='ชาเขียวเหนี่ยวทรัพย์';
+
+const avatar=()=>'<span class="avatar">'+INI+'<span class="ch-badge">'+s('fb')+'</span></span>';
+
+/* ส่วนที่ไม่แตะ — วาดจาง ๆ ให้เห็นบริบท */
+const CHIP_AD = '<span class="chip plain"><span class="thumb"></span>จากโฆษณา'+s('down','width:14px;height:14px')+'</span>';
+const rest=(chips, subrow)=>
+ '<div class="frozen">'+
+ /* chips === '' → ไม่เรนเดอร์แถวชิปเลย (แบบ H/I/J ที่ยุบแถวนี้ทิ้ง) */
+ (chips===''?'':'<div class="chipstrip"><div class="chiprow">'+(chips===undefined?CHIP_AD:chips)+'</div></div>')+
+ (subrow||'')+
+ '<div class="sysline">เอเจนต์ AI ของ Meta เริ่มตอบแทนคุณในแชทนี้แล้ว</div>'+
+ '<div class="stream">'+
+   '<div class="bub them">โช้ครถฮ้อนด้าดรีมมีไหม</div>'+
+   '<div class="bub me">สวัสดีค่ะคุณ มูหำหมัด ทางร้านมีโช้คสำหรับ Honda Dream เลยค่ะ</div>'+
+   '<div class="bub them">ราคาเท่าไหร่คะ</div>'+
+ '</div></div>';
+
+/* ── 0 ของปัจจุบัน ─────────────────────────────────────────────────────── */
+const NOW=()=>'<div class="card"><div class="card-header flex-nowrap py-3">'+
+  '<div class="flex" style="display:flex;align-items:center;gap:12px;min-width:0">'+
+    '<button class="btn btn-icon border-default-300">'+ico('back',18)+'</button>'+
+    avatar()+
+    '<h5 class="name">'+NAME+'</h5>'+
+  '</div>'+
+  '<button class="btn btn-icon border-default-300" style="margin-left:auto">'+ico('folder',18)+
+    '<span class="badge bg-primary text-white cnt-badge" style="border:2px solid #fff">3</span></button>'+
+  '<button class="btn btn-icon">'+ico('dots',18)+
+    '<span style="position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;background:#fff;color:var(--color-default-500);display:flex;align-items:center;justify-content:center">'+s('bellOff','width:10px;height:10px')+'</span></button>'+
+'</div>'+rest()+'</div>';
+
+/* ── A ซ่อมตามธีม ──────────────────────────────────────────────────────── */
+const A=()=>'<div class="card"><div class="card-header flex-nowrap py-3">'+
+  '<div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">'+
+    '<button class="btn btn-sm btn-icon border-default-300">'+ico('back',16)+'</button>'+
+    avatar()+
+    '<div class="min-w-0">'+
+      '<h5 class="name mb-125">'+NAME+'</h5>'+
+      '<p class="subline">'+s('fb','width:13px;height:13px')+PAGE+'</p>'+
+    '</div>'+
+  '</div>'+
+  /* ChatToolbar.tsx:10 — กลุ่มปุ่มขวา flex gap-1.5 */
+  '<div style="display:flex;gap:6px;flex:none">'+
+    '<button class="btn btn-icon border-default-300">'+ico('folder',17)+
+      '<span class="badge bg-primary text-white cnt-badge border-card" style="border-width:2px;border-style:solid">3</span></button>'+
+    '<button class="btn btn-icon border-default-300">'+ico('dots',17)+
+      '<span class="mute-badge">'+s('bellOff')+'</span></button>'+
+  '</div>'+
+'</div>'+rest()+'</div>';
+
+/* ── B ปุ่มไฟล์มีคำ ────────────────────────────────────────────────────── */
+const B=()=>'<div class="card"><div class="card-header flex-nowrap py-3">'+
+  '<div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">'+
+    '<button class="btn btn-sm btn-icon border-default-300">'+ico('back',16)+'</button>'+
+    avatar()+
+    '<div class="min-w-0">'+
+      '<h5 class="name mb-125">'+NAME+'</h5>'+
+      '<p class="subline">'+s('fb','width:13px;height:13px')+PAGE+'</p>'+
+    '</div>'+
+  '</div>'+
+  '<div style="display:flex;gap:6px;flex:none">'+
+    '<button class="btn btn-sm border-default-300 text-default-700">'+ico('folder',16)+
+      'ไฟล์<span class="badge rounded-full bg-primary text-white" style="font-size:11px">3</span></button>'+
+    '<button class="btn btn-icon border-default-300">'+ico('dots',17)+
+      '<span class="mute-badge">'+s('bellOff')+'</span></button>'+
+  '</div>'+
+'</div>'+rest()+'</div>';
+
+/* ── C ตัวตนกดได้ ──────────────────────────────────────────────────────── */
+const C=()=>'<div class="card"><div class="card-header flex-nowrap py-3">'+
+  '<div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">'+
+    '<button class="btn btn-sm btn-icon border-default-300">'+ico('back',16)+'</button>'+
+    '<button style="display:flex;align-items:center;gap:12px;min-width:0;flex:1;background:transparent;border:0;padding:2px 4px;border-radius:4px;font-family:inherit;text-align:left;cursor:pointer">'+
+      avatar()+
+      '<span class="min-w-0" style="flex:1">'+
+        '<span style="display:flex;align-items:center;gap:4px;min-width:0">'+
+          '<h5 class="name mb-125" style="margin-bottom:0">'+NAME+'</h5>'+
+          s('right','width:14px;height:14px;flex:none;color:var(--color-default-400)')+
+        '</span>'+
+        '<p class="subline">'+s('fb','width:13px;height:13px')+PAGE+'</p>'+
+      '</span>'+
+    '</button>'+
+  '</div>'+
+  '<button class="btn btn-icon border-default-300" style="flex:none">'+ico('dots',17)+
+    '<span class="mute-badge">'+s('bellOff')+'</span></button>'+
+'</div>'+rest()+'</div>';
+
+/* ── D: A + คำเฉพาะ >=375px ────────────────────────────────────────────── */
+const D=(w)=>'<div class="card"><div class="card-header flex-nowrap py-3">'+
+  '<div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">'+
+    '<button class="btn btn-sm btn-icon border-default-300">'+ico('back',16)+'</button>'+
+    avatar()+
+    '<div class="min-w-0">'+
+      '<h5 class="name mb-125">'+NAME+'</h5>'+
+      '<p class="subline">'+s('fb','width:13px;height:13px')+PAGE+'</p>'+
+    '</div>'+
+  '</div>'+
+  '<div style="display:flex;gap:6px;flex:none">'+
+    (w>=375
+      ? '<button class="btn btn-sm border-default-300 text-default-700">'+ico('folder',16)+
+          'ไฟล์<span class="badge rounded-full bg-primary text-white" style="font-size:11px">3</span></button>'
+      : '<button class="btn btn-icon border-default-300">'+ico('folder',17)+
+          '<span class="badge bg-primary text-white cnt-badge border-card" style="border-width:2px;border-style:solid">3</span></button>')+
+    '<button class="btn btn-icon border-default-300">'+ico('dots',17)+
+      '<span class="mute-badge">'+s('bellOff')+'</span></button>'+
+  '</div>'+
+'</div>'+rest()+'</div>';
+
+/* ── E: ออเดอร์เป็นปุ่มหลัก · ไฟล์โผล่เฉพาะเมื่อมี ─────────────────────── */
+const E=(w,hasFiles)=>{
+  const files = (hasFiles===undefined?true:hasFiles);
+  return '<div class="card"><div class="card-header flex-nowrap py-3">'+
+  '<div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">'+
+    '<button class="btn btn-sm btn-icon border-default-300">'+ico('back',16)+'</button>'+
+    avatar()+
+    '<div class="min-w-0">'+
+      '<h5 class="name mb-125">'+NAME+'</h5>'+
+      '<p class="subline">'+s('fb','width:13px;height:13px')+PAGE+'</p>'+
+    '</div>'+
+  '</div>'+
+  '<div style="display:flex;gap:6px;flex:none">'+
+    /* ออเดอร์ — ปุ่มระดับหนึ่งเสมอ */
+    '<button class="btn btn-icon border-default-300">'+ico('cart',17)+
+      '<span class="badge bg-primary text-white cnt-badge border-card" style="border-width:2px;border-style:solid">4</span></button>'+
+    /* ไฟล์ — เฉพาะเมื่อมี */
+    (files
+      ? '<button class="btn btn-icon border-default-300">'+ico('folder',17)+
+          '<span class="badge bg-primary text-white cnt-badge border-card" style="border-width:2px;border-style:solid">3</span></button>'
+      : '')+
+    '<button class="btn btn-icon border-default-300">'+ico('dots',17)+
+      '<span class="mute-badge">'+s('bellOff')+'</span></button>'+
+  '</div>'+
+'</div>'+rest()+'</div>';
+};
+
+/* หัวแบบ E ใช้ซ้ำใน F/G — แยกเป็นฟังก์ชันเพื่อไม่ให้ layout แตกกัน */
+const headE=()=>'<div class="card-header flex-nowrap py-3">'+
+  '<div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">'+
+    '<button class="btn btn-sm btn-icon border-default-300">'+ico('back',16)+'</button>'+
+    avatar()+
+    '<div class="min-w-0">'+
+      '<h5 class="name mb-125">'+NAME+'</h5>'+
+      '<p class="subline">'+s('fb','width:13px;height:13px')+PAGE+'</p>'+
+    '</div>'+
+  '</div>'+
+  '<div style="display:flex;gap:6px;flex:none">'+
+    '<button class="btn btn-icon border-default-300">'+ico('cart',17)+
+      '<span class="badge bg-primary text-white cnt-badge border-card" style="border-width:2px;border-style:solid">4</span></button>'+
+    '<button class="btn btn-icon border-default-300">'+ico('folder',17)+
+      '<span class="badge bg-primary text-white cnt-badge border-card" style="border-width:2px;border-style:solid">3</span></button>'+
+    '<button class="btn btn-icon border-default-300">'+ico('dots',17)+
+      '<span class="mute-badge">'+s('bellOff')+'</span></button>'+
+  '</div>'+
+'</div>';
+
+/* ── F: เติมป้ายลูกค้าเข้าแถวชิปเดิม ─────────────────────────────────── */
+const chip=(cls,icon,txt)=>'<span class="chip '+cls+'">'+s(icon,'width:14px;height:14px')+txt+
+  s('down','width:14px;height:14px;opacity:.7')+'</span>';
+const F=()=>'<div class="card">'+headE()+
+  rest(
+    chip('warn','robotOff','บอทหยุดตอบ')+
+    chip('order','truck','DP2569-0042 · กำลังส่ง')+
+    chip('warn','packageOff','ตีกลับ 2 รายการ')+
+    chip('info','sparkles','ลูกค้าเก่า · 4 ออเดอร์')+
+    CHIP_AD
+  )+'</div>';
+
+/* ── G: แยก 2 ระดับ ──────────────────────────────────────────────────── */
+const subrow=()=>'<div class="subrow">'+
+  '<span class="it">'+s('sparkles')+'ลูกค้าเก่า · 4 ออเดอร์</span>'+
+  '<span class="sep">·</span>'+
+  '<span class="it">'+s('packageOff')+'ตีกลับ 2</span>'+
+  '<span class="sep">·</span>'+
+  '<span class="it">'+s('speakerphone')+'จากโฆษณา</span>'+
+  '<span class="sep">·</span>'+
+  '<span class="it">'+s('cash')+'ซื้อรวม ฿12,400</span>'+
+'</div>';
+const G=()=>'<div class="card">'+headE()+
+  rest(
+    chip('warn','robotOff','บอทหยุดตอบ')+
+    chip('order','truck','DP2569-0042 · กำลังส่ง'),
+    subrow()
+  )+'</div>';
+
+/* ═══════════ re-design รอบ 2 ═══════════ */
+/* H — หัวเดียวจบ: บรรทัด 2 = ข้อมูลลูกค้า inline · คำเตือน = แถบสีแยก */
+const H=()=>'<div class="card">'+
+  '<div class="card-header flex-nowrap py-3">'+
+    '<div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">'+
+      '<button class="btn btn-sm btn-icon border-default-300">'+ico('back',16)+'</button>'+
+      avatar()+
+      '<div class="min-w-0" style="flex:1">'+
+        '<h5 class="name mb-125">'+NAME+'</h5>'+
+        '<p class="metaline">'+
+          '<span class="grp">'+s('fb')+PAGE+'</span>'+
+          '<span class="dot">·</span>'+
+          '<span class="grp">'+s('sparkles')+'ลูกค้าเก่า 4</span>'+
+          '<span class="dot">·</span>'+
+          '<span class="grp hot">'+s('packageOff')+'ตีกลับ 2</span>'+
+          '<span class="dot">·</span>'+
+          '<span class="grp">'+s('speakerphone')+'จากโฆษณา</span>'+
+        '</p>'+
+      '</div>'+
+    '</div>'+
+    '<div style="display:flex;gap:6px;flex:none">'+
+      '<button class="btn btn-icon border-default-300">'+ico('cart',17)+
+        '<span class="badge bg-primary text-white cnt-badge border-card" style="border-width:2px;border-style:solid">4</span></button>'+
+      '<button class="btn btn-icon border-default-300">'+ico('folder',17)+
+        '<span class="badge bg-primary text-white cnt-badge border-card" style="border-width:2px;border-style:solid">3</span></button>'+
+      '<button class="btn btn-icon border-default-300">'+ico('dots',17)+
+        '<span class="mute-badge">'+s('bellOff')+'</span></button>'+
+    '</div>'+
+  '</div>'+
+  /* คำเตือน — แถบเต็มความกว้าง โผล่เฉพาะเมื่อมี */
+  '<div class="alertbar warn">'+s('robotOff')+'บอทหยุดตอบห้องนี้'+
+    '<span class="act">ให้บอทตอบต่อ</span></div>'+
+  rest('', '')+
+'</div>';
+
+/* I — แถบเดียวผสม เม็ดยาสี + ข้อความเปล่า */
+const I2=()=>'<div class="card">'+
+  '<div class="card-header flex-nowrap py-3">'+
+    '<div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">'+
+      '<button class="btn btn-sm btn-icon border-default-300">'+ico('back',16)+'</button>'+
+      avatar()+
+      '<h5 class="name">'+NAME+'</h5>'+
+    '</div>'+
+    '<div style="display:flex;gap:6px;flex:none">'+
+      '<button class="btn btn-icon border-default-300">'+ico('cart',17)+
+        '<span class="badge bg-primary text-white cnt-badge border-card" style="border-width:2px;border-style:solid">4</span></button>'+
+      '<button class="btn btn-icon border-default-300">'+ico('folder',17)+
+        '<span class="badge bg-primary text-white cnt-badge border-card" style="border-width:2px;border-style:solid">3</span></button>'+
+      '<button class="btn btn-icon border-default-300">'+ico('dots',17)+
+        '<span class="mute-badge">'+s('bellOff')+'</span></button>'+
+    '</div>'+
+  '</div>'+
+  '<div class="mixrow">'+
+    '<span class="sev warn">'+s('robotOff')+'บอทหยุดตอบ</span>'+
+    '<span class="sev order">'+s('truck')+'กำลังส่ง</span>'+
+    '<span class="qt">'+s('fb')+PAGE+'</span>'+
+    '<span class="dot">·</span>'+
+    '<span class="qt">'+s('sparkles')+'ลูกค้าเก่า 4</span>'+
+    '<span class="dot">·</span>'+
+    '<span class="qt">'+s('packageOff')+'ตีกลับ 2</span>'+
+  '</div>'+
+  rest('', '')+
+'</div>';
+
+/* J — ชั้นเดียวล้วน */
+const J=()=>'<div class="card">'+
+  '<div class="card-header flex-nowrap py-3">'+
+    '<div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">'+
+      '<button class="btn btn-sm btn-icon border-default-300">'+ico('back',16)+'</button>'+
+      avatar()+
+      '<div class="min-w-0">'+
+        '<h5 class="name mb-125">'+NAME+'</h5>'+
+        '<p class="subline">'+s('fb','width:13px;height:13px')+PAGE+'</p>'+
+      '</div>'+
+    '</div>'+
+    '<div style="display:flex;gap:6px;flex:none">'+
+      '<button class="btn btn-icon border-default-300">'+ico('cart',17)+
+        '<span class="badge bg-primary text-white cnt-badge border-card" style="border-width:2px;border-style:solid">4</span></button>'+
+      '<button class="btn btn-icon border-default-300">'+ico('folder',17)+
+        '<span class="badge bg-primary text-white cnt-badge border-card" style="border-width:2px;border-style:solid">3</span></button>'+
+      '<button class="btn btn-icon border-default-300">'+ico('dots',17)+
+        '<span class="warn-dot"></span></button>'+
+    '</div>'+
+  '</div>'+
+  rest('', '')+
+'</div>';
+
+/* K — สังเคราะห์: หัว E + คำเตือน H + ข้อมูล G */
+const K=()=>'<div class="card">'+headE()+
+  '<div class="alertbar warn">'+s('robotOff')+'บอทหยุดตอบห้องนี้'+
+    '<span class="act">ให้บอทตอบต่อ</span></div>'+
+  rest('', subrow())+
+'</div>';
+
+const R={NOW,A,B,C,D,E,F,G,H,I:I2,J,K};
+const META={
+ NOW:{k:'0',n:'ของปัจจุบัน',b:'40 + <b>37</b> + 12 + 36 + 12 + [ชื่อ] + 12 + 37 + <b>12</b> + 37 = 235 → ชื่อ <b>85px</b>'},
+ A:{k:'A',n:'ซ่อมตามธีม (ไอคอน 2 ตัว)',b:'40 + <b>30</b> + 12 + 36 + 12 + [ชื่อ] + 12 + 37 + <b>6</b> + 37 = 222 → ชื่อ <b>98px</b>'},
+ B:{k:'B',n:'ปุ่มไฟล์มีคำ',b:'40 + 30 + 12 + 36 + 12 + [ชื่อ] + 12 + <b>76</b> + 6 + 37 = 261 → ชื่อ <b>59px</b>'},
+ C:{k:'C',n:'ตัวตนกดได้ (⋯ ตัวเดียว)',b:'40 + 30 + 12 + 36 + 12 + [ชื่อ+chevron 18] + 12 + 37 = 179 → ชื่อ <b>141px</b>'},
+ E:{k:'E',n:'ออเดอร์เป็นปุ่มหลัก · ไฟล์ตามมี',b:'<b>มีไฟล์</b> 40+30+12+36+12+[ชื่อ]+12+37+6+37+6+37 = 265 · <b>ไม่มีไฟล์</b> = 222 (เท่าแบบ A)'},
+ K:{k:'K',n:'สังเคราะห์ H+G (ที่แนะนำ)',b:'ไม่มีคำเตือน = 66+26 = <b>92px</b> · มีคำเตือน = <b>123px</b> · แถบจางเต็มกว้าง 358px ที่ 390px'},
+ H:{k:'H',n:'หัวเดียวจบ (re-design)',b:'ปกติ <b>66px ชั้นเดียว</b> · มีคำเตือน 66+31 = <b>97px</b> (จาก 105)'},
+ I:{k:'I',n:'แถบเดียวผสม (re-design)',b:'61 + 33 = <b>94px</b> — ชั้นล่างจุของได้มากกว่าเดิมเพราะข้อมูลไม่กินกรอบ'},
+ J:{k:'J',n:'ชั้นเดียวล้วน (re-design · ขั้วเปรียบเทียบ)',b:'<b>61px</b> — ประหยัดสุด แลกด้วยคำเตือนที่เหลือแค่จุดสี'},
+ F:{k:'F',n:'แถวชิป: เติมป้ายลูกค้า',b:'หัวแบบ E · แถวชิป 44px (โครงเดิม) — ชิปเยอะขึ้น เลื่อนแนวนอน'},
+ G:{k:'G',n:'แถวชิป: แยก 2 ระดับ',b:'มีคำเตือน = 44 + 26 = <b>70px</b> · ไม่มีคำเตือน = <b>26px</b> (จาก 44)'},
+ D:{k:'D',n:'A + คำเฉพาะจอที่มีที่พอ',b:'ที่ 320px = สูตรเดียวกับ A → ชื่อ <b>98px</b> · ที่ ≥375px ปุ่มกางเป็นคำ ชื่อได้ <b>129px</b>'}
+};
+const KEYS=['NOW','K','H','I','J','G','F','E','A','B','C','D'];
+const SIZES=[{c:'w320',l:'320px',n:'แคบสุดที่รองรับ'},{c:'w390',l:'390px',n:'iPhone 14/15'},{c:'w768',l:'768px',n:'แท็บเล็ตแนวตั้ง'}];
+
+document.querySelectorAll('[data-render]').forEach(h=>{
+  const k=h.dataset.render;
+  h.innerHTML=SIZES.map(z=>
+    '<div class="'+z.c+'" style="flex:none">'+
+      '<div class="fl"><b>'+z.l+'</b> · '+z.n+'</div>'+
+      '<div class="device"><div class="screen">'+R[k](parseInt(z.l,10))+'</div></div>'+
+      (z.c==='w320'?'<div class="budget">'+META[k].b+'</div>':'')+
+    '</div>').join('');
+});
+
+const lbl=document.getElementById('lbl');
+function show(k){
+  document.querySelectorAll('.variant').forEach(v=>v.classList.toggle('on',v.dataset.key===k));
+  lbl.innerHTML='<span class="k">'+META[k].k+'</span>'+META[k].n;
+  const u=new URL(location.href);u.searchParams.set('variant',k);history.replaceState(null,'',u);
+  window.scrollTo({top:0});
+}
+function step(d){
+  const cur=new URL(location.href).searchParams.get('variant');
+  const i=KEYS.indexOf(cur); const j=(i<0?0:i);
+  show(KEYS[((j+d)%KEYS.length+KEYS.length)%KEYS.length]);
+}
+document.getElementById('prev').onclick=()=>step(-1);
+document.getElementById('next').onclick=()=>step(1);
+document.addEventListener('keydown',e=>{
+  const t=e.target;
+  if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;
+  if(e.key==='ArrowLeft')step(-1);
+  if(e.key==='ArrowRight')step(1);
+});
+const q=new URL(location.href).searchParams.get('variant');
+show(KEYS.includes(q)?q:'NOW');
+</script>
+</body>
+</html>

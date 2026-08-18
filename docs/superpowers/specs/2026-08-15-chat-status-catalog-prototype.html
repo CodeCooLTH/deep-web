@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>สถานะทั้งหมดในห้องแชท — โครงใหม่ (2026-08-15)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROTOTYPE — โค้ดทิ้ง ไม่ใช่ของ production
+
+   คำถาม: ในโครงใหม่ (คำเตือน = แถบเต็มกว้าง · ที่มา = การ์ดในสตรีม · บริบท = แถบจาง)
+   **สถานะแต่ละตัวหน้าตาเป็นยังไง** — โดยเฉพาะ สถานะคำสั่งซื้อ · สถานะการเข้ารับบริการ ·
+   คำเตือนหน้าต่าง 24 ชม.
+
+   คำและไอคอนทุกตัวคัดจาก SSOT จริง ไม่ได้ตั้งใหม่:
+     SHIPPING_STAGE_LABEL      → src/lib/order-stage.ts:185
+     SERVICE_STAGE_CHIP_META   → src/lib/chat-service-progress.ts:82
+     APPOINTMENT_STATUS_LABEL  → src/lib/appointments.ts:236
+     status:window (4 tier)    → ChatThread.tsx:2068-2080
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --color-card:#fff;
+  --color-primary:#0a74ff; --color-primary-ink:#1e3a8a;
+  --color-info:#1aa0e8; --color-info-ink:#1e40af;
+  --color-warning:#ff8f1f; --color-warning-ink:#92400e;
+  --color-danger:#f43f5e; --color-danger-ink:#7f1d1d;
+  --color-success:#0f9d7a; --color-success-ink:#065f46;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-600:#4a5358;
+  --color-default-700:#40454a; --color-default-800:#343a40; --color-default-900:#313a46;
+  --radius:4px; --shadow:0px 1px 4px 0px rgba(130,143,163,.15);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Anuphan',system-ui,sans-serif;background:#e9eef6;color:var(--color-default-900);
+  padding:24px 16px 60px;line-height:1.5}
+.doc{max-width:1180px;margin:0 auto}
+.paper{background:#fff;border-radius:12px;padding:20px 24px;box-shadow:var(--shadow);margin-bottom:22px}
+h1{font-size:22px;font-weight:700;margin-bottom:5px}
+h2{font-size:18px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:10px}
+.sub{color:var(--color-default-500);font-size:14px;margin-bottom:16px}
+.qbox{background:var(--color-default-100);border-left:3px solid var(--color-primary);padding:12px 14px;
+  border-radius:0 6px 6px 0;font-size:14px}
+.qbox b{color:var(--color-primary-ink)}
+.qbox code{background:var(--color-default-200);padding:1px 5px;border-radius:3px;font-family:inherit;font-size:12px}
+.src{font-size:12px;color:var(--color-default-500);margin-bottom:14px}
+.src code{background:var(--color-default-200);padding:1px 5px;border-radius:3px;font-family:inherit;font-size:11px}
+
+.row{display:grid;grid-template-columns:390px 1fr;gap:20px;align-items:center;padding:12px 0;
+  border-bottom:1px solid var(--color-default-200)}
+.row:last-child{border-bottom:0}
+@media(max-width:900px){.row{grid-template-columns:1fr}}
+.row .exp{font-size:13px;color:var(--color-default-700)}
+.row .exp b{color:var(--color-default-900)}
+.row .exp code{background:var(--color-default-200);padding:1px 5px;border-radius:3px;font-family:inherit;font-size:11px}
+.row .exp .k{font-size:11px;color:var(--color-default-500);display:block;margin-top:3px}
+
+/* ── แถบคำเตือนเต็มกว้าง (โครงใหม่) ── */
+.wrap{border:1px solid var(--color-default-300);border-radius:10px;overflow:hidden;background:#fff}
+.actbar{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:13px;font-weight:500}
+.actbar svg{width:15px;height:15px;flex:none}
+.actbar .a{margin-left:auto;flex:none;font-size:12px;font-weight:600;text-decoration:underline}
+.actbar.danger{background:rgba(244,63,94,.15);color:var(--color-danger-ink)}
+.actbar.warn{background:rgba(255,143,31,.15);color:var(--color-warning-ink)}
+.actbar.info{background:rgba(26,160,232,.15);color:var(--color-info-ink)}
+
+/* ── แถบสถานะออเดอร์ (แบบเดียวกับคำเตือน แต่โทน order) ── */
+.actbar.order{background:rgba(10,116,255,.13);color:var(--color-primary-ink)}
+.actbar .no{font-weight:700}
+.actbar .sep{opacity:.45}
+
+/* ── แถบจางบริบท ── */
+.ambient{display:flex;align-items:center;gap:6px;padding:6px 14px;font-size:11px;
+  color:var(--color-default-600);background:#fff}
+.ambient svg{width:12px;height:12px;flex:none}
+
+/* ── บล็อกแทนช่องพิมพ์ ── */
+.replaced{min-height:84px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  padding:14px;text-align:center;background:rgba(244,63,94,.08)}
+.replaced .t{font-size:13px;color:var(--color-danger-ink);display:flex;align-items:center;gap:6px}
+.replaced svg{width:16px;height:16px}
+.btnghost{border:1px solid var(--color-default-300);border-radius:var(--radius);padding:5px 12px;
+  font-size:13px;font-weight:500;background:#fff;color:var(--color-default-700)}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:12px}
+.legend span{background:var(--color-default-100);border-radius:6px;padding:4px 10px;color:var(--color-default-700)}
+.legend b{color:var(--color-default-900)}
+.note{margin-top:12px;font-size:13px;padding:10px 12px;border-radius:8px;
+  background:rgba(255,143,31,.12);color:var(--color-warning-ink)}
+.note.info{background:rgba(10,116,255,.10);color:var(--color-primary-ink)}
+</style>
+</head>
+<body>
+<div class="doc">
+
+<div class="paper">
+  <h1>สถานะทั้งหมดในห้องแชท — โครงใหม่</h1>
+  <div class="sub">prototype · 2026-08-15 · ของทิ้ง · ต่อจากแบบ C/D</div>
+  <div class="qbox">
+    ในโครงใหม่ ของแบ่งเป็น 3 รูปทรงตามระดับบังคับอ่าน:
+    <b>แถบเต็มกว้างมีสี</b> (ต้องรู้ก่อนตอบ) · <b>แถบจางบรรทัดเดียว</b> (รู้ไว้ก็ดี) ·
+    <b>บล็อกแทนช่องพิมพ์</b> (ส่งไม่ได้จริง)<br>
+    หน้านี้ไล่ให้ครบว่า<b>แต่ละสถานะตกอยู่รูปทรงไหน และเขียนว่าอะไร</b> —
+    คำและไอคอนทุกตัว<b>คัดจาก SSOT จริง ไม่ได้ตั้งใหม่</b>
+  </div>
+  <div class="legend">
+    <span><b>แถบสี</b> = ต้องรู้ก่อนตอบ</span>
+    <span><b>แถบจาง</b> = รู้ไว้ก็ดี</span>
+    <span><b>บล็อก</b> = ส่งไม่ได้</span>
+  </div>
+</div>
+
+<div class="paper">
+  <h2>1 · สถานะคำสั่งซื้อ <span style="font-size:12px;font-weight:500;color:var(--color-default-500)">ร้านขายของ</span></h2>
+  <div class="src">SSOT: <code>SHIPPING_STAGE_LABEL</code> (<code>src/lib/order-stage.ts:185</code>) — 5 ค่า + <code>DONE</code> ที่ไม่แสดง ·
+    ชิปโผล่เมื่อมีออเดอร์ที่ <b>ยังไม่จบ</b> เท่านั้น (<code>orderProgressChip</code> คืน <code>null</code> ถ้าไม่มี)</div>
+  <div id="ship"></div>
+  <div class="note info">
+    <b>ทำไมเป็นแถบสีน้ำเงิน ไม่ใช่แถบจาง</b> — สถานะออเดอร์คือสิ่งที่ลูกค้ากำลังจะถามถึงในข้อความถัดไป
+    ("ของถึงไหนแล้ว") ⇒ ผู้ขายต้องเห็นก่อนพิมพ์ · แต่ใช้โทน <code>primary</code> ไม่ใช่ warning เพราะมันไม่ใช่ปัญหา
+    <b>ยกเว้น "พัสดุมีปัญหา" ที่เป็น danger จริง</b>
+  </div>
+  <div class="note">
+    🛑 <b>มีออเดอร์ค้างมากกว่า 1 ใบ</b> → แถบแสดงใบล่าสุด + <code>+N</code> (ยกจากแพตเทิร์นเดิม <code>orderChip.count</code>)
+    กดแล้วกางเห็นทุกใบ — ห้ามซ้อนหลายแถบ
+  </div>
+</div>
+
+<div class="paper">
+  <h2>2 · สถานะการเข้ารับบริการ <span style="font-size:12px;font-weight:500;color:var(--color-default-500)">ร้านคิวงาน</span></h2>
+  <div class="src">SSOT: <code>SERVICE_STAGE_CHIP_META</code> (<code>src/lib/chat-service-progress.ts:82</code>) →
+    <code>APPOINTMENT_STATUS_LABEL</code> (<code>src/lib/appointments.ts:236</code>) —
+    <b>ร้าน <code>SERVICE_QUEUE</code> ใช้ชุดนี้แทนชุดพัสดุทั้งหมด</b> ไม่ใช่แสดงคู่กัน</div>
+  <div id="svc"></div>
+  <div class="note">
+    🛑 <b>ไอคอนต้องบอกแกนของร้าน</b> — คอมเมนต์ในโค้ดเขียนไว้เองว่า "รถบรรทุกกับร้านที่ไม่เคยส่งของคือสัญลักษณ์ที่พูดผิดเรื่อง"
+    ⇒ ร้านคิวงานใช้ปฏิทิน ห้ามใช้ <code>truck</code>
+  </div>
+</div>
+
+<div class="paper">
+  <h2>3 · คำเตือนหน้าต่าง 24 ชั่วโมง</h2>
+  <div class="src">SSOT: <code>status:window</code> (<code>ChatThread.tsx:2068-2080</code>) — <b>4 tier</b> ที่เลือกด้วย
+    <code>neverInbound</code> × <code>isCommentReplyThread</code> × <code>humanAgentOpen</code> ·
+    บวก<b>นับถอยหลัง</b>ซึ่งเป็นคนละตัว (โผล่ตอนหน้าต่าง<b>ยังเปิด</b>และเหลือ ≤4 ชม.)</div>
+  <div id="win"></div>
+  <div class="note info">
+    <b>ลำดับเวลาของแกนนี้:</b> ลูกค้าทัก → หน้าต่างเปิด 24 ชม. (ไม่แสดงอะไร) →
+    เหลือ ≤4 ชม. <b>แถบนับถอยหลัง</b> → หมดเวลา <b>แถบเตือน tier ที่ 3 หรือ 4</b><br>
+    ⇒ ทั้งสองไม่มีวันขึ้นพร้อมกัน (อันหนึ่งคือ "ยังเปิด" อีกอันคือ "ปิดแล้ว")
+  </div>
+  <div class="note">
+    🛑 <b>เธรด LINE ไม่เข้าแกนนี้เลยสักตัว</b> (<code>suppressWindowStatus</code> มี <code>channel === 'LINE'</code>)
+    — หน้าต่างฟรีของ LINE ยาว 60 วินาที = ปิดเกือบตลอดเวลา แถบถาวรที่บอกเรื่องนั้นคือเสียงรบกวนที่ไม่มีอะไรให้ทำต่อ
+    สถานะโควตา/ฟรีของ LINE สื่อผ่านแคปชันข้างปุ่มส่งที่เดียว
+  </div>
+  <div class="note">
+    🛑 <b>นับถอยหลังเป็นนาที ไม่ใช่วินาที</b> (มติจาก ux) — ของเดิม <code>เหลือ 3 ชั่วโมง 53 นาที 33 วินาที</code>
+    วินาทีเดินตลอด 4 ชม.ติดในสายตาผู้ขาย ขัดหลัก "motion ต้องสื่อสถานะ ไม่ใช่ประดับ" ·
+    ต่ำกว่า 5 นาทีค่อยขึ้นวินาที
+  </div>
+</div>
+
+<div class="paper">
+  <h2>4 · คำเตือนอื่นในแกนเดียวกัน</h2>
+  <div class="src">เพื่อให้เห็นว่าทั้งหมดใช้รูปทรงเดียวกัน — ต่างที่โทนและปุ่ม</div>
+  <div id="etc"></div>
+</div>
+
+</div>
+
+<script>
+const I={
+ truck:'<circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M5 17H3V6a1 1 0 0 1 1-1h9v12M9 17h6M13 9h4l3 4v4h-2"/>',
+ package:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+ cash:'<rect x="2" y="7" width="20" height="10" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+ alertTri:'<path d="M12 9v4M12 17h.01M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+ infoCircle:'<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/>',
+ calEvent:'<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16M8 15h2v2H8z"/>',
+ calCheck:'<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16M9 16l2 2 4-4"/>',
+ repeat:'<path d="M4 12V9a3 3 0 0 1 3-3h13M17 3l3 3-3 3M20 12v3a3 3 0 0 1-3 3H4M7 21l-3-3 3-3"/>',
+ hourglass:'<path d="M6 3h12M6 21h12M8 3v4l4 5 4-5V3M8 21v-4l4-5 4 5v4"/>',
+ alertCircle:'<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>',
+ lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+ ban:'<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
+ robotOff:'<path d="M3 3l18 18M6 6h1m4 0h7a2 2 0 0 1 2 2v7m-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2M12 2v4M9 12h.01M15 12h.01"/>',
+ flask:'<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/>'
+};
+const s=(k)=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+I[k]+'</svg>';
+
+const bar=(tone,icon,txt,action)=>'<div class="wrap"><div class="actbar '+tone+'">'+s(icon)+txt+
+  (action?'<span class="a">'+action+'</span>':'')+'</div></div>';
+const orderBar=(icon,no,label,extra,tone)=>'<div class="wrap"><div class="actbar '+(tone||'order')+'">'+s(icon)+
+  '<span class="no">'+no+'</span><span class="sep">·</span>'+label+
+  (extra?'<span class="sep">·</span>'+extra:'')+'<span class="a">ดูออเดอร์</span></div></div>';
+const block=(icon,txt,btn)=>'<div class="wrap"><div class="replaced"><div class="t">'+s(icon)+txt+'</div>'+
+  '<span class="btnghost">'+btn+'</span></div></div>';
+
+function render(id, rows){
+  document.getElementById(id).innerHTML = rows.map(r=>
+    '<div class="row"><div>'+r.v+'</div><div class="exp">'+r.e+'</div></div>'
+  ).join('');
+}
+
+/* ── 1. สถานะพัสดุ ── */
+render('ship',[
+ {v:orderBar('package','DP2569-0042','รอเลขพัสดุ'),
+  e:'<b>AWAITING_PARCEL</b> — ร้านยังไม่ได้เปิดพัสดุ<span class="k">งานที่ต้องทำอยู่ที่ร้าน</span>'},
+ {v:orderBar('clock','DP2569-0042','รอรับเข้า'),
+  e:'<b>AWAITING_PICKUP</b> — เปิดพัสดุแล้ว รอขนส่งมารับ<span class="k">รอฝ่ายอื่น ไม่มีอะไรให้ร้านทำ</span>'},
+ {v:orderBar('truck','DP2569-0042','กำลังจัดส่ง'),
+  e:'<b>SHIPPING</b> — ของอยู่ระหว่างทาง<span class="k">คำถามที่ลูกค้าจะถามบ่อยที่สุดในสถานะนี้</span>'},
+ {v:orderBar('cash','DP2569-0042','รอเงิน COD'),
+  e:'<b>AWAITING_COD</b> — ส่งถึงแล้ว แต่ร้านยังไม่ได้กดรับเงิน<span class="k">งานที่ต้องทำอยู่ที่ร้าน</span>'},
+ {v:orderBar('alertTri','DP2569-0042','พัสดุมีปัญหา','','danger'),
+  e:'<b>PROBLEM</b> — ตีกลับ / ที่อยู่ผิด / ติดต่อผู้รับไม่ได้<span class="k">🛑 ตัวเดียวในชุดที่เป็นโทน danger ไม่ใช่ primary</span>'},
+ {v:orderBar('truck','DP2569-0042','กำลังจัดส่ง','<b>+2</b>'),
+  e:'<b>มีหลายใบพร้อมกัน</b> — แสดงใบล่าสุด + <code>+N</code> กดกางเห็นทุกใบ<span class="k">ห้ามซ้อนหลายแถบ (แพตเทิร์นเดิม orderChip.count)</span>'},
+ {v:'<div class="wrap"><div class="ambient" style="color:var(--color-default-500)">— ไม่แสดงอะไรเลย —</div></div>',
+  e:'<b>DONE</b> / ไม่มีออเดอร์ค้าง<span class="k">orderProgressChip คืน null ⇒ ไม่ render แม้แต่พิกเซลเดียว</span>'}
+]);
+
+/* ── 2. สถานะคิวงาน ── */
+render('svc',[
+ {v:orderBar('calEvent','SV2569-0108','นัดแล้ว','พรุ่งนี้ 14:00'),
+  e:'<b>SCHEDULED</b> — ร้านลงนัดให้แล้ว รอลูกค้ายืนยัน'},
+ {v:orderBar('calCheck','SV2569-0108','ลูกค้ายืนยันแล้ว','พรุ่งนี้ 14:00'),
+  e:'<b>CONFIRMED_BY_BUYER</b> — ลูกค้ากดยืนยันนัดแล้ว'},
+ {v:orderBar('repeat','SV2569-0108','ลูกค้าขอเลื่อน','','danger'),
+  e:'<b>RESCHEDULE_REQUESTED</b> — ลูกค้าขอเลื่อนนัด<span class="k">🛑 ต้องเด่นกว่าตัวอื่น เพราะรอร้านตัดสินใจ</span>'},
+ {v:orderBar('hourglass','SV2569-0108','รอดำเนินการ'),
+  e:'<b>PENDING</b> — ออเดอร์บริการที่ยังไม่ได้ลงนัด<span class="k">ยืมคำจาก ORDER_STATUS_META.PENDING ไม่ตั้งคำใหม่</span>'}
+]);
+
+/* ── 3. หน้าต่าง 24 ชม. ── */
+render('win',[
+ {v:bar('warn','clock','ใกล้หมดเวลาตอบ — เหลือ 3 ชม. 47 นาที','ดู'),
+  e:'<b>นับถอยหลัง</b> — หน้าต่าง<b>ยังเปิด</b> เหลือ ≤4 ชม.<span class="k">🛑 เป็นนาที ไม่ใช่วินาที · ต่ำกว่า 5 นาทีค่อยขึ้นวินาที</span>'},
+ {v:bar('info','infoCircle','ตอบคอมเมนต์ได้ 1 ข้อความ — รอลูกค้าตอบกลับ'),
+  e:'<b>tier 1</b> — <code>neverInbound && isCommentReplyThread</code><span class="k">โทน info เพราะไม่ใช่ความผิดพลาด เป็นกติกาปกติของ Private Reply</span>'},
+ {v:bar('warn','alertTri','ลูกค้ายังไม่เคยทักเข้ามา — อาจส่งไม่สำเร็จ'),
+  e:'<b>tier 2</b> — <code>neverInbound</code> (ไม่ใช่เธรดคอมเมนต์)<span class="k">warning เพราะกดส่งไปแล้วอาจเด้งกลับ</span>'},
+ {v:bar('info','infoCircle','เกิน 24 ชั่วโมงแล้ว — ตอบเองได้ ห้ามส่งโปรโมชัน'),
+  e:'<b>tier 3</b> — <code>humanAgentOpen</code> (ได้สิทธิ์ human_agent ยังตอบได้ถึง 7 วัน)<span class="k">info เพราะยังตอบได้ · ตัวกางบอกวันหมดอายุจริง</span>'},
+ {v:bar('warn','alertTri','เกินเวลาที่ Meta ให้ตอบ — อาจส่งไม่สำเร็จ'),
+  e:'<b>tier 4</b> — เกิน 7 วัน หรือร้านไม่มีสิทธิ์ human_agent<span class="k">warning · ยังพิมพ์ได้ แต่มีโอกาสส่งไม่ผ่าน</span>'},
+ {v:'<div class="wrap"><div class="ambient" style="color:var(--color-default-500)">— เธรด LINE: ไม่แสดงแกนนี้เลย —</div></div>',
+  e:'<b>LINE ถูกกันออกทั้งแกน</b> (<code>suppressWindowStatus</code>)<span class="k">หน้าต่างฟรี 60 วินาที = ปิดเกือบตลอด · สถานะไปอยู่ข้างปุ่มส่งแทน</span>'}
+]);
+
+/* ── 4. คำเตือนอื่น ── */
+render('etc',[
+ {v:block('alertCircle','ส่งข้อความหาลูกค้าไม่ได้ตอนนี้ — การเชื่อมต่อ LINE มีปัญหา','อัปเดต token'),
+  e:'<b>token ตาย (LINE)</b> — <b>บล็อกแทนช่องพิมพ์</b> ไม่ใช่แถบ<span class="k">🛑 และ<b>ตัดชิปในแถวบนทิ้ง</b> เพราะซ้ำกันแน่นอนเสมอ (มติ ux)</span>'},
+ {v:bar('danger','alertCircle','เพจมีปัญหา — ต้องเชื่อมต่อใหม่','ตั้งค่าช่องทาง'),
+  e:'<b>token ตาย (Messenger/IG)</b> — ยังเป็นแถบ<span class="k">เพราะช่องทางนี้<b>ไม่มี</b>บล็อกแทนช่องพิมพ์ให้ ⇒ ไม่ซ้ำ</span>'},
+ {v:bar('danger','lock','โควตาข้อความหมด — ส่งไม่ได้','เปิด LINE OA Manager'),
+  e:'<b>quotaBlocked</b> — รู้ล่วงหน้าจากค่าที่อ่านจาก LINE<span class="k">ปิดช่องพิมพ์ด้วย · label สั้น ประโยคเต็มอยู่ในตัวกาง</span>'},
+ {v:bar('warn','ban','ลูกค้าอาจปิดรับข้อความ'),
+  e:'<b>contactBlocked</b> (LINE)<span class="k">ไม่มีปุ่ม เพราะร้านทำอะไรไม่ได้ — เป็นข้อมูลล้วน</span>'},
+ {v:bar('warn','robotOff','บอทหยุดตอบ','ให้บอทตอบต่อ'),
+  e:'<b>bot paused</b><span class="k">🛑 ปุ่มนี้เคยกดได้ทันทีก่อนยุบเป็นชิป — ห้ามทำให้ลึกลง</span>'},
+ {v:bar('info','flask','ห้องนี้ใช้ทดสอบ DeepAI','ตั้งค่า'),
+  e:'<b>chatbot-test</b><span class="k">label สั้นลงจาก "ห้องนี้กำลังใช้ทดสอบ DeepAI — บอทตอบถึงลูกค้าจริง" ที่เคยถูกตัดกลางคำ</span>'}
+]);
+</script>
+</body>
+</html>

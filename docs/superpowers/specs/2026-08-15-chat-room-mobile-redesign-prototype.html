@@ -1,0 +1,1067 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ห้องแชทผู้ขายบนมือถือ — โครงใหม่ทั้งห้อง 3 แบบ (2026-08-15)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROTOTYPE — โค้ดทิ้ง ไม่ใช่ของ production · ห้าม merge เข้า main
+
+   คำถามที่ม็อกอัพนี้ตอบ:
+     "ห้องแชทบนมือถือควรจัดโครงทั้งห้องยังไง เมื่อของที่ต้องแสดงมี 57 ชนิด
+      กระจายใน 10 โซน" — รอบก่อน ๆ (A–K, 3 แบบเมื่อ 13:22) ตอบแค่โซน 1+2
+      = 19/57 ชนิด · รอบนี้ครอบทั้งห้อง รวมสตรีม/บับเบิล/ช่องพิมพ์/overlay
+
+   HR1 — theme sourcing (ไม่มี UI ที่คิดเองจากศูนย์):
+     โครงห้อง + card-header  ← theme/paces/Admin/TS/src/app/(admin)/apps/chat/components/ChatPage.tsx
+     กลุ่มปุ่มขวา gap-1.5    ← theme/paces/.../chat/components/ChatToolbar.tsx:10-25
+     ปุ่มไอคอนมีกรอบ + hover ← ChatToolbar.tsx:21 (border-default-300 hover:border-default-400/75)
+     badge มุมบน border-2    ← theme/paces/.../NotificationDropdownPeople.tsx:33
+     token สี/เงา/รัศมี      ← theme/paces/.../assets/scss: _root.css · _theme-saas.css
+                               _buttons.css · _card.css · _badge.css
+   HR7 — ทุกค่าด้านล่างมาจาก token ของธีม ไม่ใช่ arbitrary value ที่ตั้งเอง
+   HR12 — ไม่มี emoji ทั้งไฟล์ ไอคอนเป็น SVG (tabler) ทั้งหมด
+
+   ข้อความทุกบรรทัดคัดจากไฟล์จริง ไม่ได้แต่งเอง — อ้างบรรทัดไว้ที่ตัวแปร CONTENT
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --color-body-bg:#f2f6fb; --color-card:#fff;
+  --color-primary:#0a74ff; --color-primary-ink:#1e3a8a;
+  --color-success:#0f9d7a; --color-success-ink:#065f46;
+  --color-info:#1aa0e8; --color-info-ink:#1e40af;
+  --color-warning:#ff8f1f; --color-warning-ink:#92400e;
+  --color-danger:#f43f5e; --color-danger-ink:#7f1d1d;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-600:#4a5358;
+  --color-default-700:#40454a; --color-default-800:#343a40; --color-default-900:#313a46;
+  --radius:4px; --shadow:0px 1px 4px 0px rgba(130,143,163,.15);
+  --shadow-lg:0 .25rem 1rem rgba(76,76,92,.2);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Anuphan',system-ui,sans-serif;background:#e9eef6;color:var(--color-default-900);
+  padding:24px 16px 130px;line-height:1.5}
+.doc{max-width:1400px;margin:0 auto}
+.paper{background:#fff;border-radius:12px;padding:20px 24px;box-shadow:var(--shadow);margin-bottom:22px}
+h1{font-size:22px;font-weight:700;margin-bottom:5px}
+h2{font-size:19px;font-weight:700;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+h3{font-size:15px;font-weight:700;margin:18px 0 8px}
+.sub{color:var(--color-default-500);font-size:14px;margin-bottom:16px}
+.qbox{background:var(--color-default-100);border-left:3px solid var(--color-primary);padding:12px 14px;
+  border-radius:0 6px 6px 0;font-size:14px;margin-bottom:10px}
+.qbox b{color:var(--color-primary-ink)}
+.qbox code,.idea code,.cols code,li code,td code{background:var(--color-default-200);padding:1px 5px;
+  border-radius:3px;font-family:inherit;font-size:12px}
+.warnbox{background:rgba(255,143,31,.12);border-left:3px solid var(--color-warning);padding:12px 14px;
+  border-radius:0 6px 6px 0;font-size:14px;color:var(--color-warning-ink)}
+.vkey{background:var(--color-default-900);color:#fff;width:28px;height:28px;border-radius:6px;
+  display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex:none}
+.idea{margin-top:8px;font-size:14px;color:var(--color-default-700)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+@media(max-width:820px){.cols{grid-template-columns:1fr}}
+.cols h4{font-size:12px;font-weight:700;color:var(--color-default-500);margin-bottom:5px}
+.cols ul{list-style:none;font-size:13px}
+.cols li{padding-left:15px;position:relative;margin-bottom:4px;color:var(--color-default-700)}
+.cols li::before{content:'';position:absolute;left:3px;top:9px;width:4px;height:4px;border-radius:50%;
+  background:var(--color-default-400)}
+.cols .win li::before{background:var(--color-success)}
+.cols .cost li::before{background:var(--color-warning)}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+th,td{border:1px solid var(--color-default-300);padding:6px 9px;text-align:left;vertical-align:top}
+th{background:var(--color-default-100);font-weight:600;font-size:12px}
+td b{color:var(--color-default-900)}
+.tally{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.tally span{font-size:12px;background:var(--color-default-100);border:1px solid var(--color-default-300);
+  border-radius:999px;padding:3px 10px;color:var(--color-default-700)}
+.tally span b{color:var(--color-default-900)}
+
+.frames{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;justify-content:center;margin-top:16px}
+.fl{text-align:center;font-size:12px;font-weight:600;color:var(--color-default-500);margin-bottom:8px}
+.fl b{color:var(--color-default-800)}
+.fl .w{display:inline-block;background:var(--color-default-900);color:#fff;border-radius:999px;
+  padding:1px 8px;font-size:11px;margin-right:5px}
+.device{background:var(--color-body-bg);border:8px solid #2b3038;border-radius:24px;overflow:hidden;
+  box-shadow:var(--shadow-lg)}
+.screen{height:660px;overflow:hidden;display:flex;flex-direction:column;background:var(--color-card);
+  position:relative}
+.variant{display:none}.variant.on{display:block}
+
+/* ═══════════ จำลอง Paces (คัดจากไฟล์ธีมจริง) ═══════════ */
+.card-header{display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:12px;
+  border-bottom:1px dashed var(--color-default-300);padding:10px 14px;background:var(--color-card);flex:none}
+.hgroup{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.hactions{display:flex;gap:6px;flex:none} /* ChatToolbar.tsx:10 — gap-1.5 */
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  border-radius:var(--radius);border:1px solid transparent;padding:7px 14px;font-size:14px;font-weight:500;
+  font-family:inherit;background:transparent;color:var(--color-default-700);cursor:pointer}
+.btn-icon{width:37px;height:37px;padding:0;flex:none}
+.btn-sm{padding:5px 11px;font-size:13px}
+.btn-sm.btn-icon{width:30px;height:30px;padding:0}
+.bordered{border-color:var(--color-default-300)} /* ChatToolbar.tsx:21 */
+.btn svg{width:17px;height:17px}
+.btn-sm svg{width:15px;height:15px}
+.avatar{width:36px;height:36px;border-radius:50%;flex:none;position:relative;background:#dbe7fb;color:#3b6bb5;
+  display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px}
+.avatar.sm{width:28px;height:28px;font-size:11px}
+.ch-badge{position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;
+  border:2px solid #fff;background:#1877f2;display:flex;align-items:center;justify-content:center}
+.ch-badge svg{width:9px;height:9px;color:#fff}
+.idt{min-width:0;flex:1}
+h5.name{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pageline{font-size:11px;color:var(--color-default-500);display:flex;align-items:center;gap:5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.pageline svg{width:12px;height:12px;flex:none}
+.cnt-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;border-radius:999px;font-size:10px;
+  line-height:1;display:flex;align-items:center;justify-content:center;font-weight:600;padding:0 4px;
+  background:var(--color-primary);color:#fff;border:2px solid #fff} /* NotificationDropdownPeople.tsx:33 */
+.dot-badge{position:absolute;top:-3px;right:-3px;width:11px;height:11px;border-radius:999px;
+  border:2px solid #fff}
+.dot-badge.danger{background:var(--color-danger)}
+.dot-badge.warn{background:var(--color-warning)}
+/* ตัวบอกปิดเสียง — Base: NotificationDropdownPeople.tsx:33 (มุมบน + border-2 border-card)
+   ของจริงวางมุมล่างและไม่มีขอบตัด จึงดูล้นออกนอกปุ่ม = ของเสียข้อ 4 ใน §3 */
+.mute-badge{position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:999px;
+  border:2px solid var(--color-card);background:var(--color-default-600);color:#fff;
+  display:flex;align-items:center;justify-content:center}
+.mute-badge svg{width:10px;height:10px}
+
+/* ── แถบคำเตือนเต็มกว้าง ── */
+.actbar{display:flex;align-items:center;gap:8px;padding:7px 14px;font-size:13px;font-weight:500;flex:none;
+  border-bottom:1px solid var(--color-default-200)}
+.actbar svg{width:15px;height:15px;flex:none}
+.actbar .tx{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.actbar .a{flex:none;font-size:12px;font-weight:600;text-decoration:underline}
+.actbar.danger{background:rgba(244,63,94,.15);color:var(--color-danger-ink)}
+.actbar.warn{background:rgba(255,143,31,.15);color:var(--color-warning-ink)}
+.actbar.info{background:rgba(26,160,232,.15);color:var(--color-info-ink)}
+
+/* ── บรรทัดสรุปสถานะ (แบบ A) ── */
+.sumline{display:flex;align-items:center;gap:7px;padding:6px 14px;font-size:12px;flex:none;cursor:pointer;
+  background:var(--color-default-100);border-bottom:1px solid var(--color-default-200);
+  color:var(--color-default-700);white-space:nowrap;overflow:hidden}
+.sumline .pill{display:inline-flex;align-items:center;gap:4px;font-weight:700;flex:none;border-radius:999px;
+  padding:1px 8px;font-size:11px}
+.sumline .pill.danger{background:rgba(244,63,94,.18);color:var(--color-danger-ink)}
+.sumline .pill.warn{background:rgba(255,143,31,.18);color:var(--color-warning-ink)}
+.sumline .ctx{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sumline .chev{margin-left:auto;flex:none;color:var(--color-default-400)}
+.sumline svg{width:13px;height:13px;flex:none}
+
+/* ── แผงสถานะกาง (แบบ A) ── */
+.sheet{position:absolute;inset:0;background:rgba(49,58,70,.45);z-index:5;display:flex;flex-direction:column;
+  justify-content:flex-start}
+.sheet .body{background:var(--color-card);border-radius:0 0 14px 14px;box-shadow:var(--shadow-lg);
+  overflow:hidden}
+.sheet .shead{display:flex;align-items:center;gap:8px;padding:9px 14px;font-size:13px;font-weight:700;
+  border-bottom:1px dashed var(--color-default-300)}
+.sheet .shead svg{width:15px;height:15px}
+.sheet .shead .x{margin-left:auto;color:var(--color-default-400)}
+.srow{display:flex;align-items:center;gap:8px;padding:9px 14px;font-size:12.5px;
+  border-bottom:1px solid var(--color-default-200);color:var(--color-default-700)}
+.srow:last-child{border-bottom:0}
+.srow svg{width:15px;height:15px;flex:none}
+.srow .tx{min-width:0;flex:1}
+.srow .a{flex:none;font-weight:600;text-decoration:underline;color:var(--color-primary);font-size:12px}
+.srow.danger{background:rgba(244,63,94,.10);color:var(--color-danger-ink)}
+.srow.warn{background:rgba(255,143,31,.10);color:var(--color-warning-ink)}
+.srow.info{background:rgba(26,160,232,.10);color:var(--color-info-ink)}
+.sgrp{font-size:10px;font-weight:700;letter-spacing:.04em;color:var(--color-default-400);
+  padding:7px 14px 3px;background:var(--color-default-100);border-bottom:1px solid var(--color-default-200)}
+
+/* ── ที่มาของแชท ── */
+.origin{display:flex;gap:10px;padding:9px 14px;background:var(--color-card);flex:none}
+.origin .th{width:38px;height:38px;border-radius:6px;flex:none;background:linear-gradient(135deg,#6dd3a8,#3b82f6)}
+.origin .th.pink{background:linear-gradient(135deg,#f9a8d4,#c084fc)}
+.origin .bd{min-width:0;flex:1}
+.origin .t1{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;
+  color:var(--color-default-500)}
+.origin .t1 svg{width:12px;height:12px;flex:none}
+.origin .q{display:block;font-size:12.5px;color:var(--color-default-700);line-height:1.35;margin-top:2px}
+.origin .attach{margin-top:6px;display:flex;gap:6px;align-items:center}
+.origin .attach .img{width:40px;height:40px;border-radius:6px;flex:none;
+  background:linear-gradient(135deg,#f9a8d4,#c084fc)}
+.origin .meta{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:11px;
+  color:var(--color-default-500)}
+.origin .meta svg{width:11px;height:11px;flex:none}
+
+/* ── บริบทลูกค้าแบบเงียบ ── */
+.ambient{display:flex;align-items:center;gap:5px;padding:5px 14px;font-size:11px;color:var(--color-default-600);
+  background:var(--color-card);border-bottom:1px solid var(--color-default-200);flex:none;
+  overflow:hidden;white-space:nowrap}
+.ambient svg{width:12px;height:12px;flex:none}
+.ambient .sep{color:var(--color-default-300)}
+
+/* ── สตรีม ── */
+.stream{flex:1;overflow:hidden;padding:10px 14px 12px;display:flex;flex-direction:column;gap:7px;
+  background:var(--color-card)}
+.stream.pad{padding-bottom:4px}
+.daysep{align-self:center;font-size:11px;color:var(--color-default-500);background:var(--color-default-100);
+  border-radius:999px;padding:2px 12px;margin:2px 0}
+.bub{max-width:80%;padding:7px 11px;border-radius:14px;font-size:13.5px;position:relative}
+.bub.them{background:var(--color-default-200);align-self:flex-start;border-bottom-left-radius:4px}
+.bub.me{background:var(--color-primary);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.bub.img{padding:0;overflow:hidden;width:130px;height:96px;background:linear-gradient(135deg,#a5b4fc,#f0abfc)}
+.tagline{align-self:flex-end;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;
+  color:var(--color-default-500);background:var(--color-default-100);border-radius:999px;padding:1px 8px}
+.tagline svg{width:11px;height:11px}
+.scam{align-self:flex-start;max-width:88%;display:flex;gap:6px;align-items:flex-start;
+  background:rgba(255,143,31,.15);color:var(--color-warning-ink);border-radius:8px;padding:6px 9px;
+  font-size:11px;line-height:1.35}
+.scam svg{width:13px;height:13px;flex:none;margin-top:1px}
+.metarow{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-default-500);
+  align-self:flex-end;margin-top:-3px}
+.metarow.ok{color:var(--color-success)}
+.metarow svg{width:12px;height:12px}
+.sysline{align-self:center;text-align:center;font-size:11px;color:var(--color-default-500);
+  max-width:88%;line-height:1.35}
+
+/* การ์ดบริบทในสตรีม (แบบ B) */
+.instream{border:1px solid var(--color-default-300);border-radius:10px;background:var(--color-card);
+  overflow:hidden;margin:2px 0 4px;box-shadow:var(--shadow)}
+.instream .cap{font-size:10px;color:var(--color-default-500);padding:6px 12px 0;display:flex;
+  align-items:center;gap:5px}
+.instream .cap svg{width:11px;height:11px}
+.pinned{flex:none;border-top:1px solid var(--color-default-200);background:var(--color-default-100)}
+.pinned .ph{font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--color-default-400);
+  padding:5px 14px 2px;display:flex;align-items:center;gap:5px}
+.pinned .ph svg{width:11px;height:11px}
+
+/* ── ท้ายจอ / ช่องพิมพ์ ── */
+.tail{flex:none;border-top:1px solid var(--color-default-200);background:var(--color-card)}
+.replaced{min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  padding:14px 16px;text-align:center;background:rgba(26,160,232,.15);color:var(--color-info-ink)}
+.replaced .t{font-size:13px;display:flex;align-items:center;gap:6px}
+.replaced svg{width:16px;height:16px}
+.overridestrip{display:flex;align-items:center;gap:6px;padding:5px 14px;font-size:12px;font-weight:600;
+  color:var(--color-info-ink);background:rgba(26,160,232,.12)}
+.overridestrip svg{width:13px;height:13px;flex:none}
+.tipstrip{display:flex;align-items:center;gap:7px;padding:6px 14px;font-size:12px;font-weight:500;
+  background:rgba(255,143,31,.15);color:var(--color-warning-ink)}
+.tipstrip.danger{background:rgba(244,63,94,.15);color:var(--color-danger-ink)}
+.tipstrip svg{width:13px;height:13px;flex:none}
+.tipstrip .tx{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tipstrip .a{flex:none;font-weight:600;text-decoration:underline}
+.composer{padding:7px 12px 11px}
+.ctools{display:flex;gap:1px;align-items:center;margin-bottom:5px}
+.ctools .t{width:32px;height:32px;border-radius:var(--radius);display:flex;align-items:center;
+  justify-content:center;color:var(--color-default-500)}
+.ctools svg{width:17px;height:17px}
+.ctools .grow{margin-left:auto}
+.cinput{display:flex;gap:7px;align-items:flex-end}
+.cbox{flex:1;border:1px solid var(--color-default-300);border-radius:8px;padding:8px 10px;font-size:13.5px;
+  color:var(--color-default-500);min-height:40px}
+.sendbtn{flex:none;background:var(--color-primary);color:#fff;border-radius:var(--radius);padding:0 13px;
+  height:40px;display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.sendbtn.q{box-shadow:inset 0 0 0 2px var(--color-warning)}
+.sendbtn svg{width:15px;height:15px}
+
+/* ── แบบ C: ลิ้นชักงาน ── */
+.handle{display:flex;align-items:center;gap:7px;padding:7px 14px;font-size:12px;font-weight:600;flex:none;
+  background:var(--color-default-100);border-top:1px solid var(--color-default-200);cursor:pointer}
+.handle svg{width:13px;height:13px;flex:none}
+.handle .tx{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.handle .grip{position:absolute;top:4px;left:50%;transform:translateX(-50%);width:34px;height:3px;
+  border-radius:999px;background:var(--color-default-300)}
+.handle.danger{background:rgba(244,63,94,.15);color:var(--color-danger-ink)}
+.handle.warn{background:rgba(255,143,31,.15);color:var(--color-warning-ink)}
+.handle.calm{color:var(--color-default-600)}
+.drawer{position:absolute;left:0;right:0;bottom:0;z-index:6;background:var(--color-card);
+  border-radius:14px 14px 0 0;box-shadow:0 -6px 24px rgba(76,76,92,.22);max-height:72%;overflow:hidden;
+  display:flex;flex-direction:column}
+.drawer .dh{position:relative;padding:14px 14px 8px;display:flex;align-items:center;gap:8px;
+  border-bottom:1px dashed var(--color-default-300);flex:none}
+.drawer .dh .ttl{font-size:14px;font-weight:700}
+.drawer .dh .x{margin-left:auto;color:var(--color-default-400)}
+.drawer .dh svg{width:16px;height:16px}
+.drawer .dbody{overflow:hidden;flex:1}
+.scrim{position:absolute;inset:0;background:rgba(49,58,70,.35);z-index:5}
+.dtile{display:flex;align-items:center;gap:9px;padding:10px 14px;font-size:13px;
+  border-bottom:1px solid var(--color-default-200);color:var(--color-default-700)}
+.dtile:last-child{border-bottom:0}
+.dtile svg{width:16px;height:16px;flex:none;color:var(--color-default-400)}
+.dtile .tx{min-width:0;flex:1}
+.dtile .tx b{display:block;font-size:13px;color:var(--color-default-900)}
+.dtile .tx span{font-size:11px;color:var(--color-default-500)}
+.dtile .n{flex:none;font-size:12px;font-weight:700;color:var(--color-default-900)}
+
+/* ═══ B2 — แถบยุบได้ปักท้าย + แผงสถานะ slide-up ═══════════════════════════
+   Base: ShipmentStepper.tsx (grid 4 คอลัมน์ · STAGE_DOT/STAGE_LINE · ป้ายใต้จุด)
+         OrderProgressBar.tsx (โครงยุบ/กาง + badge +N + โทน primary ไม่ใช่ alert)
+   โลโก้ขนส่งใช้ไฟล์จริงในรีโป — public/images/logos/flash-express.jpeg
+   (COURIER_BRANDS ใน src/lib/iship/courier.ts:35 · ห้ามไปหาโลโก้แบรนด์จากอินเทอร์เน็ต) */
+.pinbar{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12.5px;flex:none;cursor:pointer;
+  border-top:1px solid var(--color-default-200);background:var(--color-card)}
+.pinbar .tx{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pinbar svg{width:15px;height:15px;flex:none}
+.pinbar .n{flex:none;font-size:11px;font-weight:700;border-radius:999px;padding:1px 7px}
+.pinbar.ship{color:var(--color-info-ink);background:rgba(26,160,232,.12)}
+.pinbar.ship .n{background:rgba(26,160,232,.22)}
+.pinbar.stat{font-weight:600}
+.pinbar.stat.danger{color:var(--color-danger-ink);background:rgba(244,63,94,.15)}
+.pinbar.stat.danger .n{background:rgba(244,63,94,.25)}
+.pinbar .chev{flex:none;color:currentColor;opacity:.65}
+
+/* กล่องพัสดุกาง — ตามภาพที่ user ส่ง */
+.shipbox{flex:none;background:var(--color-card);border-top:1px solid var(--color-default-200);
+  padding:11px 14px 12px}
+.shiphead{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+.shiphead .logo{width:44px;height:44px;border-radius:9px;flex:none;object-fit:contain;background:#fff;
+  box-shadow:0 0 0 1px var(--color-default-200)}
+.shiphead .who{min-width:0;flex:1}
+.shiphead .cname{font-size:12px;color:var(--color-default-500);line-height:1.25;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.shiphead .trk{font-size:15px;font-weight:700;color:var(--color-default-900);letter-spacing:.01em;
+  line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shiphead .copy{flex:none;width:34px;height:34px;border-radius:var(--radius);display:flex;
+  align-items:center;justify-content:center;color:var(--color-default-400)}
+.shiphead .copy svg{width:19px;height:19px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);list-style:none}
+.steps li{display:flex;flex-direction:column;align-items:center;gap:4px}
+.steps .track{display:flex;width:100%;align-items:center}
+.steps .ln{height:2px;flex:1}
+.steps .ln.on{background:var(--color-primary)}
+.steps .ln.off{background:var(--color-default-200)}
+.steps .ln.blank{background:transparent}
+.steps .dot{width:28px;height:28px;flex:none;border-radius:999px;display:flex;align-items:center;
+  justify-content:center}
+.steps .dot.on{background:var(--color-primary);color:#fff}
+.steps .dot.off{background:var(--color-default-100);color:var(--color-default-400)}
+.steps .dot svg{width:15px;height:15px}
+.steps .lb{text-align:center;font-size:10.5px;line-height:1.25;color:var(--color-default-700)}
+.steps .lb.cur{font-weight:700;color:var(--color-default-900)}
+
+/* แผงสถานะ slide-up — สถานะล้วน ไม่มีออเดอร์/ไฟล์/ที่มา */
+.statsheet{position:absolute;left:0;right:0;bottom:0;z-index:6;background:var(--color-card);
+  border-radius:14px 14px 0 0;box-shadow:0 -6px 24px rgba(76,76,92,.22);overflow:hidden;
+  display:flex;flex-direction:column}
+.statsheet .sh{position:relative;padding:14px 14px 9px;display:flex;align-items:center;gap:8px;
+  border-bottom:1px dashed var(--color-default-300);flex:none}
+.statsheet .sh .grip{position:absolute;top:5px;left:50%;transform:translateX(-50%);width:34px;height:3px;
+  border-radius:999px;background:var(--color-default-300)}
+.statsheet .sh .ttl{font-size:14px;font-weight:700}
+.statsheet .sh .x{margin-left:auto;color:var(--color-default-400)}
+.statsheet .sh svg{width:16px;height:16px}
+
+/* ป้ายโซน */
+.zt{position:absolute;right:3px;font-size:9px;font-weight:700;color:#fff;background:rgba(49,58,70,.55);
+  border-radius:3px;padding:0 4px;pointer-events:none;z-index:3}
+
+/* switcher */
+.switcher{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:50;display:flex;
+  align-items:center;gap:4px;background:var(--color-default-900);color:#fff;border-radius:999px;
+  padding:6px 8px;box-shadow:0 8px 28px rgba(0,0,0,.32)}
+.switcher button{width:34px;height:34px;border-radius:999px;border:0;background:rgba(255,255,255,.12);
+  color:#fff;font-size:16px;cursor:pointer;font-family:inherit;display:flex;align-items:center;
+  justify-content:center}
+.switcher button:hover{background:rgba(255,255,255,.24)}
+.switcher .lab{padding:0 12px;font-size:13px;font-weight:600;white-space:nowrap;min-width:210px;
+  text-align:center}
+.switcher .lab i{font-style:normal;opacity:.6;font-size:11px;display:block;margin-top:-2px}
+</style>
+</head>
+<body>
+<div class="doc">
+
+<div class="paper">
+  <h1>ห้องแชทผู้ขายบนมือถือ — โครงใหม่ทั้งห้อง 3 แบบ</h1>
+  <p class="sub">2026-08-15 · prototype (โค้ดทิ้ง) · สลับด้วยลูกศร <b>←</b> <b>→</b> หรือ <code>?variant=A|B|C</code></p>
+
+  <div class="qbox">
+    <b>คำถามที่ม็อกอัพนี้ตอบ:</b> ห้องแชทบนมือถือควรจัดโครง <b>ทั้งห้อง</b> ยังไง เมื่อของที่ต้องแสดงมี
+    <b>57 ชนิด กระจายใน 10 โซน</b> — รอบก่อน ๆ วันนี้ (A–K และ 3 แบบเมื่อ 13:22) ตอบเฉพาะโซน 1+2
+    = <b>19/57</b> ชนิด ⇒ ข้อสรุปเดิมใช้ได้เฉพาะในขอบเขตที่มันถูกทดสอบ
+    (<code>2026-08-14-chat-mobile-topbar-v2-prototype.md</code> §5.10)
+  </div>
+
+  <div class="warnbox">
+    <b>ทุกแบบถูกทดสอบด้วย “เคสของครบ” เป็นค่าตั้งต้น</b> — คำเตือน 4 อันพร้อมกัน · ที่มา 2 อัน
+    (คอมเมนต์ + โฆษณา) · นับถอยหลัง · แถบตอบเองแทน AI · ป้ายลูกค้า · ออเดอร์ค้าง.
+    นี่คือเคสที่ม็อกอัพ A–K <b>ไม่เคยทดสอบเลยสักแบบ</b> และเป็นเคสที่ user ส่งภาพจริงมาให้ดู
+    ⇒ ถ้าแบบไหนพังตรงนี้ ให้ตกไปตั้งแต่ต้น ไม่ต้องดูเคสปกติ
+  </div>
+
+  <h3>สามแบบต่างกันที่ “ของที่ไม่ใช่ข้อความ ไปอยู่ที่ไหน”</h3>
+  <table>
+    <tr><th style="width:70px">แบบ</th><th>หลักการ</th><th style="width:150px">chrome เหนือสตรีม</th><th style="width:150px">ที่อยู่ของสถานะ</th></tr>
+    <tr><td><b>A</b><br>ยุบเป็นบรรทัดเดียว</td>
+        <td>จอเป็นของบทสนทนา ทุกอย่างอื่นยุบเหลือ <b>บรรทัดสรุป 1 บรรทัด</b> ที่กดกางเป็นแผงเต็มรายการ</td>
+        <td><b>คงที่ 44 + 27 = 71px</b> ทุกสถานการณ์</td>
+        <td>แผงกางจากบนสุด (ยังเห็นสตรีมข้างหลัง)</td></tr>
+    <tr><td><b>B</b><br>ละลายเข้าสตรีม</td>
+        <td>ห้องแชทมี <b>พื้นผิวเดียว = สตรีม</b> ที่มา/บริบท/ออเดอร์เป็นการ์ดตามลำดับเวลา คำเตือนปักท้ายสตรีม</td>
+        <td><b>66px</b> (หัวเธรดล้วน) ไม่มีชั้นซ้อน</td>
+        <td>การ์ดในสตรีม + แถบปักท้ายเหนือช่องพิมพ์</td></tr>
+    <tr><td><b>C</b><br>แยกสองพื้นผิว</td>
+        <td>แยก <b>“คุย”</b> ออกจาก <b>“งาน”</b> — จอแชทสะอาดล้วน งานทั้งหมดอยู่ในลิ้นชักที่โผล่หัวมา 33px</td>
+        <td><b>66px</b> (หัวเธรดล้วน)</td>
+        <td>ลิ้นชักเหนือช่องพิมพ์ (ลาก/แตะขึ้น)</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════════════ VARIANT B2 ═══════════════════════ -->
+<div class="variant" data-v="B2">
+  <div class="paper">
+    <h2><span class="vkey">B2</span> B ที่แก้ตามที่สั่ง + เคสออเดอร์กำลังจัดส่ง</h2>
+    <div class="qbox">
+      <b>สิ่งที่สั่งมา:</b> เอาแบบ B · แถบด้านล่างเวลามีปัญหา (สีแดง ๆ) ให้ขึ้นว่า
+      <b>“สถานะห้องแชท (3)”</b> กดแล้ว slide up ดู list ได้ ·
+      <b>ไม่ต้องเอาข้อมูลคำสั่งซื้อหรือรูปอะไรไปรวม</b> · และลองใส่ chat ที่มี <b>order กำลังจัดส่ง</b>
+    </div>
+    <p class="idea">
+      แก้จาก B ตรงท้ายสตรีม: จากเดิม <b>คำเตือน 3 แถบซ้อนกัน ~93px</b> เหลือ
+      <b>แถบเดียว 33px</b> เขียนว่า “สถานะห้องแชท” + ตัวเลข — แตะแล้วแผง slide up ขึ้นมาแสดงรายการเต็มประโยค
+      แล้วปัดลงปิด. <b>ในแผงมีแต่สถานะล้วน</b> ไม่มีออเดอร์ ไม่มีไฟล์ ไม่มีที่มา ตามที่สั่ง
+    </p>
+
+    <h3>ออเดอร์กำลังจัดส่ง — แยกเป็นแถบของตัวเอง ไม่ใช่รายการในแผงสถานะ</h3>
+    <div class="warnbox">
+      🛑 <b>นี่ไม่ใช่แค่ทำตามที่สั่ง — โค้ดจริงเห็นด้วย.</b>
+      <code>OrderProgressBar.tsx</code> เขียนคอมเมนต์ไว้เองว่า
+      <i>“แถบนี้เป็นทางลัดดูสถานะ <b>ไม่ใช่ alert</b> — โทน primary ไม่ใช่ warning/danger”</i>
+      ⇒ ถ้ายุบพัสดุไปกองเดียวกับ “token ตาย” เมื่อไหร่ คือพารถบรรทุกไปอยู่กองเดียวกับของพัง
+      ซึ่งเป็นสิ่งที่โค้ดจริงตั้งใจเลี่ยงมาตั้งแต่ต้น
+    </div>
+    <p class="idea">
+      ท้ายสตรีมจึงมี <b>2 แถบยุบ</b> ที่แยกกันชัดด้วยสีและคำ — พัสดุ (info · ข้อมูล) และสถานะ (danger · ต้องลงมือ):
+      รวม 66px ตอนของครบ ยังน้อยกว่า 93px ของ B เดิม <b>ที่ยังไม่นับแถบพัสดุด้วยซ้ำ</b>
+    </p>
+    <p class="idea">
+      แถบพัสดุกางแล้วได้ <b>กล่องตามภาพที่ส่งมาเป๊ะ</b> — โลโก้ขนส่ง (ไฟล์จริงในรีโป
+      <code>public/images/logos/flash-express.jpeg</code>) + ชื่อขนส่ง + เลขพัสดุตัวหนา + ปุ่มคัดลอก +
+      stepper 4 จุด. <b>ไม่ได้วาดใหม่</b> — โครงมาจาก <code>ShipmentStepper.tsx</code> ที่มีอยู่แล้ว
+      (<code>grid-cols-4</code> · ป้ายใต้จุด · ครึ่งเส้นด้านนอกของจุดหัว-ท้ายโปร่ง) และคำทั้ง 4 ขั้นมาจาก
+      <code>SHIPMENT_STAGES</code> (<code>iship/status.ts:189</code>) ไม่ได้พิมพ์เอง
+    </p>
+    <p class="idea">
+      ในสตรีมยังมี <b>การ์ดคำสั่งซื้อ</b> วางไว้ ณ เวลาที่เปิดบิลจริง — นี่คือหลักของ B ทำงานถูกทาง:
+      <b>“ตอนที่ลูกค้าสั่ง” คือเหตุการณ์ (อยู่ในสตรีม) · “ตอนนี้ของถึงไหน” คือสถานะที่ยังเดินอยู่ (ปักท้าย)</b>
+    </p>
+
+    <div class="frames" data-frames="B2"></div>
+
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li>ท้ายสตรีมนิ่ง — <b>66px ของครบ / 33px ปกติ</b> ไม่ว่าคำเตือนจะมี 1 หรือ 7 อัน</li>
+        <li><b>ไม่ต้องประดิษฐ์ pattern ใหม่เลยสักอัน</b> — ยุบ/กาง + badge +N มีอยู่แล้วใน <code>OrderProgressBar</code>
+            ส่วน stepper มาจาก <code>ShipmentStepper</code> ที่ใช้ร่วมกันทุกจุดอยู่แล้ว</li>
+        <li>เลขพัสดุ + ปุ่มคัดลอกอยู่ในห้องแชท — ไม่ต้องออกไปหน้าออเดอร์เพื่อก็อปเลขให้ลูกค้า</li>
+        <li>แผงสถานะมีที่ให้ <b>ประโยคเต็ม</b> ⇒ ปิดอาการ “ชิปถูกตัดจนไร้ความหมาย” ที่เห็นในภาพจริง</li>
+        <li>พัสดุกับคำเตือนแยกกองกันด้วยสี — อ่านออกใน 1 วินาทีว่า “มีของต้องแก้ไหม” แยกจาก “ของถึงไหน”</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย / ต้องตัดสิน</h4><ul>
+        <li><b>คำเตือนไม่มีถ้อยคำบนจอจนกว่าจะกด</b> — เห็นแค่ “สถานะห้องแชท (3)” (ข้อเสียเดียวกับแบบ A
+            แต่แลกมากับความสูงที่นิ่ง)</li>
+        <li>ตอนมีคำเตือน <b>ระดับ danger ที่ขวางการส่งจริง</b> (token ตาย/โควตาหมด) ควรดันข้อความขึ้นมาบนแถบเลยไหม
+            หรือให้เท่ากันหมด — ตอนนี้ทำเป็นเท่ากันหมด</li>
+        <li>ออเดอร์ 2 ใบขึ้นไป แถบโชว์ใบล่าสุด + ตัวเลข <b>2</b> — กางแล้วต้องเลือกใบ ยังไม่ได้ออกแบบส่วนนั้น</li>
+        <li>แถบพัสดุกินที่ถาวร 33px แม้ของส่งถึงแล้ว — ต้องยืมกติกาหมดอายุของ <code>order-stage.ts</code>
+            (จัดส่งสำเร็จ → แสดง 3 วันแล้วหาย)</li>
+      </ul></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ VARIANT A ═══════════════════════ -->
+<div class="variant" data-v="A">
+  <div class="paper">
+    <h2><span class="vkey">A</span> ยุบเป็นบรรทัดเดียว — “จอเป็นของบทสนทนา”</h2>
+    <p class="idea">
+      หัวเธรดหดเหลือ <b>44px</b> (ปุ่มย้อนกลับ <code>btn-sm btn-icon</code> 30px ตามธีม + รูป + ชื่อ + ปุ่มสถานะ + <code>⋯</code>)
+      — ชื่อเพจ ป้ายลูกค้า ที่มา ออเดอร์ คำเตือน <b>ทั้งหมด</b> ยุบลงมาอยู่ใน <b>บรรทัดสรุปเดียว 27px</b>
+      ที่อ่านซ้ายไปขวาได้: “ต้องแก้ก่อน” → “ลูกค้าคนนี้เป็นใคร” → “มาจากไหน”.
+      แตะบรรทัดนั้น = กางแผงเต็มรายการจากบนสุด (จัดกลุ่ม <b>ต้องลงมือ / ลูกค้า / ที่มา</b>)
+    </p>
+    <p class="idea">
+      <b>เหนือสตรีมสูงเท่ากัน 71px เสมอ</b> ไม่ว่าจะมีคำเตือน 0 หรือ 4 อัน — เลย์เอาต์ไม่เคยกระโดด
+      ส่วนคำเตือนที่ <b>ขวางการส่งจริง</b> (token ตาย / โควตาหมด) ไปเกาะขอบช่องพิมพ์แทน เพราะนั่นคือจุดที่ผู้ขายจะรู้ตัว
+    </p>
+    <div class="frames" data-frames="A"></div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li>สตรีมได้พื้นที่มากที่สุดในสามแบบ — <b>เหนือสตรีม 71px คงที่</b> (ของครบและปกติเท่ากัน)</li>
+        <li>คำเตือนหลายอันไม่ทำให้จอบวม — 4 อันยังเป็น 27px บรรทัดเดียว (<b>แบบ K จะเป็น 3 แถบซ้อน ~93px</b>)</li>
+        <li>ที่ 320px บรรทัดสรุปยังอ่านได้ เพราะเม็ดยา “ต้องแก้ 2” มาก่อน ส่วนที่ถูกตัดคือหางของบริบทซึ่งไม่เร่งด่วน</li>
+        <li>แผงกางแก้ปัญหา “ชิปถูก truncate จนไร้ความหมาย” — ในแผงมีที่ให้ประโยคเต็มทุกบรรทัด</li>
+        <li>สถานะ AI ที่เคยโผล่ 3 ที่พร้อมกัน เหลือที่เดียว (แถบเหนือช่องพิมพ์)</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li><b>คำเตือนถูกลดชั้นเป็นตัวเลข</b> — “บอทหยุดตอบ” ไม่มีถ้อยคำบนจอจนกว่าจะกดกาง ต้องเชื่อว่าผู้ขายจะกด</li>
+        <li>เพิ่ม 1 แตะสำหรับทุกอย่างที่เคยอ่านได้เลย (ที่มาของแชท · ป้ายลูกค้าเต็ม)</li>
+        <li>ชื่อเพจหายจากหัวเธรด (ไปอยู่ในบรรทัดสรุป/แผง) — ย้อนสิ่งที่เพิ่งตัดสินไปใน §5.5 ว่าบรรทัด 2 ต้องมีชื่อเพจ</li>
+        <li>บรรทัดสรุปเป็น pattern ใหม่ ยังไม่มี precedent ตรง ๆ ในธีม</li>
+      </ul></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ VARIANT B ═══════════════════════ -->
+<div class="variant" data-v="B">
+  <div class="paper">
+    <h2><span class="vkey">B</span> ละลายเข้าสตรีม — “ทุกอย่างคือเหตุการณ์”</h2>
+    <p class="idea">
+      ไม่มีชั้น chrome ใต้หัวเธรดเลย. <b>ที่มาของแชท</b> (คอมเมนต์/โฆษณา พร้อมรูปที่ลูกค้าแนบมา ซึ่งวันนี้ยังไม่เคย render เลย)
+      กลายเป็น <b>การ์ดใบแรกในสตรีม</b> ตามลำดับเวลาจริง · <b>ป้ายลูกค้า/ออเดอร์</b> เป็นการ์ดถัดมา ·
+      เลื่อนพ้นไปแล้วก็หายไปเลย เพราะมันคือ “เรื่องที่เกิดตอนเริ่มห้อง” ไม่ใช่สถานะถาวร
+    </p>
+    <p class="idea">
+      ของที่ <b>ยังจริงอยู่ตอนนี้</b> (คำเตือน) ไม่หายไปกับการเลื่อน — มันไป <b>ปักท้ายสตรีมเหนือช่องพิมพ์</b>
+      ซึ่งเป็นที่ที่ตาอยู่เสมอ เพราะห้องแชทเปิดมาอยู่ล่างสุดทุกครั้ง
+    </p>
+    <div class="frames" data-frames="B"></div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li><b>เหนือสตรีม 66px คงที่</b> และไม่มีชั้นซ้อนให้ต้องเรียนรู้ — โครงเดียวกับแอปแชททุกตัวที่ผู้ขายใช้อยู่แล้ว</li>
+        <li>ที่มาของแชทได้พื้นที่เต็มกว้าง <b>อ่านได้ว่าลูกค้าคอมเมนต์ว่าอะไร + เห็นรูปที่แนบมา</b>
+            (<code>commentOrigin.attachmentUrl</code> และ <code>createdTime</code> ที่ส่งมาถึงหน้านี้แล้วแต่ถูกทิ้งทั้งดุ้น)</li>
+        <li>ที่มา 2 อันพร้อมกันไม่ชนกัน — เป็นการ์ด 2 ใบเรียงตามเวลา ไม่ใช่ชิป 2 อันแย่งแถวเดียว</li>
+        <li>ไม่มีอะไรถูก truncate เลย ทุกข้อความได้บรรทัดเต็ม</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li><b>ที่มาหาไม่เจอเมื่อเลื่อนพ้นไปแล้ว</b> — เธรดยาว ๆ ต้องเลื่อนขึ้นสุดเพื่อดูว่ามาจากโฆษณาชิ้นไหน</li>
+        <li>คำเตือนหลายอันปักท้าย = กิน <b>พื้นที่สตรีมจริง</b> (ของครบ 3 แถบ ≈ 93px) จอเหลือข้อความน้อยลง</li>
+        <li>การ์ดบริบทปนกับข้อความจริง — ต้องออกแบบให้แยกออกด้วยสายตา ไม่งั้นดูเหมือนลูกค้าส่งการ์ดมา</li>
+        <li>ห้องที่เพิ่งเปิดใหม่จะเห็นการ์ดบริบท 2–3 ใบก่อนข้อความแรก ดูหนักกว่าที่ควร</li>
+      </ul></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ VARIANT C ═══════════════════════ -->
+<div class="variant" data-v="C">
+  <div class="paper">
+    <h2><span class="vkey">C</span> แยกสองพื้นผิว — “คุย” กับ “งาน”</h2>
+    <p class="idea">
+      พื้นผิวแชทสะอาดล้วน: หัวเธรด 66px + สตรีม + ช่องพิมพ์ <b>ไม่มีสถานะอะไรแทรกเลย</b>.
+      ของ 57 ชนิดที่ไม่ใช่ข้อความ ย้ายไปอยู่ใน <b>ลิ้นชัก “งาน”</b> ที่โผล่หัวมา <b>33px</b> เหนือช่องพิมพ์
+      — หัวลิ้นชักแสดง <b>เรื่องที่เร่งที่สุดเรื่องเดียว</b> พร้อมสีของมัน แล้วลาก/แตะขึ้นเพื่อกางเต็ม
+    </p>
+    <p class="idea">
+      ในลิ้นชักคือทางเข้างานทั้งหมดที่วันนี้กระจายอยู่ 3 ที่: คำเตือน · ออเดอร์ของลูกค้า (วันนี้ต้อง 2 แตะ) ·
+      คลังไฟล์ · ข้อมูลลูกค้า · ที่มาของแชท — <b>เป็นทางเข้าเดียว ไม่ใช่ 5 ทาง</b>
+    </p>
+    <div class="frames" data-frames="C"></div>
+    <div class="cols">
+      <div class="win"><h4>ได้</h4><ul>
+        <li><b>หัวเธรดกลับไปทำหน้าที่เดียว</b> — ตัวตนลูกค้า + ชื่อเพจ ได้ที่เต็ม ไม่ต้องแย่งกับปุ่ม 3 ตัว
+            (ชื่อได้ ~<b>200px</b> ที่ 390px แทน 122.8px ของแบบ E)</li>
+        <li>สิ่งที่เร่งที่สุด <b>อยู่ติดนิ้วที่กำลังจะพิมพ์</b> ไม่ใช่อยู่ไกลบนสุดของจอ</li>
+        <li>ทางเข้าออเดอร์เหลือ <b>1 แตะ</b> และตัวเลขอยู่บนหัวลิ้นชัก (ตอบ feedback ลูกค้าจริงเรื่อง “เน้นดู Order lists”)</li>
+        <li>ของครบกับปกติต่างกันแค่ <b>สีและคำบนหัวลิ้นชัก</b> — ความสูงคงที่ 33px ทุกสถานการณ์ทั้งสองเคส</li>
+      </ul></div>
+      <div class="cost"><h4>เสีย</h4><ul>
+        <li><b>ลิ้นชักกินที่ถาวร 33px</b> แม้ไม่มีอะไรต้องทำเลย (แบบ A บรรทัดสรุปก็กิน 27px เหมือนกัน — B ไม่กินเลยตอนไม่มีคำเตือน)</li>
+        <li>เรื่องที่ 2 3 4 มองไม่เห็นจนกว่าจะกาง — แย่กว่า A ตรงที่ A อย่างน้อยบอกจำนวน</li>
+        <li>ลิ้นชักลากได้เป็น pattern ที่ <b>ยังไม่มีในธีม</b> และท่าลากชนกับการเลื่อนสตรีม ต้องกันขอบให้ดี</li>
+        <li>ของที่ควรอ่านโดยไม่ต้องกด (ที่มาของแชท) ถูกฝังลึกที่สุดในสามแบบ</li>
+      </ul></div>
+    </div>
+  </div>
+</div>
+
+<div class="paper">
+  <h2>เทียบสามแบบ</h2>
+  <table>
+    <tr><th style="width:230px"></th><th>ปัจจุบัน</th><th>A ยุบบรรทัดเดียว</th><th>B ละลายเข้าสตรีม</th><th>C แยกสองพื้นผิว</th></tr>
+    <tr><td>เหนือสตรีม — <b>เคสปกติ</b></td><td>105px</td><td><b>71px</b></td><td><b>66px</b></td><td><b>66px</b></td></tr>
+    <tr><td>เหนือสตรีม — <b>เคสของครบ</b></td><td>~215px</td><td><b>71px</b></td><td>66px <span style="font-size:11px">(แต่กินในสตรีม)</span></td><td><b>66px</b></td></tr>
+    <tr><td>พื้นที่สตรีมที่เหลือจริง @390 ของครบ</td><td>~300px</td><td><b>~452px</b></td><td>~370px</td><td>~419px</td></tr>
+    <tr><td>เลย์เอาต์กระโดดเมื่อสถานะเปลี่ยน</td><td>ใช่</td><td><b>ไม่</b></td><td>ใช่ (ท้ายสตรีม)</td><td><b>ไม่</b></td></tr>
+    <tr><td>อ่านคำเตือนได้โดยไม่ต้องกด</td><td>ได้ (แต่ถูกตัด)</td><td><b>ไม่ (เห็นแค่จำนวน)</b></td><td>ได้เต็มประโยค</td><td>ได้ 1 เรื่อง</td></tr>
+    <tr><td>ที่มาของแชทอ่านได้ครบ (รวมรูปที่แนบ)</td><td>ไม่ (ชิป truncate)</td><td>ในแผง</td><td><b>ได้ เต็มกว้าง</b></td><td>ในลิ้นชัก</td></tr>
+    <tr><td>ที่มา 2 อันพร้อมกันไม่พัง</td><td><b>ไม่</b></td><td>ได้</td><td><b>ได้</b></td><td>ได้</td></tr>
+    <tr><td>ถึงรายการออเดอร์ของลูกค้า</td><td>2 แตะ</td><td>2 แตะ</td><td>1 แตะ (การ์ด)</td><td><b>1 แตะ + เห็นตัวเลข</b></td></tr>
+    <tr><td>ชื่อลูกค้าได้กว้าง @390</td><td>113px</td><td>~150px</td><td>~123px</td><td><b>~200px</b></td></tr>
+    <tr><td>ครอบกี่โซนจาก 10</td><td>—</td><td><b>10</b></td><td><b>10</b></td><td><b>10</b></td></tr>
+    <tr><td>pattern ใหม่ที่ธีมยังไม่มี</td><td>—</td><td>บรรทัดสรุป + แผงกาง</td><td><b>ไม่มี</b></td><td>ลิ้นชักลากได้</td></tr>
+    <tr><td>แรงที่ต้องลง</td><td>—</td><td>กลาง</td><td><b>ต่ำสุด</b></td><td>สูงสุด</td></tr>
+  </table>
+
+  <div class="tally">
+    <span>โซนที่ทุกแบบครอบ: <b>0 chrome · 1 หัว · 2 สถานะ · 3 ทับสตรีม · 4 แทรกสตรีม · 5 เกาะบับเบิล · 6 แทนช่องพิมพ์ · 7 เหนือช่องพิมพ์ · 8 ในช่องพิมพ์ · 9–10 overlay</b></span>
+  </div>
+
+  <div class="qbox" style="margin-top:14px">
+    <b>ความเห็น (ไม่ใช่คำตัดสิน — user เคาะ):</b> <b>B</b> เป็นแบบที่ถูกที่สุดต่อ “ความจริงของข้อมูล”
+    (ที่มาของแชท <i>คือ</i> เหตุการณ์ ไม่ใช่สถานะ) และเป็นแบบเดียวที่ <b>ไม่ต้องประดิษฐ์ pattern ใหม่นอกธีม</b> เลย
+    — แต่มันแลกด้วยพื้นที่สตรีมตอนของครบ. ถ้าเกณฑ์คือ “อย่าให้จอกระโดด และให้สตรีมได้ที่มากที่สุด”
+    คำตอบคือ <b>A</b>. <b>C</b> ตอบ feedback ลูกค้าจริงเรื่องออเดอร์ได้ตรงที่สุด แต่แพงที่สุดและฝังที่มาลึกที่สุด.
+    <br><br>คำตอบที่น่าจะจริงที่สุดคือ <b>B สำหรับที่มา/บริบท + A สำหรับคำเตือน</b> — ลองดูแล้วบอกได้เลยว่าอยากได้ชิ้นไหนจากแบบไหน
+  </div>
+</div>
+
+<div class="paper">
+  <h2>สิ่งที่ทุกแบบแก้เหมือนกันหมด</h2>
+  <p class="idea">ไม่ว่าจะเลือกแบบไหน 8 ข้อนี้ทำแน่นอน — เป็นของเสียที่ยืนยันจากโค้ดจริงแล้ว ไม่ใช่เรื่องรสนิยม:</p>
+  <table>
+    <tr><th style="width:30px">#</th><th>ของเสีย</th><th>หลักฐาน</th></tr>
+    <tr><td>1</td><td><code>⋯</code> ไม่มี <code>border-default-300</code> ทั้งที่ปุ่มอื่นในแถวมี</td><td><code>ChatToolbar.tsx:21</code> — ธีมใส่กรอบให้ dropdown toggle เสมอ</td></tr>
+    <tr><td>2</td><td>ปุ่มขวาไม่ได้ห่อกลุ่ม <code>gap-1.5</code></td><td><code>ChatToolbar.tsx:10</code> — กินเกิน 6px</td></tr>
+    <tr><td>3</td><td>ปุ่มย้อนกลับใช้ 37px ทั้งที่ธีมแยกขนาดนำทาง 30px</td><td><code>ChatPage.tsx:39</code> — กินเกิน 7px</td></tr>
+    <tr><td>4</td><td>ตัวบอกปิดเสียงล้นออกนอกปุ่ม (ไม่มี <code>border-2 border-card</code>)</td><td><code>NotificationDropdownPeople.tsx:33</code></td></tr>
+    <tr><td>5</td><td>hover ปุ่มมีกรอบใช้ <code>bg-default-100</code> แทนการเปลี่ยนสีขอบ</td><td>ธีมใช้ <code>hover:border-default-400/75</code> 92 จุด</td></tr>
+    <tr><td>6</td><td><b>token ตายขึ้น 2 ที่พร้อมกันเสมอบน LINE</b> (ชิป + บล็อกแทนช่องพิมพ์ เป็นสับเซตกัน)</td><td><code>ChatThread.tsx:1921</code> vs <code>:1564</code></td></tr>
+    <tr><td>7</td><td><b>สถานะ AI โผล่ได้ 3 ที่พร้อมกัน</b> ทั้งที่อ่านจาก <code>readMetaAiControlMarker</code> แหล่งเดียว</td><td>บรรทัดในสตรีม + บล็อกแทนช่องพิมพ์ + แถบ manual-override</td></tr>
+    <tr><td>8</td><td><b>นับถอยหลังเดินเป็นวินาที</b> อยู่ในสายตา 4 ชม.ติด</td><td>ภาพจริงจาก user — เปลี่ยนเป็นนาที</td></tr>
+  </table>
+  <div class="warnbox" style="margin-top:12px">
+    <b>ข้อมูลที่มาถึงหน้านี้แล้วแต่ไม่เคยถูกแสดง</b> — ทุกแบบใส่ที่ให้แล้ว ไม่มี request เพิ่มแม้แต่ใบเดียว:
+    <code>commentOrigin.attachmentUrl</code> (รูปที่ลูกค้าแนบมากับคอมเมนต์ — ทุกวันนี้ต้องกดออกไป Facebook) ·
+    <code>commentOrigin.createdTime</code> (grep เจอครั้งเดียวคือบรรทัดประกาศ type) ·
+    <code>channelName</code> (เหลือที่เดียวคือ <code>title=</code> ซึ่ง iOS Safari ไม่แสดง) ·
+    <code>adReferral.adTitle</code>
+  </div>
+</div>
+
+</div>
+
+<div class="switcher">
+  <button id="prev" aria-label="แบบก่อนหน้า">‹</button>
+  <div class="lab" id="lab"></div>
+  <button id="next" aria-label="แบบถัดไป">›</button>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROTOTYPE — render ห้องแชท 3 แบบ × 4 เฟรม
+   เนื้อหาทุกบรรทัดคัดจากไฟล์จริง (อ้างที่ CONTENT ด้านล่าง) ไม่ได้แต่งเอง
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* tabler icons (HR12 — ไม่มี emoji) */
+const I = {
+  back:'M5 12h14M5 12l6 6M5 12l6-6',
+  dots:'M12 6v.01M12 12v.01M12 18v.01',
+  folder:'M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2',
+  cart:'M6 19a2 2 0 1 0 4 0 2 2 0 1 0-4 0M15 19a2 2 0 1 0 4 0 2 2 0 1 0-4 0M17 17H8V3H4M8 7h13l-1.5 7H8',
+  alert:'M12 9v4M12 17v.01M10.2 3.3 2.6 16a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.8 3.3a2 2 0 0 0-3.5 0',
+  plugoff:'M3 3l18 18M9 7V3M15 7V3M7 7h10v5a5 5 0 0 1-5 5 5 5 0 0 1-5-5V7M12 17v4',
+  robot:'M7 7h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2M12 4v3M9 12v.01M15 12v.01M9 16h6',
+  clock:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M12 7v5l3 2',
+  flask:'M9 3h6M10 3v6L5 18a1.5 1.5 0 0 0 1.3 2.2h11.4A1.5 1.5 0 0 0 19 18l-5-9V3',
+  fb:'M7 10v4h3v7h4v-7h3l1-4h-4V8a1 1 0 0 1 1-1h3V3h-3a5 5 0 0 0-5 5v2H7',
+  msg:'M8 9h8M8 13h5M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-5l-5 3v-3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z',
+  megaphone:'M18 8a3 3 0 0 1 0 6M10 8v8a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1V8M4 8h6l7-4v14l-7-4H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1',
+  comment:'M3 20l1.3-3.9A8 8 0 1 1 7.7 19L3 20',
+  user:'M12 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6M6 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1',
+  checks:'M2 12l5 5L12 12M8 12l5 5L22 6',
+  chevR:'M9 6l6 6-6 6',
+  chevU:'M6 15l6-6 6 6',
+  x:'M18 6 6 18M6 6l12 12',
+  photo:'M15 8h.01M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 15l4-4a3 3 0 0 1 4 0l4 4M14 14l1-1a3 3 0 0 1 4 0l1 1',
+  smile:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M9 10h.01M15 10h.01M9.5 15a3.5 3.5 0 0 0 5 0',
+  send:'M10 14l11-11M21 3l-6.5 18a.55.55 0 0 1-1 0L10 14l-7-3.5a.55.55 0 0 1 0-1z',
+  plus:'M12 5v14M5 12h14',
+  mute:'M15 8a5 5 0 0 1 0 8M3 3l18 18M9 9H6a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3l4 4V13M13 7V3L9.5 6.5',
+  sparkle:'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z',
+  list:'M9 6h11M9 12h11M9 18h11M5 6v.01M5 12v.01M5 18v.01',
+  files:'M15 3v4a1 1 0 0 0 1 1h4M18 21H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6l5 5v11a2 2 0 0 1-2 2M6 7v14a2 2 0 0 0 2 2h9',
+  briefcase:'M9 6V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM3 12h18',
+  /* SHIPMENT_STAGES icons — iship/status.ts:190-193 (package · package-import · truck-delivery · circle-check) */
+  pkg:'M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5',
+  pkgin:'M20 12V7.5L12 3 4 7.5v9L12 21l3-1.7M12 12l8-4.5M12 12L4 7.5M22 17h-7M18 14l-3 3 3 3',
+  truck:'M7 17a2 2 0 1 0 4 0 2 2 0 1 0-4 0M15 17a2 2 0 1 0 4 0 2 2 0 1 0-4 0M5 17H3V6a1 1 0 0 1 1-1h9v12M11 17h4M15 8h4l3 5v4h-2',
+  checkc:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M9 12l2 2 4-4',
+  copy:'M8 8m0 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2zM16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2',
+}
+const ic = (n,cls='') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${I[n]}"/></svg>`
+
+/* ── เนื้อหาจริง — ทุกสตริงคัดจากไฟล์ ไม่ได้แต่งเอง ─────────────────────── */
+const CONTENT = {
+  customer : 'มูหำหมัด มณีหยา',          // §5.7 — ต้องการ 113.1px ที่ Anuphan 16px
+  page     : 'ชาเขียวเหนี่ยวทรัพย์',      // §5.9 — 104px ที่ 11px
+  // ChatThread.tsx:1926 / :1954 / :2079 / threadStatuses
+  warns: [
+    {k:'token',  tone:'danger', ic:'plugoff', short:'การเชื่อมต่อกับเพจนี้มีปัญหา',
+     full:'การเชื่อมต่อกับเพจนี้มีปัญหา — ต้องเชื่อมต่อใหม่', act:'ตั้งค่าช่องทาง', blocks:true},
+    {k:'bot',    tone:'warn',   ic:'robot',  short:'บอทหยุดตอบห้องนี้',
+     full:'บอทหยุดตอบห้องนี้', act:'ให้บอทตอบต่อ', blocks:false},
+    {k:'window', tone:'warn',   ic:'clock',  short:'ใกล้หมดเวลาตอบ — เหลือ 3 ชม. 53 นาที',
+     full:'เกิน 24 ชั่วโมงแล้ว — ตอบเองได้ ห้ามส่งโปรโมชัน', act:null, blocks:false},
+    {k:'test',   tone:'info',   ic:'flask',  short:'ห้องนี้ใช้ทดสอบ DeepAI',
+     full:'ห้องนี้ใช้ทดสอบ DeepAI', act:null, blocks:false},
+  ],
+  badges : 'ลูกค้าเก่า · 4 ออเดอร์ · ตีกลับ 2',   // buildCustomerBadges()
+  aiOverride : 'กำลังตอบเองแทน AI ของ Meta',      // ChatThread.tsx:3819
+  scam : 'ข้อความนี้มีลิงก์ที่ควรระวัง — อย่าโอนเงินหรือให้รหัส OTP กับคนที่ไม่รู้จัก', // :3297
+}
+
+/* ── ชิ้นส่วนใช้ร่วม ─────────────────────────────────────────────────────── */
+const avatar = (sm=false) => `<span class="avatar${sm?' sm':''}">มม
+  <span class="ch-badge">${ic('fb')}</span></span>`
+
+const zt = (t,top) => `<span class="zt" style="${top==null?'bottom:126px':'top:'+top+'px'}">${t}</span>`
+
+/* หัวเธรดแบบเต็ม (B/C) — Base: ChatPage.tsx:39-52 + ChatToolbar.tsx:10-25 */
+function headerFull(opts={}){
+  const btns = opts.buttons ?? `
+    <button class="btn btn-icon bordered">${ic('cart')}<span class="cnt-badge">4</span></button>
+    <button class="btn btn-icon bordered">${ic('dots')}<span class="mute-badge">${ic('mute')}</span></button>`
+  return `<div class="card-header">
+    <div class="hgroup">
+      <button class="btn btn-sm btn-icon bordered">${ic('back')}</button>
+      ${avatar()}
+      <div class="idt">
+        <h5 class="name">${CONTENT.customer}</h5>
+        <div class="pageline">${ic('fb')}<span>${CONTENT.page}</span></div>
+      </div>
+    </div>
+    <div class="hactions">${btns}</div>
+  </div>`
+}
+
+/* บับเบิลตัวอย่าง — ครอบโซน 4 (แทรกสตรีม) + 5 (เกาะบับเบิล) */
+function bubbles(){ return `
+  <div class="daysep">วันนี้</div>
+  <div class="bub them">สนใจชาเขียวเซ็ต 3 กระปุกครับ ส่งพรุ่งนี้ทันไหม</div>
+  <div class="bub img"></div>
+  <div class="scam">${ic('alert')}<span>${CONTENT.scam}</span></div>
+  <div class="bub me">ทันครับ ตัดรอบส่ง 17:00 น. เดี๋ยวเปิดบิลให้เลยนะครับ</div>
+  <div class="tagline">${ic('robot')} ตอบโดย DeepBot</div>
+  <div class="metarow ok">${ic('checks')} อ่านแล้ว</div>` }
+
+/* ช่องพิมพ์ — โซน 7 (เหนือ) + 8 (ใน) */
+function composer(o={}){ return `
+  ${o.above ?? ''}
+  <div class="overridestrip">${ic('robot')} ${CONTENT.aiOverride}</div>
+  <div class="composer">
+    <div class="ctools">
+      <div class="t">${ic('plus')}</div><div class="t">${ic('photo')}</div>
+      <div class="t">${ic('smile')}</div><div class="t">${ic('sparkle')}</div>
+      <div class="t grow">${ic('dots')}</div>
+    </div>
+    <div class="cinput">
+      <div class="cbox">พิมพ์ข้อความ…</div>
+      <div class="sendbtn q">${ic('send')} ส่ง · 290/300</div>
+    </div>
+  </div>` }
+
+/* ที่มาของแชท — ใช้ทั้ง B (ในสตรีม) และ A/C (ในแผง) */
+function originComment(){ return `
+  <div class="origin">
+    <div class="th pink"></div>
+    <div class="bd">
+      <div class="t1">${ic('comment')} ลูกค้าคอมเมนต์ใต้โพสต์</div>
+      <span class="q">“ชุด 3 กระปุกยังมีอยู่ไหมคะ สนใจค่ะ”</span>
+      <div class="attach"><span class="img"></span>
+        <span style="font-size:11px;color:var(--color-default-500)">แนบรูปมา 1 รูป</span></div>
+      <div class="meta">${ic('clock')} 14 ส.ค. 2569 09:41</div>
+    </div>
+  </div>` }
+function originAd(){ return `
+  <div class="origin">
+    <div class="th"></div>
+    <div class="bd">
+      <div class="t1">${ic('megaphone')} ทักมาจากโฆษณา</div>
+      <span class="q">ชาเขียวออร์แกนิก ส่งตรงจากไร่ — ลด 30% วันนี้เท่านั้น</span>
+      <div class="meta">${ic('fb')} ${CONTENT.page}</div>
+    </div>
+  </div>` }
+
+/* ══════════════════ แบบ A — ยุบเป็นบรรทัดเดียว ══════════════════ */
+function roomA(full, panel){
+  const w = CONTENT.warns
+  const blockers = full ? w.filter(x=>x.blocks) : []
+  const nBlock = full ? 2 : 0   // token + โควตา
+  return `
+  <div class="screen">
+    ${zt('โซน 1',6)}
+    <div class="card-header" style="padding:6px 12px">
+      <div class="hgroup">
+        <button class="btn btn-sm btn-icon bordered">${ic('back')}</button>
+        ${avatar(true)}
+        <div class="idt"><h5 class="name" style="font-size:15px">${CONTENT.customer}</h5></div>
+      </div>
+      <div class="hactions">
+        <button class="btn btn-sm btn-icon bordered" style="position:relative">${ic('alert')}
+          ${full?'<span class="dot-badge danger"></span>':''}</button>
+        <button class="btn btn-sm btn-icon bordered">${ic('dots')}</button>
+      </div>
+    </div>
+
+    ${zt('โซน 2',50)}
+    <div class="sumline">
+      ${full ? `<span class="pill danger">${ic('alert')} ต้องแก้ ${nBlock}</span>` : ''}
+      <span class="ctx">${full
+        ? `${CONTENT.badges} · จากคอมเมนต์`
+        : `${CONTENT.page} · ${CONTENT.badges}`}</span>
+      <span class="chev">${ic('chevR')}</span>
+    </div>
+
+    <div class="stream">${bubbles()}</div>
+
+    ${zt('โซน 7',null)}
+    <div class="tail">${composer({
+      above: full ? `<div class="tipstrip danger">${ic('plugoff')}
+        <span class="tx">${blockers[0].full}</span><span class="a">${blockers[0].act}</span></div>` : ''
+    })}</div>
+
+    ${panel ? `
+    <div class="sheet">
+      <div class="body">
+        <div class="shead">${ic('list')} สถานะห้องนี้ <span class="x">${ic('x')}</span></div>
+        <div class="sgrp">ต้องลงมือ</div>
+        ${w.map(x=>`<div class="srow ${x.tone==='warn'?'warn':x.tone==='info'?'info':'danger'}">
+          ${ic(x.ic)}<span class="tx">${x.full}</span>${x.act?`<span class="a">${x.act}</span>`:''}</div>`).join('')}
+        <div class="sgrp">ลูกค้ารายนี้</div>
+        <div class="srow">${ic('user')}<span class="tx">${CONTENT.badges}</span></div>
+        <div class="srow">${ic('cart')}<span class="tx">ยอดซื้อรวม ฿4,280 · เป็นลูกค้าตั้งแต่ มี.ค. 2569</span>
+          <span class="a">ดูออเดอร์</span></div>
+        <div class="sgrp">ที่มาของแชท</div>
+        ${originComment()}${originAd()}
+      </div>
+    </div>` : ''}
+  </div>`
+}
+
+/* ══════════════════ แบบ B — ละลายเข้าสตรีม ══════════════════ */
+function roomB(full, scrolled){
+  const w = CONTENT.warns
+  const pin = full ? w.filter(x=>x.tone!=='info').slice(0,3) : []
+  return `
+  <div class="screen">
+    ${zt('โซน 1',6)}
+    ${headerFull()}
+
+    ${zt('โซน 4',76)}
+    <div class="stream pad">
+      ${scrolled ? '' : `
+        <div class="instream">
+          <div class="cap">${ic('msg')} ห้องนี้เริ่มจาก</div>
+          ${originComment()}
+        </div>
+        ${full ? `<div class="instream">${originAd()}</div>` : ''}
+        <div class="instream">
+          <div class="cap">${ic('user')} ลูกค้ารายนี้</div>
+          <div class="dtile" style="border-bottom:0">
+            ${ic('user')}<span class="tx"><b>${CONTENT.badges}</b>
+            <span>ยอดซื้อรวม ฿4,280 · ตั้งแต่ มี.ค. 2569</span></span>
+            <span class="n">${ic('chevR')}</span></div>
+        </div>`}
+      ${bubbles()}
+    </div>
+
+    ${full ? `<div class="pinned">
+      <div class="ph">${ic('alert')} ยังต้องจัดการ</div>
+      ${pin.map(x=>`<div class="actbar ${x.tone==='warn'?'warn':'danger'}">
+        ${ic(x.ic)}<span class="tx">${x.full}</span>${x.act?`<span class="a">${x.act}</span>`:''}</div>`).join('')}
+    </div>` : ''}
+
+    <div class="tail">${composer()}</div>
+  </div>`
+}
+
+/* ══════════════════ แบบ C — แยกสองพื้นผิว ══════════════════ */
+function roomC(full, open){
+  const w = CONTENT.warns
+  const top = full ? w[0] : null
+  return `
+  <div class="screen">
+    ${zt('โซน 1',6)}
+    ${headerFull({buttons:`<button class="btn btn-icon bordered">${ic('dots')}
+      <span class="mute-badge">${ic('mute')}</span></button>`})}
+
+    <div class="stream">${bubbles()}</div>
+
+    ${open ? '<div class="scrim"></div>' : ''}
+
+    ${zt('โซน 7',null)}
+    <div class="handle ${full?'danger':'calm'}" style="position:relative">
+      <span class="grip"></span>
+      ${full ? ic('alert') : ic('briefcase')}
+      <span class="tx">${full
+        ? `${top.full} · อีก 3 เรื่อง`
+        : `งานของห้องนี้ — 4 ออเดอร์ · 3 ไฟล์`}</span>
+      ${full?`<span style="font-weight:700;flex:none">${top.act}</span>`:''}
+      <span style="flex:none">${ic('chevU')}</span>
+    </div>
+
+    <div class="tail">${composer()}</div>
+
+    ${open ? `
+    <div class="drawer">
+      <div class="dh"><span class="grip"></span>${ic('briefcase')}
+        <span class="ttl">งานของห้องนี้</span><span class="x">${ic('x')}</span></div>
+      <div class="dbody">
+        ${full ? w.map(x=>`<div class="actbar ${x.tone==='warn'?'warn':x.tone==='info'?'info':'danger'}">
+          ${ic(x.ic)}<span class="tx">${x.full}</span>${x.act?`<span class="a">${x.act}</span>`:''}</div>`).join('') : ''}
+        <div class="dtile">${ic('cart')}<span class="tx"><b>คำสั่งซื้อของลูกค้ารายนี้</b>
+          <span>ค้าง 1 · ทั้งหมด 4 · ยอดรวม ฿4,280</span></span><span class="n">4 ${ic('chevR')}</span></div>
+        <div class="dtile">${ic('files')}<span class="tx"><b>คลังไฟล์</b>
+          <span>สลิป 2 · ที่อยู่ 1</span></span><span class="n">3 ${ic('chevR')}</span></div>
+        <div class="dtile">${ic('user')}<span class="tx"><b>${CONTENT.badges}</b>
+          <span>เป็นลูกค้าตั้งแต่ มี.ค. 2569 · 08x-xxx-4471</span></span><span class="n">${ic('chevR')}</span></div>
+        ${originComment()}
+      </div>
+    </div>` : ''}
+  </div>`
+}
+
+/* ══════════════════ แบบ B2 — B + แถบยุบได้ + แผงสถานะล้วน ══════════════════
+   user เคาะ B แล้วสั่งแก้ 2 อย่าง + เพิ่ม 1 เคส (2026-08-15):
+     1. แถบคำเตือนหลายแถบ → เหลือ "สถานะห้องแชท (3)" แถบเดียว กดแล้ว slide up
+     2. ในแผงนั้น "ไม่ต้องเอาข้อมูลคำสั่งซื้อหรือรูปอะไรไปรวม" → สถานะล้วน
+     3. เพิ่มเคส "chat ที่มี order กำลังจัดส่ง"
+   ─────────────────────────────────────────────────────────────────────────
+   🛑 ออเดอร์จึงเป็น "แถบของตัวเอง" ไม่ใช่รายการหนึ่งในแผงสถานะ — ตรงกับที่
+   OrderProgressBar.tsx เขียนไว้เองว่า "แถบนี้เป็นทางลัดดูสถานะ ไม่ใช่ alert
+   โทน primary ไม่ใช่ warning/danger" ⇒ ยุบรวมกันเมื่อไหร่คือพารถบรรทุกไปอยู่
+   กองเดียวกับ token ตาย ซึ่งโค้ดจริงตั้งใจเลี่ยงมาตั้งแต่ต้น                      */
+const SHIP = {
+  courier:'Flash Thunder', track:'TH1601924VZF4J0',   // ตามภาพที่ user ส่ง
+  logo:'../../../public/images/logos/flash-express.jpeg', // courier.ts:35 (ไฟล์จริงในรีโป)
+  stage:2, // 0 สร้างพัสดุ · 1 รับเข้าระบบแล้ว · 2 กำลังจัดส่ง · 3 จัดส่งสำเร็จ
+  orderNo:'DP25690815A2F1', // SHIPPING_STAGE_LABEL.SHIPPING = 'กำลังจัดส่ง'
+}
+/* SHIPMENT_STAGES — iship/status.ts:189 (ห้ามแต่งคำเอง) */
+const STAGES = [
+  {lb:'สร้างพัสดุ',      ic:'pkg'},
+  {lb:'รับเข้าระบบแล้ว', ic:'pkgin'},
+  {lb:'กำลังจัดส่ง',     ic:'truck'},
+  {lb:'จัดส่งสำเร็จ',    ic:'checkc'},
+]
+
+/* กล่องพัสดุกาง — โครงตามภาพ: โลโก้ + ชื่อขนส่ง + เลขพัสดุ + ปุ่มคัดลอก + stepper 4 จุด */
+function shipBox(){
+  return `<div class="shipbox">
+    <div class="shiphead">
+      <img class="logo" src="${SHIP.logo}" alt="" />
+      <div class="who">
+        <div class="cname">${SHIP.courier}</div>
+        <div class="trk">${SHIP.track}</div>
+      </div>
+      <div class="copy">${ic('copy')}</div>
+    </div>
+    <ol class="steps">
+      ${STAGES.map((s,i)=>{
+        const reached = i <= SHIP.stage
+        return `<li>
+          <div class="track">
+            <span class="ln ${i===0?'blank':reached?'on':'off'}"></span>
+            <span class="dot ${reached?'on':'off'}">${ic(s.ic)}</span>
+            <span class="ln ${i===STAGES.length-1?'blank':i<SHIP.stage?'on':'off'}"></span>
+          </div>
+          <span class="lb ${i===SHIP.stage?'cur':''}">${s.lb}</span>
+        </li>`}).join('')}
+    </ol>
+  </div>`
+}
+
+/* การ์ดออเดอร์ในสตรีม — "ตอนที่ลูกค้าสั่ง" คือเหตุการณ์ จึงอยู่ในสตรีมตามหลักของ B */
+function orderCard(){
+  return `<div class="instream">
+    <div class="cap">${ic('cart')} เปิดคำสั่งซื้อจากแชทนี้</div>
+    <div class="dtile" style="border-bottom:0">
+      ${ic('cart')}<span class="tx"><b>${SHIP.orderNo}</b>
+      <span>ชาเขียวเซ็ต 3 กระปุก · ฿1,290 · เก็บเงินปลายทาง</span></span>
+      <span class="n">${ic('chevR')}</span></div>
+  </div>` }
+
+function roomB2(full, mode){
+  const w = CONTENT.warns
+  const n = full ? w.length : 0
+  return `
+  <div class="screen">
+    ${zt('โซน 1',6)}
+    ${headerFull()}
+
+    ${zt('โซน 4',76)}
+    <div class="stream pad">
+      <div class="instream">
+        <div class="cap">${ic('msg')} ห้องนี้เริ่มจาก</div>
+        ${originComment()}
+      </div>
+      <div class="bub them">สนใจชาเขียวเซ็ต 3 กระปุกครับ ส่งพรุ่งนี้ทันไหม</div>
+      <div class="bub me">ทันครับ ตัดรอบส่ง 17:00 น. เดี๋ยวเปิดบิลให้เลยนะครับ</div>
+      ${orderCard()}
+      <div class="bub me">ส่งของออกแล้วนะครับ เลขพัสดุ ${SHIP.track}</div>
+      <div class="metarow ok">${ic('checks')} อ่านแล้ว</div>
+    </div>
+
+    ${zt('โซน 7',null)}
+    ${mode===1 ? shipBox() : `
+      <div class="pinbar ship">
+        ${ic('truck')}<span class="tx"><b>${SHIP.orderNo}</b> · กำลังจัดส่ง</span>
+        <span class="n">2</span><span class="chev">${ic('chevU')}</span>
+      </div>`}
+
+    ${full ? `<div class="pinbar stat danger">
+      ${ic('alert')}<span class="tx">สถานะห้องแชท</span>
+      <span class="n">${n}</span><span class="chev">${ic('chevU')}</span>
+    </div>` : ''}
+
+    <div class="tail">${composer()}</div>
+
+    ${mode===2 ? `
+    <div class="scrim"></div>
+    <div class="statsheet">
+      <div class="sh"><span class="grip"></span>${ic('alert')}
+        <span class="ttl">สถานะห้องแชท (${n})</span><span class="x">${ic('x')}</span></div>
+      ${w.map(x=>`<div class="srow ${x.tone==='warn'?'warn':x.tone==='info'?'info':'danger'}">
+        ${ic(x.ic)}<span class="tx">${x.full}</span>${x.act?`<span class="a">${x.act}</span>`:''}</div>`).join('')}
+    </div>` : ''}
+  </div>`
+}
+
+/* ── ประกอบเฟรม ───────────────────────────────────────────────────────────── */
+const RENDER = {B2:roomB2, A:roomA, B:roomB, C:roomC}
+const SECOND = {
+  A:'แผงสถานะกาง',
+  B:'เลื่อนลงแล้ว — การ์ดบริบทพ้นจอ',
+  C:'ลิ้นชักกาง',
+}
+/* mode: 0 ตั้งต้น · 1 สถานะที่สอง · 2 (B2 เท่านั้น) แผงสถานะ slide up */
+const SPECS_DEFAULT = [
+  {w:320, full:true,  mode:0, note:'เคสของครบ · จอเล็กสุด'},
+  {w:390, full:true,  mode:0, note:'เคสของครบ · จอมาตรฐาน'},
+  {w:430, full:true,  mode:1, note:null},
+  {w:390, full:false, mode:0, note:'เคสปกติ — ไม่มีคำเตือน'},
+]
+const SPECS_B2 = [
+  {w:320, full:true,  mode:0, note:'ของครบ + ออเดอร์กำลังจัดส่ง · ยุบทั้งคู่'},
+  {w:390, full:true,  mode:1, note:'แถบพัสดุกาง — ตามภาพที่สั่ง'},
+  {w:430, full:true,  mode:2, note:'แตะแถบสถานะ → slide up'},
+  {w:390, full:false, mode:0, note:'เคสปกติ — เหลือแถบพัสดุอย่างเดียว'},
+]
+
+document.querySelectorAll('[data-frames]').forEach(host=>{
+  const v = host.dataset.frames
+  const specs = v==='B2' ? SPECS_B2 : SPECS_DEFAULT
+  host.innerHTML = specs.map(s=>{
+    const cap = s.note ?? SECOND[v]
+    return `<div><div class="fl"><span class="w">${s.w}px</span><b>${cap}</b></div>
+      <div class="device" style="width:${s.w+16}px">
+        ${RENDER[v](s.full, s.mode)}
+      </div></div>`
+  }).join('')
+})
+
+/* ── switcher (กติกาของ skill: ← → · อัปเดต ?variant= · ซ่อนบน production) ── */
+const KEYS = ['B2','B','A','C']
+const NAMES = {B2:'B ที่แก้แล้ว (ที่เลือก)', B:'ละลายเข้าสตรีม (ต้นฉบับ)',
+  A:'ยุบเป็นบรรทัดเดียว', C:'แยกสองพื้นผิว'}
+function show(k){
+  document.querySelectorAll('.variant').forEach(e=>e.classList.toggle('on', e.dataset.v===k))
+  document.getElementById('lab').innerHTML = `${k} — ${NAMES[k]}<i>${KEYS.indexOf(k)+1} / ${KEYS.length}</i>`
+  const u = new URL(location); u.searchParams.set('variant',k); history.replaceState({},'',u)
+  scrollTo({top:0,behavior:'smooth'})
+}
+function cycle(d){
+  const cur = new URL(location).searchParams.get('variant') || 'A'
+  show(KEYS[(KEYS.indexOf(cur)+d+KEYS.length)%KEYS.length])
+}
+document.getElementById('prev').onclick = ()=>cycle(-1)
+document.getElementById('next').onclick = ()=>cycle(1)
+addEventListener('keydown', e=>{
+  // อย่าแย่งลูกศรจากช่องกรอก (กติกาของ skill)
+  const t = e.target
+  if (t && (t.tagName==='INPUT' || t.tagName==='TEXTAREA' || t.isContentEditable)) return
+  if (e.key==='ArrowLeft') cycle(-1)
+  if (e.key==='ArrowRight') cycle(1)
+})
+show(new URL(location).searchParams.get('variant') || 'B2')
+</script>
+</body>
+</html>

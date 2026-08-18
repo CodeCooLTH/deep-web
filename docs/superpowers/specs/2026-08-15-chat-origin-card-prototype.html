@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>การ์ด "ที่มาของแชท" ในสตรีม — ทุกกรณี (2026-08-15)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROTOTYPE — โค้ดทิ้ง ไม่ใช่ของ production
+
+   คำถาม: การ์ด "ที่มาของแชท" ที่อยู่ในสตรีม (แบบ C/D ที่ user เลือก) ควรหน้าตายังไง
+   ใน **ทุกกรณีที่ข้อมูลจริงประกอบได้**
+
+   ข้อมูลจริงจาก ChatThread.tsx:
+     adReferral    = { adId, adTitle, adBody, permalink, photoFileId }
+     commentOrigin = { message, attachmentUrl, createdTime, url, postMessage,
+                       postThumbnailUrl, postMediaType }
+   ⇒ ทั้งสองเป็นอิสระต่อกัน (มีได้ทีละอัน / พร้อมกัน / ไม่มีเลย) และแต่ละ field เป็น null ได้
+
+   ค่าสีทุกตัวคัดจาก _root.css + _theme-saas.css
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --color-body-bg:#f2f6fb; --color-card:#fff;
+  --color-primary:#0a74ff; --color-primary-ink:#1e3a8a;
+  --color-warning:#ff8f1f; --color-warning-ink:#92400e;
+  --color-danger:#f43f5e; --color-danger-ink:#7f1d1d;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-600:#4a5358;
+  --color-default-700:#40454a; --color-default-800:#343a40; --color-default-900:#313a46;
+  --radius:4px; --shadow:0px 1px 4px 0px rgba(130,143,163,.15);
+  --shadow-lg:0 .25rem 1rem rgba(76,76,92,.2);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Anuphan',system-ui,sans-serif;background:#e9eef6;color:var(--color-default-900);
+  padding:24px 16px 60px;line-height:1.5}
+.doc{max-width:1180px;margin:0 auto}
+.paper{background:#fff;border-radius:12px;padding:20px 24px;box-shadow:var(--shadow);margin-bottom:22px}
+h1{font-size:22px;font-weight:700;margin-bottom:5px}
+.sub{color:var(--color-default-500);font-size:14px;margin-bottom:16px}
+.qbox{background:var(--color-default-100);border-left:3px solid var(--color-primary);padding:12px 14px;
+  border-radius:0 6px 6px 0;font-size:14px}
+.qbox b{color:var(--color-primary-ink)}
+.qbox code{background:var(--color-default-200);padding:1px 5px;border-radius:3px;font-family:inherit;font-size:12px}
+
+/* รายการเคส */
+.case{display:grid;grid-template-columns:390px 1fr;gap:22px;align-items:start;
+  background:#fff;border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);margin-bottom:18px}
+@media(max-width:900px){.case{grid-template-columns:1fr}}
+.case h3{font-size:16px;font-weight:700;display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.num{background:var(--color-default-900);color:#fff;width:24px;height:24px;border-radius:6px;flex:none;
+  display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.case .desc{font-size:13px;color:var(--color-default-700);margin-bottom:10px}
+.case .data{font-size:12px;background:var(--color-default-100);border-radius:6px;padding:9px 11px;
+  color:var(--color-default-600);line-height:1.7}
+.case .data b{color:var(--color-default-900)}
+.case .data code{background:var(--color-default-200);padding:1px 5px;border-radius:3px;font-family:inherit;font-size:11px}
+.case .note{margin-top:9px;font-size:12px;padding:8px 10px;border-radius:6px;
+  background:rgba(255,143,31,.12);color:var(--color-warning-ink)}
+.case .note.info{background:rgba(10,116,255,.10);color:var(--color-primary-ink)}
+
+/* กรอบสตรีมจำลอง */
+.streambox{background:var(--color-card);border:1px solid var(--color-default-300);border-radius:14px;
+  padding:12px 14px 14px;box-shadow:var(--shadow)}
+.daysep{text-align:center;font-size:11px;color:var(--color-default-500);margin-bottom:8px}
+.daysep span{background:var(--color-default-100);border-radius:999px;padding:2px 12px}
+.bub{max-width:80%;padding:8px 12px;border-radius:14px;font-size:14px;margin-top:8px}
+.bub.them{background:var(--color-default-200);border-bottom-left-radius:4px;display:inline-block}
+.bub.me{background:var(--color-primary);color:#fff;border-bottom-right-radius:4px;margin-left:auto;
+  display:block;width:fit-content}
+
+/* ═══ การ์ดที่มา (ตัวที่กำลังออกแบบ) ═══ */
+.origin{border:1px solid var(--color-default-300);border-radius:10px;overflow:hidden;background:var(--color-card)}
+.origin .cap{font-size:10px;color:var(--color-default-500);padding:7px 12px 0;display:flex;align-items:center;gap:5px}
+.origin .cap svg{width:11px;height:11px;flex:none}
+.origin .body{display:flex;gap:10px;padding:7px 12px 10px}
+.origin .th{width:40px;height:40px;border-radius:6px;flex:none;position:relative;overflow:hidden;
+  background:linear-gradient(135deg,#6dd3a8,#3b82f6)}
+.origin .th.ad{background:linear-gradient(135deg,#fbbf24,#f97316)}
+.origin .th.broken{background:var(--color-default-200);display:flex;align-items:center;justify-content:center;
+  color:var(--color-default-400)}
+.origin .th.broken svg{width:18px;height:18px}
+.origin .th .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.35);color:#fff}
+.origin .th .play svg{width:16px;height:16px}
+.origin .bd{min-width:0;flex:1;display:flex;flex-direction:column}
+.origin .t1{font-size:12px;font-weight:600;color:var(--color-default-800);overflow:hidden;
+  text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.origin .q{font-size:13px;color:var(--color-default-900);line-height:1.4;margin-top:3px}
+.origin .q.empty{color:var(--color-default-500);font-style:italic}
+.origin .attach{margin-top:7px}
+.origin .attach .img{width:110px;height:82px;border-radius:8px;background:linear-gradient(135deg,#f9a8d4,#c084fc)}
+.origin .meta{display:flex;align-items:center;gap:5px;margin-top:7px;font-size:11px;color:var(--color-default-500);
+  flex-wrap:wrap}
+.origin .meta svg{width:12px;height:12px;flex:none}
+.origin .meta .sep{opacity:.4}
+.origin .lnk{font-size:12px;font-weight:600;color:var(--color-primary);flex:none;align-self:flex-start;
+  white-space:nowrap}
+.origin.adonly .cap{color:var(--color-warning-ink)}
+</style>
+</head>
+<body>
+<div class="doc">
+
+<div class="paper">
+  <h1>การ์ด "ที่มาของแชท" ในสตรีม — ทุกกรณี</h1>
+  <div class="sub">prototype · 2026-08-15 · ของทิ้ง · ต่อจากแบบ C/D ที่เลือกให้ที่มาอยู่ในสตรีม</div>
+  <div class="qbox">
+    <b>ข้อมูลจริงมี 2 ก้อนที่เป็นอิสระต่อกัน</b> — <code>adReferral</code> (adId · adTitle · adBody · permalink · photoFileId)
+    และ <code>commentOrigin</code> (message · attachmentUrl · createdTime · url · postMessage · postThumbnailUrl · postMediaType)<br>
+    มีได้ทีละอัน · พร้อมกัน · หรือไม่มีเลย และ<b>แต่ละ field เป็น <code>null</code> ได้</b> ⇒ ประกอบเป็นการ์ดได้ 8 หน้าตา<br><br>
+    การ์ดวาง<b>เป็นใบแรกในสตรีม ก่อนข้อความแรกของลูกค้า</b> — เลื่อนหายไปกับข้อความเก่าได้ ไม่ตรึงกินที่หัวจอ
+  </div>
+</div>
+
+<div id="cases"></div>
+
+</div>
+
+<script>
+const I={
+ speakerphone:'<path d="M18 8a3 3 0 0 1 0 6M10 8v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-5"/><path d="M12 8l4.5-3.8A.9.9 0 0 1 18 4.9v12.2a.9.9 0 0 1-1.5.7L12 14H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h8z"/>',
+ message:'<path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H8l-4 4V6a1 1 0 0 1 1-1z"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+ photo:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
+ photoOff:'<path d="M3 3l18 18"/><rect x="3" y="4" width="18" height="16" rx="2"/>',
+ play:'<path d="M8 5l11 7-11 7z" fill="currentColor" stroke="none"/>',
+ history:'<path d="M12 8v4l3 2"/><path d="M3.05 11a9 9 0 1 1 .5 4"/><path d="M3 4v5h5"/>'
+};
+const s=(k)=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+I[k]+'</svg>';
+
+/* ── ตัวสร้างการ์ด ─────────────────────────────────────────────────────────
+   o = { kind:'ad'|'comment', post, quote, quoteEmpty, attach, adLine, time, link,
+         thumb:'post'|'ad'|'broken'|'video' }                                   */
+function card(o){
+  const cap = o.kind==='ad'
+    ? s('speakerphone')+'ลูกค้าเริ่มจากโฆษณาชิ้นนี้'
+    : s('history')+'ลูกค้าเริ่มจากคอมเมนต์นี้';
+  const th = o.thumb==='broken'
+    ? '<span class="th broken">'+s('photoOff')+'</span>'
+    : o.thumb==='video'
+    ? '<span class="th"><span class="play">'+s('play')+'</span></span>'
+    : '<span class="th'+(o.thumb==='ad'?' ad':'')+'"></span>';
+  return '<div class="origin'+(o.kind==='ad'?' adonly':'')+'">'+
+    '<div class="cap">'+cap+'</div>'+
+    '<div class="body">'+th+
+      '<span class="bd">'+
+        (o.post?'<span class="t1">'+o.post+'</span>':'')+
+        (o.quote?'<span class="q">&ldquo;'+o.quote+'&rdquo;</span>':'')+
+        (o.quoteEmpty?'<span class="q empty">'+o.quoteEmpty+'</span>':'')+
+        (o.attach?'<span class="attach"><span class="img"></span></span>':'')+
+        '<span class="meta">'+
+          (o.adLine?s('speakerphone')+o.adLine+(o.time?'<span class="sep">·</span>':''):'')+
+          (o.time?(o.adLine?'':s('clock'))+o.time:'')+
+        '</span>'+
+      '</span>'+
+      '<span class="lnk">'+(o.link||'ดูคอมเมนต์')+'</span>'+
+    '</div>'+
+  '</div>';
+}
+
+const CASES=[
+ {
+  n:1, t:'มาจากโฆษณาอย่างเดียว',
+  d:'ลูกค้ากดปุ่ม "ส่งข้อความ" บนโฆษณาแล้วทักมาเลย — ไม่มีคอมเมนต์',
+  data:'<b>มี:</b> <code>adReferral</code> (adBody + photoFileId + permalink)<br><b>ไม่มี:</b> <code>commentOrigin</code>',
+  card:{kind:'ad',thumb:'ad',
+        quote:'โรงงานล้างสต๊อก! โช้คหลังเวฟ ลด 80% สเปกตรง ใส่ง่าย เด้งนุ่ม แต่ไม่ยวบ ฟรีปลายทาง',
+        time:'เมื่อวาน 14:20',link:'ดูโฆษณา'},
+  msg:'สนใจตัวนี้ค่ะ ยังมีของไหมคะ'
+ },
+ {
+  n:2, t:'มาจากคอมเมนต์ใต้โพสต์ปกติ',
+  d:'ลูกค้าคอมเมนต์ใต้โพสต์ธรรมดา แล้วร้านกด "ทักแชท"',
+  data:'<b>มี:</b> <code>commentOrigin</code> (message + postMessage + postThumbnailUrl)<br><b>ไม่มี:</b> <code>adReferral</code>',
+  card:{kind:'comment',thumb:'post',post:'ชาเขียวสูตรใหม่ มาแล้ว! ส่งฟรีทั่วประเทศ',
+        quote:'ลดได้จริงป่าวคะ ราคาเท่าไหร่',time:'2 ชม.ที่แล้ว'},
+  msg:'ลดได้จริงป่าวคะ ราคาเท่าไหร่'
+ },
+ {
+  n:3, t:'คอมเมนต์ใต้โพสต์โฆษณา — มีทั้งคู่',
+  d:'กรณีที่ user เจอในภาพจริง (ชิป "จากคอมเมนต์" + "จากโฆษณา" โผล่พร้อมกัน) — <b>merge เป็นก้อนเดียว</b> คอมเมนต์เป็นเนื้อหาหลัก โฆษณาเป็นแถวรอง',
+  data:'<b>มีทั้ง</b> <code>commentOrigin</code> <b>และ</b> <code>adReferral</code>',
+  card:{kind:'comment',thumb:'post',post:'ชาเขียวสูตรใหม่ลดน้ำหนักได้จริงไหม',
+        quote:'ลดได้จริงป่าวคะ ราคาเท่าไหร่',adLine:'จากโพสต์โฆษณา',time:'2 ชม.ที่แล้ว'},
+  msg:'ลดได้จริงป่าวคะ ราคาเท่าไหร่',
+  note:'เดิมเป็น 2 ชิปแข่งกัน — ตอนนี้เหลือก้อนเดียว มี "ดูคอมเมนต์" เป็นลิงก์หลัก (โฆษณาไปดูต่อได้จากในคอมเมนต์)'
+ },
+ {
+  n:4, t:'คอมเมนต์ที่ลูกค้าแนบรูปมา',
+  d:'🛑 <code>attachmentUrl</code> <b>ส่งมาถึงหน้านี้ตั้งแต่แรกแต่ไม่เคยถูก render เลย</b> — ผู้ขายต้องกดออกไป Facebook ถึงจะเห็นรูปที่ลูกค้าถามถึง',
+  data:'<b>มี:</b> <code>commentOrigin.attachmentUrl</code> + <code>message</code> + <code>postThumbnailUrl</code>',
+  card:{kind:'comment',thumb:'post',post:'รีวิวจากลูกค้า — ชุดเซ็ตใหม่',
+        quote:'ได้ของแล้วแบบนี้ปกติไหมคะ สีมันซีดผิดจากในรูป',attach:true,time:'25 นาทีที่แล้ว'},
+  msg:'ได้ของแล้วแบบนี้ปกติไหมคะ',
+  note:'รูปที่ลูกค้าแนบต้องใหญ่พอให้เห็นปัญหาที่เขาถาม (110×82) ไม่ใช่ thumbnail 16px — นี่คือเนื้อหาที่ต้องใช้ตอบ ไม่ใช่ของประดับ'
+ },
+ {
+  n:5, t:'คอมเมนต์ที่มีแต่รูป ไม่มีข้อความ',
+  d:'ลูกค้าคอมเมนต์เป็นรูปเปล่า ๆ (<code>message = null</code>)',
+  data:'<b>มี:</b> <code>attachmentUrl</code><br><b>ไม่มี:</b> <code>message</code>',
+  card:{kind:'comment',thumb:'post',post:'รีวิวจากลูกค้า — ชุดเซ็ตใหม่',
+        quoteEmpty:'ลูกค้าส่งรูปมาโดยไม่มีข้อความ',attach:true,time:'5 นาทีที่แล้ว'},
+  msg:'สอบถามหน่อยครับ',
+  note:'ต้องมีข้อความบอกว่า "ส่งรูปมาโดยไม่มีข้อความ" — ปล่อยว่างจะดูเหมือนโหลดไม่ขึ้น'
+ },
+ {
+  n:6, t:'โฆษณาที่ไม่มีเนื้อหา — เหลือแต่รหัส',
+  d:'Meta ไม่ส่ง <code>adBody</code>/<code>adTitle</code> มา เหลือแต่ <code>adId</code>',
+  data:'<b>มี:</b> <code>adId</code> เท่านั้น<br><b>ไม่มี:</b> adBody · adTitle · photoFileId',
+  card:{kind:'ad',thumb:'broken',quoteEmpty:'โฆษณา #120210983746',time:'3 วันที่แล้ว',link:'ดูโฆษณา'},
+  msg:'ราคาเท่าไหร่ครับ',
+  note:'กรณีนี้การ์ดแทบไม่มีประโยชน์ — ควรตัดสินว่ายัง render ไหม หรือยุบเหลือบรรทัดเดียวว่า "มาจากโฆษณา"'
+ },
+ {
+  n:7, t:'โพสต์ต้นทางเป็นวิดีโอ',
+  d:'<code>postMediaType = video</code> — ปกรูปควรมีสัญลักษณ์เล่นวิดีโอ ไม่งั้นดูเหมือนรูปนิ่ง',
+  data:'<b>มี:</b> <code>postMediaType = video</code> + <code>postThumbnailUrl</code>',
+  card:{kind:'comment',thumb:'video',post:'คลิปรีวิวโช้คหลังเวฟ ใส่แล้วเด้งจริงไหม',
+        quote:'อันนี้ใส่ Wave 110i ได้ไหมครับ',time:'1 ชม.ที่แล้ว'},
+  msg:'อันนี้ใส่ Wave 110i ได้ไหมครับ'
+ },
+ {
+  n:8, t:'รูปปกโหลดไม่ขึ้น',
+  d:'URL หมดอายุหรือโหลดพลาด — ต้องมี fallback ไม่ใช่กล่องว่าง',
+  data:'<b>มี:</b> ทุกอย่าง แต่รูปโหลดไม่สำเร็จ',
+  card:{kind:'comment',thumb:'broken',post:'ชาเขียวสูตรใหม่ มาแล้ว! ส่งฟรีทั่วประเทศ',
+        quote:'สั่ง 2 กล่องส่งฟรีไหมคะ',time:'40 นาทีที่แล้ว'},
+  msg:'สั่ง 2 กล่องส่งฟรีไหมคะ',
+  note:'🛑 <code>attachmentUrl</code> ยังไม่ยืนยันว่า mirror แล้วหรือยัง — ถ้ายังดิบจาก fbcdn จะหมดอายุ ~4 วัน ⇒ เธรดเก่าจะเข้ากรณีนี้ทั้งหมด (ux ยกเป็น Open Question)'
+ }
+];
+
+document.getElementById('cases').innerHTML = CASES.map(c=>
+  '<div class="case">'+
+    '<div>'+
+      '<div class="streambox">'+
+        '<div class="daysep"><span>วันนี้</span></div>'+
+        card(c.card)+
+        '<div class="bub them">'+c.msg+'</div>'+
+      '</div>'+
+    '</div>'+
+    '<div>'+
+      '<h3><span class="num">'+c.n+'</span>'+c.t+'</h3>'+
+      '<div class="desc">'+c.d+'</div>'+
+      '<div class="data">'+c.data+'</div>'+
+      (c.note?'<div class="note'+(c.n===3?' info':'')+'">'+c.note+'</div>':'')+
+    '</div>'+
+  '</div>'
+).join('');
+</script>
+</body>
+</html>

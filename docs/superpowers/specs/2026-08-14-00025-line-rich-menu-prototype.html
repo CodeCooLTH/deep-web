@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PROTOTYPE (ของทิ้ง) — ตั้งค่า Rich Menu ของ LINE OA · 3 ทางเลือก</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* token ชุดเดียวกับ src/assets/css/config/_root.css (skin 'default', โหมดสว่าง) — ไม่ประดิษฐ์สีใหม่ */
+  :root {
+    --card: #ffffff;
+    --body-bg: #f6f7fb;
+    --default-900: #313a46;
+    --default-700: #4b5563;
+    --default-500: #58626b;
+    --default-300: #edf2f9;
+    --default-200: #eef2f7;
+    --primary: #236dc9;
+    --primary-hover: #1e5dab;
+    --primary-ink: #1e3a8a;
+    --primary-15: rgba(35, 109, 201, .15);
+    --success: #22c55e;
+    --success-ink: #14532d;
+    --success-15: rgba(34, 197, 94, .15);
+    --warning-ink: #92400e;
+    --warning-15: rgba(245, 158, 11, .15);
+    --danger-ink: #7f1d1d;
+    --danger-15: rgba(239, 68, 68, .15);
+    --line-green: #06C755; /* สีแบรนด์ LINE — ใช้เฉพาะจุดที่สื่อ "นี่คือของ LINE" (โลโก้/พรีวิว) */
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px 20px 120px;
+    font-family: Anuphan, system-ui, sans-serif;
+    background: var(--body-bg); color: var(--default-900);
+  }
+  h1 { font-size: 21px; margin: 0 0 6px; }
+  .lede { color: var(--default-500); font-size: 14px; margin: 0 0 18px; max-width: 74ch; line-height: 1.65; }
+  h2 { font-size: 16px; margin: 30px 0 4px; }
+  h3 { font-size: 13px; margin: 22px 0 8px; color: var(--default-700); }
+  .note { font-size: 12px; color: var(--default-500); margin: 6px 0 0; line-height: 1.6; max-width: 78ch; }
+  .row { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+
+  .banner {
+    border: 1px dashed var(--default-500); border-radius: 10px; padding: 10px 14px;
+    font-size: 12px; line-height: 1.6; color: var(--default-700); background: #fff;
+    max-width: 78ch; margin: 0 0 22px;
+  }
+  .banner b { color: var(--default-900); }
+
+  /* กรอบจำลองความกว้างจริงของอุปกรณ์ */
+  .device { background: var(--card); border: 1px solid var(--default-200); border-radius: 12px; overflow: hidden; }
+  .device .caption-bar { font-size: 11px; color: var(--default-500); padding: 6px 10px; border-bottom: 1px solid var(--default-200); background: var(--body-bg); }
+  .w375 { width: 375px; flex: 0 0 375px; }
+  .w768 { width: 768px; flex: 0 0 768px; }
+  .w1280 { width: 1280px; max-width: 100%; }
+
+  /* ---------- ชิ้นส่วนร่วม (เล็กน้อยเท่านั้น — แต่ละ variant มีสิทธิ์ทิ้ง layout ของตัวเอง) ---------- */
+  .pg { padding: 16px; }
+  .pg-sm { padding: 12px; }
+  .crumb { font-size: 11px; color: var(--default-500); margin-bottom: 8px; }
+  .ttl { font-size: 16px; font-weight: 600; margin: 0; }
+  .sub { font-size: 12px; color: var(--default-500); margin: 2px 0 0; }
+  .btn { border: 0; border-radius: 8px; font-family: inherit; font-size: 12px; font-weight: 600; padding: 8px 14px; cursor: pointer; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-light { background: var(--default-300); color: var(--default-900); }
+  .btn-ghost { background: transparent; color: var(--default-700); }
+  .btn-sm { padding: 5px 10px; font-size: 11px; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+  .badge-success { background: var(--success-15); color: var(--success-ink); }
+  .badge-primary { background: var(--primary-15); color: var(--primary-ink); }
+  .badge-warn { background: var(--warning-15); color: var(--warning-ink); }
+  .badge-muted { background: var(--default-300); color: var(--default-500); }
+  .field { margin-bottom: 10px; }
+  .lbl { display: block; font-size: 11px; font-weight: 600; color: var(--default-700); margin-bottom: 4px; }
+  .inp, .sel {
+    width: 100%; border: 1px solid var(--default-200); border-radius: 8px; background: #fff;
+    font-family: inherit; font-size: 12px; padding: 8px 10px; color: var(--default-900);
+  }
+  .hr { height: 1px; background: var(--default-200); margin: 14px 0; border: 0; }
+  .hr-dash { height: 0; border: 0; border-top: 1px dashed var(--default-200); margin: 14px 0; }
+
+  /* แคนวาส rich menu — LINE ใช้ 2500x1686 (ใหญ่) / 2500x843 (เตี้ย) */
+  .canvas { position: relative; width: 100%; aspect-ratio: 2500 / 1686; background: #dde3ea; border-radius: 10px; overflow: hidden; }
+  .canvas.compact { aspect-ratio: 2500 / 843; }
+  .canvas .ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #8a97a5; font-size: 12px; }
+  .area {
+    position: absolute; border: 2px solid rgba(35,109,201,.55); background: rgba(35,109,201,.10);
+    display: flex; flex-direction: column; gap: 2px; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--primary-ink); cursor: pointer; text-align: center; padding: 4px;
+  }
+  .area .k { font-weight: 700; font-size: 10px; opacity: .8; }
+  .area.sel { border-color: var(--primary); background: rgba(35,109,201,.22); box-shadow: inset 0 0 0 2px #fff; }
+  .area.empty { border-style: dashed; border-color: var(--default-500); background: rgba(88,98,107,.08); color: var(--default-500); }
+
+  /* พรีวิวหน้าจอ LINE จริง */
+  .phone { width: 232px; border: 1px solid var(--default-200); border-radius: 14px; overflow: hidden; background: #8fa3b8; }
+  .phone .bar { background: var(--line-green); color: #fff; font-size: 11px; font-weight: 600; padding: 6px 10px; }
+  .phone .msgs { height: 92px; background: #8fa3b8; }
+  .phone .chatbar { background: #fff; border-top: 1px solid var(--default-200); font-size: 11px; color: var(--default-700); padding: 6px 10px; text-align: center; }
+  .phone .menu { background: #fff; }
+
+  .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tbl th { text-align: left; font-size: 11px; color: var(--default-500); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--default-200); }
+  .tbl td { padding: 8px; border-bottom: 1px solid var(--default-200); vertical-align: middle; }
+
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+  .between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .cardbox { border: 1px solid var(--default-200); border-radius: 10px; background: #fff; }
+  .cardbox-hd { padding: 10px 12px; border-bottom: 1px solid var(--default-200); font-size: 12px; font-weight: 600; }
+  .cardbox-bd { padding: 12px; }
+
+  .fallback { padding: 28px 18px; text-align: center; }
+  .fallback .big { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .fallback .small { font-size: 12px; color: var(--default-500); line-height: 1.6; }
+
+  /* ---------- แถบสลับ variant (ของเครื่องมือ ไม่ใช่ของดีไซน์) ---------- */
+  #switcher {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 20px; z-index: 99;
+    display: flex; align-items: center; gap: 4px; background: #111827; color: #fff;
+    border-radius: 999px; padding: 6px 8px; box-shadow: 0 8px 28px rgba(0,0,0,.28);
+    font-family: Anuphan, system-ui, sans-serif;
+  }
+  #switcher button {
+    border: 0; background: rgba(255,255,255,.14); color: #fff; width: 30px; height: 30px;
+    border-radius: 999px; cursor: pointer; font-size: 15px; line-height: 1; font-family: inherit;
+  }
+  #switcher button:hover { background: rgba(255,255,255,.28); }
+  #swLabel { font-size: 12px; font-weight: 600; padding: 0 12px; white-space: nowrap; }
+  #swHint { font-size: 10px; opacity: .6; padding-right: 8px; }
+  section[data-variant] { display: none; }
+  section[data-variant].on { display: block; }
+</style>
+</head>
+<body>
+
+<h1>ตั้งค่า Rich Menu ของ LINE OA — 3 ทางเลือกหน้าตา</h1>
+<p class="lede">
+  คำถามที่ต้นแบบนี้ตอบ: <b>“หน้าตั้งค่า rich menu ควรเป็นยังไง”</b> — ไม่ใช่ “ระบบทำงานถูกไหม”
+  ทั้ง 3 แบบครอบขอบเขตเดียวกัน (เทมเพลต + รูป + action · เมนูหลายชุด + สลับ default · ตั้งเวลา/กลุ่มผู้ใช้ · วาดช่องเอง)
+  แต่ <b>ต่างกันที่โครงสร้าง</b> ไม่ใช่ต่างที่สี — เลือกได้ว่าจะเอาอันไหน หรือหยิบชิ้นจากหลายอันมาผสม
+</p>
+
+<div class="banner">
+  <b>ของทิ้ง (throwaway)</b> — ไฟล์นี้ไม่ใช่โค้ดจริง ไม่มีเทส ไม่ต่อ API เปิดด้วยการดับเบิลคลิกได้เลย ไม่ต้องรัน dev server<br />
+  <b>สลับแบบ:</b> กดปุ่ม <span style="font-family:monospace">‹ ›</span> ที่แถบล่างจอ หรือกดลูกศรซ้าย/ขวาบนคีย์บอร์ด · URL จำค่าไว้ (<span style="font-family:monospace">?v=A</span>)<br />
+  <b>ข้อควรรู้ก่อนตัดสิน:</b> วันนี้ rich menu อยู่ <b>“นอกขอบเขต”</b> ของฟีเจอร์ 00025 (<span style="font-family:monospace">PRD.md:278</span>, <span style="font-family:monospace">SRS.md:37</span>)
+  และในรีโปยังไม่มีโค้ด rich menu สักบรรทัด — ถ้าจะทำจริงต้องขยาย scope + ผ่าน <span style="font-family:monospace">safepay-ux</span> ก่อนลงมือ (Hard Rule 8)
+</div>
+
+<!-- ============================================================ A ============================================================ -->
+<section data-variant="A">
+  <h2>A — แคนวาสเป็นพระเอก (แก้ตรงบนรูป)</h2>
+  <p class="note">
+    โครง 2 คอลัมน์แบบเดียวกับ LINE Official Account Manager: ซ้ายคือรูปเมนูขนาดใหญ่ที่มีกรอบช่องวางทับ คลิกช่องไหนก็แก้ช่องนั้นในแผงขวา
+    <b>จุดแข็ง</b> — “ช่องนี้คือช่องไหนบนรูป” ชัดที่สุด, วาดช่องเองได้ตรง ๆ ด้วยการลากบนแคนวาส
+    <b>จุดอ่อน</b> — ต้องใช้จอกว้าง (แนวเดียวกับ <span style="font-family:monospace">/seller/public-profile/builder</span> ที่เป็น desktop-only อยู่แล้ว), แก้ action หลาย ๆ ช่องรัว ๆ ต้องคลิกไป-มา
+  </p>
+
+  <h3>1280 — เดสก์ท็อป (จอหลักของแบบนี้)</h3>
+  <div class="row">
+    <div class="device w1280">
+      <div class="caption-bar">1280px · /seller/settings/channels/line/rich-menu</div>
+      <div class="pg">
+        <div class="between" style="margin-bottom:14px">
+          <div>
+            <div class="crumb">ตั้งค่า › ช่องทาง › LINE — ร้านชาเขียวเหนี่ยวทรัพย์</div>
+            <p class="ttl">เมนูลัด (Rich Menu)</p>
+            <p class="sub">เมนูที่โผล่ใต้ช่องพิมพ์ในแชท LINE ของลูกค้า</p>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center">
+            <button class="btn btn-light">ดูตัวอย่าง</button>
+            <button class="btn btn-primary">บันทึกและเผยแพร่</button>
+          </div>
+        </div>
+
+        <!-- แถบเลือกชุดเมนู -->
+        <div class="cardbox" style="margin-bottom:14px">
+          <div class="cardbox-bd" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+            <span style="font-size:11px; color:var(--default-500); margin-right:2px">ชุดเมนู</span>
+            <button class="btn btn-sm" style="background:var(--primary-15); color:var(--primary-ink)">เมนูหลัก <span class="badge badge-success" style="margin-left:4px">ใช้อยู่</span></button>
+            <button class="btn btn-sm btn-light">โปรฯ สงกรานต์ <span class="badge badge-warn" style="margin-left:4px">ตั้งเวลา</span></button>
+            <button class="btn btn-sm btn-light">ลูกค้าเก่า <span class="badge badge-muted" style="margin-left:4px">ร่าง</span></button>
+            <button class="btn btn-sm btn-ghost" style="border:1px dashed var(--default-200)">+ สร้างชุดใหม่</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:16px; align-items:flex-start">
+          <!-- แคนวาส -->
+          <div style="flex:1 1 auto; min-width:0">
+            <div class="between" style="margin-bottom:8px">
+              <div style="display:flex; gap:6px; align-items:center; font-size:11px; color:var(--default-500)">
+                <span>ขนาด</span>
+                <button class="btn btn-sm" style="background:var(--primary-15); color:var(--primary-ink)">ใหญ่ 2500×1686</button>
+                <button class="btn btn-sm btn-light">เตี้ย 2500×843</button>
+              </div>
+              <div style="display:flex; gap:6px">
+                <button class="btn btn-sm btn-light">เปลี่ยนรูป</button>
+                <button class="btn btn-sm btn-light">ลากวาดช่องเอง</button>
+              </div>
+            </div>
+            <div class="canvas">
+              <div class="ph">รูปเมนู · menu-songkran.png · 2500×1686</div>
+              <div class="area" style="left:0; top:0; width:33.33%; height:50%">
+                <span class="k">A</span><span>ทักแชทร้าน</span>
+              </div>
+              <div class="area sel" style="left:33.33%; top:0; width:33.33%; height:50%">
+                <span class="k">B</span><span>ดูสินค้าทั้งหมด</span>
+              </div>
+              <div class="area" style="left:66.66%; top:0; width:33.34%; height:50%">
+                <span class="k">C</span><span>เช็คสถานะพัสดุ</span>
+              </div>
+              <div class="area" style="left:0; top:50%; width:50%; height:50%">
+                <span class="k">D</span><span>โปรโมชัน</span>
+              </div>
+              <div class="area empty" style="left:50%; top:50%; width:50%; height:50%">
+                <span class="k">E</span><span>ยังไม่ผูก action</span>
+              </div>
+            </div>
+            <p class="note">คลิกช่องบนรูปเพื่อแก้ · ลากมุมเพื่อปรับขนาด · <b>ช่อง E ยังว่าง</b> — ยังเผยแพร่ได้ แต่ลูกค้าที่กดจะไม่เกิดอะไร</p>
+          </div>
+
+          <!-- แผงตรวจสอบ -->
+          <div style="flex:0 0 330px">
+            <div class="cardbox">
+              <div class="cardbox-hd">ช่อง B — ดูสินค้าทั้งหมด</div>
+              <div class="cardbox-bd">
+                <div class="field">
+                  <label class="lbl">ชื่อช่อง (ใช้ในรายงานเท่านั้น)</label>
+                  <input class="inp" value="ดูสินค้าทั้งหมด" />
+                </div>
+                <div class="field">
+                  <label class="lbl">เมื่อลูกค้ากด</label>
+                  <select class="sel">
+                    <option>เปิดลิงก์ (URI)</option>
+                    <option>ส่งข้อความแทนลูกค้า</option>
+                    <option>สลับไปเมนูชุดอื่น</option>
+                    <option>เปิดคูปอง</option>
+                    <option>ไม่ทำอะไร</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label class="lbl">ลิงก์</label>
+                  <input class="inp" value="https://deepthailand.app/b/greentea" />
+                </div>
+                <hr class="hr-dash" />
+                <div class="field">
+                  <label class="lbl">พิกัดช่อง (px บนรูป 2500×1686)</label>
+                  <div style="display:flex; gap:6px">
+                    <input class="inp" value="x 833" /><input class="inp" value="y 0" />
+                    <input class="inp" value="w 833" /><input class="inp" value="h 843" />
+                  </div>
+                </div>
+                <button class="btn btn-ghost btn-sm" style="color:var(--danger-ink); padding-left:0">ลบช่องนี้</button>
+              </div>
+            </div>
+
+            <div class="cardbox" style="margin-top:12px">
+              <div class="cardbox-hd">แถบเมนูและการแสดงผล</div>
+              <div class="cardbox-bd">
+                <div class="field">
+                  <label class="lbl">ข้อความบนแถบ</label>
+                  <input class="inp" value="เมนู" />
+                </div>
+                <div class="field">
+                  <label class="lbl">ตอนเปิดแชทครั้งแรก</label>
+                  <select class="sel"><option>กางเมนูไว้</option><option>ยุบไว้</option></select>
+                </div>
+                <hr class="hr-dash" />
+                <div class="field">
+                  <label class="lbl">ช่วงเวลาที่ใช้เมนูชุดนี้</label>
+                  <div style="display:flex; gap:6px">
+                    <input class="inp" value="10 เม.ย. 2569" /><input class="inp" value="20 เม.ย. 2569" />
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="lbl">ให้เห็นเฉพาะกลุ่ม</label>
+                  <select class="sel"><option>ลูกค้าทุกคน</option><option>ลูกค้าที่เคยสั่งซื้อ</option><option>ยังไม่เคยสั่ง</option></select>
+                </div>
+                <p class="note" style="margin-top:0">เมนูตามกลุ่มต้องผูกรายคน — ลูกค้าที่ไม่เข้าเกณฑ์จะเห็น “เมนูหลัก”</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>768 · 375 — แท็บเล็ตและมือถือ</h3>
+  <div class="row">
+    <div class="device w768">
+      <div class="caption-bar">768px · แคนวาสยังพอไหว แผงตรวจสอบตกลงมาข้างล่าง</div>
+      <div class="pg-sm">
+        <p class="ttl" style="font-size:14px">เมนูลัด (Rich Menu)</p>
+        <p class="sub" style="margin-bottom:10px">ชุด: เมนูหลัก <span class="badge badge-success">ใช้อยู่</span></p>
+        <div class="canvas">
+          <div class="ph">menu-songkran.png</div>
+          <div class="area" style="left:0; top:0; width:33.33%; height:50%"><span class="k">A</span><span>ทักแชท</span></div>
+          <div class="area sel" style="left:33.33%; top:0; width:33.33%; height:50%"><span class="k">B</span><span>ดูสินค้า</span></div>
+          <div class="area" style="left:66.66%; top:0; width:33.34%; height:50%"><span class="k">C</span><span>พัสดุ</span></div>
+          <div class="area" style="left:0; top:50%; width:50%; height:50%"><span class="k">D</span><span>โปรโมชัน</span></div>
+          <div class="area empty" style="left:50%; top:50%; width:50%; height:50%"><span class="k">E</span><span>ว่าง</span></div>
+        </div>
+        <div class="cardbox" style="margin-top:12px">
+          <div class="cardbox-hd">ช่อง B — ดูสินค้าทั้งหมด</div>
+          <div class="cardbox-bd" style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
+            <div class="field" style="margin:0"><label class="lbl">เมื่อลูกค้ากด</label><select class="sel"><option>เปิดลิงก์ (URI)</option></select></div>
+            <div class="field" style="margin:0"><label class="lbl">ลิงก์</label><input class="inp" value="https://deepthailand.app/b/greentea" /></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="device w375">
+      <div class="caption-bar">375px · แคนวาสเล็กเกินกว่าจะลากช่องได้จริง</div>
+      <div class="fallback">
+        <div class="big">จัดเมนูลัดได้บนคอมพิวเตอร์</div>
+        <div class="small">
+          หน้าจอนี้ต้องลากกรอบบนรูปขนาด 2500×1686 ซึ่งกดพลาดง่ายมากบนมือถือ<br />
+          เปิด <span style="font-family:monospace">deepthailand.app</span> บนคอมเพื่อจัดเมนู
+        </div>
+        <hr class="hr" />
+        <div class="small" style="text-align:left">
+          <b>สิ่งที่ยังทำได้บนมือถือ:</b>
+          <div style="margin-top:8px" class="stack">
+            <div class="between"><span>เมนูหลัก</span><span class="badge badge-success">ใช้อยู่</span></div>
+            <div class="between"><span>โปรฯ สงกรานต์</span><button class="btn btn-sm btn-light">สลับมาใช้</button></div>
+            <div class="between"><span>ลูกค้าเก่า</span><span class="badge badge-muted">ร่าง</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="note"><b>ถ้าเลือกแบบ A ต้องยอมรับว่า:</b> มือถือแก้เมนูไม่ได้ ทำได้แค่สลับชุด — ตรงกับที่ 00035 ตัดสินไปแล้วสำหรับตัวจัดหน้าร้าน แต่ต้องเป็นการตัดสินใจที่ตั้งใจ ไม่ใช่ผลข้างเคียง</p>
+</section>
+
+<!-- ============================================================ B ============================================================ -->
+<section data-variant="B">
+  <h2>B — รายการช่องเป็นพระเอก (รูปเป็นแค่ตัวอ้างอิง)</h2>
+  <p class="note">
+    ทิ้งแคนวาสใหญ่ทิ้งไป เหลือพรีวิวเล็ก ๆ ปักไว้ข้างบน แล้วให้เนื้อหาหลักเป็น <b>รายการช่องเรียงเป็นแถว</b> — แต่ละแถวคือช่องหนึ่งช่อง แก้ action ได้ในแถวเลย
+    <b>จุดแข็ง</b> — ทำงานได้เต็มที่บนมือถือ, กวาดตาดู “ช่องไหนยังไม่ผูก action” ได้ในวินาทีเดียว, เข้ากับภาษาหน้าอื่นของ seller (การ์ดแยกใบแบบ /orders, /products)
+    <b>จุดอ่อน</b> — ความสัมพันธ์ “แถวนี้ = ตรงไหนบนรูป” อ่อนกว่า ต้องพึ่งตัวอักษร A–F บนพรีวิว, วาดช่องเองต้องเปิดชีตแยก
+  </p>
+
+  <h3>1280 — เดสก์ท็อป</h3>
+  <div class="row">
+    <div class="device w1280">
+      <div class="caption-bar">1280px · /seller/settings/channels/line/rich-menu</div>
+      <div class="pg">
+        <div class="between" style="margin-bottom:14px">
+          <div>
+            <div class="crumb">ตั้งค่า › ช่องทาง › LINE</div>
+            <p class="ttl">เมนูลัด (Rich Menu)</p>
+          </div>
+          <button class="btn btn-primary">บันทึกและเผยแพร่</button>
+        </div>
+
+        <div style="display:flex; gap:16px; align-items:flex-start">
+          <div style="flex:1 1 auto; min-width:0">
+            <div class="cardbox" style="margin-bottom:12px">
+              <div class="cardbox-bd" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px">
+                <div class="field" style="margin:0"><label class="lbl">ชุดเมนู</label><select class="sel"><option>เมนูหลัก (ใช้อยู่)</option><option>โปรฯ สงกรานต์</option><option>ลูกค้าเก่า (ร่าง)</option></select></div>
+                <div class="field" style="margin:0"><label class="lbl">เทมเพลต</label><select class="sel"><option>ใหญ่ · 3+2 ช่อง</option><option>ใหญ่ · 6 ช่องเท่ากัน</option><option>เตี้ย · 3 ช่อง</option><option>วาดเอง…</option></select></div>
+                <div class="field" style="margin:0"><label class="lbl">ข้อความบนแถบ</label><input class="inp" value="เมนู" /></div>
+              </div>
+            </div>
+
+            <div class="cardbox">
+              <div class="cardbox-hd between"><span>ช่องทั้งหมด 5 ช่อง</span><span style="font-weight:400; color:var(--warning-ink); font-size:11px">1 ช่องยังไม่ผูก action</span></div>
+              <table class="tbl">
+                <thead><tr><th style="width:44px">ช่อง</th><th>ชื่อ</th><th style="width:190px">เมื่อลูกค้ากด</th><th>ปลายทาง</th><th style="width:80px"></th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><span class="badge badge-primary">A</span></td>
+                    <td><input class="inp" value="ทักแชทร้าน" /></td>
+                    <td><select class="sel"><option>ส่งข้อความแทนลูกค้า</option></select></td>
+                    <td><input class="inp" value="สวัสดีค่ะ สนใจสอบถามสินค้า" /></td>
+                    <td><button class="btn btn-sm btn-ghost">ปรับพื้นที่</button></td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge badge-primary">B</span></td>
+                    <td><input class="inp" value="ดูสินค้าทั้งหมด" /></td>
+                    <td><select class="sel"><option>เปิดลิงก์ (URI)</option></select></td>
+                    <td><input class="inp" value="https://deepthailand.app/b/greentea" /></td>
+                    <td><button class="btn btn-sm btn-ghost">ปรับพื้นที่</button></td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge badge-primary">C</span></td>
+                    <td><input class="inp" value="เช็คสถานะพัสดุ" /></td>
+                    <td><select class="sel"><option>ส่งข้อความแทนลูกค้า</option></select></td>
+                    <td><input class="inp" value="เช็คพัสดุ" /></td>
+                    <td><button class="btn btn-sm btn-ghost">ปรับพื้นที่</button></td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge badge-primary">D</span></td>
+                    <td><input class="inp" value="โปรโมชัน" /></td>
+                    <td><select class="sel"><option>สลับไปเมนูชุดอื่น</option></select></td>
+                    <td><select class="sel"><option>→ โปรฯ สงกรานต์</option></select></td>
+                    <td><button class="btn btn-sm btn-ghost">ปรับพื้นที่</button></td>
+                  </tr>
+                  <tr style="background:var(--warning-15)">
+                    <td><span class="badge badge-warn">E</span></td>
+                    <td><input class="inp" placeholder="ยังไม่ตั้งชื่อ" /></td>
+                    <td><select class="sel"><option>— เลือก —</option></select></td>
+                    <td><input class="inp" placeholder="ยังไม่ผูก" /></td>
+                    <td><button class="btn btn-sm btn-ghost">ปรับพื้นที่</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="flex:0 0 300px">
+            <div class="cardbox">
+              <div class="cardbox-hd">ตัวอย่างบน LINE</div>
+              <div class="cardbox-bd">
+                <div class="phone" style="width:100%">
+                  <div class="bar">ชาเขียวเหนี่ยวทรัพย์</div>
+                  <div class="msgs"></div>
+                  <div class="menu">
+                    <div class="canvas" style="border-radius:0">
+                      <div class="ph"></div>
+                      <div class="area" style="left:0; top:0; width:33.33%; height:50%"><span class="k">A</span></div>
+                      <div class="area" style="left:33.33%; top:0; width:33.33%; height:50%"><span class="k">B</span></div>
+                      <div class="area" style="left:66.66%; top:0; width:33.34%; height:50%"><span class="k">C</span></div>
+                      <div class="area" style="left:0; top:50%; width:50%; height:50%"><span class="k">D</span></div>
+                      <div class="area empty" style="left:50%; top:50%; width:50%; height:50%"><span class="k">E</span></div>
+                    </div>
+                  </div>
+                  <div class="chatbar">เมนู ▾</div>
+                </div>
+                <button class="btn btn-light btn-sm" style="width:100%; margin-top:10px">เปลี่ยนรูป</button>
+                <hr class="hr-dash" />
+                <div class="field"><label class="lbl">ช่วงเวลา</label><input class="inp" value="ใช้ตลอด" /></div>
+                <div class="field" style="margin:0"><label class="lbl">กลุ่มลูกค้า</label><select class="sel"><option>ทุกคน</option><option>เคยสั่งซื้อแล้ว</option></select></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>768 · 375 — แท็บเล็ตและมือถือ (ใช้ได้เต็มที่ทั้งคู่)</h3>
+  <div class="row">
+    <div class="device w768">
+      <div class="caption-bar">768px · ตารางยังอยู่ พรีวิวขึ้นไปอยู่หัว</div>
+      <div class="pg-sm">
+        <div class="between" style="margin-bottom:10px">
+          <p class="ttl" style="font-size:14px">เมนูลัด — เมนูหลัก</p>
+          <button class="btn btn-primary btn-sm">เผยแพร่</button>
+        </div>
+        <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:12px">
+          <div style="flex:0 0 200px">
+            <div class="canvas">
+              <div class="ph"></div>
+              <div class="area" style="left:0; top:0; width:33.33%; height:50%"><span class="k">A</span></div>
+              <div class="area" style="left:33.33%; top:0; width:33.33%; height:50%"><span class="k">B</span></div>
+              <div class="area" style="left:66.66%; top:0; width:33.34%; height:50%"><span class="k">C</span></div>
+              <div class="area" style="left:0; top:50%; width:50%; height:50%"><span class="k">D</span></div>
+              <div class="area empty" style="left:50%; top:50%; width:50%; height:50%"><span class="k">E</span></div>
+            </div>
+          </div>
+          <div style="flex:1 1 auto" class="stack">
+            <div class="field" style="margin:0"><label class="lbl">เทมเพลต</label><select class="sel"><option>ใหญ่ · 3+2 ช่อง</option></select></div>
+            <div class="field" style="margin:0"><label class="lbl">ข้อความบนแถบ</label><input class="inp" value="เมนู" /></div>
+          </div>
+        </div>
+        <div class="cardbox">
+          <div class="cardbox-hd">ช่องทั้งหมด 5 ช่อง</div>
+          <table class="tbl">
+            <tbody>
+              <tr><td style="width:36px"><span class="badge badge-primary">A</span></td><td>ทักแชทร้าน<div class="sub">ส่งข้อความ · “สวัสดีค่ะ…”</div></td><td style="width:70px"><button class="btn btn-sm btn-light">แก้</button></td></tr>
+              <tr><td><span class="badge badge-primary">B</span></td><td>ดูสินค้าทั้งหมด<div class="sub">เปิดลิงก์ · deepthailand.app/b/…</div></td><td><button class="btn btn-sm btn-light">แก้</button></td></tr>
+              <tr><td><span class="badge badge-primary">C</span></td><td>เช็คสถานะพัสดุ<div class="sub">ส่งข้อความ · “เช็คพัสดุ”</div></td><td><button class="btn btn-sm btn-light">แก้</button></td></tr>
+              <tr><td><span class="badge badge-primary">D</span></td><td>โปรโมชัน<div class="sub">สลับไป → โปรฯ สงกรานต์</div></td><td><button class="btn btn-sm btn-light">แก้</button></td></tr>
+              <tr style="background:var(--warning-15)"><td><span class="badge badge-warn">E</span></td><td>ยังไม่ผูก action<div class="sub">ลูกค้ากดแล้วจะไม่เกิดอะไร</div></td><td><button class="btn btn-sm btn-primary">ผูก</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="device w375">
+      <div class="caption-bar">375px · การ์ดแยกใบ (ภาษาเดียวกับ /orders, /products)</div>
+      <div class="pg-sm" style="background:var(--body-bg)">
+        <div class="between" style="margin-bottom:10px">
+          <p class="ttl" style="font-size:14px">เมนูลัด</p>
+          <button class="btn btn-primary btn-sm">เผยแพร่</button>
+        </div>
+        <div class="cardbox" style="margin-bottom:10px">
+          <div class="cardbox-bd">
+            <div class="between" style="margin-bottom:8px"><span style="font-size:12px; font-weight:600">เมนูหลัก</span><span class="badge badge-success">ใช้อยู่</span></div>
+            <div class="canvas">
+              <div class="ph"></div>
+              <div class="area" style="left:0; top:0; width:33.33%; height:50%"><span class="k">A</span></div>
+              <div class="area" style="left:33.33%; top:0; width:33.33%; height:50%"><span class="k">B</span></div>
+              <div class="area" style="left:66.66%; top:0; width:33.34%; height:50%"><span class="k">C</span></div>
+              <div class="area" style="left:0; top:50%; width:50%; height:50%"><span class="k">D</span></div>
+              <div class="area empty" style="left:50%; top:50%; width:50%; height:50%"><span class="k">E</span></div>
+            </div>
+            <button class="btn btn-light btn-sm" style="width:100%; margin-top:8px">เปลี่ยนรูป / เทมเพลต</button>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="cardbox"><div class="cardbox-bd between">
+            <div><span class="badge badge-primary">A</span> <span style="font-size:12px; font-weight:600; margin-left:4px">ทักแชทร้าน</span><div class="sub">ส่งข้อความ · “สวัสดีค่ะ…”</div></div>
+            <button class="btn btn-sm btn-light">แก้</button>
+          </div></div>
+          <div class="cardbox"><div class="cardbox-bd between">
+            <div><span class="badge badge-primary">B</span> <span style="font-size:12px; font-weight:600; margin-left:4px">ดูสินค้าทั้งหมด</span><div class="sub">เปิดลิงก์ · /b/greentea</div></div>
+            <button class="btn btn-sm btn-light">แก้</button>
+          </div></div>
+          <div class="cardbox" style="border-color:var(--warning-ink)"><div class="cardbox-bd between">
+            <div><span class="badge badge-warn">E</span> <span style="font-size:12px; font-weight:600; margin-left:4px">ยังไม่ผูก action</span><div class="sub">ลูกค้ากดแล้วจะไม่เกิดอะไร</div></div>
+            <button class="btn btn-sm btn-primary">ผูก</button>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="note"><b>ถ้าเลือกแบบ B ต้องยอมรับว่า:</b> การวาดช่องเองกลายเป็นงานชั้นสอง (ต้องเข้าชีต “ปรับพื้นที่” ทีละช่อง) ซึ่งช้ากว่าลากบนแคนวาสมาก</p>
+</section>
+
+<!-- ============================================================ C ============================================================ -->
+<section data-variant="C">
+  <h2>C — ตัวช่วยเป็นขั้น (ถามทีละเรื่อง)</h2>
+  <p class="note">
+    ไม่มีหน้าแก้รวมเลย — แยกเป็น “คลังเมนู” (รายการชุดทั้งหมด + สลับ default) กับ “ตัวช่วยสร้าง” 5 ขั้น: เทมเพลต → รูป → action → เวลา/กลุ่ม → ตรวจแล้วเผยแพร่
+    <b>จุดแข็ง</b> — ร้านที่ไม่เคยตั้ง rich menu มาก่อนทำจบได้โดยไม่ต้องเดา, กันเผยแพร่ทั้งที่ช่องยังว่างได้ตั้งแต่ต้นทาง, ใช้ได้ทุกจอเท่ากัน
+    <b>จุดอ่อน</b> — ร้านที่แค่อยากแก้ลิงก์เดียวต้องเดินผ่านหลายขั้น (ต้องมีทางลัด “แก้เฉพาะขั้น 3”), ไม่เห็นภาพรวมพร้อมกันทั้งหมด
+  </p>
+
+  <h3>1280 — คลังเมนู แล้วเข้าตัวช่วย</h3>
+  <div class="row">
+    <div class="device w1280">
+      <div class="caption-bar">1280px · /seller/settings/channels/line/rich-menu (คลัง)</div>
+      <div class="pg">
+        <div class="between" style="margin-bottom:14px">
+          <div><p class="ttl">เมนูลัด (Rich Menu)</p><p class="sub">ลูกค้าเห็นได้ทีละชุด — ชุดที่ตั้งเป็น “ใช้อยู่” คือชุดที่โผล่ในแชท</p></div>
+          <button class="btn btn-primary">+ สร้างเมนูใหม่</button>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px">
+          <div class="cardbox" style="border-color:var(--primary)">
+            <div class="cardbox-bd">
+              <div class="canvas" style="margin-bottom:10px"><div class="ph">menu-main.png</div>
+                <div class="area" style="left:0;top:0;width:33.33%;height:50%"><span class="k">A</span></div>
+                <div class="area" style="left:33.33%;top:0;width:33.33%;height:50%"><span class="k">B</span></div>
+                <div class="area" style="left:66.66%;top:0;width:33.34%;height:50%"><span class="k">C</span></div>
+                <div class="area" style="left:0;top:50%;width:50%;height:50%"><span class="k">D</span></div>
+                <div class="area" style="left:50%;top:50%;width:50%;height:50%"><span class="k">E</span></div>
+              </div>
+              <div class="between"><span style="font-size:13px; font-weight:600">เมนูหลัก</span><span class="badge badge-success">ใช้อยู่</span></div>
+              <p class="sub">5 ช่อง · ใช้ตลอด · ลูกค้าทุกคน</p>
+              <div style="display:flex; gap:6px; margin-top:10px"><button class="btn btn-sm btn-light">แก้ไข</button><button class="btn btn-sm btn-ghost">ทำสำเนา</button></div>
+            </div>
+          </div>
+          <div class="cardbox">
+            <div class="cardbox-bd">
+              <div class="canvas" style="margin-bottom:10px"><div class="ph">menu-songkran.png</div>
+                <div class="area" style="left:0;top:0;width:50%;height:100%"><span class="k">A</span></div>
+                <div class="area" style="left:50%;top:0;width:50%;height:100%"><span class="k">B</span></div>
+              </div>
+              <div class="between"><span style="font-size:13px; font-weight:600">โปรฯ สงกรานต์</span><span class="badge badge-warn">ตั้งเวลา</span></div>
+              <p class="sub">2 ช่อง · 10–20 เม.ย. 2569 · ลูกค้าทุกคน</p>
+              <div style="display:flex; gap:6px; margin-top:10px"><button class="btn btn-sm btn-light">แก้ไข</button><button class="btn btn-sm btn-ghost">ใช้เดี๋ยวนี้</button></div>
+            </div>
+          </div>
+          <div class="cardbox">
+            <div class="cardbox-bd">
+              <div class="canvas compact" style="margin-bottom:10px"><div class="ph">ยังไม่ได้อัปโหลดรูป</div></div>
+              <div class="between"><span style="font-size:13px; font-weight:600">ลูกค้าเก่า</span><span class="badge badge-muted">ร่าง</span></div>
+              <p class="sub">ค้างที่ขั้น 2 จาก 5 · ยังไม่มีรูป</p>
+              <div style="display:flex; gap:6px; margin-top:10px"><button class="btn btn-sm btn-primary">ทำต่อ</button><button class="btn btn-sm btn-ghost" style="color:var(--danger-ink)">ลบ</button></div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="hr" />
+        <h3 style="margin-top:0">ตัวช่วยสร้าง — ขั้น 3 จาก 5</h3>
+        <div class="cardbox">
+          <div class="cardbox-bd">
+            <div style="display:flex; gap:6px; margin-bottom:16px; font-size:11px">
+              <span class="badge badge-success">1 เทมเพลต ✓</span>
+              <span class="badge badge-success">2 รูป ✓</span>
+              <span class="badge badge-primary">3 ผูก action</span>
+              <span class="badge badge-muted">4 เวลา/กลุ่ม</span>
+              <span class="badge badge-muted">5 ตรวจ</span>
+            </div>
+            <div style="display:flex; gap:20px; align-items:flex-start">
+              <div style="flex:0 0 320px">
+                <div class="canvas">
+                  <div class="ph">menu-main.png</div>
+                  <div class="area" style="left:0;top:0;width:33.33%;height:50%"><span class="k">A</span></div>
+                  <div class="area sel" style="left:33.33%;top:0;width:33.33%;height:50%"><span class="k">B</span><span>กำลังตั้ง</span></div>
+                  <div class="area empty" style="left:66.66%;top:0;width:33.34%;height:50%"><span class="k">C</span></div>
+                  <div class="area empty" style="left:0;top:50%;width:50%;height:50%"><span class="k">D</span></div>
+                  <div class="area empty" style="left:50%;top:50%;width:50%;height:50%"><span class="k">E</span></div>
+                </div>
+                <p class="note">ผูกแล้ว 1 จาก 5 ช่อง</p>
+              </div>
+              <div style="flex:1 1 auto; max-width:520px">
+                <p style="font-size:15px; font-weight:600; margin:0 0 4px">ช่อง B ให้ทำอะไรเมื่อลูกค้ากด?</p>
+                <p class="sub" style="margin-bottom:14px">เลือกได้ช่องละหนึ่งอย่าง เปลี่ยนทีหลังได้</p>
+                <div class="stack">
+                  <div class="cardbox" style="border-color:var(--primary); background:var(--primary-15)"><div class="cardbox-bd">
+                    <div style="font-size:13px; font-weight:600">เปิดลิงก์</div>
+                    <div class="sub" style="margin-bottom:8px">พาลูกค้าไปหน้าร้าน หน้าสินค้า หรือเว็บอื่น</div>
+                    <input class="inp" value="https://deepthailand.app/b/greentea" />
+                  </div></div>
+                  <div class="cardbox"><div class="cardbox-bd">
+                    <div style="font-size:13px; font-weight:600">ส่งข้อความแทนลูกค้า</div>
+                    <div class="sub">ลูกค้ากดแล้วข้อความเด้งเข้ากล่องแชทเรา เหมาะกับ “เช็คพัสดุ” “สอบถามราคา”</div>
+                  </div></div>
+                  <div class="cardbox"><div class="cardbox-bd">
+                    <div style="font-size:13px; font-weight:600">สลับไปเมนูชุดอื่น</div>
+                    <div class="sub">ทำเมนูสองชั้นได้ เช่น หน้าแรก → หมวดสินค้า</div>
+                  </div></div>
+                </div>
+                <div style="display:flex; gap:8px; margin-top:16px">
+                  <button class="btn btn-light">ย้อนกลับ</button>
+                  <button class="btn btn-primary">ถัดไป — ช่อง C</button>
+                  <button class="btn btn-ghost">ข้ามช่องนี้</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>768 · 375 — ตัวช่วยทำงานเหมือนกันทุกจอ</h3>
+  <div class="row">
+    <div class="device w768">
+      <div class="caption-bar">768px · ขั้นที่ 1 เลือกเทมเพลต (รวมช่อง “วาดเอง”)</div>
+      <div class="pg-sm">
+        <div style="display:flex; gap:6px; margin-bottom:14px; font-size:11px">
+          <span class="badge badge-primary">1 เทมเพลต</span><span class="badge badge-muted">2 รูป</span><span class="badge badge-muted">3 action</span><span class="badge badge-muted">4 เวลา</span><span class="badge badge-muted">5 ตรวจ</span>
+        </div>
+        <p style="font-size:15px; font-weight:600; margin:0 0 12px">เมนูนี้แบ่งเป็นกี่ช่อง?</p>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px">
+          <div><div class="canvas" style="background:#eef2f7"><div class="area" style="left:0;top:0;width:33.33%;height:50%"></div><div class="area" style="left:33.33%;top:0;width:33.33%;height:50%"></div><div class="area" style="left:66.66%;top:0;width:33.34%;height:50%"></div><div class="area" style="left:0;top:50%;width:50%;height:50%"></div><div class="area" style="left:50%;top:50%;width:50%;height:50%"></div></div><p class="sub" style="text-align:center">5 ช่อง</p></div>
+          <div><div class="canvas" style="background:#eef2f7"><div class="area" style="left:0;top:0;width:33.33%;height:50%"></div><div class="area" style="left:33.33%;top:0;width:33.33%;height:50%"></div><div class="area" style="left:66.66%;top:0;width:33.34%;height:50%"></div><div class="area" style="left:0;top:50%;width:33.33%;height:50%"></div><div class="area" style="left:33.33%;top:50%;width:33.33%;height:50%"></div><div class="area" style="left:66.66%;top:50%;width:33.34%;height:50%"></div></div><p class="sub" style="text-align:center">6 ช่อง</p></div>
+          <div><div class="canvas" style="background:#eef2f7"><div class="area" style="left:0;top:0;width:50%;height:100%"></div><div class="area" style="left:50%;top:0;width:50%;height:100%"></div></div><p class="sub" style="text-align:center">2 ช่อง</p></div>
+          <div><div class="canvas" style="background:#eef2f7; display:flex; align-items:center; justify-content:center; border:1px dashed var(--default-500)"><span style="font-size:11px; color:var(--default-500)">ลากวาดเอง</span></div><p class="sub" style="text-align:center">กำหนดเอง</p></div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:16px"><button class="btn btn-primary">ถัดไป</button><button class="btn btn-ghost">ยกเลิก</button></div>
+      </div>
+    </div>
+
+    <div class="device w375">
+      <div class="caption-bar">375px · หนึ่งคำถามต่อหนึ่งจอ</div>
+      <div class="pg-sm">
+        <div style="display:flex; gap:4px; margin-bottom:12px">
+          <span style="flex:1; height:3px; background:var(--primary); border-radius:2px"></span>
+          <span style="flex:1; height:3px; background:var(--primary); border-radius:2px"></span>
+          <span style="flex:1; height:3px; background:var(--primary); border-radius:2px"></span>
+          <span style="flex:1; height:3px; background:var(--default-300); border-radius:2px"></span>
+          <span style="flex:1; height:3px; background:var(--default-300); border-radius:2px"></span>
+        </div>
+        <p class="sub">ขั้น 3 จาก 5 · ช่อง B</p>
+        <p style="font-size:16px; font-weight:600; margin:2px 0 12px">ช่อง B ให้ทำอะไร?</p>
+        <div class="canvas" style="margin-bottom:12px">
+          <div class="ph"></div>
+          <div class="area" style="left:0;top:0;width:33.33%;height:50%"><span class="k">A</span></div>
+          <div class="area sel" style="left:33.33%;top:0;width:33.33%;height:50%"><span class="k">B</span></div>
+          <div class="area empty" style="left:66.66%;top:0;width:33.34%;height:50%"><span class="k">C</span></div>
+          <div class="area empty" style="left:0;top:50%;width:50%;height:50%"><span class="k">D</span></div>
+          <div class="area empty" style="left:50%;top:50%;width:50%;height:50%"><span class="k">E</span></div>
+        </div>
+        <div class="stack">
+          <div class="cardbox" style="border-color:var(--primary); background:var(--primary-15)"><div class="cardbox-bd" style="padding:10px"><div style="font-size:13px; font-weight:600">เปิดลิงก์</div><input class="inp" style="margin-top:6px" value="https://deepthailand.app/b/…" /></div></div>
+          <div class="cardbox"><div class="cardbox-bd" style="padding:10px"><div style="font-size:13px; font-weight:600">ส่งข้อความแทนลูกค้า</div></div></div>
+          <div class="cardbox"><div class="cardbox-bd" style="padding:10px"><div style="font-size:13px; font-weight:600">สลับไปเมนูชุดอื่น</div></div></div>
+        </div>
+        <button class="btn btn-primary" style="width:100%; margin-top:14px; padding:12px">ถัดไป — ช่อง C</button>
+        <button class="btn btn-ghost" style="width:100%; margin-top:6px">ข้ามช่องนี้</button>
+      </div>
+    </div>
+  </div>
+  <p class="note"><b>ถ้าเลือกแบบ C ต้องยอมรับว่า:</b> ต้องออกแบบ “ทางลัดกลับเข้าขั้นเดียว” ให้ดี ไม่งั้นร้านที่แก้ลิงก์เดือนละครั้งจะรำคาญ</p>
+</section>
+
+<div id="switcher" aria-label="สลับแบบ prototype">
+  <button id="swPrev" title="แบบก่อนหน้า (ลูกศรซ้าย)">‹</button>
+  <span id="swLabel"></span>
+  <button id="swNext" title="แบบถัดไป (ลูกศรขวา)">›</button>
+  <span id="swHint">prototype</span>
+</div>
+
+<script>
+  var VARIANTS = [
+    { k: 'A', name: 'แคนวาสเป็นพระเอก' },
+    { k: 'B', name: 'รายการช่องเป็นพระเอก' },
+    { k: 'C', name: 'ตัวช่วยเป็นขั้น' }
+  ];
+
+  function currentKey() {
+    var v = (new URLSearchParams(location.search).get('v') || 'A').toUpperCase();
+    return VARIANTS.some(function (x) { return x.k === v; }) ? v : 'A';
+  }
+
+  function render(key) {
+    document.querySelectorAll('section[data-variant]').forEach(function (s) {
+      s.classList.toggle('on', s.getAttribute('data-variant') === key);
+    });
+    var v = VARIANTS.find(function (x) { return x.k === key; });
+    document.getElementById('swLabel').textContent = v.k + ' — ' + v.name;
+    var u = new URL(location.href);
+    u.searchParams.set('v', key);
+    history.replaceState(null, '', u);
+    window.scrollTo({ top: 0 });
+  }
+
+  function cycle(step) {
+    var i = VARIANTS.findIndex(function (x) { return x.k === currentKey(); });
+    render(VARIANTS[(i + step + VARIANTS.length) % VARIANTS.length].k);
+  }
+
+  document.getElementById('swPrev').addEventListener('click', function () { cycle(-1); });
+  document.getElementById('swNext').addEventListener('click', function () { cycle(1); });
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    if (e.key === 'ArrowLeft') cycle(-1);
+    if (e.key === 'ArrowRight') cycle(1);
+  });
+
+  render(currentKey());
+</script>
+
+</body>
+</html>
