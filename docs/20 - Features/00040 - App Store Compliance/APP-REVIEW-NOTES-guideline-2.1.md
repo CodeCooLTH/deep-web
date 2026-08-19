@@ -178,6 +178,14 @@ Main features and where to find them:
   • Products — bottom navigation; "add product" uses the camera
   • Account — profile menu; includes account deletion
 
+Account deletion (Guideline 5.1.1(v)): the option is on the Account page. If
+the demo account still has orders that are not closed, the app lists them and
+asks you to complete or cancel those orders before the delete button becomes
+available. This is intentional rather than a restriction on deletion: an open
+order means a buyer may have paid and not yet received their goods. Cancel the
+listed orders from Orders > open the order > "Cancel order", and the delete
+button becomes active.
+
 IMPORTANT — creating a brand new account is not practical from outside
 Thailand. Registration requires verifying a Thai mobile number by SMS. This
 applies to every sign-in method, including Sign in with Apple: after Apple
