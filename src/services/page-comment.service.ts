@@ -56,9 +56,9 @@ export function resolvePostThumbnail(post: { mirroredFileId: string | null; thum
  * — เจอของที่เรา mirror ไว้ก่อนก็คืนรูปที่ถูกต้อง (แค่ `mirrored: false` ซึ่งแปลว่า "ไม่ได้ mirror
  * รอบนี้" ไม่ใช่ "ไม่มีรูป")
  */
-async function mirrorPostThumbnail(pictureUrl: string | null | undefined): Promise<string | null> {
+async function mirrorPostThumbnail(pictureUrl: string | null | undefined, shopId: string): Promise<string | null> {
   if (!pictureUrl) return null
-  return mirrorRemoteImage(pictureUrl)
+  return mirrorRemoteImage(pictureUrl, { shopId })
 }
 
 /**
@@ -112,7 +112,7 @@ export async function ingestFeedComment(params: {
     return null
   }
 
-  const post = await ensurePost(channel.id, val.post_id)
+  const post = await ensurePost(channel.id, val.post_id, channel.shopId)
   if (!post) return null
 
   const createdTime = val.created_time ? new Date(val.created_time * 1000) : new Date()
@@ -181,7 +181,8 @@ function toJson(value: unknown) {
  * หาแถวโพสต์ (สร้างถ้ายังไม่มี) — ข้อมูลโพสต์จริงดึงจาก Graph ครั้งเดียวแล้ว cache
  * โพสต์ที่ดึงไม่ได้ (สิทธิ์ไม่พอ/ถูกลบ) ยังสร้างแถวเปล่าไว้ เพื่อไม่ให้คอมเมนต์หายทั้งก้อน
  */
-async function ensurePost(shopChannelId: string, externalPostId: string) {
+// feature 00051 (S-3, TD-01): shopId — caller เดียว (ingestFeedComment) ส่ง channel.shopId เข้ามา
+async function ensurePost(shopChannelId: string, externalPostId: string, shopId: string) {
   const existing = await prisma.facebookPost.findUnique({ where: { externalPostId } })
   if (existing) return existing
 
@@ -189,7 +190,7 @@ async function ensurePost(shopChannelId: string, externalPostId: string) {
   const meta = auth ? await fetchPostMeta(externalPostId, auth.token) : null
   // mirror ทันทีตอนสร้างแถว — ตอนนี้คือ "นาทีที่ URL ของ fbcdn สดที่สุด" ถ้าปล่อยไว้แล้วค่อยมา
   // ตามเก็บทีหลัง จะต้องยิง Graph ขอ URL ใหม่ก่อนเสมอ (ดู resolvePostThumbnail)
-  const mirroredFileId = await mirrorPostThumbnail(meta?.picture)
+  const mirroredFileId = await mirrorPostThumbnail(meta?.picture, shopId)
 
   try {
     return await prisma.facebookPost.create({
@@ -276,7 +277,7 @@ export async function backfillPagePosts(params: {
         if (!existing) {
           // mirror ก่อนสร้างแถว ด้วยเหตุผลเดียวกับ ensurePost — `p.picture` เพิ่งได้มาจาก Graph
           // จึงยังไม่หมดอายุแน่นอน
-          const mirroredFileId = await mirrorPostThumbnail(p.picture)
+          const mirroredFileId = await mirrorPostThumbnail(p.picture, params.shopId)
           try {
             const created = await prisma.facebookPost.create({
               data: {
@@ -1119,7 +1120,13 @@ const STATS_TTL_MS = 5 * 60 * 1000
 /** ดึงยอด like/comment/share + ชนิดสื่อใหม่จาก Graph — เงียบเสมอ ล้มเหลวก็ใช้ค่าเดิม */
 export async function refreshPostStats(postId: string): Promise<void> {
   try {
-    const post = await prisma.facebookPost.findUnique({ where: { id: postId } })
+    // feature 00051 (S-3, TD-06): เดิม findUnique ไม่มี shopId อยู่ใน scope เลยตลอดทั้งฟังก์ชัน
+    // (จุดที่ 17c ของ SRS TFR-CMD-02 — gap จริง) — ขยาย select เพิ่ม channel.shopId แทนการเพิ่ม
+    // parameter ใหม่ (คงพฤติกรรม public signature เดิมทุกประการ — caller ทั้งหมดยังเรียกด้วย postId เดียว)
+    const post = await prisma.facebookPost.findUnique({
+      where: { id: postId },
+      include: { channel: { select: { shopId: true } } },
+    })
     if (!post) return
     if (post.statsSyncedAt && Date.now() - post.statsSyncedAt.getTime() < STATS_TTL_MS) return
     const auth = await resolveChannelToken(post.shopChannelId)
@@ -1129,7 +1136,7 @@ export async function refreshPostStats(postId: string): Promise<void> {
     // เก็บตกโพสต์ที่ยังไม่มีสำเนา — `meta.picture` ที่เพิ่งได้มาคือ URL สดเสมอ แม้ค่าที่เก็บไว้ใน
     // แถวจะหมดอายุไปแล้วก็ตาม จึงเป็นจังหวะเดียวที่ mirror ย้อนหลังได้โดยไม่ต้องยิง Graph เพิ่ม
     // เช็ค `mirroredFileId` ก่อนเสมอ (idempotent — เปิดโพสต์เดิมซ้ำต้องไม่ mirror ซ้ำ)
-    const mirroredFileId = post.mirroredFileId ?? (await mirrorPostThumbnail(meta.picture))
+    const mirroredFileId = post.mirroredFileId ?? (await mirrorPostThumbnail(meta.picture, post.channel.shopId))
     await prisma.facebookPost.update({
       where: { id: postId },
       data: {

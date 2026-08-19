@@ -71,7 +71,8 @@ describe('replaceShopVideos', () => {
 
     await replaceShopVideos(SHOP, [clip('v2')])
 
-    expect(mirrorRemoteImage).toHaveBeenCalledWith('https://scontent.fbcdn.net/a.jpg')
+    // feature 00051 (S-6): signature เปลี่ยนเป็น options-object บังคับ shopId
+    expect(mirrorRemoteImage).toHaveBeenCalledWith('https://scontent.fbcdn.net/a.jpg', { shopId: SHOP })
     expect(createMany.mock.calls[0][0].data[0]).toMatchObject({
       videoId: 'v2',
       mirroredFileId: 'file-new',

@@ -355,7 +355,7 @@ export async function mirrorFacebookPostForBuilder(
 
   // ต้องใช้ mirrorRemoteImage ตัวเดียวกับ feature 00018 (มี allow-list host ของ Meta CDN + SSRF guard
   // + streaming size cap พร้อมอยู่แล้ว) — ห้ามเขียน mirror logic ใหม่ซ้ำ (มติ user 2026-08-07 ข้อ 2)
-  const fileId = await mirrorRemoteImage(post.thumbnailUrl)
+  const fileId = await mirrorRemoteImage(post.thumbnailUrl, { shopId })
   if (!fileId) {
     // mirror ล้ม (host ไม่อยู่ allow-list/ไฟล์ใหญ่เกิน/network error) — ไม่ block ผู้ใช้ (TD-004) แต่ต้อง
     // มีร่องรอย debug เสมอ (NFR observability — บทเรียน iShip quote พังเงียบบน prod หลายเดือน 2026-08-06)

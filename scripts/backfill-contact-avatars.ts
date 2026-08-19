@@ -42,7 +42,7 @@ type Row = {
   name: string | null
   avatarUrl: string | null
   externalUserId: string
-  channel: { provider: string; name: string; accessTokenEnc: string; status: string }
+  channel: { provider: string; name: string; accessTokenEnc: string; status: string; shopId: string }
 }
 
 async function handle(row: Row) {
@@ -52,7 +52,8 @@ async function handle(row: Row) {
 
   // dry-run ต้องไม่เขียน storage — mirrorRemoteImage เรียก saveFile จริง จะทิ้งไฟล์กำพร้าไว้
   // ทุกครั้งที่ซ้อมรัน (ค่าที่อยากรู้ตอน dry-run คือ "มีรูปให้ดึงกี่คน" ซึ่งรู้ได้ก่อนถึงขั้น mirror)
-  const fileId = APPLY ? await mirrorRemoteImage(profile.avatarUrl) : null
+  // feature 00051 (S-6): shopId = ร้านเจ้าของ channel ของ contact นี้ (row.channel.shopId)
+  const fileId = APPLY ? await mirrorRemoteImage(profile.avatarUrl, { shopId: row.channel.shopId }) : null
   // mirror ไม่ผ่านก็เก็บ URL ดิบไว้ก่อน (เห็นรูปวันนี้ดีกว่าไม่เห็น) — ค่าที่ขึ้นต้น http จะถูก
   // ingest มองว่ายังไม่เรียบร้อยแล้วลองอัปเกรดใหม่เองตามรอบ
   return { id: row.id, ok: true as const, value: fileId ?? profile.avatarUrl, mirrored: !!fileId }
@@ -70,7 +71,7 @@ async function main() {
       name: true,
       avatarUrl: true,
       externalUserId: true,
-      channel: { select: { provider: true, name: true, accessTokenEnc: true, status: true } },
+      channel: { select: { provider: true, name: true, accessTokenEnc: true, status: true, shopId: true } },
     },
     orderBy: { createdAt: 'desc' },
   })) as Row[]
