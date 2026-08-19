@@ -297,7 +297,14 @@ export default function ProductFormV2({
       id={formId}
       onSubmit={handleSubmit(onSubmit)}
       noValidate
-      className="bg-card mx-auto w-full max-w-xl overflow-hidden rounded-2xl pb-20 lg:max-w-6xl lg:border lg:border-default-100 lg:p-6 lg:shadow-sm lg:pb-0"
+      /* 🛑 `md:max-w-3xl` เติมเข้ามา 2026-08-19 — เดิมกระโดดจาก 576px (มือถือ) ไป 1152px
+         (เดสก์ท็อป) โดย **ข้ามช่วงแท็บเล็ตไปทั้งช่วง** ⇒ บน iPad แนวตั้ง (เนื้อที่ 712–802px)
+         ฟอร์มกว้าง 576 เหลือขอบว่างข้างละ 68–113px ซึ่งคือสิ่งที่ user ทักว่า "ไม่เต็มจอ"
+
+         768px ไม่ใช่เลขที่คิดเอง — ยกจาก `AuctionForm.tsx:263` (`md:max-w-3xl`) ซึ่งเป็นฟอร์ม
+         พี่น้องที่โครงเดียวกันและทำถูกอยู่แล้ว (docs/conventions/sibling-surface-parity.md)
+         สองฟอร์มนี้ต้องกว้างเท่ากันบนจอเดียวกัน ไม่งั้นผู้ใช้เจอสองมาตรฐานในแอปเดียว */
+      className="bg-card mx-auto w-full max-w-xl overflow-hidden rounded-2xl pb-20 md:max-w-3xl lg:max-w-6xl lg:border lg:border-default-100 lg:p-6 lg:shadow-sm lg:pb-0"
     >
       <fieldset disabled={isSubmitting}>
         {/* Mobile tab switcher — desktop hidden (lg:hidden)
