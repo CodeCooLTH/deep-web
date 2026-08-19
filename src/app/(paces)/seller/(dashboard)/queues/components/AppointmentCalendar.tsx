@@ -31,6 +31,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+
+import { parseQueueDateParam } from '@/lib/queue-date-param'
 import { useRouter } from 'next/navigation'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -159,6 +162,7 @@ function bookedAtSameTime(item: AppointmentItem, all: AppointmentItem[]): number
 export default function AppointmentCalendar({ resources, createLabelShort }: Props) {
   const router = useRouter()
   const calendarRef = useRef<FullCalendar | null>(null)
+  const dateParam = parseQueueDateParam(useSearchParams().get('date'))
   const [resourceId, setResourceId] = useState<string>(ALL)
   const [range, setRange] = useState<{ from: string; to: string } | null>(null)
   const [title, setTitle] = useState('')
@@ -335,6 +339,17 @@ export default function AppointmentCalendar({ resources, createLabelShort }: Pro
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
           initialView="dayGridMonth"
+          /**
+           * `?date=YYYY-MM-DD` → เปิดปฏิทินที่เดือนของวันนั้น (ไทล์ "นัดวันนี้" ส่งมาให้)
+           *
+           * 🛑 เป็น `initialDate` ไม่ใช่ state ที่ผูกกับ URL — FullCalendar อ่านค่านี้ครั้งเดียว
+           * ตอน mount ถ้าผูกต่อเนื่อง ผู้ใช้กดเดือนหน้าแล้วจะถูกดีดกลับทุก re-render เพราะ
+           * `?date=` ยังอยู่ใน URL (บั๊กคู่แฝดกับ `autoOpened` ใน AppointmentMonthBoard)
+           *
+           * ค่าที่ไทล์ส่งมาคือ "วันนี้" ซึ่งตรงกับค่าตั้งต้นของ FullCalendar อยู่แล้ว —
+           * บรรทัดนี้จึงมีผลจริงกับลิงก์ที่ชี้วันอื่น (เช่น เปิดจากประวัติ) ไม่ใช่โค้ดตาย
+           */
+          initialDate={dateParam ?? undefined}
           locale="th"
           height="auto"
           firstDay={1}
