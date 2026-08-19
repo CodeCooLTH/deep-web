@@ -36,6 +36,8 @@ interface BusinessContextItem {
 interface BusinessContextResponse {
   /** เปิดจากในแอป iOS → ห้ามมีทางเข้าหน้าซื้อ (Guideline 3.1.1) — server เป็นคนตัดสิน */
   hidePayments?: boolean
+  /** มีแพ็กเกจ ACTIVE + โควตาเหลือ → สร้างธุรกิจได้จริง (คนละคำถามกับ hidePayments) */
+  canCreateBusiness?: boolean
   personal: { shopId: string; shopName: string } | null
   businesses: BusinessContextItem[]
 }
@@ -260,10 +262,15 @@ const UserDropdown = () => {
                 ไม่เห็นปุ่มนี้เลย — ซึ่งเป็นคนกลุ่มที่อยากเปิดธุรกิจเพิ่มมากที่สุด
                 ยังชี้ /business/create เหมือนเดิม (ไม่ใช่ ?create=1 ตรง ๆ) เพราะ gate โควตา/แพ็กเกจ
                 อยู่ที่หน้านั้น — โควตาเต็มจะได้เห็นการ์ดอธิบายเหตุผล ไม่ใช่กดแล้วเงียบ */}
-            {/* 🛑 ซ่อนในแอป iOS — ปลายทาง /business/create แสดงการ์ด "สมัครแพ็กเกจ Business ก่อน"
-                พร้อมปุ่ม "ไปเลือกแพ็กเกจ" เมื่อยังไม่มีแพ็กเกจ/โควตาเต็ม = คำเชิญให้ซื้อ
-                (Guideline 3.1.1 — ข้อที่เคยตีกลับ 2026-08-04) หน้านั้นกันซ้ำอีกชั้นด้วย redirect */}
-            {context?.personal && !context.hidePayments && (
+            {/* 🛑 ในแอป iOS ซ่อน **เฉพาะตอนที่กดไปแล้วเจอแต่ปุ่มจ่ายเงิน** ไม่ใช่ซ่อนทุกกรณี
+                (Guideline 3.1.1) — ผู้ขายที่มีแพ็กเกจอยู่แล้วและโควตาเหลือ ยังสร้างธุรกิจ
+                ในแอปได้ตามปกติ เพราะตรงนั้นไม่มีการจ่ายเงินเกิดขึ้นเลย
+
+                ร่างแรกของผมเขียน `!context.hidePayments` เฉย ๆ ซึ่งถอดฟีเจอร์ที่ลูกค้า
+                จ่ายเงินมาแล้วทิ้งไปด้วย โดยไม่ได้แลกอะไรกลับมา (user ทักท้วง 2026-08-19)
+
+                `/business/create` กันซ้ำอีกชั้นที่กิ่งการ์ดปฏิเสธ — คนพิมพ์ URL ตรงก็ไม่หลุด */}
+            {context?.personal && (!context.hidePayments || context.canCreateBusiness) && (
               <Link
                 href="/business/create"
                 role="menuitem"

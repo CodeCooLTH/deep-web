@@ -34,16 +34,20 @@ export const metadata: Metadata = { title: 'สร้างธุรกิจใ
 
 export default async function CreateBusinessPage() {
   /**
-   * 🛑 เปิดจากในแอป iOS → เด้งกลับ (App Store Guideline 3.1.1)
+   * 🛑 **การสร้างธุรกิจไม่ใช่การซื้อ** — ห้ามกันทั้งหน้า (แก้ทับร่างแรกของตัวเอง 2026-08-19)
    *
-   * หน้านี้เป็นทางเข้าที่ **มองเห็นได้จริงในแอป**: เมนูสลับบัญชีมีปุ่ม "สร้างธุรกิจใหม่" ชี้มาที่นี่
-   * และเมื่อยังไม่มีแพ็กเกจ/โควตาเต็ม หน้านี้แสดงการ์ด "สมัครแพ็กเกจ Business ก่อน" พร้อมปุ่ม
-   * **"ไปเลือกแพ็กเกจ"** ซึ่งเป็นคำเชิญให้ซื้อตรงตัว — ข้อที่เคยโดนตีกลับมาแล้ว 2026-08-04
+   * ร่างแรกผม `redirect` ทั้งหน้าเมื่อเปิดจากในแอป ซึ่ง **ผิด**: ผู้ขายที่จ่ายค่าแพ็กเกจไปแล้ว
+   * และยังมีโควตาเหลือ จะสร้างธุรกิจในแอปไม่ได้เลย ทั้งที่ตรงนั้นไม่มีการจ่ายเงินเกิดขึ้น —
+   * เป็นการใช้สิ่งที่ซื้อไปแล้ว ซึ่ง Apple อนุญาตชัดเจน (3.1.3(b) และเราเขียนไว้เองใน
+   * App Review Notes ว่าผู้ขายที่มีแพ็กเกจอยู่แล้วยังใช้ฟีเจอร์ที่ซื้อไปได้ต่อ)
    *
-   * `/business` กับ `/subscriptions` กันไว้ตั้งแต่รอบนั้น แต่ route นี้เป็นคนละไฟล์จึงหลุดมา
-   * (layout ของ (dashboard) กรองแค่ "เมนู" ไม่ได้กันทั้งซับทรี)
+   * สิ่งที่ต้องหายในแอปคือ **คำเชิญให้ซื้อ** เท่านั้น = การ์ด 2 ใบข้างล่างที่มีปุ่ม
+   * "ไปเลือกแพ็กเกจ" / "อัพเกรดแพ็กเกจ" ⇒ กันที่กิ่งนั้นทีละกิ่ง ไม่ใช่กันที่ประตู
+   *
+   * เกณฑ์ทั่วไป: กันให้แคบที่สุดเท่าที่ทำให้ "ทางไปจ่ายเงิน" หายไป — กันกว้างกว่านั้น
+   * คือการถอดฟีเจอร์ที่ลูกค้าจ่ายเงินมาแล้ว โดยไม่ได้แลกอะไรกลับมาเลย
    */
-  if (await shouldHidePayments()) redirect('/dashboard')
+  const hidePayments = await shouldHidePayments()
 
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
@@ -60,6 +64,8 @@ export default async function CreateBusinessPage() {
   }
 
   if (!sub || sub.status !== 'ACTIVE') {
+    // ในแอป: การ์ดนี้มีแต่คำเชิญให้ซื้อ ไม่มีอะไรให้ทำต่อ → พากลับหน้าที่ใช้งานได้
+    if (hidePayments) redirect('/dashboard')
     return (
       <>
         <PageBreadcrumb title="สร้างธุรกิจใหม่" trail={[{ label: 'ธุรกิจ', href: '/business' }]} />
@@ -84,6 +90,8 @@ export default async function CreateBusinessPage() {
   }
 
   if (maxBusinesses !== null && count >= maxBusinesses) {
+    // เช่นเดียวกัน — ทางออกเดียวของการ์ดนี้คือ "อัพเกรดแพ็กเกจ"
+    if (hidePayments) redirect('/dashboard')
     return (
       <>
         <PageBreadcrumb title="สร้างธุรกิจใหม่" trail={[{ label: 'ธุรกิจ', href: '/business' }]} />

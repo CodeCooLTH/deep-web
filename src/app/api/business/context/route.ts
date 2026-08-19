@@ -61,6 +61,20 @@ export async function GET() {
         },
       },
     });
+    /**
+     * โควตาธุรกิจ — นับแบบเดียวกับ `/business/create` เป๊ะ (owner · BUSINESS · ยังไม่ถูกลบ)
+     * ต่างกันเมื่อไรจะได้ปุ่มที่กดแล้วเจอการ์ดปฏิเสธ ซึ่งคือ "กดแล้วไม่เกิดอะไร" อีกแบบ
+     */
+    const hidePayments = await shouldHidePayments();
+    let canCreateBusiness = false;
+    if (sub && sub.status === "ACTIVE") {
+      const max = BUSINESS_PACKAGE_TIER_CONFIG[sub.tier as BusinessPackageTier].maxBusinesses;
+      const owned = await prisma.shop.count({
+        where: { userId, kind: "BUSINESS", deletedAt: null },
+      });
+      canCreateBusiness = max === null || owned < max;
+    }
+
     const businesses = memberships.map((m) => ({
       shopId: m.shop.id,
       shopName: m.shop.shopName,
@@ -85,7 +99,17 @@ export async function GET() {
          * แล้วปุ่มจ่ายเงินโผล่เฉพาะหน้านั้นโดยไม่มีอะไรฟ้อง. payload นี้เป็นแหล่งเดียว
          * ที่เมนูอ่านอยู่แล้ว จึงเป็นที่ที่ลืมไม่ได้
          */
-        hidePayments: await shouldHidePayments(),
+        hidePayments,
+        /**
+         * 🛑 คนละคำถามกับ `hidePayments` — ตัวนี้ตอบว่า "กดสร้างแล้วได้ของจริงไหม"
+         *
+         * ในแอป iOS เราซ่อนเฉพาะ **คำเชิญให้ซื้อ** ไม่ได้ซ่อนฟีเจอร์: ผู้ขายที่จ่ายค่าแพ็กเกจ
+         * ไปแล้วและยังมีโควตาเหลือ ต้องสร้างธุรกิจในแอปได้ตามปกติ (ใช้ของที่ซื้อไปแล้ว —
+         * 3.1.3(b) และเราเขียนไว้เองใน App Review Notes)
+         *
+         * ที่ต้องซ่อนคือกรณี "ยังไม่มีแพ็กเกจ / โควตาเต็ม" เพราะปลายทางมีแต่ปุ่มไปจ่ายเงิน
+         */
+        canCreateBusiness,
       },
       { headers: NO_STORE_HEADERS },
     );
