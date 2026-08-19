@@ -25,6 +25,7 @@ import { TONE_DOT_SOLID, TONE_DOT_TINT } from '@/components/safepay/iship/tone'
 import { cn } from '@/utils/helpers'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { SHIPMENT_STAGES, describeCarrierStatus } from '@/lib/iship/status'
+import { sortTracesNewestFirst } from '@/lib/iship/traces'
 import type { ShippingStageKey } from '@/lib/order-stage'
 
 /** เหตุการณ์ที่ /api/seller/iship/shipments/[id]/traces คืนมา (รูปเดียวกับ ShippingCard) */
@@ -98,12 +99,16 @@ export default function ShipmentHoverCard({
    *
    * เรียงด้วย occurredAt เอง ไม่ใช่ `.slice(-4).reverse()` เพราะแบบหลังผูกกับ orderBy ฝั่ง
    * service — วันที่มีใครไปแก้ตรงนั้น หน้านี้จะเงียบ ๆ กลับไปแสดงผิดอีกโดยไม่มีอะไรฟ้อง
+   *
+   * [2026-08-19] ตรรกะการเรียงย้ายไป `@/lib/iship/traces` แล้ว — บั๊กเดียวกันนี้ยังนอนอยู่ใน
+   * `ShipmentStatusView` (โมดัลแชท) กับ `ShippingCard` (หน้าออเดอร์) อีก 12 วัน เพราะการแก้
+   * รอบนั้นแก้เฉพาะไฟล์ที่ user ชี้ ทั้งที่ทั้งสามจออ่าน endpoint เดียวกัน
    */
-  const visible = useMemo(() => {
-    const at = (t: TraceEvent) => (t.occurredAt ? new Date(t.occurredAt).getTime() : 0)
+  const visible = useMemo(
     // 4 รายการล่าสุดพอ — panel ที่ต้องเลื่อนอ่านคือ panel ที่หุบทันทีที่เมาส์หลุด
-    return [...(traces ?? [])].sort((a, b) => at(b) - at(a)).slice(0, 4)
-  }, [traces])
+    () => sortTracesNewestFirst(traces ?? []).slice(0, 4),
+    [traces],
+  )
 
   const cur = stage != null ? CURRENT_INDEX[stage] : null
   const problem = stage === 'PROBLEM'

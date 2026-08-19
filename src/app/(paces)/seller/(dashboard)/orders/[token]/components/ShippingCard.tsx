@@ -24,6 +24,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
+import { sortTracesNewestFirst } from '@/lib/iship/traces'
 
 /** เหตุการณ์ที่ /api/seller/iship/shipments/[id]/traces คืนมา */
 type TraceEvent = {
@@ -132,7 +133,9 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
   // (เกิดจริงบน prod 2026-08-05 สองครั้ง: ออเดอร์ cacdbf13 11:53 และ 31e0f85e 12:15)
   if (!iship && !manual) return null
 
-  const visibleTraces = traces?.slice(0, 3) ?? []
+  // หัวข้อเขียนว่า "การเดินทางล่าสุด" — API คืนมาเก่าสุดก่อน ถ้าสไลซ์ดิบจะได้ 3 เหตุการณ์เก่าสุด
+  // ซึ่งตรงข้ามกับที่ป้ายบอกทุกตัวอักษร (ดู @/lib/iship/traces)
+  const visibleTraces = traces ? sortTracesNewestFirst(traces).slice(0, 3) : []
 
   return (
     <div className="card">
@@ -288,17 +291,30 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
               </p>
             ) : (
               <div className="space-y-2">
-                {visibleTraces.map((t, i) => (
-                  <div className="flex gap-3 text-xs" key={`${t.occurredAt ?? ''}-${i}`}>
-                    <span className="text-default-700 w-20 shrink-0 md:w-25">
-                      {t.occurredAt ? formatDateTimeTH(t.occurredAt) : '—'}
-                    </span>
-                    <span className="text-default-800">
-                      {t.statusText ?? t.statusDesc ?? t.status ?? 'อัปเดตสถานะ'}
-                      {t.location && <span className="text-default-700"> · {t.location}</span>}
-                    </span>
-                  </div>
-                ))}
+                {visibleTraces.map((t, i) => {
+                  // แถวแรก = ล่าสุด (เรียงใหม่→เก่าแล้ว) คงโทนเดิม · ที่ผ่านไปแล้วจางลงทั้งบรรทัด
+                  // การ์ดนี้เป็น "สรุป" จึงไม่เพิ่ม primary/ตัวหนาให้แถวแรกแบบในโมดัล — หัวข้อ
+                  // "การเดินทางล่าสุด" + badge สถานะบนหัวการ์ดบอกบริบทนั้นอยู่แล้ว
+                  const isLatest = i === 0
+                  return (
+                    <div className="flex gap-3 text-xs" key={`${t.occurredAt ?? ''}-${i}`}>
+                      <span
+                        className={`w-20 shrink-0 md:w-25 ${isLatest ? 'text-default-700' : 'text-default-500'}`}
+                      >
+                        {t.occurredAt ? formatDateTimeTH(t.occurredAt) : '—'}
+                      </span>
+                      <span className={isLatest ? 'text-default-800' : 'text-default-500'}>
+                        {t.statusText ?? t.statusDesc ?? t.status ?? 'อัปเดตสถานะ'}
+                        {t.location && (
+                          <span className={isLatest ? 'text-default-700' : 'text-default-500'}>
+                            {' '}
+                            · {t.location}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             )}
 
