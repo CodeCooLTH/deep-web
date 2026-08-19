@@ -36,14 +36,21 @@ vi.mock('@/lib/prisma', () => {
     // ถ้าไม่ mock จะ throw แล้วถูก try/catch ชั้นนอกของ orchestration กลืน = เทสแดงแบบไม่บอกสาเหตุ
     commentReplyRule: { findMany: vi.fn() },
     shopChannel: { findUnique: vi.fn() },
-    externalContact: { upsert: vi.fn(), update: vi.fn() },
+    externalContact: { upsert: vi.fn(), update: vi.fn(), findUnique: vi.fn() },
     conversation: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
     chatMessage: { create: vi.fn() },
   }
   db.$transaction = vi.fn(async (fn: (tx: unknown) => unknown) => fn(db))
   return { prisma: db }
 })
-vi.mock('@/lib/facebook/graph', () => ({ sendPrivateReplyToComment: vi.fn() }))
+// 🛑 ต้อง export `GraphApiError` ด้วย ไม่ใช่แค่ฟังก์ชันที่เทสนี้เรียก — `private-reply-error.ts`
+// (ส่วนขยาย 2026-08-19) import คลาสนี้มาใช้ `instanceof` แยก error #10900 ออกจาก error ทั่วไป
+// mock ที่ขาด export ตัวใดตัวหนึ่งทำให้ **ทุกเคสที่เดินผ่าน catch block พังพร้อมกัน** ด้วยข้อความ
+// ของ vitest เอง ไม่ใช่ด้วยเหตุผลของโดเมน — ใช้ของจริงเพราะเป็นคลาส error ล้วน ไม่แตะเครือข่าย/env
+vi.mock('@/lib/facebook/graph', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/facebook/graph')>()
+  return { GraphApiError: actual.GraphApiError, sendPrivateReplyToComment: vi.fn() }
+})
 // canAccessShop เดิมเรียก prisma.shop.findUnique จริง (shop-context.ts) ซึ่งไม่ได้อยู่ใน mock ของ
 // '@/lib/prisma' ข้างบน (ไม่มี key `shop`) — mock ที่ boundary ของ shop-context ตรง ๆ แทน ชัดเจนกว่า
 // การพยายามเติม key `shop` ให้ครบใน mock ของ prisma (ยังต้องคุมค่า userId เทียบ actorUserId เองอยู่ดี)
@@ -55,12 +62,17 @@ vi.mock('@/lib/shop-context', () => ({ canAccessShop: vi.fn() }))
 // Fix round 1 — เพิ่ม replyToComment: vi.fn() เพราะ describe block ใหม่ท้ายไฟล์ (integration ของ
 // processCommentAutoReply) import comment-auto-reply.service.ts ตัวจริงเข้ามาด้วย ซึ่งไฟล์นั้น import
 // replyToComment จากโมดูลนี้ — ถ้าไม่มี key นี้ใน mock จะได้ undefined แล้วเรียกไม่ได้ (TypeError)
-vi.mock('@/services/page-comment.service', () => ({ resolveChannelToken: vi.fn(), replyToComment: vi.fn() }))
+// ส่วนขยาย 2026-08-19 — ต้องมี markCommentRepliedExternally ด้วย (service เรียกตอนเจอ #10900)
+vi.mock('@/services/page-comment.service', () => ({
+  resolveChannelToken: vi.fn(),
+  replyToComment: vi.fn(),
+  markCommentRepliedExternally: vi.fn(),
+}))
 
 import { prisma } from '@/lib/prisma'
 import { canAccessShop } from '@/lib/shop-context'
-import { resolveChannelToken } from '@/services/page-comment.service'
-import { sendPrivateReplyToComment } from '@/lib/facebook/graph'
+import { resolveChannelToken, markCommentRepliedExternally } from '@/services/page-comment.service'
+import { sendPrivateReplyToComment, GraphApiError } from '@/lib/facebook/graph'
 import { sendPrivateReplyToCommentById, resolveSeedContactName } from '@/services/comment-private-reply.service'
 // Fix round 1 — comment-auto-reply.service.ts ตัวจริง ไม่ mock (นี่คือประเด็นของเทสท้ายไฟล์:
 // ปล่อยให้ processCommentAutoReply เรียก sendPrivateReplyToCommentById ตัวจริงข้างบนนี้จริง ๆ)
@@ -678,5 +690,88 @@ describe('sendPrivateReplyToCommentById — เขียนชื่อตั้
     await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
 
     expect(prisma.externalContact.update).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * ส่วนขยาย 2026-08-19 — `(#10900) Activity already replied to`
+ *
+ * 🛑 เทสชุดนี้พิสูจน์ "การต่อสาย" ไม่ใช่ตัวจำแนก — `private-reply-error.test.ts` พิสูจน์ไปแล้วว่า
+ * `isAlreadyRepliedGraphError()` แยกรหัสถูก แต่ตัวจำแนกที่ถูกต้องซึ่งไม่มีใครเรียกก็ยังไร้ผล
+ * (บทเรียนซ้ำของรีโปนี้: SSOT ที่ไม่มีผู้เรียก / AC ที่เขียนไว้แต่ไม่มีด่านบังคับ)
+ */
+describe('[blocker] #10900 — Facebook ปฏิเสธเพราะเพจทักคอมเมนต์นี้ไปแล้วจากที่อื่น', () => {
+  it('Graph โยนรหัส 10900 -> ALREADY_REPLIED_EXTERNALLY (ไม่ใช่ SEND_FAILED) + ปิดคิวให้อัตโนมัติ', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
+    vi.mocked(resolveChannelToken).mockResolvedValue({ token: 'page-token-xyz', pageId: 'page-1' })
+    vi.mocked(prisma.externalContact.findUnique).mockResolvedValue(null as never)
+    graphSend.mockRejectedValue(new GraphApiError('(#10900) Activity already replied to', 10900, null, 400))
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u-1' })
+
+    // ถ้าตกไปเป็น SEND_FAILED จอจะขึ้น "ส่งไม่สำเร็จ ลองใหม่อีกครั้ง" = เชิญให้กดสิ่งที่ไม่มีวันผ่าน
+    expect(r).toMatchObject({ sent: false, reason: 'ALREADY_REPLIED_EXTERNALLY' })
+    expect(markCommentRepliedExternally).toHaveBeenCalledWith('cmt-1')
+    // เหตุผลจาก Facebook ต้องถูกบันทึกไว้ก่อนปิดคิวเสมอ — มันคือหลักฐานว่าทำไมถึงปิด
+    expect(prisma.commentReplyLog.update).toHaveBeenCalledWith({
+      where: { id: 'log-new' },
+      data: { privateReplyStatus: 'FAILED', privateErrorMessage: '(#10900) Activity already replied to' },
+    })
+    expect(prisma.conversation.create).not.toHaveBeenCalled()
+  })
+
+  it('ส่ง conversationId ของห้องแชทเดิมกลับไปด้วย ถ้า id ของคนคอมเมนต์ตรงกับผู้ติดต่อในเพจนั้น', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
+    vi.mocked(resolveChannelToken).mockResolvedValue({ token: 'page-token-xyz', pageId: 'page-1' })
+    vi.mocked(prisma.externalContact.findUnique).mockResolvedValue({ conversations: [{ id: 'conv-old' }] } as never)
+    graphSend.mockRejectedValue(new GraphApiError('(#10900) Activity already replied to', 10900, null, 400))
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u-1' })
+
+    expect(r).toMatchObject({ reason: 'ALREADY_REPLIED_EXTERNALLY', conversationId: 'conv-old' })
+    // เทียบ id ตรง ๆ ในเพจเดียวกันเท่านั้น ห้าม heuristic (PSID/ASID แปลงกันไม่ได้)
+    expect(prisma.externalContact.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { shopChannelId_externalUserId: { shopChannelId: 'ch-1', externalUserId: 'psid-1' } },
+      }),
+    )
+  })
+
+  it('AC-CR-35 — คอมเมนต์ที่เคยโดน #10900 แล้ว ต้องไม่ยิง Graph ซ้ำอีกเลย', async () => {
+    // claim logic ของ MANUAL ตั้งใจให้แถวที่ FAILED กดลองใหม่ได้ ⇒ ถ้าไม่มีด่านนี้ มันจะคว้าแถวนี้
+    // ไปยิงซ้ำทุกครั้งแล้วชน #10900 ทุกครั้ง (ซ่อนปุ่มที่ UI อย่างเดียวไม่พอ)
+    findComment.mockResolvedValue(okComment({ resolvedReason: 'ALREADY_REPLIED_EXTERNALLY' }) as never)
+    vi.mocked(prisma.externalContact.findUnique).mockResolvedValue(null as never)
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u-1' })
+
+    expect(r).toMatchObject({ sent: false, reason: 'ALREADY_REPLIED_EXTERNALLY' })
+    expect(graphSend).not.toHaveBeenCalled()
+    expect(prisma.commentReplyLog.create).not.toHaveBeenCalled()
+  })
+
+  it('คอมเมนต์ที่ถูกกดข้ามด้วยมือ (MANUAL) ยังทักได้ตามปกติ — ด่านต้องผูกกับเหตุผล ไม่ใช่แค่ "resolved แล้ว"', async () => {
+    findComment.mockResolvedValue(okComment({ resolvedReason: 'MANUAL' }) as never)
+    vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
+    mockFullSuccessChain()
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u-1' })
+
+    expect(r).toMatchObject({ sent: true })
+    expect(graphSend).toHaveBeenCalledTimes(1)
+  })
+
+  it('error อื่นของ Graph ยังเป็น SEND_FAILED เหมือนเดิม และต้องไม่ปิดคิวให้', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
+    vi.mocked(resolveChannelToken).mockResolvedValue({ token: 'page-token-xyz', pageId: 'page-1' })
+    graphSend.mockRejectedValue(new GraphApiError('Invalid parameter', 100, null, 400))
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
+
+    expect(r).toMatchObject({ sent: false, reason: 'SEND_FAILED' })
+    expect(markCommentRepliedExternally).not.toHaveBeenCalled()
   })
 })

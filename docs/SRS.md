@@ -815,6 +815,9 @@ SellerWallet (1) ── (N) WalletTransaction
 | Field | Type | หมายเหตุ |
 |-------|------|---------|
 | `isAutoReply` | Boolean default `false` | คำตอบใต้คอมเมนต์นี้ถูกเขียนโดยระบบตอบอัตโนมัติ (ไม่ใช่คนในทีมร้าน) — ใช้แยกสถานะที่ 3 "บอทตอบแล้ว". 🛑 **มีผู้เขียน 2 ราย** (เราเขียนตอน `replyToComment()` / webhook เขียนอีกครั้งตอน Meta echo กลับมา) — `ingestFeedComment`'s `update` block **ห้ามใส่คอลัมน์นี้เด็ดขาด** ไม่งั้นธงถูกรีเซ็ตเป็น `false` เงียบ ๆ ทุกครั้งที่ Meta echo (`docs/conventions/external-payload-schema.md`) |
+| `resolvedAt` | DateTime? | **ส่วนขยาย 2026-08-19** — คอมเมนต์นี้ "จบงานแล้ว" โดยที่ระบบเราไม่ได้เป็นคนตอบ. `NULL` = ยังไม่จบงาน (ค่าของทุกแถวที่มีอยู่ก่อนวันนั้น — additive ไม่มี backfill) |
+| `resolvedByUserId` | String? | ใครกด — `NULL` เมื่อระบบเป็นคนตั้งเอง. **plain String ไม่ผูก FK** ตามแพตเทิร์นเดิมของตารางเดียวกัน (`repliedByUserId`) |
+| `resolvedReason` | String? | `MANUAL` (ผู้ขายกดข้ามเอง) / `ALREADY_REPLIED_EXTERNALLY` (Facebook ตอบ `(#10900)` = เพจทัก private reply ไปแล้วจาก Business Suite). 🛑 CHECK ที่ชั้นฐาน 2 ตัวบังคับ: ค่าที่ไม่รู้จักเขียนไม่ลง (`PageComment_resolvedReason_check`) และ `resolvedAt`/`resolvedReason` ต้องมี/ไม่มีพร้อมกัน (`PageComment_resolved_pair_check`) — ตัวแปลงฝั่ง TS (`toResolvedReason`) fail-closed คืน `null` เมื่อเจอค่าที่สาม |
 
 #### CommentReplyLog (ใหม่ — feature 00038)
 
@@ -1191,6 +1194,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | PATCH | `/api/shops/comment-reply/config` | Seller (canAccessShop) | บันทึกสวิตช์/ข้อความของเพจเดียว — เปิดสวิตช์โดยข้อความว่างไม่ได้; เพจ `TOKEN_INVALID` เปิดสวิตช์ไม่ได้ (409) | `comment-auto-reply.service` |
 | GET | `/api/shops/comment-reply/logs` | Seller (canAccessShop) | ประวัติการตอบ/ข้าม แบ่งหน้า (`?shopChannelId=&cursor=&take=`) | `comment-auto-reply.service` |
 | POST | `/api/chat/comments/[commentId]/private-reply` | Seller (canAccessShop ผ่าน comment→post→channel→shop) | ปุ่มแมนนวล "ทักแชท" — ใช้ได้เสมอไม่ขึ้นกับสวิตช์อัตโนมัติ; กันซ้ำด้วย partial unique index ระดับคอมเมนต์ (409 `ALREADY_SENT`/`WINDOW_EXPIRED`) | `comment-private-reply.service` |
+| POST/DELETE | `/api/chat/comments/[commentId]/resolve` | Seller (canAccessShop ผ่าน comment→post→channel→shop) | **ส่วนขยาย 2026-08-19** — ทำเครื่องหมาย/เลิกทำเครื่องหมายว่า "จัดการแล้ว" เอาคอมเมนต์ที่ตอบไม่ได้แล้วออกจากคิว. 🛑 `reason` hardcode `MANUAL` **ไม่รับจาก body** — `ALREADY_REPLIED_EXTERNALLY` เป็นข้อเท็จจริงที่มาจาก Meta เท่านั้น (BR-CR-R7) · `DELETE` idempotent | `page-comment.service::setCommentResolved` |
 
 > ไม่มี `GET /api/shops/comment-reply/config` — ค่าตั้งต้นของสวิตช์+ข้อความทุกเพจอ่านผ่าน RSC +
 > prisma ตรงที่ `settings/comment-reply/page.tsx` (ไม่ self-fetch API ของตัวเอง) ถอด handler
@@ -1342,6 +1346,7 @@ route ที่รับ `?shopId=` แล้ว: `payments/**` (ใหม่) �
 
 | Enum | ค่า |
 |------|-----|
+| `PageComment.resolvedReason` | `MANUAL` / `ALREADY_REPLIED_EXTERNALLY` (`NULL` = ยังไม่จบงาน) — ส่วนขยาย 2026-08-19 |
 | `CommentReplyLog.trigger` | `AUTO` (ระบบ) / `MANUAL` (คนกด) |
 | `CommentReplyLog.publicReplyStatus` / `privateReplyStatus` | `SENT` / `SKIPPED` / `FAILED` (`NULL` = ยังไม่ตัดสิน/ไม่เกี่ยวข้อง) |
 | `CommentReplyLog.skipReason` | `FROM_PAGE` / `NOT_TOP_LEVEL` / `COMMENT_DELETED` / `NO_SENDER_ID` / `CHANNEL_INACTIVE` / `DISABLED` / `HUMAN_ANSWERED` / `WINDOW_EXPIRED` — 🛑 `ALREADY_HANDLED` ถอดออก 2026-08-15 (เขียนลงฐานไม่ได้เลยเพราะชน partial unique index ตัวเดียวกับที่มันอธิบาย) "เคยทักคนนี้บนโพสต์นี้แล้ว" ย้ายไปเป็น `privateReplyStatus='SKIPPED'` + `privateErrorMessage='ALREADY_SENT'` รายคอมเมนต์ |
@@ -1486,6 +1491,7 @@ route ที่รับ `?shopId=` แล้ว: `payments/**` (ใหม่) �
 | `PATCH /api/shops/comment-reply/config` | — | — | ✅ (`canAccessShop`) | ❌ (shop derive จาก session — ไม่เห็นข้อมูลร้านอื่นเลย) | — |
 | `GET /api/shops/comment-reply/logs` | — | — | ✅ | ❌ | — |
 | `POST /api/chat/comments/[commentId]/private-reply` | — | — | ✅ (ownership ผ่าน `comment→post→channel→shop`) | ❌ `403 FORBIDDEN` | — |
+| `POST/DELETE /api/chat/comments/[commentId]/resolve` | — | — | ✅ (ownership ผ่าน `comment→post→channel→shop`) | ❌ `403 FORBIDDEN` | — |
 | ปุ่ม "ทักแชท" ใช้ได้แม้ปิดสวิตช์อัตโนมัติ | — | — | ✅ (ไม่ผูกกับสวิตช์เลย) | — | — |
 
 ### 9.3 Verification

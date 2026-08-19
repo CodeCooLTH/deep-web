@@ -108,6 +108,9 @@ export default async function CommentsPage() {
       ...c,
       createdTime: c.createdTime.toISOString(),
       privateReplySentAt: c.privateReplySentAt ? c.privateReplySentAt.toISOString() : null,
+      // ส่วนขยาย 2026-08-19 — resolvedAt ข้ามเส้น RSC เหมือน field วันที่อื่นในไฟล์นี้ (Date ไม่ใช่
+      // serializable prop ตาม docs/conventions/rsc-mui-navigation.md — ต้องเป็น string เสมอ)
+      resolvedAt: c.resolvedAt ? c.resolvedAt.toISOString() : null,
     }))
     counts = result.counts
     rawCount = result.rawCount

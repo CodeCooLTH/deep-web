@@ -335,6 +335,21 @@ export const en: Dictionary = {
     prSentSuccess: 'Message sent — a new chat thread was created.',
     prAlreadySent: 'You have already messaged this comment',
 
+    prAlreadyRepliedTitle: 'This Page already messaged this person',
+    prAlreadyRepliedTextWithConv:
+      "Someone already messaged this comment directly from Facebook.\nWe've marked it as handled for you.",
+    prAlreadyRepliedGoToChat: 'Go to chat',
+    prAlreadyRepliedTextNoConv:
+      'Someone already messaged this comment directly from Facebook.\nYou can still reply publicly under the comment.',
+    prAlreadyRepliedUnderstood: 'Got it',
+
+    markDone: 'Mark as handled',
+    markDoneTile: 'Handled',
+    unmarkDone: 'Undo mark',
+    unmarkDoneToast: 'Mark removed',
+    resolveActionFailed: "Couldn't complete this action. Please try again.",
+    commentMenuAria: 'Comment options',
+
     replyingTo: 'Replying to {name}',
     fbUser: 'Facebook user',
     pageFallback: 'the Page',

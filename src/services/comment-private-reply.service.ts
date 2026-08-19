@@ -337,10 +337,11 @@ export async function sendPrivateReplyToCommentById(params: {
          * มันจะกลายเป็น SEND_FAILED แล้วผู้ขายได้ข้อความ "ลองใหม่อีกครั้ง" กลับมาเหมือนเดิม
          * ซึ่งคือบั๊กทั้งหมดที่รอบนี้กำลังแก้ (ข้อเท็จจริงที่ Meta บอกสำคัญกว่าการบันทึกของเรา)
          */
-        const resolved = await markCommentRepliedExternally(comment.id).catch((e: unknown) => {
-          console.error('[comment-private-reply] mark resolved failed', e)
-        })
-        void resolved
+        try {
+          await markCommentRepliedExternally(comment.id)
+        } catch (markErr) {
+          console.error('[comment-private-reply] mark resolved failed', markErr)
+        }
         return {
           sent: false,
           reason: 'ALREADY_REPLIED_EXTERNALLY',
