@@ -1606,6 +1606,7 @@ model ExternalContact {
   customerFiles CustomerFile[] // feature 00048 — คลังไฟล์ของผู้ติดต่อรายนี้ (เจ้าของคลังหลัก)
 
   @@unique([shopChannelId, externalUserId]) // PSID เป็น page-scoped — ห้าม dedup ข้าม Page
+  @@index([avatarUrl]) // feature 00051 — query ย้อนกลับหาผู้อ้างอิงก่อนลบไฟล์ (dedup backfill)
 }
 
 model Conversation {
@@ -1761,6 +1762,7 @@ model ConversationAdReferral {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, receivedAt]) // "referral ล่าสุด/ทั้งหมดของเธรดนี้"
+  @@index([photoFileId]) // feature 00051 — query ย้อนกลับหาผู้อ้างอิงก่อนลบไฟล์ (dedup backfill)
 }
 
 model ChatGroup {
@@ -3628,4 +3630,44 @@ model CustomerFile {
   @@index([externalContactId, sentAt(sort: Desc)])
   @@index([conversationId, sentAt(sort: Desc)])
   @@index([shopId])
+}
+
+// feature 00051 — ดัชนีเนื้อไฟล์ต่อร้าน ใช้ตรวจ dedup ก่อนเขียนไฟล์ใหม่ทุกครั้งที่ mirror สื่อเข้าแชท
+// (choke point saveMirroredBuffer, FR-CMD-01) และเป็นชั้น cache ที่ 2 ผูกกับ ad ID (sourceKey,
+// FR-CMD-02) — ไม่เก็บ refCount โดยตั้งใจ (มติ PRD §4.1) ต้อง query ย้อนกลับ 3 คอลัมน์ที่อ้างอิงจริง
+// (ChatMessage.imageUrl / ConversationAdReferral.photoFileId / ExternalContact.avatarUrl) เสมอเมื่อ
+// ต้องรู้ว่าไฟล์ยังถูกใช้อยู่ไหม — ไม่ผูก FK กับ 3 คอลัมน์นั้น (ไม่ครอบคลุมทุกค่า เช่น upload ตรงจาก
+// DEEP ที่ไม่ผ่าน mirror เลย และ avatarUrl ที่ยังเป็น URL ดิบรอ mirror) ดู DATABASE.md §2 สำหรับเหตุผล
+// เต็ม — id ใช้ cuid() ตาม contract ที่ล็อก (มี precedent อยู่แล้วที่ ShopInviteLink.id)
+model MediaAsset {
+  id     String @id @default(cuid())
+  // ขอบเขต dedup ต่อร้าน (BR-CMD-01) — ไม่ผูก FK จริงกับ Shop.id ตาม convention เดิมของ repo ที่ปล่อย
+  // shopId เป็น string เปล่าในตาราง denormalized หลายตาราง (เช่น OrderPayment.shopId)
+  shopId String
+  // sha256 hex ของเนื้อไฟล์ทั้งก้อน — ต้องเหมือนกันทุกบิตถึงจะถือว่าซ้ำ (BR-CMD-02, มติ user
+  // "ต่างกันแม้เล็กน้อย = คนละรูป")
+  hash String
+  // path เต็มใน storage bucket (รูปแบบเดียวกับที่ newFileId() สร้าง) — ใช้แทนกันได้ 100% กับค่าที่
+  // เก็บใน ChatMessage.imageUrl / ConversationAdReferral.photoFileId / ExternalContact.avatarUrl
+  fileId String @unique
+  // MIME ที่ตรวจได้ตอนบันทึกไฟล์นี้ครั้งแรก (จาก response header ของ mirror fetch หรือ content-type
+  // ที่ต้นทางส่งมา)
+  contentType String
+  // ขนาดไฟล์ (byte) — เพดาน MIRROR_MAX_BYTES 25MB อยู่ในช่วง Int สบาย ๆ ไม่ต้อง BigInt
+  size Int
+  // ชั้น 2 cache: "ad:{adId}" สำหรับรูปโฆษณาที่ทราบที่มาแน่นอน — NULL สำหรับสื่อทุกชนิดที่ไม่มี
+  // ตัวระบุแหล่งที่มาแบบนี้ (แชทรูป/วิดีโอ/เสียง/ไฟล์/สติกเกอร์/avatar) ซึ่งเป็นกรณีส่วนใหญ่
+  sourceKey String?
+  // เวลาที่ไฟล์นี้ถูกเขียนจริงครั้งแรก — ไม่อัปเดตเมื่อเกิด dedup hit ซ้ำ (แถวนี้แทน "ต้นตอ" ของ
+  // กลุ่มเนื้อหา)
+  createdAt DateTime @default(now())
+
+  // ทำไม (shopId, hash) ไม่ใช่ hash เดี่ยว: BR-CMD-01 บังคับขอบเขต per-shop โดยเจตนา (มติธุรกิจ ไม่ใช่
+  // ข้อจำกัดทางเทคนิค) — compound unique คือกลไกเดียวที่ทำให้ DB บังคับ race condition ที่ชั้นนี้ได้จริง
+  // (§5 ของ DATABASE.md) โดยไม่ต้องพึ่ง application-level lock (Vercel serverless หลาย instance)
+  @@unique([shopId, hash])
+  // ชั้น 2 cache ของ FR-CMD-02: WHERE shopId = ? AND sourceKey = 'ad:{adId}' ก่อนตัดสินใจ fetch จาก
+  // Meta CDN — index ธรรมดา ไม่ unique เพราะ sourceKey เป็นแค่ cache เสริมบน (shopId, hash) ที่เป็น
+  // แหล่งความจริงเดียว (เหตุผลเต็มดู DATABASE.md §3.1)
+  @@index([shopId, sourceKey])
 }
