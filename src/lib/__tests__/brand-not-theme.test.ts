@@ -95,41 +95,24 @@ describe('[blocker] แบรนด์บนจอต้องเป็น Deep 
     expect(css, 'ไฟล์นี้ต้องไม่ถูกห่อ @layer ไม่งั้นจะแพ้ utility').not.toMatch(/@layer/)
   })
 
-  it('[blocker] หัวหน้าแชทต้องมีปุ่มย้อนกลับ ไม่ใช่โลโก้กดได้', () => {
+  it('[blocker] หัวหน้าแชทต้องเป็นโลโก้ Deep ที่คลิกกลับหน้าหลักได้', () => {
     /**
-     * user สั่ง 2026-08-19 — **กลับมติ** ของ 2026-07-23 ที่เคยสั่งตัดปุ่มนี้ออก
+     * 🛑 ช่องนี้ **กลับมติมาแล้ว 2 รอบ** — อ่านก่อนแก้ ไม่งั้นจะวนอีก:
+     *   2026-07-23  user สั่งตัดปุ่ม Back ออก ให้คลิกโลโก้แทน
+     *   2026-08-19  เปลี่ยนเป็นปุ่มย้อนกลับ (ตอนนั้นโลโก้ยังเป็นแบรนด์ "Paces" ของธีม)
+     *   2026-08-19  **กลับมาเป็นโลโก้** หลังเปลี่ยนเป็นโลโก้ Deep จริง — user สั่งเอง
      *
-     * เหตุผลที่กลับมติมีน้ำหนัก: คอมเมนต์เดิมอ้างว่ามีทางกลับ 2 ทาง (โลโก้ + ปุ่ม storefront)
-     * แต่ปุ่ม storefront **ไม่มีอยู่จริงแล้ว** ⇒ เหลือ "คลิกโลโก้" ซึ่งมองไม่เห็นว่ากดได้
+     * ปัญหาเดิมไม่ใช่ "โลโก้ไม่ควรเป็นทางกลับ" แต่คือ **โลโก้เป็นแบรนด์ของคนอื่น**
+     * ⇒ พอเป็นแบรนด์เราแล้ว การคลิกโลโก้กลับหน้าหลักคือแพตเทิร์นที่ผู้ใช้รู้จักอยู่แล้ว
      *
-     * ด่านนี้กันการ "แก้กลับโดยไม่รู้ประวัติ" — ใครอ่านโค้ดเฉย ๆ จะเห็นแค่ว่าหัวแชทไม่มีโลโก้
-     * แล้วคิดว่าเป็นความพลาด
+     * ด่านนี้กัน 2 ทิศพร้อมกัน: ห้ามกลับไปใช้โลโก้ธีม **และ** ห้ามหลุดปลายทาง /dashboard
      */
     const rel = 'src/app/(paces)/seller/(chat)/_components/ChatHeader.tsx'
     const code = blankComments(readFileSync(join(ROOT, rel), 'utf8'))
-    expect(code, 'ต้องใช้ปุ่มย้อนกลับตัวเดียวกับหน้าเปิดซ้อน').toMatch(/<FullscreenBackButton/)
-    expect(code, 'ปลายทางต้องปักหมุด /dashboard ไม่ใช่ router.back()').toMatch(
-      /backHref="\/dashboard"/,
-    )
-    expect(code, 'ห้ามกลับไปใช้โลโก้เป็นทางกลับ').not.toMatch(/<AppLogo/)
-  })
-
-  it('[blocker] ปุ่มย้อนกลับในหัวแชทต้องใช้ primitive เดียวกับปุ่มเพื่อนบ้านในแถบนั้น', () => {
-    /**
-     * user ทัก 2026-08-19: *"ปุ่มย้อนกลับของแชทต้องเหมือนเมนู tab อื่น ๆ ดูธีมระบบด้วย"*
-     *
-     * ปุ่มต้องเข้ากับ **แถบที่มันอยู่** ไม่ใช่เข้ากับหน้าอื่นที่ใช้ component เดียวกัน —
-     * `FullscreenBackButton` ค่าเริ่มต้นเป็นสไตล์ของหน้า fullscreen (พื้น `bg-light` ทึบ)
-     * ซึ่งเด่นผิดจังหวะเมื่ออยู่ข้างปุ่มเสียง/ธีม/ขนาดตัวอักษร ที่ใช้ `.btn.btn-icon`
-     *
-     * 🛑 ต้องเป็น primitive ของธีม ไม่ใช่ค่าดิบ — สีและ hover มาจาก token จึงเปลี่ยนตาม
-     * `data-theme` เอง (Hard Rule 7) และ `size-11` = 44px เท่าเกณฑ์พื้นที่แตะขั้นต่ำ
-     */
-    const rel = 'src/app/(paces)/seller/(chat)/_components/ChatHeader.tsx'
-    const code = blankComments(readFileSync(join(ROOT, rel), 'utf8'))
-    const btn = code.slice(code.indexOf('<FullscreenBackButton'), code.indexOf('/>', code.indexOf('<FullscreenBackButton')))
-    expect(btn, 'ต้องใช้ primitive .btn.btn-icon ของ Paces').toMatch(/btn btn-icon/)
-    expect(btn, 'ขนาดต้อง 44px เท่าปุ่มเพื่อนบ้าน').toMatch(/size-11/)
-    expect(btn, 'ห้ามใช้สไตล์ของหน้า fullscreen (bg-light) ในแถบนี้').not.toMatch(/bg-light/)
+    expect(code, 'ต้องใช้เวิร์ดมาร์ก Deep ตัวเดียวกับหน้า login').toMatch(/logo-deep-wordmark\.png/)
+    expect(code, 'โลโก้ต้องคลิกกลับหน้าหลักได้').toMatch(/href="\/dashboard"/)
+    for (const f of THEME_LOGOS) {
+      expect(code, `หัวแชทห้ามใช้ ${f} (โลโก้ของธีม)`).not.toContain(f)
+    }
   })
 })

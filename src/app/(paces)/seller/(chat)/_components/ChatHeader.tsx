@@ -26,12 +26,15 @@
  * โลโก้ (AppLogo.tsx) มี .logo-light/.logo-dark สลับกันตาม data-theme — เดิมผูก scope
  * `.app-menu .logo-box` (สมมติพื้นเข้มเสมอเพราะ sidenav เป็นเมนูมืดตลอด ไม่ผูกกับธีมหน้าเว็บ)
  * ไม่ตรงกับ header นี้ที่พื้นขาว/เข้มสลับตาม data-theme จริง จึงเขียน toggle ของตัวเองด้วย class
- * (โลโก้ถูกแทนด้วยปุ่มย้อนกลับ 2026-08-19 — `.chat-header-logo` ใน safepay-overrides.css
- *  ถูกลบไปพร้อมกัน ไม่เหลือผู้ใช้แล้ว)
+ * โลโก้ใช้ `logo-deep-wordmark.png` ตรง ๆ (ตัวเดียวกับหน้า login) ไม่ผ่าน `AppLogo` แล้ว —
+ * `AppLogo` แสดง **มาร์กอย่างเดียว** เพราะแถบเมนูซ้ายพื้นเข้มเสมอ ส่วนหัวแชทพื้นสว่าง/เข้ม
+ * สลับตาม `data-theme` จึงใช้เวิร์ดมาร์กเต็มได้ · `.chat-header-logo` ที่เคยสลับ light/dark
+ * ถูกลบไปแล้ว ไม่ต้องใช้ (รูปเดียวจบ)
  */
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import FullscreenBackButton from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenBackButton'
+import Link from 'next/link'
+import logoWordmark from '@/assets/images/logo-deep-wordmark.png'
 import Icon from '@/components/wrappers/Icon'
 import ChatShopSwitcher from './ChatShopSwitcher'
 import { isChatThreadPath } from './chat-chrome'
@@ -91,28 +94,31 @@ export default function ChatHeader({
         isThreadPage ? 'hidden lg:flex' : 'flex'
       }`}
     >
-      {/* ปุ่มย้อนกลับ — ตัวเดียวกับที่หน้าเปิดซ้อนใช้ (`FullscreenBackButton`) ไม่ได้ทำใหม่
-          user สั่ง 2026-08-19: "หัวแชทเปลี่ยนเป็นย้อนกลับเหมือนหน้าอื่น ๆ"
+      {/* โลโก้ Deep — คลิกกลับหน้าหลัก (ตัวเดียวกับที่หน้า login ใช้)
 
-          🛑 นี่คือการ **กลับมติ** ของ 2026-07-23 ("ซ่อนปุ่ม Back บนสุดไปเลย ให้กดที่ icon กลับ")
-          — บันทึกไว้ให้คนอ่านโค้ดรู้ว่าไม่ใช่ความพลาด และเหตุผลที่กลับมติมีน้ำหนักจริง:
+          🛑 ประวัติของช่องนี้ กลับมติ 2 รอบ อ่านก่อนแก้:
+            2026-07-23  user สั่งตัดปุ่ม Back ออก ให้ใช้การคลิกโลโก้แทน
+            2026-08-19  เปลี่ยนเป็นปุ่มย้อนกลับ (ตอนนั้นโลโก้ยังเป็นแบรนด์ "Paces" ของธีม
+                        และคอมเมนต์เก่าอ้างว่ามีปุ่ม storefront เป็นทางกลับอีกทาง ซึ่งไม่มีจริงแล้ว)
+            2026-08-19  **กลับมาเป็นโลโก้** หลังเปลี่ยนเป็นโลโก้ Deep จริง — user สั่งเอง
+                        ("เปลี่ยนไปใช้แบบเดิมได้มั้ย แต่ logo เป็นแบบหน้า login")
 
-          คอมเมนต์เดิมอ้างว่าทางกลับหน้าหลักมี 2 ทาง (คลิกโลโก้ + "ปุ่ม storefront ข้างช่องค้นหา")
-          **ปุ่ม storefront นั้นไม่มีอยู่แล้ว** (grep `storefront|building-store` ทั้งไฟล์เจอแต่คอมเมนต์
-          ที่อ้างถึงมันเอง) ⇒ ทางกลับเหลือทางเดียวคือ "คลิกโลโก้" ซึ่งเป็น affordance ที่มองไม่เห็น
-          — คลาสเดียวกับ `docs-claimed-constraint-verify-in-code.md` (คอมเมนต์อ้างสิ่งที่ไม่จริงแล้ว)
+          เหตุผลที่ตอนนี้ใช้ได้แล้วทั้งที่รอบก่อนไม่ผ่าน: ปัญหาเดิมไม่ใช่ "โลโก้ไม่ควรเป็นทางกลับ"
+          แต่คือ **โลโก้เป็นแบรนด์ของคนอื่น** ⇒ พอเป็นแบรนด์เราแล้ว การคลิกโลโก้กลับหน้าหลัก
+          คือแพตเทิร์นมาตรฐานที่ผู้ใช้รู้จักอยู่แล้ว
 
-          `backHref` ปักหมุด `/dashboard` ไม่ใช่ `router.back()` — หน้านี้เป็นแท็บระดับบนสุด
-          ประวัติก่อนหน้าเป็นอะไรก็ได้ (เธรดที่เพิ่งออกมา / หน้าอื่นที่สลับไปมา) ปลายทางตายตัว
-          จึงเดาได้ และตรงกับพฤติกรรมเดิมของการคลิกโลโก้เป๊ะ */}
-      <FullscreenBackButton
-        backHref="/dashboard"
-        /* สไตล์เดียวกับปุ่มเสียง/ธีม/ขนาดตัวอักษร ที่อยู่ปลายแถบเดียวกันเป๊ะ —
-           `.btn.btn-icon` เป็น primitive ของ Paces (สีและ hover มาจาก token ของธีม
-           จึงเปลี่ยนตาม data-theme เอง) ไม่ใช่ค่าดิบ ⇒ ไม่ละเมิด Hard Rule 7
-           size-11 = 44px ตามเกณฑ์พื้นที่แตะขั้นต่ำ เท่ากับเพื่อนบ้านทุกปุ่ม */
-        className="btn btn-icon inline-flex size-11 shrink-0 items-center justify-center text-default-700"
-      />
+          `h-8` (32px) ไม่ใช่ค่าจากหน้า login (56px) — หัวแชทสูง `--topbar-height` และมีปุ่ม
+          size-11 (44px) เรียงข้าง ๆ โลโก้ 56px จะดันแถวสูงกว่าปุ่มทั้งแถว
+          ตรวจแล้วว่าไม่มีกฎ CSS ตัวไหนจับ `.chat-header img` ⇒ utility ตัวนี้มีผลจริง
+          (ต่างจากหน้า login ที่ `.auth-logo img` เป็น CSS นอก layer และชนะ utility เสมอ) */}
+      <Link
+        href="/dashboard"
+        className="shrink-0"
+        aria-label={t.inbox.backToDashboard}
+      >
+        <img src={logoWordmark.src} alt="Deep" className="h-8 w-auto" />
+      </Link>
+
       <div className="min-w-0 flex-1">
         <ChatSearchBox />
       </div>
