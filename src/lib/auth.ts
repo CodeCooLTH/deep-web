@@ -219,6 +219,21 @@ function crossSiteOAuthCookies(): NextAuthOptions["cookies"] {
       options: { ...options, maxAge: OAUTH_FLOW_COOKIE_MAX_AGE },
     },
     nonce: { name: "__Secure-next-auth.nonce", options },
+    /**
+     * 🛑 ตัวที่ 4 ที่ตกสำรวจรอบแรก — คุกกี้นี้เก็บ "ปลายทางหลังล็อกอินสำเร็จ" และถูกอ่าน
+     * ตอน callback เหมือน pkce ทุกประการ ⇒ มันคือคุกกี้ "ระหว่างเดินทาง" ตัวหนึ่ง ไม่ใช่คุกกี้
+     * ของหน้าเว็บ. ปล่อยเป็น Lax ไว้ = POST ข้ามเว็บของ Apple ไม่ส่งมันมา ⇒ next-auth ถอยไปใช้
+     * origin ของเว็บแทน (`core/lib/callback-url.js`) ผู้ใช้จึงไปโผล่หน้าแรกแทนปลายทางที่ตั้งไว้
+     *
+     * ปลอดภัยเพราะ `redirect` callback ตรวจ origin ทุกครั้งอยู่แล้ว — ค่าที่ข้ามเว็บมาชี้ออก
+     * นอกโดเมนไม่ได้ (ดู callbacks.redirect) และคุกกี้ยัง httpOnly + Secure เหมือนเดิม
+     *
+     * FB/LINE/IG ไม่ได้รับผลกระทบ: ขากลับของทั้งสามเป็น **GET redirect** ซึ่ง Lax ส่งอยู่แล้ว
+     */
+    callbackUrl: {
+      name: "__Secure-next-auth.callback-url",
+      options: { ...options, maxAge: OAUTH_FLOW_COOKIE_MAX_AGE },
+    },
   };
 }
 

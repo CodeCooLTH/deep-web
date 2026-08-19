@@ -770,6 +770,18 @@ export const en: Dictionary = {
       errUsernameRequired: 'Please enter your username',
       errPasswordRequired: 'Please enter your password',
       errInvalidCredentials: 'Incorrect username or password',
+      /** Reason a social sign-in failed — NextAuth passes it in `?error=` */
+      oauthError: {
+        oauthSignin: 'Could not start sign-in. Please try again.',
+        oauthCallback: 'Could not connect to the provider. Please try again.',
+        oauthCreateAccount: 'Could not create an account. Try again or sign up with a phone number.',
+        accountNotLinked: 'This account already signs in another way. Sign in that way first, then link it under "Personal information".',
+        accessDenied: 'This account has been closed and cannot sign in.',
+        configuration: 'Sign-in is not configured. Please contact support.',
+        credentials: 'Sign-in failed. Check your details and try again.',
+        sessionRequired: 'Please sign in first.',
+        unknown: 'Sign-in failed. Please try again.',
+      },
     },
   },
 

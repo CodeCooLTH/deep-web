@@ -15,6 +15,7 @@ import { getT } from '@/i18n/server'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Suspense } from 'react'
+import OAuthErrorNotice from './components/OAuthErrorNotice'
 import SignInForm from './components/SignInForm'
 import AuthCardShell from '../components/AuthCardShell'
 import AuthLocaleSwitch from '../components/AuthLocaleSwitch'
@@ -50,6 +51,9 @@ export default async function SellerSignInPage() {
         {/* SignInForm อ่าน ?callbackUrl= ผ่าน useSearchParams — Suspense กัน hydration mismatch
             (pattern เดียวกับ verify-otp/page.tsx) */}
         <Suspense fallback={<p className="text-center text-default-400 py-8">{t.auth.signIn.loading}</p>}>
+          {/* 🛑 ต้องอยู่ใน Suspense ก้อนเดียวกับฟอร์ม — ทั้งคู่อ่าน useSearchParams
+              แยกออกไปข้างนอกจะบังคับให้ทั้งหน้ากลายเป็น dynamic โดยไม่ได้อะไรเพิ่ม */}
+          <OAuthErrorNotice />
           <SignInForm />
         </Suspense>
 
