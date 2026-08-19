@@ -76,11 +76,22 @@ describe('[blocker] BR-CR-R3 — SQL CASE ต้องรู้จัก resolve
     expect(src).toMatch(/c\."resolvedAt" IS NOT NULL THEN 'HUMAN_ANSWERED'\s+ELSE 'UNANSWERED'/)
   })
 
-  it('[blocker] ทุก query ที่ตัดสินสถานะต้อง interpolate fragment ตัวเดียวกัน (3 ที่)', () => {
-    // 2 ตัวนับ + ตัวกรองรายการ — ตัวที่สามเพิ่งเพิ่ม 2026-08-19 ตอนย้ายการกรองไปอยู่ก่อนตัดหน้า
-    // (ก่อนหน้านั้นรายการกรองใน TS หลังตัดหน้า ⇒ แท็บ "หมดอายุ" ขึ้นเลข 41 แต่รายการว่างเปล่า)
-    const uses = src.match(/\$\{COMMENT_STATE_CASE\}/g) ?? []
-    expect(uses.length).toBe(3)
+  it('[blocker] ทุกฟังก์ชันที่ตัดสินสถานะต้อง interpolate fragment ตัวเดียวกัน', () => {
+    // เช็คทีละฟังก์ชันตามชื่อ ไม่ใช่ "นับจำนวนครั้ง" — การนับจะแดงทุกครั้งที่มีคนเพิ่ม query ใหม่
+    // ที่ใช้ fragment ถูกต้องอยู่แล้ว (ด่านที่ลงโทษการทำถูก) และไม่มีทางรู้เลยว่าใครลืมใช้
+    const mustUseFragment = [
+      'export async function countCommentPostStatesByShop(',
+      'export async function countCommentStatesByShop(',
+      'export async function listComments(',
+      'export async function resolveAllExpiredComments(',
+    ]
+    for (const decl of mustUseFragment) {
+      const start = src.indexOf(decl)
+      expect(start, `หาไม่เจอ: ${decl}`).toBeGreaterThanOrEqual(0)
+      const next = src.indexOf('\nexport ', start + decl.length)
+      const body = src.slice(start, next > start ? next : src.length)
+      expect(body, `${decl} ต้องใช้ COMMENT_STATE_CASE ไม่ใช่เขียน CASE เอง`).toContain('${COMMENT_STATE_CASE}')
+    }
   })
 
   it('[blocker] EXPIRED ต้องกรองที่ SQL ด้วยเส้นแบ่งเวลาจาก SSOT ตัวเดียวกับ TS', () => {
@@ -105,5 +116,47 @@ describe('[blocker] BR-CR-R3 — SQL CASE ต้องรู้จัก resolve
     // ไม่ใช่แค่ว่า select มา (value-fate-decided-at-write-site ทิศกลับ)
     const calls = src.match(/resolvedAt !== null/g) ?? []
     expect(calls.length, 'listComments และ listCommentPosts ต้องส่ง resolved เข้า deriveCommentState').toBe(2)
+  })
+})
+
+/**
+ * "ทำเครื่องหมายทั้งหมด" ของแท็บหมดอายุ — ด่านที่สำคัญที่สุดคือ **ขอบเขต** ไม่ใช่ตัวเลข
+ */
+describe('[blocker] resolveAllExpiredComments — ด่านต้องอยู่ในรูปร่างของ API', () => {
+  const svc = stripComments(readFileSync(SERVICE, 'utf8'))
+  const routePath = join(__dirname, '../../app/api/chat/comments/resolve-expired/route.ts')
+  const route = stripComments(readFileSync(routePath, 'utf8'))
+
+  it('ห้ามรับ state จากผู้เรียก — ไม่งั้นวันหนึ่งจะมีคนส่ง UNANSWERED มาล้างคิวงานทั้งกอง', () => {
+    const start = svc.indexOf('export async function resolveAllExpiredComments(')
+    expect(start).toBeGreaterThanOrEqual(0)
+    const sig = svc.slice(start, svc.indexOf('}', start))
+    expect(sig).not.toContain('state')
+    // route ก็ต้องไม่มีทางส่งอะไรที่เปลี่ยนเกณฑ์ได้
+    expect(route).not.toMatch(/state\s*[:,]/)
+  })
+
+  it('เกณฑ์ต้องเป็น "ยังไม่ตอบ ∧ พ้น 7 วัน" ครบทั้งคู่ ไม่ใช่เช็คเวลาอย่างเดียว', () => {
+    const start = svc.indexOf('export async function resolveAllExpiredComments(')
+    const body = svc.slice(start)
+    expect(body).toContain('${COMMENT_STATE_CASE}')
+    expect(body).toContain("= 'UNANSWERED'")
+    expect(body).toContain('c."createdTime" < ${privateReplyWindowCutoff()}')
+  })
+
+  it('ห้ามเขียนทับแถวที่ resolved อยู่แล้ว (BR-CR-R8) — ต้องกันทั้งตอน SELECT และตอน UPDATE', () => {
+    const start = svc.indexOf('export async function resolveAllExpiredComments(')
+    const body = svc.slice(start)
+    // ระหว่าง SELECT กับ UPDATE เพื่อนร่วมทีมอาจกดปิดใบเดียวกันไปแล้ว การกันชั้นเดียวไม่พอ
+    expect(body).toContain('c."resolvedAt" IS NULL')
+    expect(body).toContain('resolvedAt: null')
+  })
+
+  it('ต้อง scope ด้วย shopIds + ตัวกรองเพจ/ช่องทางเดียวกับที่จอใช้', () => {
+    const start = svc.indexOf('export async function resolveAllExpiredComments(')
+    const body = svc.slice(start)
+    expect(body).toContain('assertShopsAccessible')
+    expect(body).toContain('resolveCommentProvider(params.provider)')
+    expect(body).toContain('sc.id = ${params.shopChannelId}')
   })
 })

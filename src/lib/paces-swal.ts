@@ -54,6 +54,14 @@ export interface PacesConfirmOptions {
   confirmSemantic?: ConfirmSemantic
   /** default false — กัน misclick dismiss สำหรับ danger; ตั้ง true ได้สำหรับ question/info */
   allowOutsideClick?: boolean
+  /**
+   * โฟกัสเริ่มต้นไปที่ปุ่ม "ยกเลิก" แทนปุ่มยืนยัน (default false = โฟกัสปุ่มยืนยันตามเดิม)
+   *
+   * 🛑 ใช้กับการกระทำที่กระทบหลายแถวพร้อมกัน — กด Enter ค้างมาจากจอก่อนหน้าไม่ควรยืนยันงานที่
+   * ย้อนกลับได้ทีละแถวเท่านั้น. ไม่ตั้งเป็น default ให้ทุก confirm เพราะ confirm ส่วนใหญ่ในระบบ
+   * เป็นการกระทำใบเดียวที่ผู้ใช้ตั้งใจกดมาแล้ว การบังคับให้ต้อง Tab อีกทีคือแรงเสียดทานเปล่า ๆ
+   */
+  focusCancel?: boolean
 }
 
 interface PacesConfirmFn {
@@ -73,6 +81,7 @@ const base = async (options: PacesConfirmOptions): Promise<boolean> => {
     buttonsStyling: false,
     showCancelButton: true,
     allowOutsideClick: options.allowOutsideClick ?? false,
+    focusCancel: options.focusCancel ?? false,
     icon: options.icon ?? 'warning',
     title: options.title,
     text: options.text,

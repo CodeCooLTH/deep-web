@@ -751,6 +751,15 @@ export interface CommentListRow {
   /** `null` = ยังไม่จบงาน — คู่กับ `resolvedReason` เสมอ (CHECK ที่ชั้นฐานบังคับให้ไปด้วยกัน) */
   resolvedAt: Date | null
   resolvedReason: CommentResolvedReason | null
+  /**
+   * "จบงานเพราะมีคำตอบจริง" (คำตอบสาธารณะใต้คอมเมนต์ หรือทักแชทสำเร็จ) ไม่ใช่เพราะถูกกดข้าม
+   *
+   * 🛑 client คำนวณเองไม่ได้: `state` ยุบทั้ง 3 ทางไว้ในค่าเดียวแล้ว (คำตอบสาธารณะ / ทักแชท
+   * สำเร็จ / กดข้าม) แถวที่ **เป็นทั้งสองอย่าง** (ตอบไปแล้ว *และ* ถูกกดข้ามด้วย) จะแยกไม่ออก
+   * ถ้าเดาจาก `resolvedReason === null` — ต้องให้ server ที่ถือข้อมูลครบเป็นคนตอบ
+   * คำนวณด้วย `deriveCommentState()` ตัวเดิมโดยส่ง `resolved = false` (SSOT เดิม ไม่ใช่เกณฑ์ใหม่)
+   */
+  answeredForReal: boolean
   /** โพสต์ที่คอมเมนต์นี้อยู่ใต้ — คอลัมน์กลางยังแสดงเป็นระดับโพสต์ */
   post: {
     id: string
@@ -973,6 +982,12 @@ export async function listComments(params: {
       privateReplyConversationId: log?.conversationId ?? null,
       resolvedAt: c.resolvedAt,
       resolvedReason: toResolvedReason(c.resolvedReason),
+      answeredForReal:
+        deriveCommentState(
+          repliesByParent.get(c.externalCommentId) ?? [],
+          log ? (log.trigger === 'MANUAL' ? 'MANUAL' : 'AUTO') : null,
+          false,
+        ) !== 'UNANSWERED',
       post: {
         id: c.post.id,
         externalPostId: c.post.externalPostId,
@@ -1768,4 +1783,64 @@ export async function markCommentRepliedExternally(commentId: string): Promise<v
       resolvedByUserId: null,
     },
   })
+}
+
+/**
+ * ทำเครื่องหมาย "จัดการแล้ว" ให้คอมเมนต์ **ที่หมดอายุทั้งหมด** ในขอบเขตที่กรองอยู่
+ * (ส่วนขยาย 00038, 2026-08-19 รอบสอง — user: "พวก หมดอายุ ให้ทำ mark all ด้วยได้ไหม")
+ *
+ * 🛑 **รับเฉพาะเกณฑ์ "หมดอายุ" เท่านั้น ไม่รับ state จากผู้เรียก** — ฟังก์ชันนี้ตั้งชื่อและเขียน
+ * เงื่อนไขตายตัวไว้ในตัวมันเอง เพราะการเปิดให้ส่ง state เข้ามาได้แปลว่าวันหนึ่งจะมีคนส่ง
+ * `UNANSWERED` เข้ามา แล้วปุ่มเดียวจะล้าง **คิวงานจริงทั้งกอง** ของร้าน ซึ่งกู้คืนได้ทีละแถวเท่านั้น
+ * ("หมดอายุ" ปลอดภัยเพราะพ้นหน้าต่าง 7 วันแล้ว = ทักแชทไม่ได้อีกไม่ว่ากรณีใด)
+ * ด่านต้องอยู่ใน *รูปร่างของ API* ไม่ใช่ใน *วินัยของผู้เรียก* (rule-must-be-enforced-not-described)
+ *
+ * 🛑 เงื่อนไข `resolvedAt IS NULL` ห้ามถอด — คอมเมนต์ที่ระบบเคยปิดให้เองเพราะ Facebook ตอบ #10900
+ * ต้องคงเหตุผล `ALREADY_REPLIED_EXTERNALLY` ไว้ ไม่ถูกเขียนทับเป็น `MANUAL` (BR-CR-R8)
+ *
+ * ขอบเขต (เพจ/ช่องทาง) ต้องตรงกับที่ `listComments`/`countCommentStatesByShop` ใช้เป๊ะ ไม่งั้น
+ * ผู้ใช้กดจากจอที่กรองเพจเดียวแล้วไปโดนของเพจอื่นด้วย — หรือกดแล้วตัวเลขไม่ลงเป็นศูนย์
+ */
+export async function resolveAllExpiredComments(params: {
+  shopIds: string[]
+  actorUserId: string
+  shopChannelId?: string
+  provider?: CommentChannelFilter
+}): Promise<{ resolved: number }> {
+  if (params.shopIds.length === 0) return { resolved: 0 }
+  await assertShopsAccessible(params.shopIds, params.actorUserId)
+
+  const channelFilter = params.shopChannelId ? Prisma.sql`AND sc.id = ${params.shopChannelId}` : Prisma.empty
+
+  /**
+   * เลือก id ด้วยเกณฑ์เดียวกับที่จอใช้ (fragment ตัวเดียวกัน) แล้วค่อย `updateMany`
+   *
+   * ไม่เขียนเป็น `UPDATE ... WHERE` ก้อนเดียวเพราะอยากได้ id กลับมานับจริง ๆ ว่าแตะไปกี่แถว
+   * (ตัวเลขที่บอกผู้ใช้ต้องเป็นของที่เกิดขึ้นจริง ไม่ใช่ตัวเลขที่หน้าจอเดาไว้ก่อนกด)
+   */
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT c.id
+    FROM "PageComment" c
+    WHERE c."shopChannelId" IN (
+        SELECT sc.id FROM "ShopChannel" sc
+        WHERE sc."shopId" IN (${Prisma.join(params.shopIds)})
+          AND sc.provider = ${resolveCommentProvider(params.provider)}
+          ${channelFilter}
+      )
+      AND c."isFromPage" = false
+      AND c."isDeleted" = false
+      AND c."resolvedAt" IS NULL
+      AND c."createdTime" < ${privateReplyWindowCutoff()}
+      AND (${COMMENT_STATE_CASE}) = 'UNANSWERED'
+  `
+  const ids = rows.map((r) => r.id)
+  if (ids.length === 0) return { resolved: 0 }
+
+  const { count } = await prisma.pageComment.updateMany({
+    // `resolvedAt: null` ซ้ำอีกชั้นตรงนี้ ไม่ใช่ของฟุ่มเฟือย — ระหว่าง SELECT กับ UPDATE อาจมีคนอื่น
+    // ในทีมกดปิดใบเดียวกันไปแล้ว (หรือ webhook เจอ #10900) การเขียนทับจะกลืนเหตุผลของเขา
+    where: { id: { in: ids }, resolvedAt: null },
+    data: { resolvedAt: new Date(), resolvedReason: 'MANUAL', resolvedByUserId: params.actorUserId },
+  })
+  return { resolved: count }
 }

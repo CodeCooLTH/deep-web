@@ -35,6 +35,8 @@ import PrivateReplyModal from './PrivateReplyModal'
 import CommentRowMenu from './CommentRowMenu'
 import SwipeableRow from '../components/SwipeableRow'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
+import { commentDoneMark } from '@/lib/comment-done-mark'
+import { compactCount } from '@/lib/format-compact-number'
 import { subscribeShopComments } from '@/lib/comment-realtime'
 import { uploadToStorage } from '@/lib/upload-client'
 import { visibleTopLevelComments } from '@/lib/comment-tree-visibility'
@@ -99,6 +101,8 @@ export type CommentListItem = {
    */
   resolvedAt: string | null
   resolvedReason: CommentResolvedReason | null
+  /** "จบเพราะมีคำตอบจริง" ไม่ใช่เพราะถูกกดข้าม — server เป็นคนตัดสิน (ดู CommentListRow) */
+  answeredForReal: boolean
   /** โพสต์ที่คอมเมนต์นี้อยู่ใต้ — คอลัมน์กลาง/ขวายังทำงานระดับโพสต์เหมือนเดิม */
   post: {
     id: string
@@ -630,6 +634,63 @@ export default function CommentsClient({
     } finally {
       setLoadingMore(false)
     }
+  }
+
+  /**
+   * "ทำเครื่องหมายทั้งหมด" ของแท็บหมดอายุ (ส่วนขยาย 2026-08-19 รอบสอง)
+   *
+   * 🛑 ขอบเขตที่ส่งไปต้องเป็นตัวเดียวกับที่จอกำลังกรองอยู่เป๊ะ (`channelId` + `channelTab`) —
+   * ผู้ขายที่เห็นเลข 17 ใต้ตัวกรอง "เพจ A" ต้องไม่ไปโดนของเพจ B และกดแล้วเลขต้องลงเป็น 0 จริง
+   * (จอนี้เคยมี critique P1 เรื่องกรองรายการที่ client แล้วปล่อยตัวเลขไว้ที่เดิม)
+   *
+   * ตัวเลขใน toast มาจาก `resolved` ที่ server คืนมา ไม่ใช่ `counts.expired` ที่ค้างอยู่ตอนกด —
+   * ระหว่างที่ผู้ใช้อ่านกล่องยืนยัน เพื่อนร่วมทีมอาจปิดไปแล้วบางใบ
+   */
+  function resolveAllScopeLabel(): string {
+    const page = channelId ? channels.find((c) => c.id === channelId)?.name : null
+    const parts = [
+      page ? fmt(t.comments.resolveAllScopePage, { page }) : t.comments.resolveAllScopeAllPages,
+    ]
+    if (channelTab !== 'ALL') {
+      parts.push(fmt(t.comments.resolveAllScopeChannel, { channel: getChannelDisplay(channelTab).label }))
+    }
+    return parts.join(' · ')
+  }
+
+  async function handleResolveAllExpired() {
+    const ok = await pacesConfirm.warning(
+      t.comments.resolveAllExpiredTitle,
+      fmt(t.comments.resolveAllExpiredText, {
+        count: counts.expired.toLocaleString('th-TH'),
+        scope: resolveAllScopeLabel(),
+      }),
+      {
+        confirmButtonText: t.comments.resolveAllExpiredConfirmBtn,
+        // กระทบหลายสิบแถวพร้อมกัน — Enter ที่ค้างมาจากจอก่อนหน้าไม่ควรยืนยันให้เงียบ ๆ
+        focusCancel: true,
+      },
+    )
+    if (!ok) return
+    await listBusy.run(async () => {
+      try {
+        const res = await fetch('/api/chat/comments/resolve-expired', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ channelId: channelId || null, provider: channelTab }),
+        })
+        if (!res.ok) {
+          pacesToast.chat.error(t.comments.resolveActionFailed)
+          return
+        }
+        const data = (await res.json()) as { resolved: number }
+        pacesToast.chat.success(
+          fmt(t.comments.resolveAllExpiredToast, { count: data.resolved.toLocaleString('th-TH') }),
+        )
+        await refreshPosts(channelId, show.postStatus, channelTab)
+      } catch {
+        pacesToast.chat.error(t.comments.resolveActionFailed)
+      }
+    })
   }
 
   /**
@@ -1563,6 +1624,41 @@ export default function CommentsClient({
             )}
           </div>
         </div>
+
+        {/**
+          * "ทำเครื่องหมายทั้งหมด" — เห็นเฉพาะแท็บ "หมดอายุ" และเฉพาะตอนมีของให้ทำ
+          *
+          * 🛑 ไม่มีในแท็บ "ยังไม่ตอบ"/"ทั้งหมด" โดยตั้งใจ — กดครั้งเดียวล้างคิวงานจริงทั้งกองคือ
+          * ความเสียหายที่กู้ได้ทีละแถวเท่านั้น. "หมดอายุ" ปลอดภัยเพราะพ้นหน้าต่าง 7 วันแล้ว =
+          * ทักแชทไม่ได้อีกไม่ว่ากรณีใด (ด่านจริงอยู่ที่ service ที่ไม่รับ state จากผู้เรียก —
+          * ตรงนี้เป็นแค่การไม่แสดงปุ่ม ซึ่งไม่ใช่ด่าน)
+          *
+          * count = 0 → ซ่อนทั้งแถว ไม่ใช่ปุ่มตายที่ขึ้น "(0)" ค้างไว้
+          * สี warning เดียวกับ badge ของแท็บนี้ ไม่ใช่ primary (One Voice — น้ำเงินเป็นของปุ่มส่ง/ตอบ)
+          * และไม่ใช่ danger (ไม่ได้ลบอะไร คอมเมนต์ยังอยู่ครบ)
+          */}
+        {postTab === 'EXPIRED' && counts.expired > 0 && (
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => void handleResolveAllExpired()}
+              disabled={listBusy.busy}
+              aria-label={fmt(t.comments.resolveAllExpiredAria, {
+                count: counts.expired.toLocaleString('th-TH'),
+              })}
+              className="btn btn-sm bg-warning/15 text-warning-ink hover:bg-warning inline-flex items-center gap-1.5 hover:text-white disabled:opacity-50"
+            >
+              <Icon
+                icon={listBusy.busy ? 'loader-2' : 'checks'}
+                className={`size-3.5 ${listBusy.busy ? 'animate-spin' : ''}`}
+                aria-hidden="true"
+              />
+              {listBusy.busy
+                ? t.comments.resolveAllExpiredButtonBusy
+                : fmt(t.comments.resolveAllExpiredButton, { count: compactCount(counts.expired) })}
+            </button>
+          </div>
+        )}
         </div>
 
         {/* panel ที่แท็บสถานะข้างบนคุมอยู่ — id นี้ถูกอ้างด้วย aria-controls ของทุกแท็บ
@@ -1583,7 +1679,22 @@ export default function CommentsClient({
                   ทั้งที่กรองอยู่ ทำให้เข้าใจผิดว่าระบบพัง (critique P1)
                   ต้องครอบแท็บช่องทางด้วย: กด IG/Deep ที่ยังไม่มีคอมเมนต์ไหลเข้าเลย ต้องได้คำอธิบาย
                   ว่าไม่มี "ตามตัวกรอง" ไม่ใช่ "ยังไม่มีความคิดเห็น" ลอย ๆ ซึ่งอ่านเหมือนระบบพัง */}
-              {channelId || channelTab !== 'ALL' || show.postStatus !== 'ALL' || show.shopComments ? (
+              {/**
+                * แท็บ "หมดอายุ" ว่าง = **ไม่มีอะไรต้องทำแล้ว** ไม่ใช่ "หาไม่เจอ"
+                *
+                * 🛑 ข้อความเดิม ("ลองเปลี่ยนช่องทาง/เพจ/สถานะ หรือล้างตัวกรอง") ชวนให้ผู้ใช้ไปงม
+                * ตัวกรองเพื่อหาของที่ไม่มีอยู่จริง — แย่ที่สุดตอนเพิ่งกด "ทำเครื่องหมายทั้งหมด"
+                * สำเร็จ เพราะจอจะตอบว่า "ไม่พบตามตัวกรอง" กับงานที่ผู้ใช้เพิ่งเคลียร์เองกับมือ
+                * ใช้แม้มีตัวกรองเพจ/ช่องทางค้างอยู่ด้วย เพราะคำตอบเชิงความหมายเหมือนกันเสมอ
+                */}
+              {postTab === 'EXPIRED' ? (
+                <SellerEmptyState
+                  compact
+                  icon="checks"
+                  title={t.comments.emptyExpiredTitle}
+                  description={t.comments.emptyExpiredDesc}
+                />
+              ) : channelId || channelTab !== 'ALL' || show.postStatus !== 'ALL' || show.shopComments ? (
                 <SellerEmptyState
                   compact
                   icon="search-off"
@@ -1631,7 +1742,8 @@ export default function CommentsClient({
                  *
                  * แถวที่มีคำตอบจริงอยู่แล้วจึงยังเปิดเมนูได้ แต่รายการถูก disable พร้อมเหตุผล
                  */
-                const answeredForReal = c.state !== 'UNANSWERED' && c.resolvedReason === null
+                const answeredForReal = c.answeredForReal
+                const doneMark = commentDoneMark(c)
                 const rowButton = (
                 <button
                   type="button"
@@ -1692,6 +1804,25 @@ export default function CommentsClient({
                     <span className="text-default-900 line-clamp-2 text-xs font-semibold">
                       {c.isReply && (
                         <Icon icon="corner-down-right" className="me-0.5 inline-block size-3 shrink-0 align-[-1px]" />
+                      )}
+                      {/**
+                        * เครื่องหมายถูกนำหน้าคอมเมนต์ที่ "จบงานแล้ว" (user สั่ง 2026-08-19: "ถ้าตอบแล้ว
+                        * ทำเครื่องหมายว่าเรียบร้อยแล้ว ให้มี icon check ข้างหน้า comment นั้น ๆ")
+                        *
+                        * 🛑 รูปเดียวกันแต่ **คนละสี** โดยตั้งใจ — Verified-Means-Green ของโปรเจกต์นี้
+                        * สงวนเขียวไว้กับ "ข้อเท็จจริงที่ยืนยันได้": ตอบไปแล้วจริงคือของที่เรามองเห็น
+                        * คำตอบอยู่ ส่วน "กดข้ามเอง" คือการตัดสินใจของคน ลูกค้าไม่ได้รับอะไรเลย
+                        * ทาเขียวให้เท่ากันเมื่อไหร่ = จอบอกว่าลูกค้าได้คำตอบแล้วทั้งที่ไม่ได้
+                        * (รูปทรงเหมือนกันจึงยังกวาดตาอ่านว่า "จบแล้ว" ได้ในจังหวะเดียวเหมือนกัน)
+                        */}
+                      {doneMark && (
+                        <Icon
+                          icon="circle-check-filled"
+                          className={`me-0.5 inline-block size-3.5 shrink-0 align-[-2px] ${
+                            doneMark === 'verified' ? 'text-success' : 'text-default-500'
+                          }`}
+                          aria-hidden="true"
+                        />
                       )}
                       {`${c.fromName ?? t.comments.fbUser}: ${c.message?.trim() || t.comments.noText}`}
                     </span>
@@ -2310,9 +2441,7 @@ export default function CommentsClient({
               y={commentCtxMenu.y}
               resolved={resolved}
               busy={resolvingIds.has(row.id)}
-              unavailableReason={
-                row.state !== 'UNANSWERED' && row.resolvedReason === null ? t.comments.markDoneUnavailable : null
-              }
+              unavailableReason={row.answeredForReal ? t.comments.markDoneUnavailable : null}
               onToggle={() => {
                 void handleResolveToggle(row.id, resolved)
                 setCommentCtxMenu(null)

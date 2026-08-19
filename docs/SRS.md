@@ -1194,6 +1194,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | PATCH | `/api/shops/comment-reply/config` | Seller (canAccessShop) | บันทึกสวิตช์/ข้อความของเพจเดียว — เปิดสวิตช์โดยข้อความว่างไม่ได้; เพจ `TOKEN_INVALID` เปิดสวิตช์ไม่ได้ (409) | `comment-auto-reply.service` |
 | GET | `/api/shops/comment-reply/logs` | Seller (canAccessShop) | ประวัติการตอบ/ข้าม แบ่งหน้า (`?shopChannelId=&cursor=&take=`) | `comment-auto-reply.service` |
 | POST | `/api/chat/comments/[commentId]/private-reply` | Seller (canAccessShop ผ่าน comment→post→channel→shop) | ปุ่มแมนนวล "ทักแชท" — ใช้ได้เสมอไม่ขึ้นกับสวิตช์อัตโนมัติ; กันซ้ำด้วย partial unique index ระดับคอมเมนต์ (409 `ALREADY_SENT`/`WINDOW_EXPIRED`) | `comment-private-reply.service` |
+| POST | `/api/chat/comments/resolve-expired` | Seller (canAccessShop ผ่าน `resolveChatScope`) | **ส่วนขยาย 2026-08-19** — "ทำเครื่องหมายทั้งหมด" ของแท็บ "หมดอายุ". 🛑 **ไม่มีพารามิเตอร์ `state`** เกณฑ์เขียนตายใน `resolveAllExpiredComments()` — เปิดให้ส่งได้เมื่อไหร่ คำขอเดียวจะล้างคิวงานจริงทั้งกอง (BR-CR-R10) · ขอบเขต `channelId`/`provider` ต้องตรงกับ `/list` เป๊ะ | `page-comment.service::resolveAllExpiredComments` |
 | POST/DELETE | `/api/chat/comments/[commentId]/resolve` | Seller (canAccessShop ผ่าน comment→post→channel→shop) | **ส่วนขยาย 2026-08-19** — ทำเครื่องหมาย/เลิกทำเครื่องหมายว่า "จัดการแล้ว" เอาคอมเมนต์ที่ตอบไม่ได้แล้วออกจากคิว. 🛑 `reason` hardcode `MANUAL` **ไม่รับจาก body** — `ALREADY_REPLIED_EXTERNALLY` เป็นข้อเท็จจริงที่มาจาก Meta เท่านั้น (BR-CR-R7) · `DELETE` idempotent | `page-comment.service::setCommentResolved` |
 
 > ไม่มี `GET /api/shops/comment-reply/config` — ค่าตั้งต้นของสวิตช์+ข้อความทุกเพจอ่านผ่าน RSC +
@@ -1492,6 +1493,7 @@ route ที่รับ `?shopId=` แล้ว: `payments/**` (ใหม่) �
 | `GET /api/shops/comment-reply/logs` | — | — | ✅ | ❌ | — |
 | `POST /api/chat/comments/[commentId]/private-reply` | — | — | ✅ (ownership ผ่าน `comment→post→channel→shop`) | ❌ `403 FORBIDDEN` | — |
 | `POST/DELETE /api/chat/comments/[commentId]/resolve` | — | — | ✅ (ownership ผ่าน `comment→post→channel→shop`) | ❌ `403 FORBIDDEN` | — |
+| `POST /api/chat/comments/resolve-expired` | — | — | ✅ (`resolveChatScope` + `assertShopsAccessible`) | ❌ `403 FORBIDDEN` | — |
 | ปุ่ม "ทักแชท" ใช้ได้แม้ปิดสวิตช์อัตโนมัติ | — | — | ✅ (ไม่ผูกกับสวิตช์เลย) | — | — |
 
 ### 9.3 Verification
