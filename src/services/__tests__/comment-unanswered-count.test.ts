@@ -54,6 +54,26 @@ import { countUnansweredForShops } from '@/services/page-comment.service'
  * UNANSWERED ไปเป็น ELSE) ทั้งที่กฎที่มันตั้งใจปกป้องไม่ได้เปลี่ยนเลยสักข้อ — บทเรียนเดียวกับ
  * retro 2026-08-09 P11 ("เทสที่ผูกกับตำแหน่งแตกเพราะการเพิ่มที่ไม่เกี่ยวกัน")
  */
+/**
+ * ประกอบ SQL จริงคืนจาก template — ต้อง **กาง `Prisma.Sql` ที่ interpolate เข้าไปด้วย**
+ *
+ * 🛑 ตั้งแต่ 2026-08-19 นิยาม CASE ถูกยกออกไปเป็น fragment เดียว (`COMMENT_STATE_CASE`) ที่ทุก
+ * query interpolate เข้ามา — เนื้อ SQL ของมันจึงไม่อยู่ใน `strings` ของ template อีกต่อไป แต่ไป
+ * อยู่ใน `values` การ `join('')` เฉพาะ strings จะได้ SQL ที่ไม่มี CASE เลย แล้วเทสทั้งชุดที่ตรวจ
+ * ลำดับ WHEN จะแดงทั้งที่กฎที่มันปกป้องไม่ได้เปลี่ยนสักข้อ (ด่านที่ผูกกับ *วิธีเขียน* พังตอน refactor
+ * — รอยเดิมของไฟล์นี้เองเมื่อ 2026-08-09)
+ */
+function capturedSql(): string {
+  const strings = capturedStrings ?? []
+  return strings
+    .map((str, i) => {
+      const v = capturedValues[i]
+      const frag = typeof (v as Prisma.Sql | undefined)?.sql === 'string' ? (v as Prisma.Sql).sql : ''
+      return str + frag
+    })
+    .join('')
+}
+
 function caseBranches(sql: string): Array<{ predicate: string; result: string }> {
   const out: Array<{ predicate: string; result: string }> = []
   const re = /WHEN([\s\S]*?)THEN\s+'([A-Z_]+)'/g
@@ -98,7 +118,7 @@ describe('countUnansweredForShops — SQL ที่ยิงจริง (Fix ro
 
   it('[blocker] คอมเมนต์ที่บอทตอบสาธารณะแล้ว ต้องหลุดจาก UNANSWERED — branch ที่ดักไว้ต้องไม่มี isAutoReply (AC-CR-25)', async () => {
     await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1' })
-    const sql = commentCaseSql((capturedStrings ?? []).join(''))
+    const sql = commentCaseSql(capturedSql())
     // กฎที่ปกป้อง: "มีคำตอบของเพจอยู่ข้างใต้ ไม่ว่าบอทหรือคนเขียน = ไม่ใช่ยังไม่ตอบ"
     // ในโครง CASE ปัจจุบัน ตัวที่ดักเคส "บอทตอบล้วน" คือ branch ที่ให้ผล BOT_ANSWERED
     // ซึ่งต้องเช็คแค่ isFromPage เปล่า ๆ — ถ้ามีใครเติม isAutoReply เข้าไป เคสนั้นจะร่วงไป
@@ -111,7 +131,7 @@ describe('countUnansweredForShops — SQL ที่ยิงจริง (Fix ro
 
   it('[blocker] UNANSWERED ต้องเป็นทางออกสุดท้ายของ CASE ไม่ใช่ branch ที่ match เอง', async () => {
     await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1' })
-    const sql = commentCaseSql((capturedStrings ?? []).join(''))
+    const sql = commentCaseSql(capturedSql())
     // ถ้าใครเปลี่ยนกลับไปเป็น `WHEN ... THEN 'UNANSWERED'` แปลว่ามีเงื่อนไข "เชิงบวก" ที่ตัดสินว่า
     // ยังไม่ตอบ ซึ่งจะต้องไปไล่ปิดทุกเคสที่ไม่ใช่เองทีละอัน (นั่นคือรูปแบบที่พลาดมาแล้ว 2 รอบ)
     expect(sql).toContain("ELSE 'UNANSWERED'")
@@ -120,7 +140,7 @@ describe('countUnansweredForShops — SQL ที่ยิงจริง (Fix ro
 
   it('[blocker] คอมเมนต์ที่ทักแชทส่วนตัวสำเร็จแล้ว ต้องหลุดจาก UNANSWERED (user report 2026-08-09)', async () => {
     await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1' })
-    const sql = commentCaseSql((capturedStrings ?? []).join(''))
+    const sql = commentCaseSql(capturedSql())
     // ต้องมี branch ที่อ่าน CommentReplyLog ก่อนตกไป ELSE ไม่งั้นคอมเมนต์ที่ถูกดึงเข้าห้องแชท
     // จะค้างในคิว "ยังไม่ตอบ" ตลอดไป (คิวไม่มีวันลดลงแม้งานจบในกล่องข้อความแล้ว)
     const logBranches = caseBranches(sql).filter((b) => b.predicate.includes('CommentReplyLog'))
@@ -133,13 +153,13 @@ describe('countUnansweredForShops — SQL ที่ยิงจริง (Fix ro
 
   it('ยังเช็ค isFromPage = true ในเงื่อนไข NOT EXISTS (ต้องมีคำตอบของเพจอยู่ข้างใต้ถึงนับว่าตอบแล้ว)', async () => {
     await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1' })
-    const sql = (capturedStrings ?? []).join('')
+    const sql = capturedSql()
     expect(sql).toContain('isFromPage')
   })
 
   it('ยัง scope ด้วย shopIds ที่รับเข้ามา — Prisma.join() ห่อ shopIds จริง ไม่หลุด scope ข้ามร้าน', async () => {
     await countUnansweredForShops({ shopIds: ['shop-1', 'shop-2'], actorUserId: 'user-1' })
-    const sql = (capturedStrings ?? []).join('')
+    const sql = capturedSql()
     expect(sql).toContain('shopId')
     // ค่าที่ Prisma.join() ห่อไว้ต้องเป็น shopIds ตัวจริงที่ countUnansweredForShops ได้รับมา
     // (Prisma.join คืน Sql fragment ที่มี .values เป็นอาร์เรย์ค่าดิบ) — ไม่ใช่แค่ assert ว่า "มี
@@ -164,6 +184,10 @@ describe('countUnansweredForShops — SQL ที่ยิงจริง (Fix ro
     // ตรวจในเทสก่อนหน้า และมี .values ไม่ว่าง)
     for (const f of fragments) {
       if ((f as { values?: unknown[] }).values?.length) continue // join ของ shopIds
+      // COMMENT_STATE_CASE (นิยามสถานะที่ยกออกมาเป็น fragment เดียว 2026-08-19) เป็น Sql ที่ไม่ว่าง
+      // และไม่มี values — ต้องยกเว้นให้ ไม่งั้นด่านนี้จะบังคับให้ทุก fragment ต้องว่าง ซึ่งขัดกับ
+      // การรวมนิยามให้เหลือที่เดียว (ตรวจเนื้อของมันแยกในเทสลำดับ WHEN ข้างบนแล้ว)
+      if (f.sql.includes("THEN 'HUMAN_ANSWERED'")) continue
       expect(f).toBe(Prisma.empty)
     }
     // badge นับทั้งร้านเสมอ → ต้องไม่มีค่า provider อื่นนอกจาก MESSENGER หลุดเข้าไป

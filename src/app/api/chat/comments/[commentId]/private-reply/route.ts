@@ -97,6 +97,23 @@ export async function POST(
         { error: "กรุณากรอกข้อความก่อนส่ง", code: "VALIDATION_ERROR" },
         { status: 400, headers: NO_STORE_HEADERS },
       );
+    case "ALREADY_REPLIED_EXTERNALLY":
+      /**
+       * 409 ไม่ใช่ 502 — นี่คือ "ชนกับสถานะปัจจุบัน" (สิทธิ์ทัก 1 ครั้งของคอมเมนต์นี้ถูกใช้ไปแล้ว)
+       * ไม่ใช่ upstream สะดุด. ต่างจาก ALREADY_SENT ตรงที่ **เราไม่ใช่คนทัก** — มีคนกด "ส่งข้อความ"
+       * ใต้คอมเมนต์นี้จาก Business Suite/Page Inbox ไปแล้ว ระบบจึงเพิ่งปิดคิวให้อัตโนมัติ (FR-CR-16)
+       *
+       * 🛑 ข้อความห้ามมีคำว่า "ลองใหม่" — Meta ปฏิเสธถาวร กดกี่ครั้งก็ได้ผลเดิม (§8 ของ
+       * EXTENSIONS-2026-08-19-resolve-comment.md)
+       */
+      return NextResponse.json(
+        {
+          error: "มีคนทักแชทคอมเมนต์นี้ไปแล้วจาก Facebook โดยตรง",
+          code: "ALREADY_REPLIED_EXTERNALLY",
+          conversationId: result.conversationId ?? null,
+        },
+        { status: 409, headers: NO_STORE_HEADERS },
+      );
     case "SEND_FAILED":
       return NextResponse.json(
         { error: "Facebook ปฏิเสธการส่งข้อความ กรุณาลองใหม่", code: "UPSTREAM_ERROR" },

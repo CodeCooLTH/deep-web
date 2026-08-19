@@ -14,11 +14,13 @@
  * ซึ่งไม่ได้อยู่ใน remotePatterns ของ next.config.ts — เพิ่ม host เข้าไปเป็นการเปิดช่องให้
  * โหลดรูปจากโดเมนภายนอกทั้งชุด จึงเลี่ยงไปก่อนใน v1
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { COMMENT_LIST_PAGE_SIZE } from '@/lib/comment-list-page'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { pacesConfirm, pacesAlert } from '@/lib/paces-swal'
 import {
   formatTimeHM,
   formatDateTimeTH,
@@ -30,6 +32,8 @@ import {
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import CommentsThreadSkeleton from './CommentsThreadSkeleton'
 import PrivateReplyModal from './PrivateReplyModal'
+import CommentRowMenu from './CommentRowMenu'
+import SwipeableRow from '../components/SwipeableRow'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
 import { uploadToStorage } from '@/lib/upload-client'
@@ -45,7 +49,12 @@ import CommentsFilterPanel, {
   type CommentShowFilter,
 } from './CommentsFilterPanel'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
-import type { CommentAnswerState, CommentPostCounts, CommentChannelFilter } from '@/services/page-comment.service'
+import type {
+  CommentAnswerState,
+  CommentPostCounts,
+  CommentChannelFilter,
+  CommentResolvedReason,
+} from '@/services/page-comment.service'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import type { Dictionary } from '@/i18n/dictionaries/th'
@@ -84,6 +93,12 @@ export type CommentListItem = {
   state: CommentAnswerState
   privateReplySentAt: string | null
   privateReplyConversationId: string | null
+  /**
+   * ส่วนขยาย 2026-08-19 — "จัดการแล้ว" โดยที่ระบบเราไม่ได้เป็นคนตอบ (ดู CommentResolvedReason)
+   * คู่กันเสมอ — `null` ทั้งคู่ = ยังไม่ resolved (ฐานบังคับด้วย CHECK คู่ D-7)
+   */
+  resolvedAt: string | null
+  resolvedReason: CommentResolvedReason | null
   /** โพสต์ที่คอมเมนต์นี้อยู่ใต้ — คอลัมน์กลาง/ขวายังทำงานระดับโพสต์เหมือนเดิม */
   post: {
     id: string
@@ -118,6 +133,12 @@ type CommentItem = {
   privateReplyConversationId: string | null
   /** feature 00038 Task 9 — ป้าย "ตอบอัตโนมัติ" บนบับเบิลของบอท */
   isAutoReply: boolean
+  /**
+   * ส่วนขยาย 2026-08-19 — เธรดต้องรู้ค่านี้ด้วย ไม่ใช่แค่คอลัมน์ซ้าย: `resolvePrivateReplyState()`
+   * ต้องคืน 'SENT' (กดปุ่มทักแชทไม่ได้อีก) เมื่อ `resolvedReason === 'ALREADY_REPLIED_EXTERNALLY'`
+   */
+  resolvedAt: string | null
+  resolvedReason: CommentResolvedReason | null
 }
 
 type ThreadData = {
@@ -245,6 +266,10 @@ type PrivateReplyState = 'SENT' | 'SENDING' | 'EXPIRED' | 'AVAILABLE'
 
 function resolvePrivateReplyState(c: CommentItem, sendingId: string | null, t: Dictionary): PrivateReplyState {
   if (c.privateReplySentAt) return 'SENT'
+  // ส่วนขยาย 2026-08-19 — Facebook ยืนยันแล้วว่าเพจทัก private reply คอมเมนต์นี้ไปจากที่อื่น
+  // (#10900) สิทธิ์ทัก 1 ครั้งของคอมเมนต์นี้ถูกใช้ไปแล้วจริง กดกี่ครั้งก็ได้ผลเดิมเสมอ — ต้องกดไม่ได้
+  // อีกเหมือนกับกรณีที่เราเป็นคนทักเอง (BR-CR-R6 ไม่เกี่ยวกับปุ่มนี้ — นี่คือข้อเท็จจริงจาก Meta)
+  if (c.resolvedReason === 'ALREADY_REPLIED_EXTERNALLY') return 'SENT'
   if (sendingId === c.id) return 'SENDING'
   if (privateReplyWindow(c.createdTime, t).expired) return 'EXPIRED'
   return 'AVAILABLE'
@@ -271,6 +296,7 @@ export default function CommentsClient({
   channels: ChannelOption[]
 }) {
   const t = useT()
+  const router = useRouter()
   const [comments, setComments] = useState(initialComments)
   // feature 00038 — ตัวนับ 4 กลุ่มจากเซิร์ฟเวอร์ (listCommentPosts) ตัวเดียวที่ badge/แท็บ/ตัวกรอง
   // ใช้ร่วมกัน (BR-CR-S4) — ต้องเข้าคู่กับ `posts` เสมอ (อัปเดตพร้อมกันทุกจุดที่ fetch)
@@ -363,6 +389,19 @@ export default function CommentsClient({
   const [sendingPrivateReplyId, setSendingPrivateReplyId] = useState<string | null>(null)
   // feature 00038 Task 8 (rework) — คอมเมนต์ที่กำลังกรอกข้อความ "ทักแชท" อยู่ (null = โมดัลปิด)
   const [privateReplyComment, setPrivateReplyComment] = useState<CommentItem | null>(null)
+  /**
+   * ส่วนขยาย 2026-08-19 — commentId ที่มีคำขอ resolve/unresolve ค้างอยู่ (กันดับเบิลคลิก)
+   *
+   * 🛑 เป็น **Set ไม่ใช่ id เดี่ยว** เพราะงานจริงของฟีเจอร์นี้คือไล่เคลียร์คิวที่ค้างอยู่หลายสิบใบ
+   * ผู้ขายจะกดรัวหลายแถวติดกัน — ถ้าเก็บ id เดียวแล้วกันด้วย `if (resolvingId) return` ปุ่มของแถว
+   * อื่นจะยังดูกดได้ (เพราะ disabled ผูกกับ id ตัวเดียว) แต่กดแล้วเงียบไม่มีอะไรเกิดขึ้น = อาการ
+   * "กดไม่ติด" ที่ไม่มีอะไรอธิบาย. ล็อกรายแถวจริงตามที่ตั้งใจ (แพตเทิร์น actioningId ของ InboxList)
+   */
+  const [resolvingIds, setResolvingIds] = useState<ReadonlySet<string>>(() => new Set())
+  // ส่วนขยาย 2026-08-19 — เมนูคลิกขวาบนแถวคอมเมนต์ (desktop) — เก็บพิกัดเคอร์เซอร์ ไม่ snapshot
+  // สถานะ resolved ลง state ตัวนี้ เพราะ visibleComments เปลี่ยนได้ระหว่างที่เมนูเปิดอยู่
+  // (แพตเทิร์นเดียวกับ ctxMenu ของ InboxList.tsx)
+  const [commentCtxMenu, setCommentCtxMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   // แนบรูปในคำตอบ (user สั่ง 2026-08-03) — เอกสาร Meta: comment รับ `attachment_url` ได้
   // ใช้ท่าเดียวกับแชท: อัปขึ้น storage ของเราก่อน แล้ว server ค่อยทำ presigned URL ให้ Meta ดึง
   const [pendingFile, setPendingFile] = useState<{ fileId: string; previewUrl: string } | null>(null)
@@ -592,6 +631,37 @@ export default function CommentsClient({
       setLoadingMore(false)
     }
   }
+
+  /**
+   * lazy load ตอนเลื่อนถึงก้นรายการ — แทนปุ่ม "โหลดโพสต์เก่ากว่านี้" (user สั่ง 2026-08-19)
+   *
+   * 🛑 `loadMorePosts` เป็นฟังก์ชันใหม่ทุก render (ประกาศในตัว component) จึงห้ามใส่ลง deps ตรง ๆ
+   * — จะ disconnect/observe ใหม่ทุกเฟรม และ effect ที่ setState อยู่ข้างในจะปิดวงจรเป็นลูป
+   * (รอยเดิมของหน้านี้เอง: `useListBusy` ทั้งก้อนใน deps ทำ `/inbox/comments` ยิง API ไม่หยุด
+   * เมื่อ 2026-08-09 — docs/conventions/hook-return-identity-in-deps.md) เก็บไว้ใน ref แทน
+   * แล้ว deps เหลือเฉพาะ `hasMore` ซึ่งเป็น boolean ที่เสถียร
+   */
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
+  const loadMoreRef = useRef(loadMorePosts)
+  loadMoreRef.current = loadMorePosts
+  useEffect(() => {
+    const el = loadMoreSentinelRef.current
+    if (!el || !hasMore) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void loadMoreRef.current()
+      },
+      // เริ่มโหลดก่อนถึงก้นจริงเล็กน้อย ให้แถวชุดถัดไปมาทันก่อนผู้ใช้เห็นที่ว่าง
+      { rootMargin: '240px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+    // 🛑 ต้องมี `comments.length` ด้วย ไม่ใช่แค่ `hasMore`: ถ้าหน้าที่โหลดมาเตี้ยกว่าจอ sentinel
+    // จะยัง intersect อยู่เหมือนเดิม แล้ว IntersectionObserver **ไม่ยิงซ้ำเมื่อสถานะไม่เปลี่ยน**
+    // = โหลดได้หน้าเดียวแล้วค้าง (อาการคลาสสิกของ infinite scroll ที่ดูเหมือนใช้ได้ตอนทดสอบ
+    // ด้วยข้อมูลเยอะ ๆ แต่ตายกับร้านที่มีคอมเมนต์น้อย) การสร้าง observer ใหม่บังคับให้มันประเมิน
+    // ตำแหน่งใหม่ทุกครั้งที่รายการยาวขึ้น
+  }, [hasMore, comments.length])
 
   const loadThread = useCallback(async (postId: string, opts?: { silent?: boolean }) => {
     // silent = รอบ poll: ห้ามโชว์ spinner, ห้ามล้างคอมเมนต์ที่กำลังจะตอบ, ห้าม toast รบกวน
@@ -880,9 +950,9 @@ export default function CommentsClient({
    * ยังเป็น null เหมือนเดิม จึงตกไป EXPIRED (ถ้าหน้าต่างหมดจริง) หรือ AVAILABLE (กรณีอื่น) โดยอัตโนมัติ
    * ไม่ต้องมี state พิเศษแยก
    *
-   * คืนค่า boolean ให้ผู้เรียก (PrivateReplyModal) ตัดสินว่าจะปิดโมดัลไหม — true เฉพาะตอนจบแบบไม่ต้อง
-   * แก้ไขอะไรต่อ (ส่งสำเร็จ/ถูกส่งไปแล้วก่อนหน้า) ส่วน error จริง (หมดเวลา/เพจหลุด/upstream ล้ม) คืน
-   * false ให้โมดัลเปิดค้างไว้เพื่อกดลองใหม่ได้โดยไม่ต้องพิมพ์ข้อความซ้ำ
+   * คืนค่าที่ผู้เรียก (handlePrivateReplySend) ใช้ตัดสินว่าจะปิดโมดัลไหม — 'done' และ
+   * 'already-replied-externally' ปิดโมดัลทันที (ไม่มีอะไรให้แก้ไขต่อ) ส่วน 'retry' (error จริง:
+   * หมดเวลา/เพจหลุด/upstream ล้ม) ปล่อยให้โมดัลเปิดค้างไว้เพื่อกดลองใหม่ได้โดยไม่ต้องพิมพ์ข้อความซ้ำ
    */
   /** เก็บ "คีย์" ไม่ใช่ "ข้อความ" — tsc บังคับว่าคีย์นั้นมีจริงทั้งสองภาษา */
   const PRIVATE_REPLY_ERROR_KEY: Record<string, keyof Dictionary['comments']> = {
@@ -892,7 +962,13 @@ export default function CommentsClient({
     VALIDATION_ERROR: 'errValidation',
   }
 
-  async function sendPrivateReply(comment: CommentItem, message: string): Promise<boolean> {
+  type SendPrivateReplyResult =
+    | { kind: 'done' }
+    | { kind: 'retry' }
+    /** ส่วนขยาย 2026-08-19 — Graph ตอบ #10900 ระบบตั้ง resolved อัตโนมัติแล้วที่ฝั่ง server (FR-CR-16) */
+    | { kind: 'already-replied-externally'; conversationId: string | null }
+
+  async function sendPrivateReply(comment: CommentItem, message: string): Promise<SendPrivateReplyResult> {
     setSendingPrivateReplyId(comment.id)
     try {
       const res = await fetch(`/api/chat/comments/${comment.id}/private-reply`, {
@@ -906,10 +982,10 @@ export default function CommentsClient({
       // response จริงของ route — ไม่ได้ทำให้พังตอนนี้แค่เป็น type ที่โกหก
       const body = (await res.json().catch(() => null)) as
         | { conversationId: string | null; sentAt: string }
-        | { error?: string; code?: string }
+        | { error?: string; code?: string; conversationId?: string | null }
         | null
 
-      if (res.ok && body && 'conversationId' in body) {
+      if (res.ok && body && 'conversationId' in body && 'sentAt' in body) {
         pacesToast.success(t.comments.prSentSuccess)
         setThread((prev) =>
           prev
@@ -928,20 +1004,28 @@ export default function CommentsClient({
         // "ยังไม่ตอบ" ค้างอยู่ได้ถึง 1 นาทีจนกว่า poll รอบถัดไปจะมา ซึ่งอ่านเหมือนกดไม่ติด
         // ใช้ refreshPosts ตัวเดิม ไม่คำนวณ postStatus ใหม่ที่ client (กติกาอยู่ที่ server ที่เดียว)
         void refreshPosts(channelId, show.postStatus, channelTab)
-        return true
+        return { kind: 'done' }
       }
 
       const code = body && 'code' in body ? body.code : undefined
       if (code === 'ALREADY_SENT') {
         pacesToast.info(t.comments.prAlreadySent)
         if (selectedId) void loadThread(selectedId, { silent: true })
-        return true
+        return { kind: 'done' }
+      }
+      if (code === 'ALREADY_REPLIED_EXTERNALLY') {
+        // server ตั้ง resolvedReason='ALREADY_REPLIED_EXTERNALLY' ให้แล้ว (FR-CR-16) — รีเฟรช
+        // คอลัมน์ซ้าย (badge ใหม่ + หลุดจากคิว "ยังไม่ตอบ"/"หมดอายุ") และเธรด (ปุ่มทักแชทกดไม่ได้อีก)
+        void refreshPosts(channelId, show.postStatus, channelTab)
+        if (selectedId) void loadThread(selectedId, { silent: true })
+        const conversationId = body && 'conversationId' in body ? (body.conversationId ?? null) : null
+        return { kind: 'already-replied-externally', conversationId }
       }
       pacesToast.error((code && t.comments[PRIVATE_REPLY_ERROR_KEY[code]]) ?? t.comments.errUpstream)
-      return false
+      return { kind: 'retry' }
     } catch {
       pacesToast.error(t.comments.errUpstream)
-      return false
+      return { kind: 'retry' }
     } finally {
       setSendingPrivateReplyId(null)
     }
@@ -952,11 +1036,80 @@ export default function CommentsClient({
     setPrivateReplyComment(comment)
   }
 
-  /** ปุ่ม "ส่งข้อความ" ใน PrivateReplyModal — ปิดโมดัลเฉพาะตอนจบแบบไม่ต้องแก้ไขอะไรต่อ */
+  /**
+   * ส่วนขยาย 2026-08-19 — Sweet Alert หลัง #10900 (FR-CR-16 / §8 ของ
+   * EXTENSIONS-2026-08-19-resolve-comment.md) 🛑 ห้ามมีคำว่า "ลองใหม่" — Meta ปฏิเสธถาวร
+   * มีห้องแชทอยู่แล้ว (จับคู่ externalUserId ได้) → ชวนไปที่ห้องนั้น ไม่มี → ชวนตอบสาธารณะแทน
+   */
+  async function showAlreadyRepliedExternally(conversationId: string | null) {
+    if (conversationId) {
+      const goToChat = await pacesConfirm.question(
+        t.comments.prAlreadyRepliedTitle,
+        t.comments.prAlreadyRepliedTextWithConv,
+        {
+          confirmButtonText: t.comments.prAlreadyRepliedGoToChat,
+          cancelButtonText: t.common.close,
+          allowOutsideClick: true,
+        },
+      )
+      if (goToChat) router.push(`/inbox/${conversationId}`)
+      return
+    }
+    await pacesAlert({
+      icon: 'info',
+      title: t.comments.prAlreadyRepliedTitle,
+      text: t.comments.prAlreadyRepliedTextNoConv,
+      confirmButtonText: t.comments.prAlreadyRepliedUnderstood,
+      allowOutsideClick: true,
+    })
+  }
+
+  /**
+   * ปุ่ม "ส่งข้อความ" ใน PrivateReplyModal
+   *
+   * 🛑 ปิดโมดัล **ก่อน** เปิด Sweet Alert เสมอ (setPrivateReplyComment(null) เป็น synchronous
+   * ก่อน await ตัว alert) — ไม่งั้นโมดัลทักแชทจะค้างซ้อนอยู่ใต้ Sweet Alert แทนที่จะถูกแทนที่
+   */
   async function handlePrivateReplySend(message: string) {
     if (!privateReplyComment) return
-    const done = await sendPrivateReply(privateReplyComment, message)
-    if (done) setPrivateReplyComment(null)
+    const result = await sendPrivateReply(privateReplyComment, message)
+    if (result.kind === 'retry') return
+    setPrivateReplyComment(null)
+    if (result.kind === 'already-replied-externally') {
+      await showAlreadyRepliedExternally(result.conversationId)
+    }
+  }
+
+  /**
+   * ส่วนขยาย 2026-08-19 — "ทำเครื่องหมายว่าจัดการแล้ว" (mark done) / ยกเลิก (unresolve)
+   * FR-CR-15/FR-CR-17 — ทางเข้า: ปุ่มลอยตอน hover (desktop) / เมนูคลิกขวา (desktop) / ปัดซ้าย (มือถือ)
+   *
+   * 🛑 ห้าม optimistic flip ก่อน server ตอบ — รอ response แล้ว refreshPosts() ให้ server เป็นคนตัดสิน
+   * สถานะจริง (derive จาก deriveCommentState ที่เดียว — sibling-surface-parity กับ InboxList)
+   */
+  async function handleResolveToggle(commentId: string, currentlyResolved: boolean) {
+    if (resolvingIds.has(commentId)) return
+    setResolvingIds((prev) => new Set(prev).add(commentId))
+    try {
+      const res = await fetch(`/api/chat/comments/${commentId}/resolve`, {
+        method: currentlyResolved ? 'DELETE' : 'POST',
+      })
+      if (!res.ok) {
+        pacesToast.chat.error(t.comments.resolveActionFailed)
+        return
+      }
+      pacesToast.chat.success(currentlyResolved ? t.comments.unmarkDoneToast : t.comments.markDone)
+      void refreshPosts(channelId, show.postStatus, channelTab)
+      if (selectedId) void loadThread(selectedId, { silent: true })
+    } catch {
+      pacesToast.chat.error(t.comments.resolveActionFailed)
+    } finally {
+      setResolvingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(commentId)
+        return next
+      })
+    }
   }
 
   // 🛑 แท็บช่องทางกรองที่ **server** แล้ว (ดู `?provider=` ใน refreshPosts/loadMorePosts) —
@@ -1324,16 +1477,38 @@ export default function CommentsClient({
             >
           {([
             // ป้ายกลาง (ไม่ใช่ semantic color) — แท็บ "ทั้งหมด" ไม่ใช่สถานะงาน จึงไม่ควรมีสีแดง/เหลือง/
-            // เขียวเหมือน 3 แท็บที่เหลือ (user report prod: ไม่มีเลขคู่กับมีเลขปนกัน ดูเหมือนโหลดไม่ครบ)
-            { key: 'ALL', label: t.comments.all, icon: null, badgeClass: 'bg-default-200 text-default-700', count: counts.all },
+            // เขียวเหมือนแท็บที่เหลือ (user report prod: ไม่มีเลขคู่กับมีเลขปนกัน ดูเหมือนโหลดไม่ครบ)
+            { key: 'ALL', label: t.comments.all, icon: null, badgeClass: 'bg-default-200 text-default-700', count: counts.all, hint: undefined },
             // ยังไม่ตอบ = แดง (ยังไม่มีใครแตะ)
             //
-            // เหลือ 2 แท็บ (user สั่ง 2026-08-09 "tab ด้านบน ให้มีแค่ 2 tab พอ คือ ทั้งหมด ยังไม่ตอบ")
+            // เคยเหลือ 2 แท็บ (user สั่ง 2026-08-09 "tab ด้านบน ให้มีแค่ 2 tab พอ คือ ทั้งหมด ยังไม่ตอบ")
             // — เดิมมี "บอทตอบ"/"คนตอบ" ด้วย ซึ่งเป็นการแบ่งที่ตอบคำถามว่า "ใครเป็นคนตอบ" ไม่ใช่
             // "เหลืออะไรต้องทำ" ผู้ขายเปิดหน้านี้เพื่อเคลียร์คิว ไม่ได้มาแยกแยะว่าใครตอบ
             // สถานะทั้งสองยังมีอยู่ครบฝั่งข้อมูล (ป้ายบนแถวโพสต์ + ตัวกรอง `?state=` ที่ server)
             // ถอดแค่แท็บออก ไม่ได้ถอดความหมาย
-            { key: 'UNANSWERED', label: t.comments.unanswered, icon: 'alert-circle', badgeClass: 'bg-danger text-white', count: counts.unanswered },
+            //
+            // 2026-08-19 เพิ่ม "หมดอายุ" เป็นตัวที่ 3 — ไม่ขัดกับคำสั่งข้างบน เพราะมันตอบคำถาม
+            // "เหลืออะไรต้องทำ" เหมือนกัน (คิวที่ตกหล่นจนทักแชทไม่ได้แล้ว) ไม่ใช่ "ใครเป็นคนตอบ"
+            { key: 'UNANSWERED', label: t.comments.unanswered, icon: 'alert-circle', badgeClass: 'bg-danger text-white', count: counts.unanswered, hint: undefined },
+            /**
+             * หมดอายุ (user สั่ง 2026-08-19) = ยังไม่ตอบ **และ** พ้นหน้าต่างทักแชทส่วนตัว 7 วัน
+             *
+             * 🛑 เป็น **มุมมองซ้อน** ของ "ยังไม่ตอบ" ไม่ใช่ของที่ถูกหักออกไป — ตัวเลขจึงบวกกัน
+             * ไม่ได้ (นี่คือเจตนา ไม่ใช่บั๊ก) เพราะหมดหน้าต่างแปลว่า *ทักแชทส่วนตัว* ไม่ได้แล้ว
+             * เท่านั้น **ตอบใต้คอมเมนต์แบบสาธารณะยังทำได้ตลอดไป** มันจึงยังเป็นงานค้างจริง ๆ
+             * ที่ต้องอยู่ในคิว "ยังไม่ตอบ" ด้วย. `title` อธิบายเรื่องนี้ให้ผู้ขายที่สงสัยว่า
+             * ทำไมเลขไม่บวกกัน
+             *
+             * warning ไม่ใช่ danger: "ยังไม่ตอบ" คือของที่ต้องรีบ (แดง) ส่วนอันนี้คือของที่
+             * เลยจุดรีบไปแล้ว ทำได้แค่ตามเก็บ — ให้แดงสองแท็บติดกันคือการตะโกนใส่สิ่งที่
+             * ตะโกนไปก็ไม่ได้ช่วยอะไร
+             *
+             * 🛑 พื้นอ่อน + `text-warning-ink` ไม่ใช่ `bg-warning text-white` แบบแท็บแดง — วัดแล้ว
+             * ขาวบน `--color-warning` ของสกิน saas (#ff8f1f) ได้ 2.28:1 ตกเกณฑ์ข้อความ 4.5:1
+             * ชัดเจน (สีแดงของ danger เข้มพอจึงรอด แต่ส้มไม่รอด — คัดลอกคลาสข้างบนมาตรง ๆ
+             * ไม่ได้). คู่ `warning/15` + `-ink` วัดไว้แล้วที่ 6.20–6.56:1 (2026-08-09)
+             */
+            { key: 'EXPIRED', label: t.comments.expired, icon: 'clock-x', badgeClass: 'bg-warning/15 text-warning-ink', count: counts.expired, hint: t.comments.expiredHint },
           ] as const).map((t, idx, arr) => {
             const on = postTab === t.key
             return (
@@ -1357,6 +1532,9 @@ export default function CommentsClient({
                   document.getElementById(`commentPostTab-${next.key}`)?.focus()
                 }}
                 onClick={() => setPostTab(t.key)}
+                // 🛑 title ไม่ใช่ตัวแทนของข้อความบนจอ (มือถือไม่มี hover) — ที่นี่ใช้ได้เพราะเป็น
+                // "คำอธิบายเสริม" ล้วน ๆ ไม่ใช่ข้อมูลที่ต้องมีเพื่อใช้งาน ชื่อแท็บบอกครบอยู่แล้ว
+                title={t.hint}
                 className={`-mb-px flex shrink-0 items-center gap-1 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
                   on ? 'border-primary text-primary font-semibold' : 'text-default-600 border-transparent font-medium'
                 }`}
@@ -1442,9 +1620,20 @@ export default function CommentsClient({
             </div>
           ) : (
             <div className="divide-default-200 divide-y">
-              {visibleComments.map((c) => (
+              {visibleComments.map((c) => {
+                /**
+                 * ส่วนขยาย 2026-08-19 (FR-CR-15/17)
+                 *
+                 * 🛑 ทางเข้ามี **ทุกแถว** — รอบแรกซ่อนไปเลยบนแถวที่ตอบไปแล้ว ผลคือคลิกขวาแล้วได้
+                 * เมนูของเบราว์เซอร์โผล่มาแทน (user เจอเองบน prod 2026-08-19: "รายการที่โหลดเพิ่ม
+                 * จะกด right click ไม่ได้เลย" — เพราะคอมเมนต์เก่าส่วนใหญ่ตอบไปแล้ว) ซึ่งอ่านเป็น
+                 * "ฟีเจอร์พัง" ไม่ใช่ "ตรงนี้ไม่มีอะไรให้ทำ" — ความเงียบไม่ได้อธิบายตัวเอง
+                 *
+                 * แถวที่มีคำตอบจริงอยู่แล้วจึงยังเปิดเมนูได้ แต่รายการถูก disable พร้อมเหตุผล
+                 */
+                const answeredForReal = c.state !== 'UNANSWERED' && c.resolvedReason === null
+                const rowButton = (
                 <button
-                  key={c.id}
                   type="button"
                   onClick={() => {
                     // ธงนี้ทำให้ effect หลังเธรดโหลดเสร็จรู้ว่าควรจ่อตอบให้ (ดู focusReplyOnLoad)
@@ -1573,6 +1762,24 @@ export default function CommentsClient({
                         </span>
                       </span>
                     )}
+                    {/* ส่วนขยาย 2026-08-19 — "จัดการแล้ว" โดยที่ระบบเราไม่ได้เป็นคนตอบ (BR-CR-R1:
+                        นับเป็น HUMAN_ANSWERED ในตัวนับ ไม่ใช่สถานะที่ 4 — แยกแยะด้วยป้ายนี้เท่านั้น)
+                        🛑 ห้ามใช้เขียว: ผู้ขายกดข้ามเอง (MANUAL) และ Facebook ยืนยันว่าทักไปแล้วนอก
+                        ระบบ (ALREADY_REPLIED_EXTERNALLY) ต่างก็ไม่ใช่คำตอบที่เกิดในระบบเรา —
+                        Verified-Means-Green สงวนเขียวไว้กับคำตอบที่เกิดในระบบ Deep เท่านั้น
+                        ชิปเดียวกันทั้งสองเหตุผล (หัวหน้าสั่ง 2026-08-19: "คำมั่นแปลก ก็แค่จัดการ
+                        แล้ว ก็พอ") — ตรรกะที่ต่างกันจริง (ปุ่มทักแชทของ ALREADY_REPLIED_EXTERNALLY
+                        กดไม่ได้ถาวร ส่วน MANUAL ยังกดได้ถ้าอยู่ในหน้าต่าง 7 วัน — ดู
+                        resolvePrivateReplyState()) ไม่ได้เปลี่ยน คำอธิบายว่า "ทำไมจัดการแล้ว" อยู่
+                        ใน Sweet Alert ตอน #10900 เกิดขึ้นแทน (จังหวะที่ผู้ขายต้องรู้จริง ๆ) */}
+                    {c.resolvedReason && (
+                      <span className="mt-1 flex flex-wrap items-center gap-1">
+                        <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
+                          <Icon icon="circle-check" width={11} height={11} className="shrink-0" />
+                          {t.comments.markDoneTile}
+                        </span>
+                      </span>
+                    )}
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1.25">
                     {/* เวลาแบบสัมพัทธ์ (เมื่อกี้ / 3 ชม. / 2 วัน) — HH:MM เดิมทำให้เมื่อวานกับ
@@ -1580,17 +1787,81 @@ export default function CommentsClient({
                     <span className="text-default-700 text-2xs">{formatChatListTime(c.createdTime)}</span>
                   </span>
                 </button>
-              ))}
-              {hasMore && (
-                <div className="p-3">
-                  <button
-                    type="button"
-                    onClick={() => void loadMorePosts()}
-                    disabled={loadingMore}
-                    className="btn bg-default-100 text-default-800 hover:bg-default-200 min-h-11 w-full disabled:opacity-60"
+                )
+
+                const resolved = c.resolvedReason !== null
+                const busyResolving = resolvingIds.has(c.id) || answeredForReal
+
+                return (
+                  <div
+                    key={c.id}
+                    className="group relative"
+                    // เดสก์ท็อป (มี mouse) เท่านั้น — ทางเข้าที่ 2 คู่กับปุ่มลอยตอน hover (UX-Design-Spec)
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      setCommentCtxMenu({ id: c.id, x: e.clientX, y: e.clientY })
+                    }}
                   >
-                    {loadingMore ? t.common.loading : t.comments.loadMore}
-                  </button>
+                    {/* มือถือ (<lg): ปัดซ้าย — tile เดียว สีเขียวเฉพาะทิศ "จัดการแล้ว" (Verified-Means-Green
+                        ไม่ใช้เขียวทั้งสองทิศ — เทากลางสำหรับ "เลิกทำเครื่องหมาย" เหมือน resolve/reopen
+                        ของ InboxList.tsx) */}
+                    <SwipeableRow
+                      disabled={answeredForReal}
+                      actionsWidth={104}
+                      actions={
+                        <button
+                          type="button"
+                          onClick={() => void handleResolveToggle(c.id, resolved)}
+                          disabled={busyResolving}
+                          className={`text-2xs flex flex-1 flex-col items-center justify-center gap-0.5 text-white disabled:opacity-50 ${
+                            resolved ? 'bg-default-500' : 'bg-success'
+                          }`}
+                        >
+                          <Icon icon={resolved ? 'arrow-back-up' : 'circle-check'} width={18} height={18} />
+                          {resolved ? t.comments.unmarkDone : t.comments.markDoneTile}
+                        </button>
+                      }
+                    >
+                      {rowButton}
+                    </SwipeableRow>
+                    {/* เดสก์ท็อป (≥1024px): ปุ่มลอยปลายแถวตอน hover — Base: InboxList.tsx (ปุ่ม
+                        pin/resolve absolute end-2 top-1/2 -translate-y-1/2) เหลือปุ่มเดียว
+                        lg:group-focus-within:flex คู่กับ hover เสมอ — ไม่งั้น Tab ถึงปุ่มนี้แต่มองไม่เห็น */}
+                    <button
+                      type="button"
+                      onClick={() => void handleResolveToggle(c.id, resolved)}
+                      disabled={busyResolving}
+                      aria-label={resolved ? t.comments.unmarkDone : t.comments.markDone}
+                      title={resolved ? t.comments.unmarkDone : t.comments.markDone}
+                      className={`border-default-300 bg-card text-default-600 absolute end-2 top-1/2 hidden -translate-y-1/2 items-center rounded-lg border p-1.5 shadow hover:bg-default-100 disabled:opacity-50 ${
+                        answeredForReal ? '' : 'lg:group-focus-within:flex lg:group-hover:flex'
+                      }`}
+                    >
+                      <Icon icon={resolved ? 'arrow-back-up' : 'circle-check'} width={16} height={16} />
+                    </button>
+                  </div>
+                )
+              })}
+              {/**
+                * โหลดหน้าถัดไปเองเมื่อเลื่อนถึงก้นรายการ (user สั่ง 2026-08-19: "จริง ๆ ตรงนี้ไม่ควรมี
+                * ด้วย มันควรเป็น lazy load เวลา scroll ลงไปเจอก็ให้โหลดเลย")
+                *
+                * 🛑 เพิ่งทำได้จริงรอบนี้ — ก่อนหน้านี้การกรอง `?state=` เกิด **หลัง** ตัดหน้าใน SQL
+                * หน้าหนึ่งจึงคืนศูนย์แถวได้ทั้งที่ยังมีของเหลือ (แท็บ "หมดอายุ" ต้องกด 3 รอบกว่าจะ
+                * เจอใบแรก) ถ้าทำ auto-load บนของเดิม ผู้ใช้จะเห็นสปินเนอร์หมุนเงียบ ๆ หลายรอบโดย
+                * รายการไม่ขยับเลย — แย่กว่าปุ่มที่กดแล้วรู้ว่าตัวเองกด
+                *
+                * sentinel เป็น element จริงใต้แถวสุดท้าย ไม่ผูกกับ scroll event ของกล่อง (กล่อง
+                * scroll ของคอลัมน์นี้เป็น SimpleBar ซึ่งไม่ใช่ตัวที่ยิง scroll ของ window)
+                */}
+              {hasMore && (
+                <div ref={loadMoreSentinelRef} className="flex min-h-14 items-center justify-center p-3">
+                  {loadingMore && (
+                    <span className="text-default-700 inline-flex items-center gap-2 text-xs">
+                      <Icon icon="loader-2" className="animate-spin text-sm" aria-hidden="true" />
+                      {t.common.loading}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -2024,6 +2295,32 @@ export default function CommentsClient({
           onSend={handlePrivateReplySend}
         />
       )}
+
+      {/* เมนูคลิกขวาบนแถวคอมเมนต์ (ส่วนขยาย 2026-08-19, desktop) — อ่านสถานะจาก `comments` state
+          ตอน render ไม่ snapshot ตอนคลิกขวา เมนูที่ยังเปิดอยู่หลัง action+refetch จะได้ label ที่
+          ตรงความจริง (แพตเทิร์นเดียวกับ ctxMenu ของ InboxList.tsx) */}
+      {commentCtxMenu &&
+        (() => {
+          const row = comments.find((c) => c.id === commentCtxMenu.id)
+          if (!row) return null
+          const resolved = row.resolvedReason !== null
+          return (
+            <CommentRowMenu
+              x={commentCtxMenu.x}
+              y={commentCtxMenu.y}
+              resolved={resolved}
+              busy={resolvingIds.has(row.id)}
+              unavailableReason={
+                row.state !== 'UNANSWERED' && row.resolvedReason === null ? t.comments.markDoneUnavailable : null
+              }
+              onToggle={() => {
+                void handleResolveToggle(row.id, resolved)
+                setCommentCtxMenu(null)
+              }}
+              onClose={() => setCommentCtxMenu(null)}
+            />
+          )
+        })()}
     </div>
   )
 }

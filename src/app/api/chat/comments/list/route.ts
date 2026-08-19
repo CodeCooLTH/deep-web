@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveChatScope } from "@/lib/chat-scope";
-import { listComments, type CommentChannelFilter } from "@/services/page-comment.service";
+import {
+  listComments,
+  type CommentChannelFilter,
+  type CommentListStateFilter,
+} from "@/services/page-comment.service";
 import { sessionUserId } from "@/lib/session-user";
 
 /**
@@ -13,7 +17,7 @@ import { sessionUserId } from "@/lib/session-user";
  * กดแล้วต้องโหลดเธรดของโพสต์ไหน — เส้นทาง `/posts/[postId]` (เธรด + เขียนคอมเมนต์) ไม่เปลี่ยน
  * query: `q` = ค้นหา (ข้อความคอมเมนต์ / ชื่อผู้คอมเมนต์ / ข้อความโพสต์)
  *        `channelId` = กรองเฉพาะเพจเดียว (ร้านเชื่อมได้หลายเพจ)
- *        `state` = 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN' กรองที่ server
+ *        `state` = 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN' | 'EXPIRED' กรองที่ server
  *          (ค่า derived จาก deriveCommentState ไม่มีคอลัมน์ในฐาน กรองที่ client ไม่ได้)
  *
  * per-user authenticated data — ห้าม shared cache (เหตุผลเดียวกับ chat/groups)
@@ -46,8 +50,10 @@ export async function GET(request: NextRequest) {
     // feature 00038 — allow-list ค่า state ที่รับ; ค่าแปลก ๆ ตกไป 'ALL' (fail-closed ไม่กรองอะไรเลย
     // ดีกว่าโยน error เพราะเป็น query param จาก client ที่แก้ไขเองได้)
     const stateRaw = request.nextUrl.searchParams.get("state");
-    const state: "ALL" | "UNANSWERED" | "BOT" | "HUMAN" =
-      stateRaw === "UNANSWERED" || stateRaw === "BOT" || stateRaw === "HUMAN" ? stateRaw : "ALL";
+    const state: CommentListStateFilter =
+      stateRaw === "UNANSWERED" || stateRaw === "BOT" || stateRaw === "HUMAN" || stateRaw === "EXPIRED"
+        ? stateRaw
+        : "ALL";
     // พิลล์ช่องทาง — allow-list เหมือน state (ค่าแปลกตกไป 'ALL' = ไม่กรอง) เพราะ client แก้ query
     // param เองได้ และค่าที่ไม่รู้จักต้องไม่หลุดลงไปเป็น provider ใน SQL
     const providerRaw = request.nextUrl.searchParams.get("provider");

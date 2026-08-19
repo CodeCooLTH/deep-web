@@ -10,13 +10,14 @@
  *       ปุ่มพิมพ์ใบปะหน้า/ยกเลิก) + badge จาก theme/paces/Admin/TS/src/app/(admin)/ui/badges
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTime, formatRelativeDayTime } from '@/lib/format-date'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { classifyRetryUX } from '@/lib/iship/errors'
+import { sortTracesNewestFirst } from '@/lib/iship/traces'
 import { TONE_BADGE, NOTICE_BOX } from './tone'
 import {
   SHIPMENT_STAGES,
@@ -499,7 +500,16 @@ export default function ShipmentStatusView({
     : describeShipmentStatus(shipment.status)
   const badgeText = shipment.carrierStatusText ?? badge.text
 
-  const shownTraces = traces ? (showAllTraces ? traces : traces.slice(0, TRACE_PREVIEW)) : []
+  /**
+   * ใหม่ → เก่า ก่อนสไลซ์เสมอ — API คืนมาเก่าสุดก่อน (ดู @/lib/iship/traces) ถ้าสไลซ์จากอาเรย์ดิบ
+   * โหมดย่อจะโชว์ 3 เหตุการณ์ "เก่าสุด" และจุดน้ำเงิน `i === 0` จะไปเกาะเหตุการณ์แรกสุดของพัสดุ
+   */
+  const orderedTraces = useMemo(() => (traces ? sortTracesNewestFirst(traces) : null), [traces])
+  const shownTraces = orderedTraces
+    ? showAllTraces
+      ? orderedTraces
+      : orderedTraces.slice(0, TRACE_PREVIEW)
+    : []
   const hasReceiver = Boolean(receiver && (receiver.name || receiver.phone || addressLines.length > 0))
   const itemCount = items?.reduce((n, it) => n + it.qty, 0) ?? 0
 
@@ -681,31 +691,48 @@ export default function ShipmentStatusView({
         )}
 
         {shownTraces.length > 0 && (
-          <ol className="flex list-none flex-col ps-0">
-            {shownTraces.map((t, i) => (
-              <li key={`${t.status}-${t.occurredAt}-${i}`} className="relative flex gap-3 pb-3 last:pb-0">
-                {/* เส้นต่อระหว่างจุด — ตัวสุดท้ายไม่มี ไม่งั้นเส้นห้อยลงไปในที่ว่าง */}
-                {i < shownTraces.length - 1 && (
-                  <span className="bg-default-200 absolute start-1.5 top-4 bottom-0 w-0.5" aria-hidden="true" />
-                )}
-                <span
-                  className={`relative z-1 mt-1 size-3 shrink-0 rounded-full ${
-                    i === 0 ? 'bg-primary ring-primary/20 ring-3' : 'bg-default-300'
-                  }`}
-                  aria-hidden="true"
-                />
-                <div className="min-w-0">
-                  <p className={`mb-0 text-sm font-semibold ${i === 0 ? 'text-primary-ink' : 'text-default-900'}`}>
-                    {t.statusText ?? t.status}
-                  </p>
-                  {t.statusDesc && <p className="text-default-700 mb-0 text-xs">{t.statusDesc}</p>}
-                  <p className="text-default-700 mb-0 text-xs">
-                    {formatRelativeDayTime(new Date(t.occurredAt))}
-                    {t.location ? ` · ${t.location}` : ''}
-                  </p>
-                </div>
-              </li>
-            ))}
+          <ol className="flex list-none flex-col ps-0" aria-label="การเดินทางของพัสดุ เรียงจากเหตุการณ์ล่าสุดไปเก่าสุด">
+            {shownTraces.map((t, i) => {
+              /**
+               * แถวแรก = ล่าสุด (อาเรย์ถูกเรียงใหม่→เก่าแล้ว) — เด่นด้วย primary + ตัวหนา
+               * แถวที่เหลือ = ผ่านไปแล้ว จางลงทั้งบรรทัด (`text-default-500`) ให้สายตาไปหยุดที่
+               * บรรทัดบนสุดก่อนเสมอ. dim ด้วยการเลื่อนความเข้มในตระกูล default เดิม ไม่สลับเฉด
+               */
+              const isLatest = i === 0
+              const dim = isLatest ? 'text-default-700' : 'text-default-500'
+              return (
+                <li key={`${t.status}-${t.occurredAt}-${i}`} className="relative flex gap-3 pb-3 last:pb-0">
+                  {/* เส้นต่อระหว่างจุด — ตัวสุดท้ายไม่มี ไม่งั้นเส้นห้อยลงไปในที่ว่าง */}
+                  {i < shownTraces.length - 1 && (
+                    <span className="bg-default-200 absolute start-1.5 top-4 bottom-0 w-0.5" aria-hidden="true" />
+                  )}
+                  <span
+                    className={`relative z-1 mt-1 size-3 shrink-0 rounded-full ${
+                      isLatest ? 'bg-primary ring-primary/20 ring-3' : 'bg-default-300'
+                    }`}
+                    aria-hidden="true"
+                  />
+                  <div className="min-w-0">
+                    <p
+                      className={`mb-0 text-sm ${
+                        isLatest ? 'text-primary-ink font-semibold' : 'text-default-500'
+                      }`}
+                    >
+                      {t.statusText ?? t.status}
+                      {/* WCAG 1.4.1 — "นี่คือรายการล่าสุด" ต้องไม่สื่อด้วยสีอย่างเดียว */}
+                      {isLatest && shownTraces.length > 1 && (
+                        <span className="text-primary-ink text-2xs font-normal"> · ล่าสุด</span>
+                      )}
+                    </p>
+                    {t.statusDesc && <p className={`${dim} mb-0 text-xs`}>{t.statusDesc}</p>}
+                    <p className={`${dim} mb-0 text-xs`}>
+                      {formatRelativeDayTime(new Date(t.occurredAt))}
+                      {t.location ? ` · ${t.location}` : ''}
+                    </p>
+                  </div>
+                </li>
+              )
+            })}
           </ol>
         )}
 

@@ -297,6 +297,8 @@ export const en: Dictionary = {
     all: 'All',
     unanswered: 'Unanswered',
     unansweredN: '{n} unanswered',
+    expired: 'Window closed',
+    expiredHint: 'Unanswered and past 7 days — private reply unavailable, public reply still works',
 
     windowExpired: 'Reply window closed',
     windowRemaining: '{remaining} left',
@@ -332,6 +334,22 @@ export const en: Dictionary = {
     errValidation: 'Please write a message first',
     prSentSuccess: 'Message sent — a new chat thread was created.',
     prAlreadySent: 'You have already messaged this comment',
+
+    prAlreadyRepliedTitle: 'This Page already messaged this person',
+    prAlreadyRepliedTextWithConv:
+      "Someone already messaged this comment directly from Facebook.\nWe've marked it as handled for you.",
+    prAlreadyRepliedGoToChat: 'Go to chat',
+    prAlreadyRepliedTextNoConv:
+      'Someone already messaged this comment directly from Facebook.\nYou can still reply publicly under the comment.',
+    prAlreadyRepliedUnderstood: 'Got it',
+
+    markDone: 'Mark as handled',
+    markDoneTile: 'Handled',
+    markDoneUnavailable: 'This comment is already answered',
+    unmarkDone: 'Undo mark',
+    unmarkDoneToast: 'Mark removed',
+    resolveActionFailed: "Couldn't complete this action. Please try again.",
+    commentMenuAria: 'Comment options',
 
     replyingTo: 'Replying to {name}',
     fbUser: 'Facebook user',

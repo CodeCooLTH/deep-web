@@ -10,25 +10,59 @@
  */
 import { prisma } from '@/lib/prisma'
 import { canAccessShop } from '@/lib/shop-context'
-import { resolveChannelToken } from '@/services/page-comment.service'
+import { markCommentRepliedExternally, resolveChannelToken } from '@/services/page-comment.service'
 import { sendPrivateReplyToComment } from '@/lib/facebook/graph'
-
-/** หน้าต่างทักส่วนตัวของ Meta นับจากเวลาที่ลูกค้าคอมเมนต์ */
-export const PRIVATE_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+import { isAlreadyRepliedGraphError } from '@/lib/facebook/private-reply-error'
+import { PRIVATE_REPLY_WINDOW_MS, isWithinPrivateReplyWindow } from '@/lib/private-reply-window'
 
 /**
- * ยังทักได้ไหม — แยกเป็น pure function เพื่อให้ UI กับ service ตัดสินด้วยเกณฑ์เดียวกัน
- * เวลาคอมเมนต์ที่อยู่ในอนาคต (นาฬิกาเครื่องเพี้ยน / timezone) ถือว่ายังทักได้ ไม่ใช่ error
+ * หน้าต่างทักส่วนตัวของ Meta — ย้ายไป `@/lib/private-reply-window` แล้ว (2026-08-19) เพราะตัวเลข
+ * เดียวกันถูกคัดลอกไปอยู่ 3 ที่จริง ๆ ตามที่ SRS เตือนไว้แต่แรก. re-export ไว้เพื่อไม่ให้ผู้เรียก
+ * เดิมต้องแก้ทั้งชุด — **ที่ประกาศจริงมีที่เดียวคือ lib**
  */
-export function isWithinPrivateReplyWindow(commentCreatedTime: Date, now: Date = new Date()): boolean {
-  return now.getTime() - commentCreatedTime.getTime() < PRIVATE_REPLY_WINDOW_MS
+export { PRIVATE_REPLY_WINDOW_MS, isWithinPrivateReplyWindow }
+
+/**
+ * ชื่อตั้งต้นของผู้ติดต่อ เมื่อห้องแชทเกิดจาก private reply (bug fix 2026-08-19)
+ *
+ * ทำไมต้องมี: ชื่อผู้ติดต่อถูกดึงจาก Graph ที่ ingestInboundMessage เท่านั้น (channel-chat.service.ts)
+ * ซึ่งวิ่งเฉพาะตอนมี "ข้อความขาเข้า" — ห้องที่เราเป็นคนเปิดเองด้วย private reply จึงได้
+ * ExternalContact.name = null แล้วหน้า inbox ตกไป fallback "ผู้ติดต่อ" **ค้างตลอดไปจนกว่าลูกค้าจะตอบ**
+ * (prod 2026-08-19: 35 ห้อง ทุกห้องมีข้อความ BUYER = 0 ใบ) ทั้งที่ชื่อคนคอมเมนต์อยู่ใน
+ * PageComment.fromName ที่ฟังก์ชันนี้โหลดมาอยู่ในมือแล้วตั้งแต่ต้น (เช็คบน prod: หาชื่อเจอครบ 35/35)
+ *
+ * 🛑 บังคับให้ id ตรงกันก่อนเสมอ — Graph เปิดห้องให้ "ผู้รับ" ที่มันยืนยันกลับมา ไม่ใช่ "ผู้คอมเมนต์"
+ * เป๊ะ ๆ (ดูคอมเมนต์ที่จุด upsert) ไม่ตรงเมื่อไหร่คือเอาชื่อคนหนึ่งไปแปะห้องของอีกคน ซึ่งแย่กว่า
+ * คำว่า "ผู้ติดต่อ" มาก. เกณฑ์ต้องเป็น "การเช็ค" ไม่ใช่ "สถิติว่าที่ผ่านมามันตรง"
+ *
+ * fromName เป็น null ได้ตามปกติ: คอมเมนต์ที่ดึงย้อนหลังผ่าน Graph ไม่มีคีย์ `from` มาให้เลย
+ * (ติด Standard Access ของ Business Asset User Profile Access — feature 00029) → ไม่ seed ก็จบ
+ */
+export function resolveSeedContactName(args: {
+  recipientId: string
+  commentFromExternalId: string | null
+  commentFromName: string | null
+}): string | null {
+  if (!args.commentFromExternalId) return null
+  if (args.commentFromExternalId !== args.recipientId) return null
+  const name = args.commentFromName?.trim()
+  return name ? name : null
 }
 
 export type PrivateReplyResult =
   // conversationId เป็น null เฉพาะกรณี Graph ส่งสำเร็จแต่ทรานแซกชันสร้างห้องแชทล้มเหลว (D2) —
   // ข้อความถึงลูกค้าไปแล้วจริง ห้ามรายงาน sent:false ทั้งที่ Meta ส่งสำเร็จ
   | { sent: true; conversationId: string | null; messageId: string }
-  | { sent: false; reason: PrivateReplySkipReason; error?: string }
+  | {
+      sent: false
+      reason: PrivateReplySkipReason
+      error?: string
+      /**
+       * ห้องแชทที่มีอยู่แล้วกับคนคอมเมนต์คนนี้ — ใส่มาเฉพาะ `ALREADY_REPLIED_EXTERNALLY`
+       * เพื่อให้จอเสนอ "ไปที่ห้องแชท" แทนที่จะบอกให้กดซ้ำ (null = หาไม่เจอ ซึ่งเกิดได้ปกติ)
+       */
+      conversationId?: string | null
+    }
 
 export type PrivateReplySkipReason =
   | 'COMMENT_NOT_FOUND'
@@ -38,6 +72,15 @@ export type PrivateReplySkipReason =
   | 'ALREADY_SENT'
   | 'EMPTY_TEXT'
   | 'SEND_FAILED'
+  /**
+   * Facebook ปฏิเสธด้วย `(#10900) Activity already replied to` = เพจทัก private reply คอมเมนต์นี้
+   * ไปแล้ว **จากนอกระบบเรา** (Business Suite / Page Inbox) และ Meta ให้ทักได้ครั้งเดียวต่อคอมเมนต์
+   *
+   * 🛑 แยกจาก `SEND_FAILED` เพราะอันนี้ **ถาวร** — กดซ้ำอีกกี่ครั้งก็ไม่ผ่าน. เดิมตกไปรวมกับ
+   * SEND_FAILED → route ตอบ 502 → จอขึ้น "ส่งไม่สำเร็จ ลองใหม่อีกครั้ง" = เชิญให้กดสิ่งที่ไร้ผล
+   * (บน prod สะสม 25 ครั้งก่อนถูกจับได้ 2026-08-19) คลาสเดียวกับบทเรียน retry ของ iShip
+   */
+  | 'ALREADY_REPLIED_EXTERNALLY'
 
 /**
  * คีย์กันซ้ำ — ต้องเป็นตัวเดียวกับ partial unique index ในฐาน (migration 20260808120000)
@@ -173,6 +216,23 @@ export async function sendPrivateReplyToCommentById(params: {
 
     if (channel.status !== 'ACTIVE') return { sent: false, reason: 'CHANNEL_INACTIVE' }
 
+    /**
+     * เคยโดน `#10900` มาแล้ว = สิทธิ์ทัก 1 ครั้งของคอมเมนต์นี้ถูกใช้ไปแล้วจริง — ห้ามยิง Graph ซ้ำ
+     * (AC-CR-35)
+     *
+     * 🛑 ด่านนี้ต้องอยู่ฝั่ง server ไม่ใช่แค่ซ่อนปุ่ม: เส้นทาง MANUAL มี claim logic ที่ตั้งใจให้
+     * "แถวที่ FAILED กดลองใหม่ได้" (conditional updateMany WHERE privateReplyStatus='FAILED')
+     * ซึ่งจะคว้าแถวของเคสนี้มายิงซ้ำได้เสมอ แล้วชน #10900 ทุกครั้งไม่มีทางสำเร็จ —
+     * "กฎที่เขียนไว้ยังไม่ใช่กฎที่บังคับได้" (rule-must-be-enforced-not-described.md)
+     */
+    if (comment.resolvedReason === 'ALREADY_REPLIED_EXTERNALLY') {
+      return {
+        sent: false,
+        reason: 'ALREADY_REPLIED_EXTERNALLY',
+        conversationId: await findExistingConversationId(channel.id, comment.fromExternalId),
+      }
+    }
+
     if (!isWithinPrivateReplyWindow(comment.createdTime)) {
       return { sent: false, reason: 'WINDOW_EXPIRED' }
     }
@@ -262,6 +322,34 @@ export async function sendPrivateReplyToCommentById(params: {
         where: { id: reservedLogId },
         data: { privateReplyStatus: 'FAILED', privateErrorMessage: errorMessage },
       })
+
+      /**
+       * `(#10900)` = เพจทักคอมเมนต์นี้ไปแล้วจาก Business Suite/Page Inbox — Meta ให้ทักได้
+       * ครั้งเดียวต่อคอมเมนต์ ⇒ **ถาวร** ต้องไม่เชิญให้กดซ้ำ
+       *
+       * ปิดคอมเมนต์นี้เป็น "จัดการแล้ว" ทันทีด้วยเหตุผลของระบบ — ไม่ต้องรอคนกด เพราะเป็น
+       * ข้อเท็จจริงที่ Meta ยืนยันมาแล้ว ไม่ใช่การตัดสินใจของใคร (ส่วนขยาย 2026-08-19 D-3)
+       * ทำหลังบันทึก log เสมอ: เหตุผลที่ Facebook ให้มาคือหลักฐาน ต้องไม่หายไปกับการปิดงาน
+       */
+      if (isAlreadyRepliedGraphError(err)) {
+        /**
+         * 🛑 การจัดประเภท error ต้องรอดแม้การปิดงานจะล้ม — ถ้าปล่อยให้ throw ขึ้นไป catch ชั้นนอก
+         * มันจะกลายเป็น SEND_FAILED แล้วผู้ขายได้ข้อความ "ลองใหม่อีกครั้ง" กลับมาเหมือนเดิม
+         * ซึ่งคือบั๊กทั้งหมดที่รอบนี้กำลังแก้ (ข้อเท็จจริงที่ Meta บอกสำคัญกว่าการบันทึกของเรา)
+         */
+        try {
+          await markCommentRepliedExternally(comment.id)
+        } catch (markErr) {
+          console.error('[comment-private-reply] mark resolved failed', markErr)
+        }
+        return {
+          sent: false,
+          reason: 'ALREADY_REPLIED_EXTERNALLY',
+          error: errorMessage,
+          conversationId: await findExistingConversationId(channel.id, comment.fromExternalId),
+        }
+      }
+
       return { sent: false, reason: 'SEND_FAILED', error: errorMessage }
     }
 
@@ -281,13 +369,29 @@ export async function sendPrivateReplyToCommentById(params: {
         // เลียนแบบคีย์ upsert เดียวกับ ingestInboundMessage (channel-chat.service.ts) — 1 ห้องต่อ
         // (Page, PSID) ใช้ recipientId ที่ Graph ยืนยันกลับมาจริง (ไม่ใช้ comment.fromExternalId ที่
         // อาจไม่ตรง/ไม่มี เพราะ private reply เปิดห้องให้ "ผู้รับ" ของ Graph ไม่ใช่ "ผู้คอมเมนต์" เป๊ะ ๆ)
+        // ชื่อตั้งต้นจากคอมเมนต์ที่เรากำลังตอบ (bug fix 2026-08-19) — ดู resolveSeedContactName
+        const seedName = resolveSeedContactName({
+          recipientId: sendResult.recipientId,
+          commentFromExternalId: comment.fromExternalId,
+          commentFromName: comment.fromName,
+        })
+
         const contact = await tx.externalContact.upsert({
           where: {
             shopChannelId_externalUserId: { shopChannelId: channel.id, externalUserId: sendResult.recipientId },
           },
-          create: { shopChannelId: channel.id, externalUserId: sendResult.recipientId },
+          // 🛑 ห้ามตั้ง avatarSyncedAt ตรงนี้ — ปล่อย null ไว้เพื่อให้ shouldRetryAvatar()
+          // (channel-chat.service.ts:826) ยังคืน true ⇒ ข้อความขาเข้าใบแรกของลูกค้ายังยิง Graph
+          // ดึงชื่อ/รูปจริงมาทับชื่อชั่วคราวนี้ตามปกติ ตั้งเมื่อไหร่ = ปิดทางอัปเกรดไปตลอด
+          create: { shopChannelId: channel.id, externalUserId: sendResult.recipientId, name: seedName },
           update: {},
         })
+
+        // ห้องที่เคยเปิดค้างไว้ก่อนหน้า (upsert ไม่วิ่งสาขา create) — เติมชื่อให้เฉพาะตอนยัง
+        // ไม่มีชื่อ ห้ามทับชื่อจริงที่ Graph เคยดึงมาได้แล้วด้วยชื่อจากคอมเมนต์
+        if (seedName && !contact.name) {
+          await tx.externalContact.update({ where: { id: contact.id }, data: { name: seedName } })
+        }
 
         const conversationWhere = {
           shopChannelId_externalContactId: { shopChannelId: channel.id, externalContactId: contact.id },
@@ -353,4 +457,30 @@ export async function sendPrivateReplyToCommentById(params: {
     console.error('[comment-private-reply] unexpected error', errorMessage)
     return { sent: false, reason: 'SEND_FAILED', error: errorMessage }
   }
+}
+
+/**
+ * ห้องแชทที่มีอยู่แล้วกับคนคอมเมนต์คนนี้ — ใช้เฉพาะตอนเจอ `#10900` เพื่อเสนอ "ไปที่ห้องแชท"
+ * แทนที่จะบอกให้กดซ้ำ
+ *
+ * 🛑 เทียบ id **ตรง ๆ ทั้งสตริงภายในเพจเดียวกัน** เท่านั้น ห้าม heuristic/ห้ามแปลงค่า —
+ * โดยหลักการ PSID (ที่ webhook เห็น) กับ ASID (ที่คอมเมนต์ให้มา) เป็นคนละ id space และ Meta
+ * ไม่ได้สัญญาว่าแปลงกันได้ (reference_fb_psid_asid_cannot_map) บน prod บังเอิญเท่ากัน 430/469
+ * ซึ่งพอใช้ได้เพราะ **โหมดล้มเหลวของการเทียบเท่าเป๊ะคือ "หาไม่เจอ" ไม่ใช่ "เจอผิดคน"** —
+ * ถ้าวันหน้าพบว่าเจอผิดคนแม้แต่เคสเดียว ให้ถอดการเชื่อมนี้ออกทั้งอัน ไม่ใช่ปรับเกณฑ์
+ *
+ * หาไม่เจอ = คืน null ตามปกติ (จอต้องไม่พังและต้องไม่โกหกว่ามีห้องแชท)
+ */
+async function findExistingConversationId(
+  shopChannelId: string,
+  commentFromExternalId: string | null,
+): Promise<string | null> {
+  if (!commentFromExternalId) return null
+  // relation เป็น `conversations` (พหูพจน์) เพราะ schema ยอมให้ contact เดียวมีได้หลายห้อง —
+  // ในทางปฏิบัติมีใบเดียวต่อ (channel, contact) จาก unique ของ Conversation แต่ต้องเขียนตามชนิดจริง
+  const contact = await prisma.externalContact.findUnique({
+    where: { shopChannelId_externalUserId: { shopChannelId, externalUserId: commentFromExternalId } },
+    select: { conversations: { select: { id: true }, orderBy: { createdAt: 'asc' }, take: 1 } },
+  })
+  return contact?.conversations[0]?.id ?? null
 }

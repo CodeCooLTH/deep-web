@@ -3257,6 +3257,24 @@ model PageComment {
   isAutoReply       Boolean   @default(false)
   /// payload ดิบจาก webhook/Graph — เหตุผลเดียวกับ ChatMessage.rawMessage (บทเรียน 2026-08-03)
   rawPayload        Json?
+  /// คอมเมนต์นี้ "จบงานแล้ว" โดยที่ระบบเราไม่ได้เป็นคนตอบ (ส่วนขยาย 00038, 2026-08-19)
+  ///
+  /// 🛑 มีอยู่เพราะสถานะทุกค่าใน `deriveCommentState()` derive จาก "คำตอบที่ระบบเรามองเห็น"
+  /// เท่านั้น ⇒ คอมเมนต์ที่ **ตอบไม่ได้แล้ว** (พ้นหน้าต่าง 7 วันของ Meta) หรือที่ผู้ขาย
+  /// **ตั้งใจข้าม** จะนั่งค้างในคิว "ยังไม่ตอบ" ตลอดไป ตัวเลขบนแท็บจึงโตขึ้นเรื่อย ๆ จนเลิกเป็น
+  /// สัญญาณ (จอจริงบน prod 2026-08-19: "ยังไม่ตอบ 56")
+  ///
+  /// null = ยังไม่จบงาน (ค่าตั้งต้นของทุกแถวเดิม — additive ไม่มี backfill)
+  resolvedAt        DateTime?
+  /// คนที่กด (MANUAL) — null เมื่อระบบเป็นคนตั้งเอง
+  resolvedByUserId  String?
+  /// ทำไมถึงจบงาน — "MANUAL" (คนกดข้ามเอง) | "ALREADY_REPLIED_EXTERNALLY" (Facebook ตอบ
+  /// `(#10900) Activity already replied to` = เพจทัก private reply คอมเมนต์นี้ไปแล้วจาก
+  /// Business Suite/Page Inbox โดยตรง ซึ่งเราไม่มีทางรู้ล่วงหน้า ไม่มี API ให้ถาม)
+  ///
+  /// 🛑 สองค่านี้ความหมายต่างกันมาก ห้ามยุบเป็น boolean เดียว: อันแรกคือ "คนตัดสินใจข้าม"
+  /// (ถอยได้) อันหลังคือ "ข้อเท็จจริงที่ Meta ยืนยันมาแล้ว" (กดทักซ้ำอีกกี่ครั้งก็ไม่ผ่าน)
+  resolvedReason    String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

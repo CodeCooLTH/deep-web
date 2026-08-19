@@ -84,8 +84,9 @@ export default function ProductPriceCardV2({
         </p>
       )}
 
-      <div className="-mx-3 mt-2 overflow-x-auto px-3 pb-1">
-        <div className="flex w-max items-center gap-1.5">
+      {/* เหตุผลเดียวกับชิปประเภทสินค้า — ราคาแนะนำมี 6 ตัว สั้นทั้งหมด ตกบรรทัดได้ไม่ต้องเลื่อน */}
+      <div className="mt-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {QUICK_PICK_PRICES.map((price) => {
             const id = `v2-chip-${price}`
             const checked = selectedChip === price

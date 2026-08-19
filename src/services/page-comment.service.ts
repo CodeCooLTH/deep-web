@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { COMMENT_LIST_PAGE_SIZE } from '@/lib/comment-list-page'
+import { isWithinPrivateReplyWindow, privateReplyWindowCutoff } from '@/lib/private-reply-window'
 import { prisma } from '@/lib/prisma'
 import { canAccessShop, assertShopsAccessible } from '@/lib/shop-context'
 import { decryptToken } from '@/lib/token-crypto'
@@ -321,6 +322,29 @@ export async function backfillPagePosts(params: {
 export type CommentAnswerState = 'UNANSWERED' | 'BOT_ANSWERED' | 'HUMAN_ANSWERED'
 
 /**
+ * ทำไมคอมเมนต์ใบนี้ถึง "จบงาน" ทั้งที่ระบบเราไม่ได้เป็นคนตอบ (ส่วนขยาย 2026-08-19)
+ *
+ * - `MANUAL` — ผู้ขายกดข้ามเอง (เช่นคอมเมนต์เก่าที่พ้น 7 วันแล้วทักไม่ได้อีก) ถอยได้
+ * - `ALREADY_REPLIED_EXTERNALLY` — Facebook ตอบ `(#10900)` ตอนเรากดทัก = เพจทัก private reply
+ *   คอมเมนต์นี้ไปแล้วจาก Business Suite/Page Inbox โดยตรง ระบบตั้งเองไม่ต้องรอคนกด
+ *
+ * 🛑 ห้ามยุบเป็น boolean เดียว — อันหลังเป็นข้อเท็จจริงที่ Meta ยืนยันแล้ว (กดทักซ้ำไม่มีวันผ่าน)
+ * ส่วนอันแรกเป็นการตัดสินใจของคน จอต้องพูดคนละคำและปุ่มที่เหลือก็คนละชุด
+ */
+export type CommentResolvedReason = 'MANUAL' | 'ALREADY_REPLIED_EXTERNALLY'
+
+/**
+ * แปลงค่าดิบจากคอลัมน์ `String?` ให้เป็น union — fail-closed: ค่าที่ไม่รู้จักคืน `null`
+ *
+ * คอลัมน์เป็น String ธรรมดา (มี CHECK ที่ชั้นฐานกันไว้อีกชั้น) TypeScript จึงไม่มีอะไรบังคับให้
+ * ค่าตรง — ถ้าวันหน้ามีใครเขียนค่าที่สามลงไป ต้องได้ "ไม่รู้จัก" ไม่ใช่หลุดไปเป็นค่าใดค่าหนึ่ง
+ * (บทเรียน enum-value-removal.md: ตรรกะ binary ไม่พังเสียงดังเมื่อค่าที่ 3 มา)
+ */
+export function toResolvedReason(raw: string | null): CommentResolvedReason | null {
+  return raw === 'MANUAL' || raw === 'ALREADY_REPLIED_EXTERNALLY' ? raw : null
+}
+
+/**
  * สถานะของคอมเมนต์ 1 อัน ตัดสินจากคำตอบของเพจที่อยู่ใต้มัน (feature 00038 BR-CR-S1)
  *
  * 🛑 ฟังก์ชันนี้ต้องเป็นทางเดียวที่ตัดสินสถานะ — ทั้งตัวนับบน badge, ตัวเลขบนชิป และตัวกรอง
@@ -335,6 +359,17 @@ export function deriveCommentState(
    * (มีแถวใน log ≠ ทักสำเร็จ)
    */
   privateReplyTrigger: 'AUTO' | 'MANUAL' | null = null,
+  /**
+   * `PageComment.resolvedAt != null` — คอมเมนต์ที่ "จบงานแล้ว" โดยที่ระบบเราไม่ได้เป็นคนตอบ
+   * (ส่วนขยาย 2026-08-19): ผู้ขายกดข้ามเอง หรือ Facebook ยืนยันว่าเพจทัก private reply ไปแล้ว
+   * จาก Business Suite (#10900)
+   *
+   * 🛑 เช็คเป็น **อันสุดท้ายก่อน UNANSWERED** ไม่ใช่อันแรก — คำตอบจริงที่มองเห็นได้ต้องชนะเสมอ
+   * เพราะมันบอกได้ด้วยว่า "ใครตอบ" (คน/บอท) ส่วน resolved บอกได้แค่ว่า "ไม่ต้องทำอะไรต่อแล้ว"
+   * สลับลำดับเมื่อไหร่ = คอมเมนต์ที่บอทตอบไปแล้วและถูกกดข้ามด้วย จะเปลี่ยนจาก BOT_ANSWERED
+   * เป็น HUMAN_ANSWERED โดยไม่มีใครสั่ง
+   */
+  resolved: boolean = false,
 ): CommentAnswerState {
   const pageReplies = replies.filter((r) => r.isFromPage)
   if (pageReplies.length > 0) {
@@ -357,8 +392,56 @@ export function deriveCommentState(
    * ต้องอ่านจากคำตอบสาธารณะ ไม่ใช่จาก trigger ของ log
    */
   if (privateReplyTrigger) return privateReplyTrigger === 'MANUAL' ? 'HUMAN_ANSWERED' : 'BOT_ANSWERED'
+  /**
+   * 🛑 "จัดการแล้ว" = HUMAN_ANSWERED ไม่ใช่ค่าที่ 4 (D-2, ต่อเนื่องจากคำสั่ง user 2026-08-09
+   * "ไม่ต้องเพิ่มมมเยอะ") — ทั้งสองเหตุผลมีคนเป็นผู้ลงมือจริง: MANUAL = ผู้ขายตัดสินใจข้าม ·
+   * ALREADY_REPLIED_EXTERNALLY = ผู้ขายทักไปแล้วจาก Business Suite ซึ่งก็คือคนตอบ แค่ตอบนอกจอเรา
+   */
+  if (resolved) return 'HUMAN_ANSWERED'
   return 'UNANSWERED'
 }
+
+/**
+ * นิยาม "สถานะของคอมเมนต์" ในภาษา SQL — **ที่ประกาศจริงมีที่เดียวคือตรงนี้** (BR-CR-R3)
+ *
+ * 🛑 ต้องเรียง WHEN ตรงกับ `deriveCommentState()` ใน TS บรรทัดต่อบรรทัด — สองอันนี้ตอบคำถาม
+ * เดียวกันคนละภาษา เรียงต่างกันเมื่อไหร่ "ตัวเลขบนแท็บ" กับ "รายการใต้มัน" หลุดกันทันทีโดยไม่มี
+ * อะไรฟ้อง (จอนี้เคยโชว์ "ยังไม่ตอบ 7 กับ 8" พร้อมกันมาแล้ว)
+ *
+ * เดิมข้อความ CASE ก้อนนี้ถูกคัดลอกไว้ 2 ที่แล้วมีคอมเมนต์กำกับว่า "ห้ามเรียงต่างกัน" — ซึ่งเป็น
+ * กติกาที่ *เขียนไว้* ไม่ใช่กติกาที่ *บังคับได้* (rule-must-be-enforced-not-described.md)
+ * ตอนนี้เป็น fragment เดียวที่ผู้เรียกทุกคน interpolate เข้าไป จะเรียงต่างกันไม่ได้อีกโดยโครงสร้าง
+ *
+ * ต้องเรียก alias ตาราง `PageComment` ว่า `c` เสมอ (fragment อ้าง `c."..."` ตรง ๆ)
+ */
+const COMMENT_STATE_CASE = Prisma.sql`
+        CASE
+          -- 1) คำตอบสาธารณะชนะเสมอ และคำตอบของคนชนะคำตอบของบอท
+          WHEN EXISTS (
+            SELECT 1 FROM "PageComment" r
+            WHERE r."parentExternalId" = c."externalCommentId" AND r."isFromPage" = true AND r."isAutoReply" = false
+          ) THEN 'HUMAN_ANSWERED'
+          WHEN EXISTS (
+            SELECT 1 FROM "PageComment" r
+            WHERE r."parentExternalId" = c."externalCommentId" AND r."isFromPage" = true
+          ) THEN 'BOT_ANSWERED'
+          -- 2) ไม่มีคำตอบสาธารณะ แต่ทักแชทส่วนตัวสำเร็จแล้ว → ไม่ใช่ "ยังไม่ตอบ" (user 2026-08-09)
+          --    เกาะ trigger ว่าใครเป็นคนทัก และต้อง privateReplyStatus='SENT' เป๊ะ
+          --    ('SKIPPED'/'FAILED' คือมีแถวแต่ไม่ได้ทัก ห้ามนับ)
+          WHEN EXISTS (
+            SELECT 1 FROM "CommentReplyLog" l
+            WHERE l."commentId" = c."id" AND l."privateReplyStatus" = 'SENT' AND l."trigger" = 'MANUAL'
+          ) THEN 'HUMAN_ANSWERED'
+          WHEN EXISTS (
+            SELECT 1 FROM "CommentReplyLog" l
+            WHERE l."commentId" = c."id" AND l."privateReplyStatus" = 'SENT'
+          ) THEN 'BOT_ANSWERED'
+          -- 3) "จัดการแล้ว" โดยที่เราไม่ได้เป็นคนตอบ (ส่วนขยาย 2026-08-19) — ผู้ขายกดข้ามเอง
+          --    หรือ Facebook ยืนยันว่าเพจทัก private reply ไปแล้วจาก Business Suite (#10900)
+          --    ต้องอยู่ "อันสุดท้ายก่อน ELSE" ให้ตรงกับ deriveCommentState() เป๊ะ
+          WHEN c."resolvedAt" IS NOT NULL THEN 'HUMAN_ANSWERED'
+          ELSE 'UNANSWERED'
+        END`
 
 /**
  * สถานะของโพสต์ = ตัวที่แย่ที่สุดในบรรดาคอมเมนต์ของมัน (BR-CR-S2)
@@ -431,6 +514,16 @@ export interface CommentPostCounts {
   unanswered: number
   botAnswered: number
   humanAnswered: number
+  /**
+   * ยังไม่ตอบ **และ** พ้นหน้าต่างทักแชทส่วนตัว 7 วันแล้ว (แท็บ "หมดอายุ" — user สั่ง 2026-08-19)
+   *
+   * 🛑 เป็น **สับเซตของ `unanswered`** ไม่ใช่กลุ่มที่ห้าที่แยกออกไป — `all` จึงยังเท่ากับ
+   * `unanswered + botAnswered + humanAnswered` เหมือนเดิม. เหตุผลที่ไม่หักออกจาก `unanswered`:
+   * หมดหน้าต่างแปลว่า *ทักแชทส่วนตัว* ไม่ได้แล้วเท่านั้น — **ตอบใต้คอมเมนต์แบบสาธารณะยังทำได้
+   * ตลอดไป** มันจึงยังเป็นงานค้างจริง ๆ ที่ต้องอยู่ในคิว (และ `countUnansweredForShops` ที่ป้อน
+   * badge บนแท็บ "ความคิดเห็น" ใช้นิยามเดียวกัน — หักที่นี่ที่เดียวจะทำให้สองตัวเลขนั้นหลุดกัน)
+   */
+  expired: number
 }
 
 /**
@@ -451,7 +544,13 @@ function resolveCommentProvider(filter: CommentChannelFilter | undefined): strin
   return !filter || filter === 'ALL' ? 'MESSENGER' : filter
 }
 
-const EMPTY_COMMENT_POST_COUNTS: CommentPostCounts = { all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0 }
+const EMPTY_COMMENT_POST_COUNTS: CommentPostCounts = {
+  all: 0,
+  unanswered: 0,
+  botAnswered: 0,
+  humanAnswered: 0,
+  expired: 0,
+}
 
 /**
  * นับจำนวนโพสต์แยกตาม postStatus 3 กลุ่ม + ทั้งหมด แบบ **ทั้งร้าน** (ไม่ตัด take/skip) — ใช้นิยาม
@@ -503,29 +602,7 @@ export async function countCommentPostStatesByShop(params: {
         -- WARNING: ลำดับ WHEN ต้องตรงกับ deriveCommentState() ใน TS บรรทัดต่อบรรทัด — สองอันนี้ตอบคำถาม
         -- เดียวกันคนละภาษา ถ้าเรียงต่างกันเมื่อไหร่ "ตัวเลขบนแท็บ" กับ "รายการใต้มัน" จะหลุดกันทันที
         -- โดยไม่มีอะไรฟ้อง (จอนี้เคยโชว์ "ยังไม่ตอบ 7 กับ 8" มาแล้ว)
-        CASE
-          -- 1) คำตอบสาธารณะชนะเสมอ และคำตอบของคนชนะคำตอบของบอท
-          WHEN EXISTS (
-            SELECT 1 FROM "PageComment" r
-            WHERE r."parentExternalId" = c."externalCommentId" AND r."isFromPage" = true AND r."isAutoReply" = false
-          ) THEN 'HUMAN_ANSWERED'
-          WHEN EXISTS (
-            SELECT 1 FROM "PageComment" r
-            WHERE r."parentExternalId" = c."externalCommentId" AND r."isFromPage" = true
-          ) THEN 'BOT_ANSWERED'
-          -- 2) ไม่มีคำตอบสาธารณะ แต่ทักแชทส่วนตัวสำเร็จแล้ว → ไม่ใช่ "ยังไม่ตอบ" (user 2026-08-09)
-          --    เกาะ trigger ว่าใครเป็นคนทัก และต้อง privateReplyStatus='SENT' เป๊ะ
-          --    ('SKIPPED'/'FAILED' คือมีแถวแต่ไม่ได้ทัก ห้ามนับ)
-          WHEN EXISTS (
-            SELECT 1 FROM "CommentReplyLog" l
-            WHERE l."commentId" = c."id" AND l."privateReplyStatus" = 'SENT' AND l."trigger" = 'MANUAL'
-          ) THEN 'HUMAN_ANSWERED'
-          WHEN EXISTS (
-            SELECT 1 FROM "CommentReplyLog" l
-            WHERE l."commentId" = c."id" AND l."privateReplyStatus" = 'SENT'
-          ) THEN 'BOT_ANSWERED'
-          ELSE 'UNANSWERED'
-        END AS state
+        ${COMMENT_STATE_CASE} AS state
       FROM "PageComment" c
       WHERE c."shopChannelId" IN (SELECT id FROM scoped_channels)
         AND c."isFromPage" = false
@@ -562,6 +639,10 @@ export async function countCommentPostStatesByShop(params: {
     unanswered: Number(row?.unanswered ?? 0),
     botAnswered: Number(row?.botAnswered ?? 0),
     humanAnswered: Number(row?.humanAnswered ?? 0),
+    // ตัวนับระดับ**โพสต์**ไม่มีแท็บไหนใช้แล้ว (คอลัมน์ซ้าย = 1 แถว/คอมเมนต์ ตั้งแต่ 2026-08-15)
+    // ⇒ ไม่คำนวณ `expired` ที่นี่ให้เปลืองงานฐาน แต่ต้องมีคีย์ให้ครบชนิด. ถ้าวันหน้ามีจอไหนกลับมา
+    // ใช้ตัวนับระดับโพสต์พร้อมแท็บ "หมดอายุ" ต้องคำนวณจริงตรงนี้ ห้ามปล่อย 0 ไว้เฉย ๆ
+    expired: 0,
   }
 }
 
@@ -602,8 +683,9 @@ export async function countCommentStatesByShop(params: {
       )`
     : Prisma.empty
 
+  const cutoff = privateReplyWindowCutoff()
   const rows = await prisma.$queryRaw<
-    Array<{ all: bigint; unanswered: bigint; botAnswered: bigint; humanAnswered: bigint }>
+    Array<{ all: bigint; unanswered: bigint; botAnswered: bigint; humanAnswered: bigint; expired: bigint }>
   >`
     WITH scoped_channels AS (
       SELECT sc.id FROM "ShopChannel" sc
@@ -613,25 +695,10 @@ export async function countCommentStatesByShop(params: {
     ),
     customer_comments AS (
       SELECT
-        CASE
-          WHEN EXISTS (
-            SELECT 1 FROM "PageComment" r
-            WHERE r."parentExternalId" = c."externalCommentId" AND r."isFromPage" = true AND r."isAutoReply" = false
-          ) THEN 'HUMAN_ANSWERED'
-          WHEN EXISTS (
-            SELECT 1 FROM "PageComment" r
-            WHERE r."parentExternalId" = c."externalCommentId" AND r."isFromPage" = true
-          ) THEN 'BOT_ANSWERED'
-          WHEN EXISTS (
-            SELECT 1 FROM "CommentReplyLog" l
-            WHERE l."commentId" = c."id" AND l."privateReplyStatus" = 'SENT' AND l."trigger" = 'MANUAL'
-          ) THEN 'HUMAN_ANSWERED'
-          WHEN EXISTS (
-            SELECT 1 FROM "CommentReplyLog" l
-            WHERE l."commentId" = c."id" AND l."privateReplyStatus" = 'SENT'
-          ) THEN 'BOT_ANSWERED'
-          ELSE 'UNANSWERED'
-        END AS state
+        -- เส้นแบ่ง 7 วันมาเป็น "พารามิเตอร์" ไม่ใช่ literal ใน SQL — ค่าเดียวกับที่ TS ใช้ตัดสิน
+        -- (privateReplyWindowCutoff) ไม่งั้นตัวเลขบนแท็บกับรายการใต้มันจะหลุดกันเงียบ ๆ
+        c."createdTime" < ${cutoff} AS expired,
+        ${COMMENT_STATE_CASE} AS state
       FROM "PageComment" c
       WHERE c."shopChannelId" IN (SELECT id FROM scoped_channels)
         AND c."isFromPage" = false
@@ -642,7 +709,9 @@ export async function countCommentStatesByShop(params: {
       count(*)::bigint AS "all",
       count(*) FILTER (WHERE state = 'UNANSWERED')::bigint AS "unanswered",
       count(*) FILTER (WHERE state = 'BOT_ANSWERED')::bigint AS "botAnswered",
-      count(*) FILTER (WHERE state = 'HUMAN_ANSWERED')::bigint AS "humanAnswered"
+      count(*) FILTER (WHERE state = 'HUMAN_ANSWERED')::bigint AS "humanAnswered",
+      -- สับเซตของ unanswered (ไม่ใช่กลุ่มที่ห้า) — ดูเหตุผลที่ field expired ของ CommentPostCounts
+      count(*) FILTER (WHERE state = 'UNANSWERED' AND expired)::bigint AS "expired"
     FROM customer_comments
   `
   const row = rows[0]
@@ -651,6 +720,7 @@ export async function countCommentStatesByShop(params: {
     unanswered: Number(row?.unanswered ?? 0),
     botAnswered: Number(row?.botAnswered ?? 0),
     humanAnswered: Number(row?.humanAnswered ?? 0),
+    expired: Number(row?.expired ?? 0),
   }
 }
 
@@ -678,6 +748,9 @@ export interface CommentListRow {
   state: CommentAnswerState
   privateReplySentAt: Date | null
   privateReplyConversationId: string | null
+  /** `null` = ยังไม่จบงาน — คู่กับ `resolvedReason` เสมอ (CHECK ที่ชั้นฐานบังคับให้ไปด้วยกัน) */
+  resolvedAt: Date | null
+  resolvedReason: CommentResolvedReason | null
   /** โพสต์ที่คอมเมนต์นี้อยู่ใต้ — คอลัมน์กลางยังแสดงเป็นระดับโพสต์ */
   post: {
     id: string
@@ -695,6 +768,34 @@ export interface CommentListRow {
   shop: { id: string; name: string }
 }
 
+/**
+ * ค่าที่แท็บสถานะบนคอลัมน์ซ้ายส่งมา — `tsc` บังคับให้ทุกที่ที่เพิ่มค่าใหม่ต้องแก้ครบทั้งสองฝั่ง
+ * (route allow-list · matcher ข้างล่าง · แท็บใน CommentsClient · ตัวเลือกใน CommentsFilterPanel)
+ */
+export type CommentListStateFilter = 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN' | 'EXPIRED'
+
+/**
+ * แถวนี้เข้าเกณฑ์ของแท็บที่เลือกอยู่ไหม — ฟังก์ชันบริสุทธิ์ เพื่อให้เทสจับได้ตรง ๆ
+ *
+ * 🛑 ต้องให้คำตอบเดียวกับ `count(*) FILTER (...)` ใน `countCommentStatesByShop()` ทุกกิ่ง —
+ * สองอันนี้ตอบคำถามเดียวกันคนละภาษา หลุดกันเมื่อไหร่จะได้จอที่เขียนว่า "หมดอายุ 7" นั่งอยู่เหนือ
+ * รายการ 12 แถว ซึ่งไฟล์นี้ถือเป็นบาปมหันต์ของตัวเองมาตลอด (เคยโชว์ "ยังไม่ตอบ 7 กับ 8" มาแล้ว)
+ *
+ * 🛑 'EXPIRED' ตรวจ **สองอย่างพร้อมกัน** (ยังไม่ตอบ ∧ พ้น 7 วัน) — เช็คแค่เวลาอย่างเดียวจะลาก
+ * คอมเมนต์เก่าที่ตอบไปแล้วทั้งกองเข้ามาด้วย ซึ่งไม่ใช่งานค้างของใครเลย
+ */
+export function matchesCommentStateFilter(
+  comment: { state: CommentAnswerState; createdTime: Date },
+  filter: CommentListStateFilter,
+  now: Date = new Date(),
+): boolean {
+  if (filter === 'ALL') return true
+  if (filter === 'UNANSWERED') return comment.state === 'UNANSWERED'
+  if (filter === 'BOT') return comment.state === 'BOT_ANSWERED'
+  if (filter === 'HUMAN') return comment.state === 'HUMAN_ANSWERED'
+  return comment.state === 'UNANSWERED' && !isWithinPrivateReplyWindow(comment.createdTime, now)
+}
+
 export async function listComments(params: {
   shopIds: string[]
   actorUserId: string
@@ -702,7 +803,7 @@ export async function listComments(params: {
   take?: number
   skip?: number
   shopChannelId?: string
-  state?: 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN'
+  state?: CommentListStateFilter
   provider?: CommentChannelFilter
 }): Promise<{
   comments: CommentListRow[]
@@ -726,24 +827,75 @@ export async function listComments(params: {
   if (channelIds.length === 0) return { comments: [], counts: EMPTY_COMMENT_POST_COUNTS, rawCount: 0 }
 
   const q = params.q?.trim()
+  const take = params.take ?? COMMENT_LIST_PAGE_SIZE
+  const skip = params.skip ?? 0
+
+  /**
+   * 🛑 กรองด้วย `state` **ที่ฐานข้อมูล ก่อนตัดหน้า** ไม่ใช่ดึงมา 25 แถวแล้วค่อยกรองใน TS
+   *
+   * บั๊กที่แก้ (user เจอเองบน prod 2026-08-19): แท็บ "หมดอายุ" ขึ้นเลข 41 แต่รายการใต้มัน
+   * **ว่างเปล่า** — เพราะโค้ดเดิมดึงคอมเมนต์ใหม่สุด 25 แถวก่อน แล้วค่อย `.filter()` ด้วย
+   * `matchesCommentStateFilter` ทีหลัง ส่วน "หมดอายุ" ตามนิยามคือของที่เก่ากว่า 7 วัน จึงไม่มีทาง
+   * อยู่ในหน้าแรกเลย (วัดจากฐานจริง: แถวที่เข้าเกณฑ์ตัวแรกอยู่ลำดับที่ **70** จาก 253 ⇒ ต้องกด
+   * "โหลดเพิ่ม" 3 รอบถึงจะเห็นใบแรก) คอมเมนต์ในไฟล์นี้กับใน CommentsClient เขียนไว้เองว่า
+   * "?state= กรองที่ server แล้ว" ซึ่งจริงแค่ครึ่งเดียว — กรองที่ server ก็จริง แต่กรอง *หลัง*
+   * ตัดหน้าไปแล้ว. ผลพลอยได้: `hasMore` เชื่อถือได้จริง และ lazy-load ตอนเลื่อนถึงก้นรายการ
+   * จะได้แถวเต็มหน้าทุกครั้ง ไม่ใช่ได้ศูนย์แถวติดกันหลายรอบ
+   *
+   * ทำเป็น 2 ขั้น (หา id ด้วย SQL → ดึงแถวเต็มด้วย Prisma) แทนที่จะ map ทุกคอลัมน์เองใน SQL
+   * เพราะ `include` ของ post/channel/shop ยาวมากและเป็นของที่ Prisma ทำได้ดีอยู่แล้ว —
+   * ขั้นแรกตอบแค่ "แถวไหนบ้าง เรียงยังไง" ซึ่งเป็นส่วนที่ TS ทำแทนไม่ได้
+   */
+  const searchSql = q
+    ? Prisma.sql`AND (
+        c.message ILIKE ${'%' + q + '%'}
+        OR c."fromName" ILIKE ${'%' + q + '%'}
+        OR EXISTS (SELECT 1 FROM "FacebookPost" qp WHERE qp.id = c."postId" AND qp.message ILIKE ${'%' + q + '%'})
+      )`
+    : Prisma.empty
+  // 'EXPIRED' = ยังไม่ตอบ **และ** พ้น 7 วัน (สับเซตของ UNANSWERED ไม่ใช่กลุ่มที่ห้า) — ต้องตรงกับ
+  // `matchesCommentStateFilter()` ทุกกิ่ง เส้นแบ่งเวลามาจาก SSOT ตัวเดียวกับที่ TS ใช้
+  const wantState = params.state === 'EXPIRED' ? 'UNANSWERED' : params.state
+  const stateSql =
+    !wantState || wantState === 'ALL'
+      ? Prisma.empty
+      : Prisma.sql`AND (${COMMENT_STATE_CASE}) = ${
+          wantState === 'BOT' ? 'BOT_ANSWERED' : wantState === 'HUMAN' ? 'HUMAN_ANSWERED' : 'UNANSWERED'
+        }`
+  const expiredSql =
+    params.state === 'EXPIRED' ? Prisma.sql`AND c."createdTime" < ${privateReplyWindowCutoff()}` : Prisma.empty
+
+  const idRows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT c.id
+    FROM "PageComment" c
+    WHERE c."shopChannelId" IN (${Prisma.join(channelIds)})
+      AND c."isFromPage" = false
+      AND c."isDeleted" = false
+      ${searchSql}
+      ${stateSql}
+      ${expiredSql}
+    ORDER BY c."createdTime" DESC
+    LIMIT ${take} OFFSET ${skip}
+  `
+  const pageIds = idRows.map((r) => r.id)
+  if (pageIds.length === 0) {
+    return {
+      comments: [],
+      counts: await countCommentStatesByShop({
+        shopIds: params.shopIds,
+        shopChannelId: params.shopChannelId,
+        provider: params.provider,
+        q,
+      }),
+      rawCount: 0,
+    }
+  }
+
   const rows = await prisma.pageComment.findMany({
-    where: {
-      shopChannelId: { in: channelIds },
-      isFromPage: false,
-      isDeleted: false,
-      ...(q
-        ? {
-            OR: [
-              { message: { contains: q, mode: 'insensitive' as const } },
-              { fromName: { contains: q, mode: 'insensitive' as const } },
-              { post: { message: { contains: q, mode: 'insensitive' as const } } },
-            ],
-          }
-        : {}),
-    },
+    where: { id: { in: pageIds } },
+    // เรียงซ้ำที่นี่ด้วย — `WHERE id IN (...)` ไม่รับประกันลำดับ และต้องเป็นลำดับเดียวกับ
+    // ขั้นหา id เป๊ะ ไม่งั้นแถวจะสลับที่กันเองทุกครั้งที่โหลดหน้าถัดไป
     orderBy: { createdTime: 'desc' },
-    take: params.take ?? COMMENT_LIST_PAGE_SIZE,
-    skip: params.skip ?? 0,
     include: {
       // ช่องทางมาทาง post.channel — `PageComment` มีแต่ `shopChannelId` เป็นคอลัมน์ ไม่มี relation ตรง
       post: {
@@ -815,9 +967,12 @@ export async function listComments(params: {
       state: deriveCommentState(
         repliesByParent.get(c.externalCommentId) ?? [],
         log ? (log.trigger === 'MANUAL' ? 'MANUAL' : 'AUTO') : null,
+        c.resolvedAt !== null,
       ),
       privateReplySentAt: log?.createdAt ?? null,
       privateReplyConversationId: log?.conversationId ?? null,
+      resolvedAt: c.resolvedAt,
+      resolvedReason: toResolvedReason(c.resolvedReason),
       post: {
         id: c.post.id,
         externalPostId: c.post.externalPostId,
@@ -848,20 +1003,24 @@ export async function listComments(params: {
   })
 
   /**
-   * กรองด้วย `state` **หลัง** คำนวณ เหมือน `listCommentPosts` — สถานะเป็นค่า derived ไม่ใช่คอลัมน์
-   * `rawCount` คือจำนวนก่อนกรอง ใช้เป็น skip ของหน้าถัดไปเท่านั้น
+   * กรองซ้ำที่ TS อีกชั้น — **ไม่ใช่เพื่อกรอง แต่เพื่อจับว่าสองภาษาไม่ตรงกัน**
+   *
+   * SQL กรองไปแล้วก่อนตัดหน้า (ดูบล็อกยาวข้างบน) ผลลัพธ์ตรงนี้จึงควรเท่ากับ `mapped` เสมอ
+   * ถ้าไม่เท่า แปลว่า `COMMENT_STATE_CASE` กับ `deriveCommentState()`/`matchesCommentStateFilter()`
+   * ตอบไม่ตรงกันแล้ว — ซึ่งเป็นอาการที่จอนี้เคยเจอในรูป "ยังไม่ตอบ 7 กับ 8" การปล่อยผ่านเงียบ ๆ
+   * แย่กว่าการมีแถวหายไป 1 แถว จึง log ไว้ให้เห็นตอนสืบ (ไม่ throw — ผู้ขายไม่ควรเจอจอพัง
+   * เพราะกติกาภายในสองชั้นไม่ตรงกัน)
    */
   const filtered =
-    !params.state || params.state === 'ALL'
-      ? mapped
-      : mapped.filter((c) =>
-          params.state === 'UNANSWERED'
-            ? c.state === 'UNANSWERED'
-            : params.state === 'BOT'
-              ? c.state === 'BOT_ANSWERED'
-              : c.state === 'HUMAN_ANSWERED',
-        )
+    !params.state || params.state === 'ALL' ? mapped : mapped.filter((c) => matchesCommentStateFilter(c, params.state!))
+  if (filtered.length !== mapped.length) {
+    console.error(
+      `[listComments] SQL/TS state mismatch: state=${params.state} sql=${mapped.length} ts=${filtered.length}`,
+    )
+  }
 
+  // rawCount = จำนวนแถวที่ query นี้คืนมาจริง (กรองแล้ว) ⇒ ผู้เรียกบวกสะสมเป็น OFFSET ของหน้าถัดไป
+  // ได้ตรง ๆ และ `hasMore` (rawCount >= PAGE_SIZE) เชื่อถือได้จริงเป็นครั้งแรก
   return { comments: filtered, counts, rawCount: rows.length }
 }
 
@@ -1006,14 +1165,17 @@ export async function listCommentPosts(params: {
           createdTime: true,
           // feature 00038 — ต้องมีเพื่อแยก BOT_ANSWERED ออกจาก HUMAN_ANSWERED ใน deriveCommentState
           isAutoReply: true,
+          // ส่วนขยาย 2026-08-19 — "จัดการแล้ว" โดยที่เราไม่ได้เป็นคนตอบ (ต้องเข้า deriveCommentState
+          // ด้วย ไม่งั้นตัวเลขระดับโพสต์กับระดับคอมเมนต์จะหลุดกันทันที)
+          resolvedAt: true,
         },
       },
     },
   })
 
   // ขอบเขตหน้าต่างทักแชทส่วนตัวของ Meta = 7 วัน — คอมเมนต์ที่เก่ากว่านี้ทักไม่ได้อีกแล้ว
-  // คิดครั้งเดียวนอกลูป (ทุกแถวใช้เส้นเดียวกัน) — ค่าคงที่อยู่ที่ UI ด้วย (privateReplyWindow)
-  const dmWindowStart = Date.now() - 7 * 24 * 60 * 60 * 1000
+  // คิดครั้งเดียวนอกลูป (ทุกแถวใช้เส้นเดียวกัน) — ค่าคงที่มาจาก SSOT ตัวเดียวที่ UI ใช้ด้วย
+  const dmWindowStart = privateReplyWindowCutoff().getTime()
 
   /**
    * "คอมเมนต์ใบไหนทักแชทสำเร็จแล้ว และใครเป็นคนทัก" — batch เดียวครอบทุกโพสต์ในหน้านี้ กัน N+1
@@ -1045,6 +1207,7 @@ export async function listCommentPosts(params: {
           .filter((r) => r.parentExternalId === c.externalCommentId)
           .map((r) => ({ isFromPage: r.isFromPage, isAutoReply: r.isAutoReply })),
         privateReplyTriggerByCommentId.get(c.id) ?? null,
+        c.resolvedAt !== null,
       ),
     )
     const unanswered = customerComments.filter((_, i) => commentStates[i] === 'UNANSWERED')
@@ -1178,6 +1341,15 @@ export interface CommentRow {
   privateReplyConversationId: string | null
   /** feature 00038 Task 9 — ป้าย "ตอบอัตโนมัติ" บนบับเบิลของบอท (ตัดสินสถานะผ่าน deriveCommentState) */
   isAutoReply: boolean
+  /**
+   * ส่วนขยาย 2026-08-19 — "จัดการแล้ว" โดยที่ระบบเราไม่ได้เป็นคนตอบ
+   *
+   * 🛑 เธรดต้องรู้ค่านี้ด้วย ไม่ใช่แค่คอลัมน์ซ้าย: ปุ่ม "ทักแชท" ในเธรดต้องหายไปเมื่อ
+   * `resolvedReason === 'ALREADY_REPLIED_EXTERNALLY'` (Facebook ปฏิเสธถาวรแล้ว กดอีกกี่ครั้ง
+   * ก็ไม่ผ่าน) — ถ้าส่งมาแต่คอลัมน์ซ้าย ผู้ขายจะกดจากเธรดได้อยู่ดีและเจอ error เดิมซ้ำ
+   */
+  resolvedAt: Date | null
+  resolvedReason: CommentResolvedReason | null
 }
 
 /** คอมเมนต์ทั้งหมดของโพสต์ (เก่า→ใหม่) + เติมของเก่าจาก Graph ถ้ายังไม่เคยดึง */
@@ -1289,6 +1461,8 @@ export async function getPostComments(params: {
       privateReplySentAt: privateReplyByCommentId.get(c.id)?.createdAt ?? null,
       privateReplyConversationId: privateReplyByCommentId.get(c.id)?.conversationId ?? null,
       isAutoReply: c.isAutoReply,
+      resolvedAt: c.resolvedAt,
+      resolvedReason: toResolvedReason(c.resolvedReason),
     })),
   }
 }
@@ -1521,3 +1695,77 @@ export async function countUnansweredForShops(params: {
   return counts.unanswered
 }
 
+
+/**
+ * ทำเครื่องหมายว่า "จัดการแล้ว" / กลับคำ (ส่วนขยาย 00038, 2026-08-19)
+ *
+ * ทำไมต้องมี: สถานะทุกค่าใน `deriveCommentState()` derive จาก "คำตอบที่ระบบเรามองเห็น" เท่านั้น
+ * คอมเมนต์ที่พ้นหน้าต่าง 7 วันของ Meta (ทักไม่ได้อีก ตอบสาธารณะก็ไม่มีประโยชน์แล้ว) หรือที่ผู้ขาย
+ * ตั้งใจข้าม จะนั่งค้างในคิว "ยังไม่ตอบ" ตลอดไป — ตัวเลขบนแท็บจึงโตทางเดียวจนเลิกเป็นสัญญาณ
+ *
+ * 🛑 สิทธิ์ตรวจจากแถวข้อมูลเอง (comment → post → channel → shop) เหมือน `sendPrivateReplyToCommentById`
+ * ห้ามอ่าน `activeShopId` — ไฟล์กลุ่มนี้อยู่ในขอบเขตแชท คอมเมนต์ใบหนึ่งอาจเป็นของร้านที่ไม่ใช่
+ * ร้าน active ของผู้ใช้ (ดู src/lib/chat-scope.ts)
+ */
+export async function setCommentResolved(params: {
+  commentId: string
+  actorUserId: string
+  resolved: boolean
+  /**
+   * เหตุผล — บังคับเมื่อ `resolved === true`
+   *
+   * `ALREADY_REPLIED_EXTERNALLY` สงวนไว้ให้ **ระบบ** ตั้งเองหลัง Graph ตอบ `(#10900)` เท่านั้น
+   * (ดู sendPrivateReplyToCommentById) route ที่รับคำสั่งจากผู้ใช้ต้องส่ง 'MANUAL' เสมอ ไม่งั้น
+   * ผู้ใช้จะปลอมข้อเท็จจริงที่ควรมาจาก Meta ได้ แล้วจอจะบอกว่า "เพจทักไปแล้ว" ทั้งที่ไม่เคยทัก
+   */
+  reason?: CommentResolvedReason
+}): Promise<{ resolvedAt: Date | null; resolvedReason: CommentResolvedReason | null }> {
+  const comment = await prisma.pageComment.findUnique({
+    where: { id: params.commentId },
+    select: { id: true, post: { select: { channel: { select: { shopId: true } } } } },
+  })
+  if (!comment) throw new Error('COMMENT_NOT_FOUND')
+  if (!(await canAccessShop(comment.post.channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+
+  /**
+   * เขียนคู่ `resolvedAt`/`resolvedReason` พร้อมกันเสมอ — ฐานมี CHECK บังคับอีกชั้น
+   * (`PageComment_resolved_pair_check`) เพราะแถวที่มีเวลาแต่ไม่มีเหตุผล (หรือกลับกัน) อ่านได้
+   * สองแบบตลอดไปและไม่มีใครรู้ว่าอันไหนถูก
+   */
+  const data = params.resolved
+    ? {
+        resolvedAt: new Date(),
+        resolvedReason: params.reason ?? ('MANUAL' as const),
+        resolvedByUserId: params.reason === 'ALREADY_REPLIED_EXTERNALLY' ? null : params.actorUserId,
+      }
+    : { resolvedAt: null, resolvedReason: null, resolvedByUserId: null }
+
+  const updated = await prisma.pageComment.update({
+    where: { id: comment.id },
+    data,
+    select: { resolvedAt: true, resolvedReason: true },
+  })
+  return { resolvedAt: updated.resolvedAt, resolvedReason: toResolvedReason(updated.resolvedReason) }
+}
+
+/**
+ * ระบบตั้งเองเมื่อ Facebook ยืนยันว่าคอมเมนต์นี้ถูกทัก private reply ไปแล้ว (#10900)
+ *
+ * แยกจาก `setCommentResolved` เพราะเส้นทางนี้ **ไม่มี actor ให้ตรวจสิทธิ์** — ผู้เรียกคือ
+ * `sendPrivateReplyToCommentById` ซึ่งเพิ่งผ่าน `canAccessShop` มาแล้วเมื่อครู่ (MANUAL) หรือ
+ * เป็น system actor (AUTO) การไปตรวจซ้ำที่นี่จะบังคับให้เส้นทาง AUTO ต้องแต่ง userId ปลอมขึ้นมา
+ *
+ * 🛑 ห้ามทับของเดิม: คอมเมนต์ที่ถูกกดข้ามด้วยมือไปแล้วต้องคงเหตุผล 'MANUAL' ไว้ (คนเป็นคน
+ * ตัดสินใจ ระบบไม่ควรเขียนทับความตั้งใจนั้น) — เงื่อนไข `resolvedAt: null` ทำให้ update
+ * ไม่แตะแถวที่มีค่าแล้ว และ `updateMany` ไม่ throw เมื่อไม่มีแถวเข้าเงื่อนไข
+ */
+export async function markCommentRepliedExternally(commentId: string): Promise<void> {
+  await prisma.pageComment.updateMany({
+    where: { id: commentId, resolvedAt: null },
+    data: {
+      resolvedAt: new Date(),
+      resolvedReason: 'ALREADY_REPLIED_EXTERNALLY',
+      resolvedByUserId: null,
+    },
+  })
+}

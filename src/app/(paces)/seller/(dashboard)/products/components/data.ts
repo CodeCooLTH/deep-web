@@ -1,3 +1,4 @@
+import { PRODUCT_TYPES } from '@/lib/product-types/registry'
 export type ProductRow = {
   id: string
   name: string
@@ -42,10 +43,16 @@ export const PRODUCT_TYPE_LABELS: Record<ProductRow['type'], string> = {
   SUBSCRIPTION: 'สมาชิก/รอบ',
 }
 
-// ไอคอนชุดเดียวกับ stat cards ใน products/page.tsx — ใช้ชื่อเดิมซ้ำ ไม่ตั้งใหม่
+/**
+ * ไอคอนชุดเดียวกับ stat cards ใน products/page.tsx
+ *
+ * 🛑 **derive จาก `PRODUCT_TYPES` ไม่ประกาศค่าซ้ำ** (Hard Rule 16) — เดิมเป็นตารางค่าคงที่
+ * ของตัวเอง ขณะที่ registry ถือสัญลักษณ์ของตัวเองอีกชุด ⇒ ประเภทเดียวกันมีสัญลักษณ์ 2 แบบ
+ * คนละหน้าจอ (ตาราง/การ์ดเห็นไอคอน · ตัวเลือกในฟอร์มเห็น emoji) โดยไม่มีอะไรฟ้อง
+ */
 export const PRODUCT_TYPE_ICONS: Record<ProductRow['type'], string> = {
-  PHYSICAL: 'box',
-  DIGITAL: 'device-laptop',
-  SERVICE: 'tools',
-  SUBSCRIPTION: 'repeat',
+  PHYSICAL: PRODUCT_TYPES.PHYSICAL.icon,
+  DIGITAL: PRODUCT_TYPES.DIGITAL.icon,
+  SERVICE: PRODUCT_TYPES.SERVICE.icon,
+  SUBSCRIPTION: PRODUCT_TYPES.SUBSCRIPTION.icon,
 }

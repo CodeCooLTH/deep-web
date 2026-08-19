@@ -42,10 +42,19 @@ describe("product-types/registry", () => {
     });
   });
 
-  it("every preset has emoji + label + ariaLabel + description", () => {
+  it("[blocker] every preset has icon + label + ariaLabel + description — และ icon ห้ามเป็น emoji", () => {
+    /**
+     * 🛑 เดิมฟิลด์นี้ชื่อ `emoji` และเก็บ 📦💻🛠️🔁 ซึ่งผิด Hard Rule 12 ตรงตัว
+     * ("ห้าม emoji ใน UI ทุกจุด ใช้ icon จริงเท่านั้น" — 📦 ถูกยกเป็นตัวอย่างในกฎนั้นเอง)
+     *
+     * หลุด grep gate ของ HR12 มาตลอด เพราะ gate สแกนเฉพาะ **ไฟล์ UI ที่ถูกแก้**
+     * ส่วนค่าพวกนี้อยู่ใน `src/lib/` จึงไม่เคยถูกตรวจเลยสักครั้ง — ด่านนี้ปิดช่องนั้น
+     */
+    const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/u;
     for (const id of PRODUCT_TYPE_IDS) {
       const meta = PRODUCT_TYPES[id];
-      expect(meta.emoji).toBeTruthy();
+      expect(meta.icon).toBeTruthy();
+      expect(EMOJI.test(meta.icon), `${id}: icon ต้องเป็นชื่อ tabler ไม่ใช่ emoji`).toBe(false);
       expect(meta.label).toBeTruthy();
       expect(meta.ariaLabel).toBeTruthy();
       expect(meta.description).toBeTruthy();

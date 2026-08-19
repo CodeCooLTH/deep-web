@@ -23,6 +23,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChannelBadgeOverlay } from '../components/ChannelBadge'
 import { PageAvatar } from '../components/PageFilterDropdown'
 import type { ChannelOption } from './CommentsClient'
+import type { CommentListStateFilter } from '@/services/page-comment.service'
 import { useT } from '@/i18n/LocaleProvider'
 
 /**
@@ -38,7 +39,12 @@ import { useT } from '@/i18n/LocaleProvider'
  * เพราะเป็นคนละคำถามกับ "สถานะการตอบ" (คู่กับ Page Comments ของ Business Suite ค่าตั้งต้นปิด)
  */
 export type CommentShowFilter = {
-  postStatus: 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN'
+  /**
+   * ผูกกับชนิดของ service ตรง ๆ (type-only import — ไม่ลากอะไรเข้า bundle ของ client) เพื่อให้
+   * `tsc` บังคับว่าเพิ่มค่าใหม่ที่ฝั่ง server แล้วต้องมาแก้ที่นี่ด้วย ไม่ใช่ union คู่ขนานที่ต้อง
+   * คอยจำว่าต้อง sync (BR-CR-S4 "ตัวแปรตัวเดียวคุมทั้งแท็บและ query")
+   */
+  postStatus: CommentListStateFilter
   /** คอมเมนต์ระดับบนที่ร้านเขียนเอง (คู่กับ Page Comments) — ค่าตั้งต้นปิดตามที่ user สั่ง */
   shopComments: boolean
 }

@@ -14,6 +14,7 @@
  */
 
 import type { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from 'react-hook-form'
+import Icon from '@/components/wrappers/Icon'
 import { useEffect, useRef } from 'react'
 import {
   PRODUCT_TYPES,
@@ -52,8 +53,15 @@ export default function ProductTypePickerCardV2({
 
   return (
     <div className="px-3 py-2.5">
-      <div className="-mx-3 overflow-x-auto px-3">
-        <div className="flex w-max items-center gap-1.5">
+      {/* 🛑 เดิมเป็น `-mx-3 overflow-x-auto` + `w-max` = แถวกว้างเกินจอโดยตั้งใจให้เลื่อน
+          แต่ **ไม่มีสัญญาณบอกว่าเลื่อนได้เลย** ผู้ใช้จึงอ่านว่า "ชิปโดนตัดขอบ" (user ทัก
+          2026-08-19: "หน้านี้มันเลยขอบอ่ะ") — และบนสกรีนช็อตที่ส่ง App Store มันดูเหมือน
+          หน้าจอที่ทำไม่เสร็จ
+
+          ประเภทสินค้ามีแค่ 4 ตัว ป้ายสั้น ⇒ `flex-wrap` ตกบรรทัดที่สองบนจอแคบก็จบ
+          ไม่ต้องมีตัวเลื่อน ไม่มีอะไรถูกตัด และไม่ต้องเดาว่าผู้ใช้จะรู้ไหมว่าเลื่อนได้ */}
+      <div>
+        <div className="flex flex-wrap items-center gap-1.5">
           {PRODUCT_TYPE_IDS.map((id) => {
             const meta = PRODUCT_TYPES[id]
             const elemId = `v2-type-${id.toLowerCase()}`
@@ -72,7 +80,8 @@ export default function ProductTypePickerCardV2({
                   title={meta.ariaLabel}
                   className="btn btn-xs border-default-300 text-default-700 peer-checked:bg-primary peer-checked:border-primary cursor-pointer min-h-11 rounded-full px-3 text-xs peer-checked:text-white"
                 >
-                  <span className="mr-1">{meta.emoji}</span>
+                  {/* ไอคอนจริงจาก registry — ห้ามกลับไปเป็น emoji (Hard Rule 12) */}
+                  <Icon icon={meta.icon} className="mr-1 text-base" />
                   {meta.label}
                 </label>
               </div>

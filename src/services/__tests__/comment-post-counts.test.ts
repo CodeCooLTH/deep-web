@@ -73,7 +73,8 @@ describe('countUnansweredForShops() กับ counts.unanswered (listComments) �
 
   it('แปลง bigint ของทั้ง 4 field ถูกคอลัมน์ ไม่สลับกัน', async () => {
     const counts = await countCommentPostStatesByShop({ shopIds: ['shop-1'] })
-    expect(counts).toEqual({ all: 10, unanswered: 4, botAnswered: 3, humanAnswered: 3 })
+    // expired = 0 โดยตั้งใจที่ตัวนับ**ระดับโพสต์** (ไม่มีแท็บไหนใช้แล้ว) — ดูคอมเมนต์ที่ service
+    expect(counts).toEqual({ all: 10, unanswered: 4, botAnswered: 3, humanAnswered: 3, expired: 0 })
   })
 })
 
@@ -84,7 +85,7 @@ describe('countCommentPostStatesByShop — edge cases', () => {
 
   it('shopIds ว่าง — คืนศูนย์ทั้งหมดโดยไม่ยิง $queryRaw เลย', async () => {
     const counts = await countCommentPostStatesByShop({ shopIds: [] })
-    expect(counts).toEqual({ all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0 })
+    expect(counts).toEqual({ all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0, expired: 0 })
     expect(calls).toHaveLength(0)
   })
 
