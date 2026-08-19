@@ -105,7 +105,14 @@ export default function ChatHeader({
           `backHref` ปักหมุด `/dashboard` ไม่ใช่ `router.back()` — หน้านี้เป็นแท็บระดับบนสุด
           ประวัติก่อนหน้าเป็นอะไรก็ได้ (เธรดที่เพิ่งออกมา / หน้าอื่นที่สลับไปมา) ปลายทางตายตัว
           จึงเดาได้ และตรงกับพฤติกรรมเดิมของการคลิกโลโก้เป๊ะ */}
-      <FullscreenBackButton backHref="/dashboard" />
+      <FullscreenBackButton
+        backHref="/dashboard"
+        /* สไตล์เดียวกับปุ่มเสียง/ธีม/ขนาดตัวอักษร ที่อยู่ปลายแถบเดียวกันเป๊ะ —
+           `.btn.btn-icon` เป็น primitive ของ Paces (สีและ hover มาจาก token ของธีม
+           จึงเปลี่ยนตาม data-theme เอง) ไม่ใช่ค่าดิบ ⇒ ไม่ละเมิด Hard Rule 7
+           size-11 = 44px ตามเกณฑ์พื้นที่แตะขั้นต่ำ เท่ากับเพื่อนบ้านทุกปุ่ม */
+        className="btn btn-icon inline-flex size-11 shrink-0 items-center justify-center text-default-700"
+      />
       <div className="min-w-0 flex-1">
         <ChatSearchBox />
       </div>
