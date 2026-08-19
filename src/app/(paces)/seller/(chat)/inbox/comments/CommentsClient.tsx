@@ -632,6 +632,37 @@ export default function CommentsClient({
     }
   }
 
+  /**
+   * lazy load ตอนเลื่อนถึงก้นรายการ — แทนปุ่ม "โหลดโพสต์เก่ากว่านี้" (user สั่ง 2026-08-19)
+   *
+   * 🛑 `loadMorePosts` เป็นฟังก์ชันใหม่ทุก render (ประกาศในตัว component) จึงห้ามใส่ลง deps ตรง ๆ
+   * — จะ disconnect/observe ใหม่ทุกเฟรม และ effect ที่ setState อยู่ข้างในจะปิดวงจรเป็นลูป
+   * (รอยเดิมของหน้านี้เอง: `useListBusy` ทั้งก้อนใน deps ทำ `/inbox/comments` ยิง API ไม่หยุด
+   * เมื่อ 2026-08-09 — docs/conventions/hook-return-identity-in-deps.md) เก็บไว้ใน ref แทน
+   * แล้ว deps เหลือเฉพาะ `hasMore` ซึ่งเป็น boolean ที่เสถียร
+   */
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
+  const loadMoreRef = useRef(loadMorePosts)
+  loadMoreRef.current = loadMorePosts
+  useEffect(() => {
+    const el = loadMoreSentinelRef.current
+    if (!el || !hasMore) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void loadMoreRef.current()
+      },
+      // เริ่มโหลดก่อนถึงก้นจริงเล็กน้อย ให้แถวชุดถัดไปมาทันก่อนผู้ใช้เห็นที่ว่าง
+      { rootMargin: '240px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+    // 🛑 ต้องมี `comments.length` ด้วย ไม่ใช่แค่ `hasMore`: ถ้าหน้าที่โหลดมาเตี้ยกว่าจอ sentinel
+    // จะยัง intersect อยู่เหมือนเดิม แล้ว IntersectionObserver **ไม่ยิงซ้ำเมื่อสถานะไม่เปลี่ยน**
+    // = โหลดได้หน้าเดียวแล้วค้าง (อาการคลาสสิกของ infinite scroll ที่ดูเหมือนใช้ได้ตอนทดสอบ
+    // ด้วยข้อมูลเยอะ ๆ แต่ตายกับร้านที่มีคอมเมนต์น้อย) การสร้าง observer ใหม่บังคับให้มันประเมิน
+    // ตำแหน่งใหม่ทุกครั้งที่รายการยาวขึ้น
+  }, [hasMore, comments.length])
+
   const loadThread = useCallback(async (postId: string, opts?: { silent?: boolean }) => {
     // silent = รอบ poll: ห้ามโชว์ spinner, ห้ามล้างคอมเมนต์ที่กำลังจะตอบ, ห้าม toast รบกวน
     if (!opts?.silent) {
@@ -1590,10 +1621,17 @@ export default function CommentsClient({
           ) : (
             <div className="divide-default-200 divide-y">
               {visibleComments.map((c) => {
-                // ส่วนขยาย 2026-08-19 (FR-CR-15/17) — ทางเข้า mark-done มีเฉพาะแถวที่ "ยังไม่ตอบ"
-                // หรือ resolved อยู่แล้วเท่านั้น แถวที่ HUMAN_ANSWERED/BOT_ANSWERED จากคำตอบจริง
-                // (resolvedReason===null) ต้องไม่มีปุ่ม/ไม่ intercept คลิกขวา/ไม่ห่อ SwipeableRow
-                const canToggleResolve = c.state === 'UNANSWERED' || c.resolvedReason !== null
+                /**
+                 * ส่วนขยาย 2026-08-19 (FR-CR-15/17)
+                 *
+                 * 🛑 ทางเข้ามี **ทุกแถว** — รอบแรกซ่อนไปเลยบนแถวที่ตอบไปแล้ว ผลคือคลิกขวาแล้วได้
+                 * เมนูของเบราว์เซอร์โผล่มาแทน (user เจอเองบน prod 2026-08-19: "รายการที่โหลดเพิ่ม
+                 * จะกด right click ไม่ได้เลย" — เพราะคอมเมนต์เก่าส่วนใหญ่ตอบไปแล้ว) ซึ่งอ่านเป็น
+                 * "ฟีเจอร์พัง" ไม่ใช่ "ตรงนี้ไม่มีอะไรให้ทำ" — ความเงียบไม่ได้อธิบายตัวเอง
+                 *
+                 * แถวที่มีคำตอบจริงอยู่แล้วจึงยังเปิดเมนูได้ แต่รายการถูก disable พร้อมเหตุผล
+                 */
+                const answeredForReal = c.state !== 'UNANSWERED' && c.resolvedReason === null
                 const rowButton = (
                 <button
                   type="button"
@@ -1751,12 +1789,8 @@ export default function CommentsClient({
                 </button>
                 )
 
-                if (!canToggleResolve) {
-                  return <Fragment key={c.id}>{rowButton}</Fragment>
-                }
-
                 const resolved = c.resolvedReason !== null
-                const busyResolving = resolvingIds.has(c.id)
+                const busyResolving = resolvingIds.has(c.id) || answeredForReal
 
                 return (
                   <div
@@ -1772,6 +1806,7 @@ export default function CommentsClient({
                         ไม่ใช้เขียวทั้งสองทิศ — เทากลางสำหรับ "เลิกทำเครื่องหมาย" เหมือน resolve/reopen
                         ของ InboxList.tsx) */}
                     <SwipeableRow
+                      disabled={answeredForReal}
                       actionsWidth={104}
                       actions={
                         <button
@@ -1798,23 +1833,35 @@ export default function CommentsClient({
                       disabled={busyResolving}
                       aria-label={resolved ? t.comments.unmarkDone : t.comments.markDone}
                       title={resolved ? t.comments.unmarkDone : t.comments.markDone}
-                      className="border-default-300 bg-card text-default-600 absolute end-2 top-1/2 hidden -translate-y-1/2 items-center rounded-lg border p-1.5 shadow hover:bg-default-100 disabled:opacity-50 lg:group-focus-within:flex lg:group-hover:flex"
+                      className={`border-default-300 bg-card text-default-600 absolute end-2 top-1/2 hidden -translate-y-1/2 items-center rounded-lg border p-1.5 shadow hover:bg-default-100 disabled:opacity-50 ${
+                        answeredForReal ? '' : 'lg:group-focus-within:flex lg:group-hover:flex'
+                      }`}
                     >
                       <Icon icon={resolved ? 'arrow-back-up' : 'circle-check'} width={16} height={16} />
                     </button>
                   </div>
                 )
               })}
+              {/**
+                * โหลดหน้าถัดไปเองเมื่อเลื่อนถึงก้นรายการ (user สั่ง 2026-08-19: "จริง ๆ ตรงนี้ไม่ควรมี
+                * ด้วย มันควรเป็น lazy load เวลา scroll ลงไปเจอก็ให้โหลดเลย")
+                *
+                * 🛑 เพิ่งทำได้จริงรอบนี้ — ก่อนหน้านี้การกรอง `?state=` เกิด **หลัง** ตัดหน้าใน SQL
+                * หน้าหนึ่งจึงคืนศูนย์แถวได้ทั้งที่ยังมีของเหลือ (แท็บ "หมดอายุ" ต้องกด 3 รอบกว่าจะ
+                * เจอใบแรก) ถ้าทำ auto-load บนของเดิม ผู้ใช้จะเห็นสปินเนอร์หมุนเงียบ ๆ หลายรอบโดย
+                * รายการไม่ขยับเลย — แย่กว่าปุ่มที่กดแล้วรู้ว่าตัวเองกด
+                *
+                * sentinel เป็น element จริงใต้แถวสุดท้าย ไม่ผูกกับ scroll event ของกล่อง (กล่อง
+                * scroll ของคอลัมน์นี้เป็น SimpleBar ซึ่งไม่ใช่ตัวที่ยิง scroll ของ window)
+                */}
               {hasMore && (
-                <div className="p-3">
-                  <button
-                    type="button"
-                    onClick={() => void loadMorePosts()}
-                    disabled={loadingMore}
-                    className="btn bg-default-100 text-default-800 hover:bg-default-200 min-h-11 w-full disabled:opacity-60"
-                  >
-                    {loadingMore ? t.common.loading : t.comments.loadMore}
-                  </button>
+                <div ref={loadMoreSentinelRef} className="flex min-h-14 items-center justify-center p-3">
+                  {loadingMore && (
+                    <span className="text-default-700 inline-flex items-center gap-2 text-xs">
+                      <Icon icon="loader-2" className="animate-spin text-sm" aria-hidden="true" />
+                      {t.common.loading}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -2263,6 +2310,9 @@ export default function CommentsClient({
               y={commentCtxMenu.y}
               resolved={resolved}
               busy={resolvingIds.has(row.id)}
+              unavailableReason={
+                row.state !== 'UNANSWERED' && row.resolvedReason === null ? t.comments.markDoneUnavailable : null
+              }
               onToggle={() => {
                 void handleResolveToggle(row.id, resolved)
                 setCommentCtxMenu(null)

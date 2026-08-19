@@ -62,19 +62,42 @@ describe('[blocker] toResolvedReason — fail-closed', () => {
 describe('[blocker] BR-CR-R3 — SQL CASE ต้องรู้จัก resolvedAt เหมือน deriveCommentState', () => {
   const src = stripComments(readFileSync(SERVICE, 'utf8'))
 
-  it('CASE ทั้ง 2 ก้อนต้องมีสาขา resolvedAt', () => {
+  it('นิยาม CASE ต้องมีที่ประกาศเดียว — ห้ามก็อปกลับไปเขียนซ้ำในแต่ละ query', () => {
+    // เดิมข้อความ CASE ถูกคัดลอกไว้ 2 ที่แล้วกันหลุดด้วย "คอมเมนต์เตือน" ซึ่งเป็นกติกาที่เขียนไว้
+    // ไม่ใช่กติกาที่บังคับได้ (rule-must-be-enforced-not-described.md) — ตอนนี้เป็น fragment เดียว
     const branches = src.match(/c\."resolvedAt" IS NOT NULL THEN 'HUMAN_ANSWERED'/g) ?? []
-    expect(
-      branches.length,
-      'countCommentPostStatesByShop และ countCommentStatesByShop ต้องมีสาขา resolvedAt ครบทั้งคู่',
-    ).toBe(2)
+    expect(branches.length, 'CASE ต้องประกาศที่เดียวคือ COMMENT_STATE_CASE').toBe(1)
+    expect(src).toMatch(/const COMMENT_STATE_CASE = Prisma\.sql`/)
   })
 
   it('สาขา resolvedAt ต้องอยู่ "อันสุดท้ายก่อน ELSE" ให้ตรงกับลำดับใน TS (BR-CR-R2)', () => {
     // ถ้าใครย้ายขึ้นไปไว้ก่อนสาขาคำตอบสาธารณะ ตัวเลขจะยังบวกได้เท่าเดิมทุกประการ
     // แต่คอมเมนต์ที่บอทตอบแล้วและถูกกดข้ามจะย้ายจาก BOT_ANSWERED ไป HUMAN_ANSWERED เงียบ ๆ
-    const pattern = /c\."resolvedAt" IS NOT NULL THEN 'HUMAN_ANSWERED'\s+ELSE 'UNANSWERED'/g
-    expect((src.match(pattern) ?? []).length).toBe(2)
+    expect(src).toMatch(/c\."resolvedAt" IS NOT NULL THEN 'HUMAN_ANSWERED'\s+ELSE 'UNANSWERED'/)
+  })
+
+  it('[blocker] ทุก query ที่ตัดสินสถานะต้อง interpolate fragment ตัวเดียวกัน (3 ที่)', () => {
+    // 2 ตัวนับ + ตัวกรองรายการ — ตัวที่สามเพิ่งเพิ่ม 2026-08-19 ตอนย้ายการกรองไปอยู่ก่อนตัดหน้า
+    // (ก่อนหน้านั้นรายการกรองใน TS หลังตัดหน้า ⇒ แท็บ "หมดอายุ" ขึ้นเลข 41 แต่รายการว่างเปล่า)
+    const uses = src.match(/\$\{COMMENT_STATE_CASE\}/g) ?? []
+    expect(uses.length).toBe(3)
+  })
+
+  it('[blocker] EXPIRED ต้องกรองที่ SQL ด้วยเส้นแบ่งเวลาจาก SSOT ตัวเดียวกับ TS', () => {
+    // เช็คว่า query รายการมีทั้ง 2 เงื่อนไขของ EXPIRED (ยังไม่ตอบ ∧ พ้น 7 วัน) — เช็คแค่เวลา
+    // อย่างเดียวจะลากคอมเมนต์เก่าที่ตอบไปแล้วทั้งกองเข้ามาด้วย ซึ่งไม่ใช่งานค้างของใครเลย
+    expect(src).toMatch(/params\.state === 'EXPIRED' \? 'UNANSWERED' : params\.state/)
+    expect(src).toMatch(/c\."createdTime" < \$\{privateReplyWindowCutoff\(\)\}/)
+  })
+
+  it('[blocker] listComments ต้อง LIMIT/OFFSET หลังกรอง ไม่ใช่กรองหลังตัดหน้า', () => {
+    // ด่านนี้คือหัวใจของบั๊กที่ user เจอ: ถ้าใครย้ายการกรองกลับไปอยู่หลัง findMany อีกครั้ง
+    // แท็บที่เกณฑ์ผูกกับ "ของเก่า" จะกลับไปว่างเปล่าใต้ badge ที่มีเลขทันที
+    const listBody = src.slice(src.indexOf('export async function listComments('))
+    const limitAt = listBody.indexOf('LIMIT ${take} OFFSET ${skip}')
+    const findManyAt = listBody.indexOf('prisma.pageComment.findMany(')
+    expect(limitAt, 'listComments ต้องตัดหน้าใน SQL').toBeGreaterThan(0)
+    expect(limitAt, 'การตัดหน้าต้องเกิดก่อนดึงแถวเต็ม').toBeLessThan(findManyAt)
   })
 
   it('ทั้ง 2 query ต้องดึงคอลัมน์ resolvedAt มาให้ deriveCommentState ใช้จริง', () => {

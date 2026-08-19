@@ -16,10 +16,17 @@ type Props = {
   actions: React.ReactNode
   /** ความกว้างรวมของโซน action (px) — เท่ากับจำนวนปุ่ม × ความกว้างปุ่ม */
   actionsWidth?: number
+  /**
+   * แถวนี้ไม่มี action ให้ทำ — ไม่ห่อกลไกปัดเลย (2026-08-19)
+   *
+   * 🛑 ต่างจาก "ห่อแล้วปุ่มข้างในถูก disable": ปัดแล้วเจอปุ่มที่กดไม่ได้คือ affordance หลอก
+   * ผู้ใช้ออกแรงปัดเพื่อไปเจอทางตัน ไม่ปัดได้เลยตั้งแต่แรกซื่อสัตย์กว่า
+   */
+  disabled?: boolean
   children: React.ReactNode
 }
 
-export default function SwipeableRow({ actions, actionsWidth = 156, children }: Props) {
+export default function SwipeableRow({ actions, actionsWidth = 156, disabled = false, children }: Props) {
   const [offset, setOffset] = useState(0) // translateX ปัจจุบัน (0 ปิด, -actionsWidth เปิดเต็ม)
   const [dragging, setDragging] = useState(false)
   /**
@@ -72,6 +79,9 @@ export default function SwipeableRow({ actions, actionsWidth = 156, children }: 
   }
 
   const isOpen = offset !== 0
+
+  // ไม่มี action ให้ทำ = ส่ง children ออกไปตรง ๆ ไม่มีเลเยอร์ปัด ไม่มี action layer ให้เผย
+  if (disabled) return <>{children}</>
 
   return (
     // overflow-hidden จำเป็นเฉพาะจอที่ปัดได้ — ตอนลากนิ้ว content เลื่อนซ้ายและจะล้นออกนอกขอบแถว

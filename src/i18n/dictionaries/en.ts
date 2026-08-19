@@ -345,6 +345,7 @@ export const en: Dictionary = {
 
     markDone: 'Mark as handled',
     markDoneTile: 'Handled',
+    markDoneUnavailable: 'This comment is already answered',
     unmarkDone: 'Undo mark',
     unmarkDoneToast: 'Mark removed',
     resolveActionFailed: "Couldn't complete this action. Please try again.",

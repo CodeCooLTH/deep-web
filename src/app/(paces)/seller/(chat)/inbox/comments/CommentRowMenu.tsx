@@ -38,11 +38,19 @@ type Props = {
   resolved: boolean
   /** มี PATCH resolve/unresolve ค้างอยู่ของแถวนี้ */
   busy: boolean
+  /**
+   * แถวนี้ทำเครื่องหมายไม่ได้ พร้อมเหตุผลที่จะแสดง (null = ทำได้)
+   *
+   * 🛑 เมนูยังต้องเปิด ไม่ใช่ไม่เปิดเลย — รอบแรกซ่อนทางเข้าบนแถวที่ตอบไปแล้ว ผลคือคลิกขวาได้
+   * เมนูของเบราว์เซอร์แทน ซึ่งผู้ใช้อ่านว่า "ฟีเจอร์พัง" (user เจอเองบน prod 2026-08-19)
+   * ความเงียบไม่อธิบายตัวเอง — เมนูที่บอกว่า "ทำไมทำไม่ได้" ดีกว่าไม่มีเมนู
+   */
+  unavailableReason?: string | null
   onToggle: () => void
   onClose: () => void
 }
 
-export default function CommentRowMenu({ x, y, resolved, busy, onToggle, onClose }: Props) {
+export default function CommentRowMenu({ x, y, resolved, busy, unavailableReason, onToggle, onClose }: Props) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
 
@@ -89,15 +97,17 @@ export default function CommentRowMenu({ x, y, resolved, busy, onToggle, onClose
       <button
         type="button"
         role="menuitem"
-        disabled={busy}
+        disabled={busy || Boolean(unavailableReason)}
+        aria-disabled={busy || Boolean(unavailableReason)}
         onClick={() => {
+          if (unavailableReason) return
           onToggle()
           onClose()
         }}
         className="dropdown-item text-sm disabled:opacity-50"
       >
         <Icon icon={resolved ? 'arrow-back-up' : 'circle-check'} className="size-4" />
-        {resolved ? t.comments.unmarkDone : t.comments.markDone}
+        {unavailableReason ?? (resolved ? t.comments.unmarkDone : t.comments.markDone)}
       </button>
     </div>,
     document.body,

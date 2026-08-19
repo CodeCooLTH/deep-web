@@ -57,10 +57,24 @@ describe('หน่วยของตัวนับคอมเมนต์ต�
   })
 
   it('[blocker] listComments ต้องไม่พาคอมเมนต์ของเพจเองเข้ามาเป็นแถว', () => {
-    // เพจไม่ต้องตอบตัวเอง — กติกาเดียวกับที่ตัวนับใช้ (`c."isFromPage" = false` ใน SQL)
+    // เพจไม่ต้องตอบตัวเอง — กติกาเดียวกับที่ตัวนับใช้
+    //
+    // 🛑 ตั้งแต่ 2026-08-19 การเลือกแถวย้ายไปอยู่ใน $queryRaw (กรองก่อนตัดหน้า) เงื่อนไขจึงเขียน
+    // เป็น SQL ไม่ใช่ object ของ Prisma อีกต่อไป — ด่านต้องตามไปตรวจที่รูปใหม่ ไม่ใช่แดงค้างเพราะ
+    // รูปเดิมหายไป (กฎที่ปกป้องไม่ได้เปลี่ยน: แถวของเพจเองและแถวที่ถูกลบต้องไม่เข้ามา)
     const body = bodyOf(src, 'export async function listComments(')
-    expect(body).toContain('isFromPage: false')
-    expect(body).toContain('isDeleted: false')
+    expect(body).toContain('c."isFromPage" = false')
+    expect(body).toContain('c."isDeleted" = false')
+  })
+
+  it('[blocker] listComments ต้องกรอง state ก่อน LIMIT — ไม่ใช่ตัดหน้าแล้วค่อยกรอง', () => {
+    // บั๊กที่ user เจอบน prod 2026-08-19: แท็บ "หมดอายุ" ขึ้นเลข 41 แต่รายการว่างเปล่า เพราะ
+    // ของที่เข้าเกณฑ์ตัวแรกอยู่ลำดับที่ 70 จาก 253 — หน้าแรก 25 แถวไม่มีสักใบ
+    const body = bodyOf(src, 'export async function listComments(')
+    const stateAt = body.indexOf('${stateSql}')
+    const limitAt = body.indexOf('LIMIT ${take}')
+    expect(stateAt, 'ต้องมีการกรอง state ใน SQL').toBeGreaterThan(0)
+    expect(stateAt).toBeLessThan(limitAt)
   })
 
   it('[blocker] ทางที่ถูกยังอยู่จริง — กันด่านข้างบนกลายเป็นด่านเปล่าเมื่อมีคนเปลี่ยนชื่อฟังก์ชัน', () => {
