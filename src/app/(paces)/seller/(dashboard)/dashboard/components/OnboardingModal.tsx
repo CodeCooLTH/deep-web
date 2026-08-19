@@ -27,7 +27,8 @@
 
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { useReducer, useEffect, useCallback, useRef } from 'react'
+import { useReducer, useEffect, useCallback, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from '@/components/wrappers/Icon'
 import ThaiAddressSearch, { type ThaiAddress } from '@/components/safepay/ThaiAddressSearch'
 import { pacesToast } from '@/lib/paces-toast'
@@ -564,9 +565,33 @@ export default function OnboardingModal({
   // ตรึงหน้าข้างหลังขณะโมดัลเปิด — controlled modal ไม่ได้ของนี้จาก Preline (ดู useLockBodyScroll)
   useLockBodyScroll(open)
 
-  if (!open) return null
+  /**
+   * 🛑 ต้อง portal ออก `document.body` — โมดัลนี้ถูก render จากที่ที่ **มองไม่เห็นบนมือถือ**
+   *
+   * `OnboardingGate` ถูกวางไว้ใน `sidenavFooterSlot` (layout.tsx:205) ⇒ อยู่ใน `.app-menu`
+   * และ `safepay-overrides.css:131` เขียนว่า
+   *     `.seller-mobile-shell .app-menu { display: none !important; }`
+   *
+   * React ยัง mount ทุกอย่างตามปกติ (CSS ไม่เกี่ยวกับ lifecycle) ⇒ บนมือถือโมดัลนี้
+   * **เปิดจริง ล็อก scroll จริง แต่ไม่มีใครเห็นและปิดไม่ได้**
+   *
+   * อาการที่ผู้ใช้เจอ (หัวหน้า 2026-08-18, ผ่านแอป TestFlight): ล็อกอินครั้งแรกต่อเครื่อง →
+   * เลื่อนจอไม่ได้ · ดึงรีเฟรชไม่ได้ (`overscroll-behavior-y: none`) · **แต่กดปุ่มอื่นติดปกติ**
+   * (ไม่มี overlay ขวางจริง มีแต่ CSS ล็อก) · หายเมื่อปิดแอปเปิดใหม่เท่านั้น เพราะโหลดหน้าใหม่
+   * ล้าง inline style ทิ้ง และ flag ใน localStorage กันไม่ให้เปิดซ้ำ
+   *
+   * 🛑 บทเรียน: **overlay ที่ล็อก scroll ต้องไม่ถูกวางไว้ในกล่องที่ซ่อนได้** — ถ้าซ่อนเมื่อไร
+   * มันจะล็อกทั้งหน้าโดยไม่มีทางออก ระดับเดียวกับ `scroll-container-clips-popovers.md`
+   * (ที่นั่นคือ overflow ตัด popover · ที่นี่คือ display:none กลืนโมดัลแต่ side effect ยังทำงาน)
+   *
+   * `mounted` กัน hydration mismatch — SSR ไม่มี `document`
+   */
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
-  return (
+  if (!open || !mounted) return null
+
+  return createPortal(
     /* backdrop — Base: modal shell จาก theme/paces/Admin/TS/src/app/(admin)/ui/modals/page.tsx
        (fixed start-0 top-0 z-80 size-full overflow-y-auto) + bg-dark/40 */
     <div
@@ -1077,6 +1102,7 @@ export default function OnboardingModal({
 
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
