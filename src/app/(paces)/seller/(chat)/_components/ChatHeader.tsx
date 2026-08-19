@@ -26,13 +26,13 @@
  * โลโก้ (AppLogo.tsx) มี .logo-light/.logo-dark สลับกันตาม data-theme — เดิมผูก scope
  * `.app-menu .logo-box` (สมมติพื้นเข้มเสมอเพราะ sidenav เป็นเมนูมืดตลอด ไม่ผูกกับธีมหน้าเว็บ)
  * ไม่ตรงกับ header นี้ที่พื้นขาว/เข้มสลับตาม data-theme จริง จึงเขียน toggle ของตัวเองด้วย class
- * `.chat-header-logo` (safepay-overrides.css) — ดูรายละเอียดที่ comment ของ CSS นั้น
+ * (โลโก้ถูกแทนด้วยปุ่มย้อนกลับ 2026-08-19 — `.chat-header-logo` ใน safepay-overrides.css
+ *  ถูกลบไปพร้อมกัน ไม่เหลือผู้ใช้แล้ว)
  */
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import FullscreenBackButton from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenBackButton'
 import Icon from '@/components/wrappers/Icon'
-import AppLogo from '@/components/AppLogo'
 import ChatShopSwitcher from './ChatShopSwitcher'
 import { isChatThreadPath } from './chat-chrome'
 import ChatSearchBox from '@/layouts/components/TopBar/components/ChatSearchBox'
@@ -91,14 +91,21 @@ export default function ChatHeader({
         isThreadPage ? 'hidden lg:flex' : 'flex'
       }`}
     >
-      {/* โลโก้ — คลิกกลับหน้าหลักได้เหมือนทุกแอป แต่ยังต้องมีปุ่มข้อความ "กลับหน้าหลัก" แยกต่างหาก
-          (ด้านล่าง) ตามที่ user สั่งชัดว่าต้อง "หาเจอง่าย" ไม่ใช่พึ่งแค่คลิกโลโก้เฉย ๆ */}
-      <Link href="/dashboard" className="chat-header-logo shrink-0" aria-label={t.inbox.backToDashboard}>
-        <AppLogo />
-      </Link>
+      {/* ปุ่มย้อนกลับ — ตัวเดียวกับที่หน้าเปิดซ้อนใช้ (`FullscreenBackButton`) ไม่ได้ทำใหม่
+          user สั่ง 2026-08-19: "หัวแชทเปลี่ยนเป็นย้อนกลับเหมือนหน้าอื่น ๆ"
 
-      {/* ปุ่ม back ← เดิมถูกตัดออก (user request 2026-07-23: "ซ่อนปุ่ม Back บนสุดไปเลย ให้กดที่
-          icon กลับ") — โลโก้ (คลิกได้ ↑) + ปุ่ม storefront ข้างช่องค้นหา (↓) คือทางกลับหน้าหลักแทน */}
+          🛑 นี่คือการ **กลับมติ** ของ 2026-07-23 ("ซ่อนปุ่ม Back บนสุดไปเลย ให้กดที่ icon กลับ")
+          — บันทึกไว้ให้คนอ่านโค้ดรู้ว่าไม่ใช่ความพลาด และเหตุผลที่กลับมติมีน้ำหนักจริง:
+
+          คอมเมนต์เดิมอ้างว่าทางกลับหน้าหลักมี 2 ทาง (คลิกโลโก้ + "ปุ่ม storefront ข้างช่องค้นหา")
+          **ปุ่ม storefront นั้นไม่มีอยู่แล้ว** (grep `storefront|building-store` ทั้งไฟล์เจอแต่คอมเมนต์
+          ที่อ้างถึงมันเอง) ⇒ ทางกลับเหลือทางเดียวคือ "คลิกโลโก้" ซึ่งเป็น affordance ที่มองไม่เห็น
+          — คลาสเดียวกับ `docs-claimed-constraint-verify-in-code.md` (คอมเมนต์อ้างสิ่งที่ไม่จริงแล้ว)
+
+          `backHref` ปักหมุด `/dashboard` ไม่ใช่ `router.back()` — หน้านี้เป็นแท็บระดับบนสุด
+          ประวัติก่อนหน้าเป็นอะไรก็ได้ (เธรดที่เพิ่งออกมา / หน้าอื่นที่สลับไปมา) ปลายทางตายตัว
+          จึงเดาได้ และตรงกับพฤติกรรมเดิมของการคลิกโลโก้เป๊ะ */}
+      <FullscreenBackButton backHref="/dashboard" />
       <div className="min-w-0 flex-1">
         <ChatSearchBox />
       </div>

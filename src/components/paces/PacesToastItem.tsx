@@ -12,7 +12,7 @@
  *   relative time สด (เลือกโดย user) แทน "11 mins ago" คงที่.
  */
 
-import logoSm from '@/assets/images/logo-sm.png'
+import logoSm from '@/assets/images/logo-deep-mark.png'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import type { ChatMessageToastPayload, PacesToastType } from '@/lib/paces-toast'
 import { ChannelBadgeOverlay } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'

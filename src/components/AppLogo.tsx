@@ -1,18 +1,33 @@
-import logoBlack from '@/assets/images/logo-black.png'
-import logoSm from '@/assets/images/logo-sm.png'
-import logo from '@/assets/images/logo.png'
+import logoMark from '@/assets/images/logo-deep-mark.png'
 
+/**
+ * AppLogo — โลโก้ในแถบเมนูซ้าย (sidenav) ของผู้ขาย
+ *
+ * ## 🛑 เดิมเป็นโลโก้ "Paces" ของธีมที่ก็อปโครงมา (ดูเหตุผลเต็มที่ AuthLogo.tsx)
+ *
+ * ## ทำไมใช้ "มาร์กอย่างเดียว" ไม่ใช่เวิร์ดมาร์กเต็ม
+ *
+ * แถบเมนูของ Paces **พื้นเข้มเสมอ** (`.app-menu` ไม่ผูกกับ `data-theme` ของหน้าเว็บ) ส่วนไฟล์
+ * เวิร์ดมาร์กที่มี (`logo-deep-app.png`) เป็นตัวหนังสือ **กรมท่าบนแผ่นขาวทึบ** (`hasAlpha: no`)
+ * ⇒ วางบนเมนูเข้มจะได้ "สติกเกอร์ขาว" และถ้าถอดพื้นออก ตัวหนังสือกรมท่าจะจมหายไปกับพื้น
+ *
+ * มาร์กตัว D เป็นไล่สีฟ้า→ม่วง→ชมพู ซึ่ง **อ่านออกทั้งพื้นขาวและพื้นเข้ม** จึงใช้ตัวเดียวจบ
+ * ทั้งตอนกางและตอนย่อ — ไม่ต้องมี logo-light/logo-dark สลับกันอีกต่อไป
+ *
+ * `logo-deep-mark.png` ตัดมาจาก `logo-deep-app.png` ที่ user ส่งมา (ไม่ได้ไปหาโลโก้เอง ซึ่ง
+ * `docs/conventions/user-supplied-image-assets.md` ห้ามไว้) แล้วถอดพื้นขาวออกให้โปร่ง
+ *
+ * อยากได้เวิร์ดมาร์กเต็มในเมนู → ต้องมีไฟล์ **ตัวหนังสือสีขาวพื้นโปร่ง** เพิ่ม
+ * (ทำจากไฟล์ที่มีไม่ได้ เพราะพื้นขาวถูกเบิร์นมากับรูปแล้ว)
+ */
 const AppLogo = () => {
   return (
     <>
-      <div className="logo-light">
-        <img src={logo.src} className="logo-lg h-6" alt="Light logo" />
-        <img src={logoSm.src} className="logo-sm h-6" alt="Small logo" />
-      </div>
-      <div className="logo-dark">
-        <img src={logoBlack.src} className="logo-lg h-6" alt="Dark logo" />
-        <img src={logoSm.src} className="logo-sm h-6" alt="Small logo" />
-      </div>
+      {/* คุมด้วยความสูงเสมอ ไม่คุมความกว้าง — มาร์กเกือบจัตุรัส ถ้าคุมกว้างความสูงจะล้นแถว
+          .logo-lg / .logo-sm เป็นคลาสของธีม (structure/_layout.css) ที่สลับตอนย่อ/กางเมนู
+          ต้องคงชื่อไว้ ไม่งั้นตอนย่อเมนูจะไม่มีอะไรแสดง */}
+      <img src={logoMark.src} className="logo-lg h-8 w-auto" alt="Deep" />
+      <img src={logoMark.src} className="logo-sm h-8 w-auto" alt="Deep" />
     </>
   )
 }

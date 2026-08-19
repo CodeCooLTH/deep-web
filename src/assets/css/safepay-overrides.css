@@ -214,22 +214,9 @@ html[data-sidenav-size="condensed"] .shop-package-card .shop-package-card-text {
   }
 }
 
-/* โลโก้ใน ChatHeader.tsx — AppLogo.tsx มี .logo-light/.logo-dark toggle ผูก scope
-   `.app-menu .logo-box` เท่านั้น (สมมติพื้นเมนูมืดเสมอ ไม่ผูกกับ data-theme ของหน้าเว็บ — ดู
-   theme/paces/.../structure/_layout.css) ไม่ตรงกับ .chat-header ที่พื้นขาว/เข้มสลับตาม
-   data-theme จริง (ผ่าน --topbar-bg) จึงต้อง toggle เอง แยกจาก .app-menu โดยสิ้นเชิง — ค่า
-   default (ไม่ใช้ .logo-box) ไม่มีการควบคุม logo-light/logo-dark/logo-sm เลย จึงต้องกำหนดครบ
-   ที่นี่ (ใช้ token เดิม --logo-lg-height ไม่ hardcode ขนาด) */
-.chat-header-logo {
-  .logo-sm { display: none; }
-  .logo-lg img { height: var(--logo-lg-height); }
-  .logo-dark { display: block; }
-  .logo-light { display: none; }
-}
-html[data-theme="dark"] .chat-header-logo {
-  .logo-dark { display: none; }
-  .logo-light { display: block; }
-}
+/* โลโก้ใน ChatHeader.tsx ถูกแทนด้วยปุ่มย้อนกลับแล้ว (2026-08-19 user สั่ง) — บล็อก
+   `.chat-header-logo` ที่เคยอยู่ตรงนี้ถูกลบไปพร้อมกัน ไม่เหลือผู้ใช้ในซอร์สแล้ว
+   (CSS ที่ไม่มีใครใช้อยู่ต่อไปได้เงียบ ๆ ตลอดกาล เพราะไม่มี gate ไหนของโปรเจกต์ตรวจ) */
 
 /* ─── Choices.js .choices__inner → ให้ match .form-input ───────────────────────
    อาการ: select หมวดหมู่ (sign-up) พื้นเทา + สูงกว่า input อื่น.
