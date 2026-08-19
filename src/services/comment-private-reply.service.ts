@@ -24,6 +24,33 @@ export function isWithinPrivateReplyWindow(commentCreatedTime: Date, now: Date =
   return now.getTime() - commentCreatedTime.getTime() < PRIVATE_REPLY_WINDOW_MS
 }
 
+/**
+ * ชื่อตั้งต้นของผู้ติดต่อ เมื่อห้องแชทเกิดจาก private reply (bug fix 2026-08-19)
+ *
+ * ทำไมต้องมี: ชื่อผู้ติดต่อถูกดึงจาก Graph ที่ ingestInboundMessage เท่านั้น (channel-chat.service.ts)
+ * ซึ่งวิ่งเฉพาะตอนมี "ข้อความขาเข้า" — ห้องที่เราเป็นคนเปิดเองด้วย private reply จึงได้
+ * ExternalContact.name = null แล้วหน้า inbox ตกไป fallback "ผู้ติดต่อ" **ค้างตลอดไปจนกว่าลูกค้าจะตอบ**
+ * (prod 2026-08-19: 35 ห้อง ทุกห้องมีข้อความ BUYER = 0 ใบ) ทั้งที่ชื่อคนคอมเมนต์อยู่ใน
+ * PageComment.fromName ที่ฟังก์ชันนี้โหลดมาอยู่ในมือแล้วตั้งแต่ต้น (เช็คบน prod: หาชื่อเจอครบ 35/35)
+ *
+ * 🛑 บังคับให้ id ตรงกันก่อนเสมอ — Graph เปิดห้องให้ "ผู้รับ" ที่มันยืนยันกลับมา ไม่ใช่ "ผู้คอมเมนต์"
+ * เป๊ะ ๆ (ดูคอมเมนต์ที่จุด upsert) ไม่ตรงเมื่อไหร่คือเอาชื่อคนหนึ่งไปแปะห้องของอีกคน ซึ่งแย่กว่า
+ * คำว่า "ผู้ติดต่อ" มาก. เกณฑ์ต้องเป็น "การเช็ค" ไม่ใช่ "สถิติว่าที่ผ่านมามันตรง"
+ *
+ * fromName เป็น null ได้ตามปกติ: คอมเมนต์ที่ดึงย้อนหลังผ่าน Graph ไม่มีคีย์ `from` มาให้เลย
+ * (ติด Standard Access ของ Business Asset User Profile Access — feature 00029) → ไม่ seed ก็จบ
+ */
+export function resolveSeedContactName(args: {
+  recipientId: string
+  commentFromExternalId: string | null
+  commentFromName: string | null
+}): string | null {
+  if (!args.commentFromExternalId) return null
+  if (args.commentFromExternalId !== args.recipientId) return null
+  const name = args.commentFromName?.trim()
+  return name ? name : null
+}
+
 export type PrivateReplyResult =
   // conversationId เป็น null เฉพาะกรณี Graph ส่งสำเร็จแต่ทรานแซกชันสร้างห้องแชทล้มเหลว (D2) —
   // ข้อความถึงลูกค้าไปแล้วจริง ห้ามรายงาน sent:false ทั้งที่ Meta ส่งสำเร็จ
@@ -281,13 +308,29 @@ export async function sendPrivateReplyToCommentById(params: {
         // เลียนแบบคีย์ upsert เดียวกับ ingestInboundMessage (channel-chat.service.ts) — 1 ห้องต่อ
         // (Page, PSID) ใช้ recipientId ที่ Graph ยืนยันกลับมาจริง (ไม่ใช้ comment.fromExternalId ที่
         // อาจไม่ตรง/ไม่มี เพราะ private reply เปิดห้องให้ "ผู้รับ" ของ Graph ไม่ใช่ "ผู้คอมเมนต์" เป๊ะ ๆ)
+        // ชื่อตั้งต้นจากคอมเมนต์ที่เรากำลังตอบ (bug fix 2026-08-19) — ดู resolveSeedContactName
+        const seedName = resolveSeedContactName({
+          recipientId: sendResult.recipientId,
+          commentFromExternalId: comment.fromExternalId,
+          commentFromName: comment.fromName,
+        })
+
         const contact = await tx.externalContact.upsert({
           where: {
             shopChannelId_externalUserId: { shopChannelId: channel.id, externalUserId: sendResult.recipientId },
           },
-          create: { shopChannelId: channel.id, externalUserId: sendResult.recipientId },
+          // 🛑 ห้ามตั้ง avatarSyncedAt ตรงนี้ — ปล่อย null ไว้เพื่อให้ shouldRetryAvatar()
+          // (channel-chat.service.ts:826) ยังคืน true ⇒ ข้อความขาเข้าใบแรกของลูกค้ายังยิง Graph
+          // ดึงชื่อ/รูปจริงมาทับชื่อชั่วคราวนี้ตามปกติ ตั้งเมื่อไหร่ = ปิดทางอัปเกรดไปตลอด
+          create: { shopChannelId: channel.id, externalUserId: sendResult.recipientId, name: seedName },
           update: {},
         })
+
+        // ห้องที่เคยเปิดค้างไว้ก่อนหน้า (upsert ไม่วิ่งสาขา create) — เติมชื่อให้เฉพาะตอนยัง
+        // ไม่มีชื่อ ห้ามทับชื่อจริงที่ Graph เคยดึงมาได้แล้วด้วยชื่อจากคอมเมนต์
+        if (seedName && !contact.name) {
+          await tx.externalContact.update({ where: { id: contact.id }, data: { name: seedName } })
+        }
 
         const conversationWhere = {
           shopChannelId_externalContactId: { shopChannelId: channel.id, externalContactId: contact.id },

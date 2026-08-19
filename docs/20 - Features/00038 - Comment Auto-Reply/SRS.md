@@ -238,6 +238,20 @@ flowchart LR
      กับที่ `ingestInboundMessage`/echo ใช้ (upsert คีย์เดียวกัน) ไม่ insert สด เพื่อไม่ให้ห้องขาด
      `shopChannelId`/`lastMessageAt`/denormalized snapshot ที่ระบบอื่นพึ่งพา (00037
      `resolveChatScope` ผูกบริบทกับ `conversation.shopId`)
+  7a. **ชื่อตั้งต้นของผู้ติดต่อ (FR-CR-PR-7a, bug fix 2026-08-19)** — เขียน `ExternalContact.name`
+     จาก `PageComment.fromName` ของคอมเมนต์ที่กำลังตอบ ผ่าน `resolveSeedContactName()` ซึ่งบังคับ
+     **`comment.fromExternalId === recipient_id`** ก่อนเสมอ (Graph เปิดห้องให้ "ผู้รับ" ที่มันยืนยัน
+     กลับมา ไม่ใช่ "ผู้คอมเมนต์" เป๊ะ ๆ — ไม่ตรง = เอาชื่อคนหนึ่งไปแปะห้องของอีกคน) และ `fromName`
+     ต้องไม่ว่าง (คอมเมนต์ที่ดึงย้อนหลังผ่าน Graph ไม่มีคีย์ `from` เลย). แถวที่มีชื่ออยู่แล้ว
+     **ห้ามทับ**.
+     - **ทำไมต้องมี:** ชื่อผู้ติดต่อถูกดึงจาก Graph ที่ `ingestInboundMessage` ที่เดียว ซึ่งวิ่งเฉพาะ
+       ตอนมี**ข้อความขาเข้า** ⇒ ห้องที่เราเป็นคนเปิดเองด้วย private reply ได้ `name = null` แล้วหน้า
+       inbox ตกไป fallback `"ผู้ติดต่อ"` **ค้างตลอดไปจนกว่าลูกค้าจะตอบ** (prod 2026-08-19: 35 ห้อง
+       ทุกห้องมีข้อความ `BUYER` = 0 ใบ — backfill แล้วด้วย
+       `scripts/backfill-private-reply-contact-names.ts`)
+     - 🛑 **ห้ามตั้ง `avatarSyncedAt` ที่จุดนี้** — ปล่อย `null` ไว้เพื่อให้ `shouldRetryAvatar()`
+       ยังคืน `true` ⇒ ข้อความขาเข้าใบแรกของลูกค้ายังยิง Graph ดึงชื่อ/รูปจริงมาทับชื่อชั่วคราวนี้
+       ตามปกติ (ตั้งเมื่อไหร่ = ปิดทางอัปเกรดไปตลอด)
   8. อัปเดต `Conversation.lastMessageAt` (ไม่แตะ `lastInboundAt` — นั่นคือ watermark ฝั่งลูกค้า) และ
      `shopLastReadAt=now()` เพื่อให้ห้องไม่ขึ้น "ยังไม่อ่าน" ทันทีที่สร้าง (A-3, ดู TFR-010)
   9. อัปเดตแถว log เดิมจากข้อ 4: `privateReplyStatus='SENT'`, `conversationId`

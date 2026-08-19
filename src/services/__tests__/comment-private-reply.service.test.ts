@@ -36,7 +36,7 @@ vi.mock('@/lib/prisma', () => {
     // ถ้าไม่ mock จะ throw แล้วถูก try/catch ชั้นนอกของ orchestration กลืน = เทสแดงแบบไม่บอกสาเหตุ
     commentReplyRule: { findMany: vi.fn() },
     shopChannel: { findUnique: vi.fn() },
-    externalContact: { upsert: vi.fn() },
+    externalContact: { upsert: vi.fn(), update: vi.fn() },
     conversation: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
     chatMessage: { create: vi.fn() },
   }
@@ -61,7 +61,7 @@ import { prisma } from '@/lib/prisma'
 import { canAccessShop } from '@/lib/shop-context'
 import { resolveChannelToken } from '@/services/page-comment.service'
 import { sendPrivateReplyToComment } from '@/lib/facebook/graph'
-import { sendPrivateReplyToCommentById } from '@/services/comment-private-reply.service'
+import { sendPrivateReplyToCommentById, resolveSeedContactName } from '@/services/comment-private-reply.service'
 // Fix round 1 — comment-auto-reply.service.ts ตัวจริง ไม่ mock (นี่คือประเด็นของเทสท้ายไฟล์:
 // ปล่อยให้ processCommentAutoReply เรียก sendPrivateReplyToCommentById ตัวจริงข้างบนนี้จริง ๆ)
 import { processCommentAutoReply } from '@/services/comment-auto-reply.service'
@@ -88,7 +88,8 @@ function okComment(over: Record<string, unknown> = {}) {
 function mockFullSuccessChain() {
   vi.mocked(resolveChannelToken).mockResolvedValue({ token: 'page-token-xyz', pageId: 'page-1' })
   graphSend.mockResolvedValue({ recipientId: 'psid-real-1', messageId: 'mid-999' })
-  vi.mocked(prisma.externalContact.upsert).mockResolvedValue({ id: 'contact-1' } as never)
+  vi.mocked(prisma.externalContact.upsert).mockResolvedValue({ id: 'contact-1', name: null } as never)
+  vi.mocked(prisma.externalContact.update).mockResolvedValue({ id: 'contact-1' } as never)
   vi.mocked(prisma.conversation.findUnique).mockResolvedValue(null as never)
   vi.mocked(prisma.conversation.create).mockResolvedValue({ id: 'conv-1' } as never)
   vi.mocked(prisma.chatMessage.create).mockResolvedValue({ id: 'msg-1' } as never)
@@ -566,4 +567,116 @@ describe('processCommentAutoReply — integration ไม่ mock comment-private
     expect(graphSend).toHaveBeenCalledWith('page-token-xyz', '123_456', 'สวัสดีครับ')
   })
 
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ชื่อผู้ติดต่อตั้งต้นจากคอมเมนต์ (bug fix 2026-08-19)
+//
+// [blocker] ห้องที่เกิดจาก private reply ไม่เคยผ่าน ingestInboundMessage จึงไม่มีใครดึงชื่อจาก
+// Graph ให้เลย — หน้า inbox ตกไป fallback "ผู้ติดต่อ" ค้างตลอดไปจนกว่าลูกค้าจะตอบ
+// (prod 2026-08-19: 35 ห้อง ทุกห้องมีข้อความ BUYER = 0 ใบ)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('resolveSeedContactName — เกณฑ์ว่าจะยืมชื่อจากคอมเมนต์มาใช้ได้ไหม', () => {
+  it('id ตรงกัน + มีชื่อ -> ใช้ชื่อนั้น', () => {
+    expect(
+      resolveSeedContactName({
+        recipientId: 'psid-1',
+        commentFromExternalId: 'psid-1',
+        commentFromName: 'Deep Nattapat',
+      }),
+    ).toBe('Deep Nattapat')
+  })
+
+  it('🛑 id ไม่ตรงกัน -> null เสมอ (Graph เปิดห้องให้ "ผู้รับ" ไม่ใช่ "ผู้คอมเมนต์" เป๊ะ ๆ — เอาชื่อคนหนึ่งไปแปะห้องอีกคน แย่กว่าไม่มีชื่อ)', () => {
+    expect(
+      resolveSeedContactName({
+        recipientId: 'psid-real-1',
+        commentFromExternalId: 'psid-1',
+        commentFromName: 'Deep Nattapat',
+      }),
+    ).toBeNull()
+  })
+
+  it('คอมเมนต์ไม่มี fromExternalId (ดึงย้อนหลังผ่าน Graph) -> null ไม่ใช่จับคู่กับ null', () => {
+    expect(
+      resolveSeedContactName({
+        recipientId: 'psid-1',
+        commentFromExternalId: null,
+        commentFromName: 'Deep Nattapat',
+      }),
+    ).toBeNull()
+  })
+
+  it('ไม่มีชื่อ / ชื่อเป็นช่องว่างล้วน -> null ไม่ใช่สตริงว่าง (สตริงว่างจะทำให้ `contact.name ?? fallback` คืนค่าว่างแทนคำว่า "ผู้ติดต่อ")', () => {
+    const base = { recipientId: 'psid-1', commentFromExternalId: 'psid-1' }
+    expect(resolveSeedContactName({ ...base, commentFromName: null })).toBeNull()
+    expect(resolveSeedContactName({ ...base, commentFromName: '   ' })).toBeNull()
+  })
+
+  it('ชื่อมีช่องว่างหัวท้าย -> ตัดออกก่อนเก็บ', () => {
+    expect(
+      resolveSeedContactName({
+        recipientId: 'psid-1',
+        commentFromExternalId: 'psid-1',
+        commentFromName: '  Deep Nattapat  ',
+      }),
+    ).toBe('Deep Nattapat')
+  })
+})
+
+describe('sendPrivateReplyToCommentById — เขียนชื่อตั้งต้นลง ExternalContact', () => {
+  it('[blocker] id ตรงกัน -> create มี name และ 🛑 ต้องไม่มี avatarSyncedAt (ตั้งเมื่อไหร่ = shouldRetryAvatar คืน false ⇒ ปิดทางให้ Graph ดึงชื่อ/รูปจริงมาทับตลอดไป)', async () => {
+    findComment.mockResolvedValue(okComment({ fromExternalId: 'psid-real-1', fromName: 'Deep Nattapat' }) as never)
+    vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
+    mockFullSuccessChain()
+
+    await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
+
+    const arg = vi.mocked(prisma.externalContact.upsert).mock.calls[0]![0] as {
+      create: Record<string, unknown>
+    }
+    expect(arg.create).toMatchObject({ externalUserId: 'psid-real-1', name: 'Deep Nattapat' })
+    expect(arg.create).not.toHaveProperty('avatarSyncedAt')
+  })
+
+  it('[blocker] id ไม่ตรงกัน -> create.name เป็น null และไม่มีการ update ชื่อตามหลัง', async () => {
+    findComment.mockResolvedValue(okComment({ fromExternalId: 'psid-อื่น', fromName: 'คนละคน' }) as never)
+    vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
+    mockFullSuccessChain()
+
+    await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
+
+    const arg = vi.mocked(prisma.externalContact.upsert).mock.calls[0]![0] as {
+      create: Record<string, unknown>
+    }
+    expect(arg.create.name).toBeNull()
+    expect(prisma.externalContact.update).not.toHaveBeenCalled()
+  })
+
+  it('[blocker] ห้องเก่าที่ยังไม่มีชื่อ (upsert ไม่วิ่งสาขา create) -> เติมชื่อให้ด้วย update', async () => {
+    findComment.mockResolvedValue(okComment({ fromExternalId: 'psid-real-1', fromName: 'Deep Nattapat' }) as never)
+    vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
+    mockFullSuccessChain()
+    vi.mocked(prisma.externalContact.upsert).mockResolvedValue({ id: 'contact-1', name: null } as never)
+
+    await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
+
+    expect(prisma.externalContact.update).toHaveBeenCalledWith({
+      where: { id: 'contact-1' },
+      data: { name: 'Deep Nattapat' },
+    })
+  })
+
+  it('[blocker] 🛑 ห้องเก่าที่มีชื่อจริงจาก Graph อยู่แล้ว -> ห้ามทับด้วยชื่อจากคอมเมนต์', async () => {
+    findComment.mockResolvedValue(okComment({ fromExternalId: 'psid-real-1', fromName: 'ชื่อในคอมเมนต์' }) as never)
+    vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
+    mockFullSuccessChain()
+    vi.mocked(prisma.externalContact.upsert).mockResolvedValue(
+      { id: 'contact-1', name: 'ชื่อจริงจาก Graph' } as never,
+    )
+
+    await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
+
+    expect(prisma.externalContact.update).not.toHaveBeenCalled()
+  })
 })
