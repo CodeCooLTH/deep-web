@@ -8,7 +8,16 @@ export type BillingPeriod = "MONTHLY" | "YEARLY" | "CUSTOM";
 
 export type ProductTypeMeta = {
   id: string;
-  emoji: string;
+  /**
+   * 🛑 ชื่อไอคอน tabler — **ห้ามกลับไปเป็น emoji** (Hard Rule 12: ห้าม emoji ใน UI ทุกจุด
+   * ใช้ icon จริงเท่านั้น และ 📦 ถูกยกเป็นตัวอย่างของ "emoji ที่ดูเหมือน icon" ในกฎนั้นเอง)
+   *
+   * เดิมฟิลด์นี้ชื่อ `emoji` — หลุด grep gate ของ HR12 มาตลอด เพราะ gate สแกนเฉพาะ
+   * **ไฟล์ UI ที่ถูกแก้** ส่วนค่าพวกนี้อยู่ใน `src/lib/` จึงไม่เคยถูกตรวจเลยสักครั้ง
+   *
+   * ค่าที่ใช้ = ชุดเดียวกับ `PRODUCT_TYPE_ICONS` ที่มีอยู่ก่อนแล้ว ไม่ได้ตั้งชื่อไอคอนใหม่เอง
+   */
+  icon: string;
   label: string;
   ariaLabel: string;
   description: string;
@@ -28,7 +37,7 @@ export type ProductTypeMeta = {
 export const PRODUCT_TYPES = {
   PHYSICAL: {
     id: "PHYSICAL",
-    emoji: "📦",
+    icon: "box",
     label: "ของจริง",
     ariaLabel: "สินค้าต้องจัดส่ง",
     description: "ส่งของจริงให้ลูกค้า",
@@ -36,7 +45,7 @@ export const PRODUCT_TYPES = {
   },
   DIGITAL: {
     id: "DIGITAL",
-    emoji: "💻",
+    icon: "device-laptop",
     label: "ดิจิทัล",
     ariaLabel: "สินค้าดิจิทัล",
     description: "ส่งเป็นไฟล์ ลิงก์ หรือโค้ด",
@@ -44,7 +53,7 @@ export const PRODUCT_TYPES = {
   },
   SERVICE: {
     id: "SERVICE",
-    emoji: "🛠️",
+    icon: "tools",
     label: "บริการ",
     ariaLabel: "การให้บริการ",
     description: "งานบริการ ทำให้ลูกค้าครั้งเดียว",
@@ -52,7 +61,7 @@ export const PRODUCT_TYPES = {
   },
   SUBSCRIPTION: {
     id: "SUBSCRIPTION",
-    emoji: "🔁",
+    icon: "repeat",
     label: "สมาชิก/รอบ",
     ariaLabel: "บริการเป็นรอบหรือสมาชิก",
     description: "เก็บเงินเป็นรอบ — ประกัน, สมาชิก, ค่าบริการรายเดือน",
