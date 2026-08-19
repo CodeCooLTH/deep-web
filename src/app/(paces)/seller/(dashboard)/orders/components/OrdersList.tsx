@@ -551,10 +551,13 @@ export default function OrdersList({
       {/* ─── Mobile/Tablet (<lg): card layout เดิม (ห้ามแตะ logic ข้างใน) ─── */}
       <div className="lg:hidden">
       {/* phone: full-bleed (-mx-4 หักล้าง shell padding); tablet+ (md): center + max-width
-          กันการ์ดยืดเต็มกว้างบน tablet (responsive). marker .orders-fullbleed = CSS :has() scope
-          onTouch*: swipe ซ้าย/ขวาเพื่อสลับ status tab */}
+
+          เพดาน 4xl (896px) — เหตุผลเต็มอยู่ที่ `ProductsListing.tsx` (แพตเทิร์นเดียวกันเป๊ะ
+          ต้องขยับพร้อมกันเสมอ ไม่งั้นสองหน้ารายการที่หน้าตาเหมือนกันจะกว้างไม่เท่ากันบน iPad)
+
+          marker .orders-fullbleed = CSS :has() scope · onTouch*: swipe ซ้าย/ขวาสลับแท็บสถานะ */}
       <div
-        className="orders-fullbleed -mx-4 md:mx-auto md:max-w-2xl"
+        className="orders-fullbleed -mx-4 md:mx-auto md:max-w-4xl"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >

@@ -248,8 +248,19 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
       {/* ─── Mobile/Tablet (<lg): การ์ดแยกใบ ─────────────────────────────────── */}
       <div className="lg:hidden">
         {/* phone: full-bleed (-mx-4 หักล้าง shell padding); tablet+ (md): center + max-width
+
+            🛑 เพดานเดิมคือ `md:max-w-2xl` (672px) ⇒ บน iPad แนวตั้งเหลือขอบว่างข้างละ 20–65px
+            ผู้ใช้อ่านว่า "หน้าจอไม่เต็ม" (user ทัก 2026-08-19 พร้อมสกรีนช็อต iPad)
+
+            ทำไมเป็น 4xl (896px) ไม่ใช่ถอดเพดานทิ้ง:
+              · การ์ดรายการนี้แสดงเฉพาะ `<lg` (≥1024 สลับเป็นตารางเดสก์ท็อป) ⇒ ความกว้าง
+                ที่ใช้ได้สูงสุด = 1023 − 32 (padding ของ shell) = 991px
+              · iPad ที่เข้าช่วงนี้จริงคือแนวตั้ง 744–834pt ⇒ เนื้อที่ 712–802px **ต่ำกว่า 896
+                ทุกเครื่อง** ⇒ เต็มจอจริงทุกรุ่น ไม่มีขอบว่าง
+              · เพดานยังอยู่เพื่อกันช่วง 928–1023px ที่การ์ดแถวเดียวจะยืดจนปุ่มท้ายแถว
+                ห่างจากเนื้อหาผิดสัดส่วน — ถอดทิ้งเลยได้หน้าจอที่ "เต็ม" แต่ "โหว่ตรงกลาง"
             marker .products-fullbleed = CSS :has() scope (safepay-overrides.css) */}
-        <div className="products-fullbleed -mx-4 md:mx-auto md:max-w-2xl">
+        <div className="products-fullbleed -mx-4 md:mx-auto md:max-w-4xl">
           {/* pt = 1.5rem + safe-area: หน้านี้ full-bleed ไม่มี header ของ layout (SellerMobileHeader
               คืน null สำหรับ /products) และ sticky top-0 → ต้องเว้น status bar เอง (pattern เดียวกับ
               /orders — viewportFit:'cover' ตั้งแต่ 2026-08-06) */}
