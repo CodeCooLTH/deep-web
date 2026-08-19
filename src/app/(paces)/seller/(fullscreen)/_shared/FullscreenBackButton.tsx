@@ -20,7 +20,25 @@ import { useRouter } from 'next/navigation'
 
 import { pacesConfirm } from '@/lib/paces-swal'
 
-export default function FullscreenBackButton({ backHref, isDirty }: { backHref?: string; isDirty?: boolean }) {
+export default function FullscreenBackButton({
+  backHref,
+  isDirty,
+  className,
+}: {
+  backHref?: string
+  isDirty?: boolean
+  /**
+   * สไตล์ของปุ่มตามบริบทที่ไปวาง — ไม่ส่ง = ค่าเดิมของหน้า fullscreen (bg-light)
+   *
+   * 🛑 มีไว้เพราะ **ปุ่มต้องเข้ากับแถบที่มันอยู่ ไม่ใช่เข้ากับหน้าอื่นที่ใช้ component เดียวกัน**
+   * หัวแชทมีปุ่มไอคอนข้าง ๆ ที่ใช้ primitive `.btn.btn-icon` ของ Paces อยู่แล้ว ปุ่มย้อนกลับ
+   * ที่แปะสไตล์ของหน้า fullscreen (พื้น `bg-light` ทึบ) จะเด่นผิดจังหวะกว่าเพื่อนบ้านทั้งแถว
+   * (user ทัก 2026-08-19: "ปุ่มย้อนกลับของแชทต้องเหมือนเมนู tab อื่น ๆ ดูธีมระบบด้วย")
+   *
+   * ใช้ primitive ของธีมเสมอ ห้ามส่งค่าดิบเข้ามา (Hard Rule 7)
+   */
+  className?: string
+}) {
   const router = useRouter()
 
   const navigateAway = () => {
@@ -55,7 +73,10 @@ export default function FullscreenBackButton({ backHref, isDirty }: { backHref?:
       onClick={handleBack}
       aria-label="กลับ"
       // bg-light resting state (ปุ่มจริง ไม่จาง) — Base: theme ui/buttons "btn bg-light"; rounded-lg = radius token
-      className="w-11 h-11 rounded-lg bg-light text-default-700 hover:bg-light-hover hover:text-dark active:scale-95 transition-transform inline-flex items-center justify-center shrink-0"
+      className={
+        className ??
+        'w-11 h-11 rounded-lg bg-light text-default-700 hover:bg-light-hover hover:text-dark active:scale-95 transition-transform inline-flex items-center justify-center shrink-0'
+      }
     >
       {/* tabler:arrow-left ตาม convention project (raw @iconify/react — ใส่ prefix เอง) */}
       <Icon icon="tabler:arrow-left" width={22} height={22} />
