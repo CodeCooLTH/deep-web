@@ -14,6 +14,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
+import { shouldHidePayments } from '@/lib/app-shell-server'
 import { isEntitlementActive, isProActive } from '@/services/inventory-entitlement.service'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -106,6 +107,7 @@ export default async function NewProductV2Page() {
         formId={FORM_ID}
         entitlementActive={entitlementActive}
         isProActive={proActive}
+        hidePayments={await shouldHidePayments()}
       />
     </>
   )
