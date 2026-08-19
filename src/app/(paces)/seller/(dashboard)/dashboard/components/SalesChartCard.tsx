@@ -31,6 +31,7 @@ import type { SalesSeries } from '../_constants/command-center'
 // อยู่แล้ว ถ้าชีตย้อนมา import จากที่นี่จะเป็น circular import)
 import { axisAnchorDays } from './sales-chart-axis'
 import SalesChartSheet from './SalesChartSheet'
+import MoneyTodayRow from './MoneyTodayRow'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 
@@ -39,6 +40,21 @@ type Props = {
   initialSeries: SalesSeries | null | undefined
   /** ชื่อของสิ่งที่นับเป็น "ใบ" ผันตาม vertical (ORDER_VOCAB.noun) — default = ชุด ONLINE_SALES */
   orderNoun?: string
+  /**
+   * เงินที่ร้าน **ยืนยันว่าได้รับจริง** วันนี้ (feature 00050 · AC-SQ-04)
+   * `undefined` = ไม่ใช่ร้าน SERVICE_QUEUE ⇒ การ์ดเหมือนเดิมทุก node
+   *
+   * 🛑 อยู่ในการ์ดนี้ ไม่ใช่การ์ดแยก — หัวหน้าสั่ง 2026-08-19: *"ทำไมมันไปเพิ่ม section นี้
+   * เราคุยกันว่าให้ทำใน chart นิ"* โจทย์เดิมของเขาคือ *"ยอด**อยากให้มันเป็น**ยอดเงินของแต่ละวัน
+   * **แทน**"* — คำว่า "แทน" คือเปลี่ยนของเดิม ไม่ใช่วางเพิ่ม
+   *
+   * ทำไมมันสำคัญกว่าเรื่องตำแหน่ง: การ์ดแยกทำให้หน้าแรกมี **เลขเงินสองก้อนติดกันที่ไม่เท่ากัน**
+   * (ยอดขายตามบิล vs เงินที่เข้าจริง) โดยไม่มีอะไรบอกว่าทำไมต่าง — ผู้ขายอ่านแล้วสรุปว่า
+   * ระบบคำนวณผิด ซึ่งแย่กว่าไม่มีตัวเลขที่สองเลย (docs/conventions/domain-term-single-definition.md)
+   */
+  moneyToday?: { deposit: number; balance: number; total: number; unpaidJobs: number }
+  /** จำนวนงานของวันนี้ทั้งหมด — ตัวตัดสิน "วันนี้มีงานไหม" ห้ามใช้ยอดเงินตัดสิน (ดู MoneyTodayRow) */
+  jobsToday?: number
 }
 
 /** ช่วงที่การ์ดโชว์ — ตั้งชื่อ Period แยกจาก Mode ('daily'|'monthly') ของชีตโดยตั้งใจ:
@@ -57,7 +73,7 @@ const RECENT_DAYS = 14
  */
 const TODAY_AXIS_ANCHOR_INDEXES = [0, 4, 7, 10, RECENT_DAYS - 1]
 
-export default function SalesChartCard({ initialSeries, orderNoun }: Props) {
+export default function SalesChartCard({ initialSeries, orderNoun, moneyToday, jobsToday }: Props) {
   const t = useT()
   const noun = orderNoun || t.vocab.orderNoun.ONLINE_SALES
   const [open, setOpen] = useState(false)
@@ -521,6 +537,18 @@ export default function SalesChartCard({ initialSeries, orderNoun }: Props) {
               <ApexChart key="month" getOptions={getMonthOptions} series={monthSeries} type="line" height={168} />
             )}
           </button>
+
+          {/* ── เงินที่รับจริงวันนี้ — อยู่ **นอกปุ่ม** โดยตั้งใจ ──────────────────────────
+              แถวนี้มีลิงก์ของตัวเอง (แถบเหลือง → /queues) และ HTML ห้าม <a> ซ้อนใน <button>
+              ถ้าวางไว้ข้างในจะกดไม่ได้ทั้งแถบ และ screen reader อ่านเป็นปุ่มซ้อนปุ่ม
+
+              เส้นประคั่น = signature ของ Paces (DESIGN.md §The Dashed Card-Header Rule) —
+              บอกว่านี่คนละเรื่องกับกราฟข้างบน แต่ยังอยู่ในการ์ดเดียวกัน ไม่ใช่การ์ดที่สอง */}
+          {moneyToday && (
+            <div className="border-default-300 border-t border-dashed px-4 pb-4 pt-3 lg:px-5">
+              <MoneyTodayRow money={moneyToday} jobsToday={jobsToday} />
+            </div>
+          )}
         </div>
 
         {/* เดิมมีปุ่ม "กำไรขาดทุน" ท้ายการ์ดพาไป /expenses — ตัดออกตามที่ user สั่ง (2026-08-05)

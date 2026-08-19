@@ -102,17 +102,17 @@ describe('การ์ดเงินที่รับวันนี้ ต้
     }
   })
 
-  it('[blocker] การ์ดห้ามเรียกตัวเองว่า "ยอดขาย" — คนละนิยามกับ /sales (HR16)', () => {
+  it('[blocker] แถวเงินห้ามเรียกตัวเองว่า "ยอดขาย" — คนละนิยามกับ /sales (HR16)', () => {
     /**
      * 🛑 "เงินที่เข้าจริง" ≠ "ยอดขายตามบิล" — ร้านที่เก็บมัดจำมีสองเลขนี้ต่างกันเสมอ
      * ถ้าการ์ดใช้คำว่า "ยอดขาย" ผู้ขายจะเอาไปเทียบกับ `/sales` แล้วสรุปว่าระบบคำนวณผิดทั้งหน้า
      * และต้อง **บอกความต่างบนจอ ไม่ใช่แค่คอมเมนต์**
      */
     const src = read(
-      'src/app/(paces)/seller/(dashboard)/dashboard/components/MoneyReceivedTodayCard.tsx',
+      'src/app/(paces)/seller/(dashboard)/dashboard/components/MoneyTodayRow.tsx',
     )
     const jsxText = stripComments(src)
-    expect(jsxText, 'หัวการ์ดห้ามใช้คำว่า "ยอดขาย"').not.toMatch(/>[^<]*ยอดขาย(?!ตามบิล)/)
+    expect(jsxText, 'ข้อความบนจอห้ามใช้คำว่า "ยอดขาย"').not.toMatch(/>[^<]*ยอดขาย(?!ตามบิล)/)
     expect(src, 'ต้องอธิบายความต่างจากยอดขายบนจอ').toContain('ไม่ใช่ยอดขายตามบิล')
   })
 })
@@ -128,11 +128,34 @@ describe('ไทล์ "นัดวันนี้" ต้องพาไปต
      *
      * ด่านนี้มีไว้กัน "แก้กลับ" โดยไม่รู้ประวัติ — เหตุผลเดิมยังฟังขึ้นอยู่ ใครอ่านโค้ดเฉย ๆ
      * จะเห็นว่าไทล์เดียวในแถบไปคนละที่แล้วคิดว่าเป็นความพลาด
+     *
+     * 🛑 จับ `/queues` แบบ **ขึ้นต้น** ไม่ใช่ทั้งสตริงเป๊ะ — ร่างแรกของด่านนี้เขียน
+     * `'\/queues'` ปิดท้ายด้วย quote จึงแดงทันทีที่เติม `?date=` เข้าไป ทั้งที่ปลายทาง
+     * ยังถูกทุกประการ. ด่านที่ผูกกับ *วิธีสะกด* พังตอน refactor แล้วคนถัดไปจะปิดมันทิ้ง
+     * (รอยเดิม: `provider="apple"` 2026-08-12 · `indexOf('WHEN NOT EXISTS (')` 2026-08-10)
      */
     const code = readFileSync(join(ROOT, BAND), 'utf8')
     const tile = code.slice(code.indexOf('appointmentToday !== undefined'))
-    expect(tile, 'ไทล์นัดวันนี้ต้องพาไป /queues').toMatch(/href:\s*'\/queues'/)
+    expect(tile, 'ไทล์นัดวันนี้ต้องพาไป /queues').toMatch(/href:\s*[`']\/queues[?`']/)
     expect(tile, 'ห้ามกลับไป /orders?apptDay=').not.toMatch(/href:\s*'\/orders\?apptDay=/)
+  })
+
+  it('[blocker] ต้องส่ง ?date= ของวันนี้ไปด้วย ไม่ใช่ /queues เปล่า ๆ', () => {
+    /**
+     * บั๊กที่ด่านนี้กัน (หัวหน้าแจ้ง 2026-08-19): *"ตอนกดนัดวันนี้ มันไม่เข้าไปที่ตารางงาน
+     * ของวันนี้ด้วย มันไปโผล่หน้า calendar รวม"*
+     *
+     * `/queues` เปล่า ๆ เปิดมาเป็นปฏิทินทั้งเดือน ⇒ ไทล์ที่เขียนว่า "นัดวันนี้ N" พาไปที่ที่
+     * ยังต้องจิ้มหาวันเอง — **ป้ายสัญญาอย่าง ปลายทางให้อีกอย่าง** ซึ่งเป็นบั๊กที่ `tsc`/build/
+     * theme-guard มองไม่เห็นเลย เพราะ `'/queues'` เป็นสตริงที่ถูกทุกตัวอักษร
+     *
+     * 🛑 ต้องเป็น `thaiDayKey` ตัวเดียวกับที่ตัวนับบนไทล์ใช้ตัดสิน "วันนี้" — ถ้าคำนวณวันเอง
+     * ตรงนี้ ช่วงเที่ยงคืนตามเวลาไทยจะเลื่อนกันได้ แล้วไทล์บอก N แต่เปิดไปเจอวันว่าง
+     */
+    const code = readFileSync(join(ROOT, BAND), 'utf8')
+    const tile = code.slice(code.indexOf('appointmentToday !== undefined'))
+    expect(tile, 'ต้องแนบ ?date= ไปกับปลายทาง').toMatch(/\/queues\?date=/)
+    expect(tile, 'วันต้องมาจาก thaiDayKey ไม่ใช่คำนวณเอง').toMatch(/thaiDayKey\(/)
   })
 
   it('[blocker] ตัวกรอง ?apptDay= ต้องยังอยู่ — เปลี่ยนปลายทางไทล์ ไม่ใช่ถอดฟีเจอร์', () => {
@@ -152,8 +175,8 @@ describe('ไทล์ "นัดวันนี้" ต้องพาไปต
   })
 })
 
-describe('แถบสถานะการเก็บเงินบนการ์ด (หัวหน้า: "อยากให้รู้ยังไง")', () => {
-  const CARD = 'src/app/(paces)/seller/(dashboard)/dashboard/components/MoneyReceivedTodayCard.tsx'
+describe('แถบสถานะการเก็บเงินบนแถวเงิน (หัวหน้า: "อยากให้รู้ยังไง")', () => {
+  const CARD = 'src/app/(paces)/seller/(dashboard)/dashboard/components/MoneyTodayRow.tsx'
 
   it('[blocker] "มีงานวันนี้ไหม" ต้องตัดสินจากจำนวนงาน ห้ามตัดสินจากยอดเงิน', () => {
     /**

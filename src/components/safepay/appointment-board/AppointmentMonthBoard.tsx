@@ -24,6 +24,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+
+import { parseQueueDateParam } from '@/lib/queue-date-param'
 import { useRouter } from 'next/navigation'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
@@ -213,6 +216,30 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
   }, [])
+
+  /**
+   * ── `?date=YYYY-MM-DD` → กางตารางงานของวันนั้นให้เลย ────────────────────────────────
+   *
+   * บั๊กที่แก้ (หัวหน้า 2026-08-19): *"ตอนกดนัดวันนี้ มันไม่เข้าไปที่ตารางงานของวันนี้ด้วย
+   * มันไปโผล่หน้า calendar รวม"*
+   *
+   * ไทล์ "นัดวันนี้ 60" เคยชี้ `/queues` เฉย ๆ ⇒ เปิดมาเจอ **ปฏิทินทั้งเดือน** ต้องจิ้มวันเองอีกที
+   * ป้ายบนไทล์สัญญาว่าจะพาไปดู "งานของวันนี้" แต่พาไปที่ที่ต้องออกแรงหาเอง — คนละสิ่งกับที่บอก
+   *
+   * 🛑 เปิดครั้งเดียวเท่านั้น (`autoOpened`) — ถ้าผูกกับ `searchParams` ตรง ๆ ผู้ใช้ปิดชีตแล้ว
+   * มันจะเด้งกลับมาทุก re-render เพราะ URL ยังมี `?date=` อยู่ = ปิดไม่ลง
+   *
+   * 🛑 รอ `isCompact` รู้ค่าก่อน (null = ยังไม่รู้ความกว้าง) — เดสก์ท็อปเห็นปฏิทินกับรายการ
+   * พร้อมกันอยู่แล้ว แค่เลือกวันให้พอ ไม่ต้องเปิดชีต (และชีตนั้นยิง endpoint ที่มี PII)
+   */
+  const dateParam = parseQueueDateParam(useSearchParams().get('date'))
+  const autoOpened = useRef(false)
+  useEffect(() => {
+    if (autoOpened.current || isCompact === null || !dateParam) return
+    autoOpened.current = true
+    setSelectedKey(dateParam)
+    if (isCompact) setSheetOpen(true)
+  }, [dateParam, isCompact])
 
   // จอกว้างขึ้นระหว่างชีตเปิดอยู่ (หมุนเครื่อง) → ปิดชีต ไม่งั้นมันจะทับเลย์เอาต์ 2 คอลัมน์ค้างไว้
   useEffect(() => {

@@ -18,6 +18,7 @@ import Link from 'next/link'
 import { Icon } from '@iconify/react'
 import { getT } from '@/i18n/server'
 import { fmt } from '@/i18n/fmt'
+import { thaiDayKey } from '@/lib/format-date'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 
 /**
@@ -229,7 +230,18 @@ export default async function OrderStatusBand({
                * ตารางงานใช้ `serviceResourceId != null` ซึ่ง **ถูกเขียนคู่กันเสมอ** โดย
                * `allocateSeat()` (ไม่มีเส้นทางไหนในระบบตั้งตัวใดตัวหนึ่งเดี่ยว ๆ — ตรวจแล้ว)
                */
-              href: '/queues',
+              /**
+               * 🛑 ส่ง `?date=` ไปด้วย ไม่ใช่ `/queues` เปล่า ๆ
+               *
+               * `/queues` เปิดมาเป็น **ปฏิทินทั้งเดือน** ⇒ ไทล์ที่เขียนว่า "นัดวันนี้ N"
+               * พาไปที่ที่ยังต้องจิ้มหาวันเอง — ป้ายสัญญาอย่าง ปลายทางให้อีกอย่าง
+               * (หัวหน้า 2026-08-19: *"กดนัดวันนี้ มันไม่เข้าไปที่ตารางงานของวันนี้ด้วย
+               * มันไปโผล่หน้า calendar รวม"*)
+               *
+               * ใช้ `thaiDayKey` ตัวเดียวกับที่ตัวนับบนไทล์ใช้ตัดสิน "วันนี้" — ถ้าคำนวณวันเอง
+               * ที่นี่ ช่วงเที่ยงคืนตามเวลาไทยจะเลื่อนกันได้ แล้วไทล์บอก N แต่เปิดไปเจอวันว่าง
+               */
+              href: `/queues?date=${thaiDayKey(new Date())}`,
             }
           : {
               key: st.key,

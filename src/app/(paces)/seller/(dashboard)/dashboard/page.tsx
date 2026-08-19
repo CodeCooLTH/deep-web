@@ -49,7 +49,6 @@ import { getServerSession } from 'next-auth'
 import RecentOrder from './components/RecentOrder'
 import SalesReport from './components/SalesReport'
 import StatisticCard from './components/StatisticCard'
-import MoneyReceivedTodayCard from './components/MoneyReceivedTodayCard'
 import UserCard from './components/UserCard'
 import AchievementLevel from './components/AchievementLevel'
 import { getBadgeProgress, toBadgeScope } from '@/services/badge.service'
@@ -617,14 +616,6 @@ export default async function SellerDashboardPage() {
               {statData.map((stat, idx) => (
                 <StatisticCard stat={stat} key={idx} />
               ))}
-              {/* เต็มความกว้างของคอลัมน์ซ้าย — การ์ดนี้มีแถวแยกมัดจำ/ยอดที่เหลืออยู่ข้างใน
-                  ถ้าบีบเป็นครึ่งคอลัมน์ ตัวเลขสองก้อนจะเบียดกันจนอ่านยากบนจอ 1280px
-                  (และทำให้ 5 การ์ดในกริด 2 คอลัมน์เหลือช่องว่างค้างหนึ่งช่องพอดี) */}
-              {moneyReceivedToday && (
-                <div className="md:col-span-2">
-                  <MoneyReceivedTodayCard money={moneyReceivedToday} jobsToday={appointmentTodayCount} />
-                </div>
-              )}
             </div>
           </div>
           <div className="xl:col-span-7">
@@ -650,7 +641,10 @@ export default async function SellerDashboardPage() {
 
         {/* แถว 3: SalesReport | สินค้าขายดี — ครึ่งต่อครึ่ง (theme วางคู่กันแบบนี้เหมือนกัน) */}
         <div className="grid xl:grid-cols-2 grid-cols-1 gap-base mb-base">
-          <SalesReport series={salesSeries} summary={salesSummary} />
+          <SalesReport series={salesSeries} summary={salesSummary}
+            moneyToday={moneyReceivedToday}
+            jobsToday={appointmentTodayCount}
+          />
           <TopSellingProducts products={bestSellers} vertical={shopVertical} />
         </div>
 

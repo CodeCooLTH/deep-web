@@ -10,6 +10,7 @@
  */
 'use client'
 import ApexChart from '@/components/wrappers/ApexChart'
+import MoneyTodayRow, { type MoneyTodayRowProps } from './MoneyTodayRow'
 import { CountUp } from '@/components/wrappers/CountUp'
 import Icon from '@/components/wrappers/Icon'
 import { getColor } from '@/utils/helpers'
@@ -34,6 +35,17 @@ export type SalesSummary = {
 type SalesReportProps = {
   series: SalesSeriesPoint[]
   summary: SalesSummary
+  /**
+   * เงินที่ร้าน **ยืนยันว่าได้รับจริง** วันนี้ (feature 00050 · AC-SQ-04)
+   * `undefined` = ไม่ใช่ร้าน SERVICE_QUEUE ⇒ การ์ดเหมือนเดิมทุก node
+   *
+   * 🛑 อยู่ในการ์ดกราฟนี้ ไม่ใช่การ์ดแยก — ให้ตรงกับมือถือ (`SalesChartCard`) ที่หัวหน้าสั่ง
+   * ให้ย้ายเข้ามาเมื่อ 2026-08-19 · จอเดียวกันคนละ breakpoint ต้องพูดคำเดียวกันและวาง
+   * ที่เดียวกัน (`docs/conventions/sibling-surface-parity.md`)
+   */
+  moneyToday?: MoneyTodayRowProps['money']
+  /** จำนวนงานของวันนี้ทั้งหมด — ตัวตัดสิน "วันนี้มีงานไหม" ห้ามใช้ยอดเงินตัดสิน */
+  jobsToday?: number
 }
 
 /**
@@ -108,7 +120,7 @@ export const buildSalesReportChart = (
   legend: { offsetY: 15 },
 })
 
-const SalesReport = ({ series, summary }: SalesReportProps) => {
+const SalesReport = ({ series, summary, moneyToday, jobsToday }: SalesReportProps) => {
   const t = useT()
   const isEmpty = summary.totalOrders === 0
   const seriesNames = { revenue: t.dashboard.salesSeriesRevenue, orders: t.dashboard.salesSeriesOrders }
@@ -183,6 +195,15 @@ const SalesReport = ({ series, summary }: SalesReportProps) => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── เงินที่รับจริงวันนี้ — ท้ายการ์ดเดียวกับกราฟ ตรงกับมือถือ ──
+          แสดงแม้ตอน isEmpty: ร้านที่ยังไม่มีออเดอร์ในกราฟ อาจมีงานของวันนี้ที่ต้องเก็บเงินอยู่
+          (กราฟเป็นข้อมูลย้อนหลังรายเดือน · แถวนี้เป็นข้อเท็จจริงของวันนี้ คนละแกนกัน) */}
+      {moneyToday && (
+        <div className="border-default-300 border-t border-dashed px-5 py-4">
+          <MoneyTodayRow money={moneyToday} jobsToday={jobsToday} />
         </div>
       )}
     </div>
