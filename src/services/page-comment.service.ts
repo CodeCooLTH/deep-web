@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { COMMENT_LIST_PAGE_SIZE } from '@/lib/comment-list-page'
+import { isWithinPrivateReplyWindow, privateReplyWindowCutoff } from '@/lib/private-reply-window'
 import { prisma } from '@/lib/prisma'
 import { canAccessShop, assertShopsAccessible } from '@/lib/shop-context'
 import { decryptToken } from '@/lib/token-crypto'
@@ -430,6 +431,16 @@ export interface CommentPostCounts {
   unanswered: number
   botAnswered: number
   humanAnswered: number
+  /**
+   * ยังไม่ตอบ **และ** พ้นหน้าต่างทักแชทส่วนตัว 7 วันแล้ว (แท็บ "หมดอายุ" — user สั่ง 2026-08-19)
+   *
+   * 🛑 เป็น **สับเซตของ `unanswered`** ไม่ใช่กลุ่มที่ห้าที่แยกออกไป — `all` จึงยังเท่ากับ
+   * `unanswered + botAnswered + humanAnswered` เหมือนเดิม. เหตุผลที่ไม่หักออกจาก `unanswered`:
+   * หมดหน้าต่างแปลว่า *ทักแชทส่วนตัว* ไม่ได้แล้วเท่านั้น — **ตอบใต้คอมเมนต์แบบสาธารณะยังทำได้
+   * ตลอดไป** มันจึงยังเป็นงานค้างจริง ๆ ที่ต้องอยู่ในคิว (และ `countUnansweredForShops` ที่ป้อน
+   * badge บนแท็บ "ความคิดเห็น" ใช้นิยามเดียวกัน — หักที่นี่ที่เดียวจะทำให้สองตัวเลขนั้นหลุดกัน)
+   */
+  expired: number
 }
 
 /**
@@ -450,7 +461,13 @@ function resolveCommentProvider(filter: CommentChannelFilter | undefined): strin
   return !filter || filter === 'ALL' ? 'MESSENGER' : filter
 }
 
-const EMPTY_COMMENT_POST_COUNTS: CommentPostCounts = { all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0 }
+const EMPTY_COMMENT_POST_COUNTS: CommentPostCounts = {
+  all: 0,
+  unanswered: 0,
+  botAnswered: 0,
+  humanAnswered: 0,
+  expired: 0,
+}
 
 /**
  * นับจำนวนโพสต์แยกตาม postStatus 3 กลุ่ม + ทั้งหมด แบบ **ทั้งร้าน** (ไม่ตัด take/skip) — ใช้นิยาม
@@ -561,6 +578,10 @@ export async function countCommentPostStatesByShop(params: {
     unanswered: Number(row?.unanswered ?? 0),
     botAnswered: Number(row?.botAnswered ?? 0),
     humanAnswered: Number(row?.humanAnswered ?? 0),
+    // ตัวนับระดับ**โพสต์**ไม่มีแท็บไหนใช้แล้ว (คอลัมน์ซ้าย = 1 แถว/คอมเมนต์ ตั้งแต่ 2026-08-15)
+    // ⇒ ไม่คำนวณ `expired` ที่นี่ให้เปลืองงานฐาน แต่ต้องมีคีย์ให้ครบชนิด. ถ้าวันหน้ามีจอไหนกลับมา
+    // ใช้ตัวนับระดับโพสต์พร้อมแท็บ "หมดอายุ" ต้องคำนวณจริงตรงนี้ ห้ามปล่อย 0 ไว้เฉย ๆ
+    expired: 0,
   }
 }
 
@@ -601,8 +622,9 @@ export async function countCommentStatesByShop(params: {
       )`
     : Prisma.empty
 
+  const cutoff = privateReplyWindowCutoff()
   const rows = await prisma.$queryRaw<
-    Array<{ all: bigint; unanswered: bigint; botAnswered: bigint; humanAnswered: bigint }>
+    Array<{ all: bigint; unanswered: bigint; botAnswered: bigint; humanAnswered: bigint; expired: bigint }>
   >`
     WITH scoped_channels AS (
       SELECT sc.id FROM "ShopChannel" sc
@@ -612,6 +634,9 @@ export async function countCommentStatesByShop(params: {
     ),
     customer_comments AS (
       SELECT
+        -- เส้นแบ่ง 7 วันมาเป็น "พารามิเตอร์" ไม่ใช่ literal ใน SQL — ค่าเดียวกับที่ TS ใช้ตัดสิน
+        -- (privateReplyWindowCutoff) ไม่งั้นตัวเลขบนแท็บกับรายการใต้มันจะหลุดกันเงียบ ๆ
+        c."createdTime" < ${cutoff} AS expired,
         CASE
           WHEN EXISTS (
             SELECT 1 FROM "PageComment" r
@@ -641,7 +666,9 @@ export async function countCommentStatesByShop(params: {
       count(*)::bigint AS "all",
       count(*) FILTER (WHERE state = 'UNANSWERED')::bigint AS "unanswered",
       count(*) FILTER (WHERE state = 'BOT_ANSWERED')::bigint AS "botAnswered",
-      count(*) FILTER (WHERE state = 'HUMAN_ANSWERED')::bigint AS "humanAnswered"
+      count(*) FILTER (WHERE state = 'HUMAN_ANSWERED')::bigint AS "humanAnswered",
+      -- สับเซตของ unanswered (ไม่ใช่กลุ่มที่ห้า) — ดูเหตุผลที่ field expired ของ CommentPostCounts
+      count(*) FILTER (WHERE state = 'UNANSWERED' AND expired)::bigint AS "expired"
     FROM customer_comments
   `
   const row = rows[0]
@@ -650,6 +677,7 @@ export async function countCommentStatesByShop(params: {
     unanswered: Number(row?.unanswered ?? 0),
     botAnswered: Number(row?.botAnswered ?? 0),
     humanAnswered: Number(row?.humanAnswered ?? 0),
+    expired: Number(row?.expired ?? 0),
   }
 }
 
@@ -694,6 +722,34 @@ export interface CommentListRow {
   shop: { id: string; name: string }
 }
 
+/**
+ * ค่าที่แท็บสถานะบนคอลัมน์ซ้ายส่งมา — `tsc` บังคับให้ทุกที่ที่เพิ่มค่าใหม่ต้องแก้ครบทั้งสองฝั่ง
+ * (route allow-list · matcher ข้างล่าง · แท็บใน CommentsClient · ตัวเลือกใน CommentsFilterPanel)
+ */
+export type CommentListStateFilter = 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN' | 'EXPIRED'
+
+/**
+ * แถวนี้เข้าเกณฑ์ของแท็บที่เลือกอยู่ไหม — ฟังก์ชันบริสุทธิ์ เพื่อให้เทสจับได้ตรง ๆ
+ *
+ * 🛑 ต้องให้คำตอบเดียวกับ `count(*) FILTER (...)` ใน `countCommentStatesByShop()` ทุกกิ่ง —
+ * สองอันนี้ตอบคำถามเดียวกันคนละภาษา หลุดกันเมื่อไหร่จะได้จอที่เขียนว่า "หมดอายุ 7" นั่งอยู่เหนือ
+ * รายการ 12 แถว ซึ่งไฟล์นี้ถือเป็นบาปมหันต์ของตัวเองมาตลอด (เคยโชว์ "ยังไม่ตอบ 7 กับ 8" มาแล้ว)
+ *
+ * 🛑 'EXPIRED' ตรวจ **สองอย่างพร้อมกัน** (ยังไม่ตอบ ∧ พ้น 7 วัน) — เช็คแค่เวลาอย่างเดียวจะลาก
+ * คอมเมนต์เก่าที่ตอบไปแล้วทั้งกองเข้ามาด้วย ซึ่งไม่ใช่งานค้างของใครเลย
+ */
+export function matchesCommentStateFilter(
+  comment: { state: CommentAnswerState; createdTime: Date },
+  filter: CommentListStateFilter,
+  now: Date = new Date(),
+): boolean {
+  if (filter === 'ALL') return true
+  if (filter === 'UNANSWERED') return comment.state === 'UNANSWERED'
+  if (filter === 'BOT') return comment.state === 'BOT_ANSWERED'
+  if (filter === 'HUMAN') return comment.state === 'HUMAN_ANSWERED'
+  return comment.state === 'UNANSWERED' && !isWithinPrivateReplyWindow(comment.createdTime, now)
+}
+
 export async function listComments(params: {
   shopIds: string[]
   actorUserId: string
@@ -701,7 +757,7 @@ export async function listComments(params: {
   take?: number
   skip?: number
   shopChannelId?: string
-  state?: 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN'
+  state?: CommentListStateFilter
   provider?: CommentChannelFilter
 }): Promise<{
   comments: CommentListRow[]
@@ -851,15 +907,7 @@ export async function listComments(params: {
    * `rawCount` คือจำนวนก่อนกรอง ใช้เป็น skip ของหน้าถัดไปเท่านั้น
    */
   const filtered =
-    !params.state || params.state === 'ALL'
-      ? mapped
-      : mapped.filter((c) =>
-          params.state === 'UNANSWERED'
-            ? c.state === 'UNANSWERED'
-            : params.state === 'BOT'
-              ? c.state === 'BOT_ANSWERED'
-              : c.state === 'HUMAN_ANSWERED',
-        )
+    !params.state || params.state === 'ALL' ? mapped : mapped.filter((c) => matchesCommentStateFilter(c, params.state!))
 
   return { comments: filtered, counts, rawCount: rows.length }
 }
@@ -1011,8 +1059,8 @@ export async function listCommentPosts(params: {
   })
 
   // ขอบเขตหน้าต่างทักแชทส่วนตัวของ Meta = 7 วัน — คอมเมนต์ที่เก่ากว่านี้ทักไม่ได้อีกแล้ว
-  // คิดครั้งเดียวนอกลูป (ทุกแถวใช้เส้นเดียวกัน) — ค่าคงที่อยู่ที่ UI ด้วย (privateReplyWindow)
-  const dmWindowStart = Date.now() - 7 * 24 * 60 * 60 * 1000
+  // คิดครั้งเดียวนอกลูป (ทุกแถวใช้เส้นเดียวกัน) — ค่าคงที่มาจาก SSOT ตัวเดียวที่ UI ใช้ด้วย
+  const dmWindowStart = privateReplyWindowCutoff().getTime()
 
   /**
    * "คอมเมนต์ใบไหนทักแชทสำเร็จแล้ว และใครเป็นคนทัก" — batch เดียวครอบทุกโพสต์ในหน้านี้ กัน N+1

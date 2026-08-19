@@ -297,6 +297,8 @@ export const en: Dictionary = {
     all: 'All',
     unanswered: 'Unanswered',
     unansweredN: '{n} unanswered',
+    expired: 'Window closed',
+    expiredHint: 'Unanswered and past 7 days — private reply unavailable, public reply still works',
 
     windowExpired: 'Reply window closed',
     windowRemaining: '{remaining} left',

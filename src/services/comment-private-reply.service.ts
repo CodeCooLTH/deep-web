@@ -12,17 +12,14 @@ import { prisma } from '@/lib/prisma'
 import { canAccessShop } from '@/lib/shop-context'
 import { resolveChannelToken } from '@/services/page-comment.service'
 import { sendPrivateReplyToComment } from '@/lib/facebook/graph'
-
-/** หน้าต่างทักส่วนตัวของ Meta นับจากเวลาที่ลูกค้าคอมเมนต์ */
-export const PRIVATE_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+import { PRIVATE_REPLY_WINDOW_MS, isWithinPrivateReplyWindow } from '@/lib/private-reply-window'
 
 /**
- * ยังทักได้ไหม — แยกเป็น pure function เพื่อให้ UI กับ service ตัดสินด้วยเกณฑ์เดียวกัน
- * เวลาคอมเมนต์ที่อยู่ในอนาคต (นาฬิกาเครื่องเพี้ยน / timezone) ถือว่ายังทักได้ ไม่ใช่ error
+ * หน้าต่างทักส่วนตัวของ Meta — ย้ายไป `@/lib/private-reply-window` แล้ว (2026-08-19) เพราะตัวเลข
+ * เดียวกันถูกคัดลอกไปอยู่ 3 ที่จริง ๆ ตามที่ SRS เตือนไว้แต่แรก. re-export ไว้เพื่อไม่ให้ผู้เรียก
+ * เดิมต้องแก้ทั้งชุด — **ที่ประกาศจริงมีที่เดียวคือ lib**
  */
-export function isWithinPrivateReplyWindow(commentCreatedTime: Date, now: Date = new Date()): boolean {
-  return now.getTime() - commentCreatedTime.getTime() < PRIVATE_REPLY_WINDOW_MS
-}
+export { PRIVATE_REPLY_WINDOW_MS, isWithinPrivateReplyWindow }
 
 /**
  * ชื่อตั้งต้นของผู้ติดต่อ เมื่อห้องแชทเกิดจาก private reply (bug fix 2026-08-19)

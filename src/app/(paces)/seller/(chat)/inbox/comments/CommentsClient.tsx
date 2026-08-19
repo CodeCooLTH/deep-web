@@ -1324,16 +1324,38 @@ export default function CommentsClient({
             >
           {([
             // ป้ายกลาง (ไม่ใช่ semantic color) — แท็บ "ทั้งหมด" ไม่ใช่สถานะงาน จึงไม่ควรมีสีแดง/เหลือง/
-            // เขียวเหมือน 3 แท็บที่เหลือ (user report prod: ไม่มีเลขคู่กับมีเลขปนกัน ดูเหมือนโหลดไม่ครบ)
-            { key: 'ALL', label: t.comments.all, icon: null, badgeClass: 'bg-default-200 text-default-700', count: counts.all },
+            // เขียวเหมือนแท็บที่เหลือ (user report prod: ไม่มีเลขคู่กับมีเลขปนกัน ดูเหมือนโหลดไม่ครบ)
+            { key: 'ALL', label: t.comments.all, icon: null, badgeClass: 'bg-default-200 text-default-700', count: counts.all, hint: undefined },
             // ยังไม่ตอบ = แดง (ยังไม่มีใครแตะ)
             //
-            // เหลือ 2 แท็บ (user สั่ง 2026-08-09 "tab ด้านบน ให้มีแค่ 2 tab พอ คือ ทั้งหมด ยังไม่ตอบ")
+            // เคยเหลือ 2 แท็บ (user สั่ง 2026-08-09 "tab ด้านบน ให้มีแค่ 2 tab พอ คือ ทั้งหมด ยังไม่ตอบ")
             // — เดิมมี "บอทตอบ"/"คนตอบ" ด้วย ซึ่งเป็นการแบ่งที่ตอบคำถามว่า "ใครเป็นคนตอบ" ไม่ใช่
             // "เหลืออะไรต้องทำ" ผู้ขายเปิดหน้านี้เพื่อเคลียร์คิว ไม่ได้มาแยกแยะว่าใครตอบ
             // สถานะทั้งสองยังมีอยู่ครบฝั่งข้อมูล (ป้ายบนแถวโพสต์ + ตัวกรอง `?state=` ที่ server)
             // ถอดแค่แท็บออก ไม่ได้ถอดความหมาย
-            { key: 'UNANSWERED', label: t.comments.unanswered, icon: 'alert-circle', badgeClass: 'bg-danger text-white', count: counts.unanswered },
+            //
+            // 2026-08-19 เพิ่ม "หมดอายุ" เป็นตัวที่ 3 — ไม่ขัดกับคำสั่งข้างบน เพราะมันตอบคำถาม
+            // "เหลืออะไรต้องทำ" เหมือนกัน (คิวที่ตกหล่นจนทักแชทไม่ได้แล้ว) ไม่ใช่ "ใครเป็นคนตอบ"
+            { key: 'UNANSWERED', label: t.comments.unanswered, icon: 'alert-circle', badgeClass: 'bg-danger text-white', count: counts.unanswered, hint: undefined },
+            /**
+             * หมดอายุ (user สั่ง 2026-08-19) = ยังไม่ตอบ **และ** พ้นหน้าต่างทักแชทส่วนตัว 7 วัน
+             *
+             * 🛑 เป็น **มุมมองซ้อน** ของ "ยังไม่ตอบ" ไม่ใช่ของที่ถูกหักออกไป — ตัวเลขจึงบวกกัน
+             * ไม่ได้ (นี่คือเจตนา ไม่ใช่บั๊ก) เพราะหมดหน้าต่างแปลว่า *ทักแชทส่วนตัว* ไม่ได้แล้ว
+             * เท่านั้น **ตอบใต้คอมเมนต์แบบสาธารณะยังทำได้ตลอดไป** มันจึงยังเป็นงานค้างจริง ๆ
+             * ที่ต้องอยู่ในคิว "ยังไม่ตอบ" ด้วย. `title` อธิบายเรื่องนี้ให้ผู้ขายที่สงสัยว่า
+             * ทำไมเลขไม่บวกกัน
+             *
+             * warning ไม่ใช่ danger: "ยังไม่ตอบ" คือของที่ต้องรีบ (แดง) ส่วนอันนี้คือของที่
+             * เลยจุดรีบไปแล้ว ทำได้แค่ตามเก็บ — ให้แดงสองแท็บติดกันคือการตะโกนใส่สิ่งที่
+             * ตะโกนไปก็ไม่ได้ช่วยอะไร
+             *
+             * 🛑 พื้นอ่อน + `text-warning-ink` ไม่ใช่ `bg-warning text-white` แบบแท็บแดง — วัดแล้ว
+             * ขาวบน `--color-warning` ของสกิน saas (#ff8f1f) ได้ 2.28:1 ตกเกณฑ์ข้อความ 4.5:1
+             * ชัดเจน (สีแดงของ danger เข้มพอจึงรอด แต่ส้มไม่รอด — คัดลอกคลาสข้างบนมาตรง ๆ
+             * ไม่ได้). คู่ `warning/15` + `-ink` วัดไว้แล้วที่ 6.20–6.56:1 (2026-08-09)
+             */
+            { key: 'EXPIRED', label: t.comments.expired, icon: 'clock-x', badgeClass: 'bg-warning/15 text-warning-ink', count: counts.expired, hint: t.comments.expiredHint },
           ] as const).map((t, idx, arr) => {
             const on = postTab === t.key
             return (
@@ -1357,6 +1379,9 @@ export default function CommentsClient({
                   document.getElementById(`commentPostTab-${next.key}`)?.focus()
                 }}
                 onClick={() => setPostTab(t.key)}
+                // 🛑 title ไม่ใช่ตัวแทนของข้อความบนจอ (มือถือไม่มี hover) — ที่นี่ใช้ได้เพราะเป็น
+                // "คำอธิบายเสริม" ล้วน ๆ ไม่ใช่ข้อมูลที่ต้องมีเพื่อใช้งาน ชื่อแท็บบอกครบอยู่แล้ว
+                title={t.hint}
                 className={`-mb-px flex shrink-0 items-center gap-1 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
                   on ? 'border-primary text-primary font-semibold' : 'text-default-600 border-transparent font-medium'
                 }`}

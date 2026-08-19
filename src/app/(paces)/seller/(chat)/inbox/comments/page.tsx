@@ -14,6 +14,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveChatScope } from '@/lib/chat-scope'
 import { listComments, backfillPagePosts, backfillMissingPostThumbnails } from '@/services/page-comment.service'
+import type { CommentPostCounts } from '@/services/page-comment.service'
 import { listChannelsForShops } from '@/services/shop-channel.service'
 import { prisma } from '@/lib/prisma'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
@@ -66,7 +67,7 @@ export default async function CommentsPage() {
   // ตัวนับ 4 กลุ่มของหน้าแรก มาจาก listComments เดียวกับที่ดึงรายการ (BR-CR-S4: badge/แท็บ/
   // ตัวกรองต้องมาจาก symbol เดียว) — **นับเป็นคอมเมนต์** ตั้งแต่ 2026-08-15 ให้ตรงกับหน่วยของแถว
   // ค่าตั้งต้น 0 ทั้งชุดถ้าโหลดพัง
-  let counts = { all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0 }
+  let counts: CommentPostCounts = { all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0, expired: 0 }
   /**
    * จำนวนแถว "ดิบ" ที่ query ของหน้าแรกดึงมาได้จริง — คนละความหมายกับ `counts.all` ซึ่งเป็นยอด
    * **ทั้งร้าน** (ดู listComments) client ใช้ตัวนี้เป็น skip ของหน้าถัดไป ส่งผิดแล้วปุ่ม

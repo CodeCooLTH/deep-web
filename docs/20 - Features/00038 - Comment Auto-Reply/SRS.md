@@ -228,7 +228,7 @@ flowchart LR
   1. โหลด `PageComment → post → channel` (แหล่งความจริงของ `shopId`/`pageId`)
   2. `trigger='MANUAL'` → `canAccessShop(shopId, actorUserId)`; `trigger='AUTO'` → ข้าม (system actor)
   3. เช็คหน้าต่าง 7 วันจาก `comment.createdTime` (ใช้ค่าคงที่เดียวกับที่มีอยู่แล้วใน
-     `page-comment.service.ts:341` และ `CommentsClient.tsx:115` — ห้าม hardcode ตัวเลขซ้ำที่ 3)
+     `src/lib/private-reply-window.ts` = **SSOT ตัวเดียวของทั้งระบบ** ตั้งแต่ 2026-08-19)
   4. เช็ค/สร้างแถว `CommentReplyLog` ก่อน (unique index เป็นตัวกันซ้ำจริง — ดู DATABASE.md §4)
   5. ยิง Graph `POST /me/messages` body `{recipient:{comment_id}, message:{text}}`
   6. ได้ `recipient_id` (PSID) + `message_id` กลับมา
@@ -261,6 +261,25 @@ flowchart LR
 - **Error / Edge cases:** Graph ปฏิเสธ (token หมดอายุ/เกิน rate limit/policy) →
   `privateReplyStatus='FAILED'` + `errorMessage` — **ไม่ retry อัตโนมัติ** (BR-CR-14/A-4); เกิน 7 วัน →
   ไม่เรียก Graph เลย บันทึก `skipReason` ทันที (ประหยัด round-trip)
+
+#### FR-CR-S5 · แท็บ "หมดอายุ" ในคอลัมน์ซ้าย (user สั่ง 2026-08-19)
+
+- **นิยาม:** คอมเมนต์ที่ `state='UNANSWERED'` **และ** `createdTime` พ้นหน้าต่างทักแชทส่วนตัว 7 วันแล้ว
+- **หน่วยของตัวเลข = คอมเมนต์ ไม่ใช่โพสต์** (ผู้ใช้เคาะ) — ตรงกับหน่วยของแถวในคอลัมน์ซ้ายที่เปลี่ยนเป็น
+  "1 แถว = 1 คอมเมนต์" ตั้งแต่ 2026-08-15 และตรงกับอีก 2 แท็บที่นับด้วยหน่วยเดียวกันอยู่แล้ว
+- 🛑 **เป็นมุมมองซ้อนของ "ยังไม่ตอบ" ไม่ใช่กลุ่มที่ถูกหักออกไป** — ตัวเลขสามแท็บจึงบวกกันไม่ได้
+  (เจตนา ไม่ใช่บั๊ก) เหตุผล: หมดหน้าต่างแปลว่า **ทักแชทส่วนตัว** ไม่ได้แล้วเท่านั้น —
+  **ตอบใต้คอมเมนต์แบบสาธารณะไม่มีหน้าต่างเวลา ทำได้ตลอดไป** มันจึงยังเป็นงานค้างจริงที่ต้องอยู่ในคิว
+  "ยังไม่ตอบ" ด้วย. อีกเหตุผล: `countUnansweredForShops()` ที่ป้อน badge บนแท็บ "ความคิดเห็น"
+  ใช้นิยามเดียวกัน — หักที่นี่ที่เดียวจะทำให้สองตัวเลขนั้นหลุดกันทันที (BR-CR-S4)
+- **บังคับที่:** `matchesCommentStateFilter()` (ฟังก์ชันบริสุทธิ์ กรองรายการ) + `count(*) FILTER
+  (WHERE state = 'UNANSWERED' AND expired)` ใน `countCommentStatesByShop()` (ตัวนับบนแท็บ) —
+  ทั้งคู่รับเส้นแบ่งเวลาจาก `privateReplyWindowCutoff()`/`isWithinPrivateReplyWindow()` ตัวเดียวกัน
+  🛑 **ห้ามเขียน `INTERVAL '7 days'` ลงใน SQL** (จะแยกออกจาก SSOT ทันทีโดยไม่มีอะไรฟ้อง —
+  มีเทส `[blocker]` ตรึงไว้แล้วที่ `comment-expired-filter.test.ts`)
+- **สี:** พื้นอ่อน `bg-warning/15` + `text-warning-ink` ไม่ใช่ `bg-warning text-white` แบบแท็บแดง —
+  ขาวบน `--color-warning` ของสกิน saas (#ff8f1f) วัดได้ **2.28:1** ตกเกณฑ์ข้อความ 4.5:1
+  (คู่ `/15` + `-ink` วัดไว้ที่ 6.20–6.56:1) และ warning ไม่ใช่ danger เพราะนี่คือของที่เลยจุดรีบไปแล้ว
 
 ### TFR-007: `POST /api/chat/comments/[commentId]/private-reply` (ปุ่มแมนนวล)
 - **Trace to:** FR-CR-09, FR-CR-10, FR-CR-11, BR-CR-15..19, BR-CR-M1..M5
@@ -479,7 +498,7 @@ sequenceDiagram
 | **Security** | โทเคนเพจต้องไม่ถูกส่งออกไปหน้าจอผู้ใช้ไม่ว่ากรณีใด | ทุก `select` ของ `ShopChannel` ระบุคอลัมน์ ห้ามคืนทั้งแถว |
 | **Security** | เฉพาะสมาชิกร้านที่มีสิทธิ์เท่านั้นตั้งค่า/กดทักได้ | `canAccessShop` ทุก endpoint |
 | **Observability** | ทุกการตัดสินใจของระบบ (ตอบ/ข้าม) ต้องมีแถว log | `CommentReplyLog` insert-always |
-| **Maintainability** | ค่าคงที่หน้าต่าง 7 วันต้องมีที่มาเดียว ไม่ hardcode ซ้ำจุดที่ 3 | ใช้ค่าเดิมจาก `page-comment.service.ts:341`/`CommentsClient.tsx:115` |
+| **Maintainability** | ค่าคงที่หน้าต่าง 7 วันต้องมีที่มาเดียว ไม่ hardcode ซ้ำจุดที่ 3 | ✅ ปิดแล้ว 2026-08-19 — `src/lib/private-reply-window.ts` (`PRIVATE_REPLY_WINDOW_MS` · `isWithinPrivateReplyWindow` · `privateReplyWindowCutoff`). ก่อนหน้านั้น **ถูกคัดลอกไป 3 ที่จริง ๆ** ทั้งที่บรรทัดนี้เตือนไว้แล้ว (`comment-private-reply.service.ts` · `CommentsClient.tsx:165` · `page-comment.service.ts:1015`) เพราะเจ้าของเดิม import ตรง ๆ ไม่ได้ (วงกลมกับ `page-comment.service`) — **กฎที่เขียนไว้แต่ไม่มีที่ให้ import คือกฎที่บังคับไม่ได้** (`rule-must-be-enforced-not-described.md`) |
 
 ---
 
