@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { shouldHidePayments } from "@/lib/app-shell-server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -76,6 +77,15 @@ export async function GET() {
         subscription,
         businesses,
         hasBusinessMembership: businesses.length > 0,
+        /**
+         * 🛑 เปิดจากในแอป iOS ห้ามมีทางเข้าหน้าซื้อ (Guideline 3.1.1)
+         *
+         * ส่งมากับ payload นี้เพราะเมนูสลับบัญชีเป็น client component ที่ถูก mount จาก
+         * **10 กว่าที่** — prop-drill ธงนี้ไปทุก call site คือการเปิดโอกาสให้ลืมสักที่หนึ่ง
+         * แล้วปุ่มจ่ายเงินโผล่เฉพาะหน้านั้นโดยไม่มีอะไรฟ้อง. payload นี้เป็นแหล่งเดียว
+         * ที่เมนูอ่านอยู่แล้ว จึงเป็นที่ที่ลืมไม่ได้
+         */
+        hidePayments: await shouldHidePayments(),
       },
       { headers: NO_STORE_HEADERS },
     );

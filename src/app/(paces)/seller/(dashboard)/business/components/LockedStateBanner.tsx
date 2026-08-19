@@ -34,6 +34,14 @@ export interface LockedStateBannerProps {
   packageLockedAt: Date | string | null
   /** ราคาต่อรอบของ tier ปัจจุบัน — ใช้แสดงในข้อความ confirm ตอน reactivate */
   tierPrice?: number
+  /**
+   * 🛑 เปิดจากในแอป iOS → คงคำอธิบายว่า "ทำไมถูกล็อก" ไว้ แต่ตัด **ทางจ่ายเงิน** ออกทั้งหมด
+   * (ราคา · ปุ่มที่หักเงินทันที · ลิงก์ไปหน้าแพ็กเกจ) — Guideline 3.1.1
+   *
+   * คงข้อความไว้เพราะสถานะบัญชีไม่ใช่ช่องทางจ่าย และผู้ขายต้องรู้ว่าทำไมใช้ไม่ได้
+   * (หลักเดียวกับที่หน้ากระเป๋าเงินยังโชว์ยอดคงเหลือแต่ถอดปุ่มเติมเงิน)
+   */
+  hidePayments?: boolean
   /** subscription = การ์ดระดับบัญชี (มีปุ่ม reactivate จริง) · shop = การ์ดระดับธุรกิจย่อย (แค่ลิงก์ไปหน้าแพ็กเกจ) */
   level?: 'subscription' | 'shop'
 }
@@ -71,6 +79,7 @@ export default function LockedStateBanner({
   lockReason,
   packageLockedAt,
   tierPrice,
+  hidePayments = false,
   level = 'shop',
 }: LockedStateBannerProps) {
   const router = useRouter()
@@ -149,8 +158,15 @@ export default function LockedStateBanner({
         </span>
       </div>
 
-      {/* CTA ฝั่งขวา — Base: AdvanceWarningBanner.tsx:40-42 */}
-      {isGraceEligible ? (
+      {/* CTA ฝั่งขวา — Base: AdvanceWarningBanner.tsx:40-42
+
+          🛑 ในแอป iOS ตัดทั้งบล็อกนี้ทิ้ง (Guideline 3.1.1) เหลือเฉพาะคำอธิบายทางซ้าย:
+          ทุกกิ่งข้างล่างเป็นทางไปจ่ายเงินหมด — ปุ่ม "เปิดใช้งานอีกครั้ง" **หักเงินทันที**
+          (Swal เขียนเองว่า "ระบบจะหักเงิน ฿X") ส่วนอีกสองกิ่งเป็นลิงก์ไปหน้าแพ็กเกจ
+
+          ห้ามแทนด้วยข้อความ "ไปทำที่เว็บ" — Apple ถือว่าผิดข้อเดียวกัน (ดู AiSuggestPanel) */}
+      {!hidePayments &&
+        (isGraceEligible ? (
         level === 'subscription' ? (
           <button
             type="button"
@@ -171,7 +187,7 @@ export default function LockedStateBanner({
         <Link href="/business" className="shrink-0 font-bold underline hover:no-underline">
           {quotaCtaLabel} →
         </Link>
-      )}
+        ))}
     </div>
   )
 }
