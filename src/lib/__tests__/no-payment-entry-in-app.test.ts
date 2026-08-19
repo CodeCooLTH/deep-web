@@ -47,7 +47,8 @@ describe('[blocker] ทางเข้าหน้าจ่ายเงินต
   const GUARDED_ROUTES = [
     `${SELLER}/(dashboard)/subscriptions/page.tsx`,
     `${SELLER}/(dashboard)/business/page.tsx`,
-    `${SELLER}/(dashboard)/business/create/page.tsx`,
+    // 🛑 `business/create/page.tsx` **ไม่อยู่ในชุดนี้โดยตั้งใจ** — มันต้องกันแบบแคบ
+    // (เฉพาะกิ่งที่มีปุ่มไปจ่ายเงิน) ดูเทส "ห้ามกันกว้างเกิน" ด้านล่าง
   ]
 
   for (const rel of GUARDED_ROUTES) {
@@ -114,12 +115,59 @@ describe('[blocker] ทางเข้าหน้าจ่ายเงินต
     expect(code, 'ห้ามตั้ง default ให้ธงนี้').not.toMatch(/hidePayments\s*=\s*false/)
   })
 
+  it('[blocker] ห้ามกันกว้างเกินจนถอดฟีเจอร์ที่ลูกค้าจ่ายเงินมาแล้ว', () => {
+    /**
+     * 🛑 ด่านนี้กันทิศ **ตรงข้าม** กับด่านอื่นในไฟล์นี้ — กันการกันมากเกินไป
+     *
+     * ร่างแรกของการแก้รอบนี้ `redirect` ทั้งหน้า `/business/create` เมื่อเปิดจากในแอป
+     * ⇒ ผู้ขายที่จ่ายค่าแพ็กเกจไปแล้วและยังมีโควตาเหลือ **สร้างธุรกิจในแอปไม่ได้เลย**
+     * ทั้งที่ตรงนั้นไม่มีการจ่ายเงินเกิดขึ้น (user ทักท้วง)
+     *
+     * Apple ห้าม "ขายในแอป" ไม่ได้ห้าม "ใช้ของที่ซื้อไปแล้ว" (3.1.3(b)) — และ App Review
+     * Notes ของเราเขียนไว้เองว่าผู้ขายที่มีแพ็กเกจอยู่แล้วยังใช้ฟีเจอร์ที่ซื้อไปได้ต่อ
+     * ⇒ กันกว้างกว่านั้น = ทำให้เอกสารที่เราส่งให้ Apple กลายเป็นคำอ้างที่ไม่ตรงกับของจริง
+     *
+     * เกณฑ์: `shouldHidePayments()` ต้องไม่ถูกใช้ redirect ที่ **ต้นฟังก์ชัน** ของหน้านี้
+     * แต่ต้องอยู่ในกิ่งที่การ์ดปฏิเสธถูก render (ซึ่งมีแต่ปุ่มไปจ่ายเงิน)
+     */
+    const code = blankComments(read(`${SELLER}/(dashboard)/business/create/page.tsx`))
+    const body = code.slice(code.indexOf('export default async function'))
+    const guardAt = body.indexOf('if (hidePayments) redirect(')
+    const firstGate = body.indexOf("sub.status !== 'ACTIVE'")
+    expect(guardAt, 'ต้องมี redirect ในกิ่งการ์ดปฏิเสธ').toBeGreaterThan(-1)
+    expect(
+      guardAt > firstGate,
+      'ห้าม redirect ที่ต้นฟังก์ชัน — คนที่มีแพ็กเกจแล้วต้องสร้างธุรกิจได้ในแอป',
+    ).toBe(true)
+    expect(body, 'ต้องอ่านธงไว้ก่อน แล้วค่อยใช้ในกิ่ง').toMatch(
+      /const hidePayments = await shouldHidePayments\(\)/,
+    )
+  })
+
+  it('[blocker] เมนูสลับบัญชีต้องแยก "ซ่อนการจ่ายเงิน" ออกจาก "สร้างได้จริงไหม"', () => {
+    const dd = blankComments(read('src/layouts/components/TopBar/components/UserDropdownDetailed.tsx'))
+    expect(dd, 'ต้องยอมให้คนที่สร้างได้ เห็นปุ่มแม้อยู่ในแอป').toMatch(
+      /!context\.hidePayments \|\| context\.canCreateBusiness/,
+    )
+    const api = blankComments(read('src/app/api/business/context/route.ts'))
+    expect(api, 'API ต้องคำนวณ canCreateBusiness จากแพ็กเกจ+โควตา').toMatch(/canCreateBusiness\s*=/)
+  })
+
   it('[blocker] payload ของเมนูสลับบัญชีต้องส่ง hidePayments มาด้วย', () => {
     /**
      * เมนูนี้ถูก mount จากกว่า 10 ที่ — prop-drill = ลืมได้ทีละที่โดยไม่มีอะไรฟ้อง
      * payload เป็นแหล่งเดียวที่มันอ่านอยู่แล้ว จึงเป็นที่ที่ลืมไม่ได้
      */
     const api = blankComments(read('src/app/api/business/context/route.ts'))
-    expect(api, 'API ต้องคำนวณและส่งธงนี้').toMatch(/hidePayments:\s*await shouldHidePayments\(\)/)
+    expect(api, 'API ต้องคำนวณธงจาก request จริง').toMatch(
+      /const hidePayments = await shouldHidePayments\(\)/,
+    )
+    /**
+     * 🛑 เช็คว่า "ส่งออกไปจริง" ไม่ใช่แค่ "คำนวณไว้" — ตัวแปรที่คำนวณแล้วไม่ถูกใส่ลง payload
+     * คือรูปแบบที่ `rule-must-be-enforced-not-described.md` เตือนไว้ (คำนวณแล้วทิ้ง)
+     */
+    const payload = api.slice(api.indexOf('NextResponse.json('))
+    expect(payload, 'ต้องอยู่ใน payload').toMatch(/\bhidePayments,/)
+    expect(payload, 'ต้องส่ง canCreateBusiness ไปด้วย').toMatch(/\bcanCreateBusiness,/)
   })
 })
