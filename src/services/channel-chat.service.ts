@@ -700,7 +700,9 @@ async function readBodyWithCap(res: Response, maxBytes: number): Promise<ArrayBu
 // ใช้ทั้งฝั่ง ingest (I-1) และฝั่ง outbound (I-6) — เช็คว่า error ที่โยนมาเป็น unique constraint
 // violation (P2002) บน field ที่ระบุจริงหรือเปล่า ไม่ใช่แค่ "P2002 อะไรก็ได้" (เหมารวมแบบเดิม
 // ทำให้ P2002 บนคนละ constraint ถูกตีความผิดความหมาย)
-function isUniqueViolationOn(e: unknown, field: string): boolean {
+// export (feature 00051, S-2): media-asset.service.ts ต้อง reuse ตัวนี้ตรง ๆ ห้ามเขียนใหม่
+// (SRS §7.2 dependency table) — เดิมเป็น private ในไฟล์นี้เท่านั้น
+export function isUniqueViolationOn(e: unknown, field: string): boolean {
   if (!(e instanceof Prisma.PrismaClientKnownRequestError) || e.code !== 'P2002') return false
   const target = e.meta?.target
   return Array.isArray(target) && target.includes(field)
