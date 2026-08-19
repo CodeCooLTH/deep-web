@@ -321,6 +321,29 @@ export async function backfillPagePosts(params: {
 export type CommentAnswerState = 'UNANSWERED' | 'BOT_ANSWERED' | 'HUMAN_ANSWERED'
 
 /**
+ * ทำไมคอมเมนต์ใบนี้ถึง "จบงาน" ทั้งที่ระบบเราไม่ได้เป็นคนตอบ (ส่วนขยาย 2026-08-19)
+ *
+ * - `MANUAL` — ผู้ขายกดข้ามเอง (เช่นคอมเมนต์เก่าที่พ้น 7 วันแล้วทักไม่ได้อีก) ถอยได้
+ * - `ALREADY_REPLIED_EXTERNALLY` — Facebook ตอบ `(#10900)` ตอนเรากดทัก = เพจทัก private reply
+ *   คอมเมนต์นี้ไปแล้วจาก Business Suite/Page Inbox โดยตรง ระบบตั้งเองไม่ต้องรอคนกด
+ *
+ * 🛑 ห้ามยุบเป็น boolean เดียว — อันหลังเป็นข้อเท็จจริงที่ Meta ยืนยันแล้ว (กดทักซ้ำไม่มีวันผ่าน)
+ * ส่วนอันแรกเป็นการตัดสินใจของคน จอต้องพูดคนละคำและปุ่มที่เหลือก็คนละชุด
+ */
+export type CommentResolvedReason = 'MANUAL' | 'ALREADY_REPLIED_EXTERNALLY'
+
+/**
+ * แปลงค่าดิบจากคอลัมน์ `String?` ให้เป็น union — fail-closed: ค่าที่ไม่รู้จักคืน `null`
+ *
+ * คอลัมน์เป็น String ธรรมดา (มี CHECK ที่ชั้นฐานกันไว้อีกชั้น) TypeScript จึงไม่มีอะไรบังคับให้
+ * ค่าตรง — ถ้าวันหน้ามีใครเขียนค่าที่สามลงไป ต้องได้ "ไม่รู้จัก" ไม่ใช่หลุดไปเป็นค่าใดค่าหนึ่ง
+ * (บทเรียน enum-value-removal.md: ตรรกะ binary ไม่พังเสียงดังเมื่อค่าที่ 3 มา)
+ */
+export function toResolvedReason(raw: string | null): CommentResolvedReason | null {
+  return raw === 'MANUAL' || raw === 'ALREADY_REPLIED_EXTERNALLY' ? raw : null
+}
+
+/**
  * สถานะของคอมเมนต์ 1 อัน ตัดสินจากคำตอบของเพจที่อยู่ใต้มัน (feature 00038 BR-CR-S1)
  *
  * 🛑 ฟังก์ชันนี้ต้องเป็นทางเดียวที่ตัดสินสถานะ — ทั้งตัวนับบน badge, ตัวเลขบนชิป และตัวกรอง
@@ -335,6 +358,17 @@ export function deriveCommentState(
    * (มีแถวใน log ≠ ทักสำเร็จ)
    */
   privateReplyTrigger: 'AUTO' | 'MANUAL' | null = null,
+  /**
+   * `PageComment.resolvedAt != null` — คอมเมนต์ที่ "จบงานแล้ว" โดยที่ระบบเราไม่ได้เป็นคนตอบ
+   * (ส่วนขยาย 2026-08-19): ผู้ขายกดข้ามเอง หรือ Facebook ยืนยันว่าเพจทัก private reply ไปแล้ว
+   * จาก Business Suite (#10900)
+   *
+   * 🛑 เช็คเป็น **อันสุดท้ายก่อน UNANSWERED** ไม่ใช่อันแรก — คำตอบจริงที่มองเห็นได้ต้องชนะเสมอ
+   * เพราะมันบอกได้ด้วยว่า "ใครตอบ" (คน/บอท) ส่วน resolved บอกได้แค่ว่า "ไม่ต้องทำอะไรต่อแล้ว"
+   * สลับลำดับเมื่อไหร่ = คอมเมนต์ที่บอทตอบไปแล้วและถูกกดข้ามด้วย จะเปลี่ยนจาก BOT_ANSWERED
+   * เป็น HUMAN_ANSWERED โดยไม่มีใครสั่ง
+   */
+  resolved: boolean = false,
 ): CommentAnswerState {
   const pageReplies = replies.filter((r) => r.isFromPage)
   if (pageReplies.length > 0) {
@@ -357,6 +391,12 @@ export function deriveCommentState(
    * ต้องอ่านจากคำตอบสาธารณะ ไม่ใช่จาก trigger ของ log
    */
   if (privateReplyTrigger) return privateReplyTrigger === 'MANUAL' ? 'HUMAN_ANSWERED' : 'BOT_ANSWERED'
+  /**
+   * 🛑 "จัดการแล้ว" = HUMAN_ANSWERED ไม่ใช่ค่าที่ 4 (D-2, ต่อเนื่องจากคำสั่ง user 2026-08-09
+   * "ไม่ต้องเพิ่มมมเยอะ") — ทั้งสองเหตุผลมีคนเป็นผู้ลงมือจริง: MANUAL = ผู้ขายตัดสินใจข้าม ·
+   * ALREADY_REPLIED_EXTERNALLY = ผู้ขายทักไปแล้วจาก Business Suite ซึ่งก็คือคนตอบ แค่ตอบนอกจอเรา
+   */
+  if (resolved) return 'HUMAN_ANSWERED'
   return 'UNANSWERED'
 }
 
@@ -540,6 +580,10 @@ export async function countCommentPostStatesByShop(params: {
             SELECT 1 FROM "CommentReplyLog" l
             WHERE l."commentId" = c."id" AND l."privateReplyStatus" = 'SENT'
           ) THEN 'BOT_ANSWERED'
+          -- 3) "จัดการแล้ว" โดยที่เราไม่ได้เป็นคนตอบ (ส่วนขยาย 2026-08-19) — ผู้ขายกดข้ามเอง
+          --    หรือ Facebook ยืนยันว่าเพจทัก private reply ไปแล้วจาก Business Suite (#10900)
+          --    ต้องอยู่ "อันสุดท้ายก่อน ELSE" ให้ตรงกับ deriveCommentState() เป๊ะ
+          WHEN c."resolvedAt" IS NOT NULL THEN 'HUMAN_ANSWERED'
           ELSE 'UNANSWERED'
         END AS state
       FROM "PageComment" c
@@ -654,6 +698,10 @@ export async function countCommentStatesByShop(params: {
             SELECT 1 FROM "CommentReplyLog" l
             WHERE l."commentId" = c."id" AND l."privateReplyStatus" = 'SENT'
           ) THEN 'BOT_ANSWERED'
+          -- 3) "จัดการแล้ว" โดยที่เราไม่ได้เป็นคนตอบ (ส่วนขยาย 2026-08-19) — ผู้ขายกดข้ามเอง
+          --    หรือ Facebook ยืนยันว่าเพจทัก private reply ไปแล้วจาก Business Suite (#10900)
+          --    ต้องอยู่ "อันสุดท้ายก่อน ELSE" ให้ตรงกับ deriveCommentState() เป๊ะ
+          WHEN c."resolvedAt" IS NOT NULL THEN 'HUMAN_ANSWERED'
           ELSE 'UNANSWERED'
         END AS state
       FROM "PageComment" c
@@ -705,6 +753,9 @@ export interface CommentListRow {
   state: CommentAnswerState
   privateReplySentAt: Date | null
   privateReplyConversationId: string | null
+  /** `null` = ยังไม่จบงาน — คู่กับ `resolvedReason` เสมอ (CHECK ที่ชั้นฐานบังคับให้ไปด้วยกัน) */
+  resolvedAt: Date | null
+  resolvedReason: CommentResolvedReason | null
   /** โพสต์ที่คอมเมนต์นี้อยู่ใต้ — คอลัมน์กลางยังแสดงเป็นระดับโพสต์ */
   post: {
     id: string
@@ -870,9 +921,12 @@ export async function listComments(params: {
       state: deriveCommentState(
         repliesByParent.get(c.externalCommentId) ?? [],
         log ? (log.trigger === 'MANUAL' ? 'MANUAL' : 'AUTO') : null,
+        c.resolvedAt !== null,
       ),
       privateReplySentAt: log?.createdAt ?? null,
       privateReplyConversationId: log?.conversationId ?? null,
+      resolvedAt: c.resolvedAt,
+      resolvedReason: toResolvedReason(c.resolvedReason),
       post: {
         id: c.post.id,
         externalPostId: c.post.externalPostId,
@@ -1053,6 +1107,9 @@ export async function listCommentPosts(params: {
           createdTime: true,
           // feature 00038 — ต้องมีเพื่อแยก BOT_ANSWERED ออกจาก HUMAN_ANSWERED ใน deriveCommentState
           isAutoReply: true,
+          // ส่วนขยาย 2026-08-19 — "จัดการแล้ว" โดยที่เราไม่ได้เป็นคนตอบ (ต้องเข้า deriveCommentState
+          // ด้วย ไม่งั้นตัวเลขระดับโพสต์กับระดับคอมเมนต์จะหลุดกันทันที)
+          resolvedAt: true,
         },
       },
     },
@@ -1092,6 +1149,7 @@ export async function listCommentPosts(params: {
           .filter((r) => r.parentExternalId === c.externalCommentId)
           .map((r) => ({ isFromPage: r.isFromPage, isAutoReply: r.isAutoReply })),
         privateReplyTriggerByCommentId.get(c.id) ?? null,
+        c.resolvedAt !== null,
       ),
     )
     const unanswered = customerComments.filter((_, i) => commentStates[i] === 'UNANSWERED')
@@ -1219,6 +1277,15 @@ export interface CommentRow {
   privateReplyConversationId: string | null
   /** feature 00038 Task 9 — ป้าย "ตอบอัตโนมัติ" บนบับเบิลของบอท (ตัดสินสถานะผ่าน deriveCommentState) */
   isAutoReply: boolean
+  /**
+   * ส่วนขยาย 2026-08-19 — "จัดการแล้ว" โดยที่ระบบเราไม่ได้เป็นคนตอบ
+   *
+   * 🛑 เธรดต้องรู้ค่านี้ด้วย ไม่ใช่แค่คอลัมน์ซ้าย: ปุ่ม "ทักแชท" ในเธรดต้องหายไปเมื่อ
+   * `resolvedReason === 'ALREADY_REPLIED_EXTERNALLY'` (Facebook ปฏิเสธถาวรแล้ว กดอีกกี่ครั้ง
+   * ก็ไม่ผ่าน) — ถ้าส่งมาแต่คอลัมน์ซ้าย ผู้ขายจะกดจากเธรดได้อยู่ดีและเจอ error เดิมซ้ำ
+   */
+  resolvedAt: Date | null
+  resolvedReason: CommentResolvedReason | null
 }
 
 /** คอมเมนต์ทั้งหมดของโพสต์ (เก่า→ใหม่) + เติมของเก่าจาก Graph ถ้ายังไม่เคยดึง */
@@ -1330,6 +1397,8 @@ export async function getPostComments(params: {
       privateReplySentAt: privateReplyByCommentId.get(c.id)?.createdAt ?? null,
       privateReplyConversationId: privateReplyByCommentId.get(c.id)?.conversationId ?? null,
       isAutoReply: c.isAutoReply,
+      resolvedAt: c.resolvedAt,
+      resolvedReason: toResolvedReason(c.resolvedReason),
     })),
   }
 }
@@ -1562,3 +1631,77 @@ export async function countUnansweredForShops(params: {
   return counts.unanswered
 }
 
+
+/**
+ * ทำเครื่องหมายว่า "จัดการแล้ว" / กลับคำ (ส่วนขยาย 00038, 2026-08-19)
+ *
+ * ทำไมต้องมี: สถานะทุกค่าใน `deriveCommentState()` derive จาก "คำตอบที่ระบบเรามองเห็น" เท่านั้น
+ * คอมเมนต์ที่พ้นหน้าต่าง 7 วันของ Meta (ทักไม่ได้อีก ตอบสาธารณะก็ไม่มีประโยชน์แล้ว) หรือที่ผู้ขาย
+ * ตั้งใจข้าม จะนั่งค้างในคิว "ยังไม่ตอบ" ตลอดไป — ตัวเลขบนแท็บจึงโตทางเดียวจนเลิกเป็นสัญญาณ
+ *
+ * 🛑 สิทธิ์ตรวจจากแถวข้อมูลเอง (comment → post → channel → shop) เหมือน `sendPrivateReplyToCommentById`
+ * ห้ามอ่าน `activeShopId` — ไฟล์กลุ่มนี้อยู่ในขอบเขตแชท คอมเมนต์ใบหนึ่งอาจเป็นของร้านที่ไม่ใช่
+ * ร้าน active ของผู้ใช้ (ดู src/lib/chat-scope.ts)
+ */
+export async function setCommentResolved(params: {
+  commentId: string
+  actorUserId: string
+  resolved: boolean
+  /**
+   * เหตุผล — บังคับเมื่อ `resolved === true`
+   *
+   * `ALREADY_REPLIED_EXTERNALLY` สงวนไว้ให้ **ระบบ** ตั้งเองหลัง Graph ตอบ `(#10900)` เท่านั้น
+   * (ดู sendPrivateReplyToCommentById) route ที่รับคำสั่งจากผู้ใช้ต้องส่ง 'MANUAL' เสมอ ไม่งั้น
+   * ผู้ใช้จะปลอมข้อเท็จจริงที่ควรมาจาก Meta ได้ แล้วจอจะบอกว่า "เพจทักไปแล้ว" ทั้งที่ไม่เคยทัก
+   */
+  reason?: CommentResolvedReason
+}): Promise<{ resolvedAt: Date | null; resolvedReason: CommentResolvedReason | null }> {
+  const comment = await prisma.pageComment.findUnique({
+    where: { id: params.commentId },
+    select: { id: true, post: { select: { channel: { select: { shopId: true } } } } },
+  })
+  if (!comment) throw new Error('COMMENT_NOT_FOUND')
+  if (!(await canAccessShop(comment.post.channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+
+  /**
+   * เขียนคู่ `resolvedAt`/`resolvedReason` พร้อมกันเสมอ — ฐานมี CHECK บังคับอีกชั้น
+   * (`PageComment_resolved_pair_check`) เพราะแถวที่มีเวลาแต่ไม่มีเหตุผล (หรือกลับกัน) อ่านได้
+   * สองแบบตลอดไปและไม่มีใครรู้ว่าอันไหนถูก
+   */
+  const data = params.resolved
+    ? {
+        resolvedAt: new Date(),
+        resolvedReason: params.reason ?? ('MANUAL' as const),
+        resolvedByUserId: params.reason === 'ALREADY_REPLIED_EXTERNALLY' ? null : params.actorUserId,
+      }
+    : { resolvedAt: null, resolvedReason: null, resolvedByUserId: null }
+
+  const updated = await prisma.pageComment.update({
+    where: { id: comment.id },
+    data,
+    select: { resolvedAt: true, resolvedReason: true },
+  })
+  return { resolvedAt: updated.resolvedAt, resolvedReason: toResolvedReason(updated.resolvedReason) }
+}
+
+/**
+ * ระบบตั้งเองเมื่อ Facebook ยืนยันว่าคอมเมนต์นี้ถูกทัก private reply ไปแล้ว (#10900)
+ *
+ * แยกจาก `setCommentResolved` เพราะเส้นทางนี้ **ไม่มี actor ให้ตรวจสิทธิ์** — ผู้เรียกคือ
+ * `sendPrivateReplyToCommentById` ซึ่งเพิ่งผ่าน `canAccessShop` มาแล้วเมื่อครู่ (MANUAL) หรือ
+ * เป็น system actor (AUTO) การไปตรวจซ้ำที่นี่จะบังคับให้เส้นทาง AUTO ต้องแต่ง userId ปลอมขึ้นมา
+ *
+ * 🛑 ห้ามทับของเดิม: คอมเมนต์ที่ถูกกดข้ามด้วยมือไปแล้วต้องคงเหตุผล 'MANUAL' ไว้ (คนเป็นคน
+ * ตัดสินใจ ระบบไม่ควรเขียนทับความตั้งใจนั้น) — เงื่อนไข `resolvedAt: null` ทำให้ update
+ * ไม่แตะแถวที่มีค่าแล้ว และ `updateMany` ไม่ throw เมื่อไม่มีแถวเข้าเงื่อนไข
+ */
+export async function markCommentRepliedExternally(commentId: string): Promise<void> {
+  await prisma.pageComment.updateMany({
+    where: { id: commentId, resolvedAt: null },
+    data: {
+      resolvedAt: new Date(),
+      resolvedReason: 'ALREADY_REPLIED_EXTERNALLY',
+      resolvedByUserId: null,
+    },
+  })
+}
