@@ -637,9 +637,11 @@ export default function OnboardingModal({
           </div>
 
           {/* ─── Body (overflow-y-auto) ───────────────────────────────────────── */}
-          {/* Base: overflow-y-auto p-5 จาก modals/page.tsx; max-h จำกัดเพื่อกัน modal สูงเกินจอบน mobile */}
-          {/* max-h-[65vh] ใช้ vh unit — ไม่มี Paces token สำหรับ viewport-relative modal body height */}
-          <div className="overflow-y-auto max-h-[65vh] px-6 py-5">
+          {/* Base: overflow-y-auto p-5 จาก modals/page.tsx */}
+          {/* 🛑 คอมเมนต์ carve-out ต้องอยู่ **บรรทัดเดียวกับ class** — `theme-guard` อ่านเฉพาะบรรทัดนั้น
+              เหตุผลที่เคยเขียนไว้บรรทัดบนจึงไม่ถูกนับ แล้วด่านแดงค้าง (ข้อจำกัดที่บันทึกไว้ 2026-08-07)
+              เพิ่งโผล่ตอนนี้เพราะ CI สแกนเฉพาะไฟล์ที่ PR แตะ — ของเดิมจาก `1f7a6388` ไม่ใช่ของใหม่ */}
+          <div className={'overflow-y-auto max-h-[65vh] px-6 py-5' /* carve-out HR7: vh unit — Paces ไม่มี token ของความสูงเทียบ viewport และตัวโมดัลต้องไม่สูงเกินจอบนมือถือ */}>
 
             {/* ── Step 1: ช่องทางการขาย ── */}
             {state.currentStep === 'sales_channels' && (
