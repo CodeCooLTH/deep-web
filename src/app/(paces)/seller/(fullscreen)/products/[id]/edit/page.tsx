@@ -20,6 +20,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
+import { shouldHidePayments } from '@/lib/app-shell-server'
 import { isEntitlementActive, isProActive } from '@/services/inventory-entitlement.service'
 import { prisma } from '@/lib/prisma'
 import { serializeProduct } from '@/services/product.service'
@@ -137,6 +138,7 @@ export default async function EditProductPage({ params }: PageProps) {
         formId={FORM_ID}
         entitlementActive={entitlementActive}
         isProActive={proActive}
+        hidePayments={await shouldHidePayments()}
       />
     </>
   )

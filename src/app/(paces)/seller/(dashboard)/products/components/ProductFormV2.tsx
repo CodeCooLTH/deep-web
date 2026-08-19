@@ -154,6 +154,8 @@ interface ProductFormV2Props {
   // isProActive — Deep Stock Pro (feature 00009 S-20): PRO-gate field lowStockThreshold
   // ภายใน ProductStockCardV2 (default false = แสดง upsell hint แทน input จริง)
   isProActive?: boolean
+  /** เปิดจากในแอป iOS → ซ่อนคำเชิญให้ซื้อ (Guideline 3.1.1) — server เป็นคนตัดสิน */
+  hidePayments?: boolean
 }
 
 export default function ProductFormV2({
@@ -164,6 +166,7 @@ export default function ProductFormV2({
   shopName,
   entitlementActive = false,
   isProActive = false,
+  hidePayments = false,
 }: ProductFormV2Props) {
   const router = useRouter()
   const isEdit = !!product
@@ -388,6 +391,7 @@ export default function ProductFormV2({
                   setValue={setValue}
                   watch={watch}
                   isProActive={isProActive}
+                  hidePayments={hidePayments}
                 />
               </>
             )}

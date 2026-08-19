@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
@@ -37,6 +37,17 @@ const blankComments = (src: string) =>
     .replace(/^([ \t]*)\/\/.*$/gm, (m, indent: string) => indent)
 
 const SELLER = 'src/app/(paces)/seller'
+
+/** ไล่ไฟล์ .tsx ทั้งต้นไม้ — ไม่ hardcode รายชื่อ ไฟล์ใหม่จึงถูกตรวจอัตโนมัติ */
+function walkTsx(dir: string): string[] {
+  return readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory()
+      ? walkTsx(`${dir}/${e.name}`)
+      : e.name.endsWith('.tsx') && !dir.includes('__tests__')
+        ? [`${dir}/${e.name}`]
+        : [],
+  )
+}
 const GATE = /hidePayments|shouldHidePayments|isPaymentRestricted/
 
 describe('[blocker] ทางเข้าหน้าจ่ายเงินต้องมีด่าน app-shell ทุกจุด', () => {
@@ -73,6 +84,12 @@ describe('[blocker] ทางเข้าหน้าจ่ายเงินต
     `${SELLER}/(dashboard)/business/[shopId]/invites/page.tsx`,
     `${SELLER}/(dashboard)/settings/ai/AiSettingForm.tsx`,
     `${SELLER}/(chat)/inbox/[conversationId]/components/AiSuggestPanel.tsx`,
+    /**
+     * 🛑 เจอทีหลังเพราะสแกนรอบแรกมองแค่ลิงก์ `/business` กับ `/subscriptions`
+     * ตัวนี้ชี้ `/inventory` ⇒ ตกสำรวจ — บทเรียน: คัดจาก **คำเชิญบนจอ** ด้วย ไม่ใช่จาก
+     * รายชื่อ URL ที่นึกออกตอนนั้น (ดู PURCHASE_CTA_WORDS ท้ายไฟล์)
+     */
+    `${SELLER}/(dashboard)/products/components/ProductStockCardV2.tsx`,
     'src/layouts/components/TopBar/components/UserDropdownDetailed.tsx',
   ]
 
@@ -169,5 +186,39 @@ describe('[blocker] ทางเข้าหน้าจ่ายเงินต
     const payload = api.slice(api.indexOf('NextResponse.json('))
     expect(payload, 'ต้องอยู่ใน payload').toMatch(/\bhidePayments,/)
     expect(payload, 'ต้องส่ง canCreateBusiness ไปด้วย').toMatch(/\bcanCreateBusiness,/)
+  })
+
+  /**
+   * 🛑 ด่านกวาด — คัดจาก **คำเชิญให้ซื้อที่ผู้ใช้เห็นบนจอ** ไม่ใช่จากรายชื่อ URL
+   *
+   * รอบแรกผมสแกนแค่ลิงก์ `/business` + `/subscriptions` แล้วประกาศว่าครบ — ตกไป 1 จุด
+   * (`ProductStockCardV2` ชี้ `/inventory`) ซึ่งโผล่อยู่ในสกรีนช็อตที่กำลังจะส่งให้ Apple พอดี
+   *
+   * รายการ ALLOWLIST คือที่ที่ของกลับมาซ่อนได้ — ต่อท้ายเมื่อไรต้องเขียนเหตุผลกำกับเสมอ
+   */
+  it('[blocker] ไม่มีคำเชิญให้ซื้อในหน้า seller ที่ไม่มีด่าน', () => {
+    const CTA = /อัพเกรดเลย|อัปเกรดเลย|สมัครแพ็กเกจ|เลือกแพ็กเกจ|ต่ออายุแพ็กเกจ|ไปหน้าแพ็กเกจ/
+    /** ที่ที่คำนี้ปรากฏได้โดยไม่ต้องมีด่านของตัวเอง — ทุกบรรทัดต้องมีเหตุผล */
+    const ALLOWLIST = [
+      // อยู่ใต้ route /business ซึ่ง page.tsx ของมันเด้งออกให้แล้ว
+      `${SELLER}/(dashboard)/business/`,
+      // อยู่ใต้ /inventory ซึ่งเด้งออกเมื่อยังไม่สมัคร (คนสมัครแล้วเห็นได้ ถูกต้องตาม 3.1.3(b))
+      `${SELLER}/(dashboard)/inventory/`,
+      // หน้าแอดมิน ไม่ได้อยู่ในแอปผู้ขาย
+      'src/app/(paces)/admin/',
+      // เว็บฝั่งผู้ซื้อ/landing — Apple ไม่มีอำนาจกับเว็บ
+      'src/views/front-pages/',
+      'src/components/pricing/',
+    ]
+    const files = walkTsx('src/app/(paces)/seller').concat(walkTsx('src/layouts'))
+    const offenders: string[] = []
+    for (const f of files) {
+      if (ALLOWLIST.some((a) => f.startsWith(a))) continue
+      const code = blankComments(readFileSync(join(ROOT, f), 'utf8'))
+      if (!CTA.test(code)) continue
+      if (GATE.test(code)) continue
+      offenders.push(f.replace(`${SELLER}/`, ''))
+    }
+    expect(offenders, 'คำเชิญให้ซื้อต้องอยู่หลังด่าน hidePayments').toEqual([])
   })
 })

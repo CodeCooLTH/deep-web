@@ -32,6 +32,16 @@ interface ProductStockCardV2Props {
   watch: UseFormWatch<ProductFormV2Values>
   // isProActive — Deep Stock Pro (feature 00009): คุม PRO-gate ของ field lowStockThreshold
   isProActive: boolean
+  /**
+   * 🛑 เปิดจากในแอป iOS → ต้องไม่มีคำเชิญให้ซื้อ (App Store Guideline 3.1.1)
+   *
+   * บรรทัด "ตั้งเกณฑ์แจ้งเตือนสต็อกต่ำเป็นฟีเจอร์ Pro — **อัพเกรดเลย →**" คือคำเชิญตรงตัว
+   * และปลายทาง `/inventory` ก็เด้งกลับหน้าแรกอยู่แล้วสำหรับคนที่ยังไม่สมัคร ⇒ ปล่อยไว้ =
+   * ทั้งผิดกฎ **และ** เป็นลิงก์ที่กดแล้วไม่เกิดอะไร
+   *
+   * ช่องกรอกยังถูกล็อกเหมือนเดิมทุกอย่าง — ตัดแค่ "คำชวนซื้อ" ไม่ได้ตัดพฤติกรรมของฟอร์ม
+   */
+  hidePayments?: boolean
 }
 
 export default function ProductStockCardV2({
@@ -40,6 +50,7 @@ export default function ProductStockCardV2({
   setValue,
   watch,
   isProActive,
+  hidePayments = false,
 }: ProductStockCardV2Props) {
   const stockQty = watch('stockQty')
   const tracked = stockQty !== null && stockQty !== undefined
@@ -107,7 +118,7 @@ export default function ProductStockCardV2({
               <p className="text-default-400 mt-1 text-xs">เว้นว่างไว้ = ปิดการแจ้งเตือน</p>
             </div>
           )}
-          {!isProActive && (
+          {!isProActive && !hidePayments && (
             <p className="text-default-400 mt-3 flex items-center gap-1.5 text-xs">
               <Icon icon="lock" className="size-3.5 shrink-0" aria-hidden="true" />
               <span>
