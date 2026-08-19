@@ -76,6 +76,18 @@
 
 ## 2. ข้อความตอบ — ก็อปทั้งบล็อกไปวาง
 
+🛑 **ห้ามเขียนถึงฟีเจอร์ที่แอปไม่มี แม้แต่คำเดียว** — ร่างแรกของไฟล์นี้เขียนใน §4 ว่า
+*"access the report/block controls in the thread menu"* ซึ่ง **ไม่มีอยู่จริงทั้งแอป**
+(ตรวจแล้ว: ไม่มีสตริง "รายงาน"/"บล็อก" ที่เป็นข้อความบนจอเลยสักจุด) และมัน **ขัดกับ §1
+ในไฟล์เดียวกัน** ที่อธิบายไว้ถูกต้องแล้วว่าเราตั้งใจไม่ทำซ้ำเพราะบทสนทนาอยู่บนแพลตฟอร์มของ
+Meta/LINE
+
+คนรีวิวอ่าน §4 → เข้าไปหาในเมนูเธรด → ไม่เจอ → **ตีกลับด้วย 2.1 ซ้ำ และคราวนี้มีเหตุผลว่า
+เราให้ข้อมูลที่ไม่ตรง** ซึ่งแย่กว่าไม่มีฟีเจอร์นั้นมาก
+
+เกณฑ์: ทุกประโยคใน Notes ที่อ้างว่า "มีปุ่ม/หน้าจอ/ทำอะไรได้" ต้องชี้ได้ว่าอยู่ไฟล์ไหน
+บรรทัดไหน ก่อนส่ง (คลาสเดียวกับ `docs/conventions/value-fate-decided-at-write-site.md`)
+
 ```
 Hello App Review Team,
 
@@ -162,8 +174,7 @@ threads. No sample files need to be uploaded.
 Main features and where to find them:
   • Dashboard — opens on sign-in; today's orders and sales
   • Orders — bottom navigation; tap any order for full detail
-  • Chat — bottom navigation; open a thread to see messages, attach a photo,
-    and access the report/block controls in the thread menu
+  • Chat — bottom navigation; open a thread to see messages and attach a photo
   • Products — bottom navigation; "add product" uses the camera
   • Account — profile menu; includes account deletion
 
