@@ -27,6 +27,10 @@ vi.mock('@/lib/facebook/graph', () => ({
   // คืน null = "ดึงยอดผู้ติดตามไม่ได้" ซึ่งเป็นเส้นทางที่ต้องไม่ทำให้การเชื่อมเพจพัง
   fetchInstagramFollowerCount: vi.fn().mockResolvedValue(null),
 }))
+// feature 00051 (S-3, TC-SHOPID-01): mock mirrorRemoteImage เพื่อจับ arg ที่ mirrorInstagramAvatar
+// ส่งเข้าไปตรง ๆ โดยไม่ต้องพึ่งเครือข่าย/storage จริง — ทุกเทสเดิมในไฟล์นี้ใช้ page.instagramProfilePictureUrl
+// = null (ไม่เคยเรียกฟังก์ชันนี้อยู่แล้ว) จึง mock ระดับไฟล์ได้โดยไม่กระทบเทสเดิม
+vi.mock('@/services/channel-chat.service', () => ({ mirrorRemoteImage: vi.fn().mockResolvedValue(null) }))
 
 beforeAll(() => {
   process.env.CHANNEL_TOKEN_KEY = 'b'.repeat(64)
@@ -46,6 +50,7 @@ import {
   getPageIdFromToken,
   getInstagramAccountIdForPage,
 } from '@/lib/facebook/graph'
+import { mirrorRemoteImage } from '@/services/channel-chat.service'
 
 const page = {
   id: 'PAGE1', name: 'ร้านทดสอบ', accessToken: 'page_token_plain',
@@ -174,6 +179,23 @@ describe('shop-channel.service', () => {
 
     expect(result.connected).toBe(1)
     expect(subscribePageToApp).toHaveBeenCalledWith('PAGE1', 'page_token_plain')
+  })
+
+  // TC-SHOPID-01 (feature 00051, blocker): mirrorInstagramAvatar ต้องใช้ shopId จาก
+  // connectPages(shopId) จริง ไม่ใช่ 'ig-avatar' — จุดที่เคยเป็นบั๊กจริงตาม TD-01 (เดิม
+  // mirrorRemoteImage(pictureUrl, 'ig-avatar') เป็น positional ตัวที่ 2 ซึ่ง 'ig-avatar' คือ
+  // filenamePrefix ไม่ใช่ shopId — ถ้า signature กลับไปเป็น positional ค่านี้จะไหลเข้า shopId
+  // เงียบ ๆ แบบ compile ผ่าน เพราะทั้งคู่เป็น string)
+  it('TC-SHOPID-01 (blocker): connectPages ส่ง shopId จริงเข้า mirrorRemoteImage สำหรับ IG avatar ไม่ใช่ "ig-avatar"', async () => {
+    await connectPages('shop-real', 'user1', [
+      { ...page, instagramBusinessAccountId: 'IG9', instagramProfilePictureUrl: 'https://scontent.cdninstagram.com/avatar.jpg' },
+    ])
+
+    expect(mirrorRemoteImage).toHaveBeenCalledTimes(1)
+    const [url, opts] = vi.mocked(mirrorRemoteImage).mock.calls[0]!
+    expect(url).toBe('https://scontent.cdninstagram.com/avatar.jpg')
+    expect(opts.shopId).toBe('shop-real') // 🛑 ห้ามเป็น 'ig-avatar'
+    expect(opts.shopId).not.toBe('ig-avatar')
   })
 
   // I-4: subscribePageToApp ล้มเหลว (เช่น Graph 5xx) ต้องไม่ throw ออกจาก loop — เพจถัดไปต้องยังเชื่อมได้

@@ -345,7 +345,7 @@ export async function replaceShopVideos(
       }
       if (!it.thumbnailUrl) return { ...it, mirroredFileId: null, mirroredAt: null };
 
-      const fileId = await mirrorRemoteImage(it.thumbnailUrl);
+      const fileId = await mirrorRemoteImage(it.thumbnailUrl, { shopId });
       if (!fileId) {
         console.error("[shop-video] mirror รูปปกคลิปไม่สำเร็จ", {
           shopId,

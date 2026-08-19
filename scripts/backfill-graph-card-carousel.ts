@@ -59,9 +59,11 @@ async function main() {
 
   // 🛑 ต้องขอ rawMessage ตรง ๆ — คอลัมน์นี้ถูก global omit ที่ src/lib/prisma.ts (กัน payload บวม)
   //    ไม่ใส่ omit:{rawMessage:false} จะได้ undefined ทุกแถวแล้วสคริปต์จะรายงานว่า "ไม่มีอะไรทำ"
+  // feature 00051 (S-6): ต้องมี shopId ต่อแถวเพื่อส่งเข้า mirrorRemoteImage (signature ใหม่บังคับ
+  // shopId) — ดึงผ่าน conversation.shopId (ChatMessage ไม่มี shopId ตรง ๆ)
   const rows = await prisma.chatMessage.findMany({
     where: { body: { startsWith: CARD_PREFIX }, cards: { equals: Prisma.DbNull } },
-    select: { id: true, createdAt: true, body: true, rawMessage: true },
+    select: { id: true, createdAt: true, body: true, rawMessage: true, conversation: { select: { shopId: true } } },
     orderBy: { createdAt: 'asc' },
   })
   console.log(`แถวที่เข้าเงื่อนไข (body ขึ้นต้น "${CARD_PREFIX}" + cards ยังว่าง): ${rows.length}`)
@@ -70,6 +72,7 @@ async function main() {
     id: string
     createdAt: Date
     body: string
+    shopId: string
     cards: { title: string | null; subtitle: string | null; imageUrl: string | null }[]
   }
   const jobs: Job[] = []
@@ -89,7 +92,7 @@ async function main() {
       skippedNotCard++
       continue
     }
-    jobs.push({ id: r.id, createdAt: r.createdAt, body: r.body ?? '', cards })
+    jobs.push({ id: r.id, createdAt: r.createdAt, body: r.body ?? '', shopId: r.conversation.shopId, cards })
   }
 
   const totalImgs = jobs.reduce((n, j) => n + j.cards.filter((c) => c.imageUrl).length, 0)
@@ -137,7 +140,7 @@ async function main() {
         const cards = await Promise.all(
           j.cards.map(async (c) => {
             // mirror ล้มเหลว → imageFileId null (การ์ดยังขึ้นได้ ไม่มีรูป) ห้าม throw ทิ้งทั้งแถว
-            const imageFileId = c.imageUrl ? await mirrorRemoteImage(c.imageUrl) : null
+            const imageFileId = c.imageUrl ? await mirrorRemoteImage(c.imageUrl, { shopId: j.shopId }) : null
             if (c.imageUrl) imageFileId ? mirrored++ : mirrorFailed++
             return { title: c.title, subtitle: c.subtitle, imageFileId }
           }),

@@ -21,6 +21,10 @@ beforeAll(() => {
 
 import { mirrorRemoteImage, mirrorMediaBuffer } from '@/services/channel-chat.service'
 
+// feature 00051 (S-6): signature เปลี่ยนเป็น options-object บังคับ shopId — เทสนี้ไม่ได้ทดสอบ
+// dedup logic เอง (แค่ mirror pipeline) จึงใช้ shopId คงที่ตัวเดียวพอ
+const SHOP_ID = 'shop-1'
+
 // ทำไมใช้ new Response(...) จริงแทน object ปลอม: (S-1) mirrorRemoteImage อ่าน body ผ่าน
 // res.body.getReader() (streaming) ไม่ใช่ res.arrayBuffer() แล้ว — ต้องมี body เป็น
 // ReadableStream จริงถึงจะเทสต์ path นี้ได้ (Node 22 undici ให้ Response.body เป็น stream จริง)
@@ -43,12 +47,12 @@ describe('mirrorRemoteImage', () => {
     )
     saveFile.mockResolvedValue('chat/abc.jpg')
 
-    expect(await mirrorRemoteImage('https://scontent.fbcdn.net/x.jpg')).toBe('chat/abc.jpg')
+    expect(await mirrorRemoteImage('https://scontent.fbcdn.net/x.jpg', { shopId: SHOP_ID })).toBe('chat/abc.jpg')
   })
 
   it('ดาวน์โหลดไม่สำเร็จ → คืน null ไม่ throw (ข้อความยังต้องถูกเก็บ)', async () => {
     ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(fakeFbResponse(null, { status: 404 }))
-    expect(await mirrorRemoteImage('https://scontent.fbcdn.net/gone.jpg')).toBeNull()
+    expect(await mirrorRemoteImage('https://scontent.fbcdn.net/gone.jpg', { shopId: SHOP_ID })).toBeNull()
     expect(saveFile).not.toHaveBeenCalled()
   })
 
@@ -57,7 +61,7 @@ describe('mirrorRemoteImage', () => {
     ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
       fakeFbResponse(big, { contentType: 'image/jpeg' }),
     )
-    expect(await mirrorRemoteImage('https://scontent.fbcdn.net/big.jpg')).toBeNull()
+    expect(await mirrorRemoteImage('https://scontent.fbcdn.net/big.jpg', { shopId: SHOP_ID })).toBeNull()
     expect(saveFile).not.toHaveBeenCalled()
   })
 
@@ -68,7 +72,7 @@ describe('mirrorRemoteImage', () => {
       fakeFbResponse(new Uint8Array(8), { contentType: 'text/html' }),
     )
     saveFile.mockResolvedValue('chat/x.html')
-    expect(await mirrorRemoteImage('https://graph.facebook.com/x')).toBe('chat/x.html')
+    expect(await mirrorRemoteImage('https://graph.facebook.com/x', { shopId: SHOP_ID })).toBe('chat/x.html')
     expect(saveFile).toHaveBeenCalledWith(expect.anything(), { skipValidation: true })
   })
 
@@ -77,33 +81,33 @@ describe('mirrorRemoteImage', () => {
       fakeFbResponse(new Uint8Array(8), { contentType: 'image/gif' }),
     )
     saveFile.mockResolvedValue('chat/x.gif')
-    expect(await mirrorRemoteImage('https://scontent.fbcdn.net/x.gif')).toBe('chat/x.gif')
+    expect(await mirrorRemoteImage('https://scontent.fbcdn.net/x.gif', { shopId: SHOP_ID })).toBe('chat/x.gif')
     expect(saveFile).toHaveBeenCalledWith(expect.anything(), { skipValidation: true })
   })
 
   // (S-1) SSRF guard — host นอก allow-list ต้องไม่ยิง fetch ออกไปเลย
   it('host นอก allow-list (ไม่ใช่ CDN ของ Meta) → คืน null และไม่เรียก fetch เลย', async () => {
-    expect(await mirrorRemoteImage('https://internal.example.com/x.jpg')).toBeNull()
+    expect(await mirrorRemoteImage('https://internal.example.com/x.jpg', { shopId: SHOP_ID })).toBeNull()
     expect(fetch).not.toHaveBeenCalled()
   })
 
   it('SSRF ผ่าน internal/metadata address → คืน null และไม่เรียก fetch เลย', async () => {
-    expect(await mirrorRemoteImage('http://169.254.169.254/latest/meta-data/')).toBeNull()
+    expect(await mirrorRemoteImage('http://169.254.169.254/latest/meta-data/', { shopId: SHOP_ID })).toBeNull()
     expect(fetch).not.toHaveBeenCalled()
   })
 
   it('host ปลอมตัวเป็น fbcdn.net (evil-fbcdn.net) → ปฏิเสธ ไม่ผ่าน suffix match มั่ว ๆ', async () => {
-    expect(await mirrorRemoteImage('https://evil-fbcdn.net/x.jpg')).toBeNull()
+    expect(await mirrorRemoteImage('https://evil-fbcdn.net/x.jpg', { shopId: SHOP_ID })).toBeNull()
     expect(fetch).not.toHaveBeenCalled()
   })
 
   it('protocol เป็น http (ไม่ใช่ https) แม้ host จะถูก → ปฏิเสธ ไม่เรียก fetch', async () => {
-    expect(await mirrorRemoteImage('http://scontent.fbcdn.net/x.jpg')).toBeNull()
+    expect(await mirrorRemoteImage('http://scontent.fbcdn.net/x.jpg', { shopId: SHOP_ID })).toBeNull()
     expect(fetch).not.toHaveBeenCalled()
   })
 
   it('URL parse ไม่ได้ (malformed) → คืน null ไม่ throw', async () => {
-    expect(await mirrorRemoteImage('not-a-url')).toBeNull()
+    expect(await mirrorRemoteImage('not-a-url', { shopId: SHOP_ID })).toBeNull()
     expect(fetch).not.toHaveBeenCalled()
   })
 
@@ -112,7 +116,7 @@ describe('mirrorRemoteImage', () => {
       fakeFbResponse(new Uint8Array(16), { contentType: 'image/png' }),
     )
     saveFile.mockResolvedValue('chat/ig.png')
-    expect(await mirrorRemoteImage('https://scontent.cdninstagram.com/x.png')).toBe('chat/ig.png')
+    expect(await mirrorRemoteImage('https://scontent.cdninstagram.com/x.png', { shopId: SHOP_ID })).toBe('chat/ig.png')
   })
 
   // stickershop.line-scdn.net (S-7b, feature 00025) — CDN รูปสติกเกอร์ LINE เพิ่มเป็น exact host
@@ -122,20 +126,20 @@ describe('mirrorRemoteImage', () => {
     )
     saveFile.mockResolvedValue('line-sticker/1988.png')
     expect(
-      await mirrorRemoteImage('https://stickershop.line-scdn.net/stickershop/v1/sticker/1988/android/sticker.png'),
+      await mirrorRemoteImage('https://stickershop.line-scdn.net/stickershop/v1/sticker/1988/android/sticker.png', { shopId: SHOP_ID }),
     ).toBe('line-sticker/1988.png')
   })
 
   // regression ของ SSRF guard เดิม (S-1) — เพิ่ม host ของ LINE แล้วต้องไม่เผลอเปิดกว้างขึ้น
   it('host นอก allow-list ยังถูกปฏิเสธเหมือนเดิมหลังเพิ่ม LINE sticker host (regression SSRF guard)', async () => {
-    expect(await mirrorRemoteImage('https://internal.example.com/x.jpg')).toBeNull()
+    expect(await mirrorRemoteImage('https://internal.example.com/x.jpg', { shopId: SHOP_ID })).toBeNull()
     expect(fetch).not.toHaveBeenCalled()
   })
 
   // stickershop.line-scdn.net ถูกเพิ่มเป็น exact host เดี่ยว ไม่ใช่ suffix — subdomain ของมันต้องยังถูก
   // ปฏิเสธ ไม่งั้นแปลว่าเผลอเปิดกว้างเกินสิ่งที่ทดสอบไว้จริง (Controller ยืนยันแค่โฮสต์นี้ตรง ๆ)
   it('subdomain ของ stickershop.line-scdn.net → ปฏิเสธ เพราะเพิ่มเป็น exact host ไม่ใช่ suffix', async () => {
-    expect(await mirrorRemoteImage('https://cdn.stickershop.line-scdn.net/x.png')).toBeNull()
+    expect(await mirrorRemoteImage('https://cdn.stickershop.line-scdn.net/x.png', { shopId: SHOP_ID })).toBeNull()
     expect(fetch).not.toHaveBeenCalled()
   })
 })
@@ -148,36 +152,36 @@ describe('mirrorMediaBuffer (S-7, TFR-LINE-09 — generalize จาก mirrorRem
 
   it('buffer ปกติ + content-type ที่รู้จัก → mirror สำเร็จ คืน fileId จาก storage', async () => {
     saveFile.mockResolvedValue('line/abc.jpg')
-    const result = await mirrorMediaBuffer(Buffer.from([1, 2, 3]), 'image/jpeg')
+    const result = await mirrorMediaBuffer(Buffer.from([1, 2, 3]), 'image/jpeg', { shopId: SHOP_ID })
     expect(result).toBe('line/abc.jpg')
     expect(saveFile).toHaveBeenCalledWith(expect.anything(), { skipValidation: true })
   })
 
   it('contentType เป็น null (LINE บางกรณีไม่ส่ง header content-type มา) → ยังเก็บได้ด้วย octet-stream', async () => {
     saveFile.mockResolvedValue('line/x.bin')
-    const result = await mirrorMediaBuffer(Buffer.from([1, 2, 3]), null)
+    const result = await mirrorMediaBuffer(Buffer.from([1, 2, 3]), null, { shopId: SHOP_ID })
     expect(result).toBe('line/x.bin')
   })
 
   it('data ว่างเปล่า (length 0) → คืน null ไม่เรียก saveFile', async () => {
-    expect(await mirrorMediaBuffer(Buffer.alloc(0), 'image/jpeg')).toBeNull()
+    expect(await mirrorMediaBuffer(Buffer.alloc(0), 'image/jpeg', { shopId: SHOP_ID })).toBeNull()
     expect(saveFile).not.toHaveBeenCalled()
   })
 
   it('เกินเพดานขนาดเดียวกับ Meta (25MB) → คืน null ไม่เรียก saveFile', async () => {
     const big = Buffer.alloc(26 * 1024 * 1024)
-    expect(await mirrorMediaBuffer(big, 'video/mp4')).toBeNull()
+    expect(await mirrorMediaBuffer(big, 'video/mp4', { shopId: SHOP_ID })).toBeNull()
     expect(saveFile).not.toHaveBeenCalled()
   })
 
   it('saveFile (เขียน storage) โยน error → คืน null ไม่ throw ทะลุออกไป', async () => {
     saveFile.mockRejectedValue(new Error('storage down'))
-    expect(await mirrorMediaBuffer(Buffer.from([1, 2, 3]), 'video/mp4')).toBeNull()
+    expect(await mirrorMediaBuffer(Buffer.from([1, 2, 3]), 'video/mp4', { shopId: SHOP_ID })).toBeNull()
   })
 
-  it('filenamePrefix default เป็น "line" — ไม่ต้องส่งพารามิเตอร์ที่ 3', async () => {
+  it('filenamePrefix default เป็น "line" — ไม่ต้องส่ง opts.filenamePrefix (opts.shopId ยังบังคับ)', async () => {
     saveFile.mockImplementation(async (file: File) => file.name)
-    const name = await mirrorMediaBuffer(Buffer.from([1]), 'audio/mp4')
+    const name = await mirrorMediaBuffer(Buffer.from([1]), 'audio/mp4', { shopId: SHOP_ID })
     expect(name).toMatch(/^line-\d+\.m4a$/)
   })
 })

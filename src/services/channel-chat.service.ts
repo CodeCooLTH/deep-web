@@ -28,6 +28,9 @@ import { LineApiError } from '@/lib/line/client'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl, getFile, getFileMeta } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
+// feature 00051 (S-3): choke point จริงของ dedup — saveMirroredBuffer กลายเป็น thin wrapper
+// เรียกตัวนี้แทน (SRS TFR-CMD-01, SDS TD-07) ห้ามเขียน hash/lookup/register logic ซ้ำที่นี่
+import { writeDedupedFile, findMediaAssetBySourceKey } from '@/services/media-asset.service'
 // pure module (ไม่มี server code) — ใช้ตัวเดียวกับที่ ChatThread ใช้ตัดสินว่าเป็นการ์ดยอดเงิน
 // เพื่อไม่ให้ "อะไรคือการ์ดยอดเงิน" มีสองนิยาม (HR16)
 import { parseMetaOrderCard } from '@/lib/meta-order-card'
@@ -313,7 +316,9 @@ export async function syncMissingMessagesFromMeta(
 
     // แปลงเนื้อหา (รวม mirror ไฟล์แนบ) ให้เสร็จก่อนเขียน — ต้องใช้ผลชุดเดียวกันทั้งตอน createMany
     // และตอนอัปเดต preview ด้านล่าง ไม่งั้นสองที่จะเขียนคนละเรื่องกับข้อความเดียวกัน
-    const contents = await resolveBackfillBatch(missing)
+    // feature 00051 (S-3): shopId มาจาก conv.shopChannel.shopId — conv ผ่านการเช็ค
+    // !conv.shopChannel ด้านบนมาแล้ว (บรรทัด 288) จึงไม่มีทาง null ตรงนี้
+    const contents = await resolveBackfillBatch(missing, conv.shopChannel.shopId)
 
     // createMany + skipDuplicates — กัน race กับ webhook ที่อาจยิง mid เดียวกันเข้ามาพร้อมกัน
     // (unique constraint จะ throw ถ้าใช้ create ธรรมดา แล้วทั้งชุดจะล้มเพราะข้อความเดียว)
@@ -458,7 +463,7 @@ function mediaChatType(att: GraphThreadAttachment): string {
   return 'FILE'
 }
 
-async function resolveBackfillContent(m: GraphThreadMessage): Promise<BackfillContent> {
+async function resolveBackfillContent(m: GraphThreadMessage, shopId: string): Promise<BackfillContent> {
   const base = {
     type: 'TEXT',
     body: null,
@@ -474,7 +479,7 @@ async function resolveBackfillContent(m: GraphThreadMessage): Promise<BackfillCo
   // IMAGE รูปเดี่ยว ๆ ที่ไม่มีชื่อ/ราคากำกับ แทนที่จะเป็นการ์ดที่อ่านรู้เรื่อง
   const media = m.attachments.find((a) => a.kind !== 'template' && !!a.mediaUrl)
   if (media?.mediaUrl) {
-    const fileId = await mirrorRemoteImage(media.mediaUrl)
+    const fileId = await mirrorRemoteImage(media.mediaUrl, { shopId })
     if (fileId) {
       return {
         ...base,
@@ -493,7 +498,7 @@ async function resolveBackfillContent(m: GraphThreadMessage): Promise<BackfillCo
   if (m.text) return { ...base, body: m.text }
 
   const card = m.attachments.map(cardText).find((t): t is string => !!t)
-  if (card) return { ...base, body: card, cards: await mirrorGraphCards(m.attachments) }
+  if (card) return { ...base, body: card, cards: await mirrorGraphCards(m.attachments, shopId) }
 
   return { ...base, body: SYNCED_EMPTY_TEXT }
 }
@@ -506,6 +511,7 @@ async function resolveBackfillContent(m: GraphThreadMessage): Promise<BackfillCo
  */
 async function mirrorGraphCards(
   attachments: GraphThreadAttachment[],
+  shopId: string,
 ): Promise<{ title: string | null; subtitle: string | null; imageFileId: string | null }[] | null> {
   const els = extractGraphCards(attachments)
   if (!els) return null
@@ -513,7 +519,7 @@ async function mirrorGraphCards(
     els.map(async (el) => ({
       title: el.title,
       subtitle: el.subtitle,
-      imageFileId: el.imageUrl ? await mirrorRemoteImage(el.imageUrl) : null,
+      imageFileId: el.imageUrl ? await mirrorRemoteImage(el.imageUrl, { shopId }) : null,
     })),
   )
 }
@@ -546,10 +552,10 @@ function backfillPreview(c: BackfillContent): string {
   return (c.body ?? SYNCED_EMPTY_TEXT).slice(0, 100)
 }
 
-async function resolveBackfillBatch(messages: GraphThreadMessage[]): Promise<BackfillContent[]> {
+async function resolveBackfillBatch(messages: GraphThreadMessage[], shopId: string): Promise<BackfillContent[]> {
   const out: BackfillContent[] = []
   for (let i = 0; i < messages.length; i += 4) {
-    out.push(...(await Promise.all(messages.slice(i, i + 4).map(resolveBackfillContent))))
+    out.push(...(await Promise.all(messages.slice(i, i + 4).map((m) => resolveBackfillContent(m, shopId)))))
   }
   return out
 }
@@ -712,12 +718,16 @@ export function isUniqueViolationOn(e: unknown, field: string): boolean {
 // และ mirrorMediaBuffer (LINE/S-7, ไม่มี URL สาธารณะให้ fetch — ต้องผ่าน LineAdapter.downloadContent
 // ที่คืน buffer ตรง ๆ มาให้) ใช้ร่วมกัน — ห้ามมีสอง copy ของตรรกะ "buffer → storage" (scope baseline
 // S-7: "ห้ามเขียนฟังก์ชัน mirror ตัวที่สองขนาน")
-// skipValidation: mirror ทำ validation เอง (ผู้เรียกแต่ละทางเช็ค host/ขนาดของตัวเองมาแล้ว) — ไม่ต้อง
-// ผ่าน gate ชนิด/ขนาดของ seller upload (validateUpload) ที่แคบกว่าและ cap แค่ 5MB
-function saveMirroredBuffer(buffer: ArrayBuffer | Buffer, contentType: string, filenamePrefix: string): Promise<string> {
-  const ext = contentTypeToExt(contentType)
-  const file = new File([buffer as ArrayBuffer], `${filenamePrefix}-${Date.now()}.${ext}`, { type: contentType })
-  return saveFile(file, { skipValidation: true })
+//
+// feature 00051 (S-3, SDS TD-07): กลายเป็น thin wrapper เรียก writeDedupedFile() — choke point จริง
+// ของ dedup (hash → lookup → เขียนไฟล์ถ้า miss → register) อยู่ที่ media-asset.service.ts ทั้งหมดแล้ว
+// ชื่อฟังก์ชันนี้คงไว้เพื่ออ่านโค้ด mirror ง่าย (SRS TFR-CMD-01)
+function saveMirroredBuffer(
+  buffer: ArrayBuffer | Buffer,
+  contentType: string,
+  opts: { shopId: string; filenamePrefix: string; sourceKey?: string },
+): Promise<string> {
+  return writeDedupedFile(buffer, contentType, opts)
 }
 
 // ดาวน์โหลดรูปจาก CDN ของ Meta แล้วเก็บเข้า storage ของเรา (feature 00018)
@@ -728,7 +738,16 @@ function saveMirroredBuffer(buffer: ArrayBuffer | Buffer, contentType: string, f
 //
 // filenamePrefix (S-7b): default 'fb' คงพฤติกรรมเดิมของ Meta ไว้ทุกจุดเรียกเดิม — เพิ่มพารามิเตอร์
 // เพื่อให้ผู้เรียกอื่น (LINE sticker CDN) ตั้งชื่อไฟล์ให้อ่านง่ายขึ้นเวลาสืบสวน ไม่กระทบ Messenger/IG
-export async function mirrorRemoteImage(url: string, filenamePrefix = 'fb'): Promise<string | null> {
+//
+// feature 00051 (S-3, SDS TD-01): shopId เป็น **required field ของ options-object เท่านั้น** ห้าม
+// positional เด็ดขาด — shop-channel.service.ts:64 เดิมส่ง 'ig-avatar' เป็น positional ที่ 2 อยู่แล้ว
+// ถ้า shopId เป็น positional ที่ 2 จะ compile ผ่านแต่ 'ig-avatar' ไหลเข้า shopId เงียบ ๆ (ทั้งคู่เป็น
+// string — tsc จับไม่ได้) กลายเป็น cross-shop dedup ที่ขัด BR-CMD-01 ตรง ๆ
+export async function mirrorRemoteImage(
+  url: string,
+  opts: { shopId: string; filenamePrefix?: string; sourceKey?: string },
+): Promise<string | null> {
+  const filenamePrefix = opts.filenamePrefix ?? 'fb'
   // (S-1) เช็ค host allow-list + บังคับ https ก่อนยิง fetch เสมอ — กัน SSRF ผ่าน
   // attachments[].payload.url ที่ปลอมมากับ webhook (ดู comment ของ MIRROR_ALLOWED_HOSTS_EXACT)
   let parsed: URL
@@ -769,7 +788,7 @@ export async function mirrorRemoteImage(url: string, filenamePrefix = 'fb'): Pro
     const buffer = await readBodyWithCap(res, MIRROR_MAX_BYTES)
     if (!buffer) return null
 
-    return await saveMirroredBuffer(buffer, contentType, filenamePrefix)
+    return await saveMirroredBuffer(buffer, contentType, { shopId: opts.shopId, filenamePrefix, sourceKey: opts.sourceKey })
   } catch {
     return null
   }
@@ -786,16 +805,22 @@ export async function mirrorRemoteImage(url: string, filenamePrefix = 'fb'): Pro
 // ผู้เรียก (ingestLineMediaMessage) สร้างข้อความ placeholder แทนการทิ้ง event (TFR-LINE-09)
 //
 // คืน null เมื่อ data ว่าง/เกินเพดาน/เขียน storage ไม่ผ่าน — ห้าม throw (เหมือน mirrorRemoteImage)
+// feature 00051 (S-3, SDS TD-01): opts.shopId required — เหตุผลเดียวกับ mirrorRemoteImage
 export async function mirrorMediaBuffer(
   data: Buffer,
   contentType: string | null,
-  filenamePrefix = 'line',
+  opts: { shopId: string; filenamePrefix?: string; sourceKey?: string },
 ): Promise<string | null> {
   if (!data || data.length === 0) return null
   if (data.length > MIRROR_MAX_BYTES) return null
+  const filenamePrefix = opts.filenamePrefix ?? 'line'
 
   try {
-    return await saveMirroredBuffer(data, contentType || 'application/octet-stream', filenamePrefix)
+    return await saveMirroredBuffer(data, contentType || 'application/octet-stream', {
+      shopId: opts.shopId,
+      filenamePrefix,
+      sourceKey: opts.sourceKey,
+    })
   } catch {
     return null
   }
@@ -1159,7 +1184,7 @@ export async function ingestInboundMessage(params: {
   // URL รูปโปรไฟล์ของ Meta ฝังเวลาหมดอายุมาใน `oe=` — เก็บ URL ดิบไว้เฉย ๆ แล้วรูปจะตายเงียบ ๆ
   // ในไม่กี่วัน (เจอจริง: รูป IG ที่เก็บไว้ 5 ส.ค. กลายเป็น HTTP 403 ตอน 9 ส.ค. แล้ว <img onError>
   // ตกไปตัวอักษรย่อ โดยไม่มีอะไรฟ้อง) → mirror ลง storage เราเป็น fileId เหมือนที่ทำกับรูปในแชท
-  const mirroredAvatar = profile.avatarUrl ? await mirrorRemoteImage(profile.avatarUrl) : null
+  const mirroredAvatar = profile.avatarUrl ? await mirrorRemoteImage(profile.avatarUrl, { shopId: channel.shopId }) : null
   // mirror ไม่ผ่านก็ยังเก็บ URL ดิบไว้ก่อน — เห็นรูปวันนี้ดีกว่าไม่เห็นเลย และ shouldRetryAvatar
   // มองว่าค่าที่ขึ้นต้น http คือ "ยังไม่เรียบร้อย" จึงจะถูกลองอัปเกรดใหม่รอบหน้าเอง
   const avatarToStore = mirroredAvatar ?? profile.avatarUrl
@@ -1220,7 +1245,7 @@ export async function ingestInboundMessage(params: {
   const isImageLike = attType === 'image' || attType === 'sticker'
 
   // ต้อง mirror ก่อนเข้า transaction — network call ในทรานแซกชันจะถือ lock DB นานเกินไป
-  let mirroredFileId = isMedia && attUrl ? await mirrorRemoteImage(attUrl) : null
+  let mirroredFileId = isMedia && attUrl ? await mirrorRemoteImage(attUrl, { shopId: channel.shopId }) : null
   // fallback (user report 2026-07-25: ข้อความเสียง Messenger ยัง mirror ไม่ผ่าน): media ที่ webhook
   // ไม่ส่ง payload.url มา หรือ url นั้น fetch ไม่ได้/หมดอายุ → ดึง file_url สดจาก Graph ด้วย mid แล้ว mirror
   // (Messenger voice message เจอเคส payload.url หายบ่อย — Graph คืน url สดที่ยังโหลดได้ host fbsbx)
@@ -1229,7 +1254,7 @@ export async function ingestInboundMessage(params: {
       { provider, accessToken: channel.accessToken },
       { externalMessageId: event.message.mid },
     )
-    if (graphUrl) mirroredFileId = await mirrorRemoteImage(graphUrl)
+    if (graphUrl) mirroredFileId = await mirrorRemoteImage(graphUrl, { shopId: channel.shopId })
   }
   // ข้อความลิงก์ที่แชร์ (fallback/post/ig_post) — ประกอบ title + url เป็น text
   const linkText = isLink ? (attTitle ? `${attTitle}\n${attUrl}` : attUrl!) : null
@@ -1269,7 +1294,7 @@ export async function ingestInboundMessage(params: {
     const key = attKey(a)
     if (key && seenAttKeys.has(key)) continue // attachment ซ้ำ (สติกเกอร์เดียวกัน) — ข้าม ไม่สร้างข้อความซ้ำ
     if (key) seenAttKeys.add(key)
-    const fid = await mirrorRemoteImage(url)
+    const fid = await mirrorRemoteImage(url, { shopId: channel.shopId })
     if (fid) extraMedia.push({ fileId: fid, type: MEDIA_TYPE[t] })
   }
 
@@ -1286,7 +1311,7 @@ export async function ingestInboundMessage(params: {
             subtitle: el.subtitle,
             // mirror ล้มเหลว (URL หมดอายุ/host ไม่อยู่ allow-list) → null ห้าม throw ทั้งข้อความ —
             // การ์ดยังต้องขึ้นได้โดยไม่มีรูป (placeholder icon ฝั่ง UI)
-            imageFileId: el.imageUrl ? await mirrorRemoteImage(el.imageUrl) : null,
+            imageFileId: el.imageUrl ? await mirrorRemoteImage(el.imageUrl, { shopId: channel.shopId }) : null,
           })),
         )
       : null
@@ -2030,7 +2055,7 @@ export async function ingestLineMediaMessage(params: {
   if (message.type === 'sticker') {
     // (S-7b) mirror รูปจริงเสมอ ไม่ผ่าน downloadContent — URL ประกอบจาก stickerId ล้วน ๆ ไม่ต้องใช้
     // token. อยู่นอก transaction เหมือนสื่อชนิดอื่น (network call ไม่ควรถือ DB lock)
-    const fileId = await mirrorRemoteImage(buildLineStickerImageUrl(message.stickerId), 'line-sticker')
+    const fileId = await mirrorRemoteImage(buildLineStickerImageUrl(message.stickerId), { shopId, filenamePrefix: 'line-sticker' })
     rawExtra = {
       kind: 'sticker',
       packageId: message.packageId,
@@ -2077,7 +2102,7 @@ export async function ingestLineMediaMessage(params: {
         { externalMessageId: message.id },
       )
       if (content?.data) {
-        const fileId = await mirrorMediaBuffer(content.data, content.contentType, 'line')
+        const fileId = await mirrorMediaBuffer(content.data, content.contentType, { shopId, filenamePrefix: 'line' })
         if (fileId) {
           imageUrl = fileId
           if (message.type === 'file') {
@@ -2330,9 +2355,21 @@ export async function ingestAdReferral(params: {
   // โฆษณาวิดีโอ (เคสที่ user เจอ) ส่ง photo_url = null มาเสมอ ให้ thumbnail มาทาง video_url แทน —
   // ถ้าดูแค่ photo_url แบนเนอร์จะไม่มีรูปทั้งที่ Meta ส่ง thumbnail มาให้แล้ว
   const imageUrl = post.fullPicture ?? ctx?.photo_url ?? ctx?.video_url ?? null
+
+  // feature 00051 (S-3, TFR-CMD-03): layer 2 cache ด้วย sourceKey='ad:{adId}' — ad เดียวกันมัก
+  // ถูกคลิกซ้ำจากลูกค้าหลายคน ก่อนยิง Meta CDN เช็คก่อนว่าเคย mirror ad นี้แล้วหรือยัง (best-effort,
+  // ไม่มี adId = organic click → ทำงานปกติแบบไม่มี sourceKey)
+  const sourceKey = referral.ad_id ? `ad:${referral.ad_id}` : undefined
+  let photoFileId: string | null = null
+  if (sourceKey) {
+    const hit = await findMediaAssetBySourceKey(channel.shopId, sourceKey).catch(() => null)
+    if (hit) photoFileId = hit.fileId // hit แล้ว — ไม่ยิง Meta CDN เลย
+  }
   // mirror เข้า storage เรา — URL ของ Meta หมดอายุ ถ้า hotlink ไว้แบนเนอร์จะรูปแตกภายหลัง
   // (คืน null เองเมื่อโฮสต์ไม่อยู่ allow-list / timeout / ไฟล์ใหญ่เกิน → แบนเนอร์แสดงแบบไม่มีรูป)
-  const photoFileId = imageUrl ? await mirrorRemoteImage(imageUrl) : null
+  if (!photoFileId && imageUrl) {
+    photoFileId = await mirrorRemoteImage(imageUrl, { shopId: channel.shopId, sourceKey })
+  }
 
   await prisma.$transaction([
     prisma.conversationAdReferral.create({
@@ -3295,7 +3332,10 @@ async function sendOutboundLineMessage(
   // ฝั่ง LINE ไม่มีปัญหา URL หมดอายุแบบ Meta (ประกอบเองจาก stickerId ล้วน ๆ จึงไม่มีลายเซ็น) —
   // ที่นี่จึงไม่มีทางกู้ผ่าน Graph ให้ทำ เหลือแค่ไม่ปล่อยบับเบิลว่าง
   const stickerFileId = params.sticker
-    ? await mirrorRemoteImage(buildLineStickerImageUrl(params.sticker.id), 'line-sticker')
+    ? await mirrorRemoteImage(buildLineStickerImageUrl(params.sticker.id), {
+        shopId: conversation.shopId,
+        filenamePrefix: 'line-sticker',
+      })
     : null
   if (params.sticker && !stickerFileId) {
     console.warn('[line-outbound] mirror สติกเกอร์ไม่ผ่าน', { stickerId: params.sticker.id })
@@ -3707,10 +3747,10 @@ export async function sendOutboundMessage(params: {
    */
   let stickerFileId: string | null = null
   if (params.sticker) {
-    stickerFileId = await mirrorRemoteImage(params.sticker.imageUrl)
+    stickerFileId = await mirrorRemoteImage(params.sticker.imageUrl, { shopId: conversation.shopId })
     if (!stickerFileId && mid) {
       const { url: freshUrl } = await adapter.downloadContent(sendCtx(), { externalMessageId: mid })
-      if (freshUrl) stickerFileId = await mirrorRemoteImage(freshUrl)
+      if (freshUrl) stickerFileId = await mirrorRemoteImage(freshUrl, { shopId: conversation.shopId })
     }
     if (!stickerFileId) {
       // เดิมเงียบสนิท — ความล้มเหลวนี้ไปโผล่เป็นบับเบิล "ข้อความไม่รองรับ" ให้ผู้ขายเจอเอง

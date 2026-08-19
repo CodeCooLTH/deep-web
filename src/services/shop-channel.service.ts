@@ -58,10 +58,12 @@ type ChannelUpsertResult =
  * ล้มเหลว → null → UI ถอยไปใช้ไอคอนเหมือนเดิม ไม่ทำให้การเชื่อมเพจล้มทั้งชุด
  * (เหตุผลเดียวกับ followerCount: ของประกอบต้องไม่ล้มของหลัก)
  */
-async function mirrorInstagramAvatar(pictureUrl: string | null): Promise<string | null> {
+// feature 00051 (S-3, TD-01): shopId required — thread จาก connectPages(shopId, ...) (ผู้เรียกเดียว
+// ของฟังก์ชันนี้) ห้ามเดา/ผูกกับร้านอื่น
+async function mirrorInstagramAvatar(pictureUrl: string | null, shopId: string): Promise<string | null> {
   if (!pictureUrl) return null
   try {
-    const fileId = await mirrorRemoteImage(pictureUrl, 'ig-avatar')
+    const fileId = await mirrorRemoteImage(pictureUrl, { shopId, filenamePrefix: 'ig-avatar' })
     return toFileUrl(fileId)
   } catch {
     return null
@@ -295,7 +297,7 @@ export async function connectPages(
          * mirror ล้มเหลว → null → UI ถอยไปใช้ไอคอนเหมือนเดิม ไม่ทำให้การเชื่อมเพจล้มทั้งชุด
          * (เหตุผลเดียวกับ followerCount ด้านบน: ของประกอบต้องไม่ล้มของหลัก)
          */
-        avatarUrl: await mirrorInstagramAvatar(page.instagramProfilePictureUrl),
+        avatarUrl: await mirrorInstagramAvatar(page.instagramProfilePictureUrl, shopId),
         force: forced, // IG ต้องใช้การยืนยันเดียวกับ Page แม่ ไม่งั้นย้าย Page ได้แต่ IG ค้างร้านเดิม
       })
     }

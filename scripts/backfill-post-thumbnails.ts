@@ -47,7 +47,7 @@ async function main() {
       externalPostId: true,
       thumbnailUrl: true,
       createdTime: true,
-      channel: { select: { name: true, accessTokenEnc: true, status: true } },
+      channel: { select: { name: true, accessTokenEnc: true, status: true, shopId: true } },
     },
   })
 
@@ -94,7 +94,9 @@ async function main() {
           return
         }
 
-        const fileId = await mirrorRemoteImage(meta.picture)
+        // feature 00051 (S-6): signature เปลี่ยนเป็น options-object บังคับ shopId — ใช้ shopId ของ
+        // เจ้าของโพสต์ (post.channel.shopId) ตัวเดียวกับที่ ingest จริงใช้ ไม่ใช่เดา/ผูกร้านอื่น
+        const fileId = await mirrorRemoteImage(meta.picture, { shopId: post.channel.shopId })
         if (!fileId) {
           failed += 1
           console.log(`  ! ${post.externalPostId} : mirror ไม่สำเร็จ (ดึงรูปไม่ได้/ไฟล์ใหญ่เกิน)`)
