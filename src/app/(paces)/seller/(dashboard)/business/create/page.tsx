@@ -20,6 +20,7 @@
 
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
+import { shouldHidePayments } from '@/lib/app-shell-server'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import Icon from '@/components/wrappers/Icon'
@@ -32,6 +33,18 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 export const metadata: Metadata = { title: 'สร้างธุรกิจใหม่' }
 
 export default async function CreateBusinessPage() {
+  /**
+   * 🛑 เปิดจากในแอป iOS → เด้งกลับ (App Store Guideline 3.1.1)
+   *
+   * หน้านี้เป็นทางเข้าที่ **มองเห็นได้จริงในแอป**: เมนูสลับบัญชีมีปุ่ม "สร้างธุรกิจใหม่" ชี้มาที่นี่
+   * และเมื่อยังไม่มีแพ็กเกจ/โควตาเต็ม หน้านี้แสดงการ์ด "สมัครแพ็กเกจ Business ก่อน" พร้อมปุ่ม
+   * **"ไปเลือกแพ็กเกจ"** ซึ่งเป็นคำเชิญให้ซื้อตรงตัว — ข้อที่เคยโดนตีกลับมาแล้ว 2026-08-04
+   *
+   * `/business` กับ `/subscriptions` กันไว้ตั้งแต่รอบนั้น แต่ route นี้เป็นคนละไฟล์จึงหลุดมา
+   * (layout ของ (dashboard) กรองแค่ "เมนู" ไม่ได้กันทั้งซับทรี)
+   */
+  if (await shouldHidePayments()) redirect('/dashboard')
+
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')

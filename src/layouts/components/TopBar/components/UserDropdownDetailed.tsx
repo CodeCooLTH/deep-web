@@ -34,6 +34,8 @@ interface BusinessContextItem {
 }
 
 interface BusinessContextResponse {
+  /** เปิดจากในแอป iOS → ห้ามมีทางเข้าหน้าซื้อ (Guideline 3.1.1) — server เป็นคนตัดสิน */
+  hidePayments?: boolean
   personal: { shopId: string; shopName: string } | null
   businesses: BusinessContextItem[]
 }
@@ -258,7 +260,10 @@ const UserDropdown = () => {
                 ไม่เห็นปุ่มนี้เลย — ซึ่งเป็นคนกลุ่มที่อยากเปิดธุรกิจเพิ่มมากที่สุด
                 ยังชี้ /business/create เหมือนเดิม (ไม่ใช่ ?create=1 ตรง ๆ) เพราะ gate โควตา/แพ็กเกจ
                 อยู่ที่หน้านั้น — โควตาเต็มจะได้เห็นการ์ดอธิบายเหตุผล ไม่ใช่กดแล้วเงียบ */}
-            {context?.personal && (
+            {/* 🛑 ซ่อนในแอป iOS — ปลายทาง /business/create แสดงการ์ด "สมัครแพ็กเกจ Business ก่อน"
+                พร้อมปุ่ม "ไปเลือกแพ็กเกจ" เมื่อยังไม่มีแพ็กเกจ/โควตาเต็ม = คำเชิญให้ซื้อ
+                (Guideline 3.1.1 — ข้อที่เคยตีกลับ 2026-08-04) หน้านั้นกันซ้ำอีกชั้นด้วย redirect */}
+            {context?.personal && !context.hidePayments && (
               <Link
                 href="/business/create"
                 role="menuitem"

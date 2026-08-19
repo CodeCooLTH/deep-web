@@ -29,6 +29,13 @@ interface ShopQuickLinksProps {
   shopKind: 'PERSONAL' | 'BUSINESS'
   /** บทบาทใน active shop */
   shopRole: 'OWNER' | 'ADMIN'
+  /**
+   * เปิดจากในแอป iOS → ต้องไม่มีทางเข้าหน้าแพ็กเกจเลย (App Store Guideline 3.1.1)
+   *
+   * 🛑 **ห้ามให้ค่าเริ่มต้นเป็น false** — ผู้เรียกที่ลืมส่งจะกลายเป็น "โชว์ทุกอย่าง" เงียบ ๆ
+   * ซึ่งคือรูปร่างของบั๊กที่ prop นี้ถูกสร้างมาแก้พอดี ให้ tsc บังคับให้ส่งทุก call site
+   */
+  hidePayments: boolean
 }
 
 interface QuickLink {
@@ -52,6 +59,20 @@ const LINKS: QuickLink[] = [
   { url: '/settings', label: 'การจัดส่ง', icon: 'truck-delivery', hint: 'เชื่อมต่อขนส่งและที่อยู่ผู้ส่ง' },
 ]
 
+/**
+ * 🛑 ทางเข้าหน้าแพ็กเกจ — ต้องหายทั้งแถวเมื่อเปิดจากในแอป iOS (Guideline 3.1.1)
+ *
+ * บั๊กจริง (หัวหน้าเจอ 2026-08-19): เมนู "แพ็กเกจของฉัน" ยังโผล่ในแอป กดแล้วเด้งกลับหน้าแรก
+ * เพราะ `/subscriptions/page.tsx` กันไว้แล้ว **แต่ไม่มีใครซ่อนทางเข้า** — ผู้ใช้เห็นเมนูที่กด
+ * แล้วไม่เกิดอะไร และคนตรวจของ Apple เห็น "ลิงก์ไปหน้าซื้อแพ็กเกจ" ซึ่งเป็นข้อที่เคยตีกลับมาแล้ว
+ *
+ * 🛑 ต้นเหตุเชิงโครงสร้าง: sidebar กรองถูกมาตลอดผ่าน `applyPaymentRestriction()` แต่ไฟล์นี้
+ * **ก็อปรายการเมนูมาไว้เองอีกชุด** (หัวไฟล์เขียนเองว่าคัดมาจาก seller-menu.ts) ⇒ ตัวกรองที่เขียน
+ * ให้ SSOT ไม่มีผลกับสำเนา — คลาสเดียวกับ Hard Rule 16 (ของสิ่งเดียวกัน สองนิยาม)
+ * เพิ่มลิงก์ใหม่ที่ชี้หน้าจ่ายเงินเมื่อไร ต้องเติม url ลงชุดนี้ด้วยเสมอ
+ */
+const PAYMENT_LINK_URLS = new Set<string>(['/subscriptions'])
+
 // เมนู "พนักงาน" เห็นเฉพาะ owner ของร้าน BUSINESS — เงื่อนไขเดียวกับ applyStaffMenu()
 // ใน _seller-menu.ts เป๊ะ (ซ่อน ไม่ใช่ disable เพราะ role อื่นไม่มี use-case ให้เห็นเลย)
 const STAFF_LINK: QuickLink = {
@@ -61,8 +82,9 @@ const STAFF_LINK: QuickLink = {
   hint: 'เชิญและจัดการทีมงาน',
 }
 
-export default function ShopQuickLinks({ shopKind, shopRole }: ShopQuickLinksProps) {
-  const links = shopKind === 'BUSINESS' && shopRole === 'OWNER' ? [...LINKS, STAFF_LINK] : LINKS
+export default function ShopQuickLinks({ shopKind, shopRole, hidePayments }: ShopQuickLinksProps) {
+  const base = hidePayments ? LINKS.filter((l) => !PAYMENT_LINK_URLS.has(l.url)) : LINKS
+  const links = shopKind === 'BUSINESS' && shopRole === 'OWNER' ? [...base, STAFF_LINK] : base
 
   return (
     /* -mx-4: edge-to-edge เท่ากับการ์ดอื่นในหน้านี้ (หักล้าง gutter 16px ของ shell)

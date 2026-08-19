@@ -18,6 +18,7 @@
  *   action ฝั่ง UI ให้ admin viewer กันกดแล้วเจอ error ที่คาดเดาไม่ได้ (แม้ตัว list เป็น member-scoped)
  */
 
+import { shouldHidePayments } from '@/lib/app-shell-server'
 import { getServerSession } from 'next-auth'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -72,7 +73,14 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
   const sub = await prisma.businessPackageSubscription.findUnique({ where: { ownerId: shop.userId } })
   const hasActivePackage = sub?.status === 'ACTIVE'
   const tier = sub?.tier as BusinessPackageTier | undefined
-  const tierPrice = hasActivePackage && tier ? BUSINESS_PACKAGE_TIER_CONFIG[tier].priceBaht : undefined
+  /**
+   * 🛑 ในแอป iOS ห้ามให้ราคาแพ็กเกจหลุดออกไปถึงหน้าจอเลย (Guideline 3.1.1)
+   * หน้านี้ไม่ได้ถูกกันทั้งหน้าเพราะเป็นหน้า "จัดการพนักงาน" ซึ่งผู้ขายต้องใช้ได้ในแอป —
+   * ตัดเฉพาะส่วนที่ชวนจ่ายเงินออก ไม่ใช่ตัดฟีเจอร์
+   */
+  const hidePayments = await shouldHidePayments()
+  const tierPrice =
+    !hidePayments && hasActivePackage && tier ? BUSINESS_PACKAGE_TIER_CONFIG[tier].priceBaht : undefined
 
   // 4. members — เรียก service ตรง (ไม่ fetch HTTP เอง, RSC convention)
   const members = await listMembers(shopId)
@@ -98,6 +106,7 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
           lockReason={shop.packageLockReason ?? ''}
           packageLockedAt={shop.packageLockedAt}
           tierPrice={tierPrice}
+          hidePayments={hidePayments}
           level="shop"
         />
       )}
