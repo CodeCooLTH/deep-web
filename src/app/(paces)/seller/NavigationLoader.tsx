@@ -16,11 +16,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+import { useT } from '@/i18n/LocaleProvider'
 
 const SHOW_DELAY_MS = 150 // nav ที่เร็วกว่านี้ (มี loading.tsx/prefetch) จะไม่โชว์ overlay → ไม่ flash
 const SAFETY_MS = 8000 // กัน overlay ค้างถ้า nav ล้ม/ไม่ commit
 
 export default function NavigationLoader() {
+  const t = useT()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [visible, setVisible] = useState(false)
@@ -93,10 +95,10 @@ export default function NavigationLoader() {
       className="fixed inset-0 z-100 flex flex-col items-center justify-center bg-card/85 backdrop-blur-sm"
       role="status"
       aria-live="polite"
-      aria-label="กำลังโหลด"
+      aria-label={t.common.loading}
     >
       <Icon icon="loader-2" className="size-10 animate-spin text-primary" aria-hidden="true" />
-      <p className="mt-4 text-sm font-medium text-default-700">กำลังโหลด...</p>
+      <p className="mt-4 text-sm font-medium text-default-700">{t.common.loading}</p>
     </div>
   )
 }
