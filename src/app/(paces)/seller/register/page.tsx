@@ -43,8 +43,8 @@ type Check = 'idle' | 'checking' | 'ok' | 'taken' | 'invalid'
 const PROVIDER_CHIP_ICON: Record<OAuthProviderKey, { icon: string; className: string; style?: { color: string } }> = {
   apple: { icon: 'brand-apple', className: 'size-3.5 text-default-900' },
   facebook: { icon: 'brand-facebook', className: 'size-3.5 text-info' },
-  line: { icon: 'brand-line', className: 'size-3.5', style: { color: '#06C755' } },
-  instagram: { icon: 'brand-instagram', className: 'size-3.5', style: { color: '#E1306C' } },
+  line: { icon: 'brand-line', className: 'size-3.5', style: { color: '#06C755' } }, /* carve-out HR6: สีแบรนด์ LINE ตัวจริง — ธีมไม่มี token ให้ และเปลี่ยนเฉดไม่ได้เพราะเป็นสีประจำแบรนด์ของเจ้าของ (pattern เดียวกับ SignInForm.tsx:173) */
+  instagram: { icon: 'brand-instagram', className: 'size-3.5', style: { color: '#E1306C' } }, /* carve-out HR6: สีแบรนด์ Instagram ตัวจริง — เหตุผลเดียวกับ LINE ด้านบน */
 }
 
 /**
