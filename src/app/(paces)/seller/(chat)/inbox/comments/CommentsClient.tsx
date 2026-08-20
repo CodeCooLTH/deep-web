@@ -1676,7 +1676,22 @@ export default function CommentsClient({
             //
             // 2026-08-19 เพิ่ม "หมดอายุ" เป็นตัวที่ 3 — ไม่ขัดกับคำสั่งข้างบน เพราะมันตอบคำถาม
             // "เหลืออะไรต้องทำ" เหมือนกัน (คิวที่ตกหล่นจนทักแชทไม่ได้แล้ว) ไม่ใช่ "ใครเป็นคนตอบ"
-            { key: 'UNANSWERED', label: t.comments.unanswered, icon: 'alert-circle', badgeClass: 'bg-danger/15 text-danger-ink', count: counts.unanswered, hint: undefined },
+            /**
+             * 🛑 **แดงทึบ ต้องเหมือน badge บนแท็บ "ความคิดเห็น" (InboxTabs) เป๊ะ ๆ**
+             * — user สั่ง 2026-08-20: "ขอปรับสีของ ยังไม่ตอบ ให้ตรงกับ ความคิดเห็นด้วย
+             * เพราะมาจากข้อมูลเดียวกัน" และมันมาจากข้อมูลเดียวกันจริง: ทั้งคู่คือ
+             * `counts.unanswered` ของร้านเดียวกัน ตัวเลขตรงกันเสมอ (15 = 15)
+             *
+             * เลขเดียวกันบนจอเดียวกันที่ทาคนละสี = ผู้ใช้ต้องหยุดคิดว่ามันคนละเรื่องกันหรือเปล่า
+             * เกณฑ์ "ของสิ่งเดียวกันต้องหน้าตาเดียวกัน" ชนะเกณฑ์ "แท็บตัวกรองคนละตระกูลกับ
+             * pill แจ้งเตือน" ที่ผมเคยยึดไว้ — เพราะผู้ใช้ไม่ได้อ่านโค้ด เขาเห็นเลข 15 สองตัว
+             *
+             * หนี้คอนทราสต์เดียวกับ InboxTabs: ขาวบน `--color-danger` (#f7577e) = 3.17:1 ตก AA
+             * ทางแก้คือทำให้แดงเข้มขึ้นโดยคงเฉด แล้วเปลี่ยน **ทุกที่ที่ใช้แดงทึบพร้อมกัน**
+             * (docs/conventions/contrast-fix-keeps-hue.md) — ห้ามกลับไปแก้ทีละจุดอีก นั่นคือ
+             * สิ่งที่ทำให้เกิดเรื่องนี้ตั้งแต่แรก
+             */
+            { key: 'UNANSWERED', label: t.comments.unanswered, icon: 'alert-circle', badgeClass: 'bg-danger text-white', count: counts.unanswered, hint: undefined },
             /**
              * หมดอายุ (user สั่ง 2026-08-19) = ยังไม่ตอบ **และ** พ้นหน้าต่างทักแชทส่วนตัว 7 วัน
              *
@@ -1698,10 +1713,16 @@ export default function CommentsClient({
              *     `data-skin="default"` (`(paces)/layout.tsx`) ซึ่งคือ `#f9bf59` — **อ่อนกว่า**
              *     ⇒ ขาวบนพื้นนั้นได้ **1.66:1** ไม่ใช่ 2.28:1
              *   - อ้างว่า "สีแดงของ danger เข้มพอจึงรอด" — **ไม่รอด**: ขาวบน `#f7577e` = **3.17:1**
-             *     ตก AA 4.5:1 เช่นกัน (คำนวณใหม่ 2026-08-20) แท็บ "ยังไม่ตอบ"/ชิปในเธรด/badge
-             *     ของ InboxTabs จึงถูกเปลี่ยนเป็น `/15` + `-ink` ตามกันทั้งชุดแล้ว
+             *     ตก AA 4.5:1 เช่นกัน (คำนวณใหม่ 2026-08-20)
              * คำเตือนที่อ้างตัวเลขผิดอันตรายกว่าไม่มีคำเตือน เพราะคนถัดไปจะเชื่อมันแล้วคัดลอก
              * `bg-danger text-white` ไปใช้ต่อโดยคิดว่าตรวจมาแล้ว
+             *
+             * 🛑 **หมายเหตุ 2026-08-20 รอบบ่าย — ย่อหน้าข้างบนเคยจบด้วยประโยคว่า "แท็บยังไม่ตอบ/
+             * ชิปในเธรด/badge ของ InboxTabs ถูกเปลี่ยนเป็น `/15` + `-ink` ตามกันทั้งชุดแล้ว"
+             * ซึ่งตอนนี้ไม่จริงอีกต่อไป** — แดงทึบถูกคืนให้ทั้ง InboxTabs และแท็บ "ยังไม่ตอบ"
+             * เพราะเลขเดียวกันสองสีบนจอเดียวเสียหายกว่าคอนทราสต์ที่ตก (user ทัก 2 รอบ)
+             * **แต่ `warning` ยังห้ามเป็นพื้นทึบอยู่** ด้วยเหตุผลคนละข้อ: 1.66:1 ต่ำกว่ามาก
+             * และ "หมดอายุ" ไม่ได้ซ้ำกับเลขไหนบนจอ จึงไม่มีแรงกดดันเรื่องความเหมือน
              */
             { key: 'EXPIRED', label: t.comments.expired, icon: 'clock-x', badgeClass: 'bg-warning/15 text-warning-ink', count: counts.expired, hint: t.comments.expiredHint },
           ] as const).map((t, idx, arr) => {
@@ -1743,7 +1764,9 @@ export default function CommentsClient({
                     0 คือข้อมูล ไม่ใช่ความว่างเปล่า ผู้ใช้ต้องแยกออกจาก "ยังโหลดไม่เสร็จ") */}
                 {t.badgeClass && (
                   <span
-                    className={`${t.badgeClass} text-2xs flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-semibold`}
+                    // h-4.5/min-w-4.5/text-2xs/px-1/rounded-full = ชุดเดียวกับ badge ของ InboxTabs
+                    // และ badge ยังไม่อ่านในแถวรายการแชท — เลขนับทั้งระบบต้องมีทรงเดียว
+                    className={`${t.badgeClass} text-2xs flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 font-semibold`}
                   >
                     {t.count > 99 ? '99+' : t.count}
                   </span>
