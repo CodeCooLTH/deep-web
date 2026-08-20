@@ -115,4 +115,24 @@ describe('[blocker] แบรนด์บนจอต้องเป็น Deep 
       expect(code, `หัวแชทห้ามใช้ ${f} (โลโก้ของธีม)`).not.toContain(f)
     }
   })
+
+  it('[blocker] --logo-lg-height ต้องไม่หดกลับไปค่าของธีม', () => {
+    /**
+     * 22px ของธีมคาลิเบรตไว้กับโลโก้ "Paces" ที่เป็น **ตัวหนังสือล้วน** — โลโก้ Deep มีมาร์กตัว D
+     * อยู่ด้วย มาร์กกินความสูงไป 84% ของกรอบ เหลือให้คำว่า "Deep" แค่ 17.4px
+     *
+     * 🛑 หัวหน้าเห็นบน prod แล้วทักเอง (2026-08-20): *"ทำไมมันเล็กจิ๋ว"* พร้อมวัดเทียบมาให้
+     * Paces `87.33 × 22` vs Deep `74.77 × 22` แล้วสั่ง *"ขยายคำว่า Deep ให้มัน fit กับความสูง"*
+     *
+     * ด่านนี้กัน **การก็อป `_root.css` จากธีมมาทับ** ซึ่งจะพาค่ากลับไป 22px เงียบ ๆ — ไม่มี
+     * `tsc`/build/eslint/theme-guard ตัวไหนมองเห็น เพราะ CSS ที่ได้ยัง "ถูก" ทุกตัวอักษร
+     * สิ่งที่ผิดคือ *ตัวเลข* (`docs/conventions/rule-must-be-enforced-not-described.md`)
+     *
+     * เกณฑ์เป็น "ไม่ต่ำกว่า" ไม่ใช่ "เท่ากับ" — ปรับขึ้นได้ถ้าอยากให้ใหญ่กว่านี้ ห้ามหดลง
+     */
+    const css = readFileSync(join(ROOT, 'src/assets/css/config/_root.css'), 'utf8')
+    const m = css.match(/--logo-lg-height:\s*(\d+)px/)
+    expect(m, 'ไม่เจอตัวแปร --logo-lg-height').not.toBeNull()
+    expect(Number(m![1]), 'ต่ำกว่า 28px แล้วคำว่า "Deep" จะเล็กจนหัวหน้าทักอีก').toBeGreaterThanOrEqual(28)
+  })
 })
