@@ -107,11 +107,14 @@ export async function POST(request: NextRequest) {
 
   // ── feed: คอมเมนต์/โพสต์บนหน้าเพจ (user สั่ง 2026-08-03 "อยากรับ facebook comment") ──
   //
-  // ชั่วคราว — ยังไม่มีโมเดลเก็บคอมเมนต์ (รอ PRD/BRD ตาม Hard Rule 11) ระยะนี้แค่ log
-  // โครง payload จริงไว้ออกแบบต่อ แล้วค่อยถอด log ออกเมื่อมีที่เก็บจริง
+  // 🛑 เคยมี `console.log('[fb-feed]', …)` ตรงนี้สมัยที่ยังไม่มีโมเดลเก็บคอมเมนต์ — คอมเมนต์เดิม
+  // เขียนเงื่อนไขปลดระวางไว้เองว่า "ถอด log ออกเมื่อมีที่เก็บจริง" ซึ่งครบเงื่อนไขตั้งแต่ feature
+  // 00029 ขึ้น prod (2026-08-03) แต่ไม่มีใครกลับมาถอด มันจึงยิงต่อมาอีก 17 วัน **นอก** `if (item ===
+  // 'comment')` = ทุก feed change รวมรีแอ็กชัน และพา `fromName` (ชื่อจริงลูกค้า) กับเนื้อคอมเมนต์
+  // 80 ตัวอักษรแรกเข้า log ทั้งที่คำถามที่มันมีไว้ตอบถูกตอบไปนานแล้ว (user เจอเองจาก log 2026-08-20)
   //
-  // ตัดข้อความเหลือ 80 ตัวอักษรก่อน log: เนื้อคอมเมนต์เป็นข้อมูลของลูกค้า ไม่ควรไหลเข้า log
-  // เต็ม ๆ — เท่านี้พอตอบคำถามที่ต้องรู้ (ภาษาไทยมาครบไหม, Meta ให้ชื่อคนคอมเมนต์หรือเปล่า)
+  // บทเรียน: log ที่ประกาศเงื่อนไขปลดระวางไว้ในคอมเมนต์ ไม่มีอะไรมาบังคับให้ถอดตอนถึงเงื่อนไข
+  // ของที่ต้องหายเองต้องผูกกับด่าน ไม่ใช่กับความตั้งใจของคนที่จะกลับมาอ่านคอมเมนต์นั้นอีกครั้ง
   for (const { pageId, change } of extractFeedChanges(parsed.output)) {
     const val = change.value ?? {}
     // เก็บคอมเมนต์ลงฐานจริง (feature 00029) — ไม่ throw: webhook ต้องตอบ 200 เสมอ
@@ -123,23 +126,6 @@ export async function POST(request: NextRequest) {
       // มีคอมเมนต์ที่เพิ่งบันทึกจริง (ไม่ใช่ null จาก verb=remove/ไม่พบเพจ/error) — คิวไว้ตอบอัตโนมัติ
       if (savedId) pendingCommentIds.push(savedId)
     }
-    console.log(
-      '[fb-feed]',
-      JSON.stringify({
-        pageId,
-        item: val.item,
-        verb: val.verb,
-        commentId: val.comment_id,
-        postId: val.post_id,
-        parentId: val.parent_id,
-        fromId: val.from?.id,
-        fromName: val.from?.name,
-        hasPhoto: !!val.photo,
-        hasVideo: !!val.video,
-        msgLen: val.message?.length ?? 0,
-        msgHead: val.message?.slice(0, 80),
-      }),
-    )
   }
 
   for (const { pageId, event, rawEvent, standby } of extractMessagingEventsWithRaw(parsed.output, rawJson)) {
@@ -157,17 +143,19 @@ export async function POST(request: NextRequest) {
        * mid ซ้ำไม่พัง: ChatMessage.externalMessageId เป็น @unique อยู่แล้ว event เดียวกันที่มา
        * ทั้ง standby และ messaging (เช่นตอนสิทธิ์ถูกส่งกลับมาหาเรา) จะไม่เกิดแถวซ้ำ
        */
-      if (standby) {
-        console.log(
-          '[fb-standby]',
-          JSON.stringify({
-            provider,
-            pageId,
-            kind: event.message ? 'message' : event.reaction ? 'reaction' : event.read ? 'read' : 'other',
-            isEcho: event.message?.is_echo ?? false,
-          }),
-        )
-      }
+      /**
+       * 🛑 เคยมี `console.log('[fb-standby]', …)` ตรงนี้ ถอดออก 2026-08-20 — มันไม่ได้เปลี่ยน
+       * เส้นทางประมวลผลเลย (log แล้วโค้ดไหลต่อ) และ **ตอบคำถามที่มันถูกสร้างมาเพื่อถามไม่ได้**:
+       * ฟิลด์ `kind` คำนวณแค่ message/reaction/read ⇒ `delivery` · `message_edit` · `postback`
+       * ตกเป็น `"other"` หมด (ครึ่งหนึ่งของบรรทัดที่ user ส่งมาเป็น `"other"` ซึ่งไม่บอกอะไรเลย)
+       *
+       * และ standby ไม่ใช่กรณีพิเศษอีกแล้ว — เพจที่ Meta AI ถือห้องอยู่จะส่ง **ทุก event** มาทางนี้
+       * ⇒ log นี้ยิงเกือบทุกใบของ webhook ที่ยุ่งที่สุดในระบบ
+       *
+       * ของที่ต้องรู้จริงยังมีที่อยู่ถาวรกว่า: ธง `viaStandby` บน `ChatMessage` (SSOT ของ "AI ถือห้อง
+       * อยู่ไหม") และตาราง `ChatHandoverEvent` — ทั้งคู่ query ย้อนหลังได้ ต่างจาก runtime log ของ
+       * Vercel plan นี้ที่ query ย้อนหลังไม่ได้เลย
+       */
       if (event.read) {
         // read receipt (message_reads) — ลูกค้าอ่านข้อความของเพจ (feature 00018)
         await ingestReadEvent({
