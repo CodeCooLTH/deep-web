@@ -40,8 +40,8 @@ export type CommentRowAnchor =
   | { kind: 'row'; row: HTMLElement }
 
 /** ขนาดโดยประมาณของเมนู (min-w-44 = 176px + กันชนขอบจอ) — ใช้ clamp ตำแหน่งไม่ให้ล้นจอ */
-const MENU_WIDTH = 200
-const MENU_HEIGHT = 64
+const MENU_WIDTH = 272 // w-64 (256px) + กันชนขอบจอ
+const MENU_HEIGHT = 260 // ไทล์ 60px + caption + แถว FB + padding
 /** กันชนขอบจอ (ตัวเดียวกับ EDGE ของ ChatContextMenu.tsx) */
 const EDGE = 8
 
@@ -59,11 +59,39 @@ type Props = {
    * ความเงียบไม่อธิบายตัวเอง — เมนูที่บอกว่า "ทำไมทำไม่ได้" ดีกว่าไม่มีเมนู
    */
   unavailableReason?: string | null
+  /**
+   * ── ไทล์ที่สอง: ทักแชท ─────────────────────────────────────────────────
+   * user 2026-08-20: "panel ด้านล่าง ผมว่า action ก็น้อยเกินด้วยนะ" + critique P1 ชี้ว่างบ
+   * affordance ทั้งหมดของแถวถูกใช้กับ action ที่แปลว่า "ไม่ต้องทำอะไร" ขณะที่งานจริง
+   * (ตอบ/ทักแชท) ต้องเปิดเธรดเสมอ — "ทักแชท" คือตัวที่ขาดแล้วเจ็บที่สุด
+   */
+  privateReply: {
+    state: 'SENT' | 'SENDING' | 'EXPIRED' | 'AVAILABLE'
+    /** ห้องแชทที่เกิดจากการทักครั้งก่อน — null = ทักแล้วแต่สร้างห้องไม่สำเร็จ (เคสจริงที่มีอยู่) */
+    conversationId: string | null
+    /** ข้อความบนไทล์ตอนสถานะ SENT ที่ไม่มีห้องแชท เช่น "ทักแล้ว · 14:32" */
+    sentLabel: string
+    /** เหตุผลตอนกดไม่ได้ (หมดเวลา) — null = ไม่ต้องขึ้น caption */
+    unavailableReason: string | null
+    onStart: () => void
+    onOpenChat: () => void
+  }
+  /** ลิงก์ไปคอมเมนต์ใบนี้บน Facebook — null = โพสต์ไม่มี permalink (ไม่ render แถวนี้เลย) */
+  facebookUrl: string | null
   onToggle: () => void
   onClose: () => void
 }
 
-export default function CommentRowMenu({ anchor, resolved, busy, unavailableReason, onToggle, onClose }: Props) {
+export default function CommentRowMenu({
+  anchor,
+  resolved,
+  busy,
+  unavailableReason,
+  privateReply,
+  facebookUrl,
+  onToggle,
+  onClose,
+}: Props) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
 
@@ -105,9 +133,9 @@ export default function CommentRowMenu({ anchor, resolved, busy, unavailableReas
     }
   }, [onClose, pointMode])
 
-  const label = unavailableReason ?? (resolved ? t.comments.unmarkDone : t.comments.markDone)
-  const icon = resolved ? 'arrow-back-up' : 'circle-check'
-  const disabled = busy || Boolean(unavailableReason)
+  const markLabel = resolved ? t.comments.unmarkDone : t.comments.markDoneTile
+  const markIcon = resolved ? 'arrow-back-up' : 'circle-check'
+  const markDisabled = busy || Boolean(unavailableReason)
   function handleToggle() {
     if (unavailableReason) return
     onToggle()
@@ -115,29 +143,102 @@ export default function CommentRowMenu({ anchor, resolved, busy, unavailableReas
   }
 
   /**
-   * โหมดกดค้าง (มือถือ) — ยกโครง "โหมดเพ่ง" มาจากรายการแชทผ่าน RowFocusSheet
-   *
-   * 🛑 **ไม่ยก tile-grid 4 ช่องของ ChatContextMenu มาด้วย** ทั้งที่นั่นคือหน้าตาที่ user ชี้ว่า
-   * "เหมือน chat lists" — เพราะเมนูนี้มีรายการเดียว ยกมาทั้งดุ้นจะเหลือช่องว่างเปล่า 3 ช่อง
-   * สิ่งที่ user หมายถึงคือ *ท่าและความรู้สึก* (เบลอ/ยกแถว/แผ่นจากขอบล่าง) ไม่ใช่จำนวนช่อง
-   * เป้ากด `min-h-14` (56px) ไม่ใช่ `.dropdown-item` (~36px) — แผ่นระดับนี้ต้องแตะด้วยนิ้วโป้งได้
+   * ไทล์ที่สอง — สถานะเดียวกับปุ่ม "ทักแชท" ในเธรด แต่ตัดสินจากข้อมูลที่แถวมีอยู่แล้ว
+   * ผู้ขายจึงทักได้จากรายการโดยไม่ต้องเปิดโพสต์เข้าไปก่อน (critique 2026-08-20 คำถามข้อ 3)
    */
+  const pr = privateReply
+  const prSpec =
+    pr.state === 'SENT' && pr.conversationId
+      ? { icon: 'message-2', label: t.comments.openChat, disabled: false, run: pr.onOpenChat }
+      : pr.state === 'SENT'
+        ? // ทักไปแล้วแต่สร้างห้องแชทไม่สำเร็จ — เคสจริงที่มีอยู่ในระบบ ไม่ใช่ไทล์ว่าง
+          { icon: 'circle-check', label: pr.sentLabel, disabled: true, run: () => {} }
+        : pr.state === 'SENDING'
+          ? { icon: 'loader-2', label: t.comments.sending, disabled: true, run: () => {} }
+          : pr.state === 'EXPIRED'
+            ? { icon: 'clock-x', label: t.comments.windowExpired, disabled: true, run: () => {} }
+            : { icon: 'message-reply', label: t.comments.privateReply, disabled: false, run: pr.onStart }
+
+  /**
+   * เนื้อในชุดเดียวใช้ทั้ง 2 โหมด (กดค้างมือถือ / คลิกขวาเดสก์ท็อป) — ท่าเดียวกับ ChatContextMenu
+   * ลดพื้นที่ที่ตรรกะจะ drift กันระหว่างสองแพลตฟอร์ม
+   *
+   * 🛑 ไทล์ 2 คอลัมน์ ไม่ใช่ 4 แบบแผ่นของแชท — คำไทยที่นี่ยาวกว่า ("เลิกทำเครื่องหมาย")
+   * ยัด 4 ช่องแล้วตัดคำเละ (craft-floor: รันคำจริงทุก breakpoint แล้วแก้สิ่งที่ล้น ไม่ใช่ยึด
+   * จำนวนคอลัมน์ตายตัว)
+   *
+   * 🛑 เหตุผลตอนกดไม่ได้เป็น **caption ที่มองเห็นตลอด** ไม่ใช่ `title`/tooltip — มือถือไม่มี hover
+   * ทางเดียวที่ "ความเงียบไม่อธิบายตัวเอง" เป็นจริงบนทัชสกรีนคือข้อความที่เห็นอยู่
+   */
+  const tileCls =
+    'flex min-h-15 flex-col items-center justify-center gap-1.5 rounded-lg px-1 text-xs font-medium disabled:opacity-50'
+  const body = (
+    <>
+      <div role="menu" className="grid grid-cols-2 gap-2 px-4 pt-1">
+        <button
+          type="button"
+          role="menuitem"
+          disabled={markDisabled}
+          aria-disabled={markDisabled}
+          onClick={handleToggle}
+          className={`${tileCls} ${
+            resolved ? 'bg-primary/15 text-primary-ink' : 'bg-default-100 text-default-800 hover:bg-default-200'
+          }`}
+        >
+          <Icon icon={markIcon} className="size-5 shrink-0" />
+          {markLabel}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          disabled={prSpec.disabled}
+          aria-disabled={prSpec.disabled}
+          onClick={() => {
+            if (prSpec.disabled) return
+            prSpec.run()
+            onClose()
+          }}
+          className={`${tileCls} bg-default-100 text-default-800 hover:bg-default-200`}
+        >
+          <Icon
+            icon={prSpec.icon}
+            className={`size-5 shrink-0 ${pr.state === 'SENDING' ? 'animate-spin' : ''}`}
+          />
+          {prSpec.label}
+        </button>
+      </div>
+
+      {(unavailableReason || pr.unavailableReason) && (
+        <div className="bg-warning/15 text-warning-ink text-2xs mx-4 mt-2 rounded-md px-2.5 py-1.5">
+          {unavailableReason ?? pr.unavailableReason}
+        </div>
+      )}
+
+      {facebookUrl && (
+        <>
+          <hr className="border-default-300 mx-4 mt-2 mb-1 border-t" />
+          <a
+            href={facebookUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            role="menuitem"
+            onClick={onClose}
+            className="text-default-800 hover:bg-default-100 flex min-h-12 items-center gap-3 px-4 text-sm"
+          >
+            <Icon icon="external-link" className="size-4 shrink-0" />
+            {t.comments.openPostOnFacebook}
+          </a>
+        </>
+      )}
+    </>
+  )
+
+  // โหมดกดค้าง (มือถือ) — ยกโครง "โหมดเพ่ง" มาจากรายการแชทผ่าน RowFocusSheet
+  // grip กลับมาแล้วเพราะแผ่นมีมากกว่า 1 action ต้องมี affordance บอกว่ามาจากขอบล่าง
   if (anchor.kind === 'row') {
     return (
-      <RowFocusSheet row={anchor.row} onClose={onClose} ariaLabel={t.comments.commentMenuAria} grip={false}>
-        <div role="menu" className="px-2 pb-1">
-          <button
-            type="button"
-            role="menuitem"
-            disabled={disabled}
-            aria-disabled={disabled}
-            onClick={handleToggle}
-            className="text-default-800 flex min-h-14 w-full items-center gap-3 rounded-lg px-3 text-start text-sm disabled:opacity-50"
-          >
-            <Icon icon={icon} className="size-5 shrink-0" />
-            {label}
-          </button>
-        </div>
+      <RowFocusSheet row={anchor.row} onClose={onClose} ariaLabel={t.comments.commentMenuAria}>
+        <div className="pb-1">{body}</div>
       </RowFocusSheet>
     )
   }
@@ -148,19 +249,9 @@ export default function CommentRowMenu({ anchor, resolved, busy, unavailableReas
       role="menu"
       aria-label={t.comments.commentMenuAria}
       style={{ top, left }}
-      className="border-default-300 bg-card fixed z-50 min-w-44 overflow-hidden rounded-lg border py-1 shadow-lg"
+      className="border-default-300 bg-card fixed z-50 w-64 overflow-hidden rounded-lg border py-2 shadow-lg"
     >
-      <button
-        type="button"
-        role="menuitem"
-        disabled={disabled}
-        aria-disabled={disabled}
-        onClick={handleToggle}
-        className="dropdown-item text-sm disabled:opacity-50"
-      >
-        <Icon icon={icon} className="size-4" />
-        {label}
-      </button>
+      {body}
     </div>,
     document.body,
   )

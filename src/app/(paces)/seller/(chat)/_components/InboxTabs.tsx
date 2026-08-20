@@ -177,7 +177,8 @@ export default function InboxTabs({
               // text-2xs) — user สั่ง 2026-08-04 ว่าของเดิมใหญ่ไป; ตัวเลขบนแท็บกับในแถวเป็นของ
               // ตระกูลเดียวกัน ขนาดต่างกันทำให้ตัวบนแท็บดูสำคัญกว่าที่ควรจะเป็น
               <span
-                className="bg-danger flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-2xs font-semibold text-white"
+                // ขาวบน `--color-danger` (#f7577e) = 3.17:1 ตก AA สำหรับ 11px (critique 2026-08-20 P1-B)
+                className="bg-danger/15 text-danger-ink flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-2xs font-semibold"
                 aria-label={badgeLabel}
               >
                 {count > 99 ? '99+' : count}

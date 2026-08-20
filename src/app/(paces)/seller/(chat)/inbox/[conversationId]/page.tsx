@@ -58,6 +58,7 @@ import { BOOKING_ORDER_TYPE } from '@/services/booking.service'
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from '@/lib/lodging'
 import { maskPhone } from '@/lib/phone-mask'
 import { findConversationShopForUser } from '@/services/chat.service'
+import { commentPermalink } from '@/lib/facebook-post'
 import { resolvePostThumbnail } from '@/services/page-comment.service'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import ChatShopAutoSwitch from './components/ChatShopAutoSwitch'
@@ -396,13 +397,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         // สำเนาที่เราเก็บเองชนะ URL ของ Meta เสมอ — SSOT ตัวเดียวกับที่รายการคอมเมนต์ใช้
         postThumbnailUrl: resolvePostThumbnail(commentOriginLog.comment.post),
         postMediaType: commentOriginLog.comment.post.mediaType,
-        url: (() => {
-          const permalink = commentOriginLog.comment.post?.permalink
-          if (!permalink) return null
-          const id = commentOriginLog.comment.externalCommentId.split('_').pop()
-          if (!id) return permalink
-          return `${permalink}${permalink.includes('?') ? '&' : '?'}comment_id=${id}`
-        })(),
+        // สูตรอยู่ที่ `@/lib/facebook-post` ที่เดียว (แผ่นกดค้างของแถวคอมเมนต์ใช้ตัวเดียวกัน)
+        url: commentPermalink(commentOriginLog.comment.post?.permalink, commentOriginLog.comment.externalCommentId),
       }
     : null
   // เช็ค "ไม่ใช่ ACTIVE" ไม่ใช่เช็คแค่ TOKEN_INVALID — ครอบ DISCONNECTED (ร้านถอดเพจเอง) ด้วย

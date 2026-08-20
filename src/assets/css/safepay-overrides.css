@@ -333,6 +333,20 @@ html[data-sidenav-size="condensed"] .shop-package-card .shop-package-card-text {
     -webkit-user-select: none;
     user-select: none;
   }
+
+  /* แถวในกล่องแชทความคิดเห็น (user สั่ง 2026-08-20: "long press เหมือน chat lists")
+     — บั๊กเดิมซ้ำรอบที่สาม (user เจอเองพร้อมภาพ: แผงของเราขึ้นมาแล้ว แต่มีแถบ
+     "Copy | Look Up | Translate" ของ iOS ลอยทับอยู่กลางจอ)
+
+     🛑 กติกาที่ต้องจำ: **ทุกครั้งที่เอา useLongPress ไปใช้กับพื้นผิวใหม่ ต้องเติม selector ที่นี่
+     ด้วยเสมอ** — hook จัดการเฉพาะฝั่ง JS ส่วน UI เลือกข้อความ/callout ของ iOS ปิดได้ทาง CSS
+     ทางเดียว ไม่มี tsc/build/เทสตัวไหนเห็นการขาดหายนี้เลย เห็นได้บนเครื่องจริงอย่างเดียว
+     (พลาดมาแล้ว 3 ครั้ง: บับเบิลข้อความ 2026-08-03 · แถวรายการแชท 2026-08-06 · แถวคอมเมนต์ 08-20) */
+  [data-comment-id] {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
 
 /* กดค้างบนรูป/สติกเกอร์ในแชทต้องเป็นของเรา ไม่ใช่ของ iOS (user report ผ่านลูกค้า 2026-08-04:

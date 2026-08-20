@@ -37,6 +37,9 @@ import { useLongPress } from '@/hooks/useLongPress'
 import SwipeableRow from '../components/SwipeableRow'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { commentDoneMark } from '@/lib/comment-done-mark'
+import { commentPermalink } from '@/lib/facebook-post'
+import { countUnansweredInThread, isCommentHandled } from '@/lib/comment-handled'
+import { isReplyTargetVisible, resolveComposerSlot } from '@/lib/comment-composer-slot'
 import { compactCount } from '@/lib/format-compact-number'
 import { subscribeShopComments } from '@/lib/comment-realtime'
 import { uploadToStorage } from '@/lib/upload-client'
@@ -269,7 +272,14 @@ function commentTimeLabel(input: string | null): string {
  */
 type PrivateReplyState = 'SENT' | 'SENDING' | 'EXPIRED' | 'AVAILABLE'
 
-function resolvePrivateReplyState(c: CommentItem, sendingId: string | null, t: Dictionary): PrivateReplyState {
+/**
+ * รับ **รูปร่างขั้นต่ำ** ไม่ใช่ `CommentItem` เต็มใบ — แถวในรายการซ้าย (`CommentListItem`) ต้อง
+ * ตัดสินสถานะเดียวกันได้โดยไม่ต้องเปิดเธรดก่อน (แผ่นกดค้างเรียกใช้ตั้งแต่ 2026-08-20)
+ * ฟิลด์ที่ใช้จริงมีแค่ 4 ตัว และมีครบทั้งสองชนิดอยู่แล้ว — cast ไม่ใช่ทางออก (cast คือสิ่งที่ปิดตา)
+ */
+type PrivateReplyStateInput = Pick<CommentItem, 'id' | 'createdTime' | 'privateReplySentAt' | 'resolvedReason'>
+
+function resolvePrivateReplyState(c: PrivateReplyStateInput, sendingId: string | null, t: Dictionary): PrivateReplyState {
   if (c.privateReplySentAt) return 'SENT'
   // ส่วนขยาย 2026-08-19 — Facebook ยืนยันแล้วว่าเพจทัก private reply คอมเมนต์นี้ไปจากที่อื่น
   // (#10900) สิทธิ์ทัก 1 ครั้งของคอมเมนต์นี้ถูกใช้ไปแล้วจริง กดกี่ครั้งก็ได้ผลเดิมเสมอ — ต้องกดไม่ได้
@@ -433,7 +443,14 @@ export default function CommentsClient({
   // สถานะปุ่ม SENDING ผ่าน resolvePrivateReplyState() เดียวกันทั้งไฟล์
   const [sendingPrivateReplyId, setSendingPrivateReplyId] = useState<string | null>(null)
   // feature 00038 Task 8 (rework) — คอมเมนต์ที่กำลังกรอกข้อความ "ทักแชท" อยู่ (null = โมดัลปิด)
-  const [privateReplyComment, setPrivateReplyComment] = useState<CommentItem | null>(null)
+  /**
+   * โมดัลใช้จริงแค่ `id` + `fromName` (ตรวจจาก PrivateReplyModal props แล้ว) — เก็บเป็นรูปร่าง
+   * ขั้นต่ำเพื่อให้ **แถวในรายการซ้าย** เปิดโมดัลได้โดยไม่ต้องเปิดเธรดก่อน (แผ่นกดค้าง 2026-08-20)
+   */
+  const [privateReplyComment, setPrivateReplyComment] = useState<Pick<
+    CommentItem,
+    'id' | 'fromName'
+  > | null>(null)
   /**
    * ส่วนขยาย 2026-08-19 — commentId ที่มีคำขอ resolve/unresolve ค้างอยู่ (กันดับเบิลคลิก)
    *
@@ -985,10 +1002,9 @@ export default function CommentsClient({
          * "จัดการแล้ว" — เกณฑ์ของ **คิวยังไม่ตอบ** ต้องตรงกับ `deriveCommentState()` ฝั่ง server
          * คือมีคำตอบสาธารณะใต้มัน **หรือ** ทักแชทส่วนตัวสำเร็จแล้ว (user report 2026-08-09)
          */
-        const isHandled = (x: CommentItem) =>
-          x.isFromPage ||
-          !!x.privateReplySentAt ||
-          list.some((r) => r.isFromPage && r.parentExternalId === x.externalCommentId)
+        // 🛑 เกณฑ์อยู่ที่ `@/lib/comment-handled` ที่เดียว — เดิมเขียนมือไว้ตรงนี้ แล้วไม่มีใครกลับมา
+        // เติม `resolvedAt` ตอน mark-done ขึ้น 2026-08-19 ⇒ ชิป "ยังไม่ตอบ N" ในเธรดค้างตลอดกาล
+        const isHandled = (x: CommentItem) => isCommentHandled(x, list)
         /**
          * 🛑 คนละตัวกับ isHandled และห้ามยุบรวมกัน — ตัวนี้คือ "มีคำตอบให้คนอื่นเห็นบนโพสต์แล้ว"
          * ใช้กับป้ายเขียว "ตอบแล้ว" ใต้บับเบิลเท่านั้น
@@ -1014,6 +1030,14 @@ export default function CommentsClient({
     () => (unansweredOnly ? tree.filter((t) => !t.answered) : tree),
     [tree, unansweredOnly],
   )
+
+  /**
+   * ช่องพิมพ์ต้องมีที่ยืน **เสมอ** — ดูเหตุผลยาวที่ `@/lib/comment-composer-slot`
+   * (เดิมแถบล่างเช็ค `!replyTo` ส่วน inline เช็คว่าเป้าหมายอยู่ใน visibleTree ⇒ มีช่องว่างที่
+   * ไม่มีช่องพิมพ์เลยทั้งจอ และปุ่มยกเลิกก็อยู่ในของที่หายไปแล้ว)
+   */
+  const replyTargetVisible = isReplyTargetVisible(replyTo?.id ?? null, visibleTree)
+  const composerSlot = resolveComposerSlot(replyTo?.id ?? null, replyTargetVisible)
 
   async function pickFile(file: File | null) {
     if (!file) return
@@ -1096,7 +1120,11 @@ export default function CommentsClient({
     /** ส่วนขยาย 2026-08-19 — Graph ตอบ #10900 ระบบตั้ง resolved อัตโนมัติแล้วที่ฝั่ง server (FR-CR-16) */
     | { kind: 'already-replied-externally'; conversationId: string | null }
 
-  async function sendPrivateReply(comment: CommentItem, message: string): Promise<SendPrivateReplyResult> {
+  // ใช้จริงแค่ `comment.id` — รับรูปร่างขั้นต่ำเพื่อให้แถวในรายการเรียกได้เหมือนกัน
+  async function sendPrivateReply(
+    comment: Pick<CommentItem, 'id'>,
+    message: string,
+  ): Promise<SendPrivateReplyResult> {
     setSendingPrivateReplyId(comment.id)
     try {
       const res = await fetch(`/api/chat/comments/${comment.id}/private-reply`, {
@@ -1160,7 +1188,7 @@ export default function CommentsClient({
   }
 
   /** feature 00038 Task 8 (rework) — เปิดโมดัลฟอร์ม "ทักแชท" (PrivateReplyModal.tsx) */
-  function openPrivateReplyModal(comment: CommentItem) {
+  function openPrivateReplyModal(comment: Pick<CommentItem, 'id' | 'fromName'>) {
     setPrivateReplyComment(comment)
   }
 
@@ -1283,15 +1311,9 @@ export default function CommentsClient({
    * "ยังไม่ตอบ" ของโพสต์ที่เปิดอยู่ — นับจากเธรดที่โหลดมาแล้ว (มีคอมเมนต์ครบทั้งโพสต์)
    * ไม่นับจาก `comments` เพราะนั่นคือรายการที่ถูกกรอง/แบ่งหน้าแล้ว จะได้เลขต่ำกว่าจริงเสมอ
    */
-  const selectedUnanswered = thread
-    ? thread.comments.filter(
-        (c) =>
-          !c.isFromPage &&
-          !c.isDeleted &&
-          !c.privateReplySentAt &&
-          !thread.comments.some((r) => r.parentExternalId === c.externalCommentId && r.isFromPage),
-      ).length
-    : 0
+  // 🛑 ใช้ SSOT ตัวเดียวกับ `isHandled` ในตัวสร้าง tree — เดิมเป็น filter เขียนมือชุดที่สอง
+  // ในไฟล์เดียวกันที่ไม่รู้จัก `resolvedAt` เช่นกัน (critique 2026-08-20 P1-C)
+  const selectedUnanswered = thread ? countUnansweredInThread(thread.comments) : 0
 
   /**
    * ช่องพิมพ์ตัวเดียว เรนเดอร์ได้ 2 ที่ (user สั่ง 2026-08-04 พร้อมภาพ Business Suite)
@@ -1620,7 +1642,7 @@ export default function CommentsClient({
             //
             // 2026-08-19 เพิ่ม "หมดอายุ" เป็นตัวที่ 3 — ไม่ขัดกับคำสั่งข้างบน เพราะมันตอบคำถาม
             // "เหลืออะไรต้องทำ" เหมือนกัน (คิวที่ตกหล่นจนทักแชทไม่ได้แล้ว) ไม่ใช่ "ใครเป็นคนตอบ"
-            { key: 'UNANSWERED', label: t.comments.unanswered, icon: 'alert-circle', badgeClass: 'bg-danger text-white', count: counts.unanswered, hint: undefined },
+            { key: 'UNANSWERED', label: t.comments.unanswered, icon: 'alert-circle', badgeClass: 'bg-danger/15 text-danger-ink', count: counts.unanswered, hint: undefined },
             /**
              * หมดอายุ (user สั่ง 2026-08-19) = ยังไม่ตอบ **และ** พ้นหน้าต่างทักแชทส่วนตัว 7 วัน
              *
@@ -1634,10 +1656,18 @@ export default function CommentsClient({
              * เลยจุดรีบไปแล้ว ทำได้แค่ตามเก็บ — ให้แดงสองแท็บติดกันคือการตะโกนใส่สิ่งที่
              * ตะโกนไปก็ไม่ได้ช่วยอะไร
              *
-             * 🛑 พื้นอ่อน + `text-warning-ink` ไม่ใช่ `bg-warning text-white` แบบแท็บแดง — วัดแล้ว
-             * ขาวบน `--color-warning` ของสกิน saas (#ff8f1f) ได้ 2.28:1 ตกเกณฑ์ข้อความ 4.5:1
-             * ชัดเจน (สีแดงของ danger เข้มพอจึงรอด แต่ส้มไม่รอด — คัดลอกคลาสข้างบนมาตรง ๆ
-             * ไม่ได้). คู่ `warning/15` + `-ink` วัดไว้แล้วที่ 6.20–6.56:1 (2026-08-09)
+             * 🛑 พื้นอ่อน + `text-warning-ink` ไม่ใช่ `bg-warning text-white`
+             * คู่ `warning/15` + `-ink` วัดไว้แล้วที่ 6.20–6.56:1 (2026-08-09)
+             *
+             * 🛑 **แก้คำอธิบายเดิม 2026-08-20 (critique P1-B) — ของเดิมอ้างตัวเลขผิดทั้งคู่:**
+             *   - อ้าง `--color-warning` ของสกิน **saas** (`#ff8f1f`) แต่โปรเจกต์รัน
+             *     `data-skin="default"` (`(paces)/layout.tsx`) ซึ่งคือ `#f9bf59` — **อ่อนกว่า**
+             *     ⇒ ขาวบนพื้นนั้นได้ **1.66:1** ไม่ใช่ 2.28:1
+             *   - อ้างว่า "สีแดงของ danger เข้มพอจึงรอด" — **ไม่รอด**: ขาวบน `#f7577e` = **3.17:1**
+             *     ตก AA 4.5:1 เช่นกัน (คำนวณใหม่ 2026-08-20) แท็บ "ยังไม่ตอบ"/ชิปในเธรด/badge
+             *     ของ InboxTabs จึงถูกเปลี่ยนเป็น `/15` + `-ink` ตามกันทั้งชุดแล้ว
+             * คำเตือนที่อ้างตัวเลขผิดอันตรายกว่าไม่มีคำเตือน เพราะคนถัดไปจะเชื่อมันแล้วคัดลอก
+             * `bg-danger text-white` ไปใช้ต่อโดยคิดว่าตรวจมาแล้ว
              */
             { key: 'EXPIRED', label: t.comments.expired, icon: 'clock-x', badgeClass: 'bg-warning/15 text-warning-ink', count: counts.expired, hint: t.comments.expiredHint },
           ] as const).map((t, idx, arr) => {
@@ -1718,7 +1748,9 @@ export default function CommentsClient({
               aria-label={fmt(t.comments.resolveAllExpiredAria, {
                 count: counts.expired.toLocaleString('th-TH'),
               })}
-              className="btn btn-sm bg-warning/15 text-warning-ink hover:bg-warning inline-flex items-center gap-1.5 hover:text-white disabled:opacity-50"
+              // 🛑 hover เข้มขึ้นในเฉดเดิม ไม่สลับเป็นขาวบนพื้นทึบ — ขาวบน `--color-warning` (#f9bf59)
+              // ได้ 1.66:1 ซึ่งเป็นสิ่งที่คอมเมนต์ของ badge แท็บ "หมดอายุ" ห่างไป 80 บรรทัดสั่งห้ามไว้เอง
+              className="btn btn-sm bg-warning/15 text-warning-ink hover:bg-warning/30 inline-flex items-center gap-1.5 disabled:opacity-50"
             >
               <Icon
                 icon={listBusy.busy ? 'loader-2' : 'checks'}
@@ -2034,8 +2066,12 @@ export default function CommentsClient({
                           type="button"
                           onClick={() => void handleResolveToggle(c.id, resolved)}
                           disabled={busyResolving}
-                          className={`text-2xs flex flex-1 flex-col items-center justify-center gap-0.5 text-white disabled:opacity-50 ${
-                            resolved ? 'bg-default-500' : 'bg-success'
+                          className={`text-2xs flex flex-1 flex-col items-center justify-center gap-0.5 disabled:opacity-50 ${
+                            // ขาวบน `--color-success` (#02bc9c) = 2.42:1 — ใช้พื้นจางกับหมึกเข้มแทน
+                            // (ไอคอน+ข้อความอยู่บนพื้นเดียวกัน จึงต้องอ่านออกทั้งคู่)
+                            resolved
+                              ? 'bg-default-200 text-default-800'
+                              : 'bg-success/25 text-success-ink'
                           }`}
                         >
                           <Icon icon={resolved ? 'arrow-back-up' : 'circle-check'} width={18} height={18} />
@@ -2429,7 +2465,12 @@ export default function CommentsClient({
                       onClick={() => setUnansweredOnly(!unansweredOnly)}
                       aria-pressed={unansweredOnly}
                       className={`badge text-2xs inline-flex min-h-9 items-center gap-1 px-3 ${
-                        unansweredOnly ? 'bg-danger text-white' : 'bg-danger/15 text-danger-ink'
+                        // 🛑 ตอน active ใช้ **ขอบ+หมึกเข้ม** ไม่ใช่พื้นทึบ+ขาว — ขาวบน
+                        // `--color-danger` (#f7577e) ได้ 3.17:1 ตก AA 4.5:1 สำหรับตัวอักษร 11px
+                        // (critique 2026-08-20 P1-B) ปรับได้แค่ความเข้ม ห้ามสลับเฉด
+                        unansweredOnly
+                          ? 'bg-danger/25 text-danger-ink ring-danger/40 ring-1'
+                          : 'bg-danger/15 text-danger-ink'
                       }`}
                     >
                       <Icon icon="alert-circle" width={12} height={12} />
@@ -2473,7 +2514,8 @@ export default function CommentsClient({
                     {/* ช่องพิมพ์แทรกใต้คอมเมนต์ที่กำลังตอบ (user สั่ง 2026-08-04 พร้อมภาพ Business
                         Suite: `Reply as <เพจ>` จ่อรออยู่ใต้คอมเมนต์เลย) — ms-10 ให้ตรงคอลัมน์
                         เดียวกับตัวบับเบิล ไม่ใช่ชิดขอบซ้ายจนดูเป็นของโพสต์ทั้งอัน */}
-                    {replyTo &&
+                    {composerSlot === 'inline' &&
+                      replyTo &&
                       (replyTo.id === comment.id || replies.some((r) => r.id === replyTo.id)) && (
                         <div className="ms-10 mt-2">{renderComposer(true)}</div>
                       )}
@@ -2487,7 +2529,7 @@ export default function CommentsClient({
                 โผล่เฉพาะตอน "ยังไม่ได้เลือกจะตอบใคร" — พอเลือกแล้ว ช่องพิมพ์ย้ายไปแทรกใต้คอมเมนต์
                 นั้นแทน (ดู renderComposer) ไม่ให้มีช่องพิมพ์ 2 ช่องบนจอเดียวกันซึ่งอ่านไม่ออกว่า
                 พิมพ์ช่องไหนแล้วไปโผล่ที่ไหน */}
-            {!replyTo && (
+            {composerSlot === 'bottom' && (
             <div className="border-default-200 border-t">
               {renderComposer(false)}
             </div>
@@ -2531,6 +2573,22 @@ export default function CommentsClient({
               resolved={resolved}
               busy={resolvingIds.has(row.id)}
               unavailableReason={row.answeredForReal ? t.comments.markDoneUnavailable : null}
+              privateReply={{
+                // ตัดสินจากข้อมูลที่แถวมีอยู่แล้ว ไม่ต้องเปิดเธรดก่อน — ฟังก์ชันเดียวกับที่ปุ่มในเธรดใช้
+                state: resolvePrivateReplyState(row, sendingPrivateReplyId, t),
+                conversationId: row.privateReplyConversationId,
+                sentLabel: fmt(t.comments.privateReplySent, {
+                  time: row.privateReplySentAt ? formatTimeHM(row.privateReplySentAt) : '',
+                }),
+                unavailableReason: privateReplyWindow(row.createdTime, t).expired
+                  ? t.comments.windowExpiredTitle
+                  : null,
+                onStart: () => openPrivateReplyModal({ id: row.id, fromName: row.fromName }),
+                onOpenChat: () => {
+                  if (row.privateReplyConversationId) router.push(`/inbox/${row.privateReplyConversationId}`)
+                },
+              }}
+              facebookUrl={commentPermalink(row.post.permalink, row.externalCommentId)}
               onToggle={() => {
                 void handleResolveToggle(row.id, resolved)
                 setCommentCtxMenu(null)
