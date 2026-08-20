@@ -177,8 +177,23 @@ export default function InboxTabs({
               // text-2xs) — user สั่ง 2026-08-04 ว่าของเดิมใหญ่ไป; ตัวเลขบนแท็บกับในแถวเป็นของ
               // ตระกูลเดียวกัน ขนาดต่างกันทำให้ตัวบนแท็บดูสำคัญกว่าที่ควรจะเป็น
               <span
-                // ขาวบน `--color-danger` (#f7577e) = 3.17:1 ตก AA สำหรับ 11px (critique 2026-08-20 P1-B)
-                className="bg-danger/15 text-danger-ink flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-2xs font-semibold"
+                /**
+                 * 🛑 **แดงทึบ ตัวหนังสือขาว — ต้องเหมือน badge ยังไม่อ่านในแถวรายการแชทเป๊ะ ๆ**
+                 * (`InboxList.tsx` — `bg-danger … text-white` ขนาด h-4.5/min-w-4.5/text-2xs
+                 * ชุดเดียวกันทุกตัว) ทั้งสองที่คือ "จำนวนงานค้างที่รอคุณอยู่" ตัวเดียวกัน แค่คนละ
+                 * ระดับของลำดับชั้น — คนละสีเมื่อไหร่ ผู้ขายอ่านว่าเป็นคนละเรื่อง
+                 *
+                 * เคยถูกเปลี่ยนเป็น `bg-danger/15 text-danger-ink` เมื่อ 2026-08-20 เช้า
+                 * (critique P1-B) เพราะขาวบน `--color-danger` (#f7577e) วัดได้ **3.17:1** ตก AA
+                 * — แต่เปลี่ยนที่นี่ที่เดียวโดยไม่แตะ badge ในแถว ⇒ จอเดียวมีเลขนับสองสี
+                 * user เห็นบน prod แล้วทักทันทีวันเดียวกัน ("เราไปเปลี่ยนสี ตรง unread ไม่เท่ากันอ่ะ")
+                 * และเขาถูก: ความไม่ตรงกันของสองตัวนี้เสียหายกว่าคอนทราสต์ที่ตก
+                 *
+                 * หนี้ที่ยังเปิดอยู่: 3.17:1 ยังตก AA **ทั้งสองที่** ทางแก้ที่ถูกคือ *ทำให้แดง
+                 * เข้มขึ้นโดยคงเฉด* (docs/conventions/contrast-fix-keeps-hue.md) แล้วใช้ทั้งคู่
+                 * พร้อมกัน — ไม่ใช่เปลี่ยนตัวใดตัวหนึ่งเป็นพื้นจางอีก
+                 */
+                className="bg-danger flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-2xs font-semibold text-white"
                 aria-label={badgeLabel}
               >
                 {count > 99 ? '99+' : count}
