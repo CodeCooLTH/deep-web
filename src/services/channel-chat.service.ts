@@ -26,7 +26,7 @@ import { LINE_PREVIEW_MAX_SIZE } from '@/lib/chat-attachment'
 // (TOKEN_INVALID/CONTACT_BLOCKED/QUOTA_EXCEEDED/LINE_UNAVAILABLE) — ดู classifyLineOutboundError
 import { LineApiError } from '@/lib/line/client'
 import { decryptToken } from '@/lib/token-crypto'
-import { saveFile, getFileUrl, getFile, getFileMeta } from '@/lib/storage'
+import { getFileUrl, getFile, getFileMeta } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
 // feature 00051 (S-3): choke point จริงของ dedup — saveMirroredBuffer กลายเป็น thin wrapper
 // เรียกตัวนี้แทน (SRS TFR-CMD-01, SDS TD-07) ห้ามเขียน hash/lookup/register logic ซ้ำที่นี่
@@ -2973,17 +2973,31 @@ function lineErrorToRaw(e: unknown): unknown {
  *
  * ผลพลอยได้: ตัวย่อรูปคืน JPEG ≤1MB/1024px อยู่แล้ว ซึ่งตรงกับที่เอกสาร LINE แนะนำสำหรับ Flex พอดี
  */
-export async function resolveMetaCardImageUrl(fileId: string): Promise<string | null> {
+export async function resolveMetaCardImageUrl(fileId: string, opts: { shopId: string }): Promise<string | null> {
   // 1.91:1 พื้นขาว — Messenger ครอปรูปที่ไม่ใช่อัตราส่วนนี้ (เอกสาร Meta) รูปสินค้าจัตุรัสจะโดนตัด
   // หัวท้ายทิ้งเกือบครึ่ง จึงประกอบให้เองแทนการปล่อยให้ Meta ตัด (ดู lib/meta/card-image.ts)
+  //
+  // feature 00051 (S-4, TFR-CMD-09): sourceKey-first — การ์ดสินค้าใบเดิมถูกส่งซ้ำหลายพันครั้ง
+  // (ลูกค้าคนละคนได้การ์ดจาก Product เดียวกัน) เดิมเขียนไฟล์ transcode ใหม่ทุกครั้ง ตอนนี้ cache
+  // ผ่าน sourceKey = `derived:metacard:${fileId}` ก่อนเสมอ ข้าม getFile+transcode ทั้งหมดถ้า hit
+  // 🛑 ห้ามอ่าน fileId จาก closure/ตัวแปรที่ cache ไว้ข้ามการเรียก — ต้องเป็นค่าที่ caller อ่านสด
+  // จาก DB ทุกครั้ง (นี่คือสิ่งที่ทำให้ปลอดภัยจาก stale-pointer ตอน backfill เปลี่ยน survivor — ดู
+  // SRS TFR-CMD-09 "ประเด็นวิกฤต": repoint แล้ว sourceKey คำนวณใหม่เป็นคีย์คนละอัน = cache miss
+  // ไม่ใช่ stale hit)
+  const sourceKey = `derived:metacard:${fileId}`
+  const cached = await findMediaAssetBySourceKey(opts.shopId, sourceKey).catch(() => null) // best-effort
+  if (cached) return await getFileUrl(cached.fileId, { signed: true, expiresIn: 3600 })
+
   try {
     const original = await getFile(fileId)
     if (!original) return null
     const jpeg = await buildMetaCardJpeg(original.buffer, META_CARD_MAX_BYTES)
     if (!jpeg) return null
-    const cardFileId = await saveFile(
-      new File([new Uint8Array(jpeg)], 'meta-card.jpg', { type: 'image/jpeg' }),
-    )
+    const cardFileId = await writeDedupedFile(jpeg, 'image/jpeg', {
+      shopId: opts.shopId,
+      filenamePrefix: 'meta-card',
+      sourceKey,
+    })
     return await getFileUrl(cardFileId, { signed: true, expiresIn: 3600 })
   } catch (err) {
     console.warn('[meta-card] เตรียมรูปสินค้าไม่สำเร็จ ส่งการ์ดแบบไม่มีรูป', {
@@ -2993,15 +3007,24 @@ export async function resolveMetaCardImageUrl(fileId: string): Promise<string | 
   }
 }
 
-export async function resolveLineFlexImageUrl(fileId: string): Promise<string | null> {
+export async function resolveLineFlexImageUrl(fileId: string, opts: { shopId: string }): Promise<string | null> {
+  // feature 00051 (S-4, TFR-CMD-09): sourceKey-first เหมือน resolveMetaCardImageUrl ด้านบน แต่คน
+  // ละ namespace (`derived:lineflex:`) เพราะ Flex ประกอบรูปคนละ crop/encode กับการ์ด Meta —
+  // output เป็นคนละไบต์จาก input เดียวกัน ใช้ sourceKey ร่วมกันไม่ได้
+  const sourceKey = `derived:lineflex:${fileId}`
+  const cached = await findMediaAssetBySourceKey(opts.shopId, sourceKey).catch(() => null) // best-effort
+  if (cached) return await getFileUrl(cached.fileId, { signed: true, expiresIn: 3600 })
+
   try {
     const original = await getFile(fileId)
     if (!original) return null
     const jpeg = await buildLinePreviewJpeg(original.buffer, LINE_PREVIEW_MAX_SIZE)
     if (!jpeg) return null
-    const previewFileId = await saveFile(
-      new File([new Uint8Array(jpeg)], 'line-flex.jpg', { type: 'image/jpeg' }),
-    )
+    const previewFileId = await writeDedupedFile(jpeg, 'image/jpeg', {
+      shopId: opts.shopId,
+      filenamePrefix: 'line-flex',
+      sourceKey,
+    })
     return await getFileUrl(previewFileId, { signed: true, expiresIn: 3600 })
   } catch (err) {
     // ไม่ log fileId/ชื่อไฟล์ (RC-8) — รูปหายไม่ใช่เหตุให้การ์ดส่งไม่ออก
@@ -3016,14 +3039,24 @@ async function resolveLinePreviewUrl(
   fileId: string,
   kind: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE',
   fullUrl: string,
+  opts: { shopId: string },
 ): Promise<string | undefined> {
   if (kind !== 'IMAGE') return undefined
 
   try {
     // ทางลัดที่คุ้มที่สุด: รูปที่เล็กกว่าเพดาน preview อยู่แล้วไม่ต้องย่อเลย — ใช้ไฟล์เต็มเป็น
     // preview ได้ตรง ๆ (HEAD ครั้งเดียว ไม่ต้องดาวน์โหลดเนื้อไฟล์ ไม่ต้อง encode ไม่เขียน bucket)
+    // ทางลัดนี้ไม่เขียนไฟล์ใหม่เลย — ไม่มีอะไรให้ cache ผ่าน sourceKey ในสาขานี้
     const meta = await getFileMeta(fileId)
     if (meta && meta.size <= LINE_PREVIEW_MAX_SIZE) return fullUrl
+
+    // feature 00051 (S-4, TFR-CMD-09): sourceKey-first เหมือน 2 ฟังก์ชันข้างบน — namespace
+    // `derived:linepreview:` แยกจาก `derived:lineflex:` เพราะคนละ maxBytes/caller แม้ทั้งคู่เรียก
+    // buildLinePreviewJpeg เหมือนกัน (byte จริงอาจตรงกันพอดี — ถ้าตรงกัน layer 1 hash จับได้เองอยู่
+    // ดี ไม่เสีย storage ซ้ำแม้ sourceKey จะคนละคีย์)
+    const sourceKey = `derived:linepreview:${fileId}`
+    const cached = await findMediaAssetBySourceKey(opts.shopId, sourceKey).catch(() => null) // best-effort
+    if (cached) return await getFileUrl(cached.fileId, { signed: true, expiresIn: 3600 })
 
     const original = await getFile(fileId)
     if (!original) return undefined
@@ -3031,11 +3064,11 @@ async function resolveLinePreviewUrl(
     const preview = await buildLinePreviewJpeg(original.buffer, LINE_PREVIEW_MAX_SIZE)
     if (!preview) return undefined
 
-    // ชื่อไฟล์ต้องลงท้าย .jpg — storage ตั้ง fileId จากนามสกุลของชื่อที่ส่งเข้าไป และ /api/files
-    // แปลง ext → content-type จากนามสกุลนั้น (ตั้งผิด = LINE ได้ content-type ที่ไม่ใช่รูป)
-    const previewFileId = await saveFile(
-      new File([new Uint8Array(preview)], 'line-preview.jpg', { type: 'image/jpeg' }),
-    )
+    const previewFileId = await writeDedupedFile(preview, 'image/jpeg', {
+      shopId: opts.shopId,
+      filenamePrefix: 'line-preview',
+      sourceKey,
+    })
     return await getFileUrl(previewFileId, { signed: true, expiresIn: 3600 })
   } catch (err) {
     // ไม่ log fileId/ชื่อไฟล์ (RC-8 — ไฟล์ของลูกค้าอาจมี PII)
@@ -3119,7 +3152,9 @@ async function sendOutboundLineMessage(
       // presigned URL อายุ 1 ชม. — LINE ดึงไฟล์ไปโฮสต์เอง (originalContentUrl/previewImageUrl ต้อง
       // เป็น URL สาธารณะที่ LINE เข้าถึงได้ — /api/files ของเรา auth-gated ใช้ไม่ได้ เหมือน Meta)
       const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
-      const previewUrl = await resolveLinePreviewUrl(attachment.fileId, attachment.kind, fileUrl)
+      const previewUrl = await resolveLinePreviewUrl(attachment.fileId, attachment.kind, fileUrl, {
+        shopId: shopChannel.shopId,
+      })
       return [{ kind: 'attachment', attachmentKind: attachment.kind, url: fileUrl, previewUrl }]
     }
     if (params.flex) {
