@@ -2787,6 +2787,23 @@ function CommentBubble({
 }) {
   const t = useT()
   /**
+   * รูปแนบโหลดไม่ขึ้น — ผูกกับ instance ของบับเบิลนี้เท่านั้น (ไม่ต้องเป็น Set เหมือน
+   * `brokenThumbs` ของรูปปกโพสต์ เพราะรูปคอมเมนต์ render ที่เดียว ไม่ถูกอ้างซ้ำหลายจุด)
+   *
+   * 🛑 ต้องรีเซ็ตเมื่อ `c.attachmentUrl` เปลี่ยน — งานเก็บตก `backfillMissingCommentMirrors()`
+   * อาจ mirror สำเร็จภายหลังแล้ว refetch/realtime ส่ง URL ใหม่ที่ใช้ได้เข้ามา ถ้าธงค้างจากรอบก่อน
+   * มันจะบังรูปที่กลับมาใช้ได้แล้วทิ้งไปตลอดกาล (ux ชี้จุดนี้ — เป็นที่เดียวที่ "ต้องทนสองอนาคต"
+   * มีผลกับโค้ดจริง ไม่ใช่แค่กับคำ)
+   */
+  const [attachmentBroken, setAttachmentBroken] = useState(false)
+  const [seenAttachmentUrl, setSeenAttachmentUrl] = useState(c.attachmentUrl)
+  // ปรับ state ระหว่าง render ตามแพตเทิร์นที่ React แนะนำเองสำหรับ "รีเซ็ตเมื่อ prop เปลี่ยน"
+  // (ห้ามใช้ useEffect + setState — eslint ของโปรเจกต์บล็อกไว้ เพราะทำให้ render ซ้อนชั้นโดยเปล่าประโยชน์)
+  if (seenAttachmentUrl !== c.attachmentUrl) {
+    setSeenAttachmentUrl(c.attachmentUrl)
+    setAttachmentBroken(false)
+  }
+  /**
    * โครงตามภาพ Facebook จริงที่ user ส่งมา 2026-08-03 ("ต้องดูรู้เรื่องกว่านี้ ตอนนี้มันดูยาก แยกยาก"):
    *   [รูป]  ┌ ชื่อ (หนา) · ป้ายผู้ดูแลเพจ ┐
    *          │ ข้อความ                    │  ← บับเบิลหุ้มเฉพาะเนื้อหา ไม่ยืดเต็มแถว
@@ -2933,10 +2950,50 @@ function CommentBubble({
                 </a>
               )
             })()}
-          {c.attachmentUrl && !c.isDeleted && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={c.attachmentUrl} alt={fmt(t.comments.attachmentAlt, { name: displayName })} className="mt-2 max-h-40 rounded-lg" />
-          )}
+          {c.attachmentUrl &&
+            !c.isDeleted &&
+            (attachmentBroken ? (
+              /**
+               * รูปโหลดไม่ขึ้น — สลับเป็นการ์ดแทน **ไม่ปล่อยให้เบราว์เซอร์วาดไอคอนรูปแตกดิบ
+               * คู่กับ alt text ภาษาไทย** ซึ่งอ่านเป็น "ระบบพัง" (นั่นคือของเดิมที่ user เจอ)
+               *
+               * ไม่แยกสาเหตุ (URL หมดอายุ / เน็ตสะดุด / storage 404) — ผู้ขายแยกไม่ออกและทำอะไร
+               * เหมือนกันหมด: ไปดูของจริงบน Facebook
+               *
+               * ใช้ `bg-default-100` ไม่ใช่ `bg-danger/15` — นี่ไม่ใช่ error ที่ต้องลงมือแก้
+               * แค่ "ไม่มีรูปให้ดู" สีเตือนสงวนให้สถานะที่ต้องทำอะไรต่อ
+               *
+               * Base: ChatThread.tsx (การ์ดสินค้าที่ไม่มีรูป — bg-default-100 + photo-off)
+               *       + brokenThumbs/markThumbBroken ในไฟล์นี้เอง (แพตเทิร์น onError)
+               */
+              <div className="bg-default-100 mt-2 flex size-40 flex-col items-center justify-center gap-1 rounded-lg px-2 text-center">
+                <Icon icon="photo-off" className="text-default-700 text-xl" aria-hidden="true" />
+                <span className="text-default-800 text-xs">{t.comments.attachmentBroken}</span>
+                {(() => {
+                  const url = commentPermalink(postPermalink, c.externalCommentId)
+                  if (!url) return null
+                  return (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary inline-flex items-center gap-1 text-xs font-medium hover:underline"
+                    >
+                      <Icon icon="external-link" width={12} height={12} className="shrink-0" />
+                      {t.comments.openPostOnFacebook}
+                    </a>
+                  )
+                })()}
+              </div>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={c.attachmentUrl}
+                alt={fmt(t.comments.attachmentAlt, { name: displayName })}
+                onError={() => setAttachmentBroken(true)}
+                className="mt-2 max-h-40 rounded-lg"
+              />
+            ))}
         </div>
 
         {/* เวลา + ปุ่มตอบ อยู่นอกบับเบิล ตัวเล็กสีจาง — จังหวะเดียวกับ Facebook */}

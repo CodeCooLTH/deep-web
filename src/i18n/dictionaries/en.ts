@@ -410,6 +410,7 @@ export const en: Dictionary = {
     commentAttachmentOnly: '[Image]',
     contentUnavailable: 'Content unavailable',
     attachmentAlt: 'Image attached by {name}',
+    attachmentBroken: "This picture isn't showing right now",
     edited: 'Edited',
     answered: 'Answered',
     reply: 'Reply',

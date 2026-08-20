@@ -502,6 +502,7 @@ export const th = {
     commentAttachmentOnly: '[รูปภาพ]',
     contentUnavailable: 'ไม่มีข้อมูลเนื้อหา',
     attachmentAlt: 'รูปแนบจาก {name}',
+    attachmentBroken: 'รูปนี้ยังเปิดไม่ได้',
     edited: 'แก้ไขแล้ว',
     answered: 'ตอบแล้ว',
     reply: 'ตอบ',

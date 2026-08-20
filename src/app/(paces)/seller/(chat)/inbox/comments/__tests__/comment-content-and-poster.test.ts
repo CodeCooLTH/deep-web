@@ -81,3 +81,36 @@ describe('[blocker] B — รูปปกโพสต์ต้องอยู่
     expect(src).toMatch(/bg-default-100 relative block min-h-40 w-full flex-1 overflow-hidden/)
   })
 })
+
+/**
+ * [blocker] C — รูปแนบที่โหลดไม่ขึ้นต้องไม่โผล่เป็นไอคอนรูปแตกดิบ
+ *
+ * user เจอเองบน prod 2026-08-20: บับเบิลคอมเมนต์แสดงไอคอนรูปแตกของเบราว์เซอร์คู่กับ alt text
+ * ภาษาไทย ซึ่งอ่านเป็น "ระบบพัง" — ต้นเหตุคือ `PageComment.attachmentUrl` เก็บ URL ของ fbcdn
+ * ที่หมดอายุ (167 จาก 222 แถวตายไปแล้ว ณ วันที่แก้)
+ *
+ * ฝั่ง backend แก้ด้วยการ mirror เข้าสตอเรจแล้ว แต่ **167 ใบเก่ากู้ไม่ได้** ⇒ ต้องมี placeholder
+ * ไม่งั้นผู้ขายยังเห็นของพังเหมือนเดิม
+ */
+describe('[blocker] C — placeholder ของรูปแนบที่โหลดไม่ขึ้น', () => {
+  const src = stripComments(readFileSync(SOURCE, 'utf8'))
+
+  it('<img> ของรูปแนบต้องมี onError', () => {
+    // ไม่มี onError = เบราว์เซอร์วาดไอคอนรูปแตกเอง แล้วเราไม่มีทางแทรกอะไรได้เลย
+    expect(src, 'ต้องดักความล้มเหลวเองเสมอ ไม่ปล่อยให้เบราว์เซอร์ตัดสินหน้าตา').toMatch(
+      /onError=\{\(\) => setAttachmentBroken\(true\)\}/,
+    )
+  })
+
+  it('ต้องรีเซ็ตธงเมื่อ URL เปลี่ยน — ไม่งั้นบังรูปที่กู้กลับมาได้แล้วตลอดกาล', () => {
+    // งานเก็บตก backfillMissingCommentMirrors() อาจ mirror สำเร็จภายหลังแล้วส่ง URL ใหม่เข้ามา
+    expect(src).toMatch(/seenAttachmentUrl !== c\.attachmentUrl/)
+    expect(src).toMatch(/setAttachmentBroken\(false\)/)
+  })
+
+  it('placeholder ต้องมีทั้งไอคอนและคำ ไม่ใช่ไอคอนเปล่า', () => {
+    // ไอคอนเปล่าอ่านผิดเป็น "ลูกค้าไม่ได้แนบอะไร" ทั้งที่ลูกค้าส่งรูปมาจริง
+    expect(src).toMatch(/icon="photo-off"/)
+    expect(src).toMatch(/t\.comments\.attachmentBroken/)
+  })
+})
