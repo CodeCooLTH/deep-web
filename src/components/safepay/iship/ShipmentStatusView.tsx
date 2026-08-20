@@ -36,6 +36,26 @@ interface TraceEvent {
   occurredAt: string
 }
 
+/**
+ * สถานะที่ endpoint การเดินทางส่งกลับมาพร้อม events — "สดกว่า" prop ที่ถืออยู่เสมอ
+ *
+ * 🛑 เหตุผลที่ต้องมี (bug prod 2026-08-20 — TH068661575518): การโหลดไทม์ไลน์ยิง `get_order`
+ * ที่ฝั่ง server แล้วเขียนสถานะใหม่ลงฐานจริง ๆ แต่ `shipment` ที่ component นี้ถืออยู่คือ
+ * ค่าที่ server render ไว้ตอน "เปิดหน้า" ⇒ จอเดียวกันขึ้นหัวการ์ดว่า "กำลังจัดส่ง" คู่กับ
+ * รายการเดินทางใต้มันที่เขียนว่า "ส่งคืนสำเร็จ" อยู่ 8 วัน ร้านต้องรีโหลดเองถึงจะตรงกัน
+ */
+interface TraceCarrierState {
+  status: string
+  carrierStatus: string | null
+  carrierStatusText: string | null
+  carrierStatusAt: string | null
+}
+
+interface TracesResponse {
+  events: TraceEvent[]
+  carrier: TraceCarrierState
+}
+
 interface Props {
   shipment: ShipmentViewJson
   /**
@@ -121,6 +141,14 @@ export default function ShipmentStatusView({
   const ishipUrl = useIShipUrl()
   const [busy, setBusy] = useState(false)
   const [traces, setTraces] = useState<TraceEvent[] | null>(null)
+  /**
+   * สถานะที่ endpoint การเดินทางส่งกลับมา — ชนะ prop เสมอเมื่อมีค่า (มันคือค่าที่อ่านจากฐาน
+   * *หลัง* รอบ sync ของคำขอนี้ ส่วน prop คือภาพนิ่งตอนเปิดหน้า)
+   *
+   * แทนที่ทั้งก้อน ไม่ใช่ผสมทีละช่อง — `carrierStatus`/`carrierStatusText`/`carrierStatusAt`
+   * ต้องมาจากการอ่านครั้งเดียวกันเสมอ ไม่งั้นจะได้ป้าย "ส่งคืนสำเร็จ" คู่กับเวลาของสถานะก่อนหน้า
+   */
+  const [liveCarrier, setLiveCarrier] = useState<TraceCarrierState | null>(null)
   const [loadingTraces, setLoadingTraces] = useState(false)
   /**
    * เดิมการเดินทางทั้งก้อนถูกพับไว้หลังปุ่ม "ดูรายละเอียดการเดินทาง" — user report 2026-08-07
@@ -149,7 +177,9 @@ export default function ShipmentStatusView({
     }
   }, [menuOpen])
 
-  const progress = describeProgress(shipment.status, shipment.carrierStatus)
+  /** ความจริงล่าสุดของ "พัสดุใบนี้อยู่สถานะไหน" — ทุกจุดในไฟล์นี้ต้องอ่านจากตัวนี้ */
+  const carrier: TraceCarrierState = liveCarrier ?? shipment
+  const progress = describeProgress(carrier.status, carrier.carrierStatus)
 
   async function handleRetry() {
     if (busy) return
@@ -164,6 +194,9 @@ export default function ShipmentStatusView({
         return
       }
       const body = (await res.json()) as ShipmentViewJson
+      // ทิ้งค่าที่ค้างจากใบเดิม — `onRetried` ส่งแถวใหม่เข้ามาทาง prop แล้ว ถ้าไม่ล้าง
+      // ตัวนี้จะไปทับสถานะของใบใหม่ด้วยสถานะของใบที่เพิ่งล้มเหลว
+      setLiveCarrier(null)
       if (body.status === 'CREATED') pacesToast.success('สร้างพัสดุสำเร็จ')
       else pacesToast.error(body.lastErrorMessage ?? 'ยังสร้างพัสดุไม่สำเร็จ')
       onRetried(body)
@@ -264,7 +297,9 @@ export default function ShipmentStatusView({
           if (!opts?.silent) pacesToast.error(await readError(res))
           return
         }
-        setTraces((await res.json()) as TraceEvent[])
+        const data = (await res.json()) as TracesResponse
+        setTraces(data.events)
+        setLiveCarrier(data.carrier)
       } catch {
         if (!opts?.silent) pacesToast.error('โหลดการเดินทางของพัสดุไม่สำเร็จ')
       } finally {
@@ -279,6 +314,12 @@ export default function ShipmentStatusView({
     if (!shipment.trackingNo) return
     void loadTraces({ silent: true })
   }, [shipment.trackingNo, loadTraces])
+
+  // สลับไปดูพัสดุคนละใบในคอมโพเนนต์ตัวเดิม = ค่าที่ค้างอยู่เป็นของใบก่อนหน้า ต้องล้างทันที
+  // (ล้างที่นี่ ไม่ใช่ตอนโหลดเสร็จ — ระหว่างรอคำตอบต้องแสดง prop ของใบใหม่ ไม่ใช่ของใบเก่า)
+  useEffect(() => {
+    setLiveCarrier(null)
+  }, [shipment.id])
 
   const logo = courierLogoUrl(shipment.courierCode, shipment.courierName)
   const courierLabel = shipment.courierName ?? shipment.courierCode ?? 'ขนส่ง'
@@ -495,10 +536,10 @@ export default function ShipmentStatusView({
   }
 
   // สถานะจากขนส่งสำคัญกว่าสถานะฝั่งเรา — ถ้ายังไม่มีค่อยใช้ของเรา (เพิ่งสร้าง ขนส่งยังไม่อัปเดต)
-  const badge = shipment.carrierStatus
-    ? describeCarrierStatus(shipment.carrierStatus)
-    : describeShipmentStatus(shipment.status)
-  const badgeText = shipment.carrierStatusText ?? badge.text
+  const badge = carrier.carrierStatus
+    ? describeCarrierStatus(carrier.carrierStatus)
+    : describeShipmentStatus(carrier.status)
+  const badgeText = carrier.carrierStatusText ?? badge.text
 
   /**
    * ใหม่ → เก่า ก่อนสไลซ์เสมอ — API คืนมาเก่าสุดก่อน (ดู @/lib/iship/traces) ถ้าสไลซ์จากอาเรย์ดิบ
@@ -592,8 +633,8 @@ export default function ShipmentStatusView({
             </p>
             <p className="text-default-700 mb-0 mt-1.5 text-xs">
               {courierLabel}
-              {shipment.carrierStatusAt
-                ? ` · อัปเดต ${formatRelativeDayTime(new Date(shipment.carrierStatusAt))}`
+              {carrier.carrierStatusAt
+                ? ` · อัปเดต ${formatRelativeDayTime(new Date(carrier.carrierStatusAt))}`
                 : ''}
             </p>
           </div>
@@ -872,8 +913,8 @@ export default function ShipmentStatusView({
                 สำคัญเวลาค่าส่งไม่ตรงที่คิด หรือขนส่งชั่งแล้วได้ไม่เท่าที่แจ้ง */}
             <StatRow label="ขนส่ง" value={courierLabel} />
             <StatRow label="สร้างเมื่อ" value={formatDateTime(new Date(shipment.createdAt))} />
-            {shipment.carrierStatusAt && (
-              <StatRow label="อัปเดตล่าสุด" value={formatDateTime(new Date(shipment.carrierStatusAt))} />
+            {carrier.carrierStatusAt && (
+              <StatRow label="อัปเดตล่าสุด" value={formatDateTime(new Date(carrier.carrierStatusAt))} />
             )}
             {shipment.weight != null && <StatRow label="น้ำหนักที่แจ้ง" value={`${shipment.weight} กก.`} />}
             {shipment.width != null && shipment.length != null && shipment.height != null && (

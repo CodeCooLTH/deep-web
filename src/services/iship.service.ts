@@ -26,6 +26,7 @@ import {
   parseCarrierTimestamp,
   readCodSettlement,
   readCarrierCharges,
+  readCarrierChargesFromGetOrder,
 } from "@/lib/iship/status";
 import {
   diffReceiverAddress,
@@ -37,6 +38,7 @@ import {
 } from "@/lib/iship/unlinked";
 
 export type { ParcelPreview, UnlinkedParcelView };
+import { pickStaleParcelsForLookup } from "@/lib/iship/stale-lookup";
 import { checkEligibility as evaluateEligibility } from "@/lib/iship/eligibility";
 import { assembleCompareResult, type CompareResult } from "@/lib/iship/compare";
 import {
@@ -1369,14 +1371,62 @@ export async function advanceOrderOnCarrierMove(
   return r.count > 0;
 }
 
-export async function getTraces(shopId: string, shipmentId: string) {
+/**
+ * สถานะปัจจุบันของพัสดุ ณ วินาทีที่ตอบกลับ — คืนคู่กับไทม์ไลน์ **เสมอ**
+ *
+ * 🛑 ทำไมต้องคืนมาด้วย (user เจอบน prod 2026-08-20 — TH068661575518):
+ * `getTraces()` ยิง `get_order` แล้ว *เขียนสถานะใหม่ลงฐานจริง* แต่ endpoint คืนแค่ events
+ * หัวการ์ด/แถบ 4 ขั้นบนหน้าจออ่านจาก prop ที่ server render ไว้ตอนเปิดหน้า ⇒ ฐานถูกแล้ว
+ * แต่จอยังบอกร้านว่า "กำลังจัดส่ง" ต่อไปจนกว่าจะรีโหลด และรายการเดินทางที่อยู่ใต้มัน
+ * (ซึ่งขึ้นว่า "ส่งคืนสำเร็จ" แล้ว) กลายเป็นหลักฐานที่ค้านหัวการ์ดของตัวเองในจอเดียวกัน
+ *
+ * อ่านกลับจากฐานหลังเขียน ไม่ใช่ประกอบจาก payload ที่เพิ่งได้: `get_order` ล้มเหลวได้
+ * (โค้ดข้างล่างกลืน error ไว้โดยเจตนา) กรณีนั้นค่าที่ถูกต้องคือค่าที่เก็บไว้ ไม่ใช่ค่าว่าง
+ */
+export interface TraceCarrierState {
+  /** OrderShipment.status ของเรา (CREATED/CANCELLED/FAILED) — ไม่ใช่สถานะขนส่ง */
+  status: string;
+  carrierStatus: string | null;
+  carrierStatusText: string | null;
+  carrierStatusAt: Date | null;
+}
+
+const CARRIER_STATE_SELECT = {
+  status: true,
+  carrierStatus: true,
+  carrierStatusText: true,
+  carrierStatusAt: true,
+} as const;
+
+function carrierStateOf(row: TraceCarrierState): TraceCarrierState {
+  return {
+    status: row.status,
+    carrierStatus: row.carrierStatus,
+    carrierStatusText: row.carrierStatusText,
+    carrierStatusAt: row.carrierStatusAt,
+  };
+}
+
+type ShipmentEventRow = Awaited<
+  ReturnType<typeof prisma.shipmentEvent.findMany>
+>[number];
+
+export interface TraceResult {
+  events: ShipmentEventRow[];
+  carrier: TraceCarrierState;
+}
+
+export async function getTraces(
+  shopId: string,
+  shipmentId: string,
+): Promise<TraceResult> {
   const { token } = await loadAccount(shopId);
   const row = await prisma.orderShipment.findFirst({
     where: { id: shipmentId, shopId },
-    select: { id: true, trackingNo: true, orderId: true },
+    select: { id: true, trackingNo: true, orderId: true, ...CARRIER_STATE_SELECT },
   });
   if (!row) throw new IShipServiceError("NOT_FOUND", "ไม่พบพัสดุนี้");
-  if (!row.trackingNo) return [];
+  if (!row.trackingNo) return { events: [], carrier: carrierStateOf(row) };
 
   /**
    * ดึงไม่ได้ = ยังอ่านของเก่าที่เก็บไว้ได้ — ไม่ใช่พังทั้งหน้า
@@ -1398,7 +1448,9 @@ export async function getTraces(shopId: string, shipmentId: string) {
         where: { shipmentId: row.id },
         orderBy: { occurredAt: "asc" },
       });
-      if (stored.length > 0) return stored;
+      // ดึงไม่ได้ = ไม่มีอะไรใหม่ให้บอก ⇒ คืนสถานะที่เก็บไว้ตามเดิม (ห้ามคืนค่าว่าง —
+      // หน้าจอจะใช้มันไปทับค่าที่ถูกอยู่แล้ว)
+      if (stored.length > 0) return { events: stored, carrier: carrierStateOf(row) };
     }
     throw err;
   }
@@ -1471,10 +1523,19 @@ export async function getTraces(shopId: string, shipmentId: string) {
     // ห้ามถอยไปใช้สถานะจาก trace แทน — นั่นคือต้นเหตุของบั๊กที่บล็อกข้างบนอธิบายไว้
   }
 
-  return prisma.shipmentEvent.findMany({
-    where: { shipmentId: row.id },
-    orderBy: { occurredAt: "asc" },
-  });
+  // อ่านสถานะกลับจากฐาน **หลัง** บล็อกข้างบนเสมอ — นี่คือค่าที่หน้าจอจะเอาไปแทนที่ของเดิม
+  const [events, fresh] = await Promise.all([
+    prisma.shipmentEvent.findMany({
+      where: { shipmentId: row.id },
+      orderBy: { occurredAt: "asc" },
+    }),
+    prisma.orderShipment.findUnique({
+      where: { id: row.id },
+      select: CARRIER_STATE_SELECT,
+    }),
+  ]);
+
+  return { events, carrier: carrierStateOf(fresh ?? row) };
 }
 
 // ─── เรียกรถเข้ารับ ─────────────────────────────────────────────────────────
@@ -1730,7 +1791,10 @@ function isoDate(d: Date): string {
  */
 async function settleCodIfPaid(
   shipment: { id: string; orderId: string; codSettledAt: Date | null },
-  row: iship.IShipOrderRow,
+  // รูปโครงสร้างขั้นต่ำ ไม่ใช่ `IShipOrderRow` — payload ของ `get_order` มีสามช่องนี้ครบ
+  // เหมือนกัน (ยืนยันกับพัสดุจริง 2026-08-06) การผูกกับชนิดของ query_orders จะบังคับให้
+  // ทางเข้าที่สองต้อง cast ซึ่งคือสิ่งที่ปิดตาไม่ให้เห็นว่าสองฝั่งอ่านช่องเดียวกันจริงไหม
+  row: Parameters<typeof readCodSettlement>[0],
 ): Promise<boolean> {
   if (shipment.codSettledAt) return false; // เคยประมวลผลไปแล้ว
 
@@ -1770,10 +1834,14 @@ async function captureCarrierCharges(
     actualWeight: Prisma.Decimal | null;
     codFee: Prisma.Decimal | null;
   },
-  row: iship.IShipOrderRow,
+  /**
+   * ค่าที่ "อ่านมาแล้ว" ไม่ใช่ row ดิบ — 🛑 เพราะตัวอ่านของสอง endpoint ไม่ใช่ตัวเดียวกัน
+   * (`query_orders` ใช้ `actual_weight` ส่วน `get_order` ใช้ `weight` เป็นน้ำหนักชั่งจริง
+   * และไม่มี `actual_weight` เลย — ดู readCarrierChargesFromGetOrder) การรับ row ดิบแล้ว
+   * เลือกตัวอ่านเองข้างในแปลว่าฟังก์ชันนี้ต้องเดาว่าใครเรียกมัน ซึ่งเดาผิดแล้วเงียบ
+   */
+  next: ReturnType<typeof readCarrierCharges>,
 ): Promise<boolean> {
-  const next = readCarrierCharges(row);
-
   const differs = (incoming: number | null, current: Prisma.Decimal | null): boolean =>
     incoming !== null && (current === null || Number(current) !== incoming);
 
@@ -1789,6 +1857,45 @@ async function captureCarrierCharges(
   if (Object.keys(data).length === 0) return false;
 
   await prisma.orderShipment.update({ where: { id: shipment.id }, data });
+  return true;
+}
+
+/** ช่องใน payload ดิบที่อาจมาเป็นสตริงหรือตัวเลข — ที่เหลือถือว่าไม่มีค่า */
+function scalarOrNull(v: unknown): string | number | null {
+  return typeof v === "string" || typeof v === "number" ? v : null;
+}
+
+/**
+ * applyCarrierStatus — จุดเขียน "สถานะขนส่งเปลี่ยน" จุดเดียวของรอบ sync
+ *
+ * มีทางเข้า 2 ทางที่ต้องเขียนเหมือนกันเป๊ะ: คำตอบยกชุดจาก `query_orders` และคำตอบรายใบ
+ * จาก `get_order` (ใบที่หลุดหน้าต่างวันที่) — แยกเขียนสองที่เมื่อไร กฎ `cancelled` →
+ * `status: "CANCELLED"` หรือการเรียก `advanceOrderOnCarrierMove` จะหลุดไปข้างเดียวเงียบ ๆ
+ *
+ * คืน true เมื่อเขียนจริง (ค่าเดิม/ค่าที่แปลไม่ออก = ไม่นับว่าเปลี่ยน)
+ */
+async function applyCarrierStatus(
+  s: { id: string; orderId: string; carrierStatus: string | null },
+  code: string | null,
+  changedAt: Date,
+): Promise<boolean> {
+  if (!code || code === s.carrierStatus) return false;
+
+  await prisma.orderShipment.update({
+    where: { id: s.id },
+    data: {
+      carrierStatus: code,
+      carrierStatusText: describeCarrierStatus(code).text,
+      // ใช้เวลาที่ iShip บอกว่าสถานะเปลี่ยน ไม่ใช่เวลาที่เราดึงมา — ไม่งั้นทุกใบจะมีเวลา
+      // เท่ากันหมดตามรอบ sync แล้วเรียงลำดับเหตุการณ์ไม่ได้
+      carrierStatusAt: changedAt,
+      // พัสดุถูกยกเลิกที่ฝั่ง iShip (ร้านไปกดที่หลังบ้านเขาเอง หรือขนส่งยกเลิกให้) —
+      // แถวของเราต้องตามความจริง ไม่ใช่ค้างเป็น CREATED แล้วโชว์ป้าย "สร้างพัสดุแล้ว"
+      // ให้ร้านเข้าใจผิดว่าของยังเดินอยู่ (เจอกับพัสดุจริง 1 ใบตอนทดสอบ 2026-07-31)
+      ...(code === "cancelled" ? { status: "CANCELLED", cancelledAt: changedAt } : {}),
+    },
+  });
+  await advanceOrderOnCarrierMove(s.orderId, code);
   return true;
 }
 
@@ -1843,6 +1950,9 @@ export async function syncShipmentStatuses(
       carrierPrice: true,
       actualWeight: true,
       codFee: true,
+      // สองตัวนี้ใช้เรียงคิว "ใบที่หลุดหน้าต่าง query_orders" เท่านั้น (ดู pickStaleParcelsForLookup)
+      carrierStatusAt: true,
+      createdAt: true,
     },
   });
   if (tracking.length === 0) {
@@ -1872,29 +1982,14 @@ export async function syncShipmentStatuses(
 
   for (const s of tracking) {
     const row = byTrack.get(s.trackingNo!);
-    if (!row) continue; // พัสดุที่เก่ากว่าช่วงที่ขอ — ปล่อยไว้ ไม่เดาสถานะแทนขนส่ง
+    // ไม่อยู่ในคำตอบยกชุด = หลุดหน้าต่างวันที่ → ไปเข้าคิวถามรายใบด้านล่าง
+    // (ห้ามเดาสถานะแทนขนส่ง และห้ามปล่อยผ่านเฉย ๆ แบบเดิม — ดู stale-lookup.ts)
+    if (!row) continue;
     const code = carrierStatusCodeFromId(row.status);
 
-    if (code && code !== s.carrierStatus) {
-      const changedAt = row.updated_at ? new Date(row.updated_at) : new Date();
-
-      await prisma.orderShipment.update({
-        where: { id: s.id },
-        data: {
-          carrierStatus: code,
-          carrierStatusText: describeCarrierStatus(code).text,
-          // ใช้เวลาที่ iShip บอกว่าสถานะเปลี่ยน ไม่ใช่เวลาที่เราดึงมา — ไม่งั้นทุกใบจะมีเวลา
-          // เท่ากันหมดตามรอบ sync แล้วเรียงลำดับเหตุการณ์ไม่ได้
-          carrierStatusAt: changedAt,
-          // พัสดุถูกยกเลิกที่ฝั่ง iShip (ร้านไปกดที่หลังบ้านเขาเอง หรือขนส่งยกเลิกให้) —
-          // แถวของเราต้องตามความจริง ไม่ใช่ค้างเป็น CREATED แล้วโชว์ป้าย "สร้างพัสดุแล้ว"
-          // ให้ร้านเข้าใจผิดว่าของยังเดินอยู่ (เจอกับพัสดุจริง 1 ใบตอนทดสอบ 2026-07-31)
-          ...(code === "cancelled"
-            ? { status: "CANCELLED", cancelledAt: changedAt }
-            : {}),
-        },
-      });
-      await advanceOrderOnCarrierMove(s.orderId, code);
+    if (
+      await applyCarrierStatus(s, code, row.updated_at ? new Date(row.updated_at) : new Date())
+    ) {
       changed += 1;
     }
 
@@ -1912,7 +2007,64 @@ export async function syncShipmentStatuses(
     // 🛑 ข้อจำกัดที่ต้องรู้: ชุด `tracking` ข้างบน **ตัดใบที่จบแล้วออก** (delivered/return_success/
     // is_expired/close ที่เคลียร์เงินแล้ว) ใบที่จบไปก่อนฟีเจอร์นี้ขึ้นจึงไม่มีวันเข้าลูปนี้เลย —
     // ต้องพึ่ง scripts/backfill-shipment-charges.ts ครั้งเดียว ไม่ใช่รอ sync เก็บให้เอง
-    if (await captureCarrierCharges(s, row)) changed += 1;
+    if (await captureCarrierCharges(s, readCarrierCharges(row))) changed += 1;
+  }
+
+  /**
+   * ── ใบที่ `query_orders` ไม่ได้ตอบกลับมา — ถามรายใบด้วย `get_order` ────────────────
+   *
+   * 🛑 เดิมบรรทัด `if (!row) continue` ปล่อยใบพวกนี้ทิ้งไปเฉย ๆ ทุกรอบ = พัสดุที่เดินทาง
+   * นานกว่าหน้าต่าง 6 วัน **ค้างสถานะไว้ตลอดกาล** (user เจอบน prod 2026-08-20:
+   * TH068661575518 ค้างที่ "พัสดุตีกลับ" 8 วัน ทั้งที่ของคืนถึงร้านแล้วตั้งแต่ 12 ส.ค.
+   * — รายการเดินทางในจอเดียวกันขึ้น "ส่งคืนสำเร็จ" อยู่ แต่หัวการ์ดยังบอกว่ากำลังส่ง)
+   *
+   * ทำไมไม่แก้ด้วยการขยายหน้าต่าง/ยิง cron ถี่ขึ้น: iShip จำกัดช่วงค้นหาไว้ 7 วันต่อคำขอ
+   * (code 1009) และความถี่ไม่เกี่ยวกับขอบเขตข้อมูลเลย — ถามทุก 5 นาทีก็ได้ชุดเดิมที่ไม่มี
+   * ใบนี้อยู่ทุกรอบ ส่วน `get_order` ไม่มีเงื่อนไขวันที่
+   *
+   * ต้นทุนถูกคุมด้วยเพดาน + คิวหมุนเวียนใน `pickStaleParcelsForLookup` (≤8 คำขอ/รอบ/ร้าน
+   * และทุกใบได้คิวครบภายใน ceil(n/8) รอบ) — ห้ามถอดเพดานออกแล้ววนทุกใบ นั่นคือสิ่งที่
+   * `query_orders` แบบยกชุดมีไว้เลี่ยงตั้งแต่แรก
+   */
+  const staleParcels = pickStaleParcelsForLookup(tracking, new Set(byTrack.keys()), end);
+  for (const s of staleParcels) {
+    let raw: Record<string, unknown>;
+    try {
+      raw = await withTokenGuard(shopId, () => iship.getOrder(token, s.trackingNo!));
+    } catch {
+      // ใบเดียวล้มต้องไม่ล้มทั้งรอบ — ใบที่เหลือยังต้องได้อัปเดต และรอบหน้าลองใหม่เอง
+      continue;
+    }
+
+    const parcel = parseParcelRow(raw);
+    if (!parcel) continue;
+
+    const code = carrierStatusCodeFromId(parcel.statusId);
+    const changedAt = parcel.updatedAtRaw ? new Date(parcel.updatedAtRaw) : new Date();
+    if (await applyCarrierStatus(s, code, changedAt)) changed += 1;
+
+    // เหตุผลเดียวกับลูปข้างบน: เงิน COD และต้นทุนค่าส่งต้องอ่านทุกรอบที่เห็นแถว ไม่ใช่
+    // เฉพาะตอนสถานะขยับ — และใบที่เดินทางนาน (ตีกลับ/ค้างสถานี) คือใบที่เรื่องเงินยัง
+    // ไม่จบบ่อยที่สุด ถ้าเก็บเฉพาะในลูปยกชุด ใบพวกนี้จะไม่มีวันถูกเก็บเลย
+    // narrow ทีละช่องแทนการ cast ทั้งก้อน — cast คือสิ่งที่ปิดตาไม่ให้เห็นว่า payload
+    // ของอีก endpoint หน้าตาต่างจากที่เราคิด (บทเรียนตำบล/อำเภอสลับ 2026-08-07)
+    if (
+      await settleCodIfPaid(s, {
+        status: typeof raw.status === "number" ? raw.status : null,
+        settlement_at: typeof raw.settlement_at === "string" ? raw.settlement_at : null,
+        cod_amount: scalarOrNull(raw.cod_amount),
+      })
+    ) {
+      changed += 1;
+    }
+    // 🛑 ตัวอ่านคนละตัวกับข้างบนโดยเจตนา — `get_order` ไม่มี `actual_weight` และใช้ `weight`
+    // เป็นน้ำหนักที่ชั่งจริงแทน (ยืนยันกับพัสดุจริง 12 ใบ 2026-08-09)
+    const charges = readCarrierChargesFromGetOrder({
+      discount_price: scalarOrNull(raw.discount_price),
+      weight: scalarOrNull(raw.weight),
+      cod_fee: scalarOrNull(raw.cod_fee),
+    });
+    if (await captureCarrierCharges(s, charges)) changed += 1;
   }
 
   await prisma.shopShippingAccount.update({
