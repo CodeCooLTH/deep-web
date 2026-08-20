@@ -35,6 +35,12 @@ export const en: Dictionary = {
     somethingWentWrong: 'Something went wrong. Please try again.',
   },
 
+  appLoading: {
+    title: 'Opening Deep',
+    subLabel: 'Just a moment while we get things ready',
+    ariaLabel: 'Loading',
+  },
+
   language: {
     buttonLabel: 'Change language',
     // 🛑 ค่านี้เป็นภาษาไทยโดยตั้งใจ ไม่ใช่คำที่ลืมแปล — อยู่ใน THAI_ALLOWED_IN_EN ของเทส
