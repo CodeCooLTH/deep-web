@@ -28,24 +28,6 @@
             "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/test-db-guard.sh\"",
             "timeout": 15,
             "statusMessage": "Test DB Guard: ตรวจคำสั่งลบข้อมูลในไฟล์เทส…"
-          },
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/skills/impeccable/scripts/hook.mjs\"",
-            "timeout": 30,
-            "statusMessage": "Impeccable: ตรวจ design slop…"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/skills/impeccable/scripts/hook.mjs\"",
-            "timeout": 60,
-            "statusMessage": "Impeccable: deep pass ทั้ง session…"
           }
         ]
       }
