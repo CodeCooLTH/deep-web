@@ -25,6 +25,7 @@ import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import ThaiAddressSearch from '@/components/safepay/ThaiAddressSearch'
+import { resolveDisplayedPin } from '@/lib/shop-location-display'
 
 // Leaflet แตะ window ตอน import — ต้อง ssr:false (ท่าเดียวกับ BusinessCreateModal.tsx:42)
 const MapPicker = dynamic(() => import('../../dashboard/components/MapPicker'), { ssr: false })
@@ -56,13 +57,34 @@ export default function ShopLocationField({ shopId, initialAddress, initialLat, 
   const [addressDraft, setAddressDraft] = useState(initialAddress ?? '')
   const [lat, setLat] = useState<number | null>(initialLat)
   const [lng, setLng] = useState<number | null>(initialLng)
+  /** ที่อยู่ที่บันทึกสำเร็จแล้ว — เหตุผลเดียวกับ `pinLat`/`pinLng` ข้างล่าง: props ยังเป็นค่าเก่า
+   *  จนกว่า `router.refresh()` จะกลับมา ถ้าอ่าน `initialAddress` ตรง ๆ สถานะ 2 จะโชว์ที่อยู่เดิม
+   *  (หรือ "ยังไม่ได้กรอกที่อยู่") ทับที่อยู่ที่ผู้ใช้เพิ่งบันทึกไป */
+  const [savedAddress, setSavedAddress] = useState<string | null>(initialAddress)
 
-  const hasPin = initialLat != null && initialLng != null
+  /**
+   * 🛑 ต้องอ่านจาก state ก่อน props เสมอ — ห้ามกลับไปเป็น `initialLat != null` เฉย ๆ
+   *
+   * บั๊กที่ critique จับได้ 2026-08-14: `save()` ทำ `setEditing(false)` แล้ว `router.refresh()`
+   * ซึ่งเป็น round trip ไปหา server ⇒ ในช่วงที่ยังรอ RSC payload ใหม่ `initialLat` ที่มาทาง props
+   * **ยังเป็น null อยู่** การ์ดจึง render สถานะ 1 (กล่องน้ำเงิน "ปักหมุดตำแหน่งร้าน" + ปุ่มเต็มความกว้าง)
+   * พร้อมกับ toast เขียวที่เพิ่งบอกว่าบันทึกสำเร็จ — จอสองอย่างขัดกันในเสี้ยววินาทีเดียว
+   *
+   * เกิดกับ **การปักหมุดครั้งแรกทุกใบ** ซึ่งคือ 100% ของร้านบน prod ตอนที่เขียน (ไม่มีร้านไหน
+   * มีพิกัดเลยสักร้าน) และมันโจมตีตรงจุดที่ product นี้ขายอยู่พอดี — ความเชื่อมั่นว่าระบบเก็บของให้จริง
+   * (คลาสเดียวกับ docs/conventions/component-declared-in-render.md — "แวบ ๆ" ที่ไม่มี gate ไหนจับได้)
+   */
+  const { lat: pinLat, lng: pinLng, hasPin } = resolveDisplayedPin(
+    { lat, lng },
+    { lat: initialLat, lng: initialLng },
+  )
 
   const startEdit = () => {
-    setAddressDraft(initialAddress ?? '')
-    setLat(initialLat)
-    setLng(initialLng)
+    // ยึดค่าที่บันทึกล่าสุด ไม่ใช่ props — คนที่กด "แก้ไขตำแหน่ง" ทันทีหลังบันทึก (ก่อน refresh
+    // กลับมา) ต้องไม่โดนย้อนกลับไปค่าเก่า
+    setAddressDraft(savedAddress ?? '')
+    setLat(pinLat)
+    setLng(pinLng)
     setEditing(true)
   }
 
@@ -82,6 +104,7 @@ export default function ShopLocationField({ shopId, initialAddress, initialLat, 
       })
       if (res.ok) {
         pacesToast.success('บันทึกตำแหน่งร้านแล้ว')
+        if (addressDraft.trim()) setSavedAddress(addressDraft.trim())
         setEditing(false)
         router.refresh()
         return
@@ -110,8 +133,8 @@ export default function ShopLocationField({ shopId, initialAddress, initialLat, 
           <h5 className="text-default-900 mb-0 text-sm font-medium">ปักหมุดตำแหน่งร้าน</h5>
         </div>
 
-        {initialAddress && (
-          <p className="text-default-600 mb-3 break-words text-xs">ที่อยู่เดิม: {initialAddress}</p>
+        {savedAddress && (
+          <p className="text-default-600 mb-3 break-words text-xs">ที่อยู่เดิม: {savedAddress}</p>
         )}
 
         <label className="form-label">ค้นหาที่อยู่ใหม่ (ถ้าต้องการเปลี่ยน)</label>
@@ -177,11 +200,11 @@ export default function ShopLocationField({ shopId, initialAddress, initialLat, 
         {/* break-words ไม่ใช่ break-all — ที่อยู่มีช่องว่างตามธรรมชาติให้ตัดบรรทัดอยู่แล้ว
             (ต่างจาก slug ที่เป็นสตริงยาวไม่มีช่องว่าง) */}
         <p className="text-default-700 mb-3 break-words text-xs">
-          {initialAddress || 'ยังไม่ได้กรอกที่อยู่เป็นตัวหนังสือ'}
+          {savedAddress || 'ยังไม่ได้กรอกที่อยู่เป็นตัวหนังสือ'}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <a
-            href={googleMapsUrl(initialLat as number, initialLng as number)}
+            href={googleMapsUrl(pinLat as number, pinLng as number)}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-sm border-default-300 text-default-700"
