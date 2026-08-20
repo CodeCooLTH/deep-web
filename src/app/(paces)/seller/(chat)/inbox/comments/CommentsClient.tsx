@@ -413,11 +413,33 @@ export default function CommentsClient({
       // 🛑 navigate นอก setState updater — updater ถูกเรียกซ้ำได้ (StrictMode) การยัด side effect
       // ไว้ข้างในแปลว่ายิง router สองครั้งต่อการกดหนึ่งครั้ง
       const url = postId ? `/inbox/comments?post=${encodeURIComponent(postId)}` : '/inbox/comments'
-      if (postId && !selectedId) router.push(url, { scroll: false })
-      else router.replace(url, { scroll: false })
+      /**
+       * 🛑 ใช้ history API ดิบ **ห้ามกลับไปใช้ `router.push`/`router.replace`** (มีเทส [blocker] กันไว้)
+       *
+       * `page.tsx` ของหน้านี้เป็น `dynamic = 'force-dynamic'` และ `CommentsPage()` **ไม่รับ props
+       * ไม่ได้อ่าน `searchParams` เลยสักตัว** ⇒ การเปลี่ยนแค่ `?post=` ผ่าน router บังคับให้ server
+       * เรนเดอร์ทั้งหน้าใหม่ (getServerSession → resolveChatScope → listComments → listChannelsForShops)
+       * เพื่อได้ผลลัพธ์ที่เหมือนเดิมทุกไบต์ = งานที่เสียเปล่า 100% และกินเวลาราว 1 วินาที
+       *
+       * ระหว่างวินาทีนั้น `setSelectedId` ทำให้ **เธรดขึ้นทันที** แต่ `ChatHeader`/`InboxTabs` ซึ่ง
+       * ตัดสินว่าจะซ่อนตัวเองไหมจาก `useSearchParams()` (ดู `chat-chrome.ts`) ยังไม่รู้เรื่อง ⇒ ผู้ใช้
+       * เห็นจอขยายเป็น **2 ขยัก**: เธรดมาก่อน แล้วแถบบน+แถบแท็บค่อยหายตามทีหลัง
+       * (user เจอเองบน prod พร้อมวิดีโอ 2026-08-20: เธรดขึ้นวินาทีที่ 2.33 แถบหายวินาทีที่ 3.33)
+       *
+       * Next แพตช์ `history.pushState`/`replaceState` ไว้ให้แล้วโดยเขียนกำกับในซอร์สเองว่า
+       * *"Ensures usePathname and useSearchParams hold the newly provided url"*
+       * (`node_modules/next/dist/client/components/app-router.js:236`) ⇒ URL กับ state ขยับใน
+       * เฟรมเดียวกัน ไม่มี RSC round-trip และยังสร้าง history entry จริง ปุ่ม back/ปัดกลับของ iOS
+       * จึงยังทำงานผ่าน effect `postParam → selectedId` ข้างล่างเหมือนเดิม
+       *
+       * ไม่ต้องมี `{ scroll: false }` อีกต่อไป — ตัวเลือกนั้นเป็นของ router ส่วน history API
+       * ไม่เลื่อนจออยู่แล้วโดยธรรมชาติ
+       */
+      if (postId && !selectedId) window.history.pushState(null, '', url)
+      else window.history.replaceState(null, '', url)
       setSelectedId(postId)
     },
-    [router, selectedId],
+    [selectedId],
   )
 
   /**
