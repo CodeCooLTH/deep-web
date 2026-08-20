@@ -25,6 +25,7 @@
  * ที่ไม่รู้จัก business logic ของแต่ละ key)
  */
 
+import Icon from '@/components/wrappers/Icon'
 import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
 import { insufficientCreditHtml } from '@/lib/payment-copy'
 import { useState } from 'react'
@@ -35,7 +36,7 @@ import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
 import type { ShopVertical } from '@/lib/lodging'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import type { OrderStatus } from '@/lib/order-display'
-import type { ShippingStageKey } from '@/lib/order-stage'
+import { shouldPromptCloseReturnedOrder, type ShippingStageKey } from '@/lib/order-stage'
 import type { OrderVocab } from '@/lib/seller-menu'
 import type { ShipmentContextJson } from '@/lib/iship/context'
 import OrderActionBar from '@/components/safepay/OrderActionBar'
@@ -110,6 +111,15 @@ export interface OrderDetailClientProps {
   // ── ShipmentEntryModal (T9) ──────────────────────────────────────────────
   ishipContext: ShipmentContextJson | null
   hasIshipShipment: boolean
+  /**
+   * ขนส่งตีกลับของมาที่ร้านแล้ว (`carrierStatus` ของพัสดุที่มีอยู่จริง ∈ return/return_success)
+   *
+   * คำนวณที่ server จาก `isReturnedCarrierStatus` ตัวเดียวกับที่ `isRateExcludedCancellation`
+   * ใช้ตัดสินเรื่องอัตราความสำเร็จ — ห้าม derive จาก `shippingStage` ที่นี่ เพราะ `PROBLEM`
+   * รวม `issue`/`cannot_pickup` (ของยังอยู่กับขนส่ง) ไว้ในกองเดียวกัน ซึ่งเป็นคนละสถานการณ์
+   * กับ "ของกลับมาถึงร้านแล้ว" โดยสิ้นเชิง
+   */
+  parcelReturned?: boolean
   /** เลขพัสดุ/ขนส่งปัจจุบัน (MANUAL) — prefill ตอน mode='edit' + payload ของ copy-tracking */
   trackingNo: string | null
   provider: string | null
@@ -165,6 +175,7 @@ export default function OrderDetailClient({
   shipmentSource,
   ishipContext,
   hasIshipShipment,
+  parcelReturned = false,
   trackingNo,
   provider,
   addressText,
@@ -396,6 +407,44 @@ export default function OrderDetailClient({
           Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-details/page.tsx */}
       <div className="grid grid-cols-1 gap-base lg:grid-cols-4">
         <div className="space-y-base lg:col-span-3">
+          {/* ── ของตีกลับถึงร้านแล้ว: บอกว่าจบงานยังไง ──────────────────────────────
+              วางเหนือการ์ดสรุปเพราะเป็น "สิ่งที่ต้องทำต่อ" ไม่ใช่ข้อมูลประกอบ
+
+              🛑 ปุ่มเป็นปุ่มขอบ ไม่ใช่ปุ่มทึบ — การยกเลิกเป็น action ที่ถอนคืนไม่ได้
+              (docs/conventions/seller-action-placement.md) ตัวเต็มยังอยู่ใน ⋯ ตามเดิม
+              ตรงนี้แค่ทำให้มัน "หาเจอ" ในจังหวะที่ร้านต้องใช้จริง
+
+              ประโยคเรื่องอัตราความสำเร็จไม่ใช่คำปลอบใจ — ยืนยันกับโค้ดแล้วว่าจริง:
+              shop.service.ts:381 หักใบที่ `carrierStatus` เป็นตีกลับออกจากตัวหารเสมอ
+              (BR-OSM-04) ร้านที่กลัวเสีย % แล้วปล่อยใบค้างไว้คือสิ่งที่ประโยคนี้แก้ */}
+          {shouldPromptCloseReturnedOrder({ status, parcelReturned }) && (
+            <div className="bg-warning/15 text-default-800 flex flex-col gap-3 rounded-lg px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2.5">
+                <Icon
+                  icon="tabler:package-off"
+                  className="text-warning-ink mt-0.5 shrink-0 text-lg"
+                  aria-hidden="true"
+                />
+                <div className="min-w-0">
+                  <p className="text-default-900 mb-0.5 text-sm font-semibold">
+                    พัสดุถูกตีกลับมาที่ร้าน
+                  </p>
+                  <p className="mb-0 text-xs">
+                    ลูกค้าไม่ได้รับของ — ปิดงานด้วยการยกเลิก{vocab.noun}นี้ได้เลย
+                    การยกเลิกเพราะของตีกลับ <span className="font-semibold">ไม่ถูกนับ</span>
+                    เป็นความผิดของร้านในอัตราความสำเร็จ
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleCancelOrder()}
+                className="btn border-default-300 text-default-700 shrink-0 justify-center border text-sm font-medium"
+              >
+                ยกเลิก{vocab.noun}
+              </button>
+            </div>
+          )}
           <OrderSummary
             /* ร้านบริการได้ป้ายจากเงินที่รับจริง (จอง/รอชำระ/ชำระเงินแล้ว) —
                `serviceBadge` เป็น null สำหรับ vertical อื่นเสมอ ⇒ ป้ายเดิมไม่ขยับ (AC-SQ-07) */

@@ -5,7 +5,11 @@
 //   2. พัสดุมีปัญหาถูกกลืนเป็น "สร้างพัสดุแล้ว" → ร้านมองไม่เห็นของที่ต้องรีบจัดการ (2026-07-31)
 
 import { describe, expect, it } from "vitest";
-import { deriveOrderStage, deriveShippingStage } from "./order-stage";
+import {
+  deriveOrderStage,
+  deriveShippingStage,
+  shouldPromptCloseReturnedOrder,
+} from "./order-stage";
 
 const NOW = new Date("2026-07-31T12:00:00Z").getTime();
 const base = {
@@ -176,3 +180,27 @@ describe("payment_success = ปลายทาง ไม่ใช่ระหว
     ).toBe("DONE");
   });
 });
+
+/**
+ * [blocker] กล่อง "พัสดุถูกตีกลับมาที่ร้าน — ปิดงานได้เลย" ต้องขึ้นเฉพาะใบที่ยังไม่ปิด
+ *
+ * ที่มา: user report 2026-08-20 (TH068661575518) — ของตีกลับถึงร้านแล้วแต่คำสั่งซื้อค้าง
+ * เป็น "จัดส่งแล้ว" ตลอดไปเพราะไม่มีอะไรบอกร้านว่าปิดงานยังไง
+ */
+describe('shouldPromptCloseReturnedOrder', () => {
+  it('[blocker] ของตีกลับ + ใบยังเดินอยู่ → ชวนปิดงาน', () => {
+    expect(shouldPromptCloseReturnedOrder({ status: 'SHIPPED', parcelReturned: true })).toBe(true)
+    expect(shouldPromptCloseReturnedOrder({ status: 'PENDING', parcelReturned: true })).toBe(true)
+  })
+
+  it('[blocker] ใบที่ปิดไปแล้วห้ามชวน — CONFIRMED มีหลักฐานที่แข็งแรงกว่า, CANCELLED จบแล้ว', () => {
+    expect(shouldPromptCloseReturnedOrder({ status: 'CONFIRMED', parcelReturned: true })).toBe(false)
+    expect(shouldPromptCloseReturnedOrder({ status: 'CANCELLED', parcelReturned: true })).toBe(false)
+  })
+
+  it('[blocker] ไม่มีพัสดุตีกลับ = ไม่ชวน ไม่ว่าสถานะไหน', () => {
+    for (const status of ['PENDING', 'SHIPPED', 'CONFIRMED', 'CANCELLED']) {
+      expect(shouldPromptCloseReturnedOrder({ status, parcelReturned: false })).toBe(false)
+    }
+  })
+})

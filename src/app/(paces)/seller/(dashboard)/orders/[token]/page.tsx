@@ -47,6 +47,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import { isCODPayment } from '@/lib/order-display'
 import { deriveShippingStage } from '@/lib/order-stage'
+import { isReturnedCarrierStatus } from '@/lib/iship/status'
 import OrderDetailClient from './components/OrderDetailClient'
 import ShippingActivity from './components/ShippingActivity'
 import CustomerDetails from './components/CustomerDetails'
@@ -285,6 +286,17 @@ export default async function OrderDetailPage({ params }: PageProps) {
   const hasLiveIshipShipment =
     shipmentPanel?.shipment?.status === 'CREATED' && !shipmentPanel.shipment.isDryRun
 
+  /**
+   * ขนส่งตีกลับของมาที่ร้านแล้ว — ใช้ `isReturnedCarrierStatus` ตัวเดียวกับที่ `order-stats`
+   * ใช้ตัดสินว่าการยกเลิกใบนี้ไม่ใช่ความผิดร้าน (BR-OSM-04) ⇒ ข้อความบนจอกับตัวเลขที่ระบบ
+   * คิดจริงมาจากเกณฑ์เดียวกันเสมอ ห้าม derive จาก `shippingStage` (กอง PROBLEM รวม
+   * `issue`/`cannot_pickup` ซึ่งของยังอยู่กับขนส่ง = คนละสถานการณ์กับของกลับมาถึงร้านแล้ว)
+   *
+   * ผูกกับ `hasLiveIshipShipment` เพราะสถานะจากใบ FAILED/dry-run ไม่ใช่หลักฐานอะไรทั้งนั้น
+   */
+  const parcelReturned =
+    hasLiveIshipShipment && isReturnedCarrierStatus(shipmentPanel?.shipment?.carrierStatus)
+
   // ข้อมูลการจัดส่งสำหรับ OrderFactsCard (section 3) + prefill ShipmentEntryModal (mode='edit')
   const shippingInfo: OrderFactsShipping | null =
     shipmentSource === 'ISHIP'
@@ -367,6 +379,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         shipmentSource={shipmentSource}
         ishipContext={shipmentPanel ? toShipmentContextJson(shipmentPanel) : null}
         hasIshipShipment={hasLiveIshipShipment}
+        parcelReturned={parcelReturned}
         trackingNo={shippingInfo?.trackingNo ?? null}
         provider={shippingInfo?.courier ?? null}
         addressText={addressText}
