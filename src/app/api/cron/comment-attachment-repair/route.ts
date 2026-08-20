@@ -23,8 +23,14 @@ export const maxDuration = 60;
  * ⇒ ของที่ต้องรันครั้งเดียวเพื่อตอบคำถาม ก็ควรมีคุณค่าถาวรด้วย: ถ้าสิทธิ์พอ route นี้คือกลไกซ่อม
  * ที่ใช้ต่อได้เรื่อย ๆ · ถ้าสิทธิ์ไม่พอ มันจะบอกเหตุผลชัด ๆ แล้วค่อยตัดสินใจว่าจะถอดหรือรอสิทธิ์
  *
- * ยังไม่ผูกเข้า `vercel.json` โดยตั้งใจ — รอบแรกต้องดูผลด้วยตาก่อน ไม่ปล่อยให้ยิง Graph
- * เป็นรอบ ๆ ทั้งที่ยังไม่รู้ว่ามันทำอะไรได้บ้าง
+ * ผูกเข้า `vercel.json` เพื่อให้ **กดปุ่ม Run จาก Vercel Dashboard ได้** — `CRON_SECRET` เป็น
+ * sensitive env ที่อ่านค่ากลับไม่ได้ทุกทาง (`vercel env pull` คืน `[SENSITIVE]`) จึงเรียกจาก
+ * เครื่อง dev ไม่ได้เลย แต่ Vercel ใส่ Authorization ให้เองตอนยิง cron ⇒ นี่คือทางเดียวที่เรียกได้จริง
+ *
+ * ตั้งวันละครั้งที่ `0 17 * * *` (17:00 UTC = เที่ยงคืนเวลาไทย) — ช่องเวลาที่ยังว่าง ไม่ชนกับ cron
+ * ตัวอื่น 🛑 **ถ้าผลรอบแรกบอกว่าสิทธิ์ไม่พอ ให้ถอดออกจาก `vercel.json` ทันที** ไม่ปล่อยให้ยิง
+ * Graph เปล่า ๆ วันละ 25 ครั้งตลอดไป — ของชั่วคราวที่ไม่มีใครถอดคือหนี้ที่โปรเจกต์นี้เพิ่งจ่ายไป
+ * เมื่อเช้า (probe log ค้าง 17 วัน)
  *
  * Auth: Authorization: Bearer {CRON_SECRET} เท่านั้น — pattern เดียวกับ cron อีก 8 ตัวในโปรเจกต์
  * (proxy.ts ยกเว้น /api/cron/* จาก CSRF Origin-check อยู่แล้ว)
@@ -49,11 +55,27 @@ export async function GET(request: Request) {
     const result = await repairCommentAttachmentsFromGraph({
       take: Number.isFinite(take) && take > 0 ? Math.min(take, 100) : 25,
     });
-    // log ไว้เสมอ — งานเบื้องหลังที่ไม่มีใครดูผลลัพธ์คืองานที่พังแล้วไม่มีใครรู้
+    /**
+     * log ต้อง **วินิจฉัยได้จากตัวมันเองล้วน ๆ** — Vercel plan นี้ query runtime log ย้อนหลังไม่ได้
+     * และวิธีเรียก route นี้ที่ใช้ได้จริงคือกดปุ่ม Run ใน Vercel Dashboard (Vercel ใส่ Authorization
+     * ให้เอง) ซึ่งผู้เรียกจะ **ไม่เห็น response body** เห็นแต่ log ⇒ ถ้าตัดข้อความ error ทิ้งที่นี่
+     * คำตอบทั้งหมดของการทดสอบนี้จะหายไปพร้อมกัน
+     *
+     * ตัดที่ 200 ตัวอักษรและเอาแค่ 3 ใบแรก — พอแยก "สิทธิ์ไม่พอ" ออกจาก "คอมเมนต์ถูกลบ" ได้
+     * โดยไม่เทเนื้อหาของลูกค้าลง log (error ของ Meta ไม่มี PII อยู่แล้ว แต่กันไว้)
+     */
     console.log("[comment-attachment-repair] เสร็จรอบ", {
-      ...result,
-      // ตัดข้อความ error ให้สั้นใน log (ตัวเต็มอยู่ใน response ที่ผู้เรียกได้รับ)
-      errors: result.errors.slice(0, 3).map((e) => ({ code: e.code, subcode: e.subcode })),
+      scanned: result.scanned,
+      repaired: result.repaired,
+      noAttachmentFromGraph: result.noAttachmentFromGraph,
+      mirrorFailed: result.mirrorFailed,
+      types: result.types,
+      errorCount: result.errors.length,
+      errors: result.errors.slice(0, 3).map((e) => ({
+        code: e.code,
+        subcode: e.subcode,
+        message: e.message.slice(0, 200),
+      })),
     });
     return NextResponse.json(result);
   } catch (err) {
