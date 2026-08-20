@@ -7,9 +7,13 @@
  * ⇒ หน้าจอไม่มีทางรู้ และไปสร้าง segmented control 4 ปุ่มที่ **ไม่มีปุ่มไหนเปลี่ยนผลลัพธ์ได้เลย**:
  *   ALL → MESSENGER (ชุดเดียวกันเป๊ะ) · DEEP/INSTAGRAM → ไม่ match ช่องทางไหนเลย = ว่างทั้งจอ
  *
- * ย้ายมาที่นี่เพื่อให้ "ตัวที่ query" กับ "ตัวที่ตัดสินว่าจะแสดงปุ่มไหม" อ่านค่าเดียวกัน (HR16) —
- * ไฟล์นี้ต้องไม่มี dependency ใด ๆ เพราะถูก import ทั้งจาก service (Node) และ client component
- * (ถ้าดึง prisma ติดไปจะพัง bundle ของฝั่ง client)
+ * แยกออกมาจาก `page-comment.service.ts` เพื่อให้ข้อเท็จจริงข้อนี้มีที่อยู่ที่เทสจับได้ (HR16)
+ * — ไฟล์นี้ต้องไม่มี dependency ใด ๆ เพราะเป็น pure lib ที่ทั้งฝั่ง Node และฝั่ง client
+ * import ได้ (ถ้าดึง prisma ติดไปจะพัง bundle ของฝั่ง client)
+ *
+ * หมายเหตุ 2026-08-20: เคยมี `SHOW_COMMENT_CHANNEL_FILTER` อยู่ในไฟล์นี้ด้วย ให้หน้าจอ
+ * ซ่อนพิลล์ช่องทางที่กดแล้วไม่เปลี่ยนอะไร — **ถอดออกแล้ว** เพราะ user เลือกให้หัวคอลัมน์ของ
+ * แท็บความคิดเห็นเหมือนแท็บข้อความไว้ก่อน (สองแท็บนี้ต้องหน้าตาเดียวกัน สั่งไว้ 2 ครั้ง)
  */
 
 /**
@@ -26,7 +30,9 @@ export type CommentChannelFilter = 'ALL' | 'DEEP' | 'MESSENGER' | 'INSTAGRAM'
  *   1. `resolveCommentProvider()` ข้างล่าง — ตอนนี้คืน "ค่าเดียว" เพราะมีผู้เข้าแข่งขันรายเดียว
  *      หลายรายเมื่อไหร่ต้องเปลี่ยนเป็นรายการแล้วให้ SQL ใช้ `IN`
  *   2. `sc.provider = ${...}` ใน page-comment.service.ts (4 จุด) → `sc.provider IN (...)`
- *   3. ไม่ต้องแตะ UI — segmented control จะโผล่กลับมาเองจาก `SHOW_COMMENT_CHANNEL_FILTER`
+ *   3. พิลล์ช่องทางบนหัวคอลัมน์ `/inbox/comments` — วันนี้ 2 ใน 4 ปุ่ม (DEEP/INSTAGRAM)
+ *      รับประกันว่าได้ผลว่างเสมอ และ ALL ≡ MESSENGER; พอมีช่องทางที่สองจริง ปุ่มพวกนั้น
+ *      ถึงจะเริ่มมีความหมาย
  */
 export const COMMENT_CAPABLE_PROVIDERS = ['MESSENGER'] as const
 
@@ -41,13 +47,3 @@ export const COMMENT_CAPABLE_PROVIDERS = ['MESSENGER'] as const
 export function resolveCommentProvider(filter: CommentChannelFilter | undefined): string {
   return !filter || filter === 'ALL' ? COMMENT_CAPABLE_PROVIDERS[0] : filter
 }
-
-/**
- * แสดง segmented control "ช่องทาง" เหนือแท็บสถานะไหม
- *
- * 🛑 เกณฑ์คือ **"มีตัวเลือกที่ให้ผลต่างกันจริง ≥2 ตัว"** ไม่ใช่ "เหลือปุ่มกี่ปุ่ม" — ถ้าเหลือ
- * ALL กับ MESSENGER สองปุ่มก็ยังเป็น control หลอกอยู่ดี เพราะกดแล้วรายการเหมือนกันทุกแถว
- * (impeccable critique 2026-08-20 P2-E: 8–9 control ก่อนถึงคอมเมนต์ใบแรกบนมือถือ ซึ่ง 4 ใน
- * จำนวนนั้นเป็นแถวนี้ทั้งแถว)
- */
-export const SHOW_COMMENT_CHANNEL_FILTER: boolean = COMMENT_CAPABLE_PROVIDERS.length > 1

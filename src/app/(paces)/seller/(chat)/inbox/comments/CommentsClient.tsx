@@ -48,7 +48,6 @@ import { renderCommentReplyText } from '@/lib/comment-reply-template'
 import { pickCommentFocusTarget } from '@/lib/comment-focus-target'
 // ย้ายออกจากไฟล์นี้เมื่อ 2026-08-10 ตอนการ์ดคอมเมนต์ต้นเหตุในห้องแชทต้องใช้กติกาเดียวกัน (HR16)
 import { isVideoPost } from '@/lib/facebook-post'
-import { SHOW_COMMENT_CHANNEL_FILTER } from '@/lib/comment-channel-filter'
 import ListBusyOverlay, { useListBusy } from '@/app/(paces)/seller/(dashboard)/_shared/ListBusyOverlay'
 import { getChannelDisplay } from '../components/ChannelBadge'
 import CommentsFilterPanel, {
@@ -1549,19 +1548,7 @@ export default function CommentsClient({
             ระหว่างแถวไม่เท่าฝั่งข้อความ (user report 2026-08-04 "tab ก็ยังไม่เห็นเหมือน")
             ความ "เหมือน" ของสองหน้านี้อยู่ที่กล่องหัว ไม่ใช่แค่ตัวปุ่มแต่ละอัน */}
         <div className="card-header sticky top-0 z-10 flex flex-col items-stretch gap-3 border-dashed bg-card">
-          {/**
-            * 🛑 แถวพิลล์ช่องทางถูก **ซ่อนทั้งแถว** ตั้งแต่ 2026-08-20 (impeccable critique P2-E)
-            *
-            * ไม่ใช่การลบทิ้ง: `SHOW_COMMENT_CHANNEL_FILTER` derive จาก `COMMENT_CAPABLE_PROVIDERS`
-            * ซึ่งเป็นตัวเดียวกับที่ `resolveCommentProvider()` ใช้ query จริง — วันที่คอมเมนต์ของ
-            * Instagram เข้ามา แถวนี้จะโผล่กลับมาเองโดยไม่ต้องมีใครจำได้ว่ามีโค้ดตรงนี้อยู่
-            *
-            * เหตุผลที่ต้องซ่อนวันนี้: ทั้ง 4 ปุ่มไม่มีปุ่มไหนเปลี่ยนผลลัพธ์ได้เลย (ALL ≡ MESSENGER
-            * ตามนิยามของตัว resolver เอง · DEEP/INSTAGRAM ไม่ match ช่องทางไหน = ว่างทั้งจอ)
-            * มันจึงกินแถวควบคุมเต็ม ๆ หนึ่งแถวเหนือคอมเมนต์ใบแรกบนมือถือเพื่อไม่ทำอะไรเลย
-            */}
-          {SHOW_COMMENT_CHANNEL_FILTER && (
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="relative flex flex-wrap items-center gap-1.5">
             {/* 🛑 `radiogroup` ไม่ใช่ `tablist` — แถวนี้เป็น "ตัวกรองที่เลือกได้ทีละอัน" ไม่ได้สลับ
                 หน้าจอ. `tablist` สัญญากับ screen reader ว่ามี `tabpanel` ที่มันคุมอยู่ ซึ่งแถวนี้
                 ไม่มี (panel ที่แท้จริงถูกคุมโดยแท็บสถานะข้างล่าง) AT จะประกาศ "tab 1 of 4" แล้ว
@@ -1611,8 +1598,38 @@ export default function CommentsClient({
                 )
               })}
             </div>
+            {/* ปุ่มตัวกรอง — โผล่เสมอเหมือนแท็บข้อความ
+                รอบแรกผมใส่เงื่อนไข `channels.length > 1` เพราะ user เขียนว่า "ในกรณีมีหลายเพจ"
+                แล้ว user รายงานทันทีว่า "ไม่เห็นมี button ตัวกรองเลย" (ร้านเชื่อมเพจเดียว) —
+                เจตนาคือ "ต้องมีปุ่มตัวกรองเหมือนฝั่งข้อความ" ไม่ใช่ "ซ่อนเมื่อเพจเดียว":
+                ปุ่มที่หาย ๆ โผล่ ๆ ตามจำนวนเพจทำให้หน้าสองแท็บไม่เหมือนกันอยู่ดี */}
+            <CommentsFilterPanel
+              pageOptions={channels}
+              value={channelId}
+              show={show}
+              onApply={(pageId, nextShow) => {
+                setChannelId(pageId)
+                setShow(nextShow)
+              }}
+              open={filterOpen}
+              onOpenChange={setFilterOpen}
+            />
+            {/* ชิปบอกว่ากำลังกรองเพจไหนอยู่ + กดกากบาทล้างได้ (Base: active-filter chips ของ
+                InboxList.tsx:867-882) — ปุ่มตัวกรองไม่ได้โชว์ชื่อเพจบนหน้าปุ่ม ชิปจึงจำเป็น */}
+            {channelId && (
+              <span className="badge bg-primary/15 text-primary-ink text-2xs inline-flex items-center gap-1">
+                {channels.find((c) => c.id === channelId)?.name ?? t.comments.selectedPage}
+                <button
+                  type="button"
+                  onClick={() => setChannelId(null)}
+                  aria-label={t.comments.clearPageFilter}
+                  className="inline-flex items-center"
+                >
+                  <Icon icon="x" width={12} height={12} />
+                </button>
+              </span>
+            )}
           </div>
-          )}
 
         {/* แท็บสถานะ — โครงเดียวกับแถว "ทั้งหมด · ปิดงาน · สแปม" ของแท็บข้อความ
             (Base: InboxList.tsx:890-927 — flex flex-wrap gap-1.5 ครอบ, แถบ min-w-0 flex-1 gap-3
@@ -1626,18 +1643,7 @@ export default function CommentsClient({
             ตามธีมปัจจุบัน ไม่ใช่ asset ดิบของ mockup) — เพิ่ม overflow-x-auto ให้แถวเลื่อนแนวนอนได้
             บนมือถือ (390px ไม่พอให้ 4 แท็บ + ตัวเลขอยู่ในบรรทัดเดียวแบบไม่ตัดคำ) + edge fade บอกว่า
             ยังเลื่อนต่อได้อีก (หนี้ #2 — ดู statusTabFade ด้านบน) */}
-        {/**
-          * แถวเดียวจบ: แท็บสถานะ + ปุ่มตัวกรอง (impeccable critique 2026-08-20 P2-E)
-          *
-          * 🛑 `relative` ย้ายมาอยู่ที่ **แถวนี้** แล้ว — popover ของ `CommentsFilterPanel` ใช้
-          * `absolute inset-x-0 top-full` โดยอ้างอิง "บรรพบุรุษที่ positioned ที่ใกล้ที่สุด"
-          * ย้ายปุ่มแต่ลืมย้าย `relative` = แผงกว้างผิดและไปเกาะแถวอื่น (แผงยึด "แถว" ไม่ใช่ "ปุ่ม"
-          * โดยตั้งใจ: inset-x-0 ทำให้กว้างเท่าคอลัมน์พอดี ไม่ล้นขอบจอมือถือ)
-          *
-          * `border-b` ย้ายจากตัวเลื่อนแท็บขึ้นมาที่แถว + `items-end` — ไม่งั้นเส้นใต้แท็บจะลอย
-          * อยู่กลางความสูงของปุ่ม 44px ข้าง ๆ และ `-mb-px` ของแท็บที่เลือกจะไม่มีเส้นให้ทับ
-          */}
-        <div className="border-default-200 relative flex items-end gap-1.5 border-b">
+        <div className="flex flex-wrap items-center gap-1.5">
           <div className="relative min-w-0 flex-1">
             {statusTabFade.left && (
               <div
@@ -1648,7 +1654,7 @@ export default function CommentsClient({
             <div
               ref={statusTabScrollRef}
               onScroll={updateStatusTabFade}
-              className="flex min-w-0 items-center gap-3 overflow-x-auto"
+              className="border-default-200 flex min-w-0 items-center gap-3 overflow-x-auto border-b"
               role="tablist"
               aria-label={t.comments.statusFilterAria}
             >
@@ -1752,42 +1758,7 @@ export default function CommentsClient({
               />
             )}
           </div>
-          {/* ปุ่มตัวกรอง — โผล่เสมอเหมือนแท็บข้อความ
-              รอบแรกผมใส่เงื่อนไข `channels.length > 1` เพราะ user เขียนว่า "ในกรณีมีหลายเพจ"
-              แล้ว user รายงานทันทีว่า "ไม่เห็นมี button ตัวกรองเลย" (ร้านเชื่อมเพจเดียว) —
-              เจตนาคือ "ต้องมีปุ่มตัวกรองเหมือนฝั่งข้อความ" ไม่ใช่ "ซ่อนเมื่อเพจเดียว":
-              ปุ่มที่หาย ๆ โผล่ ๆ ตามจำนวนเพจทำให้หน้าสองแท็บไม่เหมือนกันอยู่ดี */}
-          <CommentsFilterPanel
-            pageOptions={channels}
-            value={channelId}
-            show={show}
-            onApply={(pageId, nextShow) => {
-              setChannelId(pageId)
-              setShow(nextShow)
-            }}
-            open={filterOpen}
-            onOpenChange={setFilterOpen}
-          />
         </div>
-
-        {/* ชิปบอกว่ากำลังกรองเพจไหนอยู่ + กดกากบาทล้างได้ (Base: active-filter chips ของ
-            InboxList.tsx:867-882) — ปุ่มตัวกรองเป็นไอคอนล้วนแล้ว ยิ่งไม่มีทางรู้ว่ากรองเพจไหนอยู่
-            ถ้าไม่มีชิปนี้ · เป็นแถวของตัวเองเพราะโผล่เฉพาะตอนกรองจริง (ส่วนใหญ่ไม่กินที่เลย) */}
-        {channelId && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="badge bg-primary/15 text-primary-ink text-2xs inline-flex items-center gap-1">
-              {channels.find((c) => c.id === channelId)?.name ?? t.comments.selectedPage}
-              <button
-                type="button"
-                onClick={() => setChannelId(null)}
-                aria-label={t.comments.clearPageFilter}
-                className="inline-flex items-center"
-              >
-                <Icon icon="x" width={12} height={12} />
-              </button>
-            </span>
-          </div>
-        )}
 
         {/**
           * "ทำเครื่องหมายทั้งหมด" — เห็นเฉพาะแท็บ "หมดอายุ" และเฉพาะตอนมีของให้ทำ
@@ -1989,14 +1960,15 @@ export default function CommentsClient({
                     {/**
                       * 🛑 badge ช่องทางมุมรูป **ถูกถอดออกจากแถวรายการ 2026-08-20** (critique P2-D)
                       *
-                      * ไม่ใช่เพราะไม่สวย แต่เพราะมันเป็น **ค่าคงที่ 100%**: คอมเมนต์ทั้งระบบมาจาก
-                      * ช่องทาง MESSENGER เท่านั้น (`COMMENT_CAPABLE_PROVIDERS`) ⇒ ทุกแถวได้โลโก้
-                      * Facebook ดวงเดียวกัน ซึ่งไม่ได้แยกแถวไหนออกจากแถวไหนเลย มีแต่กินสายตา
-                      * ในแถวที่มีสัญญาณแข่งกันอยู่ 11 อย่าง
+                      * ไม่ใช่เพราะไม่สวย แต่เพราะมันเป็น **ค่าคงที่ 100%**: `resolveCommentProvider()`
+                      * เขียนนิยามไว้เองว่าโพสต์/คอมเมนต์ผูกกับ ShopChannel ที่เป็น MESSENGER เท่านั้น
+                      * ทั้งระบบ ⇒ ทุกแถวได้โลโก้ Facebook ดวงเดียวกัน ไม่ได้แยกแถวไหนออกจากแถวไหนเลย
+                      * มีแต่กินสายตาในแถวที่มีสัญญาณแข่งกันอยู่ 11 อย่าง
                       *
                       * ยัง render อยู่ในหัวเธรด/ช่องพิมพ์ (ที่นั่นตอบคำถามจริงว่า "จะส่งออกช่องไหน")
                       * และในชิปเลือกเพจของ CommentsFilterPanel (ที่นั่นมีทั้ง FB และ IG ปนกันจริง)
-                      * วันที่คอมเมนต์ IG เข้ามา ให้เอากลับมาพร้อมกับ SHOW_COMMENT_CHANNEL_FILTER
+                      * วันที่คอมเมนต์ IG เข้ามาจริง (= `resolveCommentProvider` ต้องเปลี่ยนเป็น IN)
+                      * ให้เอากลับมาพร้อมกัน
                       */}
                     {isVideoPost(c.post.mediaType) && (
                       // โพสต์วิดีโอ — บอกตั้งแต่รายการ ไม่ต้องเปิดเข้าไปถึงจะรู้

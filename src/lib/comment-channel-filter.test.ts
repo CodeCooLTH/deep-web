@@ -1,13 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import {
-  COMMENT_CAPABLE_PROVIDERS,
-  SHOW_COMMENT_CHANNEL_FILTER,
-  resolveCommentProvider
-} from './comment-channel-filter'
+import { COMMENT_CAPABLE_PROVIDERS, resolveCommentProvider } from './comment-channel-filter'
 
-const SRC = readFileSync(join(process.cwd(), 'src/lib/comment-channel-filter.ts'), 'utf8')
 const SERVICE = readFileSync(join(process.cwd(), 'src/services/page-comment.service.ts'), 'utf8')
 
 describe('resolveCommentProvider', () => {
@@ -23,24 +18,6 @@ describe('resolveCommentProvider', () => {
     expect(resolveCommentProvider('DEEP')).toBe('DEEP')
     expect(resolveCommentProvider('INSTAGRAM')).toBe('INSTAGRAM')
     expect(resolveCommentProvider('MESSENGER')).toBe('MESSENGER')
-  })
-})
-
-describe('SHOW_COMMENT_CHANNEL_FILTER', () => {
-  /**
-   * 🛑 ตัวดักหลักของไฟล์นี้ — ไม่ได้ตรวจว่า "ค่าตอนนี้คืออะไร" แต่ตรวจว่า **มันยัง derive อยู่**
-   *
-   * ความเสี่ยงจริงคือคนถัดไปเห็นว่ามันเป็น false เสมอ แล้วเขียนทับเป็นค่าคงที่เพื่อความง่าย
-   * ⇒ วันที่ Instagram comments เปิดใช้ พิลล์ช่องทางจะไม่กลับมาเอง และไม่มีอะไรฟ้อง
-   */
-  it('[blocker] ต้อง derive จาก COMMENT_CAPABLE_PROVIDERS ห้าม hardcode true/false', () => {
-    const decl = SRC.match(/SHOW_COMMENT_CHANNEL_FILTER\s*:\s*boolean\s*=\s*(.+)/)?.[1] ?? ''
-    expect(decl).toContain('COMMENT_CAPABLE_PROVIDERS')
-    expect(decl).not.toMatch(/^\s*(true|false)\b/)
-  })
-
-  it('[blocker] ซ่อนพิลล์เมื่อมีช่องทางที่ให้ผลต่างกันจริงไม่ถึง 2 ตัว', () => {
-    expect(SHOW_COMMENT_CHANNEL_FILTER).toBe(COMMENT_CAPABLE_PROVIDERS.length > 1)
   })
 })
 
