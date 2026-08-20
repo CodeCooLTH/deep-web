@@ -1909,6 +1909,20 @@ model ChatMessage {
   // lookup ย้อนกลับ fileId → ข้อความ สำหรับ auth gate ของเอกสารแนบใน /api/files (2026-08-02)
   // ไม่มี index นี้ = full scan ของตารางที่ใหญ่ที่สุดในระบบ ทุกครั้งที่มีคนเปิดไฟล์
   @@index([imageUrl])
+  // ── 2026-08-20 · index จาก Supabase Query Performance (index_advisor) ─────────
+  // orderRefToken ไม่เคยมี index เลยตั้งแต่เพิ่มคอลัมน์ (2026-07-24) — query "ข้อความสรุป
+  // ออเดอร์ล่าสุดของ token นี้" จึง seq scan ทั้งตาราง: mean 1,166ms · max 3,419ms
+  // advisor วัดได้ total_cost 4,171.94 → 4.79 (ลด 99.9%) ซึ่งเป็น gain สูงสุดในทั้งรายงาน
+  @@index([orderRefToken])
+  // badge/ตัวกรอง "ยังไม่อ่าน" ทุกตัวกรอง senderRole='BUYER' แต่ index ที่มีคือ
+  // (conversationId, createdAt) ⇒ ต้องอ่านข้อความ **ทุกใบ** ของเธรดแล้วค่อยทิ้งฝั่ง SHOP
+  // 4 query ที่ใช้แพตเทิร์นนี้ (countUnreadByConversation · unreadConversationIdsForShops ·
+  // countUnreadConversations · countUnreadSpamConversations) รวมกัน = 73% ของเวลาฐานทั้งหมด
+  // 🛑 index_advisor เสนอตัวนี้ไม่เป็น เพราะมันเสนอได้ทีละคอลัมน์ — ที่มันเสนอคือ
+  // (conversationId) เปล่า ๆ ซึ่งเป็น prefix ของ index ที่มีอยู่แล้ว (gain 2.7–4.5% = noise)
+  // วัดบน prod 2026-08-20: SHOP 28,093 : BUYER 12,593 ⇒ ตัวกรองนี้ทิ้งงาน 69% ของตาราง
+  // ก่อน cost 1,492.49 (senderRole เป็น Filter) → หลัง 583.76 เป็น Index Only Scan (ลด 61%)
+  @@index([conversationId, senderRole, createdAt])
 }
 
 // QuickMessage — ข้อความสำเร็จรูป (canned reply) ระดับร้าน (feature 00018 composer improvement #2)
@@ -3349,6 +3363,9 @@ model CommentReplyLog {
   //   MANUAL  ครั้งเดียวต่อ commentId
   @@index([shopChannelId, createdAt])
   @@index([commentId])
+  // 2026-08-20 — lookup ย้อนกลับ "ห้องแชทนี้เกิดจากคอมเมนต์ใบไหน" (private reply) ไม่มี index
+  // มาตั้งแต่เพิ่มคอลัมน์ ⇒ seq scan ทุกครั้งที่เปิดเธรด: advisor วัด 53.35 → 4.46 (ลด 91.6%)
+  @@index([conversationId])
 }
 
 // ── feature 00038 ส่วนขยาย E2 (2026-08-15): ตอบคอมเมนต์ต่างกันตามคีย์เวิร์ด ──────────────
