@@ -40,6 +40,9 @@ import { commentDoneMark } from '@/lib/comment-done-mark'
 import { commentPermalink } from '@/lib/facebook-post'
 import { commentContentState } from '@/lib/comment-content-state'
 import { commentRowChips } from '@/lib/comment-row-chips'
+// 🧪 PROTOTYPE (โยนทิ้ง) — เธรดคอมเมนต์ 3 แบบ สลับด้วย ?variant= ดู __prototype__/
+import CommentThreadVariants from './__prototype__/CommentThreadVariants'
+import PrototypeSwitcher from './__prototype__/PrototypeSwitcher'
 import { countUnansweredInThread, isCommentHandled } from '@/lib/comment-handled'
 import { isReplyTargetVisible, resolveComposerSlot } from '@/lib/comment-composer-slot'
 import { compactCount } from '@/lib/format-compact-number'
@@ -432,6 +435,8 @@ export default function CommentsClient({
    * ถูกสร้างจากที่อื่น (precedent: ChatThread ใช้ลิงก์ปลายทางตายตัวด้วยเหตุผลเดียวกัน)
    */
   const postParam = searchParams.get('post')
+  /** 🧪 PROTOTYPE — `?variant=A|B|C` เท่านั้นที่เปิดโหมดนี้ ผู้ใช้ทั่วไปไม่มีทางเจอ */
+  const protoVariant = searchParams.get('variant')
   const openThread = useCallback(
     (postId: string | null) => {
       // 🛑 navigate นอก setState updater — updater ถูกเรียกซ้ำได้ (StrictMode) การยัด side effect
@@ -2676,6 +2681,10 @@ export default function CommentsClient({
                 <CommentsThreadSkeleton />
               ) : visibleTree.length === 0 ? (
                 <SellerEmptyState compact icon="message-circle" title={t.comments.emptyInPost} />
+              ) : protoVariant ? (
+                /* 🧪 PROTOTYPE — สลับเฉพาะซับทรีของรายการคอมเมนต์ ข้อมูล/หัวเธรด/ช่องพิมพ์เป็นของจริงทั้งหมด
+                   ตัดสินบนความหนาแน่นจริงได้ (sub-shape A) · ไม่มี ?variant= = ไม่มีอะไรเปลี่ยน */
+                <CommentThreadVariants variant={protoVariant} tree={visibleTree} t={t} />
               ) : (
                 visibleTree.map(({ comment, replies, publiclyAnswered }) => (
                   <div key={comment.id} className="mb-5">
@@ -2793,6 +2802,9 @@ export default function CommentsClient({
             />
           )
         })()}
+
+      {/* 🧪 PROTOTYPE — แถบสลับแบบ โผล่เฉพาะเมื่อมี ?variant= ใน URL (opt-in ล้วน) */}
+      <PrototypeSwitcher />
     </div>
   )
 }
