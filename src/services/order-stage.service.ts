@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { deriveOrderStage, type OrderStageInput } from '@/lib/order-stage'
+import { PROBLEM_STAGE_CARRIER_STATUSES } from '@/lib/iship/status'
 
 /**
  * order-stage.service — หา "ออเดอร์ล่าสุดของลูกค้าแต่ละเธรด" เพื่อทำป้ายสถานะในรายการแชท
@@ -72,6 +73,8 @@ type LatestOrderRow = {
   serviceStart: Date | null
   appointmentStatus: string | null
   vertical: string
+  /** จำนวนออเดอร์ (ทุกใบ ไม่ใช่แค่ใบล่าสุด) ของลูกค้าคนนี้ในร้านนี้ที่พัสดุยังติดปัญหาอยู่ */
+  problemOrderCount: number
 }
 
 /**
@@ -105,6 +108,28 @@ export async function enrichWithOrderStage<T extends Linkable>(
   }
 
   const rows = await prisma.$queryRaw<LatestOrderRow[]>`
+    -- prob — "ลูกค้าคนนี้มีพัสดุค้างปัญหาอยู่กี่ใบ" นับจาก **ทุกใบ** ไม่ใช่ใบล่าสุดใบเดียว
+    -- (user สั่ง 2026-08-20 หลังเจอว่าชิปกล่องแชทขึ้น 3 ขณะที่ /orders ขึ้น 10)
+    --
+    -- 🛑 ใบที่ยกเลิกแล้วต้องไม่นับ — deriveShippingStage ฝั่ง /orders คืน 'DONE' ให้ใบยกเลิก
+    -- ไม่ว่าพัสดุจะค้างสถานะอะไร ถ้านับที่นี่ด้วยเลขสองจอจะต่างกันอีกแบบหนึ่งแทน
+    -- นิยาม "มีพัสดุจริง" และรายชื่อสถานะปัญหา ใช้ชุดเดียวกับ LATERAL ข้างล่างเป๊ะ ๆ
+    WITH prob AS (
+      SELECT po."shopId" AS "shopId", po."customerId" AS "customerId", COUNT(*)::int AS n
+      FROM "Order" po
+      JOIN LATERAL (
+        SELECT psh."carrierStatus"
+        FROM "OrderShipment" psh
+        WHERE psh."orderId" = po."id" AND psh."status" = 'CREATED' AND psh."isDryRun" = false
+        ORDER BY psh."createdAt" DESC
+        LIMIT 1
+      ) ps ON true
+      WHERE po."shopId" IN (${Prisma.join(shopIds)})
+        AND po."customerId" IN (${Prisma.join(customerIds)})
+        AND po."status" <> 'CANCELLED'
+        AND ps."carrierStatus" = ANY(${[...PROBLEM_STAGE_CARRIER_STATUSES]}::text[])
+      GROUP BY po."shopId", po."customerId"
+    )
     -- DISTINCT ON ต้องมี shopId เป็นคีย์แรกเสมอ (feature 00037) — "ออเดอร์ล่าสุดของลูกค้าคนนี้"
     -- ต้องแปลว่า "ในร้านนี้" ไม่ใช่ "ในบรรดาทุกร้านที่ฉันดูอยู่" ดู comment ที่ type Linkable
     SELECT DISTINCT ON (o."shopId", o."customerId")
@@ -124,7 +149,8 @@ export async function enrichWithOrderStage<T extends Linkable>(
       s."carrierStatus"   AS "carrierStatus",
       -- มีแถวพัสดุที่ยัง active อยู่จริงหรือไม่ — ต้องเช็คจาก id ไม่ใช่จาก labelPrintedAt/carrierStatus
       -- เพราะพัสดุที่เพิ่งสร้าง (ยังไม่พิมพ์ ขนส่งยังไม่แจ้ง) ทั้งสองคอลัมน์นั้นเป็น null ทั้งคู่
-      (s."id" IS NOT NULL) AS "hasShipment"
+      (s."id" IS NOT NULL) AS "hasShipment",
+      COALESCE(pr."n", 0) AS "problemOrderCount"
     FROM "Order" o
     JOIN "Shop" sp ON sp."id" = o."shopId"
     LEFT JOIN LATERAL (
@@ -138,6 +164,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
       ORDER BY sh."createdAt" DESC
       LIMIT 1
     ) s ON true
+    LEFT JOIN prob pr ON pr."shopId" = o."shopId" AND pr."customerId" = o."customerId"
     WHERE o."shopId" IN (${Prisma.join(shopIds)})
       AND o."customerId" IN (${Prisma.join(customerIds)})
     ORDER BY o."shopId", o."customerId", o."createdAt" DESC
@@ -157,6 +184,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
         serviceStart: r.serviceStart,
         appointmentStatus: r.appointmentStatus,
         vertical: r.vertical,
+        problemOrderCount: r.problemOrderCount,
       },
     ]),
   )

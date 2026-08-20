@@ -371,6 +371,30 @@ export function isProblemCarrierStatus(code?: string | null): boolean {
   return (PROBLEM_CARRIER_STATUSES as readonly string[]).includes(code);
 }
 
+/**
+ * ชุดที่ทำให้ออเดอร์ตกกอง "พัสดุมีปัญหา" บนหน้าจอ = PROBLEM_CARRIER_STATUSES + `return_success`
+ *
+ * ทำไมต้องมีสองชุด: `return_success` เป็นสถานะ **ปลายทาง** (terminal) ของสายตีกลับ — พัสดุจบ
+ * เส้นทางแล้วจริง จึงไม่ควรอยู่ในชุด "ยังเดินอยู่แต่มีปัญหา" ชุดบน แต่ในแง่ *งานที่ร้านต้องทำ*
+ * มันคือกองเดียวกัน (ของกลับมาถึงร้าน = ต้องตัดสินใจคืนเงิน/ส่งใหม่) — `deriveShippingStage`
+ * ตัดสินแบบนี้มาตั้งแต่ต้น
+ *
+ * 🛑 ที่ต้องยกขึ้นมาเป็นค่ากลาง: ตัวกรอง/ตัวนับในกล่องแชท (`conversationIdsByShipmentState`)
+ * เคยเทียบกับ `PROBLEM_CARRIER_STATUSES` เปล่า ๆ ขณะที่หน้า `/orders` นับผ่าน
+ * `deriveShippingStage` ⇒ ใบที่ตีกลับถึงร้านแล้วนับที่หนึ่งแต่ไม่นับอีกที่หนึ่ง โดยที่คอมเมนต์
+ * เหนือบรรทัดนั้นเขียนไว้เองว่า "ใช้ชุดเดียวกับป้ายในแถว" (user เจอ 2026-08-20: /orders ขึ้น 10
+ * แชทขึ้น 3) — ไม่มี gate ไหนจับได้ เพราะทั้งสองฝั่งอ้างค่าคงที่ที่ "มีอยู่จริง" ทั้งคู่
+ */
+export const PROBLEM_STAGE_CARRIER_STATUSES = [
+  ...PROBLEM_CARRIER_STATUSES,
+  "return_success",
+] as const;
+
+export function isProblemStageCarrierStatus(code?: string | null): boolean {
+  if (!code) return false;
+  return (PROBLEM_STAGE_CARRIER_STATUSES as readonly string[]).includes(code);
+}
+
 // ─── เวลาและการโอนเงิน COD (ส่วนขยาย 2026-08-06) ─────────────────────────────
 
 /**

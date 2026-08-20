@@ -20,7 +20,7 @@ import { formatDayMonthShortYearTH } from './format-date'
 import {
   isDeliveredCarrierStatus,
   isInTransitCarrierStatus,
-  isProblemCarrierStatus,
+  isProblemStageCarrierStatus,
   isTerminalCarrierStatus,
 } from './iship/status'
 // นิยาม "เก็บเงินปลายทาง" ตัวเดียวกับที่หน้าออเดอร์/ป้ายชำระเงินใช้ — ห้ามเขียน regex ซ้ำที่นี่
@@ -157,14 +157,16 @@ export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
 
   if (o.hasShipment) {
     // ลำดับเดียวกับ deriveOrderStage: ปัญหามาก่อน แล้วค่อยดูปลายทาง/ระหว่างทาง
-    if (isProblemCarrierStatus(o.carrierStatus)) return 'PROBLEM'
+    //
+    // ของตีกลับถึงร้าน (`return_success`) อยู่ในชุดนี้ด้วย — ร้านต้องตัดสินใจคืนเงิน/ส่งใหม่
+    // จึงเป็นกองเดียวกับ 'return' (กำลังตีกลับ) ทั้งเส้น ไม่ใช่กองใหม่. เดิมเช็คแยกไว้ใน
+    // สาขา terminal ข้างล่าง ทำให้ตัวกรองฝั่งแชทที่อ่านจาก PROBLEM_CARRIER_STATUSES ตรง ๆ
+    // มองไม่เห็น (ดูคอมเมนต์ที่ PROBLEM_STAGE_CARRIER_STATUSES ใน lib/iship/status.ts)
+    if (isProblemStageCarrierStatus(o.carrierStatus)) return 'PROBLEM'
     if (isTerminalCarrierStatus(o.carrierStatus)) {
       // [สำคัญ] พัสดุจบเส้นทางแล้ว ≠ งานของร้านจบแล้ว — เดิมคืน 'DONE' ตรงนี้เลย ทำให้ออเดอร์
       // ที่ขนส่งส่งถึงแล้วแต่ร้านยังไม่ได้เงินปลายทาง หายไปจากทุกไทล์ทันที (DP2569085F97153B)
       //
-      // ของตีกลับถึงร้าน = ร้านต้องตัดสินใจคืนเงิน/ส่งใหม่ → ไปรวมกับ "พัสดุมีปัญหา"
-      // ซึ่ง 'return' (กำลังตีกลับ) อยู่ก่อนแล้ว จึงเป็นกองเดียวกันทั้งเส้น ไม่ใช่กองใหม่
-      if (o.carrierStatus === 'return_success') return 'PROBLEM'
       // เก็บเงินปลายทางที่ร้านยังไม่กดว่าได้เงิน = ยังมีงานค้างจริง (ตามเงิน) แม้ของถึงแล้ว
       if (isCodPayment(o.paymentMethod) && !o.codReceivedAt) return 'AWAITING_COD'
       // ที่เหลือ (โอนล่วงหน้า/ได้เงินแล้ว) ของถึงแล้ว + เงินอยู่ในมือ = ไม่มีงานเหลือให้ร้านทำ
@@ -299,6 +301,19 @@ export interface OrderStageInput {
    * (docs/conventions/stored-flag-vs-owner-truth.md) และห้ามเอาไปตัดสิน *ตรรกะ* ใด ๆ
    */
   vertical?: string | null
+  /**
+   * จำนวนออเดอร์ "ที่ยังไม่ถูกยกเลิก" ของลูกค้าคนนี้ในร้านนี้ ที่พัสดุมีปัญหาอยู่ — **นับทุกใบ
+   * ไม่ใช่แค่ใบล่าสุด** (user สั่ง 2026-08-20)
+   *
+   * 🛑 ช่องเดียวในอินพุตนี้ที่พูดถึงออเดอร์มากกว่าใบเดียว และมันจงใจ: ป้ายในแถวแชทตอบว่า
+   * "ลูกค้าคนนี้ค้างอะไรกับเราอยู่" ซึ่งพัสดุที่ตีกลับ/ติดปัญหาไม่หายไปเพราะลูกค้าสั่งใบใหม่ทับ
+   * ก่อนหน้านี้อ่านจากใบล่าสุดใบเดียว ⇒ ใบปัญหาที่มีใบใหม่กว่าตามมา **หายจากทั้งป้ายและตัวกรอง**
+   * (ชิปกล่องแชทขึ้น 3 ขณะที่ /orders ขึ้น 10 — user เจอบน prod 2026-08-20)
+   *
+   * undefined = ผู้เรียกยังไม่ได้นับมาให้ → ตกกลับไปตัดสินจากใบล่าสุดใบเดียวเหมือนเดิม
+   * (ห้ามตีเป็น 0 เพราะ "ไม่รู้" กับ "รู้ว่าไม่มี" ไม่เหมือนกัน)
+   */
+  problemOrderCount?: number | null
 }
 
 export interface OrderStageResult {
@@ -312,6 +327,13 @@ export interface OrderStageResult {
    * ที่หน้างาน — ขั้นอื่นไม่ต้องมี เพราะจำนวนการพิมพ์ไม่ใช่ข้อมูลที่ต้องรู้ตอนของออกไปแล้ว
    */
   printCount?: number
+  /**
+   * จำนวนใบที่พัสดุมีปัญหาพร้อมกันของลูกค้าคนนี้ — มีค่าเฉพาะขั้น PARCEL_PROBLEM และเฉพาะเมื่อ
+   * **≥2** (ใบเดียวไม่ต้องบอกจำนวน คำว่า "พัสดุมีปัญหา" ก็ครบความหมายแล้ว)
+   *
+   * ห้ามประกอบข้อความเองที่ฝั่ง JSX — ใช้ `orderStageChipLabel()` ตัวเดียว (HR16)
+   */
+  problemCount?: number
 }
 
 /**
@@ -343,8 +365,17 @@ export function deriveOrderStage(
   // มีพัสดุจริงเมื่อ hasShipment บอกมา หรืออนุมานจากร่องรอยของพัสดุ (รองรับ caller เก่าที่ยังไม่ส่ง flag)
   const hasShipment = order.hasShipment ?? (order.labelPrintedAt != null || order.carrierStatus != null)
 
+  // จำนวนใบที่ติดปัญหาอยู่ของลูกค้าคนนี้ (ทุกใบ ไม่ใช่แค่ใบล่าสุด) — ผู้เรียกที่ไม่ได้นับมาให้
+  // จะได้ 0 แล้วตกไปใช้เส้นทางเดิมที่ตัดสินจากใบล่าสุดใบเดียว
+  const problemOrders = order.problemOrderCount ?? 0
+
   let key: OrderStageKey
-  if (order.status === 'CANCELLED') {
+  if (problemOrders > 0) {
+    // 🛑 ชนะทุกขั้นรวมทั้ง CANCELLED ของใบล่าสุด: ใบที่ยกเลิกไปแล้วไม่ถูกนับอยู่แล้ว (ตัวนับ
+    // ตัด status='CANCELLED' ทิ้ง) ⇒ ค่านี้ >0 แปลว่ายังมีของค้างอยู่จริงในใบอื่น ซึ่งเป็น
+    // เรื่องที่ต้องเห็นมากกว่า "ใบล่าสุดถูกยกเลิก"
+    key = 'PARCEL_PROBLEM'
+  } else if (order.status === 'CANCELLED') {
     if (age > CANCELLED_VISIBLE_MS) return null
     key = 'CANCELLED'
   } else if (hasShipment) {
@@ -353,7 +384,7 @@ export function deriveOrderStage(
     // ปัญหามาก่อนทุกอย่างและไม่มีวันหมดอายุ: ก่อนหน้านี้ issue/return/cannot_pickup/
     // is_expired/cod_refund ตกลงไปเป็น "สร้างพัสดุแล้ว" ทั้งหมด — เคสที่ต้องเห็นด่วนที่สุด
     // กลับกลืนหายไปกับพัสดุปกติ (user report 2026-07-31)
-    if (isProblemCarrierStatus(order.carrierStatus)) {
+    if (isProblemStageCarrierStatus(order.carrierStatus)) {
       key = 'PARCEL_PROBLEM'
       // ถึงมือผู้รับแล้ว = delivered หรือไกลกว่านั้น (payment_success = เงิน COD เข้าแล้ว)
       // เดิมเทียบ === 'delivered' ตรง ๆ ใบ COD ที่ได้เงินแล้วจึงตกไปเป็น "สร้างพัสดุแล้ว"
@@ -391,7 +422,35 @@ export function deriveOrderStage(
     // ลำดับ: นัดหมาย (เจาะจงที่สุด) → คำตามประเภทกิจการ → คำกลางของระบบ
     ...(appointmentFace(key, order) ?? verticalFace(key, order) ?? ORDER_STAGE_META[key]),
     ...(printCount > 0 ? { printCount } : {}),
+    // ใบเดียวไม่ต้องบอกจำนวน — "พัสดุมีปัญหา ×1" อ่านแล้วชวนสงสัยว่าอีกใบอยู่ไหน
+    ...(key === 'PARCEL_PROBLEM' && problemOrders >= 2 ? { problemCount: problemOrders } : {}),
   }
+}
+
+/**
+ * orderStageChipLabel — ข้อความบนชิปในแถวแชท (SSOT ของ *คำ* — HR16)
+ *
+ * ตัวเลขที่ผูกกับป้ายมี 2 ชนิดและทั้งคู่ "กินที่ของ label เดิม" ไม่ใช่ต่อท้ายเป็นชิปที่สอง:
+ *   - `printCount` → "พิมพ์ N ครั้ง" (แทนคำว่า "พิมพ์เอกสารแล้ว" ทั้งคำ — user 2026-07-31:
+ *     สองอันบอกเรื่องเดียวกัน รู้จำนวนแล้วก็ใช้จำนวนไปเลย)
+ *   - `problemCount` → "พัสดุมีปัญหา ×N" (คงคำเดิมไว้แล้วต่อจำนวน เพราะคำว่า "มีปัญหา" คือ
+ *     ตัวที่ต้องอ่านออกก่อน ส่วนจำนวนเป็นข้อมูลรอง — ต่างจากการพิมพ์ที่จำนวนคือเนื้อหาหลัก)
+ *
+ * 🛑 ห้ามประกอบข้อความพวกนี้ใน JSX: เดิม "พิมพ์ N ครั้ง" ถูกเขียนไว้ใน InboxList.tsx ที่เดียว
+ * ⇒ วันที่มีจอที่สองแสดงชิปเดียวกัน คำจะแตกเป็นสองเวอร์ชันโดยไม่มี gate ไหนฟ้อง (HR16)
+ * ใช้ `×` (U+00D7) ไม่ใช่ตัวอักษร x — เป็น typographic sign ไม่ใช่ emoji (HR12 ผ่าน)
+ */
+export function orderStageChipLabel(stage: {
+  key: string
+  label: string
+  printCount?: number
+  problemCount?: number
+}): string {
+  if (stage.key === 'LABEL_PRINTED' && stage.printCount) return `พิมพ์ ${stage.printCount} ครั้ง`
+  if (stage.key === 'PARCEL_PROBLEM' && stage.problemCount && stage.problemCount >= 2) {
+    return `${stage.label} ×${stage.problemCount}`
+  }
+  return stage.label
 }
 
 /**

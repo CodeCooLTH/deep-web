@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { PROBLEM_CARRIER_STATUSES } from '@/lib/iship/status'
+import { PROBLEM_STAGE_CARRIER_STATUSES } from '@/lib/iship/status'
 import { canAccessShop, listAccessibleShopIds } from '@/lib/shop-context'
 import { Prisma } from '@prisma/client'
 import { getProductById } from '@/services/product.service'
@@ -201,6 +201,48 @@ export async function conversationIdsByShipmentState(
   state: ShipmentFilter,
 ): Promise<string[]> {
   if (shopIds.length === 0) return []
+
+  /**
+   * "พัสดุมีปัญหา" ตัดสินจาก **ทุกใบของลูกค้า** ไม่ใช่ใบล่าสุดใบเดียว (user สั่ง 2026-08-20)
+   *
+   * เหตุผลที่แยกออกมาจาก 3 สถานะที่เหลือ: อีก 3 ตัวถามว่า "ตอนนี้ลูกค้าคนนี้อยู่ขั้นไหน"
+   * ซึ่งใบล่าสุดคือคำตอบที่ถูก (ร้านที่เพิ่งพิมพ์ใบใหม่ต้องหลุดจากตัวกรอง "ยังไม่พิมพ์" — ดู
+   * คอมเมนต์หัวฟังก์ชัน) ส่วนตัวนี้ถามว่า "มีของค้างที่ต้องตามไหม" ซึ่ง **ไม่หายไปเพราะลูกค้า
+   * สั่งใบใหม่ทับ** — ของเดิมยังตีกลับ/ติดค้างอยู่จริง
+   *
+   * เดิมใช้ใบล่าสุดใบเดียว + เทียบกับ PROBLEM_CARRIER_STATUSES ที่ไม่มี `return_success`
+   * ⇒ ชิปในกล่องแชทขึ้น 3 ขณะที่หน้า /orders ขึ้น 10 ใบ (user เจอบน prod 2026-08-20)
+   * ตัวเลขยังไม่เท่ากันเป๊ะโดยเจตนา — ที่นี่นับ *เธรด* หน้านั้นนับ *ออเดอร์* ลูกค้าที่มีหลายใบ
+   * จึงเป็น 1 เธรด แล้วบอกจำนวนบนป้ายแทน ("พัสดุมีปัญหา ×2" — ดู orderStageChipLabel)
+   */
+  if (state === 'problem') {
+    const problemRows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT c."id" AS id
+      FROM "Conversation" c
+      LEFT JOIN "ExternalContact" ec ON ec."id" = c."externalContactId"
+      LEFT JOIN "Customer" cu ON cu."userId" = c."buyerUserId"
+      WHERE c."shopId" IN (${Prisma.join(shopIds)})
+        AND EXISTS (
+          SELECT 1
+          FROM "Order" o
+          JOIN LATERAL (
+            SELECT sh."carrierStatus"
+            FROM "OrderShipment" sh
+            -- นิยาม "มีพัสดุจริง" ชุดเดียวกับ enrichWithOrderStage/getOrdersByShop เป๊ะ ๆ
+            WHERE sh."orderId" = o."id" AND sh."status" = 'CREATED' AND sh."isDryRun" = false
+            ORDER BY sh."createdAt" DESC
+            LIMIT 1
+          ) s ON true
+          -- ใบที่ยกเลิกแล้วไม่ใช่งานค้าง (deriveShippingStage คืน 'DONE' ให้ใบยกเลิกเสมอ)
+          WHERE o."shopId" = c."shopId"
+            AND o."customerId" = COALESCE(ec."customerId", cu."id")
+            AND o."status" <> 'CANCELLED'
+            AND s."carrierStatus" = ANY(${[...PROBLEM_STAGE_CARRIER_STATUSES]}::text[])
+        )
+    `
+    return problemRows.map((r) => r.id)
+  }
+
   const rows = await prisma.$queryRaw<{ id: string }[]>`
     WITH latest AS (
       -- คีย์ต้องมี shopId ด้วย (feature 00037) — Customer เป็นตารางระดับทั้งระบบ ลูกค้าคนเดียว
@@ -216,7 +258,10 @@ export async function conversationIdsByShipmentState(
       LEFT JOIN LATERAL (
         SELECT sh."id", sh."labelPrintedAt", sh."carrierStatus"
         FROM "OrderShipment" sh
-        WHERE sh."orderId" = o."id" AND sh."status" <> 'CANCELLED'
+        -- ชุดเดียวกับ enrichWithOrderStage: <> 'CANCELLED' เดิมนับใบที่ *สร้างไม่สำเร็จ* (FAILED)
+        -- และใบทดสอบด้วย ⇒ เธรดที่เปิดพัสดุไม่ผ่านติดตัวกรอง "สร้างแล้ว/ยังไม่พิมพ์" ทั้งที่ป้าย
+        -- ในแถวเดียวกันบอกว่ายังไม่มีพัสดุ (ฝั่ง enrich แก้ไปแล้ว 2026-08-06 แต่ตกไฟล์นี้ไว้)
+        WHERE sh."orderId" = o."id" AND sh."status" = 'CREATED' AND sh."isDryRun" = false
         ORDER BY sh."createdAt" DESC
         LIMIT 1
       ) s ON true
@@ -235,11 +280,8 @@ export async function conversationIdsByShipmentState(
           ? Prisma.sql`l."shipmentId" IS NULL`
           : state === 'unprinted'
             ? Prisma.sql`l."shipmentId" IS NOT NULL AND l."labelPrintedAt" IS NULL`
-            : // ใช้รายชื่อสถานะชุดเดียวกับป้ายในแถว — ถ้านิยาม "มีปัญหา" สองที่ไม่ตรงกัน
-              // ตัวกรองจะกรองแล้วได้ผลไม่ตรงกับที่ตาเห็น ซึ่งเป็นบั๊กที่หาสาเหตุยากมาก
-              state === 'problem'
-              ? Prisma.sql`l."carrierStatus" = ANY(${[...PROBLEM_CARRIER_STATUSES]}::text[])`
-              : Prisma.sql`l."labelPrintedAt" IS NOT NULL`
+            : // 'problem' ออกไปอยู่คิวรีของตัวเองข้างบนแล้ว (นับทุกใบ ไม่ใช่ใบล่าสุด)
+              Prisma.sql`l."labelPrintedAt" IS NOT NULL`
       }
   `
   return rows.map((r) => r.id)

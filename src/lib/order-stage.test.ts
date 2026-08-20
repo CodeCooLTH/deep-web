@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveOrderStage,
   deriveShippingStage,
+  orderStageChipLabel,
   shouldPromptCloseReturnedOrder,
 } from "./order-stage";
 
@@ -202,5 +203,78 @@ describe('shouldPromptCloseReturnedOrder', () => {
     for (const status of ['PENDING', 'SHIPPED', 'CONFIRMED', 'CANCELLED']) {
       expect(shouldPromptCloseReturnedOrder({ status, parcelReturned: false })).toBe(false)
     }
+  })
+})
+
+/**
+ * [blocker] "พัสดุมีปัญหา" ต้องนับทุกใบของลูกค้า ไม่ใช่ใบล่าสุดใบเดียว (user report 2026-08-20)
+ *
+ * อาการที่ user เจอบน prod: หน้า /orders ขึ้น "พัสดุมีปัญหา 10" แต่ชิปในกล่องแชทขึ้น 3
+ * สองสาเหตุที่เทสชุดนี้ปักหมุดไว้:
+ *   1. ป้าย/ตัวกรองฝั่งแชทอ่านจาก **ใบล่าสุดใบเดียว** ⇒ ใบที่ติดปัญหาแล้วลูกค้าสั่งใบใหม่ทับ
+ *      หายไปทั้งจากป้ายและตัวกรอง ทั้งที่ของยังค้างอยู่จริง
+ *   2. `return_success` (ตีกลับถึงร้านแล้ว) นับเป็นปัญหาที่ /orders แต่ไม่นับที่แชท
+ */
+describe('พัสดุมีปัญหา — นับทุกใบ + return_success', () => {
+  const shipped = { ...base, status: 'SHIPPED', hasShipment: true }
+
+  it('[blocker] return_success = ของตีกลับถึงร้าน → เป็น "พัสดุมีปัญหา" ทั้งสองฟังก์ชัน', () => {
+    expect(deriveOrderStage({ ...shipped, carrierStatus: 'return_success' }, NOW)?.key).toBe(
+      'PARCEL_PROBLEM',
+    )
+    expect(
+      deriveShippingStage({
+        status: 'SHIPPED',
+        carrierStatus: 'return_success',
+        hasShipment: true,
+        paymentMethod: 'TRANSFER',
+      }),
+    ).toBe('PROBLEM')
+  })
+
+  it('[blocker] มีใบเก่าติดปัญหาอยู่ แม้ใบล่าสุดจะปกติ → ป้ายต้องขึ้น "พัสดุมีปัญหา"', () => {
+    // ใบล่าสุด = เพิ่งสั่ง ยังไม่มีพัสดุ (เดิมได้ "สั่งซื้อแล้ว" แล้วปัญหาหายไปเงียบ ๆ)
+    const s = deriveOrderStage(
+      { ...base, hasShipment: false, problemOrderCount: 1 },
+      NOW,
+    )
+    expect(s?.key).toBe('PARCEL_PROBLEM')
+    expect(s?.problemCount).toBeUndefined() // ใบเดียวไม่ต้องบอกจำนวน
+  })
+
+  it('[blocker] ใบล่าสุดถูกยกเลิก แต่ยังมีใบอื่นค้างปัญหา → ปัญหาชนะ "ยกเลิกแล้ว"', () => {
+    expect(
+      deriveOrderStage(
+        { ...base, status: 'CANCELLED', statusAt: new Date(NOW), problemOrderCount: 2 },
+        NOW,
+      )?.key,
+    ).toBe('PARCEL_PROBLEM')
+  })
+
+  it('[blocker] ปิดการขายไปแล้วก็ยังต้องเห็นปัญหา — CONFIRMED ไม่กลบของที่ค้าง', () => {
+    expect(
+      deriveOrderStage(
+        { ...base, status: 'CONFIRMED', hasShipment: false, problemOrderCount: 1 },
+        NOW,
+      )?.key,
+    ).toBe('PARCEL_PROBLEM')
+  })
+
+  it('[blocker] 2 ใบขึ้นไป → ติดจำนวนมาให้ป้าย ("พัสดุมีปัญหา ×2")', () => {
+    const s = deriveOrderStage({ ...shipped, carrierStatus: 'issue', problemOrderCount: 2 }, NOW)
+    expect(s?.problemCount).toBe(2)
+    expect(orderStageChipLabel(s!)).toBe('พัสดุมีปัญหา ×2')
+  })
+
+  it('[blocker] ผู้เรียกที่ยังไม่ได้นับมาให้ (undefined) ต้องได้พฤติกรรมเดิมทุกประการ', () => {
+    // undefined ≠ 0: ห้ามตีความว่า "รู้แล้วว่าไม่มีปัญหา" แล้วไปกลบสถานะของใบล่าสุด
+    expect(deriveOrderStage({ ...base, hasShipment: false }, NOW)?.key).toBe('ORDERED')
+    expect(deriveOrderStage({ ...shipped, carrierStatus: 'issue' }, NOW)?.key).toBe('PARCEL_PROBLEM')
+  })
+
+  it('[blocker] ป้ายที่ไม่ใช่กองปัญหา ห้ามมี ×N ติดมา', () => {
+    const s = deriveOrderStage({ ...shipped, carrierStatus: 'in_transit' }, NOW)
+    expect(s?.key).toBe('SHIPPING')
+    expect(orderStageChipLabel(s!)).toBe('กำลังจัดส่ง')
   })
 })

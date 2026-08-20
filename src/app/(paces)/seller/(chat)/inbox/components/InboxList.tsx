@@ -83,6 +83,7 @@ import Icon from '@/components/wrappers/Icon'
 import { toFileUrl } from '@/lib/file-url'
 // ป้ายพฤติกรรมลูกค้า — SSOT เดียวกับหัวแผงลูกค้าในเธรด และป้ายท้ายชื่อในตาราง /orders (HR16)
 import { customerBadges, type CustomerBehavior } from '@/lib/customer-behavior'
+import { orderStageChipLabel } from '@/lib/order-stage'
 import { generateInitials } from '@/utils/helpers'
 import { formatChatListTime } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
@@ -145,7 +146,15 @@ export type ConversationListItem = {
   // user request 2026-07-29 — ป้ายขั้นตอนของออเดอร์ล่าสุด (แทน orderCount เดิมของ 2026-07-25)
   // null = ไม่ต้องแสดงชิป (ไม่เคยมีออเดอร์ หรือป้ายหมดอายุแล้ว — ดู deriveOrderStage)
   // enrich ด้วย enrichWithOrderStage ทั้งฝั่ง RSC (inbox/page.tsx) และ route; optional เผื่อ payload เก่า
-  orderStage?: { key: string; label: string; cls: string; icon: string; printCount?: number } | null
+  orderStage?: {
+    key: string
+    label: string
+    cls: string
+    icon: string
+    printCount?: number
+    /** ≥2 = ลูกค้าคนนี้มีพัสดุติดปัญหาหลายใบพร้อมกัน → ป้ายเติม "×N" (user สั่ง 2026-08-20) */
+    problemCount?: number
+  } | null
   /** ป้ายพฤติกรรมลูกค้า (user สั่ง 2026-08-11) — null = ยังไม่ผูกกับลูกค้าในระบบ (ไม่มีป้ายเลย)
    *  enrich ด้วย enrichWithCustomerBehavior ทั้งฝั่ง RSC และ route เหมือน orderStage */
   customerBehavior?: CustomerBehavior | null
@@ -1711,12 +1720,10 @@ export default function InboxList({
                           e.stopPropagation()
                           router.push(`/inbox/${c.id}?panel=orders`)
                         }
-                        // "พิมพ์แล้ว" กับ "พิมพ์ N ครั้ง" บอกเรื่องเดียวกัน (user 2026-07-31) — รู้จำนวน
-                        // เมื่อไหร่ก็ใช้จำนวนไปเลย ได้ข้อมูลมากกว่าในพื้นที่เท่ากัน ไม่ต้องมี 2 ชิป
-                        const stageLabel =
-                          c.orderStage.key === 'LABEL_PRINTED' && c.orderStage.printCount
-                            ? `พิมพ์ ${c.orderStage.printCount} ครั้ง`
-                            : c.orderStage.label
+                        // คำบนชิปมาจาก orderStageChipLabel() ที่เดียว (HR16) — ครอบทั้ง
+                        // "พิมพ์ N ครั้ง" (user 2026-07-31) และ "พัสดุมีปัญหา ×N" (user 2026-08-20)
+                        // เดิมประกอบข้อความตรงนี้ใน JSX ซึ่งไม่มีที่ให้เทสจับและก็อปไปจออื่นไม่ได้
+                        const stageLabel = orderStageChipLabel(c.orderStage)
                         return (
                           <span
                             role="link"
