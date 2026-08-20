@@ -2677,8 +2677,16 @@ export default function CommentsClient({
               ) : visibleTree.length === 0 ? (
                 <SellerEmptyState compact icon="message-circle" title={t.comments.emptyInPost} />
               ) : (
-                visibleTree.map(({ comment, replies, publiclyAnswered }) => (
-                  <div key={comment.id} className="mb-5">
+                visibleTree.map(({ comment, replies, publiclyAnswered }, idx) => (
+                  /**
+                   * เส้นแบ่งระหว่าง **กลุ่มคอมเมนต์** (ลูกค้าคนหนึ่ง + คำตอบใต้เขา) — ลูกค้ารายงาน
+                   * 2026-08-20 ว่าเธรด "กลืนกัน" ระยะห่างอย่างเดียวไม่พอบอกว่าคนถัดไปเริ่มตรงไหน
+                   *
+                   * 🛑 ใส่เฉพาะ `idx > 0` และเฉพาะระดับบนเท่านั้น — **ห้ามใส่ระหว่าง reply กับ
+                   * คอมเมนต์แม่ของมันเอง** จะอ่านเป็นคนละกลุ่มทั้งที่เป็นบทสนทนาเดียวกัน ซึ่งขัดกับ
+                   * สิ่งที่ลูกค้าบอกว่าชอบ (หน้าตาแบบ Facebook)
+                   */
+                  <div key={comment.id} className={idx > 0 ? 'border-default-200 mt-5 border-t pt-5' : 'mb-5'}>
                     <CommentBubble
                       c={comment}
                       channel={thread?.channel}
@@ -2928,12 +2936,39 @@ function CommentBubble({
 
       <div className="min-w-0 flex-1">
         {/* บับเบิลหุ้มเนื้อหา: inline-block + max-w กันคอมเมนต์ยาวลากเต็มจอบนจอกว้าง */}
-        {/* active = ตัวที่ช่องพิมพ์จ่อตอบอยู่ → พื้นฟ้าจางกว่าปกติหนึ่งขั้น (user สั่ง 2026-08-04)
-            ใช้ความเข้มของ primary เดิม ไม่ใช่สลับไปเฉดอื่น (docs/conventions/contrast-fix-keeps-hue)
-            บับเบิลของเพจอยู่ที่ /10 อยู่แล้ว แต่ไม่ชนกันเพราะมันมีทั้งป้าย "ผู้ดูแลเพจ" และรูปเพจกำกับ */}
+        {/**
+          * ลูกค้ารายงาน 2026-08-20 ว่า "ชอบของเดิม (เหมือน facebook) แต่มีปัญหาเรื่องสี ความชัดเจน
+          * มันกลืนกันไปหน่อย" — prototype 3 แบบที่จัดผังใหม่ถูกปฏิเสธหมด ⇒ ปัญหาคือ **การแยกชั้น
+          * ด้วยสี ไม่ใช่โครงสร้าง**
+          *
+          * 🛑 ปัญหาไม่ได้อยู่ที่คอนทราสต์ของ *ตัวอักษร* — `text-default-800` บนพื้น tint จางทุกแบบ
+          * ได้ ~10–11.5:1 ผ่านสบาย ๆ (คอมเมนต์เดิมที่เขียนว่า "คอนทราสต์เท่าเดิม" ถูกในแง่นั้น)
+          * ตัวที่พังคือคอนทราสต์ของ **พื้นบับเบิลเทียบกับการ์ดขาว** (non-text/boundary, WCAG 1.4.11):
+          *   ลูกค้า `bg-default-100` = **1.07:1** · เพจ `bg-primary/10` = **1.15:1**
+          * ⇒ ตาแยกขอบก้อนข้อความไม่ออก หลายคนติดกันจึงอ่านเป็นพืดเดียว และ "ใครพูด" ไม่ชัด
+          *
+          * แก้ด้วย **ความเข้มของเฉดเดิมเท่านั้น** ไม่สลับเฉด (contrast-fix-keeps-hue.md — เหตุการณ์
+          * 2026-08-03 ที่เปลี่ยน tone 55 จุดรวดเดียวแล้วดาวกลายเป็นน้ำตาล ต้องย้อนทั้งหมด)
+          *   default-100 → 200 (1.07 → 1.12) · primary/10 → /15 (1.15 → 1.23) · active /15 → /25 (1.23 → 1.41)
+          *
+          * 🛑 **ตัวเลขพวกนี้ยังต่ำกว่าเกณฑ์ non-text 3:1 มาก และเรารู้ตัว** — โทเคนพื้นผิวของ Paces
+          * ออกแบบมาให้เป็น "พื้นผิวจาง" ไม่ใช่ "บล็อกสี" การดันถึง 3:1 ต้องใช้ `/60` ขึ้นไปซึ่งจะทำให้
+          * บับเบิลกลายเป็นแผ่นสีทึบเหมือนปุ่ม ขัด One Voice (primary = สีของ action ไม่ใช่พื้นที่กว้าง)
+          * จึงเลือกพึ่ง **ขอบ 1px** แทน: ตาจับ "เส้นขอบ" ได้ดีกว่า "พื้นที่กว้างสีจาง" ที่คอนทราสต์เท่ากัน
+          * (Paces เองใช้ `border-default-300` เป็นขอบการ์ด/ปุ่มทั้งระบบที่ระดับเดียวกันนี้)
+          * ⇒ ถ้ารัน `/impeccable critique` แล้วยังเจอ finding เรื่องนี้ **เป็นทางเลือกที่ยอมรับแล้ว
+          * ไม่ใช่บั๊กที่แก้ไม่หมด**
+          *
+          * active ใช้ `ring` ไม่ใช่ `shadow` — Flat-At-Rest ห้ามเงาที่ resting state
+          * โครง class ยกมาจาก precedent ในไฟล์นี้เอง (ชิป active ใช้ `bg-danger/25 ring-danger/40 ring-1`)
+          */}
         <div
-          className={`inline-block max-w-2xl rounded-2xl px-3 py-2 ${
-            active ? 'bg-primary/15' : c.isFromPage ? 'bg-primary/10' : 'bg-default-100'
+          className={`inline-block max-w-2xl rounded-2xl border px-3 py-2 ${
+            active
+              ? 'bg-primary/25 ring-primary/40 border-primary/20 ring-1'
+              : c.isFromPage
+                ? 'bg-primary/15 border-primary/20'
+                : 'bg-default-200 border-default-300'
           }`}
         >
           <p className="mb-0 flex flex-wrap items-center gap-1.5">
@@ -3008,13 +3043,16 @@ function CommentBubble({
                * ไม่แยกสาเหตุ (URL หมดอายุ / เน็ตสะดุด / storage 404) — ผู้ขายแยกไม่ออกและทำอะไร
                * เหมือนกันหมด: ไปดูของจริงบน Facebook
                *
-               * ใช้ `bg-default-100` ไม่ใช่ `bg-danger/15` — นี่ไม่ใช่ error ที่ต้องลงมือแก้
-               * แค่ "ไม่มีรูปให้ดู" สีเตือนสงวนให้สถานะที่ต้องทำอะไรต่อ
+               * ใช้พื้นกลาง ไม่ใช่ `bg-danger/15` — นี่ไม่ใช่ error ที่ต้องลงมือแก้ แค่ "ไม่มีรูปให้ดู"
+               * สีเตือนสงวนให้สถานะที่ต้องทำอะไรต่อ
                *
-               * Base: ChatThread.tsx (การ์ดสินค้าที่ไม่มีรูป — bg-default-100 + photo-off)
+               * `bg-default-200` ยกตามบับเบิลข้อความ (เดิม 100) เมื่อ 2026-08-20 — token เดียวกัน
+               * ต้องหน้าตาเท่ากันในหน้าเดียว ไม่งั้นจะมีเทาสองระดับที่ไม่มีใครอธิบายได้ว่าต่างกันทำไม
+               *
+               * Base: ChatThread.tsx (การ์ดสินค้าที่ไม่มีรูป — photo-off บนพื้นกลาง)
                *       + brokenThumbs/markThumbBroken ในไฟล์นี้เอง (แพตเทิร์น onError)
                */
-              <div className="bg-default-100 mt-2 flex size-40 flex-col items-center justify-center gap-1 rounded-lg px-2 text-center">
+              <div className="bg-default-200 mt-2 flex size-40 flex-col items-center justify-center gap-1 rounded-lg px-2 text-center">
                 <Icon icon="photo-off" className="text-default-700 text-xl" aria-hidden="true" />
                 <span className="text-default-800 text-xs">{t.comments.attachmentBroken}</span>
                 {(() => {
@@ -3054,8 +3092,12 @@ function CommentBubble({
               {t.comments.answered}
             </span>
           )}
+          {/* `text-primary` ที่ปุ่ม "ตอบ" = สีลิงก์มาตรฐานที่ไฟล์นี้ใช้อยู่แล้ว ("เปิดใน Facebook" /
+              ป้ายผู้ดูแลเพจ) ไม่ใช่สีใหม่ · ของเดิมสืบสี `text-default-700` จากแถวเมตา ⇒ **ไม่มีอะไร
+              บอกว่ามันเป็นปุ่ม** แยกไม่ออกจากข้อมูล passive อย่างเวลา/แก้ไขแล้ว (5.12:1 บนขาว ผ่าน AA)
+              ไม่ใส่กรอบ — กรอบสงวนให้ปุ่ม "ทักแชท" ซึ่งเป็น action หลัก ไม่งั้นแถวรกเกิน */}
           {!c.isDeleted && (
-            <button type="button" onClick={onReply} className="font-medium hover:underline">
+            <button type="button" onClick={onReply} className="text-primary font-medium hover:underline">
               {t.comments.reply}
             </button>
           )}
