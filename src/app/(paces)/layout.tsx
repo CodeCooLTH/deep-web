@@ -9,8 +9,8 @@ import AppProvidersWrapper from '@/components/wrappers/AppProvidersWrapper'
 import { META_DATA } from '@/config/constants'
 import { LocaleProvider } from '@/i18n/LocaleProvider'
 import { getLocale } from '@/i18n/server'
+// ไอคอนของเว็บ = โลโก้ Deep ชุดเดียวกับ buyer (เดิมที่นี่ใช้ favicon ของธีม Paces) — ดู src/lib/site-icons.ts
 import { SITE_ICONS } from '@/lib/site-icons'
-// favicon ของฝั่ง seller/admin = Paces theme favicon (ไม่ใช้ของ buyer/Deep ที่ root)
 
 import '@/assets/css/app.css'
 
