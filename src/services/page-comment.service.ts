@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { COMMENT_LIST_PAGE_SIZE } from '@/lib/comment-list-page'
 import { resolveCommentProvider, type CommentChannelFilter } from '@/lib/comment-channel-filter'
+import { resolveCommentParentId } from '@/lib/facebook-comment-parent'
 import { isWithinPrivateReplyWindow, privateReplyWindowCutoff } from '@/lib/private-reply-window'
 import { prisma } from '@/lib/prisma'
 import { canAccessShop, assertShopsAccessible } from '@/lib/shop-context'
@@ -118,9 +119,18 @@ export async function ingestFeedComment(params: {
   if (!post) return null
 
   const createdTime = val.created_time ? new Date(val.created_time * 1000) : new Date()
-  // parent_id ที่เท่ากับ post_id = คอมเมนต์ระดับบน (ยืนยันจาก payload จริง: reply จะได้ comment id
-  // ของตัวแม่ ส่วนคอมเมนต์ระดับบนได้ post id) — เก็บ null เพื่อให้ query "คอมเมนต์ระดับบน" ตรงไปตรงมา
-  const parentExternalId = val.parent_id && val.parent_id !== val.post_id ? val.parent_id : null
+  /**
+   * 🛑 เกณฑ์อยู่ที่ `resolveCommentParentId()` ที่เดียว (Hard Rule 16) — ห้ามเขียนเงื่อนไขเองที่นี่
+   *
+   * เดิมเขียนว่า `parent_id !== post_id ⇒ เป็น reply` พร้อมคอมเมนต์ว่า "ยืนยันจาก payload จริง"
+   * ซึ่งจริงเฉพาะโพสต์รูปเดียว — โพสต์อัลบั้มส่ง `post_id` เป็นสตอรีของรูปย่อย แต่ `parent_id`
+   * เป็นสตอรีของอัลบั้มแม่ ⇒ คอมเมนต์ระดับบนถูกบันทึกเป็น reply ของคอมเมนต์ที่ไม่มีอยู่จริง
+   * ⇒ หายจากหน้าจอทั้งใบ (8 แถวบน prod · user เจอเอง 2026-08-20 พร้อมภาพเทียบกับ Facebook)
+   */
+  const parentExternalId = resolveCommentParentId({
+    parentId: val.parent_id,
+    commentId: val.comment_id,
+  })
   const isFromPage = !!val.from?.id && val.from.id === params.pageExternalId
 
   const data = {
@@ -1512,7 +1522,9 @@ export async function backfillPostComments(postId: string): Promise<{ added: num
         postId,
         shopChannelId: post.shopChannelId,
         externalCommentId: c.id,
-        parentExternalId: c.parentId && c.parentId !== post.externalPostId ? c.parentId : null,
+        // เกณฑ์เดียวกับฝั่ง webhook เสมอ (Hard Rule 16) — ฝั่ง Graph ให้ `parent{id}` ที่เชื่อถือได้
+        // (496/496 แถวบน prod ตรงเกณฑ์) แต่ถ้าเขียนเงื่อนไขแยกกันสองที่ ที่หนึ่งจะล้าสมัยเสมอ
+        parentExternalId: resolveCommentParentId({ parentId: c.parentId, commentId: c.id }),
         fromExternalId: c.fromId,
         fromName: c.fromName,
         isFromPage: c.fromId === auth.pageId,

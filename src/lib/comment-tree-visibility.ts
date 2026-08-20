@@ -29,20 +29,35 @@ export type CommentVisibilityRow = {
  *   - `showShopComments` = แสดงคอมเมนต์ของเพจทั้งหมด (ผู้ใช้เปิดเอง)
  *
  * คอมเมนต์ที่ถูกลบไม่นับเป็น "ลูกค้ามาตอบ" — กิ่งที่เหลือแต่คำตอบที่ถูกลบไม่มีอะไรให้ทำต่อ
+ *
+ * 🛑 **"ระดับบน" = ไม่มีพ่อ *หรือ* พ่อไม่อยู่ในชุดข้อมูลนี้ (กำพร้า)** — ไม่ใช่ `parentExternalId == null`
+ * เฉย ๆ. เพิ่มเมื่อ 2026-08-20 หลัง user เจอเองบน prod: ลูกค้าคอมเมนต์ใต้โพสต์อัลบั้ม 2 ใบ
+ * **ระดับบนทั้งคู่** (ภาพจาก Facebook ยืนยัน) แต่ Meta ส่ง `parent_id` เป็น **id ของอัลบั้ม
+ * ไม่ใช่ id ของคอมเมนต์** เราเลยบันทึกเป็น reply ของคอมเมนต์ที่ไม่มีอยู่จริง แล้วที่นี่ทิ้งทั้งคู่
+ * ⇒ จอเดียวกันขึ้น "ยังไม่ตอบ 2" คู่กับ "ยังไม่มีความคิดเห็นในโพสต์นี้" และคำว่า "สนใจ" ของลูกค้า
+ * ค้าง 7 วันโดยไม่มีใครเห็น (ทั้ง prod เจอ 8 ใบ · 9 โพสต์ · 3 เพจ)
+ *
+ * ตาข่ายนี้ตั้งใจให้แยกจากการแก้ตัวจำแนกตอน ingest: ตัวนั้นกันรูปแบบที่เรา **รู้จักแล้ว** ส่วนตัวนี้
+ * กันรูปแบบที่ Meta ยังไม่เคยส่งมาให้เห็น — กติกาที่ต้องบังคับคือ **ทุกแถวที่ตัวนับนับ ต้องมีที่ยืน
+ * บนหน้าจอเสมอ** ไม่ว่า payload จะหน้าตาอย่างไร
+ *
+ * การยกขึ้นเป็นระดับบน **ไม่ใช่ใบเบิกให้โผล่** — กติกาเดิมยังบังคับต่อ (กำพร้าที่เป็นของเพจเอง
+ * และไม่มีลูกค้ามาตอบ ยังถูกซ่อนตามเดิม)
  */
 export function visibleTopLevelComments<T extends CommentVisibilityRow>(
   list: T[],
   showShopComments: boolean,
 ): T[] {
+  const known = new Set(list.map((c) => c.externalCommentId))
+  const isTop = (c: CommentVisibilityRow) => !c.parentExternalId || !known.has(c.parentExternalId)
+
   const hasCustomerReply = new Set<string>()
   for (const c of list) {
-    if (!c.parentExternalId || c.isFromPage || c.isDeleted) continue
-    hasCustomerReply.add(c.parentExternalId)
+    if (isTop(c) || c.isFromPage || c.isDeleted) continue
+    hasCustomerReply.add(c.parentExternalId as string)
   }
   return list.filter(
-    (c) =>
-      !c.parentExternalId &&
-      (showShopComments || !c.isFromPage || hasCustomerReply.has(c.externalCommentId)),
+    (c) => isTop(c) && (showShopComments || !c.isFromPage || hasCustomerReply.has(c.externalCommentId)),
   )
 }
 
