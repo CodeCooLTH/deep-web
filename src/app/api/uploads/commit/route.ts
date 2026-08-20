@@ -14,6 +14,7 @@ import {
 import { checkUploadPolicy } from "@/lib/upload-policy";
 import { verifyUploadTicket } from "@/lib/upload-ticket";
 import { resolveChatChannelForUser } from "../_shared";
+import { reconcileUploadedFile } from "@/services/media-asset.service";
 
 /**
  * POST /api/uploads/commit — ด่านจริงของ direct upload (2026-08-10)
@@ -90,6 +91,11 @@ export async function POST(request: NextRequest) {
     return reject(400, policy.reason);
   }
 
+  // fileId สุดท้ายที่ตอบกลับ client — เปลี่ยนได้เฉพาะตอน reconcile เจอไฟล์ซ้ำ (path C, TFR-CMD-10)
+  // ต่างจาก path A/B ตรงที่ไฟล์ถูก client PUT ตรงเข้า storage ไปแล้วก่อนบรรทัดนี้ทำงานด้วยซ้ำ —
+  // จึงเป็น "เขียนไปแล้ว → hash → ยืนยัน/ลบทิ้งแล้วใช้ของเดิม" ไม่ใช่ "hash ก่อนเขียน" (TD-08)
+  let finalFileId = claim.fileId;
+
   if (claim.purpose === "CHAT" && claim.conversationId) {
     const resolved = await resolveChatChannelForUser(claim.conversationId, userId);
     if (!resolved.ok) {
@@ -99,10 +105,20 @@ export async function POST(request: NextRequest) {
     if (!support.ok) {
       return reject(400, support.reason);
     }
+
+    // 🛑 จำกัดไว้ที่ purpose==='CHAT' เท่านั้น (TD-09/OOS-10) — ห้ามขยายไป IMAGE/DOCUMENT เด็ดขาด
+    // ห้าม throw — ล้มเหลว = ใช้ claim.fileId เดิมต่อไป ไม่ block การอัปโหลด (TFR-CMD-07)
+    const reconciled = await reconcileUploadedFile({
+      shopId: resolved.shopId,
+      fileId: claim.fileId,
+      contentType: mime,
+      size: meta.size,
+    }).catch(() => null);
+    if (reconciled) finalFileId = reconciled.fileId;
   }
 
   return NextResponse.json(
-    { fileId: claim.fileId, name, size: meta.size, mime, kind },
+    { fileId: finalFileId, name, size: meta.size, mime, kind },
     { status: 201 },
   );
 }
