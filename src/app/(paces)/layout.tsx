@@ -9,8 +9,8 @@ import AppProvidersWrapper from '@/components/wrappers/AppProvidersWrapper'
 import { META_DATA } from '@/config/constants'
 import { LocaleProvider } from '@/i18n/LocaleProvider'
 import { getLocale } from '@/i18n/server'
+import { SITE_ICONS } from '@/lib/site-icons'
 // favicon ของฝั่ง seller/admin = Paces theme favicon (ไม่ใช้ของ buyer/Deep ที่ root)
-import pacesFavicon from '@/assets/images/paces-favicon.ico'
 
 import '@/assets/css/app.css'
 
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   description: META_DATA.description,
   keywords: META_DATA.keywords,
   authors: [{ name: META_DATA.author }],
-  icons: { icon: pacesFavicon.src },
+  icons: SITE_ICONS,
 }
 
 // ปิด pinch-zoom บนมือถือ — แอป seller/admin เป็น native-like (Paces) ไม่อยาก
