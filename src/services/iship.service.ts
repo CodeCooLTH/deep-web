@@ -2027,6 +2027,7 @@ export async function syncShipmentStatuses(
    * `query_orders` แบบยกชุดมีไว้เลี่ยงตั้งแต่แรก
    */
   const staleParcels = pickStaleParcelsForLookup(tracking, new Set(byTrack.keys()), end);
+  let staleChanged = 0;
   for (const s of staleParcels) {
     let raw: Record<string, unknown>;
     try {
@@ -2041,7 +2042,10 @@ export async function syncShipmentStatuses(
 
     const code = carrierStatusCodeFromId(parcel.statusId);
     const changedAt = parcel.updatedAtRaw ? new Date(parcel.updatedAtRaw) : new Date();
-    if (await applyCarrierStatus(s, code, changedAt)) changed += 1;
+    if (await applyCarrierStatus(s, code, changedAt)) {
+      changed += 1;
+      staleChanged += 1;
+    }
 
     // เหตุผลเดียวกับลูปข้างบน: เงิน COD และต้นทุนค่าส่งต้องอ่านทุกรอบที่เห็นแถว ไม่ใช่
     // เฉพาะตอนสถานะขยับ — และใบที่เดินทางนาน (ตีกลับ/ค้างสถานี) คือใบที่เรื่องเงินยัง
@@ -2065,6 +2069,22 @@ export async function syncShipmentStatuses(
       cod_fee: scalarOrNull(raw.cod_fee),
     });
     if (await captureCarrierCharges(s, charges)) changed += 1;
+  }
+
+  /**
+   * 🛑 log เฉพาะรอบที่คิวนี้ทำงานจริง — ตัวเลข `changed` รวมของ syncShipmentStatuses
+   * ปนสาเหตุอื่นหมด (สถานะจากคำตอบยกชุด · เงิน COD · ต้นทุนค่าส่ง) แยกไม่ออกว่าเส้นทาง
+   * "ตามใบที่หลุดหน้าต่าง" เจอของและแก้ได้จริงไหม
+   *
+   * ถ้าไม่มีบรรทัดนี้ วันที่โค้ดส่วนนั้นพังหรือเลือกใบไม่เจอ มันจะเงียบสนิทแบบเดียวกับบั๊กเดิม
+   * เป๊ะ ๆ (สถานะค้างโดยไม่มี error) ซึ่งคือสิ่งที่ทั้งรอบนี้พยายามเลิกทำ
+   */
+  if (staleParcels.length > 0) {
+    console.log("[iship-sync] ตามใบที่หลุดหน้าต่าง query_orders", {
+      shopId,
+      picked: staleParcels.length,
+      changed: staleChanged,
+    });
   }
 
   await prisma.shopShippingAccount.update({

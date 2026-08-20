@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { syncShipmentStatuses } from "@/services/iship.service";
 
 /**
- * GET /api/cron/iship-status-sync — Vercel Cron ทุก 15 นาที (server-to-server เท่านั้น)
+ * GET /api/cron/iship-status-sync — Vercel Cron ทุก 5 นาที (server-to-server เท่านั้น)
  * feature 00022 · SRS §22.6
  *
  * ทำไมต้องมี: ก่อนหน้านี้ `syncShipmentStatuses` มีทางเข้าเดียวคือ **เกาะจังหวะที่มีคนเปิด
@@ -18,6 +18,12 @@ import { syncShipmentStatuses } from "@/services/iship.service";
  *
  * ไม่ใช้ `force: true` โดยเจตนา — ให้ throttle 15 นาทีของ service เป็นเจ้าของความถี่ที่เดียว
  * ร้านที่เพิ่ง sync ไปจากการเปิดแชทจะถูกข้ามในรอบนี้ (คืน 0) ซึ่งถูกแล้ว ไม่ใช่การพลาด
+ *
+ * 🛑 ตารางเวลาเป็น 5 นาที **แต่ไม่ได้ยิง iShip ถี่ขึ้นเลย** — throttle 15 นาทียังเป็นตัวคุมจริง
+ * เหตุผลที่ไม่ตั้ง 15: cron ทุก 15 นาที + throttle 15 นาที ชนกันพอดีจนเกิด drift — ร้านที่มีคน
+ * เปิดแชทก่อน cron 14 นาที จะถูกข้ามทั้งรอบแล้วต้องรออีก 15 นาที ⇒ สถานะเก่าสุดได้ถึง ~30 นาที
+ * ตั้ง 5 นาทีทำให้เพดานความเก่าเหลือ ~20 นาที โดยรอบที่ถูกข้ามจบใน ~300ms (วัดจาก prod จริง
+ * 2026-08-20: 357ms ตอนทุกร้านถูก throttle)
  *
  * Auth: Authorization: Bearer {CRON_SECRET} — pattern เดียวกับ cron อีก 7 ตัวในโปรเจกต์
  * (proxy.ts ยกเว้น /api/cron/* จาก CSRF Origin-check อยู่แล้ว)
