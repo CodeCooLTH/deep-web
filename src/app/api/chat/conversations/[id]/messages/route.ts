@@ -887,7 +887,7 @@ export async function POST(
                 rows.map(async (r) => ({
                   name: r.name,
                   priceText: formatBaht(r.price),
-                  imageUrl: r.images[0] ? await resolveLineFlexImageUrl(r.images[0]) : null,
+                  imageUrl: r.images[0] ? await resolveLineFlexImageUrl(r.images[0], { shopId: conv.shopId }) : null,
                   isActive: r.isActive,
                 })),
               );
@@ -905,7 +905,7 @@ export async function POST(
                 rows.map(async (r) => ({
                   name: r.name,
                   priceText: formatBaht(r.price),
-                  imageUrl: r.images[0] ? await resolveMetaCardImageUrl(r.images[0]) : null,
+                  imageUrl: r.images[0] ? await resolveMetaCardImageUrl(r.images[0], { shopId: conv.shopId }) : null,
                   isActive: r.isActive,
                 })),
               );

@@ -9,7 +9,7 @@ import { canAccessShop } from "@/lib/shop-context";
  * ต้องใช้กฎเดียวกัน จึงยกออกมาเป็นตัวเดียว (สองที่ที่ตัดสินสิทธิ์ต่างกัน = ช่องโหว่รอเกิด)
  */
 export type ChatChannelResult =
-  | { ok: true; channel: string }
+  | { ok: true; channel: string; shopId: string }
   | { ok: false; status: number; error: string };
 
 export async function resolveChatChannelForUser(
@@ -25,7 +25,9 @@ export async function resolveChatChannelForUser(
   const allowed = conv.buyerUserId === userId || (await canAccessShop(conv.shopId, userId));
   if (!allowed) return { ok: false, status: 403, error: "Forbidden" };
 
-  return { ok: true, channel: conv.channel };
+  // shopId เพิ่ม 2026-08-20 (feature 00051 S-5, TFR-CMD-11) — additive: conv.shopId มีอยู่แล้วใน
+  // ผลลัพธ์ query ด้านบนตั้งแต่แรก เพียงแต่ไม่เคยถูกส่งออกมาให้ผู้เรียกใช้
+  return { ok: true, channel: conv.channel, shopId: conv.shopId };
 }
 
 /**
