@@ -66,4 +66,31 @@ describe('[blocker] เส้นทางหลัง Sign in with Apple', () =>
       /value=\{(?:displayName|email|fullName)\}/,
     )
   })
+
+  it('[blocker] ทั้งเส้นทางหลัง Apple ห้ามมีช่องกรอกชื่อคน', () => {
+    /**
+     * 🛑 ครอบ **ทั้งเส้นทาง** ไม่ใช่แค่หน้าแรก — คนที่ล็อกอิน Apple แล้วเดินต่อจะเจอ
+     * `/register` → `/onboarding` ถ้าหน้าใดหน้าหนึ่งถามชื่อคน ก็ผิดข้อเดิมเหมือนกัน
+     *
+     * เกณฑ์ที่ใช้จับคือสัญญาณที่ชัดที่สุด 2 อย่างของ "ช่องกรอกชื่อคน":
+     *   · `autoComplete="name"` — บอกเบราว์เซอร์ตรง ๆ ว่าช่องนี้คือชื่อคน
+     *   · placeholder ที่เขียนว่า "ชื่อ-นามสกุล"
+     *
+     * ตัวอย่างของจริงที่มีอยู่ในรีโปและ **ต้องไม่หลุดเข้าเส้นทางนี้**:
+     * `i/[slug]/components/PhoneAuthSteps.tsx` (สมัครด้วยเบอร์บนหน้าเชิญพนักงาน) มีช่อง
+     * "ชื่อที่แสดง" ที่ใช้ทั้งสองสัญญาณ — ตรวจแล้วว่าอยู่คนละเส้นทาง (เลือก "สมัครด้วยเบอร์"
+     * เท่านั้นถึงจะเจอ) แต่ถ้าวันหนึ่งมีคนย้ายมาใช้ร่วมกัน ด่านนี้จะจับได้ทันที
+     */
+    const PATH = [
+      'src/app/(paces)/seller/register/page.tsx',
+      'src/app/(paces)/seller/onboarding/page.tsx',
+    ]
+    const offenders: string[] = []
+    for (const rel of PATH) {
+      const c = blankComments(readFileSync(join(ROOT, rel), 'utf8'))
+      if (/autoComplete="name"/.test(c)) offenders.push(`${rel} → autoComplete="name"`)
+      if (/ชื่อ-นามสกุล/.test(c)) offenders.push(`${rel} → placeholder ชื่อ-นามสกุล`)
+    }
+    expect(offenders, 'ชื่อคนต้องมาจาก provider ไม่ใช่ให้ผู้ใช้กรอก').toEqual([])
+  })
 })
