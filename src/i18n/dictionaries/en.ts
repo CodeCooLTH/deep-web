@@ -303,6 +303,8 @@ export const en: Dictionary = {
     windowExpired: 'Reply window closed',
     windowRemaining: '{remaining} left',
     windowLeftShort: '{remaining} left to message',
+    windowLeftCoarse: 'Message within {unit}',
+    privateReplySentShort: 'Messaged',
     unitDay: '{n}d',
     unitHour: '{n}h',
     unitMinute: '{n}m',

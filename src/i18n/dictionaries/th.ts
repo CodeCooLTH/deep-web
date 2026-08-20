@@ -384,6 +384,8 @@ export const th = {
     windowExpired: 'หมดเวลาทักแชท',
     windowRemaining: 'คงเหลือ {remaining}',
     windowLeftShort: 'ทักแชทได้อีก {remaining}',
+    windowLeftCoarse: 'ทักแชทภายใน {unit}',
+    privateReplySentShort: 'ทักแชทแล้ว',
     unitDay: '{n} วัน',
     unitHour: '{n} ชั่วโมง',
     unitMinute: '{n} นาที',

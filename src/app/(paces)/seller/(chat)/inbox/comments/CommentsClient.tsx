@@ -39,6 +39,7 @@ import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { commentDoneMark } from '@/lib/comment-done-mark'
 import { commentPermalink } from '@/lib/facebook-post'
 import { commentContentState } from '@/lib/comment-content-state'
+import { commentRowChips } from '@/lib/comment-row-chips'
 import { countUnansweredInThread, isCommentHandled } from '@/lib/comment-handled'
 import { isReplyTargetVisible, resolveComposerSlot } from '@/lib/comment-composer-slot'
 import { compactCount } from '@/lib/format-compact-number'
@@ -221,12 +222,26 @@ function privateReplyWindow(createdTime: string, t: Dictionary): {
   text: string
   /** เวลาที่เหลือแบบไม่มีคำนำหน้า ("6 วัน 14 ชั่วโมง 3 นาที") — สำหรับประโยคที่มีคำนำหน้าของตัวเอง */
   remaining: string
+  /**
+   * หน่วยหยาบที่สุดที่ยังมีความหมาย ("7 วัน" / "23 ชั่วโมง" / "40 นาที") — user สั่ง 2026-08-20
+   *
+   * 🛑 นี่คือการ **กลับมติของตัวเองเมื่อ 2026-08-04** ที่สั่งว่าต้องเอาหน่วยเต็มทั้ง 3 ระดับ
+   * ห้ามย่อ. user เห็นของจริงแล้วเปลี่ยนใจ และเคาะขอบเขตไว้ชัด: **ย่อเฉพาะชิปในรายการซ้าย
+   * ส่วนป้ายข้างปุ่มทักแชทในเธรดยังเป็น 3 หน่วยเต็มตามมติเดิม** — คนละบริบท (สแกนหลายแถวว่าใบไหน
+   * ด่วน vs กำลังตัดสินใจกดปุ่มจริง) ทั้งคู่จึงอยู่ในฟังก์ชันเดียวกันนี้ ไม่แยกเป็นสองแหล่ง (HR16)
+   *
+   * ใช้ **ceil ไม่ใช่ floor** — ตัวอย่างที่ user เขียนมา ("7 วัน" ทั้งที่หน้าต่างคือ 7 วันพอดี
+   * และเวลาเดินไปแล้วเล็กน้อย) จะกลายเป็น "6 วัน" ถ้าใช้ floor ⇒ อ่านว่าเหลือน้อยกว่าความจริง
+   * ceil ตรงกับตัวอย่างทั้ง 3 ค่าที่ user ให้มาพอดี
+   */
+  coarse: string
   expired: boolean
   tone: PrivateReplyTone
 } {
   const left = new Date(createdTime).getTime() + PRIVATE_REPLY_WINDOW_MS - Date.now()
-  if (!Number.isFinite(left)) return { text: '', remaining: '', expired: false, tone: 'warning' }
-  if (left <= 0) return { text: t.comments.windowExpired, remaining: '', expired: true, tone: 'danger' }
+  if (!Number.isFinite(left)) return { text: '', remaining: '', coarse: '', expired: false, tone: 'warning' }
+  if (left <= 0)
+    return { text: t.comments.windowExpired, remaining: '', coarse: '', expired: true, tone: 'danger' }
   const tone: PrivateReplyTone = left <= PRIVATE_REPLY_URGENT_MS ? 'danger' : 'warning'
   const days = Math.floor(left / 86_400_000)
   const hours = Math.floor((left % 86_400_000) / 3_600_000)
@@ -237,7 +252,15 @@ function privateReplyWindow(createdTime: string, t: Dictionary): {
     fmt(t.comments.unitMinute, { n: minutes }),
   ].filter(Boolean)
   const remaining = parts.join(' ')
-  return { text: fmt(t.comments.windowRemaining, { remaining }), remaining, expired: false, tone }
+  // หน่วยหยาบ: >24 ชม. นับเป็นวัน · >1 ชม. นับเป็นชั่วโมง · ที่เหลือนับเป็นนาที
+  // จุดตัด 24 ชม. ตัวเดียวกับ PRIVATE_REPLY_URGENT_MS ที่ใช้ตัดสินโทนสี — เกณฑ์เดียวไม่แตกเป็นสอง
+  const coarse =
+    left > PRIVATE_REPLY_URGENT_MS
+      ? fmt(t.comments.unitDay, { n: Math.ceil(left / 86_400_000) })
+      : left > 3_600_000
+        ? fmt(t.comments.unitHour, { n: Math.ceil(left / 3_600_000) })
+        : fmt(t.comments.unitMinute, { n: Math.ceil(left / 60_000) })
+  return { text: fmt(t.comments.windowRemaining, { remaining }), remaining, coarse, expired: false, tone }
 }
 
 /**
@@ -2009,7 +2032,19 @@ export default function CommentsClient({
                       แม้โครงจะเหมือนกัน (user report 2026-08-04 "chatlist + comment lists
                       แสดงผลไม่เหมือนกัน") */}
                   <span className="min-w-0 flex-1 overflow-hidden">
-                    {/* บรรทัดที่ 1 = สิ่งที่ทำให้แถวนี้ต่างจากแถวอื่น "ใครถามอะไร"
+                    {/**
+                      * บรรทัดที่ 1 = **ชื่อโพสต์** (user สั่งลำดับใหม่ 2026-08-20: โพสต์ → ลูกค้า → ชิป)
+                      *
+                      * คงสไตล์จางเดิมไว้ ไม่ทำตัวหนา แม้จะขึ้นมาอยู่บนสุด (user เคาะข้อนี้เอง) —
+                      * ตำแหน่งบนสุดให้ "ลำดับการอ่าน" ส่วนน้ำหนักตัวอักษรให้ "ความสำคัญ" ซึ่งยังเป็น
+                      * ของบรรทัดลูกค้า+ข้อความอยู่ ถ้าทำหนาด้วยจะกลายเป็นแข่งกันเองสองบรรทัดติด
+                      *
+                      * `text-default-500` (#58626b = 6.22:1 บนขาว ผ่าน AA สบาย ๆ)
+                      */}
+                    <span className="text-default-500 block truncate text-2xs">
+                      {c.post.message?.trim() || t.comments.postNoText}
+                    </span>
+                    {/* บรรทัดที่ 2 = สิ่งที่ทำให้แถวนี้ต่างจากแถวอื่น "ใครถามอะไร"
                         (เดิมเป็นข้อความโพสต์ ซึ่งจะซ้ำกันทุกแถวของโพสต์เดียวกันเมื่อ 1 แถว = 1 คอมเมนต์)
                         ไอคอนลูกศรนำหน้าเฉพาะคอมเมนต์ที่เป็นการตอบใต้คอมเมนต์อื่น — เป็น glyph
                         ในบรรทัดข้อความ ไม่ใช่การเยื้องแถว จึงไม่ขยับ layout ของรายการ */}
@@ -2017,7 +2052,7 @@ export default function CommentsClient({
                         ซึ่งเป็นพระเอกของแถวและเป็นเหตุผลเดียวที่ผู้ขายเปิดหน้านี้ ของเดิมอยู่
                         สเต็ปเดียวกับบริบทโพสต์/เวลา/ชิป ⇒ ไม่มีอะไรนำสายตา ต้องอ่านทั้งแถวถึงจะรู้
                         (ต่างจากแถวแชทที่บรรทัดหัวเป็น "ชื่อลูกค้า" สั้น ๆ — ที่นี่เป็นประโยคคำถาม) */}
-                    <span className="text-default-900 line-clamp-2 text-sm font-semibold">
+                    <span className="text-default-900 mt-0.5 line-clamp-2 text-sm font-semibold">
                       {c.isReply && (
                         <Icon icon="corner-down-right" className="me-0.5 inline-block size-3 shrink-0 align-[-1px]" />
                       )}
@@ -2059,96 +2094,108 @@ export default function CommentsClient({
                         <span className="truncate">{c.shop.name}</span>
                       </span>
                     )}
-                    {/* บรรทัดที่ 2 = บริบทว่าคอมเมนต์ใบนี้อยู่ใต้โพสต์ไหน (เดิมเป็นคอมเมนต์ล่าสุด
-                        ของโพสต์ ซึ่งตอนนี้เป็นเนื้อของแถวไปแล้ว) */}
-                    {/* `text-default-500` (#58626b = 6.22:1 บนขาว ผ่าน AA สบาย ๆ) — จางลงหนึ่งขั้น
-                        จาก 700 เพื่อให้เป็น "บริบท" ไม่ใช่คู่แข่งของบรรทัดคำถาม ปรับแค่แกนสี
-                        ไม่ปรับขนาดซ้ำอีกแกน */}
-                    <span className="text-default-500 mt-0.5 block truncate text-2xs">
-                      {c.post.message?.trim() || t.comments.postNoText}
-                    </span>
-                    {/* บรรทัดที่ 3 — โผล่เฉพาะแถวที่ยังมีอะไรค้าง (user สั่ง 2026-08-04, ขยาย feature
-                        00038 UX-Design-Spec §3.2) ตอนนี้ตัดสินจากสถานะของ **คอมเมนต์ใบนี้**
-                        (deriveCommentState ตัวเดียวกับตัวนับบนแท็บ BR-CR-S4) ไม่ใช่สถานะรวมของโพสต์
-                        แบบ "ตัวที่แย่ที่สุดชนะ" อีกต่อไป — แถวเป็นคอมเมนต์แล้ว ป้ายจึงต้องพูดถึงใบนั้น */}
-                    {c.state === 'UNANSWERED' &&
-                      (() => {
-                        /**
-                         * ป้ายใบเดียว (critique P2-D — เดิมเป็น 2 ใบคนละโทนสีติดกัน)
-                         *
-                         * "ยังไม่ตอบ" + เส้นตายทักแชทของ Meta เป็นข้อมูลคนละเรื่องก็จริง แต่บนแถว
-                         * ที่มีสัญญาณแข่งกัน 11 อย่าง สองใบที่ **สีไม่เหมือนกัน** ติดกันอ่านเป็น
-                         * "มีสองปัญหา" ทั้งที่เป็นปัญหาเดียวมองสองมุม แถมยัง wrap เป็นสองบรรทัด
-                         * บนจอแคบ ⇒ ดันความสูงแถวโดยไม่เพิ่มข้อมูล
-                         *
-                         * 🛑 สีของใบรวมยึด **ความเร่งด่วนจริงตามเวลาที่เหลือ** ไม่ใช่ danger ตายตัว
-                         * เหมือน badge "ยังไม่ตอบ" เดิม — ของเดิมแดงเท่ากันหมดตั้งแต่นาทีแรก
-                         * (เหลือ 7 วัน) จนถึงนาทีสุดท้าย (เหลือ 2 ชม.) = สีไม่ได้บอกอะไรเลย
-                         * หลักเดียวกับที่แท็บ "หมดอายุ" ใช้ warning ไม่ใช่ danger เพราะเลยจุดรีบแล้ว
-                         *
-                         * 🛑 คำทั้งสองท่อน compose จาก key เดิม (`unanswered` + `windowLeftShort`/
-                         * `windowExpired`) ห้าม mint คำใหม่ — คำว่า "ยังไม่ตอบ" ต้องเป็นคำเดียวกับ
-                         * บนแท็บและในเธรด ไม่งั้นจอเดียวจะมีสองคำเรียกของสิ่งเดียวกัน (HR16)
-                         *
-                         * 🛑 createdTime มาจาก server ซึ่งเก่าได้ถึง 60 วิ ขณะที่นาฬิกา client
-                         * เดินอยู่ — ในนาทีที่เส้นตายผ่านพอดีต้องอ่านว่า "หมดเวลาทักแชท" เฉย ๆ
-                         * ไม่ใช่ "ทักแชทได้อีก หมดเวลาทักแชท" ซึ่งเป็นนาทีที่ข้อความนี้สำคัญที่สุด
-                         */
-                        const w = privateReplyWindow(c.createdTime, t)
-                        const label = `${t.comments.unanswered} · ${
-                          w.expired ? t.comments.windowExpired : fmt(t.comments.windowLeftShort, { remaining: w.remaining })
-                        }`
-                        const tone = w.expired
-                          ? 'bg-default-100 text-default-700'
-                          : w.tone === 'danger'
-                            ? 'bg-danger/15 text-danger-ink'
-                            : 'bg-warning/15 text-warning-ink'
-                        return (
-                          <span className="mt-1 flex items-center gap-1">
-                            {/* `min-w-0 max-w-full` ที่ badge + `truncate` ที่ข้อความข้างใน — ข้อความรวม
-                                ยาวได้ถึง ~40 ตัวอักษร ("ยังไม่ตอบ · ทักแชทได้อีก 6 วัน 23 ชั่วโมง 59 นาที")
-                                ถ้าไม่ครบชุดนี้มันจะดันกล่องกว้างเกินคอลัมน์แทนที่จะถูกตัด
-                                (docs/conventions/flex-header-truncation.md) */}
-                            <span className={`badge text-2xs inline-flex min-w-0 max-w-full items-center gap-1 ${tone}`}>
+                    {/**
+                      * บรรทัดที่ 3 — ชิปสถานะ 2 ใบ (user สั่งโครงใหม่ 2026-08-20)
+                      *
+                      * 🛑 เกณฑ์ทั้งหมดอยู่ที่ `commentRowChips()` ที่เดียว **ห้ามเขียนเงื่อนไขเองที่นี่**
+                      * (มีเทส [blocker] กันไว้) — 2 แกน × 4 สถานะ คือคอมโบที่เขียนกลับด้านแล้วยัง
+                      * คอมไพล์ผ่านทุกทาง ถ้าอยู่ในเทอร์นารีกลาง JSX จะไม่มีอะไรจับได้เวลาใครแก้ผิด
+                      *
+                      * 2 กติกาที่ฟังก์ชันนั้นบังคับ และเป็นเหตุผลที่โครง 2 ชิปกลับมาได้โดยไม่พาปัญหาเดิม:
+                      *   1. เมื่อ "ยังไม่ตอบ" ชิปทั้งสองใบสีเดียวกันเสมอ (ชิปซ้ายยืมโทนจากชิปขวา)
+                      *      โครงนี้เคยถูกยุบเหลือใบเดียวเมื่อเช้าวันเดียวกัน (critique P2-D) เพราะ
+                      *      สองใบคนละสีติดกันอ่านเป็น "สองปัญหา" ทั้งที่เป็นปัญหาเดียวมองสองมุม
+                      *   2. แถวที่จบงานแล้วจริงไม่มีชิปสักใบ ⇒ **บรรทัดนี้หายไปทั้งบรรทัด** แถวกลับไป
+                      *      สูงเท่าเดิม (user สั่ง "ลดความสูง" — ถ้าทุกแถวมีบรรทัดชิปเสมอ แถวที่เคย
+                      *      สั้นที่สุดจะสูงขึ้น 1 บรรทัดทุกแถว = ตรงข้ามกับที่ขอ)
+                      *
+                      * ที่ลดความสูงได้จริงอีกทางคือ **คำสั้นลง**: ป้ายเดิมรวมสองเรื่องไว้ใบเดียว
+                      * ("ยังไม่ตอบ · ทักแชทได้อีก 6 วัน 23 ชั่วโมง 59 นาที" ~40 ตัวอักษร) ยาวจน wrap
+                      * เป็น 2 บรรทัดบนจอแคบ — สองชิปสั้น ๆ จบในบรรทัดเดียว
+                      *
+                      * ⚠️ หน่วยหยาบ (`coarse`) ใช้เฉพาะที่นี่ — ป้ายข้างปุ่มทักแชทในเธรดยังเป็น
+                      * 3 หน่วยเต็มตามมติ 2026-08-04 (user เคาะขอบเขตนี้เอง 2026-08-20) คนละบริบท:
+                      * สแกนหลายแถวว่าใบไหนด่วน vs กำลังตัดสินใจกดปุ่มจริง
+                      */}
+                    {(() => {
+                      const w = privateReplyWindow(c.createdTime, t)
+                      const chips = commentRowChips({
+                        state: c.state,
+                        resolved: Boolean(c.resolvedReason),
+                        privateReply: resolvePrivateReplyState(c, sendingPrivateReplyId, t),
+                        windowTone: w.tone,
+                      })
+                      if (!chips.answer && !chips.privateReply) return null
+
+                      const toneClass = (tone: 'danger' | 'warning' | 'neutral' | 'success') =>
+                        tone === 'danger'
+                          ? 'bg-danger/15 text-danger-ink'
+                          : tone === 'warning'
+                            ? 'bg-warning/15 text-warning-ink'
+                            : tone === 'success'
+                              ? 'bg-success/15 text-success-ink'
+                              : 'bg-default-100 text-default-700'
+
+                      const answerLabel = {
+                        unanswered: t.comments.unanswered,
+                        botAnswered: t.comments.botAnswered,
+                        resolved: t.comments.markDoneTile,
+                      }
+                      const answerIcon = {
+                        unanswered: 'alert-circle',
+                        botAnswered: 'robot',
+                        resolved: 'circle-check',
+                      }
+                      const prLabel = {
+                        sent: t.comments.privateReplySentShort,
+                        sending: t.comments.sending,
+                        expired: t.comments.windowExpired,
+                        available: fmt(t.comments.windowLeftCoarse, { unit: w.coarse }),
+                      }
+                      const prIcon = {
+                        sent: 'circle-check',
+                        sending: 'loader-2',
+                        expired: 'clock-off',
+                        available: 'clock',
+                      }
+
+                      return (
+                        <span className="mt-1 flex flex-wrap items-center gap-1">
+                          {chips.answer && (
+                            <span
+                              className={`badge text-2xs inline-flex min-w-0 max-w-full items-center gap-1 ${toneClass(
+                                chips.answer.tone,
+                              )}`}
+                            >
                               <Icon
-                                icon={w.expired ? 'clock-off' : 'alert-circle'}
+                                icon={answerIcon[chips.answer.kind]}
                                 width={11}
                                 height={11}
                                 className="shrink-0"
                               />
-                              <span className="truncate">{label}</span>
+                              <span className="truncate">{answerLabel[chips.answer.kind]}</span>
                             </span>
-                          </span>
-                        )
-                      })()}
-                    {/* feature 00038 — บอทตอบคอมเมนต์ใบนี้แล้ว แต่ยังไม่มีคนยืนยัน
-                        (Verified-Means-Green: เหลืองไม่ใช่เขียว เพราะยังไม่มีมนุษย์ยืนยัน) */}
-                    {c.state === 'BOT_ANSWERED' && (
-                      <span className="mt-1 flex flex-wrap items-center gap-1">
-                        <span className="badge bg-warning/15 text-warning-ink text-2xs inline-flex items-center gap-1">
-                          <Icon icon="robot" width={11} height={11} className="shrink-0" />
-                          {t.comments.botAnswered}
+                          )}
+                          {chips.privateReply && (
+                            <span
+                              className={`badge text-2xs inline-flex min-w-0 max-w-full items-center gap-1 ${toneClass(
+                                chips.privateReply.tone,
+                              )}`}
+                            >
+                              <Icon
+                                icon={prIcon[chips.privateReply.kind]}
+                                width={11}
+                                height={11}
+                                className="shrink-0"
+                              />
+                              {/* `min-w-0 max-w-full` ที่ badge + `truncate` ที่ข้อความ — ไม่งั้นข้อความยาว
+                                  ดันกล่องกว้างเกินคอลัมน์แทนที่จะถูกตัด (flex-header-truncation.md) */}
+                              <span className="truncate">{prLabel[chips.privateReply.kind]}</span>
+                            </span>
+                          )}
                         </span>
-                      </span>
-                    )}
-                    {/* ส่วนขยาย 2026-08-19 — "จัดการแล้ว" โดยที่ระบบเราไม่ได้เป็นคนตอบ (BR-CR-R1:
-                        นับเป็น HUMAN_ANSWERED ในตัวนับ ไม่ใช่สถานะที่ 4 — แยกแยะด้วยป้ายนี้เท่านั้น)
-                        🛑 ห้ามใช้เขียว: ผู้ขายกดข้ามเอง (MANUAL) และ Facebook ยืนยันว่าทักไปแล้วนอก
-                        ระบบ (ALREADY_REPLIED_EXTERNALLY) ต่างก็ไม่ใช่คำตอบที่เกิดในระบบเรา —
-                        Verified-Means-Green สงวนเขียวไว้กับคำตอบที่เกิดในระบบ Deep เท่านั้น
-                        ชิปเดียวกันทั้งสองเหตุผล (หัวหน้าสั่ง 2026-08-19: "คำมั่นแปลก ก็แค่จัดการ
-                        แล้ว ก็พอ") — ตรรกะที่ต่างกันจริง (ปุ่มทักแชทของ ALREADY_REPLIED_EXTERNALLY
-                        กดไม่ได้ถาวร ส่วน MANUAL ยังกดได้ถ้าอยู่ในหน้าต่าง 7 วัน — ดู
-                        resolvePrivateReplyState()) ไม่ได้เปลี่ยน คำอธิบายว่า "ทำไมจัดการแล้ว" อยู่
-                        ใน Sweet Alert ตอน #10900 เกิดขึ้นแทน (จังหวะที่ผู้ขายต้องรู้จริง ๆ) */}
-                    {c.resolvedReason && (
-                      <span className="mt-1 flex flex-wrap items-center gap-1">
-                        <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
-                          <Icon icon="circle-check" width={11} height={11} className="shrink-0" />
-                          {t.comments.markDoneTile}
-                        </span>
-                      </span>
-                    )}
+                      )
+                    })()}
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1.25">
                     {/* เวลาแบบสัมพัทธ์ (เมื่อกี้ / 3 ชม. / 2 วัน) — HH:MM เดิมทำให้เมื่อวานกับ

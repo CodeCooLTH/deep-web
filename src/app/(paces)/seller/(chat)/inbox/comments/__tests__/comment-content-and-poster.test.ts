@@ -114,3 +114,30 @@ describe('[blocker] C — placeholder ของรูปแนบที่โห
     expect(src).toMatch(/t\.comments\.attachmentBroken/)
   })
 })
+
+/**
+ * [blocker] D — แถวคอมเมนต์ต้องตัดสินชิปผ่าน commentRowChips() ที่เดียว
+ *
+ * user สั่งโครงใหม่ 2026-08-20 (`[ยังไม่ตอบ] [ยังไม่ทักแชท]`) ซึ่งเป็นการ **กลับมติ 2 เรื่อง**
+ * ที่เคยมีเหตุผลบันทึกไว้ (critique P2-D ยุบ 2 ชิปเหลือใบเดียวเมื่อเช้าวันเดียวกัน · มติ 2026-08-04
+ * ที่สั่งให้ใช้หน่วยเวลาเต็ม 3 ระดับ) ⇒ ถ้าเงื่อนไขกระจายอยู่ใน JSX มันจะถูกแก้กลับไปกลับมา
+ * โดยไม่มีใครรู้ว่าเวอร์ชันไหนคือมติล่าสุด
+ */
+describe('[blocker] D — ชิปของแถวคอมเมนต์', () => {
+  const src = stripComments(readFileSync(SOURCE, 'utf8'))
+
+  it('ต้องเรียก commentRowChips() ไม่เขียนเงื่อนไขสถานะเองใน JSX', () => {
+    expect(src).toMatch(/commentRowChips\(/)
+    // แดง = มีคนเขียนเงื่อนไขซ้ำใน JSX ⇒ กติกา "ยืมโทนสี" กับ "แถวจบงานไม่มีชิป" จะหลุดเงียบ ๆ
+    expect(src, 'ห้ามตัดสินสถานะเองในแถว — เกณฑ์อยู่ที่ commentRowChips()').not.toMatch(
+      /c\.state === 'BOT_ANSWERED' &&/,
+    )
+    expect(src).not.toMatch(/c\.state === 'UNANSWERED' &&\s*\n\s*\(\(\) =>/)
+  })
+
+  it('รายการซ้ายต้องใช้หน่วยหยาบ ส่วนเธรดยังใช้หน่วยเต็ม', () => {
+    // user เคาะขอบเขตนี้เอง — ย่อเฉพาะชิปในรายการ ป้ายข้างปุ่มทักแชทในเธรดคงมติ 2026-08-04
+    expect(src, 'ชิปในรายการต้องใช้ coarse').toMatch(/windowLeftCoarse/)
+    expect(src, 'เธรดต้องยังมีป้ายหน่วยเต็มอยู่').toMatch(/windowRemaining|w\.text/)
+  })
+})
