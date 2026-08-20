@@ -26,6 +26,7 @@ import ThemeProvider from '@components/theme'
 import { getMode, getSettingsFromCookie, getSystemMode } from '@core/utils/serverHelpers'
 
 import ToastMount from '@/components/ToastMount'
+import { SITE_ICONS } from '@/lib/site-icons'
 
 import './marketing.css'
 
@@ -48,7 +49,7 @@ export const metadata: Metadata = {
   // ของเราเอง (AppTopBar สีขาว + paddingTop safe-area, viewport-fit=cover) ทะลุขึ้นไปเติมเป็นสีขาว
   // (ไม่พึ่ง iOS ทาสี status bar ให้ ซึ่งไม่เวิร์กบนบางเครื่อง)
   appleWebApp: { capable: true, title: 'Deep', statusBarStyle: 'black-translucent' },
-  icons: { icon: '/icon.svg', apple: '/icon.svg' },
+  icons: SITE_ICONS,
 }
 
 // ปิด pinch-zoom บนมือถือฝั่ง buyer/landing ให้สม่ำเสมอกับฝั่ง Paces
