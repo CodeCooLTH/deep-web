@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>สร้างคำสั่งซื้อ — Desktop/Tablet Redesign · Mockup 5 แบบ</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#236dc9; --primary-15:rgba(35,109,201,.15);
+  --success:#28c76f; --success-ink:#1a8a4c; --success-15:rgba(40,199,111,.15);
+  --warning:#ff9f43; --warning-ink:#b96a1c; --warning-15:rgba(255,159,67,.15);
+  --danger:#ea5455;  --danger-ink:#b52d2e;  --danger-15:rgba(234,84,85,.15);
+  --info:#00bad1;    --info-ink:#00808f;    --info-15:rgba(0,186,209,.15);
+  --d900:#2f2b3d; --d700:#4b465c; --d500:#6f6b7d; --d400:#a5a3ae; --d300:#dbdade; --d200:#e9e8ea; --d100:#f4f4f5;
+  --card:#fff; --body:#f8f7fa; --radius:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,sans-serif;background:#eceaf0;color:var(--d900);font-size:14px;line-height:1.5}
+
+/* ───── shell ───── */
+.top{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--d300);padding:14px 24px;box-shadow:0 2px 8px rgba(47,43,61,.06)}
+.top h1{font-size:17px;font-weight:600}
+.top p{font-size:12.5px;color:var(--d500);margin-top:2px}
+.ctlrow{display:flex;flex-wrap:wrap;gap:18px;margin-top:12px;align-items:flex-start}
+.ctl{display:flex;flex-direction:column;gap:5px}
+.ctl>span{font-size:11px;font-weight:600;color:var(--d500);letter-spacing:.02em}
+.seg{display:flex;gap:5px;flex-wrap:wrap}
+.seg button{font-family:inherit;font-size:12.5px;padding:6px 11px;border:1px solid var(--d300);background:#fff;color:var(--d700);border-radius:var(--radius);cursor:pointer;white-space:nowrap}
+.seg button:hover{border-color:var(--primary);color:var(--primary)}
+.seg button.on{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+.wrap{padding:24px}
+.vhead{max-width:1360px;margin:0 auto 16px}
+.vhead h2{font-size:19px;font-weight:700;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.vhead .risk{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:99px}
+.vhead .oneliner{color:var(--d700);margin-top:6px;font-size:13.5px}
+.metastrip{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.metastrip .m{background:#fff;border:1px solid var(--d300);border-radius:var(--radius);padding:6px 11px;font-size:12px;color:var(--d700)}
+.metastrip .m b{color:var(--d900)}
+.warnbox{max-width:1360px;margin:0 auto 16px;background:var(--warning-15);border:1px solid var(--warning);border-radius:var(--radius);padding:11px 14px;font-size:12.5px;color:#7a4410}
+.warnbox b{color:#5c3208}
+
+.frames{max-width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:26px}
+.fbox{background:#fff;border:1px solid var(--d300);border-radius:8px;overflow:hidden}
+.fcap{padding:9px 14px;border-bottom:1px solid var(--d200);background:var(--d100);font-size:12px;font-weight:600;color:var(--d700);display:flex;justify-content:space-between;align-items:center}
+.fcap em{font-style:normal;font-weight:400;color:var(--d500);font-size:11.5px}
+.fview{overflow:hidden;background:var(--body)}
+.fscale{transform-origin:top left}
+
+/* ───── app chrome ───── */
+.app{display:flex;background:var(--body);font-size:13px}
+.sidebar{width:245px;flex:0 0 245px;background:#fff;border-right:1px solid var(--d200);padding:16px 12px}
+.sidebar .lg{font-weight:700;color:var(--primary);font-size:16px;padding:0 8px 16px}
+.sidebar .it{padding:8px 10px;border-radius:var(--radius);color:var(--d500);font-size:12.5px;margin-bottom:2px}
+.sidebar .it.on{background:var(--primary);color:#fff;font-weight:600}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.phead{background:#fff;border-bottom:1px solid var(--d200);padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:nowrap}
+.phead .bk{width:30px;height:30px;border:1px solid var(--d300);border-radius:var(--radius);display:grid;place-items:center;color:var(--d500);flex:0 0 auto}
+.phead .ttl{font-size:15.5px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pbody{padding:18px 20px;flex:1;min-height:0}
+
+/* mobile shell (tablet frames) */
+.mhead{background:#fff;border-bottom:1px solid var(--d200);padding:11px 16px;display:flex;align-items:center;gap:11px}
+.mhead .ttl{font-size:15px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mbody{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.mfoot{background:#fff;border-top:1px solid var(--d200);padding:11px 16px;display:flex;align-items:center;gap:12px}
+.mfoot .tot{flex:1}
+.mfoot .tot .l{font-size:11px;color:var(--d500)}
+.mfoot .tot .v{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+
+/* ───── primitives ───── */
+.card{background:var(--card);border:1px solid var(--d200);border-radius:var(--radius);box-shadow:0 2px 6px rgba(47,43,61,.055)}
+.chead{padding:11px 16px;border-bottom:1px dashed var(--d300);display:flex;align-items:center;gap:9px;font-weight:600;font-size:13.5px}
+.chead .sp{flex:1}
+.cbody{padding:14px 16px}
+.cfoot{padding:12px 16px;border-top:1px solid var(--d200);background:var(--d100)}
+
+.sec{border-bottom:1px solid var(--d200)}
+.sec:last-child{border-bottom:0}
+.shead{padding:10px 16px;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--d900)}
+.shead .sp{flex:1}
+.shead.fold{cursor:pointer;color:var(--d500)}
+.sbody{padding:0 16px 14px}
+
+.ico{width:16px;height:16px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.b-req{background:var(--danger-15);color:var(--danger-ink)}
+.b-opt{background:var(--d100);color:var(--d500)}
+.b-ok{background:var(--success-15);color:var(--success-ink)}
+.b-info{background:var(--info-15);color:var(--info-ink)}
+.b-pri{background:var(--primary-15);color:var(--primary)}
+.b-warn{background:var(--warning-15);color:var(--warning-ink)}
+
+.lbl{font-size:12px;color:var(--d700);margin-bottom:4px;display:flex;gap:4px;align-items:center}
+.lbl i{color:var(--danger);font-style:normal}
+.inp{border:1px solid var(--d300);border-radius:var(--radius);padding:8px 11px;background:#fff;color:var(--d400);font-size:12.5px;min-height:38px;display:flex;align-items:center}
+.inp.filled{color:var(--d900)}
+.inp.err{border-color:var(--danger);background:rgba(234,84,85,.04)}
+.inp.sel{position:relative}
+.inp.sel::after{content:"";position:absolute;right:11px;width:7px;height:7px;border-right:1.6px solid var(--d500);border-bottom:1.6px solid var(--d500);transform:translateY(-2px) rotate(45deg)}
+.errtx{font-size:11.5px;color:var(--danger);margin-top:4px;display:flex;gap:4px;align-items:center}
+.hint{font-size:11.5px;color:var(--d500);margin-top:5px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px}
+.fld{min-width:0}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:600;padding:9px 14px;border-radius:var(--radius);min-height:38px;white-space:nowrap}
+.btn-pri{background:var(--primary);color:#fff}
+.btn-soft{background:var(--primary-15);color:var(--primary)}
+.btn-out{border:1px solid var(--d300);color:var(--d700);background:#fff}
+.btn-full{width:100%}
+.btn-sm{padding:6px 10px;min-height:32px;font-size:12px}
+
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pgrid.c2{grid-template-columns:1fr 1fr}
+.pcard{border:1px solid var(--d200);border-radius:var(--radius);padding:9px;background:#fff}
+.pcard.on{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-15)}
+.pthumb{height:56px;background:var(--d100);border-radius:var(--radius);margin-bottom:7px;display:grid;place-items:center;color:var(--d400)}
+.pname{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pprice{font-size:12px;color:var(--primary);font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+
+.line{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px dashed var(--d300)}
+.line:last-child{border-bottom:0}
+.line .th{width:34px;height:34px;background:var(--d100);border-radius:var(--radius);flex:0 0 auto}
+.line .nm{flex:1;min-width:0;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.line .qt{font-size:12px;color:var(--d500)}
+.line .pr{font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums}
+
+.sumrow{display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:var(--d700)}
+.sumrow.tot{font-size:15px;font-weight:700;color:var(--d900);border-top:1px solid var(--d300);margin-top:7px;padding-top:9px}
+.sumrow span:last-child{font-variant-numeric:tabular-nums}
+
+.empty{text-align:center;padding:22px 12px;color:var(--d400)}
+.empty .t{font-size:13px;color:var(--d500);font-weight:500;margin-top:7px}
+.empty .s{font-size:11.5px;margin-top:3px}
+
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--d300);border-radius:99px;padding:5px 11px;font-size:12px;color:var(--d700);background:#fff;min-height:32px;display:inline-flex;align-items:center;gap:5px}
+.chip.on{border-color:var(--primary);background:var(--primary-15);color:var(--primary);font-weight:600}
+
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--d200);background:#fff;padding:0 16px}
+.tab{padding:11px 15px;font-size:12.5px;color:var(--d500);border-bottom:2px solid transparent;display:flex;align-items:center;gap:6px}
+.tab.on{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+
+.note{background:var(--info-15);border-left:3px solid var(--info);padding:9px 12px;border-radius:0 var(--radius) var(--radius) 0;font-size:12px;color:var(--info-ink);display:flex;gap:7px;align-items:flex-start}
+.note.warn{background:var(--warning-15);border-left-color:var(--warning);color:#7a4410}
+
+.anno{position:relative}
+.anno::before{content:attr(data-anno);position:absolute;top:-9px;right:8px;background:var(--d900);color:#fff;font-size:10px;font-weight:600;padding:2px 7px;border-radius:99px;z-index:5}
+
+.notes{max-width:1360px;margin:22px auto 0;background:#fff;border:1px solid var(--d300);border-radius:8px;padding:18px 20px}
+.notes h3{font-size:14px;font-weight:700;margin-bottom:10px}
+.notes ul{margin-left:18px;font-size:13px;color:var(--d700)}
+.notes li{margin-bottom:6px}
+.notes code{background:var(--d100);padding:1px 5px;border-radius:3px;font-size:12px;font-family:ui-monospace,monospace}
+.cmp{max-width:1360px;margin:22px auto 40px;background:#fff;border:1px solid var(--d300);border-radius:8px;overflow:hidden}
+.cmp table{width:100%;border-collapse:collapse;font-size:12.5px}
+.cmp th,.cmp td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--d200)}
+.cmp th{background:var(--d100);font-weight:600;font-size:12px;color:var(--d700)}
+.cmp tr:last-child td{border-bottom:0}
+.cmp td b{color:var(--d900)}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>สร้างคำสั่งซื้อ — ออกแบบใหม่ Desktop / Tablet</h1>
+  <p>Mockup 5 แบบ · ทั้ง 3 ประเภทร้าน (แต่ละประเภทบังคับข้อมูลไม่เหมือนกัน) · <span style="color:#b52d2e;font-weight:600">แดง = บังคับ</span> · <span style="color:#6f6b7d;font-weight:600">เทา = ไม่บังคับ</span></p>
+  <div class="ctlrow">
+    <div class="ctl"><span>แบบ</span><div class="seg" id="segV"></div></div>
+    <div class="ctl"><span>ประเภทร้าน (Shop.vertical)</span><div class="seg" id="segS"></div></div>
+    <div class="ctl"><span>สถานะ</span><div class="seg" id="segT"></div></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="vhead" id="vhead"></div>
+  <div id="warn"></div>
+  <div class="frames" id="frames"></div>
+  <div class="notes" id="notes"></div>
+
+  <div class="cmp">
+    <table>
+      <thead><tr><th>แบบ</th><th>คลิก happy path<br><span style="font-weight:400;color:#6f6b7d">(ของเดิม 5)</span></th><th>แก้ปัญหาข้อไหน</th><th>ความเสี่ยง</th><th>เหมาะกับใคร</th></tr></thead>
+      <tbody>
+        <tr><td><b>A. เปิดครบ ปิดเฉพาะของแถม</b></td><td><b>4</b></td><td>F2 ฟิลด์บังคับถูกซ่อน · F3 คลิกเยอะ · F4 ทางลัดฝังลึก</td><td>ต่ำ — ลบโค้ดมากกว่าเพิ่ม</td><td>ทุกร้าน (เป็นฐานของ B/C/D)</td></tr>
+        <tr><td><b>B. วางจากแชทมาก่อน</b></td><td><b>3</b> ← น้อยสุด</td><td>F3 · F4 (ยกทางลัดขึ้นบนสุด)</td><td>ต่ำ — ระวังการ์ดเกะกะคนพิมพ์เอง</td><td>ร้านที่ปิดการขายในแชทเป็นหลัก</td></tr>
+        <tr><td><b>C. เปลี่ยนตามประเภทร้าน</b></td><td><b>4</b> ขายของ / <b>3</b> ร้านบริการ</td><td>F2 · ตอบโจทย์ "ร้านคนละแบบต้องการข้อมูลคนละชุด" ตรงที่สุด</td><td>กลาง — ต้องดูแลลำดับ 3 ชุด</td><td>ร้านบริการ / บ้านพัก</td></tr>
+        <tr><td><b>D. แท็บเล็ตเป็นพลเมืองชั้นหนึ่ง</b></td><td><b>4</b> (แต่ scroll สั้นลงมาก)</td><td><b>F1 — ต้นเหตุจริงของคำว่า "ใช้ยาก" บนแท็บเล็ต</b></td><td>กลาง-สูง — เพิ่ม breakpoint ที่ 768px</td><td>ร้านที่ยืนขายด้วย iPad</td></tr>
+        <tr><td><b>E. ตะกร้าลอยข้าง + แท็บ</b></td><td><b>5</b> ← ไม่ดีขึ้นเลย</td><td>เห็นยอดรวมตลอด แต่เอา friction แบบ accordion กลับมาในรูปแท็บ</td><td>สูงสุด — กระทบ viewport-lock + deep-link</td><td>ออเดอร์หลายรายการมาก ๆ</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const I={
+ clip:'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2',
+ user:'M8 7a4 4 0 1 0 8 0a4 4 0 0 0-8 0M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2',
+ cart:'M6 19a2 2 0 1 0 4 0a2 2 0 0 0-4 0M15 19a2 2 0 1 0 4 0a2 2 0 0 0-4 0M17 17H8V3H4M8 7h13l-1.5 7H8',
+ pin:'M9 11a3 3 0 1 0 6 0a3 3 0 0 0-6 0M17.7 16.7 12 22l-5.7-5.3A8 8 0 1 1 17.7 16.7',
+ card:'M3 10h18M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM7 15h.01M11 15h2',
+ cal:'M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM16 3v4M8 3v4M4 11h16M8 15h2v2H8z',
+ tool:'M7 10h3v3l6.5 6.5a2.1 2.1 0 0 0 3-3L13 10h-3V7L6.5 3.5a2.1 2.1 0 0 0-3 3z',
+ bed:'M3 7v11M3 11h18v7M8 11V8h9a4 4 0 0 1 4 3M7 10h.01',
+ note:'M14 3v4a1 1 0 0 0 1 1h4M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2M9 9h1M9 13h6M9 17h6',
+ srch:'M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 0 0-14 0M21 21l-6-6',
+ back:'M5 12h14M5 12l6 6M5 12l6-6',
+ chev:'M6 9l6 6 6-6',
+ chk:'M5 12l5 5L20 7',
+ alert:'M12 9v4M12 17h.01M10.2 3.6 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.8 3.6a2 2 0 0 0-3.5 0',
+ box:'M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5',
+ boxoff:'M12 3l8 4.5v9L12 21l-8-4.5v-9zM3 3l18 18',
+ save:'M6 4h10l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2M14 4v4H8V4M8 14h8v6H8z',
+ plus:'M12 5v14M5 12h14',
+ star:'M12 17.75l-6.2 3.3 1.2-6.9-5-4.9 6.9-1L12 2l3.1 6.25 6.9 1-5 4.9 1.2 6.9z'
+};
+const ic=(k,cls)=>`<svg class="ico ${cls||''}" viewBox="0 0 24 24"><path d="${I[k]}"/></svg>`;
+
+/* ───────────── ประเภทร้าน: แต่ละแบบบังคับข้อมูลคนละชุด (SSOT: shipping-address-status.ts + seller-menu.ts) ───────────── */
+const SHOPS={
+ ONLINE_SALES:{
+   key:'ONLINE_SALES', name:'ขายออนไลน์', title:'สร้างคำสั่งซื้อ', save:'บันทึกคำสั่งซื้อ',
+   dateLabel:'วันที่สั่งซื้อ', pnoun:'สินค้า', shipsGoods:true,
+   addr:'req', appt:false, sum:false,
+   need:'ที่อยู่จัดส่งบังคับ (บ้านเลขที่ + จังหวัด + รหัสไปรษณีย์) เมื่อช่องทางไม่ใช่ “หน้าร้าน” และมีรายการที่ต้องส่ง',
+   items:['เสื้อโปโล ไซซ์ M','กระเป๋าผ้าแคนวาส','หมวกบักเก็ต','ถุงเท้าลายทาง','เข็มขัดหนัง','แก้วเก็บความเย็น']
+ },
+ SERVICE_QUEUE:{
+   key:'SERVICE_QUEUE', name:'สินค้าและบริการ (คิวงาน)', title:'สร้างการเข้ารับบริการ', save:'บันทึกการเข้ารับบริการ',
+   dateLabel:'วันที่สร้าง', pnoun:'บริการ', shipsGoods:false,
+   addr:'opt', appt:true, sum:false,
+   need:'ไม่บังคับที่อยู่เลย (ลูกค้ามาที่ร้าน) — แต่ยังกรอกเก็บไว้ได้ · มีบล็อกคิวงาน/วันเข้าใช้บริการเพิ่มมา',
+   items:['ล้างแอร์ 9,000 BTU','เปลี่ยนถ่ายน้ำมันเครื่อง','ตรวจเช็กระบบไฟ','ขัดเคลือบสีรถ','ล้างเครื่องซักผ้า','ติดตั้งกล้องวงจรปิด']
+ },
+ LODGING:{
+   key:'LODGING', name:'บ้านพัก', title:'เปิดบิลเข้าพัก', save:'เปิดบิลเข้าพัก',
+   dateLabel:'วันที่เปิดบิล', pnoun:'ห้องพัก', shipsGoods:false,
+   addr:'opt', appt:false, sum:true,
+   need:'ไม่บังคับที่อยู่ · ไม่มีบล็อกคิวงาน — ฟอร์มสั้นที่สุดในสามแบบ จึงยกสรุปยอดขึ้นมาอยู่ในสายตา',
+   items:['ห้องดีลักซ์ วิวทะเล','ห้องสแตนดาร์ดคู่','บ้านพักหลังเล็ก 4 ท่าน','ห้องแฟมิลี่ 6 ท่าน','เต็นท์กลางดอย','ห้องซูพีเรีย']
+ }
+};
+
+const VARIANTS={
+ A:{name:'A · เปิดครบ ปิดเฉพาะของแถม',risk:'ต่ำ',riskC:'--success',
+    one:'กลับตรรกะ accordion — ฟิลด์ที่บังคับกรอกกางถาวรตั้งแต่เปิดหน้า เหลือแค่ส่วนลด/VAT/หมายเหตุที่พับ',
+    fix:'F2 F3 F4', clicks:'4', tabletNew:false},
+ B:{name:'B · วางจากแชทมาก่อน',risk:'ต่ำ',riskC:'--success',
+    one:'ยกกล่อง “วางข้อความจากแชท” ขึ้นเป็นของชิ้นแรกที่เห็น — วาง 1 ครั้งเติมครบ ชื่อ/เบอร์/ที่อยู่ แล้วแค่ตรวจทาน',
+    fix:'F3 F4', clicks:'3', tabletNew:false},
+ C:{name:'C · เปลี่ยนตามประเภทร้าน',risk:'กลาง',riskC:'--warning',
+    one:'โครงเดียวกันแต่ลำดับและน้ำหนักของบล็อกผันตาม Shop.vertical — ที่ว่างของสิ่งที่ร้านนี้ไม่ต้องใช้ ถูกคืนให้สิ่งที่ต้องใช้',
+    fix:'F2 + required-per-vertical', clicks:'4 / 3', tabletNew:false},
+ D:{name:'D · แท็บเล็ตเป็นพลเมืองชั้นหนึ่ง',risk:'กลาง-สูง',riskC:'--danger',
+    one:'เดสก์ท็อปเหมือนแบบ A แต่ช่วง 768–1023px ได้เลย์เอาต์ของตัวเองครั้งแรก (เดิมได้หน้าตาเดียวกับมือถือ)',
+    fix:'F1 (ต้นเหตุ)', clicks:'4', tabletNew:true},
+ E:{name:'E · ตะกร้าลอยข้าง + แท็บ',risk:'สูงสุด',riskC:'--danger',
+    one:'ตะกร้า+ยอดรวม+ปุ่มบันทึกลอยขวาเห็นตลอดเวลา กลางจอสลับเนื้อหาด้วยแท็บ',
+    fix:'บางส่วนของ F2', clicks:'5', tabletNew:true}
+};
+
+let V='A', S='ONLINE_SALES', T='filled';
+
+/* ───────────── ชิ้นส่วนที่ใช้ร่วม ───────────── */
+const reqBadge=(on)=>on?`<span class="badge b-req">จำเป็น</span>`:`<span class="badge b-opt">ไม่บังคับ</span>`;
+
+function secHead(icon,label,badge,fold){
+  return `<div class="shead ${fold?'fold':''}">${ic(icon)}<span>${label}</span><span class="sp"></span>${badge||''}${fold?ic('chev'):''}</div>`;
+}
+
+function customerBody(sh,compact){
+  const f = T==='filled';
+  const err = T==='error';
+  return `<div class="sbody">
+    <div style="margin-bottom:11px"><span class="btn btn-soft btn-sm">${ic('clip')}วางข้อความจากแชท</span>
+      ${f?`<span class="badge b-ok" style="margin-left:7px">${ic('chk')}ลูกค้าเก่า · เคยสั่ง 3 ครั้ง</span>`:''}</div>
+    <div class="${compact?'':'g2'}">
+      <div class="fld"><div class="lbl">ชื่อลูกค้า<i>*</i></div>
+        <div class="inp ${f?'filled':''} ${err?'err':''}">${f?'เชาวลิต เอกกุล':'ระบุชื่อผู้ซื้อ'}</div>
+        ${err?`<div class="errtx">${ic('alert')}กรุณากรอกชื่อลูกค้า</div>`:''}</div>
+      <div class="fld" style="${compact?'margin-top:11px':''}"><div class="lbl">เบอร์โทร<i>*</i></div>
+        <div class="inp ${f?'filled':''} ${err?'err':''}">${f?'081-797-4412':'08XXXXXXXX'}</div>
+        ${err?`<div class="errtx">${ic('alert')}กรุณากรอกเบอร์โทรลูกค้า</div>`:''}</div>
+    </div>
+    ${T==='pasted'?`<div class="note" style="margin-top:11px">${ic('alert')}<span>เติมชื่อ เบอร์ และที่อยู่จากข้อความในแชทให้แล้ว — ตรวจอีกครั้งก่อนบันทึก</span></div>`:''}
+  </div>`;
+}
+
+function channelBody(compact){
+  return `<div class="sbody"><div class="${compact?'':'g2'}">
+    <div class="fld"><div class="lbl">ช่องทางการขาย</div><div class="inp sel filled">Facebook</div></div>
+    <div class="fld" style="${compact?'margin-top:11px':''}"><div class="lbl">การชำระเงิน</div><div class="inp sel filled">โอนเงิน</div></div>
+  </div><div class="hint">${ic('star')} ค่าที่ใช้บ่อยถูกจำไว้ให้ — ครั้งถัดไปไม่ต้องเลือกซ้ำ</div></div>`;
+}
+
+function addressBody(sh,compact){
+  const req = sh.addr==='req';
+  const err = T==='error' && req;
+  const f = T==='filled'||T==='pasted';
+  return `<div class="sbody">
+    ${!req?`<div class="note" style="margin-bottom:11px">${ic('alert')}<span>ร้าน${sh.name}ไม่ต้องส่งของ — ช่องนี้<b>ไม่บังคับ</b> กรอกเก็บไว้ได้ถ้าอยากจดที่อยู่ลูกค้า</span></div>`:''}
+    <div class="inp ${f?'filled':''}" style="margin-bottom:11px">${ic('srch')}<span style="margin-left:7px">${f?'ช้างซ้าย · กาญจนดิษฐ์ · สุราษฎร์ธานี · 84160':'ค้นหา ตำบล / อำเภอ / จังหวัด'}</span></div>
+    <div class="${compact?'':'g2'}">
+      <div class="fld"><div class="lbl">บ้านเลขที่ / ถนน${req?'<i>*</i>':''}</div>
+        <div class="inp ${f?'filled':''} ${err?'err':''}">${f?'6 ม.4 ถ.สุขุมวิท':'บ้านเลขที่ หมู่ ซอย ถนน'}</div>
+        ${err?`<div class="errtx">${ic('alert')}ยังไม่ได้เลือกที่อยู่ — ค้นหาแล้วเลือกก่อนบันทึก</div>`:''}</div>
+      <div class="fld" style="${compact?'margin-top:11px':''}"><div class="lbl">รหัสไปรษณีย์${req?'<i>*</i>':''}</div>
+        <div class="inp ${f?'filled':''} ${err?'err':''}">${f?'84160':'5 หลัก'}</div></div>
+    </div>
+    ${req&&f?`<div class="hint">${ic('chk')} ครบพอบันทึกแล้ว · ตำบล/อำเภอ ครบด้วย — เปิดพัสดุ iShip ได้ทันที</div>`:''}
+  </div>`;
+}
+
+function apptBody(compact){
+  const f=T==='filled';
+  return `<div class="sbody">
+    <div class="lbl">เลือกคิวงาน / ผู้รับงาน</div>
+    <div class="chips" style="margin-bottom:12px">
+      <span class="chip ${f?'on':''}">${ic('user')}ช่างเอ</span><span class="chip">${ic('user')}ช่างบี</span><span class="chip">${ic('user')}ช่างซี</span>
+    </div>
+    <div class="${compact?'':'g3'}">
+      <div class="fld"><div class="lbl">วันเข้าใช้บริการ</div><div class="inp ${f?'filled':''}">${ic('cal')}<span style="margin-left:6px">${f?'พฤ. 12 ส.ค. 2569':'เลือกวัน'}</span></div></div>
+      <div class="fld" style="${compact?'margin-top:11px':''}"><div class="lbl">เวลาเริ่ม</div><div class="inp ${f?'filled':''}">${f?'13:00':'--:--'}</div></div>
+      <div class="fld" style="${compact?'margin-top:11px':''}"><div class="lbl">เวลาสิ้นสุด</div><div class="inp ${f?'filled':''}">${f?'15:00':'--:--'}</div></div>
+    </div>
+    ${f?`<div class="hint">${ic('chk')} ช่างเอว่างช่วงนี้ · วันนั้นมีคิวแล้ว 2 จาก 4</div>`:`<div class="hint">เลือก${'คิวงาน'}แล้วปฏิทินจะเปิดให้เองอัตโนมัติ</div>`}
+  </div>`;
+}
+
+function dateBody(sh){
+  return `<div class="sbody"><div class="chips">
+    <span class="chip on">วันนี้ 14:32</span><span class="chip">เมื่อวาน</span><span class="chip">2 วันก่อน</span><span class="chip">${ic('cal')}เลือกวัน</span>
+  </div></div>`;
+}
+
+function cartLines(sh){
+  if(T==='empty') return `<div class="empty">${ic('boxoff')}<div class="t">ยังไม่มีรายการ</div><div class="s">เลือก${sh.pnoun}จากรายการด้านซ้ายเพื่อเพิ่มลงตะกร้า</div></div>`;
+  return `<div class="line"><div class="th"></div><div class="nm">${sh.items[0]}</div><div class="qt">x2</div><div class="pr">฿400</div></div>
+          <div class="line"><div class="th"></div><div class="nm">${sh.items[1]}</div><div class="qt">x1</div><div class="pr">฿150</div></div>`;
+}
+function sumBlock(sh,btn){
+  const z=T==='empty';
+  return `<div class="sumrow"><span>ยอดรวม</span><span>฿${z?'0':'550'}</span></div>
+   <div class="sumrow"><span>ส่วนลด</span><span>฿0</span></div>
+   <div class="sumrow"><span>ภาษีมูลค่าเพิ่ม</span><span>฿0</span></div>
+   <div class="sumrow tot"><span>รวมทั้งสิ้น</span><span>฿${z?'0':'550'}</span></div>
+   ${btn!==false?`<div class="btn btn-pri btn-full" style="margin-top:12px">${ic('save')}${sh.save}</div>`:''}`;
+}
+function productPane(sh,cols){
+  return `<div class="card" style="height:100%;display:flex;flex-direction:column">
+    <div class="cbody" style="padding-bottom:0"><div class="inp">${ic('srch')}<span style="margin-left:7px">ค้นหา${sh.pnoun}</span></div></div>
+    <div class="cbody" style="flex:1"><div class="pgrid ${cols===2?'c2':''}">
+      ${sh.items.map((n,i)=>`<div class="pcard ${i===0&&T!=='empty'?'on':''}"><div class="pthumb">${ic(sh.key==='SERVICE_QUEUE'?'tool':sh.key==='LODGING'?'bed':'box')}</div><div class="pname">${n}</div><div class="pprice">฿${200+i*50}</div></div>`).join('')}
+    </div></div></div>`;
+}
+
+/* ───── แผงขวา: ลำดับบล็อกผันตามประเภทร้าน (หัวใจของโจทย์ "แต่ละประเภท require ไม่เหมือนกัน") ───── */
+function sectionOrder(sh,variant){
+  const A=[];
+  A.push({k:'cust',ic:'user',t:'ลูกค้า',b:reqBadge(true),body:customerBody});
+  if(variant==='C'){
+    // C: เอาสิ่งที่ร้านนี้ "ต้องใช้จริง" ขึ้นมาไว้ที่สองทันทีหลังลูกค้า
+    if(sh.addr==='req')  A.push({k:'addr',ic:'pin',t:'ที่อยู่จัดส่ง',b:reqBadge(true),body:addressBody,hero:true});
+    if(sh.appt)          A.push({k:'appt',ic:'cal',t:'คิวงาน / วันเข้าใช้บริการ',b:'<span class="badge b-pri">หัวใจของร้านนี้</span>',body:apptBody,hero:true});
+    if(sh.sum)           A.push({k:'sum',ic:'cart',t:'สรุปยอด',b:'',body:null,hero:true});
+    A.push({k:'chan',ic:'card',t:'ช่องทาง / การชำระเงิน',b:'',body:channelBody});
+    if(sh.addr==='opt')  A.push({k:'addr',ic:'pin',t:'ที่อยู่ลูกค้า',b:reqBadge(false),body:addressBody});
+  }else{
+    A.push({k:'chan',ic:'card',t:'ช่องทาง / การชำระเงิน',b:'',body:channelBody});
+    A.push({k:'addr',ic:'pin',t:sh.addr==='req'?'ที่อยู่จัดส่ง':'ที่อยู่ลูกค้า',b:reqBadge(sh.addr==='req'),body:addressBody});
+    if(sh.appt) A.push({k:'appt',ic:'cal',t:'คิวงาน / วันเข้าใช้บริการ',b:reqBadge(false),body:apptBody});
+  }
+  A.push({k:'date',ic:'cal',t:sh.dateLabel,b:'',body:dateBody});
+  A.push({k:'more',ic:'note',t:'ส่วนลด · ภาษี · หมายเหตุ',b:'',body:null,fold:true});
+  return A;
+}
+
+function rightPanel(sh,variant,compact){
+  const secs=sectionOrder(sh,variant);
+  return `<div class="card" style="height:100%;display:flex;flex-direction:column">
+    <div class="chead">${ic('cart')}<span>ตะกร้า</span>${T!=='empty'?'<span class="badge b-pri">2</span>':''}<span class="sp"></span></div>
+    <div style="padding:4px 16px">${cartLines(sh)}</div>
+    <div style="flex:1;overflow:hidden;border-top:1px solid var(--d200)">
+      ${secs.map(s=>{
+        if(s.fold) return `<div class="sec">${secHead(s.ic,s.t,'<span class="badge b-opt">พับไว้</span>',true)}</div>`;
+        if(s.k==='sum') return `<div class="sec" style="${s.hero?'background:var(--primary-15)':''}">${secHead(s.ic,s.t,s.b)}<div class="sbody">${sumBlock(sh,false)}</div></div>`;
+        return `<div class="sec" ${s.hero?'style="box-shadow:inset 3px 0 0 var(--primary)"':''}>${secHead(s.ic,s.t,s.b)}${s.body(sh,compact)}</div>`;
+      }).join('')}
+    </div>
+    <div class="cfoot">${sumBlock(sh)}</div>
+  </div>`;
+}
+
+/* ───────────── DESKTOP ───────────── */
+function desktop(sh,variant){
+  const inner = (()=>{
+    if(variant==='E'){
+      return `<div class="tabs" style="margin:-18px -20px 16px">
+          <div class="tab on">${ic('user')}ลูกค้า</div>
+          <div class="tab">${ic('box')}${sh.pnoun}${T!=='empty'?'<span class="badge b-pri">2</span>':''}</div>
+          <div class="tab">${sh.appt?ic('cal'):ic('pin')}${sh.appt?'คิวงาน':'ที่อยู่'}${T==='error'&&sh.addr==='req'?'<span class="badge b-req">1</span>':''}</div>
+          <div class="tab">${ic('note')}เพิ่มเติม</div>
+        </div>
+        <div style="display:flex;gap:16px;height:calc(100% - 50px)">
+          <div style="flex:1;min-width:0"><div class="card" style="height:100%">
+            <div class="chead">${ic('user')}ลูกค้า${reqBadge(true)}</div>${customerBody(sh)}
+            <div class="note warn" style="margin:0 16px 16px">${ic('alert')}<span>เนื้อหาส่วนอื่นอยู่ในแท็บอื่น — ต้องสลับแท็บถึงจะเห็น (นี่คือ friction ที่แบบ A–D ไม่มี)</span></div>
+          </div></div>
+          <div style="width:280px;flex:0 0 280px"><div class="card" style="height:100%;display:flex;flex-direction:column">
+            <div class="chead">${ic('cart')}ตะกร้า${T!=='empty'?'<span class="badge b-pri">2</span>':''}</div>
+            <div style="padding:4px 16px;flex:1">${cartLines(sh)}</div>
+            <div class="cfoot">${sumBlock(sh)}</div>
+          </div></div>
+        </div>`;
+    }
+    const paste = variant==='B' ? `<div class="card anno" data-anno="ของชิ้นแรกที่เห็น" style="margin-bottom:16px">
+        <div class="chead">${ic('clip')}<span>วางข้อความจากแชท</span><span class="badge b-pri">เร็วที่สุด</span><span class="sp"></span><span style="font-size:11.5px;color:var(--d400)">ซ่อน</span></div>
+        <div class="cbody" style="display:flex;gap:14px">
+          <div style="flex:1;min-width:0">
+            <div class="inp ${T==='pasted'||T==='filled'?'filled':''}" style="min-height:78px;align-items:flex-start;padding-top:9px;line-height:1.6">
+              ${T==='pasted'||T==='filled'?'เชาวลิต เอกกุล 0817974412<br>6 ม.4 ต.ช้างซ้าย อ.กาญจนดิษฐ์<br>จ.สุราษฎร์ธานี 84160':'วางข้อความที่ลูกค้าพิมพ์มาได้เลย — ชื่อ เบอร์ ที่อยู่ ปนกันก็ได้'}
+            </div>
+            <div style="margin-top:9px"><span class="btn btn-out btn-sm">${ic('clip')}วางจากคลิปบอร์ด</span></div>
+          </div>
+          <div style="width:270px;flex:0 0 270px;border-left:1px dashed var(--d300);padding-left:14px">
+            ${T==='pasted'||T==='filled'?`
+              <div class="lbl" style="margin-bottom:7px">แยกข้อมูลได้แล้ว</div>
+              <div style="display:flex;flex-direction:column;gap:5px;font-size:12px">
+                <div style="display:flex;gap:6px;color:var(--info-ink)">${ic('chk')}ชื่อ · เชาวลิต เอกกุล</div>
+                <div style="display:flex;gap:6px;color:var(--info-ink)">${ic('chk')}เบอร์ · 081-797-4412</div>
+                <div style="display:flex;gap:6px;color:${sh.addr==='req'?'var(--info-ink)':'var(--d400)'}">${ic('chk')}ที่อยู่ · ช้างซ้าย, สุราษฎร์ธานี${sh.addr!=='req'?' <span style="font-size:11px">(ร้านนี้ไม่บังคับ)</span>':''}</div>
+              </div>
+              <div class="btn btn-pri btn-sm btn-full" style="margin-top:11px">${ic('chk')}ยืนยัน — เติมให้</div>`
+            :`<div class="empty" style="padding:10px 0">${ic('clip')}<div class="s">วางข้อความแล้วระบบจะแยก<br>ชื่อ / เบอร์ / ที่อยู่ ให้เอง</div></div>`}
+          </div>
+        </div>
+      </div>` : '';
+
+    const ratio = variant==='C' && !sh.shipsGoods ? '45fr 55fr' : '1fr 1fr';
+    return `${paste}
+      <div style="display:grid;grid-template-columns:${ratio};gap:16px;height:${variant==='B'?'calc(100% - 190px)':'100%'}">
+        <div style="min-width:0">${productPane(sh)}</div>
+        <div style="min-width:0">${rightPanel(sh,variant)}</div>
+      </div>`;
+  })();
+
+  return `<div class="app" style="height:820px">
+    <div class="sidebar">
+      <div class="lg">Deep</div>
+      ${['หน้าหลัก','กล่องข้อความ',sh.title.replace(/^สร้าง|^เปิด/,'')||'คำสั่งซื้อ',sh.pnoun,'ลูกค้า','รายงาน'].map((t,i)=>`<div class="it ${i===2?'on':''}">${t}</div>`).join('')}
+    </div>
+    <div class="main">
+      <div class="phead">
+        <div class="bk">${ic('back')}</div>
+        <div class="ttl">${sh.title}</div>
+        <span class="btn btn-out">ยกเลิก</span>
+        <span class="btn btn-pri">${ic('save')}${sh.save}</span>
+      </div>
+      <div class="pbody">${inner}</div>
+    </div>
+  </div>`;
+}
+
+/* ───────────── TABLET 820px ───────────── */
+function tablet(sh,variant){
+  // A / B / C → ยังเป็น QuickForm คอลัมน์เดียว (เหมือนมือถือ) = ปัญหา F1 ที่ยังไม่ถูกแก้
+  if(variant==='A'||variant==='B'||variant==='C'){
+    const secs=sectionOrder(sh,variant);
+    return `<div style="height:1040px;display:flex;flex-direction:column;background:var(--body)">
+      <div class="mhead">${ic('back')}<div class="ttl">${sh.title}</div></div>
+      <div class="mbody" style="flex:1;overflow:hidden">
+        ${variant==='B'?`<div class="card"><div class="chead">${ic('clip')}วางข้อความจากแชท<span class="badge b-pri">เร็วที่สุด</span></div>
+          <div class="cbody"><div class="inp" style="min-height:66px;align-items:flex-start;padding-top:9px">วางข้อความที่ลูกค้าพิมพ์มาได้เลย</div>
+          <div style="margin-top:9px;display:flex;gap:8px"><span class="btn btn-out btn-sm">วางจากคลิปบอร์ด</span><span class="btn btn-pri btn-sm">ยืนยัน — เติมให้</span></div></div></div>`:''}
+        ${secs.filter(s=>s.k!=='more').map(s=>{
+          if(s.k==='sum') return `<div class="card"><div class="chead">${ic('cart')}สรุปยอด</div><div class="cbody">${sumBlock(sh,false)}</div></div>`;
+          return `<div class="card"><div class="chead">${ic(s.ic)}<span>${s.t}</span><span class="sp"></span>${s.b}</div>${s.body(sh,true)}</div>`;
+        }).join('')}
+        <div class="card"><div class="chead">${ic('box')}<span>${sh.pnoun}</span><span class="sp"></span>${T!=='empty'?'<span class="badge b-pri">2</span>':''}</div>
+          <div class="cbody">${cartLines(sh)}</div></div>
+        <div class="note warn">${ic('alert')}<span><b>ยังเป็นหน้าตาเดียวกับมือถือ</b> — ช่องกรอกเรียงคอลัมน์เดียว ที่ว่างสองข้างเหลือทิ้ง (ปัญหา F1 ที่แบบ D เป็นตัวเดียวที่แก้)</span></div>
+      </div>
+      <div class="mfoot"><div class="tot"><div class="l">รวมทั้งสิ้น</div><div class="v">฿${T==='empty'?'0':'550'}</div></div>
+        <span class="btn btn-pri">${ic('save')}${sh.save}</span></div>
+    </div>`;
+  }
+
+  // D → เลย์เอาต์ของแท็บเล็ตเอง
+  if(variant==='D'){
+    const secs=sectionOrder(sh,'A');
+    return `<div style="height:1040px;display:flex;flex-direction:column;background:var(--body)">
+      <div class="mhead">${ic('back')}<div class="ttl">${sh.title}</div><span class="btn btn-pri btn-sm">${ic('save')}${sh.save}</span></div>
+      <div style="flex:1;overflow:hidden;padding:16px">
+        <div class="anno" data-anno="กว้าง 672px กลางจอ" style="max-width:672px;margin:0 auto;display:flex;flex-direction:column;gap:12px">
+          <div><span class="btn btn-soft">${ic('clip')}วางข้อความจากแชท</span></div>
+          ${secs.filter(s=>s.k!=='more'&&s.k!=='sum').map(s=>
+            `<div class="card"><div class="chead">${ic(s.ic)}<span>${s.t}</span><span class="sp"></span>${s.b}</div>${s.body(sh,false)}</div>`
+          ).join('')}
+          <div class="card"><div class="chead">${ic('box')}<span>${sh.pnoun}</span><span class="sp"></span>${T!=='empty'?'<span class="badge b-pri">2</span>':''}</div>
+            <div class="cbody"><div class="inp" style="margin-bottom:11px">${ic('srch')}<span style="margin-left:7px">ค้นหา${sh.pnoun}</span></div>
+            <div class="pgrid c2">${sh.items.slice(0,4).map((n,i)=>`<div class="pcard ${i===0&&T!=='empty'?'on':''}"><div class="pthumb">${ic(sh.key==='SERVICE_QUEUE'?'tool':sh.key==='LODGING'?'bed':'box')}</div><div class="pname">${n}</div><div class="pprice">฿${200+i*50}</div></div>`).join('')}</div></div></div>
+          <div class="note">${ic('chk')}<span><b>ช่องกรอกเข้าคู่ 2 คอลัมน์ได้แล้ว</b> · การ์ด${sh.pnoun} 2 ใบต่อแถว · เห็นลูกค้า+ช่องทาง+${sh.pnoun}ในหน้าจอแรกโดยไม่ต้องเลื่อน</span></div>
+        </div>
+      </div>
+      <div class="mfoot"><div class="tot"><div class="l">รวมทั้งสิ้น</div><div class="v">฿${T==='empty'?'0':'550'}</div></div>
+        <span class="btn btn-pri">${ic('save')}${sh.save}</span></div>
+    </div>`;
+  }
+
+  // E → แท็บ + sticky footer
+  return `<div style="height:1040px;display:flex;flex-direction:column;background:var(--body)">
+    <div class="mhead">${ic('back')}<div class="ttl">${sh.title}</div></div>
+    <div class="tabs">
+      <div class="tab on">${ic('user')}ลูกค้า</div>
+      <div class="tab">${ic('box')}${sh.pnoun}</div>
+      <div class="tab">${sh.appt?ic('cal'):ic('pin')}${sh.appt?'คิวงาน':'ที่อยู่'}${T==='error'&&sh.addr==='req'?'<span class="badge b-req">1</span>':''}</div>
+      <div class="tab">${ic('note')}เพิ่มเติม</div>
+    </div>
+    <div class="mbody" style="flex:1;overflow:hidden">
+      <div class="card"><div class="chead">${ic('user')}ลูกค้า${reqBadge(true)}</div>${customerBody(sh,false)}</div>
+      <div class="note warn">${ic('alert')}<span>เนื้อหาอื่นอยู่คนละแท็บ — ต้องสลับแท็บถึงจะเห็น <b>นี่คือ friction แบบเดียวกับ accordion เดิม แค่เปลี่ยนรูป</b></span></div>
+    </div>
+    <div class="mfoot"><div class="tot"><div class="l">รวมทั้งสิ้น</div><div class="v">฿${T==='empty'?'0':'550'}</div></div>
+      <span class="btn btn-pri">${ic('save')}${sh.save}</span></div>
+  </div>`;
+}
+
+/* ───────────── render ───────────── */
+function frame(label,note,w,html){
+  const avail=Math.min(1360,window.innerWidth-96);
+  const s=Math.min(1,avail/w);
+  const h=parseInt((html.match(/height:(\d+)px/)||[0,820])[1],10);
+  return `<div class="fbox"><div class="fcap"><span>${label}</span><em>${note}</em></div>
+    <div class="fview" style="height:${Math.round(h*s)}px">
+      <div class="fscale" style="width:${w}px;transform:scale(${s})">${html}</div>
+    </div></div>`;
+}
+
+function render(){
+  const sh=SHOPS[S], v=VARIANTS[V];
+
+  document.getElementById('vhead').innerHTML=`
+    <h2>${v.name}<span class="risk" style="background:var(${v.riskC});color:#fff">ความเสี่ยง ${v.risk}</span></h2>
+    <div class="oneliner">${v.one}</div>
+    <div class="metastrip">
+      <div class="m">ร้าน: <b>${sh.name}</b></div>
+      <div class="m">คลิก happy path: <b>${v.clicks}</b> (เดิม 5)</div>
+      <div class="m">แก้: <b>${v.fix}</b></div>
+      <div class="m">แท็บเล็ตได้เลย์เอาต์ใหม่: <b>${v.tabletNew?'ใช่':'ไม่ — ยังเหมือนมือถือ'}</b></div>
+    </div>`;
+
+  document.getElementById('warn').innerHTML = `<div class="warnbox">
+    <b>ร้าน${sh.name} ต้องการข้อมูลไม่เหมือนร้านอื่น:</b> ${sh.need}</div>` +
+    (V==='D'?`<div class="warnbox"><b>ข้อควรตัดสินใจ:</b> แบบนี้เพิ่ม breakpoint ที่ 768px ซึ่งขัดกับกติกาเดิมของหลังบ้าน (“ฝั่งผู้ขายมีเส้นแบ่งเส้นเดียวที่ 1024px”) — เปลือกนอก (เมนู/แถบล่าง) ไม่แตะ แต่จะเป็นหน้าแรกที่มีเส้นแบ่งภายในที่ 768 หน้าอื่นอาจขอตามมา</div>`:'') +
+    (V==='E'?`<div class="warnbox"><b>ข้อควรตัดสินใจ:</b> นับคลิกแล้วได้ 5 เท่าเดิม ไม่ได้เร็วขึ้น และกระทบการล็อกความสูงจอ + ลิงก์ที่เปิดหน้านี้พร้อมสินค้า/วันนัดมาให้แล้ว</div>`:'');
+
+  document.getElementById('frames').innerHTML=
+    frame('Desktop — 1440 × 820','เมนูซ้าย 245px · เนื้อหา ~1155px',1440,desktop(sh,V))+
+    frame('Tablet — 820 × 1040','iPad แนวตั้ง · อยู่ใต้เปลือกมือถือ (แถบบนเต็มจอ)',820,tablet(sh,V));
+
+  const N={
+    A:[`ตัดสถานะ “เปิด/ปิด” ของบล็อกลูกค้า · ช่องทาง · ที่อยู่ · คิวงาน ทิ้ง — กางถาวร เหลือแค่ <code>ส่วนลด/ภาษี/หมายเหตุ</code> ที่ยังพับ`,
+        `ปุ่ม “วางข้อความจากแชท” ย้ายจากมุมขวาบนในเนื้อ accordion ขึ้นมาเป็นบรรทัดแรกของบล็อกลูกค้า`,
+        `<b>ไม่แก้ F1</b> — แท็บเล็ตยังได้หน้าตาเดียวกับมือถือ นี่คือเหตุผลที่มันเสี่ยงต่ำที่สุด (ไม่แตะเส้นแบ่งจอเลย)`,
+        `ผลข้างเคียงที่ต้องเช็ก: แผงขวายาวขึ้นเพราะทุกบล็อกเปิดพร้อมกัน ต้องยืนยันว่าส่วนเลื่อนตรงกลางยังไม่ดันแถบยอดรวมหลุดจอ`],
+    B:[`โครงด้านล่างเหมือนแบบ A ทุกอย่าง — ต่างกันแค่ยกกล่องวางข้อความขึ้นมาเป็นของชิ้นแรก`,
+        `แยกข้อมูลให้ดูก่อน ยังไม่เติมทันที ต้องกด “ยืนยัน — เติมให้” 1 ครั้ง (กันวางผิดข้อความ)`,
+        `ข้อความยืนยันใช้สีฟ้า <b>ไม่ใช่เขียว</b> — เขียวสงวนไว้กับสิ่งที่ระบบยืนยันแล้วจริง (เช่น “ลูกค้าเก่า” ที่เจอ record ในฐาน)`,
+        `ความเสี่ยงเดียว: ร้านที่พิมพ์เองล้วนจะรู้สึกว่าเกะกะ → ให้ยุบได้และจำสถานะไว้`],
+    C:[`<b>นี่คือแบบที่ตอบโจทย์ “ร้านแต่ละประเภทต้องการข้อมูลคนละชุด” ตรงที่สุด</b> — ลองสลับประเภทร้านด้านบนดูความต่าง`,
+        `ขายออนไลน์ → ที่อยู่จัดส่งขึ้นมาอยู่ที่สองทันทีหลังลูกค้า (แถบน้ำเงินซ้าย = บล็อกเด่นของร้านนี้)`,
+        `ร้านบริการ → คิวงาน/วันเข้าใช้บริการขึ้นมาแทนที่ตำแหน่งนั้น และแผงขวากว้างขึ้นเป็น 55% เพราะไม่ต้องเสียที่ให้ช่องที่อยู่`,
+        `บ้านพัก → ฟอร์มสั้นที่สุด จึงยกสรุปยอดขึ้นมาไว้ในสายตาแทนที่จะอยู่แต่ล่างสุด`,
+        `<b>ที่อยู่ยังอยู่ครบทุกประเภท</b> — เปลี่ยนแค่ “บังคับ/ไม่บังคับ” และตำแหน่ง ไม่ใช่ซ่อนทิ้ง (ตามมติที่บันทึกไว้ใน <code>shipping-address-status.ts</code>)`],
+    D:[`เดสก์ท็อป = แบบ A ทุกประการ ของใหม่อยู่ที่แท็บเล็ตล้วน ๆ`,
+        `ช่วง 768–1023px ได้: เนื้อหากว้าง 672px กลางจอ · ช่องกรอกเข้าคู่ 2 คอลัมน์ · การ์ด${'สินค้า'} 2 ใบต่อแถว · ปุ่มบันทึกขึ้นไปอยู่แถบบนด้วย`,
+        `เปลือกนอก (เมนูซ้าย/แถบล่าง) <b>ไม่แตะ</b> ยังสลับที่ 1024px เหมือนทุกหน้า — เปลี่ยนแค่เนื้อในของฟอร์มนี้`,
+        `ราคาที่ต้องจ่าย: เป็นหน้าแรกที่มีเส้นแบ่งภายในที่ 768 · ต้องทดสอบเพิ่มอีก 1 ช่วงจอจริง ๆ ไม่ใช่โคลนจากมือถือ/เดสก์ท็อป`],
+    E:[`ตะกร้า+ยอดรวม+ปุ่มบันทึกลอยขวา 280px เห็นตลอดไม่ว่าอยู่แท็บไหน`,
+        `<b>แต่นับคลิกแล้วได้ 5 เท่าเดิม</b> — เพราะต้องสลับแท็บเพิ่ม 1 ครั้ง ซึ่งแบบอื่นไม่ต้อง (เห็นทุกอย่างพร้อมกันอยู่แล้ว)`,
+        `ถ้าฟิลด์ที่ผิดอยู่คนละแท็บ ต้องมีป้ายแดงบนหัวแท็บบอก — เป็นตรรกะใหม่ที่แบบ A–D ไม่ต้องมีเลย`,
+        `กระทบการล็อกความสูงจอ (มีแถบแท็บเพิ่มเข้ามาในความสูงที่ต้องหักลบ) และลิงก์ที่เปิดหน้าพร้อมสินค้า/วันนัดมาให้แล้ว ต้องสลับแท็บเองอัตโนมัติ`]
+  };
+  document.getElementById('notes').innerHTML=`<h3>รายละเอียดแบบ ${V}</h3><ul>${N[V].map(x=>`<li>${x}</li>`).join('')}</ul>`;
+}
+
+function seg(id,obj,cur,fn){
+  document.getElementById(id).innerHTML=Object.keys(obj).map(k=>
+    `<button data-k="${k}" class="${k===cur?'on':''}">${obj[k]}</button>`).join('');
+  document.getElementById(id).onclick=e=>{const b=e.target.closest('button');if(!b)return;fn(b.dataset.k);draw()};
+}
+function draw(){
+  seg('segV',Object.fromEntries(Object.keys(VARIANTS).map(k=>[k,VARIANTS[k].name.split(' · ')[0]+' · '+VARIANTS[k].name.split(' · ')[1]])),V,k=>V=k);
+  seg('segS',{ONLINE_SALES:'ขายออนไลน์',SERVICE_QUEUE:'สินค้าและบริการ (คิวงาน)',LODGING:'บ้านพัก'},S,k=>S=k);
+  seg('segT',{filled:'กรอกครบแล้ว',empty:'ตะกร้าว่าง',error:'กรอกไม่ครบ (กดบันทึกแล้ว)',pasted:'เพิ่งวางจากแชท'},T,k=>T=k);
+  render();
+}
+draw();
+window.addEventListener('resize',()=>render());
+</script>
+</body>
+</html>
