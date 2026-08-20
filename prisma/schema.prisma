@@ -3254,7 +3254,23 @@ model PageComment {
   isFromPage        Boolean   @default(false)
   message           String?
   /// รูป/วิดีโอที่แนบมากับคอมเมนต์ (URL ของ Meta)
+  ///
+  /// 🛑 **URL นี้หมดอายุ** — วันหมดอายุฝังอยู่ในพารามิเตอร์ `oe=` ของตัว URL เอง และถูกตั้งตอน
+  /// *ออก URL* (คือตอนเรา ingest) ไม่ใช่ตอนลูกค้าคอมเมนต์ ⇒ อายุคอมเมนต์กับสถานะ URL **ไม่สัมพันธ์
+  /// กันเลย** (วัดบน prod 2026-08-20: คอมเมนต์อายุ 536 วันยังเปิดได้ HTTP 200 แต่อายุ 5 วันตายแล้ว 403)
+  /// ห้ามใช้เป็นแหล่งหลัก ให้อ่านผ่าน `resolveCommentAttachment()` ซึ่ง resolve `mirroredFileId` ก่อนเสมอ
   attachmentUrl     String?
+  /// สำเนาไฟล์แนบในสตอเรจของเรา — คู่เดียวกับ `FacebookPost.mirroredFileId/mirroredAt` (feature 00035)
+  ///
+  /// เขียนผ่าน `mirrorRemoteImage()` ตัวเดียวกับแชท ซึ่งตั้งแต่ feature 00051 (S-3) วิ่งผ่าน
+  /// `writeDedupedFile()` ⇒ **ได้ dedup ระดับ sha256 ต่อร้านฟรี** (รูปเดียวกันที่คอมเมนต์ซ้ำหลายโพสต์
+  /// หรือตรงกับรูปที่เคยส่งในแชทของร้านเดียวกัน ใช้ไฟล์เดิม ไม่เขียนซ้ำ)
+  /// scope baseline ของ 00051 ห้ามเขียนฟังก์ชัน mirror ตัวที่สองขนาน — ห้ามสร้างทางเขียนใหม่ที่นี่
+  ///
+  /// `null` ได้ 2 ความหมาย: ยังไม่เคย mirror (ของเก่าก่อน 2026-08-20) หรือ mirror แล้วไม่สำเร็จ
+  /// (URL ตายไปก่อน) — ทั้งคู่ตกไปใช้ `attachmentUrl` เป็น fallback ซึ่งอาจตายเช่นกัน
+  mirroredFileId    String?
+  mirroredAt        DateTime?
   createdTime       DateTime
   editedAt          DateTime?
   /// ลูกค้าลบคอมเมนต์บน Facebook — เก็บแถวไว้เป็นหลักฐาน ไม่ลบจริง (BR-CMT-04)

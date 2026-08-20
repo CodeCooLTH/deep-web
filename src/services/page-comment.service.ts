@@ -47,6 +47,41 @@ export function resolvePostThumbnail(post: { mirroredFileId: string | null; thum
 }
 
 /**
+ * ไฟล์แนบของคอมเมนต์ที่ควรเอาไปแสดง — **อ่านผ่านตัวนี้ที่เดียวเสมอ** (HR16)
+ *
+ * `attachmentUrl` เป็น URL ของ fbcdn ที่มีวันหมดอายุฝังอยู่ในพารามิเตอร์ `oe=` ⇒ ห้ามใช้เป็น
+ * แหล่งหลัก. สำเนาในสตอเรจของเรามาก่อนเสมอ แล้วค่อยตกไป URL เดิมเป็น fallback
+ * (แพตเทิร์นเดียวกับ `resolvePostThumbnail` บรรทัดบน — ของสิ่งเดียวกันคนละตาราง)
+ *
+ * ⚠️ fallback ตัวนี้ "อาจตายแล้ว" ได้ตามธรรมชาติ — ณ 2026-08-20 มี 167 จาก 222 แถวบน prod
+ * ที่ URL หมดอายุไปก่อนที่ระบบ mirror จะมีอยู่ การแสดงผลตอนโหลดไม่ขึ้นเป็นเรื่องของฝั่ง UI
+ */
+export function resolveCommentAttachment(comment: {
+  mirroredFileId: string | null
+  attachmentUrl: string | null
+}): string | null {
+  return toFileUrl(comment.mirroredFileId) ?? comment.attachmentUrl
+}
+
+/**
+ * mirror ไฟล์แนบของคอมเมนต์เข้าสตอเรจของเรา — คืน fileId หรือ null เมื่อทำไม่ได้
+ *
+ * best-effort เสมอ: รูปพังห้ามทำให้คอมเมนต์หายทั้งก้อน (หลักการเดียวกับ `mirrorPostThumbnail`
+ * และ `mirrorRemoteImage` ฝั่งแชทที่เขียนไว้ว่า "ห้ามทิ้งทั้งข้อความเพราะรูปพัง")
+ *
+ * 🛑 ใช้ `mirrorRemoteImage()` **ตัวเดียวกับแชท** ไม่สร้างทางเขียนใหม่ — ตั้งแต่ feature 00051 (S-3)
+ * มันวิ่งผ่าน `writeDedupedFile()` ⇒ ได้ dedup ระดับ sha256 ต่อร้านฟรี และ scope baseline ของ 00051
+ * ห้ามเขียนฟังก์ชัน mirror ตัวที่สองขนานไว้ตรง ๆ อยู่แล้ว
+ *
+ * ไม่ส่ง `sourceKey`: schema สงวนคีย์นั้นให้ `"ad:{adId}"` ที่รู้ที่มาแน่นอนเท่านั้น ไฟล์แนบคอมเมนต์
+ * ไม่มีตัวระบุแบบนั้น ปล่อยให้ dedup ตัดสินด้วย hash ของเนื้อไฟล์อย่างเดียว
+ */
+async function mirrorCommentAttachment(url: string | null | undefined, shopId: string): Promise<string | null> {
+  if (!url) return null
+  return mirrorRemoteImage(url, { shopId, filenamePrefix: 'fb-comment' })
+}
+
+/**
  * mirror รูปปกโพสต์เข้า storage ของเรา — คืน fileId หรือ null เมื่อทำไม่ได้
  *
  * best-effort เสมอ: รูปพังห้ามทำให้คอมเมนต์หายทั้งก้อน (หลักการเดียวกับ `mirrorRemoteImage`
@@ -133,6 +168,14 @@ export async function ingestFeedComment(params: {
   })
   const isFromPage = !!val.from?.id && val.from.id === params.pageExternalId
 
+  const attachmentUrl = val.photo ?? val.video ?? null
+  /**
+   * mirror ทันทีที่ ingest — URL ของ fbcdn มีวันหมดอายุฝังอยู่ในตัวมันเอง (`oe=`) และนาฬิกาเริ่มเดิน
+   * ตั้งแต่วินาทีที่ Meta ออก URL ให้ ⇒ ยิ่งรอยิ่งเสี่ยง ไม่มีเหตุผลให้เลื่อนไปทำทีหลัง
+   * (ของเดิมไม่เคย mirror เลย ⇒ 167 จาก 222 แถวบน prod ตายก่อนที่ใครจะสังเกต — user เจอเอง)
+   */
+  const mirroredFileId = await mirrorCommentAttachment(attachmentUrl, channel.shopId)
+
   const data = {
     postId: post.id,
     shopChannelId: channel.id,
@@ -142,7 +185,9 @@ export async function ingestFeedComment(params: {
     fromName: val.from?.name ?? null,
     isFromPage,
     message: val.message ?? null,
-    attachmentUrl: val.photo ?? val.video ?? null,
+    attachmentUrl,
+    mirroredFileId,
+    mirroredAt: mirroredFileId ? new Date() : null,
     createdTime,
     rawPayload: toJson(params.rawChange ?? params.change),
   }
@@ -157,6 +202,12 @@ export async function ingestFeedComment(params: {
     update: {
       message: data.message,
       attachmentUrl: data.attachmentUrl,
+      // 🛑 `?? undefined` ไม่ใช่ `?? null` — คอลัมน์นี้มีผู้เขียน 2 ราย (ingest ครั้งแรก + echo ของ
+      // Meta ที่วิ่งเข้ามาทางเดียวกัน) ถ้า mirror รอบนี้ล้ม (URL ตายไปแล้ว) ต้อง **ไม่เขียน null ทับ
+      // สำเนาที่เคยได้มาสำเร็จ** — "ดึงไม่ได้รอบนี้" ไม่เท่ากับ "ไม่มีสำเนา"
+      // (docs/conventions/external-payload-schema.md — เคสรีแอ็กชันโผล่ 1 วิแล้วหาย)
+      mirroredFileId: data.mirroredFileId ?? undefined,
+      mirroredAt: data.mirroredAt ?? undefined,
       fromName: data.fromName ?? undefined,
       ...(val.verb === 'edited' || val.verb === 'edit' ? { editedAt: new Date() } : {}),
       isDeleted: false,
@@ -973,7 +1024,8 @@ export async function listComments(params: {
       isReply: c.parentExternalId !== null,
       fromName: c.fromName,
       message: c.message,
-      attachmentUrl: c.attachmentUrl,
+      // ห้ามส่ง c.attachmentUrl ดิบ — resolve สำเนาก่อนเสมอ (URL ของ fbcdn หมดอายุ)
+      attachmentUrl: resolveCommentAttachment(c),
       createdTime: c.createdTime,
       state: deriveCommentState(
         repliesByParent.get(c.externalCommentId) ?? [],
@@ -1084,6 +1136,70 @@ export async function backfillMissingPostThumbnails(params: {
   }
 }
 
+/**
+ * เก็บตก **ไฟล์แนบของคอมเมนต์** ที่ยังไม่มีสำเนา — ทีละไม่กี่ใบต่อการเปิดหน้า
+ *
+ * ยกโครงมาจาก `backfillMissingPostThumbnails()` ข้างบนทั้งดุ้น (ปัญหาเดียวกันคนละตาราง:
+ * URL ของ fbcdn หมดอายุ) — ไม่เขียนสคริปต์รันมือ เพราะงานนี้ต้องใช้ทั้ง credential ของสตอเรจ
+ * และขอบเขต dedup ต่อร้าน ซึ่งมีครบอยู่แล้วตอนรันบน prod
+ *
+ * 🛑 **มีนาฬิกาเดินอยู่จริง** — วัดเมื่อ 2026-08-20: จาก 222 แถว หมดอายุไปแล้ว 167 · ยังเปิดได้ 54
+ * และใน 54 นั้นมี **16 ใบที่จะตายภายใน 2 วัน** ตัวที่ mirror ไม่ทันคือตัวที่หายถาวร ไม่มีทางกู้
+ * (นอกจากขอ URL ใหม่จาก Graph ซึ่งยังติดคำถามเรื่องสิทธิ์ `pages_read_user_content`)
+ * ⇒ เรียงจากใหม่ไปเก่า เพราะ URL ที่ออกทีหลังคือตัวที่ยังมีโอกาสรอด
+ *
+ * URL ที่ตายแล้วจะได้ `null` จาก `mirrorRemoteImage` (fetch ไม่ผ่าน) — ไม่เขียนอะไรลงแถว
+ * แล้วรอบหน้าก็จะหยิบมันขึ้นมาลองใหม่เรื่อย ๆ ซึ่งเปลืองเปล่า แต่ยอมรับได้ที่สเกลนี้ (หลักร้อยแถว)
+ * และเป็นการเปิดทางไว้ให้ตอนที่กู้ผ่าน Graph ได้ในอนาคต — ถ้าโตกว่านี้ค่อยเพิ่มคอลัมน์ "ลองแล้วล้ม"
+ */
+const COMMENT_MIRROR_BACKFILL_PER_RUN = 8
+
+export async function backfillMissingCommentMirrors(params: {
+  shopIds: string[]
+  take?: number
+}): Promise<void> {
+  try {
+    if (params.shopIds.length === 0) return
+    const rows = await prisma.pageComment.findMany({
+      where: {
+        mirroredFileId: null,
+        attachmentUrl: { not: null },
+        isDeleted: false,
+        // PageComment ไม่มี relation ตรงไป ShopChannel (shopChannelId เป็นคอลัมน์เปล่า) — ต้องผ่าน post
+        post: { channel: { shopId: { in: params.shopIds } } },
+      },
+      // ใหม่สุดก่อน — URL ที่ออกทีหลังคือตัวที่ยังมีโอกาสรอด (ดู comment ข้างบน)
+      orderBy: { createdTime: 'desc' },
+      take: params.take ?? COMMENT_MIRROR_BACKFILL_PER_RUN,
+      select: {
+        id: true,
+        attachmentUrl: true,
+        /**
+         * ที่นี่ไม่ได้ใช้ค่านี้เลย (where กรอง `mirroredFileId: null` ไปแล้ว) — เลือกมาเพื่อให้
+         * ค่าคงตัว **"อ่าน attachmentUrl ที่ไหน ต้องอ่าน mirroredFileId ที่นั่นด้วย"** เป็นจริง
+         * ทั้งไฟล์ ⇒ ด่านที่เฝ้ากติกานี้ตรวจได้ด้วยกฎเดียวเรียบ ๆ ไม่ต้องมี carve-out
+         *
+         * 🛑 carve-out ในด่านคือที่ที่ของกลับมาซ่อน — ถ้ายอมยกเว้นตรงนี้ วันหนึ่งจะมีคนเพิ่ม
+         * serializer ที่อ่านจาก query นี้แล้วส่ง URL ดิบออกไป โดยด่านไม่เห็นเพราะมันถูกยกเว้นไว้แล้ว
+         * (rule-must-be-enforced-not-described.md)
+         */
+        mirroredFileId: true,
+        post: { select: { channel: { select: { shopId: true } } } },
+      },
+    })
+    for (const r of rows) {
+      const fileId = await mirrorCommentAttachment(r.attachmentUrl, r.post.channel.shopId)
+      if (!fileId) continue
+      await prisma.pageComment.update({
+        where: { id: r.id },
+        data: { mirroredFileId: fileId, mirroredAt: new Date() },
+      })
+    }
+  } catch {
+    // เงียบโดยตั้งใจ — เป็นงานเก็บตกเบื้องหลัง ไม่ใช่ส่วนหนึ่งของการเปิดหน้า
+  }
+}
+
 export async function listCommentPosts(params: {
   /** ร้านที่รายการครอบคลุม (feature 00037) — ความยาว 1 = โหมดเดิม; มาจาก resolveChatScope เท่านั้น */
   shopIds: string[]
@@ -1179,6 +1295,10 @@ export async function listCommentPosts(params: {
           fromName: true,
           message: true,
           attachmentUrl: true,
+          // ต้องดึงมาด้วย ไม่งั้น resolveCommentAttachment() จะเห็น mirroredFileId เป็น undefined
+          // แล้วตกไปใช้ URL ของ fbcdn ที่อาจตายแล้วเสมอ — select ที่ขาดฟิลด์ = บั๊กเงียบชนิดที่
+          // tsc จับไม่ได้ถ้า type ของ resolve รับ optional
+          mirroredFileId: true,
           createdTime: true,
           // feature 00038 — ต้องมีเพื่อแยก BOT_ANSWERED ออกจาก HUMAN_ANSWERED ใน deriveCommentState
           isAutoReply: true,
@@ -1470,7 +1590,8 @@ export async function getPostComments(params: {
       fromName: c.fromName ?? (c.fromExternalId ? (nameByExternalId.get(c.fromExternalId) ?? null) : null),
       isFromPage: c.isFromPage,
       message: c.message,
-      attachmentUrl: c.attachmentUrl,
+      // ห้ามส่ง c.attachmentUrl ดิบ — resolve สำเนาก่อนเสมอ (URL ของ fbcdn หมดอายุ)
+      attachmentUrl: resolveCommentAttachment(c),
       createdTime: c.createdTime,
       editedAt: c.editedAt,
       isDeleted: c.isDeleted,
@@ -1498,7 +1619,11 @@ export async function backfillPostComments(postId: string): Promise<{ added: num
   store.set(postId, Date.now())
 
   try {
-    const post = await prisma.facebookPost.findUnique({ where: { id: postId } })
+    // include channel.shopId — ต้องใช้เป็นขอบเขต dedup ของ mirror (MediaAsset unique (shopId, hash))
+    const post = await prisma.facebookPost.findUnique({
+      where: { id: postId },
+      include: { channel: { select: { shopId: true } } },
+    })
     if (!post) return { added: 0 }
     const auth = await resolveChannelToken(post.shopChannelId)
     if (!auth) return { added: 0 }
@@ -1517,6 +1642,20 @@ export async function backfillPostComments(postId: string): Promise<{ added: num
     const missing = items.filter((i) => !known.has(i.id))
     if (missing.length === 0) return { added: 0 }
 
+    /**
+     * mirror ไฟล์แนบก่อนเขียนแถว — ทางเข้านี้ก็ต้อง mirror เหมือนฝั่ง webhook (HR16: กติกาเดียวกัน
+     * ที่ทำแค่ทางเดียว = อีกทางจะสะสมแถวที่ URL ตายต่อไปเงียบ ๆ)
+     *
+     * ทำเป็นชุดก่อน createMany เพราะ createMany รับค่าสำเร็จรูปอย่างเดียว เรียก async ข้างในไม่ได้
+     * best-effort ทุกใบ: mirror ล้ม → null → ตกไปใช้ attachmentUrl เป็น fallback ตามเดิม
+     * ห้ามให้รูปพังทำให้คอมเมนต์ทั้งชุดไม่ถูกบันทึก
+     */
+    const mirroredByCommentId = new Map<string, string>()
+    for (const c of missing) {
+      const fileId = await mirrorCommentAttachment(c.attachmentUrl, post.channel.shopId)
+      if (fileId) mirroredByCommentId.set(c.id, fileId)
+    }
+
     const result = await prisma.pageComment.createMany({
       data: missing.map((c) => ({
         postId,
@@ -1530,6 +1669,8 @@ export async function backfillPostComments(postId: string): Promise<{ added: num
         isFromPage: c.fromId === auth.pageId,
         message: c.message,
         attachmentUrl: c.attachmentUrl,
+        mirroredFileId: mirroredByCommentId.get(c.id) ?? null,
+        mirroredAt: mirroredByCommentId.get(c.id) ? new Date() : null,
         createdTime: c.createdTime,
         rawPayload: toJson(c),
       })),

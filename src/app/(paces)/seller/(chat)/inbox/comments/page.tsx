@@ -13,7 +13,12 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveChatScope } from '@/lib/chat-scope'
-import { listComments, backfillPagePosts, backfillMissingPostThumbnails } from '@/services/page-comment.service'
+import {
+  listComments,
+  backfillPagePosts,
+  backfillMissingPostThumbnails,
+  backfillMissingCommentMirrors,
+} from '@/services/page-comment.service'
 import type { CommentPostCounts } from '@/services/page-comment.service'
 import { listChannelsForShops } from '@/services/shop-channel.service'
 import { prisma } from '@/lib/prisma'
@@ -61,6 +66,12 @@ export default async function CommentsPage() {
     // โพสต์ที่ไม่มีใครกดเปิดจะไม่มีวันได้สำเนาเลยถ้าไม่มีตัวนี้ — URL ของ fbcdn หมดอายุ ~4 วัน
     // มี throttle ในตัวผ่าน refreshPostStats จึงไม่ยิง Graph ถี่ขึ้นจริงแม้เปิดหน้าถี่ ๆ
     await backfillMissingPostThumbnails({ shopIds: backfillShopIds })
+    /**
+     * เก็บตกไฟล์แนบของคอมเมนต์ที่ยังไม่มีสำเนา — เหตุผลเดียวกับบรรทัดบน แค่คนละตาราง
+     * 🛑 มีนาฬิกาเดินจริง: วัด 2026-08-20 ได้ 167 จาก 222 แถวที่ URL หมดอายุไปแล้ว และใน 54 ใบ
+     * ที่ยังเปิดได้มี 16 ใบจะตายภายใน 2 วัน — ตัวที่ mirror ไม่ทันคือตัวที่หายถาวร
+     */
+    await backfillMissingCommentMirrors({ shopIds: backfillShopIds })
   })
 
   let comments: CommentListItem[] = []
