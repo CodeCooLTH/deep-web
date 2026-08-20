@@ -38,6 +38,7 @@ import SwipeableRow from '../components/SwipeableRow'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { commentDoneMark } from '@/lib/comment-done-mark'
 import { commentPermalink } from '@/lib/facebook-post'
+import { commentContentState } from '@/lib/comment-content-state'
 import { countUnansweredInThread, isCommentHandled } from '@/lib/comment-handled'
 import { isReplyTargetVisible, resolveComposerSlot } from '@/lib/comment-composer-slot'
 import { compactCount } from '@/lib/format-compact-number'
@@ -2016,7 +2017,16 @@ export default function CommentsClient({
                           aria-hidden="true"
                         />
                       )}
-                      {`${c.fromName ?? t.comments.fbUser}: ${c.message?.trim() || t.comments.noText}`}
+                      {/* 3 สถานะ ไม่ใช่ 2 — เกณฑ์อยู่ที่ commentContentState() ที่เดียว (HR16)
+                          แถวนี้ไม่มีรูปคอมเมนต์ให้ดูเลย (รูปบนแถวคือปกโพสต์) สถานะ "รูปล้วน"
+                          จึงต้องมีคำเป็นตัวแทน ต่างจากบับเบิลในเธรดที่มีรูปจริงอยู่แล้ว */}
+                      {`${c.fromName ?? t.comments.fbUser}: ${
+                        commentContentState(c) === 'TEXT'
+                          ? c.message?.trim()
+                          : commentContentState(c) === 'ATTACHMENT_ONLY'
+                            ? t.comments.commentAttachmentOnly
+                            : t.comments.contentUnavailable
+                      }`}
                     </span>
                     {/* ชื่อร้านเจ้าของโพสต์ (feature 00037) — เฉพาะโหมดรวม; ข้อความไม่ใช่ badge รูป
                         ด้วยเหตุผลเดียวกับแถวในแท็บข้อความ (รูปเพจซ้ำกันได้ระหว่างสาขา) */}
@@ -2423,11 +2433,34 @@ export default function CommentsClient({
                   }}
                   // มือถือ: ให้สื่อมีความสูงขั้นต่ำ (min-h-40) แล้วค่อยยืดตามที่เหลือ — ไม่ใช่ยุบตาม
                   // flex จนเหลือเสี้ยวเดียวเมื่อผู้ใช้ลากแผงคอมเมนต์ขึ้นสูง (user report 2026-08-04)
-                  className="bg-default-100 relative block min-h-40 w-full flex-1 lg:min-h-0"
+                  /**
+                   * `overflow-hidden` เป็น **ตาข่าย** ไม่ใช่ทางแก้หลัก — ตัวที่แก้จริงคือ `absolute
+                   * inset-0 size-full` ที่ `<img>` ข้างล่าง ซึ่งทำให้รูปเป็นกล่องเดียวกับ `<a>` เป๊ะเสมอ
+                   * (เติม overflow-hidden เฉย ๆ จะแค่ซ่อนอาการ รูปยังถูกครอปจากขอบล่างแบบสุ่ม
+                   * ตามว่ากล่องแม่หดเหลือเท่าไร — โครงสร้างเดิมที่ผิดยังอยู่)
+                   */
+                  className="bg-default-100 relative block min-h-40 w-full flex-1 overflow-hidden lg:min-h-0"
                   aria-label={isVideoPost(selectedPost.mediaType) ? t.comments.playVideo : t.comments.openPostOnFacebook}
                 >
-                  {/* เดสก์ท็อป: สูงเท่าที่เหลือในคอลัมน์ (h-full) — ของเดิม max-h คงที่ทำให้เหลือ
-                      ที่ว่างใต้รูปเปล่า ๆ; มือถือคุมที่ 288px ไม่ให้กินจอจนคอมเมนต์หาย */}
+                  {/**
+                    * 🛑 รูปต้องอยู่ในกรอบพ่อ **โดยโครงสร้าง** ไม่ใช่ด้วยเลขที่บังเอิญพอดี
+                    *
+                    * ของเดิม `max-h-72 w-full` = เพดาน 288px ของตัวเอง ซึ่ง **ไม่ผูกกับความสูงจริง
+                    * ของ `<a>`** ที่เป็น `flex-1` (หดได้ถึงพื้น `min-h-40` = 160px) ⇒ พอคอลัมน์เหลือ
+                    * ที่น้อย พ่อหดแต่ลูกไม่หด รูปล้นออกไปวาดทับแถวยอด ไลก์/คอมเมนต์/แชร์ จนคำว่า
+                    * "แชร์ 10" หายทั้งตัว (user เจอเองบน prod 2026-08-20 กับคลิปแนวตั้ง)
+                    *
+                    * `absolute inset-0 size-full object-contain` = รูปเป็นกล่องเดียวกับพ่อเสมอ ไม่ว่า
+                    * พ่อจะหดหรือยืดแค่ไหน · `object-contain` คงสัดส่วนเดิม ไม่ครอป
+                    * **ผลพลอยได้: ปุ่ม Play (absolute inset-0 ของพ่อตัวเดียวกัน) อยู่กึ่งกลางรูปที่เห็น
+                    * จริงเองโดยไม่ต้องแก้โค้ดปุ่ม** — เดิมปุ่มอยู่กึ่งกลาง `<a>` ที่หดแล้ว แต่รูปล้นออกไป
+                    *
+                    * ไม่ตั้งเลขความสูงใหม่เลย — `min-h-40` + `flex-1` + `clampPanelH()` คุมพื้นที่อยู่แล้ว
+                    * ปัญหาไม่เคยอยู่ที่ตัวเลข แต่อยู่ที่รูปไม่เชื่อฟังกล่องแม่ (safepay-ux 2026-08-20)
+                    *
+                    * แลก: โพสต์แนวตั้งตอนลากแผงคอมเมนต์ขึ้นสุดจะเห็นรูปเล็กลงกว่าเดิม — ยอมรับได้
+                    * เพราะผู้ขายกำลังทำงานกับ *คอมเมนต์* ไม่ใช่ดูรูป และกดปุ่ม Play เปิดเต็มได้เหมือนเดิม
+                    */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={selectedPost.thumbnailUrl}
@@ -2438,7 +2471,7 @@ export default function CommentsClient({
                         setPosterRatio(img.naturalWidth / img.naturalHeight)
                       }
                     }}
-                    className="max-h-72 w-full object-contain lg:h-full lg:max-h-none"
+                    className="absolute inset-0 size-full object-contain"
                   />
                   {isVideoPost(selectedPost.mediaType) && (
                     <span className="absolute inset-0 flex items-center justify-center">
@@ -2584,6 +2617,7 @@ export default function CommentsClient({
                       onReply={() => setReplyTo(comment)}
                       privateReplySendingId={sendingPrivateReplyId}
                       onOpenPrivateReply={openPrivateReplyModal}
+                      postPermalink={selectedPost?.permalink ?? null}
                     />
                     {replies.length > 0 && (
                       // ย่อหน้าเฉย ๆ แบบ Facebook — เส้นตั้งของเดิมทำให้อ่านเป็น "บล็อกโค้ด" มากกว่าบทสนทนา
@@ -2598,6 +2632,7 @@ export default function CommentsClient({
                             onReply={() => setReplyTo(r)}
                             privateReplySendingId={sendingPrivateReplyId}
                             onOpenPrivateReply={openPrivateReplyModal}
+                            postPermalink={selectedPost?.permalink ?? null}
                           />
                         ))}
                       </div>
@@ -2701,6 +2736,7 @@ function CommentBubble({
   active = false,
   privateReplySendingId = null,
   onOpenPrivateReply,
+  postPermalink = null,
 }: {
   c: CommentItem
   channel?: { name: string; avatarUrl: string | null; provider: string }
@@ -2720,6 +2756,11 @@ function CommentBubble({
   privateReplySendingId?: string | null
   /** feature 00038 Task 8 — เปิดโมดัลยืนยันทักแชท */
   onOpenPrivateReply: (c: CommentItem) => void
+  /**
+   * permalink ของ "โพสต์" — ใช้ประกอบลิงก์ไปคอมเมนต์ใบนี้เจาะจงเมื่อเราไม่มีเนื้อหาให้แสดง
+   * `null` ได้ (โพสต์เก่าบางใบไม่มี permalink) ⇒ ไม่ render ลิงก์
+   */
+  postPermalink?: string | null
 }) {
   const t = useT()
   /**
@@ -2829,9 +2870,46 @@ function CommentBubble({
                 </span>
               ))}
           </p>
-          <p className="text-default-800 mb-0 whitespace-pre-wrap text-sm">
-            {c.isDeleted ? t.comments.deleted : (c.message ?? t.comments.noText)}
-          </p>
+          {/**
+            * 🛑 สถานะ "รูปล้วน" **ไม่ render บรรทัดข้อความเลย** — บับเบิลนี้มีรูปจริงแสดงอยู่แล้ว
+            * บรรทัดถัดไป การใส่คำว่า "[รูปภาพ]" ทับลงไปคือ noise ที่ระบบมีกฎห้ามไว้แล้วในไฟล์อื่น
+            * (`ChatThread.tsx`: "รูปเปล่าไม่ต้องมีคำว่า '[รูปภาพ]' ซ้ำกับรูปที่เห็นอยู่")
+            * — ต่างจากแถวพรีวิวที่ไม่มีรูปให้ดู จึงต้องมีคำเป็นตัวแทน (safepay-ux 2026-08-20)
+            */}
+          {(c.isDeleted || commentContentState(c) !== 'ATTACHMENT_ONLY') && (
+            <p className="text-default-800 mb-0 whitespace-pre-wrap text-sm">
+              {c.isDeleted
+                ? t.comments.deleted
+                : commentContentState(c) === 'TEXT'
+                  ? c.message?.trim()
+                  : t.comments.contentUnavailable}
+            </p>
+          )}
+          {/**
+            * ทางออกของสถานะ "ไม่มีข้อมูลเนื้อหา" — ต้องอยู่ **ในบับเบิลเอง**
+            *
+            * ปุ่ม "เปิดใน Facebook" ที่มีอยู่ผูกกับแถวในคอลัมน์ซ้าย (คลิกขวา/กดค้าง) ซึ่งถูก `hidden`
+            * ทันทีที่เปิดเธรดบนมือถือ ⇒ ผู้ขายที่กำลังดูบับเบิลนี้ไปไม่ถึงเลยโดยไม่กดปิดเธรดก่อน
+            * (safepay-ux ตรวจพบ — ผมเข้าใจผิดว่า "มีปุ่มอยู่แล้ว")
+            * ไม่มี permalink = ไม่ render ลิงก์ ตามที่ commentPermalink() ออกแบบไว้
+            */}
+          {!c.isDeleted &&
+            commentContentState(c) === 'UNAVAILABLE' &&
+            (() => {
+              const url = commentPermalink(postPermalink, c.externalCommentId)
+              if (!url) return null
+              return (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary mt-1 inline-flex items-center gap-1 text-xs font-medium hover:underline"
+                >
+                  <Icon icon="external-link" width={12} height={12} className="shrink-0" />
+                  {t.comments.openPostOnFacebook}
+                </a>
+              )
+            })()}
           {c.attachmentUrl && !c.isDeleted && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={c.attachmentUrl} alt={fmt(t.comments.attachmentAlt, { name: displayName })} className="mt-2 max-h-40 rounded-lg" />
