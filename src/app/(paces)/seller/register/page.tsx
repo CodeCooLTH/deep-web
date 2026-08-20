@@ -92,6 +92,10 @@ export default function RegisterPage() {
     displayName?: string; username?: string; avatar?: string | null; needsPhoneVerify?: boolean
   }
 
+  /**
+   * ซ่อนช่อง "ชื่อผู้ใช้" เมื่อมาจาก Sign in with Apple **และ** ชื่อที่ระบบตั้งให้ใช้ได้จริง
+   * — ถ้าใช้ไม่ได้ ช่องจะกลับมาให้แก้เอง (ดูเหตุผลเต็มที่ effect ด้านล่าง)
+   */
   const [step, setStep] = useState<Step>('info')
   const [ready, setReady] = useState(false)
 
@@ -106,12 +110,44 @@ export default function RegisterPage() {
   const [otpLoading, setOtpLoading] = useState(false)
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
+  const isApple = providerFromUsername(user.username) === 'apple'
+  const hideUsername = isApple && uStatus === 'ok'
+
   useEffect(() => {
     if (status === 'loading') return
     if (status === 'unauthenticated') { router.replace('/auth/sign-in'); return }
     if (user.needsPhoneVerify === false) { router.replace('/dashboard'); return }
     // sanitize prefill: LINE/IG username (เช่น lineU9d... — มีตัวพิมพ์ใหญ่/ยาว >30) ต้องผ่านกติกา a-z0-9_ 3-30
-    if (!ready) { setUsername((user.username ?? '').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 30)); setReady(true) }
+    if (!ready) {
+      const pre = (user.username ?? '').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 30)
+      setUsername(pre)
+      setReady(true)
+      /**
+       * 🛑 มาจาก Sign in with Apple → **ตรวจชื่อผู้ใช้ที่ระบบตั้งให้เองเงียบ ๆ ไม่ถามผู้ใช้**
+       *
+       * Apple ตีกลับ 2026-08-19 (Guideline 4 - Design): *"users are required to provide their
+       * name and/or email address after using Sign in with Apple even though that information
+       * is already provided by the Authentication Services framework"*
+       *
+       * ของจริงเราไม่เคยถามชื่อหรืออีเมล — ถามแค่ **ชื่อผู้ใช้ (handle)** กับ **เบอร์โทร**
+       * แต่ป้ายเขียนว่า "ชื่อผู้ใช้" ซึ่งขึ้นต้นด้วยคำว่า "ชื่อ" ⇒ คนรีวิวที่อ่านผ่านตัวแปลภาษา
+       * เห็นเป็น "Name of user" แล้วสรุปว่าเราถามชื่อ — เถียงว่าอ่านผิดไม่ช่วยอะไร
+       * จึงตัดช่องนั้นออกจากเส้นทางของ Apple ไปเลย เหลือแค่ยืนยันเบอร์
+       *
+       * ชื่อผู้ใช้ที่ระบบตั้งให้ = `apple{providerAccountId}` (ดู `upsertOAuthUser`) ไม่ซ้ำอยู่แล้ว
+       * โดยธรรมชาติ และผู้ใช้เปลี่ยนเองได้ทีหลังที่หน้า "ข้อมูลส่วนตัว"
+       *
+       * 🛑 ถ้าตรวจแล้วใช้ไม่ได้จริง (ซ้ำ/สั้นเกิน) **ต้องโชว์ช่องกลับมา** ไม่ใช่ปล่อยให้กดถัดไป
+       * ไม่ได้โดยไม่มีอะไรบอก — เคสนี้เกิดได้จากบัญชีค้างที่ยังถือชื่อนั้นอยู่ (2026-08-15)
+       */
+      if (providerFromUsername(user.username) === 'apple' && pre.length >= 3) {
+        setUStatus('checking')
+        fetch(`/api/users/check-username?u=${encodeURIComponent(pre)}`)
+          .then((r) => r.json())
+          .then((d) => setUStatus(d.available ? 'ok' : 'taken'))
+          .catch(() => setUStatus('idle'))
+      }
+    }
   }, [status, user, ready, router])
 
   useEffect(() => {
@@ -225,10 +261,12 @@ export default function RegisterPage() {
           <>
             <h4 className="mb-1 text-center text-lg font-bold text-default-900">สร้างบัญชีผู้ขาย</h4>
             <p className="text-default-400 mb-5 text-center text-sm">
-              {user.displayName ? `สวัสดี ${user.displayName} — ` : ''}ตั้งชื่อผู้ใช้และยืนยันเบอร์เพื่อเริ่มใช้งาน
+              {user.displayName ? `สวัสดี ${user.displayName} — ` : ''}
+              {hideUsername ? 'ยืนยันเบอร์เพื่อเริ่มใช้งาน' : 'ตั้งชื่อผู้ใช้และยืนยันเบอร์เพื่อเริ่มใช้งาน'}
             </p>
             <div className="flex flex-col gap-5">
-              <div>
+              {/* ซ่อนทั้งบล็อกเมื่อมาจาก Apple — ดูเหตุผลที่ effect ด้านบน */}
+              <div className={hideUsername ? 'hidden' : undefined}>
                 <label className="form-label">ชื่อผู้ใช้ (username)<span className="text-danger">*</span></label>
                 <div className="input-icon-group">
                   <Icon icon="at" className="input-icon" />
