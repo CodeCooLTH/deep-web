@@ -7,9 +7,14 @@
  * แล้ว" / "เลิกทำเครื่องหมาย" สลับตาม `resolved`
  *
  * Base: src/app/(paces)/seller/(chat)/inbox/components/ChatContextMenu.tsx เฉพาะ branch
- * `point` mode (`if (!row) { return createPortal(...) }`) — ตัดโหมด `row` (เบลอฉากหลัง/โคลนแถว/
- * bottom-sheet มือถือ) ทิ้งทั้งหมด เพราะแถวคอมเมนต์มีทางเข้ามือถือแยกอยู่แล้ว (SwipeableRow ปัดซ้าย
- * ใน CommentsClient.tsx) — คลิกขวาเป็นเดสก์ท็อปอย่างเดียว ไม่ต้องมีโหมดกดค้าง
+ * `point` mode (`if (!row) { return createPortal(...) }`)
+ *
+ * 🛑 **มติเดิม (2026-08-19) เคยเขียนไว้ตรงนี้ว่า "ตัดโหมด row ทิ้ง เพราะมือถือมี SwipeableRow
+ * อยู่แล้ว" — user เห็นของจริงแล้วสั่งกลับเมื่อ 2026-08-20**: "ให้ทำ long press ให้หน่อย ใน mobile
+ * เหมือน long press ใน chat lists". เก็บประโยคนี้ไว้แทนการลบเงียบ ๆ เพื่อไม่ให้คนถัดไปอ่านเจอ
+ * มติเก่าที่ไหนสักที่แล้วเข้าใจว่าโค้ดทำผิดมติ. ปัดซ้าย **ยังอยู่** ทั้งคู่ทำงานร่วมกันได้เหมือนที่
+ * `InboxList.tsx` ทำอยู่แล้วบน prod (นิ้วขยับเกิน tolerance = ยกเลิกกดค้างเอง ปัดชนะ / นิ้วนิ่งครบ
+ * เวลา = กดค้างชนะ) — ไม่ต้องเขียนตรรกะตัดสินใครชนะเพิ่ม
  *
  * ทำไมต้อง portal + fixed + clamp เอง ไม่ใช่ absolute ธรรมดาแบบเมนู ⋯ ใน InboxList.tsx:
  * คอลัมน์ซ้ายของหน้านี้เป็นกล่อง scroll (overflow-y-auto) — `absolute` จะโดน scroll container
@@ -23,6 +28,16 @@ import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
+import RowFocusSheet from '../../_components/RowFocusSheet'
+
+/**
+ * ทางเข้าเมนูของแถวคอมเมนต์ — idiom เดียวกับ `ChatRowAnchor` ของรายการแชท
+ *   point = คลิกขวาบนเดสก์ท็อป (การ์ดเกาะเคอร์เซอร์)
+ *   row   = กดค้างบนมือถือ (โหมดเพ่ง: เบลอฉาก + ยกแถว + แผ่นจากขอบล่าง)
+ */
+export type CommentRowAnchor =
+  | { kind: 'point'; x: number; y: number }
+  | { kind: 'row'; row: HTMLElement }
 
 /** ขนาดโดยประมาณของเมนู (min-w-44 = 176px + กันชนขอบจอ) — ใช้ clamp ตำแหน่งไม่ให้ล้นจอ */
 const MENU_WIDTH = 200
@@ -31,9 +46,7 @@ const MENU_HEIGHT = 64
 const EDGE = 8
 
 type Props = {
-  /** พิกัดเคอร์เซอร์ตอนคลิกขวา (clientX/clientY) */
-  x: number
-  y: number
+  anchor: CommentRowAnchor
   /** true = คอมเมนต์นี้ resolved อยู่แล้ว (mark done แล้ว หรือ Facebook ยืนยันว่าทักไปแล้วนอกระบบ) */
   resolved: boolean
   /** มี PATCH resolve/unresolve ค้างอยู่ของแถวนี้ */
@@ -50,15 +63,21 @@ type Props = {
   onClose: () => void
 }
 
-export default function CommentRowMenu({ x, y, resolved, busy, unavailableReason, onToggle, onClose }: Props) {
+export default function CommentRowMenu({ anchor, resolved, busy, unavailableReason, onToggle, onClose }: Props) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
 
   // clamp ไม่ให้ล้นขอบขวา/ล่างของจอ — ตรรกะเดียวกับ pointLeft/pointTop ของ ChatContextMenu.tsx
+  const x = anchor.kind === 'point' ? anchor.x : 0
+  const y = anchor.kind === 'point' ? anchor.y : 0
   const left = Math.max(EDGE, Math.min(x, (typeof window !== 'undefined' ? window.innerWidth : x) - MENU_WIDTH))
   const top = Math.max(EDGE, Math.min(y, (typeof window !== 'undefined' ? window.innerHeight : y) - MENU_HEIGHT))
 
+  // effect ชุดนี้เป็นของ **โหมด point เท่านั้น** — โหมด row มี RowFocusSheet จัดการปิด/วัดตำแหน่งเอง
+  // (และมันต้อง "วัดใหม่" ตอน scroll/resize ไม่ใช่ "ปิด" ซึ่งตรงข้ามกับที่นี่)
+  const pointMode = anchor.kind === 'point'
   useEffect(() => {
+    if (!pointMode) return
     function onDoc(e: Event) {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose()
     }
@@ -84,7 +103,44 @@ export default function CommentRowMenu({ x, y, resolved, busy, unavailableReason
       window.removeEventListener('scroll', onClose, true)
       window.removeEventListener('resize', onClose)
     }
-  }, [onClose])
+  }, [onClose, pointMode])
+
+  const label = unavailableReason ?? (resolved ? t.comments.unmarkDone : t.comments.markDone)
+  const icon = resolved ? 'arrow-back-up' : 'circle-check'
+  const disabled = busy || Boolean(unavailableReason)
+  function handleToggle() {
+    if (unavailableReason) return
+    onToggle()
+    onClose()
+  }
+
+  /**
+   * โหมดกดค้าง (มือถือ) — ยกโครง "โหมดเพ่ง" มาจากรายการแชทผ่าน RowFocusSheet
+   *
+   * 🛑 **ไม่ยก tile-grid 4 ช่องของ ChatContextMenu มาด้วย** ทั้งที่นั่นคือหน้าตาที่ user ชี้ว่า
+   * "เหมือน chat lists" — เพราะเมนูนี้มีรายการเดียว ยกมาทั้งดุ้นจะเหลือช่องว่างเปล่า 3 ช่อง
+   * สิ่งที่ user หมายถึงคือ *ท่าและความรู้สึก* (เบลอ/ยกแถว/แผ่นจากขอบล่าง) ไม่ใช่จำนวนช่อง
+   * เป้ากด `min-h-14` (56px) ไม่ใช่ `.dropdown-item` (~36px) — แผ่นระดับนี้ต้องแตะด้วยนิ้วโป้งได้
+   */
+  if (anchor.kind === 'row') {
+    return (
+      <RowFocusSheet row={anchor.row} onClose={onClose} ariaLabel={t.comments.commentMenuAria} grip={false}>
+        <div role="menu" className="px-2 pb-1">
+          <button
+            type="button"
+            role="menuitem"
+            disabled={disabled}
+            aria-disabled={disabled}
+            onClick={handleToggle}
+            className="text-default-800 flex min-h-14 w-full items-center gap-3 rounded-lg px-3 text-start text-sm disabled:opacity-50"
+          >
+            <Icon icon={icon} className="size-5 shrink-0" />
+            {label}
+          </button>
+        </div>
+      </RowFocusSheet>
+    )
+  }
 
   return createPortal(
     <div
@@ -97,17 +153,13 @@ export default function CommentRowMenu({ x, y, resolved, busy, unavailableReason
       <button
         type="button"
         role="menuitem"
-        disabled={busy || Boolean(unavailableReason)}
-        aria-disabled={busy || Boolean(unavailableReason)}
-        onClick={() => {
-          if (unavailableReason) return
-          onToggle()
-          onClose()
-        }}
+        disabled={disabled}
+        aria-disabled={disabled}
+        onClick={handleToggle}
         className="dropdown-item text-sm disabled:opacity-50"
       >
-        <Icon icon={resolved ? 'arrow-back-up' : 'circle-check'} className="size-4" />
-        {unavailableReason ?? (resolved ? t.comments.unmarkDone : t.comments.markDone)}
+        <Icon icon={icon} className="size-4" />
+        {label}
       </button>
     </div>,
     document.body,

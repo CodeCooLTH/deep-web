@@ -19,7 +19,7 @@
  * (`chat:shop:{id}` = ลูกค้าทักมา, `comments:shop:{id}` = คอมเมนต์ใหม่) โดยมี poll เป็นตัวสำรอง
  */
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { isChatThreadPath } from './chat-chrome'
 import { useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
@@ -91,6 +91,7 @@ export default function InboxTabs({
 }) {
   const t = useT()
   const pathname = usePathname()
+  const chromeSearch = useSearchParams()
   // /inbox/[conversationId] ยังถือว่าอยู่แท็บ "ข้อความ" — เทียบ prefix ไม่ใช่ค่าเป๊ะ
   const isComments = pathname?.startsWith('/inbox/comments') ?? false
   const [counts, setCounts] = useState<Counts>(() =>
@@ -148,7 +149,7 @@ export default function InboxTabs({
       // — user report 2026-08-04) และกินความสูงไป 1 แถบทั้งที่กดสลับแท็บกลางบทสนทนาไม่ใช่สิ่งที่ทำกัน
       // ≥1024px โชว์ตามปกติ: เธรดอยู่คู่ rail บนจอเดียวกัน แท็บเป็นแถบร่วมของทั้งหน้า
       className={`border-default-200 gap-1 border-b px-4 pt-3 ${
-        isChatThreadPath(pathname) ? 'hidden lg:flex' : 'flex'
+        isChatThreadPath(pathname, chromeSearch) ? 'hidden lg:flex' : 'flex'
       }`}
     >
       {TABS.map((tab) => {

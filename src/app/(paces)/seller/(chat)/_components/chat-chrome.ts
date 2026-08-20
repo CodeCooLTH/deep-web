@@ -9,9 +9,17 @@
  * (บทเรียนเดียวกับ docs/conventions/sibling-surface-parity.md: สถานะเดียวกันที่โผล่ >1 ที่ ต้องมาจาก
  * symbol เดียว)
  *
- * `/inbox/comments` ไม่ใช่เธรด — มันคือหน้ารายการของแท็บความคิดเห็น (ต้องเห็นแถบบนตามปกติ)
+ * 🛑 `/inbox/comments` เป็นได้ทั้งสองอย่าง — ต่างจากแท็บข้อความที่เธรดเป็น **route แยก**
+ * (`/inbox/[conversationId]`) เธรดคอมเมนต์อยู่ในหน้าเดียวกับรายการ สลับด้วย state. ตอนแรกจึงตัด
+ * `/inbox/comments` ออกจากเกณฑ์นี้ทั้งก้อน (คอมเมนต์เดิม: "มันคือหน้ารายการ ต้องเห็นแถบบนตามปกติ")
+ * ซึ่งถูกตอนที่ยังไม่มีเธรด — พอมีแล้ว ผู้ขายบนมือถือเสียพื้นที่ให้ chrome 2 แถบ (~122px จาก 812px)
+ * ทั้งที่กำลังอ่านเธรดอยู่ (user เจอเองพร้อมภาพ 2026-08-20: "ยังมี tab, topbar อยู่ มันเสียพื้นที่")
+ *
+ * ตัวบอกว่า "เธรดคอมเมนต์เปิดอยู่" คือ query `?post=` ซึ่ง `CommentsClient` sync กับ `selectedId`
+ * — ทำให้ปุ่ม back ของเบราว์เซอร์/ปัดกลับของ iOS ปิดเธรดได้ และรีเฟรชแล้วไม่หลุดเธรดไปด้วย
  */
-export function isChatThreadPath(pathname: string | null | undefined): boolean {
+export function isChatThreadPath(pathname: string | null | undefined, search?: URLSearchParams | null): boolean {
   const p = pathname ?? ''
-  return /^\/inbox\/[^/]+$/.test(p) && !p.startsWith('/inbox/comments')
+  if (p.startsWith('/inbox/comments')) return Boolean(search?.get('post'))
+  return /^\/inbox\/[^/]+$/.test(p)
 }

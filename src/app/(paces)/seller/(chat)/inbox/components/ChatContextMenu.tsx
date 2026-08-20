@@ -25,12 +25,12 @@
  * (แถวอยู่ในการ์ดที่มี overflow → ยก z-index ทะลุ portal ระดับ body ไม่ได้) และ "ทำไมต้อง clamp
  * ด้วย visualViewport" (position:fixed บน iOS ไม่หดตามคีย์บอร์ด)
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { CHAT_SOUND_EVENT, isChatSoundMuted, isConversationMuted, setConversationMuted } from '@/lib/chat-sound'
-import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
+import RowFocusSheet from '../../_components/RowFocusSheet'
 import TagInput from './TagInput'
 import type { RowAction } from './ConversationRowMenu'
 
@@ -54,15 +54,6 @@ export type ChatRowAnchor =
  * เปลือกของแผ่นคำสั่ง (โหมดเพ่ง) — แยกออกมาเป็นค่าคงที่เพราะต้องมีคอมเมนต์ carve-out กำกับ
  * "บรรทัดที่ใช้ค่า arbitrary จริง" ตาม HR7 ซึ่งเขียนแทรกกลาง template literal ใน JSX ไม่ได้
  */
-const SHEET_SHELL = 'bg-card relative max-h-[85dvh] w-full overflow-y-auto overscroll-contain rounded-t-2xl pt-2 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-lg' // HR7 carve-out: Paces ไม่มี token viewport-height/safe-area — precedent CustomerPanelSheet.tsx/OrderQrSheet.tsx บรรทัดเดียวกัน
-
-/**
- * ระยะแถว↔แผ่นคำสั่ง (user สั่ง 2026-08-06 รอบสอง: "ขยับ chat ขึ้นไปด้านบนให้หน่อย เด่น ๆ")
- * กว้างกว่าระยะเมนูทั่วไปโดยตั้งใจ — แถวที่ยกลอยต้องอ่านออกว่าเป็น "ของที่ถูกเพ่ง" ไม่ใช่หัวของแผ่น
- */
-const GAP = 24
-/** กันชนขอบจอ */
-const EDGE = 8
 
 type Props = {
   anchor: ChatRowAnchor
@@ -110,7 +101,6 @@ export default function ChatContextMenu({
   const pointX = anchor.kind === 'point' ? anchor.x : 0
   const pointY = anchor.kind === 'point' ? anchor.y : 0
   const ref = useRef<HTMLDivElement>(null)
-  const cloneHostRef = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
   // สถานะเสียงอ่านหลัง mount (localStorage ไม่มีฝั่ง server) — เมนูนี้ render หลังคลิกอยู่แล้ว
   const [appMuted, setAppMuted] = useState(false)
@@ -128,96 +118,10 @@ export default function ChatContextMenu({
   // point: clamp ไม่ให้ล้นขอบขวา/ล่างของจอ — ตรรกะเดิมทุกบรรทัด
   // row: แผงยึดขอบล่างจออยู่แล้ว (bottom sheet) ไม่ต้องคำนวณ — ที่ต้องคำนวณคือ "แถวที่ยกลอย"
   //      ต้องไม่ถูกแผงบัง (ดู layout effect ล่าง)
-  const [clonePos, setClonePos] = useState<{ top: number; left: number; width: number } | null>(null)
-  // แยกจาก clonePos เพื่อให้ transition ได้วิ่ง (ตั้งใน rAF = หลัง paint แรกที่ยัง opacity-0)
-  const [shown, setShown] = useState(false)
-  // นับครั้งที่ "พื้นที่ที่มองเห็นจริง" เปลี่ยน (คีย์บอร์ดขึ้น-ลง / หมุนจอ) → บังคับวัดตำแหน่งใหม่
-  const [viewportTick, setViewportTick] = useState(0)
-  /** ความสูงคีย์บอร์ดที่กินขอบล่างจออยู่ตอนนี้ — แผ่นคำสั่งต้องยกขึ้นเท่านี้ (ดู layout effect) */
-  const [bottomInset, setBottomInset] = useState(0)
   // ตัวเลข clamp ต้องตามขนาดการ์ดจริง: กว้าง w-74 (296px) + กันชน, สูงสุด max-h-96 + py-3 สองข้าง
   // (เดิมเป็น 220/280 ตามเมนูรายการแบบเก่าที่กว้าง w-52 — ไม่อัปเดตแล้วการ์ดจะล้นขอบล่างจอ)
   const pointLeft = Math.min(pointX, (typeof window !== 'undefined' ? window.innerWidth : pointX) - 312)
   const pointTop = Math.min(pointY, (typeof window !== 'undefined' ? window.innerHeight : pointY) - 416)
-
-  // ── โคลนแถวมาวางบนฉากเบลอ + ซ่อนตัวจริง ─────────────────────────────────
-  // ซ่อนตัวจริงด้วย visibility (ไม่ใช่ display) เพราะต้องคง layout ของรายการไว้เป๊ะ — ไม่งั้นแถวอื่น
-  // ขยับตอนกดค้าง; และถ้าไม่ซ่อน แถวเดิมยังนอนอยู่ใต้ฉากเบลอตำแหน่งเดียวกัน ขอบเบลอจะฟุ้งรอบโคลน
-  // ที่คมชัด เห็นเป็นเงาซ้อนสองชั้น (บทเรียน MessageActionBubble)
-  useLayoutEffect(() => {
-    const host = cloneHostRef.current
-    if (!host || !row) return
-    const clone = row.cloneNode(true) as HTMLElement
-    // id ซ้ำในหน้าเดียวกันทำให้ getElementById/label ชี้ผิดตัว — โคลนเป็นภาพนิ่ง ไม่ใช่ของที่กดได้
-    clone.removeAttribute('id')
-    clone.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'))
-    host.replaceChildren(clone)
-    const prev = row.style.visibility
-    row.style.visibility = 'hidden'
-    return () => {
-      row.style.visibility = prev
-    }
-  }, [row])
-
-  // ── ตำแหน่งของแถวที่ยกลอย ────────────────────────────────────────────────
-  // แถวอยู่ "ที่เดิม" เป็นค่าตั้งต้น (นั่นคือสิ่งที่ทำให้รู้ว่ากำลังจัดการแชทไหน) — ยกเว้นตอนที่มันจะ
-  // ไปนอนใต้แผง: แถวล่าง ๆ ของจอกับแผงสูง ~430px ทับกันแน่นอน แล้วโหมดเพ่งจะเหลือแต่ฉากเบลอเปล่า
-  // ไม่มีบริบทว่ากดแชทไหน จึงดันแถวขึ้นมาให้พ้นหลังคาแผงพอดี (ยังคง left/width เดิม)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el || !row) return
-    const { height: sheetH } = el.getBoundingClientRect()
-    // ขอบเขต "ที่มองเห็นจริง" ไม่ใช่ innerHeight — บน iOS คีย์บอร์ด (ช่องค้นหาด้านบนรายการ) หด
-    // visual viewport แต่ไม่หด layout viewport ของที่ position:fixed จึงไปนอนใต้คีย์บอร์ดได้
-    const vv = window.visualViewport
-    const minTop = (vv ? vv.offsetTop : 0) + EDGE
-    const maxBottom = (vv ? vv.offsetTop + vv.height : window.innerHeight) - EDGE
-
-    const rect = row.getBoundingClientRect()
-    const ceiling = maxBottom - sheetH - GAP - rect.height
-    setClonePos({
-      top: Math.max(minTop, Math.min(rect.top, ceiling)),
-      left: rect.left,
-      width: rect.width,
-    })
-    // แผ่นยึด "ขอบล่างที่มองเห็นจริง" ไม่ใช่ขอบล่างของ layout viewport — บน iOS คีย์บอร์ด (ที่เปิดจาก
-    // ช่องเพิ่มแท็กในแผ่นนี้เอง) ไม่หด layout viewport ของที่ position:fixed แผ่นจึงไปนอนใต้คีย์บอร์ด
-    // ทั้งใบ พิมพ์แท็กไม่ได้เลย. ยกขอบล่างขึ้นเท่าความสูงคีย์บอร์ดแทน (0 เมื่อไม่มีคีย์บอร์ด)
-    setBottomInset(vv ? Math.max(0, window.innerHeight - (vv.offsetTop + vv.height)) : 0)
-    const id = requestAnimationFrame(() => setShown(true))
-    return () => cancelAnimationFrame(id)
-  }, [row, viewportTick])
-
-  /**
-   * แผ่นสูงขึ้น/เตี้ยลงหลังวัดครั้งแรก → ต้องวัดตำแหน่งแถวใหม่ ไม่งั้นแถวไปนอนใต้แผ่น
-   * (user report 2026-08-06 พร้อมภาพ: แถวโดนทับ)
-   *
-   * ที่ทำให้ความสูงเปลี่ยน "หลัง" layout effect แรกและไม่มีอะไรฟ้อง:
-   *   - แถบเตือน "ปิดเสียงทั้งแอปอยู่" ผูกกับ `appMuted` ที่อ่าน localStorage ใน useEffect =
-   *     รันหลัง paint เสมอ → แผ่นสูงขึ้นอีก ~46px หลังคำนวณตำแหน่งแถวไปแล้ว (นี่คือเคสในภาพ)
-   *   - เพิ่ม/ลบแท็กแล้วชิปขึ้นบรรทัดใหม่, ฟอนต์ Anuphan โหลดเสร็จทีหลัง
-   * ผูกกับขนาดจริงของ element แทนการไล่เดา trigger รายตัว — เพิ่มเงื่อนไขใหม่ในแผ่นทีหลังก็ยังถูก
-   */
-  useEffect(() => {
-    const el = ref.current
-    if (!el || !row) return
-    const ro = new ResizeObserver(() => setViewportTick((t) => t + 1))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [row])
-
-  /**
-   * ล็อกหน้าข้างหลังไม่ให้เลื่อน/เด้งขณะเปิดโหมดเพ่ง (user report 2026-08-07 พร้อมภาพ: "พอกดขึ้นมา
-   * มัน pull หรือ เลื่อนจอได้เฉยเลย" — ฉากเบลอถูกดันลงมาจนเห็นแถบขาวเหนือหัวแชท)
-   *
-   * `touch-none` ที่ฉากเบลอกันได้เฉพาะนิ้วที่แตะ "ฉากเบลอ" — นิ้วที่ลากอยู่ใน **แผ่นคำสั่ง** ไม่ถูกกัน
-   * และเพราะแผ่นถูก portal ไป document.body บรรพบุรุษที่รับ scroll ต่อจึงเป็น document เอง ไม่ใช่
-   * คอลัมน์รายการแชท (ที่มี overscroll-contain อยู่แล้ว) → เลื่อนทั้งหน้า/rubber-band ทันทีที่แผ่นยัง
-   * ไม่ล้น 85dvh ซึ่งเป็นกรณีปกติ. overscroll-contain ที่ SHEET_SHELL ตัด chain เส้นนี้
-   *
-   * เฉพาะโหมดเพ่ง (มือถือ): โหมด point (คลิกขวาเดสก์ท็อป) ตั้งใจให้เลื่อนหน้าแล้ว "ปิดเมนู"
-   */
-  useLockBodyScroll(!!row)
 
   useEffect(() => {
     function onDoc(e: Event) {
@@ -236,7 +140,9 @@ export default function ChatContextMenu({
     // โหมดเพ่ง: overlay กิน touch ทั้งจอ (touch-none) ผู้ใช้เลื่อนรายการเองไม่ได้ — scroll/resize
     // ที่เกิดตอนนี้คือคีย์บอร์ดปิดหรือหมุนจอ ต้อง **วัดตำแหน่งใหม่** ไม่ใช่ปิดทิ้ง (ไม่งั้นกลายเป็น
     // กดค้างแล้วเมนูหายเอง). โหมด point (เดสก์ท็อป) ไม่มี overlay กัน เลื่อนแล้วเมนูหลุดจากแถว → ปิด
-    const onViewportChange = row ? () => setViewportTick((t) => t + 1) : onClose
+    // เหลือเฉพาะโหมด point (เดสก์ท็อป) — โหมดเพ่งย้ายไป RowFocusSheet ซึ่งจัดการ viewport เอง
+    // เลื่อนหน้าแล้วเมนูหลุดจากแถว → ปิด (ต่างจากโหมดเพ่งที่ต้องวัดใหม่)
+    const onViewportChange = onClose
     window.addEventListener('scroll', onViewportChange, true)
     window.addEventListener('resize', onViewportChange)
     window.visualViewport?.addEventListener('resize', onViewportChange)
@@ -468,60 +374,16 @@ export default function ChatContextMenu({
     )
   }
 
-  return createPortal(
-    // โหมดเพ่ง (กดค้างบนมือถือ) — แถวที่กดลอยอยู่ที่เดิมเหนือฉากเบลอ ชุดคำสั่งขึ้นมาจากขอบล่าง
-    // ซึ่งเป็นโซนที่นิ้วโป้งเอื้อมถึงจริง และอยู่ตำแหน่งเดิมทุกครั้งไม่ว่าจะกดแถวไหน (user เลือก
-    // ทิศทาง A จาก mockup 2026-08-06)
-    // HR7: z-80 = viewport overlay lock (Paces ไม่มี token; precedent CustomerPanelSheet.tsx)
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="ตัวเลือกของบทสนทนา"
-      // top-0 + bottom แบบคำนวณ (ไม่ใช่ inset-0) — ขอบล่างต้องเป็นขอบล่าง "ที่มองเห็นจริง"
-      // ไม่งั้นคีย์บอร์ดที่เปิดจากช่องเพิ่มแท็กจะทับแผ่นทั้งใบ (ดู bottomInset)
-      style={{ bottom: bottomInset }}
-      className="fixed inset-x-0 top-0 z-80 flex items-end justify-center"
-    >
-      {/* ฉากเบลอ — Base CustomerPanelSheet.tsx. blur-sm ไม่ใช่ blur-xs: ต้องดันทั้งรายการให้ถอยไป
-          เป็นพื้นหลังจริง ๆ ไม่ใช่แค่ลดความเด่น
-          touch-none อยู่ที่ฉากเบลอ ไม่ใช่ที่ตัวครอบ: กัน scroll ทะลุไปเลื่อนรายการข้างหลังได้เหมือนกัน
-          แต่ไม่บล็อกการเลื่อน "ในแผง" ซึ่งจำเป็นเมื่อร้านมีกลุ่ม/แท็กเยอะจนแผงชนเพดาน 85dvh —
-          touch-action คิดจาก intersection ของ element ที่นิ้วแตะ *กับบรรพบุรุษทั้งสาย* */}
-      <button
-        type="button"
-        aria-label="ปิด"
-        onClick={onClose}
-        className={`bg-default-900/40 absolute inset-0 touch-none backdrop-blur-sm transition-opacity duration-200 ease-out ${
-          shown ? 'opacity-100' : 'opacity-0'
-        }`}
-      />
-
-      {/* แถวที่กด — โคลนวางทับตำแหน่งเดิม ไม่ซูม (ต่างจากบับเบิลข้อความที่ซูม 5%): แถวกว้างเต็มจอ
-          ซูมแล้วขอบซ้าย/ขวาล้นออกนอกจอโดนตัด ความเด่นมาจากฉากเบลอ + เงา + ขอบแทน
-          pointer-events-none: แตะโดนแล้วต้องปิด (ปล่อยให้ event ตกไปถึงฉากเบลอที่อยู่ข้างล่าง) */}
-      <div
-        ref={cloneHostRef}
-        aria-hidden="true"
-        style={{ top: clonePos?.top ?? -9999, left: clonePos?.left ?? -9999, width: clonePos?.width }}
-        className={`bg-card border-default-300 pointer-events-none fixed overflow-hidden rounded-lg border shadow-lg transition-opacity duration-200 ease-out ${
-          shown ? 'opacity-100' : 'opacity-0'
-        }`}
-      />
-
-      {/* แผ่นคำสั่ง — HR7 carve-out: ไม่มี token viewport-height/safe-area ใน Paces scale
-          (precedent บรรทัดเดียวกันที่ CustomerPanelSheet.tsx / OrderQrSheet.tsx) */}
-      <div
-        ref={ref}
-        role="menu"
-        className={`${SHEET_SHELL} transition-transform duration-200 ease-out ${
-          shown ? 'translate-y-0' : 'translate-y-full'
-        }`}
-      >
-        {/* grip — บอกว่าแผ่นนี้มาจากขอบล่าง (precedent CustomerPanelSheet.tsx) */}
-        <div className="bg-default-300 mx-auto mb-3 h-1 w-9 rounded-full" />
-        {body}
-      </div>
-    </div>,
-    document.body,
+  // โหมดเพ่ง (กดค้างบนมือถือ) — แถวที่กดลอยอยู่ที่เดิมเหนือฉากเบลอ ชุดคำสั่งขึ้นมาจากขอบล่าง
+  // ซึ่งเป็นโซนที่นิ้วโป้งเอื้อมถึงจริง และอยู่ตำแหน่งเดิมทุกครั้งไม่ว่าจะกดแถวไหน (user เลือก
+  // ทิศทาง A จาก mockup 2026-08-06)
+  //
+  // 🛑 กลไกทั้งชุด (โคลนแถว/เบลอ/คำนวณตำแหน่งจาก visualViewport/ล็อก scroll/วัดใหม่เมื่อแผ่นสูงขึ้น)
+  // ย้ายไป `RowFocusSheet` เมื่อ 2026-08-20 ตอนที่แถวคอมเมนต์ต้องการโหมดเพ่งแบบเดียวกัน — ที่นั่น
+  // มีคอมเมนต์อธิบายว่าแต่ละบรรทัดมาจาก bug fix ตัวไหน ห้ามก็อปกลับมาเขียนซ้ำที่นี่
+  return (
+    <RowFocusSheet row={row} onClose={onClose} ariaLabel="ตัวเลือกของบทสนทนา">
+      {body}
+    </RowFocusSheet>
   )
 }

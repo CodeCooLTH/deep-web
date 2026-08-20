@@ -15,7 +15,7 @@
  * โหลดรูปจากโดเมนภายนอกทั้งชุด จึงเลี่ยงไปก่อนใน v1
  */
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { COMMENT_LIST_PAGE_SIZE } from '@/lib/comment-list-page'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
@@ -32,7 +32,8 @@ import {
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import CommentsThreadSkeleton from './CommentsThreadSkeleton'
 import PrivateReplyModal from './PrivateReplyModal'
-import CommentRowMenu from './CommentRowMenu'
+import CommentRowMenu, { type CommentRowAnchor } from './CommentRowMenu'
+import { useLongPress } from '@/hooks/useLongPress'
 import SwipeableRow from '../components/SwipeableRow'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { commentDoneMark } from '@/lib/comment-done-mark'
@@ -378,7 +379,47 @@ export default function CommentsClient({
   }, [])
   // เริ่มที่ null เสมอ — มือถือต้องเห็น "รายการ" ก่อน ไม่ใช่ถูกโยนเข้าโพสต์ใดโพสต์หนึ่ง
   // (critique P0) เดสก์ท็อปมี 2 คอลัมน์อยู่แล้ว จึง auto-select ให้เฉพาะ ≥1024px
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  /**
+   * เธรดที่เปิดอยู่ — sync กับ `?post=` ใน URL (ส่วนขยาย 2026-08-20)
+   *
+   * 🛑 ต้อง derive ค่าเริ่มต้นจาก URL ไม่ใช่ `null` เปล่า ๆ ไม่งั้นตอนรีเฟรชกลางเธรดจะได้สภาพ
+   * "URL บอกว่าอยู่ในเธรด แต่จอโชว์รายการ" แล้วแถบบน/แถบแท็บ (ที่อ่านเกณฑ์จาก URL) จะซ่อนผิดจังหวะ
+   * — หรือกระพริบโผล่มา 1 เฟรมแล้วหายบนมือถือ
+   */
+  const searchParams = useSearchParams()
+  const [selectedId, setSelectedId] = useState<string | null>(() => searchParams.get('post'))
+
+  /**
+   * เปิด/ปิดเธรด — เปลี่ยน state คู่กับ URL เสมอ ห้ามแยกกัน
+   *
+   * push เฉพาะตอนเปิดจาก "ไม่มีเธรด" → กด back ครั้งเดียวกลับรายการเสมอ ไม่ว่าจะไล่เปิดมากี่โพสต์
+   * (สลับโพสต์ขณะเธรดเปิดอยู่ = replace ไม่เพิ่ม history) · ปุ่มย้อนกลับในจอใช้ `replace` ไปปลายทาง
+   * ที่แน่นอน ไม่ใช่ `router.back()` — ปลายทางที่คาดเดาได้ปลอดภัยกว่าการพึ่ง history stack ที่อาจ
+   * ถูกสร้างจากที่อื่น (precedent: ChatThread ใช้ลิงก์ปลายทางตายตัวด้วยเหตุผลเดียวกัน)
+   */
+  const postParam = searchParams.get('post')
+  const openThread = useCallback(
+    (postId: string | null) => {
+      // 🛑 navigate นอก setState updater — updater ถูกเรียกซ้ำได้ (StrictMode) การยัด side effect
+      // ไว้ข้างในแปลว่ายิง router สองครั้งต่อการกดหนึ่งครั้ง
+      const url = postId ? `/inbox/comments?post=${encodeURIComponent(postId)}` : '/inbox/comments'
+      if (postId && !selectedId) router.push(url, { scroll: false })
+      else router.replace(url, { scroll: false })
+      setSelectedId(postId)
+    },
+    [router, selectedId],
+  )
+
+  /**
+   * URL → state (ปุ่ม back ของเบราว์เซอร์ / ปัดกลับของ iOS)
+   *
+   * ทิศนี้ขาดไม่ได้: `openThread` ดูแลทิศ state → URL อย่างเดียว ผู้ใช้ที่กด back จะได้ URL ใหม่
+   * แต่ `selectedId` ค้างค่าเดิม = เธรดไม่ปิด แถบบนกลับมาแล้วแต่เนื้อหายังเป็นเธรดอยู่
+   * เทียบค่าก่อนเซ็ตเสมอ (ไม่งั้นวนกับ openThread ที่เพิ่ง navigate ไป)
+   */
+  useEffect(() => {
+    setSelectedId((prev) => (prev === postParam ? prev : postParam))
+  }, [postParam])
   // 1 แถว = 1 คอมเมนต์ แต่คอลัมน์กลาง/ขวายังทำงานระดับ "โพสต์" ⇒ ต้องจำแยกว่า "เปิดโพสต์ไหน"
   // (selectedId) กับ "ผู้ใช้กดคอมเมนต์ใบไหน" (ตัวนี้) ใช้ตัวเดียวกันไม่ได้ เพราะแถวอื่นของโพสต์
   // เดียวกันจะถูกไฮไลต์พร้อมกันทั้งกลุ่ม ซึ่งอ่านเหมือนระบบเลือกให้เองมั่ว ๆ ทั้งที่ผู้ขายกดใบเดียว
@@ -405,7 +446,21 @@ export default function CommentsClient({
   // ส่วนขยาย 2026-08-19 — เมนูคลิกขวาบนแถวคอมเมนต์ (desktop) — เก็บพิกัดเคอร์เซอร์ ไม่ snapshot
   // สถานะ resolved ลง state ตัวนี้ เพราะ visibleComments เปลี่ยนได้ระหว่างที่เมนูเปิดอยู่
   // (แพตเทิร์นเดียวกับ ctxMenu ของ InboxList.tsx)
-  const [commentCtxMenu, setCommentCtxMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [commentCtxMenu, setCommentCtxMenu] = useState<{ id: string; anchor: CommentRowAnchor } | null>(null)
+
+  /**
+   * กดค้างบนมือถือ (user สั่ง 2026-08-20: "เหมือน long press ใน chat lists")
+   *
+   * 🛑 hook ตัวเดียวที่ **container** แล้ว resolve ย้อนกลับว่านิ้วอยู่บนแถวไหนผ่าน `data-comment-id`
+   * — เรียก hook ในลูปไม่ได้ (idiom เดียวกับ InboxList.tsx ที่ใช้ `data-conversation-id`)
+   * iOS Safari ไม่ยิง `contextmenu` จากการกดค้างเลย ทางเข้ามือถือจึงต้องเป็น touch event ล้วน
+   * ไม่ใช่หวังพึ่ง onContextMenu ที่ใช้ได้เฉพาะเมาส์
+   */
+  const longPress = useLongPress((point) => {
+    const el = document.elementFromPoint(point.x, point.y)?.closest<HTMLElement>('[data-comment-id]')
+    const id = el?.getAttribute('data-comment-id')
+    if (el && id) setCommentCtxMenu({ id, anchor: { kind: 'row', row: el } })
+  })
   // แนบรูปในคำตอบ (user สั่ง 2026-08-03) — เอกสาร Meta: comment รับ `attachment_url` ได้
   // ใช้ท่าเดียวกับแชท: อัปขึ้น storage ของเราก่อน แล้ว server ค่อยทำ presigned URL ให้ Meta ดึง
   const [pendingFile, setPendingFile] = useState<{ fileId: string; previewUrl: string } | null>(null)
@@ -601,6 +656,10 @@ export default function CommentsClient({
       return
     }
     beginBusy()
+    // เปลี่ยนแท็บ/ตัวกรอง = รายการคนละชุด ต้องเริ่มอ่านจากบนสุด — ของเดิมคง scrollTop ไว้ ทำให้
+    // ผู้ใช้โผล่ไปกลางรายการใหม่ และถ้าตำแหน่งนั้นอยู่ใกล้ก้น sentinel ของ lazy-load จะเข้าเกณฑ์
+    // ทันทีที่ observer ถูกสร้างใหม่ ⇒ โหลดหน้าถัดไปซ้อนขึ้นมาอีกชุดโดยไม่มีใครสั่ง
+    listPanelRef.current?.scrollTo({ top: 0 })
     void refreshPosts(channelId, show.postStatus, channelTab)
     // 🛑 dep เป็น `beginBusy` (useCallback เสถียร) ไม่ใช่ `listBusy` ทั้งก้อน — ดูเหตุผลยาวที่จุด
     // ประกาศ `beginBusy` ด้านบน (ใส่ทั้งก้อน = ยิง fetch ไม่หยุด)
@@ -702,6 +761,8 @@ export default function CommentsClient({
    * เมื่อ 2026-08-09 — docs/conventions/hook-return-identity-in-deps.md) เก็บไว้ใน ref แทน
    * แล้ว deps เหลือเฉพาะ `hasMore` ซึ่งเป็น boolean ที่เสถียร
    */
+  /** กล่อง scroll ของคอลัมน์ซ้าย — ต้องเป็น `root` ของ observer และต้องรีเซ็ตตอนเปลี่ยนตัวกรอง */
+  const listPanelRef = useRef<HTMLDivElement | null>(null)
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
   const loadMoreRef = useRef(loadMorePosts)
   loadMoreRef.current = loadMorePosts
@@ -712,8 +773,14 @@ export default function CommentsClient({
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) void loadMoreRef.current()
       },
+      // 🛑 `root` ต้องเป็นกล่อง scroll จริง ไม่ใช่ viewport (ค่าตั้งต้น) — sentinel อยู่ในกล่องที่
+      // เลื่อนเอง ถ้าวัดกับ viewport คำตอบจะถูกบ้างผิดบ้างตามตำแหน่งของกล่องบนหน้าจอ
+      // (user รายงาน 2026-08-20: "เปลี่ยน tab แล้ว load panel ซ้อน 2 ครั้ง" — observer ถูกสร้างใหม่
+      //  ทุกครั้งที่ `comments.length` เปลี่ยน และ IntersectionObserver **ส่งผลตรวจครั้งแรกให้เสมอ
+      //  ตอน observe** ⇒ ถ้าตอนนั้น sentinel บังเอิญอยู่ในเกณฑ์ มันยิงโหลดหน้าถัดไปทันทีโดยที่
+      //  ผู้ใช้ยังไม่ได้เลื่อนเลย)
       // เริ่มโหลดก่อนถึงก้นจริงเล็กน้อย ให้แถวชุดถัดไปมาทันก่อนผู้ใช้เห็นที่ว่าง
-      { rootMargin: '240px' },
+      { root: listPanelRef.current, rootMargin: '240px' },
     )
     io.observe(el)
     return () => io.disconnect()
@@ -1539,7 +1606,10 @@ export default function CommentsClient({
           {([
             // ป้ายกลาง (ไม่ใช่ semantic color) — แท็บ "ทั้งหมด" ไม่ใช่สถานะงาน จึงไม่ควรมีสีแดง/เหลือง/
             // เขียวเหมือนแท็บที่เหลือ (user report prod: ไม่มีเลขคู่กับมีเลขปนกัน ดูเหมือนโหลดไม่ครบ)
-            { key: 'ALL', label: t.comments.all, icon: null, badgeClass: 'bg-default-200 text-default-700', count: counts.all, hint: undefined },
+            // 🛑 "ทั้งหมด" ไม่มีตัวเลข (user สั่ง 2026-08-20: "ไม่ต้องแสดง 99+ ก็ได้ครับ ไม่ต้องใส่จำนวน
+            // ให้ใส่เฉพาะ ยังไม่ตอบ / หมดอายุก็พอ") — ตัวเลขบนแท็บมีไว้บอก "งานที่ต้องทำเหลือเท่าไร"
+            // ยอดรวมทั้งหมดไม่ใช่งานค้าง มันเป็นแค่ขนาดของกอง และพอชน 99+ ก็ไม่ได้บอกอะไรเลย
+            { key: 'ALL', label: t.comments.all, icon: null, badgeClass: null, count: counts.all, hint: undefined },
             // ยังไม่ตอบ = แดง (ยังไม่มีใครแตะ)
             //
             // เคยเหลือ 2 แท็บ (user สั่ง 2026-08-09 "tab ด้านบน ให้มีแค่ 2 tab พอ คือ ทั้งหมด ยังไม่ตอบ")
@@ -1607,11 +1677,13 @@ export default function CommentsClient({
                     พร้อมกันมาแล้วเพราะคำนวณคนละที่ ตัดที่ 99+ เหมือน badge ยังไม่อ่านของแท็บข้อความ
                     แสดงเสมอรวมกรณี 0 (user report prod: 2 ใน 4 แท็บไม่มีเลขดูเหมือนโหลดไม่ครบ —
                     0 คือข้อมูล ไม่ใช่ความว่างเปล่า ผู้ใช้ต้องแยกออกจาก "ยังโหลดไม่เสร็จ") */}
-                <span
-                  className={`${t.badgeClass} text-2xs flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-semibold`}
-                >
-                  {t.count > 99 ? '99+' : t.count}
-                </span>
+                {t.badgeClass && (
+                  <span
+                    className={`${t.badgeClass} text-2xs flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-semibold`}
+                  >
+                    {t.count > 99 ? '99+' : t.count}
+                  </span>
+                )}
               </button>
             )
           })}
@@ -1664,6 +1736,7 @@ export default function CommentsClient({
         {/* panel ที่แท็บสถานะข้างบนคุมอยู่ — id นี้ถูกอ้างด้วย aria-controls ของทุกแท็บ
             aria-busy บอก screen reader ว่าเนื้อหากำลังเปลี่ยน (ก่อนหน้านี้รายการสลับเงียบสนิท) */}
         <div
+          ref={listPanelRef}
           id="commentPostListPanel"
           role="tabpanel"
           aria-labelledby={`commentPostTab-${postTab}`}
@@ -1730,7 +1803,22 @@ export default function CommentsClient({
               )}
             </div>
           ) : (
-            <div className="divide-default-200 divide-y">
+            /**
+             * ผูก handlers ของกดค้างที่ **container เดียว** ครอบทุกแถว (ไม่ใช่ทีละแถว) และดัก
+             * click ที่นี่ด้วย: capture phase ไล่จากนอกเข้าใน จึงหยุดคลิกที่ตามหลังการกดค้างได้
+             * **ก่อน** มันไหลลงไปถึง SwipeableRow หรือปุ่มของแถว (ไม่งั้นปล่อยนิ้วแล้วเธรดจะเปิด
+             * ตามไปด้วยทุกครั้ง) — ท่าเดียวกับ InboxList.tsx
+             */
+            <div
+              className="divide-default-200 divide-y"
+              {...longPress.handlers}
+              onClickCapture={(e) => {
+                if (longPress.didFire()) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }
+              }}
+            >
               {visibleComments.map((c) => {
                 /**
                  * ส่วนขยาย 2026-08-19 (FR-CR-15/17)
@@ -1752,7 +1840,7 @@ export default function CommentsClient({
                     focusReplyOnLoad.current = true
                     // แถวเป็นคอมเมนต์ แต่คอลัมน์กลาง/ขวายังทำงานระดับโพสต์ — เปิดโพสต์ของมัน
                     // แล้วจำไว้ว่าผู้ใช้กดคอมเมนต์ใบไหน เพื่อไฮไลต์ให้ถูกใบ
-                    setSelectedId(c.post.id)
+                    openThread(c.post.id)
                     setHighlightCommentId(c.id)
                   }}
                   className={`flex w-full items-start gap-3 p-3 text-start ${
@@ -1926,11 +2014,13 @@ export default function CommentsClient({
                 return (
                   <div
                     key={c.id}
+                    // จุดยึดของ "กดค้าง" — useLongPress ที่ container resolve ย้อนกลับมาที่ element นี้
+                    data-comment-id={c.id}
                     className="group relative"
                     // เดสก์ท็อป (มี mouse) เท่านั้น — ทางเข้าที่ 2 คู่กับปุ่มลอยตอน hover (UX-Design-Spec)
                     onContextMenu={(e) => {
                       e.preventDefault()
-                      setCommentCtxMenu({ id: c.id, x: e.clientX, y: e.clientY })
+                      setCommentCtxMenu({ id: c.id, anchor: { kind: 'point', x: e.clientX, y: e.clientY } })
                     }}
                   >
                     {/* มือถือ (<lg): ปัดซ้าย — tile เดียว สีเขียวเฉพาะทิศ "จัดการแล้ว" (Verified-Means-Green
@@ -2012,7 +2102,7 @@ export default function CommentsClient({
             <button
               type="button"
               onClick={() => {
-                  setSelectedId(null)
+                  openThread(null)
                   setHighlightCommentId(null)
                 }}
               aria-label={t.comments.backToPosts}
@@ -2054,7 +2144,7 @@ export default function CommentsClient({
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedId(null)
+                  openThread(null)
                   setHighlightCommentId(null)
                 }}
                 aria-label={t.comments.backToPosts}
@@ -2437,8 +2527,7 @@ export default function CommentsClient({
           const resolved = row.resolvedReason !== null
           return (
             <CommentRowMenu
-              x={commentCtxMenu.x}
-              y={commentCtxMenu.y}
+              anchor={commentCtxMenu.anchor}
               resolved={resolved}
               busy={resolvingIds.has(row.id)}
               unavailableReason={row.answeredForReal ? t.comments.markDoneUnavailable : null}
