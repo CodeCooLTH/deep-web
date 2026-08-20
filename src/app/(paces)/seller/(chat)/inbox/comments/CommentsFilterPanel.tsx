@@ -104,21 +104,35 @@ export default function CommentsFilterPanel({ pageOptions, value, show, onApply,
     // ไม่มี `relative` ที่ root โดยตั้งใจ — popover อ้างอิง "แถวตัวกรอง" ของ CommentsClient
     // (inset-x-0 = กว้างเท่าแถวพอดี ไม่ล้นคอลัมน์รายการ/ขอบจอมือถือ) เหมือน InboxFilterPanel
     <div ref={ref}>
+      {/**
+        * ปุ่มไอคอนล้วน 44×44 — **ต่างจาก InboxFilterPanel (พี่น้อง) ที่ยังมีคำว่า "ตัวกรอง" บนปุ่ม**
+        * โดยตั้งใจ และนี่คือเหตุผล (sibling-surface-parity อนุญาตให้ต่างเมื่อเขียนเหตุผลไว้):
+        * ที่นั่นปุ่มอยู่แถวของตัวเองเต็มความกว้าง ที่นี่ปุ่มย้ายมาอยู่ **แถวเดียวกับแท็บสถานะ**
+        * ในคอลัมน์กว้างคงที่ 384px ซึ่งต้องแบ่งกับแท็บ 3 ตัว + ตัวเลข — งบไม่พอสำหรับ label เสมอ
+        * (impeccable critique 2026-08-20 P2-E: ยุบ 3–4 แถวควบคุมเหลือ 1–2 แถว)
+        *
+        * 🛑 `size-11` (44px) ไม่ใช่ `btn-sm` (37px ตาม `_forms.css`) — ปุ่มที่ไม่มีข้อความแล้วยัง
+        * เตี้ยกว่าเกณฑ์แตะ = เสียสองต่อ. แถวจึงเป็น `items-end` ให้ปุ่มกับเส้นใต้แท็บลงล็อกกัน
+        * ไม่มี chevron แล้ว — สถานะเปิด/ปิดสื่อด้วย `aria-expanded` + ขอบ primary ซึ่งพอสำหรับ
+        * ปุ่มที่ไม่มีข้อความ (chevron จะกลายเป็นไอคอนที่สองในกล่อง 44px = อ่านไม่ออกทั้งคู่)
+        */}
       <button
         type="button"
         onClick={() => onOpenChange(!open)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`btn btn-sm bg-card inline-flex items-center gap-2 border ${
+        aria-label={t.inbox.filters}
+        title={t.inbox.filters}
+        className={`bg-card relative inline-flex size-11 shrink-0 items-center justify-center rounded-lg border ${
           activeCount > 0 || open ? 'border-primary text-primary' : 'border-default-300 text-default-800'
         }`}
       >
         <Icon icon="adjustments-horizontal" className="size-4" />
-        {t.inbox.filters}
         {activeCount > 0 && (
-          <span className="badge bg-primary text-2xs rounded-full px-1.5 text-white">{activeCount}</span>
+          <span className="badge bg-primary text-2xs absolute -end-1 -top-1 rounded-full px-1.5 text-white">
+            {activeCount}
+          </span>
         )}
-        <Icon icon={open ? 'chevron-up' : 'chevron-down'} className="size-3.5" />
       </button>
 
       {open && (

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { COMMENT_LIST_PAGE_SIZE } from '@/lib/comment-list-page'
+import { resolveCommentProvider, type CommentChannelFilter } from '@/lib/comment-channel-filter'
 import { isWithinPrivateReplyWindow, privateReplyWindowCutoff } from '@/lib/private-reply-window'
 import { prisma } from '@/lib/prisma'
 import { canAccessShop, assertShopsAccessible } from '@/lib/shop-context'
@@ -527,22 +528,13 @@ export interface CommentPostCounts {
 }
 
 /**
- * ค่าของพิลล์ช่องทางบนหัวคอลัมน์ซ้าย — ต้องเป็นชนิดเดียวกับที่ client ใช้ เพื่อให้ `tsc` บังคับ
- * ให้ทุกที่ที่เพิ่มค่าใหม่ (เช่นวันที่ LINE OA เข้ามา) ต้องแก้ครบทั้งสองฝั่ง
- */
-export type CommentChannelFilter = 'ALL' | 'DEEP' | 'MESSENGER' | 'INSTAGRAM'
-
-/**
- * แปลงพิลล์ช่องทาง → `ShopChannel.provider` ที่ใช้ query จริง
+ * ค่าพิลล์ช่องทาง + ตัวแปลงเป็น `ShopChannel.provider` ย้ายไป `@/lib/comment-channel-filter`
+ * แล้ว (2026-08-20) เพราะหน้าจอต้องอ่านข้อเท็จจริงเดียวกันเพื่อตัดสินว่าจะ **แสดง** พิลล์ไหม —
+ * ไฟล์นี้ import prisma จึงลากเข้า bundle ของ client ไม่ได้ (HR16: หนึ่งข้อเท็จจริง หนึ่งที่)
  *
- * 'ALL' → 'MESSENGER' เพราะโพสต์/คอมเมนต์ (`FacebookPost`) ผูกกับ ShopChannel ที่เป็น MESSENGER
- * เท่านั้นทั้งระบบ — วันนี้ "ทั้งหมด" กับ "Messenger" จึงเป็นชุดเดียวกันจริง ๆ ไม่ใช่การเดา
- * 'DEEP'/'INSTAGRAM' → คืนค่าตรงตัว ซึ่งจะไม่ match ShopChannel ที่มีโพสต์เลย = ได้ 0 ทั้งรายการ
- * และตัวนับ พร้อมกัน ซึ่งเป็นความจริงที่ถูกต้อง (ไม่ใช่การ hardcode ว่า "ช่องทางนี้ว่าง")
+ * re-export ชนิดไว้ให้ผู้เรียกเดิม (route + CommentsClient) ไม่ต้องแก้ import
  */
-function resolveCommentProvider(filter: CommentChannelFilter | undefined): string {
-  return !filter || filter === 'ALL' ? 'MESSENGER' : filter
-}
+export type { CommentChannelFilter } from '@/lib/comment-channel-filter'
 
 const EMPTY_COMMENT_POST_COUNTS: CommentPostCounts = {
   all: 0,

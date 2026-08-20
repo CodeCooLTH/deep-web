@@ -48,8 +48,9 @@ import { renderCommentReplyText } from '@/lib/comment-reply-template'
 import { pickCommentFocusTarget } from '@/lib/comment-focus-target'
 // ย้ายออกจากไฟล์นี้เมื่อ 2026-08-10 ตอนการ์ดคอมเมนต์ต้นเหตุในห้องแชทต้องใช้กติกาเดียวกัน (HR16)
 import { isVideoPost } from '@/lib/facebook-post'
+import { SHOW_COMMENT_CHANNEL_FILTER } from '@/lib/comment-channel-filter'
 import ListBusyOverlay, { useListBusy } from '@/app/(paces)/seller/(dashboard)/_shared/ListBusyOverlay'
-import { ChannelBadgeOverlay, getChannelDisplay } from '../components/ChannelBadge'
+import { getChannelDisplay } from '../components/ChannelBadge'
 import CommentsFilterPanel, {
   DEFAULT_COMMENT_SHOW_FILTER,
   type CommentShowFilter,
@@ -1537,7 +1538,19 @@ export default function CommentsClient({
             ระหว่างแถวไม่เท่าฝั่งข้อความ (user report 2026-08-04 "tab ก็ยังไม่เห็นเหมือน")
             ความ "เหมือน" ของสองหน้านี้อยู่ที่กล่องหัว ไม่ใช่แค่ตัวปุ่มแต่ละอัน */}
         <div className="card-header sticky top-0 z-10 flex flex-col items-stretch gap-3 border-dashed bg-card">
-          <div className="relative flex flex-wrap items-center gap-1.5">
+          {/**
+            * 🛑 แถวพิลล์ช่องทางถูก **ซ่อนทั้งแถว** ตั้งแต่ 2026-08-20 (impeccable critique P2-E)
+            *
+            * ไม่ใช่การลบทิ้ง: `SHOW_COMMENT_CHANNEL_FILTER` derive จาก `COMMENT_CAPABLE_PROVIDERS`
+            * ซึ่งเป็นตัวเดียวกับที่ `resolveCommentProvider()` ใช้ query จริง — วันที่คอมเมนต์ของ
+            * Instagram เข้ามา แถวนี้จะโผล่กลับมาเองโดยไม่ต้องมีใครจำได้ว่ามีโค้ดตรงนี้อยู่
+            *
+            * เหตุผลที่ต้องซ่อนวันนี้: ทั้ง 4 ปุ่มไม่มีปุ่มไหนเปลี่ยนผลลัพธ์ได้เลย (ALL ≡ MESSENGER
+            * ตามนิยามของตัว resolver เอง · DEEP/INSTAGRAM ไม่ match ช่องทางไหน = ว่างทั้งจอ)
+            * มันจึงกินแถวควบคุมเต็ม ๆ หนึ่งแถวเหนือคอมเมนต์ใบแรกบนมือถือเพื่อไม่ทำอะไรเลย
+            */}
+          {SHOW_COMMENT_CHANNEL_FILTER && (
+          <div className="flex flex-wrap items-center gap-1.5">
             {/* 🛑 `radiogroup` ไม่ใช่ `tablist` — แถวนี้เป็น "ตัวกรองที่เลือกได้ทีละอัน" ไม่ได้สลับ
                 หน้าจอ. `tablist` สัญญากับ screen reader ว่ามี `tabpanel` ที่มันคุมอยู่ ซึ่งแถวนี้
                 ไม่มี (panel ที่แท้จริงถูกคุมโดยแท็บสถานะข้างล่าง) AT จะประกาศ "tab 1 of 4" แล้ว
@@ -1587,38 +1600,8 @@ export default function CommentsClient({
                 )
               })}
             </div>
-            {/* ปุ่มตัวกรอง — โผล่เสมอเหมือนแท็บข้อความ
-                รอบแรกผมใส่เงื่อนไข `channels.length > 1` เพราะ user เขียนว่า "ในกรณีมีหลายเพจ"
-                แล้ว user รายงานทันทีว่า "ไม่เห็นมี button ตัวกรองเลย" (ร้านเชื่อมเพจเดียว) —
-                เจตนาคือ "ต้องมีปุ่มตัวกรองเหมือนฝั่งข้อความ" ไม่ใช่ "ซ่อนเมื่อเพจเดียว":
-                ปุ่มที่หาย ๆ โผล่ ๆ ตามจำนวนเพจทำให้หน้าสองแท็บไม่เหมือนกันอยู่ดี */}
-            <CommentsFilterPanel
-              pageOptions={channels}
-              value={channelId}
-              show={show}
-              onApply={(pageId, nextShow) => {
-                setChannelId(pageId)
-                setShow(nextShow)
-              }}
-              open={filterOpen}
-              onOpenChange={setFilterOpen}
-            />
-            {/* ชิปบอกว่ากำลังกรองเพจไหนอยู่ + กดกากบาทล้างได้ (Base: active-filter chips ของ
-                InboxList.tsx:867-882) — ปุ่มตัวกรองไม่ได้โชว์ชื่อเพจบนหน้าปุ่ม ชิปจึงจำเป็น */}
-            {channelId && (
-              <span className="badge bg-primary/15 text-primary-ink text-2xs inline-flex items-center gap-1">
-                {channels.find((c) => c.id === channelId)?.name ?? t.comments.selectedPage}
-                <button
-                  type="button"
-                  onClick={() => setChannelId(null)}
-                  aria-label={t.comments.clearPageFilter}
-                  className="inline-flex items-center"
-                >
-                  <Icon icon="x" width={12} height={12} />
-                </button>
-              </span>
-            )}
           </div>
+          )}
 
         {/* แท็บสถานะ — โครงเดียวกับแถว "ทั้งหมด · ปิดงาน · สแปม" ของแท็บข้อความ
             (Base: InboxList.tsx:890-927 — flex flex-wrap gap-1.5 ครอบ, แถบ min-w-0 flex-1 gap-3
@@ -1632,7 +1615,18 @@ export default function CommentsClient({
             ตามธีมปัจจุบัน ไม่ใช่ asset ดิบของ mockup) — เพิ่ม overflow-x-auto ให้แถวเลื่อนแนวนอนได้
             บนมือถือ (390px ไม่พอให้ 4 แท็บ + ตัวเลขอยู่ในบรรทัดเดียวแบบไม่ตัดคำ) + edge fade บอกว่า
             ยังเลื่อนต่อได้อีก (หนี้ #2 — ดู statusTabFade ด้านบน) */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/**
+          * แถวเดียวจบ: แท็บสถานะ + ปุ่มตัวกรอง (impeccable critique 2026-08-20 P2-E)
+          *
+          * 🛑 `relative` ย้ายมาอยู่ที่ **แถวนี้** แล้ว — popover ของ `CommentsFilterPanel` ใช้
+          * `absolute inset-x-0 top-full` โดยอ้างอิง "บรรพบุรุษที่ positioned ที่ใกล้ที่สุด"
+          * ย้ายปุ่มแต่ลืมย้าย `relative` = แผงกว้างผิดและไปเกาะแถวอื่น (แผงยึด "แถว" ไม่ใช่ "ปุ่ม"
+          * โดยตั้งใจ: inset-x-0 ทำให้กว้างเท่าคอลัมน์พอดี ไม่ล้นขอบจอมือถือ)
+          *
+          * `border-b` ย้ายจากตัวเลื่อนแท็บขึ้นมาที่แถว + `items-end` — ไม่งั้นเส้นใต้แท็บจะลอย
+          * อยู่กลางความสูงของปุ่ม 44px ข้าง ๆ และ `-mb-px` ของแท็บที่เลือกจะไม่มีเส้นให้ทับ
+          */}
+        <div className="border-default-200 relative flex items-end gap-1.5 border-b">
           <div className="relative min-w-0 flex-1">
             {statusTabFade.left && (
               <div
@@ -1643,7 +1637,7 @@ export default function CommentsClient({
             <div
               ref={statusTabScrollRef}
               onScroll={updateStatusTabFade}
-              className="border-default-200 flex min-w-0 items-center gap-3 overflow-x-auto border-b"
+              className="flex min-w-0 items-center gap-3 overflow-x-auto"
               role="tablist"
               aria-label={t.comments.statusFilterAria}
             >
@@ -1747,7 +1741,42 @@ export default function CommentsClient({
               />
             )}
           </div>
+          {/* ปุ่มตัวกรอง — โผล่เสมอเหมือนแท็บข้อความ
+              รอบแรกผมใส่เงื่อนไข `channels.length > 1` เพราะ user เขียนว่า "ในกรณีมีหลายเพจ"
+              แล้ว user รายงานทันทีว่า "ไม่เห็นมี button ตัวกรองเลย" (ร้านเชื่อมเพจเดียว) —
+              เจตนาคือ "ต้องมีปุ่มตัวกรองเหมือนฝั่งข้อความ" ไม่ใช่ "ซ่อนเมื่อเพจเดียว":
+              ปุ่มที่หาย ๆ โผล่ ๆ ตามจำนวนเพจทำให้หน้าสองแท็บไม่เหมือนกันอยู่ดี */}
+          <CommentsFilterPanel
+            pageOptions={channels}
+            value={channelId}
+            show={show}
+            onApply={(pageId, nextShow) => {
+              setChannelId(pageId)
+              setShow(nextShow)
+            }}
+            open={filterOpen}
+            onOpenChange={setFilterOpen}
+          />
         </div>
+
+        {/* ชิปบอกว่ากำลังกรองเพจไหนอยู่ + กดกากบาทล้างได้ (Base: active-filter chips ของ
+            InboxList.tsx:867-882) — ปุ่มตัวกรองเป็นไอคอนล้วนแล้ว ยิ่งไม่มีทางรู้ว่ากรองเพจไหนอยู่
+            ถ้าไม่มีชิปนี้ · เป็นแถวของตัวเองเพราะโผล่เฉพาะตอนกรองจริง (ส่วนใหญ่ไม่กินที่เลย) */}
+        {channelId && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="badge bg-primary/15 text-primary-ink text-2xs inline-flex items-center gap-1">
+              {channels.find((c) => c.id === channelId)?.name ?? t.comments.selectedPage}
+              <button
+                type="button"
+                onClick={() => setChannelId(null)}
+                aria-label={t.comments.clearPageFilter}
+                className="inline-flex items-center"
+              >
+                <Icon icon="x" width={12} height={12} />
+              </button>
+            </span>
+          </div>
+        )}
 
         {/**
           * "ทำเครื่องหมายทั้งหมด" — เห็นเฉพาะแท็บ "หมดอายุ" และเฉพาะตอนมีของให้ทำ
@@ -1910,8 +1939,21 @@ export default function CommentsClient({
                     openThread(c.post.id)
                     setHighlightCommentId(c.id)
                   }}
+                  // "แถวที่กำลังเปิดอยู่" ต้องบอกด้วยสัญญาณของมันเอง ไม่ใช่ให้ AT เดาจากสี
+                  aria-current={c.id === highlightCommentId ? true : undefined}
+                  /**
+                   * 🛑 `bg-primary/10` ไม่ใช่ `/5` (critique P2-D) — ของเดิมต่างจาก
+                   * `hover:bg-default-100` ไม่ถึง 2% luminance ⇒ บนเดสก์ท็อปที่รายการกับเธรดอยู่
+                   * คู่กัน ผู้ขายแยกไม่ออกว่ากำลังตอบใบไหนอยู่ ซึ่งบนคอมเมนต์สาธารณะแปลว่า
+                   * **ตอบซ้ำใบเดิมแล้วลบไม่ได้** แถบ `border-s-2` ที่ wrapper ทำหน้าที่หลัก
+                   * (ยกจาก InboxList.tsx — แชทที่เปิดอยู่ใช้ชุดเดียวกันเป๊ะ) ส่วนพื้นเป็นตัวเสริม
+                   *
+                   * พื้นต้องอยู่ที่ปุ่ม **ไม่ใช่ที่ wrapper** ต่างจาก InboxList: ตรงนี้มี SwipeableRow
+                   * คั่นอยู่ และชั้นเนื้อหาของมันเป็น `bg-card` ทึบ — พื้นที่ทาไว้ที่ wrapper จะถูก
+                   * บังหมดโดยไม่มีอะไรฟ้อง (ส่วนเส้นขอบยังเห็นเพราะอยู่นอก border box)
+                   */
                   className={`flex w-full items-start gap-3 p-3 text-start ${
-                    c.id === highlightCommentId ? 'bg-primary/5' : 'hover:bg-default-100'
+                    c.id === highlightCommentId ? 'bg-primary/10' : 'hover:bg-default-100'
                   }`}
                 >
                   {/* รูปโพสต์ + ป้ายเพจมุมล่างขวา (user 2026-08-03 'ต้องมี icon page ติดไว้ด้วย
@@ -1933,10 +1975,18 @@ export default function CommentsClient({
                         <Icon icon="photo" className="text-xl" />
                       </span>
                     )}
-                    {/* ใช้ ChannelBadgeOverlay ตัวเดียวกับ badge ช่องทางในแท็บข้อความ — มีโลโก้
-                        Facebook เป็นไฟล์ asset อยู่แล้ว (/images/logos/facebook.svg) ไม่ต้อง
-                        hardcode สีแบรนด์ซ้ำที่นี่ และหน้าตาตรงกันทั้งสองแท็บโดยอัตโนมัติ */}
-                    <ChannelBadgeOverlay channel={c.channel.provider} imageUrl={c.channel.avatarUrl ?? undefined} />
+                    {/**
+                      * 🛑 badge ช่องทางมุมรูป **ถูกถอดออกจากแถวรายการ 2026-08-20** (critique P2-D)
+                      *
+                      * ไม่ใช่เพราะไม่สวย แต่เพราะมันเป็น **ค่าคงที่ 100%**: คอมเมนต์ทั้งระบบมาจาก
+                      * ช่องทาง MESSENGER เท่านั้น (`COMMENT_CAPABLE_PROVIDERS`) ⇒ ทุกแถวได้โลโก้
+                      * Facebook ดวงเดียวกัน ซึ่งไม่ได้แยกแถวไหนออกจากแถวไหนเลย มีแต่กินสายตา
+                      * ในแถวที่มีสัญญาณแข่งกันอยู่ 11 อย่าง
+                      *
+                      * ยัง render อยู่ในหัวเธรด/ช่องพิมพ์ (ที่นั่นตอบคำถามจริงว่า "จะส่งออกช่องไหน")
+                      * และในชิปเลือกเพจของ CommentsFilterPanel (ที่นั่นมีทั้ง FB และ IG ปนกันจริง)
+                      * วันที่คอมเมนต์ IG เข้ามา ให้เอากลับมาพร้อมกับ SHOW_COMMENT_CHANNEL_FILTER
+                      */}
                     {isVideoPost(c.post.mediaType) && (
                       // โพสต์วิดีโอ — บอกตั้งแต่รายการ ไม่ต้องเปิดเข้าไปถึงจะรู้
                       <span className="absolute inset-0 flex items-center justify-center">
@@ -1956,7 +2006,11 @@ export default function CommentsClient({
                         (เดิมเป็นข้อความโพสต์ ซึ่งจะซ้ำกันทุกแถวของโพสต์เดียวกันเมื่อ 1 แถว = 1 คอมเมนต์)
                         ไอคอนลูกศรนำหน้าเฉพาะคอมเมนต์ที่เป็นการตอบใต้คอมเมนต์อื่น — เป็น glyph
                         ในบรรทัดข้อความ ไม่ใช่การเยื้องแถว จึงไม่ขยับ layout ของรายการ */}
-                    <span className="text-default-900 line-clamp-2 text-xs font-semibold">
+                    {/* 🛑 `text-sm` ไม่ใช่ `text-xs` (critique P2-D) — บรรทัดนี้คือ "ใครถามอะไร"
+                        ซึ่งเป็นพระเอกของแถวและเป็นเหตุผลเดียวที่ผู้ขายเปิดหน้านี้ ของเดิมอยู่
+                        สเต็ปเดียวกับบริบทโพสต์/เวลา/ชิป ⇒ ไม่มีอะไรนำสายตา ต้องอ่านทั้งแถวถึงจะรู้
+                        (ต่างจากแถวแชทที่บรรทัดหัวเป็น "ชื่อลูกค้า" สั้น ๆ — ที่นี่เป็นประโยคคำถาม) */}
+                    <span className="text-default-900 line-clamp-2 text-sm font-semibold">
                       {c.isReply && (
                         <Icon icon="corner-down-right" className="me-0.5 inline-block size-3 shrink-0 align-[-1px]" />
                       )}
@@ -1991,53 +2045,66 @@ export default function CommentsClient({
                     )}
                     {/* บรรทัดที่ 2 = บริบทว่าคอมเมนต์ใบนี้อยู่ใต้โพสต์ไหน (เดิมเป็นคอมเมนต์ล่าสุด
                         ของโพสต์ ซึ่งตอนนี้เป็นเนื้อของแถวไปแล้ว) */}
-                    <span className="text-default-700 mt-0.5 block truncate text-2xs">
+                    {/* `text-default-500` (#58626b = 6.22:1 บนขาว ผ่าน AA สบาย ๆ) — จางลงหนึ่งขั้น
+                        จาก 700 เพื่อให้เป็น "บริบท" ไม่ใช่คู่แข่งของบรรทัดคำถาม ปรับแค่แกนสี
+                        ไม่ปรับขนาดซ้ำอีกแกน */}
+                    <span className="text-default-500 mt-0.5 block truncate text-2xs">
                       {c.post.message?.trim() || t.comments.postNoText}
                     </span>
                     {/* บรรทัดที่ 3 — โผล่เฉพาะแถวที่ยังมีอะไรค้าง (user สั่ง 2026-08-04, ขยาย feature
                         00038 UX-Design-Spec §3.2) ตอนนี้ตัดสินจากสถานะของ **คอมเมนต์ใบนี้**
                         (deriveCommentState ตัวเดียวกับตัวนับบนแท็บ BR-CR-S4) ไม่ใช่สถานะรวมของโพสต์
                         แบบ "ตัวที่แย่ที่สุดชนะ" อีกต่อไป — แถวเป็นคอมเมนต์แล้ว ป้ายจึงต้องพูดถึงใบนั้น */}
-                    {c.state === 'UNANSWERED' && (
-                      /* ป้ายสองใบใต้ preview — เป็น `badge` จริงไม่ใช่ข้อความสีแดงลอย ๆ
-                         (user report 2026-08-04 "ยังไม่ตอบ มันไม่เห็น label ด้วย") ชุดเดียวกับชิปแท็ก
-                         ในรายการแชท: badge + พื้นจาง 15% ป้ายเวลาแยกใบเพราะเป็นข้อมูลคนละเรื่อง
-                         (สถานะงาน vs เส้นตายของ Meta) */
-                      <span className="mt-1 flex flex-wrap items-center gap-1">
-                        <span className="badge bg-danger/15 text-danger-ink text-2xs inline-flex items-center gap-1">
-                          <Icon icon="alert-circle" width={11} height={11} className="shrink-0" />
-                          {t.comments.unanswered}
-                        </span>
-                        {/* เส้นตายทักแชท 7 วัน **ของคอมเมนต์ใบนี้เอง** — ตรงกว่าของเดิมที่ต้องส่ง
-                            "ใบที่เก่าที่สุดที่ยังไม่ตอบในโพสต์" มาให้ทั้งแถว โทนมาจาก
-                            privateReplyWindow() ตัวเดียว: badge นี้กับข้อความในเธรดต้องเปลี่ยนสี
-                            พร้อมกันเสมอ (HR16)
-                            🛑 createdTime มาจาก server ซึ่งเก่าได้ถึง 60 วิ ขณะที่นาฬิกา client
-                            เดินอยู่ — ในนาทีที่เส้นตายผ่านพอดีต้องอ่านว่า "หมดเวลาทักแชท" เฉย ๆ
-                            ไม่ใช่ "ทักแชทได้อีก หมดเวลาทักแชท" ซึ่งเป็นนาทีที่ข้อความนี้สำคัญที่สุด */}
-                        {(() => {
-                          const w = privateReplyWindow(c.createdTime, t)
-                          if (w.expired) {
-                            return (
-                              <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
-                                <Icon icon="clock-off" width={11} height={11} className="shrink-0" />
-                                {t.comments.windowExpired}
-                              </span>
-                            )
-                          }
-                          return (
-                            <span
-                              className={`badge text-2xs inline-flex max-w-full items-center gap-1 ${
-                                w.tone === 'danger' ? 'bg-danger/15 text-danger-ink' : 'bg-warning/15 text-warning-ink'
-                              }`}
-                            >
-                              <Icon icon="clock" width={11} height={11} className="shrink-0" />
-                              <span className="truncate">{fmt(t.comments.windowLeftShort, { remaining: w.remaining })}</span>
+                    {c.state === 'UNANSWERED' &&
+                      (() => {
+                        /**
+                         * ป้ายใบเดียว (critique P2-D — เดิมเป็น 2 ใบคนละโทนสีติดกัน)
+                         *
+                         * "ยังไม่ตอบ" + เส้นตายทักแชทของ Meta เป็นข้อมูลคนละเรื่องก็จริง แต่บนแถว
+                         * ที่มีสัญญาณแข่งกัน 11 อย่าง สองใบที่ **สีไม่เหมือนกัน** ติดกันอ่านเป็น
+                         * "มีสองปัญหา" ทั้งที่เป็นปัญหาเดียวมองสองมุม แถมยัง wrap เป็นสองบรรทัด
+                         * บนจอแคบ ⇒ ดันความสูงแถวโดยไม่เพิ่มข้อมูล
+                         *
+                         * 🛑 สีของใบรวมยึด **ความเร่งด่วนจริงตามเวลาที่เหลือ** ไม่ใช่ danger ตายตัว
+                         * เหมือน badge "ยังไม่ตอบ" เดิม — ของเดิมแดงเท่ากันหมดตั้งแต่นาทีแรก
+                         * (เหลือ 7 วัน) จนถึงนาทีสุดท้าย (เหลือ 2 ชม.) = สีไม่ได้บอกอะไรเลย
+                         * หลักเดียวกับที่แท็บ "หมดอายุ" ใช้ warning ไม่ใช่ danger เพราะเลยจุดรีบแล้ว
+                         *
+                         * 🛑 คำทั้งสองท่อน compose จาก key เดิม (`unanswered` + `windowLeftShort`/
+                         * `windowExpired`) ห้าม mint คำใหม่ — คำว่า "ยังไม่ตอบ" ต้องเป็นคำเดียวกับ
+                         * บนแท็บและในเธรด ไม่งั้นจอเดียวจะมีสองคำเรียกของสิ่งเดียวกัน (HR16)
+                         *
+                         * 🛑 createdTime มาจาก server ซึ่งเก่าได้ถึง 60 วิ ขณะที่นาฬิกา client
+                         * เดินอยู่ — ในนาทีที่เส้นตายผ่านพอดีต้องอ่านว่า "หมดเวลาทักแชท" เฉย ๆ
+                         * ไม่ใช่ "ทักแชทได้อีก หมดเวลาทักแชท" ซึ่งเป็นนาทีที่ข้อความนี้สำคัญที่สุด
+                         */
+                        const w = privateReplyWindow(c.createdTime, t)
+                        const label = `${t.comments.unanswered} · ${
+                          w.expired ? t.comments.windowExpired : fmt(t.comments.windowLeftShort, { remaining: w.remaining })
+                        }`
+                        const tone = w.expired
+                          ? 'bg-default-100 text-default-700'
+                          : w.tone === 'danger'
+                            ? 'bg-danger/15 text-danger-ink'
+                            : 'bg-warning/15 text-warning-ink'
+                        return (
+                          <span className="mt-1 flex items-center gap-1">
+                            {/* `min-w-0 max-w-full` ที่ badge + `truncate` ที่ข้อความข้างใน — ข้อความรวม
+                                ยาวได้ถึง ~40 ตัวอักษร ("ยังไม่ตอบ · ทักแชทได้อีก 6 วัน 23 ชั่วโมง 59 นาที")
+                                ถ้าไม่ครบชุดนี้มันจะดันกล่องกว้างเกินคอลัมน์แทนที่จะถูกตัด
+                                (docs/conventions/flex-header-truncation.md) */}
+                            <span className={`badge text-2xs inline-flex min-w-0 max-w-full items-center gap-1 ${tone}`}>
+                              <Icon
+                                icon={w.expired ? 'clock-off' : 'alert-circle'}
+                                width={11}
+                                height={11}
+                                className="shrink-0"
+                              />
+                              <span className="truncate">{label}</span>
                             </span>
-                          )
-                        })()}
-                      </span>
-                    )}
+                          </span>
+                        )
+                      })()}
                     {/* feature 00038 — บอทตอบคอมเมนต์ใบนี้แล้ว แต่ยังไม่มีคนยืนยัน
                         (Verified-Means-Green: เหลืองไม่ใช่เขียว เพราะยังไม่มีมนุษย์ยืนยัน) */}
                     {c.state === 'BOT_ANSWERED' && (
@@ -2083,7 +2150,13 @@ export default function CommentsClient({
                     key={c.id}
                     // จุดยึดของ "กดค้าง" — useLongPress ที่ container resolve ย้อนกลับมาที่ element นี้
                     data-comment-id={c.id}
-                    className="group relative"
+                    // แถบซ้าย 2px = ตัวชี้ "แถวที่เปิดอยู่" ตัวจริง (Base: InboxList.tsx แถวแชทที่
+                    // active) — `border-transparent` ติดทุกแถวเสมอ ไม่ใช่ใส่เฉพาะแถวที่เลือก
+                    // ไม่งั้นเนื้อหาจะขยับ 2px ตอนสลับแถว · ฝั่งซ้ายโดยตั้งใจ: ปุ่มลอย "จัดการแล้ว"
+                    // ตอน hover กับ tile ปัดของมือถืออยู่ฝั่งขวาทั้งคู่
+                    className={`group relative border-s-2 ${
+                      c.id === highlightCommentId ? 'border-primary' : 'border-transparent'
+                    }`}
                     // เดสก์ท็อป (มี mouse) เท่านั้น — ทางเข้าที่ 2 คู่กับปุ่มลอยตอน hover (UX-Design-Spec)
                     onContextMenu={(e) => {
                       e.preventDefault()
