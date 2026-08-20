@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>เธรดคอมเมนต์ — 3 ทางเลือก · กล่องแชทผู้ขาย · Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+  /* ── Paces tokens (ยกจาก theme/paces — น้ำเงิน #236dc9 ไม่ใช่ม่วง Vuexy) ───────── */
+  :root{
+    --primary:#236dc9; --primary-ink:#1b56a0;
+    --card:#ffffff; --body-bg:#f5f6fa;
+    --default-50:#f7f8fa; --default-100:#eef0f4; --default-200:#e3e6ec; --default-300:#cbd1db;
+    --default-500:#58626b; --default-600:#707b8f; --default-700:#5b6577; --default-800:#3a4354; --default-900:#1f2733;
+    --warning:#f7a34a; --warning-ink:#8a5210;
+    --success:#28c76f; --success-ink:#136c39;
+    --danger:#ef4c58; --danger-ink:#9b2028;
+    --radius:.5rem;
+    --shadow-lg:0 10px 30px -8px rgb(31 39 51 / .18);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#e9ecf2;font-family:Anuphan,system-ui,sans-serif;color:var(--default-900)}
+  .page{max-width:1700px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:22px;font-weight:700;margin:0 0 4px}
+  .sub{color:var(--default-700);font-size:14px;margin:0 0 28px;line-height:1.7;max-width:980px}
+  .sub code{background:#fff;padding:1px 5px;border-radius:4px;font-size:12px}
+  h2{font-size:15px;font-weight:600;margin:40px 0 12px;padding-top:20px;border-top:1px solid var(--default-300)}
+  .note{font-size:12.5px;color:var(--default-700);margin:-6px 0 16px;line-height:1.7;max-width:980px}
+  .note b{color:var(--default-900);font-weight:600}
+  .note code{background:#fff;padding:1px 5px;border-radius:4px;font-size:11.5px}
+  .row{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
+  .device{background:#fff;border-radius:14px;box-shadow:var(--shadow-lg);overflow:hidden}
+  .device-label{font-size:11px;font-weight:600;color:var(--default-700);margin-bottom:6px;letter-spacing:.02em}
+  .d320{width:320px} .d390{width:390px} .d960{width:620px}
+  .tag{display:inline-block;background:var(--default-200);color:var(--default-800);font-size:11px;
+       font-weight:600;padding:2px 8px;border-radius:99px;margin-inline-start:8px}
+  .bad{background:#fde8ea;color:var(--danger-ink)}
+  .good{background:#dcf7e8;color:var(--success-ink)}
+
+  /* ── ชิ้นส่วนร่วม ─────────────────────────────────────────────────────── */
+  .hdr{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--default-200);font-size:12.5px;font-weight:600}
+  .hdr .th{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,#c0392b,#8e2b20);flex:0 0 auto}
+  .scroll{padding:10px 12px;max-height:560px;overflow:auto}
+  .av{width:28px;height:28px;border-radius:99px;background:var(--default-100);color:var(--default-700);
+      font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;
+         padding:2px 7px;border-radius:99px;white-space:nowrap}
+  .b-warn{background:rgb(247 163 74 / .15);color:var(--warning-ink)}
+  .b-dang{background:rgb(239 76 88 / .15);color:var(--danger-ink)}
+  .b-ok{background:rgb(40 199 111 / .15);color:var(--success-ink)}
+  .b-mute{background:var(--default-100);color:var(--default-700)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;font-family:inherit;
+       font-size:11.5px;font-weight:600;padding:6px 10px;border-radius:6px;border:1px solid var(--default-300);
+       background:#fff;color:var(--default-800);cursor:pointer;min-height:32px}
+  .name{font-size:13px;font-weight:600;color:var(--default-900)}
+  .body{font-size:13px;color:var(--default-800);line-height:1.55}
+  .meta{font-size:10.5px;color:var(--default-700)}
+
+  /* ── ของเดิม ──────────────────────────────────────────────────────────── */
+  .old-row{padding:10px 0;border-bottom:1px solid var(--default-200)}
+  .old-bub{background:var(--default-100);border-radius:12px;padding:7px 11px;display:inline-block;max-width:100%}
+  .old-meta{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-top:6px;font-size:11px;color:var(--default-700)}
+  .old-left{color:var(--danger);font-weight:600}
+  .old-pagereply{margin-inline-start:36px;margin-top:8px}
+
+  /* ── A ────────────────────────────────────────────────────────────────── */
+  .a-row{display:flex;gap:8px;padding:11px 0;border-bottom:1px solid var(--default-200)}
+  .a-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:0 0 auto}
+  .a-fold{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:var(--default-700);
+          margin-inline-start:36px;margin-top:5px;background:none;border:0;font-family:inherit;cursor:pointer}
+
+  /* ── B ────────────────────────────────────────────────────────────────── */
+  .b-card{display:flex;gap:10px;border:1px solid var(--default-200);border-radius:10px;padding:9px;margin-bottom:8px}
+  .b-work{width:104px;flex:0 0 auto;border-inline-start:1px solid var(--default-200);padding-inline-start:9px;
+          display:flex;flex-direction:column;gap:5px}
+  .b-quote{border-inline-start:2px solid var(--default-200);padding-inline-start:8px;margin-top:6px;
+           font-size:11.5px;color:var(--default-700)}
+
+  /* ── C ────────────────────────────────────────────────────────────────── */
+  .c-card{border:1px solid var(--default-300);border-radius:10px;padding:11px;margin-bottom:9px;background:#fff}
+  .c-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .c-actions{display:flex;gap:7px;margin-top:9px}
+  .c-actions .btn{flex:1}
+  .c-donehead{font-size:10.5px;color:var(--default-700);margin:16px 0 4px;font-weight:600}
+  .c-done{font-size:11.5px;color:var(--default-700);padding:6px 0;border-bottom:1px solid var(--default-200);
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>เธรดคอมเมนต์ — 3 ทางเลือก</h1>
+<p class="sub">
+  ลูกค้าบอกว่าเธรดคอมเมนต์ <b>“ดูยากเกินไป”</b> — ทั้ง 3 แบบต่างกัน <b>เชิงโครงสร้าง</b> ไม่ใช่ต่างแค่สี
+  แต่ละแบบตั้งอยู่บนสมมติฐานคนละข้อว่า “ที่ดูยากเพราะอะไร” จึงเลือกได้จากการยอมรับสมมติฐาน ไม่ใช่จากรสนิยม<br />
+  เนื้อหาทั้งหมดเป็น <b>ข้อความจริงจากภาพหน้าจอ prod</b> ที่ user ส่งมา (ชื่อยาวจริง คำตอบเพจซ้ำจริง)
+  — fixture ชื่อสั้นซ่อนปัญหาความยาวที่เป็นต้นเหตุครึ่งหนึ่งของเรื่องนี้
+</p>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>ของเดิม — ทำไมมันดูยาก <span class="tag bad">ปัญหา</span></h2>
+<p class="note">
+  ลูกค้า <b>1 คนกิน 3 บรรทัด</b> และมีของเรียงแนวนอน <b>6 ชิ้น</b>:
+  เวลา · <code>✓ตอบแล้ว</code> · <code>ตอบ</code> · <code>[ทักแชท]</code> · <code>คงเหลือ 6 วัน 23 ชั่วโมง 52 นาที</code><br />
+  <b>“คงเหลือ …” เป็นสีแดงทุกแถวตั้งแต่เหลือ 6 วัน</b> ⇒ ทั้งจอแดงเท่ากันหมด สีจึงไม่ได้บอกอะไรเลย
+  และเคสด่วนจริง (เหลือ 2 ชม.) ไม่มีที่ให้ยกระดับไปอีก<br />
+  คำตอบของเพจ (<b>“แอดมินส่งรายละเอียดให้นะคะ” ซ้ำทุกใบ</b>) กินพื้นที่เท่าคอมเมนต์ของลูกค้า ทั้งที่ผู้ขายไม่ต้องอ่านสิ่งที่ตัวเองพิมพ์
+</p>
+<div class="row">
+  <div>
+    <div class="device-label">iPhone 14 · 390 — ของเดิม</div>
+    <div class="device d390">
+      <div class="hdr"><span class="th"></span><span>โช๊คหลังบรรทุกหนัก ซ้อนสาม…</span></div>
+      <div class="scroll">
+        <div class="old-row">
+          <div style="display:flex;gap:8px"><span class="av">N</span>
+            <div><div class="old-bub"><div class="name">Norakit Maill</div><div class="body">ราคา</div></div></div>
+          </div>
+          <div class="old-meta" style="margin-inline-start:36px">
+            <span>19 ส.ค. 07:30</span><span>ตอบ</span>
+            <button class="btn" style="min-height:26px;padding:3px 8px"><iconify-icon icon="tabler:message-2"></iconify-icon>ทักแชท</button>
+            <span class="old-left">คงเหลือ 5 วัน 17 ชั่วโมง 37 นาที</span>
+          </div>
+        </div>
+        <div class="old-row">
+          <div style="display:flex;gap:8px"><span class="av">ก</span>
+            <div><div class="old-bub"><div class="name">กระเพราหมูคลุก เผ็ดเผ็ด</div><div class="body">โช้คหน้าโช้กหลัง Wave 125 ไฟเลี้ยวบังลมคู่เท่าไหร่บ้างครับ</div></div></div>
+          </div>
+          <div class="old-meta" style="margin-inline-start:36px">
+            <span>13:45</span><span style="color:var(--success-ink)"><iconify-icon icon="tabler:circle-check"></iconify-icon> ตอบแล้ว</span><span>ตอบ</span>
+            <button class="btn" style="min-height:26px;padding:3px 8px"><iconify-icon icon="tabler:message-2"></iconify-icon>ทักแชท</button>
+            <span class="old-left">คงเหลือ 6 วัน 23 ชั่วโมง 52 นาที</span>
+          </div>
+          <div class="old-pagereply">
+            <div style="display:flex;gap:8px"><span class="av" style="background:linear-gradient(135deg,#c0392b,#8e2b20)"></span>
+              <div><div class="old-bub" style="background:#eaf1fb">
+                <div class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง <span class="meta" style="color:var(--primary-ink)">· ผู้ดูแลเพจ</span></div>
+                <div class="body">แอดมินส่งรายละเอียดให้นะคะ</div></div>
+                <div class="old-meta"><span>13:45</span><span>ตอบ</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="old-row">
+          <div style="display:flex;gap:8px"><span class="av">บ</span>
+            <div><div class="old-bub"><div class="name">บพิธ คำฟองเครือ</div><div class="body">สนใจ</div></div></div>
+          </div>
+          <div class="old-meta" style="margin-inline-start:36px">
+            <span>12:31</span><span style="color:var(--success-ink)"><iconify-icon icon="tabler:circle-check"></iconify-icon> ตอบแล้ว</span><span>ตอบ</span>
+            <button class="btn" style="min-height:26px;padding:3px 8px"><iconify-icon icon="tabler:message-2"></iconify-icon>ทักแชท</button>
+            <span class="old-left">คงเหลือ 6 วัน 22 ชั่วโมง 38 นาที</span>
+          </div>
+          <div class="old-pagereply">
+            <div style="display:flex;gap:8px"><span class="av" style="background:linear-gradient(135deg,#c0392b,#8e2b20)"></span>
+              <div><div class="old-bub" style="background:#eaf1fb">
+                <div class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง <span class="meta" style="color:var(--primary-ink)">· ผู้ดูแลเพจ</span></div>
+                <div class="body">แอดมินส่งรายละเอียดให้นะคะ</div></div>
+                <div class="old-meta"><span>12:31</span><span>ตอบ</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="note" style="max-width:340px;padding-top:22px">
+    <b>นับให้ดู:</b> 3 คอมเมนต์ของลูกค้า กินพื้นที่เท่ากับ 9 บรรทัดเนื้อหา + 2 บับเบิลคำตอบที่ข้อความเหมือนกันเป๊ะ<br /><br />
+    สิ่งที่ผู้ขายกำลังตามหาคือ <b>“ใครยังไม่ได้คุย”</b> แต่จอตอบคำถามนั้นช้าที่สุด เพราะสัญญาณนั้น
+    (ไม่มี <code>✓ตอบแล้ว</code>) เป็นของที่ <b>ไม่มีอยู่</b> — ต้องอ่านทีละแถวถึงจะรู้ว่าอันไหนขาด
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>แบบ A — ยุบคำตอบของเพจ <span class="tag">สมมติฐาน: ที่กินพื้นที่เปล่าคือคำตอบของเราเอง</span></h2>
+<p class="note">
+  คำตอบของเพจยุบเหลือ <b>บรรทัดเดียวกดขยาย</b> · เมตาดาต้า (เวลา + เส้นตาย) ย้ายไปชิดขวาของบับเบิล
+  แทนที่จะเป็นแถวยาวใต้ข้อความ ⇒ แถวลูกค้าเหลือ 2 บรรทัด<br />
+  <b>เส้นตายโผล่เฉพาะแถวที่ยังไม่ตอบ</b> และไล่สีตามเวลาที่เหลือจริง (เหลือ &gt;24 ชม. = เหลือง · &lt;24 ชม. = แดง)
+  ⇒ สีกลับมามีความหมาย <span class="tag good">เก็บของเดิมไว้มากที่สุด</span>
+</p>
+<div class="row">
+  <div>
+    <div class="device-label">320 · iPhone SE</div>
+    <div class="device d320"><div class="hdr"><span class="th"></span><span>โช๊คหลังบรรทุกหนัก…</span></div><div class="scroll">
+      <div class="a-row"><span class="av">N</span>
+        <div style="min-width:0;flex:1"><div class="name">Norakit Maill</div><div class="body">ราคา</div></div>
+        <div class="a-right"><span class="meta">07:30</span><span class="badge b-warn">5 วัน</span></div>
+      </div>
+      <div class="a-row"><span class="av">ก</span>
+        <div style="min-width:0;flex:1"><div class="name">กระเพราหมูคลุก เผ็ดเผ็ด</div>
+          <div class="body">โช้คหน้าโช้กหลัง Wave 125 ไฟเลี้ยวบังลมคู่เท่าไหร่บ้างครับ</div>
+          <button class="a-fold" style="margin-inline-start:0"><iconify-icon icon="tabler:chevron-down"></iconify-icon>ตอบแล้ว · 1</button>
+        </div>
+        <div class="a-right"><span class="meta">13:45</span></div>
+      </div>
+      <div class="a-row"><span class="av">บ</span>
+        <div style="min-width:0;flex:1"><div class="name">บพิธ คำฟองเครือ</div><div class="body">สนใจ</div>
+          <button class="a-fold" style="margin-inline-start:0"><iconify-icon icon="tabler:chevron-down"></iconify-icon>ตอบแล้ว · 1</button>
+        </div>
+        <div class="a-right"><span class="meta">12:31</span></div>
+      </div>
+      <div class="a-row"><span class="av">ส</span>
+        <div style="min-width:0;flex:1"><div class="name">สมปอง จงกล</div><div class="body">สนใจมีของมีโอ</div>
+          <button class="a-fold" style="margin-inline-start:0"><iconify-icon icon="tabler:chevron-up"></iconify-icon>ตอบแล้ว · 1</button>
+          <div class="body" style="font-size:11.5px;color:var(--default-700);margin-top:4px">แอดมินส่งรายละเอียดให้นะคะ</div>
+        </div>
+        <div class="a-right"><span class="meta">15:05</span></div>
+      </div>
+      <div class="a-row"><span class="av">C</span>
+        <div style="min-width:0;flex:1"><div class="name">Chamrat Sikhiao</div><div class="body">คู่เท่าไร</div></div>
+        <div class="a-right"><span class="meta">20 ชม.</span><span class="badge b-dang">21 ชั่วโมง</span></div>
+      </div>
+    </div></div>
+  </div>
+  <div>
+    <div class="device-label">390 · iPhone 14</div>
+    <div class="device d390"><div class="hdr"><span class="th"></span><span>โช๊คหลังบรรทุกหนัก ซ้อนสาม…</span></div><div class="scroll">
+      <div class="a-row"><span class="av">N</span>
+        <div style="min-width:0;flex:1"><div class="name">Norakit Maill</div><div class="body">ราคา</div></div>
+        <div class="a-right"><span class="meta">19 ส.ค. 07:30</span><span class="badge b-warn">5 วัน</span></div>
+      </div>
+      <div class="a-row"><span class="av">ก</span>
+        <div style="min-width:0;flex:1"><div class="name">กระเพราหมูคลุก เผ็ดเผ็ด</div>
+          <div class="body">โช้คหน้าโช้กหลัง Wave 125 ไฟเลี้ยวบังลมคู่เท่าไหร่บ้างครับ</div>
+          <button class="a-fold" style="margin-inline-start:0"><iconify-icon icon="tabler:chevron-down"></iconify-icon>ตอบแล้ว · 1</button>
+        </div>
+        <div class="a-right"><span class="meta">13:45</span></div>
+      </div>
+      <div class="a-row"><span class="av">บ</span>
+        <div style="min-width:0;flex:1"><div class="name">บพิธ คำฟองเครือ</div><div class="body">สนใจ</div>
+          <button class="a-fold" style="margin-inline-start:0"><iconify-icon icon="tabler:chevron-down"></iconify-icon>ตอบแล้ว · 1</button>
+        </div>
+        <div class="a-right"><span class="meta">12:31</span></div>
+      </div>
+      <div class="a-row"><span class="av">P</span>
+        <div style="min-width:0;flex:1"><div class="name">Panapol Temphut</div><div class="body">สนใจคับ</div>
+          <button class="a-fold" style="margin-inline-start:0"><iconify-icon icon="tabler:chevron-down"></iconify-icon>ตอบแล้ว · 1</button>
+        </div>
+        <div class="a-right"><span class="meta">19 ส.ค. 22:02</span></div>
+      </div>
+      <div class="a-row"><span class="av">C</span>
+        <div style="min-width:0;flex:1"><div class="name">Chamrat Sikhiao</div><div class="body">คู่เท่าไร</div></div>
+        <div class="a-right"><span class="meta">20 ชม.</span><span class="badge b-dang">21 ชั่วโมง</span></div>
+      </div>
+    </div></div>
+  </div>
+  <div>
+    <div class="device-label">เดสก์ท็อป · คอลัมน์เธรด ~620</div>
+    <div class="device d960"><div class="hdr"><span class="th"></span><span>โช๊คหลังบรรทุกหนัก ซ้อนสาม สามล้อ ซาเล้ง 700 กิโลเอาอยู่</span></div><div class="scroll" style="max-height:300px">
+      <div class="a-row"><span class="av">N</span>
+        <div style="min-width:0;flex:1"><div class="name">Norakit Maill</div><div class="body">ราคา</div></div>
+        <div class="a-right"><span class="meta">19 ส.ค. 07:30</span><span class="badge b-warn">5 วัน</span></div>
+      </div>
+      <div class="a-row"><span class="av">ก</span>
+        <div style="min-width:0;flex:1"><div class="name">กระเพราหมูคลุก เผ็ดเผ็ด</div>
+          <div class="body">โช้คหน้าโช้กหลัง Wave 125 ไฟเลี้ยวบังลมคู่เท่าไหร่บ้างครับ</div>
+          <button class="a-fold" style="margin-inline-start:0"><iconify-icon icon="tabler:chevron-down"></iconify-icon>ตอบแล้ว · 1</button>
+        </div>
+        <div class="a-right"><span class="meta">13:45</span></div>
+      </div>
+      <div class="a-row"><span class="av">C</span>
+        <div style="min-width:0;flex:1"><div class="name">Chamrat Sikhiao</div><div class="body">คู่เท่าไร</div></div>
+        <div class="a-right"><span class="meta">20 ชม.</span><span class="badge b-dang">21 ชั่วโมง</span></div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>แบบ B — แยกคอลัมน์งาน <span class="tag">สมมติฐาน: ข้อความกับปุ่มปนกัน ตาต้องกวาดสลับซ้าย-ขวา</span></h2>
+<p class="note">
+  บทสนทนาอยู่ซ้าย <b>งานที่ต้องทำตรึงไว้ขวาเป็นคอลัมน์</b> ⇒ กวาดตาลงแนวตั้งครั้งเดียวก็รู้ว่าเหลืออะไรบ้าง
+  ปุ่มอยู่ตำแหน่งเดิมทุกแถว (กล้ามเนื้อจำได้)<br />
+  <b>ข้อแลก:</b> กินความกว้าง ~104px ต่อแถว ⇒ ที่ 320px ข้อความเหลือแคบมาก
+  <span class="tag bad">จอ 320 คือจุดที่ต้องดูให้หนัก</span>
+</p>
+<div class="row">
+  <div>
+    <div class="device-label">320 · iPhone SE <span style="color:var(--danger-ink)">← จุดเสี่ยง</span></div>
+    <div class="device d320"><div class="hdr"><span class="th"></span><span>โช๊คหลังบรรทุกหนัก…</span></div><div class="scroll">
+      <div class="b-card"><div style="min-width:0;flex:1">
+        <div class="name">Norakit Maill <span class="meta" style="font-weight:400">07:30</span></div>
+        <div class="body">ราคา</div></div>
+        <div class="b-work"><span class="badge b-warn" style="justify-content:center">5 วัน</span>
+          <button class="btn" style="width:100%">ตอบ</button><button class="btn" style="width:100%">ทักแชท</button></div>
+      </div>
+      <div class="b-card"><div style="min-width:0;flex:1">
+        <div class="name">กระเพราหมูคลุก เผ็ดเผ็ด <span class="meta" style="font-weight:400">13:45</span></div>
+        <div class="body">โช้คหน้าโช้กหลัง Wave 125 ไฟเลี้ยวบังลมคู่เท่าไหร่บ้างครับ</div>
+        <div class="b-quote">แอดมินส่งรายละเอียดให้นะคะ</div></div>
+        <div class="b-work"><span class="badge b-ok" style="justify-content:center">ตอบแล้ว</span>
+          <button class="btn" style="width:100%">ตอบ</button><button class="btn" style="width:100%">ทักแชท</button></div>
+      </div>
+    </div></div>
+  </div>
+  <div>
+    <div class="device-label">390 · iPhone 14</div>
+    <div class="device d390"><div class="hdr"><span class="th"></span><span>โช๊คหลังบรรทุกหนัก ซ้อนสาม…</span></div><div class="scroll">
+      <div class="b-card"><div style="min-width:0;flex:1">
+        <div class="name">Norakit Maill <span class="meta" style="font-weight:400">19 ส.ค. 07:30</span></div>
+        <div class="body">ราคา</div></div>
+        <div class="b-work"><span class="badge b-warn" style="justify-content:center">5 วัน</span>
+          <button class="btn" style="width:100%">ตอบ</button><button class="btn" style="width:100%">ทักแชท</button></div>
+      </div>
+      <div class="b-card"><div style="min-width:0;flex:1">
+        <div class="name">กระเพราหมูคลุก เผ็ดเผ็ด <span class="meta" style="font-weight:400">13:45</span></div>
+        <div class="body">โช้คหน้าโช้กหลัง Wave 125 ไฟเลี้ยวบังลมคู่เท่าไหร่บ้างครับ</div>
+        <div class="b-quote">แอดมินส่งรายละเอียดให้นะคะ</div></div>
+        <div class="b-work"><span class="badge b-ok" style="justify-content:center">ตอบแล้ว</span>
+          <button class="btn" style="width:100%">ตอบ</button><button class="btn" style="width:100%">ทักแชท</button></div>
+      </div>
+      <div class="b-card"><div style="min-width:0;flex:1">
+        <div class="name">Chamrat Sikhiao <span class="meta" style="font-weight:400">20 ชม.</span></div>
+        <div class="body">คู่เท่าไร</div></div>
+        <div class="b-work"><span class="badge b-dang" style="justify-content:center">21 ชั่วโมง</span>
+          <button class="btn" style="width:100%">ตอบ</button><button class="btn" style="width:100%">ทักแชท</button></div>
+      </div>
+    </div></div>
+  </div>
+  <div>
+    <div class="device-label">เดสก์ท็อป · คอลัมน์เธรด ~620 <span style="color:var(--success-ink)">← แบบนี้ได้เปรียบตรงนี้</span></div>
+    <div class="device d960"><div class="hdr"><span class="th"></span><span>โช๊คหลังบรรทุกหนัก ซ้อนสาม สามล้อ ซาเล้ง 700 กิโลเอาอยู่</span></div><div class="scroll" style="max-height:300px">
+      <div class="b-card"><div style="min-width:0;flex:1">
+        <div class="name">Norakit Maill <span class="meta" style="font-weight:400">19 ส.ค. 07:30</span></div>
+        <div class="body">ราคา</div></div>
+        <div class="b-work"><span class="badge b-warn" style="justify-content:center">5 วัน</span>
+          <button class="btn" style="width:100%">ตอบ</button><button class="btn" style="width:100%">ทักแชท</button></div>
+      </div>
+      <div class="b-card"><div style="min-width:0;flex:1">
+        <div class="name">กระเพราหมูคลุก เผ็ดเผ็ด <span class="meta" style="font-weight:400">13:45</span></div>
+        <div class="body">โช้คหน้าโช้กหลัง Wave 125 ไฟเลี้ยวบังลมคู่เท่าไหร่บ้างครับ</div>
+        <div class="b-quote">แอดมินส่งรายละเอียดให้นะคะ</div></div>
+        <div class="b-work"><span class="badge b-ok" style="justify-content:center">ตอบแล้ว</span>
+          <button class="btn" style="width:100%">ตอบ</button><button class="btn" style="width:100%">ทักแชท</button></div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>แบบ C — การ์ดต่อคน แยก “ยังไม่ได้คุย” ออกมาก่อน <span class="tag">สมมติฐาน: ผู้ขายไม่ได้อ่านบทสนทนา แต่กำลังไล่ว่าใครยังไม่ได้คุย</span></h2>
+<p class="note">
+  คนที่ยังไม่ได้ตอบขึ้นเป็นการ์ดเต็มพร้อมปุ่ม 2 ปุ่ม · <b>คนที่คุยจบแล้วยุบเหลือบรรทัดเดียวไปอยู่ท้ายจอ</b>
+  ⇒ จอตอบคำถาม “เหลือใครบ้าง” ได้ในวินาทีแรกโดยไม่ต้องอ่านทีละแถว<br />
+  <b>ข้อแลก:</b> เลิกเป็น “บทสนทนา” แล้ว — ลำดับเวลาเดิมหายไป และคำตอบของเพจไม่อยู่ติดกับคำถามอีก
+  <span class="tag bad">เปลี่ยนความหมายของหน้ามากที่สุด</span>
+</p>
+<div class="row">
+  <div>
+    <div class="device-label">320 · iPhone SE</div>
+    <div class="device d320"><div class="hdr"><span class="th"></span><span>โช๊คหลังบรรทุกหนัก…</span></div><div class="scroll">
+      <div class="c-card"><div class="c-head"><span class="av">N</span>
+        <span class="name" style="flex:1;min-width:0">Norakit Maill</span><span class="badge b-warn">5 วัน</span></div>
+        <div class="body">ราคา</div>
+        <div class="c-actions"><button class="btn">ตอบ</button><button class="btn">ทักแชท</button></div>
+      </div>
+      <div class="c-card"><div class="c-head"><span class="av">C</span>
+        <span class="name" style="flex:1;min-width:0">Chamrat Sikhiao</span><span class="badge b-dang">21 ชั่วโมง</span></div>
+        <div class="body">คู่เท่าไร</div>
+        <div class="c-actions"><button class="btn">ตอบ</button><button class="btn">ทักแชท</button></div>
+      </div>
+      <p class="c-donehead">ตอบแล้ว · 4</p>
+      <div class="c-done"><b>กระเพราหมูคลุก เผ็ดเผ็ด</b> · โช้คหน้าโช้กหลัง Wave 125 ไฟเลี้ยว…</div>
+      <div class="c-done"><b>บพิธ คำฟองเครือ</b> · สนใจ</div>
+      <div class="c-done"><b>Panapol Temphut</b> · สนใจคับ</div>
+      <div class="c-done"><b>สมปอง จงกล</b> · สนใจมีของมีโอ</div>
+    </div></div>
+  </div>
+  <div>
+    <div class="device-label">390 · iPhone 14</div>
+    <div class="device d390"><div class="hdr"><span class="th"></span><span>โช๊คหลังบรรทุกหนัก ซ้อนสาม…</span></div><div class="scroll">
+      <div class="c-card"><div class="c-head"><span class="av">N</span>
+        <span class="name" style="flex:1;min-width:0">Norakit Maill</span><span class="badge b-warn">5 วัน</span></div>
+        <div class="body">ราคา</div>
+        <div class="c-actions"><button class="btn">ตอบ</button><button class="btn">ทักแชท</button></div>
+      </div>
+      <div class="c-card"><div class="c-head"><span class="av">C</span>
+        <span class="name" style="flex:1;min-width:0">Chamrat Sikhiao</span><span class="badge b-dang">21 ชั่วโมง</span></div>
+        <div class="body">คู่เท่าไร</div>
+        <div class="c-actions"><button class="btn">ตอบ</button><button class="btn">ทักแชท</button></div>
+      </div>
+      <p class="c-donehead">ตอบแล้ว · 4</p>
+      <div class="c-done"><b>กระเพราหมูคลุก เผ็ดเผ็ด</b> · โช้คหน้าโช้กหลัง Wave 125 ไฟเลี้ยวบังลมคู่เท่าไหร่บ้างครับ</div>
+      <div class="c-done"><b>บพิธ คำฟองเครือ</b> · สนใจ</div>
+      <div class="c-done"><b>Panapol Temphut</b> · สนใจคับ</div>
+      <div class="c-done"><b>สมปอง จงกล</b> · สนใจมีของมีโอ</div>
+    </div></div>
+  </div>
+  <div>
+    <div class="device-label">เดสก์ท็อป · คอลัมน์เธรด ~620</div>
+    <div class="device d960"><div class="hdr"><span class="th"></span><span>โช๊คหลังบรรทุกหนัก ซ้อนสาม สามล้อ ซาเล้ง 700 กิโลเอาอยู่</span></div><div class="scroll" style="max-height:300px">
+      <div class="c-card"><div class="c-head"><span class="av">N</span>
+        <span class="name" style="flex:1;min-width:0">Norakit Maill</span><span class="badge b-warn">5 วัน</span></div>
+        <div class="body">ราคา</div>
+        <div class="c-actions" style="max-width:280px"><button class="btn">ตอบ</button><button class="btn">ทักแชท</button></div>
+      </div>
+      <p class="c-donehead">ตอบแล้ว · 4</p>
+      <div class="c-done"><b>กระเพราหมูคลุก เผ็ดเผ็ด</b> · โช้คหน้าโช้กหลัง Wave 125 ไฟเลี้ยวบังลมคู่เท่าไหร่บ้างครับ</div>
+      <div class="c-done"><b>บพิธ คำฟองเครือ</b> · สนใจ</div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>เลือกยังไง</h2>
+<p class="note">
+  ทั้ง 3 แบบแก้ปัญหาเดียวกัน 2 ข้อเหมือนกันหมด — <b>เส้นตายโผล่เฉพาะแถวที่ยังไม่ตอบ</b> และ
+  <b>ไล่สีตามเวลาที่เหลือจริง</b> (ของเดิมแดงเท่ากันหมดตั้งแต่เหลือ 6 วัน) ⇒ ข้อนี้ไม่ใช่ตัวตัดสิน<br /><br />
+  ตัวตัดสินคือ <b>ยอมรับสมมติฐานข้อไหน</b>:<br />
+  • <b>A</b> — “ผู้ขายยังอ่านเป็นบทสนทนาอยู่ แค่คำตอบของเราเองเกะกะ” → เปลี่ยนน้อยที่สุด เสี่ยงน้อยที่สุด<br />
+  • <b>B</b> — “ปัญหาคือปุ่มกับข้อความปนกัน” → ดีที่สุดบนเดสก์ท็อป ต้องดูให้หนักที่ 320px<br />
+  • <b>C</b> — “ผู้ขายไม่ได้อ่านบทสนทนา เขากำลังเคลียร์คิว” → ตอบคำถาม “เหลือใคร” เร็วที่สุด แต่เปลี่ยนความหมายของหน้ามากที่สุด<br /><br />
+  <b>คำตอบที่มีประโยชน์ที่สุดมักเป็นการผสม</b> เช่น “เอาการยุบคำตอบเพจของ A + การแยกคนที่ยังไม่ได้คุยของ C”
+  — บอกมาแบบนั้นได้เลย
+</p>
+
+</div>
+</body>
+</html>
