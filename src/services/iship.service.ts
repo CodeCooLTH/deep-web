@@ -2238,12 +2238,25 @@ export async function compareShippingPrices(
       );
     }
     const result = assembleCompareResult(couriers, settled);
-    if (result.failed.length > 0) {
+    /**
+     * 🛑 `failed[]` รวมของ **2 ชนิดที่ไม่เหมือนกันเลย** ไว้ด้วยกัน (ดู assembleCompareResult):
+     *   1. คำขอ reject จริง — เครือข่าย/โทเคน/upstream 5xx = **เรื่องที่ต้องรู้**
+     *   2. `total_price <= 0` = ขนส่งเจ้านั้น **ไม่รองรับเส้นทางนี้** = เรื่องปกติของทุกคำขอ
+     *
+     * ของเดิม `console.error` เมื่อ `failed.length > 0` เฉย ๆ ⇒ คำขอที่สำเร็จสมบูรณ์ (17 จาก 18
+     * เจ้ามีราคา อีกเจ้าไม่วิ่งเส้นทางนั้น) ก็ขึ้น error ใน log ของ prod ทุกครั้ง
+     * user ส่งภาพมา 2026-08-20: `[iship-compare] failed 1/18` **โดยไม่มีรายละเอียดต่อท้ายเลย** —
+     * นั่นคือหลักฐานในตัวมันเองว่าไม่มี rejection สักตัว เพราะข้อความรายละเอียดสร้างจาก
+     * `s.status === "rejected"` อย่างเดียว. บรรทัด error ที่ไม่มีข้อมูลให้สืบ = สัญญาณรบกวนล้วน
+     * และสอนให้คนเลิกอ่าน error log (คลาสเดียวกับ insert-then-catch-logs-every-error.md)
+     */
+    const rejectedCount = settled.filter((x) => x.status === "rejected").length;
+    if (rejectedCount > 0) {
       // เหตุผลจริงรายเจ้า — ไม่มีบรรทัดนี้ debug บน prod ไม่ได้เลย (mapIShipError ไม่ log
       // IShipError และ reject รายเจ้าถูกกลืนเป็น failed[] เงียบ ๆ) token ถูก redact ในชั้น client แล้ว
       console.error(
         "[iship-compare]",
-        `failed ${result.failed.length}/${couriers.length}`,
+        `rejected ${rejectedCount}/${couriers.length} (no-price ${result.failed.length - rejectedCount})`,
         settled
           .map((s, i) =>
             s.status === "rejected"
@@ -2253,6 +2266,10 @@ export async function compareShippingPrices(
           .filter(Boolean)
           .join(" | "),
       );
+    } else if (result.rows.length === 0 && result.failed.length > 0) {
+      // ไม่มี rejection เลยแต่ก็ไม่ได้ราคาสักเจ้า = ไม่มีขนส่งเจ้าไหนวิ่งเส้นทางนี้
+      // ไม่ใช่ระบบพัง แต่เป็นผลลัพธ์ที่ร้านจะงง จึงคงไว้เป็น warn ให้สืบย้อนได้ (ไม่ใช่ error)
+      console.warn("[iship-compare]", `no carrier priced this route (0/${couriers.length})`);
     }
     if (result.rows.length === 0 && result.failed.length > 0) {
       // ทุกขนส่งพัง — ไม่ throw เป็น 502 ทึบ ๆ อีก (เหตุ prod 2026-08-05 วินิจฉัยไม่ได้เลย):

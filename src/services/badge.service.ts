@@ -1012,8 +1012,95 @@ export async function getBadgeProgress(
             }
             break
           }
+          /**
+           * ── เหรียญตราสายประมูล ────────────────────────────────────────────
+           *
+           * 🛑 6 ชนิดนี้ **หายไปจากสวิตช์นี้ทั้งชุด** ตั้งแต่วันที่ระบบประมูลขึ้น ทั้งที่สวิตช์ของ
+           * `runBadgeEvaluation` (ที่ตัดสินว่า "ได้เหรียญหรือยัง") รองรับครบมาตลอด ⇒ เหรียญถูก
+           * มอบให้ถูกต้อง แต่ **แถบความคืบหน้าเป็น 0 ตลอดกาลและไม่มีข้อความบอกว่าเหลืออีกเท่าไร**
+           * — ผู้ขายเห็นเหรียญที่ไม่มีวันขยับ ส่วน log ของ prod ก็ขึ้น warning ทุกครั้งที่เปิด
+           * `/dashboard` (user ส่งภาพมา 2026-08-20: 6 บรรทัดต่อการโหลดหนึ่งครั้ง)
+           *
+           * `default` ที่ `console.warn` แล้วปล่อยผ่าน คือสิ่งที่ทำให้มันรอดมาได้นาน — TypeScript
+           * เห็นว่าสวิตช์ "ครบ" เพราะมี default. ท้ายบล็อกนี้จึงเพิ่ม exhaustiveness check ที่
+           * `tsc` จับได้ ไม่ต้องรอไปเห็นใน log ของ prod อีก
+           */
+          case 'AUCTION_HOSTED': {
+            if (!earned) {
+              const { count } = await checkAuctionHosted(shop, criteria)
+              const threshold = criteria.count
+              progressRatio = threshold > 0 ? Math.min(count / threshold, 1) : 0
+              const remaining = threshold - count
+              progressLabel = remaining > 0 ? `อีก ${remaining} รายการ` : `ครบ ${threshold} รายการแล้ว`
+            }
+            break
+          }
+          case 'AUCTION_SOLD': {
+            if (!earned) {
+              const { count } = await checkAuctionSold(shop, criteria)
+              const threshold = criteria.count
+              progressRatio = threshold > 0 ? Math.min(count / threshold, 1) : 0
+              const remaining = threshold - count
+              progressLabel = remaining > 0 ? `อีก ${remaining} รายการ` : `ครบ ${threshold} รายการแล้ว`
+            }
+            break
+          }
+          case 'AUCTION_HIGH_BID_COUNT': {
+            if (!earned) {
+              // เกณฑ์คือ "มีสักรายการที่ยอดบิดถึง minBidCount" — `count` ที่ checker คืนมาคือ
+              // **จำนวนรายการที่ผ่านเกณฑ์** ไม่ใช่จำนวนบิด (ดู checkAuctionHighBidCount: met = count >= 1)
+              // ความคืบหน้าจึงเป็น 0 หรือ 1 ไม่ใช่สัดส่วนของ minBidCount
+              const { count } = await checkAuctionHighBidCount(shop, criteria)
+              progressRatio = count > 0 ? 1 : 0
+              progressLabel =
+                count > 0
+                  ? `มีรายการที่ยอดบิดถึง ${criteria.minBidCount} ครั้งแล้ว`
+                  : `ยังไม่มีรายการที่ยอดบิดถึง ${criteria.minBidCount} ครั้ง`
+            }
+            break
+          }
+          case 'AUCTION_BID_COUNT': {
+            if (!earned) {
+              const { count } = await checkAuctionBidCount(userId, criteria)
+              const threshold = criteria.count
+              progressRatio = threshold > 0 ? Math.min(count / threshold, 1) : 0
+              const remaining = threshold - count
+              progressLabel = remaining > 0 ? `อีก ${remaining} ครั้ง` : `ครบ ${threshold} ครั้งแล้ว`
+            }
+            break
+          }
+          case 'AUCTION_WON': {
+            if (!earned) {
+              const { count } = await checkAuctionWon(userId, criteria)
+              const threshold = criteria.count
+              progressRatio = threshold > 0 ? Math.min(count / threshold, 1) : 0
+              const remaining = threshold - count
+              progressLabel = remaining > 0 ? `อีก ${remaining} รายการ` : `ครบ ${threshold} รายการแล้ว`
+            }
+            break
+          }
+          case 'AUCTION_WON_COMPLETED': {
+            if (!earned) {
+              const { count } = await checkAuctionWonCompleted(userId, criteria)
+              const threshold = criteria.count
+              progressRatio = threshold > 0 ? Math.min(count / threshold, 1) : 0
+              const remaining = threshold - count
+              progressLabel = remaining > 0 ? `อีก ${remaining} รายการ` : `ครบ ${threshold} รายการแล้ว`
+            }
+            break
+          }
           default: {
-            console.warn('[badge] getBadgeProgress: unknown criteria type', (criteria as { type: string }).type)
+            /**
+             * 🛑 `never` ตรงนี้คือด่านจริง — `tsc` จะแดงทันทีที่มีใครเพิ่มชนิดเกณฑ์ใหม่ใน
+             * `CriteriaJson` แล้วลืมมาเติมที่นี่ ไม่ต้องรอไปเห็น warning ใน log ของ prod
+             * (ซึ่งเป็นวิธีที่เราเพิ่งค้นพบว่าเหรียญประมูล 6 ชนิดไม่มีแถบความคืบหน้ามานาน)
+             * ยังคง console.warn ไว้ด้วยสำหรับข้อมูลเก่าในฐานที่ชนิดไม่ตรงกับโค้ดปัจจุบัน
+             */
+            const unhandled: never = criteria
+            console.warn(
+              '[badge] getBadgeProgress: unknown criteria type',
+              (unhandled as { type: string }).type,
+            )
           }
         }
       } catch (err) {

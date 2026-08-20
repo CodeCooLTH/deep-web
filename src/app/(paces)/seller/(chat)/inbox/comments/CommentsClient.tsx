@@ -1840,7 +1840,20 @@ export default function CommentsClient({
                   เดิมล้างแค่ช่องทาง/เพจ ทิ้ง show.postStatus กับ show.shopComments ไว้ ผู้ใช้จึงกด
                   "ล้างตัวกรอง" แล้วรายการยังว่างอยู่เหมือนเดิม ซึ่งอ่านได้อย่างเดียวว่าระบบพัง
                   (impeccable critique 2026-08-09) เงื่อนไขที่โชว์ปุ่มก็ต้องครอบทุกแกนด้วยเช่นกัน */}
-              {(channelId || channelTab !== 'ALL' || show.postStatus !== 'ALL' || show.shopComments) && (
+              {/**
+                * 🛑 ไม่นับ `show.postStatus` เมื่ออยู่แท็บ "หมดอายุ" — แท็บคือ **มุมมองที่ผู้ใช้เลือกเอง**
+                * ไม่ใช่ตัวกรองที่ค้างอยู่โดยไม่รู้ตัว
+                *
+                * เดิมเงื่อนไขนี้เป็น true เสมอบนแท็บ EXPIRED (เพราะ postStatus !== 'ALL') ⇒ ปุ่ม
+                * "ล้างตัวกรอง" โผล่ใต้ข้อความ "ไม่มีคอมเมนต์ที่หมดอายุ" ทุกครั้ง ทั้งที่ข้อความนั้น
+                * เขียนกำกับไว้เองห่างกัน 26 บรรทัดว่า **จงใจไม่ชวนให้ไปงมตัวกรอง** — และกดแล้วเด้ง
+                * ผู้ใช้ออกจากแท็บที่ตั้งใจเปิด ตรงจังหวะที่เพิ่งกด "ทำเครื่องหมายทั้งหมด" สำเร็จพอดี
+                * (impeccable critique 2026-08-20 P3-F)
+                */}
+              {(channelId ||
+                channelTab !== 'ALL' ||
+                (show.postStatus !== 'ALL' && postTab !== 'EXPIRED') ||
+                show.shopComments) && (
                 <div className="mt-3 flex justify-center">
                   <button
                     type="button"
