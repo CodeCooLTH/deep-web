@@ -7,7 +7,13 @@ import { prisma } from '@/lib/prisma'
 import { canAccessShop, assertShopsAccessible } from '@/lib/shop-context'
 import { decryptToken } from '@/lib/token-crypto'
 import { getChannelByExternalId } from '@/services/shop-channel.service'
-import { createCommentReply, fetchPagePosts, fetchPostComments, fetchPostMeta } from '@/lib/facebook/graph'
+import {
+  createCommentReply,
+  fetchCommentAttachment,
+  fetchPagePosts,
+  fetchPostComments,
+  fetchPostMeta,
+} from '@/lib/facebook/graph'
 import { getFileUrl } from '@/lib/storage'
 import { toFileUrl } from '@/lib/file-url'
 import { mirrorRemoteImage } from '@/services/channel-chat.service'
@@ -1198,6 +1204,89 @@ export async function backfillMissingCommentMirrors(params: {
   } catch {
     // เงียบโดยตั้งใจ — เป็นงานเก็บตกเบื้องหลัง ไม่ใช่ส่วนหนึ่งของการเปิดหน้า
   }
+}
+
+/**
+ * กู้ไฟล์แนบที่ URL เดิมหมดอายุไปแล้ว โดยขอ URL ใหม่จาก Graph แล้ว mirror เข้าสตอเรจ
+ *
+ * ต่างจาก `backfillMissingCommentMirrors()` ตรงที่ตัวนั้นลอง fetch **URL เดิม** (ใช้ได้เฉพาะใบที่
+ * ยังไม่หมดอายุ) ส่วนตัวนี้ไปขอ URL ใหม่มาก่อน จึงเป็นทางเดียวที่จะกู้ใบที่ตายไปแล้ว
+ * (ณ 2026-08-20: 167 จาก 222 แถวบน prod)
+ *
+ * 🛑 **ตัวนี้เป็นทั้งตัวซ่อมและตัวตอบคำถามเรื่องสิทธิ์** — จงใจไม่เขียนเป็น probe ทิ้ง เพราะรีโปนี้
+ * เพิ่งถอด probe log ที่ค้างมา 17 วันออกไปเมื่อเช้า (log ที่ประกาศเงื่อนไขปลดระวางไว้ในคอมเมนต์
+ * ไม่มีอะไรบังคับให้ถอดตอนถึงเงื่อนไข) ⇒ ของที่ต้องรันครั้งเดียวก็ต้องมีคุณค่าถาวรด้วย
+ *
+ * คำถามที่ยังไม่มีคำตอบตอนเขียน: แอปมี `pages_read_user_content` เป็น REJECTED · access `none`
+ * และ **ไม่ได้อยู่ในใบที่ยื่น App Review รอบ 2 ด้วย** ⇒ ยังไม่รู้ว่า Graph จะคืน `attachment`
+ * ให้หรือจะปฏิเสธ. `errors[]` ที่คืนกลับไปคือคำตอบ — ห้ามกลืน error เด็ดขาด ไม่งั้นผลลัพธ์
+ * "ซ่อมไม่ได้สักใบ" จะแยกไม่ออกระหว่าง "ไม่มีสิทธิ์" กับ "คอมเมนต์ถูกลบไปหมดแล้ว"
+ */
+export async function repairCommentAttachmentsFromGraph(params: {
+  take?: number
+}): Promise<{
+  scanned: number
+  repaired: number
+  noAttachmentFromGraph: number
+  mirrorFailed: number
+  errors: { commentId: string; code: number | null; subcode: number | null; message: string }[]
+  types: Record<string, number>
+}> {
+  const rows = await prisma.pageComment.findMany({
+    where: { mirroredFileId: null, attachmentUrl: { not: null }, isDeleted: false },
+    // เก่าสุดก่อน — ใบเก่าคือใบที่ URL เดิมตายแน่นอนแล้ว จึงเป็นกลุ่มที่ต้องพึ่งทางนี้จริง ๆ
+    orderBy: { createdTime: 'asc' },
+    take: params.take ?? 25,
+    select: {
+      id: true,
+      externalCommentId: true,
+      shopChannelId: true,
+      post: { select: { channel: { select: { shopId: true } } } },
+    },
+  })
+
+  const out = {
+    scanned: rows.length,
+    repaired: 0,
+    noAttachmentFromGraph: 0,
+    mirrorFailed: 0,
+    errors: [] as { commentId: string; code: number | null; subcode: number | null; message: string }[],
+    types: {} as Record<string, number>,
+  }
+
+  for (const r of rows) {
+    try {
+      const auth = await resolveChannelToken(r.shopChannelId)
+      if (!auth) continue
+      const fresh = await fetchCommentAttachment(r.externalCommentId, auth.token)
+      if (fresh.attachmentType) out.types[fresh.attachmentType] = (out.types[fresh.attachmentType] ?? 0) + 1
+      if (!fresh.attachmentUrl) {
+        out.noAttachmentFromGraph += 1
+        continue
+      }
+      const fileId = await mirrorCommentAttachment(fresh.attachmentUrl, r.post.channel.shopId)
+      if (!fileId) {
+        out.mirrorFailed += 1
+        continue
+      }
+      await prisma.pageComment.update({
+        where: { id: r.id },
+        data: { attachmentUrl: fresh.attachmentUrl, mirroredFileId: fileId, mirroredAt: new Date() },
+      })
+      out.repaired += 1
+    } catch (e) {
+      // เก็บ error รายใบ ไม่ throw — ใบเดียวพังต้องไม่ทำให้ทั้งชุดหยุด และ "ทำไมพัง" คือผลลัพธ์
+      // ที่ต้องการจริง ๆ ของรอบแรก
+      const g = e as { message?: string; code?: number | null; subcode?: number | null }
+      out.errors.push({
+        commentId: r.externalCommentId,
+        code: g.code ?? null,
+        subcode: g.subcode ?? null,
+        message: g.message ?? String(e),
+      })
+    }
+  }
+  return out
 }
 
 export async function listCommentPosts(params: {

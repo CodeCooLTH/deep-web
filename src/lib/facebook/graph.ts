@@ -775,6 +775,36 @@ export interface GraphComment {
  * `order=chronological` เพื่อให้ลำดับตรงกับที่แสดงบนจอ (เก่า→ใหม่) และ cursor เดินหน้าได้ตรง
  * `filter=stream` = เอาคอมเมนต์ลูกมาด้วย ไม่ใช่เฉพาะ top-level (เราต้องใช้ลูกตัดสินว่า "ตอบแล้ว")
  */
+/**
+ * ขอ "ไฟล์แนบล่าสุด" ของคอมเมนต์ใบเดียวจาก Graph — ใช้กู้รูปที่ URL เดิมหมดอายุไปแล้ว
+ *
+ * ทำไมต้องมีทั้งที่ `fetchPostComments` ขอ `attachment{url,media}` อยู่แล้ว: ตัวนั้นเดินทาง
+ * edge `/{post}/comments` ซึ่งดึงมาทีละหน้าและใช้ตอน backfill คอมเมนต์ที่ยังไม่มีในฐาน
+ * ส่วนตัวนี้ยิงตรงที่ `/{comment-id}` เพื่อขอ **URL ใหม่ของคอมเมนต์ที่เรามีอยู่แล้ว**
+ *
+ * ขอ `type` มาด้วย (ต่างจาก fetchPostComments) เพราะเป็นทางเดียวที่จะรู้ว่าไฟล์แนบเป็น
+ * รูป/วิดีโอ/สติกเกอร์ — คอลัมน์ `attachmentUrl` ตัวเดียวบอกชนิดไม่ได้
+ *
+ * 🛑 ไม่กลืน error — ผู้เรียกต้องแยกให้ออกระหว่าง "คอมเมนต์ถูกลบไปแล้ว" กับ "สิทธิ์ไม่พอ"
+ * ซึ่งเป็นคนละเรื่องกันสิ้นเชิงและนำไปสู่การตัดสินใจคนละแบบ (ลบแถวทิ้ง vs ไปยื่นขอสิทธิ์)
+ */
+export async function fetchCommentAttachment(
+  commentId: string,
+  pageToken: string,
+): Promise<{ attachmentUrl: string | null; attachmentType: string | null; message: string | null }> {
+  const json = await graphFetch(`/${encodeURIComponent(commentId)}`, pageToken, {
+    query: { fields: 'id,message,attachment{type,url,media}' },
+  })
+  const att = json.attachment as
+    | { type?: string; url?: string; media?: { image?: { src?: string } } }
+    | undefined
+  return {
+    attachmentUrl: att?.media?.image?.src ?? att?.url ?? null,
+    attachmentType: att?.type ?? null,
+    message: typeof json.message === 'string' && json.message.length > 0 ? json.message : null,
+  }
+}
+
 export async function fetchPostComments(
   postId: string,
   pageToken: string,
