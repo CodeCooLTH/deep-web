@@ -1,31 +1,14 @@
-// Shared SSOT: resolve icon ของ badge สำหรับ fallback เมื่อ badge.imageUrl ว่าง
+// Shared SSOT: resolve icon ของ badge จากค่าในคอลัมน์ `Badge.icon`
 // ใช้ร่วมทั้ง seller (Paces) และ buyer (Vuexy) เพื่อ parity + no-emoji (Hard Rule 12)
-// เดิม map นี้อยู่ที่ src/app/(paces)/seller/(dashboard)/_constants/badge-icons.ts — ย้ายมา lib เพื่อให้ทั้ง 2 surface import ได้
-
-/** map ชื่อ badge (nameEN) → lucide icon — ใช้เมื่อ DB icon เป็น emoji/ว่าง (legacy badges) */
-export const LUCIDE_FOR_BADGE: Record<string, string> = {
-  'First Sale':          'lucide:store',
-  'Trusted Seller 50':   'lucide:star',
-  'Century Club':        'lucide:trophy',
-  'Perfect Rating':      'lucide:gem',
-  'Highly Rated':        'lucide:sparkles',
-  'Zero Complaint':      'lucide:shield-check',
-  'Veteran':             'lucide:medal',
-  'Speed Demon':         'lucide:zap',
-  'Fully Verified':      'lucide:badge-check',
-  'Community Favorite':  'lucide:heart',
-  // ── P1 — 7 badge ใหม่ (fallback เมื่อ imageUrl ว่าง; ปกติ render รูป asset จาก badge.imageUrl) ──
-  'Getting Started':     'lucide:sprout',
-  'Rising Seller':       'lucide:trending-up',
-  'Well Rated':          'lucide:thumbs-up',
-  'Getting Noticed':     'lucide:eye',
-  'Spotless 100':        'lucide:sparkles',
-  '3 Months Strong':     'lucide:calendar-check',
-  'Same-Day Hero':       'lucide:rocket',
-  // badge เดียวที่ icon ใน DB เป็น null (มีแต่ imageUrl) — ถ้าไม่ map ไว้จะตกไปที่ award กลาง ๆ
-  // เหมือน badge ที่หาไม่เจอ ทำให้แยกไม่ออกว่าเป็นเหรียญผู้ก่อตั้งหรือเหรียญทั่วไป
-  '2026_BADGE':          'lucide:flag',
-}
+//
+// 🛑 2026-08-21 (00052 P1): `LUCIDE_FOR_BADGE` และ `lucideForBadge` ถูกลบแล้ว
+// map นั้นเคยทำหน้าที่แปลง emoji ในคอลัมน์เป็นชื่อไอคอนตอนเรนเดอร์ — ตอนนี้ชื่อไอคอนถูกเขียนลง
+// คอลัมน์ `Badge.icon` จริงแล้ว (migration `20260821090000_badge_v2_taxonomy` เขียนค่าเดียวกับ
+// ที่ map เคยให้เป๊ะ ๆ) ⇒ map กลายเป็น dead code และการเก็บไว้คือการมีนิยาม 2 ที่ให้ค่าเดียวกัน
+// ซึ่งจะหลุดจากกันวันที่มีคนแก้ฝั่งเดียว (Hard Rule 16)
+//
+// ลำดับที่ทำให้ปลอดภัย: เขียนค่าลงคอลัมน์ → ย้ายผู้เรียกให้ thread ค่าจากฐาน → ค่อยลบ map
+// ถ้าลบก่อน เหรียญเดิมทุกใบจะตกไป FALLBACK_LUCIDE กลายเป็นไอคอนเดียวกันหมดโดยไม่มี error
 
 export const FALLBACK_LUCIDE = 'lucide:award'
 
@@ -53,14 +36,8 @@ export function normalizeIconifyName(icon?: string | null): string | null {
  * ทิ้ง emoji ใน DB icon เสมอ (map ชื่อแทน)
  */
 export function badgeIconName(nameEN?: string | null, dbIcon?: string | null): string {
-  return (
-    normalizeIconifyName(dbIcon) ||
-    (nameEN ? LUCIDE_FOR_BADGE[nameEN] : undefined) ||
-    FALLBACK_LUCIDE
-  )
-}
-
-/** legacy helper (name-only) — คง compat กับ seller BadgeImage ที่ยังไม่ thread DB icon */
-export function lucideForBadge(nameEN: string | null | undefined): string {
-  return (nameEN && LUCIDE_FOR_BADGE[nameEN]) || FALLBACK_LUCIDE
+  // nameEN ยังรับไว้เป็นพารามิเตอร์เพื่อไม่ให้ผู้เรียกทั้ง 5 จุดต้องแก้ signature พร้อมกัน
+  // และเพื่อให้ยังใช้เป็นที่แขวน logic รายเหรียญได้ถ้าวันหนึ่งต้องมี — วันนี้ไม่ได้ใช้
+  void nameEN
+  return normalizeIconifyName(dbIcon) || FALLBACK_LUCIDE
 }

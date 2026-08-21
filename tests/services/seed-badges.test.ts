@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { prisma, deleteTestData } from "../setup";
 import { defaultBadges } from "../../prisma/badge-seed-data";
-import { LUCIDE_FOR_BADGE } from "@/app/(paces)/seller/(dashboard)/_constants/badge-icons";
+import { badgeIconName, FALLBACK_LUCIDE, normalizeIconifyName } from "@/lib/badge-icons";
 import { evaluateBadges } from "@/services/badge.service";
 
 // P1 — 7 badge ใหม่ฝั่ง seller (ดู spec 2026-05-16-seller-achievements-p1-design.md §3)
@@ -27,10 +27,20 @@ describe("P1 — defaultBadges definitions", () => {
     }
   });
 
-  it("ทุก nameEN ของ P1 มี fallback ใน LUCIDE_FOR_BADGE", () => {
+  // 00052 P1 (2026-08-21): เดิมเทสนี้เช็คว่ามี fallback ใน `LUCIDE_FOR_BADGE` ซึ่งถูกลบไปแล้ว
+  // เพราะชื่อไอคอนถูกเขียนลงคอลัมน์ `Badge.icon` จริง ⇒ คำถามที่ถูกกว่าและแข็งกว่าคือ
+  // "ค่าในคอลัมน์เป็นชื่อไอคอนที่ใช้ได้จริงไหม" ไม่ใช่ "มีชื่อสำรองอยู่ใน map ไหม"
+  it("ทุก nameEN ของ P1 มีชื่อไอคอนจริงในคอลัมน์ ไม่ตกไปไอคอนสำรอง", () => {
     for (const want of P1) {
-      expect(LUCIDE_FOR_BADGE[want.nameEN], `no lucide fallback for ${want.nameEN}`).toBeTruthy();
+      const found = defaultBadges.find((b) => b.nameEN === want.nameEN)!;
+      expect(normalizeIconifyName(found.icon), `icon ของ ${want.nameEN} ไม่ใช่ชื่อ iconify`).toBeTruthy();
+      expect(badgeIconName(want.nameEN, found.icon), `${want.nameEN} ตกไปไอคอนสำรอง`).not.toBe(FALLBACK_LUCIDE);
     }
+  });
+
+  it("ไม่มีเหรียญใบไหนเหลือ emoji ในคอลัมน์ icon (Hard Rule 12)", () => {
+    const emoji = defaultBadges.filter((b) => b.icon !== null && normalizeIconifyName(b.icon) === null);
+    expect(emoji.map((b) => b.nameEN), "เหรียญที่ icon ยังไม่ใช่ชื่อ iconify").toEqual([]);
   });
 
   it("ไม่มี nameEN ซ้ำใน defaultBadges", () => {

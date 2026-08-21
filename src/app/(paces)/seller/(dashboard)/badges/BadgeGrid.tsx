@@ -129,6 +129,7 @@ function EarnedCard({ item, onClick }: CardProps) {
       <div className={'size-[72px] mx-auto mb-2 relative' /* HR7 carve-out: เหรียญเป็น pixel art (BadgeImage ตั้ง imageRendering:pixelated) ต้องล็อกพิกเซลจำนวนเต็ม — token rem ให้ค่าเศษเมื่อ root font ไม่ใช่ 16px แล้วรูปเบลอ */}>
         <BadgeImage
           nameEN={item.badge.nameEN}
+          icon={item.badge.icon}
           imageUrl={item.badge.imageUrl}
           sizeClass={'size-[72px]' /* HR7 carve-out: ต้องตรงกับกล่องแม่ (pixel art) */}
         />
@@ -182,6 +183,7 @@ function LockedCard({ item, onClick }: CardProps) {
       <div className={'size-[72px] mx-auto mb-2' /* HR7 carve-out: เหรียญเป็น pixel art (BadgeImage ตั้ง imageRendering:pixelated) ต้องล็อกพิกเซลจำนวนเต็ม — token rem ให้ค่าเศษเมื่อ root font ไม่ใช่ 16px แล้วรูปเบลอ */}>
         <BadgeImage
           nameEN={item.badge.nameEN}
+          icon={item.badge.icon}
           imageUrl={item.badge.imageUrl}
           sizeClass={'size-[72px]' /* HR7 carve-out: ต้องตรงกับกล่องแม่ (pixel art) */}
           className="grayscale opacity-60"

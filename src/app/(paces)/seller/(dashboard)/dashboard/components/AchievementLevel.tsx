@@ -115,6 +115,7 @@ export default function AchievementLevel({
                 >
                   <BadgeImage
                     nameEN={item.badge.nameEN}
+                    icon={item.badge.icon}
                     imageUrl={item.badge.imageUrl}
                     sizeClass="size-8"
                   />
@@ -157,6 +158,7 @@ export default function AchievementLevel({
                       {/* badge icon — grayscale opacity-60 บอกสถานะ locked */}
                       <BadgeImage
                         nameEN={item.badge.nameEN}
+                        icon={item.badge.icon}
                         imageUrl={item.badge.imageUrl}
                         sizeClass="size-8"
                         className="grayscale opacity-60 shrink-0"

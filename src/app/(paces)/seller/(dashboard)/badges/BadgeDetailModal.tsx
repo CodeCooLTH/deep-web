@@ -311,6 +311,7 @@ export function BadgeDetailModal({ badge, onClose }: BadgeDetailModalProps) {
                   <div className={'size-[140px] md:size-[200px]' /* HR7 carve-out: เหรียญเป็น pixel art (BadgeImage ตั้ง imageRendering:pixelated) ต้องล็อกพิกเซลจำนวนเต็ม — token rem ของ Paces ให้ค่าเศษเมื่อ root font ไม่ใช่ 16px แล้วรูปเบลอ */}>
                     <BadgeImage
                       nameEN={badge.badge.nameEN}
+                      icon={badge.badge.icon}
                       imageUrl={badge.badge.imageUrl}
                       sizeClass={'size-[140px] md:size-[200px]' /* HR7 carve-out: ต้องตรงกับกล่องแม่บรรทัดบน (pixel art) */}
                       className={badge.earned ? '' : 'grayscale opacity-60'}
