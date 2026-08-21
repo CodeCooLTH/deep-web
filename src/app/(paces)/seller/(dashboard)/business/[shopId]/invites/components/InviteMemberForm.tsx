@@ -7,7 +7,7 @@
  *   (input-icon-group markup: <Icon className="input-icon" /> + input class="form-input")
  * chase ผ่าน src/app/(paces)/seller/(dashboard)/business/create/components/CreateBusinessForm.tsx
  *   (RHF+Yup single-card form shell: card>card-header+card-body+card-footer, form-select native บังคับ RHF bind — HR6)
- * phone regex มาตรฐานเดียวกับ src/app/(paces)/seller/auth/sign-up/components/SignUpForm.tsx (/^0[0-9]{9}$/)
+ * phone regex มาตรฐานเดียวกับ src/app/(paces)/seller/auth/sign-up/components/SignUpForm.tsx (MOBILE_PHONE_RE)
  *
  * Yup schema mirror InviteShopMemberSchema (Valibot, src/lib/validations.ts) — backend รับแค่ non-empty +
  * picklist(PHONE/EMAIL); ฝั่ง frontend เข้มกว่าเพื่อ UX (เบอร์ 10 หลัก / อีเมลถูกรูปแบบ) ตาม convention
@@ -20,6 +20,7 @@ import { useForm } from 'react-hook-form'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
 
 const schema = Yup.object({
   contactType: Yup.string().oneOf(['PHONE', 'EMAIL'] as const).required(),
@@ -27,7 +28,7 @@ const schema = Yup.object({
     .required('กรุณากรอกเบอร์โทรหรืออีเมล')
     .when('contactType', {
       is: 'PHONE',
-      then: (s) => s.matches(/^0[0-9]{9}$/, 'เบอร์ต้องขึ้นต้นด้วย 0 และมี 10 หลัก'),
+      then: (s) => s.matches(MOBILE_PHONE_RE, MOBILE_RULE_TEXT),
       otherwise: (s) => s.email('รูปแบบอีเมลไม่ถูกต้อง'),
     }),
 })

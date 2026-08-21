@@ -29,6 +29,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { MOBILE_PHONE_RE } from '@/lib/phone'
 
 type Step = 'phone' | 'name' | 'otp'
 
@@ -115,7 +116,7 @@ export default function PhoneAuthSteps({ shopName, onBack }: PhoneAuthStepsProps
 
   /** ส่ง OTP + ตัดสินใจว่าไปขั้นชื่อ (เบอร์ใหม่) หรือข้ามไปขั้น OTP เลย (มีบัญชีแล้ว) */
   const sendOtp = async (nextStep?: Step) => {
-    if (!/^0[0-9]{9}$/.test(phone)) {
+    if (!MOBILE_PHONE_RE.test(phone)) {
       pacesToast.error('กรุณากรอกเบอร์โทรให้ถูกต้อง')
       return
     }

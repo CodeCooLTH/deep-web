@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>chip แนะนำเบอร์ — เลือกระดับความแน่น (00014 ext 2026-08-21)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Token คัดจากไฟล์จริง: _root.css (สี) · _buttons.css:4 (.btn px-4 py-1.75 text-sm) ·
+   _forms.css:11 (.form-input h-11 / lg:h-9.25) · DESIGN.md rounded.sm=4px · Anuphan (HR5) */
+:root{
+  --primary:#236dc9; --primary-ink:#1e3a8a;
+  --primary-15:rgb(222,233,247); --ring:rgba(35,109,201,.25);
+  --danger:#f7577e; --card:#fff; --body-bg:#f6f7fb;
+  --d300:#e7e9eb; --d400:#627189; --d500:#58626b; --d800:#343a40; --d900:#313a46;
+  --r-sm:4px; --r-lg:8px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#eef0f5;color:var(--d900);
+     font-family:'Anuphan',system-ui,sans-serif;font-size:15px;line-height:1.6;padding:32px 20px 80px}
+.page{max-width:1400px;margin:0 auto}
+h1{font-size:26px;font-weight:600;margin:0 0 6px}
+h2{font-size:19px;font-weight:600;margin:44px 0 6px;padding-top:20px;border-top:1px solid #dfe3ea}
+h3{font-size:15px;font-weight:600;margin:0 0 8px;color:var(--d800)}
+.lede{color:var(--d500);margin:0 0 8px;max-width:80ch}
+.note{background:#fff;border:1px solid var(--d300);border-left:3px solid var(--primary);
+      border-radius:var(--r-lg);padding:12px 14px;margin:14px 0;max-width:98ch;font-size:14px}
+.note.warn{border-left-color:var(--danger)}
+code{background:#eceff3;border-radius:3px;padding:1px 5px;font-size:.9em;font-family:ui-monospace,Menlo,monospace}
+
+.rack{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;margin-top:14px}
+.device{background:#fff;border:1px solid var(--d300);border-radius:12px;overflow:hidden;
+        box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.device-bar{font-size:12px;font-weight:600;color:var(--d400);padding:7px 12px;background:#fafbfc;border-bottom:1px solid var(--d300)}
+.screen{background:var(--body-bg);padding:14px}
+.w375{width:375px} .w1280{width:1280px}
+
+.card{background:var(--card);border:1px solid var(--d300);border-radius:var(--r-lg);padding:14px}
+.form-label{display:block;font-size:13px;font-weight:500;color:var(--d800);margin-bottom:5px}
+.req{color:var(--danger);margin-inline-start:2px}
+.form-input{display:block;width:100%;height:44px;border:1px solid var(--d300);border-radius:var(--r-sm);
+            padding:0 12px;font:inherit;font-size:14px;color:var(--d900);background:#fff}
+.desktop .form-input{height:37px}
+.form-input.is-invalid{border-color:var(--danger)}
+
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+     border:1px solid transparent;border-radius:var(--r-sm);padding:7px 16px;
+     font:inherit;font-size:14px;font-weight:500;line-height:1.4;cursor:pointer;transition:all .15s}
+.chip{border-radius:9999px;background:var(--primary-15);color:var(--primary-ink);box-shadow:0 0 0 1px var(--ring)}
+.chip:hover{background:var(--primary);color:#fff}
+
+/* ── 3 ระดับความแน่น ─────────────────────────────────────── */
+/* B1 เดิม: px-4 · lead mt-1 (2 บรรทัด) · row mt-1.5 gap-1.5 · chip 44px */
+.b1 .lead{margin:4px 0 0;font-size:12px;color:var(--d500)}
+.b1 .row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.b1 .chip{min-height:44px;padding:7px 16px}
+
+/* B2 ที่ขึ้นโค้ดแล้ว: px-3 · คำสั้นลงเหลือ 1 บรรทัด · lead mt-0.5 · row mt-1 gap-1 · chip 44px */
+.b2 .lead{margin:2px 0 0;font-size:12px;color:var(--d500)}
+.b2 .row{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.b2 .chip{min-height:44px;padding:7px 12px}
+
+/* B3 แน่นสุด: เหมือน B2 แต่ปุ่มสูง 36px — ต่ำกว่าเกณฑ์ที่ PRODUCT.md ประกาศไว้ */
+.b3 .lead{margin:2px 0 0;font-size:12px;color:var(--d500)}
+.b3 .row{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.b3 .chip{min-height:36px;padding:5px 12px}
+
+.desktop .chip{min-height:0;padding:4px 12px}
+.lead.blocked{color:var(--danger)}
+.warn{margin:4px 0 0;font-size:12px;color:var(--danger)}
+
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;margin-bottom:8px}
+.tag1{background:#e7e9eb;color:var(--d800)}
+.tag2{background:var(--primary-15);color:var(--primary-ink)}
+.tag3{background:#fde7ee;color:#b3123c}
+.variant{margin-bottom:14px;padding-bottom:14px;border-bottom:1px dashed var(--d300)}
+.variant:last-child{margin-bottom:0;padding-bottom:0;border-bottom:0}
+.h{font-size:11px;color:var(--d400);margin-top:6px}
+
+table{border-collapse:collapse;width:100%;max-width:112ch;margin:14px 0;font-size:14px;background:#fff}
+th,td{border:1px solid var(--d300);padding:9px 11px;text-align:start;vertical-align:top}
+th{background:#f4f6f9;font-weight:600}
+.yes{color:#0f7b5f;font-weight:600}
+.no{color:#b3123c;font-weight:600}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>chip แนะนำเบอร์ — เลือกระดับความแน่น</h1>
+<p class="lede">
+  เลือกแบบ B แล้ว เหลือแค่ว่าจะแน่นแค่ไหน — <strong>ตัวที่กินที่จริงคือ "คำ" ไม่ใช่ "ปุ่ม"</strong>
+  การย่อคำให้เหลือบรรทัดเดียวประหยัดได้มากกว่าการหดปุ่ม และไม่ต้องแลกอะไรเลย
+</p>
+
+<div class="note warn">
+  <strong>ข้อที่ต้องพี่ตัดสิน:</strong> ปุ่มบนมือถือสูง 44px เพราะ <code>PRODUCT.md §Accessibility</code>
+  ประกาศเกณฑ์ <em>tap target ≥44px</em> ไว้เองเป็น baseline ของโปรเจกต์ (สูงกว่าที่ WCAG 2.2 §2.5.8
+  บังคับจริงคือ 24px) และมีเทส <code>mobile-affordance.test.ts</code> เฝ้าอยู่ —
+  <strong>B3 คือการยอมลดข้อนี้</strong> ผมไม่ตัดสินแทน เพราะกลุ่มเป้าหมายที่ PRODUCT.md ระบุคือ
+  ผู้สูงวัย/digital-literacy ต่ำ
+</div>
+
+<!-- ══════════ 1 chip ══════════ -->
+<h2>1 · เคสหลัก — 1 เบอร์ (มือถือ 375px)</h2>
+
+<div class="rack">
+  <div class="device w375">
+    <div class="device-bar">มือถือ · 375px</div>
+    <div class="screen">
+      <div class="card">
+
+        <div class="variant b1">
+          <span class="tag tag1">B1 — ก่อนย่อ</span>
+          <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+          <input class="form-input" value="092-0791649" readonly>
+          <p class="lead">ตัดช่องว่างและเครื่องหมายออกให้แล้ว — กดเพื่อใช้และค้นหาลูกค้าเดิม</p>
+          <div class="row"><button class="btn chip">0920791649</button></div>
+          <p class="h">ใต้ช่องกรอกกิน <strong>~90px</strong> (คำตกเป็น 2 บรรทัด)</p>
+        </div>
+
+        <div class="variant b2">
+          <span class="tag tag2">B2 — ย่อแล้ว (ขึ้นโค้ดแล้ว)</span>
+          <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+          <input class="form-input" value="092-0791649" readonly>
+          <p class="lead">กดเพื่อใช้เบอร์นี้และค้นหาลูกค้าเดิม</p>
+          <div class="row"><button class="btn chip">0920791649</button></div>
+          <p class="h">กิน <strong>~68px</strong> — ประหยัด 22px โดยไม่แลกอะไร</p>
+        </div>
+
+        <div class="variant b3">
+          <span class="tag tag3">B3 — แน่นสุด (ปุ่ม 36px)</span>
+          <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+          <input class="form-input" value="092-0791649" readonly>
+          <p class="lead">กดเพื่อใช้เบอร์นี้และค้นหาลูกค้าเดิม</p>
+          <div class="row"><button class="btn chip">0920791649</button></div>
+          <p class="h">กิน <strong>~60px</strong> — ประหยัดเพิ่มอีก 8px <span class="no">แลกกับเกณฑ์ 44px</span></p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ หลายเบอร์ ══════════ -->
+  <div class="device w375">
+    <div class="device-bar">มือถือ · 375px — วางข้อความที่มี 3 เบอร์</div>
+    <div class="screen">
+      <div class="card">
+
+        <div class="variant b1">
+          <span class="tag tag1">B1</span>
+          <p class="lead">เจอ 3 เบอร์ในข้อความ — กดเลือกเบอร์ของลูกค้า</p>
+          <div class="row">
+            <button class="btn chip">0611111111</button>
+            <button class="btn chip">0822222222</button>
+            <button class="btn chip">0933333333</button>
+          </div>
+        </div>
+
+        <div class="variant b2">
+          <span class="tag tag2">B2</span>
+          <p class="lead">เจอ 3 เบอร์ — กดเลือกเบอร์ของลูกค้า</p>
+          <div class="row">
+            <button class="btn chip">0611111111</button>
+            <button class="btn chip">0822222222</button>
+            <button class="btn chip">0933333333</button>
+          </div>
+        </div>
+
+        <div class="variant b3">
+          <span class="tag tag3">B3</span>
+          <p class="lead">เจอ 3 เบอร์ — กดเลือกเบอร์ของลูกค้า</p>
+          <div class="row">
+            <button class="btn chip">0611111111</button>
+            <button class="btn chip">0822222222</button>
+            <button class="btn chip">0933333333</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ สถานะอื่น ══════════ -->
+<h2>2 · สถานะอื่นด้วยระยะแบบ B2</h2>
+
+<div class="rack">
+  <div class="device w375">
+    <div class="device-bar">มือถือ · 375px</div>
+    <div class="screen">
+      <div class="card b2" style="margin-bottom:12px">
+        <h3>กดบันทึกแล้วยังไม่ผ่าน</h3>
+        <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+        <input class="form-input is-invalid" value="092-0791649" readonly>
+        <p class="lead blocked">ยังบันทึกไม่ได้ — กดเบอร์ด้านล่างเพื่อแก้</p>
+        <div class="row"><button class="btn chip">0920791649</button></div>
+      </div>
+      <div class="card b2">
+        <h3>หลักไม่ครบ / ไม่ใช่มือถือ</h3>
+        <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+        <input class="form-input" value="092079164" readonly>
+        <p class="warn">เบอร์นี้มี 9 หลัก — เบอร์มือถือต้องมี 10 หลัก</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="device w1280 desktop">
+    <div class="device-bar">เดสก์ท็อป · 1280px — ปุ่มเล็กลงตาม .btn (ไม่มี min-h-11)</div>
+    <div class="screen">
+      <div class="card b2" style="max-width:420px">
+        <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+        <input class="form-input" value="092-0791649" readonly>
+        <p class="lead">กดเพื่อใช้เบอร์นี้และค้นหาลูกค้าเดิม</p>
+        <div class="row"><button class="btn chip">0920791649</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ ตาราง ══════════ -->
+<h2>3 · เทียบตรง ๆ</h2>
+
+<table>
+  <tr><th style="width:28%">ประเด็น</th><th>B1 ก่อนย่อ</th><th>B2 ย่อแล้ว</th><th>B3 แน่นสุด</th></tr>
+  <tr><td>ความสูงใต้ช่องกรอก (1 ชิป)</td><td>~90px</td><td class="yes">~68px</td><td class="yes">~60px</td></tr>
+  <tr><td>บรรทัดนำที่ 375px</td><td class="no">2 บรรทัด</td><td class="yes">1 บรรทัด</td><td class="yes">1 บรรทัด</td></tr>
+  <tr><td>พื้นที่นิ้วบนมือถือ</td><td class="yes">44px</td><td class="yes">44px</td><td class="no">36px — ต่ำกว่าเกณฑ์ PRODUCT.md</td></tr>
+  <tr><td>เทส <code>mobile-affordance</code></td><td class="yes">ผ่าน</td><td class="yes">ผ่าน</td><td class="no">ต้องแก้ด่าน/ใส่ carve-out</td></tr>
+  <tr><td>ต้องแลกอะไร</td><td>—</td><td class="yes">ไม่แลกอะไรเลย</td><td class="no">แลกเกณฑ์ที่โปรเจกต์ประกาศเอง</td></tr>
+</table>
+
+<div class="note">
+  <strong>สิ่งที่เปลี่ยนจริงระหว่าง B1 → B2:</strong><br>
+  คำ: <code>ตัดช่องว่างและเครื่องหมายออกให้แล้ว — กดเพื่อใช้และค้นหาลูกค้าเดิม</code> (65 ตัวอักษร → 2 บรรทัด)
+  → <code>กดเพื่อใช้เบอร์นี้และค้นหาลูกค้าเดิม</code> (36 → 1 บรรทัด)<br>
+  ระยะ: <code>mt-1</code>→<code>mt-0.5</code> · <code>mt-1.5</code>→<code>mt-1</code> · <code>gap-1.5</code>→<code>gap-1</code><br>
+  ปุ่ม: <code>px-4</code>→<code>px-3</code> (เดสก์ท็อปเพิ่ม <code>py-1</code>)<br><br>
+  ข้อเท็จจริง "ระบบตัดให้แล้ว" ถูกตัดออกจากคำ<strong>โดยตั้งใจ</strong> — มันมองเห็นอยู่แล้วจากการที่
+  ช่องด้านบนมีเบอร์เพี้ยนและปุ่มด้านล่างมีเบอร์สะอาด <strong>สิ่งที่ตาเห็นไม่ต้องเขียนซ้ำ</strong>
+  ส่วนที่เขียนไม่ได้แล้วผู้ใช้ไม่มีทางรู้เอง (กดแล้วจะค้นหาลูกค้าเดิมให้ด้วย) จึงเก็บไว้
+</div>
+
+</div>
+</body>
+</html>

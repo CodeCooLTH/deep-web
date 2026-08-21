@@ -22,10 +22,11 @@ import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import * as Yup from 'yup'
+import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
 
 const schema = Yup.object({
   phone: Yup.string()
-    .matches(/^0[0-9]{9}$/, 'เบอร์ต้องขึ้นต้นด้วย 0 และมี 10 หลัก')
+    .matches(MOBILE_PHONE_RE, MOBILE_RULE_TEXT)
     .required('กรุณากรอกเบอร์โทร'),
 })
 

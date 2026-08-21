@@ -45,13 +45,14 @@ type PwFormValues = Yup.InferType<typeof pwSchema>
 // Schema โหมด OTP (toggle)
 const phoneSchema = Yup.object({
   phone: Yup.string()
-    .matches(/^0[0-9]{9}$/, 'เบอร์ต้องขึ้นต้นด้วย 0 และมี 10 หลัก')
+    .matches(MOBILE_PHONE_RE, MOBILE_RULE_TEXT)
     .required('กรุณากรอกเบอร์โทร'),
 })
 type PhoneFormValues = Yup.InferType<typeof phoneSchema>
 
 /** สรุปออเดอร์แบบ public-safe จาก getOrderSummaryForSignIn (ไม่มี PII ของคน) */
 import OrderLinkShell, { type OrderLinkShopContext } from './OrderLinkShell'
+import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
 
 export type SignInOrderContext = OrderLinkShopContext
 
@@ -66,9 +67,9 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
 
   // feature 00015 (Order Claim & Forced Login) FR-OCL-03: SMS-link ส่ง ?prefillPhone= มาช่วย
   // เลือกโหมด OTP ให้อัตโนมัติ + เติมเบอร์ล่วงหน้า (field ยังแก้ได้ — pre-fill ไม่ใช่ approval)
-  // รูปแบบไม่ตรง ^0[0-9]{9}$ → เพิกเฉยเงียบ ๆ ตกกลับไปโหมด password ปกติ (ไม่ crash)
+  // รูปแบบไม่ตรง MOBILE_PHONE_RE → เพิกเฉยเงียบ ๆ ตกกลับไปโหมด password ปกติ (ไม่ crash)
   const rawPrefillPhone = searchParams.get('prefillPhone')
-  const prefillPhone = rawPrefillPhone && /^0[0-9]{9}$/.test(rawPrefillPhone) ? rawPrefillPhone : null
+  const prefillPhone = rawPrefillPhone && MOBILE_PHONE_RE.test(rawPrefillPhone) ? rawPrefillPhone : null
 
   // โหมด login:
   //   channels = หน้าเลือกช่องทาง (ใช้เฉพาะตอนมาจากลิงก์ออเดอร์) — ผู้ซื้อจากแชทส่วนใหญ่ยังไม่มี

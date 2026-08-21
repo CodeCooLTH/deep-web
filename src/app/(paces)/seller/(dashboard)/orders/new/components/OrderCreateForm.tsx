@@ -37,6 +37,7 @@ import {
   toOrderItemShippingKind,
 } from '@/lib/shipping-address-status'
 import { resolveProductVocab } from '@/lib/seller-menu'
+import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -224,7 +225,7 @@ const schema = Yup.object({
   // feature 00015 (Order Claim & Forced Login) TFR-009: เบอร์โทรบังคับ — mirror CreateOrderSchema (SSOT)
   buyerContact: Yup.string()
     .required('กรุณากรอกเบอร์โทรลูกค้า')
-    .matches(/^0[0-9]{9}$/, 'ต้องเป็นเบอร์โทร 10 หลัก ขึ้นต้นด้วย 0'),
+    .matches(MOBILE_PHONE_RE, MOBILE_RULE_TEXT),
   // แถวเปล่าท้ายลิสต์ (spreadsheet pattern — รอเติมสินค้าใหม่เสมอ) ต้องไม่ถูก validate/ส่งไป backend
   // transform กรองแถวเปล่า (ไม่มี productId + ชื่อว่าง) ออกก่อน itemSchema ตรวจแต่ละแถว → itemSchema
   // เจอเฉพาะแถวที่กรอกจริง; ถ้าเหลือ 0 แถว → min(1) เด้ง "ต้องมีสินค้าอย่างน้อย 1 รายการ"

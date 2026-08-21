@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import { UPLOAD_PURPOSES } from "@/lib/upload-policy";
+import { MOBILE_PHONE_RE } from "@/lib/phone";
 import {
   PRODUCT_TYPE_IDS,
   FULFILLMENT_MODES,
@@ -114,7 +115,7 @@ export const GeoReverseSchema = v.object({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const SetPasswordSchema = v.object({
-  phone: v.pipe(v.string(), v.regex(/^0[0-9]{9}$/)),
+  phone: v.pipe(v.string(), v.regex(MOBILE_PHONE_RE)),
   otp: v.pipe(v.string(), v.length(6)),
   password: PasswordSchema,
 });
@@ -360,9 +361,11 @@ export const CreateOrderSchema = v.object({
   // Phase B fields — ทั้งหมด optional เพื่อ backward-compatible กับ caller เดิม
   // buyerContact — feature 00015 (Order Claim & Forced Login) TFR-009: บังคับเป็นเบอร์โทรไทย
   // (ไม่รับอีเมล/optional อีกต่อไป) เพราะ resolveOrderAccess ต้องมีเบอร์แน่นอนเพื่อ match กับ session.phone
+  // 🛑 regex มาจาก MOBILE_PHONE_RE (src/lib/phone.ts) เท่านั้น ห้ามเขียนซ้ำที่นี่ —
+  // chip แนะนำเบอร์ในหน้าสร้างคำสั่งซื้อผูกสัญญาไว้กับค่าเดียวกันนี้ (ext 2026-08-21)
   buyerContact: v.pipe(
     v.string(),
-    v.regex(/^0[0-9]{9}$/, "buyerContact ต้องเป็นเบอร์โทรไทย 10 หลัก ขึ้นต้นด้วย 0"),
+    v.regex(MOBILE_PHONE_RE, "buyerContact ต้องเป็นเบอร์มือถือไทย 10 หลัก ขึ้นต้นด้วย 06/08/09"),
   ),
   buyerName: v.optional(v.string()),
   paymentMethod: v.optional(v.string()),
@@ -1230,7 +1233,7 @@ const shortText = (max: number) => v.pipe(v.string(), v.trim(), v.maxLength(max)
 // senderSubdistrict = ตำบล/แขวง, senderDistrict = อำเภอ/เขต — ดู BR-ISHIP-31
 export const IShipSettingsSchema = v.object({
   senderName: v.nullish(shortText(120)),
-  senderPhone: v.nullish(v.pipe(v.string(), v.regex(/^0[0-9]{9}$/, "เบอร์โทรไม่ถูกต้อง"))),
+  senderPhone: v.nullish(v.pipe(v.string(), v.regex(MOBILE_PHONE_RE, "เบอร์โทรไม่ถูกต้อง"))),
   senderAddress: v.nullish(shortText(255)),
   senderSubdistrict: v.nullish(shortText(100)),
   senderDistrict: v.nullish(shortText(100)),
@@ -1263,7 +1266,7 @@ export const IShipCreateShipmentSchema = v.object({
   receiver: v.optional(
     v.object({
       name: v.nullish(shortText(120)),
-      phone: v.nullish(v.pipe(v.string(), v.regex(/^0[0-9]{9}$/, "เบอร์โทรผู้รับไม่ถูกต้อง"))),
+      phone: v.nullish(v.pipe(v.string(), v.regex(MOBILE_PHONE_RE, "เบอร์โทรผู้รับไม่ถูกต้อง"))),
       line1: v.nullish(shortText(255)),
       subdistrict: v.nullish(shortText(100)),
       district: v.nullish(shortText(100)),
@@ -1323,7 +1326,7 @@ export const IShipImportParcelSchema = v.object({
 // subdistrict = ตำบล/แขวง, district = อำเภอ/เขต (BR-ISHIP-31 — คนละความหมายกับของ iShip)
 export const IShipReceiverPatchSchema = v.object({
   name: v.nullish(shortText(120)),
-  phone: v.nullish(v.pipe(v.string(), v.regex(/^0[0-9]{9}$/, "เบอร์โทรผู้รับไม่ถูกต้อง"))),
+  phone: v.nullish(v.pipe(v.string(), v.regex(MOBILE_PHONE_RE, "เบอร์โทรผู้รับไม่ถูกต้อง"))),
   line1: v.nullish(shortText(255)),
   subdistrict: v.nullish(shortText(100)),
   district: v.nullish(shortText(100)),

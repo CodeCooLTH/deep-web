@@ -8,9 +8,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { verifyOtp } from "@/lib/otp";
+import { MOBILE_PHONE_RE } from '@/lib/phone'
 
 const Body = v.object({
-  phone: v.pipe(v.string(), v.regex(/^0[0-9]{9}$/)),
+  phone: v.pipe(v.string(), v.regex(MOBILE_PHONE_RE)),
   otp: v.pipe(v.string(), v.length(6)),
 });
 

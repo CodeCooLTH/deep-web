@@ -41,6 +41,7 @@ import Logo from '@components/layout/shared/Logo'
 import AuthIllustrationWrapper from '@/views/pages/auth/AuthIllustrationWrapper'
 import OtpSlots from '@/app/(marketing)/_components/OtpSlots'
 import { currentYear, META_DATA } from '@/config/constants'
+import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
 
 type Stage = 'phone' | 'otp'
 
@@ -59,12 +60,12 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
   const [linkTicket, setLinkTicket] = useState<string | null>(null)
   const [linking, setLinking] = useState(false)
 
-  const phoneValid = /^0[0-9]{9}$/.test(phone)
+  const phoneValid = MOBILE_PHONE_RE.test(phone)
 
   const handleSend = async () => {
     setError(null)
     if (!phoneValid) {
-      setError('เบอร์ต้องขึ้นต้นด้วย 0 และมี 10 หลัก')
+      setError(MOBILE_RULE_TEXT)
       return
     }
     setSending(true)

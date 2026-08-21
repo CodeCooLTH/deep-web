@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>chip แนะนำเบอร์ — เทียบแบบ A / B (00014 ext 2026-08-21)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────────────────────────
+   Token ทั้งหมดคัดจากไฟล์จริง ไม่ได้เดา:
+     src/assets/css/config/_root.css       — สี
+     src/assets/css/custom/_buttons.css:4  — .btn  (px-4 py-1.75 text-sm font-medium, inline-flex)
+     src/assets/css/custom/_forms.css:11   — .form-input (h-11 / lg:h-9.25, rounded, border)
+     src/assets/css/custom/_forms.css:18   — .is-invalid (border-danger)
+     DESIGN.md rounded.sm=4px  ·  ฟอนต์ Anuphan (Hard Rule 5)
+   ───────────────────────────────────────────────────────────────── */
+:root{
+  --primary:#236dc9;
+  --primary-ink:#1e3a8a;
+  --primary-15:rgb(222,233,247);      /* #236dc9 @15% บนพื้นขาว (alpha-composite) */
+  --primary-25-line:rgba(35,109,201,.25);
+  --danger:#f7577e;
+  --card:#fff;
+  --body-bg:#f6f7fb;
+  --d300:#e7e9eb;
+  --d400:#627189;
+  --d500:#58626b;
+  --d800:#343a40;
+  --d900:#313a46;
+  --r-sm:4px; --r-lg:8px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:#eef0f5;color:var(--d900);
+  font-family:'Anuphan',system-ui,sans-serif;font-size:15px;line-height:1.6;
+  padding:32px 20px 80px;
+}
+.page{max-width:1400px;margin:0 auto}
+h1{font-size:26px;font-weight:600;margin:0 0 6px}
+h2{font-size:19px;font-weight:600;margin:44px 0 6px;padding-top:20px;border-top:1px solid #dfe3ea}
+h3{font-size:15px;font-weight:600;margin:22px 0 10px;color:var(--d800)}
+.lede{color:var(--d500);margin:0 0 8px;max-width:78ch}
+.note{background:#fff;border:1px solid var(--d300);border-left:3px solid var(--primary);
+      border-radius:var(--r-lg);padding:12px 14px;margin:14px 0;max-width:96ch;font-size:14px}
+code{background:#eceff3;border-radius:3px;padding:1px 5px;font-size:.9em;
+     font-family:ui-monospace,Menlo,monospace}
+
+/* ── โครงอุปกรณ์ ─────────────────────────────────────────────── */
+.rack{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;margin-top:14px}
+.device{background:#fff;border:1px solid var(--d300);border-radius:12px;overflow:hidden;
+        box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.device-bar{font-size:12px;font-weight:600;color:var(--d400);padding:7px 12px;
+            background:#fafbfc;border-bottom:1px solid var(--d300)}
+.screen{background:var(--body-bg);padding:14px}
+.w375{width:375px} .w768{width:768px} .w1280{width:1280px}
+
+/* ── ชิ้นส่วนจริงของ Paces ────────────────────────────────────── */
+.card{background:var(--card);border:1px solid var(--d300);border-radius:var(--r-lg);padding:14px}
+.form-label{display:block;font-size:13px;font-weight:500;color:var(--d800);margin-bottom:5px}
+.req{color:var(--danger);margin-inline-start:2px}
+.form-input{
+  display:block;width:100%;height:44px;border:1px solid var(--d300);border-radius:var(--r-sm);
+  padding:0 12px;font:inherit;font-size:14px;color:var(--d900);background:#fff;
+}
+.desktop .form-input{height:37px}
+.form-input.is-invalid{border-color:var(--danger)}
+
+/* .btn ตามธีมเป๊ะ: inline-flex + items-center + px-4 py-1.75 + text-sm + font-medium + border 1px */
+.btn{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  border:1px solid transparent;border-radius:var(--r-sm);
+  padding:7px 16px;font:inherit;font-size:14px;font-weight:500;line-height:1.4;
+  cursor:pointer;transition:all .15s;
+}
+/* ชิป = .btn + rounded-full + bg-primary/15 + text-primary-ink + ring-1 ring-primary/25 */
+.chip{
+  border-radius:9999px;background:var(--primary-15);color:var(--primary-ink);
+  box-shadow:0 0 0 1px var(--primary-25-line);
+}
+.chip:hover{background:var(--primary);color:#fff}
+.chip.tap{min-height:44px}          /* มือถือ: min-h-11 */
+.chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.hint-lead{margin:4px 0 0;font-size:12px;color:var(--d500)}
+.hint-lead.blocked{color:var(--danger)}
+.hint-warn{margin:4px 0 0;font-size:12px;color:var(--danger)}
+.desktop .hint-warn{font-size:14px}
+.helper{margin:4px 0 0;font-size:12px;color:var(--d400)}
+
+/* ป้ายกำกับตัวอย่าง (ไม่ใช่ส่วนของ UI จริง) */
+.tag{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.02em;
+     padding:2px 8px;border-radius:999px;margin-bottom:8px}
+.tag-a{background:#e7e9eb;color:var(--d800)}
+.tag-b{background:var(--primary-15);color:var(--primary-ink)}
+.variant{margin-bottom:16px}
+.variant:last-child{margin-bottom:0}
+.split{display:grid;gap:14px}
+.w768 .split,.w1280 .split{grid-template-columns:1fr 1fr}
+
+table{border-collapse:collapse;width:100%;max-width:110ch;margin:14px 0;font-size:14px;background:#fff}
+th,td{border:1px solid var(--d300);padding:9px 11px;text-align:start;vertical-align:top}
+th{background:#f4f6f9;font-weight:600}
+.yes{color:#0f7b5f;font-weight:600}
+.no{color:#b3123c;font-weight:600}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>chip แนะนำเบอร์ — เลือกหน้าตา</h1>
+<p class="lede">
+  เนื้อหาและพฤติกรรมเหมือนกันทุกอย่างทั้งสองแบบ ต่างกันแค่ <strong>ปุ่มเขียนอะไร</strong> และ
+  <strong>มีบรรทัดอธิบายเหนือปุ่มไหม</strong> — ทุกอย่างอื่น (เลขติดกัน ไม่มีไอคอน กดแล้วค้นใหม่
+  ไม่มี undo) เหมือนกันตามมติที่เคาะไว้แล้ว
+</p>
+
+<div class="note">
+  <strong>แบบ A</strong> = ที่อนุมัติไว้ในพรีวิวตอนแรก · <strong>แบบ B</strong> = ที่ขึ้นโค้ดอยู่ตอนนี้
+  (มาจาก finding P1-5 ของ <code>/impeccable critique</code>)<br>
+  สี ขนาด ระยะ ทุกค่าในหน้านี้คัดจาก <code>_root.css</code> / <code>_buttons.css</code> /
+  <code>_forms.css</code> ของจริง — ชิปใช้ <code>text-primary-ink</code> (8.44:1) ไม่ใช่
+  <code>text-primary</code> (4.17:1 ซึ่งตก AA)
+</div>
+
+<!-- ══════════════ 1. เคสหลัก — 1 เบอร์ ══════════════ -->
+<h2>1 · เคสที่เจอบ่อยที่สุด — ร้านพิมพ์/วางเบอร์เพี้ยน 1 เบอร์</h2>
+<p class="lede">พิมพ์ <code>092-0791649</code> ลงช่อง "เบอร์โทร"</p>
+
+<div class="rack">
+
+  <div class="device w375">
+    <div class="device-bar">มือถือ · 375px</div>
+    <div class="screen">
+      <div class="card">
+        <div class="variant">
+          <span class="tag tag-a">แบบ A</span>
+          <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+          <input class="form-input" value="092-0791649" readonly>
+          <div class="chip-row"><button class="btn chip tap">ใช้เบอร์ 0920791649</button></div>
+        </div>
+        <div class="variant">
+          <span class="tag tag-b">แบบ B</span>
+          <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+          <input class="form-input" value="092-0791649" readonly>
+          <p class="hint-lead">ตัดช่องว่างและเครื่องหมายออกให้แล้ว — กดเพื่อใช้และค้นหาลูกค้าเดิม</p>
+          <div class="chip-row"><button class="btn chip tap">0920791649</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="device w768">
+    <div class="device-bar">แท็บเล็ต · 768px</div>
+    <div class="screen">
+      <div class="split">
+        <div class="card">
+          <span class="tag tag-a">แบบ A</span>
+          <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+          <input class="form-input" value="092-0791649" readonly>
+          <div class="chip-row"><button class="btn chip tap">ใช้เบอร์ 0920791649</button></div>
+        </div>
+        <div class="card">
+          <span class="tag tag-b">แบบ B</span>
+          <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+          <input class="form-input" value="092-0791649" readonly>
+          <p class="hint-lead">ตัดช่องว่างและเครื่องหมายออกให้แล้ว — กดเพื่อใช้และค้นหาลูกค้าเดิม</p>
+          <div class="chip-row"><button class="btn chip tap">0920791649</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>เดสก์ท็อป (POS) — ชิปเล็กลงตาม <code>.btn</code> ปกติ ไม่มี <code>min-h-11</code></h3>
+<div class="rack">
+  <div class="device w1280 desktop">
+    <div class="device-bar">เดสก์ท็อป · 1280px</div>
+    <div class="screen">
+      <div class="split">
+        <div class="card">
+          <span class="tag tag-a">แบบ A</span>
+          <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+          <input class="form-input" value="092-0791649" readonly>
+          <div class="chip-row"><button class="btn chip">ใช้เบอร์ 0920791649</button></div>
+        </div>
+        <div class="card">
+          <span class="tag tag-b">แบบ B</span>
+          <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+          <input class="form-input" value="092-0791649" readonly>
+          <p class="hint-lead">ตัดช่องว่างและเครื่องหมายออกให้แล้ว — กดเพื่อใช้และค้นหาลูกค้าเดิม</p>
+          <div class="chip-row"><button class="btn chip">0920791649</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 2. จุดที่ต่างกันชัดสุด ══════════════ -->
+<h2>2 · จุดที่สองแบบต่างกันชัดที่สุด — วางข้อความจากแชทที่มีหลายเบอร์</h2>
+<p class="lede">
+  วาง <code>โทร 0612929865/ 0843642147</code> — ข้อความจากลูกค้ามักมีเบอร์คนส่งปนมาด้วย
+  ร้านต้องแยกออกว่าจะกดอันไหน
+</p>
+
+<div class="rack">
+  <div class="device w375">
+    <div class="device-bar">มือถือ · 375px</div>
+    <div class="screen">
+      <div class="card">
+        <div class="variant">
+          <span class="tag tag-a">แบบ A</span>
+          <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+          <input class="form-input" value="โทร 0612929865/ 0843642147" readonly>
+          <div class="chip-row">
+            <button class="btn chip tap">ใช้เบอร์ 0612929865</button>
+            <button class="btn chip tap">ใช้เบอร์ 0843642147</button>
+          </div>
+        </div>
+        <div class="variant">
+          <span class="tag tag-b">แบบ B</span>
+          <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+          <input class="form-input" value="โทร 0612929865/ 0843642147" readonly>
+          <p class="hint-lead">เจอ 2 เบอร์ในข้อความ — กดเลือกเบอร์ของลูกค้า</p>
+          <div class="chip-row">
+            <button class="btn chip tap">0612929865</button>
+            <button class="btn chip tap">0843642147</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="device w375">
+    <div class="device-bar">มือถือ · 375px — กรณี 3 เบอร์</div>
+    <div class="screen">
+      <div class="card">
+        <div class="variant">
+          <span class="tag tag-a">แบบ A</span>
+          <div class="chip-row">
+            <button class="btn chip tap">ใช้เบอร์ 0611111111</button>
+            <button class="btn chip tap">ใช้เบอร์ 0822222222</button>
+            <button class="btn chip tap">ใช้เบอร์ 0933333333</button>
+          </div>
+        </div>
+        <div class="variant">
+          <span class="tag tag-b">แบบ B</span>
+          <p class="hint-lead">เจอ 3 เบอร์ในข้อความ — กดเลือกเบอร์ของลูกค้า</p>
+          <div class="chip-row">
+            <button class="btn chip tap">0611111111</button>
+            <button class="btn chip tap">0822222222</button>
+            <button class="btn chip tap">0933333333</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  ที่ 375px แบบ A ชิปละ 1 บรรทัดเสมอ (3 เบอร์ = 3 บรรทัด) เพราะคำว่า "ใช้เบอร์ " กิน 8 ตัวอักษร
+  ต่อชิป · แบบ B ชิปสั้นพอจะอยู่ 2 ตัวต่อบรรทัด และ <strong>ตัวเลข ซึ่งเป็นสิ่งเดียวที่ต่างกันจริง
+  ได้น้ำหนักสายตาเต็ม</strong> โดยจ่ายด้วยบรรทัดนำ 1 บรรทัดที่คงที่ไม่ว่าจะกี่ชิป
+</div>
+
+<!-- ══════════════ 3. สถานะอื่น (เหมือนกันทั้งสองแบบ) ══════════════ -->
+<h2>3 · สถานะอื่น — เหมือนกันทั้งสองแบบ (ใส่ไว้ให้เห็นภาพรวม)</h2>
+
+<div class="rack">
+  <div class="device w375">
+    <div class="device-bar">มือถือ · 375px</div>
+    <div class="screen">
+      <div class="card">
+        <h3 style="margin-top:0">กดบันทึกแล้วยังไม่ผ่าน</h3>
+        <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+        <input class="form-input is-invalid" value="092-0791649" readonly>
+        <p class="hint-lead blocked">เบอร์นี้ยังบันทึกไม่ได้ — กดเบอร์ด้านล่างเพื่อแก้ให้ถูกต้อง</p>
+        <div class="chip-row"><button class="btn chip tap">0920791649</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="device w375">
+    <div class="device-bar">มือถือ · 375px</div>
+    <div class="screen">
+      <div class="card" style="margin-bottom:12px">
+        <h3 style="margin-top:0">หลักไม่ครบ — ไม่มีอะไรให้เสนอ</h3>
+        <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+        <input class="form-input" value="092079164" readonly>
+        <p class="hint-warn">เบอร์นี้มี 9 หลัก — เบอร์มือถือต้องมี 10 หลัก</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">ไม่ใช่เบอร์มือถือ</h3>
+        <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+        <input class="form-input" value="0212345678" readonly>
+        <p class="hint-warn">เบอร์นี้ไม่ใช่เบอร์มือถือ — ต้องขึ้นต้นด้วย 06, 08 หรือ 09</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="device w375">
+    <div class="device-bar">มือถือ · 375px</div>
+    <div class="screen">
+      <div class="card">
+        <h3 style="margin-top:0">พิมพ์ชื่อคน — เงียบสนิท</h3>
+        <label class="form-label">เบอร์โทร<span class="req">*</span></label>
+        <input class="form-input" value="สมชาย ใจดี" readonly>
+        <p class="helper">ไม่มีข้อความใด ๆ ขึ้น (ช่องค้นในชีตรับชื่อคนด้วย)</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 4. ตารางเทียบ ══════════════ -->
+<h2>4 · เทียบตรง ๆ</h2>
+
+<table>
+  <tr><th style="width:34%">ประเด็น</th><th>แบบ A — <code>ใช้เบอร์ 0920791649</code></th><th>แบบ B — บรรทัดนำ + เลขล้วน</th></tr>
+  <tr>
+    <td>ร้านรู้ไหมว่าระบบตัดอะไรให้</td>
+    <td class="no">ไม่รู้ — เห็นแค่เลขของตัวเอง</td>
+    <td class="yes">รู้ — บอกว่าตัดช่องว่างและเครื่องหมายออกให้</td>
+  </tr>
+  <tr>
+    <td>ร้านรู้ไหมว่ากดแล้วจะเกิดอะไร</td>
+    <td class="no">ไม่รู้ว่ามันจะค้นหาลูกค้าเดิมให้ด้วย (ซึ่งเป็นเหตุผลที่จอไม่เด้งเอง)</td>
+    <td class="yes">รู้</td>
+  </tr>
+  <tr>
+    <td>ตัวเลขอ่านง่ายแค่ไหน</td>
+    <td>คำนำหน้าแย่งพื้นที่ ยิ่งหลายชิปยิ่งซ้ำ</td>
+    <td class="yes">ตัวเลขได้น้ำหนักเต็ม</td>
+  </tr>
+  <tr>
+    <td>3 ชิปที่ 375px</td>
+    <td class="no">3 บรรทัด</td>
+    <td class="yes">2 บรรทัด</td>
+  </tr>
+  <tr>
+    <td>ปุ่มเดี่ยว ๆ อ่านรู้เรื่องไหมถ้าไม่มีบริบท</td>
+    <td class="yes">รู้เรื่องในตัว</td>
+    <td>ต้องอ่านบรรทัดเหนือมัน</td>
+  </tr>
+  <tr>
+    <td>ความสูงที่กินบนจอ (1 ชิป)</td>
+    <td class="yes">50px</td>
+    <td>~72px (บรรทัดนำ + ชิป)</td>
+  </tr>
+  <tr>
+    <td>ชื่อที่ screen reader อ่าน</td>
+    <td class="yes">"ใช้เบอร์ 0920791649 ปุ่ม"</td>
+    <td>"0920791649 ปุ่ม" — บริบทมาจากบรรทัดนำที่อยู่ใน live region เดียวกัน</td>
+  </tr>
+</table>
+
+<div class="note">
+  <strong>ทางที่สามถ้าอยากได้ทั้งคู่:</strong> ใช้แบบ B แต่เพิ่ม <code>aria-label</code> ให้ปุ่ม
+  เป็น "ใช้เบอร์ 0920791649" — ตาเห็นเลขล้วน หูได้ประโยคเต็ม
+  (ทำได้เพราะ <code>&lt;button&gt;</code> รองรับชื่อจากผู้เขียน ต่างจาก
+  <code>&lt;p&gt;</code>/<code>&lt;div&gt;</code> ตาม <code>aria-name-requires-supporting-role.md</code>)
+</div>
+
+</div>
+</body>
+</html>

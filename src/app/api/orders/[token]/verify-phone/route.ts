@@ -19,13 +19,13 @@ import { Prisma } from "@prisma/client";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { normalizePhone } from "@/lib/phone";
+import { normalizePhone, MOBILE_PHONE_RE } from "@/lib/phone";
 import { verifyOtp } from "@/lib/otp";
 import { guaranteeOrderLink } from "@/services/order-access.service";
 import { signAccountMergeTicket } from "@/lib/account-merge-ticket";
 
 const Body = v.object({
-  phone: v.pipe(v.string(), v.regex(/^0[0-9]{9}$/)),
+  phone: v.pipe(v.string(), v.regex(MOBILE_PHONE_RE)),
   otp: v.pipe(v.string(), v.length(6)),
 });
 

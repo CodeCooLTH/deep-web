@@ -22,6 +22,8 @@ import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import PasteParsePanel from './PasteParsePanel'
 import { useAnchoredDropdown } from '@/hooks/useAnchoredDropdown'
+import PhoneSuggestHint from './PhoneSuggestHint'
+import { hasPhoneHint, hasPhoneSuggestion } from '@/lib/phone-hint'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,11 +114,35 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
   const onContactChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSelected(null)
     buyerContactField.onChange(e)
+    // 🛑 มี chip แนะนำค้างอยู่ = ยังไม่ค้น (เหตุผลชุดเดียวกับ CustomerQuickBlock.tsx)
+    // dropdown ของไฟล์นี้เป็น portal `position:fixed` วางที่ `anchor.bottom + 4` z-70
+    // ซึ่งทับ chip ที่อยู่ใน flow ที่ `mt-1` ใต้ anchor เดียวกันพอดี — แล้วแผ่นที่มาทับเขียนว่า
+    // "ไม่พบลูกค้าเดิม — พิมพ์ต่อเพื่อบันทึกเป็นลูกค้าใหม่" = สั่งให้สร้างลูกค้าซ้ำด้วยเบอร์เพี้ยน
+    // โดยบังทางที่ถูกไว้ข้างหลังตัวเอง (impeccable critique P0-2ก)
+    if (hasPhoneSuggestion(e.target.value)) {
+      setIsDropdownOpen(false)
+      return
+    }
     runSearch(e.target.value)
   }
   const onNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     buyerNameField.onChange(e)
     runSearch(e.target.value)
+  }
+
+  const contactErrorMessage = errors.buyerContact?.message
+    ? String(errors.buyerContact.message)
+    : undefined
+
+  /** ใช้ตัดสิน `aria-describedby` + ว่าจะยัง render helper text เดิมไหม (ห้ามเอาไปครอบ component) */
+  const contactHintVisible =
+    hasPhoneHint(buyerContactField.value ?? '') || Boolean(contactErrorMessage)
+
+  /** กด chip → เขียนทับค่าในช่อง แล้วค้นใหม่ทันทีด้วยเบอร์ที่สะอาดแล้ว */
+  const applyPhoneSuggestion = (phone: string) => {
+    setSelected(null)
+    buyerContactField.onChange(phone)
+    runSearch(phone)
   }
 
   const avatarChar = (c: CustomerResult) => (c.name ?? c.contact).trim().charAt(0) || '?'
@@ -184,7 +210,8 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
                 inputMode="numeric"
                 autoComplete="off"
                 placeholder="พิมพ์เบอร์โทร…"
-                className="form-input !pl-9"
+                aria-describedby={contactHintVisible ? 'cust-contact-hint' : undefined}
+                className={`form-input !pl-9 ${contactErrorMessage ? 'is-invalid' : ''}`}
                 value={buyerContactField.value ?? ''}
                 onChange={onContactChange}
                 onBlur={buyerContactField.onBlur}
@@ -248,9 +275,16 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
                 ลูกค้าเดิม · {selected.orderCount} ออเดอร์
               </p>
             )}
-            {errors.buyerContact?.message ? (
-              <p className="text-danger mt-1 text-sm">{String(errors.buyerContact.message)}</p>
-            ) : !selected ? (
+            {/* สล็อตเดียวใต้ช่อง — chip / คำเตือน / error เลือกกันเองในตัว component
+                🛑 ห้ามครอบด้วยเทอร์นารีอีก (ดูคอมเมนต์ในตัว PhoneSuggestHint) */}
+            <PhoneSuggestHint
+              id="cust-contact-hint"
+              value={buyerContactField.value ?? ''}
+              onPick={applyPhoneSuggestion}
+              size="desktop"
+              errorMessage={contactErrorMessage}
+            />
+            {!contactHintVisible && !selected ? (
               <p className="text-default-400 mt-1 text-xs">
                 เบอร์โทรสำหรับแจ้งลิงก์ผู้ซื้อ — เบอร์เดิม = จดจำเป็นลูกค้าเดียวกัน
               </p>

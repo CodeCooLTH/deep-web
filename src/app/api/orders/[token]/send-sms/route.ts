@@ -11,6 +11,7 @@ import { deductCredit, creditWallet } from "@/services/wallet.service";
 import { prisma } from "@/lib/prisma";
 import { sendSms, consumeSmsQuota } from "@/lib/sms";
 import { WALLET_REASON } from "@/lib/inventory-addon";
+import { MOBILE_PHONE_RE } from '@/lib/phone'
 
 // RC-4: daily SMS cap ต่อ shop ~200 SMS/วัน (DB-layer — นับ WalletTransaction DEDUCT วันนี้)
 // spec กำหนด: DB-layer count ที่แยกจาก in-memory hourly burst; ceiling cost-exposure
@@ -151,7 +152,7 @@ export async function POST(
   // order.buyerContact ต้องเป็นเบอร์ (ถ้าเป็น email หรือ null → 422)
   // ทำไม: RC-6 ห้ามรับ phone จาก client; buyerPhone จาก DB ใช้ lock ใน transaction
   const buyerPhone = order.buyerContact;
-  if (!buyerPhone || !/^0[0-9]{9}$/.test(buyerPhone)) {
+  if (!buyerPhone || !MOBILE_PHONE_RE.test(buyerPhone)) {
     return NextResponse.json(
       {
         error:

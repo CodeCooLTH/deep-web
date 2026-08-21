@@ -465,7 +465,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | `displayName` | String | ชื่อแสดงผล |
 | `username` | String `@unique` | ใช้ใน public profile `/u/{username}` |
 | `avatar` | String? | fileId หรือ URL รูปโปรไฟล์ |
-| `phone` | String? `@unique` | เบอร์ไทย `0[0-9]{9}` — PII |
+| `phone` | String? `@unique` | เบอร์มือถือไทย `0[689][0-9]{8}` — PII · แถวเก่าก่อน 2026-08-21 อาจเป็น `0[0-9]{9}` (ด่านใหม่กันเฉพาะค่าที่เขียนเข้ามาใหม่ ไม่มี CHECK ที่ระดับ DB) |
 | `email` | String? `@unique` | อีเมล FB OAuth — PII |
 | `trustScore` | Int default 0 | คะแนน 0-100 |
 | `isShop` | Boolean default false | true เมื่อสร้างร้านสำเร็จ |
@@ -573,7 +573,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | `shopId` | String FK → Shop | เจ้าของออเดอร์ |
 | `createdAt` | DateTime `@default(now())` | 🛑 **feature 00033 — คือ "วันที่/เวลาที่ลูกค้าสั่ง" ไม่ใช่แค่เวลาที่แถวถูกสร้าง** ผู้ขายระบุเองได้ผ่าน `createdAt` ใน `CreateOrderSchema` (ทั้งตอนสร้างและแก้ไข) ย้อนหลังได้สูงสุด 90 วัน / ล่วงหน้าได้ 7 วัน (SSOT ของช่วง: `src/lib/order-date-window.ts`) ไม่ส่งมา = ค่าเริ่มต้นเดิมทุกประการ. ค่านี้พา `orderNo` (`formatOrderNo` คิดปี/เดือนจากค่านี้), keyset pagination ของรายการออเดอร์ และยอดขายทุกหน้าไปด้วยทั้งชุด. เวลาจริงที่กดสร้าง/แก้ไข **ไม่เก็บที่นี่** — อยู่ใน `OrderEvent.occurredAt` (ดู §6.2 OrderEvent) |
 | `buyerUserId` | String? FK → User | null = buyer ยังไม่สมัคร |
-| `buyerContact` | String? | phone/email ของ buyer — PII; RC-6 lock ตอน SMS send |
+| `buyerContact` | String? | เบอร์มือถือของ buyer — PII; RC-6 lock ตอน SMS send · เขียนใหม่ได้เฉพาะค่าที่ผ่าน `MOBILE_PHONE_RE` (รวมทาง iShip import ตั้งแต่ 2026-08-21) |
 | `type` | String default `"PHYSICAL"` | inherit จาก product type |
 | `totalAmount` | Decimal(12,2) | ยอดรวมสุทธิ |
 | `status` | String default `"PENDING"` | state machine: `PENDING` / `SHIPPED` / `CONFIRMED` / `CANCELLED` |
@@ -1564,7 +1564,7 @@ route ที่รับ `?shopId=` แล้ว: `payments/**` (ใหม่) �
 | `contact` (OTP) | string 1-20 chars |
 | `type` (OTP) | picklist: `phone` / `email` / `PHONE` / `EMAIL` |
 | `otp` | string length = 6 |
-| `phone` (unlock) | regex `^0[0-9]{9}$` (เบอร์ไทย 10 หลักขึ้นต้น 0) |
+| `phone` (unlock) | regex `MOBILE_PHONE_RE` = `^0[689][0-9]{8}$` (มือถือไทย 10 หลัก ขึ้นต้น 06/08/09) |
 
 ### 10.2 Shop
 
@@ -1651,7 +1651,7 @@ route ที่รับ `?shopId=` แล้ว: `payments/**` (ใหม่) �
 | `items[].qty` | int ≥1 |
 | `items[].price` | number **≥0** (฿0 = จองไว้ก่อน ยังไม่เก็บเงิน — เปลี่ยนจาก ≥0.01 เมื่อ 2026-08-10) |
 | `type` | picklist: `PHYSICAL` / `DIGITAL` / `SERVICE` / `SUBSCRIPTION` |
-| `buyerContact` | string (optional) |
+| `buyerContact` | string **บังคับ** — regex `MOBILE_PHONE_RE` = `^0[689][0-9]{8}$` (มือถือไทย 10 หลัก ขึ้นต้น 06/08/09). บังคับมาตั้งแต่ FR ของ 00015 (TFR-009) · เข้มขึ้นจาก `^0[0-9]{9}$` เมื่อ 2026-08-21 |
 | `buyerName` | string (optional) |
 | `paymentMethod` | string (optional) |
 | `salesChannel` | string (optional) |
@@ -1724,7 +1724,27 @@ route ที่รับ `?shopId=` แล้ว: `payments/**` (ใหม่) �
 | `password` | ≥8 chars, ต้องมี letter+number+special, max 1000 | `PasswordSchema` (`src/lib/validations.ts`) |
 | `slug` (shop) | 3-30 chars a-z0-9- ไม่ขึ้น/ลงด้วย hyphen; `src/lib/shop-slug.ts:isValidSlugFormat` | `ShopSlugSchema` |
 | `category` (shop) | picklist จาก `SHOP_CATEGORY_KEYS` (10 key) | `ShopCategorySchema` |
-| phone (set-phone) | regex `^0[0-9]{9}$` + OTP ยืนยันก่อน set | `SetPhoneSchema` |
+| phone (set-phone) | regex `MOBILE_PHONE_RE` = `^0[689][0-9]{8}$` + OTP ยืนยันก่อน set | `SetPhoneSchema` |
+
+### 10.12 เบอร์โทร — 2 เกณฑ์ที่ไม่เท่ากันโดยเจตนา (2026-08-21)
+
+🛑 ทั้งคู่อยู่ใน **`src/lib/phone.ts` ไฟล์เดียวกัน วางติดกัน** ตาม Hard Rule 16
+ห้ามแยกไฟล์ และห้ามบีบตัวที่ 2 ให้เท่าตัวที่ 1
+
+| | `MOBILE_PHONE_RE` | `normalizePhone()` |
+|---|---|---|
+| ค่า | `^0[689][0-9]{8}$` | `^0[0-9]{9}$` (หลวมกว่า) |
+| ตอบคำถาม | *"ค่าใหม่ที่ยอมรับ"* | *"ค่าที่มีอยู่แล้วแปลว่าอะไร"* |
+| ใช้ที่ | validator ทุกตัว (27 จุด) + chip แนะนำเบอร์ | `order-access.service.ts` (ตัดสินว่าผู้ซื้อเปิดออเดอร์ตัวเองได้ไหม) · `order-pii-mask.ts` · `order.service.ts` (derive Customer) |
+
+**ทำไมไม่บีบให้เท่ากัน:** บน prod มี 13 ออเดอร์ที่ `buyerContact` เป็น `00000000xx`
+(ข้อมูลเดโมของทีมรีวิว Meta/Apple) — บีบตัวที่ 2 = เปลี่ยนความหมายของข้อมูลเก่า
+ย้อนหลัง จอฝั่งผู้ซื้อของใบพวกนั้นจะเปลี่ยนพฤติกรรมทันทีโดยไม่มีใครขอ
+
+**แผนเลขหมายไทย:** มือถือ = 10 หลัก ขึ้นต้น 06/08/09 เท่านั้น
+(`01/03/04/05/07` ที่ยังพบในเอกสารเก่าคือระบบ 9 หลัก **ก่อนการขยายเลขหมายปี 2549**)
+
+ที่มา: `docs/20 - Features/00014 - Customer Directory/EXTENSIONS-2026-08-21-phone-format.md`
 
 ### 10.11 หมายเหตุ
 

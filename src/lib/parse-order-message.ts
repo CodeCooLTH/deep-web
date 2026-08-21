@@ -10,6 +10,8 @@
  * แม่นยำ ~80% — เคส typo (จ ไม่มี . / สลับลำดับ) จะพลาดบางฟิลด์ = ยอมรับได้ (seller ตรวจ/แก้)
  */
 
+import { firstThaiMobile, findThaiMobileSpans } from '@/lib/phone'
+
 export interface ParsedOrderMessage {
   name?: string
   phone?: string
@@ -61,19 +63,35 @@ export function isKnownProvince(name: string | undefined): boolean {
 }
 
 /**
- * เบอร์โทรพร้อม label — ใช้ "ตัดออกจากบรรทัด" ก่อนมองหาที่อยู่
+ * label ของเบอร์ ("โทร", "เบอร์โทร:", "tel.") — ตัดทิ้งหลังจากเอา *ตัวเลข* ออกไปแล้ว
  *
  * เดิมบรรทัดที่มีคำว่า โทร/เบอร์ ถูกข้ามทั้งบรรทัด ทำให้ข้อความที่ร้านได้จริงบ่อยที่สุด
  * (ชื่อ + ที่อยู่ + เบอร์ อยู่บรรทัดเดียวกัน) ไม่ได้ "ที่อยู่" เลยทั้งที่มีอยู่ในข้อความ
  */
-const PHONE_WITH_LABEL = /(?:โทร(?:ศัพท์)?|เบอร์(?:โทร)?|tel\.?)?\s*[:：]?\s*0\d(?:[ \-.]?\d){8}\/?/giu
+const PHONE_LABEL = /(?:โทร(?:ศัพท์)?|เบอร์(?:โทร)?|tel\.?)\s*[:：]?\s*\/?/giu
 
 /** คำที่บอกว่าส่วนนำหน้าเป็น "ส่วนหนึ่งของที่อยู่" ไม่ใช่ชื่อคน — ห้ามตัดทิ้ง */
 const ADDRESS_WORDS = /หมู่|บ้าน|เลขที่|ซอย|ซ\.|ถนน|ถ\.|ที่อยู่|ห้อง|อาคาร|ตึก|ชั้น|คอนโด|หมู่บ้าน/
 
-/** ตัดเบอร์โทรออกแล้วบีบช่องว่าง — คืนบรรทัดที่พร้อมเอาไปหาที่อยู่ */
+/**
+ * ตัดเบอร์โทรออกแล้วบีบช่องว่าง — คืนบรรทัดที่พร้อมเอาไปหาที่อยู่
+ *
+ * 🛑 ต้องใช้ `findThaiMobileSpans` ตัวเดียวกับที่ `parseOrderMessage` ใช้ดึงเบอร์ออกมา
+ * ห้ามเขียน regex เบอร์ซ้ำที่นี่ — ไฟล์นี้ทำ 2 งานกับค่าเดียวกัน (ดึงเบอร์ + ลบเบอร์)
+ * ถ้าสองงานใช้คนละนิยาม จะได้ที่อยู่ที่มีเบอร์ค้างอยู่ข้างในโดยไม่มีอะไรฟ้อง
+ * (ของเดิมเป็นแบบนั้นจริง: regex เก่ารับแค่ `- . เว้นวรรค` ⇒ `0_9_2_0791649` ทั้งไม่ถูกดึง
+ * และไม่ถูกลบ — ที่มา ext 2026-08-21)
+ */
 function stripPhone(line: string): string {
-  return line.replace(PHONE_WITH_LABEL, ' ').replace(/\s{2,}/g, ' ').trim()
+  let out = line
+  // ลบจากท้ายไปหน้า เพื่อให้ index ที่คำนวณไว้ยังตรงหลังตัดแต่ละครั้ง
+  for (const s of findThaiMobileSpans(line).reverse()) {
+    out = out.slice(0, s.start) + ' ' + out.slice(s.end)
+  }
+  return out
+    .replace(PHONE_LABEL, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
 }
 
 /**
@@ -122,9 +140,11 @@ export function parseOrderMessage(text: string): ParsedOrderMessage {
   const out: ParsedOrderMessage = {}
   if (!text || !text.trim()) return out
 
-  // ── เบอร์โทร: 0 + อีก 9 หลัก (คั่น -/space ได้) เอาตัวแรก ──
-  const phoneMatch = text.match(/0\d(?:[ \-.]?\d){8}/)
-  if (phoneMatch) out.phone = phoneMatch[0].replace(/\D/g, '')
+  // ── เบอร์โทร: มือถือตัวแรกที่เจอ (SSOT = src/lib/phone.ts) ──
+  // 🛑 ปุ่ม "วางจากแชท" เติมค่าให้เลยโดยไม่ถาม จึงเลือกได้ตัวเดียว (ตัวแรก) เหมือนเดิม —
+  // การเสนอหลายเบอร์ทำได้เฉพาะที่ที่มีคนกดยืนยัน (chip ในช่องเบอร์)
+  const phone = firstThaiMobile(text)
+  if (phone) out.phone = phone
 
   // ── รหัสไปรษณีย์: เลข 5 หลักที่ไม่ติดกับเลขอื่น (กันจับกลางเบอร์ 10 หลัก) ──
   const zip = text.match(/(?<!\d)\d{5}(?!\d)/)

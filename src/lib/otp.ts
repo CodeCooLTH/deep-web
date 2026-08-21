@@ -4,6 +4,7 @@
 // DB shared ทุก instance → แก้ที่ต้นเหตุ. codeHash = SHA-256 (hash at rest), single-use.
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { MOBILE_PHONE_RE } from '@/lib/phone'
 
 // rate-limit ยังเป็น in-memory globalThis (per-instance) — บน serverless = looser (3×N instance)
 // ไม่ใช่บั๊กหลัก (signup ใช้ได้); ย้ายไป DB/Redis ทีหลังถ้าต้องเข้มจริง. PRD NFR-2.7.
@@ -94,12 +95,12 @@ export function isTestAccount(contact: string): boolean {
 
 /**
  * แปลงเบอร์โทรไทย local format → E.164
- * input ที่ถูกต้อง: ^0[0-9]{9}$ (10 หลัก ขึ้นต้น 0)
+ * input ที่ถูกต้อง: MOBILE_PHONE_RE (มือถือ 10 หลัก ขึ้นต้น 06/08/09)
  * เช่น "0812345678" → "+66812345678"
  * ถ้าไม่ match → throw เพื่อกัน bug ชั้นสอง (route guard ควรกรองก่อนแล้ว)
  */
 export function toE164Thai(phone: string): string {
-  if (!/^0[0-9]{9}$/.test(phone)) {
+  if (!MOBILE_PHONE_RE.test(phone)) {
     throw new Error("INVALID_THAI_PHONE");
   }
   return "+66" + phone.slice(1);
