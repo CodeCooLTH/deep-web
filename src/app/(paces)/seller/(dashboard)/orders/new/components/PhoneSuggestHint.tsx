@@ -59,9 +59,14 @@ export default function PhoneSuggestHint({ value, id, onPick, size = 'mobile', e
   //
   // `ring-1 ring-primary/25` — พื้นชิปต่างจากการ์ดขาวแค่ 1.23:1 ถ้าไม่มีขอบ ผู้ใช้จะไม่รู้ว่ากดได้
   // (WCAG 1.4.11 องค์ประกอบที่ไม่ใช่ข้อความต้อง 3:1 — ขอบเป็นตัวที่แบกเกณฑ์นั้นแทนพื้น)
+  //
+  // 🛑 `min-h-11` (44px) บนมือถือ **ห้ามลด** — PRODUCT.md §Accessibility ประกาศเกณฑ์
+  // tap target ≥44px ไว้เองเป็น AA baseline ของโปรเจกต์ (สูงกว่าที่ WCAG 2.2 §2.5.8
+  // บังคับจริงคือ 24px) และมีด่าน `orders/__tests__/mobile-affordance.test.ts` เฝ้าอยู่
+  // ที่ย่อได้คือ **ระยะกับคำ** ไม่ใช่พื้นที่นิ้ว (user สั่งย่อ 2026-08-21)
   const chipClass = mobile
-    ? 'btn min-h-11 rounded-full bg-primary/15 text-primary-ink ring-1 ring-primary/25 hover:bg-primary hover:text-white'
-    : 'btn rounded-full bg-primary/15 text-primary-ink ring-1 ring-primary/25 hover:bg-primary hover:text-white'
+    ? 'btn min-h-11 rounded-full px-3 bg-primary/15 text-primary-ink ring-1 ring-primary/25 hover:bg-primary hover:text-white'
+    : 'btn rounded-full px-3 py-1 bg-primary/15 text-primary-ink ring-1 ring-primary/25 hover:bg-primary hover:text-white'
 
   // 🛑 กล่องนี้ mount ค้างเสมอ แม้ตอนไม่มีอะไรจะพูด — live region ที่ถูก unmount/mount ใหม่
   // ทุกครั้ง screen reader จะไม่ประกาศการเปลี่ยนแปลง (ประกาศแค่ตอนแรกที่ mount)
@@ -72,10 +77,10 @@ export default function PhoneSuggestHint({ value, id, onPick, size = 'mobile', e
           {/* บรรทัดนำ — ตอบ 2 คำถามที่ชิปเปล่า ๆ ตอบไม่ได้: ระบบทำอะไรให้ และกดแล้วได้อะไรต่อ
               (ชิปที่เขียนแค่เลขเดิมของผู้ใช้ ไม่มีแรงจูงใจให้กด — critique P1-5)
               เมื่อกดบันทึกแล้วติด error บรรทัดนี้เปลี่ยนเป็นคำบล็อก ไม่ใช่เพิ่มบรรทัดที่สอง */}
-          <p className={`mt-1 text-xs ${blocked ? 'text-danger' : 'text-default-500'}`}>
+          <p className={`mt-0.5 text-xs ${blocked ? 'text-danger' : 'text-default-500'}`}>
             {chipsHeadline(hint.suggestions.length, blocked)}
           </p>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <div className="mt-1 flex flex-wrap gap-1">
             {hint.suggestions.map((phone) => (
               <button key={phone} type="button" onClick={() => onPick(phone)} className={chipClass}>
                 {phone}
