@@ -166,7 +166,7 @@ export default function CanvasFrame({ draft, header, onReorderBlocks, onReorderT
                 สิ่งที่ต้องตรงคือ **ลำดับและตำแหน่งของของแต่ละชิ้น** ไม่ใช่ขนาดสัมบูรณ์ */}
             <div
               className="relative h-36 overflow-hidden"
-              style={{ background: header.coverImageUrl ? '#120d07' : header.tierGradient }}
+              style={{ background: header.coverImageUrl ? '#120d07' /* carve-out HR7: canvas นี้จำลองปกฝั่งผู้ซื้อ (Vuexy) ต้องตรงกับ ProfileIdentity.tsx — ใช้ token Paces แล้วพรีวิวจะโกหกว่าลูกค้าเห็นแบบไหน */ : header.tierGradient }}
             >
               {header.coverImageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element -- ภาพปกร้านจาก storage ภายนอก ไม่ผ่าน next/image config
@@ -191,12 +191,12 @@ export default function CanvasFrame({ draft, header, onReorderBlocks, onReorderT
                   )}
                 </div>
                 <div className="min-w-0 flex-1 text-white">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold text-default-900">
+                  <span className={'inline-flex items-center gap-1 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold text-default-900' /* carve-out HR7: canvas นี้จำลองปกฝั่งผู้ซื้อ (Vuexy) ต้องตรงกับ ProfileIdentity.tsx — ใช้ token Paces แล้วพรีวิวจะโกหกว่าลูกค้าเห็นแบบไหน */}>
                     {header.tierLabel}
                     <span className="tabular-nums opacity-70">{header.trustScore}</span>
                   </span>
                   <div className="mt-1 truncate text-sm font-extrabold">{header.shopName}</div>
-                  {heroSubtitle && <div className="truncate text-[10px] text-white/70">{heroSubtitle}</div>}
+                  {heroSubtitle && <div className={'truncate text-[10px] text-white/70' /* carve-out HR7: canvas นี้จำลองปกฝั่งผู้ซื้อ (Vuexy) ต้องตรงกับ ProfileIdentity.tsx — ใช้ token Paces แล้วพรีวิวจะโกหกว่าลูกค้าเห็นแบบไหน */}>{heroSubtitle}</div>}
                   {/* กล่องสถิติกระจกฝ้า — ผังเดียวกับหน้าจริง (มีเส้นคั่นระหว่างช่อง) */}
                   <div className="mt-1.5 flex overflow-hidden rounded-lg border border-white/15 bg-black/30">
                     {heroStats.map((s, i) => (
@@ -205,7 +205,7 @@ export default function CanvasFrame({ draft, header, onReorderBlocks, onReorderT
                         className={`flex-1 px-1 py-1 text-center ${i < heroStats.length - 1 ? 'border-r border-white/10' : ''}`}
                       >
                         <div className="text-xs font-extrabold tabular-nums leading-tight">{s.value}</div>
-                        <div className="text-[9px] text-white/65">{s.label}</div>
+                        <div className={'text-[9px] text-white/65' /* carve-out HR7: canvas นี้จำลองปกฝั่งผู้ซื้อ (Vuexy) ต้องตรงกับ ProfileIdentity.tsx — ใช้ token Paces แล้วพรีวิวจะโกหกว่าลูกค้าเห็นแบบไหน */}>{s.label}</div>
                       </div>
                     ))}
                   </div>
