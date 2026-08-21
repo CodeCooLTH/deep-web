@@ -86,8 +86,9 @@ describe('[blocker] "ไม่ใช่มือถือ" ต้องเป็
   it('9 หลัก → บอกจำนวนหลัก ไม่ใช่เรื่องคำนำหน้า', () => {
     const h = phoneHint('092079164')
     if (h.kind === 'warning') {
-      expect(h.message).toContain('10 หลักพอดี')
-      expect(h.message).not.toContain('06, 08 หรือ 09')
+      // ยึด "ความหมาย" ไม่ใช่ถ้อยคำ: ต้องพูดเรื่องจำนวนหลัก และต้องไม่พูดเรื่องคำนำหน้า
+      expect(h.message).toContain('10 หลัก')
+      expect(h.message).not.toContain('06')
     }
   })
 })
@@ -108,10 +109,11 @@ describe('[blocker] chip แสดงเลขติดกันตรงกั�
 })
 
 describe('[blocker] chipsHeadline — บรรทัดนำที่ตอบว่าระบบทำอะไรให้', () => {
-  it('1 เบอร์ → บอกว่าตัดให้แล้ว และกดแล้วจะค้นหาต่อให้', () => {
+  it('1 เบอร์ → บอกว่ากดแล้วจะค้นหาลูกค้าเดิมต่อให้ (เหตุผลที่จอไม่เด้งเอง)', () => {
     const h = chipsHeadline(1, false)
-    expect(h).toContain('ตัดอักขระให้แล้ว')
     expect(h).toContain('ค้นหาลูกค้าเดิม')
+    // ต้องไม่ใช่คำเดียวกับตอนถูกบล็อก — สองสถานะนี้ต้องอ่านออกว่าต่างกัน
+    expect(h).not.toBe(chipsHeadline(1, true))
   })
 
   it('หลายเบอร์ → บอกจำนวนจริง และบอกว่าต้องเลือก (ห้ามเลือกให้เอง)', () => {
@@ -190,5 +192,27 @@ describe('[blocker] emptyStateMessage — "ไม่พบลูกค้าเ�
 
   it('เบอร์ถูกต้องแต่ไม่มีในระบบ → ข้อความเดิมล้วน ๆ (ไม่พบจริง)', () => {
     expect(emptyStateMessage('0920791649')).toBe('ไม่พบลูกค้าเดิม')
+  })
+})
+
+describe('[blocker] ข้อความต้องเป็นประโยคเดียว ไม่ใช่ชิ้นส่วนต่อกัน', () => {
+  /**
+   * 🛑 ต่อ `lengthMessage` เข้ากับ "ไม่พบลูกค้าเดิม" ตรง ๆ จะได้ขีดคั่นซ้อน 2 อัน
+   * ("ไม่พบลูกค้าเดิม — เบอร์นี้มี 8 หลัก — เบอร์มือถือต้องมี 10 หลัก") อ่านเหมือน
+   * สามประโยคชนกัน — clarify ห้ามประกอบข้อความจากชิ้นส่วนที่ไม่ได้ออกแบบมาให้ต่อกัน
+   */
+  it.each(['09207916', '09207916499', '0212345678', 'สมชาย', '0920791649', '0 8 6 5 3 5 2960'])(
+    'emptyStateMessage(%j) มีขีดคั่นไม่เกิน 1 อัน',
+    (input) => {
+      const dashes = (emptyStateMessage(input).match(/—/g) ?? []).length
+      expect(dashes).toBeLessThanOrEqual(1)
+    },
+  )
+
+  it.each([1, 2, 3])('chipsHeadline(%i) มีขีดคั่นไม่เกิน 1 อัน', (n) => {
+    for (const blocked of [false, true]) {
+      const dashes = (chipsHeadline(n, blocked).match(/—/g) ?? []).length
+      expect(dashes).toBeLessThanOrEqual(1)
+    }
   })
 })

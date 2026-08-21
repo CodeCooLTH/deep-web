@@ -45,14 +45,14 @@ type PwFormValues = Yup.InferType<typeof pwSchema>
 // Schema โหมด OTP (toggle)
 const phoneSchema = Yup.object({
   phone: Yup.string()
-    .matches(MOBILE_PHONE_RE, 'เบอร์มือถือ 10 หลัก ขึ้นต้นด้วย 06 08 หรือ 09')
+    .matches(MOBILE_PHONE_RE, MOBILE_RULE_TEXT)
     .required('กรุณากรอกเบอร์โทร'),
 })
 type PhoneFormValues = Yup.InferType<typeof phoneSchema>
 
 /** สรุปออเดอร์แบบ public-safe จาก getOrderSummaryForSignIn (ไม่มี PII ของคน) */
 import OrderLinkShell, { type OrderLinkShopContext } from './OrderLinkShell'
-import { MOBILE_PHONE_RE } from '@/lib/phone'
+import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
 
 export type SignInOrderContext = OrderLinkShopContext
 

@@ -40,7 +40,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import * as Yup from 'yup'
-import { MOBILE_PHONE_RE } from '@/lib/phone'
+import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
 
 // --- Yup Schema ---
 const schema = Yup.object({
@@ -64,7 +64,7 @@ const schema = Yup.object({
     .oneOf([Yup.ref('password')], 'รหัสผ่านไม่ตรงกัน')
     .required('กรุณายืนยันรหัสผ่าน'),
   phone: Yup.string()
-    .matches(MOBILE_PHONE_RE, 'เบอร์มือถือ 10 หลัก ขึ้นต้นด้วย 06 08 หรือ 09')
+    .matches(MOBILE_PHONE_RE, MOBILE_RULE_TEXT)
     .required('กรุณากรอกเบอร์โทร'),
   acceptTerms: Yup.boolean()
     .oneOf([true], 'กรุณายอมรับนโยบายความเป็นส่วนตัวก่อนสมัคร')

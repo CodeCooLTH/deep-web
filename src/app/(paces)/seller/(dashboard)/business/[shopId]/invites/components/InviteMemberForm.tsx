@@ -20,7 +20,7 @@ import { useForm } from 'react-hook-form'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
-import { MOBILE_PHONE_RE } from '@/lib/phone'
+import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
 
 const schema = Yup.object({
   contactType: Yup.string().oneOf(['PHONE', 'EMAIL'] as const).required(),
@@ -28,7 +28,7 @@ const schema = Yup.object({
     .required('กรุณากรอกเบอร์โทรหรืออีเมล')
     .when('contactType', {
       is: 'PHONE',
-      then: (s) => s.matches(MOBILE_PHONE_RE, 'เบอร์มือถือ 10 หลัก ขึ้นต้นด้วย 06 08 หรือ 09'),
+      then: (s) => s.matches(MOBILE_PHONE_RE, MOBILE_RULE_TEXT),
       otherwise: (s) => s.email('รูปแบบอีเมลไม่ถูกต้อง'),
     }),
 })

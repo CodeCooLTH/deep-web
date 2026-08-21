@@ -115,7 +115,7 @@ export default function CustomerSearchSheet({ open, initialQuery = '', onSelect,
           <input
             ref={inputRef}
             type="text"
-            aria-label="ค้นหาลูกค้าด้วยชื่อหรือเบอร์โทร"
+            aria-label="ชื่อหรือเบอร์โทรลูกค้า"
             value={q}
             onChange={(e) => {
               setQ(e.target.value)

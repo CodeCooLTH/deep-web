@@ -31,7 +31,7 @@ import { Icon } from '@iconify/react'
 
 import CustomTextField from '@core/components/mui/TextField'
 import OtpSlots from '@/app/(marketing)/_components/OtpSlots'
-import { MOBILE_PHONE_RE } from '@/lib/phone'
+import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
 
 // เหมือน phoneSchema ใน src/app/(marketing)/auth/sign-in/SignInCard.tsx
 const PHONE_RE = MOBILE_PHONE_RE
@@ -72,7 +72,7 @@ export default function BidPhoneVerifyDialog({ open, onClose, onVerified }: Prop
     setPhoneError(null)
     setErrorMsg(null)
     if (!PHONE_RE.test(phone)) {
-      setPhoneError('เบอร์มือถือ 10 หลัก ขึ้นต้นด้วย 06 08 หรือ 09')
+      setPhoneError(MOBILE_RULE_TEXT)
       return
     }
     setSending(true)
