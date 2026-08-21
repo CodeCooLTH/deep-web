@@ -112,7 +112,35 @@ export default function RegisterPage() {
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const isApple = providerFromUsername(user.username) === 'apple'
-  const hideUsername = isApple && uStatus === 'ok'
+
+  /**
+   * 🛑 `"User"` ไม่ใช่ชื่อคน — มันคือค่าสำรองใน `signIn` callback ตอนที่ผู้ให้บริการไม่ส่งชื่อมา
+   *
+   * Apple ส่งชื่อมา **ครั้งเดียวตลอดชีวิตของบัญชี** (ครั้งแรกที่กดอนุญาต) ⇒ คนที่เคยกดอนุญาต
+   * ไปแล้วก่อนที่เราจะเก็บชื่อเป็น (ก่อน 2026-08-21) จะไม่มีวันได้ชื่อคืน ไม่ว่าจะล็อกอินอีกกี่รอบ
+   * นอกจากจะไปถอนสิทธิ์ใน Settings ของ iPhone ก่อน — เราสั่งผู้ใช้ทำแบบนั้นไม่ได้
+   *
+   * ⇒ ต้องกันไม่ให้ค่าสำรองรั่วออกมาเป็นข้อความบนจอ: ทักทายว่า "สวัสดี User" อ่านเหมือนระบบพัง
+   * และถ้าปล่อยไปเป็นชื่อร้าน ร้านนั้นจะชื่อ "User" บนหน้าสาธารณะที่ผู้ซื้อเห็น
+   */
+  const realName = user.displayName && user.displayName !== 'User' ? user.displayName : ''
+
+  /**
+   * 🛑 **ซ่อนไว้ก่อนเป็นค่าตั้งต้น แล้วค่อยโชว์ถ้าใช้ไม่ได้จริง** — กลับด้านจากของเดิมที่เขียนว่า
+   * `isApple && uStatus === 'ok'`
+   *
+   * ของเดิม `uStatus` เริ่มที่ `'idle'` ⇒ **เฟรมแรกที่วาดออกมา ช่อง "ชื่อผู้ใช้" โผล่เต็มตา**
+   * พร้อมหัวข้อ "ตั้งชื่อผู้ใช้และยืนยันเบอร์…" แล้วค่อยหายไปหลัง fetch กลับมา — คนรีวิวของ Apple
+   * ที่เปิดหน้านี้บนเน็ตที่ไม่ได้เร็วเท่าเครื่อง dev เห็นช่องนั้นเต็ม ๆ (เขาแนบภาพหน้าจอมาด้วย)
+   * และถ้า fetch ล้ม `.catch` ตั้งกลับเป็น `'idle'` ⇒ **ช่องค้างอยู่ตลอดไป**
+   *
+   * นี่คือเหตุผลที่แพตช์รอบ 2026-08-20 ไม่ได้ผล: มันซ่อนถูกที่ แต่ซ่อน **ช้าไปหนึ่งจังหวะ**
+   * และไม่ได้กันกรณี fetch ล้มเลย ⇒ Apple ตีกลับซ้ำด้วยข้อความเดิมเป๊ะ (2026-08-21)
+   *
+   * กติกาใหม่: สำหรับ Apple ให้ซ่อนเสมอ **ยกเว้น** ตรวจแล้วรู้แน่ว่าชื่อที่ระบบตั้งให้ใช้ไม่ได้
+   * (`taken`/`invalid`) ซึ่งเป็นสองสถานะที่ *ยืนยันแล้ว* ไม่ใช่สถานะ "ยังไม่รู้"
+   */
+  const hideUsername = isApple && uStatus !== 'taken' && uStatus !== 'invalid'
 
   useEffect(() => {
     if (status === 'loading') return
@@ -171,7 +199,12 @@ export default function RegisterPage() {
 
   // info → warning: save username + สร้าง shop (ชื่อร้าน = ชื่อจาก FB), เช็คเบอร์ซ้ำ
   const submitInfo = async () => {
-    if (uStatus !== 'ok') return pacesToast.error('กรุณาตั้งชื่อผู้ใช้ที่ใช้ได้')
+    /* 🛑 ตอนซ่อนช่องอยู่ ห้ามบล็อกด้วยสถานะของช่องที่ผู้ใช้มองไม่เห็น — ของเดิมถ้า fetch ยังไม่กลับ
+       (`checking`) หรือ fetch ล้ม (`idle`) ผู้ใช้จะกดถัดไปแล้วเจอ toast ให้ "ตั้งชื่อผู้ใช้ที่ใช้ได้"
+       ทั้งที่ไม่มีช่องให้ตั้ง = ทางตันที่ไม่มีอะไรบอกทางออก
+       ชื่อที่ระบบตั้งให้ (`apple{sub}`) บันทึกได้อยู่แล้ว ถ้ามันซ้ำจริง server จะตอบ error กลับมาเอง
+       แล้ว `uStatus` กลายเป็น `taken` ⇒ ช่องโผล่ให้แก้ในรอบถัดไป */
+    if (!hideUsername && uStatus !== 'ok') return pacesToast.error('กรุณาตั้งชื่อผู้ใช้ที่ใช้ได้')
     if (!MOBILE_PHONE_RE.test(phone)) return pacesToast.error('กรุณากรอกเบอร์โทรให้ถูกต้อง')
     setInfoLoading(true)
     try {
@@ -180,7 +213,7 @@ export default function RegisterPage() {
       if (pRes.ok && pData.available === false) { setInfoLoading(false); return phoneTakenDialog() }
       const res = await fetch('/api/account/shop-info', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ displayName: (user.displayName || 'ร้านค้า').trim(), username }),
+        body: JSON.stringify({ displayName: (realName || 'ร้านค้า').trim(), username }),
       })
       if (!res.ok) { const d = await res.json().catch(() => ({})); setInfoLoading(false); return pacesToast.error(d.error ?? 'บันทึกไม่สำเร็จ') }
       setStep('warning')
@@ -240,7 +273,7 @@ export default function RegisterPage() {
           {user.avatar ? (
             <img src={user.avatar} alt="" className="size-16 rounded-full object-cover ring-2 ring-primary/20" />
           ) : (
-            <span className="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary text-2xl font-bold">{(user.displayName || 'D').slice(0, 1)}</span>
+            <span className="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary text-2xl font-bold">{(realName || 'D').slice(0, 1)}</span>
           )}
           {(() => {
             // ไม่รู้จัก = ไม่แสดงชิปเลย ดีกว่าเดาแล้วบอกผู้ใช้ผิด (fail-closed)
@@ -262,7 +295,7 @@ export default function RegisterPage() {
           <>
             <h4 className="mb-1 text-center text-lg font-bold text-default-900">สร้างบัญชีผู้ขาย</h4>
             <p className="text-default-400 mb-5 text-center text-sm">
-              {user.displayName ? `สวัสดี ${user.displayName} — ` : ''}
+              {realName ? `สวัสดี ${realName} — ` : ''}
               {hideUsername ? 'ยืนยันเบอร์เพื่อเริ่มใช้งาน' : 'ตั้งชื่อผู้ใช้และยืนยันเบอร์เพื่อเริ่มใช้งาน'}
             </p>
             <div className="flex flex-col gap-5">

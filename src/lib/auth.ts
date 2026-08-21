@@ -17,6 +17,7 @@ import { resolveOnboardingGate } from "@/lib/onboarding-gate";
 // = บัญชีที่ผู้ใช้สั่งลบยังกลับเข้ามาได้ ซึ่งผิดข้อกำหนดของ Apple ตรง ๆ
 import { isDeletedUser } from "@/lib/account-deletion";
 import { createAppleClientSecret, isApplePrivateRelayEmail } from "@/lib/apple-client-secret";
+import { takeAppleSignupName } from "@/lib/apple-signup-name";
 
 // Rate-limit store สำหรับ admin login — singleton pattern เหมือน otp.ts
 // ป้องกัน Next.js สร้าง instance ใหม่ต่อ module load ใน multi-route environment
@@ -95,7 +96,22 @@ async function upsertOAuthUser(
       try {
         dbUser = await prisma.user.create({
           data: {
-            displayName: user?.name || "User",
+            /**
+             * 🛑 ชื่อของ Apple **ไม่ได้มาทาง `user.name`** — Apple ส่งมาเป็น form field ชื่อ `user`
+             * ในตัว POST ที่ callback และส่งครั้งเดียวตลอดชีวิตของบัญชี ส่วน next-auth อ่านจาก
+             * claim `profile.name` ที่ไม่มีอยู่จริงใน ID token ⇒ `user.name` เป็น undefined เสมอ
+             * ⇒ ผู้ใช้ Apple ทุกคนเคยได้ชื่อว่า "User" เหมือนกันหมด แล้วระบบต้องไปถามชื่อทีหลัง
+             * ซึ่งคือข้อที่ Apple ตีกลับ 2 รอบ (Guideline 4 · 2026-08-19 และ 2026-08-21)
+             *
+             * ตัวที่ดักไว้คือ `src/app/api/auth/[...nextauth]/route.ts` ซึ่งเห็น body ดิบ
+             * แล้วฝากชื่อไว้ตาม `sub` — ที่นี่มารับช่วงต่อ (อ่านแล้วลบทิ้งทันที)
+             *
+             * ลำดับสำรอง: ชื่อจาก Apple → ชื่อจาก provider อื่น (FB ส่งมาทาง profile ปกติ) → "User"
+             */
+            displayName:
+              takeAppleSignupName(providerEnum === "APPLE" ? account.providerAccountId : null) ||
+              user?.name ||
+              "User",
             username,
             avatar: user?.image,
             email: trustedEmail,
