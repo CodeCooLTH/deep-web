@@ -14,6 +14,9 @@ import Icon from '@/components/wrappers/Icon'
 import AddressSearchSheet, { type SelectedLocality } from './AddressSearchSheet'
 import PasteParseSheet from './PasteParseSheet'
 import CustomerSearchSheet, { type CustomerResult } from './CustomerSearchSheet'
+import PhoneSuggestHint from './PhoneSuggestHint'
+import { hasPhoneSuggestion, hasPhoneHint } from '@/lib/phone-hint'
+import { MOBILE_PHONE_RE } from '@/lib/phone'
 import type { FormValues } from './OrderCreateForm'
 import type { ParsedOrderMessage } from '@/lib/parse-order-message'
 import { getLocalityStatus } from '@/lib/shipping-address-status'
@@ -46,20 +49,38 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // พิมพ์เบอร์ → debounce (เผื่อ paste) → เปิด sheet ค้นหา (ไม่เปิดตอนแค่จิ้ม)
+  //
+  // 🛑 มี chip แนะนำค้างอยู่ = ยังไม่เปิดชีต (user เคาะ 2026-08-21) — ชีตเปิดทับทั้งจอ
+  // ถ้าเปิดตอนค่ายังเพี้ยน ร้านจะเห็นจอ "ไม่พบลูกค้าเดิม" ทั้งที่ลูกค้าคนนั้นมีอยู่จริง
+  // (นั่นคือภาพที่ user รายงานมาพอดี) และ chip ที่เพิ่งโผล่จะถูกทับใน ~0.5 วินาที
+  // ปล่อยให้ร้านกด chip ให้ค่าสะอาดก่อน แล้วการค้นที่วิ่งจริงคือการค้นที่หาเจอได้
+  //
+  // เคสอื่น (พิมพ์ชื่อคน / เลขที่ยังไม่ครบ) ชีตยังเปิดเองเหมือนเดิมทุกอย่าง
   const triggerCustomerSearch = (value: string) => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
     searchDebounceRef.current = setTimeout(() => {
       const t = value.trim()
-      if (t.length >= 2) {
-        setCustQuery(t)
-        setCustOpen(true)
-      }
+      if (t.length < 2) return
+      if (hasPhoneSuggestion(t)) return
+      setCustQuery(t)
+      setCustOpen(true)
     }, 500)
+  }
+
+  /** กด chip → เขียนทับค่าในช่อง แล้วค้นใหม่ทันทีด้วยเบอร์ที่สะอาดแล้ว */
+  const applyPhoneSuggestion = (phone: string) => {
+    setSelected(null)
+    setIsNewCustomer(false)
+    setValue('buyerContact', phone, { shouldValidate: true })
+    triggerCustomerSearch(phone)
   }
 
   const { field: nameField } = useController({ control, name: 'buyerName', defaultValue: '' })
   const { field: contactField } = useController({ control, name: 'buyerContact', defaultValue: '' })
   const { field: line1Field } = useController({ control, name: 'shippingAddress.line1', defaultValue: '' })
+
+  /** สล็อตใต้ช่องเบอร์มีอะไรจะพูดไหม — ตัวเดียวกับที่ PhoneSuggestHint ใช้ตัดสินภายใน */
+  const hintVisible = hasPhoneHint(contactField.value ?? '')
 
   /**
    * บล็อกที่อยู่ต้องผูกกับ needsShipping ตัวเดียวกับที่ตัดสินการบันทึกจริง (user 2026-08-10)
@@ -112,12 +133,21 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
     setCustOpen(false)
   }
 
-  // "ใช้คำที่พิมพ์เป็นลูกค้าใหม่" — เดา: ขึ้นต้นด้วยเลข = เบอร์, ไม่งั้น = ชื่อ
+  /**
+   * "ใช้คำที่พิมพ์เป็นลูกค้าใหม่"
+   *
+   * 🛑 เดิมเขียนว่า `if (/^\d/.test(q)) setValue('buyerContact', q)` = ยัด **ค่าดิบทั้งดุ้น**
+   * ลงช่องเบอร์ ⇒ `"0 8 6 5 3 5 2960"` เข้าฟอร์มแล้วไปเด้งตอนกดบันทึกท้ายสุด หลังร้าน
+   * กรอกที่อยู่/สินค้าครบแล้ว (user report 2026-08-21)
+   *
+   * ตอนนี้ค่าที่เขียนลงช่องเบอร์ต้องผ่านเกณฑ์เดียวกับด่านบันทึกเสมอ — ชีตไม่แสดงปุ่มนี้
+   * ให้กับค่าที่แก้ได้ด้วย chip อยู่แล้ว (FR-CUS-E1-07) นี่คือด่านชั้นสองกันเรียกจากที่อื่น
+   */
   const useNewCustomer = (q: string) => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
     setSelected(null)
     setIsNewCustomer(true)
-    if (/^\d/.test(q)) setValue('buyerContact', q)
+    if (MOBILE_PHONE_RE.test(q)) setValue('buyerContact', q)
     else setValue('buyerName', q)
     setCustOpen(false)
   }
@@ -283,6 +313,7 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
           inputMode="tel"
           autoComplete="off"
           placeholder="พิมพ์เบอร์ → ค้นหาลูกค้า"
+          aria-describedby={hintVisible ? 'cq-buyer-contact-hint' : undefined}
           className="form-input"
           value={contactField.value ?? ''}
           onChange={(e) => {
@@ -293,8 +324,19 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
           }}
           onBlur={contactField.onBlur}
         />
-        {errors.buyerContact?.message && (
-          <p className="mt-1 text-xs text-danger">{String(errors.buyerContact.message)}</p>
+        {/* chip แนะนำเบอร์ / คำเตือน — แทนที่ error เดิมเมื่อมีอะไรจะพูด ไม่ขึ้นซ้อนกัน
+            (บอกปัญหา + ทางแก้ ในบรรทัดเดียว — FR-CUS-E1-06) */}
+        {hintVisible ? (
+          <PhoneSuggestHint
+            id="cq-buyer-contact-hint"
+            value={contactField.value ?? ''}
+            onPick={applyPhoneSuggestion}
+            size="mobile"
+          />
+        ) : (
+          errors.buyerContact?.message && (
+            <p className="mt-1 text-xs text-danger">{String(errors.buyerContact.message)}</p>
+          )
         )}
       </div>
 

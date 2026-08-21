@@ -22,6 +22,8 @@ import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import PasteParsePanel from './PasteParsePanel'
 import { useAnchoredDropdown } from '@/hooks/useAnchoredDropdown'
+import PhoneSuggestHint from './PhoneSuggestHint'
+import { hasPhoneHint } from '@/lib/phone-hint'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -119,6 +121,16 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
     runSearch(e.target.value)
   }
 
+  /** สล็อตใต้ช่องเบอร์มีอะไรจะพูดไหม — ตัวเดียวกับที่ PhoneSuggestHint ใช้ตัดสินภายใน */
+  const contactHintVisible = hasPhoneHint(buyerContactField.value ?? '')
+
+  /** กด chip → เขียนทับค่าในช่อง แล้วค้นใหม่ทันทีด้วยเบอร์ที่สะอาดแล้ว */
+  const applyPhoneSuggestion = (phone: string) => {
+    setSelected(null)
+    buyerContactField.onChange(phone)
+    runSearch(phone)
+  }
+
   const avatarChar = (c: CustomerResult) => (c.name ?? c.contact).trim().charAt(0) || '?'
   const maskContact = (s: string) => (s.length <= 7 ? s : s.slice(0, 3) + '•••' + s.slice(-4))
 
@@ -184,6 +196,7 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
                 inputMode="numeric"
                 autoComplete="off"
                 placeholder="พิมพ์เบอร์โทร…"
+                aria-describedby={contactHintVisible ? 'cust-contact-hint' : undefined}
                 className="form-input !pl-9"
                 value={buyerContactField.value ?? ''}
                 onChange={onContactChange}
@@ -248,7 +261,16 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
                 ลูกค้าเดิม · {selected.orderCount} ออเดอร์
               </p>
             )}
-            {errors.buyerContact?.message ? (
+            {/* chip แนะนำเบอร์ / คำเตือน — เกาะใต้ช่องเสมอ และ **แทนที่** error/helper เดิม
+                ไม่ขึ้นซ้อนกัน (บอกปัญหา + ทางแก้ ในบรรทัดเดียว — FR-CUS-E1-06) */}
+            {contactHintVisible ? (
+              <PhoneSuggestHint
+                id="cust-contact-hint"
+                value={buyerContactField.value ?? ''}
+                onPick={applyPhoneSuggestion}
+                size="desktop"
+              />
+            ) : errors.buyerContact?.message ? (
               <p className="text-danger mt-1 text-sm">{String(errors.buyerContact.message)}</p>
             ) : !selected ? (
               <p className="text-default-400 mt-1 text-xs">

@@ -9,6 +9,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
+import PhoneSuggestHint from './PhoneSuggestHint'
+import { hasPhoneHint, canUseAsNewCustomer } from '@/lib/phone-hint'
 
 export interface CustomerResult {
   name: string | null
@@ -112,6 +114,7 @@ export default function CustomerSearchSheet({ open, initialQuery = '', onSelect,
           </span>
           <input
             ref={inputRef}
+            id="cs-search-input"
             type="text"
             value={q}
             onChange={(e) => {
@@ -119,9 +122,22 @@ export default function CustomerSearchSheet({ open, initialQuery = '', onSelect,
               runSearch(e.target.value)
             }}
             placeholder="พิมพ์ชื่อ หรือ เบอร์โทร…"
+            aria-describedby={hasPhoneHint(q) ? 'cs-search-hint' : undefined}
             className="form-input"
           />
         </div>
+        {/* chip แนะนำเบอร์ / คำเตือน — เกาะใต้ช่องค้นเสมอ เหนือรายการผล (FR-CUS-E1-06)
+            กด chip = แทนคำค้นด้วยเบอร์ที่สะอาดแล้ว → ค้นใหม่ทันที */}
+        <PhoneSuggestHint
+          id="cs-search-hint"
+          value={q}
+          onPick={(phone) => {
+            setQ(phone)
+            runSearch(phone)
+            inputRef.current?.focus()
+          }}
+          size="mobile"
+        />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-[env(safe-area-inset-bottom)]">
         {loading && <p className="py-6 text-center text-sm text-default-400">กำลังค้นหา…</p>}
@@ -152,8 +168,11 @@ export default function CustomerSearchSheet({ open, initialQuery = '', onSelect,
             </button>
           ))}
         </div>
-        {/* ใช้คำที่พิมพ์เป็นลูกค้าใหม่ — โชว์เมื่อค้นเสร็จแล้ว (ไม่ใช่ตอน loading) */}
-        {typed.length >= 2 && !loading && !exactMatch && (
+        {/* ใช้คำที่พิมพ์เป็นลูกค้าใหม่ — โชว์เมื่อค้นเสร็จแล้ว (ไม่ใช่ตอน loading)
+            🛑 ค่าที่มีตัวเลขแต่ไม่ใช่เบอร์ที่ถูก **ห้ามโชว์ปุ่มนี้** (FR-CUS-E1-07) —
+            ปุ่มเขียนค่าลงฟอร์มทันทีโดยไม่ถามอะไรอีก ของเดิมจึงยัด "0 8 6 5 3 5 2960"
+            เข้าฟอร์มแล้วไปเด้งตอนกดบันทึกท้ายสุด; กรณีนั้นให้ chip ด้านบนทำงานแทน */}
+        {typed.length >= 2 && !loading && !exactMatch && canUseAsNewCustomer(typed) && (
           <button
             type="button"
             onClick={() => onUseNew(typed)}
