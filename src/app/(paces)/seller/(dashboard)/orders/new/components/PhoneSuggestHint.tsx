@@ -47,26 +47,25 @@ export default function PhoneSuggestHint({ value, id, onPick, size = 'mobile', e
   const mobile = size === 'mobile'
   const blocked = Boolean(errorMessage)
 
-  // `.btn` ของธีมเป็น `inline-flex items-center justify-center` อยู่แล้ว (_buttons.css:5)
-  // → `min-h-11` ปลอดภัย เนื้อในยังจัดกลาง (ด่าน mobile-affordance.test.ts อ่านทีละบรรทัด
-  // จึงต้องให้ `btn` กับ `min-h-11` อยู่บรรทัดเดียวกัน ไม่งั้นมันเห็นครึ่งเดียวแล้วแดง)
+  // 🛑 **พื้นที่นิ้วกับก้อนสีที่ตาเห็น ไม่จำเป็นต้องเป็นชิ้นเดียวกัน** (user สั่งย่อรอบสอง 2026-08-21)
   //
-  // 🛑 `text-primary-ink` ไม่ใช่ `text-primary` — `#236dc9` บนพื้น `primary/15` วัดได้ **4.17:1**
-  // ตกเกณฑ์ AA 4.5:1 ของข้อความปกติ (14px/500 ไม่เข้าเกณฑ์ large text). `_root.css:37` เขียน
-  // ตัวเลข 8.44:1 ของคู่ที่ถูกไว้เองพร้อมหมายเหตุว่า "ยังไม่มีจุดใช้งาน แต่เติมไว้เป็น SSOT" —
-  // ชิปตัวนี้คือผู้ใช้งานรายแรกของมัน (dark mode token กลับด้านให้แล้ว = 7.99:1)
-  // ท่าของธีมที่ยกมาเป็น Base ใช้กับ **แผ่นไอคอน** ซึ่งเป็น non-text เกณฑ์ 3:1 จึงผ่านที่ 4.17
+  // `<button>` = กล่องโปร่งใสสูง 44px → นิ้วแตะได้เท่าเดิมตาม PRODUCT.md §Accessibility
+  // (เกณฑ์ tap target ≥44px ที่โปรเจกต์ประกาศเอง สูงกว่าที่ WCAG 2.2 §2.5.8 บังคับคือ 24px)
+  // `<span>` ข้างใน = ก้อนสีจริง สูง ~26px → น้ำหนักสายตาลดลงเกือบครึ่งโดยไม่เสียอะไรเลย
   //
-  // `ring-1 ring-primary/25` — พื้นชิปต่างจากการ์ดขาวแค่ 1.23:1 ถ้าไม่มีขอบ ผู้ใช้จะไม่รู้ว่ากดได้
-  // (WCAG 1.4.11 องค์ประกอบที่ไม่ใช่ข้อความต้อง 3:1 — ขอบเป็นตัวที่แบกเกณฑ์นั้นแทนพื้น)
+  // ทางที่ *ไม่* เลือก: ลด `min-h-11` ตรง ๆ — นั่นคือการเอาพื้นที่นิ้วของผู้สูงวัยไปแลกกับ
+  // ความสวย ซึ่งเป็นกลุ่มเป้าหมายที่ PRODUCT.md ระบุไว้ชัด
   //
-  // 🛑 `min-h-11` (44px) บนมือถือ **ห้ามลด** — PRODUCT.md §Accessibility ประกาศเกณฑ์
-  // tap target ≥44px ไว้เองเป็น AA baseline ของโปรเจกต์ (สูงกว่าที่ WCAG 2.2 §2.5.8
-  // บังคับจริงคือ 24px) และมีด่าน `orders/__tests__/mobile-affordance.test.ts` เฝ้าอยู่
-  // ที่ย่อได้คือ **ระยะกับคำ** ไม่ใช่พื้นที่นิ้ว (user สั่งย่อ 2026-08-21)
-  const chipClass = mobile
-    ? 'btn min-h-11 rounded-full px-3 bg-primary/15 text-primary-ink ring-1 ring-primary/25 hover:bg-primary hover:text-white'
-    : 'btn rounded-full px-3 py-1 bg-primary/15 text-primary-ink ring-1 ring-primary/25 hover:bg-primary hover:text-white'
+  // สีบนก้อน: `text-primary-ink` ไม่ใช่ `text-primary` — `#236dc9` บนพื้น `primary/15`
+  // วัดได้ 4.17:1 ตกเกณฑ์ AA 4.5:1 ส่วน `#1e3a8a` ได้ 8.44:1 (`_root.css:37` เขียนตัวเลข
+  // ไว้เองพร้อมหมายเหตุว่ายังไม่มีผู้ใช้งาน — ชิปนี้คือรายแรก · dark mode กลับด้านให้แล้ว)
+  // `ring-1 ring-primary/25` — พื้นชิปต่างจากการ์ดขาวแค่ 1.23:1 ไม่มีขอบผู้ใช้จะไม่รู้ว่ากดได้
+  // (WCAG 1.4.11 non-text 3:1 — ขอบเป็นตัวแบกเกณฑ์แทนพื้น)
+  //
+  // `btn` + `min-h-11` ต้องอยู่บรรทัดเดียวกัน — ด่าน mobile-affordance.test.ts อ่านทีละบรรทัด
+  const chipHit = mobile ? 'btn group min-h-11 px-0 py-0' : 'btn group px-0 py-0'
+  const chipPill =
+    'rounded-full px-2.5 py-0.5 text-sm font-medium bg-primary/15 text-primary-ink ring-1 ring-primary/25 transition-colors group-hover:bg-primary group-hover:text-white'
 
   // 🛑 กล่องนี้ mount ค้างเสมอ แม้ตอนไม่มีอะไรจะพูด — live region ที่ถูก unmount/mount ใหม่
   // ทุกครั้ง screen reader จะไม่ประกาศการเปลี่ยนแปลง (ประกาศแค่ตอนแรกที่ mount)
@@ -80,10 +79,13 @@ export default function PhoneSuggestHint({ value, id, onPick, size = 'mobile', e
           <p className={`mt-0.5 text-xs ${blocked ? 'text-danger' : 'text-default-500'}`}>
             {chipsHeadline(hint.suggestions.length, blocked)}
           </p>
-          <div className="mt-1 flex flex-wrap gap-1">
+          {/* gap-y-0 ได้เพราะกล่องแตะ 44px ของสองแถวชนกันพอดี ไม่มีช่องตาย
+              🛑 ห้ามใส่ margin ติดลบเพื่อดึงบล็อกให้เตี้ยลง — กล่องแตะที่โผล่พ้นขอบล่าง
+              จะไปทับ control ตัวถัดไปแล้วขโมยการแตะที่ผู้ใช้ตั้งใจกดอย่างอื่น */}
+          <div className="mt-0.5 flex flex-wrap gap-x-1 gap-y-0">
             {hint.suggestions.map((phone) => (
-              <button key={phone} type="button" onClick={() => onPick(phone)} className={chipClass}>
-                {phone}
+              <button key={phone} type="button" onClick={() => onPick(phone)} className={chipHit}>
+                <span className={chipPill}>{phone}</span>
               </button>
             ))}
           </div>
