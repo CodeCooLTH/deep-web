@@ -3,6 +3,7 @@ import * as v from "valibot";
 import { SendOtpSchema } from "@/lib/validations";
 import { consumeOtpRequestQuota, isTestAccount, sendOtpViaSms, storeOtp } from "@/lib/otp";
 import { prisma } from "@/lib/prisma";
+import { MOBILE_PHONE_RE } from '@/lib/phone'
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -16,8 +17,8 @@ export async function POST(request: NextRequest) {
   // normalize type เพื่อรองรับทั้ง lowercase และ uppercase จาก client
   const normalizedType = type.toLowerCase();
 
-  // phone format guard — ต้องเป็น ^0[0-9]{9}$ เท่านั้น (email ปล่อยผ่าน)
-  if (normalizedType === "phone" && !/^0[0-9]{9}$/.test(contact)) {
+  // phone format guard — ต้องเป็น MOBILE_PHONE_RE เท่านั้น (email ปล่อยผ่าน)
+  if (normalizedType === "phone" && !MOBILE_PHONE_RE.test(contact)) {
     return NextResponse.json({ error: "เบอร์โทรไม่ถูกต้อง" }, { status: 400 });
   }
 

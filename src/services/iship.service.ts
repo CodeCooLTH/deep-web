@@ -55,6 +55,7 @@ import {
   type SenderAddress,
 } from "@/lib/iship/mapping";
 import type { ShipmentContext } from "@/lib/iship/context";
+import { MOBILE_PHONE_RE } from "@/lib/phone";
 
 // ─── error ของชั้น service ที่ route แมปเป็น HTTP ได้ตรง ๆ ──────────────────
 
@@ -2727,6 +2728,20 @@ export async function importParcelAsOrder(
       "INCOMPLETE_DATA",
       `พัสดุใบนี้มีข้อมูลผู้รับไม่ครบ — ขาด ${missing.join(", ")}`,
       missing,
+    );
+  }
+
+  // 🛑 ตรวจ *รูปแบบ* เบอร์ผู้รับ ไม่ใช่แค่ "มีค่าไหม" — ฟังก์ชันนี้เรียก createOrder() ตรง ๆ
+  // จึงไม่ผ่าน CreateOrderSchema เหมือนทาง API ⇒ เบอร์รูปแบบใดก็ได้จากระบบภายนอกเคยลง
+  // Order.buyerContact ได้โดยไม่มีด่านไหนขวาง (ext 2026-08-21)
+  //
+  // 🛑 ปฏิเสธ ไม่ normalize ให้ — ถ้าเราแก้ค่าเงียบ ๆ ร้านจะไม่มีวันรู้ว่าเบอร์ที่บันทึก
+  // ต่างจากที่อยู่บนพัสดุจริง (มติ: backend validate อย่างเดียว ห้ามแก้ค่าแทนผู้ใช้)
+  if (!MOBILE_PHONE_RE.test(parcel.receiver.phone ?? "")) {
+    throw new IShipServiceError(
+      "INCOMPLETE_DATA",
+      `เบอร์ผู้รับบนพัสดุใบนี้ไม่ใช่เบอร์มือถือ 10 หลัก (${parcel.receiver.phone ?? "ไม่มีค่า"}) — แก้ที่ iShip แล้วลองใหม่`,
+      ["เบอร์โทรผู้รับ"],
     );
   }
 

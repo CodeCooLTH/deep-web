@@ -28,6 +28,7 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import { formatDateTime } from '@/lib/format-date'
 import { ISHIP_CATEGORIES } from '@/lib/iship/mapping'
 import IShipModalShell from '@/components/safepay/iship/IShipModalShell'
+import { MOBILE_PHONE_RE } from '@/lib/phone'
 import AddressSearchSheet, {
   type SelectedLocality,
 } from '@/app/(paces)/seller/(dashboard)/orders/new/components/AddressSearchSheet'
@@ -158,7 +159,7 @@ function validateSettings(s: SettingsState): FieldErrors {
   const e: FieldErrors = {}
   const num = (v: number | null) => (v === null || Number.isNaN(v) ? null : v)
 
-  if (s.senderPhone && !/^0[0-9]{9}$/.test(s.senderPhone.trim())) {
+  if (s.senderPhone && !MOBILE_PHONE_RE.test(s.senderPhone.trim())) {
     e.senderPhone = 'เบอร์โทรไม่ถูกต้อง — กรอกเบอร์ 10 หลัก ขึ้นต้นด้วย 0'
   }
   if (s.senderPostcode && !/^[0-9]{5}$/.test(s.senderPostcode.trim())) {

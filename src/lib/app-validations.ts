@@ -3,15 +3,16 @@
  * แยกไฟล์จาก lib/validations.ts เพื่อไม่ปนกับ schema ของเว็บเดิม.
  */
 import * as v from 'valibot'
+import { MOBILE_PHONE_RE } from '@/lib/phone'
 
 // ขอ OTP — phone เท่านั้น (แอป buyer ใช้เบอร์ + OTP)
 export const AppRequestOtpSchema = v.object({
-  phone: v.pipe(v.string(), v.regex(/^0[0-9]{9}$/, 'เบอร์โทรไม่ถูกต้อง')),
+  phone: v.pipe(v.string(), v.regex(MOBILE_PHONE_RE, 'เบอร์โทรไม่ถูกต้อง')),
 })
 
 // ยืนยัน OTP — field ชื่อ `code` ให้ตรงกับที่แอปส่ง (Deep-App src/api/auth.ts)
 export const AppVerifyOtpSchema = v.object({
-  phone: v.pipe(v.string(), v.regex(/^0[0-9]{9}$/, 'เบอร์โทรไม่ถูกต้อง')),
+  phone: v.pipe(v.string(), v.regex(MOBILE_PHONE_RE, 'เบอร์โทรไม่ถูกต้อง')),
   code: v.pipe(v.string(), v.length(6)),
   displayName: v.optional(v.pipe(v.string(), v.maxLength(80))),
 })

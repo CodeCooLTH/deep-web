@@ -13,7 +13,7 @@
  *   3. username (tabler:at, debounce 400ms → GET /api/users/check-username?u=)
  *   4. password (PasswordInputWithStrength + hint ไทย)
  *   5. confirmPassword (tabler:lock-password, oneOf password)
- *   6. phone (tabler:phone, tel, inputMode=numeric, /^0[0-9]{9}$/)
+ *   6. phone (tabler:phone, tel, inputMode=numeric, MOBILE_PHONE_RE)
  * - consent checkbox "ยอมรับนโยบายความเป็นส่วนตัว" (required) — Base: theme auth/card/sign-up
  *   checkbox pattern (form-checkbox form-checkbox-light size-4.5). ลิงก์ → /privacy บน buyer domain
  *   ผ่าน resolveBuyerBaseUrl (seller subdomain rewrite /privacy → /seller/privacy = 404)
@@ -40,6 +40,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import * as Yup from 'yup'
+import { MOBILE_PHONE_RE } from '@/lib/phone'
 
 // --- Yup Schema ---
 const schema = Yup.object({
@@ -63,7 +64,7 @@ const schema = Yup.object({
     .oneOf([Yup.ref('password')], 'รหัสผ่านไม่ตรงกัน')
     .required('กรุณายืนยันรหัสผ่าน'),
   phone: Yup.string()
-    .matches(/^0[0-9]{9}$/, 'เบอร์ต้องขึ้นต้นด้วย 0 และมี 10 หลัก')
+    .matches(MOBILE_PHONE_RE, 'เบอร์มือถือ 10 หลัก ขึ้นต้นด้วย 06 08 หรือ 09')
     .required('กรุณากรอกเบอร์โทร'),
   acceptTerms: Yup.boolean()
     .oneOf([true], 'กรุณายอมรับนโยบายความเป็นส่วนตัวก่อนสมัคร')

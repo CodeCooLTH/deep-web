@@ -25,6 +25,7 @@ import Swal from 'sweetalert2'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MOBILE_PHONE_RE } from '@/lib/phone'
 
 const ACCEPT = 'image/png,image/jpeg,image/webp'
 // รูปแบบเดียวกับ UpdateProfileSchema ฝั่ง server — client เช็คก่อนเพื่อบอกเร็ว ไม่ใช่เพื่อกัน
@@ -188,7 +189,7 @@ export default function ProfileForm({ user }: Props) {
       },
       preConfirm: async (value: string) => {
         const phone = (value ?? '').trim()
-        if (!/^0[0-9]{9}$/.test(phone)) {
+        if (!MOBILE_PHONE_RE.test(phone)) {
           Swal.showValidationMessage('กรุณากรอกเบอร์ 10 หลักที่ขึ้นต้นด้วย 0')
           return false
         }

@@ -23,6 +23,7 @@ import Swal from 'sweetalert2'
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { MOBILE_PHONE_RE } from '@/lib/phone'
 
 type Step = 'info' | 'warning' | 'otp' | 'success'
 type Check = 'idle' | 'checking' | 'ok' | 'taken' | 'invalid'
@@ -171,7 +172,7 @@ export default function RegisterPage() {
   // info → warning: save username + สร้าง shop (ชื่อร้าน = ชื่อจาก FB), เช็คเบอร์ซ้ำ
   const submitInfo = async () => {
     if (uStatus !== 'ok') return pacesToast.error('กรุณาตั้งชื่อผู้ใช้ที่ใช้ได้')
-    if (!/^0[0-9]{9}$/.test(phone)) return pacesToast.error('กรุณากรอกเบอร์โทรให้ถูกต้อง')
+    if (!MOBILE_PHONE_RE.test(phone)) return pacesToast.error('กรุณากรอกเบอร์โทรให้ถูกต้อง')
     setInfoLoading(true)
     try {
       const pRes = await fetch(`/api/users/check-phone?phone=${encodeURIComponent(phone)}`)
