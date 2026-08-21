@@ -34,7 +34,10 @@ const TAB_ICON: Record<string, string> = {
   reviews: 'tabler:star',
 }
 
-export type ProfileTabDef = { key: string; label: string; content: ReactNode }
+/** `count` = ตัวเลขบนแท็บตามไฟล์อ้างอิง (`.tab .count`) — ไม่ส่งมาก็ไม่แสดง
+ *  🛑 ต้องเป็น optional: แท็บ "เกี่ยวกับร้าน"/"รีวิว" ไม่มีจำนวนที่นับได้ ถ้าบังคับส่งจะต้อง
+ *  ยัดเลขหลอก ๆ ลงไปซึ่งแย่กว่าไม่มี */
+export type ProfileTabDef = { key: string; label: string; content: ReactNode; count?: number }
 
 export default function ProfileTabs({
   tabs,
@@ -82,7 +85,11 @@ export default function ProfileTabs({
           เดสก์ท็อปเป็น `sm:mbs-3` แทน · ความกว้างไม่ได้ทดแทนระยะห่างแนวตั้ง มันคนละแกนกัน */}
       <div
         role='tablist'
-        className='flex gap-6 border-be overflow-x-auto overflow-y-hidden pli-5 mbs-2 sm:mbs-3'
+        /* `.tabs` ของไฟล์อ้างอิง: สูง 54 · gap 4 · pli 18 · เส้นคั่นล่าง
+           มือถือ (≤650) สูง 50 · pli 9 · เลื่อนข้างได้และซ่อนแถบเลื่อน
+           🛑 **ไม่ใส่ sticky** ทั้งที่ไฟล์อ้างอิงมี (`top:66px`) — หัวเว็บของเราเป็น `sticky top:0`
+           อยู่แล้ว (front-pages/styles.module.css) ถ้าตรึงแถบนี้ด้วยจะซ้อนทับกันเอง */
+        className='flex items-stretch gap-1 border-be overflow-x-auto overflow-y-hidden bs-[50px] sm:bs-[54px] pli-2 sm:pli-[18px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
         onKeyDown={onKeyDown}
       >
         {tabs.map((t, i) => {
@@ -97,14 +104,21 @@ export default function ProfileTabs({
               aria-controls={`${baseId}-panel-${i}`}
               tabIndex={selected ? 0 : -1}
               onClick={() => setActive(i)}
-              className={`relative plb-3 min-bs-[44px] text-[15px] font-semibold whitespace-nowrap bg-transparent border-0 cursor-pointer font-[inherit] inline-flex items-center gap-1.5 ${
-                selected ? 'text-[var(--mui-palette-text-primary)]' : 'text-[var(--mui-palette-text-disabled)]'
+              /* `.tab`: pli 15 (มือถือ 12) · font-weight 800 · gap 7 · สีเทา #8e8d99 → ม่วงตอน active
+                 ขีดใต้หนา 3px เว้นขอบข้างละ 12px (ไม่เต็มความกว้างปุ่ม) ตามไฟล์อ้างอิง */
+              className={`relative inline-flex items-center gap-[7px] whitespace-nowrap bg-transparent border-0 cursor-pointer font-[inherit] pli-3 sm:pli-[15px] text-[12px] sm:text-[15px] font-extrabold ${
+                selected ? 'text-primary' : 'text-[#8e8d99]'
               }`}
             >
               {/* ไอคอนช่วยให้กวาดตาหาแท็บที่ต้องการได้โดยไม่ต้องอ่านทุกคำ — จางลงเมื่อไม่ได้เลือก
                   เพื่อไม่ให้แย่งน้ำหนักกับแท็บที่ active */}
               {TAB_ICON[t.key] && <Icon icon={TAB_ICON[t.key]} width={17} />}
               {t.label}
+              {t.count != null && (
+                <span className='text-[10px] font-extrabold rounded-full plb-0.5 pli-1.5 bg-[var(--mui-palette-primary-lightOpacity)] text-primary tabular-nums'>
+                  {t.count}
+                </span>
+              )}
               {/* 🛑 ตัวชี้แท็บใช้ `bottom-0` ไม่ใช่ `-bottom-px` — ตัวที่ยื่นออกนอกกล่อง 1px คือสิ่งที่
                   ทำให้แถบแท็บ **เลื่อนขึ้นลงได้** (user ทัก 2026-08-11 "ทำไม Tab ถึง scroll บนล่างได้")
 
@@ -113,7 +127,7 @@ export default function ProfileTabs({
                   กลายเป็น scroll container ทั้งสองแกน แล้ว 1px ที่ยื่นออกไปก็พอทำให้เลื่อนได้จริง
                   แก้สองชั้น: `overflow-y-hidden` ที่กล่อง + ตัวชี้ไม่ยื่นออกนอกกล่อง */}
               {selected && (
-                <span className='absolute inline-start-0 inline-end-0 bottom-0 bs-[2.5px] rounded bg-primary' />
+                <span className='absolute inline-start-3 inline-end-3 bottom-0 bs-[3px] rounded-t bg-primary' />
               )}
             </button>
           )
@@ -127,7 +141,7 @@ export default function ProfileTabs({
           role='tabpanel'
           aria-labelledby={`${baseId}-tab-${i}`}
           hidden={i !== active}
-          className='pli-5 pbs-4 pbe-6'
+          className='pli-3 plb-4 pbe-[22px] sm:pli-5 sm:plb-5'
         >
           {i === active && t.content}
         </div>

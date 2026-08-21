@@ -30,13 +30,14 @@ import { useState, useEffect, useRef } from 'react'
 
 import NextLink from 'next/link'
 
+import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import IconButton from '@mui/material/IconButton'
 
 import { Icon } from '@iconify/react'
 
-import VuexyLogo from '@core/svg/Logo'
+import logoDeepMark from '@/assets/images/logo-deep-mark.png'
 import themeConfig from '@configs/themeConfig'
 
 import ResponsiveSheet from './ResponsiveSheet'
@@ -151,6 +152,237 @@ function BioShell({
   )
 }
 
+
+/* ───────────────────────────────────────────────────────────────────────────
+   สไตล์ของ HERO — ทุกค่ายกจากไฟล์อ้างอิง `deep_store_profile_responsive.html`
+   แยกออกมานอก component เพราะเป็นค่าคงที่: ประกาศในตัว render = อ็อบเจกต์ใหม่ทุกครั้ง
+   ที่ re-render ⇒ MUI คำนวณ/แทรก CSS class ใหม่ทุกรอบโดยไม่ได้อะไรกลับมา
+   (ญาติกับ `docs/conventions/hook-return-identity-in-deps.md` — identity ที่ไม่นิ่ง)
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/** เท่ากับ `.container` ของไฟล์อ้างอิง — ต้องตรงกับ LAYOUT_SX ใน ShopProfile.tsx ไม่งั้นขอบซ้าย
+ *  ของ hero กับของเนื้อหาด้านล่างจะไม่ตรงแนวกัน (สังเกตง่ายมากเพราะโลโก้อยู่ขอบซ้ายพอดี) */
+const HERO_INNER_SX = {
+  position: 'relative',
+  inlineSize: 'min(1080px, calc(100% - 36px))',
+  marginInline: 'auto',
+  display: { xs: 'block', sm: 'grid' },
+  gridTemplateColumns: { sm: '130px minmax(0,1fr)', md: '170px minmax(0,1fr) 232px' },
+  gap: { sm: '20px', md: '28px' },
+  alignItems: 'center',
+  minBlockSize: { md: 300 },
+  /* ระยะบน 40px — ตราแบรนด์ Deep เป็น `absolute` มุมซ้ายบน กินถึง y=38px
+     เดิมโลโก้ร้านชิดซ้ายเหมือนกันจึงทับกัน (ต้องดันถึง 52px) แต่ตอนนี้โลโก้จัดกึ่งกลางแล้ว
+     จอ 320px (แคบสุด) โลโก้เริ่มที่ x=107 ส่วนตราแบรนด์จบที่ x=96 ⇒ ไม่ชนกันในแนวนอนอีก
+     40 จึงเหลือไว้เพื่อ "หายใจ" ใต้ตราแบรนด์อย่างเดียว ไม่ใช่เพื่อหลบ */
+  padding: { xs: '40px 0 18px', md: '29px 0 24px' },
+  '@media (max-width:650px)': { inlineSize: 'min(100% - 24px, 1080px)' },
+} as const
+
+const LOGO_SX = {
+  inlineSize: { xs: 96, sm: 122, md: 154 },
+  blockSize: { xs: 96, sm: 122, md: 154 },
+  borderRadius: '50%',
+  border: '5px solid #fff',
+  background: '#050507',
+  boxShadow: '0 12px 34px rgba(0,0,0,.35)',
+  overflow: 'hidden',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginBlockEnd: { xs: '14px', sm: 0 },
+} as const
+
+const TITLE_SX = {
+  fontSize: { xs: 24, md: 30 },
+  lineHeight: 1.2,
+  fontWeight: 900,
+  letterSpacing: '-.4px',
+  color: '#fff',
+  margin: '13px 0 7px',
+} as const
+
+/** กล่องกระจกฝ้า — `backdropFilter` มีต้นทุนตอน composite ถ้าใช้หลายชั้นซ้อน
+ *  ที่นี่ใช้ชั้นเดียวบนกล่องเล็ก จึงคุ้ม (ทำให้ตัวเลขอ่านออกบนรูปปกที่สว่างไม่เท่ากันทุกใบ) */
+const STATS_SX = {
+  marginBlockStart: { xs: '16px', md: '18px' },
+  display: 'grid',
+  maxInlineSize: { md: 545 },
+  border: '1px solid rgba(255,255,255,.14)',
+  borderRadius: '14px',
+  background: 'rgba(0,0,0,.28)',
+  backdropFilter: 'blur(8px)',
+  overflow: 'hidden',
+} as const
+
+const STAT_SX = { padding: { xs: '9px 6px', md: '10px 12px' }, textAlign: 'center', position: 'relative' } as const
+
+const STAT_DIVIDER_SX = {
+  '&::after': {
+    content: '""',
+    position: 'absolute',
+    insetInlineEnd: 0,
+    insetBlockStart: '20%',
+    blockSize: '60%',
+    inlineSize: '1px',
+    background: 'rgba(255,255,255,.13)',
+  },
+} as const
+
+const HERO_SIDE_SX = {
+  alignSelf: 'center',
+  gridColumn: { sm: '1/-1', md: 'auto' },
+  display: { xs: 'grid', sm: 'flex', md: 'block' },
+  alignItems: 'center',
+  gap: { xs: '10px', sm: '12px' },
+  marginBlockStart: { xs: '14px', md: 0 },
+} as const
+
+/** ≤650px ซ่อนปุ่มคู่นี้ตามไฟล์อ้างอิง — มันไปอยู่ในแถบติดขอบล่าง (mobile CTA) ของเฟส 3 แทน
+ *  🛑 จนกว่าเฟส 3 จะเสร็จ **ยังไม่ซ่อน** ไม่งั้นมือถือจะติดต่อร้านไม่ได้เลยระหว่างทาง */
+const HERO_ACTIONS_SX = {
+  /* ≤650px ซ่อน — ปุ่มคู่นี้ย้ายไปอยู่แถบติดขอบล่าง (`.mobile-cta`) ตามไฟล์อ้างอิง
+     🛑 ก่อนหน้านี้ยังไม่ซ่อนโดยตั้งใจ เพราะแถบล่างยังไม่ได้ทำ — ถ้าซ่อนตอนนั้นมือถือจะติดต่อ
+     ร้านไม่ได้เลย ตอนนี้แถบล่างมีแล้วจึงซ่อนได้ */
+  display: { xs: 'none', sm: 'flex' },
+  justifyContent: { md: 'flex-end' },
+  gap: '10px',
+  marginBlockEnd: { md: '42px' },
+  order: { sm: 2 },
+  marginInlineStart: { sm: 'auto', md: 0 },
+} as const
+
+const BTN_PRIMARY_SX = {
+  border: 0,
+  borderRadius: '11px',
+  padding: '11px 16px',
+  fontWeight: 800,
+  fontSize: 15,
+  color: '#fff',
+  /* ไล่สีจากม่วงแบรนด์ #7367F0 — ไฟล์อ้างอิงใช้ #7657ff→#5739ef ซึ่งไม่ใช่สีเรา
+     (CLAUDE.md HR8: Impeccable ชนะเรื่องสี) จึงยกเฉพาะ "รูปแบบ" มา ไม่ยกค่าสี */
+  background: 'linear-gradient(135deg, #7367F0, #5a4ee0)',
+  boxShadow: '0 9px 22px rgba(115,103,240,.35)',
+  '&:hover': { background: 'linear-gradient(135deg, #7367F0, #5a4ee0)', transform: 'translateY(-1px)' },
+} as const
+
+const BTN_GHOST_SX = {
+  borderRadius: '11px',
+  padding: '11px 16px',
+  minInlineSize: 0,
+  fontWeight: 800,
+  fontSize: 15,
+  color: '#fff',
+  border: '1px solid rgba(255,255,255,.25)',
+  background: 'rgba(255,255,255,.05)',
+  '&:hover': { border: '1px solid rgba(255,255,255,.4)', background: 'rgba(255,255,255,.12)' },
+} as const
+
+const SCORE_CARD_SX = {
+  padding: { xs: '13px', md: '19px' },
+  borderRadius: '18px',
+  border: '1px solid rgba(255,255,255,.17)',
+  background: 'rgba(20,12,4,.7)',
+  backdropFilter: 'blur(8px)',
+  display: 'grid',
+  gridTemplateColumns: { xs: '45px 1fr', md: '58px 1fr' },
+  gap: '14px',
+  alignItems: 'center',
+  flex: { sm: 1 },
+  maxInlineSize: { sm: 360, md: 'none' },
+} as const
+
+const SCORE_ICON_SX = {
+  inlineSize: { xs: 45, md: 58 },
+  blockSize: { xs: 45, md: 58 },
+  borderRadius: { xs: '12px', md: '16px' },
+  background: 'linear-gradient(145deg, rgba(255,171,45,.25), rgba(255,255,255,.06))',
+  display: 'grid',
+  placeItems: 'center',
+  color: '#ffac22',
+} as const
+
+/**
+ * `.mobile-cta` ของไฟล์อ้างอิง — แถบปุ่มติดขอบล่าง แสดงเฉพาะจอ ≤650px
+ *
+ * 🛑 ต้องอยู่ **นอกบล็อกปก** — `position:fixed` เลิกยึด viewport ทันทีที่บรรพบุรุษตัวใดตัวหนึ่ง
+ * มี `transform`/`filter`/`backdrop-filter` และปกมีกล่องสถิติที่ใช้ `backdropFilter` อยู่
+ * วางเป็นพี่น้องของปก (ไม่ใช่ลูก) จึงไม่มีบรรพบุรุษตัวไหนสร้าง containing block ให้
+ *
+ * ไม่ใช้ `createPortal` เพราะท่านั้นต้องมี mounted-guard ที่ `setState` ใน effect ซึ่งผิดกฎ
+ * eslint ของรีโป (`ShopSwitchOverlay.tsx` ติดกฎนี้ค้างอยู่) — การวางให้ถูกที่ตั้งแต่แรก
+ * ได้ผลเหมือนกันโดยไม่ต้องแลกอะไร
+ *
+ * 🛑 แถบนี้ลอยทับเนื้อหา ต้องมีที่ว่างท้ายหน้ากันบังการ์ดใบสุดท้าย — **แต่ที่ว่างนั้นไม่ได้อยู่
+ * ในไฟล์นี้** มันคือ `LAYOUT_SX.padding` ของ `ShopProfile` (70px + `env(safe-area-inset-bottom)`)
+ * เพราะที่ว่าง "ท้ายหน้า" ต้องอยู่ท้ายกล่องที่ครอบเนื้อหาจริง ไม่ใช่ท้ายคอมโพเนนต์ปก
+ * เคยวาง spacer ไว้ในนี้แล้วมันไปโผล่คั่นกลางจอใต้ปก (แก้ 2026-08-21) — ห้ามเอากลับมา
+ */
+function MobileCta({
+  chatHref,
+  chatLabel,
+  onShare,
+  copied,
+}: {
+  chatHref: string | null
+  chatLabel: string | null
+  onShare: () => void
+  copied: boolean
+}) {
+  return (
+    <>
+      {/* 🛑 **ไม่มี spacer ตรงนี้** — เคยมี `blockSize:62px` วางไว้บรรทัดนี้ ซึ่งอยู่ **ใต้ปกทันที**
+          คือหัวหน้า ทั้งที่หน้าที่ของมันคือดันที่ว่างไว้ **ท้ายหน้า** ไม่ให้แถบลอยบังเนื้อหาใบสุดท้าย
+          ⇒ ช่องว่าง 62px ไปโผล่คั่นระหว่างปกกับแถบแท็บกลางจอ (user เจอเอง 2026-08-21
+          "เว้นห่างกับ tap เกินไป") ขณะที่ท้ายหน้ายังไม่ได้อะไรเพิ่มเลย
+          ที่ว่างท้ายหน้ามาจาก `LAYOUT_SX.padding` ของ `ShopProfile` อยู่แล้ว (70px + safe-area)
+          ซึ่งเป็นกล่องที่ครอบเนื้อหาจริง = ที่ที่ถูกต้อง ห้ามเอา spacer กลับมา */}
+      <Box
+        sx={{
+          display: { xs: 'grid', sm: 'none' },
+          gridTemplateColumns: chatHref ? '1fr 1fr' : '1fr',
+          gap: '9px',
+          position: 'fixed',
+          insetInline: 0,
+          insetBlockEnd: 0,
+          zIndex: 60,
+          padding: '9px 12px calc(9px + env(safe-area-inset-bottom))',
+          background: 'rgba(255,255,255,.95)',
+          backdropFilter: 'blur(14px)',
+          borderBlockStart: '1px solid #ececf2',
+        }}
+      >
+        <Button variant='outlined' color='secondary' onClick={onShare} sx={MOBILE_BTN_SX} aria-label='แชร์โปรไฟล์นี้'>
+          <Icon icon={copied ? 'tabler:check' : 'tabler:share-2'} width={18} />
+          {copied ? 'คัดลอกแล้ว' : 'แชร์'}
+        </Button>
+        {chatHref && (
+          <Button
+            variant='contained'
+            href={chatHref}
+            target='_blank'
+            rel='noopener noreferrer'
+            aria-label={`ติดต่อร้านค้าผ่าน ${chatLabel ?? 'ช่องทางร้าน'}`}
+            sx={{ ...MOBILE_BTN_SX, ...BTN_PRIMARY_SX, blockSize: 43 }}
+          >
+            <Icon icon='tabler:message-circle' width={18} />
+            ติดต่อร้านค้า
+          </Button>
+        )}
+      </Box>
+    </>
+  )
+}
+
+/** `.mobile-cta .btn { height:43px }` */
+const MOBILE_BTN_SX = {
+  blockSize: 43,
+  borderRadius: '11px',
+  fontWeight: 800,
+  fontSize: 14,
+  gap: '8px',
+} as const
+
 export default function ProfileIdentity({ data }: { data: ProfileIdentityData }) {
   const [copied, setCopied] = useState(false)
   const [scorePanelOpen, setScorePanelOpen] = useState(false)
@@ -237,383 +469,372 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
 
   return (
     <>
-      {/* ── ปก ── */}
-      <div
-        className='relative overflow-hidden bs-[128px] sm:bs-[160px] md:bs-[176px]'
-        style={{ background: data.tierGradient }}
+      {/* ══════════════════════════════════════════════════════════════════════
+          HERO — ยกโครงจากไฟล์อ้างอิงที่ user ส่ง (`deep_store_profile_responsive.html`)
+          ตัวเลขทุกตัว (170/1fr/232 · gap 28 · min-h 300 · โลโก้ 154 ขอบ 5) มาจากไฟล์นั้นตรง ๆ
+
+          🛑 ฉากทับเป็น "น้ำตาลเข้ม/ดำ" ไม่ใช่สีประจำระดับ — ต่างจากของที่ถูกถอดออกเมื่อ 2026-08-14
+          ครั้งนั้นคือ `linear-gradient(160deg, ${tierAccent}6B …)` ซึ่ง `getTierAccentColor()` คืน
+          **`#7367F0` ให้ Deep Star = primary ของทั้งระบบ** ⇒ อ่านได้ว่า "ไล่สีม่วงตกแต่ง" ที่
+          DESIGN.md แบนไว้ และดันสัดส่วนม่วงเกินเพดาน One Voice
+
+          ของรอบนี้ต่างกันที่ **หน้าที่**: เป็น scrim เพื่อให้ตัวหนังสือขาวอ่านออกบนรูปปก (เรื่อง
+          คอนทราสต์ WCAG) ไม่ใช่การย้อมด้วยสีแบรนด์ — และเพราะ hero เปลี่ยนเป็นโทนเข้ม
+          **สัดส่วนม่วงในหน้ากลับ "ลดลง" ไม่ใช่เพิ่ม**
+
+          `tierGradient` ยังทำหน้าที่เดิมคือพื้นตอนร้าน **ไม่มีรูปปก** (ผ่านการทบทวน 2026-08-10 แล้ว)
+          ══════════════════════════════════════════════════════════════════════ */}
+      <Box
+        component='section'
+        sx={{
+          position: 'relative',
+          overflow: 'hidden',
+          color: '#fff',
+          background: data.coverImage ? '#120d07' : data.tierGradient,
+        }}
       >
-        <ProfileImg src={data.coverImage} alt='' className='absolute inset-0 is-full bs-full object-cover' />
-
-        {/* 🛑 **ห้ามเอาฉากทับสีประจำระดับกลับมาที่ปก** (ถอดออก 2026-08-14 หลัง ux audit)
-            ผมเคยใส่ `linear-gradient(160deg, ${'{tierAccent}'}6B …)` + scrim `8C` ไว้ตรงนี้ตามทิศทาง
-            B+C แล้วมันคือการ **สร้างการละเมิดเดิมขึ้นมาใหม่บนอิลิเมนต์เดิม tier เดิม**:
-
-            `getTierAccentColor()` คืน **`#7367F0` ให้ Deep Star ซึ่งคือ primary ของทั้งระบบ**
-            ⇒ แทนค่าแล้วบรรทัดนั้นอ่านว่า "ไล่สีม่วง gradient ตกแต่ง" ซึ่ง DESIGN.md เขียนแบนไว้
-            ด้วยคำเดียวกันเป๊ะ 2 จุด (บรรทัด 137 "ม่วงคือ accent ทึบ ไม่ใช่ gradient ตกแต่ง"
-            และบรรทัด 370 รายการ Don't ข้อแรก)
-
-            🛑 และ `Tier Lists.md` §ประวัติ 2026-08-10 บันทึกไว้เองว่าเคยเจอปัญหานี้แล้ว แก้แล้ว
-            และ **ล็อกด้วยเทส `[blocker]` ใน `trust-tier.test.ts`** — ครั้งนั้นต้นเหตุคือ "ปกสูงขึ้น
-            ~27% ทำให้พื้นที่ม่วงโตเกินเพดาน One Voice" ส่วนของผมคือทับม่วง **ทั้งใบที่ ~42–55%**
-            ซึ่งมากกว่าเหตุการณ์นั้นหลายเท่า — ผมไม่ได้อ่าน SSOT ก่อนลงมือ
-
-            ผลพลอยได้ที่ถอดออกแล้วได้มาด้วย: Gold accent `#FF9F43` = **`warning-amber.canonical`
-            ตัวเดียวกับที่ใช้สื่อ "ยืนยันแค่บางส่วน"** ในแผงหลักฐานที่อยู่ใต้ปกลงมา — การย้อมปก
-            ด้วยเฉดนั้นทำให้ร้าน Gold ได้จอที่พูดว่า "ดีเยี่ยม" กับ "ยังไม่ครบ" ด้วยสีเดียวกัน
-
-            ตัวตนของระดับยังสื่อครบโดยไม่ต้องมีชั้นนี้ 3 ทาง: `tierGradient` (พื้นปกตอนไม่มีรูป —
-            ผ่านการทบทวนมาแล้วเมื่อ 2026-08-10) · พื้นย้อมของแผงหลักฐาน (อัลฟาต่ำ มีความหมาย) ·
-            พิลระดับข้างชื่อร้าน */}
+        {/* ชั้นรูป + ฉากทับ 2 ชั้นตามไฟล์อ้างอิง (before = ไล่แนวนอนให้ฝั่งซ้ายเข้มพอสำหรับตัวหนังสือ,
+            after = ไล่แนวตั้งบาง ๆ ที่ขอบล่าง กันหน้าตัดกับพื้นขาวของ layout ด้านล่างแข็งเกินไป) */}
+        <Box aria-hidden sx={{ position: 'absolute', inset: 0 }}>
+          <ProfileImg
+            src={data.coverImage}
+            alt=''
+            className='absolute inset-0 is-full bs-full object-cover'
+          />
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              background: {
+                xs: 'linear-gradient(180deg, rgba(15,10,5,.52), rgba(15,10,5,.94) 48%, #120d07 100%)',
+                md: 'linear-gradient(90deg, rgba(15,11,6,.99) 0%, rgba(18,12,5,.92) 26%, rgba(35,17,4,.58) 56%, rgba(53,24,1,.34) 100%)',
+              },
+            }}
+          />
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              background: 'linear-gradient(180deg, transparent 65%, rgba(9,7,5,.35))',
+            }}
+          />
+        </Box>
 
         {/* ตราแบรนด์ — พื้นทึบ ไม่ใช่ไล่เงา เพราะปกมี 2 กรณี (รูปจริง / ไล่สี tier) พื้นทึบอ่านออกทั้งคู่
             p-2.5 เป็น hit-area ที่มองไม่เห็น ดัน tap target รวมให้ถึง 44px ขณะที่พิลที่ตาเห็นสูง ~30px */}
         <NextLink
           href='/'
           aria-label={`${themeConfig.templateName} — กลับหน้าแรก`}
-          /* block-start/inline-start เขียนเป็นค่าตรง ๆ ด้วยเหตุผลเดียวกับตราระดับด้านล่าง
-             (ตัวนี้ "ดูเหมือนถูก" เพราะ static position ของลูกคนแรกบังเอิญอยู่มุมซ้ายบนพอดี) */
-          className='absolute block-start-0 inline-start-0 p-2.5 no-underline'
+          className='absolute block-start-0 inline-start-0 p-2.5 no-underline z-[2]'
         >
-          <span className='inline-flex items-center gap-1.5 rounded-full plb-1.5 pli-3 bg-[var(--mui-palette-background-paper)] shadow-sm'>
-            <VuexyLogo className='text-primary' style={{ fontSize: 16 }} />
+          <span className='inline-flex items-center gap-1.5 rounded-full plb-1.5 pli-3 bg-[var(--mui-palette-background-paper)]'>
+            {/* โลโก้ Deep ของจริง (เดิมเป็น `VuexyLogo` = รูป "V" ของธีม)
+                มีคำว่า Deep จาก `themeConfig.templateName` อยู่ข้าง ๆ จึงใช้มาร์ก ไม่ใช่เวิร์ดมาร์ก */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ที่ import มาแล้ว */}
+            <img src={logoDeepMark.src} alt='' className='bs-4 is-auto' />
             <span className='text-[13px] font-bold text-[var(--mui-palette-text-primary)]'>
               {themeConfig.templateName}
             </span>
           </span>
         </NextLink>
-      </div>
 
-      {/* ── ตัวตนร้าน ── */}
-      {/* 🛑 `md:` ในหน้านี้ = **900px ไม่ใช่ 768px** — `marketing.css` รีแมป `--breakpoint-md: 900px`
-             ตาม MUI (คอมเมนต์เดิมในไฟล์นี้ที่เขียนว่า "≥768px" ผิดมาตั้งแต่ต้น) ⇒ ช่วง 768–899
-             ยังได้ผังมือถือ ซึ่งถูกต้องอยู่แล้วเพราะแท็บเล็ตแนวตั้งพื้นที่ไม่พอวางปุ่มข้างรูป */}
-      <div className='pli-5 -mbs-[44px] md:-mbs-[60px] relative'>
-        {/* 🛑 กล่องนอกต้องไม่มี overflow-hidden ไม่งั้นตราระดับที่ absolute มุมล่างขวาโดนตัดหาย
-            รูปโปรไฟล์ใหญ่ขึ้นบนเดสก์ท็อป 88 → 120px (user 2026-08-13) — บนจอกว้าง 960px
-            รูป 88px อ่านเป็นไอคอนมากกว่า "หน้าคน" ซึ่งขัดกับทั้งหน้าที่พยายามบอกว่านี่คือคนจริง
-            การซ้อนทับปกยังเป็นครึ่งหนึ่งของรูปเหมือนเดิม (`-mbs` = ครึ่งความสูงรูป) */}
-        <div className='relative is-[88px] bs-[88px] md:is-[120px] md:bs-[120px] mbe-2.5'>
-          {/* วงแหวนสีระดับรอบขอบขาว — `box-shadow` ไม่ใช่ border ที่สอง เพราะ border ซ้อนจะกิน
-              พื้นที่ด้านในทำให้รูปเล็กลง ส่วน shadow วาดออกนอกกล่อง รูปจึงยังเต็ม 88/120px เท่าเดิม */}
-          <div
-            className='is-full bs-full rounded-full border-4 overflow-hidden bg-primary flex items-center justify-center text-white text-3xl font-bold border-[var(--mui-palette-background-paper)]'
-            style={{ boxShadow: `0 0 0 2px ${data.tierAccent}2E` }}
-          >
-            <ProfileImg
-              src={data.avatar}
-              alt=''
-              className='is-full bs-full object-cover'
-              fallback={data.shopName.trim().charAt(0)}
-            />
-          </div>
-          {levelImage && (
-            /* ความหมายมาจาก `alt` (element เป็น <img> = role img ซึ่งรองรับชื่อจากผู้เขียน) —
-               ที่ 34px เลขในอาร์ตเวิร์กอ่านไม่ออก และสีอย่างเดียวสื่อความหมายไม่ได้ (WCAG 1.4.1) */
-            // eslint-disable-next-line @next/next/no-img-element -- asset ใน public/
-            <img
-              src={levelImage.src}
-              alt={levelImage.alt}
-              title={levelImage.alt}
-              /* 🛑 ใช้คลาสชุดเดียวกับของเดิมเป๊ะ — `inset-block-end-0`/`inset-inline-end-0`
-                 **ไม่ถูกเจนเป็น CSS ในโปรเจกต์นี้** ⇒ img หลุดจาก absolute ไปอยู่ใน flow ปกติ
-                 แล้วไปทับชื่อร้านบรรทัดถัดไป (คลาสที่ไม่มีนิยาม = no-op เงียบ ไม่มีอะไรฟ้อง) */
-              className='absolute inline-end-[-6px] block-end-[-2px] bs-9 md:bs-11 is-auto'
-              style={{ filter: 'drop-shadow(0 1px 2px rgba(47,43,61,.35))' }}
-            />
-          )}
-        </div>
-
-        {/* ── มือถือ: ปุ่มอยู่ใต้แถวตัวเลข เต็มความกว้าง (ในระยะนิ้วโป้ง) ──
-               เดสก์ท็อป: ปุ่มยกขึ้นไปอยู่ **แถวเดียวกับรูปโปรไฟล์ ชิดขวา** แบบ X/Twitter
-               (user ส่งภาพอ้างอิงมา 2026-08-13) — ตำแหน่งนี้คืนบรรทัดชื่อร้านให้เป็นของชื่อล้วน ๆ
-               และปุ่มไปอยู่ในแถบที่สายตาผ่านอยู่แล้วตอนดูรูป */}
-        <div>
-          <div className='min-is-0'>
-        <div className='flex items-center gap-2 flex-wrap'>
-          {/* 24px (h4) → 28px (h3) บนเดสก์ท็อป — ทั้งคู่เป็นขั้นจริงใน ramp ของ DESIGN.md
-              🛑 ของเดิม 22px **ไม่อยู่บน ramp เลย** (ramp เดิน 18 → 24 → 28) เป็นค่าที่ตกทอดมาจาก
-              ProfileHero การขยับรอบนี้จึงแก้ค่าที่หลุดระบบอยู่ก่อนแล้วไปด้วยในตัว
-              🛑 อย่าไปใช้ 26/30 ที่ "ดูพอดี" — ไม่มีในระบบ (detector จับได้ 3 ครั้งในวันเดียว) */}
-          <Typography
-            component='h1'
-            className='text-[24px] md:text-[28px] font-bold leading-tight'
-            color='text.primary'
-          >
-            {data.shopName}
-          </Typography>
-          {/* ── ชิปคะแนน: **พิลเดียว 2 ช่วง** (ยกกลับมาจากของเดิมตามคำสั่ง user 2026-08-13) ──
-              รอบก่อนผมยุบเป็น MUI `<Chip>` ก้อนเดียวพื้นสีระดับ `41/100 · Deep Classic` ซึ่ง
-              **ทิ้งงานที่ของเดิมทำไว้ 2 อย่าง**:
-                1. ตัวเลขไม่ได้เด่นกว่าตัวหาร — `41` กับ `/100` ขนาดเท่ากันหมด ทั้งที่คนอ่าน
-                   ต้องการเลขจริง ส่วน `/100` มีไว้บอกสเกลเฉย ๆ
-                2. **พื้นสีระดับกลืนกับคะแนน** — ของเดิมแยกช่วงซ้าย (พื้นเข้ม = ตัวเลขระบบ) ออกจาก
-                   ช่วงขวา (สีประจำระดับจาก `getTierChipTone`) ⇒ Deep Gold กับ Deep Classic
-                   ต่างกันตั้งแต่ยังไม่ได้อ่านตัวหนังสือ ซึ่งเป็นเหตุผลที่ `getTierChipTone` มีอยู่
-              🛑 ไม่มี ⓘ — user สั่งถอดไปตั้งแต่ 2026-08-11 และภาพอ้างอิงรอบนี้ก็ไม่มี
-              ข้อแลกเปลี่ยนที่รับไว้: ไม่มีสัญญาณทางสายตาว่าพิลนี้กดได้ เหลือแค่ cursor + focus ring
-              (ของเดิมมีเช็คเขียวหลังชื่อร้านเป็นทางเข้าที่สอง แต่จอนี้ไม่มี เพราะ L1 ห้ามเป็นเขียว) */}
-          <button
-            type='button'
-            onClick={() => setScorePanelOpen(true)}
-            aria-haspopup='dialog'
-            aria-expanded={scorePanelOpen}
-            aria-controls='trust-score-panel'
-            aria-label={`คะแนนความน่าเชื่อถือ ${data.trustScore} จาก ${TRUST_SCORE_MAX} · ระดับ ${data.tierLabel} — ดูรายละเอียด`}
-            /* ::after ดัน tap target ให้ถึง 44px โดยพิลที่ตาเห็นยังเล็กเท่าเดิม —
-               ถ้าใส่ padding จริง line box ของบรรทัดชื่อร้านจะโตตามแล้วดันทั้งบล็อกห่างลงไป */
-            className='relative inline-flex items-stretch rounded-full overflow-hidden border-0 p-0 bg-transparent cursor-pointer font-[inherit] after:absolute after:inset-[-13px] after:content-[""] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
-          >
-            {/* 15px = ขั้น Subtitle/Body ของ ramp — ไม่ใช่ 14px ซึ่งไม่อยู่บน ramp เลย */}
-            {/* 🛑 `font-bold` (700 = ขั้น Strong) ไม่ใช่ 800 — DESIGN.md สงวน 800 ให้ **Metric เท่านั้น**
-                ซึ่งมีขนาดของตัวเองคือ 32/22/20px · 15px/800 จึงไม่ใช่ทั้ง Strong และ Metric
-                เป็นคู่ผสมที่สามที่ไม่มีชื่อในระบบ (ux audit 2026-08-14)
-                นี่คือแพตเทิร์นเดียวกับที่ทำให้ต้องประกาศขั้น Strong เพิ่มเมื่อ 2026-08-12 —
-                แต่ละไฟล์เลือกน้ำหนักกันเองจนไม่มีตัวไหนอยู่ใน vocab */}
-            <span className='inline-flex items-center plb-1 pli-2 text-[15px] font-bold tabular-nums leading-none bg-[var(--mui-palette-text-primary)] text-[var(--mui-palette-background-paper)]'>
-              {data.trustScore}
-              <span className='text-[11px] font-bold opacity-65'>{`/${TRUST_SCORE_MAX}`}</span>
-            </span>
-            {/* 🛑 ลูกศรท้ายพิลคือสัญญาณเดียวว่า "กดได้" — บนมือถือไม่มี cursor ไม่มี hover
-                และ ⓘ ถูกถอดไปตามคำสั่ง user (2026-08-11) ⇒ ก่อนหน้านี้พิลนี้ไม่มีสัญญาณเลย
-                ทั้งที่มันเป็น **ทางเข้าเดียว** ของแผงที่อธิบายว่า 41/100 แปลว่าอะไร
-                (จอนี้ไม่มีเช็คเขียวหลังชื่อร้านเป็นทางเข้าที่สองแบบของเดิม เพราะ L1 ห้ามเป็นเขียว)
-                วางท้ายพิลไม่ใช่หน้าตัวเลข จึงไม่แย่งพื้นที่จากสิ่งที่คนมาอ่าน */}
-            <span
-              className='inline-flex items-center gap-0.5 plb-1 pis-2.5 pie-1.5 text-[13px] font-bold leading-none'
-              style={{ background: tierTone.bg, color: tierTone.text }}
-            >
-              {data.tierLabel}
-              <Icon icon='tabler:chevron-right' width={13} aria-hidden />
-            </span>
-          </button>
-          {/* 🛑 ไม่มีชิปคะแนนรีวิวตรงนี้ (user ถอดออก 2026-08-13) — เลขเดียวกันโผล่ 3 ที่ในจอเดียว
-              คือ ชิปนี้ · ช่อง "รีวิว" ในแถวตัวเลข · ป้ายแท็บ "รีวิว 4.7"
-              ม็อกอัพไม่มีชิปนี้มาแต่แรก ผมเป็นคนเติมเข้ามาเองโดยยกมาจากหัวโปรไฟล์เดิม */}
-        </div>
-
-        <Typography variant='body2' color='text.secondary' className='mbs-1.5'>
-          {[`@${data.username}`, data.category, `เปิดร้านมาแล้ว ${formatShopAge(data.createdAtIso)}`]
-            .filter(Boolean)
-            .join(' · ')}
-        </Typography>
-
-        {data.bio?.trim() ? (
-          /* 🛑 **โหนดที่ถูกวัด ต้องไม่เปลี่ยนหน้าตาตามผลการวัด** (บั๊ก prod 2026-08-15)
-             เดิมอิลิเมนต์ตัวเดียวกันสลับแท็ก `p` ↔ `button` ตามค่า `bioOverflows` ซึ่งเป็นค่าที่
-             ได้จากการวัด **อิลิเมนต์นั้นเอง** = ป้อนกลับเข้าตัวเอง บนเอนจินที่ `-webkit-line-clamp`
-             ไม่ทำงานกับ `<button>` (WebKit — iOS Safari) ค่าที่วัดได้ในสองสถานะจึงไม่ตรงกัน:
-               `<p>` clamp ติด → scrollH > clientH → true  → เปลี่ยนเป็น `<button>`
-               `<button>` clamp หลุด → scrollH = clientH → false → เปลี่ยนกลับเป็น `<p>` → วนไม่จบ
-             ⇒ ทุกอย่างใต้บรรทัดนี้ขยับขึ้นลงทุกเฟรมตลอดเวลา user ส่งคลิปจาก iPhone มายืนยัน
-             (2 บรรทัด ↔ 3 บรรทัด + "เพิ่มเติม" สลับตลอด 3.6 วินาทีที่อัด)
-             ตอนนี้ตัวที่ถูกวัดคือ `<span>` ที่แท็ก/คลาส/sx **เหมือนกันทุกสถานะ** ส่วนความเป็นปุ่ม
-             ย้ายออกไปอยู่ที่ตัวห่อ ⇒ ผลการวัดไม่ขึ้นกับผลการวัดอีกต่อไป
-             (`<button>` ห่อ `<span>` เป็น HTML ที่ถูก — button รับได้เฉพาะ phrasing content
-             ซึ่งเป็นบทเรียนเดียวกับที่ `OfficialChannelsBlock` เคยพลาดกับ `<h2>`) */
-          <div ref={bioHostRef} className='relative mbs-3'>
-            {/* 🛑 โพรบวัดความสูง — ข้อความชุดเดียวกันแบบ **ไม่ย่อ** ซ่อนไว้ทับที่เดิม
-                มีไว้เพราะ "ล้นไหม" ต้องตอบได้โดย **ไม่ต้องวัดกล่องที่ถูกย่อ**:
-                  · กล่องที่ถูก clamp ให้ `scrollHeight` ไม่ตรงกันระหว่างเอนจิน และไม่ตรงกันแม้แต่
-                    ในเอนจินเดียวกันคนละจังหวะ (Chrome: 53 ตอนโหลด → 105 หลัง reflow)
-                  · ถ้าไปวัดกล่องจริง ผลการวัดจะขึ้นกับสถานะที่ผลการวัดเป็นคนกำหนด = วนไม่จบ
-                โพรบไม่มี clamp ไม่มีปุ่ม ไม่เคยเปลี่ยนรูปร่าง ⇒ ให้คำตอบเดิมเสมอ
-                `absolute` + `invisible` = วัดได้แต่ไม่กินที่และไม่มีใครเห็น (ห้าม `hidden`
-                ของ Tailwind หรือ `display:none` — ความสูงจะกลายเป็น 0)
-                `aria-hidden` เพราะข้อความชุดนี้ถูกอ่านจากตัวจริงอยู่แล้ว */}
-            <Typography
-              ref={bioProbeRef}
-              component='span'
-              aria-hidden
-              className='absolute inset-inline-0 inset-block-start-0 invisible pointer-events-none select-none'
-              sx={{ fontSize: '15px', lineHeight: 1.75 }}
-            >
-              {data.bio.trim()}
-            </Typography>
-            <BioShell
-              interactive={bioOverflows}
-              expanded={bioExpanded}
-              onToggle={() => setBioExpanded((v) => !v)}
-            >
-            {/* ตัวข้อความเอง — "เพิ่มเติม" ซ้อนท้ายบรรทัดสุดท้าย ไม่มีปุ่มแยกบรรทัด
-                🛑 ตัวซ้อนต้องมีพื้น paper **ทึบ** — line-clamp ไม่ได้ลบข้อความ แค่ซ่อน
-                ถ้าโปร่งจะเห็นตัวอักษรซ้อนกันเป็นเงา */}
-            <Typography
-              component='span'
-              color='text.primary'
-              /* 🛑 **ห้ามมี `block` ตรงนี้** — utility ของ Tailwind ชนะ `display` ที่ `sx` ตั้งไว้
-                 พอกลายเป็น `display:block` แล้ว `-webkit-line-clamp` ไม่ทำงาน (ต้องการ `-webkit-box`)
-                 ⇒ ข้อความกางเต็ม แต่ป้าย "เพิ่มเติม" ยังโผล่ = คำเชิญให้กดสิ่งที่กางอยู่แล้ว
-                 `relative` ต้องอยู่ที่โหนดนี้ เพราะป้ายซ้อนวางตัวเทียบกับกล่องข้อความ ไม่ใช่กับปุ่ม */
-              className='relative m-0 font-[inherit] text-start'
-              sx={{
-                /* 🛑 คงที่ 15px (ขั้น Body ของ ramp) — ความโปร่งของทิศทาง B มาจาก **leading 1.75**
-                   ไม่ใช่จากขนาด เพราะ ramp ไม่มี 16px และขั้นถัดไปคือ 18px ซึ่งเป็นขั้นหัวข้อย่อย
-                   สีเป็น text.secondary เพราะ bio ไม่ควรแข่งน้ำหนักกับชื่อร้านที่อยู่เหนือมัน 2 บรรทัด */
-                fontSize: '15px',
-                lineHeight: 1.75,
-                color: 'var(--mui-palette-text-secondary)',
-                ...(bioExpanded
-                  ? { display: 'block' }
-                  : {
-                      display: '-webkit-box',
-                      WebkitBoxOrient: 'vertical',
-                      WebkitLineClamp: BIO_CLAMP_LINES,
-                      overflow: 'hidden',
-                    }),
-              }}
-            >
-              {data.bio.trim()}
-              {bioOverflows && !bioExpanded && (
-                <span
-                  aria-hidden
-                  /* primary.dark ไม่ใช่ primary.main — 13px ไม่เข้าเกณฑ์ large text ของ WCAG
-                     จึงต้องผ่าน 4.5:1 แบบ body (#7367F0 บนขาวได้ ~4.25:1) */
-                  className='absolute inset-be-0 inline-end-0 pis-2 text-[13px] font-semibold bg-[var(--mui-palette-background-paper)]'
-                  style={{ color: 'var(--mui-palette-primary-dark)' }}
-                >
-                  เพิ่มเติม
-                </span>
-              )}
-            </Typography>
-            </BioShell>
-          </div>
-        ) : null}
-
-        {/* ── แถวตัวเลข ──
-               🛑 **flex-wrap ไม่ใช่ grid 4 คอลัมน์** — grid แบ่งความกว้าง 960px เท่า ๆ กัน
-               ทำให้ตัวเลขกระจายห่างกันช่องละ ~230px บนเดสก์ท็อป อ่านเป็นตัวเลข 4 ตัวลอย ๆ
-               ไม่ใช่ "ชุดตัวเลขของร้านนี้" (ม็อกอัพใช้ flex gap แน่น ๆ ชิดซ้าย)
-               🛑 และไม่ใช่ `overflow-x-auto` แบบม็อกอัพด้วย — ที่ <360px แถว scroll ไม่มี
-               affordance ผู้ใช้ไม่รู้ว่ามีช่องที่ 4 อยู่ (iPhone SE, Galaxy Fold ตอนพับ)
-               `flex-wrap` ได้ทั้งสองอย่าง: แน่นชิดซ้ายบนจอกว้าง และตกบรรทัดแทนการซ่อนบนจอแคบ
-               ไม่มี min-width ต่อช่อง — ความกว้างเท่าป้ายของมันเอง (min-is ที่เคยใส่คือตัวที่ดันให้ห่าง)
-               ตัวเลข 22px/800 = ขั้น Metric ของ DESIGN.md ซึ่งสงวน 800 ไว้ให้ตัวเลขโดยเฉพาะ */}
-        <div className='flex flex-wrap gap-x-10 gap-y-3 mbs-7'>
-          {data.stats.map((s) => (
-            <div key={s.label}>
-              {/* 🛑 ตัวเลขต้องระบุสีเอง ห้ามปล่อยให้สืบทอด — ค่าที่สืบมาคือ `text.primary` ของ Vuexy
-                  ซึ่งเป็น rgba ที่มี alpha < 1 ⇒ ตัวเลขจางกว่าชื่อร้านที่ตั้งสีไว้ตรง ๆ ทั้งที่
-                  ควรเป็นของที่เด่นที่สุดรองจากชื่อ (user: "ตัวเลขไม่เด่นพอ" 2026-08-13)
-                  32px ต่างจากม็อกอัพ (22px) โดยตั้งใจ — เป็น **ขั้นบนสุดของ Metric ramp**
-                  ที่ DESIGN.md ประกาศไว้ (32/22/20) ไม่ใช่เลขที่เลือกเอง; 26px ที่ลองก่อนหน้า
-                  หลุด ramp และ detector จับได้ทันที · ป้ายใต้มันคือ 13px ⇒ อัตราส่วน ~2.5:1
-                  ทำให้สแกนเจอ "ตัวเลข" ก่อน "คำ" ซึ่งเป็นลำดับที่ผู้ชมโปรไฟล์โซเชียลอ่านจริง */}
-              <span
-                className='text-[32px] font-extrabold tabular-nums leading-none'
-                style={{ letterSpacing: '-0.02em', color: 'var(--mui-palette-text-primary)' }}
-              >
-                {s.value != null ? compactCount(s.value) : '—'}
-              </span>
-              {/* 🛑 บังคับสีผ่าน `sx` ไม่ใช่ prop `color` — `variant='caption'` ของธีมชนะ prop
-                  แล้วป้ายออกมาเป็น `text.disabled` (0.4) = **2.29:1** ซึ่งตกเกณฑ์ 4.5:1 เกินครึ่ง
-                  (วัดจากหน้าจริง critique 2026-08-13 · `text.secondary` 0.7 ให้ 5.24:1)
-                  ป้ายพวกนี้คือสิ่งเดียวที่ทำให้ตัวเลข 32px มีความหมาย ถ้าอ่านไม่ออกก็เหลือเลขลอย ๆ
-                  และ PRODUCT.md ระบุกลุ่มผู้ใช้เป็นผู้สูงวัย/digital-literacy ต่ำไว้ตรงตัว
-                  🛑 `color='text.secondary'` ที่ประกาศไว้ **ไม่มีผลจริง** — คลาสเดียวกับ `color`
-                  บน `<h1>` ที่ออกมาเป็น 0.7 ทั้งที่สั่ง `text.primary` (ประกาศ ≠ ผลลัพธ์) */}
-              <Typography
-                variant='caption'
-                className='block mbs-0.5'
-                sx={{ color: 'var(--mui-palette-text-secondary)' }}
-              >
-                {s.label}
-              </Typography>
-            </div>
-          ))}
-        </div>
-
-          </div>
-
-        {/* ── ปุ่มลงมือ ──
-               ไม่มีปุ่ม "ติดตาม" เพราะระบบไม่มีระบบติดตามจริง — ปุ่มที่กดแล้วไม่เกิดอะไรบนหน้าที่
-               ขายความน่าเชื่อถือ ทำลายความน่าเชื่อถือมากกว่าไม่มีปุ่ม
-               🛑 ป้ายปุ่มใช้ **ชื่อแพลตฟอร์มสั้น** ไม่ใช่ชื่อเพจ — ชื่อเพจจริงยาวได้ถึง 34 ตัวอักษร
-               ซึ่งล้นปุ่มที่ 390px และชื่อเพจแสดงอยู่ในบล็อกเพจทางการด้านล่างแล้ว */}
-        {/* 🛑 แถวปุ่ม **ถอดออกจากโฟลว์ทุกขนาดจอ** (`absolute`) ไปเกาะมุมขวาของบล็อกตัวตน
-            ให้ก้นปุ่มเสมอก้นรูปโปรไฟล์ — user เลือกผังนี้เอง 2026-08-13 ("มันกินพื้นที่นะ")
-            แถวเต็มความกว้างแบบเดิมกิน ~56px ของจอแรกบนมือถือ ซึ่งเป็นพื้นที่ที่ควรเป็นของ
-            หลักฐานความน่าเชื่อถือ (เหตุผลทั้งหมดที่หน้านี้มีอยู่)
-
-            `block-start` ต่างกันตาม breakpoint เพราะรูปโปรไฟล์คนละขนาด:
-              มือถือ  รูป 88px  → ก้นรูปที่ y=88  ปุ่มสูง 38 ⇒ 50
-              ≥900px  รูป 120px → ก้นรูปที่ y=120 ปุ่มสูง 38 ⇒ 82
-            🛑 ถ้าวันหนึ่งเปลี่ยนขนาดรูป **ต้องแก้เลขคู่นี้ด้วย** ไม่งั้นปุ่มจะลอยไม่ตรงก้นรูป
-            โดยไม่มีอะไรฟ้อง (ทั้งคู่เป็นค่าที่ถูกต้องตามชนิดทุกประการ)
-
-            🛑 ไม่ render ปุ่มสองชุดตาม breakpoint เพราะสองชุด = ลิงก์ซ้ำในลำดับการอ่านของ
-            screen reader (มันไม่เห็นว่าตัวหนึ่ง `hidden`) และกด Tab เจอสองรอบ */}
-          <div className='flex gap-2 shrink-0 absolute inline-end-5 block-start-[50px] md:block-start-[82px]'>
-          {chatHref && chatChannel && (
-            <Button
-              variant='contained'
-              size='large'
-              href={chatHref}
-              target='_blank'
-              rel='noopener noreferrer'
-              startIcon={<Icon icon='tabler:message-circle' width={18} />}
-              /* ป้ายปุ่มเป็น "ติดต่อร้านค้า" (user สั่ง) — บอก *สิ่งที่จะเกิด* ไม่ใช่ชื่อช่องทาง
-                 🛑 ชื่อแพลตฟอร์มยังต้องอยู่ใน accessible name + title เพราะปุ่มนี้ **พาออกนอกเว็บ**
-                 ผู้ใช้ควรรู้ปลายทางก่อนกด (โดยเฉพาะ screen reader ที่ไม่เห็นไอคอน) */
-              title={`เปิด ${CHANNEL_SHORT_LABEL[chatChannel.provider] ?? 'ช่องทางร้าน'}`}
-              aria-label={`ติดต่อร้านค้าผ่าน ${CHANNEL_SHORT_LABEL[chatChannel.provider] ?? 'ช่องทางร้าน'}`}
-              /* 🛑 เดสก์ท็อปหด: กว้างเท่าข้อความ (ไม่ใช่ `fullWidth`) และเตี้ยลงเหลือ ~38px
-                 เพราะมันไม่ได้อยู่ในระยะนิ้วโป้งแล้ว เกณฑ์ 44px ของ WCAG ผูกกับการแตะ ไม่ใช่เมาส์
-                 ผลพลอยได้: โควตา One Voice (ม่วง ≤10%) ลดลงอีกมากบนจอกว้าง
-                 media query เขียนเป็น 900px ตรง ๆ เพราะเป็นค่าที่ `--breakpoint-md` ถูกรีแมปไว้
-                 🛑 15px = ขั้น Subtitle/Body ของ ramp — **ห้าม 14px** ซึ่งไม่อยู่บน ramp เลย
-                 (ผมตั้ง 14 ก่อนเพราะ "อยากให้เล็กลงกว่าเดิม" แล้วเลือกเลขที่ดูพอดีแทนขั้นที่ระบบมี
-                 detector จับได้ — เป็นความผิดพลาดตัวเดียวกับที่ ProfileHero เขียนเตือนไว้เองในไฟล์เดิม) */
-              sx={{
-                inlineSize: 'auto',
-                minBlockSize: 38,
-                paddingBlock: '5px',
-                paddingInline: '16px',
-                fontSize: '15px',
-                /* ปุ่มที่ตาเห็นสูง 38px แต่พื้นที่แตะจริง 44px ตามเกณฑ์ของโปรเจกต์ —
-                   ::after ที่ absolute ไม่กินที่ในโฟลว์ จึงไม่ดันอะไรให้ห่างออกไป */
-                position: 'relative',
-                '&::after': { content: '""', position: 'absolute', insetBlock: -3, insetInline: 0 },
-              }}
-            >
-              ติดต่อร้านค้า
-            </Button>
-          )}
-          <Button
-            variant='outlined'
-            size='large'
-            color='secondary'
-            onClick={share}
-            aria-label='แชร์โปรไฟล์นี้'
-            /* สี่เหลี่ยม 38×38 เท่าความสูงปุ่มหลัก — ปุ่มสองใบที่สูงไม่เท่ากันในแถวเดียว
-               อ่านเป็นของคนละชุด (ดูภาพอ้างอิงของ X: ปุ่มทุกใบสูงเท่ากันหมด) */
+        <Box sx={HERO_INNER_SX}>
+          {/* ── คอลัมน์ 1: โลโก้ร้าน ── */}
+          {/* xs จัดกึ่งกลาง (user เคาะ 2026-08-21) — พ่อเป็น `display:block` ตอน xs
+              จึงจัดกลางด้วย `marginInline:auto` ไม่ใช่ `justifySelf` (อันนั้นมีผลเฉพาะ grid item)
+              ต้องมี `inlineSize:'fit-content'` คู่กัน ไม่งั้นกล่องกว้างเต็มแถวแล้ว auto ไม่มีผล
+              sm ขึ้นไปพ่อเป็น grid แล้ว กลับไปใช้ `justifySelf` ตามเดิม */}
+          <Box
             sx={{
-              minBlockSize: 38,
-              paddingBlock: 0,
-              ...(chatHref
-                ? { inlineSize: 38, minInlineSize: 38, paddingInline: 0 }
-                : { paddingInline: '16px', fontSize: '15px' }),
               position: 'relative',
-              '&::after': { content: '""', position: 'absolute', insetBlock: -3, insetInline: 0 },
+              inlineSize: { xs: 'fit-content', sm: 'auto' },
+              marginInline: { xs: 'auto', sm: 0 },
+              justifySelf: { xs: 'start', md: 'center' },
             }}
-            startIcon={chatHref ? undefined : <Icon icon={copied ? 'tabler:check' : 'tabler:share-2'} width={18} />}
           >
-            {chatHref ? (
-              <Icon icon={copied ? 'tabler:check' : 'tabler:share-2'} width={18} />
-            ) : copied ? (
-              'คัดลอกลิงก์แล้ว'
-            ) : (
-              'แชร์โปรไฟล์'
+            <Box sx={LOGO_SX}>
+              <ProfileImg
+                src={data.avatar}
+                alt=''
+                className='is-full bs-full object-cover'
+                fallback={
+                  <span className='text-[40px] font-extrabold text-white'>
+                    {data.shopName.trim().charAt(0)}
+                  </span>
+                }
+              />
+            </Box>
+            {levelImage && (
+              <img
+                src={levelImage.src}
+                alt={levelImage.alt}
+                title={levelImage.alt}
+                className='absolute inline-end-[-2px] block-end-[2px] bs-10 md:bs-12 is-auto'
+                style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,.5))' }}
+              />
             )}
-          </Button>
-        </div>
-        </div>
+          </Box>
+
+          {/* ── คอลัมน์ 2: ตัวตนร้าน ──
+              xs จัดกึ่งกลางทั้งคอลัมน์ (พิลระดับ / ชื่อร้าน / บรรทัด meta) ตาม user 2026-08-21
+              🛑 **ยกเว้นคำโปรย** ซึ่งบังคับ `text-start` ไว้ที่ตัวมันเอง เพราะป้าย "เพิ่มเติม" เป็น
+              `absolute inline-end-0` = ตรึงมุมขวาล่างของกล่อง ไม่ใช่ท้ายตัวอักษร ⇒ พอจัดกลาง
+              บรรทัดสุดท้ายจะสั้นกว่ากล่อง แล้วป้ายไปลอยห่างจากข้อความโดยไม่มีอะไรเชื่อม
+              (จะจัดกลางคำโปรยด้วยต้องรื้อป้ายเป็นบรรทัดแยกก่อน — ยังไม่ทำในรอบนี้) */}
+          <Box sx={{ minInlineSize: 0, textAlign: { xs: 'center', sm: 'start' } }}>
+            {/* พิลระดับ — คงเป็น "ปุ่ม" ไม่ใช่ป้ายเฉย ๆ เพราะมันคือทางเข้าเดียวของแผงคะแนน
+                (ไฟล์อ้างอิงวาดเป็นป้ายนิ่ง ๆ ถ้าลอกตรงนั้นมา ผู้ใช้จะเข้าแผงไม่ได้อีกเลย) */}
+            <button
+              type='button'
+              onClick={() => setScorePanelOpen(true)}
+              aria-haspopup='dialog'
+              aria-expanded={scorePanelOpen}
+              aria-controls='trust-score-panel'
+              aria-label={`คะแนนความน่าเชื่อถือ ${data.trustScore} จาก ${TRUST_SCORE_MAX} · ระดับ ${data.tierLabel} — ดูรายละเอียด`}
+              /* 🛑 **ไม่แตะระบบแรงค์** — ใช้ `getTierChipTone()` ชุดเดิมของระบบทั้งดุ้น (user สั่ง
+                 2026-08-21: "ใช้ตรีมเดิมของระบบนั้นละ อย่าไปแก้แรงค์เขานะ")
+
+                 ชุดนั้นเป็น "ตัวหนังสือเข้มบนพื้นอ่อน" ซึ่งออกแบบไว้สำหรับการ์ดพื้นขาว — วางบน
+                 ปกเข้มตรง ๆ จะจมหาย ทางแก้ที่ **ไม่ต้องแตะสีของระดับเลย** คือวางบน "แผ่นทึบสีพื้น"
+                 แล้วให้พิลของระดับทำงานบนแผ่นนั้นเหมือนตอนอยู่บนการ์ดขาว
+
+                 เป็นท่าเดียวกับ **ตราแบรนด์ Deep มุมซ้ายบน** ในไฟล์นี้ ซึ่งเลือกพื้นทึบด้วยเหตุผล
+                 ที่เขียนไว้แล้วว่า "ปกมี 2 กรณี (รูปจริง / ไล่สี tier) พื้นทึบอ่านออกทั้งคู่" */
+              className='inline-flex items-center gap-1.5 cursor-pointer border-0 p-0 bg-transparent'
+            >
+              <span
+                className='inline-flex items-center gap-1.5 rounded-full plb-1.5 pli-3'
+                style={{ background: 'var(--mui-palette-background-paper)' }}
+              >
+                <span
+                  className='inline-flex items-center gap-1 rounded-full plb-0.5 pli-2 text-[12px] font-extrabold'
+                  style={{ background: tierTone.bg, color: tierTone.text }}
+                >
+                  {data.tierLabel}
+                </span>
+                <span className='text-[13px] font-bold tabular-nums text-[var(--mui-palette-text-primary)]'>
+                  {data.trustScore}
+                  <span className='text-[11px] opacity-60'>{`/${TRUST_SCORE_MAX}`}</span>
+                </span>
+                <Icon icon='tabler:chevron-right' width={13} aria-hidden className='text-[var(--mui-palette-text-secondary)]' />
+              </span>
+            </button>
+
+            <Typography component='h1' sx={TITLE_SX}>
+              {data.shopName}
+            </Typography>
+
+            <Box sx={{ color: 'rgba(255,255,255,.72)', fontSize: 13, lineHeight: 1.7 }}>
+              {[`@${data.username}`, data.category, `เปิดร้านมาแล้ว ${formatShopAge(data.createdAtIso)}`]
+                .filter(Boolean)
+                .join(' · ')}
+            </Box>
+
+            {data.bio?.trim() ? (
+              /* 🛑 **โหนดที่ถูกวัด ต้องไม่เปลี่ยนหน้าตาตามผลการวัด** (บั๊ก prod 2026-08-15)
+                 เดิมอิลิเมนต์ตัวเดียวกันสลับแท็ก `p` ↔ `button` ตามค่า `bioOverflows` ซึ่งเป็นค่าที่
+                 ได้จากการวัด **อิลิเมนต์นั้นเอง** = ป้อนกลับเข้าตัวเอง บนเอนจินที่ `-webkit-line-clamp`
+                 ไม่ทำงานกับ `<button>` (WebKit — iOS Safari) ค่าที่วัดได้ในสองสถานะจึงไม่ตรงกัน:
+                   `<p>` clamp ติด → scrollH > clientH → true  → เปลี่ยนเป็น `<button>`
+                   `<button>` clamp หลุด → scrollH = clientH → false → เปลี่ยนกลับเป็น `<p>` → วนไม่จบ
+                 ⇒ ทุกอย่างใต้บรรทัดนี้ขยับขึ้นลงทุกเฟรมตลอดเวลา user ส่งคลิปจาก iPhone มายืนยัน
+                 (2 บรรทัด ↔ 3 บรรทัด + "เพิ่มเติม" สลับตลอด 3.6 วินาทีที่อัด)
+                 ตอนนี้ตัวที่ถูกวัดคือ `<span>` ที่แท็ก/คลาส/sx **เหมือนกันทุกสถานะ** ส่วนความเป็นปุ่ม
+                 ย้ายออกไปอยู่ที่ตัวห่อ ⇒ ผลการวัดไม่ขึ้นกับผลการวัดอีกต่อไป
+                 (`<button>` ห่อ `<span>` เป็น HTML ที่ถูก — button รับได้เฉพาะ phrasing content
+                 ซึ่งเป็นบทเรียนเดียวกับที่ `OfficialChannelsBlock` เคยพลาดกับ `<h2>`) */
+              <div ref={bioHostRef} className='relative mbs-3'>
+                {/* 🛑 โพรบวัดความสูง — ข้อความชุดเดียวกันแบบ **ไม่ย่อ** ซ่อนไว้ทับที่เดิม
+                    มีไว้เพราะ "ล้นไหม" ต้องตอบได้โดย **ไม่ต้องวัดกล่องที่ถูกย่อ**:
+                      · กล่องที่ถูก clamp ให้ `scrollHeight` ไม่ตรงกันระหว่างเอนจิน และไม่ตรงกันแม้แต่
+                        ในเอนจินเดียวกันคนละจังหวะ (Chrome: 53 ตอนโหลด → 105 หลัง reflow)
+                      · ถ้าไปวัดกล่องจริง ผลการวัดจะขึ้นกับสถานะที่ผลการวัดเป็นคนกำหนด = วนไม่จบ
+                    โพรบไม่มี clamp ไม่มีปุ่ม ไม่เคยเปลี่ยนรูปร่าง ⇒ ให้คำตอบเดิมเสมอ
+                    `absolute` + `invisible` = วัดได้แต่ไม่กินที่และไม่มีใครเห็น (ห้าม `hidden`
+                    ของ Tailwind หรือ `display:none` — ความสูงจะกลายเป็น 0)
+                    `aria-hidden` เพราะข้อความชุดนี้ถูกอ่านจากตัวจริงอยู่แล้ว */}
+                <Typography
+                  ref={bioProbeRef}
+                  component='span'
+                  aria-hidden
+                  className='absolute inset-inline-0 inset-block-start-0 invisible pointer-events-none select-none'
+                  sx={{ fontSize: '15px', lineHeight: 1.75 }}
+                >
+                  {data.bio.trim()}
+                </Typography>
+                <BioShell
+                  interactive={bioOverflows}
+                  expanded={bioExpanded}
+                  onToggle={() => setBioExpanded((v) => !v)}
+                >
+                {/* ตัวข้อความเอง — "เพิ่มเติม" ซ้อนท้ายบรรทัดสุดท้าย ไม่มีปุ่มแยกบรรทัด
+                    🛑 ตัวซ้อนต้องมีพื้น paper **ทึบ** — line-clamp ไม่ได้ลบข้อความ แค่ซ่อน
+                    ถ้าโปร่งจะเห็นตัวอักษรซ้อนกันเป็นเงา */}
+                <Typography
+                  component='span'
+                  color='text.primary'
+                  /* 🛑 **ห้ามมี `block` ตรงนี้** — utility ของ Tailwind ชนะ `display` ที่ `sx` ตั้งไว้
+                     พอกลายเป็น `display:block` แล้ว `-webkit-line-clamp` ไม่ทำงาน (ต้องการ `-webkit-box`)
+                     ⇒ ข้อความกางเต็ม แต่ป้าย "เพิ่มเติม" ยังโผล่ = คำเชิญให้กดสิ่งที่กางอยู่แล้ว
+                     `relative` ต้องอยู่ที่โหนดนี้ เพราะป้ายซ้อนวางตัวเทียบกับกล่องข้อความ ไม่ใช่กับปุ่ม */
+                  className='relative m-0 font-[inherit] text-start'
+                  sx={{
+                    /* 🛑 คงที่ 15px (ขั้น Body ของ ramp) — ความโปร่งของทิศทาง B มาจาก **leading 1.75**
+                       ไม่ใช่จากขนาด เพราะ ramp ไม่มี 16px และขั้นถัดไปคือ 18px ซึ่งเป็นขั้นหัวข้อย่อย
+                       สีเป็น text.secondary เพราะ bio ไม่ควรแข่งน้ำหนักกับชื่อร้านที่อยู่เหนือมัน 2 บรรทัด */
+                    fontSize: '15px',
+                    lineHeight: 1.75,
+                    color: 'rgba(255,255,255,.88)',
+                    ...(bioExpanded
+                      ? { display: 'block' }
+                      : {
+                          display: '-webkit-box',
+                          WebkitBoxOrient: 'vertical',
+                          WebkitLineClamp: BIO_CLAMP_LINES,
+                          overflow: 'hidden',
+                        }),
+                  }}
+                >
+                  {data.bio.trim()}
+                  {bioOverflows && !bioExpanded && (
+                    <span
+                      aria-hidden
+                      /* บนปกเข้มใช้ขาวล้วน (คอนทราสต์ >12:1) ไม่ใช้ primary.dark ซึ่งคำนวณไว้สำหรับพื้นขาว
+                         แผ่นบังเป็นไล่สีโปร่ง→เข้ม เพราะพื้นหลังเป็นรูป ไม่ใช่สีทึบที่ทาบทับตรง ๆ ได้ */
+                      className='absolute inset-be-0 inline-end-0 pis-6 text-[13px] font-semibold'
+                      style={{ color: '#fff', background: 'linear-gradient(90deg, transparent, rgba(18,13,7,.92) 42%, rgba(18,13,7,.98))' }}
+                    >
+                      เพิ่มเติม
+                    </span>
+                  )}
+                </Typography>
+                </BioShell>
+              </div>
+            ) : null}
+
+            {/* ── กล่องสถิติกระจกฝ้า — 4 ช่องมีเส้นคั่น ตามไฟล์อ้างอิง ──
+                🛑 `gridTemplateColumns` ผูกกับ **จำนวนช่องจริง** ไม่ hardcode 4: ไฟล์อ้างอิงมี 4 ช่อง
+                แต่ `data.stats` ผันตามประเภทกิจการ (บางร้านได้ 3) ถ้าตรึงไว้ 4 ร้านนั้นจะเหลือช่องว่าง
+                ค้างหนึ่งช่องพร้อมเส้นคั่นลอย ๆ โดยไม่มีอะไรฟ้อง */}
+            {data.stats.length > 0 && (
+              <Box sx={{ ...STATS_SX, gridTemplateColumns: `repeat(${data.stats.length}, 1fr)` }}>
+                {data.stats.map((s, i) => (
+                  <Box key={s.label} sx={{ ...STAT_SX, ...(i < data.stats.length - 1 ? STAT_DIVIDER_SX : null) }}>
+                    <Box component='b' sx={{ fontSize: { xs: 20, md: 24 }, display: 'block', fontWeight: 800 }} className='tabular-nums'>
+                      {s.value != null ? compactCount(s.value) : '—'}
+                    </Box>
+                    <Box component='span' sx={{ fontSize: { xs: 10, md: 11 }, color: 'rgba(255,255,255,.68)' }}>
+                      {s.label}
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+            )}
+          </Box>
+
+          {/* ── คอลัมน์ 3: ปุ่มติดต่อ + การ์ดคะแนนรีวิว ── */}
+          <Box sx={HERO_SIDE_SX}>
+            <Box sx={HERO_ACTIONS_SX}>
+              {chatHref && chatChannel && (
+                <Button
+                  variant='contained'
+                  href={chatHref}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  startIcon={<Icon icon='tabler:message-circle' width={18} />}
+                  title={`เปิด ${CHANNEL_SHORT_LABEL[chatChannel.provider] ?? 'ช่องทางร้าน'}`}
+                  aria-label={`ติดต่อร้านค้าผ่าน ${CHANNEL_SHORT_LABEL[chatChannel.provider] ?? 'ช่องทางร้าน'}`}
+                  sx={BTN_PRIMARY_SX}
+                >
+                  ติดต่อร้านค้า
+                </Button>
+              )}
+              <Button
+                variant='outlined'
+                onClick={share}
+                aria-label='แชร์โปรไฟล์นี้'
+                sx={BTN_GHOST_SX}
+                startIcon={chatHref ? undefined : <Icon icon={copied ? 'tabler:check' : 'tabler:share-2'} width={18} />}
+              >
+                {chatHref ? (
+                  <Icon icon={copied ? 'tabler:check' : 'tabler:share-2'} width={18} />
+                ) : copied ? (
+                  'คัดลอกลิงก์แล้ว'
+                ) : (
+                  'แชร์โปรไฟล์'
+                )}
+              </Button>
+            </Box>
+
+            {/* การ์ดคะแนน = **คะแนนรีวิวจากลูกค้า** คนละตัวกับคะแนนความน่าเชื่อถือในพิลด้านซ้าย
+                (ไฟล์อ้างอิงก็แยกสองอย่างนี้เหมือนกัน) — ซ่อนทั้งใบเมื่อยังไม่มีรีวิว ดีกว่าโชว์ "—/5"
+                ซึ่งอ่านได้ว่าร้านได้คะแนนแย่ ทั้งที่แปลว่ายังไม่มีใครรีวิว */}
+            {data.avgRating != null && (
+              <Box sx={SCORE_CARD_SX}>
+                <Box sx={SCORE_ICON_SX} aria-hidden>
+                  <Icon icon='tabler:star-filled' width={26} />
+                </Box>
+                <Box sx={{ minInlineSize: 0 }}>
+                  <Box component='small' sx={{ display: 'block', color: 'rgba(255,255,255,.72)', fontSize: 12, marginBlockEnd: '2px' }}>
+                    คะแนนร้านค้า
+                  </Box>
+                  {/* ≤900px เรียงเลข/ดาว/จำนวนไว้บรรทัดเดียว — บนมือถือทั้งสามอยู่คนละบรรทัด
+                      ทำให้การ์ดสูง ~110px ทั้งที่ไอคอนข้าง ๆ สูงแค่ 45px ⇒ ที่ว่างเปล่าเต็มใบ
+                      บรรทัดเดียวเหลือ ~72px และดันเนื้อหาจริงขึ้นมาให้เห็นเร็วขึ้น
+                      `alignItems: baseline` ให้เลข 22px กับดาว 13px นั่งบนเส้นฐานเดียวกัน */}
+                  <Box
+                    sx={{
+                      display: { xs: 'flex', md: 'block' },
+                      alignItems: 'baseline',
+                      flexWrap: 'wrap',
+                      columnGap: '9px',
+                    }}
+                  >
+                    <Box component='strong' sx={{ fontSize: { xs: 22, md: 27 }, fontWeight: 800 }} className='tabular-nums'>
+                      {data.avgRating.toFixed(1)}
+                      <Box component='small' sx={{ fontSize: 13, opacity: 0.7 }}>/5</Box>
+                    </Box>
+                    <Box aria-hidden sx={{ color: '#ffac22', fontSize: 13, lineHeight: 1 }}>
+                      {'★'.repeat(Math.round(data.avgRating)).padEnd(5, '☆')}
+                    </Box>
+                    <Box
+                      sx={{
+                        fontSize: 11,
+                        color: 'rgba(255,255,255,.65)',
+                        marginBlockStart: { xs: 0, md: '4px' },
+                      }}
+                      className='tabular-nums'
+                    >
+                      {`(${data.reviewCount.toLocaleString('th-TH')} รีวิว)`}
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+            )}
+          </Box>
+        </Box>
+
 
         {/* สถานะการคัดลอกต้องประกาศให้ screen reader ด้วย — ไอคอนที่เปลี่ยนรูปเงียบ ๆ ผู้ใช้ SR ไม่รู้เลย */}
         <span role='status' aria-live='polite' className='sr-only'>
           {copied ? 'คัดลอกลิงก์โปรไฟล์แล้ว' : ''}
         </span>
-      </div>
+      </Box>
+        {/* ── `.mobile-cta` — แถบปุ่มติดขอบล่าง เฉพาะจอ ≤650px ──
+            🛑 ต้อง **portal ออก document.body** ไม่ใช่ปล่อยไว้ในนี้ — `position:fixed` จะยึดกับ
+            อิลิเมนต์แม่แทน viewport ทันทีที่มีบรรพบุรุษตัวใดตัวหนึ่งใช้ `transform`/`filter`/
+            `backdrop-filter` (กล่องสถิติในปกนี้ใช้ `backdropFilter` อยู่) — บทเรียนเดียวกับ
+            `ShopSwitchOverlay.tsx` ที่เขียนเหตุผลเต็มไว้แล้ว
+
+            🛑 `env(safe-area-inset-bottom)` ใช้ได้จริงเพราะ `(marketing)/layout.tsx` ตั้ง
+            `viewportFit: 'cover'` ไว้ — ถ้าไม่มีบรรทัดนั้น ค่านี้จะคืน 0 เงียบ ๆ บนเครื่องจริง
+            (`docs/conventions/ios-safe-area.md`) */}
+        <MobileCta
+          chatHref={chatHref}
+          chatLabel={chatChannel ? (CHANNEL_SHORT_LABEL[chatChannel.provider] ?? 'ช่องทางร้าน') : null}
+          onShare={share}
+          copied={copied}
+        />
 
       {/* ── แผงอธิบายคะแนน ──
              ข้อเท็จจริงของระบบ ไม่ใช่คำปลอบใจ: Trust Score MVP มีแต่ขึ้น ไม่มี penalty

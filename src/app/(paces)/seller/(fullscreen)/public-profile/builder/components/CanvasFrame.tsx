@@ -29,11 +29,11 @@
  *   implement บล็อกเป็น Paces-native จริงตามที่ mockup วาดไว้เป็นภาพแทน
  *
  * รอบสอง (2026-08-07, "canvas ต้องตรงกับหน้าจริง") — หัวโปรไฟล์เดิมวาดแค่ชื่อร้าน+avatar+สถิติ 3
- * ช่องผิด (ออเดอร์สำเร็จ/อัตราสำเร็จ/รีวิว) ไม่ตรงกับ ProfileHero.tsx ของหน้าร้านจริงเลย (user เทียบ
- * ภาพหน้าจอ /u/tanapathardware แล้วทักว่าไม่เหมือน) — วาดใหม่ทั้งหมดให้ตรงโครง ProfileHero.tsx:
+ * ช่องผิด (ออเดอร์สำเร็จ/อัตราสำเร็จ/รีวิว) ไม่ตรงกับ ProfileIdentity.tsx ของหน้าร้านจริงเลย (user เทียบ
+ * ภาพหน้าจอ /u/tanapathardware แล้วทักว่าไม่เหมือน) — วาดใหม่ทั้งหมดให้ตรงโครง ProfileIdentity.tsx:
  * ป้ายระดับความน่าเชื่อถือ (ตัวเลข+ชื่อ tier) / บรรทัดรอง (@handle · category · เปิดร้านตั้งแต่ X) /
  * เหรียญความสำเร็จ (ชิปไอคอน+ชื่อ) / สถิติ 3 ช่องที่ผันตาม vertical (ออเดอร์-ลูกค้า-ซื้อซ้ำ) / อัตรา
- * ความสำเร็จตัวใหญ่ — ดูรายงาน task สำหรับ mapping field แต่ละตัว. ไม่ import ProfileHero.tsx ตรง ๆ
+ * ความสำเร็จตัวใหญ่ — ดูรายงาน task สำหรับ mapping field แต่ละตัว. ไม่ import ProfileIdentity.tsx ตรง ๆ
  * (HR1 — ไฟล์นั้นพึ่ง MUI/`--mui-palette-*` ที่ไม่มีในหน้า Paces จะได้สีหายเงียบ ๆ) วาดด้วย Paces
  * primitive คนละชุด token แทน — คงคอลัมน์พรีวิว (ขวา) ไม่ไหวอีกต่อไปเพราะซ้ำกับ canvas นี้เกือบหมด
  * จึงถูกลบทิ้ง (ดู BuilderClient.tsx) ประโยค "ลิงก์ที่แชร์จะยังเป็นเวอร์ชันที่บันทึกแล้ว" ย้ายมาไว้
@@ -58,10 +58,10 @@ const BLOCK_LABEL: Record<BuilderDraftBlock['type'], string> = {
 }
 
 /** จำนวนเหรียญความสำเร็จที่โชว์เป็นชิป ที่เหลือยุบเป็นตัวนับ "+N" — ตรงกับ MAX_BADGE_ICONS ของ
- *  ProfileHero.tsx (SSOT ที่ต้อง sync ด้วยมือ ดู comment หัวไฟล์) */
+ *  ProfileIdentity.tsx (SSOT ที่ต้อง sync ด้วยมือ ดู comment หัวไฟล์) */
 const MAX_HERO_BADGE_ICONS = 5
 
-/** คำเรียกตัวเลขตามประเภทกิจการ — คัดลอกจาก ProfileHero.tsx::STAT_LABELS ตรง ๆ (เปลี่ยนแค่คำ ไม่
+/** คำเรียกตัวเลขตามประเภทกิจการ — คัดลอกจาก ProfileIdentity.tsx::STAT_LABELS ตรง ๆ (เปลี่ยนแค่คำ ไม่
  *  เปลี่ยนวิธีนับ) ไม่ import ตรงเพราะไฟล์นั้นเป็น 'use client' ที่พึ่ง MUI (HR1) — sync ด้วยมือ */
 const HERO_STAT_LABELS = {
   general: {
@@ -111,13 +111,13 @@ export default function CanvasFrame({ draft, header, onReorderBlocks, onReorderT
   const tabItems = draft.tabOrder.map((key) => ({ id: key }))
   const firstTabKey = draft.tabOrder[0]
 
-  // ── หัวโปรไฟล์ — mapping เดียวกับ ProfileHero.tsx (SSOT ที่ต้อง sync ด้วยมือ ดู comment หัวไฟล์) ──
+  // ── หัวโปรไฟล์ — mapping เดียวกับ ProfileIdentity.tsx (SSOT ที่ต้อง sync ด้วยมือ ดู comment หัวไฟล์) ──
   const heroStatLabel = header.isLodging
     ? HERO_STAT_LABELS.lodging
     : header.isServiceQueue
       ? HERO_STAT_LABELS.serviceQueue
       : HERO_STAT_LABELS.general
-  // แสดงครบสามค่าเสมอ ไม่มีข้อมูลให้เป็น 0 (เหมือน ProfileHero.tsx — สามค่านี้เป็นโครงหลักของหน้า
+  // แสดงครบสามค่าเสมอ ไม่มีข้อมูลให้เป็น 0 (เหมือน ProfileIdentity.tsx — สามค่านี้เป็นโครงหลักของหน้า
   // ซ่อนบางช่องทำให้ layout ขยับไปมาระหว่างร้าน)
   const heroStats = [
     { value: header.completedOrders ?? 0, label: heroStatLabel.orders },
@@ -150,55 +150,73 @@ export default function CanvasFrame({ draft, header, onReorderBlocks, onReorderT
 
           {/* ตรึง: หัวโปรไฟล์ — ไม่มีที่จับลาก ไม่มีปุ่มลบ (guardrail) */}
           <div className="border-default-200 relative border-b">
-            {/* ปก: รูปจริงถ้าร้านอัปโหลด ไม่งั้นไล่สีตามระดับความน่าเชื่อถือ — เดียวกับ ProfileHero.tsx
-                (เดิม hardcode gradient primary→info ทุกร้าน ไม่ตรงกับหน้าจริงที่ผันตาม tier)
+            {/* ปก — sync กับ `ProfileIdentity.tsx` รอบโฉมใหม่ 2026-08-21
 
-                🛑 canvas นี้เป็นภาพจำลองที่ **sync มือ** กับ `ProfileHero.tsx` (หนี้ที่รู้ตัวจาก 00035)
-                สเกลราว 0.67 เท่าของจริง อ้างจาก avatar: canvas `size-14` (56px) : จริง 84px
-                ปกจริงถูกยกเป็น 132px (ไล่สี) / 144–224px (มีรูป) เมื่อ 2026-08-10 ตามที่ user ทัก
-                → `h-20` (80px) เดิมกลายเป็นเตี้ยกว่าของจริงเกินสเกล ยกเป็น `h-24` (96px ≈ 144 × 0.67)
-                ผู้ขายจะได้ไม่จัดหน้าจากภาพที่สัดส่วนไม่ตรงกับสิ่งที่ผู้ซื้อเห็นจริง */}
-            <div className="relative h-24 overflow-hidden" style={{ background: header.tierGradient }}>
+                🛑 canvas นี้เป็นภาพจำลองที่ **sync ด้วยมือ** (หนี้ที่รู้ตัวตั้งแต่ 00035 — import ไฟล์จริง
+                ไม่ได้เพราะมันพึ่ง MUI/`--mui-palette-*` ที่หน้า Paces ไม่มี สีจะหายเงียบ ๆ)
+                หัวไฟล์เดิมอ้าง `ProfileIdentity.tsx` ซึ่ง **ไม่มีอยู่แล้ว** (เปลี่ยนชื่อเป็น ProfileIdentity)
+
+                สิ่งที่เปลี่ยนตามหน้าจริงรอบนี้:
+                  · ปกเป็น **โทนเข้ม + ฉากทับ** ไม่ใช่ไล่สีระดับล้วน (ไล่สีเหลือไว้เป็นพื้นตอนไม่มีรูป)
+                  · เนื้อหา **ย้ายเข้ามาอยู่ในปก** และ **ชิดซ้าย** ไม่ใช่อยู่ใต้ปกแบบจัดกลาง
+                  · โลโก้กลม ขอบขาว อยู่คอลัมน์ซ้าย ไม่ใช่ลอยคร่อมขอบปก
+
+                สเกลราว 0.5 เท่าของจริง (โลโก้จริง 154px → canvas `size-14` 56px ≈ 0.36 · ปกจริง
+                300px → `h-36` 144px = 0.48) — ตัวเลขไม่ตรงเป๊ะเพราะ canvas ต้องพอดีคอลัมน์แคบ
+                สิ่งที่ต้องตรงคือ **ลำดับและตำแหน่งของของแต่ละชิ้น** ไม่ใช่ขนาดสัมบูรณ์ */}
+            <div
+              className="relative h-36 overflow-hidden"
+              style={{ background: header.coverImageUrl ? '#120d07' : header.tierGradient }}
+            >
               {header.coverImageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element -- ภาพปกร้านจาก storage ภายนอก ไม่ผ่าน next/image config
                 <img src={header.coverImageUrl} alt="" className="absolute inset-0 size-full object-cover" />
               )}
+              {/* ฉากทับแนวนอน — ตัวเดียวกับหน้าจริง ให้ตัวหนังสือขาวอ่านออกบนรูปทุกใบ */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    'linear-gradient(90deg, rgba(15,11,6,.99) 0%, rgba(18,12,5,.92) 26%, rgba(35,17,4,.58) 56%, rgba(53,24,1,.34) 100%)',
+                }}
+              />
+              {/* เนื้อหาในปก: โลโก้ซ้าย + ชื่อ/ระดับ/สถิติ ชิดซ้าย */}
+              <div className="absolute inset-0 flex items-center gap-3 px-3.5">
+                <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-black">
+                  {header.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- รูปร้านจาก storage ภายนอก
+                    <img src={header.avatarUrl} alt="" className="size-full object-cover" />
+                  ) : (
+                    <Icon icon="building-store" className="text-lg text-white/70" aria-hidden="true" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 text-white">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold text-default-900">
+                    {header.tierLabel}
+                    <span className="tabular-nums opacity-70">{header.trustScore}</span>
+                  </span>
+                  <div className="mt-1 truncate text-sm font-extrabold">{header.shopName}</div>
+                  {heroSubtitle && <div className="truncate text-[10px] text-white/70">{heroSubtitle}</div>}
+                  {/* กล่องสถิติกระจกฝ้า — ผังเดียวกับหน้าจริง (มีเส้นคั่นระหว่างช่อง) */}
+                  <div className="mt-1.5 flex overflow-hidden rounded-lg border border-white/15 bg-black/30">
+                    {heroStats.map((s, i) => (
+                      <div
+                        key={s.label}
+                        className={`flex-1 px-1 py-1 text-center ${i < heroStats.length - 1 ? 'border-r border-white/10' : ''}`}
+                      >
+                        <div className="text-xs font-extrabold tabular-nums leading-tight">{s.value}</div>
+                        <div className="text-[9px] text-white/65">{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="px-3.5 pb-3.5 text-center">
-              {/* avatar วงกลมคร่อมรอยต่อปก/เนื้อหา — เดียวกับ ProfileHero.tsx (rounded-full ไม่ใช่ rounded-xl
-                  แบบเดิม — วงกลมคือรูปแบบจริงของหน้าร้านสาธารณะ) */}
-              <div className="border-default-200 mx-auto -mt-7 flex size-14 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white shadow">
-                {header.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- โลโก้ร้านจาก storage ภายนอก ไม่ผ่าน next/image config
-                  <img src={header.avatarUrl} alt="" className="size-full object-cover" />
-                ) : (
-                  <Icon icon="building-store" className="text-default-400 text-2xl" aria-hidden="true" />
-                )}
-              </div>
-              <div className="text-default-900 mt-1.5 flex items-center justify-center gap-1 text-sm font-bold">
-                {header.shopName}
-                {header.isVerified && <Icon icon="rosette-discount-check" className="text-success text-base" aria-hidden="true" />}
-              </div>
-
-              {/* ป้ายระดับความน่าเชื่อถือ — ตัวเลข trustScore + ชื่อ tier เดียวกับ ProfileHero.tsx
-                  (เดิม canvas ไม่มีส่วนนี้เลย — user ทักว่าหายไปเทียบกับหน้าจริง) */}
-              <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1">
-                <span className="bg-default-800 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-extrabold text-white">
-                  {header.trustScore}
-                </span>
-                <span className="bg-default-100 text-default-600 inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold">
-                  {header.tierLabel}
-                </span>
-              </div>
-
-              {/* บรรทัดรอง — @handle · หมวดหมู่ · เปิดร้านตั้งแต่ X เดียวกับ ProfileHero.tsx */}
-              {heroSubtitle && <div className="text-default-400 mt-1 text-xs">{heroSubtitle}</div>}
-            </div>
 
             {/* เหรียญความสำเร็จของร้าน — แถวชิปใต้ชื่อร้าน คนละอันกับบล็อก "เหรียญตราเด่น" ที่ผู้ขาย
                 เลือกเพิ่มเองด้านล่าง (แถวนี้ render เสมอเมื่อมีเหรียญ ไม่ต้องจัดผ่าน builder) —
-                เดียวกับ ProfileHero.tsx (เดิม canvas ไม่มีส่วนนี้เลย) */}
+                เดียวกับ ProfileIdentity.tsx (เดิม canvas ไม่มีส่วนนี้เลย) */}
             {shownHeroBadges.length > 0 && (
               <ul className="flex flex-wrap justify-center gap-1.5 px-3.5 pb-3.5 list-none m-0">
                 {shownHeroBadges.map((b) => (
@@ -219,19 +237,9 @@ export default function CanvasFrame({ draft, header, onReorderBlocks, onReorderT
               </ul>
             )}
 
-            {/* สถิติ 3 ช่อง — ผันคำตาม vertical (ออเดอร์/การเข้าพัก/นัดหมาย) เดียวกับ ProfileHero.tsx
-                (เดิม canvas เขียน "ออเดอร์สำเร็จ/อัตราสำเร็จ/รีวิว" คงที่ ผิดทั้ง label และตัวเลขที่นับ) */}
-            <div className="border-default-200 flex justify-around gap-2 border-t px-3.5 py-3">
-              {heroStats.map((s) => (
-                <div key={s.label} className="min-w-18 text-center">
-                  <div className="text-default-900 text-lg font-extrabold tabular-nums leading-tight">{s.value}</div>
-                  <div className="text-default-400 text-xs">{s.label}</div>
-                </div>
-              ))}
-            </div>
 
-            {/* อัตราความสำเร็จ — ตัวเลขใหญ่สุดในหัวโปรไฟล์ เดียวกับ ProfileHero.tsx (ใช้ token `text-success`
-                ของ Paces แทนเลข hex เฉพาะที่ ProfileHero.tsx pin ไว้เพื่อ contrast บน Vuexy — TD-009
+            {/* อัตราความสำเร็จ — ตัวเลขใหญ่สุดในหัวโปรไฟล์ เดียวกับ ProfileIdentity.tsx (ใช้ token `text-success`
+                ของ Paces แทนเลข hex เฉพาะที่ ProfileIdentity.tsx pin ไว้เพื่อ contrast บน Vuexy — TD-009
                 ไม่ต้อง pixel-perfect กับ Vuexy ใช้ token ของธีมตัวเองแทน) */}
             {header.completionRate != null && (
               <div className="border-default-200 flex items-baseline gap-2 border-t px-3.5 py-3">

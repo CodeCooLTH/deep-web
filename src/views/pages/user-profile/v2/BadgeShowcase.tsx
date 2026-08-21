@@ -27,13 +27,11 @@
  */
 import { useState } from 'react'
 
+import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
-import Dialog from '@mui/material/Dialog'
-import IconButton from '@mui/material/IconButton'
 
 import { Icon } from '@iconify/react'
 
-import { formatDateTH } from '@/lib/format-date'
 
 /**
  * เหรียญหนึ่งใบตามที่หน้าโปรไฟล์สาธารณะต้องใช้
@@ -49,17 +47,29 @@ export type HeroBadge = {
   icon: string
   imageUrl?: string | null
   criteriaLabel?: string | null
+  /** หมวด ("ยอดขาย"/"รีวิว"/…) จาก `badgeCategoryLabel` — `null` = เกณฑ์ชนิดที่ยังไม่มีหมวด
+   *  ⇒ ไม่แสดงป้ายเลย ไม่ใช่ติดป้ายกลาง ๆ (ดูเหตุผลเต็มที่ `src/lib/badge-criteria.ts`) */
+  categoryLabel?: string | null
   /** ISO เพราะข้าม RSC boundary — ห้ามส่ง Date object */
   earnedAtIso?: string | null
 }
 
 /** จำนวนเหรียญที่โชว์เป็นรูปซ้อนกัน — เท่ากับของเดิมในหน้าจริง ไม่เปลี่ยนตัวเลขนี้เอง */
-const STACK = 3
+/**
+ * เดิมซ้อนกัน 3 ใบแบบ IG เพราะแถวนี้เคยอยู่ **กลางหน้าคอลัมน์เดียว** ที่ต้องประหยัดความสูง
+ * โครงใหม่ (2026-08-21) ย้ายมาอยู่ในการ์ดคอลัมน์ซ้ายซึ่งกว้าง 255px และมีที่เหลือ —
+ * user สั่งว่า "อยากให้แสดงเหรียญ 1-6 เหรียญได้เลย" ⇒ วางเรียงจริงไม่ซ้อนทับ
+ *
+ * 🛑 6 ไม่ใช่ตัวเลขมั่ว: การ์ดกว้าง 255px − padding 40 = 215px ⇒ เหรียญ 28px + gap 6px
+ * ได้ 6 ใบพอดี (6×28 + 5×6 = 198) เหลือที่ให้ตัวนับ "+N" อีกใบโดยไม่ตกบรรทัด
+ */
+const STACK = 6
 /** จำนวนชื่อที่พิมพ์ออกมาเป็นตัวอักษร — ref ของ IG โชว์ 2 ชื่อแล้วยุบที่เหลือ */
 const NAMED = 2
 
 /** อาร์ตเวิร์กจริงก่อน แล้วค่อยตกไปไอคอนเส้น — เหรียญ 11/20 ใบในระบบยังไม่มีรูป */
-function Artwork({ b, size }: { b: HeroBadge; size: number }) {
+/** ใช้ร่วมกับ `ShopExtraPages.tsx` — กติกา "อาร์ตเวิร์กจริงก่อน แล้วค่อยตกไปไอคอน" ต้องมีที่เดียว */
+export function Artwork({ b, size }: { b: HeroBadge; size: number }) {
   const [failed, setFailed] = useState(false)
   if (b.imageUrl && !failed) {
     return (
@@ -82,23 +92,22 @@ function Artwork({ b, size }: { b: HeroBadge; size: number }) {
 export default function BadgeShowcase({
   badges,
   total,
-  shopName,
+  onOpenPage,
 }: {
   badges: HeroBadge[]
   total: number
-  shopName: string
+  /** เปิดหน้าเต็มจอ — 🛑 หน้านั้นอยู่ที่ `ShopExtraPages.tsx` และถูก render โดย `ShopProfile`
+   *  ที่เดียว **ไม่ใช่ที่นี่** เพราะไฟล์อ้างอิงรวมหน้าเหรียญกับหน้าเพจไว้เป็นหน้าเดียวที่สลับ
+   *  ด้วยแท็บ ⇒ ถ้าแต่ละการ์ดถือ Dialog ของตัวเอง แท็บจะพากันไปไหนไม่ได้ */
+  onOpenPage: () => void
 }) {
-  const [pageOpen, setPageOpen] = useState(false)
 
-  /* 🛑 ห้ามเรียก `useLockBodyScroll` ที่นี่ — `<Dialog>` ล็อก scroll ให้เองอยู่แล้ว และ
-     "เรียกซ้ำไม่เสียหาย" (คำที่เคยเขียนไว้ตรงนี้) **ผิด**: MUI จำค่า `body.style.overflow`
-     ตอน mount ไว้เพื่อคืนตอนปิด ⇒ ถ้า hook ของเราล็อกไปก่อน (effect ของ component แม่รันก่อน
-     ตัวล็อกของ Modal) MUI จะจำว่าค่าเดิมคือ `hidden` แล้ว **คืนค่าเป็น hidden หลัง transition
-     จบ** ทับ cleanup ของ hook ที่คืนถูกไปแล้ว ⇒ หน้าเลื่อนไม่ได้อีกเลยจนกว่าจะรีโหลด
-     (เกิดจริงบน prod 2026-08-15 user เจอเอง — ปิดด้วยเทส
-     `src/__tests__/overlay-scroll-lock-single-owner.test.ts`)
-     hook นั้นมีไว้สำหรับ overlay ที่ประกอบเองล้วน ๆ เท่านั้น เช่น `ProfileLightbox.tsx`
-     — docs/conventions/overlay-scroll-lock.md */
+  /* 🛑 ห้ามเรียก `useLockBodyScroll` ที่นี่หรือที่หน้าเต็มจอ — `<Dialog>` ของ MUI ล็อก scroll
+     ให้เองอยู่แล้ว และ "เรียกซ้ำไม่เสียหาย" (คำที่เคยเขียนไว้) **ผิด**: MUI จำค่า
+     `body.style.overflow` ตอน mount ไว้เพื่อคืนตอนปิด ⇒ ถ้า hook ของเราล็อกไปก่อน MUI จะจำว่า
+     ค่าเดิมคือ `hidden` แล้วคืนเป็น hidden หลัง transition จบ ⇒ หน้าเลื่อนไม่ได้จนกว่าจะรีโหลด
+     (เกิดจริงบน prod 2026-08-15 — ปิดด้วย `src/__tests__/overlay-scroll-lock-single-owner.test.ts`)
+     ตัว `<Dialog>` ย้ายไป `ShopExtraPages.tsx` แล้ว กติกานี้จึงบังคับที่ไฟล์นั้นแทน */
 
   if (badges.length === 0) return null
 
@@ -113,112 +122,55 @@ export default function BadgeShowcase({
              digital-literacy ต่ำ) แตะเป้าใหญ่ง่ายกว่าเสมอ */}
       <button
         type='button'
-        onClick={() => setPageOpen(true)}
+        onClick={onOpenPage}
         aria-haspopup='dialog'
         aria-label={`ดูเหรียญทั้งหมดของร้าน ${total} เหรียญ`}
-        className='is-full flex items-center gap-2 min-bs-[44px] border-0 bg-transparent p-0 cursor-pointer font-[inherit] text-start rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
+        /* 🛑 เรียง "ลง" ไม่ใช่ "ข้าง" — เหรียญ 6 ใบกินความกว้างเกือบเต็มการ์ด 255px แล้ว
+            ถ้าวางคำอธิบายไว้ข้าง ๆ มันจะเหลือที่ ~40px แล้วตกบรรทัดทีละคำจนอ่านไม่ได้
+            (user ส่งภาพหน้าจอมาให้ดู 2026-08-21 — เป็นบั๊กที่ผมทำเองตอนขยายจาก 3 เป็น 6 ใบ) */
+        className='is-full flex flex-col items-start gap-2 border-0 bg-transparent p-0 cursor-pointer font-[inherit] text-start rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
       >
-        <span className='flex shrink-0'>
-          {badges.slice(0, STACK).map((b, i) => (
-            <span
-              key={b.id}
-              className={`is-7 bs-7 rounded-full bg-[var(--mui-palette-background-paper)] flex items-center justify-center shrink-0 ${i > 0 ? '-mis-2' : ''}`}
-              /* วงพื้นขาวคั่นทุกใบ — ref ของ IG ซ้อน "รูปคน" ซึ่งแต่ละใบต่างกันชัด
-                 ส่วนเหรียญเราหลายใบเป็นไอคอนเส้นสีเดียวกัน ซ้อนดิบ ๆ จะอ่านเป็นก้อนเดียว */
-              style={{ boxShadow: '0 0 0 2px var(--mui-palette-background-paper)', zIndex: STACK - i }}
-            >
-              <Artwork b={b} size={26} />
-            </span>
+        {/* 🛑 บรรทัดสรุปอยู่ **บน** แถวเหรียญ (user สั่งสลับ 2026-08-21)
+            อ่านจากบนลงล่างได้ "มีกี่ใบ + กดดูได้" ก่อน แล้วค่อยเห็นว่าหน้าตาเป็นยังไง
+            ตรงกับลำดับที่คนอ่านจริง — รู้ว่ามีอะไรก่อน แล้วค่อยดูรายละเอียด */}
+        {/* 🛑 แยก "จำนวน" กับ "ทางเข้า" ออกคนละฝั่ง ไม่ใช่ต่อกันเป็นประโยคเดียว
+            เดิมเขียนติดกันเป็น "เหรียญ 6 ใบ ดูทั้งหมด ›" ซึ่งอ่านเป็นประโยคเดียวที่ไม่รู้เรื่อง
+            (user ทัก 2026-08-21 ว่า "text มันยังแปลก ๆ") — สองอย่างนี้คนละหน้าที่:
+            ซ้าย = ข้อเท็จจริง · ขวา = สิ่งที่กดได้ · การวางคนละฝั่งบอกความต่างนั้นโดยไม่ต้องใช้คำ */}
+        <span className='is-full flex items-center justify-between gap-2'>
+          <Typography variant='caption' color='text.secondary' className='tabular-nums'>
+            {`เหรียญ ${total} ใบ`}
+          </Typography>
+          <span className='inline-flex items-center gap-0.5 text-[13px] font-semibold text-primary shrink-0'>
+            ดูทั้งหมด
+            <Icon icon='tabler:chevron-right' width={14} aria-hidden />
+          </span>
+        </span>
+
+        <span className='flex shrink-0 gap-1 flex-wrap'>
+          {badges.slice(0, STACK).map((b) => (
+            /* Tooltip ของธีม ไม่ใช่ `title` ของเบราว์เซอร์ — native หน่วง ~1 วินาทีก่อนโผล่
+               จน user ทดสอบแล้วนึกว่ายังไม่ได้ทำ (2026-08-21) ตัวนี้ขึ้นทันทีและใช้สไตล์เดียว
+               กับ tooltip อื่นทั้งระบบ
+
+               ห่อ <span> ที่มีอยู่แล้ว ไม่ได้เพิ่มชั้น DOM ใหม่ · คลิกยัง bubble ขึ้นไปถึง <button>
+               ที่ครอบอยู่ตามเดิม (Tooltip ดักแค่ hover/focus ไม่ได้ preventDefault) */
+            <Tooltip key={b.id} title={b.name} arrow enterTouchDelay={0}>
+              <span
+                className='is-8 bs-8 rounded-full bg-[var(--mui-palette-background-paper)] flex items-center justify-center shrink-0'
+                style={{ boxShadow: '0 0 0 1px var(--mui-palette-divider)' }}
+              >
+                <Artwork b={b} size={30} />
+              </span>
+            </Tooltip>
           ))}
         </span>
 
-        <Typography variant='caption' color='text.secondary' className='min-is-0 flex-1 truncate'>
-          {'เหรียญ '}
-          <strong className='text-textPrimary font-semibold'>
-            {badges.slice(0, NAMED).map((b) => b.name).join(', ')}
-          </strong>
-          {rest > 0 && (
-            /* "อีก N" เป็นสีหลัก = สัญญาณว่ากดได้ (แพตเทิร์นเดียวกับ "เพิ่มเติม" ท้าย bio) */
-            <span className='text-primary font-semibold'>{` + อีก ${rest}`}</span>
-          )}
-        </Typography>
-
-        <Icon icon='tabler:chevron-right' width={16} className='shrink-0 text-[var(--mui-palette-text-disabled)]' />
       </button>
 
       {/* ── หน้าเต็ม: เหรียญทั้งหมดพร้อมเงื่อนไขที่ได้มา ──
              fullScreen ทุก breakpoint โดยตั้งใจ — นี่คือ "หน้า" ไม่ใช่แผงข้อมูล ผู้ใช้เข้ามาเพื่อ
              อ่านรายการยาว ๆ การบีบเป็นโมดัลกลางจอบนเดสก์ท็อปจะได้กล่องที่ต้อง scroll ในกล่องอีกที */}
-      <Dialog fullScreen open={pageOpen} onClose={() => setPageOpen(false)} aria-labelledby='proto-badge-page-title'>
-        <div className='flex flex-col bs-full bg-[var(--mui-palette-background-paper)]'>
-          {/* หัวแบบหน้า: ปุ่มย้อนกลับซ้าย + ชื่อหน้า — sticky เพราะรายการยาวได้ */}
-          <div
-            className='sticky inset-block-start-0 z-10 flex items-center gap-2 pli-3 plb-2 border-be bg-[var(--mui-palette-background-paper)]'
-            style={{ paddingBlockStart: 'calc(8px + env(safe-area-inset-top))' }}
-          >
-            {/* IconButton ของธีม — ได้ ripple/โฟกัสริง/ขนาด hit area ตาม `overrides/icon-button.ts` */}
-            <IconButton onClick={() => setPageOpen(false)} aria-label='ย้อนกลับ' size='large' className='shrink-0'>
-              <Icon icon='tabler:arrow-left' width={22} />
-            </IconButton>
-            <Typography id='proto-badge-page-title' component='h1' className='text-[18px] font-bold min-is-0 truncate'>
-              เหรียญของร้าน
-            </Typography>
-          </div>
-
-          <div className='flex-1 overflow-y-auto overscroll-contain'>
-            <div className='mli-auto max-is-[640px] pli-5 plb-5'>
-              <Typography variant='body2' color='text.secondary' className='mbe-1'>
-                {shopName}
-              </Typography>
-              <Typography className='text-[22px] font-extrabold tabular-nums leading-tight' color='text.primary'>
-                {`${total} เหรียญ`}
-              </Typography>
-
-              {/* 🛑 ประโยคนี้คือสิ่งที่ทำให้เหรียญเป็นหลักฐาน ไม่ใช่ของประดับ — ห้ามตัดทิ้ง
-                  DESIGN.md ห้าม "badge ตกแต่งที่ตีความไม่ได้" ไว้ตรงตัว สิ่งที่ทำให้ผ่านข้อห้ามนั้น
-                  คือการบอกกลไก: ระบบประเมินเอง (evaluateSellerBadgesForShop) ร้านขอเองไม่ได้ */}
-              <Typography variant='body2' color='text.secondary' className='mbs-2 mbe-5 leading-relaxed'>
-                เหรียญทั้งหมดนี้ระบบมอบให้เองจากพฤติกรรมจริงของร้าน ร้านขอเองไม่ได้และซื้อไม่ได้
-              </Typography>
-
-              <ul className='m-0 p-0 list-none flex flex-col'>
-                {badges.map((b) => (
-                  <li key={b.id} className='flex items-start gap-3 plb-4 border-be last:border-be-0'>
-                    <span className='is-14 bs-14 shrink-0 rounded-full flex items-center justify-center bg-[var(--mui-palette-action-hover)]'>
-                      <Artwork b={b} size={40} />
-                    </span>
-                    <div className='min-is-0 flex-1'>
-                      <Typography className='text-[15px] font-semibold leading-snug' color='text.primary'>
-                        {b.name}
-                      </Typography>
-                      {/* เงื่อนไขที่ได้มา = คำตอบของ "ทำไมเหรียญนี้ถึงมีความหมาย"
-                          null = เกณฑ์ชนิดที่ยังไม่มีคำแปล → ไม่แสดงบรรทัด ไม่ใช่เดาข้อความกลาง ๆ */}
-                      {b.criteriaLabel && (
-                        <Typography variant='body2' color='text.secondary' className='mbs-0.5 leading-snug'>
-                          {b.criteriaLabel}
-                        </Typography>
-                      )}
-                      {b.earnedAtIso && (
-                        <Typography variant='caption' color='text.disabled' className='block mbs-1'>
-                          {`ได้รับเมื่อ ${formatDateTH(b.earnedAtIso)}`}
-                        </Typography>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-
-              {/* จำนวนที่ส่งมาแสดงอาจน้อยกว่า total (hero cap ไว้) — ต้องบอก ไม่ใช่เงียบ
-                  ผู้ใช้ที่นับแล้วไม่ตรงกับหัวข้อจะเลิกเชื่อตัวเลขทั้งหน้า */}
-              {badges.length < total && (
-                <Typography variant='caption' color='text.disabled' className='block mbs-4'>
-                  {`แสดง ${badges.length} จาก ${total} เหรียญ`}
-                </Typography>
-              )}
-            </div>
-          </div>
-        </div>
-      </Dialog>
     </>
   )
 }

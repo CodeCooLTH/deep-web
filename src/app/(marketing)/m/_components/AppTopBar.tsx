@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 
-import VuexyLogo from '@core/svg/Logo'
+import logoDeepWordmark from '@/assets/images/logo-deep-wordmark.png'
 import { authOptions } from '@/lib/auth'
 import { getUnreadNotificationCount } from '@/services/notification.service'
 
@@ -19,7 +19,10 @@ export default async function AppTopBar() {
     >
       <div className='flex items-center gap-2.5 pli-4 pbs-2 pbe-2.5'>
         <Link href='/dashboard' aria-label='หน้าแรก' className='shrink-0 no-underline flex items-center'>
-          <VuexyLogo className='text-[var(--mui-palette-primary-main)]' style={{ fontSize: '1.75rem' }} />
+          {/* โลโก้ Deep ของจริง — ยืนเดี่ยวไม่มีคำกำกับข้าง ๆ จึงใช้ **เวิร์ดมาร์กเต็ม**
+              (แถบนี้พื้นขาว เวิร์ดมาร์กตัวหนังสือกรมท่าจึงอ่านออก ไม่ต้องใช้เวอร์ชันสว่าง) */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ที่ import มาแล้ว */}
+          <img src={logoDeepWordmark.src} alt='Deep' className='bs-7 is-auto' />
         </Link>
 
         <Link

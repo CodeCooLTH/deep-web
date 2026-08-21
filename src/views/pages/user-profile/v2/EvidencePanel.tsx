@@ -49,7 +49,6 @@ export type EvidencePanelData = {
   chat: ChatResponseInput
   badges: HeroBadge[]
   totalBadgeCount: number
-  shopName: string
   /** สี accent ของระดับ (SSOT: `getTierAccentColor`) — ย้อมพื้น/ขอบ/หัวข้อของแผงนี้
    *  🛑 ห้ามส่งสีที่คิดเอง ต้องมาจากฟังก์ชันนั้น ไม่งั้นสีระดับจะมี 2 นิยามในระบบ (HR16) */
   tierAccent: string
@@ -96,7 +95,14 @@ function EvidenceLine({ text, tail, state }: { text: string; tail?: string | nul
   )
 }
 
-export default function EvidencePanel({ data }: { data: EvidencePanelData }) {
+export default function EvidencePanel({
+  data,
+  onOpenBadgePage,
+}: {
+  data: EvidencePanelData
+  /** ส่งต่อให้ `BadgeShowcase` — หน้าเต็มจอเป็นของ `ShopProfile` ไม่ใช่ของการ์ดใบนี้ */
+  onOpenBadgePage: () => void
+}) {
   const verifyBadge = resolveVerifyBadge(data.maxVerifyLevel)
   const chat = resolveChatResponse(data.chat)
 
@@ -171,10 +177,20 @@ export default function EvidencePanel({ data }: { data: EvidencePanelData }) {
        ตัวหนา/ขนาดมาแย่งความสนใจจากชื่อร้าน — ตรงกับหน้าที่ของหน้านี้พอดี
        🛑 ถ้าวันหนึ่งมีคนเติมพื้นสีให้บล็อกอื่น กลไกทั้งหมดนี้หายไปทันทีโดยไม่มีอะไรฟ้อง */
     <div
-      className='mbs-7 pli-5 plb-6'
+      /* ── กรอบการ์ดตามไฟล์อ้างอิง (2026-08-21) ──────────────────────────
+         เดิมบล็อกนี้เป็น "แถบเต็มความกว้าง" ที่มีเส้นขอบบน-ล่างอย่างเดียว เพราะอยู่กลางหน้า
+         คอลัมน์เดียว · โครงใหม่ย้ายมันเข้าคอลัมน์ซ้ายซึ่งเป็น "การ์ด" ⇒ ต้องมีขอบครบ 4 ด้าน
+         และมุมมน ไม่งั้นจะเป็นแถบลอยไม่มีที่จบในคอลัมน์แคบ
+
+         🛑 **พื้นย้อมสีระดับกับสีหัวข้อไม่แตะเลย** — user สั่ง "ใช้ตรีมเดิมของระบบนั้นละ อย่าไป
+         แก้แรงค์เขานะ" และค่าพวกนั้นมาจากการ *วัดคอนทราสต์จริงทั้ง 6 ระดับ* (ดูคอมเมนต์ใต้ลงไป)
+         ไฟล์อ้างอิงวาดการ์ดนี้เป็นพื้นขาวล้วน — ยกมาแต่ "กรอบ" ไม่ยก "พื้น" */
+      className='pli-5 plb-6'
       style={{
         background: `linear-gradient(180deg, ${data.tierAccent}17, ${data.tierAccent}08)`,
-        borderBlock: `1px solid ${data.tierAccent}38`,
+        border: `1px solid ${data.tierAccent}38`,
+        borderRadius: 18,
+        boxShadow: '0 4px 18px rgba(40,34,76,.08)',
       }}
     >
       {/* 15px/600 ไม่ใช่ 18px/bold — มันคือ **ป้ายกำกับของบล็อก** ไม่ใช่หัวเรื่องที่ต้องแข่งกับชื่อร้าน
@@ -203,7 +219,7 @@ export default function EvidencePanel({ data }: { data: EvidencePanelData }) {
           ซึ่ง DESIGN.md ห้ามไว้ตรงตัว */}
       {data.badges.length > 0 && (
         <div className='mbs-5 pbs-5' style={{ borderBlockStart: `1px solid ${data.tierAccent}38` }}>
-          <BadgeShowcase badges={data.badges} total={data.totalBadgeCount} shopName={data.shopName} />
+          <BadgeShowcase badges={data.badges} total={data.totalBadgeCount} onOpenPage={onOpenBadgePage} />
         </div>
       )}
     </div>

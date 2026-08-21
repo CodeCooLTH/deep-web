@@ -58,7 +58,10 @@ export default function AvailabilityCalendar({ data }: { data: AvailabilityData 
   ]
 
   return (
-    <div>
+    /* กรอบการ์ดชุดเดียวกับ `.info-box` ของไฟล์อ้างอิง (ขอบ #ececf2 · มุมมน 15 · padding 17)
+       — ปฏิทินเคยเป็นบล็อกลอยไม่มีขอบ ซึ่งพอทุกอย่างรอบตัวกลายเป็นการ์ดหมดแล้ว มันจะอ่านเป็น
+       "ของที่หลุดออกมา" · ไฟล์อ้างอิงไม่มีหน้าห้องพัก จึงยกภาษาการออกแบบมาใช้แทนการลอก */
+    <div className='rounded-[15px] border border-[#ececf2] p-4'>
       <div className='flex items-center justify-between mbe-3'>
         <IconButton size='small' disabled={offset === 0} onClick={() => setOffset((o) => o - 1)} aria-label='เดือนก่อนหน้า'>
           <Icon icon='lucide:chevron-left' width={18} />

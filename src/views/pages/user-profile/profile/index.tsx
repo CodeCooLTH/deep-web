@@ -20,7 +20,6 @@ import { useSession } from 'next-auth/react'
 
 // ไล่เงาของไทล์ใช้ค่าเดียวกับกริดคลิป — สองที่นี้ทำหน้าที่เดียวกัน (ให้ตัวหนังสือขาวบนรูปอ่านออก)
 // แต่เคยตั้งค่าต่างกันเล็กน้อยโดยไม่มีเหตุผล (ux gate 2026-08-09)
-import { TILE_SCRIM } from '../v2/ShopVideos'
 
 // อ้าง TierChipColor จาก SSOT ของระบบ tier โดยตรง (เดิมอ้างผ่าน TrustScoreCardData ซึ่งเป็นการ
 // อ้อมผ่าน component ที่ถูกลบไปพร้อมโปรไฟล์ชุดเดิม — ชี้ที่ต้นทางตรง ๆ ตรงกว่าและไม่ผูกกับ UI)
@@ -198,15 +197,20 @@ const ProductCard = ({
         display: 'flex',
         flexDirection: 'column',
         inlineSize: '100%',
+        blockSize: '100%',
         overflow: 'hidden',
         // ไม่มีขอบ/มุมโค้งแล้ว — ผัง IG เป็นฟีดรูปที่ไทล์ชิดกัน ขอบการ์ดทำให้กลายเป็นแคตตาล็อก
-        border: 0,
+        /* เดิมเป็น `border: 0` เพื่อล้างขอบของ <button> ที่ UA ใส่มา — ตอนนี้การ์ดมีขอบจริง
+           ตาม `.product` แล้ว จึงไม่ต้องล้าง (ประกาศ border ซ้ำสองครั้ง tsc จะแดง) */
         padding: 0,
         margin: 0,
         textAlign: 'start',
         // <button> ไม่สืบทอด font จาก body (UA stylesheet ตั้ง Arial ให้ form control ทุกตัว)
         fontFamily: 'inherit',
         bgcolor: 'background.paper',
+        /* `.product { border:1px solid var(--line); border-radius:14px }` */
+        border: '1px solid #ececf2',
+        borderRadius: '14px',
         cursor: clickable ? 'pointer' : 'default',
         '&:hover .askOverlay': { opacity: 1 },
         '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
@@ -218,7 +222,11 @@ const ProductCard = ({
       {/* 3:4 เท่าไทล์คลิปในแท็บปักหมุด — วัดจากไทล์จริงที่ user แคปมาจาก IG (233×310 ≈ 0.75)
           ⚠️ ผลข้างเคียงที่รู้ตัว: object-cover จะครอบหัว-ท้ายรูปสินค้าทิ้ง สินค้าที่ถ่ายเป็น
           กล่อง/แนวนอนจะเสียหนักกว่ารูปแนวตั้ง — แลกกับความสม่ำเสมอของสองแท็บตามที่สั่ง */}
-      <Box sx={{ position: 'relative', aspectRatio: '3/4', inlineSize: '100%', overflow: 'hidden', bgcolor: 'background.default' }}>
+      {/* 🛑 พื้นแผ่นรูปเป็น #191923 เท่ากับ `.service-image` ของการ์ดบริการ/ห้องพัก ไม่ใช่
+          `background.default` — สองแท็บนี้อยู่หน้าเดียวกันและผู้ซื้อสลับดูได้ทันที เทาอ่อนบน
+          การ์ดขาวอ่านเป็น "รูปยังโหลดไม่เสร็จ/พัง" ส่วนแผ่นทึบอ่านเป็น "ร้านยังไม่ใส่รูป"
+          ซึ่งเป็นความหมายที่ต้องการ (user ทัก 2026-08-21 ว่าการ์ดสินค้าดูแปลกกว่าการ์ดบริการ) */}
+      <Box sx={{ position: 'relative', aspectRatio: '1.35/1', inlineSize: '100%', overflow: 'hidden', bgcolor: '#191923' }}>
       {imageSrc && !imgFailed ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -253,7 +261,8 @@ const ProductCard = ({
       {/* ไล่เงาล่าง — ให้ราคาสีขาวอ่านออกไม่ว่ารูปสินค้าจะสว่างแค่ไหน
           ใช้ค่าเดียวกับไทล์คลิปจริง ๆ แล้ว (เดิมเขียนว่า "แบบเดียวกับไทล์คลิป" แต่ค่าต่างกันจริง:
           .26/30%/55% ที่นี่ กับ .28/32%/52% ที่โน่น) */}
-      <Box sx={{ position: 'absolute', inset: 0, background: TILE_SCRIM, pointerEvents: 'none' }} />
+      {/* 🛑 ถอดฉากมืด (`TILE_SCRIM`) ออก — มันมีไว้ให้ตัวหนังสือขาวอ่านออกตอนที่ข้อความยังทับบนรูป
+          พอย้ายข้อความลงกล่องขาวใต้รูปแล้ว มันเหลือแค่ทำให้รูปสินค้าหม่นลงโดยไม่ได้อะไรกลับมา */}
 
       {pinned && (
         <Box
@@ -294,76 +303,6 @@ const ProductCard = ({
         onChange={onLikeChange}
       />
 
-      {/* ราคา + ยอดขายลอยบนรูป — สองอย่างที่ผู้ซื้อต้องเห็นก่อนตัดสินใจกด ชื่อสินค้าอยู่ใน title/aria-label
-          ยอดขายนับเฉพาะออเดอร์ที่ผู้ซื้อยืนยันรับของแล้ว (ดู getConfirmedOrderCountByProduct)
-          ยังไม่มียอด = ไม่แสดงอะไรเลย ไม่ใช่แสดง 0 — กติกาเดียวกับตัวเลขอื่นทั้งหน้า เพราะ
-          "ขายแล้ว 0" อ่านแล้วแย่กว่าไม่บอก ทั้งที่สินค้าเพิ่งลงก็เป็น 0 เหมือนกัน */}
-      <Box
-        sx={{
-          position: 'absolute',
-          insetBlockEnd: 0,
-          insetInlineStart: 0,
-          insetInlineEnd: 0,
-          p: '8px 10px',
-          color: 'white',
-          textAlign: 'start',
-          pointerEvents: 'none',
-        }}
-      >
-        {/* ชื่อ + คำอธิบาย ย้ายขึ้นมาทับบนรูป (user 2026-08-10) — อยู่เหนือราคาเพราะ
-            "นี่คืออะไร" ต้องอ่านก่อน "เท่าไหร่"
-            อ่านออกได้เพราะมีสกริมไล่เงาด้านล่างรองอยู่ (TILE_SCRIM) ตัวเดียวกับไทล์คลิป */}
-        <Box
-          component='span'
-          sx={{
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            fontSize: '13px',
-            fontWeight: 600,
-            lineHeight: 1.3,
-          }}
-        >
-          {product.name}
-        </Box>
-        {product.shortDescription && (
-          <Box
-            component='span'
-            sx={{
-              display: '-webkit-box',
-              WebkitLineClamp: 1,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-              fontSize: '11px',
-              opacity: 0.85,
-              mt: '1px',
-            }}
-          >
-            {product.shortDescription}
-          </Box>
-        )}
-        <Box component='span' sx={{ display: 'block', fontSize: '15px', fontWeight: 800, mt: '2px' }}>
-          {priceLabel}
-        </Box>
-        {product.soldCount > 0 && (
-          <Box
-            component='span'
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '3px',
-              mt: '1px',
-              fontSize: '11px',
-              fontWeight: 600,
-              opacity: 0.92,
-            }}
-          >
-            <Icon icon='tabler-shopping-bag-check' fontSize={12} />
-            {`${soldLabel} ${product.soldCount.toLocaleString('th-TH')} ${soldUnit}`}
-          </Box>
-        )}
-      </Box>
 
       {/* โผล่ตอน hover เท่านั้น (user ขอ 2026-07-26) — จำกัดด้วย hover:hover เพราะบนจอสัมผัส
           สถานะ hover จะค้างหลังแตะ กลายเป็นแผ่นดำทับรูปที่ปิดไม่ได้ */}
@@ -405,6 +344,100 @@ const ProductCard = ({
           </Box>
         </Box>
       )}
+      </Box>
+
+      {/* ── `.product-body` ของไฟล์อ้างอิง — ชื่อ/ราคา/ยอดขาย อยู่ในกล่องขาว "ใต้รูป" ──
+          🛑 กลับมติ 2026-08-10 ที่เคยสั่งให้ข้อความทับบนรูป (แบบแท็บปักหมุด) — user เคาะใหม่
+          2026-08-21 ว่าให้ยึด UI ตามไฟล์อ้างอิง (`ตอบ B`) ทั้งที่รู้ว่าเป็นการย้อนมติเดิม
+          เหตุผลที่ย้ายลงมาดีกว่าในบริบทนี้: การ์ดอยู่ในคอลัมน์เนื้อหาที่กว้างขึ้นและรูปเป็นแนวนอน
+          ข้อความทับรูปแนวนอนจะเหลือที่แค่แถบล่างบาง ๆ ซึ่งชื่อสินค้า 2 บรรทัดไม่พอ
+
+          ยอดขายนับเฉพาะออเดอร์ที่ผู้ซื้อยืนยันรับของแล้ว (ดู getConfirmedOrderCountByProduct)
+          ยอดขายนับเฉพาะออเดอร์ที่ผู้ซื้อยืนยันรับของแล้ว (ดู getConfirmedOrderCountByProduct)
+          ยังไม่มียอด = ไม่แสดงอะไรเลย ไม่ใช่แสดง 0 — กติกาเดียวกับตัวเลขอื่นทั้งหน้า เพราะ
+          "ขายแล้ว 0" อ่านแล้วแย่กว่าไม่บอก ทั้งที่สินค้าเพิ่งลงก็เป็น 0 เหมือนกัน */}
+      <Box
+        sx={{
+          /* `.product-body { padding:11px }` */
+          p: '11px',
+          textAlign: 'start',
+          /* ยืดเต็มส่วนที่เหลือของการ์ด เพื่อให้ราคาลงไปเกาะก้นด้วย `marginBlockStart:'auto'` */
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* ชื่อ + คำอธิบาย อยู่ **เหนือราคา** เพราะ "นี่คืออะไร" ต้องอ่านก่อน "เท่าไหร่"
+            (ลำดับนี้คงไว้จากของเดิม แม้ตำแหน่งจะย้ายจากบนรูปลงมาในกล่องขาวแล้ว) */}
+        <Box
+          component='span'
+          sx={{
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            fontSize: '12px',
+            fontWeight: 800,
+            lineHeight: 1.45,
+            color: 'text.primary',
+          }}
+        >
+          {product.name}
+        </Box>
+        {product.shortDescription && (
+          <Box
+            component='span'
+            sx={{
+              display: '-webkit-box',
+              WebkitLineClamp: 1,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              fontSize: '11px',
+              opacity: 0.85,
+              mt: '1px',
+            }}
+          >
+            {product.shortDescription}
+          </Box>
+        )}
+        {/* 🛑 ราคาเกาะก้นการ์ดด้วย `marginBlockStart:'auto'` แทนการจองความสูง 2 บรรทัดให้ชื่อ
+            (`minBlockSize:'34px'` ที่ถอดออกไป) — วิธีจองที่ทำให้สินค้าชื่อสั้นเหลือบรรทัดว่าง
+            ค้างใต้ชื่อเสมอ เห็นชัดที่สุดตอนมีสินค้าชิ้นเดียวซึ่งไม่มีใบอื่นให้เทียบความสูงเลย
+            (user เจอเอง 2026-08-21 กับสินค้าชื่อ "0")
+            วิธีนี้ได้ผลดีกว่าเดิมด้วยซ้ำ: กริดยืดการ์ดทุกใบเท่าใบที่สูงสุดอยู่แล้ว ราคาจึงตรงแถว
+            กันทุกใบ **รวมถึงกรณีที่คำอธิบายยาวไม่เท่ากัน** ซึ่งการจองความสูงให้ชื่ออย่างเดียว
+            เอาไม่อยู่ · `paddingBlockStart` กันชื่อกับราคาชนกันตอนการ์ดไม่ถูกยืด */}
+        <Box
+          component='span'
+          sx={{
+            display: 'block',
+            fontSize: '16px',
+            fontWeight: 900,
+            marginBlockStart: 'auto',
+            paddingBlockStart: '5px',
+            color: 'primary.main',
+          }}
+          className='tabular-nums'
+        >
+          {priceLabel}
+        </Box>
+        {product.soldCount > 0 && (
+          <Box
+            component='span'
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '3px',
+              mt: '1px',
+              fontSize: '11px',
+              fontWeight: 600,
+              color: 'text.secondary',
+            }}
+          >
+            <Icon icon='tabler-shopping-bag-check' fontSize={12} />
+            {`${soldLabel} ${product.soldCount.toLocaleString('th-TH')} ${soldUnit}`}
+          </Box>
+        )}
       </Box>
 
       {/* ข้อความทั้งหมดย้ายขึ้นไปทับบนรูปแล้ว (user 2026-08-10 สั่งให้เหมือนแท็บปักหมุด)
@@ -569,11 +602,33 @@ export const ProfileRightContent = ({
 
                   // ตัวเลข -260px ผูกกับ max-is-[960px] ของ ShopProfile.tsx: (1480-960)/2 = 260
                   // **ถ้าวันไหนเปลี่ยนความกว้างคอนเทนเนอร์ ต้องมาแก้ตัวเลขนี้ด้วย** ไม่งั้นกริดจะล้นจอ
-                  gridTemplateColumns: { xs: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)', xl: 'repeat(6, 1fr)' },
-                  gap: '4px',
-                  // 🛑 คอมเมนต์ข้างบนอ้างค่านี้มาตลอดแต่ **ไม่เคยมีในโค้ดจริง** — ใส่จริงแล้ว
-                  // 2026-08-11 (user: "บน mobile เราไม่ชิดขอบแบบ IG เหลือพื้นที่ตรงรูปเยอะ")
-                  marginInline: { xs: '-20px', sm: 0, xl: '-260px' },
+                  /* 🛑 มือถือ 2 คอลัมน์ ไม่ใช่ 3 — เดิม 3 พอไหวตอนการ์ดเป็นรูป "ตั้ง" 3:4 ที่มีข้อความทับบนรูป
+                     พอเปลี่ยนเป็นรูป "นอน" 1.35:1 + ข้อความอยู่ใต้รูป (โฉมใหม่ 2026-08-21) ที่จอ 360px
+                     3 คอลัมน์เหลือการ์ดกว้าง 104px ⇒ ชื่อสินค้าตกบรรทัดทีละคำ · 2 คอลัมน์ได้ 162px */
+                  gridTemplateColumns: {
+                    xs: 'repeat(2, 1fr)',
+                    sm: 'repeat(3, 1fr)',
+                    /* 4 คอลัมน์รอถึง lg ไม่ใช่ md — ที่ md (900px) sidebar 255px+gap โผล่ขึ้นมาพอดี
+                       คอลัมน์ขวาจึงเหลือ 591px: 4 คอลัมน์ = ใบละ 133px ขณะที่ 899px (ยังไม่มี sidebar)
+                       ได้ใบละ 281px ⇒ หดครึ่งหนึ่งในพิกเซลเดียว · 3 คอลัมน์ที่ md ได้ 189px
+                       ต่อเนื่องกับ 193px ที่ lg พอดี */
+                    /* 🛑 ไม่มีขั้น `xl: 6 คอลัมน์` แล้ว — 6 คอลัมน์เคยสมเหตุสมผลเพราะกริดถูก negative
+                       margin ถ่างออกเป็น 1327px (ได้ใบละ ~208px) พอถอด margin นั้นทิ้ง คอลัมน์ขวา
+                       ตันที่ 807px ตามคอนเทนเนอร์ 1080px ⇒ 6 คอลัมน์เหลือใบละ 114px ซึ่งแคบกว่า
+                       มือถือ 2 คอลัมน์ (168px) เสียอีก · 4 คอลัมน์ที่ 180px คือกว้างสุดที่ทำได้จริง */
+                    lg: 'repeat(4, 1fr)',
+                  },
+                  /* gap 16px เท่า `.service-grid` ของการ์ดบริการ — การ์ดสินค้ามีขอบ+มุมมนแล้ว
+                     gap 4px ของยุคไทล์ IG (ไร้ขอบ ชิดกันเป็นผืนเดียว) ทำให้ขอบสองใบเกือบชนกัน */
+                  gap: '16px',
+                  /* 🛑 **ไม่มี negative margin แล้ว** — `{ xs:'-20px', xl:'-260px' }` เป็นของยุคไทล์ IG
+                     ที่จงใจถ่างกริดออกนอกคอนเทนเนอร์ พอเปลี่ยนเป็นการ์ดมีขอบตามไฟล์อ้างอิง
+                     (2026-08-21) มันเหลือแต่ผลเสีย และทั้งสองค่าพังจริงทั้งคู่:
+                       xs  : panel เว้น 12px แล้วถูกดึงกลับ 20 ⇒ การ์ดยื่นออกนอกจอ 8px
+                       xl  : -260 ผูกกับ `max-is-[960px]` ตามที่คอมเมนต์เดิมเตือนไว้เอง
+                             แต่คอนเทนเนอร์เป็น 1080px แล้ว ⇒ ที่จอ 1536px กริดล้นขอบขวา 32px
+                     คอมเมนต์เดิมเขียนเงื่อนไขไว้ถูก ("ถ้าเปลี่ยนความกว้างคอนเทนเนอร์ ต้องมาแก้")
+                     แต่ไม่มีอะไรบังคับให้ใครกลับมาแก้ตอนคอนเทนเนอร์เปลี่ยนจริง */
                 }}
               >
                 {pinnedProducts.map((product) => (
@@ -628,11 +683,33 @@ export const ProfileRightContent = ({
 
                   // ตัวเลข -260px ผูกกับ max-is-[960px] ของ ShopProfile.tsx: (1480-960)/2 = 260
                   // **ถ้าวันไหนเปลี่ยนความกว้างคอนเทนเนอร์ ต้องมาแก้ตัวเลขนี้ด้วย** ไม่งั้นกริดจะล้นจอ
-                  gridTemplateColumns: { xs: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)', xl: 'repeat(6, 1fr)' },
-                  gap: '4px',
-                  // 🛑 คอมเมนต์ข้างบนอ้างค่านี้มาตลอดแต่ **ไม่เคยมีในโค้ดจริง** — ใส่จริงแล้ว
-                  // 2026-08-11 (user: "บน mobile เราไม่ชิดขอบแบบ IG เหลือพื้นที่ตรงรูปเยอะ")
-                  marginInline: { xs: '-20px', sm: 0, xl: '-260px' },
+                  /* 🛑 มือถือ 2 คอลัมน์ ไม่ใช่ 3 — เดิม 3 พอไหวตอนการ์ดเป็นรูป "ตั้ง" 3:4 ที่มีข้อความทับบนรูป
+                     พอเปลี่ยนเป็นรูป "นอน" 1.35:1 + ข้อความอยู่ใต้รูป (โฉมใหม่ 2026-08-21) ที่จอ 360px
+                     3 คอลัมน์เหลือการ์ดกว้าง 104px ⇒ ชื่อสินค้าตกบรรทัดทีละคำ · 2 คอลัมน์ได้ 162px */
+                  gridTemplateColumns: {
+                    xs: 'repeat(2, 1fr)',
+                    sm: 'repeat(3, 1fr)',
+                    /* 4 คอลัมน์รอถึง lg ไม่ใช่ md — ที่ md (900px) sidebar 255px+gap โผล่ขึ้นมาพอดี
+                       คอลัมน์ขวาจึงเหลือ 591px: 4 คอลัมน์ = ใบละ 133px ขณะที่ 899px (ยังไม่มี sidebar)
+                       ได้ใบละ 281px ⇒ หดครึ่งหนึ่งในพิกเซลเดียว · 3 คอลัมน์ที่ md ได้ 189px
+                       ต่อเนื่องกับ 193px ที่ lg พอดี */
+                    /* 🛑 ไม่มีขั้น `xl: 6 คอลัมน์` แล้ว — 6 คอลัมน์เคยสมเหตุสมผลเพราะกริดถูก negative
+                       margin ถ่างออกเป็น 1327px (ได้ใบละ ~208px) พอถอด margin นั้นทิ้ง คอลัมน์ขวา
+                       ตันที่ 807px ตามคอนเทนเนอร์ 1080px ⇒ 6 คอลัมน์เหลือใบละ 114px ซึ่งแคบกว่า
+                       มือถือ 2 คอลัมน์ (168px) เสียอีก · 4 คอลัมน์ที่ 180px คือกว้างสุดที่ทำได้จริง */
+                    lg: 'repeat(4, 1fr)',
+                  },
+                  /* gap 16px เท่า `.service-grid` ของการ์ดบริการ — การ์ดสินค้ามีขอบ+มุมมนแล้ว
+                     gap 4px ของยุคไทล์ IG (ไร้ขอบ ชิดกันเป็นผืนเดียว) ทำให้ขอบสองใบเกือบชนกัน */
+                  gap: '16px',
+                  /* 🛑 **ไม่มี negative margin แล้ว** — `{ xs:'-20px', xl:'-260px' }` เป็นของยุคไทล์ IG
+                     ที่จงใจถ่างกริดออกนอกคอนเทนเนอร์ พอเปลี่ยนเป็นการ์ดมีขอบตามไฟล์อ้างอิง
+                     (2026-08-21) มันเหลือแต่ผลเสีย และทั้งสองค่าพังจริงทั้งคู่:
+                       xs  : panel เว้น 12px แล้วถูกดึงกลับ 20 ⇒ การ์ดยื่นออกนอกจอ 8px
+                       xl  : -260 ผูกกับ `max-is-[960px]` ตามที่คอมเมนต์เดิมเตือนไว้เอง
+                             แต่คอนเทนเนอร์เป็น 1080px แล้ว ⇒ ที่จอ 1536px กริดล้นขอบขวา 32px
+                     คอมเมนต์เดิมเขียนเงื่อนไขไว้ถูก ("ถ้าเปลี่ยนความกว้างคอนเทนเนอร์ ต้องมาแก้")
+                     แต่ไม่มีอะไรบังคับให้ใครกลับมาแก้ตอนคอนเทนเนอร์เปลี่ยนจริง */
                 }}
               >
                 {otherProducts.map((product) => (
