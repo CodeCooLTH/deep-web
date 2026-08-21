@@ -42,11 +42,7 @@
  *   - ห้ามเขียนว่าเพจที่ไม่อยู่ในรายการเป็น "เพจปลอม" — ร้านอาจมีเพจจริงที่ยังไม่ได้เชื่อม
  *     ประโยคที่พูดได้จริงคือ "ยังไม่ได้ยืนยันกับ Deep" ซึ่งพอสำหรับการตัดสินใจอยู่แล้ว
  */
-import { useState } from 'react'
-
 import Typography from '@mui/material/Typography'
-import Dialog from '@mui/material/Dialog'
-import IconButton from '@mui/material/IconButton'
 
 import CustomAvatar from '@core/components/mui/Avatar'
 import { Icon } from '@iconify/react'
@@ -96,7 +92,9 @@ const BRAND_ICON: Record<string, string> = {
  * Base: `OrderSourceLogo.tsx` ฝั่งผู้ขาย (รูปเพจ + badge แพลตฟอร์มห้อยมุม + ring คั่นให้อ่าน
  * เป็นคนละชั้น) — แพตเทิร์นเดียวกับ avatar+channel badge ในกล่องแชท (sibling-surface-parity)
  */
-function ChannelMark({ c, size }: { c: OfficialChannel; size: number }) {
+/** ใช้ร่วมกับ `ShopExtraPages.tsx` — export ไว้เพื่อไม่ให้หน้าเต็มจอก็อปโลโก้+badge ไปเขียนซ้ำ
+ *  (สีแบรนด์/ไอคอนของแต่ละแพลตฟอร์มต้องมาจากที่เดียว ไม่งั้นสองหน้าจะเพี้ยนคนละทาง) */
+export function ChannelMark({ c, size }: { c: OfficialChannel; size: number }) {
   const badge = Math.max(14, Math.round(size * 0.42))
 
   return (
@@ -130,17 +128,20 @@ function ChannelMark({ c, size }: { c: OfficialChannel; size: number }) {
 
 export default function OfficialChannelsBlock({
   channels,
-  shopName,
+  onOpenPage,
 }: {
   channels: OfficialChannel[]
-  shopName: string
+  /** เปิดหน้าเต็มจอที่แท็บ "เพจทางการ" — หน้าอยู่ที่ `ShopExtraPages.tsx` ซึ่ง `ShopProfile`
+   *  render ที่เดียว (ดูเหตุผลเดียวกันที่ `BadgeShowcase`) */
+  onOpenPage: () => void
 }) {
-  const [pageOpen, setPageOpen] = useState(false)
 
-  /* 🛑 ห้ามเรียก `useLockBodyScroll` ที่นี่ — `<Dialog>` ล็อก scroll ให้เองอยู่แล้ว การล็อกซ้อน
-     ทำให้ MUI จำค่า `body.style.overflow` ผิดเป็น `hidden` แล้ว "คืนค่า" เป็น hidden หลังปิด
-     ⇒ หน้าเลื่อนไม่ได้อีกเลยจนกว่าจะรีโหลด (prod 2026-08-15)
-     เหตุผลเต็ม + ด่านกันซ้ำ: `src/__tests__/overlay-scroll-lock-single-owner.test.ts` */
+  /* 🛑 ห้ามเรียก `useLockBodyScroll` ที่นี่หรือที่หน้าเต็มจอ — `<Dialog>` ของ MUI ล็อก scroll
+     ให้เองอยู่แล้ว และ "เรียกซ้ำไม่เสียหาย" (คำที่เคยเขียนไว้) **ผิด**: MUI จำค่า
+     `body.style.overflow` ตอน mount ไว้เพื่อคืนตอนปิด ⇒ ถ้า hook ของเราล็อกไปก่อน MUI จะจำว่า
+     ค่าเดิมคือ `hidden` แล้วคืนเป็น hidden หลัง transition จบ ⇒ หน้าเลื่อนไม่ได้จนกว่าจะรีโหลด
+     (เกิดจริงบน prod 2026-08-15 — ปิดด้วย `src/__tests__/overlay-scroll-lock-single-owner.test.ts`)
+     ตัว `<Dialog>` ย้ายไป `ShopExtraPages.tsx` แล้ว กติกานี้จึงบังคับที่ไฟล์นั้นแทน */
 
   if (channels.length === 0) return null
 
@@ -158,7 +159,11 @@ export default function OfficialChannelsBlock({
             อยู่ในกลุ่ม *children presentational* ⇒ heading ถูกถอดออกจาก accessibility tree ทั้งอัน
             ผลคือ screen reader ที่ไล่ตามหัวข้อยังข้ามบล็อกกันเพจปลอมไปเหมือนเดิม — คอมเมนต์เดิม
             เขียนว่าแก้แล้ว ทั้งที่โค้ดให้ผลตรงข้าม (คลาสเดียวกับ aria-name-requires-supporting-role.md) */}
-        <div className='flex items-center gap-1.5 min-bs-[44px]'>
+        {/* 🛑 เดิมมี `min-bs-[44px]` เพราะแถวนี้เคยมีปุ่ม "ทั้งหมด N เพจ" อยู่ด้วย (ต้องได้ tap target
+            44px) — ผมย้ายปุ่มลงไปท้ายการ์ดตอนจัดสไตล์ใหม่ แต่ลืมถอดความสูงขั้นต่ำออก
+            มันเลยเหลือเป็น "ที่ว่างเปล่า ๆ ใต้หัวข้อ" (user ทัก 2026-08-21 ว่าข้างบนเว้นเยอะไป)
+            ตอนนี้แถวนี้เป็นแค่ป้ายกำกับ ไม่มีอะไรให้กด จึงไม่ต้องมีความสูงขั้นต่ำ */}
+        <div className='flex items-center gap-1.5'>
           <Icon
             icon='tabler:rosette-discount-check-filled'
             width={15}
@@ -168,7 +173,7 @@ export default function OfficialChannelsBlock({
           {/* 🛑 หัวข้อเหลือ "เพจทางการ" คำเดียว — "· ยืนยันความเป็นเจ้าของแล้ว" ถูกถอด (user 2026-08-13)
               เพราะเช็คเขียวข้างหน้ามันพูดเรื่องเดียวกันอยู่แล้ว และคำว่า "ทางการ" ก็แปลว่ายืนยันแล้วในตัว
               ⇒ เป็นการอธิบายไอคอนด้วยคำ แล้วอธิบายคำนั้นซ้ำอีกที */}
-          <Typography component='h2' variant='caption' color='text.secondary' className='min-is-0 flex-1 truncate'>
+          <Typography component='h2' variant='caption' color='text.secondary' className='min-is-0 flex-1'>
             เพจทางการ
           </Typography>
           {/* 🛑 **ทางเข้าหน้าเต็มมีปุ่มเดียว** — เดิมมีสองตัวที่ทำงานเหมือนกันเป๊ะ (ลูกศรมุมขวา +
@@ -177,19 +182,13 @@ export default function OfficialChannelsBlock({
               (`rest > 0`) ⇒ ถ้าเก็บตัวนั้นแทน ร้านกลุ่มใหญ่จะเข้าไม่ถึงข้อความกันเพจปลอมอีกครั้ง
               ซึ่งเป็นบั๊กเดียวกับที่ critique P0 เพิ่งปิดไป · ป้ายเป็นข้อความไม่ใช่ลูกศรเปล่า
               เพราะลูกศรเดี่ยว ๆ ไม่บอกว่ากดแล้วไปไหน และตัวเลขที่หายไปจากปุ่มเดิมต้องมีที่อยู่ใหม่ */}
-          <button
-            type='button'
-            onClick={() => setPageOpen(true)}
-            aria-haspopup='dialog'
-            aria-label={`ดูเพจทางการทั้งหมด ${channels.length} เพจ และวิธีตรวจสอบเพจปลอม`}
-            className='shrink-0 flex items-center gap-0.5 min-bs-11 -mie-1 pli-1 border-0 bg-transparent cursor-pointer font-[inherit] text-[13px] font-semibold text-primary rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
-          >
-            {`ทั้งหมด ${channels.length} เพจ`}
-            <Icon icon='tabler:chevron-right' width={14} />
-          </button>
+
         </div>
 
-        <div className='flex flex-wrap items-center gap-x-5 gap-y-1'>
+        {/* 🛑 เดิมเป็น `flex-wrap gap-x-5` ซึ่งออกแบบไว้ตอนบล็อกนี้กินความกว้างเต็มหน้า —
+            ย้ายมาอยู่การ์ด 255px แล้วกลายเป็นของอัดกันจนอ่านยาก (user ทักว่า "ไม่สวยเลย")
+            ในคอลัมน์แคบ "เรียงลง" อ่านง่ายกว่า "เรียงข้างแล้วตก" เสมอ เพราะชื่อเพจยาว 2 บรรทัดได้ */}
+        <div className='flex flex-col gap-2.5 mbs-3'>
           {channels.slice(0, VISIBLE).map((c) => {
             const href = channelProfileUrl(c)
 
@@ -197,7 +196,7 @@ export default function OfficialChannelsBlock({
               <>
                 {/* 28px ไม่ใช่ 20 — badge แพลตฟอร์มบนรูป 20px จะเหลือ ~9px ซึ่งอ่านไม่ออก
                     และแถวนี้สูง ~40px อยู่แล้วเพราะชื่อเพจยาวได้ 2 บรรทัด จึงไม่ได้กินที่เพิ่ม */}
-                <ChannelMark c={c} size={28} />
+                <ChannelMark c={c} size={44} />
                 <span className='flex flex-col leading-tight min-is-0'>
                   {/* 🛑 2 บรรทัดแทน truncate บรรทัดเดียว (critique 2026-08-13 P0)
                       ชื่อเพจจริงยาว 34 ตัวอักษร และ **หางของชื่อคือที่ที่เพจของร้านเดียวกันต่างกัน**
@@ -259,113 +258,19 @@ export default function OfficialChannelsBlock({
               ความสูงยังคงที่ไม่ว่าร้านจะมีกี่เพจ เพราะแถวนี้ยัง slice ที่ VISIBLE เหมือนเดิม
               (prod ใช้ `setExpanded(true)` กางในหน้า ซึ่งทำให้ 4 เพจดันเนื้อหาตกจอ) */}
         </div>
+          <button
+            type='button'
+            onClick={onOpenPage}
+            aria-haspopup='dialog'
+            aria-label={`ดูเพจทางการทั้งหมด ${channels.length} เพจ และวิธีตรวจสอบเพจปลอม`}
+            className='is-full flex items-center justify-center gap-1 min-bs-11 mbs-4 plb-2 pli-3 border-0 rounded-[10px] bg-[var(--mui-palette-primary-lightOpacity)] cursor-pointer font-[inherit] text-[13px] font-semibold text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
+          >
+            {`ทั้งหมด ${channels.length} เพจ`}
+            <Icon icon='tabler:chevron-right' width={14} />
+          </button>
       </div>
 
       {/* ── หน้าเต็ม: ทุกเพจ + กลไก + ข้อความกันเพจปลอม ── */}
-      <Dialog fullScreen open={pageOpen} onClose={() => setPageOpen(false)} aria-labelledby='proto-channel-page-title'>
-        <div className='flex flex-col bs-full bg-[var(--mui-palette-background-paper)]'>
-          <div
-            className='sticky inset-block-start-0 z-10 flex items-center gap-2 pli-3 plb-2 border-be bg-[var(--mui-palette-background-paper)]'
-            style={{ paddingBlockStart: 'calc(8px + env(safe-area-inset-top))' }}
-          >
-            <IconButton onClick={() => setPageOpen(false)} aria-label='ย้อนกลับ' size='large' className='shrink-0'>
-              <Icon icon='tabler:arrow-left' width={22} />
-            </IconButton>
-            <Typography id='proto-channel-page-title' component='h1' className='text-[18px] font-bold min-is-0 truncate'>
-              เพจทางการ
-            </Typography>
-          </div>
-
-          <div className='flex-1 overflow-y-auto overscroll-contain'>
-            <div className='mli-auto max-is-[640px] pli-5 plb-5'>
-              <Typography variant='body2' color='text.secondary' className='mbe-1'>
-                {shopName}
-              </Typography>
-              <Typography className='text-[22px] font-extrabold tabular-nums leading-tight' color='text.primary'>
-                {`${channels.length} เพจ`}
-              </Typography>
-
-              <Typography variant='body2' color='text.secondary' className='mbs-2 mbe-4 leading-relaxed'>
-                ร้านเชื่อมเพจเหล่านี้เองด้วยการเข้าสู่ระบบกับแพลตฟอร์ม ชื่อและรูปดึงมาจากแพลตฟอร์มโดยตรง
-                ไม่ใช่ข้อความที่ร้านพิมพ์เข้ามา
-              </Typography>
-
-              <ul className='m-0 p-0 list-none flex flex-col'>
-                {channels.map((c) => {
-                  const href = channelProfileUrl(c)
-
-                  const inner = (
-                    <>
-                      <ChannelMark c={c} size={44} />
-                      <span className='min-is-0 flex-1'>
-                        {/* max-is-full + truncate ต้องมาคู่กัน ไม่งั้นชื่อยาวดันกล่องกว้างเกินจอ
-                            (บทเรียน prod 2026-08-12: flex item มี min-width:auto เป็นค่าตั้งต้น) */}
-                        <span className='block text-[15px] font-semibold truncate max-is-full'>{c.name}</span>
-                        <Typography component='span' variant='caption' color='text.secondary' className='block'>
-                          {CHANNEL_FULL_LABEL[c.provider] ?? c.provider}
-                          {typeof c.followerCount === 'number' && (
-                            <>
-                              {' · '}
-                              <span className='font-semibold tabular-nums text-[var(--mui-palette-text-primary)]'>
-                                {compactCount(c.followerCount)}
-                              </span>
-                              {` ${CHANNEL_FOLLOWER_LABEL[c.provider] ?? 'ผู้ติดตาม'}`}
-                            </>
-                          )}
-                        </Typography>
-                      </span>
-                      {href && (
-                        <span className='text-[13px] font-semibold text-primary shrink-0 flex items-center gap-1'>
-                          {/* "เปิดเพจ" ผิดคำสำหรับ LINE OA ซึ่งไม่ใช่เพจ — ใช้ชื่อช่องทางจริง
-                              และลิงก์ต้องอ่านรู้เรื่องนอกบริบท (screen reader อ่านรายการลิงก์แยกจากแถว) */}
-                          {`เปิดใน ${CHANNEL_FULL_LABEL[c.provider] ?? c.provider}`}
-                          <Icon icon='lucide:external-link' width={13} />
-                        </span>
-                      )}
-                    </>
-                  )
-
-                  const cls = 'flex items-center gap-3 plb-3 border-be last:border-be-0 min-is-0 min-bs-[44px]'
-
-                  return (
-                    <li key={`${c.provider}-${c.externalId}`} className='min-is-0'>
-                      {href ? (
-                        <a
-                          href={href}
-                          target='_blank'
-                          rel='noopener noreferrer'
-                          className={`${cls} no-underline text-[color:inherit]`}
-                          aria-label={`เปิด ${c.name} ใน ${CHANNEL_FULL_LABEL[c.provider] ?? c.provider} (ยืนยันความเป็นเจ้าของแล้ว)`}
-                        >
-                          {inner}
-                        </a>
-                      ) : (
-                        <div className={cls}>{inner}</div>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-
-              {/* ── ข้อความกันเพจปลอม: ทำให้รายการนี้กลายเป็นทะเบียนอ้างอิง ── */}
-              <div
-                className='mbs-5 rounded-lg pli-4 plb-3 flex items-start gap-2'
-                style={{ background: 'var(--mui-palette-background-default)' }}
-              >
-                <Icon
-                  icon='tabler:alert-triangle'
-                  width={17}
-                  className='shrink-0 text-[var(--mui-palette-text-secondary)]'
-                  style={{ marginBlockStart: 2 }}
-                />
-                <Typography variant='body2' color='text.primary' className='leading-relaxed'>
-                  {`หากพบเพจอื่นที่อ้างว่าเป็น "${shopName}" แต่ไม่อยู่ในรายการนี้ แปลว่ายังไม่ได้ยืนยันกับ Deep`}
-                </Typography>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Dialog>
     </>
   )
 }

@@ -36,9 +36,11 @@ export default function ReviewSummary({
   const max = Math.max(1, ...distribution.map((d) => d.count))
 
   return (
-    <div className='flex items-center gap-5 pbe-4 border-be mbe-2'>
-      <div className='text-center shrink-0 min-is-[92px]'>
-        <div className='text-[42px] font-extrabold tabular-nums leading-none' style={{ letterSpacing: '-0.035em' }}>
+    /* `.review-summary` ของไฟล์อ้างอิง: กริด 170px + 1fr · gap 30 · เส้นคั่นล่าง
+       ≤650px ยุบเป็น 110px + 1fr · gap 12 (ตัวเลขจากไฟล์ตรง ๆ) */
+    <div className='grid items-center border-be [grid-template-columns:170px_1fr] gap-[30px] plb-[6px] pbe-[22px] max-[650px]:[grid-template-columns:110px_1fr] max-[650px]:gap-3'>
+      <div className='text-center'>
+        <div className='text-[50px] max-[650px]:text-[42px] font-black tabular-nums leading-none' style={{ letterSpacing: '-0.035em' }}>
           {/* ทศนิยม 1 ตำแหน่งเสมอ (user 2026-08-11) — "5" กับ "4.9" สลับกันแล้วเลขกระโดดกว้าง */}
           {avgRating.toFixed(1)}
         </div>
@@ -55,15 +57,18 @@ export default function ReviewSummary({
             />
           ))}
         </div>
-        <Typography variant='caption' color='text.disabled' className='block mbs-1 tabular-nums'>
+        <Typography variant='caption' color='text.secondary' className='block mbs-1 text-[11px] tabular-nums'>
           {`จาก ${reviewCount} รีวิว`}
         </Typography>
       </div>
 
-      <div className='flex-1 min-is-0 flex flex-col gap-1.5'>
+      <div className='min-is-0'>
         {distribution.map((d) => (
-          <div key={d.star} className='flex items-center gap-2 text-xs'>
-            <span className='is-2.5 text-end tabular-nums text-[var(--mui-palette-text-disabled)]'>{d.star}</span>
+          <div
+            key={d.star}
+            className='grid items-center gap-[9px] plb-[3.5px] text-[11px] text-[#8a8894] [grid-template-columns:40px_1fr_25px]'
+          >
+            <span className='text-end tabular-nums'>{`${d.star} ดาว`}</span>
             <LinearProgress
               variant='determinate'
               value={Math.round((d.count / max) * 100)}
@@ -71,12 +76,12 @@ export default function ReviewSummary({
               className='flex-1 min-is-0'
               sx={{
                 blockSize: 7,
-                borderRadius: 1,
-                backgroundColor: 'var(--mui-palette-action-hover)',
-                '& .MuiLinearProgress-bar': { borderRadius: 1, backgroundColor: 'warning.main' },
+                borderRadius: '99px',
+                backgroundColor: '#f0f0f3',
+                '& .MuiLinearProgress-bar': { borderRadius: '99px', backgroundColor: 'warning.main' },
               }}
             />
-            <span className='is-6 text-end tabular-nums text-[var(--mui-palette-text-disabled)]'>{d.count}</span>
+            <span className='text-end tabular-nums'>{d.count}</span>
           </div>
         ))}
       </div>

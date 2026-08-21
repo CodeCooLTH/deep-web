@@ -21,15 +21,20 @@
  * ใหม่ (Shop.vertical = SERVICE_QUEUE แสดงผลเป็น "สินค้าและบริการ") ตรงตัวถ้าไม่แก้จะเกิดร้าน
  * SERVICE_QUEUE ที่มีทั้งแท็บ "บริการ" กับแท็บ "สินค้าและบริการ" วางเคียงกัน — คำเดียวกันสองความหมาย
  */
+import { useState } from 'react'
+
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import Typography from '@mui/material/Typography'
 
 import { Icon } from '@iconify/react'
 
+import Box from '@mui/material/Box'
+
 import ProfileIdentity from './ProfileIdentity'
 import EvidencePanel from './EvidencePanel'
 import OfficialChannelsBlock from './OfficialChannelsBlock'
+import ShopExtraPages, { type ExtraPageTab } from './ShopExtraPages'
 import type { HeroBadge } from './BadgeShowcase'
 import PageBlocksSection, { type PageBlockItem } from './PageBlocksSection'
 import ProfileTabs from './ProfileTabs'
@@ -114,6 +119,132 @@ export type ShopProfileData = {
   blocks?: PageBlockItem[]
 }
 
+/**
+ * โครงหน้า 2 คอลัมน์ — ตัวเลขทุกตัวยกมาจากไฟล์อ้างอิงที่ user ส่ง ไม่ได้กะเอง
+ *   .layout  { display:grid; grid-template-columns:255px minmax(0,1fr); gap:18px; padding:20px 0 70px }
+ *   .container{ width:min(1080px, calc(100% - 36px)) }
+ *
+ * 🛑 `minmax(0,1fr)` ไม่ใช่ `1fr` — grid item มี `min-width:auto` เป็นค่าตั้งต้น ⇒ ตารางหรือ
+ * แถบแท็บที่กว้างเกินจะ **ดันคอลัมน์ให้ล้นออกนอกจอ** แทนที่จะถูกบีบ (คลาสเดียวกับบั๊ก
+ * `docs/conventions/flex-header-truncation.md` แค่ย้ายมาเกิดบน grid)
+ *
+ * breakpoint 900 ตรงกับ `md` ของ Vuexy พอดี (theme remap md=900/lg=1200) จึงใช้ token ของธีมได้
+ * ส่วน 650 ของไฟล์อ้างอิงไม่มี token ตรง ๆ — ใช้ค่า px ตรงตามไฟล์เพื่อไม่ให้เพี้ยนจากต้นแบบ
+ */
+const CONTAINER_SX = {
+  inlineSize: 'min(1080px, calc(100% - 36px))',
+  marginInline: 'auto',
+  '@media (max-width:650px)': { inlineSize: 'min(100% - 24px, 1080px)' },
+} as const
+
+const LAYOUT_SX = {
+  ...CONTAINER_SX,
+  display: 'grid',
+  gridTemplateColumns: { xs: '1fr', md: '255px minmax(0,1fr)' },
+  gap: '18px',
+  /* 🛑 ที่ว่างท้ายหน้าของ xs ต้องบวก `env(safe-area-inset-bottom)` — แถบปุ่มล่างเป็น `fixed`
+     สูง 61px + safe-area และ **spacer ของมันถูกถอดออกแล้ว** (เคยวางผิดที่ใต้ปก ดู `MobileCta`)
+     ⇒ กล่องนี้เป็นที่เดียวที่กันไม่ให้แถบทับการ์ดใบสุดท้าย · ใช้ env() ได้จริงเพราะ
+     `(marketing)/layout.tsx` ตั้ง `viewportFit:'cover'` ไว้ (`docs/conventions/ios-safe-area.md`) */
+  padding: { xs: '12px 0 calc(70px + env(safe-area-inset-bottom))', md: '20px 0 70px' },
+  alignItems: 'start',
+} as const
+
+/**
+ * ≤900px: ยุบเป็น 2 ช่องเรียงกันแล้วดันลงไปอยู่ใต้แท็บ (`order`)
+ * ≤650px: เรียงลงเป็นแถวเดียว — 2 ช่องบนจอ 375px เหลือช่องละ ~170px ซึ่งแคบเกินกว่าจะอ่าน
+ *         บรรทัดอธิบายใต้หัวข้อได้ (ตัวเลข 650 มาจากไฟล์อ้างอิงตรง ๆ)
+ */
+/** กรอบการ์ดของคอลัมน์ซ้าย — ค่าจากไฟล์อ้างอิง (`.card` + `.social-card`) */
+/**
+ * `.section-head` ของไฟล์อ้างอิง — หัวข้อ 20px + บรรทัดอธิบาย 12px muted
+ *
+ * 🛑 คำอธิบายต้องเป็น "สิ่งที่จริงกับทุกร้าน" ไม่ใช่ลอกประโยคในไฟล์อ้างอิงมาทั้งดุ้น
+ * ไฟล์นั้นเขียนถึงร้าน BT Premium โดยเฉพาะ ("สินค้าและอะไหล่สำหรับระบบไฟรถยนต์") —
+ * เอามาใช้กับร้านขายเสื้อผ้าจะกลายเป็นข้อความที่ผิดความจริงทันที
+ */
+function SectionHead({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div className='flex items-center justify-between gap-3 mbe-[14px]'>
+      <div>
+        <Typography component='h2' className='text-[18px] sm:text-[20px] font-bold' color='text.primary'>
+          {title}
+        </Typography>
+        <Typography className='text-[12px] mbs-[5px]' color='text.secondary'>
+          {subtitle}
+        </Typography>
+      </div>
+    </div>
+  )
+}
+
+/** `.tabs-card` ของไฟล์อ้างอิง */
+const TABS_CARD_SX = {
+  background: 'var(--mui-palette-background-paper)',
+  border: '1px solid #ececf2',
+  borderRadius: '18px',
+  boxShadow: '0 4px 18px rgba(40,34,76,.08)',
+  overflow: 'hidden',
+  /* 🛑 ≤650px การ์ดนี้ต้อง **ชนขอบจอจริง** — เดิมถอดแค่มุมมนกับขอบข้าง แต่ตัวการ์ดยังอยู่ใน
+     `CONTAINER_SX` ที่เว้นข้างละ 12px ⇒ ยังมีพื้นเพจโผล่ 2 แถบ และมุมมน 0 ที่ตั้งไว้ก็ไม่มีเหตุผล
+     รองรับ · ผลพลอยได้ที่ user เจอเอง: ระยะขอบของ panel (12px) ไปซ้อนบนระยะของ container
+     ⇒ การ์ดบริการเริ่มที่ 24px ขณะที่การ์ดฝั่งซ้ายใต้มันเริ่มที่ 12px = แคบกว่าข้างละ 12px
+     ดันออกให้เต็มจอแล้ว ระยะของ panel กลายเป็น 12px เท่ากับ container ⇒ กว้างเท่ากันพอดี */
+  '@media (max-width:650px)': {
+    borderRadius: 0,
+    borderInline: 0,
+    marginInline: '-12px',
+    inlineSize: 'calc(100% + 24px)',
+  },
+} as const
+
+/**
+ * ตัวนับของแต่ละแท็บ — แยกเป็นตารางเดียวแทนการเขียน `count:` กระจายในแต่ละแท็บ
+ * เพิ่มแท็บใหม่แล้วอยากมีตัวนับ ให้เติมที่นี่ที่เดียว
+ */
+const TAB_COUNTS: Record<string, ((d: ShopProfileData) => number | undefined) | undefined> = {
+  services: (d) => d.services.length || undefined,
+  items: (d) => d.pinnedProducts.length + d.otherProducts.length || undefined,
+  rooms: (d) => d.rooms.length || undefined,
+  pinned: (d) => d.videos.length || undefined,
+}
+
+const SIDE_CARD_SX = {
+  background: 'var(--mui-palette-background-paper)',
+  border: '1px solid #ececf2',
+  borderRadius: '18px',
+  boxShadow: '0 4px 18px rgba(40,34,76,.08)',
+  padding: '20px',
+
+} as const
+
+const SIDEBAR_SX = {
+  display: { xs: 'grid', md: 'flex' },
+  /* 🛑 `auto-fit` ไม่ใช่ `1fr 1fr` — ช่วง 651–899px คอลัมน์นี้เป็นกริด 2 ช่อง แต่การ์ดใบที่สอง
+     ("เพจทางการ") แสดงเฉพาะร้านที่ผูกเพจไว้ ⇒ ร้านที่ไม่มีเพจได้การ์ดใบเดียวนอนอยู่ครึ่งซ้าย
+     แล้วครึ่งขวาว่างเปล่า (user เจอเองบน iPad Air 820px 2026-08-21)
+     `auto-fit` ยุบแทร็กที่ไม่มีของทิ้ง ⇒ มีใบเดียว = เต็มความกว้าง · มีสองใบ = สองช่องเท่าเดิม
+     โดยไม่ต้องนับจำนวนการ์ดในโค้ด (เพิ่มการ์ดใบที่สามวันหลังก็ยังถูก) */
+  gridTemplateColumns: { xs: 'repeat(auto-fit, minmax(260px, 1fr))' },
+  flexDirection: 'column',
+  gap: '16px',
+  order: { xs: 2, md: 1 },
+  /**
+   * sticky — การ์ดสองใบนี้เลื่อนตามไปกับเนื้อหา
+   * ฝั่งขวา ไม่หายไปจากจอ
+   *
+   * 🛑 เคยถอดออกไปรอบหนึ่ง (2026-08-21) เพราะอ่านคำว่า "ลอย" ของ user ผิดว่าหมายถึงตัว sticky เอง
+   * — ที่จริงเขาอยากให้มัน **เลื่อนตามเหมือนเดิม** ถ้าจะแก้อาการ "ที่ว่างขาวใต้การ์ด" ให้แก้ด้วย
+   * การเติมเนื้อหา/ปรับความสูง ไม่ใช่ถอด sticky ทิ้ง
+   *
+   * `top: 30px` (user เคาะ 2026-08-21) ไม่ใช่ 86px ของไฟล์อ้างอิง — 86 เผื่อไว้สำหรับแถบบนที่
+   * ตรึงค้างอยู่ ซึ่งหน้านี้ไม่มี ⇒ ใช้ 86 จะเหลือช่องว่างเปล่า ๆ เหนือการ์ดตอนหยุด
+   */
+  position: { md: 'sticky' },
+  top: { md: '30px' },
+  '@media (max-width:650px)': { display: 'block', '& > *': { marginBlockEnd: '12px' } },
+} as const
+
 export default function ShopProfile({ data }: { data: ShopProfileData }) {
   /**
    * deep link ของ lightbox — อ่านฝั่ง client ที่นี่ ไม่ใช่ `await searchParams` ที่ Server Component
@@ -124,6 +255,15 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
    * ทั้งสองหน้า render แบบ dynamic อยู่แล้ว (เรียก `getServerSession` ซึ่งอ่านคุกกี้) จึงไม่ติด
    * เงื่อนไข `<Suspense>` ของ `useSearchParams()` ที่บังคับเฉพาะหน้าที่ prerender แบบ static
    */
+  /**
+   * หน้าเต็มจอ "เพจทางการ / เหรียญของร้าน" — `null` = ปิด
+   *
+   * 🛑 state อยู่ที่นี่ที่เดียว ไม่ใช่ในการ์ดแต่ละใบ เพราะไฟล์อ้างอิงรวมสองหน้านี้เป็น **หน้าเดียว
+   * ที่สลับด้วยแท็บ** ถ้าแต่ละการ์ดถือ Dialog ของตัวเองเหมือนเดิม แท็บจะสลับไปอีกหน้าไม่ได้เลย
+   * (และจะได้ Dialog สองใบที่ต่างคนต่างล็อก scroll — ดู overlay-scroll-lock-single-owner)
+   */
+  const [extraPage, setExtraPage] = useState<ExtraPageTab | null>(null)
+
   const searchParams = useSearchParams()
   const productParam = searchParams.get('p')
   const clipParam = searchParams.get('clip')
@@ -192,11 +332,21 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
     },
     // feature 00028 — แท็บ "บริการ" ของร้านสินค้าและบริการ ไม่มีคิวงานเลย = ไม่สร้างแท็บ
     // (ไม่ fallback ไปที่อื่น — ตั้งใจตาม UX spec §B edge states)
-    services: { label: 'บริการ', content: <PublicServiceList services={data.services} /> },
+    services: {
+      label: 'บริการ',
+      content: (
+        <>
+          <SectionHead title='บริการของร้าน' subtitle='เลือกบริการที่สนใจ แล้วติดต่อร้านเพื่อนัดหมาย' />
+          <PublicServiceList services={data.services} />
+        </>
+      ),
+    },
     items: {
       // feature 00028 — เดิม "สินค้าและบริการ" ชนกับชื่อ vertical ใหม่ เปลี่ยนเป็น "สินค้า"
       label: 'สินค้า',
       content: (
+        <>
+        <SectionHead title='สินค้าของร้าน' subtitle='สินค้าที่ร้านเปิดขายอยู่ตอนนี้' />
         <ProfileRightContent
           data={{
             pinnedProducts: data.pinnedProducts,
@@ -211,6 +361,7 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
           initialProductId={productParam}
           onDeepLinkResolved={dropParam('p')}
         />
+        </>
       ),
     },
     about: {
@@ -233,6 +384,7 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
       content:
         data.ratingDistribution && data.avgRating != null ? (
           <>
+            <SectionHead title='รีวิวจากลูกค้า' subtitle='ความคิดเห็นจากผู้ซื้อที่ยืนยันรับของแล้วเท่านั้น' />
             <ReviewSummary
               avgRating={data.avgRating}
               reviewCount={data.reviewCount}
@@ -262,7 +414,17 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
   }
 
   return (
-    <div className='mli-auto max-is-[960px]'>
+    /**
+     * โครงหน้า 2 คอลัมน์ตามไฟล์อ้างอิง `deep_store_profile_responsive.html` (user ส่ง 2026-08-20)
+     *
+     * 🛑 hero อยู่ **นอก** container โดยตั้งใจ — ปกร้านต้องกินเต็มความกว้างจอ (full-bleed)
+     * ส่วนเนื้อหาด้านล่างถูกจำกัดที่ 1080px ตาม `--container` ของไฟล์อ้างอิง
+     *
+     * เดิมทั้งหน้าเป็นคอลัมน์เดียว `max-is-[960px]` ทุกความกว้าง ⇒ บนจอ 1440px มีที่ว่าง
+     * ข้างละ ~240px ที่ไม่ได้ใช้ ขณะที่การ์ดหลักฐาน/เพจทางการ (ซึ่งเป็นข้อมูล "ตัดสินใจ")
+     * ถูกดันลงไปอยู่ใต้ fold — โครงใหม่ยกขึ้นมาอยู่คอลัมน์ซ้ายที่เห็นพร้อมเนื้อหาตั้งแต่ต้น
+     */
+    <>
       <ProfileIdentity
         data={{
           shopName: data.hero.shopName,
@@ -296,35 +458,58 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
         }}
       />
 
-      <EvidencePanel
-        data={{
-          maxVerifyLevel: data.hero.maxVerifyLevel,
-          verifiedLevels: data.about.verifiedLevels ?? [],
-          completionRate: data.hero.completionRate,
-          completionDenominator: data.hero.completionDenominator ?? 0,
-          completionExcluded: data.hero.completionExcluded ?? 0,
-          completionBelowMinSample: data.hero.completionBelowMinSample ?? false,
-          unitLabel: L.unitLabel,
-          chat: {
-            chatResponseRate: data.hero.chatResponseRate,
-            chatMedianResponseSec: data.hero.chatMedianResponseSec,
-            chatResponseSampleSize: data.hero.chatResponseSampleSize,
-          },
-          badges: data.hero.badges,
-          totalBadgeCount: data.hero.totalBadgeCount,
-          shopName: data.hero.shopName,
-          tierAccent: getTierAccentColor(data.hero.trustScore),
-        }}
-      />
+      <Box sx={LAYOUT_SX}>
+        {/* คอลัมน์ซ้าย — "ทำไมร้านนี้ถึงเชื่อถือได้" + เพจทางการ
+            ≤900px ยุบเป็น 2 ช่องเรียงกันและถูกดันลงไป **ใต้** แท็บ (order) เพราะบนมือถือ
+            คนกดดูของก่อน แล้วค่อยหาเหตุผลว่าเชื่อได้ไหม — ตรงข้ามกับบนเดสก์ท็อปที่เห็นพร้อมกัน */}
+        <Box component='aside' sx={SIDEBAR_SX}>
+          <EvidencePanel
+            onOpenBadgePage={() => setExtraPage('badges')}
+            data={{
+              maxVerifyLevel: data.hero.maxVerifyLevel,
+              verifiedLevels: data.about.verifiedLevels ?? [],
+              completionRate: data.hero.completionRate,
+              completionDenominator: data.hero.completionDenominator ?? 0,
+              completionExcluded: data.hero.completionExcluded ?? 0,
+              completionBelowMinSample: data.hero.completionBelowMinSample ?? false,
+              unitLabel: L.unitLabel,
+              chat: {
+                chatResponseRate: data.hero.chatResponseRate,
+                chatMedianResponseSec: data.hero.chatMedianResponseSec,
+                chatResponseSampleSize: data.hero.chatResponseSampleSize,
+              },
+              badges: data.hero.badges,
+              totalBadgeCount: data.hero.totalBadgeCount,
+              tierAccent: getTierAccentColor(data.hero.trustScore),
+            }}
+          />
+          {/* กรอบการ์ดใส่ที่ "จุดเรียกใช้" ไม่ใช่ในตัว OfficialChannelsBlock เอง —
+              ไฟล์นั้นออกแบบมาให้วางแทรกในเนื้อหาได้ทั่วไป (มีทั้งแถวสรุปและหน้าเต็ม) การไปตรึง
+              กรอบไว้ข้างในจะบังคับรูปแบบให้ทุกที่ที่หยิบไปใช้ในอนาคต · ที่นี่มันเป็นการ์ดในคอลัมน์
+              ซ้าย จึงห่อกรอบเฉพาะบริบทนี้ (padding 20 / radius 18 / เงา ตามไฟล์อ้างอิง) */}
+          {/* 🛑 ไม่มีเพจ = **ไม่แสดงการ์ดเลย** ไม่ใช่แสดงการ์ดเปล่า
+              ร้านที่ยังไม่ผูกช่องทางไหนเลยเคยได้กล่องขาวว่าง ๆ ค้างอยู่ในคอลัมน์ซ้าย (user ส่ง
+              ภาพหน้าจอร้าน `chakeawneawsub` มาให้ดู 2026-08-21) ซึ่งอ่านได้ว่า "หน้าโหลดไม่ครบ"
+              มากกว่า "ร้านนี้ยังไม่มีเพจ" — กล่องเปล่าแย่กว่าไม่มีกล่องเสมอ
 
-      {/* pbs-6 (24px) ไม่ใช่ 16 — ทิศทาง B: บล็อกที่ไม่มีพื้นสีคั่นต้องใช้ที่ว่างทำหน้าที่แทนกล่อง */}
-      <div className='pli-5 pbs-6'>
-        <OfficialChannelsBlock channels={data.channels} shopName={data.hero.shopName} />
-      </div>
+              🛑 เช็คที่ `data.channels.length` ตรงนี้ ไม่ใช่ปล่อยให้ `OfficialChannelsBlock`
+              คืน null เอง เพราะกรอบการ์ดอยู่ **ข้างนอก** ตัว component (ห่อที่จุดเรียกใช้)
+              ถ้าเช็คข้างในกรอบก็ยังถูกวาดอยู่ดี */}
+          {data.channels.length > 0 && (
+            <Box sx={SIDE_CARD_SX}>
+              <OfficialChannelsBlock channels={data.channels} onOpenPage={() => setExtraPage('pages')} />
+            </Box>
+          )}
+        </Box>
 
-      <PageBlocksSection blocks={effectiveBlocks} />
+        <Box component='main' sx={{ minInlineSize: 0, order: { xs: 1, md: 2 } }}>
+          <PageBlocksSection blocks={effectiveBlocks} />
 
-      <ProfileTabs
+          {/* `.tabs-card` — การ์ดขาวครอบทั้งแถบแท็บและเนื้อหา · `overflow:hidden` ให้แถบแท็บ
+              ที่มีเส้นคั่นล่างจบพอดีกับมุมมนของการ์ด (ไฟล์อ้างอิงตั้ง overflow:hidden ด้วยเหตุผลนี้)
+              มือถือ (≤650) ไฟล์อ้างอิงถอดมุมมน/ขอบข้างออกให้ชนขอบจอ — ทำตาม */}
+          <Box sx={TABS_CARD_SX}>
+          <ProfileTabs
         /* deep link ต้องพาไปแท็บที่ของชิ้นนั้นอยู่ก่อน ไม่งั้น panel ที่ถือ lightbox ไม่ถูก mount
            (ProfileTabs render content เฉพาะแท็บที่ active) แล้วลิงก์จะเปิดหน้าเปล่าเฉย ๆ
            คีย์ที่ไม่มีในชุดแท็บ → ProfileTabs ตกกลับไปแท็บแรกให้เอง */
@@ -333,8 +518,34 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
           key,
           label: tabContent[key].label,
           content: tabContent[key].content,
+          /* ตัวนับบนแท็บตามไฟล์อ้างอิง — เฉพาะแท็บที่ "นับได้จริง" เท่านั้น
+             🛑 ไม่ใส่ให้ `reviews` เพราะป้ายแท็บนั้นแบกคะแนนอยู่แล้ว ("รีวิว 4.9") การเติมจำนวน
+             ต่อท้ายจะได้ "รีวิว 4.9  17" ซึ่งเลขสองตัวติดกันคนละหน่วย อ่านผิดได้ทันที
+             และไม่ใส่ให้ `about`/`calendar` เพราะไม่มีอะไรให้นับ */
+          count: TAB_COUNTS[key]?.(data),
         }))}
+          />
+          </Box>
+        </Box>
+      </Box>
+
+      {/* หน้าเต็มจอ "เพจทางการ / เหรียญของร้าน" — Base: `deep_store_extra_pages_concept_new.html`
+          render ที่นี่ที่เดียว ทั้งการ์ดเหรียญและการ์ดเพจเปิดตัวเดียวกันคนละแท็บ */}
+      <ShopExtraPages
+        open={extraPage !== null}
+        tab={extraPage ?? 'pages'}
+        onClose={() => setExtraPage(null)}
+        shop={{
+          shopName: data.hero.shopName,
+          username: data.hero.username,
+          avatar: data.hero.avatar,
+          tierLabel: data.hero.tierLabel,
+          avgRating: data.hero.avgRating ?? null,
+        }}
+        channels={data.channels}
+        badges={data.hero.badges}
+        totalBadges={data.hero.totalBadgeCount}
       />
-    </div>
+    </>
   )
 }

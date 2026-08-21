@@ -35,7 +35,7 @@ import { shopCategoryLabel } from '@/lib/shop-categories'
 import { formatOrderNo } from '@/lib/order-no'
 import { resolveOrderSource } from '@/lib/order-source-channel'
 import { maskedReviewerName } from '@/lib/reviewer-display'
-import { badgeCriteriaLabel } from '@/lib/badge-criteria'
+import { badgeCategoryLabel, badgeCriteriaLabel } from '@/lib/badge-criteria'
 
 // View Imports
 import type { ProfileHeaderData } from '@views/pages/user-profile/UserProfileHeader'
@@ -310,6 +310,9 @@ export default async function PublicProfilePage({ params }: Props) {
                 // โมดัลรายละเอียดเหรียญต้องตอบ "ได้จากเงื่อนไขอะไร เมื่อไหร่" — แปลเกณฑ์ที่ server
                 // (ฟังก์ชันบริสุทธิ์) แล้วส่งเป็นสตริง ไม่ส่ง criteria ดิบข้าม RSC boundary
                 criteriaLabel: badgeCriteriaLabel(ub.badge.criteria),
+                // หมวดของเหรียญ (ยอดขาย/รีวิว/...) สำหรับป้ายในหน้าเหรียญเต็มจอ — แปลจาก
+                // `criteria.type` ที่ server เช่นกัน ไม่ส่ง criteria ดิบข้าม RSC boundary
+                categoryLabel: badgeCategoryLabel(ub.badge.criteria),
                 earnedAtIso: ub.earnedAt.toISOString(),
               })),
               totalBadgeCount: sellerContextBadges.length,

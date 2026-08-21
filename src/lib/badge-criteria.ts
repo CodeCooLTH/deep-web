@@ -98,3 +98,55 @@ export function badgeCriteriaLabel(criteria: unknown): string | null {
       return null
   }
 }
+
+/**
+ * badgeCategoryLabel — "หมวด" ของเหรียญ สำหรับป้ายเล็กเหนือชื่อในหน้าเหรียญเต็มจอ
+ * (`.badge-type` / `.nav-copy span` ของไฟล์อ้างอิง `deep_store_extra_pages_concept_new.html`)
+ *
+ * 🛑 **ไม่ได้อ่านจาก `Badge.type`** ซึ่งมีแค่ 2 ค่า (`ACHIEVEMENT` / `VERIFICATION`) —
+ * หยาบเกินกว่าจะบอกอะไรได้ (เหรียญ 17 จาก 20 ใบเป็น ACHIEVEMENT เหมือนกันหมด)
+ * ตัวที่แยกความหมายได้จริงคือ `criteria.type` ซึ่งเป็นเกณฑ์ที่ระบบใช้ตัดสินจริง
+ *
+ * 🛑 ชนิดที่ไม่รู้จัก → `null` แล้ว UI ไม่แสดงป้ายเลย **ห้ามมีค่าตั้งต้นเป็นหมวดใดหมวดหนึ่ง**
+ * — ค่าตั้งต้นคือรูปร่างของบั๊กที่เคยเกิดมาแล้วสองครั้งในรีโปนี้ (ternary ที่ตกท้ายเป็น
+ * 'Instagram' 2026-08-12 · if/else ที่ตกท้ายเป็น Facebook 2026-08-15) เหรียญที่ไม่มีป้าย
+ * เสียแค่ข้อมูลประกอบ ส่วนเหรียญที่ติดป้ายผิดคือการบอกผู้ซื้อว่าร้านเก่งเรื่องที่ไม่ได้เก่ง
+ */
+export function badgeCategoryLabel(criteria: unknown): string | null {
+  if (!criteria || typeof criteria !== 'object') return null
+  const c = criteria as Criteria
+
+  switch (c.type) {
+    case 'ORDER_COUNT':
+    case 'FIRST_ORDER':
+      return 'ยอดขาย'
+    case 'HIGH_RATING':
+    case 'PERFECT_RATING':
+      return 'คะแนนรีวิว'
+    case 'UNIQUE_REVIEWERS':
+      return 'รีวิว'
+    case 'ZERO_COMPLAINT':
+      return 'บริการ'
+    case 'FAST_SHIPPING':
+      return 'การจัดส่ง'
+    case 'FULL_VERIFICATION':
+    case 'VERIFICATION':
+      return 'การยืนยันตัวตน'
+    case 'VETERAN':
+      return 'อายุร้าน'
+    case 'SIGNUP_YEAR':
+      return 'สมาชิก'
+    case 'AUCTION_HOSTED':
+    case 'AUCTION_SOLD':
+    case 'AUCTION_WON':
+    case 'AUCTION_WON_COMPLETED':
+    case 'AUCTION_BID_COUNT':
+    case 'AUCTION_HIGH_BID_COUNT':
+      return 'ประมูล'
+    case 'REACTION_COUNT':
+    case 'WATCHLIST_COUNT':
+      return 'ความนิยม'
+    default:
+      return null
+  }
+}

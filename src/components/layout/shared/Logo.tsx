@@ -11,7 +11,7 @@ import styled from '@emotion/styled'
 import type { VerticalNavContextProps } from '@menu/contexts/verticalNavContext'
 
 // Component Imports
-import VuexyLogo from '@core/svg/Logo'
+import logoDeepMark from '@/assets/images/logo-deep-mark.png'
 
 // Config Imports
 import themeConfig from '@configs/themeConfig'
@@ -71,7 +71,12 @@ const Logo = ({ color }: { color?: CSSProperties['color'] }) => {
 
   return (
     <div className='flex items-center'>
-      <VuexyLogo className='text-2xl text-primary' />
+      {/* 🛑 โลโก้ Deep ของจริง ไม่ใช่ `VuexyLogo` ของธีม — ตัวนั้นเป็นรูป "V" ที่ติดมากับ Vuexy
+          และเป็นสิ่งเดียวกับที่ Apple ตีกลับ build 1.0(3) ด้วย Guideline 2.3.8 (ส่ง asset ของธีม
+          ออกไปโดยไม่ได้เปลี่ยน) · ที่นี่มีคำว่า "Deep" จาก `LogoText` อยู่ข้าง ๆ อยู่แล้ว
+          จึงใช้ **มาร์กตัว D** ไม่ใช่เวิร์ดมาร์กเต็ม ไม่งั้นจะได้คำว่า Deep สองครั้ง */}
+      {/* eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ที่ import มาแล้ว */}
+      <img src={logoDeepMark.src} alt='' className='bs-6 is-auto' />
       <LogoText
         color={color}
         ref={logoTextRef}
