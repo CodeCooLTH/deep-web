@@ -10,7 +10,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import PhoneSuggestHint from './PhoneSuggestHint'
-import { hasPhoneHint, canUseAsNewCustomer } from '@/lib/phone-hint'
+import { hasPhoneHint, canUseAsNewCustomer, emptyStateMessage } from '@/lib/phone-hint'
 
 export interface CustomerResult {
   name: string | null
@@ -114,8 +114,8 @@ export default function CustomerSearchSheet({ open, initialQuery = '', onSelect,
           </span>
           <input
             ref={inputRef}
-            id="cs-search-input"
             type="text"
+            aria-label="ค้นหาลูกค้าด้วยชื่อหรือเบอร์โทร"
             value={q}
             onChange={(e) => {
               setQ(e.target.value)
@@ -145,7 +145,7 @@ export default function CustomerSearchSheet({ open, initialQuery = '', onSelect,
           <p className="py-6 text-center text-sm text-default-400">พิมพ์ชื่อหรือเบอร์อย่างน้อย 2 ตัว</p>
         )}
         {!loading && typed.length >= 2 && results.length === 0 && (
-          <p className="py-6 text-center text-sm text-default-400">ไม่พบลูกค้าเดิม</p>
+          <p className="py-6 text-center text-sm text-default-400">{emptyStateMessage(typed)}</p>
         )}
         <div className="divide-y divide-default-100">
           {results.map((c, i) => (

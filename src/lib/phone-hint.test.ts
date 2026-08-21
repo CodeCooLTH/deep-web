@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { phoneHint, chipLabel, canUseAsNewCustomer } from './phone-hint'
+import { phoneHint, chipsHeadline, canUseAsNewCustomer, emptyStateMessage } from './phone-hint'
 
 describe('[blocker] chip ขึ้นเมื่อตัดแล้วได้เบอร์ที่ใช้ได้', () => {
   it.each([
@@ -92,10 +92,41 @@ describe('[blocker] "ไม่ใช่มือถือ" ต้องเป็
   })
 })
 
-describe('chipLabel — เลขติดกันตรงกับค่าที่บันทึกจริง', () => {
-  it('ไม่จัดกลุ่มด้วยขีด (user เคาะ 2026-08-21: โชว์อย่างบันทึกอีกอย่าง = ปัญหาเดิม)', () => {
-    expect(chipLabel('0920791649')).toBe('ใช้เบอร์ 0920791649')
-    expect(chipLabel('0920791649')).not.toContain('-')
+describe('[blocker] chip แสดงเลขติดกันตรงกับค่าที่บันทึกจริง', () => {
+  /**
+   * 🛑 user เคาะเอง 2026-08-21: "แต่เบอร์ในระบบมันควรเป็น 0920791649 หรือเปล่า" —
+   * โชว์ `092-079-1649` แล้วบันทึก `0920791649` คือคลาสเดียวกับปัญหาที่ฟีเจอร์นี้แก้อยู่
+   * ค่าบนปุ่มจึงต้อง === ค่าที่ส่งเข้า onPick เป๊ะ ไม่มีตัวคั่นใด ๆ
+   */
+  it('suggestion ที่ออกมาต้องไม่มีตัวคั่น (ค่าบนปุ่ม = ค่าที่บันทึก)', () => {
+    const h = phoneHint('092-079-1649')
+    expect(h.kind).toBe('chips')
+    if (h.kind === 'chips') {
+      for (const s of h.suggestions) expect(s).toMatch(/^[0-9]{10}$/)
+    }
+  })
+})
+
+describe('[blocker] chipsHeadline — บรรทัดนำที่ตอบว่าระบบทำอะไรให้', () => {
+  it('1 เบอร์ → บอกว่าตัดให้แล้ว และกดแล้วจะค้นหาต่อให้', () => {
+    const h = chipsHeadline(1, false)
+    expect(h).toContain('ตัดอักขระให้แล้ว')
+    expect(h).toContain('ค้นหาลูกค้าเดิม')
+  })
+
+  it('หลายเบอร์ → บอกจำนวนจริง และบอกว่าต้องเลือก (ห้ามเลือกให้เอง)', () => {
+    expect(chipsHeadline(2, false)).toContain('2 เบอร์')
+    expect(chipsHeadline(3, false)).toContain('เลือก')
+  })
+
+  /**
+   * 🛑 critique P0-1: ค่าที่มี chip = ค่าที่ยังบันทึกไม่ผ่านเสมอ ถ้าบรรทัดนี้ไม่เปลี่ยนน้ำเสียง
+   * ผู้ใช้จะไม่มีทางรู้ว่าตัวเองถูกบล็อกอยู่ ขณะที่ toast บอกว่า "ดูช่องที่ทำเครื่องหมายสีแดง"
+   */
+  it('กดบันทึกแล้วติด → ต้องพูดว่าบันทึกไม่ได้ ไม่ใช่คำเชิญชวนเฉย ๆ', () => {
+    const h = chipsHeadline(1, true)
+    expect(h).toContain('บันทึกไม่ได้')
+    expect(h).not.toContain('ตัดอักขระให้แล้ว')
   })
 })
 
@@ -122,5 +153,42 @@ describe('[blocker] canUseAsNewCustomer — ปุ่ม "ใช้เป็น�
   it('ค่าว่าง → ใช้ไม่ได้', () => {
     expect(canUseAsNewCustomer('')).toBe(false)
     expect(canUseAsNewCustomer('   ')).toBe(false)
+  })
+})
+
+describe('[blocker] emptyStateMessage — "ไม่พบลูกค้าเดิม" ห้ามโกหก', () => {
+  /**
+   * 🛑 critique P0-2ข: ชีตค้นด้วยคำค้นดิบเสมอ ⇒ ถ้ายังมี chip ค้างอยู่ แปลว่ายังไม่เคยค้น
+   * ด้วยเบอร์ที่ถูกเลย การประกาศว่า "ไม่พบ" ตรงนั้นคือคำที่ไม่จริง และมันขัดกับ chip
+   * ที่อยู่เหนือมันในจอเดียวกัน
+   */
+  it('ยังมี chip ค้าง → บอกว่ายังไม่ได้ค้น ไม่ใช่ประกาศว่าไม่พบ', () => {
+    const m = emptyStateMessage('0 8 6 5 3 5 2960')
+    expect(m).not.toContain('ไม่พบลูกค้าเดิม')
+    expect(m).toContain('กดเบอร์ที่แนะนำ')
+  })
+
+  /**
+   * 🛑 critique P1-4: 8 หลัก = ไม่มี chip (ต่ำกว่าเกณฑ์เตือน) + ปุ่ม "ใช้เป็นลูกค้าใหม่"
+   * ถูกซ่อน ⇒ ถ้าตรงนี้เขียนแค่ "ไม่พบลูกค้าเดิม" จอจะปฏิเสธผู้ใช้โดยไม่เหลืออะไรให้อ่านเลย
+   */
+  it('หลักไม่ครบ → บอกจำนวนหลักจริงด้วย (จอต้องไม่เป็นทางตัน)', () => {
+    const m = emptyStateMessage('09207916')
+    expect(m).toContain('8 หลัก')
+    expect(m).toContain('10 หลัก')
+  })
+
+  it('ไม่ใช่มือถือ → บอกเรื่องคำนำหน้า ไม่ใช่เรื่องจำนวนหลัก', () => {
+    const m = emptyStateMessage('0212345678')
+    expect(m).toContain('06, 08 หรือ 09')
+    expect(m).not.toContain('หลัก เบอร์มือถือต้องมี')
+  })
+
+  it('พิมพ์ชื่อคน → ข้อความเดิมล้วน ๆ (ไม่ยัดเรื่องเบอร์ให้คนที่ค้นด้วยชื่อ)', () => {
+    expect(emptyStateMessage('สมชาย')).toBe('ไม่พบลูกค้าเดิม')
+  })
+
+  it('เบอร์ถูกต้องแต่ไม่มีในระบบ → ข้อความเดิมล้วน ๆ (ไม่พบจริง)', () => {
+    expect(emptyStateMessage('0920791649')).toBe('ไม่พบลูกค้าเดิม')
   })
 })

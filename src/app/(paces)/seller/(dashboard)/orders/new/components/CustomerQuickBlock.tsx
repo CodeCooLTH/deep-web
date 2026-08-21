@@ -79,8 +79,15 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
   const { field: contactField } = useController({ control, name: 'buyerContact', defaultValue: '' })
   const { field: line1Field } = useController({ control, name: 'shippingAddress.line1', defaultValue: '' })
 
-  /** สล็อตใต้ช่องเบอร์มีอะไรจะพูดไหม — ตัวเดียวกับที่ PhoneSuggestHint ใช้ตัดสินภายใน */
-  const hintVisible = hasPhoneHint(contactField.value ?? '')
+  const contactErrorMessage = errors.buyerContact?.message
+    ? String(errors.buyerContact.message)
+    : undefined
+
+  /**
+   * สล็อตใต้ช่องมีเนื้อหาไหม — ใช้ตัดสิน `aria-describedby` เท่านั้น (ชี้กล่องว่างไม่ได้)
+   * 🛑 ห้ามเอาไปครอบตัว <PhoneSuggestHint> — ดูคอมเมนต์ที่จุด render
+   */
+  const hintVisible = hasPhoneHint(contactField.value ?? '') || Boolean(contactErrorMessage)
 
   /**
    * บล็อกที่อยู่ต้องผูกกับ needsShipping ตัวเดียวกับที่ตัดสินการบันทึกจริง (user 2026-08-10)
@@ -314,7 +321,7 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
           autoComplete="off"
           placeholder="พิมพ์เบอร์ → ค้นหาลูกค้า"
           aria-describedby={hintVisible ? 'cq-buyer-contact-hint' : undefined}
-          className="form-input"
+          className={`form-input ${contactErrorMessage ? 'is-invalid' : ''}`}
           value={contactField.value ?? ''}
           onChange={(e) => {
             setSelected(null)
@@ -324,20 +331,16 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
           }}
           onBlur={contactField.onBlur}
         />
-        {/* chip แนะนำเบอร์ / คำเตือน — แทนที่ error เดิมเมื่อมีอะไรจะพูด ไม่ขึ้นซ้อนกัน
-            (บอกปัญหา + ทางแก้ ในบรรทัดเดียว — FR-CUS-E1-06) */}
-        {hintVisible ? (
-          <PhoneSuggestHint
-            id="cq-buyer-contact-hint"
-            value={contactField.value ?? ''}
-            onPick={applyPhoneSuggestion}
-            size="mobile"
-          />
-        ) : (
-          errors.buyerContact?.message && (
-            <p className="mt-1 text-xs text-danger">{String(errors.buyerContact.message)}</p>
-          )
-        )}
+        {/* สล็อตเดียวใต้ช่อง — chip / คำเตือน / error เลือกกันเองในตัว component
+            🛑 ห้ามครอบด้วยเทอร์นารีอีก: เงื่อนไขที่จะใช้ครอบคือตัวเดียวกับที่ component เช็คภายใน
+            (ไม่มีผลกับภาพ) แต่ทำให้ live region ไม่ประกาศ และทำให้ error ตอนกดบันทึกหายไปทั้งหมด */}
+        <PhoneSuggestHint
+          id="cq-buyer-contact-hint"
+          value={contactField.value ?? ''}
+          onPick={applyPhoneSuggestion}
+          size="mobile"
+          errorMessage={contactErrorMessage}
+        />
       </div>
 
       {/* ที่อยู่ (ไม่ใช่ STOREFRONT) */}
