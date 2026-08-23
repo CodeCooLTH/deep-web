@@ -344,6 +344,9 @@ export const th = {
     navCreateOpen: 'เปิดเมนูสร้าง',
     navCreateClose: 'ปิดเมนูสร้าง',
     navCreateCategory: 'สร้างหมวดหมู่',
+    /** ร้าน SERVICE_QUEUE ใช้ตัวนี้แทน `navCreateCategory` — ร้านบริการไม่มี "หมวดหมู่สินค้า"
+     *  แต่มี "ประเภทงาน" (`/settings/job-types`) ซึ่งเป็นของที่ต้องตั้งก่อนเปิดรับงาน */
+    navCreateJobType: 'สร้างประเภทงาน',
     navCreateProduct: 'สร้างสินค้า',
     /** {n} = จำนวน — ป้ายเสียงของช่องออเดอร์/แชทบน bottom nav */
     navPendingAria: '{n} รายการรอดำเนินการ',

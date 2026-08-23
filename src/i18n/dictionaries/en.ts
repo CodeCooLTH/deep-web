@@ -268,6 +268,7 @@ export const en: Dictionary = {
     navCreateOpen: 'Open create menu',
     navCreateClose: 'Close create menu',
     navCreateCategory: 'New category',
+    navCreateJobType: 'New job type',
     navCreateProduct: 'New product',
     navPendingAria: '{n} awaiting action',
     navUnreadAria: '{n} unread messages',
