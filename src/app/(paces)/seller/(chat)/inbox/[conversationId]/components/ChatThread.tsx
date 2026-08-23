@@ -773,7 +773,10 @@ type Props = {
 // — ChatMessageView (hook) ไม่ประกาศฟิลด์นี้ในชนิดข้อมูล (นอกขอบเขต T4/แก้ไม่ได้รอบนี้ — งานอื่นค้าง
 // อยู่ในไฟล์นั้น) จึง extend ชนิดข้อมูลในนี้เองแบบเดียวกับ deliveryStatus/failureReason ข้างบน
 type ChatMessageWithDelivery = ChatMessageView & {
-  deliveryStatus?: string | null
+  /** (CR 2026-08-23) เดิมเป็น `string | null` — ขยายเป็น union เพื่อให้ `tsc` เป็นคนบังคับว่าค่า
+   *  'QUEUED' ที่เพิ่งเพิ่มถูกไล่ครบทุกจุดที่อ่านคอลัมน์นี้ (grep จับ object key ไม่ได้ —
+   *  docs/conventions/enum-value-removal.md). QUEUED = เขียนแถวแล้วแต่ยังไม่ยิงออกช่องทาง */
+  deliveryStatus?: 'SENT' | 'FAILED' | 'QUEUED' | null
   failureReason?: string | null
   quotable?: boolean
   replyTo?: (NonNullable<ChatMessageView['replyTo']> & { quotable?: boolean }) | null
@@ -1510,7 +1513,14 @@ export default function ChatThread({
   useEffect(() => {
     if (channel !== 'LINE') return
     let lastSentId: string | null = null
-    for (const m of messages) if (m._status === 'sent') lastSentId = m.id
+    // 🛑 (CR 2026-08-23) เดิมอ่าน `m._status === 'sent'` ซึ่ง **ไม่ถูกตั้งอีกแล้วตลอดกาล** หลัง
+    // postMessage เลิกเขียนค่านั้น (ดูคอมเมนต์ที่ useSellerChatThread) — ถ้าไม่ย้ายมาอ่าน
+    // deliveryStatus แคปชันโควตา LINE จะค้างค่าเก่าถาวรโดยไม่มีอะไรฟ้อง (ไม่มี type error เพราะ
+    // เงื่อนไขยังถูกต้องตามชนิดทุกประการ มันแค่เป็นเท็จเสมอ)
+    // นับเฉพาะ SENT: แถว QUEUED ยังไม่หักโควตา แคปชันจึงต้องยังไม่ขยับ
+    for (const m of messages) {
+      if (m.senderRole === 'SHOP' && (m as ChatMessageWithDelivery).deliveryStatus === 'SENT') lastSentId = m.id
+    }
     if (!lastSentId) return
     const known = lastSentIdRef.current
     lastSentIdRef.current = lastSentId
@@ -1646,7 +1656,15 @@ export default function ChatThread({
     const list: MessageAction[] = []
     // เงื่อนไขเดียวกับปุ่ม hover ฝั่ง desktop (ดู canReply ตอน render) — ตอบทับข้อความ optimistic
     // ไม่ได้เพราะ route ต้องการ uuid จริง
-    if (!m.isDeleted && !m._status && !m.id.startsWith('local-')) {
+    // 🛑 (CR 2026-08-23) QUEUED ก็ตอบทับไม่ได้เช่นกัน แม้จะมี uuid จริงแล้ว: ยังไม่มี mid ของช่องทาง
+    // ให้ผูก reply_to (ยิงออกไม่สำเร็จแปลว่าฝั่งโน้นไม่มีข้อความให้อ้างถึง) — ซ่อนแทน disabled
+    // เพราะ QUEUED ปกติอยู่ 1-2 วินาที ทำ disabled state ให้ของที่หายเองแทบทันทีคือความซับซ้อนเปล่า
+    if (
+      !m.isDeleted &&
+      !m._status &&
+      !m.id.startsWith('local-') &&
+      (m as ChatMessageWithDelivery).deliveryStatus !== 'QUEUED'
+    ) {
       list.push({ key: 'reply', icon: 'arrow-back-up', label: 'ตอบกลับ', onSelect: () => setReplyingTo(m) })
     }
     /**
@@ -1668,7 +1686,15 @@ export default function ChatThread({
      * (ดู sendMessageReaction) — สติกเกอร์คือ "ข้อความชนิดหนึ่ง" จึงส่งเป็นข้อความใหม่ที่ผูก reply_to
      * ตั้ง replyingTo ให้ก่อนแล้วเปิดแผงเดียวกับปุ่มในแถบพิมพ์ — ไม่มี state/เส้นทางส่งใหม่
      */
-    if (canSendSticker && !m.isDeleted && !m._status && !m.id.startsWith('local-')) {
+    // (CR 2026-08-23) `deliveryStatus !== 'QUEUED'` ด้วยเหตุผลเดียวกับ 'reply' ข้างบน — สติกเกอร์
+    // ถูกส่งเป็น "ข้อความใหม่ที่ผูก reply_to" จึงต้องการ mid ของข้อความต้นทางเหมือนกันทุกประการ
+    if (
+      canSendSticker &&
+      !m.isDeleted &&
+      !m._status &&
+      !m.id.startsWith('local-') &&
+      (m as ChatMessageWithDelivery).deliveryStatus !== 'QUEUED'
+    ) {
       list.push({
         key: 'sticker',
         icon: 'sticker',
@@ -1766,11 +1792,20 @@ export default function ChatThread({
    * ประกอบจาก code point (ไม่มีอักขระอิโมจิในซอร์ส — HR12 grep gate) แล้วผ่าน
    * withEmojiPresentation ให้ออกมาเป็นอิโมจิสีเหมือนกับที่ใช้ในชิปใต้บับเบิล
    *
-   * เงื่อนไขที่กดไม่ได้: ข้อความถูกลบ, ข้อความ optimistic/ยังส่งไม่สำเร็จ (ยังไม่มี mid ให้ Meta ผูก)
+   * เงื่อนไขที่กดไม่ได้: ข้อความถูกลบ, ข้อความ optimistic/ยังส่งไม่สำเร็จ (ยังไม่มี mid ให้ Meta ผูก),
+   * และ (CR 2026-08-23) แถวที่ยังอยู่ในคิว — บันทึกลง DB แล้วมี uuid จริง แต่ยังไม่เคยยิงออกช่องทาง
+   * จึงยังไม่มี mid เช่นกัน
    */
   const actionTargetReactions: MessageReactionOption[] = (() => {
     const m = actionTarget?.message
-    if (!m || m.isDeleted || m._status || m.id.startsWith('local-')) return []
+    if (
+      !m ||
+      m.isDeleted ||
+      m._status ||
+      m.id.startsWith('local-') ||
+      (m as ChatMessageWithDelivery).deliveryStatus === 'QUEUED'
+    )
+      return []
     return REACTION_CHOICES.map((c) => ({
       emoji: c.emoji,
       label: c.label,
@@ -1889,8 +1924,15 @@ export default function ChatThread({
   const burstEndIds = computeBurstEndIds(messages, GROUP_GAP_MS)
 
   // read receipt (feature 00018) — ป้าย "อ่านแล้ว/ส่งแล้ว" โชว์เฉพาะข้อความ SHOP ตัวสุดท้าย (ช่องทางนอก)
+  // 🛑 (CR 2026-08-23) ข้าม QUEUED — แก้ที่ **ต้นทาง** ไม่ใช่ไล่เติม !queued ทีละจุดที่ใช้ค่านี้:
+  // แถวที่ยังอยู่ในคิวไม่มีวันเป็น lastShopMsgId ⇒ กันบั๊กที่ระดับ data flow ไม่ใช่แค่ระดับ render
+  // ผลพลอยได้: ป้าย "อ่านแล้ว/ได้รับแล้ว" ของใบก่อนหน้าที่ส่งสำเร็จแล้วไม่ถูก downgrade ระหว่างรอ
+  // และพอ QUEUED→SENT บันไดขยับมาเองในรอบ re-render ถัดไป ไม่ต้องมี logic พิเศษ
   const lastShopMsgId = isExternal
-    ? ([...messages].reverse().find((m) => m.senderRole === 'SHOP')?.id ?? null)
+    ? ([...messages]
+        .reverse()
+        .find((m) => m.senderRole === 'SHOP' && (m as ChatMessageWithDelivery).deliveryStatus !== 'QUEUED')?.id ??
+      null)
     : null
   // ค่าจาก hook (สดจาก GET ล่าสุด) มาก่อน prop ของ server (อ่านครั้งเดียวตอน render หน้า) — read
   // event ของ Meta มาทีหลังและไม่ทริกเกอร์ realtime จึงต้องพึ่ง refetch รอบถัดไป (bug fix 2026-07-23)
@@ -2763,9 +2805,19 @@ export default function ChatThread({
                   const ms = row.ms
                   const last = ms[ms.length - 1]
                   const mine = last.senderRole === 'SHOP'
+                  // 🛑 (CR 2026-08-23) บล็อกอัลบั้มมีตรรกะคู่ขนานกับบับเบิลปกติ แต่เดิม **ไม่ gate
+                  // ปุ่มตอบกลับ/รีแอ็กชันด้วย mid เลย** — รอดมาได้เพราะอัลบั้มถูกประกอบจากข้อความที่
+                  // persist แล้วเท่านั้น. แถว QUEUED เป็นแถว persist จริงที่มี id จริง จึงหลุดช่องนี้ทันที
+                  // (E-12: ส่งรูปกริดทีเดียวสร้างหลายแถว QUEUED พร้อมกัน = เคสหลักของบล็อกนี้พอดี)
+                  // ผูกกับ ms[0] เหมือน reply/react ที่อ้าง ms[0] อยู่แล้ว — และเช็ค last ด้วยเพราะ
+                  // แถวท้ายคือตัวที่แบกเมตาไลน์ ทั้งกลุ่มอยู่คิวเดียวกันเสมอ (ส่งพร้อมกันใบเดียว)
+                  const queued =
+                    mine &&
+                    ((ms[0] as ChatMessageWithDelivery).deliveryStatus === 'QUEUED' ||
+                      (last as ChatMessageWithDelivery).deliveryStatus === 'QUEUED')
                   const atBurstEnd = burstEndIds.has(last.id)
                   const isLastOld = last.id === lastMsgId && nowMs - new Date(last.createdAt).getTime() >= RECENT_MS
-                  const showTime = atBurstEnd && !isLastOld
+                  const showTime = atBurstEnd && !queued && !isLastOld
                   return (
                     /**
                      * data-message-id / data-message-bubble / group — อัลบั้มต้องมีของชุดเดียวกับบับเบิล
@@ -2783,24 +2835,29 @@ export default function ChatThread({
                       {!mine && <ChatAvatar avatar={buyerAvatar} name={buyerName} />}
                       {mine && (
                         <div className="flex items-start gap-0.5">
-                          <ReplyMessageButton onReply={() => setReplyingTo(ms[0])} />
+                          {/* !queued (CR 2026-08-23): reply/react ต้องการ mid ของช่องทาง ซึ่งแถวในคิว
+                              ยังไม่มี — ซ่อนแทน disabled ตามเหตุผลเดียวกับ canReply ของบับเบิลปกติ */}
+                          {!queued && <ReplyMessageButton onReply={() => setReplyingTo(ms[0])} />}
                           {/* feature 00048 — ปุ่มผูกกับ "รูปนำของกลุ่ม" (ms[0]) เหมือนที่ reply/react
-                              ทำอยู่แล้ว. รูปใบที่ 2 เป็นต้นไปเก็บได้จากใน lightbox ซึ่งมีปุ่มรายสไลด์ */}
+                              ทำอยู่แล้ว. รูปใบที่ 2 เป็นต้นไปเก็บได้จากใน lightbox ซึ่งมีปุ่มรายสไลด์
+                              **ไม่ gate ด้วย !queued โดยตั้งใจ** — อ้าง imageUrl (fileId ของเรา) ไม่ใช่ mid */}
                           <SaveToLibraryButton
                             saved={Boolean(ms[0].imageUrl && savedFiles.has(ms[0].imageUrl))}
                             busy={savingFileId === ms[0].imageUrl}
                             onToggle={() => void toggleLibrary(ms[0])}
                           />
-                          <ReactMessageButton
-                            onOpen={(rect) =>
-                              setActionTarget({
-                                mode: 'reactions',
-                                message: ms[0],
-                                x: rect.left + rect.width / 2,
-                                y: rect.top,
-                              })
-                            }
-                          />
+                          {!queued && (
+                            <ReactMessageButton
+                              onOpen={(rect) =>
+                                setActionTarget({
+                                  mode: 'reactions',
+                                  message: ms[0],
+                                  x: rect.left + rect.width / 2,
+                                  y: rect.top,
+                                })
+                              }
+                            />
+                          )}
                         </div>
                       )}
                       <div data-message-bubble className={`min-w-0 ${highlightClass(ms[0].id)}`}>
@@ -2813,7 +2870,7 @@ export default function ChatThread({
                             </span>
                           </span>
                         )}
-                        {(showTime || (mine && (atBurstEnd || last.id === lastShopMsgId))) && (
+                        {(showTime || (mine && (atBurstEnd || queued || last.id === lastShopMsgId))) && (
                           <div className={`text-default-700 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
                             {showTime && (
                               <span className="flex items-center gap-1" title={formatTime(last.createdAt)}>
@@ -2821,6 +2878,16 @@ export default function ChatThread({
                                 {formatTimeHM(last.createdAt)}
                               </span>
                             )}
+                            {/* (CR 2026-08-23) เทียบเท่าสปินเนอร์ของบับเบิลปกติ — ชุดรูปที่ยังอยู่ในคิว
+                                ต้องอ่านว่า "กำลังส่ง" ไม่ใช่ "ส่งแล้ว" คำ/ไอคอน/tooltip ชุดเดียวกัน */}
+                            {queued && (
+                              <span className="flex items-center gap-1" title="กำลังส่งอยู่ — ไม่ต้องส่งซ้ำ">
+                                <Icon icon="loader-2" className="animate-spin" />
+                                กำลังส่ง
+                              </span>
+                            )}
+                            {/* last.id === lastShopMsgId ไม่ต้องเติม !queued — ได้ประโยชน์อัตโนมัติจาก
+                                lastShopMsgId ที่ข้ามแถว QUEUED ไปแล้วที่ต้นทาง */}
                             {mine && last.id === lastShopMsgId ? (
                               readAtMs > 0 && new Date(last.createdAt).getTime() <= readAtMs ? (
                                 <span className="text-success flex items-center gap-0.5">
@@ -2898,13 +2965,17 @@ export default function ChatThread({
                   )
                 }
                 const mine = m.senderRole === 'SHOP'
-                // จัดเวลาเป็นกลุ่ม — แสดงเวลาเฉพาะท้าย burst, ไม่ขณะกำลังส่ง, และข้อความล่าสุดซ่อนหลัง 1 นาที
-                const atBurstEnd = burstEndIds.has(m.id)
-                const isLastOld = m.id === lastMsgId && nowMs - new Date(m.createdAt).getTime() >= RECENT_MS
-                const showTime = atBurstEnd && m._status !== 'sending' && !isLastOld
                 // feature 00018 T4 (ภาคผนวก A-3): deliveryStatus/failureReason มีจริงตอน runtime
                 // (getMessages ไม่ select เลย คืนทุกคอลัมน์ของ ChatMessage — ดู comment หัวไฟล์)
                 const mExt = m as ChatMessageWithDelivery
+                // 🛑 (CR 2026-08-23) signal เดียวที่ตัดสินว่าแถวนี้ยังไม่ออกจากระบบเรา — ใช้ทุกจุดที่
+                // ห้ามขึ้น "ส่งแล้ว"/ห้ามตอบกลับ-รีแอ็กชัน. แชท DEEP ไม่มีคิว (deliveryStatus=null เสมอ)
+                // ⇒ queued เป็น false เสมอ พฤติกรรมเดิม 100%
+                const queued = mine && mExt.deliveryStatus === 'QUEUED'
+                // จัดเวลาเป็นกลุ่ม — แสดงเวลาเฉพาะท้าย burst, ไม่ขณะกำลังส่ง, และข้อความล่าสุดซ่อนหลัง 1 นาที
+                const atBurstEnd = burstEndIds.has(m.id)
+                const isLastOld = m.id === lastMsgId && nowMs - new Date(m.createdAt).getTime() >= RECENT_MS
+                const showTime = atBurstEnd && m._status !== 'sending' && !queued && !isLastOld
                 // ── ส่งไม่สำเร็จ (user สั่ง 2026-08-02) ─────────────────────────────────
                 // รวม 2 เส้นทางให้เป็นสถานะเดียวกันในสายตาผู้ขาย เพราะสำหรับเขามันคือเรื่อง
                 // เดียวกัน ("ข้อความนี้ไม่ถึงลูกค้า") ต่างกันแค่ว่าพลาดตรงไหน:
@@ -2912,6 +2983,11 @@ export default function ChatThread({
                 //   - _status='failed'        = บับเบิล optimistic ที่ยังไม่เคยถึง server ของเรา
                 const failedPersisted = mExt.deliveryStatus === 'FAILED'
                 const failed = mine && (failedPersisted || m._status === 'failed')
+                // 🛑 (CR 2026-08-23) แทน `m._status === 'sent'` เดิม ซึ่งจะไม่ถูกตั้งอีกเลยตลอดกาล
+                // เขียนเป็น "ไม่ใช่ทุกสถานะที่ยังไม่จบ" ไม่ใช่ `=== 'SENT'` ตรง ๆ เพราะต้องครอบแชท DEEP
+                // ที่ deliveryStatus เป็น null เสมอ (ไม่มีคิว ส่งตรง) ให้ยังขึ้นเช็คถูกเหมือนเดิม
+                const sentConfirmed =
+                  mine && !queued && !failedPersisted && m._status !== 'sending' && m._status !== 'failed'
                 // 🛑 ส่ง commentOriginNoInbound เข้าไปด้วยเสมอ — เธรดที่มาจากการตอบคอมเมนต์และ
                 // ลูกค้ายังไม่เคยพิมพ์กลับ ติดเพดาน "ตอบได้ข้อความเดียว" ของ Meta ไม่ใช่หน้าต่าง
                 // 24 ชม. ถ้าไม่ส่งบริบทนี้ไป ผู้ขายจะได้อ่านว่า "เกินเวลา… นับจากลูกค้าทักล่าสุด"
@@ -3012,11 +3088,18 @@ export default function ChatThread({
                 const copyBtn = m.body ? <CopyMessageButton text={m.body} /> : null
                 // action cluster (hover) — ตอบกลับ (ทุกชนิด) + คัดลอก (เฉพาะข้อความมี text). ตอบกลับไม่ได้ถ้า:
                 // ข้อความถูกลบ, หรือยังเป็น optimistic (id ยังไม่ใช่ uuid จริง — route.replyToMessageId ต้องเป็น uuid)
-                const canReply = !m.isDeleted && !m._status && !m.id.startsWith('local-')
+                // 🛑 !queued (CR 2026-08-23): แถวที่ยังอยู่ในคิวมี uuid จริงแล้ว แต่ยังไม่มี mid ของ
+                // ช่องทางให้ผูก reply_to — ครอบทั้ง ReplyMessageButton และ ReactMessageButton
+                // ด้านล่างเพราะ gate ด้วยตัวแปรเดียวกันอยู่แล้ว
+                const canReply = !m.isDeleted && !m._status && !m.id.startsWith('local-') && !queued
                 /**
                  * feature 00048 — ปุ่ม "เก็บเข้าคลัง" ฝั่งเดสก์ท็อป (ทางเข้าที่ 2 จาก 3)
                  * เงื่อนไขมาจาก isLibraryEligible ตัวเดียวกับเมนูกดค้างของมือถือ — ห้ามคัดลอก
                  * เงื่อนไขมาเขียนซ้ำ ไม่งั้นสองทางเข้าจะเพี้ยนกันโดยไม่มีอะไรฟ้อง
+                 *
+                 * (CR 2026-08-23) **ไม่ gate ด้วย !queued โดยตั้งใจ** — เก็บเข้าคลังอ้าง `imageUrl`
+                 * (fileId ของเราเอง) ไม่ใช่ mid ของช่องทาง จึงใช้ได้ทันทีแม้แถวยังอยู่ในคิว
+                 * เหตุผลเดียวกับที่ order / save-to-library / record-payment / copy ในเมนูกดค้างไม่ถูก gate
                  */
                 const libEligible =
                   isLibraryEligible({
@@ -3128,6 +3211,14 @@ export default function ChatThread({
                   // Base ChatPage.tsx:64/79 — `my-5 flex items-start gap-2.5` (+ justify-end ฝั่งตัวเอง)
                   // data-message-id: ให้ตัวจับ "กดค้าง" ที่ระดับ container หาได้ว่านิ้วอยู่บนข้อความไหน
                   // (hook เรียกในลูปไม่ได้ จึงมี useLongPress ตัวเดียวแล้ว resolve ย้อนกลับจาก DOM)
+                  //
+                  // 🛑 (CR 2026-08-23) ห้ามสลับลำดับ flex item — `actionCluster` ต้องมา **ก่อน** บับเบิล
+                  // เสมอ และห้ามถอด `justify-end`: ด้วย justify-content:flex-end ขอบซ้ายของ item สุดท้าย
+                  // = containerWidth − bubbleWidth **ไม่มีพจน์ของความกว้าง actionCluster อยู่ในสมการ**
+                  // นั่นคือเหตุผลเดียวที่บับเบิลไม่ขยับตอนปุ่มโผล่/หาย (ทั้งตอน hover และตอน canReply
+                  // พลิกเพราะแถวเปลี่ยนจาก QUEUED เป็น SENT) — ไม่ได้มี min-w/skeleton กันไว้เลย
+                  // ถ้ารื้อโครงนี้ (เช่นย้าย avatar เข้ามาปนในแถวระดับนี้ หรือสลับให้บับเบิลมาก่อน)
+                  // บับเบิลจะกระตุกทุกครั้งที่ปุ่มโผล่/หาย **โดยไม่มี type error หรือเทสตัวไหนฟ้อง**
                   <div
                     key={m.id}
                     data-message-id={m.id}
@@ -3384,9 +3475,15 @@ export default function ChatThread({
                         (mine &&
                           (atBurstEnd ||
                             m._status === 'sending' ||
+                            // (CR 2026-08-23) แถวในคิวต้องมีแถวเมตาเพื่อโชว์ "กำลังส่ง" แม้ไม่ใช่ท้าย burst
+                            queued ||
                             failed ||
-                            m.id === lastShopMsgId ||
-                            m._status === 'sent'))) && (
+                            m.id === lastShopMsgId))) && (
+                        // 🛑 ห้ามเติม `sentConfirmed` ลงในเงื่อนไขก้อนนี้แทน `m._status === 'sent'` เดิม
+                        // ที่ถูกถอดออก — `sentConfirmed` เป็นจริง **ตลอดไป** สำหรับทุกข้อความที่ยืนยันแล้ว
+                        // (ไม่ transient เหมือน `_status`) ⇒ แถวเมตาจะโผล่ใต้ *ทุกข้อความ* ในเบิร์สต์
+                        // ขัดดีไซน์เดิมที่ให้เวลา/เช็คถูกโชว์เฉพาะท้ายกลุ่ม
+                        // `atBurstEnd || m.id === lastShopMsgId` ครอบเคสจริงหมดแล้ว
                         <div className={`text-default-700 mt-1 flex flex-wrap items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
                           {/* ส่งไม่สำเร็จ — อยู่ "หน้าเวลา" (user สั่ง 2026-08-02) แทนกล่องแดงเต็มบรรทัด
                               ใต้บับเบิลแบบเดิม ซึ่งกินพื้นที่เท่าข้อความอีกอันทั้งที่เป็นสถานะของ
@@ -3459,8 +3556,14 @@ export default function ChatThread({
                               {formatTimeHM(m.createdAt)}
                             </span>
                           )}
-                          {mine && m._status === 'sending' && (
-                            <span className="flex items-center gap-1">
+                          {/* (CR 2026-08-23) QUEUED = ยังไม่ออกจากระบบเรา ⇒ อ่านว่า "กำลังส่ง" เหมือน
+                              บับเบิล optimistic ทุกประการ ใช้คำ/ไอคอนชุดเดิม ไม่ตั้งคำใหม่ (HR16 —
+                              ผู้ขายไม่ต้องรู้ว่าข้างในมีคิว). สปินเนอร์ไม่ใช้สีเขียวเลย: เขียวสงวนไว้ให้
+                              สถานะที่ยืนยันแล้วตาม Verified-Means-Green ซึ่งคือหัวใจของ CR นี้
+                              title: worst case แถวค้างได้ ~1 นาที ความเสี่ยงจริงคือผู้ขายคิดว่าค้างแล้ว
+                              พิมพ์ส่งซ้ำ — ประโยคนี้ตัดความเข้าใจผิดนั้นโดยไม่ใช้คำที่ทำให้ตกใจ */}
+                          {mine && (m._status === 'sending' || queued) && (
+                            <span className="flex items-center gap-1" title="กำลังส่งอยู่ — ไม่ต้องส่งซ้ำ">
                               <Icon icon="loader-2" className="animate-spin" />
                               กำลังส่ง
                             </span>
@@ -3474,7 +3577,10 @@ export default function ChatThread({
                               เขียวสงวนไว้ให้ "อ่านแล้ว" ตัวเดียวตาม Verified-Means-Green — "ได้รับแล้ว"
                               เป็นสถานะระหว่างทาง ไม่ใช่สัญญาณความน่าเชื่อถือระดับเดียวกัน (ux 2026-08-05)
                               เธรด Instagram ไม่มีขั้นกลาง (deliveredAtMs=0 เสมอ) ข้ามไปที่อ่านแล้วเลย */}
-                          {mine && m._status !== 'sending' && !failed && m.id === lastShopMsgId ? (
+                          {/* !queued (CR 2026-08-23) = การ์ดชั้นสอง: ตรรกะแล้วไม่จำเป็นเพราะ
+                              lastShopMsgId ข้ามแถว QUEUED ไปแล้วที่ต้นทาง แต่คงไว้ตามธรรมเนียม
+                              โปรเจกต์ที่ invariant ไม่ explicit เคยพังเงียบมาแล้วหลายครั้ง */}
+                          {mine && m._status !== 'sending' && !queued && !failed && m.id === lastShopMsgId ? (
                             readAtMs > 0 && new Date(m.createdAt).getTime() <= readAtMs ? (
                               <span className="text-success flex items-center gap-0.5">
                                 <Icon icon="checks" /> อ่านแล้ว
@@ -3489,7 +3595,15 @@ export default function ChatThread({
                               </span>
                             )
                           ) : (
-                            mine && m._status === 'sent' && <Icon icon="check" className="text-success" />
+                            // (CR 2026-08-23) เดิม `mine && m._status === 'sent'` ซึ่งไม่ถูกตั้งอีกแล้ว
+                            // — sentConfirmed คือตัวแทนที่ครอบทั้ง external ที่ SENT และแชท DEEP
+                            //
+                            // 🛑 delta ที่ตั้งใจรับไว้: `_status` เดิมเป็น transient (ตั้งตอนกดส่งใน
+                            // session นี้เท่านั้น) ส่วน sentConfirmed เป็นจริงถาวร ⇒ เช็คถูกเขียวจะโผล่ที่
+                            // **ท้ายทุกเบิร์สต์ของฝั่งร้าน** ไม่ใช่เฉพาะใบที่เพิ่งกดส่ง (เห็นชัดหลังรีเฟรช)
+                            // ไม่มีนิยามที่ไม่ transient ตัวไหนให้ผลเท่าของเดิมได้ — ux เลือกทางนี้โดยรู้ตัว
+                            // (spec item D/J) เพราะเช็คถูกบนข้อความที่ยืนยันแล้วยังเป็นคำพูดที่จริงเสมอ
+                            sentConfirmed && <Icon icon="check" className="text-success" />
                           )}
                           {/* avatar เพจ/ร้าน = ตัวสุดท้ายของแถวเสมอ (user สั่ง 2026-07-23: "เวลาต้อง
                               อยู่ด้านซ้าย และ icon page อยู่ชิดขวาเสมอ") — แถวนี้ justify-end อยู่แล้ว

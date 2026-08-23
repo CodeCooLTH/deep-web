@@ -188,8 +188,14 @@ export type ChatMessageView = {
     senderRole: 'BUYER' | 'SHOP'
     imageUrl?: string | null
   } | null
-  // optimistic send (client-only, ไม่มาจาก server): 'sending'=spinner, 'sent'=check, 'failed'=refresh แดง
-  _status?: 'sending' | 'sent' | 'failed'
+  /** optimistic send (client-only, ไม่มาจาก server): 'sending'=spinner, 'failed'=refresh แดง
+   *
+   *  🛑 (CR 2026-08-23) ค่า `'sent'` ถูกถอดออกจาก union นี้แล้ว ไม่ใช่แค่เลิกใช้ — เดิม postMessage
+   *  ตั้งค่านี้ทันทีที่ POST ตอบกลับ แต่ตอนนี้ POST แปลว่า "เข้าคิวแล้ว" (deliveryStatus='QUEUED')
+   *  ไม่ใช่ "ถึงลูกค้าแล้ว" ⇒ ถ้าคงค่านี้ไว้จะกลายเป็นเช็คถูกบนข้อความที่ยังไม่ออกจากระบบ = บั๊กที่
+   *  CR นี้ตั้งใจแก้ เป๊ะ ๆ. ความจริงของ "ส่งถึงหรือยัง" อยู่ที่ `deliveryStatus` ของแถวที่เดียว (SSOT)
+   *  ปล่อยค่าที่ไม่มีใคร assign ไว้ใน union = type ที่โกหก และเชิญให้คนถัดไปเขียน `=== 'sent'` ใหม่ */
+  _status?: 'sending' | 'failed'
   // payload สำหรับ resend เมื่อ _status='failed' (เก็บเฉพาะข้อความ optimistic ที่ยังไม่สำเร็จ)
   _retry?: OutgoingRetry
   /** เหตุผลที่ส่งไม่สำเร็จของข้อความ optimistic (2026-08-03) — เดิมเหตุผลไปอยู่ใน toast อย่างเดียว
@@ -745,7 +751,8 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
 
   // ── ส่งข้อความ (optimistic) ───────────────────────────────────────────
   // กด send → แสดงบับเบิลทันที (_status='sending' spinner) + เคลียร์ช่องพิมพ์ → POST เบื้องหลัง
-  // สำเร็จ → แทนด้วยแถวจริง (_status='sent' check) / ล้มเหลว → _status='failed' (refresh แดง กดลองใหม่)
+  // สำเร็จ → แทนด้วยแถวจริง (_status=undefined — สถานะจริงอ่านจาก deliveryStatus ของแถว ดู CR
+  //          2026-08-23 ที่ setMessages ด้านล่าง) / ล้มเหลว → _status='failed' (refresh แดง กดลองใหม่)
   const localIdRef = useRef(0)
 
   const postMessage = useCallback(
@@ -755,6 +762,11 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
+          // (CR 2026-08-23) ต้องส่งให้จบแม้หน้ากำลังถูกปิด/เปลี่ยน — แพตเทิร์นเดียวกับ
+          // (marketing)/o/[token]/AuthPingLink.tsx. ตั้งแต่ POST เขียนคิวก่อนตอบ การที่ request
+          // ถูกตัดกลางทางแปลว่าข้อความหายไปทั้งใบโดยไม่มีร่องรอย ไม่ใช่แค่ "ไม่รู้ผล"
+          // payload เป็น JSON ล้วน (imageUrl เป็น URL ไม่ใช่ base64) จึงไม่ชนเพดาน 64KB ของ keepalive
+          keepalive: true,
         })
         if (!res.ok) {
           let reason: string
@@ -800,7 +812,11 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         // แทน optimistic ด้วยแถวจริง + กันซ้ำถ้า realtime ดึงแถวจริง (id เดียวกัน) มาก่อนแล้ว
         setMessages((prev) => {
           const deduped = prev.filter((m) => m.id !== real.id)
-          return deduped.map((m) => (m.id === localId ? { ...real, _status: 'sent' as const } : m))
+          // (CR 2026-08-23) เดิมเขียน `_status: 'sent'` ทับบับเบิล optimistic ทันทีที่ POST ตอบกลับ
+          // พอ POST เปลี่ยนความหมายเป็น "เข้าคิวแล้ว" (deliveryStatus='QUEUED') บรรทัดนั้นจะกลายเป็น
+          // เช็คถูกบนข้อความที่ยังไม่ออกจากระบบ = บั๊กที่ CR นี้ตั้งใจแก้ เป๊ะ ๆ
+          // สถานะที่แท้จริงอยู่ที่ `deliveryStatus` ของแถว ให้ ChatThread อ่านจากที่นั่นที่เดียว (SSOT)
+          return deduped.map((m) => (m.id === localId ? { ...real, _status: undefined } : m))
         })
       } catch {
         // ไปไม่ถึง server เลย (เน็ตหลุด/หมดเวลา) — แยกถ้อยคำจากกรณีที่ Meta ปฏิเสธ เพราะทางแก้คนละอย่าง
