@@ -446,6 +446,9 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
       received: series.receivedValues?.[i] ?? 0,
       /* ยอดขายของใบที่ยังไม่เคยบันทึกรับเงินเลยในช่องนั้น — ตัวแยก "ค้างจริง" ออกจาก "ไม่รู้" */
       unrecorded: series.unrecordedValues?.[i] ?? 0,
+      /* ส่วนของ `received` ที่มาจากใบที่ "ยืนยันแล้ว" — ที่เหลือคือเงินของงานที่ยังไม่ยืนยัน
+         (derive ที่นี่ที่เดียว ไม่ส่งมาสองอาร์เรย์ เพราะสองก้อนต้องบวกกันได้พอดีเสมอ) */
+      receivedConfirmed: series.receivedConfirmedValues?.[i] ?? 0,
     }))
     /* 🛑 ไม่ต้องนับ `received` เข้าเงื่อนไข "แถวนี้มีอะไรไหม" — เงินทุกก้อนลงแถวตาม *วันที่ขาย*
        ของออเดอร์ที่มันสังกัด (ดูประกาศ `receivedValues` ใน dashboard.service.ts) ⇒ แถวที่มี
@@ -650,8 +653,22 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                     สิ่งที่ร้านบริการต้องรู้จริงคือ "วันนั้นเก็บเงินเข้ามาได้เท่าไหร่" */}
                 {isService ? (
                   <>
+                    {/**
+                      * เรียงตาม **เส้นทางของเงิน** ซ้าย→ขวา ให้อ่านเป็นเรื่องเดียวกัน:
+                      *   ยอดขาย (บิล) → มัดจำ (ก้อนแรกที่เข้า) → รับจริง (รวมที่เข้าแล้ว)
+                      *   → แยกรับจริงเป็น ยืนยันแล้ว + ยังไม่ยืนยัน → ค้างรับ (ที่ยังไม่เข้า)
+                      *
+                      * 🛑 สองคอลัมน์กลางเป็น **ลูกของ "รับจริง"** และบวกกันได้พอดี:
+                      *   `ยืนยันแล้ว + ยังไม่ยืนยัน = รับจริง`  (ต่างจาก "มัดจำ" ที่เป็นอีกมุมหนึ่ง
+                      *   ของรับจริง ไม่ใช่ก้อนบวก — จึงมีหมายเหตุใต้ตารางกำกับไว้)
+                      *
+                      * ใช้คำ "ยืนยันแล้ว"/"ยังไม่ยืนยัน" ตรงกับแถบสมการเหนือกราฟเป๊ะ และเกณฑ์
+                      * ก็เป็น `countsAsRevenue` ตัวเดียวกัน — คำเดียวกันต้องแปลว่าของเดียวกัน (HR16)
+                      */}
                     <span className="min-w-14 flex-1 basis-0 text-end">มัดจำ</span>
                     <span className="min-w-14 flex-1 basis-0 text-end">รับจริง</span>
+                    <span className="min-w-14 flex-1 basis-0 text-end">ยืนยันแล้ว</span>
+                    <span className="min-w-14 flex-1 basis-0 text-end">ยังไม่ยืนยัน</span>
                     <span className="min-w-14 flex-1 basis-0 text-end">ค้างรับ</span>
                   </>
                 ) : (
@@ -684,6 +701,29 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                           {/* รับจริง = มัดจำ + ยอดที่เก็บเพิ่ม ของงานที่ขายวันนั้น (รวมเงินที่เก็บทีหลัง) */}
                           <span className="min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums text-dark">
                             {r.received > 0 ? formatNumberNoSymbol(r.received) : '—'}
+                          </span>
+                          {/**
+                            * ยืนยันแล้ว — ส่วนของ "รับจริง" ที่มาจากงานซึ่งลูกค้ายืนยันแล้ว
+                            * = เงินที่จบเรื่องแล้วจริง ๆ · ใช้สีเดียวกับ "ยืนยันแล้ว" บนแถบสมการ
+                            * (จุดสีเขียว) เพราะเป็นก้อนเดียวกันคนละมุมมอง
+                            */}
+                          <span className="min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums text-success-ink">
+                            {r.receivedConfirmed > 0 ? formatNumberNoSymbol(r.receivedConfirmed) : '—'}
+                          </span>
+                          {/**
+                            * ยังไม่ยืนยัน — เงินที่ได้มาแล้วแต่ **งานยังไม่จบ**
+                            *
+                            * 🛑 นี่คือเลขที่ร้านบริการต้องระวังที่สุดในแถว: ถ้าลูกค้ายกเลิก
+                            * อาจต้องคืนเงินก้อนนี้ ⇒ ไม่ใช่กำไรที่ใช้ได้เต็มปาก
+                            * ใช้สีเดียวกับ "รอยืนยัน" บนแถบสมการ (จุดสีเหลือง) — ก้อนเดียวกัน
+                            *
+                            * derive จาก `received − receivedConfirmed` ไม่รับมาเป็นอาร์เรย์ที่สาม
+                            * ⇒ สองก้อนบวกกันได้เท่ากับ "รับจริง" เสมอโดยโครงสร้าง เพี้ยนไม่ได้
+                            */}
+                          <span className="min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums text-warning-ink">
+                            {r.received - r.receivedConfirmed > 0
+                              ? formatNumberNoSymbol(r.received - r.receivedConfirmed)
+                              : '—'}
                           </span>
                           {/**
                             * ค้างรับ = ยอดขาย − รับจริง ของ **งานชุดเดียวกัน** (ทั้งคู่ผูกกับวันที่ขาย
@@ -749,9 +789,13 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                 *
                 * 🛑 สองประโยคนี้ปิดช่องเข้าใจผิดที่ **ตัวเลขอย่างเดียวปิดไม่ได้**:
                 *
-                * 1. "มัดจำ" เป็น *ส่วนหนึ่งของ* "รับจริง" ไม่ใช่ก้อนที่บวกเพิ่ม — ทั้งชีตนี้ออกแบบให้
-                *    ผู้ขายไล่บวกลบตามด้วยนิ้วได้ (ดูแถบสมการหัวชีต) ⇒ พอเห็นสองคอลัมน์ติดกันจะบวกกัน
-                *    เองแล้วได้เกินยอดขาย แล้วสรุปว่าระบบคำนวณผิดทั้งหน้า (HR16)
+                * 1. ตอนนี้ "รับจริง" มีลูก **สองชุดที่คนละแบบกัน** วางอยู่ในแถวเดียว:
+                *    · `ยืนยันแล้ว + ยังไม่ยืนยัน = รับจริง`  ← **บวกกันได้พอดี**
+                *    · `มัดจำ ⊆ รับจริง`                     ← **ไม่ใช่ก้อนบวก** (คนละมุมมอง: แบ่ง
+                *      ตามชนิดการจ่าย ไม่ใช่ตามสถานะงาน)
+                *    ทั้งชีตนี้ออกแบบให้ผู้ขายไล่บวกลบตามด้วยนิ้วได้ (ดูแถบสมการหัวชีต) ⇒ ถ้าไม่บอก
+                *    ว่าอันไหนบวกได้อันไหนไม่ได้ จะบวกรวมกันแล้วเกินยอดขาย แล้วสรุปว่าระบบคำนวณผิด
+                *    ทั้งหน้า (HR16) — user ถามเรื่องนี้ตรง ๆ มาแล้ว 2026-08-23
                 *
                 * 2. ใบที่ยังไม่เคยบันทึกรับเงิน = **ไม่รู้** ไม่ใช่ "ยังไม่จ่าย" ⇒ ยอดค้างรับของวันนั้น
                 *    เป็นเพดานบน ไม่ใช่ยอดที่ยืนยันแล้ว (`partial-data-must-be-labeled-or-filled.md`
@@ -763,7 +807,8 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
               {isService && (
               <div className="border-t border-dashed border-default-300 px-4 py-2.5 lg:px-5">
                 <p className="text-2xs leading-relaxed text-default-700">
-                  มัดจำนับรวมอยู่ใน &ldquo;รับจริง&rdquo; แล้ว ไม่ใช่ยอดที่ต้องบวกเพิ่ม
+                  &ldquo;ยืนยันแล้ว&rdquo; + &ldquo;ยังไม่ยืนยัน&rdquo; = &ldquo;รับจริง&rdquo; ·
+                  ส่วน &ldquo;มัดจำ&rdquo; นับรวมอยู่ใน &ldquo;รับจริง&rdquo; แล้วเช่นกัน ไม่ใช่ยอดที่ต้องบวกเพิ่ม
                   {hasUnrecorded && (
                     <>
                       {' · '}

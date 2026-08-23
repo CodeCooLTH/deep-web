@@ -143,6 +143,18 @@ export interface SalesSeries {
    */
   unrecordedValues?: number[]
   /**
+   * ส่วนของ `receivedValues` ที่มาจากใบซึ่ง **ผ่านเกณฑ์ "ยืนยันแล้ว" แล้ว** ต่อ bucket
+   *
+   * 🛑 ใช้ `countsAsRevenue()` ตัวเดียวกับที่แบ่ง `confirmedValues`/`unconfirmedValues` เป๊ะ —
+   * คำว่า "ยืนยันแล้ว" บนชีตนี้ต้องมีนิยามเดียว ไม่งั้นแถบสมการด้านบนกับคอลัมน์ในตาราง
+   * จะใช้คำเดียวกันกับเกณฑ์คนละชุด แล้วผู้ขายจะเทียบสองที่แล้วไม่ตรง (HR16)
+   *
+   * ส่วนที่เหลือ (`receivedValues[i] − receivedConfirmedValues[i]`) = เงินที่ได้มาจากงานที่
+   * **ลูกค้ายังไม่ยืนยัน** ⇒ เป็นเงินที่อาจต้องคืนถ้าลูกค้ายกเลิก · หน้าจอ derive เอาเอง
+   * ไม่ส่งมาเป็นอาร์เรย์ที่สาม เพราะสองอาร์เรย์ที่ต้องบวกกันได้พอดีเสมอ ถ้าแยกส่งจะเพี้ยนกันได้
+   */
+  receivedConfirmedValues?: number[]
+  /**
    * 🛑 ต้นทุนสินค้า (COGS) มี **สองชุด** ในไฟล์นี้ และ **จะไม่มีวันเท่ากัน** — วางติดกันตาม HR16
    * ทั้งคู่ถูกต้องในตัวเอง ต่างกันแค่ "นับต้นทุนของออเดอร์ชุดไหน" ซึ่งต้องเลือกให้ตรงกับ
    * ตัวตั้งที่เอาไปลบ ไม่งั้นหน้าจอจะโชว์สมการที่ลบตามด้วยมือแล้วไม่ลงตัว:
@@ -329,6 +341,8 @@ export async function getSalesSeries(
   const receivedValues = isServiceShop ? new Array<number>(bucketCount).fill(0) : undefined
   /* ยอดขายของใบที่ไม่มีบันทึกรับเงินเลย — ตัวแยก "ค้างจริง" ออกจาก "ไม่รู้" (ดูประกาศ type) */
   const unrecordedValues = isServiceShop ? new Array<number>(bucketCount).fill(0) : undefined
+  /* ส่วนของเงินที่รับจริงซึ่งมาจากใบที่ "ยืนยันแล้ว" — เกณฑ์เดียวกับ confirmedValues (ดูประกาศ type) */
+  const receivedConfirmedValues = isServiceShop ? new Array<number>(bucketCount).fill(0) : undefined
   let total = 0
   let prevTotal = 0
   let prevTotalToDate = 0
@@ -371,7 +385,7 @@ export async function getSalesSeries(
         values[idx] += amt
         orderCounts[idx] += 1
 
-        if (depositValues && receivedValues && unrecordedValues) {
+        if (depositValues && receivedValues && unrecordedValues && receivedConfirmedValues) {
           const payments = (r as { payments?: { kind: string; amount: unknown }[] }).payments
           /* 🛑 นับจาก **จำนวนแถวที่ยังไม่ถูกยกเลิก** (query กรอง `voidedAt: null` มาแล้ว)
              ไม่ใช่จากยอดรวมเป็น 0 — ใบที่บันทึกรับ ฿0 ไว้จริง (เช่นแถมให้) คือ "รู้ว่าไม่มีเงินเข้า"
@@ -383,6 +397,9 @@ export async function getSalesSeries(
             /* มัดจำเป็น **ส่วนหนึ่งของ** รับจริง ไม่ใช่ก้อนแยก — บวกเข้าทั้งสองชุด
                ถ้าแยกเป็นคนละก้อน ผู้ขายจะบวก มัดจำ+รับจริง เองแล้วได้เกินยอดขาย */
             if (p.kind === 'DEPOSIT') depositValues[idx] += paid
+            /* 🛑 เรียก `countsAsRevenue(r)` ตัวเดียวกับที่แบ่ง confirmedValues ข้างล่าง —
+               ห้ามเขียนเกณฑ์ใหม่ที่นี่ ไม่งั้น "ยืนยันแล้ว" บนแถบสมการกับในตารางจะคนละความหมาย */
+            if (countsAsRevenue(r)) receivedConfirmedValues[idx] += paid
           }
         }
         /**
@@ -487,8 +504,8 @@ export async function getSalesSeries(
     ...(last14Confirmed && last14Unconfirmed
       ? { last14Confirmed, last14Unconfirmed, last14Labels }
       : {}),
-    ...(depositValues && receivedValues && unrecordedValues
-      ? { depositValues, receivedValues, unrecordedValues }
+    ...(depositValues && receivedValues && unrecordedValues && receivedConfirmedValues
+      ? { depositValues, receivedValues, unrecordedValues, receivedConfirmedValues }
       : {}),
   }
   if (!includeFinance) return base
