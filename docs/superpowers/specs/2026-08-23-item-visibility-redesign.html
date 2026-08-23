@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<title>ม็อกอัพ 2026-08-23 — รายการที่แสดงบนหน้าร้าน + แท็บรีวิว</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,system-ui,sans-serif;background:#eceef3;color:#2F2B3D;padding:28px}
+h1{font-size:20px;margin-bottom:4px}
+h2{font-size:15px;margin:26px 0 10px;color:#5a5766}
+.note{font-size:12.5px;color:#7a7789;max-width:900px;line-height:1.65;margin-bottom:14px}
+.frames{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+.frame{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 6px 24px rgba(30,27,56,.10)}
+.frame > .cap{font-size:11px;font-weight:700;color:#7a7789;padding:7px 12px;background:#f6f7fb;border-bottom:1px solid #ececf2}
+.w390{width:390px}.w768{width:768px}.w1440{width:760px}
+/* ── Paces (ฝั่งผู้ขาย) ── */
+.p{--pri:#236dc9;--ink:#4c4c5c;--line:#e6e8ef;background:#f6f7fb;padding:14px}
+.p .card{background:#fff;border:1px solid var(--line);border-radius:10px}
+.p .chd{padding:13px 16px;border-bottom:1px dashed var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.p .ct{font-size:15px;font-weight:600;color:#1f2937}
+.p .cb{padding:16px}
+.p .sub{font-size:12.5px;color:#8b8fa3;line-height:1.6}
+.p .search{margin-top:12px;position:relative}
+.p .search input{width:100%;height:38px;border:1px solid var(--line);border-radius:8px;padding:0 12px 0 34px;font:inherit;font-size:13.5px;color:var(--ink)}
+.p .search svg{position:absolute;left:11px;top:11px;opacity:.45}
+.p .grouphd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:16px 0 8px;flex-wrap:wrap}
+.p .gname{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:#1f2937}
+.p .bulk{display:flex;gap:6px}
+.p .btn{height:30px;padding:0 11px;border:1px solid var(--line);background:#fff;border-radius:7px;font:inherit;font-size:12px;color:var(--ink);cursor:pointer}
+.p .btn:hover{background:#f2f4f9}
+.p .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.p .chip{height:28px;padding:0 11px;border-radius:99px;background:#f1f3f8;color:#8b8fa3;font-size:12.5px;display:inline-flex;align-items:center;border:0;cursor:pointer;font:inherit}
+.p .chip.on{background:rgba(35,109,201,.10);color:#1b5aa8;font-weight:700}
+.p .grid{display:grid;gap:6px 14px;grid-template-columns:1fr}
+.p .row{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;border:1px solid transparent}
+.p .row:hover{background:#f7f9fc;border-color:var(--line)}
+.p .th{width:36px;height:36px;border-radius:8px;background:#eef1f7;display:grid;place-items:center;flex:0 0 auto;overflow:hidden}
+.p .th img{width:100%;height:100%;object-fit:cover}
+.p .nm{flex:1;min-width:0;font-size:13.5px;color:#1f2937;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p .pin{font-size:11px;color:#8b8fa3;margin-left:6px}
+.p .hidden .nm{color:#a7abbb}
+.p .hidden .th{opacity:.45}
+.p .tag{font-size:10.5px;color:#8b8fa3;background:#f1f3f8;border-radius:5px;padding:2px 6px;margin-left:6px;white-space:nowrap}
+.p .sw{width:38px;height:22px;border-radius:99px;background:var(--pri);position:relative;flex:0 0 auto;cursor:pointer}
+.p .sw::after{content:"";position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:99px;background:#fff}
+.p .sw.off{background:#d3d7e3}.p .sw.off::after{right:auto;left:3px}
+.p .more{margin-top:10px;width:100%;height:36px;border:1px dashed var(--line);background:#fff;border-radius:8px;font:inherit;font-size:12.5px;color:var(--ink);cursor:pointer}
+.p .cnt{font-size:12px;color:#8b8fa3;font-variant-numeric:tabular-nums}
+@media(min-width:0px){}
+.w768 .p .grid{grid-template-columns:1fr 1fr}
+.w1440 .p .grid{grid-template-columns:1fr 1fr}
+/* ── Vuexy (ฝั่งผู้ซื้อ — แท็บรีวิว) ── */
+.v{--pri:#7367F0;--amber:#FF9F43;background:#fff;padding:0}
+.v .tabs{display:flex;gap:2px;border-bottom:1px solid #ececf2;padding:0 14px;height:50px;align-items:stretch;overflow:hidden}
+.v .tab{display:inline-flex;align-items:center;gap:6px;padding:0 12px;font-size:13px;font-weight:800;color:#8e8d99;position:relative}
+.v .tab.on{color:var(--pri)}
+.v .tab.on::after{content:"";position:absolute;left:12px;right:12px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--pri)}
+.v .body{padding:16px 14px 22px}
+.v .sum{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+.v .big{font-size:44px;font-weight:900;line-height:1}
+.v .bars{flex:1;min-width:220px;display:grid;gap:5px}
+.v .bar{display:grid;grid-template-columns:38px 1fr 22px;gap:8px;align-items:center;font-size:11.5px;color:#7a7789}
+.v .track{height:7px;border-radius:99px;background:#f0f0f4;overflow:hidden}
+.v .fill{height:100%;background:var(--amber);border-radius:99px}
+.v .chips{display:flex;gap:7px;flex-wrap:wrap;margin:16px 0 4px}
+.v .chip{height:30px;padding:0 12px;border-radius:99px;background:#f4f4f7;color:#8e8d99;font-size:12.5px;display:inline-flex;align-items:center;border:0;font:inherit;cursor:pointer}
+.v .chip.on{background:rgba(115,103,240,.10);color:#675DD8;font-weight:700}
+.v .lead{font-size:12px;color:#8e8d99;margin:12px 0 2px}
+.v .rr{display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid #f2f2f5}
+.v .av{width:30px;height:30px;border-radius:99px;display:grid;place-items:center;color:#fff;font-size:12.5px;font-weight:800;flex:0 0 auto}
+.v .who{font-size:13px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.v .st{color:var(--amber);font-size:12.5px;letter-spacing:1px;flex:0 0 auto}
+.v .dt{margin-left:auto;font-size:11.5px;color:#a2a0ad;flex:0 0 auto}
+.v .vf{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:#18804A;background:rgba(40,199,111,.10);border-radius:99px;padding:2px 7px;flex:0 0 auto}
+.v .card2{border:1px solid #ececf2;border-radius:14px;padding:13px;margin:11px 0;box-shadow:0 4px 14px rgba(30,27,56,.05)}
+.v .cmt{font-size:14px;line-height:1.6;margin:7px 0 9px}
+.v .reply{background:#f8f7fa;border-radius:10px;padding:9px 11px;font-size:12.5px;color:#5a5766;line-height:1.55}
+.v .more{margin-top:14px;width:100%;height:40px;border:1px solid #ececf2;background:#fff;border-radius:99px;font:inherit;font-size:13px;font-weight:700;color:#5a5766;cursor:pointer}
+.bad{background:#fff4f4;border:1px solid #ffd9d9;border-radius:10px;padding:10px 12px;font-size:12.5px;color:#a3282d;margin-bottom:12px;line-height:1.6}
+</style></head><body>
+
+<h1>ม็อกอัพ 2026-08-23</h1>
+<p class="note">สองจอที่ user บอกว่าใช้ยาก — ซ้ายคือฝั่งผู้ขาย (Paces) ขวาคือแท็บรีวิวบนหน้าร้าน (Vuexy)</p>
+
+<h2>1 · รายการที่แสดงบนหน้าร้าน (ผู้ขาย)</h2>
+<p class="note">ของเดิม: 32 แถวเต็มความกว้าง สวิตช์อยู่ขอบขวาห่างจากชื่อ ~1,800px · เลื่อนยาว ~2,500px · ไม่มีปุ่มทำทีเดียวทั้งชุด · มองไม่ออกว่าอันไหนถูกซ่อน<br>
+ของใหม่: กริด 2 คอลัมน์ (แถวกว้างไม่เกิน ~460px) · ชิปกรอง แสดงอยู่/ซ่อนอยู่ · ปุ่มทั้งชุด · แถวที่ซ่อนจางลง+มีป้าย · ตั้งต้น 12 แถวแล้วค่อยกาง</p>
+<div class="frames">
+  <div class="frame w390"><div class="cap">390px — มือถือ</div><div class="p">
+    <div class="card"><div class="chd"><span class="ct">รายการที่แสดงบนหน้าร้าน</span></div>
+    <div class="cb">
+      <div class="sub">ปิดสวิตช์เพื่อไม่ให้รายการนั้นขึ้นหน้าร้าน — ยังขายผ่านแชทและหน้าสร้างคำสั่งซื้อได้ตามปกติ</div>
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="ค้นหาชื่อ"></div>
+      <div class="grouphd"><span class="gname">สินค้า</span><span class="cnt">แสดงอยู่ 29 จาก 32</span></div>
+      <div class="chips"><button class="chip on">ทั้งหมด 32</button><button class="chip">แสดงอยู่ 29</button><button class="chip">ซ่อนอยู่ 3</button></div>
+      <div class="bulk" style="margin-bottom:10px"><button class="btn">แสดงทั้งหมด</button><button class="btn">ซ่อนทั้งหมด</button></div>
+      <div class="grid">
+        <div class="row"><span class="th">📦</span><span class="nm">ไฟหรี่</span><span class="sw"></span></div>
+        <div class="row"><span class="th">📦</span><span class="nm">Devil eyes green</span><span class="sw"></span></div>
+        <div class="row hidden"><span class="th">📦</span><span class="nm">หลอด LED HB3<span class="tag">ซ่อนอยู่</span></span><span class="sw off"></span></div>
+        <div class="row"><span class="th">📦</span><span class="nm">หลอด LED H11</span><span class="sw"></span></div>
+        <div class="row"><span class="th">📦</span><span class="nm">สายสไลด์แยกข้าง<span class="pin">· ปักหมุด</span></span><span class="sw"></span></div>
+      </div>
+      <button class="more">ดูทั้งหมด (32)</button>
+    </div></div>
+  </div></div>
+
+  <div class="frame w768"><div class="cap">768px — แท็บเล็ต / 1440px ก็ผังเดียวกัน (คอลัมน์ขวากว้างเท่านี้เพราะมีเมนูซ้าย)</div><div class="p">
+    <div class="card"><div class="chd"><span class="ct">รายการที่แสดงบนหน้าร้าน</span><span class="cnt">แสดงอยู่ 29 จาก 32</span></div>
+    <div class="cb">
+      <div class="sub">ปิดสวิตช์เพื่อไม่ให้รายการนั้นขึ้นหน้าร้าน — ยังขายผ่านแชทและหน้าสร้างคำสั่งซื้อได้ตามปกติ</div>
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="ค้นหาชื่อ"></div>
+      <div class="grouphd"><span class="gname">สินค้า</span>
+        <span style="display:flex;gap:6px"><button class="btn">แสดงทั้งหมด</button><button class="btn">ซ่อนทั้งหมด</button></span></div>
+      <div class="chips"><button class="chip on">ทั้งหมด 32</button><button class="chip">แสดงอยู่ 29</button><button class="chip">ซ่อนอยู่ 3</button></div>
+      <div class="grid">
+        <div class="row"><span class="th">📦</span><span class="nm">ไฟหรี่</span><span class="sw"></span></div>
+        <div class="row"><span class="th">📦</span><span class="nm">Devil eyes green</span><span class="sw"></span></div>
+        <div class="row hidden"><span class="th">📦</span><span class="nm">หลอด LED HB3<span class="tag">ซ่อนอยู่</span></span><span class="sw off"></span></div>
+        <div class="row"><span class="th">📦</span><span class="nm">หลอด LED H11</span><span class="sw"></span></div>
+        <div class="row"><span class="th">📦</span><span class="nm">สายสไลด์แยกข้าง<span class="pin">· ปักหมุด</span></span><span class="sw"></span></div>
+        <div class="row"><span class="th">📦</span><span class="nm">สายสไลด์ยาว</span><span class="sw"></span></div>
+        <div class="row hidden"><span class="th">📦</span><span class="nm">กรอบคาเยน<span class="tag">ซ่อนอยู่</span></span><span class="sw off"></span></div>
+        <div class="row"><span class="th">📦</span><span class="nm">โช๊คหน้า 100 ดิส</span><span class="sw"></span></div>
+        <div class="row"><span class="th">📦</span><span class="nm">โช๊คหลัง สามล้อ แกนทอง</span><span class="sw"></span></div>
+        <div class="row"><span class="th">📦</span><span class="nm">คืนของ</span><span class="sw"></span></div>
+      </div>
+      <button class="more">ดูทั้งหมด (32)</button>
+      <div class="grouphd"><span class="gname">บริการ</span><span class="cnt">แสดงอยู่ 2 จาก 2</span></div>
+      <div class="grid">
+        <div class="row"><span class="th">🛠</span><span class="nm">เปลี่ยนถ่ายน้ำมันเครื่อง</span><span class="sw"></span></div>
+        <div class="row"><span class="th">🛠</span><span class="nm">ตรวจเช็คระยะ</span><span class="sw"></span></div>
+      </div>
+    </div></div>
+  </div></div>
+</div>
+
+<h2>2 · แท็บรีวิวบนหน้าร้าน (ผู้ซื้อ)</h2>
+<div class="bad"><b>ข้อเท็จจริงที่เปลี่ยนการออกแบบทั้งหมด:</b> ทั้งแพลตฟอร์มมีรีวิว 23 อัน <b>มีข้อความแค่ 1 อัน</b> —
+แท็บนี้จึงไม่ใช่ "ฟีดคอมเมนต์" แต่เป็น "รายการให้ดาว" การจัดเป็นบล็อกสูง 193px ต่ออันพร้อมอวาตาร์ใหญ่
+จึงได้จอที่เต็มไปด้วยแถวหน้าตาเหมือนกันเป๊ะ (<code>U••••••••</code> ซ้ำ 7 แถว) ซึ่งอ่านเป็นรีวิวปลอม —
+ตรงข้ามกับสิ่งที่แพลตฟอร์มความน่าเชื่อถือต้องการ<br><br>
+<b>บั๊กที่เจอระหว่างออกแบบ:</b> แถบสรุปบอก 21 รีวิว แต่ชิปบอก "ทั้งหมด 10" — เพราะรายการถูก cap ที่
+<code>take=10</code> โดยไม่มีอะไรบอกผู้อ่าน (ตัวเลขสองค่าของสิ่งเดียวกันบนจอเดียว)</div>
+<p class="note">ของใหม่: รีวิวที่ <b>ไม่มีข้อความ</b> = แถวกระชับ 52px (เห็น 8–10 อันต่อจอ) · รีวิวที่ <b>มีข้อความ</b> = การ์ดเต็มที่ยกข้อความขึ้นเป็นตัวเอก ·
+เลิกโชว์เลขคำสั่งซื้อซึ่งผู้ซื้อไม่รู้จัก เปลี่ยนเป็นป้าย "ยืนยันรับของแล้ว" ที่บอกว่าทำไมรีวิวนี้เชื่อได้ ·
+อวาตาร์เป็นตัวอักษรมีสีจากชื่อ ⇒ แต่ละแถวต่างกันจริง · ชิปกรองนับจากยอดเดียวกับแถบสรุป + ปุ่มโหลดเพิ่ม</p>
+<div class="frames">
+  <div class="frame w390"><div class="cap">390px — มือถือ</div><div class="v">
+    <div class="tabs"><span class="tab">สินค้า</span><span class="tab on">★ รีวิว 4.8</span><span class="tab">เกี่ยวกับร้าน</span></div>
+    <div class="body">
+      <div class="sum">
+        <div style="text-align:center"><div class="big">4.8</div><div class="st">★★★★★</div><div style="font-size:11.5px;color:#8e8d99;margin-top:3px">จาก 21 รีวิว</div></div>
+        <div class="bars">
+          <div class="bar"><span>5 ดาว</span><span class="track"><span class="fill" style="width:81%"></span></span><b>17</b></div>
+          <div class="bar"><span>4 ดาว</span><span class="track"><span class="fill" style="width:14%"></span></span><b>3</b></div>
+          <div class="bar"><span>3 ดาว</span><span class="track"><span class="fill" style="width:5%"></span></span><b>1</b></div>
+          <div class="bar"><span>2 ดาว</span><span class="track"></span><b>0</b></div>
+          <div class="bar"><span>1 ดาว</span><span class="track"></span><b>0</b></div>
+        </div>
+      </div>
+      <div class="chips"><button class="chip on">ทั้งหมด 21</button><button class="chip">5 ดาว 17</button><button class="chip">4 ดาว 3</button><button class="chip">3 ดาว 1</button></div>
+
+      <div class="card2">
+        <div style="display:flex;align-items:center;gap:9px">
+          <span class="av" style="background:#7367F0">อ</span>
+          <span class="who">อ•••••</span><span class="st">★★★★★</span><span class="dt">23 ส.ค. 2569</span>
+        </div>
+        <p class="cmt">ของตรงปก ส่งไว ร้านตอบแชทเร็วมาก สอบถามอะไรก็ตอบละเอียด จะกลับมาซื้อซ้ำแน่นอนครับ</p>
+        <span class="vf">✓ ยืนยันรับของแล้ว</span>
+        <div class="reply"><b>ร้านตอบกลับ</b><br>ขอบคุณมากครับ 🙏 ไว้บริการใหม่นะครับ</div>
+      </div>
+
+      <div class="lead">รีวิวที่ให้ดาวอย่างเดียว</div>
+      <div class="rr"><span class="av" style="background:#00BAD1">U</span><span class="who">U•••••••</span><span class="st">★★★★★</span><span class="dt">21 ส.ค.</span></div>
+      <div class="rr"><span class="av" style="background:#FF9F43">U</span><span class="who">U•••••••</span><span class="st">★★★☆☆</span><span class="dt">21 ส.ค.</span></div>
+      <div class="rr"><span class="av" style="background:#28C76F">U</span><span class="who">U•••••••</span><span class="st">★★★★★</span><span class="dt">21 ส.ค.</span></div>
+      <div class="rr"><span class="av" style="background:#7367F0">U</span><span class="who">U•••••••</span><span class="st">★★★★★</span><span class="dt">19 ส.ค.</span></div>
+      <div class="rr"><span class="av" style="background:#FF4C51">U</span><span class="who">U•••••••</span><span class="st">★★★★★</span><span class="dt">19 ส.ค.</span></div>
+      <div class="rr"><span class="av" style="background:#00BAD1">A</span><span class="who">A••••</span><span class="st">★★★★☆</span><span class="dt">18 ส.ค.</span></div>
+      <button class="more">ดูรีวิวเพิ่ม (อีก 14)</button>
+    </div>
+  </div></div>
+
+  <div class="frame w768"><div class="cap">768px / 1440px — คอลัมน์เนื้อหากว้างเท่านี้ทั้งคู่ (หน้าร้าน max 1080px มีคอลัมน์ซ้าย 255px)</div><div class="v">
+    <div class="tabs"><span class="tab">บริการ</span><span class="tab">สินค้า</span><span class="tab on">★ รีวิว 4.8</span><span class="tab">เกี่ยวกับร้าน</span></div>
+    <div class="body">
+      <div class="sum">
+        <div style="text-align:center;min-width:120px"><div class="big">4.8</div><div class="st">★★★★★</div><div style="font-size:11.5px;color:#8e8d99;margin-top:3px">จาก 21 รีวิว</div></div>
+        <div class="bars">
+          <div class="bar"><span>5 ดาว</span><span class="track"><span class="fill" style="width:81%"></span></span><b>17</b></div>
+          <div class="bar"><span>4 ดาว</span><span class="track"><span class="fill" style="width:14%"></span></span><b>3</b></div>
+          <div class="bar"><span>3 ดาว</span><span class="track"><span class="fill" style="width:5%"></span></span><b>1</b></div>
+          <div class="bar"><span>2 ดาว</span><span class="track"></span><b>0</b></div>
+          <div class="bar"><span>1 ดาว</span><span class="track"></span><b>0</b></div>
+        </div>
+      </div>
+      <div class="chips"><button class="chip on">ทั้งหมด 21</button><button class="chip">5 ดาว 17</button><button class="chip">4 ดาว 3</button><button class="chip">3 ดาว 1</button></div>
+      <div class="card2">
+        <div style="display:flex;align-items:center;gap:9px">
+          <span class="av" style="background:#7367F0">อ</span><span class="who">อ•••••</span><span class="st">★★★★★</span><span class="dt">23 ส.ค. 2569</span>
+        </div>
+        <p class="cmt">ของตรงปก ส่งไว ร้านตอบแชทเร็วมาก สอบถามอะไรก็ตอบละเอียด จะกลับมาซื้อซ้ำแน่นอนครับ</p>
+        <span class="vf">✓ ยืนยันรับของแล้ว</span>
+        <div class="reply"><b>ร้านตอบกลับ</b><br>ขอบคุณมากครับ ไว้บริการใหม่นะครับ</div>
+      </div>
+      <div class="lead">รีวิวที่ให้ดาวอย่างเดียว · 20 รายการ</div>
+      <div class="rr"><span class="av" style="background:#00BAD1">U</span><span class="who">U•••••••</span><span class="st">★★★★★</span><span class="vf">✓ ยืนยันรับของแล้ว</span><span class="dt">21 ส.ค. 2569</span></div>
+      <div class="rr"><span class="av" style="background:#FF9F43">U</span><span class="who">U•••••••</span><span class="st">★★★☆☆</span><span class="vf">✓ ยืนยันรับของแล้ว</span><span class="dt">21 ส.ค. 2569</span></div>
+      <div class="rr"><span class="av" style="background:#28C76F">U</span><span class="who">U•••••••</span><span class="st">★★★★★</span><span class="vf">✓ ยืนยันรับของแล้ว</span><span class="dt">21 ส.ค. 2569</span></div>
+      <div class="rr"><span class="av" style="background:#7367F0">U</span><span class="who">U•••••••</span><span class="st">★★★★★</span><span class="vf">✓ ยืนยันรับของแล้ว</span><span class="dt">19 ส.ค. 2569</span></div>
+      <div class="rr"><span class="av" style="background:#FF4C51">U</span><span class="who">U•••••••</span><span class="st">★★★★★</span><span class="vf">✓ ยืนยันรับของแล้ว</span><span class="dt">19 ส.ค. 2569</span></div>
+      <div class="rr"><span class="av" style="background:#00BAD1">A</span><span class="who">A••••</span><span class="st">★★★★☆</span><span class="vf">✓ ยืนยันรับของแล้ว</span><span class="dt">18 ส.ค. 2569</span></div>
+      <button class="more">ดูรีวิวเพิ่ม (อีก 14)</button>
+    </div>
+  </div></div>
+</div>
+</body></html>

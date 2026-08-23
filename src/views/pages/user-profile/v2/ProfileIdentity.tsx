@@ -351,7 +351,9 @@ const SCORE_CARD_SX = {
    */
   minBlockSize: { md: 118 },
   padding: { xs: '13px', md: '19px' },
-  borderRadius: '18px',
+  /* 14px เท่าการ์ดอื่นทั้งหน้า (user เคาะ 2026-08-23) — ใบนี้เป็นการ์ดกระจกบนภาพปก แต่ผู้ชม
+     เห็นมันเรียงต่อกับการ์ดในเนื้อหาโดยไม่มีอะไรคั่น มุมที่ต่างกัน 4px จึงอ่านเป็นความไม่ตั้งใจ */
+  borderRadius: '14px',
   border: '1px solid rgba(255,255,255,.17)',
   background: 'rgba(20,12,4,.7)',
   backdropFilter: 'blur(8px)',
