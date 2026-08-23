@@ -2894,6 +2894,207 @@ export async function sendOutboundImageGrid(params: {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// (Task 5, 2026-08-23) แยก "การยิงออกช่องทาง" ออกจาก "การเขียน DB"
+//
+// ทำไมต้องมีชั้นนี้: เส้นทางคิว (ข้อความถูกเขียนลง DB ก่อนตอบ client แล้วค่อยยิงออกเบื้องหลัง) กับ
+// ผู้เรียกเดิมทุกราย **ต้องใช้โค้ดยิงชุดเดียวกัน** ไม่ใช่โค้ดสองชุดที่ค่อย ๆ ห่างกันจนพฤติกรรมต่างกัน
+// โดยไม่มีใครสังเกต (HR16 — ของสิ่งเดียวกันต้องมีนิยามที่เดียว)
+//
+// 🛑 การแตกฟังก์ชันรอบนี้เป็นการ **ย้ายโค้ดเดิม** ล้วน ๆ ไม่มีการเปลี่ยนพฤติกรรมแม้แต่จุดเดียว
+// ══════════════════════════════════════════════════════════════════════════
+
+type ConversationWithChannelPayload = Prisma.ConversationGetPayload<{
+  include: { shopChannel: true; externalContact: true }
+}>
+
+/**
+ * เธรดที่ "ยิงออกช่องทางนอกได้" — คือสิ่งที่ `resolveOutboundContext` รับประกันให้แล้ว: ไม่ใช่ DEEP ·
+ * มี `shopChannel` · มี `externalContact`
+ *
+ * โค้ดเดิมรับประกันสามข้อนี้อยู่แล้วหลังผ่านด่าน NOT_EXTERNAL_CHANNEL — แค่ไม่มีชื่อเรียก จึงต้องโรย
+ * `!` ไว้ตามจุดที่ใช้ต่อ. ตั้งชื่อให้มันเสียเพื่อให้ตัวยิงที่แตกออกมารับ "เธรดที่ผ่านด่านแล้ว" ได้ตรง ๆ
+ */
+export type OutboundConversation = Omit<ConversationWithChannelPayload, 'shopChannel' | 'externalContact'> & {
+  shopChannel: NonNullable<ConversationWithChannelPayload['shopChannel']>
+  externalContact: NonNullable<ConversationWithChannelPayload['externalContact']>
+}
+
+/** เงื่อนไขเดียวกับด่าน NOT_EXTERNAL_CHANNEL เดิมทุกตัวอักษร (กลับด้าน) — เขียนเป็น type predicate
+ *  เพื่อให้ TypeScript narrow ทั้งก้อนได้ ไม่ต้อง cast และไม่ต้องคัดลอกอ็อบเจกต์ใหม่ */
+function isOutboundConversation(c: ConversationWithChannelPayload): c is OutboundConversation {
+  return c.channel !== 'DEEP' && !!c.shopChannel && !!c.externalContact
+}
+
+/** ผลของการ "ยิงออกช่องทาง" ล้วน ๆ — ไม่มีอะไรในนี้ที่อ่านมาจากแถว ChatMessage */
+export type TransmitResult = {
+  /**
+   * mid ที่ปลายทางคืนมา — null = ยิงไม่ผ่าน
+   *
+   * 🛑 LINE คืน **mid ดิบ** (ยังไม่มี prefix) — ผู้ที่เอาไปเขียน DB ต้องแปลงด้วย
+   * `buildLineExternalMessageId()` ก่อนเสมอ เหมือนที่ `sendOutboundLineMessage` ทำอยู่
+   */
+  externalMessageId: string | null
+  /** สิ่งที่ปลายทางตอบกลับ (ลง rawMessage source='outbound-response') */
+  outboundResponse: unknown
+  /** null = สำเร็จ | ข้อความดิบของปลายทาง = ล้มเหลว */
+  failureReason: string | null
+  /** LINE เท่านั้น — Meta ไม่มีแนวคิด reply/push จึงเป็น null เสมอ (ตรงกับคอลัมน์ที่เขียนลง DB วันนี้) */
+  sendMethod: 'REPLY' | 'PUSH' | null
+  /** คอลัมน์ `ChatMessage.sendBatchId` มีอยู่ในสคีมาแต่ **โค้ดปัจจุบันยังไม่เคยเขียนค่าลงไปเลย** —
+   *  คงค่า null ไว้ตามพฤติกรรมเดิม (ห้ามเริ่มเขียนในรอบ refactor) */
+  sendBatchId: string | null
+}
+
+export type SendOutboundParams = {
+  conversationId: string
+  // actorUserId = คนกดส่ง. null ได้เฉพาะเส้นทางระบบ (auto-reply) ซึ่งต้องส่ง systemShopId มาคู่กัน
+  actorUserId: string | null
+  // --- feature 00023 auto-reply (additive, optional — ไม่ส่ง = พฤติกรรมเดิมทุกประการ) ---
+  // systemShopId: เส้นทางที่ "ระบบ" เป็นผู้ส่ง ไม่มี user จริงให้เช็ค canAccessShop (TD-005)
+  //
+  // WARNING: นี่ไม่ใช่ flag ข้าม authz — มันคือการ **ย้ายคำถาม** จาก "user คนนี้แตะร้านนี้ได้ไหม"
+  // เป็น "เธรดนี้เป็นของร้านที่ระบบกำลังทำงานแทนจริงหรือเปล่า" แล้วบังคับให้ caller ประกาศ shopId
+  // ที่ตัวเองเชื่อว่าเป็นเจ้าของออกมาตรง ๆ เพื่อให้ฟังก์ชันนี้ cross-check กับเธรดจริงได้
+  // ถ้าไม่ตรง = โยนทันที. ผลคือ caller ที่ถือ conversationId จากที่อื่นมาเดา ๆ จะยิงข้ามร้านไม่ได้
+  // (ค่านี้มาจาก AutoReplyJob.shopId ซึ่งถูกเขียนตอน ingest webhook ฝั่ง server ไม่ได้มาจาก client)
+  systemShopId?: string
+  // ป้ายกำกับว่าข้อความนี้ระบบเป็นผู้ส่ง — null = คนส่ง (ค่าเดิม)
+  autoReplyKind?: 'AUTO' | 'AUTO_TEST'
+  // text = ข้อความ (หรือ caption ของไฟล์แนบ) — อย่างน้อยต้องมี text หรือไฟล์แนบอย่างใดอย่างหนึ่ง
+  text?: string
+  /** deprecated (2026-08-02) — ใช้ `attachment` แทน. คงไว้เพราะ auto-reply-send.service.ts
+   *  ยังส่งรูปทีละใบด้วยพารามิเตอร์นี้อยู่ (ภายในแปลงเป็น attachment kind='IMAGE' ให้เอง) */
+  imageFileId?: string
+  /**
+   * สติกเกอร์ Meta (user สั่ง 2026-08-04) — ส่ง `sticker_id` ไม่ใช่ไฟล์แนบ (Sticker API)
+   * imageUrl = รูปจาก catalog เอาไป mirror เก็บฝั่งเราให้บับเบิลมีรูปแสดงทันทีโดยไม่ต้องรอ echo
+   * ใช้ร่วมกับ text/attachment ไม่ได้ (Meta ให้ส่งอย่างใดอย่างหนึ่งต่อข้อความ) — sticker ชนะ
+   */
+  sticker?: { id: string; imageUrl: string }
+  /** ไฟล์แนบทุกชนิด (2026-08-02 multi-attachment) — kind ตัดสิน `attachment.type` ที่ยิงให้ Meta */
+  attachment?: {
+    fileId: string
+    kind: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE'
+    name?: string | null
+    size?: number | null
+  }
+  // orderRefToken (user 2026-07-25): การ์ดคำสั่งซื้อบนช่องทางนอก — ส่ง "ลิงก์ (text)" ให้ลูกค้าผ่าน Meta
+  // แต่เก็บข้อความฝั่งเราเป็น type=ORDER เพื่อให้ "ร้าน" เห็นเป็นการ์ด (ร้านอยู่ในระบบเรา = การ์ด)
+  orderRefToken?: string
+  /**
+   * การ์ดใบนี้เป็น "สรุปนัดหมาย" ไม่ใช่ออเดอร์ (ส่วนขยาย 00024, 2026-08-12)
+   *
+   * ทั้งคู่เก็บเป็น `ChatMessage.type='ORDER'` เหมือนกัน (ไม่มี enum ใหม่ ไม่มี migration) แต่เป็น
+   * คนละของในสายตาผู้ขาย — ผู้เรียกเป็นคนรู้ ฟังก์ชันนี้ไม่เดาเอง
+   *
+   * มีผล 2 อย่าง: **คำใน preview** ที่ขึ้นในรายการแชท และ **การเก็บ `body`** (การ์ดออเดอร์เก็บ
+   * `null` เพื่อกันบับเบิลซ้อน ส่วนการ์ดนัดเก็บจริงเพื่อให้ร้านค้นหาเจอ — ดูจุดใช้งาน)
+   */
+  isAppointmentCard?: boolean
+  /** (2026-08-11) การ์ดสินค้า — ผ่านด่าน ownership ที่ route มาแล้ว (scope ด้วย shopId ใน WHERE) */
+  productRefId?: string
+  /**
+   * (ส่วนขยาย 2026-08-11) การ์ดสินค้า **หลายชิ้น** ในข้อความเดียว — ผ่านด่าน ownership ที่ route แล้ว
+   *
+   * ผู้เรียกต้องแบ่งชุดมาให้อยู่ในเพดานของช่องทางแล้ว (`chunkProductCards`) — service ไม่แบ่งให้เอง
+   * เพราะ 1 การเรียก = 1 ข้อความเสมอ (ถ้า service แอบแตกเป็นหลายข้อความ ผู้เรียกจะได้ id เดียวกลับไป
+   * แล้วเข้าใจว่าส่งใบเดียว)
+   */
+  productRefIds?: string[]
+  /** (2026-08-11) การ์ดแบบ Generic Template สำหรับ **Messenger/IG เท่านั้น** — ชนะ `text` เมื่อมีค่า
+   *  (LINE ใช้ `flex` แทน; ส่งผิดช่องทางจะถูก adapter ปฏิเสธด้วย error ที่อ่านออก ไม่ถอยเงียบ) */
+  template?: Record<string, unknown>
+  /**
+   * (2026-08-11) การ์ด Flex สำหรับ **LINE เท่านั้น** — มีค่าเมื่อไหร่จะถูกส่งแทน `text`
+   *
+   * ทำไมเป็น optional แทนที่จะให้ service ประกอบเอง: ผู้เรียกเป็นคนรู้บริบท (ออเดอร์กี่รายการ ยอดเท่าไหร่
+   * ลิงก์อะไร) และ **การฟอร์แมตเงินต้องมาจากสูตรกลางที่ผู้เรียกใช้อยู่แล้ว** ไม่ใช่ให้ service เดาใหม่ (HR16)
+   *
+   * 🛑 `text` ยังต้องส่งมาด้วยเสมอ — มันคือสิ่งที่บันทึกลง `ChatMessage.body` ให้ร้านเห็นในประวัติ
+   * และเป็นทางถอยเมื่อช่องทางไม่ใช่ LINE (Meta ยังได้ลิงก์ข้อความเหมือนเดิมทุกประการ)
+   */
+  flex?: { altText: string; contents: Record<string, unknown> }
+  // reply/quote (user 2026-07-25): externalMessageId (mid) ของข้อความที่ตอบทับ — ส่ง reply_to:{mid}
+  // ให้ Meta (Messenger รองรับ; IG best-effort) + เก็บ replyToMid ฝั่งเราเพื่อ render quote
+  replyToMid?: string | null
+  /**
+   * (feature 00045) **ส่งได้เฉพาะด้วย reply token เท่านั้น — claim ไม่ได้ = ยกเลิก ห้าม push**
+   *
+   * 🛑 มีไว้บังคับ BR-LINE-18 ให้กับผู้ส่งอัตโนมัติ: ฟังก์ชันนี้ตั้งต้น `sendMethod = 'PUSH'` แล้ว
+   * ค่อยพยายามอัปเกรดเป็น REPLY ⇒ ผู้ส่งอัตโนมัติที่เรียกตอนหน้าต่างฟรีปิดอยู่ (หรือแพ้ CAS ให้
+   * คนอื่นที่แย่ง token ไปก่อน) จะ **push ทันทีโดยไม่มีใครสั่ง = ใช้เงินร้านเอง**
+   *
+   * การเช็คหน้าต่างก่อนเรียกอย่างเดียวไม่พอ เพราะยังมีช่องระหว่าง "เช็คแล้วเปิด" กับ "claim จริง"
+   * ที่ event ใหม่หรือการส่งอีกอันแย่ง token ไปได้ — ด่านจึงต้องอยู่ **หลัง CAS** ในฟังก์ชันนี้
+   */
+  replyOnly?: boolean
+}
+
+/**
+ * ด่านก่อนส่ง (ownership/ช่องทาง) — ยกออกมาจากหัว `sendOutboundMessage` ทั้งดุ้น
+ *
+ * 🛑 error ทุกตัวคงชื่อเดิมเป๊ะ: CONVERSATION_NOT_FOUND / NOT_EXTERNAL_CHANNEL / FORBIDDEN /
+ * INVALID_ACTOR — `mapChatServiceError` ใน route แม็ตช์ด้วยสตริงพวกนี้ตรง ๆ เปลี่ยนตัวเดียวคือ
+ * error ที่เคยตอบ 4xx พร้อมเหตุผลจะกลายเป็น 500 เงียบ ๆ
+ */
+export async function resolveOutboundContext(
+  params: Pick<SendOutboundParams, 'conversationId' | 'actorUserId' | 'systemShopId'>,
+): Promise<OutboundConversation> {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: params.conversationId },
+    include: { shopChannel: true, externalContact: true },
+  })
+  if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
+  if (!isOutboundConversation(conversation)) throw new Error('NOT_EXTERNAL_CHANNEL')
+
+  if (params.systemShopId !== undefined) {
+    // เส้นทางระบบ (auto-reply) — ไม่มี user จริง จึงเช็คคนละคำถาม (TD-005)
+    // caller ต้องประกาศ shopId ที่ตัวเองเชื่อว่าเป็นเจ้าของเธรดออกมา แล้วเราตรวจกับของจริง
+    // ไม่ตรง = โยน. นี่คือสิ่งที่กันการยิงข้ามร้านแทน canAccessShop
+    if (params.systemShopId !== conversation.shopId) throw new Error('FORBIDDEN')
+    // กันเรียกผิดรูป: ส่ง systemShopId มาแต่ยังใส่ actorUserId = ตั้งใจอะไรไม่ชัด ปฏิเสธไว้ก่อน
+    if (params.actorUserId !== null) throw new Error('INVALID_ACTOR')
+  } else {
+    // เช็ค "เจ้าของ หรือ สมาชิก" (canAccessShop) ไม่ใช่แค่เจ้าของ — ไม่งั้น BUSINESS admin ตอบแชท
+    // ของร้านตัวเองไม่ได้ (bug จริงบน prod หลังเพจถูกย้ายไปร้าน BUSINESS)
+    if (!params.actorUserId) throw new Error('FORBIDDEN')
+    if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  }
+
+  return conversation
+}
+
+/** พารามิเตอร์ของเส้นทาง LINE — ยกออกมาจาก inline type เดิมของ `sendOutboundLineMessage`
+ *  ทุกตัวอักษร (ชุดย่อยของ `SendOutboundParams`: ไม่มี conversationId/systemShopId/template) */
+type LineOutboundParams = {
+  actorUserId: string | null
+  autoReplyKind?: 'AUTO' | 'AUTO_TEST'
+  text?: string
+  imageFileId?: string
+  sticker?: { id: string; imageUrl: string }
+  attachment?: {
+    fileId: string
+    kind: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE'
+    name?: string | null
+    size?: number | null
+  }
+  orderRefToken?: string
+  /** การ์ดสรุปนัด ไม่ใช่ออเดอร์ (ส่วนขยาย 00024, 2026-08-12) — คุมคำใน preview + การเก็บ `body`
+   *  (ต้องมีทั้งที่นี่และที่ `sendOutboundMessage` เพราะ LINE แยก flow ออกมาทั้งก้อน) */
+  isAppointmentCard?: boolean
+  /** (2026-08-11) การ์ดสินค้า — เก็บลง ChatMessage.productRefId ให้ร้านเห็นเป็นการ์ดในประวัติ
+   *  เหมือนช่องทาง DEEP (ฝั่งลูกค้าได้ Flex) */
+  productRefId?: string
+  /** (ส่วนขยาย 2026-08-11) การ์ดสินค้าหลายชิ้นในข้อความเดียว — ผู้เรียกแบ่งชุดมาแล้ว (ดูฝั่ง Meta) */
+  productRefIds?: string[]
+  /** (2026-08-11) การ์ด Flex — ชนะ `text` เมื่อมีค่า (ดู buildParts) */
+  flex?: { altText: string; contents: Record<string, unknown> }
+  replyToMid?: string | null
+  /** (feature 00045) claim reply token ไม่ได้ = ยกเลิก ห้าม push — ดู sendOutboundMessage */
+  replyOnly?: boolean
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // (S-8, feature 00025 TFR-LINE-05/06) — outbound ของ LINE (reply/push + sendMethod + error mapping)
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -3091,37 +3292,159 @@ async function resolveLinePreviewUrl(
  * ผ่านการเช็ค NOT_EXTERNAL_CHANNEL มาแล้ว) และผ่าน authz (FORBIDDEN/INVALID_ACTOR) มาแล้วเท่านั้น
  */
 async function sendOutboundLineMessage(
-  conversation: Prisma.ConversationGetPayload<{ include: { shopChannel: true; externalContact: true } }>,
-  params: {
-    actorUserId: string | null
-    autoReplyKind?: 'AUTO' | 'AUTO_TEST'
-    text?: string
-    imageFileId?: string
-    sticker?: { id: string; imageUrl: string }
-    attachment?: {
-      fileId: string
-      kind: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE'
-      name?: string | null
-      size?: number | null
-    }
-    orderRefToken?: string
-    /** การ์ดสรุปนัด ไม่ใช่ออเดอร์ (ส่วนขยาย 00024, 2026-08-12) — คุมคำใน preview + การเก็บ `body`
-     *  (ต้องมีทั้งที่นี่และที่ `sendOutboundMessage` เพราะ LINE แยก flow ออกมาทั้งก้อน) */
-    isAppointmentCard?: boolean
-    /** (2026-08-11) การ์ดสินค้า — เก็บลง ChatMessage.productRefId ให้ร้านเห็นเป็นการ์ดในประวัติ
-     *  เหมือนช่องทาง DEEP (ฝั่งลูกค้าได้ Flex) */
-    productRefId?: string
-    /** (ส่วนขยาย 2026-08-11) การ์ดสินค้าหลายชิ้นในข้อความเดียว — ผู้เรียกแบ่งชุดมาแล้ว (ดูฝั่ง Meta) */
-    productRefIds?: string[]
-    /** (2026-08-11) การ์ด Flex — ชนะ `text` เมื่อมีค่า (ดู buildParts) */
-    flex?: { altText: string; contents: Record<string, unknown> }
-    replyToMid?: string | null
-    /** (feature 00045) claim reply token ไม่ได้ = ยกเลิก ห้าม push — ดู sendOutboundMessage */
-    replyOnly?: boolean
-  },
+  conversation: OutboundConversation,
+  params: LineOutboundParams,
 ) {
-  const shopChannel = conversation.shopChannel!
-  const externalContact = conversation.externalContact!
+  // (Task 5) การยิงออก LINE ทั้งก้อน (ด่าน/reply-push/โควตา/quote/ตัวยิง) ย้ายไป `transmitLineMessage`
+  // แล้ว — ตั้งแต่บรรทัดนี้ลงไปคือ "เขียน DB" ล้วน ๆ ลำดับที่เหลือเหมือนเดิมทุกบรรทัด
+  const { externalMessageId: mid, outboundResponse, failureReason, sendMethod } = await transmitLineMessage(
+    conversation,
+    params,
+  )
+
+  const attachment =
+    params.attachment ?? (params.imageFileId ? { fileId: params.imageFileId, kind: 'IMAGE' as const, name: null, size: null } : null)
+  const bodyText = params.text ?? ''
+  const isOrder = !!params.orderRefToken
+  // การ์ดสินค้า — ใบเดียว (productRefId) หรือหลายใบ (productRefIds) ต้องตัดสินด้วยเกณฑ์เดียว
+  // ไม่งั้นข้อความหลายใบจะถูกเก็บเป็น type='TEXT' + body ที่เป็นข้อความ fallback ดิบ ๆ
+  // แล้วร้านเห็นชื่อ+ราคาเป็นตัวหนังสือแทนการ์ด (คนละอย่างกับที่ลูกค้าได้รับ)
+  const isProductCard = !!params.productRefId || (params.productRefIds?.length ?? 0) > 0
+
+  // (S-18a) สติกเกอร์เก็บเป็นแถวชนิด IMAGE + mirror รูปจริงมาไว้ storage ของเรา — เส้นทางเดียวกับสติกเกอร์
+  // ขาเข้า (S-7b buildLineStickerImageUrl) ไม่ใช่เชื่อ params.sticker.imageUrl ที่ client ส่งมา (กัน SSRF
+  // เหมือนกับที่ mirrorRemoteImage มี host allow-list — เราคุม URL เองจาก stickerId ล้วน ๆ)
+  // mirror ล้มเหลว = ยังเก็บแถวไว้ ไม่ทำให้การส่งที่สำเร็จแล้วกลายเป็น error — แต่ต้องมี body แทนรูป
+  // เสมอ (ดู stickerMirrorFailedText) ไม่งั้นได้บับเบิล "ข้อความไม่รองรับ" ทับสติกเกอร์ที่ส่งถึงแล้ว
+  //
+  // ฝั่ง LINE ไม่มีปัญหา URL หมดอายุแบบ Meta (ประกอบเองจาก stickerId ล้วน ๆ จึงไม่มีลายเซ็น) —
+  // ที่นี่จึงไม่มีทางกู้ผ่าน Graph ให้ทำ เหลือแค่ไม่ปล่อยบับเบิลว่าง
+  const stickerFileId = params.sticker
+    ? await mirrorRemoteImage(buildLineStickerImageUrl(params.sticker.id), {
+        shopId: conversation.shopId,
+        filenamePrefix: 'line-sticker',
+      })
+    : null
+  if (params.sticker && !stickerFileId) {
+    console.warn('[line-outbound] mirror สติกเกอร์ไม่ผ่าน', { stickerId: params.sticker.id })
+  }
+
+  const preview = isOrder
+    ? // การ์ดสรุปนัดใช้ `type='ORDER'` ร่วมกับการ์ดออเดอร์ — แต่ "[คำสั่งซื้อ]" กับใบยืนยันนัด
+      // ของร้านคิวงานคือคำผิดเรื่อง (คำมาจาก SSOT เดียว ห้ามพิมพ์เอง — HR16)
+      (params.isAppointmentCard ? APPOINTMENT_CARD_PREVIEW : '[คำสั่งซื้อ]')
+    : params.sticker
+      ? '[สติกเกอร์]'
+      : attachment
+        ? attachment.kind === 'IMAGE'
+          ? '[รูปภาพ]'
+          : attachment.kind === 'VIDEO'
+            ? '[วิดีโอ]'
+            : attachment.kind === 'AUDIO'
+              ? '[ข้อความเสียง]'
+              : `[ไฟล์] ${attachment.name ?? ''}`.trim()
+        : bodyText.slice(0, 100)
+
+  let message
+  try {
+    // create + อัปเดต snapshot ต้องอยู่ในทรานแซกชันเดียวกันเสมอ (M-2 เดิม — invariant เดียวกับฝั่ง Meta)
+    message = await prisma.$transaction(async (tx) => {
+      const created = await tx.chatMessage.create({
+        data: {
+          conversationId: conversation.id,
+          senderUserId: params.actorUserId,
+          senderRole: 'SHOP',
+          // PRODUCT/ORDER เก็บ body=null แล้ว live-join การ์ดตอนอ่าน — ตรงกับที่ฝั่ง DEEP ทำ
+          // (route messages: `type === "PRODUCT" || type === "ORDER" ? null : text`) ไม่งั้นร้านจะเห็น
+          // ทั้งการ์ดและข้อความดิบซ้อนกันสองชั้นในเธรดเดียว
+          type: isOrder ? 'ORDER' : isProductCard ? 'PRODUCT' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
+          // สติกเกอร์: body=null เมื่อมีรูป — ไม่มีรูปต้องมีคำแทนเสมอ (ดู stickerMirrorFailedText)
+          // 🛑 การ์ดสรุปนัดเก็บ `body` จริง ต่างจากการ์ดออเดอร์/สินค้า (2026-08-12) — ตัวเรนเดอร์
+          // แตกที่ `type === 'ORDER'` ก่อนเสมอ body จึงไม่มีทางโผล่เป็นบับเบิลที่สอง และสิ่งที่ได้
+          // กลับมาคือร้านค้นหาข้อความที่ตัวเองส่งเจอ (ค่าที่เก็บ = ข้อความที่ส่งออกไปจริง)
+          body: (isOrder && !params.isAppointmentCard) || isProductCard || attachment
+            ? null
+            : params.sticker
+              ? (stickerFileId ? null : stickerMirrorFailedText('LINE'))
+              : bodyText,
+          imageUrl: stickerFileId ?? attachment?.fileId ?? null,
+          attachmentName: attachment?.name ?? null,
+          attachmentSize: attachment?.size ?? null,
+          orderRefToken: isOrder ? params.orderRefToken! : null,
+          productRefId: params.productRefId ?? null,
+          productRefIds: params.productRefIds ?? [],
+          replyToMid: params.replyToMid ?? null,
+          externalMessageId: mid ? buildLineExternalMessageId(mid) : null,
+          deliveryStatus: failureReason ? 'FAILED' : 'SENT',
+          failureReason,
+          // BR-LINE-16: ทุกข้อความขาออกของ LINE ต้องมี sendMethod เสมอ (หลักฐานเวลาร้านทักท้วงบิล) —
+          // ต่างจาก Meta ที่คอลัมน์นี้เป็น null เสมอ (ไม่มีแนวคิด reply/push)
+          sendMethod,
+          autoReplyKind: params.autoReplyKind ?? null,
+          rawMessage: toRawMessage('LINE', outboundResponse, 'outbound-response'),
+        },
+      })
+
+      await tx.conversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: created.createdAt, lastMessagePreview: preview, lastSenderRole: 'SHOP' },
+      })
+
+      return created
+    })
+  } catch (e) {
+    // unique constraint บน externalMessageId — LINE ไม่มี echo (capabilities.echo=false) ตามสัญญาของ
+    // adapter แปลว่าไม่ควรเกิดกับ LINE จริง (ไม่มีทางที่ ingest ฝั่ง webhook เขียน mid เดียวกันมาก่อน
+    // เรา) แต่กันไว้เผื่อ client retry ด้วย idempotency key เดียวกัน — pattern เดียวกับฝั่ง Meta
+    if (mid && isUniqueViolationOn(e, 'externalMessageId')) {
+      const existing = await prisma.chatMessage.findUnique({
+        where: { externalMessageId: buildLineExternalMessageId(mid) },
+      })
+      if (existing) {
+        message = existing
+      } else {
+        throw e
+      }
+    } else {
+      throw e
+    }
+  }
+
+  if (failureReason) {
+    // pattern เดียวกับ SEND_FAILED ของ Meta ด้านล่าง — แนบแถวที่บันทึกไปแล้วกลับไปด้วย กัน optimistic
+    // bubble ค้างคู่กับแถวจริง (ดู comment เต็มที่ SendFailedError ด้านบนของไฟล์)
+    const err = new Error(`SEND_FAILED: ${failureReason}`) as SendFailedError
+    err.savedMessage = message
+    throw err
+  }
+
+  // feature 00023 — พนักงานตอบเอง = บอทต้องหลบ (เกณฑ์เดียวกับฝั่ง Meta ด้านล่าง)
+  if (!params.autoReplyKind) {
+    await pauseForHumanTakeover(conversation.id, conversation.shopId)
+  }
+
+  return message
+}
+
+/**
+ * transmitLineMessage — ยิงออก LINE อย่างเดียว (Task 5: ยกมาจากครึ่งบนของ `sendOutboundLineMessage`
+ * ทั้งดุ้น ไม่แก้เนื้อใน)
+ *
+ * **ไม่สร้างและไม่แก้แถว `ChatMessage` เลย** — ผู้เรียกเป็นคนเขียน DB เอง
+ *
+ * 🛑 ข้อยกเว้นเดียวที่แตะตาราง ChatMessage คือการ *อ่าน* `quoteToken` ของข้อความที่กำลังตอบทับ
+ * (ด้านล่าง) ซึ่งเป็นส่วนหนึ่งของการประกอบ payload ที่จะยิง ไม่ใช่การเขียนแถวของข้อความใบนี้ —
+ * ย้ายออกไปข้างนอกไม่ได้ ไม่งั้นเส้นทางคิวจะส่ง quote ไม่ได้เลย (พฤติกรรมต่างจากผู้เรียกเดิม)
+ *
+ * ยังเขียนตารางอื่นเหมือนเดิมทุกประการ: `Conversation` (CAS ของ reply token) · `ExternalContact`
+ * (isBlocked) · cache โควตา — ทั้งหมดเป็นสถานะของ "ช่องทาง" ไม่ใช่ของ "ข้อความ"
+ */
+async function transmitLineMessage(
+  conversation: OutboundConversation,
+  params: LineOutboundParams,
+): Promise<TransmitResult> {
+  const shopChannel = conversation.shopChannel
+  const externalContact = conversation.externalContact
 
   // TFR-LINE-06 ข้อ 3: ลูกค้าบล็อก/เลิกติดตามแล้ว — เช็คก่อนยิง LINE เสมอ (ไม่เสีย round-trip เปล่า ๆ)
   if (externalContact.isBlocked) throw new Error('CONTACT_BLOCKED')
@@ -3134,11 +3457,6 @@ async function sendOutboundLineMessage(
   const attachment =
     params.attachment ?? (params.imageFileId ? { fileId: params.imageFileId, kind: 'IMAGE' as const, name: null, size: null } : null)
   const bodyText = params.text ?? ''
-  const isOrder = !!params.orderRefToken
-  // การ์ดสินค้า — ใบเดียว (productRefId) หรือหลายใบ (productRefIds) ต้องตัดสินด้วยเกณฑ์เดียว
-  // ไม่งั้นข้อความหลายใบจะถูกเก็บเป็น type='TEXT' + body ที่เป็นข้อความ fallback ดิบ ๆ
-  // แล้วร้านเห็นชื่อ+ราคาเป็นตัวหนังสือแทนการ์ด (คนละอย่างกับที่ลูกค้าได้รับ)
-  const isProductCard = !!params.productRefId || (params.productRefIds?.length ?? 0) > 0
 
   const buildParts = async (): Promise<OutboundMessagePart[]> => {
     if (params.sticker) {
@@ -3358,234 +3676,22 @@ async function sendOutboundLineMessage(
     if (sendMethod === 'PUSH') await noteLinePushConsumed(shopChannel.id)
   }
 
-  // (S-18a) สติกเกอร์เก็บเป็นแถวชนิด IMAGE + mirror รูปจริงมาไว้ storage ของเรา — เส้นทางเดียวกับสติกเกอร์
-  // ขาเข้า (S-7b buildLineStickerImageUrl) ไม่ใช่เชื่อ params.sticker.imageUrl ที่ client ส่งมา (กัน SSRF
-  // เหมือนกับที่ mirrorRemoteImage มี host allow-list — เราคุม URL เองจาก stickerId ล้วน ๆ)
-  // mirror ล้มเหลว = ยังเก็บแถวไว้ ไม่ทำให้การส่งที่สำเร็จแล้วกลายเป็น error — แต่ต้องมี body แทนรูป
-  // เสมอ (ดู stickerMirrorFailedText) ไม่งั้นได้บับเบิล "ข้อความไม่รองรับ" ทับสติกเกอร์ที่ส่งถึงแล้ว
-  //
-  // ฝั่ง LINE ไม่มีปัญหา URL หมดอายุแบบ Meta (ประกอบเองจาก stickerId ล้วน ๆ จึงไม่มีลายเซ็น) —
-  // ที่นี่จึงไม่มีทางกู้ผ่าน Graph ให้ทำ เหลือแค่ไม่ปล่อยบับเบิลว่าง
-  const stickerFileId = params.sticker
-    ? await mirrorRemoteImage(buildLineStickerImageUrl(params.sticker.id), {
-        shopId: conversation.shopId,
-        filenamePrefix: 'line-sticker',
-      })
-    : null
-  if (params.sticker && !stickerFileId) {
-    console.warn('[line-outbound] mirror สติกเกอร์ไม่ผ่าน', { stickerId: params.sticker.id })
-  }
-
-  const preview = isOrder
-    ? // การ์ดสรุปนัดใช้ `type='ORDER'` ร่วมกับการ์ดออเดอร์ — แต่ "[คำสั่งซื้อ]" กับใบยืนยันนัด
-      // ของร้านคิวงานคือคำผิดเรื่อง (คำมาจาก SSOT เดียว ห้ามพิมพ์เอง — HR16)
-      (params.isAppointmentCard ? APPOINTMENT_CARD_PREVIEW : '[คำสั่งซื้อ]')
-    : params.sticker
-      ? '[สติกเกอร์]'
-      : attachment
-        ? attachment.kind === 'IMAGE'
-          ? '[รูปภาพ]'
-          : attachment.kind === 'VIDEO'
-            ? '[วิดีโอ]'
-            : attachment.kind === 'AUDIO'
-              ? '[ข้อความเสียง]'
-              : `[ไฟล์] ${attachment.name ?? ''}`.trim()
-        : bodyText.slice(0, 100)
-
-  let message
-  try {
-    // create + อัปเดต snapshot ต้องอยู่ในทรานแซกชันเดียวกันเสมอ (M-2 เดิม — invariant เดียวกับฝั่ง Meta)
-    message = await prisma.$transaction(async (tx) => {
-      const created = await tx.chatMessage.create({
-        data: {
-          conversationId: conversation.id,
-          senderUserId: params.actorUserId,
-          senderRole: 'SHOP',
-          // PRODUCT/ORDER เก็บ body=null แล้ว live-join การ์ดตอนอ่าน — ตรงกับที่ฝั่ง DEEP ทำ
-          // (route messages: `type === "PRODUCT" || type === "ORDER" ? null : text`) ไม่งั้นร้านจะเห็น
-          // ทั้งการ์ดและข้อความดิบซ้อนกันสองชั้นในเธรดเดียว
-          type: isOrder ? 'ORDER' : isProductCard ? 'PRODUCT' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
-          // สติกเกอร์: body=null เมื่อมีรูป — ไม่มีรูปต้องมีคำแทนเสมอ (ดู stickerMirrorFailedText)
-          // 🛑 การ์ดสรุปนัดเก็บ `body` จริง ต่างจากการ์ดออเดอร์/สินค้า (2026-08-12) — ตัวเรนเดอร์
-          // แตกที่ `type === 'ORDER'` ก่อนเสมอ body จึงไม่มีทางโผล่เป็นบับเบิลที่สอง และสิ่งที่ได้
-          // กลับมาคือร้านค้นหาข้อความที่ตัวเองส่งเจอ (ค่าที่เก็บ = ข้อความที่ส่งออกไปจริง)
-          body: (isOrder && !params.isAppointmentCard) || isProductCard || attachment
-            ? null
-            : params.sticker
-              ? (stickerFileId ? null : stickerMirrorFailedText('LINE'))
-              : bodyText,
-          imageUrl: stickerFileId ?? attachment?.fileId ?? null,
-          attachmentName: attachment?.name ?? null,
-          attachmentSize: attachment?.size ?? null,
-          orderRefToken: isOrder ? params.orderRefToken! : null,
-          productRefId: params.productRefId ?? null,
-          productRefIds: params.productRefIds ?? [],
-          replyToMid: params.replyToMid ?? null,
-          externalMessageId: mid ? buildLineExternalMessageId(mid) : null,
-          deliveryStatus: failureReason ? 'FAILED' : 'SENT',
-          failureReason,
-          // BR-LINE-16: ทุกข้อความขาออกของ LINE ต้องมี sendMethod เสมอ (หลักฐานเวลาร้านทักท้วงบิล) —
-          // ต่างจาก Meta ที่คอลัมน์นี้เป็น null เสมอ (ไม่มีแนวคิด reply/push)
-          sendMethod,
-          autoReplyKind: params.autoReplyKind ?? null,
-          rawMessage: toRawMessage('LINE', outboundResponse, 'outbound-response'),
-        },
-      })
-
-      await tx.conversation.update({
-        where: { id: conversation.id },
-        data: { lastMessageAt: created.createdAt, lastMessagePreview: preview, lastSenderRole: 'SHOP' },
-      })
-
-      return created
-    })
-  } catch (e) {
-    // unique constraint บน externalMessageId — LINE ไม่มี echo (capabilities.echo=false) ตามสัญญาของ
-    // adapter แปลว่าไม่ควรเกิดกับ LINE จริง (ไม่มีทางที่ ingest ฝั่ง webhook เขียน mid เดียวกันมาก่อน
-    // เรา) แต่กันไว้เผื่อ client retry ด้วย idempotency key เดียวกัน — pattern เดียวกับฝั่ง Meta
-    if (mid && isUniqueViolationOn(e, 'externalMessageId')) {
-      const existing = await prisma.chatMessage.findUnique({
-        where: { externalMessageId: buildLineExternalMessageId(mid) },
-      })
-      if (existing) {
-        message = existing
-      } else {
-        throw e
-      }
-    } else {
-      throw e
-    }
-  }
-
-  if (failureReason) {
-    // pattern เดียวกับ SEND_FAILED ของ Meta ด้านล่าง — แนบแถวที่บันทึกไปแล้วกลับไปด้วย กัน optimistic
-    // bubble ค้างคู่กับแถวจริง (ดู comment เต็มที่ SendFailedError ด้านบนของไฟล์)
-    const err = new Error(`SEND_FAILED: ${failureReason}`) as SendFailedError
-    err.savedMessage = message
-    throw err
-  }
-
-  // feature 00023 — พนักงานตอบเอง = บอทต้องหลบ (เกณฑ์เดียวกับฝั่ง Meta ด้านล่าง)
-  if (!params.autoReplyKind) {
-    await pauseForHumanTakeover(conversation.id, conversation.shopId)
-  }
-
-  return message
+  return { externalMessageId: mid, outboundResponse, failureReason, sendMethod, sendBatchId: null }
 }
 
-export async function sendOutboundMessage(params: {
-  conversationId: string
-  // actorUserId = คนกดส่ง. null ได้เฉพาะเส้นทางระบบ (auto-reply) ซึ่งต้องส่ง systemShopId มาคู่กัน
-  actorUserId: string | null
-  // --- feature 00023 auto-reply (additive, optional — ไม่ส่ง = พฤติกรรมเดิมทุกประการ) ---
-  // systemShopId: เส้นทางที่ "ระบบ" เป็นผู้ส่ง ไม่มี user จริงให้เช็ค canAccessShop (TD-005)
-  //
-  // WARNING: นี่ไม่ใช่ flag ข้าม authz — มันคือการ **ย้ายคำถาม** จาก "user คนนี้แตะร้านนี้ได้ไหม"
-  // เป็น "เธรดนี้เป็นของร้านที่ระบบกำลังทำงานแทนจริงหรือเปล่า" แล้วบังคับให้ caller ประกาศ shopId
-  // ที่ตัวเองเชื่อว่าเป็นเจ้าของออกมาตรง ๆ เพื่อให้ฟังก์ชันนี้ cross-check กับเธรดจริงได้
-  // ถ้าไม่ตรง = โยนทันที. ผลคือ caller ที่ถือ conversationId จากที่อื่นมาเดา ๆ จะยิงข้ามร้านไม่ได้
-  // (ค่านี้มาจาก AutoReplyJob.shopId ซึ่งถูกเขียนตอน ingest webhook ฝั่ง server ไม่ได้มาจาก client)
-  systemShopId?: string
-  // ป้ายกำกับว่าข้อความนี้ระบบเป็นผู้ส่ง — null = คนส่ง (ค่าเดิม)
-  autoReplyKind?: 'AUTO' | 'AUTO_TEST'
-  // text = ข้อความ (หรือ caption ของไฟล์แนบ) — อย่างน้อยต้องมี text หรือไฟล์แนบอย่างใดอย่างหนึ่ง
-  text?: string
-  /** deprecated (2026-08-02) — ใช้ `attachment` แทน. คงไว้เพราะ auto-reply-send.service.ts
-   *  ยังส่งรูปทีละใบด้วยพารามิเตอร์นี้อยู่ (ภายในแปลงเป็น attachment kind='IMAGE' ให้เอง) */
-  imageFileId?: string
-  /**
-   * สติกเกอร์ Meta (user สั่ง 2026-08-04) — ส่ง `sticker_id` ไม่ใช่ไฟล์แนบ (Sticker API)
-   * imageUrl = รูปจาก catalog เอาไป mirror เก็บฝั่งเราให้บับเบิลมีรูปแสดงทันทีโดยไม่ต้องรอ echo
-   * ใช้ร่วมกับ text/attachment ไม่ได้ (Meta ให้ส่งอย่างใดอย่างหนึ่งต่อข้อความ) — sticker ชนะ
-   */
-  sticker?: { id: string; imageUrl: string }
-  /** ไฟล์แนบทุกชนิด (2026-08-02 multi-attachment) — kind ตัดสิน `attachment.type` ที่ยิงให้ Meta */
-  attachment?: {
-    fileId: string
-    kind: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE'
-    name?: string | null
-    size?: number | null
-  }
-  // orderRefToken (user 2026-07-25): การ์ดคำสั่งซื้อบนช่องทางนอก — ส่ง "ลิงก์ (text)" ให้ลูกค้าผ่าน Meta
-  // แต่เก็บข้อความฝั่งเราเป็น type=ORDER เพื่อให้ "ร้าน" เห็นเป็นการ์ด (ร้านอยู่ในระบบเรา = การ์ด)
-  orderRefToken?: string
-  /**
-   * การ์ดใบนี้เป็น "สรุปนัดหมาย" ไม่ใช่ออเดอร์ (ส่วนขยาย 00024, 2026-08-12)
-   *
-   * ทั้งคู่เก็บเป็น `ChatMessage.type='ORDER'` เหมือนกัน (ไม่มี enum ใหม่ ไม่มี migration) แต่เป็น
-   * คนละของในสายตาผู้ขาย — ผู้เรียกเป็นคนรู้ ฟังก์ชันนี้ไม่เดาเอง
-   *
-   * มีผล 2 อย่าง: **คำใน preview** ที่ขึ้นในรายการแชท และ **การเก็บ `body`** (การ์ดออเดอร์เก็บ
-   * `null` เพื่อกันบับเบิลซ้อน ส่วนการ์ดนัดเก็บจริงเพื่อให้ร้านค้นหาเจอ — ดูจุดใช้งาน)
-   */
-  isAppointmentCard?: boolean
-  /** (2026-08-11) การ์ดสินค้า — ผ่านด่าน ownership ที่ route มาแล้ว (scope ด้วย shopId ใน WHERE) */
-  productRefId?: string
-  /**
-   * (ส่วนขยาย 2026-08-11) การ์ดสินค้า **หลายชิ้น** ในข้อความเดียว — ผ่านด่าน ownership ที่ route แล้ว
-   *
-   * ผู้เรียกต้องแบ่งชุดมาให้อยู่ในเพดานของช่องทางแล้ว (`chunkProductCards`) — service ไม่แบ่งให้เอง
-   * เพราะ 1 การเรียก = 1 ข้อความเสมอ (ถ้า service แอบแตกเป็นหลายข้อความ ผู้เรียกจะได้ id เดียวกลับไป
-   * แล้วเข้าใจว่าส่งใบเดียว)
-   */
-  productRefIds?: string[]
-  /** (2026-08-11) การ์ดแบบ Generic Template สำหรับ **Messenger/IG เท่านั้น** — ชนะ `text` เมื่อมีค่า
-   *  (LINE ใช้ `flex` แทน; ส่งผิดช่องทางจะถูก adapter ปฏิเสธด้วย error ที่อ่านออก ไม่ถอยเงียบ) */
-  template?: Record<string, unknown>
-  /**
-   * (2026-08-11) การ์ด Flex สำหรับ **LINE เท่านั้น** — มีค่าเมื่อไหร่จะถูกส่งแทน `text`
-   *
-   * ทำไมเป็น optional แทนที่จะให้ service ประกอบเอง: ผู้เรียกเป็นคนรู้บริบท (ออเดอร์กี่รายการ ยอดเท่าไหร่
-   * ลิงก์อะไร) และ **การฟอร์แมตเงินต้องมาจากสูตรกลางที่ผู้เรียกใช้อยู่แล้ว** ไม่ใช่ให้ service เดาใหม่ (HR16)
-   *
-   * 🛑 `text` ยังต้องส่งมาด้วยเสมอ — มันคือสิ่งที่บันทึกลง `ChatMessage.body` ให้ร้านเห็นในประวัติ
-   * และเป็นทางถอยเมื่อช่องทางไม่ใช่ LINE (Meta ยังได้ลิงก์ข้อความเหมือนเดิมทุกประการ)
-   */
-  flex?: { altText: string; contents: Record<string, unknown> }
-  // reply/quote (user 2026-07-25): externalMessageId (mid) ของข้อความที่ตอบทับ — ส่ง reply_to:{mid}
-  // ให้ Meta (Messenger รองรับ; IG best-effort) + เก็บ replyToMid ฝั่งเราเพื่อ render quote
-  replyToMid?: string | null
-  /**
-   * (feature 00045) **ส่งได้เฉพาะด้วย reply token เท่านั้น — claim ไม่ได้ = ยกเลิก ห้าม push**
-   *
-   * 🛑 มีไว้บังคับ BR-LINE-18 ให้กับผู้ส่งอัตโนมัติ: ฟังก์ชันนี้ตั้งต้น `sendMethod = 'PUSH'` แล้ว
-   * ค่อยพยายามอัปเกรดเป็น REPLY ⇒ ผู้ส่งอัตโนมัติที่เรียกตอนหน้าต่างฟรีปิดอยู่ (หรือแพ้ CAS ให้
-   * คนอื่นที่แย่ง token ไปก่อน) จะ **push ทันทีโดยไม่มีใครสั่ง = ใช้เงินร้านเอง**
-   *
-   * การเช็คหน้าต่างก่อนเรียกอย่างเดียวไม่พอ เพราะยังมีช่องระหว่าง "เช็คแล้วเปิด" กับ "claim จริง"
-   * ที่ event ใหม่หรือการส่งอีกอันแย่ง token ไปได้ — ด่านจึงต้องอยู่ **หลัง CAS** ในฟังก์ชันนี้
-   */
-  replyOnly?: boolean
-}) {
-  const conversation = await prisma.conversation.findUnique({
-    where: { id: params.conversationId },
-    include: { shopChannel: true, externalContact: true },
-  })
-  if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
-  if (conversation.channel === 'DEEP' || !conversation.shopChannel || !conversation.externalContact) {
-    throw new Error('NOT_EXTERNAL_CHANNEL')
-  }
-
-  if (params.systemShopId !== undefined) {
-    // เส้นทางระบบ (auto-reply) — ไม่มี user จริง จึงเช็คคนละคำถาม (TD-005)
-    // caller ต้องประกาศ shopId ที่ตัวเองเชื่อว่าเป็นเจ้าของเธรดออกมา แล้วเราตรวจกับของจริง
-    // ไม่ตรง = โยน. นี่คือสิ่งที่กันการยิงข้ามร้านแทน canAccessShop
-    if (params.systemShopId !== conversation.shopId) throw new Error('FORBIDDEN')
-    // กันเรียกผิดรูป: ส่ง systemShopId มาแต่ยังใส่ actorUserId = ตั้งใจอะไรไม่ชัด ปฏิเสธไว้ก่อน
-    if (params.actorUserId !== null) throw new Error('INVALID_ACTOR')
-  } else {
-    // เช็ค "เจ้าของ หรือ สมาชิก" (canAccessShop) ไม่ใช่แค่เจ้าของ — ไม่งั้น BUSINESS admin ตอบแชท
-    // ของร้านตัวเองไม่ได้ (bug จริงบน prod หลังเพจถูกย้ายไปร้าน BUSINESS)
-    if (!params.actorUserId) throw new Error('FORBIDDEN')
-    if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
-  }
-
-  // (S-8, feature 00025) LINE แยก flow ออกไปทั้งก้อนตั้งแต่จุดนี้ — early-return ก่อนถึงโค้ดของ Meta
-  // แม้แต่บรรทัดเดียว (windowState/HUMAN_AGENT tag ด้านล่างเป็นแนวคิดของ Meta ล้วน ๆ ไม่มีผลกับ LINE)
-  if (conversation.channel === 'LINE') {
-    return await sendOutboundLineMessage(conversation, params)
-  }
-
+/**
+ * transmitMetaMessage — ยิงออก Messenger/Instagram อย่างเดียว (Task 5: ยกมาจากกลาง
+ * `sendOutboundMessage` ทั้งดุ้น ไม่แก้เนื้อใน)
+ *
+ * **ไม่แตะตาราง `ChatMessage` เลยสักบรรทัด** — ผู้เรียกเป็นคนเขียน DB เอง
+ *
+ * ยังคงลำดับเดิมเป๊ะ: หน้าต่างเวลา/HUMAN_AGENT tag → CHANNEL_NOT_ACTIVE → ประกอบ context → ยิง →
+ * (ถ้า Meta ปฏิเสธ `reply_to`) ยิงซ้ำแบบถอด reply_to ออก → เก็บคำตอบของ Meta
+ */
+async function transmitMetaMessage(
+  conversation: OutboundConversation,
+  params: SendOutboundParams,
+): Promise<TransmitResult> {
   // หน้าต่างการส่งของ Meta — เลิก "ตัดสินแทน Meta" สำหรับข้อความที่คนพิมพ์เอง
   // (user request 2026-08-03: "การไป lock ui มันทำให้เกิดปัญหา")
   //
@@ -3756,6 +3862,42 @@ export async function sendOutboundMessage(params: {
     }
   }
 
+  return { externalMessageId: mid, outboundResponse, failureReason, sendMethod: null, sendBatchId: null }
+}
+
+/**
+ * transmitOutbound — ตัวเลือกทางระหว่าง LINE กับ Meta
+ *
+ * 🛑 รอบนี้ยังไม่มีผู้เรียก — มีไว้ให้เส้นทางคิวเรียกใช้ "ตัวยิงชุดเดียวกัน" กับผู้เรียกเดิม
+ * (เกณฑ์แยกช่องทางเป็นอันเดียวกับ early-return ใน `sendOutboundMessage` ทุกตัวอักษร)
+ */
+export async function transmitOutbound(
+  conversation: OutboundConversation,
+  params: SendOutboundParams,
+): Promise<TransmitResult> {
+  return conversation.channel === 'LINE'
+    ? await transmitLineMessage(conversation, params)
+    : await transmitMetaMessage(conversation, params)
+}
+
+export async function sendOutboundMessage(params: SendOutboundParams) {
+  const conversation = await resolveOutboundContext(params)
+
+  // (S-8, feature 00025) LINE แยก flow ออกไปทั้งก้อนตั้งแต่จุดนี้ — early-return ก่อนถึงโค้ดของ Meta
+  // แม้แต่บรรทัดเดียว (windowState/HUMAN_AGENT tag ด้านล่างเป็นแนวคิดของ Meta ล้วน ๆ ไม่มีผลกับ LINE)
+  if (conversation.channel === 'LINE') {
+    return await sendOutboundLineMessage(conversation, params)
+  }
+
+  // (Task 5) การยิงออก Meta ทั้งก้อนย้ายไป `transmitMetaMessage` แล้ว — ตั้งแต่บรรทัดนี้ลงไปคือ
+  // "เขียน DB" ล้วน ๆ ลำดับที่เหลือเหมือนเดิมทุกบรรทัด
+  const { externalMessageId: mid, outboundResponse, failureReason } = await transmitMetaMessage(conversation, params)
+
+  // รวม 2 ทางเข้าเป็นตัวแปรเดียว — imageFileId (auto-reply เดิม) กับ attachment (composer ใหม่)
+  // ต้องไม่แตกเป็น 2 เส้นทาง ไม่งั้น retry path ด้านล่างจะพลาดเส้นใดเส้นหนึ่งเสมอ
+  const attachment = params.attachment ?? (params.imageFileId ? { fileId: params.imageFileId, kind: 'IMAGE' as const, name: null, size: null } : null)
+  const bodyText = params.text ?? ''
+
   // การ์ดคำสั่งซื้อ (user 2026-07-25): ลูกค้าฝั่ง Messenger/IG ได้ "ลิงก์" (bodyText ที่ยิงไป Meta) แต่
   // ฝั่งเราเก็บเป็น type=ORDER → ร้านเห็นเป็นการ์ด. echo ของลิงก์ (mid เดิม) จะ dedupe กับแถวนี้เอง
   const isOrder = !!params.orderRefToken
@@ -3784,7 +3926,16 @@ export async function sendOutboundMessage(params: {
   if (params.sticker) {
     stickerFileId = await mirrorRemoteImage(params.sticker.imageUrl, { shopId: conversation.shopId })
     if (!stickerFileId && mid) {
-      const { url: freshUrl } = await adapter.downloadContent(sendCtx(), { externalMessageId: mid })
+      // (Task 5) `adapter`/`sendCtx` ย้ายไปอยู่ใน `transmitMetaMessage` แล้ว — ตรงนี้ประกอบบริบทเดิม
+      // ขึ้นมาใหม่ให้ตรงกับ `sendCtx()` ที่ไม่ส่ง opts (provider/accessToken/recipientId เท่านั้น)
+      const { url: freshUrl } = await getAdapter(conversation.channel).downloadContent(
+        {
+          provider: conversation.channel,
+          accessToken: decryptToken(conversation.shopChannel.accessTokenEnc),
+          recipientId: conversation.externalContact.externalUserId,
+        },
+        { externalMessageId: mid },
+      )
       if (freshUrl) stickerFileId = await mirrorRemoteImage(freshUrl, { shopId: conversation.shopId })
     }
     if (!stickerFileId) {
