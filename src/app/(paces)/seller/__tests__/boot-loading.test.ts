@@ -115,6 +115,43 @@ describe('[blocker] จอโหลดโซนผู้ขาย', () => {
    *
    * carve-out: `seller/loading.tsx` เอง (จอเปิดครั้งแรก — ต้องเป็น overlay เต็มจอ)
    */
+  it('[blocker] seller/loading.tsx ต้องขึ้น **ครั้งเดียวต่อ session** จริง ๆ', () => {
+    /**
+     * 🛑 กฎ "ตอนเข้าโซนผู้ขายครั้งแรก" เคยเป็นแค่ **คอมเมนต์** — กลไกที่ใช้จริง
+     * (route-level fallback) แปลว่า "ทุกครั้งที่ layout ของโซนนี้ suspend" ซึ่งรวมการโหลด
+     * เอกสารใหม่ทุกครั้ง ⇒ **กดสลับร้าน 1 ครั้ง ผู้ใช้เห็นจอโหลด 3 ใบซ้อนกัน**
+     * (จอสลับร้าน → จอนี้ → skeleton ของหน้าปลายทาง) — user เจอเองบน prod 2026-08-23
+     * `rule-must-be-enforced-not-described.md`
+     */
+    const code = read(join(SELLER, 'loading.tsx'))
+
+    expect(code, 'ต้องมีธงระดับ session').toMatch(/sessionStorage/)
+    expect(
+      code,
+      'ห้ามใช้ localStorage — ปิดแอปแล้วเปิดใหม่ควรได้จอต้อนรับอีกครั้ง',
+    ).not.toMatch(/localStorage/)
+
+    /**
+     * 🛑 ต้องซ่อนด้วย **inline script** ไม่ใช่ `useEffect`/state — effect ทำงานหลัง hydration
+     * ⇒ โลโก้ Deep จะกะพริบให้เห็นก่อนหายไปทุกครั้ง ซึ่งแย่กว่าอาการเดิม
+     */
+    expect(code, 'ต้องซ่อนด้วย inline script (ทำงานก่อน paint แรก)').toMatch(
+      /dangerouslySetInnerHTML=\{\{ __html:/,
+    )
+    expect(code, 'ห้ามซ่อนด้วย useEffect — จะกะพริบ').not.toMatch(/useEffect/)
+
+    /* สคริปต์ต้องอยู่ **ต่อท้าย** div ที่มันจะซ่อน — ก่อน div มัน `previousElementSibling`
+       ยังไม่มีตัวตน แล้วสคริปต์จะเงียบ ๆ ไม่ทำอะไรเลยโดยไม่มีอะไรฟ้อง */
+    const divAt = code.indexOf('role="status"')
+    const scriptAt = code.indexOf('dangerouslySetInnerHTML')
+    expect(divAt, 'ต้องมีจอโหลด').toBeGreaterThan(-1)
+    expect(scriptAt, 'สคริปต์ต้องอยู่หลัง div').toBeGreaterThan(divAt)
+
+    /* พังแล้วต้อง **แสดงจอต่อไปตามปกติ** ไม่ใช่ซ่อน — sessionStorage โยนได้ในโหมดส่วนตัว
+       เห็นจอซ้ำยังดีกว่าจอขาวเปล่า */
+    expect(code, 'ต้องมี try/catch กัน sessionStorage โยน').toMatch(/try\{[\s\S]*catch/)
+  })
+
   it('loading.tsx ระดับหน้า ต้องเป็น skeleton ไม่ใช่ overlay เต็มจอ', () => {
     const offenders = ALL_LOADING.filter((f) => f !== BOOT)
       .filter((f) => /fixed\s+inset-0/.test(read(f)))
