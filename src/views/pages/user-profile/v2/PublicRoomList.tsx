@@ -19,7 +19,7 @@ import Typography from '@mui/material/Typography'
 
 import { Icon } from '@iconify/react'
 
-import { toFileUrl } from '@/lib/file-url'
+import { toFileUrl, variantUrlOf } from '@/lib/file-url'
 
 export type PublicRoom = {
   id: string
@@ -42,6 +42,8 @@ export default function PublicRoomList({
     <div className='grid gap-4 [grid-template-columns:repeat(2,minmax(0,1fr))] max-[650px]:[grid-template-columns:1fr]'>
       {rooms.map((r) => {
         const img = toFileUrl(r.imageUrl)
+        // feature 00054 — การ์ดห้องพักสูง 172px ไม่ต้องใช้ไฟล์ต้นฉบับเต็มขนาด
+        const thumb = variantUrlOf(r.imageUrl, 'thumb')
 
         return (
           <article
@@ -57,7 +59,19 @@ export default function PublicRoomList({
             >
               {img ? (
                 // eslint-disable-next-line @next/next/no-img-element -- URL หลากโดเมน (storage/CDN)
-                <img src={img} alt={r.name} className='is-full bs-full object-cover' loading='lazy' />
+                <img
+                  src={thumb ?? img}
+                  alt={r.name}
+                  className='is-full bs-full object-cover'
+                  loading='lazy'
+                  /* ไม่มีรูปย่อ (ยังไม่ backfill / เบราว์เซอร์ไม่รองรับ WebP) → ต้นฉบับ
+                     เขียนตรง ๆ ที่ element เพราะการ์ดนี้ไม่มี state ของตัวเองเลย การเพิ่ม state
+                     เพื่อ fallback ชั้นเดียวจะบังคับให้ทั้งไฟล์กลายเป็น client component */
+                  onError={(e) => {
+                    const el = e.currentTarget
+                    if (img && el.src !== new URL(img, window.location.origin).href) el.src = img
+                  }}
+                />
               ) : (
                 <Icon icon='tabler:bed' width={34} aria-hidden />
               )}

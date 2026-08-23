@@ -15,6 +15,7 @@ import { checkUploadPolicy } from "@/lib/upload-policy";
 import { verifyUploadTicket } from "@/lib/upload-ticket";
 import { resolveChatChannelForUser } from "../_shared";
 import { reconcileUploadedFile } from "@/services/media-asset.service";
+import { generateImageVariants } from "@/services/image-variant.service";
 
 /**
  * POST /api/uploads/commit — ด่านจริงของ direct upload (2026-08-10)
@@ -115,6 +116,23 @@ export async function POST(request: NextRequest) {
       size: meta.size,
     }).catch(() => null);
     if (reconciled) finalFileId = reconciled.fileId;
+  }
+
+  // feature 00054 — สร้างรูปย่อข้างต้นฉบับ (thumb/lg) ให้รูปที่จะเอาไปโชว์บนหน้าจอ
+  //
+  // 🛑 **allow-list ที่ purpose === "IMAGE" เท่านั้น ห้ามเปลี่ยนเป็น deny-list**
+  // ด่านสิทธิ์ทั้ง 5 ชั้นใน /api/files/[...fileId] (KYC · สลิปเติมเงิน · สลิปออเดอร์ · หลักฐาน
+  // มิจฉาชีพ · เอกสารแนบแชท) ตรวจจาก **คีย์ต้นฉบับ** เท่านั้น ⇒ คีย์ของ variant ไม่ตรงกับค่าใด
+  // ในฐานข้อมูล จึงเดินผ่านทุกด่านและถูกเสิร์ฟเป็นไฟล์สาธารณะ
+  // สร้าง variant ให้เอกสาร KYC หนึ่งครั้ง = เปิดเอกสารนั้นให้ใครก็ได้ที่เดาคีย์ถูก ถาวร
+  // deny-list ("ทุก purpose ยกเว้น DOCUMENT") จะพังทันทีที่มีใครเพิ่ม purpose ใหม่แล้วลืมเติม
+  // รายชื่อ ส่วน allow-list พังไปทางปลอดภัยเสมอ (ไม่สร้าง variant)
+  //
+  // 🛑 ห้ามให้ขั้นตอนนี้ทำให้การอัปโหลดล้ม — อัปไม่ได้คือความเสียหายจริง ส่วนไม่มีรูปย่อคือหน้าเว็บ
+  // ที่ช้าเท่าเดิม (หน้าจอ fallback ไปต้นฉบับเองอยู่แล้ว) · ไม่เพิ่ม field ใน response ด้วย —
+  // client คำนวณคีย์ของ variant เองได้จาก fileId (00054 SRS TFR-001)
+  if (claim.purpose === "IMAGE") {
+    await generateImageVariants(finalFileId).catch(() => null);
   }
 
   return NextResponse.json(

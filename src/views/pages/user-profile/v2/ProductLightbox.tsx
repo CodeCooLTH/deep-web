@@ -28,7 +28,7 @@ import Typography from '@mui/material/Typography'
 
 import { Icon } from '@iconify/react'
 
-import { toFileUrl } from '@/lib/file-url'
+import { toFileUrl, variantUrlOf } from '@/lib/file-url'
 
 import ProfileLightbox from './ProfileLightbox'
 import ProductLikeButton from './ProductLikeButton'
@@ -62,7 +62,22 @@ function ProductMedia({ images, name }: { images: string[]; name: string }) {
   const [i, setI] = useState(0)
 
   const many = images.length > 1
-  const src = toFileUrl(images[i] ?? null)
+  const raw = images[i] ?? null
+  const original = toFileUrl(raw)
+
+  /**
+   * feature 00054 — ป๊อปอัปใช้ `lg` (ด้านยาว ≤1280px WebP) แทนไฟล์ต้นฉบับ
+   * รูปจากมือถือเป็น 1080×1920 หนัก ~210KB ซึ่งใหญ่เกินกว่าที่จอโน้ตบุ๊กแสดงได้จริง
+   *
+   * 🛑 `useOriginal` ต้องรีเซ็ตเมื่อเปลี่ยนรูป — ไม่งั้นรูปใบที่ 2 ที่มี variant อยู่ จะถูกบังคับให้
+   * โหลดต้นฉบับตลอด เพียงเพราะใบที่ 1 ไม่มี variant · ผูก key ของ state กับ index ด้วยการ
+   * เปรียบเทียบใน render แทน useEffect (setState ใน effect ทำให้เกิด render ซ้อน — ดูคอมเมนต์
+   * เหนือ ProductMedia ที่อธิบายบทเรียนเดียวกันเรื่อง index)
+   */
+  const lgSrc = variantUrlOf(raw, 'lg')
+  const [fallbackAt, setFallbackAt] = useState<number | null>(null)
+  const useOriginal = fallbackAt === i
+  const src = !useOriginal && lgSrc ? lgSrc : original
 
   const go = (dir: -1 | 1) => setI((c) => Math.min(images.length - 1, Math.max(0, c + dir)))
 
@@ -85,7 +100,11 @@ function ProductMedia({ images, name }: { images: string[]; name: string }) {
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element -- รูปสินค้ามาจากหลายโดเมนที่ next/image config ไม่ครอบ
           <img
+            // key ผูกกับ src ที่ใช้จริง — บังคับให้เบราว์เซอร์เริ่มโหลดใหม่ตอนสลับไปต้นฉบับ
+            key={src}
             src={src}
+            // ไม่มี variant (ยังไม่ backfill / ย่อไม่สำเร็จ / เบราว์เซอร์ไม่รองรับ WebP) → ต้นฉบับ
+            onError={() => setFallbackAt(i)}
             alt={`${name} รูปที่ ${i + 1}`}
             /* object-contain ไม่ใช่ cover — จุดทั้งหมดของ lightbox คือ "ดูของเต็ม ๆ"
                ไทล์ในกริดครอปอยู่แล้ว (3:4 + cover) ถ้าที่นี่ครอปอีกก็ไม่มีเหตุผลให้เปิด */

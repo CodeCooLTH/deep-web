@@ -19,6 +19,15 @@ export const saveFile: Storage["saveFile"] = async (file, opts) => {
 };
 
 /**
+ * เขียนไฟล์ที่คีย์ที่กำหนด (feature 00054) — ดูสัญญาเต็มที่ `Storage.saveFileAtKey` ใน types.ts
+ */
+export const saveFileAtKey: Storage["saveFileAtKey"] = async (key, buffer) => {
+  const filePath = path.join(UPLOAD_DIR, key);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, buffer);
+};
+
+/**
  * dev ไม่มี presigned URL ให้ยิง — ให้ client PUT เข้า route ของเราเองที่ `/api/uploads/local/…`
  *
  * ทำแบบนี้แทนการ "ให้ dev ตกไปใช้ multipart เดิม" โดยตั้งใจ: เส้นทางที่ prod เดินต้องเป็น

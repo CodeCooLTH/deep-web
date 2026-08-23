@@ -32,7 +32,7 @@ import {
 } from '@/lib/profile-sort'
 import { profileSoldLine } from '@/lib/shop-stat-vocab'
 
-import { toFileUrl } from '@/lib/file-url'
+import { toFileUrl, variantUrlOf } from '@/lib/file-url'
 
 /**
  * ป้ายบนชิปเรียงลำดับ (feature 00053) — คำเดียวสั้น ๆ เพราะแถบนี้อยู่เหนือกริดบนมือถือด้วย
@@ -177,6 +177,19 @@ const ProductCard = ({
   // (แปลงในการ์ดเหมือนที่ PublicRoomList ทำกับรูปห้องพัก ไม่ใช่แปลงที่หน้า จะได้ไม่ต้องไล่แก้ทุกหน้าที่เรียก)
   const imageSrc = toFileUrl(product.imageUrl)
 
+  /**
+   * feature 00054 — การ์ดในกริดกว้างจริงแค่ ~180–240px แต่เดิมโหลดไฟล์ต้นฉบับเต็มขนาด
+   * (วัดจาก prod: 1080×1920 หนัก 210KB ต่อใบ · 22 ใบ = 4.6MB ต่อการเปิดแท็บหนึ่งครั้ง)
+   * ⇒ ขอ `thumb` (480px WebP ~33KB) ก่อน แล้วค่อยตกไปต้นฉบับถ้าไม่มี
+   *
+   * 🛑 fallback เป็น **สองชั้น** ไม่ใช่ชั้นเดียว: รูปเก่าที่ยังไม่ backfill และรูปที่ย่อไม่สำเร็จ
+   * จะไม่มีไฟล์ variant อยู่จริง ซึ่งเป็นสถานะปกติ ไม่ใช่ความผิดพลาด — ถ้าให้ `onError` กระโดด
+   * ไป "ไม่มีรูป" ทันที การ์ดของร้านที่ยังไม่ backfill จะกลายเป็นแผ่นดำทั้งกริด
+   */
+  const thumbSrc = variantUrlOf(product.imageUrl, 'thumb')
+  const [useOriginal, setUseOriginal] = useState(false)
+  const displaySrc = !useOriginal && thumbSrc ? thumbSrc : imageSrc
+
   const [imgFailed, setImgFailed] = useState(false)
 
   const router = useRouter()
@@ -258,17 +271,26 @@ const ProductCard = ({
           การ์ดขาวอ่านเป็น "รูปยังโหลดไม่เสร็จ/พัง" ส่วนแผ่นทึบอ่านเป็น "ร้านยังไม่ใส่รูป"
           ซึ่งเป็นความหมายที่ต้องการ (user ทัก 2026-08-21 ว่าการ์ดสินค้าดูแปลกกว่าการ์ดบริการ) */}
       <Box sx={{ position: 'relative', aspectRatio: '1.35/1', inlineSize: '100%', overflow: 'hidden', bgcolor: '#191923' }}>
-      {imageSrc && !imgFailed ? (
+      {displaySrc && !imgFailed ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={imageSrc}
+          // key ผูกกับ src ที่ใช้จริง — บังคับให้เบราว์เซอร์เริ่มโหลดใหม่ตอนสลับไปต้นฉบับ
+          // (เปลี่ยนแค่ attribute `src` ของ element เดิม บางเบราว์เซอร์ไม่ retry ให้)
+          key={displaySrc}
+          src={displaySrc}
           alt=''
           loading='lazy'
           decoding='async'
           // จุดเดียวในหน้านี้ที่เคยไม่มี onError เลย ทั้งที่อีก 3 จุด (ปกร้าน/อวตาร/ไทล์คลิป) มีครบ —
           // รูปที่เก็บใน DB มีอยู่จริงแต่โหลดไม่ขึ้น (ไฟล์หาย/สิทธิ์เปลี่ยน) จะได้ไอคอนรูปแตกของ
           // เบราว์เซอร์ดิบ ๆ ซึ่งเป็นสิ่งเดียวในหน้าที่อ่านว่า "เว็บพัง" ไม่ใช่ "ร้านไม่มีรูป"
-          onError={() => setImgFailed(true)}
+          onError={() => {
+            // ชั้นที่ 1: รูปย่อไม่มีอยู่ (ยังไม่ backfill / ย่อไม่สำเร็จ / เบราว์เซอร์ไม่รองรับ WebP)
+            //           → ลองต้นฉบับ ยังไม่ใช่สถานะ "ไม่มีรูป"
+            // ชั้นที่ 2: ต้นฉบับก็โหลดไม่ขึ้น → เข้าสถานะเดิม (แผ่นทึบ + ไอคอน)
+            if (!useOriginal && thumbSrc) setUseOriginal(true)
+            else setImgFailed(true)
+          }}
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />
       ) : (

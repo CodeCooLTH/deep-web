@@ -53,6 +53,20 @@ export const saveFile: Storage["saveFile"] = async (file, opts) => {
 };
 
 /**
+ * เขียนไฟล์ที่คีย์ที่กำหนด (feature 00054) — ดูสัญญาเต็มที่ `Storage.saveFileAtKey` ใน types.ts
+ */
+export const saveFileAtKey: Storage["saveFileAtKey"] = async (key, buffer, contentType) => {
+  await getClient().send(
+    new PutObjectCommand({
+      Bucket: getBucket(),
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+    })
+  );
+};
+
+/**
  * presigned PUT — client อัปโหลดเข้า Supabase Storage ตรง ๆ ไม่ผ่าน function ของเรา
  *
  * ยืนยันด้วยการยิงจริงกับ bucket prod (2026-08-10):

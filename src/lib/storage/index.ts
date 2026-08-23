@@ -5,6 +5,7 @@ const driver = process.env.STORAGE_DRIVER ?? "local";
 const impl = driver === "s3" ? s3 : local;
 
 export const saveFile = impl.saveFile;
+export const saveFileAtKey = impl.saveFileAtKey;
 export const createUploadTicket = impl.createUploadTicket;
 export const getFile = impl.getFile;
 export const getFileMeta = impl.getFileMeta;

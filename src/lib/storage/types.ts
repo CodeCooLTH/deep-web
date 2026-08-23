@@ -66,6 +66,17 @@ export type SaveFileOptions = {
 
 export interface Storage {
   saveFile(file: File, opts?: SaveFileOptions): Promise<string>;
+  /**
+   * เขียนไฟล์ที่ **คีย์ที่กำหนดเอง** (feature 00054) — ต่างจาก `saveFile` ที่สร้างคีย์ใหม่เสมอ
+   *
+   * มีไว้สำหรับไฟล์ที่คีย์ต้อง derive จากไฟล์อื่นได้ (รูปย่อของรูปต้นฉบับ) ⇒ ฝั่งเบราว์เซอร์
+   * คำนวณ URL เองได้โดยไม่ต้องเก็บคอลัมน์เพิ่ม
+   *
+   * 🛑 ไม่มี validate เพราะผู้เรียกเป็นฝั่งเราเองที่เพิ่งสร้าง buffer นั้นกับมือ (ไม่ใช่ไฟล์จากผู้ใช้)
+   * 🛑 เขียนทับได้ถ้าคีย์ซ้ำ — ปลอดภัยเพราะคีย์ derive จาก uuid ของต้นฉบับ จึงชนได้เฉพาะกับ
+   *    variant รอบก่อนของไฟล์เดียวกัน (idempotent) **ห้ามเรียกด้วยคีย์ของไฟล์ต้นฉบับเด็ดขาด**
+   */
+  saveFileAtKey(key: string, buffer: Buffer, contentType: string): Promise<void>;
   /** จ่าย key + URL ให้ client อัปโหลดตรง — ไม่แตะไฟล์ ไม่รู้ขนาด (ตรวจจริงตอน commit ด้วย HEAD) */
   createUploadTicket(opts: { ext: string; contentType: string; expiresIn: number }): Promise<UploadTicket>;
   getFile(fileId: string): Promise<{ buffer: Buffer; ext: string } | null>;
