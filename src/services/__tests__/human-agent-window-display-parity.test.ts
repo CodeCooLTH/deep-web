@@ -2,14 +2,14 @@
  * regression กัน "3 จุดหลุด sync" ของ `canUseHumanAgent` (feature 00043, TFR-HA-05, SDS §8.4)
  *
  * ทำไมต้องมีเทสนี้: `canUseHumanAgent` เป็น SSOT ของ "PSID/IGSID นี้ใช้สิทธิ์ Human Agent ได้ไหม"
- * แต่ต้องถูกเรียกจาก 3 จุดที่ตัดสินใจคนละบริบทกัน (ส่งข้อความเดี่ยว/ส่งรูปกริด/แสดงผลช่องพิมพ์)
- * — ถ้ามีจุดที่ 4 โผล่ขึ้นในอนาคตโดยไม่อัปเดตเทสนี้ = สัญญาณเตือนว่ามีจุดตัดสินใจใหม่ที่ต้อง
+ * แต่ต้องถูกเรียกจากทุกจุดที่ตัดสินใจคนละบริบทกัน (ยิงออกช่องทาง/แสดงผลช่องพิมพ์)
+ * — ถ้ามีจุดใหม่โผล่ขึ้นในอนาคตโดยไม่อัปเดตเทสนี้ = สัญญาณเตือนว่ามีจุดตัดสินใจใหม่ที่ต้อง
  * พิจารณาว่าควรเรียก SSOT เดียวกันหรือไม่ (ป้องกัน FR-HA-07 หลุดซ้ำในอนาคต — ทำตามรูปแบบเทสของ
  * 2026-08-09 comment-inbox fetch loop / upload-no-multipart-callers ที่สแกน source แทนการ
  * hardcode รายชื่อไฟล์)
  *
- * 🛑 ไม่ hardcode คำตอบเป็น "เจอกี่จุด" — สแกนจริงแล้วเทียบกับเลข 3 ที่ SDS §8.4 ล็อกไว้ตรง ๆ
- * (`transmitMetaMessage`, `sendOutboundImageGrid`, `inbox/[conversationId]/page.tsx`)
+ * 🛑 ไม่ hardcode คำตอบเป็น "เจอกี่จุด" — สแกนจริงแล้วเทียบกับรายชื่อจุดตัดสินใจที่มีอยู่จริง
+ * (`transmitMetaMessage`, `inbox/[conversationId]/page.tsx`)
  *
  * 🛑 ทำไมจุดแรกเปลี่ยนชื่อจาก `sendOutboundMessage` เป็น `transmitMetaMessage` (CR 2026-08-23):
  * `channel-chat.service.ts` ถูกแยก "การยิงออกช่องทาง" ออกจาก "การเขียน DB" เพื่อให้เส้นทางคิว
@@ -17,13 +17,16 @@
  * แทนที่จะมีตรรกะการส่งสองชุดที่ค่อย ๆ ห่างกัน (HR16) — การตัดสินใจ "ติด HUMAN_AGENT tag ไหม"
  * เป็นส่วนหนึ่งของการยิง จึงย้ายตามไปอยู่ใน `transmitMetaMessage` ทั้งก้อน
  *
- * **ไม่มีใครผ่อนด่านนี้ลง**: จำนวน call site ทั้ง repo ยังเป็น 3 · ในไฟล์ service ยังเป็น 2 และ
- * เคสด้านล่างยังบังคับว่า 2 จุดนั้นต้องอยู่ **คนละฟังก์ชันกัน** (ห้ามผ่อนเหลือแค่ "นับได้ 2") —
- * ไม่งั้นเราจะจับไม่ได้เวลาทั้งสองจุดไปกองอยู่ในเส้นทางตัดสินใจเดียวกัน
+ * 🛑 ทำไมเลขเปลี่ยนจาก 3 เป็น 2 (Task 7, CR 2026-08-23 — Ruling R-8): จุดที่หายไปคือ
+ * `sendOutboundImageGrid` ซึ่ง**ถูกลบทั้งฟังก์ชัน** ไม่ใช่ถูกผ่อนให้เลิกเช็คสิทธิ์ — เส้นทางรูป
+ * หลายใบเข้าคิวเป็นแถวละใบแล้ววิ่งผ่าน `transmitMetaMessage` ตัวเดียวกับข้อความอื่นทุกใบ
+ * ⇒ **จำนวนจุดตัดสินใจลดลงเพราะเส้นทางถูกยุบรวม ไม่ใช่เพราะมีเส้นทางไหนหลุดการตรวจสิทธิ์**
+ * (เกณฑ์ที่ใช้ตัดสินว่าลดเลขได้: ต้องชี้ได้ว่าโค้ดของจุดที่หายไปไม่มีอยู่แล้วจริง — `rg
+ * "sendOutboundImageGrid" src/` ต้องเหลือแต่คอมเมนต์ ไม่มีตัวประกาศฟังก์ชัน)
  *
- * หมายเหตุ dev คู่ขนาน: ถ้า S-5 (แก้ page.tsx) ยังไม่เสร็จตอนรันเทสนี้ จะเห็นแค่ 2 จุด — เทสนี้
- * ต้อง**แดง**ในสถานการณ์นั้น (ไม่ลดเลขคาดหวังลงเป็น 2) เพื่อเป็นสัญญาณว่างานยังไม่ครบ ไม่ใช่เพื่อ
- * "ให้เขียวไว้ก่อน"
+ * **ไม่มีใครผ่อนด่านนี้ลง**: เคสด้านล่างยังบังคับว่าจุดในไฟล์ service ต้องอยู่ใน
+ * `transmitMetaMessage` เป๊ะ (ห้ามผ่อนเหลือแค่ "นับได้ 1") — ไม่งั้นเราจะจับไม่ได้เวลามีคนย้าย
+ * การตัดสินใจนี้ไปไว้ที่อื่นแล้วเส้นทางยิงจริงเลิกเช็คสิทธิ์ไปเงียบ ๆ
  */
 
 import { describe, it, expect } from 'vitest'
@@ -92,27 +95,44 @@ function enclosingFunctionName(source: string, atLine: number): string | null {
   return null
 }
 
-describe('[regression] canUseHumanAgent — call site ต้องมี 3 จุดเป๊ะ ไม่มากไม่น้อย', () => {
-  it('รวมทั้ง repo เจอ call site จริง (ไม่ใช่คอมเมนต์) เท่ากับ 3', () => {
-    // สแกนทั้ง src/ ไม่จำกัดเฉพาะ 2 ไฟล์ที่รู้อยู่แล้ว — เผื่อมีจุดที่ 4 โผล่ขึ้นที่อื่นโดยไม่มีใครรู้ตัว
+describe('[regression] canUseHumanAgent — call site ต้องมี 2 จุดเป๊ะ ไม่มากไม่น้อย', () => {
+  it('รวมทั้ง repo เจอ call site จริง (ไม่ใช่คอมเมนต์) เท่ากับ 2', () => {
+    // สแกนทั้ง src/ ไม่จำกัดเฉพาะ 2 ไฟล์ที่รู้อยู่แล้ว — เผื่อมีจุดใหม่โผล่ขึ้นที่อื่นโดยไม่มีใครรู้ตัว
     const found: { file: string; line: number; text: string }[] = []
     for (const file of walk(SRC_ROOT)) {
       const rel = relative(SRC_ROOT, file).split('\\').join('/')
       const source = readFileSync(file, 'utf8')
       for (const hit of findCallSites(source)) found.push({ file: rel, ...hit })
     }
-    expect(found, JSON.stringify(found, null, 2)).toHaveLength(3)
+    expect(found, JSON.stringify(found, null, 2)).toHaveLength(2)
   })
 
-  it('2 จุดอยู่ใน channel-chat.service.ts ภายใน transmitMetaMessage และ sendOutboundImageGrid', () => {
+  it('1 จุดอยู่ใน channel-chat.service.ts ภายใน transmitMetaMessage', () => {
     const file = join(SRC_ROOT, 'services/channel-chat.service.ts')
     const source = readFileSync(file, 'utf8')
     const hits = findCallSites(source)
-    expect(hits).toHaveLength(2)
-    // 🛑 เทียบ "ชื่อฟังก์ชัน" ไม่ใช่แค่ "นับได้ 2" — ถ้าผ่อนเหลือการนับ เราจะจับไม่ได้เวลาทั้งสอง
-    // จุดไปกองอยู่ในเส้นทางตัดสินใจเดียวกัน (ซึ่งแปลว่าอีกเส้นทางหนึ่งเลิกเช็คสิทธิ์ไปเงียบ ๆ)
+    expect(hits).toHaveLength(1)
+    // 🛑 เทียบ "ชื่อฟังก์ชัน" ไม่ใช่แค่ "นับได้ 1" — ถ้าผ่อนเหลือการนับ เราจะจับไม่ได้เวลามีคนย้าย
+    // การตัดสินใจไปไว้ที่อื่นแล้วเส้นทางยิงจริงเลิกเช็คสิทธิ์ไปเงียบ ๆ
     const fnNames = hits.map((h) => enclosingFunctionName(source, h.line)).sort()
-    expect(fnNames).toEqual(['sendOutboundImageGrid', 'transmitMetaMessage'])
+    expect(fnNames).toEqual(['transmitMetaMessage'])
+  })
+
+  /**
+   * 🛑 เกณฑ์ที่ทำให้ "ลดเลขจาก 3 เหลือ 2" ไม่ใช่การผ่อนด่าน: จุดที่หายไปต้องไม่มีโค้ดอยู่จริงแล้ว
+   *
+   * ถ้าวันหนึ่งมีคนเอา `sendOutboundImageGrid` กลับมา (หรือเขียนตัวส่งกริดตัวใหม่) แล้วลืมเรียก
+   * SSOT เคสข้างบนจะยังเขียวเพราะนับได้ 1 เท่าเดิม — เคสนี้คือตัวที่จะแดงแทน
+   */
+  it('[blocker] ต้องไม่มีตัวส่งกริดรูปหลงเหลืออยู่ (เส้นทางรูปหลายใบวิ่งผ่านคิว → transmitMetaMessage เท่านั้น)', () => {
+    const offenders: string[] = []
+    for (const file of walk(SRC_ROOT)) {
+      const source = readFileSync(file, 'utf8')
+      if (/function\s+sendOutboundImageGrid\s*\(/.test(source)) {
+        offenders.push(relative(SRC_ROOT, file).split('\\').join('/'))
+      }
+    }
+    expect(offenders).toEqual([])
   })
 
   it('1 จุดอยู่ที่ inbox/[conversationId]/page.tsx (ฝั่งแสดงผลช่องพิมพ์)', () => {

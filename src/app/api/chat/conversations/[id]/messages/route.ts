@@ -9,7 +9,11 @@ import { isStickerRawMessage } from "@/lib/chat-sticker";
 import { isDuplicateProductSend } from "@/lib/chat-product-resend";
 import { prisma } from "@/lib/prisma";
 import { getMessages, sendMessage, type SenderRole } from "@/services/chat.service";
-import { sendOutboundMessage, syncMissingMessagesFromMeta, type SendFailedError } from "@/services/channel-chat.service";
+import { syncMissingMessagesFromMeta, type SendFailedError } from "@/services/channel-chat.service";
+// (CR 2026-08-23) เส้นทางช่องทางนอกของช่องพิมพ์ผู้ขายเขียนแถว QUEUED ก่อนตอบ client แล้วยิงทีหลัง
+// — `enqueueOutbound` เรียก `resolveOutboundContext` ให้เอง ด่านเดิมทุกตัวจึงยังโยน error ชื่อเดิม
+// (CONVERSATION_NOT_FOUND / NOT_EXTERNAL_CHANNEL / FORBIDDEN / INVALID_ACTOR) ให้ mapChatServiceError
+import { enqueueOutbound, deliverRoom } from "@/services/chat-outbox.service";
 import { getProductsByIds } from "@/services/product.service";
 import { pushNewChatMessage } from "@/services/seller-push.service";
 import { SendChatMessageSchema, ChatMessagesQuerySchema } from "@/lib/validations";
@@ -41,7 +45,6 @@ import { getProductById } from "@/services/product.service";
 import { resolveLineFlexImageUrl, resolveMetaCardImageUrl } from "@/services/channel-chat.service";
 import { formatBaht } from "@/lib/format-money";
 import { EXT_TO_MIME } from "@/lib/attachment-mime";
-import { sendOutboundImageGrid, IMAGE_GRID_MAX } from "@/services/channel-chat.service";
 import {
   attachmentKind,
   checkChannelSupport,
@@ -60,8 +63,8 @@ function isAttachmentType(t: string): t is AttachmentKind {
 // reply/quote — "อ้างอิงข้อความนี้ได้จริงไหม" (bugfix 2026-08-10: ผู้ขายกด "ตอบกลับ" บน LINE แล้ว
 // จอเราขึ้นบล็อกอ้างอิงครบเหมือนสำเร็จ แต่ในแอป LINE ของลูกค้ามาเป็นข้อความธรรมดา เพราะข้อความ
 // เป้าหมายไม่มี quoteToken — ระบบถอยไปส่งแบบไม่ quote ให้เอง (ถูกแล้ว ห้ามทำให้ส่งไม่ออก) แต่ถอย
-// เงียบสนิท ไม่มีอะไรบอกผู้ขาย. คำนวณที่นี่ล่วงหน้าให้ UI เตือนได้ก่อนกดส่งจริง — sendOutboundMessage
-// (channel-chat.service.ts) อ่าน rawMessage.payload.quoteToken จาก DB ด้วยสูตรเดียวกันตอนส่งจริง
+// เงียบสนิท ไม่มีอะไรบอกผู้ขาย. คำนวณที่นี่ล่วงหน้าให้ UI เตือนได้ก่อนกดส่งจริง — `transmitLineMessage`
+// (channel-chat.service.ts) อ่าน rawMessage.payload.quoteToken จาก DB ด้วยสูตรเดียวกันตอนยิงออกจริง
 //
 // ตั้งชื่อกลาง ๆ ว่า quotable ไม่ใช่ lineQuotable โดยตั้งใจ — Messenger/IG มีช่องโหว่ชนิดเดียวกัน
 // (Meta ปฏิเสธ reply_to แล้ว retry แบบไม่ quote เงียบ ๆ เหมือนกัน) แต่ payload ของ Meta ไม่มี
@@ -693,8 +696,8 @@ export async function POST(
       }
       // 🛑 ด่าน cross-shop (FR-CTX-07) เดิมอยู่ใน `chat.service.sendMessage()` ซึ่งเป็นเส้นทางของ
       // ช่องทาง DEEP เท่านั้น — ช่องทางนอกไม่เคยต้องใช้เพราะ PRODUCT ถูกตอบ 400 ทิ้งก่อนถึงตรงนั้น
-      // พอเปิด LINE (2026-08-11) เส้นทางใหม่วิ่งผ่าน `sendOutboundMessage` ซึ่ง **ไม่ผ่าน sendMessage**
-      // ด่านเดิมจึงไม่ครอบ ต้องกันที่นี่ด้วยเกณฑ์เดียวกันเป๊ะ (ใช้ helper ตัวเดียวกัน ไม่เขียน query ใหม่
+      // พอเปิด LINE (2026-08-11) เส้นทางใหม่วิ่งผ่านตัวส่งของช่องทางนอก (วันนี้คือ `enqueueOutbound`)
+      // ซึ่ง **ไม่ผ่าน sendMessage** ด่านเดิมจึงไม่ครอบ ต้องกันที่นี่ด้วยเกณฑ์เดียวกันเป๊ะ (ใช้ helper ตัวเดียวกัน ไม่เขียน query ใหม่
       // ไม่งั้นสองที่จะนิยาม "สินค้าอยู่ในร้านนี้ไหม" ต่างกันวันที่โมเดลขยับ — HR16)
       //
       // ตรวจ **ทุก id** ไม่ใช่ใบแรก: ปล่อยผ่านใบเดียวแล้วเชื่อที่เหลือ = ช่องส่งการ์ดสินค้าร้านอื่น
@@ -846,9 +849,13 @@ export async function POST(
 
         /**
          * idempotent-guard (2026-08-11) — เส้นทาง DEEP มีด่านนี้มาตั้งแต่ BR-CTX-02 ใน
-         * `chat.service.sendMessage()` แต่ช่องทางนอกวิ่งผ่าน `sendOutboundMessage` ซึ่งไม่ผ่าน
-         * ตัวนั้น จึงไม่เคยมีด่านเลย — กดส่งรัว ๆ = ลูกค้าได้การ์ดซ้ำ และ **บน LINE เสียโควตาจริง**
-         * ทุกครั้งที่เกินครั้งแรก (reply token ใช้ได้ครั้งเดียว ครั้งถัดไปตกไปใช้ push ที่นับเงิน)
+         * `chat.service.sendMessage()` แต่ช่องทางนอกวิ่งผ่านตัวส่งของตัวเอง (วันนี้คือ
+         * `enqueueOutbound`) ซึ่งไม่ผ่านตัวนั้น จึงไม่เคยมีด่านเลย — กดส่งรัว ๆ = ลูกค้าได้การ์ดซ้ำ
+         * และ **บน LINE เสียโควตาจริง** ทุกครั้งที่เกินครั้งแรก (reply token ใช้ได้ครั้งเดียว
+         * ครั้งถัดไปตกไปใช้ push ที่นับเงิน)
+         *
+         * (CR 2026-08-23) ด่านนี้สำคัญขึ้นอีกขั้นในเส้นทางคิว: การกดซ้ำระหว่างที่แถวแรกยังเป็น
+         * `QUEUED` จะได้ 2 แถวที่ทั้งคู่ถูกยิงออกไปจริง — ตัวระบายคิวมองไม่ออกว่านั่นคือการกดซ้ำ
          *
          * ดึงเท่าจำนวนข้อความที่กำลังจะส่ง แล้วเทียบทั้งชุดตามลำดับ (ดู `isDuplicateProductSend`)
          * เจอว่าซ้ำ → คืน **แถวเดิม** เหมือนที่ DEEP ทำ ไม่ใช่ตอบ error: ฝั่งผู้ขายผลลัพธ์เหมือนกัน
@@ -873,7 +880,7 @@ export async function POST(
           return NextResponse.json(await withSender(recentForGuard[0]!, userId));
         }
 
-        let lastSent: Awaited<ReturnType<typeof sendOutboundMessage>> | null = null;
+        let lastSent: Awaited<ReturnType<typeof enqueueOutbound>> | null = null;
         for (let i = 0; i < batches.length; i++) {
           const ids = batches[i]!;
           const rows = ids.map((pid) => byId.get(pid)!);
@@ -891,7 +898,7 @@ export async function POST(
                   isActive: r.isActive,
                 })),
               );
-              lastSent = await sendOutboundMessage({
+              lastSent = await enqueueOutbound({
                 conversationId: id,
                 actorUserId: userId,
                 text: fallbackText,
@@ -909,7 +916,7 @@ export async function POST(
                   isActive: r.isActive,
                 })),
               );
-              lastSent = await sendOutboundMessage({
+              lastSent = await enqueueOutbound({
                 conversationId: id,
                 actorUserId: userId,
                 text: fallbackText,
@@ -918,15 +925,22 @@ export async function POST(
               });
             }
           } catch (e) {
-            if (i === 0) throw e; // ยังไม่มีอะไรถึงลูกค้า — ให้ตัวจัดการ error เดิมตอบตามปกติ
-            console.error("[POST messages] ส่งการ์ดสินค้าชุดที่ " + (i + 1) + " ไม่สำเร็จ", e);
+            if (i === 0) throw e; // ยังไม่มีแถวไหนเกิด — ให้ตัวจัดการ error เดิมตอบตามปกติ
+            console.error("[POST messages] เข้าคิวการ์ดสินค้าชุดที่ " + (i + 1) + " ไม่สำเร็จ", e);
+            /**
+             * ชุดก่อนหน้า **เข้าคิวไปแล้ว** = มันจะถูกยิงออกไปแน่นอน (ตัวเก็บงานค้างรับช่วงต่อ
+             * ถึงแม้คำขอนี้จบลงตรงนี้) ⇒ ยังต้องตอบ 207 เหมือนเดิม ห้ามตอบ error ก้อนเดียว
+             * ไม่งั้นผู้ขายเข้าใจว่าไม่มีอะไรถึงลูกค้าเลยแล้วกดส่งซ้ำทั้งชุด = ลูกค้าได้ของซ้ำ
+             *
+             * คำเปลี่ยนจาก "ส่งได้ i จาก N" เป็น "เข้าคิวส่งแล้ว" เพราะตอนนี้มันจริงแค่นั้น —
+             * แถวที่เข้าคิวยังไม่ถึงลูกค้า ณ วินาทีที่ตอบ (value-fate-decided-at-write-site.md:
+             * ห้ามเขียนคำอ้างเรื่องพฤติกรรมที่โค้ดยังไม่ได้ทำ). ฟิลด์ `sentMessages`/`totalMessages`
+             * คงชื่อและความหมายเดิม (จำนวนข้อความที่ผ่านด่านไปแล้ว) — หน้าจอติ๊กใบที่ออกไปแล้ว
+             * ออกให้เองด้วยตัวเลขนี้
+             */
             return NextResponse.json(
               {
-                // 🛑 คำนี้เคยสั่งว่า "กรุณาเลือกเฉพาะรายการที่ยังไม่ได้ส่งแล้วลองใหม่" ซึ่งผู้ขายทำตาม
-                // ไม่ได้ — เขาเห็นแค่ "i จาก N ข้อความ" ไม่มีทางรู้ว่าข้อความที่ i บรรจุสินค้าใบไหน
-                // ตอนนี้หน้าจอติ๊กใบที่ออกไปแล้วออกให้เอง (แปลง sentMessages ด้วย sentProductIds)
-                // คำจึงต้องขยับตามพฤติกรรมจริง ไม่งั้นเรากำลังสั่งให้เขาทำสิ่งที่ระบบทำไปแล้ว
-                error: `ส่งได้ ${i} จาก ${batches.length} ข้อความ — เอารายการที่ส่งแล้วออกให้แล้ว กดส่งอีกครั้งเพื่อส่งส่วนที่เหลือ`,
+                error: `เข้าคิวส่งแล้ว ${i} จาก ${batches.length} ข้อความ — เอารายการที่ส่งแล้วออกให้แล้ว กดส่งอีกครั้งเพื่อส่งส่วนที่เหลือ`,
                 sentMessages: i,
                 totalMessages: batches.length,
               },
@@ -934,7 +948,11 @@ export async function POST(
             );
           }
         }
-        return NextResponse.json(await withSender(lastSent!, userId));
+        // ยิงจริงเบื้องหลัง — ตัวการันตีคือตัวเก็บงานค้าง ไม่ใช่บรรทัดนี้: แถวถูกเขียนลง DB ไปแล้ว
+        // **ก่อน** response ออกจากฟังก์ชัน ต่อให้ after() ไม่ได้รัน (ผู้ขายปิดแอปจน connection ขาด)
+        // ตัวเก็บงานค้างจะมารับช่วง
+        after(deliverRoom(id, "after"));
+        return NextResponse.json(await withSender(lastSent!, userId), { status: 202 });
       }
       /**
        * APPOINTMENT (การ์ดสรุปนัด, ส่วนขยาย 00024 2026-08-11)
@@ -952,7 +970,7 @@ export async function POST(
         // uri action ของ LINE รับเฉพาะ https — dev ที่ base เป็น http จะโดนปฏิเสธทั้งข้อความ
         // จึงถอยไปใช้ข้อความล้วน ดีกว่าส่งไม่ออกเลย (กติกาเดียวกับการ์ดออเดอร์ด้านล่าง)
         const httpsOk = url.startsWith("https://");
-        const sent = await sendOutboundMessage({
+        const sent = await enqueueOutbound({
           conversationId: id,
           actorUserId: userId,
           text: summary.text,
@@ -968,7 +986,9 @@ export async function POST(
           // บอก service ว่านี่คือ "สรุปนัด" ไม่ใช่ "ออเดอร์" — คุมคำใน preview และการเก็บ body
           isAppointmentCard: true,
         });
-        return NextResponse.json(await withSender(sent, userId));
+        // ยิงจริงเบื้องหลัง — ตัวการันตีคือตัวเก็บงานค้าง ไม่ใช่บรรทัดนี้ (ดูคำอธิบายเต็มที่เส้นทาง PRODUCT)
+        after(deliverRoom(id, "after"));
+        return NextResponse.json(await withSender(sent, userId), { status: 202 });
       }
       // ORDER (การ์ดคำสั่งซื้อ, user 2026-07-25): ลูกค้าฝั่ง Messenger/IG ได้ "ลิงก์" ผ่าน Meta แต่ฝั่งเรา
       // เก็บเป็น type=ORDER → ร้านเห็นเป็นการ์ด (ร้านอยู่ในระบบเรา = การ์ด). verify order-in-shop ที่นี่
@@ -1001,7 +1021,7 @@ export async function POST(
         // 🛑 uri action ของ LINE รับเฉพาะ https — dev ที่ base เป็น http จะโดน LINE ปฏิเสธทั้งข้อความ
         // จึงถอยไปใช้ข้อความลิงก์เดิม ดีกว่าส่งไม่ออกเลย
         const useFlex = conv.channel === "LINE" && orderUrl.startsWith("https://");
-        const sent = await sendOutboundMessage({
+        const sent = await enqueueOutbound({
           conversationId: id,
           actorUserId: userId,
           text: linkText, // ยังต้องส่งเสมอ: เป็นทั้ง body ที่ร้านเห็นในประวัติ และทางถอยของช่องทางอื่น
@@ -1018,82 +1038,79 @@ export async function POST(
             : undefined,
           orderRefToken: orderRefToken!, // ฝั่งเราเก็บเป็นการ์ด
         });
-        return NextResponse.json(await withSender(sent, userId));
+        // ยิงจริงเบื้องหลัง — ตัวการันตีคือตัวเก็บงานค้าง ไม่ใช่บรรทัดนี้ (ดูคำอธิบายเต็มที่เส้นทาง PRODUCT)
+        after(deliverRoom(id, "after"));
+        return NextResponse.json(await withSender(sent, userId), { status: 202 });
       }
-      // กริดรูป (2026-08-04) — แบ่งเป็นก้อนละไม่เกิน 6 ใบตามเพดาน Meta; เศษ 1 ใบส่งเป็นรูปเดี่ยว
-      // service มี fail-safe ตกไปส่งทีละใบเองถ้า Meta ปฏิเสธกริด (ร้านต้องส่งออกได้เสมอ)
+      /**
+       * รูปหลายใบ (E-12) — **หนึ่งรูป = หนึ่งแถวคิว** ไม่มีกริดของ Meta อีกแล้ว
+       *
+       * ที่มา: เส้นทางนี้เคยเรียก `sendOutboundImageGrid` (image_grid template ของ Meta) แต่ตัวมัน
+       * ถูกลบทิ้งพร้อมงานนี้ (Ruling R-8) — และ **ไม่มีผู้เรียกฝั่งจอมาตั้งแต่ 2026-08-05 แล้ว**
+       * (`useSellerChatThread` เลิกใช้กริดเพราะ Meta ครอปรูปจัตุรัสจนอ่านไม่ออก แล้วส่งทีละใบแทน)
+       * ⇒ ไม่มีพฤติกรรมที่ผู้ใช้เห็นอยู่จริงถูกเปลี่ยนในรอบนี้
+       *
+       * `partialError` หายไปโดยตั้งใจ: ตอนตอบกลับยังไม่มีอะไรถูกยิงออกไป จึงไม่มีความล้มเหลวให้
+       * รายงาน — สถานะย้ายไปอยู่ **รายแถว** (`deliveryStatus`/`failureReason` ของแต่ละใบ) แทน
+       * สัญญาเดิมเรื่อง "ห้ามให้ client วนส่งใหม่ทั้งชุด" ยังอยู่ครบ เพราะทุกใบมีแถวของตัวเองใน DB
+       * ตั้งแต่ก่อน response ออกไป
+       *
+       * caption (E-13) เป็น **แถว TEXT ของตัวเอง ต่อท้ายรูปทุกใบ** ไม่ใช่ `text` ที่แนบไปกับรูป:
+       *  - เส้นทางเดิมของ Meta ส่ง caption เป็นข้อความตามหลังแบบ best-effort (`.catch(() => {})`)
+       *    = ล้มแล้วหายเงียบ ไม่มีแถว ไม่มีใครรู้
+       *  - เส้นทางเดิมของ LINE **ทิ้ง caption ทั้งดุ้น** (buildParts คืนเฉพาะ part ของไฟล์แนบ)
+       * ลำดับ "รูปทั้งหมดก่อน แล้วข้อความปิดท้าย" ตรงกับที่ composer ทำอยู่แล้ว (user สั่ง 2026-07-23)
+       */
       if (type === "IMAGE_GRID") {
         const ids = imageFileIds!;
-        let first = true;
-        // แถวที่สร้างจริงทุกก้อน เรียงตามลำดับรูปที่ผู้ขายแนบ (2026-08-05) — client เอาไปทับบับเบิล
-        // ชั่วคราวใบต่อใบเหมือนเส้นทางส่งรูปเดี่ยว เดิม route นี้ตอบแค่ {ok:true} client จึงต้องลบ
-        // บับเบิลชั่วคราวทิ้งแล้วรอ refetch ซึ่งเปิดช่องให้รูปเดียวกันขึ้นซ้อนสองใบ
-        //
-        // สัญญาเรื่องความล้มเหลว (2026-08-05 รอบสอง — กัน partial-send ซ้ำ):
-        //   - ยังไม่มีอะไรถูกส่งออกไปเลย → โยนต่อ (client ตกไปส่งทีละใบได้ปลอดภัย ไม่มีอะไรซ้ำ)
-        //   - มีของออกไปแล้วบางส่วน → **ห้ามตอบ error** ต้องตอบ 200 พร้อมแถวที่สำเร็จ + partialError
-        //     เพราะ error ก้อนเดียวแยกไม่ออกระหว่าง "ยังไม่ได้ส่ง" กับ "ส่งไปครึ่งแล้ว" — client เห็น
-        //     !ok จะวนส่งใหม่ทั้งชุด = ลูกค้าได้รูปที่ถึงแล้วซ้ำสองรอบ ถอนคืนไม่ได้ (ux spec 2026-08-05)
+        // แถวที่สร้างจริงทุกใบ เรียงตามลำดับรูปที่ผู้ขายแนบ — client เอาไปทับบับเบิลชั่วคราวใบต่อใบ
         const createdRows = [];
-        let partialError: string | null = null;
-        for (let i = 0; i < ids.length; i += IMAGE_GRID_MAX) {
-          const chunk = ids.slice(i, i + IMAGE_GRID_MAX);
-          try {
-            if (chunk.length === 1) {
-              // เศษใบเดียว: caption ไปกับ text ของ sendOutboundMessage ซึ่ง **ไม่สร้างแถวแยกให้ caption**
-              // (echo ของ Meta จะพาเข้ามาเอง) — จำนวนแถวที่คืนจึงน้อยกว่าบับเบิลชั่วคราวได้ 1 ใบ
-              // client ต้องทนกับจำนวนไม่เท่ากัน ไม่ใช่ผูก index ตายตัว
-              createdRows.push(
-                await sendOutboundMessage({
-                  conversationId: id,
-                  actorUserId: userId,
-                  attachment: { fileId: chunk[0], kind: "IMAGE", name: null, size: null },
-                  text: first ? text ?? undefined : undefined,
-                }),
-              );
-            } else {
-              const res = await sendOutboundImageGrid({
-                conversationId: id,
-                actorUserId: userId,
-                fileIds: chunk,
-                caption: first ? text ?? null : null,
-              });
-              createdRows.push(...res.messages);
-            }
-          } catch (chunkErr) {
-            // แถวที่บันทึกเป็น FAILED ไว้แล้ว (Meta ปฏิเสธ) นับเป็น "ความจริงที่ต้องคืน" เหมือนกัน —
-            // client จะได้ขึ้นบับเบิลแดงพร้อมเหตุผลรายใบ ไม่ใช่หายเงียบ
-            const saved =
-              chunkErr instanceof Error && chunkErr.message.startsWith("SEND_FAILED")
-                ? (chunkErr as SendFailedError).savedMessage
-                : null;
-            if (saved) createdRows.push(saved);
-            if (createdRows.length === 0) throw chunkErr; // ยังไม่มีอะไรออกไป — ปล่อยให้ mapChatServiceError จัดการ
-            partialError =
-              chunkErr instanceof Error && chunkErr.message.startsWith("SEND_FAILED")
-                ? describeSendFailure(chunkErr.message.replace(/^SEND_FAILED:\s*/, "")).message
-                : "ส่งรูปส่วนที่เหลือไม่สำเร็จ กรุณาลองใหม่ทีละใบ";
-            // ก้อนถัดไปมักพังด้วยเหตุเดียวกัน (rate limit/token/ลูกค้าปิดรับ) — หยุดเลย ไม่ยิงซ้ำให้เปลือง
-            break;
-          }
-          first = false;
+        for (const fileId of ids) {
+          createdRows.push(
+            await enqueueOutbound({
+              conversationId: id,
+              actorUserId: userId,
+              attachment: { fileId, kind: "IMAGE", name: null, size: null },
+            }),
+          );
         }
+        if (text?.trim()) {
+          createdRows.push(
+            await enqueueOutbound({ conversationId: id, actorUserId: userId, text }),
+          );
+        }
+        // ยิงจริงเบื้องหลัง — ตัวการันตีคือตัวเก็บงานค้าง ไม่ใช่บรรทัดนี้ (ดูคำอธิบายเต็มที่เส้นทาง PRODUCT)
+        after(deliverRoom(id, "after"));
         const items = await Promise.all(createdRows.map((m) => withSender(m, userId)));
-        return NextResponse.json({ ok: true, items, partialError });
+        return NextResponse.json({ ok: true, items }, { status: 202 });
       }
 
-      const sent = await sendOutboundMessage({
+      /**
+       * caption ของไฟล์แนบ (E-13) — แยกเป็นแถวคิวของตัวเองด้วยเหตุผลเดียวกับ IMAGE_GRID ข้างบน
+       *
+       * 🛑 ต้อง **ไม่** ส่ง `text` ไปกับแถวไฟล์แนบด้วย ไม่งั้น Meta จะได้ caption สองรอบ
+       * (ตัวยิงส่งข้อความตามหลังไฟล์แนบให้เองอยู่แล้ว แล้วแถว TEXT ที่เราต่อท้ายจะยิงซ้ำอีกใบ)
+       */
+      const captionForAttachment = isAttachmentType(type) ? text?.trim() || null : null;
+      const sent = await enqueueOutbound({
         conversationId: id,
         actorUserId: userId,
         // สติกเกอร์ (2026-08-04) — Meta ให้ส่ง sticker_id เดี่ยว ๆ ต่อข้อความ ไม่ปนกับ text/attachment
         sticker: type === "STICKER" ? { id: stickerId!, imageUrl: stickerImageUrl! } : undefined,
-        text: type === "STICKER" ? undefined : text ?? undefined, // TEXT = ข้อความ, ไฟล์แนบ = caption (optional)
+        text: type === "STICKER" || captionForAttachment !== null ? undefined : text ?? undefined,
         attachment: isAttachmentType(type)
           ? { fileId: imageUrl!, kind: type, name: attachmentName, size: attachmentSize ?? null }
           : undefined,
         replyToMid, // reply/quote — ส่ง reply_to:{mid} ให้ Meta (best-effort) + เก็บ quote ฝั่งเรา
       });
-      return NextResponse.json(await withSender(sent, userId));
+      // caption ไม่ผูก `replyToMid` — ของเดิมก็ยิงข้อความตามหลังด้วย `replyToExternalId: null`
+      // (การตอบทับผูกกับไฟล์แนบซึ่งเป็นของหลัก ไม่ใช่กับ caption)
+      if (captionForAttachment !== null) {
+        await enqueueOutbound({ conversationId: id, actorUserId: userId, text: captionForAttachment });
+      }
+      // ยิงจริงเบื้องหลัง — ตัวการันตีคือตัวเก็บงานค้าง ไม่ใช่บรรทัดนี้ (ดูคำอธิบายเต็มที่เส้นทาง PRODUCT)
+      after(deliverRoom(id, "after"));
+      return NextResponse.json(await withSender(sent, userId), { status: 202 });
     }
 
     if (type === "IMAGE_GRID") {

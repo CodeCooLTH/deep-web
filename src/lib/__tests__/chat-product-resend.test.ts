@@ -69,6 +69,28 @@ describe('isDuplicateProductSend', () => {
     expect(isDuplicateProductSend([notAProductCard], [['p1']])).toBe(false)
   })
 
+  /**
+   * (CR 2026-08-23, E-11) เส้นทางช่องทางนอกเขียนแถวเป็น `QUEUED` ก่อนตอบ client แล้วยิงทีหลัง —
+   * ช่วงนั้นคือช่วงที่ผู้ขาย "กดแล้วยังไม่เห็นอะไรเกิดขึ้น" ⇒ **เป็นช่วงที่คนกดซ้ำมากที่สุด**
+   * ถ้า QUEUED ไม่บล็อก การกดรัวครั้งเดียวจะได้ 2 แถวที่ทั้งคู่ถูกยิงออกไปจริง ลูกค้าได้การ์ดซ้ำ
+   * และบน LINE เสียโควตาเพิ่มด้วย (reply token ใช้ได้ครั้งเดียว ใบที่สองตกไป push ที่นับเงิน)
+   */
+  it('[blocker] ครั้งก่อนยังเข้าคิวอยู่ (QUEUED) = กำลังจะส่ง ต้องบล็อกการกดซ้ำ', () => {
+    const queued: RecentProductMessage = {
+      type: 'PRODUCT',
+      productRefIds: ['p1'],
+      deliveryStatus: 'QUEUED',
+    }
+    expect(isDuplicateProductSend([queued], [['p1']])).toBe(true)
+    // และต้องบล็อกทั้งชุดที่แบ่งหลายข้อความด้วย ไม่ใช่เฉพาะใบเดียว
+    expect(
+      isDuplicateProductSend(
+        [queued, { type: 'PRODUCT', productRefIds: ['p2', 'p3'], deliveryStatus: 'QUEUED' }],
+        [['p2', 'p3'], ['p1']],
+      ),
+    ).toBe(true)
+  })
+
   it('[blocker] ครั้งก่อนส่งไม่สำเร็จ (FAILED) ต้องส่งใหม่ได้ ห้ามนับเป็นซ้ำ', () => {
     const failed: RecentProductMessage = {
       type: 'PRODUCT',
@@ -111,10 +133,15 @@ describe('route ต้องเรียกด่านกันซ้ำก่�
     expect(readFileSync(ROUTE, 'utf8')).toContain('isDuplicateProductSend(')
   })
 
-  it('[blocker] ต้องเรียก "ก่อน" การยิง sendOutboundMessage ครั้งแรก ไม่ใช่หลัง', () => {
+  /**
+   * (CR 2026-08-23) จุดยิงเปลี่ยนจาก `sendOutboundMessage` เป็น `enqueueOutbound` — route เขียนแถว
+   * `QUEUED` ก่อนตอบ client แล้วยิงจริงเบื้องหลัง. **ด่านยังต้องอยู่ก่อนจุดนั้นเหมือนเดิม** เพราะ
+   * "เข้าคิวซ้ำ" = ยิงซ้ำแน่นอนในอีกไม่กี่วินาที (ตัวระบายคิวไม่มีทางรู้ว่าสองแถวนี้คือการกดซ้ำ)
+   */
+  it('[blocker] ต้องเรียก "ก่อน" การเข้าคิว enqueueOutbound ครั้งแรก ไม่ใช่หลัง', () => {
     const src = readFileSync(ROUTE, 'utf8')
     const guardAt = src.indexOf('isDuplicateProductSend(\n')
-    const firstSendAt = src.indexOf('await sendOutboundMessage(')
+    const firstSendAt = src.indexOf('await enqueueOutbound(')
     expect(guardAt).toBeGreaterThan(-1)
     expect(firstSendAt).toBeGreaterThan(-1)
     expect(guardAt).toBeLessThan(firstSendAt)
