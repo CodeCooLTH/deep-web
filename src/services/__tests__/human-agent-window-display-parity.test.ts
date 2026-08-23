@@ -75,6 +75,27 @@ function findCallSites(source: string): { line: number; text: string }[] {
 }
 
 /**
+ * มีการประกาศฟังก์ชันชื่อนี้อยู่ในไฟล์ไหม — **ตัดคอมเมนต์ก่อนสแกนเสมอ**
+ *
+ * 🛑 บทเรียนที่ไฟล์นี้เขียนไว้เองที่ `findCallSites` แต่ด่านข้างล่างเคยลืมทำตาม (F6 รอบแก้ 1):
+ * ไฟล์ที่ "ทำถูกกฎ" มักเป็นไฟล์ที่เขียนคอมเมนต์อธิบายกฎนั้นไว้ด้วย ⇒ `.test(source)` บนไฟล์ทั้งก้อน
+ * จะแดงจากคำเตือนของตัวเอง (คลาสเดียวกับ grep gate ของ HR9 ที่แดงค้าง 2026-08-02→03)
+ *
+ * 🛑 และต้องจับ **ทุกรูปแบบการประกาศ** ไม่ใช่แค่ `function <ชื่อ>(` — เขียนกลับมาเป็น
+ * `const <ชื่อ> = async (…) =>` จะลอดด่านที่จับแค่รูปแบบเดียวไปได้ทั้งที่ของกลับมาแล้วจริง ๆ
+ */
+function declaresFunction(source: string, name: string): boolean {
+  const declRe = new RegExp(
+    `(?:function\\s+${name}\\s*\\(|(?:const|let|var)\\s+${name}\\s*(?::[^=]*)?=)`,
+  )
+  return source.split('\n').some((raw) => {
+    const trimmed = raw.trim()
+    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) return false
+    return declRe.test(raw.split('//')[0]!)
+  })
+}
+
+/**
  * หาชื่อฟังก์ชันที่ห่อ call site อยู่ — ไล่ย้อนขึ้นบนหาบรรทัดประกาศฟังก์ชัน **ระดับบนสุด** ที่ใกล้สุด
  *
  * 🛑 `export` เป็น optional (CR 2026-08-23): เดิม regex บังคับว่าต้องขึ้นต้นด้วย `export` ตัวสแกนจึง
@@ -121,14 +142,20 @@ describe('[regression] canUseHumanAgent — call site ต้องมี 2 จ�
   /**
    * 🛑 เกณฑ์ที่ทำให้ "ลดเลขจาก 3 เหลือ 2" ไม่ใช่การผ่อนด่าน: จุดที่หายไปต้องไม่มีโค้ดอยู่จริงแล้ว
    *
-   * ถ้าวันหนึ่งมีคนเอา `sendOutboundImageGrid` กลับมา (หรือเขียนตัวส่งกริดตัวใหม่) แล้วลืมเรียก
-   * SSOT เคสข้างบนจะยังเขียวเพราะนับได้ 1 เท่าเดิม — เคสนี้คือตัวที่จะแดงแทน
+   * ถ้าวันหนึ่งมีคนเอา `sendOutboundImageGrid` กลับมาแล้วลืมเรียก SSOT เคสข้างบนจะยังเขียวเพราะนับ
+   * ได้ 1 เท่าเดิม — เคสนี้คือตัวที่จะแดงแทน
+   *
+   * 🛑 **ขอบเขตที่ด่านนี้ครอบจริง (F6 รอบแก้ 1 — เดิม docblock อ้างเกินตัว):** จับ *ชื่อ*
+   * `sendOutboundImageGrid` ที่ถูกประกาศซ้ำ ในทุกรูปแบบการประกาศ (`function` / `const|let|var =`)
+   * โดยตัดคอมเมนต์ทิ้งก่อนสแกน — **ไม่ครอบ** "ตัวส่งกริดตัวใหม่ที่ใช้ชื่ออื่น" ซึ่งด่านที่อิงชื่อ
+   * ไม่มีทางจับได้เลย. ตัวที่กันเคสนั้นคือเคส "นับ call site ได้ 2" ข้างบน (ตัวส่งใหม่ที่ลืมเรียก
+   * SSOT จะไม่เพิ่มเลข แต่ตัวที่เรียกถูกจะทำให้เลขเป็น 3 แล้วแดง)
    */
-  it('[blocker] ต้องไม่มีตัวส่งกริดรูปหลงเหลืออยู่ (เส้นทางรูปหลายใบวิ่งผ่านคิว → transmitMetaMessage เท่านั้น)', () => {
+  it('[blocker] ต้องไม่มีการประกาศ sendOutboundImageGrid หลงเหลืออยู่ (เส้นทางรูปหลายใบวิ่งผ่านคิว → transmitMetaMessage เท่านั้น)', () => {
     const offenders: string[] = []
     for (const file of walk(SRC_ROOT)) {
       const source = readFileSync(file, 'utf8')
-      if (/function\s+sendOutboundImageGrid\s*\(/.test(source)) {
+      if (declaresFunction(source, 'sendOutboundImageGrid')) {
         offenders.push(relative(SRC_ROOT, file).split('\\').join('/'))
       }
     }

@@ -841,8 +841,11 @@ export const SendChatMessageSchema = v.object({
   // เดิม 3 ชนิดนี้เกิดได้ทางเดียวคือ mirror ขาเข้าจาก Messenger/IG (เขียน DB ตรง ไม่ผ่าน schema นี้)
   // STICKER (2026-08-04): ไม่ใช่ไฟล์แนบ — ยิง sticker_id ให้ Meta แล้วฝั่งเราเก็บเป็นแถว IMAGE
   // (ดู sendOutboundMessage) จึงไม่อยู่ในชุด isAttachmentType
-  // IMAGE_GRID (2026-08-04): รูปหลายใบในข้อความเดียว (Meta image_grid template) — ส่ง imageFileIds
-  // มาแทน imageUrl เดี่ยว; route แบ่งเป็นก้อนละไม่เกิน 6 ใบตามเพดานของ Meta
+  // IMAGE_GRID (2026-08-04): รูปหลายใบในข้อความเดียว — ส่ง imageFileIds มาแทน imageUrl เดี่ยว
+  // 🛑 แก้ 2026-08-23 (CR คิวส่งข้อความ, R-8): **เลิกใช้ image_grid template ของ Meta แล้ว** และ
+  // route **ไม่ได้แบ่งก้อนละ 6 ใบ** อีกต่อไป — ตอนนี้แต่ละรูปกลายเป็น "แถวคิวของตัวเอง" ที่ยิงเรียง
+  // ตามลำดับ (เพดาน 6 ใบเป็นข้อจำกัดของ template ที่ไม่มีอยู่แล้ว) ชื่อค่า enum คงไว้เพราะเป็น
+  // contract ที่ client ส่งมา ไม่ใช่คำอธิบายวิธีส่ง
   // APPOINTMENT (ส่วนขยาย 00024, 2026-08-11): การ์ดสรุปนัดหมาย — 🛑 มีอยู่ **ที่ระดับ API เท่านั้น**
   // ฝั่งฐานข้อมูลยังเก็บเป็น ChatMessage.type='ORDER' + orderRefToken ตัวเดิม ไม่มีค่า enum ใหม่
   // ไม่มี migration (type ใน request = "อยากให้ประกอบอะไร" ส่วน ChatMessage.type = "ของที่เก็บ
