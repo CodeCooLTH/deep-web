@@ -594,6 +594,83 @@ function CreateOrderFromMessageButton({ onCreate }: { onCreate: () => void }) {
   )
 }
 
+/**
+ * สถานะการส่งของข้อความฝั่งร้าน — **SSOT ของถ้อยคำทั้งชุด** (HR16)
+ *
+ * 🛑 (P5 · impeccable critique 2026-08-23) เดิมบันไดนี้ถูกเขียนซ้ำ 2 ที่ในไฟล์เดียวกัน แล้ว
+ * **หลุดจากกันจริง**: บล็อกอัลบั้มรูปมีแค่ 2 ขั้น (ขาด "ได้รับแล้ว") และไม่จัดการ `failed` เลย
+ * ⇒ สถานะการส่งเดียวกันอ่านได้คนละคำ ขึ้นกับว่าผู้ขายส่งรูปใบเดียวหรือหลายใบ — และกรณีที่แย่ที่สุด
+ * คือกลุ่มรูปที่ยิงไม่ออกขึ้นว่า "ส่งแล้ว" ซึ่งเป็นการโกหกชนิดเดียวกับบั๊กต้นเรื่องของ CR นี้
+ * `tsc` มองไม่เห็นเพราะสตริงถูกต้องทั้งคู่ — รวมเป็นที่เดียวคือด่านเดียวที่กันการหลุดซ้ำได้
+ *
+ * ขอบเขต: เรนเดอร์เฉพาะ "กำลังส่ง" กับบันได 3 ขั้น — **ไม่รวมคลัสเตอร์กู้คืน** (ลองใหม่/เหตุผล/ยกเลิก)
+ * ซึ่งอยู่เฉพาะบับเบิลเดี่ยว เพราะ retry ของ *กลุ่มรูป* ยังไม่มีนิยาม (ยิงใหม่ใบไหน? ทั้งกอง?)
+ * ผู้เรียกจึงรับผิดชอบ UI ของ failed เอง ส่วนที่นี่แค่ไม่แสดงบันไดเมื่อ failed (จะได้ไม่ขัดกัน)
+ */
+function ShopDeliveryStatus({
+  sending,
+  failed,
+  isLatest,
+  createdAt,
+  readAtMs,
+  deliveredAtMs,
+}: {
+  /** บับเบิล optimistic ที่ยังไม่ถึง server **หรือ** แถวที่บันทึกแล้วแต่ยังอยู่ในคิว (QUEUED) */
+  sending: boolean
+  failed: boolean
+  /** เป็นข้อความล่าสุดของร้านไหม — บันไดโชว์เฉพาะใบล่าสุด (เจ้าของระบบ: "ถ้ารัวๆ ก็ให้ อ่านแล้วจังหวะสุดท้ายก็พอ") */
+  isLatest: boolean
+  createdAt: string
+  readAtMs: number
+  deliveredAtMs: number
+}) {
+  // role="status": สถานะชุดนี้เปลี่ยนเองโดยผู้ใช้ไม่ได้กดอะไร (QUEUED→SENT→ได้รับแล้ว→อ่านแล้ว)
+  // ถ้าไม่ประกาศ ผู้ใช้ screen reader จะไม่มีทางรู้เลยว่าข้อความออกไปหรือยัง — precedent อยู่ใน
+  // ไฟล์นี้เองที่ตัวโหลดข้อความเก่า (P3 · impeccable critique 2026-08-23)
+  if (sending) {
+    return (
+      // 🛑 (P2) ข้อความนี้ **ต้องมองเห็นได้ตลอด ห้ามย้ายกลับไปเป็น `title=`** — เดิมเป็น tooltip
+      // ซึ่งมือถือไม่มี hover ⇒ ประโยคที่เขียนมาเพื่อกันอาการ "คิดว่าค้างเลยส่งซ้ำ" (อาการเดียวกับ
+      // บั๊กต้นเรื่อง) ไม่เคยถึงคนที่ต้องการมันเลย ทั้งที่ผู้ขายทำงานบนมือถือเป็นหลัก
+      // กฎนี้โปรเจกต์เขียนไว้เองที่ docs/conventions/aria-name-requires-supporting-role.md
+      // สี/ขนาดคงเดิม (inherit text-default-700 12px) ไม่มีสีเตือน ไม่มีตัวนับถอยหลัง (D-2)
+      <span role="status" className="flex items-center gap-1">
+        <Icon icon="loader-2" className="animate-spin" />
+        กำลังส่ง · ไม่ต้องส่งซ้ำ
+      </span>
+    )
+  }
+  // failed → ผู้เรียกเป็นคนเรนเดอร์เอง (ดูคอมเมนต์หัวฟังก์ชัน)
+  if (failed || !isLatest) return null
+  const atMs = new Date(createdAt).getTime()
+  /* บันได 3 ขั้น (2026-08-05):
+       อ่านแล้ว   — ลูกค้าเปิดอ่านจริง (message_reads) เขียวขั้นเดียวในบันไดนี้
+       ได้รับแล้ว — Meta ยืนยันว่าถึงเครื่องลูกค้า (message_deliveries) สีปกติ
+       ส่งแล้ว    — Meta รับคำสั่งแล้ว (ตอบ mid) แต่ยังไม่มีหลักฐานว่าถึง
+     เขียวสงวนไว้ให้ "อ่านแล้ว" ตัวเดียวตาม Verified-Means-Green — "ได้รับแล้ว" เป็นสถานะระหว่างทาง
+     ไม่ใช่สัญญาณความน่าเชื่อถือระดับเดียวกัน (ux 2026-08-05)
+     เธรด Instagram ไม่มีขั้นกลาง (deliveredAtMs=0 เสมอ) ข้ามไปที่อ่านแล้วเลย */
+  if (readAtMs > 0 && atMs <= readAtMs) {
+    return (
+      <span role="status" className="text-success flex items-center gap-0.5">
+        <Icon icon="checks" /> อ่านแล้ว
+      </span>
+    )
+  }
+  if (deliveredAtMs > 0 && atMs <= deliveredAtMs) {
+    return (
+      <span role="status" className="flex items-center gap-0.5">
+        <Icon icon="checks" /> ได้รับแล้ว
+      </span>
+    )
+  }
+  return (
+    <span role="status" className="flex items-center gap-0.5">
+      <Icon icon="check" /> ส่งแล้ว
+    </span>
+  )
+}
+
 function ReplyMessageButton({ onReply }: { onReply: () => void }) {
   return (
     <button
@@ -2815,6 +2892,10 @@ export default function ChatThread({
                     mine &&
                     ((ms[0] as ChatMessageWithDelivery).deliveryStatus === 'QUEUED' ||
                       (last as ChatMessageWithDelivery).deliveryStatus === 'QUEUED')
+                  // (P5) ยิงไม่ออก — ใบไหนในกองล้มก็ถือว่ากองนี้ไม่ถึงลูกค้า (fail-closed: ผู้ขายเห็น
+                  // ปัญหาไว้ดีกว่าเห็นช้า) เทียบเท่า failedPersisted ของบับเบิลเดี่ยว
+                  const albumFailed =
+                    mine && ms.some((x) => (x as ChatMessageWithDelivery).deliveryStatus === 'FAILED')
                   const atBurstEnd = burstEndIds.has(last.id)
                   const isLastOld = last.id === lastMsgId && nowMs - new Date(last.createdAt).getTime() >= RECENT_MS
                   const showTime = atBurstEnd && !queued && !isLastOld
@@ -2870,7 +2951,7 @@ export default function ChatThread({
                             </span>
                           </span>
                         )}
-                        {(showTime || (mine && (atBurstEnd || queued || last.id === lastShopMsgId))) && (
+                        {(showTime || (mine && (atBurstEnd || queued || albumFailed || last.id === lastShopMsgId))) && (
                           <div className={`text-default-700 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
                             {showTime && (
                               <span className="flex items-center gap-1" title={formatTime(last.createdAt)}>
@@ -2878,27 +2959,27 @@ export default function ChatThread({
                                 {formatTimeHM(last.createdAt)}
                               </span>
                             )}
-                            {/* (CR 2026-08-23) เทียบเท่าสปินเนอร์ของบับเบิลปกติ — ชุดรูปที่ยังอยู่ในคิว
-                                ต้องอ่านว่า "กำลังส่ง" ไม่ใช่ "ส่งแล้ว" คำ/ไอคอน/tooltip ชุดเดียวกัน */}
-                            {queued && (
-                              <span className="flex items-center gap-1" title="กำลังส่งอยู่ — ไม่ต้องส่งซ้ำ">
-                                <Icon icon="loader-2" className="animate-spin" />
-                                กำลังส่ง
+                            {/* 🛑 (P5 2026-08-23) เดิมบล็อกนี้เขียนบันไดเองแยกจากบับเบิลเดี่ยว แล้วหลุดจากกันจริง:
+                                มีแค่ 2 ขั้น (ขาด "ได้รับแล้ว") และไม่จัดการ failed เลย ⇒ กลุ่มรูปที่ยิงไม่ออก
+                                ขึ้นว่า "ส่งแล้ว" ตอนนี้เรียก ShopDeliveryStatus ตัวเดียวกับบับเบิลเดี่ยว */}
+                            {albumFailed && (
+                              // อัลบั้มไม่มีคลัสเตอร์กู้คืน (retry ของ *กลุ่มรูป* ยังไม่มีนิยาม) — แต่การเงียบ
+                              // หรือขึ้น "ส่งแล้ว" แย่กว่าการบอกตรง ๆ ว่าไม่สำเร็จ ผู้ขายส่งใหม่เองได้
+                              <span className="text-danger flex items-center gap-1">
+                                <Icon icon="alert-circle" className="text-sm" />
+                                ส่งไม่สำเร็จ
                               </span>
                             )}
-                            {/* last.id === lastShopMsgId ไม่ต้องเติม !queued — ได้ประโยชน์อัตโนมัติจาก
-                                lastShopMsgId ที่ข้ามแถว QUEUED ไปแล้วที่ต้นทาง */}
-                            {mine && last.id === lastShopMsgId ? (
-                              readAtMs > 0 && new Date(last.createdAt).getTime() <= readAtMs ? (
-                                <span className="text-success flex items-center gap-0.5">
-                                  <Icon icon="checks" /> อ่านแล้ว
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-0.5">
-                                  <Icon icon="check" /> ส่งแล้ว
-                                </span>
-                              )
-                            ) : null}
+                            {mine && (
+                              <ShopDeliveryStatus
+                                sending={queued}
+                                failed={albumFailed}
+                                isLatest={last.id === lastShopMsgId}
+                                createdAt={last.createdAt}
+                                readAtMs={readAtMs}
+                                deliveredAtMs={deliveredAtMs}
+                              />
+                            )}
                             {mine && atBurstEnd && (
                               <ChatAvatar
                                 avatar={shopAvatar}
@@ -3497,7 +3578,7 @@ export default function ChatThread({
                                   onClick={retryFailed}
                                   title="ส่งข้อความนี้ใหม่"
                                   aria-label="ส่งข้อความนี้ใหม่"
-                                  className="hover:bg-danger/10 -m-1 flex items-center gap-1 rounded p-1"
+                                  className="hover:bg-danger/10 -m-3 flex items-center gap-1 rounded p-3 lg:-m-1 lg:p-1"
                                 >
                                   <Icon icon="refresh" className="text-sm" />
                                   ลองใหม่
@@ -3522,7 +3603,7 @@ export default function ChatThread({
                                       },
                                     })
                                   }
-                                  className="hover:bg-danger/10 -m-1 flex items-center rounded p-1"
+                                  className="hover:bg-danger/10 -m-3 flex items-center rounded p-3 lg:-m-1 lg:p-1"
                                 >
                                   <Icon icon="info-circle" className="text-sm" />
                                 </button>
@@ -3536,7 +3617,9 @@ export default function ChatThread({
                                 // คำสั้น (user สั่ง 2026-08-03) — บริบทอยู่ครบแล้วจากบับเบิลที่มันเกาะอยู่
                                 // ส่วนคำเต็มยังอยู่ใน aria-label + หัวข้อ Swal ตอนยืนยัน
                                 aria-label="ยกเลิกการส่งข้อความนี้"
-                                className="hover:underline"
+                                // (P4) เส้นใต้ **ถาวร** ไม่ใช่เฉพาะ hover — มือถือไม่มี hover ⇒ เดิมเป็น
+                                // ข้อความเปล่าที่อยู่ห่างจาก "ลองใหม่" แค่หนึ่งนิ้ว ไม่มีอะไรบอกว่ากดได้
+                                className="underline decoration-dotted underline-offset-2 -m-3 rounded p-3 hover:decoration-solid lg:-m-1 lg:p-1"
                               >
                                 ยกเลิก
                               </button>
@@ -3552,18 +3635,6 @@ export default function ChatThread({
                               {formatTimeHM(m.createdAt)}
                             </span>
                           )}
-                          {/* (CR 2026-08-23) QUEUED = ยังไม่ออกจากระบบเรา ⇒ อ่านว่า "กำลังส่ง" เหมือน
-                              บับเบิล optimistic ทุกประการ ใช้คำ/ไอคอนชุดเดิม ไม่ตั้งคำใหม่ (HR16 —
-                              ผู้ขายไม่ต้องรู้ว่าข้างในมีคิว). สปินเนอร์ไม่ใช้สีเขียวเลย: เขียวสงวนไว้ให้
-                              สถานะที่ยืนยันแล้วตาม Verified-Means-Green ซึ่งคือหัวใจของ CR นี้
-                              title: worst case แถวค้างได้ ~1 นาที ความเสี่ยงจริงคือผู้ขายคิดว่าค้างแล้ว
-                              พิมพ์ส่งซ้ำ — ประโยคนี้ตัดความเข้าใจผิดนั้นโดยไม่ใช้คำที่ทำให้ตกใจ */}
-                          {mine && (m._status === 'sending' || queued) && (
-                            <span className="flex items-center gap-1" title="กำลังส่งอยู่ — ไม่ต้องส่งซ้ำ">
-                              <Icon icon="loader-2" className="animate-spin" />
-                              กำลังส่ง
-                            </span>
-                          )}
                           {/* !failed: บับเบิลที่ยิงไม่ออกเคยขึ้น "ส่งแล้ว" ควบคู่กับแถบแดง เพราะเงื่อนไข
                               เดิมดูแค่ _status (undefined สำหรับแถวที่บันทึกแล้ว) ไม่ได้ดู deliveryStatus */}
                           {/* บันได 3 ขั้นของข้อความที่ส่งสำเร็จ (2026-08-05):
@@ -3573,36 +3644,22 @@ export default function ChatThread({
                               เขียวสงวนไว้ให้ "อ่านแล้ว" ตัวเดียวตาม Verified-Means-Green — "ได้รับแล้ว"
                               เป็นสถานะระหว่างทาง ไม่ใช่สัญญาณความน่าเชื่อถือระดับเดียวกัน (ux 2026-08-05)
                               เธรด Instagram ไม่มีขั้นกลาง (deliveredAtMs=0 เสมอ) ข้ามไปที่อ่านแล้วเลย */}
-                          {/* !queued (CR 2026-08-23) = การ์ดชั้นสอง: ตรรกะแล้วไม่จำเป็นเพราะ
-                              lastShopMsgId ข้ามแถว QUEUED ไปแล้วที่ต้นทาง แต่คงไว้ตามธรรมเนียม
-                              โปรเจกต์ที่ invariant ไม่ explicit เคยพังเงียบมาแล้วหลายครั้ง */}
-                          {/* 🛑 (R-23 2026-08-23) สาขา `else` ถูกถอดออก **โดยตั้งใจ ไม่ใช่ลืม** —
-                              เดิมเป็น `mine && m._status === 'sent' && <Icon check text-success/>` ซึ่ง
-                              ตายไปพร้อมกับการที่ `_status='sent'` ไม่ถูกตั้งอีกแล้ว. เคยแทนด้วย
-                              `sentConfirmed` (นิยามที่เป็นจริง**ถาวร**) แล้วถอดออกด้วย 2 เหตุผล:
-                              (1) `_status` เดิมเป็น transient ⇒ ทุกวันนี้ข้อความที่ไม่ใช่ใบล่าสุด
-                                  ก็ไม่มีเช็คถูกอยู่แล้วหลังรีเฟรช — ถอดทิ้ง = ผู้ใช้เห็นความเปลี่ยนแปลง
-                                  **เป็นศูนย์** ส่วนการแทนด้วยของถาวรคือ scope ที่ไหลออกโดยไม่มีคนขอ
-                              (2) เขียวสงวนไว้ให้สถานะที่ยืนยันแล้วเท่านั้น (Verified-Means-Green — กฎที่
-                                  ไฟล์นี้เขียนไว้เองที่บรรทัด ~250 และในคอมเมนต์บันไดข้างล่าง) การโรย
-                                  เช็คถูกเขียวท้ายทุกเบิร์สต์ทำให้สัญญาณที่ควรเด่น ("อ่านแล้ว") จมหาย
-                              ผู้ขายไม่เสียการยืนยันของข้อความที่เพิ่งส่ง เพราะใบนั้นคือ lastShopMsgId
-                              เกือบทุกครั้ง จึงได้บันไดเต็มทางสาขาแรก ไม่เคยตกมาถึงตรงนี้ตั้งแต่แรก */}
-                          {mine && m._status !== 'sending' && !queued && !failed && m.id === lastShopMsgId ? (
-                            readAtMs > 0 && new Date(m.createdAt).getTime() <= readAtMs ? (
-                              <span className="text-success flex items-center gap-0.5">
-                                <Icon icon="checks" /> อ่านแล้ว
-                              </span>
-                            ) : deliveredAtMs > 0 && new Date(m.createdAt).getTime() <= deliveredAtMs ? (
-                              <span className="flex items-center gap-0.5">
-                                <Icon icon="checks" /> ได้รับแล้ว
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-0.5">
-                                <Icon icon="check" /> ส่งแล้ว
-                              </span>
-                            )
-                          ) : null}
+                          {/* (P5 2026-08-23) บันไดสถานะ + "กำลังส่ง" ย้ายไป ShopDeliveryStatus ซึ่งเป็น
+                              SSOT ที่บล็อกอัลบั้มเรียกตัวเดียวกัน — ห้ามเขียนคำสถานะซ้ำที่นี่อีก (HR16)
+                              !queued ในกิ่งบันได = การ์ดชั้นสอง (lastShopMsgId ข้าม QUEUED ที่ต้นทางแล้ว)
+                              🛑 (R-23) ไม่มีสาขา else ที่ให้เช็คถูกเขียวกับข้อความที่ไม่ใช่ใบล่าสุด —
+                              ถอดโดยตั้งใจ ไม่ใช่ลืม: `_status='sent'` เดิมเป็น transient ⇒ ถอดทิ้งแล้ว
+                              ผู้ใช้เห็นความเปลี่ยนแปลงเป็นศูนย์ และเขียวสงวนไว้ให้สถานะที่ยืนยันแล้วเท่านั้น */}
+                          {mine && (
+                            <ShopDeliveryStatus
+                              sending={m._status === 'sending' || queued}
+                              failed={failed}
+                              isLatest={m.id === lastShopMsgId}
+                              createdAt={m.createdAt}
+                              readAtMs={readAtMs}
+                              deliveredAtMs={deliveredAtMs}
+                            />
+                          )}
                           {/* avatar เพจ/ร้าน = ตัวสุดท้ายของแถวเสมอ (user สั่ง 2026-07-23: "เวลาต้อง
                               อยู่ด้านซ้าย และ icon page อยู่ชิดขวาเสมอ") — แถวนี้ justify-end อยู่แล้ว
                               พอ avatar เป็น child สุดท้ายจึงชิดขอบขวาของคอลัมน์ข้อความ ส่วนเวลา/สถานะ

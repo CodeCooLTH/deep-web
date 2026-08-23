@@ -195,18 +195,121 @@ describe('[blocker] บันได "อ่านแล้ว/ได้รับ
     ).toEqual([])
   })
 
-  it('สปินเนอร์ "กำลังส่ง" ครอบทั้งบับเบิล optimistic และแถวในคิว', () => {
+  it('ทุกจุดที่เรียกบันไดสถานะ ป้อน queued เข้า prop sending', () => {
+    // 🛑 เทสนี้เขียนใหม่ใน Fix round 2 — ของเดิมนับจำนวนจุดที่ render คำว่า "กำลังส่ง" แล้วบังคับว่า
+    // ทุกจุดต้องดู `queued`. หลัง P5 รวมบันไดเป็น component เดียว **คำนั้นเหลือแหล่งเดียว** เกณฑ์
+    // ">= 2 จุด" จึงเป็นเท็จโดยโครงสร้าง ไม่ใช่เพราะ guard หาย
+    // คุณสมบัติที่ของเดิมกันไว้ ("แถวในคิวต้องอ่านว่ากำลังส่ง ไม่ใช่ส่งแล้ว") ย้ายมาอยู่ที่นี่:
+    // component เดียวตัดสินคำทั้งหมดแล้ว ⇒ สิ่งที่ต้องกันคือ **ผู้เรียกป้อน queued เข้าไปครบทุกที่**
+    // ถ้าผู้เรียกไหนลืม แถวในคิวของ surface นั้นจะตกไปกิ่งบันได = ขึ้น "ส่งแล้ว" ทันที
     const src = code(CHAT_THREAD)
-    // ทุกจุดที่เรนเดอร์คำว่า "กำลังส่ง" ต้องมี queued อยู่ในเงื่อนไขที่คุมมัน (บับเบิลปกติ + อัลบั้ม)
-    const hits: string[] = []
-    let from = 0
-    for (;;) {
-      const at = src.indexOf('กำลังส่ง\n', from)
-      if (at === -1) break
-      if (!/queued/.test(around(src, at, 400))) hits.push(around(src, at, 400))
-      from = at + 1
+    const calls = src.match(/<ShopDeliveryStatus[\s\S]*?\/>/g) ?? []
+    expect(calls.length, 'ต้องมีผู้เรียก 2 ที่').toBe(2)
+    const bad = calls.filter((c) => !/sending=\{[^}]*queued/.test(c))
+    expect(bad, `ผู้เรียกที่ไม่ได้ป้อน queued เข้า sending:\n${bad.join('\n---\n')}`).toEqual([])
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fix round 2 — ผลจาก /impeccable critique (2026-08-23)
+// ทุกข้อในกลุ่มนี้ **ไม่มี gate อัตโนมัติตัวไหนจับได้** (detector สะอาด · tsc ผ่าน · contrast ผ่าน)
+// เป็นเรื่องความหมายล้วน จึงต้องมีด่านที่จับ "รูปร่างของเงื่อนไข" ไม่ใช่ "ชื่อตัวแปร"
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('[blocker] P2 — ข้อความกันส่งซ้ำต้องมองเห็นได้จริง ไม่ใช่ tooltip', () => {
+  it('ประโยค "ไม่ต้องส่งซ้ำ" เป็นเนื้อหาที่ render จริง ไม่ได้อยู่ใน title=/aria-label', () => {
+    // 🛑 มือถือไม่มี hover และผู้ขายทำงานบนมือถือเป็นหลัก (PRODUCT.md) ⇒ ประโยคที่เขียนมาเพื่อกัน
+    // อาการ "คิดว่าค้างเลยส่งซ้ำ" (อาการเดียวกับบั๊กต้นเรื่องของ CR นี้) จะไม่มีวันถึงคนที่ต้องการมัน
+    // กฎนี้โปรเจกต์เขียนไว้เองแล้วที่ docs/conventions/aria-name-requires-supporting-role.md
+    const src = code(CHAT_THREAD)
+    expect(src, 'ต้องมีประโยคนี้อยู่ในไฟล์').toContain('ไม่ต้องส่งซ้ำ')
+    // ห้ามอยู่ในค่าของ attribute ใด ๆ (title=, aria-label=, alt=) — จับที่ *รูปแบบ* ไม่ใช่ชื่อ attribute
+    const inAttr = src.match(/[a-zA-Z-]+=\{?"[^"]*ไม่ต้องส่งซ้ำ[^"]*"/g) ?? []
+    expect(inAttr, `ประโยคนี้ไปอยู่ใน attribute (มือถือมองไม่เห็น):\n${inAttr.join('\n')}`).toEqual([])
+  })
+
+  it('ไม่มี title= ค้างอยู่บน span สถานะ "กำลังส่ง" (จะถูกอ่านซ้ำสองรอบ)', () => {
+    expect(code(CHAT_THREAD)).not.toMatch(/title="กำลังส่ง/)
+  })
+})
+
+describe('[blocker] P3 — สถานะที่เปลี่ยนเองต้องถูกประกาศ', () => {
+  it('ทุก span สถานะการส่งใน ShopDeliveryStatus มี role="status"', () => {
+    // สถานะชุดนี้ (QUEUED→SENT→ได้รับแล้ว→อ่านแล้ว) เปลี่ยนโดยผู้ใช้ไม่ได้กดอะไร — ถ้าไม่ประกาศ
+    // ผู้ใช้ screen reader ไม่มีทางรู้เลยว่าข้อความออกไปหรือยัง. กลุ่มเป้าหมายที่ PRODUCT.md ระบุ
+    // รวมผู้สูงวัย/digital-literacy ต่ำ ⇒ สถานะที่ควรถูกประกาศที่สุดคือสถานะที่เงียบที่สุด
+    const src = code(CHAT_THREAD)
+    const start = src.indexOf('function ShopDeliveryStatus')
+    expect(start, 'หา ShopDeliveryStatus ไม่เจอ').toBeGreaterThan(-1)
+    // ตัดที่ปลายฟังก์ชัน = ฟังก์ชันถัดไปที่ประกาศระดับบนสุด
+    const end = src.indexOf('\nfunction ', start + 10)
+    const body = src.slice(start, end)
+    const returned = body.match(/<span[^>]*>/g) ?? []
+    expect(returned.length, 'ต้องมี span สถานะอย่างน้อย 4 ตัว (กำลังส่ง + บันได 3 ขั้น)').toBeGreaterThanOrEqual(4)
+    const missing = returned.filter((t) => !t.includes('role="status"'))
+    expect(missing, `span สถานะที่ไม่มี role="status":\n${missing.join('\n')}`).toEqual([])
+  })
+})
+
+describe('[blocker] P5 — บันไดสถานะต้องมาจากแหล่งเดียว', () => {
+  it('คำว่า อ่านแล้ว/ได้รับแล้ว/ส่งแล้ว ปรากฏเป็นเนื้อหา JSX ได้ที่ละ 1 ครั้งเท่านั้น', () => {
+    // 🛑 เดิมบันไดถูกเขียนซ้ำ 2 ที่ในไฟล์เดียวกัน แล้ว **หลุดจากกันจริง**: บล็อกอัลบั้มมีแค่ 2 ขั้น
+    // (ขาด "ได้รับแล้ว") และไม่จัดการ failed ⇒ กลุ่มรูปที่ยิงไม่ออกขึ้นว่า "ส่งแล้ว"
+    // สถานะเดียวกันอ่านได้คนละคำขึ้นกับว่าส่งรูปใบเดียวหรือหลายใบ = รูปร่างของ HR16
+    // tsc มองไม่เห็นเพราะสตริงถูกต้องทั้งคู่ — การนับจำนวนแหล่งคือด่านเดียวที่กันการหลุดซ้ำได้
+    const src = code(CHAT_THREAD)
+    for (const word of ['อ่านแล้ว', 'ได้รับแล้ว', 'ส่งแล้ว']) {
+      // นับเฉพาะที่เป็น "เนื้อหาที่ผู้ใช้อ่าน" (ตามหลัง > ของ JSX) ไม่นับ aria-label/คอมเมนต์
+      const rendered = src.match(new RegExp(`>\\s*${word}`, 'g')) ?? []
+      expect(rendered.length, `"${word}" ถูกเรนเดอร์จาก ${rendered.length} ที่ — ต้องมาจากแหล่งเดียว`).toBe(1)
     }
-    expect((src.match(/กำลังส่ง\n/g) ?? []).length).toBeGreaterThanOrEqual(2)
-    expect(hits, `จุดที่โชว์ "กำลังส่ง" แต่ไม่ได้ดู queued:\n${hits.join('\n---\n')}`).toEqual([])
+  })
+
+  it('บล็อกอัลบั้มเรียกบันไดตัวเดียวกับบับเบิลเดี่ยว (ไม่เขียนเอง)', () => {
+    const src = code(CHAT_THREAD)
+    const uses = src.match(/<ShopDeliveryStatus/g) ?? []
+    expect(uses.length, 'ต้องถูกเรียก 2 ที่: บับเบิลเดี่ยว + บล็อกอัลบั้ม').toBe(2)
+  })
+})
+
+describe('[blocker] P4 — ปุ่มกู้คืนของข้อความที่ส่งไม่สำเร็จต้องแตะได้จริงบนมือถือ', () => {
+  // 🛑 CR นี้เปิดทางใหม่ไปสู่ FAILED: เพดานคิว 3 นาทีทำให้ "ส่งไม่สำเร็จ" กลายเป็นผลลัพธ์ปกติ
+  // (เดิมมาจาก error ตอนส่งทันทีเท่านั้น) ⇒ คลัสเตอร์กู้คืนที่เคยเป็นทางเดินรองกลายเป็นทางเดินหลัก
+  // ปุ่มเดิม text-xs + `-m-1 … p-1` ให้ hit box ~24px เทียบกับเกณฑ์ 44px ที่ PRODUCT.md ประกาศเอง
+  //
+  // ด่านนี้จับ "รูปร่าง" ไม่ใช่ชื่อ: ปุ่มไหนก็ตามในคลัสเตอร์นี้ต้องมี padding ที่พาไปถึง 44px บนมือถือ
+  /** คลัสเตอร์กู้คืน = ก้อน JSX ใต้เงื่อนไข failed (ลองใหม่ / เหตุผล / ยกเลิก) */
+  function failedCluster(src: string): string {
+    const start = src.indexOf('{failed && (')
+    expect(start, 'หาคลัสเตอร์ failed ไม่เจอ').toBeGreaterThan(-1)
+    const end = src.indexOf('{m.edited &&', start)
+    expect(end).toBeGreaterThan(start)
+    return src.slice(start, end)
+  }
+
+  it('ทุกปุ่มในคลัสเตอร์มี padding ระดับ 44px บนมือถือ (p-3 ขึ้นไป) และย่อลงเฉพาะ lg:', () => {
+    const cluster = failedCluster(code(CHAT_THREAD))
+    const classNames = cluster.match(/className="[^"]*"/g) ?? []
+    // ต้องเจอปุ่มจริงอย่างน้อย 3 ตัว (ลองใหม่ · เหตุผล (i) · ยกเลิก) — กันเคส "เขียวเพราะหาไม่เจอ"
+    const buttons = (cluster.match(/<button/g) ?? []).length
+    expect(buttons, 'ต้องมีปุ่มอย่างน้อย 3 ตัวในคลัสเตอร์').toBeGreaterThanOrEqual(3)
+    // นับเฉพาะ className ที่เป็นของปุ่ม (มี rounded = ปุ่มกดได้ในคลัสเตอร์นี้ทุกตัวมี)
+    const btnClasses = classNames.filter((c) => c.includes('rounded'))
+    expect(btnClasses.length).toBeGreaterThanOrEqual(3)
+    const tooSmall = btnClasses.filter((c) => !/\bp-3\b/.test(c))
+    expect(
+      tooSmall,
+      `ปุ่มที่ hit box ต่ำกว่าเกณฑ์ 44px บนมือถือ (ไม่มี p-3):\n${tooSmall.join('\n')}`,
+    ).toEqual([])
+  })
+
+  it('ปุ่ม "ยกเลิก" มีเส้นใต้ถาวร ไม่ใช่โผล่เฉพาะตอน hover', () => {
+    // มือถือไม่มี hover ⇒ `hover:underline` อย่างเดียวทำให้มันเป็นข้อความเปล่าที่อยู่ห่างจาก
+    // "ลองใหม่" แค่หนึ่งนิ้ว — ไม่มีอะไรบอกว่ากดได้ และไม่มีอะไรแยกมันจากตัวหนังสือรอบ ๆ
+    const cluster = failedCluster(code(CHAT_THREAD))
+    const hoverOnly = (cluster.match(/className="[^"]*"/g) ?? []).filter(
+      (c) => /hover:underline/.test(c) && !/(^|[\s"])underline[\s"]/.test(c),
+    )
+    expect(hoverOnly, `affordance ที่มีเฉพาะตอน hover:\n${hoverOnly.join('\n')}`).toEqual([])
   })
 })
