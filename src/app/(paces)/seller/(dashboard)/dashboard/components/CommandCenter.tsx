@@ -51,14 +51,10 @@ export default function CommandCenter({ data }: Props) {
       />
 
       {/* ยอดขาย — การ์ด mini (sparkline + total เดือนนี้) จิ้ม→เปิด full sheet; null=fetch ล้ม→ซ่อนตัวเอง */}
-      {/* เงินที่รับจริงวันนี้อยู่ **ในการ์ดนี้** ไม่ใช่การ์ดแยกใต้ OrderStatusBand แล้ว
-          (หัวหน้าสั่ง 2026-08-19: "เราคุยกันว่าให้ทำใน chart นิ" — ดูเหตุผลเต็มที่ MoneyTodayRow) */}
-      <SalesChartCard
-        initialSeries={data.salesSeries ?? null}
-        orderNoun={data.orderNoun}
-        moneyToday={data.moneyReceivedToday}
-        jobsToday={data.appointmentTodayCount}
-      />
+      {/* 🛑 แถว "รับจริงวันนี้" เคยอยู่ท้ายการ์ดนี้ — ถอดออก 2026-08-23 ตามที่ user สั่ง
+          เงินรับจริงย้ายไปเป็น **คอลัมน์รายวัน** (มัดจำ/รับจริง/ค้างรับ) ในตารางของชีตยอดขาย
+          ซึ่งตอบได้ทั้ง "วันนี้เท่าไหร่" และ "วันไหนยังค้าง" ต่างจากแถวเดิมที่บอกได้แค่วันนี้ */}
+      <SalesChartCard initialSeries={data.salesSeries ?? null} orderNoun={data.orderNoun} />
 
       {/* คำสั่งซื้อ — ร้านขายออนไลน์ได้ชุด "ของอยู่ไหน" (รอเลขพัสดุ/รอรับเข้า/กำลังจัดส่ง/มีปัญหา)
           vertical อื่นได้ชุดสถานะการขายเดิม (บ้านพัก/คิวงานไม่มีพัสดุให้ไล่)

@@ -44,9 +44,13 @@ const GATED: { name: string; path: string; must: RegExp }[] = [
      * ที่โค้ดถูก refactor เป็น `? Promise.all([...])` ทั้งที่ด่านยังอยู่ครบทุกตัวอักษร
      * (พลาดคลาสนี้ 3 ครั้งในวันเดียว — `rule-must-be-enforced-not-described.md`)
      * ตัวจริงที่ต้องบังคับคือ **query เรื่องเงินต้องอยู่หลังด่าน** ซึ่งเช็คด้วยลำดับตำแหน่งด้านล่าง
+     *
+     * 🛑 ย้ายที่อยู่ 2026-08-23 — ด่านเคยอยู่ที่ `dashboard/page.tsx` ตอนที่เงินรับจริงเป็น
+     * "แถวของวันนี้" บนหน้าแรก · ตอนนี้เป็น **คอลัมน์รายวันในตารางชีตยอดขาย** ด่านจึงย้ายไป
+     * อยู่กับตัวที่คิดเลข (`getSalesSeries`) ซึ่งเป็นทางผ่านของทั้งหน้าแรกและ API
      */
-    name: 'หน้าแรก — การ์ดเงินรายวัน',
-    path: 'src/app/(paces)/seller/(dashboard)/dashboard/page.tsx',
+    name: 'ชุดเงินรายวัน — ตัวคิดเลขของชีตยอดขาย',
+    path: 'src/services/dashboard.service.ts',
     must: /vertical === 'SERVICE_QUEUE'/,
   },
   {
@@ -68,19 +72,42 @@ describe('AC-SQ-07 — ทุกจอของฟีเจอร์ร้าน
     })
   }
 
-  it('[blocker] หน้าแรก — ทุก query เรื่องเงินต้องอยู่หลังด่าน vertical', () => {
+  it('[blocker] ร้านที่ไม่ใช่ร้านบริการต้องไม่ถูกดึงตาราง OrderPayment มาด้วย', () => {
     /**
-     * ด่านข้างบนพิสูจน์แค่ว่า "มีคำว่า SERVICE_QUEUE" — ตัวนี้พิสูจน์ว่า **query อยู่หลังมันจริง**
-     * และอยู่ในนิพจน์เดียวกัน ไม่ใช่หลุดไปเรียกที่อื่นในไฟล์แล้วทุกร้านเสีย query ฟรี
+     * ด่านข้างบนพิสูจน์แค่ว่า "มีคำว่า SERVICE_QUEUE" — ตัวนี้พิสูจน์ว่า **การดึงข้อมูลเงิน
+     * อยู่หลังธงนั้นจริง** ไม่ใช่ดึงมาทุกร้านแล้วค่อยกรองตอน render
+     *
+     * `payments` เป็น relation ที่มีได้หลายสิบแถวต่อออเดอร์ · ดึงมาให้ร้านขายออนไลน์ที่ไม่มี
+     * ทางใช้เลย = จ่าย join ฟรีทุกครั้งที่มีคนเปิดหน้าแรก โดยไม่มีอะไรบนจอบอกว่ากำลังจ่ายอยู่
      */
-    const code = stripComments(read('src/app/(paces)/seller/(dashboard)/dashboard/page.tsx'))
-    const gateAt = code.indexOf("vertical === 'SERVICE_QUEUE'")
-    expect(gateAt).toBeGreaterThan(-1)
-    for (const fn of ['getMoneyReceivedToday(', 'countUnpaidJobsToday(']) {
-      const at = code.indexOf(fn, gateAt)
-      expect(at, `${fn} ต้องอยู่หลังด่าน`).toBeGreaterThan(gateAt)
-      expect(at - gateAt, `${fn} ต้องอยู่ในนิพจน์เดียวกับด่าน`).toBeLessThan(200)
-    }
+    const code = stripComments(read('src/services/dashboard.service.ts'))
+
+    // ธงต้องมาจากการเทียบ vertical ตรง ๆ ไม่ใช่รับ boolean มาจากผู้เรียก (ซึ่งโกหกได้)
+    expect(code, 'ต้อง derive ธงจาก vertical ในไฟล์นี้').toMatch(
+      /isServiceShop\s*=\s*vertical === 'SERVICE_QUEUE'/,
+    )
+
+    const at = code.indexOf('payments:')
+    expect(at, 'ต้องมีการดึง payments').toBeGreaterThan(-1)
+    /* ต้องอยู่ในสาขาของธง — ดูย้อนขึ้นไปในระยะสั้น ๆ ว่ามี `isServiceShop ?` คุมอยู่จริง */
+    const before = code.slice(Math.max(0, at - 300), at)
+    expect(before, 'payments ต้องอยู่ใต้เงื่อนไข isServiceShop').toContain('isServiceShop')
+  })
+
+  it('[blocker] ไม่ใช่ร้านบริการ = ไม่มีคีย์เลย ห้ามส่งอาร์เรย์ศูนย์', () => {
+    /**
+     * 🛑 `undefined` (ไม่ใช่ร้านบริการ) กับ `[0,0,…]` (เป็นร้านบริการแต่ยังไม่มีเงินเข้า)
+     * คนละความหมาย และ **ตารางใช้ตัวนี้ตัดสินว่าจะโชว์คอลัมน์ชุดไหน** — ส่งศูนย์มาเมื่อไหร่
+     * ร้านขายออนไลน์จะได้หัวคอลัมน์ "มัดจำ/รับจริง/ค้างรับ" ที่ว่างทั้งตารางแทนต้นทุน/กำไร
+     * (คลาสเดียวกับ `0` ที่ถูกใช้แทน "ไม่รู้" — `partial-data-must-be-labeled-or-filled.md`)
+     */
+    const code = stripComments(read('src/services/dashboard.service.ts'))
+    expect(code, 'ต้อง spread แบบมีเงื่อนไข ไม่ใช่ใส่คีย์เสมอ').toMatch(
+      /\.\.\.\(depositValues && receivedValues \? \{ depositValues, receivedValues \} : \{\}\)/,
+    )
+    expect(code, 'อาร์เรย์ต้องถูกสร้างเฉพาะร้านบริการ').toMatch(
+      /receivedValues\s*=\s*isServiceShop \? new Array/,
+    )
   })
 
   it('[blocker] ห้ามกั้นด้วย "มีเรื่องเงินไหม" เพียงอย่างเดียวในจอที่เป็นหน้าออเดอร์', () => {

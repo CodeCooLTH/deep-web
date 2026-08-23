@@ -56,6 +56,9 @@ export async function GET(request: NextRequest) {
       mode,
       { year, month },
       expenseAccess.kind === 'GRANTED',
+      /* ประเภทกิจการ — ร้านบริการได้คอลัมน์ "มัดจำ/รับจริง" รายวันแทน "ต้นทุน/ค่าส่ง/กำไร"
+         ที่ว่างเปล่าเสมอสำหรับร้านประเภทนี้ (SERVICE_QUEUE ล็อก NO_SHIPPING ⇒ ไม่มีค่าส่งได้เลย) */
+      active.shop.vertical,
     )
     return NextResponse.json(series, { headers: { 'cache-control': 'private, no-store' } })
   } catch (e) {

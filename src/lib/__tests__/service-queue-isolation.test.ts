@@ -97,7 +97,8 @@ describe('feature 00050 ต้องไม่กระทบ vertical อื่�
      * `shopId: args.shopId` แล้วขอให้ฝั่งหลังไม่น้อยกว่า **ซึ่งผ่านแบบบังเอิญพอดีตัว 6 ชน 6**:
      *   · `listPayments` มี `orderPayment.findMany({ where: { orderId } })` ที่ **ไม่มี** shopId
      *     (ถูกต้องตามเจตนา — orderId มาจากการอ่านที่ scope แล้ว)
-     *   · `sumReceivedInRange` **มี** shopId แต่ใช้ `groupBy` ซึ่ง regex ไม่ได้นับเป็น query
+     *   · `sumReceivedInRange` (ถูกลบไปแล้ว 2026-08-23) **มี** shopId แต่ใช้ `groupBy`
+     *     ซึ่ง regex ไม่ได้นับเป็น query
      * สองอย่างนี้หักกลบกันพอดี ⇒ ถ้ามีใครเขียน query ที่ไม่ scope จริง ๆ เพิ่มเข้ามา
      * ด่านก็ยังเขียวตราบใดที่มี `shopId` ว่าง ๆ เหลืออยู่ที่อื่นในไฟล์
      *

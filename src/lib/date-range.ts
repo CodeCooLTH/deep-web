@@ -8,7 +8,14 @@
  * `dateOnlyUtc` (UTC midnight ไม่ shift TZ) ให้ boundary ตรงกับค่าที่เขียนพอดี ไม่ off-by-one
  */
 
-const TZ_OFFSET_MS = 7 * 60 * 60 * 1000 // Asia/Bangkok, UTC+7 คงที่ (ไม่มี DST) — pattern เดียวกับ dashboard.service.ts
+/**
+ * Asia/Bangkok = UTC+7 คงที่ (ไม่มี DST)
+ *
+ * 🛑 **export จากที่นี่ที่เดียว** — เดิมประกาศซ้ำใน `dashboard.service.ts` ด้วย ซึ่งเป็นค่าคงที่
+ * ที่ต้องเท่ากันเสมอ · ถ้าวันหนึ่งมีใครแก้ที่เดียว ตัวเลขสองหน้าจะตัดวันคนละท่าโดยไม่มีอะไรฟ้อง
+ * (คลาสเดียวกับที่ 00033 เจอ — `docs/conventions/domain-term-single-definition.md`)
+ */
+export const TZ_OFFSET_MS = 7 * 60 * 60 * 1000
 
 export type DateRangePreset = 'today' | '7d' | '30d' | 'month' | 'custom'
 

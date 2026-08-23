@@ -83,8 +83,7 @@ flowchart LR
 | `recordPayment` | findFirst → create → re-read | `publicToken + shopId` |
 | `voidPayment` | findFirst → updateMany → re-read | `id + shopId + order.publicToken` |
 | `listPayments` | findFirst → findMany | order scope แล้ว → `orderId` |
-| `sumReceivedInRange` | `groupBy` | `shopId + receivedAt` |
-| `getMoneyReceivedToday` | เรียก `sumReceivedInRange` | ขอบวันจาก `thaiTodayBounds()` |
+| `getSalesSeries` (dashboard.service) | `order.findMany` + relation `payments` | `shopId` ที่ตัวออเดอร์ — payments ถูก scope ผ่านออเดอร์ที่อ่านมาแล้ว |
 
 ### 3.4 UI
 
@@ -93,7 +92,6 @@ flowchart LR
 | `(chat)/_components/RecordPaymentSheet.tsx` | Paces | `AppointmentSummarySheet.tsx` |
 | `(chat)/_components/StartWalkInSheet.tsx` | Paces | `AppointmentSummarySheet.tsx` |
 | `(chat)/_components/mark-served.ts` | — | `AppointmentCard.tsx:115` (คำ/ท่ายืนยัน) |
-| `dashboard/components/MoneyReceivedTodayCard.tsx` | Paces | `StatisticCard.tsx` |
 | `(marketing)/o/[token]/PaymentSummaryCard.tsx` | **Vuexy** | `OrderDetailMobile.tsx` การ์ด "รีวิวของคุณ" |
 
 ---
@@ -183,7 +181,7 @@ sequenceDiagram
 | TFR-SQ-03 | `lib/order-payment` |
 | TFR-SQ-04 | `lib/chat-order-actions` + `OrderProgressBar`/`CustomerPanel` |
 | TFR-SQ-05 | `walkInWindow` + `StartWalkInSheet` + API #4 |
-| TFR-SQ-06 | `getMoneyReceivedToday` + `MoneyReceivedTodayCard` |
+| TFR-SQ-06 | `getSalesSeries` (`depositValues`/`receivedValues`) + คอลัมน์ `มัดจำ/รับจริง/ค้างรับ` ใน `SalesChartSheet` |
 | TFR-SQ-07 | `PaymentSummaryCard` + `originPage` |
 
 ---
