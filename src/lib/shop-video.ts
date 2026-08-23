@@ -124,11 +124,46 @@ export function parseVideoUrl(raw: string): ParsedVideo | null {
  * รับ ParsedVideo (ไม่ใช่ string ดิบ) โดยตั้งใจ — บังคับให้ทุกจุดที่จะฝังต้องผ่าน parse ก่อน
  * ไม่มีทางเรียกด้วยค่าที่ผู้ใช้พิมพ์มาตรง ๆ
  */
-export function buildEmbedUrl(v: ParsedVideo): string {
+/**
+ * ตัวเลือกของ embed URL
+ *
+ * `widthPx` — ความกว้างจริงของกล่องที่ iframe อยู่
+ *
+ * 🛑 **จำเป็นเฉพาะ Facebook และจำเป็นจริง ๆ** — ปลั๊กอินวิดีโอของ Facebook เรนเดอร์ตามค่า
+ * `width` **ใน URL** ไม่ใช่ตามขนาดของ iframe ⇒ ไม่ส่งมา = มันใช้ค่าตั้งต้นของตัวเอง แล้วภาพ
+ * ที่ได้จะไม่พอดีกรอบ (ผู้ใช้เห็นเป็น "วิดีโอซูม" / "ล้นเกิน iframe")
+ *
+ * เป็นบทเรียนเดียวกับ feature 00029 (แท็บความคิดเห็น) — user รายงานอาการนี้มาแล้ว 2026-08-03
+ * และ 2026-08-23 คนละหน้าจอ เพราะตอนนั้นแก้เฉพาะที่ `CommentsClient` ไม่ได้แก้ที่ตัวประกอบ URL
+ * ⇒ ย้ายมาไว้ที่นี่ ที่เดียว ทุกคนที่เรียกจะได้ของที่ถูกโดยไม่ต้องรู้เรื่องนี้เอง
+ *
+ * ไม่ส่งมา (`undefined`) ยังใช้ได้ปกติ — สำหรับผู้เรียกที่ยังไม่ได้วัดกล่อง
+ *
+ * ---
+ *
+ * `autoplay` — เล่นทันทีที่ iframe โหลด
+ *
+ * 🛑 **ไม่ใช่การเล่นอัตโนมัติที่ผู้ชมไม่ได้ขอ** — ผู้เรียกทุกรายมี "ประตู" ของตัวเองอยู่แล้ว
+ * (กดที่รูปปกก่อน iframe ถึงจะถูกสร้าง) ⇒ ตอนที่ iframe เกิดขึ้น ผู้ชม **กดขอดูไปแล้ว**
+ * ถ้าไม่ส่งค่านี้ ผู้ชมต้องกดปุ่มเล่นอีกครั้งในตัวเล่นของแพลตฟอร์ม = **กด 2 ชั้น**
+ * (user ทัก 2026-08-23 "ต้องกดเล่นวิดีโอ 2 ชั้น") ซึ่งกลุ่มผู้ใช้ตาม PRODUCT.md
+ * (ผู้สูงวัย/digital-literacy ต่ำ) มักหยุดที่ชั้นแรกแล้วคิดว่าคลิปเสีย
+ *
+ * 🛑 รองรับเฉพาะ **Facebook** และ **YouTube** ซึ่งมีพารามิเตอร์นี้ในเอกสารจริง —
+ * TikTok/Instagram **ไม่มี** จึงไม่ใส่มั่ว (ใส่พารามิเตอร์ที่ปลายทางไม่รู้จักไม่ได้ทำให้เล่น
+ * แต่ทำให้คนอ่านโค้ดเชื่อว่าเล่นแล้ว) ⇒ สองเจ้านั้นยังต้องกดในตัวเล่นอีกครั้ง — เป็นข้อจำกัด
+ * ของแพลตฟอร์ม ไม่ใช่ของที่เราลืมทำ
+ */
+export function buildEmbedUrl(
+  v: ParsedVideo,
+  opts?: { widthPx?: number; autoplay?: boolean },
+): string {
+  const widthPx = opts?.widthPx;
+  const autoplay = opts?.autoplay === true;
   switch (v.provider) {
     case "YOUTUBE":
       // youtube-nocookie: ไม่ตั้ง cookie ติดตามจนกว่าผู้ชมจะกดเล่นจริง
-      return `https://www.youtube-nocookie.com/embed/${v.videoId}`;
+      return `https://www.youtube-nocookie.com/embed/${v.videoId}${autoplay ? "?autoplay=1" : ""}`;
     case "TIKTOK":
       return `https://www.tiktok.com/embed/v2/${v.videoId}`;
     case "INSTAGRAM":
@@ -137,7 +172,9 @@ export function buildEmbedUrl(v: ParsedVideo): string {
       // ปลั๊กอินวิดีโอของ Facebook รับ href เป็น URL หน้าคลิป — ประกอบจาก id ที่ตรวจแล้วเท่านั้น
       return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(
         `https://www.facebook.com/reel/${v.videoId}`,
-      )}&show_text=false`;
+      )}&show_text=false${autoplay ? "&autoplay=true" : ""}${
+        widthPx && widthPx > 0 ? `&width=${Math.round(widthPx)}` : ""
+      }`;
   }
 }
 

@@ -156,28 +156,6 @@ const LAYOUT_SX = {
  *         บรรทัดอธิบายใต้หัวข้อได้ (ตัวเลข 650 มาจากไฟล์อ้างอิงตรง ๆ)
  */
 /** กรอบการ์ดของคอลัมน์ซ้าย — ค่าจากไฟล์อ้างอิง (`.card` + `.social-card`) */
-/**
- * `.section-head` ของไฟล์อ้างอิง — หัวข้อ 20px + บรรทัดอธิบาย 12px muted
- *
- * 🛑 คำอธิบายต้องเป็น "สิ่งที่จริงกับทุกร้าน" ไม่ใช่ลอกประโยคในไฟล์อ้างอิงมาทั้งดุ้น
- * ไฟล์นั้นเขียนถึงร้าน BT Premium โดยเฉพาะ ("สินค้าและอะไหล่สำหรับระบบไฟรถยนต์") —
- * เอามาใช้กับร้านขายเสื้อผ้าจะกลายเป็นข้อความที่ผิดความจริงทันที
- */
-function SectionHead({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div className='flex items-center justify-between gap-3 mbe-[14px]'>
-      <div>
-        <Typography component='h2' className='text-[18px] sm:text-[20px] font-bold' color='text.primary'>
-          {title}
-        </Typography>
-        <Typography className='text-[12px] mbs-[5px]' color='text.secondary'>
-          {subtitle}
-        </Typography>
-      </div>
-    </div>
-  )
-}
-
 /** `.tabs-card` ของไฟล์อ้างอิง */
 const TABS_CARD_SX = {
   background: 'var(--mui-palette-background-paper)',
@@ -325,7 +303,10 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
         />
       ),
     },
-    rooms: { label: 'ห้องพัก', content: <PublicRoomList rooms={data.rooms} /> },
+    rooms: {
+      label: 'ห้องพัก',
+      content: <PublicRoomList rooms={data.rooms} />,
+    },
     calendar: {
       label: 'ปฏิทิน',
       content: data.availability ? <AvailabilityCalendar data={data.availability} /> : null,
@@ -334,19 +315,12 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
     // (ไม่ fallback ไปที่อื่น — ตั้งใจตาม UX spec §B edge states)
     services: {
       label: 'บริการ',
-      content: (
-        <>
-          <SectionHead title='บริการของร้าน' subtitle='เลือกบริการที่สนใจ แล้วติดต่อร้านเพื่อนัดหมาย' />
-          <PublicServiceList services={data.services} />
-        </>
-      ),
+      content: <PublicServiceList services={data.services} />,
     },
     items: {
       // feature 00028 — เดิม "สินค้าและบริการ" ชนกับชื่อ vertical ใหม่ เปลี่ยนเป็น "สินค้า"
       label: 'สินค้า',
       content: (
-        <>
-        <SectionHead title='สินค้าของร้าน' subtitle='สินค้าที่ร้านเปิดขายอยู่ตอนนี้' />
         <ProfileRightContent
           data={{
             pinnedProducts: data.pinnedProducts,
@@ -361,7 +335,6 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
           initialProductId={productParam}
           onDeepLinkResolved={dropParam('p')}
         />
-        </>
       ),
     },
     about: {
@@ -384,7 +357,6 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
       content:
         data.ratingDistribution && data.avgRating != null ? (
           <>
-            <SectionHead title='รีวิวจากลูกค้า' subtitle='ความคิดเห็นจากผู้ซื้อที่ยืนยันรับของแล้วเท่านั้น' />
             <ReviewSummary
               avgRating={data.avgRating}
               reviewCount={data.reviewCount}
@@ -447,13 +419,26 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
           avgRating: data.hero.avgRating ?? null,
           reviewCount: data.hero.reviewCount ?? 0,
           channels: data.channels,
-          /* แสดงครบ 4 ช่องเสมอแม้เป็น 0 — ซ่อนบางช่องแล้ว layout ขยับไปมาระหว่างร้าน
-             และผู้ซื้อแยกไม่ออกว่าช่องที่หายคือ "ไม่มี" หรือ "ไม่แสดง" (มติ 2026-07-26) */
+          /**
+           * แสดงครบทุกช่องเสมอแม้เป็น 0 — ซ่อนบางช่องแล้ว layout ขยับไปมาระหว่างร้าน
+           * และผู้ซื้อแยกไม่ออกว่าช่องที่หายคือ "ไม่มี" หรือ "ไม่แสดง" (มติ 2026-07-26)
+           *
+           * 🛑 **3 ช่อง ไม่ใช่ 4** (user เคาะ 2026-08-23) — ช่องที่ 4 เคยเป็น "รีวิว" แล้วเปลี่ยนเป็น
+           * "ระดับยืนยัน" แล้วถอดออกทั้งช่อง เพราะ:
+           *   · รีวิว → ย้ายไปอยู่การ์ดคะแนนฝั่งขวาของปกแล้ว เขียนซ้ำ = เลขเดียวกันโผล่สองที่
+           *   · ระดับยืนยัน → เป็นที่พูดถึงที่ **4** ของเรื่องเดียวกันบนหน้าเดียว (โล่บนรูปโปรไฟล์ ·
+           *     ติ๊กถูกท้ายชื่อ · การ์ดซ้าย) และ `1/3` เป็นเศษส่วนที่ไปยืนข้างตัวนับ 356/351/5
+           *     ⇒ อ่านสะดุดเพราะคนละหน่วย
+           *   · 🛑 หนักกว่านั้น: ร้านเกือบทั้งหมดอยู่ระดับ 1 (ยืนยันเบอร์ = ขั้นอัตโนมัติ) ⇒ `1/3`
+           *     ทำให้ร้านปกติทุกร้านดูเหมือนทำอะไรไม่เสร็จ ทั้งที่นั่นคือสถานะปกติ · การ์ดซ้าย
+           *     เขียนเป็นประโยค "ยืนยันเบอร์แล้ว" ขึ้นต้นด้วยสิ่งที่ *ทำแล้ว* — คนละน้ำเสียงกัน
+           *
+           * กริดผูกกับ `data.stats.length` อยู่แล้ว จึงยุบเหลือ 3 คอลัมน์เองโดยไม่ต้องแก้อะไรเพิ่ม
+           */
           stats: [
             { value: data.hero.completedOrders ?? 0, label: L.orders },
             { value: data.hero.customerCount ?? 0, label: L.customers },
             { value: data.hero.repeatCustomerCount ?? 0, label: L.repeat },
-            { value: data.reviewCount > 0 ? data.reviewCount : null, label: 'รีวิว' },
           ],
         }}
       />
@@ -480,7 +465,6 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
               },
               badges: data.hero.badges,
               totalBadgeCount: data.hero.totalBadgeCount,
-              tierAccent: getTierAccentColor(data.hero.trustScore),
             }}
           />
           {/* กรอบการ์ดใส่ที่ "จุดเรียกใช้" ไม่ใช่ในตัว OfficialChannelsBlock เอง —

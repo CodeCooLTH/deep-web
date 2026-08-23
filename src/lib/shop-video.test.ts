@@ -126,3 +126,67 @@ describe('Facebook (เพิ่ม 2026-07-26 — เป็นแพลตฟ�
     expect(new URL(embed).searchParams.get('href')).toBe('https://www.facebook.com/reel/800277546442607')
   })
 })
+
+describe('buildEmbedUrl — ความกว้างของปลั๊กอิน Facebook', () => {
+  /**
+   * 🛑 ปลั๊กอินวิดีโอของ Facebook เรนเดอร์ตามค่า `width` **ใน URL** ไม่ใช่ตามขนาด iframe
+   * ไม่ส่ง = ใช้ค่าตั้งต้นของมันเอง แล้วผู้ชมเห็นเป็น "วิดีโอซูม" / "ล้นเกิน iframe"
+   *
+   * อาการนี้ user รายงานมาแล้ว **2 ครั้ง คนละหน้าจอ** (2026-08-03 แท็บความคิดเห็น ·
+   * 2026-08-23 lightbox คลิปบนโปรไฟล์ร้าน) เพราะครั้งแรกแก้ที่ call site ไม่ได้แก้ที่ตัวประกอบ URL
+   * ⇒ ด่านนี้ผูกไว้ที่ตัวประกอบ URL เพื่อไม่ให้มีครั้งที่สาม
+   */
+  it('[blocker] FACEBOOK ต้องมี &width= เมื่อผู้เรียกวัดกล่องมาแล้ว', () => {
+    const url = buildEmbedUrl({ provider: 'FACEBOOK', videoId: '123' }, { widthPx: 880 })
+    expect(url).toContain('&width=880')
+  })
+
+  it('[blocker] ปัดเป็นจำนวนเต็ม — getBoundingClientRect คืนทศนิยม', () => {
+    expect(buildEmbedUrl({ provider: 'FACEBOOK', videoId: '123' }, { widthPx: 880.42 })).toContain('&width=880')
+  })
+
+  it('ไม่ส่ง/0/ติดลบ = ไม่ใส่พารามิเตอร์ ไม่ใช่ใส่ค่าพัง', () => {
+    for (const w of [undefined, 0, -5]) {
+      expect(buildEmbedUrl({ provider: 'FACEBOOK', videoId: '123' }, { widthPx: w })).not.toContain('width=')
+    }
+  })
+
+  it('ผู้ให้บริการอื่นไม่ได้รับผลกระทบ — width เป็นเรื่องของปลั๊กอิน Facebook เท่านั้น', () => {
+    for (const provider of ['YOUTUBE', 'TIKTOK', 'INSTAGRAM'] as const) {
+      expect(buildEmbedUrl({ provider, videoId: '123' }, { widthPx: 880 })).not.toContain('width=')
+    }
+  })
+})
+
+describe('buildEmbedUrl — autoplay (กันกด 2 ชั้น)', () => {
+  /**
+   * 🛑 ผู้เรียกมี "ประตู" ของตัวเองอยู่แล้ว (กดรูปปกก่อน iframe ถึงถูกสร้าง) ⇒ ตอน iframe เกิด
+   * ผู้ชมกดขอดูไปแล้ว · ไม่ส่ง autoplay = ต้องกดปุ่มเล่นในตัวเล่นของแพลตฟอร์มอีกครั้ง
+   * (user ทัก 2026-08-23 "ต้องกดเล่นวิดีโอ 2 ชั้น") — กลุ่มผู้ใช้ตาม PRODUCT.md มักหยุดที่ชั้นแรก
+   */
+  it('[blocker] FACEBOOK ต้องมี &autoplay=true เมื่อผู้เรียกขอ', () => {
+    expect(buildEmbedUrl({ provider: 'FACEBOOK', videoId: '1' }, { autoplay: true })).toContain('&autoplay=true')
+  })
+
+  it('[blocker] YOUTUBE ต้องมี autoplay=1 เมื่อผู้เรียกขอ', () => {
+    expect(buildEmbedUrl({ provider: 'YOUTUBE', videoId: '1' }, { autoplay: true })).toContain('autoplay=1')
+  })
+
+  it('[blocker] ไม่ขอ = ต้องไม่มี autoplay หลุดไป (ห้ามเล่นเองโดยผู้ชมไม่ได้กด)', () => {
+    for (const provider of ['FACEBOOK', 'YOUTUBE', 'TIKTOK', 'INSTAGRAM'] as const) {
+      expect(buildEmbedUrl({ provider, videoId: '1' })).not.toContain('autoplay')
+    }
+  })
+
+  it('TIKTOK/INSTAGRAM ไม่มีพารามิเตอร์นี้จริง — ห้ามใส่มั่วให้ดูเหมือนรองรับ', () => {
+    for (const provider of ['TIKTOK', 'INSTAGRAM'] as const) {
+      expect(buildEmbedUrl({ provider, videoId: '1' }, { autoplay: true })).not.toContain('autoplay')
+    }
+  })
+
+  it('autoplay + width อยู่ด้วยกันได้', () => {
+    const url = buildEmbedUrl({ provider: 'FACEBOOK', videoId: '1' }, { widthPx: 900, autoplay: true })
+    expect(url).toContain('&autoplay=true')
+    expect(url).toContain('&width=900')
+  })
+})

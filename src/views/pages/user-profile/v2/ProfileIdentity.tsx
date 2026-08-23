@@ -31,6 +31,7 @@ import { useState, useEffect, useRef } from 'react'
 import NextLink from 'next/link'
 
 import Box from '@mui/material/Box'
+import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import IconButton from '@mui/material/IconButton'
@@ -42,8 +43,7 @@ import themeConfig from '@configs/themeConfig'
 
 import ResponsiveSheet from './ResponsiveSheet'
 
-import { getTierChipTone } from '@/lib/trust-tier'
-import { resolveVerifyLevelImage } from '@/lib/verify-badge'
+import { resolveVerifyBadge, resolveVerifyLevelImage } from '@/lib/verify-badge'
 import { isClampOverflowing } from '@/lib/clamp-overflow'
 import { formatShopAge } from '@/lib/shop-age'
 import { compactCount } from '@/lib/format-compact-number'
@@ -55,7 +55,6 @@ import {
 } from '@/lib/official-channel-link'
 
 /** คะแนนเต็มของ Trust Score (SSOT: `docs/10 - Business Rules/Tier Lists.md` — สเกล 0–100) */
-const TRUST_SCORE_MAX = 100
 
 /** องค์ประกอบคะแนน — ตัวเลขระดับแพลตฟอร์ม (SSOT: PRODUCT.md / docs/PRD.md)
  *  ไม่ใช่ breakdown รายร้าน เพราะข้อมูลไม่มี sub-score ต่อองค์ประกอบให้แสดง */
@@ -118,6 +117,28 @@ function ProfileImg({
  * ถ้าแยกกันเมื่อไหร่ ปุ่ม "เพิ่มเติม" จะโผล่ผิดจังหวะโดยไม่มีอะไรฟ้อง (Hard Rule 16)
  */
 const BIO_CLAMP_LINES = 2
+
+/**
+ * ความสูงที่ **จองไว้ตายตัว** ให้บล็อกคำโปรย = 2 บรรทัดเสมอ (15px × leading 1.75)
+ *
+ * 🛑 ทำไมต้องจอง: ปกจัดกลางแนวตั้ง (`alignItems:'center'` + `minBlockSize:300`) ⇒ เนื้อหาสูง
+ * เท่าไหร่ ตำแหน่งของทุกอย่างเลื่อนตามครึ่งหนึ่งของส่วนต่าง · ร้านที่เขียนคำโปรย 1 บรรทัดกับ
+ * 2 บรรทัด ชื่อร้านจึงอยู่คนละที่ห่างกัน ~17px (user วัดจากภาพเทียบสองร้าน 2026-08-23:
+ * "ตอนเปลี่ยนมันจะได้ไม่แว็บ ๆ")
+ *
+ * จอง = ทุกร้านสูงเท่ากันไม่ว่าจะเขียนสั้นยาว ⇒ สลับหน้าแล้วไม่มีอะไรกระโดด
+ */
+const BIO_RESERVED_BLOCK_SIZE = 'calc(15px * 1.75 * 2)'
+
+/**
+ * ความสูงขั้นต่ำของคอลัมน์ตัวตนร้าน (md ขึ้นไป) — เผื่อกรณี **ชื่อร้านยาวจนตกเป็น 2 บรรทัด**
+ *
+ * งบที่กางไว้: ชื่อ 36 + margin 20 + meta 22 + คำโปรย 65 + สถิติ 80 = 223 (ชื่อ 1 บรรทัด)
+ * ⇒ ชื่อ 2 บรรทัดได้ 259 · ตั้ง 260 ให้คอลัมน์สูงคงที่ทั้งสองกรณี ⇒ ชื่อร้านอยู่ y เดิมเสมอ
+ *
+ * 🛑 ต้องน้อยกว่า `minBlockSize:300` ของปก ไม่งั้นปกจะโตตามแล้วปัญหาเดิมกลับมาคนละชั้น
+ */
+const IDENTITY_MIN_BLOCK_SIZE = 260
 
 /**
  * ตัวห่อของคำอธิบายร้าน — เป็นปุ่มเมื่อข้อความยาวจนต้องย่อ ไม่งั้นเป็นย่อหน้าเปล่า
@@ -193,7 +214,41 @@ const LOGO_SX = {
   marginBlockEnd: { xs: '14px', sm: 0 },
 } as const
 
+/**
+ * ไอคอนยืนยันท้ายชื่อร้าน — เป็นปุ่มจริง (ทางเข้าแผงคะแนน หลังถอดพิลระดับออก)
+ *
+ * 🛑 `verticalAlign: -3` ไม่ใช่ flex — มันต้องไหลไปกับตัวอักษรของชื่อร้านที่ตกบรรทัดได้
+ * ถ้าใช้ flex ไอคอนจะไปเกาะท้าย *กล่อง* ไม่ใช่ท้าย *คำ* แล้วชื่อ 2 บรรทัดจะเห็นติ๊กถูกลอยคนละที่
+ *
+ * 🛑 tap target: ไอคอนที่ตาเห็น 22px แต่ padding 6px รอบด้านดันพื้นที่นิ้วเป็น 34px และมี
+ * `margin: -6px` หักกลับ ⇒ **ไม่ดันบรรทัดชื่อให้สูงขึ้น** (ยังต่ำกว่าเกณฑ์ 44px อยู่ แต่บนบรรทัด
+ * ข้อความจริง ๆ ทำได้แค่นี้โดยไม่ทำให้ชื่อร้านเบี้ยว — เป็น secondary action ไม่ใช่ปุ่มหลัก)
+ */
+const VERIFY_MARK_SX = {
+  border: 0,
+  padding: '6px',
+  margin: '0 0 0 2px',
+  marginBlock: '-6px',
+  background: 'transparent',
+  cursor: 'pointer',
+  display: 'inline-flex',
+  verticalAlign: -3,
+  color: '#4da3ff',
+  lineHeight: 0,
+  borderRadius: '50%',
+  '&:hover': { background: 'rgba(255,255,255,.12)' },
+  '&:focus-visible': { outline: '2px solid #fff', outlineOffset: 1 },
+} as const
+
 const TITLE_SX = {
+  /* 🛑 **ห้าม clamp ชื่อร้านด้วย `-webkit-box`** ถึงแม้จะดูเป็นกันเหนียวที่ดี
+     เพราะไอคอนยืนยัน (ปุ่มจริง) อยู่ใน `<h1>` ตัวนี้ — ไฟล์นี้เจ็บมาแล้วกับ `-webkit-line-clamp`
+     ที่ไม่ทำงานเมื่ออิลิเมนต์เป็น form control (บั๊ก prod 2026-08-15 คำโปรยกระพริบทุกเฟรม)
+     และ `-webkit-box` วางลูกเป็น "กล่อง" ⇒ ไอคอนมีสิทธิ์ถูกดันไปอยู่บรรทัดของตัวเอง
+
+     ไม่ต้อง clamp ก็ได้ เพราะคอลัมน์นี้ **ไหลจากบนลงล่าง** (flex column) ⇒ ชื่อร้านเป็นลูกตัวแรก
+     อยู่ y เดิมเสมอไม่ว่าชื่อจะกี่บรรทัด · ชื่อ 3 บรรทัดได้ 295px ยังต่ำกว่าพื้นปก 300px
+     (4 บรรทัดถึงจะดันปกโต ซึ่งยังไม่เคยเจอบน prod) */
   fontSize: { xs: 24, md: 30 },
   lineHeight: 1.2,
   fontWeight: 900,
@@ -279,6 +334,22 @@ const BTN_GHOST_SX = {
 } as const
 
 const SCORE_CARD_SX = {
+  /**
+   * 🛑 ความสูงคงที่ที่ md — ไม่งั้นการ์ดของร้านที่มีรีวิวกับไม่มีรีวิว **สูงไม่เท่ากัน**
+   * (user วัดจากภาพเทียบสองร้าน 2026-08-23)
+   *
+   * งบที่กางไว้ (padding 19 รอบด้าน):
+   *   มีรีวิว  : ป้าย 17 + mbe 2 + เลข 32 + ดาว 13 + จำนวน 16 = 80 → การ์ด **118px**
+   *   ไม่มีรีวิว: ป้าย 17 + mbe 2 + ข้อความ 20 = 39 → ไอคอน 58 คุมแทน → การ์ด **96px**
+   *   ⇒ ต่างกัน 22px
+   *
+   * ตั้งพื้นที่ 118 ⇒ ใบที่เนื้อหาน้อยถูกดันขึ้นมาเท่ากัน แล้ว `alignItems:'center'` ที่มีอยู่แล้ว
+   * จัดเนื้อหาไว้กลางใบให้เอง
+   *
+   * ไม่ต้องตั้งที่ xs เพราะที่นั่นเนื้อหาเรียงบรรทัดเดียว ⇒ **ไอคอน 45px เป็นตัวคุมความสูงทั้งสอง
+   * กรณีอยู่แล้ว** จึงเท่ากันโดยธรรมชาติ (ตั้งเพิ่มมีแต่จะดันการ์ดมือถือให้สูงเกินจำเป็น)
+   */
+  minBlockSize: { md: 118 },
   padding: { xs: '13px', md: '19px' },
   borderRadius: '18px',
   border: '1px solid rgba(255,255,255,.17)',
@@ -387,8 +458,11 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
   const [copied, setCopied] = useState(false)
   const [scorePanelOpen, setScorePanelOpen] = useState(false)
 
-  const tierTone = getTierChipTone(data.trustScore)
   const levelImage = resolveVerifyLevelImage(data.maxVerifyLevel)
+  /* ไอคอนยืนยันท้ายชื่อ — `null` เมื่อยังไม่ผ่านระดับไหนเลย ⇒ ไม่แสดงติ๊กถูก
+     🛑 ห้ามแสดงติ๊กถูกให้ร้านที่ยังไม่ยืนยัน มันคือสัญญาณความเชื่อใจ ไม่ใช่ของประดับ
+     (Verified-Means-Green ของ design.json — สัญญาณ trust ที่เฟ้อคือสัญญาณที่ไร้ความหมาย) */
+  const verifyBadge = resolveVerifyBadge(data.maxVerifyLevel)
   const chatChannel = firstChattableChannel(data.channels)
   const chatHref = chatChannel ? channelChatUrl(chatChannel) : null
 
@@ -581,49 +655,48 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
               `absolute inline-end-0` = ตรึงมุมขวาล่างของกล่อง ไม่ใช่ท้ายตัวอักษร ⇒ พอจัดกลาง
               บรรทัดสุดท้ายจะสั้นกว่ากล่อง แล้วป้ายไปลอยห่างจากข้อความโดยไม่มีอะไรเชื่อม
               (จะจัดกลางคำโปรยด้วยต้องรื้อป้ายเป็นบรรทัดแยกก่อน — ยังไม่ทำในรอบนี้) */}
-          <Box sx={{ minInlineSize: 0, textAlign: { xs: 'center', sm: 'start' } }}>
-            {/* พิลระดับ — คงเป็น "ปุ่ม" ไม่ใช่ป้ายเฉย ๆ เพราะมันคือทางเข้าเดียวของแผงคะแนน
-                (ไฟล์อ้างอิงวาดเป็นป้ายนิ่ง ๆ ถ้าลอกตรงนั้นมา ผู้ใช้จะเข้าแผงไม่ได้อีกเลย) */}
-            <button
-              type='button'
-              onClick={() => setScorePanelOpen(true)}
-              aria-haspopup='dialog'
-              aria-expanded={scorePanelOpen}
-              aria-controls='trust-score-panel'
-              aria-label={`คะแนนความน่าเชื่อถือ ${data.trustScore} จาก ${TRUST_SCORE_MAX} · ระดับ ${data.tierLabel} — ดูรายละเอียด`}
-              /* 🛑 **ไม่แตะระบบแรงค์** — ใช้ `getTierChipTone()` ชุดเดิมของระบบทั้งดุ้น (user สั่ง
-                 2026-08-21: "ใช้ตรีมเดิมของระบบนั้นละ อย่าไปแก้แรงค์เขานะ")
-
-                 ชุดนั้นเป็น "ตัวหนังสือเข้มบนพื้นอ่อน" ซึ่งออกแบบไว้สำหรับการ์ดพื้นขาว — วางบน
-                 ปกเข้มตรง ๆ จะจมหาย ทางแก้ที่ **ไม่ต้องแตะสีของระดับเลย** คือวางบน "แผ่นทึบสีพื้น"
-                 แล้วให้พิลของระดับทำงานบนแผ่นนั้นเหมือนตอนอยู่บนการ์ดขาว
-
-                 เป็นท่าเดียวกับ **ตราแบรนด์ Deep มุมซ้ายบน** ในไฟล์นี้ ซึ่งเลือกพื้นทึบด้วยเหตุผล
-                 ที่เขียนไว้แล้วว่า "ปกมี 2 กรณี (รูปจริง / ไล่สี tier) พื้นทึบอ่านออกทั้งคู่" */
-              className='inline-flex items-center gap-1.5 cursor-pointer border-0 p-0 bg-transparent'
-            >
-              <span
-                className='inline-flex items-center gap-1.5 rounded-full plb-1.5 pli-3'
-                style={{ background: 'var(--mui-palette-background-paper)' }}
-              >
-                <span
-                  className='inline-flex items-center gap-1 rounded-full plb-0.5 pli-2 text-[12px] font-extrabold'
-                  style={{ background: tierTone.bg, color: tierTone.text }}
-                >
-                  {data.tierLabel}
-                </span>
-                <span className='text-[13px] font-bold tabular-nums text-[var(--mui-palette-text-primary)]'>
-                  {data.trustScore}
-                  <span className='text-[11px] opacity-60'>{`/${TRUST_SCORE_MAX}`}</span>
-                </span>
-                <Icon icon='tabler:chevron-right' width={13} aria-hidden className='text-[var(--mui-palette-text-secondary)]' />
-              </span>
-            </button>
+          <Box
+            sx={{
+              minInlineSize: 0,
+              textAlign: { xs: 'center', sm: 'start' },
+              /* สูงคงที่ + ไหลจากบน ⇒ ชื่อร้าน/บรรทัด meta อยู่ y เดิมทุกร้าน (ดู IDENTITY_MIN_BLOCK_SIZE)
+                 เฉพาะ md ขึ้นไป — มือถือเรียงลงเป็นแถวเดียวอยู่แล้ว ไม่มีอะไรให้จัดกลาง */
+              minBlockSize: { md: IDENTITY_MIN_BLOCK_SIZE },
+              display: { md: 'flex' },
+              flexDirection: { md: 'column' },
+            }}
+          >
+            {/* 🛑 **ไม่มีพิล "Deep Classic 43/100" แล้ว** (user เคาะ 2026-08-23 "เอา Deep Classic
+                ออกก่อน") — เดิมพิลนั้นเป็น **ทางเข้าเดียว** ของแผงอธิบายคะแนน ถ้าถอดเฉย ๆ แผงนั้น
+                จะกลายเป็นโค้ดที่ไม่มีใครเปิดได้อีกเลย ⇒ ย้ายทางเข้าไปไว้ที่ **ไอคอนยืนยันท้ายชื่อร้าน**
+                ซึ่งเป็นของที่ผู้ใช้กดหาความหมายอยู่แล้ว ("ติ๊กถูกนี้แปลว่าอะไร") */}
 
             <Typography component='h1' sx={TITLE_SX}>
               {data.shopName}
-            </Typography>
+              {verifyBadge && (
+                /* ── ข้อ 2: ไอคอนยืนยันท้ายชื่อ ──
+                   `component='span'` + `verticalAlign` ไม่ใช่ flex เพราะมันต้องไหลไปกับตัวอักษร
+                   ชื่อร้านที่ตกบรรทัดได้ — ถ้าใช้ flex ไอคอนจะไปเกาะท้าย *กล่อง* ไม่ใช่ท้าย *คำ*
+                   แล้วชื่อยาว 2 บรรทัดจะเห็นติ๊กถูกลอยอยู่คนละที่กับชื่อ
 
+                   🛑 ไม่ใช้ `title=` เดี่ยว ๆ — มือถือไม่มี hover ⇒ ใช้ `Tooltip` ของธีมคู่กับ
+                   `aria-label` ที่บอกทั้งระดับและว่ากดได้ (`aria-name-requires-supporting-role.md`) */
+                <Tooltip title={`${verifyBadge.label} — ดูว่าทำไมร้านนี้ถึงเชื่อได้`} enterTouchDelay={0}>
+                  <Box
+                    component='button'
+                    type='button'
+                    onClick={() => setScorePanelOpen(true)}
+                    aria-haspopup='dialog'
+                    aria-expanded={scorePanelOpen}
+                    aria-controls='trust-score-panel'
+                    aria-label={`${verifyBadge.label} — ดูรายละเอียดความน่าเชื่อถือ`}
+                    sx={VERIFY_MARK_SX}
+                  >
+                    <Icon icon='tabler:rosette-discount-check-filled' width={22} aria-hidden />
+                  </Box>
+                </Tooltip>
+              )}
+            </Typography>
             <Box sx={{ color: 'rgba(255,255,255,.72)', fontSize: 13, lineHeight: 1.7 }}>
               {[`@${data.username}`, data.category, `เปิดร้านมาแล้ว ${formatShopAge(data.createdAtIso)}`]
                 .filter(Boolean)
@@ -643,7 +716,12 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
                  ย้ายออกไปอยู่ที่ตัวห่อ ⇒ ผลการวัดไม่ขึ้นกับผลการวัดอีกต่อไป
                  (`<button>` ห่อ `<span>` เป็น HTML ที่ถูก — button รับได้เฉพาะ phrasing content
                  ซึ่งเป็นบทเรียนเดียวกับที่ `OfficialChannelsBlock` เคยพลาดกับ `<h2>`) */
-              <div ref={bioHostRef} className='relative mbs-3'>
+              <div
+                ref={bioHostRef}
+                className='relative mbs-3'
+                /* จองสูง 2 บรรทัดเสมอ — เขียน 1 บรรทัดก็กินที่เท่ากับเขียน 2 บรรทัด */
+                style={{ minBlockSize: BIO_RESERVED_BLOCK_SIZE }}
+              >
                 {/* 🛑 โพรบวัดความสูง — ข้อความชุดเดียวกันแบบ **ไม่ย่อ** ซ่อนไว้ทับที่เดิม
                     มีไว้เพราะ "ล้นไหม" ต้องตอบได้โดย **ไม่ต้องวัดกล่องที่ถูกย่อ**:
                       · กล่องที่ถูก clamp ให้ `scrollHeight` ไม่ตรงกันระหว่างเอนจิน และไม่ตรงกันแม้แต่
@@ -710,7 +788,11 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
                 </Typography>
                 </BioShell>
               </div>
-            ) : null}
+            ) : (
+              /* 🛑 ร้านที่ยังไม่เขียนคำโปรย ก็ต้องกินที่เท่ากัน ไม่งั้นชื่อร้านของร้านนั้นจะไปอยู่คนละ y
+                 กับร้านที่เขียน — ซึ่งคืออาการ "แว็บ ๆ" ตอนสลับหน้าที่ user ทัก */
+              <div aria-hidden className='mbs-3' style={{ blockSize: BIO_RESERVED_BLOCK_SIZE }} />
+            )}
 
             {/* ── กล่องสถิติกระจกฝ้า — 4 ช่องมีเส้นคั่น ตามไฟล์อ้างอิง ──
                 🛑 `gridTemplateColumns` ผูกกับ **จำนวนช่องจริง** ไม่ hardcode 4: ไฟล์อ้างอิงมี 4 ช่อง
@@ -767,9 +849,25 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
             </Box>
 
             {/* การ์ดคะแนน = **คะแนนรีวิวจากลูกค้า** คนละตัวกับคะแนนความน่าเชื่อถือในพิลด้านซ้าย
-                (ไฟล์อ้างอิงก็แยกสองอย่างนี้เหมือนกัน) — ซ่อนทั้งใบเมื่อยังไม่มีรีวิว ดีกว่าโชว์ "—/5"
-                ซึ่งอ่านได้ว่าร้านได้คะแนนแย่ ทั้งที่แปลว่ายังไม่มีใครรีวิว */}
-            {data.avgRating != null && (
+                (ไฟล์อ้างอิงก็แยกสองอย่างนี้เหมือนกัน)
+
+                🛑 **แสดงทั้งใบเสมอ แม้ยังไม่มีรีวิว** (user เคาะ 2026-08-23 "อยากให้โชว์เลยนะ 0 ก็โชว์")
+                เดิมซ่อนทั้งใบเมื่อ `avgRating == null` ⇒ ปกของร้านที่ยังไม่มีรีวิวเตี้ยกว่าร้านที่มี
+                ซึ่งคือข้อ 1 ที่ user ทัก ("การ์ด hero พื้นหลังไม่เท่ากันคนละ vertical") — ต้นเหตุ
+                ไม่ใช่ vertical แต่เป็น "ร้านนี้มีรีวิวไหม"
+
+                🛑 **ยังไม่มีรีวิว = ไม่แสดงตัวเลขอะไรเลย ไม่ใช่ "0.0" และไม่ใช่ "—/5"**
+
+                `0.0/5 ★☆☆☆☆` อ่านว่า *ร้านนี้ถูกให้คะแนนศูนย์* ซึ่งคนละเรื่องกับ *ยังไม่มีใครรีวิว*
+                และเป็นคำโกหกที่ทำร้ายร้านเปิดใหม่ทุกร้าน
+
+                ส่วน `—/5` (ท่าแรกที่ลองไป) ก็ยังไม่ดี — ขีดหน้า "/5" อ่านสะดุด เหมือนช่องที่โหลดไม่ขึ้น
+                (user ทัก 2026-08-23) · ทั้ง `—` และ `/5` มีไว้เพื่อบอกว่า "ตรงนี้ควรมีเลข" ทั้งที่
+                ความจริงคือ **ยังไม่ควรมีเลข** ⇒ ตัดทิ้งทั้งคู่ เหลือประโยคที่จริงอย่างเดียว */}
+            {(() => {
+              const hasRating = data.avgRating != null && data.reviewCount > 0
+
+              return (
               <Box sx={SCORE_CARD_SX}>
                 <Box sx={SCORE_ICON_SX} aria-hidden>
                   <Icon icon='tabler:star-filled' width={26} />
@@ -790,27 +888,37 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
                       columnGap: '9px',
                     }}
                   >
-                    <Box component='strong' sx={{ fontSize: { xs: 22, md: 27 }, fontWeight: 800 }} className='tabular-nums'>
-                      {data.avgRating.toFixed(1)}
-                      <Box component='small' sx={{ fontSize: 13, opacity: 0.7 }}>/5</Box>
-                    </Box>
-                    <Box aria-hidden sx={{ color: '#ffac22', fontSize: 13, lineHeight: 1 }}>
-                      {'★'.repeat(Math.round(data.avgRating)).padEnd(5, '☆')}
-                    </Box>
+                    {/* เลข + "/5" + ดาว โผล่พร้อมกันเฉพาะตอนมีคะแนนจริง — ทั้งสามอย่างพูดเรื่อง
+                        เดียวกัน แยกโผล่ทีละชิ้นเมื่อไหร่ก็อ่านเป็นคะแนนที่ผิดเมื่อนั้น */}
+                    {hasRating && (
+                      <>
+                        <Box component='strong' sx={{ fontSize: { xs: 22, md: 27 }, fontWeight: 800 }} className='tabular-nums'>
+                          {data.avgRating!.toFixed(1)}
+                          <Box component='small' sx={{ fontSize: 13, opacity: 0.7 }}>/5</Box>
+                        </Box>
+                        <Box aria-hidden sx={{ color: '#ffac22', fontSize: 13, lineHeight: 1 }}>
+                          {'★'.repeat(Math.round(data.avgRating!)).padEnd(5, '☆')}
+                        </Box>
+                      </>
+                    )}
                     <Box
                       sx={{
-                        fontSize: 11,
-                        color: 'rgba(255,255,255,.65)',
-                        marginBlockStart: { xs: 0, md: '4px' },
+                        /* ตอนยังไม่มีรีวิว ประโยคนี้เป็น "ตัวหลัก" ของการ์ด ไม่ใช่คำอธิบายห้อยท้าย
+                           จึงต้องใหญ่ขึ้นและสว่างขึ้น ไม่งั้นการ์ดจะดูเหมือนโหลดไม่เสร็จ */
+                        fontSize: hasRating ? 11 : 14,
+                        fontWeight: hasRating ? 400 : 600,
+                        color: hasRating ? 'rgba(255,255,255,.65)' : 'rgba(255,255,255,.9)',
+                        marginBlockStart: { xs: 0, md: hasRating ? '4px' : 0 },
                       }}
-                      className='tabular-nums'
+                      className={hasRating ? 'tabular-nums' : undefined}
                     >
-                      {`(${data.reviewCount.toLocaleString('th-TH')} รีวิว)`}
+                      {hasRating ? `(${data.reviewCount.toLocaleString('th-TH')} รีวิว)` : 'ยังไม่มีรีวิว'}
                     </Box>
                   </Box>
                 </Box>
               </Box>
-            )}
+              )
+            })()}
           </Box>
         </Box>
 

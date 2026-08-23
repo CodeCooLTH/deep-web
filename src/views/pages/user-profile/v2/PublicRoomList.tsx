@@ -39,7 +39,7 @@ export default function PublicRoomList({ rooms }: { rooms: PublicRoom[] }) {
         return (
           <article
             key={r.id}
-            className='rounded-2xl overflow-hidden bg-[var(--mui-palette-background-paper)] border border-[#ececf2]'
+            className='rounded-[14px] overflow-hidden bg-[var(--mui-palette-background-paper)] border border-[#ececf2]'
             style={{ boxShadow: '0 6px 18px rgba(30,27,56,.05)' }}
           >
             {/* สูงเท่า `.service-image` เป๊ะ เพื่อให้การ์ดของทั้งสองประเภทกิจการสูงเท่ากัน

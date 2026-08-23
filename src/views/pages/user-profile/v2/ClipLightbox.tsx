@@ -3,18 +3,27 @@
 /**
  * ClipLightbox — เนื้อในของ lightbox สำหรับคลิปปักหมุด (เปลือกคือ `ProfileLightbox`)
  *
- * 🛑 **ยังต้องกดก่อนถึงจะโหลด iframe เหมือนตอนอยู่ในกริด** — ไม่ใช่เล่นอัตโนมัติตอนเปิด
- * กลไก gate นี้มีเหตุผลสองข้อที่ยังจริงอยู่ในหน้าต่างนี้ทุกประการ: สคริปต์ของแพลตฟอร์มหนัก
- * หลายเมกะไบต์ และแพลตฟอร์มจะเห็นว่าใครเปิดดูทั้งที่ผู้ชมยังไม่ได้เลือกดู
- * (ต่างจากกริดตรงที่นี่กดครั้งเดียวได้คลิปเต็มจอ ไม่ต้องกดสองที)
+ * 🛑 **ที่นี่โหลด iframe ทันทีที่เปิด ไม่มีปุ่มเล่นของเราคั่น** — กลับมติเดิม (2026-08-23)
+ *
+ * เดิมมี gate เหมือนในกริด ด้วยเหตุผลว่าสคริปต์ของแพลตฟอร์มหนักหลายเมกะไบต์ และแพลตฟอร์ม
+ * จะเห็นว่าใครเปิดดู — **เหตุผลนั้นยังจริง แต่จริงเฉพาะในกริด** ซึ่งมีคลิป 12 ใบพร้อมกัน
+ * (12 iframe ตั้งแต่เปิดหน้า) ส่วนที่นี่มีใบเดียว และผู้ชมกดไทล์เข้ามาเอง = แสดงเจตนาไปแล้ว
+ *
+ * ประตูบานนี้จึงเก็บค่าเป็น "คลิกเพิ่มอีกหนึ่ง" โดยไม่ได้ป้องกันอะไร — user ทักว่าต้องกดเล่น
+ * 2 รอบ และ `autoplay=true` **แก้ไม่ได้** เพราะตัวเล่นของ Facebook ยังโชว์ปุ่มของตัวเองอยู่ดี
+ * (ส่งภาพยืนยันมา) ⇒ ชั้นเดียวที่เราคุมได้คือชั้นของเราเอง จึงถอดออก
+ *
+ * 🛑 **ของที่กัน "โหลด iframe ทั้ง 12 ใบ" จริง ๆ คือกริด ไม่ใช่ประตูบานนี้** — ไทล์ในกริดเป็น
+ * รูปนิ่งล้วน กดแล้วเปิด lightbox ไม่เคยฝัง iframe สักใบ ⇒ ถอดประตูนี้แล้วหน้าโปรไฟล์ยังโหลด
+ * iframe = **0 ใบ** เหมือนเดิมทุกประการ · จะเกิด iframe ตัวแรกก็ต่อเมื่อผู้ชมกดไทล์เข้ามาแล้ว
  *
  * สถิติในแผงเป็น **snapshot ณ เวลาที่ร้านกดเลือก ไม่ใช่ค่าสด** และอ่านอย่างเดียว —
  * ปุ่มถูกใจของคลิปไม่ทำ (user เคาะ 2026-08-11) เพราะไลก์บนแพลตฟอร์มต้นทางเราสั่งไม่ได้
  * ปุ่มที่กดแล้วไม่มีอะไรเกิดขึ้นจริงบนแพลตฟอร์มคือปุ่มหลอก
  *
- * Base: src/views/pages/user-profile/v2/ShopVideos.tsx (VideoCell — gate ก่อนโหลด iframe + สถิติ)
+ * Base: src/views/pages/user-profile/v2/ShopVideos.tsx (VideoCell — สถิติ + รูปปก · gate ไม่ได้ยกมา)
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -30,32 +39,119 @@ import { buildEmbedUrl, type VideoProvider } from '@/lib/shop-video'
 import ProfileLightbox from './ProfileLightbox'
 import { PROVIDER_UI, compactCount, type ShopVideoItem } from './ShopVideos'
 
-/* 🛑 ผู้เรียกต้องส่ง `key={item.id}` — เปลี่ยนคลิปแล้วต้องกลับไปสถานะ "ยังไม่เล่น" ไม่งั้นใบถัดไป
-   จะโหลด iframe เองทันทีทั้งที่ผู้ชมยังไม่ได้เลือกดู ซึ่งเป็นสิ่งเดียวกับที่ gate มีไว้กัน
+/* 🛑 ผู้เรียกต้องส่ง `key={item.id}` — เปลี่ยนคลิปแล้วต้อง **remount** ไม่ใช่แค่เปลี่ยน props
+   เพราะสัดส่วนกรอบมาจากรูปปกของคลิปใบนั้น (`posterRatio`) ถ้าไม่ remount ใบใหม่จะใช้สัดส่วน
+   ของใบเก่าไปจนกว่ารูปจะโหลดเสร็จ = กรอบกระโดดทุกครั้งที่กดลูกศร
    ทำด้วย remount ไม่ใช่ setState ใน effect (ดูเหตุผลเดียวกันที่ `ProductMedia`) */
 function ClipMedia({ item }: { item: ShopVideoItem }) {
-  const [playing, setPlaying] = useState(false)
   const [imgFailed, setImgFailed] = useState(false)
+
+  /**
+   * 🛑 ต้องวัดกล่องจริงแล้วส่งตัวเลขเข้า URL — **ปลั๊กอินวิดีโอของ Facebook เรนเดอร์ตามค่า
+   * `width` ใน URL ไม่ใช่ตามขนาด iframe** ไม่ส่ง = มันใช้ค่าตั้งต้นของตัวเอง แล้วภาพไม่พอดีกรอบ
+   * (user ทัก 2026-08-23 "พอเปิดวิดีโอรันมันยังซูมอยู่" — คนละอาการกับภาพนิ่งที่แก้ไปแล้ว
+   *  ด้วย `object-contain` เพราะตัวนี้เกิดหลังกดเล่น)
+   *
+   * เป็นบทเรียนซ้ำจาก feature 00029 (แท็บความคิดเห็น 2026-08-03) — ท่าที่ใช้เหมือนกันทั้งชุด
+   *
+   * 🛑 `ResizeObserver` ไม่ใช่วัดครั้งเดียวตอน mount — กล่องนี้เปลี่ยนขนาดได้จากการหมุนจอ
+   * และจากการที่แผงขวายุบ/กางที่ 900px · วัดครั้งเดียวแล้วค้าง = ซูมกลับมาใหม่ตอนหมุนจอ
+   */
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [playerWidth, setPlayerWidth] = useState(0)
+
+  /**
+   * สัดส่วนจริงของคลิป อ่านจาก **ขนาดธรรมชาติของรูปปก** — ข้อมูลคลิปไม่มี width/height มาให้
+   * รูปปกจึงเป็นแหล่งเดียวที่บอกได้ว่าคลิปนี้แนวตั้งหรือแนวนอน
+   * `null` = ยังไม่รู้ → ใช้ 16/9 ไปก่อน (คลิปจากเพจส่วนใหญ่เป็นแนวนอน)
+   */
+  const [posterRatio, setPosterRatio] = useState<number | null>(null)
+
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return
+    const measure = () => setPlayerWidth(el.getBoundingClientRect().width)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const provider = item.provider as VideoProvider
   const ui = PROVIDER_UI[provider]
 
   return (
     <Box
+      ref={stageRef}
       sx={{
         position: 'relative',
-        inlineSize: '100%',
-        /* 9:16 ที่นี่ ไม่ใช่ 3:4 เหมือนไทล์ในกริด — กริดครอปเป็น 3:4 เพื่อให้ผังไม่กระโดด
-           แต่ lightbox คือที่ที่ผู้ชม "ตั้งใจดูคลิป" จึงให้สัดส่วนจริงของคลิปสั้น */
-        aspectRatio: '9/16',
-        maxBlockSize: { md: '88dvh' },
+        /**
+         * 🛑 **สัดส่วนต้องมาจากรูปปกจริง ไม่ใช่ค่าที่เดาไว้**
+         *
+         * เดิมตั้ง `aspectRatio:'9/16'` ตายตัวโดยเดาว่าคลิปทุกใบเป็นคลิปสั้นแนวตั้ง ซึ่งไม่จริง —
+         * คลิปจากเพจ Facebook ส่วนใหญ่เป็นแนวนอน · และค่านั้น **ไม่เคยมีผลจริงสักครั้ง** ด้วย
+         * เพราะ `inlineSize:100%` กำหนดความกว้างก่อน แล้ว 9/16 จะขอความสูง = กว้าง×1.78
+         * ซึ่งชนเพดาน `maxBlockSize` ทันที ⇒ กล่องจริงกลายเป็นแนวนอน ตรงข้ามกับที่คอมเมนต์เขียนไว้
+         * (คลาสเดียวกับที่ `ProfileLightbox` เจอเอง: CSS ถูกตามชนิด แต่ไม่มีใครเป็นคนบอกความสูง)
+         *
+         * ตอนนี้อ่านสัดส่วนจาก `naturalWidth/naturalHeight` ของรูปปก (ดู `onLoad` ด้านล่าง) —
+         * ข้อมูลคลิปไม่มี width/height มาให้ รูปปกจึงเป็นแหล่งเดียวที่บอกได้ว่าแนวตั้งหรือแนวนอน
+         *
+         * 🛑 ที่ md ให้ **ความสูง** เป็นตัวคุมแล้วความกว้างคำนวณตาม (`blockSize:100%` +
+         * `inlineSize:auto`) ไม่ใช่กลับกัน — ไม่งั้นคลิปแนวตั้ง (ratio ~0.56) จะสูงเป็น 1.8 เท่า
+         * ของความกว้างแล้วทะลุกรอบออกไป · เป็นบทเรียนเดียวกับที่แท็บความคิดเห็นเจอ 2026-08-04
+         * ("พอจะกดเล่น video มันเต็มจอเฉย")
+         *
+         * ที่ xs กล่องแม่ไม่ได้ตั้งความสูงไว้ (ไม่มี `flex:1`) ⇒ ให้ความกว้างเป็นตัวคุมแทน
+         */
+        aspectRatio: String(posterRatio ?? 16 / 9),
+        inlineSize: { xs: '100%', md: 'auto' },
+        blockSize: { md: '100%' },
+        maxInlineSize: '100%',
+        maxBlockSize: '100%',
         bgcolor: 'common.black',
         marginInline: 'auto',
       }}
     >
-      {playing ? (
+      {/* รูปปก — อยู่ **ใต้** iframe เสมอ ทำ 2 หน้าที่:
+          (1) มีอะไรให้ดูระหว่าง iframe ของแพลตฟอร์มยังโหลดไม่เสร็จ
+          (2) เป็นแหล่งเดียวที่บอกสัดส่วนจริงของคลิป (`naturalWidth/Height`) เพราะข้อมูลคลิป
+              ไม่มี width/height มาให้ ⇒ ถ้าถอดออก กรอบจะกลับไปเดาสัดส่วนเหมือนเดิม */}
+      {item.thumbnailUrl && !imgFailed && (
+        // eslint-disable-next-line @next/next/no-img-element -- รูปปกจาก storage ของเรา (mirror) หรือ CDN ของแพลตฟอร์ม
+        <img
+          src={item.thumbnailUrl}
+          alt=''
+          onError={() => setImgFailed(true)}
+          onLoad={(e) => {
+            const el = e.currentTarget
+            if (el.naturalWidth > 0 && el.naturalHeight > 0) {
+              setPosterRatio(el.naturalWidth / el.naturalHeight)
+            }
+          }}
+          /* 🛑 `contain` ไม่ใช่ `cover` — นี่คือภาพนิ่งของคลิป ไม่ใช่ภาพประกอบ
+             `cover` ครอปขอบทิ้งเพื่อเติมกรอบ ⇒ คลิปแนวนอนในกรอบที่สูงกว่าถูกซูมจนเห็นแค่กลางภาพ */
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }}
+        />
+      )}
+
+      {/* 🛑 **ไม่มีปุ่มเล่นของเราคั่นแล้ว** (user ทัก 2026-08-23 "ต้องกดเล่น 2 รอบ")
+
+          เดิมมี "ประตู" ของเราเอง: ต้องกดรูปปกก่อน iframe ถึงจะถูกสร้าง — เหตุผลคือกันไม่ให้
+          โหลด iframe ของบุคคลที่สามก่อนผู้ชมสนใจ **ซึ่งยังถูกอยู่ แต่ถูกเฉพาะในกริด**
+          (กริดมีคลิป 12 ใบ = 12 iframe ถ้าโหลดหมดตั้งแต่เปิดหน้า)
+
+          ใน lightbox มีคลิปใบเดียว และผู้ชม **กดไทล์เข้ามาเองแล้ว** = แสดงเจตนาไปแล้วหนึ่งครั้ง
+          ประตูบานนี้จึงเก็บค่าใช้จ่ายเป็น "คลิกเพิ่มอีกหนึ่ง" โดยไม่ได้ป้องกันอะไรเลย
+
+          🛑 และ `autoplay=true` **แก้ปัญหานี้ไม่ได้** — เบราว์เซอร์กับตัวเล่นของ Facebook
+          ยังโชว์ปุ่มเล่นของตัวเองอยู่ดี (user ส่งภาพยืนยัน) ⇒ ถ้าเก็บประตูของเราไว้ ยังไงก็ 2 ชั้น
+          ทางเดียวที่คุมได้เองคือถอดชั้นที่เป็นของเราออก */}
+      {playerWidth > 0 && (
         <iframe
-          src={buildEmbedUrl({ provider, videoId: item.videoId })}
+          /* 🛑 `playerWidth > 0` เป็นเงื่อนไขจริง ไม่ใช่กันเหนียว — เรนเดอร์ก่อนวัดเสร็จ
+             = ส่ง `width=0` เข้า URL ของ Facebook แล้วมันจะตกไปใช้ค่าตั้งต้น ซึ่งคืออาการซูม */
+          src={buildEmbedUrl({ provider, videoId: item.videoId }, { widthPx: playerWidth, autoplay: true })}
           title={item.caption ?? `คลิปจาก ${ui.label}`}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
           allow='accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture'
@@ -64,58 +160,6 @@ function ClipMedia({ item }: { item: ShopVideoItem }) {
           sandbox='allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox'
           referrerPolicy='strict-origin-when-cross-origin'
         />
-      ) : (
-        <Box
-          component='button'
-          type='button'
-          onClick={() => setPlaying(true)}
-          aria-label={`เล่นคลิปจาก ${ui.label}${item.accountName ? ` บัญชี ${item.accountName}` : ''}`}
-          sx={{
-            position: 'absolute',
-            inset: 0,
-            border: 0,
-            p: 0,
-            cursor: 'pointer',
-            background: 'transparent',
-            '&:focus-visible': { outline: '2px solid', outlineColor: 'common.white', outlineOffset: -4 },
-          }}
-        >
-          {item.thumbnailUrl && !imgFailed && (
-            // eslint-disable-next-line @next/next/no-img-element -- รูปปกจาก storage ของเรา (mirror) หรือ CDN ของแพลตฟอร์ม
-            <img
-              src={item.thumbnailUrl}
-              alt=''
-              onError={() => setImgFailed(true)}
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          )}
-          <Box
-            component='span'
-            sx={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Box
-              component='span'
-              sx={{
-                inlineSize: 64,
-                blockSize: 64,
-                borderRadius: '999px',
-                bgcolor: 'rgb(0 0 0 / .45)',
-                color: 'common.white',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Icon icon='lucide:play' width={28} />
-            </Box>
-          </Box>
-        </Box>
       )}
     </Box>
   )
