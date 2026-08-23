@@ -130,6 +130,19 @@ export interface SalesSeries {
   depositValues?: number[]
   receivedValues?: number[]
   /**
+   * ยอดขายของใบที่ **ไม่มีบันทึกการรับเงินเลยสักรายการ** ต่อ bucket
+   *
+   * 🛑 มีไว้แยก "รู้ว่าค้าง" ออกจาก **"ไม่รู้"** — ใบที่ไม่เคยบันทึกรับเงิน ระบบไม่มีทางรู้ว่า
+   * เก็บเงินไปแล้วหรือยัง (ร้านอาจเก็บสดแล้วไม่ได้กดบันทึก) การเอายอดนั้นไปแสดงเป็น "ค้างรับ"
+   * สีเตือน = **ยืนยันสิ่งที่ไม่รู้** ซึ่งอ่านได้ว่า "ลูกค้ายังไม่จ่าย" ทั้งที่อาจจ่ายแล้ว
+   * (`partial-data-must-be-labeled-or-filled.md` — ตัวเลขบางส่วนที่หน้าตาเหมือนตัวเลขที่ครบแล้ว
+   * อันตรายกว่าไม่มีตัวเลข)
+   *
+   * เคสจริง 2026-08-23 (ร้าน BT Premium): ใบวันที่ 1 ส.ค. สถานะ `CONFIRMED` (งานจบแล้ว)
+   * แต่ไม่มีแถว `OrderPayment` เลย ⇒ ตารางขึ้น "ค้างรับ ฿300" สีส้มทั้งที่งานปิดไปแล้ว
+   */
+  unrecordedValues?: number[]
+  /**
    * 🛑 ต้นทุนสินค้า (COGS) มี **สองชุด** ในไฟล์นี้ และ **จะไม่มีวันเท่ากัน** — วางติดกันตาม HR16
    * ทั้งคู่ถูกต้องในตัวเอง ต่างกันแค่ "นับต้นทุนของออเดอร์ชุดไหน" ซึ่งต้องเลือกให้ตรงกับ
    * ตัวตั้งที่เอาไปลบ ไม่งั้นหน้าจอจะโชว์สมการที่ลบตามด้วยมือแล้วไม่ลงตัว:
@@ -314,6 +327,8 @@ export async function getSalesSeries(
      `confirmedValues` เพราะร้านเก็บมัดจำตั้งแต่ก่อนงานจบ ตัวหารกับตัวตั้งต้องเป็นชุดเดียวกัน */
   const depositValues = isServiceShop ? new Array<number>(bucketCount).fill(0) : undefined
   const receivedValues = isServiceShop ? new Array<number>(bucketCount).fill(0) : undefined
+  /* ยอดขายของใบที่ไม่มีบันทึกรับเงินเลย — ตัวแยก "ค้างจริง" ออกจาก "ไม่รู้" (ดูประกาศ type) */
+  const unrecordedValues = isServiceShop ? new Array<number>(bucketCount).fill(0) : undefined
   let total = 0
   let prevTotal = 0
   let prevTotalToDate = 0
@@ -356,8 +371,12 @@ export async function getSalesSeries(
         values[idx] += amt
         orderCounts[idx] += 1
 
-        if (depositValues && receivedValues) {
+        if (depositValues && receivedValues && unrecordedValues) {
           const payments = (r as { payments?: { kind: string; amount: unknown }[] }).payments
+          /* 🛑 นับจาก **จำนวนแถวที่ยังไม่ถูกยกเลิก** (query กรอง `voidedAt: null` มาแล้ว)
+             ไม่ใช่จากยอดรวมเป็น 0 — ใบที่บันทึกรับ ฿0 ไว้จริง (เช่นแถมให้) คือ "รู้ว่าไม่มีเงินเข้า"
+             ซึ่งคนละความหมายกับ "ไม่เคยบันทึก" ที่แปลว่าไม่รู้ */
+          if ((payments?.length ?? 0) === 0) unrecordedValues[idx] += amt
           for (const p of payments ?? []) {
             const paid = Number(p.amount)
             receivedValues[idx] += paid
@@ -468,7 +487,9 @@ export async function getSalesSeries(
     ...(last14Confirmed && last14Unconfirmed
       ? { last14Confirmed, last14Unconfirmed, last14Labels }
       : {}),
-    ...(depositValues && receivedValues ? { depositValues, receivedValues } : {}),
+    ...(depositValues && receivedValues && unrecordedValues
+      ? { depositValues, receivedValues, unrecordedValues }
+      : {}),
   }
   if (!includeFinance) return base
 

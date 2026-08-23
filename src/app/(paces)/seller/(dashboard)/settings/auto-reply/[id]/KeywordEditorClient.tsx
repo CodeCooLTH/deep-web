@@ -948,7 +948,7 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
              ระยะล่างบนจอ <lg = 5.5rem (nav 72px + 16px) + safe-area กัน SellerBottomNav ทับ
              — ต้องบวก inset ตั้งแต่เปิด viewportFit:cover 2026-08-06 เพราะแถบล่างสูงขึ้นตาม ── */}
       {canEdit && dirty.length > 0 && (
-        <div className="card sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-4 z-10 mt-4 opacity-100 transition-opacity duration-200 starting:opacity-0"> {/* carve-out: safe-area ไม่มี token */}
+        <div className="card sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-4 z-20 mt-4 opacity-100 transition-opacity duration-200 starting:opacity-0"> {/* carve-out: safe-area ไม่มี token */}
           <div className="card-body flex flex-wrap items-center justify-between gap-3 py-3">
             <span className="text-default-600 text-sm">
               {`แก้ไข ${dirty.length} อย่าง: ${dirty.join(', ')}`}

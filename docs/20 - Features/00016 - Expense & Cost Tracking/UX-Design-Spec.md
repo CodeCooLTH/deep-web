@@ -261,7 +261,8 @@ CTA `[ดูแพ็กเกจ Business →]` ชี้ไป `/business` (�
 | Placeholder | 0.00 |
 
 ### Design decisions
-- **`฿0` อนุญาต** (validation `minValue(0)` ต่าง `price` ที่ `minValue(0.01)`) — ไม่ต้องมี UI พิเศษ แค่ไม่ reject การกรอก 0
+- **`฿0` อนุญาต** (validation `minValue(0)`) — ไม่ต้องมี UI พิเศษ แค่ไม่ reject การกรอก 0
+  (เดิมข้อนี้เขียนว่า "ต่าง `price` ที่ `minValue(0.01)`" — **ไม่จริงแล้วตั้งแต่ 2026-08-23** `price` เป็น `minValue(0)` เหมือนกัน)
 - **Margin คำนวณ client-side only** (ไม่ยิง API) — real-time ตาม `watch('price')`/`watch('cost')`
 - **แสดง field เสมอ ไม่ซ่อน** ตาม D-9 ชัดเจน — ต่างจาก `lowStockThreshold` ที่ซ่อนเมื่อไม่ PRO เจตนา design ต่างกัน user ยืนยันแล้วว่าต้อง "แสดงเสมอ" สำหรับ cost field โดยเฉพาะ
 

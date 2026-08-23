@@ -194,7 +194,10 @@ export const CreateProductSchema = v.object({
   description: v.optional(v.pipe(v.string(), v.maxLength(5000))),
   // shortDescription ใช้แสดงในการ์ดสินค้า/ผลค้นหา — สูงสุด 200 chars
   shortDescription: v.optional(v.pipe(v.string(), v.maxLength(200))),
-  price: v.pipe(v.number(), v.minValue(0.01)),
+  /* 🛑 minValue(0) ไม่ใช่ 0.01 — ร้านตั้งราคา ฿0 ได้ (user สั่ง 2026-08-23)
+     ต้องเท่ากับ UpdateProductSchema ข้างล่างและ Yup ในฟอร์ม — สามชั้นนี้ต้องตรงกันเสมอ
+     ไม่งั้นสร้างได้แต่แก้ไม่ได้ (หรือกลับกัน) โดยไม่มี tsc/เทสตัวไหนฟ้อง */
+  price: v.pipe(v.number(), v.minValue(0)),
   // type — derive จาก registry (replaces hardcoded picklist)
   type: v.picklist(PRODUCT_TYPE_IDS),
   images: v.optional(
@@ -232,7 +235,7 @@ export const UpdateProductSchema = v.object({
   name: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(200))),
   description: v.optional(v.pipe(v.string(), v.maxLength(5000))),
   shortDescription: v.optional(v.pipe(v.string(), v.maxLength(200))),
-  price: v.optional(v.pipe(v.number(), v.minValue(0.01))),
+  price: v.optional(v.pipe(v.number(), v.minValue(0))),  // ฿0 ได้ — ดูเหตุผลที่ ProductSchema
   // type — derive จาก registry (replaces hardcoded picklist)
   type: v.optional(v.picklist(PRODUCT_TYPE_IDS)),
   images: v.optional(

@@ -547,7 +547,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | `description` | String? `@db.Text` | ≤5000 chars |
 | `shortDescription` | String? `@db.VarChar(200)` | |
 | `attributes` | Json default `{}` | key-value pairs (key≤50, value≤200, ≤10 keys) |
-| `price` | Decimal(12,2) | ≥0.01 |
+| `price` | Decimal(12,2) | **≥0** (เปลี่ยนจาก ≥0.01 เมื่อ 2026-08-23 ตามที่ user สั่ง — ร้านตั้ง ฿0 ได้: ของแถม/ตัวอย่างฟรี/คิดเงินปลายทาง). 🛑 `0` = **ราคาศูนย์จริง** ไม่ใช่ "ยังไม่ได้ตั้งราคา" — ค่าหลังคือช่องว่างซึ่งยังบังคับกรอกเหมือนเดิม. บังคับ 3 ชั้นที่ต้องตรงกันเสมอ (`input min` · Yup `.min(0)` · Valibot `CreateProductSchema`/`UpdateProductSchema` `minValue(0)`) — ด่าน `product-price-zero.test.ts`. ไม่มี CHECK ที่ DB |
 | `images` | Json default `[]` | array of fileId — max 10 |
 | `type` | String default `"PHYSICAL"` | `PHYSICAL` / `DIGITAL` / `SERVICE` / `SUBSCRIPTION` |
 | `fulfillmentMode` | String default `"SHIPPED"` | `SHIPPED` / `NO_SHIPPING` — **ship guard จริง** (FR-6.5) |
@@ -1612,7 +1612,7 @@ route ที่รับ `?shopId=` แล้ว: `payments/**` (ใหม่) �
 | `name` | string 1-200 chars |
 | `description` | string ≤5000 chars (optional) |
 | `shortDescription` | string ≤200 chars (optional) |
-| `price` | number ≥0.01 |
+| `price` | number **≥0** (บังคับกรอก — `0` คือราคาศูนย์จริง ไม่ใช่ "ยังไม่ตั้ง" ดู §data model) |
 | `type` | picklist: `PHYSICAL` / `DIGITAL` / `SERVICE` / `SUBSCRIPTION` |
 | `images` | string[] ≤10 items (each 1-200 chars) |
 | `tags` | string[] ≤10 items (each 1-50 chars) |

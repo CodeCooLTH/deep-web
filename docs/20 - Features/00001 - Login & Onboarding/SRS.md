@@ -524,7 +524,7 @@ export const GeoReverseSchema = v.object({
 export const OnboardingProductSchema = v.object({
   name: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
   sku: v.optional(v.pipe(v.string(), v.maxLength(100))),
-  price: v.pipe(v.number(), v.minValue(0.01)),
+  price: v.pipe(v.number(), v.minValue(0)),   // แก้ 2026-08-23 — ฿0 ได้
   description: v.optional(v.pipe(v.string(), v.maxLength(5000))),
   type: v.optional(v.literal('PHYSICAL')),
   images: v.optional(v.pipe(v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(200))), v.maxLength(5)), []),

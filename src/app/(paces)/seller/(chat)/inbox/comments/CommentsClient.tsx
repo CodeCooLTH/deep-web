@@ -1571,7 +1571,7 @@ export default function CommentsClient({
             รอบแรกผมแยกเป็น 2 กล่องคนละ padding (p-2 / px-3) → แท็บเยื้องกับ pill และระยะห่าง
             ระหว่างแถวไม่เท่าฝั่งข้อความ (user report 2026-08-04 "tab ก็ยังไม่เห็นเหมือน")
             ความ "เหมือน" ของสองหน้านี้อยู่ที่กล่องหัว ไม่ใช่แค่ตัวปุ่มแต่ละอัน */}
-        <div className="card-header sticky top-0 z-10 flex flex-col items-stretch gap-3 border-dashed bg-card">
+        <div className={"card-header sticky top-0 z-20 flex flex-col items-stretch gap-3 border-dashed bg-card" /* z-20: `.btn` ของ Paces เป็น z-10 ในตัว — z-10 ที่นี่จะเสมอกันแล้วปุ่มที่อยู่ทีหลังใน DOM ทับหัว (paces-btn-z-index-floor.md) */}>
           <div className="relative flex flex-wrap items-center gap-1.5">
             {/* 🛑 `radiogroup` ไม่ใช่ `tablist` — แถวนี้เป็น "ตัวกรองที่เลือกได้ทีละอัน" ไม่ได้สลับ
                 หน้าจอ. `tablist` สัญญากับ screen reader ว่ามี `tabpanel` ที่มันคุมอยู่ ซึ่งแถวนี้

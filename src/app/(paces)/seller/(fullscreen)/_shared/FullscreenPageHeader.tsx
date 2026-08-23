@@ -29,8 +29,18 @@ export type FullscreenPageHeaderProps = {
   saveLabel?: string
   saveFormId?: string
   disableSave?: boolean
-  /** ปลายทางปุ่ม back ตายตัว (เช่น "/orders") — ไม่ส่ง = history-aware (back()/dashboard fallback) */
+  /**
+   * ปลายทางปุ่ม back **ตายตัว** (เช่น "/orders") — ไปที่นี่เสมอไม่ว่ามาจากไหน
+   * สั่ง `router.replace` ไม่ใช่ `push` (ดู `src/lib/back-navigation.ts`)
+   */
   backHref?: string
+  /**
+   * ปลายทาง **สำรอง** — ถอยประวัติก่อนเสมอ ใช้ค่านี้ต่อเมื่อไม่มีอะไรให้ถอย (เปิดลิงก์ตรงเข้ามา)
+   *
+   * ใช้กับหน้าที่มีหลายทางเข้า — "ย้อนกลับ" ของหน้าพวกนั้นแปลว่า *กลับไปที่ที่เพิ่งมา*
+   * ไม่ใช่ปลายทางที่เราเดาให้ (หน้าแก้ไขออเดอร์เข้าได้ทั้งจากรายละเอียดและจากรายการออเดอร์)
+   */
+  backFallbackHref?: string
   /**
    * feature 00035 — ยังไม่บันทึก: กดปุ่มย้อนกลับต้องเด้งยืนยันก่อนออกจากหน้า (เหมือนปุ่ม "ยกเลิก")
    * ไม่ส่ง/false = พฤติกรรมเดิม (ออกทันที) — caller เดิมทั้งหมดไม่ต้องแก้อะไร
@@ -68,6 +78,7 @@ export default function FullscreenPageHeader({
   saveFormId,
   disableSave,
   backHref,
+  backFallbackHref,
   isDirty,
   toolbarExtra,
   toolbarLeading,
@@ -77,14 +88,23 @@ export default function FullscreenPageHeader({
   cancelHref: _cancelHref,
 }: FullscreenPageHeaderProps) {
   return (
-    // fixed-feel: -mt-* ดึง header ชิด top ของ <main> (cancel container pt) → sticky top-0 ไม่กระตุก;
-    // shadow (Paces .app-header elevation) แทน border เดิม
-    <div className="sticky top-0 z-10 bg-card -mx-4 px-4 md:-mx-8 md:px-8 -mt-4 md:-mt-8 pt-4 md:pt-8 pb-4 shadow">
+    /* fixed-feel: -mt-* ดึง header ชิด top ของ <main> (cancel container pt) → sticky top-0 ไม่กระตุก;
+       shadow (Paces .app-header elevation) แทน border เดิม
+
+       🛑 **z-30 ไม่ใช่ z-10** — `.btn` ของ Paces ตั้ง `position: relative; z-index: 10` ไว้ในตัว
+       (ยืนยันจาก CSS ที่คอมไพล์แล้ว ไม่ใช่จากซอร์ส SCSS) ⇒ z-10 ที่นี่จะ **เสมอกับปุ่มทุกตัว**
+       ในเนื้อหาที่เลื่อนอยู่ข้างล่าง แล้ว CSS ตัดสินด้วยลำดับ DOM ⇒ ปุ่มที่อยู่ทีหลังชนะ
+       ⇒ ชิป/ปุ่มลอยทับหัวหน้าจอตอนเลื่อน (user เจอเองบน prod 2026-08-23 ที่ /products/new —
+       ชิปราคาแนะนำทับชื่อหน้าและปุ่มย้อนกลับ)
+
+       ต้องสูงกว่า 10 (พื้นของ `.btn`) แต่ต่ำกว่า 40 (ดรอปดาวน์ Choices — ต้องเปิดคลุมหัวได้)
+       ดู `docs/conventions/paces-btn-z-index-floor.md` */
+    <div className="sticky top-0 z-30 bg-card -mx-4 px-4 md:-mx-8 md:px-8 -mt-4 md:-mt-8 pt-4 md:pt-8 pb-4 shadow">
       {/* layout M0-a: [back ซ้าย] [title flex-1 truncate] [Save ขวา]
           SellerMobileHeader pattern — แยก navigation (ซ้าย) กับ action (ขวา) ชัดเจน */}
       <div className="flex items-center gap-3">
         {/* Back button ซ้าย — client component (ต้องการ router.push/back()) */}
-        <FullscreenBackButton backHref={backHref} isDirty={isDirty} />
+        <FullscreenBackButton backHref={backHref} backFallbackHref={backFallbackHref} isDirty={isDirty} />
 
         {/* Title block — flex-1 min-w-0 truncate กัน overflow บน mobile
             feature 00035: ห่อ title + toolbarLeading ไว้ในกล่อง flex-1 เดียวกัน เพื่อให้เครื่องมือที่
