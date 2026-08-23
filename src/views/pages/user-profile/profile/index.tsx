@@ -757,7 +757,12 @@ export const ProfileRightContent = ({
                           /* สถานะ "ถูกเลือก" ต้องต่างมากกว่าสี — คนตาบอดสีต้องแยกออกด้วย
                              (WCAG 1.4.1) จึงเปลี่ยนทั้งน้ำหนักตัวอักษร พื้น และเส้นขอบพร้อมกัน */
                           fontWeight: active ? 700 : 500,
-                          color: active ? 'primary.main' : 'text.secondary',
+                          /* 🛑 `primary.dark` ไม่ใช่ `primary.main` — #7367F0 บนพื้นชิป (primary 8%
+                             เหนือขาว = #F3F2FD) วัดได้ 3.84:1 ซึ่งตก AA ของข้อความปกติ (ต้อง 4.5)
+                             ส่วน #675DD8 ได้ 4.58:1 · เป็นการเปลี่ยน "ความเข้ม" ของสีเดิม ไม่ใช่
+                             สลับเฉด ตาม docs/conventions/contrast-fix-keeps-hue.md
+                             ตัวที่ไม่ถูกเลือกใช้ text.secondary (ink 70% = 5.28:1) ผ่านอยู่แล้ว */
+                          color: active ? 'primary.dark' : 'text.secondary',
                           background: active ? 'var(--mui-palette-primary-lightOpacity)' : 'transparent',
                           border: '1px solid',
                           borderColor: active ? 'primary.main' : '#e3e3ea',
