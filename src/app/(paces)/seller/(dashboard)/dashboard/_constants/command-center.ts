@@ -157,6 +157,9 @@ export type SalesSeries = {
   receivedValues?: number[]
   /** ยอดขายของใบที่ไม่มีบันทึกรับเงินเลย — แยก "ค้างจริง" ออกจาก "ไม่รู้" (เหตุผลเต็มที่ service) */
   unrecordedValues?: number[]
+  /** ส่วนของ `receivedValues` ที่มาจากใบที่ "ยืนยันแล้ว" — เกณฑ์ `countsAsRevenue` ตัวเดียวกับ
+   *  `confirmedValues` (เหตุผลเต็มที่ service) · ที่เหลือ = เงินจากงานที่ลูกค้ายังไม่ยืนยัน */
+  receivedConfirmedValues?: number[]
   netProfitValues?: number[]
   /**
    * 🛑 COGS มีสองชุดและไม่เท่ากัน (นิยามเต็มอยู่ที่ SSOT — dashboard.service.ts):
