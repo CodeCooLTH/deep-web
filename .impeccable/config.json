@@ -68,6 +68,24 @@
         "value": "#bc1888",
         "createdAt": "2026-08-10T06:36:23.864Z",
         "reason": "สีแบรนด์ Instagram (gradient โลโก้) — asset ของเจ้าของแพลตฟอร์ม ไม่ใช่สีของระบบเรา user ยืนยัน 2026-08-10"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#1877f2",
+        "createdAt": "2026-08-23T06:11:15.443Z",
+        "reason": "brand asset Facebook — CLAUDE.md Hard Rule 6 carve-out; โค้ดมีคอมเมนต์กำกับที่ SignInForm.tsx และสีแบรนด์แก้ไม่ได้ตามข้อกำหนดของเจ้าของแบรนด์"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#06c755",
+        "createdAt": "2026-08-23T06:11:15.476Z",
+        "reason": "brand asset LINE — CLAUDE.md Hard Rule 6 carve-out; คอมเมนต์กำกับอยู่ที่ SignInForm.tsx"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#e1306c",
+        "createdAt": "2026-08-23T06:11:15.512Z",
+        "reason": "brand asset Instagram — CLAUDE.md Hard Rule 6 carve-out; คอมเมนต์กำกับอยู่ที่ SignInForm.tsx"
       }
     ]
   }
