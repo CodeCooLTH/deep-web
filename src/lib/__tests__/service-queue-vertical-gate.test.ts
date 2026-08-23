@@ -101,13 +101,29 @@ describe('AC-SQ-07 — ทุกจอของฟีเจอร์ร้าน
      * ร้านขายออนไลน์จะได้หัวคอลัมน์ "มัดจำ/รับจริง/ค้างรับ" ที่ว่างทั้งตารางแทนต้นทุน/กำไร
      * (คลาสเดียวกับ `0` ที่ถูกใช้แทน "ไม่รู้" — `partial-data-must-be-labeled-or-filled.md`)
      */
+    /**
+     * 🛑 ห้ามผูกกับ *รูปประโยค* — ร่างแรกของด่านนี้ปักหมุดรายชื่อคีย์ในนิพจน์ spread ตรง ๆ
+     * (`...(depositValues && receivedValues ? { depositValues, receivedValues } : {})`)
+     * แล้วแดงทันทีที่เพิ่มคีย์ที่สาม (`unrecordedValues`) ทั้งที่กติกายังถูกทุกข้อ
+     * — ด่านที่ผูกกับวิธีเขียนพังตอน refactor แล้วคนถัดไปจะปิดมันทิ้ง
+     * (รอยเดิม: `provider="apple"` 2026-08-12 · `indexOf('WHEN NOT EXISTS (')` 2026-08-10)
+     *
+     * ตรวจ **พฤติกรรม** แทน: ทุกอาร์เรย์ของชุดเงินต้องถูกสร้างใต้ธง และ spread ต้องมีเงื่อนไข
+     */
     const code = stripComments(read('src/services/dashboard.service.ts'))
-    expect(code, 'ต้อง spread แบบมีเงื่อนไข ไม่ใช่ใส่คีย์เสมอ').toMatch(
-      /\.\.\.\(depositValues && receivedValues \? \{ depositValues, receivedValues \} : \{\}\)/,
-    )
-    expect(code, 'อาร์เรย์ต้องถูกสร้างเฉพาะร้านบริการ').toMatch(
-      /receivedValues\s*=\s*isServiceShop \? new Array/,
-    )
+
+    for (const name of ['depositValues', 'receivedValues', 'unrecordedValues']) {
+      expect(code, `${name} ต้องถูกสร้างเฉพาะร้านบริการ`).toMatch(
+        new RegExp(`${name}\\s*=\\s*isServiceShop \\? new Array`),
+      )
+    }
+
+    /* คีย์ชุดนี้ต้องอยู่ในนิพจน์ spread ที่มีเงื่อนไข ไม่ใช่ใส่ตรง ๆ ลงใน object */
+    const spread = /\.\.\.\(depositValues && receivedValues[^)]*\? \{([^}]*)\}\s*:\s*\{\}\)/.exec(code)
+    expect(spread, 'ต้อง spread แบบมีเงื่อนไข ไม่ใช่ใส่คีย์เสมอ').not.toBeNull()
+    for (const name of ['depositValues', 'receivedValues', 'unrecordedValues']) {
+      expect(spread![1], `${name} ต้องอยู่ในนิพจน์ที่มีเงื่อนไขนั้น`).toContain(name)
+    }
   })
 
   it('[blocker] ห้ามกั้นด้วย "มีเรื่องเงินไหม" เพียงอย่างเดียวในจอที่เป็นหน้าออเดอร์', () => {

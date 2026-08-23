@@ -152,8 +152,25 @@ export default function OrderSummary({
                 <Icon icon={meta.icon} className="text-sm" aria-hidden="true" />
                 {meta.label}
               </span>
-              {/* ออเดอร์ COD มีการ์ด "เก็บเงินปลายทาง" อยู่ขวามือแล้ว badge ตรงนี้เป็นข้อมูลซ้ำ */}
-              {!isCod && paymentBadge && (
+              {/**
+                * 🛑 `!serviceBadge` — ห้ามขึ้นคู่กับป้ายของร้านบริการ (HR16)
+                *
+                * สองใบนี้ตอบ **คำถามเดียวกัน** ("ได้เงินหรือยัง") จากคนละแหล่ง:
+                *   · `serviceBadge` อ่าน `OrderPayment` = เงินที่รับจริง → "ชำระเงินแล้ว"
+                *   · `getPaymentBadge` อ่าน `Order.status` + `paymentMethod` (ไม่รู้จัก
+                *     ตาราง `OrderPayment` เลย) → ใบที่ `PENDING` + วิธีชำระนอก enum
+                *     (เช่น `CASH`) ตกไป fallback "ยังไม่ยืนยันการชำระ" เสมอ
+                *
+                * ⇒ ใบเดียวกันขึ้นทั้ง "ชำระเงินแล้ว" (เขียว) และ "ยังไม่ยืนยันการชำระ" (เหลือง)
+                * ติดกัน — user เจอเองบน prod 2026-08-23 (ใบ DP256908CEB304D4: PENDING · CASH ·
+                * รับมัดจำ ฿900 เต็มจำนวนแล้ว)
+                *
+                * ร้านบริการยึด **เงินที่รับจริง** เป็นความจริงเรื่องเงิน ป้ายเก่าจึงเป็นความเห็นที่สอง
+                * ที่ล้าสมัยและขัดกันเอง · ร้าน vertical อื่น `serviceBadge` เป็น null เสมอ ⇒ ไม่กระทบ
+                *
+                * ออเดอร์ COD มีการ์ด "เก็บเงินปลายทาง" อยู่ขวามือแล้ว badge ตรงนี้เป็นข้อมูลซ้ำ
+                */}
+              {!isCod && !serviceBadge && paymentBadge && (
                 <span className={cn(paymentBadge.cls, 'text-2xs font-semibold')}>{paymentBadge.label}</span>
               )}
               {isFromAuction && (
