@@ -22,7 +22,6 @@ vi.mock('@/lib/facebook/graph', () => ({
   fetchMessageText: vi.fn(),
   fetchAdPostContent: vi.fn(),
   sendMessageReaction: vi.fn(),
-  sendImageGridMessage: vi.fn(),
   GraphApiError: class extends Error {},
 }))
 const { saveFile } = vi.hoisted(() => ({ saveFile: vi.fn() }))

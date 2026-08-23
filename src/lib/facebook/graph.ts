@@ -1121,72 +1121,13 @@ export async function fetchPagePosts(
 }
 
 /**
- * ส่งรูปหลายใบเป็น "กริดรูปในข้อความเดียว" (image_grid template)
- * user สั่ง 2026-08-04 หลังลูกค้าถามว่าทำไม Business Suite ส่งแล้วรูปรวมเป็นก้อนเดียวแต่ของเราแยกใบ
- *
- * contract ล็อกจากเอกสาร Meta "Image grid template" (Updated: Jun 30, 2026) ก่อนเขียน:
- *   POST /<PAGE_ID>/messages
- *   message.attachment = { type:'template', payload:{ template_type:'image_grid',
- *     elements:[{ title?, subtitle?, images:[{url, is_hero_image?, action?}], buttons? }] } }
- *   - elements มีได้ **1 อัน** · images **2–6 รูป** (ต่ำ/เกินกว่านี้ Meta ปฏิเสธ)
- *   - title 45 อักขระ · subtitle 80 อักขระ
- *   - รูปใช้ **URL ภายนอกได้** (ต่างจาก media template ที่บังคับ Facebook URL เท่านั้น)
- *     จึงส่ง presigned URL ของ storage เราได้เหมือนตอนส่งรูปเดี่ยว
- *
- * เหตุผลที่ไม่ใส่ buttons/action: ยังไม่มี use case จากผู้ใช้ และปุ่มที่กดแล้วไม่มีอะไรรองรับคือ UI หลอก
- */
-export async function sendImageGridMessage(
-  pageToken: string,
-  recipientId: string,
-  /**
-   * `url` = ลิงก์ที่ Meta ใช้ดึงรูปไปเก็บตอนส่ง (อายุสั้นได้)
-   * `actionUrl` = ลิงก์ที่ฝังเป็น tap action ของรูปนั้น ต้องอายุยาวเพราะลูกค้าเป็นคนกดเปิดวันไหนก็ได้
-   *   ไม่ส่งมา = รูปนั้นกดไม่ได้ (เอกสาร Meta: "Images without an action are not tappable.")
-   */
-  images: Array<{ url: string; actionUrl?: string | null }>,
-  opts: { caption?: string | null; tag?: string } = {},
-): Promise<string> {
-  if (images.length < 2 || images.length > 6) {
-    // ผู้เรียกต้องแบ่งก้อนมาให้ถูกก่อน — โยนเป็น Error ธรรมดา (ไม่ใช่ GraphApiError) เพราะยังไม่ได้ยิงออก
-    throw new Error('IMAGE_GRID_COUNT_OUT_OF_RANGE')
-  }
-  // ไม่ใส่ caption เป็น title ของกริดอีกแล้ว (user report prod 2026-08-04 + ภาพจาก Messenger):
-  // เพดาน title = 45 อักขระ ทำให้ประโยคถูกตัดคากลางคำ ("เพิ่มความนุ่") แล้วข้อความเต็มยังถูกส่ง
-  // ตามหลังเป็นบับเบิลข้อความอีกที = ลูกค้าเห็นประโยคเดียวกัน 2 ครั้ง ครั้งแรกขาดกลางคำ
-  // caption ทั้งก้อนไปอยู่ในบับเบิลข้อความที่ส่งตามหลังที่เดียว (ดู sendOutboundImageGrid)
-  const json = await graphFetch('/me/messages', pageToken, {
-    method: 'POST',
-    body: {
-      recipient: { id: recipientId },
-      ...(opts.tag ? { messaging_type: 'MESSAGE_TAG', tag: opts.tag } : { messaging_type: 'RESPONSE' }),
-      message: {
-        attachment: {
-          type: 'template',
-          payload: {
-            template_type: 'image_grid',
-            elements: [
-              {
-                images: images.map((img) => ({
-                  url: img.url,
-                  // action ต่อรูป = กุญแจของ "กดดูรูปได้" — ชนิดที่ใช้ได้มีแค่ web_url/postback
-                  // (postback ไม่เหมาะ: มันโพสต์ข้อความตอบกลับเข้าห้องแชทในนามลูกค้า)
-                  ...(img.actionUrl ? { action: { type: 'web_url', url: img.actionUrl } } : {}),
-                })),
-              },
-            ],
-          },
-        },
-      },
-    },
-  })
-  return (json.message_id as string | undefined) ?? ''
-}
-
-/**
  * sendTemplateMessage — ยิง `message.attachment` ชนิด template ที่ผู้เรียกประกอบมาแล้ว (2026-08-11)
  *
- * ใช้กับ Generic Template (การ์ดสินค้า) — โครงเดียวกับ `sendImageGridMessage` ทุกประการ ต่างแค่
- * payload มาจากข้างนอกแทนที่จะประกอบในนี้ เพราะรูปร่างการ์ดเป็นเรื่องของเนื้อหา ไม่ใช่เรื่องของ HTTP
+ * ใช้กับ Generic Template (การ์ดสินค้า) — payload มาจากข้างนอกแทนที่จะประกอบในนี้ เพราะรูปร่าง
+ * การ์ดเป็นเรื่องของเนื้อหา ไม่ใช่เรื่องของ HTTP
+ *
+ * (เดิมประโยคนี้อ้างอิงโครงของ `sendImageGridMessage` ซึ่งถูกลบทิ้งแล้ว 2026-08-23 หลัง R-8 —
+ * เส้นทางกริดรูปกลายเป็น "หลายแถวคิว" แทนการยิงก้อนเดียว จึงไม่เหลือผู้เรียก)
  *
  * IG ใช้โครงเดียวกันเป๊ะ (เอกสาร Instagram Platform → generic-template) จึงไม่ต้องแยกฟังก์ชัน —
  * ตัวที่ต่างคือ token/endpoint ซึ่ง graphFetch จัดการให้อยู่แล้วเหมือน sendTextMessage
