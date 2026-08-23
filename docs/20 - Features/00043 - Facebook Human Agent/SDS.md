@@ -298,10 +298,19 @@ throw `WINDOW_CLOSED` ออกจาก `sendOutboundImageGrid` จะไม่
 ### 8.4 `human-agent-window-display-parity.test.ts` (ใหม่, ไม่บังคับ `[blocker]` แต่แนะนำ) — regression กัน 3 จุดหลุด sync
 
 - grep-based unit test: สแกน `src/` หา call site ทั้งหมดของ `canUseHumanAgent` ต้องได้ **3 จุดเป๊ะ**
-  (`sendOutboundMessage`, `sendOutboundImageGrid`, `inbox/[conversationId]/page.tsx`) — ถ้ามีจุดที่ 4
+  (`transmitMetaMessage`, `sendOutboundImageGrid`, `inbox/[conversationId]/page.tsx`) — ถ้ามีจุดที่ 4
   โผล่ขึ้นในอนาคตโดยไม่อัปเดตเทสนี้ = สัญญาณเตือนว่ามีจุดตัดสินใจใหม่ที่ต้องพิจารณาว่าควรเรียก SSOT
   เดียวกันหรือไม่ (ป้องกัน FR-HA-07 หลุดซ้ำในอนาคต — เรียนรู้จากรูปแบบเทสของ 2026-08-09 comment-inbox
   fetch loop ที่ scan source แทนการ hardcode รายชื่อไฟล์)
+
+- 🛑 **ชื่อจุดที่ 1 เปลี่ยนจาก `sendOutboundMessage` → `transmitMetaMessage` (CR 2026-08-23)** —
+  `channel-chat.service.ts` ถูกแยก "การยิงออกช่องทาง" ออกจาก "การเขียน DB" เพื่อให้เส้นทางคิวส่ง
+  ข้อความ (เขียนแถวลง DB ก่อนตอบ client แล้วยิงออกเบื้องหลัง) ใช้ตัวยิงชุดเดียวกับผู้เรียกเดิม แทนที่
+  จะมีตรรกะการส่งสองชุดที่ค่อย ๆ ห่างกัน (HR16). การตัดสินใจ "ติด HUMAN_AGENT tag ไหม" เป็นส่วนหนึ่ง
+  ของการยิง จึงย้ายตามไปทั้งก้อน — **จำนวน call site ไม่เปลี่ยน (ยัง 3) และเทสยังบังคับว่า 2 จุดใน
+  service ต้องอยู่คนละฟังก์ชันกัน** ไม่ได้ผ่อนลงเป็นการนับจำนวน. พิสูจน์ด้วย mutation แล้วว่าถอด
+  `canUseHumanAgent(...)` ออกจาก `transmitMetaMessage` ทำให้เทสแดงทั้ง 2 เคส (repo-wide = 3 และเคส
+  ชื่อฟังก์ชัน)
 
 **สรุป — เทส `[blocker]` ทั้งหมด 4 ตัวที่ locked contract เรียกร้องตรง ๆ:**
 1. บอทห้ามได้ tag (§8.2 #2)
