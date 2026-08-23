@@ -350,6 +350,9 @@ describe('[blocker] รหัสภายในทุกตัวที่ยิ
     'QUOTA_EXCEEDED',
     'TOKEN_INVALID',
     'LINE_UNAVAILABLE',
+    // (F-1 รอบแก้ 2) `deliverHead` เรียก resolveOutboundContext ซ้ำตอนยิงจริง ⇒ สิทธิ์ที่เปลี่ยน
+    // ระหว่างแถวรอคิว (พนักงานถูกถอดสิทธิ์ / เพจย้ายร้าน) ทำให้รหัสนี้ลง failureReason ได้จริง
+    'FORBIDDEN',
   ]
 
   it.each(CODES)('%s → ภาษาไทย ไม่ใช่รหัสดิบ', (code) => {
@@ -374,9 +377,23 @@ describe('[blocker] รหัสภายในทุกตัวที่ยิ
     expect(out.known).toBe(false)
   })
 
+  it.each(['TIMEOUT', 'ECONNRESET', 'ABORTED'])(
+    '[blocker] ตาข่ายต้องครอบรหัส **คำเดียว** ที่ไม่มีขีดล่างด้วย — %s',
+    (code) => {
+      // 🛑 regex รูปแรกบังคับว่าต้องมี `_` อย่างน้อยหนึ่งตัว ⇒ รหัสคำเดียวหลุดออกดิบทั้งหมด
+      // เคสนี้แยกจากเทส `known=true` ของ FORBIDDEN โดยตั้งใจ: ถ้ารวมกัน กฎของ FORBIDDEN จะกลบ
+      // ความพังของ regex ไว้ (mutation ข้อหนึ่งจะกลบอีกข้อ)
+      const out = describeSendFailure(code)
+      expect(out.text).toBe('ไม่ทราบสาเหตุ')
+      expect(out.known).toBe(false)
+    },
+  )
+
   it('ตาข่ายต้องไม่กลืนข้อความที่อ่านออกอยู่แล้ว', () => {
     // ประโยคอังกฤษของ Meta และข้อความไทยของเราต้องผ่านไปเหมือนเดิมทุกประการ
     expect(describeSendFailure('Something unexpected happened').text).toBe('Something unexpected happened')
+    // ตัวย่ออังกฤษสั้น ๆ ที่ไม่ใช่รหัส (ยาว < 3) ยังผ่านเหมือนเดิม
+    expect(describeSendFailure('OK').text).toBe('OK')
     expect(describeSendFailure('ส่งข้อความไม่สำเร็จ').text).toBe('ส่งข้อความไม่สำเร็จ')
   })
 })

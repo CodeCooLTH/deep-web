@@ -230,10 +230,16 @@ flowchart LR
 - **Precondition:** ownership (`canAccessShop`)/`NOT_EXTERNAL_CHANNEL`/`CHANNEL_NOT_ACTIVE`/`IMAGE_GRID_COUNT_OUT_OF_RANGE`
   guard เดิมทั้งหมด **ไม่เปลี่ยน** — แก้เฉพาะ branch ตัดสิน tag/throw ของหน้าต่างเวลา
 - **Postcondition:** เมื่อหน้าต่างปิดและไม่มีสิทธิ์ Human Agent → ยิงไปแบบ `messaging_type: 'RESPONSE'`
-  (ไม่มี tag) แล้วให้ Meta ปฏิเสธ → `sendImageGridMessage` throw จาก Graph API error → catch เดิมใน
-  `sendOutboundImageGrid` (บรรทัด 2395) ตกไป fallback "ส่งทีละใบผ่าน `sendOutboundMessage`" อยู่แล้ว
-  (path เดิม ไม่ต้องแก้) ซึ่งจะบันทึก `deliveryStatus='FAILED'` + `failureReason` ให้เห็นในเธรด (BR-HA-14
-  AC ข้อ 2: "บันทึกเป็นสถานะส่งไม่สำเร็จพร้อมเหตุผล ให้ผู้ใช้เห็นและกดลองใหม่ได้")
+  (ไม่มี tag) แล้วให้ Meta ปฏิเสธ → บันทึก `deliveryStatus='FAILED'` + `failureReason` ให้เห็นในเธรด
+  (BR-HA-14 AC ข้อ 2: "บันทึกเป็นสถานะส่งไม่สำเร็จพร้อมเหตุผล ให้ผู้ใช้เห็นและกดลองใหม่ได้")
+
+  > 🛑 **แก้ 2026-08-23 (CR คิวส่งข้อความขาออก R-8/R-20):** ย่อหน้านี้เคยอธิบายเส้นทางผ่าน
+  > `sendImageGridMessage` → catch ใน `sendOutboundImageGrid` → fallback "ส่งทีละใบ"
+  > **ทั้งสองฟังก์ชันถูกลบไปแล้ว** และ `IMAGE_GRID_COUNT_OUT_OF_RANGE` ไม่มีผู้โยนเหลืออยู่
+  > เส้นทางปัจจุบัน: รูปหลายใบ = **หลายแถว `deliveryStatus='QUEUED'` เรียงกัน** (ไม่ใช้ image_grid
+  > template ของ Meta อีกแล้ว) แต่ละแถวถูกยิงทีละใบผ่าน `transmitOutbound` → `transmitMetaMessage`
+  > ซึ่งเป็นที่ที่ตรรกะหน้าต่างเวลา/`HUMAN_AGENT` tag อยู่ **ผลลัพธ์ที่ AC ข้อ 2 ต้องการไม่เปลี่ยน**
+  > (ล้ม = แถวนั้นเป็น FAILED + เหตุผล) เปลี่ยนแค่ว่า fallback ไม่ต้องมีอีกแล้วเพราะไม่มีการยิงก้อน
 - **Error/Edge:** ไม่มี error type ใหม่ — **ถอด** throw path `WINDOW_CLOSED` ออกจากฟังก์ชันนี้เท่านั้น
   (ยืนยันแล้วว่า route handler (`mapChatServiceError`) ไม่ได้ผูก logic พิเศษกับ `WINDOW_CLOSED` เฉพาะเส้นทาง
   `IMAGE_GRID` — ใช้ catch เดียวกับทุกเส้นทางส่งข้อความ ดู [[SDS]] §"Cross-file error-mapping")

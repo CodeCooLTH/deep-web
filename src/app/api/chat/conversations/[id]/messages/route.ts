@@ -81,7 +81,10 @@ function mapChatServiceError(e: unknown, context: string) {
     return NextResponse.json({ error: "ไม่พบบทสนทนา" }, { status: 404 });
   }
   if (e instanceof Error && e.message === "FORBIDDEN") {
-    return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงบทสนทนานี้" }, { status: 403 });
+    // (F-1 รอบแก้ 2) ถ้อยคำย้ายไปอยู่ที่ `chat-send-failure.ts` แล้ว — รหัสนี้ลง `failureReason`
+    // ได้จริงตั้งแต่ CR คิว (สิทธิ์เปลี่ยนระหว่างที่แถวรอคิว) บับเบิลจึงอ่านจากที่นั่น ถ้า hardcode
+    // ไว้ที่นี่ด้วยจะได้สองสำนวนสำหรับเรื่องเดียวกัน (HR16)
+    return NextResponse.json({ error: describeSendFailure(e.message).text }, { status: 403 });
   }
   if (e instanceof Error && e.message === "SHOP_NOT_FOUND") {
     // defense เท่านั้น — ไม่ควรเกิดจริง (FK CASCADE) ดู chat.service.ts sendMessage
