@@ -11,7 +11,7 @@
  * TikTok/YouTube เสียบเพิ่มภายหลังได้โดยไม่ต้องแก้ตาราง
  */
 import { prisma } from "@/lib/prisma";
-import { toFileUrl } from "@/lib/file-url";
+import { toFileUrl, variantUrlOf } from "@/lib/file-url";
 // ห้ามเขียน mirror logic ใหม่ซ้ำ — ตัวนี้มี allow-list host ของ Meta CDN (กัน SSRF) + streaming
 // size cap พร้อมอยู่แล้ว (feature 00018) มติเดียวกับที่ feature 00035 ยึดตอน mirror รูปโพสต์
 import { mirrorRemoteImage } from "@/services/channel-chat.service";
@@ -290,6 +290,10 @@ export async function getShopVideos(shopId: string) {
   return rows.map(({ mirroredFileId, ...v }) => ({
     ...v,
     thumbnailUrl: toFileUrl(mirroredFileId) ?? v.thumbnailUrl,
+    // feature 00054 — ไทล์คลิปในกริดกว้างจริง ~180–240px แต่รูปปกที่ mirror มาหนักเฉลี่ย 231KB
+    // (วัดจาก prod: 13 ไฟล์ 3MB) ⇒ แท็บปักหมุดที่มี 12 ไทล์ดึง ~2.8MB ทุกครั้งที่เปิด
+    // `null` = ไม่มีรูปย่อ (รูปจาก URL ของ Meta ที่ไม่ได้ mirror / ยังไม่ backfill) → UI ใช้ตัวเต็ม
+    thumbnailSmallUrl: variantUrlOf(mirroredFileId, "thumb"),
   }));
 }
 

@@ -4,6 +4,10 @@
  *   npx tsx scripts/backfill-image-variants.ts            # dry-run (ค่าตั้งต้น)
  *   npx tsx scripts/backfill-image-variants.ts --apply    # เขียนจริง
  *   npx tsx scripts/backfill-image-variants.ts --apply --limit 50
+ *   npx tsx scripts/backfill-image-variants.ts --keys-file /tmp/keys.txt --apply
+ *
+ * `--keys-file` = อ่านรายชื่อคีย์จากไฟล์แทน query ฐานข้อมูล (หนึ่งคีย์ต่อบรรทัด) — จำเป็นเมื่อ
+ * ฐานข้อมูลกับ storage ชี้คนละที่ ดูเหตุผลเต็มที่ `keysFromFile`
  *
  * 🛑 **สคริปต์นี้ไม่ลบและไม่เขียนทับอะไรทั้งสิ้น** — เขียนเฉพาะคีย์ `<ต้นฉบับ>.<variant>.webp`
  * ซึ่งเป็นคีย์ที่ยังไม่มีใครใช้ ไฟล์ต้นฉบับไม่ถูกแตะแม้แต่ไบต์เดียว
@@ -28,6 +32,8 @@ const prisma = new PrismaClient()
 const APPLY = process.argv.includes('--apply')
 const limitArg = process.argv.indexOf('--limit')
 const LIMIT = limitArg >= 0 ? Number(process.argv[limitArg + 1]) : Infinity
+const keysFileArg = process.argv.indexOf('--keys-file')
+const KEYS_FILE = keysFileArg >= 0 ? process.argv[keysFileArg + 1] : null
 
 /**
  * ค่าที่ใช้ได้ = storage key ของบัคเก็ตเราเท่านั้น
@@ -51,11 +57,16 @@ function pushAll(into: Set<string>, values: unknown) {
 async function collectKeys(): Promise<string[]> {
   const keys = new Set<string>()
 
-  const [products, rooms, shops, users] = await Promise.all([
+  const [products, rooms, shops, users, videos, posts] = await Promise.all([
     prisma.product.findMany({ select: { images: true } }),
     prisma.room.findMany({ select: { images: true } }),
     prisma.shop.findMany({ select: { logo: true, coverImage: true } }),
     prisma.user.findMany({ select: { avatar: true } }),
+    // รูปปกคลิปในแท็บ "ปักหมุด" ของหน้าร้าน — mirror มาแล้วจึงเป็นไฟล์ในบัคเก็ตเรา
+    // (วัดจาก prod: เฉลี่ย 231KB/ใบ · แท็บที่มี 12 ไทล์ = ~2.8MB ต่อการเปิดหนึ่งครั้ง)
+    prisma.shopVideo.findMany({ select: { mirroredFileId: true } }),
+    // รูปโพสต์ Facebook ที่ร้านเลือกมาวางเป็นบล็อกบนหน้าร้าน (feature 00035)
+    prisma.facebookPost.findMany({ select: { mirroredFileId: true } }),
   ])
 
   for (const p of products) pushAll(keys, p.images)
@@ -65,12 +76,37 @@ async function collectKeys(): Promise<string[]> {
     pushAll(keys, s.coverImage)
   }
   for (const u of users) pushAll(keys, u.avatar)
+  for (const v of videos) pushAll(keys, v.mirroredFileId)
+  for (const fp of posts) pushAll(keys, fp.mirroredFileId)
 
   return [...keys]
 }
 
+/**
+ * อ่านรายชื่อคีย์จากไฟล์แทนการ query ฐานข้อมูล (หนึ่งคีย์ต่อบรรทัด)
+ *
+ * 🛑 มีไว้เพราะ **ฐานข้อมูลกับ storage ของเครื่อง dev ชี้คนละที่**: `DATABASE_URL` ชี้ Postgres
+ * ใน Docker บนเครื่อง (localhost:5434 — Hard Rule 13/14) ส่วน `S3_ENDPOINT` ชี้บัคเก็ต
+ * `uploads` ของ Supabase ตัวจริง ⇒ รันแบบอ่าน DB ตรง ๆ จะได้รายชื่อของ **ฐาน dev** แล้วไปเขียน
+ * variant ลง **storage ของ prod** ซึ่งไม่ตรงกันสักทาง (สร้าง variant ให้ไฟล์ที่ prod ไม่มี และ
+ * ไม่สร้างให้ไฟล์ที่ prod มีจริง)
+ *
+ * ทางที่ถูกคือดึงรายชื่อจากฐาน prod แบบอ่านอย่างเดียว (Supabase Management API) มาใส่ไฟล์
+ * แล้วป้อนให้สคริปต์ — สคริปต์นี้จึงไม่ต้องรู้จัก credential ของฐาน prod เลย
+ */
+async function keysFromFile(path: string): Promise<string[]> {
+  const { readFile } = await import('node:fs/promises')
+  const raw = await readFile(path, 'utf8')
+  const all = raw.split('\n').map((l) => l.trim()).filter(Boolean)
+  const usable = all.filter(usableKey)
+  if (usable.length !== all.length) {
+    console.log(`ข้ามค่าที่ไม่ใช่คีย์รูปในบัคเก็ตเรา ${all.length - usable.length} บรรทัด`)
+  }
+  return [...new Set(usable)]
+}
+
 async function main() {
-  const keys = await collectKeys()
+  const keys = KEYS_FILE ? await keysFromFile(KEYS_FILE) : await collectKeys()
   const targets = keys.slice(0, LIMIT === Infinity ? undefined : LIMIT)
 
   console.log(`พบรูปที่เข้าเกณฑ์ ${keys.length} ไฟล์` + (targets.length < keys.length ? ` (จำกัดรอบนี้ ${targets.length})` : ''))

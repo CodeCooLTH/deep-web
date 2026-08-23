@@ -34,6 +34,8 @@ export type ShopVideoItem = {
   videoId: string
   caption: string | null
   thumbnailUrl: string | null
+  /** feature 00054 — รูปย่อของ `thumbnailUrl` · ไม่มี = ใช้ตัวเต็ม (ยังไม่ backfill / รูปจาก CDN ภายนอก) */
+  thumbnailSmallUrl?: string | null
   accountName: string | null
   likeCount: number | null
   commentCount: number | null
@@ -107,6 +109,9 @@ const compact = compactCount
  */
 function VideoCell({ item, onOpen }: { item: ShopVideoItem; onOpen: () => void }) {
   const [imgFailed, setImgFailed] = useState(false)
+  /* ชั้นแรกของ fallback: รูปย่อไม่มีอยู่ (ยังไม่ backfill / เบราว์เซอร์ไม่รองรับ WebP) → ตัวเต็ม
+     ยังไม่ใช่สถานะ "ไม่มีรูป" ซึ่งซ่อนไทล์ทั้งใบ */
+  const [smallFailed, setSmallFailed] = useState(false)
 
   const provider = item.provider as VideoProvider
   const ui = PROVIDER_UI[provider]
@@ -127,13 +132,20 @@ function VideoCell({ item, onOpen }: { item: ShopVideoItem; onOpen: () => void }
       {item.thumbnailUrl && !imgFailed && (
         // eslint-disable-next-line @next/next/no-img-element -- รูปปกจาก storage ของเรา (mirror) หรือ CDN ของแพลตฟอร์ม
         <img
-          src={item.thumbnailUrl}
+          /* feature 00054 — ไทล์กว้างจริง ~180–240px แต่รูปปกที่ mirror มาหนักเฉลี่ย 231KB
+             ⇒ แท็บนี้ที่มี 12 ไทล์เคยดึง ~2.8MB ทุกครั้งที่เปิด
+             fallback สองชั้น: รูปย่อ → ตัวเต็ม → ซ่อนไทล์ (สถานะเดิม) */
+          key={smallFailed ? item.thumbnailUrl : (item.thumbnailSmallUrl ?? item.thumbnailUrl)}
+          src={smallFailed ? item.thumbnailUrl : (item.thumbnailSmallUrl ?? item.thumbnailUrl)}
           alt=''
           // ขยายเล็กน้อยตอนชี้ — บอกว่าไทล์ทั้งใบกดได้ โดยไม่ต้องเพิ่มกรอบ/เงาเข้ามาในกริดที่
           // ตั้งใจให้ชิดกันเป็นผืนเดียว (Tailwind 4 ห่อ hover: ด้วย @media (hover:hover) ให้เอง
           // จอสัมผัสจึงไม่ค้างสถานะหลังแตะ)
           className='absolute inset-0 is-full bs-full object-cover transition-transform duration-300 ease-out group-hover:scale-105'
-          onError={() => setImgFailed(true)}
+          onError={() => {
+            if (!smallFailed && item.thumbnailSmallUrl) setSmallFailed(true)
+            else setImgFailed(true)
+          }}
           loading='lazy'
           decoding='async'
         />

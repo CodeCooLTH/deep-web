@@ -63,6 +63,8 @@ describe('[blocker] สร้าง variant เฉพาะรูปสาธา
     expect(src).toContain('prisma.room.findMany')
     expect(src).toContain('prisma.shop.findMany')
     expect(src).toContain('prisma.user.findMany')
+    expect(src).toContain('prisma.shopVideo.findMany')
+    expect(src).toContain('prisma.facebookPost.findMany')
   })
 })
 

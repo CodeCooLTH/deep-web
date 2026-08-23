@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { canAccessShop } from '@/lib/shop-context'
 import { mirrorRemoteImage } from '@/services/channel-chat.service'
 import { getFileUrl } from '@/lib/storage'
+import { variantUrlOf } from '@/lib/file-url'
 import { PROFILE_TAB_KEYS } from '@/lib/profile-tab-keys'
 
 /**
@@ -49,6 +50,8 @@ export type ShopPageFacebookPostBlock = {
     message: string | null
     /** resolve แล้ว: mirroredFileId ? getFileUrl(...) : thumbnailUrl (TFR-006) */
     imageUrl: string | null
+    /** feature 00054 — รูปย่อของ `imageUrl` · `null` = ไม่มี (ยังไม่ backfill / รูปจาก URL ภายนอก) */
+    imageSmallUrl: string | null
     mediaType: string | null
     reactionCount: number | null
     fbCommentCount: number | null
@@ -225,6 +228,8 @@ export async function listShopPageBlocks(shopId: string): Promise<ShopPageBlockV
           id: post.id,
           message: post.message,
           imageUrl: post.mirroredFileId ? await getFileUrl(post.mirroredFileId) : post.thumbnailUrl,
+          // feature 00054 — โพสต์ที่ mirror มาหนักเฉลี่ย 160KB (prod: 158 ไฟล์ 25MB)
+          imageSmallUrl: variantUrlOf(post.mirroredFileId, 'thumb'),
           mediaType: post.mediaType,
           reactionCount: post.reactionCount,
           fbCommentCount: post.fbCommentCount,

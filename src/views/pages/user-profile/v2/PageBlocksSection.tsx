@@ -35,6 +35,8 @@ export type PageBlockPost = {
   message: string | null
   /** resolve แล้วจากชั้น service (mirroredFileId ? getFileUrl(...) : thumbnailUrl) — ห้ามคิด fallback ใหม่ที่นี่ */
   imageUrl: string | null
+  /** feature 00054 — รูปย่อของ `imageUrl` (อาจไม่มี) */
+  imageSmallUrl?: string | null
   mediaType: string | null
   reactionCount: number | null
   fbCommentCount: number | null
@@ -49,11 +51,37 @@ export type PageBlockItem =
 /** จำนวนเหรียญสูงสุดต่อบล็อก — ตรงกับเพดานที่ builder บังคับไว้ (Valibot maxLength + DB CHECK) */
 const MAX_BLOCK_BADGES = 4
 
-function BlockImg({ src, alt, className }: { src: string | null; alt: string; className: string }) {
+function BlockImg({
+  src,
+  smallSrc,
+  alt,
+  className,
+}: {
+  src: string | null
+  /** feature 00054 — รูปย่อ ลองก่อนเสมอถ้ามี (โพสต์ที่ mirror มาหนักเฉลี่ย 160KB) */
+  smallSrc?: string | null
+  alt: string
+  className: string
+}) {
   const [failed, setFailed] = useState(false)
+  const [smallFailed, setSmallFailed] = useState(false)
   if (!src || failed) return null
-  // eslint-disable-next-line @next/next/no-img-element -- รูปจาก storage/CDN ของ Meta หลากโดเมน (เดียวกับ ProfileHero)
-  return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />
+  const shown = !smallFailed && smallSrc ? smallSrc : src
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- รูปจาก storage/CDN ของ Meta หลากโดเมน (เดียวกับ ProfileHero)
+    <img
+      // key ผูกกับ src ที่ใช้จริง — บังคับให้เบราว์เซอร์เริ่มโหลดใหม่ตอนสลับไปตัวเต็ม
+      key={shown}
+      src={shown}
+      alt={alt}
+      className={className}
+      /* สองชั้น: รูปย่อไม่มี → ตัวเต็ม → ไม่แสดงรูปเลย (สถานะเดิม) */
+      onError={() => {
+        if (!smallFailed && smallSrc) setSmallFailed(true)
+        else setFailed(true)
+      }}
+    />
+  )
 }
 
 /** ย่อเลขให้อ่านง่ายบนพื้นที่แคบ — 12,300 → 12.3K (ยกมาจาก ShopVideos.tsx compact()) */
@@ -107,7 +135,12 @@ function FacebookPostBlock({ post, blockKey }: { post: PageBlockPost; blockKey: 
     <>
       {post.imageUrl && (
         <div className='relative aspect-video bg-[var(--mui-palette-action-hover)] overflow-hidden'>
-          <BlockImg src={post.imageUrl} alt='' className='absolute inset-0 is-full bs-full object-cover' />
+          <BlockImg
+            src={post.imageUrl}
+            smallSrc={post.imageSmallUrl}
+            alt=''
+            className='absolute inset-0 is-full bs-full object-cover'
+          />
         </div>
       )}
       <div className='p-4 flex flex-col gap-2'>
