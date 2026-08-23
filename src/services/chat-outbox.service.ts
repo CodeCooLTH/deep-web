@@ -73,6 +73,29 @@ export async function enqueueOutbound(params: SendOutboundParams): Promise<Outbo
   // ยังอยู่ใน POST เหมือนเดิม (D-5) — ผู้ขายต้องได้คำเตือนตอนกดส่ง ไม่ใช่ไปรู้ทีหลังจากหลังบ้าน
   const conversation = await resolveOutboundContext(params)
 
+  /**
+   * (R-21) ด่านที่ **ตรวจล่วงหน้าได้จริง** ต้องอยู่ใน POST ไม่ใช่รอไปล้มหลังบ้าน (D-5)
+   *
+   * ก่อนหน้านี้ทั้งสองเงื่อนไขนี้ถูกตรวจใน `transmit*` ⇒ พอการยิงย้ายไปหลังบ้าน ผู้ขายที่กดส่งใน
+   * ห้องของเพจที่ถูกถอดการเชื่อมต่อไปแล้ว จะได้ 202 "เข้าคิวแล้ว" แล้วอีกครู่บับเบิลกลายเป็นแดง
+   * ทั้งที่เรารู้ตั้งแต่วินาทีที่กดว่าไม่มีทางผ่าน
+   *
+   * 🛑 ห้ามย้ายเข้า `resolveOutboundContext` — `sendOutboundMessage` (auto-reply / rich-menu) ใช้
+   * ตัวนั้นร่วมกันอยู่ การเติมด่านที่นั่นคือการเปลี่ยนลำดับ error ของเส้นทางนอกขอบเขต
+   *
+   * 🛑 เช็ค **ตามช่องทาง** ให้ตรงกับด่านเดิมของช่องทางนั้นเป๊ะ ไม่ใช่เช็คทั้งคู่ทุกช่องทาง:
+   *   LINE  → `CONTACT_BLOCKED` มาก่อน `CHANNEL_NOT_ACTIVE` (`channel-chat.service.ts:3213,3216`)
+   *   Meta  → `CHANNEL_NOT_ACTIVE` อย่างเดียว (`:3493`) **ไม่มีด่าน isBlocked**
+   * เพราะ `ExternalContact.isBlocked` มีผู้เขียนคือ LINE เท่านั้น (BR-LINE-15 — ยืนยันด้วย
+   * `rg isBlocked src/`: ผู้เขียน 2 จุดอยู่ในกิ่ง LINE ทั้งคู่ และหน้าเธรดก็อ่านมันใต้เงื่อนไข
+   * `channel === 'LINE'`) ⇒ เอาไปกั้น Meta ด้วย = ด่านใหม่ที่ไม่เคยมี บนธงที่ฝั่ง Meta ไม่เคยตั้ง
+   * และถ้อยคำของ `CONTACT_BLOCKED` ก็พูดถึง "LINE OA" ตรงตัว
+   */
+  if (conversation.channel === 'LINE' && conversation.externalContact.isBlocked) {
+    throw new Error('CONTACT_BLOCKED')
+  }
+  if (conversation.shopChannel.status !== 'ACTIVE') throw new Error('CHANNEL_NOT_ACTIVE')
+
   // ── ตั้งแต่บรรทัดนี้ลงไปคือตรรกะประกอบแถวที่ **ยกมาจาก `sendOutboundMessage` ทั้งดุ้น** ──
   // รวม 2 ทางเข้าเป็นตัวแปรเดียว — imageFileId (auto-reply เดิม) กับ attachment (composer ใหม่)
   const attachment =

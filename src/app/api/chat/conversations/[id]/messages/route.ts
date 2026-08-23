@@ -95,10 +95,10 @@ function mapChatServiceError(e: unknown, context: string) {
     // feature 00018: หมดหน้าต่างที่ Meta ให้ส่ง — ครอบทั้งเกิน 24 ชม. (เมื่อยังไม่เปิด HUMAN_AGENT)
     // และเกิน 7 วัน (เมื่อเปิดแล้ว) จึงไม่ระบุตัวเลขในข้อความ ปล่อยให้แถบในเธรดบอกรายละเอียดแทน
     // — แถบนั้นรู้ว่าร้านได้ permission human_agent หรือยัง ส่วน route นี้ไม่รู้
-    return NextResponse.json(
-      { error: "หมดเวลาที่ Meta อนุญาตให้ส่งข้อความในเธรดนี้ — ต้องรอให้ลูกค้าทักเข้ามาใหม่" },
-      { status: 409 },
-    );
+    // (R-21) ถ้อยคำย้ายไปอยู่ที่ `chat-send-failure.ts` แล้ว — บับเบิลของแถวที่ล้มหลังบ้านอ่านจาก
+    // ที่นั่นเหมือนกัน ถ้า hardcode ไว้ที่นี่ด้วยจะได้สองสำนวนสำหรับเรื่องเดียวกัน (HR16)
+    // ใช้ `.text` ไม่ใช่ `.message` เพื่อคงสตริงเดิมเป๊ะ (`.message` เติมคำนำหน้า "ส่งไม่สำเร็จ — ")
+    return NextResponse.json({ error: describeSendFailure(e.message).text }, { status: 409 });
   }
   if (e instanceof Error && e.message === "NOT_EXTERNAL_CHANNEL") {
     return NextResponse.json({ error: "ช่องทางของบทสนทนานี้ไม่ถูกต้อง" }, { status: 400 });
@@ -106,10 +106,8 @@ function mapChatServiceError(e: unknown, context: string) {
   if (e instanceof Error && e.message === "CHANNEL_NOT_ACTIVE") {
     // feature 00018 (S-4): token ตายแล้ว (ถูก markChannelTokenInvalid) หรือร้านถอดการเชื่อมต่อไปแล้ว
     // — สาเหตุชัดเจนและแก้ได้เอง (ไปเชื่อม Page ใหม่) ไม่ใช่ generic 500
-    return NextResponse.json(
-      { error: "การเชื่อมต่อกับช่องทางนี้หมดอายุ กรุณาเชื่อม Facebook Page ใหม่อีกครั้ง" },
-      { status: 409 },
-    );
+    // (R-21) ถ้อยคำย้ายไปอยู่ที่ `chat-send-failure.ts` แล้ว — ดูเหตุผลที่ WINDOW_CLOSED ด้านบน
+    return NextResponse.json({ error: describeSendFailure(e.message).text }, { status: 409 });
   }
   // (S-8, feature 00025) LINE outbound — ข้อความ/HTTP status ตรงตาม API.md §5 เป๊ะ ๆ
   // (feedback_service_error_route_mapping: error ใหม่ทุกตัวที่ service โยนต้องมี catch ที่นี่)

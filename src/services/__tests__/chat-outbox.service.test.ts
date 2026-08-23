@@ -66,7 +66,13 @@ beforeEach(() => {
   create.mockReset()
   conversationUpdate.mockReset()
   conversationFindMany.mockReset()
-  resolveOutboundContext.mockResolvedValue({ id: 'c1', channel: 'MESSENGER', shopId: 's1' })
+  resolveOutboundContext.mockResolvedValue({
+    id: 'c1',
+    channel: 'MESSENGER',
+    shopId: 's1',
+    shopChannel: { status: 'ACTIVE' },
+    externalContact: { isBlocked: false },
+  })
   create.mockImplementation(async (args: { data: Record<string, unknown> }) => ({
     id: 'new1',
     createdAt: new Date('2026-08-23T10:00:00Z'),
@@ -445,6 +451,54 @@ describe('enqueueOutbound', () => {
     expect(data.imageUrl).toBeNull()
     expect(typeof data.body).toBe('string')
     expect(data.body).not.toBe('')
+  })
+
+  // ── (R-21) ด่านที่ตรวจล่วงหน้าได้จริง ต้องอยู่ใน POST ไม่ใช่รอไปล้มหลังบ้าน ──
+  it('[blocker] เพจถูกถอดการเชื่อมต่อ (status ≠ ACTIVE) → โยน CHANNEL_NOT_ACTIVE ตั้งแต่ตอนกด ไม่เข้าคิว', async () => {
+    resolveOutboundContext.mockResolvedValue({
+      id: 'c1',
+      channel: 'MESSENGER',
+      shopId: 's1',
+      shopChannel: { status: 'TOKEN_INVALID' },
+      externalContact: { isBlocked: false },
+    })
+
+    await expect(enqueueOutbound({ conversationId: 'c1', actorUserId: 'u1', text: 'x' })).rejects.toThrow(
+      'CHANNEL_NOT_ACTIVE',
+    )
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('[blocker] LINE + ลูกค้าปิดรับข้อความ → CONTACT_BLOCKED **มาก่อน** CHANNEL_NOT_ACTIVE (ลำดับเดิมของ LINE)', async () => {
+    // จริงทั้งคู่พร้อมกัน — ต้องได้ error ตัวเดียวกับที่ `transmitLineMessage` เคยโยน (:3213 มาก่อน :3216)
+    resolveOutboundContext.mockResolvedValue({
+      id: 'c1',
+      channel: 'LINE',
+      shopId: 's1',
+      shopChannel: { status: 'TOKEN_INVALID' },
+      externalContact: { isBlocked: true },
+    })
+
+    await expect(enqueueOutbound({ conversationId: 'c1', actorUserId: 'u1', text: 'x' })).rejects.toThrow(
+      'CONTACT_BLOCKED',
+    )
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('[blocker] Meta ไม่มีด่าน isBlocked — ธงนี้มีผู้เขียนคือ LINE เท่านั้น (BR-LINE-15)', async () => {
+    // ถ้าเอา isBlocked ไปกั้น Meta ด้วย = ด่านใหม่ที่ไม่เคยมี บนธงที่ฝั่ง Meta ไม่เคยตั้ง
+    // และผู้ขายจะได้อ่านข้อความที่พูดถึง "LINE OA" ในห้อง Messenger
+    resolveOutboundContext.mockResolvedValue({
+      id: 'c1',
+      channel: 'MESSENGER',
+      shopId: 's1',
+      shopChannel: { status: 'ACTIVE' },
+      externalContact: { isBlocked: true },
+    })
+
+    await enqueueOutbound({ conversationId: 'c1', actorUserId: 'u1', text: 'x' })
+
+    expect(create).toHaveBeenCalledTimes(1)
   })
 
   it('ด่าน ownership ยังอยู่ที่เดิม — resolveOutboundContext โยน = ไม่เขียนแถวเลย', async () => {

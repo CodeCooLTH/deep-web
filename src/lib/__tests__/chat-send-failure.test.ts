@@ -334,3 +334,49 @@ describe('[blocker] describeSendFailure — LINE (S-8 feature 00025) 4 รหั
     expect(describeSendFailure('CONTACT_BLOCKED').text).not.toContain('Meta')
   })
 })
+
+// ══════════════════════════════════════════════════════════════════════════
+// (R-21, CR คิวส่งข้อความ 2026-08-23) รหัสภายในต้องไม่มีทางโผล่เป็นอังกฤษดิบบนหน้าจอผู้ขาย
+//
+// ที่มา: การยิงจริงย้ายไปหลังบ้าน ⇒ รหัสพวกนี้กลายเป็นค่าใน `ChatMessage.failureReason` ที่บับเบิล
+// และ push อ่านผ่าน `describeSendFailure` แทนที่จะถูก route แปลให้เหมือนเดิม
+// ══════════════════════════════════════════════════════════════════════════
+describe('[blocker] รหัสภายในทุกตัวที่ยิงจากหลังบ้านได้ ต้องได้ข้อความภาษาไทย', () => {
+  // ครบทั้ง 6 ตัวที่ `transmit*` โยนได้ + 2 ตัวที่ `enqueueOutbound` ตรวจล่วงหน้า (ซ้ำกันบางตัว)
+  const CODES = [
+    'CHANNEL_NOT_ACTIVE',
+    'WINDOW_CLOSED',
+    'CONTACT_BLOCKED',
+    'QUOTA_EXCEEDED',
+    'TOKEN_INVALID',
+    'LINE_UNAVAILABLE',
+  ]
+
+  it.each(CODES)('%s → ภาษาไทย ไม่ใช่รหัสดิบ', (code) => {
+    const out = describeSendFailure(code)
+    expect(out.text).not.toBe(code)
+    expect(out.text).not.toContain(code)
+    // ต้องมีอักษรไทยจริง ไม่ใช่แค่ "ไม่ใช่รหัส"
+    expect(/[\u0E00-\u0E7F]/.test(out.text)).toBe(true)
+    // และ message ที่ประกอบเสร็จก็ต้องไม่พารหัสติดไปด้วย
+    expect(out.message).not.toContain(code)
+  })
+
+  it('ทั้ง 6 ตัวมีกฎรองรับจริง (known=true) ไม่ใช่รอดเพราะตกตาข่าย', () => {
+    // แยกจากเทสข้างบนโดยตั้งใจ: ตาข่าย `INTERNAL_CODE_SHAPE` ทำให้ "ได้ภาษาไทย" ผ่านได้ทั้งที่ไม่มีกฎ
+    // ⇒ ถ้าไม่ยืนยัน known=true ตรงนี้ การลบกฎออกจะไม่มีอะไรแดง (ตาข่ายกลืน mutation ไปหมด)
+    for (const code of CODES) expect(describeSendFailure(code).known).toBe(true)
+  })
+
+  it('[blocker] ตาข่าย: รหัสรูปแบบเดียวกันที่ยังไม่มีกฎ ต้องไม่หลุดออกหน้าจอ', () => {
+    const out = describeSendFailure('SOME_FUTURE_INTERNAL_CODE')
+    expect(out.text).toBe('ไม่ทราบสาเหตุ')
+    expect(out.known).toBe(false)
+  })
+
+  it('ตาข่ายต้องไม่กลืนข้อความที่อ่านออกอยู่แล้ว', () => {
+    // ประโยคอังกฤษของ Meta และข้อความไทยของเราต้องผ่านไปเหมือนเดิมทุกประการ
+    expect(describeSendFailure('Something unexpected happened').text).toBe('Something unexpected happened')
+    expect(describeSendFailure('ส่งข้อความไม่สำเร็จ').text).toBe('ส่งข้อความไม่สำเร็จ')
+  })
+})
