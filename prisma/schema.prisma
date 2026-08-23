@@ -388,6 +388,10 @@ model Room {
   // isActive: ปิดการใช้งาน = ไม่ให้สร้างการจองใหม่ + ไม่โชว์บนโปรไฟล์สาธารณะ
   // แต่การจองเดิมยังเปิดดูได้ครบ (BR-LODG-07) — แยก "หยุดขาย" ออกจาก "ลบประวัติ"
   isActive      Boolean  @default(true)
+  // showOnProfile: โชว์ห้องนี้บนหน้าร้านสาธารณะหรือไม่ (feature 00053 TFR-002)
+  // 🛑 ไม่ใช่ตัวเดียวกับ isActive ข้างบน — isActive=false คือ "หยุดรับจอง" ส่วนอันนี้คือ
+  // "ยังรับจองอยู่ แต่ไม่ต้องโชว์ในแท็บห้องพักของหน้าร้าน" default true = ร้านเดิมไม่เปลี่ยน
+  showOnProfile Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -458,6 +462,10 @@ model ServiceResource {
 
   // isActive: ปิดการใช้งาน = ไม่รับนัดใหม่ แต่นัดเดิมยังอยู่ครบ (BR-RSV-07)
   isActive  Boolean  @default(true)
+  // showOnProfile: โชว์บริการนี้ในแท็บ "บริการ" ของหน้าร้านสาธารณะหรือไม่ (feature 00053 TFR-002)
+  // 🛑 คนละเรื่องกับ isActive — isActive=false คือ "ไม่รับนัดใหม่" ส่วนอันนี้คือ "ยังรับนัดอยู่
+  // แต่ไม่ต้องประกาศบนหน้าร้าน" (เช่น บริการที่ให้เฉพาะลูกค้าประจำ) default true = ร้านเดิมไม่เปลี่ยน
+  showOnProfile Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -628,6 +636,16 @@ model Product {
   // เดียวกับตอน isActive true→false เสมอ (BR-PIN-11 — service layer, product.service deleteProduct/updateProduct).
   // จำนวนปักหมุดต่อ shop <= Shop.pinSlots (enforce service layer เท่านั้น — ไม่มี DB constraint ข้ามแถว)
   pinnedAt          DateTime?
+
+  // showOnProfile: โชว์สินค้าชิ้นนี้บนหน้าร้านสาธารณะ /u,/b หรือไม่ (feature 00053 TFR-002)
+  // 🛑 ตอบคนละคำถามกับสองคอลัมน์ข้างบนที่หน้าตาคล้ายกัน — อย่าใช้แทนกัน:
+  //   isActive      = "ยังขายอยู่ไหม"  (false = ขายไม่ได้ทุกช่องทาง)
+  //   pinnedAt      = "ปักหมุดไหม"
+  //   showOnProfile = "โชว์หน้าร้านไหม" — false แล้ว **ยังขายได้ปกติ** ผ่านแชท/POS/ออเดอร์/ประมูล
+  // default true = ร้านเดิมไม่มีอะไรเปลี่ยน (ถ้าตั้งต้นเป็น false หน้าร้านทุกร้านจะว่างทันที)
+  // ตัวกรองฝั่งอ่านเป็น opt-in เสมอ (getProductsByShop opts.publicOnly) เพราะฟังก์ชันนั้นมีผู้เรียก
+  // 10+ จุดที่เป็นหลังร้านทั้งหมด
+  showOnProfile     Boolean   @default(true)
 
   /// ยอดถูกใจ — denormalize ไว้อ่านตรง ๆ (BR-LIKE-03) ห้ามนับสดด้วย count() ตอนเปิดหน้าร้าน
   /// เพราะการ์ดสินค้ามีได้ 12+ ใบต่อหน้า บนจุดสัมผัสแรกของผู้ซื้อ
@@ -3169,6 +3187,18 @@ model ShopPageLayout {
   // ต้องอ่านเป็น true ที่ชั้น service เสมอ (fallback ตอน findUnique คืน null) — ห้ามพึ่ง DB default
   // อย่างเดียวเพราะแถวยังไม่ถูกสร้างจนกว่าร้านจะกดบันทึกตัวจัดหน้าร้านครั้งแรก
   isPublished Boolean @default(true)
+
+  // showPrices: แสดงราคาบนหน้าร้านสาธารณะหรือไม่ (feature 00053 TFR-001) — ค่าเดียวคุมทั้งร้าน
+  // ครอบราคาสินค้าบนการ์ด/ป๊อปอัป · ฿ต่อคืนของห้องพัก · บล็อกมัดจำของบริการ
+  //
+  // 🛑 default false และ **fallback ตอนไม่มีแถวก็ต้องเป็น false** ซึ่ง **กลับทิศกับ isPublished
+  // ที่อยู่เหนือมันสองบรรทัด** (อันนั้น fallback true) — ตั้งใจ ไม่ใช่ความพลั้งเผลอ:
+  //   isPublished ตั้งต้น "เผยแพร่" เพราะร้านเดิมเผยแพร่อยู่แล้ว การ fallback false = ปิดหน้าร้าน
+  //   ทุกร้านที่ไม่เคยเปิดตัวจัดหน้าร้าน
+  //   showPrices ตั้งต้น "ซ่อน" ตามมติผู้ใช้ 2026-08-23 — ถ้า fallback true ร้านส่วนใหญ่ (ซึ่งไม่มี
+  //   แถวนี้เลย) จะยังโชว์ราคาต่อไป = ฟีเจอร์ไม่มีผลกับคนกลุ่มใหญ่ที่สุดที่มันถูกสร้างมาเพื่อ
+  // ห้าม "แก้ให้เหมือนกัน" เพราะเห็นว่าไม่สม่ำเสมอ (DATABASE.md §3.1 ของ 00053)
+  showPrices Boolean @default(false)
 
   // tabOrder: ลำดับ tab key ที่ร้านจัดเอง (มติ user 2026-08-07 ข้อ 1) — เก็บเฉพาะ "ลำดับ" ไม่ใช่
   // "รายการที่จะแสดง": ProfileTabs ยังตัดสินเองว่าแท็บไหนมีข้อมูลจริงถึงจะ render — คอลัมน์นี้ไม่มีทาง

@@ -173,9 +173,21 @@ export async function buyPinSlotAndPin(shopId: string, productId: string): Promi
  * getPinnedProducts — สินค้าที่ปักหมุดของร้าน เรียง pinnedAt desc (FR-PIN-06)
  * ไม่มี take — โซนปักหมุดแสดงทุกชิ้นที่ปักหมุด (bound โดย pinSlots อยู่แล้ว)
  */
-export async function getPinnedProducts(shopId: string) {
+export async function getPinnedProducts(
+  shopId: string,
+  // publicOnly — feature 00053 (TFR-003): opt-in เหมือน getProductsByShop
+  // 🛑 ชุดปักหมุดต้องกรองด้วย ไม่งั้นสินค้าที่ร้านสั่งซ่อนจะยังโผล่อยู่หัวแท็บสินค้า ซึ่งเป็น
+  // ตำแหน่งที่เด่นที่สุดของทั้งหน้า (FR-PPD-09 AC-09-2) · ตัวจัดหน้าร้านฝั่ง seller เรียก
+  // ฟังก์ชันนี้ด้วยและต้องเห็นครบเหมือนเดิม จึงไม่กรองเมื่อไม่ส่ง opts
+  opts?: { publicOnly?: boolean },
+) {
   return prisma.product.findMany({
-    where: { shopId, isActive: true, pinnedAt: { not: null } },
+    where: {
+      shopId,
+      isActive: true,
+      pinnedAt: { not: null },
+      ...(opts?.publicOnly ? { showOnProfile: true } : {}),
+    },
     orderBy: { pinnedAt: "desc" },
     include: { tags: true },
   });

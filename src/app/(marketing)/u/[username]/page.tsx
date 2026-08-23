@@ -27,6 +27,7 @@ import { getReviewsByUsername } from '@/services/review.service'
 import { getPublicRooms, getShopAvailability } from '@/services/room.service'
 import { listServiceResources, serializeServiceResource } from '@/services/service-resource.service'
 import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layout.service'
+import { MAX_PROFILE_PRODUCTS, isProfileListTruncated } from '@/lib/profile-sort'
 import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
 import PublicProfileFooter from '@views/pages/user-profile/v2/PublicProfileFooter'
 import ProfileUnavailable from '@views/pages/user-profile/v2/ProfileUnavailable'
@@ -51,7 +52,7 @@ import type { ProfileTabData, SerializedProduct } from '@views/pages/user-profil
 // memberSince เปลี่ยนจาก formatDateTime → formatMonthYearTH (เดือน-ปีล้วน ไม่ต้องละเอียดระดับวัน)
 // เพิ่ม verifiedLevels + nextTierInfo ป้อน TrustScoreCard; ตัดเมตริก "ผู้ติดตาม" ทิ้ง (ไม่มี follow system จริง)
 // Phase 3 (feature 00013 Pin Products, SDS §4.4): แทน getProductsByShop(shop.id,12) เดี่ยว ด้วย
-// getPinnedProducts(shop.id) + getProductsByShop(shop.id,12,{excludePinned:true}) คู่กัน
+// getPinnedProducts(shop.id, { publicOnly: true }) + getProductsByShop(shop.id,12,{excludePinned:true}) คู่กัน
 
 type Props = {
   params: Promise<{ username: string }>
@@ -83,7 +84,9 @@ export default async function PublicProfilePage({ params }: Props) {
   // ShopPageLayout เสมอ ใช้ fallback isPublished:true ของ service ตรง ๆ
   const pageLayout = user.shop
     ? await getShopPageLayout(user.shop.id)
-    : { isPublished: true, tabOrder: [] as string[] }
+    : // 🛑 fallback ของบัญชีที่ไม่มีร้านต้องตรงกับ fallback ใน getShopPageLayout ทุกช่อง — รวม
+      // `showPrices:false` ที่กลับทิศกับ `isPublished:true` (feature 00053 · ดูคอมเมนต์ในบริการนั้น)
+      { isPublished: true, tabOrder: [] as string[], showPrices: false }
   // เจ้าของ "หรือทีมงาน" ร้าน (canAccessShop ครอบทั้งสองกรณี) ยังต้องเห็นหน้าปกติแม้ปิดเผยแพร่อยู่
   // — คนละตัวกับ isOwnShop (owner เท่านั้น) ที่ใช้คุมปุ่มแชท ไม่ใช่ publish gate
   const canManagePage = user.shop && viewerId ? await canAccessShop(user.shop.id, viewerId) : false
@@ -108,12 +111,12 @@ export default async function PublicProfilePage({ params }: Props) {
   // สินค้าและบริการมีแท็บ "บริการ" เพิ่มจากคิวงาน (ServiceResource)
   const isLodging = user.shop?.vertical === 'LODGING'
   const isServiceQueue = user.shop?.vertical === 'SERVICE_QUEUE'
-  const rawRooms = isLodging && user.shop ? await getPublicRooms(user.shop.id) : []
+  const rawRooms = isLodging && user.shop ? await getPublicRooms(user.shop.id, { publicOnly: true }) : []
   // ปฏิทินวันว่าง — เฉพาะร้านที่พัก ร้านทั่วไปไม่ต้องคิวรี
   const availability = isLodging && user.shop ? await getShopAvailability(user.shop.id, 3) : null
   // คิวงานที่เปิดใช้งานอยู่ — เฉพาะร้านสินค้าและบริการ (feature 00028 U11, reuse service เดิม feat 00024)
   const rawServices =
-    isServiceQueue && user.shop ? await listServiceResources(user.shop.id, { activeOnly: true }) : []
+    isServiceQueue && user.shop ? await listServiceResources(user.shop.id, { activeOnly: true, publicOnly: true }) : []
   const publicServices = rawServices.map(serializeServiceResource)
   const publicRooms = rawRooms.map((r) => ({
     id: r.id,
@@ -141,8 +144,8 @@ export default async function PublicProfilePage({ params }: Props) {
     getAvgRatingByUsername(username),
     // ดึงสินค้าเฉพาะเมื่อมีร้าน (isShop=true) — buyer-only ส่ง [] แทน
     // Phase 3 (feature 00013): pinned + other แยกคิวรี — เปลี่ยน 9 → 12: desktop 4-col เต็ม 3 แถว / mobile 3-col 4 แถว ตาม spec
-    user.shop ? getPinnedProducts(user.shop.id) : Promise.resolve([]),
-    user.shop ? getProductsByShop(user.shop.id, 12, { excludePinned: true }) : Promise.resolve([]),
+    user.shop ? getPinnedProducts(user.shop.id, { publicOnly: true }) : Promise.resolve([]),
+    user.shop ? getProductsByShop(user.shop.id, MAX_PROFILE_PRODUCTS, { excludePinned: true, publicOnly: true }) : Promise.resolve([]),
   ])
 
   const maxVerifyLevel = approvedVerifications.length
@@ -345,6 +348,9 @@ export default async function PublicProfilePage({ params }: Props) {
             services: publicServices,
             pinnedProducts,
             otherProducts,
+            // feature 00053 — ค่าเดียวคุมทุกจุดที่พิมพ์ราคาบนหน้านี้ (การ์ดสินค้า/ป๊อปอัป/ห้องพัก/มัดจำบริการ)
+            showPrices: pageLayout.showPrices,
+            productsTruncated: isProfileListTruncated(otherProducts.length),
             about: {
               bio: profileTab.bio,
               // ── เพิ่ม 2026-08-11 (user: "เกี่ยวกับร้าน อยากให้เพิ่ม stat มากขึ้น") ──

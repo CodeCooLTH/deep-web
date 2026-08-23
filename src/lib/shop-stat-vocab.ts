@@ -21,6 +21,30 @@ export type ShopStatVocab = {
   itemNoun: string
 }
 
+/**
+ * profileSoldLine — ประโยค "ยอดสะสม" ใต้ชื่อรายการบนการ์ดของหน้าร้านสาธารณะ
+ * (feature 00053 TFR-005 · SSOT เดียวของถ้อยคำชุดนี้ ตาม Hard Rule 16)
+ *
+ * ทำไมเป็นประโยคเต็มไม่ใช่ verb+unit ให้ call site ต่อเอง: ลักษณนามผูกกับกริยาไม่ตายตัว
+ * ("ขายแล้ว N **ชิ้น**" แต่ "ใช้บริการแล้ว N **ครั้ง**") การให้ call site ต่อเองคือการเปิดช่อง
+ * ให้เกิด "ใช้บริการแล้ว 3 ชิ้น" โดยไม่มี tsc ตัวไหนฟ้อง
+ *
+ * 🛑 ตัวตัดสินคือ **การ์ดใบนี้เป็นอะไร** ไม่ใช่ **ร้านนี้ประเภทอะไร** อย่างเดียว — ร้านบ้านพัก
+ * (LODGING) มีทั้งการ์ดห้องพักและการ์ดสินค้าอยู่บนหน้าเดียวกัน การ์ดสินค้าของร้านบ้านพักต้อง
+ * อ่านว่า "ขายแล้ว N ชิ้น" ไม่ใช่ "เข้าพักแล้ว N ครั้ง"
+ *
+ * บรรทัดนี้ **ไม่ผูกกับสวิตช์ราคา** — เมื่อร้านซ่อนราคา นี่คือสิ่งเดียวที่ยังพูดแทนร้านได้บนการ์ด
+ * (ผู้ใช้ระบุตรง ๆ 2026-08-23 ว่า "ยังต้องมีคำว่า ใช้บริการแล้ว 3 ครั้ง")
+ */
+export function profileSoldLine(
+  opts: { itemKind: 'ROOM' | 'PRODUCT'; isServiceQueue?: boolean },
+  formattedCount: string,
+): string {
+  if (opts.itemKind === 'ROOM') return `เข้าพักแล้ว ${formattedCount} ครั้ง`
+  if (opts.isServiceQueue) return `ใช้บริการแล้ว ${formattedCount} ครั้ง`
+  return `ขายแล้ว ${formattedCount} ชิ้น`
+}
+
 export function shopStatVocab(isLodging?: boolean, isServiceQueue?: boolean): ShopStatVocab {
   if (isLodging) {
     return {

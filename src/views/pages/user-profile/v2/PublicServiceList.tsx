@@ -42,13 +42,22 @@ function depositLabel(mode: string, value: string): { caption: string; amount: s
     : { caption: 'มัดจำ', amount: `฿${n.toLocaleString('th-TH')}` }
 }
 
-export default function PublicServiceList({ services }: { services: PublicService[] }) {
+export default function PublicServiceList({
+  services,
+  showPrices,
+}: {
+  services: PublicService[]
+  /** feature 00053 — ปิดแล้วไม่พิมพ์บล็อกมัดจำ (ตัวเลขเงินเดียวบนการ์ดบริการ) */
+  showPrices: boolean
+}) {
   return (
     /* `.service-grid` — 2 คอลัมน์ ยุบเหลือ 1 ที่ ≤650px ตามไฟล์อ้างอิง
        650 ไม่ใช่ breakpoint ของ MUI จึงเขียนเป็น media query ตรง ๆ ให้ตรงต้นแบบ */
     <div className='grid gap-4 [grid-template-columns:repeat(2,minmax(0,1fr))] max-[650px]:[grid-template-columns:1fr]'>
       {services.map((s) => {
-        const deposit = depositLabel(s.depositMode, s.depositValue)
+        /* feature 00053 — ร้านที่ปิดสวิตช์ราคา ไม่แสดงมัดจำ: มันคือตัวเลขเงินเดียวบนการ์ดนี้
+           และเป็นสิ่งที่ผู้ซื้อใช้ประเมินราคาเต็มของบริการ ปล่อยไว้ = ซ่อนราคาแบบไม่จริง */
+        const deposit = showPrices ? depositLabel(s.depositMode, s.depositValue) : null
 
         return (
           <article

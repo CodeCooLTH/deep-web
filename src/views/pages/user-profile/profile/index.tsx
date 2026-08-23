@@ -24,7 +24,26 @@ import { useSession } from 'next-auth/react'
 // อ้าง TierChipColor จาก SSOT ของระบบ tier โดยตรง (เดิมอ้างผ่าน TrustScoreCardData ซึ่งเป็นการ
 // อ้อมผ่าน component ที่ถูกลบไปพร้อมโปรไฟล์ชุดเดิม — ชี้ที่ต้นทางตรง ๆ ตรงกว่าและไม่ผูกกับ UI)
 import type { TierChipColor } from '@/lib/trust-tier'
+import {
+  PROFILE_SORT_CHIPS,
+  nextSortMode,
+  sortProfileProducts,
+  type ProfileSortMode,
+} from '@/lib/profile-sort'
+import { profileSoldLine } from '@/lib/shop-stat-vocab'
+
 import { toFileUrl } from '@/lib/file-url'
+
+/**
+ * ป้ายบนชิปเรียงลำดับ (feature 00053) — คำเดียวสั้น ๆ เพราะแถบนี้อยู่เหนือกริดบนมือถือด้วย
+ * "ขายดี" ใช้ยอดที่ยืนยันแล้ว (getConfirmedOrderCountByProduct) ไม่ใช่เกณฑ์หลังร้านที่นับ
+ * ทุกสถานะยกเว้นยกเลิก — หน้าสาธารณะต้องเข้มกว่าเสมอ (ร้านปั่นยอดโชว์ผู้ซื้อได้)
+ */
+const SORT_CHIP_LABEL: Record<(typeof PROFILE_SORT_CHIPS)[number], string> = {
+  BEST_SELLING: 'ขายดี',
+  POPULAR: 'ยอดนิยม',
+}
+
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/index.tsx
 // Redesign (2026-07-04, hybrid FB Page × Threads spec) — เนื้อหา left/right column เดิม
@@ -125,8 +144,8 @@ const ProductCard = ({
   pinned,
   shopId,
   isOwnShop,
-  soldLabel,
-  soldUnit,
+  soldLine,
+  showPrices,
   onOpen,
   like,
   onLikeChange,
@@ -135,9 +154,14 @@ const ProductCard = ({
   pinned: boolean
   shopId: string | null
   isOwnShop?: boolean
-  /** "ขายแล้ว" หรือ "เข้าพักแล้ว" — ร้านที่พักใช้กริดเดียวกันแต่คนละคำ */
-  soldLabel: string
-  soldUnit: string
+  /**
+   * ประโยคยอดสะสมทั้งบรรทัด ("ขายแล้ว 12 ชิ้น" / "ใช้บริการแล้ว 3 ครั้ง" / "เข้าพักแล้ว 8 ครั้ง")
+   * — รับมาเป็นประโยคสำเร็จ ไม่ใช่ verb+unit ให้ต่อเอง เพราะลักษณนามผูกกับกริยาไม่ตายตัว
+   * (feature 00053 · SSOT = `profileSoldLine` ใน src/lib/shop-stat-vocab.ts)
+   */
+  soldLine: (formattedCount: string) => string
+  /** feature 00053 — ร้านนี้เปิดให้แสดงราคาบนหน้าร้านไหม */
+  showPrices: boolean
   /** เปิด lightbox — `undefined` = ห้องพัก ซึ่งยังใช้พฤติกรรมเดิม (ไทล์ทั้งใบ = ปุ่มทักแชท) */
   onOpen?: () => void
   like: { liked: boolean; count: number }
@@ -145,6 +169,9 @@ const ProductCard = ({
 }) => {
   const price = parseFloat(product.price)
   const priceLabel = `฿${isNaN(price) ? product.price : price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+  // feature 00053 — ร้านที่ปิดสวิตช์ราคาไม่พิมพ์บรรทัดนี้เลย และ **ไม่มีข้อความใดมาแทน**
+  // (ผู้ใช้เคาะ 2026-08-23) บรรทัดยอดสะสมด้านล่างยังอยู่เสมอ ไม่ผูกกับสวิตช์นี้
+  const showSold = product.soldCount > 0
 
   // ค่ารูปที่เก็บใน DB มีสองแบบปนกัน — storage key กับ URL เต็ม ต้องแปลงก่อนใช้เสมอ
   // (แปลงในการ์ดเหมือนที่ PublicRoomList ทำกับรูปห้องพัก ไม่ใช่แปลงที่หน้า จะได้ไม่ต้องไล่แก้ทุกหน้าที่เรียก)
@@ -411,35 +438,44 @@ const ProductCard = ({
             วิธีนี้ได้ผลดีกว่าเดิมด้วยซ้ำ: กริดยืดการ์ดทุกใบเท่าใบที่สูงสุดอยู่แล้ว ราคาจึงตรงแถว
             กันทุกใบ **รวมถึงกรณีที่คำอธิบายยาวไม่เท่ากัน** ซึ่งการจองความสูงให้ชื่ออย่างเดียว
             เอาไม่อยู่ · `paddingBlockStart` กันชื่อกับราคาชนกันตอนการ์ดไม่ถูกยืด */}
-        <Box
-          component='span'
-          sx={{
-            display: 'block',
-            fontSize: '16px',
-            fontWeight: 900,
-            marginBlockStart: 'auto',
-            paddingBlockStart: '5px',
-            color: 'primary.main',
-          }}
-          className='tabular-nums'
-        >
-          {priceLabel}
-        </Box>
-        {product.soldCount > 0 && (
+        {showPrices && (
+          <Box
+            component='span'
+            sx={{
+              display: 'block',
+              fontSize: '16px',
+              fontWeight: 900,
+              marginBlockStart: 'auto',
+              paddingBlockStart: '5px',
+              color: 'primary.main',
+            }}
+            className='tabular-nums'
+          >
+            {priceLabel}
+          </Box>
+        )}
+        {showSold && (
           <Box
             component='span'
             sx={{
               display: 'flex',
               alignItems: 'center',
               gap: '3px',
-              mt: '1px',
+              /* 🛑 `marginBlockStart:'auto'` ต้อง "ย้ายมาอยู่ที่บรรทัดนี้" เมื่อบรรทัดราคาไม่ถูก
+                 render (feature 00053) — ตัวที่ดันเนื้อหาไปเกาะก้นการ์ดคือ **ลูกคนแรกที่มี auto**
+                 ถ้าปล่อยให้เหลือแต่ `mt:'1px'` การ์ดที่ซ่อนราคาจะมีบรรทัดยอดสะสมลอยไปติดใต้ชื่อ
+                 แล้วก้นการ์ดว่างเปล่า ⇒ ทั้งกริดฟันหลอเพราะการ์ดถูกยืดเท่าใบที่สูงสุดอยู่แล้ว
+                 (เหตุผลเดียวกับคอมเมนต์ของบรรทัดราคาด้านบน แค่ย้ายเจ้าของ auto) */
+              marginBlockStart: showPrices ? undefined : 'auto',
+              paddingBlockStart: showPrices ? undefined : '5px',
+              mt: showPrices ? '1px' : undefined,
               fontSize: '11px',
               fontWeight: 600,
               color: 'text.secondary',
             }}
           >
             <Icon icon='tabler-shopping-bag-check' fontSize={12} />
-            {`${soldLabel} ${product.soldCount.toLocaleString('th-TH')} ${soldUnit}`}
+            {soldLine(product.soldCount.toLocaleString('th-TH'))}
           </Box>
         )}
       </Box>
@@ -469,6 +505,9 @@ export const ProfileRightContent = ({
   shopAvatar = null,
   initialProductId,
   onDeepLinkResolved,
+  showPrices,
+  isServiceQueue = false,
+  truncated = false,
 }: {
   data: Pick<ProfileTabData, 'pinnedProducts' | 'otherProducts' | 'openShopEmptyState' | 'itemKind'>
   shopId?: string | null
@@ -480,12 +519,36 @@ export const ProfileRightContent = ({
   initialProductId?: string | null
   /** แจ้งผู้เรียกว่า id ที่ส่งมาใช้ได้จริงไหม — ใช้ไม่ได้ต้องถอดพารามิเตอร์ทิ้งเงียบ ๆ */
   onDeepLinkResolved?: (ok: boolean) => void
+  /** feature 00053 — ร้านนี้เปิดให้แสดงราคาบนหน้าร้านไหม (บังคับส่ง ดูเหตุผลที่ ShopProfileData) */
+  showPrices: boolean
+  /** feature 00053 — ร้านคิวงาน: บรรทัดยอดสะสมอ่านว่า "ใช้บริการแล้ว N ครั้ง" */
+  isServiceQueue?: boolean
+  /** feature 00053 — ชุดที่ดึงมาชนเพดาน ⇒ ต้องมีป้ายบอกใต้กริดว่าแสดงบางส่วน */
+  truncated?: boolean
 }) => {
   const { pinnedProducts, otherProducts, openShopEmptyState, itemKind = 'PRODUCT' } = data
   const hasAnyProduct = pinnedProducts.length > 0 || otherProducts.length > 0
 
-  /** ลำดับเดียวกับที่ตาเห็นบนหน้าจอ (กริดปักหมุดมาก่อน แล้วต่อด้วยกริดที่เหลือ) — ‹ › เดินตามนี้ */
-  const allProducts = [...pinnedProducts, ...otherProducts]
+  /**
+   * feature 00053 — โหมดเรียงของกริด "สินค้าทั้งหมด"
+   *
+   * 🛑 state อยู่ที่นี่ ไม่ผูกกับ URL โดยตั้งใจ — คอมเมนต์ใน ShopProfile.tsx เตือนไว้แล้วว่าถ้า
+   * หน้า `/u`,`/b` เริ่มอ่าน `searchParams` ที่ server Next จะเปลี่ยน navigation เป็น server
+   * refetch เต็มรูป **ทุกครั้งที่กด ‹ ›** ของ lightbox ⇒ จ่ายทั้งหน้าเพื่อชิปสองปุ่ม (SDS TD-005)
+   * ผลที่ยอมรับ: การเรียงไม่ติดไปกับลิงก์ที่แชร์ และหายเมื่อรีเฟรช
+   */
+  const [sortMode, setSortMode] = useState<ProfileSortMode>('DEFAULT')
+
+  /* กริด "สินค้าทั้งหมด" เรียงตามชิปที่ผู้ซื้อเลือก — ชุดปักหมุด **ไม่ถูกจัดเรียงใหม่เด็ดขาด**
+     (FR-PPD-15: ลำดับปักหมุดคือ pinnedAt desc ซึ่งเป็นเจตนาของร้าน ไม่ใช่ค่าที่ผู้ชมจัดได้) */
+  const sortedOtherProducts = sortProfileProducts(otherProducts, sortMode)
+
+  /** ลำดับเดียวกับที่ตาเห็นบนหน้าจอ (กริดปักหมุดมาก่อน แล้วต่อด้วยกริดที่เหลือ) — ‹ › เดินตามนี้
+   *
+   *  🛑 ต้องเป็นชุด "หลังเรียง" เสมอ (feature 00053) — ถ้าใช้ลำดับดิบ ปุ่ม ‹ › ใน lightbox จะพาไป
+   *  สินค้าที่ไม่ได้อยู่ถัดจากใบที่กด เมื่อผู้ชมเลือกชิปเรียงไว้ (ตำแหน่งบนจอกับ index ไม่ตรงกัน)
+   *  — บั๊กที่เห็นได้เฉพาะตอน "กดชิปแล้วค่อยเปิดสินค้า" ซึ่งเป็นลำดับที่ไม่มีใครทำตอนไล่เทสทีละจุด */
+  const allProducts = [...pinnedProducts, ...sortedOtherProducts]
 
   /* 🛑 ห้องพักไม่เข้ารอบ lightbox (ดูเหตุผลที่ ProductCard) */
   const lightboxEnabled = itemKind === 'PRODUCT'
@@ -547,8 +610,14 @@ export const ProfileRightContent = ({
   // (`STAT_LABELS.general.orders` ใน ProfileHero) — คำต่างกันสองคำบนหน้าเดียวสำหรับของสิ่งเดียวกัน
   // ไม่มี tsc/detector ตัวไหนจับได้เพราะเป็นสตริงที่ถูกทั้งคู่
   const L = isRoom
-    ? { empty: 'ร้านนี้ยังไม่มีห้องพัก', emptyHint: 'ทักแชทสอบถามร้านได้เลย', pinned: 'ห้องพักแนะนำ', all: 'ห้องพักทั้งหมด', sold: 'เข้าพักแล้ว', soldUnit: 'ครั้ง' }
-    : { empty: 'ร้านนี้ยังไม่มีสินค้า', emptyHint: 'ทักแชทสอบถามร้านได้เลย', pinned: 'สินค้าปักหมุด', all: 'สินค้าทั้งหมด', sold: 'ขายแล้ว', soldUnit: 'ชิ้น' }
+    ? { empty: 'ร้านนี้ยังไม่มีห้องพัก', emptyHint: 'ทักแชทสอบถามร้านได้เลย', pinned: 'ห้องพักแนะนำ', all: 'ห้องพักทั้งหมด' }
+    : { empty: 'ร้านนี้ยังไม่มีสินค้า', emptyHint: 'ทักแชทสอบถามร้านได้เลย', pinned: 'สินค้าปักหมุด', all: 'สินค้าทั้งหมด' }
+
+  /* ประโยคยอดสะสม — มาจาก SSOT เดียว (Hard Rule 16) ไม่ต่อคำเองที่นี่
+     ตัวตัดสินคือ "การ์ดใบนี้เป็นอะไร" (itemKind) ก่อน แล้วค่อยเป็นประเภทร้าน — ร้านบ้านพักมีทั้ง
+     การ์ดห้องพักและการ์ดสินค้าอยู่บนหน้าเดียวกัน */
+  const soldLine = (formattedCount: string) =>
+    profileSoldLine({ itemKind: isRoom ? 'ROOM' : 'PRODUCT', isServiceQueue }, formattedCount)
 
   if (openShopEmptyState) return null
 
@@ -643,8 +712,8 @@ export const ProfileRightContent = ({
                     pinned
                     shopId={shopId ?? null}
                     isOwnShop={isOwnShop}
-                    soldLabel={L.sold}
-                    soldUnit={L.soldUnit}
+                    soldLine={soldLine}
+                    showPrices={showPrices}
                     onOpen={lightboxEnabled ? () => openAt(product.id) : undefined}
                     like={likeOf(product)}
                     onLikeChange={(next) => setLike(product.id, next)}
@@ -657,6 +726,50 @@ export const ProfileRightContent = ({
           {/* ── สินค้าทั้งหมด (Phase 3: otherProducts = getProductsByShop excludePinned — ซ่อนเมื่อว่าง) ── */}
           {otherProducts.length > 0 && (
             <Box id='all-products' sx={{ pb: '16px' }} data-section='all-products'>
+              {/* ชิปเรียงลำดับ (feature 00053 FR-PPD-13) — โผล่เฉพาะตอนมีอะไรให้เรียงจริง
+                  มีของชิ้นเดียวแล้วยังโชว์ปุ่มเรียง = ปุ่มที่กดแล้วไม่มีอะไรเกิดขึ้น (FR-PPD-17) */}
+              {sortedOtherProducts.length > 1 && (
+                <Box
+                  role='group'
+                  aria-label='เรียงลำดับสินค้า'
+                  sx={{ display: 'flex', flexWrap: 'wrap', gap: '8px', pt: '12px', pb: '10px' }}
+                >
+                  {PROFILE_SORT_CHIPS.map((chip) => {
+                    const active = sortMode === chip
+                    return (
+                      <Box
+                        key={chip}
+                        component='button'
+                        type='button'
+                        /* aria-pressed ไม่ใช่ aria-selected — นี่คือปุ่มสลับสถานะ ไม่ใช่แท็บ
+                           (`aria-selected` ต้องการ role ที่รองรับ เช่น tab/option ไม่งั้นถูกทิ้ง —
+                           docs/conventions/aria-name-requires-supporting-role.md) */
+                        aria-pressed={active}
+                        onClick={() => setSortMode((m) => nextSortMode(m, chip))}
+                        sx={{
+                          /* ปุ่มสูง 36px + แตะได้เต็มความสูงแถว — ชิปนี้เล็กกว่า 44px ตามภาษาของ
+                             ชิปกรองอื่นในหน้านี้ แต่กว้างพอ (≥72px) และมีระยะห่างรอบตัว 8px */
+                          minBlockSize: '36px',
+                          paddingInline: '14px',
+                          borderRadius: '999px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          /* สถานะ "ถูกเลือก" ต้องต่างมากกว่าสี — คนตาบอดสีต้องแยกออกด้วย
+                             (WCAG 1.4.1) จึงเปลี่ยนทั้งน้ำหนักตัวอักษร พื้น และเส้นขอบพร้อมกัน */
+                          fontWeight: active ? 700 : 500,
+                          color: active ? 'primary.main' : 'text.secondary',
+                          background: active ? 'var(--mui-palette-primary-lightOpacity)' : 'transparent',
+                          border: '1px solid',
+                          borderColor: active ? 'primary.main' : '#e3e3ea',
+                          transition: 'background .15s, border-color .15s',
+                        }}
+                      >
+                        {SORT_CHIP_LABEL[chip]}
+                      </Box>
+                    )
+                  })}
+                </Box>
+              )}
               <Box
                 sx={{
                   display: 'grid',
@@ -718,21 +831,29 @@ export const ProfileRightContent = ({
                      แต่ไม่มีอะไรบังคับให้ใครกลับมาแก้ตอนคอนเทนเนอร์เปลี่ยนจริง */
                 }}
               >
-                {otherProducts.map((product) => (
+                {sortedOtherProducts.map((product) => (
                   <ProductCard
                     key={product.id}
                     product={product}
                     pinned={false}
                     shopId={shopId ?? null}
                     isOwnShop={isOwnShop}
-                    soldLabel={L.sold}
-                    soldUnit={L.soldUnit}
+                    soldLine={soldLine}
+                    showPrices={showPrices}
                     onOpen={lightboxEnabled ? () => openAt(product.id) : undefined}
                     like={likeOf(product)}
                     onLikeChange={(next) => setLike(product.id, next)}
                   />
                 ))}
               </Box>
+              {/* 🛑 ชุดที่ดึงมาชนเพดานแล้ว ⇒ **ต้องบอก** ว่ายังมีของที่ไม่ได้แสดง
+                  ตัวเลขบนชิป "ขายดี" คำนวณจากชุดนี้เท่านั้น ถ้าเงียบไว้ ผู้ซื้อจะอ่านว่าเป็น
+                  ขายดีของทั้งร้าน (docs/conventions/partial-data-must-be-labeled-or-filled.md) */}
+              {truncated && (
+                <Typography sx={{ color: '#808390', fontSize: '12px', mt: '10px', textAlign: 'center' }}>
+                  แสดง {sortedOtherProducts.length} รายการแรก — ร้านนี้อาจมีมากกว่านี้ ทักแชทสอบถามได้เลย
+                </Typography>
+              )}
             </Box>
           )}
         </>
@@ -758,8 +879,8 @@ export const ProfileRightContent = ({
           isOwnShop={isOwnShop}
           shopName={shopName}
           shopAvatar={shopAvatar}
-          soldLabel={L.sold}
-          soldUnit={L.soldUnit}
+          soldLine={soldLine}
+          showPrices={showPrices}
           likeOf={(id) => {
             const p = allProducts.find((x) => x.id === id)
             return p ? likeOf(p) : { liked: false, count: 0 }

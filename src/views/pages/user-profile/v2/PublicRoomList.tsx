@@ -29,7 +29,14 @@ export type PublicRoom = {
   imageUrl: string | null
 }
 
-export default function PublicRoomList({ rooms }: { rooms: PublicRoom[] }) {
+export default function PublicRoomList({
+  rooms,
+  showPrices,
+}: {
+  rooms: PublicRoom[]
+  /** feature 00053 — ร้านนี้เปิดให้แสดงราคาบนหน้าร้านไหม (ปิด = ไม่พิมพ์บล็อกราคาเลย) */
+  showPrices: boolean
+}) {
   return (
     /* กริดเดียวกับ `.service-grid` — 2 คอลัมน์ ยุบเหลือ 1 ที่ ≤650px */
     <div className='grid gap-4 [grid-template-columns:repeat(2,minmax(0,1fr))] max-[650px]:[grid-template-columns:1fr]'>
@@ -61,13 +68,20 @@ export default function PublicRoomList({ rooms }: { rooms: PublicRoom[] }) {
                 <Typography component='b' className='text-[15px] font-bold leading-snug line-clamp-2'>
                   {r.name}
                 </Typography>
-                <div className='text-end shrink-0'>
-                  <div className='text-[10px] font-semibold text-[var(--mui-palette-text-secondary)]'>เริ่มต้นที่</div>
-                  <div className='text-[24px] font-black text-primary whitespace-nowrap tabular-nums leading-none'>
-                    {`฿${r.basePrice.toLocaleString('th-TH')}`}
+                {/* feature 00053 — ปิดสวิตช์ราคาแล้วบล็อกนี้หายทั้งก้อน (รวมคำว่า "เริ่มต้นที่"/"ต่อคืน"
+                    ซึ่งเป็นคำอธิบายของตัวเลข ไม่มีตัวเลขแล้วมันไม่มีความหมายของตัวเอง)
+                    ชื่อห้องเป็น flex item เดียวที่เหลือ จึงกินความกว้างเต็มแถวเองโดยไม่ต้องแก้คลาส */}
+                {showPrices && (
+                  <div className='text-end shrink-0'>
+                    <div className='text-[10px] font-semibold text-[var(--mui-palette-text-secondary)]'>
+                      เริ่มต้นที่
+                    </div>
+                    <div className='text-[24px] font-black text-primary whitespace-nowrap tabular-nums leading-none'>
+                      {`฿${r.basePrice.toLocaleString('th-TH')}`}
+                    </div>
+                    <div className='text-[10px] text-[var(--mui-palette-text-secondary)]'>ต่อคืน</div>
                   </div>
-                  <div className='text-[10px] text-[var(--mui-palette-text-secondary)]'>ต่อคืน</div>
-                </div>
+                )}
               </div>
 
               {/* `.meta-row` — โผล่เฉพาะเมื่อมีอะไรจะบอกจริง ๆ เส้นคั่นเปล่า ๆ อ่านเป็น "ข้อมูลหาย" */}

@@ -20,6 +20,7 @@ import { getPinnedProducts } from '@/services/pin.service'
 import { getPublicRooms, getConfirmedBookingCountByRoom } from '@/services/room.service'
 import { listServiceResources, serializeServiceResource } from '@/services/service-resource.service'
 import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layout.service'
+import { MAX_PROFILE_PRODUCTS, isProfileListTruncated } from '@/lib/profile-sort'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
 import { approvedVerificationWhere, businessScope } from '@/lib/verification-scope'
 import { shopCategoryLabel } from '@/lib/shop-categories'
@@ -105,8 +106,8 @@ export default async function BusinessShopProfilePage({ params }: Props) {
       select: { level: true },
     }),
     // Phase 3 (feature 00013): pinned + other แยกคิวรี (sync /u/[username])
-    getPinnedProducts(shop.id),
-    getProductsByShop(shop.id, 12, { excludePinned: true }),
+    getPinnedProducts(shop.id, { publicOnly: true }),
+    getProductsByShop(shop.id, MAX_PROFILE_PRODUCTS, { excludePinned: true, publicOnly: true }),
   ])
 
   const maxVerifyLevel = approvedVerifications.length
@@ -140,8 +141,8 @@ export default async function BusinessShopProfilePage({ params }: Props) {
         ...rawOtherProducts.map((p) => p.id),
       ]),
       // getPublicRooms คืนเฉพาะห้อง isActive และตัด field ตั้งค่าภายใน (depositMode/Value) ออกแล้ว
-      isLodging ? getPublicRooms(shop.id) : Promise.resolve([]),
-      isServiceQueue ? listServiceResources(shop.id, { activeOnly: true }) : Promise.resolve([]),
+      isLodging ? getPublicRooms(shop.id, { publicOnly: true }) : Promise.resolve([]),
+      isServiceQueue ? listServiceResources(shop.id, { activeOnly: true, publicOnly: true }) : Promise.resolve([]),
       getShopVideos(shop.id),
       // feature 00035 (TFR-005) — บล็อกที่ผู้ขายจัดวางไว้เหนือแถบแท็บ (sync กับ /u/[username])
       listShopPageBlocks(shop.id),
@@ -366,6 +367,9 @@ export default async function BusinessShopProfilePage({ params }: Props) {
             services: publicServices,
             pinnedProducts,
             otherProducts,
+            // feature 00053 — ค่าเดียวคุมทุกจุดที่พิมพ์ราคาบนหน้านี้ (การ์ดสินค้า/ป๊อปอัป/ห้องพัก/มัดจำบริการ)
+            showPrices: pageLayout.showPrices,
+            productsTruncated: isProfileListTruncated(otherProducts.length),
             about: {
               bio: profileTab.bio,
               // ── เพิ่ม 2026-08-11 (user: "เกี่ยวกับร้าน อยากให้เพิ่ม stat มากขึ้น") ──

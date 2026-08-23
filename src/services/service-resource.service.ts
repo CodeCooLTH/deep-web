@@ -24,10 +24,21 @@ const RESOURCE_SELECT = {
   isActive: true,
 } as const;
 
-export async function listServiceResources(shopId: string, opts?: { activeOnly?: boolean }) {
+export async function listServiceResources(
+  shopId: string,
+  // publicOnly — feature 00053 (TFR-003): เอาเฉพาะบริการที่ร้านเลือกให้โชว์บนหน้าร้าน
+  // 🛑 opt-in เท่านั้น — ผู้เรียกส่วนใหญ่เป็นหลังร้าน (หน้าสร้างออเดอร์ · แผงคิวงานในแชท ·
+  // /queues · /settings/job-types · API shop-context) ซึ่งต้องเห็นบริการครบทุกรายการ
+  // คนละแกนกับ activeOnly ("ยังรับนัดไหม") — ส่งพร้อมกันได้และมักส่งคู่กันบนหน้าสาธารณะ
+  opts?: { activeOnly?: boolean; publicOnly?: boolean },
+) {
   await assertShopCanUseAppointments(shopId);
   return prisma.serviceResource.findMany({
-    where: { shopId, ...(opts?.activeOnly ? { isActive: true } : {}) },
+    where: {
+      shopId,
+      ...(opts?.activeOnly ? { isActive: true } : {}),
+      ...(opts?.publicOnly ? { showOnProfile: true } : {}),
+    },
     select: RESOURCE_SELECT,
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
   });

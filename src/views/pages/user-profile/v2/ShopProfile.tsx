@@ -117,6 +117,19 @@ export type ShopProfileData = {
   tabOrder?: readonly string[]
   /** feature 00035 — บล็อกที่ผู้ขายจัดวางไว้เหนือแถบแท็บ (listShopPageBlocks) ไม่ส่งมา/ว่าง = ไม่มีบล็อก */
   blocks?: PageBlockItem[]
+  /**
+   * feature 00053 — หน้านี้พิมพ์ราคาไหม (`ShopPageLayout.showPrices`)
+   *
+   * 🛑 ไม่ใส่ `?` และไม่มีค่าตั้งต้น — บังคับให้ผู้เรียกส่งมาเสมอ ถ้าเป็น optional แล้วหน้าไหน
+   * ลืมส่ง `undefined` จะถูกอ่านเป็น falsy ⇒ "ซ่อนราคา" ซึ่งบังเอิญตรงกับค่าตั้งต้นพอดี = ลืมส่ง
+   * แล้วไม่มีอะไรฟ้องเลย (และวันที่ค่าตั้งต้นเปลี่ยน ทุกจุดที่ลืมจะพลิกพร้อมกันโดยไม่มีใครรู้)
+   */
+  showPrices: boolean
+  /**
+   * feature 00053 — จำนวนสินค้าที่ดึงมาชนเพดาน `MAX_PROFILE_PRODUCTS` ⇒ อาจมีมากกว่าที่แสดง
+   * ต้องมีป้ายบอกใต้กริด ไม่ใช่เงียบ (partial-data-must-be-labeled-or-filled.md)
+   */
+  productsTruncated?: boolean
 }
 
 /**
@@ -305,7 +318,7 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
     },
     rooms: {
       label: 'ห้องพัก',
-      content: <PublicRoomList rooms={data.rooms} />,
+      content: <PublicRoomList rooms={data.rooms} showPrices={data.showPrices} />,
     },
     calendar: {
       label: 'ปฏิทิน',
@@ -315,7 +328,9 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
     // (ไม่ fallback ไปที่อื่น — ตั้งใจตาม UX spec §B edge states)
     services: {
       label: 'บริการ',
-      content: <PublicServiceList services={data.services} />,
+      // 🛑 ไม่มี SectionHead ครอบแล้ว — origin/main ถอดหัวข้อออกจากทุกแท็บในรอบ "ยกทุกแท็บให้
+      // พูดภาษาเดียวกัน" (9456b128) ยกโครงของเขามาทั้งดุ้นแล้ววาง prop ของ 00053 กลับเข้าไป
+      content: <PublicServiceList services={data.services} showPrices={data.showPrices} />,
     },
     items: {
       // feature 00028 — เดิม "สินค้าและบริการ" ชนกับชื่อ vertical ใหม่ เปลี่ยนเป็น "สินค้า"
@@ -334,6 +349,9 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
           shopAvatar={data.hero.avatar}
           initialProductId={productParam}
           onDeepLinkResolved={dropParam('p')}
+          showPrices={data.showPrices}
+          isServiceQueue={data.isServiceQueue}
+          truncated={data.productsTruncated ?? false}
         />
       ),
     },

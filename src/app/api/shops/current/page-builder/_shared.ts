@@ -71,6 +71,11 @@ export function handleBuilderError(e: unknown, where: string): NextResponse {
   if (message === "BADGE_NOT_OWNED") {
     return errorResponse("NOT_OWNED", "มีเหรียญตราที่ไม่ใช่ของร้านนี้", 403);
   }
+  // feature 00053 — setProfileItemVisibility โยนตัวนี้เมื่อ updateMany ได้ count 0 ซึ่งครอบทั้ง
+  // "ไม่มีรายการนี้" และ "มีแต่เป็นของร้านอื่น" โดยตั้งใจ (ไม่ยืนยันให้คนนอกรู้ว่า id นี้มีอยู่จริง)
+  if (message === "NOT_FOUND") {
+    return errorResponse("NOT_FOUND", "ไม่พบรายการนี้ในร้าน", 404);
+  }
   if (message === "TOO_MANY_BADGE_BLOCKS") {
     return errorResponse("VALIDATION_ERROR", "บันทึกได้สูงสุด 1 บล็อกเหรียญเด่นต่อหน้า", 400);
   }

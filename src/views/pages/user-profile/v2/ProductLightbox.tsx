@@ -196,8 +196,8 @@ export default function ProductLightbox({
   isOwnShop,
   shopName,
   shopAvatar,
-  soldLabel,
-  soldUnit,
+  soldLine,
+  showPrices,
   likeOf,
   onLikeChange,
 }: {
@@ -209,8 +209,10 @@ export default function ProductLightbox({
   isOwnShop?: boolean
   shopName: string
   shopAvatar: string | null
-  soldLabel: string
-  soldUnit: string
+  /** ประโยคยอดสะสมทั้งบรรทัด — SSOT `profileSoldLine` (feature 00053) */
+  soldLine: (formattedCount: string) => string
+  /** feature 00053 — ร้านนี้เปิดให้แสดงราคาบนหน้าร้านไหม */
+  showPrices: boolean
   /** สถานะถูกใจถือไว้ที่ผู้เรียก — ไทล์กับแผงต้องอ่านจากที่เดียวกัน ไม่งั้นปิดกลับมาเลขไม่ตรง */
   likeOf: (productId: string) => { liked: boolean; count: number }
   onLikeChange: (productId: string, next: { liked: boolean; count: number }) => void
@@ -315,13 +317,16 @@ export default function ProductLightbox({
             )}
 
             {/* ราคาเด่นที่สุดในแผง — 22px/800 คือขั้น **Metric** ของ ramp (DESIGN.md §Metric)
-                ไม่ใช่ขั้นข้อความ เพราะเป็นตัวเลขที่ทำหน้าที่เป็นภาพ ไม่ใช่ประโยค */}
-            <Typography
-              component='p'
-              sx={{ fontSize: 22, fontWeight: 800, lineHeight: 1.3, fontVariantNumeric: 'tabular-nums', mt: 0.5 }}
-            >
-              {priceLabel}
-            </Typography>
+                ไม่ใช่ขั้นข้อความ เพราะเป็นตัวเลขที่ทำหน้าที่เป็นภาพ ไม่ใช่ประโยค
+                feature 00053 — ร้านที่ปิดสวิตช์ราคาไม่พิมพ์บรรทัดนี้ และไม่มีอะไรมาแทน */}
+            {showPrices && (
+              <Typography
+                component='p'
+                sx={{ fontSize: 22, fontWeight: 800, lineHeight: 1.3, fontVariantNumeric: 'tabular-nums', mt: 0.5 }}
+              >
+                {priceLabel}
+              </Typography>
+            )}
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5, minBlockSize: 34 }}>
               {/* ปุ่มถูกใจตัวเดียวกับบนไทล์ แต่สถานะถือไว้ที่ผู้เรียก — กดในแผงแล้วปิดกลับมา
@@ -336,7 +341,7 @@ export default function ProductLightbox({
               {product.soldCount > 0 && (
                 <Typography variant='body2' color='text.secondary' sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                   <Icon icon='tabler-shopping-bag-check' fontSize={15} />
-                  {`${soldLabel} ${product.soldCount.toLocaleString('th-TH')} ${soldUnit}`}
+                  {soldLine(product.soldCount.toLocaleString('th-TH'))}
                 </Typography>
               )}
             </Box>

@@ -761,6 +761,37 @@ export const en: Dictionary = {
       unpublishedToast: 'Storefront unpublished',
     },
 
+    /** feature 00053 — price visibility card */
+    prices: {
+      cardTitle: 'Prices on your storefront',
+      switchLabel: 'Show prices on the public storefront',
+      descriptionOn: 'Customers can see product prices, room rates and service deposits on your storefront.',
+      descriptionOff:
+        'No price figures appear on your storefront. Per-item totals (e.g. "used 3 times") are still shown.',
+      hiddenBanner: 'Prices are hidden right now. Visitors will not see any price figures.',
+      saveError: 'Could not change price visibility',
+      shownToast: 'Prices are now shown on your storefront',
+      hiddenToast: 'Prices are now hidden on your storefront',
+    },
+
+    /** feature 00053 — per-item visibility card */
+    itemVisibility: {
+      cardTitle: 'Items shown on your storefront',
+      subtitle:
+        'Turn an item off to keep it off your storefront. You can still sell it in chat and when creating an order.',
+      searchPlaceholder: 'Search by name',
+      countLabel: '{visible} of {total} shown',
+      groupProduct: 'Products',
+      groupRoom: 'Rooms',
+      groupService: 'Services',
+      pinnedBadge: 'Pinned',
+      noResults: 'No matching items',
+      saveError: 'Could not save. Please try again.',
+      shownToast: 'Now shown on your storefront',
+      hiddenToast: 'Hidden from your storefront',
+    },
+
+
     videos: {
       cardTitle: 'Videos shown on your storefront',
       subtitle: "You can select up to {max} clip(s). They'll show in the order you pick them.",

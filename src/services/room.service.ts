@@ -136,9 +136,16 @@ export async function updateRoom(
 }
 
 /** ห้องที่แสดงบนโปรไฟล์สาธารณะ — เฉพาะที่เปิดใช้งาน และคืนเฉพาะ field ที่เปิดเผยได้ (FR-LODG-07) */
-export async function getPublicRooms(shopId: string) {
+export async function getPublicRooms(
+  shopId: string,
+  // publicOnly — feature 00053 (TFR-003): opt-in เหมือน getProductsByShop/getPinnedProducts
+  // 🛑 ชื่อฟังก์ชันมีคำว่า "Public" แต่ผู้เรียกไม่ได้เป็นหน้าสาธารณะทั้งหมด — ตัวจัดหน้าร้านฝั่ง
+  // seller ก็เรียกอันนี้ (public-profile/builder/page.tsx) การกรองโดยปริยายเพราะเชื่อชื่อฟังก์ชัน
+  // คือการเดา ให้ผู้เรียกบอกเจตนามาเองเสมอ
+  opts?: { publicOnly?: boolean },
+) {
   const rooms = await prisma.room.findMany({
-    where: { shopId, isActive: true },
+    where: { shopId, isActive: true, ...(opts?.publicOnly ? { showOnProfile: true } : {}) },
     select: {
       id: true,
       name: true,

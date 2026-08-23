@@ -433,6 +433,14 @@ export interface GetProductsByShopOptions {
   // grid ทั่วไป (โปรไฟล์เรียกคู่กับ getPinnedProducts แยกโซน). optional param ที่ 3 ท้ายสุด
   // เพื่อ backward-compat 100% กับ call-site เดิม (ไม่ส่ง = พฤติกรรมเดิมทุกประการ)
   excludePinned?: boolean;
+  // publicOnly — feature 00053 (TFR-003): true = เอาเฉพาะสินค้าที่ร้านเลือกให้โชว์บนหน้าร้าน
+  //
+  // 🛑 **opt-in เท่านั้น ห้ามทำเป็นค่าตั้งต้น** — ฟังก์ชันนี้มีผู้เรียก 10+ จุดซึ่งเป็นหลังร้าน
+  // แทบทั้งหมด (POS /orders/new + /orders/[token]/edit · แผงเลือกสินค้าในแชท · หน้าสร้าง/แก้ไข
+  // การประมูล · /products · /categories · ตัวจัดหน้าร้าน) ถ้ากรองโดยปริยาย ร้านที่ซ่อนสินค้า
+  // จากหน้าร้านจะ **ขายสินค้าชิ้นนั้นไม่ได้เลย** ทั้งที่ตั้งใจแค่ไม่ประกาศบนหน้าร้าน
+  // (TC-D4 พิสูจน์ด้วย mutation: ทำให้กรองเสมอแล้วต้องแดง)
+  publicOnly?: boolean;
 }
 
 export async function getProductsByShop(
@@ -445,6 +453,7 @@ export async function getProductsByShop(
       shopId,
       isActive: true,
       ...(opts?.excludePinned ? { pinnedAt: null } : {}),
+      ...(opts?.publicOnly ? { showOnProfile: true } : {}),
     },
     orderBy: { createdAt: "desc" },
     include: { tags: true },

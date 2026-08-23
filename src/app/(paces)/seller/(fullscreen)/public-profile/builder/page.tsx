@@ -94,10 +94,14 @@ export default async function ShopPageBuilderPage() {
       listShopPageBlocks(shop.id),
       getBuilderLibrary({ shopId: shop.id, actorUserId: userId }),
       getShopVideos(shop.id),
-      isLodging ? getPublicRooms(shop.id) : Promise.resolve([]),
-      isServiceQueue ? listServiceResources(shop.id, { activeOnly: true }) : Promise.resolve([]),
-      getPinnedProducts(shop.id),
-      getProductsByShop(shop.id, undefined, { excludePinned: true }),
+      // feature 00053 — canvas ของตัวจัดหน้าร้านคือ "ภาพแทนหน้าร้านจริง" จึงต้องกรองรายการที่ร้าน
+      // สั่งซ่อนออกด้วยชุดเดียวกับหน้า /u,/b ไม่งั้นผู้ขายจะจัดหน้าโดยดูของที่ลูกค้าไม่เห็น
+      isLodging ? getPublicRooms(shop.id, { publicOnly: true }) : Promise.resolve([]),
+      isServiceQueue
+        ? listServiceResources(shop.id, { activeOnly: true, publicOnly: true })
+        : Promise.resolve([]),
+      getPinnedProducts(shop.id, { publicOnly: true }),
+      getProductsByShop(shop.id, undefined, { excludePinned: true, publicOnly: true }),
       getShopProfileStats(shop.id),
       // trustScore/memberSince/เหรียญของ PERSONAL มาจาก User ไม่ใช่ Shop (Shop.trustScore คง 0 เสมอ
       // สำหรับ kind=PERSONAL — ดู schema.prisma comment) userBadges ไม่กรอง shopId ตั้งใจ sync กับ

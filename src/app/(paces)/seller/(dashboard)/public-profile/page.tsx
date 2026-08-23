@@ -29,6 +29,7 @@ import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { prisma } from '@/lib/prisma'
 import { getShopPageLayout } from '@/services/shop-page-layout.service'
+import { listProfileVisibilityItems } from '@/services/profile-visibility.service'
 import { getT } from '@/i18n/server'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Icon from '@/components/wrappers/Icon'
@@ -36,6 +37,8 @@ import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/comp
 
 import ShopVideosClient from './components/ShopVideosClient'
 import PublishToggleClient from './components/PublishToggleClient'
+import PriceVisibilityToggleClient from './components/PriceVisibilityToggleClient'
+import ProfileItemVisibilityClient from './components/ProfileItemVisibilityClient'
 
 /**
  * title ของแท็บต้องผันตามภาษา (feature 00047) — reviewer เปิดหน้านี้ค้างไว้ทั้งฉากในคลิป C
@@ -56,6 +59,12 @@ export default async function PublicProfileSettingsPage() {
   )
   if (!active?.shop) return null
 
+  // 🛑 ผู้กระทำคือ "คนที่ล็อกอินอยู่" ไม่ใช่เจ้าของร้าน — ส่ง active.shop.userId เข้าไปแทนจะทำให้
+  // guard ใน listProfileVisibilityItems ผ่านเสมอ (เจ้าของเข้าถึงร้านตัวเองได้อยู่แล้ว) = ถอดด่านทิ้ง
+  // โดยที่ tsc ไม่มีทางเห็น เพราะทั้งคู่เป็น string เหมือนกัน (feedback_session_exists_is_not_identity)
+  const actorUserId = (session?.user as { id?: string } | undefined)?.id
+  if (!actorUserId) return null
+
   // ลิงก์ดูหน้าจริง — ต้องเป็น URL เต็มที่ชี้ไปโดเมนหลัก ไม่ใช่ path เปล่า
   //
   // หน้านี้อยู่บน subdomain seller ซึ่ง proxy เติม /seller นำหน้าทุก path (proxy.ts "Everything
@@ -73,7 +82,12 @@ export default async function PublicProfileSettingsPage() {
       ? prisma.user.findUnique({ where: { id: active.shop.userId }, select: { username: true } })
       : Promise.resolve(null)
 
-  const [owner, layout] = await Promise.all([ownerUsernamePromise, getShopPageLayout(active.shop.id)])
+  const [owner, layout, visibilityGroups] = await Promise.all([
+    ownerUsernamePromise,
+    getShopPageLayout(active.shop.id),
+    // feature 00053 — รายการที่ร้านเลือกแสดง/ซ่อนได้ · guard อยู่ในบริการ (ไม่ใช่ public read)
+    listProfileVisibilityItems(active.shop.id, actorUserId),
+  ])
 
   const publicUrl =
     active.kind === 'PERSONAL'
@@ -151,6 +165,12 @@ export default async function PublicProfileSettingsPage() {
       </div>
 
       <PublishToggleClient initial={layout.isPublished} />
+
+      {/* feature 00053 — สองการ์ดนี้อยู่ต่อจากสวิตช์เผยแพร่โดยตั้งใจ: เรียงจาก "เห็นหน้าร้านไหม"
+          → "เห็นราคาไหม" → "เห็นอะไรบ้าง" คือลำดับจากกว้างไปแคบ ซึ่งตรงกับลำดับที่ร้านตัดสินใจจริง */}
+      <PriceVisibilityToggleClient initial={layout.showPrices} />
+
+      <ProfileItemVisibilityClient groups={visibilityGroups} />
 
       <ShopVideosClient />
 

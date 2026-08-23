@@ -1838,6 +1838,24 @@ export const SetShopPagePublishedSchema = v.object({
   isPublished: v.boolean(),
 });
 
+// ── feature 00053 — ตัวควบคุมการแสดงผลหน้าร้านสาธารณะ ────────────────────────
+// PATCH .../page-builder/prices (00053 API.md §4.1)
+export const SetShopPageShowPricesSchema = v.object({
+  showPrices: v.boolean(),
+});
+
+// PATCH .../page-builder/item-visibility (00053 API.md §4.2)
+// 🛑 `kind` ต้องเป็น picklist ไม่ใช่ string อิสระ — ค่านี้คือสิ่งที่เลือกว่าจะไปเขียน "ตารางไหน"
+// ถ้าปล่อยเป็น string แล้วฝั่ง service ใช้ตรรกะ binary (`kind === 'ROOM' ? A : B`) ค่าที่สาม
+// ที่เพิ่มมาวันหลังจะตกเข้า branch ผิดอย่างเงียบ ๆ (บทเรียน enum-value-removal.md)
+export const ProfileItemKindSchema = v.picklist(["PRODUCT", "ROOM", "SERVICE"]);
+
+export const SetProfileItemVisibilitySchema = v.object({
+  kind: ProfileItemKindSchema,
+  id: v.pipe(v.string(), v.uuid()),
+  showOnProfile: v.boolean(),
+});
+
 // ── feature 00025 — LINE OA Chat Integration (S-5) ───────────────────────────
 // POST /api/channels/line/connect (API.md §4.2) — channelSecret เป็น hex 32 ตัวเสมอตามสเปก LINE
 // Developers Console (Channel secret คือ MD5-length hex string) ส่วน channelAccessToken เป็น JWT/opaque

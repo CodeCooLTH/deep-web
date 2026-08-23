@@ -21,6 +21,8 @@ import { PROFILE_TAB_KEYS } from '@/lib/profile-tab-keys'
 export type ShopPageLayoutView = {
   isPublished: boolean
   tabOrder: string[]
+  /** feature 00053 — หน้าร้านสาธารณะพิมพ์ราคาไหม (ค่าเดียวคุมทั้งร้าน) */
+  showPrices: boolean
 }
 
 export type ShopPageBadgeHighlightBlock = {
@@ -141,10 +143,16 @@ async function resolveBadgeOwnershipWhere(shopId: string): Promise<Prisma.UserBa
 export async function getShopPageLayout(shopId: string): Promise<ShopPageLayoutView> {
   const row = await prisma.shopPageLayout.findUnique({
     where: { shopId },
-    select: { isPublished: true, tabOrder: true },
+    select: { isPublished: true, tabOrder: true, showPrices: true },
   })
-  if (!row) return { isPublished: true, tabOrder: [] }
-  return { isPublished: row.isPublished, tabOrder: row.tabOrder }
+  /* 🛑 fallback สองค่านี้ "กลับทิศกัน" โดยตั้งใจ — ห้ามแก้ให้เหมือนกันเพราะเห็นว่าไม่สม่ำเสมอ
+     (feature 00053 DATABASE.md §3.1):
+       isPublished:true  — ร้านที่ไม่เคยเปิดตัวจัดหน้าร้านเผยแพร่อยู่แล้ว fallback false = ปิดหน้าร้าน
+                           ทุกร้านที่ไม่มีแถวนี้
+       showPrices:false  — ค่าตั้งต้นที่ผู้ใช้เคาะคือ "ซ่อนราคา" (2026-08-23) ร้านส่วนใหญ่ไม่มีแถวนี้เลย
+                           fallback true = ฟีเจอร์ไม่มีผลกับกลุ่มใหญ่ที่สุดที่มันถูกสร้างมาเพื่อ */
+  if (!row) return { isPublished: true, tabOrder: [], showPrices: false }
+  return { isPublished: row.isPublished, tabOrder: row.tabOrder, showPrices: row.showPrices }
 }
 
 /**
@@ -490,4 +498,31 @@ export async function setShopPagePublished(
     select: { isPublished: true },
   })
   return { isPublished: row.isPublished }
+}
+
+/**
+ * setShopPageShowPrices — สลับ "แสดงราคาบนหน้าร้าน" (feature 00053 TFR-001)
+ *
+ * มิเรอร์ `setShopPagePublished` ด้านบนทุกด้าน และแยก endpoint ด้วยเหตุผลเดียวกัน: เป็นสวิตช์
+ * atomic ที่ไม่ผูกกับ draft lifecycle ของตัวจัดหน้าร้าน — session ที่เปิด builder ค้างไว้แล้วกด
+ * "บันทึก" ต้องไม่เขียนทับค่านี้ด้วยค่าเก่าที่ค้างอยู่ใน draft ของตัวเอง
+ *
+ * 🛑 `create` ไม่ส่ง `isPublished` โดยตั้งใจ — ปล่อยให้ DB default (`true`) ทำงาน ร้านที่กดสวิตช์
+ * ราคาเป็นครั้งแรกโดยไม่เคยแตะตัวจัดหน้าร้านเลย ต้องได้แถวที่ "เผยแพร่อยู่" ไม่ใช่ถูกปิดหน้าร้าน
+ * ไปด้วยจากการตั้งค่าที่ไม่เกี่ยวกัน
+ */
+export async function setShopPageShowPrices(
+  shopId: string,
+  actorUserId: string,
+  showPrices: boolean,
+): Promise<{ showPrices: boolean }> {
+  if (!(await canAccessShop(shopId, actorUserId))) throw new Error('FORBIDDEN')
+
+  const row = await prisma.shopPageLayout.upsert({
+    where: { shopId },
+    create: { shopId, showPrices },
+    update: { showPrices },
+    select: { showPrices: true },
+  })
+  return { showPrices: row.showPrices }
 }
