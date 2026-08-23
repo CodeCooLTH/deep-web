@@ -1848,8 +1848,24 @@ model ChatMessage {
   // Meta redeliver webhook ซ้ำได้ตลอด และ echo ของข้อความที่เราส่งเองก็กลับมาด้วย mid เดิม
   // unique constraint จึงทำหน้าที่ dedupe ให้ทั้งสองกรณีโดยไม่ต้องเขียน logic แยก
   externalMessageId String? @unique
-  deliveryStatus    String? // null = แชทในแอป (ไม่เกี่ยว) | "SENT" | "FAILED"
+  deliveryStatus    String? // null = แชทในแอป | "QUEUED" (ยังไม่ยิง) | "SENT" | "FAILED"
   failureReason     String?
+
+  // --- CR 2026-08-23 คิวส่งข้อความขาออก (ดู EXTENSIONS-2026-08-23-outbound-queue.md) ---
+  //
+  // 🛑 sendLockedAt = เกณฑ์ความปลอดภัยเดียวของทั้งฟีเจอร์
+  //   NULL     = ยังไม่เคยมีใครเริ่มยิงแถวนี้ออกไป ⇒ หยิบไปยิงได้โดยไม่มีทางซ้ำ
+  //   มีค่า    = เคยเริ่มยิงแล้ว ผลไม่แน่ชัด ⇒ **ห้ามยิงซ้ำอัตโนมัติ** (Meta ไม่มี idempotency key)
+  // ค้างเกิน STALE_CLAIM_MS → ปิดเป็น FAILED พร้อมเหตุผลว่า "ไม่แน่ใจว่าส่งไปหรือยัง"
+  sendLockedAt DateTime?
+  /// ใครหยิบงานนี้ไปทำเป็นคนสุดท้าย: 'after' | 'sweep' | 'cron'
+  /// 🛑 **ไม่เคลียร์เมื่อสำเร็จโดยตั้งใจ** — บนแถวที่ SENT แล้ว มันตอบว่า "ใครส่งสำเร็จ"
+  /// ซึ่งเป็นตัววัดที่บอกว่าบั๊กต้นเรื่อง (คำขอตายกลางทาง) เกิดจริงกี่ครั้ง
+  sendLockedBy String?
+  /// เจตนาการส่งที่ไม่มีที่อยู่ในคอลัมน์อื่น: sticker / template / flex / messageTag
+  /// (imageUrl=fileId, replyToMid, productRefIds มีคอลัมน์ของตัวเองอยู่แล้ว)
+  /// มีความหมายเฉพาะตอน QUEUED — เคลียร์เมื่อถึงปลายทาง
+  sendPayload  Json?
 
   // rawMessage — payload ดิบที่ได้รับจาก platform (Facebook/IG/…) ตอนสร้างแถวนี้ (2026-08-03)
   //
