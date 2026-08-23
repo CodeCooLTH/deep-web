@@ -73,6 +73,7 @@ beforeEach(() => {
     ...args.data,
   }))
   update.mockResolvedValue({})
+  findMany.mockResolvedValue([])
   pauseForHumanTakeover.mockResolvedValue(undefined)
 })
 
@@ -97,7 +98,7 @@ const OK = {
 
 describe('deliverRoom', () => {
   it('[blocker] claim ด้วยเงื่อนไข sendLockedAt: null เสมอ — นี่คือสิ่งเดียวที่กันข้อความซ้ำ', async () => {
-    findMany.mockResolvedValue([queued()])
+    findMany.mockResolvedValueOnce([queued()])
     updateMany.mockResolvedValue({ count: 1 })
     transmitOutbound.mockResolvedValue(OK)
 
@@ -108,7 +109,7 @@ describe('deliverRoom', () => {
   })
 
   it('[blocker] claim ไม่ติด (คนอื่นชิงไปแล้ว) → ต้องไม่ยิงเลย', async () => {
-    findMany.mockResolvedValue([queued()])
+    findMany.mockResolvedValueOnce([queued()])
     updateMany.mockResolvedValue({ count: 0 })
 
     await deliverRoom('c1', 'cron')
@@ -117,7 +118,7 @@ describe('deliverRoom', () => {
   })
 
   it('[blocker] ยิงสำเร็จ → เขียน SENT + mid และ **ไม่เคลียร์ sendLockedBy** (ตัววัด §9)', async () => {
-    findMany.mockResolvedValue([queued()])
+    findMany.mockResolvedValueOnce([queued()])
     updateMany.mockResolvedValue({ count: 1 })
     transmitOutbound.mockResolvedValue({ ...OK, outboundResponse: { ok: true } })
 
@@ -131,7 +132,7 @@ describe('deliverRoom', () => {
   })
 
   it('[blocker] ปลายทางปฏิเสธ → FAILED + failureReason ดิบ และห้ามยิงซ้ำในรอบเดียวกัน', async () => {
-    findMany.mockResolvedValue([queued()])
+    findMany.mockResolvedValueOnce([queued()])
     updateMany.mockResolvedValue({ count: 1 })
     transmitOutbound.mockResolvedValue({
       ...OK,
@@ -147,7 +148,7 @@ describe('deliverRoom', () => {
   })
 
   it('[blocker] หัวคิวถูก claim ค้างอยู่ → ห้ามข้ามไปยิงใบถัดไป', async () => {
-    findMany.mockResolvedValue([
+    findMany.mockResolvedValueOnce([
       queued({ id: 'head', sendLockedAt: new Date('2026-08-23T10:00:01Z') }),
       queued({ id: 'next', createdAt: new Date('2026-08-23T10:00:05Z') }),
     ])
@@ -160,7 +161,7 @@ describe('deliverRoom', () => {
   it('[blocker] ตัวยิงถูกเรียกจริง ด้วย conversation ที่ resolve มา — ไม่ใช่แค่ไม่พัง', async () => {
     // ข้อนี้จงใจตรวจ "ถูกเรียกจริงไหม" ไม่ใช่ "ผลลัพธ์ถูกไหม" — เทสที่ mock ตัวยิงทิ้งแล้วดูแต่
     // ผลลัพธ์จะเขียวเท่ากันทั้งกรณีที่เรียกและกรณีที่ลืมเรียก (บทเรียน 00038)
-    findMany.mockResolvedValue([queued({ sendPayload: { text: 'ทัก', actorUserId: 'u1' } })])
+    findMany.mockResolvedValueOnce([queued({ sendPayload: { text: 'ทัก', actorUserId: 'u1' } })])
     updateMany.mockResolvedValue({ count: 1 })
     transmitOutbound.mockResolvedValue(OK)
 
@@ -180,7 +181,7 @@ describe('deliverRoom', () => {
     // ถ้าเขียน mid ดิบลงไป จะไม่ชนกับ echo ที่มี prefix ⇒ ข้อความเดียวขึ้นสองบับเบิล และ quote
     // หาต้นทางไม่เจอ — ไม่มี error ให้ใครเห็นเลยสักบรรทัด
     resolveOutboundContext.mockResolvedValue({ id: 'c1', channel: 'LINE', shopId: 's1' })
-    findMany.mockResolvedValue([queued()])
+    findMany.mockResolvedValueOnce([queued()])
     updateMany.mockResolvedValue({ count: 1 })
     transmitOutbound.mockResolvedValue({ ...OK, externalMessageId: '468789577898262530', sendMethod: 'REPLY' })
 
@@ -192,7 +193,7 @@ describe('deliverRoom', () => {
   })
 
   it('[blocker] MESSENGER: ห้ามเติม prefix ให้ mid ของ Meta', async () => {
-    findMany.mockResolvedValue([queued()])
+    findMany.mockResolvedValueOnce([queued()])
     updateMany.mockResolvedValue({ count: 1 })
     transmitOutbound.mockResolvedValue({ ...OK, externalMessageId: 'm_abc' })
 
@@ -203,7 +204,7 @@ describe('deliverRoom', () => {
   })
 
   it('[blocker] sendPayload อ่านไม่ออก (deploy คนละ shape) → ปิดแถวเป็น FAILED ห้าม throw ทั้ง worker (E-7)', async () => {
-    findMany.mockResolvedValue([queued({ sendPayload: 'ข้อความเก่าที่ไม่ใช่อ็อบเจกต์' })])
+    findMany.mockResolvedValueOnce([queued({ sendPayload: 'ข้อความเก่าที่ไม่ใช่อ็อบเจกต์' })])
     updateMany.mockResolvedValue({ count: 1 })
 
     await expect(deliverRoom('c1', 'cron')).resolves.toBe(1)
@@ -215,7 +216,7 @@ describe('deliverRoom', () => {
   })
 
   it('ด่าน ownership ล้มหลัง claim (เพจถูกถอด/สิทธิ์หาย) → FAILED ไม่ปล่อยแถวค้าง', async () => {
-    findMany.mockResolvedValue([queued()])
+    findMany.mockResolvedValueOnce([queued()])
     updateMany.mockResolvedValue({ count: 1 })
     resolveOutboundContext.mockRejectedValue(new Error('CONVERSATION_NOT_FOUND'))
 
@@ -226,7 +227,7 @@ describe('deliverRoom', () => {
   })
 
   it('echo ของ Meta ชิงเขียน mid ไปก่อน (P2002) → ยังต้องเป็น SENT ไม่ใช่ค้างคิว (E-17)', async () => {
-    findMany.mockResolvedValue([queued()])
+    findMany.mockResolvedValueOnce([queued()])
     updateMany.mockResolvedValue({ count: 1 })
     transmitOutbound.mockResolvedValue(OK)
     const dup = Object.assign(new Error('dup'), { code: 'P2002', meta: { target: ['externalMessageId'] } })
@@ -240,7 +241,7 @@ describe('deliverRoom', () => {
   })
 
   it('ห้องว่าง (ไม่มีแถว QUEUED) → คืน 0 และไม่แตะอะไรเลย', async () => {
-    findMany.mockResolvedValue([])
+    findMany.mockResolvedValueOnce([])
 
     await expect(deliverRoom('c1', 'cron')).resolves.toBe(0)
     expect(updateMany).not.toHaveBeenCalled()
@@ -248,7 +249,7 @@ describe('deliverRoom', () => {
   })
 
   it('ส่งสำเร็จโดยคน → บอทต้องหลบ (D-7 pauseForHumanTakeover ทำที่ "สำเร็จ" ไม่ใช่ตอนเข้าคิว)', async () => {
-    findMany.mockResolvedValue([queued({ sendPayload: { actorUserId: 'u1' } })])
+    findMany.mockResolvedValueOnce([queued({ sendPayload: { actorUserId: 'u1' } })])
     updateMany.mockResolvedValue({ count: 1 })
     transmitOutbound.mockResolvedValue(OK)
 
@@ -258,13 +259,118 @@ describe('deliverRoom', () => {
   })
 
   it('บอทเป็นผู้ส่ง (autoReplyKind) → ห้ามสั่งบอทหลบตัวเอง', async () => {
-    findMany.mockResolvedValue([queued({ sendPayload: { actorUserId: null, autoReplyKind: 'AUTO' } })])
+    findMany.mockResolvedValueOnce([queued({ sendPayload: { actorUserId: null, autoReplyKind: 'AUTO' } })])
     updateMany.mockResolvedValue({ count: 1 })
     transmitOutbound.mockResolvedValue(OK)
 
     await deliverRoom('c1', 'cron')
 
     expect(pauseForHumanTakeover).not.toHaveBeenCalled()
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// ฐานข้อมูลจำลองเล็ก ๆ ของ "หนึ่งห้อง" — ใช้กับเทสที่ต้องวนหลายรอบ
+//
+// 🛑 ต้องเป็นของจำลองที่ *ประพฤติเหมือนฐานจริง* (แถวที่จบแล้วออกจากคิว · claim ซ้ำไม่ติด)
+// ไม่ใช่ mockResolvedValueOnce เรียงตามลำดับ — ไม่งั้น mutation ที่เปลี่ยน break เป็น continue
+// จะให้ผลเหมือนเดิมทุกประการ แล้วเทสจะเขียวทั้งที่โค้ดผิด (mutation-silence-means-weak-corpus)
+// ══════════════════════════════════════════════════════════════════════════
+type FakeRow = {
+  id: string
+  conversationId: string
+  createdAt: Date
+  deliveryStatus: string | null
+  sendLockedAt: Date | null
+  sendPayload: unknown
+}
+
+function makeRows(n: number, conversationId = 'c1'): FakeRow[] {
+  return Array.from({ length: n }, (_, i) => ({
+    id: `${conversationId}:r${i + 1}`,
+    conversationId,
+    createdAt: new Date(Date.parse('2026-08-23T10:00:00Z') + i * 1000),
+    deliveryStatus: 'QUEUED',
+    sendLockedAt: null,
+    sendPayload: { text: `a${i + 1}`, actorUserId: 'u1' },
+  }))
+}
+
+/** `stolen` = id ที่ "worker อื่นชิง claim ไปแล้วและทำเสร็จ" — claim ของเราจะได้ count 0 */
+function installStore(store: FakeRow[], stolen: Set<string> = new Set()) {
+  findMany.mockImplementation(async (args: { where?: Record<string, unknown> }) => {
+    const where = (args?.where ?? {}) as Record<string, unknown>
+    if (!where.conversationId) return []
+    return store
+      .filter((r) => r.deliveryStatus === 'QUEUED' && r.conversationId === where.conversationId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+  })
+  updateMany.mockImplementation(async (args: { where: { id: unknown } }) => {
+    const id = args.where.id
+    if (typeof id !== 'string') return { count: 0 }
+    const row = store.find((r) => r.id === id)
+    if (!row) return { count: 0 }
+    if (stolen.has(id)) {
+      // worker อื่นถือ claim อยู่ และทำจนจบไปแล้ว ⇒ แถวออกจากคิว
+      row.sendLockedAt = new Date()
+      row.deliveryStatus = 'SENT'
+      return { count: 0 }
+    }
+    if (row.sendLockedAt !== null) return { count: 0 }
+    row.sendLockedAt = new Date()
+    return { count: 1 }
+  })
+  update.mockImplementation(async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+    const row = store.find((r) => r.id === args.where.id)
+    if (row && typeof args.data.deliveryStatus === 'string') row.deliveryStatus = args.data.deliveryStatus
+    return {}
+  })
+  return store
+}
+
+const sentTexts = () => transmitOutbound.mock.calls.map((c) => (c[1] as { text?: string }).text)
+
+describe('deliverRoom — ระบายคิวทั้งห้อง', () => {
+  it('[blocker] ห้องมี 3 แถว → เรียกครั้งเดียวต้องระบายครบ เรียงเก่า→ใหม่ (ใบที่ 2 ห้ามค้างรอตัวกวาด)', async () => {
+    installStore(makeRows(3))
+    transmitOutbound.mockResolvedValue(OK)
+
+    await expect(deliverRoom('c1', 'after')).resolves.toBe(3)
+
+    expect(transmitOutbound).toHaveBeenCalledTimes(3)
+    expect(sentTexts()).toEqual(['a1', 'a2', 'a3'])
+  })
+
+  it('[blocker] แพ้ race กลางคัน → หยุดทันที ห้ามข้ามไปยิงใบถัดไป (D-3 ลำดับของลูกค้า)', async () => {
+    // r2 ถูก worker อื่นชิงไปและทำเสร็จ ⇒ ถ้าโค้ดเรา `continue` แทนที่จะ `break` มันจะเห็น r3
+    // เป็นหัวคิวรอบถัดไปแล้วยิงต่อ = แข่งระบายห้องเดียวกันกับอีก worker
+    installStore(makeRows(3), new Set(['c1:r2']))
+    transmitOutbound.mockResolvedValue(OK)
+
+    await expect(deliverRoom('c1', 'after')).resolves.toBe(1)
+
+    expect(transmitOutbound).toHaveBeenCalledTimes(1)
+    expect(sentTexts()).toEqual(['a1'])
+  })
+
+  it('[blocker] ใบที่ส่งไม่ผ่านต้องไม่ขังใบถัดไปไว้ทั้งห้อง', async () => {
+    installStore(makeRows(2))
+    transmitOutbound
+      .mockResolvedValueOnce({ ...OK, externalMessageId: null, failureReason: '(#10) window closed' })
+      .mockResolvedValue(OK)
+
+    await expect(deliverRoom('c1', 'cron')).resolves.toBe(2)
+
+    expect(sentTexts()).toEqual(['a1', 'a2'])
+  })
+
+  it('[blocker] เพดานรอบต่อการเรียกหนึ่งครั้ง — ครบแล้วหยุด ปล่อยให้ตัวกวาดรับช่วง', async () => {
+    installStore(makeRows(25))
+    transmitOutbound.mockResolvedValue(OK)
+
+    await expect(deliverRoom('c1', 'after')).resolves.toBe(20)
+
+    expect(transmitOutbound).toHaveBeenCalledTimes(20)
   })
 })
 
@@ -380,20 +486,18 @@ describe('sweepOutbox', () => {
   })
 
   it('[blocker] ห้องของเพจเดียวกันต้องยิงทีละห้อง — ห้ามยิงพร้อมกัน (E-8 rate limit ของ Meta)', async () => {
+    const store = [...makeRows(1, 'A'), ...makeRows(1, 'B')]
+    installStore(store)
+    const roomScan = findMany.getMockImplementation()!
     findMany.mockImplementation(async (args: { where?: Record<string, unknown>; distinct?: unknown }) => {
-      const where = (args?.where ?? {}) as Record<string, unknown>
-      // รอบหยิบหัวคิวของห้องหนึ่ง
-      if (where.conversationId) return [queued({ id: `h-${String(where.conversationId)}` })]
-      // รอบหาห้องที่ยังมีแถวหยิบได้
+      // รอบหาห้องที่ยังมีแถวหยิบได้ (เฉพาะ query ที่ใช้ distinct)
       if (args?.distinct) return [room('A'), room('B')]
-      // รอบสแกน claim ค้าง
-      return []
+      return await roomScan(args)
     })
     conversationFindMany.mockResolvedValue([
       { id: 'A', shopChannelId: 'page1' },
       { id: 'B', shopChannelId: 'page1' },
     ])
-    updateMany.mockResolvedValue({ count: 1 })
 
     const events: string[] = []
     transmitOutbound.mockImplementation(async (c: { id: string }) => {

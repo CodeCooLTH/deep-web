@@ -312,9 +312,52 @@ async function deliverHead(conversationId: string, owner: ClaimOwner): Promise<D
   return 'SENT'
 }
 
-/** หยิบหัวคิวของห้องหนึ่ง แล้วยิงครั้งเดียว — คืนจำนวนแถวที่เปลี่ยนสถานะ (0 หรือ 1) */
+/**
+ * เพดานรอบต่อการเรียก `deliverRoom` หนึ่งครั้ง — กันงานไม่รู้จบใน invocation เดียว
+ *
+ * ครบเพดานแล้วยังมีของค้าง = จบไปเฉย ๆ ตัวกวาด (`sweepOutbox`) รับช่วงต่อในรอบถัดไป
+ * ตัวเลขจริงบน prod 14 วัน: สูงสุด 28 ข้อความ/นาที ทั้งระบบ · p99 = 13 ⇒ 20 ต่อ *ห้อง*
+ * กว้างกว่าการใช้งานจริงมาก ไม่ได้ตั้งไว้เผื่อ throughput
+ */
+const MAX_DELIVER_ROUNDS = 20
+
+/**
+ * ระบายคิวของห้องหนึ่งจนหมด (หรือจนครบเพดานรอบ) — **ไม่ใช่ทำใบเดียวแล้วจบ**
+ *
+ * 🛑 ทำไมต้องวน: `after()` ของใบที่ 2 จะเห็นหัวคิว (ใบที่ 1) ถูก claim อยู่ ⇒ `headOfRoom` คืน null
+ * ⇒ มันจบโดยไม่ทำอะไรเลย แล้วใบที่ 2 จะค้างจนตัวกวาดรอบถัดไปมา (นานได้ถึงหนึ่งนาที) —
+ * เกิดที่ทุกปริมาณการใช้งาน ไม่ใช่แค่ตอนคนใช้เยอะ (แค่ผู้ขายพิมพ์รัว 2 ใบก็เจอ)
+ *
+ * 🛑 ต้อง **อ่านแถวใหม่ทุกรอบ** (อยู่ใน `deliverHead`) ไม่ใช่ใช้ก้อนที่ดึงมาตอนแรก — ระหว่างที่
+ * ยิงใบ 1 อยู่ ผู้ขายอาจพิมพ์ใบ 4 เข้ามาแล้ว
+ *
+ * 🛑 แพ้ race = **ออกจากลูปทันที** ไม่ใช่ข้ามไปทำใบถัดไป: มี worker อื่นกำลังระบายห้องนี้อยู่
+ * ปล่อยให้มันทำต่อ. ข้ามไปทำใบถัดไป = ลูกค้าอ่านสลับลำดับกับที่ร้านพิมพ์ (ผิด D-3 ตรงตัว)
+ * — `deliverHead` คืน 'NONE' ทั้งกรณี "ไม่มีหัวคิว" และ "แพ้ race" ซึ่งทั้งคู่ต้องหยุดเหมือนกัน
+ *
+ * 🛑 ใบที่จบเป็น FAILED **ไม่บล็อกใบถัดไป** โดยตั้งใจ — มันไม่ใช่ `QUEUED` แล้ว `headOfRoom`
+ * รอบถัดไปจึงคืนใบถัดไปเอง (ข้อความที่ส่งไม่ผ่านขึ้นบับเบิลแดงให้เห็น ไม่ควรขังทั้งห้องตลอดกาล)
+ * ห้ามเพิ่มเงื่อนไขหยุดลูปเมื่อเจอ FAILED
+ */
+async function drainRoom(
+  conversationId: string,
+  owner: ClaimOwner,
+): Promise<{ sent: number; failed: number }> {
+  let sent = 0
+  let failed = 0
+  for (let round = 0; round < MAX_DELIVER_ROUNDS; round += 1) {
+    const outcome = await deliverHead(conversationId, owner)
+    if (outcome === 'NONE') break
+    if (outcome === 'SENT') sent += 1
+    else failed += 1
+  }
+  return { sent, failed }
+}
+
+/** ระบายคิวของห้องหนึ่ง — คืนจำนวนแถวที่เปลี่ยนสถานะจริงในการเรียกครั้งนี้ */
 export async function deliverRoom(conversationId: string, owner: ClaimOwner): Promise<number> {
-  return (await deliverHead(conversationId, owner)) === 'NONE' ? 0 : 1
+  const { sent, failed } = await drainRoom(conversationId, owner)
+  return sent + failed
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -391,9 +434,10 @@ export async function sweepOutbox(opts: { owner: ClaimOwner; limit?: number }): 
     [...groups.values()].map(async (ids) => {
       for (const conversationId of ids) {
         try {
-          const outcome = await deliverHead(conversationId, opts.owner)
-          if (outcome === 'SENT') sent += 1
-          else if (outcome === 'FAILED') failed += 1
+          // ระบายจนหมดห้อง ไม่ใช่ใบเดียวต่อรอบกวาด — ไม่งั้นห้องที่มี 3 ใบค้างต้องรอ 3 นาที
+          const res = await drainRoom(conversationId, opts.owner)
+          sent += res.sent
+          failed += res.failed
         } catch (e) {
           // ห้องเดียวพังต้องไม่ฆ่าการกวาดของห้องที่เหลือ — แถวยังค้าง QUEUED + claim ไว้แล้ว
           // จึงจะถูกปิดเป็น "ไม่แน่ใจ" ในรอบถัดไปตามเพดานเวลา ไม่ถูกยิงซ้ำ
