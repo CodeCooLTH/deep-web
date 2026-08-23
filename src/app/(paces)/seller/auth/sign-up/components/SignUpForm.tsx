@@ -79,6 +79,9 @@ const schema = Yup.object({
 
 type FormValues = Yup.InferType<typeof schema>
 
+/** สถานะ live-check ของช่องเบอร์ — 'ชน' ไม่อยู่ในนี้เพราะกล่องโนติส (phoneConflict) พูดแทน */
+type PhoneCheckState = 'idle' | 'checking' | 'ok' | 'error'
+
 // --- Username dedupe status ---
 type UsernameStatus =
   | { state: 'idle' }
@@ -154,6 +157,50 @@ export default function SignUpForm() {
     if (phoneConflict && phoneValue !== phoneConflict) setPhoneConflict(null)
   }, [phoneValue, phoneConflict])
 
+  /**
+   * live-check เบอร์ซ้ำ — ยกโครงมาจาก debounce ของช่อง username ในไฟล์เดียวกันทุกบรรทัด
+   *
+   * 🛑 เหตุผลที่ช่องเบอร์ถูกย้ายมาเป็น **ช่องแรก** ของฟอร์มพร้อมกับงานนี้: ต่อให้เช็คไวแค่ไหน
+   * ถ้าเบอร์ยังอยู่ช่องสุดท้าย ผู้ใช้ก็เดินผ่าน username + ตั้งรหัสผ่านที่ผ่าน strength meter
+   * ไปก่อนอยู่ดี เพราะคนกรอกฟอร์มจากบนลงล่าง — แล้วความพยายามทั้งหมดนั้นเป็นโมฆะทันทีที่
+   * รู้ว่ามีบัญชีอยู่แล้ว การย้ายตำแหน่งจึงเป็น "เงื่อนไขจำเป็น" ของการแก้ ไม่ใช่ของแถม
+   *
+   * ตัวกรองก่อนยิง API คือ `MOBILE_PHONE_RE` ตัวเดียวกับ schema ⇒ เลขไม่ครบ/ไม่ใช่มือถือ
+   * จะไม่ยิงเลย จึงไม่มีทางชน rate-limit ของ guardApi จากการพิมพ์ปกติ
+   *
+   * ผลของมัน **ไม่บล็อกปุ่มสมัคร** โดยตั้งใจ — `onSubmit` ยังเช็คเบอร์ซ้ำเองก่อนยิง OTP
+   * เหมือนเดิมทุกบรรทัด อันนั้นคือด่านจริง ตัวนี้แค่ทำให้ผู้ใช้ "รู้เร็วขึ้น"
+   */
+  const [phoneCheck, setPhoneCheck] = useState<PhoneCheckState>('idle')
+  const phoneReqId = useRef(0)
+
+  useEffect(() => {
+    if (!MOBILE_PHONE_RE.test(phoneValue ?? '')) {
+      setPhoneCheck('idle')
+      return
+    }
+    setPhoneCheck('checking')
+    const t = setTimeout(async () => {
+      const id = ++phoneReqId.current
+      try {
+        const res = await fetch(`/api/users/check-phone?phone=${encodeURIComponent(phoneValue)}`)
+        const data: { available: boolean } = await res.json()
+        if (phoneReqId.current !== id) return
+        if (data.available) {
+          setPhoneCheck('ok')
+        } else {
+          // ให้กล่องโนติสเป็นข้อความเดียวที่พูดเรื่องนี้ — ไม่ให้บรรทัดสถานะซ้อนขึ้นมาอีกอัน
+          setPhoneCheck('idle')
+          setPhoneConflict(phoneValue)
+        }
+      } catch {
+        if (phoneReqId.current !== id) return
+        setPhoneCheck('error')
+      }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [phoneValue])
+
   /** "เข้าสู่ระบบด้วยเบอร์นี้" — เส้นทางเดียวกับฟอร์ม OTP ในหน้า sign-in ทุกประการ */
   const handleSigninWithConflictPhone = async () => {
     if (!phoneConflict || conflictSending) return
@@ -173,6 +220,8 @@ export default function SignUpForm() {
   // PasswordInputWithStrength ต้องการ controlled state
   const [password, setPassword] = useState('')
   const { onChange: rhfPasswordOnChange, ...rhfPasswordRest } = register('password')
+  // แยก onChange ของ phone ออกมาห่อ sanitize ก่อนส่งต่อ (ท่าเดียวกับ password ด้านบน)
+  const { onChange: rhfPhoneOnChange, ...rhfPhoneRest } = register('phone')
 
   const username = watch('username')
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>({ state: 'idle' })
@@ -277,7 +326,83 @@ export default function SignUpForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
-        {/* 1. ชื่อที่แสดง */}
+        {/* 1. เบอร์โทรศัพท์ — ช่องแรกของฟอร์มโดยตั้งใจ ดูคอมเมนต์ที่ phoneCheckState */}
+        <div className="mb-6">
+          <label htmlFor="phone" className="form-label">
+            เบอร์โทรศัพท์<span className="text-danger">*</span>
+          </label>
+          <div className="input-icon-group">
+            <Icon icon="phone" className="input-icon" />
+            <input
+              id="phone"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel"
+              placeholder="08xxxxxxxx"
+              className={cn('form-input', errors.phone && '!border-danger')}
+              {...rhfPhoneRest}
+              onChange={(e) => {
+                // strip อักขระที่ไม่ใช่ตัวเลข + ตัดที่ 10 หลัก **ก่อน** ส่งเข้า RHF
+                // 🛑 ไม่ใช่เรื่องความสวยงาม แต่เป็นเงื่อนไขให้ live-check ทำงาน: คนที่ก็อปเบอร์
+                // จากสมุดโทรศัพท์มาวางมักได้ '081-234-5678' ติดขีดมาด้วย ซึ่งไม่ match
+                // MOBILE_PHONE_RE ตลอดไป ⇒ live-check จะไม่ยิงเลยอย่างเงียบ ๆ กับคนกลุ่มที่
+                // ฟีเจอร์นี้สร้างมาเพื่อเขาพอดี (precedent: seller/register/page.tsx)
+                e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10)
+                void rhfPhoneOnChange(e)
+              }}
+            />
+          </div>
+          {errors.phone && (
+            <p className="invalid-msg mt-1 text-sm text-danger">{errors.phone.message}</p>
+          )}
+          {/* live-check — ยกท่าจากช่อง username ในฟอร์มเดียวกันทุกประการ (ไม่มี spinner icon
+              เพราะ username ก็ไม่มี: สองคำศัพท์ภาพสำหรับ concept เดียวกันในฟอร์มเดียว = ผิด) */}
+          {!errors.phone && !phoneConflict && phoneCheck === 'checking' && (
+            <p className="invalid-msg mt-1 text-sm text-default-400">กำลังตรวจสอบ...</p>
+          )}
+          {!errors.phone && !phoneConflict && phoneCheck === 'ok' && (
+            <p className="invalid-msg mt-1 text-sm text-success">เบอร์นี้ใช้ได้</p>
+          )}
+          {/* network error ใช้เทากลาง ไม่ใช่แดง — ไม่ใช่ความผิดของผู้ใช้ ไม่บล็อกอะไร และเป็น
+              ความจริงว่ามีด่านที่สองรออยู่ (onSubmit เช็คซ้ำก่อนยิง OTP เสมอ ไม่เคยถูกถอด) */}
+          {!errors.phone && !phoneConflict && phoneCheck === 'error' && (
+            <p className="invalid-msg mt-1 text-sm text-default-400">
+              ตรวจสอบเบอร์ไม่สำเร็จ ระบบจะตรวจอีกครั้งตอนกดสมัครสมาชิก
+            </p>
+          )}
+
+          {/* เบอร์นี้มีบัญชีแล้ว — โนติสไม่บล็อกฟอร์ม (Base: theme .../ui/alerts/page.tsx บล็อก info)
+              ใช้ info ไม่ใช่ success/warning เพราะ "มีบัญชีอยู่แล้ว" ไม่ใช่ทั้งความสำเร็จและคำเตือน
+              text-info-ink แทน text-info ดิบของ theme — บนพื้น /15 สีดิบตกเกณฑ์คอนทราสต์ */}
+          {phoneConflict && (
+            <div
+              className="bg-info/15 mt-3 rounded px-4 py-3 transition-opacity duration-200 motion-reduce:transition-none"
+              role="status"
+            >
+              <div className="text-info-ink flex gap-2">
+                <Icon icon="info-circle" className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+                <p className="text-sm">เบอร์นี้มีบัญชี Deep อยู่แล้ว เข้าสู่ระบบด้วยเบอร์นี้ แล้วไปเปิดร้านต่อได้เลย</p>
+              </div>
+              {/* ปุ่มรอง: พื้น bg-card + ขอบ (ท่าเดียวกับปุ่มโซเชียลใน SignInForm.tsx)
+                  🛑 ไม่ใช้ `bg-info` + ตัวอักษรขาวตามที่ ux ร่างไว้ — `--color-info` = #5bc3e1
+                  คู่กับขาวได้คอนทราสต์ 2.03:1 (เกณฑ์ 4.5:1) ส่วน text-default-900 บน bg-card ผ่านสบาย
+                  และยังอ่านเป็น "ปุ่มรอง" ตามเจตนาเดิม ไม่แย่งความเด่นจาก "สมัครสมาชิก" */}
+              <button
+                type="button"
+                onClick={handleSigninWithConflictPhone}
+                disabled={conflictSending}
+                className="btn bg-card border border-default-300 text-default-900 hover:border-default-400 mt-3 py-3 font-semibold disabled:opacity-60"
+              >
+                {conflictSending ? 'กำลังส่งรหัส...' : 'เข้าสู่ระบบด้วยเบอร์นี้'}
+              </button>
+              <p className="text-default-500 mt-2 text-sm">
+                พิมพ์เบอร์อื่นด้านบนได้ ถ้าเบอร์นี้ไม่ใช่ของคุณ
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* 2. ชื่อที่แสดง */}
         <div className="mb-5">
           <label htmlFor="displayName" className="form-label">
             ชื่อที่แสดง<span className="text-danger">*</span>
@@ -298,7 +423,7 @@ export default function SignUpForm() {
           )}
         </div>
 
-        {/* 2. หมวดหมู่ร้านค้า — ChoiceSelect controlled (watch+setValue ไม่ใช้ register โดยตรง)
+        {/* 3. หมวดหมู่ร้านค้า — ChoiceSelect controlled (watch+setValue ไม่ใช้ register โดยตรง)
             Base: src/components/wrappers/ChoiceSelect.tsx (Choices.js wrapper)
             ref pattern: theme/paces/Admin/TS/src/app/(admin)/form/select/components/ChoiceSelect.tsx
             error border: !border-danger ตาม theme/paces/.../form/validation/components/CustomValidation.tsx */}
@@ -322,7 +447,7 @@ export default function SignUpForm() {
           )}
         </div>
 
-        {/* 3. username พร้อม debounce live-dedupe check */}
+        {/* 4. username พร้อม debounce live-dedupe check */}
         <div className="mb-5">
           <label htmlFor="username" className="form-label">
             ชื่อผู้ใช้ (username)<span className="text-danger">*</span>
@@ -352,7 +477,7 @@ export default function SignUpForm() {
           )}
         </div>
 
-        {/* 4. รหัสผ่าน — PasswordInputWithStrength (controlled) + hint ภาษาไทย */}
+        {/* 5. รหัสผ่าน — PasswordInputWithStrength (controlled) + hint ภาษาไทย */}
         <div className="mb-5">
           <label htmlFor="password" className="form-label">
             รหัสผ่าน<span className="text-danger">*</span>
@@ -381,7 +506,7 @@ export default function SignUpForm() {
           )}
         </div>
 
-        {/* 5. ยืนยันรหัสผ่าน */}
+        {/* 6. ยืนยันรหัสผ่าน */}
         <div className="mb-5">
           <label htmlFor="confirmPassword" className="form-label">
             ยืนยันรหัสผ่าน<span className="text-danger">*</span>
@@ -411,54 +536,6 @@ export default function SignUpForm() {
           )}
         </div>
 
-        {/* 6. เบอร์โทรศัพท์ */}
-        <div className="mb-6">
-          <label htmlFor="phone" className="form-label">
-            เบอร์โทรศัพท์<span className="text-danger">*</span>
-          </label>
-          <div className="input-icon-group">
-            <Icon icon="phone" className="input-icon" />
-            <input
-              id="phone"
-              type="tel"
-              inputMode="numeric"
-              autoComplete="tel"
-              placeholder="08xxxxxxxx"
-              className={cn('form-input', errors.phone && '!border-danger')}
-              {...register('phone')}
-            />
-          </div>
-          {errors.phone && (
-            <p className="invalid-msg mt-1 text-sm text-danger">{errors.phone.message}</p>
-          )}
-
-          {/* เบอร์นี้มีบัญชีแล้ว — โนติสไม่บล็อกฟอร์ม (Base: theme .../ui/alerts/page.tsx บล็อก info)
-              ใช้ info ไม่ใช่ success/warning เพราะ "มีบัญชีอยู่แล้ว" ไม่ใช่ทั้งความสำเร็จและคำเตือน
-              text-info-ink แทน text-info ดิบของ theme — บนพื้น /15 สีดิบตกเกณฑ์คอนทราสต์ */}
-          {phoneConflict && (
-            <div className="bg-info/15 mt-3 rounded px-4 py-3" role="status">
-              <div className="text-info-ink flex gap-2">
-                <Icon icon="info-circle" className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
-                <p className="text-sm">เบอร์นี้มีบัญชี Deep อยู่แล้ว เข้าสู่ระบบด้วยเบอร์นี้ แล้วไปเปิดร้านต่อได้เลย</p>
-              </div>
-              {/* ปุ่มรอง: พื้น bg-card + ขอบ (ท่าเดียวกับปุ่มโซเชียลใน SignInForm.tsx)
-                  🛑 ไม่ใช้ `bg-info` + ตัวอักษรขาวตามที่ ux ร่างไว้ — `--color-info` = #5bc3e1
-                  คู่กับขาวได้คอนทราสต์ 2.03:1 (เกณฑ์ 4.5:1) ส่วน text-default-900 บน bg-card ผ่านสบาย
-                  และยังอ่านเป็น "ปุ่มรอง" ตามเจตนาเดิม ไม่แย่งความเด่นจาก "สมัครสมาชิก" */}
-              <button
-                type="button"
-                onClick={handleSigninWithConflictPhone}
-                disabled={conflictSending}
-                className="btn bg-card border border-default-300 text-default-900 hover:border-default-400 mt-3 py-3 font-semibold disabled:opacity-60"
-              >
-                {conflictSending ? 'กำลังส่งรหัส...' : 'เข้าสู่ระบบด้วยเบอร์นี้'}
-              </button>
-              <p className="text-default-500 mt-2 text-sm">
-                พิมพ์เบอร์อื่นด้านบนได้ ถ้าเบอร์นี้ไม่ใช่ของคุณ
-              </p>
-            </div>
-          )}
-        </div>
 
         {/* ยอมรับนโยบายความเป็นส่วนตัว — required (Base: theme auth/card/sign-up checkbox pattern) */}
         <div className="mb-5">
