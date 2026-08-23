@@ -422,11 +422,21 @@ export async function sweepOutbox(opts: { owner: ClaimOwner; limit?: number }): 
   }
 
   // ── 2) ห้องที่ยังมีแถว "หยิบได้" เหลืออยู่ ──
-  const rooms = await prisma.chatMessage.findMany({
+  //
+  // 🛑 ต้องเป็น `groupBy` ไม่ใช่ `findMany` + `distinct` (F3): Prisma ทำ `distinct` **ในหน่วยความจำ**
+  // แล้ว **ตัด `LIMIT` ทิ้งทั้งดุ้น** — SQL ที่ออกจริงของรูปแบบเดิมคือ
+  //   SELECT "conversationId", "createdAt" FROM "ChatMessage"
+  //   WHERE "deliveryStatus" = $1 AND "sendLockedAt" IS NULL ORDER BY "createdAt" ASC OFFSET $2
+  // (ไม่มี LIMIT เลย) ⇒ ทุกรอบของตัวกวาดดึงแถวที่หยิบได้ **ทั้งตาราง** มาก่อนแล้วค่อยตัดเหลือ 50 ห้อง
+  // ปริมาณวันนี้ไม่เจ็บ แต่วันที่ปลายทางล่มแล้วคิวค้างหลักพัน จะโหลดทั้งกองทุกนาที
+  //
+  // `groupBy` บังคับ `LIMIT` ที่ระดับ SQL จริง (ยืนยันด้วย query log — ดู task-6-report.md §Fix round 1)
+  // เรียงด้วย `_min.createdAt` = "ห้องที่มีของค้างเก่าสุดมาก่อน" ซึ่งเป็นเจตนาเดิมของ `orderBy` ตัวเก่า
+  const rooms = await prisma.chatMessage.groupBy({
+    by: ['conversationId'],
     where: { deliveryStatus: 'QUEUED', sendLockedAt: null },
-    select: { conversationId: true },
-    distinct: ['conversationId'],
-    orderBy: { createdAt: 'asc' },
+    _min: { createdAt: true },
+    orderBy: { _min: { createdAt: 'asc' } },
     take: limit,
   })
   const roomIds = rooms.map((r) => r.conversationId)

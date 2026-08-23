@@ -32,6 +32,7 @@ vi.mock('@/services/auto-reply-takeover.service', () => ({
 const updateMany = vi.fn()
 const findMany = vi.fn()
 const update = vi.fn()
+const groupBy = vi.fn()
 const create = vi.fn()
 const conversationUpdate = vi.fn()
 const conversationFindMany = vi.fn()
@@ -40,6 +41,7 @@ vi.mock('@/lib/prisma', () => ({
     chatMessage: {
       updateMany: (...a: unknown[]) => updateMany(...a),
       findMany: (...a: unknown[]) => findMany(...a),
+      groupBy: (...a: unknown[]) => groupBy(...a),
       update: (...a: unknown[]) => update(...a),
     },
     conversation: {
@@ -62,6 +64,7 @@ beforeEach(() => {
   pauseForHumanTakeover.mockReset()
   updateMany.mockReset()
   findMany.mockReset()
+  groupBy.mockReset()
   update.mockReset()
   create.mockReset()
   conversationUpdate.mockReset()
@@ -80,6 +83,7 @@ beforeEach(() => {
   }))
   update.mockResolvedValue({})
   findMany.mockResolvedValue([])
+  groupBy.mockResolvedValue([])
   pauseForHumanTakeover.mockResolvedValue(undefined)
 })
 
@@ -514,11 +518,8 @@ describe('sweepOutbox', () => {
 
   it('[blocker] แถวที่ claim ค้างเกินเพดาน → ปิดเป็น FAILED พร้อมเหตุผลที่พูดความจริงว่าไม่รู้ผล (E-1)', async () => {
     const old = new Date(Date.now() - 10 * 60 * 1000)
-    findMany
-      // รอบแรก: แถวที่ถูก claim ค้าง
-      .mockResolvedValueOnce([queued({ id: 'stuck', sendLockedAt: old })])
-      // รอบสอง: ห้องที่ยังมีแถวหยิบได้ (ไม่มี)
-      .mockResolvedValueOnce([])
+    // findMany = รอบสแกน claim ค้าง · groupBy = รอบหาห้องที่ยังมีแถวหยิบได้ (ไม่มี)
+    findMany.mockResolvedValueOnce([queued({ id: 'stuck', sendLockedAt: old })])
     updateMany.mockResolvedValue({ count: 1 })
 
     const res = await sweepOutbox({ owner: 'cron' })
@@ -531,7 +532,7 @@ describe('sweepOutbox', () => {
   })
 
   it('[blocker] แถวที่เพิ่ง claim (ยังไม่เกินเพดาน) ห้ามถูกปิดทิ้ง', async () => {
-    findMany.mockResolvedValueOnce([queued({ id: 'fresh', sendLockedAt: new Date() })]).mockResolvedValueOnce([])
+    findMany.mockResolvedValueOnce([queued({ id: 'fresh', sendLockedAt: new Date() })])
 
     const res = await sweepOutbox({ owner: 'cron' })
 
@@ -539,15 +540,25 @@ describe('sweepOutbox', () => {
     expect(updateMany).not.toHaveBeenCalled()
   })
 
+  it('[blocker] เพดานจำนวนห้องต้องถูกส่งเข้า query (F3 — distinct ทำให้ Prisma ตัด LIMIT ทิ้ง)', async () => {
+    // ของเดิมใช้ findMany + distinct ซึ่ง Prisma ทำ distinct ในหน่วยความจำแล้ว **ตัด LIMIT ทิ้งทั้งดุ้น**
+    // (พิสูจน์ด้วย query log จริง — ดูรายงาน) ⇒ ดึงแถวที่หยิบได้ทั้งตารางทุกรอบก่อนตัดเหลือ N ห้อง
+    await sweepOutbox({ owner: 'cron', limit: 7 })
+
+    expect(groupBy).toHaveBeenCalledTimes(1)
+    expect(groupBy.mock.calls[0][0]).toMatchObject({ by: ['conversationId'], take: 7 })
+  })
+
+  it('ไม่ส่ง limit มา → ใช้ค่าตั้งต้น 50 (ยังต้องเป็นเพดานที่ถูกส่งเข้า query จริง)', async () => {
+    await sweepOutbox({ owner: 'cron' })
+
+    expect(groupBy.mock.calls[0][0]).toMatchObject({ take: 50 })
+  })
+
   it('[blocker] ห้องของเพจเดียวกันต้องยิงทีละห้อง — ห้ามยิงพร้อมกัน (E-8 rate limit ของ Meta)', async () => {
     const store = [...makeRows(1, 'A'), ...makeRows(1, 'B')]
     installStore(store)
-    const roomScan = findMany.getMockImplementation()!
-    findMany.mockImplementation(async (args: { where?: Record<string, unknown>; distinct?: unknown }) => {
-      // รอบหาห้องที่ยังมีแถวหยิบได้ (เฉพาะ query ที่ใช้ distinct)
-      if (args?.distinct) return [room('A'), room('B')]
-      return await roomScan(args)
-    })
+    groupBy.mockResolvedValue([room('A'), room('B')])
     conversationFindMany.mockResolvedValue([
       { id: 'A', shopChannelId: 'page1' },
       { id: 'B', shopChannelId: 'page1' },
