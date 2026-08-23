@@ -112,18 +112,28 @@ describe('AC-SQ-07 — ทุกจอของฟีเจอร์ร้าน
      */
     const code = stripComments(read('src/services/dashboard.service.ts'))
 
-    for (const name of ['depositValues', 'receivedValues', 'unrecordedValues']) {
+    for (const name of ['receivedValues', 'unrecordedValues']) {
       expect(code, `${name} ต้องถูกสร้างเฉพาะร้านบริการ`).toMatch(
         new RegExp(`${name}\\s*=\\s*isServiceShop \\? new Array`),
       )
     }
 
     /* คีย์ชุดนี้ต้องอยู่ในนิพจน์ spread ที่มีเงื่อนไข ไม่ใช่ใส่ตรง ๆ ลงใน object */
-    const spread = /\.\.\.\(depositValues && receivedValues[^)]*\? \{([^}]*)\}\s*:\s*\{\}\)/.exec(code)
+    const spread = /\.\.\.\(receivedValues && unrecordedValues[^)]*\? \{([^}]*)\}\s*:\s*\{\}\)/.exec(code)
     expect(spread, 'ต้อง spread แบบมีเงื่อนไข ไม่ใช่ใส่คีย์เสมอ').not.toBeNull()
-    for (const name of ['depositValues', 'receivedValues', 'unrecordedValues']) {
+    for (const name of ['receivedValues', 'unrecordedValues']) {
       expect(spread![1], `${name} ต้องอยู่ในนิพจน์ที่มีเงื่อนไขนั้น`).toContain(name)
     }
+
+    /* `jobStatusCounts` เป็น object ไม่ใช่อาร์เรย์ จึง spread แยก — แต่กติกาเดียวกัน:
+       ร้านที่ไม่ใช่ร้านบริการต้อง **ไม่มีคีย์เลย** ไม่ใช่ได้ object ที่เป็นศูนย์ทั้งชุด
+       (ศูนย์ทั้งชุด = "ร้านบริการที่ยังไม่มีงาน" ซึ่งคนละความหมาย) */
+    expect(code, 'jobStatusCounts ต้อง spread แบบมีเงื่อนไข').toMatch(
+      /\.\.\.\(jobStatusCounts \? \{ jobStatusCounts \} : \{\}\)/,
+    )
+    expect(code, 'jobStatusCounts ต้องคิดเฉพาะตอนมีผล groupBy (ร้านบริการเท่านั้น)').toMatch(
+      /jobStatusCounts = jobStatusRows/,
+    )
   })
 
   it('[blocker] ห้ามกั้นด้วย "มีเรื่องเงินไหม" เพียงอย่างเดียวในจอที่เป็นหน้าออเดอร์', () => {

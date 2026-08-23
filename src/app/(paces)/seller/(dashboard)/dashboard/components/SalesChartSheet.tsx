@@ -69,7 +69,7 @@
  *       3 ใน 6 คอลัมน์จึงไม่เคยบอกอะไรเลย
  * - 🛑 invariant "ทุกแถวบวกกันได้ hero" **ไม่ครอบชุดของร้านบริการ** — ชุดนั้นไม่มีคอลัมน์กำไร
  *   สิ่งที่บังคับแทนคือ `ค้างรับ = ยอดขาย − รับจริง` **ในแถวเดียวกัน** (ลบตามด้วยตาได้เหมือนกัน)
- * - 🛑 `depositValues`/`receivedValues` ตัดตาม **วันที่ของออเดอร์** ไม่ใช่วันที่รับเงิน — ร่างแรก
+ * - 🛑 `receivedValues` ตัดตาม **วันที่ของออเดอร์** ไม่ใช่วันที่รับเงิน — ร่างแรก
  *   ทำเป็น `receivedAt` (ซึ่ง "ถูก" ถ้าอยู่ลำพัง) แล้วพบว่าเป็นคอลัมน์เดียวในตารางที่อยู่คนละแกน
  *   ⇒ `ยอดขาย − รับจริง` กลายเป็นการลบข้ามแกน แล้วค้างรับติดลบได้ (HR16 — ไม่มี gate ไหนฟ้อง
  *   เพราะเลขทั้งสองตัวถูกในตัวเอง) ตอนนี้สะสมในลูปเดียวกับ `values` จึงเป็นแกนเดียวกันโดยโครงสร้าง
@@ -86,6 +86,34 @@
  *   — ตัวเลขถูกทุกช่อง สิ่งที่ขาดคือคำว่า "เส้นนี้นับใบ ไม่ใช่นับเงิน"
  * - คอลัมน์ "ค้างรับ" ใช้สีเตือนเฉพาะแถวที่ `received > 0` (รู้แน่ว่าเก็บไม่ครบ) — แถวที่ทุกใบ
  *   ยังไม่เคยบันทึกรับเงินคือ **ไม่รู้** ไม่ใช่ "ยังไม่จ่าย" + หมายเหตุใต้ตาราง 2 ประโยค
+ *
+ * ── v9 2026-08-23 (user สั่งหลังผมสรุปวิเคราะห์ให้: "ทำทั้ง 4 ให้ครบ") ────────────────────
+ * [สำคัญ] **ร้านบริการใช้ "แกนเงิน" แกนเดียวทั้งหน้า** — hero · แถบสมการ · แท่งในกราฟ · ตาราง
+ * พูดเรื่องเดียวกันหมด · ร้าน vertical อื่นไม่ถูกแตะเลยสักจุด
+ *
+ * ที่มา: user ถามว่าทำไม "ยืนยันแล้ว 20,290" บนหัว กับ "รับจริง 20,890" ในตาราง ไม่ตรงกัน
+ * — สองเลขนั้นต่างกัน **2 ชั้น** (ทั้งเดือน vs วันเดียว · แกนลูกค้ายืนยัน vs แกนเงิน) และ
+ * ไม่มีวันเท่ากัน · ต้นเหตุคือจอเดียวมีสองแกนพูดคนละภาษา ไม่ใช่ตัวเลขผิด
+ *
+ * 1. **hero = เงินที่รับจริง** (เดิม "กำไร/ขาดทุน") — ร้านบริการไม่มีต้นทุนสินค้าและถูกล็อก
+ *    `NO_SHIPPING` ⇒ กำไร = ยอดขาย **เป๊ะทุกบาท** (22,393 = 22,393) คำว่ากำไรจึงไม่ได้ให้
+ *    ข้อมูลเพิ่มเลย มันแค่เรียกยอดขายด้วยชื่อที่ผิด · ชื่อหน้าเปลี่ยนเป็น "ยอดขายและการเก็บเงิน"
+ * 2. **แถบสมการ** = `รับจริง + ค้างรับ = ยอดขาย` (ช่องสุดท้ายไม่มีจุดสีเพราะเป็นผลรวม ไม่ใช่ซีรีส์)
+ * 3. **แท่งในกราฟ** = รับจริง (เขียว) / ค้างรับ (เหลือง) — tooltip กับ `yaxis.seriesName`
+ *    เปลี่ยนตามด้วย · 🛑 `seriesName` ที่ชี้ชื่อที่ไม่มีอยู่ = ApexCharts ให้ซีรีส์นั้นใช้แกนของ
+ *    ตัวเอง แล้วสเกลแท่งเพี้ยนทั้งกราฟโดยไม่มี error
+ * 4. **แถวสถานะงาน** ใต้ตัวเลขใหญ่ (งานทั้งหมด/เสร็จแล้ว/นัดไว้/ไม่มาตามนัด/ยกเลิก)
+ *    🛑 เป็น **ที่เดียวในหน้านี้ที่นับใบที่ยกเลิก** — ทุกตัวเลขอื่นตัด `CANCELLED` ทิ้งตั้งแต่
+ *    query ⇒ ร้านตัวอย่างยกเลิก 2 จาก 10 งานแล้วไม่มีทางรู้เลย
+ * 5. **ตารางเหลือ 5 คอลัมน์** `วันที่ · งาน · ยอดขาย · รับจริง · ค้างรับ` — ถอด "มัดจำ"
+ *    (subset ที่บวกไม่ได้ ⇒ ผู้ขายบวกรวมแล้วเกินยอดขาย) และ "ยืนยันแล้ว/ยังไม่ยืนยัน"
+ *    (คนละแกน ย้ายไปแถวสถานะ) · ผลพลอยได้: มือถือไม่ต้องเลื่อนแนวนอนอีกแล้ว
+ * 6. **คำว่า "คำสั่งซื้อ" → "งาน"** ผ่าน `countNounOf()` นิยามเดียว (โผล่ 3 ที่: หัวคอลัมน์ ·
+ *    ป้ายใต้กราฟ · tooltip) — ตรงกับที่ระบบใช้อยู่แล้วใน FAB (`createLabelShort: 'งานใหม่'`)
+ *
+ * perf: `jobStatusCounts` เป็น `groupBy` ที่อยู่ใน `Promise.all` **ก้อนเดิม** ⇒ ขนานกับ query
+ * หลัก ไม่เพิ่ม wall time · และถอด `depositValues`/`receivedConfirmedValues` ที่ไม่มีผู้อ่านแล้ว
+ * ออกจาก payload (เลิกจ่ายทั้ง join `kind` และขนาด flight payload ทุกครั้งที่เปิดหน้า)
  */
 import { useState, useEffect, useRef } from 'react'
 import Icon from '@/components/wrappers/Icon'
@@ -98,6 +126,17 @@ import type { SalesSeries } from '../_constants/command-center'
 import { axisAnchorDays } from './sales-chart-axis'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
+
+/**
+ * คำนามของ "จำนวนใบ" — ร้านบริการเรียกว่า "งาน"
+ *
+ * 🛑 **นิยามเดียวทั้งไฟล์** — คำนี้โผล่ 3 ที่ (หัวคอลัมน์ในตาราง · ป้ายใต้กราฟ · tooltip)
+ * เขียนแยกกันเมื่อไหร่ วันหนึ่งจะมีที่ที่ยังเรียก "คำสั่งซื้อ" อยู่แล้วผู้อ่านนึกว่าเป็นคนละตัวเลข
+ * (HR16) · คำว่า "งาน" ตรงกับที่ระบบใช้อยู่แล้วใน FAB (`createLabelShort: 'งานใหม่'`)
+ *
+ * ไฟล์นี้ hardcode ป้ายภาษาไทยทั้งไฟล์ (ไม่ได้ผ่าน i18n) จึงทำตามแนวเดิมของไฟล์
+ */
+const countNounOf = (isService: boolean) => (isService ? 'งาน' : 'คำสั่งซื้อ')
 
 type Mode = 'daily' | 'monthly'
 
@@ -119,9 +158,25 @@ type Props = {
  */
 export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOptions => {
   const { labels, confirmedValues, unconfirmedValues, orderCounts, shippingValues, futureFromIndex } = series
+  /* ร้านบริการอ่านกราฟด้วยแกนเงิน — ตัวเดียวกับที่ตารางกับแถบสมการใช้ (ดู v9 หัวไฟล์) */
+  const isServiceChart = series.receivedValues != null
+  const receivedSeries = series.receivedValues ?? []
+  /** ค้างรับรายช่อง = ยอดขาย − รับจริง · ไม่ติดลบเพราะสองชุดผูกกับวันที่ขายชุดเดียวกัน */
+  const outstandingSeries = series.values.map((v, i) => Math.max(0, v - (receivedSeries[i] ?? 0)))
+  /** ชื่อซีรีส์แท่งแรก — ApexCharts ใช้จับคู่แกน y ของแท่งทุกตัว (ดูบล็อก `yaxis`) */
+  const barAxisName = isServiceChart ? 'รับจริง' : 'ยืนยันแล้ว'
+  const countNoun = countNounOf(isServiceChart)
   const isDaily = mode === 'daily'
   // undefined = ไม่มีสิทธิ์ดูข้อมูลการเงิน (feature 00016) → ไม่มีแท่งค่าใช้จ่ายเลย
-  const showExpense = shippingValues != null
+  /**
+   * 🛑 มีแท่ง "ค่าส่ง" ในกราฟไหม — **ต้องเป็นตัวแปรเดียวที่ทุกที่ใช้**
+   *
+   * `shippingValues != null` อย่างเดียวไม่พอแล้วหลังร้านบริการเปลี่ยนไปใช้แกนเงิน:
+   * ร้านบริการล็อก `NO_SHIPPING` เสมอ ⇒ ค่าส่ง ฿0 ทุกแท่ง และชุดซีรีส์ของเขามีแค่ 2 แท่ง
+   * ถ้า `colors`/`stroke`/`yaxis`/tooltip ยังคำนวณจาก `showExpense` ดิบ ๆ **ดัชนีจะเลื่อนกันหมด**
+   * (สีของเส้นไปตกที่แท่ง · tooltip อ่านซีรีส์ผิดตัว) โดยไม่มี tsc/เทสตัวไหนฟ้อง
+   */
+  const showExpense = shippingValues != null && series.receivedValues == null
   const bucketCount = labels.length
 
   /**
@@ -141,8 +196,25 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
 
   return {
     series: [
-      { name: 'ยืนยันแล้ว', type: 'column', data: maskFuture(confirmedValues) },
-      { name: 'รอยืนยัน', type: 'column', data: maskFuture(unconfirmedValues) },
+      /**
+       * 🛑 แท่งของร้านบริการแบ่งด้วย **แกนเงิน** ไม่ใช่แกน "ลูกค้ายืนยัน"
+       *
+       * ร้านบริการวัดเดือนด้วย "เก็บเงินได้เท่าไหร่ / ยังค้างเท่าไหร่" ส่วน "ลูกค้ากดยืนยันยัง"
+       * เป็นแกนของร้านขายของ · ที่สำคัญกว่าคือ **ตารางกับแถบสมการข้างล่างใช้แกนเงินอยู่แล้ว**
+       * ⇒ ถ้ากราฟยังใช้แกนเดิม จอเดียวจะมีสองแกนพูดคนละภาษา ซึ่งเป็นเรื่องที่ user ถามว่า
+       * "ทำไมไม่ตรงกัน" มาแล้ว 2 รอบ (2026-08-23)
+       *
+       * ร้าน vertical อื่นไม่แตะเลย — `receivedValues` เป็น undefined ให้เขาเสมอ
+       */
+      ...(isServiceChart
+        ? [
+            { name: 'รับจริง', type: 'column', data: maskFuture(receivedSeries) },
+            { name: 'ค้างรับ', type: 'column', data: maskFuture(outstandingSeries) },
+          ]
+        : [
+            { name: 'ยืนยันแล้ว', type: 'column', data: maskFuture(confirmedValues) },
+            { name: 'รอยืนยัน', type: 'column', data: maskFuture(unconfirmedValues) },
+          ]),
       ...(showExpense
         ? [{ name: 'ค่าส่ง', type: 'column', data: maskFuture(shippingValues) }]
         : []),
@@ -203,10 +275,12 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
      * แท่งทุกตัวต้องผูก seriesName เดียวกันเพื่อใช้สเกลร่วมกัน (หน่วยบาทเหมือนกัน)
      * แกนสุดท้ายเป็นของเส้นคำสั่งซื้อ (หน่วย "ใบ") จึงแยกสเกล
      */
+    /* ชื่อซีรีส์แรกต่างกันตาม vertical — ApexCharts จับคู่แกนด้วย `seriesName` ถ้าชื่อไม่ตรง
+       ซีรีส์นั้นจะไปใช้แกนของตัวเองแล้วสเกลแท่งเพี้ยนทั้งกราฟ */
     yaxis: [
-      { show: false, tickAmount: 3, seriesName: 'ยืนยันแล้ว' },
-      { show: false, tickAmount: 3, seriesName: 'ยืนยันแล้ว' },
-      ...(showExpense ? [{ show: false, tickAmount: 3, seriesName: 'ยืนยันแล้ว' }] : []),
+      { show: false, tickAmount: 3, seriesName: barAxisName },
+      { show: false, tickAmount: 3, seriesName: barAxisName },
+      ...(showExpense ? [{ show: false, tickAmount: 3, seriesName: barAxisName }] : []),
       { show: false, opposite: true, seriesName: 'คำสั่งซื้อ', min: 0 },
     ],
     grid: {
@@ -255,9 +329,12 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
           // นอก React tree — Tailwind class ใช้ไม่ได้ (ต่างจากป้ายแกน 10px ที่ยกเว้นไว้แล้วใน config
           // เพราะ 31 วันเบียดกัน · tooltip ไม่มีข้อจำกัดนั้น จึงไม่มีเหตุให้หลุด ramp)
           `<div style="padding:6px 10px;font-size:13px;line-height:1.6">` +
-          `<div style="font-weight:600;margin-bottom:2px">${label} · ${formatNumberNoSymbol(orders)} คำสั่งซื้อ</div>` +
-          `<div>${dot(getColor('success'))}ยืนยันแล้ว ${formatNumberNoSymbol(conf)}</div>` +
-          `<div>${dot(getColor('warning'))}รอยืนยัน ${formatNumberNoSymbol(unconf)}</div>` +
+          /* 🛑 ป้ายใน tooltip ต้องเป็นชุดเดียวกับซีรีส์ที่วาดจริง — ร้านบริการเป็น รับจริง/ค้างรับ
+             ไม่ใช่ ยืนยันแล้ว/รอยืนยัน · ถ้าลืมตรงนี้ tooltip จะอ่านเลขถูกแต่เรียกชื่อผิด
+             ซึ่งแย่กว่าไม่มี tooltip เพราะผู้ขายจะเชื่อชื่อ (HR16) */
+          `<div style="font-weight:600;margin-bottom:2px">${label} · ${formatNumberNoSymbol(orders)} ${countNoun}</div>` +
+          `<div>${dot(getColor('success'))}${isServiceChart ? 'รับจริง' : 'ยืนยันแล้ว'} ${formatNumberNoSymbol(conf)}</div>` +
+          `<div>${dot(getColor('warning'))}${isServiceChart ? 'ค้างรับ' : 'รอยืนยัน'} ${formatNumberNoSymbol(unconf)}</div>` +
           (exp != null ? `<div>${dot(getColor('chart-beta'))}ค่าส่ง ${formatNumberNoSymbol(exp)}</div>` : '') +
           `<div style="font-weight:600;margin-top:4px">ยอดขายรวม ${formatNumberNoSymbol(conf + unconf)}</div>` +
           `</div>`
@@ -383,6 +460,15 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
   const chg = chgRaw != null ? Math.round(chgRaw) : null
   const confirmedTotal = series.confirmedValues.reduce((s, v) => s + v, 0)
   const unconfirmedTotal = series.total - confirmedTotal
+  /**
+   * ร้านบริการไหม — 🛑 ตัดสินจาก **"service คิดชุดเงินรายวันมาให้หรือเปล่า"** ไม่ใช่รับ prop
+   * `vertical` มาอีกทาง · ชุดนี้จะมีก็ต่อเมื่อ `getSalesSeries` เห็นว่าเป็น `SERVICE_QUEUE`
+   * ⇒ หน้าจอกับ service ตัดสินจากแหล่งเดียวกันเสมอ ไม่มีทางเพี้ยนคนละทาง
+   * (ถ้ารับ prop แยก วันหนึ่งจะมีหน้าที่ส่ง vertical ถูกแต่ service ไม่ได้คิดชุดข้อมูลมา
+   *  แล้วตารางจะโชว์หัวคอลัมน์ "รับจริง" ที่ว่างทั้งคอลัมน์)
+   */
+  const isService = series.receivedValues != null
+
   // ไม่ผ่าน gate สิทธิ์ → ไม่มีค่าใช้จ่าย/กำไรเลย: hero กลับไปเป็นยอดขายเหมือนเดิม ไม่ใช่โชว์ 0
   const hasFinance = series.totalShipping != null
   const shippingTotal = series.totalShipping ?? 0
@@ -394,8 +480,36 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
    * (ดูหมายเหตุ v5 หัวไฟล์ — /expenses ลบออกจาก "ยืนยันแล้ว" สองหน้าจึงไม่เท่ากันโดยตั้งใจ)
    */
   const profit = series.total - cogsTotal - shippingTotal
-  const heroValue = hasFinance ? profit : series.total
-  const heroTone = !hasFinance ? 'text-dark' : profit >= 0 ? 'text-success-ink' : 'text-danger-ink'
+
+  /* ── ร้านบริการ: ทั้งหน้าใช้แกนเงิน ────────────────────────────────────────────────── */
+  /** นับงานตามสถานะทั้งช่วง — undefined = ไม่ใช่ร้านบริการ ⇒ ไม่แสดงแถวสถานะเลย */
+  const jobs = series.jobStatusCounts
+  const receivedTotal = (series.receivedValues ?? []).reduce((a, b) => a + b, 0)
+  /** ค้างรับรวม = ยอดขาย − รับจริง (ทั้งคู่ผูกกับวันที่ขายชุดเดียวกัน จึงไม่ติดลบ) */
+  const outstandingTotal = Math.max(0, series.total - receivedTotal)
+
+  /**
+   * 🛑 ตัวเลขใหญ่ของร้านบริการคือ **เงินที่รับจริง** ไม่ใช่ "กำไร"
+   *
+   * เหตุผลที่ไม่ใช่แค่เรื่องคำ: ร้านบริการไม่มีต้นทุนสินค้า (ไม่มีของให้ตั้งทุน) ⇒ `cogsTotal`
+   * เป็น 0 เสมอ และค่าส่งถูกล็อก `NO_SHIPPING` ⇒ **กำไร = ยอดขาย เป๊ะทุกบาท**
+   * (ร้านตัวอย่าง ส.ค. 2569: กำไร 22,393 = ยอดขาย 22,393) ⇒ คำว่า "กำไร" ไม่ได้ให้ข้อมูล
+   * เพิ่มเลยสักบาท มันแค่เรียกยอดขายด้วยชื่อที่ผิด
+   *
+   * ส่วน "เงินที่รับจริง" คือเลขที่ร้านบริการถามเป็นข้อแรก และต่างจากยอดขายจริง ๆ
+   * (22,393 vs 20,890 — ต่างกัน 1,503 ที่ยังเก็บไม่ได้)
+   *
+   * 🛑 invariant ยังอยู่: ผลรวมคอลัมน์ "รับจริง" ในตารางทุกแถว = ตัวเลขใหญ่ตัวนี้พอดี
+   */
+  const heroValue = isService ? receivedTotal : hasFinance ? profit : series.total
+  const heroLabel = isService ? 'เงินที่รับจริง' : hasFinance ? 'กำไร/ขาดทุน' : 'ยอดขาย'
+  const heroTone = isService
+    ? 'text-dark'
+    : !hasFinance
+      ? 'text-dark'
+      : profit >= 0
+        ? 'text-success-ink'
+        : 'text-danger-ink'
 
   const periodLabel =
     mode === 'daily'
@@ -407,14 +521,6 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
   const isEmpty = !loading && !error && series.total === 0
 
   // แสดงเฉพาะ bucket ที่มีความเคลื่อนไหวจริง — เดือนที่ขายจริง 3 วันไม่ควรต้องเลื่อนผ่าน "0" อีก 28 แถว
-  /**
-   * ร้านบริการไหม — 🛑 ตัดสินจาก **"service คิดชุดเงินรายวันมาให้หรือเปล่า"** ไม่ใช่รับ prop
-   * `vertical` มาอีกทาง · ชุดนี้จะมีก็ต่อเมื่อ `getSalesSeries` เห็นว่าเป็น `SERVICE_QUEUE`
-   * ⇒ หน้าจอกับ service ตัดสินจากแหล่งเดียวกันเสมอ ไม่มีทางเพี้ยนคนละทาง
-   * (ถ้ารับ prop แยก วันหนึ่งจะมีหน้าที่ส่ง vertical ถูกแต่ service ไม่ได้คิดชุดข้อมูลมา
-   *  แล้วตารางจะโชว์หัวคอลัมน์ "รับจริง" ที่ว่างทั้งคอลัมน์)
-   */
-  const isService = series.receivedValues != null
 
   /** มีใบที่ยังไม่เคยบันทึกรับเงินในช่วงที่ดูอยู่ไหม — ตัวเปิดหมายเหตุใต้ตาราง */
   const hasUnrecorded = (series.unrecordedValues ?? []).some((v) => v > 0)
@@ -442,13 +548,9 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
       cogs: series.cogsValues?.[i] ?? 0,
       expense: series.shippingValues?.[i] ?? 0,
       /* เงินที่ "เข้าจริง" ในช่องนั้น — เฉพาะร้านบริการ (undefined = ไม่ใช่ร้านบริการ) */
-      deposit: series.depositValues?.[i] ?? 0,
       received: series.receivedValues?.[i] ?? 0,
       /* ยอดขายของใบที่ยังไม่เคยบันทึกรับเงินเลยในช่องนั้น — ตัวแยก "ค้างจริง" ออกจาก "ไม่รู้" */
       unrecorded: series.unrecordedValues?.[i] ?? 0,
-      /* ส่วนของ `received` ที่มาจากใบที่ "ยืนยันแล้ว" — ที่เหลือคือเงินของงานที่ยังไม่ยืนยัน
-         (derive ที่นี่ที่เดียว ไม่ส่งมาสองอาร์เรย์ เพราะสองก้อนต้องบวกกันได้พอดีเสมอ) */
-      receivedConfirmed: series.receivedConfirmedValues?.[i] ?? 0,
     }))
     /* 🛑 ไม่ต้องนับ `received` เข้าเงื่อนไข "แถวนี้มีอะไรไหม" — เงินทุกก้อนลงแถวตาม *วันที่ขาย*
        ของออเดอร์ที่มันสังกัด (ดูประกาศ `receivedValues` ใน dashboard.service.ts) ⇒ แถวที่มี
@@ -462,12 +564,16 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
 
   return (
     // HR7: fixed inset-0 z-80 = full-screen viewport-lock (Paces ไม่มี token) — pattern เดียวกับ AddressSearchSheet
-    <div className="fixed inset-0 z-80 flex flex-col bg-card" role="dialog" aria-label="รายงานยอดขายและกำไร">
+    <div className="fixed inset-0 z-80 flex flex-col bg-card" role="dialog" aria-label={isService ? 'รายงานยอดขายและการเก็บเงิน' : 'รายงานยอดขายและกำไร'}>
       <div className="flex shrink-0 items-center gap-3 border-b border-default-200 px-4 py-3">
         <button type="button" onClick={onClose} aria-label="ปิด" className="shrink-0 text-default-700">
           <Icon icon="chevron-left" className="size-6" />
         </button>
-        <h3 className="flex-1 text-base font-semibold text-dark">ยอดขายและกำไร</h3>
+        {/* ร้านบริการไม่มีต้นทุนสินค้า ⇒ "กำไร" = ยอดขายเป๊ะ ๆ · ชื่อหน้าจึงต้องพูดถึงสิ่งที่
+                    หน้านี้บอกเขาได้จริง คือ "เก็บเงินได้เท่าไหร่แล้ว" (ดูเหตุผลเต็มที่ heroLabel) */}
+              <h3 className="flex-1 text-base font-semibold text-dark">
+                {isService ? 'ยอดขายและการเก็บเงิน' : 'ยอดขายและกำไร'}
+              </h3>
 
         {/* segmented [รายวัน|รายเดือน] — ไม่มี named component ใน theme (Preline) — utility ล้วน ไม่ arbitrary */}
         <div className="flex items-center gap-0.5 rounded-lg bg-default-100 p-0.5">
@@ -527,7 +633,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
               "ทั้งเดือน" ซึ่งบอกแค่ *ช่วงเวลา* ทั้งที่ช่วงเวลาอยู่บนหัวบรรทัดถัดขึ้นไปแล้ว
               ตัวเลขจึงไม่มีอะไรบอกเลยว่าเป็นเงินอะไร) ส่วนที่มาของมันอ่านได้จากแถบสมการข้างล่างทันที */}
           <div className="mb-3 text-center">
-            <p className="text-xs text-default-700">{hasFinance ? 'กำไร/ขาดทุน' : 'ยอดขาย'}</p>
+            <p className="text-xs text-default-700">{heroLabel}</p>
             <p className={`text-3xl font-bold tabular-nums ${heroTone}`}>{formatNumberNoSymbol(heroValue)}</p>
             {chg != null && (
               <p className="mt-0.5 flex items-center justify-center gap-1 text-sm text-default-700">
@@ -554,6 +660,28 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
               "ต้นทุนสินค้า" ไม่มีจุดสีเพราะไม่มีซีรีส์ในกราฟ (ดู v5 หัวไฟล์) — ใส่จุดให้ของที่ไม่ได้
               อยู่ในกราฟจะทำให้จุดสีเลิกแปลว่า "แท่งไหนคือช่องไหน" ทั้งแถบ */}
           <div className="mb-4 flex items-stretch border-y border-dashed border-default-300">
+            {/**
+              * 🛑 ร้านบริการอ่านแถบนี้ด้วย **แกนเงิน** — `รับจริง + ค้างรับ = ยอดขาย`
+              *
+              * ต้องเป็นแกนเดียวกับกราฟและตาราง ไม่งั้นจอเดียวมีสองแกนพูดคนละภาษา ซึ่งเป็น
+              * เรื่องที่ user ถามว่า "ทำไมไม่ตรงกัน" มาแล้ว 2 รอบ (2026-08-23): แถบบนบอก
+              * "ยืนยันแล้ว 20,290" (ทั้งเดือน · แกนลูกค้ายืนยัน) ส่วนตารางบอก "รับจริง 20,890"
+              * (วันเดียว · แกนเงิน) — สองเลขที่ไม่มีวันเท่ากันวางอยู่บนจอเดียว
+              *
+              * จุดสีตรงกับซีรีส์ในกราฟ 1:1 เหมือนเดิม (เขียว=รับจริง เหลือง=ค้างรับ)
+              * และช่องสุดท้าย "ยอดขาย" ไม่มีจุดสีเพราะเป็น **ผลรวมของสองแท่ง** ไม่ใช่ซีรีส์
+              * (กติกาเดียวกับ "ต้นทุนสินค้า" ของร้านขายของ — ดู v5 หัวไฟล์)
+              */}
+            {isService ? (
+              <>
+                <LegendCell color="bg-success" label="รับจริง" value={receivedTotal} />
+                <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">+</span>
+                <LegendCell color="bg-warning" label="ค้างรับ" value={outstandingTotal} />
+                <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">=</span>
+                <LegendCell label="ยอดขาย" value={series.total} />
+              </>
+            ) : (
+              <>
             <LegendCell color="bg-warning" label="รอยืนยัน" value={unconfirmedTotal} />
             <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">+</span>
             <LegendCell color="bg-success" label="ยืนยันแล้ว" value={confirmedTotal} />
@@ -569,7 +697,50 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                 <LegendCell color="bg-danger" label="ค่าส่ง" value={shippingTotal} />
               </>
             )}
+              </>
+            )}
           </div>
+
+          {/**
+            * แถวสถานะงาน — เฉพาะร้านบริการ (user สั่ง 2026-08-23)
+            *
+            * 🛑 **นี่คือที่เดียวในหน้านี้ที่นับใบที่ยกเลิก** — ทุกตัวเลขอื่นตัด `CANCELLED` ทิ้ง
+            * ตั้งแต่ query ⇒ ร้านตัวอย่างยกเลิกไป 2 จาก 10 งานในเดือน ส.ค. แล้ว **ไม่มีทางรู้
+            * จากหน้านี้เลย** · การซ่อนงานที่ยกเลิกคือการรายงานเดือนที่ดูดีกว่าความจริง
+            *
+            * "ไม่มาตามนัด" ขึ้นเฉพาะเมื่อมีจริง — ช่องที่เป็น 0 ตลอดไม่ได้บอกอะไร มันแค่กินที่
+            * (กติกาเดียวกับช่อง "ค่าส่ง" ของร้านบริการที่ซ่อนไปแล้ว)
+            *
+            * 4 กลุ่มไม่ทับกันและบวกกันได้ `total` พอดี — เกณฑ์อยู่ที่ `dashboard.service.ts`
+            * ที่เดียว (ยกเลิกชนะทุกอย่าง → เสร็จแล้ว → ไม่มาตามนัด → ที่เหลือ)
+            */}
+          {jobs && (
+            <div className="mb-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-default-700">
+              <span>
+                งานทั้งหมด <b className="text-dark tabular-nums">{jobs.total}</b>
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>
+                เสร็จแล้ว <b className="text-success-ink tabular-nums">{jobs.completed}</b>
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>
+                นัดไว้ <b className="text-dark tabular-nums">{jobs.upcoming}</b>
+              </span>
+              {jobs.noShow > 0 && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    ไม่มาตามนัด <b className="text-warning-ink tabular-nums">{jobs.noShow}</b>
+                  </span>
+                </>
+              )}
+              <span aria-hidden="true">·</span>
+              <span>
+                ยกเลิก <b className="text-danger-ink tabular-nums">{jobs.cancelled}</b>
+              </span>
+            </div>
+          )}
 
           {error ? (
             <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
@@ -619,7 +790,8 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                 <span className="h-0.5 w-3 shrink-0 rounded-full bg-primary" aria-hidden="true" />
                 {/* ใช้คำเดียวกับหัวคอลัมน์ในตารางเป๊ะ ("คำสั่งซื้อ") — ของสิ่งเดียวกันต้องเรียกชื่อ
                     เดียวกันทั้งจอ ไม่งั้นผู้อ่านจะนึกว่าเป็นคนละตัวเลข (HR16) */}
-                เส้น = จำนวนคำสั่งซื้อ (คนละสเกลกับแท่ง ซึ่งเป็นยอดเงิน)
+                {/* คำนามต้องตรงกับหัวคอลัมน์ในตารางและ tooltip — ผ่าน `countNounOf` ตัวเดียว (HR16) */}
+                เส้น = จำนวน{countNounOf(isService)} (คนละสเกลกับแท่ง ซึ่งเป็นยอดเงิน)
               </p>
             </>
           )}
@@ -644,7 +816,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                 {/* วันที่/คำสั่งซื้อ กึ่งกลาง (user สั่ง 2026-08-07) — ค่าสั้นความยาวคงที่
                     ต่างจากคอลัมน์เงินที่ยังชิดขวาเพื่อให้หลักหน่วยตรงกันทั้งคอลัมน์ */}
                 <span className="w-8 shrink-0 text-center">{mode === 'daily' ? 'วันที่' : 'เดือน'}</span>
-                <span className="w-11 shrink-0 text-center">คำสั่งซื้อ</span>
+                <span className="w-11 shrink-0 text-center">{countNounOf(isService)}</span>
                 <span className="min-w-14 flex-1 basis-0 text-end">ยอดขาย</span>
                 {/* 🛑 ร้านบริการได้คอลัมน์เงินแทน "ต้นทุน/ค่าส่ง/กำไร" ซึ่ง**ว่างเปล่าเสมอ**สำหรับ
                     ร้านประเภทนี้: `SERVICE_QUEUE` ถูกล็อกเป็น `NO_SHIPPING` ตายตัว ⇒ ไม่มีทาง
@@ -665,10 +837,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                       * ใช้คำ "ยืนยันแล้ว"/"ยังไม่ยืนยัน" ตรงกับแถบสมการเหนือกราฟเป๊ะ และเกณฑ์
                       * ก็เป็น `countsAsRevenue` ตัวเดียวกัน — คำเดียวกันต้องแปลว่าของเดียวกัน (HR16)
                       */}
-                    <span className="min-w-14 flex-1 basis-0 text-end">มัดจำ</span>
                     <span className="min-w-14 flex-1 basis-0 text-end">รับจริง</span>
-                    <span className="min-w-14 flex-1 basis-0 text-end">ยืนยันแล้ว</span>
-                    <span className="min-w-14 flex-1 basis-0 text-end">ยังไม่ยืนยัน</span>
                     <span className="min-w-14 flex-1 basis-0 text-end">ค้างรับ</span>
                   </>
                 ) : (
@@ -694,36 +863,13 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                       </span>
                       {isService && (
                         <>
-                          {/* มัดจำ — ส่วนหนึ่งของ "รับจริง" ไม่ใช่ก้อนแยก จึงใช้สีอ่อนกว่า */}
-                          <span className="min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums text-default-700">
-                            {r.deposit > 0 ? formatNumberNoSymbol(r.deposit) : '—'}
-                          </span>
-                          {/* รับจริง = มัดจำ + ยอดที่เก็บเพิ่ม ของงานที่ขายวันนั้น (รวมเงินที่เก็บทีหลัง) */}
+                          {/* รับจริง = เงินที่เข้ามาแล้วของงานที่ขายวันนั้น (รวมเงินที่เก็บทีหลัง)
+                              🛑 คอลัมน์ "มัดจำ" กับ "ยืนยันแล้ว/ยังไม่ยืนยัน" ถูกถอดออก 2026-08-23
+                              พร้อมการย้ายทั้งหน้ามาใช้แกนเงินแกนเดียว — มัดจำเป็น subset ที่บวกไม่ได้
+                              (ชวนให้บวกรวมแล้วเกินยอดขาย) ส่วนแกน "ลูกค้ายืนยัน" ย้ายไปเป็น
+                              แถวสถานะงานใต้ตัวเลขใหญ่ ซึ่งตอบได้ตรงกว่าและนับใบที่ยกเลิกได้ด้วย */}
                           <span className="min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums text-dark">
                             {r.received > 0 ? formatNumberNoSymbol(r.received) : '—'}
-                          </span>
-                          {/**
-                            * ยืนยันแล้ว — ส่วนของ "รับจริง" ที่มาจากงานซึ่งลูกค้ายืนยันแล้ว
-                            * = เงินที่จบเรื่องแล้วจริง ๆ · ใช้สีเดียวกับ "ยืนยันแล้ว" บนแถบสมการ
-                            * (จุดสีเขียว) เพราะเป็นก้อนเดียวกันคนละมุมมอง
-                            */}
-                          <span className="min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums text-success-ink">
-                            {r.receivedConfirmed > 0 ? formatNumberNoSymbol(r.receivedConfirmed) : '—'}
-                          </span>
-                          {/**
-                            * ยังไม่ยืนยัน — เงินที่ได้มาแล้วแต่ **งานยังไม่จบ**
-                            *
-                            * 🛑 นี่คือเลขที่ร้านบริการต้องระวังที่สุดในแถว: ถ้าลูกค้ายกเลิก
-                            * อาจต้องคืนเงินก้อนนี้ ⇒ ไม่ใช่กำไรที่ใช้ได้เต็มปาก
-                            * ใช้สีเดียวกับ "รอยืนยัน" บนแถบสมการ (จุดสีเหลือง) — ก้อนเดียวกัน
-                            *
-                            * derive จาก `received − receivedConfirmed` ไม่รับมาเป็นอาร์เรย์ที่สาม
-                            * ⇒ สองก้อนบวกกันได้เท่ากับ "รับจริง" เสมอโดยโครงสร้าง เพี้ยนไม่ได้
-                            */}
-                          <span className="min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums text-warning-ink">
-                            {r.received - r.receivedConfirmed > 0
-                              ? formatNumberNoSymbol(r.received - r.receivedConfirmed)
-                              : '—'}
                           </span>
                           {/**
                             * ค้างรับ = ยอดขาย − รับจริง ของ **งานชุดเดียวกัน** (ทั้งคู่ผูกกับวันที่ขาย
@@ -789,13 +935,12 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                 *
                 * 🛑 สองประโยคนี้ปิดช่องเข้าใจผิดที่ **ตัวเลขอย่างเดียวปิดไม่ได้**:
                 *
-                * 1. ตอนนี้ "รับจริง" มีลูก **สองชุดที่คนละแบบกัน** วางอยู่ในแถวเดียว:
-                *    · `ยืนยันแล้ว + ยังไม่ยืนยัน = รับจริง`  ← **บวกกันได้พอดี**
-                *    · `มัดจำ ⊆ รับจริง`                     ← **ไม่ใช่ก้อนบวก** (คนละมุมมอง: แบ่ง
-                *      ตามชนิดการจ่าย ไม่ใช่ตามสถานะงาน)
-                *    ทั้งชีตนี้ออกแบบให้ผู้ขายไล่บวกลบตามด้วยนิ้วได้ (ดูแถบสมการหัวชีต) ⇒ ถ้าไม่บอก
-                *    ว่าอันไหนบวกได้อันไหนไม่ได้ จะบวกรวมกันแล้วเกินยอดขาย แล้วสรุปว่าระบบคำนวณผิด
-                *    ทั้งหน้า (HR16) — user ถามเรื่องนี้ตรง ๆ มาแล้ว 2026-08-23
+                * 1. ยืนยันว่าแถวบวกลบตามได้จริง — `รับจริง + ค้างรับ = ยอดขาย` ทุกแถว
+                *    ทั้งชีตนี้ออกแบบให้ผู้ขายไล่บวกลบตามด้วยนิ้วได้ (ดูแถบสมการหัวชีต) การเขียน
+                *    สมการไว้ตรง ๆ ทำให้เขาไม่ต้องเดาว่าคอลัมน์ไหนสัมพันธ์กับคอลัมน์ไหน
+                *    🛑 ก่อน 2026-08-23 ตารางมี "มัดจำ" (subset ที่บวกไม่ได้) กับ
+                *    "ยืนยันแล้ว/ยังไม่ยืนยัน" (แกนคนละแกน) ปนอยู่ด้วย — user บวกรวมแล้วเกินยอดขาย
+                *    จึงถามว่าระบบคำนวณผิดไหม ⇒ ถอดออกทั้งคู่ เหลือแกนเงินแกนเดียว
                 *
                 * 2. ใบที่ยังไม่เคยบันทึกรับเงิน = **ไม่รู้** ไม่ใช่ "ยังไม่จ่าย" ⇒ ยอดค้างรับของวันนั้น
                 *    เป็นเพดานบน ไม่ใช่ยอดที่ยืนยันแล้ว (`partial-data-must-be-labeled-or-filled.md`
@@ -807,8 +952,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
               {isService && (
               <div className="border-t border-dashed border-default-300 px-4 py-2.5 lg:px-5">
                 <p className="text-2xs leading-relaxed text-default-700">
-                  &ldquo;ยืนยันแล้ว&rdquo; + &ldquo;ยังไม่ยืนยัน&rdquo; = &ldquo;รับจริง&rdquo; ·
-                  ส่วน &ldquo;มัดจำ&rdquo; นับรวมอยู่ใน &ldquo;รับจริง&rdquo; แล้วเช่นกัน ไม่ใช่ยอดที่ต้องบวกเพิ่ม
+                  &ldquo;รับจริง&rdquo; + &ldquo;ค้างรับ&rdquo; = &ldquo;ยอดขาย&rdquo; ทุกแถว
                   {hasUnrecorded && (
                     <>
                       {' · '}
