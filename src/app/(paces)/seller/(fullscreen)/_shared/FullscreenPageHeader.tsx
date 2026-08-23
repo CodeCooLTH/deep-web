@@ -29,8 +29,18 @@ export type FullscreenPageHeaderProps = {
   saveLabel?: string
   saveFormId?: string
   disableSave?: boolean
-  /** ปลายทางปุ่ม back ตายตัว (เช่น "/orders") — ไม่ส่ง = history-aware (back()/dashboard fallback) */
+  /**
+   * ปลายทางปุ่ม back **ตายตัว** (เช่น "/orders") — ไปที่นี่เสมอไม่ว่ามาจากไหน
+   * สั่ง `router.replace` ไม่ใช่ `push` (ดู `src/lib/back-navigation.ts`)
+   */
   backHref?: string
+  /**
+   * ปลายทาง **สำรอง** — ถอยประวัติก่อนเสมอ ใช้ค่านี้ต่อเมื่อไม่มีอะไรให้ถอย (เปิดลิงก์ตรงเข้ามา)
+   *
+   * ใช้กับหน้าที่มีหลายทางเข้า — "ย้อนกลับ" ของหน้าพวกนั้นแปลว่า *กลับไปที่ที่เพิ่งมา*
+   * ไม่ใช่ปลายทางที่เราเดาให้ (หน้าแก้ไขออเดอร์เข้าได้ทั้งจากรายละเอียดและจากรายการออเดอร์)
+   */
+  backFallbackHref?: string
   /**
    * feature 00035 — ยังไม่บันทึก: กดปุ่มย้อนกลับต้องเด้งยืนยันก่อนออกจากหน้า (เหมือนปุ่ม "ยกเลิก")
    * ไม่ส่ง/false = พฤติกรรมเดิม (ออกทันที) — caller เดิมทั้งหมดไม่ต้องแก้อะไร
@@ -68,6 +78,7 @@ export default function FullscreenPageHeader({
   saveFormId,
   disableSave,
   backHref,
+  backFallbackHref,
   isDirty,
   toolbarExtra,
   toolbarLeading,
@@ -93,7 +104,7 @@ export default function FullscreenPageHeader({
           SellerMobileHeader pattern — แยก navigation (ซ้าย) กับ action (ขวา) ชัดเจน */}
       <div className="flex items-center gap-3">
         {/* Back button ซ้าย — client component (ต้องการ router.push/back()) */}
-        <FullscreenBackButton backHref={backHref} isDirty={isDirty} />
+        <FullscreenBackButton backHref={backHref} backFallbackHref={backFallbackHref} isDirty={isDirty} />
 
         {/* Title block — flex-1 min-w-0 truncate กัน overflow บน mobile
             feature 00035: ห่อ title + toolbarLeading ไว้ในกล่อง flex-1 เดียวกัน เพื่อให้เครื่องมือที่

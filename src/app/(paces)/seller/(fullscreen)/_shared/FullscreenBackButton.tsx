@@ -18,23 +18,36 @@
 import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
 
+import { resolveBackNavigation } from '@/lib/back-navigation'
 import { pacesConfirm } from '@/lib/paces-swal'
 
-export default function FullscreenBackButton({ backHref, isDirty }: { backHref?: string; isDirty?: boolean }) {
+export default function FullscreenBackButton({
+  backHref,
+  backFallbackHref,
+  isDirty,
+}: {
+  backHref?: string
+  backFallbackHref?: string
+  isDirty?: boolean
+}) {
   const router = useRouter()
 
   const navigateAway = () => {
-    // backHref = ปลายทางตายตัว (เช่น orders/new → /orders เสมอ ไม่ใช่ previous)
-    if (backHref) {
-      router.push(backHref)
-      return
-    }
-    // deep-link safe: ถ้าไม่มี history → ไป /dashboard แทน back() ออกแอป
-    if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back()
-    } else {
-      router.push('/dashboard')
-    }
+    /**
+     * 🛑 ตรรกะทั้งหมดอยู่ที่ `resolveBackNavigation` (ฟังก์ชันบริสุทธิ์) ไม่ใช่ที่นี่ —
+     * เดิมเป็น if/else ในนี้แล้วสาขา `backHref` สั่ง **`push`** ซึ่งเพิ่ม entry เข้าประวัติ
+     * ⇒ หน้าแก้ไขออเดอร์กับหน้ารายละเอียดผลักกันไปมาไม่รู้จบ (user เจอบน prod 2026-08-23)
+     * ไม่มี gate ไหนจับได้เพราะ `router.push()` ถูกทุกตัวอักษร — ยกออกไปให้เทสจับแทน
+     */
+    const nav = resolveBackNavigation({
+      backHref,
+      backFallbackHref,
+      historyLength: typeof window === 'undefined' ? 0 : window.history.length,
+    })
+
+    if (nav.action === 'back') router.back()
+    else if (nav.action === 'replace') router.replace(nav.href)
+    else router.push(nav.href)
   }
 
   const handleBack = async () => {

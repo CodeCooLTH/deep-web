@@ -153,12 +153,22 @@ export default async function EditOrderPage({ params }: PageProps) {
 
   return (
     <>
-      {/* backHref ชี้กลับหน้ารายละเอียดออเดอร์ (ที่มาของปุ่มแก้ไข) — ไม่ใช่ /orders
-          cancelHref เป็น deprecated prop แล้ว (FullscreenPageHeader M0-a) */}
+      {/**
+        * 🛑 `backFallbackHref` **ไม่ใช่ `backHref`** — หน้านี้มีทางเข้า 2 ทาง (ปุ่มแก้ไขบนหน้า
+        * รายละเอียด และเมนู ⋮ ในรายการออเดอร์) ⇒ "ย้อนกลับ" แปลว่า *กลับไปที่ที่เพิ่งมา*
+        * ซึ่งมีแต่ประวัติที่รู้ ไม่ใช่ปลายทางที่เราเดาให้
+        *
+        * เดิมส่ง `backHref` ซึ่งสั่ง `push` ⇒ เพิ่ม entry เข้าประวัติแทนที่จะถอย ⇒ ผลักกันไปมา
+        * กับหน้ารายละเอียด (ที่ใช้ `back()`) ไม่รู้จบ — user เจอเองบน prod 2026-08-23
+        * เหตุผลเต็มอยู่ที่ `src/lib/back-navigation.ts`
+        *
+        * ค่านี้ถูกใช้เฉพาะตอนเปิดลิงก์แก้ไขขึ้นมาตรง ๆ (ไม่มีประวัติให้ถอย)
+        * cancelHref เป็น deprecated prop แล้ว (FullscreenPageHeader M0-a)
+        */}
       <FullscreenPageHeader
         title={`แก้ไข${vocab.noun}`}
         subtitle={orderNo}
-        backHref={`/orders/${order.publicToken}`}
+        backFallbackHref={`/orders/${order.publicToken}`}
         saveFormId={FORM_ID}
         saveLabel="บันทึกการแก้ไข"
       />
