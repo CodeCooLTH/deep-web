@@ -200,6 +200,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
           unreadChatCount={unreadChatCount}
           orderVocab={orderVocab}
           shopVertical={shop.vertical}
+          /* 🛑 ส่ง `kind` จริงลงไปด้วย ไม่ใช่ค่าปลอม — FAB เรียก `canUseAppointments()` ตัวเดียว
+             กับที่หน้า `/settings/job-types` ใช้เป็น guard · วันที่เกณฑ์กลับมาสนใจ `kind` อีก
+             (เคยสนใจแล้วถอดออกไปเมื่อ 00028) ปุ่มกับหน้าจะยังตรงกันเองโดยไม่ต้องมีใครจำ */
+          shopKind={active.kind}
         />
       }
       sidenavFooterSlot={<OnboardingGate />}

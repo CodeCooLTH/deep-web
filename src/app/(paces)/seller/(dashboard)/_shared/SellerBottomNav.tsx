@@ -31,6 +31,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import { byVertical } from '@/i18n/vertical'
+import { canUseAppointments } from '@/lib/appointments'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 
 // ─── FAB_ACTIONS — reuse ตรงจาก CreateFab (href verified จากไฟล์นั้น) ────────
@@ -40,14 +41,40 @@ import type { Dictionary } from '@/i18n/dictionaries/th'
 // ตาม PRD S-3) เป็น pill ล่างสุด/ใกล้นิ้วสุด — อ่านจาก FAB ขึ้นบน = ออเดอร์→สินค้า→หมวดหมู่
 // ตรงกับ scope acceptance S-7 (ห้ามสลับลำดับ array โดยไม่ดูทิศ flex-col)
 // feature 00030: ป้ายของ action ออเดอร์ผันตามประเภทกิจการ จึงเป็นฟังก์ชันไม่ใช่ constant
-// (อีก 2 ตัวคงที่ — สินค้า/หมวดหมู่ ไม่ผูกกับ vertical)
-const buildFabActions = (vocab: OrderVocab, t: Dictionary, vertical: string | null | undefined) =>
+// 2026-08-23 (user สั่ง): ช่องแรกผันตาม vertical ด้วยแล้ว — เหลือ "สินค้า" ตัวเดียวที่คงที่
+const buildFabActions = (
+  vocab: OrderVocab,
+  t: Dictionary,
+  vertical: string | null | undefined,
+  kind: string | null | undefined,
+) =>
   [
-    {
-      label: t.dashboard.navCreateCategory,
-      href: '/categories',
-      icon: 'category-plus',
-    },
+    /**
+     * ช่องแรก — ของที่ต้อง "ตั้งไว้ก่อน" ถึงจะเปิดรับงาน/ขายได้ · คนละอย่างตามประเภทกิจการ
+     *
+     * · ร้านบริการ → **ประเภทงาน** (`/settings/job-types`) — user สั่งเปลี่ยน 2026-08-23
+     *   ร้านบริการไม่มีคำว่า "หมวดหมู่สินค้า" อยู่ในหัวเลย ปุ่มเดิมจึงพาไปที่ที่ไม่เกี่ยวกับงานเขา
+     * · ร้านอื่น → หมวดหมู่สินค้าเหมือนเดิม
+     *
+     * 🛑 **ห้ามเปลี่ยนเป็นประเภทงานให้ทุก vertical** — `settings/job-types/page.tsx` เรียก
+     * `notFound()` เมื่อ `canUseAppointments()` ไม่ผ่าน ⇒ ร้านขายออนไลน์จะได้ปุ่มที่พาไป 404
+     * (คลาสเดียวกับ 00028: ฟีเจอร์ที่กันด้วยการซ่อนเมนูอย่างเดียว แล้วมีทางเข้าอื่นหลุด)
+     *
+     * 🛑 ใช้ `canUseAppointments()` ตัวเดียวกับที่หน้านั้นใช้เป็น guard — ห้ามเขียน
+     * `vertical === 'SERVICE_QUEUE'` ซ้ำที่นี่ วันที่เกณฑ์เปลี่ยน ปุ่มกับหน้าจะไม่ตรงกัน
+     * แล้วกลายเป็นปุ่มที่พาไป 404 อีกแบบเงียบ ๆ (HR16)
+     */
+    canUseAppointments({ kind: kind ?? '', vertical: vertical ?? '' })
+      ? {
+          label: t.dashboard.navCreateJobType,
+          href: '/settings/job-types',
+          icon: 'category-plus',
+        }
+      : {
+          label: t.dashboard.navCreateCategory,
+          href: '/categories',
+          icon: 'category-plus',
+        },
     {
       label: t.dashboard.navCreateProduct,
       href: '/products/new',
@@ -92,6 +119,9 @@ interface SellerBottomNavProps {
    * ไปเป็นประเภทร้านคือการผูกความหมายไว้กับข้อความ ซึ่งพังทันทีที่คำเปลี่ยน
    */
   shopVertical?: string | null
+  /** `active.kind` (PERSONAL/BUSINESS) — ส่งเข้า `canUseAppointments()` คู่กับ vertical
+   *  เพื่อให้ปุ่มแรกของ FAB ใช้เกณฑ์ตัวเดียวกับ guard ของหน้า `/settings/job-types` เป๊ะ */
+  shopKind?: string | null
 }
 
 // ─── SpeedDialAction pill — sub-component (ใช้เฉพาะใน SellerBottomNav) ────────
@@ -117,9 +147,15 @@ function SpeedDialAction({ href, label, icon, innerRef }: SpeedDialActionProps) 
 }
 
 // ─── SellerBottomNav — main component ─────────────────────────────────────────
-export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVocab, shopVertical }: SellerBottomNavProps) {
+export default function SellerBottomNav({
+  pendingCount,
+  unreadChatCount,
+  orderVocab,
+  shopVertical,
+  shopKind,
+}: SellerBottomNavProps) {
   const t = useT()
-  const fabActions = buildFabActions(orderVocab, t, shopVertical)
+  const fabActions = buildFabActions(orderVocab, t, shopVertical, shopKind)
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
