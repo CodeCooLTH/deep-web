@@ -855,6 +855,26 @@ SellerWallet (1) ── (N) WalletTransaction
 
 ---
 
+#### ChatMessage — เวอร์ชันย่อ (ส่วนขยาย 2026-08-23, คิวส่งข้อความขาออก)
+
+> 🛑 **หนี้เดิม:** ตารางเต็มยังไม่มี entry ในเอกสารนี้ (feature 00011/00018) ด้านล่างคือ**เฉพาะคอลัมน์ใหม่**ที่ CR
+> "คิวส่งข้อความแชทผู้ขายแบบเข้าคิว" (2026-08-23) เพิ่มเข้ามา — รายละเอียดเต็มดู
+> `docs/20 - Features/00018 - Facebook Chat Integration/EXTENSIONS-2026-08-23-outbound-queue.md`
+
+| Field | Type | หมายเหตุ |
+|-------|------|---------|
+| `sendLockedAt` | DateTime? | 🛑 เกณฑ์ความปลอดภัยของทั้งงาน: `NULL` = ยังไม่เคยแตะ Meta แน่นอน → ยิงได้ · มีค่า = เคยเริ่มยิงไปแล้ว ผลไม่แน่ชัด → **ห้าม claim ซ้ำ/ยิงซ้ำอัตโนมัติเด็ดขาด** |
+| `sendLockedBy` | String? | ใครหยิบงานนี้ไปทำเป็นคนสุดท้าย: `'after'` \| `'sweep'` \| `'cron'` — **ไม่เคลียร์เมื่อสำเร็จ** โดยตั้งใจ บนแถว `SENT` มันจึงตอบว่า "ใครส่งสำเร็จ" (ใช้เป็นตัววัดหลัง deploy) |
+| `sendPayload` | Json? | เจตนาการส่งที่ไม่มีคอลัมน์ของตัวเอง (sticker/template/messageTag) — มีความหมายเฉพาะตอน `deliveryStatus='QUEUED'` เท่านั้น ต้อง tolerate shape เก่า/ไม่รู้จัก (deploy กลางคิว = แถวนั้น `FAILED` ไม่ใช่ throw ทั้ง worker) |
+
+`deliveryStatus` (คอลัมน์เดิม, `prisma/schema.prisma:1833`, `String?` ไม่มี CHECK constraint) เพิ่มค่าที่ 3
+`'QUEUED'` — ปลายทางยังมีแค่ `SENT`/`FAILED` เหมือนเดิมทุกประการ ดูค่าครบทั้ง 4 ที่ §8.2d
+
+**Index ใหม่:** partial `("conversationId","createdAt") WHERE "deliveryStatus"='QUEUED'` — ตารางนี้โต
+~24,000 แถว/เดือน แต่แถวที่ค้างจริงมีหลักสิบ
+
+---
+
 ### 6.x OrderPayment — เงินที่ "ได้รับจริง" (feature 00050, 2026-08-15)
 
 > migration `20260815190000_service_queue_order_payment` — **additive ล้วน ไม่แตะคอลัมน์เดิม**
@@ -1168,6 +1188,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | การ์ดในแชทขาออก (เพิ่ม 2026-08-11) | `type=PRODUCT`/`ORDER` ส่งออกช่องทางนอกได้แล้ว: **LINE = Flex** (`src/lib/line/flex-*.ts`) · **Messenger/IG = Generic Template** (`src/lib/meta/product-card.ts` → `sendTemplateMessage()`). 🛑 **ด่าน cross-shop (FR-CTX-07) เดิมอยู่ใน `chat.service.sendMessage()` ซึ่งครอบเฉพาะ DEEP** — เส้นทางช่องทางนอกวิ่งผ่าน `sendOutboundMessage` ที่ไม่ผ่าน `sendMessage` ต้องมีด่านของตัวเองที่ route (ใช้ helper จาก `product.service` ตัวเดียวกัน) · 🛑 **idempotent-guard (BR-CTX-02) ก็เป็นด่านที่ขาดหายไปด้วยเหตุผลเดียวกัน** (เพิ่มที่ route 2026-08-11) — เกณฑ์อยู่ที่ `isDuplicateProductSend()` (`src/lib/chat-product-resend.ts`, pure): ข้อความที่ **ติดกันย้อนจากล่าสุด** เป็น `PRODUCT` ที่มีชุด `productRefIds` ตรงกัน **ตามลำดับ** ครบทุกชุด → คืนแถวเดิม ไม่ยิงออกซ้ำ. ต้องไม่บล็อกเมื่อครั้งก่อน `deliveryStatus='FAILED'` (ยังไม่ถึงลูกค้า = ต้องกดใหม่ได้) และต้องไม่นับข้อความชนิดอื่น. เหตุผลที่ช่องทางนอกต้องการด่านนี้ *มากกว่า* DEEP: reply token ของ LINE ใช้ได้ครั้งเดียว (`replyTokenUsedAt`) การกดซ้ำจึงตกไปใช้ **push ที่นับโควตา = เงินร้านจริง** ขณะที่บน DEEP เสียแค่แถวซ้ำ · 🛑 `altText` (LINE) / `title`+`subtitle` (Meta) คือสิ่งเดียวที่ลูกค้าเห็นในรายการแชทและ notification — ห้ามว่าง และเพดาน Meta คือ title/subtitle 80 ตัวอักษร เกินแล้ว Meta ตัดเองแบบไม่บอก · รูปต้องแปลงเป็น **JPEG** ก่อนเสมอ (ทั้งสองแพลตฟอร์มรับแค่ JPEG/PNG แต่รูปสินค้าในระบบเป็น webp/gif ได้) แปลงไม่ผ่าน = **ส่งการ์ดแบบไม่มีรูป** ห้ามส่ง URL ไฟล์ต้นฉบับ (ลูกค้าจะเห็นกรอบว่าง) · กรอบรูปของ Meta ต้องเป็น **จัตุรัสตรงกับการ์ดในแอปผู้ขาย** เสมอ |
 | การ์ดสรุปนัดหมาย (ส่วนขยาย 00024, เพิ่ม 2026-08-11) | `POST /api/chat/conversations/[id]/messages` รับ **`type="APPOINTMENT"`** (`+ orderRefToken, hiddenKeys[], closing`) — 🛑 **ที่ระดับ API เท่านั้น ฝั่งฐานข้อมูลยังเก็บเป็น `ChatMessage.type='ORDER'` + `orderRefToken` ตัวเดิม ไม่มีค่า enum ใหม่ ไม่มี migration** (`type` ใน request = "อยากให้ประกอบอะไร" ส่วน `ChatMessage.type` = "ของที่เก็บคือชนิดไหน" — precedent เดียวกับ `IMAGE_GRID`) · เนื้อหาและ**คำ**ทั้งหมดมาจาก `buildAppointmentSummary()` (`src/lib/appointment-summary.ts`, pure) ซึ่งเป็น SSOT เดียวกับที่ `OrderProgressBar` ใช้แสดงช่วงเวลานัด — ห้ามเขียนสูตรวันเวลาหรือคำว่า "มัดจำที่ตกลงไว้" ซ้ำที่อื่น (HR16) · ปลายทาง: LINE = `flex-appointment-card.ts` · Messenger/IG = `meta/appointment-card.ts` · Deep = การ์ดในระบบ · **`text` ส่งเสมอทุกกรณี** (ทางถอยของช่องทางที่ไม่รองรับการ์ด + เก็บลง `body` ให้ร้านค้นหาเจอ) · 🛑 การเก็บ `body` และคำใน `lastMessagePreview` (`[สรุปนัดหมาย]`) ต้องส่ง **`isAppointmentCard: true`** เข้า service เสมอ — `type='ORDER'` เปล่า ๆ จะได้ `body=null` + คำของออเดอร์ ซึ่งเป็นบั๊กที่ขึ้น prod ไปแล้วรอบหนึ่ง (แก้ 2026-08-12; ดู `value-fate-decided-at-write-site.md`) · ปุ่มบนการ์ดชี้ `/o/{token}` ซึ่งลูกค้ากด "ยืนยันนัด"/"ขอเลื่อนนัด" ได้ (เขียน `appointmentStatus`) · ด่าน fail-closed 6 ข้อ ดู `docs/20 - Features/00024 …/EXTENSIONS-2026-08-11.md` FR-APS-05 — ที่สำคัญคือ **`hiddenKeys` ห้ามมี `'when'`** และ **นัดที่ `COMPLETED`/`NO_SHOW` ส่งไม่ได้** |
 | การ์ดคำขอชำระเงินของ Meta (feature 00018, สัญญาแก้ 2026-08-09) | `parseMetaOrderCard(body)` (`src/lib/meta-order-card.ts`, pure module) แปลงข้อความ `ChatMessage.body` ที่ Meta ส่งมา (`"[การ์ดจาก Facebook] ฿N order — <status>"` หรือรูปเก่าไม่มีคำนำหน้า/สถานะ) เป็น `{ amount, status: string \| null }` — `status` เป็นคำอังกฤษดิบของ Meta ห้ามแปลไทย/จำแนกสี, `null` = ไม่รู้สถานะ. ผู้เรียก: `ChatThread.tsx` (render `MetaOrderCardBubble`, ต้องเช็คก่อน `parseMetaSystemNotice` เสมอ — ทั้งสองจับคำนำหน้าเดียวกันได้), `channel-chat.service.ts` (preview รายการแชท ทั้งเส้น webhook และ backfill) — รายละเอียดเต็มดู `docs/20 - Features/00018 - Facebook Chat Integration/EXTENSIONS-2026-08-09.md` |
+| คิวส่งข้อความขาออก (CR ของ 00018, ส่วนขยาย 2026-08-23) | `POST /api/chat/conversations/[id]/messages` **เฉพาะจากช่องพิมพ์ผู้ขาย** เปลี่ยนจากตอบ `200`+แถวที่ส่งแล้ว (`deliveryStatus='SENT'`+`externalMessageId`) → ตอบ **`202 Accepted`**+แถวที่เข้าคิว (`deliveryStatus='QUEUED'`, `externalMessageId=null`) ทันที (~50ms) — แถวถูก `INSERT` ลง DB **ก่อน**ตอบ client เสมอ (FR-OQ-01) แล้วยิงออกช่องทางเบื้องหลัง**ครั้งเดียว ไม่มี auto-retry** (FR-OQ-02) ผ่าน 3 ชั้น (`after()` → opportunistic sweep ตอน webhook/เปิดเธรด → cron ทุก 1 นาทีเป็นตัวการันตี) 🛑 **แถวที่ถูก claim แล้ว (`sendLockedAt` ไม่ null) ห้าม claim ซ้ำเด็ดขาด** (FR-OQ-03) — claim ค้างเกิน 3 นาทีปิดเป็น `FAILED` พร้อม `failureReason`="ไม่แน่ใจว่าส่งออกไปหรือยัง — เปิดดูในแชทก่อนกดส่งใหม่" (FR-OQ-04) · ล้มแล้วต้องกด "ลองใหม่" เอง = POST ใบใหม่ ไม่ใช่ปลุกแถวเดิม · `partialError` ของ `IMAGE_GRID` **หายไปจาก response** — สถานะย้ายไปอยู่รายแถวแทน (FR-OQ-05, FR-OQ-06) · ผู้เรียก `sendOutboundMessage` อีก 8 ที่ (auto-reply/private-reply/appointment-summary/ฯลฯ) **ไม่เปลี่ยน** ยัง synchronous เหมือนเดิมทุกประการ — รายละเอียดเต็ม+FR-OQ-01..06+edge case 20 ข้อ ดู `docs/20 - Features/00018 …/EXTENSIONS-2026-08-23-outbound-queue.md` |
 
 #### 7.14a คลังไฟล์ต่อลูกค้า (feature 00048)
 
@@ -1352,6 +1373,21 @@ route ที่รับ `?shopId=` แล้ว: `payments/**` (ใหม่) �
 | `CommentReplyLog.publicReplyStatus` / `privateReplyStatus` | `SENT` / `SKIPPED` / `FAILED` (`NULL` = ยังไม่ตัดสิน/ไม่เกี่ยวข้อง) |
 | `CommentReplyLog.skipReason` | `FROM_PAGE` / `NOT_TOP_LEVEL` / `COMMENT_DELETED` / `NO_SENDER_ID` / `CHANNEL_INACTIVE` / `DISABLED` / `HUMAN_ANSWERED` / `WINDOW_EXPIRED` — 🛑 `ALREADY_HANDLED` ถอดออก 2026-08-15 (เขียนลงฐานไม่ได้เลยเพราะชน partial unique index ตัวเดียวกับที่มันอธิบาย) "เคยทักคนนี้บนโพสต์นี้แล้ว" ย้ายไปเป็น `privateReplyStatus='SKIPPED'` + `privateErrorMessage='ALREADY_SENT'` รายคอมเมนต์ |
 | สถานะ 3 ชั้นของคอมเมนต์ (คำนวณ ไม่ใช่คอลัมน์) | "ยังไม่ตอบ" / "บอทตอบแล้ว" / "คนตอบแล้ว" — ดู `docs/20 - Features/00038 - Comment Auto-Reply/SRS.md` TFR-009 |
+
+### 8.2d ChatMessage `deliveryStatus` (feature 00018, ส่วนขยาย 2026-08-23 — คิวส่งข้อความขาออก)
+
+| ค่า | ความหมาย | Terminal? |
+|-----|---------|---------|
+| `null` | ข้อความในแอป (แชท DEEP — ไม่เกี่ยวกับการส่งออกช่องทางนอกเลย) | — |
+| `QUEUED` | เขียนลง DB แล้ว รอ/กำลังยิงออกช่องทางนอก — **ยังไม่เคยหรือกำลังแตะ Meta/LINE** ผลไม่แน่ชัด | ไม่ |
+| `SENT` | ยิงสำเร็จ มี `externalMessageId` | ✅ |
+| `FAILED` | ปลายทางปฏิเสธ หรือ claim ค้างเกิน 3 นาที (ไม่รู้ผล) — มี `failureReason` เสมอ | ✅ |
+
+ปลายทางของ state machine มีแค่ `SENT`/`FAILED` **เหมือนเดิมทุกประการ** — `QUEUED` เป็นสถานะระหว่างทางเท่านั้น
+ห้ามมีโค้ดไหนถือว่า `QUEUED` เป็นจุดจบ. 🛑 ตรรกะที่เทียบ `deliveryStatus` แบบ binary (เช่น `=== 'FAILED'`
+แล้วถือว่านอกนั้นปกติ — พบจริงที่ `ChatThread.tsx:2913`) ต้องขยายเป็น type union
+`'SENT' | 'FAILED' | 'QUEUED' | null` ให้ `tsc` บังคับให้ครบ และ grep **ทั้ง repo** (คอลัมน์เป็น `String`
+ไม่มี CHECK ที่ระดับ DB ให้ grep object key จับได้) — ดู `docs/conventions/enum-value-removal.md`
 
 ### 8.3 Verification
 
