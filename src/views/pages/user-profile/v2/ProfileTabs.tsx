@@ -54,11 +54,37 @@ export default function ProfileTabs({
   /* 🛑 lazy initializer ไม่ใช่ useEffect — useEffect จะมีหนึ่งเฟรมที่แท็บ 0 ถูก render ไปแล้ว
      ผู้ใช้ที่กดลิงก์มาจะเห็นแท็บแรกกระพริบก่อนแล้วค่อยสลับ (และ panel ของแท็บ 0 จะ mount ทิ้ง
      โดยเปล่าประโยชน์ เพราะ ProfileTabs render เฉพาะ content ของแท็บที่ active) */
-  const [active, setActive] = useState(() => {
+  const initialIndex = (() => {
     if (!initialActiveKey) return 0
     const i = tabs.findIndex((t) => t.key === initialActiveKey)
     return i >= 0 ? i : 0
-  })
+  })()
+
+  const [active, setActive] = useState(initialIndex)
+
+  /**
+   * แท็บที่ "เคยเปิดแล้ว" — เนื้อหาของแท็บเหล่านี้ค้างอยู่ใน DOM ต่อไป (ซ่อนด้วย `hidden`)
+   * แทนที่จะถูกถอดทิ้งทุกครั้งที่สลับแท็บ
+   *
+   * 🛑 ปัญหาที่แก้ (user เจอเองบน prod 2026-08-23 "tab สินค้ามันโหลดรูปใหม่ทุกรอบ ทั้ง ๆ ที่เคย
+   * โหลดแล้ว"): เดิม panel เขียนว่า `{i === active && t.content}` ⇒ ออกจากแท็บสินค้าเมื่อไหร่
+   * `<img>` ทั้ง 22 ใบถูกถอดออกจาก DOM ทันที กลับเข้ามาใหม่ = สร้าง element ใหม่หมด แล้ว
+   * `loading="lazy"` เริ่มนับหนึ่งอีกรอบ ⇒ เห็นแผ่นดำ + ไอคอนรูปทุกครั้งที่กลับมา
+   * (ต่อให้ไฟล์อยู่ใน cache ของเบราว์เซอร์แล้ว รูปขนาด ~200KB/ใบ ก็ยังต้องถอดรหัสใหม่ทั้งชุด)
+   *
+   * ทำไมเป็น "เคยเปิดแล้ว" ไม่ใช่ mount ทุกแท็บตั้งแต่แรก: แท็บที่ผู้ชมไม่เคยกดต้องไม่ถูกโหลด
+   * ตั้งแต่เปิดหน้า (แท็บปักหมุดมีไทล์คลิป 12 ใบ · แท็บรีวิวมีรายการยาว) — ของเดิมได้ข้อดีข้อนี้
+   * มาฟรีจากการ render เฉพาะแท็บที่ active ห้ามทิ้งไปพร้อมกับการแก้บั๊ก
+   */
+  /* 🛑 ต้องเริ่มจาก `initialIndex` ไม่ใช่ 0 — deep link (`?p=` → แท็บสินค้า · `?clip=` → ปักหมุด)
+     เปิดหน้ามาที่แท็บอื่นได้ ถ้าใส่ 0 ตายตัว แท็บที่กำลังเปิดอยู่จะไม่ถูก render เลยตอนโหลดครั้งแรก */
+  const [visited, setVisited] = useState<ReadonlySet<number>>(() => new Set([initialIndex]))
+
+  /** ย้ายแท็บ + จำว่าเคยเปิดแล้ว — ทุกทางที่เปลี่ยนแท็บต้องผ่านตัวนี้ (คลิก/ลูกศรซ้ายขวา) */
+  const go = (i: number) => {
+    setActive(i)
+    setVisited((prev) => (prev.has(i) ? prev : new Set(prev).add(i)))
+  }
 
   if (tabs.length === 0) return null
 
@@ -67,7 +93,7 @@ export default function ProfileTabs({
     e.preventDefault()
     const dir = e.key === 'ArrowRight' ? 1 : -1
     const next = (active + dir + tabs.length) % tabs.length
-    setActive(next)
+    go(next)
     document.getElementById(`${baseId}-tab-${next}`)?.focus()
   }
 
@@ -103,7 +129,7 @@ export default function ProfileTabs({
               aria-selected={selected}
               aria-controls={`${baseId}-panel-${i}`}
               tabIndex={selected ? 0 : -1}
-              onClick={() => setActive(i)}
+              onClick={() => go(i)}
               /* `.tab`: pli 15 (มือถือ 12) · font-weight 800 · gap 7 · สีเทา #8e8d99 → ม่วงตอน active
                  ขีดใต้หนา 3px เว้นขอบข้างละ 12px (ไม่เต็มความกว้างปุ่ม) ตามไฟล์อ้างอิง */
               className={`relative inline-flex items-center gap-[7px] whitespace-nowrap bg-transparent border-0 cursor-pointer font-[inherit] pli-3 sm:pli-[15px] text-[12px] sm:text-[15px] font-extrabold ${
@@ -143,7 +169,9 @@ export default function ProfileTabs({
           hidden={i !== active}
           className='pli-3 plb-4 pbe-[22px] sm:pli-5 sm:plb-5'
         >
-          {i === active && t.content}
+          {/* เคยเปิดแล้ว = ค้างไว้ใน DOM (ถูกซ่อนด้วย `hidden` ด้านบน) ไม่ถอดทิ้ง —
+              ดูเหตุผลเต็มที่คอมเมนต์ของ `visited` */}
+          {visited.has(i) && t.content}
         </div>
       ))}
     </>

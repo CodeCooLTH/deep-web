@@ -732,8 +732,24 @@ export const ProfileRightContent = ({
                 <Box
                   role='group'
                   aria-label='เรียงลำดับสินค้า'
-                  sx={{ display: 'flex', flexWrap: 'wrap', gap: '8px', pt: '12px', pb: '10px' }}
+                  sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2px', pbe: '4px' }}
                 >
+                  {/* ป้ายนำหน้าทำให้แถวนี้อ่านเป็น "ตัวควบคุมการเรียง" ไม่ใช่ปุ่มสองปุ่มลอย ๆ
+                      — โดยเฉพาะตอนยังไม่ได้เลือกชิปไหนเลย ซึ่งเป็นสถานะตั้งต้นที่ผู้ชมทุกคนเห็นก่อน */}
+                  <Box
+                    component='span'
+                    sx={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '12px',
+                      color: 'text.secondary',
+                      marginInlineEnd: '4px',
+                    }}
+                  >
+                    <Icon icon='tabler-arrows-sort' fontSize={14} />
+                    เรียงตาม
+                  </Box>
                   {PROFILE_SORT_CHIPS.map((chip) => {
                     const active = sortMode === chip
                     return (
@@ -747,29 +763,58 @@ export const ProfileRightContent = ({
                         aria-pressed={active}
                         onClick={() => setSortMode((m) => nextSortMode(m, chip))}
                         sx={{
-                          /* ปุ่มสูง 36px + แตะได้เต็มความสูงแถว — ชิปนี้เล็กกว่า 44px ตามภาษาของ
-                             ชิปกรองอื่นในหน้านี้ แต่กว้างพอ (≥72px) และมีระยะห่างรอบตัว 8px */
-                          minBlockSize: '36px',
-                          paddingInline: '14px',
-                          borderRadius: '999px',
+                          /* 🛑 พื้นที่นิ้ว (44px) แยกจากก้อนสี (28px) — ปุ่มโปร่งใสสูงเต็มเกณฑ์
+                             แล้วให้ <span> ข้างในเป็นตัวที่มีสี ทำให้ชิปเล็กลงได้โดยไม่ลด tap target
+                             (feedback_tap_target_vs_visual_pill — ท่าเดียวกับชิปเบอร์โทรใน 00014-ext) */
+                          minBlockSize: '44px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: 0,
+                          paddingInline: '3px',
+                          border: 0,
+                          background: 'transparent',
                           cursor: 'pointer',
-                          fontSize: '13px',
-                          /* สถานะ "ถูกเลือก" ต้องต่างมากกว่าสี — คนตาบอดสีต้องแยกออกด้วย
-                             (WCAG 1.4.1) จึงเปลี่ยนทั้งน้ำหนักตัวอักษร พื้น และเส้นขอบพร้อมกัน */
-                          fontWeight: active ? 700 : 500,
-                          /* 🛑 `primary.dark` ไม่ใช่ `primary.main` — #7367F0 บนพื้นชิป (primary 8%
-                             เหนือขาว = #F3F2FD) วัดได้ 3.84:1 ซึ่งตก AA ของข้อความปกติ (ต้อง 4.5)
-                             ส่วน #675DD8 ได้ 4.58:1 · เป็นการเปลี่ยน "ความเข้ม" ของสีเดิม ไม่ใช่
-                             สลับเฉด ตาม docs/conventions/contrast-fix-keeps-hue.md
-                             ตัวที่ไม่ถูกเลือกใช้ text.secondary (ink 70% = 5.28:1) ผ่านอยู่แล้ว */
-                          color: active ? 'primary.dark' : 'text.secondary',
-                          background: active ? 'var(--mui-palette-primary-lightOpacity)' : 'transparent',
-                          border: '1px solid',
-                          borderColor: active ? 'primary.main' : '#e3e3ea',
-                          transition: 'background .15s, border-color .15s',
+                          font: 'inherit',
+                          '&:focus-visible': {
+                            outline: '2px solid',
+                            outlineColor: 'primary.main',
+                            outlineOffset: '-4px',
+                            borderRadius: '999px',
+                          },
                         }}
                       >
-                        {SORT_CHIP_LABEL[chip]}
+                        <Box
+                          component='span'
+                          sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            blockSize: '28px',
+                            paddingInline: '12px',
+                            borderRadius: '999px',
+                            fontSize: '13px',
+                            /* สถานะ "ถูกเลือก" ต่างมากกว่าสี — คนตาบอดสีต้องแยกออก (WCAG 1.4.1)
+                               จึงเปลี่ยนทั้งน้ำหนักตัวอักษรและพื้นพร้อมกัน */
+                            fontWeight: active ? 700 : 500,
+                            /* 🛑 `primary.dark` ไม่ใช่ `primary.main` — #7367F0 บนพื้นชิป (primary 8%
+                               เหนือขาว = #F3F2FD) วัดได้ 3.84:1 ตก AA ของข้อความปกติ (ต้อง 4.5)
+                               ส่วน #675DD8 ได้ 4.58:1 · เปลี่ยน "ความเข้ม" ของสีเดิม ไม่ใช่สลับเฉด
+                               (docs/conventions/contrast-fix-keeps-hue.md)
+                               ตัวที่ไม่ถูกเลือกใช้ #8e8d99 = สีเดียวกับแท็บที่ไม่ได้เลือกใน
+                               ProfileTabs ซึ่งอยู่เหนือแถวนี้ไม่กี่พิกเซล (sibling-surface-parity) */
+                            color: active ? 'primary.dark' : '#8e8d99',
+                            /* ไม่มีเส้นขอบแล้ว — ขอบจาง ๆ ทำให้ชิปอ่านเป็น "ปุ่มหลัก" แข่งกับแถบแท็บ
+                               ด้านบน · พื้นเทาอ่อนบอกว่ากดได้โดยไม่แย่งลำดับชั้นของหน้า */
+                            background: active
+                              ? 'var(--mui-palette-primary-lightOpacity)'
+                              : '#f4f4f7',
+                            transition: 'background .15s, color .15s',
+                            '@media (hover:hover)': {
+                              '&:hover': { background: active ? undefined : '#ebebf1' },
+                            },
+                          }}
+                        >
+                          {SORT_CHIP_LABEL[chip]}
+                        </Box>
                       </Box>
                     )
                   })}
