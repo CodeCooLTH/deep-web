@@ -58,12 +58,6 @@ export type CommandCenterData = {
    * ตลอดกาล) เป็น "นัดวันนี้" — ดูเหตุผลเต็มใน OrderStatusBandProps.appointmentToday
    */
   appointmentTodayCount?: number
-  /**
-   * เงินที่รับจริงวันนี้ แยกมัดจำ/ยอดที่เหลือ (feature 00050 AC-SQ-04) — เฉพาะร้านบริการ
-   * ไม่ส่ง = ไม่แสดงการ์ด (ร้านประเภทอื่น หรือ query ล้ม) **ห้ามส่ง 0 แทน**: ตัวเลขที่ผิด
-   * เป็นข้ออ้างให้ไปตามเก็บเงินจากคนที่จ่ายมาแล้ว
-   */
-  moneyReceivedToday?: { deposit: number; balance: number; total: number; unpaidJobs: number }
 
   /**
    * คำเรียก order ของร้านนี้ (ORDER_VOCAB.noun) — resolve ที่ page.tsx แล้วส่งเป็น "สตริง"
@@ -154,6 +148,13 @@ export type SalesSeries = {
      UI ต้องซ่อนทั้งบล็อก ไม่ใช่แสดง ฿0 ซึ่งจะโกหกว่า "ไม่มีค่าส่ง"
      🛑 ไม่ใช่ค่าใช้จ่ายที่ร้านบันทึกเองในหน้า /expenses — ชุดนี้คือ OrderShipment.carrierPrice+codFee */
   shippingValues?: number[]
+  /** เงินมัดจำที่รับจริงต่อ bucket — เฉพาะร้าน SERVICE_QUEUE (`undefined` = ไม่ใช่ร้านบริการ) */
+  depositValues?: number[]
+  /** เงินที่รับจริงทั้งหมดต่อ bucket (มัดจำ + ยอดที่เก็บเพิ่ม) — ตัดตาม **วันที่ของออเดอร์**
+   *  เหมือนทุกคอลัมน์ในตาราง ไม่ใช่วันที่รับเงิน (เหตุผลเต็มที่ `SalesSeries` ใน dashboard.service.ts)
+   *  🛑 `undefined` = ไม่ใช่ร้านบริการ · ศูนย์ทั้งชุด = เป็นร้านบริการแต่ยังไม่มีเงินเข้า
+   *  สองอย่างนี้คนละความหมาย และตารางใช้ตัวนี้ตัดสินว่าจะโชว์คอลัมน์ชุดไหน */
+  receivedValues?: number[]
   netProfitValues?: number[]
   /**
    * 🛑 COGS มีสองชุดและไม่เท่ากัน (นิยามเต็มอยู่ที่ SSOT — dashboard.service.ts):

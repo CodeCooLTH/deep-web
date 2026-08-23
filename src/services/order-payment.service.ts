@@ -13,7 +13,6 @@
  * Base (โครง guard + error mapping): src/services/appointment.service.ts
  */
 import { prisma } from '@/lib/prisma'
-import { thaiTodayBounds } from '@/lib/date-range'
 import {
   computeOrderMoney,
   type OrderMoney,
@@ -218,91 +217,4 @@ export async function listPayments(args: { shopId: string; orderToken: string })
       voidedReason: true,
     },
   })
-}
-
-/**
- * ยอดเงินที่ร้านได้รับจริงในช่วงเวลาหนึ่ง — สำหรับ dashboard (AC-SQ-04)
- *
- * 🛑 นี่คือ "เงินที่เข้าจริง" ไม่ใช่ "ยอดขายตามบิล" — สองอย่างนี้ต่างกันเสมอในร้านบริการ
- * ที่เก็บมัดจำ (บิลเปิดวันนี้ แต่เงินอาจเข้าคนละวัน) หัวหน้าขอตัวแรก
- *
- * ใช้ `groupBy` ให้ฐานข้อมูลบวกให้ — ไม่ดึงแถวมาบวกในแอป เพราะจำนวนแถวโตตามอายุร้าน
- * และ index `(shopId, receivedAt)` ครอบ where นี้พอดี
- */
-export async function sumReceivedInRange(args: {
-  shopId: string
-  from: Date
-  to: Date
-}): Promise<{ deposit: number; balance: number; total: number }> {
-  const rows = await prisma.orderPayment.groupBy({
-    by: ['kind'],
-    where: {
-      shopId: args.shopId,
-      voidedAt: null,
-      receivedAt: { gte: args.from, lt: args.to },
-    },
-    _sum: { amount: true },
-  })
-
-  const pick = (kind: OrderPaymentKind) =>
-    Number(rows.find((r) => r.kind === kind)?._sum.amount?.toString() ?? '0')
-
-  const deposit = pick('DEPOSIT')
-  const balance = pick('BALANCE')
-  return { deposit, balance, total: deposit + balance }
-}
-
-/**
- * เงินที่ร้านได้รับจริง "วันนี้" — การ์ดบนหน้าแรกของร้านบริการ (AC-SQ-04)
- *
- * 🛑 ขอบวันมาจาก `thaiTodayBounds()` ตัวเดียวกับที่ไทล์ "นัดวันนี้" ใช้ — ห้ามตัดวันเองที่นี่
- * หน้าแรกจอเดียวมีสองนิยามของคำว่า "วันนี้" ไม่ได้ (บทเรียน 00033: /sales กับ /orders
- * เคยตัดคนละแบบกับ dashboard แล้วตัวเลขสองหน้าไม่ตรงกันทั้งที่มาจากข้อมูลชุดเดียวกัน)
- *
- * perf: หนึ่ง `groupBy` ที่ index `(shopId, receivedAt)` ครอบ where พอดี — ฐานข้อมูลบวกให้
- * ไม่ดึงแถวมานับในแอป และผู้เรียกยิงขนานกับ query อื่นของหน้าแรกอยู่แล้ว (ไม่เพิ่ม wall time)
- */
-export async function getMoneyReceivedToday(
-  shopId: string,
-): Promise<{ deposit: number; balance: number; total: number }> {
-  const { from, to } = thaiTodayBounds();
-  return sumReceivedInRange({ shopId, from, to });
-}
-
-/**
- * งานของ "วันนี้" ที่ยังเก็บเงินไม่ครบ — ตัวเลขที่ทำให้การ์ดบนหน้าแรกบอกได้ว่าต้องลงมือไหม
- *
- * หัวหน้าถาม (2026-08-15): *"เหลืองเขียวโอเคแล้ว แต่อยากให้รู้ยังไง"* — สีบอกสถานะได้แล้ว
- * แต่ไม่มีอะไรบอกว่า **ยังเหลืออะไรให้ทำ** ⇒ ยอดเงินอย่างเดียวตอบไม่ได้ว่า "เก็บครบหรือยัง"
- * (รับมา ฿5,000 วันนี้ อาจแปลว่าเก็บครบทุกงาน หรือแปลว่ายังเหลืออีก 3 งานก็ได้)
- *
- * 🛑 นับเฉพาะ **งานของวันนี้** ไม่ใช่ทุกงานที่ค้างในระบบ — การ์ดนี้พูดถึงวันนี้ทั้งใบ
- * ถ้าเอายอดค้างสะสมทั้งร้านมาใส่ ตัวเลขจะโตขึ้นเรื่อย ๆ จนไม่มีใครมองอีกเลย
- *
- * perf: `$queryRaw` หนึ่งครั้ง ใช้ correlated subquery แทนการดึงออเดอร์ทั้งวันมาบวกในแอป
- * — index `(shopId, type, serviceStart)` ครอบ where ของออเดอร์ · `(orderId)` ครอบ subquery
- */
-export async function countUnpaidJobsToday(shopId: string): Promise<number> {
-  const { from, to } = thaiTodayBounds();
-  const rows = await prisma.$queryRaw<{ n: bigint }[]>`
-    SELECT count(*) AS n
-    FROM "Order" o
-    WHERE o."shopId" = ${shopId}
-      AND o."status" <> 'CANCELLED'
-      AND o."serviceStart" IS NOT NULL
-      -- [สำคัญ] ต้องสะท้อน appointmentDayWhere('today') เป๊ะ ไม่ใช่ "ใกล้เคียง"
-      --    (ห้ามใส่ backtick ในคอมเมนต์นี้ — มันอยู่ใน template literal จะปิดสตริงกลางคัน)
-      --    เลขนี้ถูกเอาไปเทียบกับ getTodayAppointmentCount() บนการ์ดเดียวกัน
-      --    (ค้าง N งาน vs มีงานวันนี้กี่งาน) ⇒ เกณฑ์วันต่างกันแม้แต่ขอบเดียว
-      --    = "เก็บครบแล้ว" สีเขียวทั้งที่ยังมีงานค้าง ซึ่งละเมิด Verified-Means-Green
-      AND (
-        (o."serviceEnd" IS NOT NULL AND o."serviceEnd" > ${from} AND o."serviceStart" < ${to})
-        OR (o."serviceEnd" IS NULL AND o."serviceStart" >= ${from} AND o."serviceStart" < ${to})
-      )
-      AND o."totalAmount" > COALESCE((
-        SELECT SUM(p."amount") FROM "OrderPayment" p
-        WHERE p."orderId" = o."id" AND p."voidedAt" IS NULL
-      ), 0)
-  `;
-  return Number(rows[0]?.n ?? 0);
 }

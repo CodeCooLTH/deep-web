@@ -40,7 +40,6 @@ import { getBestSellerProducts } from '@/services/product.service'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 // นัดวันนี้ (feature 00024) — ตัวกั้น + ตัวนับ สำหรับไทล์ที่ 2 ของ OrderStatusBand
 import { canUseAppointments } from '@/lib/appointments'
-import { countUnpaidJobsToday, getMoneyReceivedToday } from '@/services/order-payment.service'
 import { getTodayAppointmentCount } from '@/services/appointment.service'
 import type { Metadata } from 'next'
 import { getT } from '@/i18n/server'
@@ -159,13 +158,6 @@ export default async function SellerDashboardPage() {
   let shippingStageCounts: { AWAITING_PARCEL: number; AWAITING_PICKUP: number; SHIPPING: number; AWAITING_COD: number; PROBLEM: number } | undefined
   // จำนวนนัดวันนี้ — เฉพาะร้านที่ใช้ระบบคิวงานได้ (SERVICE_QUEUE); undefined = ไทล์ที่ 2 คงเป็น "กำลังจัดส่ง"
   let appointmentTodayCount: number | undefined
-  /**
-   * เงินที่ได้รับจริงวันนี้ แยกมัดจำ/ยอดที่เหลือ (feature 00050 AC-SQ-04) — เฉพาะร้านบริการ
-   * undefined = ไม่แสดงการ์ด (ร้านประเภทอื่น หรือ query ล้ม) **ห้ามตกเป็น 0**:
-   * "รับเงินวันนี้ ฿0.00" ที่ผิด อันตรายกว่าการ์ดที่ไม่โผล่ เพราะมันเป็นข้ออ้างให้ร้านไปตามเก็บเงิน
-   * จากคนที่จ่ายมาแล้ว (`partial-data-must-be-labeled-or-filled.md`)
-   */
-  let moneyReceivedToday: { deposit: number; balance: number; total: number; unpaidJobs: number } | undefined
   // คำที่ผันตามประเภทกิจการ — resolve ที่นี่ที่เดียวแล้วส่งลง CommandCenter
   // ประกาศไว้ชั้นนอกเพราะ `shop` เป็น block-scoped อยู่ใน try ด้านล่าง แต่ต้องใช้ตอน render
   // ทั้งก้อนเป็นสตริงล้วน จึงส่งข้ามเส้น server→client ได้ (ต่างจาก ProductVocab ที่มีฟังก์ชัน)
@@ -319,24 +311,13 @@ export default async function SellerDashboardPage() {
 
         // perf: query เหล่านี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
         // wall time = max(query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
-        const [statusRes, shippingStageRes, appointmentTodayRes, moneyTodayRes, balanceRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes, channelRes, activityRes, provinceRes] =
+        const [statusRes, shippingStageRes, appointmentTodayRes, balanceRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes, channelRes, activityRes, provinceRes] =
           await Promise.allSettled([
             getOrderStatusCounts(shop.id),
             // ร้านอื่นไม่ต้องเสีย query — ส่ง null แทน แล้วข้ามผลด้านล่าง
             shop.vertical === 'ONLINE_SALES' ? getShippingStageCounts(shop.id) : Promise.resolve(null),
             // นัดวันนี้ — เฉพาะร้านที่ผ่านตัวกั้นระบบคิวงาน (BR-RSV-01); ร้านอื่นไม่ต้องเสีย query
             canUseAppointments(shop) ? getTodayAppointmentCount(shop.id) : Promise.resolve(null),
-            /**
-             * เงินที่รับจริงวันนี้ (feature 00050) — เฉพาะร้านบริการ ร้านอื่นไม่ต้องเสีย query
-             *
-             * perf: `groupBy` เดียวที่ index `(shopId, receivedAt)` ครอบ where พอดี และอยู่ใน
-             * `Promise.allSettled` ก้อนเดิม ⇒ **ไม่เพิ่ม wall time ของหน้าเลย** (ขนานกับที่มีอยู่)
-             */
-            shop.vertical === 'SERVICE_QUEUE'
-              ? Promise.all([getMoneyReceivedToday(shop.id), countUnpaidJobsToday(shop.id)]).then(
-                  ([m, unpaidJobs]) => ({ ...m, unpaidJobs }),
-                )
-              : Promise.resolve(null),
             getBalance(shop.id),
             // getRecentActivity ถูกถอดออก 2026-08-04 พร้อมการตัด "กิจกรรมล่าสุด" ออกจากหน้าแรก —
             // มันรวม 5 แหล่ง (Order/Review/SMS/TopUp/StockMovement) ที่ไม่มีใครใช้ในหน้านี้แล้ว
@@ -348,7 +329,7 @@ export default async function SellerDashboardPage() {
             // สินค้าขายดี (top 8) สำหรับ strip บน command center
             getBestSellerProducts(shop.id, 8),
             // Sales Chart mini card — ยอดขายรายวันเดือนปัจจุบัน
-            getSalesSeries(shop.id, 'daily', { year: currentYear, month: currentMonth }, expenseGranted),
+            getSalesSeries(shop.id, 'daily', { year: currentYear, month: currentMonth }, expenseGranted, shop.vertical),
             // เมนูลัดที่ผู้ใช้เลือกไว้ (feature 00027) — เรียก service ตรง ไม่ผ่าน HTTP เพราะอยู่ฝั่ง server แล้ว
             resolveShortcutState(session as unknown as { user: { id: string; activeShopId?: string | null } }),
             // ─── 3 การ์ดเดสก์ท็อปที่ดึงกลับ 2026-08-05 — ทั้งหมดผูกกับ "เดือนปฏิทินไทยเดือนนี้" ───
@@ -376,11 +357,6 @@ export default async function SellerDashboardPage() {
         // "นัดวันนี้ 0" ทั้งที่จริง ๆ อาจมีนัดอยู่ — เลข 0 ที่ผิดอันตรายกว่าไทล์ที่ไม่เกี่ยว
         if (appointmentTodayRes.status === 'fulfilled') appointmentTodayCount = appointmentTodayRes.value ?? undefined
         else console.error('[dashboard] getTodayAppointmentCount failed', appointmentTodayRes.reason)
-
-        // ล้ม = ไม่ส่งไป → การ์ดไม่โผล่ ดีกว่าโชว์ ฿0.00 ที่อ่านได้ว่า "วันนี้ยังไม่มีเงินเข้าเลย"
-        // ทั้งที่จริงคือเราไม่รู้ (เลข 0 ที่ผิด อันตรายกว่าการ์ดที่หายไป)
-        if (moneyTodayRes.status === 'fulfilled') moneyReceivedToday = moneyTodayRes.value ?? undefined
-        else console.error('[dashboard] getMoneyReceivedToday failed', moneyTodayRes.reason)
 
         // v8: walletBalance — fallback 0 ถ้าล้ม
         if (balanceRes.status === 'fulfilled') walletBalance = balanceRes.value
@@ -549,8 +525,6 @@ export default async function SellerDashboardPage() {
             shippingStageCounts,
             // ร้านคิวงาน: ไทล์ที่ 2 = "นัดวันนี้" แทน "กำลังจัดส่ง" (user เคาะ 2026-08-07)
             appointmentTodayCount,
-            // เงินที่รับจริงวันนี้ (feature 00050) — undefined = ไม่แสดงการ์ด
-            moneyReceivedToday,
             // คำที่ผันตามประเภทกิจการ — ส่ง "คำที่แปลแล้ว" ไม่ใช่ค่าดิบจาก ORDER_VOCAB
             // 🛑 เดิมส่ง `orderNoun` (ไทยเสมอ) ทำให้หัวการ์ดบนมือถืออ่านว่า "Status of คำสั่งซื้อ"
             //    เมื่อผู้ใช้ตั้งภาษาเป็นอังกฤษ — เทมเพลตแปลแล้วแต่คำที่เสียบเข้าไปยังเป็นไทย
@@ -642,8 +616,6 @@ export default async function SellerDashboardPage() {
         {/* แถว 3: SalesReport | สินค้าขายดี — ครึ่งต่อครึ่ง (theme วางคู่กันแบบนี้เหมือนกัน) */}
         <div className="grid xl:grid-cols-2 grid-cols-1 gap-base mb-base">
           <SalesReport series={salesSeries} summary={salesSummary}
-            moneyToday={moneyReceivedToday}
-            jobsToday={appointmentTodayCount}
           />
           <TopSellingProducts products={bestSellers} vertical={shopVertical} />
         </div>

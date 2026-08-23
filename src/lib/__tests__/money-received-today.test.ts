@@ -69,51 +69,60 @@ describe('"วันนี้" ต้องมีนิยามเดียว�
   })
 })
 
-describe('การ์ดเงินที่รับวันนี้ ต้องไม่โกหกตอนไม่รู้', () => {
-  it('[blocker] query ล้ม → ต้องเป็น undefined ห้ามตกเป็น 0', () => {
+describe('คอลัมน์เงินรายวันในตารางชีตยอดขาย', () => {
+  const SHEET =
+    'src/app/(paces)/seller/(dashboard)/dashboard/components/SalesChartSheet.tsx'
+
+  it('[blocker] ตารางต้องตัดสินจากชุดข้อมูล ไม่ใช่รับ prop vertical แยกทาง', () => {
     /**
-     * `?? undefined` ไม่ใช่ `?? 0` — ต่างกันแค่ตัวอักษรเดียวแต่คนละความหมายคนละเรื่อง:
-     * `0` แปลว่า "วันนี้ไม่มีเงินเข้าเลย" ส่วนความจริงคือ "เราไม่รู้"
+     * 🛑 ถ้าหน้าจอรับ `vertical` มาอีกทางแล้วเอามาตัดสินเอง มันจะเพี้ยนกับ service ได้:
+     * ส่ง vertical ถูกแต่ service ไม่ได้คิดชุดข้อมูลมา ⇒ ขึ้นหัวคอลัมน์ "รับจริง" ที่ว่าง
+     * ทั้งคอลัมน์ · ตัดสินจาก **การมีอยู่ของข้อมูล** ⇒ หัวกับตัวเลขมาจากแหล่งเดียวกันเสมอ
      */
-    const code = stripComments(read('src/app/(paces)/seller/(dashboard)/dashboard/page.tsx'))
-    expect(code, 'ต้องรับผลด้วย ?? undefined').toMatch(
-      /moneyReceivedToday\s*=\s*moneyTodayRes\.value\s*\?\?\s*undefined/,
-    )
-    expect(code, 'ห้ามตั้งค่าตั้งต้นเป็นตัวเลข').not.toMatch(
-      /let moneyReceivedToday[^\n]*=\s*\{/,
+    const code = stripComments(read(SHEET))
+    expect(code, 'ต้อง derive จาก receivedValues').toMatch(
+      /isService\s*=\s*series\.receivedValues != null/,
     )
   })
 
-  it('[blocker] ต้องยิงเฉพาะร้านบริการ — ร้านอื่นไม่ต้องเสีย query', () => {
-    const code = stripComments(read('src/app/(paces)/seller/(dashboard)/dashboard/page.tsx'))
+  it('[blocker] "ยอดขาย" กับ "รับจริง" ต้องเป็นคนละคอลัมน์ ห้ามยุบเป็นตัวเดียว (HR16)', () => {
     /**
-     * 🛑 ตรวจว่า **ทุกการเรียก query เรื่องเงิน อยู่หลังด่าน vertical** ไม่ใช่ผูกกับรูปประโยค
-     * ร่างแรกเขียน `vertical === 'SERVICE_QUEUE' ? getMoneyReceivedToday(` ตรง ๆ แล้วแดงทันที
-     * ที่โค้ดถูก refactor เป็น `? Promise.all([...])` ทั้งที่ด่านยังอยู่ครบ
-     * (ด่านต้องตรวจ *สิ่งที่ห้าม* ไม่ใช่ *การสะกด* — บทเรียนซ้ำจาก HR9 grep gate)
+     * 🛑 "เงินที่เข้าจริง" ≠ "ยอดขายตามบิล" — ร้านที่เก็บมัดจำมีสองเลขนี้ต่างกันเสมอ
+     * เดิมบทเรียนนี้อยู่กับการ์ด "รับจริงวันนี้" ที่ถูกถอดออก 2026-08-23 · ตอนนี้สองเลขนั้น
+     * **อยู่บรรทัดเดียวกัน** ซึ่งดีกว่าเดิม (ความต่างมองเห็นได้ ไม่ต้องอธิบาย) แต่มีเงื่อนไข:
+     * ต้องยังเป็นคนละช่อง และต้องมี "ค้างรับ" เป็นตัวเชื่อมให้เห็นว่าลบกันได้ลงตัว
+     * ยุบเมื่อไหร่ = กลับไปเป็นเลขเดียวที่แปลได้สองอย่าง ซึ่งคือรูปร่างของบั๊ก HR16
      */
-    const gateAt = code.indexOf("vertical === 'SERVICE_QUEUE'")
-    expect(gateAt, 'ต้องมีด่าน vertical').toBeGreaterThan(-1)
-    for (const fn of ['getMoneyReceivedToday(', 'countUnpaidJobsToday(']) {
-      const callAt = code.indexOf(fn, gateAt)
-      expect(callAt, `${fn} ต้องถูกเรียกหลังด่าน vertical`).toBeGreaterThan(gateAt)
-      // ต้องอยู่ใกล้ ๆ ด่าน (ในนิพจน์เดียวกัน) ไม่ใช่หลุดไปอยู่คนละที่ในไฟล์
-      expect(callAt - gateAt, `${fn} ต้องอยู่ในนิพจน์เดียวกับด่าน`).toBeLessThan(200)
+    const code = read(SHEET)
+    for (const label of ['ยอดขาย', 'มัดจำ', 'รับจริง', 'ค้างรับ']) {
+      expect(code, `หัวคอลัมน์ต้องมี "${label}"`).toContain(`>${label}<`)
     }
   })
 
-  it('[blocker] แถวเงินห้ามเรียกตัวเองว่า "ยอดขาย" — คนละนิยามกับ /sales (HR16)', () => {
+  it('[blocker] ค้างรับต้องลบจากยอดขายของแถวเดียวกัน ไม่ใช่ตัวเลขจากคนละแกน', () => {
     /**
-     * 🛑 "เงินที่เข้าจริง" ≠ "ยอดขายตามบิล" — ร้านที่เก็บมัดจำมีสองเลขนี้ต่างกันเสมอ
-     * ถ้าการ์ดใช้คำว่า "ยอดขาย" ผู้ขายจะเอาไปเทียบกับ `/sales` แล้วสรุปว่าระบบคำนวณผิดทั้งหน้า
-     * และต้อง **บอกความต่างบนจอ ไม่ใช่แค่คอมเมนต์**
+     * 🛑 ทุกคอลัมน์ในตารางนี้ผูกกับ `Order.createdAt` — ถ้าเงินรับจริงถูก bucket ด้วย
+     * `receivedAt` มันจะเป็นคอลัมน์เดียวที่อยู่คนละแกน แล้ว `ยอดขาย − รับจริง` จะ
+     * **ลบข้ามแกน**: วันที่เก็บเงินก้อนที่เหลือของงานเมื่อวานได้ค้างรับติดลบ
+     * เลขทั้งสองตัว "ถูก" ในตัวเอง จึงไม่มี tsc/build/เทสตัวไหนฟ้อง
+     * (เคยเขียนผิดแบบนี้จริงในร่างแรกของฟีเจอร์นี้ — ดู `sumReceivedByBucket` ที่ถูกถอดออก)
      */
-    const src = read(
-      'src/app/(paces)/seller/(dashboard)/dashboard/components/MoneyTodayRow.tsx',
+    const svc = stripComments(read('src/services/dashboard.service.ts'))
+
+    // ต้องสะสมในลูปเดียวกับ values (ซึ่ง bucket ด้วย createdAt) ไม่ใช่ query แยก
+    const valuesAt = svc.indexOf('values[idx] += amt')
+    const recvAt = svc.indexOf('receivedValues[idx] +=')
+    expect(valuesAt, 'ต้องมีการสะสม values').toBeGreaterThan(-1)
+    expect(recvAt, 'receivedValues ต้องสะสมในลูปเดียวกับ values').toBeGreaterThan(valuesAt)
+    expect(recvAt - valuesAt, 'ต้องอยู่ในลูปเดียวกัน ไม่ใช่คนละที่ในไฟล์').toBeLessThan(1200)
+
+    // ห้ามกลับไป bucket ด้วยเวลาที่รับเงิน
+    expect(svc, 'ห้าม bucket เงินด้วย receivedAt').not.toContain('receivedAt')
+
+    // ฝั่งจอต้องลบจาก r.value ของแถวเดียวกัน ไม่ใช่ยอดอื่น
+    expect(stripComments(read(SHEET)), 'ค้างรับต้องเป็น r.value - r.received').toMatch(
+      /r\.value - r\.received/,
     )
-    const jsxText = stripComments(src)
-    expect(jsxText, 'ข้อความบนจอห้ามใช้คำว่า "ยอดขาย"').not.toMatch(/>[^<]*ยอดขาย(?!ตามบิล)/)
-    expect(src, 'ต้องอธิบายความต่างจากยอดขายบนจอ').toContain('ไม่ใช่ยอดขายตามบิล')
   })
 })
 
@@ -175,47 +184,15 @@ describe('ไทล์ "นัดวันนี้" ต้องพาไปต
   })
 })
 
-describe('แถบสถานะการเก็บเงินบนแถวเงิน (หัวหน้า: "อยากให้รู้ยังไง")', () => {
-  const CARD = 'src/app/(paces)/seller/(dashboard)/dashboard/components/MoneyTodayRow.tsx'
+/* 🛑 describe "แถบสถานะการเก็บเงินบนแถวเงิน" (3 เคส) ถูกถอดออก 2026-08-23 พร้อมกับ
+   `MoneyTodayRow` · `getMoneyReceivedToday` · `countUnpaidJobsToday` ที่มันปักหมุด
+   — user สั่งเอาแถว "รับจริงวันนี้" ออกจากหน้าแรก แล้วย้ายเป็นคอลัมน์รายวันในตาราง
 
-  it('[blocker] "มีงานวันนี้ไหม" ต้องตัดสินจากจำนวนงาน ห้ามตัดสินจากยอดเงิน', () => {
-    /**
-     * 🛑 บั๊กที่ร่างแรกมีจริง: ใช้ `money.total > 0` เป็นเงื่อนไขสถานะเขียว ⇒ งานที่ลูกค้า
-     * จ่ายมัดจำมาตั้งแต่เมื่อวานจะทำให้ `total = 0` ทั้งที่วันนี้มีงานจริงและเก็บครบแล้ว
-     * การ์ดจะขึ้น "วันนี้ไม่มีงานที่ต้องเก็บเงิน" ซึ่งผิดข้อเท็จจริง
-     * (คลาสเดียวกับ `0` ที่ถูกใช้แทน "ไม่รู้" — `partial-data-must-be-labeled-or-filled.md`)
-     */
-    const code = stripComments(read(CARD))
-    expect(code, 'ต้องใช้ jobsToday ตัดสิน').toMatch(/\(jobsToday \?\? 0\) > 0/)
-    expect(code, 'ห้ามใช้ยอดเงินตัดสินว่ามีงานไหม').not.toMatch(/\) : money\.total > 0 \?/)
-  })
+   บทเรียนที่ยังมีชีวิตอยู่ ย้ายไปแล้วทั้งหมด ไม่ได้หายไปกับโค้ด:
+     · "ห้ามตัดสินจากยอดเงินว่ามีงานไหม" → ไม่มีสถานะให้ตัดสินอีกแล้ว (ตารางแสดงเลขตรง ๆ)
+     · "เกณฑ์วันของสองเลขบนการ์ดเดียวกันต้องตรงกัน" → describe แรกของไฟล์นี้ ซึ่งยังบังคับ
+       `appointmentDayBounds` = `thaiTodayBounds` อยู่ (เป็นตัวที่กว้างกว่าและยังมีผู้ใช้จริง)
+     · "รับจริง ≠ ยอดขาย (HR16)" → describe "คอลัมน์เงินรายวัน…" ข้างบน
 
-  it('[blocker] เขียวได้เฉพาะตอนไม่มีงานค้างจริง (Verified-Means-Green)', () => {
-    /**
-     * 🛑 ยึด **แถบสถานะ** ไม่ใช่ `bg-success/15` ตัวแรกในไฟล์ — วงกลมไอคอนหัวการ์ดใช้คลาส
-     * เดียวกันและอยู่ก่อนหน้า ⇒ ร่างแรกเทียบตำแหน่งผิดจุดแล้วแดงทั้งที่โค้ดถูก
-     */
-    const code = stripComments(read(CARD))
-    const warnAt = code.indexOf('money.unpaidJobs > 0')
-    const greenAt = code.indexOf('เก็บเงินครบทุกงานของวันนี้แล้ว')
-    expect(warnAt, 'ต้องเช็คงานค้างก่อน').toBeGreaterThan(-1)
-    expect(greenAt, 'ต้องมีข้อความสถานะเขียว').toBeGreaterThan(-1)
-    expect(warnAt, 'เงื่อนไขงานค้างต้องมาก่อนสถานะเขียว').toBeLessThan(greenAt)
-  })
-
-  it('[blocker] เกณฑ์วันของ "งานค้าง" ต้องตรงกับ appointmentDayWhere เป๊ะ', () => {
-    /**
-     * เลขสองตัวบนการ์ดเดียวกัน (ค้าง N งาน · มีงานวันนี้กี่งาน) มาจากคนละ query —
-     * เกณฑ์วันต่างกันแม้แต่ขอบเดียว = ขึ้น "เก็บครบแล้ว" สีเขียวทั้งที่ยังมีงานค้าง
-     */
-    const sql = read('src/services/order-payment.service.ts')
-    const fn = sql.slice(sql.indexOf('export async function countUnpaidJobsToday'))
-    expect(fn, 'ต้องมีสาขา serviceEnd IS NOT NULL').toMatch(
-      /serviceEnd" IS NOT NULL AND o\."serviceEnd" > \$\{from\} AND o\."serviceStart" < \$\{to\}/,
-    )
-    expect(fn, 'ต้องมีสาขา serviceEnd IS NULL').toMatch(
-      /serviceEnd" IS NULL AND o\."serviceStart" >= \$\{from\} AND o\."serviceStart" < \$\{to\}/,
-    )
-    expect(fn, 'ต้องตัดใบยกเลิก').toContain(`status" <> 'CANCELLED'`)
-  })
-})
+   ห้ามเขียนด่านใหม่ที่อ้างชื่อฟังก์ชันเหล่านั้น — มันไม่มีอยู่แล้ว ด่านจะแดงถาวรโดยไม่มี
+   ใครแก้ได้ แล้วคนถัดไปจะปิดมันทิ้งพร้อมกับด่านที่ยังใช้ได้ในไฟล์เดียวกัน */

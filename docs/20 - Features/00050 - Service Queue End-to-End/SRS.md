@@ -42,7 +42,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SDS]]", "[[API]]", "[[DATABASE]]", "[[TestCas
 | **มัดจำที่ตกลงไว้** | *ข้อตกลง* — ยอดที่ร้านบอกลูกค้าว่าต้องวาง | `Order.depositAmount` (snapshot ตอนสร้าง) |
 | **เงินที่รับจริง** | *ข้อเท็จจริง* — มีคนกดยืนยันแล้ว | `OrderPayment` (ตารางใหม่) |
 | **ยอดขาย** | มูลค่าตามบิล ณ วันที่เปิดบิล | `Order.totalAmount` + `/sales` |
-| **เงินที่รับวันนี้** | เงินที่เข้าจริง **ตามวันที่รับ** | `sumReceivedInRange()` |
+| **เงินที่รับจริงรายวัน** | เงินที่เข้าจริงของงานที่ **ขายวันนั้น** (รวมที่เก็บทีหลัง) | `SalesSeries.receivedValues` |
 
 🛑 สองคู่หลังต่างกันเสมอในร้านที่เก็บมัดจำ — บิลเปิดวันนี้ 5,000 แต่เงินเข้าจริงอาจเป็น 1,500
 และอีก 3,500 เข้าคนละวัน **ต้องบอกความต่างบนหน้าจอ ไม่ใช่แค่ในคอมเมนต์**
@@ -61,7 +61,8 @@ flowchart TD
   end
 
   subgraph svc["ชั้น service"]
-    OPS["services/order-payment.service.ts<br/>recordPayment · voidPayment<br/>sumReceivedInRange · getMoneyReceivedToday"]
+    OPS["services/order-payment.service.ts<br/>recordPayment · voidPayment · listPayments"]
+    DSH["services/dashboard.service.ts<br/>getSalesSeries (depositValues · receivedValues)"]
     APS["services/appointment.service.ts<br/>setOrRescheduleAppointment (เดิม)"]
   end
 
@@ -74,7 +75,7 @@ flowchart TD
   subgraph ui["ชั้น UI"]
     CHAT["แชท: OrderProgressBar (มือถือ)<br/>CustomerPanel (เดสก์ท็อป)<br/>ChatThread (กดค้างบนสลิป)"]
     SHEETS["RecordPaymentSheet · StartWalkInSheet"]
-    DASH["MoneyReceivedTodayCard"]
+    DASH["SalesChartSheet — คอลัมน์ มัดจำ/รับจริง/ค้างรับ"]
     PUB["/o/:token — PaymentSummaryCard"]
   end
 
@@ -159,10 +160,24 @@ flowchart TD
 (ที่นั่ง · EXCLUDE constraint · ประวัติการเลื่อน อยู่ในเส้นทางเดิมครบ) — ที่ขาดคือ *ทางเข้าที่แปลว่า
 "เริ่มตอนนี้"*
 
-### TFR-SQ-06 · เงินที่รับวันนี้ (dashboard)
+### TFR-SQ-06 · เงินที่รับจริง — คอลัมน์รายวันในตารางชีตยอดขาย
 
-`getMoneyReceivedToday(shopId) → { deposit, balance, total }`
-ขอบวันจาก `thaiTodayBounds()` — **ตัวเดียวกับที่ไทล์ "นัดวันนี้" ใช้**
+> **แก้มติ 2026-08-23 (user สั่ง):** เดิมเป็นแถว "รับจริงวันนี้" ท้ายการ์ดยอดขายบนหน้าแรก
+> ซึ่งตอบได้แค่ *วันนี้* วันเดียว — ย้ายเป็น **คอลัมน์ในตารางรายวัน** ที่มีอยู่แล้ว
+> (`SalesChartSheet`) จึงตอบได้ทั้ง "วันนี้เท่าไหร่" และ "วันไหนที่ยังเก็บไม่ครบ"
+> `MoneyTodayRow` · `getMoneyReceivedToday` · `countUnpaidJobsToday` ถูกลบทั้งสาย
+
+`getSalesSeries(..., vertical)` คืนเพิ่ม `depositValues[]` / `receivedValues[]` เมื่อ
+`vertical === 'SERVICE_QUEUE'` เท่านั้น (ร้านอื่นได้ `undefined` — **ไม่ใช่อาร์เรย์ศูนย์**
+เพราะตารางใช้ค่านี้ตัดสินว่าจะโชว์คอลัมน์ชุดไหน)
+
+ตารางของร้านบริการเปลี่ยนคอลัมน์ท้ายจาก `ต้นทุน · ค่าส่ง · กำไร` (ซึ่ง **ว่างเปล่าเชิงโครงสร้าง**
+เพราะ `SERVICE_QUEUE` ล็อก `NO_SHIPPING` เสมอ ⇒ กำไร = ยอดขายทุกแถว) เป็น
+`มัดจำ · รับจริง · ค้างรับ` — ร้านขายออนไลน์ยังใช้ชุดเดิม
+
+🛑 **ตัดตามวันที่ของออเดอร์ ไม่ใช่ `receivedAt`** — ทุกคอลัมน์ในตารางนี้ผูกกับ `Order.createdAt`
+ถ้าชุดนี้ใช้แกนเวลาของการรับเงิน `ยอดขาย − รับจริง` จะเป็นการลบข้ามแกน แล้วค้างรับติดลบได้
+⇒ `receivedValues[i] ≤ values[i]` เสมอ และ `ค้างรับ ≥ 0`
 
 ### TFR-SQ-07 · หน้าลูกค้า `/o/[token]`
 
@@ -290,8 +305,8 @@ template literal ได้เพราะ JS แปลง `undefined` เป็�
 
 | # | ข้อกำหนด | หลักฐาน |
 |---|---|---|
-| NFR-SQ-01 | dashboard ต้องไม่ช้าลง | `getMoneyReceivedToday` อยู่ใน `Promise.allSettled` ก้อนเดิม (ขนาน) + ยิงเฉพาะ `SERVICE_QUEUE` |
-| NFR-SQ-02 | รวมยอดต้องให้ DB บวก | `groupBy` + index `(shopId, receivedAt)` ครอบ where พอดี — ไม่ดึงแถวมานับในแอป |
+| NFR-SQ-01 | dashboard ต้องไม่ช้าลง | ไม่มี query เพิ่ม — `payments` มากับ query ออเดอร์ก้อนเดิมของ `getSalesSeries` (index `orderId`) และ select เฉพาะร้าน `SERVICE_QUEUE` |
+| NFR-SQ-02 | ไม่ดึงข้อมูลที่ไม่ได้ใช้ | `payments` อยู่ใต้ธง `isServiceShop` — ร้านขายออนไลน์ไม่จ่าย join นี้เลย (ด่าน `service-queue-vertical-gate`) |
 | NFR-SQ-03 | การ์ดในแชทต้องไม่ยิง API ต่อใบ | `payments` มากับ query ออเดอร์ (index `orderId`) — ลิสต์ 20 ใบ ≠ 20 คำขอ |
 | NFR-SQ-04 | ข้อมูลลับต้องไม่ลงหน้าลูกค้า | allow-list ทุก relation · `ShopChannel` select 3 คีย์ (แถวนั้นมี `accessTokenEnc`) |
 
@@ -329,7 +344,7 @@ template literal ได้เพราะ JS แปลง `undefined` เป็�
 | BR-SQ-20/21 | TFR-SQ-05 | `walkInWindow` · `StartWalkInSheet` | `walk-in-window` |
 | BR-SQ-22/23 | TFR-SQ-04 | `markServedFlow` · `completionWarning` | `chat-order-actions` |
 | BR-SQ-30..32 | TFR-SQ-03 | `computeOrderMoney` | `order-payment.test` |
-| AC-SQ-04 | TFR-SQ-06 | `getMoneyReceivedToday` | `money-received-today` |
+| AC-SQ-04 | TFR-SQ-06 | `getSalesSeries` → `receivedValues` · คอลัมน์ใน `SalesChartSheet` | `money-received-today` · `sales-series-mirror-shape` |
 | AC-SQ-05 | — | `OrderStatusBand` href | `money-received-today` |
 | AC-SQ-06 | TFR-SQ-07 | `PaymentSummaryCard` · `originPage` | `public-order-money` |
 | AC-SQ-07 | ทุกข้อ | migration additive | `service-queue-isolation` |

@@ -60,6 +60,23 @@
  * - ต้นทุนที่ยังไม่ตั้ง (cost = null) ถูก **ข้าม** ไม่ใช่นับเป็น 0 → กำไรที่เห็นเป็น "เพดานบน" เสมอ
  * - แถบสมการ: ช่อง "ต้นทุนสินค้า" ไม่มีจุดสี เพราะกราฟไม่มีซีรีส์นี้ (จุดสี = ซีรีส์ในกราฟ 1:1
  *   ใส่จุดให้ของที่ไม่มีในกราฟจะกลายเป็นคำโกหกเรื่องสี) — แถบนี้ทำหน้าที่สมการเป็นหลักอยู่แล้ว
+ *
+ * ── v7 2026-08-23 (user สั่ง: ทำ vertical บริการ · เอาแถว "รับจริงวันนี้" ออกจากหน้าแรก) ──────
+ * - [สำคัญ] **ตารางมีสองหน้าตาแล้ว ตัดสินด้วย `isService`** (= `series.receivedValues != null`)
+ *     · ร้านขายออนไลน์ — คอลัมน์เดิม `ต้นทุน · ค่าส่ง · กำไร` ไม่แตะเลย ทุก invariant ของ v5/v6 คงอยู่
+ *     · ร้านบริการ — `มัดจำ · รับจริง · ค้างรับ` แทน เพราะชุดเดิม **ว่างเปล่าเชิงโครงสร้าง**:
+ *       `SERVICE_QUEUE` ล็อก `NO_SHIPPING` เสมอ ⇒ ค่าส่ง ฿0 ทุกแถว ⇒ กำไร = ยอดขาย ทุกแถว
+ *       3 ใน 6 คอลัมน์จึงไม่เคยบอกอะไรเลย
+ * - 🛑 invariant "ทุกแถวบวกกันได้ hero" **ไม่ครอบชุดของร้านบริการ** — ชุดนั้นไม่มีคอลัมน์กำไร
+ *   สิ่งที่บังคับแทนคือ `ค้างรับ = ยอดขาย − รับจริง` **ในแถวเดียวกัน** (ลบตามด้วยตาได้เหมือนกัน)
+ * - 🛑 `depositValues`/`receivedValues` ตัดตาม **วันที่ของออเดอร์** ไม่ใช่วันที่รับเงิน — ร่างแรก
+ *   ทำเป็น `receivedAt` (ซึ่ง "ถูก" ถ้าอยู่ลำพัง) แล้วพบว่าเป็นคอลัมน์เดียวในตารางที่อยู่คนละแกน
+ *   ⇒ `ยอดขาย − รับจริง` กลายเป็นการลบข้ามแกน แล้วค้างรับติดลบได้ (HR16 — ไม่มี gate ไหนฟ้อง
+ *   เพราะเลขทั้งสองตัวถูกในตัวเอง) ตอนนี้สะสมในลูปเดียวกับ `values` จึงเป็นแกนเดียวกันโดยโครงสร้าง
+ * - แถบสมการซ่อนช่อง "ค่าส่ง" ของร้านบริการ **เฉพาะตอนเป็น 0 จริง** ไม่ซ่อนตาม `vertical`
+ *   (ธงที่เก็บในแถวไม่ใช่หลักฐานว่าไม่เคยเปิดพัสดุ — `stored-flag-vs-owner-truth.md`)
+ * - แถว "รับจริงวันนี้" ท้ายการ์ดหน้าแรก (`MoneyTodayRow`) ถูกลบทั้งสายพร้อม
+ *   `getMoneyReceivedToday`/`countUnpaidJobsToday` — ของเดิมตอบได้แค่ "วันนี้" วันเดียว
  */
 import { useState, useEffect, useRef } from 'react'
 import Icon from '@/components/wrappers/Icon'
@@ -381,6 +398,28 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
   const isEmpty = !loading && !error && series.total === 0
 
   // แสดงเฉพาะ bucket ที่มีความเคลื่อนไหวจริง — เดือนที่ขายจริง 3 วันไม่ควรต้องเลื่อนผ่าน "0" อีก 28 แถว
+  /**
+   * ร้านบริการไหม — 🛑 ตัดสินจาก **"service คิดชุดเงินรายวันมาให้หรือเปล่า"** ไม่ใช่รับ prop
+   * `vertical` มาอีกทาง · ชุดนี้จะมีก็ต่อเมื่อ `getSalesSeries` เห็นว่าเป็น `SERVICE_QUEUE`
+   * ⇒ หน้าจอกับ service ตัดสินจากแหล่งเดียวกันเสมอ ไม่มีทางเพี้ยนคนละทาง
+   * (ถ้ารับ prop แยก วันหนึ่งจะมีหน้าที่ส่ง vertical ถูกแต่ service ไม่ได้คิดชุดข้อมูลมา
+   *  แล้วตารางจะโชว์หัวคอลัมน์ "รับจริง" ที่ว่างทั้งคอลัมน์)
+   */
+  const isService = series.receivedValues != null
+
+  /**
+   * โชว์ช่อง "ค่าส่ง" ในแถบสมการไหม
+   *
+   * ร้านบริการล็อก `NO_SHIPPING` เสมอ (`product.service.ts`) ⇒ ค่าส่งเป็น ฿0 ทุกเดือน
+   * ช่องที่เป็นศูนย์ตลอดกาลไม่ได้บอกอะไร มันแค่กินที่และทำให้สมการยาวขึ้นโดยไม่ได้ข้อมูลเพิ่ม
+   * (เหตุผลเดียวกับที่คอลัมน์ ต้นทุน/ค่าส่ง/กำไร ในตารางข้างล่างถูกเปลี่ยนเป็นชุดเงินรับจริง)
+   *
+   * 🛑 แต่ **ไม่ซ่อนเมื่อมีตัวเลขจริง** — `vertical` เป็นธงที่เก็บในแถวข้อมูล ไม่ใช่หลักฐาน
+   * ว่าร้านไม่เคยเปิดพัสดุเลย (`stored-flag-vs-owner-truth.md`) ถ้าวันหนึ่งมีค่าส่งโผล่มาจริง
+   * การซ่อนคือการซ่อน *เงินที่หายไปจากสมการ* แล้ว hero จะไม่ตรงกับผลบวกที่ผู้ขายไล่ตามเอง
+   */
+  const showShippingCell = hasFinance && (!isService || shippingTotal !== 0)
+
   const detailRows = series.labels
     .map((label, i) => ({
       // วันที่โชว์เลขล้วน "1, 2, 3" (user สั่ง 2026-08-07) — ชื่อเดือนอยู่บนหัวชีตบรรทัดเดียวกันอยู่แล้ว
@@ -390,8 +429,14 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
       // ต้นทุนของ "ทุกออเดอร์" ใน bucket — ชุดเดียวกับ value ที่มันจะถูกลบออก (ดู v5 หัวไฟล์)
       cogs: series.cogsValues?.[i] ?? 0,
       expense: series.shippingValues?.[i] ?? 0,
+      /* เงินที่ "เข้าจริง" ในช่องนั้น — เฉพาะร้านบริการ (undefined = ไม่ใช่ร้านบริการ) */
+      deposit: series.depositValues?.[i] ?? 0,
+      received: series.receivedValues?.[i] ?? 0,
     }))
-    .filter((r) => r.orders > 0 || r.value > 0 || r.cogs > 0 || r.expense > 0)
+    /* 🛑 ร้านบริการต้องนับ `received` เข้าเงื่อนไข "แถวนี้มีอะไรไหม" ด้วย — วันที่เก็บเงินก้อน
+       ที่เหลือของงานเมื่อวาน จะมี `received` แต่ `orders`/`value` เป็น 0 (ออเดอร์ลงวันอื่น)
+       ถ้าไม่นับ แถวนั้นจะหายไปทั้งที่เป็นวันที่มีเงินเข้าจริง */
+    .filter((r) => r.orders > 0 || r.value > 0 || r.cogs > 0 || r.expense > 0 || r.received > 0)
     // วันล่าสุดอยู่บนสุดเสมอ (user สั่ง 2026-08-07) — สิ่งที่ผู้ขายอยากรู้ตอนเปิดคือ "วันนี้เป็นไง"
     // ไม่ใช่ต้องเลื่อนผ่านทั้งเดือนไปหาแถวล่างสุด
     .reverse()
@@ -497,6 +542,10 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
               <>
                 <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">−</span>
                 <LegendCell label="ต้นทุนสินค้า" value={cogsTotal} />
+              </>
+            )}
+            {showShippingCell && (
+              <>
                 <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">−</span>
                 <LegendCell color="bg-danger" label="ค่าส่ง" value={shippingTotal} />
               </>
@@ -550,9 +599,24 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                 <span className="w-8 shrink-0 text-center">{mode === 'daily' ? 'วันที่' : 'เดือน'}</span>
                 <span className="w-11 shrink-0 text-center">คำสั่งซื้อ</span>
                 <span className="min-w-14 flex-1 basis-0 text-end">ยอดขาย</span>
-                {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">ต้นทุน</span>}
-                {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">ค่าส่ง</span>}
-                {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">กำไร</span>}
+                {/* 🛑 ร้านบริการได้คอลัมน์เงินแทน "ต้นทุน/ค่าส่ง/กำไร" ซึ่ง**ว่างเปล่าเสมอ**สำหรับ
+                    ร้านประเภทนี้: `SERVICE_QUEUE` ถูกล็อกเป็น `NO_SHIPPING` ตายตัว ⇒ ไม่มีทาง
+                    มีค่าส่งได้เลย และเมื่อทั้งต้นทุนและค่าส่งเป็น 0 คอลัมน์ "กำไร" ก็เท่ากับ
+                    "ยอดขาย" ทุกแถวเป๊ะ = คอลัมน์ที่ไม่ให้ข้อมูลอะไร (user ทัก 2026-08-23)
+                    สิ่งที่ร้านบริการต้องรู้จริงคือ "วันนั้นเก็บเงินเข้ามาได้เท่าไหร่" */}
+                {isService ? (
+                  <>
+                    <span className="min-w-14 flex-1 basis-0 text-end">มัดจำ</span>
+                    <span className="min-w-14 flex-1 basis-0 text-end">รับจริง</span>
+                    <span className="min-w-14 flex-1 basis-0 text-end">ค้างรับ</span>
+                  </>
+                ) : (
+                  <>
+                    {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">ต้นทุน</span>}
+                    {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">ค่าส่ง</span>}
+                    {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">กำไร</span>}
+                  </>
+                )}
               </div>
               <div className="divide-y divide-default-100">
                 {detailRows.map((r) => {
@@ -567,7 +631,31 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                       <span className="min-w-14 flex-1 basis-0 text-end font-semibold text-dark tabular-nums">
                         {formatNumberNoSymbol(r.value)}
                       </span>
-                      {hasFinance && (
+                      {isService && (
+                        <>
+                          {/* มัดจำ — ส่วนหนึ่งของ "รับจริง" ไม่ใช่ก้อนแยก จึงใช้สีอ่อนกว่า */}
+                          <span className="min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums text-default-700">
+                            {r.deposit > 0 ? formatNumberNoSymbol(r.deposit) : '—'}
+                          </span>
+                          {/* รับจริง = มัดจำ + ยอดที่เก็บเพิ่ม ของงานที่ขายวันนั้น (รวมเงินที่เก็บทีหลัง) */}
+                          <span className="min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums text-dark">
+                            {r.received > 0 ? formatNumberNoSymbol(r.received) : '—'}
+                          </span>
+                          {/* ค้างรับ = ยอดขาย − รับจริง ของ **งานชุดเดียวกัน** (ทั้งคู่ผูกกับวันที่ขาย
+                              ดูเหตุผลที่ประกาศ type `receivedValues`) ⇒ ไม่มีทางติดลบ
+                              เก็บครบแล้วขึ้น "—" ไม่ใช่ ฿0 — เลข 0 ที่มีสีอ่านเป็น "มีอะไรต้องตาม" */}
+                          <span
+                            className={`min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums ${
+                              r.value - r.received > 0 ? 'text-warning-ink' : 'text-default-700'
+                            }`}
+                          >
+                            {r.value - r.received > 0
+                              ? formatNumberNoSymbol(r.value - r.received)
+                              : '—'}
+                          </span>
+                        </>
+                      )}
+                      {!isService && hasFinance && (
                         /* "—" = ยังไม่ได้ตั้งต้นทุนให้สินค้าในใบนั้น (ไม่ใช่ต้นทุน 0) — กำไรของแถว
                            จึงเป็นเพดานบน · สีเดียวกับค่าใช้จ่ายเพราะเป็นเงินออกเหมือนกัน */
                         <span
@@ -576,7 +664,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                           {r.cogs > 0 ? formatNumberNoSymbol(r.cogs) : '—'}
                         </span>
                       )}
-                      {hasFinance && (
+                      {!isService && hasFinance && (
                         /* ราคาที่ยังเป็นประมาณการ (ขนส่งยังไม่เข้ารับ) แสดงเหมือนราคาจริงทุกประการ
                            — user สั่ง 2026-08-10: "ไม่ต้องแสดงให้ user รู้ ลูกค้ารู้อยู่แล้ว"
                            ตัวเลขจะขยับขึ้นเองเมื่อขนส่งชั่งน้ำหนักจริง */
@@ -586,7 +674,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                           {r.expense > 0 ? formatNumberNoSymbol(r.expense) : '—'}
                         </span>
                       )}
-                      {hasFinance && (
+                      {!isService && hasFinance && (
                         /* ระบายสีเฉพาะตอนขาดทุน — ถ้าทาเขียวทุกแถวที่เป็นบวก ทั้งตารางจะเขียวจน
                            แถวที่ติดลบไม่เด่นขึ้นมาเลย (และเขียวในระบบนี้สงวนไว้ให้ "ยืนยันแล้ว") */
                         <span

@@ -7,6 +7,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { TZ_OFFSET_MS } from '@/lib/date-range'
 import { countsAsRevenue } from '@/lib/order-revenue'
 import { deriveShippingStage } from '@/lib/order-stage'
 import { canonicalProvince, isKnownProvince } from '@/lib/parse-order-message'
@@ -16,9 +17,6 @@ const THAI_MONTHS_ABBR = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
 ]
-
-// Asia/Bangkok = UTC+7 คงที่ (ไม่มี DST) — bucket วัน/เดือนตามปฏิทินไทย
-const TZ_OFFSET_MS = 7 * 60 * 60 * 1000
 
 export type SalesSeriesMode = 'daily' | 'monthly'
 
@@ -113,6 +111,24 @@ export interface SalesSeries {
         (`OrderShipment.carrierPrice` + `codFee`) เท่านั้น ────────────────────────────────────── */
   /** ค่าส่งจริง+ค่าธรรมเนียม COD ต่อ bucket (บาท) — คู่กับ `values` (ทุกใบ) */
   shippingValues?: number[]
+
+  /* ── เงินที่ "รับจริง" รายช่อง — เฉพาะร้าน SERVICE_QUEUE ────────────────────────────────────
+     🛑 `undefined` = ไม่ใช่ร้านบริการ ⇒ ตารางต้องใช้คอลัมน์ชุดเดิม (ต้นทุน/ค่าส่ง/กำไร)
+     ห้ามตกเป็น `[]` หรือ `[0,0,...]` เพราะสองอย่างนั้นแปลว่า "เป็นร้านบริการแต่ยังไม่มีเงินเข้า"
+     ซึ่งคนละความหมายกับ "ไม่ใช่ร้านบริการ" (คลาสเดียวกับ `0` ที่แปลว่า "ไม่รู้")
+
+     🛑 **ตัดตามวันที่ของออเดอร์ ไม่ใช่ `receivedAt`** — เงินก้อนหนึ่งไปอยู่แถวของ *วันที่ขาย*
+     ไม่ใช่แถวของวันที่เงินเข้า ⇒ อ่านว่า "งานที่ขายวันนั้น เก็บเงินไปแล้วเท่าไหร่"
+
+     เหตุผล (HR16): ทุกคอลัมน์ในตารางนี้ผูกกับ `Order.createdAt` ทั้งหมด (ยอดขาย/จำนวนงาน/
+     ต้นทุน/ค่าส่ง) ถ้าชุดนี้ใช้ `receivedAt` มันจะเป็นคอลัมน์เดียวที่อยู่คนละแกน แล้ว
+     `ยอดขาย − รับจริง` ในแถวเดียวกัน **ลบข้ามแกน**: วันที่เก็บเงินก้อนที่เหลือของงานเมื่อวาน
+     จะได้ค้างรับติดลบ ส่วนวันที่ขายแล้วยังไม่เก็บจะได้ค้างรับเกินจริง — เลขทั้งสองตัว
+     "ถูก" ในตัวเอง จึงไม่มี tsc/build/เทสตัวไหนฟ้อง มีแต่ผู้ขายที่อ่านแล้วสรุปว่าระบบคำนวณผิด
+
+     ⇒ `receivedValues[i] ≤ values[i]` เสมอ และ `ค้างรับ = values[i] − receivedValues[i] ≥ 0` */
+  depositValues?: number[]
+  receivedValues?: number[]
   /**
    * 🛑 ต้นทุนสินค้า (COGS) มี **สองชุด** ในไฟล์นี้ และ **จะไม่มีวันเท่ากัน** — วางติดกันตาม HR16
    * ทั้งคู่ถูกต้องในตัวเอง ต่างกันแค่ "นับต้นทุนของออเดอร์ชุดไหน" ซึ่งต้องเลือกให้ตรงกับ
@@ -167,7 +183,13 @@ export async function getSalesSeries(
   /** true เฉพาะเมื่อ caller ตรวจ resolveExpenseAccess ผ่านแล้ว — false = ไม่ query ค่าใช้จ่ายเลย
    *  (fail-closed ตั้งแต่ชั้น query ไม่ใช่ไปกรองทีหลังตอน render) */
   includeFinance = false,
+  /** ประเภทกิจการของร้าน — `'SERVICE_QUEUE'` เท่านั้นที่ได้คอลัมน์เงินรับจริงรายวัน
+   *  ไม่ส่งมา = ไม่คิดชุดนั้นเลย (ไม่เสีย query ให้ร้านที่ไม่ได้ใช้) */
+  vertical?: string,
 ): Promise<SalesSeries> {
+  /** ร้านบริการไหม — ตัวเดียวที่เปิดคอลัมน์เงินรับจริง (ไม่ใช่ร้านบริการ = ไม่เสีย query ให้เลย) */
+  const isServiceShop = vertical === 'SERVICE_QUEUE'
+
   // "ตอนนี้" ตามเวลาไทย — ใช้ตัดสินว่า bucket ไหนเป็นอนาคต
   const thaiNow = new Date(Date.now() + TZ_OFFSET_MS)
   const nowYear = thaiNow.getUTCFullYear()
@@ -255,6 +277,22 @@ export async function getSalesSeries(
         // ต้นทุนสินค้า — จำเป็นต่อ "กำไรสุทธิ" ให้ได้สูตรเดียวกับการ์ด P&L ใน /expenses
         // (ถ้าใช้ ยอดยืนยันแล้ว − ค่าใช้จ่าย เฉย ๆ ตัวเลขจะไม่ตรงกับอีกสองหน้า)
         ...(includeFinance ? { items: { select: { cost: true, qty: true } } } : {}),
+        /**
+         * เงินที่รับจริงของใบนี้ — เฉพาะร้านบริการ
+         *
+         * 🛑 ดึงมาใน query **เดียวกับออเดอร์** ไม่ใช่ query แยกที่ group ด้วย `receivedAt`
+         * เพราะคอลัมน์นี้ต้องลงแถวตาม *วันที่ขาย* ให้ตรงกับ `values` (ดูเหตุผลเต็มที่ประกาศ
+         * type) — query แยกจะได้ชุดออเดอร์คนละชุดและคนละแกนเวลาโดยไม่มีอะไรฟ้อง
+         *
+         * `voidedAt: null` = ตัดรายการที่ร้านกดยกเลิกเพราะกรอกผิด (ประวัติยังอยู่ แต่ไม่ใช่เงิน)
+         *
+         * หมายเหตุ: `where` ของ query นี้กินช่วงก่อนหน้าด้วย (`prevGte`) เพื่อคิด %เทียบ ⇒ payments
+         * ของออเดอร์ช่วงก่อนหน้าถูกดึงมาด้วยแต่ไม่ถูกนับ (ลูปข้างล่างสะสมเฉพาะในช่วงปัจจุบัน)
+         * — ไม่ใช่บั๊ก และตัดออกไม่ได้เพราะ Prisma กรอง relation รายแถวไม่ได้
+         */
+        ...(isServiceShop
+          ? { payments: { where: { voidedAt: null }, select: { kind: true, amount: true } } }
+          : {}),
       },
     }),
   ])
@@ -272,6 +310,10 @@ export async function getSalesSeries(
   const shippingConfirmedValues = new Array<number>(bucketCount).fill(0)
   /** พัสดุที่ยังไม่ถูกคิดเงินต่อ bucket — ทำให้ยอดค่าส่งของ bucket นั้นเป็นแค่บางส่วน */
   const pendingShipmentValues = new Array<number>(bucketCount).fill(0)
+  /* เงินรับจริงของร้านบริการ — คู่กับ `values` (นับทุกใบที่ไม่ถูกยกเลิก) ไม่ใช่คู่กับ
+     `confirmedValues` เพราะร้านเก็บมัดจำตั้งแต่ก่อนงานจบ ตัวหารกับตัวตั้งต้องเป็นชุดเดียวกัน */
+  const depositValues = isServiceShop ? new Array<number>(bucketCount).fill(0) : undefined
+  const receivedValues = isServiceShop ? new Array<number>(bucketCount).fill(0) : undefined
   let total = 0
   let prevTotal = 0
   let prevTotalToDate = 0
@@ -313,6 +355,17 @@ export async function getSalesSeries(
       if (idx >= 0 && idx < bucketCount) {
         values[idx] += amt
         orderCounts[idx] += 1
+
+        if (depositValues && receivedValues) {
+          const payments = (r as { payments?: { kind: string; amount: unknown }[] }).payments
+          for (const p of payments ?? []) {
+            const paid = Number(p.amount)
+            receivedValues[idx] += paid
+            /* มัดจำเป็น **ส่วนหนึ่งของ** รับจริง ไม่ใช่ก้อนแยก — บวกเข้าทั้งสองชุด
+               ถ้าแยกเป็นคนละก้อน ผู้ขายจะบวก มัดจำ+รับจริง เองแล้วได้เกินยอดขาย */
+            if (p.kind === 'DEPOSIT') depositValues[idx] += paid
+          }
+        }
         /**
          * ต้นทุนของใบนี้ — คิดครั้งเดียวแล้วลงทั้งสองชุด (ดูบล็อก "COGS มีสองชุด" ที่ประกาศ type)
          * ต้องอยู่ **นอก** if ของ countsAsRevenue: `cogsValues` คู่กับ `values` ซึ่งนับทุกใบ
@@ -403,12 +456,19 @@ export async function getSalesSeries(
       })
     : undefined
 
+  /**
+   * 🛑 `depositValues`/`receivedValues` อยู่ใน `base` **ไม่ได้อยู่หลังด่าน `includeFinance`**
+   * โดยตั้งใจ — `includeFinance` เป็นสิทธิ์ของ "ต้นทุน/ค่าใช้จ่าย" (Business Package)
+   * ส่วนเงินที่ร้านรับมาเองเป็นข้อมูลของร้านที่เห็นได้อยู่แล้วทุกที่ (หน้าออเดอร์/คิวงาน)
+   * เอาไปผูกกับแพ็กเกจ = ซ่อนเงินของตัวเองจากเจ้าของเงิน
+   */
   const base = {
     labels, values, confirmedValues, unconfirmedValues, orderCounts, codPendingValues,
     total, prevTotal, prevTotalToDate, futureFromIndex,
     ...(last14Confirmed && last14Unconfirmed
       ? { last14Confirmed, last14Unconfirmed, last14Labels }
       : {}),
+    ...(depositValues && receivedValues ? { depositValues, receivedValues } : {}),
   }
   if (!includeFinance) return base
 
