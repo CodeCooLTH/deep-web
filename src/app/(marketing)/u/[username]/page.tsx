@@ -27,7 +27,7 @@ import { getReviewsByUsername } from '@/services/review.service'
 import { getPublicRooms, getShopAvailability } from '@/services/room.service'
 import { listServiceResources, serializeServiceResource } from '@/services/service-resource.service'
 import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layout.service'
-import { MAX_PROFILE_PRODUCTS, isProfileListTruncated } from '@/lib/profile-sort'
+import { MAX_PROFILE_PRODUCTS, MAX_PROFILE_REVIEWS, isProfileListTruncated } from '@/lib/profile-sort'
 import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
 import PublicProfileFooter from '@views/pages/user-profile/v2/PublicProfileFooter'
 import ProfileUnavailable from '@views/pages/user-profile/v2/ProfileUnavailable'
@@ -102,7 +102,7 @@ export default async function PublicProfilePage({ params }: Props) {
   // redesign 2026-07-26: สถิติ/ช่องทาง/การกระจายดาว ของหน้าโฉมใหม่ รวมอยู่ใน service เดียว
   // buyer-only (ไม่มีร้าน) → null ทั้งก้อน แล้ว UI ซ่อน block ที่เกี่ยวข้องเอง
   const profileStats = user.shop ? await getShopProfileStats(user.shop.id) : null
-  const recentReviews = await getReviewsByUsername(username, 10)
+  const recentReviews = await getReviewsByUsername(username, MAX_PROFILE_REVIEWS)
   const shopVideos = user.shop ? await getShopVideos(user.shop.id) : []
   // feature 00035 (TFR-005) — บล็อกที่ผู้ขายจัดวางไว้เหนือแถบแท็บ
   const pageBlocks = user.shop ? await listShopPageBlocks(user.shop.id) : []

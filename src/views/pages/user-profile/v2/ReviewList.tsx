@@ -46,11 +46,84 @@ export type ReviewListItem = {
   shopRepliedAtIso?: string | null
 }
 
-export default function ReviewList({ items }: { items: ReviewListItem[] }) {
+/** กางทีละกี่แถวสำหรับรีวิวที่ให้ดาวอย่างเดียว */
+const RATING_ONLY_PAGE = 8
+
+/** ดาวแถวเดียว — ใช้ทั้งการ์ดเต็มและแถวกระชับ จะได้ไม่มีสองสไตล์บนจอเดียว */
+function Stars({ rating, size = 13 }: { rating: number; size?: number }) {
+  return (
+    <span className='flex gap-0.5 text-warning shrink-0' aria-label={`${rating} จาก 5 ดาว`}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Icon
+          key={i}
+          icon={i <= rating ? 'tabler:star-filled' : 'tabler:star'}
+          width={size}
+          className={i <= rating ? '' : 'opacity-35'}
+        />
+      ))}
+    </span>
+  )
+}
+
+/**
+ * แถวกระชับของรีวิวที่ "ให้ดาวอย่างเดียว" — สูง ~52px เห็นได้ 8–10 อันต่อจอ
+ *
+ * 🛑 **ยังมีเลขออเดอร์อยู่** — user เคาะไว้เมื่อ 2026-08-21 ว่า "ไม่ลบแต่ทำให้สวยจัดตำแหน่งให้ดี"
+ * มันคือสิ่งเดียวที่แยกรีวิวบน Deep ออกจากคอมเมนต์ทั่วไป (รีวิวปลอมทำไม่ได้เพราะต้องผูกออเดอร์จริง)
+ * ⇒ ย้ายมาต่อท้ายบรรทัดเดียวกันแบบจาง ๆ แทนที่จะเป็นบรรทัดของตัวเองที่กินพื้นที่เท่าชื่อ
+ */
+function CompactReviewRow({ r }: { r: ReviewListItem }) {
+  return (
+    <div className='flex items-center gap-2.5 plb-2 border-be last:border-be-0'>
+      {/* อวาตาร์ชุดเดียวกับการ์ดเต็ม แค่เล็กลง — ไม่เปลี่ยนเป็นสีสุ่มตามชื่อ เพราะสีที่ไม่ได้มาจาก
+          ข้อมูลจริงคือการตกแต่งที่ปลอมตัวเป็นข้อมูล (และชื่อถูก mask มาแล้ว จะ derive อะไรก็ไม่จริง) */}
+      <span
+        aria-hidden
+        className='is-7 bs-7 rounded-full shrink-0 flex items-center justify-center'
+        style={{ background: 'linear-gradient(145deg,#dedce8,#c0bece)', color: '#5b586b' }}
+      >
+        <Icon icon='tabler:user-filled' width={13} />
+      </span>
+      <Typography className='text-[12px] font-extrabold shrink-0' color='text.primary'>
+        {r.reviewerName}
+      </Typography>
+      <Stars rating={r.rating} size={12} />
+      {/* ช่องทาง + เลขออเดอร์ — ซ่อนบนจอแคบเพราะแถวเดียวใส่ไม่พอ (ยังอยู่ครบในการ์ดเต็ม) */}
+      <span className='hidden sm:flex items-center gap-1 min-is-0'>
+        {r.source?.channel && SALES_CHANNEL_LOGO[r.source.channel] && (
+          // eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ใน public/
+          <img src={SALES_CHANNEL_LOGO[r.source.channel]} alt='' className='is-[11px] bs-[11px] shrink-0' />
+        )}
+        <Typography className='text-[10px] tabular-nums text-[#aaa8b2] truncate'>{r.orderNo}</Typography>
+      </span>
+      <Typography className='ml-auto shrink-0 text-[11px] text-[#aaa8b2] whitespace-nowrap'>
+        {formatDateTH(r.createdAtIso)}
+      </Typography>
+    </div>
+  )
+}
+
+export default function ReviewList({
+  items,
+  totalCount,
+}: {
+  items: ReviewListItem[]
+  /**
+   * จำนวนรีวิวทั้งหมดของร้าน (จาก `profileStats.reviewCount` — ตัวเดียวกับที่กราฟแท่งด้านบนใช้)
+   *
+   * 🛑 ต้องรับมาเทียบ ไม่ใช่เดาจาก `items.length` — รายการถูก cap ที่ `MAX_PROFILE_REVIEWS`
+   * ร้านที่เกินเพดานจะได้หน้าที่กราฟแท่งบอกเลขหนึ่ง แต่ชิปบอกอีกเลขหนึ่ง โดยไม่มีอะไรอธิบาย
+   * (เคยเป็นแบบนี้จริงตอน cap = 10: กราฟบอก 21 ชิปบอก 10)
+   */
+  totalCount?: number
+}) {
   /* รูปที่กดขยาย — เก็บทั้ง URL ไม่ใช่ index เพราะรายการหลายใบใช้ state ก้อนเดียวกัน
      ถ้าเก็บ index จะกดรูปใบที่ 2 ของรีวิว A แล้วไปเปิดรูปใบที่ 2 ของรีวิว B */
   const [zoomed, setZoomed] = useState<string | null>(null)
   const [filter, setFilter] = useState('all')
+  /* จำนวนแถว "ให้ดาวอย่างเดียว" ที่กางอยู่ — รีวิวที่มีข้อความไม่ถูกซ่อนเลยไม่ว่ากี่อัน
+     (ข้อความคือของที่มีค่าที่สุดในแท็บนี้ ซ่อนไว้หลังปุ่มคือซ่อนเหตุผลที่คนเปิดแท็บนี้มา) */
+  const [ratingOnlyShown, setRatingOnlyShown] = useState(RATING_ONLY_PAGE)
 
   if (items.length === 0) return null
 
@@ -84,6 +157,27 @@ export default function ReviewList({ items }: { items: ReviewListItem[] }) {
   const activeChip = chips.find((c) => c.key === filter) ?? chips[0]
   const shown = items.filter(activeChip.match)
 
+  /**
+   * 🛑 **แท็บนี้ไม่ใช่ฟีดคอมเมนต์ มันคือรายการให้ดาว** — ข้อมูลจริงบน prod (2026-08-23):
+   * ทั้งแพลตฟอร์มมีรีวิว 23 อัน **มีข้อความแค่ 1 อัน** รูป 0 คำตอบร้าน 0
+   *
+   * เดิมทุกอันถูกจัดหน้าเหมือนกันหมด (บล็อกสูง ~190px + อวาตาร์ 40px) ⇒ จอเต็มไปด้วยแถว
+   * หน้าตาเหมือนกันเป๊ะ ชื่อ mask ซ้ำ ๆ อวาตาร์เทาเหมือนกันหมด ซึ่ง **อ่านเป็นรีวิวปลอม** —
+   * ตรงข้ามกับสิ่งที่หน้านี้มีไว้เพื่อ (ทำให้คนเชื่อว่าร้านนี้ขายจริง)
+   *
+   * แยกเป็นสองชนิด: อันที่มี "เนื้อหา" (ข้อความ/รูป/คำตอบร้าน) ได้พื้นที่เต็มและขึ้นก่อน ·
+   * อันที่ให้ดาวอย่างเดียวยุบเป็นแถวเดียว เห็นได้หลายอันต่อจอ
+   * 🛑 **ไม่ซ่อนอันที่ไม่มีข้อความ** — มันคือหลักฐานว่ามีคนซื้อจริง แค่ไม่ต้องกินพื้นที่เท่ากัน
+   */
+  const hasContent = (r: ReviewListItem) =>
+    Boolean(r.comment?.trim()) || r.images.length > 0 || Boolean(r.shopReply?.trim())
+  const detailed = shown.filter(hasContent)
+  const ratingOnly = shown.filter((r) => !hasContent(r))
+  const ratingOnlyVisible = ratingOnly.slice(0, ratingOnlyShown)
+
+  /* ร้านที่มีรีวิวมากกว่าเพดานที่ดึงมา — ต้องบอก ไม่ใช่เงียบ */
+  const truncated = totalCount != null && totalCount > items.length
+
   return (
     <div className='flex flex-col'>
       {/* ชิปโผล่เมื่อมีอะไรให้กรองจริง ๆ (มากกว่าชิป "ทั้งหมด" ตัวเดียว) — ร้านที่มีรีวิว 5 ดาว
@@ -111,7 +205,7 @@ export default function ReviewList({ items }: { items: ReviewListItem[] }) {
         </div>
       )}
 
-      {shown.map((r) => (
+      {detailed.map((r) => (
         /* `.review` ของไฟล์อ้างอิง — กริด 3 คอลัมน์: รูป 42px | เนื้อหา | วันที่
            🛑 ต้องเป็น **กริดจริง** ไม่ใช่เอารูปไปแปะไว้ในแถวหัวข้อแบบ flex (ที่ผมทำรอบก่อน)
            เพราะแบบนั้นข้อความรีวิวจะเริ่มที่ขอบซ้ายสุด **ไม่ตรงแนวกับชื่อ** ซึ่งเป็นจุดที่ user
@@ -145,15 +239,8 @@ export default function ReviewList({ items }: { items: ReviewListItem[] }) {
               <Typography className='text-[12px] font-extrabold' color='text.primary'>
                 {r.reviewerName}
               </Typography>
-              <span className='flex gap-0.5 text-warning mbs-0.5'>
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <Icon
-                    key={i}
-                    icon={i <= r.rating ? 'tabler:star-filled' : 'tabler:star'}
-                    width={13}
-                    className={i <= r.rating ? '' : 'opacity-35'}
-                  />
-                ))}
+              <span className='flex mbs-0.5'>
+                <Stars rating={r.rating} />
               </span>
 
           {/* ── หลักฐานว่ารีวิวนี้มาจากการซื้อจริง: ช่องทาง + เลขออเดอร์ ──
@@ -248,6 +335,40 @@ export default function ReviewList({ items }: { items: ReviewListItem[] }) {
             </Typography>
         </div>
       ))}
+
+      {/* ── รีวิวที่ให้ดาวอย่างเดียว ──
+          หัวข้อโผล่เฉพาะเมื่อมีทั้งสองชนิดบนจอ — ร้านที่ไม่มีรีวิวแบบมีข้อความเลย (ซึ่งเป็นเกือบทุกร้าน
+          ตอนนี้) จะได้รายการเดียวไม่มีหัวข้อคั่น ไม่ต้องอธิบายอะไรที่ผู้อ่านไม่ได้ถาม */}
+      {ratingOnly.length > 0 && (
+        <>
+          {detailed.length > 0 && (
+            <Typography className='text-[12px] text-[#8e8d99] mbs-4 mbe-1'>
+              {`รีวิวที่ให้ดาวอย่างเดียว · ${ratingOnly.length} รายการ`}
+            </Typography>
+          )}
+          {ratingOnlyVisible.map((r) => (
+            <CompactReviewRow key={r.id} r={r} />
+          ))}
+          {ratingOnlyShown < ratingOnly.length && (
+            <button
+              type='button'
+              onClick={() => setRatingOnlyShown((n) => n + RATING_ONLY_PAGE)}
+              className='mbs-3 is-full min-bs-10 rounded-full border border-[#ececf2] bg-[var(--mui-palette-background-paper)] text-[13px] font-bold text-[#5a5766] cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
+            >
+              {`ดูรีวิวเพิ่ม (อีก ${ratingOnly.length - ratingOnlyShown})`}
+            </button>
+          )}
+        </>
+      )}
+
+      {/* 🛑 ร้านที่มีรีวิวมากกว่าเพดานที่ดึงมา **ต้องบอก** — ไม่งั้นกราฟแท่งด้านบนกับจำนวนที่นับได้
+          ข้างล่างจะไม่ตรงกันโดยไม่มีอะไรอธิบาย ซึ่งเป็นสิ่งที่หน้านี้เพิ่งแก้ไป
+          (docs/conventions/partial-data-must-be-labeled-or-filled.md) */}
+      {truncated && (
+        <Typography className='text-[12px] text-[#8e8d99] text-center mbs-3'>
+          {`แสดง ${items.length} รีวิวล่าสุด จากทั้งหมด ${totalCount}`}
+        </Typography>
+      )}
 
       {/* ดูรูปเต็ม — ใช้ ResponsiveSheet ตัวเดียวกับแผงอื่นในหน้านี้ (มือถือ = ชีตล่าง, เดสก์ท็อป = โมดัลกลาง) */}
       <ResponsiveSheet

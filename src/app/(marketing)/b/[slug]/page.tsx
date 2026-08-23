@@ -20,7 +20,7 @@ import { getPinnedProducts } from '@/services/pin.service'
 import { getPublicRooms, getConfirmedBookingCountByRoom } from '@/services/room.service'
 import { listServiceResources, serializeServiceResource } from '@/services/service-resource.service'
 import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layout.service'
-import { MAX_PROFILE_PRODUCTS, isProfileListTruncated } from '@/lib/profile-sort'
+import { MAX_PROFILE_PRODUCTS, MAX_PROFILE_REVIEWS, isProfileListTruncated } from '@/lib/profile-sort'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
 import { approvedVerificationWhere, businessScope } from '@/lib/verification-scope'
 import { shopCategoryLabel } from '@/lib/shop-categories'
@@ -159,7 +159,9 @@ export default async function BusinessShopProfilePage({ params }: Props) {
       prisma.review.findMany({
         where: { order: { shopId: shop.id }, deletedAt: null },
         orderBy: { createdAt: 'desc' },
-        take: 10,
+        // 🛑 เดิม 10 ตายตัว ขณะที่แถบสรุปนับจากรีวิวทั้งหมด ⇒ กราฟแท่งบอก 21 แต่ชิปบอก 10
+        //    บนจอเดียวกันโดยไม่มีอะไรอธิบาย (ดูคอมเมนต์ของ MAX_PROFILE_REVIEWS)
+        take: MAX_PROFILE_REVIEWS,
         select: {
           id: true,
           rating: true,

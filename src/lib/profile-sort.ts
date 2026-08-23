@@ -83,3 +83,16 @@ export function nextSortMode(current: ProfileSortMode, clicked: ProfileSortMode)
 export function isProfileListTruncated(fetchedCount: number): boolean {
   return fetchedCount >= MAX_PROFILE_PRODUCTS
 }
+
+/**
+ * เพดานจำนวนรีวิวที่ดึงมาแสดงในแท็บรีวิว (feature 00053 รอบ redesign 2026-08-23)
+ *
+ * 🛑 ตัวเลขนี้แก้บั๊กที่มองเห็นได้บนจอ ไม่ใช่แค่เรื่อง performance — เดิม `take: 10` ตายตัว
+ * ขณะที่แถบสรุปด้านบนนับจากรีวิว **ทั้งหมด** ⇒ ร้านที่มี 21 รีวิวได้จอที่กราฟแท่งบอก
+ * "17 + 3 + 1 = 21" แต่ชิปข้างล่างบอก "ทั้งหมด 10" — ตัวเลขสองค่าของสิ่งเดียวกันบนจอเดียว
+ * โดยไม่มีอะไรอธิบาย (docs/conventions/partial-data-must-be-labeled-or-filled.md)
+ *
+ * 100 ครอบทุกร้านบน prod ณ วันที่เขียน (ทั้งแพลตฟอร์มมีรีวิว 23 อัน) — ถ้าวันหนึ่งมีร้านที่เกิน
+ * หน้าจอ **ต้องมีป้ายบอก** ว่ากำลังแสดงบางส่วน ไม่ใช่เงียบ (ดู `ReviewList` ที่เทียบกับ reviewCount)
+ */
+export const MAX_PROFILE_REVIEWS = 100

@@ -1859,6 +1859,21 @@ export const SetProfileItemVisibilitySchema = v.object({
   showOnProfile: v.boolean(),
 });
 
+/**
+ * PATCH .../item-visibility แบบ "ทั้งชุด" (redesign 2026-08-23)
+ *
+ * 🛑 ต้องมี endpoint แบบชุด ไม่ใช่ให้ client วนยิงทีละรายการ — ร้านที่มีสินค้า 32 ชิ้นจะยิง
+ * 32 request แล้วชน rate-limit ของ `guardApi` (mutation ของผู้ใช้ที่ล็อกอิน 30 ครั้ง/นาที)
+ * ผลคือกดปุ่ม "ซ่อนทั้งหมด" แล้วบางชิ้นถูกซ่อน บางชิ้นไม่ถูก โดยไม่มีอะไรบอกว่าอันไหนพลาด
+ */
+export const SetProfileItemsVisibilityBulkSchema = v.object({
+  kind: ProfileItemKindSchema,
+  showOnProfile: v.boolean(),
+  /* allow-list ค่าเดียว — เผื่อวันหลังมี scope อื่น (เช่น 'FILTERED') จะได้เพิ่มโดยไม่ต้องเดา
+     ว่าการไม่ส่ง field นี้แปลว่าอะไร */
+  scope: v.literal("ALL"),
+});
+
 // ── feature 00025 — LINE OA Chat Integration (S-5) ───────────────────────────
 // POST /api/channels/line/connect (API.md §4.2) — channelSecret เป็น hex 32 ตัวเสมอตามสเปก LINE
 // Developers Console (Channel secret คือ MD5-length hex string) ส่วน channelAccessToken เป็น JWT/opaque

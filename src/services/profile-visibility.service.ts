@@ -160,3 +160,39 @@ export async function setProfileItemVisibility(
   if (count === 0) throw new Error('NOT_FOUND')
   return { kind, id, showOnProfile }
 }
+
+/**
+ * setProfileItemsVisibilityBulk — เปิด/ปิดทั้งชนิดในครั้งเดียว (redesign 2026-08-23)
+ *
+ * 🛑 scope ด้วย `shopId` + `isActive` ให้ตรงกับชุดที่ `listProfileVisibilityItems` คืนออกไป
+ * เป๊ะ ๆ — ถ้าสองที่นับคนละชุด ตัวนับบนหน้าจอ ("แสดงอยู่ x จาก y") จะไม่มีวันตรงกับความจริง
+ * หลังกดปุ่มทั้งชุด และผู้ใช้จะเห็นเลขที่ขยับไปคนละทางกับสิ่งที่เพิ่งกด
+ *
+ * 🛑 `data` มีคีย์เดียวเหมือนตัวรายตัว — ห้ามแตะ `pinnedAt`/`isActive` เด็ดขาด
+ */
+export async function setProfileItemsVisibilityBulk(
+  shopId: string,
+  actorUserId: string,
+  kind: ProfileItemKind,
+  showOnProfile: boolean,
+): Promise<{ kind: ProfileItemKind; showOnProfile: boolean; count: number }> {
+  if (!(await canAccessShop(shopId, actorUserId))) throw new Error('FORBIDDEN')
+
+  const where = { shopId, isActive: true }
+  const data = { showOnProfile }
+
+  let count: number
+  switch (kind) {
+    case 'PRODUCT':
+      ;({ count } = await prisma.product.updateMany({ where, data }))
+      break
+    case 'ROOM':
+      ;({ count } = await prisma.room.updateMany({ where, data }))
+      break
+    case 'SERVICE':
+      ;({ count } = await prisma.serviceResource.updateMany({ where, data }))
+      break
+  }
+
+  return { kind, showOnProfile, count }
+}

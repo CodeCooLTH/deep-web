@@ -20,7 +20,11 @@ vi.mock('@/lib/shop-context', () => ({ canAccessShop: vi.fn() }))
 
 import { prisma } from '@/lib/prisma'
 import { canAccessShop } from '@/lib/shop-context'
-import { listProfileVisibilityItems, setProfileItemVisibility } from './profile-visibility.service'
+import {
+  listProfileVisibilityItems,
+  setProfileItemVisibility,
+  setProfileItemsVisibilityBulk,
+} from './profile-visibility.service'
 
 const SHOP = 'shop-1'
 const ACTOR = 'user-1'
@@ -119,5 +123,45 @@ describe('listProfileVisibilityItems', () => {
     ;(canAccessShop as any).mockResolvedValue(false)
     await expect(listProfileVisibilityItems(SHOP, ACTOR)).rejects.toThrow('FORBIDDEN')
     expect(prisma.product.findMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('[blocker] setProfileItemsVisibilityBulk', () => {
+  /**
+   * ปุ่ม "แสดง/ซ่อนทั้งหมด" ต้องเป็น request เดียว — ถ้า client วนยิงทีละรายการ ร้านที่มีสินค้า
+   * 32 ชิ้นจะชน rate-limit ของ guardApi (mutation ผู้ใช้ล็อกอิน 30/นาที) แล้วบางชิ้นถูกเปลี่ยน
+   * บางชิ้นไม่ถูก โดยไม่มีอะไรบอกว่าอันไหนพลาด
+   */
+  it('scope ด้วย shopId + isActive ให้ตรงกับชุดที่ list คืนออกไป', async () => {
+    ;(prisma.product.updateMany as any).mockResolvedValue({ count: 12 })
+
+    const res = await setProfileItemsVisibilityBulk(SHOP, ACTOR, 'PRODUCT', false)
+
+    const arg = (prisma.product.updateMany as any).mock.calls[0][0]
+    expect(arg.where).toEqual({ shopId: SHOP, isActive: true })
+    expect(res).toEqual({ kind: 'PRODUCT', showOnProfile: false, count: 12 })
+  })
+
+  it('เขียนเฉพาะ showOnProfile — ห้ามแตะ pinnedAt/isActive แม้ตอนทำทั้งชุด', async () => {
+    ;(prisma.product.updateMany as any).mockResolvedValue({ count: 3 })
+    await setProfileItemsVisibilityBulk(SHOP, ACTOR, 'PRODUCT', true)
+    const arg = (prisma.product.updateMany as any).mock.calls[0][0]
+    expect(Object.keys(arg.data)).toEqual(['showOnProfile'])
+  })
+
+  it('kind เลือกตารางถูกตัว ไม่แตะตารางอื่น', async () => {
+    ;(prisma.serviceResource.updateMany as any).mockResolvedValue({ count: 2 })
+    await setProfileItemsVisibilityBulk(SHOP, ACTOR, 'SERVICE', false)
+    expect(prisma.serviceResource.updateMany).toHaveBeenCalledTimes(1)
+    expect(prisma.product.updateMany).not.toHaveBeenCalled()
+    expect(prisma.room.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('ไม่มีสิทธิ์ → FORBIDDEN และไม่ยิงคำสั่งเขียนเลย', async () => {
+    ;(canAccessShop as any).mockResolvedValue(false)
+    await expect(setProfileItemsVisibilityBulk(SHOP, ACTOR, 'PRODUCT', false)).rejects.toThrow(
+      'FORBIDDEN',
+    )
+    expect(prisma.product.updateMany).not.toHaveBeenCalled()
   })
 })

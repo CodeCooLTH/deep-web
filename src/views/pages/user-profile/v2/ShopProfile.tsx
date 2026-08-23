@@ -385,7 +385,7 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
               reviewCount={data.reviewCount}
               distribution={data.ratingDistribution}
             />
-            <ReviewList items={data.reviews} />
+            <ReviewList items={data.reviews} totalCount={data.reviewCount} />
           </>
         ) : (
           /* empty state ที่แยก "ยังไม่มีใครรีวิว" ออกจาก "ร้านนี้ไม่มีประวัติ" ให้ชัด
