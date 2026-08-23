@@ -119,7 +119,8 @@ flowchart LR
 - **คำอธิบายเชิงเทคนิค:** เพิ่ม `cost: Decimal(12,2)?` ที่ `Product` (nullable, additive). `CreateProductInput`/`UpdateProductInput` (`product.service.ts`) เพิ่ม `cost?: number | null` (`undefined` = ไม่แตะ, `null` = ล้างค่า, ตัวเลข = ตั้งค่า — pattern เดียวกับ `lowStockThreshold`/`stockQty`). `SerializedProduct` เพิ่ม `cost: number | null`. **Gate การแก้ไข (AC-05):** ทุก route ที่รับ field `cost` (`POST /api/products`, `PATCH /api/products/[id]`) ต้องเรียก `isCostEditAllowed(shop)` ก่อนยอมรับค่า — ถ้าไม่ ACTIVE ต้อง reject ด้วย `403 COST_REQUIRES_BUSINESS_PACKAGE` (defense-in-depth ชั้น backend คู่กับ disabled field ฝั่ง UI ที่ safepay-ux ออกแบบ)
 - **Precondition:** `shop` ที่ query มาต้องมี `userId` (สำหรับ `isCostEditAllowed`)
 - **Postcondition:** สินค้าที่ไม่เคยตั้ง `cost` ทำงานเหมือนเดิมทุกประการ (zero-regression); สินค้าที่ตั้ง `cost` ไว้ก่อนแล้ว package lapse ภายหลัง — **ค่า `cost` เดิมไม่ถูกลบ** (แค่แก้ไม่ได้อีก จนกว่า package ACTIVE อีกครั้ง — เหตุผลเดียวกับ FR-EXP-11-AC-03 ที่ไม่ลบข้อมูล Expense เมื่อ lock)
-- **Error/Edge cases:** `cost < 0` → validation reject (Valibot `minValue(0)`, ต่างจาก `price` ที่ `minValue(0.01)` เพราะ `cost` อนุญาต 0 ได้ — สินค้าแจกฟรี/ต้นทุนเป็นศูนย์เป็นไปได้จริง)
+- **Error/Edge cases:** `cost < 0` → validation reject (Valibot `minValue(0)`) — ต้นทุนเป็นศูนย์เป็นไปได้จริง
+  🛑 เดิมข้อนี้อธิบายว่า "ต่างจาก `price` ที่ `minValue(0.01)`" — **ตั้งแต่ 2026-08-23 `price` เป็น `minValue(0)` เหมือนกัน** ทั้งสองช่องจึงรับ 0 ได้แล้ว
 
 ### TFR-002: `OrderItem.cost` — Snapshot ที่จุดสร้างออเดอร์
 - **Trace to:** FR-EXP-02

@@ -158,7 +158,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[API]]", "[[PRD]]"]
 
 ---
 
-#### TC-EXP-09: `cost = 0` ยอมรับได้ (ต่างจาก `price` ที่ต้อง `minValue(0.01)`)
+#### TC-EXP-09: `cost = 0` ยอมรับได้ (ตั้งแต่ 2026-08-23 `price` ก็รับ 0 ได้เช่นกัน — ไม่ต่างกันแล้ว)
 
 - **Linked to:** SRS TFR-001 (edge case)
 - **Precondition:** owner package ACTIVE

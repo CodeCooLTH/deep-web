@@ -62,7 +62,9 @@ const schema = Yup.object({
     .default(''),
   price: Yup.number()
     .typeError('ใส่ราคาก่อนนะคะ')
-    .positive('ราคาต้องมากกว่า 0 บาท')
+    /* .min(0) ไม่ใช่ .positive() — ร้านตั้งราคา ฿0 ได้ (ของแถม/ตัวอย่างฟรี/คิดเงินปลายทาง)
+       user สั่ง 2026-08-23 · ต้องตรงกับ ProductSchema/UpdateProductSchema ฝั่ง server ทั้งคู่ */
+    .min(0, 'ราคาต้องไม่ติดลบ')
     .test('decimal', 'ราคาทศนิยมได้ไม่เกิน 2 ตำแหน่ง', (v) =>
       v !== undefined ? /^\d+(\.\d{1,2})?$/.test(String(v)) : true,
     )

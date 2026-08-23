@@ -979,14 +979,16 @@ export default function InboxList({
           — ค้างบนสุดของกล่อง scroll ทั้งสองโหมด: desktop = SimpleBar ใน ChatRail.tsx,
           มือถือ/แท็บเล็ต = `<div className="overflow-y-auto">` ใน (chat)/layout.tsx
           ต้อง bg-card ในตัวเอง (พื้นของ .card อยู่ "หลัง" แถวที่เลื่อนผ่าน — ถ้าหัวโปร่งจะเห็นแถว
-          ทะลุ) + z-10 ให้อยู่เหนือทั้งแถวและชุดปุ่มลอยตอน hover. ใช้ได้จริงเพราะ .card ไม่มี
+          ทะลุ) + z-20 ให้อยู่เหนือทั้งแถวและชุดปุ่มลอยตอน hover. ใช้ได้จริงเพราะ .card ไม่มี
+          🛑 z-20 ไม่ใช่ z-10 — `.btn` ของ Paces เป็น z-10 ในตัว จะเสมอกันแล้วปุ่มที่อยู่ทีหลังชนะ
+          (paces-btn-z-index-floor.md)
           overflow:hidden (custom/_card.css — มีเฉพาะ .card-collapsed) ที่จะตัด sticky ทิ้ง */}
       {/* tabsAbove (มือถือ): มีแท็บ ข้อความ|ความคิดเห็น เป็น sticky อยู่เหนือขึ้นไปในกล่อง scroll
           เดียวกัน — หัวรายการต้องเกาะ "ใต้แท็บ" ไม่ใช่ที่ 0 ไม่งั้นสองอันค้างที่เส้นเดียวกันแล้วทับกัน
           top-14 = 3.5rem = 56px = ความสูงจริงของแท็บ (pt-3 12px + min-h-11 44px) และเป็น Tailwind
           scale class ปกติ ไม่ใช่ arbitrary value (HR7) */}
       <div
-        className={`card-header sticky z-10 flex flex-col items-stretch gap-3 border-dashed bg-card ${
+        className={`card-header sticky z-20 flex flex-col items-stretch gap-3 border-dashed bg-card ${
           tabsAbove ? 'top-14' : 'top-0'
         }`}
       >

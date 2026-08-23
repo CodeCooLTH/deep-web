@@ -169,7 +169,7 @@ Server-side Nominatim proxy — รับพิกัด คืน province. ก
 | field | type | req | คำอธิบาย |
 |-------|------|-----|----------|
 | `name` | string | yes | 1–200 chars |
-| `price` | number | yes | > 0.01 |
+| `price` | number | yes | ≥ 0 (แก้ 2026-08-23 — ฿0 ได้ ดู `docs/SRS.md` §data model) |
 | `type` | string | yes | default `PHYSICAL` (onboarding) |
 | `sku` | string | no | ≤100 chars (field ใหม่ — ดู [[DATABASE]] Open Q) |
 | `description` | string | no | ≤5000 |
