@@ -43,10 +43,24 @@
 - ช่องทาง MESSENGER / INSTAGRAM / LINE
 
 ### นอกขอบเขต (ยังเป็น synchronous เหมือนเดิมทุกประการ)
-ผู้เรียก `sendOutboundMessage` อีก 8 ที่ — ไม่มีคนถือมือถืออยู่ตรงนั้น จึงไม่มีอะไรให้ปิด:
-`auto-reply-send.service` · `auto-reply-takeover.service` · `comment-private-reply.service` ·
-`page-comment.service` · `line-rich-menu-reply.service` · `api/orders/[token]/appointment-summary` ·
-`api/files/[...fileId]` · แชท DEEP (`chat.service.sendMessage` — เขียนลง DB ของเราตรง ๆ ไม่มีอะไรให้คิว)
+
+🛑 **แก้ไข 2026-08-23 (fix round 1):** ร่างแรกเขียนว่ามีผู้เรียก 8 ที่และอ้างว่ายืนยันด้วย grep แล้ว —
+ไม่จริง (ใช้ `grep -l` ซึ่งจับไฟล์ที่แค่พูดถึงชื่อฟังก์ชันในคอมเมนต์ปนมาด้วย) รายการที่ถูกต้อง ยืนยันด้วย
+`grep -rn "sendOutboundMessage(" src/` แล้วเปิดดูบริบทแต่ละจุด:
+
+**ผู้เรียกภายนอกจริงมี 2 ไฟล์เท่านั้น** — ไม่มีคนถือมือถืออยู่ตรงนั้น จึงไม่มีอะไรให้ปิด:
+`auto-reply-send.service.ts:134,165` · `line-rich-menu-reply.service.ts:112`
+
+**บวกการเรียกซ้อนภายในไฟล์ตัวเอง 3 จุด** — `channel-chat.service.ts:2797,2812,2879` ทั้งหมดอยู่ใน
+`sendOutboundImageGrid()` (นิยามที่ `:2683`) ซึ่งมีผู้เรียกภายนอกจุดเดียวคือ `.../messages/route.ts:1055`
+ที่อยู่**ในขอบเขต**ของงานนี้ ⇒ หลังงานนี้เสร็จเส้นทางนี้จะไม่ถูกเรียกแบบ synchronous อีก และ Task 7 จะลบทิ้ง
+
+**ไม่ใช่ผู้เรียก — แค่พูดถึงชื่อฟังก์ชันในคอมเมนต์** (ร่างแรกระบุผิดว่าเป็นผู้เรียก): `comment-private-reply.service.ts`
+(คอมเมนต์ห้าม reuse ตรง ๆ) · `auto-reply-takeover.service.ts` (เป็นฝ่ายถูกเรียก ไม่ใช่ผู้เรียก) ·
+`page-comment.service.ts` (import แค่ `mirrorRemoteImage`) · `api/orders/[token]/appointment-summary/route.ts` ·
+`api/files/[...fileId]/route.ts`
+
+แชท DEEP (`chat.service.sendMessage` — เขียนลง DB ของเราตรง ๆ ไม่มีอะไรให้คิว) นอกขอบเขตเหมือนเดิม
 
 ---
 
@@ -272,7 +286,7 @@ group by 1;
 |---|---|
 | migration ×2 | คอลัมน์ + partial index · trigger realtime (§7.2) |
 | `src/lib/chat-send-queue.ts` **ใหม่** | SSOT: เกณฑ์ claim (`sendLockedAt IS NULL`) / เพดานห้องค้าง / การแปล error เป็นสถานะปลายทาง — ฟังก์ชันบริสุทธิ์ทั้งหมด |
-| `src/services/channel-chat.service.ts` | แตก `sendOutboundMessage` → guard / transmit / persist ให้ผู้เรียกเดิม 8 ที่ใช้ **ส่วนกลางร่วมกัน** (ไม่งั้นได้ตรรกะการส่ง 2 ชุดที่ค่อย ๆ ห่างกัน) |
+| `src/services/channel-chat.service.ts` | แตก `sendOutboundMessage` → guard / transmit / persist ให้ผู้เรียกที่เหลือ (`auto-reply-send.service.ts`, `line-rich-menu-reply.service.ts`, และ `sendOutboundImageGrid` ภายในไฟล์เดียวกัน) ใช้ **ส่วนกลางร่วมกัน** (ไม่งั้นได้ตรรกะการส่ง 2 ชุดที่ค่อย ๆ ห่างกัน) |
 | `src/services/chat-outbox.service.ts` **ใหม่** | claim · deliver · sweep |
 | `.../messages/route.ts` | POST เขียนคิว + `after()` |
 | `src/app/api/cron/chat-outbox/route.ts` **ใหม่** + `vercel.json` | ชั้น 3 |
