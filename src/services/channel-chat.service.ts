@@ -100,7 +100,7 @@ export type SendFailedError = Error & { savedMessage?: Omit<ChatMessage, 'rawMes
  *
  * ไม่ throw เด็ดขาด: การเก็บ log ห้ามทำให้ข้อความของลูกค้าหายไปทั้งข้อความ
  */
-function toRawMessage(
+export function toRawMessage(
   provider: string,
   payload: unknown,
   // 'outbound-response' = ขาออก ไม่มี payload ที่ได้รับ เก็บสิ่งที่ Meta ตอบกลับตอนเรายิงไปแทน
@@ -592,7 +592,7 @@ const UNSUPPORTED_ATTACHMENT_TEXT = '[ไฟล์แนบ — เปิดด�
  *
  * ชื่อช่องทางดึงจาก `getChannelLabel` (SSOT ตาม HR16) ห้ามพิมพ์ 'Messenger'/'LINE' เองที่นี่
  */
-function stickerMirrorFailedText(channel: string): string {
+export function stickerMirrorFailedText(channel: string): string {
   return `[สติกเกอร์ — เปิดดูใน ${getChannelLabel(channel)}]`
 }
 
@@ -2001,7 +2001,7 @@ const LINE_STICKER_TEXT = '[สติกเกอร์ LINE]'
 // 🛑 ไม่อยู่ในเอกสารทางการของ LINE — อาจเปลี่ยน/หายไปโดยไม่ประกาศเมื่อไหร่ก็ได้ ดังนั้นห้ามเก็บ URL นี้
 // ลง DB แล้วให้หน้าจอไปโหลดสดตอน render (บทเรียนเดียวกับรูป fbcdn ที่หมดอายุ ~4 วัน —
 // docs memory project_fb_generic_card_carousel) ต้อง mirror เข้า storage ของเราทันทีตอน ingest เสมอ
-function buildLineStickerImageUrl(stickerId: string): string {
+export function buildLineStickerImageUrl(stickerId: string): string {
   return `https://stickershop.line-scdn.net/stickershop/v1/sticker/${encodeURIComponent(stickerId)}/android/sticker.png`
 }
 
