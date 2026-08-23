@@ -286,7 +286,7 @@ group by 1;
 |---|---|
 | migration ×2 | คอลัมน์ + partial index · trigger realtime (§7.2) |
 | `src/lib/chat-send-queue.ts` **ใหม่** | SSOT: เกณฑ์ claim (`sendLockedAt IS NULL`) / เพดานห้องค้าง / การแปล error เป็นสถานะปลายทาง — ฟังก์ชันบริสุทธิ์ทั้งหมด |
-| `src/services/channel-chat.service.ts` | แตก `sendOutboundMessage` → guard / transmit / persist ให้ผู้เรียกที่เหลือ (`auto-reply-send.service.ts`, `line-rich-menu-reply.service.ts`, และ `sendOutboundImageGrid` ภายในไฟล์เดียวกัน) ใช้ **ส่วนกลางร่วมกัน** (ไม่งั้นได้ตรรกะการส่ง 2 ชุดที่ค่อย ๆ ห่างกัน) |
+| `src/services/channel-chat.service.ts` | แตก `sendOutboundMessage` → guard / transmit / persist ให้ผู้เรียกที่เหลือ (`auto-reply-send.service.ts`, `line-rich-menu-reply.service.ts`, และ `sendOutboundImageGrid` ภายในไฟล์เดียวกัน) ใช้ **ส่วนกลางร่วมกัน** (ไม่งั้นได้ตรรกะการส่ง 2 ชุดที่ค่อย ๆ ห่างกัน). 🛑 นิยามของ `transmit` คือ **ไม่ *เขียน* แถว `ChatMessage`** (ไม่ใช่ "ไม่แตะ") — `transmitLineMessage` ยัง *อ่าน* `chatMessage.findFirst` เพื่อหา `quoteToken` ของข้อความที่กำลังตอบทับ ซึ่งเป็นส่วนหนึ่งของการประกอบ payload ที่จะยิง ย้ายออกไม่ได้ ไม่งั้นเส้นทางคิวจะส่ง quote ไม่ได้เลย (Ruling R-14) |
 | `src/services/chat-outbox.service.ts` **ใหม่** | claim · deliver · sweep |
 | `.../messages/route.ts` | POST เขียนคิว + `after()` |
 | `src/app/api/cron/chat-outbox/route.ts` **ใหม่** + `vercel.json` | ชั้น 3 |
