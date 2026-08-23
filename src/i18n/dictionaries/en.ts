@@ -790,7 +790,7 @@ export const en: Dictionary = {
     signIn: {
       pageTitle: 'Seller sign-in',
       title: 'Welcome, seller',
-      subtitle: 'Enter your username and password to sign in',
+      subtitle: 'Sign in to manage your shop',
       loading: 'Loading…',
       // ชื่อผู้ให้บริการเป็นชื่อแบรนด์ ห้ามแปล — reviewer ต้องจับคู่กับคำอธิบายในใบยื่นได้ทันที
       withApple: 'Sign in with Apple',
@@ -811,6 +811,17 @@ export const en: Dictionary = {
       errUsernameRequired: 'Please enter your username',
       errPasswordRequired: 'Please enter your password',
       errInvalidCredentials: 'Incorrect username or password',
+      orPhone: 'Or continue with phone',
+      phoneLabel: 'Phone number',
+      errPhoneRequired: 'Enter your phone number',
+      sendOtp: 'Send OTP code',
+      sendingOtp: 'Sending code...',
+      otpSendError: "Couldn't send the code. Please try again.",
+      otpRateLimited: 'Too many requests. Please wait a moment.',
+      otpNoAccount: 'No Deep account uses this number',
+      useOtpInstead: 'Sign in with phone instead',
+      noPasswordUseOtp: 'Never set a password? Sign in with your phone instead',
+      usePasswordInstead: 'Sign in with password instead',
       /** Reason a social sign-in failed — NextAuth passes it in `?error=` */
       oauthError: {
         oauthSignin: 'Could not start sign-in. Please try again.',

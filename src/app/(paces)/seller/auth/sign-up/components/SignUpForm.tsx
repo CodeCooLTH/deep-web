@@ -22,7 +22,8 @@
  * - shopName=displayName ส่งใน query string (placeholder ให้ P1 phone-otp สร้าง shop; แก้ได้ใน onboarding P3)
  * - password ไม่ปรากฏใน URL (เก็บใน sessionStorage เท่านั้น — OQ-1)
  * - field error ใช้ invalid-msg class + !border-danger ตาม CustomValidation pattern (HR7)
- * - phone ซ้ำ → setError inline แทน pacesToast (OQ-3)
+ * - phone ซ้ำ → โนติส info ใต้ช่องเบอร์ พร้อมปุ่ม "เข้าสู่ระบบด้วยเบอร์นี้" (ไม่บล็อกฟอร์ม)
+ *   เดิมเป็น setError ที่บอกให้ไปใช้รหัสผ่าน ซึ่งบัญชีส่วนใหญ่ไม่มี — ดูคอมเมนต์ที่ phoneConflict
  * - username submit-guard → return เงียบ, inline live-status แสดงอยู่แล้ว (OQ-2)
  */
 
@@ -35,6 +36,11 @@ import { pacesToast } from '@/lib/paces-toast'
 import { SHOP_CATEGORY_KEYS, SHOP_CATEGORY_LABELS } from '@/lib/shop-categories'
 import { cn } from '@/utils/helpers'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
+import {
+  SIGNIN_OTP_MESSAGE,
+  sendSigninOtp,
+  signinOtpVerifyUrl,
+} from '../../components/send-signin-otp'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -95,7 +101,6 @@ export default function SignUpForm() {
     handleSubmit,
     watch,
     setValue,
-    setError,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
@@ -119,6 +124,51 @@ export default function SignUpForm() {
   useEffect(() => {
     setPrivacyUrl(`${resolveBuyerBaseUrl()}/privacy`)
   }, [])
+
+  /**
+   * เบอร์ที่ "มีบัญชีอยู่แล้ว" — ไม่ใช่ error ของ input จึงไม่ใช้ `setError('phone')`
+   *
+   * 🛑 เดิมจุดนี้เป็นทางตัน: `setError` ว่า "เบอร์นี้มีบัญชีแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่าน"
+   * แล้ว return — แต่บัญชีส่วนใหญ่ที่ชนตรงนี้สมัครด้วย OTP ล้วนและ **ไม่มีรหัสผ่านให้ใช้จริง ๆ**
+   * (prod 2026-08-23: 46 จาก 48 บัญชีที่ยังไม่เปิดร้าน) ⇒ เราสั่งให้เขาไปทำสิ่งที่ทำไม่ได้
+   * ตอนนี้เป็น "ทางแยกที่ต้องเลือก" ไม่ใช่ "ของที่ต้องแก้ก่อนไปต่อ" — ฟอร์มยังใช้งานต่อได้ปกติ
+   */
+  const [phoneConflict, setPhoneConflict] = useState<string | null>(null)
+  const [conflictSending, setConflictSending] = useState(false)
+
+  /**
+   * prefill เบอร์จาก `?phone=` (มาจากลิงก์ "สมัครสมาชิก" ในหน้า sign-in ตอนกรอกเบอร์ที่ยังไม่มีบัญชี)
+   * อ่านจาก `window.location` ไม่ใช่ `useSearchParams` เพราะหน้านี้ไม่มี Suspense boundary ห่อไว้
+   */
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get('phone') ?? ''
+    if (MOBILE_PHONE_RE.test(raw)) setValue('phone', raw)
+  }, [setValue])
+
+  /**
+   * แก้เลขในช่องเบอร์เมื่อไร โนติสหายทันที — ไม่รอ submit รอบใหม่
+   * กันโนติสค้างพูดถึงเบอร์ที่ไม่ตรงกับที่เห็นอยู่บนจอแล้ว (ปุ่มในโนติสยิง OTP ไปเบอร์เก่า)
+   */
+  const phoneValue = watch('phone')
+  useEffect(() => {
+    if (phoneConflict && phoneValue !== phoneConflict) setPhoneConflict(null)
+  }, [phoneValue, phoneConflict])
+
+  /** "เข้าสู่ระบบด้วยเบอร์นี้" — เส้นทางเดียวกับฟอร์ม OTP ในหน้า sign-in ทุกประการ */
+  const handleSigninWithConflictPhone = async () => {
+    if (!phoneConflict || conflictSending) return
+    setConflictSending(true)
+    try {
+      const result = await sendSigninOtp(phoneConflict)
+      if (result.ok) {
+        router.push(signinOtpVerifyUrl(phoneConflict))
+        return
+      }
+      pacesToast.error(SIGNIN_OTP_MESSAGE[result.reason])
+    } finally {
+      setConflictSending(false)
+    }
+  }
 
   // PasswordInputWithStrength ต้องการ controlled state
   const [password, setPassword] = useState('')
@@ -174,8 +224,8 @@ export default function SignUpForm() {
       if (phoneCheckRes.ok) {
         const phoneData: { available: boolean } = await phoneCheckRes.json()
         if (!phoneData.available) {
-          // OQ-3: แสดง error inline ใต้ field แทน toast — ผู้ใช้เห็นทันทีโดยไม่ต้องหา notification
-          setError('phone', { message: 'เบอร์นี้มีบัญชีแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่าน' })
+          // ไม่ใช่ error ของ input — ขึ้นโนติสพร้อมทางออกที่กดต่อได้ (ดูคอมเมนต์ที่ phoneConflict)
+          setPhoneConflict(values.phone)
           return
         }
       }
@@ -380,6 +430,33 @@ export default function SignUpForm() {
           </div>
           {errors.phone && (
             <p className="invalid-msg mt-1 text-sm text-danger">{errors.phone.message}</p>
+          )}
+
+          {/* เบอร์นี้มีบัญชีแล้ว — โนติสไม่บล็อกฟอร์ม (Base: theme .../ui/alerts/page.tsx บล็อก info)
+              ใช้ info ไม่ใช่ success/warning เพราะ "มีบัญชีอยู่แล้ว" ไม่ใช่ทั้งความสำเร็จและคำเตือน
+              text-info-ink แทน text-info ดิบของ theme — บนพื้น /15 สีดิบตกเกณฑ์คอนทราสต์ */}
+          {phoneConflict && (
+            <div className="bg-info/15 mt-3 rounded px-4 py-3" role="status">
+              <div className="text-info-ink flex gap-2">
+                <Icon icon="info-circle" className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+                <p className="text-sm">เบอร์นี้มีบัญชี Deep อยู่แล้ว เข้าสู่ระบบด้วยเบอร์นี้ แล้วไปเปิดร้านต่อได้เลย</p>
+              </div>
+              {/* ปุ่มรอง: พื้น bg-card + ขอบ (ท่าเดียวกับปุ่มโซเชียลใน SignInForm.tsx)
+                  🛑 ไม่ใช้ `bg-info` + ตัวอักษรขาวตามที่ ux ร่างไว้ — `--color-info` = #5bc3e1
+                  คู่กับขาวได้คอนทราสต์ 2.03:1 (เกณฑ์ 4.5:1) ส่วน text-default-900 บน bg-card ผ่านสบาย
+                  และยังอ่านเป็น "ปุ่มรอง" ตามเจตนาเดิม ไม่แย่งความเด่นจาก "สมัครสมาชิก" */}
+              <button
+                type="button"
+                onClick={handleSigninWithConflictPhone}
+                disabled={conflictSending}
+                className="btn bg-card border border-default-300 text-default-900 hover:border-default-400 mt-3 py-3 font-semibold disabled:opacity-60"
+              >
+                {conflictSending ? 'กำลังส่งรหัส...' : 'เข้าสู่ระบบด้วยเบอร์นี้'}
+              </button>
+              <p className="text-default-500 mt-2 text-sm">
+                พิมพ์เบอร์อื่นด้านบนได้ ถ้าเบอร์นี้ไม่ใช่ของคุณ
+              </p>
+            </div>
           )}
         </div>
 

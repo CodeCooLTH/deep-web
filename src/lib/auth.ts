@@ -469,10 +469,20 @@ export const authOptions: NextAuthOptions = {
         // บัญชีถูกลบแล้ว → ปฏิเสธเงียบ ๆ เหมือนกรณี "ไม่เจอ user"/"รหัสผิด" ทุกประการ
         // ห้ามแยกข้อความ — ไม่งั้นกลายเป็นช่องให้เดาว่า username ไหนมีตัวตน (account enumeration)
         if (isDeletedUser(user)) return null;
-        // seller = ไม่ใช่ admin (admin ใช้ provider แยก) + ต้องเปิดร้านแล้ว (isShop) + ตั้ง password แล้ว
-        // buyer ที่ตั้ง password แต่ยังไม่เปิดร้าน → เป็น seller ผ่าน signup/onboarding ไม่ใช่ login ตรงนี้ (S-P1-9)
+        // seller = ไม่ใช่ admin (admin ใช้ provider แยก) + ตั้ง password แล้ว
+        //
+        // 🛑 ห้ามใส่ `if (!user.isShop) return null` กลับมา — ด่านนั้นเคยมีจริงตาม baseline
+        // 2026-06-16 ("reject non-seller") ซึ่งเขียนไว้ *ก่อน* feature 00012 (Lazy Personal shop)
+        // ที่ยกเลิกการ auto-create ร้านตอน login แล้วให้ `/choose-shop` เป็นคนรับเคส "ยังไม่มีร้าน"
+        // แทน. พอสองกฎมาอยู่ด้วยกัน ผลคือ **ประตูล็อกทั้งสองบาน**: คนที่ยังไม่มีร้าน login ไม่ได้
+        // (ขึ้น "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" ทั้งที่กรอกถูก) และไปสมัครใหม่ก็ไม่ได้เพราะ
+        // sign-up เช็คเบอร์ซ้ำแล้วตีตก ⇒ ตันสนิท (prod 2026-08-23: buyer-only 48 คน)
+        // กลุ่มที่โดนด้วยและไม่มีใครรายงานเลยคือ **พนักงานที่ถูกเชิญ** — accept invite ไม่ set
+        // isShop (เจตนา ดู 00012) จึงล็อกอินฝั่งผู้ขายด้วยรหัสผ่านไม่ได้มาตั้งแต่วันแรกของ 00012
+        //
+        // การเข้าถึงร้านถูกกั้นด้วย activeShopId + membership ที่ jwt/layout อยู่แล้ว ไม่ใช่ที่ธงนี้ —
+        // คนไม่มีร้านเข้ามาแล้วจะถูก layout พาไป `/choose-shop` ไม่มีอะไรให้แตะนอกจากเปิดร้านของตัวเอง
         if (user.isAdmin) return null;
-        if (!user.isShop) return null;
         if (user.passwordHash == null) return null;
 
         const { verifyPassword } = await import("@/lib/password");

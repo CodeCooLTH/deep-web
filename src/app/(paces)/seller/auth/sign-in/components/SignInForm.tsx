@@ -37,8 +37,14 @@ import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
 import type { Dictionary } from '@/i18n/dictionaries/th'
+import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
 import { safeCallbackUrl } from '@/lib/safe-callback-url'
 import { cn } from '@/utils/helpers'
+import {
+  sendSigninOtp,
+  signinOtpVerifyUrl,
+  type SigninOtpFailReason,
+} from '../../components/send-signin-otp'
 
 /**
  * schema ต้องสร้างจาก dictionary ไม่ใช่ค่าคงที่ระดับ module (feature 00047)
@@ -52,7 +58,24 @@ function makeSchema(t: Dictionary) {
   })
 }
 
+/**
+ * เบอร์โทร — ยึด SSOT เดียวกับทั้งระบบ (`MOBILE_PHONE_RE` = `^0[689][0-9]{8}$`)
+ *
+ * 🛑 ข้อความ "เบอร์ผิดยังไง" ต้องเป็น `MOBILE_RULE_TEXT` ตัวเดียวกับที่ฟอร์มอื่นใช้ ห้าม mint
+ * คีย์ใหม่ใน dictionary — คอมมิต `3ceb477f` เพิ่งไล่เก็บกรณี "คำเดียวกันเขียน 3 แบบ" ไปหมาด ๆ
+ * การมีคำที่ 4 แปลว่าผู้ใช้จะได้ยินกฎคนละอย่างจากสองจอที่ทำเรื่องเดียวกัน (Hard Rule 16)
+ * แลกกับการที่สตริงนี้ยังไม่มีคำแปล EN — ยอมรับได้ เพราะ "กฎที่บอกผิด" เสียหายกว่า "ไม่ได้แปล"
+ */
+function makePhoneSchema(t: Dictionary) {
+  return Yup.object({
+    phone: Yup.string()
+      .matches(MOBILE_PHONE_RE, MOBILE_RULE_TEXT)
+      .required(t.auth.signIn.errPhoneRequired),
+  })
+}
+
 type FormValues = Yup.InferType<ReturnType<typeof makeSchema>>
+type PhoneFormValues = Yup.InferType<ReturnType<typeof makePhoneSchema>>
 
 export default function SignInForm() {
   const t = useT()
@@ -62,6 +85,12 @@ export default function SignInForm() {
   // ปลายทางหลัง login — มาจาก query string จึงต้อง sanitize ทุกครั้ง (open-redirect)
   const callbackUrl = safeCallbackUrl(searchParams.get('callbackUrl'))
   const [showPw, setShowPw] = useState(false)
+  /**
+   * ทางเข้า 2 แบบในจอเดียว — default = 'password' เสมอ เพื่อไม่เปลี่ยนพฤติกรรมของคนที่มี
+   * รหัสผ่านอยู่แล้ว. โหมด 'otp' มีไว้ให้บัญชีที่สมัครด้วย OTP ล้วน (ไม่เคยตั้งรหัสผ่าน)
+   * ซึ่งก่อนหน้านี้เข้าฝั่งผู้ขายไม่ได้เลยสักทาง
+   */
+  const [loginMode, setLoginMode] = useState<'password' | 'otp'>('password')
   const {
     register,
     handleSubmit,
@@ -71,6 +100,14 @@ export default function SignInForm() {
     resolver: yupResolver(schema),
     defaultValues: { username: '', password: '' },
   })
+
+  const phoneSchema = useMemo(() => makePhoneSchema(t), [t])
+  const otpForm = useForm<PhoneFormValues>({
+    resolver: yupResolver(phoneSchema),
+    defaultValues: { phone: '' },
+  })
+  /** ผลของการขอ OTP ครั้งล่าสุด — เก็บเป็น "รหัสเหตุผล" แล้วค่อยแปลเป็นคำตอนแสดง */
+  const [otpError, setOtpError] = useState<SigninOtpFailReason | null>(null)
 
   /**
    * Sign in with Apple — App Store Guideline 4.8 (rejection 2026-08-04)
@@ -120,6 +157,29 @@ export default function SignInForm() {
       setError('password', { type: 'server', message: '' })
       setError('root', { message: t.auth.signIn.errInvalidCredentials })
     }
+  }
+
+  const onOtpSubmit = async ({ phone }: PhoneFormValues) => {
+    setOtpError(null)
+    const result = await sendSigninOtp(phone)
+    if (result.ok) {
+      // ส่ง callbackUrl ดิบต่อไป — ปลายทางนั้น sanitize เองอีกชั้น (ท่าเดียวกับฝั่ง buyer)
+      router.push(signinOtpVerifyUrl(phone, searchParams.get('callbackUrl')))
+      return
+    }
+    setOtpError(result.reason)
+  }
+
+  /** สลับโหมด — ล้าง error ของโหมดที่เพิ่งออกมา ไม่ให้ค้างไปพูดกับฟอร์มที่ไม่เกี่ยวกัน */
+  const switchMode = (next: 'password' | 'otp') => {
+    setOtpError(null)
+    setLoginMode(next)
+  }
+
+  const otpErrorMessage: Record<SigninOtpFailReason, string> = {
+    NO_ACCOUNT: t.auth.signIn.otpNoAccount,
+    RATE_LIMITED: t.auth.signIn.otpRateLimited,
+    FAILED: t.auth.signIn.otpSendError,
   }
 
   return (
@@ -204,10 +264,80 @@ export default function SignInForm() {
       {/* dashed divider — copy structure จาก base theme ตรง ๆ */}
       <p className="relative my-5 text-center text-default-400 after:absolute after:start-0 after:end-0 after:top-2.75 after:h-0.75 after:border-t after:border-b after:border-dashed after:border-default-300">
         <span className="relative z-10 bg-card font-medium px-4">
-          {t.auth.signIn.orUsername}
+          {loginMode === 'otp' ? t.auth.signIn.orPhone : t.auth.signIn.orUsername}
         </span>
       </p>
 
+      {loginMode === 'otp' ? (
+        <form onSubmit={otpForm.handleSubmit(onOtpSubmit)} noValidate>
+          {/* Phone field — โครงเดียวกับช่องเบอร์โทรใน SignUpForm.tsx (input-icon-group + form-input) */}
+          <div className="mb-5">
+            <label htmlFor="signin-phone" className="form-label">
+              {t.auth.signIn.phoneLabel}
+              <span className="text-danger">*</span>
+            </label>
+            <div className="input-icon-group">
+              <Icon icon="phone" className="input-icon" />
+              <input
+                id="signin-phone"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel"
+                placeholder="08xxxxxxxx"
+                maxLength={10}
+                className={cn('form-input', otpForm.formState.errors.phone && '!border-danger')}
+                {...otpForm.register('phone')}
+              />
+            </div>
+            {otpForm.formState.errors.phone?.message && (
+              <p className="invalid-msg mt-1 text-sm text-danger">
+                {otpForm.formState.errors.phone.message}
+              </p>
+            )}
+          </div>
+
+          {/* ผลของการขอ OTP — NO_ACCOUNT มีทางออกจริงจึงพ่วงลิงก์ไปสมัครพร้อมเบอร์ที่พิมพ์ไว้แล้ว */}
+          {otpError && (
+            <div className="mb-4">
+              <p className="invalid-msg text-sm text-danger">
+                {otpErrorMessage[otpError]}
+                {otpError === 'NO_ACCOUNT' && (
+                  <>
+                    {' '}
+                    <Link
+                      href={`/auth/sign-up?phone=${encodeURIComponent(otpForm.getValues('phone'))}`}
+                      className="text-primary font-semibold underline underline-offset-4"
+                    >
+                      {t.auth.signIn.signUp}
+                    </Link>
+                  </>
+                )}
+              </p>
+            </div>
+          )}
+
+          <div>
+            <button
+              type="submit"
+              disabled={otpForm.formState.isSubmitting}
+              className="btn bg-primary w-full py-3 font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+            >
+              {otpForm.formState.isSubmitting ? t.auth.signIn.sendingOtp : t.auth.signIn.sendOtp}
+            </button>
+          </div>
+
+          <div className="mt-2 text-center">
+            <button
+              type="button"
+              onClick={() => switchMode('password')}
+              className="text-primary inline-flex min-h-11 items-center justify-center text-sm font-semibold underline underline-offset-4"
+            >
+              {t.auth.signIn.usePasswordInstead}
+            </button>
+          </div>
+        </form>
+      ) : (
+      /* loginMode === 'password' — ฟอร์มเดิม ไม่แตะเนื้อใน (คงย่อหน้าเดิมไว้ให้ diff อ่านง่าย) */
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         {/* Username field */}
         <div className="mb-5">
@@ -278,6 +408,17 @@ export default function SignInForm() {
         {errors.root && (
           <div className="mb-4">
             <p className="invalid-msg text-sm text-danger">{errors.root.message}</p>
+            {/* 🛑 จุดนี้คือโมเมนต์ที่กลุ่มเป้าหมายของโหมด OTP เจอ "แน่นอน 100%" — บัญชีที่สมัคร
+                ด้วย OTP ล้วนไม่มีรหัสผ่าน จึงตกมาที่ error นี้เสมอ ถ้าไม่ชี้ทางตรงนี้ ผู้ใช้ต้อง
+                เดาเอาเองว่าลิงก์ท้ายฟอร์มคือทางรอด ⇒ ฟีเจอร์ที่สร้างมาเพื่อเขาจะเงียบใส่เขาพอดี
+                ไม่ขัดหลักกัน enumeration เพราะเป็นข้อเสนอทั่วไป ไม่ได้ยืนยันว่า username นั้นมีจริง */}
+            <button
+              type="button"
+              onClick={() => switchMode('otp')}
+              className="text-primary mt-1 inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4"
+            >
+              {t.auth.signIn.noPasswordUseOtp}
+            </button>
           </div>
         )}
 
@@ -291,7 +432,19 @@ export default function SignInForm() {
             {isSubmitting ? t.auth.signIn.submitting : t.auth.signIn.submit}
           </button>
         </div>
+
+        {/* ทางเข้าด้วยเบอร์โทร — text button ไม่ใช่ปุ่มทึบ เพื่อไม่ให้แข่งกับ CTA หลักของจอ */}
+        <div className="mt-2 text-center">
+          <button
+            type="button"
+            onClick={() => switchMode('otp')}
+            className="text-primary inline-flex min-h-11 items-center justify-center text-sm font-semibold underline underline-offset-4"
+          >
+            {t.auth.signIn.useOtpInstead}
+          </button>
+        </div>
       </form>
+      )}
     </>
   )
 }

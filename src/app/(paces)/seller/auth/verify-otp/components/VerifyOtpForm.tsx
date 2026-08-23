@@ -5,17 +5,22 @@
  * (form + OTP boxes section; extracted เป็น client component เพราะต้องการ useSearchParams)
  *
  * สิ่งที่เพิ่มจาก theme:
- * - รับ mode (signup/reset), phone, name, username, shopName จาก searchParams
+ * - รับ mode (signup/signin/reset), phone, name, username, shopName จาก searchParams
  * - masked phone text-2xl font-bold text-center
  * - countdown 60s: >0 = text จาง; =0 = link ส่งอีกครั้ง
  * - mobile OTP: gap-1.5 / text-lg ให้ tap ได้ที่ 375px (OQ-4)
  * - mode=signup: อ่าน sessionStorage signupDraft → signIn('phone-otp') → clear draft → /dashboard
+ * - mode=signin: signIn('phone-otp') เปล่า ๆ (ไม่มี draft ให้ carry เพราะไม่ได้สมัครใหม่) →
+ *   callbackUrl. ทางเข้านี้มีไว้ให้บัญชีที่มีอยู่แล้วแต่ไม่มีรหัสผ่าน (สมัครด้วย OTP ล้วน)
+ *   เข้าฝั่งผู้ขายได้ — ถ้ายังไม่มีร้าน layout จะพาไป /choose-shop ให้กด "เปิดร้านของฉัน" ต่อเอง
  * - mode=reset: ไม่ consume OTP ที่นี่ (กัน double-consume) — เก็บ {phone,otp} ใน sessionStorage resetDraft → /auth/new-pass
  * - pacesToast เท่านั้น (Hard Rule 9)
  */
 'use client'
 
 import { pacesToast } from '@/lib/paces-toast'
+import { distributeOtpPaste, otpFocusIndexAfterPaste } from '@/lib/otp-paste'
+import { safeCallbackUrl } from '@/lib/safe-callback-url'
 import { cn } from '@/utils/helpers'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -26,7 +31,9 @@ export default function VerifyOtpForm() {
   const params = useSearchParams()
 
   const phone = params.get('phone') ?? ''
-  const mode = (params.get('mode') ?? 'signup') as 'signup' | 'reset'
+  const mode = (params.get('mode') ?? 'signup') as 'signup' | 'signin' | 'reset'
+  // ปลายทางหลังล็อกอินสำเร็จ (mode=signin) — มาจาก query string จึงต้อง sanitize (open-redirect)
+  const callbackUrl = safeCallbackUrl(params.get('callbackUrl'))
   const name = params.get('name') ?? ''
   const username = params.get('username') ?? ''
   // shopName ส่งมาจาก sign-up ผ่าน query — ใช้เฉพาะ mode=signup
@@ -76,6 +83,25 @@ export default function VerifyOtpForm() {
       const nextEl = document.getElementById(`otp-${i + 1}`) as HTMLInputElement | null
       nextEl?.focus()
     }
+  }
+
+  /**
+   * วางรหัสทั้งชุดลงช่องไหนก็ได้ → กระจายเข้าทุกช่อง
+   *
+   * 🛑 ช่องละหลักแบบนี้ "กลืน" การวางโดยปริยาย: `maxLength={1}` ทำให้เบราว์เซอร์ตัดเหลือตัวแรก
+   * ตัวเดียวเงียบ ๆ ผู้ใช้ที่ก็อปรหัสจากแบนเนอร์ SMS มาวาง (ท่าปกติของคนที่พิมพ์บนคีย์บอร์ด
+   * มือถือไม่ถนัด — ตัวเลขอยู่คนละแป้น) จะเห็นแค่หลักเดียวโผล่ แล้วอ่านว่า "ระบบพัง"
+   * ไม่ใช่ "ฉันทำผิด" — และไม่มี error ให้ใครเห็นเพราะไม่มีอะไรผิดในทางเทคนิคเลย
+   */
+  const handlePaste = (i: number, e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text')
+    if (!/\d/.test(pasted)) return
+    e.preventDefault()
+    setDigits(distributeOtpPaste(digits, i, pasted))
+    const target = document.getElementById(
+      `otp-${otpFocusIndexAfterPaste(i, pasted)}`,
+    ) as HTMLInputElement | null
+    target?.focus()
   }
 
   // handle backspace — ถอยกลับช่องก่อนหน้า
@@ -136,6 +162,23 @@ export default function VerifyOtpForm() {
 
           setErrorMsg('รหัสไม่ถูกต้องหรือหมดอายุ ลองอีกครั้ง')
           setDigits(['', '', '', '', '', ''])
+        } else if (mode === 'signin') {
+          // เข้าบัญชีเดิม — ไม่ส่ง displayName/username/shopName/password ไปเลย
+          // (ค่าพวกนั้นมีผลเฉพาะตอน provider สร้างบัญชีใหม่ ส่งไปก็ถูกเมินและชวนให้เข้าใจผิด)
+          const result = await signIn('phone-otp', {
+            phone,
+            otp,
+            mode: 'signin',
+            redirect: false,
+          })
+
+          if (result?.ok) {
+            router.push(callbackUrl)
+            return
+          }
+
+          setErrorMsg('รหัสไม่ถูกต้องหรือหมดอายุ ลองอีกครั้ง')
+          setDigits(['', '', '', '', '', ''])
         } else {
           // mode=reset — ห้าม consume OTP ที่นี่ (กัน double-consume)
           // set-password (/auth/new-pass) เป็นที่ verifyOtp จริงที่เดียว
@@ -149,7 +192,7 @@ export default function VerifyOtpForm() {
         setSubmitting(false)
       }
     },
-    [mode, otpComplete, otp, phone, name, username, shopName, router]
+    [mode, otpComplete, otp, phone, name, username, shopName, callbackUrl, router]
   )
 
   const onResend = useCallback(async () => {
@@ -192,7 +235,20 @@ export default function VerifyOtpForm() {
   return (
     <>
       {/* masked phone — text-2xl font-bold text-center ตาม spec S-P2-3 */}
-      <div className="mb-6 text-center text-2xl font-bold text-default-900">{masked}</div>
+      <div
+        className={cn(
+          'text-center text-2xl font-bold text-default-900',
+          mode === 'signin' ? 'mb-2' : 'mb-6',
+        )}
+      >
+        {masked}
+      </div>
+
+      {/* mode=signin มาจากคนที่เพิ่งเจอว่า "เบอร์นี้มีบัญชีแล้ว" — ต้องยืนยันตรงนี้ว่าเรากำลังพา
+          เข้าบัญชีเดิม ไม่ใช่กำลังสมัครใหม่ ไม่งั้นจอนี้หน้าตาเหมือนตอนสมัครทุกประการ */}
+      {mode === 'signin' && (
+        <p className="text-default-500 mb-6 text-center text-sm">เข้าสู่ระบบเข้าบัญชีเดิมของคุณ</p>
+      )}
 
       <form onSubmit={onSubmit}>
         <div className="mb-5">
@@ -211,6 +267,7 @@ export default function VerifyOtpForm() {
                 value={d}
                 onChange={(e) => handleDigit(i, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(i, e)}
+                onPaste={(e) => handlePaste(i, e)}
                 className={cn('form-input text-center text-lg sm:text-base', errorMsg && '!border-danger')}
                 autoFocus={i === 0}
                 autoComplete="one-time-code"
