@@ -112,22 +112,6 @@ export interface SalesSeries {
   /** ค่าส่งจริง+ค่าธรรมเนียม COD ต่อ bucket (บาท) — คู่กับ `values` (ทุกใบ) */
   shippingValues?: number[]
 
-  /* ── เงินที่ "รับจริง" รายช่อง — เฉพาะร้าน SERVICE_QUEUE ────────────────────────────────────
-     🛑 `undefined` = ไม่ใช่ร้านบริการ ⇒ ตารางต้องใช้คอลัมน์ชุดเดิม (ต้นทุน/ค่าส่ง/กำไร)
-     ห้ามตกเป็น `[]` หรือ `[0,0,...]` เพราะสองอย่างนั้นแปลว่า "เป็นร้านบริการแต่ยังไม่มีเงินเข้า"
-     ซึ่งคนละความหมายกับ "ไม่ใช่ร้านบริการ" (คลาสเดียวกับ `0` ที่แปลว่า "ไม่รู้")
-
-     🛑 **ตัดตามวันที่ของออเดอร์ ไม่ใช่ `receivedAt`** — เงินก้อนหนึ่งไปอยู่แถวของ *วันที่ขาย*
-     ไม่ใช่แถวของวันที่เงินเข้า ⇒ อ่านว่า "งานที่ขายวันนั้น เก็บเงินไปแล้วเท่าไหร่"
-
-     เหตุผล (HR16): ทุกคอลัมน์ในตารางนี้ผูกกับ `Order.createdAt` ทั้งหมด (ยอดขาย/จำนวนงาน/
-     ต้นทุน/ค่าส่ง) ถ้าชุดนี้ใช้ `receivedAt` มันจะเป็นคอลัมน์เดียวที่อยู่คนละแกน แล้ว
-     `ยอดขาย − รับจริง` ในแถวเดียวกัน **ลบข้ามแกน**: วันที่เก็บเงินก้อนที่เหลือของงานเมื่อวาน
-     จะได้ค้างรับติดลบ ส่วนวันที่ขายแล้วยังไม่เก็บจะได้ค้างรับเกินจริง — เลขทั้งสองตัว
-     "ถูก" ในตัวเอง จึงไม่มี tsc/build/เทสตัวไหนฟ้อง มีแต่ผู้ขายที่อ่านแล้วสรุปว่าระบบคำนวณผิด
-
-     ⇒ `receivedValues[i] ≤ values[i]` เสมอ และ `ค้างรับ = values[i] − receivedValues[i] ≥ 0` */
-  depositValues?: number[]
   receivedValues?: number[]
   /**
    * ยอดขายของใบที่ **ไม่มีบันทึกการรับเงินเลยสักรายการ** ต่อ bucket
@@ -143,17 +127,25 @@ export interface SalesSeries {
    */
   unrecordedValues?: number[]
   /**
-   * ส่วนของ `receivedValues` ที่มาจากใบซึ่ง **ผ่านเกณฑ์ "ยืนยันแล้ว" แล้ว** ต่อ bucket
+   * นับ "งาน" ตามสถานะ — ทั้งช่วง (ไม่ใช่รายช่อง) · เฉพาะร้าน SERVICE_QUEUE
    *
-   * 🛑 ใช้ `countsAsRevenue()` ตัวเดียวกับที่แบ่ง `confirmedValues`/`unconfirmedValues` เป๊ะ —
-   * คำว่า "ยืนยันแล้ว" บนชีตนี้ต้องมีนิยามเดียว ไม่งั้นแถบสมการด้านบนกับคอลัมน์ในตาราง
-   * จะใช้คำเดียวกันกับเกณฑ์คนละชุด แล้วผู้ขายจะเทียบสองที่แล้วไม่ตรง (HR16)
+   * 🛑 **รวมใบที่ยกเลิกด้วย** ต่างจากทุกตัวเลขอื่นในไฟล์นี้ที่ตัด `CANCELLED` ทิ้งตั้งแต่ query
+   * — งานที่ยกเลิกคือสิ่งที่ร้านบริการต้องเห็น (เดือน ส.ค. 2569 ร้านตัวอย่างยกเลิก 2 จาก 10
+   * แล้วไม่มีทางรู้จากหน้านี้เลย) การซ่อนมันคือการรายงานเดือนที่ดูดีกว่าความจริง
    *
-   * ส่วนที่เหลือ (`receivedValues[i] − receivedConfirmedValues[i]`) = เงินที่ได้มาจากงานที่
-   * **ลูกค้ายังไม่ยืนยัน** ⇒ เป็นเงินที่อาจต้องคืนถ้าลูกค้ายกเลิก · หน้าจอ derive เอาเอง
-   * ไม่ส่งมาเป็นอาร์เรย์ที่สาม เพราะสองอาร์เรย์ที่ต้องบวกกันได้พอดีเสมอ ถ้าแยกส่งจะเพี้ยนกันได้
+   * 4 กลุ่ม **ไม่ทับกันและบวกกันได้ `total` พอดี** — เรียงตามความเด็ดขาดของสถานะ:
+   *   ยกเลิก (ชนะทุกอย่าง) → เสร็จแล้ว → ไม่มาตามนัด → ที่เหลือคือยังไม่ถึงคิว
+   * ⇒ ใบที่ `CANCELLED` + `appointmentStatus='COMPLETED'` นับเป็น **ยกเลิก** อย่างเดียว
+   * (มีจริงบนฐาน: `CANCELLED/CONFIRMED_BY_BUYER` และ `CANCELLED/SCHEDULED`)
    */
-  receivedConfirmedValues?: number[]
+  jobStatusCounts?: {
+    total: number
+    completed: number
+    noShow: number
+    cancelled: number
+    /** ที่เหลือ — นัดไว้/กำลังทำ/ยังไม่ถึงคิว (รวมใบที่ไม่มี appointmentStatus) */
+    upcoming: number
+  }
   /**
    * 🛑 ต้นทุนสินค้า (COGS) มี **สองชุด** ในไฟล์นี้ และ **จะไม่มีวันเท่ากัน** — วางติดกันตาม HR16
    * ทั้งคู่ถูกต้องในตัวเอง ต่างกันแค่ "นับต้นทุนของออเดอร์ชุดไหน" ซึ่งต้องเลือกให้ตรงกับ
@@ -269,7 +261,7 @@ export async function getSalesSeries(
       : utcMonthStart(period.year + 1, 0)
 
   // query ช่วงปัจจุบัน + ช่วงก่อนหน้ารวมทีเดียว (prevGte..lt) แล้วแยกบัคเก็ต — ช่วงเล็ก (≤2 เดือน / 2 ปี)
-  const [rows] = await Promise.all([
+  const [rows, jobStatusRows] = await Promise.all([
     prisma.order.findMany({
       where: { shopId, status: { not: 'CANCELLED' }, createdAt: { gte: prevGte, lt } },
       select: {
@@ -316,10 +308,28 @@ export async function getSalesSeries(
          * — ไม่ใช่บั๊ก และตัดออกไม่ได้เพราะ Prisma กรอง relation รายแถวไม่ได้
          */
         ...(isServiceShop
-          ? { payments: { where: { voidedAt: null }, select: { kind: true, amount: true } } }
+          ? { payments: { where: { voidedAt: null }, select: { amount: true } } }
           : {}),
       },
     }),
+    /**
+     * นับงานตามสถานะ — เฉพาะร้านบริการ
+     *
+     * 🛑 **ต้องเป็น query แยก** ไม่ใช่เอาจาก `rows` ข้างบน เพราะ `rows` ตัด `CANCELLED` ทิ้ง
+     * ตั้งแต่ `where` และการไปแก้ `where` นั้นจะเปลี่ยนตัวเลขทุกตัวในหน้า (ยอดขาย/กราฟ/ตาราง)
+     * ซึ่งเสี่ยงกว่ามากเมื่อเทียบกับ aggregate เล็ก ๆ ตัวหนึ่ง
+     *
+     * perf: อยู่ใน `Promise.all` **ก้อนเดิม** ⇒ ขนานกับ query หลัก **ไม่เพิ่ม wall time**
+     * และเป็น `groupBy` (ฐานข้อมูลนับให้) ไม่ดึงแถวมานับในแอป · ช่วงแคบ (≤1 เดือน/1 ปี)
+     * และ where ขึ้นต้นด้วย `shopId` ตรงกับ index ที่มีอยู่
+     */
+    isServiceShop
+      ? prisma.order.groupBy({
+          by: ['status', 'appointmentStatus'],
+          where: { shopId, createdAt: { gte, lt } },
+          _count: { _all: true },
+        })
+      : Promise.resolve(null),
   ])
 
   const values = new Array<number>(bucketCount).fill(0)
@@ -337,12 +347,9 @@ export async function getSalesSeries(
   const pendingShipmentValues = new Array<number>(bucketCount).fill(0)
   /* เงินรับจริงของร้านบริการ — คู่กับ `values` (นับทุกใบที่ไม่ถูกยกเลิก) ไม่ใช่คู่กับ
      `confirmedValues` เพราะร้านเก็บมัดจำตั้งแต่ก่อนงานจบ ตัวหารกับตัวตั้งต้องเป็นชุดเดียวกัน */
-  const depositValues = isServiceShop ? new Array<number>(bucketCount).fill(0) : undefined
   const receivedValues = isServiceShop ? new Array<number>(bucketCount).fill(0) : undefined
   /* ยอดขายของใบที่ไม่มีบันทึกรับเงินเลย — ตัวแยก "ค้างจริง" ออกจาก "ไม่รู้" (ดูประกาศ type) */
   const unrecordedValues = isServiceShop ? new Array<number>(bucketCount).fill(0) : undefined
-  /* ส่วนของเงินที่รับจริงซึ่งมาจากใบที่ "ยืนยันแล้ว" — เกณฑ์เดียวกับ confirmedValues (ดูประกาศ type) */
-  const receivedConfirmedValues = isServiceShop ? new Array<number>(bucketCount).fill(0) : undefined
   let total = 0
   let prevTotal = 0
   let prevTotalToDate = 0
@@ -385,8 +392,8 @@ export async function getSalesSeries(
         values[idx] += amt
         orderCounts[idx] += 1
 
-        if (depositValues && receivedValues && unrecordedValues && receivedConfirmedValues) {
-          const payments = (r as { payments?: { kind: string; amount: unknown }[] }).payments
+        if (receivedValues && unrecordedValues) {
+          const payments = (r as { payments?: { amount: unknown }[] }).payments
           /* 🛑 นับจาก **จำนวนแถวที่ยังไม่ถูกยกเลิก** (query กรอง `voidedAt: null` มาแล้ว)
              ไม่ใช่จากยอดรวมเป็น 0 — ใบที่บันทึกรับ ฿0 ไว้จริง (เช่นแถมให้) คือ "รู้ว่าไม่มีเงินเข้า"
              ซึ่งคนละความหมายกับ "ไม่เคยบันทึก" ที่แปลว่าไม่รู้ */
@@ -394,12 +401,6 @@ export async function getSalesSeries(
           for (const p of payments ?? []) {
             const paid = Number(p.amount)
             receivedValues[idx] += paid
-            /* มัดจำเป็น **ส่วนหนึ่งของ** รับจริง ไม่ใช่ก้อนแยก — บวกเข้าทั้งสองชุด
-               ถ้าแยกเป็นคนละก้อน ผู้ขายจะบวก มัดจำ+รับจริง เองแล้วได้เกินยอดขาย */
-            if (p.kind === 'DEPOSIT') depositValues[idx] += paid
-            /* 🛑 เรียก `countsAsRevenue(r)` ตัวเดียวกับที่แบ่ง confirmedValues ข้างล่าง —
-               ห้ามเขียนเกณฑ์ใหม่ที่นี่ ไม่งั้น "ยืนยันแล้ว" บนแถบสมการกับในตารางจะคนละความหมาย */
-            if (countsAsRevenue(r)) receivedConfirmedValues[idx] += paid
           }
         }
         /**
@@ -498,15 +499,33 @@ export async function getSalesSeries(
    * ส่วนเงินที่ร้านรับมาเองเป็นข้อมูลของร้านที่เห็นได้อยู่แล้วทุกที่ (หน้าออเดอร์/คิวงาน)
    * เอาไปผูกกับแพ็กเกจ = ซ่อนเงินของตัวเองจากเจ้าของเงิน
    */
+  /**
+   * แปลงผล groupBy เป็น 4 กลุ่มที่ไม่ทับกัน — ลำดับการตัดสินสำคัญ (ดูประกาศ `jobStatusCounts`)
+   * ยกเลิกชนะทุกอย่าง เพราะงานที่ยกเลิกแล้วไม่ใช่ "งานที่เสร็จ" ต่อให้เคยติดธง COMPLETED ไว้
+   */
+  const jobStatusCounts = jobStatusRows
+    ? jobStatusRows.reduce(
+        (acc, r) => {
+          const n = r._count._all
+          acc.total += n
+          if (r.status === 'CANCELLED') acc.cancelled += n
+          else if (r.appointmentStatus === 'COMPLETED') acc.completed += n
+          else if (r.appointmentStatus === 'NO_SHOW') acc.noShow += n
+          else acc.upcoming += n
+          return acc
+        },
+        { total: 0, completed: 0, noShow: 0, cancelled: 0, upcoming: 0 },
+      )
+    : undefined
+
   const base = {
     labels, values, confirmedValues, unconfirmedValues, orderCounts, codPendingValues,
     total, prevTotal, prevTotalToDate, futureFromIndex,
     ...(last14Confirmed && last14Unconfirmed
       ? { last14Confirmed, last14Unconfirmed, last14Labels }
       : {}),
-    ...(depositValues && receivedValues && unrecordedValues && receivedConfirmedValues
-      ? { depositValues, receivedValues, unrecordedValues, receivedConfirmedValues }
-      : {}),
+    ...(receivedValues && unrecordedValues ? { receivedValues, unrecordedValues } : {}),
+    ...(jobStatusCounts ? { jobStatusCounts } : {}),
   }
   if (!includeFinance) return base
 

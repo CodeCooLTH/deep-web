@@ -148,8 +148,6 @@ export type SalesSeries = {
      UI ต้องซ่อนทั้งบล็อก ไม่ใช่แสดง ฿0 ซึ่งจะโกหกว่า "ไม่มีค่าส่ง"
      🛑 ไม่ใช่ค่าใช้จ่ายที่ร้านบันทึกเองในหน้า /expenses — ชุดนี้คือ OrderShipment.carrierPrice+codFee */
   shippingValues?: number[]
-  /** เงินมัดจำที่รับจริงต่อ bucket — เฉพาะร้าน SERVICE_QUEUE (`undefined` = ไม่ใช่ร้านบริการ) */
-  depositValues?: number[]
   /** เงินที่รับจริงทั้งหมดต่อ bucket (มัดจำ + ยอดที่เก็บเพิ่ม) — ตัดตาม **วันที่ของออเดอร์**
    *  เหมือนทุกคอลัมน์ในตาราง ไม่ใช่วันที่รับเงิน (เหตุผลเต็มที่ `SalesSeries` ใน dashboard.service.ts)
    *  🛑 `undefined` = ไม่ใช่ร้านบริการ · ศูนย์ทั้งชุด = เป็นร้านบริการแต่ยังไม่มีเงินเข้า
@@ -157,9 +155,15 @@ export type SalesSeries = {
   receivedValues?: number[]
   /** ยอดขายของใบที่ไม่มีบันทึกรับเงินเลย — แยก "ค้างจริง" ออกจาก "ไม่รู้" (เหตุผลเต็มที่ service) */
   unrecordedValues?: number[]
-  /** ส่วนของ `receivedValues` ที่มาจากใบที่ "ยืนยันแล้ว" — เกณฑ์ `countsAsRevenue` ตัวเดียวกับ
-   *  `confirmedValues` (เหตุผลเต็มที่ service) · ที่เหลือ = เงินจากงานที่ลูกค้ายังไม่ยืนยัน */
-  receivedConfirmedValues?: number[]
+  /** นับงานตามสถานะทั้งช่วง — **รวมใบที่ยกเลิก** (ต่างจากตัวเลขอื่นทั้งหมดในชุดนี้)
+   *  4 กลุ่มไม่ทับกันและบวกกันได้ `total` พอดี (เหตุผลเต็มที่ service) */
+  jobStatusCounts?: {
+    total: number
+    completed: number
+    noShow: number
+    cancelled: number
+    upcoming: number
+  }
   netProfitValues?: number[]
   /**
    * 🛑 COGS มีสองชุดและไม่เท่ากัน (นิยามเต็มอยู่ที่ SSOT — dashboard.service.ts):

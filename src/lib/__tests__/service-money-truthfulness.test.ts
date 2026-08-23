@@ -80,13 +80,18 @@ describe('กราฟต้องบอกว่าเส้นคนละห�
      *   วันที่ 23 → 2 ใบ / ฿20,890 ← แท่งสูงสุด แต่เส้นต่ำกว่า
      */
     const code = read(SHEET)
-    expect(code, 'ต้องมีป้ายบอกว่าเส้นคืออะไร').toContain('เส้น = จำนวนคำสั่งซื้อ')
+    expect(code, 'ต้องมีป้ายบอกว่าเส้นคืออะไร').toContain('เส้น = จำนวน')
     expect(code, 'ต้องบอกด้วยว่าคนละสเกลกับแท่ง — ไม่งั้นยังเทียบความสูงกันอยู่ดี').toMatch(
-      /เส้น = จำนวนคำสั่งซื้อ[^<]*คนละสเกล/,
+      /เส้น = จำนวน\{countNounOf\(isService\)\}[^<]*คนละสเกล/,
     )
 
-    /* คำต้องตรงกับหัวคอลัมน์ในตารางเป๊ะ — ของสิ่งเดียวกันเรียกสองชื่อบนจอเดียว = HR16 */
-    expect(code, 'หัวคอลัมน์ในตารางต้องใช้คำเดียวกัน').toContain('>คำสั่งซื้อ</span>')
+    /**
+     * 🛑 คำต้องมาจาก **นิยามเดียว** — ของสิ่งเดียวกันเรียกสองชื่อบนจอเดียว = HR16
+     * คำนี้โผล่ 3 ที่ (หัวคอลัมน์ · ป้ายใต้กราฟ · tooltip) ตั้งแต่ร้านบริการเรียกว่า "งาน"
+     * ⇒ ต้องผ่าน `countNounOf` ทุกที่ ห้าม hardcode ที่ใดที่หนึ่ง
+     */
+    expect(code, 'หัวคอลัมน์ในตารางต้องใช้ countNounOf').toContain('{countNounOf(isService)}</span>')
+    expect(code, 'tooltip ต้องใช้ countNounOf').toMatch(/countNoun = countNounOf\(isServiceChart\)/)
 
     /**
      * ป้ายต้องอยู่ **ใต้กราฟ** ไม่ใช่ในแถบสมการ — ยัดเข้าไปจะทำให้แถบนั้นเลิกอ่านเป็นสมการ
@@ -99,70 +104,137 @@ describe('กราฟต้องบอกว่าเส้นคนละห�
      */
     const bare = stripComments(code)
     const chartAt = bare.indexOf('<ApexChart')
-    const labelAt = bare.indexOf('เส้น = จำนวนคำสั่งซื้อ')
+    const labelAt = bare.indexOf('เส้น = จำนวน')
     expect(chartAt, 'ต้องมีกราฟ').toBeGreaterThan(-1)
     expect(labelAt, 'ป้ายต้องอยู่หลังกราฟ').toBeGreaterThan(chartAt)
   })
 })
 
-describe('แยก "รับจริง" เป็น ยืนยันแล้ว / ยังไม่ยืนยัน (user สั่ง 2026-08-23)', () => {
-  it('[blocker] ต้องใช้ countsAsRevenue ตัวเดียวกับที่แบ่ง confirmedValues', () => {
-    /**
-     * 🛑 คำว่า "ยืนยันแล้ว" โผล่ **2 ที่บนจอเดียวกัน** — แถบสมการเหนือกราฟ (ทั้งเดือน) และ
-     * คอลัมน์ในตาราง (รายวัน) · ถ้าสองที่ใช้เกณฑ์คนละชุด ผู้ขายจะเทียบแล้วไม่ตรง
-     * แล้วสรุปว่าระบบคำนวณผิด — ซึ่งคือคำถามที่ user ถามมาตรง ๆ ในรอบนี้ (HR16)
-     */
-    const code = stripComments(read(SERVICE))
-    const at = code.indexOf('receivedConfirmedValues[idx] +=')
-    expect(at, 'ต้องมีการสะสม receivedConfirmedValues').toBeGreaterThan(-1)
+describe('ทั้งหน้าของร้านบริการต้องใช้ "แกนเงิน" แกนเดียว (user เคาะ 2026-08-23)', () => {
+  /**
+   * ที่มา: user ถามว่าทำไม "ยืนยันแล้ว 20,290" บนหัว กับ "รับจริง 20,890" ในตาราง ไม่ตรงกัน
+   * — คำตอบคือมัน **ต่างกัน 2 ชั้น** (ทั้งเดือน vs วันเดียว · แกนลูกค้ายืนยัน vs แกนเงิน)
+   * และไม่มีวันเท่ากัน · ต้นเหตุคือจอเดียวมีสองแกนพูดคนละภาษา
+   *
+   * ⇒ ย้ายทั้งหน้ามาใช้แกนเงิน: hero · แถบสมการ · แท่งในกราฟ · ตาราง พูดเรื่องเดียวกันหมด
+   * ส่วนแกน "งานถึงขั้นไหน" ย้ายไปเป็นแถวสถานะงาน ซึ่งตอบตรงกว่าและนับใบที่ยกเลิกได้ด้วย
+   */
 
-    /* เกณฑ์ต้องเป็น countsAsRevenue(r) ที่บรรทัดเดียวกัน ไม่ใช่เงื่อนไขที่เขียนใหม่เอง */
-    const line = code.slice(code.lastIndexOf('\n', at), at)
-    expect(line, 'ต้องกั้นด้วย countsAsRevenue(r)').toContain('countsAsRevenue(r)')
+  it('[blocker] แท่งในกราฟของร้านบริการต้องเป็น รับจริง/ค้างรับ', () => {
+    /* ถ้ากราฟยังเป็น ยืนยันแล้ว/รอยืนยัน ขณะที่ตารางเป็นแกนเงิน = กลับไปมีสองแกนบนจอเดียว
+       ซึ่งเป็นต้นเหตุเดิมเป๊ะ ๆ */
+    const code = stripComments(read(SHEET))
+    expect(code, 'ต้องมีซีรีส์ รับจริง/ค้างรับ ใต้เงื่อนไข isServiceChart').toMatch(
+      /isServiceChart[\s\S]{0,400}name: 'รับจริง'[\s\S]{0,200}name: 'ค้างรับ'/,
+    )
+    /* ร้าน vertical อื่นต้องไม่ถูกแตะ — ซีรีส์เดิมต้องยังอยู่ในสาขา else */
+    expect(code, 'ร้านอื่นต้องยังได้ ยืนยันแล้ว/รอยืนยัน เหมือนเดิม').toMatch(
+      /name: 'ยืนยันแล้ว'[\s\S]{0,200}name: 'รอยืนยัน'/,
+    )
   })
 
-  it('[blocker] ต้องมีทั้งสองคอลัมน์ และเรียงเป็นลูกของ "รับจริง"', () => {
-    /* เรียงตามเส้นทางของเงิน: ยอดขาย → มัดจำ → รับจริง → (ยืนยันแล้ว + ยังไม่ยืนยัน) → ค้างรับ
-       สองคอลัมน์กลางต้องอยู่ **ติดหลังรับจริง** ไม่งั้นอ่านไม่ออกว่ามันเป็นลูกของก้อนไหน */
-    const code = read(SHEET)
-    for (const label of ['>ยืนยันแล้ว<', '>ยังไม่ยืนยัน<']) {
-      expect(code, `หัวคอลัมน์ต้องมี ${label}`).toContain(label)
+  it('[blocker] tooltip/แกน y ต้องเปลี่ยนชื่อตามซีรีส์ที่วาดจริง', () => {
+    /**
+     * 🛑 สองจุดนี้ลืมง่ายที่สุดเพราะไม่เห็นจนกว่าจะแตะกราฟ:
+     *   · tooltip ที่ยังเขียน "ยืนยันแล้ว" จะอ่านเลขถูกแต่ **เรียกชื่อผิด** ซึ่งแย่กว่าไม่มี
+     *     tooltip เพราะผู้ขายจะเชื่อชื่อ
+     *   · `yaxis.seriesName` ที่ชี้ชื่อที่ไม่มีอยู่ ทำให้ ApexCharts ให้ซีรีส์นั้นใช้แกนของตัวเอง
+     *     ⇒ **สเกลแท่งเพี้ยนทั้งกราฟ** โดยไม่มี error
+     */
+    const code = stripComments(read(SHEET))
+
+    /**
+     * 🛑 ต้องตัดเฉพาะ **บล็อก tooltip** ก่อนตรวจ — ร่างแรกตรวจทั้งไฟล์ด้วย regex
+     * `isServiceChart ? 'รับจริง' : 'ยืนยันแล้ว'` แล้ว **ไม่แดงตอน mutation** เพราะบรรทัด
+     * `barAxisName = isServiceChart ? …` match regex เดียวกันพอดี ⇒ ด่านถูกทำให้ผ่านโดย
+     * โค้ดคนละบรรทัดกับที่มันอ้างว่ากัน (`mutation-silence-means-weak-corpus.md`)
+     */
+    const tipAt = code.indexOf('custom: (')
+    expect(tipAt, 'ต้องมี custom tooltip').toBeGreaterThan(-1)
+    const tip = code.slice(tipAt, code.indexOf('},', code.indexOf('</div>`', tipAt)))
+    expect(tip, 'tooltip ต้องเลือกชื่อตาม isServiceChart').toMatch(
+      /isServiceChart \? 'รับจริง' : 'ยืนยันแล้ว'/,
+    )
+    expect(tip, 'tooltip ต้องเลือกคำของ "ค้างรับ" ตาม vertical ด้วย').toMatch(
+      /isServiceChart \? 'ค้างรับ' : 'รอยืนยัน'/,
+    )
+
+    expect(code, 'แกน y ของแท่งต้องผูกกับชื่อที่เปลี่ยนตาม vertical').toMatch(
+      /barAxisName = isServiceChart \? 'รับจริง' : 'ยืนยันแล้ว'/,
+    )
+    expect(code, 'yaxis ต้องใช้ barAxisName ไม่ hardcode').toMatch(/seriesName: barAxisName/)
+  })
+
+  it('[blocker] ตัวเลขใหญ่ของร้านบริการต้องเป็นเงินที่รับจริง ไม่ใช่ "กำไร"', () => {
+    /**
+     * 🛑 ไม่ใช่แค่เรื่องคำ — ร้านบริการไม่มีต้นทุนสินค้าและถูกล็อก NO_SHIPPING
+     * ⇒ กำไร = ยอดขาย **เป๊ะทุกบาท** (ร้านตัวอย่าง ส.ค. 2569: 22,393 = 22,393)
+     * คำว่า "กำไร" จึงไม่ได้ให้ข้อมูลเพิ่มเลย มันแค่เรียกยอดขายด้วยชื่อที่ผิด
+     */
+    const code = stripComments(read(SHEET))
+    expect(code, 'hero ต้องเป็น receivedTotal เมื่อเป็นร้านบริการ').toMatch(
+      /heroValue = isService \? receivedTotal/,
+    )
+    expect(code, 'ป้ายต้องเป็น "เงินที่รับจริง"').toMatch(/heroLabel = isService \? 'เงินที่รับจริง'/)
+    expect(code, 'ชื่อหน้าต้องไม่พูดถึงกำไรกับร้านบริการ').toMatch(
+      /isService \? 'ยอดขายและการเก็บเงิน' : 'ยอดขายและกำไร'/,
+    )
+  })
+
+  it('[blocker] แถบสมการของร้านบริการต้องเป็น รับจริง + ค้างรับ = ยอดขาย', () => {
+    const code = stripComments(read(SHEET))
+    const at = code.indexOf('label="รับจริง"')
+    expect(at, 'ต้องมีช่อง "รับจริง" ในแถบสมการ').toBeGreaterThan(-1)
+    const bar = code.slice(at, at + 600)
+    expect(bar, 'ต้องตามด้วย ค้างรับ').toContain('label="ค้างรับ"')
+    expect(bar, 'ต้องปิดท้ายด้วย ยอดขาย').toContain('label="ยอดขาย"')
+    /* ช่อง "ยอดขาย" ต้องไม่มีจุดสี — มันเป็นผลรวมของสองแท่ง ไม่ใช่ซีรีส์ในกราฟ
+       (กติกาเดิมของไฟล์: จุดสี = ซีรีส์ 1:1 ดู v5 หัวไฟล์) */
+    expect(bar, 'ช่อง "ยอดขาย" ห้ามมีจุดสี').toMatch(/<LegendCell label="ยอดขาย"/)
+  })
+
+  it('[blocker] ต้องมีแถวสถานะงาน และเป็นที่เดียวที่นับใบที่ยกเลิก', () => {
+    /**
+     * 🛑 ทุกตัวเลขอื่นในหน้านี้ตัด `CANCELLED` ทิ้งตั้งแต่ query ⇒ ถ้าไม่มีแถวนี้
+     * ร้านจะไม่มีทางรู้เลยว่าเดือนนี้ยกเลิกไปกี่งาน (ร้านตัวอย่าง ส.ค.: ยกเลิก 2 จาก 10)
+     * การซ่อนงานที่ยกเลิกคือการรายงานเดือนที่ดูดีกว่าความจริง
+     */
+    const code = stripComments(read(SHEET))
+    for (const label of ['งานทั้งหมด', 'เสร็จแล้ว', 'นัดไว้', 'ยกเลิก']) {
+      expect(code, `แถวสถานะต้องมี "${label}"`).toContain(label)
     }
-    const order = ['>ยอดขาย<', '>มัดจำ<', '>รับจริง<', '>ยืนยันแล้ว<', '>ยังไม่ยืนยัน<', '>ค้างรับ<']
-      .map((t) => code.indexOf(t))
-    expect(order.every((x) => x > -1), 'ต้องเจอหัวคอลัมน์ครบทุกตัว').toBe(true)
-    expect([...order].sort((a, b) => a - b), 'ลำดับคอลัมน์ต้องเป็นไปตามเส้นทางของเงิน').toEqual(order)
+    expect(code, 'ต้องผูกกับ jobStatusCounts').toMatch(/const jobs = series\.jobStatusCounts/)
+    /* "ไม่มาตามนัด" ขึ้นเฉพาะเมื่อมีจริง — ช่องที่เป็น 0 ตลอดไม่ได้บอกอะไร มันแค่กินที่ */
+    expect(code, 'ไม่มาตามนัดต้องมีเงื่อนไข > 0').toMatch(/jobs\.noShow > 0/)
+
+    const svc = stripComments(read(SERVICE))
+    expect(svc, 'groupBy ของสถานะงานต้อง **ไม่** ตัด CANCELLED ทิ้ง').toMatch(
+      /by: \['status', 'appointmentStatus'\],\s*where: \{ shopId, createdAt: \{ gte, lt \} \}/,
+    )
   })
 
-  it('[blocker] "ยังไม่ยืนยัน" ต้อง derive จากผลต่าง ไม่ใช่รับมาเป็นอาร์เรย์แยก', () => {
-    /**
-     * 🛑 สองก้อนนี้ต้องบวกกันได้ **เท่ากับ "รับจริง" เสมอ** — ถ้ารับมาเป็นสองอาร์เรย์อิสระ
-     * วันหนึ่งจะมีฝั่งที่นับพลาดแล้วผลรวมไม่ลงตัว โดยไม่มีอะไรฟ้อง (เลขทั้งคู่ "ถูก" ในตัวเอง)
-     * derive จากผลต่าง = ลงตัวโดยโครงสร้าง เพี้ยนไม่ได้
-     */
-    const code = stripComments(read(SHEET))
-    expect(code, 'ต้องคำนวณจาก received − receivedConfirmed').toMatch(
-      /r\.received - r\.receivedConfirmed/,
+  it('[blocker] 4 กลุ่มของสถานะงานต้องไม่ทับกันและบวกได้ total', () => {
+    /* ลำดับ if/else คือสิ่งที่ทำให้ไม่ทับกัน — ยกเลิกต้องชนะก่อนเสมอ ไม่งั้นใบที่
+       `CANCELLED` + `COMPLETED` (มีจริงบนฐาน) จะถูกนับสองรอบแล้วผลรวมเกิน total */
+    const svc = stripComments(read(SERVICE))
+    const at = svc.indexOf('acc.total += n')
+    expect(at, 'ต้องมีตัวรวมสถานะงาน').toBeGreaterThan(-1)
+    const body = svc.slice(at, at + 400)
+    const order = ["status === 'CANCELLED'", "'COMPLETED'", "'NO_SHOW'", 'acc.upcoming']
+      .map((t) => body.indexOf(t))
+    expect(order.every((x) => x > -1), 'ต้องมีครบทั้ง 4 สาขา').toBe(true)
+    expect([...order].sort((a, b) => a - b), 'ยกเลิกต้องถูกเช็คก่อน แล้วค่อยเสร็จ/ไม่มา/ที่เหลือ').toEqual(
+      order,
     )
-    expect(
-      stripComments(read(SERVICE)),
-      'ห้ามส่งอาร์เรย์ของ "ยังไม่ยืนยัน" มาแยกต่างหาก',
-    ).not.toMatch(/receivedUnconfirmedValues/)
   })
 
-  it('[blocker] หมายเหตุต้องบอกว่าคู่ไหนบวกได้ คู่ไหนไม่ได้', () => {
-    /* ตอนนี้ "รับจริง" มีลูกสองชุดคนละแบบในแถวเดียว — ชุดหนึ่งบวกกันได้ อีกชุดเป็น subset
-       ไม่บอกว่าอันไหนเป็นอันไหน = ชวนให้บวกรวมกันแล้วเกินยอดขาย ซึ่งคือคำถามที่ user ถามมา */
-    /**
-     * 🛑 ต้องตัดคอมเมนต์ก่อน — ร่างแรกของด่านนี้ **ไม่แดงตอน mutation** (ลบประโยคออกจาก
-     * หมายเหตุจริงแล้วยังเขียว) เพราะ regex ไปเจอคำเดียวกันใน *คอมเมนต์ที่อธิบายกฎ* แทน
-     * (`mutation-silence-means-weak-corpus.md` — เขียวหลังกลายพันธุ์ = ด่านไม่ได้กันสิ่งที่มันอ้าง)
-     */
-    const code = stripComments(read(SHEET))
-    expect(code, 'ต้องบอกบนจอว่า ยืนยันแล้ว + ยังไม่ยืนยัน = รับจริง').toMatch(
-      /ยืนยันแล้ว&rdquo; \+ &ldquo;ยังไม่ยืนยัน&rdquo; = &ldquo;รับจริง/,
-    )
-    expect(code, 'ต้องบอกว่ามัดจำไม่ใช่ยอดที่บวกเพิ่ม').toContain('ไม่ใช่ยอดที่ต้องบวกเพิ่ม')
+  it('[blocker] ห้ามส่ง payload ที่ไม่มีใครอ่านแล้ว', () => {
+    /* `depositValues`/`receivedConfirmedValues` ถูกถอดพร้อมคอลัมน์ที่มันเลี้ยง —
+       ปล่อยไว้ = จ่าย query + ขนาด flight payload ทุกครั้งที่เปิดหน้า เพื่อของที่ไม่มีใครแสดง */
+    const svc = stripComments(read(SERVICE))
+    for (const dead of ['depositValues', 'receivedConfirmedValues']) {
+      expect(svc, `${dead} ไม่มีผู้อ่านแล้ว ต้องไม่ถูกคำนวณ/ส่งต่อ`).not.toContain(dead)
+    }
   })
 })
 
@@ -202,14 +274,16 @@ describe('ตารางรายวันห้ามยืนยันสิ�
     /* 🛑 ตรวจ *ความหมาย* ไม่ใช่ถ้อยคำเป๊ะ — ร่างแรกปักหมุดประโยค "มัดจำนับรวมอยู่ใน" ตรง ๆ
        แล้วแดงทันทีที่ปรับถ้อยคำตอนเพิ่มคอลัมน์ ทั้งที่หมายเหตุยังบอกเรื่องเดิมครบ
        (รอยเดิมของรีโปข้อนี้ — ด่านที่ผูกกับวิธีเขียนพังตอน refactor แล้วคนถัดไปจะปิดมันทิ้ง) */
-    expect(code, 'ต้องบอกว่ามัดจำไม่ใช่ยอดที่บวกเพิ่ม').toMatch(
-      /มัดจำ[\s\S]{0,120}ไม่ใช่ยอดที่ต้องบวกเพิ่ม/,
+    /* 🛑 เกณฑ์เปลี่ยนตามคอลัมน์: ตั้งแต่ 2026-08-23 ตารางเหลือแกนเงินแกนเดียว
+       หมายเหตุจึงเขียนสมการของแถวตรง ๆ แทนการอธิบายว่าคอลัมน์ไหนบวกไม่ได้ */
+    expect(code, 'ต้องเขียนสมการของแถวไว้ให้ไล่ตามได้').toMatch(
+      /รับจริง&rdquo; \+ &ldquo;ค้างรับ&rdquo; = &ldquo;ยอดขาย/,
     )
     expect(code, 'ต้องบอกว่ายอดค้างรับเป็นเพดานบนเมื่อยังไม่ได้บันทึก').toContain(
       'บางรายการยังไม่ได้บันทึกการรับเงิน',
     )
 
-    const at = code.search(/ไม่ใช่ยอดที่ต้องบวกเพิ่ม/)
+    const at = code.search(/รับจริง&rdquo; \+ &ldquo;ค้างรับ/)
     const before = code.slice(Math.max(0, at - 700), at)
     expect(before, 'หมายเหตุต้องอยู่ใต้เงื่อนไข isService').toContain('{isService && (')
 

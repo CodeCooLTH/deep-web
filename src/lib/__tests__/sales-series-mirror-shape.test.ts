@@ -93,13 +93,20 @@ describe('SalesSeries — service กับมิเรอร์ฝั่ง cli
     ).toEqual([])
   })
 
-  it('[blocker] คู่เงินของร้านบริการต้องมาเป็นคู่เสมอ', () => {
-    /* 🛑 `receivedValues` เป็นตัวที่หน้าจอใช้ตัดสินว่า "ร้านนี้เป็นร้านบริการไหม" ⇒ ถ้ามีตัวเดียว
-       ตารางจะโชว์หัวคอลัมน์ "มัดจำ" ที่ไม่มีวันมีค่า หรือกลับกัน */
+  it('[blocker] ชุดข้อมูลของร้านบริการต้องมาครบชุดเสมอ', () => {
+    /**
+     * 🛑 `receivedValues` เป็นตัวที่หน้าจอใช้ตัดสินว่า "ร้านนี้เป็นร้านบริการไหม" (`isService`)
+     * ⇒ ถ้ามันมาแต่เพื่อนไม่มา หน้าจอจะสลับไปโหมดร้านบริการทั้งหน้า (กราฟแกนเงิน · ตาราง
+     * 5 คอลัมน์ · แถวสถานะงาน) แล้วบางส่วนว่างเปล่าโดยไม่มีอะไรฟ้อง
+     *
+     * `unrecordedValues` = ตัวแยก "ค้างจริง" ออกจาก "ไม่รู้" (สีของคอลัมน์ค้างรับ)
+     * `jobStatusCounts` = แถวสถานะงาน ซึ่งเป็น **ที่เดียวในหน้าที่นับใบที่ยกเลิก**
+     */
     for (const rel of [SERVICE, MIRROR]) {
       const f = fieldsOf(rel)
-      expect(f.includes('depositValues'), `${rel} ขาด depositValues`).toBe(true)
-      expect(f.includes('receivedValues'), `${rel} ขาด receivedValues`).toBe(true)
+      for (const name of ['receivedValues', 'unrecordedValues', 'jobStatusCounts']) {
+        expect(f.includes(name), `${rel} ขาด ${name}`).toBe(true)
+      }
     }
   })
 })
