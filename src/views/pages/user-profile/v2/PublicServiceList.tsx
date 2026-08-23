@@ -53,7 +53,7 @@ export default function PublicServiceList({ services }: { services: PublicServic
         return (
           <article
             key={s.id}
-            className='rounded-2xl overflow-hidden bg-[var(--mui-palette-background-paper)] border border-[#ececf2]'
+            className='rounded-[14px] overflow-hidden bg-[var(--mui-palette-background-paper)] border border-[#ececf2]'
             style={{ boxShadow: '0 6px 18px rgba(30,27,56,.05)' }}
           >
             {/* `.service-image` — ไม่มีรูปในข้อมูล จึงเป็นแผ่นทึบ + ไอคอนแทน (สูงเท่าต้นแบบ

@@ -51,7 +51,6 @@ export type EvidencePanelData = {
   totalBadgeCount: number
   /** สี accent ของระดับ (SSOT: `getTierAccentColor`) — ย้อมพื้น/ขอบ/หัวข้อของแผงนี้
    *  🛑 ห้ามส่งสีที่คิดเอง ต้องมาจากฟังก์ชันนั้น ไม่งั้นสีระดับจะมี 2 นิยามในระบบ (HR16) */
-  tierAccent: string
 }
 
 type LineState = 'yes' | 'partial' | 'unknown' | 'info'
@@ -187,8 +186,18 @@ export default function EvidencePanel({
          ไฟล์อ้างอิงวาดการ์ดนี้เป็นพื้นขาวล้วน — ยกมาแต่ "กรอบ" ไม่ยก "พื้น" */
       className='pli-5 plb-6'
       style={{
-        background: `linear-gradient(180deg, ${data.tierAccent}17, ${data.tierAccent}08)`,
-        border: `1px solid ${data.tierAccent}38`,
+        /* 🛑 พื้น/ขอบใช้ **ม่วงของระบบ** (`#7367F0` — Confident Violet ของ design.json) ไม่ใช่
+           `tierAccent` อีกต่อไป (user เคาะ 2026-08-23)
+
+           เดิมย้อมตามสีระดับความน่าเชื่อถือ ⇒ การ์ดใบเดียวกันเปลี่ยนสีไปมาระหว่างร้าน
+           (ทอง/เงิน/ฟ้า…) ทั้งที่เนื้อหาข้างในเป็นเรื่องเดียวกันหมด และตอนนี้พิลระดับถูกถอด
+           ออกจากปกแล้ว สีนั้นจึงไม่มีอะไรอ้างอิงบนหน้าจอเลย
+
+           🛑 **สีหัวข้อ/ข้อความข้างในไม่แตะ** — ยังเป็น text.primary/secondary ตามเดิม
+           (ม่วงบนพื้นย้อมม่วงตกคอนทราสต์ เหมือนที่ accent เคยตกทั้ง 6 ระดับ — ดูคอมเมนต์ใต้ลงไป)
+           `tierAccent` ถูกถอดออกจาก prop แล้วเพราะไม่มีใครใช้ — prop ที่ตายแล้วยังโกหกคนอ่านได้ */
+        background: 'linear-gradient(180deg, rgba(115,103,240,.09), rgba(115,103,240,.035))',
+        border: '1px solid rgba(115,103,240,.22)',
         borderRadius: 18,
         boxShadow: '0 4px 18px rgba(40,34,76,.08)',
       }}
@@ -218,7 +227,8 @@ export default function EvidencePanel({
           (ระบบมอบให้เองจากพฤติกรรมจริง ร้านขอเองไม่ได้) การแยกออกไปทำให้อ่านเป็นของประดับ
           ซึ่ง DESIGN.md ห้ามไว้ตรงตัว */}
       {data.badges.length > 0 && (
-        <div className='mbs-5 pbs-5' style={{ borderBlockStart: `1px solid ${data.tierAccent}38` }}>
+        /* เส้นคั่นต้องเป็นสีเดียวกับขอบการ์ด ไม่งั้นการ์ดจะมีเส้นม่วงกับเส้นสีระดับปนกันในใบเดียว */
+        <div className='mbs-5 pbs-5' style={{ borderBlockStart: '1px solid rgba(115,103,240,.22)' }}>
           <BadgeShowcase badges={data.badges} total={data.totalBadgeCount} onOpenPage={onOpenBadgePage} />
         </div>
       )}
