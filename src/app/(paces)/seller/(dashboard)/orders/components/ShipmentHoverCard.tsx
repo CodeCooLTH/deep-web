@@ -24,9 +24,10 @@ import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/comp
 import { TONE_DOT_SOLID, TONE_DOT_TINT } from '@/components/safepay/iship/tone'
 import { cn } from '@/utils/helpers'
 import { formatDateTimeTH } from '@/lib/format-date'
-import { SHIPMENT_STAGES, describeCarrierStatus } from '@/lib/iship/status'
+import { SHIPMENT_STAGES, describeCarrierStatus, describeProgress } from '@/lib/iship/status'
 import { sortTracesNewestFirst } from '@/lib/iship/traces'
 import type { ShippingStageKey } from '@/lib/order-stage'
+import { NOTICE_BOX, shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
 
 /** เหตุการณ์ที่ /api/seller/iship/shipments/[id]/traces คืนมา (รูปเดียวกับ ShippingCard) */
 type TraceEvent = {
@@ -51,6 +52,13 @@ const CURRENT_INDEX: Record<ShippingStageKey, number | null> = {
 interface Props {
   children: React.ReactNode
   stage: ShippingStageKey | undefined
+  /**
+   * สถานะล่าสุดจากขนส่ง — มีค่า = ตัดสินขั้น/คำ/กล่องเตือนด้วย `describeProgress()`
+   * **ตัวเดียวกับ `ShippingCard`** ⇒ hover กับจอข้างในพูดตรงกันเสมอ (HR16)
+   */
+  carrierStatus?: string | null
+  /** OrderShipment.status — คู่กับ carrierStatus เป็น input ของ describeProgress */
+  shipmentStatus?: string
   /** id ของ OrderShipment — null = พัสดุที่ร้านแจ้งเลขเอง (ไม่มี traces ให้ถาม) */
   shipmentId: string | null
   trackingNo: string | null
@@ -62,6 +70,8 @@ interface Props {
 export default function ShipmentHoverCard({
   children,
   stage,
+  carrierStatus,
+  shipmentStatus,
   shipmentId,
   trackingNo,
   courierName,
@@ -111,11 +121,22 @@ export default function ShipmentHoverCard({
     [traces],
   )
 
-  const cur = stage != null ? CURRENT_INDEX[stage] : null
-  // สีจุดปัจจุบันตามกอง — ต้องตรงกับ MiniShipmentTimeline เป๊ะ (การ์ดนี้ครอบแถบนั้นอยู่
-  // บนจอเดียวกัน ถ้าคนละสีจะอ่านเป็นคนละสถานะ): PROBLEM = danger · RETURNED = warning
-  const problem = stage === 'PROBLEM'
-  const returned = stage === 'RETURNED'
+  /**
+   * 🛑 ขนส่งบอกเองชนะกองงานที่เราจัดให้ — `describeProgress()` เป็น SSOT ตัวเดียวกับที่
+   * `ShippingCard` ในหน้ารายละเอียดใช้ ส่วน `CURRENT_INDEX` derive จาก `ShippingStageKey`
+   * ที่มีแค่ 6 ค่า จึงแยก `return` (จุดที่ 3) กับ `return_success` (จุดที่ 4 + คำว่า
+   * "ส่งคืนสำเร็จ") ออกจากกันไม่ได้ ⇒ การ์ดนี้เคยขึ้น "กำลังจัดส่ง" ตัวหนาให้พัสดุที่กลับมา
+   * ถึงร้านแล้ว ขณะที่จอข้างในของออเดอร์ใบเดียวกันขึ้นถูก (user เจอบน prod 2026-08-24)
+   *
+   * ไม่มี carrierStatus (ร้านแจ้งเลขเอง) → ถอยไปใช้ตารางหยาบเหมือนเดิม
+   */
+  const progress = carrierStatus != null ? describeProgress(shipmentStatus ?? 'CREATED', carrierStatus) : null
+  const rawCur = progress ? progress.stage : stage != null ? CURRENT_INDEX[stage] : null
+  const cur = rawCur != null && rawCur >= 0 ? rawCur : null
+  /** สีจุดปัจจุบัน + คำขั้นสุดท้าย — SSOT ร่วมกับ MiniShipmentTimeline และ ShippingCard */
+  const currentDot = shipmentCurrentDotCls(progress?.notice)
+  const stepLabel = (i: number) =>
+    i === SHIPMENT_STAGES.length - 1 ? (progress?.lastLabel ?? SHIPMENT_STAGES[i].label) : SHIPMENT_STAGES[i].label
 
   const dot = (i: number) => {
     const reached = cur != null && i <= cur
@@ -124,15 +145,7 @@ export default function ShipmentHoverCard({
       <span
         className={cn(
           'flex size-8 shrink-0 items-center justify-center rounded-full',
-          problem && isCurrent
-            ? 'bg-danger text-white'
-            : returned && isCurrent
-              ? 'bg-warning text-white'
-            : isCurrent
-              ? 'bg-primary text-white'
-              : reached
-                ? 'bg-success text-white'
-                : 'bg-default-100 text-default-500',
+          isCurrent ? currentDot : reached ? 'bg-success text-white' : 'bg-default-100 text-default-500',
         )}
       >
         <Icon icon={SHIPMENT_STAGES[i].icon} className="text-base" aria-hidden="true" />
@@ -220,13 +233,27 @@ export default function ShipmentHoverCard({
                           i === cur ? 'text-default-900 font-semibold' : 'text-default-700',
                         )}
                       >
-                        {s.label}
+                        {stepLabel(i)}
                       </span>
                     </span>
                   </Fragment>
                 )
               })}
             </div>
+
+            {/* กล่องเตือนเมื่อออกนอกเส้นทางปกติ — ข้อความชุดเดียวกับหน้ารายละเอียด
+                เดิมการ์ดนี้ไม่มีเลย ⇒ ผู้ขายเห็นแต่จุดเปลี่ยนสี ไม่รู้ว่าต้องทำอะไรต่อ */}
+            {progress?.notice && (
+              <p
+                className={cn(
+                  'text-2xs mt-3 mb-0 flex items-start gap-1.5 rounded-lg px-2.5 py-1.5',
+                  NOTICE_BOX[progress.notice.tone] ?? NOTICE_BOX.secondary,
+                )}
+              >
+                <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+                <span>{progress.notice.text}</span>
+              </p>
+            )}
           </div>
         )}
 

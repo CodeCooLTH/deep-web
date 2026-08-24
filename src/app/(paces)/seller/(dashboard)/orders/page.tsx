@@ -263,6 +263,11 @@ export default async function OrdersPage({ searchParams }: PageProps) {
             courierCode: o.shipments[0].courierCode ?? null,
             courierName: o.shipments[0].courierName ?? null,
             provider: o.shipments[0].provider ?? 'ISHIP',
+            // 🛑 2 ช่องนี้คือ input ของ describeProgress() ซึ่งเป็น SSOT ของ "จุดไหนบนแถบ 4 ขั้น"
+            // ที่หน้ารายละเอียดใช้อยู่แล้ว — ไม่ส่งลงมา แถว/hover จะต้องเดาจาก shippingStage
+            // ซึ่งหยาบกว่า (6 ค่า) แล้วพูดคนละขั้นกับจอข้างในบนออเดอร์ใบเดียวกัน (HR16)
+            carrierStatus: o.shipments[0].carrierStatus ?? null,
+            status: o.shipments[0].status ?? 'CREATED',
           }
         : o.shipmentTracking
           ? {
@@ -272,6 +277,10 @@ export default async function OrdersPage({ searchParams }: PageProps) {
               // ร้านแจ้งเลขเอง — ไม่มีแถว OrderShipment จึงไม่มี id ให้ถาม traces
               id: null,
               provider: 'MANUAL',
+              // ไม่มีขนส่งคอยอัปเดต → ไม่มี carrierStatus ให้ describeProgress อ่าน
+              // ปลายทางจะถอยไปใช้ SHIPMENT_STAGE_DOT_INDEX (หยาบแต่เป็นข้อมูลเท่าที่มีจริง)
+              carrierStatus: null,
+              status: 'CREATED',
             }
           : null,
     // นัดหมาย (feature 00036) — undefined = ร้านไม่มีแกนนี้, null = ร้านมีแกนแต่ใบนี้ walk-in

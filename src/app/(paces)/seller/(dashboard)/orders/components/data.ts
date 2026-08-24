@@ -56,6 +56,18 @@ export type OrderRow = {
     courierName: string | null
     /** "ISHIP" | ... — ใช้เลือกไอคอนแพลตฟอร์ม */
     provider: string
+    /**
+     * สถานะล่าสุดจากขนส่ง — null = ร้านแจ้งเลขเอง (ไม่มีขนส่งคอยอัปเดต) หรือ iShip ยังไม่ส่งมา
+     *
+     * 🛑 ต้องส่งค่านี้ลงมาดิบ ๆ ห้ามให้แถวเดาขั้นจาก `shippingStage` — ตัวนั้นมี 6 ค่า
+     * (กองงาน) ส่วนแถบ 4 จุดต้องรู้ระดับ carrierStatus: `return_success` อยู่จุดที่ 4 และ
+     * เปลี่ยนคำเป็น "ส่งคืนสำเร็จ" ขณะที่ `return` อยู่จุดที่ 3 — ทั้งคู่เป็นกอง RETURNED
+     * เหมือนกัน แยกจากกันไม่ได้ถ้ามีแต่ stage (user เจอบน prod 2026-08-24: hover ขึ้น
+     * "กำลังจัดส่ง" ตัวหนา ให้พัสดุที่กลับมาถึงร้านแล้ว)
+     */
+    carrierStatus: string | null
+    /** OrderShipment.status — describeProgress ต้องใช้แยก CANCELLED ออกจากที่ยังเดินอยู่ */
+    status: string
   } | null
   /**
    * นัดหมายของใบนี้ (feature 00036) — null = ไม่มีนัด (walk-in) ซึ่งแปลว่า "ไม่อยู่ในแกนนี้"

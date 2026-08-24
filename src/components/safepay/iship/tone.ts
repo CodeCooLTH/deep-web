@@ -72,3 +72,24 @@ export const TONE_DOT_TINT: Record<string, string> = {
   danger: 'bg-danger/15 text-danger-ink',
   secondary: 'bg-default-100 text-default-700',
 }
+
+/**
+ * shipmentCurrentDotCls — สีของจุด "ปัจจุบัน" บนแถบพัสดุ 4 ขั้น
+ *
+ * SSOT ตัวเดียวของ 3 จอที่วาดแถบนี้: แถว/hover ในหน้า `/orders` และการ์ดการจัดส่งในหน้า
+ * รายละเอียด — ทั้งสามเคยเขียน `bg-primary` ตายตัวเหมือนกันหมด ⇒ พัสดุที่ **ตีกลับถึงร้าน
+ * แล้ว** กับพัสดุที่ **ส่งถึงมือผู้รับ** ได้จุดสีเดียวกันที่ตำแหน่งเดียวกัน ต่างกันแค่คำใต้จุด
+ * ซึ่งแถบจิ๋วในตารางไม่มีคำเลย (user เจอบน prod 2026-08-24)
+ *
+ * ตัวตัดสินคือ `progress.notice` ไม่ใช่ `progress.tone` — เพราะ `issue`/`return`/
+ * `cannot_pickup` ล้วนเป็น tone `progress` เหมือนพัสดุปกติ สิ่งเดียวที่แยกมันออกมาได้คือ
+ * "มีเรื่องต้องเตือนไหม และเตือนระดับไหน" ซึ่ง `NOTICE_OF` ใน `lib/iship/status.ts`
+ * นิยามไว้ครบแล้ว (danger = ต้องไปตามขนส่ง · warning = ของกำลังกลับ/มีเรื่องเงิน ·
+ * secondary = จบแล้วแต่ไม่ใช่ผลที่ต้องการ)
+ *
+ * 🛑 ไม่มี notice = เดินหน้าตามปกติ → primary เหมือนเดิมทุกประการ ห้ามให้ค่าเริ่มต้นเป็น
+ * อย่างอื่น ไม่งั้นพัสดุปกติจะเปลี่ยนสีทั้งระบบจากการแก้ที่ตั้งใจแก้แค่เคสผิดปกติ
+ */
+export function shipmentCurrentDotCls(notice?: { tone: string } | null): string {
+  return notice ? (TONE_DOT_SOLID[notice.tone] ?? TONE_DOT_SOLID.primary) : TONE_DOT_SOLID.primary
+}

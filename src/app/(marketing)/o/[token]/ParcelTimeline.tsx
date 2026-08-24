@@ -32,13 +32,18 @@ import Typography from '@mui/material/Typography'
 import { Icon } from '@iconify/react'
 import { toast } from 'react-toastify'
 
-import { SHIPMENT_STAGES } from '@/lib/iship/status'
+import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPMENT_STAGE_DOT_INDEX, SHIPPING_STAGE_LABEL, type ShippingStageKey } from '@/lib/order-stage'
 import { VERIFIED_INK } from './TrustPill'
 
 type Props = {
   stage: ShippingStageKey
+  /**
+   * สถานะล่าสุดจากขนส่ง — มีค่า = ใช้ `describeProgress()` **ตัวเดียวกับฝั่งร้าน** ตัดสิน
+   * ขั้น/คำ/กล่องเตือน (BR-BOE-12 บังคับให้สองจอชี้จุดเดียวกัน) · null = ร้านแจ้งเลขเอง
+   */
+  carrierStatus?: string | null
   /**
    * มีพัสดุจริงไหม — ออเดอร์ที่จบโดยไม่เคยมีพัสดุ (รับเอง/บริการ) ได้ stage `DONE` เหมือนกัน
    * ถ้าไม่กันไว้จะวาดแถบเขียวครบ 4 จุดให้พัสดุที่ไม่มีอยู่จริง
@@ -54,12 +59,15 @@ type Props = {
   tracking: { provider: string; trackingNo: string; courierCode?: string | null } | null
 }
 
-export default function ParcelTimeline({ stage, hasShipment, tracking }: Props) {
+export default function ParcelTimeline({ stage, carrierStatus, hasShipment, tracking }: Props) {
   const [copied, setCopied] = useState(false)
-  const current = SHIPMENT_STAGE_DOT_INDEX[stage]
+  // ขนส่งบอกเองชนะกองงานที่ระบบจัดให้ — ดูเหตุผลเต็มที่ MiniShipmentTimeline ฝั่งร้าน
+  const progress = carrierStatus != null ? describeProgress('CREATED', carrierStatus) : null
+  const raw = progress ? progress.stage : SHIPMENT_STAGE_DOT_INDEX[stage]
 
-  // ยังไม่มีพัสดุให้วาด — ไม่ใช่ error แค่ยังไม่ถึงเวลา
-  if (current == null || !hasShipment) return null
+  // ยังไม่มีพัสดุให้วาด / พัสดุถูกยกเลิก — ไม่ใช่ error แค่ไม่มีเส้นทางให้เล่า
+  if (raw == null || raw < 0 || !hasShipment) return null
+  const current = raw
 
   /**
    * สองกองที่อยู่ "นอกเส้นทางเดินหน้า" — ทั้งคู่ปักจุดรถแล้วบอกด้วยสี + กล่องเตือนใต้แถบ
@@ -67,9 +75,8 @@ export default function ParcelTimeline({ stage, hasShipment, tracking }: Props) 
    * ซึ่งเป็นข้อเท็จจริงที่เขาควรรู้ก่อนจะไปตามถามร้านว่าของอยู่ไหน · ข้อความในกล่องเตือนจึงไม่
    * ผูกกับ "กำลัง/แล้ว" (stage เดียวครอบทั้ง `return` และ `return_success` แยกไม่ได้จากตรงนี้)
    */
-  const problem = stage === 'PROBLEM'
-  const returned = stage === 'RETURNED'
-  const offTrack = problem || returned
+  const problem = progress ? progress.notice?.tone === 'danger' : stage === 'PROBLEM'
+  const offTrack = progress ? Boolean(progress.notice) : stage === 'PROBLEM' || stage === 'RETURNED'
   const lastIndex = SHIPMENT_STAGES.length - 1
 
   /**
@@ -86,9 +93,13 @@ export default function ParcelTimeline({ stage, hasShipment, tracking }: Props) 
   const delivered = current >= lastIndex
   const reachedFill = delivered ? VERIFIED_INK : 'primary.main'
 
-  // คำมาจาก SHIPPING_STAGE_LABEL ตัวเดียวกับชิป/ไทล์ฝั่งร้าน — ห้ามพิมพ์เองที่นี่ (HR16)
-  const currentLabel =
-    stage === 'PROBLEM' || stage === 'RETURNED'
+  /** ขั้นสุดท้ายถูก override ได้ ("ส่งคืนสำเร็จ" ไม่ใช่ "จัดส่งสำเร็จ") — SSOT เดียวกับฝั่งร้าน */
+  const stepLabel = (i: number) =>
+    i === lastIndex ? (progress?.lastLabel ?? SHIPMENT_STAGES[i].label) : SHIPMENT_STAGES[i].label
+  // คำมาจากชุดกลาง ห้ามพิมพ์เองที่นี่ (HR16)
+  const currentLabel = progress
+    ? stepLabel(activeIndex)
+    : stage === 'PROBLEM' || stage === 'RETURNED'
       ? SHIPPING_STAGE_LABEL[stage]
       : SHIPMENT_STAGES[activeIndex].label
 
@@ -285,7 +296,7 @@ export default function ParcelTimeline({ stage, hasShipment, tracking }: Props) 
                   color: isCurrent ? 'text.primary' : 'text.secondary',
                 }}
               >
-                {step.label}
+                {stepLabel(i)}
               </Typography>
             </Box>
           )
@@ -320,7 +331,8 @@ export default function ParcelTimeline({ stage, hasShipment, tracking }: Props) 
             fontSize={16}
             style={{ flexShrink: 0, marginTop: 1 }}
           />
-          {problem ? SHIPPING_STAGE_LABEL.PROBLEM : 'พัสดุถูกตีกลับไปยังร้านค้า'}
+          {progress?.notice?.text ??
+            (problem ? SHIPPING_STAGE_LABEL.PROBLEM : 'พัสดุถูกตีกลับไปยังร้านค้า')}
         </Typography>
       )}
     </Box>

@@ -317,6 +317,8 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
           <div className="mt-2">
             <MiniShipmentTimeline
               stage={order.shippingStage}
+              carrierStatus={order.shipment.carrierStatus}
+              shipmentStatus={order.shipment.status}
               hasShipment
               cancelled={false}
             />

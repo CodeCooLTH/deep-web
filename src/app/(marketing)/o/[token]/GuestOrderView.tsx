@@ -341,7 +341,12 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                   แสดงทั้งคู่อยู่แล้ว (และเลขพัสดุที่นั่นกดคัดลอกได้) ปล่อยไว้ = ข้อมูลเดียวกัน
                   สองที่ ห่างกัน 8px โดยฝั่งบนกดไม่ได้ */}
               {order.shipmentTracking && (
-                <ParcelTimeline stage={stage} hasShipment tracking={order.shipmentTracking} />
+                <ParcelTimeline
+                  stage={stage}
+                  carrierStatus={order.carrierStatus}
+                  hasShipment
+                  tracking={order.shipmentTracking}
+                />
               )}
             </CardContent>
           </Card>

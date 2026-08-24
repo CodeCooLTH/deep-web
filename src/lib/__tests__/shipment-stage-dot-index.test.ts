@@ -18,7 +18,7 @@ import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
-import { SHIPMENT_STAGES } from '../iship/status'
+import { SHIPMENT_STAGES, describeProgress } from '../iship/status'
 import { SHIPMENT_STAGE_DOT_INDEX, type ShippingStageKey } from '../order-stage'
 
 const ALL_STAGES: ShippingStageKey[] = [
@@ -110,5 +110,71 @@ describe('parity ระหว่างจอผู้ซื้อกับจอ
 
     expect(src).toMatch(/stage:\s*ShippingStageKey/)
     expect(src).not.toMatch(/stage:\s*string/)
+  })
+})
+
+/**
+ * [blocker] แถบ 4 จุดมี SSOT เดียว = `describeProgress()` (2026-08-24)
+ *
+ * ที่มา: `SHIPMENT_STAGE_DOT_INDEX` derive จาก `ShippingStageKey` ซึ่งมีแค่ 6 ค่า จึงแยก
+ * `return` (จุดที่ 3) ออกจาก `return_success` (จุดที่ 4 + คำว่า "ส่งคืนสำเร็จ") ไม่ได้ —
+ * แถว/hover ของ `/orders` เคยอ่านจากตารางนั้นอย่างเดียว ⇒ พัสดุที่ตีกลับมาถึงร้านแล้วขึ้น
+ * **"กำลังจัดส่ง" ตัวหนา** ขณะที่หน้ารายละเอียดของออเดอร์ใบเดียวกันขึ้นถูกมาตลอด
+ * (user เจอบน prod)
+ *
+ * ตารางหยาบยังอยู่ในฐานะ **fallback ของพัสดุที่ร้านแจ้งเลขเอง** (ไม่มี carrierStatus)
+ * เทสชุดบนจึงยังบังคับให้มันครบทุก key เหมือนเดิม
+ */
+describe('describeProgress = SSOT ของแถบ 4 จุด', () => {
+  it('[blocker] ตีกลับถึงร้าน ≠ กำลังจัดส่ง — ต้องไปจุดสุดท้ายและเปลี่ยนคำ', () => {
+    const p = describeProgress('CREATED', 'return_success')
+    expect(p.stage).toBe(SHIPMENT_STAGES.length - 1)
+    expect(p.lastLabel).toBeTruthy()
+    expect(p.lastLabel).not.toBe(SHIPMENT_STAGES[SHIPMENT_STAGES.length - 1].label)
+    // ต้องมีกล่องเตือน ไม่งั้นจุดเปลี่ยนตำแหน่งเฉย ๆ โดยไม่บอกว่าเกิดอะไรขึ้น
+    expect(p.notice?.text).toBeTruthy()
+  })
+
+  it('[blocker] กำลังตีกลับ (return) อยู่คนละจุดกับตีกลับสำเร็จ', () => {
+    expect(describeProgress('CREATED', 'return').stage).not.toBe(
+      describeProgress('CREATED', 'return_success').stage,
+    )
+  })
+
+  it('[blocker] ส่งถึงจริงกับตีกลับสำเร็จอยู่จุดเดียวกัน → ต้องแยกด้วยคำ+notice เท่านั้น', () => {
+    const delivered = describeProgress('CREATED', 'delivered')
+    const returned = describeProgress('CREATED', 'return_success')
+    expect(delivered.stage).toBe(returned.stage)
+    // ⇒ ห้ามมีจอไหนวาดจุดสุดท้ายโดยไม่เอา lastLabel/notice ไปใช้ (ดูเทสสแกนซอร์สด้านล่าง)
+    expect(delivered.lastLabel).toBeUndefined()
+    expect(delivered.notice).toBeUndefined()
+  })
+
+  it('[blocker] ทั้ง 3 จอที่วาดแถบต้องเรียก describeProgress + ใช้ lastLabel', () => {
+    const SCREENS = [
+      'src/app/(paces)/seller/(dashboard)/orders/components/MiniShipmentTimeline.tsx',
+      'src/app/(paces)/seller/(dashboard)/orders/components/ShipmentHoverCard.tsx',
+      'src/app/(paces)/seller/(dashboard)/orders/[token]/components/ShippingCard.tsx',
+      'src/app/(marketing)/o/[token]/ParcelTimeline.tsx',
+    ]
+    for (const p of SCREENS) {
+      // 🛑 ตัดคอมเมนต์ก่อนสแกน — ไฟล์ที่ทำถูกคือไฟล์ที่เขียนอธิบายกฎข้อนี้ไว้ด้วย
+      const src = readFileSync(join(process.cwd(), p), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .split('\n')
+        .filter((l) => !l.trim().startsWith('//'))
+        .join('\n')
+      /**
+       * 🛑 ต้องจับ `describeProgress(` (การ *เรียก*) ไม่ใช่ชื่อเปล่า ๆ — mutation รอบแรก
+       * เปลี่ยนการเรียกเป็น `null as ReturnType<typeof describeProgress>` แล้วด่านยังเขียว
+       * เพราะชื่อยังอยู่ในไฟล์ (ชุด input อ่อน ไม่ใช่ mutation ไม่เกี่ยว —
+       * docs/conventions/mutation-silence-means-weak-corpus.md)
+       *
+       * และต้องเช็คว่า **เอาผลไปใช้จริง** ทั้ง 2 ทาง: `.stage` (จุดไหน) + `lastLabel` (คำ)
+       */
+      expect(src, p).toContain('describeProgress(')
+      expect(src, p).toContain('progress.stage')
+      expect(src, p).toContain('lastLabel')
+    }
   })
 })

@@ -484,6 +484,8 @@ export default function OrdersTable({
                 /* hover ที่บล็อกนี้ = การ์ดสถานะพัสดุเต็ม + ยิงถาม iShip สด (user สั่ง 2026-08-06) */
                 <ShipmentHoverCard
                   stage={row.original.shippingStage}
+                  carrierStatus={s!.carrierStatus}
+                  shipmentStatus={s!.status}
                   shipmentId={s!.provider === 'ISHIP' ? (s!.id ?? null) : null}
                   trackingNo={s!.trackingNo}
                   courierName={s!.courierName ?? s!.courierCode}
@@ -528,6 +530,8 @@ export default function OrdersTable({
                   <div className="mt-1.5">
                     <MiniShipmentTimeline
                       stage={row.original.shippingStage}
+                      carrierStatus={s!.carrierStatus}
+                      shipmentStatus={s!.status}
                       hasShipment={Boolean(s!.trackingNo)}
                       cancelled={row.original.status === 'CANCELLED'}
                       plain
