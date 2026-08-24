@@ -23,6 +23,7 @@ import {
   CHAT_RATE_LIMIT_WINDOW_MS,
 } from "@/lib/chat-constants";
 import { describeSendFailure } from "@/lib/chat-send-failure";
+import { resolveChatChannel, type ChatChannel } from "@/lib/chat-channel";
 import { buildLineFlexOrderCard } from "@/lib/line/flex-order-card";
 // คลังคำตามประเภทกิจการ — คำที่ลูกค้าเห็นต้องมาจากที่เดียวกับที่ร้านเห็น (HR16)
 import { resolveOrderVocab } from "@/lib/seller-menu";
@@ -103,7 +104,13 @@ function isQuotable(rawMessage: unknown): boolean {
   return typeof token === "string" && token.length > 0;
 }
 
-function mapChatServiceError(e: unknown, context: string) {
+/**
+ * `channel` (impeccable clarify 2026-08-23 P0-2) — ถ้อยคำของ `CHANNEL_NOT_ACTIVE` ต้องชี้คนละที่
+ * ตามช่องทาง (LINE → หน้าตั้งค่าช่องทาง / Meta → เชื่อมเพจใหม่) ⇒ ผู้เรียกที่รู้ช่องทางต้องส่งมา
+ * ไม่ส่ง = ได้ถ้อยคำกลางที่ไม่เอ่ยชื่อแพลตฟอร์มใดเลย (ดู `SendFailureContext.channel`)
+ */
+function mapChatServiceError(e: unknown, context: string, channel?: ChatChannel) {
+  const fail = (raw: string) => describeSendFailure(raw, { channel });
   if (e instanceof Error && e.message === "CONVERSATION_NOT_FOUND") {
     return NextResponse.json({ error: "ไม่พบบทสนทนา" }, { status: 404 });
   }
@@ -111,7 +118,7 @@ function mapChatServiceError(e: unknown, context: string) {
     // (F-1 รอบแก้ 2) ถ้อยคำย้ายไปอยู่ที่ `chat-send-failure.ts` แล้ว — รหัสนี้ลง `failureReason`
     // ได้จริงตั้งแต่ CR คิว (สิทธิ์เปลี่ยนระหว่างที่แถวรอคิว) บับเบิลจึงอ่านจากที่นั่น ถ้า hardcode
     // ไว้ที่นี่ด้วยจะได้สองสำนวนสำหรับเรื่องเดียวกัน (HR16)
-    return NextResponse.json({ error: describeSendFailure(e.message).text }, { status: 403 });
+    return NextResponse.json({ error: fail(e.message).text }, { status: 403 });
   }
   if (e instanceof Error && e.message === "SHOP_NOT_FOUND") {
     // defense เท่านั้น — ไม่ควรเกิดจริง (FK CASCADE) ดู chat.service.ts sendMessage
@@ -128,7 +135,7 @@ function mapChatServiceError(e: unknown, context: string) {
     // (R-21) ถ้อยคำย้ายไปอยู่ที่ `chat-send-failure.ts` แล้ว — บับเบิลของแถวที่ล้มหลังบ้านอ่านจาก
     // ที่นั่นเหมือนกัน ถ้า hardcode ไว้ที่นี่ด้วยจะได้สองสำนวนสำหรับเรื่องเดียวกัน (HR16)
     // ใช้ `.text` ไม่ใช่ `.message` เพื่อคงสตริงเดิมเป๊ะ (`.message` เติมคำนำหน้า "ส่งไม่สำเร็จ — ")
-    return NextResponse.json({ error: describeSendFailure(e.message).text }, { status: 409 });
+    return NextResponse.json({ error: fail(e.message).text }, { status: 409 });
   }
   if (e instanceof Error && e.message === "NOT_EXTERNAL_CHANNEL") {
     return NextResponse.json({ error: "ช่องทางของบทสนทนานี้ไม่ถูกต้อง" }, { status: 400 });
@@ -137,7 +144,7 @@ function mapChatServiceError(e: unknown, context: string) {
     // feature 00018 (S-4): token ตายแล้ว (ถูก markChannelTokenInvalid) หรือร้านถอดการเชื่อมต่อไปแล้ว
     // — สาเหตุชัดเจนและแก้ได้เอง (ไปเชื่อม Page ใหม่) ไม่ใช่ generic 500
     // (R-21) ถ้อยคำย้ายไปอยู่ที่ `chat-send-failure.ts` แล้ว — ดูเหตุผลที่ WINDOW_CLOSED ด้านบน
-    return NextResponse.json({ error: describeSendFailure(e.message).text }, { status: 409 });
+    return NextResponse.json({ error: fail(e.message).text }, { status: 409 });
   }
   // (S-8, feature 00025) LINE outbound — ข้อความ/HTTP status ตรงตาม API.md §5 เป๊ะ ๆ
   // (feedback_service_error_route_mapping: error ใหม่ทุกตัวที่ service โยนต้องมี catch ที่นี่)
@@ -156,19 +163,19 @@ function mapChatServiceError(e: unknown, context: string) {
   // ตั้งแต่ก่อนกด (ThreadStatusBar key='quotaBlocked') — เส้นทางนี้ยังต้องอยู่ต่อในฐานะตาข่ายชั้นใน
   // สุด เพราะค่าที่อ่านล่วงหน้า cache ได้ถึง 5 นาที LINE จึงยังปฏิเสธได้ทั้งที่จอบอกว่าเหลือ
   if (e instanceof Error && e.message === "TOKEN_INVALID") {
-    const { message, retryable } = describeSendFailure(e.message);
+    const { message, retryable } = fail(e.message);
     return NextResponse.json({ error: message, retryable, code: e.message }, { status: 400 });
   }
   if (e instanceof Error && e.message === "CONTACT_BLOCKED") {
-    const { message, retryable } = describeSendFailure(e.message);
+    const { message, retryable } = fail(e.message);
     return NextResponse.json({ error: message, retryable, code: e.message }, { status: 409 });
   }
   if (e instanceof Error && e.message === "QUOTA_EXCEEDED") {
-    const { message, retryable } = describeSendFailure(e.message);
+    const { message, retryable } = fail(e.message);
     return NextResponse.json({ error: message, retryable, code: e.message }, { status: 409 });
   }
   if (e instanceof Error && e.message === "LINE_UNAVAILABLE") {
-    const { message, retryable } = describeSendFailure(e.message);
+    const { message, retryable } = fail(e.message);
     return NextResponse.json({ error: message, retryable, code: e.message }, { status: 502 });
   }
   if (e instanceof Error && e.message.startsWith("SEND_FAILED")) {
@@ -187,7 +194,7 @@ function mapChatServiceError(e: unknown, context: string) {
     // service โยนเป็น "SEND_FAILED: <ข้อความดิบของ Meta>" — แปลเป็นไทยก่อนส่งให้ร้าน
     // (user report 2026-08-02) เดิมตอบ "กรุณาลองใหม่" ทุกกรณี ซึ่งเป็นคำแนะนำที่ผิดกับ #551
     // (ลูกค้าปิดรับข้อความ — กดกี่ครั้งก็ไม่ผ่าน) ร้านจะกดซ้ำเปล่า ๆ แล้วโทษระบบ
-    const { message } = describeSendFailure(e.message.replace(/^SEND_FAILED:\s*/, ""));
+    const { message } = fail(e.message.replace(/^SEND_FAILED:\s*/, ""));
     // แนบแถวที่บันทึกไว้แล้วกลับไปด้วย (2026-08-03) — ส่งไม่ผ่าน ≠ ไม่ได้บันทึก
     // client ต้องเอาไปแทนบับเบิล optimistic ของตัวเอง ไม่งั้นข้อความเดียวขึ้นสองอันจนกว่าจะ refresh
     const saved = (e as SendFailedError).savedMessage;
@@ -673,6 +680,13 @@ export async function POST(
     return NextResponse.json({ error: "ต้องมีรูปอย่างน้อย 2 ใบ" }, { status: 400 });
   }
 
+  /**
+   * ช่องทางของเธรด — ประกาศ **นอก** `try` โดยตั้งใจ เพราะ `catch` ต้องใช้เลือกถ้อยคำของ
+   * `CHANNEL_NOT_ACTIVE` (P0-2) ส่วน `conv` ที่อ่านค่านี้มาถูกประกาศในสโคปของ `try`
+   * ยังไม่รู้ค่า (throw ก่อนอ่าน conv) = `undefined` ⇒ ได้ถ้อยคำกลาง ไม่ใช่เดาว่าเป็น Meta
+   */
+  let convChannel: ChatChannel | undefined;
+
   try {
     // feature 00018: เธรดช่องทางนอกต้องส่งออกผ่าน Graph API ไม่ใช่เขียน DB ตรง ๆ
     //
@@ -682,6 +696,7 @@ export async function POST(
       where: { id },
       select: { channel: true, shopId: true },
     });
+    if (conv) convChannel = resolveChatChannel(conv.channel);
 
     // แถวสินค้าที่ผ่านด่าน ownership แล้ว — ใช้ต่อตอนประกอบการ์ด Flex ให้ LINE (ไม่ query ซ้ำ)
     let productRow: Awaited<ReturnType<typeof getProductById>> = null;
@@ -972,6 +987,11 @@ export async function POST(
              * ถึงแม้คำขอนี้จบลงตรงนี้) ⇒ ยังต้องตอบ 207 เหมือนเดิม ห้ามตอบ error ก้อนเดียว
              * ไม่งั้นผู้ขายเข้าใจว่าไม่มีอะไรถึงลูกค้าเลยแล้วกดส่งซ้ำทั้งชุด = ลูกค้าได้ของซ้ำ
              *
+             * (impeccable clarify 2026-08-23 P2-1) ตัดวรรคกลาง "เอารายการที่ส่งแล้วออกให้แล้ว"
+             * ออก — มันบรรยายสิ่งที่ *ระบบ* ทำกับสถานะของตัวเอง ไม่ใช่สิ่งที่ผู้ขายต้องรู้เพื่อทำต่อ
+             * และผู้ขายเห็นแผงอัปเดตตรงหน้าอยู่แล้ว (สำนวน "ให้แล้ว…แล้ว" ก็อ่านสะดุด)
+             * เหลือแค่ "เกิดอะไร + ทำอะไรต่อ"
+             *
              * คำเปลี่ยนจาก "ส่งได้ i จาก N" เป็น "เข้าคิวส่งแล้ว" เพราะตอนนี้มันจริงแค่นั้น —
              * แถวที่เข้าคิวยังไม่ถึงลูกค้า ณ วินาทีที่ตอบ (value-fate-decided-at-write-site.md:
              * ห้ามเขียนคำอ้างเรื่องพฤติกรรมที่โค้ดยังไม่ได้ทำ). ฟิลด์ `sentMessages`/`totalMessages`
@@ -983,7 +1003,7 @@ export async function POST(
             after(deliverRoom(id, "after"));
             return NextResponse.json(
               {
-                error: `เข้าคิวส่งแล้ว ${i} จาก ${batches.length} ข้อความ — เอารายการที่ส่งแล้วออกให้แล้ว กดส่งอีกครั้งเพื่อส่งส่วนที่เหลือ`,
+                error: `เข้าคิวส่งแล้ว ${i} จาก ${batches.length} ข้อความ — กดส่งอีกครั้งเพื่อส่งส่วนที่เหลือ`,
                 sentMessages: i,
                 totalMessages: batches.length,
               },
@@ -1277,6 +1297,6 @@ export async function POST(
 
     return NextResponse.json(await withSender(message, userId));
   } catch (e: unknown) {
-    return mapChatServiceError(e, "POST /api/chat/conversations/[id]/messages");
+    return mapChatServiceError(e, "POST /api/chat/conversations/[id]/messages", convChannel);
   }
 }

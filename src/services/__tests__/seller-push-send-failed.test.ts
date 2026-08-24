@@ -103,10 +103,10 @@ describe('pushChatSendFailed — ถ้อยคำ (HR16)', () => {
       failureReason: 'CHANNEL_NOT_ACTIVE',
     })
 
+    // (clarify 2026-08-23) preview ของ fixture นี้เป็น MESSENGER ⇒ ได้ถ้อยคำสายเพจ และเป็น
+    // **ฉบับย่อ** เพราะ noti ถูกระบบตัดหางทิ้ง (P0-1)
     const [, , body] = vi.mocked(pushToUsers).mock.calls[0]!
-    expect(body).toBe(
-      'ส่งไม่สำเร็จ — การเชื่อมต่อกับช่องทางนี้หมดอายุ กรุณาเชื่อม Facebook Page ใหม่อีกครั้ง',
-    )
+    expect(body).toBe('ส่งไม่สำเร็จ — การเชื่อมต่อกับ Facebook Page หมดอายุ — เชื่อมเพจใหม่')
   })
 
   it('[blocker] ข้อความดิบของ Meta ต้องถูกแปลไทย ไม่ยิงอังกฤษเข้าแอป', async () => {
@@ -130,7 +130,7 @@ describe('pushChatSendFailed — ถ้อยคำ (HR16)', () => {
 
     const [, , body] = vi.mocked(pushToUsers).mock.calls[0]!
     expect(body).not.toContain('SOME_BRAND_NEW_CODE')
-    expect(body).toContain('ไม่ทราบสาเหตุ')
+    expect(body).toContain('ยังไม่รู้สาเหตุ')
   })
 
   it('ไม่มีเหตุผลติดมาเลย (null) → ยังต้องมีข้อความ ห้าม body ว่าง', async () => {
@@ -167,7 +167,8 @@ describe('pushChatSendFailed — ลำดับบรรทัด', () => {
     const [, title, body, data, options] = vi.mocked(pushToUsers).mock.calls[0]!
     expect(title).toBe('BT Premium Auto Xenon คลอง4 ธัญบุรี')
     expect(options?.subtitle).toBe('ศิริพงศ์ชาวด์ แอนด์มิวสิค')
-    expect(body).toContain('หมดเวลาที่ Meta อนุญาตให้ส่งข้อความในเธรดนี้')
+    // ฉบับย่อของ WINDOW_CLOSED (P0-1) — บับเบิลยังได้ประโยคเต็มเหมือนเดิม
+    expect(body).toContain('หมดเวลาที่ Meta ให้ส่ง')
     // กด noti แล้วต้องเปิดห้องที่ส่งไม่ออก ไม่ใช่หน้ารวม — ผู้ขายต้องเห็นบับเบิลแดงใบนั้นทันที
     expect(data).toMatchObject({ url: '/inbox/c-line-1' })
   })
@@ -229,5 +230,105 @@ describe('pushChatSendFailed — ผู้รับ', () => {
     await expect(
       pushChatSendFailed({ shopId: 's1', conversationId: 'c-aud-4', failureReason: 'WINDOW_CLOSED' }),
     ).resolves.toBeUndefined()
+  })
+})
+
+/**
+ * (impeccable clarify 2026-08-23 P0-1 / P0-2) — ถ้อยคำที่เขียนไว้สำหรับ *บับเบิล* ถูกยกมาเป็น body
+ * ของ push โดยตรง
+ *
+ * 🛑 iOS ย่อ body เหลือราว 2 บรรทัด (~100 ตัวอักษร) แล้ว **ตัดหางทิ้ง** — หางคือส่วนหลัง `—`
+ * ซึ่งเป็นส่วนที่บอกว่าต้องทำอะไรต่อ. ถ้อยคำที่ยาวที่สุดในตารางคือ 189 ตัวอักษร ⇒ ผู้ขายจะได้อ่าน
+ * แต่คำบรรยายปัญหา โดยไม่มีทางออกติดมาเลย (บทเรียนเดิม 2026-08-08: ลำดับบรรทัดของ noti ถูกแก้
+ * 3 รอบในวันเดียว เพราะมีคน **ประเมินที่ว่างโดยไม่ได้วัด**)
+ */
+describe('pushChatSendFailed — ความยาว body (P0-1)', () => {
+  /** เพดานที่ iOS ย่อ body ลงเหลือ ก่อนผู้ใช้กดกางเอง */
+  const IOS_BODY_BUDGET = 100
+
+  async function bodyOf(conversationId: string, failureReason: string, channel = 'MESSENGER') {
+    vi.mocked(getConversationToastPreview).mockResolvedValueOnce({
+      ...previewFor(conversationId),
+      channel,
+    })
+    await pushChatSendFailed({ shopId: 's1', conversationId, failureReason })
+    const call = vi.mocked(pushToUsers).mock.calls.at(-1)!
+    return call[2]
+  }
+
+  it('[blocker] เหตุผลที่ยาวที่สุดต้องยังอยู่ในโควตา และ **ทางออกต้องไม่ถูกตัด**', async () => {
+    // QUOTA_EXCEEDED = ถ้อยคำที่ยาวที่สุดในตาราง (189 ตัวอักษร) ⇒ เดิมโดนตัดตรงกลางประโยคพอดี
+    const body = await bodyOf('c-len-1', 'QUOTA_EXCEEDED', 'LINE')
+    expect(body.length).toBeLessThanOrEqual(IOS_BODY_BUDGET)
+    // ทางออกอยู่หลัง `—` — ถ้าโดนตัด ผู้ขายจะเหลือแต่ "โควตาเต็ม" โดยไม่รู้ว่าทำอะไรได้
+    expect(body.split('—').length).toBeGreaterThanOrEqual(3)
+    expect(body).toContain('LINE OA Manager')
+  })
+
+  it.each([
+    'QUOTA_EXCEEDED',
+    'CONTACT_BLOCKED',
+    'TOKEN_INVALID',
+    'CHANNEL_NOT_ACTIVE',
+    'WINDOW_CLOSED',
+    'FORBIDDEN',
+    "(#551) This person isn't available right now.",
+    "(#100) Cannot tag messages with 'HUMAN_AGENT' without prior approval.",
+    '(#10) Message failed to send because another app is controlling this thread now.',
+  ])('[blocker] body ของ %s ต้องไม่เกินโควตาที่ iOS ย่อ', async (reason) => {
+    const body = await bodyOf(`c-len-${encodeURIComponent(reason).slice(0, 12)}`, reason)
+    expect(`${reason} → ${body.length}`).toBe(`${reason} → ${Math.min(body.length, IOS_BODY_BUDGET)}`)
+  })
+
+  /**
+   * 🛑 mutation ที่ต้องจับให้ได้: เปลี่ยน `.shortMessage` กลับเป็น `.message`
+   * เทียบกับ **สตริงเต็มที่เขียนไว้จริง** ไม่ใช่เรียก describeSendFailure ซ้ำ (เทียบของกับตัวมันเอง)
+   */
+  it('[blocker] ต้องเป็นฉบับย่อ ไม่ใช่ประโยคเต็มของบับเบิล', async () => {
+    const body = await bodyOf('c-len-short', 'CONTACT_BLOCKED', 'LINE')
+    expect(body).toBe('ส่งไม่สำเร็จ — ลูกค้าปิดรับข้อความจากบัญชีนี้ — ต้องรอลูกค้าเปิดรับอีกครั้ง')
+    expect(body).not.toContain('ครั้งล่าสุดที่ส่งข้อความหาลูกค้ารายนี้ไม่สำเร็จ')
+  })
+})
+
+/**
+ * (P0-2) `CHANNEL_NOT_ACTIVE` ถูกโยนจากกิ่ง LINE ด้วย — push ต้องส่งช่องทางของเธรดเข้าไป
+ * ไม่งั้นผู้ขาย LINE ได้ noti ที่สั่งให้ไปเชื่อม Facebook Page ซึ่งไม่มีในบัญชีของเขาเลย
+ */
+describe('pushChatSendFailed — ถ้อยคำต้องตรงช่องทาง (P0-2)', () => {
+  it('[blocker] เธรด LINE ต้องไม่ได้ noti ที่พูดถึง Facebook', async () => {
+    vi.mocked(getConversationToastPreview).mockResolvedValueOnce({
+      ...previewFor('c-ch-line'),
+      channel: 'LINE',
+      channelName: 'ร้านทดสอบ LINE OA',
+    })
+    await pushChatSendFailed({ shopId: 's1', conversationId: 'c-ch-line', failureReason: 'CHANNEL_NOT_ACTIVE' })
+
+    const [, , body] = vi.mocked(pushToUsers).mock.calls[0]!
+    expect(body).not.toContain('Facebook')
+    expect(body).toContain('ตั้งค่าช่องทาง')
+  })
+
+  it('[blocker] เธรด Messenger ยังชี้ไปที่เพจเหมือนเดิม (ไม่ใช่เปลี่ยนทุกคนเป็นคำกลาง)', async () => {
+    await pushChatSendFailed({ shopId: 's1', conversationId: 'c-ch-fb', failureReason: 'CHANNEL_NOT_ACTIVE' })
+
+    const [, , body] = vi.mocked(pushToUsers).mock.calls[0]!
+    expect(body).toContain('Facebook Page')
+  })
+
+  it('ช่องทางที่ไม่รู้จักในข้อมูล → ตกไปถ้อยคำกลาง ห้ามเดาว่าเป็นเจ้าใดเจ้าหนึ่ง', async () => {
+    vi.mocked(getConversationToastPreview).mockResolvedValueOnce({
+      ...previewFor('c-ch-unknown'),
+      channel: 'SOME_FUTURE_CHANNEL',
+    })
+    await pushChatSendFailed({
+      shopId: 's1',
+      conversationId: 'c-ch-unknown',
+      failureReason: 'CHANNEL_NOT_ACTIVE',
+    })
+
+    const [, , body] = vi.mocked(pushToUsers).mock.calls[0]!
+    expect(body).not.toContain('Facebook')
+    expect(body).not.toContain('LINE')
   })
 })

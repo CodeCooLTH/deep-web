@@ -95,6 +95,7 @@ import { useComposerHeight } from '@/hooks/useComposerHeight'
 import { parseMetaSystemNotice, parseMetaAiHandoffNotice, readMetaAiControlMarker } from '@/lib/meta-system-notice'
 import { withEmojiPresentation } from '@/lib/emoji-presentation'
 import { describeSendFailure, stripSendFailurePrefix } from '@/lib/chat-send-failure'
+import { resolveChatChannel } from '@/lib/chat-channel'
 // นิยาม "โพสต์นี้เป็นวิดีโอไหม" ตัวเดียวกับที่รายการคอมเมนต์ใช้ — ห้ามก็อปมาเขียนซ้ำ (HR16)
 import { isVideoPost } from '@/lib/facebook-post'
 import { canRetryFailedMessage } from '@/lib/chat-retry-eligibility'
@@ -3068,9 +3069,13 @@ export default function ChatThread({
                 // ลูกค้ายังไม่เคยพิมพ์กลับ ติดเพดาน "ตอบได้ข้อความเดียว" ของ Meta ไม่ใช่หน้าต่าง
                 // 24 ชม. ถ้าไม่ส่งบริบทนี้ไป ผู้ขายจะได้อ่านว่า "เกินเวลา… นับจากลูกค้าทักล่าสุด"
                 // ในเธรดที่ไม่มี "ข้อความล่าสุดของลูกค้า" อยู่เลย (impeccable critique 2026-08-09 P0)
+                // 🛑 ส่ง `channel` ไปด้วย (clarify 2026-08-23 P0-2) — `CHANNEL_NOT_ACTIVE` เกิดได้
+                // ทั้งฝั่ง Meta และ LINE ถ้าไม่บอกช่องทาง ผู้ขาย LINE จะถูกสั่งให้ไปเชื่อม
+                // Facebook Page ซึ่งไม่มีอยู่ในบัญชีของเขาเลย
                 const failDetail = failedPersisted
                   ? describeSendFailure(mExt.failureReason, {
                       commentOriginNoInbound: isCommentReplyThread && neverInbound,
+                      channel: resolveChatChannel(channel),
                     })
                   : null
                 // ฝั่ง optimistic เคยไม่มีเหตุผลให้ดู (เห็นแต่ toast ตอนกดส่ง) — แต่ toast หายเองใน

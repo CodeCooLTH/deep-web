@@ -26,7 +26,7 @@ const { readProductCardsResponse } = await import('../useSellerChatThread')
 
 /** คำตอบจริงที่ route ส่งมาเมื่อชุดแรกเข้าคิวได้ ชุดถัดไปล้ม (route.ts เส้นทาง PRODUCT) */
 const PARTIAL_BODY = {
-  error: 'เข้าคิวส่งแล้ว 1 จาก 3 ข้อความ — เอารายการที่ส่งแล้วออกให้แล้ว กดส่งอีกครั้งเพื่อส่งส่วนที่เหลือ',
+  error: 'เข้าคิวส่งแล้ว 1 จาก 3 ข้อความ — กดส่งอีกครั้งเพื่อส่งส่วนที่เหลือ',
   sentMessages: 1,
   totalMessages: 3,
 }

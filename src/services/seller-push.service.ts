@@ -9,6 +9,7 @@
 import { prisma } from '@/lib/prisma'
 import { getChannelLabel } from '@/lib/chat-channel'
 import { describeSendFailure } from '@/lib/chat-send-failure'
+import { resolveChatChannel } from '@/lib/chat-channel'
 import { pushToUsers } from './app-push.service'
 import { getConversationToastPreview } from './chat.service'
 
@@ -185,8 +186,17 @@ export async function pushNewChatMessage(params: {
  *
  * 🛑 ถ้อยคำมาจาก `describeSendFailure()` เท่านั้น ห้ามพิมพ์คำใหม่ (HR16) — บับเบิลแดงในเธรดกับ noti
  * บนมือถือคือ "เรื่องเดียวกัน" ถ้าพูดคนละสำนวน ผู้ขายจะไม่แน่ใจว่ามันคือใบเดียวกันหรือคนละใบ
- * ใช้ `.message` (มีคำนำหน้า "ส่งไม่สำเร็จ — ") ไม่ใช่ `.text` เพราะ noti ไม่มีป้ายหัวเรื่องของตัวเอง
+ * ใช้ตัวที่ **มีคำนำหน้า "ส่งไม่สำเร็จ — "** ไม่ใช่ `.text` เพราะ noti ไม่มีป้ายหัวเรื่องของตัวเอง
  * เหมือน UI ในเธรด — บรรทัด body คือที่เดียวที่จะบอกได้ว่านี่คือข่าวร้าย ไม่ใช่ข้อความใหม่
+ *
+ * 🛑 และต้องเป็น **`.shortMessage` ไม่ใช่ `.message`** (impeccable clarify 2026-08-23 P0-1): iOS ย่อ
+ * body เหลือราว 2 บรรทัด (~100 ตัวอักษร) แล้วตัดหางทิ้ง ซึ่งหางคือส่วนหลัง `—` = **ส่วนที่บอกว่า
+ * ต้องทำอะไรต่อ** ถ้อยคำที่ยาวที่สุดในตารางคือ 189 ตัวอักษร ⇒ ผู้ขายจะได้อ่านแต่คำบรรยายปัญหา
+ * โดยไม่มีทางออกติดมาเลย. บับเบิลในเธรดยังใช้ `.text` ฉบับเต็มเหมือนเดิม (มีที่ให้ยาว + กาง (i) ได้)
+ *
+ * 🛑 ส่งช่องทางเข้าไปด้วยเสมอ — `CHANNEL_NOT_ACTIVE` เกิดได้ทั้งฝั่ง Meta และ LINE และถ้อยคำของมัน
+ * ต้องชี้ไปคนละที่ (ดู `SendFailureContext.channel`) ไม่ส่ง = ผู้ขาย LINE ถูกสั่งให้ไปเชื่อม
+ * Facebook Page. `resolveChatChannel` แปลงค่าที่ไม่รู้จักเป็น DEEP ⇒ ตกไปถ้อยคำกลาง (fail-safe)
  *
  * ผ่าน `shopAudience()` (หักคนที่ปิดแจ้งเตือนร้านนี้) ไม่ใช่ `shopSystemAlertAudience()` — ใบนี้เป็น
  * noti ของ *แชท* ห้องหนึ่ง ไม่ใช่ข่าว "ระบบร้านพัง" ที่ครอบทุกห้อง (เส้นแบ่งเดียวกับ D-CH-8)
@@ -216,7 +226,8 @@ export async function pushChatSendFailed(params: {
       // ชื่อเพจ → ชื่อคู่สนทนา → ข้อความ. ใบนี้ "ชื่อคนส่ง" = ลูกค้าที่เราส่งหาไม่สำเร็จ ซึ่งเป็น
       // ตัวระบุห้องตัวเดียวกัน ⇒ ผู้ขายอ่าน noti สองชนิดด้วยสายตาชุดเดียว ไม่ต้องเรียนรู้รูปแบบใหม่
       pageTitle(preview.channel, preview.channelName),
-      describeSendFailure(params.failureReason).message,
+      describeSendFailure(params.failureReason, { channel: resolveChatChannel(preview.channel) })
+        .shortMessage,
       {
         // ชนิดแยกจาก 'chat' — วันที่แอปอยากทำเสียง/ไอคอน/การจัดกลุ่มต่างกัน จะแยกได้ทันที
         type: 'chat-send-failed',

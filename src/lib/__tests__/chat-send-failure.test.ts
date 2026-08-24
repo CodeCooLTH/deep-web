@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { describeSendFailure, stripSendFailurePrefix } from '../chat-send-failure'
 
 describe('describeSendFailure', () => {
@@ -70,8 +71,10 @@ describe('describeSendFailure', () => {
   })
 
   it('ไม่มีเหตุผลติดมาเลย', () => {
-    expect(describeSendFailure(null).text).toBe('ไม่ทราบสาเหตุ')
-    expect(describeSendFailure('   ').text).toBe('ไม่ทราบสาเหตุ')
+    // (clarify 2026-08-23 P1-2) "ไม่ทราบสาเหตุ" เดิมเป็นทางตัน — ต้องชวนให้กดลองใหม่ ซึ่งกิ่งนี้
+    // ส่ง retryable=true อยู่แล้ว (ปุ่ม "ลองใหม่" ขึ้นจริงบนบับเบิล)
+    expect(describeSendFailure(null).text).toBe('ยังไม่รู้สาเหตุที่ส่งไม่ผ่าน — ลองส่งอีกครั้ง ถ้ายังไม่ได้ให้ติดต่อทีมงาน')
+    expect(describeSendFailure('   ').text).toBe('ยังไม่รู้สาเหตุที่ส่งไม่ผ่าน — ลองส่งอีกครั้ง ถ้ายังไม่ได้ให้ติดต่อทีมงาน')
   })
 })
 
@@ -373,7 +376,7 @@ describe('[blocker] รหัสภายในทุกตัวที่ยิ
 
   it('[blocker] ตาข่าย: รหัสรูปแบบเดียวกันที่ยังไม่มีกฎ ต้องไม่หลุดออกหน้าจอ', () => {
     const out = describeSendFailure('SOME_FUTURE_INTERNAL_CODE')
-    expect(out.text).toBe('ไม่ทราบสาเหตุ')
+    expect(out.text).toBe('ยังไม่รู้สาเหตุที่ส่งไม่ผ่าน — ลองส่งอีกครั้ง ถ้ายังไม่ได้ให้ติดต่อทีมงาน')
     expect(out.known).toBe(false)
   })
 
@@ -384,7 +387,7 @@ describe('[blocker] รหัสภายในทุกตัวที่ยิ
       // เคสนี้แยกจากเทส `known=true` ของ FORBIDDEN โดยตั้งใจ: ถ้ารวมกัน กฎของ FORBIDDEN จะกลบ
       // ความพังของ regex ไว้ (mutation ข้อหนึ่งจะกลบอีกข้อ)
       const out = describeSendFailure(code)
-      expect(out.text).toBe('ไม่ทราบสาเหตุ')
+      expect(out.text).toBe('ยังไม่รู้สาเหตุที่ส่งไม่ผ่าน — ลองส่งอีกครั้ง ถ้ายังไม่ได้ให้ติดต่อทีมงาน')
       expect(out.known).toBe(false)
     },
   )
@@ -395,5 +398,222 @@ describe('[blocker] รหัสภายในทุกตัวที่ยิ
     // ตัวย่ออังกฤษสั้น ๆ ที่ไม่ใช่รหัส (ยาว < 3) ยังผ่านเหมือนเดิม
     expect(describeSendFailure('OK').text).toBe('OK')
     expect(describeSendFailure('ส่งข้อความไม่สำเร็จ').text).toBe('ส่งข้อความไม่สำเร็จ')
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// (impeccable clarify 2026-08-23) ถ้อยคำฉบับย่อสำหรับ surface ที่ตัดข้อความทิ้งเอง
+//
+// 🛑 ทำไมเป็น blocker: `seller-push.service.ts` เอาถ้อยคำชุดนี้ไปเป็น body ของ push โดยตรง และ
+// iOS ย่อ body เหลือราว 2 บรรทัด (~100 ตัวอักษร) แล้ว **ตัดหางทิ้ง** — หางคือส่วนหลัง `—` ซึ่ง
+// เป็นส่วนที่บอกว่าต้องทำอะไรต่อ. ถ้อยคำที่ยาวที่สุดในตารางคือ 189 ตัวอักษร ⇒ ผู้ขายที่กำลังคุยกับ
+// ลูกค้าที่รออยู่ จะได้อ่านแต่คำบรรยายปัญหา โดยไม่มีทางออกติดมาเลย
+// ══════════════════════════════════════════════════════════════════════════
+describe('[blocker] describeSendFailure — ถ้อยคำฉบับย่อ (short)', () => {
+  /** เพดานจริงของ body บน iOS อยู่ราว 100 ตัวอักษร; หัก "ส่งไม่สำเร็จ — " (15) แล้วเผื่อไว้ที่ 60 */
+  const SHORT_MAX = 60
+
+  /**
+   * สแกน **ซอร์สจริง** ไม่ใช่รายการที่เขียนมือ — กฎที่ถูกเพิ่มวันหน้าต้องถูกตรวจด้วยโดยไม่มีใครต้อง
+   * มาเติมชื่อที่นี่ (บทเรียน `rule-must-be-enforced-not-described.md`)
+   *
+   * 🛑 ตัดคอมเมนต์ทิ้งก่อนสแกนเสมอ — ไฟล์ที่ทำถูกกฎคือไฟล์ที่เขียนคำอธิบายกฎนั้นไว้ด้วย
+   * (คลาสเดียวกับ grep gate ของ HR9 ที่เคยแดงค้างจากคำเตือนของตัวเอง 2026-08-02→03)
+   */
+  function shortLiterals(): string[] {
+    const src = readFileSync(new URL('../chat-send-failure.ts', import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1')
+    return [...src.matchAll(/\bshort:\s*'([^']+)'/g)].map((m) => m[1]!)
+  }
+
+  it('[blocker] ทุกถ้อยคำ short ต้องไม่เกิน 60 ตัวอักษร', () => {
+    const all = shortLiterals()
+    // ถ้าสแกนไม่เจออะไรเลย แปลว่า regex พัง ไม่ใช่ว่าไม่มีกฎไหนมี short (เทสเปล่า = อันตรายกว่าแดง)
+    expect(all.length).toBeGreaterThanOrEqual(10)
+    for (const s of all) expect(`${s} (${s.length})`).toBe(`${s} (${Math.min(s.length, SHORT_MAX)})`)
+  })
+
+  it('[blocker] short ต้องมีทางออกอยู่ในตัว ไม่ใช่แค่บอกว่าพัง — ทุกตัวต้องมีตัวคั่น —', () => {
+    for (const s of shortLiterals()) expect(s).toContain('—')
+  })
+
+  it('[blocker] กฎที่ text ยาวเกิน 70 ตัวอักษร ต้องมี short ทุกตัว (ไม่งั้นทางออกถูกตัดทิ้ง)', () => {
+    const cases: string[] = [
+      "(#551) This person isn't available right now.",
+      'Error validating access token: Session has expired. (#190)',
+      '(#10) This message is sent outside of allowed window.',
+      '(#10) Message failed to send because another app is controlling this thread now.',
+      "(#100) Cannot tag messages with 'HUMAN_AGENT' without prior approval.",
+      'TOKEN_INVALID',
+      'QUOTA_EXCEEDED',
+      'CONTACT_BLOCKED',
+      'FORBIDDEN',
+      'WINDOW_CLOSED',
+      'CHANNEL_NOT_ACTIVE',
+    ]
+    for (const raw of cases) {
+      const d = describeSendFailure(raw)
+      if (d.text.length > 70) expect(`${raw}: ${d.short ?? 'MISSING'}`).not.toContain('MISSING')
+    }
+  })
+
+  it('[blocker] shortMessage = คำนำหน้าเดิม + short (ถ้ามี) — ผู้เรียกต้องไม่ประกอบสตริงเอง', () => {
+    const d = describeSendFailure('QUOTA_EXCEEDED')
+    expect(d.short).not.toBeNull()
+    expect(d.shortMessage).toBe(`ส่งไม่สำเร็จ — ${d.short}`)
+    // ประโยคเต็มยังอยู่ครบสำหรับบับเบิลในเธรด (มีที่ให้ยาว + กางดูรายละเอียดได้)
+    expect(d.message).toBe(`ส่งไม่สำเร็จ — ${d.text}`)
+    expect(d.message.length).toBeGreaterThan(d.shortMessage.length)
+  })
+
+  it('[blocker] กฎที่ text สั้นอยู่แล้ว → short = null และ shortMessage ต้องเท่ากับ message', () => {
+    const d = describeSendFailure('(#613) Calls to this api have exceeded the rate limit.')
+    expect(d.short).toBeNull()
+    expect(d.shortMessage).toBe(d.message)
+  })
+
+  it('[blocker] เธรดคอมเมนต์ที่ override text แล้ว ต้องล้าง short ทิ้ง ห้ามพา short เก่าไปด้วย', () => {
+    // short ของกฎ 24 ชม. พูดถึง "รอลูกค้าทักเข้ามาใหม่" ซึ่งเป็นคนละเรื่องกับเพดาน
+    // "ตอบคอมเมนต์ได้ข้อความเดียว" — พาไปด้วย = noti ขัดกับบับเบิลของข้อความใบเดียวกัน
+    const raw = '(#10) This message is sent outside of allowed window.'
+    expect(describeSendFailure(raw).short).not.toBeNull()
+
+    const d = describeSendFailure(raw, { commentOriginNoInbound: true })
+    expect(d.short).toBeNull()
+    expect(d.shortMessage).toBe(d.message)
+    expect(d.text).toContain('คอมเมนต์')
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// (impeccable clarify 2026-08-23 P0-2) CHANNEL_NOT_ACTIVE ถูกโยนจากกิ่ง LINE ด้วย
+// (`channel-chat.service.ts` เส้นทาง LINE เช็ค `shopChannel.status !== 'ACTIVE'`) — ถ้อยคำเดิม
+// สั่งให้ผู้ขาย LINE ไป "เชื่อม Facebook Page ใหม่" ซึ่งไม่มีอยู่ในบัญชีของเขาเลย
+// ══════════════════════════════════════════════════════════════════════════
+describe('[blocker] describeSendFailure — CHANNEL_NOT_ACTIVE ต้องรู้ช่องทาง', () => {
+  it('[blocker] LINE ต้องไม่ถูกสั่งให้ไปเชื่อม Facebook Page', () => {
+    const d = describeSendFailure('CHANNEL_NOT_ACTIVE', { channel: 'LINE' })
+    expect(d.text).not.toContain('Facebook')
+    expect(d.short ?? '').not.toContain('Facebook')
+    // ต้องชี้ไปที่หน้าเดียวกับที่กฎ TOKEN_INVALID ของ LINE ชี้ (คำเดียวกัน ไม่พิมพ์ใหม่ — HR16)
+    expect(d.text).toContain('ตั้งค่าช่องทาง')
+    expect(describeSendFailure('TOKEN_INVALID').text).toContain('ไปที่ตั้งค่าช่องทางเพื่อเชื่อมต่อใหม่')
+    expect(d.text).toContain('ไปที่ตั้งค่าช่องทางเพื่อเชื่อมต่อใหม่')
+  })
+
+  it.each(['MESSENGER', 'INSTAGRAM'] as const)('[blocker] %s ยังชี้ไปที่เพจ Facebook เหมือนเดิม', (ch) => {
+    const d = describeSendFailure('CHANNEL_NOT_ACTIVE', { channel: ch })
+    expect(d.text).toContain('Facebook Page')
+    expect(d.short ?? '').toContain('Facebook Page')
+  })
+
+  it('[blocker] ไม่รู้ช่องทาง → ห้ามเอ่ยชื่อแพลตฟอร์มใดเลย (เดาผิดแย่กว่าไม่เดา)', () => {
+    for (const d of [
+      describeSendFailure('CHANNEL_NOT_ACTIVE'),
+      describeSendFailure('CHANNEL_NOT_ACTIVE', { channel: 'DEEP' }),
+    ]) {
+      for (const s of [d.text, d.short ?? '']) {
+        expect(s).not.toContain('Facebook')
+        expect(s).not.toContain('LINE')
+        expect(s).not.toContain('Instagram')
+      }
+      expect(d.text).toContain('ตั้งค่าช่องทาง')
+    }
+  })
+
+  it('ช่องทางไม่มีผลกับกฎอื่น — บริบทใหม่ต้องไม่รั่วไปทับของเดิม', () => {
+    const withCh = describeSendFailure('WINDOW_CLOSED', { channel: 'LINE' })
+    expect(withCh.text).toBe(describeSendFailure('WINDOW_CLOSED').text)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// (impeccable clarify 2026-08-23 P1-1 / P1-2) ถ้อยคำต้องสอดคล้องกับ `retryable` ที่ส่งจริง —
+// ไม่งั้นจอจะขึ้นปุ่ม/ข้อความคนละอย่างกับที่ประโยคสั่งให้ทำ = ถ้อยคำโกหก
+// ══════════════════════════════════════════════════════════════════════════
+describe('[blocker] describeSendFailure — ถ้อยคำต้องตรงกับ retryable', () => {
+  it('[blocker] FORBIDDEN: ไม่แปล 403 ตรงตัว · ไม่ขัดกับหน้าจอ · บอกทางออก · ยัง retryable=false', () => {
+    const d = describeSendFailure('FORBIDDEN')
+    expect(d.retryable).toBe(false)
+    // ของเดิมบอกว่า "เข้าถึงไม่ได้" ทั้งที่ผู้ขายกำลังเปิดเธรดนั้นค้างอยู่และอ่านได้ตามปกติ
+    expect(d.text).not.toContain('เข้าถึง')
+    expect(d.text).toContain('ส่งข้อความ')
+    // ทางออกจริงมีทางเดียว: ให้เจ้าของร้านคืนสิทธิ์
+    expect(d.text).toContain('เจ้าของร้าน')
+    // retryable=false ⇒ ห้ามชวนให้กดส่งซ้ำเป็นทางออก (จอจะขึ้นข้อความนิ่ง ไม่ใช่ปุ่ม)
+    expect(d.text).not.toContain('ลองส่งอีกครั้ง')
+  })
+
+  it('[blocker] ตาข่าย "ไม่รู้สาเหตุ": retryable=true ⇒ ถ้อยคำต้องชวนให้กดลองใหม่', () => {
+    for (const d of [describeSendFailure(null), describeSendFailure('SOME_FUTURE_INTERNAL_CODE')]) {
+      expect(d.retryable).toBe(true)
+      expect(d.text).toContain('ลองส่งอีกครั้ง')
+      // และต้องมีทางไปต่อเมื่อลองแล้วยังไม่ได้ ไม่ใช่ทางตันเหมือนถ้อยคำเดิม
+      expect(d.text).toContain('ติดต่อทีมงาน')
+      expect(d.short).not.toBeNull()
+    }
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// (impeccable clarify 2026-08-23) ด่านฝั่ง **ผู้เรียก** — ถ้อยคำที่เลือกได้ถูก ไม่มีค่าถ้าไม่มีใคร
+// ส่งบริบทเข้ามาให้เลือก (`rule-must-be-enforced-not-described.md`)
+//
+// สแกนซอร์สเพราะรีโปนี้ไม่มี jsdom/testing-library และ route ไม่มี harness ให้เรียก — เทียบกับ
+// **สิ่งที่โค้ดทำ** (ส่ง `channel` เข้าไปไหม) ไม่ใช่แค่ว่ามีคำนั้นอยู่ในไฟล์
+// ══════════════════════════════════════════════════════════════════════════
+describe('[blocker] ผู้เรียก describeSendFailure ต้องส่งช่องทางเข้ามา', () => {
+  const read = (rel: string) =>
+    readFileSync(new URL(rel, import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+  const ROUTE = '../../app/api/chat/conversations/[id]/messages/route.ts'
+  const THREAD = '../../app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx'
+  const PUSH = '../../services/seller-push.service.ts'
+
+  it('[blocker] route: ทุกการแปล error ต้องผ่าน helper ที่พก channel ไปด้วย', () => {
+    const src = read(ROUTE)
+    // ในตัว mapChatServiceError ห้ามเรียก describeSendFailure ตรง ๆ (จะได้ถ้อยคำกลางทุกครั้ง)
+    const body = src.slice(src.indexOf('function mapChatServiceError'))
+    expect(body).toContain('const fail = (raw: string) => describeSendFailure(raw, { channel })')
+    // นับการเรียกดิบที่เหลือ: ต้องมีแค่บรรทัดนิยาม `fail` เท่านั้น
+    expect([...body.matchAll(/describeSendFailure\(/g)]).toHaveLength(1)
+    // และ POST ต้องส่งช่องทางของเธรดเข้าไปจริง ไม่ใช่ประกาศพารามิเตอร์ทิ้งไว้เฉย ๆ
+    expect(src).toContain('convChannel = resolveChatChannel(conv.channel)')
+    expect(src).toMatch(/mapChatServiceError\(\s*e,\s*"POST[^"]*",\s*convChannel\s*\)/)
+  })
+
+  it('[blocker] บับเบิลในเธรด: ส่ง channel ของห้องเข้าไปด้วย', () => {
+    const src = read(THREAD)
+    const call = src.slice(src.indexOf('describeSendFailure(mExt.failureReason'))
+    expect(call.slice(0, 260)).toContain('channel: resolveChatChannel(channel)')
+  })
+
+  it('[blocker] push: ส่ง channel ของเธรด + ใช้ฉบับย่อ ไม่ใช่ประโยคเต็ม', () => {
+    const src = read(PUSH)
+    expect(src).toContain('channel: resolveChatChannel(preview.channel)')
+    expect(src).toContain('.shortMessage')
+    // `.message` ของ describeSendFailure ห้ามกลับมาเป็น body ของ push อีก
+    expect(src).not.toMatch(/describeSendFailure\([^)]*\)\s*\.message/)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// (impeccable clarify 2026-08-23 P2-1) ข้อความ 207 ของการ์ดสินค้าหลายชุด
+// ══════════════════════════════════════════════════════════════════════════
+describe('[blocker] ข้อความ 207 ต้องบอกแค่ "เกิดอะไร + ทำอะไรต่อ"', () => {
+  it('[blocker] ห้ามมีวรรคที่บรรยายสิ่งที่ระบบทำกับสถานะของตัวเอง', () => {
+    const src = readFileSync(
+      new URL('../../app/api/chat/conversations/[id]/messages/route.ts', import.meta.url),
+      'utf8',
+    ).replace(/\/\*[\s\S]*?\*\//g, '')
+    const line = src.split('\n').find((l) => l.includes('error: `เข้าคิวส่งแล้ว'))
+    expect(line).toBeDefined()
+    expect(line!).not.toContain('เอารายการที่ส่งแล้วออกให้แล้ว')
+    // ยังต้องบอกจำนวนที่เข้าคิวได้ และบอกว่าต้องกดอะไรต่อ
+    expect(line!).toContain('${i} จาก ${batches.length}')
+    expect(line!).toContain('กดส่งอีกครั้งเพื่อส่งส่วนที่เหลือ')
   })
 })
