@@ -305,6 +305,7 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | Products | `/products` |
 | Categories | `/categories` |
 | Customers | `/customers` |
+| **Customer profile** | **`/customers/[id]`** — 🛑 `[id]` เป็น **opaque row key** จาก `makeCustomerRowKey` (`c-{customerId}` / `u-{buyerUserId}` / `g-{sha256(contact)}`) **ไม่ใช่ `Customer.id`** · ลูกค้าจำนวนมากยังไม่มีแถว `Customer` (ออเดอร์เก่าก่อน 00014 / guest เบอร์ผิดรูปแบบ) ถ้าบังคับเป็น `Customer.id` คนกลุ่มนั้นจะกดแถวในลิสต์แล้วไม่มีหน้าให้ไป · `guest-unknown` **ไม่ถือเป็น key ที่ใช้ได้** (match ลูกค้าหลายคนพร้อมกัน) → 404 (feature 00057) |
 | Orders | `/orders` |
 | Create Order | `/orders/new` |
 | Reviews | `/reviews` |
@@ -1036,6 +1037,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | GET | `/api/orders/[token]` | Seller | prefill ฟอร์มแก้ไข — รับ **`?shopId=`** optional (ความหมายเดียวกับ POST) | — |
 | PATCH | `/api/orders/[token]` | Seller-owner | แก้ไข order เต็มรูป — body เดียวกับ POST (`CreateOrderSchema`) + **`shopId` optional** | `order.service` |
 | GET | `/api/orders/customers` | Seller | autocomplete ลูกค้าเดิม `?q=<term>` (≥2 chars) | — |
+| GET | `/api/seller/customers/{key}/contact` | Seller-owner | **เปิดเผยข้อมูลติดต่อเต็ม (unmasked) ของลูกค้า 1 คน** — `key` = opaque row key เดียวกับ `/customers/[id]` · คืน `{ contact }` · `cache-control: private, no-store` · 🛑 `INVALID_KEY` กับ `NOT_FOUND` ตอบ **404 เหมือนกันโดยตั้งใจ** (กัน cross-shop enumeration) · authorization อยู่ที่ `where: { shopId }` ตั้งแต่ SELECT ไม่ใช่กรองทีหลัง (feature 00057) | `customer-directory.service` |
 | POST | `/api/orders/[token]/unlock` | Guest | phone-unlock — ตรวจเบอร์ตรงกับ order | `order.service` |
 | POST | `/api/orders/[token]/confirm` | Guest/Buyer | ยืนยัน order (Path A: SMS cookie; Path B: phone parity) | `order.service` |
 | POST | `/api/orders/[token]/cancel` | Seller-owner / Buyer (phone parity) | ยกเลิก — derive `cancelInitiator` จาก session | `order.service` |
