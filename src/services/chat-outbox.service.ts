@@ -49,6 +49,65 @@ const CLAIM_SELECT = {
   sendPayload: true,
 } as const
 
+/**
+ * select ของขั้น "หาแถวที่ claim ค้าง" — เหมือน `CLAIM_SELECT` **ลบ `sendPayload` ออก**
+ *
+ * 🛑 ขั้นนั้นไม่เคยยิงข้อความ มันแค่ปิดแถวเป็น FAILED ⇒ ไม่ต้องใช้เจตนาการส่งเลยสักไบต์ ขณะที่
+ * `sendPayload` คือ params ทั้งก้อน (Flex/Generic carousel ยาวได้หลาย KB ต่อแถว) และงานนี้รันทุกนาที
+ */
+const STALE_SELECT = {
+  id: true,
+  conversationId: true,
+  createdAt: true,
+  deliveryStatus: true,
+  sendLockedAt: true,
+} as const
+
+/** เพดานแถวที่ดึงมาตรวจ "claim ค้าง" ต่อรอบ — ปกติเป็นศูนย์ ตัวเลขนี้มีไว้กันวันที่ปลายทางล่ม */
+const STALE_SCAN_LIMIT = 200
+
+/**
+ * จำนวนกลุ่มเพจที่ระบายพร้อมกันได้สูงสุดต่อรอบ (เพดาน **รวม** — ดูเหตุผลเต็มที่จุดใช้งาน)
+ *
+ * 4 ไม่ใช่ตัวเลขสุ่ม: ปริมาณจริงบน prod คือ ~28 ข้อความ/นาทีทั้งระบบ (p99 = 13) ⇒ 4 กลุ่มขนาน
+ * กว้างกว่าการใช้งานจริงหลายเท่า แต่ยังห่างจากเพดาน connection pool ของ Prisma มาก
+ */
+const MAX_CONCURRENT_CHANNELS = 4
+
+/**
+ * งบเวลาต่อการกวาดหนึ่งรอบ — ต้องต่ำกว่า `maxDuration` (60 วิ) ของ route ที่เรียก **อย่างมีระยะ**
+ * เผื่อให้แถวที่กำลังยิงอยู่ปิดตัวเองทันก่อนแพลตฟอร์มตัดไฟ
+ */
+const SWEEP_TIME_BUDGET_MS = 45_000
+
+/** เพดานผู้สมัครที่ดึงมาคัด "หัวคิวหยิบได้" — ดูเหตุผลที่จุดใช้งาน (R-A) */
+const ROOM_CANDIDATE_MULTIPLIER = 3
+
+/**
+ * แถวที่ถูกปิดเพราะ claim ค้าง — คืนออกไป **รายแถว** เพื่อให้ผู้เรียกแจ้งผู้ขายได้
+ * (เส้นทางนี้ไม่ผ่าน `deliverHead`/`closeRow` ⇒ ตัวแจ้งที่แขวนไว้ที่นั่นมองไม่เห็นเคสนี้เลย)
+ */
+export type StaleClosure = { id: string; conversationId: string; shopId: string | null }
+
+export type SweepResult = {
+  rooms: number
+  sent: number
+  failed: number
+  /** = `staleRows.length` เสมอ (คงไว้เพื่อความสะดวกของตัวนับ/log) */
+  stale: number
+  staleRows: StaleClosure[]
+}
+
+/** map conversationId → shopId (ใช้ตอนต้องบอกว่าแถวที่ปิดไปเป็นของร้านไหน) */
+async function shopIdByConversation(ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map()
+  const rows = await prisma.conversation.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, shopId: true },
+  })
+  return new Map(rows.map((r) => [r.id, r.shopId]))
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // enqueueOutbound — เขียนแถว QUEUED (ตรรกะประกอบแถวยกมาจาก `sendOutboundMessage` ทั้งดุ้น)
 // ══════════════════════════════════════════════════════════════════════════
@@ -224,9 +283,23 @@ function parseSendPayload(value: Prisma.JsonValue | null, conversationId: string
   } as SendOutboundParams
 }
 
-async function closeRow(id: string, data: Prisma.ChatMessageUpdateInput): Promise<void> {
+/**
+ * ปิดแถวที่เรา claim ไว้ — **conditional เสมอ ห้ามเป็น `update` เปล่า**
+ *
+ * 🛑 (R-F) worker ที่จบช้ากว่า `STALE_CLAIM_MS` จะกลับมาเขียนผลของตัวเองทับแถวที่ตัวกวาดเพิ่งปิดเป็น
+ * FAILED/"ไม่แน่ใจว่าส่งไปหรือยัง" ไปแล้ว — ถ้าเขียนทับเป็น `SENT` ได้ ผู้ขายจะเห็นบับเบิลแดงคาบหนึ่ง
+ * (นานพอที่จะกดส่งซ้ำ) แล้วมันกลายเป็นเขียวทีหลัง ⇒ ลูกค้าได้ข้อความซ้ำ ซึ่งเป็นความเสียหายเดียวที่
+ * ดีไซน์นี้ยอมไม่ได้ (D-6/E-1). `deliveryStatus: 'QUEUED'` ใน where คือด่านนั้น
+ *
+ * `count === 0` = แถวถูกปิดไปก่อนแล้ว (โดยตัวกวาด หรือโดย worker อื่น) — **ไม่ใช่ error** แต่ต้อง log
+ * เพราะมันคือหลักฐานว่ามี worker วิ่งเกินเพดานเวลาจริง ซึ่งเป็นสัญญาณของบั๊กชั้นบนแบบเดียวกับ `stale`
+ */
+async function closeRow(id: string, data: Prisma.ChatMessageUpdateManyMutationInput): Promise<void> {
   try {
-    await prisma.chatMessage.update({ where: { id }, data })
+    const res = await prisma.chatMessage.updateMany({ where: { id, deliveryStatus: 'QUEUED' }, data })
+    if (res.count === 0) {
+      console.warn('[chat-outbox] ปิดแถวไม่ทัน — ถูกปิดไปก่อนแล้ว (worker วิ่งเกินเพดานเวลา)', { id })
+    }
   } catch (e) {
     /**
      * echo ของ Meta ชิงเขียน mid เดียวกันลง DB ไปก่อน (E-17) — ข้อความ **ส่งสำเร็จจริง** แล้ว
@@ -236,7 +309,8 @@ async function closeRow(id: string, data: Prisma.ChatMessageUpdateInput): Promis
      */
     if (isUniqueViolationOn(e, 'externalMessageId')) {
       const { externalMessageId: _dropped, ...rest } = data
-      await prisma.chatMessage.update({ where: { id }, data: rest })
+      // conditional เหมือนเส้นทางหลัก — เหตุผลเดียวกันทุกประการ (ห้ามเขียนทับแถวที่ถูกปิดไปแล้ว)
+      await prisma.chatMessage.updateMany({ where: { id, deliveryStatus: 'QUEUED' }, data: rest })
       return
     }
     throw e
@@ -365,10 +439,16 @@ const MAX_DELIVER_ROUNDS = 20
 async function drainRoom(
   conversationId: string,
   owner: ClaimOwner,
+  deadline?: number,
 ): Promise<{ sent: number; failed: number }> {
   let sent = 0
   let failed = 0
   for (let round = 0; round < MAX_DELIVER_ROUNDS; round += 1) {
+    // 🛑 (R-E) หยุดเองอย่างสุภาพเมื่อหมดงบเวลา — เช็ค **ก่อน** claim ใบถัดไปเสมอ
+    // การปล่อยให้ `maxDuration` ของแพลตฟอร์มเป็นตัวหยุด ไม่ใช่การกั้น: มันฆ่างานกลางคัน *หลัง*
+    // claim ไปแล้ว ⇒ แถวนั้นค้าง claim ⇒ อีก 3 นาทีถูกปิดเป็น "ไม่แน่ใจว่าส่งไปหรือยัง"
+    // = แปลงปัญหา throughput ให้กลายเป็นความล้มเหลวที่ผู้ขายเห็นและแก้เองไม่ได้
+    if (deadline !== undefined && Date.now() >= deadline) break
     const outcome = await deliverHead(conversationId, owner)
     if (outcome === 'NONE') break
     if (outcome === 'SENT') sent += 1
@@ -378,8 +458,12 @@ async function drainRoom(
 }
 
 /** ระบายคิวของห้องหนึ่ง — คืนจำนวนแถวที่เปลี่ยนสถานะจริงในการเรียกครั้งนี้ */
-export async function deliverRoom(conversationId: string, owner: ClaimOwner): Promise<number> {
-  const { sent, failed } = await drainRoom(conversationId, owner)
+export async function deliverRoom(
+  conversationId: string,
+  owner: ClaimOwner,
+  deadline?: number,
+): Promise<number> {
+  const { sent, failed } = await drainRoom(conversationId, owner, deadline)
   return sent + failed
 }
 
@@ -387,39 +471,71 @@ export async function deliverRoom(conversationId: string, owner: ClaimOwner): Pr
 // sweepOutbox — กวาดทุกห้องที่มีแถวค้าง
 // ══════════════════════════════════════════════════════════════════════════
 
-export async function sweepOutbox(opts: { owner: ClaimOwner; limit?: number }): Promise<{
-  rooms: number
-  sent: number
-  failed: number
-  stale: number
-}> {
+export async function sweepOutbox(opts: {
+  owner: ClaimOwner
+  limit?: number
+  /** งบเวลาของการกวาดรอบนี้ (ms) — ดู `SWEEP_TIME_BUDGET_MS` */
+  budgetMs?: number
+}): Promise<SweepResult> {
   const limit = opts.limit ?? 50
   const now = new Date()
+  // 🛑 (R-E) งบเวลาต้องคิดจาก "ตอนเริ่มกวาด" ไม่ใช่ต่อห้อง — ตัวที่ต้องกั้นคืองานรวมต่อ invocation
+  const deadline = Date.now() + (opts.budgetMs ?? SWEEP_TIME_BUDGET_MS)
 
   // ── 1) ปิดแถวที่ claim ค้างเกินเพดาน **ก่อน** ยิงอะไรทั้งสิ้น ──
+  //
   // 🛑 ไม่กรองด้วย cutoff ใน SQL โดยตั้งใจ — เกณฑ์ "ค้างจริงไหม" มีนิยามเดียวที่ `isStaleClaim`
   // เขียน `sendLockedAt: { lt: cutoff }` ตรงนี้คือการสร้างนิยามที่สองที่ต้องตรงกันตลอดกาล (HR16)
-  const locked = (await prisma.chatMessage.findMany({
+  //
+  // 🛑 (R-C) แต่ "ไม่กรองด้วย cutoff" ไม่ได้แปลว่า "ดึงทั้งตาราง": ต้องมี `take` และต้อง select
+  // ให้แคบ — `CLAIM_SELECT` ลาก `sendPayload` (params ทั้งก้อน รวม Flex/Generic carousel) มาด้วย
+  // ทั้งที่ `isStaleClaim` ใช้แค่ `deliveryStatus` + `sendLockedAt` และงานนี้รัน **ทุกนาที**
+  // (รูปเดียวกับที่ F3 เพิ่งถอดออกจากขั้นที่ 2)
+  //
+  // `orderBy: sendLockedAt asc` = claim เก่าสุดก่อน ⇒ ตัวที่ค้างจริงถูกหยิบก่อนเสมอแม้ take ไม่พอ
+  // (แถวที่เพิ่ง claim สด ๆ ไม่มีทางเป็น stale อยู่แล้ว จึงไม่มีอะไรเสียหายเมื่อถูกตัดออกจากหน้าต่าง)
+  const locked = await prisma.chatMessage.findMany({
     where: { deliveryStatus: 'QUEUED', sendLockedAt: { not: null } },
-    select: CLAIM_SELECT,
-  })) as ClaimableRow[]
-  const staleIds = locked.filter((r) => isStaleClaim(r, now)).map((r) => r.id)
+    select: STALE_SELECT,
+    orderBy: { sendLockedAt: 'asc' },
+    take: STALE_SCAN_LIMIT,
+  })
 
-  let stale = 0
-  if (staleIds.length > 0) {
-    // เงื่อนไข `deliveryStatus: 'QUEUED'` ใน where กันเขียนทับแถวที่เพิ่งจบไปหมาด ๆ ระหว่างทาง
-    const closed = await prisma.chatMessage.updateMany({
-      where: { id: { in: staleIds }, deliveryStatus: 'QUEUED' },
-      data: {
-        deliveryStatus: 'FAILED',
-        // 🛑 ถ้อยคำต้องพูดความจริงว่าเราไม่รู้ผล — ข้อความกลาง ๆ อย่าง "ส่งไม่สำเร็จ" ชวนให้กดซ้ำ
-        // ทันทีโดยไม่ตรวจ ซึ่งเป็นทางเดียวที่เหลืออยู่ที่จะทำให้ลูกค้าได้ข้อความซ้ำ (E-1)
-        failureReason: UNCERTAIN_SEND_REASON,
-        sendPayload: Prisma.DbNull,
-      },
-    })
-    stale = closed.count
+  /**
+   * 🛑 (R-B) ปิด **ทีละแถว** ไม่ใช่ `updateMany` ก้อนเดียว — `updateMany` คืนแค่ `count` ⇒ ไม่มีทางรู้ว่า
+   * แถวไหนถูกปิดจริง (บางแถวจบไปเองระหว่างทาง) และ **เคสนี้คือเคสที่ต้องบอกผู้ขายที่สุดในทั้งฟีเจอร์**:
+   * ข้อความที่ *อาจ* ถึงลูกค้าไปแล้วและเขาต้องไปเปิดดูก่อนกดส่งซ้ำ. เส้นทางนี้ไม่ผ่าน `deliverHead`
+   * ⇒ ตัวแจ้งเตือนที่แขวนไว้ที่นั่นจะไม่ทำงานให้เคสนี้เลย — คืน `staleRows` รายแถวไว้ให้ผู้เรียก
+   * (Task 9) แขวนตัวแจ้งได้ ไม่ใช่คืนแค่ตัวเลขที่บอกไม่ได้ว่าเป็นของใคร
+   *
+   * จำนวนแถวถูกกั้นด้วย `STALE_SCAN_LIMIT` อยู่แล้ว และเส้นทางนี้เป็นเส้นทางข้อยกเว้น (ปกติเป็นศูนย์)
+   */
+  const staleRows: StaleClosure[] = []
+  const staleCandidates = locked.filter((r) => isStaleClaim(r, now))
+  if (staleCandidates.length > 0) {
+    const shopOf = await shopIdByConversation([...new Set(staleCandidates.map((r) => r.conversationId))])
+    for (const row of staleCandidates) {
+      // เงื่อนไข `deliveryStatus: 'QUEUED'` กันเขียนทับแถวที่เพิ่งจบไปหมาด ๆ ระหว่างทาง
+      const closed = await prisma.chatMessage.updateMany({
+        where: { id: row.id, deliveryStatus: 'QUEUED' },
+        data: {
+          deliveryStatus: 'FAILED',
+          // 🛑 ถ้อยคำต้องพูดความจริงว่าเราไม่รู้ผล — ข้อความกลาง ๆ อย่าง "ส่งไม่สำเร็จ" ชวนให้กดซ้ำ
+          // ทันทีโดยไม่ตรวจ ซึ่งเป็นทางเดียวที่เหลืออยู่ที่จะทำให้ลูกค้าได้ข้อความซ้ำ (E-1)
+          failureReason: UNCERTAIN_SEND_REASON,
+          sendPayload: Prisma.DbNull,
+        },
+      })
+      // count === 0 = worker เจ้าของ claim ปิดแถวเองทันพอดี ⇒ **ไม่ใช่ stale จริง ห้ามนับ ห้ามแจ้ง**
+      if (closed.count === 0) continue
+      staleRows.push({
+        id: row.id,
+        conversationId: row.conversationId,
+        shopId: shopOf.get(row.conversationId) ?? null,
+      })
+    }
   }
+  const stale = staleRows.length
 
   // ── 2) ห้องที่ยังมีแถว "หยิบได้" เหลืออยู่ ──
   //
@@ -432,15 +548,40 @@ export async function sweepOutbox(opts: { owner: ClaimOwner; limit?: number }): 
   //
   // `groupBy` บังคับ `LIMIT` ที่ระดับ SQL จริง (ยืนยันด้วย query log — ดู task-6-report.md §Fix round 1)
   // เรียงด้วย `_min.createdAt` = "ห้องที่มีของค้างเก่าสุดมาก่อน" ซึ่งเป็นเจตนาเดิมของ `orderBy` ตัวเก่า
-  const rooms = await prisma.chatMessage.groupBy({
+  //
+  // 🛑 (R-A) `take: limit` ตรง ๆ ไม่ได้: เกณฑ์ตรงนี้คือ "ห้องที่ **มีแถว** หยิบได้" แต่ `headOfRoom`
+  // คืน `null` ถ้า **ใบเก่าสุด** ถูก claim อยู่ (D-3 — ห้ามข้ามลำดับ) ⇒ ห้องที่หัวคิวถูก claim ค้าง
+  // แต่ยังไม่ถึงเพดาน 3 นาที จะถูกเลือกมาแล้ว `return 'NONE'` ทันที **กินสล็อตฟรี**
+  // ตอนเกิดเหตุจริง (after() ตายเป็นแถบ) ห้องแบบนี้คือห้องส่วนใหญ่ ⇒ 50 สล็อตถูกกินหมดโดยห้องที่
+  // ระบายไม่ได้ ส่วนห้องที่ระบายได้อดตายทุกนาที — เกณฑ์ที่ถูกคือ "**หัวคิว**หยิบได้"
+  const candidates = await prisma.chatMessage.groupBy({
     by: ['conversationId'],
     where: { deliveryStatus: 'QUEUED', sendLockedAt: null },
     _min: { createdAt: true },
     orderBy: { _min: { createdAt: 'asc' } },
-    take: limit,
+    take: limit * ROOM_CANDIDATE_MULTIPLIER,
   })
-  const roomIds = rooms.map((r) => r.conversationId)
-  if (roomIds.length === 0) return { rooms: 0, sent: 0, failed: 0, stale }
+  if (candidates.length === 0) return { rooms: 0, sent: 0, failed: 0, stale, staleRows }
+
+  // ใบเก่าสุดที่ยัง QUEUED ของห้องเดียวกัน (ไม่กรอง `sendLockedAt`) = "หัวคิว" ตามนิยามของ `headOfRoom`
+  // เท่ากับใบเก่าสุดที่ *หยิบได้* เมื่อไหร่ ⇒ หัวคิวยังไม่ถูก claim ⇒ ห้องนี้ระบายได้จริง
+  const headTimes = await prisma.chatMessage.groupBy({
+    by: ['conversationId'],
+    where: { conversationId: { in: candidates.map((c) => c.conversationId) }, deliveryStatus: 'QUEUED' },
+    _min: { createdAt: true },
+  })
+  const headAt = new Map(headTimes.map((h) => [h.conversationId, h._min.createdAt?.getTime() ?? null]))
+  const roomIds = candidates
+    .filter((c) => {
+      const claimableAt = c._min.createdAt?.getTime()
+      // เทียบเวลาแทนการดึงแถวมาเทียบ id — ค่าเสมอกันสองแถวในห้องเดียวแทบเป็นไปไม่ได้ (timestamp
+      // ระดับไมโครวินาที) และถ้าเสมอจริงผลที่ได้คือ "ลองระบายห้องนั้น" ซึ่งเป็นฝั่งที่ปลอดภัย:
+      // `deliverHead` ยังเป็นคนตัดสินด้วย `headOfRoom` ตัวจริงอยู่ดี ตรงนี้เป็นแค่ตัวคัดผู้สมัคร
+      return claimableAt !== undefined && claimableAt === headAt.get(c.conversationId)
+    })
+    .slice(0, limit)
+    .map((c) => c.conversationId)
+  if (roomIds.length === 0) return { rooms: 0, sent: 0, failed: 0, stale, staleRows }
 
   // ── 3) จัดกลุ่มตาม `shopChannelId` แล้วยิง **ทีละห้องภายในเพจเดียวกัน** ──
   // 🛑 E-8: จำกัด concurrency ต่อ `shopChannelId` ไม่ใช่ต่อรอบ — ห้องหลายห้องของเพจเดียวกันยิง
@@ -463,12 +604,25 @@ export async function sweepOutbox(opts: { owner: ClaimOwner; limit?: number }): 
 
   let sent = 0
   let failed = 0
-  await Promise.all(
-    [...groups.values()].map(async (ids) => {
+
+  /**
+   * 🛑 (R-D) เพดาน **รวม** ไม่ใช่แค่ต่อเพจ — E-8 กันได้เฉพาะ rate limit ของ Meta (หน่วยเป็นเพจ)
+   * แต่ `Promise.all` บนทุกกลุ่มแปลว่า 50 เพจ = 50 ห้องระบายพร้อมกัน แต่ละห้องยิง Prisma หลายคิว
+   * + Graph หลายครั้ง ⇒ connection pool หมด/timeout ⇒ แถวค้าง claim ⇒ อีก 3 นาทีกลายเป็น
+   * "ไม่แน่ใจว่าส่งไปหรือยัง" = **แปลงปัญหา throughput ให้เป็นความล้มเหลวที่ผู้ขายเห็นและแก้เองไม่ได้**
+   * งานที่เกินเพดานไม่ได้หายไปไหน — รอบถัดไป (อีก 1 นาที) รับช่วงต่อ ซึ่งถูกกว่าการล้มทั้งกอง
+   */
+  const queue = [...groups.values()]
+  const workers = Array.from({ length: Math.min(MAX_CONCURRENT_CHANNELS, queue.length) }, async () => {
+    for (;;) {
+      const ids = queue.shift()
+      if (!ids) break
       for (const conversationId of ids) {
+        // หมดงบเวลาแล้ว — หยุดเองอย่างสุภาพ ห้ามปล่อยให้ maxDuration ฆ่ากลาง claim (ดู drainRoom)
+        if (Date.now() >= deadline) return
         try {
           // ระบายจนหมดห้อง ไม่ใช่ใบเดียวต่อรอบกวาด — ไม่งั้นห้องที่มี 3 ใบค้างต้องรอ 3 นาที
-          const res = await drainRoom(conversationId, opts.owner)
+          const res = await drainRoom(conversationId, opts.owner, deadline)
           sent += res.sent
           failed += res.failed
         } catch (e) {
@@ -477,8 +631,9 @@ export async function sweepOutbox(opts: { owner: ClaimOwner; limit?: number }): 
           console.error('[chat-outbox] กวาดห้องไม่สำเร็จ', { conversationId, error: e })
         }
       }
-    }),
-  )
+    }
+  })
+  await Promise.all(workers)
 
-  return { rooms: roomIds.length, sent, failed, stale }
+  return { rooms: roomIds.length, sent, failed, stale, staleRows }
 }

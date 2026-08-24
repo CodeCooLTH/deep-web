@@ -69,6 +69,7 @@ beforeEach(() => {
   create.mockReset()
   conversationUpdate.mockReset()
   conversationFindMany.mockReset()
+  conversationFindMany.mockResolvedValue([])
   resolveOutboundContext.mockResolvedValue({
     id: 'c1',
     channel: 'MESSENGER',
@@ -97,6 +98,18 @@ const queued = (o: Record<string, unknown> = {}) => ({
   body: 'สวัสดีครับ',
   ...o,
 })
+
+/**
+ * คำสั่งเขียนของ `closeRow` — แยกจากคำสั่ง claim ด้วย **รูปร่างของ where** ไม่ใช่ลำดับการเรียก
+ *
+ * ทั้งคู่เป็น `updateMany` ตั้งแต่ R-F (closeRow ต้อง conditional ด้วย `deliveryStatus: 'QUEUED'`
+ * ไม่งั้น worker ที่วิ่งเกินเพดานเวลาจะเขียน SENT ทับแถวที่ถูกปิดเป็น FAILED ไปแล้ว) — claim มี
+ * `sendLockedAt: null` ใน where ส่วนการปิดแถวมี `deliveryStatus: 'QUEUED'`
+ */
+const closeCalls = () =>
+  updateMany.mock.calls.filter(
+    (c) => (c[0] as { where?: Record<string, unknown> })?.where?.deliveryStatus === 'QUEUED',
+  )
 
 const OK = {
   externalMessageId: 'mid_1',
@@ -134,7 +147,7 @@ describe('deliverRoom', () => {
 
     await deliverRoom('c1', 'cron')
 
-    const data = (update.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data
+    const data = (closeCalls()[0]?.[0] as { data: Record<string, unknown> }).data
     expect(data).toMatchObject({ deliveryStatus: 'SENT', externalMessageId: 'mid_1' })
     // R-6: ต้องเป็น "ไม่มีคีย์นี้ในคำสั่งเขียน" — `not.toHaveProperty(k, null)` ผ่านได้ทั้งตอนคีย์หาย
     // และตอนค่าต่าง = ไม่ได้ล็อกอะไรเลย
@@ -153,7 +166,7 @@ describe('deliverRoom', () => {
     await deliverRoom('c1', 'after')
 
     expect(transmitOutbound).toHaveBeenCalledTimes(1)
-    const data = (update.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data
+    const data = (closeCalls()[0]?.[0] as { data: Record<string, unknown> }).data
     expect(data).toMatchObject({ deliveryStatus: 'FAILED', failureReason: '(#10) outside of allowed window' })
   })
 
@@ -197,7 +210,7 @@ describe('deliverRoom', () => {
 
     await deliverRoom('c1', 'after')
 
-    const data = (update.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data
+    const data = (closeCalls()[0]?.[0] as { data: Record<string, unknown> }).data
     expect(data.externalMessageId).toBe('LINE:468789577898262530')
     expect(data).toMatchObject({ sendMethod: 'REPLY' })
   })
@@ -209,7 +222,7 @@ describe('deliverRoom', () => {
 
     await deliverRoom('c1', 'after')
 
-    const data = (update.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data
+    const data = (closeCalls()[0]?.[0] as { data: Record<string, unknown> }).data
     expect(data.externalMessageId).toBe('m_abc')
   })
 
@@ -220,7 +233,7 @@ describe('deliverRoom', () => {
     await expect(deliverRoom('c1', 'cron')).resolves.toBe(1)
 
     expect(transmitOutbound).not.toHaveBeenCalled()
-    const data = (update.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data
+    const data = (closeCalls()[0]?.[0] as { data: Record<string, unknown> }).data
     expect(data.deliveryStatus).toBe('FAILED')
     expect(typeof data.failureReason).toBe('string')
   })
@@ -232,7 +245,7 @@ describe('deliverRoom', () => {
 
     await expect(deliverRoom('c1', 'cron')).resolves.toBe(1)
 
-    const data = (update.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data
+    const data = (closeCalls()[0]?.[0] as { data: Record<string, unknown> }).data
     expect(data).toMatchObject({ deliveryStatus: 'FAILED', failureReason: 'CONVERSATION_NOT_FOUND' })
   })
 
@@ -241,11 +254,13 @@ describe('deliverRoom', () => {
     updateMany.mockResolvedValue({ count: 1 })
     transmitOutbound.mockResolvedValue(OK)
     const dup = Object.assign(new Error('dup'), { code: 'P2002', meta: { target: ['externalMessageId'] } })
-    update.mockRejectedValueOnce(dup).mockResolvedValue({})
+    // ลำดับ: claim (สำเร็จ) → ปิดแถวครั้งแรก (ชนกับ echo) → ปิดแถวซ้ำโดยไม่แตะ externalMessageId
+    updateMany.mockReset()
+    updateMany.mockResolvedValueOnce({ count: 1 }).mockRejectedValueOnce(dup).mockResolvedValue({ count: 1 })
 
     await expect(deliverRoom('c1', 'after')).resolves.toBe(1)
 
-    const second = (update.mock.calls[1]?.[0] as { data: Record<string, unknown> }).data
+    const second = (closeCalls()[1]?.[0] as { data: Record<string, unknown> }).data
     expect(second.deliveryStatus).toBe('SENT')
     expect(second.externalMessageId).toBeUndefined()
   })
@@ -315,26 +330,34 @@ function installStore(store: FakeRow[], stolen: Set<string> = new Set()) {
       .filter((r) => r.deliveryStatus === 'QUEUED' && r.conversationId === where.conversationId)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
   })
-  updateMany.mockImplementation(async (args: { where: { id: unknown } }) => {
-    const id = args.where.id
-    if (typeof id !== 'string') return { count: 0 }
-    const row = store.find((r) => r.id === id)
-    if (!row) return { count: 0 }
-    if (stolen.has(id)) {
-      // worker อื่นถือ claim อยู่ และทำจนจบไปแล้ว ⇒ แถวออกจากคิว
+  // `updateMany` รับทั้ง 2 บทบาทตั้งแต่ R-F — แยกด้วยรูปร่างของ where เหมือนที่ `closeCalls()` ทำ
+  updateMany.mockImplementation(
+    async (args: { where: Record<string, unknown>; data?: Record<string, unknown> }) => {
+      const id = args.where.id
+      if (typeof id !== 'string') return { count: 0 }
+      const row = store.find((r) => r.id === id)
+      if (!row) return { count: 0 }
+
+      // ปิดแถว (closeRow) — conditional ด้วย deliveryStatus: 'QUEUED'
+      if (args.where.deliveryStatus === 'QUEUED') {
+        if (row.deliveryStatus !== 'QUEUED') return { count: 0 }
+        const next = args.data?.deliveryStatus
+        if (typeof next === 'string') row.deliveryStatus = next
+        return { count: 1 }
+      }
+
+      // claim
+      if (stolen.has(id)) {
+        // worker อื่นถือ claim อยู่ และทำจนจบไปแล้ว ⇒ แถวออกจากคิว
+        row.sendLockedAt = new Date()
+        row.deliveryStatus = 'SENT'
+        return { count: 0 }
+      }
+      if (row.sendLockedAt !== null) return { count: 0 }
       row.sendLockedAt = new Date()
-      row.deliveryStatus = 'SENT'
-      return { count: 0 }
-    }
-    if (row.sendLockedAt !== null) return { count: 0 }
-    row.sendLockedAt = new Date()
-    return { count: 1 }
-  })
-  update.mockImplementation(async (args: { where: { id: string }; data: Record<string, unknown> }) => {
-    const row = store.find((r) => r.id === args.where.id)
-    if (row && typeof args.data.deliveryStatus === 'string') row.deliveryStatus = args.data.deliveryStatus
-    return {}
-  })
+      return { count: 1 }
+    },
+  )
   return store
 }
 
@@ -514,21 +537,70 @@ describe('enqueueOutbound', () => {
 })
 
 describe('sweepOutbox', () => {
-  const room = (conversationId: string) => ({ conversationId })
+  // ห้องหนึ่งใน groupBy — `_min.createdAt` ต้องมีเสมอ เพราะขั้นคัด "หัวคิวหยิบได้" (R-A) เทียบค่านี้
+  const room = (conversationId: string, min = new Date('2026-08-23T10:00:00Z')) => ({
+    conversationId,
+    _min: { createdAt: min },
+  })
 
   it('[blocker] แถวที่ claim ค้างเกินเพดาน → ปิดเป็น FAILED พร้อมเหตุผลที่พูดความจริงว่าไม่รู้ผล (E-1)', async () => {
     const old = new Date(Date.now() - 10 * 60 * 1000)
     // findMany = รอบสแกน claim ค้าง · groupBy = รอบหาห้องที่ยังมีแถวหยิบได้ (ไม่มี)
     findMany.mockResolvedValueOnce([queued({ id: 'stuck', sendLockedAt: old })])
     updateMany.mockResolvedValue({ count: 1 })
+    conversationFindMany.mockResolvedValue([{ id: 'c1', shopId: 's1' }])
 
     const res = await sweepOutbox({ owner: 'cron' })
 
     expect(res.stale).toBe(1)
     const args = updateMany.mock.calls[0]?.[0] as { where: Record<string, unknown>; data: Record<string, unknown> }
-    expect(args.where).toMatchObject({ id: { in: ['stuck'] }, deliveryStatus: 'QUEUED' })
+    // R-B: ปิดทีละแถว (id เดี่ยว) ไม่ใช่ `id: { in: [...] }` — ต้องรู้ให้ได้ว่าแถวไหนถูกปิดจริง
+    expect(args.where).toMatchObject({ id: 'stuck', deliveryStatus: 'QUEUED' })
     expect(args.data.deliveryStatus).toBe('FAILED')
     expect(args.data.failureReason).toContain('ไม่แน่ใจว่าส่งออกไปหรือยัง')
+  })
+
+  // 🛑 (R-B) เคส "ไม่แน่ใจว่าส่งไปหรือยัง" คือเคสที่ต้องบอกผู้ขายที่สุดในทั้งฟีเจอร์ — และมันเป็น
+  // เส้นทางเดียวที่ **ไม่ผ่าน `deliverHead`** ⇒ ถ้าคืนแค่ตัวเลข ตัวแจ้งเตือนที่แขวนไว้ที่นั่นจะ
+  // ไม่มีทางรู้เลยว่าต้องแจ้งใคร ห้องไหน
+  it('[blocker] คืนแถวที่ปิดไปเป็นรายแถวพร้อม conversationId/shopId ให้ผู้เรียกแจ้งผู้ขายได้', async () => {
+    const old = new Date(Date.now() - 10 * 60 * 1000)
+    findMany.mockResolvedValueOnce([queued({ id: 'stuck', conversationId: 'cX', sendLockedAt: old })])
+    updateMany.mockResolvedValue({ count: 1 })
+    conversationFindMany.mockResolvedValue([{ id: 'cX', shopId: 'shop9' }])
+
+    const res = await sweepOutbox({ owner: 'cron' })
+
+    expect(res.staleRows).toEqual([{ id: 'stuck', conversationId: 'cX', shopId: 'shop9' }])
+  })
+
+  it('[blocker] worker เจ้าของ claim ปิดแถวเองทันพอดี (count=0) → ห้ามนับเป็น stale ห้ามแจ้ง', async () => {
+    const old = new Date(Date.now() - 10 * 60 * 1000)
+    findMany.mockResolvedValueOnce([queued({ id: 'stuck', sendLockedAt: old })])
+    updateMany.mockResolvedValue({ count: 0 })
+    conversationFindMany.mockResolvedValue([{ id: 'c1', shopId: 's1' }])
+
+    const res = await sweepOutbox({ owner: 'cron' })
+
+    expect(res.stale).toBe(0)
+    expect(res.staleRows).toEqual([])
+  })
+
+  // 🛑 (R-C) ขั้นนี้รันทุกนาทีและไม่เคยยิงข้อความเลย — ห้ามดึงทั้งตาราง ห้ามลาก `sendPayload`
+  // (params ทั้งก้อน รวม Flex/Generic carousel) มาด้วย ทั้งที่ `isStaleClaim` ใช้แค่ 2 คอลัมน์
+  it('[blocker] รอบสแกน claim ค้างต้องมี take และต้องไม่ select sendPayload', async () => {
+    await sweepOutbox({ owner: 'cron' })
+
+    const args = findMany.mock.calls[0]?.[0] as {
+      take?: number
+      select?: Record<string, unknown>
+      orderBy?: Record<string, unknown>
+    }
+    expect(typeof args.take).toBe('number')
+    expect(args.take).toBeGreaterThan(0)
+    expect(args.select).not.toHaveProperty('sendPayload')
+    // claim เก่าสุดก่อน — ตัวที่ค้างจริงต้องถูกหยิบก่อนเสมอแม้ take ไม่พอ
+    expect(args.orderBy).toMatchObject({ sendLockedAt: 'asc' })
   })
 
   it('[blocker] แถวที่เพิ่ง claim (ยังไม่เกินเพดาน) ห้ามถูกปิดทิ้ง', async () => {
@@ -545,14 +617,124 @@ describe('sweepOutbox', () => {
     // (พิสูจน์ด้วย query log จริง — ดูรายงาน) ⇒ ดึงแถวที่หยิบได้ทั้งตารางทุกรอบก่อนตัดเหลือ N ห้อง
     await sweepOutbox({ owner: 'cron', limit: 7 })
 
-    expect(groupBy).toHaveBeenCalledTimes(1)
-    expect(groupBy.mock.calls[0][0]).toMatchObject({ by: ['conversationId'], take: 7 })
+    const args = groupBy.mock.calls[0][0] as { by: string[]; take?: number }
+    expect(args).toMatchObject({ by: ['conversationId'] })
+    // เพดานต้องมีจริงและผูกกับ limit — over-fetch ได้ (R-A ต้องคัดห้องที่ "หัวคิวหยิบได้" ทีหลัง)
+    // แต่ต้องไม่ใช่ "ไม่มีเพดาน" ซึ่งเป็นบั๊กที่ F3 เพิ่งถอดออกไป
+    expect(typeof args.take).toBe('number')
+    expect(args.take).toBeGreaterThanOrEqual(7)
+    expect(args.take).toBeLessThanOrEqual(7 * 10)
   })
 
   it('ไม่ส่ง limit มา → ใช้ค่าตั้งต้น 50 (ยังต้องเป็นเพดานที่ถูกส่งเข้า query จริง)', async () => {
     await sweepOutbox({ owner: 'cron' })
 
-    expect(groupBy.mock.calls[0][0]).toMatchObject({ take: 50 })
+    const take = (groupBy.mock.calls[0][0] as { take?: number }).take
+    expect(take).toBeGreaterThanOrEqual(50)
+    expect(take).toBeLessThanOrEqual(500)
+  })
+
+  // 🛑 (R-A) `headOfRoom` คืน null ถ้า **ใบเก่าสุด** ถูก claim อยู่ (D-3) — ห้องแบบนั้นถูกเลือกมา
+  // แล้ว return 'NONE' ทันที = กินสล็อตฟรี. ตอนเกิดเหตุจริง (after() ตายเป็นแถบ) ห้องแบบนี้คือ
+  // ห้องส่วนใหญ่ ⇒ สล็อตถูกกินหมดโดยห้องที่ระบายไม่ได้ ห้องที่ระบายได้อดตายทุกนาที
+  it('[blocker] ห้องที่หัวคิวถูก claim ค้างอยู่ ต้องไม่กินสล็อตของห้องที่ระบายได้', async () => {
+    const head = new Date('2026-08-23T10:00:00Z')
+    const later = new Date('2026-08-23T10:00:05Z')
+    groupBy
+      // ผู้สมัคร: ห้อง BLOCKED มีแถวหยิบได้ (แต่เป็นใบที่ 2) · ห้อง OPEN หัวคิวหยิบได้
+      .mockResolvedValueOnce([room('BLOCKED', later), room('OPEN', head)])
+      // หัวคิวจริงของแต่ละห้อง (ไม่กรอง sendLockedAt) — ของ BLOCKED เก่ากว่าใบที่หยิบได้
+      .mockResolvedValueOnce([room('BLOCKED', head), room('OPEN', head)])
+    conversationFindMany.mockResolvedValue([{ id: 'OPEN', shopChannelId: 'page1' }])
+    installStore(makeRows(1, 'OPEN'))
+    transmitOutbound.mockResolvedValue(OK)
+    resolveOutboundContext.mockImplementation(async (p: { conversationId: string }) => ({
+      id: p.conversationId,
+      channel: 'MESSENGER',
+      shopId: 's1',
+    }))
+
+    const res = await sweepOutbox({ owner: 'cron' })
+
+    expect(res.rooms).toBe(1)
+    expect(conversationFindMany.mock.calls[0]?.[0]).toMatchObject({ where: { id: { in: ['OPEN'] } } })
+  })
+
+  it('[blocker] มีเพดานจำนวนกลุ่มที่ระบายพร้อมกัน — ห้าม Promise.all ทุกกลุ่มรวด (R-D)', async () => {
+    // 12 เพจ เพจละ 1 ห้อง: ถ้าไม่มีเพดานรวม ทั้ง 12 จะยิงพร้อมกัน ⇒ pool หมด ⇒ แถวค้าง claim
+    // ⇒ อีก 3 นาทีกลายเป็น "ไม่แน่ใจว่าส่งไปหรือยัง" = แปลง throughput เป็นความล้มเหลวที่ผู้ขายเห็น
+    const ids = Array.from({ length: 12 }, (_, i) => `R${i}`)
+    const rooms = ids.map((id) => room(id))
+    groupBy.mockResolvedValue(rooms)
+    conversationFindMany.mockResolvedValue(ids.map((id) => ({ id, shopChannelId: `page-${id}` })))
+    installStore(ids.flatMap((id) => makeRows(1, id)))
+    resolveOutboundContext.mockImplementation(async (p: { conversationId: string }) => ({
+      id: p.conversationId,
+      channel: 'MESSENGER',
+      shopId: 's1',
+    }))
+
+    let inFlight = 0
+    let peak = 0
+    transmitOutbound.mockImplementation(async () => {
+      inFlight += 1
+      peak = Math.max(peak, inFlight)
+      await new Promise((r) => setTimeout(r, 3))
+      inFlight -= 1
+      return OK
+    })
+
+    const res = await sweepOutbox({ owner: 'cron' })
+
+    expect(res.sent).toBe(12)
+    expect(peak).toBeGreaterThan(1) // ยังต้องขนานได้จริง ไม่ใช่แก้ด้วยการทำทีละห้องทั้งระบบ
+    expect(peak).toBeLessThanOrEqual(6)
+  })
+
+  it('[blocker] หมดงบเวลา → หยุดเองอย่างสุภาพ ห้ามปล่อยให้ maxDuration ฆ่ากลาง claim (R-E)', async () => {
+    const ids = Array.from({ length: 6 }, (_, i) => `T${i}`)
+    groupBy.mockResolvedValue(ids.map((id) => room(id)))
+    conversationFindMany.mockResolvedValue(ids.map((id) => ({ id, shopChannelId: `page-${id}` })))
+    installStore(ids.flatMap((id) => makeRows(1, id)))
+    resolveOutboundContext.mockImplementation(async (p: { conversationId: string }) => ({
+      id: p.conversationId,
+      channel: 'MESSENGER',
+      shopId: 's1',
+    }))
+    transmitOutbound.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 12))
+      return OK
+    })
+
+    // งบ 0 = หมดตั้งแต่ก่อนห้องแรก ⇒ ต้องไม่ยิงเลยสักใบ (และต้องไม่ค้างรอ)
+    // 🛑 ห้ามใช้ค่าน้อย ๆ อย่าง 1ms เป็นเกณฑ์: ตอนรันจริงเวลาอาจยังไม่ทันขยับ ⇒ เทสจะวัด
+    // "เครื่องเร็วแค่ไหน" แทนที่จะวัดว่ามีด่านงบเวลาอยู่จริง (เคสนี้เกิดจริงตอนเขียนเทสข้อนี้)
+    const res = await sweepOutbox({ owner: 'cron', budgetMs: 0 })
+
+    expect(res.sent).toBe(0)
+    expect(transmitOutbound).not.toHaveBeenCalled()
+  })
+
+  it('[blocker] งบเวลาหมดกลางคัน → หยุดที่ห้องถัดไป ไม่ใช่ทำต่อจนครบทุกห้อง (R-E)', async () => {
+    const ids = Array.from({ length: 8 }, (_, i) => `U${i}`)
+    groupBy.mockResolvedValue(ids.map((id) => room(id)))
+    // เพจเดียวกันทั้งหมด ⇒ ระบายทีละห้องเรียงกัน (E-8) เวลาจึงเดินสะสมจนหมดงบแน่นอน
+    conversationFindMany.mockResolvedValue(ids.map((id) => ({ id, shopChannelId: 'page1' })))
+    installStore(ids.flatMap((id) => makeRows(1, id)))
+    resolveOutboundContext.mockImplementation(async (p: { conversationId: string }) => ({
+      id: p.conversationId,
+      channel: 'MESSENGER',
+      shopId: 's1',
+    }))
+    transmitOutbound.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+      return OK
+    })
+
+    const res = await sweepOutbox({ owner: 'cron', budgetMs: 25 })
+
+    expect(res.sent).toBeGreaterThan(0)
+    expect(res.sent).toBeLessThan(8)
   })
 
   it('[blocker] ห้องของเพจเดียวกันต้องยิงทีละห้อง — ห้ามยิงพร้อมกัน (E-8 rate limit ของ Meta)', async () => {
