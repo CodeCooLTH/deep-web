@@ -1163,17 +1163,30 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ type: 'PRODUCT', productRefIds: productIds }),
         })
+        /**
+         * 🛑 ต้องเช็ค 207 **ก่อน** `res.ok` เสมอ — `res.ok` เป็น true ตลอดช่วง 200–299 ซึ่ง
+         * **รวม 207 ด้วย** ⇒ โค้ดเดิมที่วางกิ่งนี้ไว้ข้างใน `if (!res.ok)` ไม่มีวันถูกเดินเข้าไป
+         * สักครั้ง: คำขอที่ส่งได้บางส่วนตกไปเข้ากิ่งสำเร็จ คืน `{ok:true}` แผงปิดทิ้งเหมือนส่งครบ
+         * ไม่มี toast ไม่มีอะไรบอก ทั้งที่ route ตอบมาตรง ๆ ว่า "เข้าคิวส่งแล้ว i จาก N"
+         * (มีมาก่อน CR คิวขาออก แต่ CR นั้นเขียนเหตุผลของ 207 ขึ้นใหม่ทั้งบล็อกบนสมมติฐานว่า
+         * ฝั่งจอเป็นคนอ่านมัน)
+         *
+         * ถ้อยคำที่ผู้ขายเห็นมาจาก `body.error` ของ route (ตัวเดียวกับที่เคยตั้งใจให้ใช้) ไม่มี
+         * คำใหม่ถูกพิมพ์ที่นี่ — HR16
+         */
+        if (res.status === 207) {
+          const body = await res.json().catch(() => null)
+          pacesToast.error(body?.error ?? 'ส่งการ์ดสินค้าไม่สำเร็จ')
+          await refetchNewer()
+          // อ่านค่าแบบระแวง: body อาจไม่ใช่ JSON (413 ของแพลตฟอร์ม/proxy ตอบ HTML) หรือ field หาย
+          // ตอนแก้ route ทีหลัง — เดาไม่ได้ต้องเป็น 0 เสมอ เพราะ 0 = "ไม่ติ๊กอะไรออก" ซึ่งพาไป
+          // พฤติกรรมเดิมที่ปลอดภัยกว่า (ส่งซ้ำ) ไม่ใช่ติ๊กของที่ยังไม่ถึงลูกค้าออกทิ้ง
+          const n = typeof body?.sentMessages === 'number' ? body.sentMessages : 0
+          return { ok: false, sentMessages: n }
+        }
         if (!res.ok) {
           const body = await res.json().catch(() => null)
           pacesToast.error(body?.error ?? 'ส่งการ์ดสินค้าไม่สำเร็จ')
-          if (res.status === 207) {
-            await refetchNewer()
-            // อ่านค่าแบบระแวง: body อาจไม่ใช่ JSON (413 ของแพลตฟอร์ม/proxy ตอบ HTML) หรือ field หาย
-            // ตอนแก้ route ทีหลัง — เดาไม่ได้ต้องเป็น 0 เสมอ เพราะ 0 = "ไม่ติ๊กอะไรออก" ซึ่งพาไป
-            // พฤติกรรมเดิมที่ปลอดภัยกว่า (ส่งซ้ำ) ไม่ใช่ติ๊กของที่ยังไม่ถึงลูกค้าออกทิ้ง
-            const n = typeof body?.sentMessages === 'number' ? body.sentMessages : 0
-            return { ok: false, sentMessages: n }
-          }
           return { ok: false, sentMessages: 0 }
         }
         await refetchNewer()

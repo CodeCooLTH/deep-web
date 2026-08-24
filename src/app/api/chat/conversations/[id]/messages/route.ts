@@ -52,6 +52,33 @@ import {
   type AttachmentKind,
 } from "@/lib/chat-attachment";
 
+/**
+ * งบเวลาของ invocation นี้ (วินาที) — (CR 2026-08-23) **นี่คือการ *ลด* เพดาน ไม่ใช่เพิ่ม**
+ *
+ * ที่มาของตัวเลข ไล่ตามลำดับข้อจำกัดที่บีบแคบที่สุดก่อน:
+ *
+ *  1. **ค่าตั้งต้นของแพลตฟอร์มคือ 300 วินาที** (Vercel + fluid compute ซึ่งเปิดเป็นค่าตั้งต้น
+ *     — Hobby: default 300s / สูงสุด 300s) ⇒ ไฟล์นี้ที่ไม่เคยประกาศอะไรเลย ได้ 300 มาตลอด
+ *     การเขียนเลขลงไปจึงต้องอธิบายให้ได้ว่า "ทำไมถึงเอาน้อยกว่าที่มีอยู่แล้ว"
+ *  2. **ต้องน้อยกว่า `STALE_CLAIM_MS` (3 นาที = 180 วินาที)** — นี่คือเหตุผลหลัก: ถ้าปล่อยให้
+ *     invocation อยู่ได้ถึง 300 วินาที จะมีช่วง 180–300 ที่ `after()` **ยังยิงอยู่จริง** ขณะที่
+ *     ตัวกวาดตัดสินว่าแถวที่มันถือ claim อยู่ "ค้างเกินเพดาน" แล้วปิดเป็น FAILED ด้วยถ้อยคำ
+ *     `UNCERTAIN_SEND_REASON` ⇒ ผู้ขายเห็นบับเบิลแดง "ไม่แน่ใจว่าส่งออกไปหรือยัง" ทั้งที่ worker
+ *     ยังทำงานปกติ (แล้วยังต้องพึ่ง R-F ให้ worker ที่กลับมาช้าไม่เขียนทับผลของตัวกวาดอีกชั้น)
+ *     เพดานที่ต่ำกว่า 180 ทำให้ "แพลตฟอร์มฆ่า" กับ "ตัวกวาดยึดคืน" ไม่มีวันคาบเกี่ยวกัน
+ *  3. **ต้องมากกว่ากรณีแย่สุดของการระบายจริง** — `deliverRoom` วนได้ `MAX_DELIVER_ROUNDS` = 20
+ *     รอบ แต่ละรอบ = claim + ยิงออกหนึ่งใบ + เขียนผล ≈ 1–3 วินาที ⇒ 20–60 วินาที
+ *     120 = ประมาณ 2 เท่าของกรณีแย่สุดที่วัดได้ และยังห่างจากเพดานข้อ 2 อยู่ 60 วินาที
+ *
+ * ข้อแลกเปลี่ยนที่ยอมรับ: ฟังก์ชันอยู่ต่อหลังตอบ 202 ไปแล้ว = จ่ายค่า instance นานขึ้นต่อการส่ง
+ * หนึ่งครั้ง (fluid หยุดนับ active CPU ตอนรอ I/O ⇒ ต้นทุนคือ "ที่นั่ง" ไม่ใช่ CPU) แลกกับการที่
+ * ข้อความไม่ต้องรอตัวกวาดรอบถัดไปนานถึง 1 นาที และแลกกับการที่ **ตัวเลขนี้ถูกปักหมุดไว้ในโค้ด** —
+ * ถ้าวันหนึ่งมีคนไปตั้ง Default Max Duration ที่แดชบอร์ดให้ต่ำลง เส้นทางนี้จะไม่ถูกตัดตามไปเงียบ ๆ
+ *
+ * ⚠️ ตัวเลขนี้ผูกกับ `STALE_CLAIM_MS` — ขยับตัวนั้นเมื่อไหร่ต้องกลับมาอ่านข้อ 2 ใหม่ทุกครั้ง
+ */
+export const maxDuration = 120;
+
 // ชนิดข้อความที่ "มีไฟล์แนบ" — ตรวจกฎชุดเดียวกันหมด (2026-08-02 multi-attachment)
 // เดิมมีแต่ IMAGE ที่ตรวจด้วย allow-list นามสกุลรูปตายตัว (CHAT_IMAGE_ALLOWED_EXT) — ถอดออกแล้ว
 // เพราะกฎย้ายไปอยู่ที่ checkChannelSupport ซึ่งรู้ทั้งชนิดไฟล์และช่องทางปลายทาง
@@ -1081,22 +1108,37 @@ export async function POST(
         const ids = imageFileIds!;
         // แถวที่สร้างจริงทุกใบ เรียงตามลำดับรูปที่ผู้ขายแนบ — client เอาไปทับบับเบิลชั่วคราวใบต่อใบ
         const createdRows = [];
-        for (const fileId of ids) {
-          createdRows.push(
-            await enqueueOutbound({
-              conversationId: id,
-              actorUserId: userId,
-              attachment: { fileId, kind: "IMAGE", name: null, size: null },
-            }),
-          );
+        /**
+         * 🛑 (F-6) `finally` ไม่ใช่ของประดับ — มันคือด่านกันข้อความซ้ำ
+         *
+         * ใบที่ N โยน (fileId ไม่ผ่านด่านช่องทาง / DB สะดุด) ⇒ ใบที่ 1..N-1 **เป็นแถว `QUEUED`
+         * ในฐานไปแล้ว** แต่ throw วิ่งข้ามบรรทัด `after(...)` ไปที่ `mapChatServiceError` ⇒ ไม่มี
+         * ใครสั่งระบาย. ผู้ขายเห็น error แล้วกดส่งใหม่ทั้งชุด ระหว่างนั้นตัวกวาดมาเจอแถวกำพร้า
+         * แล้วยิงออกไปให้ภายใน 1 นาที = **ลูกค้าได้รูปซ้ำ** โดยไม่มีอะไรฟ้องสักชั้น
+         *
+         * เงื่อนไข `createdRows.length > 0` สำคัญพอ ๆ กับตัว `finally`: ใบแรกโยน = ยังไม่มีแถวไหน
+         * เกิด ⇒ ไม่มีอะไรให้ระบาย การเรียกทิ้งไว้คือการปลุก worker มาหาของที่ไม่มีอยู่
+         * (เส้นทาง PRODUCT เขียนกฎเดียวกันนี้ด้วย `if (i === 0) throw e`)
+         */
+        try {
+          for (const fileId of ids) {
+            createdRows.push(
+              await enqueueOutbound({
+                conversationId: id,
+                actorUserId: userId,
+                attachment: { fileId, kind: "IMAGE", name: null, size: null },
+              }),
+            );
+          }
+          if (text?.trim()) {
+            createdRows.push(
+              await enqueueOutbound({ conversationId: id, actorUserId: userId, text }),
+            );
+          }
+        } finally {
+          // ยิงจริงเบื้องหลัง — ตัวการันตีคือตัวเก็บงานค้าง ไม่ใช่บรรทัดนี้ (ดูคำอธิบายเต็มที่เส้นทาง PRODUCT)
+          if (createdRows.length > 0) after(deliverRoom(id, "after"));
         }
-        if (text?.trim()) {
-          createdRows.push(
-            await enqueueOutbound({ conversationId: id, actorUserId: userId, text }),
-          );
-        }
-        // ยิงจริงเบื้องหลัง — ตัวการันตีคือตัวเก็บงานค้าง ไม่ใช่บรรทัดนี้ (ดูคำอธิบายเต็มที่เส้นทาง PRODUCT)
-        after(deliverRoom(id, "after"));
         const items = await Promise.all(createdRows.map((m) => withSender(m, userId)));
         return NextResponse.json({ ok: true, items }, { status: 202 });
       }
@@ -1119,13 +1161,25 @@ export async function POST(
           : undefined,
         replyToMid, // reply/quote — ส่ง reply_to:{mid} ให้ Meta (best-effort) + เก็บ quote ฝั่งเรา
       });
-      // caption ไม่ผูก `replyToMid` — ของเดิมก็ยิงข้อความตามหลังด้วย `replyToExternalId: null`
-      // (การตอบทับผูกกับไฟล์แนบซึ่งเป็นของหลัก ไม่ใช่กับ caption)
-      if (captionForAttachment !== null) {
-        await enqueueOutbound({ conversationId: id, actorUserId: userId, text: captionForAttachment });
+      /**
+       * caption ไม่ผูก `replyToMid` — ของเดิมก็ยิงข้อความตามหลังด้วย `replyToExternalId: null`
+       * (การตอบทับผูกกับไฟล์แนบซึ่งเป็นของหลัก ไม่ใช่กับ caption)
+       *
+       * 🛑 (F-6) อยู่ใน `try/finally` ด้วยเหตุผลเดียวกับ IMAGE_GRID: แถวไฟล์แนบ (`sent`) เกิดไป
+       * แล้วก่อนบรรทัดนี้ ⇒ ต่อให้แถว caption โยน ก็ยัง **ต้องระบาย** ไม่งั้นไฟล์แนบกลายเป็นแถว
+       * กำพร้าที่ตัวกวาดยิงออกไปทีหลัง ทับกับที่ผู้ขายกดส่งใหม่ = ลูกค้าได้ไฟล์ซ้ำ
+       *
+       * ไม่ต้องเช็คจำนวนแถวเหมือน IMAGE_GRID เพราะมาถึงบรรทัดนี้ได้แปลว่า `sent` สำเร็จไปแล้ว
+       * เสมอ (ถ้ามันโยน เราไม่มีทางเข้ามาใน try ก้อนนี้)
+       */
+      try {
+        if (captionForAttachment !== null) {
+          await enqueueOutbound({ conversationId: id, actorUserId: userId, text: captionForAttachment });
+        }
+      } finally {
+        // ยิงจริงเบื้องหลัง — ตัวการันตีคือตัวเก็บงานค้าง ไม่ใช่บรรทัดนี้ (ดูคำอธิบายเต็มที่เส้นทาง PRODUCT)
+        after(deliverRoom(id, "after"));
       }
-      // ยิงจริงเบื้องหลัง — ตัวการันตีคือตัวเก็บงานค้าง ไม่ใช่บรรทัดนี้ (ดูคำอธิบายเต็มที่เส้นทาง PRODUCT)
-      after(deliverRoom(id, "after"));
       return NextResponse.json(await withSender(sent, userId), { status: 202 });
     }
 
