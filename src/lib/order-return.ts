@@ -194,3 +194,51 @@ export function resolveCountAsCost(payer: ReturnPayer, chosen?: boolean): boolea
   if (payer === RETURN_PAYER.SHOP) return true
   return chosen ?? false
 }
+
+// ─── ค่าส่งขากลับเข้าระบบกำไร (P5 · D-3c · หัวหน้ายืนยัน 2026-08-24) ─────────────
+
+export type ReturnCostInput = {
+  countAsCost: boolean
+  /** ค่าส่งที่ร้านกรอกเอง (บาท) — ใช้กับใบที่ไม่ได้ออกเลขผ่าน iShip */
+  shippingCost: number | null
+  /** ราคาจริงจากขนส่งของพัสดุขากลับ — iShip เปิดให้อ่านหลังเข้ารับและชั่งน้ำหนัก */
+  carrierPrice: number | null
+  /** ราคาประมาณตอนเปิดพัสดุ — ใช้ระหว่างรอราคาจริง */
+  estimatedPrice: number | null
+}
+
+/**
+ * resolveReturnShippingCost — ค่าส่งขากลับที่ควรเข้าต้นทุน + รู้ราคาแล้วหรือยัง
+ *
+ * 🛑 คืน `known` มาด้วยเสมอ ห้ามคืนแค่ตัวเลข — ใบที่ยังไม่รู้ราคาให้ 0 เหมือนใบที่ "ไม่คิดเงิน"
+ * เป๊ะ ๆ ถ้าไม่แยกสองอย่างนี้ หน้าจอจะโชว์ต้นทุนที่ต่ำกว่าความจริงโดยไม่มีอะไรบอก ซึ่งเป็น
+ * คลาสเดียวกับ `docs/conventions/partial-data-must-be-labeled-or-filled.md` (ค่าส่งวันที่ 9
+ * ขึ้น ฿328.88 จาก 31 ออเดอร์ เพราะมีราคาจริงแค่ 7 ใบ — เลขถูกทุกบาทตามข้อมูลที่มี)
+ *
+ * ลำดับความน่าเชื่อถือ: ราคาที่ร้านกรอกเอง > ราคาจริงจากขนส่ง > ราคาประมาณ
+ * (ร้านกรอกเองมาก่อนเพราะเป็นตัวเลขที่ร้าน "จ่ายจริง" — เคสลูกค้าออกเลขเองแล้วมาเรียกเก็บร้าน
+ * ไม่มีทางอ่านจาก iShip ได้เลย)
+ */
+export function resolveReturnShippingCost(r: ReturnCostInput): { amount: number; known: boolean } {
+  // ไม่นับเป็นต้นทุน = 0 และ **รู้แน่นอน** ว่าเป็น 0 (ต่างจาก "ยังไม่รู้ราคา")
+  if (!r.countAsCost) return { amount: 0, known: true }
+  if (r.shippingCost != null) return { amount: r.shippingCost, known: true }
+  if (r.carrierPrice != null) return { amount: r.carrierPrice, known: true }
+  if (r.estimatedPrice != null) return { amount: r.estimatedPrice, known: true }
+  return { amount: 0, known: false }
+}
+
+/** รวมค่าส่งขากลับของหลายใบ + ธงว่ามีใบที่ยังไม่รู้ราคาไหม */
+export function sumReturnShippingCost(rows: ReturnCostInput[]): {
+  total: number
+  unknownCount: number
+} {
+  let total = 0
+  let unknownCount = 0
+  for (const r of rows) {
+    const { amount, known } = resolveReturnShippingCost(r)
+    total += amount
+    if (!known) unknownCount += 1
+  }
+  return { total, unknownCount }
+}

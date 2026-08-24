@@ -4,6 +4,7 @@
  */
 import { prisma } from '@/lib/prisma'
 import { revenueOrderWhere } from '@/lib/order-revenue'
+import { RETURN_STATUS, sumReturnShippingCost } from '@/lib/order-return'
 import type { ResolvedDateRange } from '@/lib/date-range'
 
 export interface PnlReport {
@@ -28,6 +29,21 @@ export interface PnlReport {
   prevCogs: number | null
   prevGrossProfit: number | null
   prevExpense: number
+  /**
+   * ค่าส่ง **ขากลับ** ของใบคืนที่รับของแล้วในช่วงนี้ (feature 00056 · D-3c)
+   *
+   * รวมอยู่ใน `totalExpense`/`netProfit` แล้ว — แยกออกมาเป็นช่องต่างหากเพื่อให้หน้าจอ
+   * อธิบายที่มาของตัวเลขได้ ไม่ใช่ให้ผู้ใช้เดาว่าค่าใช้จ่ายโตขึ้นเพราะอะไร
+   */
+  returnShippingCost: number
+  /**
+   * จำนวนใบคืนที่ **ยังไม่รู้ค่าส่ง** (iShip ยังไม่เปิดราคา และร้านยังไม่กรอกเอง)
+   *
+   * 🛑 ต้องส่งออกไปให้หน้าจอติดป้าย — ใบพวกนี้ถูกนับเป็น 0 ซึ่งหน้าตาเหมือน "ไม่มีค่าส่ง"
+   * ทุกประการ ถ้าไม่บอก ร้านจะอ่านกำไรที่สูงกว่าความจริงโดยไม่มีอะไรเตือน
+   * (docs/conventions/partial-data-must-be-labeled-or-filled.md)
+   */
+  returnShippingUnknownCount: number
 }
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100 // เหมือน order.service.ts::round2
@@ -51,7 +67,8 @@ function sumOrders(orders: PnlOrder[]): { revenue: number; cogs: number; hasMiss
 }
 
 export async function getPnlReport(shopId: string, range: ResolvedDateRange): Promise<PnlReport> {
-  const [orders, expenseAgg, prevOrders, prevExpenseAgg] = await Promise.all([
+  const [orders, expenseAgg, prevOrders, prevExpenseAgg, returnRows, prevReturnRows] =
+    await Promise.all([
     prisma.order.findMany({
       // ยอดขายนับ CONFIRMED + ใบที่ขนส่งรับของไปแล้วจริง (SSOT: lib/order-revenue.ts)
       where: { shopId, ...revenueOrderWhere, createdAt: { gte: range.orderRange.gte, lt: range.orderRange.lt } },
@@ -76,14 +93,72 @@ export async function getPnlReport(shopId: string, range: ResolvedDateRange): Pr
       },
       _sum: { amount: true },
     }),
+    /**
+     * ค่าส่งขากลับของใบคืนที่ **รับของแล้ว** ในช่วงนี้ (feature 00056)
+     *
+     * 🛑 ตัดช่วงด้วย `receivedAt` ไม่ใช่ `createdAt` — เกณฑ์เดียวกับที่ BRD §2 ประกาศว่า
+     * "ผลทางบัญชีเกิดที่ RECEIVED เท่านั้น" ถ้าใช้วันเปิดใบ ค่าใช้จ่ายจะโผล่ในเดือนที่ยังไม่มี
+     * อะไรเกิดขึ้นจริง แล้วเดือนที่ของกลับมาถึงจริงจะไม่มีอะไรเลย
+     */
+    prisma.orderReturn.findMany({
+      where: {
+        shopId,
+        status: RETURN_STATUS.RECEIVED,
+        receivedAt: { gte: range.expenseRange.gte, lt: range.expenseRange.lt },
+      },
+      select: {
+        countAsCost: true,
+        shippingCost: true,
+        shipment: { select: { carrierPrice: true, estimatedPrice: true } },
+      },
+    }),
+    prisma.orderReturn.findMany({
+      where: {
+        shopId,
+        status: RETURN_STATUS.RECEIVED,
+        receivedAt: {
+          gte: range.prevRange.expenseRange.gte,
+          lt: range.prevRange.expenseRange.lt,
+        },
+      },
+      select: {
+        countAsCost: true,
+        shippingCost: true,
+        shipment: { select: { carrierPrice: true, estimatedPrice: true } },
+      },
+    }),
   ])
 
   const { revenue, cogs, hasMissingCost } = sumOrders(orders)
   const grossProfit = round2(revenue - cogs)
-  const totalExpense = Number(expenseAgg._sum.amount ?? 0)
+
+  /**
+   * ค่าส่งขากลับเป็น **ค่าใช้จ่าย** ตัวหนึ่ง ไม่ใช่ตัวหักยอดขาย — เงินที่จ่ายให้ขนส่งไม่ได้ทำให้
+   * "ยอดขาย" ลดลง (ยอดขายลดจากการที่ใบนั้นหลุดจาก revenueOrderWhere ไปแล้วเมื่อเป็น RETURNED)
+   *
+   * ไม่สร้างแถวใน `Expense` โดยเจตนา: ราคาจริงจาก iShip มา **ทีหลัง** การเปิดพัสดุ ถ้าสร้างแถว
+   * ตอนรับคืนแล้วราคาเปลี่ยน แถวนั้นจะค้างเป็นค่าเก่าตลอดไป (และถ้าไล่อัปเดตก็จะชนกับแถวที่
+   * ร้านแก้เอง) — คิดสดจากข้อมูลต้นทางทุกครั้งจึงไม่มีวันเลื่อนออกจากกัน
+   */
+  const toCostInput = (r: {
+    countAsCost: boolean
+    shippingCost: unknown
+    shipment: { carrierPrice: unknown; estimatedPrice: unknown } | null
+  }) => ({
+    countAsCost: r.countAsCost,
+    shippingCost: r.shippingCost != null ? Number(r.shippingCost) : null,
+    carrierPrice: r.shipment?.carrierPrice != null ? Number(r.shipment.carrierPrice) : null,
+    estimatedPrice: r.shipment?.estimatedPrice != null ? Number(r.shipment.estimatedPrice) : null,
+  })
+
+  const returnCost = sumReturnShippingCost(returnRows.map(toCostInput))
+  const prevReturnCost = sumReturnShippingCost(prevReturnRows.map(toCostInput))
+
+  const returnShippingCost = round2(returnCost.total)
+  const totalExpense = round2(Number(expenseAgg._sum.amount ?? 0) + returnShippingCost)
   const netProfit = round2(grossProfit - totalExpense)
 
-  const prevExpense = Number(prevExpenseAgg._sum.amount ?? 0)
+  const prevExpense = round2(Number(prevExpenseAgg._sum.amount ?? 0) + prevReturnCost.total)
   // ไม่มีทั้งออเดอร์และค่าใช้จ่ายในช่วงก่อนหน้า = ไม่มีฐานให้เทียบ (ไม่ใช่ "กำไร 0")
   const prevSums = sumOrders(prevOrders)
   const prevNetProfit =
@@ -100,5 +175,7 @@ export async function getPnlReport(shopId: string, range: ResolvedDateRange): Pr
     prevCogs: noPrevOrders ? null : round2(prevSums.cogs),
     prevGrossProfit: noPrevOrders ? null : round2(prevSums.revenue - prevSums.cogs),
     prevExpense,
+    returnShippingCost,
+    returnShippingUnknownCount: returnCost.unknownCount,
   }
 }

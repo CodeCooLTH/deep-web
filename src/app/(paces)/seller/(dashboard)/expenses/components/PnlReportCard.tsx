@@ -17,6 +17,7 @@
  * ไม่ใช้ CountUp — DESIGN.md §Motion ห้าม choreography ตอนโหลดฝั่ง product
  */
 import { cn } from '@/utils/helpers'
+import Icon from '@/components/wrappers/Icon'
 import { formatBaht, profitDisplay, NET_PROFIT_FORMULA, pctChangeVsPrev } from '@/lib/format-money'
 import { EXPENSE_CATEGORY_LABEL_TH, groupExpensesByCategory } from '@/lib/expense'
 import type { SerializedExpense } from '@/services/expense.service'
@@ -115,6 +116,29 @@ export default function PnlReportCard({ report, expenses, loading = false, range
         metric="หมวดที่จ่ายมากสุด"
         metricValue={topCategory ? EXPENSE_CATEGORY_LABEL_TH[topCategory.category] : 'ยังไม่มีรายการ'}
       />
+
+      {/* ค่าส่งขากลับของใบคืน (feature 00056) — อยู่ใน "ค่าใช้จ่าย" ข้างบนแล้ว แต่ไม่ได้อยู่ใน
+          รายการที่ /expenses แสดง (มันคิดสดจากใบคืน ไม่ใช่แถว Expense) ⇒ ถ้าไม่บอกตรงนี้
+          ร้านจะบวกรายการในตารางแล้วได้ไม่เท่ากับการ์ด แล้วเลิกเชื่อทั้งหน้า
+          ขึ้นเฉพาะเมื่อมีจริง — ค่าตั้งต้นของระบบคือเงียบ */}
+      {(report.returnShippingCost > 0 || report.returnShippingUnknownCount > 0) && (
+        <p className="text-default-700 col-span-full mb-0 flex items-start gap-2 text-xs">
+          <Icon icon="arrow-back-up" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+          <span>
+            ในค่าใช้จ่ายรวมค่าส่งพัสดุขากลับของการคืนของ{' '}
+            <span className="font-semibold">{formatBaht(report.returnShippingCost)}</span>
+            {/* 🛑 ต้องบอกว่ายังไม่ครบ — ใบที่ยังไม่รู้ราคาถูกนับเป็น 0 ซึ่งหน้าตาเหมือน
+                "ไม่มีค่าส่ง" ทุกประการ (partial-data-must-be-labeled-or-filled.md) */}
+            {report.returnShippingUnknownCount > 0 && (
+              <span className="text-warning-ink">
+                {' '}
+                · ยังไม่รู้ค่าส่งอีก {report.returnShippingUnknownCount} ใบ (รอขนส่งแจ้งราคา
+                หรือกรอกเอง) ตัวเลขนี้จึงยังไม่ครบ
+              </span>
+            )}
+          </span>
+        </p>
+      )}
     </div>
   )
 }

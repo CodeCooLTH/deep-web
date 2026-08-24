@@ -120,3 +120,47 @@ describe('[blocker] พัสดุขากลับ (createReturnShipment)', (
     expect(fn).toContain('direction: FORWARD_SHIPMENT')
   })
 })
+
+/**
+ * [blocker] ค่าส่งขากลับต้องเข้าระบบกำไรจริง (P5 · D-3c)
+ *
+ * 🛑 หัวหน้าสั่งตรงว่า "ค่าส่งต้องเข้าระบบกำไรเลย" — ถ้าคำนวณแล้วไม่บวกเข้า totalExpense
+ * ตัวเลขจะถูกเก็บไว้เฉย ๆ โดยไม่มีผลกับอะไรเลย ซึ่งอ่านจากภายนอกไม่ต่างจากไม่ได้ทำ
+ */
+describe('[blocker] ค่าส่งขากลับใน P&L', () => {
+  const pnl = strip('src/services/pnl.service.ts')
+
+  it('ต้องคิดจากใบคืนที่ RECEIVED และตัดช่วงด้วย receivedAt', () => {
+    // ใช้ createdAt จะทำให้ค่าใช้จ่ายโผล่ในเดือนที่ยังไม่มีอะไรเกิดขึ้นจริง
+    expect(pnl).toContain('orderReturn.findMany')
+    expect(pnl).toContain('status: RETURN_STATUS.RECEIVED')
+    expect(pnl).toContain('receivedAt:')
+  })
+
+  it('[blocker] ต้องบวกเข้า totalExpense ไม่ใช่คำนวณแล้ววางทิ้ง', () => {
+    // 🛑 regex ต้องข้ามวงเล็บชั้นใน (`Number(...)`) ได้ — `[^)]*` หยุดที่ `)` ตัวแรก
+    // แล้วด่านจะแดงค้างทั้งที่โค้ดถูก (ด่านที่พังเองอ่านเหมือนโค้ดพัง)
+    expect(pnl).toMatch(/totalExpense = round2\([\s\S]{0,160}?returnShippingCost/)
+  })
+
+  it('[blocker] ช่วงก่อนหน้าต้องคิดด้วยเกณฑ์เดียวกัน (ไม่งั้น %เปลี่ยนแปลงเทียบคนละชนิด)', () => {
+    expect(pnl).toContain('prevReturnCost')
+    expect(pnl).toMatch(/prevExpense = round2\([\s\S]{0,160}?prevReturnCost\.total/)
+  })
+
+  it('[blocker] ต้องส่งจำนวนใบที่ยังไม่รู้ราคาออกไปให้หน้าจอติดป้าย', () => {
+    // ใบที่ยังไม่รู้ราคาถูกนับเป็น 0 ซึ่งหน้าตาเหมือน "ไม่มีค่าส่ง" ทุกประการ
+    expect(pnl).toContain('returnShippingUnknownCount')
+    const card = strip('src/app/(paces)/seller/(dashboard)/expenses/components/PnlReportCard.tsx')
+    expect(card).toContain('returnShippingUnknownCount')
+  })
+
+  /**
+   * ไม่สร้างแถวใน Expense โดยเจตนา — ราคาจริงจาก iShip มาทีหลังการเปิดพัสดุ ถ้าสร้างแถวตอน
+   * รับคืนแล้วราคาเปลี่ยน แถวนั้นจะค้างเป็นค่าเก่าตลอดไป
+   */
+  it('[blocker] ห้ามสร้างแถว Expense อัตโนมัติจากใบคืน', () => {
+    expect(svc).not.toMatch(/expense\.create/)
+    expect(pnl).not.toMatch(/expense\.create/)
+  })
+})

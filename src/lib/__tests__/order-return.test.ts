@@ -16,6 +16,8 @@ import {
   isFullyReturned,
   remainingReturnable,
   resolveCountAsCost,
+  resolveReturnShippingCost,
+  sumReturnShippingCost,
   validateReturnShipping,
 } from '../order-return'
 
@@ -153,5 +155,49 @@ describe('รูปแบบการคืน (4 แบบ)', () => {
     expect(resolveCountAsCost(RETURN_PAYER.BUYER, undefined)).toBe(false)
     expect(resolveCountAsCost(RETURN_PAYER.BUYER, true)).toBe(true)
     expect(RETURN_TRACKING_SOURCE.NONE).toBe('NONE')
+  })
+})
+
+/**
+ * [blocker] ค่าส่งขากลับเข้าระบบกำไร (P5 · D-3c · หัวหน้ายืนยัน 2026-08-24)
+ *
+ * 🛑 คลาสที่เสี่ยงที่สุดคือ **ตัวเลขที่ยังไม่ครบแต่หน้าตาเหมือนครบ** — ใบที่ยังไม่รู้ค่าส่งถูก
+ * นับเป็น 0 ซึ่งเหมือน "ไม่มีค่าส่ง" ทุกประการ ถ้าไม่แยกสองอย่างนี้ ร้านจะอ่านกำไรที่สูงกว่า
+ * ความจริงโดยไม่มีอะไรเตือน (เกิดจริงมาแล้ว 2026-08-10 กับค่าส่งขาไป)
+ */
+describe('[blocker] resolveReturnShippingCost', () => {
+  const base = { countAsCost: true, shippingCost: null, carrierPrice: null, estimatedPrice: null }
+
+  it('ไม่นับเป็นต้นทุน = 0 และ **รู้แน่นอน** ว่าเป็น 0', () => {
+    const r = resolveReturnShippingCost({ ...base, countAsCost: false, carrierPrice: 55 })
+    expect(r).toEqual({ amount: 0, known: true })
+  })
+
+  it('ยังไม่รู้ราคา = 0 แต่ known:false — ห้ามปนกับ "ไม่มีค่าส่ง"', () => {
+    expect(resolveReturnShippingCost(base)).toEqual({ amount: 0, known: false })
+  })
+
+  /**
+   * ราคาที่ร้านกรอกเองมาก่อน เพราะเป็นตัวเลขที่ร้าน **จ่ายจริง** — เคสลูกค้าออกเลขเองแล้วมา
+   * เรียกเก็บร้าน ไม่มีทางอ่านจาก iShip ได้เลย
+   */
+  it('ลำดับความน่าเชื่อถือ: กรอกเอง > ราคาจริง > ราคาประมาณ', () => {
+    expect(
+      resolveReturnShippingCost({ ...base, shippingCost: 40, carrierPrice: 55, estimatedPrice: 60 })
+        .amount,
+    ).toBe(40)
+    expect(resolveReturnShippingCost({ ...base, carrierPrice: 55, estimatedPrice: 60 }).amount).toBe(55)
+    expect(resolveReturnShippingCost({ ...base, estimatedPrice: 60 }).amount).toBe(60)
+  })
+
+  it('[blocker] ยอดรวมต้องมาพร้อมจำนวนใบที่ยังไม่รู้ราคา', () => {
+    const sum = sumReturnShippingCost([
+      { ...base, carrierPrice: 50 },
+      { ...base, shippingCost: 30 },
+      base, // ยังไม่รู้ราคา
+      { ...base, countAsCost: false, carrierPrice: 999 }, // ลูกค้าออกเอง ร้านไม่รับผิดชอบ
+    ])
+    expect(sum.total).toBe(80)
+    expect(sum.unknownCount).toBe(1)
   })
 })
