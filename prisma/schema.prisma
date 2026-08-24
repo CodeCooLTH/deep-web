@@ -2354,7 +2354,9 @@ model OrderShipment {
 
   order  Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   shop   Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  events ShipmentEvent[]
+  events   ShipmentEvent[]
+  /// หลักฐานสำหรับข้อพิพาท — มีเฉพาะใบที่เคยมีปัญหา/ตีกลับ (feature 00055)
+  evidence ShipmentEvidence[]
 
   // 🛑 partial unique index ที่ Prisma DSL ประกาศไม่ได้ — สร้างด้วย SQL มือใน migration
   //    (unmanaged SQL: `prisma db pull` จะมองไม่เห็นแล้ว DROP ทิ้ง — ห้ามรันเด็ดขาด):
@@ -2387,6 +2389,45 @@ model ShipmentEvent {
 
   @@unique([shipmentId, dedupeKey])
   @@index([shipmentId, occurredAt])
+}
+
+/// ShipmentEvidence — หลักฐานจากขนส่ง ณ วินาทีที่พัสดุ "มีปัญหา/ตีกลับ" (feature 00055)
+///
+/// 🛑 ทำไมต้องมีตารางนี้ ทั้งที่ ShipmentEvent เก็บไทม์ไลน์อยู่แล้ว (ตรวจ prod 2026-08-24):
+///   - ShipmentEvent 1,015 แถว **มี payload ดิบ 0 แถว** (webhook ของ iShip ไม่เคยยิงเลยสักครั้ง
+///     ทุกแถวเป็น source=POLL ซึ่งไม่บันทึก payload)
+///   - พัสดุที่ยัง active 399 ใบ **ไม่มี event เลย 255 ใบ (64%)** เพราะ ShipmentEvent ถูกเขียน
+///     เฉพาะตอน *มีคนเปิดดู* ไม่ใช่ตอนเกิดเหตุ
+///   ⇒ วันที่ลูกค้าโต้แย้งว่า "ไม่เคยมีใครเอาของมาส่ง" เราไม่มีอะไรยืนยันเลยในกรณีส่วนใหญ่
+///
+/// ตารางนี้เป็น **append-only** — เก็บ payload ดิบทั้งก้อนไว้เป็นหลักฐาน ไม่แก้ ไม่ทับ
+/// เก็บ **เฉพาะกรณีมีปัญหา/ตีกลับ** ตามที่หัวหน้าสั่ง (2026-08-24) ไม่ใช่ทุกใบ — พัสดุที่ส่งถึง
+/// ตามปกติไม่มีใครโต้แย้ง การเก็บทุกใบคือค่าใช้จ่ายและ PII ที่ไม่มีใครได้ประโยชน์
+///
+/// 🛑 PII: `parcel` มีชื่อ/เบอร์/ที่อยู่ผู้รับดิบ ๆ (นั่นคือประเด็นของหลักฐาน) —
+/// **ห้ามมี API ไหน serve คอลัมน์นี้ออกไปตรง ๆ** ใช้ตอนสืบสวนข้อพิพาทเท่านั้น
+model ShipmentEvidence {
+  id         String   @id @default(uuid())
+  shipmentId String
+  orderId    String
+  /// carrierStatus ที่จุดชนวนให้เก็บ (return / return_success / issue / cannot_pickup / ...)
+  reason     String
+  capturedAt DateTime @default(now())
+  /// จำนวนเหตุการณ์ที่ขนส่งมีให้ ณ วินาทีนั้น — 0 = ขนส่งไม่มีบันทึกอะไรเลย ซึ่งเป็นหลักฐานในตัวมันเอง
+  traceCount Int      @default(0)
+  /// รายการเดินทางดิบจาก /api/traces
+  traces     Json?
+  /// สถานะพัสดุระดับออเดอร์ดิบจาก /api/get_order
+  parcel     Json?
+  /// ดึงไม่สำเร็จ — บันทึกไว้ด้วย ไม่ปล่อยเงียบ (ไม่มีแถว = ไม่เคยพยายาม ซึ่งคนละเรื่องกัน)
+  error      String?
+
+  shipment OrderShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  /// กันเก็บซ้ำสถานะเดิม — สถานะใหม่ของใบเดิมเก็บเพิ่มได้ (return → return_success = 2 แถว)
+  @@unique([shipmentId, reason])
+  @@index([orderId])
+  @@index([capturedAt])
 }
 
 // ShipmentPickup — คำขอเรียกรถเข้ารับพัสดุ

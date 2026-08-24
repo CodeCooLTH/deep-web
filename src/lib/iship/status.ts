@@ -452,6 +452,35 @@ export function isProblemCarrierStatus(code?: string | null): boolean {
   return (PROBLEM_CARRIER_STATUSES as readonly string[]).includes(code);
 }
 
+/**
+ * ─── หลักฐานสำหรับข้อพิพาท (feature 00055 · หัวหน้าสั่ง 2026-08-24) ─────────────
+ *
+ * สถานะที่ควร "หยุดภาพ" หลักฐานจากขนส่งไว้ทันทีที่เกิด — **เฉพาะกรณีมีปัญหา/ตีกลับ**
+ * ไม่ใช่ทุกใบ: พัสดุที่ส่งถึงตามปกติไม่มีใครโต้แย้ง การเก็บทุกใบคือค่าใช้จ่ายและ PII
+ * ที่ไม่มีใครได้ประโยชน์
+ *
+ * 🛑 ทำไมต้องเก็บตอน *เกิดเหตุ* ไม่ใช่ตอนมีคนเปิดดู (วัดจาก prod 2026-08-24):
+ * `ShipmentEvent` 1,015 แถวมี payload ดิบ **0 แถว** (webhook ของ iShip ไม่เคยยิงเลย
+ * ทุกแถวเป็น POLL ซึ่งไม่บันทึก payload) และพัสดุที่ยัง active 399 ใบ **ไม่มี event เลย
+ * 255 ใบ (64%)** เพราะไทม์ไลน์ถูกเขียนเฉพาะตอนคนเอาเมาส์ไปวาง ⇒ วันที่ลูกค้าโต้แย้งว่า
+ * "ไม่เคยมีใครเอาของมาส่ง" เราไม่มีอะไรยืนยันเลยในกรณีส่วนใหญ่
+ *
+ * `is_expired`/`cancelled` อยู่ในชุดนี้ด้วย: ทั้งคู่แปลว่าของไม่ถึงมือผู้รับและมีเงิน/ของ
+ * ค้างอยู่ที่ใดที่หนึ่ง ซึ่งเป็นเงื่อนไขของข้อพิพาทเหมือนกัน
+ */
+export const EVIDENCE_CARRIER_STATUSES = [
+  ...PROBLEM_CARRIER_STATUSES,
+  ...RETURNED_CARRIER_STATUSES,
+  "cancelled",
+] as const;
+
+/** ควรหยุดภาพหลักฐานของสถานะนี้ไหม — allow-list, ไม่รู้จัก = ไม่เก็บ */
+export function shouldCaptureEvidence(code?: string | null): boolean {
+  if (!code) return false;
+  return (EVIDENCE_CARRIER_STATUSES as readonly string[]).includes(code);
+}
+
+
 
 // ─── เวลาและการโอนเงิน COD (ส่วนขยาย 2026-08-06) ─────────────────────────────
 

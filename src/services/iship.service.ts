@@ -21,6 +21,7 @@ import { IShipError } from "@/lib/iship/errors";
 import {
   carrierStatusCodeFromId,
   carrierTrackingSettled,
+  shouldCaptureEvidence,
   describeCarrierStatus,
   impliesDispatched,
   isDeliveredCarrierStatus,
@@ -1907,10 +1908,82 @@ function scalarOrNull(v: unknown): string | number | null {
  *
  * คืน true เมื่อเขียนจริง (ค่าเดิม/ค่าที่แปลไม่ออก = ไม่นับว่าเปลี่ยน)
  */
+/**
+ * captureShipmentEvidence — หยุดภาพหลักฐานจากขนส่งไว้ทันทีที่พัสดุมีปัญหา/ตีกลับ
+ * (feature 00055 · หัวหน้าสั่ง 2026-08-24 "ควรบันทึกหลักฐานกรณีตีกลับไว้ด้วย เผื่อมีการยื่นพิพาท")
+ *
+ * 🛑 **ห้าม throw ออกไปหาผู้เรียกเด็ดขาด** — ตัวเรียกคือลูป sync ที่ไล่พัสดุทั้งร้าน
+ * ถ้าใบเดียวล้มแล้วลากทั้งรอบตาย พัสดุที่เหลือจะค้างสถานะโดยไม่มีใครรู้ว่าเพราะอะไร
+ * ดึงไม่ได้ = **บันทึกแถวที่มี `error`** ไม่ใช่ไม่บันทึกอะไรเลย ("ไม่มีแถว" แปลว่าไม่เคย
+ * พยายาม ซึ่งคนละเรื่องกับ "พยายามแล้วขนส่งไม่ตอบ" — วันที่ต้องใช้หลักฐานสองอันนี้ต่างกันมาก)
+ *
+ * 🛑 กันซ้ำด้วย unique `(shipmentId, reason)` ที่ระดับฐาน ไม่ใช่ find-then-insert — poller
+ * หลายรอบทับกันได้ ความถูกต้องต้องอยู่ที่ `@unique` เสมอ
+ * (docs/conventions/insert-then-catch-logs-every-error.md)
+ */
+async function captureShipmentEvidence(
+  shipmentId: string,
+  orderId: string,
+  shopId: string,
+  reason: string,
+): Promise<void> {
+  // เก็บครั้งเดียวต่อ (ใบ, สถานะ) — เช็คก่อนเพื่อไม่ยิง iShip ซ้ำทุกรอบ sync
+  // (ตัวกันจริงคือ unique ที่ฐาน ตรงนี้แค่ลดคำขอที่รู้ผลอยู่แล้ว)
+  const existing = await prisma.shipmentEvidence.findUnique({
+    where: { shipmentId_reason: { shipmentId, reason } },
+    select: { id: true },
+  });
+  if (existing) return;
+
+  let traces: unknown[] = [];
+  let parcel: unknown = null;
+  let error: string | null = null;
+
+  try {
+    const { token } = await loadAccount(shopId);
+    const row = await prisma.orderShipment.findUnique({
+      where: { id: shipmentId },
+      select: { trackingNo: true },
+    });
+    if (!row?.trackingNo) throw new Error("ไม่มีเลขพัสดุ");
+    traces = await withTokenGuard(shopId, () => iship.getTraces(token, row.trackingNo!));
+    parcel = await withTokenGuard(shopId, () => iship.getOrder(token, row.trackingNo!));
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+  }
+
+  try {
+    await prisma.shipmentEvidence.create({
+      data: {
+        shipmentId,
+        orderId,
+        reason,
+        traceCount: traces.length,
+        // เก็บดิบทั้งก้อน — นั่นคือประเด็นของหลักฐาน ห้าม normalize ทิ้ง
+        traces: traces.length > 0 ? (traces as object[]) : undefined,
+        parcel: (parcel as object) ?? undefined,
+        error,
+      },
+    });
+  } catch {
+    // ชนกับรอบที่ยิงพร้อมกัน (unique) = มีคนเก็บให้แล้ว ถือว่าสำเร็จ
+  }
+}
+
+/**
+ * 🛑 `shopId` เป็นพารามิเตอร์ **บังคับ** ไม่ใช่ optional บนอ็อบเจกต์ `s`
+ *
+ * ร่างแรกเขียนเป็น `s: { …; shopId?: string }` แล้วด่านเก็บหลักฐาน `if (s.shopId && …)`
+ * จะ **ไม่ทำงานเลยสักครั้ง** เพราะ `select` ของชุด tracking ไม่ได้ดึง `shopId` มา —
+ * `tsc` ไม่ฟ้องเพราะ optional คือ "ไม่ส่งก็ได้" ⇒ ฟีเจอร์ตายเงียบสนิทโดยทุก gate เขียว
+ * (คลาสเดียวกับ docs/conventions/rule-must-be-enforced-not-described.md)
+ * ทำเป็น positional บังคับ ⇒ ลืมส่งเมื่อไร compile ไม่ผ่าน
+ */
 async function applyCarrierStatus(
   s: { id: string; orderId: string; carrierStatus: string | null },
   code: string | null,
   changedAt: Date,
+  shopId: string,
 ): Promise<boolean> {
   if (!code || code === s.carrierStatus) return false;
 
@@ -1929,6 +2002,16 @@ async function applyCarrierStatus(
     },
   });
   await advanceOrderOnCarrierMove(s.orderId, code);
+
+  /**
+   * หยุดภาพหลักฐาน ณ วินาทีที่สถานะกลายเป็น "มีปัญหา/ตีกลับ" — จุดนี้เป็นจุดเดียวในระบบที่
+   * รู้ว่า *สถานะเพิ่งเปลี่ยน* (บรรทัดบนสุดตัด `code === s.carrierStatus` ทิ้งไปแล้ว)
+   * ถ้าไปเก็บที่อื่นจะได้ภาพของ "ตอนที่มีคนบังเอิญเปิดดู" ซึ่งไม่ใช่เวลาที่เกิดเหตุ
+   */
+  if (shouldCaptureEvidence(code)) {
+    await captureShipmentEvidence(s.id, s.orderId, shopId, code);
+  }
+
   return true;
 }
 
@@ -2021,7 +2104,12 @@ export async function syncShipmentStatuses(
     const code = carrierStatusCodeFromId(row.status);
 
     if (
-      await applyCarrierStatus(s, code, row.updated_at ? new Date(row.updated_at) : new Date())
+      await applyCarrierStatus(
+        s,
+        code,
+        row.updated_at ? new Date(row.updated_at) : new Date(),
+        shopId,
+      )
     ) {
       changed += 1;
     }
@@ -2075,7 +2163,7 @@ export async function syncShipmentStatuses(
 
     const code = carrierStatusCodeFromId(parcel.statusId);
     const changedAt = parcel.updatedAtRaw ? new Date(parcel.updatedAtRaw) : new Date();
-    if (await applyCarrierStatus(s, code, changedAt)) {
+    if (await applyCarrierStatus(s, code, changedAt, shopId)) {
       changed += 1;
       staleChanged += 1;
     }
