@@ -98,7 +98,11 @@ import { describeSendFailure, stripSendFailurePrefix } from '@/lib/chat-send-fai
 import { resolveChatChannel } from '@/lib/chat-channel'
 // นิยาม "โพสต์นี้เป็นวิดีโอไหม" ตัวเดียวกับที่รายการคอมเมนต์ใช้ — ห้ามก็อปมาเขียนซ้ำ (HR16)
 import { isVideoPost } from '@/lib/facebook-post'
-import { canRetryFailedMessage } from '@/lib/chat-retry-eligibility'
+import {
+  canRetryFailedMessage,
+  needsUncertainSendConfirm,
+  UNCERTAIN_RESEND_CONFIRM,
+} from '@/lib/chat-retry-eligibility'
 // (S-14b, feature 00025) มาตรวัดโควตา LINE — ตรรกะทั้งหมด (รวม boolean ที่ปิดช่องพิมพ์) อยู่ใน
 // ฟังก์ชันบริสุทธิ์ที่มีเทสจับ ไม่ใช่เทอร์นารีกลาง JSX (ui-boolean-needs-a-testable-home.md)
 import { deriveLineQuotaCaption } from '@/lib/line/quota-caption'
@@ -3120,7 +3124,28 @@ export default function ChatThread({
                   hasOptimisticRetryPayload: !!m._retry,
                   retryable,
                 })
-                const retryFailed = () => {
+                /**
+                 * 🛑 ด่านความตั้งใจก่อนส่งซ้ำ — **เฉพาะแถวที่ "ยิงไปแล้วแต่ไม่รู้ผล"** เท่านั้น
+                 * (fix round 2 ของ /impeccable clarify) แถว FAILED อื่นคือเคสที่ปลายทางปฏิเสธ
+                 * = เรารู้แน่ว่าไม่ถึง ⇒ กดลองใหม่ได้ทันทีเหมือนเดิม ห้ามเพิ่มขั้นตอนให้
+                 *
+                 * เกณฑ์อยู่ใน `needsUncertainSendConfirm` (ฟังก์ชันบริสุทธิ์ + เทส [blocker] +
+                 * พิสูจน์ด้วย mutation) ไม่ใช่เทอร์นารีในนี้ — ui-boolean-needs-a-testable-home.md
+                 */
+                const retryFailed = async () => {
+                  if (needsUncertainSendConfirm(mExt.failureReason)) {
+                    const ok = await pacesConfirm.warning(
+                      UNCERTAIN_RESEND_CONFIRM.title,
+                      UNCERTAIN_RESEND_CONFIRM.text,
+                      {
+                        confirmButtonText: UNCERTAIN_RESEND_CONFIRM.confirmButtonText,
+                        cancelButtonText: UNCERTAIN_RESEND_CONFIRM.cancelButtonText,
+                        // ทางที่ปลอดภัยคือ "ยังไม่ส่ง" ⇒ Enter ที่ค้างมาจากช่องพิมพ์ต้องไม่ยืนยันให้เอง
+                        focusCancel: true,
+                      },
+                    )
+                    if (!ok) return
+                  }
                   if (failedPersisted) {
                     resendMessage({
                       type: retryAttachment ? (m.type as 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE') : 'TEXT',
@@ -3582,7 +3607,7 @@ export default function ChatThread({
                               {canRetryFailed ? (
                                 <button
                                   type="button"
-                                  onClick={retryFailed}
+                                  onClick={() => void retryFailed()}
                                   title="ส่งข้อความนี้ใหม่"
                                   aria-label="ส่งข้อความนี้ใหม่"
                                   className="hover:bg-danger/10 -mx-1 -my-3.5 flex items-center gap-1 rounded px-1 py-3.5 lg:-m-1 lg:p-1"
