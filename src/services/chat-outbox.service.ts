@@ -81,6 +81,23 @@ const MAX_CONCURRENT_CHANNELS = 4
  */
 const SWEEP_TIME_BUDGET_MS = 45_000
 
+/**
+ * งบเวลาของการระบายคิวที่เกาะกับ webhook (ชั้น 2) — คิดจาก **ตอนเริ่ม invocation** ไม่ใช่ต่อห้อง
+ *
+ * 🛑 ทำไมต้องมี: `deliverRoom` ระบายได้ถึง `MAX_DELIVER_ROUNDS` = 20 รอบ **ต่อห้อง** และ batch
+ * ของ webhook มีได้หลายห้อง ⇒ ก้อน `after()` ของ webhook เคยไม่มีเพดานเลย ทั้งที่ route ตั้ง
+ * `maxDuration = 60`. ถูกตัดกลางทาง = แถวค้าง claim ⇒ อีก 3 นาทีถูกปิดเป็น "ไม่แน่ใจว่าส่งไป
+ * หรือยัง" = แปลงปัญหา throughput ให้กลายเป็นความล้มเหลวที่ผู้ขายเห็นและแก้เองไม่ได้
+ * (คลาสเดียวกับ R-E แต่เกิดบนชั้น 2 ซึ่งตอนนั้นยังไม่ได้ปิด)
+ *
+ * 45 วินาทีจาก `maxDuration = 60` ของทั้งสอง webhook route — เหลือ 15 วินาทีให้ ingest ที่ทำไป
+ * ก่อนหน้าและให้ runtime เก็บงาน. ห้องที่เหลือไม่ได้หายไปไหน: cron รับช่วงต่อภายใน 1 นาที
+ *
+ * แยกค่าจาก `SWEEP_TIME_BUDGET_MS` โดยตั้งใจ แม้วันนี้ตัวเลขเท่ากัน — คนละคำถาม (งบของ cron
+ * ที่กวาดทั้งระบบ vs งบของ webhook ที่ระบายเฉพาะห้องที่มี event) ผูกให้เท่ากันตลอดกาลไม่ได้
+ */
+export const WEBHOOK_DRAIN_BUDGET_MS = 45_000
+
 /** เพดานผู้สมัครที่ดึงมาคัด "หัวคิวหยิบได้" — ดูเหตุผลที่จุดใช้งาน (R-A) */
 const ROOM_CANDIDATE_MULTIPLIER = 3
 
@@ -97,6 +114,21 @@ export type SweepResult = {
   /** = `staleRows.length` เสมอ (คงไว้เพื่อความสะดวกของตัวนับ/log) */
   stale: number
   staleRows: StaleClosure[]
+  /**
+   * งบเวลาหมดกลางทาง ⇒ ตัวเลขข้างบนคือ "ที่ทำไปจริง" ไม่ใช่ "ที่มีให้ทำ"
+   *
+   * 🛑 ค่านี้ที่เป็น true เรื่อย ๆ ในทุกนาที = ตัวกวาดตามงานไม่ทัน ซึ่งเป็นสัญญาณคนละตัวกับ
+   * `stale` (ตัวนั้นบอกว่ามีคนตายกลางทาง อันนี้บอกว่าเราเองทำไม่ทัน) — ต้องแยกกันใน log
+   */
+  timedOut: boolean
+  /**
+   * แถวที่ถูกปิดเป็น FAILED สำเร็จแล้ว แต่ **ไม่ได้ส่ง noti** เพราะงบเวลาหมดก่อน
+   *
+   * 🛑 นี่คือของที่ **ตกหล่นถาวร ไม่ใช่เลื่อนไปรอบหน้า** — แถวไม่ใช่ `QUEUED` แล้ว รอบถัดไปจึง
+   * มองไม่เห็นมันอีกเลย. ผู้ขายยังเห็นบับเบิลแดงในจอ (ไม่ได้เงียบสนิท) แต่ไม่ได้ noti เข้าแอป
+   * ⇒ ค่านี้ต้องขึ้น log ทุกรอบ ไม่ใช่กลืนทิ้ง
+   */
+  staleUnnotified: number
 }
 
 /** map conversationId → shopId (ใช้ตอนต้องบอกว่าแถวที่ปิดไปเป็นของร้านไหน) */
@@ -567,10 +599,29 @@ export async function sweepOutbox(opts: {
    * จำนวนแถวถูกกั้นด้วย `STALE_SCAN_LIMIT` อยู่แล้ว และเส้นทางนี้เป็นเส้นทางข้อยกเว้น (ปกติเป็นศูนย์)
    */
   const staleRows: StaleClosure[] = []
+  let timedOut = false
   const staleCandidates = locked.filter((r) => isStaleClaim(r, now))
   if (staleCandidates.length > 0) {
     const shopOf = await shopIdByConversation([...new Set(staleCandidates.map((r) => r.conversationId))])
     for (const row of staleCandidates) {
+      /**
+       * 🛑 (R-E ขั้นที่ 1) ด่านงบเวลาต้องมี **ที่นี่ด้วย** ไม่ใช่เฉพาะใน `drainRoom`
+       *
+       * `deadline` ถูกคิดตั้งแต่ต้นฟังก์ชัน แต่เดิมถูกใช้ครั้งแรกตอน `drainRoom` ⇒ ขั้นนี้ทำได้
+       * ถึง `STALE_SCAN_LIMIT` = 200 แถว โดยแต่ละแถวเป็น `updateMany` + (ด้านล่าง) noti ที่ await
+       * ทีละใบและมี HTTP ไป Expo อยู่ข้างใน
+       *
+       * 🛑 สถานการณ์ที่ทำให้ตัวเลขนี้โตคือ **"ปลายทางล่ม"** ซึ่งเป็นสถานการณ์เดียวกับที่ R-D/R-E
+       * ถูกสร้างมารับมือพอดี ⇒ รอบนั้น cron อาจหมด 60 วินาทีไปกับการปิดแถวและยิง noti
+       * **โดยยังไม่ได้ระบายอะไรเลยสักห้อง** = ตัวการันตีอ่อนลงในนาทีที่ต้องการมันที่สุด
+       *
+       * แถวที่ยังไม่ได้ปิดยังเป็น `QUEUED` + claim ค้างเหมือนเดิม ⇒ **รอบถัดไปเห็นมันอีกแน่นอน**
+       * (ต่างจากลูป noti ด้านล่างซึ่งของที่ข้ามคือของที่ตกหล่นถาวร)
+       */
+      if (Date.now() >= deadline) {
+        timedOut = true
+        break
+      }
       // เงื่อนไข `deliveryStatus: 'QUEUED'` กันเขียนทับแถวที่เพิ่งจบไปหมาด ๆ ระหว่างทาง
       const closed = await prisma.chatMessage.updateMany({
         where: { id: row.id, deliveryStatus: 'QUEUED' },
@@ -606,9 +657,34 @@ export async function sweepOutbox(opts: {
    *
    * ทำ **หลัง** ปิดครบทุกแถว: การปิดแถวคือสิ่งที่ปลดล็อกคิวของห้อง ห้ามให้ค้างรอ noti
    */
+  let staleNotified = 0
   for (const closedRow of staleRows) {
+    /**
+     * 🛑 (R-E ขั้นที่ 1 ต่อ) ด่านนี้ **แยกจากด่านของลูปปิดแถว** และหยุดคนละอย่างกัน:
+     * ลูปบนอาจจบครบทุกแถวภายในงบเวลา แล้วมาหมดเวลาตรงนี้แทน (noti มี HTTP ไป Expo ข้างใน
+     * ส่วนการปิดแถวเป็น `updateMany` ล้วน) ⇒ ถอดด่านใดด่านหนึ่งออกต้องมีเทสคนละตัวจับ
+     *
+     * ⚠️ ของที่ข้ามตรงนี้ **ตกหล่นถาวร** — แถวถูกปิดเป็น FAILED ไปแล้ว รอบถัดไปจึงไม่เห็นมันอีก
+     * ยอมได้เพราะผู้ขายยังเห็นบับเบิลแดงในจอ (noti เป็นชั้นเสริม ไม่ใช่ชั้นเดียว) แต่ **ต้องนับ
+     * และ log** ไม่ใช่กลืนทิ้ง — ดู `staleUnnotified`
+     */
+    if (Date.now() >= deadline) {
+      timedOut = true
+      break
+    }
     await notifySendFailed(closedRow.conversationId, closedRow.shopId, UNCERTAIN_SEND_REASON)
+    staleNotified += 1
   }
+  const staleUnnotified = staleRows.length - staleNotified
+
+  /**
+   * งบเวลาหมดไปแล้วตั้งแต่ขั้นที่ 1 ⇒ **จบรอบตรงนี้** ไม่เดินต่อไปขั้นที่ 2
+   *
+   * ไม่ใช่แค่ประหยัด 3 query: `drainRoom` เช็ค deadline เป็นสิ่งแรกอยู่แล้ว ⇒ เดินต่อไปจะได้
+   * `rooms = N` ที่ไม่มีห้องไหนถูกระบายเลยสักห้อง = **ตัวเลขที่โกหกใน log** ซึ่งเป็นตัวเลขที่
+   * §10 ใช้ตอบว่ากลไกทำงานอยู่ไหม
+   */
+  if (timedOut) return { rooms: 0, sent: 0, failed: 0, stale, staleRows, timedOut, staleUnnotified }
 
   // ── 2) ห้องที่ยังมีแถว "หยิบได้" เหลืออยู่ ──
   //
@@ -634,7 +710,8 @@ export async function sweepOutbox(opts: {
     orderBy: { _min: { createdAt: 'asc' } },
     take: limit * ROOM_CANDIDATE_MULTIPLIER,
   })
-  if (candidates.length === 0) return { rooms: 0, sent: 0, failed: 0, stale, staleRows }
+  if (candidates.length === 0)
+    return { rooms: 0, sent: 0, failed: 0, stale, staleRows, timedOut, staleUnnotified }
 
   // ใบเก่าสุดที่ยัง QUEUED ของห้องเดียวกัน (ไม่กรอง `sendLockedAt`) = "หัวคิว" ตามนิยามของ `headOfRoom`
   // เท่ากับใบเก่าสุดที่ *หยิบได้* เมื่อไหร่ ⇒ หัวคิวยังไม่ถูก claim ⇒ ห้องนี้ระบายได้จริง
@@ -654,7 +731,8 @@ export async function sweepOutbox(opts: {
     })
     .slice(0, limit)
     .map((c) => c.conversationId)
-  if (roomIds.length === 0) return { rooms: 0, sent: 0, failed: 0, stale, staleRows }
+  if (roomIds.length === 0)
+    return { rooms: 0, sent: 0, failed: 0, stale, staleRows, timedOut, staleUnnotified }
 
   // ── 3) จัดกลุ่มตาม `shopChannelId` แล้วยิง **ทีละห้องภายในเพจเดียวกัน** ──
   // 🛑 E-8: จำกัด concurrency ต่อ `shopChannelId` ไม่ใช่ต่อรอบ — ห้องหลายห้องของเพจเดียวกันยิง
@@ -709,5 +787,7 @@ export async function sweepOutbox(opts: {
   })
   await Promise.all(workers)
 
-  return { rooms: roomIds.length, sent, failed, stale, staleRows }
+  // ห้องที่เหลือถูก `drainRoom` ตัดจบด้วย deadline เดียวกัน — สะท้อนออกมาเป็น timedOut ให้ log เห็น
+  if (Date.now() >= deadline) timedOut = true
+  return { rooms: roomIds.length, sent, failed, stale, staleRows, timedOut, staleUnnotified }
 }

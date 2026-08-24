@@ -24,8 +24,12 @@ vi.mock('next/server', async (importOriginal) => {
 
 // (CR 2026-08-23 outbound-queue) ตัวระบายคิวขาออกชั้น 2 — mock ไว้เพื่อให้เทสไม่แตะ DB จริง
 const deliverRoom = vi.fn()
+// 🛑 ค่านี้ต้องตรงกับของจริงใน service — ปักหมุดความสัมพันธ์กับ `maxDuration` ของ route ไว้ที่
+// `outbox-time-budget-contract.test.ts` (ที่นั่นอ่านทั้งสองฝั่งจากของจริง ไม่ใช่ค่าที่พิมพ์ซ้ำ)
+const WEBHOOK_DRAIN_BUDGET_MS = 45_000
 vi.mock('@/services/chat-outbox.service', () => ({
   deliverRoom: (...a: unknown[]) => deliverRoom(...a),
+  WEBHOOK_DRAIN_BUDGET_MS: 45_000,
 }))
 
 // (S-6) mock prisma — route query ShopChannel ตรง (ไม่ผ่าน shop-channel.service.ts เพราะไฟล์นั้น
@@ -536,7 +540,19 @@ describe('POST — ระบายคิวขาออกของห้อง�
     expect(deliverRoom).toHaveBeenCalledTimes(1)
     // owner ต้องเป็น 'sweep' ไม่ใช่ 'cron'/'after' — `sendLockedBy` ไม่ถูกเคลียร์ตอนสำเร็จโดยตั้งใจ
     // เพราะมันคือตัววัดว่า "ใครเป็นคนส่งสำเร็จ" = บั๊กต้นเรื่องเกิดจริงกี่ครั้ง (spec §9)
-    expect(deliverRoom).toHaveBeenCalledWith('conv1', 'sweep')
+    /**
+     * 🛑 อาร์กิวเมนต์ที่ 3 (งบเวลา) ต้องมีจริง — ไม่ใช่แค่ห้อง+เจ้าของ
+     *
+     * ชั้น 2 เคยเรียกโดยไม่ส่ง deadline เลย ⇒ ก้อน `after()` ระบายได้ 20 รอบต่อห้อง คูณจำนวนห้อง
+     * ใน batch ใต้ `maxDuration` ของ webhook โดยไม่มีเพดาน ⇒ ถูกตัดกลาง claim ⇒ อีก 3 นาที
+     * แถวถูกปิดเป็น "ไม่แน่ใจว่าส่งไปหรือยัง" (คลาสเดียวกับ R-E แต่บนชั้น 2)
+     */
+    const [convId, owner, deadline] = deliverRoom.mock.calls[0] as [string, string, number]
+    expect(convId).toBe('conv1')
+    expect(owner).toBe('sweep')
+    expect(typeof deadline, 'ไม่ส่งงบเวลา = ชั้น 2 ไม่มีเพดานเลย').toBe('number')
+    expect(deadline).toBeGreaterThan(Date.now())
+    expect(deadline).toBeLessThanOrEqual(Date.now() + WEBHOOK_DRAIN_BUDGET_MS)
   })
 
   it('[blocker] ตัวระบายพัง → webhook ต้องไม่ล้ม (TFR-LINE-03 ตอบ 200 ไปแล้ว error หลุดไม่ได้)', async () => {

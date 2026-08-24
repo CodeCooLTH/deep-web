@@ -9,7 +9,7 @@ import { decryptToken } from '@/lib/token-crypto'
 import { validateSignature } from '@/lib/line/signature'
 import { describeLinePostback } from '@/lib/line/postback'
 import { ingestLineTextMessage, ingestLineMediaMessage, type LineInboundMediaMessage } from '@/services/channel-chat.service'
-import { deliverRoom } from '@/services/chat-outbox.service'
+import { deliverRoom, WEBHOOK_DRAIN_BUDGET_MS } from '@/services/chat-outbox.service'
 
 // Webhook ของ LINE Messaging API (feature 00025, S-6 — จุดเสี่ยงสูงสุดรองจาก S-1: public endpoint
 // ไม่มี session)
@@ -272,6 +272,9 @@ async function processLineEvent(params: {
 }
 
 export async function POST(request: NextRequest) {
+  // 🛑 (ชั้น 2, งบเวลา) จับเวลาตั้งแต่ **ต้น invocation** ไม่ใช่ตอนเริ่มระบาย — ตัวที่ต้องกั้นคือ
+  // งานรวมต่อ invocation เทียบกับ `maxDuration` ข้างบน ไม่ใช่แค่เฟสสุดท้าย (เหตุผลเดียวกับ R-E)
+  const invocationStartedAt = Date.now()
   // ต้องอ่าน raw text ก่อนเสมอ — ลายเซ็นคำนวณจาก byte ดิบ (TFR-LINE-02 ขั้น 1) ถ้า parse เป็น object
   // แล้ว stringify ใหม่ ลายเซ็นจะไม่ตรง
   const raw = await request.text()
@@ -409,9 +412,12 @@ export async function POST(request: NextRequest) {
     // (TFR-LINE-03) error ที่หลุดออกไปไม่ช่วยอะไรและมีแต่จะกลบสาเหตุจริง; งานคิว *ขาออก*
     // ไม่มีสิทธิ์ทำให้เส้นทาง ingest *ขาเข้า* เสียหาย
     // try/catch ครอบทั้ง await: กันทั้งกรณี reject และกรณี throw แบบ synchronous
+    // งบเวลาก้อนเดียวของทั้งลูป — ห้องถัดไปจะจบทันทีเมื่อหมดเวลา (`drainRoom` เช็คก่อน claim เสมอ)
+    // ⇒ ไม่มีแถวไหนถูก claim แล้วทิ้งค้างเพราะ runtime ตัดกลางคัน
+    const drainDeadline = invocationStartedAt + WEBHOOK_DRAIN_BUDGET_MS
     for (const conversationId of touchedConversationIds) {
       try {
-        const drained = await deliverRoom(conversationId, 'sweep')
+        const drained = await deliverRoom(conversationId, 'sweep', drainDeadline)
         if (drained > 0) console.log('[line-webhook] ระบายคิวขาออก', { conversationId, drained })
       } catch (e) {
         console.error('[line-webhook] ระบายคิวขาออกล้มเหลว', conversationId, e instanceof Error ? e.message : e)

@@ -34,12 +34,20 @@ export async function GET(request: Request) {
   }
 
   // limit = จำนวน **ห้อง** ไม่ใช่จำนวนข้อความ (แต่ละห้องถูกระบายจนหมดคิวของห้องนั้น)
-  const { rooms, sent, failed, stale } = await sweepOutbox({ owner: "cron", limit: 50 });
-  const summary = { rooms, sent, failed, stale };
+  const { rooms, sent, failed, stale, timedOut, staleUnnotified } = await sweepOutbox({
+    owner: "cron",
+    limit: 50,
+  });
+  const summary = { rooms, sent, failed, stale, timedOut, staleUnnotified };
 
   // 🛑 log ตัวเลขทุกรอบเสมอ แม้เป็นศูนย์ — ค่า `stale` ที่สูงผิดปกติแปลว่ามีคนตายกลางทางบ่อย
   // ซึ่งเป็น **สัญญาณของบั๊กชั้นบน** (after() ถูกตัดกลางคัน/ฟังก์ชันหมดอายุ) ไม่ใช่แค่สถิติ
   // และค่า `sent` ที่ไม่เป็นศูนย์เรื่อย ๆ แปลว่าชั้น 1/ชั้น 2 ไม่ได้ทำงานตามที่ออกแบบไว้
+  //
+  // 🛑 `timedOut` เป็น true ติดกันหลายรอบ = **ตัวกวาดตามงานไม่ทัน** ซึ่งเป็นสัญญาณคนละตัวกับ
+  // `stale` (นั่นบอกว่ามีคนตายกลางทาง อันนี้บอกว่าเราเองทำไม่ทัน) — ถ้าเห็นคู่กับ `rooms: 0`
+  // แปลว่ารอบนั้นหมดงบเวลาไปกับการปิดแถว/ยิง noti โดยไม่ได้ระบายอะไรเลย
+  // `staleUnnotified` > 0 = noti ที่ **ตกหล่นถาวร** (แถวถูกปิดไปแล้ว รอบหน้าไม่เห็นอีก)
   //
   // log/คืนเฉพาะ **ตัวเลข** ไม่ใช่ `staleRows` ทั้งก้อน — ในนั้นมี conversationId/shopId ราย
   // แถวซึ่งมีไว้ให้ผู้เรียกในโปรเซสเดียวกันแจ้งเตือนต่อ (Task 9) ไม่ใช่ของที่ควรไหลออก HTTP

@@ -9,7 +9,7 @@ import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/a
 import { pushNewChatMessage } from '@/services/seller-push.service'
 import { ingestFeedComment } from '@/services/page-comment.service'
 import { processCommentAutoReply } from '@/services/comment-auto-reply.service'
-import { deliverRoom } from '@/services/chat-outbox.service'
+import { deliverRoom, WEBHOOK_DRAIN_BUDGET_MS } from '@/services/chat-outbox.service'
 
 // Webhook ของ Messenger + Instagram (feature 00018)
 //
@@ -55,6 +55,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // 🛑 (ชั้น 2, งบเวลา) จับเวลาตั้งแต่ **ต้น invocation** ไม่ใช่ตอนเริ่มระบาย — ตัวที่ต้องกั้นคือ
+  // งานรวมต่อ invocation เทียบกับ `maxDuration` ข้างบน ไม่ใช่แค่เฟสสุดท้าย (เหตุผลเดียวกับ R-E)
+  const invocationStartedAt = Date.now()
   // ต้องอ่าน raw text ไม่ใช่ .json() — ลายเซ็นคำนวณจาก byte ดิบ
   // ถ้า parse เป็น object แล้ว stringify ใหม่ ลายเซ็นจะไม่ตรง
   const rawBody = await request.text()
@@ -432,10 +435,13 @@ export async function POST(request: NextRequest) {
   // after(): รันหลังตอบ 200 ให้ Meta แล้ว จึงไม่เพิ่ม latency ที่ Meta วัด
   // try/catch ครอบทั้ง await: กันทั้งกรณี reject และกรณี throw แบบ synchronous
   if (touchedConversationIds.size > 0) {
+    // งบเวลาก้อนเดียวของทั้งลูป — ห้องถัดไปจะจบทันทีเมื่อหมดเวลา (`drainRoom` เช็คก่อน claim เสมอ)
+    // ⇒ ไม่มีแถวไหนถูก claim แล้วทิ้งค้างเพราะ runtime ตัดกลางคัน
+    const drainDeadline = invocationStartedAt + WEBHOOK_DRAIN_BUDGET_MS
     after(async () => {
       for (const conversationId of touchedConversationIds) {
         try {
-          const drained = await deliverRoom(conversationId, 'sweep')
+          const drained = await deliverRoom(conversationId, 'sweep', drainDeadline)
           if (drained > 0) console.log('[fb-webhook] ระบายคิวขาออก', { conversationId, drained })
         } catch (e) {
           console.error('[fb-webhook] ระบายคิวขาออกล้มเหลว', conversationId, e instanceof Error ? e.message : e)
