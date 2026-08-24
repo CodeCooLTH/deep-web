@@ -14,6 +14,11 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+// 🧪 PROTOTYPE — ลบพร้อมโฟลเดอร์ prototype/ ตอนเคาะ variant ที่ชนะ
+import PrototypeSwitcher, { useProtoVariant } from './prototype/PrototypeSwitcher'
+import { VariantA, VariantB, VariantC } from './prototype/ReturnSheetVariants'
+import { choiceOf, draftCount, type ProtoDraft } from './prototype/return-shipping-choices'
 import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 
 import Icon from '@/components/wrappers/Icon'
@@ -91,6 +96,8 @@ export default function ReturnPanel({
   onCloseSheet?: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const searchParams = useSearchParams()
+  const protoVariant = useProtoVariant()
   const [busy, setBusy] = useState(false)
   const [eligibility, setEligibility] = useState<Eligibility | null>(null)
   const [returns, setReturns] = useState<ReturnRow[] | null>(null)
@@ -204,14 +211,52 @@ export default function ReturnPanel({
 
   const labelUrl = `/api/o/${orderToken}/return-label`
 
-  const body = !eligibility ? (
+  /**
+   * 🧪 PROTOTYPE (throwaway · components/prototype/README.md)
+   *
+   * เมื่อมี `?variant=A|B|C` ในลิงก์ → เรนเดอร์ฟอร์มร่างแทนของจริง เพื่อให้ user กดเทียบได้
+   * บนหน้าเดียวกับของจริง (ข้อมูล/ความหนาแน่น/ขนาดชีต จริงทั้งหมด)
+   *
+   * 🛑 ไม่ยิง API — prototype ตอบคำถาม "ควรหน้าตายังไง" ไม่ใช่ "backend ทำงานไหม"
+   * 🛑 ปิดสนิทใน production build — ตัวแปร env ตรวจตอน build ไม่ใช่ตอน render
+   * ลบทั้งบล็อกนี้พร้อมโฟลเดอร์ prototype/ ตอนเคาะ variant ที่ชนะแล้ว
+   */
+  const protoOn = process.env.NODE_ENV !== 'production' && searchParams.get('variant') != null
+  const protoBody =
+    protoOn && eligibility ? (
+      <>
+        {/* HR12: ห้าม emoji ใน UI — ใช้ icon จริง (กฎครอบ prototype ด้วย ด่านจับได้ถูกแล้ว) */}
+        <p className="bg-warning/15 text-warning-ink mb-3 flex items-start gap-1.5 rounded-lg px-3 py-2 text-2xs">
+          <Icon icon="flask" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+          <span>
+            โหมดทดลองดีไซน์ — กดยืนยันแล้ว<strong>ไม่บันทึกอะไรจริง</strong> แค่โชว์ข้อมูลที่จะส่ง
+          </span>
+        </p>
+        {(() => {
+          const shared = {
+            items: eligibility.items.filter((i) => i.remainingQty > 0),
+            onCancel: () => onCloseSheet?.(),
+            onSubmit: (d: ProtoDraft) => {
+              pacesToast.success(
+                `[ทดลอง] จะส่ง: ${draftCount(d)} ชิ้น · ${choiceOf(d.choice!).payer}/${choiceOf(d.choice!).trackingSource}`,
+              )
+            },
+          }
+          if (protoVariant === 'B') return <VariantB {...shared} />
+          if (protoVariant === 'C') return <VariantC {...shared} />
+          return <VariantA {...shared} />
+        })()}
+      </>
+    ) : null
+
+  const body = protoBody ?? (!eligibility ? (
     <p className="text-default-700 mb-0 flex items-center gap-2 text-sm">
       <Icon icon="loader-2" className="animate-spin text-base" aria-hidden="true" />
       กำลังโหลด…
     </p>
   ) : (
     renderBody()
-  )
+  ))
 
   /**
    * โหมดชีต — เปิดจากเมนู `⋮` ของออเดอร์ในห้องแชท
@@ -256,6 +301,7 @@ export default function ReturnPanel({
           {/* min-h-0 flex-1 = ส่วนที่เลื่อนได้หดเอง เนื้อหายาวจึงไม่ดันชีตทะลุจอ */}
           <div className="card-body min-h-0 flex-1 overflow-y-auto overscroll-contain">{body}</div>
         </div>
+        {protoOn && <PrototypeSwitcher />}
       </div>
     )
   }
