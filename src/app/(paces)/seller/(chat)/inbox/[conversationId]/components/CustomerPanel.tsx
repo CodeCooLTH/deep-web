@@ -37,6 +37,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+import { CustomerBehaviorPills } from '@/components/safepay/CustomerBehaviorBadges'
 import CustomerFileLibrarySection from './CustomerFileLibrarySection'
 import { generateInitials } from '@/utils/helpers'
 import { relativeTimeTh } from '@/lib/relative-time-th'
@@ -885,22 +886,10 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
           ไม่มีป้ายสักใบ → ไม่ render อะไรเลย (ค่าเริ่มต้นของระบบคือเงียบ ไม่ใช่ "ไม่มีข้อมูล") */}
       {behaviorBadges.length > 0 && (
         <div className="border-default-200 flex flex-wrap gap-1.5 border-b border-dashed px-4 pb-3">
-          {behaviorBadges.map((b) => (
-            <span
-              key={b.key}
-              // role="img" + aria-label: `<span>` เปล่าไม่รองรับ "ชื่อจากผู้เขียน" — ป้ายที่มีแต่
-              // ข้อความก็จริง แต่ไอคอนข้างในต้องไม่ถูกอ่านเป็นอักขระประหลาด (aria-name-requires-supporting-role.md)
-              role="img"
-              aria-label={b.detail ?? b.label}
-              title={b.detail ?? b.label}
-              className={`badge inline-flex items-center gap-1 text-2xs ${
-                b.tone === 'warning' ? 'bg-warning/15 text-warning-ink' : 'bg-info/15 text-info-ink'
-              }`}
-            >
-              <Icon icon={b.icon} className="text-xs" aria-hidden="true" />
-              {b.label}
-            </span>
-          ))}
+          {/* markup ย้ายไป `@/components/safepay/CustomerBehaviorBadges` แล้ว (00057) —
+              กล่องที่ห่ออยู่ (เส้นคั่น/ระยะ) ยังเป็นของหน้านี้ เพราะแต่ละจอวางป้ายคนละที่
+              สิ่งที่ต้องไม่ drift คือตัวป้าย ไม่ใช่กล่อง */}
+          <CustomerBehaviorPills badges={behaviorBadges} />
         </div>
       )}
 

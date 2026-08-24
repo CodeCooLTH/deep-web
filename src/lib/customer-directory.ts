@@ -65,6 +65,8 @@ export type CustomerDirectoryEntry = {
    */
   revenueOrderCount: number
   firstOrderISO: string
+  /** เวลาแบบตัวเลขสำหรับเทียบ — ไม่ส่งข้าม RSC boundary (เหมือน lastOrderRaw) */
+  firstOrderRaw: number
   lastOrderISO: string
   lastOrderRaw: number
   behavior: CustomerBehavior

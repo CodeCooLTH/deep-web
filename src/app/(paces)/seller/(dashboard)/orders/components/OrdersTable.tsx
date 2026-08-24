@@ -12,6 +12,7 @@
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
+import { CustomerBehaviorIcons } from '@/components/safepay/CustomerBehaviorBadges'
 import type { OrderVocab } from '@/lib/seller-menu'
 import {
   formatDateTH,
@@ -419,19 +420,10 @@ export default function OrdersTable({
                      และมือถือไม่มี hover ⇒ ป้ายนี้ไม่มีอยู่จริงสำหรับคนกลุ่มหนึ่ง
                      (`docs/conventions/aria-name-requires-supporting-role.md`)
                   เกณฑ์/คำ/ไอคอน มาจาก `lib/customer-behavior.ts` ตัวเดียวกับป้ายในกล่องแชท */}
-              {behaviorBadges.map((b) => (
-                <span
-                  key={b.key}
-                  role="img"
-                  aria-label={b.detail ?? b.label}
-                  title={b.detail ?? b.label}
-                  className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full ${
-                    b.tone === 'warning' ? 'bg-warning/15 text-warning-ink' : 'bg-info/15 text-info-ink'
-                  }`}
-                >
-                  <Icon icon={b.icon} className="text-sm" aria-hidden="true" />
-                </span>
-              ))}
+              {/* markup ย้ายไป `@/components/safepay/CustomerBehaviorBadges` แล้ว (00057) —
+                  ป้ายชุดนี้ต้องเหมือนกัน 4 จอ (ที่นี่ / แผงลูกค้าในแชท / ลิสต์ลูกค้า / โปรไฟล์ลูกค้า)
+                  DOM ที่ render ออกมาเหมือนเดิมทุกคลาส */}
+              <CustomerBehaviorIcons badges={behaviorBadges} />
             </p>
             {/* select-all: คลิกเดียวเลือกทั้งเบอร์ ไม่ต้องลาก */}
             <p className="mb-0 select-all text-xs tabular-nums text-default-500">

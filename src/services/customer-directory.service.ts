@@ -29,7 +29,6 @@ import {
  */
 type Accumulator = Omit<CustomerDirectoryEntry, 'behavior'> & {
   evidence: CustomerOrderEvidence[]
-  firstOrderRaw: number
 }
 
 /**
@@ -170,7 +169,7 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
   }
 
   return Array.from(map.values())
-    .map(({ evidence, firstOrderRaw: _firstOrderRaw, ...rest }) => ({
+    .map(({ evidence, ...rest }) => ({
       ...rest,
       behavior: summarizeCustomerBehavior(evidence),
     }))

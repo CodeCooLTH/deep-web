@@ -55,6 +55,7 @@ function entry(over: Partial<CustomerDirectoryEntry> = {}): CustomerDirectoryEnt
     totalSpent: 3000,
     revenueOrderCount: 2,
     firstOrderISO: '2026-07-01T00:00:00.000Z',
+    firstOrderRaw: 0,
     lastOrderISO: '2026-08-20T00:00:00.000Z',
     lastOrderRaw: 1,
     behavior: {
