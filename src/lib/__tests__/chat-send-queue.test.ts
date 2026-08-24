@@ -94,4 +94,24 @@ describe('UNCERTAIN_SEND_REASON', () => {
     expect(UNCERTAIN_SEND_REASON).toMatch(/ไม่แน่ใจ/)
     expect(UNCERTAIN_SEND_REASON).toMatch(/ตรวจ|เปิดดู/)
   })
+
+  /**
+   * (impeccable clarify 2026-08-23 P2-2) ที่ที่ต้องไปตรวจต้องระบุได้จริง
+   *
+   * 🛑 ของเดิมเขียนว่า "เปิดดูในแชท**ของลูกค้า**" — ผู้ขายเปิดแชทของลูกค้าไม่ได้ ที่ที่เขาต้องไปดูคือ
+   * แอปของช่องทางนั้นเอง (Messenger / Instagram / LINE OA หรือ Business Suite)
+   */
+  it('[blocker] ต้องไม่สั่งให้ไปดู "แชทของลูกค้า" ซึ่งผู้ขายเปิดไม่ได้', () => {
+    expect(UNCERTAIN_SEND_REASON).not.toMatch(/แชทของลูกค้า/)
+    expect(UNCERTAIN_SEND_REASON).toMatch(/แอปของช่องทาง/)
+  })
+
+  /**
+   * ค่านี้ลง `ChatMessage.failureReason` ตรง ๆ แล้ว push อ่านต่อผ่าน `describeSendFailure` ซึ่ง
+   * **ไม่มีกฎรองรับ** (เป็นประโยคไทยของเราเอง ไม่ใช่รหัส) ⇒ ไม่มี `short` ให้ย่อ ⇒ ความยาวของ
+   * สตริงนี้เองต้องพอดีกับโควตา body ของ iOS (~100) หลังเติมคำนำหน้า "ส่งไม่สำเร็จ — " (15 ตัว)
+   */
+  it('[blocker] สั้นพอที่ noti จะไม่ตัดวรรคที่บอกว่าต้องทำอะไรทิ้ง', () => {
+    expect(UNCERTAIN_SEND_REASON.length).toBeLessThanOrEqual(85)
+  })
 })
