@@ -1,0 +1,107 @@
+/**
+ * [blocker] ทิศทางพัสดุ (feature 00056 · BR-RT-07)
+ *
+ * ระบบคืนของเก็บพัสดุ **ขากลับ** ไว้ใน `OrderShipment` ตารางเดียวกับขาไป (เพื่อใช้
+ * `createShipment()` ที่ถือตรรกะทั้งหมดของการเปิดพัสดุซ้ำ) ⇒ ทุก query ที่หา "พัสดุของ
+ * ออเดอร์นี้" ต้องระบุ `direction` ไม่งั้นจะหยิบพัสดุขากลับมาเป็นพัสดุขาไป แล้ว:
+ *   - ออเดอร์ที่คืนของแล้วกลับไปขึ้น "กำลังจัดส่ง"
+ *   - ไทล์กองงานนับซ้ำ · ยอดขายเฟ้อ
+ *   - ระบบปิดออเดอร์อัตโนมัติว่า "ผู้ซื้อได้รับของแล้ว" ตอนพัสดุขากลับถึงร้าน (ตรงข้ามความจริง)
+ * **ทั้งหมดนี้เงียบสนิท** — ไม่มี error ไม่มี type ผิด มีแค่ตัวเลขที่ผิดบนจอ
+ *
+ * แดง = ห้าม merge
+ */
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { describe, it, expect } from 'vitest'
+
+import { ACTIVE_FORWARD_SHIPMENT, FORWARD_SHIPMENT, RETURN_SHIPMENT } from '../shipment-direction'
+
+const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
+const stripComments = (src: string) =>
+  src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('//'))
+    .join('\n')
+
+describe('ค่ากลาง', () => {
+  it('ตัวกรองพัสดุขาไปต้องครบ 3 เงื่อนไข', () => {
+    expect(ACTIVE_FORWARD_SHIPMENT).toEqual({
+      status: 'CREATED',
+      isDryRun: false,
+      direction: FORWARD_SHIPMENT,
+    })
+    expect(FORWARD_SHIPMENT).not.toBe(RETURN_SHIPMENT)
+  })
+
+  /**
+   * 🛑 `revenueOrderWhere` spread ตัวนี้เข้า `where` ของ Prisma และไฟล์นั้นเขียนเตือนไว้เองว่า
+   * readonly object จะทำให้ Prisma assign ไม่ผ่าน แล้ว **TS เลิก infer ทั้ง query — error ลาม
+   * ไปถึง select ที่ไม่เกี่ยวเลย** (เจอจริงตอนเขียนรอบนี้)
+   */
+  it('[blocker] ห้ามเป็น readonly (`as const`) — Prisma จะเลิก infer ทั้ง query', () => {
+    const src = stripComments(read('src/lib/shipment-direction.ts'))
+    const i = src.indexOf('export const ACTIVE_FORWARD_SHIPMENT')
+    // 🛑 ต้องกินบรรทัดปิดวงเล็บด้วย — `as const` อยู่ **หลัง** `}` ไม่ใช่ข้างใน
+    // (mutation รอบแรกใส่ `as const` กลับแล้วเทสยังเขียว เพราะ slice ตัดมันทิ้งพอดี)
+    const decl = src.slice(i, src.indexOf('\n\n', i))
+    expect(decl).not.toContain('as const')
+  })
+})
+
+describe('[blocker] ทุกจุดที่กรองพัสดุต้องระบุ direction', () => {
+  /** ไฟล์ที่ query พัสดุของออเดอร์ — ไล่จากการค้นจริง ไม่ใช่รายชื่อที่จำมา */
+  const PRISMA_SITES = [
+    'src/lib/order-revenue.ts',
+    'src/lib/public-order-count.ts',
+    'src/services/badge.service.ts',
+    'src/services/buyer-reputation.service.ts',
+    'src/services/line-rich-menu-reply.service.ts',
+    'src/services/order-auto-confirm.service.ts',
+    'src/services/order.service.ts',
+    'src/services/shop.service.ts',
+  ]
+
+  it('จุด Prisma ต้องใช้ ACTIVE_FORWARD_SHIPMENT ไม่ใช่พิมพ์ object เอง', () => {
+    for (const p of PRISMA_SITES) {
+      const src = stripComments(read(p))
+      expect(src, p).toContain('ACTIVE_FORWARD_SHIPMENT')
+      // object ที่พิมพ์เองห้ามกลับมา — มันจะขาด direction เงียบ ๆ
+      expect(src, p).not.toMatch(/status: ['"]CREATED['"],\s*\n?\s*isDryRun: false,\s*\n?\s*carrierStatus/)
+    }
+  })
+
+  it('[blocker] จุด raw SQL ต้องมี direction ในเงื่อนไขเดียวกับ isDryRun', () => {
+    for (const p of ['src/services/chat.service.ts', 'src/services/order-stage.service.ts']) {
+      const src = stripComments(read(p))
+      const hits = src.match(/"isDryRun" = false[^\n]*/g) ?? []
+      expect(hits.length, p).toBeGreaterThan(0)
+      for (const line of hits) {
+        expect(line, `${p}: ${line}`).toContain('"direction" = \'FORWARD\'')
+      }
+    }
+  })
+
+  /**
+   * 🛑 ปิดออเดอร์อัตโนมัติเป็นจุดที่พลาดแล้วเสียหายที่สุด — พัสดุขากลับที่ส่งถึง *ร้าน* แล้ว
+   * จะถูกอ่านว่า "ผู้ซื้อได้รับของแล้ว" ⇒ ระบบปิดออเดอร์ให้ทั้งที่ของอยู่ในมือร้าน
+   */
+  it('[blocker] ตัวปิดออเดอร์อัตโนมัติต้องนับเฉพาะพัสดุขาไป', () => {
+    const src = stripComments(read('src/services/order-auto-confirm.service.ts'))
+    // 🛑 ต้องจับ **การใช้งาน** (`...ACTIVE_FORWARD_SHIPMENT`) ไม่ใช่ชื่อเปล่า ๆ — บรรทัด
+    // `import` ก็ match คำนั้น (mutation รอบแรกเปลี่ยนไปพิมพ์เงื่อนไขเองแล้วเทสยังเขียว
+    // docs/conventions/mutation-silence-means-weak-corpus.md)
+    expect(src).toContain('...ACTIVE_FORWARD_SHIPMENT')
+    expect(src).not.toMatch(/status: ['"]CREATED['"],\s*isDryRun: false/)
+  })
+
+  it('[blocker] countsAsRevenue ต้องบังคับ direction เป็น field ที่ขาดไม่ได้', () => {
+    const src = stripComments(read('src/lib/order-revenue.ts'))
+    // optional เมื่อไร ผู้เรียกที่ลืม select จะได้ undefined เงียบ ๆ แล้วยอดขายเพี้ยนทั้งระบบ
+    expect(src).not.toMatch(/direction\?:/)
+    expect(src).toMatch(/direction: string/)
+    expect(src).toContain(`s.direction === "FORWARD"`)
+  })
+})

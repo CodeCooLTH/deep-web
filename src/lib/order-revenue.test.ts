@@ -6,10 +6,11 @@
 import { describe, expect, it } from 'vitest'
 import { countsAsRevenue, REVENUE_CARRIER_STATUSES, revenueOrderWhere } from './order-revenue'
 
-const parcel = (carrierStatus: string | null) => ({
+const parcel = (carrierStatus: string | null, direction = 'FORWARD') => ({
   status: 'CREATED',
   isDryRun: false,
   carrierStatus,
+  direction,
 })
 
 describe('countsAsRevenue', () => {
@@ -74,5 +75,33 @@ describe('revenueOrderWhere ต้องสื่อเกณฑ์เดีย�
     expect(REVENUE_CARRIER_STATUSES).not.toContain('return_success')
     expect(REVENUE_CARRIER_STATUSES).not.toContain('cancelled')
     expect(REVENUE_CARRIER_STATUSES).not.toContain('is_expired')
+  })
+})
+
+/**
+ * [blocker] feature 00056 — พัสดุ **ขากลับ** ของใบคืนต้องไม่ถูกนับเป็นยอดขาย
+ *
+ * ระบบคืนของเก็บพัสดุขากลับไว้ใน `OrderShipment` ตารางเดียวกับขาไป ถ้าเกณฑ์ยอดขายไม่แยกทิศทาง
+ * ออเดอร์ที่ลูกค้าคืนของแล้วจะยัง "นับเป็นยอดขาย" ต่อไปเพราะมีพัสดุที่ขนส่งรับไปจริง —
+ * ซึ่งเป็นพัสดุที่กำลังวิ่งกลับมาหาร้าน ไม่ใช่วิ่งไปหาลูกค้า
+ */
+describe('[blocker] ทิศทางพัสดุ (feature 00056)', () => {
+  it('พัสดุขากลับไม่นับเป็นยอดขาย แม้ขนส่งรับของไปแล้ว', () => {
+    for (const code of REVENUE_CARRIER_STATUSES) {
+      expect(
+        countsAsRevenue({ status: 'SHIPPED', shipments: [parcel(code, 'RETURN')] }),
+        code,
+      ).toBe(false)
+    }
+  })
+
+  it('มีทั้งขาไปและขากลับในใบเดียว → ยังนับ (ขาไปคือหลักฐานว่าขายได้จริง)', () => {
+    const code = REVENUE_CARRIER_STATUSES[0]
+    expect(
+      countsAsRevenue({
+        status: 'SHIPPED',
+        shipments: [parcel(code, 'RETURN'), parcel(code, 'FORWARD')],
+      }),
+    ).toBe(true)
   })
 })

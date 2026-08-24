@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { toFileUrl } from "@/lib/file-url";
@@ -1521,7 +1522,7 @@ export async function getOrdersByShop(
       // พัสดุใบล่าสุดที่ยัง active — หน้ารายการใช้จัด "กองงานตามสถานะพัสดุ" (deriveShippingStage)
       // take:1 + select แคบ ๆ เพื่อไม่ให้ payload บวมทั้งที่ต้องการแค่ carrierStatus
       shipments: {
-        where: { status: "CREATED", isDryRun: false },
+        where: ACTIVE_FORWARD_SHIPMENT,
         orderBy: { createdAt: "desc" },
         take: 1,
         select: {
@@ -1539,6 +1540,9 @@ export async function getOrdersByShop(
           courierCode: true,
           courierName: true,
           provider: true,
+          // 🛑 feature 00056 — countsAsRevenue() บังคับ field นี้ ไม่ใช่ optional
+          // พัสดุขากลับของใบคืนต้องไม่ถูกนับเป็นหลักฐานว่าขายได้
+          direction: true,
           // ต้นทุนจริงของการจัดส่ง (D-EXT-10, 2026-08-09) — หน้า /sales รวมสองช่องนี้เป็น
           // "ค่าใช้จ่าย" รายวัน. null = iShip ยังไม่คิดเงิน (ขนส่งยังไม่เข้ารับ) **ไม่ใช่ ฿0**
           carrierPrice: true,
@@ -1780,7 +1784,7 @@ export async function getShippingStageCounts(
       paymentMethod: true,
       codReceivedAt: true,
       shipments: {
-        where: { status: "CREATED", isDryRun: false },
+        where: ACTIVE_FORWARD_SHIPMENT,
         orderBy: { createdAt: "desc" },
         take: 1,
         select: { carrierStatus: true },

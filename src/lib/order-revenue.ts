@@ -20,6 +20,8 @@
  * carrierStatus ที่ถือว่า "ขนส่งรับของไปแล้วจริง และของยังเดินหน้าไปหาผู้ซื้อ"
  * ตรงกับ status_code ของ iShip (ยืนยันกับ GET /api/order_statuses ของบัญชีจริง 2026-08-04)
  */
+import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
+
 export const REVENUE_CARRIER_STATUSES = [
   "picked_up", // พัสดุเข้าระบบ
   "with_branch", // พัสดุถึงสถานีคัดแยก
@@ -44,9 +46,9 @@ export const revenueOrderWhere = {
       status: "SHIPPED",
       shipments: {
         some: {
-          status: "CREATED",
-          // พัสดุทดสอบต้องไม่เข้าสถิติทุกชนิด (BR-ISHIP-60/61)
-          isDryRun: false,
+          // พัสดุทดสอบต้องไม่เข้าสถิติทุกชนิด (BR-ISHIP-60/61) + ต้องเป็นพัสดุ **ขาไป**
+          // เท่านั้น (feature 00056) — พัสดุขากลับของใบคืนไม่ใช่หลักฐานว่าขายได้
+          ...ACTIVE_FORWARD_SHIPMENT,
           carrierStatus: { in: [...REVENUE_CARRIER_STATUSES] },
         },
       },
@@ -60,7 +62,15 @@ export const revenueOrderWhere = {
  */
 export function countsAsRevenue(order: {
   status: string;
-  shipments?: { status: string; isDryRun: boolean; carrierStatus: string | null }[] | null;
+  /**
+   * 🛑 `direction` เป็น field **บังคับ** (feature 00056) — ไม่ใช่ optional
+   * ผู้เรียกที่ลืม `select` มาจะ compile ไม่ผ่าน ซึ่งคือด่านเดียวที่กันพัสดุขากลับของใบคืน
+   * ไม่ให้ถูกนับเป็นหลักฐานว่า "ขายได้" (ทำเป็น optional แล้วมันจะ undefined เงียบ ๆ
+   * แล้วเงื่อนไขข้างล่างเป็นเท็จตลอด = ยอดขายหายทั้งระบบ หรือถ้าเขียนกลับด้านก็เฟ้อทั้งระบบ)
+   */
+  shipments?:
+    | { status: string; isDryRun: boolean; carrierStatus: string | null; direction: string }[]
+    | null;
 }): boolean {
   if (order.status === "CONFIRMED") return true;
   if (order.status !== "SHIPPED") return false;
@@ -68,6 +78,7 @@ export function countsAsRevenue(order: {
     (s) =>
       s.status === "CREATED" &&
       !s.isDryRun &&
+      s.direction === "FORWARD" &&
       s.carrierStatus != null &&
       (REVENUE_CARRIER_STATUSES as readonly string[]).includes(s.carrierStatus),
   );

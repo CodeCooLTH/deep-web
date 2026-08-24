@@ -120,7 +120,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
       JOIN LATERAL (
         SELECT psh."carrierStatus"
         FROM "OrderShipment" psh
-        WHERE psh."orderId" = po."id" AND psh."status" = 'CREATED' AND psh."isDryRun" = false
+        WHERE psh."orderId" = po."id" AND psh."status" = 'CREATED' AND psh."isDryRun" = false AND psh."direction" = 'FORWARD'
         ORDER BY psh."createdAt" DESC
         LIMIT 1
       ) ps ON true
@@ -160,7 +160,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
       -- status='CREATED' และไม่ใช่ของทดสอบ. เดิมใช้ <> 'CANCELLED' ซึ่งนับใบที่ *สร้างไม่สำเร็จ*
       -- (FAILED) ด้วย → แถวในกล่องแชทขึ้นชิป "สร้างพัสดุแล้ว" ทั้งที่ไม่มีเลขพัสดุสักตัว
       -- (user เจอบน prod 2026-08-06: DP256908A896B1BE ล้มเพราะเครดิต iShip ไม่พอ)
-      WHERE sh."orderId" = o."id" AND sh."status" = 'CREATED' AND sh."isDryRun" = false
+      WHERE sh."orderId" = o."id" AND sh."status" = 'CREATED' AND sh."isDryRun" = false AND sh."direction" = 'FORWARD'
       ORDER BY sh."createdAt" DESC
       LIMIT 1
     ) s ON true

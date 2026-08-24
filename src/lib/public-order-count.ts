@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 
 /**
  * SSOT ของ "ออเดอร์ใบไหนนับเป็นผลงานของร้านบนหน้าสาธารณะได้"
@@ -57,8 +58,9 @@ export function countableOrderWhere(shopId: string): Prisma.OrderWhereInput {
           some: {
             // นิยาม "พัสดุที่มีอยู่จริง" ตัวเดียวกับที่ระบบใช้ — ห้ามใช้ status <> 'CANCELLED'
             // ซึ่งนับใบ FAILED ด้วย (บั๊กที่เคยทำให้แถวขึ้นชิป "สร้างพัสดุแล้ว" ทั้งที่ไม่มีเลขพัสดุ)
-            status: "CREATED",
-            isDryRun: false,
+            // + direction FORWARD (feature 00056): พัสดุขากลับของใบคืนต้องไม่ทำให้ตัวเลข
+            // ออเดอร์บนโปรไฟล์สาธารณะเพิ่มขึ้น ซึ่งเป็นปัญหาเดิมที่ฟีเจอร์นี้ตั้งใจแก้
+            ...ACTIVE_FORWARD_SHIPMENT,
             carrierStatus: { in: [...COUNTABLE_CARRIER_STATUSES] },
           },
         },

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { isPublicNameTaken } from "@/lib/public-name";
 import { countableOrderWhere } from "@/lib/public-order-count";
 import { normalizeSlug, isValidSlugFormat, isReservedSlug } from "@/lib/shop-slug";
@@ -327,7 +328,7 @@ export async function getShopProfileStats(shopId: string) {
       select: {
         cancelInitiator: true,
         shipments: {
-          where: { status: "CREATED", isDryRun: false },
+          where: ACTIVE_FORWARD_SHIPMENT,
           select: { carrierStatus: true },
           take: 1,
         },

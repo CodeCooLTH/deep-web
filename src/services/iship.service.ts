@@ -8,6 +8,7 @@
 // (ไม่ใช่หวังว่าจะไม่เผลอใส่) — ดู ConnectionView / SettingsView / ShipmentView
 
 import { prisma } from "@/lib/prisma";
+import { FORWARD_SHIPMENT } from "@/lib/shipment-direction";
 import type { Prisma } from "@prisma/client";
 import {
   createOrder,
@@ -599,7 +600,10 @@ export async function getShipmentPanelOrReason(
   }
 
   const shipment = await prisma.orderShipment.findFirst({
-    where: { orderId, status: { not: "CANCELLED" } },
+    // 🛑 direction FORWARD (feature 00056) — แผงนี้เล่าเรื่อง "ของที่ส่งให้ลูกค้า"
+    // พัสดุขากลับของใบคืนมีจอของตัวเอง ถ้าหลุดมาที่นี่ ออเดอร์ที่คืนของแล้วจะกลับไปแสดง
+    // แถบสถานะพัสดุใหม่ทั้งชุดเหมือนกำลังส่งอยู่
+    where: { orderId, status: { not: "CANCELLED" }, direction: FORWARD_SHIPMENT },
     select: SHIPMENT_SELECT,
     orderBy: { createdAt: "desc" },
   });
@@ -804,7 +808,9 @@ export async function createShipment(
 
   // มีใบที่ยังใช้งานอยู่แล้ว → คืนใบเดิม ไม่เปิดใบใหม่ (BR-ISHIP-22)
   const active = await prisma.orderShipment.findFirst({
-    where: { orderId, status: { not: "CANCELLED" } },
+    // ด่าน "ออเดอร์นี้มีพัสดุอยู่แล้ว" ต้องนับเฉพาะขาไป (feature 00056) — ไม่งั้นออเดอร์ที่
+    // ออกเลขพัสดุขากลับไปแล้วจะเปิดพัสดุขาไปใบใหม่ไม่ได้ตลอดกาล
+    where: { orderId, status: { not: "CANCELLED" }, direction: FORWARD_SHIPMENT },
     select: SHIPMENT_SELECT,
   });
   if (active) {
@@ -2006,6 +2012,9 @@ export async function backfillShipmentEvidence(opts?: {
 
   const rows = await prisma.orderShipment.findMany({
     where: {
+      // 🛑 carve-out ของ feature 00056 โดยเจตนา: **ไม่กรอง `direction`**
+      // หลักฐานข้อพิพาทเป็นของ *พัสดุ* ไม่ใช่ของ *ทิศทาง* — พัสดุขากลับที่หายระหว่างทาง
+      // ก็ต้องมีหลักฐานเหมือนกัน (ของหายคือของหาย ไม่ว่ากำลังไปหรือกำลังกลับ)
       isDryRun: false,
       trackingNo: { not: null },
       carrierStatus: { in: [...EVIDENCE_CARRIER_STATUSES] },

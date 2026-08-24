@@ -885,6 +885,8 @@ model Order {
   // NEW (feature 00022) — พัสดุที่เปิดกับขนส่งสำหรับออเดอร์นี้ (active ได้ใบเดียว บังคับด้วย partial
   // unique index `OrderShipment_active_order_key` — unmanaged SQL ดู DATABASE.md §4)
   shipments        OrderShipment[]
+  /// ใบคืนของ (feature 00056) — ไม่ใช่ออเดอร์ใบใหม่
+  returns   OrderReturn[]
   events           OrderEvent[] // feature 00031 — ประวัติกิจกรรมของออเดอร์นี้ (audit log, insert-only)
 
   // 🛑 EXCLUDE constraint `Order_room_no_overlap` มีอยู่จริงในฐานข้อมูล แต่ Prisma DSL
@@ -973,6 +975,8 @@ model OrderItem {
   // มาตลอด. COGS calculation (FR-EXP-06-AC-02) ต้อง join OrderItem ของทุก order ที่เข้าเงื่อนไข Revenue
   // ในช่วงเวลาที่เลือก — เป็น query pattern ใหม่ที่ hot กว่าที่เคยมี จึงต้องเพิ่ม index นี้พร้อมฟีเจอร์นี้
   @@index([orderId])
+  /// รายการนี้ถูกคืนในใบไหนบ้าง (feature 00056)
+  returnItems OrderReturnItem[]
 }
 
 model ShipmentTracking {
@@ -2375,7 +2379,21 @@ model OrderShipment {
 
   order  Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   shop   Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /**
+   * ทิศทางของพัสดุใบนี้ (feature 00056) — `FORWARD` = ร้านส่งให้ลูกค้า · `RETURN` = ลูกค้า
+   * ส่งคืนร้าน (ผู้ส่ง/ผู้รับสลับกับขาไป)
+   *
+   * 🛑 **ทุก query ที่หา "พัสดุของออเดอร์นี้" ต้องระบุ direction เสมอ** — มี 14 จุดในระบบที่
+   * กรองด้วย `{ status: 'CREATED', isDryRun: false }` (10 Prisma + 4 raw SQL) ถ้าจุดไหน
+   * ไม่ระบุ พัสดุขากลับจะถูกอ่านเป็นพัสดุขาไป ⇒ ออเดอร์ที่คืนของแล้วกลับไปขึ้น "กำลังจัดส่ง" ·
+   * ไทล์กองงานนับซ้ำ · หลักฐานข้อพิพาท (00055) ผูกผิดใบ
+   * ใช้ `FORWARD_SHIPMENT` / `RETURN_SHIPMENT` จาก `src/lib/shipment-direction.ts` เท่านั้น
+   */
+  direction String @default("FORWARD")
+
   events   ShipmentEvent[]
+  /// ใบคืนที่ใช้พัสดุใบนี้เป็นขากลับ (feature 00056) — มีได้ใบเดียว
+  orderReturn OrderReturn?
   /// หลักฐานสำหรับข้อพิพาท — มีเฉพาะใบที่เคยมีปัญหา/ตีกลับ (feature 00055)
   evidence ShipmentEvidence[]
 
@@ -2410,6 +2428,65 @@ model ShipmentEvent {
 
   @@unique([shipmentId, dedupeKey])
   @@index([shipmentId, occurredAt])
+}
+
+/// OrderReturn — ใบคืนของ (feature 00056)
+///
+/// 🛑 **ไม่ใช่ออเดอร์ใบใหม่** — นั่นคือทั้งหมดของฟีเจอร์นี้ (ของเดิมร้านต้องสร้าง OD ปลอม
+/// เพื่อออกเลขพัสดุขากลับ ทำให้จำนวนออเดอร์/ยอดขาย/Trust Score เฟ้อ)
+///
+/// 🛑 คนละเรื่องกับ "พัสดุตีกลับ" (`carrierStatus ∈ RETURNED_CARRIER_STATUSES`) —
+/// ตีกลับ = ผู้ซื้อ **ไม่เคยได้รับของ** · คืนของ = ผู้ซื้อ **ได้รับแล้วส่งคืน**
+/// ต่างกันที่ความรับผิด ค่าส่ง และการตีความสถิติผู้ซื้อ · ใบเดียวเป็นทั้งสองอย่างพร้อมกันไม่ได้
+model OrderReturn {
+  id      String @id @default(uuid())
+  orderId String
+  shopId  String
+  /// REQUESTED | SHIPPING | RECEIVED | CANCELLED — ผลทางบัญชีเกิดที่ RECEIVED เท่านั้น
+  status  String @default("REQUESTED")
+  /// เหตุผลที่ลูกค้าขอคืน (ข้อความอิสระจากร้าน) — ไม่ใช่ enum เพราะยังไม่มีชุดคำที่พิสูจน์แล้ว
+  reason  String?
+
+  /// พัสดุขากลับ (direction='RETURN') — null = ยังไม่ได้ออกเลข
+  shipmentId String? @unique
+
+  /// ยอดที่คืนจริง (บาท) — คำนวณจากรายการตอนกดยืนยันรับคืน แล้ว "แช่แข็ง" ไว้
+  /// เพราะราคาสินค้าเปลี่ยนทีหลังได้ แต่ยอดที่หักจากยอดขายต้องเป็นราคาที่ขายไปจริง
+  refundAmount Decimal? @db.Decimal(12, 2)
+
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  /// เวลาที่ร้านกดยืนยันว่าของกลับถึงแล้ว — จุดที่ผลทางบัญชีเกิด
+  receivedAt      DateTime?
+  cancelledAt     DateTime?
+
+  order    Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shipment OrderShipment?    @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  items    OrderReturnItem[]
+
+  @@index([orderId])
+  @@index([shopId, status])
+}
+
+/// OrderReturnItem — รายการที่คืนในใบนั้น (feature 00056 · D-2 คืนบางส่วนได้)
+model OrderReturnItem {
+  id          String @id @default(uuid())
+  returnId    String
+  orderItemId String
+  /// จำนวนที่คืน — ต้อง ≥1 และไม่เกินจำนวนที่ยังไม่เคยถูกคืน (BR-RT-04, บังคับใน service)
+  qty         Int
+
+  /// ราคาต่อหน่วย ณ เวลาที่ขาย — คัดลอกมาแช่แข็งไว้ ไม่ join กลับไปอ่านสด
+  /// (ราคาสินค้าเปลี่ยนทีหลังได้ แต่ยอดที่หักต้องเป็นราคาที่ขายไปจริง)
+  unitPrice   Decimal @db.Decimal(12, 2)
+
+  orderReturn OrderReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  orderItem   OrderItem   @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  /// รายการเดิมหนึ่งแถวปรากฏในใบคืนหนึ่งใบได้ครั้งเดียว — กันกดซ้ำแล้วยอดคืนเกินจริง
+  @@unique([returnId, orderItemId])
+  @@index([orderItemId])
 }
 
 /// ShipmentEvidence — หลักฐานจากขนส่ง ณ วินาทีที่พัสดุ "มีปัญหา/ตีกลับ" (feature 00055)

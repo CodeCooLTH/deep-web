@@ -20,6 +20,7 @@
  */
 
 import { prisma } from "@/lib/prisma"
+import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { Prisma } from "@prisma/client"
 import { recalculateTrustScore, recalculateShopTrustScore } from "@/services/trust-score.service"
 import { pushToUser } from "@/services/app-push.service"
@@ -245,7 +246,7 @@ export async function checkFastShipping(
       // status='CREATED' + ไม่ใช่ dry-run = นิยาม "ออเดอร์นี้มีพัสดุแล้ว" ตัวเดียวกับทั้งระบบ
       // (ใบ FAILED ไม่ใช่พัสดุ — บทเรียน 2026-08-06/08-07 ที่เคยนับผิดมาแล้ว 2 ที่)
       shipments: {
-        where: { status: 'CREATED', isDryRun: false },
+        where: ACTIVE_FORWARD_SHIPMENT,
         select: { createdAt: true },
         orderBy: { createdAt: 'asc' },
         take: 1,

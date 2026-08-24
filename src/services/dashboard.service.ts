@@ -284,6 +284,8 @@ export async function getSalesSeries(
           select: {
             status: true,
             isDryRun: true,
+            // countsAsRevenue() บังคับ field นี้ (feature 00056) — พัสดุขากลับไม่ใช่ยอดขาย
+            direction: true,
             carrierStatus: true,
             createdAt: true,
             carrierPrice: true,
@@ -653,7 +655,8 @@ export async function getProvinceSales(
       totalAmount: true,
       shippingAddress: true,
       status: true,
-      shipments: { select: { status: true, isDryRun: true, carrierStatus: true } },
+      // direction: countsAsRevenue() บังคับ (feature 00056) — พัสดุขากลับไม่ใช่ยอดขาย
+      shipments: { select: { status: true, isDryRun: true, carrierStatus: true, direction: true } },
     },
   })
 

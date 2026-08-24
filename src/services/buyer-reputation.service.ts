@@ -1,4 +1,5 @@
 import 'server-only'
+import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 
 import { prisma } from '@/lib/prisma'
 import { summarizeBuyerReputation, type BuyerReputation } from '@/lib/buyer-reputation'
@@ -18,7 +19,7 @@ import { summarizeBuyerReputation, type BuyerReputation } from '@/lib/buyer-repu
 
 /** ชุดเดียวกับที่ทุกหน้าใช้เรียก "พัสดุของใบนี้" — ห้ามนิยามใหม่ที่นี่ */
 const ACTIVE_SHIPMENT = {
-  where: { status: 'CREATED', isDryRun: false },
+  where: ACTIVE_FORWARD_SHIPMENT,
   orderBy: { createdAt: 'desc' },
   take: 1,
   select: { carrierStatus: true },

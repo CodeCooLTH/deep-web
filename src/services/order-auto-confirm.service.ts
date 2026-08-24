@@ -17,6 +17,7 @@
 //   3. บันทึกในประวัติว่าระบบเป็นผู้ยืนยัน ไม่ปลอมเป็นการกระทำของผู้ซื้อ
 
 import { prisma } from "@/lib/prisma";
+import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { AUTO_CONFIRM_GRACE_MS } from "@/lib/order-stats";
 import { recordOrderEvent } from "./order-event.service";
 
@@ -50,8 +51,9 @@ export async function autoConfirmDelivered(now = new Date()): Promise<AutoConfir
   const candidates = await prisma.orderShipment.findMany({
     where: {
       deliveredAt: { not: null, lte: cutoff },
-      status: "CREATED",
-      isDryRun: false,
+      // 🛑 ต้องเป็นพัสดุ **ขาไป** เท่านั้น (feature 00056) — พัสดุขากลับที่ส่งถึงร้านแล้ว
+      // ต้องไม่ทำให้ระบบปิดออเดอร์อัตโนมัติว่า "ผู้ซื้อได้รับของแล้ว" ซึ่งตรงข้ามกับความจริง
+      ...ACTIVE_FORWARD_SHIPMENT,
       order: {
         status: { in: ["PENDING", "SHIPPED"] },
       },

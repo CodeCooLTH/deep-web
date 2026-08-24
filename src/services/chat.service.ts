@@ -234,7 +234,7 @@ export async function conversationIdsByShipmentState(
             SELECT sh."carrierStatus"
             FROM "OrderShipment" sh
             -- นิยาม "มีพัสดุจริง" ชุดเดียวกับ enrichWithOrderStage/getOrdersByShop เป๊ะ ๆ
-            WHERE sh."orderId" = o."id" AND sh."status" = 'CREATED' AND sh."isDryRun" = false
+            WHERE sh."orderId" = o."id" AND sh."status" = 'CREATED' AND sh."isDryRun" = false AND sh."direction" = 'FORWARD'
             ORDER BY sh."createdAt" DESC
             LIMIT 1
           ) s ON true
@@ -266,7 +266,7 @@ export async function conversationIdsByShipmentState(
         -- ชุดเดียวกับ enrichWithOrderStage: <> 'CANCELLED' เดิมนับใบที่ *สร้างไม่สำเร็จ* (FAILED)
         -- และใบทดสอบด้วย ⇒ เธรดที่เปิดพัสดุไม่ผ่านติดตัวกรอง "สร้างแล้ว/ยังไม่พิมพ์" ทั้งที่ป้าย
         -- ในแถวเดียวกันบอกว่ายังไม่มีพัสดุ (ฝั่ง enrich แก้ไปแล้ว 2026-08-06 แต่ตกไฟล์นี้ไว้)
-        WHERE sh."orderId" = o."id" AND sh."status" = 'CREATED' AND sh."isDryRun" = false
+        WHERE sh."orderId" = o."id" AND sh."status" = 'CREATED' AND sh."isDryRun" = false AND sh."direction" = 'FORWARD'
         ORDER BY sh."createdAt" DESC
         LIMIT 1
       ) s ON true

@@ -1,4 +1,5 @@
 import 'server-only'
+import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 
 /**
  * line-rich-menu-reply.service — ตอบสถานะพัสดุอัตโนมัติเมื่อลูกค้าแตะปุ่มบนเมนูลัด
@@ -83,7 +84,7 @@ export async function replyOrderStatus(params: {
         paymentMethod: true,
         codReceivedAt: true,
         shipments: {
-          where: { status: 'CREATED', isDryRun: false },
+          where: ACTIVE_FORWARD_SHIPMENT,
           orderBy: { createdAt: 'desc' },
           take: 1,
           select: { carrierStatus: true },
