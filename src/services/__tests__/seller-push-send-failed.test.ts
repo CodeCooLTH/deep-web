@@ -26,6 +26,7 @@ const { pushChatSendFailed, pushNewChatMessage } = await import('@/services/sell
 const { getConversationToastPreview } = await import('@/services/chat.service')
 const { pushToUsers } = await import('@/services/app-push.service')
 const { prisma } = await import('@/lib/prisma')
+const { UNCERTAIN_SEND_REASON } = await import('@/lib/chat-send-queue')
 
 /** ดูเหตุผลเต็มที่ seller-push-page-title.test.ts — mock ของ Prisma มองไม่เห็น `select` */
 const selected = <T,>(rows: T[]) => rows as never
@@ -330,5 +331,28 @@ describe('pushChatSendFailed — ถ้อยคำต้องตรงช่�
     const [, , body] = vi.mocked(pushToUsers).mock.calls[0]!
     expect(body).not.toContain('Facebook')
     expect(body).not.toContain('LINE')
+  })
+})
+
+/**
+ * (fix round 1) เคส "ยิงไปแล้วแต่ไม่รู้ผล" — noti ต้องไม่ยืนยันความล้มเหลว
+ *
+ * 🛑 ต่างจาก finding อื่นตรงที่ข้อนี้ **เปลี่ยนสิ่งที่ผู้ขายจะลงมือทำ**: คำนำหน้าเดิมทำให้เขากดส่งใหม่
+ * ทันที ซึ่งเป็นทางเดียวที่ลูกค้าจะได้ข้อความซ้ำในดีไซน์นี้
+ */
+describe('pushChatSendFailed — เคส "ไม่รู้ผล" (fix round 1)', () => {
+  it('[blocker] body ต้องไม่พูดว่าส่งไม่สำเร็จ และต้องนำด้วยคำสั่งให้ไปตรวจก่อน', async () => {
+    await pushChatSendFailed({
+      shopId: 's1',
+      conversationId: 'c-uncertain',
+      failureReason: UNCERTAIN_SEND_REASON,
+    })
+
+    const [, , body] = vi.mocked(pushToUsers).mock.calls[0]!
+    expect(body).not.toContain('ไม่สำเร็จ')
+    expect(body.slice(0, 20)).toContain('ตรวจก่อนส่งใหม่')
+    expect(body).toContain('ไม่แน่ใจ')
+    expect(body.split('—')).toHaveLength(2)
+    expect(body.length).toBeLessThanOrEqual(100)
   })
 })

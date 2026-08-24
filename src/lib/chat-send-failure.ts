@@ -22,9 +22,29 @@
  */
 
 import type { ChatChannel } from './chat-channel'
+import { UNCERTAIN_SEND_REASON } from './chat-send-queue'
 
-/** ขึ้นต้นประโยคเดียวกันทุกที่ที่รายงานว่าส่งไม่ออก (badge ในเธรด + toast จาก API) */
+/**
+ * ขึ้นต้นประโยคเดียวกันทุกที่ที่รายงานว่าส่งไม่ออก (badge ในเธรด + toast จาก API)
+ *
+ * 🛑 คำนี้ **ยืนยันว่าปลายทางปฏิเสธแล้ว** จึงถูกต้องเฉพาะกับเหตุผลที่เรารู้ผลแน่ ๆ — เหตุผลที่
+ * แปลว่า "เราไม่รู้ผล" ต้องใช้คำนำหน้าของตัวเอง (ดู `Rule.prefix`) ห้ามยืมคำนี้ไปใช้
+ */
 const PREFIX = 'ส่งไม่สำเร็จ'
+
+/**
+ * คำนำหน้าของเคส "ยิงออกไปแล้วแต่ไม่รู้ผล" (แถวที่ปิดเพราะ claim ค้าง — `UNCERTAIN_SEND_REASON`)
+ *
+ * 🛑 ทำไมต้องมีตัวที่สอง (fix round 1 ของ `/impeccable clarify`): คำนำหน้าเดิมประกอบออกมาเป็น
+ * **"ส่งไม่สำเร็จ — ไม่แน่ใจว่าข้อความออกไปหรือยัง…"** = คำนำหน้ายืนยันว่าล้มเหลว ส่วนเนื้อบอกว่า
+ * ไม่รู้. ผู้ขายที่เชื่อคำนำหน้าจะ **กดส่งใหม่ทันที ซึ่งเป็นสิ่งเดียวที่ถ้อยคำนี้ถูกเขียนขึ้นมา
+ * เพื่อป้องกัน** (ลูกค้าได้ข้อความซ้ำ) — เป็นบั๊กรูปเดียวกับต้นเรื่องของ CR นี้เป๊ะ คือ *ระบบพูด
+ * ด้วยความมั่นใจในสิ่งที่มันไม่รู้* แค่ย้ายจากบับเบิลมาอยู่บนแจ้งเตือน
+ *
+ * เลือกคำที่เป็น **คำสั่งของสิ่งที่ต้องทำก่อน** ไม่ใช่คำวินิจฉัยผล — และวางไว้ต้นประโยคเพราะ iOS
+ * ตัดท้าย ⇒ ต่อให้ถูกตัดจนเหลือบรรทัดเดียว ผู้ขายก็ยังได้คำสั่งที่ถูก
+ */
+const UNCERTAIN_PREFIX = 'ตรวจก่อนส่งใหม่'
 
 export interface SendFailureDescription {
   /** เฉพาะสาเหตุ (ไม่มีคำนำหน้า) — ใช้เมื่อ UI มีหัวข้อของตัวเองอยู่แล้ว */
@@ -114,6 +134,8 @@ interface Copy {
 interface Rule {
   match: (raw: string, code: number | null) => boolean
   text: string
+  /** คำนำหน้าเฉพาะของกฎนี้ — ไม่ใส่ = `PREFIX` ("ส่งไม่สำเร็จ") ดูเหตุผลที่ `UNCERTAIN_PREFIX` */
+  prefix?: string
   /** ดู SendFailureDescription.short */
   short?: string
   /**
@@ -353,6 +375,33 @@ const RULES: Rule[] = [
     },
     retryable: false,
   },
+  {
+    /**
+     * แถวที่ถูกปิดเพราะ **claim ค้างเกินเพดาน** — worker ตายกลางทางหลังจากเริ่มยิงไปแล้ว
+     * ⇒ เราไม่รู้ว่าปลายทางได้รับหรือยัง (ไม่มี idempotency key ฝั่ง Meta/LINE)
+     *
+     * 🛑 กฎนี้มีอยู่เพื่อ **คำนำหน้า** เป็นหลัก ไม่ใช่เพื่อแปลข้อความ: ก่อน fix round 1 สตริงนี้
+     * ไม่ match กฎไหนเลย (เป็นประโยคไทยของเราเอง ไม่ใช่รหัส) และไม่เข้า `INTERNAL_CODE_SHAPE`
+     * ด้วย ⇒ ตกไปกิ่งท้ายสุดที่คืนข้อความดิบ **แล้วถูกเติมคำนำหน้า "ส่งไม่สำเร็จ — "** ซึ่งยืนยัน
+     * สิ่งที่เราไม่รู้ และผลักผู้ขายไปกดส่งใหม่ = ลูกค้าได้ข้อความซ้ำ
+     *
+     * `text` ใช้ค่าคงที่ตัวเดียวกับที่เขียนลง `failureReason` **ไม่พิมพ์สำนวนที่สอง** (HR16) —
+     * ตัวแปรตัวนั้นจึงเป็นทั้งค่าที่เก็บและถ้อยคำที่แสดง
+     *
+     * `known: true` ไม่ได้ตั้งที่นี่ (ทุกกฎเป็น known โดยปริยาย) — และ **มันควรเป็น known**
+     * เพราะเรารู้จักสาเหตุนี้ดี สิ่งที่ไม่รู้คือ *ผล* ไม่ใช่ *สาเหตุ*
+     *
+     * `retryable` ปล่อยเป็นค่าตั้งต้น `true` โดยตั้งใจ — การกดส่งใหม่ **เป็นทางออกที่ถูก** หลังจาก
+     * ไปตรวจแล้วพบว่าข้อความไม่ออก. สิ่งที่ต้องกันคือการกด *ก่อนตรวจ* ซึ่งกันด้วยถ้อยคำ
+     * (ดูข้อสังเกตเรื่องป้ายบนบับเบิลในรายงาน fix round 1 — ยังไม่แก้ รอผู้ตัดสิน)
+     */
+    match: (raw) => raw === UNCERTAIN_SEND_REASON,
+    prefix: UNCERTAIN_PREFIX,
+    text: UNCERTAIN_SEND_REASON,
+    // ตัดวรรค "ก่อนกดส่งใหม่" ออก — คำนำหน้าพูดแทนไปแล้ว และ **ห้ามมี `—` ในนี้**
+    // เพราะคำนำหน้าเป็นผู้ถือขีดคั่นเพียงตัวเดียวของประโยค
+    short: 'ไม่แน่ใจว่าข้อความออกไปหรือยัง เปิดดูในแอปของช่องทางนั้น',
+  },
 ]
 
 /**
@@ -419,15 +468,16 @@ export function describeSendFailure(
     metaCode: number | null,
     known: boolean,
     retryable: boolean,
+    prefix: string = PREFIX,
   ): SendFailureDescription => {
     const { text, short } = copy
     return {
       text,
-      message: `${PREFIX} — ${text}`,
+      message: `${prefix} — ${text}`,
       short: short ?? null,
       // ผู้เรียกฝั่ง push ไม่ต้องประกอบสตริงเอง — ไม่งั้น "ใช้ short ถ้ามี" จะกลายเป็นกฎที่ก็อปไป
       // เขียนซ้ำทุก call site แล้วหลุดที่ใดที่หนึ่งโดยไม่มีอะไรฟ้อง
-      shortMessage: `${PREFIX} — ${short ?? text}`,
+      shortMessage: `${prefix} — ${short ?? text}`,
       metaCode,
       known,
       retryable,
@@ -454,7 +504,7 @@ export function describeSendFailure(
      */
     const overridden = context.commentOriginNoInbound ? hit.whenCommentOrigin : undefined
     const copy: Copy = overridden ? { text: overridden } : base
-    return done(copy, metaCode, true, hit.retryable ?? true)
+    return done(copy, metaCode, true, hit.retryable ?? true, hit.prefix)
   }
 
   // รหัสภายในที่ยังไม่มีกฎรองรับ — ห้ามแสดงดิบ (ดู INTERNAL_CODE_SHAPE) ตกไปคำเดียวกับกรณี

@@ -7,6 +7,7 @@
 // ต้องวัดของจริง ไม่ใช่วัดความคิดของคนเขียนเทส (Ruling R-13)
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { UNCERTAIN_SEND_REASON } from '@/lib/chat-send-queue'
 
 const transmitOutbound = vi.fn()
 const resolveOutboundContext = vi.fn()
@@ -613,7 +614,9 @@ describe('sweepOutbox', () => {
     // R-B: ปิดทีละแถว (id เดี่ยว) ไม่ใช่ `id: { in: [...] }` — ต้องรู้ให้ได้ว่าแถวไหนถูกปิดจริง
     expect(args.where).toMatchObject({ id: 'stuck', deliveryStatus: 'QUEUED' })
     expect(args.data.deliveryStatus).toBe('FAILED')
-    expect(args.data.failureReason).toContain('ไม่แน่ใจว่าส่งออกไปหรือยัง')
+    // ผูกกับค่าคงที่ ไม่ก็อปสตริง — ถ้อยคำถูกปรับใน fix round 1 ของ /impeccable clarify แล้วเทส
+    // ที่ฝังคำไว้แดงด้วยเหตุผลที่ไม่เกี่ยวกับสิ่งที่มันตรวจ (สิ่งที่ตรวจคือ "เขียนเหตุผลตัวนี้ลงแถว")
+    expect(args.data.failureReason).toBe(UNCERTAIN_SEND_REASON)
   })
 
   // 🛑 (R-B) เคส "ไม่แน่ใจว่าส่งไปหรือยัง" คือเคสที่ต้องบอกผู้ขายที่สุดในทั้งฟีเจอร์ — และมันเป็น
@@ -1035,10 +1038,10 @@ describe('แจ้งเตือนผู้ขาย — เส้นที�
     const arg = pushChatSendFailed.mock.calls[0][0] as { conversationId: string; shopId: string; failureReason: string }
     expect(arg.conversationId).toBe('cX')
     expect(arg.shopId).toBe('shop9')
-    // 🛑 เหตุผลต้องเป็นตัวที่เขียนลงแถวจริง ("ไม่แน่ใจว่าส่งออกไปหรือยัง") ไม่ใช่คำกลาง ๆ ว่า
+    // 🛑 เหตุผลต้องเป็นตัวที่เขียนลงแถวจริง (`UNCERTAIN_SEND_REASON`) ไม่ใช่คำกลาง ๆ ว่า
     // "ส่งไม่สำเร็จ" — คำกลาง ๆ ชวนให้กดส่งซ้ำทันทีโดยไม่ตรวจ ซึ่งเป็นทางเดียวที่เหลืออยู่ที่จะ
     // ทำให้ลูกค้าได้ข้อความซ้ำ (E-1)
-    expect(arg.failureReason).toContain('ไม่แน่ใจว่าส่งออกไปหรือยัง')
+    expect(arg.failureReason).toBe(UNCERTAIN_SEND_REASON)
   })
 
   it('[blocker] worker เจ้าของ claim ปิดแถวเองทันพอดี (count=0) → ห้ามแจ้ง (ไม่ใช่ stale จริง)', async () => {

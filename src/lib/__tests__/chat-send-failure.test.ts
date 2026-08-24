@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { describeSendFailure, stripSendFailurePrefix } from '../chat-send-failure'
+import { UNCERTAIN_SEND_REASON } from '../chat-send-queue'
 
 describe('describeSendFailure', () => {
   it('แปลง #551 (ผู้รับไม่พร้อมรับข้อความ) เป็นไทย พร้อมบอกว่าต้องทำอะไรต่อ', () => {
@@ -434,8 +435,38 @@ describe('[blocker] describeSendFailure — ถ้อยคำฉบับย่
     for (const s of all) expect(`${s} (${s.length})`).toBe(`${s} (${Math.min(s.length, SHORT_MAX)})`)
   })
 
-  it('[blocker] short ต้องมีทางออกอยู่ในตัว ไม่ใช่แค่บอกว่าพัง — ทุกตัวต้องมีตัวคั่น —', () => {
-    for (const s of shortLiterals()) expect(s).toContain('—')
+  /**
+   * โครงของประโยคที่ผู้ขายอ่าน = `<คำนำหน้า> — <เหตุผล/ทางออก>` ⇒ **ขีดคั่นต้องมีตัวเดียวเสมอ**
+   *
+   * 🛑 เช็คที่ `shortMessage` ไม่ใช่ที่ตัว `short` (แก้ fix round 1): กฎส่วนใหญ่ถือขีดไว้ในตัว `short`
+   * เอง แต่กฎที่มี `prefix` ของตัวเอง (เคส "ไม่รู้ผล") ให้คำนำหน้าเป็นผู้ถือขีด ถ้าใส่อีกตัวใน
+   * `short` จะได้ `—` ซ้อนสองชั้น ซึ่งบนบรรทัดเดียวของ noti อ่านเป็นสองประโยคที่ไม่เกี่ยวกัน
+   * ⇒ เกณฑ์ที่ถูกคือ "ประโยคที่ประกอบเสร็จมีขีดเดียว" ไม่ใช่ "ทุก short ต้องมีขีด"
+   */
+  it('[blocker] ประโยคที่ประกอบเสร็จต้องมีโครง "เกิดอะไร / ทำอะไรต่อ" และห้ามขีดเกิน 2', () => {
+    const RAWS = [
+      "(#551) This person isn't available right now.",
+      'Error validating access token: Session has expired. (#190)',
+      '(#10) This message is sent outside of allowed window.',
+      '(#10) Message failed to send because another app is controlling this thread now.',
+      "(#100) Cannot tag messages with 'HUMAN_AGENT' without prior approval.",
+      'TOKEN_INVALID',
+      'QUOTA_EXCEEDED',
+      'CONTACT_BLOCKED',
+      'FORBIDDEN',
+      'WINDOW_CLOSED',
+      'CHANNEL_NOT_ACTIVE',
+      UNCERTAIN_SEND_REASON,
+      'SOME_FUTURE_INTERNAL_CODE',
+    ]
+    for (const raw of RAWS) {
+      const d = describeSendFailure(raw)
+      const parts = d.shortMessage.split('—').length
+      // 2 = กฎที่มีคำนำหน้าของตัวเอง (คำนำหน้าถือขีด) · 3 = คำนำหน้ามาตรฐาน + ขีดในตัว short เอง
+      // ต่ำกว่า 2 = ไม่มีทางออกในประโยค · เกิน 3 = อ่านเป็นสามท่อนบนบรรทัดเดียวของ noti
+      expect(`${raw} → ${parts}`).toBe(`${raw} → ${Math.min(Math.max(parts, 2), 3)}`)
+      expect(d.shortMessage).toContain('—')
+    }
   })
 
   it('[blocker] กฎที่ text ยาวเกิน 70 ตัวอักษร ต้องมี short ทุกตัว (ไม่งั้นทางออกถูกตัดทิ้ง)', () => {
@@ -615,5 +646,59 @@ describe('[blocker] ข้อความ 207 ต้องบอกแค่ "�
     // ยังต้องบอกจำนวนที่เข้าคิวได้ และบอกว่าต้องกดอะไรต่อ
     expect(line!).toContain('${i} จาก ${batches.length}')
     expect(line!).toContain('กดส่งอีกครั้งเพื่อส่งส่วนที่เหลือ')
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// (fix round 1 ของ /impeccable clarify) เคส "ยิงออกไปแล้วแต่ไม่รู้ผล" ต้องมีคำนำหน้าของตัวเอง
+//
+// 🛑 ก่อนแก้: `ส่งไม่สำเร็จ — ไม่แน่ใจว่าข้อความออกไปหรือยัง …` — คำนำหน้ายืนยันว่าล้มเหลว เนื้อบอกว่า
+// ไม่รู้ ⇒ ผู้ขายที่เชื่อคำนำหน้าจะกดส่งใหม่ทันที ซึ่งเป็น **สิ่งเดียวที่ถ้อยคำนี้ถูกเขียนขึ้นมาเพื่อ
+// ป้องกัน** (ลูกค้าได้ข้อความซ้ำ) — บั๊กรูปเดียวกับต้นเรื่องของ CR: ระบบพูดด้วยความมั่นใจในสิ่งที่ไม่รู้
+// ══════════════════════════════════════════════════════════════════════════
+describe('[blocker] describeSendFailure — เคส "ไม่รู้ผล" ห้ามยืมคำนำหน้าที่ยืนยันความล้มเหลว', () => {
+  const D = () => describeSendFailure(UNCERTAIN_SEND_REASON)
+
+  it('[blocker] ห้ามมีคำที่ยืนยันว่าส่งไม่สำเร็จ ในทุกสตริงที่ผู้ขายอ่าน', () => {
+    const d = D()
+    for (const s of [d.message, d.shortMessage, d.text, d.short ?? '']) {
+      expect(s).not.toContain('ส่งไม่สำเร็จ')
+      expect(s).not.toContain('ไม่สำเร็จ')
+    }
+  })
+
+  it('[blocker] ต้องบอกให้ไปตรวจก่อน และคำสั่งนั้นต้องอยู่ต้นประโยค (iOS ตัดท้าย)', () => {
+    const d = D()
+    for (const s of [d.message, d.shortMessage]) {
+      expect(s).toContain('ตรวจ')
+      // ต่อให้ถูกตัดจนเหลือ 20 ตัวอักษรแรก ผู้ขายก็ยังต้องได้คำสั่งที่ถูก
+      expect(s.slice(0, 20)).toContain('ตรวจก่อนส่งใหม่')
+    }
+  })
+
+  it('[blocker] ห้ามมี — ซ้อน 2 ตัว (บนบรรทัดเดียวของ noti อ่านเป็นสองประโยคที่ไม่เกี่ยวกัน)', () => {
+    const d = D()
+    for (const s of [d.message, d.shortMessage]) expect(s.split('—')).toHaveLength(2)
+  })
+
+  it('[blocker] อยู่ในโควตา body ของ iOS และ short ยังอยู่ในกฎ ≤60', () => {
+    const d = D()
+    expect(d.short).not.toBeNull()
+    expect(d.short!.length).toBeLessThanOrEqual(60)
+    expect(d.shortMessage.length).toBeLessThanOrEqual(100)
+  })
+
+  it('[blocker] ต้องมีกฎรองรับจริง ไม่ใช่รอดเพราะตกกิ่งข้อความดิบ', () => {
+    // ก่อนแก้ known=false (ตกกิ่งท้ายสุดที่คืน raw) แล้วถูกเติมคำนำหน้าผิด
+    expect(D().known).toBe(true)
+    // ถ้อยคำต้องมาจากค่าคงที่ตัวเดียวกับที่เขียนลง failureReason ไม่ใช่สำนวนที่สอง (HR16)
+    expect(D().text).toBe(UNCERTAIN_SEND_REASON)
+  })
+
+  it('เหตุผลที่รู้ผลแน่ ๆ ต้องยังใช้คำนำหน้าเดิม — คำนำหน้าใหม่ห้ามรั่วไปทับของเดิม', () => {
+    for (const raw of ['WINDOW_CLOSED', 'QUOTA_EXCEEDED', 'FORBIDDEN', 'CHANNEL_NOT_ACTIVE']) {
+      expect(describeSendFailure(raw).message.startsWith('ส่งไม่สำเร็จ — ')).toBe(true)
+    }
+    expect(describeSendFailure(null).message.startsWith('ส่งไม่สำเร็จ — ')).toBe(true)
   })
 })
