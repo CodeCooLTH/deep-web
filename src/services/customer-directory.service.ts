@@ -15,6 +15,7 @@
 import { prisma } from '@/lib/prisma'
 import { makeCustomerRowKey } from '@/lib/customer-row-key'
 import { countsAsRevenue } from '@/lib/order-revenue'
+import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { summarizeCustomerBehavior, type CustomerOrderEvidence } from '@/lib/customer-behavior'
 import {
   findEntryByKey,
@@ -66,7 +67,7 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
        */
       shipments: {
         orderBy: { createdAt: 'desc' },
-        select: { status: true, isDryRun: true, carrierStatus: true },
+        select: { status: true, isDryRun: true, carrierStatus: true, direction: true },
       },
       buyer: {
         select: { id: true, username: true, displayName: true, avatar: true, deletedAt: true },
@@ -84,11 +85,22 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
     const amount = Number(o.totalAmount)
 
     /**
-     * "พัสดุของใบนี้" = ใบล่าสุดที่ยังไม่ถูกยกเลิก — เกณฑ์เดียวกับ `customer-behavior.service.ts`
-     * (`where: { status: { not: 'CANCELLED' } }` + `orderBy createdAt desc` + `take 1`)
-     * ห้ามนิยามคำว่า "พัสดุของใบนี้" ใหม่ที่นี่
+     * "พัสดุของใบนี้" สำหรับตัดสินพฤติกรรมลูกค้า = ใบล่าสุดที่ยังไม่ถูกยกเลิก **และเป็นขาไป**
+     *
+     * 🛑 `direction === FORWARD` จำเป็นตั้งแต่ feature 00056 (ระบบคืนของ) — พัสดุขากลับถูกเก็บ
+     * ใน `OrderShipment` **ตารางเดียวกับขาไป** และถูกสร้างทีหลังเสมอ ⇒ ถ้าไม่กรองทิศทาง
+     * `find` จะหยิบใบขากลับมาเป็น "พัสดุของออเดอร์นี้" แล้ว `carrierStatus` ของมันจะไป
+     * **บังสถานะ `return_success` ของใบขาไป** ⇒ ป้าย "ตีกลับ" หายไปจากลูกค้าที่ตีกลับจริง
+     * ซึ่งเป็นกลุ่มเดียวที่ป้ายนี้มีไว้เพื่อเตือน — และมันเงียบสนิท ไม่มี error ให้ใครเห็น
+     * (`src/lib/shipment-direction.ts`)
+     *
+     * ⚠️ ต่างจาก `customer-behavior.service.ts` ตรงที่นั่นยัง **ไม่กรองทิศทาง** — เป็นช่องว่างของ
+     * 00056 ที่ตัวกวาดหาไม่เจอ เพราะไฟล์นั้นเขียน `status: { not: 'CANCELLED' }` ไม่ใช่
+     * `status: 'CREATED'` ตามแพตเทิร์นที่ 00056 ค้น (รายงานไว้แล้ว ไม่แก้ในรอบนี้เพราะการแก้
+     * เปลี่ยนป้ายบน 3 จอที่มีอยู่ ต้องมีการตัดสินใจ + verify ของตัวเอง)
      */
-    const activeShipment = o.shipments.find((s) => s.status !== 'CANCELLED') ?? null
+    const activeShipment =
+      o.shipments.find((s) => s.status !== 'CANCELLED' && s.direction === FORWARD_SHIPMENT) ?? null
 
     const orderRow: CustomerDirectoryOrder = {
       publicToken: o.publicToken,

@@ -73,6 +73,24 @@ describe('[blocker] ทุกจุดที่กรองพัสดุต้
     }
   })
 
+  /**
+   * ทะเบียนลูกค้า (feature 00057) เป็น "จุดที่กรองพัสดุ" จุดใหม่ที่เกิดหลัง 00056 —
+   * แต่มันอยู่ใน PRISMA_SITES ไม่ได้ เพราะ **จงใจไม่ใส่ `where` ใน query**: มันต้องได้พัสดุ
+   * ทุกใบเพื่อให้ `countsAsRevenue()` ทำ `.some()` ได้ครบ แล้วค่อยคัดใบขาไปในหน่วยความจำ
+   * สำหรับตัดสินพฤติกรรมลูกค้า ⇒ ด่านของมันคือการคัดในหน่วยความจำนั้น
+   *
+   * 🛑 ถ้าคัดออกไป: `find` จะหยิบพัสดุขากลับ (ซึ่งถูกสร้างทีหลังเสมอ) มาเป็นพัสดุของออเดอร์
+   * แล้ว `carrierStatus` ของมันไปบัง `return_success` ของใบขาไป ⇒ **ป้าย "ตีกลับ" หายไปจาก
+   * ลูกค้าที่ตีกลับจริง** ซึ่งเป็นกลุ่มเดียวที่ป้ายนี้มีไว้เตือน
+   */
+  it('[blocker] ทะเบียนลูกค้าต้องคัดพัสดุขาไปตอนตัดสินพฤติกรรม', () => {
+    const src = stripComments(read('src/services/customer-directory.service.ts'))
+    // จับ **การใช้งานจริง** ไม่ใช่ชื่อเปล่า ๆ (บรรทัด import ก็ match คำนั้น)
+    expect(src).toContain('direction === FORWARD_SHIPMENT')
+    // และต้อง select `direction` มาด้วย ไม่งั้นค่าเป็น undefined แล้วเงื่อนไขเป็นเท็จตลอด
+    expect(src).toContain('direction: true')
+  })
+
   it('[blocker] จุด raw SQL ต้องมี direction ในเงื่อนไขเดียวกับ isDryRun', () => {
     for (const p of ['src/services/chat.service.ts', 'src/services/order-stage.service.ts']) {
       const src = stripComments(read(p))
