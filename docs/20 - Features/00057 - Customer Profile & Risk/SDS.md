@@ -51,7 +51,7 @@ graph TD
 | Component | หน้าที่ | Dependency |
 |---|---|---|
 | `src/lib/customer-directory.ts` **(ใหม่)** | types (`CustomerDirectoryEntry`, `CustomerDirectoryOrder`) + pure fn (`matchesCustomerQuery`, `matchesRepeatFilter`, `findEntryByKey`, `avgPerOrder`, `maskContact`) | ไม่มี — pure |
-| `src/services/customer-directory.service.ts` **(ใหม่)** | `aggregateShopCustomers(shopId)` · `resolveCustomerByKey(shopId, key)` | Prisma, `customer-directory.ts`, `customer-behavior.ts`, `order-revenue.ts`, `customer-row-key.ts`, `iship/status.ts` |
+| `src/services/customer-directory.service.ts` **(ใหม่)** | `aggregateShopCustomers(shopId)` · `resolveCustomerByKey(shopId, key)` | Prisma, `customer-directory.ts`, `customer-behavior.ts`, `order-revenue.ts`, `customer-row-key.ts` |
 | `customers/page.tsx` (แก้) | อ่าน searchParams → service → กรอง → mask → error boundary | service + lib + `getT()` + `resolveOrderVocab` |
 | `customers/components/CustomerTable.tsx` (แก้ใหญ่) | URL-query filter UI, `onRowClick`, eye-reveal, risk icons | `useRouter`/`useSearchParams`, `useListBusy`, `CustomerBehaviorBadges` |
 | `customers/[id]/page.tsx` **(ใหม่)** | resolve key + orchestrate โปรไฟล์ (server component ล้วน ไม่มี client state) | service, `getBuyerReputation`, `getT()`, `resolveOrderVocab`, `shopShipsGoods` |
@@ -79,7 +79,7 @@ sequenceDiagram
     CT->>CT: busy.begin() หรือ busy.run(router.push)
     CT-->>P: navigate ?q= &warn= &repeat=
     P->>S: aggregateShopCustomers(shop.id)
-    S->>DB: findMany Order (select เดียว) + findMany Customer (phone batch)
+    S->>DB: findMany Order (query เดียว รวม shipments กับ buyer ใน select เดียวกัน)
     DB-->>S: rows
     S-->>P: CustomerDirectoryEntry[] (unmasked server-only)
     P->>P: filter ด้วย pure fn
@@ -125,7 +125,7 @@ flowchart TD
 **ตัดทิ้ง:** endpoint แยกสำหรับ `c-`/`u-` ที่ query ตรง id ได้เร็วกว่า — ตัดเพราะได้ 2 code path ที่ต้อง sync กัน แลกกับ perf ที่ยังไม่จำเป็น (413 ออเดอร์)
 **ผลกระทบ:** ทุก key type มี cost เท่ากัน (full aggregate) — ยอมรับตาม NFR
 
-### TD-003: `codRefunded` เป็น "independent counter บรรทัดแรกของ loop"
+### TD-003: `codRefunded` เป็น "independent counter บรรทัดแรกของ loop" — 🛑 เลื่อนออก (มติ D-1)
 **ตัดสินใจ:** 1 บรรทัดใหม่ที่**ไม่มี `continue`** วางก่อน logic เดิมทั้งหมดของ `summarizeCustomerBehavior()`/`summarizeBuyerReputation()`
 **เหตุผล:** พิสูจน์ zero-regression ได้ **ด้วยการอ่านโค้ด** ไม่ต้องพึ่งเทสอย่างเดียว — เพราะไม่แตะ branch เดิมแม้แต่บรรทัดเดียว
 **ตัดทิ้ง:** แทรกเป็น tier ใหม่ระหว่าง `returned` กับ `cancelled` — **ละเมิด AC โดยตรง** เพราะจะทำให้ออเดอร์ `cod_refund` ที่เคยถูกนับเป็น `completed` หายไป
@@ -141,7 +141,7 @@ flowchart TD
 **ตัดสินใจ:** `GET /api/seller/customers/[key]/contact` (Route Handler)
 **เหตุผล:** ตรงกับ convention ทั้งโปรเจกต์ (ทุก client-fetch สำหรับ PII ผ่าน `/api/seller/*`) + ควบคุม `cache-control` ตรงไปตรงมา + **ได้ rate-limit จาก `guardApi` ใน `proxy.ts` ฟรี** (Server Action ไม่ผ่าน `pathname.startsWith('/api')` check ของ proxy)
 
-### TD-006: `orders/page.tsx` ต้อง extend `statByCustomer` ด้วย query เพิ่ม 1 ตัว (compile-forced)
+### TD-006: `orders/page.tsx` ต้อง extend `statByCustomer` ด้วย query เพิ่ม 1 ตัว (compile-forced) — 🛑 ตกไปพร้อม TD-003
 **ตัดสินใจ:** เพิ่ม query ขนานกับ `returnedRows` เดิม (ใน `Promise.all` เดียวกัน) แล้วเติม `codRefunded` เข้า map + object literal ที่ `OrdersTable.tsx:387-396`
 **เหตุผล:** `CustomerBehavior` เป็น type เดียวที่ `customerBadges()` รับ — field ใหม่ที่ไม่ optional ทำให้ TS compile ไม่ผ่านจนกว่าจะเติม ⇒ เป็น **compile-forced side effect ไม่ใช่ scope creep โดยสมัครใจ**
 **ตัดทิ้ง:** ทำ `codRefunded?: number` (optional) เพื่อไม่ต้องแตะ `/orders` — ตัดเพราะ `/orders` จะแสดง badge ไม่ครบเทียบกับ `/customers`/`CustomerPanel` สำหรับลูกค้าคนเดียวกัน (ขัดหลัก "ตัวเลข/badge เดียวกันต้องมาจาก symbol เดียว")
@@ -170,9 +170,9 @@ flowchart TD
 ## 8. ลำดับการ build ที่แนะนำ
 
 1. `src/lib/customer-directory.ts` + `src/services/customer-directory.service.ts` — **ฐานราก ทุกอย่างพึ่งพา**
-2. `iship/status.ts` (`isCodRefundCarrierStatus`) → `customer-behavior.ts` + `buyer-reputation.ts` (`codRefunded`) → i18n `badgeCodRefund` — **ทำเป็นกลุ่มเดียว compile ผูกกันเป็น chain** 🛑 *(รอ user เคาะ — SRS §12)*
-3. `orders/page.tsx` + `OrdersTable.tsx` — **ตามหลัง #2 ทันทีในคอมมิตเดียวกัน** (TS แดงจนกว่าจะทำ)
-4. `CustomerBehaviorBadges.tsx` + refactor `OrdersTable.tsx`/`CustomerPanel.tsx` ให้เรียกใช้
+2. ~~`iship/status.ts` → `customer-behavior.ts` + `buyer-reputation.ts` (`codRefunded`) → i18n~~ **ตัดออกตามมติ D-1 (PRD §0)** — `cod_refund` ไม่เคยเกิดบน prod เลย · TD-003 เก็บไว้เป็นสเปกพร้อมใช้ ไม่ต้องทำในรอบนี้
+3. ~~`orders/page.tsx` + `OrdersTable.tsx` (compile-forced จาก #2)~~ **ตกไปพร้อม #2** — TD-006 ไม่มีผลแล้ว เพราะไม่มี field ใหม่ที่บังคับให้ TS แดง ⇒ **รอบนี้ไม่แตะ `orders/page.tsx` เลย**
+4. `CustomerBehaviorBadges.tsx` + refactor `OrdersTable.tsx`/`CustomerPanel.tsx` ให้เรียกใช้ *(ยังทำ — TD-004 ไม่ได้ผูกกับ `codRefunded`; `OrdersTable.tsx` ถูกแตะเฉพาะการย้าย markup ไม่ใช่เพิ่ม field)*
 5. `src/app/api/seller/customers/[key]/contact/route.ts`
 6. `customers/page.tsx` + `CustomerTable.tsx` + `data.ts` — **ลิสต์ก่อน** (ง่ายกว่า ทดสอบ resolve ได้ก่อนทำโปรไฟล์)
 7. `customers/[id]/page.tsx` + `loading.tsx` + components ย่อย

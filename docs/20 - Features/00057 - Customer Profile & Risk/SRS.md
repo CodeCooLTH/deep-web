@@ -22,7 +22,9 @@ related: ["[[Feature-Docs-Ownership]]", "[[00014 - Customer Directory]]", "[[000
 
 ### 1.2 ขอบเขตเชิงระบบ
 
-**ในขอบเขต:** `src/lib/customer-directory.ts` (ใหม่, pure) · `src/services/customer-directory.service.ts` (ใหม่, I/O) · หน้า `/customers` + `/customers/[id]` · `GET /api/seller/customers/[key]/contact` · ส่วนขยาย `codRefunded` ใน `customer-behavior.ts`/`buyer-reputation.ts`/`iship/status.ts` · ลิงก์ 3 จุด · i18n key ใหม่ 1 คีย์
+**ในขอบเขต:** `src/lib/customer-directory.ts` (ใหม่, pure) · `src/services/customer-directory.service.ts` (ใหม่, I/O) · หน้า `/customers` + `/customers/[id]` · `GET /api/seller/customers/[key]/contact` · component กลาง `CustomerBehaviorBadges.tsx` · ลิงก์ 3 จุด
+
+🛑 **ถูกตัดออกระหว่างทาง (มติ D-1, PRD §0):** ส่วนขยาย `codRefunded` ใน `customer-behavior.ts`/`buyer-reputation.ts`/`iship/status.ts` + i18n key ใหม่ + การแก้ `orders/page.tsx`/`OrdersTable.tsx` แบบ compile-forced — TFR-009 เก็บไว้เป็นสเปกพร้อมใช้ **ห้าม implement ในรอบนี้**
 
 **นอกขอบเขต:** ไม่มี migration/ตาราง/คอลัมน์ใหม่ · ไม่แก้ตาราง `/orders` (list) · ไม่มีชั้นสิทธิ์พนักงาน · ไม่มีตัวกรองช่วงเวลา · ไม่แตะ `RETURNED_CARRIER_STATUSES`/`PROBLEM_CARRIER_STATUSES` · **ไม่แตะ `CustomerOrderEvidence`/`BuyerOrderEvidence`** (input type — `codRefunded` derive จาก `activeShipmentCarrierStatus` ที่มีอยู่แล้ว)
 
@@ -57,7 +59,8 @@ flowchart LR
 | `customers/page.tsx` | RSC: อ่าน `searchParams` → เรียก service → กรอง → mask → render |
 | `customers/[id]/page.tsx` | RSC: resolve key → render โปรไฟล์เต็ม |
 | `/api/seller/customers/[key]/contact` | Route Handler (nodejs): คืนเบอร์เต็มทีละแถว |
-| `src/lib/iship/status.ts` | เพิ่ม `isCodRefundCarrierStatus()` |
+| `src/components/safepay/CustomerBehaviorBadges.tsx` | markup กลางของป้ายพฤติกรรม (ใช้ร่วม 4 จอ) |
+| ~~`src/lib/iship/status.ts`~~ | ~~เพิ่ม `isCodRefundCarrierStatus()`~~ — **ตัดออกตามมติ D-1** |
 
 ---
 
@@ -116,7 +119,7 @@ flowchart LR
 
 ### TFR-009: สัญญาณ `codRefunded` — independent counter
 **Trace:** FR-013, BR-CUSTP-12
-🛑 **สถานะ: รอ user เคาะ** — ดู §12
+🛑 **เลื่อนออกจากรอบนี้ตามมติ D-1 (PRD §0) — ห้าม implement** ดู §12
 
 - `iship/status.ts` เพิ่ม `isCodRefundCarrierStatus(code)` (**ไม่แตะ** `PROBLEM_CARRIER_STATUSES`/`RETURNED_CARRIER_STATUSES` — `cod_refund` ยังอยู่ในกอง PROBLEM เหมือนเดิม เพราะตอบคนละคำถาม)
 - `customer-behavior.ts`: เพิ่ม `codRefunded: number` ใน type + `EMPTY` · ใน loop เพิ่ม **บรรทัดแรกสุดก่อน logic เดิมทั้งหมด** `if (isCodRefundCarrierStatus(o.activeShipmentCarrierStatus)) codRefunded += 1` — **ไม่มี `continue`** ไม่แตะ branch เดิมแม้แต่บรรทัดเดียว ⇒ พิสูจน์ได้จากการอ่านโค้ดว่า `orders/completed/cancelledByBuyer/cancelledTotal/returnedParcels/problemOrders` ให้ค่าเดิมทุกประการ
@@ -175,7 +178,7 @@ sequenceDiagram
 
 | ด้าน | ข้อกำหนด | เป้าหมายที่วัดได้ |
 |---|---|---|
-| **Performance** | `aggregateShopCustomers()` = query เดียว (+1 query หา `Customer.phone` แบบ batch) ต่อการเปิดหน้าใด ๆ | ร้านใหญ่สุด 413 ออเดอร์/397 ลูกค้า — ยอมรับได้ · **เพดานที่ยอมรับ ~2,000 ออเดอร์ต่อร้าน** ก่อนควรพิจารณา pagination ฝั่ง server |
+| **Performance** | `aggregateShopCustomers()` = **query เดียว** ต่อการเปิดหน้าใด ๆ (shipments กับ buyer อยู่ใน select เดียวกัน ไม่มี query เสริม) | ร้านใหญ่สุด 413 ออเดอร์/397 ลูกค้า — ยอมรับได้ · **เพดานที่ยอมรับ ~2,000 ออเดอร์ต่อร้าน** ก่อนควรพิจารณา pagination ฝั่ง server |
 | **Availability** | DB ล้ม → **ต้องไม่แสดงเหมือน "ไม่มีลูกค้า"** | ทั้ง 3 จุด (2 page + 1 route) ต้อง try/catch แล้ว render error state ที่แยกจาก empty state ชัดเจน — 🛑 **ทั้ง "500 เงียบ" และ "0 ลูกค้าปลอม" ผิดเท่ากัน** |
 | **Security** | เบอร์เต็ม on-demand เท่านั้น + ตรวจ shop ownership ทุก request | `contact` ไม่ปรากฏใน flight payload ตั้งต้น · 404 เมื่อ key ไม่ผูกกับ shop |
 | **Observability** | route handler `console.error` เมื่อเจอ exception ที่ไม่คาดคิด | ≥1 บรรทัดต่อ 500 |
@@ -251,6 +254,6 @@ sequenceDiagram
 
 | # | เรื่อง | สถานะ |
 |---|---|---|
-| 1 | 🛑 **`cod_refund` ไม่เคยเกิดบน prod เลย** (0/427 พัสดุ · 0/1,026 เหตุการณ์ · 0/17 payload ดิบ ตลอด 24 วัน) ⇒ TFR-009 ทั้งข้อจะสร้างป้ายที่ยังไม่มีวันปรากฏ | **รอ user เคาะ** — ตัด+ตั้งตัวเฝ้า / ทำตามเดิม / เปลี่ยนเป้า |
-| 2 | ไอคอน `cash-banknote-off` ยังไม่ยืนยันว่ามีในชุด tabler จริง | ต้องเช็คก่อนใช้ (HR12) |
+| 1 | 🛑 **`cod_refund` ไม่เคยเกิดบน prod เลย** (0/427 พัสดุ · 0/1,026 เหตุการณ์ · 0/17 payload ดิบ ตลอด 24 วัน) ⇒ TFR-009 ทั้งข้อจะสร้างป้ายที่ยังไม่มีวันปรากฏ | ✅ **ปิดแล้ว 2026-08-24 — มติ D-1: ตัด TFR-009 ออกจากรอบนี้** · ตัวเฝ้ามีอยู่แล้วผ่าน `ShipmentEvidence` (`EVIDENCE_CARRIER_STATUSES` ครอบ `cod_refund` อยู่แล้ว) **ไม่ต้องเขียนโค้ดเพิ่มแม้แต่บรรทัดเดียว** |
+| 2 | ไอคอน `cash-banknote-off` ยังไม่ยืนยันว่ามีในชุด tabler จริง | ✅ ตกไปพร้อม D-1 — ไม่ต้องเช็คแล้วในรอบนี้ |
 | 3 | ตำแหน่งลิงก์ "ดูโปรไฟล์เต็ม" ใน `CustomerPanel.tsx` | ควรผ่านตา ux อีกรอบก่อน merge (ไม่บล็อก) |
