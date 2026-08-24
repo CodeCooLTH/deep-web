@@ -57,6 +57,7 @@ import { deriveAppointmentStage } from '@/lib/appointment-stage'
 import { isAllDayAppointment } from '@/lib/appointments'
 import BillingDetails from './components/BillingDetails'
 import ShippingCard from './components/ShippingCard'
+import ShipmentEvidencePanel from './components/ShipmentEvidencePanel'
 import { getOrderEvents } from '@/services/order-event.service'
 import { getCustomerSummary } from '@/services/customer.service'
 import type { ShippingAddressData, OrderFactsShipping } from './components/order-detail-shared'
@@ -178,6 +179,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // คืน null เมื่อร้านไม่ได้เชื่อมต่อ หรือออเดอร์นี้ไม่เกี่ยวกับการส่งของ
   // (รับเอง/ดิจิทัล/บริการ/การจอง) → ไม่ render ส่วนนี้เลย ไม่ใช่โชว์กล่องเปล่า
   const shipmentPanel = await getShipmentPanel(shop.id, order.id)
+
+  /**
+   * หลักฐานสำหรับข้อพิพาท (feature 00055) — นับที่ server เพื่อตัดสินว่าจะ render การ์ดไหม
+   *
+   * 🛑 `count` ไม่ใช่ `findMany` — ออเดอร์ปกติ (ส่วนใหญ่) ต้องไม่จ่ายค่าดึงแถวที่ไม่มีอยู่
+   * และเนื้อหาจริงถูกโหลดตอนร้านกางการ์ดเท่านั้น (ข้อพิพาทเป็นเหตุการณ์หายาก)
+   */
+  const evidenceCount = await prisma.shipmentEvidence.count({ where: { orderId: order.id } })
 
   // ประวัติกิจกรรม (feature 00031) — ownership scope มาแล้วจาก getOrderForShop ด้านบน
   const orderEvents = await getOrderEvents(order.id)
@@ -501,6 +510,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
                   : null
               }
             />
+            {/* หลักฐานสำหรับข้อพิพาท (feature 00055) — ขึ้นเฉพาะใบที่ **เคยมีปัญหา/ตีกลับ**
+                นับที่ server แล้วส่งจำนวนลงมา เพื่อไม่ให้ออเดอร์ปกติต้องยิง API เปล่า ๆ
+                และไม่ให้เห็นการ์ดเปล่า (ค่าตั้งต้นของระบบคือเงียบ) */}
+            {evidenceCount > 0 && (
+              <ShipmentEvidencePanel orderToken={token} count={evidenceCount} />
+            )}
 
             {/* COD มีการ์ด "เก็บเงินปลายทาง" ของตัวเองแล้ว ซึ่งบอกวิธีชำระ/สถานะ/ยอด ครบทุกบรรทัด
                 — แสดงทั้งคู่ = ข้อมูลเดียวกันโผล่ 2 การ์ดในจอเดียว (user ทัก 2026-08-05) */}

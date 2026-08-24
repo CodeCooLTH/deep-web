@@ -184,3 +184,56 @@ describe('[blocker] backfill ย้อนหลัง (BRD §6.5)', () => {
     expect(route).toContain('requireAdmin(')
   })
 })
+
+describe('[blocker] หน้าจอดูหลักฐาน (BRD §6.7)', () => {
+  const route = readFileSync(
+    join(process.cwd(), 'src/app/api/orders/[token]/shipment-evidence/route.ts'),
+    'utf8',
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('//'))
+    .join('\n')
+
+  /**
+   * 🛑 `parcel` คือ payload ดิบของ get_order ซึ่งมีชื่อ/เบอร์/ที่อยู่ผู้รับแบบไม่ตัดทอน
+   * เก็บไว้เพื่อการสืบสวน ไม่ใช่เพื่อแสดงบนจอ — และร้านเห็นที่อยู่ของออเดอร์ตัวเองอยู่แล้ว
+   * ในหน้าเดียวกัน การส่งก้อนดิบไปอีกทางจึงเพิ่มความเสี่ยงโดยไม่เพิ่มข้อมูล (BR-BR-22)
+   *
+   * ต้องกันที่ `select` ไม่ใช่ที่การ render — ค่าที่ดึงมาไหลเข้า payload ฟรี ๆ แม้จอไม่แสดง
+   */
+  it('[blocker] ห้าม serve คอลัมน์ parcel ออกไป', () => {
+    const sel = route.slice(route.indexOf('select:'), route.indexOf('orderBy:'))
+    expect(sel).not.toMatch(/\bparcel\b/)
+    expect(sel).toContain('traces')
+  })
+
+  it('[blocker] ต้องกันสิทธิ์ด้วยร้านเจ้าของออเดอร์', () => {
+    expect(route).toContain('canAccessShop(')
+    expect(route).toContain('sessionUserId(')
+    // ห้ามใช้ cast แบบเดิมที่ปิดตา ("มี session" ≠ "รู้ว่าเป็นใคร")
+    expect(route).not.toMatch(/session\.user as any/)
+  })
+
+  it('[blocker] คำไทยของสถานะต้องมาจากตารางกลาง ห้ามพิมพ์เอง (HR16)', () => {
+    expect(route).toContain('describeCarrierStatus(')
+  })
+
+  it('[blocker] การ์ดต้องไม่ขึ้นเมื่อไม่มีหลักฐาน — ไม่ใช่ขึ้นการ์ดเปล่า', () => {
+    const panel = readFileSync(
+      join(
+        process.cwd(),
+        'src/app/(paces)/seller/(dashboard)/orders/[token]/components/ShipmentEvidencePanel.tsx',
+      ),
+      'utf8',
+    )
+    expect(panel).toMatch(/if \(count <= 0\) return null/)
+    const page = readFileSync(
+      join(process.cwd(), 'src/app/(paces)/seller/(dashboard)/orders/[token]/page.tsx'),
+      'utf8',
+    )
+    // นับที่ server ด้วย count ไม่ใช่ดึงแถวมาทั้งหมด — ออเดอร์ปกติต้องไม่จ่ายค่านั้น
+    expect(page).toContain('shipmentEvidence.count(')
+    expect(page).toMatch(/evidenceCount > 0 &&/)
+  })
+})
