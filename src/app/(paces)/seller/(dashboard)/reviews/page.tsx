@@ -17,16 +17,13 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import ProductReviews from './components/ProductReviews'
 import type { ReviewRow, SummaryData } from './components/data'
 import type { Metadata } from 'next'
+import { sellerContactDisplay } from '@/lib/seller-contact-display'
 
 export const metadata: Metadata = { title: 'รีวิวจากลูกค้า' }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// PDPA: ซ่อนข้อมูลติดต่อ เหลือแค่ 4 ตัวท้าย
-function maskContact(c: string | null): string {
-  if (!c || c.length <= 4) return c ?? '—'
-  return '•'.repeat(Math.max(0, c.length - 4)) + c.slice(-4)
-}
+// D-13 (2026-08-24): ผู้ขายเห็นข้อมูลติดต่อผู้รีวิวของร้านตัวเองเต็ม
 
 // ดึงตัวอักษรแรกเพื่อแสดงเป็น avatar initials
 function getInitial(label: string): string {
@@ -80,7 +77,7 @@ export default async function ReviewsPage() {
     const reviewerLabel: string =
       review.reviewer?.displayName?.trim() ||
       review.reviewer?.username ||
-      (review.reviewerContact ? maskContact(review.reviewerContact) : '—')
+      (review.reviewerContact ? sellerContactDisplay(review.reviewerContact) : '—')
 
     const reviewerInitial = getInitial(reviewerLabel)
 

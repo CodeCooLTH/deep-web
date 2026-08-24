@@ -86,6 +86,7 @@ import SalesChannelDonut from './components/SalesChannelDonut'
 import TopSellingProducts from './components/TopSellingProducts'
 import RecentActivityFeed from './components/RecentActivityFeed'
 import ProvinceSalesMap from '@/components/safepay/ProvinceSalesMap'
+import { sellerContactDisplay } from '@/lib/seller-contact-display'
 
 /**
  * ชื่อแท็บเบราว์เซอร์ต้องตามภาษาที่ผู้ใช้เลือกด้วย ⇒ ต้องเป็น `generateMetadata` (async)
@@ -96,14 +97,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t.dashboard.metaTitle }
 }
 
-/** PDPA masking — แสดงเฉพาะ 4 ตัวท้าย ปิดส่วนที่เหลือด้วย bullet
- *  คัดลอก logic จาก customers/page.tsx และ orders/[token]/components/CustomerDetails.tsx
- *  เพื่อความสม่ำเสมอ (S5-pdpafix)
- */
-function maskContact(c: string | null | undefined, unknownLabel: string): string {
-  if (!c || c.length <= 4) return c ?? unknownLabel
-  return '•'.repeat(Math.max(0, c.length - 4)) + c.slice(-4)
-}
+// D-13 (2026-08-24): ผู้ขายเห็นเบอร์ลูกค้าตัวเองเต็ม (คอมเมนต์เดิมอ้าง S5-pdpafix — กลับมติแล้ว)
 
 // tailwind text-color class ต่อ trust level
 const LEVEL_COLOR: Record<string, string> = {
@@ -441,8 +435,10 @@ export default async function SellerDashboardPage() {
         // createdAt เป็น Date → .toISOString() ป้องกัน Date serialization error
         recentOrders = rawOrders.slice(0, 8).map((o) => ({
           token: o.publicToken,
-          // mask ก่อนข้าม RSC boundary — ห้ามส่ง raw contact ไปยัง client payload (S5-pdpafix)
-          buyerLabel: maskContact(o.buyerContact, t.dashboard.unknownContact),
+          // 🛑 คอมเมนต์เดิมตรงนี้เขียนว่า "mask ก่อนข้าม RSC boundary — ห้ามส่ง raw contact"
+          // (S5-pdpafix) — มติ D-13 (2026-08-24) กลับข้อนั้น: ผู้ขายเห็นเบอร์ลูกค้าตัวเองเต็ม
+          // จุดนี้เป็นหนึ่งใน 5 จุดที่ถือว่า "เพิ่ม PII เข้า flight payload จริง" (ผ่าน security review แล้ว)
+          buyerLabel: sellerContactDisplay(o.buyerContact, t.dashboard.unknownContact),
           createdAtISO: o.createdAt.toISOString(),
           totalAmount: Number(o.totalAmount),
           type: o.type,

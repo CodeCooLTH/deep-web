@@ -25,7 +25,14 @@ export type BookingDetailData = {
   status: string
   roomName: string
   guestName: string | null
-  guestContactMasked: string | null
+  /**
+   * เบอร์ผู้เข้าพัก — **เต็ม ไม่ปิดบัง** ตั้งแต่ 2026-08-24 (D-13)
+   *
+   * 🛑 เดิมชื่อ `guestContactMasked` — เปลี่ยนชื่อพร้อมกับมติเพราะฟิลด์ชื่อ "Masked"
+   * ที่ถือค่าเต็มคือกับดักที่รอให้คนถัดไปเชื่อชื่อแล้วเอาไปโชว์ในที่ที่ไม่ควรโชว์
+   * (เหตุผลของมติอยู่ที่ `src/lib/seller-contact-display.ts`)
+   */
+  guestContact: string | null
   checkIn: string | null
   checkOut: string | null
   nights: number | null
@@ -242,7 +249,7 @@ export default function BookingDetail({
             </div>
             <div>
               <dt className="text-default-500 text-sm">เบอร์ผู้จอง</dt>
-              <dd className="text-default-800">{booking.guestContactMasked ?? '—'}</dd>
+              <dd className="text-default-800">{booking.guestContact ?? '—'}</dd>
             </div>
           </dl>
 

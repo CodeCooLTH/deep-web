@@ -24,6 +24,7 @@ import PasteParsePanel from './PasteParsePanel'
 import { useAnchoredDropdown } from '@/hooks/useAnchoredDropdown'
 import PhoneSuggestHint from './PhoneSuggestHint'
 import { hasPhoneHint, hasPhoneSuggestion } from '@/lib/phone-hint'
+import { sellerContactDisplay } from '@/lib/seller-contact-display'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -146,7 +147,7 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
   }
 
   const avatarChar = (c: CustomerResult) => (c.name ?? c.contact).trim().charAt(0) || '?'
-  const maskContact = (s: string) => (s.length <= 7 ? s : s.slice(0, 3) + '•••' + s.slice(-4))
+  // D-13 (2026-08-24): เลิกปิดบัง — ผู้ขายต้องเทียบเบอร์กับที่ลูกค้าเพิ่งบอกมาในแชทได้
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
@@ -257,7 +258,7 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium text-dark">{c.name ?? c.contact}</p>
                             <p className="text-xs text-default-500">
-                              {maskContact(c.contact)} · ลูกค้าเดิม {c.orderCount} ออเดอร์
+                              {sellerContactDisplay(c.contact)} · ลูกค้าเดิม {c.orderCount} ออเดอร์
                             </p>
                           </div>
                           <Icon icon="chevron-right" className="size-3.5 shrink-0 text-default-400" />

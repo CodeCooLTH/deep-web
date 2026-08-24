@@ -25,7 +25,7 @@
  *  - T5: หา Customer ที่ผูกไว้ — channel นอก (ExternalContact.customerId) หรือ DEEP
  *    (Customer.userId === conversation.buyerUserId) แล้ว query ประวัติ Order/Booking (Booking =
  *    Order type='BOOKING' ตาม BR-LODG-08 ไม่ใช่ตารางแยก) เฉพาะเมื่อผูกแล้ว
- *  - RSC PII: เบอร์โทร mask ด้วย maskPhone() (src/lib/phone-mask.ts) ก่อนส่งลง prop เสมอ — หน้านี้
+ *  - RSC PII: เบอร์ลูกค้าส่งเต็มตั้งแต่ 2026-08-24 (D-13 — lib/seller-contact-display.ts) — หน้านี้
  *    อยู่ใต้ client VerticalLayout ทุก prop ถูก serialize เข้า flight payload ไม่ว่าจะ render จริงไหม
  *  - CTA "สร้างออเดอร์"/"เปิดการจอง" ลิงก์ /orders/new, /bookings/new แบบไม่มี query param —
  *    ทั้งสอง route (อ่านแล้ว) ยังไม่มี searchParams handling เลย จึงไม่ prefill (ดู t45-report.md)
@@ -56,7 +56,6 @@ import { getLineReplyWindowState } from '@/lib/line/reply-window'
 import { getLineQuotaByChannelId } from '@/services/line-quota.service'
 import { BOOKING_ORDER_TYPE } from '@/services/booking.service'
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from '@/lib/lodging'
-import { maskPhone } from '@/lib/phone-mask'
 import { findConversationShopForUser } from '@/services/chat.service'
 import { commentPermalink } from '@/lib/facebook-post'
 import { resolvePostThumbnail } from '@/services/page-comment.service'
@@ -72,6 +71,7 @@ import { listSavedFileIds } from '@/services/customer-file-library.service'
 import { summarizeCustomerBehavior, type CustomerBehavior } from '@/lib/customer-behavior'
 import type { BuyerReputation } from '@/lib/buyer-reputation'
 import { getBuyerReputation } from '@/services/buyer-reputation.service'
+import { sellerContactDisplay } from '@/lib/seller-contact-display'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
 
@@ -642,7 +642,9 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     channelName,
     channelAvatarUrl,
     vertical,
-    customer: linkedCustomer ? { id: linkedCustomer.id, phoneMasked: maskPhone(linkedCustomer.phone) } : null,
+    customer: linkedCustomer
+      ? { id: linkedCustomer.id, phone: sellerContactDisplay(linkedCustomer.phone) }
+      : null,
     customerStats,
     customerBehavior,
     buyerReputation,

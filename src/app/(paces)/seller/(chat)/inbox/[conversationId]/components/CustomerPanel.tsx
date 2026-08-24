@@ -32,7 +32,7 @@
  * แสดงเฉพาะเมื่อเธรดผูกกับ Customer กลางแล้ว (`data.customer != null`) เพราะ key แบบ `c-`
  * เป็นแบบเดียวที่ประกอบจากข้อมูลในแผงนี้ได้โดยไม่ต้องเดา
  *
- * เบอร์โทร (`customer.phoneMasked`) mask แล้วที่ server boundary (page.tsx, src/lib/phone-mask.ts)
+ * เบอร์โทร (`customer.phone`) ส่งมาเต็มตั้งแต่ 2026-08-24 (D-13) — ดู lib/seller-contact-display.ts
  * ก่อนส่งลง prop นี้ — RSC PII rule: หน้า seller อยู่ใต้ client VerticalLayout ทุก prop ที่ผ่านลงมา
  * ถูก serialize เข้า flight payload หมด ไม่ว่าจะ render จริงหรือไม่
  */
@@ -142,8 +142,16 @@ export type CustomerPanelData = {
    * active อยู่ร้าน A (BR-UNI-07) ⇒ ปุ่มจะหาออเดอร์ไม่เจอแล้วกดกี่ครั้งก็ไม่ผ่าน
    */
   shopId: string
-  /** null = ยังไม่ผูก Customer — phoneMasked ผ่าน maskPhone() มาแล้วเสมอ (ห้ามส่งเบอร์เต็ม) */
-  customer: { id: string; phoneMasked: string } | null
+  /**
+   * null = ยังไม่ผูก Customer
+   *
+   * 🛑 เดิมฟิลด์นี้ชื่อ `phoneMasked` และคอมเมนต์ตรงนี้เขียนว่า "ห้ามส่งเบอร์เต็ม" —
+   * มติ D-13 (2026-08-24) กลับข้อนั้น: ผู้ขายเป็นเจ้าของข้อมูลลูกค้าตัวเอง และการปิดบัง
+   * ทำให้ค้นหาไม่เจอโดยไม่ได้ปกป้องใคร (เหตุผลเต็มใน lib/seller-contact-display.ts)
+   * เปลี่ยนชื่อฟิลด์ตามความจริงด้วย — ฟิลด์ชื่อ `phoneMasked` ที่ถือค่าเต็มคือกับดัก
+   * ที่รอให้คนถัดไปเชื่อชื่อแล้วเอาไปโชว์ในที่ที่ไม่ควรโชว์
+   */
+  customer: { id: string; phone: string } | null
   /** สถิติลูกค้า (aggregate จริงทั้งหมด ไม่ใช่แค่ orders 20 แถวที่ list ใช้) — null = ยังไม่ผูก Customer
    *  orderCount = ทุกออเดอร์; totalSpent = ผลรวมที่ไม่ยกเลิก (Decimal→string); since = วันเป็นลูกค้า (ISO) */
   customerStats: { orderCount: number; totalSpent: string; since: string } | null
@@ -1068,7 +1076,7 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
                 title={`รหัสลูกค้า ${data.customer.id}`}
               >
                 <Icon icon="link" className="text-success text-base" />
-                {t.inbox.customerPanel.linked} · {data.customer.phoneMasked}
+                {t.inbox.customerPanel.linked} · {data.customer.phone}
               </p>
             ) : (
               <p className="text-default-800 mb-0 text-sm">

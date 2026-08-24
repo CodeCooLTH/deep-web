@@ -21,15 +21,11 @@ import {
 } from '@/services/booking.service'
 import { listHousekeepers } from '@/services/housekeeping.service'
 import BookingDetail from './components/BookingDetail'
+import { sellerContactOrNull } from '@/lib/seller-contact-display'
 
 export const metadata: Metadata = { title: 'รายละเอียดการจอง' }
 
-/** PDPA: แสดง 4 ตัวท้าย ปิดที่เหลือ — pattern เดียวกับหน้าลูกค้า */
-function maskPhone(c: string | null): string | null {
-  if (!c) return null
-  if (c.length <= 4) return c
-  return '•'.repeat(c.length - 4) + c.slice(-4)
-}
+// D-13 (2026-08-24): ผู้ขายเห็นเบอร์ผู้เข้าพักของร้านตัวเองเต็ม
 
 export default async function BookingDetailPage({
   params,
@@ -77,7 +73,7 @@ export default async function BookingDetailPage({
           status: b.status,
           roomName: b.room?.name ?? '—',
           guestName: b.buyerName,
-          guestContactMasked: maskPhone(b.buyerContact),
+          guestContact: sellerContactOrNull(b.buyerContact),
           checkIn: b.checkIn ? toDateOnlyString(b.checkIn) : null,
           checkOut: b.checkOut ? toDateOnlyString(b.checkOut) : null,
           nights: b.checkIn && b.checkOut ? nightsBetween(b.checkIn, b.checkOut) : null,

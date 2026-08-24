@@ -6,7 +6,7 @@
  * - data fetching: getOrdersByShop (SafePay service) + getShopByUserId
  * - Date boundary: createdAt → .toISOString() ก่อนส่งผ่าน RSC→client boundary
  * - "no shop" guard เก็บไว้ (ไม่มีใน theme แต่จำเป็นสำหรับ seller ที่ยังไม่ตั้งร้าน)
- * - maskContact ใช้ซ่อน buyer contact (PDPA-lite)
+ * - buyer contact แสดงเต็ม (D-13) — ปิดบังเหลือเฉพาะจอผู้ซื้อ/แอดมิน
  * - productId → productImagesById lookup ถูก stripped: ไม่มีคอลัมน์รูปภาพในหน้า list แล้ว
  * - StatStrip import ลบออก — ไม่แก้ไขไฟล์ _shared/StatStrip.tsx
  */
@@ -36,6 +36,7 @@ import OrdersStatCard from './components/OrdersStatCard'
 import { RETURNED_CARRIER_STATUSES } from '@/lib/iship/status'
 import { cancelReasonCountsAgainstGuest } from '@/lib/lodging'
 import { toFileUrl } from '@/lib/file-url'
+import { sellerContactDisplay } from '@/lib/seller-contact-display'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ จึงเป็น generateMetadata ไม่ใช่ constant
@@ -50,10 +51,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: resolveOrderVocab(active?.shop?.vertical ?? '').noun }
 }
 
-function maskContact(c: string | null | undefined): string {
-  if (!c || c.length <= 4) return c ?? '—'
-  return '•'.repeat(Math.max(0, c.length - 4)) + c.slice(-4)
-}
+// D-13 (2026-08-24): ผู้ขายเห็นเบอร์ลูกค้าตัวเองเต็ม — ดูเหตุผลใน lib/seller-contact-display.ts
 
 interface PageProps {
   searchParams: Promise<{ status?: string; stage?: string }>
@@ -347,7 +345,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     id: (o.publicToken ?? o.id).slice(0, 8),
     publicToken: o.publicToken ?? o.id,
     shortCode: o.shortCode ?? null,
-    buyer: maskContact(o.buyerContact),
+    buyer: sellerContactDisplay(o.buyerContact),
     orderType: o.type ?? 'PHYSICAL',
     total: Number(o.totalAmount ?? 0),
     status: o.status,
