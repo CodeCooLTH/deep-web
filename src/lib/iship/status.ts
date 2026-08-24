@@ -119,6 +119,55 @@ export function isReturnedCarrierStatus(code?: string | null): boolean {
 }
 
 /**
+ * ปลายทางที่ **ไม่มีอะไรตามมาได้อีก** — ถามขนส่งซ้ำก็ได้คำตอบเดิมตลอดกาล
+ *
+ * 🛑 ต่างจาก `isTerminalCarrierStatus()` ตรง `delivered`: ตัวนั้น terminal ก็จริง แต่ใบ
+ * เก็บเงินปลายทางยังมี `payment_success` ตามมาทีหลัง (ของจริงห่างกัน ~33 ชม. —
+ * TH160390J7DJ1I) ⇒ ใช้ terminal ตัดสินว่า "เลิกถาม" จะทำให้ COD ค้างที่ "ส่งถึงแล้ว"
+ * ตลอดไปและฟีเจอร์ปิดงานอัตโนมัติตายทั้งฟีเจอร์ (BR-ISHIP-49)
+ *
+ * รายชื่อนี้ยกมาจาก `where` ของ `syncShipmentStatuses` ที่ตัดสินเรื่องเดียวกันอยู่แล้ว —
+ * ตัวนั้นเป็น SQL จึงเรียกฟังก์ชันนี้ไม่ได้ มีเทส [blocker] เทียบสองที่ให้ตรงกันแทน
+ */
+export const FINAL_CARRIER_STATUSES = [
+  "return_success",
+  "is_expired",
+  "close",
+  "cancelled",
+] as const;
+
+export function isFinalCarrierStatus(code?: string | null): boolean {
+  if (!code) return false;
+  return (FINAL_CARRIER_STATUSES as readonly string[]).includes(code);
+}
+
+/**
+ * carrierTrackingSettled — "ยิงถาม iShip อีกก็ไม่ได้อะไรใหม่แล้ว"
+ *
+ * ใช้ตัดสินว่าจะข้ามการยิง upstream ตอนเปิดดูไทม์ไลน์ (user เสนอเอง 2026-08-24:
+ * "ถ้าสถานะมันสิ้นสุดแล้ว ไม่ต้องยิง API ให้เสียเวลา") — การเปิด hover 1 ครั้งเดิมยิง
+ * 2 คำขอ (`/api/traces` + `get_order`) ต่อพัสดุ 1 ใบ
+ *
+ * เกณฑ์เดียวกับชุดที่ poller ใช้ตัดออกจากรายการติดตามเป๊ะ ๆ:
+ *   - ปลายทางที่ไม่มีอะไรตามมา (FINAL_CARRIER_STATUSES) = จบ
+ *   - `delivered` = จบ **เว้นแต่** เป็นใบ COD ที่ยังไม่ได้รับแจ้งว่าโอนเงิน
+ *   - `payment_success` = เงินเข้าแล้ว จบสุดทาง
+ */
+export function carrierTrackingSettled(row: {
+  carrierStatus?: string | null;
+  codAmount?: number | null;
+  codSettledAt?: Date | string | null;
+}): boolean {
+  const code = row.carrierStatus;
+  if (!code) return false;
+  if (isFinalCarrierStatus(code)) return true;
+  const codPending = (row.codAmount ?? 0) > 0 && !row.codSettledAt;
+  if (code === "payment_success") return true;
+  if (code === "delivered") return !codPending;
+  return false;
+}
+
+/**
  * describeCarrierStatus — แปลรหัสสถานะเป็นข้อความ/สี
  *
  * รหัสที่ไม่รู้จัก (ผู้ให้บริการเพิ่มสถานะใหม่) ต้องไม่ทำให้หน้าจอพัง —
@@ -217,6 +266,17 @@ export interface ShipmentProgress {
   tone: ShipmentBarTone;
   /** ป้ายขั้นสุดท้ายที่ override (return_success ไม่ใช่ "จัดส่งสำเร็จ") */
   lastLabel?: string;
+  /**
+   * ไอคอนขั้นสุดท้ายที่ override — คู่กับ `lastLabel` เสมอ
+   *
+   * 🛑 จำเป็นตั้งแต่ 2026-08-24 ที่ user เคาะให้จุด "ส่งคืนสำเร็จ" เป็น **เขียวเท่ากับ
+   * "จัดส่งสำเร็จ"**: พอสีเท่ากันและตำแหน่งเท่ากัน (จุดที่ 4 ทั้งคู่) สิ่งเดียวที่เหลือให้
+   * แยกสองเคสนี้คือ *คำ* — ซึ่งแถบจิ๋วในตาราง `/orders` ไม่มีคำเลย มีแต่จุด 4 จุด
+   * ⇒ ต้องแยกด้วย **รูปร่าง** ด้วย (ลูกศรย้อนกลับ ไม่ใช่เครื่องหมายถูก) ไม่งั้นพัสดุที่กอง
+   * อยู่ที่ร้านจะอ่านเป็น "ส่งถึงลูกค้าแล้ว" บนแถวตาราง ซึ่งเป็นอาการเดิมที่เพิ่งแก้ไป
+   * (WCAG 1.4.1 ก็ห้ามใช้สีเป็นตัวสื่อความหมายตัวเดียวอยู่แล้ว)
+   */
+  lastIcon?: string;
   /** เตือนเมื่อออกนอกเส้นทางปกติ — ห้ามแกล้งทำเป็นว่ายังเดินหน้าอยู่ */
   notice?: { tone: ShipmentTone; text: string };
 }
@@ -303,6 +363,12 @@ export function describeProgress(
           code === "close"
           ? "ปิดงานแล้ว"
           : undefined,
+    // ไอคอนยกจากตาราง CARRIER_STATUS ของรหัสนั้นตรง ๆ ไม่เลือกใหม่ (ที่นั่นคือ SSOT ของ
+    // "หน้าตาของสถานะนี้" อยู่แล้ว) — return_success = arrow-back-up · close = flag
+    lastIcon:
+      code === "return_success" || code === "close"
+        ? `tabler:${CARRIER_STATUS[code].icon}`
+        : undefined,
     notice: code ? NOTICE_OF[code] : undefined,
   };
 }

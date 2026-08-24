@@ -75,6 +75,9 @@ export default function MiniShipmentTimeline({
   /** คำใต้จุด — ขั้นสุดท้ายถูก override ได้ ("ส่งคืนสำเร็จ" ไม่ใช่ "จัดส่งสำเร็จ") */
   const stepLabel = (i: number) =>
     i === SHIPMENT_STAGES.length - 1 ? (progress?.lastLabel ?? SHIPMENT_STAGES[i].label) : SHIPMENT_STAGES[i].label
+  /** ไอคอนขั้นสุดท้ายถูก override คู่กับคำเสมอ — ดูเหตุผลที่ ShipmentProgress.lastIcon */
+  const stepIcon = (i: number) =>
+    i === SHIPMENT_STAGES.length - 1 ? (progress?.lastIcon ?? SHIPMENT_STAGES[i].icon) : SHIPMENT_STAGES[i].icon
 
   /**
    * คำที่ใช้อ่านให้ screen reader / title — ต้องเป็นคำเดียวกับที่ตาเห็น
@@ -103,7 +106,7 @@ export default function MiniShipmentTimeline({
         )}
       >
         <Icon
-          icon={SHIPMENT_STAGES[i].icon}
+          icon={stepIcon(i)}
           className={size === 'sm' ? 'text-xs' : 'text-base'}
           aria-hidden="true"
         />

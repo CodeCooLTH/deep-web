@@ -145,9 +145,17 @@ describe('describeProgress = SSOT ของแถบ 4 จุด', () => {
     const delivered = describeProgress('CREATED', 'delivered')
     const returned = describeProgress('CREATED', 'return_success')
     expect(delivered.stage).toBe(returned.stage)
-    // ⇒ ห้ามมีจอไหนวาดจุดสุดท้ายโดยไม่เอา lastLabel/notice ไปใช้ (ดูเทสสแกนซอร์สด้านล่าง)
+    // ⇒ ห้ามมีจอไหนวาดจุดสุดท้ายโดยไม่เอา lastLabel/lastIcon/notice ไปใช้ (ดูเทสสแกนซอร์ส)
     expect(delivered.lastLabel).toBeUndefined()
     expect(delivered.notice).toBeUndefined()
+
+    /**
+     * 🛑 user เคาะ 2026-08-24 ให้จุดนี้ **เขียวเท่ากับ "จัดส่งสำเร็จ"** ⇒ สี+ตำแหน่งเท่ากันแล้ว
+     * รูปร่างไอคอนคือสิ่งเดียวที่เหลือให้แยกสองเคสนี้บนแถบจิ๋วในตารางซึ่งไม่มีคำกำกับเลย
+     * (WCAG 1.4.1 — ห้ามใช้สีเป็นตัวสื่อความหมายตัวเดียว)
+     */
+    expect(returned.lastIcon).toBeTruthy()
+    expect(returned.lastIcon).not.toBe(SHIPMENT_STAGES[SHIPMENT_STAGES.length - 1].icon)
   })
 
   it('[blocker] ทั้ง 3 จอที่วาดแถบต้องเรียก describeProgress + ใช้ lastLabel', () => {
@@ -175,6 +183,8 @@ describe('describeProgress = SSOT ของแถบ 4 จุด', () => {
       expect(src, p).toContain('describeProgress(')
       expect(src, p).toContain('progress.stage')
       expect(src, p).toContain('lastLabel')
+      // ไอคอนต้องถูก override ด้วย ไม่ใช่แค่คำ — ดูเหตุผลในเทส "แยกด้วยคำ+notice" ด้านบน
+      expect(src, p).toContain('lastIcon')
     }
   })
 })

@@ -20,6 +20,7 @@ import * as iship from "@/lib/iship/client";
 import { IShipError } from "@/lib/iship/errors";
 import {
   carrierStatusCodeFromId,
+  carrierTrackingSettled,
   describeCarrierStatus,
   impliesDispatched,
   isDeliveredCarrierStatus,
@@ -1399,6 +1400,9 @@ const CARRIER_STATE_SELECT = {
   carrierStatusAt: true,
 } as const;
 
+/** เพิ่มจาก CARRIER_STATE_SELECT เฉพาะช่องที่ carrierTrackingSettled() ต้องใช้ */
+const TRACKING_SETTLED_SELECT = { codAmount: true, codSettledAt: true } as const;
+
 function carrierStateOf(row: TraceCarrierState): TraceCarrierState {
   return {
     status: row.status,
@@ -1424,10 +1428,38 @@ export async function getTraces(
   const { token } = await loadAccount(shopId);
   const row = await prisma.orderShipment.findFirst({
     where: { id: shipmentId, shopId },
-    select: { id: true, trackingNo: true, orderId: true, ...CARRIER_STATE_SELECT },
+    select: {
+      id: true,
+      trackingNo: true,
+      orderId: true,
+      ...CARRIER_STATE_SELECT,
+      ...TRACKING_SETTLED_SELECT,
+    },
   });
   if (!row) throw new IShipServiceError("NOT_FOUND", "ไม่พบพัสดุนี้");
   if (!row.trackingNo) return { events: [], carrier: carrierStateOf(row) };
+
+  /**
+   * พัสดุที่จบเส้นทางแล้ว = ถามซ้ำได้คำตอบเดิมตลอดกาล → อ่านจากฐานอย่างเดียว
+   * (user เสนอเอง 2026-08-24: "ถ้าสถานะมันสิ้นสุดแล้ว ไม่ต้องยิง API ให้เสียเวลา")
+   *
+   * ประหยัด **2 คำขอต่อการเปิดดู 1 ครั้ง** (`/api/traces` + `get_order`) และ hover ในหน้า
+   * รายการยิงทุกครั้งที่เมาส์ผ่าน
+   *
+   * 🛑 ต้องมีเหตุการณ์เก็บไว้แล้วถึงจะข้ามได้ — ใบที่จบเส้นทางโดยที่ยังไม่เคยดึงไทม์ไลน์เลย
+   * (ปิดจากฝั่ง webhook/poller ล้วน) ยังต้องยิงครั้งแรกให้ ไม่งั้นมันจะว่างเปล่าตลอดไป
+   * โดยไม่มีทางกู้
+   *
+   * 🛑 เกณฑ์ต้องเป็น `carrierTrackingSettled` ไม่ใช่ `isTerminalCarrierStatus` — `delivered`
+   * ของใบ COD ยังมี `payment_success` ตามมาทีหลัง (BR-ISHIP-49)
+   */
+  if (carrierTrackingSettled({ ...row, codAmount: Number(row.codAmount ?? 0) })) {
+    const stored = await prisma.shipmentEvent.findMany({
+      where: { shipmentId: row.id },
+      orderBy: { occurredAt: "asc" },
+    });
+    if (stored.length > 0) return { events: stored, carrier: carrierStateOf(row) };
+  }
 
   /**
    * ดึงไม่ได้ = ยังอ่านของเก่าที่เก็บไว้ได้ — ไม่ใช่พังทั้งหน้า

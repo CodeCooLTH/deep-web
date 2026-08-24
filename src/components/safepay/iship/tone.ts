@@ -90,6 +90,24 @@ export const TONE_DOT_TINT: Record<string, string> = {
  * 🛑 ไม่มี notice = เดินหน้าตามปกติ → primary เหมือนเดิมทุกประการ ห้ามให้ค่าเริ่มต้นเป็น
  * อย่างอื่น ไม่งั้นพัสดุปกติจะเปลี่ยนสีทั้งระบบจากการแก้ที่ตั้งใจแก้แค่เคสผิดปกติ
  */
+const CURRENT_DOT: Record<string, string> = {
+  danger: TONE_DOT_SOLID.danger,
+  warning: TONE_DOT_SOLID.warning,
+  info: TONE_DOT_SOLID.info,
+  primary: TONE_DOT_SOLID.primary,
+  success: TONE_DOT_SOLID.success,
+  /**
+   * 🛑 เขียว ไม่ใช่เทา — user เคาะเอง 2026-08-24 ("เขียวเหมือนกัน") หลังผมเสนอเทาโดยอ้าง
+   * Verified-Means-Green. เคสเดียวที่ไปถึงตรงนี้ได้จริงคือ `return_success` (อีกตัวที่ tone
+   * secondary คือ `is_expired` ซึ่ง stage = -1 ไม่ถูกวาด)
+   *
+   * แลกมาด้วยเงื่อนไข: จุดนี้ต้องเปลี่ยน **ไอคอน** เป็นลูกศรย้อนกลับผ่าน `lastIcon` ของ
+   * `describeProgress()` — เพราะพอสี+ตำแหน่งเท่ากับ "จัดส่งสำเร็จ" แล้ว รูปร่างคือสิ่งเดียว
+   * ที่เหลือให้แยกสองเคสนี้บนแถบจิ๋วในตารางซึ่งไม่มีคำกำกับ
+   */
+  secondary: TONE_DOT_SOLID.success,
+}
+
 export function shipmentCurrentDotCls(notice?: { tone: string } | null): string {
-  return notice ? (TONE_DOT_SOLID[notice.tone] ?? TONE_DOT_SOLID.primary) : TONE_DOT_SOLID.primary
+  return notice ? (CURRENT_DOT[notice.tone] ?? CURRENT_DOT.primary) : CURRENT_DOT.primary
 }

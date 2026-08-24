@@ -90,8 +90,10 @@ export default function ShipmentHoverCard({
           cache: 'no-store',
         })
         if (!res.ok) throw new Error('failed')
-        const data = (await res.json()) as { data?: TraceEvent[] } | TraceEvent[]
-        setTraces(Array.isArray(data) ? data : (data.data ?? []))
+        // รูปร่าง `{ events, carrier }` — ดูคำอธิบายเต็มที่ ShippingCard.fetchTraces
+        // (ตัวอ่านเดิมคาด array/`{data}` ⇒ ได้ `[]` ทุกครั้งโดยไม่มี error)
+        const data = (await res.json()) as { events?: TraceEvent[] }
+        setTraces(data.events ?? [])
         setState('done')
       } catch {
         // ล้มแล้วไม่ขึ้น toast — ร้านไม่ได้สั่งอะไร แค่เอาเมาส์ไปวาง การเด้ง error
@@ -137,6 +139,8 @@ export default function ShipmentHoverCard({
   const currentDot = shipmentCurrentDotCls(progress?.notice)
   const stepLabel = (i: number) =>
     i === SHIPMENT_STAGES.length - 1 ? (progress?.lastLabel ?? SHIPMENT_STAGES[i].label) : SHIPMENT_STAGES[i].label
+  const stepIcon = (i: number) =>
+    i === SHIPMENT_STAGES.length - 1 ? (progress?.lastIcon ?? SHIPMENT_STAGES[i].icon) : SHIPMENT_STAGES[i].icon
 
   const dot = (i: number) => {
     const reached = cur != null && i <= cur
@@ -148,7 +152,7 @@ export default function ShipmentHoverCard({
           isCurrent ? currentDot : reached ? 'bg-success text-white' : 'bg-default-100 text-default-500',
         )}
       >
-        <Icon icon={SHIPMENT_STAGES[i].icon} className="text-base" aria-hidden="true" />
+        <Icon icon={stepIcon(i)} className="text-base" aria-hidden="true" />
       </span>
     )
   }

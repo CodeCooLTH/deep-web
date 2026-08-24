@@ -96,6 +96,8 @@ export default function ParcelTimeline({ stage, carrierStatus, hasShipment, trac
   /** ขั้นสุดท้ายถูก override ได้ ("ส่งคืนสำเร็จ" ไม่ใช่ "จัดส่งสำเร็จ") — SSOT เดียวกับฝั่งร้าน */
   const stepLabel = (i: number) =>
     i === lastIndex ? (progress?.lastLabel ?? SHIPMENT_STAGES[i].label) : SHIPMENT_STAGES[i].label
+  const stepIcon = (i: number) =>
+    i === lastIndex ? (progress?.lastIcon ?? SHIPMENT_STAGES[i].icon) : SHIPMENT_STAGES[i].icon
   // คำมาจากชุดกลาง ห้ามพิมพ์เองที่นี่ (HR16)
   const currentLabel = progress
     ? stepLabel(activeIndex)
@@ -274,7 +276,7 @@ export default function ParcelTimeline({ stage, carrierStatus, hasShipment, trac
                     color: reached ? 'common.white' : 'text.secondary',
                   }}
                 >
-                  <Icon icon={step.icon} fontSize={18} />
+                  <Icon icon={stepIcon(i)} fontSize={18} />
                 </Box>
                 <Box
                   aria-hidden

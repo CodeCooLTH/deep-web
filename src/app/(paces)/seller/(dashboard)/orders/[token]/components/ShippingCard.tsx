@@ -94,8 +94,16 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
       try {
         const res = await fetch(`/api/seller/iship/shipments/${shipmentId}/traces`, { cache: 'no-store' })
         if (!res.ok) throw new Error('ดึงสถานะจาก iShip ไม่สำเร็จ')
-        const data = (await res.json()) as { data?: TraceEvent[] } | TraceEvent[]
-        const list = Array.isArray(data) ? data : (data.data ?? [])
+        /**
+         * 🛑 รูปร่างคือ `{ events, carrier }` — route เปลี่ยนมาคืนแบบนี้ตั้งแต่ 2026-08-20
+         * (เพื่อส่งสถานะที่เพิ่ง sync กลับมาด้วย) แต่ตัวอ่านตรงนี้ยังเป็นของเดิมที่คาด
+         * `TraceEvent[]` หรือ `{ data }` ⇒ `data.data` = undefined → `[]` **ทุกครั้ง**
+         * ⇒ "การเดินทางล่าสุด" ว่างเปล่าทุกใบทุกออเดอร์มา 4 วัน ทั้งที่ฐานมีเหตุการณ์
+         * เก็บไว้ 20–28 แถวต่อพัสดุ (user เจอ 2026-08-24 · โมดัลพัสดุในแชทอ่านถูกอยู่แล้ว
+         * จึงไม่มีใครเอะใจ) — `res.ok` เป็น true ตลอด จึงไม่มี error ให้ใครเห็น
+         */
+        const data = (await res.json()) as { events?: TraceEvent[] }
+        const list = data.events ?? []
         setTraces(list)
         setCheckedAt(new Date().toISOString())
         if (announce) {
@@ -234,7 +242,13 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
                               : 'bg-default-100 text-default-500',
                         )}
                       >
-                        <Icon icon={s.icon} className="text-base" aria-hidden="true" />
+                        <Icon
+                          icon={
+                            i === SHIPMENT_STAGES.length - 1 ? (progress.lastIcon ?? s.icon) : s.icon
+                          }
+                          className="text-base"
+                          aria-hidden="true"
+                        />
                       </span>
                     </Fragment>
                   )
