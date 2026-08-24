@@ -339,31 +339,45 @@ function installStore(store: FakeRow[], stolen: Set<string> = new Set()) {
       .filter((r) => r.deliveryStatus === 'QUEUED' && r.conversationId === where.conversationId)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
   })
-  // `updateMany` รับทั้ง 2 บทบาทตั้งแต่ R-F — แยกด้วยรูปร่างของ where เหมือนที่ `closeCalls()` ทำ
+  /**
+   * `updateMany` รับ 2 บทบาทตั้งแต่ R-F (claim / closeRow) — **จำลอง `WHERE` ของจริง
+   * ไม่ใช่เดาบทบาทจากรูปร่างคำสั่ง**
+   *
+   * 🛑 ของเดิมแยกบทบาทด้วย `args.where.deliveryStatus === 'QUEUED'` ซึ่ง **ทำให้ guard ของ R-F
+   * กลายเป็นสิ่งที่ mock ใช้ตัดสินใจเสียเอง**: mutation ที่ถอด `deliveryStatus: 'QUEUED'` ออกจาก
+   * `closeRow` ทำให้คำสั่งตกไปเข้ากิ่ง claim แล้วคืน `count: 0` ⇒ แถวไม่ถูกเขียนทับ ⇒ เทส
+   * "ห้ามเขียน SENT ทับ" **เขียว** ทั้งที่ guard หายไปแล้ว (ที่แดงคือเทสอื่นซึ่งแดงเพราะรูปร่าง
+   * คำสั่งเปลี่ยน = แดงด้วยเหตุผลที่ผิด และจะพาคนที่มาเจอในอนาคตวินิจฉัยผิดทาง)
+   *
+   * ตอนนี้ทุกคีย์ใน `where` ถูกเทียบกับค่าปัจจุบันของแถวเหมือน Postgres ทำ ⇒ guard ที่หายไป
+   * แปลว่าเงื่อนไขหายไปจริง ๆ แล้วแถวถูกเขียนทับจริง ๆ = เทสข้อนั้นเองแดง
+   */
   updateMany.mockImplementation(
     async (args: { where: Record<string, unknown>; data?: Record<string, unknown> }) => {
-      const id = args.where.id
+      const where = args.where ?? {}
+      const id = where.id
       if (typeof id !== 'string') return { count: 0 }
       const row = store.find((r) => r.id === id)
       if (!row) return { count: 0 }
 
-      // ปิดแถว (closeRow) — conditional ด้วย deliveryStatus: 'QUEUED'
-      if (args.where.deliveryStatus === 'QUEUED') {
-        if (row.deliveryStatus !== 'QUEUED') return { count: 0 }
-        const next = args.data?.deliveryStatus
-        if (typeof next === 'string') row.deliveryStatus = next
-        return { count: 1 }
-      }
-
-      // claim
-      if (stolen.has(id)) {
-        // worker อื่นถือ claim อยู่ และทำจนจบไปแล้ว ⇒ แถวออกจากคิว
+      // `stolen` = สถานการณ์ที่ fixture จำลอง ("worker อื่นชิง claim ไปแล้วและทำจนจบ") ไม่ใช่กฎ
+      // ที่กำลังถูกทดสอบ — ผูกกับ **คำสั่ง claim** ซึ่งเป็นคำสั่งเดียวที่มี `sendLockedAt` ใน where
+      if ('sendLockedAt' in where && stolen.has(id)) {
         row.sendLockedAt = new Date()
         row.deliveryStatus = 'SENT'
         return { count: 0 }
       }
-      if (row.sendLockedAt !== null) return { count: 0 }
-      row.sendLockedAt = new Date()
+
+      // WHERE: ทุกคีย์ที่ระบุต้องตรงกับค่าปัจจุบันของแถว ไม่ตรง = 0 แถวถูกแตะ
+      for (const [key, want] of Object.entries(where)) {
+        if (key === 'id') continue
+        if ((row as unknown as Record<string, unknown>)[key] !== want) return { count: 0 }
+      }
+
+      // SET: เขียนเฉพาะคอลัมน์ที่แถวจำลองมีจริง
+      const data = args.data ?? {}
+      if (typeof data.deliveryStatus === 'string') row.deliveryStatus = data.deliveryStatus
+      if ('sendLockedAt' in data) row.sendLockedAt = (data.sendLockedAt as Date | null) ?? null
       return { count: 1 }
     },
   )
@@ -800,6 +814,90 @@ describe('sweepOutbox', () => {
 
     expect(res.sent).toBeGreaterThan(0)
     expect(res.sent).toBeLessThan(8)
+  })
+
+  /**
+   * 🛑 สองข้อถัดไปกันด่านงบเวลาของ **ขั้นที่ 1** ซึ่งเดิมไม่มีเลย — `deadline` ถูกคิดตั้งแต่ต้น
+   * ฟังก์ชันแต่ถูกใช้ครั้งแรกใน `drainRoom` ⇒ ขั้นปิดแถวค้างทำได้ถึง `STALE_SCAN_LIMIT` = 200 แถว
+   * แบบไม่มีเพดาน (แต่ละแถว = `updateMany` + noti ที่ await ทีละใบและมี HTTP ไป Expo ข้างใน)
+   *
+   * สถานการณ์ที่ทำให้ตัวเลขนี้โตคือ "ปลายทางล่ม" ซึ่งเป็นสถานการณ์เดียวกับที่ R-D/R-E ถูกสร้างมา
+   * รับมือพอดี ⇒ รอบนั้น cron หมด 60 วินาทีไปกับการปิดแถว/ยิง noti โดยไม่ได้ระบายอะไรเลยสักห้อง
+   *
+   * 🛑 **แยกเป็นสองข้อโดยตั้งใจ** — ด่านสองตัวหยุดคนละอย่าง: ข้อแรกทำให้ *การปิดแถว* ช้า
+   * (noti เร็ว) ข้อที่สองทำให้ *noti* ช้า (การปิดแถวเร็ว) ⇒ ถอดด่านตัวไหนออกก็มีเทสของตัวเอง
+   * แดง ไม่มีตัวไหนพึ่งอีกตัวบังให้
+   */
+  it('[blocker] ขั้นปิดแถวค้างกินงบเวลาจนหมด → หยุดที่แถวถัดไป ไม่ปิดจนครบ 200 แถว (R-E ขั้น 1)', async () => {
+    const old = new Date(Date.now() - 10 * 60 * 1000)
+    const rows = Array.from({ length: 8 }, (_, i) =>
+      queued({ id: `stuck${i}`, conversationId: `cv${i}`, sendLockedAt: old }),
+    )
+    findMany.mockResolvedValueOnce(rows)
+    conversationFindMany.mockResolvedValue(rows.map((r) => ({ id: r.conversationId, shopId: 's1' })))
+    // การ "ปิดแถว" คือสิ่งที่ช้าในเทสนี้ — noti เร็ว เพื่อให้ด่านที่ถูกวัดเป็นด่านของลูปปิดแถวเท่านั้น
+    updateMany.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+      return { count: 1 }
+    })
+
+    const res = await sweepOutbox({ owner: 'cron', budgetMs: 25 })
+
+    expect(res.stale, 'ไม่มีด่าน = ปิดครบทุกแถวไม่ว่างบเวลาจะหมดไปนานแค่ไหน').toBeLessThan(8)
+    expect(res.stale).toBeGreaterThan(0)
+    expect(res.timedOut).toBe(true)
+    // แถวที่ยังไม่ได้ปิดยังเป็น QUEUED + claim ค้าง ⇒ รอบถัดไปเห็นแน่นอน (เลื่อนจริง ไม่ใช่ตกหล่น)
+    expect(res.staleRows).toHaveLength(res.stale)
+  })
+
+  it('[blocker] ขั้นยิง noti กินงบเวลาจนหมด → หยุดยิง แต่แถวต้องถูกปิดครบแล้ว + นับของที่ตกหล่น', async () => {
+    const old = new Date(Date.now() - 10 * 60 * 1000)
+    const rows = Array.from({ length: 8 }, (_, i) =>
+      queued({ id: `stuck${i}`, conversationId: `cv${i}`, sendLockedAt: old }),
+    )
+    findMany.mockResolvedValueOnce(rows)
+    conversationFindMany.mockResolvedValue(rows.map((r) => ({ id: r.conversationId, shopId: 's1' })))
+    // ปิดแถวเร็ว (ลูปแรกจบครบแน่นอน) — ตัวที่กินเวลาคือ noti ซึ่งมี HTTP ไป Expo ในของจริง
+    updateMany.mockResolvedValue({ count: 1 })
+    pushChatSendFailed.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+    })
+
+    const res = await sweepOutbox({ owner: 'cron', budgetMs: 25 })
+
+    // ลูปปิดแถวต้องจบครบ — ถ้าข้อนี้ไม่เป็น 8 แปลว่าเรากำลังวัดด่านผิดตัว
+    expect(res.stale, 'การปิดแถวเร็ว ⇒ ลูปแรกต้องจบครบ ไม่งั้นเทสนี้ไปทับกับข้อบน').toBe(8)
+    expect(pushChatSendFailed.mock.calls.length).toBeGreaterThan(0)
+    expect(
+      pushChatSendFailed.mock.calls.length,
+      'ไม่มีด่าน = ยิง noti ครบ 8 ใบไม่ว่างบเวลาหมดไปแล้วแค่ไหน',
+    ).toBeLessThan(8)
+    expect(res.timedOut).toBe(true)
+    // 🛑 ของที่ข้ามตรงนี้ตกหล่นถาวร (แถวไม่ใช่ QUEUED แล้ว รอบหน้าไม่เห็นอีก) ⇒ ต้องนับ ไม่ใช่กลืน
+    expect(res.staleUnnotified).toBe(8 - pushChatSendFailed.mock.calls.length)
+    expect(res.staleUnnotified).toBeGreaterThan(0)
+  })
+
+  it('[blocker] หมดงบเวลาตั้งแต่ขั้น 1 → ไม่เดินต่อขั้น 2 (rooms ต้องไม่โกหกว่าระบายไปกี่ห้อง)', async () => {
+    const old = new Date(Date.now() - 10 * 60 * 1000)
+    // 3 แถว × 15ms กับงบ 20ms ⇒ **ลูปปิดแถว** เป็นตัวที่หมดเวลาเอง (ไม่ต้องพึ่งด่านของลูป noti)
+    // ⇒ ข้อนี้วัดเฉพาะ "หมดเวลาแล้วต้องไม่เดินต่อขั้น 2" ไม่ไปทับกับสองข้อบน
+    const rows = Array.from({ length: 3 }, (_, i) =>
+      queued({ id: `stuck${i}`, conversationId: `cv${i}`, sendLockedAt: old }),
+    )
+    findMany.mockResolvedValueOnce(rows)
+    conversationFindMany.mockResolvedValue(rows.map((r) => ({ id: r.conversationId, shopId: 's1' })))
+    updateMany.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 15))
+      return { count: 1 }
+    })
+    groupBy.mockResolvedValue([room('X'), room('Y')])
+
+    const res = await sweepOutbox({ owner: 'cron', budgetMs: 20 })
+
+    expect(res.timedOut).toBe(true)
+    expect(res.rooms, 'นับห้องที่ไม่ได้ระบายเลยว่า "ระบายแล้ว" = ตัวเลขที่โกหกใน log ของ §10').toBe(0)
+    expect(res.sent).toBe(0)
   })
 
   it('[blocker] ห้องของเพจเดียวกันต้องยิงทีละห้อง — ห้ามยิงพร้อมกัน (E-8 rate limit ของ Meta)', async () => {
