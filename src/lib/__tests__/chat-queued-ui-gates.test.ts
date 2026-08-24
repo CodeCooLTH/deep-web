@@ -168,31 +168,59 @@ describe('[blocker] บันได "อ่านแล้ว/ได้รับ
     expect(decl).toMatch(/deliveryStatus\s*!==\s*'QUEUED'/)
   })
 
-  it('[R-23] เช็คถูกเขียวผูกกับ lastShopMsgId เท่านั้น — ห้ามมีสาขาที่ให้เขียวกับทุกข้อความที่ยืนยันแล้ว', () => {
-    // 🛑 กฎที่ไฟล์ ChatThread เขียนไว้เอง (~บรรทัด 250 และคอมเมนต์บันได): "เขียวสงวนไว้กับสิ่งที่
-    // ยืนยันแล้วเท่านั้น" — เจตนาคือให้มัน **เด่น** ถ้าโรยเช็คถูกเขียวท้ายทุกเบิร์สต์ สัญญาณที่ควรเด่น
-    // ("อ่านแล้ว") จะจมหายไป และมันคือการเปลี่ยนที่ผู้ใช้เห็นซึ่งไม่มีใครขอ (scope ไหล)
+  it('[R-23] เช็คถูกเขียวของสถานะข้อความมีได้ในที่เดียว และถูกกั้นด้วย isLatest', () => {
+    // 🛑 (F1 · reviewer 2026-08-23) ฉบับก่อนหน้าเป็น **heuristic ตามความใกล้ของชื่อ**: ข้ามจุดที่ไม่มีคำว่า
+    // `mine`/`m._status` ใน 260 ตัวอักษรก่อนหน้าไปเงียบ ๆ ⇒ reviewer ประกาศตัวแปรชื่ออื่นแล้วเรนเดอร์
+    // เช็คถูกเขียวใต้ป้าย "แก้ไขแล้ว" **ผ่านฉลุย 17/17** ได้เขียวท้ายทุกเบิร์สต์กลับมาครบ
+    // (M7 ของรอบก่อนแดงเพราะผมเผลอเขียนคำว่า `mine` ลงในตัว mutation เอง = บังเอิญ ไม่ใช่คุณสมบัติของด่าน)
     //
-    // ด่านนี้จับ "เงื่อนไขที่เป็นจริงถาวร" ไม่ใช่จับชื่อตัวแปร — ตัวแปรชื่ออะไรก็ได้ที่ derive จาก
-    // mine/!failed/!queued/_status แล้วเอาไปคุม text-success จะโดนหมด. สิ่งเดียวที่ผ่านได้คือ
-    // เงื่อนไขที่มี `lastShopMsgId` (ใบล่าสุดใบเดียว) ซึ่งเป็นสิ่งที่เจ้าของระบบสั่งไว้เอง
-    // ("ถ้ารัวๆ ก็ให้ อ่านแล้วจังหวะสุดท้ายก็พอ")
+    // ฉบับนี้ไม่มี `continue` ที่ข้ามอะไรเลย: **ทุก** `text-success` ในไฟล์ต้องเข้าเงื่อนไขข้อใดข้อหนึ่ง
+    //   (ก) อยู่ใน allow-list ของจุดที่ไม่เกี่ยวกับสถานะข้อความ (ระบุ anchor ชัดเจน) หรือ
+    //   (ข) อยู่ใน ShopDeliveryStatus ซึ่งเป็น SSOT เดียวและถูกกั้นด้วย `!isLatest` ที่ต้นฟังก์ชัน
+    // allow-list ที่ตกหล่นจะ **แดง** ส่วน heuristic ที่ตกหล่นจะ **เงียบ** — นั่นคือความต่างทั้งหมด
     const src = code(CHAT_THREAD)
+
+    /** จุดที่ใช้สีเขียวโดยไม่เกี่ยวกับ "สถานะการส่งของข้อความ" — ระบุด้วย anchor ที่อยู่ติดกัน */
+    const ALLOWED: { anchor: RegExp; why: string }[] = [
+      { anchor: /copied \?/, why: 'ปุ่มคัดลอกข้อความ — เขียวคือ feedback ว่าคัดลอกสำเร็จแล้ว' },
+      { anchor: /AUDIO:\s*\{/, why: 'ไอคอนไฟล์เสียงในรายการไฟล์แนบ — เป็นสีประจำชนิดไฟล์' },
+      { anchor: /aiOpen \?/, why: 'ปุ่มผู้ช่วย AI ในแถบพิมพ์ — สีประจำปุ่ม ไม่ใช่สถานะข้อความ' },
+    ]
+
+    const ssotStart = src.indexOf('function ShopDeliveryStatus')
+    expect(ssotStart, 'หา ShopDeliveryStatus ไม่เจอ').toBeGreaterThan(-1)
+    const ssotEnd = src.indexOf('\nfunction ', ssotStart + 10)
+    const ssot = src.slice(ssotStart, ssotEnd)
+
+    // (ข) SSOT ต้องกั้นด้วย isLatest จริง ไม่ใช่แค่ "อยู่ในฟังก์ชันนี้แล้วปลอดภัย"
+    expect(ssot, 'ShopDeliveryStatus ต้อง return null เมื่อไม่ใช่ข้อความล่าสุด').toMatch(
+      /if\s*\([^)]*!isLatest[^)]*\)\s*return null/,
+    )
+
+    const usedAnchors = new Set<number>()
     const offenders: string[] = []
     let from = 0
     for (;;) {
       const at = src.indexOf('text-success', from)
       if (at === -1) break
       from = at + 1
-      const ctx = src.slice(Math.max(0, at - 700), at)
-      // สนใจเฉพาะจุดที่เป็น "สถานะของข้อความ" (อยู่ในเทอร์นารี/เงื่อนไขที่อ้าง mine หรือ m._status)
-      if (!/\bmine\b|\bm\._status\b/.test(ctx.slice(-260))) continue
-      if (!/lastShopMsgId/.test(ctx.slice(-260))) offenders.push(src.slice(Math.max(0, at - 260), at + 40))
+      if (at >= ssotStart && at < ssotEnd) continue // (ข) อยู่ใน SSOT ที่พิสูจน์แล้วว่ากั้นด้วย isLatest
+      const ctx = src.slice(Math.max(0, at - 200), at + 60)
+      const hit = ALLOWED.findIndex((a) => a.anchor.test(ctx))
+      if (hit >= 0) {
+        usedAnchors.add(hit)
+        continue
+      }
+      offenders.push(src.slice(Math.max(0, at - 200), at + 60))
     }
     expect(
       offenders,
-      `เช็คถูก/ข้อความสีเขียวที่ไม่ได้ผูกกับ lastShopMsgId (= จะเป็นจริงถาวรกับทุกข้อความ):\n${offenders.join('\n---\n')}`,
+      `text-success ที่ไม่ได้อยู่ใน ShopDeliveryStatus และไม่อยู่ใน allow-list — ` +
+        `ถ้าเป็นสถานะข้อความให้ย้ายไป SSOT, ถ้าไม่เกี่ยวให้เพิ่มลง ALLOWED พร้อมเหตุผล:\n${offenders.join('\n---\n')}`,
     ).toEqual([])
+    // allow-list ที่ล้าสมัย (ของถูกลบไปแล้วแต่ยังค้างในลิสต์) ต้องแดง ไม่ใช่ค้างเงียบ
+    const stale = ALLOWED.map((a, k) => (usedAnchors.has(k) ? null : a.why)).filter(Boolean)
+    expect(stale, `allow-list ล้าสมัย ไม่มีจุดไหนใช้แล้ว ให้ลบออก:\n${stale.join('\n')}`).toEqual([])
   })
 
   it('ทุกจุดที่เรียกบันไดสถานะ ป้อน queued เข้า prop sending', () => {
@@ -217,15 +245,37 @@ describe('[blocker] บันได "อ่านแล้ว/ได้รับ
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('[blocker] P2 — ข้อความกันส่งซ้ำต้องมองเห็นได้จริง ไม่ใช่ tooltip', () => {
-  it('ประโยค "ไม่ต้องส่งซ้ำ" เป็นเนื้อหาที่ render จริง ไม่ได้อยู่ใน title=/aria-label', () => {
-    // 🛑 มือถือไม่มี hover และผู้ขายทำงานบนมือถือเป็นหลัก (PRODUCT.md) ⇒ ประโยคที่เขียนมาเพื่อกัน
-    // อาการ "คิดว่าค้างเลยส่งซ้ำ" (อาการเดียวกับบั๊กต้นเรื่องของ CR นี้) จะไม่มีวันถึงคนที่ต้องการมัน
-    // กฎนี้โปรเจกต์เขียนไว้เองแล้วที่ docs/conventions/aria-name-requires-supporting-role.md
+  it('ประโยค "ไม่ต้องส่งซ้ำ" ต้องเป็น text node ใน JSX อย่างน้อย 1 ที่', () => {
+    // 🛑 (F2 · reviewer 2026-08-23) ฉบับก่อนหน้า **ไล่ห้ามทีละรูปแบบ attribute** (`attr="…"`) จึงไม่ครอบ
+    // `title={'…'}` ⇒ reviewer เขียน `title={'กำลังส่งอยู่ — ไม่ต้องส่งซ้ำ'}` แล้วเหลือเนื้อแค่ "กำลังส่ง"
+    // **ผ่านฉลุย 17/17** ข้อความกันส่งซ้ำกลับไปมองไม่เห็นบนมือถือครบถ้วน
+    //
+    // การไล่ห้ามรูปแบบที่ไม่ต้องการ **จะพลาดรูปที่เรานึกไม่ถึงเสมอ** — เปลี่ยนเป็นบังคับด้านบวกว่า
+    // "ต้องมีอยู่ในรูปที่ผู้ใช้เห็นจริง" ซึ่งไม่มีรูให้ลอด: ย้ายไป attribute รูปแบบไหนก็ตาม
+    // text node จะหายไปแล้วด่านแดงทันที
     const src = code(CHAT_THREAD)
-    expect(src, 'ต้องมีประโยคนี้อยู่ในไฟล์').toContain('ไม่ต้องส่งซ้ำ')
-    // ห้ามอยู่ในค่าของ attribute ใด ๆ (title=, aria-label=, alt=) — จับที่ *รูปแบบ* ไม่ใช่ชื่อ attribute
-    const inAttr = src.match(/[a-zA-Z-]+=\{?"[^"]*ไม่ต้องส่งซ้ำ[^"]*"/g) ?? []
-    expect(inAttr, `ประโยคนี้ไปอยู่ใน attribute (มือถือมองไม่เห็น):\n${inAttr.join('\n')}`).toEqual([])
+    const SENTENCE = 'ไม่ต้องส่งซ้ำ'
+    /**
+     * text node หรือ attribute? ตัดสินจาก **วงเล็บมุมที่ใกล้ที่สุดก่อนหน้า**:
+     *   เจอ `>` ก่อน → เราอยู่ในเนื้อของ element = ผู้ใช้เห็น ✅
+     *   เจอ `<` ก่อน → เราอยู่ข้างในแท็ก = เป็นค่าของ attribute บางตัว ❌
+     * วิธีนี้ไม่สนใจว่า attribute เขียนด้วย `"…"`, `{'…'}`, `{\`…\`}` หรือรูปไหน — ครอบหมดโดยไม่ต้องรู้จัก
+     * และไม่พังเมื่อข้อความมีตัวคั่นอย่าง `·` อยู่ข้างหน้า (`กำลังส่ง · ไม่ต้องส่งซ้ำ`)
+     */
+    let textNodes = 0
+    let from = 0
+    for (;;) {
+      const at = src.indexOf(SENTENCE, from)
+      if (at === -1) break
+      from = at + 1
+      const before = src.slice(0, at)
+      if (before.lastIndexOf('>') > before.lastIndexOf('<')) textNodes += 1
+    }
+    expect(
+      textNodes,
+      `"${SENTENCE}" ต้องถูกเรนเดอร์เป็นตัวอักษรที่ผู้ใช้เห็น ไม่ใช่ค่าใน attribute ` +
+        `(มือถือไม่มี hover — docs/conventions/aria-name-requires-supporting-role.md)`,
+    ).toBeGreaterThanOrEqual(1)
   })
 
   it('ไม่มี title= ค้างอยู่บน span สถานะ "กำลังส่ง" (จะถูกอ่านซ้ำสองรอบ)', () => {
@@ -275,10 +325,60 @@ describe('[blocker] P5 — บันไดสถานะต้องมาจ�
 describe('[blocker] P4 — ปุ่มกู้คืนของข้อความที่ส่งไม่สำเร็จต้องแตะได้จริงบนมือถือ', () => {
   // 🛑 CR นี้เปิดทางใหม่ไปสู่ FAILED: เพดานคิว 3 นาทีทำให้ "ส่งไม่สำเร็จ" กลายเป็นผลลัพธ์ปกติ
   // (เดิมมาจาก error ตอนส่งทันทีเท่านั้น) ⇒ คลัสเตอร์กู้คืนที่เคยเป็นทางเดินรองกลายเป็นทางเดินหลัก
-  // ปุ่มเดิม text-xs + `-m-1 … p-1` ให้ hit box ~24px เทียบกับเกณฑ์ 44px ที่ PRODUCT.md ประกาศเอง
   //
-  // ด่านนี้จับ "รูปร่าง" ไม่ใช่ชื่อ: ปุ่มไหนก็ตามในคลัสเตอร์นี้ต้องมี padding ที่พาไปถึง 44px บนมือถือ
-  /** คลัสเตอร์กู้คืน = ก้อน JSX ใต้เงื่อนไข failed (ลองใหม่ / เหตุผล / ยกเลิก) */
+  // 🛑 (F4 · reviewer 2026-08-23) ฉบับก่อนหน้าเช็คแค่ว่า className "มีคำว่า p-3" จึงมองไม่เห็น 2 อย่าง:
+  //   (1) ปุ่ม (i) มีเนื้อในเป็นไอคอน text-sm = 14px ⇒ 14 + 12*2 = 38px **ตกเกณฑ์ 44px** ทั้งที่มี p-3
+  //   (2) -m-3 ดึงกลับ 12px ต่อข้าง แต่ gap-1 = 4px ⇒ hit box ของ 3 ปุ่ม **ทับกัน ~20px**
+  // ฉบับนี้จึง **คำนวณพิกเซลจริง** จากคลาส แทนที่จะดูว่ามีคำไหนอยู่
+
+  /** Tailwind spacing scale → px (1 หน่วย = 0.25rem = 4px) */
+  const SPACING: Record<string, number> = {
+    '0': 0, '0.5': 2, '1': 4, '1.5': 6, '2': 8, '2.5': 10, '3': 12, '3.5': 14, '4': 16, '5': 20, '11': 44,
+  }
+  /** ความสูงของ "เนื้อใน" ปุ่ม — --text-xs ของโปรเจกต์คือ 13px ไม่ใช่ 12px (src/assets/css/config/_root.css) */
+  const TEXT_XS_PX = 13
+  const LINE_HEIGHT = 1.5
+  const MIN_TAP_PX = 44 // เกณฑ์ที่ PRODUCT.md ประกาศเอง
+
+  /** เอาเฉพาะคลาสของ breakpoint มือถือ (ตัด lg:/md:/sm: ทิ้ง) — เกณฑ์ 44px บังคับที่มือถือ */
+  function mobileClasses(className: string): string[] {
+    return className
+      .replace(/^className="|"$/g, '')
+      .split(/\s+/)
+      .filter((c) => c && !/^[a-z]+:/.test(c))
+  }
+  function pad(classes: string[], axis: 'y' | 'x'): number {
+    const side = axis === 'y' ? 'py' : 'px'
+    for (const c of classes) {
+      const m = c.match(new RegExp(`^${side}-(.+)$`))
+      if (m && SPACING[m[1]] !== undefined) return SPACING[m[1]]
+    }
+    for (const c of classes) {
+      const m = c.match(/^p-(.+)$/)
+      if (m && SPACING[m[1]] !== undefined) return SPACING[m[1]]
+    }
+    return 0
+  }
+  function negMarginX(classes: string[]): number {
+    for (const c of classes) {
+      const m = c.match(/^-mx-(.+)$/)
+      if (m && SPACING[m[1]] !== undefined) return SPACING[m[1]]
+    }
+    for (const c of classes) {
+      const m = c.match(/^-m-(.+)$/)
+      if (m && SPACING[m[1]] !== undefined) return SPACING[m[1]]
+    }
+    return 0
+  }
+  function minPx(classes: string[], axis: 'h' | 'w'): number {
+    for (const c of classes) {
+      const m = c.match(new RegExp(`^min-${axis}-(.+)$`))
+      if (m && SPACING[m[1]] !== undefined) return SPACING[m[1]]
+    }
+    return 0
+  }
+
+  /** คลัสเตอร์กู้คืน = ก้อน JSX ใต้เงื่อนไข failed (ลองใหม่ / เหตุผล (i) / ยกเลิก) */
   function failedCluster(src: string): string {
     const start = src.indexOf('{failed && (')
     expect(start, 'หาคลัสเตอร์ failed ไม่เจอ').toBeGreaterThan(-1)
@@ -286,21 +386,53 @@ describe('[blocker] P4 — ปุ่มกู้คืนของข้อค�
     expect(end).toBeGreaterThan(start)
     return src.slice(start, end)
   }
+  /** ปุ่มแต่ละตัว = ก้อนตั้งแต่ <button ถึง > ตัวปิดแท็กเปิด */
+  function buttons(cluster: string): { raw: string; classes: string[]; iconOnly: boolean }[] {
+    const out: typeof buttonsResult = []
+    const buttonsResult: { raw: string; classes: string[]; iconOnly: boolean }[] = []
+    const re = /<button[\s\S]*?<\/button>/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(cluster))) {
+      const raw = m[0]
+      const cn = raw.match(/className="[^"]*"/)
+      if (!cn) continue
+      // เนื้อในเป็นไอคอนล้วน (ไม่มีตัวอักษรไทย) → ความสูงเนื้อใน = ขนาดไอคอน ไม่ใช่ line-height ของข้อความ
+      const body = raw.replace(/<button[\s\S]*?>/, '').replace(/<\/button>/, '')
+      const iconOnly = !/[\u0E00-\u0E7F]/.test(body)
+      out.push({ raw, classes: mobileClasses(cn[0]), iconOnly })
+    }
+    return out
+  }
 
-  it('ทุกปุ่มในคลัสเตอร์มี padding ระดับ 44px บนมือถือ (p-3 ขึ้นไป) และย่อลงเฉพาะ lg:', () => {
+  it('ทุกปุ่มในคลัสเตอร์สูงถึง 44px บนมือถือ (คำนวณจาก padding + ขนาดเนื้อใน จริง)', () => {
     const cluster = failedCluster(code(CHAT_THREAD))
-    const classNames = cluster.match(/className="[^"]*"/g) ?? []
-    // ต้องเจอปุ่มจริงอย่างน้อย 3 ตัว (ลองใหม่ · เหตุผล (i) · ยกเลิก) — กันเคส "เขียวเพราะหาไม่เจอ"
-    const buttons = (cluster.match(/<button/g) ?? []).length
-    expect(buttons, 'ต้องมีปุ่มอย่างน้อย 3 ตัวในคลัสเตอร์').toBeGreaterThanOrEqual(3)
-    // นับเฉพาะ className ที่เป็นของปุ่ม (มี rounded = ปุ่มกดได้ในคลัสเตอร์นี้ทุกตัวมี)
-    const btnClasses = classNames.filter((c) => c.includes('rounded'))
-    expect(btnClasses.length).toBeGreaterThanOrEqual(3)
-    const tooSmall = btnClasses.filter((c) => !/\bp-3\b/.test(c))
+    const btns = buttons(cluster)
+    // กัน "เขียวเพราะหาไม่เจอ" — ความล้มเหลวที่หน้าตาเหมือนความสำเร็จที่สุดของเทสสแกนซอร์ส
+    expect(btns.length, 'ต้องเจอปุ่มอย่างน้อย 3 ตัว (ลองใหม่ · เหตุผล (i) · ยกเลิก)').toBeGreaterThanOrEqual(3)
+    const tooSmall = btns
+      .map((b) => {
+        // ไอคอน text-sm = 14px · ข้อความ text-xs = 13 * 1.5 = 19.5px (คลัสเตอร์อยู่ในแถว text-xs)
+        const content = b.iconOnly ? 14 : TEXT_XS_PX * LINE_HEIGHT
+        const height = Math.max(minPx(b.classes, 'h'), content + pad(b.classes, 'y') * 2)
+        return height >= MIN_TAP_PX ? null : `${Math.round(height * 10) / 10}px — ${b.classes.join(' ')}`
+      })
+      .filter(Boolean)
+    expect(tooSmall, `ปุ่มที่สูงไม่ถึง ${MIN_TAP_PX}px บนมือถือ:\n${tooSmall.join('\n')}`).toEqual([])
+  })
+
+  it('hit box ของปุ่มที่อยู่ติดกันต้องไม่ทับกัน (negative margin ≤ ครึ่งหนึ่งของ gap)', () => {
+    const cluster = failedCluster(code(CHAT_THREAD))
+    const wrapper = cluster.match(/className="text-danger[^"]*"/)
+    expect(wrapper, 'หา wrapper ของคลัสเตอร์ไม่เจอ').toBeTruthy()
+    const gapClass = mobileClasses(wrapper![0]).find((c) => c.startsWith('gap-'))
+    const gap = gapClass ? SPACING[gapClass.slice(4)] ?? 0 : 0
+    const worst = Math.max(...buttons(cluster).map((b) => negMarginX(b.classes)))
+    // ปุ่มสองตัวที่ติดกันต่างขยายเข้าหากันตัวละ `worst` ⇒ ต้องมีที่ว่างอย่างน้อย 2*worst
     expect(
-      tooSmall,
-      `ปุ่มที่ hit box ต่ำกว่าเกณฑ์ 44px บนมือถือ (ไม่มี p-3):\n${tooSmall.join('\n')}`,
-    ).toEqual([])
+      gap,
+      `gap ${gap}px น้อยกว่า 2 × negative margin (${worst}px) ⇒ พื้นที่แตะทับกัน ${2 * worst - gap}px ` +
+        `— แตะปุ่มหนึ่งจะไปโดนอีกปุ่ม`,
+    ).toBeGreaterThanOrEqual(2 * worst)
   })
 
   it('ปุ่ม "ยกเลิก" มีเส้นใต้ถาวร ไม่ใช่โผล่เฉพาะตอน hover', () => {

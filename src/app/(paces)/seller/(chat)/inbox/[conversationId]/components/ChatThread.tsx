@@ -3567,7 +3567,9 @@ export default function ChatThread({
                               ข้อความที่อยู่ข้างบนมันเอง. รูปแบบ: [ส่งใหม่] ส่งไม่สำเร็จ (i) | ยกเลิก
                               เหตุผลเต็มย้ายไปอยู่ใน (i) — hover เห็น, แตะได้บนมือถือที่ไม่มี hover */}
                           {failed && (
-                            <span className="text-danger flex items-center gap-1">
+                            // (F4) gap-2.5 บนมือถือ = 10px > การขยาย hit box ข้างละ 8px ⇒ พื้นที่แตะไม่ทับกัน
+                            // (เดิม gap-1 = 4px แต่ขยายข้างละ 12px ⇒ ทับกัน ~20px แตะ "ลองใหม่" ไปโดน (i))
+                            <span className="text-danger flex items-center gap-2 lg:gap-1">
                               {/* user สั่ง 2026-08-03: ป้าย "ส่งไม่สำเร็จ" → "ลองใหม่" ให้เป็นคำสั่งที่กดได้
                                   รวมเข้ากับปุ่ม ↻ เป็นชิ้นเดียว (เดิมไอคอนกับคำแยกกัน กดได้แค่ไอคอนเล็ก ๆ)
                                   ยังคง "ส่งไม่สำเร็จ" ไว้เมื่อส่งซ้ำไม่ได้ — เขียน "ลองใหม่" ทั้งที่กดไม่ได้
@@ -3578,7 +3580,7 @@ export default function ChatThread({
                                   onClick={retryFailed}
                                   title="ส่งข้อความนี้ใหม่"
                                   aria-label="ส่งข้อความนี้ใหม่"
-                                  className="hover:bg-danger/10 -m-3 flex items-center gap-1 rounded p-3 lg:-m-1 lg:p-1"
+                                  className="hover:bg-danger/10 -mx-1 -my-3.5 flex items-center gap-1 rounded px-1 py-3.5 lg:-m-1 lg:p-1"
                                 >
                                   <Icon icon="refresh" className="text-sm" />
                                   ลองใหม่
@@ -3603,7 +3605,7 @@ export default function ChatThread({
                                       },
                                     })
                                   }
-                                  className="hover:bg-danger/10 -m-3 flex items-center rounded p-3 lg:-m-1 lg:p-1"
+                                  className="hover:bg-danger/10 -my-3.5 flex min-h-11 min-w-11 items-center justify-center rounded lg:-m-1 lg:min-h-0 lg:min-w-0 lg:p-1"
                                 >
                                   <Icon icon="info-circle" className="text-sm" />
                                 </button>
@@ -3619,7 +3621,7 @@ export default function ChatThread({
                                 aria-label="ยกเลิกการส่งข้อความนี้"
                                 // (P4) เส้นใต้ **ถาวร** ไม่ใช่เฉพาะ hover — มือถือไม่มี hover ⇒ เดิมเป็น
                                 // ข้อความเปล่าที่อยู่ห่างจาก "ลองใหม่" แค่หนึ่งนิ้ว ไม่มีอะไรบอกว่ากดได้
-                                className="underline decoration-dotted underline-offset-2 -m-3 rounded p-3 hover:decoration-solid lg:-m-1 lg:p-1"
+                                className="underline decoration-dotted underline-offset-2 -mx-1 -my-3.5 rounded px-1 py-3.5 hover:decoration-solid lg:-m-1 lg:p-1"
                               >
                                 ยกเลิก
                               </button>
@@ -3648,8 +3650,14 @@ export default function ChatThread({
                               SSOT ที่บล็อกอัลบั้มเรียกตัวเดียวกัน — ห้ามเขียนคำสถานะซ้ำที่นี่อีก (HR16)
                               !queued ในกิ่งบันได = การ์ดชั้นสอง (lastShopMsgId ข้าม QUEUED ที่ต้นทางแล้ว)
                               🛑 (R-23) ไม่มีสาขา else ที่ให้เช็คถูกเขียวกับข้อความที่ไม่ใช่ใบล่าสุด —
-                              ถอดโดยตั้งใจ ไม่ใช่ลืม: `_status='sent'` เดิมเป็น transient ⇒ ถอดทิ้งแล้ว
-                              ผู้ใช้เห็นความเปลี่ยนแปลงเป็นศูนย์ และเขียวสงวนไว้ให้สถานะที่ยืนยันแล้วเท่านั้น */}
+                              ถอดโดยตั้งใจ ไม่ใช่ลืม: เขียวสงวนไว้ให้สถานะที่ยืนยันแล้วเท่านั้น
+                              🛑 **แต่คำอ้างตอนถอดว่า "ผู้ใช้เห็นความเปลี่ยนแปลงเป็นศูนย์" จริงเฉพาะช่องทางนอก**
+                              (Messenger/IG/LINE ยังได้บันได 3 ขั้นที่ใบล่าสุดเหมือนเดิม)
+                              **แชท DEEP เสียของไปจริง**: `lastShopMsgId` เป็น null เสมอเมื่อไม่ใช่ช่องทางนอก
+                              ⇒ DEEP ไม่เคยมีบันไดอยู่แล้ว และเคยพึ่งเช็คถูกชั่วคราวจาก `_status='sent'`
+                              เป็นสัญญาณยืนยันการส่งเพียงอย่างเดียว ตอนนี้จึงเหลือ **สปินเนอร์แล้วเงียบ
+                              ไม่มีสัญญาณยืนยันเลย** — รู้ตัวแล้ว รอเจ้าของระบบตัดสินว่าจะคืนอะไรให้ DEEP
+                              (ห้ามแก้พฤติกรรมเองก่อนได้คำตอบ) */}
                           {mine && (
                             <ShopDeliveryStatus
                               sending={m._status === 'sending' || queued}
