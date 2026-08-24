@@ -7,6 +7,29 @@ vi.mock('@/services/channel-chat.service', () => ({
   ingestInboundMessage: vi.fn().mockResolvedValue({ status: 'STORED', conversationId: 'conv1' }),
 }))
 
+// (CR 2026-08-23 outbound-queue) ตัวระบายคิวขาออกชั้น 2 — mock ไว้เพื่อให้เทสไม่แตะ DB จริง
+const deliverRoom = vi.fn()
+vi.mock('@/services/chat-outbox.service', () => ({
+  deliverRoom: (...a: unknown[]) => deliverRoom(...a),
+}))
+
+// next/server `after()` throw ทันทีถ้าไม่ได้อยู่ใน request context จริงของ Next runtime (vitest ไม่มี)
+// — mock ให้ "รันทันที **แล้วเก็บ promise ที่ได้ไว้**" ไม่ใช่แค่เรียกทิ้ง: การเก็บไว้คือสิ่งเดียวที่
+// ทำให้เทส "งานเบื้องหลังพังต้องไม่ทำให้ webhook พัง" มีของให้ตรวจ — ถ้าเรียกทิ้งเฉย ๆ callback ที่
+// reject จะกลายเป็น unhandled rejection ที่ไม่มีเทสไหนเห็น แล้วด่านจะเขียวทั้งที่ error หลุดออกไปแล้ว
+const afterPromises: unknown[] = []
+vi.mock('next/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('next/server')>()
+  return {
+    ...actual,
+    after: (fn: () => unknown) => {
+      const p = fn()
+      afterPromises.push(p)
+      return p
+    },
+  }
+})
+
 const SECRET = 'wh_secret'
 beforeAll(() => {
   process.env.FB_CHAT_APP_SECRET = SECRET
@@ -142,5 +165,87 @@ describe('POST (รับ event)', () => {
     const res = await POST(postReq({ object: 'page' }))
     expect(res.status).toBe(200)
     expect(ingestInboundMessage).not.toHaveBeenCalled()
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// ชั้น 2 ของคิวขาออก (CR 2026-08-23)
+//
+// 🛑 ทำไมเป็น [blocker]: เส้นทางคิวขาออกไม่มี auto-retry (D-2) — แถวที่ `after()` ของ POST
+// /messages ไม่ได้รัน (ผู้ขายกดส่งแล้วปิดแอป = บั๊กต้นเรื่อง) จะค้าง QUEUED จนกว่าจะมีใครมาหยิบ
+// ถ้าด่านนี้หายไป webhook จะยังทำงาน "ถูกต้อง" ทุกประการ ไม่มี error ไม่มี tsc ตัวไหนฟ้อง —
+// สิ่งที่หายคือโอกาสที่ข้อความของร้านจะออกไปถึงลูกค้า
+// ══════════════════════════════════════════════════════════════════════════
+describe('POST — ระบายคิวขาออกของห้องที่มี event เข้ามา', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    afterPromises.length = 0
+    ;(ingestInboundMessage as ReturnType<typeof vi.fn>).mockResolvedValue({
+      status: 'STORED',
+      conversationId: 'conv1',
+    })
+    deliverRoom.mockResolvedValue(0)
+  })
+
+  const body = {
+    object: 'page',
+    entry: [
+      {
+        id: 'PAGE1', time: 1,
+        messaging: [{ sender: { id: 'PSID_1' }, recipient: { id: 'PAGE1' }, message: { mid: 'mid.1', text: 'hi' } }],
+      },
+    ],
+  }
+
+  it('[blocker] ingest สำเร็จ → ระบายคิวของ "ห้องนั้น" ด้วย owner "sweep"', async () => {
+    await POST(postReq(body))
+    await Promise.all(afterPromises)
+
+    expect(deliverRoom).toHaveBeenCalledTimes(1)
+    // owner ต้องเป็น 'sweep' ไม่ใช่ 'cron'/'after' — `sendLockedBy` ไม่ถูกเคลียร์ตอนสำเร็จโดยตั้งใจ
+    // เพราะมันคือตัววัดว่า "ใครเป็นคนส่งสำเร็จ" = บั๊กต้นเรื่องเกิดจริงกี่ครั้ง (spec §9)
+    // ส่งผิดค่า = ตัววัดทั้งชุดโกหกโดยไม่มีอะไรฟ้อง
+    expect(deliverRoom).toHaveBeenCalledWith('conv1', 'sweep')
+  })
+
+  it('[blocker] ห้องเดียวกันหลาย event ใน batch เดียว → ระบายครั้งเดียว (ไม่ใช่ทุก event)', async () => {
+    await POST(
+      postReq({
+        object: 'page',
+        entry: [
+          {
+            id: 'PAGE1', time: 1,
+            messaging: [
+              { sender: { id: 'PSID_1' }, recipient: { id: 'PAGE1' }, message: { mid: 'mid.1', text: 'a' } },
+              { sender: { id: 'PSID_1' }, recipient: { id: 'PAGE1' }, message: { mid: 'mid.2', text: 'b' } },
+            ],
+          },
+        ],
+      }),
+    )
+    await Promise.all(afterPromises)
+
+    expect(deliverRoom).toHaveBeenCalledTimes(1)
+  })
+
+  it('[blocker] ตัวระบายพัง → webhook ต้องไม่ล้ม (ไม่งั้น Meta retry ทั้ง batch แล้วข้อความขาเข้าค้าง)', async () => {
+    deliverRoom.mockRejectedValue(new Error('DB ล่ม'))
+
+    const res = await POST(postReq(body))
+    expect(res.status).toBe(200)
+
+    // 🛑 ข้อสำคัญของเทสนี้อยู่ที่บรรทัดนี้ ไม่ใช่ที่ status: ถ้า error หลุดออกจาก callback ของ
+    // after() มันจะกลายเป็น rejection ที่ไม่มีใครรับ (บน Vercel = ทำให้ invocation ล้มหลังตอบ
+    // ไปแล้ว) — status 200 เพียงอย่างเดียวจึงพิสูจน์อะไรไม่ได้เลย
+    await expect(Promise.all(afterPromises)).resolves.toBeDefined()
+  })
+
+  it('เพจที่ไม่มีร้านเชื่อม (NO_CHANNEL — ไม่มีเธรด) → ไม่มีอะไรให้ระบาย', async () => {
+    ;(ingestInboundMessage as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'NO_CHANNEL' })
+
+    await POST(postReq(body))
+    await Promise.all(afterPromises)
+
+    expect(deliverRoom).not.toHaveBeenCalled()
   })
 })

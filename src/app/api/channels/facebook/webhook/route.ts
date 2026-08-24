@@ -9,6 +9,7 @@ import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/a
 import { pushNewChatMessage } from '@/services/seller-push.service'
 import { ingestFeedComment } from '@/services/page-comment.service'
 import { processCommentAutoReply } from '@/services/comment-auto-reply.service'
+import { deliverRoom } from '@/services/chat-outbox.service'
 
 // Webhook ของ Messenger + Instagram (feature 00018)
 //
@@ -104,6 +105,10 @@ export async function POST(request: NextRequest) {
 
   // คอมเมนต์ที่เพิ่งเข้ามาสด — สั่งตอบอัตโนมัติใน after() หลังตอบ 200 ให้ Meta แล้ว (feature 00038)
   const pendingCommentIds: string[] = []
+
+  // ห้องที่มี event เข้ามาใน batch นี้ — ใช้ระบายคิวขาออกที่อาจค้างอยู่ (ชั้น 2, CR 2026-08-23)
+  // `Set` ไม่ใช่ array: batch เดียวมักมีหลาย event ของห้องเดียวกัน (ข้อความ + delivery + read)
+  const touchedConversationIds = new Set<string>()
 
   // ── feed: คอมเมนต์/โพสต์บนหน้าเพจ (user สั่ง 2026-08-03 "อยากรับ facebook comment") ──
   //
@@ -282,6 +287,11 @@ export async function POST(request: NextRequest) {
           console.warn('[fb-webhook] NO_CHANNEL — เพจไม่มีร้านเชื่อม ข้อความถูกทิ้ง', { provider, pageId })
         }
 
+        // 🛑 เก็บ **หลัง** ingest สำเร็จเท่านั้น และรับทั้ง STORED/DUPLICATE: ทั้งคู่แปลว่าเธรดนี้มี
+        // อยู่จริงและเพิ่งมีความเคลื่อนไหว ซึ่งเป็นเงื่อนไขเดียวที่ชั้น 2 ต้องการ (ต่างจาก NO_CHANNEL
+        // ที่ไม่มีเธรดให้ระบายเลย). เก็บก่อน ingest = ระบายห้องที่อาจยังไม่ถูกสร้าง
+        if (ingested.conversationId) touchedConversationIds.add(ingested.conversationId)
+
         // ที่มาจากโฆษณา (E5) — referral มา 2 ที่: ซ้อนใน message (ลูกค้ากดโฆษณาแล้วทักครั้งแรก)
         // หรือระดับ event (ลูกค้าที่มีเธรดอยู่แล้วกดโฆษณาตัวใหม่). ต้องทำ "หลัง" ingest ข้อความเสมอ
         // เพราะเธรดเพิ่งถูกสร้างในขั้นตอนนั้น
@@ -395,6 +405,41 @@ export async function POST(request: NextRequest) {
         await processCommentAutoReply(commentId).catch((e) =>
           console.error('[fb-feed] ตอบคอมเมนต์อัตโนมัติล้มเหลว', commentId, e instanceof Error ? e.message : e),
         )
+      }
+    })
+  }
+
+  // ── ชั้น 2 ของคิวขาออก: ระบายคิวของ "ห้องที่เพิ่งมี event เข้ามา" (CR 2026-08-23) ──
+  //
+  // ทำไมเกาะกับ webhook: เส้นทางคิวขาออก **ไม่มี auto-retry** (D-2) แถวที่ `after()` ของ POST
+  // /messages ไม่ได้รัน (ผู้ขายกดส่งแล้วปิดแอป = อาการเดียวกับบั๊กต้นเรื่อง) จะค้าง `QUEUED`
+  // จนกว่าจะมีใครมาหยิบ — และเคสที่พบบ่อยที่สุดคือ **ห้องเดียวกันนี้เอง**: ร้านพิมพ์ตอบแล้วปิดแอป
+  // ลูกค้าทักกลับมา ⇒ event นี้คือโอกาสแรกที่จะส่งของที่ค้างออกไป ก่อนรอบ cron ถัดไป
+  //
+  // 🛑 ต้องเป็น `deliverRoom` ของ **ห้องที่ event เข้ามา** ไม่ใช่ `sweepOutbox` ทั้งระบบ: webhook นี้
+  // ถูกยิงถี่ที่สุดในระบบ การกวาดทั้งระบบทุกใบคือการสแกนซ้ำเปล่า ๆ และไปแย่ง connection pool กับ
+  // cron ที่กำลังกวาดอยู่พอดี. งานที่ห้องอื่นค้างเป็นหน้าที่ของ cron (ทุก 1 นาที) ไม่ใช่ของที่นี่
+  //
+  // ไม่มี throttle ต่อห้องโดยตั้งใจ (ต่างจาก `syncMissingMessagesFromMeta`): นี่คือ query เดียวที่
+  // ผูก index บนห้องเดียว ถูกกว่างาน ingest ที่เพิ่งทำไปในคำขอเดียวกันมาก และการหน่วงคือการหน่วง
+  // "ข้อความที่ผู้ขายกดส่งไปแล้วแต่ยังไม่ออก" ซึ่งเป็นสิ่งเดียวที่ฟีเจอร์นี้มีไว้แก้ — ตัวคูณจริงคือ
+  // batch ที่มีหลาย event ของห้องเดียวกัน ซึ่งกันด้วย `Set` ตั้งแต่ตอนเก็บแล้ว
+  //
+  // 🛑 best-effort **กลืน error เสมอ ห้าม throw** ถ้าปล่อยหลุด Meta จะ retry ทั้ง batch แล้วข้อความ
+  // **ขาเข้า** ค้าง — งานคิวขาออกไม่มีสิทธิ์ทำให้ข้อความลูกค้าหาย (เหตุผลเดียวกับที่
+  // `pushNewChatMessage`/`ingestAdReferral` ห่อ error ไว้)
+  //
+  // after(): รันหลังตอบ 200 ให้ Meta แล้ว จึงไม่เพิ่ม latency ที่ Meta วัด
+  // try/catch ครอบทั้ง await: กันทั้งกรณี reject และกรณี throw แบบ synchronous
+  if (touchedConversationIds.size > 0) {
+    after(async () => {
+      for (const conversationId of touchedConversationIds) {
+        try {
+          const drained = await deliverRoom(conversationId, 'sweep')
+          if (drained > 0) console.log('[fb-webhook] ระบายคิวขาออก', { conversationId, drained })
+        } catch (e) {
+          console.error('[fb-webhook] ระบายคิวขาออกล้มเหลว', conversationId, e instanceof Error ? e.message : e)
+        }
       }
     })
   }

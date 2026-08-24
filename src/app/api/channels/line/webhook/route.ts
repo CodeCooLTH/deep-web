@@ -9,6 +9,7 @@ import { decryptToken } from '@/lib/token-crypto'
 import { validateSignature } from '@/lib/line/signature'
 import { describeLinePostback } from '@/lib/line/postback'
 import { ingestLineTextMessage, ingestLineMediaMessage, type LineInboundMediaMessage } from '@/services/channel-chat.service'
+import { deliverRoom } from '@/services/chat-outbox.service'
 
 // Webhook ของ LINE Messaging API (feature 00025, S-6 — จุดเสี่ยงสูงสุดรองจาก S-1: public endpoint
 // ไม่มี session)
@@ -140,16 +141,22 @@ function toLineInboundMediaMessage(message: LineWebhookMessage): LineInboundMedi
  *
  * event จากกลุ่ม/ห้อง (source.type !== 'user') ข้ามเงียบทุกชนิด (BR-LINE-08, OOS-02 — MVP รองรับ 1:1
  * เท่านั้น) เช็คนี้ต้องมาก่อนเช็คชนิด event เพราะครอบทุกชนิด ไม่ใช่แค่ message
+ *
+ * คืน `conversationId` ของเธรดที่ event นี้ตกลงไป (หรือ `null` ถ้า event นี้ไม่ได้ ingest อะไร)
+ *
+ * ค่านี้มีไว้ให้ผู้เรียกระบายคิว **ขาออก** ของห้องเดียวกันต่อ (ชั้น 2 ของ CR 2026-08-23) —
+ * เคสที่พบบ่อยที่สุดคือร้านพิมพ์ตอบแล้วปิดแอป แล้วลูกค้าทักกลับมา ⇒ event นี้คือโอกาสแรก
+ * ที่จะส่งของที่ค้างออกไป
  */
 async function processLineEvent(params: {
   shopId: string
   shopChannelId: string
   accessToken: string
   event: LineWebhookEvent
-}): Promise<void> {
+}): Promise<string | null> {
   const { event } = params
 
-  if (typeof event.source?.type !== 'string' || event.source.type !== 'user') return
+  if (typeof event.source?.type !== 'string' || event.source.type !== 'user') return null
 
   // (2026-08-11) postback — เกิดเมื่อลูกค้าแตะปุ่มที่เราส่งไป (quick reply / ปุ่มใน Flex / rich menu)
   //
@@ -162,12 +169,12 @@ async function processLineEvent(params: {
   if (event.type === 'postback') {
     const postbackData = typeof event.postback?.data === 'string' ? event.postback.data : ''
     const webhookEventId = typeof event.webhookEventId === 'string' ? event.webhookEventId : ''
-    if (!postbackData || !webhookEventId) return
+    if (!postbackData || !webhookEventId) return null
 
     const userId = typeof event.source.userId === 'string' ? event.source.userId : null
-    if (!userId) return
+    if (!userId) return null
 
-    await ingestLineTextMessage({
+    const ingested = await ingestLineTextMessage({
       shopId: params.shopId,
       shopChannelId: params.shopChannelId,
       accessToken: params.accessToken,
@@ -202,20 +209,20 @@ async function processLineEvent(params: {
         buttonLabel: qs.get('label') || 'เช็คสถานะพัสดุ',
       }).catch((e) => console.error('[rich-menu] ตอบสถานะพัสดุอัตโนมัติไม่สำเร็จ', e))
     }
-    return
+    return ingested.conversationId ?? null
   }
 
-  if (event.type !== 'message') return
+  if (event.type !== 'message') return null
 
   const message = event.message
-  if (!message) return
+  if (!message) return null
 
   const eventTimestamp = typeof event.timestamp === 'number' ? event.timestamp : Date.now()
   const externalUserId = typeof event.source.userId === 'string' ? event.source.userId : null
   if (!externalUserId) {
     // ตามสเปก LINE, source.type='user' ต้องมี userId เสมอ — กันไว้เผื่อ payload ผิดปกติ ไม่ throw
     console.warn('[line-webhook] event ชนิด user ไม่มี userId')
-    return
+    return null
   }
   const replyToken = typeof event.replyToken === 'string' ? event.replyToken : undefined
   // (S-18a) quote reply — token นี้ผูกกับ "ข้อความนี้โดยเฉพาะ" (ไม่ใช่ผูกกับ event เหมือน replyToken)
@@ -227,10 +234,10 @@ async function processLineEvent(params: {
   const quotedMessageId = typeof message.quotedMessageId === 'string' ? message.quotedMessageId : undefined
 
   if (message.type === 'text') {
-    if (typeof message.id !== 'string' || !message.id) return
-    if (typeof message.text !== 'string') return
+    if (typeof message.id !== 'string' || !message.id) return null
+    if (typeof message.text !== 'string') return null
 
-    await ingestLineTextMessage({
+    const ingested = await ingestLineTextMessage({
       shopId: params.shopId,
       shopChannelId: params.shopChannelId,
       accessToken: params.accessToken,
@@ -242,15 +249,15 @@ async function processLineEvent(params: {
       quoteToken,
       quotedMessageId,
     })
-    return
+    return ingested.conversationId ?? null
   }
 
   // S-7: image/video/audio/file/sticker/location — ชนิดที่ toLineInboundMediaMessage ไม่รู้จัก
   // (postback/beacon ฯลฯ) คืน null แล้วข้ามเงียบตามเดิม
   const media = toLineInboundMediaMessage(message)
-  if (!media) return
+  if (!media) return null
 
-  await ingestLineMediaMessage({
+  const ingested = await ingestLineMediaMessage({
     shopId: params.shopId,
     shopChannelId: params.shopChannelId,
     accessToken: params.accessToken,
@@ -261,6 +268,7 @@ async function processLineEvent(params: {
     quoteToken,
     quotedMessageId,
   })
+  return ingested.conversationId ?? null
 }
 
 export async function POST(request: NextRequest) {
@@ -368,13 +376,45 @@ export async function POST(request: NextRequest) {
   // TD-003/TFR-LINE-03: ตอบ 200 ทันทีหลังผ่าน verify แล้วค่อยทำงานหนัก (upsert contact ที่อาจต้องยิง
   // GET /v2/bot/profile + เขียน DB) ใน after() — LINE มี reply token อายุแค่ 60 วินาที ยิ่งต้องตอบเร็ว
   after(async () => {
+    // ห้องที่มี event เข้ามาใน batch นี้ — `Set` เพราะ batch เดียวมักมีหลาย event ของห้องเดียวกัน
+    const touchedConversationIds = new Set<string>()
+
     for (const event of events) {
       try {
-        await processLineEvent({ shopId, shopChannelId, accessToken, event })
+        const conversationId = await processLineEvent({ shopId, shopChannelId, accessToken, event })
+        // เก็บ **หลัง** ingest สำเร็จเท่านั้น (ค่าที่คืนมามีก็ต่อเมื่อมีแถวลงเธรดจริง)
+        if (conversationId) touchedConversationIds.add(conversationId)
       } catch (e) {
         // error ระดับไหนก็ตาม (infra หรือ logic) ห้าม throw ออกไปเปลี่ยนสถานะ HTTP ที่ตอบไปแล้ว
         // (TFR-LINE-03) — log ระดับ error ไว้ให้มี alert เพราะ LINE จะไม่ยิงซ้ำให้ (ตอบ 200 ไปแล้ว)
         console.error('[line-webhook] ingest ล้มเหลว', e instanceof Error ? e.message : e)
+      }
+    }
+
+    // ── ชั้น 2 ของคิวขาออก: ระบายคิวของห้องที่เพิ่งมี event เข้ามา (CR 2026-08-23) ──
+    //
+    // ทำไมเกาะกับ webhook: เส้นทางคิวขาออก **ไม่มี auto-retry** (D-2) แถวที่ `after()` ของ POST
+    // /messages ไม่ได้รัน (ผู้ขายกดส่งแล้วปิดแอป = อาการเดียวกับบั๊กต้นเรื่อง) จะค้าง `QUEUED`
+    // จนกว่าจะมีใครมาหยิบ — และเคสที่พบบ่อยที่สุดคือ **ห้องเดียวกันนี้เอง** (ลูกค้าทักกลับมา)
+    //
+    // 🛑 เป็น `deliverRoom` ของห้องที่ event เข้ามา ไม่ใช่ `sweepOutbox` ทั้งระบบ: webhook ถูกยิงถี่
+    // การกวาดทั้งระบบทุกใบคือการสแกนซ้ำเปล่า ๆ และไปแย่ง connection pool กับ cron ที่กวาดอยู่พอดี
+    // ห้องอื่นที่ค้างเป็นหน้าที่ของ cron (ทุก 1 นาที)
+    //
+    // 🛑 อยู่ **ในก้อน after() เดียวกับ ingest และต่อท้ายลูป** ไม่ใช่ after() ใบใหม่: ลำดับการรัน
+    // ของ after() หลายใบไม่ใช่สิ่งที่รับประกันได้ แต่ข้อกำหนดคือระบาย "หลัง ingest สำเร็จ" —
+    // การต่อท้ายลูปในก้อนเดียวกันคือรูปแบบเดียวที่บังคับลำดับนั้นได้จริง
+    //
+    // 🛑 best-effort **กลืน error เสมอ ห้าม throw** — ก้อน after() นี้ถูกเรียกหลังตอบ 200 ไปแล้ว
+    // (TFR-LINE-03) error ที่หลุดออกไปไม่ช่วยอะไรและมีแต่จะกลบสาเหตุจริง; งานคิว *ขาออก*
+    // ไม่มีสิทธิ์ทำให้เส้นทาง ingest *ขาเข้า* เสียหาย
+    // try/catch ครอบทั้ง await: กันทั้งกรณี reject และกรณี throw แบบ synchronous
+    for (const conversationId of touchedConversationIds) {
+      try {
+        const drained = await deliverRoom(conversationId, 'sweep')
+        if (drained > 0) console.log('[line-webhook] ระบายคิวขาออก', { conversationId, drained })
+      } catch (e) {
+        console.error('[line-webhook] ระบายคิวขาออกล้มเหลว', conversationId, e instanceof Error ? e.message : e)
       }
     }
   })

@@ -5,10 +5,28 @@ import { NextRequest } from 'next/server'
 // next/server `after()` throw ทันทีถ้าไม่ได้อยู่ใน request context จริงของ Next.js runtime (vitest
 // ไม่มี context นั้น) — mock ให้รันงานที่ส่งเข้ามาแล้ว await ทันที (behavior เทียบเท่าเดิมสำหรับเทส
 // ที่ต้องการยืนยันผลลัพธ์ "หลัง" after() ทำงานแล้ว) คง export อื่น (NextRequest/NextResponse) ของจริงไว้
+//
+// 🛑 เก็บ promise ที่ callback คืนไว้ด้วย ไม่ใช่เรียกทิ้ง — เทส "งานเบื้องหลังพังต้องไม่ทำให้ webhook
+// พัง" ต้องมีของให้ตรวจ ถ้าเรียกทิ้งเฉย ๆ callback ที่ reject จะกลายเป็น unhandled rejection ที่ไม่มี
+// เทสไหนเห็น แล้วด่านจะเขียวทั้งที่ error หลุดออกไปแล้ว
+const afterPromises: unknown[] = []
 vi.mock('next/server', async (importOriginal) => {
   const actual = await importOriginal<typeof import('next/server')>()
-  return { ...actual, after: (fn: () => unknown) => fn() }
+  return {
+    ...actual,
+    after: (fn: () => unknown) => {
+      const p = fn()
+      afterPromises.push(p)
+      return p
+    },
+  }
 })
+
+// (CR 2026-08-23 outbound-queue) ตัวระบายคิวขาออกชั้น 2 — mock ไว้เพื่อให้เทสไม่แตะ DB จริง
+const deliverRoom = vi.fn()
+vi.mock('@/services/chat-outbox.service', () => ({
+  deliverRoom: (...a: unknown[]) => deliverRoom(...a),
+}))
 
 // (S-6) mock prisma — route query ShopChannel ตรง (ไม่ผ่าน shop-channel.service.ts เพราะไฟล์นั้น
 // เป็นของ S-5 ที่มี agent อื่นแก้ขนานกันอยู่)
@@ -89,6 +107,8 @@ const textEventBody = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  afterPromises.length = 0
+  deliverRoom.mockResolvedValue(0)
   vi.mocked(prisma.shopChannel.findFirst).mockResolvedValue(ACTIVE_CHANNEL as never)
 })
 
@@ -498,5 +518,64 @@ describe('POST /api/channels/line/webhook — บันทึกความล�
     const res = await POST(postReq(textEventBody))
     expect(res.status).toBe(200)
     expect(clearLineInboundFailure).not.toHaveBeenCalled()
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// ชั้น 2 ของคิวขาออก (CR 2026-08-23)
+//
+// 🛑 ทำไมเป็น [blocker]: เส้นทางคิวขาออกไม่มี auto-retry (D-2) — แถวที่ `after()` ของ POST
+// /messages ไม่ได้รัน (ผู้ขายกดส่งแล้วปิดแอป = บั๊กต้นเรื่อง) จะค้าง QUEUED จนกว่าจะมีใครมาหยิบ
+// ถ้าด่านนี้หายไป webhook จะยังทำงาน "ถูกต้อง" ทุกประการ ไม่มี error ไม่มี tsc ตัวไหนฟ้อง
+// ══════════════════════════════════════════════════════════════════════════
+describe('POST — ระบายคิวขาออกของห้องที่มี event เข้ามา', () => {
+  it('[blocker] ingest สำเร็จ → ระบายคิวของ "ห้องนั้น" ด้วย owner "sweep"', async () => {
+    await POST(postReq(textEventBody))
+    await Promise.all(afterPromises)
+
+    expect(deliverRoom).toHaveBeenCalledTimes(1)
+    // owner ต้องเป็น 'sweep' ไม่ใช่ 'cron'/'after' — `sendLockedBy` ไม่ถูกเคลียร์ตอนสำเร็จโดยตั้งใจ
+    // เพราะมันคือตัววัดว่า "ใครเป็นคนส่งสำเร็จ" = บั๊กต้นเรื่องเกิดจริงกี่ครั้ง (spec §9)
+    expect(deliverRoom).toHaveBeenCalledWith('conv1', 'sweep')
+  })
+
+  it('[blocker] ตัวระบายพัง → webhook ต้องไม่ล้ม (TFR-LINE-03 ตอบ 200 ไปแล้ว error หลุดไม่ได้)', async () => {
+    deliverRoom.mockRejectedValue(new Error('DB ล่ม'))
+
+    const res = await POST(postReq(textEventBody))
+    expect(res.status).toBe(200)
+
+    // 🛑 ข้อสำคัญอยู่ที่บรรทัดนี้ ไม่ใช่ที่ status: error ที่หลุดออกจาก callback ของ after() จะกลาย
+    // เป็น rejection ที่ไม่มีใครรับ — status 200 เพียงอย่างเดียวจึงพิสูจน์อะไรไม่ได้เลย
+    await expect(Promise.all(afterPromises)).resolves.toBeDefined()
+  })
+
+  it('[blocker] ingest ตัวเดียวพัง → ยังต้องไม่ค้าง และไม่ระบายห้องที่ไม่มีเธรด', async () => {
+    vi.mocked(ingestLineTextMessage).mockRejectedValueOnce(new Error('พัง'))
+
+    const res = await POST(postReq(textEventBody))
+    expect(res.status).toBe(200)
+    await Promise.all(afterPromises)
+
+    expect(deliverRoom).not.toHaveBeenCalled()
+  })
+
+  it('event ที่ไม่ ingest อะไร (กลุ่ม/ชนิดที่ยังไม่รองรับ) → ไม่มีอะไรให้ระบาย', async () => {
+    await POST(
+      postReq({
+        destination: 'Uline-bot-id',
+        events: [
+          {
+            type: 'message',
+            timestamp: 1785000000000,
+            source: { type: 'group', groupId: 'G1' },
+            message: { id: 'msg-9', type: 'text', text: 'ในกลุ่ม' },
+          },
+        ],
+      }),
+    )
+    await Promise.all(afterPromises)
+
+    expect(deliverRoom).not.toHaveBeenCalled()
   })
 })
