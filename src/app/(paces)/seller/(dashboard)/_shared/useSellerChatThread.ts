@@ -32,6 +32,46 @@ import { uploadToStorage } from '@/lib/upload-client'
 // chat-attachment.ts เป็น pure module จึง import ฝั่ง client ได้ (ต่างจาก '@/lib/storage' ที่ barrel
 // ดึง driver local/s3 (fs/server-only) เข้า client bundle) — เพดาน/deny-list จึงไม่ต้อง duplicate อีก
 
+/**
+ * อ่านคำตอบของ "ส่งการ์ดสินค้าหลายใบ" แล้วแปลงเป็นผลลัพธ์ที่แผงเลือกสินค้าเอาไปใช้ต่อ
+ *
+ * 🛑 **207 ต้องถูกเช็คก่อน `res.ok` เสมอ** — `Response.ok` เป็น `true` ตลอดช่วง 200–299 ซึ่ง
+ * **รวม 207 ด้วย** โค้ดเดิมวางกิ่งนี้ไว้ข้างใน `if (!res.ok)` จึงไม่มีวันถูกเดินเข้าไปสักครั้ง:
+ * คำขอที่ส่งได้บางส่วนตกไปเข้ากิ่งสำเร็จ คืน `{ok:true}` ⇒ แผงปิดทิ้งเหมือนส่งครบ ไม่มี toast
+ * ไม่มีอะไรบอก ทั้งที่ route ตอบมาตรง ๆ ว่า "เข้าคิวส่งแล้ว i จาก N" (มีมาก่อน CR คิวขาออก
+ * 2026-08-23 — แต่ CR นั้นเขียนเหตุผลของ 207 ขึ้นใหม่ทั้งบล็อกบนสมมติฐานว่าฝั่งจออ่านมัน)
+ *
+ * 🛑 อยู่ระดับโมดูล ไม่ใช่ในตัว `useCallback` โดยตั้งใจ — ลำดับของสองกิ่งนี้คือ "boolean ที่ตัดสิน
+ * ว่า UI จะทำอะไร" ซึ่งเขียนกลับด้านแล้วผ่านทุกด่านของโปรเจกต์ (tsc/build/eslint เขียวหมด เพราะ
+ * ชนิดถูกทุกตัวอักษร) รีโปไม่มี jsdom จึง render hook ในเทสไม่ได้ ⇒ ถ้าไม่ยกออกมา จะไม่มีที่ให้
+ * เทสจับเลย — `docs/conventions/ui-boolean-needs-a-testable-home.md`
+ *
+ * ถ้อยคำที่ผู้ขายเห็นมาจาก `body.error` ของ route ทั้งหมด ไม่มีคำใหม่ถูกพิมพ์ที่นี่ (HR16)
+ */
+export async function readProductCardsResponse(
+  res: Response,
+  refetchNewer: () => Promise<void>,
+): Promise<{ ok: boolean; sentMessages: number }> {
+  if (res.status === 207) {
+    const body = await res.json().catch(() => null)
+    pacesToast.error(body?.error ?? 'ส่งการ์ดสินค้าไม่สำเร็จ')
+    await refetchNewer()
+    // อ่านค่าแบบระแวง: body อาจไม่ใช่ JSON (413 ของแพลตฟอร์ม/proxy ตอบ HTML) หรือ field หาย
+    // ตอนแก้ route ทีหลัง — เดาไม่ได้ต้องเป็น 0 เสมอ เพราะ 0 = "ไม่ติ๊กอะไรออก" ซึ่งพาไป
+    // พฤติกรรมเดิมที่ปลอดภัยกว่า (ส่งซ้ำ) ไม่ใช่ติ๊กของที่ยังไม่ถึงลูกค้าออกทิ้ง
+    const n = typeof body?.sentMessages === 'number' ? body.sentMessages : 0
+    return { ok: false, sentMessages: n }
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    pacesToast.error(body?.error ?? 'ส่งการ์ดสินค้าไม่สำเร็จ')
+    return { ok: false, sentMessages: 0 }
+  }
+  await refetchNewer()
+  // สำเร็จทั้งหมด — ผู้เรียกปิดแผงทิ้งอยู่แล้ว ตัวเลขไม่ถูกใช้ต่อ
+  return { ok: true, sentMessages: 0 }
+}
+
 // extension #1 Chat Product Context Card (S-18/S-21) — enrich payload ต่อข้อความ type='PRODUCT'
 // จาก GET .../messages (route.ts ทำ batch fetch productMap แล้วแนบเข้าแต่ละ item); null = ลบสินค้าจริง
 export type ChatProductCard = {
@@ -1163,35 +1203,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ type: 'PRODUCT', productRefIds: productIds }),
         })
-        /**
-         * 🛑 ต้องเช็ค 207 **ก่อน** `res.ok` เสมอ — `res.ok` เป็น true ตลอดช่วง 200–299 ซึ่ง
-         * **รวม 207 ด้วย** ⇒ โค้ดเดิมที่วางกิ่งนี้ไว้ข้างใน `if (!res.ok)` ไม่มีวันถูกเดินเข้าไป
-         * สักครั้ง: คำขอที่ส่งได้บางส่วนตกไปเข้ากิ่งสำเร็จ คืน `{ok:true}` แผงปิดทิ้งเหมือนส่งครบ
-         * ไม่มี toast ไม่มีอะไรบอก ทั้งที่ route ตอบมาตรง ๆ ว่า "เข้าคิวส่งแล้ว i จาก N"
-         * (มีมาก่อน CR คิวขาออก แต่ CR นั้นเขียนเหตุผลของ 207 ขึ้นใหม่ทั้งบล็อกบนสมมติฐานว่า
-         * ฝั่งจอเป็นคนอ่านมัน)
-         *
-         * ถ้อยคำที่ผู้ขายเห็นมาจาก `body.error` ของ route (ตัวเดียวกับที่เคยตั้งใจให้ใช้) ไม่มี
-         * คำใหม่ถูกพิมพ์ที่นี่ — HR16
-         */
-        if (res.status === 207) {
-          const body = await res.json().catch(() => null)
-          pacesToast.error(body?.error ?? 'ส่งการ์ดสินค้าไม่สำเร็จ')
-          await refetchNewer()
-          // อ่านค่าแบบระแวง: body อาจไม่ใช่ JSON (413 ของแพลตฟอร์ม/proxy ตอบ HTML) หรือ field หาย
-          // ตอนแก้ route ทีหลัง — เดาไม่ได้ต้องเป็น 0 เสมอ เพราะ 0 = "ไม่ติ๊กอะไรออก" ซึ่งพาไป
-          // พฤติกรรมเดิมที่ปลอดภัยกว่า (ส่งซ้ำ) ไม่ใช่ติ๊กของที่ยังไม่ถึงลูกค้าออกทิ้ง
-          const n = typeof body?.sentMessages === 'number' ? body.sentMessages : 0
-          return { ok: false, sentMessages: n }
-        }
-        if (!res.ok) {
-          const body = await res.json().catch(() => null)
-          pacesToast.error(body?.error ?? 'ส่งการ์ดสินค้าไม่สำเร็จ')
-          return { ok: false, sentMessages: 0 }
-        }
-        await refetchNewer()
-        // สำเร็จทั้งหมด — ผู้เรียกปิดแผงทิ้งอยู่แล้ว ตัวเลขไม่ถูกใช้ต่อ
-        return { ok: true, sentMessages: 0 }
+        return await readProductCardsResponse(res, refetchNewer)
       } catch {
         pacesToast.error('ส่งการ์ดสินค้าไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
         return { ok: false, sentMessages: 0 }
