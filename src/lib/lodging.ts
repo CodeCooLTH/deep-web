@@ -12,6 +12,8 @@
 // feature 00028 — ขยายจาก 2 ทาง (GENERAL/LODGING) เป็น 3 ทาง: GENERAL เดิมแยกเป็น
 // ONLINE_SALES (ขายของจริง มีจัดส่ง/สต็อก/ประมูล) กับ SERVICE_QUEUE (รับนัดคิว ไม่มีจัดส่ง)
 // BR-SBT-05: ค่าเก่า GENERAL ห้ามเหลืออยู่ที่ไหนเลยหลัง migration — ไม่เก็บเป็น legacy alias
+import { cancelReasonIsBuyerFault } from './cancel-reason-buyer-fault'
+
 export const SHOP_VERTICALS = {
   ONLINE_SALES: 'ขายออนไลน์',
   SERVICE_QUEUE: 'สินค้าและบริการ',
@@ -190,9 +192,19 @@ export function isCancelReason(value: string): value is CancelReason {
   return value in CANCEL_REASONS
 }
 
-/** เหตุผลนี้นับเข้าประวัติการยกเลิกของผู้จองหรือไม่ (BR-LODG-37) */
+/**
+ * เหตุผลนี้นับเข้าประวัติการยกเลิกของผู้จอง/ผู้ซื้อหรือไม่ (BR-LODG-37 · BR-BR-10)
+ *
+ * 🛑 เลิกอ่านจาก `CANCEL_REASONS` ข้างบนตั้งแต่ 2026-08-24 — แมปนั้นมีแค่ 4 ค่าของโดเมน
+ * ที่พัก ทำให้เหตุผลของร้านขายออนไลน์/ร้านบริการ (`BUYER_NO_PAYMENT`, `BUYER_NO_SHOW`)
+ * **ไม่เคยถูกนับเข้าประวัติลูกค้าเลย** ทั้งที่ผู้เรียกหลัก (`customer-behavior.ts`) ใช้กับ
+ * ทุก vertical · ตอนนี้เดินผ่าน allow-list กลางที่ `lib/cancel-reason-buyer-fault.ts`
+ *
+ * ธง `countsAgainstGuest` ในแมปยังอยู่เพื่ออธิบายตัวเอง แต่ **ไม่ใช่ตัวตัดสินแล้ว** —
+ * มีเทส [blocker] บังคับให้สองที่ตรงกันเสมอ กันไม่ให้เอกสารกับพฤติกรรมแยกจากกันเงียบ ๆ
+ */
 export function cancelReasonCountsAgainstGuest(reason: string): boolean {
-  return isCancelReason(reason) && CANCEL_REASONS[reason].countsAgainstGuest
+  return cancelReasonIsBuyerFault(reason)
 }
 
 // ---------------------------------------------------------------------------
