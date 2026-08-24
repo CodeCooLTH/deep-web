@@ -58,6 +58,7 @@ import { markServedFlow } from '../../../_components/mark-served'
 // import ข้ามกลุ่มโฟลเดอร์ตาม precedent ใน OrderActionBar.tsx — reuse ⋮ + SSOT ของ action
 // เดียวกับหน้า order detail แทนประดิษฐ์ dropdown/เงื่อนไขสถานะใหม่ (sibling-surface-parity)
 import OrderOverflowMenu from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/OrderOverflowMenu'
+import type { ActionItem } from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/order-action-set'
 import { getOrderActionSet } from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/order-action-set'
 import { ChannelBadge } from '../../components/ChannelBadge'
 // SSOT ของป้ายพฤติกรรมลูกค้า — ป้ายท้ายชื่อลูกค้าในตาราง /orders ใช้ตัวเดียวกัน (HR16)
@@ -327,6 +328,8 @@ function OrderCard({
   const [payOpen, setPayOpen] = useState(false)
   /** ชีต "เริ่มงานเลย" (feature 00050) — ใบที่ยังไม่มีเวลาเริ่ม */
   const [walkInOpen, setWalkInOpen] = useState(false)
+  // ชีตคืนของของออเดอร์ใบนี้ (feature 00056) — เปิดจากเมนู ⋮
+  const [returnOpen, setReturnOpen] = useState(false)
   const [marking, setMarking] = useState(false)
   /**
    * เงินของใบนี้ — คำนวณจาก SSOT ตัวเดียวกับแถบมือถือ (HR16)
@@ -369,6 +372,18 @@ function OrderCard({
           shipmentSource: null,
           orderNoun: noun,
         }).menu.filter((i) => i.key === 'cancel-order')
+
+  /**
+   * "คืนของ" ในเมนูของออเดอร์ใบนี้ (feature 00056)
+   *
+   * เฉพาะร้านขายออนไลน์และใบที่ยังไม่ยกเลิก — ใบ `PENDING` ก็ยังเห็นเมนูได้ แล้วชีตจะบอกเอง
+   * ว่า "คืนของได้เมื่อของถึงมือลูกค้าแล้วเท่านั้น" (เกณฑ์จริงอยู่ที่ service ตัวเดียว —
+   * ซ่อนเมนูตามเกณฑ์ที่เดาเองจะทำให้สองที่ตัดสินไม่ตรงกันเมื่อเกณฑ์เปลี่ยน)
+   */
+  const returnItems: ActionItem[] =
+    vertical === 'ONLINE_SALES' && o.status !== 'CANCELLED'
+      ? [{ key: 'return-order', label: 'คืนของ', icon: 'arrow-back-up' }]
+      : []
 
   // Base: OrderDetailClient.tsx handleCancelOrder — confirm → POST → toast; ตัดประโยค
   // "สินค้าจะถูกคืนเข้าสต็อก" ออกโดยตั้งใจ: การ์ดนี้ไม่รู้ hasDeductedStock ห้ามพูดเกินจริง (00030 D-1)
@@ -619,9 +634,10 @@ function OrderCard({
               </span>
             ) : (
               <OrderOverflowMenu
-                items={cancelItems}
+                items={[...returnItems, ...cancelItems]}
                 onAction={(key) => {
                   if (key === 'cancel-order') void handleCancelOrder()
+                  if (key === 'return-order') setReturnOpen(true)
                 }}
                 size="sm"
                 dropDirection="up"
@@ -663,12 +679,20 @@ function OrderCard({
         orderToken={o.token}
       />
     )}
-    {/* ระบบคืนของ (feature 00056) — หัวหน้าสั่งให้กดได้ "จาก order detail + หน้าแชท"
-        ใช้ component ตัวเดียวกับหน้ารายละเอียดเป๊ะ ๆ (compact แค่ย่อ padding) ถ้าเขียนสองตัว
-        ปุ่ม/กติกาจะเลื่อนออกจากกันแน่นอน — sibling-surface-parity.md
-        เฉพาะร้านขายออนไลน์: ร้านบริการ/บ้านพักไม่มีของให้คืน การ์ดจะเป็นเสียงรบกวนล้วน ๆ
-        `initialCount={0}` เพราะแผงในแชทไม่ได้ query ฝั่ง server — ตัวเลขจริงมาตอนกางการ์ด */}
-    {vertical === 'ONLINE_SALES' && <ReturnPanel orderToken={o.token} initialCount={0} compact />}
+    {/* ระบบคืนของ (feature 00056) — เปิดจากเมนู `⋮` ของออเดอร์ใบนี้
+        🛑 เคยวางเป็นการ์ดคงที่ห้อยใต้ทุกใบ (user ทักเอง 2026-08-24): ในรายการที่มีออเดอร์
+        หลายใบมันกลายเป็น N การ์ดที่กินพื้นที่เท่ากับรายการจริง และขึ้นแม้ใบนั้นคืนไม่ได้
+        = เสียงรบกวนล้วน · ที่ถูกคือเป็น action ของออเดอร์ใบนั้นในเมนู
+        (docs/conventions/seller-action-placement.md) */}
+    {vertical === 'ONLINE_SALES' && (
+      <ReturnPanel
+        orderToken={o.token}
+        initialCount={0}
+        asSheet
+        sheetOpen={returnOpen}
+        onCloseSheet={() => setReturnOpen(false)}
+      />
+    )}
     </>
   )
 }

@@ -164,3 +164,51 @@ describe('[blocker] ค่าส่งขากลับใน P&L', () => {
     expect(pnl).not.toMatch(/expense\.create/)
   })
 })
+
+/**
+ * [blocker] ตำแหน่ง UI ของ "คืนของ" ในห้องแชท (user ทักเอง 2026-08-24)
+ *
+ * เคยวางเป็น **การ์ดคงที่ห้อยใต้ออเดอร์ทุกใบ** → ในรายการที่มีออเดอร์หลายใบมันกลายเป็น N การ์ด
+ * ที่กินพื้นที่เท่ากับรายการจริง และขึ้นแม้ใบนั้นคืนไม่ได้ = เสียงรบกวนล้วน
+ * ที่ถูกคือเป็น action ของออเดอร์ใบนั้นในเมนู `⋮` (docs/conventions/seller-action-placement.md)
+ */
+describe('[blocker] ตำแหน่งปุ่มคืนของในห้องแชท', () => {
+  const panel = strip(
+    'src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/CustomerPanel.tsx',
+  )
+
+  it('ต้องอยู่ในเมนู ⋮ ของออเดอร์ ไม่ใช่การ์ดคงที่', () => {
+    expect(panel).toContain("key: 'return-order'")
+    expect(panel).toMatch(/items=\{\[\.\.\.returnItems, \.\.\.cancelItems\]\}/)
+    // การ์ดคงที่ห้ามกลับมา — ต้องเป็นชีตที่เปิดจากเมนูเท่านั้น
+    expect(panel).toContain('asSheet')
+    expect(panel).not.toMatch(/<ReturnPanel[^>]*compact/)
+  })
+
+  /**
+   * 🛑 ชีตที่ประกอบเองด้วย React state ต้องล็อก scroll ของหน้าเสมอ — การแปลง hs-overlay เป็น
+   * controlled div ทิ้งการล็อกที่เคยได้ฟรีไปทุกใบ ไม่มีใครสังเกตจนผู้ใช้เจอบนมือถือ
+   * (docs/conventions/overlay-scroll-lock.md)
+   */
+  it('[blocker] ชีตต้องล็อก scroll + มี aria-modal คู่กับ role="dialog"', () => {
+    const rp = strip(
+      'src/app/(paces)/seller/(dashboard)/orders/[token]/components/ReturnPanel.tsx',
+    )
+    expect(rp).toContain('useLockBodyScroll(')
+    expect(rp).toContain('overscroll-contain')
+    expect(rp).toMatch(/role="dialog"/)
+    expect(rp).toMatch(/aria-modal="true"/)
+  })
+
+  /**
+   * เนื้อหาต้องมาจากตัวเดียว — โหมดการ์ด (หน้ารายละเอียด) กับโหมดชีต (แชท) เขียนสองชุดเมื่อไร
+   * กติกา/ปุ่มจะเลื่อนออกจากกันแน่นอน
+   */
+  it('[blocker] โหมดการ์ดกับโหมดชีตใช้เนื้อหาชุดเดียวกัน', () => {
+    const rp = strip(
+      'src/app/(paces)/seller/(dashboard)/orders/[token]/components/ReturnPanel.tsx',
+    )
+    expect(rp).toContain('function renderBody()')
+    expect((rp.match(/function renderBody\(\)/g) ?? []).length).toBe(1)
+  })
+})

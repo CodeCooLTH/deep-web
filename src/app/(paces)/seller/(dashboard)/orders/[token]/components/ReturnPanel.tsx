@@ -13,7 +13,8 @@
  * Base: การ์ด `.card` + `.card-header` ของ Paces (โครงเดียวกับ ShippingCard ที่อยู่ติดกัน)
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 
 import Icon from '@/components/wrappers/Icon'
 import { formatDateTime } from '@/lib/format-date'
@@ -70,11 +71,24 @@ export default function ReturnPanel({
   orderToken,
   initialCount,
   compact = false,
+  asSheet = false,
+  sheetOpen = false,
+  onCloseSheet,
 }: {
   orderToken: string
   /** จำนวนใบคืนที่ server นับมาให้ — 0 = ยังไม่เคยมีการคืน (ยังกางเพื่อเปิดใบใหม่ได้) */
   initialCount: number
   compact?: boolean
+  /**
+   * โหมดชีต — ใช้ในห้องแชท ซึ่งเปิดจากเมนู `⋮` ของออเดอร์แต่ละใบ
+   *
+   * 🛑 ในรายการแชทมีออเดอร์หลายใบบนจอเดียว การ์ดคงที่ต่อใบจะกลายเป็น N การ์ดที่กินพื้นที่
+   * เท่ากับรายการจริง และขึ้นแม้ใบนั้นคืนไม่ได้ (= เสียงรบกวนล้วน) — user ทักเองว่าผิดที่
+   * ปุ่มต้องอยู่ในเมนูของออเดอร์ใบนั้นตาม `docs/conventions/seller-action-placement.md`
+   */
+  asSheet?: boolean
+  sheetOpen?: boolean
+  onCloseSheet?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -106,6 +120,20 @@ export default function ReturnPanel({
     setOpen(next)
     if (next && !eligibility) void load()
   }
+
+  /**
+   * โหมดชีต: เปิดเมื่อไหร่โหลดทันที — ผู้ใช้กดจากเมนูแล้วต้องเห็นของเลย ไม่ใช่ต้องกดซ้ำ
+   * 🛑 dep เป็น `load` ที่เป็น `useCallback` ตัวเดียว ไม่ใช่ object ที่ hook คืนทั้งก้อน
+   * (docs/conventions/hook-return-identity-in-deps.md — ลูปยิง API ไม่หยุดเคยเกิดมาแล้ว)
+   */
+  useEffect(() => {
+    if (asSheet && sheetOpen && !eligibility) void load()
+  }, [asSheet, sheetOpen, eligibility, load])
+
+  // ล็อก scroll ของหน้าเมื่อชีตเปิด — โมดัลที่ประกอบเองด้วย React state ต้องเรียกเสมอ
+  // (docs/conventions/overlay-scroll-lock.md · การแปลง hs-overlay เป็น controlled div
+  //  ทิ้งการล็อกที่เคยได้ฟรีไปทุกใบ ไม่มีใครสังเกตจนผู้ใช้เจอบนมือถือ)
+  useLockBodyScroll(asSheet && sheetOpen)
 
   const selectedLines = (eligibility?.items ?? [])
     .filter((i) => (qty[i.orderItemId] ?? 0) > 0)
@@ -176,6 +204,62 @@ export default function ReturnPanel({
 
   const labelUrl = `/api/o/${orderToken}/return-label`
 
+  const body = !eligibility ? (
+    <p className="text-default-700 mb-0 flex items-center gap-2 text-sm">
+      <Icon icon="loader-2" className="animate-spin text-base" aria-hidden="true" />
+      กำลังโหลด…
+    </p>
+  ) : (
+    renderBody()
+  )
+
+  /**
+   * โหมดชีต — เปิดจากเมนู `⋮` ของออเดอร์ในห้องแชท
+   *
+   * ฉากเบลอ + แผงยึดขอบล่างบนมือถือ / กลางจอบนเดสก์ท็อป · `role="dialog"` ต้องมี
+   * `aria-modal` คู่กันเสมอ ไม่งั้นผู้ใช้ screen reader อ่านหลุดออกไปหลังฉาก
+   * (docs/conventions/aria-name-requires-supporting-role.md)
+   */
+  if (asSheet) {
+    if (!sheetOpen) return null
+    return (
+      /* Base: RecordPaymentSheet.tsx / AppointmentSummarySheet.tsx — โครงชีตของโปรเจกต์นี้
+         (`z-90` · `.card` · `max-h-full` + `min-h-0 flex-1`) ห้ามคิดเลข z/ความสูงเอง:
+         🛑 ร่างแรกใช้ `z-[1090]` + `max-h-[85dvh]` (arbitrary → HR7 แดง) และหัวชีต `z-10`
+         ซึ่งเทส [blocker] `paces-sticky-z-index` จับได้ว่าจะถูก `.btn` (z-10 ในตัว) ทับ */
+      <div
+        className="fixed inset-0 z-90 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-label="การคืนของ"
+        onMouseDown={(e) => {
+          // ปิดเฉพาะเมื่อกดที่ "ฉากเบลอ" จริง ๆ — ใช้ target===currentTarget แทน stopPropagation
+          // ที่ลูก เพราะการลากเลือกข้อความในแผงแล้วปล่อยนอกแผงจะกลายเป็นการปิดโดยไม่ได้ตั้งใจ
+          if (e.target === e.currentTarget) onCloseSheet?.()
+        }}
+      >
+        <div className="card bg-card flex h-full max-h-full w-full flex-col rounded-b-none sm:h-auto sm:max-w-lg sm:rounded-lg">
+          <div className="card-header flex flex-nowrap items-center justify-between gap-2">
+            <h5 className="card-title flex min-w-0 items-center gap-1.5">
+              <Icon icon="arrow-back-up" className="text-default-600 size-4 shrink-0" />
+              <span className="truncate">การคืนของ</span>
+            </h5>
+            <button
+              type="button"
+              className="btn btn-sm btn-light shrink-0"
+              onClick={onCloseSheet}
+              aria-label="ปิด"
+            >
+              <Icon icon="x" className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+          {/* min-h-0 flex-1 = ส่วนที่เลื่อนได้หดเอง เนื้อหายาวจึงไม่ดันชีตทะลุจอ */}
+          <div className="card-body min-h-0 flex-1 overflow-y-auto overscroll-contain">{body}</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="card">
       <div className="card-header flex-nowrap items-center justify-between gap-2">
@@ -193,15 +277,15 @@ export default function ReturnPanel({
         </button>
       </div>
 
-      {open && (
-        <div className={compact ? 'card-body !p-3' : 'card-body'}>
-          {!eligibility ? (
-            <p className="text-default-700 mb-0 flex items-center gap-2 text-sm">
-              <Icon icon="loader-2" className="animate-spin text-base" aria-hidden="true" />
-              กำลังโหลด…
-            </p>
-          ) : (
-            <>
+      {open && <div className={compact ? 'card-body !p-3' : 'card-body'}>{body}</div>}
+    </div>
+  )
+
+  /** เนื้อหาจริง — ใช้ร่วมทั้งโหมดการ์ดและโหมดชีต ห้ามเขียนสองชุด (sibling-surface-parity) */
+  function renderBody() {
+    if (!eligibility) return null
+    return (
+      <>
               {/* ── ใบคืนที่มีอยู่ ─────────────────────────────────────────── */}
               {(returns ?? []).map((r) => (
                 <div key={r.id} className="border-default-200 mb-3 rounded-lg border p-3">
@@ -436,10 +520,7 @@ export default function ReturnPanel({
                   </div>
                 </div>
               )}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  )
+      </>
+    )
+  }
 }
