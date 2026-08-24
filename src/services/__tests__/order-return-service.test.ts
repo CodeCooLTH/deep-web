@@ -177,6 +177,24 @@ describe('[blocker] ตำแหน่งปุ่มคืนของในห
     'src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/CustomerPanel.tsx',
   )
 
+  /**
+   * หน้ารายละเอียดออเดอร์ก็เหมือนกัน — user ทักซ้ำหลังแก้ฝั่งแชทว่า "order detail ก็เหมือนเดิม"
+   * เดิมเป็นการ์ดของตัวเองต่อท้ายการ์ดการจัดส่ง/หลักฐาน ⇒ หน้ากลายเป็นกองการ์ดที่ต้องเลื่อน
+   * ผ่านทุกครั้ง ทั้งที่การคืนของเป็น **การกระทำ** ไม่ใช่ข้อมูล
+   */
+  it('[blocker] หน้ารายละเอียดออเดอร์ต้องเป็นชีตจากเมนู ⋮ ไม่ใช่การ์ดในหน้า', () => {
+    const page = strip('src/app/(paces)/seller/(dashboard)/orders/[token]/page.tsx')
+    const client = strip(
+      'src/app/(paces)/seller/(dashboard)/orders/[token]/components/OrderDetailClient.tsx',
+    )
+    // การ์ดในหน้า (server component) ห้ามกลับมา
+    expect(page).not.toContain('ReturnPanel')
+    // ต้องเป็นรายการในเมนู + เปิดเป็นชีต
+    expect(client).toContain("key: 'return-order'")
+    expect(client).toContain('asSheet')
+    expect(client).toContain("case 'return-order'")
+  })
+
   it('ต้องอยู่ในเมนู ⋮ ของออเดอร์ ไม่ใช่การ์ดคงที่', () => {
     expect(panel).toContain("key: 'return-order'")
     expect(panel).toMatch(/items=\{\[\.\.\.returnItems, \.\.\.cancelItems\]\}/)

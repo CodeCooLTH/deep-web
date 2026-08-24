@@ -58,7 +58,6 @@ import { isAllDayAppointment } from '@/lib/appointments'
 import BillingDetails from './components/BillingDetails'
 import ShippingCard from './components/ShippingCard'
 import ShipmentEvidencePanel from './components/ShipmentEvidencePanel'
-import ReturnPanel from './components/ReturnPanel'
 import { getOrderEvents } from '@/services/order-event.service'
 import { makeCustomerRowKey } from '@/lib/customer-row-key'
 import { getCustomerSummary } from '@/services/customer.service'
@@ -190,12 +189,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
    */
   const evidenceCount = await prisma.shipmentEvidence.count({ where: { orderId: order.id } })
 
-  /**
-   * ระบบคืนของ (feature 00056) — นับที่ server เพื่อโชว์ตัวเลขบนหัวการ์ดตั้งแต่ paint แรก
-   * การ์ดขึ้นเสมอสำหรับร้านขายออนไลน์ (ต่างจากการ์ดหลักฐานที่ขึ้นเฉพาะเมื่อมีของ) เพราะมันคือ
-   * **ทางเข้า** ของฟีเจอร์ ไม่ใช่ผลลัพธ์ — ซ่อนไว้จนกว่าจะมีใบคืนแปลว่าไม่มีใครเปิดใบแรกได้เลย
-   */
-  const returnCount = await prisma.orderReturn.count({ where: { orderId: order.id } })
 
   // ประวัติกิจกรรม (feature 00031) — ownership scope มาแล้วจาก getOrderForShop ด้านบน
   const orderEvents = await getOrderEvents(order.id)
@@ -542,11 +535,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
               <ShipmentEvidencePanel orderToken={token} count={evidenceCount} />
             )}
 
-            {/* ระบบคืนของ (feature 00056) — ขึ้นเฉพาะร้านขายออนไลน์ที่มีการจัดส่งจริง
-                ร้านบริการ/บ้านพักไม่มีของให้คืน การ์ดนี้จะเป็นเสียงรบกวนล้วน ๆ */}
-            {shop.vertical === 'ONLINE_SALES' && (
-              <ReturnPanel orderToken={token} initialCount={returnCount} />
-            )}
 
             {/* COD มีการ์ด "เก็บเงินปลายทาง" ของตัวเองแล้ว ซึ่งบอกวิธีชำระ/สถานะ/ยอด ครบทุกบรรทัด
                 — แสดงทั้งคู่ = ข้อมูลเดียวกันโผล่ 2 การ์ดในจอเดียว (user ทัก 2026-08-05) */}

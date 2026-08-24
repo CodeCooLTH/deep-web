@@ -45,6 +45,7 @@ import dynamic from 'next/dynamic'
 import OrderSummary, { type OrderSummaryProps } from './OrderSummary'
 import type { OrderFactsItem } from './order-detail-shared'
 import { getOrderActionSet } from './order-action-set'
+import ReturnPanel from './ReturnPanel'
 import type { ShipmentSource } from './order-action-set'
 
 /**
@@ -200,14 +201,39 @@ export default function OrderDetailClient({
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
+  // ชีตคืนของ (feature 00056) — เปิดจากเมนู ⋮ ไม่ใช่การ์ดเดี่ยวในหน้า
+  const [returnOpen, setReturnOpen] = useState(false)
+  const isOnlineSales = vertical === 'ONLINE_SALES'
 
   // T5 — ชุดเดียวสำหรับแถบล่าง <1024 (ดู comment หัวไฟล์: StatusHero คำนวณชุดเดียวกันซ้ำภายในตัวเอง)
-  const actionSet = getOrderActionSet({
+  const baseActionSet = getOrderActionSet({
     status: status as OrderStatus,
     fulfillmentMode,
     shipmentSource,
     orderNoun: vocab.noun,
   })
+
+  /**
+   * "คืนของ" (feature 00056) เข้าเมนู `⋮` ของออเดอร์ — **ไม่ใช่การ์ดเดี่ยวในหน้า**
+   *
+   * 🛑 เดิมเป็นการ์ดของตัวเองต่อท้ายการ์ดการจัดส่ง/หลักฐาน ⇒ หน้ารายละเอียดกลายเป็นกอง
+   * การ์ดที่ผู้ใช้ต้องเลื่อนผ่านทุกครั้ง ทั้งที่การคืนของเป็น **การกระทำ** ไม่ใช่ข้อมูล
+   * user ทักเองทั้งฝั่งแชทและฝั่งนี้ (2026-08-24) — ตำแหน่งที่ถูกคือเมนูของออเดอร์
+   * (`docs/conventions/seller-action-placement.md`: destructive/รอง อยู่ใน `⋯`)
+   *
+   * ไม่ซ่อนตามเกณฑ์ที่จอเดาเอง — แสดงเสมอ (ยกเว้นใบยกเลิก/ร้านที่ไม่ขายของ) แล้วให้ชีต
+   * บอกเหตุผลจาก `canCreateReturn()` ตัวเดียว ไม่งั้นสองที่ตัดสินไม่ตรงกันวันที่เกณฑ์เปลี่ยน
+   */
+  const actionSet =
+    isOnlineSales && status !== 'CANCELLED'
+      ? {
+          ...baseActionSet,
+          menu: [
+            { key: 'return-order', label: 'คืนของ', icon: 'arrow-back-up' },
+            ...baseActionSet.menu,
+          ],
+        }
+      : baseActionSet
 
   // คัดลอกข้อความ/ลิงก์ — Base: CopyLinkButton.tsx handleCopy (fallback execCommand สำหรับ HTTP context)
   const copyText = async (text: string, successMessage: string) => {
@@ -363,6 +389,9 @@ export default function OrderDetailClient({
   // handler เดียวนี้ผ่าน key จาก order-action-set.ts — ดูตาราง key → พฤติกรรมในรายงาน T11
   const handleAction = (key: string) => {
     switch (key) {
+      case 'return-order':
+        setReturnOpen(true)
+        return
       case 'send-sms':
         void handleSendSms()
         return
@@ -492,6 +521,19 @@ export default function OrderDetailClient({
 
       {/* <1024 เท่านั้น (className ภายในมี lg:hidden) — CANCELLED คืน null เอง (design §3) */}
       <OrderActionBar variant="bottom" actionSet={actionSet} onAction={handleAction} />
+
+      {/* ชีตคืนของ (feature 00056) — component ตัวเดียวกับที่ห้องแชทใช้ ต่างแค่จุดที่เปิด
+          `initialCount={0}` เพราะจำนวนจริงมาตอนโหลดในชีต (หน้านี้ไม่ query ล่วงหน้าแล้ว —
+          ออเดอร์ส่วนใหญ่ไม่มีการคืนของ การนับทุกครั้งที่เปิดหน้าคือคิวรีที่แทบไม่มีใครได้ใช้) */}
+      {isOnlineSales && (
+        <ReturnPanel
+          orderToken={publicToken}
+          initialCount={0}
+          asSheet
+          sheetOpen={returnOpen}
+          onCloseSheet={() => setReturnOpen(false)}
+        />
+      )}
 
       {/* mount เฉพาะตอนเปิด — ถ้าปล่อยไว้ใน tree ตลอดแล้วให้ตัวมันคืน null เอง
           chunk ที่แยกออกไปจะถูกโหลดทันทีที่หน้า mount = ไม่ได้แยกอะไรเลย */}
