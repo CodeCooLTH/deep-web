@@ -352,7 +352,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     // ISO string — client component จะ format เป็นภาษาไทย
     createdAtISO: o.createdAt ? new Date(o.createdAt).toISOString() : '',
     // Phase A Unit A: buyer identity (null = guest ยังไม่ register)
-    // buyerContact ยัง mask อยู่ใน field `buyer` ด้านบน — ไม่ลด PII boundary
+    // `buyer` ด้านบนเป็นค่าเต็มแล้วตั้งแต่ D-13 (2026-08-24) — ดู lib/seller-contact-display.ts
     // registered → displayName; guest → ชื่อที่ seller กรอกตอนสร้างออเดอร์ (o.buyerName); ไม่มีจริง ๆ → null
     buyerName: o.buyer?.displayName ?? o.buyerName ?? null,
     buyerUsername: o.buyer?.username ?? null,

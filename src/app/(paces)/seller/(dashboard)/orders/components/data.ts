@@ -108,7 +108,8 @@ export type OrderRow = {
   publicToken: string
   /** short-code 8 ตัวสำหรับ copy/share link; null = order เก่าก่อน backfill (fallback publicToken) */
   shortCode: string | null
-  buyer: string         // masked contact หรือ '—'
+  /** contact ของผู้ซื้อ **เต็ม ไม่ปิดบัง** (D-13) หรือ '—' — ตัวค้นหาใช้ `buyerPhone` ไม่ใช่ตัวนี้ */
+  buyer: string
   orderType: string     // PHYSICAL | DIGITAL | SERVICE
   total: number
   status: OrderStatus

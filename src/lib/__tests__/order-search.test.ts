@@ -163,6 +163,19 @@ describe('order-search — เลขคำสั่งซื้อ', () => {
   it('ค้นด้วยรหัสสั้นที่ผู้ขายใช้แชร์ลิงก์ได้', () => {
     expect(tokensOf('ZZ99YY88')).toEqual(['92ab77cd'])
   })
+
+  it('[blocker] รหัสสั้นตรงเต็มค่าเท่านั้น — ตรงบางส่วนต้องไม่เจอ', () => {
+    // รหัสสั้นเป็นฟิลด์เดียวที่ไม่เคยแสดงบนจอ ⇒ ถ้าตรงแบบ substring ได้
+    // ใบจะโผล่มาโดยไม่มีอะไรถูกไฮไลต์ = ผลลัพธ์ที่ผู้ใช้อธิบายไม่ได้
+    expect(tokensOf('ZZ99')).toEqual([])
+    expect(tokensOf('99YY88')).toEqual([])
+  })
+
+  it('[blocker] รหัสสั้นที่ตรงต้องได้สัญญาณ "ตรงเต็มค่า" เสมอ (ไม่งั้นจะไม่มีอะไรอธิบายผล)', () => {
+    const hits = searchOrders(ALL, 'zz99yy88')
+    expect(hits).toHaveLength(1)
+    expect(hits[0].isExactMatch).toBe(true)
+  })
 })
 
 describe('order-search — ชื่อสินค้า', () => {

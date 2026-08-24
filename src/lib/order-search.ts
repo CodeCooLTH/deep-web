@@ -103,7 +103,6 @@ function textFieldsOf(order: SearchableOrder): string[] {
   const fields = [
     orderNoOf(order),
     order.id,
-    order.shortCode ?? '',
     order.buyerName ?? '',
     order.buyerUsername ?? '',
     order.buyerPhone ?? '',
@@ -121,7 +120,7 @@ function textFieldsOf(order: SearchableOrder): string[] {
  * เป็นพฤติกรรมปกติ ไม่ใช่เคสขอบ
  */
 function numericFieldsOf(order: SearchableOrder): string[] {
-  return [orderNoOf(order), order.id, order.shortCode ?? '', order.buyerPhone ?? '', order.shipment?.trackingNo ?? '']
+  return [orderNoOf(order), order.id, order.buyerPhone ?? '', order.shipment?.trackingNo ?? '']
     .filter(Boolean)
     .map(digitsOnly)
     .filter(Boolean)
@@ -153,6 +152,15 @@ const tokenize = tokenizeSearchQuery
 function tokenMatches(order: SearchableOrder, token: string): boolean {
   const lower = token.toLowerCase()
   if (textFieldsOf(order).some((f) => f.toLowerCase().includes(lower))) return true
+  /**
+   * 🛑 รหัสสั้นตรงแบบ "เต็มค่าเท่านั้น" ไม่ใช่ substring — ต่างจากฟิลด์อื่นโดยเจตนา
+   *
+   * เพราะมันเป็นฟิลด์เดียวในชุดที่ **ไม่เคยถูกแสดงบนจอเลยสักที่** ถ้าให้ตรงแบบบางส่วนได้
+   * ใบจะโผล่ขึ้นมาโดยไม่มีอะไรบนจอถูกไฮไลต์ = ผลลัพธ์ที่ผู้ใช้อธิบายไม่ได้ว่ามาจากไหน
+   * พอบังคับให้เต็มค่า ทุกการตรงจะเข้าเงื่อนไข `isExactIdentifierMatch` ⇒ ได้ ring เป็นสัญญาณเสมอ
+   * (ผู้ขายก็อปรหัสจากลิงก์มาวางทั้งก้อนอยู่แล้ว การพิมพ์บางส่วนไม่ใช่พฤติกรรมจริง)
+   */
+  if (order.shortCode && order.shortCode.toLowerCase() === lower) return true
   if (isNumericToken(token)) {
     const digits = digitsOnly(token)
     return numericFieldsOf(order).some((f) => f.includes(digits))
