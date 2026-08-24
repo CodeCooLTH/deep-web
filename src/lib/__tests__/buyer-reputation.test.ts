@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest'
 
 import {
   MIN_SHIPPED_FOR_RATE,
+  shouldWarnCodReturnRisk,
   summarizeBuyerReputation,
   type BuyerOrderEvidence,
 } from '../buyer-reputation'
@@ -159,5 +160,43 @@ describe('[blocker] ข้อจำกัดเชิงความเป็น
   it('AC-BR-10 ฟีเจอร์นี้ห้ามเขียนทับ User.trustScore (BR-BR-11 · R-3)', () => {
     expect(src).not.toMatch(/trustScore/)
     expect(src).not.toMatch(/\.update\(|\.updateMany\(|\.create\(/)
+  })
+})
+
+describe('[blocker] shouldWarnCodReturnRisk (BR-BR-08 · D-3)', () => {
+  const rep = (o: Partial<ReturnType<typeof summarizeBuyerReputation>> = {}) => ({
+    ...summarizeBuyerReputation([]),
+    ...o,
+  })
+
+  it('เตือนเฉพาะใบ COD จริง — ใบโอนล่วงหน้าไม่เตือนแม้ลูกค้าเคยตีกลับ', () => {
+    const risky = rep({ returned: 2, riskLevel: 'WATCH' as const })
+    expect(shouldWarnCodReturnRisk(risky, 0)).toBe(false)
+    expect(shouldWarnCodReturnRisk(risky, 350)).toBe(true)
+  })
+
+  it('ไม่เคยตีกลับ = ไม่เตือน — คำเตือนที่ขึ้นทุกใบคือคำเตือนที่ไม่มีใครอ่าน', () => {
+    expect(shouldWarnCodReturnRisk(rep({ riskLevel: 'NONE' as const }), 350)).toBe(false)
+  })
+
+  it('ไม่มีข้อมูล (ดึงไม่ได้/ไม่มีลูกค้าในระบบ) = ไม่เตือน ห้ามเดา', () => {
+    expect(shouldWarnCodReturnRisk(null, 350)).toBe(false)
+    expect(shouldWarnCodReturnRisk(undefined, 350)).toBe(false)
+  })
+
+  it('[blocker] ต้องไม่มีจุดไหน disable ปุ่มจากคำเตือนนี้ (เตือน ไม่ใช่บล็อก)', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/components/safepay/iship/ShipmentCreateForm.tsx'),
+      'utf8',
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('//'))
+      .join('\n')
+    // ตัวตัดสินคำเตือนห้ามไปโผล่ในเงื่อนไข disabled / preventDefault ของ submit
+    const i = src.indexOf('shouldWarnCodReturnRisk')
+    expect(i).toBeGreaterThan(-1)
+    expect(src).not.toMatch(/disabled=\{[^}]*shouldWarnCodReturnRisk/)
+    expect(src).not.toMatch(/if \(shouldWarnCodReturnRisk[^)]*\)\s*return/)
   })
 })

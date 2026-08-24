@@ -70,6 +70,8 @@ import { resolveLibraryOwner } from '@/lib/customer-file-library'
 import { listSavedFileIds } from '@/services/customer-file-library.service'
 // SSOT ของ "ลูกค้าคนนี้มีพฤติกรรมอะไรบ้าง" — ใช้ร่วมกับป้ายท้ายชื่อลูกค้าในตาราง /orders (HR16)
 import { summarizeCustomerBehavior, type CustomerBehavior } from '@/lib/customer-behavior'
+import type { BuyerReputation } from '@/lib/buyer-reputation'
+import { getBuyerReputation } from '@/services/buyer-reputation.service'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
 
@@ -559,6 +561,12 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   let customerStats: { orderCount: number; totalSpent: string; since: string } | null = null
   /** ตัวเลขดิบของป้ายพฤติกรรม — ป้ายจริงประกอบที่ client ด้วย `customerBadges` (SSOT เดียวกับ /orders) */
   let customerBehavior: CustomerBehavior | null = null
+  /**
+   * สถิติ **ข้ามทุกร้าน** ของลูกค้าคนนี้ (feature 00055) — คนละตัวกับ customerBehavior ข้างบน
+   * ซึ่ง scope อยู่ที่ร้านนี้ร้านเดียว. ทั้งสองต้องอยู่คู่กัน ไม่ใช่แทนที่กัน: ร้านต้องเห็นทั้ง
+   * "ลูกค้าคนนี้ทำอะไรกับเรา" และ "ทำอะไรกับทั้งระบบ" แล้วตัดสินใจเอง (D-1)
+   */
+  let buyerReputation: BuyerReputation | null = null
   if (linkedCustomer) {
     // 🛑 behaviorRows อยู่ในก้อนนี้ด้วย (เดิม await แยกทีหลัง) — ทั้งสามตัวขึ้นกับ linkedCustomer
     // เท่านั้น ไม่ขึ้นกับกันเอง การเรียงต่อกันจึงเป็นการจ่ายค่า round-trip ฟรี ๆ หนึ่งรอบ
@@ -608,6 +616,10 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         activeShipmentCarrierStatus: o.shipments[0]?.carrierStatus ?? null,
       })),
     )
+
+    // ยิงแยกจาก behaviorRows ข้างบนโดยตั้งใจ — ชุดนั้น scope ด้วย shopId ของเธรด ส่วนตัวนี้
+    // ต้องไม่มี shopId เลย (BR-BR-01) เอามารวมเป็นคิวรีเดียวไม่ได้โดยไม่ทำให้อันใดอันหนึ่งผิด
+    buyerReputation = await getBuyerReputation(linkedCustomer.id)
   }
 
   /**
@@ -633,6 +645,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     customer: linkedCustomer ? { id: linkedCustomer.id, phoneMasked: maskPhone(linkedCustomer.phone) } : null,
     customerStats,
     customerBehavior,
+    buyerReputation,
     // feature 00018 E5 (user request 2026-07-26) — ป้ายกำกับอัตโนมัติแบบ Business Suite
     // (`ad_id.…` / `messenger_ads`) ให้ร้านแมพได้ว่าลูกค้าคนนี้มาจากโฆษณาไหน
     adReferralId: conversation.referralSource === 'ADS' ? conversation.referralAdId : null,

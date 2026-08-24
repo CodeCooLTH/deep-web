@@ -122,3 +122,26 @@ export function summarizeBuyerReputation(orders: BuyerOrderEvidence[]): BuyerRep
 
   return { orders: orders.length, shipped, received, returned, cancelledByBuyer, returnRate, riskLevel }
 }
+
+/**
+ * shouldWarnCodReturnRisk — ควรขึ้นคำเตือนก่อนเปิดพัสดุเก็บเงินปลายทางไหม (BR-BR-08 · D-3)
+ *
+ * 🛑 อยู่ที่นี่ไม่ใช่เทอร์นารีกลาง JSX ตาม `docs/conventions/ui-boolean-needs-a-testable-home.md`
+ * — เกณฑ์ไม่ใช่ "ซับซ้อนพอไหม" แต่คือ "ถ้าเขียนกลับด้านแล้วจะมีอะไรจับได้ไหม" ซึ่งอันนี้เขียน
+ * กลับด้านได้ง่ายมาก แล้วผลคือ **เตือนทุกใบจนร้านเลิกอ่าน** หรือ **ไม่เตือนเลยสักใบ** โดย
+ * `tsc`/build ผ่านทั้งคู่เพราะเป็น boolean ที่ถูกต้องตามชนิดทุกประการ
+ *
+ * เตือนเฉพาะเมื่อ **เป็นใบ COD จริง** — ใบที่โอนมาแล้วไม่มีความเสี่ยงเรื่องค่าส่งไป-กลับ
+ * แบบเดียวกัน (ร้านได้เงินไปแล้ว) การเตือนตรงนั้นคือเสียงรบกวนที่ทำให้คำเตือนที่จำเป็นถูกมองข้าม
+ *
+ * ⚠️ นี่เป็น "คำเตือน" ไม่ใช่ "ด่าน" — ผู้เรียกต้องยังกดสร้างพัสดุต่อได้เสมอ (BR-BR-08)
+ * เราไม่รู้บริบท (อาจเป็นลูกค้าประจำที่บ้านเลขที่ผิดครั้งเดียว)
+ */
+export function shouldWarnCodReturnRisk(
+  reputation: BuyerReputation | null | undefined,
+  codAmount: number,
+): boolean {
+  if (!reputation) return false
+  if (!(codAmount > 0)) return false
+  return reputation.riskLevel !== 'NONE'
+}

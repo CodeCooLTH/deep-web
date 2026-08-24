@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { shouldWarnCodReturnRisk, type BuyerReputation } from '@/lib/buyer-reputation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
@@ -150,6 +151,36 @@ function ReviewParty({
   )
 }
 
+/**
+ * ประวัติการรับของของลูกค้าคนนี้ทั้งระบบ (feature 00055) — ยิงเองในฟอร์ม ไม่รับเป็น prop
+ *
+ * 🛑 ตั้งใจให้ฟอร์มเป็นคนถาม: ฟอร์มนี้ถูกใช้ 2 ทางเข้า (หน้าคำสั่งซื้อ + แผงร่างในห้องแชท)
+ * ที่มี parent คนละสายกันคนละไฟล์ ถ้าให้ parent ส่ง prop มา มีโอกาสสูงมากที่จะต่อครบแค่
+ * ทางเดียวแล้วอีกทางเงียบไปโดยไม่มีอะไรฟ้อง (คลาสเดียวกับ known-limitation-vs-unfinished)
+ * `orderToken` มีอยู่ในฟอร์มอยู่แล้ว และ route คุมสิทธิ์จาก token นั้นเอง
+ */
+function useBuyerReputation(orderToken: string, enabled: boolean) {
+  const [data, setData] = useState<BuyerReputation | null>(null)
+  useEffect(() => {
+    if (!enabled) return
+    let alive = true
+    void (async () => {
+      try {
+        const res = await fetch(`/api/orders/${orderToken}/buyer-reputation`, { cache: 'no-store' })
+        if (!res.ok) return
+        const json = (await res.json()) as { reputation?: BuyerReputation | null }
+        if (alive) setData(json.reputation ?? null)
+      } catch {
+        // ดึงไม่ได้ = ไม่เตือน ไม่ใช่เตือนแบบไม่มีข้อมูล — คำเตือนที่ไม่มีตัวเลขหนุนคือเสียงรบกวน
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [orderToken, enabled])
+  return data
+}
+
 export default function ShipmentCreateForm({
   orderToken,
   missingReceiver,
@@ -215,6 +246,12 @@ export default function ShipmentCreateForm({
   // ใบ COD เติมยอดจากคำสั่งซื้อให้เลย — เดิมปล่อยว่างแล้วร้านต้องเปิดดูยอดอีกหน้าแล้วพิมพ์เอง
   // ซึ่งเป็นจังหวะที่พิมพ์ผิดได้ง่ายและผิดแล้วรู้ตอนขนส่งเก็บเงินลูกค้าผิดจำนวน (user 2026-07-29)
   const [codAmount, setCodAmount] = useState(codSuggested > 0 ? String(codSuggested) : '')
+  /**
+   * ยิงเฉพาะใบที่มีโอกาสเป็น COD — ใบโอนล่วงหน้าไม่ต้องรบกวนทั้งเซิร์ฟเวอร์และสายตาผู้ขาย
+   * (ตัดสินจาก `codSuggested` ซึ่งเป็นค่าของ *ออเดอร์* ไม่ใช่ `codAmount` ที่ผู้ใช้พิมพ์อยู่ —
+   * ไม่งั้นจะยิงใหม่ทุกตัวอักษรที่พิมพ์ในช่องยอดเก็บปลายทาง)
+   */
+  const buyerReputation = useBuyerReputation(orderToken, codSuggested > 0)
   const [remark, setRemark] = useState(defaults.remark ?? '')
   const [onTime, setOnTime] = useState(defaults.optOnTime)
   const [boxShield, setBoxShield] = useState(defaults.optBoxShield)
@@ -830,6 +867,27 @@ export default function ShipmentCreateForm({
                 onChange={(e) => setCodAmount(e.target.value)}
               />
               <p className="mb-0 mt-1 text-xs text-default-700">เว้นว่างหรือ 0 = ไม่เก็บเงินปลายทาง</p>
+              {/* คำเตือนประวัติพัสดุตีกลับ (feature 00055 · D-3) — **เตือน ไม่ใช่บล็อก** (BR-BR-08)
+                  ไม่มีปุ่มไหนถูก disable จากตรงนี้ เราไม่รู้บริบท (อาจเป็นลูกค้าประจำที่บ้านเลขที่
+                  ผิดครั้งเดียว) · ถ้อยคำเป็นกลางตาม BR-BR-09: "พัสดุตีกลับ" ไม่ใช่ "ปฏิเสธรับของ"
+                  เพราะตีกลับเกิดจากที่อยู่ผิด/ขนส่งส่งไม่ถึงได้ เราไม่รู้ว่าใครผิด */}
+              {shouldWarnCodReturnRisk(buyerReputation, numOrUndefined(codAmount) ?? 0) &&
+                buyerReputation && (
+                  <p className="bg-warning/15 text-warning-ink mt-2 mb-0 flex items-start gap-2 rounded-lg px-3 py-2 text-xs">
+                    <Icon
+                      icon="alert-triangle"
+                      className="mt-0.5 shrink-0 text-base"
+                      aria-hidden="true"
+                    />
+                    <span>
+                      ลูกค้ารายนี้เคยมีพัสดุตีกลับ{' '}
+                      <span className="font-semibold">{buyerReputation.returned} ครั้ง</span> ทั้งระบบ
+                      {buyerReputation.returnRate !== null &&
+                        ` (${Math.round(buyerReputation.returnRate * 100)}% ของ ${buyerReputation.shipped} ใบที่เปิดพัสดุ)`}
+                      {' — '}พิจารณาเก็บเงินก่อนส่งแทนเก็บปลายทาง
+                    </span>
+                  </p>
+                )}
             </div>
 
             <div>

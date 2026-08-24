@@ -62,6 +62,8 @@ import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 import { customerBadges, type CustomerBehavior } from '@/lib/customer-behavior'
+import type { BuyerReputation } from '@/lib/buyer-reputation'
+import BuyerReputationRow from './BuyerReputationRow'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import OrderCardView from '../../../_components/OrderCardView'
@@ -142,6 +144,13 @@ export type CustomerPanelData = {
   customerStats: { orderCount: number; totalSpent: string; since: string } | null
   /** ตัวเลขดิบของป้ายพฤติกรรมลูกค้า (ส่วนขยาย 2026-08-11) — null = ยังไม่ผูกกับลูกค้าในระบบ */
   customerBehavior: CustomerBehavior | null
+  /**
+   * สถิติ **ข้ามทุกร้าน** (feature 00055 · D-1) — null = ยังไม่ผูกกับลูกค้าในระบบ
+   *
+   * 🛑 ตัวเลขรวมล้วน **ไม่มีอะไรระบุร้านได้เลย** (D-2) — ร้าน A ไม่มีสิทธิ์รู้ว่าลูกค้าเคยสั่ง
+   * ร้าน B บังคับตั้งแต่ชั้น query ใน `buyer-reputation.service.ts` ไม่ใช่ที่การ render
+   */
+  buyerReputation: BuyerReputation | null
   /** feature 00018 E5 — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา (null = ไม่ได้มาจากโฆษณา)
    *  ใช้ทำป้ายกำกับอัตโนมัติ `ad_id.…` / `messenger_ads` แบบ Business Suite */
   adReferralId: string | null
@@ -886,6 +895,13 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
             </span>
           ))}
         </div>
+      )}
+
+      {/* สถิติ "ทั้งระบบ" (feature 00055) — วางใต้ป้ายพฤติกรรมของร้านนี้โดยตั้งใจ: ป้ายบนตอบว่า
+          "ลูกค้าคนนี้ทำอะไรกับเรา" แถบนี้ตอบว่า "ทำอะไรกับทั้งระบบ" ต้องอ่านเรียงกันถึงจะตัดสินใจได้
+          ไม่มีลูกค้าในระบบ / ไม่เคยมีออเดอร์ → ไม่ render เลย ไม่ใช่แถบว่าง (BR-BR-12) */}
+      {data.buyerReputation && data.buyerReputation.orders > 0 && (
+        <BuyerReputationRow data={data.buyerReputation} />
       )}
 
       {/* แถบสรุป 1 บรรทัดเหนือแท็บถูกย้ายลงไปเป็น "แถวสถิติ" ในแท็บข้อมูลลูกค้าแทน (user สั่ง 2026-07-24
