@@ -1,3 +1,5 @@
+import { calcBuyerConductPenalty, applyBuyerConductPenalty } from "@/lib/buyer-trust";
+import { getBuyerReputation } from "@/services/buyer-reputation.service";
 import { prisma } from "@/lib/prisma";
 import { BADGE_SCORE_MAX, BADGE_SCORE_PER_BADGE } from "@/lib/badge-score-rule";
 import {
@@ -124,7 +126,27 @@ export async function recalculateTrustScore(userId: string): Promise<number> {
   const age = calcAgeScore(user.createdAt);
   const badges = await calcBadgeScore(scope);
 
-  const computed = verification + orders + rating + age + badges;
+  /**
+   * ─── D-4 · พฤติกรรมการรับของฝั่งผู้ซื้อ (feature 00055) ──────────────────────
+   *
+   * 🛑 อ่านจาก `Customer` ที่ผูกกับ `User` คนนี้ ไม่ใช่จาก `User` ตรง ๆ — ผู้ซื้อ 92.5%
+   * ของระบบเป็น `Customer` ที่ไม่มีบัญชี (prod 2026-08-24: 477 คน มีบัญชี 36) คะแนนตรงนี้
+   * จึงเข้าถึงคนส่วนน้อยโดยธรรมชาติ ตัวเลขที่ครบทุกคนอยู่ที่ `buyer-reputation.service.ts`
+   * ซึ่งร้านเห็นในแผงลูกค้า
+   *
+   * 🛑 ยังไม่ถูกนำไปหักจริง — `BUYER_CONDUCT_PENALTY_ENABLED = false` (BR-BR-11 · R-3)
+   * รอบนี้บันทึกลง `TrustScoreHistory.breakdown` เพื่อให้เห็นตัวเลขจากข้อมูลจริงก่อนตัดสินใจ
+   * เปิด — เพราะ D-4 คือการกลับหลักการ "มีแต่ขึ้น ไม่มีหัก" ที่ประกาศไว้ใน PRD FR-3.5
+   */
+  const linkedCustomer = await prisma.customer.findUnique({
+    where: { userId },
+    select: { id: true },
+  });
+  const buyerReputation = linkedCustomer ? await getBuyerReputation(linkedCustomer.id) : null;
+  const buyerConduct = calcBuyerConductPenalty(buyerReputation);
+
+  const base = verification + orders + rating + age + badges;
+  const computed = applyBuyerConductPenalty(base, buyerReputation);
 
   // PRD FR-3.5: MVP "มีแต่ขึ้น" (monotonic-increasing) — trust score ที่
   // แสดงบน User ต้องไม่ลดลง แม้ formula จะคำนวณต่ำกว่าของเดิม (เช่น
@@ -138,7 +160,12 @@ export async function recalculateTrustScore(userId: string): Promise<number> {
     data: {
       userId,
       score: computed,
-      breakdown: { verification, orders, rating, age, badges },
+      /**
+       * `buyerConduct` = คะแนนที่ *จะ* ถูกหักถ้าเปิดสวิตช์ (จำนวนบวก) — บันทึกเสมอแม้ยังไม่หัก
+       * `base` = ผลรวม 5 องค์ประกอบเดิมก่อนหัก ⇒ เทียบกับ `score` แล้วเห็นทันทีว่าสวิตช์
+       * เปิดอยู่หรือไม่ และถ้าเปิดจะเปลี่ยนไปเท่าไร โดยไม่ต้องไปอ่านโค้ด
+       */
+      breakdown: { verification, orders, rating, age, badges, buyerConduct, base },
     },
   });
 
