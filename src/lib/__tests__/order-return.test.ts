@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest'
 
 import {
   RETURN_PAYER,
+  RETURN_SHIPPING_CHOICES,
   RETURN_TRACKING_SOURCE,
   canCreateReturn,
   computeRefundAmount,
@@ -18,7 +19,11 @@ import {
   resolveCountAsCost,
   resolveReturnShippingCost,
   sumReturnShippingCost,
+  returnShippingChoice,
   validateReturnShipping,
+  type ReturnPayer,
+  type ReturnShippingChoiceKey,
+  type ReturnTrackingSource,
 } from '../order-return'
 
 const base = {
@@ -199,5 +204,69 @@ describe('[blocker] resolveReturnShippingCost', () => {
     ])
     expect(sum.total).toBe(80)
     expect(sum.unknownCount).toBe(1)
+  })
+})
+
+/**
+ * [blocker] 4 ตัวเลือกบนจอต้องตรงกับกฎที่ service บังคับ (ดีไซน์ชีตคืนของ 2026-08-24)
+ *
+ * ลิสต์ `RETURN_SHIPPING_CHOICES` คือสิ่งเดียวที่ผู้ใช้เห็น — ถ้ามันหลุดจาก
+ * `validateReturnShipping` จะเกิดได้ 2 ทางและทั้งคู่เงียบ:
+ *   - มีข้อที่กดแล้ว service ปฏิเสธ  ⇒ ร้านเจอ error ที่แก้ไม่ได้เพราะจอไม่มีทางอื่นให้เลือก
+ *   - มีคู่ที่ถูกต้องแต่ไม่อยู่ในลิสต์ ⇒ ความสามารถหายไปจากผลิตภัณฑ์โดยไม่มีอะไรฟ้อง
+ */
+describe('[blocker] RETURN_SHIPPING_CHOICES ผูกกับ validateReturnShipping', () => {
+  const ALL_PAIRS = (['SHOP', 'BUYER'] as ReturnPayer[]).flatMap((payer) =>
+    (['ISHIP', 'MANUAL', 'NONE'] as ReturnTrackingSource[]).map((trackingSource) => ({
+      payer,
+      trackingSource,
+    })),
+  )
+
+  it('ทุกข้อในลิสต์ผ่าน validateReturnShipping', () => {
+    for (const c of RETURN_SHIPPING_CHOICES) {
+      // ป้อนเลขพัสดุให้เฉพาะข้อที่ประกาศว่าต้องใช้ — ถ้า needsTracking โกหก เทสนี้จะแดง
+      const manualTrackingNo = c.needsTracking ? 'TH123' : null
+      expect(validateReturnShipping({ ...c, manualTrackingNo }), c.key).toBeNull()
+    }
+  })
+
+  it('ครอบคู่ที่ถูกต้องครบทุกคู่ ไม่ขาดไม่เกิน', () => {
+    const validPairs = ALL_PAIRS.filter(
+      (p) =>
+        validateReturnShipping({
+          ...p,
+          manualTrackingNo: p.trackingSource === 'MANUAL' ? 'TH123' : null,
+        }) === null,
+    )
+    const listed = RETURN_SHIPPING_CHOICES.map((c) => `${c.payer}_${c.trackingSource}`).sort()
+    expect(listed).toEqual(validPairs.map((p) => `${p.payer}_${p.trackingSource}`).sort())
+  })
+
+  it('คู่ที่เป็นไปไม่ได้ (ลูกค้าจ่าย + ระบบออกเลข) ไม่มีทางเลือกได้จากจอ', () => {
+    // นี่คือเหตุผลทั้งหมดที่ยุบ select 2 ตัวเป็น radio เดียว
+    expect(RETURN_SHIPPING_CHOICES.some((c) => c.payer === 'BUYER' && c.trackingSource === 'ISHIP')).toBe(false)
+  })
+
+  it('needsTracking ตรงกับที่ validateReturnShipping บังคับจริง', () => {
+    for (const c of RETURN_SHIPPING_CHOICES) {
+      // ไม่กรอกเลข: ข้อที่ต้องใช้ต้องถูกปฏิเสธ · ข้อที่ไม่ต้องใช้ต้องผ่าน
+      const blocked = validateReturnShipping({ ...c, manualTrackingNo: null })
+      expect(blocked !== null, c.key).toBe(c.needsTracking)
+    }
+  })
+
+  it('costOptional ตรงกับ resolveCountAsCost (ร้านจ่าย = บังคับนับ ถามไม่ได้)', () => {
+    for (const c of RETURN_SHIPPING_CHOICES) {
+      // ติ๊กออกแล้วยังนับอยู่ = ถามไปก็ไม่มีผล ⇒ costOptional ต้องเป็น false
+      const ignoresChoice = resolveCountAsCost(c.payer, false) === true
+      expect(ignoresChoice, c.key).toBe(!c.costOptional)
+    }
+  })
+
+  it('returnShippingChoice ดังทันทีเมื่อคีย์ไม่รู้จัก ไม่ถอยไปข้อแรกเงียบ ๆ', () => {
+    // ถอยไปข้อแรก = SHOP_ISHIP = ตัดเครดิตร้านจริงโดยไม่มีใครสั่ง
+    expect(() => returnShippingChoice('NOPE' as ReturnShippingChoiceKey)).toThrow()
+    expect(returnShippingChoice('BUYER_NONE').payer).toBe('BUYER')
   })
 })

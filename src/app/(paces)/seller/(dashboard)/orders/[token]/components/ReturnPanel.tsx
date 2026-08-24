@@ -22,11 +22,14 @@ import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
 import {
   RETURN_PAYER_TEXT,
+  RETURN_SHIPPING_CHOICES,
   RETURN_STATUS,
   RETURN_TRACKING_SOURCE,
   RETURN_TRACKING_SOURCE_TEXT,
   computeRefundAmount,
+  returnShippingChoice,
   type ReturnPayer,
+  type ReturnShippingChoiceKey,
   type ReturnTrackingSource,
 } from '@/lib/order-return'
 import { formatBaht } from '@/lib/format-money'
@@ -95,13 +98,34 @@ export default function ReturnPanel({
   const [eligibility, setEligibility] = useState<Eligibility | null>(null)
   const [returns, setReturns] = useState<ReturnRow[] | null>(null)
   const [form, setForm] = useState(false)
+  /**
+   * ขั้นของฟอร์ม — 1 เลือกวิธีคืน · 2 เลือกของ
+   *
+   * 🛑 ถามวิธีคืนก่อน เพราะนั่นคือสิ่งที่ร้าน **ตกลงกับลูกค้าไปแล้ว** ก่อนจะมากดในระบบ
+   * ส่วน "ของกี่ชิ้น" เป็นรายละเอียดที่ต้องเปิดออเดอร์ดู — ถามเรื่องที่ตัดสินใจแล้วก่อน
+   * ทำให้ผ่านขั้นแรกได้เร็ว และขั้นสองไม่มีอะไรมาแย่งสายตาตอนนับจำนวน (ซึ่งคือเงิน)
+   */
+  const [step, setStep] = useState<1 | 2>(1)
   const [qty, setQty] = useState<Record<string, number>>({})
-  const [payer, setPayer] = useState<ReturnPayer>('SHOP')
-  const [source, setSource] = useState<ReturnTrackingSource>('ISHIP')
+  /**
+   * 🛑 ตัวเลือกเดียว ไม่ใช่ payer + source แยกกัน
+   *
+   * เดิมเป็น select 2 ตัวที่ขึ้นต่อกัน แล้วต้องมีโค้ดสลับ source ให้อัตโนมัติเมื่อ payer เปลี่ยน
+   * (คู่ `BUYER + ISHIP` เป็นไปไม่ได้ — ระบบตัดเครดิต iShip ของร้านเสมอ) ⇒ ผู้ใช้เห็นช่องที่
+   * ตัวเองไม่ได้แตะเปลี่ยนค่าเอง ซึ่งอ่านเป็นบั๊ก · ยุบเป็นลิสต์เดียวแล้วคู่ที่เป็นไปไม่ได้
+   * **หายไปจากโครงสร้าง** ไม่ใช่แค่ถูกซ่อน (หัวหน้าเสนอเอง: "ให้เลือกเป็น radio จะได้ง่ายๆ")
+   */
+  const [choiceKey, setChoiceKey] = useState<ReturnShippingChoiceKey | null>(null)
   const [manualNo, setManualNo] = useState('')
   const [manualCourier, setManualCourier] = useState('')
   const [countAsCost, setCountAsCost] = useState(false)
   const [reason, setReason] = useState('')
+
+  const choice = choiceKey ? returnShippingChoice(choiceKey) : null
+  const payer: ReturnPayer = choice?.payer ?? 'SHOP'
+  const source: ReturnTrackingSource = choice?.trackingSource ?? 'ISHIP'
+  /** ขั้นที่ 1 ผ่านหรือยัง — เกณฑ์เดียว ใช้ทั้งปุ่ม "ถัดไป" และปุ่มยืนยันปลายทาง */
+  const stepOneReady = choice != null && (!choice.needsTracking || manualNo.trim() !== '')
 
   const load = useCallback(async () => {
     try {
@@ -162,8 +186,7 @@ export default function ReturnPanel({
       // ข้อความจาก API บอกทางแก้อยู่แล้ว (คืนได้อีกกี่ชิ้น/ทำไมคืนไม่ได้) — แสดงตรง ๆ
       if (!res.ok) throw new Error(data?.error ?? 'เปิดใบคืนไม่สำเร็จ')
       pacesToast.success('เปิดใบคืนของแล้ว')
-      setForm(false)
-      setQty({})
+      closeForm()
       await load()
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'เปิดใบคืนไม่สำเร็จ')
@@ -200,6 +223,18 @@ export default function ReturnPanel({
     } finally {
       setBusy(false)
     }
+  }
+
+  /** ปิดฟอร์ม + ล้างร่างทั้งชุด — เดิมล้างแค่ `qty` ทำให้วิธีคืนของรอบก่อนค้างมารอบถัดไป */
+  const closeForm = () => {
+    setForm(false)
+    setStep(1)
+    setQty({})
+    setChoiceKey(null)
+    setManualNo('')
+    setManualCourier('')
+    setCountAsCost(false)
+    setReason('')
   }
 
   const labelUrl = `/api/o/${orderToken}/return-label`
@@ -406,120 +441,203 @@ export default function ReturnPanel({
                   เปิดเรื่องคืนของ
                 </button>
               ) : (
-                <div className="border-default-200 rounded-lg border p-3">
-                  <p className="text-default-900 mb-2 text-xs font-semibold">เลือกรายการที่คืน</p>
-                  {eligibility.items.map((i) => (
-                    <div key={i.orderItemId} className="mb-2 flex items-center gap-2">
-                      <span className="text-default-800 min-w-0 flex-1 truncate text-xs">
-                        {i.name}
-                        <span className="text-default-500"> · คืนได้ {i.remainingQty}</span>
-                      </span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={i.remainingQty}
-                        disabled={i.remainingQty === 0}
-                        className="form-input w-20 shrink-0"
-                        value={qty[i.orderItemId] ?? 0}
-                        onChange={(e) =>
-                          setQty((q) => ({
-                            ...q,
-                            // clamp ที่ปลายทางด้วย — ผู้ใช้พิมพ์เกินได้เสมอ และ service ก็กันอีกชั้น
-                            [i.orderItemId]: Math.max(
-                              0,
-                              Math.min(i.remainingQty, Number(e.target.value) || 0),
-                            ),
-                          }))
-                        }
-                      />
-                    </div>
-                  ))}
-
-                  <p className="text-default-900 mb-3 mt-2 text-xs font-semibold">
-                    ยอดที่จะคืน {formatBaht(refundPreview)}
-                  </p>
-
-                  <label className="form-label text-xs">ใครออกค่าส่งคืน</label>
-                  <select
-                    className="form-select mb-2"
-                    value={payer}
-                    onChange={(e) => {
-                      const p = e.target.value as ReturnPayer
-                      setPayer(p)
-                      // ลูกค้าออกเอง = ระบบออกเลขให้ไม่ได้ (เครดิตเป็นของร้าน) — สลับให้อัตโนมัติ
-                      // ดีกว่าปล่อยให้กดแล้วเจอ error ที่แก้ไม่ถูก
-                      if (p === 'BUYER' && source === RETURN_TRACKING_SOURCE.ISHIP) setSource('MANUAL')
-                    }}
-                  >
-                    <option value="SHOP">{RETURN_PAYER_TEXT.SHOP}</option>
-                    <option value="BUYER">{RETURN_PAYER_TEXT.BUYER}</option>
-                  </select>
-
-                  <label className="form-label text-xs">เลขพัสดุขากลับ</label>
-                  <select
-                    className="form-select mb-2"
-                    value={source}
-                    onChange={(e) => setSource(e.target.value as ReturnTrackingSource)}
-                  >
-                    {payer === 'SHOP' && (
-                      <option value="ISHIP">{RETURN_TRACKING_SOURCE_TEXT.ISHIP}</option>
-                    )}
-                    <option value="MANUAL">{RETURN_TRACKING_SOURCE_TEXT.MANUAL}</option>
-                    <option value="NONE">{RETURN_TRACKING_SOURCE_TEXT.NONE}</option>
-                  </select>
-
-                  {source === RETURN_TRACKING_SOURCE.MANUAL && (
-                    <div className="mb-2 flex gap-2">
-                      <input
-                        className="form-input flex-1"
-                        placeholder="ชื่อขนส่ง"
-                        value={manualCourier}
-                        onChange={(e) => setManualCourier(e.target.value)}
-                      />
-                      <input
-                        className="form-input flex-1"
-                        placeholder="เลขพัสดุ"
-                        value={manualNo}
-                        onChange={(e) => setManualNo(e.target.value)}
-                      />
-                    </div>
-                  )}
-
-                  {/* ร้านจ่ายเอง = เป็นต้นทุนเสมอ ไม่ต้องถาม (resolveCountAsCost บังคับที่ service) */}
-                  {payer === 'BUYER' && (
-                    <label className="mb-2 flex items-center gap-2 text-xs">
-                      <input
-                        type="checkbox"
-                        className="form-checkbox"
-                        checked={countAsCost}
-                        onChange={(e) => setCountAsCost(e.target.checked)}
-                      />
-                      บันทึกค่าส่งขากลับเป็นต้นทุนร้าน (ลูกค้าออกเลขเองแต่มาเรียกเก็บร้าน)
-                    </label>
-                  )}
-
-                  <input
-                    className="form-input mb-3"
-                    placeholder="เหตุผล (ไม่บังคับ)"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                  />
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-primary"
-                      disabled={busy || selectedLines.length === 0}
-                      onClick={submit}
-                    >
-                      เปิดใบคืน
-                    </button>
-                    <button type="button" className="btn btn-sm btn-light" onClick={() => setForm(false)}>
-                      ยกเลิก
-                    </button>
-                  </div>
-                </div>
+                <div className="border-default-200 rounded-lg border p-3">{renderForm()}</div>
               )}
+      </>
+    )
+  }
+
+  /**
+   * ฟอร์มเปิดใบคืน — 2 ขั้น: วิธีคืน → ของที่คืน
+   *
+   * ดีไซน์นี้มาจาก prototype 3 แบบที่เทียบกันบนหน้าจริง (branch `proto/return-sheet-redesign`)
+   * หัวหน้าเคาะแบบ A ด้วยเหตุผลว่าตรงกับที่สั่งตรงตัว "กดปุ่มคืนของแล้วให้เลือกเป็น radio"
+   */
+  function renderForm() {
+    if (!eligibility) return null
+
+    // ── ขั้น 1 · ตกลงกับลูกค้าไว้ยังไง ────────────────────────────────
+    if (step === 1) {
+      return (
+        <>
+          <p className="text-default-900 mb-0.5 text-sm font-semibold">ตกลงกับลูกค้าไว้ยังไง</p>
+          <p className="text-default-600 mb-3 text-xs">เลือกข้อที่ตรงกับที่คุยกันไว้</p>
+
+          <div className="flex flex-col gap-2" role="radiogroup" aria-label="วิธีคืนของ">
+            {RETURN_SHIPPING_CHOICES.map((c) => {
+              const on = choiceKey === c.key
+              return (
+                /* label ห่อ input ทั้งก้อน = กดตรงไหนของการ์ดก็ติด และยังได้ชื่อจาก markup จริง
+                   ไม่ต้องพึ่ง aria-label (docs/conventions/aria-name-requires-supporting-role.md) */
+                <label
+                  key={c.key}
+                  className={`flex cursor-pointer items-start gap-2.5 rounded-lg border p-2.5 ${
+                    on ? 'border-primary bg-primary/5' : 'border-default-200'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="return-shipping-choice"
+                    className="form-radio mt-0.5 shrink-0"
+                    checked={on}
+                    onChange={() => {
+                      setChoiceKey(c.key)
+                      // ล้างค่าที่ไม่เกี่ยวกับข้อใหม่ — ไม่งั้นเลขพัสดุที่พิมพ์ไว้ตอนเลือกข้ออื่น
+                      // จะถูกส่งไปด้วยแล้วโดน TRACKING_NOT_ALLOWED ที่ผู้ใช้แก้ไม่ถูก
+                      if (!c.needsTracking) {
+                        setManualNo('')
+                        setManualCourier('')
+                      }
+                      if (!c.costOptional) setCountAsCost(false)
+                    }}
+                  />
+                  <Icon icon={c.icon} className="text-default-600 mt-0.5 size-5 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0">
+                    <span className="text-default-900 block text-sm font-medium">{c.title}</span>
+                    <span className="text-default-600 block text-xs">{c.detail}</span>
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+
+          {choice?.needsTracking && (
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input
+                className="form-input sm:flex-1"
+                placeholder="ชื่อขนส่ง"
+                value={manualCourier}
+                onChange={(e) => setManualCourier(e.target.value)}
+                aria-label="ชื่อขนส่งขากลับ"
+              />
+              <input
+                className="form-input sm:flex-1"
+                placeholder="เลขพัสดุ *"
+                value={manualNo}
+                onChange={(e) => setManualNo(e.target.value)}
+                aria-label="เลขพัสดุขากลับ"
+              />
+            </div>
+          )}
+
+          {/* ถามเฉพาะตอนลูกค้าออกค่าส่ง — ร้านจ่ายเองบังคับเป็นต้นทุนอยู่แล้ว (resolveCountAsCost)
+              ถามไปก็หลอกว่าเลือกได้ทั้งที่ติ๊กออกแล้วไม่มีผล */}
+          {choice?.costOptional && (
+            <label className="mt-2 flex items-start gap-2 text-xs">
+              <input
+                type="checkbox"
+                className="form-checkbox mt-0.5"
+                checked={countAsCost}
+                onChange={(e) => setCountAsCost(e.target.checked)}
+              />
+              <span>
+                ลูกค้าออกเลขเอง แต่<span className="font-semibold">มาเรียกเก็บร้านทีหลัง</span> — บันทึกเป็นต้นทุนร้าน
+              </span>
+            </label>
+          )}
+
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              className="btn btn-sm btn-primary flex-1"
+              disabled={!stepOneReady}
+              onClick={() => setStep(2)}
+            >
+              ถัดไป — เลือกของที่คืน
+            </button>
+            <button type="button" className="btn btn-sm btn-light" onClick={closeForm}>
+              ยกเลิก
+            </button>
+          </div>
+        </>
+      )
+    }
+
+    // ── ขั้น 2 · คืนของชิ้นไหนบ้าง ──────────────────────────────────
+    return (
+      <>
+        {/* ปุ่มย้อนกลับพูดชื่อข้อที่เลือกไว้ด้วย = ไม่ต้องจำ และแก้ได้ในคลิกเดียว */}
+        <button type="button" className="btn btn-sm btn-light mb-3 max-w-full" onClick={() => setStep(1)}>
+          <Icon icon="arrow-left" className="size-4 shrink-0" aria-hidden="true" />
+          <span className="truncate">{choice?.title}</span>
+        </button>
+
+        <p className="text-default-900 mb-2 text-sm font-semibold">คืนของชิ้นไหนบ้าง</p>
+        {eligibility.items.map((i) => {
+          const n = qty[i.orderItemId] ?? 0
+          const setN = (next: number) =>
+            // clamp ที่นี่ด้วย — ปุ่มกันไว้แล้วแต่ service ก็กันอีกชั้น ค่าที่ส่งออกต้องถูกเสมอ
+            setQty((q) => ({ ...q, [i.orderItemId]: Math.max(0, Math.min(i.remainingQty, next)) }))
+          return (
+            <div
+              key={i.orderItemId}
+              className="border-default-200 mb-2 flex items-center gap-2 rounded-lg border p-2.5"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="text-default-900 block truncate text-sm">{i.name}</span>
+                <span className="text-default-500 block text-xs">
+                  ซื้อ {i.orderedQty} · คืนได้ {i.remainingQty} · {formatBaht(i.unitPrice)}/ชิ้น
+                </span>
+              </span>
+              {/* stepper — ยกโครงจาก `orders/new/components/QuickLineItem.tsx` (โดเมนเดียวกัน:
+                  รายการสินค้า + จำนวน) ตาม docs/conventions/sibling-surface-parity.md
+                  ต่างกันจุดเดียว: ตรงกลางเป็นตัวเลขอ่านอย่างเดียว ไม่ใช่ช่องพิมพ์ — คืนของมี
+                  เพดาน `remainingQty` ที่แข็ง การเปิดให้พิมพ์คือการเชิญให้พิมพ์เกินแล้วโดนดีดกลับ */}
+              <div className="border-default-300 flex shrink-0 items-center overflow-hidden rounded-lg border">
+                <button
+                  type="button"
+                  className="text-primary inline-flex size-9 items-center justify-center disabled:opacity-40"
+                  disabled={n <= 0}
+                  onClick={() => setN(n - 1)}
+                  aria-label={`ลดจำนวนที่คืนของ ${i.name}`}
+                >
+                  <Icon icon="minus" className="size-4" aria-hidden="true" />
+                </button>
+                {/* live region ทำหน้าที่แทน `<input>` ของ sibling: ตัวเลขนี้โฟกัสไม่ได้ ผู้ใช้
+                    screen reader จึงต้องได้ยินค่าที่เปลี่ยนหลังกด ±  ไม่งั้นกดแล้วเงียบสนิท
+                    🛑 ไม่ใส่ `aria-label` — บน live region ชื่อจากผู้เขียนจะไปแทนที่ *เนื้อหา*
+                    ที่ต้องถูกอ่าน ซึ่งก็คือตัวเลข (บริบทว่าของชิ้นไหนอยู่ที่ปุ่มที่เพิ่งกดแล้ว) */}
+                <span
+                  className="border-default-200 w-10 border-x py-1.5 text-center text-sm font-bold tabular-nums"
+                  role="status"
+                >
+                  {n}
+                </span>
+                <button
+                  type="button"
+                  className="text-primary inline-flex size-9 items-center justify-center disabled:opacity-40"
+                  disabled={n >= i.remainingQty}
+                  onClick={() => setN(n + 1)}
+                  aria-label={`เพิ่มจำนวนที่คืนของ ${i.name}`}
+                >
+                  <Icon icon="plus" className="size-4" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          )
+        })}
+
+        <input
+          className="form-input mt-3"
+          placeholder="เหตุผล (ไม่บังคับ)"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          aria-label="เหตุผลที่คืน"
+        />
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-default-900 text-sm font-semibold">
+            คืน {formatBaht(refundPreview)}
+          </span>
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            disabled={busy || selectedLines.length === 0 || !stepOneReady}
+            onClick={submit}
+          >
+            เปิดใบคืน
+          </button>
+        </div>
       </>
     )
   }

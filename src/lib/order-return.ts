@@ -195,6 +195,111 @@ export function resolveCountAsCost(payer: ReturnPayer, chosen?: boolean): boolea
   return chosen ?? false
 }
 
+// ─── 4 รูปแบบที่ร้านเลือกได้จริง (ดีไซน์ชีตคืนของ · หัวหน้าเคาะ 2026-08-24) ────────
+
+/**
+ * RETURN_SHIPPING_CHOICES — SSOT ของ "ตัวเลือกที่ร้านเห็นบนจอ"
+ *
+ * 🛑 ทำไมถึงเป็นลิสต์เดียว ไม่ใช่ select 2 ตัว (payer × trackingSource):
+ * สองมิตินั้น **ขึ้นต่อกัน** — คู่ `BUYER + ISHIP` เป็นไปไม่ได้เพราะระบบตัดเครดิต iShip ของ
+ * ร้านเสมอ (ดู `ISHIP_NEEDS_SHOP_PAYS`) จอเดิมจึงต้องมีโค้ดสลับ trackingSource ให้อัตโนมัติ
+ * เมื่อผู้ใช้เปลี่ยน payer ⇒ ผู้ใช้เห็นตัวเลือกเปลี่ยนเองโดยไม่ได้สั่ง ซึ่งอ่านเป็นบั๊ก
+ *
+ * ยุบเป็นลิสต์เดียวแล้ว **คู่ที่เป็นไปไม่ได้หายไปจากโครงสร้าง** ไม่ใช่แค่ถูกซ่อน — และไม่ต้อง
+ * มีโค้ดสลับอัตโนมัติอีกเลย (หัวหน้าเสนอเองว่า "ให้เลือกเป็น radio จะได้ง่ายๆ")
+ *
+ * ลิสต์นี้ถูกผูกกับ `validateReturnShipping` ด้วยเทส [blocker]: ทุกข้อต้องผ่าน และต้องครอบ
+ * คู่ที่ผ่านได้ **ครบทุกคู่** — เพิ่มคู่ที่ถูกต้องในอนาคตแล้วลืมใส่ในลิสต์ = เทสแดง
+ */
+export type ReturnShippingChoiceOption = {
+  key: ReturnShippingChoiceKey
+  /** พาดหัว = สิ่งที่ร้านตกลงกับลูกค้าไปแล้ว (ไม่ใช่ศัพท์ระบบ) */
+  title: string
+  /** ขยายความว่า "กดแล้วเกิดอะไรต่อ" */
+  detail: string
+  icon: string
+  payer: ReturnPayer
+  trackingSource: ReturnTrackingSource
+  /** ต้องกรอกเลขพัสดุไหม — derive ไม่ได้จาก trackingSource อย่างเดียวในอนาคต จึงระบุตรง ๆ */
+  needsTracking: boolean
+  /** ร้านเลือกได้ไหมว่าจะนับเป็นต้นทุน (ร้านจ่ายเอง = บังคับนับ ถามไปก็หลอกว่าเลือกได้) */
+  costOptional: boolean
+}
+
+export type ReturnShippingChoiceKey =
+  | 'SHOP_ISHIP'
+  | 'SHOP_MANUAL'
+  | 'SHOP_NONE'
+  | 'BUYER_MANUAL'
+  | 'BUYER_NONE'
+
+export const RETURN_SHIPPING_CHOICES: ReturnShippingChoiceOption[] = [
+  {
+    key: 'SHOP_ISHIP',
+    title: 'ร้านออกค่าส่งให้ — ให้ระบบออกเลขพัสดุ',
+    detail: 'ระบบเปิดพัสดุขากลับให้ ตัดจากเครดิต iShip ของร้าน แล้วได้ใบปะหน้าส่งให้ลูกค้าพิมพ์',
+    icon: 'truck-return',
+    payer: RETURN_PAYER.SHOP,
+    trackingSource: RETURN_TRACKING_SOURCE.ISHIP,
+    needsTracking: false,
+    costOptional: false,
+  },
+  {
+    key: 'SHOP_MANUAL',
+    title: 'ร้านออกค่าส่งให้ — ใช้ขนส่งเจ้าอื่น',
+    detail: 'ร้านไปเปิดพัสดุเองที่ขนส่งเจ้าอื่น แล้วมากรอกเลขที่นี่',
+    icon: 'package',
+    payer: RETURN_PAYER.SHOP,
+    trackingSource: RETURN_TRACKING_SOURCE.MANUAL,
+    needsTracking: true,
+    costOptional: false,
+  },
+  {
+    /**
+     * 🛑 ข้อนี้เกือบหายไปตอนออกแบบใหม่ — หัวหน้าระบุมา 4 แบบ (ร้าน/ลูกค้า × มีเลข/ไม่มีเลข)
+     * แต่จอเดิมเลือก "ร้านจ่าย + ไม่มีเลข" ได้จริงเพราะ select ตัวที่สองมี NONE อยู่ด้วยเสมอ
+     * ตัดทิ้งเพราะไม่มีในสเปก = ถอดความสามารถที่ร้านเคยมีโดยไม่มีอะไรฟ้อง — เทส [blocker]
+     * "ครอบคู่ที่ถูกต้องครบทุกคู่" จับได้ตอนรันครั้งแรก
+     */
+    key: 'SHOP_NONE',
+    title: 'ร้านออกค่าส่งให้ — ไม่มีเลขพัสดุ',
+    detail: 'ร้านจ่ายค่าส่งให้ (เช่น จ่ายสดหน้าร้าน หรือให้ไรเดอร์ไปรับ) โดยไม่มีเลขให้ติดตาม',
+    icon: 'cash',
+    payer: RETURN_PAYER.SHOP,
+    trackingSource: RETURN_TRACKING_SOURCE.NONE,
+    needsTracking: false,
+    costOptional: false,
+  },
+  {
+    key: 'BUYER_MANUAL',
+    title: 'ลูกค้าออกค่าส่งเอง — ส่งเลขพัสดุมาให้',
+    detail: 'ลูกค้าส่งของกลับเองแล้วแจ้งเลขพัสดุมา',
+    icon: 'user-check',
+    payer: RETURN_PAYER.BUYER,
+    trackingSource: RETURN_TRACKING_SOURCE.MANUAL,
+    needsTracking: true,
+    costOptional: true,
+  },
+  {
+    key: 'BUYER_NONE',
+    title: 'ลูกค้าออกค่าส่งเอง — ไม่มีเลขพัสดุ',
+    detail: 'ลูกค้าส่งกลับมาเองโดยไม่ได้แจ้งเลข — ยังปิดเรื่องคืนได้ตามปกติ',
+    icon: 'help-circle',
+    payer: RETURN_PAYER.BUYER,
+    trackingSource: RETURN_TRACKING_SOURCE.NONE,
+    needsTracking: false,
+    costOptional: true,
+  },
+]
+
+export function returnShippingChoice(key: ReturnShippingChoiceKey): ReturnShippingChoiceOption {
+  const found = RETURN_SHIPPING_CHOICES.find((c) => c.key === key)
+  // fail-closed — คีย์ที่ไม่รู้จักต้องดังทันที ไม่ใช่ถอยไปข้อแรกเงียบ ๆ ซึ่งจะกลายเป็น
+  // "ร้านออกค่าส่งให้" โดยที่ไม่มีใครสั่ง แล้วเงินตัดจากเครดิตร้านจริง
+  if (!found) throw new Error(`unknown return shipping choice: ${key}`)
+  return found
+}
+
 // ─── ค่าส่งขากลับเข้าระบบกำไร (P5 · D-3c · หัวหน้ายืนยัน 2026-08-24) ─────────────
 
 export type ReturnCostInput = {
