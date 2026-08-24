@@ -33,6 +33,7 @@ import {
   type SendOutboundParams,
 } from '@/services/channel-chat.service'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
+import { pushChatSendFailed } from '@/services/seller-push.service'
 
 /** แถวที่คืนออกไปให้ผู้เรียก — `rawMessage` ถูก global omit ที่ `src/lib/prisma.ts` */
 type OutboxMessageRow = Omit<ChatMessage, 'rawMessage'>
@@ -106,6 +107,37 @@ async function shopIdByConversation(ids: string[]): Promise<Map<string, string>>
     select: { id: true, shopId: true },
   })
   return new Map(rows.map((r) => [r.id, r.shopId]))
+}
+
+/**
+ * แจ้งผู้ขายว่าข้อความใบหนึ่ง "ล้มถาวร" — **เรียกเมื่อแถวเปลี่ยน `QUEUED → FAILED` จริงเท่านั้น**
+ *
+ * 🛑 มี **2 เส้นทาง** ที่พาแถวไปเป็น FAILED และมันไม่เรียกหากันเลย ⇒ ต้องแขวนตัวนี้ทั้งคู่:
+ *   (1) `deliverHead` — ปลายทางปฏิเสธ/ด่านล้ม (มีเหตุผลจริงติดมา)
+ *   (2) stale-close ใน `sweepOutbox` — claim ค้างเกินเพดาน ปิดด้วย `UNCERTAIN_SEND_REASON`
+ * แขวนแค่ (1) ซึ่งเป็นที่ที่ดูเป็นธรรมชาติที่สุด = เคส (2) ไม่มี noti สักใบ ทั้งที่มันคือ **เคสที่ต้อง
+ * บอกผู้ขายที่สุดในทั้งฟีเจอร์**: เราไม่รู้ว่าข้อความออกไปหรือยัง ถ้าเขาไม่รู้ เขาจะพิมพ์ส่งใหม่
+ * แล้วลูกค้าได้ข้อความซ้ำ — ความเสียหายเดียวที่ดีไซน์นี้ยอมไม่ได้ (E-1)
+ *
+ * `shopId` เป็น null ได้จริงในเส้นที่ล้ม **ก่อน** `resolveOutboundContext` (sendPayload เสีย /
+ * เพจถูกถอด) ⇒ ต้องหาเองจากห้อง ไม่ใช่เงียบไปเพราะ "ไม่รู้ว่าร้านไหน" — ถ้าเงียบ เคสทั้งคลาสนี้
+ * จะไม่มีใครได้รับแจ้งเลยโดยไม่มีอะไรฟ้อง
+ *
+ * best-effort: กลืน error เสมอ. ตัวแจ้งพังห้ามพาการระบายคิวล้มตาม (แถวถูกปิดไปแล้ว ณ จุดนี้ —
+ * โยนต่อ = แถวถัดไปในห้องไม่ถูกระบาย เพราะเหตุผลที่ไม่เกี่ยวกับการส่งเลย)
+ */
+async function notifySendFailed(
+  conversationId: string,
+  shopId: string | null,
+  failureReason: string | null,
+): Promise<void> {
+  try {
+    const target = shopId ?? (await shopIdByConversation([conversationId])).get(conversationId) ?? null
+    if (!target) return
+    await pushChatSendFailed({ shopId: target, conversationId, failureReason })
+  } catch (e) {
+    console.error('[chat-outbox] แจ้งเตือนข้อความส่งไม่ออกไม่สำเร็จ', { conversationId, error: e })
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -293,13 +325,18 @@ function parseSendPayload(value: Prisma.JsonValue | null, conversationId: string
  *
  * `count === 0` = แถวถูกปิดไปก่อนแล้ว (โดยตัวกวาด หรือโดย worker อื่น) — **ไม่ใช่ error** แต่ต้อง log
  * เพราะมันคือหลักฐานว่ามี worker วิ่งเกินเพดานเวลาจริง ซึ่งเป็นสัญญาณของบั๊กชั้นบนแบบเดียวกับ `stale`
+ *
+ * คืน `true` เมื่อ **แถวเปลี่ยนสถานะจริงในการเรียกครั้งนี้** — ผู้เรียกต้องใช้ค่านี้ตัดสินว่าจะแจ้ง
+ * ผู้ขายไหม: `false` แปลว่าตัวกวาดปิดแถวไปก่อนแล้ว (และแจ้งไปแล้วด้วยเหตุผลของมันเอง) ⇒ แจ้งซ้ำ
+ * = ผู้ขายได้ noti สองใบที่บอกคนละเรื่องสำหรับข้อความใบเดียว
  */
-async function closeRow(id: string, data: Prisma.ChatMessageUpdateManyMutationInput): Promise<void> {
+async function closeRow(id: string, data: Prisma.ChatMessageUpdateManyMutationInput): Promise<boolean> {
   try {
     const res = await prisma.chatMessage.updateMany({ where: { id, deliveryStatus: 'QUEUED' }, data })
     if (res.count === 0) {
       console.warn('[chat-outbox] ปิดแถวไม่ทัน — ถูกปิดไปก่อนแล้ว (worker วิ่งเกินเพดานเวลา)', { id })
     }
+    return res.count > 0
   } catch (e) {
     /**
      * echo ของ Meta ชิงเขียน mid เดียวกันลง DB ไปก่อน (E-17) — ข้อความ **ส่งสำเร็จจริง** แล้ว
@@ -310,11 +347,38 @@ async function closeRow(id: string, data: Prisma.ChatMessageUpdateManyMutationIn
     if (isUniqueViolationOn(e, 'externalMessageId')) {
       const { externalMessageId: _dropped, ...rest } = data
       // conditional เหมือนเส้นทางหลัก — เหตุผลเดียวกันทุกประการ (ห้ามเขียนทับแถวที่ถูกปิดไปแล้ว)
-      await prisma.chatMessage.updateMany({ where: { id, deliveryStatus: 'QUEUED' }, data: rest })
-      return
+      const retry = await prisma.chatMessage.updateMany({
+        where: { id, deliveryStatus: 'QUEUED' },
+        data: rest,
+      })
+      return retry.count > 0
     }
     throw e
   }
+}
+
+/**
+ * ปิดแถวเป็น FAILED **แล้วแจ้งผู้ขาย** — ทางเดียวที่ `deliverHead` ปิดแถวแบบล้มเหลว
+ *
+ * รวมสองอย่างไว้ที่เดียวโดยตั้งใจ: `deliverHead` มี 4 เส้นทางที่ล้ม (payload เสีย · ด่าน ownership ล้ม
+ * หลัง claim · ตัวยิงโยน · ปลายทางตอบปฏิเสธ) — ถ้าให้แต่ละเส้นเรียกตัวแจ้งเอง วันหน้าที่มีเส้นที่ 5
+ * คนเพิ่มจะลืมได้ง่ายมาก และความเงียบชนิดนี้ไม่มีอะไรฟ้อง (แถวถูกปิดถูกต้องทุกประการ ผู้ขายแค่ไม่รู้)
+ */
+async function failRow(
+  id: string,
+  conversationId: string,
+  shopId: string | null,
+  failureReason: string,
+  extra: Prisma.ChatMessageUpdateManyMutationInput = {},
+): Promise<DeliverOutcome> {
+  const closed = await closeRow(id, {
+    deliveryStatus: 'FAILED',
+    failureReason,
+    sendPayload: Prisma.DbNull,
+    ...extra,
+  })
+  if (closed) await notifySendFailed(conversationId, shopId, failureReason)
+  return 'FAILED'
 }
 
 async function deliverHead(conversationId: string, owner: ClaimOwner): Promise<DeliverOutcome> {
@@ -340,12 +404,13 @@ async function deliverHead(conversationId: string, owner: ClaimOwner): Promise<D
 
   const params = parseSendPayload(row.sendPayload, conversationId)
   if (!params) {
-    await closeRow(row.id, {
-      deliveryStatus: 'FAILED',
-      failureReason: 'อ่านเจตนาการส่งของข้อความนี้ไม่ออก (sendPayload เสียหาย) — กดส่งใหม่อีกครั้ง',
-      sendPayload: Prisma.DbNull,
-    })
-    return 'FAILED'
+    // 🛑 shopId เป็น null ตรงนี้ (ยังไม่ได้ resolve) — `failRow` หาให้เอง ห้ามเงียบเพราะไม่รู้ร้าน
+    return await failRow(
+      row.id,
+      conversationId,
+      null,
+      'อ่านเจตนาการส่งของข้อความนี้ไม่ออก (sendPayload เสียหาย) — กดส่งใหม่อีกครั้ง',
+    )
   }
 
   let conversation
@@ -354,12 +419,7 @@ async function deliverHead(conversationId: string, owner: ClaimOwner): Promise<D
   } catch (e) {
     // เพจถูกถอด / เธรดหาย / สิทธิ์หาย ระหว่างอยู่ในคิว (E-5) — ปิดแถวพร้อมเหตุผลดิบ
     // ห้ามปล่อยค้าง: แถวที่ claim แล้วไม่มีใครมาปิดจะถูกกวาดเป็น "ไม่แน่ใจ" ทั้งที่รู้ว่าไม่เคยยิง
-    await closeRow(row.id, {
-      deliveryStatus: 'FAILED',
-      failureReason: e instanceof Error ? e.message : String(e),
-      sendPayload: Prisma.DbNull,
-    })
-    return 'FAILED'
+    return await failRow(row.id, conversationId, null, e instanceof Error ? e.message : String(e))
   }
 
   let result
@@ -367,25 +427,21 @@ async function deliverHead(conversationId: string, owner: ClaimOwner): Promise<D
     // 🛑 ยิง **ครั้งเดียว** — ไม่มี retry loop ไม่มี backoff ในไฟล์นี้ทั้งไฟล์ (D-2)
     result = await transmitOutbound(conversation, params)
   } catch (e) {
-    await closeRow(row.id, {
-      deliveryStatus: 'FAILED',
-      failureReason: e instanceof Error ? e.message : String(e),
-      sendPayload: Prisma.DbNull,
-    })
-    return 'FAILED'
+    return await failRow(
+      row.id,
+      conversationId,
+      conversation.shopId,
+      e instanceof Error ? e.message : String(e),
+    )
   }
 
   const { externalMessageId: mid, outboundResponse, failureReason, sendMethod } = result
 
   if (failureReason) {
-    await closeRow(row.id, {
-      deliveryStatus: 'FAILED',
-      failureReason,
+    return await failRow(row.id, conversationId, conversation.shopId, failureReason, {
       sendMethod,
-      sendPayload: Prisma.DbNull,
       rawMessage: toRawMessage(conversation.channel, outboundResponse, 'outbound-response'),
     })
-    return 'FAILED'
   }
 
   await closeRow(row.id, {
@@ -536,6 +592,23 @@ export async function sweepOutbox(opts: {
     }
   }
   const stale = staleRows.length
+
+  /**
+   * 🛑 เส้นทางที่สองของตัวแจ้ง — **จำเป็นต้องมีแยกต่างหาก** ไม่ใช่ของซ้ำซ้อน
+   *
+   * แถวเหล่านี้ถูกปิดที่นี่ตรง ๆ ไม่เคยผ่าน `deliverHead`/`failRow` เลยสักบรรทัด ⇒ ตัวแจ้งที่แขวน
+   * ไว้ที่นั่น (ซึ่งเป็นที่ที่ดูเป็นธรรมชาติที่สุด) มองไม่เห็นเคสนี้เลย — และนี่คือเคสที่ต้องบอก
+   * ผู้ขายที่สุดในทั้งฟีเจอร์: `UNCERTAIN_SEND_REASON` แปลว่า *เราไม่รู้ว่าข้อความออกไปหรือยัง
+   * ไปเปิดดูในแชทลูกค้าก่อนกดส่งใหม่*. ผู้ขายที่ไม่รู้จะพิมพ์ส่งใหม่ทันที = ลูกค้าได้ข้อความซ้ำ
+   *
+   * ยิงทีละแถว แต่ผู้ขายไม่ได้ noti ท่วม: throttle ต่อเธรดใน `pushChatSendFailed` รวบให้เหลือใบเดียว
+   * ต่อห้องอยู่แล้ว — ให้ตัวที่รู้เรื่อง noti เป็นคนรวบ ดีกว่ามาเดา group เองที่นี่ (นิยามซ้ำ = HR16)
+   *
+   * ทำ **หลัง** ปิดครบทุกแถว: การปิดแถวคือสิ่งที่ปลดล็อกคิวของห้อง ห้ามให้ค้างรอ noti
+   */
+  for (const closedRow of staleRows) {
+    await notifySendFailed(closedRow.conversationId, closedRow.shopId, UNCERTAIN_SEND_REASON)
+  }
 
   // ── 2) ห้องที่ยังมีแถว "หยิบได้" เหลืออยู่ ──
   //

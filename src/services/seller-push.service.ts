@@ -8,6 +8,7 @@
 // แบบ fire-and-forget (after() หรือ void) — push ที่ช้าหรือพังห้ามทำให้ event หลักล้ม
 import { prisma } from '@/lib/prisma'
 import { getChannelLabel } from '@/lib/chat-channel'
+import { describeSendFailure } from '@/lib/chat-send-failure'
 import { pushToUsers } from './app-push.service'
 import { getConversationToastPreview } from './chat.service'
 
@@ -161,6 +162,74 @@ export async function pushNewChatMessage(params: {
     )
   } catch (e) {
     console.error('[seller-push] pushNewChatMessage failed', e)
+  }
+}
+
+/**
+ * ข้อความของ **ผู้ขายเอง** ส่งออกไม่สำเร็จอย่างถาวร → เด้ง noti เข้าแอป (CR คิวขาออก 2026-08-23)
+ *
+ * 🛑 ทำไมถึงต้องมีตัวนี้ ทั้งที่ก่อนหน้านี้ไม่เคยต้องมี: เดิมการยิงเกิด **ในคำขอที่ผู้ขายนั่งรออยู่**
+ * ⇒ ความล้มเหลวถูกรายงานกลับใน response ทันที เขาเห็นแน่นอนเพราะเขายังถือมือถืออยู่. พอ CR ย้ายการ
+ * ยิงไปหลังบ้าน (เขียนแถว `QUEUED` ก่อนตอบ client แล้วยิงเบื้องหลัง) มันกลายเป็นเหตุการณ์ที่ไม่มีใคร
+ * นั่งรอ — และสมมติฐานทั้งหมดของงานคือ *ผู้ขายไม่ได้ดูจออยู่* (D-4) ⇒ ถ้าไม่มีตัวนี้ CR จะทำให้ผู้ขาย
+ * มีโอกาสรู้ว่าส่งไม่สำเร็จ **น้อยลงกว่าก่อนทำ CR** ซึ่งกลับทิศกับเจตนาของงานทั้งก้อน
+ *
+ * 🛑 throttle key อยู่คนละ namespace กับ noti "ข้อความใหม่" โดยจำเป็น ไม่ใช่เพื่อความเรียบร้อย:
+ * ใช้ `chat:${conversationId}` ร่วมกันเมื่อไหร่ ใบนี้จะถูกกลืนทุกครั้งที่ห้องเดียวกันเพิ่งมีข้อความ
+ * ลูกค้าเข้ามาใน 25 วินาที — ซึ่งคือ **ลำดับเหตุการณ์ปกติที่สุดของการคุยแชท** (ลูกค้าทัก → ร้านตอบ →
+ * ตอบไม่ออก) ⇒ ตัวแจ้งจะเงียบพอดีในเคสที่มันถูกสร้างมาเพื่อแจ้ง (คลาสเดียวกับ
+ * docs/conventions/log-row-collides-with-the-guard-it-explains.md)
+ *
+ * ผลพลอยได้ที่ตั้งใจ: throttle เดียวกันนี้ **รวบ noti ต่อห้อง** ให้เอง — ผู้ขายพิมพ์รัว 5 ใบแล้วล้ม
+ * ทั้งชุด (เกินหน้าต่าง 24 ชม. = ล้มทุกใบแน่นอน) ได้เด้งเดียว ไม่ใช่ห้าเด้งที่บอกเรื่องเดียวกัน
+ *
+ * 🛑 ถ้อยคำมาจาก `describeSendFailure()` เท่านั้น ห้ามพิมพ์คำใหม่ (HR16) — บับเบิลแดงในเธรดกับ noti
+ * บนมือถือคือ "เรื่องเดียวกัน" ถ้าพูดคนละสำนวน ผู้ขายจะไม่แน่ใจว่ามันคือใบเดียวกันหรือคนละใบ
+ * ใช้ `.message` (มีคำนำหน้า "ส่งไม่สำเร็จ — ") ไม่ใช่ `.text` เพราะ noti ไม่มีป้ายหัวเรื่องของตัวเอง
+ * เหมือน UI ในเธรด — บรรทัด body คือที่เดียวที่จะบอกได้ว่านี่คือข่าวร้าย ไม่ใช่ข้อความใหม่
+ *
+ * ผ่าน `shopAudience()` (หักคนที่ปิดแจ้งเตือนร้านนี้) ไม่ใช่ `shopSystemAlertAudience()` — ใบนี้เป็น
+ * noti ของ *แชท* ห้องหนึ่ง ไม่ใช่ข่าว "ระบบร้านพัง" ที่ครอบทุกห้อง (เส้นแบ่งเดียวกับ D-CH-8)
+ *
+ * best-effort ทั้งหมด: คืน void และกลืน error เสมอ — call site อยู่ **ในเส้นทางส่งข้อความ**
+ * (`chat-outbox.service`) ถ้า throw จะทำให้แถวที่ claim ไว้ค้าง แล้วถูกกวาดเป็น "ไม่แน่ใจว่าส่งไป
+ * หรือยัง" ทั้งที่รู้ผลแน่ชัดแล้ว = เชิญผู้ขายให้กดส่งซ้ำ ซึ่งเป็นทางเดียวที่ลูกค้าจะได้ข้อความซ้ำ
+ */
+export async function pushChatSendFailed(params: {
+  shopId: string
+  conversationId: string
+  failureReason: string | null
+}): Promise<void> {
+  try {
+    if (shouldSkipByThrottle(`chat-send-failed:${params.conversationId}`)) return
+
+    const [preview, audience] = await Promise.all([
+      // ทำหน้าที่เป็นด่าน ownership ด้วย (WHERE { id, shopId }) — คืน null = เธรดไม่ใช่ของร้านนี้
+      getConversationToastPreview(params.conversationId, params.shopId),
+      shopAudience(params.shopId),
+    ])
+    if (!preview || audience.length === 0) return
+
+    await pushToUsers(
+      audience,
+      // ลำดับ 3 บรรทัดชุดเดียวกับ noti ข้อความใหม่ (user สั่งเอง 2026-08-08 ห้ามสลับ):
+      // ชื่อเพจ → ชื่อคู่สนทนา → ข้อความ. ใบนี้ "ชื่อคนส่ง" = ลูกค้าที่เราส่งหาไม่สำเร็จ ซึ่งเป็น
+      // ตัวระบุห้องตัวเดียวกัน ⇒ ผู้ขายอ่าน noti สองชนิดด้วยสายตาชุดเดียว ไม่ต้องเรียนรู้รูปแบบใหม่
+      pageTitle(preview.channel, preview.channelName),
+      describeSendFailure(params.failureReason).message,
+      {
+        // ชนิดแยกจาก 'chat' — วันที่แอปอยากทำเสียง/ไอคอน/การจัดกลุ่มต่างกัน จะแยกได้ทันที
+        type: 'chat-send-failed',
+        // กดแล้วต้องเข้าห้องที่ส่งไม่ออก ผู้ขายจะได้เห็นบับเบิลแดงใบนั้นเลย ไม่ใช่หน้ารวม
+        url: `/inbox/${params.conversationId}`,
+        conversationId: params.conversationId,
+        channel: preview.channel,
+        channelName: preview.channelName,
+      },
+      { subtitle: preview.senderName },
+    )
+  } catch (e) {
+    console.error('[seller-push] pushChatSendFailed failed', e)
   }
 }
 

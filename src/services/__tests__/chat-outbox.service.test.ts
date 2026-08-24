@@ -29,6 +29,13 @@ vi.mock('@/services/auto-reply-takeover.service', () => ({
   pauseForHumanTakeover: (...a: unknown[]) => pauseForHumanTakeover(...a),
 }))
 
+// ตัวแจ้งเตือนเข้าแอปผู้ขาย (Task 9) — mock ที่นี่เพื่อวัด "ถูกเรียกจากเส้นทางไหน ด้วยอะไร"
+// ถ้อยคำ/ผู้รับ/throttle เป็นความรับผิดชอบของ seller-push-send-failed.test.ts (ของจริง ไม่ mock)
+const pushChatSendFailed = vi.fn()
+vi.mock('@/services/seller-push.service', () => ({
+  pushChatSendFailed: (...a: unknown[]) => pushChatSendFailed(...a),
+}))
+
 const updateMany = vi.fn()
 const findMany = vi.fn()
 const update = vi.fn()
@@ -62,6 +69,8 @@ beforeEach(() => {
   resolveOutboundContext.mockReset()
   mirrorRemoteImage.mockReset()
   pauseForHumanTakeover.mockReset()
+  pushChatSendFailed.mockReset()
+  pushChatSendFailed.mockResolvedValue(undefined)
   updateMany.mockReset()
   findMany.mockReset()
   groupBy.mockReset()
@@ -819,5 +828,175 @@ describe('sweepOutbox', () => {
 
     // ห้องเดียวกันเพจเดียวกัน = ต้องไม่ซ้อนกัน (start A → end A → start B → end B)
     expect(events).toEqual(['start:A', 'end:A', 'start:B', 'end:B'])
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// Task 9 — แจ้งเตือนเข้าแอปเมื่อข้อความส่งไม่ออก
+//
+// 🛑 มี **2 เส้นทาง** ที่ทำให้แถวกลายเป็น FAILED และมันไม่เรียกหากันเลย:
+//   (1) `deliverHead`/`closeRow` — ปลายทางปฏิเสธ (มีเหตุผลจริงจากปลายทาง)
+//   (2) stale-close ใน `sweepOutbox` — claim ค้างเกินเพดาน ปิดด้วย UNCERTAIN_SEND_REASON
+//
+// เส้นที่ (2) **ไม่ผ่าน `deliverHead` เลยสักบรรทัด** ⇒ ตัวแจ้งที่แขวนไว้ที่นั่นอย่างเดียวจะเงียบสนิท
+// สำหรับเคสนี้ ซึ่งเป็น **เคสที่ต้องบอกผู้ขายที่สุดในทั้งฟีเจอร์**: เราไม่รู้ว่าข้อความออกไปหรือยัง
+// ถ้าเขาไม่รู้ เขาจะพิมพ์ส่งใหม่ แล้วลูกค้าได้ข้อความซ้ำ — ความเสียหายเดียวที่ดีไซน์นี้ยอมไม่ได้
+//
+// ⇒ เทสสองกลุ่มด้านล่างต้อง **แดงแยกกัน** เมื่อถอด push ออกจากเส้นใดเส้นหนึ่ง
+// ══════════════════════════════════════════════════════════════════════════
+
+describe('แจ้งเตือนผู้ขาย — เส้นที่ 1: ปลายทางปฏิเสธ (deliverHead/closeRow)', () => {
+  it('[blocker] ปลายทางปฏิเสธ → ต้องแจ้งผู้ขาย ด้วยห้อง/ร้าน/เหตุผลชุดเดียวกับที่เขียนลงแถว', async () => {
+    findMany.mockResolvedValueOnce([queued()])
+    updateMany.mockResolvedValue({ count: 1 })
+    transmitOutbound.mockResolvedValue({
+      ...OK,
+      externalMessageId: null,
+      failureReason: '(#10) outside of allowed window',
+    })
+
+    await deliverRoom('c1', 'after')
+
+    expect(pushChatSendFailed).toHaveBeenCalledTimes(1)
+    expect(pushChatSendFailed.mock.calls[0][0]).toEqual({
+      shopId: 's1',
+      conversationId: 'c1',
+      failureReason: '(#10) outside of allowed window',
+    })
+  })
+
+  it('[blocker] ตัวยิงโยน exception → ก็ต้องแจ้ง (ล้มถาวรเหมือนกัน คนละรูปร่างเท่านั้น)', async () => {
+    findMany.mockResolvedValueOnce([queued()])
+    updateMany.mockResolvedValue({ count: 1 })
+    transmitOutbound.mockRejectedValue(new Error('TOKEN_INVALID'))
+
+    await deliverRoom('c1', 'cron')
+
+    expect(pushChatSendFailed).toHaveBeenCalledTimes(1)
+    expect(pushChatSendFailed.mock.calls[0][0]).toMatchObject({ failureReason: 'TOKEN_INVALID' })
+  })
+
+  it('[blocker] ส่งสำเร็จ → ห้ามแจ้ง (ไม่งั้น noti กลายเป็นเสียงรบกวนที่ผู้ขายเรียนรู้ที่จะเมิน)', async () => {
+    findMany.mockResolvedValueOnce([queued()])
+    updateMany.mockResolvedValue({ count: 1 })
+    transmitOutbound.mockResolvedValue(OK)
+
+    await deliverRoom('c1', 'after')
+
+    expect(pushChatSendFailed).not.toHaveBeenCalled()
+  })
+
+  it('[blocker] ปิดแถวไม่ทัน (ตัวกวาดปิดไปก่อนแล้ว) → ห้ามแจ้งซ้ำด้วยเหตุผลของตัวเอง', async () => {
+    // worker ที่วิ่งเกินเพดานเวลา: ตัวกวาดปิดแถวเป็น "ไม่แน่ใจว่าส่งออกไปหรือยัง" + แจ้งไปแล้ว
+    // ถ้าตัวนี้แจ้งซ้ำ ผู้ขายจะได้สองใบที่บอกคนละเรื่องสำหรับข้อความใบเดียว
+    const store = installStore(makeRows(1))
+    resolveOutboundContext.mockResolvedValue({ id: 'c1', channel: 'MESSENGER', shopId: 's1' })
+    transmitOutbound.mockImplementation(async () => {
+      store[0]!.deliveryStatus = 'FAILED'
+      return { ...OK, externalMessageId: null, failureReason: '(#551) not available' }
+    })
+
+    await deliverRoom('c1', 'after')
+
+    expect(pushChatSendFailed).not.toHaveBeenCalled()
+  })
+
+  it('[blocker] ล้มก่อนรู้ว่าเป็นร้านไหน (sendPayload เสีย) → ต้องหา shopId ของห้องมาแจ้งให้ได้', async () => {
+    // เส้นนี้ล้ม **ก่อน** `resolveOutboundContext` ⇒ ไม่มี conversation ให้อ่าน shopId
+    // ถ้าปล่อยผ่านเพราะ "ไม่รู้ว่าร้านไหน" เคสนี้จะเงียบทั้งคลาสโดยไม่มีอะไรฟ้อง
+    findMany.mockResolvedValueOnce([queued({ sendPayload: null })])
+    updateMany.mockResolvedValue({ count: 1 })
+    conversationFindMany.mockResolvedValue([{ id: 'c1', shopId: 'shopZ' }])
+
+    await deliverRoom('c1', 'cron')
+
+    expect(pushChatSendFailed).toHaveBeenCalledTimes(1)
+    expect(pushChatSendFailed.mock.calls[0][0]).toMatchObject({ shopId: 'shopZ', conversationId: 'c1' })
+  })
+
+  it('ตัวแจ้งพัง → ห้ามพาการระบายคิวล้มตาม (best-effort)', async () => {
+    findMany.mockResolvedValueOnce([queued()])
+    updateMany.mockResolvedValue({ count: 1 })
+    transmitOutbound.mockResolvedValue({ ...OK, externalMessageId: null, failureReason: 'boom' })
+    pushChatSendFailed.mockRejectedValue(new Error('expo ล่ม'))
+
+    await expect(deliverRoom('c1', 'after')).resolves.toBe(1)
+  })
+})
+
+describe('แจ้งเตือนผู้ขาย — เส้นที่ 2: claim ค้างเกินเพดาน (stale-close ใน sweepOutbox)', () => {
+  it('[blocker] แถวที่ถูกปิดเพราะ claim ค้าง → ต้องแจ้ง (เส้นนี้ไม่ผ่าน deliverHead เลย)', async () => {
+    const old = new Date(Date.now() - 10 * 60 * 1000)
+    findMany.mockResolvedValueOnce([queued({ id: 'stuck', conversationId: 'cX', sendLockedAt: old })])
+    updateMany.mockResolvedValue({ count: 1 })
+    conversationFindMany.mockResolvedValue([{ id: 'cX', shopId: 'shop9' }])
+
+    await sweepOutbox({ owner: 'cron' })
+
+    expect(pushChatSendFailed).toHaveBeenCalledTimes(1)
+    const arg = pushChatSendFailed.mock.calls[0][0] as { conversationId: string; shopId: string; failureReason: string }
+    expect(arg.conversationId).toBe('cX')
+    expect(arg.shopId).toBe('shop9')
+    // 🛑 เหตุผลต้องเป็นตัวที่เขียนลงแถวจริง ("ไม่แน่ใจว่าส่งออกไปหรือยัง") ไม่ใช่คำกลาง ๆ ว่า
+    // "ส่งไม่สำเร็จ" — คำกลาง ๆ ชวนให้กดส่งซ้ำทันทีโดยไม่ตรวจ ซึ่งเป็นทางเดียวที่เหลืออยู่ที่จะ
+    // ทำให้ลูกค้าได้ข้อความซ้ำ (E-1)
+    expect(arg.failureReason).toContain('ไม่แน่ใจว่าส่งออกไปหรือยัง')
+  })
+
+  it('[blocker] worker เจ้าของ claim ปิดแถวเองทันพอดี (count=0) → ห้ามแจ้ง (ไม่ใช่ stale จริง)', async () => {
+    const old = new Date(Date.now() - 10 * 60 * 1000)
+    findMany.mockResolvedValueOnce([queued({ id: 'stuck', sendLockedAt: old })])
+    updateMany.mockResolvedValue({ count: 0 })
+    conversationFindMany.mockResolvedValue([{ id: 'c1', shopId: 's1' }])
+
+    await sweepOutbox({ owner: 'cron' })
+
+    expect(pushChatSendFailed).not.toHaveBeenCalled()
+  })
+
+  it('[blocker] แถวที่ยังไม่เกินเพดาน → ไม่ถูกปิด จึงต้องไม่แจ้ง', async () => {
+    findMany.mockResolvedValueOnce([queued({ id: 'fresh', sendLockedAt: new Date() })])
+    updateMany.mockResolvedValue({ count: 1 })
+
+    await sweepOutbox({ owner: 'cron' })
+
+    expect(pushChatSendFailed).not.toHaveBeenCalled()
+  })
+
+  it('หา shopId ของห้องไม่เจอ → ไม่แจ้ง และห้ามพาการกวาดล้ม', async () => {
+    const old = new Date(Date.now() - 10 * 60 * 1000)
+    findMany.mockResolvedValueOnce([queued({ id: 'stuck', conversationId: 'cGhost', sendLockedAt: old })])
+    updateMany.mockResolvedValue({ count: 1 })
+    conversationFindMany.mockResolvedValue([])
+
+    const res = await sweepOutbox({ owner: 'cron' })
+
+    expect(res.stale).toBe(1)
+    expect(pushChatSendFailed).not.toHaveBeenCalled()
+  })
+})
+
+describe('แจ้งเตือนผู้ขาย — ตอนเข้าคิวยังไม่ใช่ความล้มเหลว', () => {
+  it('[blocker] enqueueOutbound สำเร็จ → ห้ามแจ้ง (แถวยัง QUEUED ยังไม่มีอะไรล้ม)', async () => {
+    await enqueueOutbound({ conversationId: 'c1', actorUserId: 'u1', text: 'สวัสดี' })
+
+    expect(pushChatSendFailed).not.toHaveBeenCalled()
+  })
+
+  it('[blocker] ด่านตอนกดส่งปฏิเสธ (เพจถูกถอด) → ห้ามแจ้ง ผู้ขายเห็น error ตรงหน้าอยู่แล้ว', async () => {
+    // noti มีไว้สำหรับความล้มเหลวที่เกิด **หลังจากผู้ขายเดินจากจอไปแล้ว** — ยิงตอนที่เขายังถือมือถือ
+    // อยู่และเพิ่งเห็นข้อความ error เต็ม ๆ คือการสอนให้เขาเมิน noti ชนิดนี้
+    resolveOutboundContext.mockResolvedValue({
+      id: 'c1',
+      channel: 'MESSENGER',
+      shopId: 's1',
+      shopChannel: { status: 'REVOKED' },
+      externalContact: { isBlocked: false },
+    })
+
+    await expect(
+      enqueueOutbound({ conversationId: 'c1', actorUserId: 'u1', text: 'สวัสดี' }),
+    ).rejects.toThrow()
+    expect(pushChatSendFailed).not.toHaveBeenCalled()
   })
 })
