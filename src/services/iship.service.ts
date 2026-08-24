@@ -21,6 +21,7 @@ import { IShipError } from "@/lib/iship/errors";
 import {
   carrierStatusCodeFromId,
   carrierTrackingSettled,
+  EVIDENCE_CARRIER_STATUSES,
   shouldCaptureEvidence,
   describeCarrierStatus,
   impliesDispatched,
@@ -1979,6 +1980,62 @@ async function captureShipmentEvidence(
  * (คลาสเดียวกับ docs/conventions/rule-must-be-enforced-not-described.md)
  * ทำเป็น positional บังคับ ⇒ ลืมส่งเมื่อไร compile ไม่ผ่าน
  */
+/**
+ * backfillShipmentEvidence — เก็บหลักฐานย้อนหลังให้ใบที่ "มีปัญหาอยู่แล้ว" ก่อนฟีเจอร์นี้ขึ้น
+ * (feature 00055 · BRD §6.5)
+ *
+ * 🛑 ทำไมต้องมี: ตัวเก็บอัตโนมัติจุดชนวนที่ `applyCarrierStatus()` ซึ่งทำงานเฉพาะตอนสถานะ
+ * **เปลี่ยน** — ใบที่เป็น `return_success` มาตั้งแต่ก่อน deploy จะไม่มีอะไรจุดชนวนอีกเลย
+ * ตลอดกาล (15 ใบบน prod ณ 2026-08-24) ถ้าไม่มีตัวนี้ ของกลุ่มที่ *มีข้อพิพาทอยู่แล้ว*
+ * คือกลุ่มเดียวที่ไม่มีหลักฐาน ซึ่งกลับหัวกลับหางกับเจตนาของฟีเจอร์
+ *
+ * 🛑 **รันได้จากในแอปที่ prod เท่านั้น** — เครื่อง dev ไม่มี `CHANNEL_TOKEN_KEY` (ไม่อยู่ใน
+ * `.env` และ `vercel env pull` redact เป็น `[SENSITIVE]`) จึงถอดรหัส token ของ iShip ไม่ได้
+ * และไม่มี `DATABASE_URL` ของ prod ให้เขียนอยู่แล้ว — สคริปต์ในเครื่องทำงานนี้ไม่ได้
+ * (บทเรียนเดียวกับ re-sync webhook ของ Meta 2026-08-08)
+ *
+ * idempotent: ใบที่เก็บไปแล้วถูกข้ามด้วย unique `(shipmentId, reason)` ยิงซ้ำได้ปลอดภัย
+ * ยิงทีละชุด (`limit`) เพราะแต่ละใบ = 2 คำขอไป iShip — ยิงรวดเดียวทั้งหมดเสี่ยงชน rate limit
+ * แล้วจะได้แถวที่มี `error` เต็มไปหมดซึ่งกู้ยากกว่าเดิม (ต้องลบก่อนถึงจะเก็บใหม่ได้)
+ */
+export async function backfillShipmentEvidence(opts?: {
+  limit?: number;
+  shopId?: string;
+}): Promise<{ scanned: number; captured: number; skipped: number; failed: number }> {
+  const limit = Math.min(Math.max(opts?.limit ?? 20, 1), 100);
+
+  const rows = await prisma.orderShipment.findMany({
+    where: {
+      isDryRun: false,
+      trackingNo: { not: null },
+      carrierStatus: { in: [...EVIDENCE_CARRIER_STATUSES] },
+      ...(opts?.shopId ? { shopId: opts.shopId } : {}),
+      // ยังไม่มีหลักฐานของ "สถานะปัจจุบัน" ใบนั้น — ใบที่เก็บ `return` ไว้แล้วแต่ตอนนี้เป็น
+      // `return_success` ต้องเก็บเพิ่ม ไม่ใช่ข้าม (สองสถานะคือหลักฐานคนละช่วงเวลา)
+      evidence: { none: {} },
+    },
+    select: { id: true, orderId: true, shopId: true, carrierStatus: true },
+    orderBy: { carrierStatusAt: "desc" },
+    take: limit,
+  });
+
+  let captured = 0;
+  let failed = 0;
+  for (const r of rows) {
+    if (!r.carrierStatus) continue;
+    await captureShipmentEvidence(r.id, r.orderId, r.shopId, r.carrierStatus);
+    // อ่านผลกลับจากฐาน ไม่เดาจากการที่ฟังก์ชันไม่ throw — ตัวเก็บกลืน error ไว้โดยเจตนา
+    const saved = await prisma.shipmentEvidence.findUnique({
+      where: { shipmentId_reason: { shipmentId: r.id, reason: r.carrierStatus } },
+      select: { error: true },
+    });
+    if (saved && !saved.error) captured += 1;
+    else failed += 1;
+  }
+
+  return { scanned: rows.length, captured, skipped: rows.length - captured - failed, failed };
+}
+
 async function applyCarrierStatus(
   s: { id: string; orderId: string; carrierStatus: string | null },
   code: string | null,

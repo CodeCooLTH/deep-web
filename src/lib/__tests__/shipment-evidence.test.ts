@@ -136,3 +136,51 @@ describe('[blocker] สคีมาของตารางหลักฐาน
     expect(model).toMatch(/traceCount\s+Int/)
   })
 })
+
+describe('[blocker] backfill ย้อนหลัง (BRD §6.5)', () => {
+  const svc = readFileSync(join(process.cwd(), 'src/services/iship.service.ts'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('//'))
+    .join('\n')
+  const fn = svc.slice(
+    svc.indexOf('export async function backfillShipmentEvidence'),
+    svc.indexOf('async function applyCarrierStatus'),
+  )
+
+  it('มี backfill จริง — ไม่งั้นใบที่มีข้อพิพาทอยู่แล้วคือกลุ่มเดียวที่ไม่มีหลักฐาน', () => {
+    expect(fn.length).toBeGreaterThan(0)
+  })
+
+  it('[blocker] ต้องกรองด้วยชุดเดียวกับตัวเก็บอัตโนมัติ ห้ามพิมพ์รายชื่อเอง', () => {
+    expect(fn).toContain('EVIDENCE_CARRIER_STATUSES')
+    expect(fn).not.toMatch(/'return_success'|'issue'|'cannot_pickup'/)
+  })
+
+  it('[blocker] ต้องข้ามใบที่เก็บไปแล้ว (idempotent — ยิงซ้ำได้)', () => {
+    expect(fn).toMatch(/evidence:\s*\{\s*none:\s*\{\}\s*\}/)
+  })
+
+  /**
+   * 🛑 ตัวเก็บกลืน error ไว้โดยเจตนา (ห้ามลากลูป sync ตาย) ⇒ "ไม่ throw" ไม่ได้แปลว่าสำเร็จ
+   * ถ้าเดาจากการที่ไม่ throw รายงานจะบอกว่าสำเร็จ 15/15 ทั้งที่ทุกใบเก็บไม่ได้เลย
+   */
+  it('[blocker] ต้องอ่านผลกลับจากฐาน ไม่เดาจากการที่ไม่ throw', () => {
+    expect(fn).toContain('shipmentEvidence.findUnique')
+    expect(fn).toMatch(/saved\s*&&\s*!saved\.error/)
+  })
+
+  it('[blocker] ต้องมีเพดานต่อรอบ — แต่ละใบยิง iShip 2 คำขอ', () => {
+    expect(fn).toMatch(/Math\.min\(/)
+  })
+
+  it('[blocker] รายงานต้องมีช่อง failed ไม่ใช่บอกแค่จำนวนที่สำเร็จ', () => {
+    const route = readFileSync(
+      join(process.cwd(), 'src/app/api/admin/iship/backfill-evidence/route.ts'),
+      'utf8',
+    )
+    expect(fn).toContain('failed')
+    // route ต้องเป็น admin-only — งานนี้อ่าน/เขียนข้ามร้านทั้งระบบ
+    expect(route).toContain('requireAdmin(')
+  })
+})
