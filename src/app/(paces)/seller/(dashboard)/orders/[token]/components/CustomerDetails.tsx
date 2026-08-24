@@ -24,6 +24,7 @@
  */
 
 import Image from 'next/image'
+import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { formatDateTH } from '@/lib/format-date'
 import { SalesChannelLogo, getSalesChannelDisplay } from '@/components/safepay/SalesChannelBadge'
@@ -33,12 +34,19 @@ export default function CustomerDetails({
   buyer,
   summary,
   salesChannel,
+  profileKey,
 }: {
   buyer: OrderFactsBuyer
   /** ตัวเลขจริงของลูกค้ารายนี้กับร้านนี้ — null = ออเดอร์ยังไม่ผูก Customer (ไม่มีเบอร์) */
   summary: { orderCount: number; sinceISO: string } | null
   /** ช่องทางที่ลูกค้าทักเข้ามา — เป็นตราเกาะรูปโปรไฟล์ ไม่กินแถวของตัวเองในรายการติดต่อ */
   salesChannel: string | null
+  /**
+   * opaque key ของหน้าโปรไฟล์ลูกค้า (feature 00057) — `null` = ออเดอร์นี้ไม่มีข้อมูลติดต่อเลย
+   * จน key ตกเป็น `guest-unknown` ซึ่ง **match ลูกค้าหลายคนพร้อมกัน** ⇒ ต้องไม่มีลิงก์
+   * ผู้เรียกเป็นคนตัดสินและส่ง `null` มาให้ ไม่ใช่ให้ที่นี่เดาเอง
+   */
+  profileKey: string | null
 }) {
   const { registeredName, displayName, hasBuyerInfo } = resolveBuyerNames(buyer)
   const channelLabel = salesChannel ? getSalesChannelDisplay(salesChannel).label : null
@@ -47,6 +55,15 @@ export default function CustomerDetails({
     <div className="card">
       <div className="card-header">
         <h4 className="card-title">ผู้ซื้อ</h4>
+        {/* ทางเข้าที่ 3 ของหน้าโปรไฟล์ลูกค้า (feature 00057 FR-012) */}
+        {profileKey && (
+          <Link
+            href={`/customers/${encodeURIComponent(profileKey)}`}
+            className="text-primary-ink hover:text-primary inline-flex items-center gap-1 text-2xs font-medium">
+            <Icon icon="user-circle" className="text-xs" aria-hidden="true" />
+            ดูโปรไฟล์ลูกค้า
+          </Link>
+        )}
       </div>
       <div className="card-body">
         {!hasBuyerInfo ? (

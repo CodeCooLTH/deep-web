@@ -27,8 +27,10 @@
  *
  * ไม่มีปุ่ม "ยกเลิกการผูกลูกค้า" (BRD ไม่มี FR ครอบ — spec Design decisions #5)
  * ไม่มี tab "แท็ก"/"Note"/"ใบเสนอราคา" (นอก scope phase นี้ — ไม่มีตาราง DB/ยังไม่ปิด OQ)
- * ไม่มีลิงก์ "ดูในหน้าลูกค้า" → /customers/[id] (หน้านี้ยังไม่มีอยู่จริงในโปรเจกต์ — ตรวจแล้ว มีแค่
- * /customers แบบ list ไม่มี detail route; ข้ามไปตามคำสั่ง "ห้ามแก้หน้าปลายทาง" ดู t45-report.md)
+ * ✅ ลิงก์ "ดูโปรไฟล์เต็ม" → `/customers/c-{customerId}` มีแล้วตั้งแต่ feature 00057 (2026-08-24)
+ * — คอมเมนต์เดิมตรงนี้เขียนไว้ว่าหน้าปลายทาง "ยังไม่มีอยู่จริง" ซึ่งเป็นจริง ณ ตอนนั้น
+ * แสดงเฉพาะเมื่อเธรดผูกกับ Customer กลางแล้ว (`data.customer != null`) เพราะ key แบบ `c-`
+ * เป็นแบบเดียวที่ประกอบจากข้อมูลในแผงนี้ได้โดยไม่ต้องเดา
  *
  * เบอร์โทร (`customer.phoneMasked`) mask แล้วที่ server boundary (page.tsx, src/lib/phone-mask.ts)
  * ก่อนส่งลง prop นี้ — RSC PII rule: หน้า seller อยู่ใต้ client VerticalLayout ทุก prop ที่ผ่านลงมา
@@ -898,6 +900,24 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
           ไม่มีลูกค้าในระบบ / ไม่เคยมีออเดอร์ → ไม่ render เลย ไม่ใช่แถบว่าง (BR-BR-12) */}
       {data.buyerReputation && data.buyerReputation.orders > 0 && (
         <BuyerReputationRow data={data.buyerReputation} />
+      )}
+
+      {/* ทางเข้าที่ 2 ของหน้าโปรไฟล์ลูกค้า (feature 00057 FR-012) — วางต่อจากสัญญาณทั้ง 2 ชั้น
+          เพราะจุดนี้คือตอนที่ผู้ขายเพิ่งอ่านสัญญาณแล้วอยากรู้ต่อว่า "เกิดอะไรขึ้นบ้างกับคนนี้"
+          ใช้ <a> ธรรมดา: แผงนี้อยู่ในหน้าแชทที่มี state เยอะ การ soft-navigate ทิ้งเธรดที่เปิดค้าง
+          ไว้กลางทางทำให้ผู้ขายเสียตำแหน่งที่อ่านอยู่ — เปิดแท็บใหม่ปลอดภัยกว่าในบริบทนี้ */}
+      {data.customer && (
+        <div className="border-default-200 border-b border-dashed px-4 pb-3">
+          <a
+            href={`/customers/c-${data.customer.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary-ink hover:text-primary inline-flex items-center gap-1 text-2xs font-medium">
+            <Icon icon="user-circle" className="text-xs" aria-hidden="true" />
+            ดูโปรไฟล์เต็ม
+            <Icon icon="external-link" className="text-xs" aria-hidden="true" />
+          </a>
+        </div>
       )}
 
       {/* แถบสรุป 1 บรรทัดเหนือแท็บถูกย้ายลงไปเป็น "แถวสถิติ" ในแท็บข้อมูลลูกค้าแทน (user สั่ง 2026-07-24

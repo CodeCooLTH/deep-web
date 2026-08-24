@@ -60,6 +60,7 @@ import ShippingCard from './components/ShippingCard'
 import ShipmentEvidencePanel from './components/ShipmentEvidencePanel'
 import ReturnPanel from './components/ReturnPanel'
 import { getOrderEvents } from '@/services/order-event.service'
+import { makeCustomerRowKey } from '@/lib/customer-row-key'
 import { getCustomerSummary } from '@/services/customer.service'
 import type { ShippingAddressData, OrderFactsShipping } from './components/order-detail-shared'
 import OrderReviewCard from './components/OrderReviewCard'
@@ -201,6 +202,21 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
   // ตัวเลขจริงของลูกค้ารายนี้กับร้านนี้ (scope shopId เสมอ) — เติมการ์ด "ผู้ซื้อ" ที่ user บอกว่าข้อมูลน้อย
   const customerSummary = await getCustomerSummary(order.customerId ?? null, shop.id)
+
+  /**
+   * key ของหน้าโปรไฟล์ลูกค้า (feature 00057 FR-012 ทางเข้าที่ 3) — คำนวณด้วยฟังก์ชันเดียวกับ
+   * ที่ลิสต์ `/customers` ใช้ ไม่ประกอบ key เอง
+   *
+   * 🛑 `guest-unknown` (ออเดอร์ที่ไม่มีทั้ง customerId/buyerUserId/buyerContact) **ต้องเป็น null**
+   * — คีย์นั้น match ลูกค้าหลายคนพร้อมกัน การเปิดโปรไฟล์ด้วยมันจะได้หน้าที่รวมคนหลายคน
+   * เป็นคนเดียว ซึ่งแย่กว่าไม่มีลิงก์ให้กด
+   */
+  const rawProfileKey = makeCustomerRowKey(
+    order.customerId ?? null,
+    order.buyerUserId ?? null,
+    order.buyerContact ?? null,
+  )
+  const customerProfileKey = rawProfileKey === 'guest-unknown' ? null : rawProfileKey
 
   /**
    * เลื่อนมาแล้วกี่ครั้ง (feature 00036) — query เฉพาะใบที่มีนัดจริงเท่านั้น ไม่ยิงให้ทุกใบ
@@ -430,6 +446,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
           <CustomerDetails
             summary={customerSummary}
             salesChannel={order.salesChannel ?? null}
+            profileKey={customerProfileKey}
             buyer={{
               buyerContact,
               buyerDisplayName: order.buyer?.displayName ?? null,
