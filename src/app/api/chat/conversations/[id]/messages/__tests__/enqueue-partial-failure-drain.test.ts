@@ -18,7 +18,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const enqueueOutbound = vi.fn()
-const deliverRoom = vi.fn(async (_id: string, _owner: string) => 0)
+const deliverRoom = vi.fn<(id: string, owner: string) => Promise<number>>(async () => 0)
 const after = vi.fn((p: unknown) => p)
 
 vi.mock('next/server', async (importOriginal) => ({
