@@ -16,6 +16,13 @@ CREATE INDEX "ChatMessage_send_queue_idx"
   WHERE "deliveryStatus" = 'QUEUED';
 
 -- ROLLBACK NOTE:
+-- 🛑 อ่าน §13 "ถ้าต้อง rollback" ของ EXTENSIONS-2026-08-23-outbound-queue.md **ก่อน** ทำอะไรทั้งสิ้น
+--    กรณีที่เกิดบ่อยกว่ามากคือ rollback **เฉพาะโค้ด** ซึ่งคำสั่งข้างล่างนี้ไม่ใช่คำตอบ: โค้ดเก่าอ่าน
+--    'QUEUED' ไม่ออก (`deliveryStatus === 'FAILED'` เป็น false) จึงวาดแถวที่ยังไม่ถึงลูกค้าเป็น
+--    บับเบิลปกติ แล้วไม่มีใครยิงมันออกไปอีกเลย = ผลิตบั๊กต้นเรื่องขึ้นมาใหม่. ขั้นแรกเสมอคือ
+--    ปิดแถวค้างเป็น FAILED ตาม §13.2 (UPDATE ... WHERE "deliveryStatus" = 'QUEUED')
+--
+-- คำสั่งข้างล่างมีไว้เผื่อกรณีถอยฟีเจอร์นี้ **ถาวร** เท่านั้น — ไม่ใช่ขั้นตอนของ rollback ปกติ
 -- DROP INDEX IF EXISTS "ChatMessage_send_queue_idx";
 -- ALTER TABLE "ChatMessage" DROP COLUMN IF EXISTS "sendPayload";
 -- ALTER TABLE "ChatMessage" DROP COLUMN IF EXISTS "sendLockedBy";

@@ -53,3 +53,8 @@ CREATE TRIGGER chat_message_realtime_broadcast_trigger
 
 -- ROLLBACK NOTE: re-apply เนื้อไฟล์ 20260703000400_chat_realtime_broadcast/migration.sql
 -- (function + trigger เวอร์ชัน AFTER INSERT) — ไม่มี data loss
+--
+-- 🛑 แต่ตอน rollback **เฉพาะโค้ด** ไม่ต้อง re-apply: โค้ดเก่าไม่ได้ UPDATE "deliveryStatus" อยู่แล้ว
+--    (เขียนสถานะครั้งเดียวตอน INSERT) trigger ตัวนี้จึงมีพฤติกรรมเท่าเดิมทุกประการเมื่ออยู่กับโค้ดเก่า
+--    สิ่งที่ต้องทำจริงคือปิดแถวที่ค้าง 'QUEUED' เป็น FAILED — อ่าน §13 "ถ้าต้อง rollback" ของ
+--    docs/20 - Features/00018 - Facebook Chat Integration/EXTENSIONS-2026-08-23-outbound-queue.md
