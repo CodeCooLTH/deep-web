@@ -1,11 +1,25 @@
 ---
 title: "PRD — 00032 Customer Shipping Risk"
 owner: shinobu22
-status: draft
+status: superseded
 created: 2026-08-05
 tags: [prd, feature, customer, shipping, risk]
 related: ["[[Feature-Docs-Ownership]]", "[[Index]]"]
 ---
+
+> 🛑 **เอกสารนี้ถูกแทนที่แล้ว (superseded) — ห้าม implement ตามไฟล์นี้**
+>
+> ร่างไว้ 2026-08-05 แล้วไม่เคยถูก implement (มีแค่ PRD+BRD ไม่มี SRS/SDS/DATABASE/API/TestCase และไม่มีโค้ด/migration ใด ๆ). ระหว่างนั้นขอบเขตของมันถูกทำจริงโดยฟีเจอร์อื่น:
+>
+> | ส่วนของ 00032 | ถูกทำโดย | สถานะ |
+> |---|---|---|
+> | สถิติความเสี่ยงข้ามร้าน (ตีกลับ/ยกเลิก แบบนับอย่างเดียว) | **00055 — Platform Buyer Reputation** (`src/lib/buyer-reputation.ts`) | ✅ ขึ้น prod แล้ว (ด้วยกลไกที่ต่างจากที่ 00032 ออกแบบไว้) |
+> | จุดแสดงผลในหน้า `/customers` + โปรไฟล์ลูกค้า + สัญญาณ `cod_refund` | **00057 — Customer Profile & Risk** | 🚧 ดำเนินการอยู่ |
+> | `CustomerNote` (โน้ตที่ร้านจดเอง) | — | ⏸ **ยังเป็น candidate ของ phase ถัดไป ไม่ใช่ทิ้งถาวร** |
+> | `shopsInvolved` (จำนวนร้านที่เกี่ยวข้อง) | — | ⏸ **ยังเป็น candidate ของ phase ถัดไป ไม่ใช่ทิ้งถาวร** |
+>
+> เนื้อหาด้านล่างเก็บไว้เป็นบันทึกการตัดสินใจและอ้างอิงสำหรับ 2 ส่วนที่ยังไม่ได้ทำเท่านั้น — **ตัวเลข/เกณฑ์/endpoint ในไฟล์นี้ไม่ตรงกับระบบจริงแล้ว** (อ้างอิง: BR-CUSTP-15 ใน `docs/20 - Features/00057 - Customer Profile & Risk/BRD.md`)
+
 
 > **โมดูล:** M32-CustomerShippingRisk
 > **ประเภทเอกสาร:** Product Requirements Document (PRD)
