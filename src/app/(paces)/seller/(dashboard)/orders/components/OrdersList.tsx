@@ -21,6 +21,13 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/utils/helpers'
 import type { OrderRow } from './data'
 import { formatOrderNo } from '@/lib/order-no'
+import {
+  ORDER_SEARCH_MIN_CHARS,
+  countMatchingOrders,
+  isSearchActive,
+  searchOrders,
+  type OrderSearchHit,
+} from '@/lib/order-search'
 import OrderCard from './OrderCard'
 import IShipImportModal from './IShipImportModal'
 import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
@@ -157,7 +164,14 @@ export default function OrdersList({
    * ('All' | preset | 'YYYY-MM-DD') และกรองด้วยฟังก์ชันตัวเดียวกัน (SSOT)
    */
   const [dateFilter, setDateFilter] = useState('All')
-  const [search,      setSearch]      = useState('')
+  /**
+   * คำค้น — เริ่มจาก `?q=` เพื่อให้ลิงก์ที่แชร์กันเปิดมาเจอผลเดิม และปุ่ม back ทำงาน
+   *
+   * 🛑 ตัว state ยังเป็นแหล่งความจริงของช่องพิมพ์ (ไม่ได้อ่าน URL ทุก render) — controlled
+   * input ที่รอค่าเดินทางผ่าน router จะพิมพ์ตามนิ้วไม่ทัน เป็นบทเรียนที่เขียนกำกับไว้แล้ว
+   * ที่ onChange ข้างล่าง · การเขียนกลับลง URL อยู่ใน effect ถัดไป (หน่วง + replaceState)
+   */
+  const [search,      setSearch]      = useState(() => searchParams.get('q') ?? '')
   const [typeFilter,  setTypeFilter]  = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE)
   // ดึงพัสดุจาก iShip มาสร้างออเดอร์ (ส่วนขยาย feature 00022)
@@ -237,6 +251,21 @@ export default function OrdersList({
   const handleStatusTab = (value: string) => {
     setLocalStatus(value)
     pushQuery({ status: value === 'all' ? null : value })
+  }
+
+  /**
+   * ล้างตัวกรองทุกแกน แต่คงคำค้นไว้ (feature 00058) — ปุ่ม "ดูผลทั้งร้าน" ตอนผลว่าง
+   *
+   * 🛑 ต้องล้าง **ทั้ง React state และ URL** ไม่ใช่อย่างใดอย่างหนึ่ง:
+   * `localStatus`/`typeFilter`/`dateFilter` ถูก init ครั้งเดียวแล้วไม่เคย sync กลับจาก URL
+   * (ดู useState ข้างบน) ⇒ เปลี่ยนแค่ URL แล้วตัวกรองยังอยู่ครบ ผู้ใช้จะกดแล้วเจอจอว่างใบเดิม
+   * ส่วน `stage`/`appt`/`apptDay` อ่านจาก URL ล้วน ⇒ เปลี่ยนแค่ state ก็ไม่มีผลเช่นกัน
+   */
+  const clearFiltersKeepSearch = () => {
+    setLocalStatus('all')
+    setTypeFilter('')
+    setDateFilter('All')
+    pushQuery({ status: null, stage: null, appt: null, apptDay: null })
   }
 
   /** กดชิปที่เลือกอยู่ซ้ำ = ล้างตัวกรอง (ทางออกเดียวกับกากบาทบนชิป) */
@@ -418,29 +447,74 @@ export default function OrdersList({
     return list
   }, [dayScoped, stage, appt])
 
-  const filtered = useMemo(() => {
+  /** ทุกตัวกรองยกเว้นคำค้น — คำค้นถูกใส่เป็นชั้นสุดท้ายเสมอ (AND เกิดจากลำดับ ไม่ใช่จากเงื่อนไขซ้ำ) */
+  const preSearch = useMemo(() => {
     let list = stageFiltered
     if (localStatus !== 'all') list = list.filter((o) => o.status === localStatus)
     if (typeFilter) list = list.filter((o) => o.orderType === typeFilter)
     if (dateFilter !== 'All')
       list = list.filter((o) => matchesOrderDateFilter(o.createdAtISO, dateFilter))
-    if (search.trim()) {
-      const q = search.toLowerCase().trim()
-      list = list.filter(
-        (o) =>
-          o.id.toLowerCase().includes(q) ||
-          o.publicToken.toLowerCase().includes(q) ||
-          (o.buyerName ?? '').toLowerCase().includes(q) ||
-          o.buyer.toLowerCase().includes(q),
-      )
-    }
     return list
-  }, [stageFiltered, localStatus, typeFilter, search, dateFilter])
+  }, [stageFiltered, localStatus, typeFilter, dateFilter])
+
+  /**
+   * ผลค้นหา — `searchOrders` เป็นตัวเดียวกับที่ตารางเดสก์ท็อปเรียก (feature 00058)
+   *
+   * 🛑 ของเดิมตรงนี้เทียบกับ `o.buyer` ซึ่งเป็น contact ที่ **ถูกปิดบังไว้แล้ว** (`••••••5678`)
+   * ⇒ พิมพ์เบอร์เต็มไม่มีวันเจอ ทั้งที่ placeholder เขียนเองว่าค้นเบอร์ได้ · ตอนนี้ค้นจาก
+   * `buyerPhone` (ค่าจริง) ผ่านฟังก์ชันกลางที่ตัดสัญลักษณ์ให้ทั้งสองฝั่ง
+   */
+  const hits = useMemo<OrderSearchHit<OrderRow>[]>(
+    () => searchOrders(preSearch, search),
+    [preSearch, search],
+  )
+  const filtered = useMemo(() => hits.map((h) => h.order), [hits])
+  /** เมตาต่อใบ (ตรงเต็มค่าไหม · ตรงที่สินค้าชิ้นไหน) — การ์ดใช้ตัดสินการไฮไลต์/กางรายการ */
+  const hitMeta = useMemo(
+    () => new Map(hits.map((h) => [h.order.publicToken, h])),
+    [hits],
+  )
+
+  /**
+   * จำนวนใบที่ตรงคำค้นใน "ทั้งร้าน" — นับจาก `orders` ดิบ ไม่ใช่ `dayScoped`
+   *
+   * เบี่ยงจากกติกาของไฟล์นี้ (ตัวนับอื่นทุกตัวคิดจาก `dayScoped`) โดยตั้งใจ: ตัวนับอื่นตอบว่า
+   * "กองนี้มีกี่ใบ" แต่ตัวนี้ตอบว่า "ใบที่หาอยู่มีอยู่จริงไหม" ซึ่งถ้าจำกัดตามวันที่กรองอยู่
+   * มันจะตอบ 0 ให้กับใบที่มีอยู่จริงแค่คนละวัน = คำตอบที่ทำให้ผู้ขายเลิกหา
+   */
+  const wholeShopMatches = useMemo(
+    () => countMatchingOrders(orders, search),
+    [orders, search],
+  )
 
   // reset lazy-load เมื่อ filter/search/status เปลี่ยน
   useEffect(() => {
     setVisibleCount(PAGE)
   }, [localStatus, typeFilter, search, stage, appt, apptDay, dateFilter])
+
+  /**
+   * เขียนคำค้นกลับลง URL — หน่วงหลังหยุดพิมพ์ แล้วใช้ `history.replaceState` ไม่ใช่ router
+   *
+   * ทำไมไม่ใช้ `router.replace`: ข้อมูลออเดอร์ถูกโหลดมาครบทั้งร้านตั้งแต่ RSC แล้ว การให้
+   * router ทำงานทุกตัวอักษรคือการดึง flight payload ทั้งก้อน (~500–800KB ที่ร้านใหญ่)
+   * กลับมาใหม่เพื่อผลลัพธ์ที่คำนวณอยู่บนเครื่องอยู่แล้ว
+   *
+   * ทำไมต้อง `replaceState` ไม่ใช่ `pushState`: ทุกตัวอักษรจะกลายเป็นหนึ่งขั้นของปุ่ม back
+   * ⇒ ผู้ใช้ต้องกดย้อนสิบกว่าครั้งกว่าจะออกจากหน้านี้
+   */
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const next = new URLSearchParams(window.location.search)
+      if (search.trim()) next.set('q', search.trim())
+      else next.delete('q')
+      const qs = next.toString()
+      const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname
+      if (url !== window.location.pathname + window.location.search) {
+        window.history.replaceState(null, '', url)
+      }
+    }, 400)
+    return () => clearTimeout(id)
+  }, [search])
 
   // ─── lazy-load: เพิ่ม visibleCount เมื่อ sentinel เข้า viewport ───────────────
   const visible = filtered.slice(0, visibleCount)
@@ -517,6 +591,11 @@ export default function OrdersList({
             (user 2026-08-06) — state/ตัวนับยังอยู่ที่นี่ symbol เดียวกับชิปมือถือ */}
         <OrdersTable
           orders={stageFiltered}
+          /* คำค้นเดียวกับมือถือ — state เดียว ผูก `?q=` เดียว ให้ผลเดียวกัน (feature 00058) */
+          search={search}
+          onSearchChange={setSearch}
+          wholeShopMatches={wholeShopMatches}
+          onClearFilters={clearFiltersKeepSearch}
           ishipEnabled={ishipEnabled}
           vocab={vocab}
           vertical={vertical}
@@ -594,8 +673,10 @@ export default function OrdersList({
             />
             <input
               type="text"
-              className="form-input w-full rounded-full bg-white !pl-9"
-              placeholder={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์`}
+              className="form-input w-full rounded-full bg-white !pl-9 !pr-9"
+              /* ข้อความเดียวกับเดสก์ท็อป — จอเดียวกันต้องสัญญาเรื่องเดียวกัน (HR16).
+                 ของเดิมเขียนว่าค้นเบอร์ได้ทั้งที่โค้ดเทียบกับค่าที่ปิดบังไว้ = จอโกหกมาตลอด */
+              placeholder={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์ / เลขพัสดุ / สินค้า`}
               value={search}
               /* setSearch อยู่นอก transition โดยตั้งใจ — controlled input ที่ถูก defer จะพิมพ์
                  ตามนิ้วไม่ทัน; แผงเปิดด้วย begin() แทน แล้วหุบเองหลังหยุดพิมพ์ */
@@ -604,6 +685,18 @@ export default function OrdersList({
                 busy.begin()
               }}
             />
+            {search && (
+              /* พื้นที่นิ้ว 44px แต่ก้อนไอคอนเล็ก — แยกสองอย่างออกจากกันตาม
+                 feedback_tap_target_vs_visual_pill (ย่อของที่เห็นได้โดยไม่ลดที่ให้แตะ) */
+              <button
+                type="button"
+                aria-label="ล้างคำค้นหา"
+                onClick={() => setSearch('')}
+                className="absolute right-0 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center text-default-400"
+              >
+                <Icon icon="circle-x" className="text-base" />
+              </button>
+            )}
           </div>
 
           {/* filter → full modal */}
@@ -712,6 +805,14 @@ export default function OrdersList({
           </div>
         )}
 
+        {/* พิมพ์ 1 ตัวอักษร = ยังไม่กรอง — ต้องบอก ไม่งั้นอ่านเหมือนช่องค้นหาพัง (feature 00058)
+            ไม่ใช่ error: ใช้สีเทาปกติ ไม่ใช่ danger */}
+        {search.trim().length > 0 && search.trim().length < ORDER_SEARCH_MIN_CHARS && (
+          <p className="mt-1.5 px-1 text-2xs text-default-500">
+            พิมพ์อีก {ORDER_SEARCH_MIN_CHARS - search.trim().length} ตัวเพื่อค้นหา
+          </p>
+        )}
+
         {/* filter chips — แถวเดียว เลื่อนแนวนอน (ซ่อน scrollbar); สลับด้วย swipe ทั้งจอ
             รายการชิปมาจาก chipRow: ร้านขายออนไลน์ = สถานะพัสดุ · ร้านอื่น = สถานะการขายแบบเดิม
             เปลี่ยนจาก underline-tab → chip row ตาม mockup v10 Frame 3 ".chips" style
@@ -783,15 +884,31 @@ export default function OrdersList({
                   ? `ไม่มี${vocab.noun}วันที่ ${formatDateTH(`${dateFilter}T00:00:00+07:00`)}`
                   : `ไม่มี${vocab.noun}ในสถานะนี้`
               }
+              /**
+               * บอกว่าใบที่หาอยู่ "มีอยู่จริงแต่คนละกอง" — ไม่งั้นจอว่างจะอ่านว่าออเดอร์หายจากระบบ
+               * แสดงเฉพาะตอนที่มันเพิ่มข้อมูลจริง: มีคำค้น + ในร้านมีใบที่ตรง (feature 00058)
+               */
+              description={
+                isSearchActive(search) && wholeShopMatches > 0
+                  ? `ไม่พบในตัวกรองที่เลือกไว้ · พบ ${wholeShopMatches.toLocaleString('th-TH')} รายการในทั้งร้าน`
+                  : undefined
+              }
               action={
-                /* ไม่โชว์ปุ่ม "ดูทั้งหมด" ตอนที่คำค้นเป็นตัวกรองจริง — ลิงก์ไป /orders ล้าง
-                   เฉพาะ query ส่วน `search` เป็น client state ที่ค้างอยู่ ผู้ใช้จะกดแล้วเจอ
-                   จอว่างซ้ำอีกรอบพร้อมข้อความใหม่ = ปุ่มที่พาไปที่เดิม */
+                /* ปุ่มลิงก์ใช้ได้เฉพาะตอนไม่มีคำค้น — ตอนมีคำค้นต้องล้าง state ในหน้าด้วย
+                   (ดู actionButton ข้างล่าง) ไม่งั้นกดแล้วเจอจอว่างใบเดิมซ้ำ */
                 search.trim()
                   ? undefined
                   : apptDay
                   ? { label: `ดู${vocab.noun}ทั้งหมด`, href: '/orders' }
                   : { label: `+ ${vocab.createLabel}แรก`, href: '/orders/new' }
+              }
+              actionButton={
+                isSearchActive(search) && wholeShopMatches > 0
+                  ? {
+                      label: `ดูผลทั้งร้าน (${wholeShopMatches.toLocaleString('th-TH')})`,
+                      onClick: clearFiltersKeepSearch,
+                    }
+                  : undefined
               }
             />
           </div>
@@ -799,7 +916,15 @@ export default function OrdersList({
       ) : (
         <div className="mt-3 space-y-3">
           {visible.map((order) => (
-            <OrderCard key={order.publicToken} order={order} onCancelRequest={handleCancelRequest} vocab={vocab} />
+            <OrderCard
+              key={order.publicToken}
+              order={order}
+              onCancelRequest={handleCancelRequest}
+              vocab={vocab}
+              searchQuery={isSearchActive(search) ? search : undefined}
+              isExactSearchMatch={hitMeta.get(order.publicToken)?.isExactMatch ?? false}
+              matchedItemIndexes={hitMeta.get(order.publicToken)?.matchedItemIndexes}
+            />
           ))}
 
           {/* sentinel — IntersectionObserver โหลดเพิ่มเมื่อเลื่อนถึง */}

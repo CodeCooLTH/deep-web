@@ -22,6 +22,15 @@ type SellerEmptyStateProps = {
   /** ปุ่ม action — ถ้ามีจะแสดง Link สไตล์ Paces pricing button */
   action?: { label: string; href: string }
   /**
+   * ปุ่ม action ที่เป็น "การล้าง state ในหน้า" ไม่ใช่การไปที่อื่น (feature 00058)
+   *
+   * 🛑 ต้องเป็นปุ่มจริง ไม่ใช่ `<Link>` เพราะหน้าที่ถือตัวกรองไว้ใน React state
+   * (เช่น `localStatus` ใน OrdersList ที่ init ครั้งเดียวแล้วไม่ sync กลับจาก URL)
+   * จะไม่ถูกล้างด้วยการเปลี่ยน URL เฉย ๆ ⇒ ผู้ใช้กดแล้วเจอจอว่างใบเดิมซ้ำ
+   * ใช้พร้อม `action` ไม่ได้ — จอเดียวไม่ควรมีปุ่มหลักสองใบ
+   */
+  actionButton?: { label: string; onClick: () => void }
+  /**
    * compact mode — true: ใช้ใน card-body (py-12)
    * false (default): full-page card max-w-2xl mx-auto py-20
    */
@@ -33,6 +42,7 @@ const SellerEmptyState = ({
   title,
   description,
   action,
+  actionButton,
   compact = false,
 }: SellerEmptyStateProps) => {
   const inner = (
@@ -59,6 +69,18 @@ const SellerEmptyState = ({
         >
           {action.label}
         </Link>
+      )}
+
+      {!action && actionButton && (
+        // คลาสชุดเดียวกับ action ข้างบนเป๊ะ — ปุ่มสองแบบนี้ต่างกันแค่ "ไปที่อื่น" กับ "ล้างในหน้า"
+        // ผู้ใช้ไม่ควรเห็นความต่างนั้นเป็นหน้าตาคนละแบบ
+        <button
+          type="button"
+          onClick={actionButton.onClick}
+          className="btn bg-primary hover:bg-primary-hover text-white rounded-full px-6 mt-5 text-sm font-medium"
+        >
+          {actionButton.label}
+        </button>
       )}
     </div>
   )

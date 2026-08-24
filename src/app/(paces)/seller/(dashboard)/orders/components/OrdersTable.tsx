@@ -10,6 +10,9 @@
 'use client'
 
 import DataTable from '@/components/table/DataTable'
+import { isSearchActive, searchOrders } from '@/lib/order-search'
+import HighlightText from './HighlightText'
+import SellerEmptyState from '../../_shared/SellerEmptyState'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
 import { CustomerBehaviorIcons } from '@/components/safepay/CustomerBehaviorBadges'
@@ -174,6 +177,19 @@ type Props = {
     count: number
     onClear: () => void
   }
+  /**
+   * คำค้น — **state อยู่ที่ OrdersList ตัวเดียว ไม่ใช่ของตาราง** (feature 00058)
+   *
+   * 🛑 เดิมตารางถือ `globalFilter` ของตัวเองแยกจากช่องค้นหาของมือถือ ⇒ สองจอในหน้าเดียวกัน
+   * ค้นคนละฟิลด์และให้ผลไม่เท่ากันจากคำเดียวกัน (มือถือค้น publicToken ได้/ตารางไม่ได้ ·
+   * ตารางค้นวิธีชำระกับยอดเงินได้/มือถือไม่ได้) — ยกขึ้นไปที่เดียวเพื่อให้ผูกกับ `?q=` เดียวกันด้วย
+   */
+  search: string
+  onSearchChange: (value: string) => void
+  /** จำนวนใบที่ตรงคำค้นในทั้งร้าน — ใช้เขียน empty state ที่บอกทางออก */
+  wholeShopMatches: number
+  /** ล้างตัวกรองทุกแกนแต่คงคำค้น — ฝั่งนี้ต้องล้าง columnFilters ของ TanStack เพิ่มเอง */
+  onClearFilters: () => void
 }
 
 export default function OrdersTable({
@@ -186,10 +202,13 @@ export default function OrdersTable({
   hasShippingAxis = true,
   appointmentFilter,
   apptDayFilter,
+  search,
+  onSearchChange,
+  wholeShopMatches,
+  onClearFilters,
 }: Props) {
   const t = useT()
   const router = useRouter()
-  const [globalFilter,   setGlobalFilter]   = useState('')
   const [sorting,        setSorting]        = useState<SortingState>([])
   const [columnFilters,  setColumnFilters]  = useState<ColumnFiltersState>([])
   const [pagination,     setPagination]     = useState({ pageIndex: 0, pageSize: 10 })
@@ -277,6 +296,22 @@ export default function OrdersTable({
    * ว่าใช้ยาก) · ซ่อนคอลัมน์เป็นชั้นก็ต้องซ่อน "ที่มา" ซึ่ง user ไม่ยอม
    * → ย้ายข้อมูลระดับใบขึ้นแถบหัว แล้วทำคอลัมน์ที่เหลือให้ "อ้วน" พอใช้แนวตั้งได้
    */
+  /**
+   * ผลค้นหา — `searchOrders` ตัวเดียวกับที่การ์ดมือถือเรียก (feature 00058)
+   *
+   * ป้อนเข้า `data` ของตารางแทนที่จะเป็น `globalFilterFn` ของ TanStack เพราะตัวนั้นไล่เฉพาะ
+   * คอลัมน์ที่มี accessor และแปลงค่าเป็นสตริงตรง ๆ ⇒ คอลัมน์ `items` (array ของ object)
+   * กลายเป็น `[object Object]` = ค้นชื่อสินค้าไม่ได้ แต่พิมพ์คำว่า `object` แล้วตรงทุกใบ
+   *
+   * ตัวกรองคอลัมน์ของ TanStack ยังทำงานทับผลนี้อีกชั้น — AND ทั้งคู่ ลำดับจึงไม่มีผล
+   *
+   * 🛑 ต้องประกาศ **เหนือ** `columns` เพราะ cell renderer อ่าน `searchQuery` ไปทำไฮไลต์
+   */
+  const hits = useMemo(() => searchOrders(orders, search), [orders, search])
+  const tableData = useMemo(() => hits.map((h) => h.order), [hits])
+  const hitMeta = useMemo(() => new Map(hits.map((h) => [h.order.publicToken, h])), [hits])
+  const searchQuery = isSearchActive(search) ? search : undefined
+
   const columns = [
     // ─ checkbox select ─
     // เซลล์ในแถวเนื้อหาว่างโดยเจตนา: ตัวติ๊กจริงอยู่แถบหัวกลุ่ม (groupRow ข้างล่าง)
@@ -337,7 +372,9 @@ export default function OrdersTable({
                       ที่ชื่อคล้ายกันไม่ออก ("โช๊คหน้า" vs "โช๊คหลัง" ตัดที่ตัวเดียวกัน) ซึ่งเป็น
                       จอที่ผู้ขายใช้ยืนยันก่อนแพ็กของ · break-words กันชื่อยาวที่ไม่มีวรรคเลย
                       ล้นกรอบ — OrderItem.name ที่พิมพ์เองตอนสร้างออเดอร์ไม่มีเพดานความยาว */}
-              <p className="mb-0 break-words text-sm font-semibold text-default-900">{it.name}</p>
+              <p className="mb-0 break-words text-sm font-semibold text-default-900">
+                <HighlightText text={it.name} query={searchQuery} />
+              </p>
               {/* ไม่มี SKU ใน OrderItem — บอกราคาต่อชิ้นแทน ซึ่งเป็นข้อมูลที่มีจริง */}
               <p className="mb-0 text-xs text-default-500">
                 ฿{it.price.toLocaleString('th-TH')} ต่อชิ้น
@@ -348,11 +385,25 @@ export default function OrdersTable({
         )
         const shown = items.slice(0, 2)
         const rest = items.slice(2)
+        /**
+         * ตรงกับสินค้าที่ถูกยุบซ่อนไว้ → กางให้ตั้งแต่แรก (feature 00058)
+         *
+         * ใช้ `defaultOpen` ผ่าน key ไม่ใช่ prop `open` ที่ควบคุมทุก render — `open` ที่ React
+         * เขียนทับทุกรอบจะแย่งการกดปิดของผู้ใช้ (กดย่อแล้วเด้งกางกลับทันที) ส่วนการเปลี่ยน key
+         * คือการ mount ใหม่ ⇒ เบราว์เซอร์คุม toggle ต่อเองได้อิสระหลังจากนั้น
+         */
+        const hiddenMatch = (hitMeta.get(row.original.publicToken)?.matchedItemIndexes ?? []).some(
+          (i) => i >= 2,
+        )
         return (
           <>
             <div className="space-y-2.5">{shown.map(line)}</div>
             {rest.length > 0 && (
-              <details className="group mt-2">
+              <details
+                key={hiddenMatch ? 'open' : 'closed'}
+                open={hiddenMatch || undefined}
+                className="group mt-2"
+              >
                 {/* marker:content-[''] = ซ่อนสามเหลี่ยมของเบราว์เซอร์ (Tailwind ไม่มี token ให้)
                     group-open: สลับข้อความตอนกาง — คำว่า "ดูเพิ่มเติม" ต้องหายไป (user สั่ง)
                     แต่ยังต้องย่อกลับได้ ถ้าซ่อน summary ทั้งอันจะกางแล้วปิดไม่ได้เลย */}
@@ -406,7 +457,9 @@ export default function OrdersTable({
               {row.original.buyerUsername && (
                 <Icon icon="rosette-discount-check-filled" className="shrink-0 text-sm text-primary" />
               )}
-              <span className="truncate">{displayName}</span>
+              <span className="truncate">
+                <HighlightText text={displayName} query={searchQuery} />
+              </span>
               {/* ประวัติกับร้านเป็น icon ท้ายชื่อ ไม่ใช่ป้ายข้อความ (user สั่ง 2026-08-06)
                   ชื่อ icon + เกณฑ์เสี่ยง user เคาะเอง ไม่ได้เดา (HR12)
                   title = คำอธิบายตอนชี้ค้าง — icon ล้วนที่ไม่มีคำอธิบายคือปริศนา */}
@@ -427,7 +480,7 @@ export default function OrdersTable({
             </p>
             {/* select-all: คลิกเดียวเลือกทั้งเบอร์ ไม่ต้องลาก */}
             <p className="mb-0 select-all text-xs tabular-nums text-default-500">
-              {row.original.buyerPhone ?? row.original.buyer}
+              <HighlightText text={row.original.buyerPhone ?? row.original.buyer} query={searchQuery} />
             </p>
           </>
         )
@@ -506,7 +559,9 @@ export default function OrdersTable({
                   {/* ห้าม font-mono (Anuphan ไม่มี mono จะ fallback หลุดธีม) — tabular-nums พอ */}
                   {s!.trackingNo && (
                     <p className="mb-0 flex items-center gap-1 text-xs font-semibold tabular-nums text-default-700">
-                      <span className="select-all">{s!.trackingNo}</span>
+                      <span className="select-all">
+                        <HighlightText text={s!.trackingNo} query={searchQuery} />
+                      </span>
                       <CopyLinkButton
                         value={s!.trackingNo}
                         label="คัดลอกเลขพัสดุ"
@@ -723,9 +778,9 @@ export default function OrdersTable({
   ]
 
   const table = useReactTable({
-    data: orders,
+    data: tableData,
     columns,
-    state: { sorting, globalFilter, columnFilters, pagination, rowSelection },
+    state: { sorting, columnFilters, pagination, rowSelection },
     // createdAtISO = คอลัมน์กรองอย่างเดียว ไม่ต้องโผล่เป็นคอลัมน์จริง (วันที่อยู่บนแถบหัวกลุ่ม)
     initialState: { columnVisibility: { createdAtISO: false } },
     /**
@@ -734,10 +789,9 @@ export default function OrdersTable({
      * ห่อที่นี่ที่เดียวจึงครอบได้ครบโดยไม่ต้องไล่ห่อทีละ handler — และจะไม่หลุดเมื่อมีคน
      * เพิ่มตัวกรองใหม่ทีหลัง
      *
-     * globalFilter ไม่ห่อ: ช่องค้นหาเป็น controlled input ที่ต้องพิมพ์ลื่น (ดู onChange ข้างล่าง)
+     * คำค้นไม่ห่อ: ช่องค้นหาเป็น controlled input ที่ต้องพิมพ์ลื่น (ดู onChange ข้างล่าง)
      */
     onSortingChange: (updater) => busy.run(() => setSorting(updater)),
-    onGlobalFilterChange: setGlobalFilter,
     onColumnFiltersChange: (updater) => busy.run(() => setColumnFilters(updater)),
     onPaginationChange: (updater) => busy.run(() => setPagination(updater)),
     onRowSelectionChange: setRowSelection,
@@ -745,7 +799,6 @@ export default function OrdersTable({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    globalFilterFn: 'includesString',
     enableColumnFilters: true,
     enableRowSelection: true,
     filterFns: {
@@ -785,22 +838,39 @@ export default function OrdersTable({
       <div className="card-header">
         {/* ซ้าย: search */}
         <div className="flex gap-2.5">
-          <div className="input-icon-group">
+          {/* relative = กล่องอ้างอิงของปุ่มล้างคำค้น — ไม่แตะโครง .input-icon-group เอง */}
+          <div className="input-icon-group relative">
             <Icon icon="search" className="input-icon" />
             <input
               type="text"
+              /* ข้อความเดียวกับมือถือ — จอเดียวกันต้องสัญญาเรื่องเดียวกัน (HR16) */
               className="form-input"
-              placeholder={`ค้นหา${vocab.noun}...`}
-              value={globalFilter}
-              /* setGlobalFilter อยู่นอก transition โดยตั้งใจ — controlled input ที่ถูก defer
+              placeholder={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์ / เลขพัสดุ / สินค้า`}
+              value={search}
+              /* onSearchChange อยู่นอก transition โดยตั้งใจ — controlled input ที่ถูก defer
                  จะพิมพ์ตามนิ้วไม่ทัน; แผงเปิดด้วย begin() แล้วหุบเองหลังหยุดพิมพ์
                  (setPagination ผ่าน table.setPageIndex เพื่อให้เข้า onPaginationChange ตัวเดียวกัน) */
               onChange={(e) => {
                 busy.begin()
-                setGlobalFilter(e.target.value)
+                onSearchChange(e.target.value)
                 table.setPageIndex(0)
               }}
             />
+            {search && (
+              <button
+                type="button"
+                aria-label="ล้างคำค้นหา"
+                onClick={() => {
+                  onSearchChange('')
+                  table.setPageIndex(0)
+                }}
+                /* วางทับขอบขวาของ .input-icon-group โดยไม่แทรก element คั่นระหว่าง
+                   .input-icon กับ .form-input (โครงของ group ห้ามถูกแทรก — _forms.css §4) */
+                className="absolute right-0 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center text-default-400"
+              >
+                <Icon icon="circle-x" className="text-base" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -958,9 +1028,38 @@ export default function OrdersTable({
         /* บอกด้วยว่ากรองวันไหนอยู่ — "ไม่พบออเดอร์" เฉย ๆ ทำให้แยกไม่ออกว่า "วันนั้นไม่มีจริง"
            หรือ "ตัวกรองค้างอยู่" ซึ่งเป็นสองสถานการณ์ที่ต้องทำคนละอย่าง */
         emptyMessage={
-          isSpecificDay(dateFilterValue)
-            ? `ไม่พบออเดอร์วันที่ ${formatDateTH(`${dateFilterValue}T00:00:00+07:00`)}`
-            : 'ไม่พบออเดอร์'
+          searchQuery ? (
+            /* จอว่างที่มีคำค้นต้องบอกทางออกเสมอ — component เดียวกับมือถือ (feature 00058)
+               ถ้าปล่อยเป็นข้อความบรรทัดเดียว ผู้ขายจะสรุปว่าออเดอร์หายจากระบบ ทั้งที่มันอยู่
+               แค่คนละกอง (ตัวกรองสถานะ/พัสดุ/ช่วงเวลาที่ค้างอยู่) */
+            <SellerEmptyState
+              compact
+              icon="shopping-cart-off"
+              title={`ไม่พบ${vocab.noun}ที่ตรงกับ "${search.trim()}"`}
+              description={
+                wholeShopMatches > 0
+                  ? `ไม่พบในตัวกรองที่เลือกไว้ · พบ ${wholeShopMatches.toLocaleString('th-TH')} รายการในทั้งร้าน`
+                  : undefined
+              }
+              actionButton={
+                wholeShopMatches > 0
+                  ? {
+                      label: `ดูผลทั้งร้าน (${wholeShopMatches.toLocaleString('th-TH')})`,
+                      onClick: () => {
+                        // ตัวกรองของตารางอยู่ใน TanStack ไม่ใช่ที่ OrdersList — ต้องล้างทั้งสองที่
+                        setColumnFilters([])
+                        table.setPageIndex(0)
+                        onClearFilters()
+                      },
+                    }
+                  : undefined
+              }
+            />
+          ) : isSpecificDay(dateFilterValue) ? (
+            `ไม่พบออเดอร์วันที่ ${formatDateTH(`${dateFilterValue}T00:00:00+07:00`)}`
+          ) : (
+            'ไม่พบออเดอร์'
+          )
         }
         groupRow={(row) => (
           /* w-9 (36px) ไม่ใช่ w-11: คอลัมน์ checkbox กว้าง 44px ก็จริง แต่ td ของแถบหัว
@@ -969,7 +1068,15 @@ export default function OrdersTable({
              หัวคอลัมน์ "รายการสินค้า" (user สั่ง 2026-08-06)
              ต้องเป็นกล่องแยกที่ไม่มี gap ตามหลัง ไม่ใช่ item ธรรมดาใน flex gap-x เพราะ
              gap จะบวกเพิ่มแล้วเลยแนวไปอีก */
-          <div className="flex items-center">
+          <div
+            className={cn(
+              'flex items-center',
+              /* ตรงเต็มค่า → แถบหัวกลุ่มได้พื้นจาง ๆ (feature 00058) เป็นสัญญาณเดียวที่บอกว่า
+                 "ใบนี้ถูกยกขึ้นบนสุดเพราะตรงเป๊ะ" — ปล่อยให้ลำดับเปลี่ยนเงียบ ๆ ผู้ใช้จะอ่านว่าแอปพัง
+                 ใช้พื้นแทน ring เพราะ ring บน <tr> ถูก border-collapse ของตารางกลืน */
+              hitMeta.get(row.original.publicToken)?.isExactMatch && '-mx-2 rounded bg-primary/5 px-2',
+            )}
+          >
             <span className="flex w-9 shrink-0 items-center">
               <input
                 type="checkbox"
@@ -992,7 +1099,12 @@ export default function OrdersTable({
                 href={`/orders/${row.original.publicToken}`}
                 className="text-sm font-bold tabular-nums text-primary hover:underline"
               >
-                {formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
+                <HighlightText
+                  text={formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
+                  query={searchQuery}
+                  /* ลิงก์นี้เป็น text-primary อยู่แล้ว — ถ้าไฮไลต์ทับสีตัวอักษรจะได้น้ำเงิน 2 เฉดซ้อนกัน */
+                  inheritColor
+                />
               </Link>
               {/* คัดลอก "เลขออเดอร์" ไม่ใช่ลิงก์ — ลิงก์ผู้ซื้อมีปุ่มของตัวเองในชุดดำเนินการแล้ว */}
               <CopyLinkButton

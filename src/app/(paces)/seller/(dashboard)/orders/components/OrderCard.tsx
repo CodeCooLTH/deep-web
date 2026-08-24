@@ -23,7 +23,8 @@ import { APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
 import { cn } from '@/utils/helpers'
 import { formatOrderNo } from '@/lib/order-no'
 import type { OrderVocab } from '@/lib/seller-menu'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import HighlightText from './HighlightText'
 import {
   PAYMENT_ICONS,
   PAYMENT_LABELS,
@@ -116,10 +117,39 @@ interface OrderCardProps {
   onCancelRequest: (token: string) => void
   /** คลังคำผันตามประเภทกิจการ (feature 00030) — ส่งต่อมาจาก OrdersList */
   vocab: OrderVocab
+  /** คำค้นที่กำลังใช้อยู่ (feature 00058) — undefined = ไม่ได้กำลังค้นหา ไม่มีอะไรถูกเน้น */
+  searchQuery?: string
+  /** ใบนี้ตรง "เต็มค่า" ของตัวระบุเฉพาะ — ถูกยกขึ้นบนสุด จึงต้องมีสัญญาณบอกว่าทำไม */
+  isExactSearchMatch?: boolean
+  /** สินค้าชิ้นที่ตรงคำค้น — ใช้ตัดสินว่าต้องกางรายการที่ยุบไว้ไหม */
+  matchedItemIndexes?: number[]
 }
 
-export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardProps) {
+export default function OrderCard({
+  order,
+  onCancelRequest,
+  vocab,
+  searchQuery,
+  isExactSearchMatch = false,
+  matchedItemIndexes,
+}: OrderCardProps) {
   const [expanded, setExpanded] = useState(false)
+
+  /**
+   * ตรงกับสินค้าที่ถูกยุบซ่อนไว้ → กางให้ (feature 00058)
+   *
+   * 🛑 ทางเดียว: บังคับ "เปิด" เท่านั้น ไม่มีทางบังคับ "ปิด" — ผู้ใช้ที่กดย่อเองแล้วต้องย่อได้จริง
+   * ถ้าเขียนเป็น `setExpanded(shouldOpen)` ปุ่มย่อจะกดไม่ลงตราบใดที่คำค้นยังอยู่
+   * (คลาสเดียวกับ `docs/conventions/measurement-must-not-decide-what-it-measures.md`:
+   * อย่าให้ผลลัพธ์ที่ effect เป็นคนตั้ง ย้อนกลับมาเป็นเงื่อนไขของ effect นั้นเอง)
+   *
+   * dep เป็นสตริง ไม่ใช่ตัว array — `matchedItemIndexes` เป็น array ใหม่ทุกครั้งที่ผลค้นหา
+   * คำนวณใหม่ ใส่ทั้งก้อนลง deps จะยิงซ้ำทุก render (`hook-return-identity-in-deps.md`)
+   */
+  const hiddenMatchKey = (matchedItemIndexes ?? []).filter((i) => i > 0).join(',')
+  useEffect(() => {
+    if (hiddenMatchKey) setExpanded(true)
+  }, [hiddenMatchKey])
 
   // เลขคำสั่งซื้อ DP… (user 2026-07-25) — derive จาก publicToken+createdAt (ตรงกับ orderNo ใน DB)
   const displayId = formatOrderNo(order.publicToken, order.createdAtISO)
@@ -146,9 +176,18 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
   // null = ยังไม่มีไฟล์โลโก้ของขนส่งเจ้านี้ → ตกไปใช้ตัวย่อ (ดู lib/iship/courier.ts)
   const courierLogo = courierLogoUrl(order.shipment?.courierCode, order.shipment?.courierName)
   const hasPayment = Boolean(order.paymentMethod)
+  /**
+   * เบอร์ลูกค้า (D-13, 2026-08-24) — การ์ดนี้เคยมีเบอร์แล้วถูกถอดออกตอน v11 เพื่อเอาช่องทาง
+   * กับวิธีชำระมาแทน ผลคือฝั่งมือถือเป็นจอเดียวในระบบที่ผู้ขายมองไม่เห็นเบอร์ลูกค้าตัวเองเลย
+   * เอากลับมาเป็น "สมาชิกในแถว meta" ที่เบาที่สุด — ห้ามยกน้ำหนักขึ้นจนแข่งกับชื่อลูกค้า
+   */
+  const hasPhone = Boolean(order.buyerPhone)
 
   return (
-    <div className={`card border-s-3 ${strip}`}>
+    /* ring บาง ๆ = สัญญาณเดียวที่บอกว่า "ใบนี้ถูกยกขึ้นบนสุดเพราะตรงเต็มค่า" (feature 00058)
+       ไม่ใช้ badge ข้อความเพิ่ม เพราะการ์ดนี้มีป้ายอยู่แล้ว 3-4 ตัว และตัวไฮไลต์ในเนื้อหา
+       ก็เป็นหลักฐานในตัวอยู่แล้ว — แต่ปล่อยให้ลำดับเปลี่ยนเงียบ ๆ ผู้ใช้จะอ่านว่าแอปมีบั๊ก */
+    <div className={cn('card border-s-3', strip, isExactSearchMatch && 'ring-1 ring-primary/30')}>
       {/* ── กดที่การ์ด = เปิดหน้ารายละเอียด (user สั่ง 2026-08-04) ──────────────────
           ใช้ "stretched link" คือ <a> โปร่งใสทับทั้งการ์ด ไม่ใช่ห่อทั้งการ์ดด้วย <a>
           เพราะในการ์ดมีปุ่มจริงอยู่ (ดูเพิ่มเติม / SMS / QR / คัดลอก / ⋮) ซึ่ง HTML ห้ามซ้อนใน <a>
@@ -174,9 +213,11 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
                 {isVerifiedBuyer && (
                   <Icon icon="solar:verified-check-bold-duotone" className="shrink-0 text-base text-primary" />
                 )}
-                <span className="truncate">{order.buyerName ?? 'ลูกค้า'}</span>
+                <span className="truncate">
+                  <HighlightText text={order.buyerName ?? 'ลูกค้า'} query={searchQuery} />
+                </span>
               </p>
-              {/* meta: ช่องทาง(โลโก้สี) · วิธีชำระ — แทนเบอร์โทรเดิม */}
+              {/* meta: ช่องทาง(โลโก้สี) · วิธีชำระ · เบอร์โทร */}
               <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-default-500">
                 {hasChannel && (
                   <ChannelBadge
@@ -191,9 +232,19 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
                     {PAYMENT_LABELS[order.paymentMethod as string] ?? order.paymentMethod}
                   </span>
                 )}
+                {(hasChannel || hasPayment) && hasPhone && <span className="text-default-300">·</span>}
+                {hasPhone && (
+                  /* tabular-nums: ตัวเลขต้องเรียงคอลัมน์เวลาไล่สายตาหลายการ์ด
+                     ไม่ทำเป็นลิงก์ tel: — การ์ดมีแผ่นลิงก์ทับทั้งใบอยู่แล้ว ถ้าจะให้กดโทรได้
+                     ต้องยก z-index เฉพาะจุด แล้วผู้ใช้จะเดาไม่ออกว่าแตะตรงไหนได้อะไร
+                     (ปุ่มโทรจริงอยู่ในหน้ารายละเอียดและใน ⋮ อยู่แล้ว) */
+                  <span className="tabular-nums">
+                    <HighlightText text={order.buyerPhone as string} query={searchQuery} />
+                  </span>
+                )}
                 {order.isFromAuction && (
                   <>
-                    {(hasChannel || hasPayment) && <span className="text-default-300">·</span>}
+                    {(hasChannel || hasPayment || hasPhone) && <span className="text-default-300">·</span>}
                     <span className="badge bg-warning/15 text-warning inline-flex items-center gap-0.5" title="จากการประมูล">
                       <Icon icon="tabler:gavel" className="size-3" />
                       ประมูล
@@ -207,7 +258,9 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
           {/* ขวา: #ID เทาเล็ก เหนือ status badge */}
           <div className="flex shrink-0 flex-col items-end gap-1">
             {/* ห้าม font-mono: Anuphan ไม่มี glyph mono → fallback Courier ผิดธีม (HR feedback) */}
-            <span className="text-2xs font-semibold text-default-500">{displayId}</span>
+            <span className="text-2xs font-semibold text-default-500">
+              <HighlightText text={displayId} query={searchQuery} />
+            </span>
             {/* icon มาจาก SSOT เดียวกับตารางเดสก์ท็อป — ป้ายใบเดียวกันต้องหน้าตาเหมือนกันทุกจอ
                 (ไฟล์นี้ import Icon จาก @iconify/react ตรง ๆ ไม่ผ่าน wrapper จึงต้องเติม tabler: เอง) */}
             <span className={`badge rounded-full ${statusCfg.cls}`}>
@@ -232,7 +285,9 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
                   ที่ชื่อคล้ายกันไม่ออก ("โช๊คหน้า" vs "โช๊คหลัง" ตัดที่ตัวเดียวกัน) ซึ่งเป็น
                   จอที่ผู้ขายใช้ยืนยันก่อนแพ็กของ · break-words กันชื่อยาวที่ไม่มีวรรคเลย
                   ล้นกรอบ — OrderItem.name ที่พิมพ์เองตอนสร้างออเดอร์ไม่มีเพดานความยาว */}
-                  <p className="break-words text-xs font-medium text-default-900">{item.name}</p>
+                  <p className="break-words text-xs font-medium text-default-900">
+                    <HighlightText text={item.name} query={searchQuery} />
+                  </p>
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-2xs text-default-400">x{item.qty}</p>
@@ -306,7 +361,7 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
               {order.shipment.courierName ?? order.shipment.courierCode ?? 'ขนส่ง'}
             </span>
             <span className="ms-auto truncate text-xs font-semibold tabular-nums text-default-900">
-              {order.shipment.trackingNo}
+              <HighlightText text={order.shipment.trackingNo} query={searchQuery} />
             </span>
           </div>
         )}
