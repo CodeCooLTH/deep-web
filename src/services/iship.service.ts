@@ -8,7 +8,7 @@
 // (ไม่ใช่หวังว่าจะไม่เผลอใส่) — ดู ConnectionView / SettingsView / ShipmentView
 
 import { prisma } from "@/lib/prisma";
-import { FORWARD_SHIPMENT } from "@/lib/shipment-direction";
+import { FORWARD_SHIPMENT, RETURN_SHIPMENT } from "@/lib/shipment-direction";
 import type { Prisma } from "@prisma/client";
 import {
   createOrder,
@@ -952,6 +952,129 @@ export async function createShipment(
   }
 
   return { ...view, paymentNotice };
+}
+
+/**
+ * createReturnShipment — เปิดพัสดุ **ขากลับ** ให้ใบคืนของ (feature 00056)
+ *
+ * 🛑 สลับผู้ส่ง/ผู้รับกับขาไปเป๊ะ ๆ: ผู้ส่ง = **ลูกค้า** (ที่อยู่จัดส่งของออเดอร์) ·
+ * ผู้รับ = **ร้าน** (ที่อยู่ผู้ส่งในการตั้งค่า iShip) — ร้านไม่ต้องกรอกที่อยู่ใหม่เลย
+ *
+ * 🛑 `codAmount: 0` เสมอ — พัสดุขากลับเก็บเงินปลายทางไม่ได้ (ร้านจะกลายเป็นคนจ่ายเงินให้
+ * ตัวเองผ่านขนส่ง) ค่าส่งตัดจากเครดิต iShip ของร้านอยู่แล้ว ซึ่งเป็นเหตุผลที่รูปแบบ
+ * "ลูกค้าออกค่าส่ง + ให้ระบบออกเลข" เป็นไปไม่ได้ (validateReturnShipping กันไว้)
+ *
+ * ใช้ `dispatchShipment()` ตัวเดิมทั้งดุ้น — ตรรกะยิง/แปล error/บันทึกผลอยู่ที่นั่นที่เดียว
+ * ห้ามก็อปมาเขียนใหม่ (สำเนาจะเลื่อนออกจากกันแน่นอน)
+ */
+export async function createReturnShipment(
+  shopId: string,
+  userId: string,
+  orderId: string,
+  override?: ShipmentOverride,
+): Promise<ShipmentView> {
+  const { account, token } = await loadAccount(shopId);
+
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, shopId },
+    select: {
+      id: true,
+      buyerName: true,
+      buyerContact: true,
+      shippingAddress: true,
+      // สเปกกล่องของขาไป — ใช้เป็นค่าตั้งต้นของขากลับ (ของชิ้นเดิมกล่องเดิม)
+      shipments: {
+        where: { direction: FORWARD_SHIPMENT },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { courierCode: true, categoryId: true, weight: true, width: true, length: true, height: true },
+      },
+    },
+  });
+  if (!order) throw new IShipServiceError("NOT_FOUND", "ไม่พบคำสั่งซื้อนี้");
+
+  const existing = await prisma.orderShipment.findFirst({
+    where: { orderId, direction: RETURN_SHIPMENT, status: { not: "CANCELLED" } },
+    select: { id: true, status: true },
+  });
+  if (existing && existing.status !== "FAILED") {
+    throw new IShipServiceError("SHIPMENT_EXISTS", "คำสั่งซื้อนี้มีพัสดุขากลับอยู่แล้ว");
+  }
+
+  const fwd = order.shipments[0];
+  const courierCode = override?.courierCode ?? fwd?.courierCode ?? account.defaultCourierCode;
+  // Decimal → number ที่จุดเดียว — `findMissingParcelFields`/payload ของ iShip รับ number
+  // (ท่าเดียวกับ createShipment บรรทัด 843 ห้ามปล่อย Decimal ไหลต่อ)
+  const dec = (v: unknown) => (v == null ? null : Number(v));
+  const weight = override?.weight ?? dec(fwd?.weight) ?? dec(account.defaultWeight);
+  const width = override?.width ?? fwd?.width ?? account.defaultWidth;
+  const length = override?.length ?? fwd?.length ?? account.defaultLength;
+  const height = override?.height ?? fwd?.height ?? account.defaultHeight;
+  const categoryId = override?.categoryId ?? fwd?.categoryId ?? account.defaultCategoryId;
+
+  const missing = findMissingParcelFields({ courierCode, weight, width, length, height });
+  if (missing.length > 0) {
+    throw new IShipServiceError(
+      "INCOMPLETE_DATA",
+      `เปิดพัสดุขากลับไม่ได้ — ข้อมูลพัสดุยังไม่ครบ (${missing.join(", ")})`,
+      missing,
+    );
+  }
+
+  const buyerAddress = (order.shippingAddress as DeepAddress | null) ?? {};
+  const shopSender = senderOf(account);
+
+  const shipment = await prisma.orderShipment.create({
+    data: {
+      orderId,
+      shopId,
+      status: "PENDING",
+      direction: RETURN_SHIPMENT,
+      idempotencyKey: `ret_${orderId}_${Date.now()}`,
+      courierCode,
+      courierName: await resolveCourierName(shopId, courierCode!),
+      categoryId,
+      weight,
+      width,
+      length,
+      height,
+      // ห้ามเก็บเงินปลายทางกับพัสดุขากลับ — ดูหัวฟังก์ชัน
+      codAmount: 0,
+      // ── สลับทิศ ──────────────────────────────────────────────────────────
+      senderSnapshot: {
+        name: order.buyerName,
+        phone: order.buyerContact,
+        address: buyerAddress.line1 ?? "",
+        subdistrict: buyerAddress.subdistrict ?? null,
+        district: buyerAddress.district ?? null,
+        province: buyerAddress.province ?? null,
+        postcode: buyerAddress.postcode ?? null,
+      } as object,
+      receiverSnapshot: {
+        name: shopSender.name,
+        phone: shopSender.phone,
+        address: {
+          line1: shopSender.address,
+          subdistrict: shopSender.subdistrict,
+          district: shopSender.district,
+          province: shopSender.province,
+          postcode: shopSender.postcode,
+        },
+      } as object,
+      optionsSnapshot: buildOptionsSnapshot(override, {
+        optOnTime: account.optOnTime,
+        optBoxShield: account.optBoxShield,
+        optIsInsured: account.optIsInsured,
+        optProductValue: account.optProductValue ? Number(account.optProductValue) : null,
+        optServiceType: account.optServiceType,
+        defaultRemark: account.defaultRemark,
+      }) as object,
+      createdByUserId: userId,
+    },
+    select: SHIPMENT_SELECT,
+  });
+
+  return dispatchShipment(shopId, shipment.id, token);
 }
 
 /**

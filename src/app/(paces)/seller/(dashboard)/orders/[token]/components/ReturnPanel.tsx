@@ -1,0 +1,445 @@
+'use client'
+
+/**
+ * ReturnPanel — ระบบคืนของในหน้าออเดอร์และในห้องแชท (feature 00056 · P4)
+ *
+ * 🛑 component เดียวใช้ 2 จอ (หน้ารายละเอียด + แผงออเดอร์ในห้องแชท) ตามที่หัวหน้าสั่งว่า
+ * "กดคืนของจาก order detail + หน้าแชทได้เลย" — ถ้าเขียนสองตัว ปุ่ม/กติกาจะเลื่อนออกจากกัน
+ * แน่นอน (บทเรียนซ้ำจาก sibling-surface-parity.md) ต่างกันแค่ `compact` ที่ย่อ padding
+ *
+ * โหลดข้อมูลตอน **กางเท่านั้น** — ออเดอร์ส่วนใหญ่ไม่มีการคืนของ การยิง API ทุกใบตั้งแต่
+ * paint แรกคือค่าใช้จ่ายที่แทบไม่มีใครได้ใช้
+ *
+ * Base: การ์ด `.card` + `.card-header` ของ Paces (โครงเดียวกับ ShippingCard ที่อยู่ติดกัน)
+ */
+
+import { useCallback, useState } from 'react'
+
+import Icon from '@/components/wrappers/Icon'
+import { formatDateTime } from '@/lib/format-date'
+import { pacesToast } from '@/lib/paces-toast'
+import { pacesConfirm } from '@/lib/paces-swal'
+import {
+  RETURN_PAYER_TEXT,
+  RETURN_STATUS,
+  RETURN_TRACKING_SOURCE,
+  RETURN_TRACKING_SOURCE_TEXT,
+  computeRefundAmount,
+  type ReturnPayer,
+  type ReturnTrackingSource,
+} from '@/lib/order-return'
+import { formatBaht } from '@/lib/format-money'
+
+type EligibleItem = {
+  orderItemId: string
+  name: string
+  orderedQty: number
+  returnedQty: number
+  remainingQty: number
+  unitPrice: number
+}
+
+type Eligibility = {
+  canReturn: boolean
+  blockedText: string | null
+  items: EligibleItem[]
+}
+
+export type ReturnRow = {
+  id: string
+  status: string
+  payer: ReturnPayer
+  trackingSource: ReturnTrackingSource
+  manualTrackingNo: string | null
+  manualCourier: string | null
+  countAsCost: boolean
+  refundAmount: number | null
+  createdAt: string
+  trackingNo: string | null
+}
+
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  REQUESTED: { label: 'รอส่งคืน', cls: 'bg-warning/15 text-warning-ink' },
+  SHIPPING: { label: 'กำลังส่งคืน', cls: 'bg-info/15 text-info-ink' },
+  // ผลทางบัญชีเกิดที่นี่ (ยอดขายหาย) — ใช้ warning ไม่ใช่ success เพราะไม่ใช่ผลที่ร้านอยากได้
+  RECEIVED: { label: 'รับของคืนแล้ว', cls: 'bg-warning/15 text-warning-ink' },
+  CANCELLED: { label: 'ยกเลิกแล้ว', cls: 'bg-default-100 text-default-700' },
+}
+
+export default function ReturnPanel({
+  orderToken,
+  initialCount,
+  compact = false,
+}: {
+  orderToken: string
+  /** จำนวนใบคืนที่ server นับมาให้ — 0 = ยังไม่เคยมีการคืน (ยังกางเพื่อเปิดใบใหม่ได้) */
+  initialCount: number
+  compact?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [eligibility, setEligibility] = useState<Eligibility | null>(null)
+  const [returns, setReturns] = useState<ReturnRow[] | null>(null)
+  const [form, setForm] = useState(false)
+  const [qty, setQty] = useState<Record<string, number>>({})
+  const [payer, setPayer] = useState<ReturnPayer>('SHOP')
+  const [source, setSource] = useState<ReturnTrackingSource>('ISHIP')
+  const [manualNo, setManualNo] = useState('')
+  const [manualCourier, setManualCourier] = useState('')
+  const [countAsCost, setCountAsCost] = useState(false)
+  const [reason, setReason] = useState('')
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/orders/${orderToken}/returns`, { cache: 'no-store' })
+      if (!res.ok) throw new Error('failed')
+      const data = (await res.json()) as Eligibility & { returns?: ReturnRow[] }
+      setEligibility(data)
+      setReturns(data.returns ?? [])
+    } catch {
+      pacesToast.error('โหลดข้อมูลการคืนของไม่สำเร็จ')
+    }
+  }, [orderToken])
+
+  const toggle = () => {
+    const next = !open
+    setOpen(next)
+    if (next && !eligibility) void load()
+  }
+
+  const selectedLines = (eligibility?.items ?? [])
+    .filter((i) => (qty[i.orderItemId] ?? 0) > 0)
+    .map((i) => ({ qty: qty[i.orderItemId]!, unitPrice: i.unitPrice }))
+  const refundPreview = computeRefundAmount(selectedLines)
+
+  const submit = async () => {
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/orders/${orderToken}/returns`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          items: Object.entries(qty)
+            .filter(([, q]) => q > 0)
+            .map(([orderItemId, q]) => ({ orderItemId, qty: q })),
+          reason: reason.trim() || null,
+          payer,
+          trackingSource: source,
+          manualTrackingNo: source === RETURN_TRACKING_SOURCE.MANUAL ? manualNo : null,
+          manualCourier: source === RETURN_TRACKING_SOURCE.MANUAL ? manualCourier : null,
+          countAsCost,
+        }),
+      })
+      const data = await res.json()
+      // ข้อความจาก API บอกทางแก้อยู่แล้ว (คืนได้อีกกี่ชิ้น/ทำไมคืนไม่ได้) — แสดงตรง ๆ
+      if (!res.ok) throw new Error(data?.error ?? 'เปิดใบคืนไม่สำเร็จ')
+      pacesToast.success('เปิดใบคืนของแล้ว')
+      setForm(false)
+      setQty({})
+      await load()
+    } catch (e) {
+      pacesToast.error(e instanceof Error ? e.message : 'เปิดใบคืนไม่สำเร็จ')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const act = async (returnId: string, action: 'ship' | 'receive' | 'cancel') => {
+    if (action === 'receive') {
+      // บอกผลที่ตามมาให้ครบก่อนกด — ตรงนี้คือจุดเดียวที่ยอดขายเปลี่ยน (BRD §2)
+      const ok = await pacesConfirm.warning(
+        'ยืนยันว่าได้รับของคืนแล้ว?',
+        'ยอดขายของรายการที่คืนจะถูกหักออก และปิดเรื่องคืนของใบนี้',
+        { confirmButtonText: 'ได้รับของคืนแล้ว' },
+      )
+      if (!ok) return
+    }
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/orders/${orderToken}/returns/${returnId}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? 'ทำรายการไม่สำเร็จ')
+      pacesToast.success(
+        action === 'ship' ? 'บันทึกการส่งคืนแล้ว' : action === 'receive' ? 'รับของคืนแล้ว' : 'ยกเลิกเรื่องคืนของแล้ว',
+      )
+      await load()
+    } catch (e) {
+      pacesToast.error(e instanceof Error ? e.message : 'ทำรายการไม่สำเร็จ')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const labelUrl = `/api/o/${orderToken}/return-label`
+
+  return (
+    <div className="card">
+      <div className="card-header flex-nowrap items-center justify-between gap-2">
+        <h5 className="card-title flex min-w-0 items-center gap-1.5">
+          <Icon icon="arrow-back-up" className="text-default-600 size-4 shrink-0" />
+          <span className="truncate">การคืนของ</span>
+          {initialCount > 0 && (
+            <span className="badge bg-warning/15 text-warning-ink text-2xs shrink-0">
+              {initialCount}
+            </span>
+          )}
+        </h5>
+        <button type="button" className="btn btn-sm btn-light shrink-0" onClick={toggle}>
+          {open ? 'ซ่อน' : 'จัดการ'}
+        </button>
+      </div>
+
+      {open && (
+        <div className={compact ? 'card-body !p-3' : 'card-body'}>
+          {!eligibility ? (
+            <p className="text-default-700 mb-0 flex items-center gap-2 text-sm">
+              <Icon icon="loader-2" className="animate-spin text-base" aria-hidden="true" />
+              กำลังโหลด…
+            </p>
+          ) : (
+            <>
+              {/* ── ใบคืนที่มีอยู่ ─────────────────────────────────────────── */}
+              {(returns ?? []).map((r) => (
+                <div key={r.id} className="border-default-200 mb-3 rounded-lg border p-3">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span className={`badge text-2xs ${STATUS_META[r.status]?.cls ?? ''}`}>
+                      {STATUS_META[r.status]?.label ?? r.status}
+                    </span>
+                    <span className="text-default-600 text-2xs">
+                      {RETURN_PAYER_TEXT[r.payer]} · {RETURN_TRACKING_SOURCE_TEXT[r.trackingSource]}
+                    </span>
+                    {/* ลูกค้าออกค่าส่งแต่ร้านรับผิดชอบ = ต้องเห็นชัด ไม่งั้นตัวเลขต้นทุนอ่านไม่ออก */}
+                    {r.payer === 'BUYER' && r.countAsCost && (
+                      <span className="badge bg-default-100 text-default-700 text-2xs">
+                        นับเป็นต้นทุนร้าน
+                      </span>
+                    )}
+                    <span className="text-default-500 text-2xs">
+                      {formatDateTime(r.createdAt)}
+                    </span>
+                  </div>
+
+                  {(r.trackingNo || r.manualTrackingNo) && (
+                    <p className="text-default-800 mb-2 text-xs font-semibold tabular-nums">
+                      {r.manualCourier ? `${r.manualCourier} · ` : ''}
+                      {r.trackingNo ?? r.manualTrackingNo}
+                    </p>
+                  )}
+
+                  {/* การ์ดใบปะหน้า — เฉพาะใบที่ระบบออกเลขให้ (หัวหน้าสั่ง: ให้ลูกค้าพิมพ์ได้) */}
+                  {r.trackingSource === RETURN_TRACKING_SOURCE.ISHIP && r.trackingNo && (
+                    <div className="bg-default-50 border-default-200 mb-2 flex items-center gap-2 rounded-lg border p-2">
+                      <Icon icon="file-type-pdf" className="text-default-600 size-5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-default-900 mb-0 text-xs font-medium">ใบปะหน้าพัสดุขากลับ</p>
+                        <p className="text-default-600 mb-0 text-2xs">ส่งลิงก์นี้ให้ลูกค้าพิมพ์ติดกล่อง</p>
+                      </div>
+                      <a
+                        href={labelUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-sm btn-light shrink-0"
+                      >
+                        เปิด
+                      </a>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-light shrink-0"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(
+                              `${window.location.origin}${labelUrl}`,
+                            )
+                            pacesToast.success('คัดลอกลิงก์ใบปะหน้าแล้ว')
+                          } catch {
+                            // clipboard ต้องการ https — บอกทางออกที่ทำได้จริงบนมือถือ
+                            pacesToast.error('คัดลอกไม่สำเร็จ — กดเปิดแล้วคัดลอกจากแถบที่อยู่')
+                          }
+                        }}
+                      >
+                        คัดลอกลิงก์
+                      </button>
+                    </div>
+                  )}
+
+                  {r.refundAmount != null && (
+                    <p className="text-default-700 mb-2 text-xs">
+                      ยอดที่คืน {formatBaht(r.refundAmount)}
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    {r.status === RETURN_STATUS.REQUESTED && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        disabled={busy}
+                        onClick={() => act(r.id, 'ship')}
+                      >
+                        {r.trackingSource === RETURN_TRACKING_SOURCE.ISHIP
+                          ? 'ออกเลขพัสดุขากลับ'
+                          : 'บันทึกว่าส่งคืนแล้ว'}
+                      </button>
+                    )}
+                    {(r.status === RETURN_STATUS.REQUESTED || r.status === RETURN_STATUS.SHIPPING) && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-light"
+                          disabled={busy}
+                          onClick={() => act(r.id, 'receive')}
+                        >
+                          ได้รับของคืนแล้ว
+                        </button>
+                        {/* ยกเลิกเป็นปุ่มขอบ ไม่ใช่ปุ่มทึบ — ไม่ใช่ทางที่เราอยากให้กดเป็นอันดับแรก */}
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-danger"
+                          disabled={busy}
+                          onClick={() => act(r.id, 'cancel')}
+                        >
+                          ยกเลิกเรื่องคืน
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* ── เปิดใบใหม่ ─────────────────────────────────────────────── */}
+              {!eligibility.canReturn ? (
+                <p className="text-default-700 mb-0 flex items-start gap-2 text-xs">
+                  <Icon icon="info-circle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+                  {eligibility.blockedText}
+                </p>
+              ) : !form ? (
+                <button type="button" className="btn btn-sm btn-primary" onClick={() => setForm(true)}>
+                  <Icon icon="plus" className="size-4" aria-hidden="true" />
+                  เปิดเรื่องคืนของ
+                </button>
+              ) : (
+                <div className="border-default-200 rounded-lg border p-3">
+                  <p className="text-default-900 mb-2 text-xs font-semibold">เลือกรายการที่คืน</p>
+                  {eligibility.items.map((i) => (
+                    <div key={i.orderItemId} className="mb-2 flex items-center gap-2">
+                      <span className="text-default-800 min-w-0 flex-1 truncate text-xs">
+                        {i.name}
+                        <span className="text-default-500"> · คืนได้ {i.remainingQty}</span>
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={i.remainingQty}
+                        disabled={i.remainingQty === 0}
+                        className="form-input w-20 shrink-0"
+                        value={qty[i.orderItemId] ?? 0}
+                        onChange={(e) =>
+                          setQty((q) => ({
+                            ...q,
+                            // clamp ที่ปลายทางด้วย — ผู้ใช้พิมพ์เกินได้เสมอ และ service ก็กันอีกชั้น
+                            [i.orderItemId]: Math.max(
+                              0,
+                              Math.min(i.remainingQty, Number(e.target.value) || 0),
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+                  ))}
+
+                  <p className="text-default-900 mb-3 mt-2 text-xs font-semibold">
+                    ยอดที่จะคืน {formatBaht(refundPreview)}
+                  </p>
+
+                  <label className="form-label text-xs">ใครออกค่าส่งคืน</label>
+                  <select
+                    className="form-select mb-2"
+                    value={payer}
+                    onChange={(e) => {
+                      const p = e.target.value as ReturnPayer
+                      setPayer(p)
+                      // ลูกค้าออกเอง = ระบบออกเลขให้ไม่ได้ (เครดิตเป็นของร้าน) — สลับให้อัตโนมัติ
+                      // ดีกว่าปล่อยให้กดแล้วเจอ error ที่แก้ไม่ถูก
+                      if (p === 'BUYER' && source === RETURN_TRACKING_SOURCE.ISHIP) setSource('MANUAL')
+                    }}
+                  >
+                    <option value="SHOP">{RETURN_PAYER_TEXT.SHOP}</option>
+                    <option value="BUYER">{RETURN_PAYER_TEXT.BUYER}</option>
+                  </select>
+
+                  <label className="form-label text-xs">เลขพัสดุขากลับ</label>
+                  <select
+                    className="form-select mb-2"
+                    value={source}
+                    onChange={(e) => setSource(e.target.value as ReturnTrackingSource)}
+                  >
+                    {payer === 'SHOP' && (
+                      <option value="ISHIP">{RETURN_TRACKING_SOURCE_TEXT.ISHIP}</option>
+                    )}
+                    <option value="MANUAL">{RETURN_TRACKING_SOURCE_TEXT.MANUAL}</option>
+                    <option value="NONE">{RETURN_TRACKING_SOURCE_TEXT.NONE}</option>
+                  </select>
+
+                  {source === RETURN_TRACKING_SOURCE.MANUAL && (
+                    <div className="mb-2 flex gap-2">
+                      <input
+                        className="form-input flex-1"
+                        placeholder="ชื่อขนส่ง"
+                        value={manualCourier}
+                        onChange={(e) => setManualCourier(e.target.value)}
+                      />
+                      <input
+                        className="form-input flex-1"
+                        placeholder="เลขพัสดุ"
+                        value={manualNo}
+                        onChange={(e) => setManualNo(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  {/* ร้านจ่ายเอง = เป็นต้นทุนเสมอ ไม่ต้องถาม (resolveCountAsCost บังคับที่ service) */}
+                  {payer === 'BUYER' && (
+                    <label className="mb-2 flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        className="form-checkbox"
+                        checked={countAsCost}
+                        onChange={(e) => setCountAsCost(e.target.checked)}
+                      />
+                      บันทึกค่าส่งขากลับเป็นต้นทุนร้าน (ลูกค้าออกเลขเองแต่มาเรียกเก็บร้าน)
+                    </label>
+                  )}
+
+                  <input
+                    className="form-input mb-3"
+                    placeholder="เหตุผล (ไม่บังคับ)"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                  />
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      disabled={busy || selectedLines.length === 0}
+                      onClick={submit}
+                    >
+                      เปิดใบคืน
+                    </button>
+                    <button type="button" className="btn btn-sm btn-light" onClick={() => setForm(false)}>
+                      ยกเลิก
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

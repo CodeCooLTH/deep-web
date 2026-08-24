@@ -49,8 +49,15 @@ export const COUNTABLE_CARRIER_STATUSES = [
 export function countableOrderWhere(shopId: string): Prisma.OrderWhereInput {
   return {
     shopId,
-    // ยกเลิกแล้วไม่นับ ไม่ว่าพัสดุจะเดินไปถึงไหน
-    status: { not: "CANCELLED" },
+    /**
+     * ยกเลิกแล้วไม่นับ ไม่ว่าพัสดุจะเดินไปถึงไหน
+     *
+     * 🛑 `RETURNED` (feature 00056) ต้องตัดออกด้วย — ใบที่ลูกค้าคืนของครบแล้วมีพัสดุ **ขาไป**
+     * ที่ `delivered` จริง จึงผ่านสาขา OR ข้างล่างได้ ⇒ ถ้าไม่ตัดตรงนี้ ผลงานบนโปรไฟล์สาธารณะ
+     * จะยังนับใบที่การขายถูกยกเลิกไปแล้ว ซึ่งเป็นปัญหาเดียวกับที่ฟีเจอร์นี้ตั้งใจแก้
+     * (คืน **บางส่วน** ไม่เปลี่ยน `Order.status` จึงยังนับ — ถูกแล้ว เพราะเป็นการขายที่สำเร็จจริง)
+     */
+    status: { notIn: ["CANCELLED", "RETURNED"] },
     OR: [
       { status: "CONFIRMED" },
       {

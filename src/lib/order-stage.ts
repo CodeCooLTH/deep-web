@@ -39,6 +39,8 @@ export type OrderStageKey =
   | 'DELIVERED'
   | 'COMPLETED'
   | 'CANCELLED'
+  /** feature 00056 — ลูกค้ารับของแล้วส่งคืน (คนละเรื่องกับ CANCELLED ที่แปลว่าไม่เคยส่ง) */
+  | 'RETURNED'
 
 /**
  * cls ใช้ pattern เดียวกับ ORDER_STATUS_META (`bg-{semantic}/15 text-{semantic}-ink`) — Paces token ล้วน
@@ -68,6 +70,8 @@ export const ORDER_STAGE_META: Record<OrderStageKey, { label: string; cls: strin
   // "จัดส่งสำเร็จ" ตรงนี้ เพราะไม่มีอะไรถูกส่งเลย
   COMPLETED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success-ink', icon: 'circle-check-filled' },
   CANCELLED: { label: 'ยกเลิกแล้ว', cls: 'bg-danger/15 text-danger-ink', icon: 'circle-x' },
+  // warning ไม่ใช่ danger — ของกลับมาถึงร้านเรียบร้อยแล้ว ไม่ใช่เหตุที่ต้องรีบทำอะไร
+  RETURNED: { label: 'คืนของแล้ว', cls: 'bg-warning/15 text-warning-ink', icon: 'arrow-back-up' },
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -161,8 +165,14 @@ export interface ShippingStageInput {
  */
 
 export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
-  // ยกเลิกทั้งใบ = ไม่ใช่งานค้าง ไม่ว่าพัสดุจะอยู่สถานะไหน
-  if (o.status === 'CANCELLED') return 'DONE'
+  /**
+   * ยกเลิกทั้งใบ = ไม่ใช่งานค้าง ไม่ว่าพัสดุจะอยู่สถานะไหน
+   *
+   * `RETURNED` (feature 00056) อยู่ในกลุ่มเดียวกัน: ของกลับมาถึงร้านครบแล้วและร้านกดยืนยัน
+   * รับคืนแล้ว = ไม่มีอะไรให้ทำต่อ ถ้าไม่ตัดตรงนี้ มันจะไปตกสาขาพัสดุข้างล่างแล้วขึ้นกอง
+   * "กำลังจัดส่ง"/"รอรับเข้า" ตามสถานะของพัสดุ **ขาไป** ที่ยังค้างอยู่ในฐาน
+   */
+  if (o.status === 'CANCELLED' || o.status === 'RETURNED') return 'DONE'
 
   if (o.hasShipment) {
     // ลำดับเดียวกับ deriveOrderStage: ของที่ไม่ได้เดินหน้าตามปกติมาก่อน แล้วค่อยดูปลายทาง/ระหว่างทาง
@@ -401,6 +411,13 @@ export function deriveOrderStage(
     // ตัด status='CANCELLED' ทิ้ง) ⇒ ค่านี้ >0 แปลว่ายังมีของค้างอยู่จริงในใบอื่น ซึ่งเป็น
     // เรื่องที่ต้องเห็นมากกว่า "ใบล่าสุดถูกยกเลิก"
     key = 'PARCEL_PROBLEM'
+  } else if (order.status === 'RETURNED') {
+    /**
+     * feature 00056 — ใช้กติกาหมดอายุชุดเดียวกับ "ยกเลิกแล้ว" (ค้าง 1 วัน) เพราะตอบคำถาม
+     * เดียวกันว่า "ลูกค้าคนนี้เพิ่งมีเรื่องกับเรา" · ป้ายค้างนานกว่านั้นมีแต่ทำให้รายการรก
+     */
+    if (age > CANCELLED_VISIBLE_MS) return null
+    key = 'RETURNED'
   } else if (order.status === 'CANCELLED') {
     if (age > CANCELLED_VISIBLE_MS) return null
     key = 'CANCELLED'

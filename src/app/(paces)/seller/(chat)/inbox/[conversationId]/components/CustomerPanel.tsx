@@ -67,6 +67,7 @@ import BuyerReputationRow from './BuyerReputationRow'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import OrderCardView from '../../../_components/OrderCardView'
+import ReturnPanel from '../../../../(dashboard)/orders/[token]/components/ReturnPanel'
 import AppointmentSummarySheet from '../../../_components/AppointmentSummarySheet'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
@@ -659,6 +660,12 @@ function OrderCard({
         orderToken={o.token}
       />
     )}
+    {/* ระบบคืนของ (feature 00056) — หัวหน้าสั่งให้กดได้ "จาก order detail + หน้าแชท"
+        ใช้ component ตัวเดียวกับหน้ารายละเอียดเป๊ะ ๆ (compact แค่ย่อ padding) ถ้าเขียนสองตัว
+        ปุ่ม/กติกาจะเลื่อนออกจากกันแน่นอน — sibling-surface-parity.md
+        เฉพาะร้านขายออนไลน์: ร้านบริการ/บ้านพักไม่มีของให้คืน การ์ดจะเป็นเสียงรบกวนล้วน ๆ
+        `initialCount={0}` เพราะแผงในแชทไม่ได้ query ฝั่ง server — ตัวเลขจริงมาตอนกางการ์ด */}
+    {vertical === 'ONLINE_SALES' && <ReturnPanel orderToken={o.token} initialCount={0} compact />}
     </>
   )
 }

@@ -31,6 +31,11 @@ export const ORDER_EVENT_TYPES = [
   // AUTH_FLOW_STARTED เขียนโดย guest ที่ยังไม่ล็อกอิน ⇒ actorUserId เป็น null เสมอ
   'AUTH_FLOW_STARTED',
   'AUTH_FLOW_COMPLETED',
+  // feature 00056 — ระบบคืนของ (ใบคืนไม่ใช่ออเดอร์ใบใหม่ ประวัติจึงต้องอยู่บนใบเดิม)
+  'RETURN_REQUESTED',
+  'RETURN_SHIPPED',
+  'RETURN_RECEIVED',
+  'RETURN_CANCELLED',
 ] as const
 
 export type OrderEventType = (typeof ORDER_EVENT_TYPES)[number]
@@ -73,6 +78,12 @@ export const ORDER_EVENT_META: Record<
   // ถ้าระบายแดงตั้งแต่เปิดเรื่อง = ระบบตัดสินไปแล้วก่อนใครตรวจ
   ORDER_DISPUTE_OPENED: { label: 'ผู้ซื้อแจ้งว่ายังไม่ได้รับของ', icon: 'alert-circle', tone: 'neutral' },
   ORDER_DISPUTE_RESOLVED: { label: 'ปิดเรื่องที่ผู้ซื้อแจ้งไว้', icon: 'circle-check', tone: 'neutral' },
+  // feature 00056 — ระบบคืนของ · โทน: ขอคืน/ส่งคืน = neutral (ยังไม่จบ) · รับคืนแล้ว = danger
+  // (มีผลทางบัญชี ยอดขายหาย) · ยกเลิกเรื่องคืน = neutral (กลับไปเหมือนไม่มีอะไรเกิดขึ้น)
+  RETURN_REQUESTED: { label: 'ลูกค้าขอคืนของ', icon: 'arrow-back-up', tone: 'neutral' },
+  RETURN_SHIPPED: { label: 'ส่งของคืนแล้ว', icon: 'truck-return', tone: 'neutral' },
+  RETURN_RECEIVED: { label: 'ร้านรับของคืนแล้ว', icon: 'package-import', tone: 'danger' },
+  RETURN_CANCELLED: { label: 'ยกเลิกเรื่องคืนของ', icon: 'circle-x', tone: 'neutral' },
 }
 
 /**

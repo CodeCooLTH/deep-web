@@ -134,6 +134,12 @@ export const ORDER_STATUS_META: Record<
   SHIPPED: { label: 'กำลังจัดส่ง', cls: 'bg-info/15 text-info-ink', icon: 'truck', tone: 'info' },
   CONFIRMED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success-ink', icon: 'circle-check-filled', tone: 'success' },
   CANCELLED: { label: 'ยกเลิก', cls: 'bg-danger/15 text-danger-ink', icon: 'circle-x', tone: 'danger' },
+  /**
+   * feature 00056 — ลูกค้ารับของแล้วส่งคืน (คนละเรื่องกับ "ยกเลิก" ซึ่งแปลว่าไม่เคยส่ง)
+   * warning ไม่ใช่ danger: ของกลับมาถึงร้านเรียบร้อย ไม่ใช่เหตุที่ต้องรีบทำอะไร —
+   * ต่างจาก "พัสดุมีปัญหา" ที่ยังไม่รู้ผล · ไอคอนลูกศรย้อนกลับชุดเดียวกับกอง "ตีกลับ"
+   */
+  RETURNED: { label: 'คืนของแล้ว', cls: 'bg-warning/15 text-warning-ink', icon: 'arrow-back-up', tone: 'warning' },
 }
 
 /**
