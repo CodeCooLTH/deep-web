@@ -88,6 +88,7 @@ const STAGE_FILTER_KEYS = [
   'SHIPPING',
   'AWAITING_COD',
   'PROBLEM',
+  'RETURNED',
 ] as const satisfies readonly (keyof typeof SHIPPING_STAGE_LABEL)[]
 
 /** สี badge จำนวนต่อกองงาน — token ตามความหมายของกอง (mockup 2026-08-06) */
@@ -99,6 +100,8 @@ const STAGE_BADGE_CLS: Record<(typeof STAGE_FILTER_KEYS)[number], string> = {
   // Command Center ที่เป็น warning มาตั้งแต่แรก; เดิมไฟล์นี้ตั้ง info ไว้ที่เดียวจึงเพี้ยนกับที่อื่น
   AWAITING_COD: 'bg-warning/15 text-warning-ink',
   PROBLEM: 'bg-danger/15 text-danger-ink',
+  // ตีกลับ = warning (ไม่ใช่ danger) — โทนเดียวกับไทล์หน้าแรกและป้ายบนแถว
+  RETURNED: 'bg-warning/15 text-warning-ink',
 }
 
 // ─── date range filter — ตรรกะอยู่ที่ src/lib/order-date-filter.ts (SSOT ร่วมกับโมดัลมือถือ) ───

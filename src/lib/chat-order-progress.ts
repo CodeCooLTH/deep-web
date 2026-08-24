@@ -48,4 +48,7 @@ export const STAGE_CHIP_CLS: Record<Exclude<ShippingStageKey, 'DONE'>, string> =
   SHIPPING: 'bg-info/15 text-info-ink',
   AWAITING_COD: 'bg-warning/15 text-warning-ink',
   PROBLEM: 'bg-danger/15 text-danger-ink',
+  // ตีกลับ = warning ตรงกับ STAGE_BADGE_OVERRIDE.RETURNED และไทล์หน้าแรก (ใบเดียวกันสามจอ
+  // ต้องโทนเดียวกัน) ไม่ใช่ danger เพราะเรื่องกับขนส่งจบแล้ว
+  RETURNED: 'bg-warning/15 text-warning-ink',
 }

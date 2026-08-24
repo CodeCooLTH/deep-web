@@ -22,7 +22,9 @@ const base = {
 };
 
 describe("deriveOrderStage — พัสดุมีปัญหาต้องเด่นกว่าทุกขั้น", () => {
-  const problems = ["issue", "cannot_pickup", "return", "is_expired", "cod_refund"];
+  // 🛑 ไม่มี "return" ในรายชื่อแล้ว (2026-08-24) — สายตีกลับไม่ขึ้นชิปในแถวแชทอีกต่อไป
+  // เพราะชิปพฤติกรรม "ตีกลับ N รายการ" พูดเรื่องเดียวกันอยู่แล้ว ดูเทส [blocker] ด้านล่าง
+  const problems = ["issue", "cannot_pickup", "is_expired", "cod_refund"];
 
   for (const code of problems) {
     it(`${code} → ป้ายพัสดุมีปัญหา ไม่ใช่ "สร้างพัสดุแล้ว"`, () => {
@@ -32,9 +34,9 @@ describe("deriveOrderStage — พัสดุมีปัญหาต้อง�
     });
   }
 
-  it("ปัญหาชนะแม้ร้านกดแจ้งจัดส่งไปแล้ว — ของตีกลับอยู่ ไม่ใช่กำลังส่ง", () => {
+  it("ปัญหาชนะแม้ร้านกดแจ้งจัดส่งไปแล้ว — ของติดปัญหาอยู่ ไม่ใช่กำลังส่ง", () => {
     const r = deriveOrderStage(
-      { ...base, status: "SHIPPED", carrierStatus: "return" },
+      { ...base, status: "SHIPPED", carrierStatus: "cannot_pickup" },
       NOW,
     );
     expect(r?.key).toBe("PARCEL_PROBLEM");
@@ -121,10 +123,20 @@ describe("deriveShippingStage — พัสดุจบเส้นทางแ�
     ).toBe("DONE");
   });
 
-  it("ของตีกลับถึงร้านแล้ว → พัสดุมีปัญหา (กองเดียวกับ return ที่กำลังตีกลับ)", () => {
+  /**
+   * แยกกอง 2026-08-24 — user เจอบน prod ว่าใบที่ iShip บอก "ส่งคืนสำเร็จ" ไปแล้ว ยังค้างอยู่ใน
+   * ไทล์/ชิป "พัสดุมีปัญหา" ทั้งที่เรื่องกับขนส่งจบแล้ว เหลือแต่ร้านตัดสินใจ (คืนเงิน/ส่งใหม่)
+   *
+   * เคส COD สำคัญเป็นพิเศษ: `return_success` เป็น terminal ⇒ ถ้าด่านตีกลับหลุดไปอยู่ใต้สาขา
+   * terminal มันจะกลายเป็น AWAITING_COD "รอเงิน COD" = ชวนร้านไปตามเก็บเงินจากของที่ไม่เคยส่งถึง
+   */
+  it("ตีกลับทั้งสองสถานะ → RETURNED (ไม่ใช่ PROBLEM และไม่ใช่ AWAITING_COD/DONE)", () => {
     expect(
       deriveShippingStage({ ...shipped, carrierStatus: "return_success", paymentMethod: "COD" }),
-    ).toBe("PROBLEM");
+    ).toBe("RETURNED");
+    expect(
+      deriveShippingStage({ ...shipped, carrierStatus: "return", paymentMethod: "TRANSFER" }),
+    ).toBe("RETURNED");
   });
 
   it("ยกเลิกทั้งใบ → DONE เสมอ ไม่ว่าพัสดุอยู่สถานะไหน", () => {
@@ -218,18 +230,32 @@ describe('shouldPromptCloseReturnedOrder', () => {
 describe('พัสดุมีปัญหา — นับทุกใบ + return_success', () => {
   const shipped = { ...base, status: 'SHIPPED', hasShipment: true }
 
-  it('[blocker] return_success = ของตีกลับถึงร้าน → เป็น "พัสดุมีปัญหา" ทั้งสองฟังก์ชัน', () => {
-    expect(deriveOrderStage({ ...shipped, carrierStatus: 'return_success' }, NOW)?.key).toBe(
-      'PARCEL_PROBLEM',
-    )
-    expect(
-      deriveShippingStage({
-        status: 'SHIPPED',
-        carrierStatus: 'return_success',
-        hasShipment: true,
-        paymentMethod: 'TRANSFER',
-      }),
-    ).toBe('PROBLEM')
+  /**
+   * 🛑 แถวรายการแชท: ตีกลับ = **ไม่ขึ้นชิปสถานะเลย** (user สั่ง 2026-08-24)
+   *
+   * เพราะแถวเดียวกันมีชิปพฤติกรรม "ตีกลับ N รายการ" (customer-behavior.ts) อยู่แล้ว —
+   * เดิมขึ้นทั้งสองอันพร้อมกันโดยพูดถึงพัสดุใบเดียวกัน
+   *
+   * ต้องเป็น `null` ไม่ใช่ค่าอื่น: `labelPrintedAt` ไม่เคยถูกล้าง ⇒ ถ้าปล่อยให้ตกไปสาขาล่าง
+   * ใบที่ตีกลับมาแล้วจะขึ้น "พิมพ์เอกสารแล้ว" ซึ่งผิดยิ่งกว่าป้ายเดิม
+   */
+  it('[blocker] ตีกลับ → ไม่มีชิปสถานะในแถวแชท แต่ยังเป็นกอง RETURNED ในหน้า /orders', () => {
+    for (const code of ['return', 'return_success']) {
+      // labelPrintedAt ต้องมีค่า — ไม่ใช่ของประดับ: มันคือ input ที่ทำให้ "ถอดด่านตีกลับออก"
+      // แล้วเทสแดงด้วยอาการจริง (ได้ 'LABEL_PRINTED') ถ้าปล่อย null จะได้ 'PARCEL_CREATED'
+      // ซึ่งก็ผิดเหมือนกันแต่ไม่ใช่อาการที่คอมเมนต์ข้างบนอ้าง
+      // (docs/conventions/mutation-silence-means-weak-corpus.md)
+      const o = { ...shipped, labelPrintedAt: new Date(NOW), carrierStatus: code }
+      expect(deriveOrderStage(o, NOW)).toBeNull()
+      expect(
+        deriveShippingStage({
+          status: 'SHIPPED',
+          carrierStatus: code,
+          hasShipment: true,
+          paymentMethod: 'TRANSFER',
+        }),
+      ).toBe('RETURNED')
+    }
   })
 
   it('[blocker] มีใบเก่าติดปัญหาอยู่ แม้ใบล่าสุดจะปกติ → ป้ายต้องขึ้น "พัสดุมีปัญหา"', () => {

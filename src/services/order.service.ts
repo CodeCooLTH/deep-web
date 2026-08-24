@@ -9,7 +9,7 @@ import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
 import { isCancelReason, resolveShopVertical } from "@/lib/lodging";
 import { isValidCancelReason, BUYER_SELF_CANCEL_REASON } from "@/lib/cancel-reasons";
-import { deriveShippingStage } from "@/lib/order-stage";
+import { deriveShippingStage, type ShippingStageKey } from "@/lib/order-stage";
 import { shopShipsGoods } from "@/lib/shipping-address-status";
 import { shouldRelinkThreadCustomer } from "@/lib/thread-customer-link";
 import { canRenameCustomerPhone } from "@/lib/customer-phone-edit";
@@ -1769,13 +1769,9 @@ export async function getOrderStatusCounts(
  * พัสดุที่นับ = ใบล่าสุดต่อออเดอร์ที่ยัง active (status='CREATED') และไม่ใช่ของทดสอบ
  * (isDryRun=false ตาม BR-ISHIP-60/61 ที่สั่งไว้ว่าต้องกันออกจากสถิติทุกชนิด)
  */
-export async function getShippingStageCounts(shopId: string): Promise<{
-  AWAITING_PARCEL: number
-  AWAITING_PICKUP: number
-  SHIPPING: number
-  AWAITING_COD: number
-  PROBLEM: number
-}> {
+export async function getShippingStageCounts(
+  shopId: string,
+): Promise<Record<Exclude<ShippingStageKey, "DONE">, number>> {
   const rows = await prisma.order.findMany({
     where: { shopId, status: { not: "CANCELLED" } },
     select: {
@@ -1792,7 +1788,14 @@ export async function getShippingStageCounts(shopId: string): Promise<{
     },
   });
 
-  const counts = { AWAITING_PARCEL: 0, AWAITING_PICKUP: 0, SHIPPING: 0, AWAITING_COD: 0, PROBLEM: 0 };
+  const counts = {
+    AWAITING_PARCEL: 0,
+    AWAITING_PICKUP: 0,
+    SHIPPING: 0,
+    AWAITING_COD: 0,
+    PROBLEM: 0,
+    RETURNED: 0,
+  };
   for (const o of rows) {
     const stage = deriveShippingStage({
       status: o.status,

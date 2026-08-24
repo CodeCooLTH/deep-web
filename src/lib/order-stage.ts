@@ -20,7 +20,8 @@ import { formatDayMonthShortYearTH } from './format-date'
 import {
   isDeliveredCarrierStatus,
   isInTransitCarrierStatus,
-  isProblemStageCarrierStatus,
+  isProblemCarrierStatus,
+  isReturnedCarrierStatus,
   isTerminalCarrierStatus,
 } from './iship/status'
 // นิยาม "เก็บเงินปลายทาง" ตัวเดียวกับที่หน้าออเดอร์/ป้ายชำระเงินใช้ — ห้ามเขียน regex ซ้ำที่นี่
@@ -74,13 +75,6 @@ export const DELIVERED_VISIBLE_MS = 3 * DAY_MS
 export const CANCELLED_VISIBLE_MS = 1 * DAY_MS
 
 /**
- * สถานะที่ร้านต้องรู้ทันที — นิยามเดียวกับ PROBLEM_CARRIER_STATUSES ใน lib/iship/status.ts
- *
- * import มาใช้แทนการเขียนซ้ำ เพราะถ้าสองที่นิยาม "มีปัญหา" ไม่ตรงกัน ตัวกรองจะกรองแล้วได้ผล
- * ไม่ตรงกับป้ายที่เห็น ซึ่งเป็นบั๊กที่หาสาเหตุยากมาก
- */
-
-/**
  * ─── สถานะ "ของอยู่ไหน" สำหรับ Command Center + ตัวกรองหน้า /orders (user สั่ง 2026-08-04) ───
  *
  * แยกจาก OrderStageKey (ป้ายในรายการแชท) เพราะคนละคำถาม: ป้ายตอบว่า "ออเดอร์ใบนี้ถึงขั้นไหน"
@@ -103,6 +97,18 @@ export type ShippingStageKey =
    */
   | 'AWAITING_COD'
   | 'PROBLEM'
+  /**
+   * พัสดุเดินทางกลับมาหาร้าน (`return` = กำลังกลับ · `return_success` = ถึงร้านแล้ว)
+   *
+   * แยกออกจาก `PROBLEM` เมื่อ 2026-08-24 (user เจอบน prod): ใบที่ iShip บอก "ส่งคืนสำเร็จ"
+   * ไปแล้วยังค้างอยู่ในกอง "พัสดุมีปัญหา" ซึ่งบอกร้านผิดว่า *ยังไม่รู้ว่าเกิดอะไรขึ้น ต้องไป
+   * ตามขนส่ง* ทั้งที่ความจริงคือเรื่องกับขนส่งจบแล้ว เหลือแต่การตัดสินใจของร้านเอง
+   * (คืนเงิน / ส่งใหม่ / ปิดงาน) — คนละงาน คนละความเร่งด่วน จึงต้องเป็นคนละกอง
+   *
+   * ยังเป็น "งานค้าง" อยู่ (ไม่ใช่ DONE) เพราะของอยู่ในมือร้านโดยที่ลูกค้ายังไม่ได้ของและ
+   * อาจยังไม่ได้เงินคืน — ตรงกับที่หน้า order detail ชวนให้ปิดงาน (shouldPromptCloseReturnedOrder)
+   */
+  | 'RETURNED'
   /** จบแล้ว/ไม่ใช่งานค้าง — ไม่นับบนไทล์ และไม่ขึ้นในตัวกรอง */
   | 'DONE'
 
@@ -125,6 +131,9 @@ export const SHIPMENT_STAGE_DOT_INDEX: Record<ShippingStageKey, number | null> =
   AWAITING_PICKUP: 0,
   SHIPPING: 2,
   PROBLEM: 2,
+  // ของเดินทาง "ย้อนกลับ" ไม่ใช่เดินหน้า — แถบ 4 จุดไม่มีจุดของทิศนี้ ปักที่จุดรถเหมือน PROBLEM
+  // แล้วให้ผู้เรียกเปลี่ยนสี/ขึ้นกล่องเตือนเอง (ห้ามปัก 4 = จะกลายเป็นแถบเขียวครบว่าส่งถึงแล้ว)
+  RETURNED: 2,
   AWAITING_COD: 4,
   DONE: 4,
 }
@@ -156,13 +165,17 @@ export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
   if (o.status === 'CANCELLED') return 'DONE'
 
   if (o.hasShipment) {
-    // ลำดับเดียวกับ deriveOrderStage: ปัญหามาก่อน แล้วค่อยดูปลายทาง/ระหว่างทาง
+    // ลำดับเดียวกับ deriveOrderStage: ของที่ไม่ได้เดินหน้าตามปกติมาก่อน แล้วค่อยดูปลายทาง/ระหว่างทาง
     //
-    // ของตีกลับถึงร้าน (`return_success`) อยู่ในชุดนี้ด้วย — ร้านต้องตัดสินใจคืนเงิน/ส่งใหม่
-    // จึงเป็นกองเดียวกับ 'return' (กำลังตีกลับ) ทั้งเส้น ไม่ใช่กองใหม่. เดิมเช็คแยกไว้ใน
-    // สาขา terminal ข้างล่าง ทำให้ตัวกรองฝั่งแชทที่อ่านจาก PROBLEM_CARRIER_STATUSES ตรง ๆ
-    // มองไม่เห็น (ดูคอมเมนต์ที่ PROBLEM_STAGE_CARRIER_STATUSES ใน lib/iship/status.ts)
-    if (isProblemStageCarrierStatus(o.carrierStatus)) return 'PROBLEM'
+    // ตีกลับกับ "มีปัญหา" เป็นคนละกองแล้ว (2026-08-24) และสองชุดไม่ทับกันเลย (เทส [blocker]
+    // ปักหมุดไว้) ลำดับระหว่างสองบรรทัดนี้จึงไม่มีผลต่อผลลัพธ์ — เรียงตีกลับไว้บนเพื่อให้อ่านโค้ด
+    // แล้วเห็นว่ามันไม่ใช่สาขาย่อยของ PROBLEM
+    //
+    // 🛑 ต้องอยู่ **เหนือ** สาขา terminal: `return_success` เป็น terminal ตัวหนึ่ง ถ้าปล่อยให้
+    // ตกลงไปข้างล่างมันจะกลายเป็น DONE (หรือ AWAITING_COD ถ้าเป็นใบ COD) = ของที่กลับมากอง
+    // อยู่ที่ร้านหายจากทุกไทล์ ซึ่งคือบั๊กที่ PROBLEM_STAGE_CARRIER_STATUSES เคยถูกสร้างมาอุด
+    if (isReturnedCarrierStatus(o.carrierStatus)) return 'RETURNED'
+    if (isProblemCarrierStatus(o.carrierStatus)) return 'PROBLEM'
     if (isTerminalCarrierStatus(o.carrierStatus)) {
       // [สำคัญ] พัสดุจบเส้นทางแล้ว ≠ งานของร้านจบแล้ว — เดิมคืน 'DONE' ตรงนี้เลย ทำให้ออเดอร์
       // ที่ขนส่งส่งถึงแล้วแต่ร้านยังไม่ได้เงินปลายทาง หายไปจากทุกไทล์ทันที (DP2569085F97153B)
@@ -190,6 +203,7 @@ export const SHIPPING_STAGE_LABEL: Record<Exclude<ShippingStageKey, 'DONE'>, str
   SHIPPING: 'กำลังจัดส่ง',
   AWAITING_COD: 'รอเงิน COD',
   PROBLEM: 'พัสดุมีปัญหา',
+  RETURNED: 'ตีกลับ',
 }
 
 /**
@@ -225,6 +239,18 @@ const STAGE_BADGE_OVERRIDE: Partial<
     cls: 'bg-danger/15 text-danger-ink',
     icon: 'alert-triangle',
     tone: 'danger',
+  },
+  /**
+   * warning ไม่ใช่ danger — เรื่องกับขนส่งจบแล้ว ของอยู่ในมือร้าน สิ่งที่เหลือคือการตัดสินใจ
+   * ซึ่งเร่งด่วนน้อยกว่าพัสดุที่ยังลอยอยู่กลางทางแบบไม่รู้ผล (ถ้าใช้แดงเท่ากัน ร้านจะกวาดตา
+   * แล้วแยกไม่ออกว่าใบไหนต้องโทรตามขนส่งเดี๋ยวนี้ ซึ่งเป็นเหตุผลทั้งหมดที่แยกกองออกมา)
+   * ไอคอนใช้ตัวเดียวกับที่ตาราง CARRIER_STATUS ให้กับ return/return_success (arrow-back-up)
+   */
+  RETURNED: {
+    label: SHIPPING_STAGE_LABEL.RETURNED,
+    cls: 'bg-warning/15 text-warning-ink',
+    icon: 'arrow-back-up',
+    tone: 'warning',
   },
   /**
    * DONE ไม่มีคำอยู่ใน SHIPPING_STAGE_LABEL โดยตั้งใจ (type เป็น Exclude<...,'DONE'>) —
@@ -384,7 +410,21 @@ export function deriveOrderStage(
     // ปัญหามาก่อนทุกอย่างและไม่มีวันหมดอายุ: ก่อนหน้านี้ issue/return/cannot_pickup/
     // is_expired/cod_refund ตกลงไปเป็น "สร้างพัสดุแล้ว" ทั้งหมด — เคสที่ต้องเห็นด่วนที่สุด
     // กลับกลืนหายไปกับพัสดุปกติ (user report 2026-07-31)
-    if (isProblemStageCarrierStatus(order.carrierStatus)) {
+    if (isReturnedCarrierStatus(order.carrierStatus)) {
+      /**
+       * 🛑 ตีกลับ = **ไม่ขึ้นชิปสถานะเลย** ในแถวรายการแชท (user สั่ง 2026-08-24)
+       *
+       * ไม่ใช่เพราะไม่สำคัญ แต่เพราะแถวนี้ *มีป้ายของเรื่องนี้อยู่แล้ว*: ชิปพฤติกรรมลูกค้า
+       * "ตีกลับ N รายการ" (`customer-behavior.ts` → `behaviorBadges`) ซึ่งนับทุกใบของลูกค้า
+       * คนนั้นและไม่มีวันหมดอายุ — เดิมแถวเดียวกันจึงขึ้นทั้ง "ตีกลับ 1 รายการ" และ
+       * "พัสดุมีปัญหา" พร้อมกันโดยพูดถึงพัสดุใบเดียวกัน (user ส่งภาพหน้าจอมาจาก prod)
+       * ชิปที่สองไม่ได้เพิ่มข้อมูล มันแค่กินพื้นที่ rail 320px และบอกความเร่งด่วนผิด
+       *
+       * ห้ามปล่อยให้ตกไปสาขาล่าง: `labelPrintedAt` ไม่เคยถูกล้าง ⇒ พัสดุที่ตีกลับมาแล้วจะขึ้น
+       * "พิมพ์เอกสารแล้ว" ซึ่งผิดยิ่งกว่าเดิม
+       */
+      return null
+    } else if (isProblemCarrierStatus(order.carrierStatus)) {
       key = 'PARCEL_PROBLEM'
       // ถึงมือผู้รับแล้ว = delivered หรือไกลกว่านั้น (payment_success = เงิน COD เข้าแล้ว)
       // เดิมเทียบ === 'delivered' ตรง ๆ ใบ COD ที่ได้เงินแล้วจึงตกไปเป็น "สร้างพัสดุแล้ว"

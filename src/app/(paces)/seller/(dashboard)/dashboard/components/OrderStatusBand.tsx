@@ -20,6 +20,7 @@ import { getT } from '@/i18n/server'
 import { fmt } from '@/i18n/fmt'
 import { thaiDayKey } from '@/lib/format-date'
 import type { Dictionary } from '@/i18n/dictionaries/th'
+import type { ShippingStageKey } from '@/lib/order-stage'
 
 /**
  * ป้ายของไทล์เก็บเป็น "คีย์" ไม่ใช่ "ข้อความ"
@@ -45,13 +46,12 @@ export interface OrderStatusBandProps {
    * ใบไหนขนส่งยังไม่มารับ ใบไหนติดปัญหา. เก็บของเดิมไว้ให้ vertical อื่น (บ้านพัก/คิวงาน) ที่ไม่มี
    * พัสดุให้ไล่
    */
-  shipping?: {
-    AWAITING_PARCEL: number
-    AWAITING_PICKUP: number
-    SHIPPING: number
-    AWAITING_COD: number
-    PROBLEM: number
-  }
+  /**
+   * 🛑 พิมพ์จาก `ShippingStageKey` ไม่ใช่ไล่ชื่อช่องเอง — วันที่เพิ่มกองใหม่ (เช่น 'RETURNED'
+   * 2026-08-24) ถ้าที่นี่ถือรายชื่อของตัวเอง ไทล์จะขาดไปหนึ่งช่องเงียบ ๆ โดย `tsc` ไม่ฟ้อง
+   * เพราะ object ที่ "มีช่องเกิน" ยัง assign ได้ปกติ
+   */
+  shipping?: Record<Exclude<ShippingStageKey, 'DONE'>, number>
   /**
    * จำนวนนัดของวันนี้ — ส่งมา = แทนไทล์ที่ 2 ("กำลังจัดส่ง") ด้วย "นัดวันนี้" (user เคาะ 2026-08-07)
    *
@@ -167,6 +167,15 @@ const SHIPPING_STAGES: {
     icon: 'solar:danger-triangle-bold-duotone',
     iconClass: 'text-danger',
   },
+  {
+    // ตีกลับ = ของกลับมาถึงมือร้านแล้ว เรื่องกับขนส่งจบ เหลือแต่ร้านตัดสินใจ (คืนเงิน/ส่งใหม่/ปิดงาน)
+    // warning ไม่ใช่ danger — ถ้าแดงเท่ากับ PROBLEM ร้านจะกวาดตาแล้วแยกไม่ออกว่าใบไหนต้องโทร
+    // ตามขนส่งเดี๋ยวนี้ ซึ่งเป็นเหตุผลทั้งหมดที่แยกกองออกมา (ตรงกับ STAGE_BADGE_OVERRIDE.RETURNED)
+    key: 'RETURNED',
+    labelKey: 'stageReturned',
+    icon: 'solar:undo-left-round-bold-duotone',
+    iconClass: 'text-warning',
+  },
 ]
 
 export default async function OrderStatusBand({
@@ -273,8 +282,9 @@ export default async function OrderStatusBand({
 
       <div className="card-body !p-4">
         {/* grid 4 คอลัมน์ flat — ไม่มี bg/border ครอบ icon (spec §4.2 + mockup .ostat)
-            ชุดพัสดุมี 5 ไทล์ แต่ยังใช้ 4 คอลัมน์เหมือนเดิม: user สั่งลำดับมาเองว่า
-            [รอเลขพัสดุ · รอรับเข้า · กำลังจัดส่ง · รอเงิน COD] แล้ว "พัสดุมีปัญหา" ตกลงแถวสอง
+            ชุดพัสดุมี 6 ไทล์ (เพิ่ม "ตีกลับ" 2026-08-24) แต่ยังใช้ 4 คอลัมน์เหมือนเดิม: user
+            สั่งลำดับมาเองว่า [รอเลขพัสดุ · รอรับเข้า · กำลังจัดส่ง · รอเงิน COD] แล้ว
+            "พัสดุมีปัญหา" + "ตีกลับ" ตกลงแถวสอง (พอดี 4+2 ไม่มีช่องโหว่กลางแถว)
             — ได้กริดที่ไทล์ยังกว้างเท่าเดิม (~85px บนจอ 360px, ผ่าน tap target 44px)
             โดยไม่ต้องบีบเป็น 5 คอลัมน์ซึ่งจะเหลือช่องละ ~53px */}
         <div className="grid grid-cols-4 gap-2">

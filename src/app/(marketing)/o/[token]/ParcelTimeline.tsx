@@ -34,7 +34,7 @@ import { toast } from 'react-toastify'
 
 import { SHIPMENT_STAGES } from '@/lib/iship/status'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
-import { ORDER_STAGE_META, SHIPMENT_STAGE_DOT_INDEX, type ShippingStageKey } from '@/lib/order-stage'
+import { SHIPMENT_STAGE_DOT_INDEX, SHIPPING_STAGE_LABEL, type ShippingStageKey } from '@/lib/order-stage'
 import { VERIFIED_INK } from './TrustPill'
 
 type Props = {
@@ -61,7 +61,15 @@ export default function ParcelTimeline({ stage, hasShipment, tracking }: Props) 
   // ยังไม่มีพัสดุให้วาด — ไม่ใช่ error แค่ยังไม่ถึงเวลา
   if (current == null || !hasShipment) return null
 
+  /**
+   * สองกองที่อยู่ "นอกเส้นทางเดินหน้า" — ทั้งคู่ปักจุดรถแล้วบอกด้วยสี + กล่องเตือนใต้แถบ
+   * ผู้ซื้อต้องเห็น "ตีกลับ" ด้วย ไม่ใช่แค่ "มีปัญหา": ของกำลังเดินทางกลับ/กลับถึงร้านแล้ว
+   * ซึ่งเป็นข้อเท็จจริงที่เขาควรรู้ก่อนจะไปตามถามร้านว่าของอยู่ไหน · ข้อความในกล่องเตือนจึงไม่
+   * ผูกกับ "กำลัง/แล้ว" (stage เดียวครอบทั้ง `return` และ `return_success` แยกไม่ได้จากตรงนี้)
+   */
   const problem = stage === 'PROBLEM'
+  const returned = stage === 'RETURNED'
+  const offTrack = problem || returned
   const lastIndex = SHIPMENT_STAGES.length - 1
 
   /**
@@ -78,7 +86,11 @@ export default function ParcelTimeline({ stage, hasShipment, tracking }: Props) 
   const delivered = current >= lastIndex
   const reachedFill = delivered ? VERIFIED_INK : 'primary.main'
 
-  const currentLabel = problem ? ORDER_STAGE_META.PARCEL_PROBLEM.label : SHIPMENT_STAGES[activeIndex].label
+  // คำมาจาก SHIPPING_STAGE_LABEL ตัวเดียวกับชิป/ไทล์ฝั่งร้าน — ห้ามพิมพ์เองที่นี่ (HR16)
+  const currentLabel =
+    stage === 'PROBLEM' || stage === 'RETURNED'
+      ? SHIPPING_STAGE_LABEL[stage]
+      : SHIPMENT_STAGES[activeIndex].label
 
   const logo = tracking ? courierLogoUrl(tracking.courierCode, tracking.provider) : null
 
@@ -217,7 +229,7 @@ export default function ParcelTimeline({ stage, hasShipment, tracking }: Props) 
           const reached = i <= current
           const isCurrent = i === activeIndex
           // จุดที่ยืนอยู่ตอน "พัสดุมีปัญหา" เท่านั้นที่เป็นสีเตือน — จุดที่เดินผ่านมาแล้วยังเป็นปกติ
-          const fill = problem && isCurrent ? 'error.main' : reachedFill
+          const fill = offTrack && isCurrent ? (problem ? 'error.main' : 'warning.main') : reachedFill
 
           return (
             <Box
@@ -280,7 +292,7 @@ export default function ParcelTimeline({ stage, hasShipment, tracking }: Props) 
         })}
       </Box>
 
-      {problem && (
+      {offTrack && (
         /* กล่องเตือนอยู่ "ใต้แถบ" ตำแหน่งเดียวกับ progress.notice ของ ShipmentStatusView —
            แถบบอกว่าของอยู่ไหน กล่องนี้บอกว่ามีอะไรผิดปกติ คนละคำถามกัน จึงไม่ยุบรวมเป็นบรรทัดเดียว
            สีตัวอักษรใช้ `.dark` (เฉดเดิม เข้มขึ้น) ไม่ใช่ `.main` บนพื้นจาง ซึ่งตก AA
@@ -297,12 +309,18 @@ export default function ParcelTimeline({ stage, hasShipment, tracking }: Props) 
             py: 1,
             borderRadius: 1,
             fontWeight: 600,
-            color: 'error.dark',
-            bgcolor: 'rgb(var(--mui-palette-error-mainChannel) / 0.15)',
+            color: problem ? 'error.dark' : 'warning.dark',
+            bgcolor: problem
+              ? 'rgb(var(--mui-palette-error-mainChannel) / 0.15)'
+              : 'rgb(var(--mui-palette-warning-mainChannel) / 0.15)',
           }}
         >
-          <Icon icon='tabler-alert-triangle' fontSize={16} style={{ flexShrink: 0, marginTop: 1 }} />
-          {ORDER_STAGE_META.PARCEL_PROBLEM.label}
+          <Icon
+            icon={problem ? 'tabler-alert-triangle' : 'tabler-arrow-back-up'}
+            fontSize={16}
+            style={{ flexShrink: 0, marginTop: 1 }}
+          />
+          {problem ? SHIPPING_STAGE_LABEL.PROBLEM : 'พัสดุถูกตีกลับไปยังร้านค้า'}
         </Typography>
       )}
     </Box>

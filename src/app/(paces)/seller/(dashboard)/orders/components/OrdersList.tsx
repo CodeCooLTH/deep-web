@@ -46,7 +46,14 @@ import { ORDER_DATE_PRESETS, isSpecificDay, matchesOrderDateFilter } from '@/lib
 import { formatDateTH } from '@/lib/format-date'
 
 /** ลำดับชิปสถานะพัสดุ — เรียงตามเส้นทางจริงของพัสดุ ปิดท้ายด้วยกองที่ต้องแก้ */
-const STAGE_CHIPS = ['AWAITING_PARCEL', 'AWAITING_PICKUP', 'SHIPPING', 'AWAITING_COD', 'PROBLEM'] as const
+const STAGE_CHIPS = [
+  'AWAITING_PARCEL',
+  'AWAITING_PICKUP',
+  'SHIPPING',
+  'AWAITING_COD',
+  'PROBLEM',
+  'RETURNED',
+] as const
 
 // คำของแต่ละสถานะมาจาก SSOT ตัวเดียวกับ badge บนแถว/การ์ด (lib/order-display.ts) — ชิปกับป้าย
 // ที่อยู่ห่างกันไม่กี่สิบพิกเซลต้องพูดคำเดียวกันเสมอ ห้ามพิมพ์คำซ้ำไว้ที่นี่

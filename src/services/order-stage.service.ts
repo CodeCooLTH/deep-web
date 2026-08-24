@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { deriveOrderStage, type OrderStageInput } from '@/lib/order-stage'
-import { PROBLEM_STAGE_CARRIER_STATUSES } from '@/lib/iship/status'
+import { PROBLEM_CARRIER_STATUSES } from '@/lib/iship/status'
 
 /**
  * order-stage.service — หา "ออเดอร์ล่าสุดของลูกค้าแต่ละเธรด" เพื่อทำป้ายสถานะในรายการแชท
@@ -127,7 +127,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
       WHERE po."shopId" IN (${Prisma.join(shopIds)})
         AND po."customerId" IN (${Prisma.join(customerIds)})
         AND po."status" <> 'CANCELLED'
-        AND ps."carrierStatus" = ANY(${[...PROBLEM_STAGE_CARRIER_STATUSES]}::text[])
+        AND ps."carrierStatus" = ANY(${[...PROBLEM_CARRIER_STATUSES]}::text[])
       GROUP BY po."shopId", po."customerId"
     )
     -- DISTINCT ON ต้องมี shopId เป็นคีย์แรกเสมอ (feature 00037) — "ออเดอร์ล่าสุดของลูกค้าคนนี้"

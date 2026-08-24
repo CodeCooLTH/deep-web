@@ -277,6 +277,7 @@ export const th = {
     stageInTransit: 'กำลังจัดส่ง',
     stageCodPending: 'รอเงิน COD',
     stageProblem: 'พัสดุมีปัญหา',
+    stageReturned: 'ตีกลับ',
     appointmentToday: 'นัดวันนี้',
 
     /** หัวการ์ดตารางใบล่าสุด — {noun} = vocab.orderNoun */

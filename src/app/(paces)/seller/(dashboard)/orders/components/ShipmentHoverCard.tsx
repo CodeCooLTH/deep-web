@@ -43,6 +43,7 @@ const CURRENT_INDEX: Record<ShippingStageKey, number | null> = {
   AWAITING_PICKUP: 0,
   SHIPPING: 2,
   PROBLEM: 2,
+  RETURNED: 2,
   AWAITING_COD: 4,
   DONE: 4,
 }
@@ -111,7 +112,10 @@ export default function ShipmentHoverCard({
   )
 
   const cur = stage != null ? CURRENT_INDEX[stage] : null
+  // สีจุดปัจจุบันตามกอง — ต้องตรงกับ MiniShipmentTimeline เป๊ะ (การ์ดนี้ครอบแถบนั้นอยู่
+  // บนจอเดียวกัน ถ้าคนละสีจะอ่านเป็นคนละสถานะ): PROBLEM = danger · RETURNED = warning
   const problem = stage === 'PROBLEM'
+  const returned = stage === 'RETURNED'
 
   const dot = (i: number) => {
     const reached = cur != null && i <= cur
@@ -122,6 +126,8 @@ export default function ShipmentHoverCard({
           'flex size-8 shrink-0 items-center justify-center rounded-full',
           problem && isCurrent
             ? 'bg-danger text-white'
+            : returned && isCurrent
+              ? 'bg-warning text-white'
             : isCurrent
               ? 'bg-primary text-white'
               : reached

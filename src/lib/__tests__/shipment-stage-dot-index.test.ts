@@ -27,6 +27,7 @@ const ALL_STAGES: ShippingStageKey[] = [
   'SHIPPING',
   'AWAITING_COD',
   'PROBLEM',
+  'RETURNED',
   'DONE',
 ]
 
@@ -51,6 +52,16 @@ describe('SHIPMENT_STAGE_DOT_INDEX', () => {
 
   it('PROBLEM ปักจุดเดียวกับ SHIPPING (ไม่มีจุดแยกของ "มีปัญหา" ในแถบ 4 จุด)', () => {
     expect(SHIPMENT_STAGE_DOT_INDEX.PROBLEM).toBe(SHIPMENT_STAGE_DOT_INDEX.SHIPPING)
+  })
+
+  /**
+   * 🛑 ห้ามเป็น `SHIPMENT_STAGES.length` (จบเส้นทาง) — ค่านั้นทำให้ทั้งแถบเขียวครบ 4 จุด
+   * ซึ่งอ่านว่า "ส่งถึงมือผู้รับแล้ว" ทั้งที่ของเดินทางกลับมาหาร้าน = ตรงข้ามกับความจริง
+   * และเป็นสิ่งที่ผู้ซื้อเห็นบนหน้า /o/[token] ด้วย
+   */
+  it('RETURNED ปักจุดรถเหมือน PROBLEM ไม่ใช่จุดจบเส้นทาง', () => {
+    expect(SHIPMENT_STAGE_DOT_INDEX.RETURNED).toBe(SHIPMENT_STAGE_DOT_INDEX.SHIPPING)
+    expect(SHIPMENT_STAGE_DOT_INDEX.RETURNED).not.toBe(SHIPMENT_STAGES.length)
   })
 
   it('ทุกค่าที่ไม่ใช่ null อยู่ในช่วง 0..length (length = จบเส้นทาง)', () => {

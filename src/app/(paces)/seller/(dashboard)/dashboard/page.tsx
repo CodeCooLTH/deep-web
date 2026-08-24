@@ -35,6 +35,7 @@ import { toFileUrl } from '@/lib/file-url'
 import { getTrustLevel } from '@/services/trust-score.service'
 import { getOrdersByShop, getOrderStatusCounts, getShippingStageCounts } from '@/services/order.service'
 import { countsAsRevenue } from '@/lib/order-revenue'
+import type { ShippingStageKey } from '@/lib/order-stage'
 import { getBestSellerProducts } from '@/services/product.service'
 // คำที่ผันตามประเภทกิจการ (ORDER_VOCAB/PRODUCT_VOCAB) — SSOT เดียวของทั้งระบบ
 import { resolveOrderVocab } from '@/lib/seller-menu'
@@ -155,7 +156,8 @@ export default async function SellerDashboardPage() {
   // fallback = 0 ทุก bucket ถ้า fetch ล้ม (ตาม plan Error Handling)
   let orderStatusCounts = { PENDING: 0, SHIPPED: 0, CONFIRMED: 0, CANCELLED: 0 }
   // ตัวนับ "ของอยู่ไหน" — เฉพาะร้านขายออนไลน์ (user สั่ง 2026-08-04); undefined = การ์ดใช้ชุดเดิม
-  let shippingStageCounts: { AWAITING_PARCEL: number; AWAITING_PICKUP: number; SHIPPING: number; AWAITING_COD: number; PROBLEM: number } | undefined
+  // พิมพ์จาก ShippingStageKey ไม่ใช่ไล่ชื่อช่องเอง (ดูเหตุผลที่ CommandCenterData.shippingStageCounts)
+  let shippingStageCounts: Record<Exclude<ShippingStageKey, 'DONE'>, number> | undefined
   // จำนวนนัดวันนี้ — เฉพาะร้านที่ใช้ระบบคิวงานได้ (SERVICE_QUEUE); undefined = ไทล์ที่ 2 คงเป็น "กำลังจัดส่ง"
   let appointmentTodayCount: number | undefined
   // คำที่ผันตามประเภทกิจการ — resolve ที่นี่ที่เดียวแล้วส่งลง CommandCenter

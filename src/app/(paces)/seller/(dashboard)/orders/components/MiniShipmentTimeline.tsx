@@ -18,7 +18,7 @@ import { cn } from '@/utils/helpers'
 import { SHIPMENT_STAGES } from '@/lib/iship/status'
 // ตารางจุดไฮไลต์ย้ายไปเป็น SSOT ที่ order-stage.ts แล้ว — ฝั่งผู้ซื้อ (ParcelTimeline) เคยเขียน
 // ตรรกะของตัวเองขึ้นมาใหม่แล้วแมปผิดทั้งชุด สองจอต้องอ่านจากตารางเดียวกันเท่านั้น
-import { SHIPMENT_STAGE_DOT_INDEX, type ShippingStageKey } from '@/lib/order-stage'
+import { SHIPMENT_STAGE_DOT_INDEX, SHIPPING_STAGE_LABEL, type ShippingStageKey } from '@/lib/order-stage'
 
 interface Props {
   stage: ShippingStageKey | undefined
@@ -41,10 +41,23 @@ export default function MiniShipmentTimeline({ stage, hasShipment, cancelled, pl
     return <span className="text-default-400 text-sm">—</span>
   }
 
+  /**
+   * แถบ 4 จุดเล่าได้แค่ "ของเดินหน้าไปถึงไหน" — สองกองนี้อยู่นอกเส้นนั้น จึงยืมจุดรถมาปัก
+   * แล้วเปลี่ยนสี+คำแทน (SHIPMENT_STAGE_DOT_INDEX ให้ค่า 2 กับทั้งคู่ด้วยเหตุผลเดียวกัน)
+   *
+   * แยกสีตามกอง: PROBLEM = danger (ยังไม่รู้ผล ต้องไปตามขนส่ง) · RETURNED = warning
+   * (ของกลับมาถึงร้านแล้ว เหลือแต่ร้านตัดสินใจ) — ถ้าใช้สีเดียวกันก็เท่ากับไม่ได้แยกกอง
+   *
+   * 🛑 คำต้องมาจาก SHIPPING_STAGE_LABEL ไม่ใช่ literal ในไฟล์นี้ (เดิมพิมพ์ 'พัสดุมีปัญหา'
+   * ไว้เอง = คำเดียวกันสองที่ เลื่อนออกจากกันได้เงียบ ๆ — HR16)
+   */
   const problem = stage === 'PROBLEM'
-  const currentLabel = problem
-    ? 'พัสดุมีปัญหา'
-    : SHIPMENT_STAGES[Math.min(cur, SHIPMENT_STAGES.length - 1)].label
+  const returned = stage === 'RETURNED'
+  const offTrack = problem || returned
+  const currentLabel =
+    stage === 'PROBLEM' || stage === 'RETURNED'
+      ? SHIPPING_STAGE_LABEL[stage]
+      : SHIPMENT_STAGES[Math.min(cur, SHIPMENT_STAGES.length - 1)].label
   const ariaLabel = `สถานะพัสดุ: ${currentLabel}`
 
   const dot = (i: number, size: 'sm' | 'lg') => {
@@ -55,8 +68,10 @@ export default function MiniShipmentTimeline({ stage, hasShipment, cancelled, pl
         className={cn(
           'flex shrink-0 items-center justify-center rounded-full',
           size === 'sm' ? 'size-6' : 'size-8',
-          problem && isCurrent
-            ? 'bg-danger text-white'
+          offTrack && isCurrent
+            ? problem
+              ? 'bg-danger text-white'
+              : 'bg-warning text-white'
             : isCurrent
               ? 'bg-primary text-white'
               : reached
@@ -99,7 +114,12 @@ export default function MiniShipmentTimeline({ stage, hasShipment, cancelled, pl
     >
       {/* stepper เต็ม ทรงเดียวกับการ์ดการจัดส่ง (ShippingCard) ย่อส่วน */}
       <div className="p-3">
-        <p className={cn('mb-2 text-xs font-semibold', problem ? 'text-danger-ink' : 'text-default-900')}>
+        <p
+          className={cn(
+            'mb-2 text-xs font-semibold',
+            problem ? 'text-danger-ink' : returned ? 'text-warning-ink' : 'text-default-900',
+          )}
+        >
           {currentLabel}
         </p>
         <div className="flex items-center">

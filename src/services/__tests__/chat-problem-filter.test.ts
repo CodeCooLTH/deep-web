@@ -13,8 +13,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   PROBLEM_CARRIER_STATUSES,
-  PROBLEM_STAGE_CARRIER_STATUSES,
-  isProblemStageCarrierStatus,
+  RETURNED_CARRIER_STATUSES,
+  isProblemCarrierStatus,
 } from '@/lib/iship/status'
 import { deriveShippingStage } from '@/lib/order-stage'
 
@@ -25,32 +25,62 @@ const chatServiceSrc = stripComments(
   readFileSync(join(process.cwd(), 'src/services/chat.service.ts'), 'utf8'),
 )
 
+const stage = (carrierStatus: string) =>
+  deriveShippingStage({
+    status: 'SHIPPED',
+    carrierStatus,
+    hasShipment: true,
+    paymentMethod: 'TRANSFER',
+  })
+
 describe('นิยาม "พัสดุมีปัญหา" ต้องเป็นชุดเดียวทั้งระบบ', () => {
-  it('[blocker] ชุดของหน้าจอ = ชุดที่ขนส่งแจ้งปัญหา + ของที่ตีกลับถึงร้านแล้ว', () => {
+  /**
+   * 🛑 แยกกอง 2026-08-24 (user เจอบน prod): ใบที่ iShip บอก "ส่งคืนสำเร็จ" ไปแล้ว ยังค้างอยู่ใน
+   * ไทล์/ชิป "พัสดุมีปัญหา" ซึ่งบอกร้านผิดว่ายังต้องไปตามขนส่ง — ตอนนี้ตีกลับเป็นกอง RETURNED
+   * ของตัวเอง. ปักหมุด **ความไม่ทับกัน** ไว้ตรงนี้เพราะถ้าวันหนึ่งมีคนยัดสถานะกลับเข้าทั้งสอง
+   * ชุด ออเดอร์ใบเดียวจะถูกนับสองไทล์ แล้วผลรวมบนหน้าจอจะเกินจำนวนใบจริงโดยไม่มีอะไรฟ้อง
+   */
+  it('[blocker] สองชุดต้องไม่ทับกันเลยแม้แต่ค่าเดียว', () => {
+    const returned = new Set<string>(RETURNED_CARRIER_STATUSES)
     for (const code of PROBLEM_CARRIER_STATUSES) {
-      expect(PROBLEM_STAGE_CARRIER_STATUSES).toContain(code)
+      expect(returned.has(code)).toBe(false)
     }
-    expect(PROBLEM_STAGE_CARRIER_STATUSES).toContain('return_success')
+    expect(PROBLEM_CARRIER_STATUSES.length).toBeGreaterThan(0)
   })
 
-  it('[blocker] ทุกค่าในชุดต้องตกกอง PROBLEM ของ deriveShippingStage จริง ๆ', () => {
-    for (const code of PROBLEM_STAGE_CARRIER_STATUSES) {
-      expect(isProblemStageCarrierStatus(code)).toBe(true)
-      expect(
-        deriveShippingStage({
-          status: 'SHIPPED',
-          carrierStatus: code,
-          hasShipment: true,
-          paymentMethod: 'TRANSFER',
-        }),
-      ).toBe('PROBLEM')
+  it('[blocker] ทุกค่าในชุด "มีปัญหา" ต้องตกกอง PROBLEM ของ deriveShippingStage จริง ๆ', () => {
+    for (const code of PROBLEM_CARRIER_STATUSES) {
+      expect(isProblemCarrierStatus(code)).toBe(true)
+      expect(stage(code)).toBe('PROBLEM')
     }
   })
 
-  it('[blocker] ตัวกรองฝั่งแชทต้องอ้างชุดของหน้าจอ ไม่ใช่ชุดแคบ', () => {
-    expect(chatServiceSrc).toContain('PROBLEM_STAGE_CARRIER_STATUSES')
-    // ชุดแคบห้ามหลุดกลับเข้ามาในโค้ดจริง (ในคอมเมนต์อ้างถึงได้ — ถูกตัดออกไปแล้ว)
-    expect(chatServiceSrc).not.toContain('PROBLEM_CARRIER_STATUSES]')
+  it('[blocker] สายตีกลับต้องตกกอง RETURNED — ไม่ใช่ PROBLEM และไม่ใช่ DONE', () => {
+    for (const code of RETURNED_CARRIER_STATUSES) {
+      expect(isProblemCarrierStatus(code)).toBe(false)
+      expect(stage(code)).toBe('RETURNED')
+    }
+  })
+
+  /**
+   * `return_success` เป็น terminal ตัวหนึ่ง — ถ้าด่านตีกลับถูกย้ายไปไว้ *ใต้* สาขา terminal
+   * มันจะกลายเป็น DONE (หรือ AWAITING_COD ในใบ COD) = ของที่กองอยู่ที่ร้านหายจากทุกไทล์
+   */
+  it('[blocker] ใบ COD ที่ตีกลับต้องไม่กลายเป็น "รอเงิน COD"', () => {
+    expect(
+      deriveShippingStage({
+        status: 'SHIPPED',
+        carrierStatus: 'return_success',
+        hasShipment: true,
+        paymentMethod: 'COD',
+        codReceivedAt: null,
+      }),
+    ).toBe('RETURNED')
+  })
+
+  it('[blocker] ตัวกรองฝั่งแชทต้องอ้างชุดกลาง ไม่ใช่รายชื่อสถานะที่พิมพ์เอง', () => {
+    expect(chatServiceSrc).toContain('PROBLEM_CARRIER_STATUSES')
+    expect(chatServiceSrc).not.toMatch(/'(issue|cannot_pickup|return_success)'/)
   })
 })
 
@@ -86,7 +116,7 @@ describe('ตัวนับบนป้ายในแถวแชท (enrichWi
   )
 
   it('[blocker] ต้องนับใบที่ติดปัญหาแยกจากใบล่าสุด แล้วส่งเข้า deriveOrderStage', () => {
-    expect(enrichSrc).toContain('PROBLEM_STAGE_CARRIER_STATUSES')
+    expect(enrichSrc).toContain('PROBLEM_CARRIER_STATUSES')
     expect(enrichSrc).toContain(`po."status" <> 'CANCELLED'`)
     // ค่าที่นับได้ต้องถูก "ใช้" จริง ไม่ใช่แค่ดึงมาแล้ววางทิ้งไว้ในแถว
     expect(enrichSrc).toContain('problemOrderCount: r.problemOrderCount')

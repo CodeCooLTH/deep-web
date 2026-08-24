@@ -17,6 +17,9 @@ export type { ActivityItem }
 // ─── Business Package (แถบแพ็กเกจร้านค้าบนมือถือ — Row 3 ของ CompactHero) ────
 // import type จาก lib/business-package (pure module, client-safe) — ไม่ใช่ tierName (trust tier คนละเรื่อง)
 import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
+// 🛑 ตัวนับกองพัสดุต้องพิมพ์จาก ShippingStageKey เสมอ ห้ามไล่ชื่อช่องเอง — object ที่ "มีช่องเกิน"
+// assign ได้ปกติ ⇒ วันที่เพิ่มกองใหม่ ไทล์จะขาดไปหนึ่งช่องโดย tsc ไม่ฟ้อง (2026-08-24 เพิ่ม RETURNED)
+import type { ShippingStageKey } from '@/lib/order-stage'
 export type { BusinessPackageStatusApp, BusinessPackageTier }
 
 // ─── PromoBanner ─────────────────────────────────────────────────────────────
@@ -45,13 +48,7 @@ export type CommandCenterData = {
    * ตัวนับ "ของอยู่ไหน" — มีเฉพาะร้าน ONLINE_SALES (user สั่ง 2026-08-04); vertical อื่นเป็น
    * undefined แล้วการ์ดตกกลับไปใช้ orderStatusCounts ชุดเดิม (บ้านพัก/คิวงานไม่มีพัสดุให้ไล่)
    */
-  shippingStageCounts?: {
-    AWAITING_PARCEL: number
-    AWAITING_PICKUP: number
-    SHIPPING: number
-    AWAITING_COD: number
-    PROBLEM: number
-  }
+  shippingStageCounts?: Record<Exclude<ShippingStageKey, 'DONE'>, number>
   /**
    * จำนวนนัดของวันนี้ — มีเฉพาะร้านที่ผ่าน canUseAppointments (SERVICE_QUEUE) เท่านั้น
    * ส่งมา = ไทล์ที่ 2 ของ OrderStatusBand เปลี่ยนจาก "กำลังจัดส่ง" (ที่ร้านประเภทนี้เข้าไม่ถึง

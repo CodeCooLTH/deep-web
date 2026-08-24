@@ -207,6 +207,7 @@ export const en: Dictionary = {
     stageInTransit: 'In transit',
     stageCodPending: 'COD pending',
     stageProblem: 'Delivery problem',
+    stageReturned: 'Returned',
     appointmentToday: 'Today’s appointments',
 
     recentOrdersTitle: 'Recent {noun}s',

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { PROBLEM_STAGE_CARRIER_STATUSES } from '@/lib/iship/status'
+import { PROBLEM_CARRIER_STATUSES } from '@/lib/iship/status'
 import { canAccessShop, listAccessibleShopIds } from '@/lib/shop-context'
 import { Prisma } from '@prisma/client'
 import { getProductById } from '@/services/product.service'
@@ -210,8 +210,13 @@ export async function conversationIdsByShipmentState(
    * คอมเมนต์หัวฟังก์ชัน) ส่วนตัวนี้ถามว่า "มีของค้างที่ต้องตามไหม" ซึ่ง **ไม่หายไปเพราะลูกค้า
    * สั่งใบใหม่ทับ** — ของเดิมยังตีกลับ/ติดค้างอยู่จริง
    *
-   * เดิมใช้ใบล่าสุดใบเดียว + เทียบกับ PROBLEM_CARRIER_STATUSES ที่ไม่มี `return_success`
-   * ⇒ ชิปในกล่องแชทขึ้น 3 ขณะที่หน้า /orders ขึ้น 10 ใบ (user เจอบน prod 2026-08-20)
+   * เดิมใช้ใบล่าสุดใบเดียว ⇒ ชิปในกล่องแชทขึ้น 3 ขณะที่หน้า /orders ขึ้น 10 ใบ
+   * (user เจอบน prod 2026-08-20)
+   *
+   * 🛑 ชุดที่เทียบต้องเป็น `PROBLEM_CARRIER_STATUSES` **ตัวเดียวกับที่ `deriveShippingStage`
+   * ใช้ตัดสินกอง PROBLEM** เสมอ — ตั้งแต่ 2026-08-24 ชุดนั้นไม่รวมสายตีกลับแล้ว (ตีกลับเป็น
+   * กอง `RETURNED` ของตัวเอง) ถ้าที่นี่ยังนับตีกลับอยู่ ชิปในแชทจะมากกว่าไทล์หน้า /orders
+   * ด้วยอาการกลับด้านกับบั๊กเดิมเป๊ะ ๆ
    * ตัวเลขยังไม่เท่ากันเป๊ะโดยเจตนา — ที่นี่นับ *เธรด* หน้านั้นนับ *ออเดอร์* ลูกค้าที่มีหลายใบ
    * จึงเป็น 1 เธรด แล้วบอกจำนวนบนป้ายแทน ("พัสดุมีปัญหา ×2" — ดู orderStageChipLabel)
    */
@@ -237,7 +242,7 @@ export async function conversationIdsByShipmentState(
           WHERE o."shopId" = c."shopId"
             AND o."customerId" = COALESCE(ec."customerId", cu."id")
             AND o."status" <> 'CANCELLED'
-            AND s."carrierStatus" = ANY(${[...PROBLEM_STAGE_CARRIER_STATUSES]}::text[])
+            AND s."carrierStatus" = ANY(${[...PROBLEM_CARRIER_STATUSES]}::text[])
         )
     `
     return problemRows.map((r) => r.id)

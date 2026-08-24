@@ -44,7 +44,15 @@ describe('resolveOrderStatusHeadline', () => {
 
   it('ไม่มีทางคืนป้ายที่พูดคำเดียวกับหัวเรื่อง (ทุกคู่ status × stage)', () => {
     const statuses = ['PENDING', 'SHIPPED', 'CONFIRMED', 'CANCELLED']
-    const stages = ['AWAITING_PARCEL', 'AWAITING_PICKUP', 'SHIPPING', 'AWAITING_COD', 'PROBLEM', 'DONE'] as const
+    const stages = [
+      'AWAITING_PARCEL',
+      'AWAITING_PICKUP',
+      'SHIPPING',
+      'AWAITING_COD',
+      'PROBLEM',
+      'RETURNED',
+      'DONE',
+    ] as const
     for (const status of statuses) {
       for (const stage of stages) {
         for (const hasShipment of [true, false]) {
