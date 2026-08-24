@@ -47,7 +47,12 @@ describe('GET /api/cron/chat-outbox — auth', () => {
 
   it('CRON_SECRET เป็นสตริงว่าง → 401 (ค่าที่ falsy ต้องถูกปฏิเสธเหมือนไม่มีค่า)', async () => {
     process.env.CRON_SECRET = ''
-    const res = await GET(req('Bearer '))
+    // 🛑 ต้องสร้าง header ด้วย stub ไม่ใช่ `new Request(...)`: ค่า header ของ HTTP ถูก trim ท้าย
+    // ⇒ `'Bearer '` เดินทางมาถึงเป็น `'Bearer'` แล้วไม่ตรงกับ `` `Bearer ${''}` `` พอดี
+    // เทสที่ยิงผ่าน Request จริงจึงเขียวได้แม้ถอดด่าน `!cronSecret` ทิ้ง (พิสูจน์ด้วย mutation
+    // ตอนเขียนเทสข้อนี้) = เทสเปล่าที่หน้าตาเหมือนด่าน — สิ่งที่ต้องวัดคือ boolean ไม่ใช่ HTTP
+    const stub = { headers: { get: () => `Bearer ${''}` } } as unknown as Request
+    const res = await GET(stub)
     expect(res.status).toBe(401)
     expect(sweepOutbox).not.toHaveBeenCalled()
   })

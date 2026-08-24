@@ -358,10 +358,43 @@ function installStore(store: FakeRow[], stolen: Set<string> = new Set()) {
       return { count: 1 }
     },
   )
+  // `update` (ไม่มีเงื่อนไข) — เขียนทับเสมอ. ไม่มีโค้ดเส้นไหนควรเรียกตัวนี้แล้ว แต่ต้องคง
+  // พฤติกรรม "เขียนทับได้" ไว้ ไม่งั้นเทสของ R-F จะเขียวทั้งที่ใครกลับไปใช้ `update` เปล่า
+  update.mockImplementation(async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+    const row = store.find((r) => r.id === args.where.id)
+    if (row && typeof args.data.deliveryStatus === 'string') row.deliveryStatus = args.data.deliveryStatus
+    return {}
+  })
   return store
 }
 
 const sentTexts = () => transmitOutbound.mock.calls.map((c) => (c[1] as { text?: string }).text)
+
+describe('closeRow — conditional เสมอ (R-F)', () => {
+  /**
+   * 🛑 นี่คือทางเกิดข้อความซ้ำ **ทางเดียวที่เหลืออยู่** ในดีไซน์นี้:
+   *
+   * worker ที่ยิงช้ากว่า `STALE_CLAIM_MS` (3 นาที) จะถูกตัวกวาดปิดแถวเป็น FAILED "ไม่แน่ใจว่าส่ง
+   * ไปหรือยัง" ไปก่อน — ผู้ขายเห็นบับเบิลแดง (นานพอที่จะกดส่งซ้ำ) แล้วถ้า worker ตัวเดิมกลับมา
+   * เขียน SENT ทับได้ มันจะกลายเป็นเขียวทีหลังโดยที่ลูกค้าได้ข้อความไปแล้ว 2 ใบ
+   *
+   * เทสนี้จงใจวัด **ผลลัพธ์บนแถว** ไม่ใช่รูปร่างของคำสั่ง — ถ้าใครกลับไปใช้ `update` เปล่า
+   * (ซึ่งเขียนทับได้เสมอ) แถวจะจบเป็น SENT แล้วข้อนี้แดงทันที
+   */
+  it('[blocker] แถวถูกปิดเป็น FAILED ระหว่างที่เรากำลังยิง → ห้ามเขียน SENT ทับ', async () => {
+    const store = installStore(makeRows(1))
+    resolveOutboundContext.mockResolvedValue({ id: 'c1', channel: 'MESSENGER', shopId: 's1' })
+    transmitOutbound.mockImplementation(async () => {
+      // ตัวกวาดปิดแถวนี้ไปแล้วระหว่างที่เรารอปลายทางตอบ (claim ค้างเกินเพดาน)
+      store[0]!.deliveryStatus = 'FAILED'
+      return OK
+    })
+
+    await deliverRoom('c1', 'after')
+
+    expect(store[0]!.deliveryStatus).toBe('FAILED')
+  })
+})
 
 describe('deliverRoom — ระบายคิวทั้งห้อง', () => {
   it('[blocker] ห้องมี 3 แถว → เรียกครั้งเดียวต้องระบายครบ เรียงเก่า→ใหม่ (ใบที่ 2 ห้ามค้างรอตัวกวาด)', async () => {
@@ -713,6 +746,29 @@ describe('sweepOutbox', () => {
 
     expect(res.sent).toBe(0)
     expect(transmitOutbound).not.toHaveBeenCalled()
+  })
+
+  // 🛑 ข้อนี้แยกจากข้อ "หลายห้อง" โดยตั้งใจ: ห้องเดียวที่มีคิวยาวคือเคสที่ **เฉพาะ** ด่านใน
+  // `drainRoom` เท่านั้นที่จับได้ (ด่านระดับลูปห้องไม่มีวันถูกเรียกซ้ำเลยภายในห้องเดียว)
+  // ถ้าไม่มีข้อนี้ การถอดด่านใน drainRoom ทิ้งจะไม่ทำให้อะไรแดงเลย
+  it('[blocker] งบเวลาหมดกลางห้องเดียว → หยุดที่ใบถัดไป ไม่ระบายจนหมดคิว (R-E)', async () => {
+    groupBy.mockResolvedValue([room('SOLO')])
+    conversationFindMany.mockResolvedValue([{ id: 'SOLO', shopChannelId: 'page1' }])
+    installStore(makeRows(8, 'SOLO'))
+    resolveOutboundContext.mockImplementation(async (p: { conversationId: string }) => ({
+      id: p.conversationId,
+      channel: 'MESSENGER',
+      shopId: 's1',
+    }))
+    transmitOutbound.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+      return OK
+    })
+
+    const res = await sweepOutbox({ owner: 'cron', budgetMs: 25 })
+
+    expect(res.sent).toBeGreaterThan(0)
+    expect(res.sent).toBeLessThan(8)
   })
 
   it('[blocker] งบเวลาหมดกลางคัน → หยุดที่ห้องถัดไป ไม่ใช่ทำต่อจนครบทุกห้อง (R-E)', async () => {

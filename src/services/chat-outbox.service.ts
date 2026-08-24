@@ -618,8 +618,9 @@ export async function sweepOutbox(opts: {
       const ids = queue.shift()
       if (!ids) break
       for (const conversationId of ids) {
-        // หมดงบเวลาแล้ว — หยุดเองอย่างสุภาพ ห้ามปล่อยให้ maxDuration ฆ่ากลาง claim (ดู drainRoom)
-        if (Date.now() >= deadline) return
+        // 🛑 ไม่มีด่านงบเวลาซ้ำตรงนี้โดยตั้งใจ — `drainRoom` เช็คเป็นสิ่งแรกก่อน claim ใด ๆ อยู่แล้ว
+        // ⇒ ห้องที่เหลือจะจบทันทีโดยไม่แตะ DB. ด่านที่สองที่ให้ผลเหมือนกันทุกกรณีคือด่านที่เขียน
+        // กลับด้านแล้วไม่มีอะไรจับได้ (พิสูจน์ด้วย mutation: ถอดออกแล้วเทสยังเขียวทั้งชุด)
         try {
           // ระบายจนหมดห้อง ไม่ใช่ใบเดียวต่อรอบกวาด — ไม่งั้นห้องที่มี 3 ใบค้างต้องรอ 3 นาที
           const res = await drainRoom(conversationId, opts.owner, deadline)
