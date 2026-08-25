@@ -836,8 +836,16 @@ export default function OrdersTable({
           Base/source: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersList.tsx
           (ดู docs/system/ui-guideline/seller/page-sourcing.md → orders). คง w-* บน select กัน flex บีบ label หาย */}
       <div className="card-header">
-        {/* ซ้าย: search */}
-        <div className="flex gap-2.5">
+        {/* ซ้าย: search
+            🛑 `flex-1` จำเป็น ไม่ใช่ของแต่ง — `.card-header` เป็น `justify-between` และ
+            `.input-icon-group` ไม่มี flex-grow ⇒ ที่ว่างที่เหลือทั้งแถวถูกแปลงเป็น "ช่องไฟ
+            ระหว่างกลุ่ม" แทนที่จะป้อนให้ช่องค้นหา ⇒ กล่องกว้างเท่า intrinsic width ของ
+            <input> เปล่า ๆ (~200px) แล้ว placeholder ถูกตัดกลางคำ (user เจอบน prod 2026-08-25)
+            ธีมต้นทางไม่เคยเจอเพราะ placeholder ของเขาสั้น 14 ตัวอักษร — ของเรายาวขึ้นใน 00058
+            แต่ไม่ได้ยืดกล่องคู่กัน
+            `max-w-sm` = ไม่ปล่อยให้ช่องค้นหาเด่นกว่าโซนตัวกรอง/ปุ่มสร้างบนจอกว้างมาก
+            (Impeccable operate.md — Product defaults to Restrained) */}
+        <div className="flex min-w-0 max-w-sm flex-1 gap-2.5">
           {/* relative = กล่องอ้างอิงของปุ่มล้างคำค้น — ไม่แตะโครง .input-icon-group เอง */}
           <div className="input-icon-group relative">
             <Icon icon="search" className="input-icon" />
@@ -846,6 +854,9 @@ export default function OrdersTable({
               /* ข้อความเดียวกับมือถือ — จอเดียวกันต้องสัญญาเรื่องเดียวกัน (HR16) */
               className="form-input"
               placeholder={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์ / เลขพัสดุ / สินค้า`}
+              /* กันเคสที่ยืดกล่องแล้วยังไม่พอ (ร้านคิวงานมี vocab.noun ยาวกว่า) — tooltip
+                 ของเบราว์เซอร์เอง ไม่ต้องสร้าง element ใหม่ให้แถบนี้สูงขึ้น */
+              title={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์ / เลขพัสดุ / สินค้า`}
               value={search}
               /* onSearchChange อยู่นอก transition โดยตั้งใจ — controlled input ที่ถูก defer
                  จะพิมพ์ตามนิ้วไม่ทัน; แผงเปิดด้วย begin() แล้วหุบเองหลังหยุดพิมพ์
