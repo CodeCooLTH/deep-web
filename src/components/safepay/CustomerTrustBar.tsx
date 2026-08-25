@@ -88,8 +88,15 @@ export default function CustomerTrustBar({ reputation, size = 'sm' }: Props) {
         {seg.returnedPct > 0 && (
           <span className="bg-warning block h-full" style={{ width: `${seg.returnedPct}%` }} />
         )}
+        {/*
+          🛑 `bg-default-400` (#627189) ไม่ใช่ `bg-default-200` (#eef2f7) — ตัวหลังต่างจากราง
+          `bg-default-100` (#f6f7fb) แค่ **1.04:1** คือมองไม่เห็นเลย ⇒ ช่อง "ยังไม่จบ" จะอ่านเป็น
+          **รางเปล่า** แล้วผู้ขายที่บวกสัดส่วนตามจะได้ไม่ครบ 100% แล้วสรุปว่าแถบคำนวณผิด
+          (`partial-data-must-be-labeled-or-filled.md`) · เทาเข้ม = "ยังไม่รู้ผล" ไม่ใช่คำตัดสิน
+          จึงยังไม่ขัดกติกาสีของ `customer-behavior.ts` ที่ห้ามแดง
+        */}
         {seg.pendingPct > 0 && (
-          <span className="bg-default-200 block h-full" style={{ width: `${seg.pendingPct}%` }} />
+          <span className="bg-default-400 block h-full" style={{ width: `${seg.pendingPct}%` }} />
         )}
       </div>
 
@@ -103,6 +110,18 @@ export default function CustomerTrustBar({ reputation, size = 'sm' }: Props) {
             <span className="bg-warning size-1.5 shrink-0 rounded-full" />
             ตีกลับ{' '}
             <b className="text-warning-ink font-semibold tabular-nums">{reputation.returned}</b>
+          </span>
+        )}
+        {/*
+          🛑 ช่องนี้เคยหายไปจากคำอธิบายทั้งที่ `segments()` คำนวณไว้และ `aria-label` ประกาศครบ 4 ตัว
+          ⇒ **ผู้ใช้ screen reader ได้ข้อมูลครบกว่าคนที่มองเห็น** (legend ทั้งก้อน `aria-hidden`)
+          และสัดส่วนที่เห็นจะบวกไม่ครบ 100% โดยไม่มีอะไรอธิบายว่าส่วนที่หายไปคืออะไร
+        */}
+        {seg.pending > 0 && (
+          <span className="text-default-600 inline-flex items-center gap-1">
+            <span className="bg-default-400 size-1.5 shrink-0 rounded-full" />
+            ยังไม่จบ{' '}
+            <b className="text-default-900 font-semibold tabular-nums">{seg.pending}</b>
           </span>
         )}
         {/*

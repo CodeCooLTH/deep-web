@@ -160,14 +160,14 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     },
     {
       value: String(stats.watchCount),
-      title: 'ลูกค้าต้องเฝ้าระวัง',
+      title: 'ลูกค้าต้องเฝ้าระวัง (ร้านนี้)',
       caption: share(stats.watchCount),
       icon: 'alert-triangle',
       tone: 'bg-dark',
     },
     {
       value: stats.totalCustomers.toLocaleString('th-TH'),
-      title: 'ลูกค้าทั้งหมด',
+      title: 'ลูกค้าทั้งหมด (ร้านนี้)',
       caption: undefined,
       icon: 'users',
       tone: 'bg-primary',

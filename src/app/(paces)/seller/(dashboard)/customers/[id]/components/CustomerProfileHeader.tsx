@@ -18,7 +18,7 @@ import CustomerTrustBar from '@/components/safepay/CustomerTrustBar'
 import { formatBaht } from '@/lib/format-money'
 import { formatDateTime } from '@/lib/format-date'
 import type { ShippingAddressLike } from '@/lib/shipping-address-status'
-import type { CustomerBadge } from '@/lib/customer-behavior'
+import { hasBehaviorWarning, type CustomerBadge } from '@/lib/customer-behavior'
 import { MIN_SHIPPED_FOR_RATE, type BuyerReputation } from '@/lib/buyer-reputation'
 import type { CustomerDirectoryEntry } from '@/lib/customer-directory'
 
@@ -78,6 +78,8 @@ export default function CustomerProfileHeader({
 
   const rep = reputation
   const enoughBase = rep !== null && rep.shipped >= MIN_SHIPPED_FOR_RATE
+  const warnings = badges.filter((b) => b.tone === 'warning')
+  const warned = hasBehaviorWarning(badges)
 
   return (
     <>
@@ -90,11 +92,24 @@ export default function CustomerProfileHeader({
 
         `border-s-3 border-warning` = ข้อยกเว้นของ Paces ที่ขึ้นทะเบียนไว้แล้วใน DESIGN.md
         ใส่เฉพาะตอนมีสัญญาณจริง — ไม่มีสัญญาณแล้วขอบเหลืองค้างคือการเตือนสิ่งที่ไม่มีอยู่
+
+        🛑 **เกณฑ์ต้องเป็น `hasBehaviorWarning` ห้ามเป็น `badges.length > 0`** — `customerBadges()`
+        ใส่ป้าย `NEW` (tone `info`) ให้ทุกคนที่ซื้อ ≤1 ครั้ง ซึ่งคือลูกค้า **ส่วนใหญ่ของทุกร้าน**
+        ⇒ เกณฑ์นับใบจะทำให้ลูกค้าใหม่ที่ประวัติสะอาดได้ขอบเหลืองเตือน (โค้ดเดิมทำสิ่งที่
+        คอมเมนต์บรรทัดบนห้ามไว้พอดี) และ **หน้าลิสต์นับ "ลูกค้าต้องเฝ้าระวัง" ด้วย
+        `hasBehaviorWarning` อยู่แล้ว** ⇒ สองจอนับคนละเกณฑ์ = HR16
       */}
-      <div className={`card ${badges.length > 0 ? 'border-warning border-s-3' : ''}`}>
+      <div className={`card ${warned ? 'border-warning border-s-3' : ''}`}>
         <div className="card-header">
           <h5 className="card-title">ความน่าเชื่อถือ</h5>
-          {badges.length > 0 && <CustomerBehaviorPills badges={badges.slice(0, 1)} />}
+          {/*
+            🛑 **ห้าม `badges.slice(0, 1)`** — `customerBadges()` push `NEW`/`REGULAR` (info)
+            ก่อน `RETURNED`/`CANCELLED_BY_BUYER` (warning) เสมอ ⇒ การตัดใบแรกคือการ
+            **ซ่อนคำเตือนทุกใบ** ในการ์ดที่ชื่อว่า "ความน่าเชื่อถือ": ลูกค้าที่ตีกลับ 3
+            ยกเลิก 2 จะขึ้นว่า "ลูกค้าเก่า 5 ออเดอร์" สีฟ้าเฉย ๆ
+            ⇒ มีคำเตือน = โชว์คำเตือนทั้งหมด (มีได้มากสุด 2 ใบ) · ไม่มี = โชว์ป้ายบริบทใบเดียว
+          */}
+          <CustomerBehaviorPills badges={warned ? warnings : badges.slice(0, 1)} />
         </div>
         <div className="card-body">
           <p className="text-default-500 text-2xs mb-0">รับของสำเร็จ (ทั้งระบบ)</p>
@@ -143,7 +158,7 @@ export default function CustomerProfileHeader({
                 <span className="max-w-full truncate">{entry.displayName}</span>
               </h1>
               {/* หน้านี้เปิดมาดูลูกค้ารายเดียวโดยตั้งใจแล้ว — แสดงเบอร์เต็ม ต่างจากลิสต์ที่ยัง mask */}
-              <p className="text-default-500 mb-0 font-mono text-sm tabular-nums">
+              <p className="text-default-500 mb-0 text-sm tabular-nums">
                 {entry.contactFull ?? '—'}
               </p>
               <p className="text-2xs text-default-400 mb-0">

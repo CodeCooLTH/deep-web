@@ -110,7 +110,21 @@ export default async function CustomerProfilePage({ params }: PageProps) {
 
   return (
     <>
-      {/* เส้นทางกลับต้องกดได้จริง — หน้านี้เปิดจากแชท/หน้าออเดอร์ได้ด้วย ไม่ได้มาจากลิสต์เสมอ */}
+      {/*
+        เส้นทางกลับต้องกดได้จริง — หน้านี้เปิดจากแชท/หน้าออเดอร์ได้ด้วย ไม่ได้มาจากลิสต์เสมอ
+
+        🛑 `PageBreadcrumb` ห่อ trail ไว้ใน `hidden … md:flex` (`PageBreadcrumb.tsx:46`) ⇒
+        **ต่ำกว่า 768px ไม่มีลิงก์กลับเลย** ซึ่งขัดกับประโยคบรรทัดบนที่เขียนไว้เองตั้งแต่แรก
+        คนที่กดเข้ามาจากลิงก์ในแชทจึงติดอยู่ในหน้านี้ เหลือแต่ปุ่ม back ของเบราว์เซอร์
+        (ซึ่งในแอปมือถือที่ห่อด้วย WebView ไม่ได้อยู่ในสายตาเสมอไป)
+        ⇒ ลิงก์กลับของมือถือต้องเป็นของหน้านี้เอง ไม่ใช่พึ่ง breadcrumb
+      */}
+      <Link
+        href="/customers"
+        className="text-default-600 hover:text-primary mb-3 -ms-1 inline-flex min-h-11 items-center gap-1 text-sm font-medium md:hidden">
+        <Icon icon="chevron-left" className="text-base" aria-hidden="true" />
+        ลูกค้า
+      </Link>
       <PageBreadcrumb
         title={entry.displayName}
         trail={[{ label: 'ลูกค้า', href: '/customers' }]}

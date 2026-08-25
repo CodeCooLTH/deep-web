@@ -44,7 +44,7 @@ export default function CustomerProfileOrders({ orders, vocabNoun }: Props) {
                 aria-label={`เปิด${vocabNoun} ${formatOrderNo(o.publicToken, o.createdAtISO)}`}
               />
               <div className="min-w-0 flex-1">
-                <p className="text-default-900 mb-0 truncate font-mono text-sm font-medium">
+                <p className="text-default-900 mb-0 truncate text-sm font-medium tabular-nums">
                   {formatOrderNo(o.publicToken, o.createdAtISO)}
                 </p>
                 <p className="text-default-500 text-2xs mb-0">

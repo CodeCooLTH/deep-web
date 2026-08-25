@@ -91,7 +91,7 @@ function ContactCell({ row }: { row: CustomerRow }) {
   return (
     <span className="inline-flex items-center gap-1">
       {/* select-all: คลิกเดียวเลือกทั้งเบอร์ ไม่ต้องลาก (ท่าเดียวกับตาราง /orders) */}
-      <span className="text-default-500 select-all font-mono text-sm tabular-nums">
+      <span className="text-default-500 select-all text-sm tabular-nums">
         {full ?? row.contact}
       </span>
       {row.hasContact && (
@@ -210,8 +210,25 @@ const CustomerTable = ({
           <div className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
             {row.original.initial}
           </div>
-          <h5 className="flex min-w-0 items-center gap-1 text-sm font-medium">
-            <span className="max-w-full truncate">{row.original.displayName}</span>
+          {/*
+            🛑 ชื่อต้องเป็น `<Link>` ไม่ใช่ `<span>` — เดิมทางเข้าหน้าโปรไฟล์บนเดสก์ท็อปมี
+            **ทางเดียว** คือ `onRowClick` ที่ `DataTable` แปะลง `<tr>` เปล่า ๆ (ไม่มี tabIndex
+            ไม่มี role ไม่มี key handler) ⇒ **ผู้ใช้คีย์บอร์ด/AT เข้าหน้านี้ไม่ได้เลย**
+            (WCAG 2.1.1 ระดับ A) ขณะที่ PRODUCT.md ประกาศว่าคีย์บอร์ดใช้งานได้ครบ ·
+            คอมเมนต์ใน `DataTable` เขียนเองว่าคลิกทั้งแถวเป็น "ทางลัด ไม่ใช่ทางเดียว"
+            แต่ตารางนี้ไม่มีคอลัมน์ปุ่มไอคอนเลยสักคอลัมน์ · ของแถม: ตอนนี้มีอะไรบอกว่ากดได้
+            (เดิมรู้ได้จาก `cursor-pointer` ตอนเอาเมาส์ไปวางเท่านั้น)
+
+            เลิกใช้ `<h5>` ด้วย — เป็น heading ระดับ 5 ต่อ **ทุกแถว** (8 อันต่อหน้า) ที่ไม่ได้
+            เปิดหัวข้อของอะไรเลย ⇒ AT ที่เดินตามโครงหัวข้อจะได้รายการหัวข้อปลอม 8 อัน
+          */}
+          <div className="flex min-w-0 items-center gap-1 text-sm font-medium">
+            <Link
+              href={`/customers/${encodeURIComponent(row.original.key)}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-default-900 hover:text-primary max-w-full truncate">
+              {row.original.displayName}
+            </Link>
             {row.original.isRegistered && row.original.username && (
               // ใช้ <a> แทน next/link เพราะเป็น cross-domain nav ไปยัง buyer domain
               // href เป็น absolute URL เพื่อป้องกัน proxy /seller/u/{username} → 404
@@ -226,7 +243,7 @@ const CustomerTable = ({
               </a>
             )}
             <CustomerBehaviorIcons badges={row.original.badges} />
-          </h5>
+          </div>
         </div>
       ),
     }),
