@@ -14,11 +14,15 @@ import {
   canCreateReturn,
   computeRefundAmount,
   isFullyReturned,
-  resolveCountAsCost,
+  parseReturnParcel,
+  resolveReturnShippingChoice,
   validateReturnShipping,
+  type ReturnMethodKey,
+  type ReturnParcelBox,
   type ReturnPayer,
   type ReturnTrackingSource,
 } from '@/lib/order-return'
+import { toFileUrl } from '@/lib/file-url'
 
 /**
  * order-return.service — ระบบคืนของ (feature 00056)
@@ -39,12 +43,26 @@ export class OrderReturnError extends Error {
   }
 }
 
-/** พัสดุ **ขาไป** ใบล่าสุดของออเดอร์ — ตัวตัดสินว่า "ของถึงมือลูกค้าแล้วหรือยัง" */
+/**
+ * พัสดุ **ขาไป** ใบล่าสุดของออเดอร์ — ตัวตัดสินว่า "ของถึงมือลูกค้าแล้วหรือยัง"
+ *
+ * ดึงขนส่ง/เลข/กล่องมาด้วย เพราะจอคืนของต้องใช้ทั้ง 3 อย่างในคำขอเดียวกัน (D-3/D-5):
+ * แถบ "ขาไป" บนหัวชีต · ค่าตั้งต้นของขนส่งขากลับ · กล่องที่ใช้ประเมินค่าส่ง
+ */
 const forwardShipmentQuery = {
   where: { status: 'CREATED', isDryRun: false, direction: FORWARD_SHIPMENT },
   orderBy: { createdAt: 'desc' },
   take: 1,
-  select: { carrierStatus: true },
+  select: {
+    carrierStatus: true,
+    courierCode: true,
+    courierName: true,
+    trackingNo: true,
+    weight: true,
+    width: true,
+    length: true,
+    height: true,
+  },
 } as const
 
 /**
@@ -62,8 +80,23 @@ async function loadReturnContext(shopId: string, orderId: string) {
       buyerName: true,
       buyerContact: true,
       shippingAddress: true,
-      items: { select: { id: true, name: true, qty: true, price: true } },
+      items: {
+        select: {
+          id: true,
+          name: true,
+          qty: true,
+          price: true,
+          // รูปสินค้าจริงในแถวเลือกของ (D-9) — ไม่มีรูป = กล่องเทาเปล่า ห้ามใช้ไอคอนแทน
+          product: { select: { images: true } },
+        },
+      },
       shipments: forwardShipmentQuery,
+      /**
+       * 🛑 เลขพัสดุมี **2 ทางเข้า เก็บคนละตาราง** (docs/conventions/one-value-many-entry-points.md)
+       * ส่งเอง → `ShipmentTracking` (ชื่อขนส่งเป็นข้อความ ไม่มีรหัส) · ผ่าน iShip → `OrderShipment`
+       * อ่านทางเดียวแล้วแถบ "ขาไป" จะว่างเปล่าสำหรับร้านที่แจ้งเลขเอง ซึ่งเป็นครึ่งหนึ่งของร้าน
+       */
+      shipmentTracking: { select: { provider: true, trackingNo: true } },
       returns: {
         select: {
           id: true,
@@ -101,6 +134,24 @@ export type ReturnableItem = {
   returnedQty: number
   remainingQty: number
   unitPrice: number
+  /** รูปสินค้าจริง (D-9) — `null` = ไม่มีรูป จอต้องแสดงกล่องเทาเปล่า **ห้ามใช้ไอคอนแทน** */
+  imageUrl: string | null
+}
+
+/**
+ * พัสดุ **ขาไป** ที่แถบบนสุดของชีตต้องแสดง — รวมสองทางเข้าเป็นรูปเดียว
+ *
+ * 🛑 iShip ชนะเมื่อมีทั้งคู่ (มีรหัสขนส่งจริง จับคู่โลโก้/สถานะได้) แต่ห้ามอ่านทางเดียว
+ * — ร้านที่แจ้งเลขเองมีแค่ `ShipmentTracking` และเป็นครึ่งหนึ่งของร้านทั้งหมด
+ */
+export type ForwardParcelFacts = {
+  courierCode: string | null
+  courierName: string | null
+  trackingNo: string | null
+  /** สถานะดิบจากขนส่ง — จอแปลเป็นชิปเองด้วย SSOT เดียวกับหน้าอื่น (`deriveShippingStage`) */
+  carrierStatus: string | null
+  /** กล่องของขาไป = ค่าตั้งต้นของขากลับ (D-5) · null ทั้งก้อนเมื่อไม่ครบ 4 ช่อง */
+  box: ReturnParcelBox | null
 }
 
 /** รายการที่ยังคืนได้ + เหตุผลถ้าคืนไม่ได้ — หน้าจอเรียกตัวนี้ตัวเดียว ไม่คิดเกณฑ์เอง */
@@ -110,6 +161,10 @@ export async function getReturnEligibility(shopId: string, orderId: string) {
 
   const items: ReturnableItem[] = order.items.map((i) => {
     const returnedQty = claimed.get(i.id) ?? 0
+    // `images[]` เก็บได้ทั้ง fileId และ URL เต็ม (seed/external) — `toFileUrl` เป็นตัวตัดสิน
+    // ที่เดียวของทั้งระบบ ห้ามต่อ `/api/files/` เอง (จะได้ `/api/files/https://…` = 404)
+    const images = i.product?.images
+    const firstImage = Array.isArray(images) && images.length > 0 ? images[0] : null
     return {
       orderItemId: i.id,
       name: i.name,
@@ -117,6 +172,7 @@ export async function getReturnEligibility(shopId: string, orderId: string) {
       returnedQty,
       remainingQty: Math.max(0, i.qty - returnedQty),
       unitPrice: Number(i.price),
+      imageUrl: typeof firstImage === 'string' ? toFileUrl(firstImage) : null,
     }
   })
 
@@ -142,7 +198,8 @@ export async function getReturnEligibility(shopId: string, orderId: string) {
       payer: true,
       trackingSource: true,
       manualTrackingNo: true,
-      manualCourier: true,
+      returnCourierCode: true,
+      returnCourierName: true,
       countAsCost: true,
       refundAmount: true,
       createdAt: true,
@@ -150,10 +207,30 @@ export async function getReturnEligibility(shopId: string, orderId: string) {
     },
   })
 
+  const fwd = order.shipments[0]
+  const dec = (v: unknown) => (v == null ? null : Number(v))
+  const forward: ForwardParcelFacts = {
+    // iShip ชนะเมื่อมีทั้งคู่ — มีรหัสขนส่งจริงจึงแปลเป็นโลโก้/สถานะได้
+    courierCode: fwd?.courierCode ?? null,
+    courierName: fwd?.courierName ?? order.shipmentTracking?.provider ?? null,
+    trackingNo: fwd?.trackingNo ?? order.shipmentTracking?.trackingNo ?? null,
+    carrierStatus: fwd?.carrierStatus ?? null,
+    box: parseReturnParcel({
+      weight: dec(fwd?.weight),
+      width: fwd?.width,
+      length: fwd?.length,
+      height: fwd?.height,
+    }),
+  }
+
   return {
     canReturn: blocked === null,
     blockedReason: blocked,
     blockedText: blocked ? RETURN_BLOCK_TEXT[blocked] : null,
+    /** 🛑 ไม่มีที่อยู่/ชื่อ/เบอร์ผู้ซื้อในนี้เลย — หน้านี้อยู่ใต้ client layout ค่าที่ส่งไปไหลเข้า
+     *  flight payload · การประเมินค่าส่งอ่านที่อยู่ฝั่ง server เอง (route `/returns/quote`) */
+    forward,
+    orderStatus: order.status,
     items,
     returns: rows.map((r) => ({
       id: r.id,
@@ -161,7 +238,8 @@ export async function getReturnEligibility(shopId: string, orderId: string) {
       payer: r.payer as ReturnPayer,
       trackingSource: r.trackingSource as ReturnTrackingSource,
       manualTrackingNo: r.manualTrackingNo,
-      manualCourier: r.manualCourier,
+      returnCourierCode: r.returnCourierCode,
+      returnCourierName: r.returnCourierName,
       countAsCost: r.countAsCost,
       // Decimal → number ที่ RSC/JSON boundary — ห้ามปล่อย Decimal ข้ามไปฝั่ง client
       refundAmount: r.refundAmount != null ? Number(r.refundAmount) : null,
@@ -171,13 +249,25 @@ export async function getReturnEligibility(shopId: string, orderId: string) {
   }
 }
 
+/**
+ * CreateReturnInput — สิ่งที่จอส่งมา
+ *
+ * 🛑 **จอส่ง `method` มาเท่านั้น ห้ามส่ง `payer`/`trackingSource`** (D-1) — สองค่านั้นเป็น
+ * *ผลลัพธ์* ที่ `resolveReturnShippingChoice()` ตัดสิน ถ้าเปิดให้ client ส่งมาเอง คู่ที่เป็นไป
+ * ไม่ได้ (ลูกค้าจ่าย + ระบบออกเลข) จะกลับมาเป็น "สิ่งที่ต้องกันด้วยกฎ" แทนที่จะเป็นไปไม่ได้
+ * โดยโครงสร้าง ซึ่งเป็นรูปร่างของบั๊กที่ 5 ตัวเลือกเดิมมีอยู่
+ */
 export type CreateReturnInput = {
   items: { orderItemId: string; qty: number }[]
   reason?: string | null
-  payer: ReturnPayer
-  trackingSource: ReturnTrackingSource
-  manualTrackingNo?: string | null
-  manualCourier?: string | null
+  method: ReturnMethodKey
+  /** เว้นว่างได้ = "ไม่มีเลขพัสดุ" ไม่ใช่ข้อผิดพลาด (D-4 · BR-RT-19) */
+  trackingNo?: string | null
+  /** ขนส่งขากลับที่ร้านเลือก — รหัสจาก `COURIER_OPTIONS` หรือรหัสแพ็กเกจจริงของ iShip */
+  returnCourierCode?: string | null
+  returnCourierName?: string | null
+  /** กล่องขากลับเมื่อร้านกดแก้เอง (D-5) — null/ไม่ครบ = ใช้กล่องของขาไป */
+  returnParcel?: unknown
   countAsCost?: boolean
   shippingCost?: number | null
 }
@@ -195,12 +285,15 @@ export async function createOrderReturn(
   orderId: string,
   input: CreateReturnInput,
 ) {
-  const shippingBlock = validateReturnShipping({
-    payer: input.payer,
-    trackingSource: input.trackingSource,
-    manualTrackingNo: input.manualTrackingNo,
-    countAsCost: input.countAsCost,
-  })
+  // จุดเดียวที่ payer/trackingSource ถูกตัดสิน — และเป็นตัวที่ทิ้งเลขที่หลุดมากับวิธีที่ไม่รับเลข
+  const choice = resolveReturnShippingChoice(input.method, input.trackingNo, input.countAsCost)
+
+  /**
+   * ด่านนี้ยังต้องอยู่ทั้งที่ `resolveReturnShippingChoice` ผลิตแต่ค่าที่ผ่านอยู่แล้ว —
+   * มันคือด่านที่พิสูจน์ว่าสองตัวยังไม่เลื่อนออกจากกัน ถ้าวันหนึ่งมีคนเพิ่มวิธีที่ 4 แล้วลืม
+   * กฎบางข้อ ร้านจะเจอ error ที่บอกเหตุผลจริง ไม่ใช่ 500 จาก CHECK ที่ระดับฐาน
+   */
+  const shippingBlock = validateReturnShipping(choice)
   if (shippingBlock) {
     throw new OrderReturnError(shippingBlock, RETURN_SHIPPING_BLOCK_TEXT[shippingBlock])
   }
@@ -243,7 +336,8 @@ export async function createOrderReturn(
     return { orderItemId: item.id, qty: sel.qty, unitPrice: Number(item.price) }
   })
 
-  const countAsCost = resolveCountAsCost(input.payer, input.countAsCost)
+  // กล่องขากลับ: ยอมรับเฉพาะก้อนที่ครบ 4 ช่องและเป็นบวกทั้งหมด — ไม่ครบ = ใช้กล่องของขาไป
+  const returnParcel: ReturnParcelBox | null = parseReturnParcel(input.returnParcel)
 
   try {
     return await prisma.$transaction(async (tx) => {
@@ -253,22 +347,18 @@ export async function createOrderReturn(
           shopId,
           status: RETURN_STATUS.REQUESTED,
           reason: input.reason?.trim() || null,
-          payer: input.payer,
-          trackingSource: input.trackingSource,
-          manualTrackingNo:
-            input.trackingSource === RETURN_TRACKING_SOURCE.MANUAL
-              ? (input.manualTrackingNo?.trim() ?? null)
-              : null,
-          manualCourier:
-            input.trackingSource === RETURN_TRACKING_SOURCE.MANUAL
-              ? (input.manualCourier?.trim() || null)
-              : null,
-          countAsCost,
+          payer: choice.payer,
+          trackingSource: choice.trackingSource,
+          manualTrackingNo: choice.manualTrackingNo,
+          returnCourierCode: input.returnCourierCode?.trim() || null,
+          returnCourierName: input.returnCourierName?.trim() || null,
+          returnParcel: returnParcel ?? Prisma.DbNull,
+          countAsCost: choice.countAsCost,
           shippingCost: input.shippingCost != null ? new Prisma.Decimal(input.shippingCost) : null,
           createdByUserId: userId,
           items: { create: lines },
         },
-        select: { id: true, status: true, trackingSource: true },
+        select: { id: true, status: true, trackingSource: true, returnCourierCode: true },
       })
 
       await recordOrderEvent(tx, {
@@ -279,8 +369,10 @@ export async function createOrderReturn(
           returnId: created.id,
           itemCount: lines.length,
           refundAmount: computeRefundAmount(lines),
-          payer: input.payer,
-          trackingSource: input.trackingSource,
+          method: input.method,
+          payer: choice.payer,
+          trackingSource: choice.trackingSource,
+          returnCourierCode: input.returnCourierCode?.trim() || null,
         } as never,
       })
 

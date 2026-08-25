@@ -195,109 +195,135 @@ export function resolveCountAsCost(payer: ReturnPayer, chosen?: boolean): boolea
   return chosen ?? false
 }
 
-// ─── 4 รูปแบบที่ร้านเลือกได้จริง (ดีไซน์ชีตคืนของ · หัวหน้าเคาะ 2026-08-24) ────────
+// ─── 3 วิธีที่ร้านเลือกได้จริง (ดีไซน์ชีตคืนของ · หัวหน้าเคาะ 2026-08-25 · D-1) ────
 
 /**
- * RETURN_SHIPPING_CHOICES — SSOT ของ "ตัวเลือกที่ร้านเห็นบนจอ"
+ * RETURN_METHODS — SSOT ของ "ตัวเลือกที่ร้านเห็นบนจอ" · **3 ข้อ ไม่ใช่ 5**
  *
- * 🛑 ทำไมถึงเป็นลิสต์เดียว ไม่ใช่ select 2 ตัว (payer × trackingSource):
- * สองมิตินั้น **ขึ้นต่อกัน** — คู่ `BUYER + ISHIP` เป็นไปไม่ได้เพราะระบบตัดเครดิต iShip ของ
- * ร้านเสมอ (ดู `ISHIP_NEEDS_SHOP_PAYS`) จอเดิมจึงต้องมีโค้ดสลับ trackingSource ให้อัตโนมัติ
- * เมื่อผู้ใช้เปลี่ยน payer ⇒ ผู้ใช้เห็นตัวเลือกเปลี่ยนเองโดยไม่ได้สั่ง ซึ่งอ่านเป็นบั๊ก
+ * 🛑 **"ใครออกค่าส่ง" ไม่ใช่คำถามอีกต่อไป — มันเป็นผลลัพธ์ของวิธีที่เลือก** (D-1)
+ * ข้อ 1 ตัดเครดิต iShip ของร้าน ⇒ ร้านจ่ายแน่นอน · ข้อ 2 ร้านไปเปิดพัสดุเอง ⇒ ร้านจ่าย ·
+ * ข้อ 3 ลูกค้าเปิดเอง ⇒ ลูกค้าจ่าย. ถามซ้ำเท่ากับให้ร้านตอบสิ่งที่ตัวเองเพิ่งตอบไปแล้ว และ
+ * เปิดช่องให้ตอบขัดกับข้อที่เลือก (เคย: 5 ข้อ = payer × trackingSource ที่กางออกมาทั้งตาราง)
  *
- * ยุบเป็นลิสต์เดียวแล้ว **คู่ที่เป็นไปไม่ได้หายไปจากโครงสร้าง** ไม่ใช่แค่ถูกซ่อน — และไม่ต้อง
- * มีโค้ดสลับอัตโนมัติอีกเลย (หัวหน้าเสนอเองว่า "ให้เลือกเป็น radio จะได้ง่ายๆ")
- *
- * ลิสต์นี้ถูกผูกกับ `validateReturnShipping` ด้วยเทส [blocker]: ทุกข้อต้องผ่าน และต้องครอบ
- * คู่ที่ผ่านได้ **ครบทุกคู่** — เพิ่มคู่ที่ถูกต้องในอนาคตแล้วลืมใส่ในลิสต์ = เทสแดง
+ * 🛑 **"ไม่มีเลขพัสดุ" ไม่ใช่ตัวเลือกแยกอีกต่อไป — มันคือการเว้นช่องเลขว่าง** (D-4 · BR-RT-19)
+ * สองข้อที่หายไปจากลิสต์เดิม (`SHOP_NONE` / `BUYER_NONE`) **ยังไปถึงได้ครบ** ผ่าน
+ * `resolveReturnShippingChoice()` — ลิสต์นี้จึงเป็น *สับเซตที่ตั้งใจ* ของคู่ที่ valid ไม่ใช่
+ * การถอดความสามารถ. เทส `[blocker]` พิสูจน์ว่า (3 วิธี × มี/ไม่มีเลข) ยังครอบคู่ที่ valid
+ * **ครบทั้ง 5 คู่ ไม่ขาดไม่เกิน** — ถ้าใครแก้แล้วคู่ไหนหายไป เทสแดงทันที
  */
-export type ReturnShippingChoiceOption = {
-  key: ReturnShippingChoiceKey
+export type ReturnMethodKey = 'ISHIP' | 'SHOP_SELF' | 'BUYER_SELF'
+
+export type ReturnMethodOption = {
+  key: ReturnMethodKey
   /** พาดหัว = สิ่งที่ร้านตกลงกับลูกค้าไปแล้ว (ไม่ใช่ศัพท์ระบบ) */
   title: string
   /** ขยายความว่า "กดแล้วเกิดอะไรต่อ" */
   detail: string
   icon: string
+  /**
+   * สรุปเรื่องเงินในหนึ่งวลี — badge บนหัวข้อ
+   * 🛑 นี่คือสิ่งที่ *ต่างกันจริง* ระหว่าง 3 ข้อ และเป็นเหตุผลที่ตัด payer ออกจากคำถามได้
+   */
+  money: string
+  /** ผลลัพธ์ ไม่ใช่คำถาม — derive จากวิธีที่เลือก */
   payer: ReturnPayer
-  trackingSource: ReturnTrackingSource
-  /** ต้องกรอกเลขพัสดุไหม — derive ไม่ได้จาก trackingSource อย่างเดียวในอนาคต จึงระบุตรง ๆ */
-  needsTracking: boolean
+  /** trackingSource เมื่อ **เว้นช่องเลขว่าง** */
+  sourceWithoutTracking: ReturnTrackingSource
+  /** trackingSource เมื่อ **กรอกเลข** — `null` = วิธีนี้ไม่รับเลขที่กรอกเอง (ช่องไม่โผล่) */
+  sourceWithTracking: ReturnTrackingSource | null
   /** ร้านเลือกได้ไหมว่าจะนับเป็นต้นทุน (ร้านจ่ายเอง = บังคับนับ ถามไปก็หลอกว่าเลือกได้) */
   costOptional: boolean
 }
 
-export type ReturnShippingChoiceKey =
-  | 'SHOP_ISHIP'
-  | 'SHOP_MANUAL'
-  | 'SHOP_NONE'
-  | 'BUYER_MANUAL'
-  | 'BUYER_NONE'
-
-export const RETURN_SHIPPING_CHOICES: ReturnShippingChoiceOption[] = [
+export const RETURN_METHODS: ReturnMethodOption[] = [
   {
-    key: 'SHOP_ISHIP',
-    title: 'ร้านออกค่าส่งให้ — ให้ระบบออกเลขพัสดุ',
-    detail: 'ระบบเปิดพัสดุขากลับให้ ตัดจากเครดิต iShip ของร้าน แล้วได้ใบปะหน้าส่งให้ลูกค้าพิมพ์',
+    key: 'ISHIP',
+    title: 'ส่งด้วย iShip',
+    detail: 'ระบบออกเลขพัสดุขากลับให้ แล้วได้ใบปะหน้าส่งให้ลูกค้าพิมพ์',
     icon: 'truck-return',
+    money: 'ตัดจากเครดิตร้าน',
     payer: RETURN_PAYER.SHOP,
-    trackingSource: RETURN_TRACKING_SOURCE.ISHIP,
-    needsTracking: false,
+    sourceWithoutTracking: RETURN_TRACKING_SOURCE.ISHIP,
+    // ระบบเป็นคนออกเลข — ช่องกรอกเองไม่โผล่ และถ้ามีเลขหลุดมาทาง API ก็ถูกทิ้ง
+    // (สองแหล่งความจริงในแถวเดียวจะขัดกันวันที่ต้องใช้ ดู TRACKING_NOT_ALLOWED)
+    sourceWithTracking: null,
     costOptional: false,
   },
   {
-    key: 'SHOP_MANUAL',
-    title: 'ร้านออกค่าส่งให้ — ใช้ขนส่งเจ้าอื่น',
-    detail: 'ร้านไปเปิดพัสดุเองที่ขนส่งเจ้าอื่น แล้วมากรอกเลขที่นี่',
-    icon: 'package',
+    key: 'SHOP_SELF',
+    title: 'ร้านส่งเอง',
+    detail: 'ร้านไปเปิดพัสดุที่ขนส่งเจ้าอื่น แล้วมากรอกเลขที่นี่',
+    icon: 'building-store',
+    money: 'เป็นต้นทุนร้าน',
     payer: RETURN_PAYER.SHOP,
-    trackingSource: RETURN_TRACKING_SOURCE.MANUAL,
-    needsTracking: true,
+    sourceWithoutTracking: RETURN_TRACKING_SOURCE.NONE,
+    sourceWithTracking: RETURN_TRACKING_SOURCE.MANUAL,
     costOptional: false,
   },
   {
-    /**
-     * 🛑 ข้อนี้เกือบหายไปตอนออกแบบใหม่ — หัวหน้าระบุมา 4 แบบ (ร้าน/ลูกค้า × มีเลข/ไม่มีเลข)
-     * แต่จอเดิมเลือก "ร้านจ่าย + ไม่มีเลข" ได้จริงเพราะ select ตัวที่สองมี NONE อยู่ด้วยเสมอ
-     * ตัดทิ้งเพราะไม่มีในสเปก = ถอดความสามารถที่ร้านเคยมีโดยไม่มีอะไรฟ้อง — เทส [blocker]
-     * "ครอบคู่ที่ถูกต้องครบทุกคู่" จับได้ตอนรันครั้งแรก
-     */
-    key: 'SHOP_NONE',
-    title: 'ร้านออกค่าส่งให้ — ไม่มีเลขพัสดุ',
-    detail: 'ร้านจ่ายค่าส่งให้ (เช่น จ่ายสดหน้าร้าน หรือให้ไรเดอร์ไปรับ) โดยไม่มีเลขให้ติดตาม',
-    icon: 'cash',
-    payer: RETURN_PAYER.SHOP,
-    trackingSource: RETURN_TRACKING_SOURCE.NONE,
-    needsTracking: false,
-    costOptional: false,
-  },
-  {
-    key: 'BUYER_MANUAL',
-    title: 'ลูกค้าออกค่าส่งเอง — ส่งเลขพัสดุมาให้',
-    detail: 'ลูกค้าส่งของกลับเองแล้วแจ้งเลขพัสดุมา',
-    icon: 'user-check',
+    key: 'BUYER_SELF',
+    title: 'ลูกค้าส่งเอง',
+    detail: 'ลูกค้าออกค่าส่งและส่งกลับมาเอง',
+    icon: 'user',
+    money: 'ลูกค้าออกค่าส่ง',
     payer: RETURN_PAYER.BUYER,
-    trackingSource: RETURN_TRACKING_SOURCE.MANUAL,
-    needsTracking: true,
-    costOptional: true,
-  },
-  {
-    key: 'BUYER_NONE',
-    title: 'ลูกค้าออกค่าส่งเอง — ไม่มีเลขพัสดุ',
-    detail: 'ลูกค้าส่งกลับมาเองโดยไม่ได้แจ้งเลข — ยังปิดเรื่องคืนได้ตามปกติ',
-    icon: 'help-circle',
-    payer: RETURN_PAYER.BUYER,
-    trackingSource: RETURN_TRACKING_SOURCE.NONE,
-    needsTracking: false,
+    sourceWithoutTracking: RETURN_TRACKING_SOURCE.NONE,
+    sourceWithTracking: RETURN_TRACKING_SOURCE.MANUAL,
     costOptional: true,
   },
 ]
 
-export function returnShippingChoice(key: ReturnShippingChoiceKey): ReturnShippingChoiceOption {
-  const found = RETURN_SHIPPING_CHOICES.find((c) => c.key === key)
+export function returnMethod(key: ReturnMethodKey): ReturnMethodOption {
+  const found = RETURN_METHODS.find((m) => m.key === key)
   // fail-closed — คีย์ที่ไม่รู้จักต้องดังทันที ไม่ใช่ถอยไปข้อแรกเงียบ ๆ ซึ่งจะกลายเป็น
-  // "ร้านออกค่าส่งให้" โดยที่ไม่มีใครสั่ง แล้วเงินตัดจากเครดิตร้านจริง
-  if (!found) throw new Error(`unknown return shipping choice: ${key}`)
+  // "ส่งด้วย iShip" โดยที่ไม่มีใครสั่ง แล้วเครดิตร้านถูกตัดจริง
+  if (!found) throw new Error(`unknown return method: ${key}`)
   return found
+}
+
+/** วิธีนี้มีช่องให้กรอกเลขพัสดุไหม — derive จาก `sourceWithTracking` ห้ามเก็บธงซ้ำ (HR16) */
+export function acceptsManualTracking(key: ReturnMethodKey): boolean {
+  return returnMethod(key).sourceWithTracking !== null
+}
+
+/**
+ * resolveReturnShippingChoice — แปลง "วิธีที่ร้านเลือก + เลขที่พิมพ์" เป็นค่าที่บันทึกจริง
+ *
+ * 🛑 นี่คือจุดเดียวที่ `payer`/`trackingSource` ถูกตัดสิน — จอส่ง **คีย์วิธี** มาเท่านั้น
+ * ห้ามให้ client ส่ง payer/trackingSource มาเอง (นั่นคือรูปร่างของบั๊กที่ 5 ตัวเลือกเดิมมีอยู่:
+ * คู่ที่เป็นไปไม่ได้ต้องถูกกันด้วยกฎ แทนที่จะเป็นไปไม่ได้โดยโครงสร้าง)
+ *
+ * 🛑 **ทิ้งเลขที่กรอกมาเมื่อผลลัพธ์ไม่ใช่ MANUAL** — ไม่ใช่ปล่อยไปโดน `TRACKING_NOT_ALLOWED`
+ * ซึ่งผู้ใช้แก้ไม่ถูก (จอไม่มีช่องนั้นให้ลบด้วยซ้ำเมื่อวิธีคือ iShip)
+ */
+export function resolveReturnShippingChoice(
+  key: ReturnMethodKey,
+  trackingNo?: string | null,
+  countAsCost?: boolean,
+): Required<Pick<ReturnShippingChoice, 'payer' | 'trackingSource' | 'countAsCost'>> & {
+  manualTrackingNo: string | null
+} {
+  const m = returnMethod(key)
+  const trimmed = (trackingNo ?? '').trim()
+  const trackingSource =
+    trimmed !== '' && m.sourceWithTracking ? m.sourceWithTracking : m.sourceWithoutTracking
+  return {
+    payer: m.payer,
+    trackingSource,
+    manualTrackingNo: trackingSource === RETURN_TRACKING_SOURCE.MANUAL ? trimmed : null,
+    countAsCost: resolveCountAsCost(m.payer, m.costOptional ? countAsCost : true),
+  }
+}
+
+/**
+ * returnChoiceSummary — วลีเดียวที่สรุปว่า "ตกลงกันไว้ยังไง"
+ *
+ * ใช้ 2 ที่: ปุ่มย้อนกลับของขั้นเลือกของ และหัวข้อในหน้าสรุป — **ต้องเป็นคำเดียวกันทั้งสองที่**
+ * (HR16 · คนละคำบนสองจอของ flow เดียวอ่านเป็นคนละเรื่อง)
+ */
+export function returnChoiceSummary(key: ReturnMethodKey): string {
+  const m = returnMethod(key)
+  return `${m.title} · ${m.money}`
 }
 
 // ─── ค่าส่งขากลับเข้าระบบกำไร (P5 · D-3c · หัวหน้ายืนยัน 2026-08-24) ─────────────
@@ -346,4 +372,39 @@ export function sumReturnShippingCost(rows: ReturnCostInput[]): {
     if (!known) unknownCount += 1
   }
   return { total, unknownCount }
+}
+
+// ─── กล่องขากลับที่ร้านแก้เอง (D-5) ────────────────────────────────────────────
+
+/**
+ * ReturnParcelBox — override ขนาดกล่องของพัสดุ **ขากลับ**
+ *
+ * 🛑 เป็น "ทั้งชุดหรือไม่มีเลย" — ไม่มีเคสที่แก้แค่บางช่อง ค่าตั้งต้นคือกล่องของขาไป
+ * (พฤติกรรมเดิมของ `createReturnShipment()`) การยอมให้แก้บางช่องจะสร้างสถานะ
+ * "น้ำหนักใหม่ + ขนาดเก่า" ที่ไม่มีใครตั้งใจสร้าง แล้วราคาที่ขนส่งคิดจะไม่ตรงกับที่จอบอก
+ */
+export type ReturnParcelBox = {
+  weight: number
+  width: number
+  length: number
+  height: number
+}
+
+/**
+ * parseReturnParcel — อ่านค่าที่เก็บใน `OrderReturn.returnParcel` (Json) ให้ปลอดภัย
+ *
+ * 🛑 fail-closed: ขาดช่องไหน/ไม่ใช่ตัวเลขบวก = คืน `null` ทั้งก้อน ⇒ ตกไปใช้กล่องของขาไป
+ * ห้ามคืนก้อนที่มีบางช่องเป็น 0/NaN — `createReturnShipment` จะส่ง 0 ออกไปให้ iShip
+ * ซึ่งเปิดพัสดุไม่ผ่านหรือ (แย่กว่า) ผ่านด้วยราคาที่คิดจากกล่องผิดใบ
+ */
+export function parseReturnParcel(value: unknown): ReturnParcelBox | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const o = value as Record<string, unknown>
+  const out = {} as ReturnParcelBox
+  for (const k of ['weight', 'width', 'length', 'height'] as const) {
+    const n = Number(o[k])
+    if (!Number.isFinite(n) || n <= 0) return null
+    out[k] = n
+  }
+  return out
 }

@@ -15,7 +15,7 @@ import {
   cancelOrderReturn,
   receiveOrderReturn,
 } from '@/services/order-return.service'
-import { RETURN_STATUS, RETURN_TRACKING_SOURCE } from '@/lib/order-return'
+import { RETURN_STATUS, RETURN_TRACKING_SOURCE, parseReturnParcel } from '@/lib/order-return'
 import { recordOrderEvent } from '@/services/order-event.service'
 
 export const dynamic = 'force-dynamic'
@@ -56,7 +56,14 @@ export async function POST(
     // ── ขยับใบคืนเป็น "ของกำลังเดินทางกลับ" ──────────────────────────────────
     const ret = await prisma.orderReturn.findFirst({
       where: { id: returnId, shopId: order.shopId, orderId: order.id },
-      select: { id: true, status: true, trackingSource: true, manualTrackingNo: true },
+      select: {
+        id: true,
+        status: true,
+        trackingSource: true,
+        manualTrackingNo: true,
+        returnCourierCode: true,
+        returnParcel: true,
+      },
     })
     if (!ret) return NextResponse.json({ error: 'ไม่พบใบคืนของนี้' }, { status: 404 })
     if (ret.status !== RETURN_STATUS.REQUESTED) {
@@ -74,7 +81,19 @@ export async function POST(
      */
     let shipment: Awaited<ReturnType<typeof createReturnShipment>> | null = null
     if (ret.trackingSource === RETURN_TRACKING_SOURCE.ISHIP) {
-      shipment = await createReturnShipment(order.shopId, userId, order.id)
+      /**
+       * 🛑 ขากลับเป็นพัสดุ **คนละใบ** มีขนส่งของตัวเอง (D-3) — ทางส่ง override มีอยู่ใน
+       * `createReturnShipment()` ตั้งแต่วันแรกแต่ไม่เคยมีใครส่งเข้ามา ⇒ ร้านที่เลือก
+       * "ไปรษณีย์ไทย" ตอนเปิดใบ จะได้พัสดุขากลับกับเจ้าเดียวกับขาไปเสมอ โดยไม่มีอะไรฟ้อง
+       *
+       * ค่า `undefined` (ไม่ใช่ `null`) เมื่อร้านไม่ได้เลือก — `createReturnShipment` ใช้
+       * `??` ไล่ลงไปหาเจ้าของขาไปแล้วค่าตั้งต้นของบัญชี ซึ่ง `null` จะไปหยุดโซ่นั้น
+       */
+      const box = parseReturnParcel(ret.returnParcel)
+      shipment = await createReturnShipment(order.shopId, userId, order.id, {
+        courierCode: ret.returnCourierCode ?? undefined,
+        ...(box ?? {}),
+      })
     }
 
     /**

@@ -18,6 +18,9 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+/** ชื่อ/รหัสขนส่งยาวเกินจริงไม่ได้ — กันข้อความยาวถูกยัดเข้ามาทางคอลัมน์ที่จอเอาไปแสดงตรง ๆ */
+const shortText = () => v.pipe(v.string(), v.maxLength(120))
+
 /** ตรวจสิทธิ์ + คืน { shopId, orderId, userId } — ทุก handler ในไฟล์นี้เริ่มจากตัวนี้ */
 async function guard(token: string) {
   const userId = sessionUserId(await getServerSession(authOptions))
@@ -56,10 +59,27 @@ const CreateReturnSchema = v.object({
     v.minLength(1, 'เลือกรายการที่จะคืนอย่างน้อย 1 รายการ'),
   ),
   reason: v.optional(v.nullable(v.string())),
-  payer: v.picklist(['SHOP', 'BUYER']),
-  trackingSource: v.picklist(['ISHIP', 'MANUAL', 'NONE']),
-  manualTrackingNo: v.optional(v.nullable(v.string())),
-  manualCourier: v.optional(v.nullable(v.string())),
+  /**
+   * 🛑 รับ **คีย์วิธี** อย่างเดียว — `payer`/`trackingSource` ไม่อยู่ใน schema นี้โดยตั้งใจ (D-1)
+   * ทั้งสองเป็นผลลัพธ์ที่ `resolveReturnShippingChoice()` ตัดสิน การเปิดให้ client ส่งมาเอง
+   * เท่ากับให้จอกำหนดว่าใครจ่ายเงิน ซึ่งเป็นสิ่งที่วิธีที่เลือกบอกอยู่แล้ว
+   */
+  method: v.picklist(['ISHIP', 'SHOP_SELF', 'BUYER_SELF']),
+  /** เว้นว่างได้ = "ไม่มีเลขพัสดุ" (D-4) — ไม่ใช่ข้อผิดพลาด จึงไม่มี minLength */
+  trackingNo: v.optional(v.nullable(v.string())),
+  returnCourierCode: v.optional(v.nullable(shortText())),
+  returnCourierName: v.optional(v.nullable(shortText())),
+  /** null/ไม่ครบ 4 ช่อง = ใช้กล่องของขาไป (D-5) — service เป็นคนตัดสินด้วย parseReturnParcel */
+  returnParcel: v.optional(
+    v.nullable(
+      v.object({
+        weight: v.pipe(v.number(), v.minValue(0)),
+        width: v.pipe(v.number(), v.minValue(0)),
+        length: v.pipe(v.number(), v.minValue(0)),
+        height: v.pipe(v.number(), v.minValue(0)),
+      }),
+    ),
+  ),
   countAsCost: v.optional(v.boolean()),
   shippingCost: v.optional(v.nullable(v.pipe(v.number(), v.minValue(0)))),
 })

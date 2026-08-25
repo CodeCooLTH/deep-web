@@ -18,10 +18,24 @@
  */
 
 type CourierBrand = {
+  /**
+   * รหัสแบรนด์ที่ **ระบบเก็บลงฐาน** เมื่อร้านเลือกขนส่งจาก dropdown (feature 00056 · D-2)
+   *
+   * 🛑 ต้องเป็นรหัส ไม่ใช่ข้อความอิสระ — ร้านพิมพ์เองได้ "เคอรี่/Kerry/KEX/kerry express"
+   * ซึ่งเป็นแบรนด์เดียวกันทั้งหมดแต่จับคู่โลโก้/สรุปยอดได้ไม่ตรงกันสักครั้ง
+   */
+  code: string
+  /** ชื่อที่ผู้ใช้เห็นใน dropdown — SSOT เดียว ห้ามพิมพ์รายชื่อขนส่งซ้ำในคอมโพเนนต์ (HR16) */
+  label: string
   /** จับกับ `${courierCode} ${courierName}` — ครอบทุกแพ็กเกจของแบรนด์เดียว */
   match: RegExp
   /** path ใน public/ — null = ยังไม่มีไฟล์ ให้ตกไปใช้ตัวย่อ */
   logo: string | null
+  /**
+   * โผล่ใน dropdown "ขนส่งขากลับ" ไหม — `false` สำหรับแพ็กเกจของ iShip เอง ซึ่งไม่ใช่
+   * "ขนส่งเจ้าอื่นที่ร้านไปเปิดพัสดุเอง" แต่เป็น *วิธีคืน* ข้อแรก (radio ไม่ใช่ dropdown)
+   */
+  selectable?: boolean
 }
 
 /**
@@ -30,25 +44,87 @@ type CourierBrand = {
  */
 const COURIER_BRANDS: CourierBrand[] = [
   // แพ็กเกจของ iShip เอง — ใช้โลโก้แพลตฟอร์มที่มีอยู่แล้ว
-  { match: /iship/i, logo: '/images/logos/iship.jpeg' },
+  { code: 'ISHIP', label: 'iShip', match: /iship/i, logo: '/images/logos/iship.jpeg', selectable: false },
   // user ส่งไฟล์มาเอง 2026-08-04 — 447x447 พื้นเหลืองเต็มกรอบ ไม่โปร่งใส (ดู object-cover ที่ OrderCard)
-  { match: /flash/i, logo: '/images/logos/flash-express.jpeg' },
+  { code: 'FLASH', label: 'Flash Express', match: /flash/i, logo: '/images/logos/flash-express.jpeg' },
   // user อัปโหลดมาครบทุกแบรนด์ 2026-08-04
-  { match: /kerry|kex/i, logo: '/images/logos/kerry-express.jpeg' },
-  { match: /thailand\s*post|ไปรษณีย์|\bthp\b|\bems\b/i, logo: '/images/logos/thaipost.png' },
-  { match: /dhl/i, logo: '/images/logos/dhl.webp' },
-  { match: /best/i, logo: '/images/logos/best-express.jpeg' },
-  { match: /spx|shopee/i, logo: '/images/logos/spx-express.webp' },
-  { match: /fuze/i, logo: '/images/logos/fuze-post.png' },
+  { code: 'KERRY', label: 'Kerry Express', match: /kerry|kex/i, logo: '/images/logos/kerry-express.jpeg' },
+  { code: 'THAIPOST', label: 'ไปรษณีย์ไทย', match: /thailand\s*post|ไปรษณีย์|\bthp\b|\bems\b/i, logo: '/images/logos/thaipost.png' },
+  { code: 'DHL', label: 'DHL', match: /dhl/i, logo: '/images/logos/dhl.webp' },
+  { code: 'BEST', label: 'BEST Express', match: /best/i, logo: '/images/logos/best-express.jpeg' },
+  { code: 'SPX', label: 'SPX Express', match: /spx|shopee/i, logo: '/images/logos/spx-express.webp' },
+  { code: 'FUZE', label: 'Fuze Post', match: /fuze/i, logo: '/images/logos/fuze-post.png' },
   // ชื่อไฟล์สะกด "jandt" (& ในชื่อไฟล์ทำให้ URL ต้อง escape) — คนละสะกดกับชื่อแบรนด์ "J&T"
-  { match: /j\s*&\s*t|jnt|jandt/i, logo: '/images/logos/jandt-express.png' },
+  { code: 'JANDT', label: 'J&T Express', match: /j\s*&\s*t|jnt|jandt/i, logo: '/images/logos/jandt-express.png' },
 ]
+
+/**
+ * แบรนด์ของขนส่งเจ้านี้ — `null` = ไม่รู้จัก (รวมกรณี `OTHER` ที่ร้านเลือก "อื่น ๆ")
+ *
+ * 🛑 เทียบ **รหัสแบรนด์แบบตรงตัวก่อน** แล้วค่อยตกไปที่ regex: ตั้งแต่ 00056 ระบบเก็บ
+ * `OrderReturn.returnCourierCode` เป็นรหัสของเราเอง ('THAIPOST', 'JANDT') ซึ่ง regex เดิม
+ * ที่เขียนไว้จับชื่อจริงของ iShip **จับไม่ได้** ('THAIPOST' ไม่ match /thailand\s*post/)
+ * ⇒ ถ้าไม่เทียบรหัสก่อน โลโก้จะหายเงียบ ๆ เฉพาะเจ้าที่ร้านเลือกเอง
+ */
+export function courierBrandCode(courierCode?: string | null, courierName?: string | null): string | null {
+  const code = (courierCode ?? '').trim().toUpperCase()
+  if (code) {
+    const exact = COURIER_BRANDS.find((b) => b.code === code)
+    if (exact) return exact.code
+  }
+  const hay = `${courierCode ?? ''} ${courierName ?? ''}`.trim()
+  if (!hay) return null
+  return COURIER_BRANDS.find((b) => b.match.test(hay))?.code ?? null
+}
 
 /** path โลโก้ของขนส่งเจ้านี้ — null = ยังไม่มีไฟล์ ให้ผู้เรียกตกไปใช้ตัวย่อแทน */
 export function courierLogoUrl(courierCode?: string | null, courierName?: string | null): string | null {
-  const hay = `${courierCode ?? ''} ${courierName ?? ''}`.trim()
-  if (!hay) return null
-  return COURIER_BRANDS.find((b) => b.match.test(hay))?.logo ?? null
+  const brand = courierBrandCode(courierCode, courierName)
+  if (!brand) return null
+  return COURIER_BRANDS.find((b) => b.code === brand)?.logo ?? null
+}
+
+// ─── รายชื่อขนส่งสำหรับ dropdown (feature 00056 · D-2) ────────────────────────
+
+export const OTHER_COURIER_CODE = 'OTHER'
+
+export type CourierOption = {
+  code: string
+  label: string
+  /** null = ไม่มีไฟล์โลโก้ ให้ผู้เรียกใช้ `courierInitials(label)` แทน */
+  logo: string | null
+}
+
+/**
+ * COURIER_OPTIONS — **SSOT เดียวของ "ขนส่งมีเจ้าไหนให้เลือกบ้าง"** (HR16)
+ *
+ * 🛑 ห้ามพิมพ์รายชื่อขนส่งซ้ำในคอมโพเนนต์ไหนทั้งสิ้น — รายชื่อที่พิมพ์ซ้ำจะเลื่อนออกจากกัน
+ * แน่นอน (จอหนึ่งมี J&T อีกจอไม่มี) และรหัสที่บันทึกลงฐานจะจับคู่โลโก้ไม่ได้
+ *
+ * "อื่น ๆ" อยู่ **ท้ายลิสต์เสมอ** และไม่มีโลโก้ — เป็นทางออกสำหรับขนส่งท้องถิ่น/ไรเดอร์
+ * ที่เราไม่มีในรายชื่อ ไม่ใช่ตัวเลือกที่อยากให้กดเป็นอันดับแรก
+ */
+export const COURIER_OPTIONS: CourierOption[] = [
+  ...COURIER_BRANDS.filter((b) => b.selectable !== false).map(({ code, label, logo }) => ({
+    code,
+    label,
+    logo,
+  })),
+  { code: OTHER_COURIER_CODE, label: 'อื่น ๆ', logo: null },
+]
+
+/**
+ * courierLabel — คำที่แสดงแทนรหัสขนส่งที่บันทึกไว้
+ *
+ * รับ `name` มาด้วยเพราะพัสดุที่ระบบเปิดผ่าน iShip เก็บ **ชื่อแพ็กเกจจริง** ('ไปรษณีย์ไทย (EMS) X')
+ * ซึ่งจำเพาะกว่าชื่อแบรนด์และเป็นสิ่งที่ร้านเห็นตอนเลือก — ชื่อจริงจึงชนะเสมอเมื่อมี
+ */
+export function courierLabel(courierCode?: string | null, courierName?: string | null): string | null {
+  const name = (courierName ?? '').trim()
+  if (name) return name
+  const code = (courierCode ?? '').trim().toUpperCase()
+  if (!code) return null
+  return COURIER_OPTIONS.find((o) => o.code === code)?.label ?? courierCode!.trim()
 }
 
 /**

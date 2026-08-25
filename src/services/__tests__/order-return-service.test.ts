@@ -246,3 +246,131 @@ describe('[blocker] ตำแหน่งปุ่มคืนของในห
     expect((rp.match(/function renderBody\(\)/g) ?? []).length).toBe(1)
   })
 })
+
+/**
+ * [blocker] ขนส่งขากลับต้อง "ไปถึงปลายทางจริง" (feature 00056 · D-1/D-2/D-3 · 2026-08-25)
+ *
+ * 🛑 คลาสที่เทสชุดนี้กันคือ **ทางที่มีอยู่แต่ไม่มีใครเดิน** — `createReturnShipment()` รับ
+ * `override.courierCode` ได้ตั้งแต่วันแรก แต่ไม่เคยมีใครส่งเข้ามา ⇒ ร้านที่เลือก "ไปรษณีย์ไทย"
+ * ตอนเปิดใบ จะได้พัสดุขากลับกับเจ้าเดียวกับขาไปเสมอ **โดยไม่มี error ไม่มี type ผิด**
+ * (`rule-must-be-enforced-not-described.md` — ก่อน mark เสร็จต้องชี้บรรทัดที่บังคับได้)
+ */
+describe('[blocker] ขนส่งขากลับที่ร้านเลือกต้องถูกใช้จริง', () => {
+  const shipRoute = strip('src/app/api/orders/[token]/returns/[returnId]/route.ts')
+  const createRoute = strip('src/app/api/orders/[token]/returns/route.ts')
+
+  it('[blocker] route ที่กด "ออกเลขพัสดุขากลับ" ต้องอ่านคอลัมน์ แล้วส่งเข้า override จริง', () => {
+    // อ่านคอลัมน์มา…
+    expect(shipRoute).toContain('returnCourierCode: true')
+    expect(shipRoute).toContain('returnParcel: true')
+    // …แล้วต้องส่งเข้าไปด้วย ไม่ใช่ดึงมาวางทิ้ง (คือความผิดพลาดที่เทสนี้มีไว้จับ)
+    expect(shipRoute).toMatch(
+      /createReturnShipment\(\s*order\.shopId,\s*userId,\s*order\.id,\s*\{[\s\S]{0,200}?ret\.returnCourierCode/,
+    )
+    expect(shipRoute).toContain('parseReturnParcel(ret.returnParcel)')
+    // กล่องที่อ่านมาต้องถูก spread เข้า override ด้วย ไม่ใช่คำนวณแล้ววางทิ้ง
+    expect(shipRoute).toMatch(/\.\.\.\(box \?\? \{\}\)/)
+  })
+
+  /**
+   * 🛑 `null` ไม่ใช่ `undefined` ตรงนี้ — `createReturnShipment` ไล่ `override ?? ขาไป ?? บัญชี`
+   * ค่า `null` จะ **หยุดโซ่** แล้วพัสดุถูกเปิดโดยไม่มีรหัสขนส่ง (ล้มที่ findMissingParcelFields
+   * ถ้าโชคดี — หรือใช้ค่าที่ไม่มีใครตั้งใจถ้าโชคร้าย)
+   */
+  it('[blocker] ไม่ได้เลือกขนส่ง → ส่ง undefined ให้โซ่ ?? ทำงานต่อ ไม่ใช่ null', () => {
+    expect(shipRoute).toContain('ret.returnCourierCode ?? undefined')
+  })
+
+  /**
+   * 🛑 D-1: "ใครออกค่าส่ง" เป็น **ผลลัพธ์** ของวิธีที่เลือก ไม่ใช่คำถาม —
+   * ถ้า client ส่ง payer/trackingSource มาเองได้ คู่ที่เป็นไปไม่ได้จะกลับมาเป็น
+   * "สิ่งที่ต้องกันด้วยกฎ" แทนที่จะเป็นไปไม่ได้โดยโครงสร้าง (= บั๊กเดิมของ 5 ตัวเลือก)
+   */
+  it('[blocker] API ไม่รับ payer/trackingSource จาก client เลย', () => {
+    expect(createRoute).toContain("method: v.picklist(['ISHIP', 'SHOP_SELF', 'BUYER_SELF'])")
+    expect(createRoute).not.toMatch(/^\s*payer:/m)
+    expect(createRoute).not.toMatch(/^\s*trackingSource:/m)
+    // service ต้องตัดสินเองผ่าน SSOT ตัวเดียว ไม่ใช่หยิบค่าจาก input มาเขียนลงฐานตรง ๆ
+    expect(svc).toContain('resolveReturnShippingChoice(input.method')
+
+    /**
+     * 🛑 ต้องผูกกับ **จุดที่เขียนลงฐาน** ไม่ใช่ "มีคำนี้อยู่ที่ไหนสักแห่งในไฟล์"
+     * (mutation รอบแรกเปลี่ยน `payer: choice.payer` ใน `create` เป็นค่าจาก input แล้วเทส
+     *  ยังเขียว เพราะสตริงเดียวกันโผล่อีกครั้งใน `recordOrderEvent` — assertion อ่อน
+     *  ไม่ใช่ mutation ไม่เกี่ยว · docs/conventions/mutation-silence-means-weak-corpus.md)
+     * นับ *ทุก* ค่าที่ถูก assign ให้คีย์นั้นในบล็อก create แล้วบังคับว่าต้องมีตัวเดียวและ
+     * ต้องมาจาก resolver — เขียนค่าอื่นเข้าไปเมื่อไหร่ รายการที่ได้จะไม่ตรงทันที
+     */
+    const createFn = svc.slice(
+      svc.indexOf('export async function createOrderReturn'),
+      svc.indexOf('export async function receiveOrderReturn'),
+    )
+    const createCall = createFn.slice(
+      createFn.indexOf('tx.orderReturn.create'),
+      createFn.indexOf('recordOrderEvent'),
+    )
+    // ตัดเฉพาะบล็อก `data:` — `select:` ที่ตามมามี `trackingSource: true` ซึ่งไม่ใช่การเขียนค่า
+    // (ด่านที่กวาดทั้งคำสั่งจะแดงค้างเองทั้งที่โค้ดถูก = ด่านที่พังเองอ่านเหมือนโค้ดพัง)
+    const createData = createCall.slice(createCall.indexOf('data: {'), createCall.indexOf('select: {'))
+    expect(createData.length).toBeGreaterThan(0)
+    for (const [key, expected] of [
+      ['payer', 'payer: choice.payer'],
+      ['trackingSource', 'trackingSource: choice.trackingSource'],
+      ['manualTrackingNo', 'manualTrackingNo: choice.manualTrackingNo'],
+      ['countAsCost', 'countAsCost: choice.countAsCost'],
+    ] as const) {
+      expect(createData.match(new RegExp(`\\b${key}:[^,\n]+`, 'g')), key).toEqual([expected])
+    }
+  })
+
+  /** D-4: เลขพัสดุเว้นว่างได้ ⇒ schema ต้องไม่บังคับความยาวขั้นต่ำของช่องนั้น */
+  it('เลขพัสดุขากลับเว้นว่างได้ตาม D-4 — schema ต้องไม่มี minLength บน trackingNo', () => {
+    expect(createRoute).toMatch(/trackingNo: v\.optional\(v\.nullable\(v\.string\(\)\)\)/)
+  })
+})
+
+/**
+ * [blocker] จอต้องได้ข้อมูลที่ใช้จริง โดยไม่ได้ PII เกินจำเป็น (T5)
+ *
+ * หน้านี้อยู่ใต้ client layout — ทุกค่าที่ service คืนจะถูก serialize เข้า flight payload
+ * (`feedback_rsc_pii_neutralize_at_source`)
+ */
+describe('[blocker] getReturnEligibility คืนของที่จอต้องใช้ ไม่เกินนั้น', () => {
+  const fn = svc.slice(
+    svc.indexOf('export async function getReturnEligibility'),
+    svc.indexOf('export type CreateReturnInput'),
+  )
+
+  it('[blocker] รายการสินค้าต้องมีรูปจริง (D-9)', () => {
+    expect(fn).toContain('imageUrl:')
+    expect(fn).toContain('toFileUrl(')
+    // ห้ามต่อ /api/files/ เอง — `images[]` เก็บ URL เต็มปนอยู่ด้วย จะได้ /api/files/https://… = 404
+    expect(fn).not.toMatch(/`\/api\/files\//)
+  })
+
+  /**
+   * 🛑 เลขพัสดุขาไปมี **2 ทางเข้า เก็บคนละตาราง** — อ่านทางเดียวแล้วแถบ "ขาไป" จะว่างเปล่า
+   * สำหรับร้านที่แจ้งเลขเอง (docs/conventions/one-value-many-entry-points.md)
+   */
+  it('[blocker] แถบ "ขาไป" ต้องอ่านทั้ง OrderShipment และ ShipmentTracking', () => {
+    expect(fn).toContain('order.shipmentTracking?.provider')
+    expect(fn).toContain('order.shipmentTracking?.trackingNo')
+    expect(fn).toContain('fwd?.courierCode')
+  })
+
+  it('[blocker] ห้ามคืนที่อยู่/ชื่อ/เบอร์ผู้ซื้อออกไป', () => {
+    for (const leak of ['shippingAddress', 'buyerContact', 'buyerName']) {
+      expect(fn, leak).not.toContain(leak)
+    }
+  })
+
+  /** ราคาประเมินอ่านที่อยู่ฝั่ง server เอง และคืนเฉพาะราคา — นั่นคือเหตุผลที่ route นี้มีอยู่ */
+  it('[blocker] route ประเมินค่าส่งคืนเฉพาะราคา ไม่คืนที่อยู่', () => {
+    const quote = strip('src/app/api/orders/[token]/return-quote/route.ts')
+    // สูตรต้องเป็นตัวเดิมของปุ่ม "เทียบราคา" ห้ามเขียนใหม่ (HR16)
+    expect(quote).toContain('compareShippingPrices(')
+    expect(quote).not.toContain('iship.checkPrice(')
+    expect(quote).toMatch(/NextResponse\.json\(\{ rows: result\.rows, failed: result\.failed, box \}\)/)
+    expect(quote).not.toMatch(/json\([\s\S]{0,120}shippingAddress/)
+  })
+})
