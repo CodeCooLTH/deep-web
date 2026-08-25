@@ -4,9 +4,22 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>คืนของ แบบ A — Paces token จริง</title>
 <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
-<!-- 🛑 CSS ที่คอมไพล์จริงของแอป ไม่ใช่ CSS เลียนแบบ — ทุก token/คลาสในไฟล์นี้จึงเป็นของธีมจริง -->
-<link rel="stylesheet" href="./assets/paces-theme.css">
+<!-- 🛑 CSS ที่คอมไพล์จริงของแอป ไม่ใช่ CSS เลียนแบบ — ทุก token/คลาสในไฟล์นี้เป็นของธีมจริง
+     ดึงสดจาก dev server ตอนเปิดไฟล์ **ไม่เก็บสำเนาไว้ในรีโป** เพราะสำเนาจะเก่าทันทีที่ธีมเปลี่ยน
+     แล้วม็อกอัพจะโชว์สีเก่าโดยไม่มีอะไรเตือน — กับดักคลาสเดียวกับ btn-primary ที่เพิ่งแก้ไป
+     ⇒ ต้องรัน `npm run dev` (PORT=4000) ก่อนเปิดไฟล์นี้ · ถ้าไม่ได้รัน แถบแดงจะขึ้นบอกเอง
+
+     hash ของ chunk เปลี่ยนเมื่อ CSS ต้นทางเปลี่ยน — เอา URL ใหม่ด้วยคำสั่งนี้แล้วแทนที่บรรทัดล่าง:
+       curl -sL http://seller.deepth.local:4000/dashboard | grep -oE '/_next/static/chunks/[^"]+\.css' | head -1
+     (ต้องยิงหน้าที่ล็อกอินแล้ว — หน้าที่ redirect ไป sign-in จะไม่มี link ตัวนี้) -->
+<link rel="stylesheet" href="http://seller.deepth.local:4000/_next/static/chunks/%5Broot-of-the-server%5D__d9b09b52._.css"
+      onerror="document.documentElement.classList.add('theme-css-missing')">
 <style>
+  /* แถบเตือนเมื่อโหลด CSS ธีมไม่ได้ — ไม่งั้นม็อกอัพจะดูเหมือน "ดีไซน์แย่" ทั้งที่แค่ไม่มีสไตล์ */
+  .theme-css-missing body::before{
+    content:"⚠ โหลด CSS ของธีมไม่ได้ — สั่ง PORT=4000 npm run dev แล้วรีเฟรช (ถ้ายังไม่ขึ้น hash ของ chunk เปลี่ยนแล้ว ดูวิธีอัปเดตในคอมเมนต์หัวไฟล์)";
+    display:block;background:#f7577e;color:#fff;padding:12px 16px;font:600 14px/1.5 system-ui;position:sticky;top:0;z-index:999
+  }
   :root{ --font-anuphan:'Anuphan',system-ui,sans-serif }
   body{ font-family:var(--font-anuphan); background:var(--color-body-bg); }
   .lab{ font-family:ui-monospace,monospace; font-size:11px; color:var(--color-default-500); }
