@@ -13,6 +13,7 @@
  */
 import { prisma } from '@/lib/prisma'
 import { summarizeCustomerBehavior, type CustomerBehavior } from '@/lib/customer-behavior'
+import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { resolveCustomerIds, type Linkable } from './order-stage.service'
 
 const key = (shopId: string, customerId: string) => `${shopId}::${customerId}`
@@ -32,7 +33,20 @@ export async function enrichWithCustomerBehavior<T extends Linkable>(
   }
 
   // หลักฐานรายใบของทุกคนในหน้าเดียว — select แค่ field ที่ตัวตัดสินใช้จริง
-  // `shipments.where` ชุดเดียวกับที่หน้าเธรด/ตารางออเดอร์ใช้ — นิยาม "พัสดุของใบนี้" ต้องมีชุดเดียว
+  //
+  // 🛑 `shipments.where` ต้องเป็น `ACTIVE_FORWARD_SHIPMENT` ตัวเดียวกับที่หน้าเธรด/ตารางออเดอร์ใช้
+  // ห้ามพิมพ์เงื่อนไขเอง — ไฟล์นี้เคยเขียน `{ status: { not: 'CANCELLED' } }` แล้วตกหล่นจากการแก้
+  // นิยามทั้งระบบ **2 รอบติดกันโดยไม่มีอะไรฟ้อง** และคอมเมนต์เดิมตรงนี้อ้างว่า "ชุดเดียวกัน"
+  // อยู่ตลอดเวลาที่มันไม่ใช่:
+  //
+  //   1. 2026-08-06 — `<> 'CANCELLED'` นับใบที่ **สร้างไม่สำเร็จ (FAILED)** และใบทดสอบด้วย
+  //      (ที่อื่นแก้เป็น `status='CREATED' AND isDryRun=false` หมดแล้ว ตกไฟล์นี้ไว้ไฟล์เดียว)
+  //   2. 2026-08-24 — feature 00056 เก็บ **พัสดุขากลับไว้ตารางเดียวกัน** ⇒ ไม่กรอง `direction`
+  //      แล้ว `take: 1` + `createdAt desc` จะหยิบใบขากลับ (ซึ่งถูกสร้างทีหลังเสมอ) มาแทน
+  //      แล้ว `carrierStatus` ของมันไปบัง `return_success` ของใบขาไป ⇒ **ป้าย "ตีกลับ" หายไป
+  //      จากลูกค้าที่ตีกลับจริง** ซึ่งเป็นกลุ่มเดียวที่ป้ายนี้มีไว้เตือน
+  //
+  // ทั้งสองรอยหน้าตาเหมือนกันเป๊ะจากภายนอก: ตัวเลขบนจอผิด โดย tsc/build/เทส/grep ผ่านหมด
   const rows = await prisma.order.findMany({
     where: { shopId: { in: shopIds }, customerId: { in: customerIds } },
     select: {
@@ -42,7 +56,7 @@ export async function enrichWithCustomerBehavior<T extends Linkable>(
       cancelInitiator: true,
       cancelReason: true,
       shipments: {
-        where: { status: { not: 'CANCELLED' } },
+        where: ACTIVE_FORWARD_SHIPMENT,
         orderBy: { createdAt: 'desc' },
         take: 1,
         select: { carrierStatus: true },

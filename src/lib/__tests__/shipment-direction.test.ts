@@ -58,6 +58,9 @@ describe('[blocker] ทุกจุดที่กรองพัสดุต้
     'src/lib/public-order-count.ts',
     'src/services/badge.service.ts',
     'src/services/buyer-reputation.service.ts',
+    // 🛑 ตกรอบมาแล้ว **2 ครั้ง** (นิยาม CREATED+isDryRun 2026-08-06 · direction 2026-08-24)
+    // ทั้งที่คอมเมนต์ในไฟล์อ้างว่าใช้นิยามร่วมอยู่ตลอด — ผูกไว้ที่นี่ไม่ให้ตกเป็นครั้งที่ 3
+    'src/services/customer-behavior.service.ts',
     'src/services/line-rich-menu-reply.service.ts',
     'src/services/order-auto-confirm.service.ts',
     'src/services/order.service.ts',
@@ -67,7 +70,13 @@ describe('[blocker] ทุกจุดที่กรองพัสดุต้
   it('จุด Prisma ต้องใช้ ACTIVE_FORWARD_SHIPMENT ไม่ใช่พิมพ์ object เอง', () => {
     for (const p of PRISMA_SITES) {
       const src = stripComments(read(p))
-      expect(src, p).toContain('ACTIVE_FORWARD_SHIPMENT')
+      // 🛑 ต้องจับ **การใช้งาน** ไม่ใช่ชื่อเปล่า ๆ — `toContain('ACTIVE_FORWARD_SHIPMENT')` เฉย ๆ
+      // match บรรทัด `import` ด้วย ⇒ ลบ `where:` ที่ใช้จริงทิ้งแล้วเทสยังเขียว (พิสูจน์ด้วย
+      // mutation 2026-08-25: คืน `{ status: { not: 'CANCELLED' } }` กลับไป → 7/7 เขียวหมด)
+      // สองรูปแบบที่ใช้จริงในรีโป: `where: ACTIVE_FORWARD_SHIPMENT` และ `...ACTIVE_FORWARD_SHIPMENT`
+      expect(src, `${p}: ต้อง *ใช้* ACTIVE_FORWARD_SHIPMENT ไม่ใช่แค่ import`).toMatch(
+        /(where:\s*ACTIVE_FORWARD_SHIPMENT|\.\.\.ACTIVE_FORWARD_SHIPMENT)/,
+      )
       // object ที่พิมพ์เองห้ามกลับมา — มันจะขาด direction เงียบ ๆ
       expect(src, p).not.toMatch(/status: ['"]CREATED['"],\s*\n?\s*isDryRun: false,\s*\n?\s*carrierStatus/)
     }
