@@ -43,6 +43,7 @@
  * state ตรง ๆ ห้าม fallback เงียบ ๆ ไป PERSONAL
  */
 import type { Metadata } from 'next'
+import { LATEST_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { redirect } from 'next/navigation'
 import { getCachedSession } from '@/lib/session-cache'
 import { prisma } from '@/lib/prisma'
@@ -506,7 +507,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           // feature 00022 — shape เดียวกับ getOrdersByCustomer (lazy-load ต่อจากชุดนี้)
           // status/carrierStatus/courierCode เพิ่ม 2026-08-05: stepper + โลโก้ขนส่งในการ์ด/แถบปัก
           shipments: {
-            where: { status: { not: 'CANCELLED' } },
+            where: LATEST_FORWARD_SHIPMENT,
             orderBy: { createdAt: 'desc' },
             take: 1,
             select: { trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true },
@@ -583,7 +584,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           cancelInitiator: true,
           cancelReason: true,
           shipments: {
-            where: { status: { not: 'CANCELLED' } },
+            where: LATEST_FORWARD_SHIPMENT,
             orderBy: { createdAt: 'desc' },
             take: 1,
             select: { carrierStatus: true },

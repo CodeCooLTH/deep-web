@@ -133,6 +133,29 @@ export function isReturnedCarrierStatus(code?: string | null): boolean {
 }
 
 /**
+ * returnLegStampOf — รหัสสถานะขนส่ง → คอลัมน์เวลา "ขากลับ" ที่ต้องประทับบน OrderShipment
+ *
+ * คืน `null` = ไม่ใช่สายตีกลับ ไม่ต้องประทับอะไร
+ *
+ * 🛑 อยู่ที่นี่ ไม่ใช่ในตัว service เพราะมี **ผู้เขียน carrierStatus 3 ทาง** ที่ต้องประทับ
+ * ให้ตรงกันทุกทาง (webhook · รอบ poll `syncShipmentStatuses` · การรีเฟรชตอนเปิดดู traces)
+ * ถ้ากระจายเงื่อนไขไปเขียนเองทั้ง 3 ที่ วันหนึ่งจะมีทางใดทางหนึ่งไม่ประทับ แล้วพัสดุที่ตีกลับ
+ * ผ่านทางนั้นจะไม่มีวันเวลาบนไทม์ไลน์ **โดยไม่มี error ให้เห็น** — คลาสเดียวกับที่
+ * `deliveredAt` เคยพลาด (docs/conventions/value-fate-decided-at-write-site.md)
+ *
+ * 🛑 `return_success` ประทับเฉพาะ `returnedAt` **ห้ามเติม `returnStartedAt` ให้ด้วย** —
+ * ใบที่โผล่มาเป็น `return_success` เลยโดยไม่เคยผ่าน `return` (รอบ poll เห็นแค่สถานะล่าสุด
+ * เกิดจริง 6 จาก 12 ใบบน prod) คือใบที่ *ไม่รู้ว่าเริ่มตีกลับเมื่อไร* ไม่ใช่ใบที่เริ่มตอนนั้น
+ */
+export function returnLegStampOf(
+  code?: string | null,
+): "returnStartedAt" | "returnedAt" | null {
+  if (code === "return") return "returnStartedAt";
+  if (code === "return_success") return "returnedAt";
+  return null;
+}
+
+/**
  * ปลายทางที่ **ไม่มีอะไรตามมาได้อีก** — ถามขนส่งซ้ำก็ได้คำตอบเดิมตลอดกาล
  *
  * 🛑 ต่างจาก `isTerminalCarrierStatus()` ตรง `delivered`: ตัวนั้น terminal ก็จริง แต่ใบ

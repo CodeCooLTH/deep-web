@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse, after } from "next/server";
+import { LATEST_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -350,10 +351,14 @@ export async function GET(
               select: { name: true, qty: true, price: true, product: { select: { images: true } } },
             },
             shipments: {
-              where: { status: { not: "CANCELLED" } },
+              where: LATEST_FORWARD_SHIPMENT,
               orderBy: { createdAt: "desc" },
               take: 1,
-              select: { trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true },
+              select: {
+                trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true,
+                // แถวที่ 2 ของ stepper ในการ์ดแชท ("ขากลับ")
+                returnStartedAt: true, returnedAt: true,
+              },
             },
           },
         })
@@ -389,6 +394,9 @@ export async function GET(
                 courierCode: o.shipments[0].courierCode,
                 status: o.shipments[0].status,
                 carrierStatus: o.shipments[0].carrierStatus,
+                // แถวที่ 2 ของ stepper ("ขากลับ") — Date ข้ามเส้นมาเป็น JSON ไม่ได้
+                returnStartedAt: o.shipments[0].returnStartedAt?.toISOString() ?? null,
+                returnedAt: o.shipments[0].returnedAt?.toISOString() ?? null,
               }
             : null,
         },

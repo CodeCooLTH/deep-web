@@ -882,8 +882,10 @@ model Order {
   shipmentTracking ShipmentTracking?
   review           Review?
   smsCodes         SmsCode[]
-  // NEW (feature 00022) — พัสดุที่เปิดกับขนส่งสำหรับออเดอร์นี้ (active ได้ใบเดียว บังคับด้วย partial
-  // unique index `OrderShipment_active_order_key` — unmanaged SQL ดู DATABASE.md §4)
+  // NEW (feature 00022) — พัสดุที่เปิดกับขนส่งสำหรับออเดอร์นี้ (active ได้ **ขาไป 1 + ขากลับ 1**
+  // บังคับด้วย partial unique index `OrderShipment_active_order_key` บน ("orderId","direction")
+  // — unmanaged SQL ดู DATABASE.md §4 · เดิมเป็น ("orderId") ล้วน ซึ่งทำให้ระบบคืนของ 00056
+  // เปิดพัสดุขากลับไม่ได้เลยสักใบ แก้ 2026-08-25)
   shipments        OrderShipment[]
   /// ใบคืนของ (feature 00056) — ไม่ใช่ออเดอร์ใบใหม่
   returns   OrderReturn[]
@@ -2315,6 +2317,24 @@ model OrderShipment {
   /// และอาจไม่ปิดเลย โดยไม่มีอะไรฟ้อง (ไม่มี type error ไม่มีเทสแดง มีแต่ตัวเลขที่ไม่ขยับ)
   deliveredAt DateTime?
 
+  /// วันเวลาที่พัสดุ "เริ่มเดินทางกลับ" และ "กลับมาถึงร้าน" — ฝาแฝดขากลับของ deliveredAt
+  ///
+  /// 🛑 เขียนครั้งเดียวทั้งคู่ ห้ามอัปเดตทับ (conditional update: WHERE <col> IS NULL) —
+  /// เหตุผลเดียวกับ deliveredAt ข้างบน บวกอีกข้อที่หนักกว่า: บน prod 2026-08-25 event
+  /// `return` เกิด **44 ครั้งกับ 12 พัสดุ** (บางใบซ้ำ 7–8 ครั้ง เพราะขนส่งพยายามส่งใหม่
+  /// หลายรอบก่อนยอมตีกลับ) ถ้าเขียนทับได้ "วันที่เริ่มตีกลับ" จะขยับทุกครั้งที่ขนส่งลองใหม่
+  ///
+  /// ทำไมต้องมีคอลัมน์ทั้งที่ ShipmentEvent เก็บครบแล้ว: ไทม์ไลน์ 2 แถวต้องวาดได้จากค่าที่
+  /// มีในมือ ห้ามให้แถวในหน้า /orders ต้อง join ShipmentEvent เพิ่ม (เส้นทางที่ร้อนที่สุด)
+  ///
+  /// 🛑 **NULL ไม่ได้แปลว่าไม่เกิด** — `returnedAt = NULL` ขณะที่ `carrierStatus =
+  /// 'return_success'` แปลว่า *ถึงร้านแล้วแต่ไม่รู้ว่าเมื่อไร* (สถานะถูกเขียนโดยรอบ poll
+  /// ซึ่งไม่ผ่าน ShipmentEvent — เกิดจริง 6 จาก 12 ใบบน prod) จุดบนไทม์ไลน์จึงต้องตัดสิน
+  /// จาก carrierStatus ไม่ใช่จากคอลัมน์นี้ และหน้าจอต้องเขียนว่า "ขนส่งไม่ได้แจ้งเวลา"
+  /// ห้ามเดาวันที่มาเติม (docs/conventions/partial-data-must-be-labeled-or-filled.md)
+  returnStartedAt DateTime?
+  returnedAt      DateTime?
+
   /// วันเวลาที่ iShip แจ้งว่าเงินเก็บปลายทางเข้าระบบร้านแล้ว (`settlement_at`) — NULL = ยังไม่แจ้ง
   ///
   /// ทำไมต้องมีทั้งที่ Order.codReceivedAt มีอยู่แล้ว: สองช่องตอบคนละคำถาม
@@ -2402,8 +2422,14 @@ model OrderShipment {
 
   // 🛑 partial unique index ที่ Prisma DSL ประกาศไม่ได้ — สร้างด้วย SQL มือใน migration
   //    (unmanaged SQL: `prisma db pull` จะมองไม่เห็นแล้ว DROP ทิ้ง — ห้ามรันเด็ดขาด):
-  //    1) OrderShipment_active_order_key  ON ("orderId")    WHERE status <> 'CANCELLED'
-  //       = 1 ออเดอร์มีพัสดุที่ยังใช้งานอยู่ได้ใบเดียว แต่ยกเลิกแล้วเปิดใหม่ได้ (BR-ISHIP-22)
+  //    1) OrderShipment_active_order_key  ON ("orderId","direction") WHERE status <> 'CANCELLED'
+  //       = 1 ออเดอร์มี **ขาไป 1 + ขากลับ 1** ที่ยังใช้งานอยู่ ยกเลิกแล้วเปิดใหม่ได้ (BR-ISHIP-22)
+  //       🛑 คอลัมน์ `direction` ถูกเพิ่มโดย 00056 แต่ **ไม่ได้ตามมาแก้ index ตัวนี้** ⇒
+  //          `createReturnShipment()` ชน P2002 ทุกครั้ง = ระบบคืนของเปิดพัสดุขากลับไม่ได้เลย
+  //          สักใบ (prod มี direction='RETURN' 0 แถวทั้งที่ฟีเจอร์ขึ้นไปแล้ว) แก้ 2026-08-25
+  //       🛑 เพดานคือ **1+1 ไม่ใช่ N** โดยตั้งใจ — ทุกจุดที่หา "พัสดุของออเดอร์นี้" ใช้
+  //          `take: 1, orderBy createdAt desc` (order.service / buyer-reputation / ฯลฯ)
+  //          ยอมให้มีขาไปหลายใบเมื่อไร จุดพวกนั้นจะตอบเรื่องใบล่าสุดใบเดียวเงียบ ๆ
   //    2) OrderShipment_trackingNo_key    ON ("trackingNo") WHERE trackingNo IS NOT NULL
   //       = เลขติดตามห้ามซ้ำ แต่ใบที่ยังไม่สำเร็จมี trackingNo null ได้หลายใบ
   @@index([orderId])

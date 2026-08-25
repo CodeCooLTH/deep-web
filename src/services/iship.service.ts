@@ -8,8 +8,10 @@
 // (ไม่ใช่หวังว่าจะไม่เผลอใส่) — ดู ConnectionView / SettingsView / ShipmentView
 
 import { prisma } from "@/lib/prisma";
-import { FORWARD_SHIPMENT, RETURN_SHIPMENT } from "@/lib/shipment-direction";
-import type { Prisma } from "@prisma/client";
+import { FORWARD_SHIPMENT, RETURN_SHIPMENT, LATEST_FORWARD_SHIPMENT } from "@/lib/shipment-direction";
+// value import (ไม่ใช่ `import type`) เพราะต้องใช้ `Prisma.PrismaClientKnownRequestError`
+// ตรวจ P2002 ตอนสร้างพัสดุขากลับ — ไม่เพิ่มต้นทุน runtime เพราะไฟล์นี้ import prisma client อยู่แล้ว
+import { Prisma } from "@prisma/client";
 import {
   createOrder,
   settleCodFromCarrier,
@@ -28,6 +30,7 @@ import {
   impliesDispatched,
   isDeliveredCarrierStatus,
   parseCarrierTimestamp,
+  returnLegStampOf,
   readCodSettlement,
   readCarrierCharges,
   readCarrierChargesFromGetOrder,
@@ -1024,7 +1027,19 @@ export async function createReturnShipment(
   const buyerAddress = (order.shippingAddress as DeepAddress | null) ?? {};
   const shopSender = senderOf(account);
 
-  const shipment = await prisma.orderShipment.create({
+  /**
+   * 🛑 P2002 ที่นี่ = **มีคนในร้านกดเปิดพัสดุขากลับพร้อมกัน** อีกคนสร้างสำเร็จไปก่อน
+   * (partial unique `("orderId","direction") WHERE status <> 'CANCELLED'`)
+   *
+   * ด่าน `existing` ข้างบนกันได้แค่กรณีที่อ่านแล้วเห็น — ความถูกต้องต้องอยู่ที่ฐานเสมอ
+   * เพราะสองคนกดพร้อมกันแล้วออกเลขพัสดุขากลับ 2 ใบ = จ่ายค่าส่งสองรอบและลูกค้าได้สองเลข
+   *
+   * ก่อน 2026-08-25 index ตัวนั้นไม่มีคอลัมน์ `direction` ⇒ **P2002 เกิดกับทุกใบเสมอ**
+   * (ออเดอร์ที่คืนของได้ต้องมีพัสดุขาไป active อยู่แล้วโดยนิยาม) และตรงนี้ไม่มี catch เลย
+   * ⇒ ร้านได้ 500 ดิบ · ระบบคืนของแบบ iShip จึงไม่เคยทำงานสักครั้งตั้งแต่ขึ้น prod
+   */
+  const shipment = await prisma.orderShipment
+    .create({
     data: {
       orderId,
       shopId,
@@ -1072,7 +1087,16 @@ export async function createReturnShipment(
       createdByUserId: userId,
     },
     select: SHIPMENT_SELECT,
-  });
+    })
+    .catch((e: unknown) => {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        throw new IShipServiceError(
+          "SHIPMENT_EXISTS",
+          "คำสั่งซื้อนี้มีพัสดุขากลับอยู่แล้ว",
+        );
+      }
+      throw e;
+    });
 
   return dispatchShipment(shopId, shipment.id, token);
 }
@@ -1427,7 +1451,7 @@ export async function getLabelPdfForOrders(
       publicToken: true,
       shortCode: true,
       shipments: {
-        where: { status: { not: "CANCELLED" } },
+        where: LATEST_FORWARD_SHIPMENT,
         select: { id: true },
         orderBy: { createdAt: "desc" },
         take: 1,
@@ -1680,6 +1704,11 @@ export async function getTraces(
           carrierStatusAt: parcel?.updatedAtRaw ? new Date(parcel.updatedAtRaw) : new Date(),
         },
       });
+      await stampReturnLeg(
+        row.id,
+        code,
+        parcel?.updatedAtRaw ? new Date(parcel.updatedAtRaw) : new Date(),
+      );
       await advanceOrderOnCarrierMove(row.orderId, code);
     }
   } catch {
@@ -1778,6 +1807,41 @@ export async function requestPickup(
   }
 }
 
+/**
+ * stampReturnLeg — ประทับเวลา "ขากลับ" ลงแถวพัสดุขาไป (write-once ทั้งสองคอลัมน์)
+ *
+ * 🛑 ต้องเรียกจาก **ทุกทางที่เขียน `carrierStatus`** ปัจจุบันมี 3 ทาง:
+ *   1. `handleStatusWebhook()`   — iShip ยิงมาบอก
+ *   2. `applyCarrierStatus()`    — รอบ poll `syncShipmentStatuses` (query_orders)
+ *   3. บล็อกรีเฟรชใน `getTraces()` — ตอนร้านเปิดดูการเดินทาง (get_order รายใบ)
+ * ทางไหนไม่เรียก = พัสดุที่ตีกลับผ่านทางนั้นจะไม่มีวันเวลาบนไทม์ไลน์ โดยไม่มี error ให้เห็น
+ * (`deliveredAt` มีบั๊กนี้อยู่จริงตอนนี้ — ทางที่ 3 ไม่เคยประทับให้เลย)
+ *
+ * `updateMany` + `WHERE <col> IS NULL` คือหัวใจ ไม่ใช่การกันพลาด: event `return` เกิดซ้ำได้
+ * 7–8 ครั้งต่อพัสดุใบเดียว (ขนส่งพยายามส่งใหม่หลายรอบก่อนยอมตีกลับ — ข้อมูลจริงบน prod)
+ * ถ้าเขียนทับได้ "วันที่เริ่มตีกลับ" จะขยับทุกครั้งที่ขนส่งลองใหม่
+ */
+async function stampReturnLeg(
+  shipmentId: string,
+  code: string | null | undefined,
+  occurredAt: Date,
+): Promise<void> {
+  // เขียนแยกสองกิ่งแทนการใช้ computed key เพราะ Prisma ต้องการชื่อคอลัมน์แบบ literal
+  // ถึงจะตรวจชนิดให้ได้ — computed key จะกลายเป็น any แล้วสะกดผิดก็ไม่มีอะไรฟ้อง
+  const col = returnLegStampOf(code);
+  if (col === "returnStartedAt") {
+    await prisma.orderShipment.updateMany({
+      where: { id: shipmentId, returnStartedAt: null },
+      data: { returnStartedAt: occurredAt },
+    });
+  } else if (col === "returnedAt") {
+    await prisma.orderShipment.updateMany({
+      where: { id: shipmentId, returnedAt: null },
+      data: { returnedAt: occurredAt },
+    });
+  }
+}
+
 // ─── webhook (ไม่มี session — จับคู่จากข้อมูลใน payload) ────────────────────
 
 /**
@@ -1859,6 +1923,9 @@ export async function handleStatusWebhook(payload: unknown): Promise<void> {
       data: { deliveredAt: occurredAt },
     });
   }
+
+  // ฝาแฝดขากลับของบล็อกข้างบน — ไทม์ไลน์แถวที่ 2 อ่านเวลาจากสองคอลัมน์นี้
+  await stampReturnLeg(shipment.id, status, occurredAt);
 
   await advanceOrderOnCarrierMove(shipment.orderId, status);
 }
@@ -2190,6 +2257,9 @@ async function applyCarrierStatus(
       ...(code === "cancelled" ? { status: "CANCELLED", cancelledAt: changedAt } : {}),
     },
   });
+  // ประทับเวลาขากลับก่อนงานอื่น — ทางนี้คือทางที่พัสดุตีกลับส่วนใหญ่เดินผ่านจริง
+  // (6 จาก 12 ใบบน prod ได้ `return_success` มาทางรอบ poll ไม่ใช่ webhook)
+  await stampReturnLeg(s.id, code, changedAt);
   await advanceOrderOnCarrierMove(s.orderId, code);
 
   /**

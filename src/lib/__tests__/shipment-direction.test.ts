@@ -11,12 +11,17 @@
  *
  * แดง = ห้าม merge
  */
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
-import { ACTIVE_FORWARD_SHIPMENT, FORWARD_SHIPMENT, RETURN_SHIPMENT } from '../shipment-direction'
+import {
+  ACTIVE_FORWARD_SHIPMENT,
+  FORWARD_SHIPMENT,
+  LATEST_FORWARD_SHIPMENT,
+  RETURN_SHIPMENT,
+} from '../shipment-direction'
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
 const stripComments = (src: string) =>
@@ -130,5 +135,54 @@ describe('[blocker] ทุกจุดที่กรองพัสดุต้
     expect(src).not.toMatch(/direction\?:/)
     expect(src).toMatch(/direction: string/)
     expect(src).toContain(`s.direction === "FORWARD"`)
+  })
+})
+
+/**
+ * [blocker] 2026-08-25 — ด่านใหม่หลังปลดล็อก partial unique index
+ *
+ * 🛑 index เดิม `ON ("orderId") WHERE status <> 'CANCELLED'` บังคับว่าออเดอร์หนึ่งมีพัสดุที่
+ * ยังไม่ยกเลิกได้ **ใบเดียว** ⇒ ทุกจุดที่เขียน `where: { status: { not: 'CANCELLED' } }`
+ * + `take: 1` แล้วเรียกผลว่า "พัสดุของออเดอร์นี้" **ถูกโดยบังเอิญ** มาตลอด
+ *
+ * พอ index กลายเป็น `("orderId","direction")` เพื่อปลดล็อกระบบคืนของ ข้อสมมตินั้นหายไป และ
+ * เพราะเรียง `createdAt desc` **พัสดุขากลับซึ่งเกิดทีหลังเสมอจะชนะทุกครั้ง** ⇒ เลขพัสดุในการ์ด
+ * แชท · สถานะที่ตัดสินพฤติกรรมลูกค้า · ใบที่ถูกพิมพ์ตอนสั่งพิมพ์ยกชุด กลายเป็นของ *ขากลับ*
+ * ทั้งหมด โดยไม่มี error ไม่มี type ผิด มีแค่ข้อมูลที่ผิดบนจอ
+ *
+ * เทสนี้สแกน **ทั้ง `src/`** ไม่ใช่รายชื่อไฟล์ที่จำมา — จุดใหม่ที่ใครเพิ่มทีหลังต้องโดนด้วย
+ */
+describe('[blocker] ห้ามถาม "พัสดุของออเดอร์นี้" โดยไม่ระบุทิศทาง', () => {
+  const walk = (dir: string): string[] => {
+    const out: string[] = []
+    for (const e of readdirSync(join(process.cwd(), dir), { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name.startsWith('.')) continue
+      const p = `${dir}/${e.name}`
+      if (e.isDirectory()) out.push(...walk(p))
+      else if (/\.(ts|tsx)$/.test(e.name)) out.push(p)
+    }
+    return out
+  }
+
+  it('ไม่มีไฟล์ไหนเขียน `status: { not: \'CANCELLED\' }` เปล่า ๆ ในตัวกรองพัสดุ', () => {
+    const offenders: string[] = []
+    for (const f of walk('src')) {
+      // ข้ามไฟล์ที่ *อธิบาย* กฎนี้เอง — ไฟล์ที่ทำถูกคือไฟล์ที่เขียนคำเตือนไว้ด้วย
+      // (คลาสเดียวกับ HR9 grep gate ที่แดงค้างจากคอมเมนต์ของตัวเอง 2026-08-02→03)
+      if (f.endsWith('shipment-direction.ts') || f.includes('__tests__')) continue
+      const src = stripComments(read(f))
+      if (/where: \{ status: \{ not: ['"]CANCELLED['"] \} \}/.test(src)) offenders.push(f)
+    }
+    expect(
+      offenders,
+      `ใช้ LATEST_FORWARD_SHIPMENT แทน — ไม่งั้นพัสดุขากลับ (ซึ่งใหม่กว่าเสมอ) จะชนะ take:1`,
+    ).toEqual([])
+  })
+
+  it('ตัวกรองใหม่ต้องมีทั้ง status และ direction', () => {
+    expect(LATEST_FORWARD_SHIPMENT).toEqual({
+      status: { not: 'CANCELLED' },
+      direction: FORWARD_SHIPMENT,
+    })
   })
 })

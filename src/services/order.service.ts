@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
+import { ACTIVE_FORWARD_SHIPMENT, LATEST_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { toFileUrl } from "@/lib/file-url";
@@ -1091,7 +1091,7 @@ export async function updateShipmentTracking(
     where: { publicToken },
     include: {
       shipmentTracking: true,
-      shipments: { where: { status: { not: "CANCELLED" } }, select: { id: true } },
+      shipments: { where: LATEST_FORWARD_SHIPMENT, select: { id: true } },
     },
   });
   if (!order) throw new Error("Order not found");
@@ -1497,6 +1497,12 @@ function orderListInclude(opts?: { withPayments?: boolean }) {
           // 🛑 feature 00056 — countsAsRevenue() บังคับ field นี้ ไม่ใช่ optional
           // พัสดุขากลับของใบคืนต้องไม่ถูกนับเป็นหลักฐานว่าขายได้
           direction: true,
+          // แถวที่ 2 ของไทม์ไลน์ ("ขากลับ") อ่านเวลาจากสองช่องนี้ — 2026-08-25
+          // 🛑 ต้องมาจาก select นี้ ห้ามให้แถบไป join ShipmentEvent เอง: หน้า /orders คือ
+          // เส้นทางที่ร้อนที่สุดของระบบ (ทุกร้านเปิดตลอดวัน) และแถบต้องวาดได้ทันทีที่หน้าโหลด
+          // null = "ขนส่งไม่ได้แจ้งเวลา" ไม่ใช่ "ไม่เกิด" — จุดสว่างตัดสินจาก carrierStatus
+          returnStartedAt: true,
+          returnedAt: true,
           // ต้นทุนจริงของการจัดส่ง (D-EXT-10, 2026-08-09) — หน้า /sales รวมสองช่องนี้เป็น
           // "ค่าใช้จ่าย" รายวัน. null = iShip ยังไม่คิดเงิน (ขนส่งยังไม่เข้ารับ) **ไม่ใช่ ฿0**
           carrierPrice: true,
@@ -1674,10 +1680,14 @@ export async function getOrdersByCustomer(
       // เอามาพร้อมออเดอร์ ไม่ใช่ให้การ์ดแต่ละใบยิง API ถามเอง (ลิสต์ 20 ใบ = 20 คำขอ)
       // status/carrierStatus/courierCode เพิ่ม 2026-08-05: ให้ stepper + โลโก้ในการ์ด render ได้
       shipments: {
-        where: { status: { not: "CANCELLED" } },
+        where: LATEST_FORWARD_SHIPMENT,
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true },
+        select: {
+          trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true,
+          // แถวที่ 2 ของ stepper ในแชท ("ขากลับ") — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด"
+          returnStartedAt: true, returnedAt: true,
+        },
       },
     },
   });
@@ -1720,6 +1730,9 @@ export async function getOrdersByCustomer(
             courierCode: o.shipments[0].courierCode,
             status: o.shipments[0].status,
             carrierStatus: o.shipments[0].carrierStatus,
+            // แถวที่ 2 ของ stepper ("ขากลับ") — Date ข้ามเส้น RSC/JSON ไม่ได้ ต้องเป็นสตริง
+            returnStartedAt: o.shipments[0].returnStartedAt?.toISOString() ?? null,
+            returnedAt: o.shipments[0].returnedAt?.toISOString() ?? null,
           }
         : null,
     })),

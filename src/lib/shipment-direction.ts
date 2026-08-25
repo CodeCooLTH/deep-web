@@ -42,5 +42,29 @@ export const ACTIVE_FORWARD_SHIPMENT = {
   direction: FORWARD_SHIPMENT as string,
 }
 
+/**
+ * "พัสดุขาไปที่ยังไม่ถูกยกเลิก" — **กว้างกว่า `ACTIVE_FORWARD_SHIPMENT`** เพราะรวมใบที่ยัง
+ * `PENDING`/`FAILED` ด้วย (ยังไม่สำเร็จแต่ก็ยังไม่ตาย)
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 🛑 ทำไมเพิ่งมีตัวนี้ (2026-08-25)
+ *
+ * มี 6 จุดที่เขียน `where: { status: { not: 'CANCELLED' } }` + `take: 1` แล้วเรียกผลว่า
+ * "พัสดุของออเดอร์นี้" — ทั้ง 6 จุด **ถูกมาตลอดโดยบังเอิญ** เพราะ partial unique index เดิม
+ * (`ON ("orderId") WHERE status <> 'CANCELLED'`) บังคับว่าออเดอร์หนึ่งมีพัสดุที่ยังไม่ยกเลิก
+ * ได้ใบเดียวอยู่แล้ว ⇒ `take: 1` หยิบใบไหนก็ใบเดียวกัน
+ *
+ * พอ index ถูกแก้เป็น `("orderId","direction")` เพื่อปลดล็อกระบบคืนของ ข้อสมมตินั้นหายไป
+ * และเพราะเรียง `createdAt desc` **พัสดุขากลับซึ่งเกิดทีหลังเสมอจะชนะทุกครั้ง** ⇒ เลขพัสดุ
+ * ในการ์ดแชท · สถานะที่ใช้ตัดสินพฤติกรรมลูกค้า · ใบที่ถูกพิมพ์ตอนสั่งพิมพ์ยกชุด จะกลายเป็น
+ * ของ *ขากลับ* ทั้งหมด **โดยไม่มี error ไม่มี type ผิด มีแค่ข้อมูลที่ผิดบนจอ**
+ *
+ * ⇒ การปลดล็อก index กับการเติม direction ให้ 6 จุดนี้ **ต้องไปด้วยกันเสมอ** แยกคอมมิตกันไม่ได้
+ */
+export const LATEST_FORWARD_SHIPMENT = {
+  status: { not: 'CANCELLED' },
+  direction: FORWARD_SHIPMENT as string,
+}
+
 /** ตัวกรองเดียวกันในรูป SQL — สำหรับ 4 จุดที่เป็น raw query (Prisma แสดงเงื่อนไขนั้นไม่ได้) */
 export const ACTIVE_FORWARD_SHIPMENT_SQL = `"status" = 'CREATED' AND "isDryRun" = false AND "direction" = '${FORWARD_SHIPMENT}'`
