@@ -105,7 +105,7 @@ export default function ShipmentEvidencePanel({
           <Icon icon="shield-check" className="text-default-600 size-4 shrink-0" />
           <span className="truncate">หลักฐานจากขนส่ง</span>
         </h5>
-        <button type="button" className="btn btn-sm btn-light shrink-0" onClick={toggle}>
+        <button type="button" className="btn btn-sm bg-light text-default-700 shrink-0 hover:bg-light-hover" onClick={toggle}>
           {open ? 'ซ่อน' : `ดู ${count} ชุด`}
         </button>
       </div>
@@ -180,7 +180,7 @@ export default function ShipmentEvidencePanel({
                 </div>
               ))}
 
-              <button type="button" className="btn btn-sm btn-light" onClick={copyAll}>
+              <button type="button" className="btn btn-sm bg-light text-default-700 hover:bg-light-hover" onClick={copyAll}>
                 <Icon icon="copy" className="size-4" aria-hidden="true" />
                 คัดลอกทั้งหมด
               </button>

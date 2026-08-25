@@ -281,7 +281,7 @@ export default function ReturnPanel({
             </h5>
             <button
               type="button"
-              className="btn btn-sm btn-light shrink-0"
+              className="btn btn-sm bg-light text-default-700 shrink-0 hover:bg-light-hover"
               onClick={onCloseSheet}
               aria-label="ปิด"
             >
@@ -307,7 +307,7 @@ export default function ReturnPanel({
             </span>
           )}
         </h5>
-        <button type="button" className="btn btn-sm btn-light shrink-0" onClick={toggle}>
+        <button type="button" className="btn btn-sm bg-light text-default-700 shrink-0 hover:bg-light-hover" onClick={toggle}>
           {open ? 'ซ่อน' : 'จัดการ'}
         </button>
       </div>
@@ -361,13 +361,13 @@ export default function ReturnPanel({
                         href={labelUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="btn btn-sm btn-light shrink-0"
+                        className="btn btn-sm bg-light text-default-700 shrink-0 hover:bg-light-hover"
                       >
                         เปิด
                       </a>
                       <button
                         type="button"
-                        className="btn btn-sm btn-light shrink-0"
+                        className="btn btn-sm bg-light text-default-700 shrink-0 hover:bg-light-hover"
                         onClick={async () => {
                           try {
                             await navigator.clipboard.writeText(
@@ -395,7 +395,7 @@ export default function ReturnPanel({
                     {r.status === RETURN_STATUS.REQUESTED && (
                       <button
                         type="button"
-                        className="btn btn-sm btn-primary"
+                        className="btn btn-sm bg-primary text-white hover:bg-primary-hover disabled:opacity-60"
                         disabled={busy}
                         onClick={() => act(r.id, 'ship')}
                       >
@@ -408,7 +408,7 @@ export default function ReturnPanel({
                       <>
                         <button
                           type="button"
-                          className="btn btn-sm btn-light"
+                          className="btn btn-sm bg-light text-default-700 hover:bg-light-hover"
                           disabled={busy}
                           onClick={() => act(r.id, 'receive')}
                         >
@@ -417,7 +417,7 @@ export default function ReturnPanel({
                         {/* ยกเลิกเป็นปุ่มขอบ ไม่ใช่ปุ่มทึบ — ไม่ใช่ทางที่เราอยากให้กดเป็นอันดับแรก */}
                         <button
                           type="button"
-                          className="btn btn-sm btn-outline-danger"
+                          className="btn btn-sm border border-danger text-danger hover:bg-danger/15 disabled:opacity-60"
                           disabled={busy}
                           onClick={() => act(r.id, 'cancel')}
                         >
@@ -439,7 +439,7 @@ export default function ReturnPanel({
                 /* 🛑 ปุ่มนี้มีเฉพาะโหมดการ์ด — โหมดชีตเปิดจาก `⋮ → คืนของ` ซึ่งผู้ใช้บอกเจตนา
                    ไปแล้ว การให้กด "เปิดเรื่องคืนของ" ซ้ำคือคลิกที่ไม่ได้ตัดสินใจอะไรเพิ่ม
                    (หัวหน้าทักเอง 2026-08-25: "ทำไมยังต้องกดเปิดเรื่องคืนของ") */
-                <button type="button" className="btn btn-sm btn-primary" onClick={() => setForm(true)}>
+                <button type="button" className="btn btn-sm bg-primary text-white hover:bg-primary-hover disabled:opacity-60" onClick={() => setForm(true)}>
                   <Icon icon="plus" className="size-4" aria-hidden="true" />
                   เปิดเรื่องคืนของ
                 </button>
@@ -542,7 +542,7 @@ export default function ReturnPanel({
           <div className="mt-4 flex gap-2">
             <button
               type="button"
-              className="btn btn-sm btn-primary flex-1"
+              className="btn btn-sm bg-primary flex-1 text-white hover:bg-primary-hover disabled:opacity-60"
               disabled={!stepOneReady}
               onClick={() => setStep(2)}
             >
@@ -550,7 +550,7 @@ export default function ReturnPanel({
             </button>
             <button
               type="button"
-              className="btn btn-sm btn-light"
+              className="btn btn-sm bg-light text-default-700 hover:bg-light-hover"
               onClick={() => (asSheet ? onCloseSheet?.() : closeForm())}
             >
               ยกเลิก
@@ -564,7 +564,7 @@ export default function ReturnPanel({
     return (
       <>
         {/* ปุ่มย้อนกลับพูดชื่อข้อที่เลือกไว้ด้วย = ไม่ต้องจำ และแก้ได้ในคลิกเดียว */}
-        <button type="button" className="btn btn-sm btn-light mb-3 max-w-full" onClick={() => setStep(1)}>
+        <button type="button" className="btn btn-sm bg-light text-default-700 mb-3 max-w-full hover:bg-light-hover" onClick={() => setStep(1)}>
           <Icon icon="arrow-left" className="size-4 shrink-0" aria-hidden="true" />
           <span className="truncate">{choice?.title}</span>
         </button>
@@ -638,7 +638,7 @@ export default function ReturnPanel({
           </span>
           <button
             type="button"
-            className="btn btn-sm btn-primary"
+            className="btn btn-sm bg-primary text-white hover:bg-primary-hover disabled:opacity-60"
             disabled={busy || selectedLines.length === 0 || !stepOneReady}
             onClick={submit}
           >

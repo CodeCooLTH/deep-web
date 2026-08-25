@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>คืนของ — แบบ A + เปลี่ยนขนส่งขากลับ + เลขแทร็กแยก</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--primary:#236dc9;--primary-ink:#12386a;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--bg:#f4f6f8;--warn:#f5a524;--warn-ink:#7a4f00;--ok:#28c76f;--danger:#ea5455}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Anuphan,system-ui,sans-serif;font-size:15px;line-height:1.6}
+.wrap{max-width:1280px;margin:0 auto;padding:26px 20px 80px}
+h1{font-size:25px;margin:0 0 4px}h2{font-size:19px;margin:34px 0 8px;padding-top:20px;border-top:1px solid var(--line)}
+.lede{color:var(--muted);margin:0 0 18px}
+.note{background:#fff8e6;border-left:3px solid var(--warn);padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+.note.good{background:#eafaf1;border-left-color:var(--ok)}.note.ask{background:#eef3fb;border-left-color:var(--primary)}
+.devs{display:grid;grid-template-columns:390px 1fr;gap:20px;align-items:start}
+@media(max-width:940px){.devs{grid-template-columns:1fr}}
+.dev{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+.dev>h4{margin:0;padding:8px 13px;font-size:12px;font-weight:600;color:var(--muted);background:#fafbfc;border-bottom:1px solid var(--line)}
+.pane{padding:13px}
+.hd{display:flex;align-items:center;justify-content:space-between;padding-bottom:9px;border-bottom:1px dashed var(--line);margin-bottom:11px;font-weight:600;font-size:14.5px}
+.x{color:var(--muted)}
+.q{font-weight:600;font-size:13.5px;margin-bottom:2px}
+.qs{color:var(--muted);font-size:12.5px;margin-bottom:9px}
+
+/* แถบขาไป */
+.leg{display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid var(--line);border-radius:9px;padding:7px 9px;margin-bottom:11px;font-size:12.5px}
+.leg img{width:22px;height:22px;border-radius:5px;object-fit:contain;background:#fff;flex:none;box-shadow:0 0 0 1px var(--line)}
+.leg .t{color:var(--muted)}
+.leg b{font-variant-numeric:tabular-nums}
+
+.opt{display:flex;gap:9px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:7px}
+.opt.on{border-color:var(--primary);background:#f2f7fd}
+.rd{width:15px;height:15px;border-radius:50%;border:2px solid #c3c9d2;flex:none;margin-top:3px}
+.opt.on .rd{border-color:var(--primary);background:radial-gradient(circle,var(--primary) 42%,#fff 46%)}
+.ic{width:20px;text-align:center;flex:none;margin-top:1px;opacity:.5;font-size:15px}
+.t{font-weight:500;font-size:13.5px}.d{color:var(--muted);font-size:12px;line-height:1.45}
+.badge{display:inline-block;background:#eef1f4;color:#4b5563;border-radius:5px;padding:0 6px;font-size:11px;font-weight:500;vertical-align:2px}
+
+.fields{margin:8px 0 2px;padding:10px;background:#f8fafc;border:1px solid var(--line);border-radius:9px}
+.fl{font-size:11.5px;color:var(--muted);margin-bottom:4px;font-weight:500;display:flex;justify-content:space-between;align-items:baseline}
+.fl a{color:var(--primary);font-size:11px;text-decoration:none}
+.inp{border:1px solid #d5dae1;background:#fff;border-radius:8px;padding:8px 9px;font-size:13px;color:var(--muted)}
+.inp.sel{display:flex;justify-content:space-between;align-items:center;color:var(--ink)}
+.inp.sel .car{display:flex;align-items:center;gap:7px}
+.inp.sel img{width:20px;height:20px;border-radius:4px;object-fit:contain}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:430px){.grid2{grid-template-columns:1fr}}
+.chk{display:flex;gap:7px;align-items:flex-start;font-size:12.5px;margin-top:9px}
+.box{width:14px;height:14px;border:2px solid #c3c9d2;border-radius:3px;flex:none;margin-top:3px}
+
+.sep{border-top:1px dashed var(--line);margin:14px 0}
+.row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 9px;margin-bottom:7px}
+.row img{width:42px;height:42px;border-radius:7px;object-fit:cover;flex:none;background:#eef1f4}
+.nm{flex:1;min-width:0;font-size:13.5px}.nm small{display:block;color:var(--muted);font-size:11.5px}
+.stp{display:flex;align-items:center;border:1px solid #d5dae1;border-radius:8px;flex:none}
+.stp b{width:28px;text-align:center;color:var(--primary);font-weight:400;font-size:15px}
+.stp span{width:28px;text-align:center;font-weight:700;font-size:13px;border-left:1px solid var(--line);border-right:1px solid var(--line);padding:3px 0}
+.foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);margin:12px -13px -13px;padding:11px 13px;background:#fff}
+.b{border-radius:8px;padding:7px 13px;font-size:13px;font-weight:600}
+.b.p{background:var(--primary);color:#fff}.b.l{background:#f0f2f5;color:var(--ink)}.b.d{background:#c9d3e0;color:#fff}
+
+.side{font-size:13.5px}
+.side h5{margin:0 0 6px;font-size:14px}
+.side ul{margin:0 0 14px;padding-left:18px;color:var(--muted)}
+.side li{margin-bottom:6px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px;background:#fff}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#fafbfc;font-weight:600}
+code{background:#eef1f4;padding:1px 5px;border-radius:4px;font-size:12.5px;font-family:ui-monospace,monospace}
+.pill{display:inline-block;background:var(--primary);color:#fff;border-radius:999px;padding:1px 9px;font-size:11.5px;font-weight:600;vertical-align:2px}
+</style></head><body><div class="wrap">
+
+<h1>คืนของ — แบบ A <span class="pill">เลือกแล้ว</span></h1>
+<p class="lede">เพิ่ม 3 อย่างตามที่สั่ง: <b>รูปสินค้าจริง</b> · <b>เปลี่ยนขนส่งขากลับได้</b> · <b>เลขแทร็กขากลับเป็นคนละใบกับขาไป</b></p>
+
+<div class="note good">
+<b>โจทย์:</b> “ไป Track A ขากลับอาจจะเลือก Thai Post track B ได้”<br>
+⇒ ขากลับเป็น <b>พัสดุคนละใบ</b> มีขนส่งของตัวเอง มีเลขของตัวเอง — ไม่ใช่การแก้ใบขาไป
+</div>
+
+<h2>ตัวเลือกที่ 1 · ส่งด้วย iShip <span style="font-size:13px;color:var(--muted);font-weight:400">— เลือกขนส่งขากลับได้เอง</span></h2>
+<div class="devs">
+  <div class="dev"><h4>มือถือ 390px</h4><div class="pane">
+    <div class="hd"><span>คืนของ</span><span class="x">✕</span></div>
+
+    <div class="leg">
+      <img src="http://seller.deepth.local:4000/images/logos/flash-express.jpeg" alt="">
+      <span class="t">ขาไป</span><b>Flash Express · TH01234567890</b>
+      <span style="margin-left:auto;color:var(--ok);font-weight:600">ส่งถึงแล้ว</span>
+    </div>
+
+    <div class="q">จะส่งของกลับยังไง</div>
+    <div class="qs">เลือกข้อที่ตรงกับที่ตกลงกับลูกค้าไว้</div>
+
+    <div class="opt on"><div class="rd"></div><div class="ic">⇄</div><div>
+      <div class="t">ส่งด้วย iShip <span class="badge">ตัดจากเครดิตร้าน</span></div>
+      <div class="d">ระบบออกเลขพัสดุขากลับให้ แล้วได้ใบปะหน้าส่งให้ลูกค้าพิมพ์</div></div></div>
+
+    <div class="fields">
+      <div class="fl"><span>ขนส่งขากลับ</span><span style="color:var(--muted)">ตั้งต้น = เจ้าเดียวกับขาไป</span></div>
+      <div class="inp sel"><span class="car"><img src="http://seller.deepth.local:4000/images/logos/thaipost.png" alt=""> ไปรษณีย์ไทย — EMS</span><span style="color:#98a2b3">▾</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:7px;font-size:12px">
+        <span style="color:var(--muted)">ค่าส่งโดยประมาณ</span>
+        <span style="font-weight:600">฿45</span>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:2px">คิดจากขนาดกล่องของขาไป (2 กก. · 30×20×15 ซม.) — <a href="#" style="color:var(--primary);text-decoration:none">แก้ขนาดกล่อง</a></div>
+    </div>
+
+    <div class="sep"></div>
+    <div class="q" style="margin-bottom:7px">คืนของชิ้นไหนบ้าง</div>
+    <div class="row">
+      <img src="https://picsum.photos/seed/prod-7-a/160/160" alt="">
+      <div class="nm">ชุดไฟหน้า LED Premium (คู่)<small>คืนได้ 1 · ฿4,500/ชิ้น</small></div>
+      <div class="stp"><b>−</b><span>1</span><b>+</b></div>
+    </div>
+    <div class="row">
+      <img src="https://picsum.photos/seed/prod-2-a/160/160" alt="">
+      <div class="nm">บริการติดตั้งไฟหน้า<small>คืนได้ 1 · ฿900/ชิ้น</small></div>
+      <div class="stp"><b>−</b><span>0</span><b>+</b></div>
+    </div>
+    <div class="inp" style="margin-top:8px">เหตุผล (ไม่บังคับ)</div>
+
+    <div class="foot"><b>คืน ฿4,500</b><span class="b p">ถัดไป — ตรวจก่อนยืนยัน</span></div>
+  </div></div>
+
+  <div class="side">
+    <h5>🛑 ขากลับเป็นพัสดุคนละใบ</h5>
+    <ul>
+      <li>ในฐานข้อมูลเป็นแถว <code>OrderShipment</code> อีกแถว <code>direction='RETURN'</code> — <b>ขาไปไม่ถูกแตะเลย</b> เลขเดิมยังติดตามได้ตามปกติ</li>
+      <li>1 ออเดอร์จึงมี 2 เลขพัสดุคนละเจ้าได้: <b>ขาไป Flash TH0123…</b> / <b>ขากลับ ไปรษณีย์ไทย EY…</b></li>
+    </ul>
+    <h5>ทำไมตั้งต้นเป็นเจ้าเดียวกับขาไป</h5>
+    <ul>
+      <li>โค้ดปัจจุบัน (<code>createReturnShipment</code>) ใช้ขนส่ง+ขนาดกล่องของขาไปเป็นค่าตั้งต้นอยู่แล้ว — ของชิ้นเดิมกล่องเดิม</li>
+      <li>เดิม<b>เปลี่ยนไม่ได้</b>เลย · ตอนนี้เป็น dropdown ⇒ เจ้าที่ไม่รับ pickup ขากลับก็สลับได้</li>
+      <li>ค่าส่งโดยประมาณอัปเดตตามเจ้าที่เลือก (ใช้ <code>/api/seller/iship/price/compare</code> ตัวเดิม)</li>
+    </ul>
+    <h5>รูปสินค้า</h5>
+    <ul><li>ขนาด 42px ในแถว — ช่วยตอนออเดอร์มีของหลายชิ้นชื่อคล้ายกัน (“ไฟหน้า LED 6000K” vs “ไฟหน้า LED 8000K”)</li>
+    <li>ไม่มีรูป → กล่องเทาเปล่า ไม่ใช่ไอคอนแทน (ไอคอนดูเหมือนของจริงจนคนอ่านผิด)</li></ul>
+  </div>
+</div>
+
+<h2>ตัวเลือกที่ 2 / 3 · ส่งเอง — กรอกขนส่ง + เลขเอง</h2>
+<div class="devs">
+  <div class="dev"><h4>มือถือ 390px · เลือก “ลูกค้าส่งเอง”</h4><div class="pane">
+    <div class="leg">
+      <img src="http://seller.deepth.local:4000/images/logos/flash-express.jpeg" alt="">
+      <span class="t">ขาไป</span><b>Flash Express · TH01234567890</b>
+    </div>
+    <div class="opt"><div class="rd"></div><div class="ic">⇄</div><div><div class="t">ส่งด้วย iShip</div></div></div>
+    <div class="opt"><div class="rd"></div><div class="ic">▣</div><div><div class="t">ร้านส่งเอง <span class="badge">เป็นต้นทุนร้าน</span></div></div></div>
+    <div class="opt on"><div class="rd"></div><div class="ic">☺</div><div>
+      <div class="t">ลูกค้าส่งเอง <span class="badge">ลูกค้าออกค่าส่ง</span></div>
+      <div class="d">ลูกค้าออกค่าส่งและส่งกลับมาเอง</div></div></div>
+
+    <div class="fields">
+      <div class="grid2">
+        <div><div class="fl"><span>ขนส่งขากลับ</span></div>
+          <div class="inp sel"><span class="car"><img src="http://seller.deepth.local:4000/images/logos/thaipost.png" alt=""> ไปรษณีย์ไทย</span><span style="color:#98a2b3">▾</span></div></div>
+        <div><div class="fl"><span>เลขพัสดุขากลับ</span></div>
+          <div class="inp" style="color:var(--ink)">EY123456789TH</div></div>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:5px">ยังไม่มีเลข? เว้นว่างไว้ได้ แล้วมากรอกทีหลัง</div>
+      <div class="chk"><span class="box"></span><span>ลูกค้าออกเลขเอง แต่<b>มาเรียกเก็บร้านทีหลัง</b> — บันทึกเป็นต้นทุนร้าน</span></div>
+    </div>
+
+    <div class="sep"></div>
+    <div class="q" style="margin-bottom:7px">คืนของชิ้นไหนบ้าง</div>
+    <div class="row">
+      <img src="https://picsum.photos/seed/prod-7-a/160/160" alt="">
+      <div class="nm">ชุดไฟหน้า LED Premium (คู่)<small>คืนได้ 1 · ฿4,500/ชิ้น</small></div>
+      <div class="stp"><b>−</b><span>1</span><b>+</b></div>
+    </div>
+    <div class="foot"><b>คืน ฿4,500</b><span class="b p">ถัดไป — ตรวจก่อนยืนยัน</span></div>
+  </div></div>
+
+  <div class="side">
+    <h5>dropdown ขนส่งเป็นตัวเดียวกันทั้ง 3 ตัวเลือก</h5>
+    <ul>
+      <li>ดึงจาก <code>COURIER_BRANDS</code> ตัวเดียวกับที่หน้าออเดอร์ใช้แสดงโลโก้ + <b>“อื่น ๆ”</b> ท้ายลิสต์</li>
+      <li>ต่างกันที่ <b>ผลของการเลือก</b>: ข้อ 1 = สั่งให้ระบบเปิดพัสดุกับเจ้านั้น · ข้อ 2/3 = แค่บันทึกว่าใช้เจ้าไหน</li>
+      <li>เลือกจากลิสต์ ⇒ โลโก้ขึ้นถูกทันทีในทุกหน้าที่โชว์พัสดุขากลับ · พิมพ์เองจะได้ “เคอรี่ / Kerry / KEX” ที่จับคู่โลโก้ไม่ได้</li>
+    </ul>
+    <h5>เลขว่างได้</h5>
+    <ul><li>ลูกค้าส่งมาแล้วไม่แจ้งเลขเป็นเคสจริง (<code>BR-RT-19</code>) ⇒ เว้นว่าง = บันทึกเป็น “ไม่มีเลข” ไม่บล็อกการเปิดใบ</li></ul>
+  </div>
+</div>
+
+<h2>หน้าสรุป — ขาไป/ขากลับอยู่คนละบรรทัด</h2>
+<div class="devs">
+  <div class="dev"><h4>มือถือ 390px</h4><div class="pane">
+    <div class="hd"><span>คืนของ</span><span class="x">✕</span></div>
+    <div class="q">ตรวจก่อนยืนยัน</div>
+    <div class="qs">กดยืนยันแล้วยังยกเลิกได้ ตราบใดที่ยังไม่ได้รับของคืน</div>
+
+    <div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
+      <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:6px">ของที่คืน</div>
+      <div style="display:flex;gap:9px;align-items:center">
+        <img src="https://picsum.photos/seed/prod-7-a/160/160" style="width:36px;height:36px;border-radius:6px;object-fit:cover" alt="">
+        <span style="flex:1;min-width:0;font-size:13.5px">ชุดไฟหน้า LED Premium (คู่)</span>
+        <span style="color:var(--muted);font-size:13px">×1</span>
+        <span style="font-weight:600;font-size:13.5px">฿4,500</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-top:1px dashed var(--line);margin-top:8px;padding-top:8px;font-weight:600;font-size:13.5px">
+        <span>ยอดที่คืนให้ลูกค้า</span><span>฿4,500</span></div>
+    </div>
+
+    <div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
+      <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:7px">พัสดุ</div>
+      <div class="leg" style="margin:0 0 6px;background:#fff;border:0;padding:0">
+        <img src="http://seller.deepth.local:4000/images/logos/flash-express.jpeg" alt="">
+        <span class="t">ขาไป</span><b style="font-size:12.5px">Flash · TH01234567890</b>
+      </div>
+      <div class="leg" style="margin:0;background:#fff;border:0;padding:0">
+        <img src="http://seller.deepth.local:4000/images/logos/thaipost.png" alt="">
+        <span class="t">ขากลับ</span><b style="font-size:12.5px">ไปรษณีย์ไทย · ออกเลขให้หลังยืนยัน</b>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:7px">ค่าส่งขากลับ ~฿45 เข้าเป็น<b>ต้นทุนร้าน</b> — จะไปโผล่ในหน้ากำไร/ขาดทุน</div>
+    </div>
+
+    <div style="background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
+      <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:5px">ลูกค้าส่งกลับมาที่</div>
+      <div style="font-size:13px">◎ ที่อยู่ผู้ส่งของร้าน (ตั้งค่า → การจัดส่ง)
+      <div style="color:var(--muted);font-size:12px">ระบบสลับผู้ส่ง/ผู้รับกับขาไปให้เอง — <b>ร้านไม่ต้องกรอกที่อยู่ใหม่</b></div></div>
+    </div>
+
+    <div style="border:1px solid var(--line);border-radius:10px;padding:10px">
+      <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:7px">หลังกดยืนยัน</div>
+      <ol style="margin:0;padding-left:17px;font-size:12.5px;color:#374151;line-height:1.75">
+        <li>กด “ออกเลขพัสดุขากลับ” ในใบคืน — <b>ตอนนั้น</b>เครดิต iShip ถึงจะถูกตัด</li>
+        <li>คัดลอกลิงก์ใบปะหน้าส่งให้ลูกค้าทางแชท</li>
+        <li>ของถึงร้านแล้วกด <b>“ได้รับของคืนแล้ว”</b> — <b>จุดนี้จุดเดียว</b>ที่ยอดขาย ฿4,500 ถูกหักออก</li>
+      </ol>
+    </div>
+
+    <div class="foot"><span class="b l">← แก้ไข</span><span class="b p">ยืนยันเปิดใบคืน</span></div>
+  </div></div>
+
+  <div class="side">
+    <h5>ทำไมต้องโชว์ขาไปด้วย</h5>
+    <ul>
+      <li>ร้านต้องเห็นว่า<b>ไม่ได้ไปยุ่งกับเลขขาไป</b> — ไม่งั้นจะกลัวว่าเปลี่ยนขนส่งแล้วเลขเดิมใช้ไม่ได้</li>
+      <li>เป็นที่เดียวที่เห็นทั้งสองขาพร้อมกัน ⇒ ตอบคำถาม “แล้วของขาไปล่ะ” ก่อนที่จะถาม</li>
+    </ul>
+    <h5>“ออกเลขให้หลังยืนยัน” ไม่ใช่เลขว่าง</h5>
+    <ul><li>เลขขากลับยังไม่มีตอนนี้จริง ๆ (ออกตอนกดปุ่มในใบคืน) — เขียนตรง ๆ ดีกว่าเว้นว่างให้เดาว่าระบบพัง</li></ul>
+  </div>
+</div>
+
+<h2>สิ่งที่ต้องแก้ในโค้ดจริง</h2>
+<table>
+<tr><th style="width:210px">จุด</th><th>ตอนนี้</th><th>ต้องเป็น</th></tr>
+<tr><td><code>createReturnShipment()</code></td>
+  <td>ขนส่งขากลับ = <code>override ?? ขาไป ?? ค่าตั้งต้นของบัญชี</code> — แต่<b>ไม่มี UI ส่ง override มา</b></td>
+  <td>ส่ง <code>courierCode</code> ที่ร้านเลือกเข้ามาทาง <code>override</code> (ทางมีอยู่แล้ว แค่ไม่มีใครใช้)</td></tr>
+<tr><td><code>OrderReturn</code></td><td>มี <code>manualCourier</code> เป็นข้อความอิสระ</td>
+  <td>เก็บเป็น <b>รหัสขนส่ง</b> ให้จับคู่โลโก้ได้ (ข้อความอิสระจับคู่ไม่ได้)</td></tr>
+<tr><td>ค่าส่งโดยประมาณ</td><td>ยังไม่แสดงตอนเลือก</td>
+  <td>เรียก <code>/api/seller/iship/price/compare</code> ตัวเดิม — <b>ห้ามเขียนสูตรใหม่</b></td></tr>
+<tr><td>รูปสินค้าในแถว</td><td><code>/returns</code> คืนแค่ชื่อ/จำนวน/ราคา</td><td>เพิ่ม <code>imageUrl</code> ใน response</td></tr>
+</table>
+
+<div class="note ask">
+<b>ต้องเคาะ:</b> ตอน<b>เปลี่ยนเจ้าขนส่งขากลับ</b> ควรใช้ขนาดกล่องของขาไปต่อไปเลยไหม<br>
+กล่องเดิมของเดิมก็จริง แต่ลูกค้าแพ็กใหม่มักได้กล่องคนละขนาด — ถ้าเลขไม่ตรงจะโดนขนส่งเก็บส่วนต่างทีหลัง<br>
+ผมเสนอ: <b>ใช้ของขาไปเป็นค่าตั้งต้น + มีลิงก์ “แก้ขนาดกล่อง” ตรงนั้น</b> (ตามในม็อกอัพ) ไม่บังคับกรอกใหม่
+</div>
+
+</div></body></html>

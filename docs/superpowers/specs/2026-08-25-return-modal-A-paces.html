@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="th" data-layout="vertical" data-topbar-color="light" data-menu-color="dark" data-theme="light" data-skin="default" data-layout-width="fluid" dir="ltr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>คืนของ แบบ A — Paces token จริง</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- 🛑 CSS ที่คอมไพล์จริงของแอป ไม่ใช่ CSS เลียนแบบ — ทุก token/คลาสในไฟล์นี้จึงเป็นของธีมจริง -->
+<link rel="stylesheet" href="./assets/paces-theme.css">
+<style>
+  :root{ --font-anuphan:'Anuphan',system-ui,sans-serif }
+  body{ font-family:var(--font-anuphan); background:var(--color-body-bg); }
+  .lab{ font-family:ui-monospace,monospace; font-size:11px; color:var(--color-default-500); }
+</style>
+</head>
+<body class="antialiased">
+<div class="mx-auto max-w-360 p-5 pb-24">
+
+  <h1 class="text-default-900 mb-1 text-2xl font-bold">คืนของ แบบ A — เขียนด้วย Paces token จริง</h1>
+  <p class="text-default-600 mb-5 text-sm">
+    ไฟล์นี้ลิงก์ <code class="bg-default-100 rounded px-1">assets/paces-theme.css</code> ซึ่งเป็น CSS
+    ที่ Next คอมไพล์ออกมาจริง ⇒ สีปุ่ม ระยะ เงา ฟอนต์ = ของที่จะได้บนหน้าจอจริงทุกพิกเซล
+  </p>
+
+  <!-- ─────────── สิ่งที่ค้นพบระหว่างทำม็อกอัพนี้ ─────────── -->
+  <div class="card border-danger/40 mb-6 border">
+    <div class="card-body">
+      <h5 class="text-default-900 mb-2 flex items-center gap-2 text-base font-semibold">
+        <span class="badge bg-danger/15 text-danger-ink">พบระหว่างทำ</span>
+        <code>btn-primary</code> / <code>btn-light</code> ไม่มีอยู่จริงในธีม
+      </h5>
+      <p class="text-default-700 mb-3 text-sm">
+        วัดจาก <code>getComputedStyle</code> บนหน้า order detail จริง:
+      </p>
+      <div class="overflow-x-auto">
+        <table class="text-default-700 w-full text-sm">
+          <thead><tr class="text-default-500 border-default-200 border-b text-xs">
+            <th class="py-1.5 text-left font-semibold">คลาสที่เขียน</th>
+            <th class="py-1.5 text-left font-semibold">background จริง</th>
+            <th class="py-1.5 text-left font-semibold">ผล</th></tr></thead>
+          <tbody>
+            <tr class="border-default-200 border-b">
+              <td class="py-1.5"><code>btn btn-sm btn-light</code></td>
+              <td class="py-1.5"><code>rgba(0,0,0,0)</code></td>
+              <td class="py-1.5 text-danger-ink">โปร่งใส — ไม่เหมือนปุ่ม</td></tr>
+            <tr class="border-default-200 border-b">
+              <td class="py-1.5"><code>btn btn-primary</code></td>
+              <td class="py-1.5"><code>rgba(0,0,0,0)</code></td>
+              <td class="py-1.5 text-danger-ink">โปร่งใส — <b>ไม่ใช่ปุ่มน้ำเงิน</b></td></tr>
+            <tr>
+              <td class="py-1.5"><code>btn bg-primary text-white</code></td>
+              <td class="py-1.5"><code>rgb(35,109,201)</code></td>
+              <td class="py-1.5 text-success-ink">ถูกต้อง</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-default-700 mt-3 mb-0 text-sm">
+        🛑 <b>นี่คือคำตอบของ “เลือกไม่ได้”</b> — ปุ่ม “เปิดใบคืน” เรนเดอร์เป็นตัวหนังสือเทาไม่มีพื้น
+        มันไม่ได้ disabled และกดได้จริง แต่<b>ไม่มีอะไรบอกว่ามันคือปุ่ม</b>
+        · ในรีโปใช้คลาสผีพวกนี้อยู่ <b>37 จุด / 8 ไฟล์</b> (6 ไฟล์มีอยู่บน main ก่อนงานรอบนี้)
+      </p>
+    </div>
+  </div>
+
+  <div class="grid gap-5 lg:grid-cols-[390px_390px_1fr]">
+
+    <!-- ═══ จอ 1 · เลือกวิธี ═══ -->
+    <div>
+      <p class="lab mb-1.5">มือถือ 390px · ขั้นเลือกวิธี</p>
+      <div class="card">
+        <div class="card-header flex flex-nowrap items-center justify-between gap-2">
+          <h5 class="card-title truncate">คืนของ</h5>
+          <button class="btn btn-sm bg-light text-default-800 hover:bg-default-200 shrink-0">✕</button>
+        </div>
+        <div class="card-body">
+
+          <!-- ขาไป -->
+          <div class="bg-default-50 border-default-200 mb-3 flex items-center gap-2 rounded-lg border p-2">
+            <img src="http://seller.deepth.local:4000/images/logos/flash-express.jpeg"
+                 class="ring-default-200 size-6 shrink-0 rounded object-contain ring-1" alt="">
+            <span class="text-default-500 shrink-0 text-xs">ขาไป</span>
+            <span class="text-default-800 min-w-0 flex-1 truncate text-xs font-medium tabular-nums">Flash · TH01234567890</span>
+            <span class="badge bg-success/15 text-success-ink text-2xs shrink-0">ส่งถึงแล้ว</span>
+          </div>
+
+          <p class="text-default-900 mb-0.5 text-sm font-semibold">จะส่งของกลับยังไง</p>
+          <p class="text-default-600 mb-3 text-xs">เลือกข้อที่ตรงกับที่ตกลงกับลูกค้าไว้</p>
+
+          <label class="border-primary bg-primary/5 mb-2 flex cursor-pointer items-start gap-2.5 rounded-lg border p-2.5">
+            <input type="radio" name="m1" class="form-radio mt-0.5 shrink-0" checked>
+            <span class="min-w-0">
+              <span class="text-default-900 flex flex-wrap items-center gap-1.5 text-sm font-medium">
+                ส่งด้วย iShip <span class="badge bg-default-100 text-default-700 text-2xs">ตัดจากเครดิตร้าน</span></span>
+              <span class="text-default-600 block text-xs">ระบบออกเลขพัสดุขากลับให้ แล้วได้ใบปะหน้าส่งให้ลูกค้าพิมพ์</span>
+            </span>
+          </label>
+          <label class="border-default-200 mb-2 flex cursor-pointer items-start gap-2.5 rounded-lg border p-2.5">
+            <input type="radio" name="m1" class="form-radio mt-0.5 shrink-0">
+            <span class="min-w-0">
+              <span class="text-default-900 flex flex-wrap items-center gap-1.5 text-sm font-medium">
+                ร้านส่งเอง <span class="badge bg-default-100 text-default-700 text-2xs">เป็นต้นทุนร้าน</span></span>
+              <span class="text-default-600 block text-xs">ร้านไปเปิดพัสดุที่ขนส่งเจ้าอื่น แล้วมากรอกเลขที่นี่</span>
+            </span>
+          </label>
+          <label class="border-default-200 mb-2 flex cursor-pointer items-start gap-2.5 rounded-lg border p-2.5">
+            <input type="radio" name="m1" class="form-radio mt-0.5 shrink-0">
+            <span class="min-w-0">
+              <span class="text-default-900 flex flex-wrap items-center gap-1.5 text-sm font-medium">
+                ลูกค้าส่งเอง <span class="badge bg-default-100 text-default-700 text-2xs">ลูกค้าออกค่าส่ง</span></span>
+              <span class="text-default-600 block text-xs">ลูกค้าออกค่าส่งและส่งกลับมาเอง</span>
+            </span>
+          </label>
+
+          <!-- ขนส่งขากลับ -->
+          <div class="bg-default-50 border-default-200 rounded-lg border p-2.5">
+            <div class="mb-1 flex items-baseline justify-between">
+              <span class="form-label text-default-600 mb-0 text-xs">ขนส่งขากลับ</span>
+              <span class="text-default-500 text-2xs">ตั้งต้น = เจ้าเดียวกับขาไป</span>
+            </div>
+            <select class="form-select">
+              <option>ไปรษณีย์ไทย — EMS</option><option>Flash Express</option>
+              <option>Kerry Express</option><option>J&amp;T Express</option><option>อื่น ๆ</option>
+            </select>
+            <div class="mt-2 flex items-baseline justify-between text-xs">
+              <span class="text-default-600">ค่าส่งโดยประมาณ</span>
+              <span class="text-default-900 font-semibold tabular-nums">฿45</span>
+            </div>
+            <p class="text-default-500 mt-0.5 mb-0 text-2xs">
+              คิดจากกล่องของขาไป (2 กก. · 30×20×15) — <a href="#" class="text-primary-ink font-medium">แก้ขนาดกล่อง</a>
+            </p>
+          </div>
+        </div>
+
+        <div class="border-default-200 flex items-center justify-between gap-3 border-t p-3">
+          <span class="text-default-900 text-sm font-semibold">คืน ฿0</span>
+          <button class="btn bg-default-200 text-default-500 text-sm font-medium" disabled>ถัดไป — เลือกของที่คืน</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ จอ 2 · เลือกของ + ปุ่มจริง ═══ -->
+    <div>
+      <p class="lab mb-1.5">มือถือ 390px · เลือกของ (รูปจริง)</p>
+      <div class="card">
+        <div class="card-header flex flex-nowrap items-center justify-between gap-2">
+          <h5 class="card-title truncate">คืนของ</h5>
+          <button class="btn btn-sm bg-light text-default-800 shrink-0">✕</button>
+        </div>
+        <div class="card-body">
+          <div class="bg-default-50 border-default-200 mb-3 flex items-center gap-2 rounded-lg border p-2">
+            <img src="http://seller.deepth.local:4000/images/logos/thaipost.png"
+                 class="ring-default-200 size-6 shrink-0 rounded object-contain ring-1" alt="">
+            <span class="text-default-500 shrink-0 text-xs">ขากลับ</span>
+            <span class="text-default-800 min-w-0 flex-1 truncate text-xs font-medium">ไปรษณีย์ไทย — EMS · ~฿45</span>
+            <span class="text-primary-ink shrink-0 text-xs font-medium">เปลี่ยน</span>
+          </div>
+
+          <p class="text-default-900 mb-2 text-sm font-semibold">คืนของชิ้นไหนบ้าง</p>
+
+          <div class="border-default-200 mb-2 flex items-center gap-2.5 rounded-lg border p-2.5">
+            <img src="https://picsum.photos/seed/prod-7-a/160/160" class="bg-default-100 size-10 shrink-0 rounded-lg object-cover" alt="">
+            <span class="min-w-0 flex-1">
+              <span class="text-default-900 block truncate text-sm">ชุดไฟหน้า LED Premium (คู่)</span>
+              <span class="text-default-500 block text-xs">คืนได้ 1 · ฿4,500/ชิ้น</span>
+            </span>
+            <span class="border-default-300 flex shrink-0 items-center overflow-hidden rounded-lg border">
+              <span class="text-default-300 inline-flex size-9 items-center justify-center">−</span>
+              <span class="border-default-200 w-9 border-x py-1.5 text-center text-sm font-bold tabular-nums">1</span>
+              <span class="text-primary inline-flex size-9 items-center justify-center">+</span>
+            </span>
+          </div>
+
+          <div class="border-default-200 mb-2 flex items-center gap-2.5 rounded-lg border p-2.5">
+            <img src="https://picsum.photos/seed/prod-2-a/160/160" class="bg-default-100 size-10 shrink-0 rounded-lg object-cover" alt="">
+            <span class="min-w-0 flex-1">
+              <span class="text-default-900 block truncate text-sm">บริการติดตั้งไฟหน้า</span>
+              <span class="text-default-500 block text-xs">คืนได้ 1 · ฿900/ชิ้น</span>
+            </span>
+            <span class="border-default-300 flex shrink-0 items-center overflow-hidden rounded-lg border">
+              <span class="text-default-300 inline-flex size-9 items-center justify-center">−</span>
+              <span class="border-default-200 w-9 border-x py-1.5 text-center text-sm font-bold tabular-nums">0</span>
+              <span class="text-primary inline-flex size-9 items-center justify-center">+</span>
+            </span>
+          </div>
+
+          <input class="form-input mt-2" placeholder="เหตุผล (ไม่บังคับ)">
+        </div>
+
+        <div class="border-default-200 flex items-center justify-between gap-3 border-t p-3">
+          <span class="text-default-900 text-sm font-semibold tabular-nums">คืน ฿4,500</span>
+          <!-- 🛑 ปุ่มจริงของธีม: bg-primary + text-white ไม่ใช่ btn-primary -->
+          <button class="btn bg-primary hover:bg-primary-hover text-sm font-medium text-white">ถัดไป — ตรวจก่อนยืนยัน</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ เทียบปุ่ม ═══ -->
+    <div>
+      <p class="lab mb-1.5">เทียบปุ่มของจริง</p>
+      <div class="card">
+        <div class="card-body">
+          <p class="text-default-900 mb-2 text-sm font-semibold">เขียนแบบผิด (คลาสไม่มีจริง)</p>
+          <div class="mb-4 flex flex-wrap gap-2">
+            <button class="btn btn-primary">btn-primary</button>
+            <button class="btn btn-sm btn-light">btn-light</button>
+            <button class="btn btn-outline-danger">btn-outline-danger</button>
+          </div>
+          <p class="text-default-900 mb-2 text-sm font-semibold">เขียนแบบถูก (token ของธีม)</p>
+          <div class="flex flex-wrap gap-2">
+            <button class="btn bg-primary hover:bg-primary-hover text-sm font-medium text-white">ปุ่มหลัก</button>
+            <button class="btn bg-light text-default-800 hover:bg-default-200 text-sm">ปุ่มรอง</button>
+            <button class="btn border-danger text-danger-ink hover:bg-danger/10 border text-sm">ปุ่มอันตราย</button>
+            <button class="btn bg-default-200 text-default-500 text-sm" disabled>ปิดใช้งาน</button>
+          </div>
+
+          <hr class="border-default-200 my-4">
+
+          <p class="text-default-900 mb-2 text-sm font-semibold">token สีที่ม็อกอัพนี้ใช้</p>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="bg-primary rounded-lg p-2 text-white">bg-primary<br>#236dc9</div>
+            <div class="bg-success/15 text-success-ink rounded-lg p-2">success/15 + ink</div>
+            <div class="bg-warning/15 text-warning-ink rounded-lg p-2">warning/15 + ink</div>
+            <div class="bg-danger/15 text-danger-ink rounded-lg p-2">danger/15 + ink</div>
+            <div class="bg-default-50 text-default-700 border-default-200 rounded-lg border p-2">default-50 / 700</div>
+            <div class="bg-default-100 text-default-900 rounded-lg p-2">default-100 / 900</div>
+          </div>
+          <p class="text-default-600 mt-3 mb-0 text-xs">
+            ทั้งหมดมาจาก <code>assets/paces-theme.css</code> — ถ้าเปลี่ยนธีมในแอป ม็อกอัพนี้จะเปลี่ยนตามเมื่อ regenerate
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ หน้าสรุป ═══ -->
+  <p class="lab mt-6 mb-1.5">มือถือ 390px · หน้าสรุปก่อนยืนยัน</p>
+  <div class="card max-w-[390px]">
+    <div class="card-header flex flex-nowrap items-center justify-between gap-2">
+      <h5 class="card-title truncate">คืนของ</h5>
+      <button class="btn btn-sm bg-light text-default-800 shrink-0">✕</button>
+    </div>
+    <div class="card-body">
+      <p class="text-default-900 mb-0.5 text-sm font-semibold">ตรวจก่อนยืนยัน</p>
+      <p class="text-default-600 mb-3 text-xs">กดยืนยันแล้วยังยกเลิกได้ ตราบใดที่ยังไม่ได้รับของคืน</p>
+
+      <div class="border-default-200 mb-2 rounded-lg border p-3">
+        <p class="text-default-500 mb-1.5 text-2xs font-semibold">ของที่คืน</p>
+        <div class="flex items-center gap-2.5">
+          <img src="https://picsum.photos/seed/prod-7-a/160/160" class="size-9 shrink-0 rounded-md object-cover" alt="">
+          <span class="text-default-900 min-w-0 flex-1 truncate text-sm">ชุดไฟหน้า LED Premium (คู่)</span>
+          <span class="text-default-600 shrink-0 text-sm tabular-nums">×1</span>
+          <span class="text-default-900 shrink-0 text-sm font-semibold tabular-nums">฿4,500</span>
+        </div>
+        <div class="border-default-200 mt-2 flex items-baseline justify-between border-t border-dashed pt-2 text-sm font-semibold">
+          <span>ยอดที่คืนให้ลูกค้า</span><span class="tabular-nums">฿4,500</span>
+        </div>
+      </div>
+
+      <div class="border-default-200 mb-2 rounded-lg border p-3">
+        <p class="text-default-500 mb-2 text-2xs font-semibold">พัสดุ</p>
+        <div class="mb-1.5 flex items-center gap-2">
+          <img src="http://seller.deepth.local:4000/images/logos/flash-express.jpeg" class="ring-default-200 size-5 shrink-0 rounded object-contain ring-1" alt="">
+          <span class="text-default-500 w-12 shrink-0 text-xs">ขาไป</span>
+          <span class="text-default-800 min-w-0 flex-1 truncate text-xs tabular-nums">Flash · TH01234567890</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <img src="http://seller.deepth.local:4000/images/logos/thaipost.png" class="ring-default-200 size-5 shrink-0 rounded object-contain ring-1" alt="">
+          <span class="text-default-500 w-12 shrink-0 text-xs">ขากลับ</span>
+          <span class="text-default-800 min-w-0 flex-1 truncate text-xs">ไปรษณีย์ไทย · ออกเลขให้หลังยืนยัน</span>
+        </div>
+        <p class="text-default-600 mt-2 mb-0 text-xs">ค่าส่งขากลับ ~฿45 เข้าเป็น<span class="font-semibold">ต้นทุนร้าน</span> — จะไปโผล่ในหน้ากำไร/ขาดทุน</p>
+      </div>
+
+      <div class="bg-default-50 border-default-200 mb-2 rounded-lg border p-3">
+        <p class="text-default-500 mb-1 text-2xs font-semibold">ลูกค้าส่งกลับมาที่</p>
+        <p class="text-default-900 mb-0 text-sm">ที่อยู่ผู้ส่งของร้าน (ตั้งค่า → การจัดส่ง)
+          <span class="text-default-600 block text-xs">ระบบสลับผู้ส่ง/ผู้รับกับขาไปให้เอง — <span class="font-semibold">ร้านไม่ต้องกรอกที่อยู่ใหม่</span></span></p>
+      </div>
+
+      <div class="border-default-200 rounded-lg border p-3">
+        <p class="text-default-500 mb-2 text-2xs font-semibold">หลังกดยืนยัน</p>
+        <ol class="text-default-700 mb-0 list-inside list-decimal space-y-1.5 text-xs">
+          <li>กด “ออกเลขพัสดุขากลับ” ในใบคืน — <span class="font-semibold">ตอนนั้น</span>เครดิต iShip ถึงจะถูกตัด</li>
+          <li>คัดลอกลิงก์ใบปะหน้าส่งให้ลูกค้าทางแชท</li>
+          <li>ของถึงร้านแล้วกด <span class="font-semibold">“ได้รับของคืนแล้ว”</span> — <span class="font-semibold">จุดนี้จุดเดียว</span>ที่ยอดขาย ฿4,500 ถูกหักออก</li>
+        </ol>
+      </div>
+    </div>
+    <div class="border-default-200 flex gap-2 border-t p-3">
+      <button class="btn bg-light text-default-800 hover:bg-default-200 text-sm">← แก้ไข</button>
+      <button class="btn bg-primary hover:bg-primary-hover flex-1 text-sm font-medium text-white">ยืนยันเปิดใบคืน</button>
+    </div>
+  </div>
+
+</div>
+</body></html>

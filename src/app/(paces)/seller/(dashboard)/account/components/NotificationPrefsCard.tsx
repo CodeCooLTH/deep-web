@@ -128,7 +128,7 @@ export default function NotificationPrefsCard({ shops }: { shops: NotificationSh
                   สีของปุ่มมาจาก utility เสมอ: `btn bg-light text-default-700 hover:bg-light-hover`
                   (grep theme/paces: btn-warning ไม่มีอยู่จริง จะได้ปุ่มไร้สไตล์ คลาสเดียวกับ
                   btn-ghost ที่เคยพลาดใน feature 00033) */}
-              <button type="button" className="btn btn-sm btn-primary" onClick={openNativeNotificationSettings}>
+              <button type="button" className="btn btn-sm bg-primary text-white hover:bg-primary-hover disabled:opacity-60" onClick={openNativeNotificationSettings}>
                 เปิดการตั้งค่าเครื่อง
               </button>
             </div>
