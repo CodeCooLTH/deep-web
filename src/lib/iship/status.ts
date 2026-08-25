@@ -79,6 +79,20 @@ export function isTerminalCarrierStatus(code?: string | null): boolean {
 }
 
 /**
+ * รายชื่อรหัสที่ `terminal: true` — **derive จากตารางข้างบน ไม่ได้พิมพ์ซ้ำ**
+ *
+ * 🛑 มีไว้เพื่อส่งเข้า SQL เท่านั้น (CR 2026-08-25: ตัวกรองกองพัสดุย้ายไปทำที่ฐานข้อมูล)
+ * ฝั่ง TypeScript ให้ใช้ `isTerminalCarrierStatus()` เหมือนเดิม — อย่าเอาลิสต์นี้ไปเทียบเอง
+ * เพราะถ้าวันหนึ่งเกณฑ์ terminal ซับซ้อนกว่า "ค่าในคอลัมน์ terminal" ลิสต์จะตามไม่ทัน
+ *
+ * เหตุผลที่ derive แทนการเขียนลิสต์ใหม่: คอมเมนต์ที่ `FINAL_CARRIER_STATUSES` บันทึกไว้แล้วว่า
+ * การเขียนรายชื่อซ้ำสองที่ "แก้ไม่ครบทั้งคู่มาแล้ว" — บทเรียนเดียวกันเป๊ะ
+ */
+export const TERMINAL_CARRIER_STATUSES: readonly string[] = Object.entries(CARRIER_STATUS)
+  .filter(([, meta]) => meta.terminal === true)
+  .map(([code]) => code);
+
+/**
  * สถานะที่แปลว่า "ของถึงมือผู้รับแล้ว" — คนละชุดกับ terminal
  *
  * terminal รวมปลายทางที่ *ไม่สำเร็จ* ด้วย (ตีกลับ/หมดอายุ/ยกเลิก/ปิดงาน) ชุดนี้คือปลายทาง

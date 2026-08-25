@@ -16,6 +16,15 @@
 // ─── Phase 2: URL + slip-zone helpers ────────────────────────────────────────
 
 /**
+ * แพตเทิร์นที่แปลว่า "เก็บเงินปลายทาง" — **แหล่งเดียวทั้งระบบ**
+ *
+ * 🛑 export เพราะ SQL ต้องใช้ตัวเดียวกัน (CR 2026-08-25 — ตัวกรองกองพัสดุย้ายไปทำที่ฐาน)
+ * Postgres `~*` เป็น POSIX regex case-insensitive ซึ่งให้ผลเหมือน `/…/i` ของ JS สำหรับ
+ * แพตเทิร์นชุดนี้ (alternation ล้วน ไม่มี lookahead/backreference) — มีเทสเทียบสองฝั่งปักหมุดไว้
+ */
+export const COD_PAYMENT_PATTERN = 'COD|ปลายทาง|เก็บเงิน'
+
+/**
  * isCODPayment — ตรวจว่า paymentMethod เป็นการชำระเงินปลายทาง (COD) หรือไม่
  *
  * ทำไม: logic นี้เคยอยู่ใน OrderDetailMobile.tsx เป็น local fn แต่ S-13 ต้องการ
@@ -23,7 +32,7 @@
  * import จากที่เดียวแทนการ duplicate — UI task จะลบ local fn ออกเมื่อ import ตัวนี้
  */
 export function isCODPayment(paymentMethod: string | null | undefined): boolean {
-  return /COD|ปลายทาง|เก็บเงิน/i.test(paymentMethod ?? '')
+  return new RegExp(COD_PAYMENT_PATTERN, 'i').test(paymentMethod ?? '')
 }
 
 /**
