@@ -66,7 +66,7 @@ const toCatalog = (p: any): CatalogProduct => ({
   fulfillmentMode: p.fulfillmentMode,
   image: Array.isArray(p.images) && p.images.length > 0 ? `/api/files/${p.images[0]}` : null,
   sku: p.sku ?? null,
-  stockQty: p.stockQty ?? null,
+  stockQty: p.stockQty ?? null
 })
 
 export default async function ChatLayout({ children }: { children: React.ReactNode }) {
@@ -79,7 +79,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   // fail-soft: resolve ไม่ได้ = null (แค่ไม่มี realtime, list/หน้าอื่นยังทำงานปกติและมี error state
   // ของตัวเองที่ inbox/page.tsx อยู่แล้ว) — ห้าม redirect/throw ที่ layout เพราะจะพังทั้งหน้าแชท
   const scope = await resolveChatScope({
-    user: { id: user.id, activeShopId: user.activeShopId ?? null },
+    user: { id: user.id, activeShopId: user.activeShopId ?? null }
   })
 
   // feature 00037 — ข้อมูลร้านในขอบเขต (badge ในแถว/หัวเธรด + ตัวเลือกร้านตอนกดสร้าง) และเพจของ
@@ -100,18 +100,18 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
         where: { id: { in: scope.shopIds } },
         // vertical มาด้วย — คำเรียกรายการในแถว/หัวเธรดต้องผันตามร้านของเธรดนั้น ไม่ใช่ร้าน active
         select: { id: true, shopName: true, logo: true, vertical: true },
-        orderBy: { shopName: 'asc' },
+        orderBy: { shopName: 'asc' }
       }),
-      listChannelsForShops(scope.shopIds).catch(() => []),
+      listChannelsForShops(scope.shopIds).catch(() => [])
     ])
-    scopeShops = shopRows.map((r) => ({ id: r.id, name: r.shopName, logo: r.logo, vertical: r.vertical }))
-    scopeChannels = channelRows.map((c) => ({
+    scopeShops = shopRows.map(r => ({ id: r.id, name: r.shopName, logo: r.logo, vertical: r.vertical }))
+    scopeChannels = channelRows.map(c => ({
       id: c.id,
       provider: c.provider,
       name: c.name,
       avatarUrl: c.avatarUrl,
       shopId: c.shopId,
-      shopName: c.shopName,
+      shopName: c.shopName
     }))
   }
 
@@ -156,12 +156,16 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
     const shopId = scope.activeShopId
     let shopRow: { vertical: string; appointmentGranularity: string } | null = null
     ;[catalog, bestSellers, inventoryEnabled, hasShipping, shopRow, unreadChatCount, hidePayments] = await Promise.all([
-      getProductsByShop(shopId).then((ps) => ps.map(toCatalog)).catch(() => []),
-      getBestSellerProducts(shopId, 8).then((ps) => ps.map(toCatalog)).catch(() => []),
+      getProductsByShop(shopId)
+        .then(ps => ps.map(toCatalog))
+        .catch(() => []),
+      getBestSellerProducts(shopId, 8)
+        .then(ps => ps.map(toCatalog))
+        .catch(() => []),
       isEntitlementActive(shopId).catch(() => false),
       prisma.shopShippingAccount
         .findUnique({ where: { shopId }, select: { status: true, createMode: true } })
-        .then((a) => {
+        .then(a => {
           // อ่านแถวเดียวได้สองคำตอบ — ห้ามยิง query เพิ่มเพื่อถามโหมด (ข้อมูลชุดเดียวกันเป๊ะ)
           ishipCreateMode = resolveChatIshipCreateMode(a)
           return a?.status === 'ACTIVE'
@@ -172,7 +176,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
         .catch(() => null),
       // badge เมนู "ข้อความ" — fail-closed เป็น 0 (ไม่มี badge) เหมือน (dashboard)/layout.tsx
       getUnreadCountForShop(shopId).catch(() => 0),
-      shouldHidePayments(),
+      shouldHidePayments()
     ])
     shopVertical = shopRow?.vertical ?? ''
 
@@ -186,7 +190,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       role: scope.activeRole,
       vertical: shopVertical,
       unreadChatCount,
-      hidePayments,
+      hidePayments
     })
 
     // ระบบนัดหมายเปิดให้เฉพาะ vertical=SERVICE_QUEUE (BR-RSV-01) — ร้านอื่นไม่ได้รับทรัพยากรเลย
@@ -195,15 +199,15 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
     if (serviceResourcesEnabled) {
       appointmentGranularity = (shopRow?.appointmentGranularity as AppointmentGranularity) ?? 'DAY'
       serviceResources = await listServiceResources(shopId, { activeOnly: true })
-        .then((rows) =>
-          rows.map((r) => ({
+        .then(rows =>
+          rows.map(r => ({
             id: r.id,
             name: r.name,
             durationMinutes: r.durationMinutes,
             capacity: r.capacity,
             depositMode: r.depositMode,
-            depositValue: r.depositValue.toFixed(2),
-          })),
+            depositValue: r.depositValue.toFixed(2)
+          }))
         )
         .catch(() => [])
     }
@@ -245,13 +249,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
        * กับ `.page-content` ในโหมด on-hover) 🛑 ห้ามเปลี่ยนเป็น `--sidenav-width` เด็ดขาด
        */}
       {hasNavRail && <ChatNavRail items={navMenuItems} />}
-      {/* 🛑 ที่ว่างซ้ายต้องผูกกับ "rail ถูก render จริงไหม" ตัวเดียวกัน — ไม่งั้นเคสไม่มีร้าน
-          (rail ไม่ขึ้น) จะเหลือช่องว่างเปล่า 75px ค้างอยู่ฝั่งซ้ายโดยไม่มีอะไรอยู่ในนั้น */}
-      <div
-        className={`chat-shell flex h-dvh flex-col overflow-hidden bg-card ${
-          hasNavRail ? 'lg:ms-(--sidenav-width-sm)' : ''
-        }`}
-      >
+      <div className='chat-shell flex h-dvh flex-col overflow-hidden bg-card'>
         <ChatHeader chatScopeMode={scope?.storedMode ?? 'SINGLE'} />
 
         {/**
@@ -266,29 +264,46 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
          * ทั้งหน้าไม่ใช่แค่คอลัมน์เดียว) และ InboxTabs ดึงตัวเลขเองผ่าน endpoint + cache ระดับโมดูล
          * จึงไม่ต้องส่ง unansweredCount จาก server ของแต่ละหน้าอีก
          */}
-        <InboxTabs key={scopeKey} shopIds={scope?.shopIds ?? []} />
+        {/**
+         * .chat-body — ทุกอย่าง "ใต้หัวแชท" คือโซนที่ rail กันที่ไว้ให้
+         *
+         * 🛑 margin อยู่ที่นี่ ไม่ใช่ที่ .chat-shell (ย้ายมา 2026-08-25) — user สั่งว่า
+         * *"logo ต้องอยู่บนสุดเหมือนเดิม เวลา hover ให้ hover แค่ส่วนด้านล่าง"* ⇒ ChatHeader
+         * ต้องพาดเต็มความกว้างที่ y=0 และ rail (ซึ่ง fixed อยู่ที่ top: --topbar-height)
+         * กางทับได้เฉพาะโซนนี้ ไม่ไปบังโลโก้/ช่องค้นหา
+         *
+         * 🛑 ค่าที่กันไว้ต้องเป็น --sidenav-width-sm (ตอนหุบ) **คงที่ ไม่ผันตามการกาง** —
+         * นั่นคือกลไกทั้งหมดที่ทำให้ "chat ตรงกลางไม่ขยับ" ห้ามเปลี่ยนเป็น --sidenav-width
+         * และต้องผูกกับ hasNavRail ตัวเดียวกับที่ตัดสินว่าจะ render rail ไหม ไม่งั้นเคส
+         * ไม่มีร้านจะเหลือช่องว่างเปล่า 75px ฝั่งซ้ายโดยไม่มีอะไรอยู่ในนั้น
+         *
+         * แถบแท็บ ข้อความ|ความคิดเห็น อยู่ในโซนนี้ (ไม่ใช่พาดข้าม rail) — มันเป็นแท็บของ
+         * "กล่องข้อความ" ซึ่งคือเนื้อหาของหน้า ส่วน rail เป็นเมนูของทั้งแอปที่อยู่คนละระดับ
+         */}
+        <div className={`chat-body flex min-h-0 flex-1 flex-col ${hasNavRail ? 'lg:ms-(--sidenav-width-sm)' : ''}`}>
+          <InboxTabs key={scopeKey} shopIds={scope?.shopIds ?? []} />
 
-        <div className="flex min-h-0 flex-1">
-          {/* rail — desktop เท่านั้น (≥1024px); <1024px ไม่มีเมนูซ้ายให้แทนที่อยู่แล้ว (ตาม design
+          <div className='flex min-h-0 flex-1'>
+            {/* rail — desktop เท่านั้น (≥1024px); <1024px ไม่มีเมนูซ้ายให้แทนที่อยู่แล้ว (ตาม design
               เดิม) หน้า /inbox เองยัง render InboxList แบบ full-screen สำหรับจอเล็ก (lg:hidden
               ที่ inbox/page.tsx) เป็น duplication ที่ตั้งใจ — คนละ mode คนละ fetch (rail=client
               fetch ของตัวเอง, mobile list=SSR ของ page.tsx) ไม่ใช่ component เดียวกันที่ถูกซ่อน/โชว์ */}
-          {/* xl:w-96 — เท่ากับ Customer Panel ฝั่งขวา (user request 2026-07-23) ให้ 2 คอลัมน์ข้างเท่ากัน
+            {/* xl:w-96 — เท่ากับ Customer Panel ฝั่งขวา (user request 2026-07-23) ให้ 2 คอลัมน์ข้างเท่ากัน
               lg:w-80 (320px) สำหรับช่วงแท็บเล็ต 1024-1279: ที่ความกว้างนั้นคอลัมน์ขวายังไม่โผล่
               (xl:block) แต่ rail 384px ยังกินพื้นที่มากเกินจำเป็นจนคอลัมน์แชทอึดอัด
               — bug fix 2026-08-01 จาก user report iPad Pro */}
-          {/* คอลัมน์ rail ย้ายไปอยู่ใน ChatRailColumn (client) — ต้องหายทั้งคอลัมน์เมื่ออยู่แท็บ
+            {/* คอลัมน์ rail ย้ายไปอยู่ใน ChatRailColumn (client) — ต้องหายทั้งคอลัมน์เมื่ออยู่แท็บ
               "ความคิดเห็น" ไม่ใช่แค่เนื้อข้างใน (bug fix 2026-08-03 user report: แท็บซ้อน 2 ชั้น)
               layout นี้เป็น server component จึงอ่าน pathname เองไม่ได้ */}
-          <ChatRailColumn
-            shopIds={scope?.shopIds ?? []}
-            unified={scope?.mode === 'UNIFIED'}
-            activeShopId={scope?.activeShopId ?? null}
-            channels={scopeChannels}
-            hasShipping={hasShipping}
-          />
+            <ChatRailColumn
+              shopIds={scope?.shopIds ?? []}
+              unified={scope?.mode === 'UNIFIED'}
+              activeShopId={scope?.activeShopId ?? null}
+              channels={scopeChannels}
+              hasShipping={hasShipping}
+            />
 
-          {/* children: /inbox (empty-state 2 คอลัมน์ desktop / list เต็มจอมือถือ) หรือ
+            {/* children: /inbox (empty-state 2 คอลัมน์ desktop / list เต็มจอมือถือ) หรือ
               /inbox/[conversationId] (thread + customer panel) — overflow-y-auto กันเนื้อหา
               มือถือ (list ยาว) ล้นจอ เพราะ chat-shell ปิด overflow ที่ระดับบนสุดไปแล้ว (ต้องการ
               scroll เฉพาะโซนนี้ ไม่ใช่ทั้งหน้า แบบแอปแชทจริง) desktop ไม่มีผล (เนื้อหาพอดี h-full
@@ -299,7 +314,8 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
               ที่รับ scroll ต่อจากรายการข้อความ (chaining) แล้วดันเนื้อหาทั้งคอลัมน์ขยับ →
               lg:overflow-hidden. ต่ำกว่านั้น (มือถือ/แท็บเล็ต) ยังต้องเลื่อนได้เพราะรายการแชทยาว
               จริง แต่ใส่ overscroll-contain กันไม่ให้ scroll ทะลุไปถึงหน้าเว็บ/หัวแชท */}
-          <div className="min-w-0 flex-1 overflow-y-auto overscroll-contain lg:overflow-hidden">{children}</div>
+            <div className='min-w-0 flex-1 overflow-y-auto overscroll-contain lg:overflow-hidden'>{children}</div>
+          </div>
         </div>
       </div>
     </ChatSearchProvider>

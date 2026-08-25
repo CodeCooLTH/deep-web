@@ -385,60 +385,74 @@ html[data-sidenav-size="condensed"] .shop-package-card .shop-package-card-text {
 /* ─── Chat nav rail (mini icon rail + hover slide-out) — /inbox* เดสก์ท็อป ────────
    user สั่ง 2026-08-25 พร้อมภาพ Meta Business Suite: "default แสดงแค่ icon และเมื่อ hover จะ
    slide ออกมาข้าง ๆ (โดยที่ chat ตรงกลางไม่ขยับ เหมือน expand ลอยด้านบน)"
+   รอบแก้วันเดียวกันหลัง user เปิดของจริง: "ต้องดู group ได้ง่ายด้วย ตอนนี้ดูยาก และไม่ต้องมี pin"
+   + "logo ต้องอยู่บนสุดเหมือนเดิม เวลา hover ให้ hover แค่ส่วนด้านล่าง" + "ลองทำสีขาวมาให้ดูหน่อย"
 
    Base: theme/paces/Admin/TS/src/assets/css/structure/_sidenav.css
          (`.app-menu` บรรทัด 3-7 + บล็อก `html[data-sidenav-size="on-hover"]` บรรทัด 154-246)
+   Base สี: theme/paces/.../config/_theme-default.css บล็อก `html[data-menu-color="light"]`
+         (+ บล็อก `html[data-theme="dark"][data-menu-color="light"]` สำหรับโหมดมืด)
 
-   ยกกฎมาทั้งชุดแต่ **เปลี่ยนตัวจุดชนวน** จาก `html[data-sidenav-size="on-hover"] .app-menu:not(:hover)`
-   (attribute ระดับ <html> = ค่าที่หน้า seller ทุกหน้าใช้ร่วมกัน) เป็น `.chat-nav-rail` + สถานะของ
-   ตัวมันเอง — สลับที่นี่แล้วต้องไม่ไปเปลี่ยนเมนูของหน้าอื่น (user กำหนดขอบเขต "เฉพาะหน้าแชท")
+   ยกกฎมาทั้งชุดแต่ **เปลี่ยนตัวจุดชนวน** จาก attribute ระดับ <html> (ค่าที่หน้า seller ทุกหน้า
+   ใช้ร่วมกัน) เป็น `.chat-nav-rail` + สถานะของตัวมันเอง — สลับที่นี่แล้วต้องไม่ไปเปลี่ยนเมนู
+   ของหน้าอื่น (user กำหนดขอบเขต "เฉพาะหน้าแชท") ทั้ง `data-sidenav-size` และ `data-menu-color`
 
    🛑 ห้ามใช้คลาส `.app-menu` กับ rail นี้: `(paces)/layout.tsx` ตั้ง
    `data-sidenav-size="on-hover-active"` ไว้เป็นค่า default ⇒ กฎ global ของโหมดนั้นจะจับ
    `.app-menu` ทันทีแล้วบังคับให้กางเต็ม 245px ค้างตลอดเวลา (ตรงข้ามกับที่ user ขอ)
 
-   ทำไมเนื้อหาไม่ขยับตอนกาง: rail เป็น `fixed` ส่วน `.chat-shell` กันที่ไว้ด้วย
-   `lg:ms-(--sidenav-width-sm)` **คงที่** (token เดียวกับที่ธีมใช้กับ `.page-content`/`.app-header`
-   ในโหมด on-hover — `_topbar.css:101-106`) ⇒ 170px ที่โผล่เพิ่มตอนกางคือการลอยทับล้วน ๆ
+   ทำไมเนื้อหาไม่ขยับตอนกาง: rail เป็น `fixed` ส่วนโซนใต้หัวแชท (`.chat-body`) กันที่ไว้ด้วย
+   `lg:ms-(--sidenav-width-sm)` **คงที่** ⇒ 170px ที่โผล่เพิ่มตอนกางคือการลอยทับล้วน ๆ
    และ `fixed` ไม่ถูก `overflow-hidden` ของ `.chat-shell` ตัด เพราะไม่มี ancestor ตัวไหนของมัน
-   ตั้ง transform/filter/perspective (ตรวจแล้ว) จึงไม่ต้องใช้ portal */
+   ตั้ง transform/filter/perspective (ตรวจแล้ว) จึงไม่ต้องใช้ portal
+
+   🛑 `top: var(--topbar-height)` ไม่ใช่ `inset-y-0` — user สั่งว่าโลโก้ (ซึ่งอยู่ใน ChatHeader)
+   ต้องอยู่บนสุดและไม่ถูกกระทบเวลา rail กาง ⇒ หัวแชทพาดเต็มความกว้างที่ y=0 และ rail เริ่มใต้มัน */
 .chat-nav-rail {
-  @apply font-secondary fixed inset-y-0 start-0 z-40 max-h-screen flex-col;
+  @apply font-secondary fixed bottom-0 start-0 z-40 flex-col;
+  top: var(--topbar-height);
+
+  /* โทเคนสีชุด "เมนูสว่าง" ของธีม — ยกค่ามาจากบล็อก html[data-menu-color="light"] ตรง ๆ
+     ต่างจากต้นฉบับจุดเดียว: `--sidenav-bg` ใช้ `--color-card` แทน `white` ตายตัว เพื่อให้
+     โหมดมืดของทั้งแอปได้พื้นเข้มเองโดยอัตโนมัติ (โทเคนตัวเดียวกับที่ .chat-shell ใช้ผ่าน bg-card) */
+  --sidenav-bg: var(--color-card);
+  --sidenav-border-color: var(--color-default-300);
+  --sidenav-item-color: #667787;
+  --sidenav-item-hover-color: var(--color-primary);
+  --sidenav-item-hover-bg: transparent;
+  --sidenav-item-active-color: var(--color-primary);
+  /* ต้นฉบับเป็น `transparent` ซึ่งพอสำหรับเมนูที่มีตัวหนังสือ แต่ตอนหุบเหลือแค่ไอคอน 20 กว่าตัว
+     เรียงกัน — ต้องมีกล่องบอกตำแหน่ง ไม่งั้นหาไม่เจอว่าอยู่หน้าไหน (อาการที่ user เจอจริง)
+     12% ของ primary = แพตเทิร์นเดียวกับ `bg-{semantic}/15` ที่ HR7 อนุญาต ไม่ใช่สีใหม่ */
+  --sidenav-item-active-bg: color-mix(in srgb, var(--color-primary) 12%, transparent);
+
   background: var(--sidenav-bg);
   width: var(--sidenav-width);
   min-width: var(--sidenav-width);
-  box-shadow: var(--shadow-lg);
+  /* rail สีขาวชนกับพื้นแชทที่ขาวเหมือนกัน — ต้องมีเส้นแบ่งถาวร ไม่ใช่พึ่งเงาอย่างเดียว
+     (เงามีไว้บอกว่า "กำลังลอยทับ" ตอนกาง ไม่ใช่บอกขอบเขตตอนหุบ) */
+  border-inline-end: 1px solid var(--sidenav-border-color);
   /* ระบุ property ตรง ๆ เหมือน `.app-menu` — ห้าม transition-all เพราะจะลากสี/เงาไปด้วยทุกครั้ง */
   transition:
     width 0.3s ease-in-out,
-    min-width 0.3s ease-in-out;
+    min-width 0.3s ease-in-out,
+    box-shadow 0.3s ease-in-out;
 }
 
-/* หัว rail: ไม่มีโลโก้ (user เคาะ — โลโก้ Deep คงอยู่ที่ ChatHeader ตามที่สั่งไว้เมื่อ 2026-08-19)
-   สูงเท่า --topbar-height ให้เมนูแถวแรกเริ่มเสมอกับเส้นใต้ของ ChatHeader พอดี */
-.chat-nav-rail-head {
-  @apply flex shrink-0 items-center justify-end px-3;
-  min-height: var(--topbar-height);
+/* โหมดมืดของทั้งแอป — ธีมเองก็บังคับเมนูสว่างกลับเป็นชุดเข้มในโหมดนี้
+   (`html[data-theme="dark"][data-menu-color="light"]`) ยกค่ามาชุดเดียวกันเป๊ะ
+   ไม่งั้นจะได้ rail ขาวจ้าคาอยู่กลางจอมืด */
+html[data-theme='dark'] .chat-nav-rail {
+  --sidenav-border-color: #2c2d38;
+  --sidenav-item-color: #8495ab;
+  --sidenav-item-hover-color: #bccee4;
+  --sidenav-item-hover-bg: #2f3742;
 }
 
-/* ปุ่มปักหมุด — 44px ตามเกณฑ์ tap target ของ PRODUCT.md (ธีมต้นแบบ #button-hover-toggle ไม่มี
-   ขนาดขั้นต่ำ เพราะออกแบบมาสำหรับเมาส์อย่างเดียว) */
-.chat-nav-rail-pin {
-  @apply flex size-11 shrink-0 items-center justify-center rounded-md text-lg transition-colors;
-  color: var(--sidenav-item-color);
-}
-.chat-nav-rail-pin:hover {
-  color: var(--sidenav-item-hover-color);
-  background-color: var(--sidenav-item-hover-bg);
-}
-.chat-nav-rail-pin:focus-visible {
-  color: var(--sidenav-item-active-color);
-  outline: 2px solid var(--sidenav-item-active-color);
-  outline-offset: 2px;
-}
-.chat-nav-rail[data-pinned='true'] .chat-nav-rail-pin {
-  color: var(--sidenav-item-active-color);
-  background-color: var(--sidenav-item-active-bg);
+/* เนื้อรายการเมนู: ตัด padding ล่าง 66px ของธีมทิ้ง (ธีมเผื่อไว้ให้ .sidenav-user ซึ่ง rail นี้
+   ไม่มี) — 66px นั้นคือพื้นที่ที่แลกมาเป็นการต้อง scroll เร็วขึ้นโดยไม่ได้อะไรกลับ */
+.chat-nav-rail .side-nav {
+  @apply pt-2 pb-4;
 }
 
 /* tap target ของรายการเมนู — ธีมให้ padding 10px + line-height 17.5px ≈ 37px (ตอนหุบไอคอนโต
@@ -447,18 +461,44 @@ html[data-sidenav-size="condensed"] .shop-package-card .shop-package-card-text {
   min-height: 2.75rem;
 }
 
+/* ── เส้นคั่นกลุ่ม ────────────────────────────────────────────────────────────────
+   user: *"ต้องดู group ได้ง่ายด้วย ตอนนี้ดูยาก"* — ธีมสั่ง `.menu-title { display:none }`
+   ตอนหุบ ⇒ ไอคอน 20 กว่าตัวกองเป็นพืดเดียว ไม่มีอะไรบอกว่ากลุ่มไหนจบตรงไหน
+
+   ทำที่ `.menu-title` ตัวเดิม (ไม่เพิ่ม element) เพราะ `AppMenu.tsx` ใช้ร่วมกับ sidenav ของ
+   หน้า seller อื่นทุกหน้า — แก้ markup ที่นั่นคือแก้ทั้งระบบเพื่องานของหน้าเดียว */
+.chat-nav-rail .side-nav > .menu-title {
+  border-top: 1px solid var(--sidenav-border-color);
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+}
+/* กลุ่มแรกไม่ต้องมีเส้นเหนือมัน — ไม่มีอะไรอยู่ข้างบนให้คั่น */
+.chat-nav-rail .side-nav > .menu-title:first-child {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+
 /* ── สถานะหุบ (ค่าเริ่มต้น): ไอคอนล้วน 75px ──────────────────────────────────────
-   กาง = hover · focus-within (คีย์บอร์ด Tab เข้ามาก็กางเหมือนกัน ไม่ต้องกดปุ่มพิเศษ) · ปักหมุด */
-.chat-nav-rail:not([data-pinned='true']):not(:hover):not(:focus-within) {
+   กาง = hover · focus-within (คีย์บอร์ด Tab เข้ามาก็กางเหมือนกัน ไม่ต้องกดปุ่มพิเศษ)
+   ไม่มีปุ่มปักหมุดแล้ว (user สั่งถอด 2026-08-25) */
+.chat-nav-rail:not(:hover):not(:focus-within) {
   width: var(--sidenav-width-sm);
   min-width: var(--sidenav-width-sm);
 
-  .chat-nav-rail-head {
-    @apply justify-center px-0;
+  /* หัวข้อกลุ่มเหลือแค่ "เส้น" — ตัวหนังสือถูกยุบความสูงจนหาย แต่ยังอยู่ใน accessibility tree
+     (ต่างจาก display:none ของธีมที่ลบทิ้งทั้งก้อน) ⇒ screen reader ยังได้ยินชื่อกลุ่ม */
+  .side-nav > .menu-title {
+    height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 0.625rem;
+    margin-bottom: 0.625rem;
+    overflow: hidden;
   }
-
-  .menu-title {
-    display: none;
+  .side-nav > .menu-title:first-child {
+    margin-top: 0;
+    margin-bottom: 0.25rem;
   }
 
   .side-nav .menu-item > .menu-link {
@@ -498,10 +538,11 @@ html[data-sidenav-size="condensed"] .shop-package-card .shop-package-card-text {
       }
     }
 
-    /* badge ตัวเลข → จุดมุมไอคอน (ตามภาพที่ user ส่งมา: rail หุบมีแค่จุดแดง ไม่มีตัวเลข)
+    /* badge ตัวเลข → จุดมุมไอคอน (ตามภาพที่ user ส่งมา: rail หุบมีแค่จุด ไม่มีตัวเลข)
        ธีมต้นแบบ `display:none` ทิ้งไปเลย ซึ่งจะทำให้ "มีข้อความใหม่" หายสนิทตอนหุบ = ทั้ง rail
        ไม่มีทางบอกอะไรได้เลยในสถานะที่ผู้ใช้เห็นบ่อยที่สุด. ตัวเลขเต็มยังกลับมาตอนกาง
-       — ไม่มีข้อมูลหาย แค่คนละระดับรายละเอียดตามสถานะ */
+       — ไม่มีข้อมูลหาย แค่คนละระดับรายละเอียดตามสถานะ
+       ring สีพื้น = เว้นขอบให้จุดไม่จมไปกับไอคอนที่อยู่ข้างใต้ */
     > .badge {
       position: absolute;
       top: 0.375rem;
@@ -515,11 +556,43 @@ html[data-sidenav-size="condensed"] .shop-package-card .shop-package-card-text {
       overflow: hidden;
       font-size: 0;
       line-height: 0;
+      box-shadow: 0 0 0 2px var(--sidenav-bg);
     }
   }
+}
 
-  /* แถบ scroll ของ SimpleBar ไม่ต้องโผล่ตอนหุบ (กฎเดียวกับธีม) */
-  .simplebar-track.simplebar-vertical {
-    visibility: hidden !important;
-  }
+/* ตอนกาง = กำลังลอยทับเนื้อหาข้างหลัง ⇒ ต้องมีเงาบอกระดับความลึก (ตอนหุบไม่ต้อง เพราะมันเป็น
+   คอลัมน์ที่มีที่ทางของตัวเองอยู่แล้ว มีแค่เส้นขอบก็พอ) */
+.chat-nav-rail:is(:hover, :focus-within) {
+  box-shadow: var(--shadow-lg);
+}
+
+/* แถบชี้ตำแหน่งของเมนูที่เปิดอยู่ — user รายงานว่าตอนหุบ "ดูยาก" หาไม่เจอว่าอยู่หน้าไหน
+   (พื้นกล่อง active อย่างเดียวไม่พอเมื่อไอคอน 20 กว่าตัวเรียงกันเป็นแถวเดียว)
+   ใช้สี `--sidenav-item-active-color` ของ component นี้เอง ไม่ผสมเฉดใหม่
+   (docs/conventions/contrast-fix-keeps-hue.md) · แพตเทิร์น border-s-3 ขึ้นทะเบียนใน DESIGN.md แล้ว */
+.chat-nav-rail .side-nav > .menu-item > .menu-link.active::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  top: 50%;
+  translate: 0 -50%;
+  width: 3px;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: var(--sidenav-item-active-color);
+}
+
+/* เนื้อหายาวเกินจอ (เมนูเต็มชุด ~20 รายการ + เส้นคั่น 4 เส้น สูงเกินความสูงจอทั่วไป)
+   ตอนหุบ scrollbar ของ SimpleBar แคบจนแทบมองไม่เห็นบนแถบ 75px ⇒ ไม่มีอะไรบอกว่ายังมีต่อ
+   เฟดขอบบน/ล่างเป็นสัญญาณแทน — ไม่กินพื้นที่ ไม่แย่งการจัดกึ่งกลางของไอคอน
+   (ไม่มี primitive ตัวนี้ในธีม Paces/Preline — เป็น CSS mask ธรรมดา บันทึกไว้ตาม HR1) */
+.chat-nav-rail .simplebar-content-wrapper {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 12px,
+    black calc(100% - 12px),
+    transparent 100%
+  );
 }

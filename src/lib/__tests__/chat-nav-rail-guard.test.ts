@@ -18,7 +18,7 @@ import { describe, expect, it } from 'vitest'
  * ## 2. ที่ว่างของ rail ต้องเป็นความกว้าง "ตอนหุบ" เสมอ
  *
  * user สั่งตรงตัว 2026-08-25: *"โดยที่ chat ตรงกลางไม่ขยับ เหมือน expand ลอยด้านบน"*
- * สิ่งเดียวที่บังคับข้อนี้คือ margin ของ `.chat-shell` ที่ผูกกับ `--sidenav-width-sm` (75px)
+ * สิ่งเดียวที่บังคับข้อนี้คือ margin ของ `.chat-body` ที่ผูกกับ `--sidenav-width-sm` (75px)
  * **คงที่** ขณะที่ rail เองโตเป็น `--sidenav-width` (245px) ตอนกาง — เปลี่ยนโทเคนนี้เป็นตัวเต็ม
  * เมื่อไหร่ คอลัมน์แชททั้งหมดจะกระโดด 170px ทุกครั้งที่เมาส์ผ่าน rail ซึ่งเป็นพฤติกรรมที่
  * user ระบุเองว่าห้ามเกิด และไม่มีเทส/ด่านไหนของโปรเจกต์มองเห็น (คลาส CSS ถูกทุกตัวอักษร)
@@ -66,14 +66,14 @@ describe('[blocker] ChatNavRail — เมนูและที่ว่าง�
     ).toEqual([])
   })
 
-  it('.chat-shell ต้องกันที่ด้วยความกว้างตอนหุบ (--sidenav-width-sm) ไม่ใช่ตอนกาง', () => {
+  it('.chat-body ต้องกันที่ด้วยความกว้างตอนหุบ (--sidenav-width-sm) ไม่ใช่ตอนกาง', () => {
     const code = blankComments(readFileSync(join(ROOT, CHAT_LAYOUT), 'utf8'))
 
     // จับตั้งแต่คำว่า chat-shell ไปจนจบ expression ของ className (รองรับทั้ง string ธรรมดาและ
     // template literal ที่มีเงื่อนไข) — ห้ามผูกกับรูปแบบการเขียนแบบใดแบบหนึ่ง เพราะด่านที่ผูกกับ
     // "วิธีเขียน" จะพังตอน refactor ทั้งที่ของยังถูก (บทเรียน 2026-08-12)
-    const shellClass = /chat-shell[\s\S]{0,260}/.exec(code)?.[0] ?? ''
-    expect(shellClass, 'หา className ของ .chat-shell ไม่เจอ — โครง layout เปลี่ยนไปแล้ว').not.toBe('')
+    const shellClass = /chat-body[\s\S]{0,260}/.exec(code)?.[0] ?? ''
+    expect(shellClass, 'หา className ของ .chat-body ไม่เจอ — โครง layout เปลี่ยนไปแล้ว').not.toBe('')
 
     expect(shellClass, 'ต้องกันที่ให้ rail ด้วยโทเคนความกว้าง "ตอนหุบ"').toContain(
       'ms-(--sidenav-width-sm)',
@@ -97,12 +97,33 @@ describe('[blocker] ChatNavRail — เมนูและที่ว่าง�
     const guard = /\{\s*([A-Za-z_$][\w$]*)\s*&&\s*<ChatNavRail/.exec(code)?.[1] ?? ''
     expect(guard, '<ChatNavRail /> ต้องถูกกั้นด้วยตัวแปร boolean ที่มีชื่อ (ไม่ใช่ literal/นิพจน์ลอย)').not.toBe('')
 
-    const shellClass = /chat-shell[\s\S]{0,260}/.exec(code)?.[0] ?? ''
+    const shellClass = /chat-body[\s\S]{0,260}/.exec(code)?.[0] ?? ''
     expect(
       shellClass,
       `ที่ว่างของ rail ต้องผูกกับ \`${guard}\` ตัวเดียวกับที่ตัดสินว่าจะ render rail ไหม — ` +
         'ไม่งั้นเคสไม่มีร้านจะเหลือช่องว่างเปล่าฝั่งซ้าย',
     ).toContain(guard)
+  })
+
+  it('ChatHeader ต้องอยู่นอกโซนที่ rail กันที่ไว้ (โลโก้อยู่บนสุด ไม่ถูกดัน/ไม่ถูกกางทับ)', () => {
+    /**
+     * user สั่ง 2026-08-25 (รอบแก้): *"logo ต้องอยู่บนสุดเหมือนเดิม เวลา hover ให้ hover
+     * แค่ส่วนด้านล่าง (logo ไม่ต้องหุบ)"*
+     *
+     * แปลว่า <ChatHeader/> ต้องพาดเต็มความกว้างที่ y=0 = อยู่ **ก่อน** .chat-body ซึ่งเป็นโซน
+     * ที่ถูก margin ดันไปทางขวา — ถ้าใครย้าย header เข้าไปใน .chat-body เมื่อไหร่ โลโก้จะถูก
+     * ดัน 75px และถูกแผงที่กางออกทับทันที โดยไม่มี tsc/build/เทสอื่นฟ้อง
+     */
+    const code = blankComments(readFileSync(join(ROOT, CHAT_LAYOUT), 'utf8'))
+    const headerAt = code.indexOf('<ChatHeader')
+    const bodyAt = code.indexOf('chat-body')
+
+    expect(headerAt, 'ไม่พบ <ChatHeader /> ใน layout ของหน้าแชท').toBeGreaterThan(-1)
+    expect(bodyAt, 'ไม่พบโซน .chat-body ที่กันที่ให้ rail').toBeGreaterThan(-1)
+    expect(
+      headerAt,
+      'ChatHeader ต้องอยู่ก่อน .chat-body — ย้ายเข้าไปข้างในเมื่อไหร่ โลโก้จะถูกดันและถูก rail กางทับ',
+    ).toBeLessThan(bodyAt)
   })
 
   it('rail ต้องถูก render นอก .chat-shell (ซึ่งมี overflow-hidden)', () => {
