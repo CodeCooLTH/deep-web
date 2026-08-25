@@ -78,7 +78,12 @@ function makePhoneSchema(t: Dictionary) {
 type FormValues = Yup.InferType<ReturnType<typeof makeSchema>>
 type PhoneFormValues = Yup.InferType<ReturnType<typeof makePhoneSchema>>
 
-export default function SignInForm() {
+/**
+ * @param hideSignUp ในแอป iOS ห้ามมีทางไปสมัครบัญชี (Guideline 3.1.1 — Apple สั่ง 2026-08-23)
+ *   ค่ามาจาก server component แม่ (`shouldHideSignUp()`) — component นี้เป็น `'use client'`
+ *   จึงอ่าน cookie/UA เองไม่ได้ และ **ไม่ควรอ่าน** เพราะเกณฑ์ต้องมีที่เดียว (`app-shell.ts`)
+ */
+export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolean }) {
   const t = useT()
   const schema = useMemo(() => makeSchema(t), [t])
   const router = useRouter()
@@ -302,7 +307,10 @@ export default function SignInForm() {
             <div className="mb-4">
               <p className="invalid-msg text-sm text-danger">
                 {otpErrorMessage[otpError]}
-                {otpError === 'NO_ACCOUNT' && (
+                {/* 🛑 ในแอป iOS ตัดลิงก์ทิ้ง เหลือแต่ข้อความบอกว่าไม่มีบัญชี —
+                    ปลายทาง `/auth/sign-up` redirect ออกอยู่แล้ว ปล่อยลิงก์ไว้ = ปุ่มที่กดแล้ว
+                    เด้งกลับที่เดิม ซึ่งอ่านเป็น "แอปพัง" มากกว่า "ทางนี้ปิด" */}
+                {otpError === 'NO_ACCOUNT' && !hideSignUp && (
                   <>
                     {' '}
                     <Link

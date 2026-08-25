@@ -81,3 +81,31 @@ export function resolveAppShell(shellCookie: string | undefined, userAgent: stri
 export function isPaymentRestricted(shell: AppShell): boolean {
   return PAYMENT_RESTRICTED_SHELLS.includes(shell)
 }
+
+/**
+ * shell นี้ต้องซ่อน **การสมัครบัญชี** ไหม (Guideline 3.1.1 — รอบ 2026-08-23)
+ *
+ * ที่มา: Apple ตีกลับเพิ่มอีกข้อ *"The app includes an account registration feature for
+ * businesses and organizations, which is considered access to external mechanisms for
+ * purchases or subscriptions to be used in the app. Next Steps: **Remove the account
+ * registration features for business and organizations**"*
+ *
+ * ⇒ ฟอร์ม "สร้างบัญชีผู้ขาย" (มีช่อง *หมวดหมู่ร้านค้า* = สมัครในนามกิจการ) ห้ามอยู่ในแอป
+ * เหลือได้แค่ **ล็อกอิน** สำหรับคนที่มีบัญชีอยู่แล้ว
+ *
+ * ── 🛑 ทำไมเป็นฟังก์ชันแยก ไม่ใช้ `isPaymentRestricted` ตัวเดิม ──────────────────
+ *
+ * ตอนนี้สองอันคืนค่าเท่ากันทุกกรณี (`ios` ทั้งคู่) แต่มันตอบ **คนละคำถาม** และ Apple ยกมาเป็น
+ * คนละข้อในจดหมายคนละรอบ ⇒ วันที่ข้อใดข้อหนึ่งถูกผ่อน (เช่นถ้าเราไปทาง IAP แล้วปุ่มจ่ายเงิน
+ * กลับมาได้ แต่การสมัครยังต้องห้าม) คนแก้จะเห็นทันทีว่าต้องแก้ตัวไหน
+ *
+ * ถ้ายุบเป็นตัวเดียว วันนั้นจะมีคนแก้ `isPaymentRestricted` แล้วการสมัครกลับมาโผล่ในแอปด้วย
+ * **โดยไม่มีใครตั้งใจและไม่มีอะไรฟ้อง** — กฎสองข้อที่บังเอิญมีคำตอบเท่ากันวันนี้ ไม่ใช่กฎเดียวกัน
+ * (`docs/conventions/domain-term-single-definition.md` — ทิศกลับของ HR16: ของคนละอย่าง
+ * ที่ค่าเท่ากันชั่วคราว ห้ามยุบรวม)
+ */
+const SIGNUP_RESTRICTED_SHELLS: readonly AppShell[] = ['ios']
+
+export function isSignUpRestricted(shell: AppShell): boolean {
+  return SIGNUP_RESTRICTED_SHELLS.includes(shell)
+}

@@ -10,6 +10,7 @@
  */
 
 import AuthLogo from '@/components/AuthLogo'
+import { shouldHideSignUp } from '@/lib/app-shell-server'
 import { currentYear, META_DATA } from '@/config/constants'
 import { getT } from '@/i18n/server'
 import type { Metadata } from 'next'
@@ -31,6 +32,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function SellerSignInPage() {
+  /* ในแอป iOS ห้ามมีทางไปสมัครบัญชี — ส่งต่อให้ SignInForm ด้วย (ลิงก์ในผล OTP "ยังไม่มีบัญชี") */
+  const hideSignUp = await shouldHideSignUp()
+
   const t = await getT()
 
   return (
@@ -54,18 +58,23 @@ export default async function SellerSignInPage() {
           {/* 🛑 ต้องอยู่ใน Suspense ก้อนเดียวกับฟอร์ม — ทั้งคู่อ่าน useSearchParams
               แยกออกไปข้างนอกจะบังคับให้ทั้งหน้ากลายเป็น dynamic โดยไม่ได้อะไรเพิ่ม */}
           <OAuthErrorNotice />
-          <SignInForm />
+          <SignInForm hideSignUp={hideSignUp} />
         </Suspense>
 
-        <p className="text-default-400 mt-7.5 text-center">
-          {t.auth.signIn.noAccount}&nbsp;
-          <Link
-            href="/auth/sign-up"
-            className="text-primary font-semibold underline underline-offset-4"
-          >
-            {t.auth.signIn.signUp}
-          </Link>
-        </p>
+        {/* 🛑 ในแอป iOS ซ่อนทางไปสมัคร — Apple สั่งให้ถอดการสมัครบัญชีธุรกิจออกจากแอป
+            (Guideline 3.1.1, 2026-08-23) · ตัวหน้า `/auth/sign-up` redirect ทิ้งอยู่แล้ว
+            แต่ต้องซ่อนลิงก์ด้วย ไม่งั้นผู้ใช้กดแล้วเด้งกลับที่เดิม = ปุ่มที่กดแล้วไม่มีอะไรเกิดขึ้น */}
+        {!hideSignUp && (
+          <p className="text-default-400 mt-7.5 text-center">
+            {t.auth.signIn.noAccount}&nbsp;
+            <Link
+              href="/auth/sign-up"
+              className="text-primary font-semibold underline underline-offset-4"
+            >
+              {t.auth.signIn.signUp}
+            </Link>
+          </p>
+        )}
       </div>
 
       <p className="text-default-400 mt-7.5 text-center">
