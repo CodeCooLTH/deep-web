@@ -19,7 +19,7 @@ import { formatBaht } from '@/lib/format-money'
 import { formatDateTime } from '@/lib/format-date'
 import type { ShippingAddressLike } from '@/lib/shipping-address-status'
 import { hasBehaviorWarning, type CustomerBadge } from '@/lib/customer-behavior'
-import { MIN_SHIPPED_FOR_RATE, type BuyerReputation } from '@/lib/buyer-reputation'
+import { MIN_SHIPPED_FOR_RATE, rateUnavailableText, type BuyerReputation } from '@/lib/buyer-reputation'
 import type { CustomerDirectoryEntry } from '@/lib/customer-directory'
 
 type Props = {
@@ -133,7 +133,7 @@ export default function CustomerProfileHeader({
               value={
                 enoughBase && rep.returnRate !== null
                   ? `${Math.round(rep.returnRate * 100)}%`
-                  : 'ยังบอกไม่ได้'
+                  : rateUnavailableText()
               }
             />
             {rep && <StatRow label="ยกเลิกโดยลูกค้า (ทั้งระบบ)" value={`${rep.cancelledByBuyer} ครั้ง`} />}

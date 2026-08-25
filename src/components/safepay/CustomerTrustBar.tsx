@@ -21,7 +21,7 @@
  * (`src/lib/customer-behavior.ts`)
  */
 import type { BuyerReputation } from '@/lib/buyer-reputation'
-import { MIN_SHIPPED_FOR_RATE } from '@/lib/buyer-reputation'
+import { MIN_SHIPPED_FOR_RATE, rateUnavailableText } from '@/lib/buyer-reputation'
 
 type Props = {
   /**
@@ -137,7 +137,7 @@ export default function CustomerTrustBar({ reputation, size = 'sm' }: Props) {
             </b>
           </span>
         ) : (
-          <span className="text-default-400">ยังบอกอัตราไม่ได้</span>
+          <span className="text-default-400">{rateUnavailableText()}</span>
         )}
       </div>
     </>

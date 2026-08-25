@@ -18,6 +18,8 @@
  * คนละที่กับ *แถว* คือกับดักที่ผู้ใช้ไม่มีทางเดาถูก
  */
 
+import FilterDropdown from '@/components/safepay/FilterDropdown'
+import SellerEmptyState from '../../_shared/SellerEmptyState'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import { CustomerBehaviorIcons } from '@/components/safepay/CustomerBehaviorBadges'
@@ -122,6 +124,13 @@ type CustomerTableProps = {
   initialFilter: CustomerListFilter
   /** จำนวนลูกค้าที่มีสัญญาณเตือน — โชว์บนชิปให้เห็นก่อนกด (ตัวเลขเดียวกับการ์ดสถิติ) */
   watchCount: number
+  /**
+   * จำนวนต่อตัวเลือกทั้ง 4 — ดรอปดาวน์เดสก์ท็อปต้องให้ข้อมูล **เท่ากับ** ชิปมือถือ
+   * ไม่ใช่น้อยกว่า (ชิปโชว์เลขอยู่แล้ว 1 ตัว ถ้าดรอปดาวน์ไม่มีเลยคือการลดข้อมูลตอนย้ายจอ)
+   */
+  filterCounts: Record<CustomerListFilter, number>
+  /** จำนวนลูกค้าทั้งร้าน **ก่อนกรอง** — จอว่างต้องบอกได้ว่าของไม่ได้หาย แค่ถูกตัวกรองบังอยู่ */
+  totalCustomers: number
 }
 
 /**
@@ -143,6 +152,8 @@ const CustomerTable = ({
   initialQuery,
   initialFilter,
   watchCount,
+  filterCounts,
+  totalCustomers,
 }: CustomerTableProps) => {
   const router = useRouter()
   const pathname = usePathname()
@@ -316,9 +327,43 @@ const CustomerTable = ({
   const end = Math.min(start + pageSize - 1, totalItems)
 
   const hasFilter = !!query || initialFilter !== 'all'
-  const emptyMessage = hasAnyCustomer
-    ? 'ไม่พบลูกค้าที่ตรงกับตัวกรองนี้'
-    : 'ยังไม่มีลูกค้า — รอผู้ซื้อสั่งซื้อสินค้าจากร้านค้าของคุณ'
+  const filterLabel = FILTER_CHIPS.find((c) => c.value === initialFilter)?.label ?? ''
+
+  /**
+   * จอว่างมี 3 ความหมาย ไม่ใช่ 2 — และเดิมข้อความเดียวครอบทั้งสองแบบแรกด้วยคำว่า "ตัวกรอง"
+   * ⇒ คนที่พิมพ์ **เบอร์โทร** ลงช่องค้นหาแล้วไม่เจอ ถูกบอกว่าไม่ตรงกับ "ตัวกรอง" ทั้งที่
+   * ไม่ได้ตั้งตัวกรองอะไรเลย (`hasFilter` ถูกคำนวณไว้แล้วแต่ไม่มีใครเอาไปใช้กับข้อความ)
+   *
+   * ยก `SellerEmptyState` มาจาก `/orders` (`OrdersTable.tsx:1050-1077`) ซึ่งแก้ปัญหาเดียวกัน
+   * ไปแล้ว: บอกคำที่ค้น + **บอกว่าทั้งร้านมีกี่คน** + ปุ่มพาออกจากตัวกรอง — เพราะจอว่างที่
+   * ไม่บอกทางออก ทำให้ผู้ขายสรุปว่า "ลูกค้าหายจากระบบ" ทั้งที่แค่ตัวกรองค้างอยู่
+   * (`docs/conventions/sibling-surface-parity.md` — ยกมาใช้ ไม่ใช่คิดคำใหม่)
+   */
+  const emptyState = !hasAnyCustomer ? (
+    <SellerEmptyState
+      compact
+      icon="users"
+      title="ยังไม่มีลูกค้า"
+      /* 🛑 ห้ามเขียนว่า "รอผู้ซื้อสั่งซื้อ" — สั่งให้รอคือทางตัน และไม่ตอบคำถามที่ผู้ขาย
+         ถามจริงตอนเห็นจอนี้คือ "ระบบพังหรือยังไม่มีจริง" ⇒ บอก *กลไก* ว่ารายชื่อมาจากไหน */
+      description="รายชื่อจะขึ้นเองเมื่อมีคำสั่งซื้อใบแรก — ไม่ต้องเพิ่มลูกค้าเอง"
+      action={{ label: 'ไปหน้าคำสั่งซื้อ', href: '/orders' }}
+    />
+  ) : (
+    <SellerEmptyState
+      compact
+      icon="user-search"
+      title={query ? `ไม่พบลูกค้าที่ตรงกับ "${query.trim()}"` : `ไม่มีลูกค้าใน "${filterLabel}"`}
+      description={
+        hasFilter && totalCustomers > 0
+          ? `ทั้งร้านมีลูกค้า ${totalCustomers.toLocaleString('th-TH')} คน`
+          : undefined
+      }
+      actionButton={
+        hasFilter ? { label: 'ล้างการค้นหาและตัวกรอง', onClick: () => clearFilters() } : undefined
+      }
+    />
+  )
 
   const clearFilters = () => {
     setQuery('')
@@ -327,25 +372,80 @@ const CustomerTable = ({
 
   return (
     <div className="card">
+      {/*
+        แถวเครื่องมือ — user สั่ง 2026-08-25 พร้อมภาพหน้าจอ: "อยากให้ทำเหมือนหน้า order lists"
+        Base: src/app/(paces)/seller/(dashboard)/orders/components/OrdersTable.tsx:840-856,896-1037
+        (ไฟล์นั้น adapt มาจาก theme/paces/.../apps/ecommerce/(orders)/orders แล้วอีกที)
+
+        `.card-header` เป็น `flex flex-wrap items-center justify-between` ของธีมเอง
+        (`_card.css:8`) ⇒ สองกลุ่มลูกไปคนละขอบโดยไม่ต้องเขียน wrapper flex ครอบทั้งแถว
+        และตอนที่ว่างไม่พอมันจะ **ตกบรรทัด** ไม่ใช่ซ้อนทับกัน
+
+        ต่างจาก `/orders` ตรงที่ **ไม่มีปุ่ม primary + ไม่มีเส้นคั่น** เพราะหน้านี้ไม่มี action
+        "สร้างลูกค้า" — ลูกค้าเกิดจากคำสั่งซื้อเท่านั้น ใส่ปุ่มไปก็ไม่มีอะไรให้กด
+      */}
       <div className="card-header">
-        <div className="flex gap-2.5">
+        <div className="flex min-w-0 max-w-xl flex-1 gap-2.5">
           <div className="input-icon-group">
             <Icon icon="search" className="input-icon" />
             <input
               type="search"
               placeholder="ค้นหาชื่อ หรือ เบอร์โทร"
+              // placeholder หายทันทีที่พิมพ์ตัวแรก ⇒ ถ้าไม่มี aria-label ช่องนี้จะไม่มีชื่อ
+              // ให้ screen reader เลยตั้งแต่วินาทีที่ผู้ใช้เริ่มใช้งานมันจริง ๆ
+              aria-label="ค้นหาลูกค้าด้วยชื่อ หรือ เบอร์โทร"
               className="form-input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
         </div>
+
+        {/*
+          เดสก์ท็อปเท่านั้น — ดรอปดาวน์ **ตัวเดียว** ไม่ใช่ 4 ตัวแบบ `/orders`
+          เพราะหน้านี้มีแกนกรองเดียว (เลือกได้ทีละค่า) ส่วน `/orders` มี 4 แกนอิสระที่ AND กัน
+          ⇒ ก็อป "จำนวนปุ่ม" มาจะได้ดรอปดาวน์ 4 ตัวที่ 3 ตัวไม่มีอะไรให้เลือก
+        */}
+        <div className="hidden items-center gap-2.5 lg:flex">
+          <FilterDropdown
+            icon="filter"
+            defaultLabel="ตัวกรอง"
+            resetValue="all"
+            align="right"
+            value={initialFilter}
+            options={FILTER_CHIPS.map((c) => ({
+              value: c.value,
+              label: c.label,
+              // "ทั้งหมด" ไม่มี badge (ธรรมเนียมเดียวกับ /orders) · ตัวอื่นมีเสมอแม้เป็น 0
+              // — 0 คือข้อมูลจริง ("ไม่มีใครเข้าเกณฑ์") ไม่ใช่ "ยังไม่รู้" จึงห้ามซ่อน
+              badge:
+                c.value === 'all'
+                  ? undefined
+                  : {
+                      label: filterCounts[c.value],
+                      // component เติม `badge ms-2 shrink-0 tabular-nums` ให้เองแล้ว
+                      // (FilterDropdown.tsx:113) ⇒ ส่งมาแค่ token สี เหมือน STAGE_BADGE_CLS ของ /orders
+                      className:
+                        c.tone === 'warning'
+                          ? 'bg-warning/15 text-warning-ink'
+                          : 'bg-default-100 text-default-700',
+                    },
+            }))}
+            onChange={(v) => run(() => pushWith({ q: query, f: v as CustomerListFilter }))}
+          />
+        </div>
       </div>
 
       {/* ชิปกรอง — เลื่อนแนวนอนได้บนมือถือโดยไม่ทำให้ทั้งหน้าเลื่อนข้าง
           `-mx-4 px-4` ให้แถบกินเต็มขอบการ์ดแต่ยังมีระยะขอบตอนเลื่อนสุด
           `min-h-11` = 44px พื้นที่นิ้วตามเกณฑ์ (ชิปที่เตี้ยกว่านี้กดพลาดบนมือถือ) */}
-      <div className="border-default-200 -mx-4 flex gap-2 overflow-x-auto border-b border-dashed px-4 pb-3">
+      {/*
+        `lg:hidden` — ชิปเป็นของมือถือล้วน เหมือน `/orders` ที่ห่อ UI มือถือทั้งก้อนไว้ใน
+        `<div className="lg:hidden">` (`OrdersList.tsx:668-977`) แล้วให้เดสก์ท็อปใช้ดรอปดาวน์
+        ⇒ ตัดออกจาก DOM ของเดสก์ท็อปจริง ไม่ใช่แค่ซ่อน (ข้อมูลเดียวกับดรอปดาวน์ + กินแถวเต็ม)
+        state/onChange ใช้ตัวเดียวกันทั้งสองพรีเซนต์ (`pushWith` + `?f=`) ห้ามแยกสอง state
+      */}
+      <div className="border-default-200 -mx-4 flex gap-2 overflow-x-auto border-b border-dashed px-4 pb-3 lg:hidden">
         {FILTER_CHIPS.map((c) => {
           const active = initialFilter === c.value
           return (
@@ -373,7 +473,7 @@ const CustomerTable = ({
       <div className="relative">
         <DataTable<CustomerRow>
           table={table}
-          emptyMessage={emptyMessage}
+          emptyMessage={emptyState}
           onRowClick={(row) => openProfile(row.original.key)}
           mobileCard={(row) => {
             const c = row.original

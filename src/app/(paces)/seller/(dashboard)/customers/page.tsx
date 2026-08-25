@@ -33,6 +33,7 @@ import {
   matchesCustomerFilter,
   matchesCustomerQuery,
   parseCustomerFilter,
+  type CustomerListFilter,
 } from '@/lib/customer-directory'
 import { aggregateShopCustomers } from '@/services/customer-directory.service'
 import { getBuyerReputations } from '@/services/buyer-reputation.service'
@@ -132,6 +133,26 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     entries.map((e) => ({ shopReputation: e.shopReputation, hasWarning: warnOf.get(e.key) ?? false })),
   )
 
+  /**
+   * จำนวนต่อตัวเลือกของตัวกรอง — นับจาก `withWarning` (**ก่อนกรอง** และไม่ผูกกับคำค้นหา)
+   * ด้วย `matchesCustomerFilter()` **ตัวเดียวกับที่ใช้กรองจริง** ⇒ เลขบนป้ายกับผลที่ได้
+   * ตอนกดจะไม่มีทางนับคนละเกณฑ์ (บทเรียน Command Center 2026-08-04: นับด้วย SQL
+   * แล้วกรองด้วย TS ⇒ กดเลข 5 เข้าไปเจอ 4)
+   *
+   * 🛑 `warn` ต้องเป็น `stats.watchCount` ตัวเดิม ห้ามนับใหม่ — มันคือเลขเดียวกับที่การ์ด
+   * สถิติหัวหน้าแสดง ถ้าคำนวณซ้ำคนละบรรทัด วันหนึ่งจะเพี้ยนคนละทางโดยไม่มีอะไรฟ้อง (HR16)
+   */
+  const filterCounts: Record<CustomerListFilter, number> = {
+    all: entries.length,
+    warn: stats.watchCount,
+    returned: withWarning.filter(({ entry: e, badges }) =>
+      matchesCustomerFilter(e, 'returned', hasBehaviorWarning(badges)),
+    ).length,
+    repeat: withWarning.filter(({ entry: e, badges }) =>
+      matchesCustomerFilter(e, 'repeat', hasBehaviorWarning(badges)),
+    ).length,
+  }
+
   const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%`)
   const share = (n: number) =>
     stats.totalCustomers === 0 ? undefined : `${Math.round((n / stats.totalCustomers) * 100)}% ของลูกค้าทั้งหมด`
@@ -227,6 +248,8 @@ export default async function CustomersPage({ searchParams }: PageProps) {
         hasAnyCustomer={entries.length > 0}
         initialQuery={q}
         initialFilter={filter}
+        filterCounts={filterCounts}
+        totalCustomers={entries.length}
         watchCount={stats.watchCount}
       />
     </>
