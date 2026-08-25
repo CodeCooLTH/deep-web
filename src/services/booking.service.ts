@@ -4,6 +4,7 @@ import { isExclusionViolation } from "@/lib/prisma-errors";
 import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
 import { genShortCode } from "@/services/order.service";
+import { formatOrderNo } from "@/lib/order-no";
 
 // Lodging Vertical — Phase 2: การจอง (feature 00017)
 // SSOT: docs/20 - Features/00017 - Lodging Vertical/{BRD,SRS,SDS,API}.md
@@ -221,6 +222,20 @@ export async function createBooking(shopId: string, input: CreateBookingInput, c
             },
           },
         });
+
+        /**
+         * orderNo — ต้องเขียนทุกเส้นทางที่สร้างออเดอร์ (CR 2026-08-25)
+         *
+         * 🛑 เส้นทางนี้ **ไม่เคยเขียนคอลัมน์นี้เลย** ตั้งแต่วันแรก ต่างจาก `createOrder()`
+         * ที่เขียนมาตลอด ⇒ ออเดอร์จากเส้นทางนี้จะมี `orderNo = NULL` ขณะที่หน้าจอ **คำนวณสด**
+         * จาก `publicToken`+`createdAt` เสมอ (`formatOrderNo`) — ค่าที่ผู้ขายเห็นบนจอจึงมีอยู่
+         * แต่ค้นด้วย SQL บนคอลัมน์ไม่เจอ = บั๊กแบบที่ 00058 เพิ่งแก้ไปในทิศตรงข้าม
+         * (prod 2026-08-25 ยังไม่มีแถว NULL เพราะเส้นทางนี้ยังไม่เคยถูกใช้จริง — ปิดก่อนมีใครใช้)
+         *
+         * set หลัง create เพราะต้องใช้ publicToken/createdAt ที่ DB สร้าง (deterministic ไม่ต้อง retry)
+         */
+        const orderNo = formatOrderNo(order.publicToken, order.createdAt);
+        await tx.order.update({ where: { id: order.id }, data: { orderNo } });
         return order;
       });
     } catch (err) {

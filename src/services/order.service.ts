@@ -1448,61 +1448,15 @@ export async function settleCodFromCarrier(input: {
 }
 
 /**
- * syncOrderPaymentToParcel — ให้วิธีชำระเงินของคำสั่งซื้อตรงกับพัสดุที่เปิดจริง
+ * include ของ "แถวในหน้ารายการคำสั่งซื้อ" — ยกออกมาเป็นตัวเดียวเพราะมีผู้เรียก 2 ราย
+ * (`getOrdersByShop` ดึงทั้งร้าน · `getOrdersByIds` ดึงเฉพาะหน้าที่กำลังแสดง — CR 2026-08-25)
  *
- * user สั่ง 2026-08-06: "ถ้าเลือกเปิดพัสดุ iShip เป็น COD แต่คำสั่งซื้อไม่ใช่ COD
- * ก็แจ้งเตือนเปลี่ยนให้เลย สะดวก"
- *
- * คืนข้อความที่ต้องบอกร้าน (null = ไม่มีอะไรต้องบอก) — ผู้เรียกเป็นคนตัดสินว่าจะแสดงยังไง
- * ตัวตัดสินใจอยู่ใน resolvePaymentSync ซึ่ง pure และเทสแยกได้
+ * 🛑 ห้ามก็อปไปเขียนซ้ำ: ถ้าสองที่ include ไม่ตรงกัน หน้าจอจะขาดข้อมูลบางฟิลด์เฉพาะเส้นทางเดียว
+ * แล้วอาการจะออกมาเป็น "บางใบไม่มีเลขพัสดุ" ซึ่งไม่มีใครโยงกลับมาที่ include ได้
  */
-export async function syncOrderPaymentToParcel(
-  orderId: string,
-  parcelCodAmount: number,
-  actorUserId: string | null,
-): Promise<{ kind: "changed" | "warning"; message: string } | null> {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    select: { id: true, paymentMethod: true },
-  });
-  if (!order) return null;
+function orderListInclude(opts?: { withPayments?: boolean }) {
+  return {
 
-  const decision = resolvePaymentSync({
-    orderPaymentMethod: order.paymentMethod,
-    parcelCodAmount,
-  });
-  if (decision.action === "NONE") return null;
-  if (decision.action === "WARN_NO_COD") return { kind: "warning", message: decision.message };
-
-  await prisma.$transaction(async (tx) => {
-    await tx.order.update({ where: { id: order.id }, data: { paymentMethod: "COD" } });
-    await recordOrderEvent(tx, {
-      orderId: order.id,
-      type: "PAYMENT_METHOD_SYNCED",
-      actorUserId,
-      meta: { amount: decision.codAmount, paymentFrom: decision.from },
-    });
-  });
-  return { kind: "changed", message: decision.message };
-}
-
-export async function getOrdersByShop(
-  shopId: string,
-  status?: string,
-  /**
-   * `withPayments` — ดึงเงินที่ร้าน "ยืนยันว่าได้รับแล้ว" มาด้วย (feature 00050 · AC-SQ-07)
-   *
-   * 🛑 เป็น opt-in ต่อ **ประเภทร้าน** ไม่ใช่เปิดให้ทุกคน: ร้านขายออนไลน์ไม่มีเส้นทางบันทึกเงิน
-   * รายใบเลย การ join ตารางที่ว่างเปล่าให้ทุกแถวของทุกร้าน คือค่าใช้จ่ายที่ไม่ได้แลกอะไรกลับมา
-   * (query นี้ไม่มีการแบ่งหน้า — ดึงออเดอร์ทั้งร้านในครั้งเดียว ต้นทุนจึงโตตามจำนวนออเดอร์)
-   *
-   * ผู้เรียกต้องกั้นด้วย `shop.vertical === 'SERVICE_QUEUE'` — ห้ามกั้นด้วย "ร้านนี้มีมัดจำไหม"
-   */
-  opts?: { withPayments?: boolean },
-) {
-  return prisma.order.findMany({
-    where: { shopId, ...(status ? { status } : {}) },
-    include: {
       /**
        * แถวเงินของใบนี้ — ป้ายสถานะในรายการต้องมาจากตัวเลขชุดเดียวกับหน้ารายละเอียด
        * ไม่งั้นใบเดียวกันขึ้น "รอดำเนินการ" ในรายการ แล้วขึ้น "ชำระเงินแล้ว" เมื่อกดเข้าไป
@@ -1560,7 +1514,88 @@ export async function getOrdersByShop(
       // ช่องทางที่ลูกค้าทักเข้ามาจริง (2026-08-10) — คอลัมน์ "ที่มา" อ่านรูป+provider จากตัวนี้
       // แทนการเดาจาก MESSENGER เพจเดียวของร้าน (ผูกใน include เดียวกัน ไม่ยิงคิวรีเพิ่มต่อแถว)
       shopChannel: { select: { avatarUrl: true, provider: true, name: true } },
-    },
+  } satisfies Prisma.OrderInclude;
+}
+
+/**
+ * ออเดอร์ตาม id ที่ระบุ — คู่กับ `listShopOrderIds()` (CR 2026-08-25)
+ *
+ * 🛑 **คงลำดับตามที่ `ids` ส่งมา** ไม่ใช่ลำดับที่ฐานคืน — ลำดับถูกตัดสินไปแล้วตอนเลือกหน้า
+ * (keyset `createdAt DESC, id DESC`) ถ้าปล่อยให้ Prisma เรียงใหม่ แถวจะสลับกับที่ cursor คิดไว้
+ * แล้วหน้าถัดไปจะข้าม/ซ้ำแถวโดยไม่มีอะไรฟ้อง
+ *
+ * `shopId` ยังต้องอยู่ใน where เสมอ แม้จะรู้ id แล้ว — id ที่หลุดมาจากที่อื่นต้องไม่ข้ามร้านได้
+ */
+export async function getOrdersByIds(
+  shopId: string,
+  ids: string[],
+  opts?: { withPayments?: boolean },
+) {
+  if (ids.length === 0) return [];
+  const rows = await prisma.order.findMany({
+    where: { shopId, id: { in: ids } },
+    include: orderListInclude(opts),
+  });
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return ids.map((id) => byId.get(id)).filter(Boolean) as typeof rows;
+}
+
+/**
+ * syncOrderPaymentToParcel — ให้วิธีชำระเงินของคำสั่งซื้อตรงกับพัสดุที่เปิดจริง
+ *
+ * user สั่ง 2026-08-06: "ถ้าเลือกเปิดพัสดุ iShip เป็น COD แต่คำสั่งซื้อไม่ใช่ COD
+ * ก็แจ้งเตือนเปลี่ยนให้เลย สะดวก"
+ *
+ * คืนข้อความที่ต้องบอกร้าน (null = ไม่มีอะไรต้องบอก) — ผู้เรียกเป็นคนตัดสินว่าจะแสดงยังไง
+ * ตัวตัดสินใจอยู่ใน resolvePaymentSync ซึ่ง pure และเทสแยกได้
+ */
+export async function syncOrderPaymentToParcel(
+  orderId: string,
+  parcelCodAmount: number,
+  actorUserId: string | null,
+): Promise<{ kind: "changed" | "warning"; message: string } | null> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, paymentMethod: true },
+  });
+  if (!order) return null;
+
+  const decision = resolvePaymentSync({
+    orderPaymentMethod: order.paymentMethod,
+    parcelCodAmount,
+  });
+  if (decision.action === "NONE") return null;
+  if (decision.action === "WARN_NO_COD") return { kind: "warning", message: decision.message };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({ where: { id: order.id }, data: { paymentMethod: "COD" } });
+    await recordOrderEvent(tx, {
+      orderId: order.id,
+      type: "PAYMENT_METHOD_SYNCED",
+      actorUserId,
+      meta: { amount: decision.codAmount, paymentFrom: decision.from },
+    });
+  });
+  return { kind: "changed", message: decision.message };
+}
+
+export async function getOrdersByShop(
+  shopId: string,
+  status?: string,
+  /**
+   * `withPayments` — ดึงเงินที่ร้าน "ยืนยันว่าได้รับแล้ว" มาด้วย (feature 00050 · AC-SQ-07)
+   *
+   * 🛑 เป็น opt-in ต่อ **ประเภทร้าน** ไม่ใช่เปิดให้ทุกคน: ร้านขายออนไลน์ไม่มีเส้นทางบันทึกเงิน
+   * รายใบเลย การ join ตารางที่ว่างเปล่าให้ทุกแถวของทุกร้าน คือค่าใช้จ่ายที่ไม่ได้แลกอะไรกลับมา
+   * (query นี้ไม่มีการแบ่งหน้า — ดึงออเดอร์ทั้งร้านในครั้งเดียว ต้นทุนจึงโตตามจำนวนออเดอร์)
+   *
+   * ผู้เรียกต้องกั้นด้วย `shop.vertical === 'SERVICE_QUEUE'` — ห้ามกั้นด้วย "ร้านนี้มีมัดจำไหม"
+   */
+  opts?: { withPayments?: boolean },
+) {
+  return prisma.order.findMany({
+    where: { shopId, ...(status ? { status } : {}) },
+    include: orderListInclude(opts),
     orderBy: { createdAt: "desc" },
   });
 }

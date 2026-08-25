@@ -22,6 +22,7 @@ import { pushToUser } from '@/services/app-push.service'
 import { evaluateBadges, evaluateSellerBadgesForShop } from '@/services/badge.service'
 import { getMaxVerificationLevel } from '@/services/verification.service'
 import { getAuctionLevel, type AuctionLevel } from '@/lib/auction-level'
+import { formatOrderNo } from '@/lib/order-no'
 
 const PAGE_SIZE = 20
 
@@ -553,6 +554,19 @@ export async function settleAuctionCore(
       fulfillmentMode: 'SHIPPED',
       items: { create: [{ name: a.title, qty: 1, price: a.currentPrice }] },
     },
+  })
+
+  /**
+   * orderNo — ต้องเขียนทุกเส้นทางที่สร้างออเดอร์ (CR 2026-08-25)
+   *
+   * 🛑 เส้นทางนี้ **ไม่เคยเขียนคอลัมน์นี้เลย** ต่างจาก `createOrder()` ที่เขียนมาตลอด
+   * ⇒ ออเดอร์จากการชนะประมูลจะมี `orderNo = NULL` ขณะที่หน้าจอ **คำนวณสด** จาก
+   * `publicToken`+`createdAt` เสมอ — ค่าที่ผู้ขายเห็นบนจอมีอยู่ แต่ค้นด้วย SQL บนคอลัมน์ไม่เจอ
+   * (prod 2026-08-25 ยังไม่มีแถว NULL เพราะเส้นทางนี้ยังไม่เคยถูกใช้จริง — ปิดก่อนมีใครใช้)
+   */
+  await tx.order.update({
+    where: { id: order.id },
+    data: { orderNo: formatOrderNo(order.publicToken, order.createdAt) },
   })
 
   // แจ้งเตือน "คุณชนะการประมูล" ให้ผู้ชนะ (in-app, อยู่ใน tx เดียวกับ order — ต้องสำเร็จคู่กัน)
