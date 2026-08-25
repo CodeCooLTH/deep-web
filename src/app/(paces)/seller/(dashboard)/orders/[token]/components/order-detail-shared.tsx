@@ -89,8 +89,27 @@ export function buildBreakdown(params: {
   ].filter((r) => r.show)
 }
 
-/** Thumbnail สินค้า — ใช้ร่วมกันทั้งรายการมือถือและตารางเดสก์ท็อป */
-export function ItemThumbnail({ imageUrl, name }: { imageUrl: string | null; name: string }) {
+/**
+ * Thumbnail สินค้า — ใช้ร่วมกันทั้งรายการมือถือและตารางเดสก์ท็อป
+ *
+ * `fallback` = จะแสดงอะไรเมื่อไม่มีรูป:
+ *   `'icon'` (ค่าตั้งต้น) — กล่องเทา + ไอคอนรูปภาพ · ใช้ในตาราง/การ์ดออเดอร์ทุกจุดเหมือนเดิม
+ *   `'blank'` — **กล่องเทาเปล่า** · ใช้ในชีตคืนของตาม D-9 ที่หัวหน้าสั่งตรง ("ไม่มีรูป =
+ *     กล่องเทาเปล่า ห้ามใช้ไอคอนแทน") เหตุผล: ในชีตนั้นทุกแถวมีรูปเป็นตัวแยกของ ไอคอน
+ *     รูปภาพซ้ำ ๆ ทุกแถวจะอ่านเป็น "ของชนิดนี้" แทนที่จะเป็น "ยังไม่มีรูป"
+ *
+ * 🛑 เป็น prop บน component เดิม ไม่ใช่เขียนกล่องใหม่ที่ชีต — ทั้งสองที่ต้องมีขนาด/มุมโค้ง/
+ * สีพื้นชุดเดียวกันตลอดไป (`sibling-surface-parity.md`) ค่าตั้งต้นคงพฤติกรรมเดิมทุกจุด
+ */
+export function ItemThumbnail({
+  imageUrl,
+  name,
+  fallback = 'icon',
+}: {
+  imageUrl: string | null
+  name: string
+  fallback?: 'icon' | 'blank'
+}) {
   if (imageUrl) {
     return (
       // 40px แทน 56px ของเดิม — แถวตารางเคยสูง 81px ต่อสินค้า 1 ชิ้น ทำให้การ์ดยืดเกินจำเป็น
@@ -98,8 +117,14 @@ export function ItemThumbnail({ imageUrl, name }: { imageUrl: string | null; nam
     )
   }
   return (
-    <div className="bg-default-100 flex size-10 shrink-0 items-center justify-center rounded-lg">
-      <Icon icon="photo" className="text-default-500 size-4.5" />
+    <div
+      className="bg-default-100 flex size-10 shrink-0 items-center justify-center rounded-lg"
+      /* กล่องเปล่าไม่มีเนื้อหาให้ screen reader อ่าน — บอกไปตรง ๆ ว่าไม่มีรูป ดีกว่าเงียบ
+         (`img` ต้องการชื่อจากผู้เขียน ซึ่ง role นี้รองรับ — ต่างจาก div เปล่า) */
+      role="img"
+      aria-label={`${name} — ไม่มีรูปสินค้า`}
+    >
+      {fallback === 'icon' && <Icon icon="photo" className="text-default-500 size-4.5" aria-hidden="true" />}
     </div>
   )
 }

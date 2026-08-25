@@ -1882,6 +1882,78 @@ SSOT: **`src/lib/order-search.ts`** — ฟังก์ชันบริสุ�
 
 ที่มา: `docs/20 - Features/00014 - Customer Directory/EXTENSIONS-2026-08-21-phone-format.md`
 
+### §10.15 คืนของ — วิธีคืน 3 ข้อ + ขนส่งขากลับ (feature 00056 · รอบ re-design 2026-08-25)
+
+SSOT: **`src/lib/order-return.ts`** (กฎ) + **`src/lib/iship/courier.ts`** (รายชื่อขนส่ง)
+
+#### สิ่งที่ API รับจาก client
+
+`POST /api/orders/[token]/returns`
+
+| ฟิลด์ | ค่า | หมายเหตุ |
+|---|---|---|
+| `items[]` | `{ orderItemId, qty≥1 }` อย่างน้อย 1 รายการ | กฎ "คืนได้อีกกี่ชิ้น" อยู่ที่ service ไม่ใช่ schema |
+| `method` | `ISHIP` \| `SHOP_SELF` \| `BUYER_SELF` | **คีย์วิธีเท่านั้น** |
+| `trackingNo` | string \| null · **เว้นว่างได้** | ไม่มี `minLength` โดยเจตนา (BR-RT-19) |
+| `returnCourierCode` / `returnCourierName` | ≤120 ตัวอักษร | รหัสจาก `COURIER_OPTIONS` หรือรหัสแพ็กเกจจริงของ iShip |
+| `returnParcel` | `{ weight, width, length, height }` \| null | ไม่ครบ = ใช้กล่องของขาไป |
+| `countAsCost` | boolean | มีผลเฉพาะ `BUYER_SELF` |
+| `reason`, `shippingCost` | เดิม | |
+
+🛑 **`payer` และ `trackingSource` ไม่อยู่ใน schema โดยเจตนา** — เป็น *ผลลัพธ์* ที่
+`resolveReturnShippingChoice()` ตัดสินฝั่ง server (BR-RT-39) เปิดให้ client ส่งมาเอง =
+ให้จอกำหนดว่าใครจ่ายเงิน ซึ่งเป็นสิ่งที่วิธีที่เลือกบอกอยู่แล้ว
+
+#### ตารางแปลง วิธี × เลขพัสดุ → ค่าที่บันทึก
+
+| `method` | ช่องเลข | `payer` | `trackingSource` | `manualTrackingNo` | `countAsCost` |
+|---|---|---|---|---|---|
+| `ISHIP` | ไม่มีช่อง | `SHOP` | `ISHIP` | `null` (เลขที่หลุดมาถูกทิ้ง) | บังคับ `true` |
+| `SHOP_SELF` | เว้นว่าง | `SHOP` | `NONE` | `null` | บังคับ `true` |
+| `SHOP_SELF` | กรอก | `SHOP` | `MANUAL` | เลขที่ trim แล้ว | บังคับ `true` |
+| `BUYER_SELF` | เว้นว่าง | `BUYER` | `NONE` | `null` | ร้านเลือก (ตั้งต้น `false`) |
+| `BUYER_SELF` | กรอก | `BUYER` | `MANUAL` | เลขที่ trim แล้ว | ร้านเลือก (ตั้งต้น `false`) |
+
+`validateReturnShipping()` ยังอยู่เป็นด่านที่สอง — พิสูจน์ว่า resolver กับกฎยังไม่เลื่อนออกจากกัน
+วันที่มีคนเพิ่มวิธีที่ 4 (ผู้ใช้จะได้เหตุผลที่แก้ได้จริง ไม่ใช่ 500 จาก CHECK ที่ระดับฐาน)
+
+#### คอลัมน์ที่เพิ่ม (migration `20260825120000_order_return_courier` · additive ล้วน)
+
+| คอลัมน์ | ชนิด | ความหมาย |
+|---|---|---|
+| `OrderReturn.returnCourierCode` | `String?` | ขนส่ง**ขากลับ** — ส่งเข้า `createReturnShipment(override.courierCode)` ตอนกดออกเลข · `null` = ใช้เจ้าเดียวกับขาไป |
+| `OrderReturn.returnCourierName` | `String?` | ชื่อที่ร้านเห็นตอนเลือก (ชื่อแพ็กเกจของ iShip จำเพาะกว่าชื่อแบรนด์) |
+| `OrderReturn.returnParcel` | `Json?` | override กล่องขากลับ — **ทั้งชุดหรือไม่มีเลย** (`parseReturnParcel()` fail-closed) |
+| ~~`OrderReturn.manualCourier`~~ | `String?` | 🛑 **เลิกใช้ 2026-08-25** — เขียนไม่ได้อีก อ่านได้อย่างเดียว · ไม่ลบเพราะ DROP ทำให้ deployment เก่าที่ยังเสิร์ฟระหว่าง build พัง · ยืนยันแล้วว่ามี **0 แถวทั้ง prod และ dev** |
+
+#### `POST /api/orders/[token]/return-quote` (ใหม่)
+
+ค่าส่ง**ขากลับ**โดยประมาณต่อขนส่งแต่ละเจ้า · body `{ parcel? }` · คืน `{ rows, failed, box }`
+
+| กฎ | เหตุผล |
+|---|---|
+| อ่านที่อยู่ผู้ซื้อ **ฝั่ง server** และคืน **เฉพาะราคา** | ถ้าให้จอยิง `/api/seller/iship/price/compare` ตรง ๆ จอต้องถือที่อยู่ไว้ก่อน = ที่อยู่/ชื่อ/เบอร์ ไหลเข้า flight payload ทุกใบ เพื่อตัวเลข "฿เท่าไร" ตัวเดียว |
+| ใช้ `compareShippingPrices()` **ตัวเดิม** | HR16 — ห้ามเขียนสูตรใหม่ ต่างกันแค่ที่มาของ input |
+| path เป็น `return-quote` ไม่ใช่ `returns/quote` | `returns/[returnId]` เป็น dynamic segment ที่ static child จะบังทับ ⇒ ใบคืนที่ id ตรงกับคำนั้นเรียกไม่ได้ตลอดกาล |
+| ไม่รู้ขนาดกล่อง → `400 NO_PARCEL` | ประเมินไม่ได้ต้องบอกตรง ๆ **ห้ามคืน ฿0** ซึ่งอ่านเหมือน "ส่งฟรี" (`partial-data-must-be-labeled-or-filled.md`) |
+
+⚠️ **ทิศทางที่ประเมิน:** `compareShippingPrices` ตรึงผู้ส่ง = ที่อยู่ร้านเสมอ ⇒ ราคาที่ได้คือ
+"ร้าน → ลูกค้า" ส่วนของจริงขากลับคือ "ลูกค้า → ร้าน" · ขนส่งไทยในประเทศคิดจาก
+(น้ำหนัก/ขนาด × คู่โซน) ซึ่งสมมาตร ตัวเลขจึงตรงกันในทางปฏิบัติ และจอเรียกมันว่า
+**"โดยประมาณ"** ไม่ใช่ยอดที่จะถูกตัดจริง (ยอดจริงมาตอนขนส่งชั่งน้ำหนัก)
+
+#### รายชื่อขนส่ง
+
+`COURIER_OPTIONS` (`src/lib/iship/courier.ts`) = 8 แบรนด์ + `OTHER` ท้ายลิสต์ —
+**SSOT เดียว ห้ามพิมพ์รายชื่อขนส่งซ้ำในคอมโพเนนต์** (HR16) · แพ็กเกจของ iShip เอง
+(`ISHIP`) ไม่อยู่ในลิสต์เพราะเป็น *วิธีคืน* ข้อแรก ไม่ใช่ "ขนส่งเจ้าอื่นที่ร้านไปเปิดพัสดุเอง"
+
+🛑 `courierBrandCode()` เทียบ **รหัสตรงตัวก่อน** regex — `'THAIPOST'` ที่เราเก็บเอง
+ไม่ match `/thailand\s*post/` ⇒ ถ้าไม่เทียบรหัสก่อน โลโก้จะหายเงียบ ๆ **เฉพาะเจ้าที่ร้านเลือกเอง**
+(เทส `[blocker]` `courier-options.test.ts` ปักหมุดทั้งสองทิศ + เช็คว่าไฟล์โลโก้มีอยู่จริง)
+
+ที่มา: `docs/20 - Features/00056 - Order Return/BRD.md` §8
+
 ### 10.11 หมายเหตุ
 
 - **Valibot (backend):** ใช้กับ API routes ทุกตัวที่มี mutation — `v.safeParse()` ก่อน service call

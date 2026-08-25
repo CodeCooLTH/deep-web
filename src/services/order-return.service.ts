@@ -10,7 +10,6 @@ import {
   RETURN_BLOCK_TEXT,
   RETURN_SHIPPING_BLOCK_TEXT,
   RETURN_STATUS,
-  RETURN_TRACKING_SOURCE,
   canCreateReturn,
   computeRefundAmount,
   isFullyReturned,
@@ -207,6 +206,19 @@ export async function getReturnEligibility(shopId: string, orderId: string) {
     },
   })
 
+  /**
+   * เชื่อม iShip อยู่ไหม — ตัดสินว่าจอจะโชว์วิธี "ส่งด้วย iShip" หรือซ่อนทั้งข้อ
+   *
+   * 🛑 เกณฑ์เดียวกับ `getShipmentPanelOrReason()` เป๊ะ (มีแถว + ไม่ใช่ DISCONNECTED) —
+   * เขียนเกณฑ์ที่สองขึ้นมาเมื่อไหร่ จอนี้กับโมดัลเปิดพัสดุจะตัดสินไม่ตรงกันวันที่ร้าน
+   * ยกเลิกการเชื่อมต่อ แล้วร้านจะเห็นตัวเลือกที่กดแล้วตายที่ปลายทาง
+   */
+  const ishipAccount = await prisma.shopShippingAccount.findUnique({
+    where: { shopId },
+    select: { status: true },
+  })
+  const ishipConnected = ishipAccount != null && ishipAccount.status !== 'DISCONNECTED'
+
   const fwd = order.shipments[0]
   const dec = (v: unknown) => (v == null ? null : Number(v))
   const forward: ForwardParcelFacts = {
@@ -230,6 +242,7 @@ export async function getReturnEligibility(shopId: string, orderId: string) {
     /** 🛑 ไม่มีที่อยู่/ชื่อ/เบอร์ผู้ซื้อในนี้เลย — หน้านี้อยู่ใต้ client layout ค่าที่ส่งไปไหลเข้า
      *  flight payload · การประเมินค่าส่งอ่านที่อยู่ฝั่ง server เอง (route `/returns/quote`) */
     forward,
+    ishipConnected,
     orderStatus: order.status,
     items,
     returns: rows.map((r) => ({
