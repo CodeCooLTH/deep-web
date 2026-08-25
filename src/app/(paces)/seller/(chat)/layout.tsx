@@ -37,9 +37,14 @@ import { resolveChatScope } from '@/lib/chat-scope'
 import { getProductsByShop, getBestSellerProducts } from '@/services/product.service'
 import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import ChatHeader from './_components/ChatHeader'
+import ChatNavRail from './_components/ChatNavRail'
 import ChatRailColumn from './_components/ChatRailColumn'
 import InboxTabs from './_components/InboxTabs'
 import { resolveOrderVocab } from '@/lib/seller-menu'
+import { resolveSellerMenuItems } from '@/lib/seller-menu-server'
+import { shouldHidePayments } from '@/lib/app-shell-server'
+import { getUnreadCountForShop } from '@/services/chat.service'
+import type { MenuItemType } from '@/types'
 import { prisma } from '@/lib/prisma'
 import DraftOrderProvider from './_components/DraftOrderProvider'
 import type { CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
@@ -133,10 +138,24 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   // feature 00022 × 00037 — โหมดเปิดพัสดุ "ของร้านนี้" (เดิม DraftOrderProvider ถามเองครั้งเดียว
   // ตอน mount แล้วใช้ค่าเดียวกับทุกร่างไม่ว่าร้านไหน ดู resolveChatIshipCreateMode)
   let ishipCreateMode: ChatIShipCreateMode = 'OFF'
+  /**
+   * เมนูของ ChatNavRail (แถบไอคอนซ้ายสุด, ≥1024px) — user สั่ง 2026-08-25
+   *
+   * 🛑 ต้องผ่าน `resolveSellerMenuItems` ตัวเดียวกับที่ `(dashboard)/layout.tsx` ใช้เท่านั้น
+   * ห้ามประกอบตัวกรองเองที่นี่ — เมนูสองชุดที่กรองคนละกฎ = พาผู้ใช้ไปหน้าที่ไม่มีสิทธิ์
+   * โดยไม่มี gate ไหนฟ้อง (permission drift, ดูเหตุผลเต็มที่ `src/lib/seller-menu-server.ts`)
+   *
+   * ไม่มีร้าน active = ไม่ render rail เลย: `kind`/`role`/`vertical` เป็นตัวตัดสินว่าเมนูไหนโผล่
+   * เดาค่าพวกนี้ตอนไม่รู้จริง = แสดงเมนูผิดชุด (หน้า /inbox เองมี SellerErrorState ของมันอยู่แล้ว)
+   */
+  let navMenuItems: MenuItemType[] = []
+  // ทั้งสองค่านี้เป็น input ของเมนู แต่ต้องรู้ก่อนเรียก resolveSellerMenuItems จึงยิงไปพร้อมชุดล่าง
+  let unreadChatCount = 0
+  let hidePayments = false
   if (scope?.activeShopId) {
     const shopId = scope.activeShopId
     let shopRow: { vertical: string; appointmentGranularity: string } | null = null
-    ;[catalog, bestSellers, inventoryEnabled, hasShipping, shopRow] = await Promise.all([
+    ;[catalog, bestSellers, inventoryEnabled, hasShipping, shopRow, unreadChatCount, hidePayments] = await Promise.all([
       getProductsByShop(shopId).then((ps) => ps.map(toCatalog)).catch(() => []),
       getBestSellerProducts(shopId, 8).then((ps) => ps.map(toCatalog)).catch(() => []),
       isEntitlementActive(shopId).catch(() => false),
@@ -151,8 +170,24 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       prisma.shop
         .findUnique({ where: { id: shopId }, select: { vertical: true, appointmentGranularity: true } })
         .catch(() => null),
+      // badge เมนู "ข้อความ" — fail-closed เป็น 0 (ไม่มี badge) เหมือน (dashboard)/layout.tsx
+      getUnreadCountForShop(shopId).catch(() => 0),
+      shouldHidePayments(),
     ])
     shopVertical = shopRow?.vertical ?? ''
+
+    // ต้องรอ shopVertical ก่อน (ป้าย/ตัวกรองเมนูผันตามประเภทกิจการ) จึงยิงชุดนี้ตามหลัง
+    navMenuItems = await resolveSellerMenuItems({
+      // cast แบบเดียวกับ (dashboard)/layout.tsx — NextAuth Session ไม่ประกาศ id/activeShopId
+      // (โปรเจกต์ไม่มี d.ts augmentation) ตัวรับ re-verify membership เองอยู่แล้ว
+      session: session as unknown as { user: { id: string; activeShopId?: string | null } },
+      shopId,
+      kind: scope.activeKind,
+      role: scope.activeRole,
+      vertical: shopVertical,
+      unreadChatCount,
+      hidePayments,
+    })
 
     // ระบบนัดหมายเปิดให้เฉพาะ vertical=SERVICE_QUEUE (BR-RSV-01) — ร้านอื่นไม่ได้รับทรัพยากรเลย
     // ฟอร์มจึงไม่ render บล็อกวันนัด DOM เหมือนก่อนมีฟีเจอร์นี้ทุกจุด
@@ -193,9 +228,30 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
    */
   const scopeKey = `${scope?.mode ?? 'none'}:${(scope?.shopIds ?? []).join(',')}`
 
+  // rail กับที่ว่างที่กันไว้ให้มันต้องมาจากเงื่อนไขเดียวกันเสมอ (ดูคอมเมนต์ที่ .chat-shell)
+  const hasNavRail = navMenuItems.length > 0
+
   const shell = (
     <ChatSearchProvider>
-      <div className="chat-shell flex h-dvh flex-col overflow-hidden bg-card">
+      {/**
+       * ChatNavRail — แถบเมนูร้านแบบไอคอนล้วนที่ขอบซ้าย กางตอน hover (≥1024px)
+       *
+       * เป็น **พี่น้องของ .chat-shell ไม่ใช่ลูก**: มันเป็น `fixed` ที่ต้องกางทับเนื้อหาได้ ส่วน
+       * `.chat-shell` มี `overflow-hidden` — ถ้าวางไว้ข้างในจะดูเหมือนทำงานได้จนกว่าจะมีใครใส่
+       * transform ให้ ancestor สักตัว แล้ว containing block เปลี่ยนมือทันทีโดยไม่มีอะไรฟ้อง
+       *
+       * ที่ว่างของ rail กันด้วย `lg:ms-(--sidenav-width-sm)` ซึ่ง **คงที่ ไม่ผันตามการกาง** —
+       * นั่นคือกลไกทั้งหมดที่ทำให้ "chat ตรงกลางไม่ขยับ" ตามที่ user สั่ง (token เดียวกับที่ธีมใช้
+       * กับ `.page-content` ในโหมด on-hover) 🛑 ห้ามเปลี่ยนเป็น `--sidenav-width` เด็ดขาด
+       */}
+      {hasNavRail && <ChatNavRail items={navMenuItems} />}
+      {/* 🛑 ที่ว่างซ้ายต้องผูกกับ "rail ถูก render จริงไหม" ตัวเดียวกัน — ไม่งั้นเคสไม่มีร้าน
+          (rail ไม่ขึ้น) จะเหลือช่องว่างเปล่า 75px ค้างอยู่ฝั่งซ้ายโดยไม่มีอะไรอยู่ในนั้น */}
+      <div
+        className={`chat-shell flex h-dvh flex-col overflow-hidden bg-card ${
+          hasNavRail ? 'lg:ms-(--sidenav-width-sm)' : ''
+        }`}
+      >
         <ChatHeader chatScopeMode={scope?.storedMode ?? 'SINGLE'} />
 
         {/**

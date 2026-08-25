@@ -5,17 +5,14 @@ import { getServerSession } from 'next-auth'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireActiveShop } from '@/lib/shop-context'
-import { resolveExpenseAccess, type ExpenseAccessDecision } from '@/services/expense-access.service'
-import { sellerMenuItems, applyChatBadge, applyMenuLocale, resolveVisibleSellerMenu, resolveOrderVocab } from '@/lib/seller-menu'
-import { getT } from '@/i18n/server'
+import { resolveOrderVocab } from '@/lib/seller-menu'
+import { resolveSellerMenuItems } from '@/lib/seller-menu-server'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
 import ChatToastListener from './_shared/ChatToastListener'
 import { getOrderStatusCounts } from '@/services/order.service'
-import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import { getUnreadCountForShop } from '@/services/chat.service'
-import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import OnboardingGate from './dashboard/components/OnboardingGate'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
@@ -81,19 +78,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   }
 
-  // Inventory Add-on entitlement (status+package) สำหรับ menu gate (SDS §3.9)
-  // fail-closed: ถ้า query error → NOT_SUBSCRIBED (แสดง badge เลือกแพ็กเกจ) ไม่ให้ layout crash
-  let entitlementInfo: { status: EntitlementStatus; package: InventoryPackage | null } = {
-    status: 'NOT_SUBSCRIBED',
-    package: null,
-  }
-  if (shop?.id) {
-    try {
-      entitlementInfo = await getEntitlementInfo(shop.id)
-    } catch (e) {
-      console.error('[layout] getEntitlementInfo failed, fallback NOT_SUBSCRIBED', e)
-    }
-  }
   // S-13 (feat 00011 Deep Chat) — unread chat count สำหรับ badge เมนู "ข้อความ"
   // fail-closed: query error → 0 (ไม่แสดง badge) ไม่ให้ layout crash — pattern เดียวกับ pendingCount
   let unreadChatCount = 0
@@ -103,18 +87,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
     } catch (e) {
       console.error('[layout] getUnreadCountForShop failed, fallback unreadChatCount=0', e)
     }
-  }
-
-  // feature 00016 (Expense & Cost Tracking, Unit 5A) — decision สำหรับเมนู "ค่าใช้จ่าย" (badge/ซ่อน)
-  // fail-closed: query error → ถือเป็น NO_SHOP (ซ่อนเมนูสนิท ปลอดภัยสุด — enforcement จริงอยู่ที่
-  // resolveExpenseAccess() ใน ExpensesPage เองอยู่แล้ว นี่แค่ UX hint) ไม่ให้ layout crash
-  let expenseAccessDecision: ExpenseAccessDecision = { kind: 'NO_SHOP' }
-  try {
-    expenseAccessDecision = await resolveExpenseAccess(
-      session as unknown as { user: { id: string; activeShopId?: string | null } },
-    )
-  } catch (e) {
-    console.error('[layout] resolveExpenseAccess failed, fallback NO_SHOP (hide menu)', e)
   }
 
   // Business Package sidenav card — fail-closed: query error → NOT_SUBSCRIBED
@@ -138,15 +110,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   }
 
-  // feature 00027 TFR-001 — การ compose ตัวกรอง 5 ตัว (inventory/staff/expense/appointment/vertical)
-  // ย้ายไปอยู่ใน resolveVisibleSellerMenu ที่ src/lib/seller-menu.ts พร้อมเหตุผลของลำดับทั้งหมด
-  // เพื่อให้ shortcut.service.ts เรียกชุดเดียวกันได้ (service import จาก src/app/** ไม่ได้)
-  //
-  // สำคัญ: applyChatBadge ย้ายจาก "ชั้นในสุดอันดับสอง" มาเป็น "ชั้นนอกสุด" — ผลลัพธ์เท่าเดิม
-  // เพราะมันแตะแค่ `seller:inbox` ซึ่งไม่มีตัวกรองไหนกรองออกเลยสักตัว badge จึงไปเกาะรายการเดิม
-  // ไม่ว่าจะแปะก่อนหรือหลังกรอง — ถ้าวันหน้ามีตัวกรองที่ซ่อนเมนู "ข้อความ" ได้ ข้อสรุปนี้ตายทันที
-  // ให้ย้าย applyChatBadge กลับเข้าไปก่อนตัวกรองนั้น
-  // (active.kind/active.role มาจาก requireActiveShop ด้านบน — re-verify membership แล้ว ไม่ trust JWT เปล่า ๆ)
   /**
    * เปิดจากในแอป iOS → ต้องไม่มีช่องทาง/คำเชิญให้จ่ายเงินทั้ง sidebar และการ์ดเหนือเมนู
    * (App Store Guideline 3.1.1 — rejection 2026-08-04) ดูเหตุผลเต็มที่ src/lib/app-shell.ts
@@ -154,28 +117,25 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const hidePayments = await shouldHidePayments()
 
   /**
-   * applyMenuLocale อยู่ "ชั้นนอกสุด" (feature 00047) — แปลป้ายหลังกรองเสร็จทุกตัว
+   * เมนูฝั่งร้าน — ลำดับการ compose ตัวกรอง/badge/คำแปลทั้งหมดย้ายไปอยู่ที่
+   * `src/lib/seller-menu-server.ts` (2026-08-25) เพื่อให้ `(chat)/layout.tsx` ซึ่งต้องมีเมนู
+   * ของตัวเองด้วย (ChatNavRail) เรียก **ชุดเดียวกัน** ได้ ไม่ใช่ก็อปลำดับไปวางอีกที่
+   * — เมนูสองชุดที่กรองคนละกฎ = permission drift ที่ `seller-menu.ts` เตือนไว้เองว่าเป็น
+   * ความเสี่ยงอันดับ 1 และไม่มี gate ไหนจับได้ (ทั้งสองชุด "ถูก" ในตัวเอง)
    *
-   * วางหลัง applyChatBadge ได้เพราะ badge เกาะที่ `badge` ไม่ใช่ `label` จึงไม่ทับกัน และวางหลัง
-   * ตัวกรองทั้งหมดเพื่อไม่ต้องแปลป้ายของเมนูที่จะถูกซ่อนอยู่แล้ว
-   *
-   * ส่ง `shop.vertical` เข้าไปด้วยเพราะป้ายเมนู /orders ผันตามประเภทร้าน 3 แบบ — ถ้าไม่ส่ง
-   * จะได้ "Orders" คำเดียวทุกร้าน = ลบความแตกต่างที่ตั้งใจสร้างไว้ตั้งแต่ 2026-08-04 ทิ้ง
+   * (active.kind/active.role มาจาก requireActiveShop ด้านบน — re-verify membership แล้ว
+   * ไม่ trust JWT เปล่า ๆ) `unreadChatCount`/`hidePayments` ส่งเข้าไปเพราะที่นี่ใช้กับของอื่นด้วย
+   * (SellerBottomNav / การ์ดแพ็กเกจ) จะได้ไม่ต้องถามซ้ำสองรอบต่อ request
    */
-  const menuItems = applyMenuLocale(
-    applyChatBadge(
-      resolveVisibleSellerMenu(sellerMenuItems, {
-        entitlement: entitlementInfo,
-        staff: { kind: active.kind, role: active.role },
-        expense: expenseAccessDecision,
-        shop: { kind: active.kind, vertical: shop.vertical },
-        hidePayments,
-      }),
-      unreadChatCount,
-    ),
-    await getT(),
-    shop.vertical,
-  )
+  const menuItems = await resolveSellerMenuItems({
+    session: session as unknown as { user: { id: string; activeShopId?: string | null } },
+    shopId: shop?.id ?? null,
+    kind: active.kind,
+    role: active.role,
+    vertical: shop.vertical,
+    unreadChatCount,
+    hidePayments,
+  })
 
   // ป้ายเมนู/แท็บของ /orders ต้องเป็นคำเดียวกันทั้ง sidebar, แถบล่างมือถือ และชื่อหน้าบนมือถือ
   // (ผู้ใช้เห็นทั้งสามที่พร้อมกันได้บนจอเดียว) — คำนวณครั้งเดียวที่นี่แล้วส่งลงไปทุกทาง
