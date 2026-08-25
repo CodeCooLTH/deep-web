@@ -16,6 +16,7 @@ import { NOTICE_BOX } from '@/components/safepay/iship/tone'
 import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
 import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
 import ShipmentRail from '@/components/safepay/iship/ShipmentRail'
+import ReturnTrackingNote from '@/components/safepay/iship/ReturnTrackingNote'
 import { shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
 
 export default function ShipmentStepper({
@@ -38,7 +39,7 @@ export default function ShipmentStepper({
   /** แถบปักพื้นที่จำกัด — ปิด notice ได้ (การ์ดเปิดเสมอ) */
   showNotice?: boolean
 }) {
-  const progress = describeProgress(shipmentStatus, carrierStatus)
+  const progress = describeProgress(shipmentStatus, carrierStatus, 'seller')
 
   /**
    * แถวที่ 2 ("ขากลับ") — `null` = ออเดอร์ปกติ ไม่วาดแถว 2 เลย
@@ -64,6 +65,7 @@ export default function ShipmentStepper({
         size={size === 'md' ? 'lg' : 'sm'}
         ariaLabel={railAriaLabel(currentLabel, leg)}
       />
+      {leg?.kind === 'BOUNCE' && <ReturnTrackingNote />}
 
       {showNotice && progress.notice && (
         <p

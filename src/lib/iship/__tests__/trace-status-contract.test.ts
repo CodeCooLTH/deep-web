@@ -52,7 +52,10 @@ describe('หน้าจอพัสดุต้องอ่านสถาน�
 
   it('[blocker] แถบ 4 ขั้นและป้ายสถานะต้องคำนวณจาก carrier ตัวเดียวกัน', () => {
     const src = sourceWithoutComments(VIEW)
-    expect(src).toMatch(/describeProgress\(\s*carrier\.status\s*,\s*carrier\.carrierStatus\s*\)/)
+    // `[,)]` ท้าย regex — เจตนาของด่านนี้คือ "สองอาร์กิวเมนต์แรกต้องมาจาก `carrier`"
+    // ไม่ใช่ "ห้ามมีอาร์กิวเมนต์อื่น" · 2026-08-25 เพิ่มพารามิเตอร์ `audience` เป็นตัวที่ 3
+    // (บังคับ ไม่มี default) ⇒ ด่านที่ล็อกจำนวนอาร์กิวเมนต์จะแดงทั้งที่ของยังถูกทุกอย่าง
+    expect(src).toMatch(/describeProgress\(\s*carrier\.status\s*,\s*carrier\.carrierStatus\s*[,)]/)
     expect(src).toMatch(/const\s+carrier\s*:\s*TraceCarrierState\s*=\s*liveCarrier\s*\?\?\s*shipment/)
   })
 })

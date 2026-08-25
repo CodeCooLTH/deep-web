@@ -27,6 +27,7 @@ import { formatDateTimeTH } from '@/lib/format-date'
 import { SHIPMENT_STAGES, describeCarrierStatus, describeProgress } from '@/lib/iship/status'
 import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
 import ShipmentRail from '@/components/safepay/iship/ShipmentRail'
+import ReturnTrackingNote from '@/components/safepay/iship/ReturnTrackingNote'
 import { sortTracesNewestFirst } from '@/lib/iship/traces'
 import type { ShippingStageKey } from '@/lib/order-stage'
 import { NOTICE_BOX, shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
@@ -144,7 +145,7 @@ export default function ShipmentHoverCard({
    *
    * ไม่มี carrierStatus (ร้านแจ้งเลขเอง) → ถอยไปใช้ตารางหยาบเหมือนเดิม
    */
-  const progress = carrierStatus != null ? describeProgress(shipmentStatus ?? 'CREATED', carrierStatus) : null
+  const progress = carrierStatus != null ? describeProgress(shipmentStatus ?? 'CREATED', carrierStatus, 'seller') : null
   const rawCur = progress ? progress.stage : stage != null ? CURRENT_INDEX[stage] : null
   const cur = rawCur != null && rawCur >= 0 ? rawCur : null
   /** สีจุดปัจจุบัน + คำขั้นสุดท้าย — SSOT ร่วมกับ MiniShipmentTimeline และ ShippingCard */
@@ -233,15 +234,8 @@ export default function ShipmentHoverCard({
             />
 
             {/* เลขพัสดุขากลับ — อยู่ **ท้ายแถว 2** ติดกับแถบของมันเอง ไม่ใช่กองรวมที่หัวการ์ด
-                เลขพัสดุมีไว้เอาไปตามของ ⇒ ต้องอยู่ติดกับแถบที่บอกว่าของใบนั้นอยู่ไหน
-                เคสตีกลับใช้เลขเดิม จึงไม่โชว์เลขซ้ำ แต่ต้องมีป้ายบอก ไม่งั้นร้านจะนึกว่าระบบลืมออกให้ */}
-            {leg?.kind === 'BOUNCE' && (
-              <p className="text-default-500 text-2xs mt-2 mb-0 flex justify-end">
-                <span className="bg-default-200 text-default-700 rounded-full px-1.5 py-px font-semibold">
-                  เลขเดิม
-                </span>
-              </p>
-            )}
+                เลขพัสดุมีไว้เอาไปตามของ ⇒ ต้องอยู่ติดกับแถบที่บอกว่าของใบนั้นอยู่ไหน */}
+            {leg?.kind === 'BOUNCE' && <ReturnTrackingNote />}
 
             {/* กล่องเตือนเมื่อออกนอกเส้นทางปกติ — ข้อความชุดเดียวกับหน้ารายละเอียด
                 เดิมการ์ดนี้ไม่มีเลย ⇒ ผู้ขายเห็นแต่จุดเปลี่ยนสี ไม่รู้ว่าต้องทำอะไรต่อ */}

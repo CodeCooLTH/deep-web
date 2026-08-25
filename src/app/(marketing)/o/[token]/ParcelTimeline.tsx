@@ -83,7 +83,7 @@ export default function ParcelTimeline({
    */
   const leg = describeReturnLeg({ audience: 'buyer', carrierStatus, returnStartedAt, returnedAt })
   // ขนส่งบอกเองชนะกองงานที่ระบบจัดให้ — ดูเหตุผลเต็มที่ MiniShipmentTimeline ฝั่งร้าน
-  const progress = carrierStatus != null ? describeProgress('CREATED', carrierStatus) : null
+  const progress = carrierStatus != null ? describeProgress('CREATED', carrierStatus, 'buyer') : null
   const raw = progress ? progress.stage : SHIPMENT_STAGE_DOT_INDEX[stage]
 
   // ยังไม่มีพัสดุให้วาด / พัสดุถูกยกเลิก — ไม่ใช่ error แค่ไม่มีเส้นทางให้เล่า
@@ -246,16 +246,27 @@ export default function ParcelTimeline({
 
       {/* role="img" + ชื่อ — วงกลม 4 วงสื่อความหมายด้วยสี/ไอคอน ผู้ใช้ screen reader
           จะไม่ได้ยินสถานะพัสดุเลยถ้าไม่มีชื่อกำกับ (ฝั่งร้านทำแบบนี้อยู่แล้ว) */}
+      {/* 🛑 `role='group'` ไม่ใช่ `'img'` — `img` บังให้ screen reader **ทิ้งลูกทั้งหมด**
+          ป้ายไทยทั้ง 4 คำจะเงียบสนิท (ไม่ใช่แค่อ่านไม่ครบ) · ฝั่งร้าน (`ShipmentRail`)
+          ใช้ `group` อยู่แล้ว ⇒ สองจอต้องเล่าเรื่องแบบเดียวกัน
+          และต้องครอบ **ทั้งสองแถว** ไม่ใช่แถว 1 อย่างเดียว ไม่งั้นแถว 2 จะถูกอ่านซ้ำ
+          หลังจากที่ aria-label เล่าไปแล้ว (impeccable critique 2026-08-25) */}
+      <Box
+        role='group'
+        aria-label={railAriaLabel(currentLabel, leg)}
+        sx={{ mt: tracking ? 2 : 0 }}
+      >
+      {/* 🛑 flex จุดชิดขอบ **ไม่ใช่ grid 4 คอลัมน์** — ฝั่งร้านย้ายออกจาก grid ไปแล้วเมื่อ
+          2026-08-06 ด้วยเหตุผลว่าจุดอยู่กลางคอลัมน์ทำให้แถบดูหดเข้ามาจากขอบทั้งสองข้าง
+          ที่นี่ยังค้างของเก่าไว้ · และมันสำคัญกว่าความสวยตอนนี้: ถ้าแถว 1 จุดอยู่ที่ 12.5%/87.5%
+          แต่แถว 2 จุดอยู่ที่ 0%/100% **งูเลื้อยจะไม่บรรจบ** = เสียเหตุผลเดียวที่เลือกรูปนี้ */}
       <Box
         component='ol'
-        role='img'
-        aria-label={railAriaLabel(currentLabel, leg)}
         sx={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          display: 'flex',
+          alignItems: 'center',
           listStyle: 'none',
           m: 0,
-          mt: tracking ? 2 : 0,
           p: 0,
         }}
       >
@@ -266,22 +277,17 @@ export default function ParcelTimeline({
           const fill = offTrack && isCurrent ? (problem ? 'error.main' : 'warning.main') : reachedFill
 
           return (
-            <Box
-              component='li'
-              key={step.label}
-              sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.75 }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                {/* เส้นเชื่อมซ้าย/ขวาของแต่ละจุด — ครึ่งซ้ายของจุดแรกและครึ่งขวาของจุดสุดท้าย
-                    ต้องโปร่ง ไม่งั้นแถบจะยื่นเลยจุดปลายออกไปทั้งสองข้าง */}
+            <Box component='li' key={step.label} sx={{ display: 'contents' }}>
+                {i > 0 && (
                 <Box
                   aria-hidden
                   sx={{
                     height: 2,
                     flex: 1,
-                    bgcolor: i === 0 ? 'transparent' : reached ? reachedFill : 'divider',
+                    bgcolor: reached ? reachedFill : 'divider',
                   }}
                 />
+                )}
                 <Box
                   aria-hidden
                   sx={{
@@ -299,31 +305,41 @@ export default function ParcelTimeline({
                 >
                   <Icon icon={stepIcon(i)} fontSize={18} />
                 </Box>
-                <Box
-                  aria-hidden
-                  sx={{
-                    height: 2,
-                    flex: 1,
-                    bgcolor: i === lastIndex ? 'transparent' : i < current ? reachedFill : 'divider',
-                  }}
-                />
-              </Box>
+            </Box>
+          )
+        })}
+      </Box>
+
+      {/* ป้ายใต้จุดแถว 1 — โครงเดียวกับจุดเป๊ะ (กล่องกว้างเท่าจุด + spacer flex) เพื่อให้
+          คำอยู่กึ่งกลางใต้จุดของตัวเอง · ป้ายแรกชิดซ้าย ป้ายสุดท้ายชิดขวา กันล้นนอกการ์ด */}
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', mt: 0.75 }}>
+        {SHIPMENT_STAGES.map((step, i) => (
+          <Box key={`l-${step.label}`} sx={{ display: 'contents' }}>
+            {i > 0 && <Box sx={{ flex: 1 }} />}
+            <Box
+              sx={{
+                display: 'flex',
+                width: 32,
+                flexShrink: 0,
+                justifyContent: i === 0 ? 'flex-start' : i === lastIndex ? 'flex-end' : 'center',
+              }}
+            >
               <Typography
                 variant='caption'
                 sx={{
-                  textAlign: 'center',
+                  whiteSpace: 'nowrap',
                   lineHeight: 1.3,
                   // 🛑 ไม่ใช้ text.disabled (2.30:1 — ตก AA ไปไกล) และไม่ตั้ง fontSize เอง
                   // ป้ายพวกนี้คือสถานะพัสดุ ไม่ใช่ของประดับ — ต้องอ่านออกบนมือถือกลางแดด
-                  fontWeight: isCurrent ? 700 : 400,
-                  color: isCurrent ? 'text.primary' : 'text.secondary',
+                  fontWeight: i === activeIndex ? 700 : 400,
+                  color: i === activeIndex ? 'text.primary' : 'text.secondary',
                 }}
               >
                 {stepLabel(i)}
               </Typography>
             </Box>
-          )
-        })}
+          </Box>
+        ))}
       </Box>
 
       {/* ── แถวที่ 2 : ขากลับ (เดินขวา→ซ้าย) ─────────────────────────────────────
@@ -392,7 +408,9 @@ export default function ParcelTimeline({
                       flexDirection: 'column',
                       alignItems: 'center',
                       flexShrink: 0,
-                      width: 56,
+                      // 🛑 ต้องเท่าความกว้างจุดของแถว 1 (32px) เป๊ะ ไม่ใช่ 56 — ไม่งั้นจุดสุดท้าย
+                      // ของแถว 2 ไม่ไปจบใต้จุดแรกของแถว 1 = งูเลื้อยไม่บรรจบ
+                      width: 32,
                     }}
                   >
                     <Box
@@ -430,6 +448,7 @@ export default function ParcelTimeline({
           </Box>
         </>
       )}
+      </Box>
 
       {offTrack && (
         /* กล่องเตือนอยู่ "ใต้แถบ" ตำแหน่งเดียวกับ progress.notice ของ ShipmentStatusView —

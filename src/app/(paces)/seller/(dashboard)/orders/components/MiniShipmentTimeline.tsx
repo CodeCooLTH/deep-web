@@ -86,7 +86,7 @@ export default function MiniShipmentTimeline({
    * "กำลังจัดส่ง" ตัวหนา (user เจอบน prod 2026-08-24) — คำที่ขัดกับความจริงบนจอที่ผู้ขาย
    * ใช้ตัดสินใจ แย่กว่าไม่มีคำเลย
    */
-  const progress = carrierStatus != null ? describeProgress(shipmentStatus ?? 'CREATED', carrierStatus) : null
+  const progress = carrierStatus != null ? describeProgress(shipmentStatus ?? 'CREATED', carrierStatus, 'seller') : null
   const cur = progress ? progress.stage : stage != null ? SHIPMENT_STAGE_DOT_INDEX[stage] : null
   if (cur == null || cur < 0 || !hasShipment || cancelled) {
     return <span className="text-default-400 text-sm">—</span>

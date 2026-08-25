@@ -281,6 +281,21 @@ export function describeShipmentStatus(
  * รายละเอียดดิบยังอยู่ครบใต้ปุ่ม "ดูรายละเอียดการเดินทาง" — ยุบเพื่อให้กวาดตาง่าย
  * ไม่ใช่เพื่อตัดข้อมูลทิ้ง (เวลา/สถานที่จำเป็นตอนตามของหาย)
  */
+/**
+ * จุดผลลัพธ์ของแถว 1 — **SSOT ของคำ 2 คำนี้** ทั้ง `SHIPMENT_STAGES[3]` และ
+ * `describeProgress().lastLabel` ต้องอ่านจากที่นี่ ห้ามพิมพ์สตริงซ้ำ (HR16)
+ *
+ * 🛑 มีเฉพาะ 2 หน้า ไม่ใช่ 3 — "พัสดุมีปัญหา" (`issue`/`cannot_pickup`) **ไม่ได้อยู่ที่จุดนี้**
+ * มันยังปักที่ตำแหน่งจริงของมันตาม `STAGE_OF` แล้วบอกด้วยจุดสีแดง + กล่องเตือนเหมือนเดิม
+ * เหตุผล: `cannot_pickup` มี `STAGE_OF = 0` (ขนส่งยังไม่เคยมารับของด้วยซ้ำ) การเอาไปแสดง
+ * ที่จุดสุดท้ายจะอ้างว่าพัสดุเดินทางครบเส้นทางแล้ว ซึ่งไม่จริงเลย · ส่วน `issue` เป็น
+ * non-terminal (อาจจบด้วยส่งสำเร็จ) การวางที่จุดผลลัพธ์อ่านว่า "จบแล้ว ผลคือมีปัญหา"
+ */
+export const FORWARD_OUTCOME = {
+  delivered: { label: "ส่งสำเร็จ", icon: "circle-check" },
+  failed: { label: "ส่งไม่สำเร็จ", icon: "package-off" },
+} as const;
+
 export const SHIPMENT_STAGES = [
   // "รอส่งของ" ไม่ใช่ "สร้างพัสดุ" (2026-08-25) — คำเดิมบอกสิ่งที่ *ระบบ* ทำ
   // คำใหม่บอกสิ่งที่ *ของ* เป็น ซึ่งเข้าชุดกับอีก 3 จุดที่เหลือ
@@ -290,7 +305,7 @@ export const SHIPMENT_STAGES = [
   // จุดที่ 4 = **จุดผลลัพธ์** ของขาไป สลับได้ 2 หน้าผ่าน lastLabel/lastIcon:
   // "ส่งสำเร็จ" (เขียว) / "ส่งไม่สำเร็จ" (ส้ม — แล้วแถว 2 งอกออกจากตรงนี้)
   // 🛑 "พัสดุมีปัญหา" **ไม่ได้อยู่ที่จุดนี้** ดูเหตุผลที่ FORWARD_OUTCOME ใน return-timeline.ts
-  { label: "ส่งสำเร็จ", icon: "tabler:circle-check" },
+  { label: FORWARD_OUTCOME.delivered.label, icon: `tabler:${FORWARD_OUTCOME.delivered.icon}` },
 ] as const;
 
 /**
@@ -320,7 +335,7 @@ export interface ShipmentProgress {
    */
   lastIcon?: string;
   /** เตือนเมื่อออกนอกเส้นทางปกติ — ห้ามแกล้งทำเป็นว่ายังเดินหน้าอยู่ */
-  notice?: { tone: ShipmentTone; text: string };
+  notice?: ShipmentNotice;
 }
 
 /** รหัสสถานะ → ขั้นบนแถบ. รหัสที่ไม่มีในนี้ = ยังไม่ขยับจากขั้นแรก */
@@ -350,22 +365,92 @@ const STAGE_OF: Record<string, number> = {
   close: 3,
 };
 
-const NOTICE_OF: Record<string, { tone: ShipmentTone; text: string }> = {
-  no_courier: { tone: "warning", text: "รอเลือกขนส่ง — พัสดุนี้ยังไม่ได้กำหนดขนส่ง" },
+/**
+ * มุมมองของคนอ่านแถบ — คำที่ *สั่งให้ทำอะไรต่อ* แปลคนละอย่างจากสองฝั่ง
+ *
+ * 🛑 ประกาศที่นี่ (ไม่ใช่ที่ `return-timeline.ts`) เพื่อเลี่ยง import วน — ไฟล์นั้น import
+ * `returnLegStampOf` จากไฟล์นี้อยู่แล้ว แล้ว re-export ชนิดนี้ต่อให้ผู้เรียก
+ */
+export type TimelineAudience = "seller" | "buyer";
+
+export interface ShipmentNotice {
+  tone: ShipmentTone;
+  text: string;
+}
+
+/**
+ * กล่องเตือนใต้แถบ — **แยกตามมุมมองคนอ่าน** (แก้ 2026-08-25)
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 🛑 บั๊กที่แก้: ผู้ซื้อถูกสั่งให้ทำสิ่งที่ทำไม่ได้เลยสักข้อ
+ *
+ * `ParcelTimeline` (หน้า `/o/[token]` ที่ผู้ซื้อเปิด) เรนเดอร์ `progress.notice.text`
+ * **คำต่อคำ** ⇒ ผู้ซื้อเห็นประโยคที่เขียนสำหรับผู้ขายทั้งชุด:
+ *   "นัดรับใหม่หรือติดต่อขนส่งโดยตรง" · "เปิดใบใหม่ได้" · "รอเลือกขนส่ง"
+ * ทั้งหมดนี้ผู้ซื้อทำไม่ได้ — เขาไม่ใช่ผู้ส่ง ไม่มีบัญชีขนส่ง ไม่มีสิทธิ์สั่งอะไร
+ * แถบครึ่งบนอุตส่าห์แยก `audience` ให้แล้ว (ดู `describeReturnLeg`) แต่ครึ่งล่างยังพูด
+ * กับคนละคนอยู่ (impeccable clarify จับได้ 2026-08-25)
+ *
+ * `buyer: null` = **ไม่ต้องแสดงให้ผู้ซื้อเห็นเลย** — บางเรื่องเป็นเรื่องระหว่างร้านกับขนส่ง
+ * ล้วน ๆ (เช่นการขอคืนเงินค่าเก็บปลายทาง) การแสดงมีแต่ทำให้ผู้ซื้อกลัวว่าตัวเองถูกเรียกเก็บ
+ *
+ * 🛑 คำฝั่งผู้ซื้อจบด้วย "ติดต่อร้าน…" เสมอ ไม่ใช่ "ติดต่อขนส่ง" — ร้านคือคู่สัญญาของเขา
+ */
+const NOTICE_OF: Record<string, { seller: ShipmentNotice; buyer: ShipmentNotice | null }> = {
+  no_courier: {
+    seller: { tone: "warning", text: "รอเลือกขนส่ง — พัสดุนี้ยังไม่ได้กำหนดขนส่ง" },
+    // ผู้ซื้อทำอะไรกับเรื่องนี้ไม่ได้ แต่ควรรู้ว่าทำไมของยังไม่ขยับ
+    buyer: { tone: "warning", text: "ร้านยังไม่ได้เลือกขนส่ง — ของยังไม่ออกจากร้าน" },
+  },
   cannot_pickup: {
-    tone: "danger",
-    text: "ขนส่งเข้ารับพัสดุไม่ได้ — นัดรับใหม่หรือติดต่อขนส่งโดยตรง",
+    seller: {
+      tone: "danger",
+      text: "ขนส่งเข้ารับพัสดุไม่ได้ — นัดรับใหม่หรือติดต่อขนส่งโดยตรง",
+    },
+    buyer: { tone: "danger", text: "ขนส่งยังเข้ารับของจากร้านไม่ได้ — ติดต่อร้านเพื่อสอบถาม" },
   },
   issue: {
-    tone: "danger",
-    text: "พัสดุมีปัญหาระหว่างทาง — ติดต่อขนส่งเพื่อตรวจสอบรายละเอียด",
+    seller: {
+      tone: "danger",
+      text: "พัสดุมีปัญหาระหว่างทาง — ติดต่อขนส่งเพื่อตรวจสอบรายละเอียด",
+    },
+    buyer: { tone: "danger", text: "พัสดุมีปัญหาระหว่างทาง — ติดต่อร้านเพื่อตรวจสอบ" },
   },
-  return: { tone: "warning", text: "พัสดุกำลังตีกลับไปยังต้นทาง" },
-  cod_refund: { tone: "warning", text: "มีรายการขอเงินคืนค่าเก็บปลายทาง" },
-  return_success: { tone: "secondary", text: "พัสดุถูกส่งคืนต้นทางสำเร็จแล้ว" },
+  return: {
+    seller: { tone: "warning", text: "พัสดุกำลังตีกลับไปยังต้นทาง" },
+    buyer: { tone: "warning", text: "ส่งไม่สำเร็จ พัสดุกำลังเดินทางกลับไปที่ร้าน" },
+  },
+  cod_refund: {
+    seller: {
+      tone: "warning",
+      text: "ขนส่งแจ้งขอคืนเงินเก็บปลายทางของพัสดุนี้ — ตรวจยอดกับ iShip ก่อนปิดงาน",
+    },
+    // เรื่องระหว่างร้านกับขนส่งล้วน ๆ — แสดงแล้วผู้ซื้อจะนึกว่าตัวเองถูกเรียกเก็บเพิ่ม
+    buyer: null,
+  },
+  /**
+   * 🛑 ห้ามใช้คำว่า "สำเร็จ" ที่นี่ — จุดที่ 4 ของแถบเขียน **"ส่งไม่สำเร็จ"** อยู่ห่างไป ~20px
+   * ประโยคที่เขียนว่า "สำเร็จแล้ว" ใต้มันจึงอ่านขัดกันเองบนจอเดียว · และคำว่า "สำเร็จ"
+   * ถูกจองไว้แล้วให้ "ส่งสำเร็จ" ซึ่งเป็นผลลัพธ์ตรงข้าม
+   *
+   * ต้องบอก **สิ่งที่ต้องทำต่อ** ด้วย — ของกองอยู่ที่ร้านและออเดอร์ยังเปิดค้าง
+   */
+  return_success: {
+    seller: {
+      tone: "secondary",
+      text: "พัสดุกลับมาถึงร้านแล้ว — ตรวจรับของ แล้วยกเลิกคำสั่งซื้อหรือนัดส่งใหม่กับลูกค้า",
+    },
+    buyer: {
+      tone: "secondary",
+      text: "พัสดุถูกส่งกลับไปที่ร้านแล้ว — ติดต่อร้านเพื่อนัดส่งใหม่หรือขอเงินคืน",
+    },
+  },
   is_expired: {
-    tone: "secondary",
-    text: "พัสดุหมดอายุ — ขนส่งไม่ได้เข้ารับภายในเวลาที่กำหนด เปิดใบใหม่ได้",
+    seller: {
+      tone: "secondary",
+      text: "พัสดุหมดอายุ — ขนส่งไม่ได้เข้ารับภายในเวลาที่กำหนด เปิดใบใหม่ได้",
+    },
+    buyer: { tone: "secondary", text: "พัสดุหมดอายุก่อนขนส่งเข้ารับ — ติดต่อร้านเพื่อส่งใหม่" },
   },
 };
 
@@ -377,7 +462,15 @@ const NOTICE_OF: Record<string, { tone: ShipmentTone; text: string }> = {
  */
 export function describeProgress(
   shipmentStatus: string,
-  carrierStatus?: string | null,
+  carrierStatus: string | null | undefined,
+  /**
+   * 🛑 **บังคับ ไม่มีค่าตั้งต้น** — ค่าตั้งต้นคือสิ่งที่ทำให้บั๊กนี้เกิดตั้งแต่แรก
+   *
+   * เดิมไม่มีพารามิเตอร์นี้เลย ⇒ ทุกจอได้คำที่เขียนสำหรับผู้ขาย รวมหน้าที่ผู้ซื้อเปิด
+   * ถ้าใส่ default เป็น `'seller'` จอใหม่ที่ลืมส่งค่าจะกลับไปพังแบบเดิมเงียบ ๆ
+   * ทำให้เป็นพารามิเตอร์บังคับ = `tsc` ไล่ให้ครบทุกจุดแทนเรา
+   */
+  audience: TimelineAudience,
 ): ShipmentProgress {
   if (shipmentStatus === "CANCELLED") {
     return {
@@ -392,7 +485,7 @@ export function describeProgress(
 
   const code = carrierStatus ?? undefined;
   if (code === "cancelled" || code === "is_expired") {
-    return { stage: -1, tone: "stopped", notice: NOTICE_OF[code] };
+    return { stage: -1, tone: "stopped", notice: NOTICE_OF[code]?.[audience] ?? undefined };
   }
 
   const stage = code ? (STAGE_OF[code] ?? 0) : 0;
@@ -416,7 +509,7 @@ export function describeProgress(
      * "เดินหน้าครบ 4 ขั้น จบสวย" ทั้งที่ของกลับมากองที่ร้าน (user เจอบน prod TH6504915C3K3F)
      */
     lastLabel: isReturnedCarrierStatus(code)
-      ? "ส่งไม่สำเร็จ"
+      ? FORWARD_OUTCOME.failed.label
       : // ปิดงานโดยไม่รู้ว่าสำเร็จหรือไม่ — ห้ามเขียน "ส่งสำเร็จ" ทับจุดสุดท้าย
         code === "close"
         ? "ปิดงานแล้ว"
@@ -430,11 +523,12 @@ export function describeProgress(
      * ส่วนแถบเต็มมีแถว 2 เล่าเรื่องให้แล้ว จุดนี้จึงพูดแค่ผลลัพธ์ของขาไป
      */
     lastIcon: isReturnedCarrierStatus(code)
-      ? "tabler:package-off"
+      ? `tabler:${FORWARD_OUTCOME.failed.icon}`
       : code === "close"
         ? `tabler:${CARRIER_STATUS[code].icon}`
         : undefined,
-    notice: code ? NOTICE_OF[code] : undefined,
+    // `null` ของฝั่ง buyer = จงใจไม่แสดง (เรื่องระหว่างร้านกับขนส่ง) ไม่ใช่ "ไม่มีข้อมูล"
+    notice: code ? (NOTICE_OF[code]?.[audience] ?? undefined) : undefined,
   };
 }
 

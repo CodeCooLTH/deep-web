@@ -167,7 +167,7 @@ export default function ShipmentStatusView({
 
   /** ความจริงล่าสุดของ "พัสดุใบนี้อยู่สถานะไหน" — ทุกจุดในไฟล์นี้ต้องอ่านจากตัวนี้ */
   const carrier: TraceCarrierState = liveCarrier ?? shipment
-  const progress = describeProgress(carrier.status, carrier.carrierStatus)
+  const progress = describeProgress(carrier.status, carrier.carrierStatus, 'seller')
   /**
    * แถวที่ 2 ("ขากลับ") — อ่านเวลาจาก `shipment` (prop) ไม่ใช่จาก `carrier` (ค่าที่ traces
    * ส่งกลับมา) เพราะ endpoint นั้นคืนเฉพาะสถานะ ไม่ได้คืนเวลาขากลับ · จุดสว่างยังตัดสินจาก

@@ -128,7 +128,7 @@ describe('parity ระหว่างจอผู้ซื้อกับจอ
  */
 describe('describeProgress = SSOT ของแถบ 4 จุด', () => {
   it('[blocker] ตีกลับถึงร้าน ≠ กำลังจัดส่ง — ต้องไปจุดสุดท้ายและเปลี่ยนคำ', () => {
-    const p = describeProgress('CREATED', 'return_success')
+    const p = describeProgress('CREATED', 'return_success', 'seller')
     expect(p.stage).toBe(SHIPMENT_STAGES.length - 1)
     expect(p.lastLabel).toBeTruthy()
     expect(p.lastLabel).not.toBe(SHIPMENT_STAGES[SHIPMENT_STAGES.length - 1].label)
@@ -161,17 +161,17 @@ describe('describeProgress = SSOT ของแถบ 4 จุด', () => {
   })
 
   it('[blocker] ทั้งสองเคสจบขาไปเหมือนกัน — จุดที่ 4 ของแถว 1 ต้องพูดคำเดียวกัน', () => {
-    expect(describeProgress('CREATED', 'return').lastLabel).toBe(
-      describeProgress('CREATED', 'return_success').lastLabel,
+    expect(describeProgress('CREATED', 'return', 'seller').lastLabel).toBe(
+      describeProgress('CREATED', 'return_success', 'seller').lastLabel,
     )
-    expect(describeProgress('CREATED', 'return').stage).toBe(
-      describeProgress('CREATED', 'return_success').stage,
+    expect(describeProgress('CREATED', 'return', 'seller').stage).toBe(
+      describeProgress('CREATED', 'return_success', 'seller').stage,
     )
   })
 
   it('[blocker] ส่งถึงจริงกับตีกลับสำเร็จอยู่จุดเดียวกัน → ต้องแยกด้วยคำ+notice เท่านั้น', () => {
-    const delivered = describeProgress('CREATED', 'delivered')
-    const returned = describeProgress('CREATED', 'return_success')
+    const delivered = describeProgress('CREATED', 'delivered', 'seller')
+    const returned = describeProgress('CREATED', 'return_success', 'seller')
     expect(delivered.stage).toBe(returned.stage)
     // ⇒ ห้ามมีจอไหนวาดจุดสุดท้ายโดยไม่เอา lastLabel/lastIcon/notice ไปใช้ (ดูเทสสแกนซอร์ส)
     expect(delivered.lastLabel).toBeUndefined()

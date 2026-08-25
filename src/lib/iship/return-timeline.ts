@@ -96,20 +96,32 @@ export interface ReturnLeg {
 
 /** จุดปลายทางของทั้งสองกลไก — คำเดียวกันโดยตั้งใจ ปลายทางเดียวกันจริง */
 const ARRIVED: Record<ReturnLegKind, Record<TimelineAudience, string>> = {
-  BOUNCE: { seller: 'ถึงร้านค้า', buyer: 'ร้านได้รับคืนแล้ว' },
-  RETURN: { seller: 'ถึงร้านค้า', buyer: 'ร้านได้รับแล้ว' },
+  /**
+   * 🛑 ฝั่งผู้ซื้อ **ห้ามใช้คำว่า "คืน"** ในสายตีกลับ — ผู้ซื้อที่ไม่เคยได้รับของจะอ่านว่า
+   * ตัวเองเป็นคนส่งคืน ซึ่งเป็นเส้นแบ่งที่ `lib/order-return.ts` บังคับไว้ทั้งไฟล์ว่าห้ามเบลอ
+   * (คนละความรับผิด คนละค่าส่ง คนละการตีความสถิติผู้ซื้อใน 00055)
+   */
+  BOUNCE: { seller: 'กลับถึงร้าน', buyer: 'ของกลับถึงร้าน' },
+  RETURN: { seller: 'กลับถึงร้าน', buyer: 'ร้านได้รับแล้ว' },
 }
 
 const DEPARTED: Record<ReturnLegKind, Record<TimelineAudience, string>> = {
   // "กำลังตีกลับ" ไม่ใช่ "ส่งไม่สำเร็จ" — คำหลังถูกใช้ที่จุดที่ 4 ของแถว 1 ไปแล้ว
   // คำเดียวกันสองจุดติดกันอ่านเหมือนระบบค้าง
   BOUNCE: { seller: 'กำลังตีกลับ', buyer: 'กำลังส่งกลับร้าน' },
-  // "คืนสินค้า" ไม่ใช่ "ลูกค้าส่งคืน" — สั้นกว่า 3 ตัวอักษร ซึ่งมีผลจริงที่ 320px
-  // และไม่สับสนกับ BOUNCE อยู่แล้วเพราะคำแรกของสองเคสต่างกันชัด
-  RETURN: { seller: 'คืนสินค้า', buyer: 'คุณส่งคืน' },
+  /**
+   * 🛑 "แจ้งคืน" ไม่ใช่ "ส่งคืน" — จุดนี้สว่างตั้งแต่ `OrderReturn.status === 'REQUESTED'`
+   * ซึ่งแปลว่าลูกค้าเพิ่ง **แจ้ง** ว่าจะคืน **ยังไม่ได้ส่งอะไรเลย** (ดู `returnStageOf`)
+   * คำว่า "ส่งคืน" ตรงนั้นจึงผิดข้อเท็จจริง ไม่ใช่แค่กำกวม
+   */
+  RETURN: { seller: 'ลูกค้าแจ้งคืน', buyer: 'คุณแจ้งคืน' },
 }
 
-const IN_TRANSIT: Record<TimelineAudience, string> = { seller: 'กำลังส่ง', buyer: 'กำลังส่ง' }
+/**
+ * 🛑 ต้องเป็น "กำลังจัดส่ง" คำเดียวกับแถว 1 — มันคือเหตุการณ์เดียวกันเป๊ะ (ของอยู่บนรถ)
+ * แค่คนละทิศ · ใช้คนละคำบนกราฟิกชิ้นเดียวกันห่างกัน 2 บรรทัด = ผู้ใช้ต้องเดาว่ามันต่างกันตรงไหน
+ */
+const IN_TRANSIT: Record<TimelineAudience, string> = { seller: 'กำลังจัดส่ง', buyer: 'กำลังจัดส่ง' }
 const ACCEPTED: Record<TimelineAudience, string> = { seller: 'รับเข้าระบบ', buyer: 'รับเข้าระบบ' }
 
 /**
@@ -235,10 +247,15 @@ function returnStageOf(
  * ที่จุดสุดท้ายจะอ้างว่าพัสดุเดินทางครบเส้นทางแล้ว ซึ่งไม่จริงเลย · ส่วน `issue` เป็น
  * non-terminal (อาจจบด้วยส่งสำเร็จ) การวางที่จุดผลลัพธ์อ่านว่า "จบแล้ว ผลคือมีปัญหา"
  */
-export const FORWARD_OUTCOME = {
-  delivered: { label: 'ส่งสำเร็จ', icon: 'circle-check' },
-  failed: { label: 'ส่งไม่สำเร็จ', icon: 'package-off' },
-} as const
+/**
+ * ป้าย/ไอคอนจุดผลลัพธ์ของแถว 1 — ย้ายไปเป็นของจริงที่ `./status` แล้ว (2026-08-25)
+ *
+ * 🛑 ตอนแรกประกาศไว้ที่นี่แต่ **ไม่มี production code เรียกเลย มีแต่เทส** ขณะที่คำจริง 2 คำ
+ * ถูกพิมพ์ซ้ำอีก 2 ที่ (`SHIPMENT_STAGES[3].label` และสตริงดิบใน `describeProgress`)
+ * ⇒ คำเดียวกันประกาศ 3 ที่ ไม่มีอะไรบังคับให้ตรงกัน วันที่ใครแก้ที่หนึ่ง อีกสองที่เงียบ (HR16)
+ * (impeccable clarify จับได้ 2026-08-25)
+ */
+export { FORWARD_OUTCOME } from './status'
 
 /**
  * railAriaLabel — ประโยคเดียวที่อธิบายทั้งแถบให้ screen reader
@@ -250,9 +267,9 @@ export const FORWARD_OUTCOME = {
  * แล้วแต่ตัว/แล้วแต่ภาษา — เว้นวรรคธรรมดาให้ผลเหมือนกันทุกตัว
  */
 export function railAriaLabel(forwardLabel: string, leg: ReturnLeg | null): string {
-  if (!leg) return `สถานะพัสดุ: ${forwardLabel}`
+  if (!leg) return `สถานะพัสดุ ${forwardLabel}`
   const at = leg.dots[Math.min(leg.stage, leg.dots.length - 1)].label
-  return `สถานะพัสดุ: ขาไป${forwardLabel} ขากลับ${at}`
+  return `สถานะพัสดุ ขาไป ${forwardLabel} ขากลับ ${at}`
 }
 
 /**

@@ -66,7 +66,7 @@ describe('[blocker] เคสตีกลับ (BOUNCE) — 2 จุดเส�
   it('กำลังตีกลับ → จุดแรกสว่าง ปลายทางยังไม่ถึง', () => {
     const leg = describeReturnLeg(seller({ carrierStatus: 'return' }))!
     expect(leg.kind).toBe('BOUNCE')
-    expect(leg.dots.map((d) => d.label)).toEqual(['กำลังตีกลับ', 'ถึงร้านค้า'])
+    expect(leg.dots.map((d) => d.label)).toEqual(['กำลังตีกลับ', 'กลับถึงร้าน'])
     expect(leg.stage).toBe(0)
     expect(leg.originTone).toBe('warning')
   })
@@ -112,9 +112,9 @@ describe('[blocker] เคสตีกลับ (BOUNCE) — 2 จุดเส�
 
 describe('[blocker] เคสคืนของ (RETURN) — จำนวนจุดผันตามแหล่งข้อมูล', () => {
   const cases = [
-    { src: 'ISHIP', labels: ['คืนสินค้า', 'รับเข้าระบบ', 'กำลังส่ง', 'ถึงร้านค้า'] },
-    { src: 'MANUAL', labels: ['คืนสินค้า', 'กำลังส่ง', 'ถึงร้านค้า'] },
-    { src: 'NONE', labels: ['คืนสินค้า', 'ถึงร้านค้า'] },
+    { src: 'ISHIP', labels: ['ลูกค้าแจ้งคืน', 'รับเข้าระบบ', 'กำลังจัดส่ง', 'กลับถึงร้าน'] },
+    { src: 'MANUAL', labels: ['ลูกค้าแจ้งคืน', 'กำลังจัดส่ง', 'กลับถึงร้าน'] },
+    { src: 'NONE', labels: ['ลูกค้าแจ้งคืน', 'กลับถึงร้าน'] },
   ]
   for (const c of cases) {
     it(`trackingSource=${c.src} → ${c.labels.length} จุด`, () => {
@@ -178,16 +178,16 @@ describe('[blocker] คำฝั่งผู้ซื้อต่างเฉพ
   it('BOUNCE — ต่างทั้ง 2 จุด', () => {
     const s = describeReturnLeg(seller({ carrierStatus: 'return_success' }))!
     const b = describeReturnLeg(buyer({ carrierStatus: 'return_success' }))!
-    expect(s.dots.map((d) => d.label)).toEqual(['กำลังตีกลับ', 'ถึงร้านค้า'])
-    expect(b.dots.map((d) => d.label)).toEqual(['กำลังส่งกลับร้าน', 'ร้านได้รับคืนแล้ว'])
+    expect(s.dots.map((d) => d.label)).toEqual(['กำลังตีกลับ', 'กลับถึงร้าน'])
+    expect(b.dots.map((d) => d.label)).toEqual(['กำลังส่งกลับร้าน', 'ของกลับถึงร้าน'])
   })
 
   it('RETURN — ต่างเฉพาะหัวกับท้าย จุดกลางใช้คำร่วม', () => {
     const o = { status: 'REQUESTED', trackingSource: 'ISHIP' }
     const s = describeReturnLeg(seller({ orderReturn: o }))!
     const b = describeReturnLeg(buyer({ orderReturn: o }))!
-    expect(s.dots.map((d) => d.label)).toEqual(['คืนสินค้า', 'รับเข้าระบบ', 'กำลังส่ง', 'ถึงร้านค้า'])
-    expect(b.dots.map((d) => d.label)).toEqual(['คุณส่งคืน', 'รับเข้าระบบ', 'กำลังส่ง', 'ร้านได้รับแล้ว'])
+    expect(s.dots.map((d) => d.label)).toEqual(['ลูกค้าแจ้งคืน', 'รับเข้าระบบ', 'กำลังจัดส่ง', 'กลับถึงร้าน'])
+    expect(b.dots.map((d) => d.label)).toEqual(['คุณแจ้งคืน', 'รับเข้าระบบ', 'กำลังจัดส่ง', 'ร้านได้รับแล้ว'])
     // จุดกลางต้องเหมือนกันเป๊ะ — สองมุมมองไม่ควรแตกคำโดยไม่จำเป็น
     expect(s.dots[1].label).toBe(b.dots[1].label)
     expect(s.dots[2].label).toBe(b.dots[2].label)

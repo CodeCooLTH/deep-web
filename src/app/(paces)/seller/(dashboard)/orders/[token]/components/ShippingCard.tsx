@@ -26,6 +26,7 @@ import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
 import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
 import ShipmentRail from '@/components/safepay/iship/ShipmentRail'
+import ReturnTrackingNote from '@/components/safepay/iship/ReturnTrackingNote'
 import { shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
 import { sortTracesNewestFirst } from '@/lib/iship/traces'
 
@@ -69,7 +70,7 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
   const courierCode = iship?.courierCode ?? null
   const trackingNo = iship?.trackingNo ?? manual?.trackingNo ?? null
   const logo = courierLogoUrl(courierCode, courierName)
-  const progress = iship ? describeProgress(iship.status, iship.carrierStatus) : null
+  const progress = iship ? describeProgress(iship.status, iship.carrierStatus, 'seller') : null
   /** แถวที่ 2 ("ขากลับ") — null = ออเดอร์ปกติ ไม่วาดแถว 2 เลย */
   const leg = describeReturnLeg({
     audience: 'seller',
@@ -254,6 +255,7 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
                 leg={leg}
                 ariaLabel={railAriaLabel(railCurrentLabel, leg)}
               />
+              {leg?.kind === 'BOUNCE' && <ReturnTrackingNote />}
             </div>
 
             {progress.notice && (

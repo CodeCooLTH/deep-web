@@ -142,9 +142,22 @@ export default function ShipmentRail({
     </div>
   )
 
+  /**
+   * 🛑 `role` ต้องคิดจาก `labels` **ไม่ใช่จากว่ามีขากลับไหม**
+   *
+   * รอบแรกกิ่งนี้เขียน `role="img"` ตายตัว ทั้งที่ยังเรนเดอร์ `row1Labels` (ข้อความไทยจริง)
+   * และ `labels` มีค่าตั้งต้นเป็น `true` โดยไม่มี call site ไหนส่งค่ามาเลย ⇒ **ออเดอร์ปกติ
+   * ซึ่งคือเกือบทั้งระบบ ได้แถบที่ screen reader อ่านไม่เห็นป้ายสักคำ** (`img` บังให้ AT
+   * ทิ้งลูกทั้งหมด = เงียบทั้งบล็อก ไม่ใช่แค่อ่านไม่ครบ)
+   *
+   * docblock ของ prop `ariaLabel` ในไฟล์นี้เขียนกฎข้อนี้ไว้เองอยู่แล้ว — กิ่งที่มีขากลับทำถูก
+   * ส่วนกิ่งนี้ทำผิด **ตัวที่ผิดคือกิ่งที่เดินบ่อยกว่า** (impeccable critique จับได้ 2026-08-25)
+   */
+  const role = labels ? 'group' : 'img'
+
   if (!leg) {
     return (
-      <div role="img" aria-label={ariaLabel}>
+      <div role={role} aria-label={ariaLabel}>
         {row1}
         {row1Labels}
       </div>
@@ -202,7 +215,7 @@ export default function ShipmentRail({
 
   return (
     // role="group" ไม่ใช่ "img" เมื่อมีคำจริงใต้จุด — ดูเหตุผลที่ prop `ariaLabel`
-    <div role={labels ? 'group' : 'img'} aria-label={ariaLabel}>
+    <div role={role} aria-label={ariaLabel}>
       {row1}
       {row1Labels}
 
