@@ -206,6 +206,25 @@ export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
   return 'AWAITING_PARCEL'
 }
 
+/**
+ * ทุกกองรวม `DONE` — สำหรับตัวนับที่ต้องขึ้น 0 ให้กองที่ไม่มีแถว (ไม่ใช่หายไปจากชิป)
+ *
+ * 🛑 ประกาศผ่าน `Record<ShippingStageKey, true>` โดยตั้งใจ ไม่ใช่ array ธรรมดา —
+ * `tsc` จะบังคับให้ครบทุกค่าของ union เอง วันที่มีคนเพิ่มกองที่ 8 แล้วลืมมาเติมที่นี่
+ * มันจะแดงทันที (แทนที่จะได้ตัวนับที่ขาดกองไปเงียบ ๆ ซึ่งอ่านเป็น "กองนั้นไม่มีงาน")
+ * กติกาเดียวกับที่ `docs/conventions/enum-value-removal.md` แนะนำไว้
+ */
+const ALL_SHIPPING_STAGES: Record<ShippingStageKey, true> = {
+  AWAITING_PARCEL: true,
+  AWAITING_PICKUP: true,
+  SHIPPING: true,
+  AWAITING_COD: true,
+  PROBLEM: true,
+  RETURNED: true,
+  DONE: true,
+}
+export const SHIPPING_STAGE_KEYS_ALL = Object.keys(ALL_SHIPPING_STAGES) as ShippingStageKey[]
+
 /** ป้ายไทยของแต่ละกอง — ใช้ทั้งไทล์บน Command Center และชิปตัวกรองในหน้า /orders */
 export const SHIPPING_STAGE_LABEL: Record<Exclude<ShippingStageKey, 'DONE'>, string> = {
   AWAITING_PARCEL: 'รอเลขพัสดุ',
