@@ -25,6 +25,13 @@
 export const COD_PAYMENT_PATTERN = 'COD|ปลายทาง|เก็บเงิน'
 
 /**
+ * คอมไพล์ครั้งเดียวตอนโหลดโมดูล — **ห้ามย้ายไปสร้างในฟังก์ชัน**
+ * `isCODPayment` ถูกเรียกต่อออเดอร์หนึ่งใบใน `deriveShippingStage()` ⇒ การสร้าง RegExp ใหม่
+ * ทุกครั้งคือการจ่ายค่าคอมไพล์เท่าจำนวนแถวทั้งหน้าโดยไม่ได้อะไรกลับมา
+ */
+const COD_PAYMENT_RE = new RegExp(COD_PAYMENT_PATTERN, 'i')
+
+/**
  * isCODPayment — ตรวจว่า paymentMethod เป็นการชำระเงินปลายทาง (COD) หรือไม่
  *
  * ทำไม: logic นี้เคยอยู่ใน OrderDetailMobile.tsx เป็น local fn แต่ S-13 ต้องการ
@@ -32,7 +39,7 @@ export const COD_PAYMENT_PATTERN = 'COD|ปลายทาง|เก็บเง
  * import จากที่เดียวแทนการ duplicate — UI task จะลบ local fn ออกเมื่อ import ตัวนี้
  */
 export function isCODPayment(paymentMethod: string | null | undefined): boolean {
-  return new RegExp(COD_PAYMENT_PATTERN, 'i').test(paymentMethod ?? '')
+  return COD_PAYMENT_RE.test(paymentMethod ?? '')
 }
 
 /**
