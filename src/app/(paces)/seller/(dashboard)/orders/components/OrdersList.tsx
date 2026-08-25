@@ -79,6 +79,17 @@ const TYPE_OPTIONS = [
 
 const PAGE = 8 // จำนวนต่อรอบ lazy-load
 
+/**
+ * หน่วงก่อนนำคำค้นไปใช้ (กรองรายการ + เขียน `?q=` + แผงโหลด) — user ขอให้นานขึ้น 2026-08-25
+ *
+ * ตัวหน่วง **ตัวเดียว** คุมทั้งสามอย่าง ไม่ใช่ต่างคนต่างจับเวลา: ของเดิม URL หน่วง 400ms
+ * แต่การกรองกับแผงโหลดทำงานทุกตัวอักษร ⇒ จอกะพริบขณะพิมพ์โดยที่ค่าใน URL ยังตามไม่ทัน
+ *
+ * 🛑 ห้ามเอาไปหน่วง `<input>` เอง — ช่องพิมพ์ต้องตอบทุกตัวอักษรทันที
+ * (บทเรียนที่เขียนกำกับไว้ที่ onChange ทั้งสองจอ)
+ */
+const SEARCH_DEBOUNCE_MS = 550
+
 type Props = {
   orders: OrderRow[]
   activeStatus: string
@@ -172,6 +183,17 @@ export default function OrdersList({
    * ที่ onChange ข้างล่าง · การเขียนกลับลง URL อยู่ใน effect ถัดไป (หน่วง + replaceState)
    */
   const [search,      setSearch]      = useState(() => searchParams.get('q') ?? '')
+  /**
+   * คำค้นที่ "ถูกนำไปใช้จริง" — หน่วงจาก `search` (feature 00058, ปรับ 2026-08-25 ตามที่ user ขอ)
+   *
+   * 🛑 แยกจาก `search` เพราะสองค่านี้ตอบคนละคำถาม: `search` = สิ่งที่นิ้วพิมพ์อยู่ (ต้องตอบ
+   * ทันทีทุกตัวอักษร ไม่งั้นพิมพ์ตามไม่ทัน) · `appliedSearch` = สิ่งที่รายการถูกกรองด้วย
+   * (หน่วงได้ และควรหน่วง)
+   *
+   * ของเดิมใช้ `search` ตัวเดียวทำทั้งสองหน้าที่ ⇒ ทุกตัวอักษรที่พิมพ์ทำให้รายการคำนวณใหม่
+   * และ `busy.begin()` ยิงแผงโหลดทับผลลัพธ์ ⇒ จอกะพริบตลอดเวลาที่พิมพ์
+   */
+  const [appliedSearch, setAppliedSearch] = useState(search)
   const [typeFilter,  setTypeFilter]  = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE)
   // ดึงพัสดุจาก iShip มาสร้างออเดอร์ (ส่วนขยาย feature 00022)
@@ -465,8 +487,8 @@ export default function OrdersList({
    * `buyerPhone` (ค่าจริง) ผ่านฟังก์ชันกลางที่ตัดสัญลักษณ์ให้ทั้งสองฝั่ง
    */
   const hits = useMemo<OrderSearchHit<OrderRow>[]>(
-    () => searchOrders(preSearch, search),
-    [preSearch, search],
+    () => searchOrders(preSearch, appliedSearch),
+    [preSearch, appliedSearch],
   )
   const filtered = useMemo(() => hits.map((h) => h.order), [hits])
   /** เมตาต่อใบ (ตรงเต็มค่าไหม · ตรงที่สินค้าชิ้นไหน) — การ์ดใช้ตัดสินการไฮไลต์/กางรายการ */
@@ -483,14 +505,14 @@ export default function OrdersList({
    * มันจะตอบ 0 ให้กับใบที่มีอยู่จริงแค่คนละวัน = คำตอบที่ทำให้ผู้ขายเลิกหา
    */
   const wholeShopMatches = useMemo(
-    () => countMatchingOrders(orders, search),
-    [orders, search],
+    () => countMatchingOrders(orders, appliedSearch),
+    [orders, appliedSearch],
   )
 
   // reset lazy-load เมื่อ filter/search/status เปลี่ยน
   useEffect(() => {
     setVisibleCount(PAGE)
-  }, [localStatus, typeFilter, search, stage, appt, apptDay, dateFilter])
+  }, [localStatus, typeFilter, appliedSearch, stage, appt, apptDay, dateFilter])
 
   /**
    * เขียนคำค้นกลับลง URL — หน่วงหลังหยุดพิมพ์ แล้วใช้ `history.replaceState` ไม่ใช่ router
@@ -504,6 +526,7 @@ export default function OrdersList({
    */
   useEffect(() => {
     const id = setTimeout(() => {
+      setAppliedSearch(search)
       const next = new URLSearchParams(window.location.search)
       if (search.trim()) next.set('q', search.trim())
       else next.delete('q')
@@ -512,9 +535,15 @@ export default function OrdersList({
       if (url !== window.location.pathname + window.location.search) {
         window.history.replaceState(null, '', url)
       }
-    }, 400)
+    }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(id)
   }, [search])
+
+  /**
+   * แผงโหลดโชว์ระหว่างที่คำค้นยังไม่ถูกนำไปใช้ — ผูกกับ "มีอะไรค้างอยู่จริงไหม"
+   * ไม่ใช่ยิง `begin()` ทุกตัวอักษรแล้วให้พื้นเวลาขั้นต่ำ 350ms ไล่ตาม (ซึ่งกะพริบ)
+   */
+  const searchPending = search !== appliedSearch
 
   // ─── lazy-load: เพิ่ม visibleCount เมื่อ sentinel เข้า viewport ───────────────
   const visible = filtered.slice(0, visibleCount)
@@ -593,6 +622,7 @@ export default function OrdersList({
           orders={stageFiltered}
           /* คำค้นเดียวกับมือถือ — state เดียว ผูก `?q=` เดียว ให้ผลเดียวกัน (feature 00058) */
           search={search}
+          appliedSearch={appliedSearch}
           onSearchChange={setSearch}
           wholeShopMatches={wholeShopMatches}
           onClearFilters={clearFiltersKeepSearch}
@@ -680,10 +710,9 @@ export default function OrdersList({
               value={search}
               /* setSearch อยู่นอก transition โดยตั้งใจ — controlled input ที่ถูก defer จะพิมพ์
                  ตามนิ้วไม่ทัน; แผงเปิดด้วย begin() แทน แล้วหุบเองหลังหยุดพิมพ์ */
-              onChange={(e) => {
-                setSearch(e.target.value)
-                busy.begin()
-              }}
+              /* ไม่เรียก busy.begin() ที่นี่แล้ว — แผงโหลดผูกกับ `searchPending` แทน
+                 (ยิงทุกตัวอักษรทำให้แผงกะพริบทับผลลัพธ์ตลอดเวลาที่พิมพ์) */
+              onChange={(e) => setSearch(e.target.value)}
             />
             {search && (
               /* พื้นที่นิ้ว 44px แต่ก้อนไอคอนเล็ก — แยกสองอย่างออกจากกันตาม
@@ -869,13 +898,13 @@ export default function OrdersList({
                    "ล้างนัดวันนี้" แล้วยังว่างอยู่ โดยไม่รู้ว่าตัวที่กรองจริงคืออีกตัว */
                 /* คำค้นมาก่อนทุกเงื่อนไข — ผู้ใช้ที่เพิ่งพิมพ์ลงไปรู้อยู่แล้วว่าตัวเองทำอะไร
                    ถ้าขึ้น "วันนี้ยังไม่มีนัดเข้ามา" ทับ เขาจะอ่านว่าข้อมูลหาย ไม่ใช่ว่าหาไม่เจอ */
-                search.trim()
+                appliedSearch.trim()
                   ? /* ตอนกรองนัดวันนี้อยู่ การค้นหาถูกจำกัดอยู่แค่ชุดนั้น — ถ้าบอกกว้างว่า
                        "ไม่พบการเข้ารับบริการที่ตรงกับ สมชาย" ผู้ขายจะสรุปว่าออเดอร์หายจากระบบ
                        ทั้งที่มันอยู่แค่คนละวัน (empty state ต้องยืนได้ด้วยตัวเอง) */
                     apptDay
-                    ? `ไม่พบ "${search.trim()}" ในนัดวันนี้`
-                    : `ไม่พบ${vocab.noun}ที่ตรงกับ "${search.trim()}"`
+                    ? `ไม่พบ "${appliedSearch.trim()}" ในนัดวันนี้`
+                    : `ไม่พบ${vocab.noun}ที่ตรงกับ "${appliedSearch.trim()}"`
                   : apptDay
                   ? appt
                     ? 'วันนี้ไม่มีนัดในสถานะที่เลือก'
@@ -889,21 +918,21 @@ export default function OrdersList({
                * แสดงเฉพาะตอนที่มันเพิ่มข้อมูลจริง: มีคำค้น + ในร้านมีใบที่ตรง (feature 00058)
                */
               description={
-                isSearchActive(search) && wholeShopMatches > 0
+                isSearchActive(appliedSearch) && wholeShopMatches > 0
                   ? `ไม่พบในตัวกรองที่เลือกไว้ · พบ ${wholeShopMatches.toLocaleString('th-TH')} รายการในทั้งร้าน`
                   : undefined
               }
               action={
                 /* ปุ่มลิงก์ใช้ได้เฉพาะตอนไม่มีคำค้น — ตอนมีคำค้นต้องล้าง state ในหน้าด้วย
                    (ดู actionButton ข้างล่าง) ไม่งั้นกดแล้วเจอจอว่างใบเดิมซ้ำ */
-                search.trim()
+                appliedSearch.trim()
                   ? undefined
                   : apptDay
                   ? { label: `ดู${vocab.noun}ทั้งหมด`, href: '/orders' }
                   : { label: `+ ${vocab.createLabel}แรก`, href: '/orders/new' }
               }
               actionButton={
-                isSearchActive(search) && wholeShopMatches > 0
+                isSearchActive(appliedSearch) && wholeShopMatches > 0
                   ? {
                       label: `ดูผลทั้งร้าน (${wholeShopMatches.toLocaleString('th-TH')})`,
                       onClick: clearFiltersKeepSearch,
@@ -921,7 +950,7 @@ export default function OrdersList({
               order={order}
               onCancelRequest={handleCancelRequest}
               vocab={vocab}
-              searchQuery={isSearchActive(search) ? search : undefined}
+              searchQuery={isSearchActive(appliedSearch) ? appliedSearch : undefined}
               isExactSearchMatch={hitMeta.get(order.publicToken)?.isExactMatch ?? false}
               matchedItemIndexes={hitMeta.get(order.publicToken)?.matchedItemIndexes}
             />
@@ -942,7 +971,7 @@ export default function OrdersList({
       {/* bg-body-bg ทับ bg-card ที่เป็นค่าตั้งต้น (twMerge — ตัวหลังชนะ): ฝั่งมือถือรายการเป็น
           การ์ดแยกใบวางบนพื้นเพจ ไม่ได้อยู่ในการ์ดใบใหญ่แบบตารางเดสก์ท็อป ถ้าใช้พื้นขาวของการ์ด
           จะกลายเป็นแผ่นขาวแปะทับพื้นเพจ เห็นเป็นกล่องประหลาดแทนที่จะเป็น "ที่ว่างที่รอของ" */}
-      <ListBusyOverlay busy={busy.busy} className="bg-body-bg" />
+      <ListBusyOverlay busy={busy.busy || searchPending} className="bg-body-bg" />
       </div>{/* /relative — พื้นที่ผลลัพธ์ + แผงโหลด */}
       </div>{/* /full-bleed wrapper */}
       </div>{/* /lg:hidden mobile wrapper */}

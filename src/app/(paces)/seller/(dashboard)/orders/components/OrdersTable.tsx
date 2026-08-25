@@ -185,6 +185,11 @@ type Props = {
    * ตารางค้นวิธีชำระกับยอดเงินได้/มือถือไม่ได้) — ยกขึ้นไปที่เดียวเพื่อให้ผูกกับ `?q=` เดียวกันด้วย
    */
   search: string
+  /**
+   * คำค้นที่ถูกหน่วงแล้ว — ใช้ "กรอง/ไฮไลต์" เท่านั้น ส่วน `search` ใช้เป็นค่าในช่องพิมพ์
+   * 🛑 สลับสองตัวนี้เมื่อไร ช่องพิมพ์จะพิมพ์ตามนิ้วไม่ทันทันที (ค่าใน input จะรอ debounce)
+   */
+  appliedSearch: string
   onSearchChange: (value: string) => void
   /** จำนวนใบที่ตรงคำค้นในทั้งร้าน — ใช้เขียน empty state ที่บอกทางออก */
   wholeShopMatches: number
@@ -203,6 +208,7 @@ export default function OrdersTable({
   appointmentFilter,
   apptDayFilter,
   search,
+  appliedSearch,
   onSearchChange,
   wholeShopMatches,
   onClearFilters,
@@ -307,10 +313,12 @@ export default function OrdersTable({
    *
    * 🛑 ต้องประกาศ **เหนือ** `columns` เพราะ cell renderer อ่าน `searchQuery` ไปทำไฮไลต์
    */
-  const hits = useMemo(() => searchOrders(orders, search), [orders, search])
+  const hits = useMemo(() => searchOrders(orders, appliedSearch), [orders, appliedSearch])
   const tableData = useMemo(() => hits.map((h) => h.order), [hits])
   const hitMeta = useMemo(() => new Map(hits.map((h) => [h.order.publicToken, h])), [hits])
-  const searchQuery = isSearchActive(search) ? search : undefined
+  const searchQuery = isSearchActive(appliedSearch) ? appliedSearch : undefined
+  /** คำค้นยังไม่ถูกนำไปใช้ = แผงโหลดยังต้องค้าง (ผูกกับสถานะจริง ไม่ใช่ยิงทุกตัวอักษร) */
+  const searchPending = search !== appliedSearch
 
   const columns = [
     // ─ checkbox select ─
@@ -845,7 +853,7 @@ export default function OrdersTable({
             แต่ไม่ได้ยืดกล่องคู่กัน
             `max-w-sm` = ไม่ปล่อยให้ช่องค้นหาเด่นกว่าโซนตัวกรอง/ปุ่มสร้างบนจอกว้างมาก
             (Impeccable operate.md — Product defaults to Restrained) */}
-        <div className="flex min-w-0 max-w-sm flex-1 gap-2.5">
+        <div className="flex min-w-0 max-w-xl flex-1 gap-2.5">
           {/* relative = กล่องอ้างอิงของปุ่มล้างคำค้น — ไม่แตะโครง .input-icon-group เอง */}
           <div className="input-icon-group relative">
             <Icon icon="search" className="input-icon" />
@@ -861,8 +869,9 @@ export default function OrdersTable({
               /* onSearchChange อยู่นอก transition โดยตั้งใจ — controlled input ที่ถูก defer
                  จะพิมพ์ตามนิ้วไม่ทัน; แผงเปิดด้วย begin() แล้วหุบเองหลังหยุดพิมพ์
                  (setPagination ผ่าน table.setPageIndex เพื่อให้เข้า onPaginationChange ตัวเดียวกัน) */
+              /* ไม่เรียก busy.begin() แล้ว — แผงโหลดผูกกับ `searchPending`
+                 (ยิงทุกตัวอักษรทำให้แผงกะพริบทับผลลัพธ์ตลอดเวลาที่พิมพ์) */
               onChange={(e) => {
-                busy.begin()
                 onSearchChange(e.target.value)
                 table.setPageIndex(0)
               }}
@@ -1046,7 +1055,7 @@ export default function OrdersTable({
             <SellerEmptyState
               compact
               icon="shopping-cart-off"
-              title={`ไม่พบ${vocab.noun}ที่ตรงกับ "${search.trim()}"`}
+              title={`ไม่พบ${vocab.noun}ที่ตรงกับ "${appliedSearch.trim()}"`}
               description={
                 wholeShopMatches > 0
                   ? `ไม่พบในตัวกรองที่เลือกไว้ · พบ ${wholeShopMatches.toLocaleString('th-TH')} รายการในทั้งร้าน`
@@ -1173,7 +1182,7 @@ export default function OrdersTable({
       )}
 
       {/* rounded-b-lg: ตอนไม่มีแถว footer ถูกซ่อน ขอบล่างของกล่องนี้จึงเป็นขอบล่างของ .card พอดี */}
-      <ListBusyOverlay busy={busy.busy} className="rounded-b-lg" />
+      <ListBusyOverlay busy={busy.busy || searchPending} className="rounded-b-lg" />
       </div>{/* /relative — พื้นที่ผลลัพธ์ + แผงโหลด */}
     </div>
 
