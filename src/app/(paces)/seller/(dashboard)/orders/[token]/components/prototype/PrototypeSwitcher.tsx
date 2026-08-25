@@ -57,8 +57,11 @@ export default function PrototypeSwitcher() {
   if (process.env.NODE_ENV === 'production') return null
 
   return (
-    <div className="fixed inset-x-0 bottom-4 z-100 flex justify-center px-4">
-      <div className="flex items-center gap-1 rounded-full bg-black/85 px-2 py-1.5 text-white shadow-lg">
+    /* 🛑 อยู่ **บน** ไม่ใช่ล่าง — ดีไซน์ที่กำลังประเมินวางปุ่มหลักไว้ขอบล่างทุก variant
+       แถบนี้เคยอยู่ `bottom-4` แล้วทับแถวปุ่มพอดี ⇒ กดปุ่มจริงไม่ได้บนจอเตี้ย
+       (เจอตอนหัวหน้าบอกว่า "เลือกไม่ได้" 2026-08-25) · เครื่องมือวัดต้องไม่บังของที่มันวัด */
+    <div className="pointer-events-none fixed inset-x-0 top-2 z-100 flex justify-center px-4">
+      <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-black/85 px-2 py-1.5 text-white shadow-lg">
         <button type="button" onClick={() => go(-1)} className="px-2 py-1 text-lg leading-none" aria-label="variant ก่อนหน้า">
           ←
         </button>
