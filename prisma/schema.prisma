@@ -926,6 +926,7 @@ model Order {
   @@index([shopId, appointmentStatus], map: "Order_shopId_appointmentStatus_idx") // feat 00024 — นัดที่รอร้านตัดสิน
   @@index([shopChannelId], map: "Order_shopChannelId_idx") // 2026-08-10 — หารูป/ชื่อช่องทางต้นทางของออเดอร์ (หน้า /orders คอลัมน์ "ที่มา")
   @@index([conversationId], map: "Order_conversationId_idx") // 2026-08-12 — ปุ่ม "เปิดแชท" หาเธรดต้นทางของออเดอร์นี้ตรง ๆ (แทนการเดาจาก Customer)
+  @@index([shopId, createdAt(sort: Desc), id(sort: Desc)], map: "Order_shopId_createdAt_id_idx") // CR 2026-08-25 — keyset pagination ของหน้า /orders
 }
 
 // Customer (feat 00014 — Customer Directory) — ตัวตนลูกค้ากลาง keyed by phone (cross-shop identity).
@@ -990,6 +991,8 @@ model ShipmentTracking {
   updatedAt  DateTime  @updatedAt
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([trackingNo], map: "ShipmentTracking_trackingNo_idx") // CR 2026-08-25 — ค้นเลขพัสดุที่ร้านแจ้งเอง
 }
 
 model Review {
