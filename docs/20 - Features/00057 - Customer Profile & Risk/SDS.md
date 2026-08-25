@@ -50,7 +50,7 @@ graph TD
 
 | Component | หน้าที่ | Dependency |
 |---|---|---|
-| `src/lib/customer-directory.ts` **(ใหม่)** | types (`CustomerDirectoryEntry`, `CustomerDirectoryOrder`) + pure fn (`matchesCustomerQuery`, `matchesRepeatFilter`, `findEntryByKey`, `avgPerOrder`, `maskContact`) | ไม่มี — pure |
+| `src/lib/customer-directory.ts` **(ใหม่)** | types (`CustomerDirectoryEntry`, `CustomerDirectoryOrder`) + pure fn (`matchesCustomerQuery`, `matchesCustomerFilter`, `parseCustomerFilter`, `aggregateCustomerStats`, `findEntryByKey`, `avgPerOrder`, `maskContact`) | ไม่มี — pure |
 | `src/services/customer-directory.service.ts` **(ใหม่)** | `aggregateShopCustomers(shopId)` · `resolveCustomerByKey(shopId, key)` | Prisma, `customer-directory.ts`, `customer-behavior.ts`, `order-revenue.ts`, `customer-row-key.ts` |
 | `customers/page.tsx` (แก้) | อ่าน searchParams → service → กรอง → mask → error boundary | service + lib + `getT()` + `resolveOrderVocab` |
 | `customers/components/CustomerTable.tsx` (แก้ใหญ่) | URL-query filter UI, `onRowClick`, eye-reveal, risk icons | `useRouter`/`useSearchParams`, `useListBusy`, `CustomerBehaviorBadges` |

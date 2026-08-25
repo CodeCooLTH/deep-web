@@ -54,12 +54,14 @@ flowchart LR
 
 | Component | หน้าที่ |
 |---|---|
-| `src/lib/customer-directory.ts` | pure: types + `matchesCustomerQuery` / `matchesRepeatFilter` / `findEntryByKey` / `avgPerOrder` / `maskContact` — ไม่แตะ prisma |
+| `src/lib/customer-directory.ts` | pure: types + `matchesCustomerQuery` / `matchesCustomerFilter` / `parseCustomerFilter` / `aggregateCustomerStats` / `findEntryByKey` / `avgPerOrder` / `maskContact` — ไม่แตะ prisma |
 | `src/services/customer-directory.service.ts` | I/O: `aggregateShopCustomers(shopId)` · `resolveCustomerByKey(shopId, key)` |
 | `customers/page.tsx` | RSC: อ่าน `searchParams` → เรียก service → กรอง → mask → render |
 | `customers/[id]/page.tsx` | RSC: resolve key → render โปรไฟล์เต็ม |
 | `/api/seller/customers/[key]/contact` | Route Handler (nodejs): คืนเบอร์เต็มทีละแถว |
 | `src/components/safepay/CustomerBehaviorBadges.tsx` | markup กลางของป้ายพฤติกรรม (ใช้ร่วม 4 จอ) |
+| `src/components/safepay/CustomerTrustBar.tsx` | แถบสัดส่วนความน่าเชื่อถือ **ขอบเขตทั้งระบบ** (Base: `theme/paces/.../ui/progress/page.tsx` MultipleBar) |
+| `customers/components/CustomerStatCard.tsx` | การ์ดสถิติ 1 ใบ **ขอบเขตร้านนี้** (Base: `.../orders/components/OrdersStatCard.tsx`) |
 | ~~`src/lib/iship/status.ts`~~ | ~~เพิ่ม `isCodRefundCarrierStatus()`~~ — **ตัดออกตามมติ D-1** |
 
 ---
@@ -69,7 +71,7 @@ flowchart LR
 ### TFR-001: Server-side search/filter ของ `/customers`
 **Trace:** FR-001/002/003, BR-CUSTP-13/14
 
-`customers/page.tsx` อ่าน `searchParams.q/warn/repeat` → เรียก `aggregateShopCustomers(shopId)` (query เดียว, unmasked) → กรองด้วย pure fn (`matchesCustomerQuery` เทียบ **raw contact/ชื่อ ก่อน mask** · `matchesRepeatFilter` · `hasBehaviorWarning(customerBadges(...))`) → map เป็น `CustomerRow[]` (masked) ก่อนส่งเข้า client
+`customers/page.tsx` อ่าน `searchParams.q` + `searchParams.f` → เรียก `aggregateShopCustomers(shopId)` (query เดียว, unmasked) → กรองด้วย pure fn (`matchesCustomerQuery` เทียบ **raw contact/ชื่อ ก่อน mask** · `matchesCustomerFilter` · `hasBehaviorWarning(customerBadges(...))`) → map เป็น `CustomerRow[]` (masked) ก่อนส่งเข้า client
 
 **Postcondition:** flight payload ไม่มี raw contact หลุดเลย
 **Edge:** ผลกรองว่าง → ส่ง flag `filteredEmpty` แยกจาก `noCustomersAtAll` (คำนวณจาก `entries.length` ก่อน/หลังกรอง) ให้ client แสดงข้อความถูกแบบ
@@ -128,6 +130,14 @@ flowchart LR
 - `buyer-reputation.ts`: pattern เดียวกันเป๊ะ ไม่แตะ `shipped/returned/cancelledByBuyer/received/returnRate/riskLevel`
 - `customer-behavior.service.ts` / `buyer-reputation.service.ts` — **ไม่ต้องแก้** (forward evidence เข้า `summarize*()` ตรง ๆ)
 - `orders/page.tsx` + `OrdersTable.tsx` — **ต้องแก้** เพราะ manual-construct object รูป `CustomerBehavior` (compile error ถ้าไม่เติม) → SDS TD-006
+
+### TFR-011: สถิติความน่าเชื่อถือ 2 ขอบเขต (เพิ่ม 2026-08-25)
+**Trace:** FR-015, FR-016
+
+- `CustomerDirectoryEntry.shopReputation` = `summarizeBuyerReputation()` **ตัวเดียวกับสถิติข้ามร้านของ 00055** แต่ป้อนหลักฐานเฉพาะออเดอร์ร้านนี้ ⇒ ได้เกณฑ์เดียวกันเป๊ะ (ฐานอัตรา · นิยาม "รับของแล้ว" · ตีกลับชนะยกเลิก) โดยไม่ต้องตั้งเกณฑ์ชุดที่สอง — **สิ่งที่กำหนดขอบเขตคือ query ของผู้เรียก ไม่ใช่ตัวฟังก์ชัน**
+- `aggregateCustomerStats(rows)` (pure) — การ์ด 4 ใบ · `hasWarning` **ต้องส่งเข้ามาจากผู้เรียก** ไม่คำนวณเองใน lib (ต้องเป็นค่าเดียวกับที่ชิปกรองใช้)
+- แถบรายคนใช้ `getBuyerReputations(customerIds)` (batch, มีอยู่แล้ว) — **1 query ไม่ใช่ N+1** และดึงเฉพาะแถวที่ผ่านตัวกรองแล้ว
+- 🛑 **คัดพัสดุ 2 นิยามจาก array เดียว จงใจไม่ยุบ** — `customer-behavior` ใช้ `status != CANCELLED` (ไม่กรอง dry-run) ส่วน `buyer-reputation` ใช้ `ACTIVE_FORWARD_SHIPMENT` ทั้งคู่ต่างกันอยู่**ก่อน**ฟีเจอร์นี้ (§8) ยุบตอนนี้ = ป้ายบน `/orders` · รายการแชท · แผงลูกค้า ขยับพร้อมกันโดยไม่มีใครขอ
 
 ### TFR-010: เอกสาร — ปิดสถานะ 00032
 **Trace:** FR-014, BR-CUSTP-15 — งานเอกสารล้วน
