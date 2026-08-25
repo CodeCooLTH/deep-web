@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flow คืนของ (00056) — ทีละ step ทั้งหน้า Order และ Chat</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#236dc9; --primary-ink:#12386a;
+  --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --card:#fff; --bg:#f4f6f8;
+  --warn:#f5a524; --warn-ink:#7a4f00; --ok:#28c76f; --danger:#ea5455;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Anuphan,system-ui,sans-serif;font-size:15px;line-height:1.6}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+h1{font-size:26px;margin:0 0 4px}
+h2{font-size:20px;margin:36px 0 6px;padding-top:22px;border-top:1px solid var(--line)}
+h3{font-size:16px;margin:22px 0 8px}
+.lede{color:var(--muted);margin:0 0 20px}
+.pill{display:inline-block;background:var(--primary);color:#fff;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;vertical-align:2px}
+.note{background:#fff8e6;border-left:3px solid var(--warn);padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+.note b{color:var(--warn-ink)}
+.good{background:#eafaf1;border-left-color:var(--ok)}
+.bad{background:#fdeeee;border-left-color:var(--danger)}
+
+/* ── flow rail ── */
+.rail{display:flex;flex-direction:column;gap:0;margin:18px 0}
+.step{display:grid;grid-template-columns:44px 1fr;gap:14px}
+.gutter{position:relative;display:flex;flex-direction:column;align-items:center}
+.dot{width:30px;height:30px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex:none;z-index:1}
+.dot.alt{background:#fff;color:var(--primary);border:2px solid var(--primary)}
+.line{flex:1;width:2px;background:var(--line);margin:2px 0}
+.body{padding-bottom:22px;min-width:0}
+.what{font-weight:600}
+.sub{color:var(--muted);font-size:13.5px}
+.press{display:inline-flex;align-items:center;gap:6px;background:var(--primary);color:#fff;border-radius:8px;padding:3px 10px;font-size:13px;font-weight:600;margin:4px 6px 0 0}
+.press.ghost{background:#eef3fb;color:var(--primary-ink)}
+.press.kbd{background:#f3f4f6;color:var(--ink);font-family:ui-monospace,monospace;font-weight:500}
+
+/* ── screen mock ── */
+.screens{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin:10px 0 4px}
+.screen{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.screen h4{margin:0;padding:8px 12px;font-size:12px;font-weight:600;color:var(--muted);background:#fafbfc;border-bottom:1px solid var(--line)}
+.pane{padding:12px}
+.sheet-hd{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px dashed var(--line);margin-bottom:10px;font-weight:600;font-size:14px}
+.x{color:var(--muted)}
+.opt{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:9px;padding:8px 9px;margin-bottom:6px;font-size:13px}
+.opt.on{border-color:var(--primary);background:#f2f7fd}
+.radio{width:14px;height:14px;border-radius:50%;border:2px solid #c3c9d2;flex:none;margin-top:3px}
+.opt.on .radio{border-color:var(--primary);background:radial-gradient(circle,var(--primary) 42%,#fff 46%)}
+.opt .t{font-weight:500}
+.opt .d{color:var(--muted);font-size:12px}
+.row{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:9px;padding:8px 9px;margin-bottom:6px;font-size:13px}
+.row .nm{flex:1;min-width:0}
+.row .nm small{display:block;color:var(--muted);font-size:11.5px}
+.stp{display:flex;align-items:center;border:1px solid #d5dae1;border-radius:8px;overflow:hidden;flex:none}
+.stp span{width:26px;text-align:center;font-weight:700;font-size:13px;border-left:1px solid var(--line);border-right:1px solid var(--line);padding:2px 0}
+.stp b{width:26px;text-align:center;color:var(--primary);font-weight:400;font-size:15px;cursor:default}
+.btnrow{display:flex;gap:6px;margin-top:10px}
+.btn{border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;text-align:center}
+.btn.p{background:var(--primary);color:#fff;flex:1}
+.btn.l{background:#f0f2f5;color:var(--ink)}
+.btn.d{background:#c9d3e0;color:#fff;flex:1}
+.menu{border:1px solid var(--line);border-radius:9px;overflow:hidden;font-size:13px;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.07)}
+.menu div{padding:8px 11px;border-bottom:1px solid var(--line)}
+.menu div:last-child{border-bottom:0}
+.menu .hl{background:#f2f7fd;color:var(--primary-ink);font-weight:600}
+.tot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-weight:600;font-size:14px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px;background:#fff}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#fafbfc;font-weight:600}
+code{background:#eef1f4;padding:1px 5px;border-radius:4px;font-size:12.5px;font-family:ui-monospace,monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Flow คืนของ — ทีละ step</h1>
+<p class="lede">feature 00056 · หลัง re-design ชีต (2026-08-25) · ทั้ง <b>หน้ารายละเอียดออเดอร์</b> และ <b>ห้องแชท</b></p>
+
+<div class="note good">
+<b>ข้อสรุปสั้นที่สุด:</b> ทั้งสองที่ใช้ชีตตัวเดียวกัน ต่างกันแค่ <b>step 1–2 (วิธีเปิดเมนู)</b> — ตั้งแต่ชีตเปิดขึ้นมาแล้วเหมือนกันทุกประการ<br>
+กดจริง <b>4 ครั้ง</b> สำหรับเคสที่พบบ่อยที่สุด (ร้านออกค่าส่ง ให้ระบบออกเลข คืน 1 ชิ้น)
+</div>
+
+<h2>A · เข้าจากหน้ารายละเอียดออเดอร์</h2>
+<p class="sub"><code>/seller/orders/[token]</code> — <code>OrderDetailClient.tsx:232</code></p>
+
+<div class="rail">
+  <div class="step"><div class="gutter"><div class="dot">1</div><div class="line"></div></div>
+    <div class="body"><div class="what">เปิดเมนูของออเดอร์</div>
+      <div class="sub">ปุ่ม <b>⋮</b> มุมขวาบนของหน้า</div>
+      <span class="press">⋮</span>
+      <div class="note" style="margin:10px 0 0">เมนู "คืนของ" โผล่เฉพาะ <b>ร้านขายออนไลน์</b> และใบที่ <b>ยังไม่ถูกยกเลิก</b> — ใบที่ยังไม่ส่งก็เห็นเมนู แล้วชีตจะบอกเหตุผลเอง (เกณฑ์จริงอยู่ที่ service ตัวเดียว ซ่อนเมนูตามเกณฑ์ที่เดาเองจะทำให้สองที่ตัดสินไม่ตรงกัน)</div>
+    </div></div>
+
+  <div class="step"><div class="gutter"><div class="dot">2</div><div class="line"></div></div>
+    <div class="body"><div class="what">กด “คืนของ”</div>
+      <span class="press">↩ คืนของ</span>
+      <div class="screens" style="max-width:280px">
+        <div class="screen"><h4>เมนู ⋮</h4><div class="pane" style="padding:8px">
+          <div class="menu"><div>แก้ไขคำสั่งซื้อ</div><div>พิมพ์ใบเสร็จ</div><div class="hl">↩ คืนของ</div><div style="color:#ea5455">ยกเลิกคำสั่งซื้อ</div></div>
+        </div></div>
+      </div>
+    </div></div>
+
+  <div class="step"><div class="gutter"><div class="dot alt">→</div><div class="line"></div></div>
+    <div class="body"><div class="what">ชีตเปิด — ไปต่อที่ <b>ส่วน C</b> ด้านล่าง</div>
+      <div class="sub">ตั้งแต่จุดนี้เหมือนกับทางเข้าจากแชททุกประการ</div></div></div>
+</div>
+
+<h2>B · เข้าจากห้องแชท</h2>
+<p class="sub"><code>/seller/inbox/[conversationId]</code> → แผงลูกค้าด้านขวา — <code>CustomerPanel.tsx:385</code></p>
+
+<div class="rail">
+  <div class="step"><div class="gutter"><div class="dot">1</div><div class="line"></div></div>
+    <div class="body"><div class="what">หาการ์ดออเดอร์ใบที่จะคืน</div>
+      <div class="sub">แผงลูกค้าฝั่งขวา — บนมือถือกดแถบลูกค้าด้านบนเพื่อกางแผงก่อน</div></div></div>
+
+  <div class="step"><div class="gutter"><div class="dot">2</div><div class="line"></div></div>
+    <div class="body"><div class="what">กด <b>⋮</b> ที่การ์ดออเดอร์ <span class="pill">ใบนั้นโดยเฉพาะ</span></div>
+      <div class="sub">ไม่ใช่ ⋮ ของหัวห้องแชท — ในแชทมีออเดอร์ได้หลายใบ ปุ่มจึงต้องอยู่ที่ใบ ไม่ใช่ที่ห้อง</div>
+      <span class="press">⋮</span></div></div>
+
+  <div class="step"><div class="gutter"><div class="dot">3</div><div class="line"></div></div>
+    <div class="body"><div class="what">กด “คืนของ”</div>
+      <span class="press">↩ คืนของ</span></div></div>
+
+  <div class="step"><div class="gutter"><div class="dot alt">→</div><div class="line"></div></div>
+    <div class="body"><div class="what">ชีตเปิด — เหมือนกันตั้งแต่ตรงนี้</div></div></div>
+</div>
+
+<h2>C · ในชีต (เหมือนกันทั้งสองทางเข้า)</h2>
+
+<div class="note bad">
+<b>สิ่งที่เพิ่งแก้ 2026-08-25:</b> เดิมชีตเปิดมาแล้วเจอปุ่ม <b>“+ เปิดเรื่องคืนของ”</b> ใบเดียวกลางจอ ต้องกดอีกครั้งถึงเข้าฟอร์ม —
+กด “คืนของ” จากเมนูก็คือบอกเจตนาไปแล้ว คลิกนั้นไม่ได้ตัดสินใจอะไรเพิ่ม <b>ตัดทิ้งแล้ว ชีตเข้าฟอร์มทันที</b>
+</div>
+
+<h3>C1 · ขั้นที่ 1 — “ตกลงกับลูกค้าไว้ยังไง”</h3>
+<div class="rail">
+  <div class="step"><div class="gutter"><div class="dot">4</div><div class="line"></div></div>
+    <div class="body">
+      <div class="what">เลือก 1 ข้อจาก 5 (radio)</div>
+      <div class="sub">เป็น “สถานการณ์” ไม่ใช่ 2 ช่องให้จับคู่เอง — คู่ที่เป็นไปไม่ได้จึงไม่มีให้เลือกตั้งแต่แรก</div>
+      <div class="screens">
+        <div class="screen"><h4>มือถือ 375px</h4><div class="pane">
+          <div class="sheet-hd"><span>↩ การคืนของ</span><span class="x">✕</span></div>
+          <div style="font-weight:600;font-size:13px">ตกลงกับลูกค้าไว้ยังไง</div>
+          <div class="sub" style="margin-bottom:8px">เลือกข้อที่ตรงกับที่คุยกันไว้</div>
+          <div class="opt on"><div class="radio"></div><div><div class="t">ร้านออกค่าส่งให้ — ให้ระบบออกเลขพัสดุ</div><div class="d">ระบบเปิดพัสดุขากลับให้ ตัดจากเครดิต iShip ของร้าน แล้วได้ใบปะหน้าส่งให้ลูกค้าพิมพ์</div></div></div>
+          <div class="opt"><div class="radio"></div><div><div class="t">ร้านออกค่าส่งให้ — ใช้ขนส่งเจ้าอื่น</div><div class="d">ร้านไปเปิดพัสดุเองแล้วมากรอกเลขที่นี่</div></div></div>
+          <div class="opt"><div class="radio"></div><div><div class="t">ร้านออกค่าส่งให้ — ไม่มีเลขพัสดุ</div><div class="d">จ่ายสดหน้าร้าน / ให้ไรเดอร์ไปรับ</div></div></div>
+          <div class="opt"><div class="radio"></div><div><div class="t">ลูกค้าออกค่าส่งเอง — ส่งเลขพัสดุมาให้</div><div class="d">ลูกค้าส่งของกลับเองแล้วแจ้งเลขมา</div></div></div>
+          <div class="opt"><div class="radio"></div><div><div class="t">ลูกค้าออกค่าส่งเอง — ไม่มีเลขพัสดุ</div><div class="d">ยังปิดเรื่องคืนได้ตามปกติ</div></div></div>
+          <div class="btnrow"><div class="btn p">ถัดไป — เลือกของที่คืน</div><div class="btn l">ยกเลิก</div></div>
+        </div></div>
+
+        <div class="screen"><h4>เลือกข้อที่ต้องกรอกเลข → ช่องโผล่</h4><div class="pane">
+          <div class="opt on"><div class="radio"></div><div><div class="t">ลูกค้าออกค่าส่งเอง — ส่งเลขพัสดุมาให้</div></div></div>
+          <div style="display:flex;gap:6px;margin:8px 0">
+            <div style="flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 9px;color:var(--muted);font-size:13px">ชื่อขนส่ง</div>
+            <div style="flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 9px;color:var(--muted);font-size:13px">เลขพัสดุ *</div>
+          </div>
+          <label style="display:flex;gap:7px;font-size:12.5px;align-items:flex-start">
+            <span style="width:13px;height:13px;border:2px solid #c3c9d2;border-radius:3px;flex:none;margin-top:3px"></span>
+            <span>ลูกค้าออกเลขเอง แต่<b>มาเรียกเก็บร้านทีหลัง</b> — บันทึกเป็นต้นทุนร้าน</span></label>
+          <div class="btnrow"><div class="btn d">ถัดไป — เลือกของที่คืน</div><div class="btn l">ยกเลิก</div></div>
+          <div class="sub" style="margin-top:6px;font-size:12px">ปุ่มเทาจนกว่าจะกรอก <b>เลขพัสดุ</b></div>
+        </div></div>
+
+        <div class="screen"><h4>เดสก์ท็อป — ชีตกลางจอ</h4><div class="pane">
+          <div class="sub" style="font-size:12.5px">โครงเดียวกันเป๊ะ กว้างสุด 512px วางกลางจอแทนที่จะติดขอบล่าง<br><br>
+          ช่อง “ชื่อขนส่ง / เลขพัสดุ” เรียง <b>2 คอลัมน์</b> (มือถือเรียงลงล่าง)<br><br>
+          ทุกการ์ดกดได้ทั้งใบ ไม่ต้องเล็งวงกลม radio</div>
+        </div></div>
+      </div>
+      <div class="note" style="margin-top:12px"><b>ทำไมช่อง “ใครออกค่าส่ง” หายไป:</b> เดิมเป็น select 2 ตัวที่ขึ้นต่อกัน — เลือก “ลูกค้าออกเอง” แล้วช่องที่สอง<b>เปลี่ยนค่าเอง</b>เพราะระบบตัดเครดิต iShip ของร้านเสมอ ผู้ใช้เห็นช่องที่ตัวเองไม่ได้แตะขยับ = อ่านเป็นบั๊ก</div>
+    </div></div>
+
+  <div class="step"><div class="gutter"><div class="dot">5</div><div class="line"></div></div>
+    <div class="body"><div class="what">กด “ถัดไป — เลือกของที่คืน”</div>
+      <span class="press">ถัดไป</span>
+      <div class="sub">กดไม่ได้จนกว่า: เลือกครบ 1 ข้อ <b>และ</b> (ถ้าข้อนั้นต้องใช้เลข) กรอกเลขพัสดุแล้ว</div></div></div>
+</div>
+
+<h3>C2 · ขั้นที่ 2 — “คืนของชิ้นไหนบ้าง”</h3>
+<div class="rail">
+  <div class="step"><div class="gutter"><div class="dot">6</div><div class="line"></div></div>
+    <div class="body"><div class="what">กด <b>+</b> ตามจำนวนที่คืน</div>
+      <div class="sub">เป็นปุ่ม ± ไม่ใช่ช่องพิมพ์ — เพดาน “คืนได้กี่ชิ้น” แข็ง เปิดให้พิมพ์คือเชิญให้พิมพ์เกินแล้วโดนดีดกลับ</div>
+      <span class="press ghost">＋</span><span class="press ghost">－</span>
+      <div class="screens">
+        <div class="screen"><h4>มือถือ 375px</h4><div class="pane">
+          <div class="sheet-hd"><span>↩ การคืนของ</span><span class="x">✕</span></div>
+          <div style="display:inline-flex;gap:5px;background:#f0f2f5;border-radius:8px;padding:5px 10px;font-size:12.5px;margin-bottom:10px">← ร้านออกค่าส่งให้ — ให้ระบบออกเลขพัสดุ</div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:7px">คืนของชิ้นไหนบ้าง</div>
+          <div class="row"><div class="nm">เสื้อยืดคอกลม สีดำ<small>ซื้อ 2 · คืนได้ 2 · ฿390/ชิ้น</small></div><div class="stp"><b>－</b><span>1</span><b>＋</b></div></div>
+          <div class="row"><div class="nm">กางเกงขายาว<small>ซื้อ 1 · คืนได้ 1 · ฿590/ชิ้น</small></div><div class="stp"><b>－</b><span>0</span><b>＋</b></div></div>
+          <div style="border:1px solid var(--line);border-radius:8px;padding:7px 9px;color:var(--muted);font-size:13px;margin-top:8px">เหตุผล (ไม่บังคับ)</div>
+          <div class="tot"><span>คืน ฿390</span><span class="btn p" style="flex:none">เปิดใบคืน</span></div>
+        </div></div>
+
+        <div class="screen"><h4>ปุ่มย้อนกลับ</h4><div class="pane">
+          <div class="sub" style="font-size:12.5px">ปุ่มบนสุดพูด<b>ชื่อข้อที่เลือกไว้</b>ด้วย ไม่ใช่แค่ลูกศร → ไม่ต้องจำว่าขั้นก่อนเลือกอะไร และแก้ได้ในคลิกเดียว<br><br>
+          กดแล้วกลับขั้น 1 โดย<b>ไม่ล้าง</b>จำนวนที่นับไว้แล้ว</div>
+        </div></div>
+
+        <div class="screen"><h4>ยอดที่คืน</h4><div class="pane">
+          <div class="sub" style="font-size:12.5px">คิดจาก <b>ราคาที่แช่แข็งไว้ตอนขาย</b> ไม่ใช่ราคาสินค้าวันนี้<br><br>
+          ปุ่ม “เปิดใบคืน” เทาจนกว่าจะเลือกอย่างน้อย 1 ชิ้น</div>
+        </div></div>
+      </div>
+    </div></div>
+
+  <div class="step"><div class="gutter"><div class="dot">7</div><div class="line"></div></div>
+    <div class="body"><div class="what">กด “เปิดใบคืน”</div>
+      <span class="press">เปิดใบคืน</span>
+      <div class="sub">ชีตปิดเอง + ขึ้น toast “เปิดใบคืนของแล้ว” · ใบคืนสถานะ <b>รอส่งคืน</b></div></div></div>
+</div>
+
+<h2>D · หลังเปิดใบคืนแล้ว (เปิดชีตเดิมซ้ำ)</h2>
+<p class="sub">กด <b>⋮ → คืนของ</b> อีกครั้ง จะเห็นใบที่เปิดไว้พร้อมปุ่มดำเนินการต่อ</p>
+
+<table>
+<tr><th style="width:130px">สถานะ</th><th>ปุ่มที่เห็น</th><th>เกิดอะไรขึ้น</th></tr>
+<tr><td><b>รอส่งคืน</b></td>
+  <td><span class="press" style="margin:0">ออกเลขพัสดุขากลับ</span> <span class="press ghost" style="margin:0">ได้รับของคืนแล้ว</span> <span class="press ghost" style="margin:0">ยกเลิกเรื่องคืน</span></td>
+  <td>ปุ่มแรกเปลี่ยนตามข้อที่เลือกไว้ — เลือก iShip = <b>ออกเลขพัสดุขากลับ</b> (ตัดเครดิตจริง) · เลือกแบบอื่น = <b>บันทึกว่าส่งคืนแล้ว</b></td></tr>
+<tr><td><b>กำลังส่งคืน</b></td>
+  <td>การ์ด <b>ใบปะหน้าพัสดุขากลับ</b> + <span class="press ghost" style="margin:0">เปิด</span> <span class="press ghost" style="margin:0">คัดลอกลิงก์</span></td>
+  <td>เฉพาะใบที่ระบบออกเลขให้ — <b>คัดลอกลิงก์ส่งให้ลูกค้าทางแชทเพื่อพิมพ์ติดกล่อง</b> (ลิงก์สาธารณะ ลูกค้าไม่ต้องมีบัญชี)</td></tr>
+<tr><td><b>รับของคืนแล้ว</b></td><td>—</td>
+  <td>🛑 <b>จุดเดียวที่ตัวเลขเปลี่ยน</b> — ยอดขายของรายการที่คืนถูกหักออก และค่าส่งขากลับเข้าเป็นค่าใช้จ่าย · มีหน้าต่างยืนยันก่อนเสมอ</td></tr>
+</table>
+
+<h2>สรุปจำนวนคลิก</h2>
+<table>
+<tr><th>เคส</th><th>หน้า Order</th><th>ห้องแชท</th></tr>
+<tr><td>ร้านออกค่าส่ง ให้ระบบออกเลข · คืน 1 ชิ้น <span class="pill">พบบ่อยสุด</span></td><td><b>4</b> ครั้ง<br><span class="sub">⋮ · คืนของ · เลือกข้อ · ถัดไป · ＋ · เปิดใบคืน = 6 แตะ</span></td><td><b>5</b> ครั้ง<br><span class="sub">มี ⋮ ของการ์ดออเดอร์เพิ่มมา 1</span></td></tr>
+<tr><td>ลูกค้าส่งเลขมาให้ · คืน 2 ชิ้น</td><td>+ พิมพ์เลขพัสดุ + กด ＋ อีก 1</td><td>เท่ากัน</td></tr>
+</table>
+
+<div class="note"><b>เทียบของเดิม:</b> ฟอร์มเก่ามี 7 คอนโทรลในจอเดียว และต้องกด “เปิดเรื่องคืนของ” คั่นอีก 1 ครั้ง — คลิกไม่ได้ลดฮวบ แต่<b>คลิกที่ต้องคิด</b>ลดจาก “จับคู่ 2 ช่องที่ขึ้นต่อกันเอง” เหลือ “เลือกประโยคที่ตรงกับที่คุยกับลูกค้าไว้”</div>
+
+</div>
+</body>
+</html>

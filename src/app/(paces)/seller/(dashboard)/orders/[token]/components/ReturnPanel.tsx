@@ -435,7 +435,10 @@ export default function ReturnPanel({
                   <Icon icon="info-circle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
                   {eligibility.blockedText}
                 </p>
-              ) : !form ? (
+              ) : !form && !asSheet ? (
+                /* 🛑 ปุ่มนี้มีเฉพาะโหมดการ์ด — โหมดชีตเปิดจาก `⋮ → คืนของ` ซึ่งผู้ใช้บอกเจตนา
+                   ไปแล้ว การให้กด "เปิดเรื่องคืนของ" ซ้ำคือคลิกที่ไม่ได้ตัดสินใจอะไรเพิ่ม
+                   (หัวหน้าทักเอง 2026-08-25: "ทำไมยังต้องกดเปิดเรื่องคืนของ") */
                 <button type="button" className="btn btn-sm btn-primary" onClick={() => setForm(true)}>
                   <Icon icon="plus" className="size-4" aria-hidden="true" />
                   เปิดเรื่องคืนของ
@@ -545,7 +548,11 @@ export default function ReturnPanel({
             >
               ถัดไป — เลือกของที่คืน
             </button>
-            <button type="button" className="btn btn-sm btn-light" onClick={closeForm}>
+            <button
+              type="button"
+              className="btn btn-sm btn-light"
+              onClick={() => (asSheet ? onCloseSheet?.() : closeForm())}
+            >
               ยกเลิก
             </button>
           </div>
