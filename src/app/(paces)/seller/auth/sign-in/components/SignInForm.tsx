@@ -37,7 +37,7 @@ import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
 import type { Dictionary } from '@/i18n/dictionaries/th'
-import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
+import { MOBILE_RULE_TEXT, isLoginPhone } from '@/lib/phone'
 import { safeCallbackUrl } from '@/lib/safe-callback-url'
 import { cn } from '@/utils/helpers'
 import {
@@ -59,7 +59,8 @@ function makeSchema(t: Dictionary) {
 }
 
 /**
- * เบอร์โทร — ยึด SSOT เดียวกับทั้งระบบ (`MOBILE_PHONE_RE` = `^0[689][0-9]{8}$`)
+ * เบอร์โทร — ยึด SSOT เดียวกับทั้งระบบ ผ่าน `isLoginPhone()`
+ * (= `MOBILE_PHONE_RE` `^0[689][0-9]{8}$` บน production · นอก production รับเบอร์บัญชีทดสอบด้วย)
  *
  * 🛑 ข้อความ "เบอร์ผิดยังไง" ต้องเป็น `MOBILE_RULE_TEXT` ตัวเดียวกับที่ฟอร์มอื่นใช้ ห้าม mint
  * คีย์ใหม่ใน dictionary — คอมมิต `3ceb477f` เพิ่งไล่เก็บกรณี "คำเดียวกันเขียน 3 แบบ" ไปหมาด ๆ
@@ -69,7 +70,7 @@ function makeSchema(t: Dictionary) {
 function makePhoneSchema(t: Dictionary) {
   return Yup.object({
     phone: Yup.string()
-      .matches(MOBILE_PHONE_RE, MOBILE_RULE_TEXT)
+      .test('login-phone', MOBILE_RULE_TEXT, (v) => isLoginPhone(v ?? ''))
       .required(t.auth.signIn.errPhoneRequired),
   })
 }

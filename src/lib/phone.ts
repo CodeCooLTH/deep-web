@@ -37,6 +37,29 @@ export const MOBILE_PHONE_RE = /^0[689][0-9]{8}$/
 export const MOBILE_RULE_TEXT = 'เบอร์มือถือ 10 หลัก ขึ้นต้นด้วย 06, 08 หรือ 09'
 
 /**
+ * เกณฑ์ "เบอร์นี้ใช้ล็อกอิน/ขอ OTP ได้ไหม" — เท่ากับ `MOBILE_PHONE_RE` ทุกประการบน production
+ *
+ * 🛑 ต่างกันเฉพาะ **นอก production**: ยอมรับเบอร์บัญชีทดสอบ `000000000X` ด้วย
+ *
+ * ทำไมต้องมี — `lib/otp.ts` มี `TEST_ACCOUNTS` (`0000000001`–`0000000009` รหัส `123456`)
+ * ที่ **bypass การส่ง SMS จริง** และเป็นทางเดียวที่ QA/dev ล็อกอินได้ แต่พอบีบ
+ * `MOBILE_PHONE_RE` เป็น `^0[689][0-9]{8}$` เมื่อ 2026-08-21 **ด่านขาเข้าเริ่มปฏิเสธเบอร์
+ * เหล่านั้นตั้งแต่ช่องกรอก** ⇒ ฝั่งตรวจ OTP ยังยอมรับอยู่ แต่ไม่มีใครไปถึงมันได้อีกเลย
+ * = บัญชีทดสอบทั้งชุดตายเงียบ ๆ ไม่มีเทสไหนจับ เพราะทั้งสองฝั่ง "ถูก" ในตัวเอง
+ * (หัวหน้าเจอเองตอนจะเปิด prototype ดู 2026-08-25)
+ *
+ * 🛑 ห้ามเอาไปใช้แทน `MOBILE_PHONE_RE` ที่ validator ของ **ข้อมูลลูกค้า** (ออเดอร์/พัสดุ/
+ * โปรไฟล์) — ตรงนั้นเบอร์ปลอมต้องถูกปฏิเสธเสมอแม้บนเครื่อง dev ไม่งั้นจะได้ข้อมูลทดสอบ
+ * ที่ iShip ปฏิเสธทีหลัง · ที่นี่คือ "ใครเข้าระบบได้" ซึ่งเป็นคนละคำถาม
+ */
+const TEST_ACCOUNT_PHONE_RE = /^000000000[0-9]$/
+
+export function isLoginPhone(raw: string): boolean {
+  if (MOBILE_PHONE_RE.test(raw)) return true
+  return process.env.NODE_ENV !== 'production' && TEST_ACCOUNT_PHONE_RE.test(raw)
+}
+
+/**
  * normalize เบอร์ไทย → '0xxxxxxxxx' (digits only, strip space/dash/ฯลฯ)
  * ไม่ตรงรูปแบบ (^0[0-9]{9}$) → null. ใช้เป็น SSOT ก่อนเขียน Customer.phone (feat 00014).
  *
