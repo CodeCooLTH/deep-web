@@ -106,7 +106,19 @@ export function getPaymentBadge(
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type OrderStatus = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
+/**
+ * 🛑 `RETURNED` เพิ่มเข้ามา 2026-08-25 — feature 00056 เพิ่มค่านี้ลง DB ตั้งแต่ 2026-08-24
+ * แต่ **ไม่ได้ขยาย type ตาม** ⇒ `switch (status)` ใน `getOrderTimeline` ดู "ครบถ้วนตามชนิด"
+ * ในสายตา TypeScript ทั้งที่ขาดเคสจริง ⇒ ส่ง 'RETURNED' เข้าไปได้ `undefined`
+ * แล้ว `<HorizontalTimeline steps={undefined}>` ทำ `.map()` = **หน้าออเดอร์ของผู้ซื้อพังทั้งหน้า**
+ *
+ * ยังไม่มีใครเจอเพราะ prod มีออเดอร์ RETURNED 0 ใบ (ตรวจ 2026-08-25) — มันรออยู่เฉย ๆ
+ * คลาสเดียวกับ `docs/conventions/enum-value-removal.md` แค่กลับทิศ (เพิ่มค่า ไม่ใช่ลบ)
+ *
+ * **ห้ามแคบกว่าค่าที่ DB ผลิตได้จริง** — type ที่แคบกว่าความจริงไม่ได้ป้องกันอะไร
+ * มันแค่ปิดตา `tsc` ไม่ให้เห็นเคสที่ขาด
+ */
+export type OrderStatus = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED' | 'RETURNED'
 export type TimelineState = 'done' | 'cur' | 'fin' | 'up' | 'cx' | 'mute'
 export type TimelineStep = { label: string; state: TimelineState }
 
@@ -234,7 +246,34 @@ export function getOrderTimeline(
         { label: 'ส่งมอบแล้ว',  state: 'cur'  },
         { label: 'ยืนยันรับ',    state: 'up'   },
       ]
+
+    /**
+     * feature 00056 — ของเดินครบเส้นทางแล้วจริง (ผู้ซื้อได้รับ → ส่งคืน → ร้านรับคืน)
+     * จึงเป็น `done → done → fin` **ไม่ใช่ `cx`** แบบยกเลิก ซึ่งแปลว่า "ไม่เคยส่ง"
+     * (ความต่างนี้เขียนแยกไว้แล้วที่ `ORDER_STATUS_META.RETURNED` — ต้องพูดตรงกัน HR16)
+     */
+    case 'RETURNED':
+      return [
+        { label: 'สั่งซื้อแล้ว',  state: 'done' },
+        { label: 'ได้รับสินค้า', state: 'done' },
+        { label: 'คืนของแล้ว',   state: 'fin'  },
+      ]
   }
+
+  /**
+   * 🛑 ด่านกันเคสที่ขาดกลับมาเงียบอีก — ห้ามลบ
+   *
+   * `switch` ที่ไม่มีทางออกท้ายฟังก์ชันจะคืน `undefined` เมื่อมีค่าใหม่โผล่มา แล้วปลายทาง
+   * (`steps.map()`) พังทั้งหน้า · คืนไทม์ไลน์กลาง ๆ ที่ยังอ่านได้แทน — จอที่บอกไม่ละเอียด
+   * ดีกว่าจอที่ขาว และ `never` บังคับให้ `tsc` แดงทันทีถ้ามีใครเติมค่าใน type แล้วลืมเคส
+   */
+  const _exhaustive: never = status
+  void _exhaustive
+  return [
+    { label: 'สั่งซื้อแล้ว', state: 'done' },
+    { label: 'ดำเนินการ',   state: 'cur'  },
+    { label: 'เสร็จสิ้น',    state: 'up'   },
+  ]
 }
 
 /**

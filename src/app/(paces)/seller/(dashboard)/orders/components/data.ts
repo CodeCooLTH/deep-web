@@ -5,7 +5,9 @@ import type { ShippingStageKey } from '@/lib/order-stage'
  * (OrderRow/OrderStatus เป็น SafePay-specific; OrderStatCardData copy pattern จาก RevenueStat)
  */
 
-export type OrderStatus = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
+/** 🛑 ต้องตรงกับ `OrderStatus` ใน `src/lib/order-display.ts` เสมอ — `RETURNED` เพิ่ม 2026-08-25
+ *  (feature 00056 เพิ่มค่านี้ลง DB ตั้งแต่ 08-24 แต่ทั้งสองที่ไม่ได้ขยายตาม ดูเหตุผลเต็มที่ไฟล์นั้น) */
+export type OrderStatus = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED' | 'RETURNED'
 
 // วิธีชำระเงิน — mirror PAYMENT_LABELS ใน orders/[token]/components/CustomerDetails.tsx
 // (display-only; sync กับ create form PaymentChannelBlock)

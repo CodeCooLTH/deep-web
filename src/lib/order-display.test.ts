@@ -83,10 +83,38 @@ describe('getOrderTimeline', () => {
       ['CONFIRMED', 'NO_SHIPPING', undefined],
       ['CANCELLED', 'SHIPPED',     'โอนเงิน'],
       ['CANCELLED', 'NO_SHIPPING', null],
+      ['RETURNED',  'SHIPPED',     'COD'],
     ]
     for (const [s, f, p] of cases) {
       expect(getOrderTimeline(s, f, p)).toHaveLength(3)
     }
+  })
+
+  /**
+   * 🛑 บั๊กจริงที่เจอบน prod 2026-08-25 (ยังไม่มีใครโดนเพราะ RETURNED มี 0 ใบ)
+   *
+   * feature 00056 เพิ่ม `RETURNED` ลง DB ตั้งแต่ 08-24 แต่ `type OrderStatus` ไม่ได้ขยายตาม
+   * ⇒ `switch` ดู "ครบตามชนิด" ในสายตา tsc ⇒ คืน `undefined` ⇒ `<HorizontalTimeline>` ทำ
+   * `steps.map()` = **หน้าออเดอร์ของผู้ซื้อ /o/[token] พังทั้งหน้า**
+   */
+  it('[blocker] RETURNED ต้องได้ไทม์ไลน์จริง ไม่ใช่ undefined', () => {
+    const tl = getOrderTimeline('RETURNED', 'SHIPPED', 'COD')
+    expect(tl).toBeDefined()
+    expect(Array.isArray(tl)).toBe(true)
+    expect(tl.map((s) => s.label)).toEqual(['สั่งซื้อแล้ว', 'ได้รับสินค้า', 'คืนของแล้ว'])
+    // ไม่ใช่ `cx` แบบยกเลิก — ของเดินครบเส้นทางจริง ต่างจาก "ไม่เคยส่ง" (HR16 กับ ORDER_STATUS_META)
+    expect(tl.map((s) => s.state)).toEqual(['done', 'done', 'fin'])
+  })
+
+  /**
+   * ด่านกัน "ค่าใหม่โผล่มาแล้วเงียบ" — ตัวที่แดงจริงคือ `tsc` ผ่าน `never` ในฟังก์ชัน
+   * ส่วนเทสนี้กันอีกชั้นที่ **runtime** เผื่อค่าที่หลุดมาจาก DB โดยไม่ผ่าน type เลย
+   * (เช่น `as OrderStatus` ที่ยังเหลืออยู่ที่อื่น หรือค่าที่ migration เพิ่มแต่ยังไม่ sync type)
+   */
+  it('[blocker] ค่าที่ไม่รู้จักต้องได้ไทม์ไลน์กลาง ๆ ไม่ใช่ undefined (จอที่บอกไม่ละเอียด > จอขาว)', () => {
+    const tl = getOrderTimeline('SOMETHING_NEW' as never, 'SHIPPED', null)
+    expect(tl).toBeDefined()
+    expect(tl).toHaveLength(3)
   })
 })
 
