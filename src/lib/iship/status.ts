@@ -282,10 +282,15 @@ export function describeShipmentStatus(
  * ไม่ใช่เพื่อตัดข้อมูลทิ้ง (เวลา/สถานที่จำเป็นตอนตามของหาย)
  */
 export const SHIPMENT_STAGES = [
-  { label: "สร้างพัสดุ", icon: "tabler:package" },
+  // "รอส่งของ" ไม่ใช่ "สร้างพัสดุ" (2026-08-25) — คำเดิมบอกสิ่งที่ *ระบบ* ทำ
+  // คำใหม่บอกสิ่งที่ *ของ* เป็น ซึ่งเข้าชุดกับอีก 3 จุดที่เหลือ
+  { label: "รอส่งของ", icon: "tabler:package" },
   { label: "รับเข้าระบบแล้ว", icon: "tabler:package-import" },
   { label: "กำลังจัดส่ง", icon: "tabler:truck-delivery" },
-  { label: "จัดส่งสำเร็จ", icon: "tabler:circle-check" },
+  // จุดที่ 4 = **จุดผลลัพธ์** ของขาไป สลับได้ 2 หน้าผ่าน lastLabel/lastIcon:
+  // "ส่งสำเร็จ" (เขียว) / "ส่งไม่สำเร็จ" (ส้ม — แล้วแถว 2 งอกออกจากตรงนี้)
+  // 🛑 "พัสดุมีปัญหา" **ไม่ได้อยู่ที่จุดนี้** ดูเหตุผลที่ FORWARD_OUTCOME ใน return-timeline.ts
+  { label: "ส่งสำเร็จ", icon: "tabler:circle-check" },
 ] as const;
 
 /**
@@ -328,7 +333,14 @@ const STAGE_OF: Record<string, number> = {
   in_transit: 2,
   progress: 2,
   issue: 2,
-  return: 2,
+  /**
+   * 2026-08-25: ย้ายจากจุด 2 (รถ) → จุด 3 (จุดผลลัพธ์)
+   *
+   * `return` = ขนส่งตัดสินแล้วว่าส่งไม่สำเร็จและกำลังเอาของกลับ ⇒ **ขาไปจบแล้ว**
+   * เดิมปักที่จุดรถซึ่งเป็นตำแหน่งเดียวกับ "กำลังจัดส่ง" เป๊ะ ⇒ แยกสองเรื่องนี้ไม่ออกเลย
+   * เรื่องที่เหลือ (กำลังกลับ / ถึงร้านหรือยัง) ไปอยู่บนแถวที่ 2 ดู return-timeline.ts
+   */
+  return: 3,
   cod_refund: 2,
   delivered: 3,
   return_success: 3,
@@ -393,17 +405,33 @@ export function describeProgress(
   return {
     stage,
     tone,
-    lastLabel:
-      code === "return_success"
-        ? "ส่งคืนสำเร็จ"
-        : // ปิดงานโดยไม่รู้ว่าสำเร็จหรือไม่ — ห้ามเขียน "จัดส่งสำเร็จ" ทับจุดสุดท้าย
-          code === "close"
-          ? "ปิดงานแล้ว"
-          : undefined,
-    // ไอคอนยกจากตาราง CARRIER_STATUS ของรหัสนั้นตรง ๆ ไม่เลือกใหม่ (ที่นั่นคือ SSOT ของ
-    // "หน้าตาของสถานะนี้" อยู่แล้ว) — return_success = arrow-back-up · close = flag
-    lastIcon:
-      code === "return_success" || code === "close"
+    /**
+     * ป้ายจุดที่ 4 = **ผลลัพธ์ของขาไป** (2026-08-25)
+     *
+     * 🛑 สายตีกลับทั้งคู่ (`return`/`return_success`) ได้คำเดียวกันคือ **"ส่งไม่สำเร็จ"**
+     * เพราะจุดนี้ตอบแค่ว่า *ขาไปจบยังไง* — เรื่องที่เหลือ ("กำลังตีกลับ" / "ถึงร้านค้า")
+     * ไปอยู่บนแถวที่ 2 ซึ่งงอกออกจากจุดนี้ (`describeReturnLeg` ใน return-timeline.ts)
+     *
+     * เดิม `return_success` เขียนว่า "ส่งคืนสำเร็จ" ทับช่องของ "จัดส่งสำเร็จ" ⇒ แถบอ่านว่า
+     * "เดินหน้าครบ 4 ขั้น จบสวย" ทั้งที่ของกลับมากองที่ร้าน (user เจอบน prod TH6504915C3K3F)
+     */
+    lastLabel: isReturnedCarrierStatus(code)
+      ? "ส่งไม่สำเร็จ"
+      : // ปิดงานโดยไม่รู้ว่าสำเร็จหรือไม่ — ห้ามเขียน "ส่งสำเร็จ" ทับจุดสุดท้าย
+        code === "close"
+        ? "ปิดงานแล้ว"
+        : undefined,
+    /**
+     * `package-off` = *พัสดุ* ที่ส่งไม่ได้ — ไม่ใช่ `truck-off` ซึ่งแปลว่าขนส่งเข้ารับไม่ได้
+     * (นั่นคือสถานะ `cannot_pickup` ที่มีอยู่จริงแล้วคนละตัว)
+     *
+     * 🛑 `arrow-back-up` ไม่ได้ถูกถอดทิ้ง — มันย้ายไปอยู่บน **แถบจิ๋วในตาราง** ที่ยุบ 2 แถว
+     * เหลือจุดเดียว จึงต้องการสัญลักษณ์ "ย้อนกลับ" แบบนามธรรม (ดู `collapsedOutcome()`)
+     * ส่วนแถบเต็มมีแถว 2 เล่าเรื่องให้แล้ว จุดนี้จึงพูดแค่ผลลัพธ์ของขาไป
+     */
+    lastIcon: isReturnedCarrierStatus(code)
+      ? "tabler:package-off"
+      : code === "close"
         ? `tabler:${CARRIER_STATUS[code].icon}`
         : undefined,
     notice: code ? NOTICE_OF[code] : undefined,

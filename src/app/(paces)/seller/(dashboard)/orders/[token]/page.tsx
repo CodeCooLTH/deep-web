@@ -514,7 +514,15 @@ export default async function OrderDetailPage({ params }: PageProps) {
                       isDryRun: Boolean(shipmentPanel.shipment.isDryRun),
                       lastTracedAtISO: shipmentPanel.shipment.carrierStatusAt
                         ? (shipmentPanel.shipment.carrierStatusAt as Date).toISOString()
-                        : null
+                        : null,
+                      // เวลาของ "ขากลับ" — แถวที่ 2 ของแถบอ่านจากสองช่องนี้
+                      // null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" (จุดสว่างตัดสินจาก carrierStatus)
+                      returnStartedAtISO: shipmentPanel.shipment.returnStartedAt
+                        ? (shipmentPanel.shipment.returnStartedAt as Date).toISOString()
+                        : null,
+                      returnedAtISO: shipmentPanel.shipment.returnedAt
+                        ? (shipmentPanel.shipment.returnedAt as Date).toISOString()
+                        : null,
                     }
                   : null
               }

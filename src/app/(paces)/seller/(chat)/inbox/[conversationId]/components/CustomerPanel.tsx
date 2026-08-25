@@ -113,6 +113,9 @@ export type CustomerPanelOrder = {
     courierCode: string | null
     status: string
     carrierStatus: string | null
+    /** เวลาของ "ขากลับ" — แถวที่ 2 ของ stepper อ่านจากสองช่องนี้ (null = ขนส่งไม่ได้แจ้ง) */
+    returnStartedAt?: string | null
+    returnedAt?: string | null
   } | null
   /** วิธีชำระ + เวลากดรับเงิน COD — ให้ deriveShippingStage แยก AWAITING_COD ได้ (Order Progress) */
   paymentMethod?: string | null

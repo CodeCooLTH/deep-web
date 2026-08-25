@@ -118,6 +118,9 @@ export interface ShipmentView {
   carrierStatus: string | null;
   carrierStatusText: string | null;
   carrierStatusAt: Date | null;
+  /** เวลาของ "ขากลับ" — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" (ดู schema.prisma) */
+  returnStartedAt: Date | null;
+  returnedAt: Date | null;
   isOverWeight: boolean;
   isOverSize: boolean;
   labelPrintedAt: Date | null;
@@ -440,6 +443,8 @@ function toShipmentView(s: {
   height: number | null;
   codAmount: unknown;
   createdAt: Date;
+  returnStartedAt: Date | null;
+  returnedAt: Date | null;
 }): ShipmentView {
   return {
     ...s,
@@ -491,6 +496,8 @@ const SHIPMENT_SELECT = {
   carrierStatus: true,
   carrierStatusText: true,
   carrierStatusAt: true,
+  returnStartedAt: true,
+  returnedAt: true,
   isOverWeight: true,
   isOverSize: true,
   labelPrintedAt: true,

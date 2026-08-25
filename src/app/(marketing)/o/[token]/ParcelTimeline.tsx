@@ -35,6 +35,7 @@ import { toast } from 'react-toastify'
 import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPMENT_STAGE_DOT_INDEX, SHIPPING_STAGE_LABEL, type ShippingStageKey } from '@/lib/order-stage'
+import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
 import { VERIFIED_INK } from './TrustPill'
 
 type Props = {
@@ -44,6 +45,11 @@ type Props = {
    * ขั้น/คำ/กล่องเตือน (BR-BOE-12 บังคับให้สองจอชี้จุดเดียวกัน) · null = ร้านแจ้งเลขเอง
    */
   carrierStatus?: string | null
+  /**
+   * เวลาของ "ขากลับ" — แถวที่ 2 อ่านจากสองช่องนี้ · null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด"
+   */
+  returnStartedAt?: string | null
+  returnedAt?: string | null
   /**
    * มีพัสดุจริงไหม — ออเดอร์ที่จบโดยไม่เคยมีพัสดุ (รับเอง/บริการ) ได้ stage `DONE` เหมือนกัน
    * ถ้าไม่กันไว้จะวาดแถบเขียวครบ 4 จุดให้พัสดุที่ไม่มีอยู่จริง
@@ -59,8 +65,23 @@ type Props = {
   tracking: { provider: string; trackingNo: string; courierCode?: string | null } | null
 }
 
-export default function ParcelTimeline({ stage, carrierStatus, hasShipment, tracking }: Props) {
+export default function ParcelTimeline({
+  stage,
+  carrierStatus,
+  returnStartedAt,
+  returnedAt,
+  hasShipment,
+  tracking,
+}: Props) {
   const [copied, setCopied] = useState(false)
+  /**
+   * แถวที่ 2 ("ขากลับ") — `audience: 'buyer'` เปลี่ยนเฉพาะ 4 คำที่มีคำว่า "ร้าน" อยู่ในนั้น
+   * ("ถึงร้านค้า" ของผู้ขาย = "ร้านได้รับคืนแล้ว" ของผู้ซื้อ) ที่เหลือใช้คำชุดเดียวกับฝั่งร้าน
+   *
+   * 🛑 ผู้ซื้อต้องเห็นเรื่องนี้ ไม่ใช่ซ่อน — feature 00055 นับใบที่ตีกลับเป็นสถิติของเขาอยู่แล้ว
+   * การไม่แสดงคือการตัดสินลับหลัง · และผู้ซื้อที่ของตีกลับเพราะที่อยู่ผิดจะไปทวงร้านว่าของหาย
+   */
+  const leg = describeReturnLeg({ audience: 'buyer', carrierStatus, returnStartedAt, returnedAt })
   // ขนส่งบอกเองชนะกองงานที่ระบบจัดให้ — ดูเหตุผลเต็มที่ MiniShipmentTimeline ฝั่งร้าน
   const progress = carrierStatus != null ? describeProgress('CREATED', carrierStatus) : null
   const raw = progress ? progress.stage : SHIPMENT_STAGE_DOT_INDEX[stage]
@@ -228,7 +249,7 @@ export default function ParcelTimeline({ stage, carrierStatus, hasShipment, trac
       <Box
         component='ol'
         role='img'
-        aria-label={`สถานะพัสดุ: ${currentLabel}`}
+        aria-label={railAriaLabel(currentLabel, leg)}
         sx={{
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
@@ -304,6 +325,111 @@ export default function ParcelTimeline({ stage, carrierStatus, hasShipment, trac
           )
         })}
       </Box>
+
+      {/* ── แถวที่ 2 : ขากลับ (เดินขวา→ซ้าย) ─────────────────────────────────────
+          🛑 เขียนด้วย MUI `sx` ล้วน ห้ามใช้ utility ของ Paces (`bg-warning`/`size-8`/`end-4`)
+          — `(marketing)/layout.tsx` โหลด `marketing.css` ซึ่ง **ไม่มีนิยามคลาสพวกนั้นเลย**
+          เขียนไปก็เงียบ ไม่มี error มีแต่กล่องไม่มีสี (reference-vs-theme-source.md)
+
+          จุดเรียงจาก `leg.dots` ซึ่งเป็น **ลำดับเวลา** เสมอ — กลับทิศด้วย row-reverse ที่นี่
+          เพื่อให้จุดสุดท้าย ("ร้านได้รับแล้ว") ไปจบใต้จุดออกเดินทางของแถว 1 พอดี */}
+      {leg && (
+        <>
+          {/* ข้อศอก — เส้นตั้งชิดขวา ตรงกับศูนย์กลางจุดสุดท้ายของแถว 1 (ครึ่งของจุด 32px = 16px) */}
+          <Box aria-hidden sx={{ position: 'relative', height: 16 }}>
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                right: 16,
+                width: 2,
+                bgcolor: leg.originTone === 'success' ? VERIFIED_INK : 'warning.main',
+              }}
+            />
+          </Box>
+
+          <Box
+            component='ol'
+            sx={{
+              display: 'flex',
+              flexDirection: 'row-reverse',
+              alignItems: 'center',
+              listStyle: 'none',
+              m: 0,
+              p: 0,
+            }}
+          >
+            {leg.dots.map((d, i) => {
+              const reached = i <= leg.stage
+              const isEnd = i === leg.dots.length - 1
+              const lineColor = leg.originTone === 'success' ? VERIFIED_INK : 'warning.main'
+              return (
+                <Box
+                  component='li'
+                  key={`${d.label}-${i}`}
+                  sx={{ display: 'contents' }}
+                >
+                  {i > 0 && (
+                    <>
+                      <Box aria-hidden sx={{ height: 2, flex: 1, bgcolor: reached ? lineColor : 'divider' }} />
+                      {/* ลูกศรบอกทิศ — สอดเป็น item ระหว่างเส้น ไม่วางทับแล้วเจาะพื้นหลัง
+                          ⇒ ไม่ต้องรู้ว่าการ์ดวางอยู่บนพื้นสีอะไร · ห้าม emoji (HR12) */}
+                      {i - 1 === Math.floor((leg.dots.length - 1) / 2) && (
+                        <Box
+                          aria-hidden
+                          sx={{ flexShrink: 0, display: 'flex', color: 'text.secondary', mx: 0.25 }}
+                        >
+                          <Icon icon='tabler-caret-left-filled' fontSize={14} />
+                        </Box>
+                      )}
+                      <Box aria-hidden sx={{ height: 2, flex: 1, bgcolor: reached ? lineColor : 'divider' }} />
+                    </>
+                  )}
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      flexShrink: 0,
+                      width: 56,
+                    }}
+                  >
+                    <Box
+                      aria-hidden
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        // ปลายทาง = เขียวเสมอ (มติ user) แยกจาก "ส่งสำเร็จ" ด้วย **รูปไอคอน**
+                        bgcolor: reached ? (isEnd ? VERIFIED_INK : lineColor) : 'action.hover',
+                        color: reached ? 'common.white' : 'text.secondary',
+                      }}
+                    >
+                      <Icon icon={`tabler-${d.icon}`} fontSize={18} />
+                    </Box>
+                    <Typography
+                      variant='caption'
+                      sx={{
+                        mt: 0.75,
+                        textAlign: 'center',
+                        lineHeight: 1.3,
+                        fontWeight: i === leg.stage ? 700 : 400,
+                        color: i === leg.stage ? 'text.primary' : 'text.secondary',
+                      }}
+                    >
+                      {d.label}
+                    </Typography>
+                  </Box>
+                </Box>
+              )
+            })}
+          </Box>
+        </>
+      )}
 
       {offTrack && (
         /* กล่องเตือนอยู่ "ใต้แถบ" ตำแหน่งเดียวกับ progress.notice ของ ShipmentStatusView —

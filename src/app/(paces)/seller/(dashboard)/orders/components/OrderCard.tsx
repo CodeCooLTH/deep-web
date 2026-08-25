@@ -374,8 +374,14 @@ export default function OrderCard({
               stage={order.shippingStage}
               carrierStatus={order.shipment.carrierStatus}
               shipmentStatus={order.shipment.status}
+              returnStartedAt={order.shipment.returnStartedAt}
+              returnedAt={order.shipment.returnedAt}
               hasShipment
               cancelled={false}
+              /* มือถือไม่มี hover — ต้องวาดแถบเต็มลงในการ์ดเลย ไม่งั้นแตะยังไงก็ไม่ขึ้น
+                 (บั๊กที่มีอยู่ก่อนงานนี้: ที่นี่เรียกโดยไม่ส่ง plain ⇒ ได้โหมด HoverPanel
+                  ซึ่งเปิดได้ด้วย hover เท่านั้น จุดโชว์อยู่แต่กดยังไงก็ไม่ขึ้น) */
+              inline
             />
           </div>
         )}

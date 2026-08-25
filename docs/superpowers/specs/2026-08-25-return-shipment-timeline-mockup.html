@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ม็อกอัพ — ไทม์ไลน์พัสดุ 2 แถว (ขาไป + ขากลับ) · Deep</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+/* ─────────────────────────────────────────────────────────────────────────
+   token สีดึงจาก src/assets/css/config/_root.css ตัวจริง (2026-08-25)
+   ห้ามแก้ค่าที่นี่โดยไม่ไปแก้ที่นั่น — ม็อกอัพที่สีไม่ตรงธีมคือม็อกอัพที่โกหก
+   ───────────────────────────────────────────────────────────────────────── */
+:root{
+  --primary:#236dc9;   --primary-ink:#1e3a8a;
+  --success:#02bc9c;   --success-ink:#065f46;
+  --warning:#f9bf59;   --warning-ink:#92400e;
+  --danger:#f7577e;    --danger-ink:#7f1d1d;
+  --info:#5bc3e1;      --info-ink:#1e40af;
+  --d50:#f8fafc; --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb;
+  --d400:#627189; --d500:#58626b; --d700:#40454a; --d800:#343a40; --d900:#313a46;
+  --card:#fff;
+  --body:#f0f1f5;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--body); color:var(--d900);
+  font-family:Anuphan,system-ui,sans-serif; /* HR5 — Anuphan เท่านั้น */
+  -webkit-font-smoothing:antialiased;
+}
+.page{max-width:1400px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:22px;font-weight:700;margin:0 0 4px}
+.sub{color:var(--d500);font-size:13px;margin:0 0 28px;line-height:1.7}
+h2{font-size:15px;font-weight:700;margin:40px 0 4px;padding-top:20px;border-top:1px solid var(--d300)}
+h2:first-of-type{border-top:0;padding-top:0}
+h2 .n{color:var(--d400);font-weight:600;margin-right:6px}
+.note{color:var(--d500);font-size:12.5px;margin:0 0 16px;line-height:1.75;max-width:900px}
+.note b{color:var(--d800);font-weight:600}
+.bad{color:var(--danger-ink)}
+.grid{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+
+/* กรอบจำลองอุปกรณ์ */
+.dev{background:var(--card);border-radius:14px;box-shadow:0 2px 10px rgba(49,58,70,.08);overflow:hidden}
+.dev-h{font-size:10.5px;font-weight:600;letter-spacing:.02em;color:var(--d400);
+       background:var(--d100);padding:6px 10px;border-bottom:1px solid var(--d200)}
+.w340{width:340px} .w288{width:288px} .w360{width:360px} .w420{width:420px} .w560{width:560px}
+
+/* ═══ แถบไทม์ไลน์ ═══════════════════════════════════════════════════════ */
+.rail{--dot:32px;--gapv:18px;position:relative}
+.rail.sm{--dot:24px;--gapv:14px}
+
+.rw{display:flex;align-items:center}
+.rw.back{flex-direction:row-reverse}      /* แถว 2 เดินขวา→ซ้าย */
+.dot{
+  width:var(--dot);height:var(--dot);border-radius:999px;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--d100);color:var(--d400);font-size:15px;
+}
+.rail.sm .dot{font-size:12px}
+.dot.on{background:var(--success);color:#fff}
+.dot.now-warn{background:var(--warning);color:#3d2c00}   /* warning เป็นสีอ่อน ตัวหนังสือต้องเข้ม */
+.dot.now-danger{background:var(--danger);color:#fff}
+.dot.now-primary{background:var(--primary);color:#fff}
+.seg{height:2px;flex:1 1 auto;background:var(--d200);min-width:8px}
+.seg.on{background:var(--success)}
+.seg.warn{background:var(--warning)}
+
+/* ป้ายใต้จุด */
+.lbs{display:flex;margin-top:6px}
+.lbs.back{flex-direction:row-reverse}
+.lb{flex:0 0 var(--dot);display:flex;justify-content:center}
+.lb span{font-size:10px;line-height:1.25;white-space:nowrap;color:var(--d700)}
+.lb.cur span{color:var(--d900);font-weight:600}
+.lb.first{justify-content:flex-start}
+.lb.last{justify-content:flex-end}
+.sp{flex:1 1 auto}
+
+/* ข้อศอกเชื่อมแถว 1 → แถว 2 : เส้นตั้งที่ขอบขวา ตรงกับศูนย์กลางจุดที่ 4 พอดี */
+.elbow{position:relative;height:var(--gapv)}
+.elbow::before{
+  content:"";position:absolute;top:0;bottom:0;
+  right:calc(var(--dot)/2 - 1px);width:2px;background:var(--warning);
+}
+.elbow.ok::before{background:var(--success)}
+
+/* ลูกศรบอกทิศบนเส้นแถว 2 — ไม่ใช่ emoji (HR12) เป็น icon จริงวางทับเส้น */
+.dirwrap{position:relative}
+.dir{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:var(--card);padding:0 3px;display:flex;align-items:center;
+  color:var(--warning-ink);font-size:13px;line-height:1;
+}
+.dir.ok{color:var(--success-ink)}
+.onbody .dir{background:var(--body)}
+
+/* กล่องเตือน + เลขพัสดุขากลับ */
+.notice{
+  display:flex;gap:6px;align-items:flex-start;margin-top:12px;
+  border-radius:9px;padding:7px 10px;font-size:11px;line-height:1.5;
+}
+.n-warn{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+.n-sec{background:var(--d100);color:var(--d700)}
+.n-ok{background:rgba(2,188,156,.15);color:var(--success-ink)}
+.trk2{
+  display:flex;justify-content:flex-end;align-items:center;gap:5px;
+  margin-top:7px;font-size:10.5px;color:var(--d500);
+}
+.trk2 b{font-weight:600;color:var(--d800);font-variant-numeric:tabular-nums}
+.pill{
+  font-size:9.5px;font-weight:600;border-radius:999px;padding:1px 6px;
+  background:var(--d200);color:var(--d700);
+}
+
+/* หัวการ์ด (โลโก้ + เลขพัสดุ) */
+.hd{display:flex;gap:10px;align-items:flex-start}
+.logo{width:44px;height:44px;border-radius:9px;flex:0 0 auto;background:#FFE600;
+      display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;
+      color:#111;box-shadow:inset 0 0 0 1px var(--d200)}
+.hd .co{font-size:11px;color:var(--d700);margin:0}
+.hd .tn{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;margin:1px 0 0;
+        display:flex;align-items:center;gap:5px}
+.cp{color:var(--d400);font-size:14px;display:flex}
+.body{padding:14px}
+
+/* แถบจิ๋วในตาราง */
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{font-size:10.5px;color:var(--d500);font-weight:600;text-align:start;padding:7px 10px;
+        background:var(--d100);border-bottom:1px solid var(--d200);white-space:nowrap}
+.tbl td{padding:9px 10px;border-bottom:1px solid var(--d200);vertical-align:middle}
+.tbl .num{font-variant-numeric:tabular-nums;font-size:11px;color:var(--d700)}
+
+/* buyer (Vuexy/MUI — มุมมนกว่า เงานุ่มกว่า) */
+.vux{border-radius:16px;box-shadow:0 3px 14px rgba(49,58,70,.10)}
+.vux .body{padding:18px}
+
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin:10px 0 20px;font-size:11.5px;color:var(--d700)}
+.legend i{width:12px;height:12px;border-radius:999px;display:inline-block;margin-right:5px;vertical-align:-1px}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>ไทม์ไลน์พัสดุ 2 แถว — ขาไป + ขากลับ</h1>
+<p class="sub">
+  ม็อกอัพตามมติ Q1–Q26 · สีทุกค่าดึงจาก <code>src/assets/css/config/_root.css</code> ตัวจริง · ไอคอน tabler <b>ชุด A</b> (Q27 — ยังรอเคาะ)<br>
+  หลักของดีไซน์: <b>แถว 1 เดินซ้าย→ขวา · แถว 2 เดินขวา→ซ้าย จบที่ซ้ายสุดตรงกับจุดออกเดินทางพอดี</b> = ของกลับมาที่เดิม อ่านออกโดยไม่ต้องอ่านคำ
+</p>
+
+<div class="legend">
+  <span><i style="background:var(--success)"></i>เขียว = ยืนยันแล้ว (ถึงมือผู้รับ / ถึงร้าน)</span>
+  <span><i style="background:var(--warning)"></i>ส้ม = ออกนอกเส้นทาง แต่ยังเดินอยู่</span>
+  <span><i style="background:var(--danger)"></i>แดง = มีปัญหา ต้องลงมือ</span>
+  <span><i style="background:var(--d100);box-shadow:inset 0 0 0 1px var(--d300)"></i>เทา = ยังไม่ถึง</span>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2><span class="n">1</span>ก่อน / หลัง — จอที่คุณส่งภาพมา (ShipmentHoverCard · 340px)</h2>
+<p class="note">
+  ซ้ายคือของเดิม: 4 จุดเขียวครบ จุดที่ 4 เขียนว่า “ส่งคืนสำเร็จ” — <b class="bad">อ่านว่า “เดินหน้าครบ จบสวย”</b> ทั้งที่ของกลับมากองที่ร้าน
+  และไม่มีอะไรบอกว่ามันตีกลับเมื่อไร ขวาคือของใหม่
+</p>
+<div class="grid">
+
+  <!-- BEFORE -->
+  <div class="dev w340">
+    <div class="dev-h">ก่อน — ของจริงบน prod วันนี้</div>
+    <div class="body">
+      <div class="hd">
+        <div class="logo">FLASH</div>
+        <div>
+          <p class="co">Flash Thunder</p>
+          <p class="tn">TH6504915C3K3F <span class="cp"><iconify-icon icon="tabler:copy"></iconify-icon></span></p>
+        </div>
+      </div>
+      <div class="rail" style="margin-top:14px">
+        <div class="rw">
+          <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:arrow-back-up"></iconify-icon></span>
+        </div>
+        <div class="lbs">
+          <span class="lb first"><span>สร้างพัสดุ</span></span><span class="sp"></span>
+          <span class="lb"><span>รับเข้าระบบแล้ว</span></span><span class="sp"></span>
+          <span class="lb"><span>กำลังจัดส่ง</span></span><span class="sp"></span>
+          <span class="lb last cur"><span>ส่งคืนสำเร็จ</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AFTER -->
+  <div class="dev w340">
+    <div class="dev-h">หลัง — ตีกลับ &amp; ถึงร้านแล้ว</div>
+    <div class="body">
+      <div class="hd">
+        <div class="logo">FLASH</div>
+        <div>
+          <p class="co">Flash Thunder</p>
+          <p class="tn">TH6504915C3K3F <span class="cp"><iconify-icon icon="tabler:copy"></iconify-icon></span></p>
+        </div>
+      </div>
+      <div class="rail" style="margin-top:14px">
+        <div class="rw">
+          <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span>
+          <span class="seg warn"></span>
+          <span class="dot now-warn"><iconify-icon icon="tabler:package-off"></iconify-icon></span>
+        </div>
+        <div class="lbs">
+          <span class="lb first"><span>รอส่งของ</span></span><span class="sp"></span>
+          <span class="lb"><span>รับเข้าระบบแล้ว</span></span><span class="sp"></span>
+          <span class="lb"><span>กำลังจัดส่ง</span></span><span class="sp"></span>
+          <span class="lb last"><span>ส่งไม่สำเร็จ</span></span>
+        </div>
+
+        <div class="elbow"></div>
+
+        <div class="rw back dirwrap">
+          <span class="dot on"><iconify-icon icon="tabler:truck-return"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:building-store"></iconify-icon></span>
+          <span class="dir ok"><iconify-icon icon="tabler:caret-left-filled"></iconify-icon></span>
+        </div>
+        <div class="lbs back">
+          <span class="lb first"><span>กำลังตีกลับ</span></span>
+          <span class="sp"></span>
+          <span class="lb last cur"><span>ถึงร้านค้า</span></span>
+        </div>
+
+        <div class="trk2"><span class="pill">เลขเดิม</span></div>
+
+        <p class="notice n-ok" style="margin-bottom:0">
+          <iconify-icon icon="tabler:building-store" style="margin-top:1px"></iconify-icon>
+          <span>พัสดุกลับมาถึงร้านแล้ว — เหลือตัดสินใจว่าจะคืนเงิน ส่งใหม่ หรือปิดงาน</span>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2><span class="n">2</span>สถานะระหว่างทาง — ยังตีกลับอยู่ ยังไม่ถึงร้าน</h2>
+<p class="note">
+  บน prod มี event <code>return</code> 44 ครั้ง จาก 12 พัสดุ (บางใบซ้ำ 7–8 ครั้ง = ขนส่งพยายามส่งหลายรอบก่อนยอมตีกลับ)
+  ⇒ สถานะนี้เกิดจริงและกินเวลาหลายวัน · จุด <b>ถึงร้านค้า</b> ยังเทา เส้นยังไม่เขียว
+</p>
+<div class="grid">
+  <div class="dev w340">
+    <div class="dev-h">กำลังตีกลับ (ยังไม่ถึงร้าน)</div>
+    <div class="body">
+      <div class="rail">
+        <div class="rw">
+          <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span>
+          <span class="seg warn"></span>
+          <span class="dot now-warn"><iconify-icon icon="tabler:package-off"></iconify-icon></span>
+        </div>
+        <div class="lbs">
+          <span class="lb first"><span>รอส่งของ</span></span><span class="sp"></span>
+          <span class="lb"><span>รับเข้าระบบแล้ว</span></span><span class="sp"></span>
+          <span class="lb"><span>กำลังจัดส่ง</span></span><span class="sp"></span>
+          <span class="lb last"><span>ส่งไม่สำเร็จ</span></span>
+        </div>
+        <div class="elbow"></div>
+        <div class="rw back dirwrap">
+          <span class="dot now-warn"><iconify-icon icon="tabler:truck-return"></iconify-icon></span>
+          <span class="seg"></span>
+          <span class="dot"><iconify-icon icon="tabler:building-store"></iconify-icon></span>
+          <span class="dir"><iconify-icon icon="tabler:caret-left-filled"></iconify-icon></span>
+        </div>
+        <div class="lbs back">
+          <span class="lb first cur"><span>กำลังตีกลับ</span></span>
+          <span class="sp"></span>
+          <span class="lb last"><span>ถึงร้านค้า</span></span>
+        </div>
+        <p class="notice n-warn" style="margin-bottom:0">
+          <iconify-icon icon="tabler:alert-circle" style="margin-top:1px"></iconify-icon>
+          <span>พัสดุกำลังตีกลับไปยังต้นทาง · เริ่มตีกลับ 20 ส.ค. 2569 14:32</span>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="dev w340">
+    <div class="dev-h">ออเดอร์ปกติ — แถว 2 ไม่โผล่เลย (Q11)</div>
+    <div class="body">
+      <div class="rail">
+        <div class="rw">
+          <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:circle-check"></iconify-icon></span>
+        </div>
+        <div class="lbs">
+          <span class="lb first"><span>รอส่งของ</span></span><span class="sp"></span>
+          <span class="lb"><span>รับเข้าระบบแล้ว</span></span><span class="sp"></span>
+          <span class="lb"><span>กำลังจัดส่ง</span></span><span class="sp"></span>
+          <span class="lb last cur"><span>ส่งสำเร็จ</span></span>
+        </div>
+      </div>
+      <p class="note" style="margin:14px 0 0;font-size:11px">
+        เกือบทุกออเดอร์อยู่ในสถานะนี้ — หน้าตาเหมือนเดิมทุกประการ เปลี่ยนแค่คำแรก
+        <b>“สร้างพัสดุ” → “รอส่งของ”</b> (คำเดิมบอกสิ่งที่ <i>ระบบ</i> ทำ คำใหม่บอกสิ่งที่ <i>ของ</i> เป็น)
+      </p>
+    </div>
+  </div>
+
+  <div class="dev w340">
+    <div class="dev-h">พัสดุมีปัญหา — หน้าที่ 2 ของจุดผลลัพธ์</div>
+    <div class="body">
+      <div class="rail">
+        <div class="rw">
+          <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot now-danger"><iconify-icon icon="tabler:alert-triangle"></iconify-icon></span>
+        </div>
+        <div class="lbs">
+          <span class="lb first"><span>รอส่งของ</span></span><span class="sp"></span>
+          <span class="lb"><span>รับเข้าระบบแล้ว</span></span><span class="sp"></span>
+          <span class="lb"><span>กำลังจัดส่ง</span></span><span class="sp"></span>
+          <span class="lb last cur"><span>พัสดุมีปัญหา</span></span>
+        </div>
+        <p class="notice n-warn" style="background:rgba(247,87,126,.15);color:var(--danger-ink);margin-bottom:0">
+          <iconify-icon icon="tabler:alert-circle" style="margin-top:1px"></iconify-icon>
+          <span>พัสดุมีปัญหาระหว่างทาง — ติดต่อขนส่งเพื่อตรวจสอบรายละเอียด</span>
+        </p>
+      </div>
+      <p class="note" style="margin:12px 0 0;font-size:11px">
+        <b>ไม่มีแถว 2</b> — <code>issue</code> ส่วนใหญ่จบด้วยส่งสำเร็จ การขึ้นแถวขากลับตรงนี้คือการทำนายอนาคตผิด
+      </p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2><span class="n">3</span>เคสคืนของ (00056) — แถว 2 งอกจากจุด<b>เขียว</b> · 3 ระดับข้อมูล (Q9A + Q25A)</h2>
+<p class="note">
+  ต่างจากตีกลับตรงที่ <b>ของถึงมือลูกค้าจริง ระบบยืนยันไปแล้ว</b> ⇒ จุดที่ 4 ต้องคงเป็นเขียว ห้ามย้อนไปเป็นส้ม
+  (ลบหลักฐานว่าการส่งสำเร็จ = กระทบสถิติผู้ซื้อ 00055 ที่แยก “ไม่เคยได้รับ” กับ “ได้รับแล้วคืน” เป็นคนละเรื่อง)<br>
+  จำนวนจุดผันตามข้อมูลที่<b>มีจริง</b> — ไม่วาดจุดที่ไม่มีวันสว่าง
+</p>
+<div class="grid">
+
+  <div class="dev w340">
+    <div class="dev-h">คืนของ · เลขพัสดุจาก iShip — 4 จุดเต็ม</div>
+    <div class="body">
+      <div class="rail">
+        <div class="rw">
+          <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:circle-check"></iconify-icon></span>
+        </div>
+        <div class="lbs">
+          <span class="lb first"><span>รอส่งของ</span></span><span class="sp"></span>
+          <span class="lb"><span>รับเข้าระบบแล้ว</span></span><span class="sp"></span>
+          <span class="lb"><span>กำลังจัดส่ง</span></span><span class="sp"></span>
+          <span class="lb last"><span>ส่งสำเร็จ</span></span>
+        </div>
+        <div class="elbow ok"></div>
+        <div class="rw back dirwrap">
+          <span class="dot on"><iconify-icon icon="tabler:package-export"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot now-warn"><iconify-icon icon="tabler:truck-return"></iconify-icon></span>
+          <span class="seg"></span>
+          <span class="dot"><iconify-icon icon="tabler:building-store"></iconify-icon></span>
+          <span class="dir"><iconify-icon icon="tabler:caret-left-filled"></iconify-icon></span>
+        </div>
+        <div class="lbs back">
+          <span class="lb first"><span>คืนสินค้า</span></span><span class="sp"></span>
+          <span class="lb"><span>รับเข้าระบบ</span></span><span class="sp"></span>
+          <span class="lb cur"><span>กำลังส่ง</span></span><span class="sp"></span>
+          <span class="lb last"><span>ถึงร้านค้า</span></span>
+        </div>
+        <div class="trk2">
+          <iconify-icon icon="tabler:arrow-back-up"></iconify-icon>
+          ขากลับ <b>TH0119 8ZK4 2M</b>
+          <iconify-icon icon="tabler:copy" style="color:var(--d400)"></iconify-icon>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dev w340">
+    <div class="dev-h">คืนของ · ลูกค้าใช้ขนส่งเจ้าอื่น — 3 จุด</div>
+    <div class="body">
+      <div class="rail">
+        <div class="rw">
+          <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:circle-check"></iconify-icon></span>
+        </div>
+        <div class="lbs">
+          <span class="lb first"><span>รอส่งของ</span></span><span class="sp"></span>
+          <span class="lb"><span>รับเข้าระบบแล้ว</span></span><span class="sp"></span>
+          <span class="lb"><span>กำลังจัดส่ง</span></span><span class="sp"></span>
+          <span class="lb last"><span>ส่งสำเร็จ</span></span>
+        </div>
+        <div class="elbow ok"></div>
+        <div class="rw back dirwrap">
+          <span class="dot on"><iconify-icon icon="tabler:package-export"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot now-warn"><iconify-icon icon="tabler:truck-return"></iconify-icon></span>
+          <span class="seg"></span>
+          <span class="dot"><iconify-icon icon="tabler:building-store"></iconify-icon></span>
+          <span class="dir"><iconify-icon icon="tabler:caret-left-filled"></iconify-icon></span>
+        </div>
+        <div class="lbs back">
+          <span class="lb first"><span>คืนสินค้า</span></span><span class="sp"></span>
+          <span class="lb cur"><span>กำลังส่ง</span></span><span class="sp"></span>
+          <span class="lb last"><span>ถึงร้านค้า</span></span>
+        </div>
+        <div class="trk2">
+          <iconify-icon icon="tabler:arrow-back-up"></iconify-icon>
+          ขากลับ · Kerry <b>KEX1188 2201</b>
+        </div>
+        <p class="notice n-sec" style="margin-bottom:0">
+          <iconify-icon icon="tabler:info-circle" style="margin-top:1px"></iconify-icon>
+          <span>ขนส่งเจ้าอื่น — ระบบตามสถานะกลางทางให้ไม่ได้ อัปเดตเมื่อร้านกดรับของ</span>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="dev w340">
+    <div class="dev-h">คืนของ · ไม่มีเลขพัสดุเลย — 2 จุด</div>
+    <div class="body">
+      <div class="rail">
+        <div class="rw">
+          <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:circle-check"></iconify-icon></span>
+        </div>
+        <div class="lbs">
+          <span class="lb first"><span>รอส่งของ</span></span><span class="sp"></span>
+          <span class="lb"><span>รับเข้าระบบแล้ว</span></span><span class="sp"></span>
+          <span class="lb"><span>กำลังจัดส่ง</span></span><span class="sp"></span>
+          <span class="lb last"><span>ส่งสำเร็จ</span></span>
+        </div>
+        <div class="elbow ok"></div>
+        <div class="rw back dirwrap">
+          <span class="dot on"><iconify-icon icon="tabler:package-export"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:building-store"></iconify-icon></span>
+          <span class="dir ok"><iconify-icon icon="tabler:caret-left-filled"></iconify-icon></span>
+        </div>
+        <div class="lbs back">
+          <span class="lb first"><span>คืนสินค้า</span></span>
+          <span class="sp"></span>
+          <span class="lb last cur"><span>ถึงร้านค้า</span></span>
+        </div>
+        <p class="notice n-sec" style="margin-bottom:0">
+          <iconify-icon icon="tabler:info-circle" style="margin-top:1px"></iconify-icon>
+          <span>ลูกค้าส่งคืนโดยไม่แจ้งเลขพัสดุ — ไม่ใช่ข้อผิดพลาด ปิดงานได้ตามปกติ</span>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2><span class="n">4</span>แถบจิ๋วในตาราง /orders — แถวเดียวเสมอ จุดที่ 4 ยุบ 2 แถวเป็น “ผลลัพธ์ของทั้งเรื่อง” (Q20B)</h2>
+<p class="note">
+  ตารางมีค่าตรงที่กวาด 30 แถวได้ในสายตาเดียว ⇒ แถวสูงไม่เท่ากันทำลายข้อนั้น
+  จุดที่ 4 จึงตอบ “<b>จบยังไง</b>” ไม่ใช่ “ขาไปจบยังไง” · ไอคอน <code>arrow-back-up</code> แยกจาก <code>circle-check</code> ด้วย<b>รูปร่าง</b> ไม่ใช่แค่สี (WCAG 1.4.1)
+</p>
+<div class="dev" style="width:100%;max-width:900px">
+  <div class="dev-h">เดสก์ท็อป · คอลัมน์ “พัสดุ” — 4 แถวติดกันเพื่อเทียบ</div>
+  <table class="tbl">
+    <thead><tr><th style="width:150px">เลขพัสดุ</th><th style="width:130px">สถานะพัสดุ</th><th>ความหมาย</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="num">TH2004 91PD 2N6D</td>
+        <td>
+          <div class="rail sm"><div class="rw">
+            <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span><span class="seg on"></span>
+            <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span><span class="seg on"></span>
+            <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span><span class="seg on"></span>
+            <span class="dot on"><iconify-icon icon="tabler:circle-check"></iconify-icon></span>
+          </div></div>
+        </td>
+        <td style="font-size:11.5px;color:var(--d700)">ส่งถึงลูกค้าแล้ว — เขียว + เครื่องหมายถูก</td>
+      </tr>
+      <tr>
+        <td class="num">TH6504 915C 3K3F</td>
+        <td>
+          <div class="rail sm"><div class="rw">
+            <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span><span class="seg on"></span>
+            <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span><span class="seg on"></span>
+            <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span><span class="seg on"></span>
+            <span class="dot on"><iconify-icon icon="tabler:arrow-back-up"></iconify-icon></span>
+          </div></div>
+        </td>
+        <td style="font-size:11.5px;color:var(--d700)"><b>ตีกลับ &amp; ถึงร้านแล้ว</b> — เขียว (มติ Q3) + <b>ลูกศรย้อน</b> คือสิ่งเดียวที่แยกจากแถวบน</td>
+      </tr>
+      <tr>
+        <td class="num">TH0623 1128 5808</td>
+        <td>
+          <div class="rail sm"><div class="rw">
+            <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span><span class="seg on"></span>
+            <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span><span class="seg on"></span>
+            <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span><span class="seg warn"></span>
+            <span class="dot now-warn"><iconify-icon icon="tabler:arrow-back-up"></iconify-icon></span>
+          </div></div>
+        </td>
+        <td style="font-size:11.5px;color:var(--d700)">ยังตีกลับอยู่ ยังไม่ถึงร้าน — ส้ม + ลูกศรย้อน</td>
+      </tr>
+      <tr>
+        <td class="num">TH3106 91N7 R86B</td>
+        <td>
+          <div class="rail sm"><div class="rw">
+            <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span><span class="seg on"></span>
+            <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span><span class="seg on"></span>
+            <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span><span class="seg on"></span>
+            <span class="dot now-danger"><iconify-icon icon="tabler:alert-triangle"></iconify-icon></span>
+          </div></div>
+        </td>
+        <td style="font-size:11.5px;color:var(--d700)">พัสดุมีปัญหา — แดง + สามเหลี่ยม</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2><span class="n">5</span>มือถือ 360px — การ์ดออเดอร์ + hover panel 288px</h2>
+<p class="note">
+  จุดที่ต้องพิสูจน์: คำไทยใต้จุด 4 จุดที่ความกว้าง <b>288px</b> (panel ของ MiniShipmentTimeline) ตกบรรทัดไหม —
+  ระยะห่างต่อจุด ≈ 53px และคำที่ยาวสุด “รับเข้าระบบแล้ว” ≈ 60px ⇒ <b>ชนกันเล็กน้อย</b> เป็นจุดที่ต้องให้ ux ตัดสิน
+</p>
+<div class="grid">
+  <div class="dev w288">
+    <div class="dev-h">hover panel 288px — ตีกลับถึงร้าน</div>
+    <div class="body" style="padding:12px">
+      <div class="rail sm">
+        <div class="rw">
+          <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span><span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span><span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span><span class="seg warn"></span>
+          <span class="dot now-warn"><iconify-icon icon="tabler:package-off"></iconify-icon></span>
+        </div>
+        <div class="lbs">
+          <span class="lb first"><span>รอส่งของ</span></span><span class="sp"></span>
+          <span class="lb"><span>รับเข้าระบบ</span></span><span class="sp"></span>
+          <span class="lb"><span>กำลังจัดส่ง</span></span><span class="sp"></span>
+          <span class="lb last"><span>ส่งไม่สำเร็จ</span></span>
+        </div>
+        <div class="elbow"></div>
+        <div class="rw back dirwrap">
+          <span class="dot on"><iconify-icon icon="tabler:truck-return"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:building-store"></iconify-icon></span>
+          <span class="dir ok"><iconify-icon icon="tabler:caret-left-filled"></iconify-icon></span>
+        </div>
+        <div class="lbs back">
+          <span class="lb first"><span>กำลังตีกลับ</span></span><span class="sp"></span>
+          <span class="lb last cur"><span>ถึงร้านค้า</span></span>
+        </div>
+      </div>
+      <p class="note" style="margin:10px 0 0;font-size:10.5px">
+        ↑ ที่ 288px ป้ายกลางถูกย่อเป็น “รับเข้าระบบ” (ตัด “แล้ว”) — <b>ต้องให้ ux ยืนยันว่าย่อได้ไหม</b>
+        หรือใช้ป้ายชุดสั้นเฉพาะ panel แคบ
+      </p>
+    </div>
+  </div>
+
+  <div class="dev w360">
+    <div class="dev-h">มือถือ 360px — การ์ดออเดอร์ (ในหน้า /orders)</div>
+    <div class="body" style="padding:12px;background:var(--body)">
+      <div class="dev" style="box-shadow:none;border:1px solid var(--d200)">
+        <div class="body" style="padding:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <span style="font-size:12px;font-weight:600">#OD2569-0841</span>
+            <span class="pill" style="background:rgba(249,191,89,.15);color:var(--warning-ink)">ตีกลับ</span>
+          </div>
+          <div class="hd" style="margin-bottom:12px">
+            <div class="logo" style="width:34px;height:34px;font-size:8px">FLASH</div>
+            <div>
+              <p class="co" style="font-size:10.5px">Flash Thunder</p>
+              <p class="tn" style="font-size:12px">TH6504915C3K3F</p>
+            </div>
+          </div>
+          <div class="rail sm">
+            <div class="rw">
+              <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span><span class="seg on"></span>
+              <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span><span class="seg on"></span>
+              <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span><span class="seg warn"></span>
+              <span class="dot now-warn"><iconify-icon icon="tabler:package-off"></iconify-icon></span>
+            </div>
+            <div class="lbs">
+              <span class="lb first"><span>รอส่งของ</span></span><span class="sp"></span>
+              <span class="lb"><span>รับเข้าระบบ</span></span><span class="sp"></span>
+              <span class="lb"><span>กำลังจัดส่ง</span></span><span class="sp"></span>
+              <span class="lb last"><span>ส่งไม่สำเร็จ</span></span>
+            </div>
+            <div class="elbow"></div>
+            <div class="rw back dirwrap">
+              <span class="dot on"><iconify-icon icon="tabler:truck-return"></iconify-icon></span>
+              <span class="seg on"></span>
+              <span class="dot on"><iconify-icon icon="tabler:building-store"></iconify-icon></span>
+              <span class="dir ok"><iconify-icon icon="tabler:caret-left-filled"></iconify-icon></span>
+            </div>
+            <div class="lbs back">
+              <span class="lb first"><span>กำลังตีกลับ</span></span><span class="sp"></span>
+              <span class="lb last cur"><span>ถึงร้านค้า</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2><span class="n">6</span>ฝั่งผู้ซื้อ /o/[token] — Vuexy · คำต่างเฉพาะแถว 2 (Q22A + Q23A)</h2>
+<p class="note">
+  ผู้ซื้อต้องเห็น เพราะ <b>00055 นับใบที่ตีกลับเป็นสถิติของเขาอยู่แล้ว</b> — การไม่แสดงคือการตัดสินลับหลัง
+  และผู้ซื้อที่ตีกลับเพราะที่อยู่ผิดจะไปทวงร้านว่าของหาย · <b>แถว 1 ใช้คำเดียวกับร้านทุกจุด</b> ต่างแค่ 4 คำของแถว 2 ที่มีคำว่า “ร้าน” อยู่ในนั้น
+</p>
+<div class="grid">
+  <div class="dev vux w420">
+    <div class="dev-h">ผู้ซื้อ — พัสดุตีกลับ</div>
+    <div class="body">
+      <div class="hd" style="margin-bottom:16px">
+        <div class="logo">FLASH</div>
+        <div>
+          <p class="co">Flash Thunder</p>
+          <p class="tn">TH6504915C3K3F <span class="cp"><iconify-icon icon="tabler:copy"></iconify-icon></span></p>
+        </div>
+      </div>
+      <div class="rail">
+        <div class="rw">
+          <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span><span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span><span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span><span class="seg warn"></span>
+          <span class="dot now-warn"><iconify-icon icon="tabler:package-off"></iconify-icon></span>
+        </div>
+        <div class="lbs">
+          <span class="lb first"><span>รอส่งของ</span></span><span class="sp"></span>
+          <span class="lb"><span>รับเข้าระบบแล้ว</span></span><span class="sp"></span>
+          <span class="lb"><span>กำลังจัดส่ง</span></span><span class="sp"></span>
+          <span class="lb last"><span>ส่งไม่สำเร็จ</span></span>
+        </div>
+        <div class="elbow"></div>
+        <div class="rw back dirwrap">
+          <span class="dot on"><iconify-icon icon="tabler:truck-return"></iconify-icon></span>
+          <span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:building-store"></iconify-icon></span>
+          <span class="dir ok"><iconify-icon icon="tabler:caret-left-filled"></iconify-icon></span>
+        </div>
+        <div class="lbs back">
+          <span class="lb first"><span>กำลังส่งกลับร้าน</span></span><span class="sp"></span>
+          <span class="lb last cur"><span>ร้านได้รับคืนแล้ว</span></span>
+        </div>
+        <p class="notice n-sec" style="margin-bottom:0">
+          <iconify-icon icon="tabler:info-circle" style="margin-top:1px"></iconify-icon>
+          <span>พัสดุส่งไม่สำเร็จและถูกส่งกลับไปที่ร้านแล้ว — ติดต่อร้านเพื่อนัดส่งใหม่หรือขอเงินคืน</span>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="dev vux w420">
+    <div class="dev-h">ผู้ซื้อ — ของที่ตัวเองส่งคืน</div>
+    <div class="body">
+      <div class="rail">
+        <div class="rw">
+          <span class="dot on"><iconify-icon icon="tabler:package"></iconify-icon></span><span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span><span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span><span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:circle-check"></iconify-icon></span>
+        </div>
+        <div class="lbs">
+          <span class="lb first"><span>รอส่งของ</span></span><span class="sp"></span>
+          <span class="lb"><span>รับเข้าระบบแล้ว</span></span><span class="sp"></span>
+          <span class="lb"><span>กำลังจัดส่ง</span></span><span class="sp"></span>
+          <span class="lb last"><span>ส่งสำเร็จ</span></span>
+        </div>
+        <div class="elbow ok"></div>
+        <div class="rw back dirwrap">
+          <span class="dot on"><iconify-icon icon="tabler:package-export"></iconify-icon></span><span class="seg on"></span>
+          <span class="dot on"><iconify-icon icon="tabler:package-import"></iconify-icon></span><span class="seg on"></span>
+          <span class="dot now-warn"><iconify-icon icon="tabler:truck-return"></iconify-icon></span><span class="seg"></span>
+          <span class="dot"><iconify-icon icon="tabler:building-store"></iconify-icon></span>
+          <span class="dir"><iconify-icon icon="tabler:caret-left-filled"></iconify-icon></span>
+        </div>
+        <div class="lbs back">
+          <span class="lb first"><span>คุณส่งคืน</span></span><span class="sp"></span>
+          <span class="lb"><span>รับเข้าระบบ</span></span><span class="sp"></span>
+          <span class="lb cur"><span>กำลังส่ง</span></span><span class="sp"></span>
+          <span class="lb last"><span>ร้านได้รับแล้ว</span></span>
+        </div>
+        <div class="trk2"><iconify-icon icon="tabler:arrow-back-up"></iconify-icon> ขากลับ <b>TH0119 8ZK4 2M</b></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<h2><span class="n">7</span>สิ่งที่ยังต้องเคาะ</h2>
+<p class="note">
+  1. <b>Q27 ไอคอน</b> — ในม็อกอัพนี้ใช้ชุด A ทั้งหมด: <code>package-off</code> (ส่งไม่สำเร็จ) · <code>truck-return</code> (กำลังตีกลับ/กำลังส่งขากลับ) · <code>package-export</code> (คืนสินค้า) · <code>building-store</code> (ถึงร้านค้า)<br>
+  2. <b>ป้ายที่ 288px</b> — ในม็อกอัพย่อ “รับเข้าระบบแล้ว” เป็น “รับเข้าระบบ” เพื่อไม่ให้ชนกัน · รอ ux ตัดสินว่าย่อได้ หรือต้องมีชุดคำสั้นแยก<br>
+  3. <b>ลูกศร ◀</b> — ใช้ <code>tabler:caret-left-filled</code> วางทับกลางเส้น มีพื้นหลังสีการ์ดคั่น · ต้องเช็คว่าบนพื้นการ์ดสีอื่น (มือถือวางบน body) ยังคั่นเนียนไหม
+</p>
+
+</div>
+</body>
+</html>

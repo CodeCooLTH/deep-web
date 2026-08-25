@@ -574,6 +574,8 @@ export default function OrderProgressBar({
                         <ShipmentStepper
                           shipmentStatus={sh.status}
                           carrierStatus={sh.carrierStatus ?? null}
+                          returnStartedAt={sh.returnStartedAt ?? null}
+                          returnedAt={sh.returnedAt ?? null}
                           size="sm"
                           showNotice={false}
                         />

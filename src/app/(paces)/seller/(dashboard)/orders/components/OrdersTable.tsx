@@ -539,6 +539,8 @@ export default function OrdersTable({
                   stage={row.original.shippingStage}
                   carrierStatus={s!.carrierStatus}
                   shipmentStatus={s!.status}
+                  returnStartedAt={s!.returnStartedAt}
+                  returnedAt={s!.returnedAt}
                   shipmentId={s!.provider === 'ISHIP' ? (s!.id ?? null) : null}
                   trackingNo={s!.trackingNo}
                   courierName={s!.courierName ?? s!.courierCode}
@@ -587,6 +589,8 @@ export default function OrdersTable({
                       stage={row.original.shippingStage}
                       carrierStatus={s!.carrierStatus}
                       shipmentStatus={s!.status}
+                      returnStartedAt={s!.returnStartedAt}
+                      returnedAt={s!.returnedAt}
                       hasShipment={Boolean(s!.trackingNo)}
                       cancelled={row.original.status === 'CANCELLED'}
                       plain

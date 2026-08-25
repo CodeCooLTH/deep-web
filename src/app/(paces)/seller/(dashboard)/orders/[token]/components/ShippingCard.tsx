@@ -24,6 +24,9 @@ import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
+import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
+import ShipmentRail from '@/components/safepay/iship/ShipmentRail'
+import { shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
 import { sortTracesNewestFirst } from '@/lib/iship/traces'
 
 /** เหตุการณ์ที่ /api/seller/iship/shipments/[id]/traces คืนมา */
@@ -47,6 +50,9 @@ export type ShippingCardProps = {
     isDryRun: boolean
     /** เหตุการณ์ล่าสุดที่ server มีอยู่แล้ว — ไม่ต้องรอ fetch ถึงจะเห็นอะไร */
     lastTracedAtISO: string | null
+    /** เวลาของ "ขากลับ" — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" */
+    returnStartedAtISO?: string | null
+    returnedAtISO?: string | null
   } | null
   /** เลขพัสดุที่ร้านพิมพ์เอง (ShipmentTracking) — คนละตารางกับ iShip โดยสิ้นเชิง */
   manual: { provider: string | null; trackingNo: string; shippedAtISO: string | null } | null
@@ -64,6 +70,19 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
   const trackingNo = iship?.trackingNo ?? manual?.trackingNo ?? null
   const logo = courierLogoUrl(courierCode, courierName)
   const progress = iship ? describeProgress(iship.status, iship.carrierStatus) : null
+  /** แถวที่ 2 ("ขากลับ") — null = ออเดอร์ปกติ ไม่วาดแถว 2 เลย */
+  const leg = describeReturnLeg({
+    audience: 'seller',
+    carrierStatus: iship?.carrierStatus,
+    returnStartedAt: iship?.returnStartedAtISO,
+    returnedAt: iship?.returnedAtISO,
+  })
+  const railLastIdx = SHIPMENT_STAGES.length - 1
+  const railCurrentLabel = progress
+    ? progress.stage === railLastIdx
+      ? (progress.lastLabel ?? SHIPMENT_STAGES[railLastIdx].label)
+      : SHIPMENT_STAGES[Math.max(0, Math.min(progress.stage, railLastIdx))].label
+    : ''
 
   const handleCopy = async () => {
     if (!trackingNo) return
@@ -224,61 +243,17 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
                 ให้ป้ายกึ่งกลางใต้จุดของตัวเองเป๊ะ — ป้ายแรกชิดซ้าย ป้ายสุดท้ายชิดขวา
                 กันตัวหนังสือล้นออกนอกการ์ด */}
             <div className="mt-5">
-              <div className="flex items-center">
-                {SHIPMENT_STAGES.map((s, i) => {
-                  const reached = i <= progress.stage
-                  return (
-                    <Fragment key={s.label}>
-                      {i > 0 && (
-                        <span className={cn('h-0.5 flex-1', reached ? 'bg-success' : 'bg-default-200')} />
-                      )}
-                      <span
-                        className={cn(
-                          'flex size-8 shrink-0 items-center justify-center rounded-full',
-                          i === progress.stage
-                            ? 'bg-primary text-white'
-                            : reached
-                              ? 'bg-success text-white'
-                              : 'bg-default-100 text-default-500',
-                        )}
-                      >
-                        <Icon
-                          icon={
-                            i === SHIPMENT_STAGES.length - 1 ? (progress.lastIcon ?? s.icon) : s.icon
-                          }
-                          className="text-base"
-                          aria-hidden="true"
-                        />
-                      </span>
-                    </Fragment>
-                  )
-                })}
-              </div>
-              <div className="mt-1.5 flex items-start">
-                {SHIPMENT_STAGES.map((s, i) => {
-                  const isLast = i === SHIPMENT_STAGES.length - 1
-                  return (
-                    <Fragment key={s.label}>
-                      {i > 0 && <span className="flex-1" />}
-                      <span
-                        className={cn(
-                          'flex w-8 shrink-0',
-                          i === 0 ? 'justify-start' : isLast ? 'justify-end' : 'justify-center',
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            'text-2xs leading-tight whitespace-nowrap',
-                            i === progress.stage ? 'text-default-900 font-semibold' : 'text-default-700',
-                          )}
-                        >
-                          {isLast ? (progress.lastLabel ?? s.label) : s.label}
-                        </span>
-                      </span>
-                    </Fragment>
-                  )
-                })}
-              </div>
+              <ShipmentRail
+                stage={progress.stage}
+                lastLabel={progress.lastLabel}
+                lastIcon={progress.lastIcon}
+                /* 🛑 เดิมจอนี้ hardcode `bg-primary` ให้จุดปัจจุบัน ซึ่งเป็นบั๊กเดียวกับที่
+                   `shipmentCurrentDotCls` ถูกสร้างมาแก้ (พัสดุที่ตีกลับกับพัสดุที่ส่งถึงได้
+                   จุดสีเดียวกันที่ตำแหน่งเดียวกัน) — จอนี้เป็นตัวสุดท้ายที่ยังค้างอยู่ */
+                currentDotCls={shipmentCurrentDotCls(progress.notice)}
+                leg={leg}
+                ariaLabel={railAriaLabel(railCurrentLabel, leg)}
+              />
             </div>
 
             {progress.notice && (

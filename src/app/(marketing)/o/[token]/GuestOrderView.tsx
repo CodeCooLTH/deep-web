@@ -344,6 +344,8 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                 <ParcelTimeline
                   stage={stage}
                   carrierStatus={order.carrierStatus}
+                  returnStartedAt={order.returnStartedAt}
+                  returnedAt={order.returnedAt}
                   hasShipment
                   tracking={order.shipmentTracking}
                 />

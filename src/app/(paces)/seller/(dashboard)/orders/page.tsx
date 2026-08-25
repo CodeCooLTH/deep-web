@@ -266,6 +266,10 @@ export default async function OrdersPage({ searchParams }: PageProps) {
             // ซึ่งหยาบกว่า (6 ค่า) แล้วพูดคนละขั้นกับจอข้างในบนออเดอร์ใบเดียวกัน (HR16)
             carrierStatus: o.shipments[0].carrierStatus ?? null,
             status: o.shipments[0].status ?? 'CREATED',
+            // เวลาของ "ขากลับ" — Date ข้ามเส้น RSC ตรง ๆ ไม่ได้ ต้องเป็นสตริง
+            // null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" (แถบตัดสินจุดจาก carrierStatus)
+            returnStartedAt: o.shipments[0].returnStartedAt?.toISOString() ?? null,
+            returnedAt: o.shipments[0].returnedAt?.toISOString() ?? null,
           }
         : o.shipmentTracking
           ? {
@@ -279,6 +283,10 @@ export default async function OrdersPage({ searchParams }: PageProps) {
               // ปลายทางจะถอยไปใช้ SHIPMENT_STAGE_DOT_INDEX (หยาบแต่เป็นข้อมูลเท่าที่มีจริง)
               carrierStatus: null,
               status: 'CREATED',
+              // ร้านแจ้งเลขเอง = ไม่มีใครคอยบอกว่าพัสดุตีกลับ ⇒ ไม่มีทางมีเวลาขากลับ
+              // (แถว 2 จะไม่โผล่เลยสำหรับใบพวกนี้ ซึ่งถูกแล้ว — เราไม่รู้จริง ๆ)
+              returnStartedAt: null,
+              returnedAt: null,
             }
           : null,
     // นัดหมาย (feature 00036) — undefined = ร้านไม่มีแกนนี้, null = ร้านมีแกนแต่ใบนี้ walk-in

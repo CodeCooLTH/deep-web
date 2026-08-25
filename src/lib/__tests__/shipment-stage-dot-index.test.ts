@@ -19,6 +19,7 @@ import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 
 import { SHIPMENT_STAGES, describeProgress } from '../iship/status'
+import { describeReturnLeg } from '../iship/return-timeline'
 import { SHIPMENT_STAGE_DOT_INDEX, type ShippingStageKey } from '../order-stage'
 
 const ALL_STAGES: ShippingStageKey[] = [
@@ -135,8 +136,35 @@ describe('describeProgress = SSOT ของแถบ 4 จุด', () => {
     expect(p.notice?.text).toBeTruthy()
   })
 
-  it('[blocker] กำลังตีกลับ (return) อยู่คนละจุดกับตีกลับสำเร็จ', () => {
-    expect(describeProgress('CREATED', 'return').stage).not.toBe(
+  /**
+   * 🛑 เจตนาเดิมยังอยู่ครบ แต่ **กลไกย้ายที่** (2026-08-25 — ไทม์ไลน์ 2 แถว)
+   *
+   * เดิม: แถบมีแถวเดียว ⇒ "กำลังตีกลับ" กับ "ตีกลับสำเร็จ" ต้องแยกกันด้วย *ตำแหน่งบนแถวนั้น*
+   *      (จุด 2 vs จุด 3) เพราะไม่มีที่อื่นให้แยก
+   * ตอนนี้: ทั้งคู่อยู่จุดที่ 4 ของแถว 1 เหมือนกัน **และนั่นคือคำตอบที่ถูก** — จุดนั้นตอบแค่ว่า
+   *      *ขาไป* จบยังไง ซึ่งทั้งสองเคสจบเหมือนกันเป๊ะคือ "ส่งไม่สำเร็จ"
+   *      สิ่งที่ต่างกัน (กลับถึงร้านหรือยัง) ย้ายไปอยู่บน **แถวที่ 2** ซึ่งมีที่ให้เล่าจริง ๆ
+   *
+   * เทสจึงยังบังคับเรื่องเดิม: **สองสถานะนี้ต้องแยกออกจากกันได้เสมอ** แค่ไปวัดที่ที่มันอยู่จริง
+   * ถ้าวันหนึ่งใครทำให้แถว 2 ของสองเคสนี้เหมือนกัน อาการเดิมจะกลับมาทันที (พัสดุที่ยังอยู่
+   * ระหว่างทางกลับ อ่านเหมือนพัสดุที่กองอยู่ที่ร้านแล้ว)
+   */
+  it('[blocker] กำลังตีกลับ (return) ต้องแยกจากตีกลับสำเร็จได้ — ที่แถวที่ 2', () => {
+    const going = describeReturnLeg({ audience: 'seller', carrierStatus: 'return' })
+    const arrived = describeReturnLeg({ audience: 'seller', carrierStatus: 'return_success' })
+    expect(going, 'return ต้องมีแถว 2').not.toBeNull()
+    expect(arrived, 'return_success ต้องมีแถว 2').not.toBeNull()
+    expect(going!.stage).not.toBe(arrived!.stage)
+    // และปลายทางต้องสว่างเฉพาะใบที่ถึงจริง
+    expect(arrived!.stage).toBe(arrived!.dots.length - 1)
+    expect(going!.stage).toBeLessThan(going!.dots.length - 1)
+  })
+
+  it('[blocker] ทั้งสองเคสจบขาไปเหมือนกัน — จุดที่ 4 ของแถว 1 ต้องพูดคำเดียวกัน', () => {
+    expect(describeProgress('CREATED', 'return').lastLabel).toBe(
+      describeProgress('CREATED', 'return_success').lastLabel,
+    )
+    expect(describeProgress('CREATED', 'return').stage).toBe(
       describeProgress('CREATED', 'return_success').stage,
     )
   })

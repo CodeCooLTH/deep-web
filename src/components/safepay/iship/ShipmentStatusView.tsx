@@ -18,7 +18,9 @@ import { formatDateTime, formatRelativeDayTime } from '@/lib/format-date'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { classifyRetryUX } from '@/lib/iship/errors'
 import { sortTracesNewestFirst } from '@/lib/iship/traces'
-import { TONE_BADGE, NOTICE_BOX } from './tone'
+import { TONE_BADGE, NOTICE_BOX, shipmentCurrentDotCls } from './tone'
+import ShipmentRail from './ShipmentRail'
+import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
 import {
   SHIPMENT_STAGES,
   describeCarrierStatus,
@@ -102,20 +104,6 @@ async function readError(res: Response): Promise<string> {
  * ต้องเขียน class เต็มตัวทุกอัน — Tailwind สแกนซอร์สแบบข้อความ
  * `bg-${tone}/15` จะไม่ถูกสร้าง แล้ว badge จะออกมาไม่มีสีโดยไม่มี error ให้เห็น
  */
-const STAGE_DOT: Record<string, string> = {
-  progress: 'bg-primary text-white',
-  delivered: 'bg-success text-white',
-  diverted: 'bg-default-300 text-white',
-  stopped: 'bg-default-100 text-default-400',
-}
-
-const STAGE_LINE: Record<string, string> = {
-  progress: 'bg-primary',
-  delivered: 'bg-success',
-  diverted: 'bg-default-300',
-  stopped: 'bg-default-200',
-}
-
 function StatRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-dashed border-default-200 py-2 text-sm last:border-0">
@@ -180,6 +168,22 @@ export default function ShipmentStatusView({
   /** ความจริงล่าสุดของ "พัสดุใบนี้อยู่สถานะไหน" — ทุกจุดในไฟล์นี้ต้องอ่านจากตัวนี้ */
   const carrier: TraceCarrierState = liveCarrier ?? shipment
   const progress = describeProgress(carrier.status, carrier.carrierStatus)
+  /**
+   * แถวที่ 2 ("ขากลับ") — อ่านเวลาจาก `shipment` (prop) ไม่ใช่จาก `carrier` (ค่าที่ traces
+   * ส่งกลับมา) เพราะ endpoint นั้นคืนเฉพาะสถานะ ไม่ได้คืนเวลาขากลับ · จุดสว่างยังตัดสินจาก
+   * `carrier.carrierStatus` ซึ่งสดกว่าเสมอ ⇒ ใบที่เพิ่งตีกลับจะขึ้นจุดถูกทันที แค่ยังไม่มีเวลา
+   */
+  const leg = describeReturnLeg({
+    audience: 'seller',
+    carrierStatus: carrier.carrierStatus,
+    returnStartedAt: shipment.returnStartedAt,
+    returnedAt: shipment.returnedAt,
+  })
+  const railLastIdx = SHIPMENT_STAGES.length - 1
+  const railCurrentLabel =
+    progress.stage === railLastIdx
+      ? (progress.lastLabel ?? SHIPMENT_STAGES[railLastIdx].label)
+      : SHIPMENT_STAGES[Math.max(0, Math.min(progress.stage, railLastIdx))].label
 
   async function handleRetry() {
     if (busy) return
@@ -657,40 +661,19 @@ export default function ShipmentStatusView({
           </p>
         )}
 
-        <ol className="mt-4 grid list-none grid-cols-4 ps-0">
-          {SHIPMENT_STAGES.map((s, i) => {
-            const reached = i <= progress.stage
-            const isLast = i === SHIPMENT_STAGES.length - 1
-            return (
-              <li key={s.label} className="flex flex-col items-center gap-1.5">
-                <div className="flex w-full items-center">
-                  {/* เส้นเชื่อมซ้าย/ขวาของแต่ละจุด — ครึ่งซ้ายของจุดแรกและครึ่งขวาของจุดสุดท้าย
-                      ต้องโปร่ง ไม่งั้นแถบจะยื่นเลยจุดปลายออกไปทั้งสองข้าง */}
-                  <span
-                    className={`h-0.5 flex-1 ${i === 0 ? 'bg-transparent' : reached ? STAGE_LINE[progress.tone] : 'bg-default-200'}`}
-                  />
-                  <span
-                    className={`flex size-8 shrink-0 items-center justify-center rounded-full ${
-                      reached ? STAGE_DOT[progress.tone] : 'bg-default-100 text-default-400'
-                    }`}
-                  >
-                    <Icon icon={s.icon} className="text-base" aria-hidden="true" />
-                  </span>
-                  <span
-                    className={`h-0.5 flex-1 ${isLast ? 'bg-transparent' : i < progress.stage ? STAGE_LINE[progress.tone] : 'bg-default-200'}`}
-                  />
-                </div>
-                <span
-                  className={`text-center text-2xs leading-tight ${
-                    i === progress.stage ? 'font-semibold text-default-900' : 'text-default-700'
-                  }`}
-                >
-                  {isLast ? (progress.lastLabel ?? s.label) : s.label}
-                </span>
-              </li>
-            )
-          })}
-        </ol>
+        {/* แถบ 2 แถว (ขาไป + ขากลับ) — markup อยู่ใน ShipmentRail ตัวกลางที่ทุกจอ Paces ใช้ร่วม
+            เดิมตรงนี้เป็น <ol className="grid grid-cols-4"> ของตัวเอง ⇒ พอเพิ่มแถว 2 จะกลายเป็น
+            โค้ดชุดที่ 4 ที่วาดเรื่องเดียวกัน (คลาสเดียวกับที่ ParcelTimeline เคย drift) */}
+        <div className="mt-4">
+          <ShipmentRail
+            stage={progress.stage}
+            lastLabel={progress.lastLabel}
+            lastIcon={progress.lastIcon}
+            currentDotCls={shipmentCurrentDotCls(progress.notice)}
+            leg={leg}
+            ariaLabel={railAriaLabel(railCurrentLabel, leg)}
+          />
+        </div>
 
         {progress.notice && (
           <p

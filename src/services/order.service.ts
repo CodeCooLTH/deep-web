@@ -1255,7 +1255,11 @@ export async function getOrderByToken(publicToken: string) {
         // feature 00041 — เพิ่ม carrierStatus: หน้าผู้ซื้อต้องคำนวณขั้นสถานะพัสดุด้วย
         // deriveShippingStage() ตัวเดียวกับฝั่งร้าน (BR-BOE-12) ซึ่งต้องการ field นี้
         // เดิมไม่ได้ select มา ⇒ ผู้ซื้อเห็นแค่ "กำลังจัดส่ง" ค้างอยู่ตลอดแม้พัสดุจะเคลื่อนไปแล้ว
-        select: { trackingNo: true, courierName: true, courierCode: true, carrierStatus: true },
+        select: {
+          trackingNo: true, courierName: true, courierCode: true, carrierStatus: true,
+          // แถวที่ 2 ของไทม์ไลน์ฝั่งผู้ซื้อ ("ขากลับ") — null = ขนส่งไม่ได้แจ้งเวลา
+          returnStartedAt: true, returnedAt: true,
+        },
         orderBy: { createdAt: 'desc' },
         take: 1,
       },

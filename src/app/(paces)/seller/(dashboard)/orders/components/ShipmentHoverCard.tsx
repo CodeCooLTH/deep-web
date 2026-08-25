@@ -17,7 +17,7 @@
  *       panel 340px และ MiniShipmentTimeline (จุด/สี) สำหรับ stepper ด้านบน
  */
 
-import { Fragment, useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import HoverPanel from './HoverPanel'
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
@@ -25,6 +25,8 @@ import { TONE_DOT_SOLID, TONE_DOT_TINT } from '@/components/safepay/iship/tone'
 import { cn } from '@/utils/helpers'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { SHIPMENT_STAGES, describeCarrierStatus, describeProgress } from '@/lib/iship/status'
+import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
+import ShipmentRail from '@/components/safepay/iship/ShipmentRail'
 import { sortTracesNewestFirst } from '@/lib/iship/traces'
 import type { ShippingStageKey } from '@/lib/order-stage'
 import { NOTICE_BOX, shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
@@ -59,6 +61,14 @@ interface Props {
   carrierStatus?: string | null
   /** OrderShipment.status — คู่กับ carrierStatus เป็น input ของ describeProgress */
   shipmentStatus?: string
+  /**
+   * เวลาของ "ขากลับ" — แถวที่ 2 ของแถบอ่านจากสองช่องนี้ (2026-08-25)
+   *
+   * `null` = ขนส่งไม่ได้แจ้งเวลา **ไม่ใช่ "ไม่เกิด"** — จุดสว่างตัดสินจาก `carrierStatus`
+   * (6 จาก 12 ใบตีกลับบน prod ถึงร้านแล้วแต่ไม่มีเวลา เพราะสถานะมาจากรอบ poll)
+   */
+  returnStartedAt?: string | Date | null
+  returnedAt?: string | Date | null
   /** id ของ OrderShipment — null = พัสดุที่ร้านแจ้งเลขเอง (ไม่มี traces ให้ถาม) */
   shipmentId: string | null
   trackingNo: string | null
@@ -72,6 +82,8 @@ export default function ShipmentHoverCard({
   stage,
   carrierStatus,
   shipmentStatus,
+  returnStartedAt,
+  returnedAt,
   shipmentId,
   trackingNo,
   courierName,
@@ -137,25 +149,27 @@ export default function ShipmentHoverCard({
   const cur = rawCur != null && rawCur >= 0 ? rawCur : null
   /** สีจุดปัจจุบัน + คำขั้นสุดท้าย — SSOT ร่วมกับ MiniShipmentTimeline และ ShippingCard */
   const currentDot = shipmentCurrentDotCls(progress?.notice)
-  const stepLabel = (i: number) =>
-    i === SHIPMENT_STAGES.length - 1 ? (progress?.lastLabel ?? SHIPMENT_STAGES[i].label) : SHIPMENT_STAGES[i].label
-  const stepIcon = (i: number) =>
-    i === SHIPMENT_STAGES.length - 1 ? (progress?.lastIcon ?? SHIPMENT_STAGES[i].icon) : SHIPMENT_STAGES[i].icon
 
-  const dot = (i: number) => {
-    const reached = cur != null && i <= cur
-    const isCurrent = cur != null && i === cur
-    return (
-      <span
-        className={cn(
-          'flex size-8 shrink-0 items-center justify-center rounded-full',
-          isCurrent ? currentDot : reached ? 'bg-success text-white' : 'bg-default-100 text-default-500',
-        )}
-      >
-        <Icon icon={stepIcon(i)} className="text-base" aria-hidden="true" />
-      </span>
-    )
-  }
+  /**
+   * แถวที่ 2 ("ขากลับ") — `null` = ออเดอร์ปกติ ไม่วาดแถว 2 เลย
+   *
+   * 🛑 ยังไม่ส่ง `orderReturn` มา ⇒ การ์ดนี้เห็นเฉพาะเคส **ตีกลับ** ยังไม่เห็นเคส
+   * **คืนของ (00056)** เพราะหน้ารายการยังไม่ join `OrderReturn` เข้า query (บน prod มี
+   * 0 แถว จึงยังไม่คุ้มค่า join บนเส้นทางที่ร้อนที่สุด) — วันที่จะเปิด แก้ที่ query ที่เดียว
+   * ไม่ต้องแตะ UI เลย เพราะ `describeReturnLeg` รับทั้งสองกลไกด้วยรูปแบบเดียวกันอยู่แล้ว
+   */
+  const leg = describeReturnLeg({
+    audience: 'seller',
+    carrierStatus,
+    returnStartedAt,
+    returnedAt,
+  })
+
+  const lastIdx = SHIPMENT_STAGES.length - 1
+  const stepLabel = (i: number) =>
+    i === lastIdx ? (progress?.lastLabel ?? SHIPMENT_STAGES[i].label) : SHIPMENT_STAGES[i].label
+  /** คำของขั้นที่ยืนอยู่บนแถว 1 — ใช้ประกอบประโยคให้ screen reader */
+  const currentStepLabel = stepLabel(Math.min(cur ?? 0, lastIdx))
 
   return (
     <HoverPanel
@@ -206,44 +220,28 @@ export default function ShipmentHoverCard({
           </div>
         </div>
 
-        {/* stepper 4 ขั้น พร้อมคำกำกับใต้จุด */}
+        {/* แถบ 2 แถว (ขาไป + ขากลับ) — markup อยู่ใน ShipmentRail ตัวเดียวที่ทุกจอ Paces ใช้ร่วม */}
         {cur != null && (
           <div className="mt-3.5">
-            <div className="flex items-center">
-              {SHIPMENT_STAGES.map((s, i) => (
-                <Fragment key={s.label}>
-                  {i > 0 && (
-                    <span className={cn('h-0.5 flex-1', i <= cur ? 'bg-success' : 'bg-default-200')} />
-                  )}
-                  {dot(i)}
-                </Fragment>
-              ))}
-            </div>
-            <div className="mt-1.5 flex items-start">
-              {SHIPMENT_STAGES.map((s, i) => {
-                const isLast = i === SHIPMENT_STAGES.length - 1
-                return (
-                  <Fragment key={s.label}>
-                    {i > 0 && <span className="flex-1" />}
-                    <span
-                      className={cn(
-                        'flex w-8 shrink-0',
-                        i === 0 ? 'justify-start' : isLast ? 'justify-end' : 'justify-center',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'text-2xs leading-tight whitespace-nowrap',
-                          i === cur ? 'text-default-900 font-semibold' : 'text-default-700',
-                        )}
-                      >
-                        {stepLabel(i)}
-                      </span>
-                    </span>
-                  </Fragment>
-                )
-              })}
-            </div>
+            <ShipmentRail
+              stage={cur}
+              lastLabel={progress?.lastLabel}
+              lastIcon={progress?.lastIcon}
+              currentDotCls={currentDot}
+              leg={leg}
+              ariaLabel={railAriaLabel(currentStepLabel, leg)}
+            />
+
+            {/* เลขพัสดุขากลับ — อยู่ **ท้ายแถว 2** ติดกับแถบของมันเอง ไม่ใช่กองรวมที่หัวการ์ด
+                เลขพัสดุมีไว้เอาไปตามของ ⇒ ต้องอยู่ติดกับแถบที่บอกว่าของใบนั้นอยู่ไหน
+                เคสตีกลับใช้เลขเดิม จึงไม่โชว์เลขซ้ำ แต่ต้องมีป้ายบอก ไม่งั้นร้านจะนึกว่าระบบลืมออกให้ */}
+            {leg?.kind === 'BOUNCE' && (
+              <p className="text-default-500 text-2xs mt-2 mb-0 flex justify-end">
+                <span className="bg-default-200 text-default-700 rounded-full px-1.5 py-px font-semibold">
+                  เลขเดิม
+                </span>
+              </p>
+            )}
 
             {/* กล่องเตือนเมื่อออกนอกเส้นทางปกติ — ข้อความชุดเดียวกับหน้ารายละเอียด
                 เดิมการ์ดนี้ไม่มีเลย ⇒ ผู้ขายเห็นแต่จุดเปลี่ยนสี ไม่รู้ว่าต้องทำอะไรต่อ */}

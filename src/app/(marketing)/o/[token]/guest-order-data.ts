@@ -53,6 +53,8 @@ export type GuestOrderData = {
   shipmentTracking: { provider: string; trackingNo: string; courierCode: string | null } | null
   /** สถานะพัสดุจากขนส่ง — ใช้คำนวณ stage ด้วยตรรกะเดียวกับฝั่งร้าน (BR-BOE-12) */
   carrierStatus: string | null
+  returnStartedAt: string | null
+  returnedAt: string | null
   paymentMethod: string | null
   /** เห็นได้เฉพาะ 3 ตัวท้าย — null = ไม่แสดงแถวนี้เลย (ไม่ใช่ "ไม่ระบุ") */
   maskedPhone: string | null
@@ -110,6 +112,9 @@ type OrderLike = {
     courierName: string | null
     courierCode: string | null
     carrierStatus: string | null
+    /** เวลาของ "ขากลับ" — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" */
+    returnStartedAt: Date | null
+    returnedAt: Date | null
   }>
 }
 
@@ -209,6 +214,10 @@ export function buildGuestOrderData(
           }
         : null,
     carrierStatus: shipment?.carrierStatus ?? null,
+    // แถวที่ 2 ของไทม์ไลน์ฝั่งผู้ซื้อ — ผู้ซื้อต้องรู้ว่าของที่ส่งไม่ถึงกำลังกลับไปที่ร้าน
+    // หรือถึงแล้ว ก่อนจะไปทวงร้านว่าของหาย (feature 00055 นับใบตีกลับเป็นสถิติของเขาอยู่แล้ว)
+    returnStartedAt: shipment?.returnStartedAt?.toISOString() ?? null,
+    returnedAt: shipment?.returnedAt?.toISOString() ?? null,
     paymentMethod: order.paymentMethod ?? null,
     maskedPhone: maskPhoneForGuest(order.buyerContact),
     maskedShippingAddress: maskShippingAddressForGuest(

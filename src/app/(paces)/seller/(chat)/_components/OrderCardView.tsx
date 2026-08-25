@@ -34,6 +34,9 @@ export type OrderCardViewData = {
     courierCode?: string | null
     status?: string
     carrierStatus?: string | null
+    /** เวลาของ "ขากลับ" — แถวที่ 2 ของ stepper อ่านจากสองช่องนี้ (null = ขนส่งไม่ได้แจ้ง) */
+    returnStartedAt?: string | null
+    returnedAt?: string | null
   } | null
   /** 'SHIPPED' | 'NO_SHIPPING' — NO_SHIPPING = งานไม่มีการส่งของ ไม่แสดง stepper (ห้ามเช็ค Order.type
    *  — ดู src/lib/iship/eligibility.ts) · ไม่ส่งมา (caller เก่า) = ปฏิบัติเหมือน SHIPPED */
@@ -243,7 +246,13 @@ function ShipmentSection({ data }: { data: OrderCardViewData }) {
         )}
       </div>
       <div className="mt-1.5">
-        <ShipmentStepper shipmentStatus={sh.status ?? 'CREATED'} carrierStatus={sh.carrierStatus ?? null} size="md" />
+        <ShipmentStepper
+          shipmentStatus={sh.status ?? 'CREATED'}
+          carrierStatus={sh.carrierStatus ?? null}
+          returnStartedAt={sh.returnStartedAt ?? null}
+          returnedAt={sh.returnedAt ?? null}
+          size="md"
+        />
       </div>
       {awaitingCod && (
         <p className="bg-info/15 text-info-ink mb-0 mt-2 flex items-start gap-2 rounded-lg px-3 py-2 text-2xs">

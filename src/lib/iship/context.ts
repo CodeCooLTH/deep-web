@@ -90,6 +90,12 @@ export interface ShipmentViewJson {
   carrierStatus: string | null;
   carrierStatusText: string | null;
   carrierStatusAt: string | null;
+  /**
+   * เวลาของ "ขากลับ" — แถวที่ 2 ของแถบสถานะอ่านจากสองช่องนี้ (2026-08-25)
+   * `null` = ขนส่งไม่ได้แจ้งเวลา **ไม่ใช่ "ไม่เกิด"** — จุดสว่างตัดสินจาก `carrierStatus`
+   */
+  returnStartedAt: string | null;
+  returnedAt: string | null;
   isOverWeight: boolean;
   isOverSize: boolean;
   labelPrintedAt: string | null;
@@ -125,9 +131,11 @@ export interface ShipmentContextJson extends ShipmentContextBase {
 
 type ShipmentViewDates = Omit<
   ShipmentViewJson,
-  "carrierStatusAt" | "labelPrintedAt" | "createdAt"
+  "carrierStatusAt" | "labelPrintedAt" | "createdAt" | "returnStartedAt" | "returnedAt"
 > & {
   carrierStatusAt: Date | null;
+  returnStartedAt: Date | null;
+  returnedAt: Date | null;
   labelPrintedAt: Date | null;
   createdAt: Date;
 };
@@ -136,6 +144,8 @@ export function toShipmentViewJson(s: ShipmentViewDates): ShipmentViewJson {
   return {
     ...s,
     carrierStatusAt: s.carrierStatusAt?.toISOString() ?? null,
+    returnStartedAt: s.returnStartedAt?.toISOString() ?? null,
+    returnedAt: s.returnedAt?.toISOString() ?? null,
     labelPrintedAt: s.labelPrintedAt?.toISOString() ?? null,
     createdAt: s.createdAt.toISOString(),
   };

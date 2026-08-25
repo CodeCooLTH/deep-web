@@ -19,6 +19,8 @@ import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
 // ตารางจุดไฮไลต์ย้ายไปเป็น SSOT ที่ order-stage.ts แล้ว — ฝั่งผู้ซื้อ (ParcelTimeline) เคยเขียน
 // ตรรกะของตัวเองขึ้นมาใหม่แล้วแมปผิดทั้งชุด สองจอต้องอ่านจากตารางเดียวกันเท่านั้น
 import { SHIPMENT_STAGE_DOT_INDEX, SHIPPING_STAGE_LABEL, type ShippingStageKey } from '@/lib/order-stage'
+import { collapsedOutcome, describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
+import ShipmentRail from '@/components/safepay/iship/ShipmentRail'
 import { NOTICE_BOX, shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
 
 interface Props {
@@ -33,6 +35,9 @@ interface Props {
   carrierStatus?: string | null
   /** OrderShipment.status — คู่กับ carrierStatus เป็น input ของ describeProgress */
   shipmentStatus?: string
+  /** เวลาของ "ขากลับ" — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" (ดู data.ts) */
+  returnStartedAt?: string | Date | null
+  returnedAt?: string | Date | null
   /** มีพัสดุ/เลขแทรคจริงไหม — DONE ของออเดอร์ที่ไม่เคยมีพัสดุต้องไม่วาดแถบเขียวลอย ๆ */
   hasShipment: boolean
   /** ออเดอร์ยกเลิกแล้ว — ไม่วาด timeline (สถานะพัสดุไม่ใช่สาระของใบนั้นอีก) */
@@ -44,15 +49,30 @@ interface Props {
    * ไปวางตรงจุดจะได้ panel เล็กของตัวเองแทนการ์ดเต็มของพ่อ = สองอันแย่งกันบนจอเดียว
    */
   plain?: boolean
+  /**
+   * `inline` = วาดแถบเต็ม (2 แถว + คำใต้จุด) ลงในที่ตรงนั้นเลย ไม่ผ่าน hover
+   *
+   * 🛑 ใช้กับ **การ์ดออเดอร์บนมือถือ** — ที่นั่นเรียกตัวนี้แบบไม่ส่ง `plain` มาตลอด
+   * ⇒ ได้โหมดที่ห่อด้วย `HoverPanel` ซึ่ง **แตะไม่ได้บนมือถือเลย** (ไม่มี hover) จุดโชว์อยู่
+   * แต่กดยังไงก็ไม่ขึ้น panel — บั๊กที่มีอยู่ก่อนงานนี้ ไม่มีใครรายงานเพราะมันไม่ error
+   *
+   * เหตุผลที่การ์ดมือถือควรได้แถบเต็มไปเลย (ไม่ใช่แค่แถบจิ๋วแบบในตาราง): **การ์ดไม่ใช่ตาราง**
+   * มันมีที่เหลือเฟือและไม่มี hover ให้ใช้ตั้งแต่แรก · เคสตีกลับคือเคสที่ร้านต้องรีบตัดสินใจ
+   * การบังคับให้กดเข้าไปอีกชั้นบนอุปกรณ์ที่ใช้บ่อยที่สุดคือการซ่อนของสำคัญ
+   */
+  inline?: boolean
 }
 
 export default function MiniShipmentTimeline({
   stage,
   carrierStatus,
   shipmentStatus,
+  returnStartedAt,
+  returnedAt,
   hasShipment,
   cancelled,
   plain,
+  inline,
 }: Props) {
   /**
    * 🛑 ลำดับความน่าเชื่อถือ: ขนส่งบอกเอง > กองงานที่เราจัดให้
@@ -72,7 +92,17 @@ export default function MiniShipmentTimeline({
     return <span className="text-default-400 text-sm">—</span>
   }
 
-  /** คำใต้จุด — ขั้นสุดท้ายถูก override ได้ ("ส่งคืนสำเร็จ" ไม่ใช่ "จัดส่งสำเร็จ") */
+  /**
+   * แถวที่ 2 ("ขากลับ") — `null` = ออเดอร์ปกติ
+   *
+   * 🛑 **แถบจิ๋วในตารางไม่วาดแถว 2** (ตารางมีค่าตรงที่กวาด 30 แถวได้ในสายตาเดียว แถวสูง
+   * ไม่เท่ากันทำลายข้อนั้น) แต่มัน *ต้องรู้* ว่ามีขากลับ เพื่อยุบ 2 แถวเหลือ "ผลลัพธ์ของ
+   * ทั้งเรื่อง" ที่จุดสุดท้าย — ดู `collapsedOutcome()` · แถบเต็ม 2 แถวอยู่ใน panel ข้างล่าง
+   */
+  const leg = describeReturnLeg({ audience: 'seller', carrierStatus, returnStartedAt, returnedAt })
+  const collapsed = collapsedOutcome(leg)
+
+  /** คำใต้จุด — ขั้นสุดท้ายถูก override ได้ ("ส่งไม่สำเร็จ" ไม่ใช่ "ส่งสำเร็จ") */
   const stepLabel = (i: number) =>
     i === SHIPMENT_STAGES.length - 1 ? (progress?.lastLabel ?? SHIPMENT_STAGES[i].label) : SHIPMENT_STAGES[i].label
   /** ไอคอนขั้นสุดท้ายถูก override คู่กับคำเสมอ — ดูเหตุผลที่ ShipmentProgress.lastIcon */
@@ -90,23 +120,43 @@ export default function MiniShipmentTimeline({
     : stage === 'PROBLEM' || stage === 'RETURNED'
       ? SHIPPING_STAGE_LABEL[stage]
       : SHIPMENT_STAGES[Math.min(cur, SHIPMENT_STAGES.length - 1)].label
-  const ariaLabel = `สถานะพัสดุ: ${currentLabel}`
+  const ariaLabel = railAriaLabel(currentLabel, leg)
   /** สีจุดปัจจุบัน — SSOT เดียวกับหน้ารายละเอียด ห้ามตัดสินเองที่นี่ */
   const currentDot = shipmentCurrentDotCls(progress?.notice)
+
+  const isLastDot = (i: number) => i === SHIPMENT_STAGES.length - 1
 
   const dot = (i: number, size: 'sm' | 'lg') => {
     const reached = i <= cur
     const isCurrent = i === cur
+    /**
+     * 🛑 จุดสุดท้ายของ **แถบจิ๋ว** ยุบ 2 แถวเหลือ "ผลลัพธ์ของทั้งเรื่อง" (ไม่ใช่ผลลัพธ์ของขาไป)
+     *
+     * ในตารางร้านกวาดตาหา "ใบไหนต้องลงมือ" ไม่ได้อ่านประวัติ ⇒ ถ้าจุดนี้พูดแค่ว่าขาไป
+     * จบยังไง ร้านจะไม่มีทางรู้จากหน้ารายการเลยว่าของกลับมาถึงมือหรือยัง
+     *
+     * ต้องเปลี่ยน **ทั้งสีและรูปร่าง**: "ถึงร้านแล้ว" ใช้เขียวเท่ากับ "ส่งสำเร็จ" ตามมติ user
+     * ⇒ ลูกศรย้อนกลับคือสิ่งเดียวที่เหลือให้แยกสองเคสบนแถบที่ไม่มีคำกำกับ (WCAG 1.4.1)
+     */
+    const useCollapsed = collapsed != null && isLastDot(i)
     return (
       <span
         className={cn(
           'flex shrink-0 items-center justify-center rounded-full',
           size === 'sm' ? 'size-6' : 'size-8',
-          isCurrent ? currentDot : reached ? 'bg-success text-white' : 'bg-default-100 text-default-500',
+          useCollapsed
+            ? collapsed.tone === 'success'
+              ? 'bg-success text-white'
+              : 'bg-warning text-white'
+            : isCurrent
+              ? currentDot
+              : reached
+                ? 'bg-success text-white'
+                : 'bg-default-100 text-default-500',
         )}
       >
         <Icon
-          icon={stepIcon(i)}
+          icon={useCollapsed ? collapsed.icon : stepIcon(i)}
           className={size === 'sm' ? 'text-xs' : 'text-base'}
           aria-hidden="true"
         />
@@ -114,21 +164,66 @@ export default function MiniShipmentTimeline({
     )
   }
 
+  /** คำของจุดสุดท้ายบนแถบจิ๋ว — ยุบแล้วต้องพูดผลลัพธ์ของทั้งเรื่อง ไม่ใช่แค่ขาไป */
+  const tipLabel = (i: number) => (collapsed && isLastDot(i) ? collapsed.label : stepLabel(i))
+
   const dots = (
     <div className="flex items-center" role="img" aria-label={ariaLabel}>
       {SHIPMENT_STAGES.map((s, i) => (
         <Fragment key={s.label}>
           {i > 0 && (
-            <span className={cn('h-0.5 w-2 shrink-0', i <= cur ? 'bg-success' : 'bg-default-200')} />
+            <span
+              className={cn(
+                'h-0.5 w-2 shrink-0',
+                i > cur
+                  ? 'bg-default-200'
+                  : // ช่วงสุดท้ายเป็นสีของผลลัพธ์ — ตีกลับต้องไม่ได้เส้นเขียวพาไปถึงจุดจบ
+                    collapsed && isLastDot(i)
+                    ? collapsed.tone === 'success'
+                      ? 'bg-success'
+                      : 'bg-warning'
+                    : 'bg-success',
+              )}
+            />
           )}
           {/* plain = ไม่ใส่ title รายจุด ปล่อยให้การ์ดเต็มของพ่อเป็นคนอธิบาย */}
-          {plain ? dot(i, 'sm') : <span title={stepLabel(i)}>{dot(i, 'sm')}</span>}
+          {plain ? dot(i, 'sm') : <span title={tipLabel(i)}>{dot(i, 'sm')}</span>}
         </Fragment>
       ))}
     </div>
   )
 
   if (plain) return dots
+
+  /**
+   * การ์ดออเดอร์มือถือ — แถบเต็มลงในที่เลย ไม่ห่อ HoverPanel (มือถือไม่มี hover)
+   * ดูเหตุผลเต็มที่ prop `inline`
+   */
+  if (inline) {
+    return (
+      <div>
+        <ShipmentRail
+          stage={cur}
+          lastLabel={progress?.lastLabel}
+          lastIcon={progress?.lastIcon}
+          currentDotCls={currentDot}
+          leg={leg}
+          ariaLabel={ariaLabel}
+        />
+        {progress?.notice && (
+          <p
+            className={cn(
+              'text-2xs mt-2.5 mb-0 flex items-start gap-1.5 rounded-lg px-2.5 py-1.5',
+              NOTICE_BOX[progress.notice.tone] ?? NOTICE_BOX.secondary,
+            )}
+          >
+            <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+            <span>{progress.notice.text}</span>
+          </p>
+        )}
+      </div>
+    )
+  }
 
   return (
     // hover ขึ้น panel เต็มผ่าน HoverPanel (portal ระดับ body — cell อยู่ใน .table-wrapper
@@ -138,46 +233,18 @@ export default function MiniShipmentTimeline({
       className="inline-flex items-center"
       trigger={dots}
     >
-      {/* stepper เต็ม ทรงเดียวกับการ์ดการจัดส่ง (ShippingCard) ย่อส่วน */}
+      {/* แถบเต็ม 2 แถว — markup อยู่ใน ShipmentRail ตัวเดียวที่ทุกจอ Paces ใช้ร่วมกัน
+          🛑 ที่นี่คือที่ที่ "เรื่องเต็ม" ถูกเล่า: แถบจิ๋วข้างนอกยุบเหลือจุดเดียวโดยตั้งใจ */}
       <div className="p-3">
         <p className="text-default-900 mb-2 text-xs font-semibold">{currentLabel}</p>
-        <div className="flex items-center">
-          {SHIPMENT_STAGES.map((s, i) => (
-            <Fragment key={s.label}>
-              {i > 0 && (
-                <span
-                  className={cn('h-0.5 flex-1', i <= cur ? 'bg-success' : 'bg-default-200')}
-                />
-              )}
-              {dot(i, 'lg')}
-            </Fragment>
-          ))}
-        </div>
-        <div className="mt-1.5 flex items-start">
-          {SHIPMENT_STAGES.map((s, i) => {
-            const isLast = i === SHIPMENT_STAGES.length - 1
-            return (
-              <Fragment key={s.label}>
-                {i > 0 && <span className="flex-1" />}
-                <span
-                  className={cn(
-                    'flex w-8 shrink-0',
-                    i === 0 ? 'justify-start' : isLast ? 'justify-end' : 'justify-center',
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'text-2xs leading-tight whitespace-nowrap',
-                      i === cur ? 'text-default-900 font-semibold' : 'text-default-700',
-                    )}
-                  >
-                    {stepLabel(i)}
-                  </span>
-                </span>
-              </Fragment>
-            )
-          })}
-        </div>
+        <ShipmentRail
+          stage={cur}
+          lastLabel={progress?.lastLabel}
+          lastIcon={progress?.lastIcon}
+          currentDotCls={currentDot}
+          leg={leg}
+          ariaLabel={railAriaLabel(currentLabel, leg)}
+        />
 
         {/* กล่องเตือนเมื่อออกนอกเส้นทางปกติ — ข้อความมาจาก NOTICE_OF ตัวเดียวกับหน้ารายละเอียด
             (เดิม panel นี้ไม่มีกล่องนี้เลย ⇒ ต่อให้จุดถูกแล้ว ผู้ขายก็ยังไม่รู้ว่าเกิดอะไรขึ้น) */}
