@@ -25,7 +25,15 @@ import { describe, expect, it } from 'vitest'
  */
 
 const ROOT = process.cwd()
-const REL = 'src/app/(paces)/seller/register/page.tsx'
+/**
+ * 🛑 ย้ายไฟล์ 2026-08-25 — `register/page.tsx` กลายเป็น **เปลือก server** ที่กั้นฟอร์มไม่ให้
+ * โผล่ในแอป iOS (Apple Guideline 3.1.1) ส่วน **ตัวฟอร์มจริงย้ายมาที่นี่** ไม่ได้แก้ตรรกะข้างใน
+ *
+ * ด่านต้องตามไปที่ไฟล์ที่ *มีฟอร์มอยู่จริง* ไม่ใช่ค้างที่ชื่อไฟล์เดิม — ถ้าค้าง มันจะสแกน
+ * เปลือกเปล่า ๆ ที่ไม่มีช่องกรอกสักช่อง แล้ว **เขียวตลอดกาลโดยไม่ได้กันอะไรเลย**
+ * (ด่านที่ผูกกับ path พังเงียบตอน refactor — อันตรายกว่าแดง เพราะไม่มีใครรู้ว่ามันตายไปแล้ว)
+ */
+const REL = 'src/app/(paces)/seller/register/RegisterClient.tsx'
 
 /** ลบเนื้อคอมเมนต์แต่คงจำนวนบรรทัด — ไฟล์ที่ทำถูกคือไฟล์ที่เขียนคำเตือนของกฎนั้นไว้ด้วย */
 const blankComments = (src: string) =>
@@ -111,9 +119,10 @@ describe('[blocker] เส้นทางหลัง Sign in with Apple', () =>
      * "ชื่อที่แสดง" ที่ใช้ทั้งสองสัญญาณ — ตรวจแล้วว่าอยู่คนละเส้นทาง (เลือก "สมัครด้วยเบอร์"
      * เท่านั้นถึงจะเจอ) แต่ถ้าวันหนึ่งมีคนย้ายมาใช้ร่วมกัน ด่านนี้จะจับได้ทันที
      */
+    /* ชี้ไฟล์ที่มีฟอร์มจริง — `page.tsx` ของทั้งสองเป็นเปลือก server แล้ว (ดูหมายเหตุที่ REL) */
     const PATH = [
-      'src/app/(paces)/seller/register/page.tsx',
-      'src/app/(paces)/seller/onboarding/page.tsx',
+      'src/app/(paces)/seller/register/RegisterClient.tsx',
+      'src/app/(paces)/seller/onboarding/OnboardingClient.tsx',
     ]
     const offenders: string[] = []
     for (const rel of PATH) {

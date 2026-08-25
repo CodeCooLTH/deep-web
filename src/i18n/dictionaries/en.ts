@@ -888,4 +888,9 @@ export const en: Dictionary = {
       saveError: "Couldn't change the language. Please try again.",
     },
   },
+  appSetupBlocked: {
+    title: 'Finish setting up your account',
+    body: 'This account is not fully registered yet. Please complete registration and shop setup on our website, then sign in again in the app.',
+    signOut: 'Sign out',
+  },
 }

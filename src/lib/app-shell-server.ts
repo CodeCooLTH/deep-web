@@ -3,7 +3,13 @@ import 'server-only'
 import { cache } from 'react'
 import { cookies, headers } from 'next/headers'
 
-import { SHELL_COOKIE_NAME, isPaymentRestricted, resolveAppShell, type AppShell } from '@/lib/app-shell'
+import {
+  SHELL_COOKIE_NAME,
+  isPaymentRestricted,
+  isSignUpRestricted,
+  resolveAppShell,
+  type AppShell,
+} from '@/lib/app-shell'
 
 /**
  * app-shell-server — อ่าน request จริงแล้วบอกว่าหน้านี้ถูกเปิดจากที่ไหน
@@ -29,4 +35,9 @@ export const getAppShell = cache(async (): Promise<AppShell> => {
 /** ต้องซ่อนทุกอย่างที่เกี่ยวกับการจ่ายเงินไหม — ดูนิยาม "ทุกอย่าง" ที่ isPaymentRestricted */
 export async function shouldHidePayments(): Promise<boolean> {
   return isPaymentRestricted(await getAppShell())
+}
+
+/** ต้องซ่อนการสมัครบัญชีไหม — ดูเหตุผลที่ `isSignUpRestricted` (Apple สั่ง 2026-08-23) */
+export async function shouldHideSignUp(): Promise<boolean> {
+  return isSignUpRestricted(await getAppShell())
 }
