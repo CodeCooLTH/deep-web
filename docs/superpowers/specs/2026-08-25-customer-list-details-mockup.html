@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>00057 — หน้าลูกค้า (List + Details) ยึด component ของธีม Paces</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── token จริงของ Paces จาก DESIGN.md (ไม่ใช่ค่าที่เดาเอง) ─────────────────
+   paces-primary #236dc9 · hover #1e5dab · success #02bc9c · info #5bc3e1
+   warning #f9bf59 · danger #f7577e · surface #f6f7fb · body-ink #4c4c5c
+   -ink: primary #1e3a8a · success #065f46 · info #1e40af · warning #92400e
+   spacing-base 20px · gap-1.25 = 5px (ค่าของธีมในหน้า orders)               */
+:root{
+  --primary:#236dc9; --primary-hover:#1e5dab; --primary-ink:#1e3a8a;
+  --success:#02bc9c; --success-ink:#065f46;
+  --info:#5bc3e1; --info-ink:#1e40af;
+  --warning:#f9bf59; --warning-ink:#92400e;
+  --danger:#f7577e; --danger-ink:#7f1d1d;
+  --dark:#313a46;
+  --bg:#f6f7fb; --card:#fff; --ink:#4c4c5c; --ink-900:#313a46;
+  --d100:#eef0f4; --d200:#e3e6ec; --d300:#ced4de; --d400:#8f98a8;
+  --shadow:0 1px 4px rgba(130,143,163,.15);
+  --base:20px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#eceff4;color:var(--ink);font-family:Anuphan,system-ui,sans-serif;font-size:15px;line-height:1.6}
+.wrap{max-width:1560px;margin:0 auto;padding:28px 20px 90px}
+h1{font-size:26px;margin:0 0 4px;color:var(--ink-900)}
+h2{font-size:20px;margin:44px 0 8px;padding-top:24px;border-top:2px solid var(--d200);color:var(--ink-900)}
+h3{font-size:15px;margin:26px 0 10px;color:var(--ink-900)}
+.lede{color:#6b7280;margin:0 0 22px;max-width:900px}
+.note{background:#fff8e6;border-left:3px solid var(--warning);padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px;max-width:1000px}
+.note b{color:var(--warning-ink)}
+.note.good{background:#eafaf5;border-left-color:var(--success)}
+.note.good b{color:var(--success-ink)}
+.note.info{background:#eef5fc;border-left-color:var(--primary)}
+.note.info b{color:var(--primary-ink)}
+.tag{display:inline-block;background:var(--primary);color:#fff;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:600;vertical-align:2px}
+.tag.new{background:var(--success)}
+.tag.theme{background:var(--dark)}
+
+/* ── กรอบอุปกรณ์ ───────────────────────────────────────────── */
+.devices{display:flex;gap:26px;align-items:flex-start;overflow-x:auto;padding-bottom:10px}
+.dev{flex:none}
+.dev>figcaption{font-size:13px;font-weight:700;color:var(--ink-900);margin:0 0 8px}
+.dev>figcaption span{font-weight:400;color:#6b7280}
+.screen{background:var(--bg);border:1px solid var(--d300);border-radius:10px;padding:12px;overflow:hidden}
+.w375 .screen{width:375px}
+.w768 .screen{width:768px}
+.w1440 .screen{width:980px}          /* ย่อจาก 1440 ตามสัดส่วน เพื่อให้วางเทียบกันได้ */
+.w1440 figcaption span{color:var(--danger)}
+
+/* ── primitive ของ Paces ─────────────────────────────────── */
+.card{background:var(--card);border-radius:8px;box-shadow:var(--shadow);overflow:hidden}
+.card+.card{margin-top:var(--base)}
+.card-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px var(--base);border-bottom:1px dashed var(--d200);flex-wrap:wrap}
+.card-title{font-size:15px;font-weight:600;color:var(--ink-900);margin:0}
+.card-body{padding:var(--base)}
+.card-footer{padding:12px var(--base);border-top:1px solid var(--d100);display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:#6b7280;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:2px 8px;font-size:11.5px;font-weight:600;line-height:1.5}
+.b-success{background:rgba(2,188,156,.15);color:var(--success-ink)}
+.b-warning{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+.b-info{background:rgba(91,195,225,.15);color:var(--info-ink)}
+.b-danger{background:rgba(247,87,126,.15);color:var(--danger-ink)}
+.b-plain{background:var(--d100);color:var(--ink)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:6px;padding:7px 12px;font-size:13.5px;font-weight:600;border:1px solid transparent;cursor:default;white-space:nowrap}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-out{border-color:var(--d300);color:var(--ink-900);background:#fff}
+.btn-icon{padding:0;width:32px;height:32px}
+.form{display:flex;align-items:center;gap:7px;border:1px solid var(--d300);border-radius:6px;background:#fff;padding:7px 11px;font-size:13.5px;color:var(--ink);min-height:38px}
+.form .ic{color:var(--d400);font-size:14px}
+.form.grow{flex:1;min-width:0}
+.form.sel::after{content:"▾";margin-left:auto;color:var(--d400);padding-left:8px}
+.muted{color:var(--d400)}
+.i{display:inline-flex;align-items:center;justify-content:center;font-style:normal}
+
+/* วงกลมไอคอนของการ์ดสถิติ (ธีม: size-9 rounded-full + icon size-5.5 text-white) */
+.statwrap{display:grid;gap:5px;margin-bottom:5px}
+.s1{grid-template-columns:1fr}
+.s2{grid-template-columns:1fr 1fr}
+.s5{grid-template-columns:repeat(5,1fr)}
+.stat .card-body{padding:16px}
+.stat .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px}
+.stat .num{font-size:18px;font-weight:700;color:var(--ink-900);font-variant-numeric:tabular-nums;line-height:1.2}
+.stat .ring{width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;flex:none}
+.stat .ttl{font-size:12px;font-weight:700;color:var(--ink-900);display:block}
+.stat .cap{font-size:11px;color:var(--d400);display:block}
+
+/* ตาราง */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11.5px;font-weight:700;color:var(--d400);padding:10px var(--base);border-bottom:1px solid var(--d100);white-space:nowrap}
+td{padding:12px var(--base);border-bottom:1px solid var(--d100);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.av{width:32px;height:32px;border-radius:999px;background:rgba(35,109,201,.1);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none}
+.av.lg{width:44px;height:44px;font-size:16px}
+.cellname{display:flex;align-items:center;gap:10px;min-width:0}
+.nm{font-weight:500;color:var(--ink-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.warnpip{width:20px;height:20px;border-radius:999px;background:rgba(249,191,89,.15);color:var(--warning-ink);display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex:none}
+.mono{font-family:ui-monospace,SFMono-Regular,monospace;font-variant-numeric:tabular-nums}
+
+/* การ์ดมือถือในตาราง */
+.mrow{padding:14px var(--base);border-bottom:1px solid var(--d100)}
+.mrow:last-child{border-bottom:0}
+.mtop{display:flex;align-items:center;gap:10px}
+.mbot{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--d100);margin-top:12px;padding-top:11px}
+.lbl{font-size:11px;color:var(--d400);display:block}
+
+/* ไทม์ไลน์ (ยกจาก ShippingActivity ของธีม) */
+.tl{display:flex;gap:var(--base)}
+.tl .when{width:64px;text-align:right;color:var(--d400);font-size:12.5px;flex:none;padding-top:1px}
+.tl .rail{position:relative;width:14px;flex:none}
+.tl .dot{width:14px;height:14px;border-radius:999px;position:relative;z-index:1}
+.tl .rail::after{content:"";position:absolute;left:50%;top:18px;bottom:-6px;width:0;border-left:1px dashed var(--d300)}
+.tl:last-child .rail::after{display:none}
+.tl .body{flex:1;padding-bottom:26px;min-width:0}
+.tl:last-child .body{padding-bottom:0}
+.tl h5{margin:0 0 3px;font-size:14px;font-weight:600;color:var(--ink-900)}
+.tl p{margin:0 0 3px;font-size:13px;color:var(--d400)}
+
+/* รายการติดต่อในการ์ดข้อมูลลูกค้า (ยกจาก CustomerDetails ของธีม) */
+.clist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.clist li{display:flex;align-items:center;gap:10px;font-size:13.5px}
+.clist .cic{width:24px;height:24px;border-radius:999px;background:var(--d100);color:var(--ink-900);display:flex;align-items:center;justify-content:center;font-size:12px;flex:none}
+
+.accent{border-left:3px solid var(--warning)}
+.hero{font-size:30px;font-weight:800;letter-spacing:-.4px;color:var(--ink-900);font-variant-numeric:tabular-nums;line-height:1.15;margin:2px 0 0}
+.srow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:13.5px;padding:6px 0}
+.srow+.srow{border-top:1px solid var(--d100)}
+.srow b{font-weight:600;color:var(--ink-900);font-variant-numeric:tabular-nums}
+.grid34{display:grid;gap:var(--base);grid-template-columns:1fr}
+.g34-lg{grid-template-columns:3fr 1fr}
+.stack{display:flex;flex-direction:column;gap:var(--base)}
+.crumb{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.crumb h4{margin:0;font-size:17px;font-weight:600;color:var(--ink-900)}
+.crumb .path{font-size:12.5px;color:var(--d400)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>00057 — หน้าลูกค้า: List + Details <span class="tag">Mockup</span></h1>
+<p class="lede">
+ยึด component ของธีม Paces ตาม Hard Rule 1 · <b>หน้า List</b> ทำตามหน้า <code>apps/ecommerce/orders</code> ของธีม (แถวการ์ดสถิติ 5 ใบ → การ์ดตาราง) · <b>หน้า Details ออกแบบใหม่</b> บนโครง <code>apps/ecommerce/order-details</code> ของธีม (ซ้าย 3/4 = ตาราง + ไทม์ไลน์ · ขวา 1/4 = การ์ดข้อมูล)
+<br>สีทุกค่าในไฟล์นี้มาจาก <code>DESIGN.md</code> ของโปรเจกต์ ไม่ใช่ค่าที่เดาเอง
+</p>
+
+<div class="note info"><b>ยังไม่แตะโค้ดจริงสักบรรทัด</b> — ไฟล์นี้ให้ดูก่อนตัดสินใจ ถ้าอนุมัติแล้วค่อย implement</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2>จอ A — หน้า List <code>/customers</code> <span class="tag theme">ตามหน้า orders ของธีม</span></h2>
+<p class="lede">สิ่งที่เพิ่มจากของเดิม: <b>แถวการ์ดสถิติ 5 ใบด้านบน</b> — นี่คือความต่างภาพใหญ่ที่สุดที่ทำให้หน้าเดิม "ไม่รู้สึกเหมือนธีม" เพราะหน้า orders ของธีมมีแถวนี้ก่อนตารางเสมอ</p>
+
+<div class="devices">
+
+  <!-- ─────────── 375 ─────────── -->
+  <figure class="dev w375">
+    <figcaption>มือถือ <span>375px</span></figcaption>
+    <div class="screen">
+      <div class="crumb"><h4>ลูกค้า</h4></div>
+
+      <div class="statwrap s1">
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">397</span><span class="ring" style="background:var(--primary)"><i class="i">◍</i></span></div>
+          <span class="ttl">ลูกค้าทั้งหมด</span>
+        </div></div>
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">฿284,300</span><span class="ring" style="background:var(--info)"><i class="i">฿</i></span></div>
+          <span class="ttl">ยอดซื้อสะสมรวม</span><span class="cap">เฉลี่ย ฿716/คน</span>
+        </div></div>
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">16</span><span class="ring" style="background:var(--dark)"><i class="i">↻</i></span></div>
+          <span class="ttl">ลูกค้าซื้อซ้ำ</span><span class="cap">4% ของลูกค้าทั้งหมด</span>
+        </div></div>
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">210</span><span class="ring" style="background:var(--success)"><i class="i">✓</i></span></div>
+          <span class="ttl">เป็นสมาชิกแล้ว</span><span class="cap">53% ของลูกค้าทั้งหมด</span>
+        </div></div>
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">12</span><span class="ring" style="background:var(--warning)"><i class="i">!</i></span></div>
+          <span class="ttl">มีสัญญาณเตือน</span><span class="cap">3% ของลูกค้าทั้งหมด</span>
+        </div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header" style="flex-direction:column;align-items:stretch;gap:9px">
+          <div class="form grow"><span class="ic">⌕</span><span class="muted">ค้นหาชื่อ หรือ เบอร์โทร</span></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div class="form sel" style="flex:1"><span class="ic">⚠</span>สัญญาณเตือน</div>
+            <div class="form sel" style="flex:1"><span class="ic">↻</span>ประวัติการซื้อ</div>
+            <div class="form sel" style="width:74px">8</div>
+          </div>
+        </div>
+
+        <div class="mrow">
+          <div class="mtop">
+            <span class="av">ส</span>
+            <div style="min-width:0;flex:1">
+              <div style="display:flex;align-items:center;gap:5px;min-width:0">
+                <span class="nm">สมชาย ใจดี</span>
+                <span class="warnpip">↩</span><span class="muted" style="font-size:12px">↗</span>
+              </div>
+              <span class="mono muted" style="font-size:12.5px">081••••5678</span>
+              <span class="muted" style="font-size:12px"> 👁</span>
+            </div>
+            <div style="text-align:right;flex:none"><b style="color:var(--ink-900)">3</b><span class="lbl">ออเดอร์</span></div>
+          </div>
+          <div class="mbot">
+            <div><span class="lbl">ล่าสุด</span><span style="font-size:13px">20 ส.ค. 69</span></div>
+            <div style="text-align:right"><span class="lbl">ยอดซื้อสะสม</span><b class="mono" style="color:var(--ink-900)">฿4,590</b></div>
+          </div>
+        </div>
+        <div class="mrow">
+          <div class="mtop">
+            <span class="av">ว</span>
+            <div style="min-width:0;flex:1">
+              <span class="nm">วรรณา พงษ์เจริญสุข</span>
+              <div><span class="mono muted" style="font-size:12.5px">089••••1234</span> <span class="muted" style="font-size:12px">👁</span></div>
+            </div>
+            <div style="text-align:right;flex:none"><b style="color:var(--ink-900)">1</b><span class="lbl">ออเดอร์</span></div>
+          </div>
+          <div class="mbot">
+            <div><span class="lbl">ล่าสุด</span><span style="font-size:13px">18 ส.ค. 69</span></div>
+            <div style="text-align:right"><span class="lbl">ยอดซื้อสะสม</span><b class="mono" style="color:var(--ink-900)">฿890</b></div>
+          </div>
+        </div>
+        <div class="card-footer"><span>1–8 จาก 42 รายการ</span><span>‹ 1 2 3 ›</span></div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ─────────── 768 ─────────── -->
+  <figure class="dev w768">
+    <figcaption>แท็บเล็ต <span>768px — การ์ดสถิติ 2 คอลัมน์ (md:grid-cols-2) ยังเป็นการ์ดมือถือในตาราง</span></figcaption>
+    <div class="screen">
+      <div class="crumb"><h4>ลูกค้า</h4><span class="path">ร้านค้า / ลูกค้า</span></div>
+
+      <div class="statwrap s2">
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">397</span><span class="ring" style="background:var(--primary)"><i class="i">◍</i></span></div>
+          <span class="ttl">ลูกค้าทั้งหมด</span></div></div>
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">฿284,300</span><span class="ring" style="background:var(--info)"><i class="i">฿</i></span></div>
+          <span class="ttl">ยอดซื้อสะสมรวม</span><span class="cap">เฉลี่ย ฿716/คน</span></div></div>
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">16</span><span class="ring" style="background:var(--dark)"><i class="i">↻</i></span></div>
+          <span class="ttl">ลูกค้าซื้อซ้ำ</span><span class="cap">4% ของลูกค้าทั้งหมด</span></div></div>
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">210</span><span class="ring" style="background:var(--success)"><i class="i">✓</i></span></div>
+          <span class="ttl">เป็นสมาชิกแล้ว</span><span class="cap">53% ของลูกค้าทั้งหมด</span></div></div>
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">12</span><span class="ring" style="background:var(--warning)"><i class="i">!</i></span></div>
+          <span class="ttl">มีสัญญาณเตือน</span><span class="cap">3% ของลูกค้าทั้งหมด</span></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="form grow" style="max-width:320px"><span class="ic">⌕</span><span class="muted">ค้นหาชื่อ หรือ เบอร์โทร</span></div>
+          <div style="display:flex;gap:8px">
+            <div class="form sel"><span class="ic">⚠</span>สัญญาณเตือน</div>
+            <div class="form sel"><span class="ic">↻</span>ประวัติการซื้อ</div>
+            <div class="form sel" style="width:70px">8</div>
+          </div>
+        </div>
+        <div class="mrow">
+          <div class="mtop">
+            <span class="av">ส</span>
+            <div style="min-width:0;flex:1">
+              <div style="display:flex;align-items:center;gap:5px"><span class="nm">สมชาย ใจดี</span><span class="warnpip">↩</span></div>
+              <span class="mono muted" style="font-size:12.5px">081••••5678 👁</span>
+            </div>
+            <div style="text-align:right"><span class="lbl">ล่าสุด</span><span style="font-size:13px">20 ส.ค. 69</span></div>
+            <div style="text-align:right;min-width:96px"><span class="lbl">ยอดซื้อสะสม</span><b class="mono" style="color:var(--ink-900)">฿4,590</b></div>
+            <div style="text-align:right;min-width:52px"><b style="color:var(--ink-900)">3</b><span class="lbl">ออเดอร์</span></div>
+          </div>
+        </div>
+        <div class="mrow">
+          <div class="mtop">
+            <span class="av">ว</span>
+            <div style="min-width:0;flex:1">
+              <span class="nm">วรรณา พงษ์เจริญสุข</span>
+              <div><span class="mono muted" style="font-size:12.5px">089••••1234 👁</span></div>
+            </div>
+            <div style="text-align:right"><span class="lbl">ล่าสุด</span><span style="font-size:13px">18 ส.ค. 69</span></div>
+            <div style="text-align:right;min-width:96px"><span class="lbl">ยอดซื้อสะสม</span><b class="mono" style="color:var(--ink-900)">฿890</b></div>
+            <div style="text-align:right;min-width:52px"><b style="color:var(--ink-900)">1</b><span class="lbl">ออเดอร์</span></div>
+          </div>
+        </div>
+        <div class="card-footer"><span>1–8 จาก 42 รายการ</span><span>‹ 1 2 3 4 5 ›</span></div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ─────────── 1440 ─────────── -->
+  <figure class="dev w1440">
+    <figcaption>เดสก์ท็อป <span>1440px (ย่อแสดง) — การ์ดสถิติ 5 คอลัมน์ + ตารางจริง</span></figcaption>
+    <div class="screen">
+      <div class="crumb"><h4>ลูกค้า</h4><span class="path">ร้านค้า / ลูกค้า</span></div>
+
+      <div class="statwrap s5">
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">397</span><span class="ring" style="background:var(--primary)"><i class="i">◍</i></span></div>
+          <span class="ttl">ลูกค้าทั้งหมด</span></div></div>
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">฿284,300</span><span class="ring" style="background:var(--info)"><i class="i">฿</i></span></div>
+          <span class="ttl">ยอดซื้อสะสมรวม</span><span class="cap">เฉลี่ย ฿716/คน</span></div></div>
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">16</span><span class="ring" style="background:var(--dark)"><i class="i">↻</i></span></div>
+          <span class="ttl">ลูกค้าซื้อซ้ำ</span><span class="cap">4% ของลูกค้าทั้งหมด</span></div></div>
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">210</span><span class="ring" style="background:var(--success)"><i class="i">✓</i></span></div>
+          <span class="ttl">เป็นสมาชิกแล้ว</span><span class="cap">53% ของลูกค้าทั้งหมด</span></div></div>
+        <div class="card stat"><div class="card-body">
+          <div class="top"><span class="num">12</span><span class="ring" style="background:var(--warning)"><i class="i">!</i></span></div>
+          <span class="ttl">มีสัญญาณเตือน</span><span class="cap">3% ของลูกค้าทั้งหมด</span></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="form grow" style="max-width:300px"><span class="ic">⌕</span><span class="muted">ค้นหาชื่อ หรือ เบอร์โทร</span></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="form sel"><span class="ic">⚠</span>สัญญาณเตือน</div>
+            <div class="form sel"><span class="ic">↻</span>ประวัติการซื้อ</div>
+            <div class="form sel" style="width:70px">8</div>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>ลูกค้า</th><th>ติดต่อ</th><th>ออเดอร์ทั้งหมด</th><th>ยอดซื้อสะสม<br><span style="font-weight:400;text-transform:none">(นับเป็นยอดขายแล้ว)</span></th><th>ออเดอร์ล่าสุด</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="cellname"><span class="av">ส</span><span class="nm">สมชาย ใจดี</span><span class="muted">↗</span><span class="warnpip">↩</span><span class="warnpip">⚑</span></div></td>
+              <td><span class="mono">081••••5678</span> <span class="muted">👁</span></td>
+              <td>3</td><td><b class="mono" style="color:var(--ink-900)">฿4,590</b></td><td class="muted">20 ส.ค. 69</td>
+            </tr>
+            <tr>
+              <td><div class="cellname"><span class="av">ว</span><span class="nm">วรรณา พงษ์เจริญสุขไพบูลย์ทวี</span></div></td>
+              <td><span class="mono">089••••1234</span> <span class="muted">👁</span></td>
+              <td>1</td><td><b class="mono" style="color:var(--ink-900)">฿890</b></td><td class="muted">18 ส.ค. 69</td>
+            </tr>
+            <tr>
+              <td><div class="cellname"><span class="av">?</span><span class="nm">ลูกค้าทั่วไป</span></div></td>
+              <td><span class="mono">062••••7788</span> <span class="muted">👁</span></td>
+              <td>2</td><td><b class="mono" style="color:var(--ink-900)">฿1,250</b></td><td class="muted">14 ส.ค. 69</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="card-footer"><span>1–8 จาก 42 รายการ</span><span>‹ 1 2 3 4 5 ›</span></div>
+      </div>
+    </div>
+  </figure>
+
+</div>
+
+<div class="note"><b>3 อย่างของธีมที่ผมจงใจไม่เอามา — ต้องให้คุณเห็นด้วยก่อน</b><br>
+① <b>ตัวเลข % เปลี่ยนแปลง</b> บนการ์ดสถิติ (ธีมมี badge เขียว/แดง) — เราไม่มีข้อมูลย้อนหลังมาเทียบ ใส่แล้วเป็นเลขปลอม<br>
+② <b>เลขวิ่ง (CountUp)</b> ตอนโหลด — ธีมใช้ทุกการ์ด แต่หน้าเครื่องมือทำงานควรอ่านได้ทันที ไม่ต้องรอวิ่ง<br>
+③ <b>checkbox เลือกแถว + ปุ่มลบ + คอลัมน์ Actions (👁✏🗑)</b> — ลูกค้าลบไม่ได้/เพิ่มเองไม่ได้ และทั้งระบบเปลี่ยนมาใช้ "กดทั้งแถว" แทนปุ่มไอคอนท้ายแถวไปแล้ว
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2>จอ B — หน้า Details <code>/customers/[id]</code> <span class="tag new">ออกแบบใหม่</span></h2>
+<p class="lede">
+โครงยกมาจากหน้า <code>order-details</code> ของธีม (<code>grid lg:grid-cols-4 gap-base</code> · ซ้าย <code>col-span-3</code> · ขวา 1 คอลัมน์) แต่เปลี่ยนเนื้อในทั้งหมดให้เป็นเรื่องของ "ลูกค้า"
+<br><b>ของใหม่ที่ไม่มีในเวอร์ชันที่คุณเห็น:</b> ตารางออเดอร์เต็มรูป (แทนรายการบรรทัดบาง ๆ) · <b>ไทม์ไลน์กิจกรรมลูกค้า</b> · การ์ดข้อมูลลูกค้าแบบรายการมีไอคอนกลม (ยกจาก <code>CustomerDetails</code> ของธีม)
+</p>
+
+<div class="devices">
+
+  <!-- ─────────── 375 ─────────── -->
+  <figure class="dev w375">
+    <figcaption>มือถือ <span>375px — ข้อมูลลูกค้ามาก่อน ตารางตามหลัง</span></figcaption>
+    <div class="screen">
+      <div class="crumb"><h4>สมชาย ใจดี</h4><span class="path">‹ ลูกค้า</span></div>
+
+      <div class="card">
+        <div class="card-header"><h5 class="card-title">ข้อมูลลูกค้า</h5><span class="badge b-success">สมาชิก</span></div>
+        <div class="card-body">
+          <div style="display:flex;align-items:center;gap:11px;margin-bottom:18px">
+            <span class="av lg">ส</span>
+            <div style="min-width:0">
+              <div class="nm" style="font-size:14px">สมชาย ใจดี</div>
+              <div class="muted" style="font-size:13px">ลูกค้าตั้งแต่ 5 ก.ค. 69</div>
+            </div>
+          </div>
+          <ul class="clist">
+            <li><span class="cic">☎</span><span class="mono">081-234-5678</span></li>
+            <li><span class="cic">◍</span>ช่องทางล่าสุด · Messenger</li>
+            <li><span class="cic">↗</span><span style="color:var(--primary)">ดูโปรไฟล์สาธารณะ</span></li>
+          </ul>
+          <div style="display:flex;gap:7px;margin-top:16px;flex-wrap:wrap">
+            <span class="btn btn-out">☎ โทร</span>
+            <span class="btn btn-out">💬 เปิดแชท</span>
+            <span class="btn btn-primary">+ สร้างคำสั่งซื้อ</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <span class="lbl">ยอดซื้อสะสม (นับเป็นยอดขายแล้ว)</span>
+          <p class="hero">฿48,200</p>
+          <div style="margin-top:14px">
+            <div class="srow"><span>ออเดอร์ทั้งหมด</span><b>12</b></div>
+            <div class="srow"><span>เฉลี่ยต่อบิล</span><b>฿4,018</b></div>
+            <div class="srow"><span>ยกเลิก</span><b>1</b></div>
+            <div class="srow"><span>ซื้อล่าสุด</span><b>12 ส.ค. 69</b></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card accent">
+        <div class="card-header"><h5 class="card-title">สัญญาณที่ควรระวัง</h5></div>
+        <div class="card-body">
+          <span class="lbl" style="margin-bottom:6px">กับร้านนี้</span>
+          <div class="chips"><span class="badge b-warning">↩ ตีกลับ 2 รายการ</span><span class="badge b-warning">⚑ ยกเลิก 1 รายการ</span></div>
+          <div style="border-top:1px solid var(--d100);margin-top:13px;padding-top:11px">
+            <span class="lbl" style="margin-bottom:6px">ทั้งระบบ</span>
+            <div class="chips"><span class="badge b-plain">สั่ง 20</span><span class="badge b-success">รับของ 18</span><span class="badge b-warning">พัสดุตีกลับ 2</span></div>
+            <p class="muted" style="font-size:12px;margin:8px 0 0">พัสดุตีกลับ 10% ของ 20 ใบที่เปิดพัสดุ</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h5 class="card-title">ที่อยู่ล่าสุด</h5></div>
+        <div class="card-body" style="font-size:13.5px">123 ถ.สุขุมวิท คลองตันเหนือ วัฒนา กรุงเทพ 10110</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h5 class="card-title">คำสั่งซื้อทั้งหมด (12)</h5></div>
+        <div class="mrow">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+            <div><div class="mono" style="font-weight:600;color:var(--ink-900);font-size:13px">DP690820A1B2</div><span class="muted" style="font-size:12px">20 ส.ค. 69</span></div>
+            <div style="text-align:right"><b class="mono" style="color:var(--ink-900)">฿1,590</b><div><span class="badge b-success">สำเร็จ</span></div></div>
+            <span class="muted">💬 ›</span>
+          </div>
+        </div>
+        <div class="mrow">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+            <div><div class="mono" style="font-weight:600;color:var(--ink-900);font-size:13px">DP690815C3D4</div><span class="muted" style="font-size:12px">15 ส.ค. 69</span></div>
+            <div style="text-align:right"><b class="mono" style="color:var(--ink-900)">฿2,000</b><div><span class="badge b-danger">ยกเลิก</span></div></div>
+            <span class="muted">›</span>
+          </div>
+        </div>
+        <div class="card-footer"><span>1–5 จาก 12</span><span>‹ 1 2 3 ›</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h5 class="card-title">ไทม์ไลน์กิจกรรม</h5></div>
+        <div class="card-body">
+          <div class="tl"><div class="when">20 ส.ค.</div><div class="rail"><div class="dot" style="background:var(--success)"></div></div>
+            <div class="body"><h5>สั่งซื้อสำเร็จ</h5><p>DP690820A1B2 · ฿1,590</p></div></div>
+          <div class="tl"><div class="when">15 ส.ค.</div><div class="rail"><div class="dot" style="background:var(--warning)"></div></div>
+            <div class="body"><h5>ยกเลิกคำสั่งซื้อ</h5><p>DP690815C3D4 · ลูกค้าขอยกเลิก</p></div></div>
+          <div class="tl"><div class="when">5 ก.ค.</div><div class="rail"><div class="dot" style="background:var(--d300)"></div></div>
+            <div class="body"><h5>ลูกค้าใหม่</h5><p>สั่งซื้อครั้งแรก</p></div></div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ─────────── 768 ─────────── -->
+  <figure class="dev w768">
+    <figcaption>แท็บเล็ต <span>768px — ยัง 1 คอลัมน์ การ์ดกว้างขึ้น ตารางออเดอร์เริ่มเป็นตารางจริง</span></figcaption>
+    <div class="screen">
+      <div class="crumb"><h4>สมชาย ใจดี</h4><span class="path">‹ ลูกค้า</span></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--base);margin-bottom:var(--base)">
+        <div class="card" style="margin:0">
+          <div class="card-header"><h5 class="card-title">ข้อมูลลูกค้า</h5><span class="badge b-success">สมาชิก</span></div>
+          <div class="card-body">
+            <div style="display:flex;align-items:center;gap:11px;margin-bottom:16px">
+              <span class="av lg">ส</span>
+              <div><div class="nm" style="font-size:14px">สมชาย ใจดี</div><div class="muted" style="font-size:13px">ลูกค้าตั้งแต่ 5 ก.ค. 69</div></div>
+            </div>
+            <ul class="clist">
+              <li><span class="cic">☎</span><span class="mono">081-234-5678</span></li>
+              <li><span class="cic">◍</span>ช่องทางล่าสุด · Messenger</li>
+            </ul>
+            <div style="display:flex;gap:7px;margin-top:14px;flex-wrap:wrap">
+              <span class="btn btn-out">☎ โทร</span><span class="btn btn-out">💬 เปิดแชท</span><span class="btn btn-primary">+ สร้างคำสั่งซื้อ</span>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin:0">
+          <div class="card-body">
+            <span class="lbl">ยอดซื้อสะสม (นับเป็นยอดขายแล้ว)</span>
+            <p class="hero">฿48,200</p>
+            <div style="margin-top:12px">
+              <div class="srow"><span>ออเดอร์ทั้งหมด</span><b>12</b></div>
+              <div class="srow"><span>เฉลี่ยต่อบิล</span><b>฿4,018</b></div>
+              <div class="srow"><span>ยกเลิก</span><b>1</b></div>
+              <div class="srow"><span>ซื้อล่าสุด</span><b>12 ส.ค. 69</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card accent" style="margin:0 0 var(--base)">
+        <div class="card-header"><h5 class="card-title">สัญญาณที่ควรระวัง</h5></div>
+        <div class="card-body" style="display:flex;gap:26px;flex-wrap:wrap">
+          <div><span class="lbl" style="margin-bottom:6px">กับร้านนี้</span>
+            <div class="chips"><span class="badge b-warning">↩ ตีกลับ 2 รายการ</span><span class="badge b-warning">⚑ ยกเลิก 1 รายการ</span></div></div>
+          <div><span class="lbl" style="margin-bottom:6px">ทั้งระบบ</span>
+            <div class="chips"><span class="badge b-plain">สั่ง 20</span><span class="badge b-success">รับของ 18</span><span class="badge b-warning">พัสดุตีกลับ 2</span></div></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin:0 0 var(--base)">
+        <div class="card-header"><h5 class="card-title">คำสั่งซื้อทั้งหมด (12)</h5><span class="muted" style="font-size:12.5px">ที่อยู่ล่าสุด: 123 ถ.สุขุมวิท … กรุงเทพ 10110</span></div>
+        <table>
+          <thead><tr><th>เลขคำสั่งซื้อ</th><th>วันที่</th><th>ยอด</th><th>สถานะ</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="mono" style="font-weight:600;color:var(--ink-900)">DP690820A1B2</td><td class="muted">20 ส.ค. 69</td><td><b class="mono">฿1,590</b></td><td><span class="badge b-success">สำเร็จ</span></td><td style="text-align:right" class="muted">💬 ›</td></tr>
+            <tr><td class="mono" style="font-weight:600;color:var(--ink-900)">DP690815C3D4</td><td class="muted">15 ส.ค. 69</td><td><b class="mono">฿2,000</b></td><td><span class="badge b-danger">ยกเลิก</span></td><td style="text-align:right" class="muted">›</td></tr>
+            <tr><td class="mono" style="font-weight:600;color:var(--ink-900)">DP690712E5F6</td><td class="muted">12 ก.ค. 69</td><td><b class="mono">฿1,000</b></td><td><span class="badge b-success">สำเร็จ</span></td><td style="text-align:right" class="muted">💬 ›</td></tr>
+          </tbody>
+        </table>
+        <div class="card-footer"><span>1–5 จาก 12</span><span>‹ 1 2 3 ›</span></div>
+      </div>
+
+      <div class="card" style="margin:0">
+        <div class="card-header"><h5 class="card-title">ไทม์ไลน์กิจกรรม</h5></div>
+        <div class="card-body">
+          <div class="tl"><div class="when">20 ส.ค. 69</div><div class="rail"><div class="dot" style="background:var(--success)"></div></div>
+            <div class="body"><h5>สั่งซื้อสำเร็จ</h5><p>DP690820A1B2 · ฿1,590</p></div></div>
+          <div class="tl"><div class="when">15 ส.ค. 69</div><div class="rail"><div class="dot" style="background:var(--warning)"></div></div>
+            <div class="body"><h5>ยกเลิกคำสั่งซื้อ</h5><p>DP690815C3D4 · ลูกค้าขอยกเลิก</p></div></div>
+          <div class="tl"><div class="when">5 ก.ค. 69</div><div class="rail"><div class="dot" style="background:var(--d300)"></div></div>
+            <div class="body"><h5>ลูกค้าใหม่</h5><p>สั่งซื้อครั้งแรกกับร้าน</p></div></div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ─────────── 1440 ─────────── -->
+  <figure class="dev w1440">
+    <figcaption>เดสก์ท็อป <span>1440px (ย่อแสดง) — โครง order-details ของธีม 3/4 + 1/4</span></figcaption>
+    <div class="screen">
+      <div class="crumb"><h4>สมชาย ใจดี</h4><span class="path">ร้านค้า / ลูกค้า / สมชาย ใจดี</span></div>
+
+      <div class="grid34 g34-lg">
+        <!-- ซ้าย col-span-3 -->
+        <div class="stack">
+          <div class="card" style="margin:0">
+            <div class="card-header"><h5 class="card-title">คำสั่งซื้อทั้งหมด (12)</h5><span class="badge b-plain">นับเป็นยอดขาย 11 ใบ</span></div>
+            <table>
+              <thead><tr><th>เลขคำสั่งซื้อ</th><th>วันที่</th><th>ยอด</th><th>สถานะ</th><th>พัสดุ</th><th></th></tr></thead>
+              <tbody>
+                <tr><td class="mono" style="font-weight:600;color:var(--ink-900)">DP690820A1B2</td><td class="muted">20 ส.ค. 69</td><td><b class="mono">฿1,590</b></td><td><span class="badge b-success">สำเร็จ</span></td><td class="muted">ส่งถึงแล้ว</td><td style="text-align:right" class="muted">💬 ›</td></tr>
+                <tr><td class="mono" style="font-weight:600;color:var(--ink-900)">DP690815C3D4</td><td class="muted">15 ส.ค. 69</td><td><b class="mono">฿2,000</b></td><td><span class="badge b-danger">ยกเลิก</span></td><td><span class="badge b-warning">ตีกลับ</span></td><td style="text-align:right" class="muted">›</td></tr>
+                <tr><td class="mono" style="font-weight:600;color:var(--ink-900)">DP690712E5F6</td><td class="muted">12 ก.ค. 69</td><td><b class="mono">฿1,000</b></td><td><span class="badge b-success">สำเร็จ</span></td><td class="muted">ส่งถึงแล้ว</td><td style="text-align:right" class="muted">💬 ›</td></tr>
+                <tr><td class="mono" style="font-weight:600;color:var(--ink-900)">DP690705G7H8</td><td class="muted">5 ก.ค. 69</td><td><b class="mono">฿890</b></td><td><span class="badge b-success">สำเร็จ</span></td><td class="muted">ส่งถึงแล้ว</td><td style="text-align:right" class="muted">💬 ›</td></tr>
+              </tbody>
+            </table>
+            <div class="card-footer"><span>1–8 จาก 12 รายการ</span><span>‹ 1 2 ›</span></div>
+          </div>
+
+          <div class="card" style="margin:0">
+            <div class="card-header"><h5 class="card-title">ไทม์ไลน์กิจกรรม</h5></div>
+            <div class="card-body" style="padding:26px var(--base)">
+              <div class="tl"><div class="when">20 ส.ค. 69</div><div class="rail"><div class="dot" style="background:var(--success)"></div></div>
+                <div class="body"><h5>สั่งซื้อสำเร็จ</h5><p>DP690820A1B2 · ฿1,590 · ส่งถึงแล้ว</p></div></div>
+              <div class="tl"><div class="when">15 ส.ค. 69</div><div class="rail"><div class="dot" style="background:var(--warning)"></div></div>
+                <div class="body"><h5>พัสดุตีกลับ แล้วยกเลิก</h5><p>DP690815C3D4 · ผู้รับปฏิเสธรับสินค้า</p></div></div>
+              <div class="tl"><div class="when">12 ก.ค. 69</div><div class="rail"><div class="dot" style="background:var(--success)"></div></div>
+                <div class="body"><h5>สั่งซื้อสำเร็จ</h5><p>DP690712E5F6 · ฿1,000</p></div></div>
+              <div class="tl"><div class="when">5 ก.ค. 69</div><div class="rail"><div class="dot" style="background:var(--d300)"></div></div>
+                <div class="body"><h5>ลูกค้าใหม่</h5><p>สั่งซื้อครั้งแรกกับร้าน</p></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ขวา 1 คอลัมน์ -->
+        <div class="stack">
+          <div class="card" style="margin:0">
+            <div class="card-header"><h5 class="card-title">ข้อมูลลูกค้า</h5><span class="badge b-success">สมาชิก</span></div>
+            <div class="card-body">
+              <div style="display:flex;align-items:center;gap:11px;margin-bottom:18px">
+                <span class="av lg">ส</span>
+                <div style="min-width:0"><div class="nm" style="font-size:14px">สมชาย ใจดี</div><div class="muted" style="font-size:13px">ลูกค้าตั้งแต่ 5 ก.ค. 69</div></div>
+              </div>
+              <ul class="clist">
+                <li><span class="cic">☎</span><span class="mono">081-234-5678</span></li>
+                <li><span class="cic">◍</span>ช่องทางล่าสุด · Messenger</li>
+                <li><span class="cic">↗</span><span style="color:var(--primary)">ดูโปรไฟล์สาธารณะ</span></li>
+              </ul>
+              <div style="display:flex;gap:7px;margin-top:16px;flex-wrap:wrap">
+                <span class="btn btn-out">☎ โทร</span><span class="btn btn-out">💬 เปิดแชท</span>
+              </div>
+              <div style="margin-top:7px"><span class="btn btn-primary" style="width:100%">+ สร้างคำสั่งซื้อ</span></div>
+            </div>
+          </div>
+
+          <div class="card" style="margin:0">
+            <div class="card-body">
+              <span class="lbl">ยอดซื้อสะสม (นับเป็นยอดขายแล้ว)</span>
+              <p class="hero">฿48,200</p>
+              <div style="margin-top:14px">
+                <div class="srow"><span>ออเดอร์ทั้งหมด</span><b>12</b></div>
+                <div class="srow"><span>เฉลี่ยต่อบิล</span><b>฿4,018</b></div>
+                <div class="srow"><span>ยกเลิก</span><b>1</b></div>
+                <div class="srow"><span>ซื้อล่าสุด</span><b>12 ส.ค. 69</b></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card accent" style="margin:0">
+            <div class="card-header"><h5 class="card-title">สัญญาณที่ควรระวัง</h5></div>
+            <div class="card-body">
+              <span class="lbl" style="margin-bottom:6px">กับร้านนี้</span>
+              <div class="chips"><span class="badge b-warning">↩ ตีกลับ 2 รายการ</span><span class="badge b-warning">⚑ ยกเลิก 1 รายการ</span></div>
+              <div style="border-top:1px solid var(--d100);margin-top:13px;padding-top:11px">
+                <span class="lbl" style="margin-bottom:6px">ทั้งระบบ</span>
+                <div class="chips"><span class="badge b-plain">สั่ง 20</span><span class="badge b-success">รับของ 18</span><span class="badge b-warning">พัสดุตีกลับ 2</span></div>
+                <p class="muted" style="font-size:12px;margin:8px 0 0">พัสดุตีกลับ 10% ของ 20 ใบที่เปิดพัสดุ</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin:0">
+            <div class="card-header"><h5 class="card-title">ที่อยู่ล่าสุด</h5></div>
+            <div class="card-body" style="font-size:13.5px">123 ถ.สุขุมวิท คลองตันเหนือ วัฒนา กรุงเทพ 10110</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+</div>
+
+<div class="note good"><b>ของใหม่ในหน้า Details ที่ยังไม่มีในเวอร์ชันที่ขึ้น prod ไปแล้ว</b><br>
+① <b>ตารางออเดอร์เต็มรูป</b> (หัวคอลัมน์ + คอลัมน์สถานะพัสดุ) แทนรายการบรรทัดบาง ๆ<br>
+② <b>ไทม์ไลน์กิจกรรม</b> — ยกจาก <code>ShippingActivity</code> ของธีม (เส้นประ + จุดสี) เล่าเรื่องลูกค้าคนนี้ตามเวลา<br>
+③ <b>การ์ด "ข้อมูลลูกค้า"</b> เป็นรายการมีไอคอนกลม (ยกจาก <code>CustomerDetails</code> ของธีม) แทนบล็อกข้อความลอย ๆ<br>
+④ ป้าย <b>"สมาชิก"</b> ที่หัวการ์ด และการ์ดสัญญาณเตือนแยกหัวข้อ "กับร้านนี้" / "ทั้งระบบ" ชัดเจน
+</div>
+
+<div class="note"><b>ต้องให้คุณเคาะ 4 ข้อก่อน implement</b><br>
+① <b>การ์ดสถิติ 5 ใบ</b> — เอา 5 ตัวนี้ไหม (ลูกค้าทั้งหมด · ยอดซื้อสะสมรวม · ลูกค้าซื้อซ้ำ · เป็นสมาชิกแล้ว · มีสัญญาณเตือน) หรืออยากได้ตัวอื่น<br>
+② <b>ไทม์ไลน์กิจกรรม</b> — เอาไหม (เป็นของใหม่ ไม่มีในเวอร์ชันปัจจุบัน) ถ้าเอา อยากให้เล่าถึงอะไรบ้างนอกจาก สั่งซื้อ/ยกเลิก/ตีกลับ<br>
+③ <b>ระยะห่างการ์ดสถิติ</b> — ธีมใช้ 5px ซึ่งชิดมาก จะยึดตามธีม หรือใช้ 20px เท่าจังหวะปกติของระบบ<br>
+④ <b>กดการ์ดสถิติแล้วกรองตารางเลย</b> ไหม (เช่นกด "มีสัญญาณเตือน" แล้วตารางเหลือเฉพาะคนนั้น) — ธีมเป็นป้ายนิ่งกดไม่ได้ ผมจึงยังไม่ใส่
+</div>
+
+<div class="note"><b>ข้อเท็จจริงที่จำกัดการออกแบบ (ไม่ใช่ความขี้เกียจ)</b><br>
+เราไม่มี <b>รูปโปรไฟล์จริง</b> ของลูกค้า (Meta บล็อกรูป Messenger อยู่) จึงใช้ตัวย่อในวงกลม · ไม่มี <b>อีเมล</b> (<code>Customer.email</code> เป็น null ทุกแถวบน prod) · ไม่มี <b>วิธีชำระเงินประจำ</b>ต่อลูกค้า — ทั้ง 3 อย่างนี้ธีมมีคอลัมน์ให้ แต่ถ้าใส่เข้าไปจะเป็นช่องว่างเปล่าหรือข้อมูลปลอม
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>00057 — หน้าลูกค้า ฉบับสรุป (A + ชิปกรอง · เน้นความน่าเชื่อถือ)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#236dc9; --primary-ink:#1e3a8a;
+  --success:#02bc9c; --success-ink:#065f46;
+  --info:#5bc3e1; --info-ink:#1e40af;
+  --warning:#f9bf59; --warning-ink:#92400e;
+  --dark:#313a46;
+  --bg:#f6f7fb; --card:#fff; --ink:#4c4c5c; --ink-900:#313a46;
+  --d100:#eef0f4; --d200:#e3e6ec; --d300:#ced4de; --d400:#8f98a8;
+  --shadow:0 1px 4px rgba(130,143,163,.15); --base:20px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#eceff4;color:var(--ink);font-family:Anuphan,system-ui,sans-serif;font-size:15px;line-height:1.6}
+.wrap{max-width:1700px;margin:0 auto;padding:26px 20px 90px}
+h1{font-size:25px;margin:0 0 4px;color:var(--ink-900)}
+h2{font-size:19px;margin:40px 0 6px;padding-top:22px;border-top:2px solid var(--d200);color:var(--ink-900)}
+.lede{color:#6b7280;margin:0 0 18px;max-width:1000px}
+.note{background:#fff8e6;border-left:3px solid var(--warning);padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px;max-width:1060px}
+.note b{color:var(--warning-ink)}
+.note.good{background:#eafaf5;border-left-color:var(--success)} .note.good b{color:var(--success-ink)}
+.note.info{background:#eef5fc;border-left-color:var(--primary)} .note.info b{color:var(--primary-ink)}
+.tag{display:inline-block;background:var(--success);color:#fff;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:600;vertical-align:2px}
+
+.row{display:flex;gap:24px;align-items:flex-start;overflow-x:auto;padding-bottom:12px}
+.dev{flex:none}
+.dev>figcaption{font-size:13.5px;font-weight:700;color:var(--ink-900);margin:0 0 8px}
+.dev>figcaption span{font-weight:400;color:#6b7280}
+.screen{background:var(--bg);border:1px solid var(--d300);border-radius:10px;padding:11px;overflow:hidden}
+.w375 .screen{width:375px;height:660px;overflow-y:auto}
+.w768 .screen{width:768px}
+.w1440 .screen{width:1000px}
+.screen::-webkit-scrollbar{width:5px} .screen::-webkit-scrollbar-thumb{background:var(--d300);border-radius:9px}
+
+.card{background:var(--card);border-radius:8px;box-shadow:var(--shadow);overflow:hidden}
+.card+.card{margin-top:var(--base)}
+.card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px dashed var(--d200);flex-wrap:wrap}
+.card-title{font-size:14.5px;font-weight:600;color:var(--ink-900);margin:0}
+.card-body{padding:16px}
+.card-footer{padding:11px 16px;border-top:1px solid var(--d100);display:flex;justify-content:space-between;font-size:12.5px;color:#6b7280}
+.badge{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:2px 8px;font-size:11.5px;font-weight:600}
+.b-warning{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+.b-success{background:rgba(2,188,156,.15);color:var(--success-ink)}
+.b-plain{background:var(--d100);color:var(--ink)}
+.form{display:flex;align-items:center;gap:7px;border:1px solid var(--d300);border-radius:6px;background:#fff;padding:8px 11px;font-size:13.5px;min-height:40px}
+.form.grow{flex:1;min-width:0}
+.muted{color:var(--d400)} .mono{font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.av{width:38px;height:38px;border-radius:999px;background:rgba(35,109,201,.1);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex:none}
+.av.lg{width:52px;height:52px;font-size:19px}
+.nm{font-weight:600;color:var(--ink-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+.lbl{font-size:11px;color:var(--d400);display:block;line-height:1.5}
+.mrow{padding:12px 16px;border-bottom:1px solid var(--d100)}
+.mrow:last-child{border-bottom:0}
+
+.bar{display:flex;height:5px;border-radius:99px;overflow:hidden;background:var(--d100);margin:7px 0 5px}
+.bar.big{height:9px;margin:12px 0 10px}
+.bar i{display:block;height:100%}
+.bar .ok{background:var(--success)} .bar .rt{background:var(--warning)} .bar .na{background:var(--d200)}
+.facts{font-size:12px;color:var(--ink);display:flex;gap:9px;flex-wrap:wrap}
+.facts b{color:var(--ink-900);font-variant-numeric:tabular-nums}
+.dot{width:6px;height:6px;border-radius:99px;display:inline-block;vertical-align:1px;margin-right:3px}
+
+.hscroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px}
+.hscroll::-webkit-scrollbar{height:4px} .hscroll::-webkit-scrollbar-thumb{background:var(--d300);border-radius:9px}
+.mini{flex:none;width:138px;background:#fff;border-radius:8px;box-shadow:var(--shadow);padding:12px}
+.mini .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.mini .num{font-size:17px;font-weight:700;color:var(--ink-900);font-variant-numeric:tabular-nums}
+.mini .ring{width:26px;height:26px;border-radius:99px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;flex:none}
+.mini .ttl{font-size:11.5px;font-weight:700;color:var(--ink-900);display:block;line-height:1.4}
+.mini .cap{font-size:10.5px;color:var(--d400);display:block}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px}
+.chips::-webkit-scrollbar{height:0}
+.chip{flex:none;border-radius:999px;padding:7px 13px;font-size:12.5px;font-weight:600;white-space:nowrap;border:1px solid var(--d300);background:#fff;color:var(--ink)}
+.chip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.chip.warn{background:rgba(249,191,89,.15);border-color:rgba(249,191,89,.5);color:var(--warning-ink)}
+.stick{position:sticky;top:0;z-index:3;background:var(--bg);padding-bottom:7px}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11.5px;font-weight:700;color:var(--d400);padding:10px 16px;border-bottom:1px solid var(--d100);white-space:nowrap}
+td{padding:11px 16px;border-bottom:1px solid var(--d100);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.statgrid{display:grid;gap:5px;grid-template-columns:repeat(4,1fr);margin-bottom:var(--base)}
+.statgrid .mini{width:auto}
+.grid41{display:grid;gap:var(--base);grid-template-columns:3fr 1fr}
+.stack{display:flex;flex-direction:column;gap:var(--base)}
+.crumb{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px}
+.crumb h4{margin:0;font-size:17px;font-weight:600;color:var(--ink-900)}
+.crumb .path{font-size:12.5px;color:var(--d400)}
+.hero{font-size:28px;font-weight:800;letter-spacing:-.4px;color:var(--ink-900);font-variant-numeric:tabular-nums;line-height:1.15;margin:2px 0 0}
+.srow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:13.5px;padding:6px 0}
+.srow+.srow{border-top:1px solid var(--d100)}
+.srow b{font-weight:600;color:var(--ink-900);font-variant-numeric:tabular-nums}
+.tl{display:flex;gap:16px}
+.tl .when{width:66px;text-align:right;color:var(--d400);font-size:12.5px;flex:none}
+.tl .rail{position:relative;width:14px;flex:none}
+.tl .pin{width:13px;height:13px;border-radius:999px;position:relative;z-index:1}
+.tl .rail::after{content:"";position:absolute;left:50%;top:17px;bottom:-6px;border-left:1px dashed var(--d300)}
+.tl:last-child .rail::after{display:none}
+.tl .body{flex:1;padding-bottom:22px;min-width:0}
+.tl:last-child .body{padding-bottom:0}
+.tl h5{margin:0 0 2px;font-size:13.5px;font-weight:600;color:var(--ink-900)}
+.tl p{margin:0;font-size:12.5px;color:var(--d400)}
+.clist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.clist li{display:flex;align-items:center;gap:10px;font-size:13.5px}
+.clist .cic{width:24px;height:24px;border-radius:999px;background:var(--d100);color:var(--ink-900);display:flex;align-items:center;justify-content:center;font-size:12px;flex:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:6px;padding:8px 12px;font-size:13.5px;font-weight:600;border:1px solid transparent;white-space:nowrap}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-out{border-color:var(--d300);color:var(--ink-900);background:#fff}
+.accent{border-left:3px solid var(--warning)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>หน้าลูกค้า — ฉบับสรุปก่อนลงมือ <span class="tag">ตามที่เคาะแล้ว</span></h1>
+<p class="lede">
+<b>ทาง A</b> (แถบสัดส่วนความน่าเชื่อถือ + การ์ดสถิติเลื่อนแนวนอน) <b>+ ชิปกรองแนวนอนของทาง C</b> · การ์ดสถิติเหลือ <b>4 ใบ</b> (ตัด "มูลค่าที่เสียไป" ออกตามที่สั่ง) · ป้ายใช้คำว่า <b>เฝ้าระวัง / เสี่ยงสูง</b>
+<br><b>หน้า Details เปลี่ยนแกนตามด้วย</b> — พระเอกเป็นบล็อกความน่าเชื่อถือ ยอดซื้อสะสมถอยไปเป็นข้อมูลรอง
+</p>
+
+<h2>จอ A — หน้า List</h2>
+
+<div class="row">
+
+  <figure class="dev w375">
+    <figcaption>มือถือ <span>375px</span></figcaption>
+    <div class="screen">
+      <div class="stick">
+        <div class="form grow" style="margin-bottom:8px"><span class="muted">⌕ ค้นหาชื่อ หรือ เบอร์โทร</span></div>
+      </div>
+      <div class="hscroll">
+        <div class="mini"><div class="top"><span class="num">96%</span><span class="ring" style="background:var(--success)">✓</span></div><span class="ttl">อัตรารับของสำเร็จ</span><span class="cap">410 จาก 427 ใบ</span></div>
+        <div class="mini"><div class="top"><span class="num">2.8%</span><span class="ring" style="background:var(--warning)">↩</span></div><span class="ttl">พัสดุตีกลับ</span><span class="cap">12 ใบ</span></div>
+        <div class="mini"><div class="top"><span class="num">12</span><span class="ring" style="background:var(--warning)">!</span></div><span class="ttl">ลูกค้าต้องเฝ้าระวัง</span><span class="cap">3% ของลูกค้า</span></div>
+        <div class="mini"><div class="top"><span class="num">397</span><span class="ring" style="background:var(--primary)">◍</span></div><span class="ttl">ลูกค้าทั้งหมด</span></div>
+      </div>
+      <div class="chips" style="margin-bottom:10px">
+        <span class="chip on">ทั้งหมด</span>
+        <span class="chip warn">⚠ ต้องเฝ้าระวัง 12</span>
+        <span class="chip">เคยตีกลับ</span>
+        <span class="chip">ซื้อซ้ำ</span>
+      </div>
+
+      <div class="card">
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:flex-start">
+          <span class="av">ส</span>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px"><span class="nm">สมชาย ใจดี</span><span class="badge b-warning">เฝ้าระวัง</span></div>
+            <div class="bar"><i class="ok" style="width:75%"></i><i class="rt" style="width:17%"></i><i class="na" style="width:8%"></i></div>
+            <div class="facts"><span><span class="dot" style="background:var(--success)"></span>รับของ <b>9</b></span><span><span class="dot" style="background:var(--warning)"></span>ตีกลับ <b>2</b></span><span class="muted">อัตราตีกลับ <b>17%</b></span></div>
+            </div>
+          <div style="text-align:right;flex:none;padding-left:4px"><b class="mono" style="color:var(--ink-900);font-size:15px;display:block;line-height:1.3">฿48,200</b><span class="lbl">12 ออเดอร์</span><span class="lbl">20 ส.ค. 69</span></div>
+        </div></div>
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:flex-start">
+          <span class="av">ว</span>
+          <div style="flex:1;min-width:0">
+            <span class="nm">วรรณา พงษ์เจริญสุข</span>
+            <div class="bar"><i class="ok" style="width:100%"></i></div>
+            <div class="facts"><span><span class="dot" style="background:var(--success)"></span>รับของ <b>1</b></span><span class="muted">ยังบอกอัตราไม่ได้</span></div>
+            </div>
+          <div style="text-align:right;flex:none;padding-left:4px"><b class="mono" style="color:var(--ink-900);font-size:15px;display:block;line-height:1.3">฿890</b><span class="lbl">1 ออเดอร์</span><span class="lbl">18 ส.ค. 69</span></div>
+        </div></div>
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:flex-start">
+          <span class="av">?</span>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px"><span class="nm">ลูกค้าทั่วไป</span><span class="badge b-warning">เสี่ยงสูง</span></div>
+            <div class="bar"><i class="ok" style="width:25%"></i><i class="rt" style="width:75%"></i></div>
+            <div class="facts"><span><span class="dot" style="background:var(--success)"></span>รับของ <b>1</b></span><span><span class="dot" style="background:var(--warning)"></span>ตีกลับ <b>3</b></span><span class="muted">อัตราตีกลับ <b>75%</b></span></div>
+            </div>
+          <div style="text-align:right;flex:none;padding-left:4px"><b class="mono" style="color:var(--ink-900);font-size:15px;display:block;line-height:1.3">฿1,250</b><span class="lbl">4 ออเดอร์</span><span class="lbl">14 ส.ค. 69</span></div>
+        </div></div>
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:flex-start">
+          <span class="av">น</span>
+          <div style="flex:1;min-width:0">
+            <span class="nm">นภา ทองดี</span>
+            <div class="bar"><i class="ok" style="width:100%"></i></div>
+            <div class="facts"><span><span class="dot" style="background:var(--success)"></span>รับของ <b>4</b></span><span class="muted">อัตราตีกลับ <b>0%</b></span></div>
+            </div>
+          <div style="text-align:right;flex:none;padding-left:4px"><b class="mono" style="color:var(--ink-900);font-size:15px;display:block;line-height:1.3">฿12,400</b><span class="lbl">4 ออเดอร์</span><span class="lbl">19 ส.ค. 69</span></div>
+        </div></div>
+        <div class="card-footer"><span>1–20 จาก 397</span><span>เลื่อนเพื่อดูต่อ</span></div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="dev w768">
+    <figcaption>แท็บเล็ต <span>768px — การ์ดสถิติ 4 ใบพอดีแถว ชิปยังเป็นชิป</span></figcaption>
+    <div class="screen">
+      <div class="crumb"><h4>ลูกค้า</h4><span class="path">ร้านค้า / ลูกค้า</span></div>
+      <div class="statgrid">
+        <div class="mini"><div class="top"><span class="num">96%</span><span class="ring" style="background:var(--success)">✓</span></div><span class="ttl">อัตรารับของสำเร็จ</span><span class="cap">410 จาก 427 ใบ</span></div>
+        <div class="mini"><div class="top"><span class="num">2.8%</span><span class="ring" style="background:var(--warning)">↩</span></div><span class="ttl">พัสดุตีกลับ</span><span class="cap">12 ใบ</span></div>
+        <div class="mini"><div class="top"><span class="num">12</span><span class="ring" style="background:var(--warning)">!</span></div><span class="ttl">ลูกค้าต้องเฝ้าระวัง</span><span class="cap">3% ของลูกค้า</span></div>
+        <div class="mini"><div class="top"><span class="num">397</span><span class="ring" style="background:var(--primary)">◍</span></div><span class="ttl">ลูกค้าทั้งหมด</span></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="form grow" style="max-width:300px"><span class="muted">⌕ ค้นหาชื่อ หรือ เบอร์โทร</span></div>
+          <div class="chips"><span class="chip on">ทั้งหมด</span><span class="chip warn">⚠ ต้องเฝ้าระวัง 12</span><span class="chip">เคยตีกลับ</span><span class="chip">ซื้อซ้ำ</span></div>
+        </div>
+        <div class="mrow"><div style="display:flex;gap:12px;align-items:center">
+          <span class="av">ส</span>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px"><span class="nm">สมชาย ใจดี</span><span class="badge b-warning">เฝ้าระวัง</span></div>
+            <div class="bar" style="max-width:220px"><i class="ok" style="width:75%"></i><i class="rt" style="width:17%"></i><i class="na" style="width:8%"></i></div>
+            <div class="facts"><span><span class="dot" style="background:var(--success)"></span>รับของ <b>9</b></span><span><span class="dot" style="background:var(--warning)"></span>ตีกลับ <b>2</b></span><span class="muted">อัตราตีกลับ <b>17%</b></span></div>
+          </div>
+          <div style="text-align:right"><b class="mono" style="color:var(--ink-900)">฿48,200</b><span class="lbl">12 ออเดอร์ · 20 ส.ค.</span></div>
+        </div></div>
+        <div class="mrow"><div style="display:flex;gap:12px;align-items:center">
+          <span class="av">ว</span>
+          <div style="flex:1;min-width:0">
+            <span class="nm">วรรณา พงษ์เจริญสุข</span>
+            <div class="bar" style="max-width:220px"><i class="ok" style="width:100%"></i></div>
+            <div class="facts"><span><span class="dot" style="background:var(--success)"></span>รับของ <b>1</b></span><span class="muted">ยังบอกอัตราไม่ได้</span></div>
+          </div>
+          <div style="text-align:right"><b class="mono" style="color:var(--ink-900)">฿890</b><span class="lbl">1 ออเดอร์ · 18 ส.ค.</span></div>
+        </div></div>
+        <div class="card-footer"><span>1–8 จาก 397 รายการ</span><span>‹ 1 2 3 ›</span></div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="dev w1440">
+    <figcaption>เดสก์ท็อป <span>1440px (ย่อแสดง) — ตารางจริง มีคอลัมน์ความน่าเชื่อถือ</span></figcaption>
+    <div class="screen">
+      <div class="crumb"><h4>ลูกค้า</h4><span class="path">ร้านค้า / ลูกค้า</span></div>
+      <div class="statgrid">
+        <div class="mini"><div class="top"><span class="num">96%</span><span class="ring" style="background:var(--success)">✓</span></div><span class="ttl">อัตรารับของสำเร็จ</span><span class="cap">410 จาก 427 ใบ</span></div>
+        <div class="mini"><div class="top"><span class="num">2.8%</span><span class="ring" style="background:var(--warning)">↩</span></div><span class="ttl">พัสดุตีกลับ</span><span class="cap">12 ใบ</span></div>
+        <div class="mini"><div class="top"><span class="num">12</span><span class="ring" style="background:var(--warning)">!</span></div><span class="ttl">ลูกค้าต้องเฝ้าระวัง</span><span class="cap">3% ของลูกค้า</span></div>
+        <div class="mini"><div class="top"><span class="num">397</span><span class="ring" style="background:var(--primary)">◍</span></div><span class="ttl">ลูกค้าทั้งหมด</span></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="form grow" style="max-width:280px"><span class="muted">⌕ ค้นหาชื่อ หรือ เบอร์โทร</span></div>
+          <div class="chips"><span class="chip on">ทั้งหมด</span><span class="chip warn">⚠ ต้องเฝ้าระวัง 12</span><span class="chip">เคยตีกลับ</span><span class="chip">ซื้อซ้ำ</span></div>
+        </div>
+        <table>
+          <thead><tr><th>ลูกค้า</th><th style="width:240px">ความน่าเชื่อถือ</th><th>ออเดอร์</th><th>ยอดซื้อสะสม</th><th>ล่าสุด</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:10px"><span class="av">ส</span><div style="min-width:0"><span class="nm">สมชาย ใจดี</span><div><span class="badge b-warning">เฝ้าระวัง</span></div></div></div></td>
+              <td><div class="bar" style="margin:0 0 5px"><i class="ok" style="width:75%"></i><i class="rt" style="width:17%"></i><i class="na" style="width:8%"></i></div>
+                  <div class="facts" style="font-size:11.5px"><span><span class="dot" style="background:var(--success)"></span>รับของ <b>9</b></span><span><span class="dot" style="background:var(--warning)"></span>ตีกลับ <b>2</b></span><span class="muted">17%</span></div></td>
+              <td>12</td><td><b class="mono" style="color:var(--ink-900)">฿48,200</b></td><td class="muted">20 ส.ค. 69</td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:10px"><span class="av">ว</span><span class="nm">วรรณา พงษ์เจริญสุขไพบูลย์</span></div></td>
+              <td><div class="bar" style="margin:0 0 5px"><i class="ok" style="width:100%"></i></div>
+                  <div class="facts" style="font-size:11.5px"><span><span class="dot" style="background:var(--success)"></span>รับของ <b>1</b></span><span class="muted">ยังบอกอัตราไม่ได้</span></div></td>
+              <td>1</td><td><b class="mono" style="color:var(--ink-900)">฿890</b></td><td class="muted">18 ส.ค. 69</td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:10px"><span class="av">?</span><div><span class="nm">ลูกค้าทั่วไป</span><div><span class="badge b-warning">เสี่ยงสูง</span></div></div></div></td>
+              <td><div class="bar" style="margin:0 0 5px"><i class="ok" style="width:25%"></i><i class="rt" style="width:75%"></i></div>
+                  <div class="facts" style="font-size:11.5px"><span><span class="dot" style="background:var(--success)"></span>รับของ <b>1</b></span><span><span class="dot" style="background:var(--warning)"></span>ตีกลับ <b>3</b></span><span class="muted">75%</span></div></td>
+              <td>4</td><td><b class="mono" style="color:var(--ink-900)">฿1,250</b></td><td class="muted">14 ส.ค. 69</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="card-footer"><span>1–8 จาก 397 รายการ</span><span>‹ 1 2 3 4 5 ›</span></div>
+      </div>
+    </div>
+  </figure>
+
+</div>
+
+<h2>จอ B — หน้า Details (แกนเปลี่ยนเป็นความน่าเชื่อถือ)</h2>
+<p class="lede">พระเอกของหน้าคือ <b>บล็อกความน่าเชื่อถือ</b> ไม่ใช่ยอดซื้อสะสมอีกต่อไป — ตัวเลขเงินถอยไปอยู่ในกลุ่มสรุปรอง</p>
+
+<div class="row">
+
+  <figure class="dev w375">
+    <figcaption>มือถือ <span>375px</span></figcaption>
+    <div class="screen">
+      <div class="crumb"><h4>สมชาย ใจดี</h4><span class="path">‹ ลูกค้า</span></div>
+
+      <div class="card accent">
+        <div class="card-header"><h5 class="card-title">ความน่าเชื่อถือ</h5><span class="badge b-warning">เฝ้าระวัง</span></div>
+        <div class="card-body">
+          <span class="lbl">รับของสำเร็จ (ทั้งระบบ)</span>
+          <p class="hero">9 <span style="font-size:16px;font-weight:600;color:var(--d400)">จาก 11 ใบ</span></p>
+          <div class="bar big"><i class="ok" style="width:75%"></i><i class="rt" style="width:17%"></i><i class="na" style="width:8%"></i></div>
+          <div class="facts" style="font-size:12.5px">
+            <span><span class="dot" style="background:var(--success)"></span>รับของ <b>9</b></span>
+            <span><span class="dot" style="background:var(--warning)"></span>ตีกลับ <b>2</b></span>
+            <span><span class="dot" style="background:var(--d200)"></span>ยังไม่จบ <b>1</b></span>
+          </div>
+          <div style="border-top:1px solid var(--d100);margin-top:12px;padding-top:10px">
+            <div class="srow"><span>อัตราตีกลับ</span><b style="color:var(--warning-ink)">17%</b></div>
+            <div class="srow"><span>ยกเลิกโดยลูกค้า</span><b>1 ครั้ง</b></div>
+            <div class="srow"><span>ตีกลับกับร้านนี้</span><b>2 ครั้ง</b></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h5 class="card-title">ข้อมูลลูกค้า</h5><span class="badge b-success">สมาชิก</span></div>
+        <div class="card-body">
+          <div style="display:flex;align-items:center;gap:11px;margin-bottom:15px">
+            <span class="av lg">ส</span>
+            <div style="min-width:0"><div class="nm">สมชาย ใจดี</div><div class="muted" style="font-size:13px">ลูกค้าตั้งแต่ 5 ก.ค. 69</div></div>
+          </div>
+          <ul class="clist">
+            <li><span class="cic">☎</span><span class="mono">081-234-5678</span></li>
+            <li><span class="cic">◍</span>ช่องทางล่าสุด · Messenger</li>
+            <li><span class="cic">↗</span><span style="color:var(--primary)">ดูโปรไฟล์สาธารณะ</span></li>
+          </ul>
+          <div style="display:flex;gap:7px;margin-top:15px;flex-wrap:wrap">
+            <span class="btn btn-out">☎ โทร</span><span class="btn btn-out">💬 เปิดแชท</span><span class="btn btn-primary">+ สร้างคำสั่งซื้อ</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <span class="lbl">ยอดซื้อสะสม (นับเป็นยอดขายแล้ว)</span>
+          <p class="hero">฿48,200</p>
+          <div style="border-top:1px solid var(--d100);margin-top:12px;padding-top:8px">
+            <div class="srow"><span>ออเดอร์ทั้งหมด</span><b>12</b></div>
+            <div class="srow"><span>เฉลี่ยต่อบิล</span><b>฿4,018</b></div>
+            <div class="srow"><span>ซื้อล่าสุด</span><b>20 ส.ค. 69</b></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h5 class="card-title">ที่อยู่ล่าสุด</h5></div>
+        <div class="card-body" style="font-size:13.5px">123 ถ.สุขุมวิท คลองตันเหนือ วัฒนา กรุงเทพ 10110</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h5 class="card-title">คำสั่งซื้อทั้งหมด (12)</h5></div>
+        <div class="mrow"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <div><div class="mono" style="font-weight:600;color:var(--ink-900);font-size:13px">DP690820A1B2</div><span class="muted" style="font-size:12px">20 ส.ค. 69</span></div>
+          <div style="text-align:right"><b class="mono" style="color:var(--ink-900)">฿1,590</b><div><span class="badge b-success">ส่งถึงแล้ว</span></div></div><span class="muted">›</span>
+        </div></div>
+        <div class="mrow"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <div><div class="mono" style="font-weight:600;color:var(--ink-900);font-size:13px">DP690815C3D4</div><span class="muted" style="font-size:12px">15 ส.ค. 69</span></div>
+          <div style="text-align:right"><b class="mono" style="color:var(--ink-900)">฿2,000</b><div><span class="badge b-warning">ตีกลับ</span></div></div><span class="muted">›</span>
+        </div></div>
+        <div class="card-footer"><span>1–5 จาก 12</span><span>‹ 1 2 3 ›</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h5 class="card-title">ไทม์ไลน์กิจกรรม</h5></div>
+        <div class="card-body">
+          <div class="tl"><div class="when">20 ส.ค.</div><div class="rail"><div class="pin" style="background:var(--success)"></div></div><div class="body"><h5>ส่งถึงแล้ว</h5><p>DP690820A1B2 · ฿1,590</p></div></div>
+          <div class="tl"><div class="when">15 ส.ค.</div><div class="rail"><div class="pin" style="background:var(--warning)"></div></div><div class="body"><h5>พัสดุตีกลับ</h5><p>DP690815C3D4 · ผู้รับปฏิเสธรับสินค้า</p></div></div>
+          <div class="tl"><div class="when">5 ก.ค.</div><div class="rail"><div class="pin" style="background:var(--d300)"></div></div><div class="body"><h5>ลูกค้าใหม่</h5><p>สั่งซื้อครั้งแรกกับร้าน</p></div></div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="dev w1440">
+    <figcaption>เดสก์ท็อป <span>1440px (ย่อแสดง) — โครง order-details ของธีม 3/4 + 1/4</span></figcaption>
+    <div class="screen">
+      <div class="crumb"><h4>สมชาย ใจดี</h4><span class="path">ร้านค้า / ลูกค้า / สมชาย ใจดี</span></div>
+      <div class="grid41">
+        <div class="stack">
+          <div class="card accent" style="margin:0">
+            <div class="card-header"><h5 class="card-title">ความน่าเชื่อถือ</h5><span class="badge b-warning">เฝ้าระวัง</span></div>
+            <div class="card-body" style="display:flex;gap:30px;align-items:flex-start;flex-wrap:wrap">
+              <div style="min-width:230px;flex:1">
+                <span class="lbl">รับของสำเร็จ (ทั้งระบบ)</span>
+                <p class="hero">9 <span style="font-size:16px;font-weight:600;color:var(--d400)">จาก 11 ใบ</span></p>
+                <div class="bar big"><i class="ok" style="width:75%"></i><i class="rt" style="width:17%"></i><i class="na" style="width:8%"></i></div>
+                <div class="facts" style="font-size:12.5px">
+                  <span><span class="dot" style="background:var(--success)"></span>รับของ <b>9</b></span>
+                  <span><span class="dot" style="background:var(--warning)"></span>ตีกลับ <b>2</b></span>
+                  <span><span class="dot" style="background:var(--d200)"></span>ยังไม่จบ <b>1</b></span>
+                </div>
+              </div>
+              <div style="min-width:210px;flex:1">
+                <div class="srow"><span>อัตราตีกลับ</span><b style="color:var(--warning-ink)">17%</b></div>
+                <div class="srow"><span>ยกเลิกโดยลูกค้า</span><b>1 ครั้ง</b></div>
+                <div class="srow"><span>ตีกลับกับร้านนี้</span><b>2 ครั้ง</b></div>
+                <div class="srow"><span>สั่งทั้งระบบ</span><b>20 ครั้ง</b></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin:0">
+            <div class="card-header"><h5 class="card-title">คำสั่งซื้อทั้งหมด (12)</h5><span class="badge b-plain">นับเป็นยอดขาย 11 ใบ</span></div>
+            <table>
+              <thead><tr><th>เลขคำสั่งซื้อ</th><th>วันที่</th><th>ยอด</th><th>สถานะ</th><th>พัสดุ</th><th></th></tr></thead>
+              <tbody>
+                <tr><td class="mono" style="font-weight:600;color:var(--ink-900)">DP690820A1B2</td><td class="muted">20 ส.ค. 69</td><td><b class="mono">฿1,590</b></td><td><span class="badge b-success">สำเร็จ</span></td><td class="muted">ส่งถึงแล้ว</td><td style="text-align:right" class="muted">💬 ›</td></tr>
+                <tr><td class="mono" style="font-weight:600;color:var(--ink-900)">DP690815C3D4</td><td class="muted">15 ส.ค. 69</td><td><b class="mono">฿2,000</b></td><td><span class="badge b-warning">ยกเลิก</span></td><td><span class="badge b-warning">ตีกลับ</span></td><td style="text-align:right" class="muted">›</td></tr>
+                <tr><td class="mono" style="font-weight:600;color:var(--ink-900)">DP690712E5F6</td><td class="muted">12 ก.ค. 69</td><td><b class="mono">฿1,000</b></td><td><span class="badge b-success">สำเร็จ</span></td><td class="muted">ส่งถึงแล้ว</td><td style="text-align:right" class="muted">💬 ›</td></tr>
+              </tbody>
+            </table>
+            <div class="card-footer"><span>1–8 จาก 12 รายการ</span><span>‹ 1 2 ›</span></div>
+          </div>
+
+          <div class="card" style="margin:0">
+            <div class="card-header"><h5 class="card-title">ไทม์ไลน์กิจกรรม</h5></div>
+            <div class="card-body" style="padding:22px 16px">
+              <div class="tl"><div class="when">20 ส.ค. 69</div><div class="rail"><div class="pin" style="background:var(--success)"></div></div><div class="body"><h5>ส่งถึงแล้ว</h5><p>DP690820A1B2 · ฿1,590</p></div></div>
+              <div class="tl"><div class="when">15 ส.ค. 69</div><div class="rail"><div class="pin" style="background:var(--warning)"></div></div><div class="body"><h5>พัสดุตีกลับ</h5><p>DP690815C3D4 · ผู้รับปฏิเสธรับสินค้า</p></div></div>
+              <div class="tl"><div class="when">5 ก.ค. 69</div><div class="rail"><div class="pin" style="background:var(--d300)"></div></div><div class="body"><h5>ลูกค้าใหม่</h5><p>สั่งซื้อครั้งแรกกับร้าน</p></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="card" style="margin:0">
+            <div class="card-header"><h5 class="card-title">ข้อมูลลูกค้า</h5><span class="badge b-success">สมาชิก</span></div>
+            <div class="card-body">
+              <div style="display:flex;align-items:center;gap:11px;margin-bottom:15px">
+                <span class="av lg">ส</span>
+                <div style="min-width:0"><div class="nm">สมชาย ใจดี</div><div class="muted" style="font-size:13px">ลูกค้าตั้งแต่ 5 ก.ค. 69</div></div>
+              </div>
+              <ul class="clist">
+                <li><span class="cic">☎</span><span class="mono">081-234-5678</span></li>
+                <li><span class="cic">◍</span>ช่องทางล่าสุด · Messenger</li>
+                <li><span class="cic">↗</span><span style="color:var(--primary)">ดูโปรไฟล์สาธารณะ</span></li>
+              </ul>
+              <div style="display:flex;gap:7px;margin-top:15px;flex-wrap:wrap">
+                <span class="btn btn-out">☎ โทร</span><span class="btn btn-out">💬 เปิดแชท</span>
+              </div>
+              <div style="margin-top:7px"><span class="btn btn-primary" style="width:100%">+ สร้างคำสั่งซื้อ</span></div>
+            </div>
+          </div>
+          <div class="card" style="margin:0">
+            <div class="card-body">
+              <span class="lbl">ยอดซื้อสะสม (นับเป็นยอดขายแล้ว)</span>
+              <p class="hero">฿48,200</p>
+              <div style="border-top:1px solid var(--d100);margin-top:12px;padding-top:8px">
+                <div class="srow"><span>ออเดอร์ทั้งหมด</span><b>12</b></div>
+                <div class="srow"><span>เฉลี่ยต่อบิล</span><b>฿4,018</b></div>
+                <div class="srow"><span>ซื้อล่าสุด</span><b>20 ส.ค. 69</b></div>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="margin:0">
+            <div class="card-header"><h5 class="card-title">ที่อยู่ล่าสุด</h5></div>
+            <div class="card-body" style="font-size:13.5px">123 ถ.สุขุมวิท คลองตันเหนือ วัฒนา กรุงเทพ 10110</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+</div>
+
+<div class="note good"><b>ยอดซื้อสะสมรายคนยังเด่นอยู่ ไม่ได้ถูกลดชั้น</b> — ในลิสต์อยู่คอลัมน์ขวาของทุกแถว (ตัวหนา อ่านได้จากการกวาดตาเหมือนกัน) · ในหน้า Details เป็นตัวเลขใหญ่ของการ์ดตัวเอง<br>ต่างกันตรง <b>ความน่าเชื่อถืออยู่ซ้าย (อ่านก่อน) · เงินอยู่ขวา (อ่านคู่กัน)</b> ไม่ใช่เงินหายไป — สองอย่างนี้ตอบคนละคำถามและผู้ขายต้องใช้พร้อมกัน</div>
+<div class="note info"><b>แถบสีอ่านยังไง</b> — <span style="color:var(--success-ink)">เขียว = รับของแล้วจริง</span> (ขนส่งยืนยัน) · <span style="color:var(--warning-ink)">เหลือง = ตีกลับ</span> · เทา = ยังไม่จบ · <b>ไม่มีสีแดงทั้งหน้า</b> เพราะระบบตั้งใจให้ป้ายพวกนี้ "เตือน ไม่ตัดสิน" — ร้านยังตัดสินใจเองได้เสมอ</div>
+
+<div class="note"><b>เรื่องที่ยังต้องยอมรับ</b><br>
+① ลูกค้าที่เปิดพัสดุ <b>ไม่ถึง 3 ใบ</b> จะขึ้นว่า <b>"ยังบอกอัตราไม่ได้"</b> แทนตัวเลข % — เพราะ "ส่ง 1 ตีกลับ 1 = 100%" อ่านว่าเลวร้ายที่สุดในระบบทั้งที่บอกอะไรไม่ได้ · <b>แต่แถบสีกับจำนวนดิบยังแสดงเสมอ</b> จึงไม่มีแถวไหนว่างเปล่า<br>
+② ตัวเลขทั้งหมดในบล็อกความน่าเชื่อถือเป็น <b>ข้อมูลข้ามร้าน</b> (นับอย่างเดียว ไม่บอกว่าร้านไหน/เมื่อไหร่) ตามกติกาความเป็นส่วนตัวที่ตั้งไว้ตั้งแต่ feature 00055<br>
+③ ตัวเลขในภาพเป็นตัวอย่าง — ของจริงร้านใหญ่สุดตอนนี้มีพัสดุตีกลับ <b>12 ใบจาก 427</b> (2.8%)
+</div>
+
+</div>
+</body>
+</html>

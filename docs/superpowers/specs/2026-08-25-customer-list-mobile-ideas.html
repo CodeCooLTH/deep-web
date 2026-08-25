@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>00057 — หน้าลูกค้าบนมือถือ: 3 ทางเลือก (เน้นความน่าเชื่อถือ)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#236dc9; --primary-ink:#1e3a8a;
+  --success:#02bc9c; --success-ink:#065f46;
+  --info:#5bc3e1; --info-ink:#1e40af;
+  --warning:#f9bf59; --warning-ink:#92400e;
+  --danger:#f7577e; --dark:#313a46;
+  --bg:#f6f7fb; --card:#fff; --ink:#4c4c5c; --ink-900:#313a46;
+  --d100:#eef0f4; --d200:#e3e6ec; --d300:#ced4de; --d400:#8f98a8;
+  --shadow:0 1px 4px rgba(130,143,163,.15); --base:20px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#eceff4;color:var(--ink);font-family:Anuphan,system-ui,sans-serif;font-size:15px;line-height:1.6}
+.wrap{max-width:1720px;margin:0 auto;padding:26px 20px 90px}
+h1{font-size:25px;margin:0 0 4px;color:var(--ink-900)}
+h2{font-size:19px;margin:40px 0 6px;padding-top:22px;border-top:2px solid var(--d200);color:var(--ink-900)}
+.lede{color:#6b7280;margin:0 0 20px;max-width:960px}
+.note{background:#fff8e6;border-left:3px solid var(--warning);padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px;max-width:1040px}
+.note b{color:var(--warning-ink)}
+.note.good{background:#eafaf5;border-left-color:var(--success)} .note.good b{color:var(--success-ink)}
+.note.info{background:#eef5fc;border-left-color:var(--primary)} .note.info b{color:var(--primary-ink)}
+.note.bad{background:#fdeef2;border-left-color:var(--danger)} .note.bad b{color:#9f1239}
+.tag{display:inline-block;background:var(--primary);color:#fff;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:600;vertical-align:2px}
+.tag.pick{background:var(--success)} .tag.old{background:var(--d400)}
+
+.row{display:flex;gap:22px;align-items:flex-start;overflow-x:auto;padding-bottom:12px}
+.dev{flex:none;width:375px}
+.dev>figcaption{font-size:13.5px;font-weight:700;color:var(--ink-900);margin:0 0 3px}
+.dev>.sub{font-size:12.5px;color:#6b7280;margin:0 0 9px;min-height:34px}
+.screen{background:var(--bg);border:1px solid var(--d300);border-radius:10px;padding:11px;height:620px;overflow-y:auto}
+.screen::-webkit-scrollbar{width:5px} .screen::-webkit-scrollbar-thumb{background:var(--d300);border-radius:9px}
+
+.card{background:var(--card);border-radius:8px;box-shadow:var(--shadow);overflow:hidden}
+.card+.card{margin-top:12px}
+.card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px dashed var(--d200);flex-wrap:wrap}
+.card-title{font-size:14.5px;font-weight:600;color:var(--ink-900);margin:0}
+.card-body{padding:16px}
+.card-footer{padding:11px 16px;border-top:1px solid var(--d100);display:flex;justify-content:space-between;font-size:12.5px;color:#6b7280}
+.badge{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:2px 8px;font-size:11.5px;font-weight:600}
+.b-warning{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+.b-success{background:rgba(2,188,156,.15);color:var(--success-ink)}
+.b-plain{background:var(--d100);color:var(--ink)}
+.form{display:flex;align-items:center;gap:7px;border:1px solid var(--d300);border-radius:6px;background:#fff;padding:8px 11px;font-size:13.5px;min-height:40px}
+.form.grow{flex:1;min-width:0}
+.form.sel::after{content:"▾";margin-left:auto;color:var(--d400);padding-left:6px}
+.muted{color:var(--d400)} .mono{font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.av{width:38px;height:38px;border-radius:999px;background:rgba(35,109,201,.1);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex:none}
+.nm{font-weight:600;color:var(--ink-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+.lbl{font-size:11px;color:var(--d400);display:block;line-height:1.5}
+.mrow{padding:12px 16px;border-bottom:1px solid var(--d100)}
+.mrow:last-child{border-bottom:0}
+
+/* แถบสัดส่วนความน่าเชื่อถือ */
+.bar{display:flex;height:5px;border-radius:99px;overflow:hidden;background:var(--d100);margin:7px 0 5px}
+.bar i{display:block;height:100%}
+.bar .ok{background:var(--success)} .bar .rt{background:var(--warning)} .bar .na{background:var(--d200)}
+.facts{font-size:12px;color:var(--ink);display:flex;gap:9px;flex-wrap:wrap}
+.facts b{color:var(--ink-900);font-variant-numeric:tabular-nums}
+.dot{width:6px;height:6px;border-radius:99px;display:inline-block;vertical-align:1px;margin-right:3px}
+
+/* หัวข้อกลุ่ม sticky */
+.ghead{position:sticky;top:0;z-index:2;background:var(--bg);padding:9px 4px 6px;font-size:12px;font-weight:700;color:var(--ink-900);display:flex;align-items:center;gap:7px}
+.ghead .cnt{font-weight:500;color:var(--d400)}
+.ghead.warn{color:var(--warning-ink)}
+
+/* แถบสรุปบรรทัดเดียว */
+.sumbar{display:flex;align-items:center;gap:10px;background:#fff;border-radius:8px;box-shadow:var(--shadow);padding:11px 14px;margin-bottom:12px}
+.sumbar .k{font-size:11px;color:var(--d400);display:block;line-height:1.4}
+.sumbar .v{font-size:15px;font-weight:700;color:var(--ink-900);font-variant-numeric:tabular-nums}
+.sumbar .sep{width:1px;align-self:stretch;background:var(--d100)}
+.sumbar .more{margin-left:auto;color:var(--primary);font-size:12.5px;font-weight:600;white-space:nowrap}
+
+/* สถิติแบบเลื่อนแนวนอน */
+.hscroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px}
+.hscroll::-webkit-scrollbar{height:4px} .hscroll::-webkit-scrollbar-thumb{background:var(--d300);border-radius:9px}
+.mini{flex:none;width:132px;background:#fff;border-radius:8px;box-shadow:var(--shadow);padding:12px}
+.mini .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.mini .num{font-size:17px;font-weight:700;color:var(--ink-900);font-variant-numeric:tabular-nums}
+.mini .ring{width:26px;height:26px;border-radius:99px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;flex:none}
+.mini .ttl{font-size:11.5px;font-weight:700;color:var(--ink-900);display:block;line-height:1.4}
+.mini .cap{font-size:10.5px;color:var(--d400);display:block}
+.stick{position:sticky;top:0;z-index:3;background:var(--bg);padding-bottom:8px}
+h3{font-size:15px;margin:24px 0 8px;color:var(--ink-900)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>หน้าลูกค้าบนมือถือ — 3 ทางเลือก <span class="tag">เน้นความน่าเชื่อถือ</span></h1>
+<p class="lede">
+โจทย์ใหม่: <b>เน้นสถิติความน่าเชื่อถือ (อัตราปฏิเสธรับของ / อัตราคืนของ) ให้มากขึ้น</b> ⇒ พระเอกของหน้าเปลี่ยนจาก "ลูกค้าคนนี้ซื้อไปเท่าไร" เป็น <b>"ลูกค้าคนนี้เชื่อได้แค่ไหน"</b> — ยอดซื้อสะสมถอยไปเป็นข้อมูลรอง
+</p>
+
+<div class="note info"><b>ตัวเลขที่เรามีจริง</b> (feature 00055 สร้างไว้แล้ว และเป็นข้อมูล <b>ข้ามร้าน</b>) — <code>สั่ง</code> · <code>เปิดพัสดุ</code> · <code>รับของ</code> · <code>ตีกลับ</code> · <code>ยกเลิกโดยลูกค้า</code> · <code>อัตราตีกลับ</code> · <code>ระดับความเสี่ยง</code> (ปกติ / เฝ้าระวัง / สูง)</div>
+
+<div class="note bad"><b>กับดักที่ต้องออกแบบรองรับ ไม่ใช่ซ่อน — ข้อนี้สำคัญที่สุด</b><br>
+ระบบจะ<b>ไม่ยอมบอก "อัตรา" เมื่อเปิดพัสดุยังไม่ถึง 3 ใบ</b> (เพราะ "ส่ง 1 ตีกลับ 1 = 100%" อ่านว่าเลวร้ายที่สุดในระบบทั้งที่บอกอะไรไม่ได้เลย)<br>
+และข้อมูลจริงบอกว่า <b>ลูกค้าเกือบทุกคนซื้อครั้งเดียว</b> (ร้านใหญ่สุด 397 คน ซื้อซ้ำ ~16 คน) ⇒ <b>ถ้าเอา "อัตรา" เป็นตัวเลขหลักในลิสต์ ลูกค้า 9 ใน 10 จะขึ้นว่า “—”</b><br>
+ทั้ง 3 ทางข้างล่างจึงใช้ <b>จำนวนดิบ + ระดับความเสี่ยง</b> เป็นตัวนำ แล้วให้ "อัตรา" โผล่เฉพาะคนที่ฐานพอ
+</div>
+
+<h2>เทียบของเดิมกับ 3 ทางเลือก</h2>
+
+<div class="row">
+
+  <!-- ─────────── ของเดิม ─────────── -->
+  <figure class="dev">
+    <figcaption>ของเดิม <span class="tag old">ที่ดูยาก</span></figcaption>
+    <p class="sub">การ์ดสถิติ 5 ใบเรียงลงมาเต็มความกว้าง + แถบเครื่องมือ 2 แถว ⇒ เลื่อนผ่าน 4–5 หน้าจอกว่าจะเห็นลูกค้าคนแรก</p>
+    <div class="screen">
+      <div class="card"><div class="card-body"><div style="display:flex;justify-content:space-between;margin-bottom:16px"><span style="font-size:18px;font-weight:700;color:var(--ink-900)">397</span><span style="width:34px;height:34px;border-radius:99px;background:var(--primary)"></span></div><span class="lbl" style="font-weight:700;color:var(--ink-900);font-size:12px">ลูกค้าทั้งหมด</span></div></div>
+      <div class="card"><div class="card-body"><div style="display:flex;justify-content:space-between;margin-bottom:16px"><span style="font-size:18px;font-weight:700;color:var(--ink-900)">฿284,300</span><span style="width:34px;height:34px;border-radius:99px;background:var(--info)"></span></div><span class="lbl" style="font-weight:700;color:var(--ink-900);font-size:12px">ยอดซื้อสะสมรวม</span></div></div>
+      <div class="card"><div class="card-body"><div style="display:flex;justify-content:space-between;margin-bottom:16px"><span style="font-size:18px;font-weight:700;color:var(--ink-900)">16</span><span style="width:34px;height:34px;border-radius:99px;background:var(--dark)"></span></div><span class="lbl" style="font-weight:700;color:var(--ink-900);font-size:12px">ลูกค้าซื้อซ้ำ</span></div></div>
+      <div class="card"><div class="card-body"><div style="display:flex;justify-content:space-between;margin-bottom:16px"><span style="font-size:18px;font-weight:700;color:var(--ink-900)">210</span><span style="width:34px;height:34px;border-radius:99px;background:var(--success)"></span></div><span class="lbl" style="font-weight:700;color:var(--ink-900);font-size:12px">เป็นสมาชิกแล้ว</span></div></div>
+      <div class="card"><div class="card-body"><div style="display:flex;justify-content:space-between;margin-bottom:16px"><span style="font-size:18px;font-weight:700;color:var(--ink-900)">12</span><span style="width:34px;height:34px;border-radius:99px;background:var(--warning)"></span></div><span class="lbl" style="font-weight:700;color:var(--ink-900);font-size:12px">มีสัญญาณเตือน</span></div></div>
+      <div class="card">
+        <div class="card-header" style="flex-direction:column;align-items:stretch;gap:8px">
+          <div class="form grow"><span class="muted">⌕ ค้นหาชื่อ หรือ เบอร์โทร</span></div>
+          <div style="display:flex;gap:7px"><div class="form sel" style="flex:1">สัญญาณเตือน</div><div class="form sel" style="flex:1">ประวัติการซื้อ</div><div class="form sel" style="width:60px">8</div></div>
+        </div>
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:center"><span class="av">ส</span><div style="flex:1;min-width:0"><span class="nm">สมชาย ใจดี</span><div class="mono muted" style="font-size:12px">081••••5678 👁</div></div><div style="text-align:right"><b style="color:var(--ink-900)">3</b><span class="lbl">ออเดอร์</span></div></div>
+          <div style="display:flex;justify-content:space-between;border-top:1px solid var(--d100);margin-top:10px;padding-top:9px"><div><span class="lbl">ล่าสุด</span><span style="font-size:13px">20 ส.ค. 69</span></div><div style="text-align:right"><span class="lbl">ยอดซื้อสะสม</span><b class="mono">฿4,590</b></div></div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ─────────── ทาง A ─────────── -->
+  <figure class="dev">
+    <figcaption>ทาง A — แถบสัดส่วนความน่าเชื่อถือ <span class="tag pick">ผมเลือกอันนี้</span></figcaption>
+    <p class="sub">สถิติยุบเป็นแถบเลื่อนแนวนอน 1 แถว · แต่ละแถวมีแถบสี 5px บอก "รับของ / ตีกลับ" ให้กวาดตาเห็นทันทีโดยไม่ต้องอ่านตัวเลข</p>
+    <div class="screen">
+      <div class="stick">
+        <div class="form grow" style="margin-bottom:8px"><span class="muted">⌕ ค้นหาชื่อ หรือ เบอร์โทร</span></div>
+      </div>
+      <div class="hscroll">
+        <div class="mini"><div class="top"><span class="num">96%</span><span class="ring" style="background:var(--success)">✓</span></div><span class="ttl">อัตรารับของสำเร็จ</span><span class="cap">410 จาก 427 ใบ</span></div>
+        <div class="mini"><div class="top"><span class="num">2.8%</span><span class="ring" style="background:var(--warning)">↩</span></div><span class="ttl">พัสดุตีกลับ</span><span class="cap">12 ใบ</span></div>
+        <div class="mini"><div class="top"><span class="num">12</span><span class="ring" style="background:var(--warning)">!</span></div><span class="ttl">ลูกค้าต้องเฝ้าระวัง</span><span class="cap">3% ของลูกค้า</span></div>
+        <div class="mini"><div class="top"><span class="num">฿38,400</span><span class="ring" style="background:var(--dark)">฿</span></div><span class="ttl">มูลค่าที่เสียไป</span><span class="cap">ตีกลับ+ยกเลิก</span></div>
+        <div class="mini"><div class="top"><span class="num">397</span><span class="ring" style="background:var(--primary)">◍</span></div><span class="ttl">ลูกค้าทั้งหมด</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div style="display:flex;gap:7px;width:100%"><div class="form sel" style="flex:1">ความเสี่ยง</div><div class="form sel" style="flex:1">ประวัติการซื้อ</div></div></div>
+        <div class="mrow">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span class="av">ส</span>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px"><span class="nm">สมชาย ใจดี</span><span class="badge b-warning">เฝ้าระวัง</span></div>
+              <div class="bar"><i class="ok" style="width:75%"></i><i class="rt" style="width:17%"></i><i class="na" style="width:8%"></i></div>
+              <div class="facts"><span><span class="dot" style="background:var(--success)"></span>รับของ <b>9</b></span><span><span class="dot" style="background:var(--warning)"></span>ตีกลับ <b>2</b></span><span class="muted">อัตราตีกลับ <b>17%</b></span></div>
+              <div class="facts muted" style="margin-top:3px;font-size:11.5px"><span>12 ออเดอร์</span><span>฿48,200</span><span>20 ส.ค. 69</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="mrow">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span class="av">ว</span>
+            <div style="flex:1;min-width:0">
+              <span class="nm">วรรณา พงษ์เจริญสุข</span>
+              <div class="bar"><i class="ok" style="width:100%"></i></div>
+              <div class="facts"><span><span class="dot" style="background:var(--success)"></span>รับของ <b>1</b></span><span class="muted">ยังบอกอัตราไม่ได้</span></div>
+              <div class="facts muted" style="margin-top:3px;font-size:11.5px"><span>1 ออเดอร์</span><span>฿890</span><span>18 ส.ค. 69</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="mrow">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span class="av">?</span>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px"><span class="nm">ลูกค้าทั่วไป</span><span class="badge b-warning">เสี่ยงสูง</span></div>
+              <div class="bar"><i class="ok" style="width:25%"></i><i class="rt" style="width:75%"></i></div>
+              <div class="facts"><span><span class="dot" style="background:var(--success)"></span>รับของ <b>1</b></span><span><span class="dot" style="background:var(--warning)"></span>ตีกลับ <b>3</b></span><span class="muted">อัตราตีกลับ <b>75%</b></span></div>
+              <div class="facts muted" style="margin-top:3px;font-size:11.5px"><span>4 ออเดอร์</span><span>฿1,250</span><span>14 ส.ค. 69</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer"><span>1–20 จาก 397</span><span>เลื่อนเพื่อดูต่อ</span></div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ─────────── ทาง B ─────────── -->
+  <figure class="dev">
+    <figcaption>ทาง B — จัดกลุ่มตามความเสี่ยง</figcaption>
+    <p class="sub">ไม่ต้องกรองเอง — คนที่ต้องระวังลอยขึ้นบนสุดเสมอ พร้อมหัวข้อกลุ่มติดหนึบ ที่เหลืออยู่กลุ่ม "ปกติ" ข้างล่าง</p>
+    <div class="screen">
+      <div class="stick"><div class="form grow" style="margin-bottom:8px"><span class="muted">⌕ ค้นหาชื่อ หรือ เบอร์โทร</span></div></div>
+      <div class="sumbar">
+        <div><span class="k">รับของสำเร็จ</span><span class="v">96%</span></div>
+        <div class="sep"></div>
+        <div><span class="k">ตีกลับ</span><span class="v">2.8%</span></div>
+        <div class="sep"></div>
+        <div><span class="k">ลูกค้า</span><span class="v">397</span></div>
+        <span class="more">ดูสรุป ›</span>
+      </div>
+
+      <div class="ghead warn">⚠ ต้องเฝ้าระวัง <span class="cnt">12 คน</span></div>
+      <div class="card" style="margin-top:0">
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:center">
+          <span class="av">?</span>
+          <div style="flex:1;min-width:0"><span class="nm">ลูกค้าทั่วไป</span>
+            <div class="facts" style="margin-top:2px"><span class="muted">ตีกลับ <b style="color:var(--warning-ink)">3 จาก 4</b> ใบ</span></div></div>
+          <div style="text-align:right"><span class="badge b-warning">75%</span><span class="lbl">อัตราตีกลับ</span></div>
+        </div></div>
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:center">
+          <span class="av">ส</span>
+          <div style="flex:1;min-width:0"><span class="nm">สมชาย ใจดี</span>
+            <div class="facts" style="margin-top:2px"><span class="muted">ตีกลับ <b style="color:var(--warning-ink)">2 จาก 11</b> ใบ</span></div></div>
+          <div style="text-align:right"><span class="badge b-warning">17%</span><span class="lbl">อัตราตีกลับ</span></div>
+        </div></div>
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:center">
+          <span class="av">ก</span>
+          <div style="flex:1;min-width:0"><span class="nm">กมล ศรีสุข</span>
+            <div class="facts" style="margin-top:2px"><span class="muted">ตีกลับ <b style="color:var(--warning-ink)">1 จาก 2</b> ใบ</span></div></div>
+          <div style="text-align:right"><span class="badge b-plain">—</span><span class="lbl">ฐานยังน้อย</span></div>
+        </div></div>
+      </div>
+
+      <div class="ghead">✓ ปกติ <span class="cnt">385 คน</span></div>
+      <div class="card" style="margin-top:0">
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:center">
+          <span class="av">ว</span>
+          <div style="flex:1;min-width:0"><span class="nm">วรรณา พงษ์เจริญสุข</span>
+            <div class="facts" style="margin-top:2px"><span class="muted">รับของครบ <b style="color:var(--success-ink)">1 จาก 1</b> ใบ</span></div></div>
+          <div style="text-align:right"><b class="mono" style="color:var(--ink-900);font-size:13.5px">฿890</b><span class="lbl">18 ส.ค.</span></div>
+        </div></div>
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:center">
+          <span class="av">น</span>
+          <div style="flex:1;min-width:0"><span class="nm">นภา ทองดี</span>
+            <div class="facts" style="margin-top:2px"><span class="muted">รับของครบ <b style="color:var(--success-ink)">4 จาก 4</b> ใบ</span></div></div>
+          <div style="text-align:right"><b class="mono" style="color:var(--ink-900);font-size:13.5px">฿12,400</b><span class="lbl">19 ส.ค.</span></div>
+        </div></div>
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:center">
+          <span class="av">ธ</span>
+          <div style="flex:1;min-width:0"><span class="nm">ธนภัทร ก้องเกียรติ</span>
+            <div class="facts" style="margin-top:2px"><span class="muted">รับของครบ <b style="color:var(--success-ink)">2 จาก 2</b> ใบ</span></div></div>
+          <div style="text-align:right"><b class="mono" style="color:var(--ink-900);font-size:13.5px">฿3,100</b><span class="lbl">17 ส.ค.</span></div>
+        </div></div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ─────────── ทาง C ─────────── -->
+  <figure class="dev">
+    <figcaption>ทาง C — ค้นหานำ สถิติเก็บใต้ปุ่ม</figcaption>
+    <p class="sub">ตัดสถิติออกจากหน้าแรกบนมือถือทั้งหมด เหลือปุ่มเดียว "สรุปร้าน" เปิดเป็นชีต — ได้พื้นที่ลิสต์เต็มที่สุดในสามทาง</p>
+    <div class="screen">
+      <div class="stick">
+        <div style="display:flex;gap:7px;margin-bottom:8px">
+          <div class="form grow"><span class="muted">⌕ ค้นหาชื่อ หรือ เบอร์โทร</span></div>
+          <div class="form" style="width:44px;justify-content:center">▤</div>
+        </div>
+        <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px">
+          <span class="badge b-plain" style="padding:6px 11px;font-size:12px;white-space:nowrap">ทั้งหมด</span>
+          <span class="badge b-warning" style="padding:6px 11px;font-size:12px;white-space:nowrap">⚠ ต้องเฝ้าระวัง 12</span>
+          <span class="badge b-plain" style="padding:6px 11px;font-size:12px;white-space:nowrap">เคยตีกลับ</span>
+          <span class="badge b-plain" style="padding:6px 11px;font-size:12px;white-space:nowrap">ซื้อซ้ำ</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:center">
+          <span class="av">ส</span>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px"><span class="nm">สมชาย ใจดี</span><span class="badge b-warning">เฝ้าระวัง</span></div>
+            <div class="facts" style="margin-top:2px"><span class="muted">รับของ <b style="color:var(--success-ink)">9</b> · ตีกลับ <b style="color:var(--warning-ink)">2</b> · ยกเลิก <b>1</b></span></div>
+          </div>
+          <span class="muted">›</span>
+        </div></div>
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:center">
+          <span class="av">ว</span>
+          <div style="flex:1;min-width:0">
+            <span class="nm">วรรณา พงษ์เจริญสุข</span>
+            <div class="facts" style="margin-top:2px"><span class="muted">รับของ <b style="color:var(--success-ink)">1</b></span></div>
+          </div>
+          <span class="muted">›</span>
+        </div></div>
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:center">
+          <span class="av">?</span>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px"><span class="nm">ลูกค้าทั่วไป</span><span class="badge b-warning">เสี่ยงสูง</span></div>
+            <div class="facts" style="margin-top:2px"><span class="muted">รับของ <b style="color:var(--success-ink)">1</b> · ตีกลับ <b style="color:var(--warning-ink)">3</b></span></div>
+          </div>
+          <span class="muted">›</span>
+        </div></div>
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:center">
+          <span class="av">น</span>
+          <div style="flex:1;min-width:0"><span class="nm">นภา ทองดี</span>
+            <div class="facts" style="margin-top:2px"><span class="muted">รับของ <b style="color:var(--success-ink)">4</b></span></div></div>
+          <span class="muted">›</span>
+        </div></div>
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:center">
+          <span class="av">ธ</span>
+          <div style="flex:1;min-width:0"><span class="nm">ธนภัทร ก้องเกียรติ</span>
+            <div class="facts" style="margin-top:2px"><span class="muted">รับของ <b style="color:var(--success-ink)">2</b></span></div></div>
+          <span class="muted">›</span>
+        </div></div>
+        <div class="mrow"><div style="display:flex;gap:10px;align-items:center">
+          <span class="av">ก</span>
+          <div style="flex:1;min-width:0"><span class="nm">กมล ศรีสุข</span>
+            <div class="facts" style="margin-top:2px"><span class="muted">รับของ <b style="color:var(--success-ink)">1</b> · ตีกลับ <b style="color:var(--warning-ink)">1</b></span></div></div>
+          <span class="muted">›</span>
+        </div></div>
+      </div>
+    </div>
+  </figure>
+
+</div>
+
+<h2>เทียบกันตรง ๆ</h2>
+<table style="width:100%;max-width:1100px;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;overflow:hidden;box-shadow:var(--shadow)">
+<thead><tr style="background:var(--d100)">
+<th style="text-align:left;padding:11px 14px">ประเด็น</th><th style="text-align:left;padding:11px 14px">A · แถบสัดส่วน</th><th style="text-align:left;padding:11px 14px">B · จัดกลุ่มความเสี่ยง</th><th style="text-align:left;padding:11px 14px">C · ค้นหานำ</th></tr></thead>
+<tbody>
+<tr><td style="padding:10px 14px;border-top:1px solid var(--d100)">เห็นลูกค้าคนแรกหลังเลื่อนกี่ครั้ง</td><td style="padding:10px 14px;border-top:1px solid var(--d100)">~1 หน้าจอ</td><td style="padding:10px 14px;border-top:1px solid var(--d100)">ทันที</td><td style="padding:10px 14px;border-top:1px solid var(--d100)"><b>ทันที (ดีสุด)</b></td></tr>
+<tr><td style="padding:10px 14px;border-top:1px solid var(--d100)">กวาดตาแล้วรู้ทันทีว่าใครน่าห่วง</td><td style="padding:10px 14px;border-top:1px solid var(--d100)"><b>ดีสุด</b> — เห็นเป็นภาพ ไม่ต้องอ่านเลข</td><td style="padding:10px 14px;border-top:1px solid var(--d100)"><b>ดีสุด</b> — อยู่บนสุดให้เลย</td><td style="padding:10px 14px;border-top:1px solid var(--d100)">ต้องอ่านตัวเลข</td></tr>
+<tr><td style="padding:10px 14px;border-top:1px solid var(--d100)">คนที่ซื้อครั้งเดียว (ส่วนใหญ่) เห็นอะไร</td><td style="padding:10px 14px;border-top:1px solid var(--d100)">แถบเขียวเต็ม + "ยังบอกอัตราไม่ได้"</td><td style="padding:10px 14px;border-top:1px solid var(--d100)">อยู่กลุ่ม "ปกติ" · ป้าย "ฐานยังน้อย"</td><td style="padding:10px 14px;border-top:1px solid var(--d100)">"รับของ 1"</td></tr>
+<tr><td style="padding:10px 14px;border-top:1px solid var(--d100)">สถิติร้านหายไปไหม</td><td style="padding:10px 14px;border-top:1px solid var(--d100)">ไม่ — เลื่อนแนวนอน 1 แถว</td><td style="padding:10px 14px;border-top:1px solid var(--d100)">ย่อเหลือ 3 ตัว + ปุ่มดูเต็ม</td><td style="padding:10px 14px;border-top:1px solid var(--d100)"><b>หาย</b> — ต้องกดปุ่มเปิดชีต</td></tr>
+<tr><td style="padding:10px 14px;border-top:1px solid var(--d100)">ผู้ใช้เสียอะไร</td><td style="padding:10px 14px;border-top:1px solid var(--d100)">แถวสูงขึ้น เห็นคนต่อจอน้อยลง (~4 คน)</td><td style="padding:10px 14px;border-top:1px solid var(--d100)">เรียงตามเวลาไม่ได้แล้ว (กลุ่มมาก่อน)</td><td style="padding:10px 14px;border-top:1px solid var(--d100)">สถิติร้านต้องกดถึงจะเห็น</td></tr>
+<tr><td style="padding:10px 14px;border-top:1px solid var(--d100)">เหมือนธีมแค่ไหน</td><td style="padding:10px 14px;border-top:1px solid var(--d100)">ใกล้ (การ์ดสถิติยังอยู่ แค่ย่อ)</td><td style="padding:10px 14px;border-top:1px solid var(--d100)">ห่างจากธีม (ธีมไม่มีการจัดกลุ่ม)</td><td style="padding:10px 14px;border-top:1px solid var(--d100)">ห่างที่สุด</td></tr>
+</tbody></table>
+
+<div class="note good"><b>ผมเลือก A</b> — เพราะมันตอบโจทย์ "เน้นความน่าเชื่อถือ" ได้โดยไม่ทิ้งของ 2 อย่างที่คุณสั่งไว้ก่อนหน้า: สถิติแบบธีมยังอยู่ (แค่เลื่อนแนวนอนแทนเรียงลง) และแถบสีทำให้ <b>รู้ว่าใครน่าห่วงตั้งแต่กวาดตา ไม่ต้องอ่านตัวเลขสักตัว</b><br>
+<b>ถ้าจะให้ดีที่สุด: A + ชิปกรองแนวนอนของ C</b> (แทนดรอปดาวน์ 2 ตัว) — ได้ทั้งภาพรวมและกดกรองด้วยนิ้วเดียว</div>
+
+<div class="note"><b>ก่อนลงมือ ขอเคาะ 3 ข้อ</b><br>
+① เอาทางไหน — <b>A</b> / <b>B</b> / <b>C</b> / A+ชิปของ C<br>
+② คำบนป้ายระดับความเสี่ยง — <b>"เฝ้าระวัง" / "เสี่ยงสูง"</b> ใช้ได้ไหม หรืออยากได้คำอื่น (ข้อมูลจริงบอกว่าพัสดุตีกลับ 7 ใน 12 ใบเขียนว่า "ผู้รับปฏิเสธรับสินค้า" — จะเรียกว่า <b>"ปฏิเสธรับของ"</b> ตรง ๆ เลยก็ได้ แต่จะแรงกว่า)<br>
+③ การ์ด "มูลค่าที่เสียไป ฿38,400" (ตีกลับ+ยกเลิก) — เอาไหม แรงไปหรือเปล่า
+</div>
+
+</div>
+</body>
+</html>
