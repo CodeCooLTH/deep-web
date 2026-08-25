@@ -115,12 +115,18 @@ export default async function CustomerProfilePage({ params }: PageProps) {
         title={entry.displayName}
         trail={[{ label: 'ลูกค้า', href: '/customers' }]}
       />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-10">
-        {/* เดสก์ท็อป 70/30 — คอลัมน์เดียวที่ 1440px ทิ้งพื้นที่ขวาว่างเกินครึ่งจอ */}
-        <div className="xl:col-span-7">
+      {/*
+        เดสก์ท็อป 70/30 — คอลัมน์เดียวที่ 1440px ทิ้งพื้นที่ขวาว่างเกินครึ่งจอ
+
+        🛑 `order-*` จำเป็น: บนมือถือ grid เป็นคอลัมน์เดียว ⇒ ลำดับใน DOM = ลำดับที่ตาเห็น
+        ผู้ขายเปิดหน้าโปรไฟล์ลูกค้าต้องเห็น **"คนนี้เชื่อได้แค่ไหน" ก่อน** ไม่ใช่เจอตาราง
+        ประวัติออเดอร์ก่อนแล้วต้องเลื่อนลงไปหาข้อมูลตัวคน
+      */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-10">
+        <div className="order-2 xl:order-1 xl:col-span-7">
           <CustomerProfileOrders orders={entry.orders} vocabNoun={vocab.noun} />
         </div>
-        <div className="flex flex-col gap-4 xl:col-span-3">
+        <div className="order-1 flex flex-col gap-5 xl:order-2 xl:col-span-3">
           <CustomerProfileHeader
             entry={entry}
             badges={badges}

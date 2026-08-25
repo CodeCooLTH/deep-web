@@ -17,6 +17,7 @@ import { makeCustomerRowKey } from '@/lib/customer-row-key'
 import { countsAsRevenue } from '@/lib/order-revenue'
 import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { summarizeCustomerBehavior, type CustomerOrderEvidence } from '@/lib/customer-behavior'
+import { summarizeBuyerReputation, type BuyerOrderEvidence } from '@/lib/buyer-reputation'
 import {
   findEntryByKey,
   isValidCustomerKey,
@@ -28,8 +29,10 @@ import {
  * ตัวสะสมระหว่าง group — มี field ที่ไม่ต้องส่งออก (evidence สำหรับ summarize)
  * แยกจาก `CustomerDirectoryEntry` เพื่อไม่ให้ evidence รั่วออกไปเป็นส่วนหนึ่งของ contract
  */
-type Accumulator = Omit<CustomerDirectoryEntry, 'behavior'> & {
+type Accumulator = Omit<CustomerDirectoryEntry, 'behavior' | 'shopReputation'> & {
   evidence: CustomerOrderEvidence[]
+  /** หลักฐานชุดที่สอง — คนละนิยาม "พัสดุของใบนี้" กับชุดบน (ดูเหตุผลที่จุดคัดพัสดุ) */
+  reputationEvidence: BuyerOrderEvidence[]
 }
 
 /**
@@ -102,6 +105,22 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
     const activeShipment =
       o.shipments.find((s) => s.status !== 'CANCELLED' && s.direction === FORWARD_SHIPMENT) ?? null
 
+    /**
+     * พัสดุใบเดียวกัน แต่คัดด้วย **นิยามที่เข้มกว่า** สำหรับสถิติความน่าเชื่อถือ:
+     * `status === 'CREATED'` + ไม่ใช่ dry-run + ขาไป — ชุดเดียวกับ `ACTIVE_FORWARD_SHIPMENT`
+     * ที่ `buyer-reputation.service.ts` ใช้
+     *
+     * 🛑 **จงใจไม่ยุบให้เหลือนิยามเดียวกับบรรทัดบน** — สองระบบนี้นิยาม "พัสดุของใบนี้"
+     * ต่างกันอยู่ก่อนหน้าฟีเจอร์นี้แล้ว (`customer-behavior` ใช้ `status != CANCELLED`
+     * และไม่กรอง dry-run) ถ้ายุบตอนนี้ ป้ายพฤติกรรมบน `/orders` · รายการแชท · แผงลูกค้า
+     * จะขยับพร้อมกันโดยไม่มีใครขอ — เป็นความไม่ตรงกันที่บันทึกไว้แล้วใน SRS §8 ว่าเป็น
+     * หนี้ที่ต้องแก้แยกรอบ ไม่ใช่แถมมากับงาน UI
+     */
+    const reputationShipment =
+      o.shipments.find(
+        (s) => s.status === 'CREATED' && !s.isDryRun && s.direction === FORWARD_SHIPMENT,
+      ) ?? null
+
     const orderRow: CustomerDirectoryOrder = {
       publicToken: o.publicToken,
       orderNo: o.orderNo,
@@ -121,6 +140,16 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
       activeShipmentCarrierStatus: activeShipment?.carrierStatus ?? null,
     }
 
+    const reputationRow: BuyerOrderEvidence = {
+      status: o.status,
+      cancelInitiator: o.cancelInitiator ?? null,
+      cancelReason: o.cancelReason ?? null,
+      activeShipmentCarrierStatus: reputationShipment?.carrierStatus ?? null,
+      // `hasShipment` = ตัวหารของอัตรา — ใบที่ไม่เคยเปิดพัสดุ (รับหน้าร้าน/ดิจิทัล/บริการ)
+      // ไม่มีทางตีกลับได้ จึงต้องไม่อยู่ในตัวหาร (BR-BR-05)
+      hasShipment: reputationShipment !== null,
+    }
+
     const existing = map.get(key)
     if (existing) {
       existing.totalOrders += 1
@@ -131,6 +160,7 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
       // orders มาเรียง desc อยู่แล้ว — push ต่อท้ายจึงยังเรียงใหม่→เก่า
       existing.orders.push(orderRow)
       existing.evidence.push(evidenceRow)
+      existing.reputationEvidence.push(reputationRow)
       if (createdAtRaw > existing.lastOrderRaw) {
         existing.lastOrderRaw = createdAtRaw
         existing.lastOrderISO = orderRow.createdAtISO
@@ -177,13 +207,17 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
       lastOrderRaw: createdAtRaw,
       orders: [orderRow],
       evidence: [evidenceRow],
+      reputationEvidence: [reputationRow],
     })
   }
 
   return Array.from(map.values())
-    .map(({ evidence, ...rest }) => ({
+    .map(({ evidence, reputationEvidence, ...rest }) => ({
       ...rest,
       behavior: summarizeCustomerBehavior(evidence),
+      // ขอบเขต "ร้านนี้" — ฟังก์ชันเดียวกับสถิติข้ามร้านของ 00055 แต่ป้อนเฉพาะออเดอร์ร้านนี้
+      // (ดูเหตุผลเต็มที่ `CustomerDirectoryEntry.shopReputation`)
+      shopReputation: summarizeBuyerReputation(reputationEvidence),
     }))
     .sort((a, b) => b.lastOrderRaw - a.lastOrderRaw)
 }

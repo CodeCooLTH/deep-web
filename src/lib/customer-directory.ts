@@ -17,6 +17,7 @@
  */
 
 import type { CustomerBehavior } from './customer-behavior'
+import { MIN_SHIPPED_FOR_RATE, type BuyerReputation } from './buyer-reputation'
 
 /** ออเดอร์ 1 ใบเท่าที่หน้าลูกค้าต้องใช้ — ผู้เรียก select มาให้เท่านี้พอ */
 export type CustomerDirectoryOrder = {
@@ -70,6 +71,20 @@ export type CustomerDirectoryEntry = {
   lastOrderISO: string
   lastOrderRaw: number
   behavior: CustomerBehavior
+  /**
+   * ความน่าเชื่อถือของลูกค้าคนนี้ **กับร้านนี้เท่านั้น** (feature 00057 รอบ UI)
+   *
+   * 🛑 ใช้ `summarizeBuyerReputation()` ตัวเดียวกับสถิติข้ามร้านของ 00055 — ฟังก์ชันนั้น
+   * เป็น pure function ที่สรุปหลักฐานอะไรก็ได้ที่ป้อนเข้าไป **สิ่งที่กำหนดขอบเขตคือ query
+   * ของผู้เรียก ไม่ใช่ตัวฟังก์ชัน** ⇒ ป้อนออเดอร์เฉพาะร้านนี้ ได้ตัวเลขระดับร้านที่ใช้
+   * **เกณฑ์เดียวกันเป๊ะ** (ฐานขั้นต่ำของอัตรา · นิยาม "รับของแล้ว" · ลำดับตีกลับชนะยกเลิก)
+   * โดยไม่ต้องตั้งเกณฑ์ชุดที่สองซึ่งจะ drift แน่นอนในวันที่มีคนแก้ที่เดียว (HR16)
+   *
+   * 🛑 **คนละตัวกับ "ทั้งระบบ"** ที่หน้า Details ดึงผ่าน `getBuyerReputation(customerId)` —
+   * ตัวนั้นข้ามร้านและมีเฉพาะลูกค้าที่ผูก `Customer` แล้ว ส่วนตัวนี้มีให้ทุกคนรวม guest
+   * ⇒ **ทุกที่ที่แสดงต้องมีป้ายกำกับขอบเขตเสมอ** ห้ามปล่อยให้ผู้ใช้เดาว่าเลขไหนคือของใคร
+   */
+  shopReputation: BuyerReputation
   /** ออเดอร์ทั้งหมดของลูกค้าคนนี้กับร้านนี้ เรียงใหม่ → เก่า */
   orders: CustomerDirectoryOrder[]
 }
@@ -138,28 +153,50 @@ export function matchesCustomerQuery(
  * ตัวกรอง (FR-002/FR-003) — มีแค่ 2 ตัว ห้ามเพิ่มตัวที่ 3 ที่อิงช่วงเวลา (BR-CUSTP-13)
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/** ค่าที่รับจาก `?repeat=` — อย่างอื่น (รวม undefined) = ไม่กรอง */
-export type RepeatFilter = 'repeat' | 'first'
+/**
+ * ตัวกรองของลิสต์ — **เลือกได้ทีละอัน** (ชิปแนวนอน 1 แถว) แทนดรอปดาวน์ 2 ตัวของเดิม
+ *
+ * user เคาะ 2026-08-25 หลังบอกว่าหน้าเดิมบนมือถือ "ดูยาก" — ดรอปดาวน์ 2 ตัว + ช่องจำนวนแถว
+ * กินพื้นที่เกือบ 100px ก่อนถึงลูกค้าคนแรก และกดยากด้วยนิ้ว
+ *
+ * 🛑 `warn` (มีสัญญาณเตือน) กับ `returned` (เคยตีกลับ) **ไม่ใช่อันเดียวกัน** — `warn` รวม
+ * การยกเลิกด้วย ส่วน `returned` เจาะจงเฉพาะพัสดุที่ตีกลับ ซึ่งเป็นสิ่งที่ user ขอให้เน้น
+ * (`เคยตีกลับ` ⊂ `มีสัญญาณเตือน` เสมอ)
+ */
+export type CustomerListFilter = 'all' | 'warn' | 'returned' | 'repeat'
 
-export function parseRepeatFilter(v: string | undefined | null): RepeatFilter | null {
-  return v === 'repeat' || v === 'first' ? v : null
+const FILTERS: CustomerListFilter[] = ['all', 'warn', 'returned', 'repeat']
+
+/** fail-closed — ค่าที่ไม่รู้จัก (พิมพ์ใน URL เอง/ของเก่าที่ bookmark ไว้) ตกเป็น 'all' ไม่ใช่ throw */
+export function parseCustomerFilter(v: string | undefined | null): CustomerListFilter {
+  return FILTERS.includes(v as CustomerListFilter) ? (v as CustomerListFilter) : 'all'
 }
 
 /**
- * 🛑 เกณฑ์นี้ **ไม่ผูกกับป้าย `REGULAR`** ของ `customerBadges()` (ซึ่งใช้ `completed >= 3`)
- * โดยตั้งใจ — เป็นคนละคำถาม: ป้ายตอบว่า "ลูกค้าเก่าพอจะพูดถึงไหม" ส่วนตัวกรองตอบว่า
- * "เคยกลับมาซื้ออีกครั้งหรือยัง" ถ้าผูกกัน ตัวกรองบนข้อมูลจริงจะเหลือคนไม่กี่คน
- * (prod 2026-08-24: ร้านใหญ่สุดมีลูกค้าซื้อซ้ำ ~16 จาก 397 คน)
+ * แถวนี้ผ่านตัวกรองไหม
  *
- * นับจาก `totalOrders` (รวมที่ยกเลิก) ตามนิยามเดิมของ 00014 FR-9 — ห้ามเปลี่ยนฐานนับที่นี่
- * ที่เดียวโดยไม่แตะคอลัมน์ "ออเดอร์ทั้งหมด" ที่แสดงอยู่ข้าง ๆ
+ * 🛑 `hasWarning` ส่งเข้ามาจากผู้เรียก ไม่คำนวณเองที่นี่ — ต้องเป็นค่าเดียวกับที่การ์ดสถิติ
+ * "ลูกค้าต้องเฝ้าระวัง" นับ ไม่งั้นการ์ดจะบอก 12 แล้วกดกรองได้ 9 โดยไม่มีอะไรฟ้อง
+ *
+ * `repeat` นับจาก `totalOrders` (รวมที่ยกเลิก) ตามนิยามเดิมของ 00014 FR-9 — และ **ไม่ผูกกับ
+ * ป้าย `REGULAR`** ที่ใช้ `completed >= 3` เพราะเป็นคนละคำถาม (บนข้อมูลจริงลูกค้าซื้อซ้ำมี
+ * ~16 จาก 397 คน ถ้าใช้เกณฑ์ป้ายจะเหลือแทบไม่มีใคร)
  */
-export function matchesRepeatFilter(
-  entry: Pick<CustomerDirectoryEntry, 'totalOrders'>,
-  filter: RepeatFilter | null,
+export function matchesCustomerFilter(
+  entry: Pick<CustomerDirectoryEntry, 'totalOrders' | 'shopReputation'>,
+  filter: CustomerListFilter,
+  hasWarning: boolean,
 ): boolean {
-  if (!filter) return true
-  return filter === 'repeat' ? entry.totalOrders >= 2 : entry.totalOrders === 1
+  switch (filter) {
+    case 'warn':
+      return hasWarning
+    case 'returned':
+      return entry.shopReputation.returned > 0
+    case 'repeat':
+      return entry.totalOrders >= 2
+    default:
+      return true
+  }
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -218,4 +255,63 @@ export function avgPerOrder(
 ): number | null {
   if (entry.revenueOrderCount <= 0) return null
   return entry.totalSpent / entry.revenueOrderCount
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * สถิติความน่าเชื่อถือระดับร้าน — การ์ด 4 ใบบนหัวหน้า `/customers`
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export type CustomerDirectoryStats = {
+  totalCustomers: number
+  /** ใบที่เปิดพัสดุขาไปจริง — ตัวหารของทั้งสองอัตรา */
+  shipped: number
+  received: number
+  returned: number
+  /** `null` = ฐานน้อยเกินกว่าจะพูดเป็นอัตรา (กติกาเดียวกับรายคน) */
+  receivedRate: number | null
+  returnRate: number | null
+  /** จำนวนลูกค้าที่มีป้ายเตือนอย่างน้อย 1 ใบ */
+  watchCount: number
+}
+
+/**
+ * รวมสถิติของทั้งร้านจากแถวลูกค้าที่ aggregate มาแล้ว — **ไม่ query เพิ่ม**
+ *
+ * 🛑 `hasWarning` ต้องส่งเข้ามาจากผู้เรียก ไม่คำนวณเองที่นี่ เพราะเกณฑ์ป้ายเตือนอยู่ที่
+ * `customerBadges()` ซึ่งต้องใช้คำจาก dictionary + คำนามผันตาม vertical (ไฟล์นี้เป็น pure
+ * ไม่รู้จักทั้งสองอย่าง) — และที่สำคัญกว่าคือ **ตัวเลขบนการ์ดกับผลของชิปกรอง "ต้องเฝ้าระวัง"
+ * ต้องมาจากเกณฑ์เดียวกัน** ถ้าคำนวณแยกกันสองที่ วันหนึ่งการ์ดจะบอก 12 แล้วกดกรองได้ 9
+ *
+ * 🛑 อัตราใช้ฐาน `shipped` (ใบที่เปิดพัสดุจริง) ไม่ใช่จำนวนออเดอร์ทั้งหมด — ใบที่รับหน้าร้าน/
+ * สินค้าดิจิทัล/บริการ ไม่มีทางตีกลับได้ เอาไปหารจะได้อัตราที่ต่ำกว่าความจริงเสมอ
+ * (`feedback_subtrahend_must_match_minuend_scope`)
+ */
+export function aggregateCustomerStats(
+  rows: { shopReputation: BuyerReputation; hasWarning: boolean }[],
+): CustomerDirectoryStats {
+  let shipped = 0
+  let received = 0
+  let returned = 0
+  let watchCount = 0
+
+  for (const r of rows) {
+    shipped += r.shopReputation.shipped
+    received += r.shopReputation.received
+    returned += r.shopReputation.returned
+    if (r.hasWarning) watchCount += 1
+  }
+
+  // ฐานเดียวกับรายคน (`MIN_SHIPPED_FOR_RATE`) — ร้านที่เพิ่งเปิดพัสดุ 1 ใบแล้วตีกลับ
+  // ต้องไม่ขึ้นว่า "อัตราตีกลับ 100%" บนหัวหน้าจอตัวเอง
+  const enough = shipped >= MIN_SHIPPED_FOR_RATE
+
+  return {
+    totalCustomers: rows.length,
+    shipped,
+    received,
+    returned,
+    receivedRate: enough ? received / shipped : null,
+    returnRate: enough ? returned / shipped : null,
+    watchCount,
+  }
 }

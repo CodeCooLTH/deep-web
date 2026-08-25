@@ -14,11 +14,12 @@ import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import BuyerReputationRow from '@/app/(paces)/seller/(chat)/inbox/[conversationId]/components/BuyerReputationRow'
 import { CustomerBehaviorPills } from '@/components/safepay/CustomerBehaviorBadges'
+import CustomerTrustBar from '@/components/safepay/CustomerTrustBar'
 import { formatBaht } from '@/lib/format-money'
 import { formatDateTime } from '@/lib/format-date'
 import type { ShippingAddressLike } from '@/lib/shipping-address-status'
 import type { CustomerBadge } from '@/lib/customer-behavior'
-import type { BuyerReputation } from '@/lib/buyer-reputation'
+import { MIN_SHIPPED_FOR_RATE, type BuyerReputation } from '@/lib/buyer-reputation'
 import type { CustomerDirectoryEntry } from '@/lib/customer-directory'
 
 type Props = {
@@ -75,8 +76,60 @@ export default function CustomerProfileHeader({
       ? formatAddressLine(latestAddress as ShippingAddressLike)
       : ''
 
+  const rep = reputation
+  const enoughBase = rep !== null && rep.shipped >= MIN_SHIPPED_FOR_RATE
+
   return (
     <>
+      {/*
+        พระเอกของหน้า — user สั่ง 2026-08-25: "อยากให้เน้นสถิติความน่าเชื่อถือ เช่น
+        อัตราปฏิเสธรับของ อัตราคืนของ" ⇒ การ์ดนี้มาก่อนทุกอย่าง รวมถึงมาก่อนยอดซื้อสะสม
+
+        🛑 ตัวเลขในการ์ดนี้ **ข้ามร้าน** — ป้าย "(ทั้งระบบ)" จึงบังคับ ไม่ใช่ของประดับ
+        เพราะแถวล่างในการ์ดเดียวกันเป็นตัวเลข "กับร้านนี้" ซึ่งคนละชุด (HR16)
+
+        `border-s-3 border-warning` = ข้อยกเว้นของ Paces ที่ขึ้นทะเบียนไว้แล้วใน DESIGN.md
+        ใส่เฉพาะตอนมีสัญญาณจริง — ไม่มีสัญญาณแล้วขอบเหลืองค้างคือการเตือนสิ่งที่ไม่มีอยู่
+      */}
+      <div className={`card ${badges.length > 0 ? 'border-warning border-s-3' : ''}`}>
+        <div className="card-header">
+          <h5 className="card-title">ความน่าเชื่อถือ</h5>
+          {badges.length > 0 && <CustomerBehaviorPills badges={badges.slice(0, 1)} />}
+        </div>
+        <div className="card-body">
+          <p className="text-default-500 text-2xs mb-0">รับของสำเร็จ (ทั้งระบบ)</p>
+          {rep && rep.shipped > 0 ? (
+            <p className="text-default-900 mb-0 text-3xl font-extrabold tracking-tight tabular-nums">
+              {rep.received}
+              <span className="text-default-400 ms-1 text-base font-semibold">
+                จาก {rep.shipped} ใบ
+              </span>
+            </p>
+          ) : (
+            <p className="text-default-400 mb-0 text-sm">ยังไม่เคยเปิดพัสดุ — ยังวัดการรับของไม่ได้</p>
+          )}
+
+          <CustomerTrustBar reputation={rep} size="lg" />
+
+          <div className="border-default-100 mt-3 flex flex-col gap-2 border-t pt-3">
+            {/* อัตราโผล่เฉพาะตอนฐานพอ — null ไม่ใช่ 0 (ดูเหตุผลใน CustomerTrustBar) */}
+            <StatRow
+              label="อัตราตีกลับ (ทั้งระบบ)"
+              value={
+                enoughBase && rep.returnRate !== null
+                  ? `${Math.round(rep.returnRate * 100)}%`
+                  : 'ยังบอกไม่ได้'
+              }
+            />
+            {rep && <StatRow label="ยกเลิกโดยลูกค้า (ทั้งระบบ)" value={`${rep.cancelledByBuyer} ครั้ง`} />}
+            {/* ตัวเลข "ร้านนี้" อยู่ในการ์ดเดียวกันโดยตั้งใจ — ผู้ขายต้องเทียบสองชั้นในสายตาเดียว
+                แต่ชื่อ label ต้องบอกขอบเขตเองทุกบรรทัด ไม่ใช่แยกเป็นหัวข้อย่อยแล้วให้เดา */}
+            <StatRow label="ตีกลับกับร้านนี้" value={`${entry.behavior.returnedParcels} ครั้ง`} />
+            <StatRow label="ยกเลิกกับร้านนี้" value={`${entry.behavior.cancelledTotal} ครั้ง`} />
+          </div>
+        </div>
+      </div>
+
       <div className="card">
         <div className="card-body flex flex-col gap-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -151,26 +204,10 @@ export default function CustomerProfileHeader({
         </div>
       </div>
 
-      {/* ไม่มีสัญญาณเลยทั้ง 2 ชั้น → ไม่ render การ์ดทั้งใบ (ค่าเริ่มต้นของระบบคือเงียบ
-          ไม่ใช่การ์ดว่างที่เขียนว่า "ไม่มีข้อมูล") */}
-      {(badges.length > 0 || (reputation && reputation.orders > 0)) && (
-        // border-s-3 + สี semantic = ข้อยกเว้นของ Paces ที่ขึ้นทะเบียนไว้แล้วใน DESIGN.md
-        <div className="card border-warning border-s-3">
-          <div className="card-body flex flex-col gap-3">
-            {badges.length > 0 && (
-              <div>
-                <p className="text-default-500 mb-2 text-sm font-medium">
-                  สัญญาณที่ควรระวัง (ร้านนี้)
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  <CustomerBehaviorPills badges={badges} />
-                </div>
-              </div>
-            )}
-            {reputation && reputation.orders > 0 && <BuyerReputationRow data={reputation} />}
-          </div>
-        </div>
-      )}
+      {/* แถบ "ทั้งระบบ" ฉบับเต็มของ feature 00055 — ยก component เดิมมาใช้ซ้ำ ไม่เขียนใหม่
+          วางใต้การ์ดยอดเงินโดยตั้งใจ: การ์ดพระเอกด้านบนสรุปให้แล้ว ตรงนี้คือรายละเอียดชิปเต็มชุด
+          ไม่มีลูกค้าในระบบ / ไม่เคยมีออเดอร์ → ไม่ render เลย ไม่ใช่แถบว่าง (BR-BR-12) */}
+      {reputation && reputation.orders > 0 && <BuyerReputationRow data={reputation} />}
 
       {showAddress && (
         <div className="card">

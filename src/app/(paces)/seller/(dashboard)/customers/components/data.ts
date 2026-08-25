@@ -10,6 +10,7 @@
  * page.tsx ต้อง map ทีละ field เสมอ (`feedback_rsc_pii_neutralize_at_source`)
  */
 import type { CustomerBadge } from '@/lib/customer-behavior'
+import type { BuyerReputation } from '@/lib/buyer-reputation'
 
 export type CustomerRow = {
   /**
@@ -40,4 +41,14 @@ export type CustomerRow = {
    * และการคำนวณซ้ำที่ client คือช่องให้เกณฑ์ drift
    */
   badges: CustomerBadge[]
+  /**
+   * ความน่าเชื่อถือ **ทั้งระบบ** (ข้ามร้าน) — แกนหลักของหน้านี้ตามที่ user สั่ง 2026-08-25
+   *
+   * 🛑 `null` = ลูกค้ายังไม่ผูก `Customer` กลาง (ไม่มีประวัติข้ามร้าน) **คนละความหมายกับ
+   * "เปิดพัสดุ 0 ใบ"** — บน prod เคสนี้หายากมาก (`Order.customerId` null แค่ 3/533 แถว)
+   *
+   * 🛑 ตัวเลขนี้ **ข้ามร้าน** ส่วนชิปกรอง "เคยตีกลับกับร้านนี้" และการ์ดสถิติหัวหน้าเป็น
+   * **ระดับร้าน** — ทุกจุดบนหน้าจอต้องมีป้ายกำกับขอบเขต ห้ามปล่อยให้ผู้ใช้เดา (HR16)
+   */
+  trust: BuyerReputation | null
 }

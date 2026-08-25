@@ -11,7 +11,7 @@
  *  3. `isValidCustomerKey` ถอดเงื่อนไข `key.length > p.length`               → แดง 1
  *  4. `isValidCustomerKey` เพิ่ม `if (key === 'guest-unknown') return true`  → แดง 2
  *  5. `matchesCustomerQuery` ถอดการเทียบแบบ digits-only                      → แดง 1
- *  6. `matchesRepeatFilter` สลับ `>= 2` กับ `=== 1`                          → แดง 2
+ *  6. `matchesCustomerFilter` สลับเงื่อนไขของ repeat/returned                → แดง 2
  *  7. `findEntryByKey` ถอด `isValidCustomerKey` guard ออก                    → แดง 1
  *
  * 🛑 บันทึกไว้กันคนถัดไปเสียเวลาซ้ำ: mutation ข้อ 4 ตอนแรกลองเป็น "เติม `'guest-unknown'`
@@ -23,13 +23,14 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  aggregateCustomerStats,
   avgPerOrder,
   findEntryByKey,
   isValidCustomerKey,
   maskContact,
   matchesCustomerQuery,
-  matchesRepeatFilter,
-  parseRepeatFilter,
+  matchesCustomerFilter,
+  parseCustomerFilter,
   type CustomerDirectoryEntry,
 } from '../customer-directory'
 
@@ -65,6 +66,15 @@ function entry(over: Partial<CustomerDirectoryEntry> = {}): CustomerDirectoryEnt
       cancelledTotal: 1,
       returnedParcels: 0,
       problemOrders: 0,
+    },
+    shopReputation: {
+      orders: 3,
+      shipped: 2,
+      received: 2,
+      returned: 0,
+      cancelledByBuyer: 0,
+      returnRate: null,
+      riskLevel: 'NONE',
     },
     orders: [],
     ...over,
@@ -198,31 +208,46 @@ describe('[blocker] matchesCustomerQuery — ต้องค้นเบอร�
   })
 })
 
-describe('[blocker] matchesRepeatFilter — ซื้อซ้ำ/ซื้อครั้งแรก (FR-003)', () => {
-  it('ซื้อซ้ำแล้ว = ตั้งแต่ 2 ใบขึ้นไป (นับทุกสถานะตามนิยามเดิมของ 00014 FR-9)', () => {
-    // mutation ข้อ 6 (สลับเงื่อนไข) ต้องทำให้ชุดนี้แดง — ต้องมีทั้งเคส 1, 2 และ 3 ใบ
-    expect(matchesRepeatFilter(entry({ totalOrders: 1 }), 'repeat')).toBe(false)
-    expect(matchesRepeatFilter(entry({ totalOrders: 2 }), 'repeat')).toBe(true)
-    expect(matchesRepeatFilter(entry({ totalOrders: 3 }), 'repeat')).toBe(true)
+describe('[blocker] matchesCustomerFilter — ชิปกรอง 4 ตัว เลือกได้ทีละอัน (FR-003)', () => {
+  const e = (over: Partial<CustomerDirectoryEntry> = {}) => entry(over)
+  const rep = (over: Partial<CustomerDirectoryEntry['shopReputation']>) => ({
+    orders: 1, shipped: 1, received: 1, returned: 0,
+    cancelledByBuyer: 0, returnRate: null, riskLevel: 'NONE' as const, ...over,
   })
 
-  it('ยังซื้อครั้งแรก = 1 ใบเท่านั้น', () => {
-    expect(matchesRepeatFilter(entry({ totalOrders: 1 }), 'first')).toBe(true)
-    expect(matchesRepeatFilter(entry({ totalOrders: 2 }), 'first')).toBe(false)
+  it('all → ผ่านทุกแถว ไม่ว่าธงหรือตัวเลขจะเป็นอะไร', () => {
+    expect(matchesCustomerFilter(e({ totalOrders: 1 }), 'all', false)).toBe(true)
+    expect(matchesCustomerFilter(e({ totalOrders: 9 }), 'all', true)).toBe(true)
   })
 
-  it('ไม่ได้เลือกตัวกรอง → ผ่านทุกแถว', () => {
-    expect(matchesRepeatFilter(entry({ totalOrders: 1 }), null)).toBe(true)
-    expect(matchesRepeatFilter(entry({ totalOrders: 9 }), null)).toBe(true)
+  it('warn → ใช้ธงที่ผู้เรียกส่งมา ไม่ตัดสินเองจากตัวเลข', () => {
+    // 🛑 fixture ต้องมีเคสที่ "ธงไม่ตรงกับตัวเลข" ไม่งั้นถ้าโค้ดหันไปดู riskLevel เองก็ยังเขียว
+    const looksBadButNoFlag = e({ shopReputation: rep({ returned: 3, riskLevel: 'HIGH' }) })
+    expect(matchesCustomerFilter(looksBadButNoFlag, 'warn', false)).toBe(false)
+    expect(matchesCustomerFilter(e({ shopReputation: rep({}) }), 'warn', true)).toBe(true)
   })
 
-  it('parseRepeatFilter รับเฉพาะค่าที่รู้จัก (fail-closed)', () => {
-    expect(parseRepeatFilter('repeat')).toBe('repeat')
-    expect(parseRepeatFilter('first')).toBe('first')
-    expect(parseRepeatFilter('all')).toBeNull()
-    expect(parseRepeatFilter('')).toBeNull()
-    expect(parseRepeatFilter(undefined)).toBeNull()
-    expect(parseRepeatFilter(null)).toBeNull()
+  it('returned → เจาะจงเฉพาะเคยตีกลับ ไม่รวมยกเลิก', () => {
+    // เคสนี้พิสูจน์ว่า returned ≠ warn: มีธงเตือน (จากการยกเลิก) แต่ไม่เคยตีกลับ
+    expect(matchesCustomerFilter(e({ shopReputation: rep({ returned: 0 }) }), 'returned', true)).toBe(false)
+    expect(matchesCustomerFilter(e({ shopReputation: rep({ returned: 1 }) }), 'returned', false)).toBe(true)
+  })
+
+  it('repeat → ตั้งแต่ 2 ใบขึ้นไป (นับทุกสถานะตามนิยามเดิมของ 00014 FR-9)', () => {
+    expect(matchesCustomerFilter(e({ totalOrders: 1 }), 'repeat', false)).toBe(false)
+    expect(matchesCustomerFilter(e({ totalOrders: 2 }), 'repeat', false)).toBe(true)
+    expect(matchesCustomerFilter(e({ totalOrders: 3 }), 'repeat', false)).toBe(true)
+  })
+
+  it('parseCustomerFilter fail-closed — ค่าที่ไม่รู้จักตกเป็น all ไม่ใช่ throw', () => {
+    expect(parseCustomerFilter('warn')).toBe('warn')
+    expect(parseCustomerFilter('returned')).toBe('returned')
+    expect(parseCustomerFilter('repeat')).toBe('repeat')
+    expect(parseCustomerFilter('all')).toBe('all')
+    expect(parseCustomerFilter('first')).toBe('all')
+    expect(parseCustomerFilter('')).toBe('all')
+    expect(parseCustomerFilter(undefined)).toBe('all')
+    expect(parseCustomerFilter(null)).toBe('all')
   })
 })
 
@@ -240,5 +265,61 @@ describe('maskContact — ยกมาจาก customers/page.tsx (เปลี
     expect(maskContact(null)).toBe('—')
     expect(maskContact(undefined)).toBe('—')
     expect(maskContact('')).toBe('—')
+  })
+})
+
+describe('[blocker] aggregateCustomerStats — สถิติความน่าเชื่อถือระดับร้าน', () => {
+  const rep = (over: Partial<CustomerDirectoryEntry['shopReputation']> = {}) => ({
+    orders: 1,
+    shipped: 1,
+    received: 1,
+    returned: 0,
+    cancelledByBuyer: 0,
+    returnRate: null,
+    riskLevel: 'NONE' as const,
+    ...over,
+  })
+
+  it('รวมยอดข้ามลูกค้าแล้วคิดอัตราจากฐาน "ใบที่เปิดพัสดุ" ไม่ใช่จำนวนลูกค้า', () => {
+    // 🛑 fixture ต้องมีลูกค้าที่ shipped ไม่เท่ากัน ไม่งั้นสลับตัวหารเป็น rows.length
+    //    จะให้ผลเท่ากันโดยบังเอิญ = เทสเงียบ (mutation-silence-means-weak-corpus)
+    const stats = aggregateCustomerStats([
+      { shopReputation: rep({ shipped: 6, received: 5, returned: 1 }), hasWarning: true },
+      { shopReputation: rep({ shipped: 4, received: 4, returned: 0 }), hasWarning: false },
+    ])
+    expect(stats.shipped).toBe(10)
+    expect(stats.received).toBe(9)
+    expect(stats.returned).toBe(1)
+    expect(stats.returnRate).toBeCloseTo(0.1)
+    expect(stats.receivedRate).toBeCloseTo(0.9)
+    expect(stats.totalCustomers).toBe(2)
+    expect(stats.watchCount).toBe(1)
+  })
+
+  it('ฐานน้อยกว่า 3 ใบ → อัตราเป็น null ไม่ใช่ 0 หรือ 100%', () => {
+    // ร้านที่เพิ่งเปิดพัสดุใบแรกแล้วตีกลับ ต้องไม่ขึ้น "อัตราตีกลับ 100%" บนหัวหน้าจอตัวเอง
+    const stats = aggregateCustomerStats([
+      { shopReputation: rep({ shipped: 1, received: 0, returned: 1 }), hasWarning: true },
+    ])
+    expect(stats.returned).toBe(1)
+    expect(stats.returnRate).toBeNull()
+    expect(stats.receivedRate).toBeNull()
+  })
+
+  it('ไม่มีลูกค้าเลย → ทุกค่าเป็น 0 และอัตราเป็น null (ไม่หารด้วย 0)', () => {
+    const stats = aggregateCustomerStats([])
+    expect(stats.totalCustomers).toBe(0)
+    expect(stats.shipped).toBe(0)
+    expect(stats.returnRate).toBeNull()
+    expect(Number.isNaN(stats.returnRate as unknown as number)).toBe(false)
+  })
+
+  it('watchCount นับจากธงที่ผู้เรียกส่งมา ไม่ใช่คำนวณเกณฑ์เองซ้ำ', () => {
+    // ตัวเลขบนการ์ดกับผลของชิปกรอง "ต้องเฝ้าระวัง" ต้องมาจากเกณฑ์เดียวกันเสมอ
+    const stats = aggregateCustomerStats([
+      { shopReputation: rep({ returned: 2, riskLevel: 'HIGH' }), hasWarning: false },
+      { shopReputation: rep(), hasWarning: true },
+    ])
+    expect(stats.watchCount).toBe(1)
   })
 })

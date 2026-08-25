@@ -20,8 +20,8 @@
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
-import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { CustomerBehaviorIcons } from '@/components/safepay/CustomerBehaviorBadges'
+import CustomerTrustBar from '@/components/safepay/CustomerTrustBar'
 import ListBusyOverlay, {
   useListBusy,
 } from '@/app/(paces)/seller/(dashboard)/_shared/ListBusyOverlay'
@@ -30,7 +30,7 @@ import { formatDateTime } from '@/lib/format-date'
 import { formatBaht } from '@/lib/format-money'
 import { pacesToast } from '@/lib/paces-toast'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
-import type { RepeatFilter } from '@/lib/customer-directory'
+import type { CustomerListFilter } from '@/lib/customer-directory'
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -119,16 +119,30 @@ type CustomerTableProps = {
   /** ร้านนี้มีลูกค้าอยู่บ้างไหม (ก่อนกรอง) — ใช้แยกข้อความ empty 2 แบบ */
   hasAnyCustomer: boolean
   initialQuery: string
-  initialWarn: boolean
-  initialRepeat: RepeatFilter | null
+  initialFilter: CustomerListFilter
+  /** จำนวนลูกค้าที่มีสัญญาณเตือน — โชว์บนชิปให้เห็นก่อนกด (ตัวเลขเดียวกับการ์ดสถิติ) */
+  watchCount: number
 }
+
+/**
+ * ชิปกรอง — เลือกได้ทีละอัน แทนดรอปดาวน์ 2 ตัวของเดิม
+ *
+ * 🛑 ป้ายต้องบอก **ขอบเขต** ในตัวเอง — "เคยตีกลับกับร้านนี้" เป็นระดับร้าน ส่วนแถบใน
+ * แต่ละแถวเป็น **ทั้งระบบ** ถ้าเขียนแค่ "เคยตีกลับ" ผู้ใช้จะอ่านว่าเป็นชุดเดียวกัน (HR16)
+ */
+const FILTER_CHIPS: { value: CustomerListFilter; label: string; tone?: 'warning' }[] = [
+  { value: 'all', label: 'ทั้งหมด' },
+  { value: 'warn', label: 'ต้องเฝ้าระวัง', tone: 'warning' },
+  { value: 'returned', label: 'เคยตีกลับกับร้านนี้' },
+  { value: 'repeat', label: 'ซื้อซ้ำ' },
+]
 
 const CustomerTable = ({
   customers,
   hasAnyCustomer,
   initialQuery,
-  initialWarn,
-  initialRepeat,
+  initialFilter,
+  watchCount,
 }: CustomerTableProps) => {
   const router = useRouter()
   const pathname = usePathname()
@@ -149,15 +163,14 @@ const CustomerTable = ({
    * กระจกของตัวกรองปัจจุบัน — ให้ effect ของช่องค้นหาอ่านค่าล่าสุดได้โดย **ไม่ต้องใส่ใน deps**
    * (ถ้าใส่ การเปลี่ยนตัวกรองจะไปกระตุ้น effect ของคำค้นให้ push ซ้ำอีกรอบโดยไม่จำเป็น)
    */
-  const filtersRef = useRef({ warn: initialWarn, repeat: initialRepeat })
-  filtersRef.current = { warn: initialWarn, repeat: initialRepeat }
+  const filtersRef = useRef(initialFilter)
+  filtersRef.current = initialFilter
 
   const pushWith = useCallback(
-    (next: { q: string; warn: boolean; repeat: RepeatFilter | null }) => {
+    (next: { q: string; f: CustomerListFilter }) => {
       const params = new URLSearchParams()
       if (next.q) params.set('q', next.q)
-      if (next.warn) params.set('warn', '1')
-      if (next.repeat) params.set('repeat', next.repeat)
+      if (next.f !== 'all') params.set('f', next.f)
       const qs = params.toString()
       router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
     },
@@ -176,7 +189,7 @@ const CustomerTable = ({
     }
     begin()
     const timer = setTimeout(() => {
-      run(() => pushWith({ q: query, ...filtersRef.current }))
+      run(() => pushWith({ q: query, f: filtersRef.current }))
     }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [query, begin, run, pushWith])
@@ -216,6 +229,22 @@ const CustomerTable = ({
           </h5>
         </div>
       ),
+    }),
+    columnHelper.display({
+      id: 'trust',
+      /**
+       * 🛑 ป้ายต้องบอกขอบเขตในตัวเอง — ตัวเลขชุดนี้ **ข้ามร้าน** ต่างจากการ์ดสถิติหัวหน้า
+       * และชิป "เคยตีกลับกับร้านนี้" ซึ่งเป็นระดับร้าน ถ้าเขียนแค่ "ความน่าเชื่อถือ" เฉย ๆ
+       * ผู้ใช้จะอ่านว่าเป็นชุดเดียวกันทั้งหน้า
+       */
+      header: () => (
+        <div className="flex flex-col">
+          <span>ความน่าเชื่อถือ</span>
+          <span className="text-2xs text-default-400 font-normal">(ทั้งระบบ)</span>
+        </div>
+      ),
+      meta: { cellClassName: 'min-w-56' },
+      cell: ({ row }) => <CustomerTrustBar reputation={row.original.trust} />,
     }),
     columnHelper.accessor('contact', {
       header: 'ติดต่อ',
@@ -269,14 +298,14 @@ const CustomerTable = ({
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)
 
-  const hasFilter = !!query || initialWarn || !!initialRepeat
+  const hasFilter = !!query || initialFilter !== 'all'
   const emptyMessage = hasAnyCustomer
     ? 'ไม่พบลูกค้าที่ตรงกับตัวกรองนี้'
     : 'ยังไม่มีลูกค้า — รอผู้ซื้อสั่งซื้อสินค้าจากร้านค้าของคุณ'
 
   const clearFilters = () => {
     setQuery('')
-    run(() => pushWith({ q: '', warn: false, repeat: null }))
+    run(() => pushWith({ q: '', f: 'all' }))
   }
 
   return (
@@ -294,53 +323,32 @@ const CustomerTable = ({
             />
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2.5 md:flex-nowrap">
-          <FilterDropdown
-            icon="alert-triangle"
-            value={initialWarn ? 'warn' : 'All'}
-            resetValue="All"
-            defaultLabel="สัญญาณเตือน"
-            options={[
-              { value: 'All', label: 'ทั้งหมด' },
-              { value: 'warn', label: 'มีสัญญาณเตือน' },
-            ]}
-            onChange={(v) =>
-              run(() =>
-                pushWith({ q: query, warn: v === 'warn', repeat: filtersRef.current.repeat }),
-              )
-            }
-          />
-          <FilterDropdown
-            icon="repeat"
-            value={initialRepeat ?? 'All'}
-            resetValue="All"
-            defaultLabel="ประวัติการซื้อ"
-            options={[
-              { value: 'All', label: 'ทั้งหมด' },
-              { value: 'repeat', label: 'ซื้อซ้ำแล้ว' },
-              { value: 'first', label: 'ซื้อครั้งเดียว' },
-            ]}
-            onChange={(v) =>
-              run(() =>
-                pushWith({
-                  q: query,
-                  warn: filtersRef.current.warn,
-                  repeat: v === 'repeat' || v === 'first' ? v : null,
-                }),
-              )
-            }
-          />
-          <select
-            className="form-select"
-            value={pageSize}
-            onChange={(e) => run(() => table.setPageSize(Number(e.target.value)))}>
-            {[5, 8, 10, 15, 20].map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </select>
-        </div>
+      </div>
+
+      {/* ชิปกรอง — เลื่อนแนวนอนได้บนมือถือโดยไม่ทำให้ทั้งหน้าเลื่อนข้าง
+          `-mx-4 px-4` ให้แถบกินเต็มขอบการ์ดแต่ยังมีระยะขอบตอนเลื่อนสุด
+          `min-h-11` = 44px พื้นที่นิ้วตามเกณฑ์ (ชิปที่เตี้ยกว่านี้กดพลาดบนมือถือ) */}
+      <div className="border-default-200 -mx-4 flex gap-2 overflow-x-auto border-b border-dashed px-4 pb-3">
+        {FILTER_CHIPS.map((c) => {
+          const active = initialFilter === c.value
+          return (
+            <button
+              key={c.value}
+              type="button"
+              aria-pressed={active}
+              onClick={() => run(() => pushWith({ q: query, f: c.value }))}
+              className={`btn min-h-11 shrink-0 rounded-full text-xs font-semibold whitespace-nowrap ${
+                active
+                  ? 'bg-primary text-white'
+                  : c.tone === 'warning'
+                    ? 'bg-warning/15 text-warning-ink border-warning/50 border'
+                    : 'border-default-300 text-default-800 border'
+              }`}>
+              {c.label}
+              {c.value === 'warn' && watchCount > 0 && ` ${watchCount}`}
+            </button>
+          )
+        })}
       </div>
 
       {/* 🛑 `relative` อยู่ที่กล่องผลลัพธ์เท่านั้น — แผงโหลดต้องไม่ทับ card-header ซึ่งเป็นสิ่งที่
@@ -355,44 +363,42 @@ const CustomerTable = ({
             return (
               // stretched-link: ลิงก์กินทั้งใบเป็นชั้นล่างสุด ปุ่มจริงยกขึ้น z-10
               // (แพตเทิร์นเดียวกับ ProductCard.tsx / OrderCard.tsx)
-              <div className="relative flex flex-col">
+              <div className="relative flex items-start gap-3 px-1 py-3.5">
                 <Link
                   href={`/customers/${encodeURIComponent(c.key)}`}
                   className="absolute inset-0 z-0"
                   aria-label={`ดูโปรไฟล์ของ ${c.displayName}`}
                 />
-                <div className="flex items-center gap-3 px-1 py-3.5">
-                  <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
-                    {c.initial}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-default-900 flex min-w-0 items-center gap-1 text-sm font-medium">
-                      <span className="max-w-full truncate">{c.displayName}</span>
-                      <CustomerBehaviorIcons badges={c.badges} />
-                    </p>
-                    <span className="relative z-10 inline-flex">
-                      <ContactCell row={c} />
-                    </span>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-default-900 text-sm leading-tight font-semibold">
-                      {c.totalOrders}
-                    </p>
-                    <p className="text-2xs text-default-400 leading-tight">ออเดอร์</p>
-                  </div>
+                <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+                  {c.initial}
                 </div>
-                {/* row 2: ล่าสุด + ยอดซื้อสะสม — เส้นทึบ (dashed สงวนให้ .card-header เท่านั้น) */}
-                <div className="border-default-100 flex items-center justify-between gap-3 border-t px-1 pt-3 pb-3.5">
-                  <div>
-                    <p className="text-2xs text-default-400">ล่าสุด</p>
-                    <p className="text-default-500 text-sm">{formatDateTime(c.lastOrderISO)}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xs text-default-400">ยอดซื้อสะสม (นับเป็นยอดขายแล้ว)</p>
-                    <p className="text-default-900 text-sm font-semibold tabular-nums">
-                      {formatBaht(c.totalSpent)}
-                    </p>
-                  </div>
+
+                {/* 🛑 `min-w-0` ที่กล่อง + `max-w-full truncate` ที่ชื่อ + `shrink-0` ที่ป้าย —
+                    ต้องมาเป็นชุด ไม่งั้นชื่อยาว 34 ตัวอักษรจะดันแถวกว้างเกินจอแล้วการ์ด
+                    หลุดขอบซ้าย (เกิดจริงบน prod 2026-08-12 กับเพจชื่อยาว) */}
+                <div className="min-w-0 flex-1">
+                  <p className="text-default-900 mb-0 flex min-w-0 items-center gap-1 text-sm font-medium">
+                    <span className="max-w-full truncate">{c.displayName}</span>
+                    <CustomerBehaviorIcons badges={c.badges} />
+                  </p>
+                  <CustomerTrustBar reputation={c.trust} />
+                  <span className="relative z-10 mt-1 inline-flex">
+                    <ContactCell row={c} />
+                  </span>
+                </div>
+
+                {/* ยอดซื้อสะสมยังเด่นเท่าความน่าเชื่อถือ (user ย้ำ 2026-08-25) — ไม่ใช่
+                    ข้อความเทาเล็ก ๆ ท้ายบรรทัด · `shrink-0` กัน flex บีบจนตัวเลขตัด */}
+                <div className="shrink-0 text-right">
+                  <p className="text-default-900 mb-0 text-sm font-semibold tabular-nums">
+                    {formatBaht(c.totalSpent)}
+                  </p>
+                  <p className="text-2xs text-default-400 mb-0 leading-tight">
+                    {c.totalOrders} ออเดอร์
+                  </p>
+                  <p className="text-2xs text-default-400 mb-0 leading-tight">
+                    {formatDateTime(c.lastOrderISO)}
+                  </p>
                 </div>
               </div>
             )
