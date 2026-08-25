@@ -14,6 +14,9 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+// 🧪 PROTOTYPE (branch proto/return-modal-unified) — ลบทั้งบล็อกเมื่อเลือก variant ได้แล้ว
+import PrototypeSwitcher, { useProtoSearchOn, useProtoVariant } from './prototype/PrototypeSwitcher'
+import { VariantA, VariantB, VariantC } from './prototype/ReturnModalVariants'
 import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 
 import Icon from '@/components/wrappers/Icon'
@@ -93,6 +96,12 @@ export default function ReturnPanel({
   sheetOpen?: boolean
   onCloseSheet?: () => void
 }) {
+  // 🧪 PROTOTYPE — เปิดเมื่อมี ?variant= ใน URL และไม่ใช่ production build
+  const protoVariant = useProtoVariant()
+  // เรียก hook ก่อนเสมอ แล้วค่อย && กับ NODE_ENV — สลับลำดับแล้ว hook ถูกเรียกแบบมีเงื่อนไข
+  const protoRequested = useProtoSearchOn()
+  const protoOn = process.env.NODE_ENV !== 'production' && protoRequested
+
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [eligibility, setEligibility] = useState<Eligibility | null>(null)
@@ -257,6 +266,25 @@ export default function ReturnPanel({
    */
   if (asSheet) {
     if (!sheetOpen) return null
+
+    // 🧪 PROTOTYPE — variant render ทั้ง overlay เอง (เปลือกคือสิ่งที่กำลังเทียบ)
+    if (protoOn && eligibility?.canReturn) {
+      const P = protoVariant === 'B' ? VariantB : protoVariant === 'C' ? VariantC : VariantA
+      return (
+        <>
+          <P
+            items={eligibility.items}
+            onClose={() => onCloseSheet?.()}
+            onSubmit={(d) => {
+              // stub — prototype ตอบ "ควรหน้าตายังไง" ไม่ใช่ "backend ทำงานไหม"
+              pacesToast.success(`[ทดลอง] ไม่บันทึกจริง — ${JSON.stringify(d)}`)
+            }}
+          />
+          <PrototypeSwitcher />
+        </>
+      )
+    }
+
     return (
       /* Base: RecordPaymentSheet.tsx / AppointmentSummarySheet.tsx — โครงชีตของโปรเจกต์นี้
          (`z-90` · `.card` · `max-h-full` + `min-h-0 flex-1`) ห้ามคิดเลข z/ความสูงเอง:

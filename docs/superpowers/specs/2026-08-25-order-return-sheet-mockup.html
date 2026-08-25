@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ชีตคืนของ — 3 ตัวเลือก (รอบแก้ 2026-08-25)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--primary:#236dc9;--primary-ink:#12386a;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--bg:#f4f6f8;--warn:#f5a524;--warn-ink:#7a4f00;--ok:#28c76f;--danger:#ea5455}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Anuphan,system-ui,sans-serif;font-size:15px;line-height:1.6}
+.wrap{max-width:1240px;margin:0 auto;padding:26px 20px 80px}
+h1{font-size:25px;margin:0 0 4px}h2{font-size:19px;margin:34px 0 8px;padding-top:20px;border-top:1px solid var(--line)}
+.lede{color:var(--muted);margin:0 0 18px}
+.note{background:#fff8e6;border-left:3px solid var(--warn);padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+.note.good{background:#eafaf1;border-left-color:var(--ok)}.note.ask{background:#eef3fb;border-left-color:var(--primary)}
+.devs{display:grid;grid-template-columns:375px 1fr;gap:20px;align-items:start}
+@media(max-width:900px){.devs{grid-template-columns:1fr}}
+.dev{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+.dev>h4{margin:0;padding:8px 13px;font-size:12px;font-weight:600;color:var(--muted);background:#fafbfc;border-bottom:1px solid var(--line)}
+.pane{padding:13px}
+.hd{display:flex;align-items:center;justify-content:space-between;padding-bottom:9px;border-bottom:1px dashed var(--line);margin-bottom:11px;font-weight:600;font-size:14.5px}
+.x{color:var(--muted);font-size:15px}
+.q{font-weight:600;font-size:13.5px;margin-bottom:2px}
+.qs{color:var(--muted);font-size:12.5px;margin-bottom:9px}
+.opt{display:flex;gap:9px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:7px}
+.opt.on{border-color:var(--primary);background:#f2f7fd}
+.rd{width:15px;height:15px;border-radius:50%;border:2px solid #c3c9d2;flex:none;margin-top:3px}
+.opt.on .rd{border-color:var(--primary);background:radial-gradient(circle,var(--primary) 42%,#fff 46%)}
+.ic{width:20px;text-align:center;flex:none;margin-top:1px;opacity:.55;font-size:15px}
+.t{font-weight:500;font-size:13.5px}.d{color:var(--muted);font-size:12px;line-height:1.45}
+.fields{margin:8px 0 2px;padding:9px 10px;background:#f8fafc;border:1px solid var(--line);border-radius:9px}
+.fl{font-size:11.5px;color:var(--muted);margin-bottom:3px;font-weight:500}
+.inp{border:1px solid #d5dae1;background:#fff;border-radius:8px;padding:7px 9px;font-size:13px;color:var(--muted)}
+.inp.sel{display:flex;justify-content:space-between;align-items:center;color:var(--ink)}
+.inp.sel .car{display:flex;align-items:center;gap:6px}
+.chip{width:17px;height:17px;border-radius:4px;background:#ffd400;display:inline-block}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+@media(max-width:420px){.grid2{grid-template-columns:1fr}}
+.chk{display:flex;gap:7px;align-items:flex-start;font-size:12.5px;margin-top:9px}
+.box{width:14px;height:14px;border:2px solid #c3c9d2;border-radius:3px;flex:none;margin-top:3px}
+.btns{display:flex;gap:7px;margin-top:12px}
+.b{border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;text-align:center}
+.b.p{background:var(--primary);color:#fff;flex:1}.b.l{background:#f0f2f5;color:var(--ink)}.b.d{background:#c9d3e0;color:#fff;flex:1}
+.back{display:inline-flex;gap:5px;background:#f0f2f5;border-radius:8px;padding:5px 10px;font-size:12.5px;margin-bottom:10px;max-width:100%}
+.row{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:7px}
+.nm{flex:1;min-width:0;font-size:13.5px}.nm small{display:block;color:var(--muted);font-size:11.5px}
+.stp{display:flex;align-items:center;border:1px solid #d5dae1;border-radius:8px;flex:none}
+.stp b{width:27px;text-align:center;color:var(--primary);font-weight:400;font-size:15px}
+.stp span{width:27px;text-align:center;font-weight:700;font-size:13px;border-left:1px solid var(--line);border-right:1px solid var(--line);padding:3px 0}
+.tot{display:flex;justify-content:space-between;align-items:center;margin-top:11px;font-weight:600;font-size:14px}
+.side{font-size:13.5px}
+.side h5{margin:0 0 6px;font-size:14px}
+.side ul{margin:0 0 14px;padding-left:18px;color:var(--muted)}
+.side li{margin-bottom:5px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px;background:#fff}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#fafbfc;font-weight:600}
+code{background:#eef1f4;padding:1px 5px;border-radius:4px;font-size:12.5px;font-family:ui-monospace,monospace}
+del{color:var(--danger);text-decoration-thickness:1px}
+</style></head><body><div class="wrap">
+
+<h1>ชีตคืนของ — เหลือ 3 ตัวเลือก</h1>
+<p class="lede">รอบแก้ตามที่สั่ง 2026-08-25 · <b>5 ข้อ → 3 ข้อ</b> · ผู้จ่ายไม่ต้องถามแยกอีกแล้ว เพราะแต่ละข้อบอกในตัว</p>
+
+<div class="note good">
+<b>สิ่งที่หายไปจากจอ:</b> คำถาม “ใครออกค่าส่ง” — ข้อ 1 หักเครดิตร้านจึงเป็นร้านแน่นอน · ข้อ 2 ร้านไปเปิดพัสดุเอง · ข้อ 3 ลูกค้าส่งเอง
+<br><b>สิ่งที่เพิ่มเข้ามา:</b> ขนส่งเป็น <b>dropdown จากรายชื่อในระบบ</b> ไม่ใช่ช่องพิมพ์อิสระ (พิมพ์เองได้ “เคอรี่/Kerry/KEX” สามแบบ = โลโก้ไม่ขึ้น จับคู่ไม่ได้)
+</div>
+
+<h2>ขั้นที่ 1 — จะส่งของกลับยังไง</h2>
+<div class="devs">
+  <div class="dev"><h4>มือถือ 375px · ยังไม่เลือก</h4><div class="pane">
+    <div class="hd"><span>↩ การคืนของ</span><span class="x">✕</span></div>
+    <div class="q">จะส่งของกลับยังไง</div>
+    <div class="qs">เลือกข้อที่ตรงกับที่ตกลงกับลูกค้าไว้</div>
+    <div class="opt"><div class="rd"></div><div class="ic">⇄</div><div><div class="t">ส่งด้วย iShip</div><div class="d">ระบบออกเลขพัสดุขากลับให้ <b>ตัดจากเครดิตร้าน</b> แล้วได้ใบปะหน้าส่งให้ลูกค้าพิมพ์</div></div></div>
+    <div class="opt"><div class="rd"></div><div class="ic">▣</div><div><div class="t">ร้านส่งเอง</div><div class="d">ร้านไปเปิดพัสดุที่ขนส่งเจ้าอื่น แล้วมากรอกเลขที่นี่ · เป็นต้นทุนร้าน</div></div></div>
+    <div class="opt"><div class="rd"></div><div class="ic">☺</div><div><div class="t">ลูกค้าส่งเอง</div><div class="d">ลูกค้าออกค่าส่งและส่งกลับมาเอง</div></div></div>
+    <div class="btns"><div class="b d">ถัดไป — เลือกของที่คืน</div><div class="b l">ยกเลิก</div></div>
+  </div></div>
+
+  <div class="side">
+    <h5>ทำไมเหลือ 3</h5>
+    <ul>
+      <li><b>“ใครออกค่าส่ง” เป็นผลลัพธ์ ไม่ใช่คำถาม</b> — ข้อ 1 หักเครดิตร้านโดยกลไก ถามซ้ำแล้วตอบว่า “ลูกค้า” ไม่ได้อยู่ดี</li>
+      <li>ข้อ 2 กับ 3 ต่างกันที่ <b>ใครควักเงิน</b> ล้วน ๆ — พูดตรง ๆ ว่า “ร้านส่งเอง / ลูกค้าส่งเอง” เข้าใจทันทีโดยไม่ต้องมีคำถามที่สอง</li>
+      <li>ตัดจาก 5 เหลือ 3 ⇒ <del>2 คำถามซ้อน</del> เหลือ <b>คำถามเดียว</b></li>
+    </ul>
+    <h5>ปุ่มถัดไปเทาจนกว่า</h5>
+    <ul>
+      <li>เลือกครบ 1 ข้อ</li>
+      <li>ข้อ 2 / 3 → กรอก <b>เลขพัสดุ</b> แล้ว (ขนส่งไม่บังคับ)</li>
+    </ul>
+  </div>
+</div>
+
+<h2>เลือกข้อ 1 — ไม่มีอะไรให้กรอกเลย</h2>
+<div class="devs">
+  <div class="dev"><h4>มือถือ 375px</h4><div class="pane">
+    <div class="opt on"><div class="rd"></div><div class="ic">⇄</div><div><div class="t">ส่งด้วย iShip</div><div class="d">ระบบออกเลขพัสดุขากลับให้ <b>ตัดจากเครดิตร้าน</b> แล้วได้ใบปะหน้าส่งให้ลูกค้าพิมพ์</div></div></div>
+    <div class="opt"><div class="rd"></div><div class="ic">▣</div><div><div class="t">ร้านส่งเอง</div></div></div>
+    <div class="opt"><div class="rd"></div><div class="ic">☺</div><div><div class="t">ลูกค้าส่งเอง</div></div></div>
+    <div class="btns"><div class="b p">ถัดไป — เลือกของที่คืน</div><div class="b l">ยกเลิก</div></div>
+  </div></div>
+  <div class="side">
+    <h5>ทางที่สั้นที่สุด</h5>
+    <ul><li>แตะข้อ 1 → กด ถัดไป · <b>ไม่มีช่องกรอกใด ๆ</b></li>
+    <li>เลขพัสดุยังไม่ถูกออกตอนนี้ — ออกตอนกด <b>“ออกเลขพัสดุขากลับ”</b> ในใบคืนหลังบันทึก (จุดที่เครดิตถูกตัดจริง แยกจากการเปิดเรื่อง)</li></ul>
+  </div>
+</div>
+
+<h2>เลือกข้อ 2 / 3 — ขนส่งเป็น dropdown + เลขพัสดุ</h2>
+<div class="devs">
+  <div class="dev"><h4>มือถือ 375px · ข้อ 3 (ลูกค้าส่งเอง)</h4><div class="pane">
+    <div class="opt"><div class="rd"></div><div class="ic">⇄</div><div><div class="t">ส่งด้วย iShip</div></div></div>
+    <div class="opt"><div class="rd"></div><div class="ic">▣</div><div><div class="t">ร้านส่งเอง</div></div></div>
+    <div class="opt on"><div class="rd"></div><div class="ic">☺</div><div><div class="t">ลูกค้าส่งเอง</div><div class="d">ลูกค้าออกค่าส่งและส่งกลับมาเอง</div></div></div>
+    <div class="fields">
+      <div class="grid2">
+        <div><div class="fl">ขนส่ง</div><div class="inp sel"><span class="car"><span class="chip"></span> Flash Express</span><span style="color:#98a2b3">▾</span></div></div>
+        <div><div class="fl">เลขพัสดุ *</div><div class="inp">TH01234567890</div></div>
+      </div>
+      <div class="chk"><span class="box"></span><span>ลูกค้าออกเลขเอง แต่<b>มาเรียกเก็บร้านทีหลัง</b> — บันทึกเป็นต้นทุนร้าน</span></div>
+    </div>
+    <div class="btns"><div class="b p">ถัดไป — เลือกของที่คืน</div><div class="b l">ยกเลิก</div></div>
+  </div></div>
+
+  <div class="side">
+    <h5>dropdown ขนส่ง — จากรายชื่อในระบบ</h5>
+    <ul>
+      <li>ดึงจาก <code>COURIER_BRANDS</code> ตัวเดียวกับที่หน้าออเดอร์ใช้แสดงโลโก้ (9 แบรนด์)<br>
+      Flash · Kerry/KEX · ไปรษณีย์ไทย · DHL · BEST · SPX · J&amp;T · Fuze Post · iShip</li>
+      <li>ท้ายลิสต์มี <b>“อื่น ๆ”</b> → เปิดช่องพิมพ์ชื่อเอง (เจ้าเล็ก/ขนส่งท้องถิ่นมีจริง ตัดทิ้งไม่ได้)</li>
+      <li>เลือกจากลิสต์ = <b>โลโก้ขึ้นถูกทันที</b> · พิมพ์เองจะได้ “เคอรี่ / Kerry / KEX” สามแบบที่จับคู่โลโก้ไม่ได้</li>
+    </ul>
+    <h5>ช่องติ๊กต้นทุน</h5>
+    <ul><li>ขึ้นเฉพาะ <b>ข้อ 3</b> — ข้อ 1 กับ 2 ร้านจ่ายอยู่แล้ว บังคับเป็นต้นทุนเสมอ ถามไปก็ติ๊กออกไม่ได้</li></ul>
+  </div>
+</div>
+
+<h2>ขั้นที่ 2 — คืนของชิ้นไหนบ้าง <span style="font-size:13px;color:var(--muted);font-weight:400">(เหมือนเดิม ไม่แก้)</span></h2>
+<div class="devs">
+  <div class="dev"><h4>มือถือ 375px</h4><div class="pane">
+    <div class="hd"><span>↩ การคืนของ</span><span class="x">✕</span></div>
+    <div class="back">← ลูกค้าส่งเอง · Flash Express TH01234567890</div>
+    <div class="q" style="margin-bottom:8px">คืนของชิ้นไหนบ้าง</div>
+    <div class="row"><div class="nm">เสื้อยืดคอกลม สีดำ<small>ซื้อ 2 · คืนได้ 2 · ฿390/ชิ้น</small></div><div class="stp"><b>－</b><span>1</span><b>＋</b></div></div>
+    <div class="row"><div class="nm">กางเกงขายาว<small>ซื้อ 1 · คืนได้ 1 · ฿590/ชิ้น</small></div><div class="stp"><b>－</b><span>0</span><b>＋</b></div></div>
+    <div class="inp" style="margin-top:9px">เหตุผล (ไม่บังคับ)</div>
+    <div class="tot"><span>คืน ฿390</span><span class="b p" style="flex:none">เปิดใบคืน</span></div>
+  </div></div>
+  <div class="side">
+    <h5>ปุ่มย้อนกลับพูดคำตอบทั้งชุด</h5>
+    <ul><li>“ลูกค้าส่งเอง · Flash Express TH01234567890” — ไม่ต้องจำ และแก้ได้ในคลิกเดียวโดยไม่ล้างจำนวนที่นับไว้</li></ul>
+  </div>
+</div>
+
+<h2>สรุปการกด</h2>
+<table>
+<tr><th>เคส</th><th>กดในชีต</th></tr>
+<tr><td><b>ส่งด้วย iShip</b> คืน 1 ชิ้น</td><td>แตะข้อ 1 · ถัดไป · ＋ · เปิดใบคืน = <b>4 แตะ ไม่ต้องพิมพ์อะไรเลย</b></td></tr>
+<tr><td><b>ลูกค้าส่งเอง</b> คืน 1 ชิ้น</td><td>แตะข้อ 3 · เลือกขนส่ง · พิมพ์เลข · ถัดไป · ＋ · เปิดใบคืน</td></tr>
+</table>
+
+<div class="note ask">
+<b>เรื่องเดียวที่ต้องเคาะก่อนลงมือ — “ไม่มีเลขพัสดุ”</b><br>
+3 ข้อนี้ไม่มีทางบันทึก “ลูกค้าส่งกลับมาแล้วแต่ไม่ได้แจ้งเลข” ซึ่งจอเดิมทำได้และ <code>BR-RT-19</code> เขียนไว้ว่าไม่ใช่ข้อผิดพลาด<br>
+<b>ที่ผมเสนอ (ไม่เพิ่มตัวเลือก):</b> ข้อ 2/3 ปล่อยช่องเลขพัสดุ <b>เว้นว่างได้</b> แล้วบันทึกเป็น “ไม่มีเลข” ให้เอง ป้ายช่องเขียนว่า <code>เลขพัสดุ (ไม่มีก็เว้นว่างได้)</code><br>
+ถ้าไม่เอา บอกได้ — จะตัดความสามารถนี้ออกให้ตรงกับ 3 ข้อเป๊ะ
+</div>
+
+</div></body></html>
