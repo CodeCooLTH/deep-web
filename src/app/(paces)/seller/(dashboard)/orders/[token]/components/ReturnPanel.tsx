@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useState } from 'react'
 // 🧪 PROTOTYPE (branch proto/return-modal-unified) — ลบทั้งบล็อกเมื่อเลือก variant ได้แล้ว
 import PrototypeSwitcher, { useProtoSearchOn, useProtoVariant } from './prototype/PrototypeSwitcher'
+import { PROTO_DEMO_ITEMS } from './prototype/return-model'
 import { VariantA, VariantB, VariantC } from './prototype/ReturnModalVariants'
 import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 
@@ -268,12 +269,16 @@ export default function ReturnPanel({
     if (!sheetOpen) return null
 
     // 🧪 PROTOTYPE — variant render ทั้ง overlay เอง (เปลือกคือสิ่งที่กำลังเทียบ)
-    if (protoOn && eligibility?.canReturn) {
+    //
+    // 🛑 ไม่ผูกกับ `canReturn` — ร่างแรกเช็ค `eligibility?.canReturn` แล้ว prototype เปิดได้
+    // เฉพาะออเดอร์ที่ของถึงมือลูกค้าแล้วจริง ๆ ⇒ คนที่จะมาดูดีไซน์ต้องไปหาออเดอร์ที่ถูกเงื่อนไข
+    // ก่อน ซึ่งไม่เกี่ยวอะไรกับคำถามที่ prototype นี้ตอบเลย (หัวหน้าเปิดไม่ได้ 2026-08-25)
+    if (protoOn) {
       const P = protoVariant === 'B' ? VariantB : protoVariant === 'C' ? VariantC : VariantA
       return (
         <>
           <P
-            items={eligibility.items}
+            items={eligibility?.items?.length ? eligibility.items : PROTO_DEMO_ITEMS}
             onClose={() => onCloseSheet?.()}
             onSubmit={(d) => {
               // stub — prototype ตอบ "ควรหน้าตายังไง" ไม่ใช่ "backend ทำงานไหม"

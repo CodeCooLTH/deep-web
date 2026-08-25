@@ -102,3 +102,14 @@ export const draftReady = (d: Draft) => {
   // เลขพัสดุ "ไม่มีก็เว้นว่างได้" ตามที่เสนอในม็อกอัพ — ไม่บล็อก
   return m.needsCarrier ? true : true
 }
+
+/**
+ * 🧪 ของปลอมสำหรับตอนออเดอร์นั้นคืนไม่ได้จริง (ยังไม่ส่ง/ยกเลิก/คืนครบแล้ว)
+ *
+ * prototype ตอบคำถาม "กล่องควรเป็นรูปอะไร" — การบังคับให้ไปหาออเดอร์ที่ของถึงมือลูกค้าแล้ว
+ * ก่อนถึงจะดูดีไซน์ได้ คือด่านที่ไม่เกี่ยวกับคำถามเลย · ของจริงมาก่อนเสมอถ้ามี
+ */
+export const PROTO_DEMO_ITEMS: ProtoItem[] = [
+  { orderItemId: 'demo-1', name: 'ไฟหน้า LED H4 6000K (ตัวอย่าง)', orderedQty: 2, remainingQty: 2, unitPrice: 1290 },
+  { orderItemId: 'demo-2', name: 'บัลลาสต์ Xenon 35W (ตัวอย่าง)', orderedQty: 1, remainingQty: 1, unitPrice: 890 },
+]
