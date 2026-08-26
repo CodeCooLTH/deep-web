@@ -28,11 +28,20 @@
   ที่ยืนยันแล้วว่ามี: grid-cols-1..6 · lg:grid-cols-2..6 · lg:col-span-1..3 ·
   xl:grid-cols-10/12 · xl:col-span-3/5/7 · md:col-span-2..12 · ps-3/4/5 · pe-2/3 · border-s-3
 -->
-<link rel="stylesheet" href="https://seller.deepthailand.app/_next/static/chunks/ca449cfe6b218059.css">
+<!--
+  🛑 ไฟล์นี้ **มีทุกอย่างอยู่ในตัว ไม่ต้องพึ่งเน็ต** — Safari บล็อก subresource ข้ามโดเมน
+  จากหน้า file:// ⇒ เวอร์ชันก่อนหน้าที่ <link> ไป prod เปิดแล้วขาวโพลนไม่มีสไตล์เลย
+  CSS + ฟอนต์ snapshot จาก prod เมื่อ 2026-08-26 10:47 น.
+  ที่มา: https://seller.deepthailand.app/_next/static/chunks/*.css
+  ⇒ ถ้าธีมเปลี่ยนหลังจากนี้ ไฟล์นี้จะ **เก่าโดยไม่มีอะไรเตือน** (แลกกับการเปิดได้จริง)
+     ของทิ้งอยู่แล้ว ใช้ตัดสินใจแล้วโยน — ห้ามเอาไปอ้างเป็นแหล่งสีของงานจริง
+-->
+<!-- ฉบับบน branch: ชี้ CSS ไป prod (ไม่เอา 1MB เข้ารีโป ตามคอมมิต e3e2ced5)
+     ⇒ **เปิดจาก Safari/file:// ไม่ขึ้นสไตล์** ใช้ฉบับที่ฝังทุกอย่างบน Desktop แทน
+     สร้างฉบับฝังใหม่ได้ด้วย: ดู "กับดัก" ใน .md -->
+<link rel="stylesheet" href="https://seller.deepthailand.app/_next/static/chunks/0fb7ce41906b3024.css">
 <link rel="stylesheet" href="https://seller.deepthailand.app/_next/static/chunks/961616585152df5b.css">
 <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
-
 <style>
   /* ── เฟอร์นิเจอร์ของ prototype เท่านั้น — ไม่ใช่ดีไซน์ที่กำลังประเมิน ──
      จงใจให้หน้าตาไม่เหมือนธีม จะได้ไม่มีใครเผลออ่านว่าเป็นส่วนหนึ่งของงาน */
@@ -76,6 +85,17 @@ const C = [
   {n:'อรทัย บุญมาก',       i:'อ', ship:1, recv:1, ret:0, pend:0, ord:1,  spent:790,   last:'2569-08-19 10:02:00', tel:'098-777-••••', risk:'new',   note:'ลูกค้าใหม่'},
   {n:'ชลธิชา ก้องเกียรติ',  i:'ช', ship:0, recv:0, ret:0, pend:0, ord:1,  spent:1250,  last:'2569-08-18 13:30:21', tel:'—',            risk:'new',   note:'ลูกค้าใหม่ · รับหน้าร้าน'},
 ]
+const SOLAR = {"danger-triangle-bold-duotone": "<g fill=\"currentColor\"><path d=\"M12 3C9.68925 3 8.23007 5.58716 5.31171 10.7615L4.94805 11.4063C2.52291 15.7061 1.31034 17.856 2.40626 19.428C3.50217 21 6.21356 21 11.6363 21H12.3637C17.7864 21 20.4978 21 21.5937 19.428C22.6897 17.856 21.4771 15.7061 19.0519 11.4063L18.6883 10.7615C15.7699 5.58716 14.3107 3 12 3Z\" opacity=\".5\"/><path d=\"M12 7.25C12.4142 7.25 12.75 7.58579 12.75 8V13C12.75 13.4142 12.4142 13.75 12 13.75C11.5858 13.75 11.25 13.4142 11.25 13V8C11.25 7.58579 11.5858 7.25 12 7.25Z\"/><path d=\"M12 17C12.5523 17 13 16.5523 13 16C13 15.4477 12.5523 15 12 15C11.4477 15 11 15.4477 11 16C11 16.5523 11.4477 17 12 17Z\"/></g>", "eye-bold-duotone": "<g fill=\"currentColor\"><path d=\"M2 12C2 13.6394 2.42496 14.1915 3.27489 15.2957C4.97196 17.5004 7.81811 20 12 20C16.1819 20 19.028 17.5004 20.7251 15.2957C21.575 14.1915 22 13.6394 22 12C22 10.3606 21.575 9.80853 20.7251 8.70433C19.028 6.49956 16.1819 4 12 4C7.81811 4 4.97196 6.49956 3.27489 8.70433C2.42496 9.80853 2 10.3606 2 12Z\" opacity=\".5\"/><path fill-rule=\"evenodd\" d=\"M8.25 12C8.25 9.92893 9.92893 8.25 12 8.25C14.0711 8.25 15.75 9.92893 15.75 12C15.75 14.0711 14.0711 15.75 12 15.75C9.92893 15.75 8.25 14.0711 8.25 12ZM9.75 12C9.75 10.7574 10.7574 9.75 12 9.75C13.2426 9.75 14.25 10.7574 14.25 12C14.25 13.2426 13.2426 14.25 12 14.25C10.7574 14.25 9.75 13.2426 9.75 12Z\" clip-rule=\"evenodd\"/></g>", "check-circle-bold-duotone": "<g fill=\"currentColor\"><path d=\"M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z\" opacity=\".5\"/><path d=\"M16.0303 8.96967C16.3232 9.26256 16.3232 9.73744 16.0303 10.0303L11.0303 15.0303C10.7374 15.3232 10.2626 15.3232 9.96967 15.0303L7.96967 13.0303C7.67678 12.7374 7.67678 12.2626 7.96967 11.9697C8.26256 11.6768 8.73744 11.6768 9.03033 11.9697L10.5 13.4393L12.7348 11.2045L14.9697 8.96967C15.2626 8.67678 15.7374 8.67678 16.0303 8.96967Z\"/></g>", "user-bold-duotone": "<g fill=\"currentColor\"><circle cx=\"12\" cy=\"6\" r=\"4\"/><path d=\"M20 17.5C20 19.9853 20 22 12 22C4 22 4 19.9853 4 17.5C4 15.0147 7.58172 13 12 13C16.4183 13 20 15.0147 20 17.5Z\" opacity=\".5\"/></g>", "chat-round-dots-bold-duotone": "<g fill=\"currentColor\"><path d=\"M12 23C18.0751 23 23 18.0751 23 12C23 5.92487 18.0751 1 12 1C5.92487 1 1 5.92487 1 12C1 13.7596 1.41318 15.4228 2.14781 16.8977C2.34303 17.2897 2.40801 17.7377 2.29483 18.1607L1.63966 20.6093C1.35525 21.6723 2.32772 22.6447 3.39068 22.3603L5.83932 21.7052C6.26233 21.592 6.71033 21.657 7.10228 21.8522C8.5772 22.5868 10.2404 23 12 23Z\" opacity=\".5\"/><path d=\"M10.9 12.0004C10.9 12.6079 11.3925 13.1004 12 13.1004C12.6075 13.1004 13.1 12.6079 13.1 12.0004C13.1 11.3929 12.6075 10.9004 12 10.9004C11.3925 10.9004 10.9 11.3929 10.9 12.0004Z\"/><path d=\"M6.5 12.0004C6.5 12.6079 6.99249 13.1004 7.6 13.1004C8.20751 13.1004 8.7 12.6079 8.7 12.0004C8.7 11.3929 8.20751 10.9004 7.6 10.9004C6.99249 10.9004 6.5 11.3929 6.5 12.0004Z\"/><path d=\"M15.3 12.0004C15.3 12.6079 15.7925 13.1004 16.4 13.1004C17.0075 13.1004 17.5 12.6079 17.5 12.0004C17.5 11.3929 17.0075 10.9004 16.4 10.9004C15.7925 10.9004 15.3 11.3929 15.3 12.0004Z\"/></g>", "box-bold-duotone": "<g fill=\"currentColor\"><path d=\"M8.42229 20.6181C10.1779 21.5395 11.0557 22.0001 12 22.0001V12.0001L2.63802 7.07275C2.62423 7.09491 2.6107 7.11727 2.5974 7.13986C2 8.15436 2 9.41678 2 11.9416V12.0586C2 14.5834 2 15.8459 2.5974 16.8604C3.19479 17.8749 4.27063 18.4395 6.42229 19.5686L8.42229 20.6181Z\"/><path d=\"M17.5774 4.43152L15.5774 3.38197C13.8218 2.46066 12.944 2 11.9997 2C11.0554 2 10.1776 2.46066 8.42197 3.38197L6.42197 4.43152C4.31821 5.53552 3.24291 6.09982 2.6377 7.07264L11.9997 12L21.3617 7.07264C20.7564 6.09982 19.6811 5.53552 17.5774 4.43152Z\" opacity=\".5\"/><path d=\"M17.5774 4.43152L15.5774 3.38197C13.8218 2.46066 12.944 2 11.9997 2C11.0554 2 10.1776 2.46066 8.42197 3.38197L6.42197 4.43152C4.31821 5.53552 3.24291 6.09982 2.6377 7.07264L11.9997 12L21.3617 7.07264C20.7564 6.09982 19.6811 5.53552 17.5774 4.43152Z\" opacity=\".5\"/><path d=\"M21.4026 7.13986C21.3893 7.11727 21.3758 7.09491 21.362 7.07275L12 12.0001V22.0001C12.9443 22.0001 13.8221 21.5395 15.5777 20.6181L17.5777 19.5686C19.7294 18.4395 20.8052 17.8749 21.4026 16.8604C22 15.8459 22 14.5834 22 12.0586V11.9416C22 9.41678 22 8.15436 21.4026 7.13986Z\" opacity=\".5\"/><path d=\"M6.32334 4.48382C6.35617 4.46658 6.38926 4.44922 6.42261 4.43172L7.91614 3.64795L17.0169 8.65338L21.0406 6.64152C21.1783 6.79745 21.298 6.96175 21.4029 7.13994C21.5525 7.39396 21.6646 7.66352 21.7487 7.96455L17.7503 9.96373V13.0002C17.7503 13.4144 17.4145 13.7502 17.0003 13.7502C16.5861 13.7502 16.2503 13.4144 16.2503 13.0002V10.7137L12.7503 12.4637V21.9042C12.4934 21.9682 12.2492 22.0002 12.0003 22.0002C11.7515 22.0002 11.5072 21.9682 11.2503 21.9042V12.4637L2.25195 7.96455C2.33601 7.66352 2.44813 7.39396 2.59771 7.13994C2.70264 6.96175 2.82232 6.79745 2.96001 6.64152L12.0003 11.1617L15.3865 9.46857L6.32334 4.48382Z\"/></g>", "phone-bold-duotone": "<g fill=\"currentColor\"><path fill-rule=\"evenodd\" d=\"M16.1007 13.359L16.5562 12.9062C17.1858 12.2801 18.1672 12.1515 18.9728 12.5894L20.8833 13.628C22.1102 14.2949 22.3806 15.9295 21.4217 16.883L20.0011 18.2954C19.6399 18.6546 19.1917 18.9171 18.6763 18.9651C17.4841 19.0763 15.0313 19.0163 12.1374 17.3223L16.1007 13.359ZM10.1907 7.48257L10.4775 7.19738C11.1841 6.49484 11.2507 5.36691 10.6342 4.54348L9.37326 2.85908C8.61028 1.83992 7.13596 1.70529 6.26145 2.57483L4.69185 4.13552C4.25823 4.56668 3.96765 5.12559 4.00289 5.74561C4.06761 6.88446 4.45582 8.9649 6.15176 11.5215L10.1907 7.48257Z\" clip-rule=\"evenodd\"/><path d=\"M12.0627 11.4971C9.11695 8.56804 10.1836 7.48913 10.1903 7.48242L6.15137 11.5214C6.81756 12.5256 7.68554 13.6034 8.81497 14.7264C9.95468 15.8596 11.0755 16.7008 12.137 17.3222L16.1003 13.3589C16.1003 13.3589 15.0177 14.4353 12.0627 11.4971Z\" opacity=\".5\"/></g>", "wallet-money-bold-duotone": "<g fill=\"currentColor\"><path d=\"M4.8916 9.61431C4.8916 9.21193 5.21525 8.88574 5.61449 8.88574H9.46991C9.86916 8.88574 10.1928 9.21193 10.1928 9.61431C10.1928 10.0167 9.86916 10.3429 9.46991 10.3429H5.61449C5.21525 10.3429 4.8916 10.0167 4.8916 9.61431Z\"/><path fill-rule=\"evenodd\" d=\"M21.1884 10.0038C21.1262 9.99995 21.0584 9.99998 20.9881 10L20.9706 10H18.2149C15.9435 10 14 11.7361 14 14C14 16.2639 15.9435 18 18.2149 18H20.9706L20.9881 18C21.0584 18 21.1262 18 21.1884 17.9962C22.111 17.9397 22.927 17.2386 22.9956 16.2594C23.0001 16.1952 23 16.126 23 16.0619L23 16.0444V11.9556L23 11.9381C23 11.874 23.0001 11.8048 22.9956 11.7406C22.927 10.7614 22.111 10.0603 21.1884 10.0038ZM17.9706 15.0667C18.5554 15.0667 19.0294 14.5891 19.0294 14C19.0294 13.4109 18.5554 12.9333 17.9706 12.9333C17.3858 12.9333 16.9118 13.4109 16.9118 14C16.9118 14.5891 17.3858 15.0667 17.9706 15.0667Z\" clip-rule=\"evenodd\"/><path d=\"M21.1394 10.0015C21.1394 8.82091 21.0965 7.55447 20.3418 6.64658C20.2689 6.55894 20.1914 6.47384 20.1088 6.39124C19.3604 5.64288 18.4114 5.31076 17.239 5.15314C16.0998 4.99997 14.6442 4.99999 12.8064 5H10.6936C8.85583 4.99999 7.40019 4.99997 6.26098 5.15314C5.08856 5.31076 4.13961 5.64288 3.39124 6.39124C2.64288 7.13961 2.31076 8.08856 2.15314 9.26098C1.99997 10.4002 1.99999 11.8558 2 13.6936V13.8064C1.99999 15.6442 1.99997 17.0998 2.15314 18.239C2.31076 19.4114 2.64288 20.3604 3.39124 21.1088C4.13961 21.8571 5.08856 22.1892 6.26098 22.3469C7.40018 22.5 8.8558 22.5 10.6935 22.5H12.8064C14.6442 22.5 16.0998 22.5 17.239 22.3469C18.4114 22.1892 19.3604 21.8571 20.1088 21.1088C20.3133 20.9042 20.487 20.6844 20.6346 20.4486C21.0851 19.7291 21.1394 18.8473 21.1394 17.9985C21.0912 18 21.0404 18 20.9882 18L18.2149 18C15.9435 18 14 16.2639 14 14C14 11.7361 15.9435 10 18.2149 10L20.9881 10C21.0403 9.99999 21.0912 9.99997 21.1394 10.0015Z\" opacity=\".5\"/><path d=\"M10.1013 2.57211L7.99988 3.99253L6.2666 5.15237C7.40496 4.99997 8.8588 4.99999 10.6935 5H12.8063C14.6441 4.99998 16.0997 4.99997 17.2389 5.15314C17.4681 5.18394 17.6887 5.22142 17.9009 5.26737L15.9999 4L13.8874 2.57211C12.7588 1.8093 11.2299 1.8093 10.1013 2.57211Z\"/></g>", "calendar-mark-bold-duotone": "<g fill=\"currentColor\"><path d=\"M6.96006 2C7.37758 2 7.71605 2.30996 7.71605 2.69231V4.08883C8.38663 4.07692 9.13829 4.07692 9.98402 4.07692H14.016C14.8617 4.07692 15.6134 4.07692 16.284 4.08883V2.69231C16.284 2.30996 16.6224 2 17.0399 2C17.4575 2 17.7959 2.30996 17.7959 2.69231V4.15008C19.2468 4.25647 20.1992 4.51758 20.899 5.15838C21.5987 5.79917 21.8838 6.67139 22 8V9H2V8C2.11618 6.67139 2.4013 5.79917 3.10104 5.15838C3.80079 4.51758 4.75323 4.25647 6.20406 4.15008V2.69231C6.20406 2.30996 6.54253 2 6.96006 2Z\"/><path d=\"M22 14V12C22 11.161 21.9873 9.66527 21.9744 9H2.00586C1.99296 9.66527 2.00564 11.161 2.00564 12V14C2.00564 17.7712 2.00564 19.6569 3.17688 20.8284C4.34813 22 6.23321 22 10.0034 22H14.0023C17.7724 22 19.6575 22 20.8288 20.8284C22 19.6569 22 17.7712 22 14Z\" opacity=\".5\"/><path d=\"M18 16.5C18 17.3284 17.3284 18 16.5 18C15.6716 18 15 17.3284 15 16.5C15 15.6716 15.6716 15 16.5 15C17.3284 15 18 15.6716 18 16.5Z\"/></g>", "magnifier-linear": "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><circle cx=\"11.5\" cy=\"11.5\" r=\"9.5\"/><path stroke-linecap=\"round\" d=\"M18.5 18.5L22 22\"/></g>", "question-circle-bold-duotone": "<g fill=\"currentColor\"><path d=\"M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z\" opacity=\".5\"/><path d=\"M12 7.75C11.3787 7.75 10.875 8.25368 10.875 8.875C10.875 9.28921 10.5392 9.625 10.125 9.625C9.71079 9.625 9.375 9.28921 9.375 8.875C9.375 7.42525 10.5503 6.25 12 6.25C13.4497 6.25 14.625 7.42525 14.625 8.875C14.625 9.58584 14.3415 10.232 13.883 10.704C13.7907 10.7989 13.7027 10.8869 13.6187 10.9708C13.4029 11.1864 13.2138 11.3753 13.0479 11.5885C12.8289 11.8699 12.75 12.0768 12.75 12.25V13C12.75 13.4142 12.4142 13.75 12 13.75C11.5858 13.75 11.25 13.4142 11.25 13V12.25C11.25 11.5948 11.555 11.0644 11.8642 10.6672C12.0929 10.3733 12.3804 10.0863 12.6138 9.85346C12.6842 9.78321 12.7496 9.71789 12.807 9.65877C13.0046 9.45543 13.125 9.18004 13.125 8.875C13.125 8.25368 12.6213 7.75 12 7.75Z\"/><path d=\"M12 17C12.5523 17 13 16.5523 13 16C13 15.4477 12.5523 15 12 15C11.4477 15 11 15.4477 11 16C11 16.5523 11.4477 17 12 17Z\"/></g>", "delivery-bold-duotone": "<g fill=\"currentColor\"><path d=\"M2.27749 5.24694C2.38823 4.84781 2.80157 4.61402 3.2007 4.72476L4.9044 5.19744C5.82129 5.45183 6.5469 6.15866 6.80003 7.07489L8.95106 14.8609L9.10935 15.4075C9.74249 15.6438 10.2863 16.0866 10.6314 16.6747L10.9414 16.579L19.8115 14.2739C20.2124 14.1697 20.6219 14.4102 20.7261 14.8111C20.8303 15.212 20.5897 15.6214 20.1888 15.7256L11.3515 18.0223L11.0228 18.1238C11.0161 19.3947 10.1392 20.5555 8.81236 20.9003C7.22189 21.3136 5.58709 20.3982 5.16092 18.8556C4.73476 17.313 5.67861 15.7274 7.26908 15.3141C7.3479 15.2936 7.42682 15.2764 7.5057 15.2623L5.35419 7.47433C5.24592 7.08242 4.92897 6.76092 4.50338 6.64284L2.79968 6.17016C2.40054 6.05942 2.16675 5.64608 2.27749 5.24694Z\"/><path d=\"M9.56443 8.73049L10.0789 10.5926C10.5639 12.3481 10.8064 13.2259 11.5194 13.6252C12.2323 14.0244 13.1374 13.7892 14.9474 13.3188L16.8673 12.8199C18.6774 12.3495 19.5824 12.1143 19.9941 11.4227C20.4057 10.7312 20.1632 9.85344 19.6782 8.09788L19.1638 6.2358C18.6788 4.48023 18.4363 3.60244 17.7233 3.20319C17.0103 2.80394 16.1052 3.03915 14.2952 3.50955L12.3753 4.00849C10.5652 4.47889 9.66021 4.71409 9.24856 5.40562C8.83692 6.09714 9.07942 6.97493 9.56443 8.73049Z\" opacity=\".5\"/></g>", "close-circle-bold-duotone": "<g fill=\"currentColor\"><path d=\"M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z\" opacity=\".5\"/><path d=\"M8.96967 8.96967C9.26256 8.67678 9.73744 8.67678 10.0303 8.96967L12 10.9394L13.9697 8.96969C14.2626 8.6768 14.7374 8.6768 15.0303 8.96969C15.3232 9.26258 15.3232 9.73746 15.0303 10.0304L13.0607 12L15.0303 13.9696C15.3232 14.2625 15.3232 14.7374 15.0303 15.0303C14.7374 15.3232 14.2625 15.3232 13.9696 15.0303L12 13.0607L10.0304 15.0303C9.73746 15.3232 9.26258 15.3232 8.96969 15.0303C8.6768 14.7374 8.6768 14.2626 8.96969 13.9697L10.9394 12L8.96967 10.0303C8.67678 9.73744 8.67678 9.26256 8.96967 8.96967Z\"/></g>", "bag-check-bold-duotone": "<g fill=\"currentColor\"><path d=\"M4.0828 10.8943C4.52171 8.55339 4.74117 7.38295 5.57434 6.69147C6.40752 6 7.59835 6 9.98003 6H14.0209C16.4026 6 17.5934 6 18.4266 6.69147C19.2598 7.38295 19.4792 8.55339 19.9181 10.8943L20.6681 14.8943C21.2853 18.186 21.5939 19.8318 20.6942 20.9159C19.7945 22 18.12 22 14.7709 22H9.23003C5.88097 22 4.20644 22 3.30672 20.9159C2.40701 19.8318 2.7156 18.186 3.3328 14.8943L4.0828 10.8943Z\" opacity=\".5\"/><path d=\"M9.75 5C9.75 3.75736 10.7574 2.75 12 2.75C13.2426 2.75 14.25 3.75736 14.25 5V6C14.25 5.99999 14.25 6.00001 14.25 6C14.816 6.00018 15.3119 6.00174 15.7499 6.01488C15.75 6.00993 15.75 6.00497 15.75 6V5C15.75 2.92893 14.0711 1.25 12 1.25C9.92893 1.25 8.25 2.92893 8.25 5V6C8.25 6.00498 8.25005 6.00995 8.25015 6.01491C8.68814 6.00175 9.18397 6.00021 9.75 6.00002C9.75 6.00002 9.75 6.00003 9.75 6.00002V5Z\"/><path d=\"M15.5857 11.9685C15.8444 11.6451 15.792 11.1731 15.4685 10.9144C15.1451 10.6556 14.6731 10.7081 14.4143 11.0315L10.9375 15.3769L9.53033 13.9697C9.23744 13.6768 8.76256 13.6768 8.46967 13.9697C8.17678 14.2626 8.17678 14.7375 8.46967 15.0304L10.4697 17.0304C10.6205 17.1812 10.8285 17.2607 11.0415 17.2489C11.2545 17.2371 11.4524 17.1351 11.5857 16.9685L15.5857 11.9685Z\"/></g>", "filter-bold-duotone": "<g fill=\"currentColor\"><path fill-rule=\"evenodd\" d=\"M5 3H19L8.81562 13.1844C8.65593 12.7689 8.39992 12.4122 8.03751 12.0976C7.80967 11.8998 7.49146 11.7206 6.85504 11.3624L3.94202 9.72255C2.99347 9.18858 2.5192 8.9216 2.2596 8.49142C2 8.06124 2 7.54232 2 6.50448V5.81466C2 4.48782 2 3.8244 2.43934 3.4122C2.87868 3 3.58579 3 5 3Z\" clip-rule=\"evenodd\"/><path d=\"M21.9998 6.50448V5.81466C21.9998 4.48782 21.9998 3.8244 21.5605 3.4122C21.1211 3 20.414 3 18.9998 3L8.81543 13.1844C8.86481 13.3129 8.90498 13.447 8.93625 13.5872C8.99981 13.8722 8.99981 14.2058 8.99981 14.8729L8.99981 17.5424C8.99981 18.452 8.99981 18.9067 9.25173 19.2613C9.50366 19.6158 9.95109 19.7907 10.846 20.1406C12.7246 20.875 13.6639 21.2422 14.3319 20.8244C14.9998 20.4066 14.9998 19.4519 14.9998 17.5424V14.8729C14.9998 14.2058 14.9998 13.8722 15.0634 13.5872C15.1957 12.9935 15.4878 12.5095 15.9623 12.0976C16.1901 11.8998 16.5083 11.7206 17.1448 11.3624L20.0578 9.72255C21.0063 9.18858 21.4806 8.9216 21.7402 8.49142C21.9998 8.06124 21.9998 7.54232 21.9998 6.50448Z\" opacity=\".5\"/></g>", "alt-arrow-right-linear": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M9 5L15 12L9 19\"/>", "clipboard-list-bold-duotone": "<g fill=\"currentColor\"><path d=\"M21 15.9983V9.99826C21 7.16983 21 5.75562 20.1213 4.87694C19.3529 4.10856 18.175 4.01211 16 4H8C5.82497 4.01211 4.64706 4.10856 3.87868 4.87694C3 5.75562 3 7.16983 3 9.99826V15.9983C3 18.8267 3 20.2409 3.87868 21.1196C4.75736 21.9983 6.17157 21.9983 9 21.9983H15C17.8284 21.9983 19.2426 21.9983 20.1213 21.1196C21 20.2409 21 18.8267 21 15.9983Z\" opacity=\".5\"/><path d=\"M8 3.5C8 2.67157 8.67157 2 9.5 2H14.5C15.3284 2 16 2.67157 16 3.5V4.5C16 5.32843 15.3284 6 14.5 6H9.5C8.67157 6 8 5.32843 8 4.5V3.5Z\"/><path fill-rule=\"evenodd\" d=\"M6.25 10.5C6.25 10.0858 6.58579 9.75 7 9.75H7.5C7.91421 9.75 8.25 10.0858 8.25 10.5C8.25 10.9142 7.91421 11.25 7.5 11.25H7C6.58579 11.25 6.25 10.9142 6.25 10.5ZM9.75 10.5C9.75 10.0858 10.0858 9.75 10.5 9.75H17C17.4142 9.75 17.75 10.0858 17.75 10.5C17.75 10.9142 17.4142 11.25 17 11.25H10.5C10.0858 11.25 9.75 10.9142 9.75 10.5ZM6.25 14C6.25 13.5858 6.58579 13.25 7 13.25H7.5C7.91421 13.25 8.25 13.5858 8.25 14C8.25 14.4142 7.91421 14.75 7.5 14.75H7C6.58579 14.75 6.25 14.4142 6.25 14ZM9.75 14C9.75 13.5858 10.0858 13.25 10.5 13.25H17C17.4142 13.25 17.75 13.5858 17.75 14C17.75 14.4142 17.4142 14.75 17 14.75H10.5C10.0858 14.75 9.75 14.4142 9.75 14ZM6.25 17.5C6.25 17.0858 6.58579 16.75 7 16.75H7.5C7.91421 16.75 8.25 17.0858 8.25 17.5C8.25 17.9142 7.91421 18.25 7.5 18.25H7C6.58579 18.25 6.25 17.9142 6.25 17.5ZM9.75 17.5C9.75 17.0858 10.0858 16.75 10.5 16.75H17C17.4142 16.75 17.75 17.0858 17.75 17.5C17.75 17.9142 17.4142 18.25 17 18.25H10.5C10.0858 18.25 9.75 17.9142 9.75 17.5Z\" clip-rule=\"evenodd\"/></g>", "magnifer-linear": "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><circle cx=\"11.5\" cy=\"11.5\" r=\"9.5\"/><path stroke-linecap=\"round\" d=\"M18.5 18.5L22 22\"/></g>"}
+
+/* 🛑 ไอคอนต้องเป็น solar *-bold-duotone ไม่ใช่ tabler เส้นบาง
+   — นี่คือลายเซ็นภาพของแอปจริง (ดู dashboard: ไทล์ "สถานะคำสั่งซื้อ" ใช้ iconify--solar
+   size-[30px] ระบายด้วย text-warning/text-primary) ไอคอนเส้นบางบนไทล์เทาคือสาเหตุที่
+   ม็อกอัพ 2 รอบแรกดูจืดเมื่อวางข้าง dashboard จริง */
+function ic(name, cls){
+  const key = String(name).replace(/^(tabler|solar):/,'')
+  const body = SOLAR[key] || SOLAR['question-circle-bold-duotone']
+  return `<svg viewBox="0 0 24 24" aria-hidden="true" style="width:1em;height:1em;display:inline-block;vertical-align:-.125em" class="${cls||''}">${body}</svg>`
+}
 const baht = v => '฿' + v.toLocaleString('th-TH')
 const MIN_BASE = 3
 /* อัตราโผล่เฉพาะตอนฐานพอ — null ไม่ใช่ 0 (กติกาเดียวกับโค้ดจริง MIN_SHIPPED_FOR_RATE) */
@@ -126,7 +146,7 @@ function identityPanel(c, action){
 /** แถวไอคอนไทล์ — ป้ายซ้าย ค่าขวาตัวหนา */
 function tileRow(icon, label, value, tone){
   return `<div class="mb-2.5 flex items-center gap-2.5">
-    <div class="btn btn-icon bg-light size-8"><iconify-icon icon="tabler:${icon}" class="text-default-400 text-lg"></iconify-icon></div>
+    <div class="btn btn-icon bg-light size-8">${ic(icon,'text-primary text-xl')}</div>
     <p class="mb-0 flex-1 text-sm">${label}: <span class="font-semibold ${tone||''}">${value}</span></p>
   </div>`
 }
@@ -150,174 +170,322 @@ const riskBadge = c => c.risk==='high'
   : `<span class="${BADGE} bg-light text-default-600">ยังบอกไม่ได้</span>`
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   ภาษาการออกแบบ = **Command Center มือถือ + หน้าแชท** (user เลือกเอง 2026-08-26)
+   ยกมาจากโค้ดจริง ไม่ได้ประดิษฐ์:
+     · hero ไล่สี      Base: dashboard/components/CompactHero.tsx:145-183 (SVG xenon + overlay)
+     · ไทล์+badge แดง  Base: dashboard/components/OrderStatusBand.tsx:78,303-311
+     · pill search / segmented / avatar มี badge ห้อยมุม / แท็บนับเลข  Base: หน้า /inbox
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** พื้นหลัง hero — ก็อป SVG จาก CompactHero ตรง ๆ */
+const HERO_BG = `
+<svg aria-hidden="true" class="absolute inset-0 w-full h-full" viewBox="0 0 390 112" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="ch-base" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2b7be0"/><stop offset="1" stop-color="#163a72"/></linearGradient>
+    <radialGradient id="ch-glow" cx="0.86" cy="0.08" r="0.7"><stop offset="0" stop-color="#7fb4ff" stop-opacity=".55"/><stop offset="1" stop-color="#7fb4ff" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="390" height="112" fill="url(#ch-base)"/><rect width="390" height="112" fill="url(#ch-glow)"/>
+  <g fill="#ffffff">
+    <polygon points="20,112 58,112 188,0 150,0" opacity=".10"/><polygon points="96,112 116,112 232,0 212,0" opacity=".07"/>
+    <polygon points="170,112 232,112 360,0 298,0" opacity=".12"/><polygon points="262,112 286,112 392,0 368,0" opacity=".06"/>
+  </g>
+</svg>
+<div class="absolute inset-0" style="background:rgba(20,52,102,0.30)"></div>`
+
+/** badge ตัวเลขแดงห้อยมุมไอคอน — คลาสเดียวกับ OrderStatusBand.BADGE_CLS เป๊ะ */
+const BADGE_CLS = 'absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-danger text-white rounded-full text-2xs font-bold flex items-center justify-center leading-none tabular-nums'
+
+/** ไทล์สถานะ 1 ช่อง — ไอคอน solar สีสด + badge แดง + label ใต้ไอคอน */
+function tile(icon, tone, label, count){
+  return `<a class="flex flex-col items-center gap-2 py-1 active:scale-95 transition-transform">
+    <span class="relative inline-flex items-center justify-center px-1 py-0.5">
+      <span class="${tone} text-3xl">${ic(icon)}</span>
+      ${count>0?`<span class="${BADGE_CLS}">${count>99?'99+':count}</span>`:''}
+    </span>
+    <span class="text-xs text-default-700 text-center leading-tight font-medium">${label}</span>
+  </a>`
+}
+
+/** hero ระดับร้าน — โครงเดียวกับ CompactHero แต่เนื้อหาเป็นเรื่องลูกค้า */
+function customerHero(){
+  return `<div class="rounded-b-2xl overflow-hidden relative text-white">
+    ${HERO_BG}
+    <div class="relative z-10 px-4 pt-3 pb-4">
+      <div class="flex items-center gap-3">
+        <div class="relative shrink-0">
+          <span class="bg-white/15 flex size-12 items-center justify-center rounded-full text-2xl">${ic('user-bold-duotone')}</span>
+          <span class="absolute left-1/2 -translate-x-1/2 -bottom-1 bg-white text-primary font-bold tabular-nums rounded-lg leading-none px-1.5 py-0.5 text-2xs">397</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <h4 class="text-lg font-bold truncate leading-tight text-white mb-0">ลูกค้าของร้าน</h4>
+          <p class="flex items-center gap-1.5 mt-1 text-white/80 text-2xs mb-0">
+            <span class="text-white font-semibold">96%</span> รับของสำเร็จ <span class="opacity-50">·</span>
+            <span class="text-white font-semibold">12</span> ใบตีกลับ <span class="opacity-50">·</span> เดือนนี้
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>`
+}
+
+/** แถวค้นหาแบบหน้าแชท — pill กลม + segmented control ในรางเทา */
+function chatToolbar(active){
+  const seg = (k,label,on)=>`<span class="${on?'bg-card text-default-900 shadow-sm':'text-default-500'} rounded-full px-3 py-1.5 text-xs font-semibold whitespace-nowrap">${label}</span>`
+  return `<div class="px-4 pt-3">
+    <div class="bg-light/40 border-default-200 flex items-center gap-2 rounded-full border px-3 py-2">
+      <span class="text-default-400 text-lg">${ic('magnifer-linear')}</span>
+      <span class="text-default-400 text-sm">ค้นหาชื่อ หรือ เบอร์โทร</span>
+    </div>
+    <div class="bg-light/40 mt-2.5 flex items-center gap-1 overflow-x-auto rounded-full p-1">
+      ${seg('all','ทั้งหมด',active==='all')}${seg('warn','ต้องเฝ้าระวัง 19',active==='warn')}${seg('ret','เคยตีกลับ 12',active==='ret')}${seg('rep','ซื้อซ้ำ 68',active==='rep')}
+    </div>
+  </div>`
+}
+
+/** แถวลูกค้าแบบรายการแชท — avatar + badge ความเสี่ยงห้อยมุม + ยอดเงินขวา */
+function chatRow(c){
+  const dot = c.risk==='high' ? 'bg-danger' : c.risk==='watch' ? 'bg-warning' : c.risk==='ok' ? 'bg-success' : 'bg-default-300'
+  const icn = c.risk==='high' ? 'danger-triangle-bold-duotone' : c.risk==='watch' ? 'eye-bold-duotone' : c.risk==='ok' ? 'check-circle-bold-duotone' : 'question-circle-bold-duotone'
+  const r = rate(c)
+  return `<div class="border-default-200 flex items-center gap-3 border-b border-dashed px-4 py-3 last:border-0">
+    <div class="relative shrink-0">
+      ${avatar(c,'size-11')}
+      <span class="${dot} absolute bottom-0 left-0 flex size-5 items-center justify-center rounded-full text-white text-xs ring-2 ring-card">${ic(icn)}</span>
+    </div>
+    <div class="min-w-0 flex-1">
+      <p class="text-default-900 mb-0 truncate text-sm font-bold">${c.n}</p>
+      <p class="text-default-500 mb-0 truncate text-xs">รับของ ${c.recv}/${c.ship}${c.ret?` · <span class="text-warning-ink font-semibold">ตีกลับ ${c.ret}</span>`:''}${r?` · อัตรา ${r}`:''}</p>
+    </div>
+    <div class="shrink-0 text-end">
+      <p class="text-default-900 mb-0 text-sm font-bold tabular-nums">${baht(c.spent)}</p>
+      <p class="text-default-400 text-2xs mb-0 tabular-nums">${c.ord} ออเดอร์</p>
+    </div>
+  </div>`
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    VARIANT A — "คิวงานตามความเสี่ยง"
    โครง: ไม่มีตาราง ไม่มีหน้าแบ่ง — จัดกลุ่มตามระดับความเสี่ยงพร้อมหัวกลุ่มติดหนึบ
    affordance หลัก: "เคลียร์กลุ่มบนสุดให้หมด" ไม่ใช่ "เลื่อนหาคนที่ต้องการ"
    ตอบโจทย์ user: ความเสี่ยงเป็นตัวจัดลำดับทั้งหน้า · ยอดซื้อสะสมอยู่ขวาสุดตัวหนา ไม่ถูกลดชั้น
    ═══════════════════════════════════════════════════════════════════════════ */
 const GROUPS = [
-  {k:'high',  t:'เสี่ยงสูง',      d:'ตีกลับ ≥2 ครั้ง และอัตรา ≥30% — ควรเก็บเงินปลายทางอย่างระมัดระวัง', ic:'tabler:alert-triangle', tone:'warning'},
-  {k:'watch', t:'ต้องเฝ้าระวัง',  d:'มีสัญญาณอย่างน้อย 1 อย่าง แต่ยังไม่ถึงเกณฑ์เสี่ยงสูง',            ic:'tabler:eye',            tone:'warning'},
-  {k:'ok',    t:'ลูกค้าประจำ',    d:'รับของครบทุกใบ',                                                   ic:'tabler:circle-check',   tone:'success'},
-  {k:'new',   t:'ยังบอกไม่ได้',   d:'ประวัติยังน้อยเกินกว่าจะสรุป',                                      ic:'tabler:help-circle',    tone:'default'},
+  {k:'high',  t:'เสี่ยงสูง',      d:'ตีกลับ ≥2 ครั้ง และอัตรา ≥30% — ควรเก็บเงินปลายทางอย่างระมัดระวัง', ic:'danger-triangle-bold-duotone', tone:'warning'},
+  {k:'watch', t:'ต้องเฝ้าระวัง',  d:'มีสัญญาณอย่างน้อย 1 อย่าง แต่ยังไม่ถึงเกณฑ์เสี่ยงสูง',            ic:'eye-bold-duotone',            tone:'warning'},
+  {k:'ok',    t:'ลูกค้าประจำ',    d:'รับของครบทุกใบ',                                                   ic:'check-circle-bold-duotone',   tone:'success'},
+  {k:'new',   t:'ยังบอกไม่ได้',   d:'ประวัติยังน้อยเกินกว่าจะสรุป',                                      ic:'question-circle-bold-duotone',    tone:'default'},
 ]
 function VariantA(){
-  const rows = g => C.filter(c=>c.risk===g).map(c=>`
-    <div class="border-default-200 border-b border-dashed p-4 last:border-0">
-      ${identityPanel(c, riskBadge(c))}
-      <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>${bar(c)}${legend(c)}</div>
-        <div class="flex items-center justify-end gap-2">
-          <button class="btn btn-sm bg-primary text-white hover:bg-primary-hover gap-1">
-            <iconify-icon icon="tabler:user"></iconify-icon>เปิดโปรไฟล์</button>
-          <button class="btn btn-sm border-default-300 text-default-800 gap-1">
-            <iconify-icon icon="tabler:message"></iconify-icon>ทักแชท</button>
-        </div>
-      </div>
-    </div>`).join('')
+  /* A — "หน้าแรกของลูกค้า" : hero + ไทล์สถานะ + รายการแบบแชท
+     ภาษาเดียวกับ Command Center มือถือทุกชิ้น */
   return `
-  <div class="mb-4 flex items-center justify-between gap-3">
-    <div><h4 class="text-default-900 mb-0 text-base font-bold">ลูกค้า</h4>
-      <p class="text-default-500 text-2xs mb-0">397 คน · เรียงตามสิ่งที่ต้องจัดการก่อน</p></div>
-    <div class="input-icon-group max-w-xs"><iconify-icon icon="tabler:search" class="input-icon"></iconify-icon>
-      <input class="form-input" placeholder="ค้นหาชื่อ หรือ เบอร์โทร" aria-label="ค้นหาลูกค้า"></div>
-  </div>
-  ${GROUPS.map(g=>{
-    const n = C.filter(c=>c.risk===g.k).length
-    if(!n) return ''
-    return `<div class="card mb-4 ${g.k==='high'?'border-warning border-s-3':''}">
-      <div class="card-header">
-        <div class="flex min-w-0 items-center gap-2">
-          <span class="bg-${g.tone}/15 text-${g.tone}-ink flex size-7 shrink-0 items-center justify-center rounded-full">
-            <iconify-icon icon="${g.ic}"></iconify-icon></span>
-          <div class="min-w-0">
-            <h5 class="card-title mb-0">${g.t} <span class="text-default-400 tabular-nums">${n}</span></h5>
-            <p class="text-default-400 text-2xs mb-0 truncate">${g.d}</p>
-          </div>
-        </div>
-      </div>
-      ${rows(g.k)}
-    </div>`
-  }).join('')}`
-}
+  <div class="-mx-4 -mt-4 space-y-2.5">
+    ${customerHero()}
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   VARIANT B — "แยกซ้าย-ขวา" (master–detail)
-   โครง: รายชื่อผอมซ้าย + แผงรายละเอียดติดหนึบขวา — ไม่ต้องออกจากหน้าเพื่อดูรายคน
-   affordance หลัก: "ไล่ดูหลายคนเร็ว ๆ โดยไม่เสียตำแหน่ง"
-   ตอบโจทย์ user: แผงขวาให้ความน่าเชื่อถือเต็มรูป + ยอดซื้อสะสมเป็นตัวเลขใหญ่พร้อมกันในจอเดียว
-   ═══════════════════════════════════════════════════════════════════════════ */
-function VariantB(){
-  const sel = C[0]
-  const dot = c => c.risk==='high'||c.risk==='watch' ? 'bg-warning' : c.risk==='ok' ? 'bg-success' : 'bg-default-300'
-  const list = C.map((c,i)=>`
-    <div class="border-default-200 flex items-center gap-2.5 border-b border-dashed px-3 py-2.5 last:border-0 ${i===0?'bg-primary/5':''}">
-      <span class="${dot(c)} size-2 shrink-0 rounded-full" aria-hidden="true"></span>
-      ${avatar(c,'size-7')}
-      <div class="min-w-0 flex-1"><p class="text-default-900 mb-0 truncate text-xs font-medium">${c.n}</p>
-        <p class="text-default-400 text-2xs mb-0 tabular-nums">${c.ord} ออเดอร์</p></div>
-      <p class="text-default-900 mb-0 shrink-0 text-xs font-semibold tabular-nums">${baht(c.spent)}</p>
-    </div>`).join('')
-  return `
-  <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-    <div class="lg:col-span-1">
-      <div class="card">
-        <div class="card-header"><h5 class="card-title mb-0">ลูกค้า <span class="text-default-400 tabular-nums">397</span></h5></div>
-        <div class="border-default-200 border-b border-dashed px-3 py-2.5">
-          <div class="input-icon-group"><iconify-icon icon="tabler:search" class="input-icon"></iconify-icon>
-            <input class="form-input" placeholder="ค้นหา" aria-label="ค้นหาลูกค้า"></div>
+    <div class="card">
+      <div class="card-header !py-3 flex items-center justify-between">
+        <h4 class="card-title flex items-center gap-1.5 mb-0">
+          <span class="size-4 text-primary">${ic('clipboard-list-bold-duotone')}</span>ความน่าเชื่อถือของลูกค้า</h4>
+        <a class="text-primary text-sm font-medium inline-flex items-center gap-0.5">ดูทั้งหมด <span class="size-4">${ic('alt-arrow-right-linear')}</span></a>
+      </div>
+      <div class="card-body !p-4">
+        <div class="grid grid-cols-4 gap-2">
+          ${tile('danger-triangle-bold-duotone','text-danger','เสี่ยงสูง',2)}
+          ${tile('eye-bold-duotone','text-warning','เฝ้าระวัง',17)}
+          ${tile('box-bold-duotone','text-info','เคยตีกลับ',12)}
+          ${tile('bag-check-bold-duotone','text-success','ซื้อซ้ำ',68)}
         </div>
-        ${list}
       </div>
     </div>
-    <div class="lg:col-span-2">
-      <div class="card lg:sticky lg:top-24">
-        <div class="card-body">
-          ${identityPanel(sel, riskBadge(sel))}
 
-          <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <p class="text-default-500 text-2xs mb-0">รับของสำเร็จ (ทั้งระบบ)</p>
-              <p class="text-default-900 mb-0 text-3xl font-extrabold tabular-nums">${sel.recv}<span class="text-default-400 ms-1 text-base font-semibold">จาก ${sel.ship} ใบ</span></p>
-              ${bar(sel,true)}${legend(sel)}
-            </div>
-            <div>
-              <p class="text-default-500 text-2xs mb-0">ยอดซื้อสะสม (นับเป็นยอดขายแล้ว)</p>
-              <p class="text-default-900 mb-0 text-3xl font-bold tabular-nums">${baht(sel.spent)}</p>
-              <p class="text-default-400 text-2xs mb-0">เฉลี่ยต่อบิล ${baht(Math.round(sel.spent/sel.ord))}</p>
-            </div>
-          </div>
+    <div class="card">
+      ${chatToolbar('warn')}
+      <div class="mt-2">${C.map(chatRow).join('')}</div>
+    </div>
+  </div>`
+}
 
-          <hr class="border-default-300 mt-base mb-4 border-dashed">
-          ${tileRow('phone','เบอร์โทร',sel.tel)}
-          ${tileRow('package-off','ตีกลับกับร้านนี้',sel.ret+' ครั้ง', sel.ret?'text-warning-ink':'')}
-          ${tileRow('ban','ยกเลิกกับร้านนี้','1 ครั้ง')}
-          ${tileRow('calendar','ซื้อล่าสุด',sel.last)}
+function VariantB(){
+  /* B — เน้น "ยอดซื้อสะสม" เป็นพระเอกคู่กับความเสี่ยง : hero มีตัวเลขใหญ่แบบการ์ดยอดขาย */
+  const top = [...C].sort((a,b)=>b.spent-a.spent)
+  const total = C.reduce((s,c)=>s+c.spent,0)
+  return `
+  <div class="-mx-4 -mt-4 space-y-2.5">
+    ${customerHero()}
 
-          <div class="mt-base flex gap-2">
-            <button class="btn bg-primary text-white hover:bg-primary-hover gap-1">
-              <iconify-icon icon="tabler:message"></iconify-icon>ทักแชท</button>
-            <button class="btn border-default-300 text-default-800 gap-1">
-              <iconify-icon icon="tabler:receipt"></iconify-icon>ดูออเดอร์ทั้งหมด</button>
+    <div class="card">
+      <div class="card-body !p-4">
+        <div class="flex items-start justify-between">
+          <h4 class="card-title flex items-center gap-1.5 mb-0">
+            <span class="size-4 text-primary">${ic('wallet-money-bold-duotone')}</span>ยอดซื้อสะสม</h4>
+          <div class="bg-light/40 flex items-center gap-1 rounded-full p-1">
+            <span class="text-default-500 rounded-full px-3 py-1 text-xs font-semibold">เดือนนี้</span>
+            <span class="bg-card text-default-900 shadow-sm rounded-full px-3 py-1 text-xs font-semibold">ทั้งหมด</span>
           </div>
         </div>
+        <p class="text-default-900 mt-3 mb-1 text-3xl font-extrabold tabular-nums">${baht(total)}</p>
+        <div class="text-2xs flex flex-wrap items-center gap-x-3">
+          <span class="text-default-600 inline-flex items-center gap-1"><span class="bg-success size-2 rounded-full"></span>รับของแล้ว <b class="text-default-900 tabular-nums">${baht(Math.round(total*0.84))}</b></span>
+          <span class="text-default-600 inline-flex items-center gap-1"><span class="bg-warning size-2 rounded-full"></span>เสี่ยงตีกลับ <b class="text-warning-ink tabular-nums">${baht(Math.round(total*0.16))}</b></span>
+        </div>
+        <div class="bg-default-100 mt-3 flex h-2.5 w-full overflow-hidden rounded-full">
+          <span class="bg-success block h-full" style="width:84%"></span><span class="bg-warning block h-full" style="width:16%"></span>
+        </div>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header !py-3 flex items-center justify-between">
+        <h4 class="card-title mb-0">ลูกค้าที่ซื้อมากที่สุด</h4>
+        <a class="text-primary text-sm font-medium inline-flex items-center gap-0.5">ดูทั้งหมด <span class="size-4">${ic('alt-arrow-right-linear')}</span></a>
+      </div>
+      ${top.map(chatRow).join('')}
     </div>
   </div>`
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   VARIANT C — "บัญชีแน่น" (dense ledger)
-   โครง: ไม่มีการ์ดต่อแถว ไม่มีแถบสัดส่วน — ตัวเลขเรียงคอลัมน์ให้เทียบกันได้ทั้งจอ
-   affordance หลัก: "เทียบหลายคนพร้อมกัน แล้วเรียงตามคอลัมน์ที่สนใจ"
-   ตอบโจทย์ user: ความเสี่ยงเป็นคอลัมน์ *ที่เรียงได้* (อัตราตีกลับ) ไม่ใช่แค่ภาพ ·
-   ยอดซื้อสะสมเป็นคอลัมน์ตัวเลขที่เรียงได้เหมือนกัน ⇒ ทั้งสองแกนเท่าเทียมและเทียบข้ามคนได้จริง
+   เดสก์ท็อป + แท็บเล็ต (≥768) — **คนละชุดกับมือถือ ไม่ใช่ layout เดิมยืด**
+   แบบแผนเดียวกับที่ dashboard ใช้: มือถือ `md:hidden` / จอใหญ่ `hidden md:block`
+   (dashboard/page.tsx:518,568 — `CommandCenter` เป็นของมือถือล้วน จอใหญ่ประกอบใหม่)
+
+   สิ่งที่หายไปโดยตั้งใจบนจอใหญ่:
+     · hero ไล่สีเต็มความกว้าง — เป็นภาษาของมือถือที่ไม่มี sidebar/breadcrumb
+       จอใหญ่มี `PageBreadcrumb` ทำหน้าที่บอกตำแหน่งอยู่แล้ว ใส่ hero ซ้ำ = สองหัวเรื่อง
+     · แถวใหญ่ 3 แถว "ต้องจัดการก่อน" — แปลงเป็น **การ์ดสถิติ 4 ใบที่กดกรองได้**
+       (โครง Base: seller-details/SellerStatisticCard.tsx — หัวข้อ → ไอคอน+เลขใหญ่ → แถวท้าย)
+     · รายการแบบแชท — แปลงเป็น **ตาราง** เพราะจอกว้างเทียบหลายคนพร้อมกันได้
    ═══════════════════════════════════════════════════════════════════════════ */
-function VariantC(){
-  /* การ์ดคน — Base: theme apps/users/contacts/page.tsx (ContactCard)
-     🛑 ใช้การ์ดเฉพาะ "คนที่ต้องดูก่อน" เท่านั้น ไม่ใช่ทั้ง 397 คน — การ์ดกวาดตาไม่ไหวเมื่อของเยอะ
-        ที่เหลืออยู่ในรายการกะทัดรัดด้านล่าง (affordance ต่างกันโดยตั้งใจ) */
-  const card = c => `
-    <div class="card">
-      <div class="card-body text-center">
-        <div class="mx-auto">${avatar(c,'size-18 mx-auto')}</div>
-        <h5 class="text-md mt-3 truncate">${c.n}</h5>
-        <div class="mt-1.5">${riskBadge(c)}</div>
-        <div class="mt-3">${bar(c)}</div>
-        <div class="flex justify-center">${legend(c)}</div>
-        <div class="mt-base flex justify-center gap-2">
-          <button class="btn btn-sm bg-primary text-white hover:bg-primary-hover">เปิดโปรไฟล์</button>
-          <button class="btn btn-sm border-default-300 text-default-800">ทักแชท</button>
-        </div>
-        ${statTriplet(c)}
+
+/** การ์ดสถิติกดได้ — Base: SellerStatisticCard (หัวข้อ / ไอคอน+เลข / แถวท้ายมีจุดสี+ยอด) */
+function statCard({icon, tone, title, value, bullet, sub, total, active}){
+  return `<div class="card h-full ${active?'border-primary border':''}">
+    <div class="card-body">
+      <h5 class="card-title text-sm mb-0">${title}</h5>
+      <div class="mt-5 mb-2.5 flex items-center gap-2.5">
+        <div class="${tone} size-9 flex items-center justify-center rounded-full text-2xl">${ic(icon)}</div>
+        <h3 class="text-xl mb-0 tabular-nums">${value}</h3>
       </div>
-    </div>`
+      <div class="text-default-400 flex items-center justify-between text-sm">
+        <span class="inline-flex items-center gap-1.5"><span class="${bullet} size-2 rounded-full"></span>${sub}</span>
+        <span class="font-semibold text-default-800 tabular-nums">${total}</span>
+      </div>
+    </div>
+  </div>`
+}
+
+/** แถวตาราง 1 แถว — แถบสัดส่วนอยู่ในคอลัมน์ของตัวเอง เทียบข้ามคนได้ในแนวตั้ง */
+function deskRow(c){
+  const icn = c.risk==='high' ? 'danger-triangle-bold-duotone' : c.risk==='watch' ? 'eye-bold-duotone' : c.risk==='ok' ? 'check-circle-bold-duotone' : 'question-circle-bold-duotone'
+  const tone = c.risk==='high' ? 'text-danger' : c.risk==='watch' ? 'text-warning' : c.risk==='ok' ? 'text-success' : 'text-default-300'
+  const r = rate(c)
+  return `<tr>
+    <td class="ps-5">
+      <div class="flex min-w-0 items-center gap-3">
+        ${avatar(c,'size-9')}
+        <div class="min-w-0">
+          <p class="text-default-900 mb-0 truncate text-sm font-semibold">${c.n}</p>
+          <p class="text-default-400 mb-0 text-2xs tabular-nums">${c.tel}</p>
+        </div>
+      </div>
+    </td>
+    <td style="width:230px">
+      ${bar(c)}
+      <p class="text-default-500 mb-0 text-2xs tabular-nums">รับของ ${c.recv}/${c.ship}${c.ret?` · ตีกลับ ${c.ret}`:''}</p>
+    </td>
+    <td class="text-center"><span class="${tone} text-2xl">${ic(icn)}</span></td>
+    <td class="text-end text-sm tabular-nums ${c.ret?'text-warning-ink font-semibold':'text-default-400'}">${r ?? '—'}</td>
+    <td class="text-default-600 text-end text-sm tabular-nums">${c.ord}</td>
+    <td class="text-default-900 text-end text-sm font-bold tabular-nums">${baht(c.spent)}</td>
+    <td class="text-default-400 pe-3 text-end text-xs tabular-nums">${c.last.slice(0,10)}</td>
+  </tr>`
+}
+
+function VariantCDesktop(){
+  const th = (t,cls)=>`<th class="text-default-500 ${cls||''} text-2xs font-semibold whitespace-nowrap">${t}</th>`
+  return `
+  <div class="mb-base flex items-center justify-between gap-3">
+    <div>
+      <h4 class="text-default-900 mb-0 text-lg font-bold">ลูกค้า</h4>
+      <p class="text-default-400 mb-0 text-xs">หน้าหลัก · ลูกค้า · 397 คน</p>
+    </div>
+    <div class="flex flex-nowrap items-center gap-2.5">
+      <div class="bg-light/40 border-default-200 flex min-w-0 items-center gap-2 rounded-full border px-3 py-2 w-full max-w-xs">
+        <span class="text-default-400 text-lg">${ic('magnifer-linear')}</span>
+        <span class="text-default-400 text-sm">ค้นหาชื่อ หรือ เบอร์โทร</span>
+      </div>
+      <button class="btn btn-light shrink-0 gap-1 whitespace-nowrap"><span class="text-lg">${ic('filter-bold-duotone')}</span>ตัวกรอง</button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-base md:grid-cols-2 lg:grid-cols-4 mb-base">
+    ${statCard({icon:'danger-triangle-bold-duotone',tone:'text-danger',title:'ลูกค้าเสี่ยงสูง',value:'2',bullet:'bg-danger',sub:'ตีกลับ ≥2 และอัตรา ≥30%',total:'0.5%',active:true})}
+    ${statCard({icon:'eye-bold-duotone',tone:'text-warning',title:'ต้องเฝ้าระวัง',value:'17',bullet:'bg-warning',sub:'มีสัญญาณอย่างน้อย 1',total:'4.3%'})}
+    ${statCard({icon:'box-bold-duotone',tone:'text-info',title:'เคยตีกลับกับร้านนี้',value:'12',bullet:'bg-info',sub:'พัสดุที่ถูกตีกลับ',total:'3.0%'})}
+    ${statCard({icon:'wallet-money-bold-duotone',tone:'text-success',title:'ยอดซื้อสะสมทั้งร้าน',value:baht(C.reduce((a,c)=>a+c.spent,0)),bullet:'bg-success',sub:'เฉลี่ยต่อคน',total:baht(Math.round(C.reduce((a,c)=>a+c.spent,0)/C.length))})}
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h5 class="card-title mb-0">ลูกค้าเสี่ยงสูง + ต้องเฝ้าระวัง <span class="text-default-400 tabular-nums">19</span></h5>
+      <span class="text-default-400 text-xs">เรียงตามอัตราตีกลับมากไปน้อย</span>
+    </div>
+    <div class="table-wrapper"><div class="table-responsive"><table class="table">
+      <thead class="bg-light/50"><tr>
+        ${th('ลูกค้า','ps-5')}${th('ความน่าเชื่อถือ (ทั้งระบบ)')}${th('สถานะ','text-center')}${th('อัตราตีกลับ','text-end')}${th('ออเดอร์','text-end')}${th('ยอดซื้อสะสม','text-end')}${th('ซื้อล่าสุด','text-end pe-3')}
+      </tr></thead>
+      <tbody>${[...C].sort((a,b)=>(b.ret/Math.max(b.ship,1))-(a.ret/Math.max(a.ship,1))).map(deskRow).join('')}</tbody>
+    </table></div></div>
+  </div>`
+}
+
+function VariantCMobile(){
+  /* C — เปิดมาเจอ "งานที่ต้องทำ" ก่อน : ไทล์ใหญ่เต็มความกว้าง แล้วค่อยเป็นรายการ */
   const watch = C.filter(c=>c.risk==='high'||c.risk==='watch')
   const rest  = C.filter(c=>c.risk!=='high'&&c.risk!=='watch')
+  const big = (icon,tone,label,sub,count)=>`
+    <a class="border-default-200 flex items-center gap-3 border-b border-dashed px-4 py-3 last:border-0 active:scale-95 transition-transform">
+      <span class="relative inline-flex items-center justify-center px-1 py-0.5">
+        <span class="${tone} text-3xl">${ic(icon)}</span>
+        ${count>0?`<span class="${BADGE_CLS}">${count}</span>`:''}
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="text-default-900 mb-0 text-sm font-bold">${label}</p>
+        <p class="text-default-500 mb-0 text-xs">${sub}</p>
+      </div>
+      <span class="text-default-400 size-5">${ic('alt-arrow-right-linear')}</span>
+    </a>`
   return `
-  <div class="mb-4 flex items-center justify-between gap-3">
-    <div><h4 class="text-default-900 mb-0 text-base font-bold">ต้องดูก่อน <span class="text-default-400 tabular-nums">${watch.length}</span></h4>
-      <p class="text-default-500 text-2xs mb-0">จากลูกค้าทั้งหมด 397 คน</p></div>
-    <div class="input-icon-group max-w-xs"><iconify-icon icon="tabler:search" class="input-icon"></iconify-icon>
-      <input class="form-input" placeholder="ค้นหาชื่อ หรือ เบอร์โทร" aria-label="ค้นหาลูกค้า"></div>
-  </div>
-  <div class="grid grid-cols-1 gap-base sm:grid-cols-2 lg:grid-cols-4">${watch.map(card).join('')}</div>
-
-  <div class="card mt-base">
-    <div class="card-header"><h5 class="card-title mb-0">ลูกค้าอื่น <span class="text-default-400 tabular-nums">${rest.length}</span></h5></div>
-    ${rest.map(c=>`<div class="border-default-200 flex items-center gap-3 border-b border-dashed px-4 py-2.5 last:border-0">
-      ${avatar(c,'size-8')}
-      <div class="min-w-0 flex-1"><p class="text-default-900 mb-0 truncate text-sm font-medium">${c.n}</p>
-        <p class="text-default-400 text-2xs mb-0">รับของ ${c.recv}/${c.ship} · ${c.ord} ออเดอร์</p></div>
-      <p class="text-default-900 mb-0 shrink-0 text-sm font-bold tabular-nums">${baht(c.spent)}</p>
-    </div>`).join('')}
+  <div class="-mx-4 -mt-4 space-y-2.5">
+    ${customerHero()}
+    <div class="card">
+      <div class="card-header !py-3"><h4 class="card-title mb-0 flex items-center gap-1.5">
+        <span class="size-4 text-primary">${ic('danger-triangle-bold-duotone')}</span>ต้องจัดการก่อน</h4></div>
+      ${big('danger-triangle-bold-duotone','text-danger','ลูกค้าเสี่ยงสูง','ตีกลับ ≥2 ครั้ง และอัตรา ≥30%',2)}
+      ${big('eye-bold-duotone','text-warning','ต้องเฝ้าระวัง','มีสัญญาณอย่างน้อย 1 อย่าง',17)}
+      ${big('box-bold-duotone','text-info','เคยตีกลับกับร้านนี้','ควรเก็บเงินปลายทางอย่างระมัดระวัง',12)}
+    </div>
+    <div class="card">
+      ${chatToolbar('warn')}
+      <div class="mt-2">${watch.map(chatRow).join('')}</div>
+    </div>
+    <div class="card">
+      <div class="card-header !py-3"><h4 class="card-title mb-0">ลูกค้าอื่น <span class="text-default-400 tabular-nums">${rest.length}</span></h4></div>
+      ${rest.map(chatRow).join('')}
+    </div>
   </div>`
+}
+
+function VariantC(){
+  /* 🛑 สองชุดอยู่ใน DOM พร้อมกัน ให้ CSS ตัดสิน — แบบเดียวกับ dashboard/page.tsx:518,568
+     จุดตัด `md` (768) เพราะ user เคาะว่า **แท็บเล็ตเป็นแบบเดียวกับเดสก์ท็อป** */
+  return `<div class="md:hidden">${VariantCMobile()}</div><div class="hidden md:block">${VariantCDesktop()}</div>`
 }
 
 const VARIANTS = {
-  A:{name:'คิวงานตามความเสี่ยง', fn:VariantA},
-  B:{name:'แยกซ้าย-ขวา (master–detail)', fn:VariantB},
-  C:{name:'กระดานเฝ้าระวัง + รายการที่เหลือ', fn:VariantC},
+  A:{name:'หน้าแรกของลูกค้า (hero + ไทล์ + รายการแชท)', fn:VariantA},
+  B:{name:'ยอดซื้อสะสมเป็นพระเอก', fn:VariantB},
+  C:{name:'งานที่ต้องทำก่อน (มือถือ ≠ จอใหญ่)', fn:VariantC},
 }
 </script>
 <script>
@@ -333,6 +501,12 @@ const frame = qs.get('frame')
 if (frame) {
   document.documentElement.setAttribute('data-bs-theme','light')
   document.body.className = 'bg-body-bg'
+  /* 🛑 ซ่อน scrollbar ในกรอบ — iframe กว้าง 768 แต่ scrollbar กิน ~15px ⇒ clientWidth 753
+     ⇒ `md:` (768) ไม่ทำงาน กรอบแท็บเล็ตเลยโชว์ layout มือถือทั้งที่ควรเป็นของจอใหญ่
+     แท็บเล็ตจริงใช้ overlay scrollbar ที่ไม่กินความกว้าง การซ่อนตรงนี้จึง *ตรงกับของจริงกว่า* */
+  const sb = document.createElement('style')
+  sb.textContent = 'html{scrollbar-width:none}html::-webkit-scrollbar{width:0;height:0}'
+  document.head.appendChild(sb)
   document.body.innerHTML = `<div class="p-4">${(VARIANTS[frame]||VARIANTS.A).fn()}</div>`
 } else {
   const cur = (qs.get('variant') || 'A').toUpperCase()
@@ -361,7 +535,7 @@ if (frame) {
     </div>
     <div class="proto-rail">
       ${dev(390,760,'มือถือ','390 × 760')}
-      ${dev(768,760,'แท็บเล็ต','768 × 760')}
+      ${dev(820,760,'แท็บเล็ต','820 × 760 · iPad แนวตั้งจริงคือ 810–834 ไม่ใช่ 768')}
     </div>
     <div class="proto-rail" style="padding-top:0">
       ${dev(1280,900,'เดสก์ท็อป','1280 × 900 · ย่อ 78% ให้เห็นทั้งความกว้างโดยไม่ต้องเลื่อน',true)}
