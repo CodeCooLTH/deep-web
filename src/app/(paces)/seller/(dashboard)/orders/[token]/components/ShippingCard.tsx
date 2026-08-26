@@ -55,13 +55,26 @@ export type ShippingCardProps = {
     returnStartedAtISO?: string | null
     returnedAtISO?: string | null
   } | null
+  /**
+   * ใบคืนของ (00056) ที่ยังไม่ถูกยกเลิก — `null` = ไม่มี
+   *
+   * 🛑 หน้านี้เป็น **จอเดียวที่ส่งค่านี้เข้ามา** โดยตั้งใจ: หน้ารายการเปิดออเดอร์ทีละ 30–50 ใบ
+   * และออเดอร์ส่วนใหญ่ไม่มีการคืนของ ⇒ ไม่คุ้ม join บนเส้นทางที่ร้อนที่สุดของระบบ
+   * ที่นี่เปิดทีละใบ และเป็นที่ที่ร้านจัดการใบคืนอยู่แล้ว (มติ Q26 ทบทวน 2026-08-26)
+   */
+  orderReturn: {
+    status: string
+    trackingSource: string
+    createdAtISO: string | null
+    receivedAtISO: string | null
+  } | null
   /** เลขพัสดุที่ร้านพิมพ์เอง (ShipmentTracking) — คนละตารางกับ iShip โดยสิ้นเชิง */
   manual: { provider: string | null; trackingNo: string; shippedAtISO: string | null } | null
   /** เปิดโมดัลรายละเอียด/จัดการพัสดุใบเดิม */
   onOpenDetail?: () => void
 }
 
-export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCardProps) {
+export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail }: ShippingCardProps) {
   const [traces, setTraces] = useState<TraceEvent[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [checkedAt, setCheckedAt] = useState<string | null>(iship?.lastTracedAtISO ?? null)
@@ -77,6 +90,14 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
     carrierStatus: iship?.carrierStatus,
     returnStartedAt: iship?.returnStartedAtISO,
     returnedAt: iship?.returnedAtISO,
+    orderReturn: orderReturn
+      ? {
+          status: orderReturn.status,
+          trackingSource: orderReturn.trackingSource,
+          createdAt: orderReturn.createdAtISO,
+          receivedAt: orderReturn.receivedAtISO,
+        }
+      : null,
   })
   const railLastIdx = SHIPMENT_STAGES.length - 1
   const railCurrentLabel = progress

@@ -137,3 +137,39 @@ describe('[blocker] ทุกจอที่แสดงแถบต้องร
     }
   })
 })
+
+describe('[blocker] เคส "คืนของ" ต้องเข้าถึงได้จริง ไม่ใช่โค้ดตาย', () => {
+  /**
+   * 🛑 บทเรียน 2026-08-26: กิ่ง `RETURN` ของ `describeReturnLeg` ถูกเขียนครบทั้งกิ่ง
+   * (คำ 3 ชุด · จำนวนจุด 4/3/2 ตาม `trackingSource` · เทส 32 เคส) แล้ว **ไม่มีจอไหนส่ง
+   * `orderReturn` เข้ามาเลยสักจอ** ⇒ ครึ่งหนึ่งของขอบเขตที่ user อนุมัติไม่เคยขึ้นจอจริง
+   * และเอกสารก็เขียนไว้ต่ำกว่าความจริงว่า "แค่ตารางมองไม่เห็น"
+   *
+   * `tsc`/build/eslint/เทสเดิมผ่านหมด เพราะโค้ดถูกทุกตัวอักษร — มันแค่ไม่เคยถูกเรียก
+   * (คลาสเดียวกับ `docs/conventions/rule-must-be-enforced-not-described.md`)
+   */
+  it('ต้องมีอย่างน้อย 1 จอที่ส่ง orderReturn เข้า describeReturnLeg', () => {
+    const callers = walk('src')
+      .filter((f) => /\.tsx$/.test(f) && !f.includes('__tests__'))
+      /**
+       * 🛑 ต้องเป็น `orderReturn={` (การ **ส่งค่า** ใน JSX) ไม่ใช่ `orderReturn[=:]`
+       *
+       * รอบแรกใช้ `[=:]` แล้ว mutation เขียว เพราะมันไป match `orderReturn:` ใน **ตัวประกาศ
+       * prop ของ `ShippingCard` เอง** ⇒ ถอดการส่งค่าที่ผู้เรียกออกหมด เทสก็ยังเขียว
+       * = ด่านที่ยืนยันแค่ว่า "มีคนประกาศ prop ไว้" ซึ่งไม่ใช่สิ่งที่กำลังกัน
+       * (docs/conventions/mutation-silence-means-weak-corpus.md)
+       */
+      .filter((f) => /orderReturn=\{/.test(stripComments(read(f))))
+    expect(
+      callers.length,
+      'กิ่ง RETURN กลายเป็นโค้ดตายอีกแล้ว — เคสคืนของจะไม่มีวันขึ้นจอ',
+    ).toBeGreaterThan(0)
+  })
+
+  /** เวลาของแถว 2 เคสคืนของต้องมาจากใบคืน ไม่ใช่ค้างเป็น null เหมือนรอบแรก */
+  it('เคสคืนของต้องได้เวลาจากใบคืน (createdAt/receivedAt)', () => {
+    const src = stripComments(read('src/lib/iship/return-timeline.ts'))
+    expect(src).toContain('toDate(ret.createdAt)')
+    expect(src).toContain('toDate(ret.receivedAt)')
+  })
+})

@@ -158,7 +158,14 @@ export interface ReturnLegInput {
    * ที่สุดของระบบ เพราะบน prod ยังมี 0 แถว) ⇒ ตารางเห็นเฉพาะเคส BOUNCE
    * ช่องนี้มีไว้ให้เติมทีหลังโดยไม่ต้องแตะ UI เลย — ดูหนี้ที่บันทึกใน spec §6
    */
-  orderReturn?: { status: string; trackingSource: string; carrierStatus?: string | null } | null
+  orderReturn?: {
+    status: string
+    trackingSource: string
+    carrierStatus?: string | null
+    /** `createdAt` = ลูกค้าแจ้งคืน · `receivedAt` = ร้านกดรับของแล้ว (null = ยังไม่ถึง) */
+    createdAt?: Date | string | null
+    receivedAt?: Date | string | null
+  } | null
 }
 
 const toDate = (v?: Date | string | null): Date | null => {
@@ -197,8 +204,9 @@ export function describeReturnLeg(input: ReturnLegInput): ReturnLeg | null {
       kind: 'RETURN',
       dots,
       stage: returnStageOf(ret, dots.length),
-      startedAt: null,
-      arrivedAt: null,
+      // เวลาของเคสคืนของมาจากใบคืน ไม่ใช่จากคอลัมน์บนพัสดุ (นั่นเป็นของเคสตีกลับ)
+      startedAt: toDate(ret.createdAt),
+      arrivedAt: toDate(ret.receivedAt),
       originTone: 'success',
     }
   }

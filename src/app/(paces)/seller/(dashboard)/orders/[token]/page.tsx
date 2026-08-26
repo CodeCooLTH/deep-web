@@ -37,6 +37,7 @@ import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { prisma } from '@/lib/prisma'
 import { getOrderForShop } from '@/services/order.service'
+import { getActiveReturnForTimeline } from '@/services/order-return.service'
 import { computeOrderMoneyFromSerialized, hasMoneyStory } from '@/lib/order-payment'
 import { resolveServiceOrderBadge } from '@/lib/order-display'
 import { getShipmentPanel } from '@/services/iship.service'
@@ -180,6 +181,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // คืน null เมื่อร้านไม่ได้เชื่อมต่อ หรือออเดอร์นี้ไม่เกี่ยวกับการส่งของ
   // (รับเอง/ดิจิทัล/บริการ/การจอง) → ไม่ render ส่วนนี้เลย ไม่ใช่โชว์กล่องเปล่า
   const shipmentPanel = await getShipmentPanel(shop.id, order.id)
+  /**
+   * ใบคืนของ (00056) — ให้แถบสถานะพัสดุวาด "แถวขากลับ" ของเคสคืนของได้
+   *
+   * 🛑 คิวรีนี้อยู่ **เฉพาะหน้านี้** ไม่ได้อยู่ในหน้ารายการ (มติ Q26 ทบทวน 2026-08-26):
+   * `/orders` เปิดออเดอร์ทีละ 30–50 ใบและออเดอร์ส่วนใหญ่ไม่มีการคืนของ ⇒ ไม่คุ้ม join
+   * บนเส้นทางที่ร้อนที่สุด · หน้านี้เปิดทีละใบ และเป็นที่ที่ร้านจัดการใบคืนอยู่แล้ว
+   */
+  const activeReturn = await getActiveReturnForTimeline(shop.id, order.id)
 
   /**
    * หลักฐานสำหรับข้อพิพาท (feature 00055) — นับที่ server เพื่อตัดสินว่าจะ render การ์ดไหม
@@ -523,6 +532,16 @@ export default async function OrderDetailPage({ params }: PageProps) {
                       returnedAtISO: shipmentPanel.shipment.returnedAt
                         ? (shipmentPanel.shipment.returnedAt as Date).toISOString()
                         : null,
+                    }
+                  : null
+              }
+              orderReturn={
+                activeReturn
+                  ? {
+                      status: activeReturn.status,
+                      trackingSource: activeReturn.trackingSource,
+                      createdAtISO: activeReturn.createdAt.toISOString(),
+                      receivedAtISO: activeReturn.receivedAt?.toISOString() ?? null,
                     }
                   : null
               }

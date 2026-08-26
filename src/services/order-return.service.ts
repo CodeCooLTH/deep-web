@@ -154,6 +154,33 @@ export type ForwardParcelFacts = {
 }
 
 /** รายการที่ยังคืนได้ + เหตุผลถ้าคืนไม่ได้ — หน้าจอเรียกตัวนี้ตัวเดียว ไม่คิดเกณฑ์เอง */
+/**
+ * getActiveReturnForTimeline — ใบคืนที่ยัง "เปิดอยู่หรือจบแล้ว" ของออเดอร์นี้ สำหรับวาดแถวที่ 2
+ *
+ * 🛑 ตัวนี้มีไว้ให้ **หน้ารายละเอียดออเดอร์เท่านั้น** ห้ามเอาไปเรียกในหน้ารายการ (`/orders`)
+ * — ที่นั่นเปิดออเดอร์ทีละ 30–50 ใบพร้อมกัน และออเดอร์ส่วนใหญ่ไม่มีการคืนของเลย
+ * (`OrderDetailClient` เองก็เลี่ยงคิวรีนี้ด้วยเหตุผลเดียวกัน — ส่ง `initialCount={0}`
+ * ให้ `ReturnPanel` ยิงเอาเองตอนเปิด) หน้ารายละเอียดเปิดทีละใบ จึงจ่ายไหว
+ *
+ * นับ `CANCELLED` ออก — ใบที่ถูกยกเลิกคือเรื่องที่จบไปแล้วโดยไม่มีของเคลื่อนที่
+ * `RECEIVED` ยังนับ เพราะแถบต้องเล่าได้ว่า "ของกลับมาถึงร้านแล้ว" ต่อไปอีกระยะ
+ *
+ * เอาใบ **ล่าสุด** เมื่อมีหลายใบ (คืนบางส่วนหลายรอบได้ — BR-RT-04)
+ */
+export async function getActiveReturnForTimeline(shopId: string, orderId: string) {
+  return prisma.orderReturn.findFirst({
+    where: { orderId, shopId, status: { not: RETURN_STATUS.CANCELLED } },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      status: true,
+      trackingSource: true,
+      // เวลาของแถวที่ 2 — `createdAt` = ลูกค้าแจ้งคืน · `receivedAt` = ร้านกดรับของแล้ว
+      createdAt: true,
+      receivedAt: true,
+    },
+  })
+}
+
 export async function getReturnEligibility(shopId: string, orderId: string) {
   const order = await loadReturnContext(shopId, orderId)
   const claimed = claimedQtyByItem(order)
