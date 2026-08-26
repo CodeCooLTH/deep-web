@@ -28,6 +28,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import useLockBodyScroll from '@/hooks/useLockBodyScroll'
+import useDialogFocus from '@/hooks/useDialogFocus'
 
 import Icon from '@/components/wrappers/Icon'
 import { formatDateTime } from '@/lib/format-date'
@@ -170,6 +171,21 @@ export default function ReturnPanel({
   /** ชื่อขนส่งที่ร้านพิมพ์เอง — ใช้เฉพาะตอนเลือก "อื่น ๆ" */
   const [otherCourierName, setOtherCourierName] = useState('')
   const [countAsCost, setCountAsCost] = useState(false)
+  /**
+   * ค่าส่งขากลับที่ร้าน **จ่ายจริง** (บาท) — สำหรับวิธีที่ระบบไม่ได้เป็นคนเปิดพัสดุ
+   *
+   * 🛑 ก่อนมีช่องนี้ หน้าสรุปเขียนว่าค่าส่ง "จะไปโผล่ในหน้ากำไร/ขาดทุน" แต่**ไม่มี UI ไหน
+   * ในระบบส่ง `shippingCost` เลยสักจุด** (`grep shippingCost` ใน `(paces)/…/orders` = 0)
+   * และวิธีที่ไม่ใช่ iShip ก็ไม่มีทั้ง `carrierPrice` และ `estimatedPrice`
+   * ⇒ `resolveReturnShippingCost()` ตกท้ายเป็น `{amount: 0, known: false}` **ตลอดกาล**
+   * ⇒ ร้านอ่านบนจอว่าเป็นต้นทุน แล้วเปิดหน้ากำไรมาไม่เห็นอะไรเพิ่มเลย → สรุปว่าระบบคำนวณผิด
+   * (คลาสเดียวกับค่าส่ง ฿328.88 ที่ `partial-data-must-be-labeled-or-filled.md` บันทึกไว้
+   *  และเป็น `value-fate-decided-at-write-site.md` ตรงตัว: route รับคีย์นี้ service เก็บลงฐาน
+   *  ครบทุกบรรทัด — ขาดแค่ไม่มีใครส่งมา)
+   *
+   * เว้นว่างได้ (ร้านมักยังไม่รู้ตอนเปิดใบ) แต่ **หน้าสรุปต้องบอกตรง ๆ ว่ายังไม่ถูกนับ**
+   */
+  const [shippingCostDraft, setShippingCostDraft] = useState('')
   const [reason, setReason] = useState('')
 
   // ── กล่องขากลับ (D-5) — null = ใช้กล่องของขาไป ────────────────────────────
@@ -221,6 +237,13 @@ export default function ReturnPanel({
     if (courierCode === OTHER_COURIER_CODE) return otherCourierName.trim() || null
     return courierChoicesName(courierCode)
   })()
+
+  /**
+   * ร้านเป็นคนรับผิดชอบค่าส่งขากลับไหม — เกณฑ์เดียวกับที่ service บังคับ (`resolveCountAsCost`)
+   * ไม่ใช่คำที่คิดขึ้นใหม่ที่จอ (HR16)
+   */
+  const shopPaysCost =
+    method != null && resolveReturnShippingChoice(method.key, trackingNo, countAsCost).countAsCost
 
   /** ตัวเลือกใน dropdown — คนละแหล่งตามวิธี ดูเหตุผลที่ `renderCourierPicker` */
   const courierChoices: { code: string; label: string }[] =
@@ -322,6 +345,51 @@ export default function ReturnPanel({
     if (asSheet && sheetOpen && !eligibility) void load()
   }, [asSheet, sheetOpen, eligibility, load])
 
+  /** ปิดฟอร์ม + ล้างร่างทั้งชุด — เดิมล้างแค่ `qty` ทำให้วิธีคืนของรอบก่อนค้างมารอบถัดไป */
+  const closeForm = useCallback(() => {
+    setForm(false)
+    setStep(1)
+    setQty({})
+    setMethodKey(null)
+    setTrackingNo('')
+    setCourierCode(null)
+    setOtherCourierName('')
+    setCountAsCost(false)
+    setShippingCostDraft('')
+    setReason('')
+    setBoxOpen(false)
+    setBoxDraft({ weight: '', width: '', length: '', height: '' })
+    setQuote(null)
+    setQuoteError(null)
+    courierTouched.current = false
+  }, [])
+
+  /**
+   * ปิดชีต = **ล้างร่างเสมอ** ไม่ใช่แค่ซ่อน
+   *
+   * 🛑 โหมดชีตไม่ถูก unmount ตอนปิด (พ่อแค่ตั้ง `sheetOpen=false` แล้วเรา `return null`)
+   * ⇒ ถ้าไม่ล้าง ร้านที่กด ✕ กลางทางแล้วเปิดใหม่ จะเด้งไป **หน้า "ตรวจก่อนยืนยัน" ของร่างเก่า**
+   * ทันที (วัดจากจอจริง 2026-08-26 ทำซ้ำได้ 3 ครั้ง) ซึ่งอ่านเป็น "ระบบกำลังจะยืนยันอะไรสักอย่าง"
+   * ทั้งที่เขาเพิ่งกดเปิดใหม่ · เมนูเขียนว่า "คืนของ" = เริ่มเรื่องคืน ไม่ใช่ทำต่อจากของเก่า
+   * และตั้งแต่ Escape ปิดได้ การปิดโดยไม่ตั้งใจก็ง่ายขึ้นด้วย
+   */
+  const closeSheet = useCallback(() => {
+    closeForm()
+    /**
+     * 🛑 ทิ้ง `eligibility` ด้วย ไม่ใช่แค่ล้างร่าง — component ไม่ถูก unmount ⇒ ค่าที่โหลดไว้
+     * จะค้างข้ามการเปิดครั้งถัดไป · ถ้าระหว่างนั้นพนักงานอีกคนเปิดใบคืนไปแล้ว จอนี้จะยังโชว์
+     * "คืนได้ N ชิ้น" ของเมื่อวาน แล้วร้านจะกดยืนยันบนตัวเลขที่ไม่จริง
+     * (`useEffect` ที่โหลดตอนเปิดเช็ค `!eligibility` อยู่แล้ว ⇒ ทิ้งตรงนี้ = โหลดใหม่ทุกครั้งที่เปิด)
+     */
+    setEligibility(null)
+    setReturns(null)
+    onCloseSheet?.()
+  }, [closeForm, onCloseSheet])
+
+  const panelRef = useRef<HTMLDivElement>(null)
+  // โฟกัสเข้าแผง + กักไว้ + Escape ปิด + คืนโฟกัสตอนปิด — `aria-modal` ที่ไม่มีสิ่งนี้คือคำสัญญาที่ผิด
+  useDialogFocus(Boolean(asSheet && sheetOpen), panelRef, closeSheet)
+
   // ล็อก scroll ของหน้าเมื่อชีตเปิด — โมดัลที่ประกอบเองด้วย React state ต้องเรียกเสมอ
   // (docs/conventions/overlay-scroll-lock.md · การแปลง hs-overlay เป็น controlled div
   //  ทิ้งการล็อกที่เคยได้ฟรีไปทุกใบ ไม่มีใครสังเกตจนผู้ใช้เจอบนมือถือ)
@@ -351,6 +419,7 @@ export default function ReturnPanel({
           returnCourierName: resolvedCourierName,
           returnParcel: draftBox,
           countAsCost,
+          shippingCost: shopPaysCost && shippingCostDraft.trim() !== '' ? Number(shippingCostDraft) : null,
         }),
       })
       const data = await res.json()
@@ -396,23 +465,6 @@ export default function ReturnPanel({
     }
   }
 
-  /** ปิดฟอร์ม + ล้างร่างทั้งชุด — เดิมล้างแค่ `qty` ทำให้วิธีคืนของรอบก่อนค้างมารอบถัดไป */
-  const closeForm = () => {
-    setForm(false)
-    setStep(1)
-    setQty({})
-    setMethodKey(null)
-    setTrackingNo('')
-    setCourierCode(null)
-    setOtherCourierName('')
-    setCountAsCost(false)
-    setReason('')
-    setBoxOpen(false)
-    setBoxDraft({ weight: '', width: '', length: '', height: '' })
-    setQuote(null)
-    setQuoteError(null)
-    courierTouched.current = false
-  }
 
   const labelUrl = `/api/o/${orderToken}/return-label`
 
@@ -459,22 +511,31 @@ export default function ReturnPanel({
         onMouseDown={(e) => {
           // ปิดเฉพาะเมื่อกดที่ "ฉากเบลอ" จริง ๆ — ใช้ target===currentTarget แทน stopPropagation
           // ที่ลูก เพราะการลากเลือกข้อความในแผงแล้วปล่อยนอกแผงจะกลายเป็นการปิดโดยไม่ได้ตั้งใจ
-          if (e.target === e.currentTarget) onCloseSheet?.()
+          if (e.target === e.currentTarget) closeSheet()
         }}
       >
-        <div className="card bg-card flex h-full max-h-full w-full flex-col rounded-b-none sm:h-auto sm:max-w-lg sm:rounded-lg">
+        <div
+          ref={panelRef}
+          tabIndex={-1}
+          className="card bg-card flex h-full max-h-full w-full flex-col rounded-b-none outline-none sm:h-auto sm:max-w-lg sm:rounded-lg"
+        >
           <div className="card-header flex flex-nowrap items-center justify-between gap-2">
             <h5 className="card-title flex min-w-0 items-center gap-1.5">
               <Icon icon="arrow-back-up" className="text-default-600 size-4 shrink-0" />
               <span className="truncate">การคืนของ</span>
             </h5>
+            {/* 🛑 พื้นที่นิ้ว ≠ ก้อนสี — ปุ่มใส 44px ครอบก้อนสีเล็กไว้ข้างใน (`tap-target-vs-visual-pill`)
+                วัดของเดิมได้ 42×28 ตกเกณฑ์ ≥44px ทุก viewport ทั้งที่มันเป็นทางปิดทางเดียว
+                ขยายก้อนสีตรง ๆ จะทำให้หัวชีตบวมและไม่ตรงม็อกอัพ */}
             <button
               type="button"
-              className="btn btn-sm bg-light text-default-700 shrink-0 hover:bg-light-hover"
-              onClick={onCloseSheet}
+              className="-me-1.5 flex size-11 shrink-0 items-center justify-center rounded-lg"
+              onClick={closeSheet}
               aria-label="ปิด"
             >
-              <Icon icon="x" className="size-4" aria-hidden="true" />
+              <span className="bg-light text-default-700 hover:bg-light-hover flex size-8 items-center justify-center rounded-md">
+                <Icon icon="x" className="size-4" aria-hidden="true" />
+              </span>
             </button>
           </div>
           {/* min-h-0 flex-1 = ส่วนที่เลื่อนได้หดเอง เนื้อหายาวจึงไม่ดันชีตทะลุจอ */}
@@ -668,7 +729,14 @@ export default function ReturnPanel({
         primary: (
           <button
             type="button"
-            className="btn bg-primary hover:bg-primary-hover min-h-11 flex-1 text-sm font-medium text-white disabled:opacity-60"
+            /* 🛑 `disabled:opacity-60` บนพื้นน้ำเงินยังอ่านเป็น "ปุ่มน้ำเงินที่กดได้" (วัดจากจอ
+               2026-08-26: bg rgb(35,109,201) opacity .6) — กลุ่มผู้ใช้ที่ PRODUCT.md ผูกไว้จะกดซ้ำ
+               แล้วสรุปว่าแอปค้าง · ม็อกอัพที่อนุมัติใช้ `bg-default-200 text-default-500` */
+            className={
+              stepOneBlock !== null
+                ? 'btn bg-default-200 text-default-500 min-h-11 flex-1 text-sm font-medium'
+                : 'btn bg-primary hover:bg-primary-hover min-h-11 flex-1 text-sm font-medium text-white'
+            }
             disabled={stepOneBlock !== null}
             onClick={() => setStep(2)}
           >
@@ -694,7 +762,14 @@ export default function ReturnPanel({
         primary: (
           <button
             type="button"
-            className="btn bg-primary hover:bg-primary-hover min-h-11 flex-1 text-sm font-medium text-white disabled:opacity-60"
+            /* 🛑 `disabled:opacity-60` บนพื้นน้ำเงินยังอ่านเป็น "ปุ่มน้ำเงินที่กดได้" (วัดจากจอ
+               2026-08-26: bg rgb(35,109,201) opacity .6) — กลุ่มผู้ใช้ที่ PRODUCT.md ผูกไว้จะกดซ้ำ
+               แล้วสรุปว่าแอปค้าง · ม็อกอัพที่อนุมัติใช้ `bg-default-200 text-default-500` */
+            className={
+              selectedLines.length === 0
+                ? 'btn bg-default-200 text-default-500 min-h-11 flex-1 text-sm font-medium'
+                : 'btn bg-primary hover:bg-primary-hover min-h-11 flex-1 text-sm font-medium text-white'
+            }
             disabled={selectedLines.length === 0}
             onClick={() => setStep(3)}
           >
@@ -767,7 +842,10 @@ export default function ReturnPanel({
                 <input
                   type="radio"
                   name="return-method"
-                  className="form-radio mt-0.5 shrink-0"
+                  /* 🛑 `rounded-full!` ไม่ใช่ของตกแต่ง — `_forms.css` ให้ `.form-radio` เป็น
+                     `rounded` (4px) ⇒ เรนเดอร์เป็น **สี่เหลี่ยม** อ่านเป็น checkbox ทั้งที่
+                     เลือกได้ข้อเดียว · sibling ที่ทำถูก: AuctionTimeCard.tsx:57 · KeywordEditorClient.tsx:1249 */
+                  className="form-radio rounded-full! mt-0.5 shrink-0"
                   checked={on}
                   onChange={() => {
                     setMethodKey(m.key)
@@ -787,7 +865,10 @@ export default function ReturnPanel({
                     {/* badge เป็นกลาง ไม่ใช่สี semantic — "ใครจ่าย" เป็นข้อเท็จจริง ไม่ใช่สถานะ */}
                     <span className="badge bg-default-100 text-default-700 text-2xs">{m.money}</span>
                   </span>
-                  <span className="text-default-600 block text-xs">{m.detail}</span>
+                  {/* 🛑 ต้องประกาศ `font-normal` เอง — `_reboot.css:28` ตั้ง `label { font-semibold }`
+                      และการ์ดทั้งใบเป็น `<label>` ⇒ คำอธิบายได้ 600 ส่วนหัวข้อประกาศ `font-medium` (500)
+                      = คำอธิบายหนากว่าชื่อข้อ ลำดับชั้นกลับหัวโดยไม่มีใครตั้งใจ (วัดจากจอ 2026-08-26) */}
+                  <span className="text-default-600 block text-xs font-normal">{m.detail}</span>
                 </span>
               </label>
             )
@@ -796,7 +877,9 @@ export default function ReturnPanel({
 
         {method && <div className="mt-2">{renderCourierPicker()}</div>}
 
-        {stepOneBlock && stepOneBlock !== 'NO_METHOD' && (
+        {/* บอกเหตุผลทุกกรณีรวม NO_METHOD — ปุ่มที่กดไม่ได้โดยไม่บอกว่าทำไม
+            คือจอที่ "ค้าง" ในสายตาผู้ใช้ที่ไม่คุ้นเคย */}
+        {stepOneBlock && (
           <p className="text-warning-ink mt-2 mb-0 flex items-start gap-1.5 text-xs">
             <Icon icon="alert-triangle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
             {METHOD_STEP_BLOCK_TEXT[stepOneBlock]}
@@ -826,7 +909,9 @@ export default function ReturnPanel({
           right={
             <button
               type="button"
-              className="text-primary-ink shrink-0 text-xs font-medium underline-offset-2 hover:underline"
+              /* `-my-2` ดูดความสูงที่เพิ่มกลับเข้าไปใน padding ของแถบ — แถบยังสูงเท่าเดิม
+                 แต่พื้นที่นิ้วเป็น 44px (ของเดิมวัดได้ 35×19.5 ซึ่งพลาดง่ายมากบนมือถือ) */
+              className="text-primary-ink -my-2 flex min-h-11 shrink-0 items-center px-1 text-xs font-medium underline-offset-2 hover:underline"
               onClick={() => setStep(1)}
             >
               เปลี่ยน
@@ -837,7 +922,7 @@ export default function ReturnPanel({
         {/* ปุ่มย้อนกลับพูดชื่อข้อที่เลือกไว้ด้วย = ไม่ต้องจำ และแก้ได้ในคลิกเดียว */}
         <button
           type="button"
-          className="btn btn-sm bg-light text-default-800 hover:bg-default-200 mt-3 max-w-full"
+          className="btn btn-sm bg-light text-default-800 hover:bg-default-200 mt-3 min-h-11 max-w-full"
           onClick={() => setStep(1)}
         >
           <Icon icon="arrow-left" className="size-4 shrink-0" aria-hidden="true" />
@@ -858,9 +943,14 @@ export default function ReturnPanel({
               {/* D-9: รูปจริง · ไม่มีรูป = กล่องเทา **เปล่า** ห้ามใช้ไอคอนแทน */}
               <ItemThumbnail imageUrl={i.imageUrl} name={i.name} fallback="blank" />
               <span className="min-w-0 flex-1">
-                <span className="text-default-900 block truncate text-sm">{i.name}</span>
+                {/* 🛑 ชื่อของคือตัวระบุตัวตนตอนตัดสินว่าจะคืนชิ้นไหน (= เงิน) — `truncate` ตัดมัน
+                    เหลือบรรทัดเดียวที่ 390px ("ชุดไฟหน้า LED Pre…") ขณะที่ meta ซึ่งสำคัญน้อยกว่า
+                    ได้ 3 บรรทัด · ให้ชื่อกาง 2 บรรทัด แล้วย่อ meta แทน */}
+                <span className="text-default-900 line-clamp-2 block text-sm">{i.name}</span>
                 <span className="text-default-500 block text-xs">
-                  ซื้อ {i.orderedQty} · คืนได้ {i.remainingQty} · {formatBaht(i.unitPrice)}/ชิ้น
+                  {/* "ซื้อ N" ซ้ำกับ "คืนได้ N" เมื่อยังไม่เคยคืน — พูดครั้งเดียวตามม็อกอัพ */}
+                  {i.returnedQty > 0 ? `ซื้อ ${i.orderedQty} · ` : ''}
+                  คืนได้ {i.remainingQty} · {formatBaht(i.unitPrice)}/ชิ้น
                 </span>
               </span>
               {/* stepper — ยกโครงจาก `orders/new/components/QuickLineItem.tsx` (โดเมนเดียวกัน:
@@ -918,7 +1008,17 @@ export default function ReturnPanel({
     const lines = eligibility!.items.filter((i) => (qty[i.orderItemId] ?? 0) > 0)
     const usesIship = method != null && methodUsesIship(method.key)
     /** ค่าส่งขากลับเข้าต้นทุนร้านไหม — เกณฑ์เดียวกับที่ service บังคับ ไม่ใช่คำที่คิดขึ้นใหม่ */
-    const asCost = method != null && resolveReturnShippingChoice(method.key, trackingNo, countAsCost).countAsCost
+    const asCost = shopPaysCost
+    /**
+     * ตัวเลขที่จะเข้าต้นทุนจริง — ร้านกรอกเอง หรือราคาประเมินของ iShip · `null` = ยังไม่รู้
+     * ลำดับตรงกับ `resolveReturnShippingCost()` ฝั่ง service (กรอกเอง > ราคาจริง > ประเมิน)
+     */
+    const knownCost: number | null =
+      shippingCostDraft.trim() !== '' && Number.isFinite(Number(shippingCostDraft))
+        ? Number(shippingCostDraft)
+        : price.kind === 'PRICE'
+          ? price.amount
+          : null
 
     return (
       <>
@@ -929,7 +1029,7 @@ export default function ReturnPanel({
 
         {/* 1 · ของที่คืน */}
         <div className="border-default-200 mb-2 rounded-lg border p-3">
-          <p className="text-default-500 mb-1.5 text-2xs font-semibold">ของที่คืน</p>
+          <p className="text-default-500 mb-1.5 text-xs font-semibold">ของที่คืน</p>
           {lines.map((i) => (
             <div key={i.orderItemId} className="mb-1.5 flex items-center gap-2.5 last:mb-0">
               <ItemThumbnail imageUrl={i.imageUrl} name={i.name} fallback="blank" />
@@ -950,7 +1050,7 @@ export default function ReturnPanel({
 
         {/* 2 · พัสดุ 2 ขา คนละบรรทัด (D-3) */}
         <div className="border-default-200 mb-2 rounded-lg border p-3">
-          <p className="text-default-500 mb-2 text-2xs font-semibold">พัสดุ</p>
+          <p className="text-default-500 mb-2 text-xs font-semibold">พัสดุ</p>
           <div className="mb-1.5">{renderForwardStrip()}</div>
           <ParcelStrip
             label="ขากลับ"
@@ -967,22 +1067,29 @@ export default function ReturnPanel({
                 .join(' · ') || null
             }
           />
+          {/* 🛑 3 ทาง ไม่ใช่ 2 — "เข้าต้นทุนแต่ยังไม่รู้จำนวน" ต้องพูดออกมา ไม่ใช่ปล่อยให้
+              ประโยคเดียวสัญญาว่าจะโผล่ในหน้ากำไร ทั้งที่ยังไม่มีตัวเลขให้โผล่
+              (`partial-data-must-be-labeled-or-filled.md` — บอก หรือ เติมให้เต็ม ห้ามเงียบ) */}
           <p className="text-default-600 mt-2 mb-0 text-xs">
-            {asCost ? (
+            {!asCost ? (
+              <>ลูกค้าออกค่าส่งขากลับเอง — ไม่นับเป็นต้นทุนร้าน</>
+            ) : knownCost != null ? (
               <>
-                ค่าส่งขากลับ
-                {price.kind === 'PRICE' ? ` ~${formatBaht(price.amount)} ` : ' '}
-                เข้าเป็น<span className="font-semibold">ต้นทุนร้าน</span> — จะไปโผล่ในหน้ากำไร/ขาดทุน
+                ค่าส่งขากลับ {formatBaht(knownCost)} เข้าเป็น
+                <span className="font-semibold">ต้นทุนร้าน</span> — จะไปโผล่ในหน้ากำไร/ขาดทุน
               </>
             ) : (
-              <>ลูกค้าออกค่าส่งขากลับเอง — ไม่นับเป็นต้นทุนร้าน</>
+              <>
+                ค่าส่งขากลับเข้าเป็น<span className="font-semibold">ต้นทุนร้าน</span> —{' '}
+                <span className="text-warning-ink">ยังไม่ได้ระบุจำนวน จะยังไม่ถูกนับในหน้ากำไร/ขาดทุนจนกว่าจะกรอก</span>
+              </>
             )}
           </p>
         </div>
 
         {/* 3 · ลูกค้าส่งกลับมาที่ไหน (D-7) — คำถามที่หัวหน้าถามมาเอง ตอบบนจอ ไม่ให้เดา */}
         <div className="bg-default-50 border-default-200 mb-2 rounded-lg border p-3">
-          <p className="text-default-500 mb-1 text-2xs font-semibold">ลูกค้าส่งกลับมาที่</p>
+          <p className="text-default-500 mb-1 text-xs font-semibold">ลูกค้าส่งกลับมาที่</p>
           <p className="text-default-900 mb-0 text-sm">
             ที่อยู่ผู้ส่งของร้าน (ตั้งค่า → การจัดส่ง)
             <span className="text-default-600 block text-xs">
@@ -995,7 +1102,7 @@ export default function ReturnPanel({
         {/* 4 · หลังกดยืนยัน — ข้อความต่างกันตามวิธี ไม่ใช่ชุดเดียวใช้ทุกกรณี
             (บอกว่าจะได้ "ออกเลขพัสดุ" ทั้งที่เลือกทางที่ไม่มีเลข = โกหกร้าน) */}
         <div className="border-default-200 rounded-lg border p-3">
-          <p className="text-default-500 mb-2 text-2xs font-semibold">หลังกดยืนยัน</p>
+          <p className="text-default-500 mb-2 text-xs font-semibold">หลังกดยืนยัน</p>
           <ol className="text-default-700 mb-0 list-inside list-decimal space-y-1.5 text-xs">
             {usesIship ? (
               <>
@@ -1190,10 +1297,30 @@ export default function ReturnPanel({
               checked={countAsCost}
               onChange={(e) => setCountAsCost(e.target.checked)}
             />
-            <span>
+            <span className="font-normal">
               ลูกค้าออกเลขเอง แต่<span className="font-semibold">มาเรียกเก็บร้านทีหลัง</span> — บันทึกเป็นต้นทุนร้าน
             </span>
           </label>
+        )}
+
+        {/* ค่าส่งที่ร้านจ่ายจริง — ถามเฉพาะตอนที่มันจะเข้าต้นทุนร้านจริง ๆ
+            (วิธี iShip ไม่ถาม เพราะระบบรู้ราคาเองจากขนส่งหลังชั่งน้ำหนัก) */}
+        {!usesIship && shopPaysCost && (
+          <div className="mt-2">
+            <label className="form-label text-default-600 mb-0.5 text-xs" htmlFor="return-shipping-cost">
+              ค่าส่งขากลับที่ร้านจ่าย (บาท)
+            </label>
+            <input
+              id="return-shipping-cost"
+              className="form-input"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              placeholder="ยังไม่รู้ตอนนี้ก็เว้นว่างได้"
+              value={shippingCostDraft}
+              onChange={(e) => setShippingCostDraft(e.target.value)}
+            />
+          </div>
         )}
       </div>
     )
