@@ -111,6 +111,21 @@ const MessageSchema = v.object({
   // feature 00018 Phase 3 — reply/unsend
   reply_to: v.optional(v.object({ mid: v.optional(v.string()) })), // ตอบทับข้อความ mid นี้
   is_deleted: v.optional(v.boolean()), // ผู้ส่ง unsend ข้อความ (mid = ข้อความที่ถูกลบ)
+  /**
+   * ธง 3 ตัวนี้ Meta ส่งมาให้ตลอดแต่ **Valibot ตัดทิ้งมาตั้งแต่วันแรก** — ค่ามีอยู่ใน
+   * `ChatMessage.rawMessage` (payload ก่อน parse) แต่โค้ดเอาไปใช้ตัดสินใจไม่ได้เลย
+   * คลาสเดียวกับ `AttachmentSchema.type` ที่เคยทำรูป 6 ใบหายทั้งชุด (2026-08-04)
+   *
+   * is_unsupported = Meta ประกาศเองว่าชนิดนี้ไม่ส่งเนื้อหามาให้ (ยืนยันเคสจริง: สติกเกอร์ IG)
+   * ai_generated  = AI ของ Meta เป็นคนเขียนข้อความนี้ (มาคู่กับ app_id ของ Page Inbox)
+   * app_id        = แอปที่ส่งข้อความนี้ — number บ้าง string บ้างตามที่ Meta ส่งมา
+   *
+   * ทั้งสามเป็น optional เสมอตามกติกา external payload (field ที่ประกาศเป็นบังคับทั้งที่ Meta
+   * ไม่ส่งทุกครั้ง = Valibot ตี event ตกทั้งก้อน ⇒ ข้อความหายเงียบ)
+   */
+  is_unsupported: v.optional(v.boolean()),
+  ai_generated: v.optional(v.boolean()),
+  app_id: v.optional(v.union([v.string(), v.number()])),
 })
 
 const MessagingEventSchema = v.object({

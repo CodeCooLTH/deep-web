@@ -25,6 +25,8 @@ import { LINE_PREVIEW_MAX_SIZE } from '@/lib/chat-attachment'
 // (TOKEN_INVALID/CONTACT_BLOCKED/QUOTA_EXCEEDED/LINE_UNAVAILABLE) — ดู classifyLineOutboundError
 import { LineApiError } from '@/lib/line/client'
 import { decryptToken } from '@/lib/token-crypto'
+// SSOT ของคำแทนเนื้อหาที่แสดงเองไม่ได้ — ผันตามช่องทาง (HR16)
+import { attachmentFailedText, emptyMessageText, emptyMessagePreview } from '@/lib/chat-placeholder-text'
 import { getFileUrl, getFile, getFileMeta } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
 // feature 00051 (S-3): choke point จริงของ dedup — saveMirroredBuffer กลายเป็น thin wrapper
@@ -570,8 +572,9 @@ export type IngestStatus = 'STORED' | 'DUPLICATE' | 'NO_CHANNEL' | 'IGNORED'
 // size cap ด้านล่าง) การกัน DoS ที่แท้จริงคือ readBodyWithCap ที่นับ byte สดระหว่างอ่าน ไม่ใช่ตัวเลขนี้
 const MIRROR_MAX_BYTES = 25 * 1024 * 1024
 
-// bubble ต้องไม่ว่างเปล่าแม้กรณี mirror รูปไม่ผ่าน หรือ attachment เป็นชนิดที่เราไม่รองรับ (I-5)
-const MIRROR_FAILED_TEXT = '[ลูกค้าส่งรูปภาพ — เปิดดูใน Messenger]'
+// 🛑 `MIRROR_FAILED_TEXT` ถูกถอดออก 2026-08-26 — มันคือ '[**ลูกค้าส่ง**รูปภาพ — …]' ซึ่งขัดกับ
+// เหตุผลที่เขียนไว้เองใต้บรรทัดนี้ (ห้ามระบุผู้ส่ง เพราะ ingest ใช้ path เดียวกันทั้งข้อความลูกค้า
+// และ echo ของร้าน) คำใหม่อยู่ที่ `chat-placeholder-text.ts` และไม่ระบุผู้ส่งแล้วทุกชนิด
 // ข้อความแทนไฟล์แนบที่ระบบยังไม่รองรับ (เสียง/วิดีโอ/ไฟล์)
 // เขียนแบบไม่ระบุว่าใครเป็นคนส่ง เพราะ ingest ใช้ path เดียวกันทั้งข้อความของลูกค้าและ
 // echo ของฝั่งร้าน — ถ้าเขียนว่า "ลูกค้าส่ง" จะโกหกเมื่อคนส่งคือร้านเอง (เห็นจริงใน prod)
@@ -1381,39 +1384,21 @@ export async function ingestInboundMessage(params: {
         ? linkText
         : (structuredText ?? renderedText)
   const hasDisplayText = !!displayText && displayText.trim().length > 0
-  // placeholder เฉพาะชนิด (I-5, user 2026-07-24) — ไม่ใช่ "[ไฟล์แนบ]" รวมทุกชนิด. ใช้เมื่อไม่มี text จริง
-  // และดึงข้อความ render จาก Graph ไม่ได้ (offline/หมดเวลา) — อย่างน้อยบอกชนิดให้ถูก. sticker/reel/ig_reel/
-  // post/ig_post = alias ของ image/video/fallback ตามลำดับ (feature 00018 attachment types เต็มชุด)
-  const FAILED_TEXT_BY_TYPE: Record<string, string> = {
-    image: MIRROR_FAILED_TEXT,
-    sticker: MIRROR_FAILED_TEXT,
-    video: '[วิดีโอ — เปิดดูใน Messenger]',
-    reel: '[วิดีโอ — เปิดดูใน Messenger]',
-    ig_reel: '[วิดีโอ — เปิดดูใน Messenger]',
-    audio: '[ข้อความเสียง — เปิดดูใน Messenger]',
-    file: '[ไฟล์แนบ — เปิดดูใน Messenger]',
-    location: '[ตำแหน่งที่ตั้ง — เปิดดูใน Messenger]',
-    fallback: '[ลิงก์/โพสต์ที่แชร์ — เปิดดูใน Messenger]',
-    post: '[ลิงก์/โพสต์ที่แชร์ — เปิดดูใน Messenger]',
-    ig_post: '[ลิงก์/โพสต์ที่แชร์ — เปิดดูใน Messenger]',
-    template: '[ข้อความจากระบบ (ออเดอร์/ชำระเงิน) — เปิดดูใน Messenger]',
-    story_mention: '[กล่าวถึงในสตอรี่ — เปิดดูใน Instagram]',
-  }
-  const attachmentFailedText = (attType && FAILED_TEXT_BY_TYPE[attType]) ?? UNSUPPORTED_ATTACHMENT_TEXT
-  // ข้อความที่ไม่มีทั้ง text และ attachment (ชนิดพิเศษที่ Messenger ส่ง message มาแต่ไม่มีเนื้อหาที่
-  // เราแสดงได้) → placeholder แทน body/preview ว่าง (บั๊กจริง prod: bubble ว่าง 2026-07-23)
+  // placeholder เฉพาะชนิด (I-5, user 2026-07-24) — ไม่ใช่ "[ไฟล์แนบ]" รวมทุกชนิด. ใช้เมื่อไม่มี text
+  // จริงและดึงข้อความ render จาก Graph ไม่ได้ (offline/หมดเวลา) — อย่างน้อยบอกชนิดให้ถูก
   //
-  // เคสที่ยืนยันแล้วว่าตกมาที่นี่ (user report 2026-07-26): ลูกค้ากด "Call me in Messenger"
-  // — การ์ดขอโทรกลับ. ทั้ง webhook และ Graph (`GET /{mid}?fields=message,attachments`) คืน
-  // `message: ""` ไม่มี attachments เลย → เนื้อหาการ์ดไม่ได้มาทางข้อความ ต้องเป็น webhook field
-  // อื่นที่ยังไม่ได้ subscribe (ยังไม่รู้ว่าอันไหน — ดู console.warn ด้านล่างที่เก็บ payload ไว้สืบ)
-  //
-  // ถ้อยคำจึงบอก "เคสที่พบบ่อยสุด" โดยไม่ฟันธงว่าเป็นการโทรเสมอ — เขียนว่า "ไม่รองรับการโทรกลับ"
-  // ตรง ๆ จะโกหกเมื่อเจอชนิดอื่นที่ตกมาทางเดียวกัน
-  const emptyMessageText = '[ข้อความพิเศษ เช่น คำขอโทรกลับ — ระบบยังไม่รองรับ เปิดดูใน Messenger]'
-  // ข้อความจริง/สรุปจาก Graph มาก่อน placeholder แนบไฟล์เสมอ (bug prod 2026-07-24: template/order ที่มี
-  // ข้อความถูกทับด้วย "[ไฟล์แนบ]" ทิ้งเนื้อหาจริง) — placeholder เฉพาะตอน "ไม่มีข้อความให้แสดงจริง ๆ"
-  const body = mirroredFileId ? text : hasDisplayText ? displayText : hasAttachment ? attachmentFailedText : emptyMessageText
+  // 🛑 ย้ายตารางคำไป `src/lib/chat-placeholder-text.ts` (2026-08-26) เพราะของเดิมฮาร์ดโค้ดคำว่า
+  // "เปิดดูใน Messenger" ไว้ทุกบรรทัด แล้ว **เส้นทาง ingest ของ Instagram ใช้ตารางเดียวกัน** ⇒
+  // ไฟล์แนบ IG ที่ mirror ไม่ผ่านสั่งให้ผู้ขายไปเปิดแอปผิดตัวมาตลอด (บั๊กที่มีอยู่ก่อน)
+  const attachmentFailedTextValue = attachmentFailedText(provider, attType)
+  // ข้อความที่ไม่มีทั้ง text และ attachment — เดิมเขียนตายตัวว่า "เช่น คำขอโทรกลับ" ตั้งแต่ตอนที่
+  // ยังไม่รู้สาเหตุ (2026-07-26). เปิด rawMessage บน prod แล้วพบว่าเป็น 3 เรื่องคนละอย่าง และคำเดิม
+  // ถูกแค่เรื่องเดียว — ตอนนี้แยกตามธงที่ Meta ส่งมาจริง (ดู emptyMessageText)
+  const emptyMessageTextValue = emptyMessageText(provider, {
+    isUnsupported: event.message?.is_unsupported,
+    aiGenerated: event.message?.ai_generated,
+  })
+  const body = mirroredFileId ? text : hasDisplayText ? displayText : hasAttachment ? attachmentFailedTextValue : emptyMessageTextValue
   // diagnostic (2026-07-26): ข้อความที่ไม่มีทั้ง text และ attachment — ตอนนี้รู้แค่ว่าเคสหนึ่งคือ
   // การ์ด "ขอโทรกลับ" แต่ยังระบุไม่ได้ว่ามาทาง field ไหน. log "คีย์" ของ message + ของ event
   // (ไม่ log ค่า — กัน PII) ไว้ให้ครั้งหน้าที่เกิด จะได้รู้ว่ามีอะไรติดมาบ้างที่เรายังไม่ได้ parse
@@ -1422,6 +1407,9 @@ export async function ingestInboundMessage(params: {
       messageKeys: Object.keys(event.message ?? {}),
       eventKeys: Object.keys(event),
       isEcho,
+      // ธงที่เพิ่งเข้า schema (2026-08-26) — ทำให้ log ตอบได้เองว่าใบนี้ตกมาที่ placeholder เพราะอะไร
+      isUnsupported: event.message?.is_unsupported ?? null,
+      aiGenerated: event.message?.ai_generated ?? null,
     })
   }
   const previewByType: Record<string, string> = {
@@ -1471,7 +1459,10 @@ export async function ingestInboundMessage(params: {
       ? displayText!.slice(0, 100)
       : hasAttachment
         ? ((attType && SHORT_PREVIEW_BY_ATTTYPE[attType]) ?? '[ไฟล์แนบ]')
-        : emptyMessageText
+        : emptyMessagePreview({
+            isUnsupported: event.message?.is_unsupported,
+            aiGenerated: event.message?.ai_generated,
+          })
   // หลายรูป → preview บอกจำนวน "[N รูป]" (นับตัวแรก + extra) แทน "[รูปภาพ]" เดี่ยว
   const mediaCount = (mirroredFileId ? 1 : 0) + extraMedia.length
   const preview = mediaCount > 1 ? `[${mediaCount} รูป]` : singlePreview
