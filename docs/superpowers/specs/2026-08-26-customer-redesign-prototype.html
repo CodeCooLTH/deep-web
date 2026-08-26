@@ -47,8 +47,8 @@
   .proto-dev iframe{border:1px solid #ced4de;border-radius:12px;background:#f6f7fb;display:block}
   /* เดสก์ท็อปย่อ 0.62 เพื่อให้เห็นทั้งความกว้าง 1280 ในจอเดียว — ตัวหนังสือเล็กลงตามจริง
      ห้ามอ่านขนาดตัวอักษรจากกรอบนี้ ให้ดูสัดส่วน/ลำดับชั้นแทน */
-  .proto-scale{transform:scale(.62);transform-origin:top left}
-  .proto-scalebox{width:794px;height:558px;overflow:hidden}
+  .proto-scale{transform:scale(.78);transform-origin:top left}
+  .proto-scalebox{width:998px;height:702px;overflow:hidden}
 
   .proto-bar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9999;
     display:flex;align-items:center;gap:4px;background:#111827;color:#fff;border-radius:999px;
@@ -105,6 +105,51 @@ const avatar = (c,sz='size-8') => `<div class="bg-primary/10 text-primary flex $
 </script>
 <script>
 /* ═══════════════════════════════════════════════════════════════════════════
+   บล็อกที่ยกมาจากธีมจริง (HR1) — ไม่ประกอบเอง
+     · แผงตัวตนสีจาง   Base: apps/ecommerce/(sellers)/seller-details/components/SellerContact.tsx
+     · แถวไอคอนไทล์     Base: ไฟล์เดียวกัน (btn btn-icon bg-light size-8 + ป้าย + ค่าตัวหนา)
+     · การ์ดคน 3 สถิติ  Base: apps/users/contacts/page.tsx (ContactCard)
+     · การ์ดสถิติ       Base: apps/ecommerce/(sellers)/seller-details/components/SellerStatisticCard.tsx
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** แผงตัวตน — พื้นจาง+ขอบ ให้มิติโดยไม่ต้องซ้อนการ์ด (nested card = ของต้องห้าม) */
+function identityPanel(c, action){
+  return `<div class="bg-light/15 border-light flex flex-nowrap items-center justify-between gap-2 rounded border p-2.5">
+    <div class="flex min-w-0 items-center gap-3">${avatar(c,'size-12')}
+      <div class="min-w-0">
+        <h4 class="mb-1.25 truncate font-bold">${c.n}</h4>
+        <p class="text-default-400 truncate text-sm">${c.ord} ออเดอร์ · ซื้อล่าสุด ${c.last.slice(0,10)}</p>
+      </div></div>
+    ${action||''}
+  </div>`
+}
+/** แถวไอคอนไทล์ — ป้ายซ้าย ค่าขวาตัวหนา */
+function tileRow(icon, label, value, tone){
+  return `<div class="mb-2.5 flex items-center gap-2.5">
+    <div class="btn btn-icon bg-light size-8"><iconify-icon icon="tabler:${icon}" class="text-default-400 text-lg"></iconify-icon></div>
+    <p class="mb-0 flex-1 text-sm">${label}: <span class="font-semibold ${tone||''}">${value}</span></p>
+  </div>`
+}
+/** 3 สถิติคั่นเส้นประ — โครงเดียวกับ ContactCard ของธีม */
+function statTriplet(c){
+  const cell=(v,l,tone)=>`<div><h5 class="mb-0 ${tone||''} tabular-nums">${v}</h5><span class="text-default-400 text-xs">${l}</span></div>`
+  return `<hr class="border-default-300 mt-base mb-4 border-dashed">
+    <div class="flex justify-between text-center">
+      ${cell(`${c.recv}/${c.ship}`,'รับของ')}
+      ${cell(c.ret||'—','ตีกลับ', c.ret?'text-warning-ink':'')}
+      ${cell(baht(c.spent),'ยอดซื้อสะสม')}
+    </div>`
+}
+/* 🛑 `shrink-0 whitespace-nowrap` บังคับ — flex item มี min-width:auto เป็นค่าตั้งต้น
+   ป้ายจึงยอมหดแล้วตกบรรทัดเป็น 2 แถวบนมือถือ (บทเรียน flex-header-truncation.md) */
+const BADGE = 'badge shrink-0 whitespace-nowrap'
+const riskBadge = c => c.risk==='high'
+  ? `<span class="${BADGE} bg-warning/15 text-warning-ink">เสี่ยงสูง</span>`
+  : c.risk==='watch' ? `<span class="${BADGE} bg-warning/15 text-warning-ink">เฝ้าระวัง</span>`
+  : c.risk==='ok' ? `<span class="${BADGE} bg-success/15 text-success-ink">ลูกค้าประจำ</span>`
+  : `<span class="${BADGE} bg-light text-default-600">ยังบอกไม่ได้</span>`
+
+/* ═══════════════════════════════════════════════════════════════════════════
    VARIANT A — "คิวงานตามความเสี่ยง"
    โครง: ไม่มีตาราง ไม่มีหน้าแบ่ง — จัดกลุ่มตามระดับความเสี่ยงพร้อมหัวกลุ่มติดหนึบ
    affordance หลัก: "เคลียร์กลุ่มบนสุดให้หมด" ไม่ใช่ "เลื่อนหาคนที่ต้องการ"
@@ -118,15 +163,16 @@ const GROUPS = [
 ]
 function VariantA(){
   const rows = g => C.filter(c=>c.risk===g).map(c=>`
-    <div class="border-default-200 flex items-center gap-3 border-b border-dashed px-4 py-3 last:border-0">
-      ${avatar(c)}
-      <div class="min-w-0 flex-1">
-        <p class="text-default-900 mb-0 truncate text-sm font-medium">${c.n}</p>
-        ${bar(c)}${legend(c)}
-      </div>
-      <div class="shrink-0 text-end">
-        <p class="text-default-900 mb-0 text-sm font-bold tabular-nums">${baht(c.spent)}</p>
-        <p class="text-default-400 text-2xs mb-0 tabular-nums">${c.ord} ออเดอร์</p>
+    <div class="border-default-200 border-b border-dashed p-4 last:border-0">
+      ${identityPanel(c, riskBadge(c))}
+      <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>${bar(c)}${legend(c)}</div>
+        <div class="flex items-center justify-end gap-2">
+          <button class="btn btn-sm bg-primary text-white hover:bg-primary-hover gap-1">
+            <iconify-icon icon="tabler:user"></iconify-icon>เปิดโปรไฟล์</button>
+          <button class="btn btn-sm border-default-300 text-default-800 gap-1">
+            <iconify-icon icon="tabler:message"></iconify-icon>ทักแชท</button>
+        </div>
       </div>
     </div>`).join('')
   return `
@@ -185,28 +231,34 @@ function VariantB(){
       </div>
     </div>
     <div class="lg:col-span-2">
-      <div class="card border-warning border-s-3">
-        <div class="card-header">
-          <div class="flex min-w-0 items-center gap-2.5">${avatar(sel,'size-10')}
-            <div class="min-w-0"><h5 class="card-title mb-0 truncate">${sel.n}</h5>
-              <p class="text-default-400 text-2xs mb-0">${sel.tel} · ซื้อล่าสุด ${sel.last}</p></div></div>
-          <span class="badge bg-warning/15 text-warning-ink shrink-0">${sel.note}</span>
-        </div>
+      <div class="card lg:sticky lg:top-24">
         <div class="card-body">
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          ${identityPanel(sel, riskBadge(sel))}
+
+          <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <p class="text-default-500 text-2xs mb-0">รับของสำเร็จ (ทั้งระบบ)</p>
               <p class="text-default-900 mb-0 text-3xl font-extrabold tabular-nums">${sel.recv}<span class="text-default-400 ms-1 text-base font-semibold">จาก ${sel.ship} ใบ</span></p>
               ${bar(sel,true)}${legend(sel)}
             </div>
-            <div class="border-default-100 border-t pt-3">
+            <div>
               <p class="text-default-500 text-2xs mb-0">ยอดซื้อสะสม (นับเป็นยอดขายแล้ว)</p>
-              <p class="text-default-900 mb-2 text-3xl font-bold tabular-nums">${baht(sel.spent)}</p>
-              <div class="flex flex-col gap-1.5">
-                ${[['ออเดอร์ทั้งหมด',sel.ord],['เฉลี่ยต่อบิล',baht(Math.round(sel.spent/sel.ord))],['ตีกลับกับร้านนี้',sel.ret+' ครั้ง']]
-                  .map(([k,v])=>`<div class="flex items-center justify-between gap-2"><span class="text-default-500 text-xs">${k}</span><span class="text-default-900 text-xs font-semibold tabular-nums">${v}</span></div>`).join('')}
-              </div>
+              <p class="text-default-900 mb-0 text-3xl font-bold tabular-nums">${baht(sel.spent)}</p>
+              <p class="text-default-400 text-2xs mb-0">เฉลี่ยต่อบิล ${baht(Math.round(sel.spent/sel.ord))}</p>
             </div>
+          </div>
+
+          <hr class="border-default-300 mt-base mb-4 border-dashed">
+          ${tileRow('phone','เบอร์โทร',sel.tel)}
+          ${tileRow('package-off','ตีกลับกับร้านนี้',sel.ret+' ครั้ง', sel.ret?'text-warning-ink':'')}
+          ${tileRow('ban','ยกเลิกกับร้านนี้','1 ครั้ง')}
+          ${tileRow('calendar','ซื้อล่าสุด',sel.last)}
+
+          <div class="mt-base flex gap-2">
+            <button class="btn bg-primary text-white hover:bg-primary-hover gap-1">
+              <iconify-icon icon="tabler:message"></iconify-icon>ทักแชท</button>
+            <button class="btn border-default-300 text-default-800 gap-1">
+              <iconify-icon icon="tabler:receipt"></iconify-icon>ดูออเดอร์ทั้งหมด</button>
           </div>
         </div>
       </div>
@@ -222,47 +274,50 @@ function VariantB(){
    ยอดซื้อสะสมเป็นคอลัมน์ตัวเลขที่เรียงได้เหมือนกัน ⇒ ทั้งสองแกนเท่าเทียมและเทียบข้ามคนได้จริง
    ═══════════════════════════════════════════════════════════════════════════ */
 function VariantC(){
-  const tone = c => c.risk==='high' ? 'text-warning-ink' : c.risk==='watch' ? 'text-warning-ink' : 'text-default-400'
-  const ic   = c => c.risk==='high' ? 'tabler:alert-triangle' : c.risk==='watch' ? 'tabler:eye' : c.risk==='ok' ? 'tabler:circle-check' : 'tabler:minus'
-  const rows = C.map(c=>`
-    <tr>
-      <td class="ps-4"><div class="flex min-w-0 items-center gap-2">
-        <iconify-icon icon="${ic(c)}" class="${tone(c)} shrink-0"></iconify-icon>
-        <span class="text-default-900 truncate text-sm font-medium">${c.n}</span></div></td>
-      <td class="text-default-500 text-xs tabular-nums">${c.tel}</td>
-      <td class="text-end text-sm tabular-nums ${c.ret?'text-warning-ink font-semibold':'text-default-400'}">${rate(c) ?? '—'}</td>
-      <td class="text-default-600 text-end text-xs tabular-nums">${c.recv}/${c.ship}</td>
-      <td class="text-warning-ink text-end text-xs tabular-nums">${c.ret||'—'}</td>
-      <td class="text-default-600 text-end text-xs tabular-nums">${c.ord}</td>
-      <td class="text-default-900 text-end text-sm font-bold tabular-nums">${baht(c.spent)}</td>
-      <td class="text-default-400 pe-3 text-end text-xs tabular-nums">${c.last}</td>
-    </tr>`).join('')
-  const th = (t,end)=>`<th class="text-default-500 ${end?'text-end':''} text-2xs font-semibold whitespace-nowrap">${t}</th>`
+  /* การ์ดคน — Base: theme apps/users/contacts/page.tsx (ContactCard)
+     🛑 ใช้การ์ดเฉพาะ "คนที่ต้องดูก่อน" เท่านั้น ไม่ใช่ทั้ง 397 คน — การ์ดกวาดตาไม่ไหวเมื่อของเยอะ
+        ที่เหลืออยู่ในรายการกะทัดรัดด้านล่าง (affordance ต่างกันโดยตั้งใจ) */
+  const card = c => `
+    <div class="card">
+      <div class="card-body text-center">
+        <div class="mx-auto">${avatar(c,'size-18 mx-auto')}</div>
+        <h5 class="text-md mt-3 truncate">${c.n}</h5>
+        <div class="mt-1.5">${riskBadge(c)}</div>
+        <div class="mt-3">${bar(c)}</div>
+        <div class="flex justify-center">${legend(c)}</div>
+        <div class="mt-base flex justify-center gap-2">
+          <button class="btn btn-sm bg-primary text-white hover:bg-primary-hover">เปิดโปรไฟล์</button>
+          <button class="btn btn-sm border-default-300 text-default-800">ทักแชท</button>
+        </div>
+        ${statTriplet(c)}
+      </div>
+    </div>`
+  const watch = C.filter(c=>c.risk==='high'||c.risk==='watch')
+  const rest  = C.filter(c=>c.risk!=='high'&&c.risk!=='watch')
   return `
-  <div class="card">
-    <div class="card-header">
-      <div class="flex min-w-0 max-w-xl flex-1 gap-2.5">
-        <div class="input-icon-group"><iconify-icon icon="tabler:search" class="input-icon"></iconify-icon>
-          <input class="form-input" placeholder="ค้นหาชื่อ หรือ เบอร์โทร" aria-label="ค้นหาลูกค้า"></div>
-      </div>
-      <div class="hidden items-center gap-2.5 lg:flex">
-        <button class="btn btn-light gap-1"><iconify-icon icon="tabler:filter"></iconify-icon>ตัวกรอง</button>
-        <button class="btn btn-light gap-1">แถวละ 40 <iconify-icon icon="tabler:chevron-down"></iconify-icon></button>
-      </div>
-    </div>
-    <div class="table-wrapper"><div class="table-responsive"><table class="table">
-      <thead class="bg-light/50"><tr>
-        ${th('ลูกค้า')}${th('เบอร์โทร')}${th('อัตราตีกลับ',1)}${th('รับของ',1)}${th('ตีกลับ',1)}${th('ออเดอร์',1)}${th('ยอดซื้อสะสม',1)}${th('ออเดอร์ล่าสุด',1)}
-      </tr></thead><tbody>${rows}</tbody>
-    </table></div></div>
+  <div class="mb-4 flex items-center justify-between gap-3">
+    <div><h4 class="text-default-900 mb-0 text-base font-bold">ต้องดูก่อน <span class="text-default-400 tabular-nums">${watch.length}</span></h4>
+      <p class="text-default-500 text-2xs mb-0">จากลูกค้าทั้งหมด 397 คน</p></div>
+    <div class="input-icon-group max-w-xs"><iconify-icon icon="tabler:search" class="input-icon"></iconify-icon>
+      <input class="form-input" placeholder="ค้นหาชื่อ หรือ เบอร์โทร" aria-label="ค้นหาลูกค้า"></div>
   </div>
-  <p class="text-default-400 text-2xs mt-2 mb-0">อัตราตีกลับขึ้นเฉพาะลูกค้าที่มีพัสดุครบ 3 ใบ — ที่เหลือแสดง <b>—</b> ไม่ใช่ 0%</p>`
+  <div class="grid grid-cols-1 gap-base sm:grid-cols-2 lg:grid-cols-4">${watch.map(card).join('')}</div>
+
+  <div class="card mt-base">
+    <div class="card-header"><h5 class="card-title mb-0">ลูกค้าอื่น <span class="text-default-400 tabular-nums">${rest.length}</span></h5></div>
+    ${rest.map(c=>`<div class="border-default-200 flex items-center gap-3 border-b border-dashed px-4 py-2.5 last:border-0">
+      ${avatar(c,'size-8')}
+      <div class="min-w-0 flex-1"><p class="text-default-900 mb-0 truncate text-sm font-medium">${c.n}</p>
+        <p class="text-default-400 text-2xs mb-0">รับของ ${c.recv}/${c.ship} · ${c.ord} ออเดอร์</p></div>
+      <p class="text-default-900 mb-0 shrink-0 text-sm font-bold tabular-nums">${baht(c.spent)}</p>
+    </div>`).join('')}
+  </div>`
 }
 
 const VARIANTS = {
   A:{name:'คิวงานตามความเสี่ยง', fn:VariantA},
   B:{name:'แยกซ้าย-ขวา (master–detail)', fn:VariantB},
-  C:{name:'บัญชีแน่น (เรียงได้ทุกคอลัมน์)', fn:VariantC},
+  C:{name:'กระดานเฝ้าระวัง + รายการที่เหลือ', fn:VariantC},
 }
 </script>
 <script>
@@ -305,9 +360,11 @@ if (frame) {
         <span style="color:#6b7280">CSS ทั้งหมดดึงสดจาก prod (<code>seller.deepthailand.app</code>) — สีและ primitive ที่เห็นคือของจริงวันนี้ ไม่ใช่ token ที่เขียนเลียน</span></div>
     </div>
     <div class="proto-rail">
-      ${dev(390,620,'มือถือ','390 × 620')}
-      ${dev(768,620,'แท็บเล็ต','768 × 620')}
-      ${dev(1280,900,'เดสก์ท็อป','1280 × 900 · ย่อ 62% เพื่อให้เห็นทั้งความกว้าง',true)}
+      ${dev(390,760,'มือถือ','390 × 760')}
+      ${dev(768,760,'แท็บเล็ต','768 × 760')}
+    </div>
+    <div class="proto-rail" style="padding-top:0">
+      ${dev(1280,900,'เดสก์ท็อป','1280 × 900 · ย่อ 78% ให้เห็นทั้งความกว้างโดยไม่ต้องเลื่อน',true)}
     </div>
     <div class="proto-bar" role="group" aria-label="สลับทางเลือก">
       <button type="button" aria-label="ทางเลือกก่อนหน้า" data-step="-1">&#8592;</button>
