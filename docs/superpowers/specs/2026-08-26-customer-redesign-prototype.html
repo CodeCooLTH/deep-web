@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>00057 — re-design หน้าลูกค้า: 3 ทางเลือก (Paces token จริง)</title>
+
+<!--
+  🛑 PROTOTYPE — ของทิ้ง ไม่ใช่โค้ดจริง (skill: mattpocock prototype / UI branch)
+  คำถามที่ไฟล์นี้ตอบ: "หน้า /customers ควรมีหน้าตาแบบไหน" — 3 ทางเลือกที่ต่างกันเชิงโครงสร้าง
+  สลับด้วยแถบลอยล่างจอ (หรือปุ่มลูกศร ซ้าย/ขวา บนคีย์บอร์ด)
+
+  🛑 CSS มาจาก **prod สด ๆ** ไม่ใช่สำเนาในรีโป และไม่ใช่ token ที่เขียนเลียนเอง
+     ⇒ สีที่เห็น = สีจริงของธีมวันนี้ · ธีมเปลี่ยนเมื่อไหร่ไฟล์นี้เปลี่ยนตาม
+     ⇒ ไม่ต้องรัน dev server ไม่ต้องต่อฐานข้อมูล เปิดไฟล์ได้เลย
+     (ม็อกอัพเดิมของโปรเจกต์เขียน :root{--primary:#236dc9} เองใหม่ทั้งชุด ซึ่งเก่าได้เงียบ ๆ)
+     ถ้าวันหน้า chunk hash เปลี่ยนแล้วหน้านี้ขาวโพลน ให้หาใหม่ด้วย:
+       curl -sL https://seller.deepthailand.app/dashboard | grep -oE '/_next/static/[^"]+\.css'
+-->
+<!--
+  🛑 กับดักที่เจอตอนทำไฟล์นี้ (2026-08-26) — **สำคัญกว่าตัวม็อกอัพเอง**
+  Tailwind v4 คอมไพล์เฉพาะ utility ที่ **แอปใช้จริง** ⇒ CSS ก้อนนี้มี token ครบก็จริง
+  แต่ **ไม่มีคลาสที่แอปไม่เคยใช้** และคลาสที่ไม่มีจะ *เงียบสนิท* ไม่มี error ไม่มีอะไรเตือน
+  รอบแรกของไฟล์นี้เขียน `lg:grid-cols-12`/`lg:col-span-4`/`lg:col-span-8` ซึ่งไม่มีในชุด
+  ⇒ Variant B เรนเดอร์ออกมาเป็นคอลัมน์เดียวทั้งที่ออกแบบเป็นสองคอลัมน์ **และดูเหมือนตั้งใจ**
+  ⇒ ก่อนใช้คลาสไหน ตรวจก่อนเสมอ:
+     curl -sL https://seller.deepthailand.app/_next/static/chunks/<hash>.css | grep -o 'lg\\:col-span-2'
+  ที่ยืนยันแล้วว่ามี: grid-cols-1..6 · lg:grid-cols-2..6 · lg:col-span-1..3 ·
+  xl:grid-cols-10/12 · xl:col-span-3/5/7 · md:col-span-2..12 · ps-3/4/5 · pe-2/3 · border-s-3
+-->
+<link rel="stylesheet" href="https://seller.deepthailand.app/_next/static/chunks/ca449cfe6b218059.css">
+<link rel="stylesheet" href="https://seller.deepthailand.app/_next/static/chunks/961616585152df5b.css">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+
+<style>
+  /* ── เฟอร์นิเจอร์ของ prototype เท่านั้น — ไม่ใช่ดีไซน์ที่กำลังประเมิน ──
+     จงใจให้หน้าตาไม่เหมือนธีม จะได้ไม่มีใครเผลออ่านว่าเป็นส่วนหนึ่งของงาน */
+  body.proto-shell{margin:0;background:#e7eaf0;font-family:Anuphan,system-ui,sans-serif}
+  .proto-head{max-width:1600px;margin:0 auto;padding:22px 20px 4px}
+  .proto-head h1{font-size:22px;margin:0 0 6px;color:#313a46}
+  .proto-head p{margin:0 0 4px;color:#5b6472;font-size:14px;max-width:900px;line-height:1.6}
+  .proto-q{background:#fff;border-left:4px solid #236dc9;padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0 0;font-size:14px;color:#334}
+  .proto-rail{display:flex;gap:20px;align-items:flex-start;overflow-x:auto;padding:18px 20px 120px;max-width:1600px;margin:0 auto}
+  .proto-dev{flex:none}
+  .proto-dev figcaption{font-size:13px;font-weight:700;color:#313a46;margin:0 0 6px}
+  .proto-dev iframe{border:1px solid #ced4de;border-radius:12px;background:#f6f7fb;display:block}
+  /* เดสก์ท็อปย่อ 0.62 เพื่อให้เห็นทั้งความกว้าง 1280 ในจอเดียว — ตัวหนังสือเล็กลงตามจริง
+     ห้ามอ่านขนาดตัวอักษรจากกรอบนี้ ให้ดูสัดส่วน/ลำดับชั้นแทน */
+  .proto-scale{transform:scale(.62);transform-origin:top left}
+  .proto-scalebox{width:794px;height:558px;overflow:hidden}
+
+  .proto-bar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9999;
+    display:flex;align-items:center;gap:4px;background:#111827;color:#fff;border-radius:999px;
+    padding:6px 8px;box-shadow:0 10px 30px rgba(17,24,39,.35);font-family:Anuphan,system-ui,sans-serif}
+  .proto-bar button{background:transparent;border:0;color:#fff;cursor:pointer;width:38px;height:38px;
+    border-radius:999px;display:grid;place-items:center;font-size:20px;line-height:1}
+  .proto-bar button:hover{background:rgba(255,255,255,.14)}
+  .proto-bar .lbl{padding:0 12px;font-size:14px;font-weight:600;white-space:nowrap}
+  .proto-bar .lbl small{display:block;font-weight:400;opacity:.7;font-size:12px}
+</style>
+</head>
+<body>
+<script>
+/* ───────────────────────────────────────────────────────────────────────────
+   ข้อมูลตัวอย่าง — อิงของจริงบน prod เท่าที่ query ได้ (ลูกค้า 397 คน · ต้องเฝ้าระวัง 19)
+   ชื่อ/เบอร์เป็นของสมมติ ไม่ใช่ข้อมูลลูกค้าจริง
+   ─────────────────────────────────────────────────────────────────────────── */
+const C = [
+  {n:'ธนภัทร์ วงศ์สุวรรณ', i:'ธ', ship:9, recv:5, ret:3, pend:1, ord:11, spent:24850, last:'2569-08-24 14:02:11', tel:'081-234-••••', risk:'high',  note:'ตีกลับ 3 · ยกเลิก 1'},
+  {n:'ณัฐริกา พงษ์ไพบูลย์', i:'ณ', ship:6, recv:4, ret:2, pend:0, ord:7,  spent:9120,  last:'2569-08-23 09:41:07', tel:'089-887-••••', risk:'high',  note:'ตีกลับ 2'},
+  {n:'สมชาย ใจดี',        i:'ส', ship:4, recv:3, ret:1, pend:0, ord:5,  spent:4380,  last:'2569-08-22 18:20:44', tel:'092-110-••••', risk:'watch', note:'ตีกลับ 1'},
+  {n:'ปิยะพงษ์ ศรีอำพร',   i:'ป', ship:3, recv:2, ret:0, pend:1, ord:4,  spent:15600, last:'2569-08-21 11:03:52', tel:'086-555-••••', risk:'watch', note:'ยกเลิกโดยลูกค้า 2'},
+  {n:'กมลชนก แสงทอง',     i:'ก', ship:12,recv:12,ret:0, pend:0, ord:14, spent:52400, last:'2569-08-25 08:15:30', tel:'081-909-••••', risk:'ok',    note:'ซื้อซ้ำ'},
+  {n:'วีระชัย ตั้งมั่น',     i:'ว', ship:5, recv:5, ret:0, pend:0, ord:6,  spent:18750, last:'2569-08-20 16:44:12', tel:'084-221-••••', risk:'ok',    note:'ซื้อซ้ำ'},
+  {n:'อรทัย บุญมาก',       i:'อ', ship:1, recv:1, ret:0, pend:0, ord:1,  spent:790,   last:'2569-08-19 10:02:00', tel:'098-777-••••', risk:'new',   note:'ลูกค้าใหม่'},
+  {n:'ชลธิชา ก้องเกียรติ',  i:'ช', ship:0, recv:0, ret:0, pend:0, ord:1,  spent:1250,  last:'2569-08-18 13:30:21', tel:'—',            risk:'new',   note:'ลูกค้าใหม่ · รับหน้าร้าน'},
+]
+const baht = v => '฿' + v.toLocaleString('th-TH')
+const MIN_BASE = 3
+/* อัตราโผล่เฉพาะตอนฐานพอ — null ไม่ใช่ 0 (กติกาเดียวกับโค้ดจริง MIN_SHIPPED_FOR_RATE) */
+const rate = c => c.ship >= MIN_BASE ? Math.round(c.ret / c.ship * 100) + '%' : null
+
+/* แถบสัดส่วน — คลาส Paces ล้วน · เทาเข้ม default-400 สำหรับ "ยังไม่จบ"
+   (default-200 ต่างจากราง default-100 แค่ 1.04:1 = มองไม่เห็น — บทเรียนจาก critique) */
+function bar(c, big){
+  const t = c.recv + c.ret + c.pend
+  const h = big ? 'h-2.5' : 'h-1.25'
+  if(!t) return `<p class="text-default-400 text-2xs mb-0">ยังไม่เคยเปิดพัสดุ</p>`
+  const seg = (w,cls)=> w>0 ? `<span class="${cls} block h-full" style="width:${w/t*100}%"></span>`:''
+  return `<div class="bg-default-100 my-1.5 flex w-full overflow-hidden rounded-full ${h}"
+      role="img" aria-label="เปิดพัสดุ ${c.ship} ใบ · รับของแล้ว ${c.recv} · ตีกลับ ${c.ret} · ยังไม่จบ ${c.pend}">
+      ${seg(c.recv,'bg-success')}${seg(c.ret,'bg-warning')}${seg(c.pend,'bg-default-400')}</div>`
+}
+function legend(c){
+  const r = rate(c)
+  return `<div class="text-2xs flex flex-wrap items-center gap-x-2.5" aria-hidden="true">
+    <span class="text-default-600 inline-flex items-center gap-1"><span class="bg-success size-1.5 shrink-0 rounded-full"></span>รับของ <b class="text-default-900 font-semibold tabular-nums">${c.recv}</b></span>
+    ${c.ret?`<span class="text-default-600 inline-flex items-center gap-1"><span class="bg-warning size-1.5 shrink-0 rounded-full"></span>ตีกลับ <b class="text-warning-ink font-semibold tabular-nums">${c.ret}</b></span>`:''}
+    ${c.pend?`<span class="text-default-600 inline-flex items-center gap-1"><span class="bg-default-400 size-1.5 shrink-0 rounded-full"></span>ยังไม่จบ <b class="text-default-900 font-semibold tabular-nums">${c.pend}</b></span>`:''}
+    <span class="text-default-400">${r?`อัตราตีกลับ <b class="${c.ret?'text-warning-ink':''} font-semibold">${r}</b>`:'ยังบอกอัตราไม่ได้ (ต้องมีพัสดุครบ 3 ใบ)'}</span>
+  </div>`
+}
+const avatar = (c,sz='size-8') => `<div class="bg-primary/10 text-primary flex ${sz} shrink-0 items-center justify-center rounded-full text-sm font-semibold">${c.i}</div>`
+</script>
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   VARIANT A — "คิวงานตามความเสี่ยง"
+   โครง: ไม่มีตาราง ไม่มีหน้าแบ่ง — จัดกลุ่มตามระดับความเสี่ยงพร้อมหัวกลุ่มติดหนึบ
+   affordance หลัก: "เคลียร์กลุ่มบนสุดให้หมด" ไม่ใช่ "เลื่อนหาคนที่ต้องการ"
+   ตอบโจทย์ user: ความเสี่ยงเป็นตัวจัดลำดับทั้งหน้า · ยอดซื้อสะสมอยู่ขวาสุดตัวหนา ไม่ถูกลดชั้น
+   ═══════════════════════════════════════════════════════════════════════════ */
+const GROUPS = [
+  {k:'high',  t:'เสี่ยงสูง',      d:'ตีกลับ ≥2 ครั้ง และอัตรา ≥30% — ควรเก็บเงินปลายทางอย่างระมัดระวัง', ic:'tabler:alert-triangle', tone:'warning'},
+  {k:'watch', t:'ต้องเฝ้าระวัง',  d:'มีสัญญาณอย่างน้อย 1 อย่าง แต่ยังไม่ถึงเกณฑ์เสี่ยงสูง',            ic:'tabler:eye',            tone:'warning'},
+  {k:'ok',    t:'ลูกค้าประจำ',    d:'รับของครบทุกใบ',                                                   ic:'tabler:circle-check',   tone:'success'},
+  {k:'new',   t:'ยังบอกไม่ได้',   d:'ประวัติยังน้อยเกินกว่าจะสรุป',                                      ic:'tabler:help-circle',    tone:'default'},
+]
+function VariantA(){
+  const rows = g => C.filter(c=>c.risk===g).map(c=>`
+    <div class="border-default-200 flex items-center gap-3 border-b border-dashed px-4 py-3 last:border-0">
+      ${avatar(c)}
+      <div class="min-w-0 flex-1">
+        <p class="text-default-900 mb-0 truncate text-sm font-medium">${c.n}</p>
+        ${bar(c)}${legend(c)}
+      </div>
+      <div class="shrink-0 text-end">
+        <p class="text-default-900 mb-0 text-sm font-bold tabular-nums">${baht(c.spent)}</p>
+        <p class="text-default-400 text-2xs mb-0 tabular-nums">${c.ord} ออเดอร์</p>
+      </div>
+    </div>`).join('')
+  return `
+  <div class="mb-4 flex items-center justify-between gap-3">
+    <div><h4 class="text-default-900 mb-0 text-base font-bold">ลูกค้า</h4>
+      <p class="text-default-500 text-2xs mb-0">397 คน · เรียงตามสิ่งที่ต้องจัดการก่อน</p></div>
+    <div class="input-icon-group max-w-xs"><iconify-icon icon="tabler:search" class="input-icon"></iconify-icon>
+      <input class="form-input" placeholder="ค้นหาชื่อ หรือ เบอร์โทร" aria-label="ค้นหาลูกค้า"></div>
+  </div>
+  ${GROUPS.map(g=>{
+    const n = C.filter(c=>c.risk===g.k).length
+    if(!n) return ''
+    return `<div class="card mb-4 ${g.k==='high'?'border-warning border-s-3':''}">
+      <div class="card-header">
+        <div class="flex min-w-0 items-center gap-2">
+          <span class="bg-${g.tone}/15 text-${g.tone}-ink flex size-7 shrink-0 items-center justify-center rounded-full">
+            <iconify-icon icon="${g.ic}"></iconify-icon></span>
+          <div class="min-w-0">
+            <h5 class="card-title mb-0">${g.t} <span class="text-default-400 tabular-nums">${n}</span></h5>
+            <p class="text-default-400 text-2xs mb-0 truncate">${g.d}</p>
+          </div>
+        </div>
+      </div>
+      ${rows(g.k)}
+    </div>`
+  }).join('')}`
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VARIANT B — "แยกซ้าย-ขวา" (master–detail)
+   โครง: รายชื่อผอมซ้าย + แผงรายละเอียดติดหนึบขวา — ไม่ต้องออกจากหน้าเพื่อดูรายคน
+   affordance หลัก: "ไล่ดูหลายคนเร็ว ๆ โดยไม่เสียตำแหน่ง"
+   ตอบโจทย์ user: แผงขวาให้ความน่าเชื่อถือเต็มรูป + ยอดซื้อสะสมเป็นตัวเลขใหญ่พร้อมกันในจอเดียว
+   ═══════════════════════════════════════════════════════════════════════════ */
+function VariantB(){
+  const sel = C[0]
+  const dot = c => c.risk==='high'||c.risk==='watch' ? 'bg-warning' : c.risk==='ok' ? 'bg-success' : 'bg-default-300'
+  const list = C.map((c,i)=>`
+    <div class="border-default-200 flex items-center gap-2.5 border-b border-dashed px-3 py-2.5 last:border-0 ${i===0?'bg-primary/5':''}">
+      <span class="${dot(c)} size-2 shrink-0 rounded-full" aria-hidden="true"></span>
+      ${avatar(c,'size-7')}
+      <div class="min-w-0 flex-1"><p class="text-default-900 mb-0 truncate text-xs font-medium">${c.n}</p>
+        <p class="text-default-400 text-2xs mb-0 tabular-nums">${c.ord} ออเดอร์</p></div>
+      <p class="text-default-900 mb-0 shrink-0 text-xs font-semibold tabular-nums">${baht(c.spent)}</p>
+    </div>`).join('')
+  return `
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+    <div class="lg:col-span-1">
+      <div class="card">
+        <div class="card-header"><h5 class="card-title mb-0">ลูกค้า <span class="text-default-400 tabular-nums">397</span></h5></div>
+        <div class="border-default-200 border-b border-dashed px-3 py-2.5">
+          <div class="input-icon-group"><iconify-icon icon="tabler:search" class="input-icon"></iconify-icon>
+            <input class="form-input" placeholder="ค้นหา" aria-label="ค้นหาลูกค้า"></div>
+        </div>
+        ${list}
+      </div>
+    </div>
+    <div class="lg:col-span-2">
+      <div class="card border-warning border-s-3">
+        <div class="card-header">
+          <div class="flex min-w-0 items-center gap-2.5">${avatar(sel,'size-10')}
+            <div class="min-w-0"><h5 class="card-title mb-0 truncate">${sel.n}</h5>
+              <p class="text-default-400 text-2xs mb-0">${sel.tel} · ซื้อล่าสุด ${sel.last}</p></div></div>
+          <span class="badge bg-warning/15 text-warning-ink shrink-0">${sel.note}</span>
+        </div>
+        <div class="card-body">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <p class="text-default-500 text-2xs mb-0">รับของสำเร็จ (ทั้งระบบ)</p>
+              <p class="text-default-900 mb-0 text-3xl font-extrabold tabular-nums">${sel.recv}<span class="text-default-400 ms-1 text-base font-semibold">จาก ${sel.ship} ใบ</span></p>
+              ${bar(sel,true)}${legend(sel)}
+            </div>
+            <div class="border-default-100 border-t pt-3">
+              <p class="text-default-500 text-2xs mb-0">ยอดซื้อสะสม (นับเป็นยอดขายแล้ว)</p>
+              <p class="text-default-900 mb-2 text-3xl font-bold tabular-nums">${baht(sel.spent)}</p>
+              <div class="flex flex-col gap-1.5">
+                ${[['ออเดอร์ทั้งหมด',sel.ord],['เฉลี่ยต่อบิล',baht(Math.round(sel.spent/sel.ord))],['ตีกลับกับร้านนี้',sel.ret+' ครั้ง']]
+                  .map(([k,v])=>`<div class="flex items-center justify-between gap-2"><span class="text-default-500 text-xs">${k}</span><span class="text-default-900 text-xs font-semibold tabular-nums">${v}</span></div>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VARIANT C — "บัญชีแน่น" (dense ledger)
+   โครง: ไม่มีการ์ดต่อแถว ไม่มีแถบสัดส่วน — ตัวเลขเรียงคอลัมน์ให้เทียบกันได้ทั้งจอ
+   affordance หลัก: "เทียบหลายคนพร้อมกัน แล้วเรียงตามคอลัมน์ที่สนใจ"
+   ตอบโจทย์ user: ความเสี่ยงเป็นคอลัมน์ *ที่เรียงได้* (อัตราตีกลับ) ไม่ใช่แค่ภาพ ·
+   ยอดซื้อสะสมเป็นคอลัมน์ตัวเลขที่เรียงได้เหมือนกัน ⇒ ทั้งสองแกนเท่าเทียมและเทียบข้ามคนได้จริง
+   ═══════════════════════════════════════════════════════════════════════════ */
+function VariantC(){
+  const tone = c => c.risk==='high' ? 'text-warning-ink' : c.risk==='watch' ? 'text-warning-ink' : 'text-default-400'
+  const ic   = c => c.risk==='high' ? 'tabler:alert-triangle' : c.risk==='watch' ? 'tabler:eye' : c.risk==='ok' ? 'tabler:circle-check' : 'tabler:minus'
+  const rows = C.map(c=>`
+    <tr>
+      <td class="ps-4"><div class="flex min-w-0 items-center gap-2">
+        <iconify-icon icon="${ic(c)}" class="${tone(c)} shrink-0"></iconify-icon>
+        <span class="text-default-900 truncate text-sm font-medium">${c.n}</span></div></td>
+      <td class="text-default-500 text-xs tabular-nums">${c.tel}</td>
+      <td class="text-end text-sm tabular-nums ${c.ret?'text-warning-ink font-semibold':'text-default-400'}">${rate(c) ?? '—'}</td>
+      <td class="text-default-600 text-end text-xs tabular-nums">${c.recv}/${c.ship}</td>
+      <td class="text-warning-ink text-end text-xs tabular-nums">${c.ret||'—'}</td>
+      <td class="text-default-600 text-end text-xs tabular-nums">${c.ord}</td>
+      <td class="text-default-900 text-end text-sm font-bold tabular-nums">${baht(c.spent)}</td>
+      <td class="text-default-400 pe-3 text-end text-xs tabular-nums">${c.last}</td>
+    </tr>`).join('')
+  const th = (t,end)=>`<th class="text-default-500 ${end?'text-end':''} text-2xs font-semibold whitespace-nowrap">${t}</th>`
+  return `
+  <div class="card">
+    <div class="card-header">
+      <div class="flex min-w-0 max-w-xl flex-1 gap-2.5">
+        <div class="input-icon-group"><iconify-icon icon="tabler:search" class="input-icon"></iconify-icon>
+          <input class="form-input" placeholder="ค้นหาชื่อ หรือ เบอร์โทร" aria-label="ค้นหาลูกค้า"></div>
+      </div>
+      <div class="hidden items-center gap-2.5 lg:flex">
+        <button class="btn btn-light gap-1"><iconify-icon icon="tabler:filter"></iconify-icon>ตัวกรอง</button>
+        <button class="btn btn-light gap-1">แถวละ 40 <iconify-icon icon="tabler:chevron-down"></iconify-icon></button>
+      </div>
+    </div>
+    <div class="table-wrapper"><div class="table-responsive"><table class="table">
+      <thead class="bg-light/50"><tr>
+        ${th('ลูกค้า')}${th('เบอร์โทร')}${th('อัตราตีกลับ',1)}${th('รับของ',1)}${th('ตีกลับ',1)}${th('ออเดอร์',1)}${th('ยอดซื้อสะสม',1)}${th('ออเดอร์ล่าสุด',1)}
+      </tr></thead><tbody>${rows}</tbody>
+    </table></div></div>
+  </div>
+  <p class="text-default-400 text-2xs mt-2 mb-0">อัตราตีกลับขึ้นเฉพาะลูกค้าที่มีพัสดุครบ 3 ใบ — ที่เหลือแสดง <b>—</b> ไม่ใช่ 0%</p>`
+}
+
+const VARIANTS = {
+  A:{name:'คิวงานตามความเสี่ยง', fn:VariantA},
+  B:{name:'แยกซ้าย-ขวา (master–detail)', fn:VariantB},
+  C:{name:'บัญชีแน่น (เรียงได้ทุกคอลัมน์)', fn:VariantC},
+}
+</script>
+<script>
+/* ───────────────────────────────────────────────────────────────────────────
+   โหมด frame — เรนเดอร์เฉพาะตัว variant (ไฟล์นี้ถูก iframe เรียกตัวเอง)
+   ใช้ iframe จริงเพราะ breakpoint ของ Tailwind ผูกกับ **viewport ไม่ใช่ container**
+   ⇒ ถ้าย่อด้วย div กว้าง 390px บนจอ 1440 จะยัง apply `lg:` = เห็นเดสก์ท็อปทั้งที่ตั้งใจดูมือถือ
+   (บทเรียนเดียวกับ `unlayered-css-beats-utilities.md`)
+   ─────────────────────────────────────────────────────────────────────────── */
+const qs = new URLSearchParams(location.search)
+const frame = qs.get('frame')
+
+if (frame) {
+  document.documentElement.setAttribute('data-bs-theme','light')
+  document.body.className = 'bg-body-bg'
+  document.body.innerHTML = `<div class="p-4">${(VARIANTS[frame]||VARIANTS.A).fn()}</div>`
+} else {
+  const cur = (qs.get('variant') || 'A').toUpperCase()
+  const keys = Object.keys(VARIANTS)
+  const v = VARIANTS[cur] ? cur : 'A'
+  const go = k => { const u = new URL(location.href); u.searchParams.set('variant', k); location.replace(u) }
+  const step = d => go(keys[(keys.indexOf(v) + d + keys.length) % keys.length])
+
+  const file = location.pathname
+  const dev = (w,h,label,sub,scale) => `
+    <figure class="proto-dev" style="margin:0">
+      <figcaption>${label} <span style="font-weight:400;color:#6b7280">${sub}</span></figcaption>
+      ${scale
+        ? `<div class="proto-scalebox"><div class="proto-scale"><iframe src="${file}?frame=${v}" width="${w}" height="${h}" title="${label}"></iframe></div></div>`
+        : `<iframe src="${file}?frame=${v}" width="${w}" height="${h}" title="${label}"></iframe>`}
+    </figure>`
+
+  document.body.className = 'proto-shell'
+  document.body.innerHTML = `
+    <div class="proto-head">
+      <h1>00057 — re-design หน้าลูกค้า · ทางเลือก ${v}: ${VARIANTS[v].name}</h1>
+      <p>3 ทางเลือกที่ <b>ต่างกันเชิงโครงสร้าง</b> ไม่ใช่ต่างกันแค่สี — สลับด้วยแถบดำล่างจอ หรือปุ่มลูกศร ← → บนคีย์บอร์ด</p>
+      <div class="proto-q"><b>คำถามที่ต้องตอบ:</b> หน้ารายชื่อลูกค้าควรจัดข้อมูลแบบไหน ในเมื่อต้อง
+        <b>เน้นสถิติความน่าเชื่อถือ</b> และ <b>ยอดซื้อสะสมรายคนก็ยังจำเป็น</b> พร้อมกัน<br>
+        <span style="color:#6b7280">CSS ทั้งหมดดึงสดจาก prod (<code>seller.deepthailand.app</code>) — สีและ primitive ที่เห็นคือของจริงวันนี้ ไม่ใช่ token ที่เขียนเลียน</span></div>
+    </div>
+    <div class="proto-rail">
+      ${dev(390,620,'มือถือ','390 × 620')}
+      ${dev(768,620,'แท็บเล็ต','768 × 620')}
+      ${dev(1280,900,'เดสก์ท็อป','1280 × 900 · ย่อ 62% เพื่อให้เห็นทั้งความกว้าง',true)}
+    </div>
+    <div class="proto-bar" role="group" aria-label="สลับทางเลือก">
+      <button type="button" aria-label="ทางเลือกก่อนหน้า" data-step="-1">&#8592;</button>
+      <span class="lbl">${v} — ${VARIANTS[v].name}<small>${keys.join(' · ')}</small></span>
+      <button type="button" aria-label="ทางเลือกถัดไป" data-step="1">&#8594;</button>
+    </div>`
+
+  document.querySelectorAll('.proto-bar button').forEach(b =>
+    b.addEventListener('click', () => step(Number(b.dataset.step))))
+  addEventListener('keydown', e => {
+    const t = e.target
+    // ไม่ยึดลูกศรตอนโฟกัสอยู่ในช่องกรอก
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+    if (e.key === 'ArrowLeft') step(-1)
+    if (e.key === 'ArrowRight') step(1)
+  })
+}
+</script>
+</body>
+</html>
