@@ -365,6 +365,12 @@ export default function ParcelTimeline({
             />
           </Box>
 
+          {/* 🛑 จุดกับป้ายต้องเป็น **คนละ flex row** — โครงเดียวกับแถว 1 ข้างบนและกับ
+              `ShipmentRail` ฝั่งร้าน
+              รอบแรกยัดจุด+ป้ายไว้ใน column เดียวกันใต้ `alignItems:'center'` ⇒ cross-size
+              ของแถวกลายเป็นความสูงของ column (จุด+ป้าย) แล้วเส้นเชื่อมไปนอนอยู่ **กึ่งกลาง
+              column** ขณะที่จุดอยู่ **ยอด column** ⇒ เหลื่อมกัน 11px เมื่อป้าย 1 บรรทัด และ
+              27px + เส้นพาดทับตัวหนังสือเมื่อป้ายตกบรรทัด (impeccable audit 2026-08-26) */}
           <Box
             component='ol'
             sx={{
@@ -381,11 +387,7 @@ export default function ParcelTimeline({
               const isEnd = i === leg.dots.length - 1
               const lineColor = leg.originTone === 'success' ? VERIFIED_INK : 'warning.main'
               return (
-                <Box
-                  component='li'
-                  key={`${d.label}-${i}`}
-                  sx={{ display: 'contents' }}
-                >
+                <Box component='li' key={`d-${d.label}-${i}`} sx={{ display: 'contents' }}>
                   {i > 0 && (
                     <>
                       <Box aria-hidden sx={{ height: 2, flex: 1, bgcolor: reached ? lineColor : 'divider' }} />
@@ -403,48 +405,62 @@ export default function ParcelTimeline({
                     </>
                   )}
                   <Box
+                    aria-hidden
                     sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      flexShrink: 0,
-                      // 🛑 ต้องเท่าความกว้างจุดของแถว 1 (32px) เป๊ะ ไม่ใช่ 56 — ไม่งั้นจุดสุดท้าย
-                      // ของแถว 2 ไม่ไปจบใต้จุดแรกของแถว 1 = งูเลื้อยไม่บรรจบ
                       width: 32,
+                      height: 32,
+                      flexShrink: 0,
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      // ปลายทาง = เขียวเสมอ (มติ user) แยกจาก "ส่งสำเร็จ" ด้วย **รูปไอคอน**
+                      bgcolor: reached ? (isEnd ? VERIFIED_INK : lineColor) : 'action.hover',
+                      color: reached ? 'common.white' : 'text.secondary',
+                      // จุดที่ "ยืนอยู่ตอนนี้" — วงแหวนรอบจุด เพราะสีอย่างเดียวแยกไม่ออก
+                      // (เคสคืนของ: current/reached/ปลายทาง เป็นเขียวเหมือนกันหมดตามมติ user)
+                      ...(i === leg.stage && !isEnd
+                        ? { outline: '2px solid', outlineColor: lineColor, outlineOffset: 2 }
+                        : {}),
                     }}
                   >
-                    <Box
-                      aria-hidden
-                      sx={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        // ปลายทาง = เขียวเสมอ (มติ user) แยกจาก "ส่งสำเร็จ" ด้วย **รูปไอคอน**
-                        bgcolor: reached ? (isEnd ? VERIFIED_INK : lineColor) : 'action.hover',
-                        color: reached ? 'common.white' : 'text.secondary',
-                      }}
-                    >
-                      <Icon icon={`tabler-${d.icon}`} fontSize={18} />
-                    </Box>
-                    <Typography
-                      variant='caption'
-                      sx={{
-                        mt: 0.75,
-                        textAlign: 'center',
-                        lineHeight: 1.3,
-                        fontWeight: i === leg.stage ? 700 : 400,
-                        color: i === leg.stage ? 'text.primary' : 'text.secondary',
-                      }}
-                    >
-                      {d.label}
-                    </Typography>
+                    <Icon icon={`tabler-${d.icon}`} fontSize={18} />
                   </Box>
                 </Box>
               )
             })}
+          </Box>
+
+          {/* ป้ายแถว 2 — row-reverse เหมือนแถวจุด และ `nowrap` เหมือนแถว 1
+              (รอบแรกไม่มี nowrap ในกล่อง 32px ⇒ คำไทยตกบรรทัดเป็น 3–4 แถว) */}
+          <Box sx={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'flex-start', mt: 0.75 }}>
+            {leg.dots.map((d, i) => (
+              <Box key={`l2-${d.label}-${i}`} sx={{ display: 'contents' }}>
+                {i > 0 && <Box sx={{ flex: 1 }} />}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    width: 32,
+                    flexShrink: 0,
+                    // i=0 อยู่ขวาสุดบนจอเพราะ row-reverse ⇒ align กลับด้านตามไปด้วย
+                    justifyContent:
+                      i === 0 ? 'flex-end' : i === leg.dots.length - 1 ? 'flex-start' : 'center',
+                  }}
+                >
+                  <Typography
+                    variant='caption'
+                    sx={{
+                      whiteSpace: 'nowrap',
+                      lineHeight: 1.3,
+                      fontWeight: i === leg.stage ? 700 : 400,
+                      color: i === leg.stage ? 'text.primary' : 'text.secondary',
+                    }}
+                  >
+                    {d.label}
+                  </Typography>
+                </Box>
+              </Box>
+            ))}
           </Box>
         </>
       )}

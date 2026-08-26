@@ -75,11 +75,28 @@ export default function ShipmentRail({
   const stepLabel = (i: number) => (i === last ? (lastLabel ?? SHIPMENT_STAGES[i].label) : SHIPMENT_STAGES[i].label)
   const stepIcon = (i: number) => (i === last ? (lastIcon ?? SHIPMENT_STAGES[i].icon) : SHIPMENT_STAGES[i].icon)
 
-  const dot = (icon: string, state: 'current' | 'reached' | 'future', currentCls: string) => (
+  const dot = (
+    icon: string,
+    state: 'current' | 'reached' | 'future',
+    currentCls: string,
+    /**
+     * 🛑 วงแหวนบอก "จุดที่ยืนอยู่ตอนนี้" — จำเป็นเฉพาะแถว 2 เคสคืนของ
+     *
+     * เคสนั้น `originTone === 'success'` ⇒ จุดปัจจุบัน · จุดที่ผ่านมาแล้ว · จุดปลายทาง
+     * ได้ `bg-success` **เหมือนกันหมดทั้งสามสถานะ** (ปลายทางเขียวเป็นมติ user) ⇒ ผู้ขาย
+     * บอกไม่ได้เลยว่าของอยู่ตรงไหน นอกจากอ่านว่าคำไหนตัวหนา — ซึ่งแถบที่ไม่มีคำ
+     * (`labels=false`) ไม่มีให้อ่าน (impeccable audit 2026-08-26)
+     *
+     * แก้ด้วย **รูปร่าง** ไม่ใช่สี เพราะสีถูกล็อกด้วยมติ user แล้ว
+     */
+    ringTone?: 'success' | 'warning',
+  ) => (
     <span
       className={cn(
         'flex shrink-0 items-center justify-center rounded-full',
         DOT_SIZE[size],
+        ringTone === 'success' && 'ring-success ring-offset-card ring-2 ring-offset-2',
+        ringTone === 'warning' && 'ring-warning ring-offset-card ring-2 ring-offset-2',
         state === 'current'
           ? currentCls
           : state === 'reached'
@@ -195,6 +212,7 @@ export default function ShipmentRail({
             // แยกจาก "ส่งสำเร็จ" ด้วย **รูปร่างไอคอน** `building-store` ไม่ใช่ด้วยสี)
             // ยังกลับไม่ถึง = ส้ม (งานยังไม่จบ ของยังไม่อยู่ในมือใคร)
             i === n - 1 ? TONE_SOLID.success : TONE_SOLID[leg.originTone],
+            i === leg.stage && i !== n - 1 ? leg.originTone : undefined,
           )}
         </Fragment>
       ))}
@@ -226,6 +244,20 @@ export default function ShipmentRail({
 
       {row2}
       {row2Labels}
+
+      {/* 🛑 ป้าย "ขากลับใช้เลขเดิม" อยู่ **ในแถบเอง** ไม่ใช่ให้ผู้เรียก 6 รายจำ
+          รอบแรกแยกเป็น component ให้ผู้เรียกวางเอง แล้วมีแค่ 3 จาก 6 จอที่วาง ⇒ จอที่พูด
+          เรื่องเลขพัสดุหนักที่สุด (โมดัลสถานะพัสดุ) กลับไม่มีคำตอบว่าเลขขากลับอยู่ไหน
+          และคอมเมนต์ของ component นั้นก็นับจอผิดเป็น "3 จอ" (impeccable audit 2026-08-26) */}
+      {leg.kind === 'BOUNCE' && labels && (
+        <p className="text-default-700 text-2xs mt-2 mb-0 flex justify-end">
+          {/* ข้อความจริง ไม่ใช่ `title=` — มือถือไม่มี hover และ `<span>` เปล่าไม่รองรับ
+              ชื่อจากผู้เขียน (docs/conventions/aria-name-requires-supporting-role.md) */}
+          <span className="bg-default-200 rounded-full px-2 py-px">
+            ขากลับใช้เลขพัสดุเดิม ขนส่งไม่ได้ออกเลขใหม่
+          </span>
+        </p>
+      )}
     </div>
   )
 }

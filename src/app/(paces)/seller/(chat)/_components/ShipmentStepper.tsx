@@ -16,7 +16,6 @@ import { NOTICE_BOX } from '@/components/safepay/iship/tone'
 import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
 import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
 import ShipmentRail from '@/components/safepay/iship/ShipmentRail'
-import ReturnTrackingNote from '@/components/safepay/iship/ReturnTrackingNote'
 import { shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
 
 export default function ShipmentStepper({
@@ -65,7 +64,6 @@ export default function ShipmentStepper({
         size={size === 'md' ? 'lg' : 'sm'}
         ariaLabel={railAriaLabel(currentLabel, leg)}
       />
-      {leg?.kind === 'BOUNCE' && <ReturnTrackingNote />}
 
       {showNotice && progress.notice && (
         <p

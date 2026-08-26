@@ -26,7 +26,6 @@ import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
 import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
 import ShipmentRail from '@/components/safepay/iship/ShipmentRail'
-import ReturnTrackingNote from '@/components/safepay/iship/ReturnTrackingNote'
 import { shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
 import { sortTracesNewestFirst } from '@/lib/iship/traces'
 
@@ -276,7 +275,6 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
                 leg={leg}
                 ariaLabel={railAriaLabel(railCurrentLabel, leg)}
               />
-              {leg?.kind === 'BOUNCE' && <ReturnTrackingNote />}
             </div>
 
             {progress.notice && (
