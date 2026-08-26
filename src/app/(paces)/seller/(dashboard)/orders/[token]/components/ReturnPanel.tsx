@@ -483,7 +483,7 @@ export default function ReturnPanel({
   const body = !eligibility ? (
     <p className="text-default-700 mb-0 flex items-center gap-2 text-sm">
       <Icon icon="loader-2" className="animate-spin text-base" aria-hidden="true" />
-      กำลังโหลด…
+      กำลังโหลดข้อมูลการคืนของ…
     </p>
   ) : (
     renderBody()
@@ -617,6 +617,7 @@ export default function ReturnPanel({
                         target="_blank"
                         rel="noreferrer"
                         className="btn btn-sm bg-light text-default-700 shrink-0 hover:bg-light-hover"
+                        aria-label="เปิดใบปะหน้าพัสดุขากลับ"
                       >
                         เปิด
                       </a>
@@ -991,13 +992,18 @@ export default function ReturnPanel({
           )
         })}
 
-        <input
-          className="form-input mt-3"
-          placeholder="เหตุผล (ไม่บังคับ)"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          aria-label="เหตุผลที่คืน"
-        />
+        <div className="mt-3">
+          <label className="form-label text-default-600 mb-0.5 text-xs" htmlFor="return-reason">
+            เหตุผลที่คืน (ไม่บังคับ)
+          </label>
+          <input
+            id="return-reason"
+            className="form-input"
+            placeholder="เช่น ของไม่ตรงปก, ลูกค้าสั่งผิดไซซ์"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </div>
 
       </>
     )
@@ -1213,7 +1219,7 @@ export default function ReturnPanel({
           <label className="form-label text-default-600 mb-0 text-xs" htmlFor="return-courier">
             ขนส่งขากลับ
           </label>
-          <span className="text-default-500 shrink-0 text-2xs">ตั้งต้น = เจ้าเดียวกับขาไป</span>
+          <span className="text-default-500 shrink-0 text-2xs">ค่าตั้งต้นคือเจ้าเดียวกับขาไป</span>
         </div>
         <select
           id="return-courier"
@@ -1236,24 +1242,37 @@ export default function ReturnPanel({
         </select>
 
         {courierCode === OTHER_COURIER_CODE && (
-          <input
-            className="form-input mt-2"
-            placeholder="ชื่อขนส่ง"
-            value={otherCourierName}
-            onChange={(e) => setOtherCourierName(e.target.value)}
-            aria-label="ชื่อขนส่งขากลับ"
-          />
+          <div className="mt-2">
+            <label className="form-label text-default-600 mb-0.5 text-xs" htmlFor="return-other-courier">
+              ชื่อขนส่งขากลับ
+            </label>
+            <input
+              id="return-other-courier"
+              className="form-input"
+              placeholder="เช่น ไรเดอร์ร้าน, ขนส่งท้องถิ่น"
+              value={otherCourierName}
+              onChange={(e) => setOtherCourierName(e.target.value)}
+            />
+          </div>
         )}
 
         {/* เลขพัสดุ — เฉพาะวิธีที่ร้าน/ลูกค้าไปเปิดพัสดุเอง · เว้นว่างได้ (D-4) */}
         {!usesIship && (
-          <input
-            className="form-input mt-2"
-            placeholder="เลขพัสดุ (ไม่บังคับ)"
-            value={trackingNo}
-            onChange={(e) => setTrackingNo(e.target.value)}
-            aria-label="เลขพัสดุขากลับ"
-          />
+          <div className="mt-2">
+            {/* label ถาวร ไม่ใช่ placeholder — placeholder หายทันทีที่พิมพ์ ผู้ใช้ที่ถูกขัดจังหวะ
+                กลางทางจะกลับมาเจอช่องที่มีตัวเลขแต่ไม่มีอะไรบอกว่าเป็นเลขอะไร
+                และช่องข้าง ๆ ในแผงเดียวกันมี label ครบ ⇒ ขาดที่นี่ที่เดียวยิ่งอ่านสะดุด */}
+            <label className="form-label text-default-600 mb-0.5 text-xs" htmlFor="return-tracking-no">
+              เลขพัสดุขากลับ (ไม่บังคับ)
+            </label>
+            <input
+              id="return-tracking-no"
+              className="form-input"
+              placeholder="ยังไม่มีก็เว้นว่างได้"
+              value={trackingNo}
+              onChange={(e) => setTrackingNo(e.target.value)}
+            />
+          </div>
         )}
 
         {/* ค่าส่งโดยประมาณ — 6 สถานะ ห้ามยุบสถานะที่ไม่มีตัวเลขเป็น ฿0 */}
