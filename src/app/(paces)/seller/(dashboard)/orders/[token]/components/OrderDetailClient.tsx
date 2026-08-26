@@ -528,8 +528,6 @@ export default function OrderDetailClient({
       {isOnlineSales && (
         <ReturnPanel
           orderToken={publicToken}
-          initialCount={0}
-          asSheet
           sheetOpen={returnOpen}
           onCloseSheet={() => setReturnOpen(false)}
         />

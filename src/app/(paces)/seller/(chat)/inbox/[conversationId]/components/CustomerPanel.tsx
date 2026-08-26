@@ -698,8 +698,6 @@ function OrderCard({
     {vertical === 'ONLINE_SALES' && (
       <ReturnPanel
         orderToken={o.token}
-        initialCount={0}
-        asSheet
         sheetOpen={returnOpen}
         onCloseSheet={() => setReturnOpen(false)}
       />

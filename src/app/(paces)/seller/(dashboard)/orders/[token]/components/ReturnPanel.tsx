@@ -3,9 +3,16 @@
 /**
  * ReturnPanel — ระบบคืนของในหน้าออเดอร์และในห้องแชท (feature 00056 · P4)
  *
- * 🛑 component เดียวใช้ 2 จอ (หน้ารายละเอียด + แผงออเดอร์ในห้องแชท) ตามที่หัวหน้าสั่งว่า
- * "กดคืนของจาก order detail + หน้าแชทได้เลย" — ถ้าเขียนสองตัว ปุ่ม/กติกาจะเลื่อนออกจากกัน
- * แน่นอน (บทเรียนซ้ำจาก sibling-surface-parity.md) ต่างกันแค่ `compact` ที่ย่อ padding
+ * 🛑 component เดียว mount 2 จุด (หน้ารายละเอียดออเดอร์ + แผงออเดอร์ในห้องแชท) ตามที่หัวหน้า
+ * สั่งว่า "กดคืนของจาก order detail + หน้าแชทได้เลย" — ถ้าเขียนสองตัว ปุ่ม/กติกาจะเลื่อนออกจากกัน
+ * แน่นอน (บทเรียนซ้ำจาก sibling-surface-parity.md) · **ทั้งสองจุดเปิดเป็นชีตเหมือนกัน**
+ * ต่างกันแค่ที่ mount (AC-RT-20 · BR-RT-32)
+ *
+ * 🛑 **"โหมดการ์ด" ถูกถอดออกจริงแล้ว 2026-08-26** — เดิมมี prop `asSheet`/`compact`/
+ * `initialCount` ที่รองรับการเรนเดอร์เป็นการ์ดในหน้า แต่ call site ทั้ง 2 ส่ง `asSheet` คงที่
+ * เสมอ ⇒ ~60 บรรทัดนั้นไม่มีวันถูกเรนเดอร์ ขณะที่ยังแบกการตัดสินใจดีไซน์ที่จะเลื่อนออกจาก
+ * ของจริงแน่นอน · การลบไม่ใช่การเปลี่ยนมติ แต่คือทำให้โค้ดตรงกับ `AC-RT-20` ที่อนุมัติไว้แล้ว
+ * ("หน้ารายละเอียดออเดอร์ไม่มี ReturnPanel เป็นการ์ดใน page — มีแต่ชีตที่เปิดจากเมนู")
  *
  * โหลดข้อมูลตอน **กางเท่านั้น** — ออเดอร์ส่วนใหญ่ไม่มีการคืนของ การยิง API ทุกใบตั้งแต่
  * paint แรกคือค่าใช้จ่ายที่แทบไม่มีใครได้ใช้
@@ -171,32 +178,23 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 
 export default function ReturnPanel({
   orderToken,
-  initialCount,
-  compact = false,
-  asSheet = false,
   sheetOpen = false,
   onCloseSheet,
 }: {
   orderToken: string
-  /** จำนวนใบคืนที่ server นับมาให้ — 0 = ยังไม่เคยมีการคืน (ยังกางเพื่อเปิดใบใหม่ได้) */
-  initialCount: number
-  compact?: boolean
   /**
-   * โหมดชีต — ใช้ในห้องแชท ซึ่งเปิดจากเมนู `⋮` ของออเดอร์แต่ละใบ
+   * ชีตเปิดอยู่ไหม — เปิดจากเมนู `⋮` ของออเดอร์ทั้งในห้องแชทและหน้ารายละเอียด
    *
    * 🛑 ในรายการแชทมีออเดอร์หลายใบบนจอเดียว การ์ดคงที่ต่อใบจะกลายเป็น N การ์ดที่กินพื้นที่
    * เท่ากับรายการจริง และขึ้นแม้ใบนั้นคืนไม่ได้ (= เสียงรบกวนล้วน) — user ทักเองว่าผิดที่
    * ปุ่มต้องอยู่ในเมนูของออเดอร์ใบนั้นตาม `docs/conventions/seller-action-placement.md`
    */
-  asSheet?: boolean
   sheetOpen?: boolean
   onCloseSheet?: () => void
 }) {
-  const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [eligibility, setEligibility] = useState<Eligibility | null>(null)
   const [returns, setReturns] = useState<ReturnRow[] | null>(null)
-  const [form, setForm] = useState(false)
   /**
    * ขั้นของฟอร์ม — 1 วิธีคืน+ขนส่ง · 2 ของที่คืน · 3 ตรวจก่อนยืนยัน (D-6)
    *
@@ -379,24 +377,17 @@ export default function ReturnPanel({
     setCourierCode((cur) => (cur === next ? cur : next))
   }, [methodKey, forward?.courierCode, forward?.courierName, quote])
 
-  const toggle = () => {
-    const next = !open
-    setOpen(next)
-    if (next && !eligibility) void load()
-  }
-
   /**
    * โหมดชีต: เปิดเมื่อไหร่โหลดทันที — ผู้ใช้กดจากเมนูแล้วต้องเห็นของเลย ไม่ใช่ต้องกดซ้ำ
    * 🛑 dep เป็น `load` ที่เป็น `useCallback` ตัวเดียว ไม่ใช่ object ที่ hook คืนทั้งก้อน
    * (docs/conventions/hook-return-identity-in-deps.md — ลูปยิง API ไม่หยุดเคยเกิดมาแล้ว)
    */
   useEffect(() => {
-    if (asSheet && sheetOpen && !eligibility) void load()
-  }, [asSheet, sheetOpen, eligibility, load])
+    if (sheetOpen && !eligibility) void load()
+  }, [sheetOpen, eligibility, load])
 
   /** ปิดฟอร์ม + ล้างร่างทั้งชุด — เดิมล้างแค่ `qty` ทำให้วิธีคืนของรอบก่อนค้างมารอบถัดไป */
   const closeForm = useCallback(() => {
-    setForm(false)
     setStep(1)
     setQty({})
     setMethodKey(null)
@@ -437,12 +428,12 @@ export default function ReturnPanel({
 
   const panelRef = useRef<HTMLDivElement>(null)
   // โฟกัสเข้าแผง + กักไว้ + Escape ปิด + คืนโฟกัสตอนปิด — `aria-modal` ที่ไม่มีสิ่งนี้คือคำสัญญาที่ผิด
-  useDialogFocus(Boolean(asSheet && sheetOpen), panelRef, closeSheet)
+  useDialogFocus(sheetOpen, panelRef, closeSheet)
 
   // ล็อก scroll ของหน้าเมื่อชีตเปิด — โมดัลที่ประกอบเองด้วย React state ต้องเรียกเสมอ
   // (docs/conventions/overlay-scroll-lock.md · การแปลง hs-overlay เป็น controlled div
   //  ทิ้งการล็อกที่เคยได้ฟรีไปทุกใบ ไม่มีใครสังเกตจนผู้ใช้เจอบนมือถือ)
-  useLockBodyScroll(asSheet && sheetOpen)
+  useLockBodyScroll(sheetOpen)
 
   const selectedLines = (eligibility?.items ?? [])
     .filter((i) => (qty[i.orderItemId] ?? 0) > 0)
@@ -517,17 +508,7 @@ export default function ReturnPanel({
 
   const labelUrl = `/api/o/${orderToken}/return-label`
 
-  /**
-   * ฟอร์มเปิดอยู่ไหม — **SSOT เดียว** ที่ทั้งตัวเนื้อหาและแถบปุ่มอ่าน
-   *
-   * 🛑 โหมดชีตเข้าฟอร์มทันทีโดย **ไม่เคยตั้ง `form` เป็น true** (D-8: กดจาก `⋮ → คืนของ`
-   * แล้วต้องเห็นฟอร์มเลย ไม่มีปุ่มคั่น) ⇒ เกณฑ์ที่เช็คแค่ `form` จะบอกว่า "ยังไม่เปิดฟอร์ม"
-   * ทั้งที่ฟอร์มอยู่ตรงหน้า · เขียนสองที่เมื่อไหร่มันจะไม่ตรงกันแบบนี้เสมอ
-   * (เจอจริงตอนเปิดจอดู 2026-08-25: **แถบปุ่มหายทั้งแถบในโหมดชีต** ปุ่ม "ถัดไป" ไม่มีเลย
-   *  และ tsc/eslint/theme-guard/เทสผ่านหมด เพราะเงื่อนไขถูกต้องตามชนิดทุกตัวอักษร)
-   */
-  const formOpen = form || asSheet
-  const footer = eligibility?.canReturn && formOpen ? footerConfig() : null
+  const footer = eligibility?.canReturn ? footerConfig() : null
 
   const body = !eligibility ? (
     <p className="text-default-700 mb-0 flex items-center gap-2 text-sm">
@@ -545,9 +526,8 @@ export default function ReturnPanel({
    * `aria-modal` คู่กันเสมอ ไม่งั้นผู้ใช้ screen reader อ่านหลุดออกไปหลังฉาก
    * (docs/conventions/aria-name-requires-supporting-role.md)
    */
-  if (asSheet) {
-    if (!sheetOpen) return null
-    return (
+  if (!sheetOpen) return null
+  return (
       /* Base: RecordPaymentSheet.tsx / AppointmentSummarySheet.tsx — โครงชีตของโปรเจกต์นี้
          (`z-90` · `.card` · `max-h-full` + `min-h-0 flex-1`) ห้ามคิดเลข z/ความสูงเอง:
          🛑 ร่างแรกใช้ `z-[1090]` + `max-h-[85dvh]` (arbitrary → HR7 แดง) และหัวชีต `z-10`
@@ -595,30 +575,8 @@ export default function ReturnPanel({
         </div>
       </div>
     )
-  }
 
-  return (
-    <div className="card">
-      <div className="card-header flex-nowrap items-center justify-between gap-2">
-        <h5 className="card-title flex min-w-0 items-center gap-1.5">
-          <Icon icon="arrow-back-up" className="text-default-600 size-4 shrink-0" />
-          <span className="truncate">การคืนของ</span>
-          {initialCount > 0 && (
-            <span className="badge bg-warning/15 text-warning-ink text-2xs shrink-0">
-              {initialCount}
-            </span>
-          )}
-        </h5>
-        <button type="button" className="btn btn-sm bg-light text-default-700 shrink-0 hover:bg-light-hover" onClick={toggle}>
-          {open ? 'ซ่อน' : 'จัดการ'}
-        </button>
-      </div>
-
-      {open && <div className={compact ? 'card-body !p-3' : 'card-body'}>{body}</div>}
-    </div>
-  )
-
-  /** เนื้อหาจริง — ใช้ร่วมทั้งโหมดการ์ดและโหมดชีต ห้ามเขียนสองชุด (sibling-surface-parity) */
+  /** เนื้อหาจริง — จุดเดียวที่ประกอบร่างเนื้อหา ห้ามเขียนสองชุด (sibling-surface-parity) */
   function renderBody() {
     if (!eligibility) return null
     return (
@@ -740,19 +698,13 @@ export default function ReturnPanel({
                   <Icon icon="info-circle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
                   {eligibility.blockedText}
                 </p>
-              ) : !formOpen ? (
-                /* 🛑 ปุ่มนี้มีเฉพาะโหมดการ์ด — โหมดชีตเปิดจาก `⋮ → คืนของ` ซึ่งผู้ใช้บอกเจตนา
-                   ไปแล้ว การให้กด "เปิดเรื่องคืนของ" ซ้ำคือคลิกที่ไม่ได้ตัดสินใจอะไรเพิ่ม
-                   (หัวหน้าทักเอง 2026-08-25: "ทำไมยังต้องกดเปิดเรื่องคืนของ") */
-                <button type="button" className="btn btn-sm bg-primary text-white hover:bg-primary-hover disabled:opacity-60" onClick={() => setForm(true)}>
-                  <Icon icon="plus" className="size-4" aria-hidden="true" />
-                  เปิดเรื่องคืนของ
-                </button>
               ) : (
-                <div className="border-default-200 rounded-lg border p-3">
-                  {renderForm()}
-                  {!asSheet && footer && renderFooter(footer)}
-                </div>
+                /* 🛑 ไม่มี wrapper ครอบทั้งฟอร์ม — `card-body` ครอบอยู่แล้ว และม็อกอัพที่อนุมัติ
+                   วางเนื้อหาแต่ละขั้นใน `card-body` ตรง ๆ ทั้ง 3 จอ · กรอบเพิ่มอีกชั้นทำให้
+                   ขั้น 3 กลายเป็นการ์ดซ้อนการ์ด (บล็อกย่อย 4 ใบมี border ของตัวเองอยู่แล้ว)
+                   ซึ่ง DESIGN.md ห้ามตรงตัว · กรอบ `border rounded-lg p-3` ที่ครอบ
+                   **ใบคืนที่มีอยู่** ด้านบนยังอยู่เหมือนเดิม — นั่นคือประวัติหลายใบที่ต้องแยกภาพจริง */
+                renderForm()
               )}
       </>
     )
@@ -791,17 +743,6 @@ export default function ReturnPanel({
             onClick={() => setStep(2)}
           >
             ถัดไป — เลือกของที่คืน
-          </button>
-        ),
-        /* โหมดชีตมีปุ่ม ✕ ที่หัวอยู่แล้ว — สองปุ่มที่ทำงานเดียวกันคือของซ้ำ
-           โหมดการ์ดไม่มี (ปุ่ม "ซ่อน" ที่หัวการ์ดยุบทั้งบล็อก ไม่ใช่ยกเลิกฟอร์ม) */
-        secondary: asSheet ? undefined : (
-          <button
-            type="button"
-            className="btn bg-light text-default-800 hover:bg-default-200 min-h-11 text-sm"
-            onClick={closeForm}
-          >
-            ยกเลิก
           </button>
         ),
       }
@@ -969,16 +910,11 @@ export default function ReturnPanel({
           }
         />
 
-        {/* ปุ่มย้อนกลับพูดชื่อข้อที่เลือกไว้ด้วย = ไม่ต้องจำ และแก้ได้ในคลิกเดียว */}
-        <button
-          type="button"
-          className="btn btn-sm bg-light text-default-800 hover:bg-default-200 mt-3 min-h-11 max-w-full"
-          onClick={() => setStep(1)}
-        >
-          <Icon icon="arrow-left" className="size-4 shrink-0" aria-hidden="true" />
-          <span className="truncate">{method?.title}</span>
-        </button>
-
+        {/* 🛑 ทางกลับไปขั้น 1 มีทางเดียว = ลิงก์ "เปลี่ยน" ในแถบขากลับด้านบน
+            เดิมมีปุ่ม ghost ที่พูดชื่อวิธี ("← ร้านส่งเอง") อยู่ห่างกัน 8px ทำงานเดียวกันเป๊ะ
+            ม็อกอัพที่อนุมัติมีแค่ "เปลี่ยน" · และการจำว่าเลือกวิธีไหนไว้ไม่ต้องพึ่งตัวช่วยที่จอนี้
+            เพราะกดกลับไปแล้ว radio ที่เลือกยัง checked พร้อมพื้น `border-primary bg-primary/5`
+            อยู่แล้ว — recognition มาจากจอปลายทาง ไม่ใช่จากป้ายที่จอต้นทาง */}
         <p className="text-default-900 mt-3 mb-2 text-sm font-semibold">คืนของชิ้นไหนบ้าง</p>
         {eligibility!.items.map((i) => {
           const n = qty[i.orderItemId] ?? 0
@@ -1450,11 +1386,7 @@ export default function ReturnPanel({
   }) {
     return (
       <div
-        className={
-          asSheet
-            ? 'border-default-200 shrink-0 border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))]' /* carve-out HR7: safe-area ไม่มี token ในธีม Paces — แถบปุ่มยึดขอบจอจึงต้องรับ inset เอง (ยกจาก RecordPaymentSheet.tsx:580) */
-            : 'border-default-200 mt-4 border-t pt-3'
-        }
+        className="border-default-200 shrink-0 border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" /* carve-out HR7: safe-area ไม่มี token ในธีม Paces — แถบปุ่มยึดขอบจอจึงต้องรับ inset เอง (ยกจาก RecordPaymentSheet.tsx:580) */
       >
         {total != null && (
           <p className="text-default-900 mb-2 text-sm font-semibold tabular-nums">
