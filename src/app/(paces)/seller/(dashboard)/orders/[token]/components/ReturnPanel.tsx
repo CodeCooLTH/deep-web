@@ -69,6 +69,55 @@ import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
 import { formatBaht } from '@/lib/format-money'
 import { ItemThumbnail } from './order-detail-shared'
 
+/**
+ * ParcelStrip — แถบพัสดุหนึ่งบรรทัด — ใช้ทั้ง "ขาไป" (ขั้น 1) "ขากลับ" (ขั้น 2) และทั้งคู่ในหน้าสรุป
+ *
+ * 🛑 `flex-nowrap` + `min-w-0` + ลูก `truncate` มาเป็นชุด — flexbox ตัดสินว่าจะ wrap ไหม
+ * จาก **ขนาดเนื้อหาเต็มก่อนหด** ใส่ `truncate` เฉย ๆ ไม่มีผลกับการตกบรรทัดเลย
+ * (`docs/conventions/flex-header-truncation.md` — ชื่อขนส่ง/เลขพัสดุยาวได้จริง)
+ *
+ * 🛑 **ประกาศที่ module scope ไม่ใช่ในตัว render ของ `ReturnPanel`**
+ * (`docs/conventions/component-declared-in-render.md`) — React เทียบชนิดด้วย identity ของ
+ * ฟังก์ชัน ฟังก์ชันที่ประกาศในตัว render จึงเป็น **ชนิดใหม่ทุก re-render** ⇒ React unmount
+ * ทั้งซับทรีแล้ว mount ใหม่ ไม่ใช่ patch
+ *
+ * พิสูจน์บนจอจริง 2026-08-26 ตอนที่ยังประกาศผิดที่: ติด `dataset.probe` บน `<img>` โลโก้
+ * แล้วพิมพ์ **1 ตัวอักษร** ในช่องเลขพัสดุ → หมุดหาย = DOM node ถูกสร้างใหม่ทุกคีย์
+ * ⇒ โลโก้ขนส่งเริ่มโหลดใหม่ทุกตัวอักษร (คลาส "แวบ ๆ" 2026-08-12)
+ */
+function ParcelStrip({
+  label,
+  code,
+  name,
+  detail,
+  right,
+}: {
+  label: string
+  code: string | null
+  name: string | null
+  detail: string | null
+  right?: React.ReactNode
+}) {
+  const logo = courierLogoUrl(code, name)
+  return (
+    <div className="bg-default-50 border-default-200 flex flex-nowrap items-center gap-2 rounded-lg border p-2">
+      {logo ? (
+        // eslint-disable-next-line @next/next/no-img-element -- โลโก้ขนส่งเป็นไฟล์คงที่ใน public/ ขนาด 24px ไม่ได้ประโยชน์จาก next/image
+        <img src={logo} alt="" className="ring-default-200 size-6 shrink-0 rounded object-contain ring-1" />
+      ) : (
+        <span className="bg-default-200 text-default-700 flex size-6 shrink-0 items-center justify-center rounded text-2xs font-semibold">
+          {courierInitials(name, code)}
+        </span>
+      )}
+      <span className="text-default-500 shrink-0 text-xs">{label}</span>
+      <span className="text-default-800 min-w-0 flex-1 truncate text-xs font-medium tabular-nums">
+        {detail ?? '—'}
+      </span>
+      {right}
+    </div>
+  )
+}
+
 type EligibleItem = {
   orderItemId: string
   name: string
@@ -1052,6 +1101,14 @@ export default function ReturnPanel({
             <span>ยอดที่คืนให้ลูกค้า</span>
             <span className="tabular-nums">{formatBaht(refundPreview)}</span>
           </div>
+          {/* 🛑 เหตุผลที่ร้านพิมพ์ไว้ต้องกลับมาให้ตรวจก่อนกดยืนยัน — หน้านี้ชื่อ "ตรวจก่อนยืนยัน"
+              แต่เดิมไม่แสดงเหตุผลเลย ⇒ ร้านพิมพ์ไปแล้วตรวจทานไม่ได้ ต้องถอยกลับไปดูเอง */}
+          {reason.trim() !== '' && (
+            <p className="text-default-600 border-default-200 mt-2 mb-0 border-t border-dashed pt-2 text-xs">
+              <span className="text-default-500">เหตุผล · </span>
+              {reason.trim()}
+            </p>
+          )}
         </div>
 
         {/* 2 · พัสดุ 2 ขา คนละบรรทัด (D-3) */}
@@ -1132,46 +1189,6 @@ export default function ReturnPanel({
         </div>
 
       </>
-    )
-  }
-
-  /**
-   * แถบพัสดุหนึ่งบรรทัด — ใช้ทั้ง "ขาไป" (ขั้น 1) "ขากลับ" (ขั้น 2) และทั้งคู่ในหน้าสรุป
-   *
-   * 🛑 `flex-nowrap` + `min-w-0` + ลูก `truncate` มาเป็นชุด — flexbox ตัดสินว่าจะ wrap ไหม
-   * จาก **ขนาดเนื้อหาเต็มก่อนหด** ใส่ `truncate` เฉย ๆ ไม่มีผลกับการตกบรรทัดเลย
-   * (`docs/conventions/flex-header-truncation.md` — ชื่อขนส่ง/เลขพัสดุยาวได้จริง)
-   */
-  function ParcelStrip({
-    label,
-    code,
-    name,
-    detail,
-    right,
-  }: {
-    label: string
-    code: string | null
-    name: string | null
-    detail: string | null
-    right?: React.ReactNode
-  }) {
-    const logo = courierLogoUrl(code, name)
-    return (
-      <div className="bg-default-50 border-default-200 flex flex-nowrap items-center gap-2 rounded-lg border p-2">
-        {logo ? (
-          // eslint-disable-next-line @next/next/no-img-element -- โลโก้ขนส่งเป็นไฟล์คงที่ใน public/ ขนาด 24px ไม่ได้ประโยชน์จาก next/image
-          <img src={logo} alt="" className="ring-default-200 size-6 shrink-0 rounded object-contain ring-1" />
-        ) : (
-          <span className="bg-default-200 text-default-700 flex size-6 shrink-0 items-center justify-center rounded text-2xs font-semibold">
-            {courierInitials(name, code)}
-          </span>
-        )}
-        <span className="text-default-500 shrink-0 text-xs">{label}</span>
-        <span className="text-default-800 min-w-0 flex-1 truncate text-xs font-medium tabular-nums">
-          {detail ?? '—'}
-        </span>
-        {right}
-      </div>
     )
   }
 
