@@ -94,10 +94,8 @@ import { isSelfContainedBubble } from '@/lib/chat-bubble-frame'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
 import { parseMetaSystemNotice, parseMetaAiHandoffNotice, readMetaAiControlMarker } from '@/lib/meta-system-notice'
 import { META_BUSINESS_SUITE_INBOX_URL } from '@/lib/meta-system-notice'
-
-/** ผลของ POST /api/chat/conversations/[id]/thread-control — ต้องตรงกับ ConversationControlResult
- *  ฝั่ง service (สามค่าแยกกันจริง ห้ามยุบเป็น boolean — ดูคอมเมนต์ที่ claimThreadControl) */
-type ThreadControlOutcomeName = 'TAKEN' | 'REQUESTED' | 'FAILED'
+// SSOT ของ "ผลลัพธ์นี้ทำให้หน้าจอทำอะไร + พูดว่าอะไร" — ห้ามตัดสินใจซ้ำที่นี่ (HR16)
+import { describeThreadControlOutcome, type ThreadControlOutcomeName } from '@/lib/thread-control-ui'
 import { withEmojiPresentation } from '@/lib/emoji-presentation'
 import { describeSendFailure, stripSendFailurePrefix } from '@/lib/chat-send-failure'
 import { resolveChatChannel } from '@/lib/chat-channel'
@@ -1652,7 +1650,7 @@ export default function ChatThread({
   // คุมระหว่างเปิดหน้าค้าง) ไม่งั้น composer จะปลดล็อกค้างทั้งที่ AI คุมจริงแล้ว — ใช้ ref เก็บค่า
   // รอบก่อนหน้าเทียบเอง (ไม่ใช่แค่ if (aiAgentActive) เพราะนั่นจะ reset ทุกครั้งที่ยัง true อยู่
   // ทำให้กด "ตอบเอง" แล้วปลดล็อกไม่ได้เลยสักครั้ง)
-  const [manualOverrideStatus, setManualOverrideStatus] = useState<'none' | 'taken' | 'requested'>('none')
+  const [manualOverrideStatus, setManualOverrideStatus] = useState<'none' | 'taken'>('none')
   const [takeoverFailed, setTakeoverFailed] = useState(false)
   const [takeoverBusy, setTakeoverBusy] = useState(false)
   const prevAiAgentActiveRef = useRef(aiAgentActive)
@@ -1688,7 +1686,6 @@ export default function ChatThread({
   const showAiTakeoverFailedComposer = aiComposerSlot && takeoverFailed
   // แถบเหนือช่องพิมพ์หลังขอสิทธิ์แล้ว — หายเองเมื่อ aiAgentActive กลับเป็น false (ไม่มีปุ่มปิด)
   const showManualOverrideStrip = !composerDisabled && aiAgentActive && manualOverrideStatus === 'taken'
-  const showManualRequestedStrip = !composerDisabled && aiAgentActive && manualOverrideStatus === 'requested'
 
   /**
    * ยิงขอสิทธิ์คุมเธรดจริง แล้วแปลผล 3 แบบเป็นสิ่งที่ผู้ขายเห็น
@@ -1711,24 +1708,11 @@ export default function ChatThread({
   }
 
   const applyTakeoverOutcome = (outcome: ThreadControlOutcomeName) => {
-    if (outcome === 'TAKEN') {
-      setManualOverrideStatus('taken')
-      setTakeoverFailed(false)
-      pacesToast.success('ได้สิทธิ์ควบคุมแชทนี้แล้ว พิมพ์ตอบลูกค้าได้ตามปกติ')
-      return
-    }
-    if (outcome === 'REQUESTED') {
-      setManualOverrideStatus('requested')
-      setTakeoverFailed(false)
-      // ปลดล็อกให้พิมพ์ได้ทั้งที่ยังไม่แน่ใจ — "อาจส่งผ่าน" ดีกว่า "บล็อกทั้งที่อาจส่งผ่านได้จริง"
-      // (บทเรียนเดียวกับ aiAgentActive: บล็อกผิดแพงกว่าไม่บล็อก) ถ้าส่งไม่ผ่านจริง บับเบิลล้มเหลว
-      // ของระบบเดิมจะอธิบายเอง
-      pacesToast.warning('ส่งคำขอควบคุมแชทนี้ไปที่ Meta แล้ว ผลจะทราบภายหลัง')
-      return
-    }
-    setManualOverrideStatus('none')
-    setTakeoverFailed(true)
-    pacesToast.error('Meta ปฏิเสธคำขอควบคุมแชทนี้')
+    const ui = describeThreadControlOutcome(outcome)
+    setManualOverrideStatus(ui.unlocked ? 'taken' : 'none')
+    setTakeoverFailed(ui.blocked)
+    if (ui.toastTone === 'success') pacesToast.success(ui.toast)
+    else pacesToast.error(ui.toast)
   }
 
   const confirmTakeOverFromAi = async () => {
@@ -4243,27 +4227,6 @@ export default function ChatThread({
           </div>
         )}
 
-        {/* แถบ "ขอไปแล้ว ยังไม่รู้ผล" (2026-08-26) — Base: แถบด้านบนทุกตัวอักษร เปลี่ยน tone
-            success→warning เพราะสถานะนี้ **ยังไม่ถูกยืนยัน**. ห้ามใช้ success กับมันเด็ดขาด:
-            ช่องพิมพ์ถูกปลดล็อกให้ลองพิมพ์ได้ก็จริง แต่ Meta อาจปฏิเสธตอนกดส่ง — ซึ่งเป็นบั๊ก
-            ที่งานทั้งงานนี้มาแก้ ถ้าแถบบอกว่าสำเร็จก็เท่ากับสร้างมันขึ้นมาใหม่ */}
-        {showManualRequestedStrip && (
-          <div className="border-warning bg-warning/5 mb-2 flex items-start gap-2 rounded-lg border-s-2 px-3 py-2">
-            <Icon icon="robot" className="text-warning-ink mt-0.5 shrink-0 text-base" />
-            <p className="text-warning-ink mb-0 min-w-0 grow text-xs font-semibold">
-              ส่งคำขอควบคุมแชทนี้แล้ว — ข้อความอาจส่งไม่ผ่านจนกว่า Meta จะอนุมัติ
-            </p>
-            <a
-              href={META_BUSINESS_SUITE_INBOX_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-warning-ink flex shrink-0 items-center gap-1 text-xs font-semibold hover:underline"
-            >
-              Business Suite
-              <Icon icon="external-link" className="text-sm" />
-            </a>
-          </div>
-        )}
 
         {/* reply/quote (user 2026-07-25) — แถบ preview ข้อความที่กำลังตอบทับ เหนือช่องพิมพ์ (เหมือน Messenger);
             แถบสี primary ด้านซ้าย + ปุ่มกากบาทยกเลิก */}
