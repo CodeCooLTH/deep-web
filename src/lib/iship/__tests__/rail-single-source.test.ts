@@ -58,13 +58,12 @@ const RAIL_RENDERERS = [
 ]
 
 /**
- * ข้อยกเว้นเดียว — `MiniShipmentTimeline` วาด **แถบจิ๋วในตาราง** ซึ่งเป็นคนละของกับแถบเต็ม
- * โดยตั้งใจ: แถวเดียว 4 จุด ไม่มีคำ และจุดที่ 4 **ยุบ 2 แถวเหลือผลลัพธ์ของทั้งเรื่อง**
- * (ตารางตอบว่า "ใบไหนต้องลงมือ" ไม่ใช่ "เกิดอะไรขึ้นบ้าง")
+ * ข้อยกเว้นเดียว — `MiniShipmentTimeline` วาดจุด 4 จุดเองสำหรับ **ออเดอร์ที่ไม่มีขากลับ**
+ * (แถวปกติในตาราง = ไอคอนล้วน ไม่มีคำ) · พอมีขากลับมันส่งต่อให้ `ShipmentRail` ทันที
  *
- * 🛑 ยกเว้นแบบ **มีเงื่อนไขบังคับ** ไม่ใช่เปิดช่องว่าง — เทสด้านล่างบังคับว่ามันต้องยังอ่าน
- * ทั้งคำ/ไอคอน/สีจาก SSOT (`collapsedOutcome` + `describeReturnLeg`) ห้ามตัดสินเอง
- * (carve-out ที่ไม่มีด่านคุม = ที่ที่ของกลับมาซ่อน — บทเรียน 00037)
+ * 🛑 ยกเว้นแบบ **มีเงื่อนไขบังคับ** ไม่ใช่เปิดช่องว่าง — เทสด้านล่างบังคับว่าเคสมีขากลับ
+ * ต้องเรียก `ShipmentRail` ห้ามวาดแถว 2 เอง (carve-out ที่ไม่มีด่านคุม = ที่ที่ของกลับมาซ่อน
+ * — บทเรียน 00037)
  */
 const COLLAPSED_RENDERER =
   'src/app/(paces)/seller/(dashboard)/orders/components/MiniShipmentTimeline.tsx'
@@ -82,15 +81,26 @@ describe('[blocker] ห้ามจอไหนวาดแถบเอง', () 
     ).toEqual([])
   })
 
-  it('แถบจิ๋วที่ได้รับยกเว้น ต้องอ่านคำ/ไอคอน/สีจาก SSOT ห้ามตัดสินเอง', () => {
+  it('แถบจิ๋วที่ได้รับยกเว้น ต้องส่งต่อให้ ShipmentRail เมื่อมีขากลับ ห้ามวาดแถว 2 เอง', () => {
     const src = stripComments(read(COLLAPSED_RENDERER))
     // จับ **การเรียกใช้** ไม่ใช่ชื่อเปล่า ๆ (บรรทัด import ก็ match ชื่อได้)
-    expect(src).toContain('collapsedOutcome(')
     expect(src).toContain('describeReturnLeg(')
-    // ห้ามพิมพ์ชื่อไอคอน "ย้อนกลับ" เองที่นี่ — มันต้องมาจาก collapsedOutcome เท่านั้น
-    // ไม่งั้นวันที่ SSOT เปลี่ยนไอคอน แถบจิ๋วจะค้างของเก่าโดยไม่มีอะไรฟ้อง
+    /**
+     * 🛑 ต้องตรวจ **สาขาของแถวตาราง** (`if (plain)`) ไม่ใช่ทั้งไฟล์
+     *
+     * รอบแรกเขียน `expect(src).toContain('<ShipmentRail')` เฉย ๆ แล้ว mutation เขียว
+     * ทั้งที่ถอด `ShipmentRail` ออกจากสาขาตารางไปหมดแล้ว — เพราะสาขา `inline`
+     * (การ์ดมือถือ) ก็เรียกมันเหมือนกัน ⇒ ด่านยืนยันแค่ว่า "ไฟล์นี้เอ่ยชื่อ component"
+     * ซึ่งไม่ใช่สิ่งที่กำลังกัน (docs/conventions/mutation-silence-means-weak-corpus.md)
+     */
+    const plainBranch = src.slice(src.indexOf('if (plain)'), src.indexOf('if (inline)'))
+    expect(plainBranch, 'สาขาแถวตารางต้องส่งต่อให้ ShipmentRail เมื่อมีขากลับ').toContain(
+      '<ShipmentRail',
+    )
+    // ห้ามพิมพ์ไอคอน/คำของขากลับเองที่นี่ — ต้องมาจาก `leg` ที่ SSOT คืนมาเท่านั้น
     expect(src).not.toContain("'arrow-back-up'")
-    expect(src).not.toContain('"arrow-back-up"')
+    expect(src).not.toContain('truck-return')
+    expect(src).not.toContain('กลับถึงร้าน')
   })
 
   it('ทั้ง 2 ตัววาดต้องอ่านแถวที่ 2 จาก SSOT ตัวเดียวกัน', () => {
