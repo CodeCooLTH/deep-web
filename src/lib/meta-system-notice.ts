@@ -178,7 +178,12 @@ const AI_HANDOFF_NOTICES: AiHandoffNotice[] = [
 ]
 
 const AI_HANDOFF_LINK_LABEL = 'เปิด AI กลับใน Business Suite'
-const AI_HANDOFF_LINK_URL = 'https://business.facebook.com/latest/inbox/all'
+/**
+ * SSOT ของลิงก์ "กล่องข้อความใน Business Suite" (HR16) — ทุกจุดที่ชี้ผู้ขายไปรับดูแลแชทเองต้อง
+ * ใช้ตัวนี้ ห้ามพิมพ์ URL ซ้ำ (ChatThread.tsx เคยฮาร์ดโค้ดสตริงเดียวกันไว้อีกที่หนึ่ง)
+ */
+export const META_BUSINESS_SUITE_INBOX_URL = 'https://business.facebook.com/latest/inbox/all'
+const AI_HANDOFF_LINK_URL = META_BUSINESS_SUITE_INBOX_URL
 
 export function parseMetaAiHandoffNotice(body: string | null | undefined): MetaSystemNotice | null {
   if (!body) return null

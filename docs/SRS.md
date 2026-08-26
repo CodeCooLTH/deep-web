@@ -1200,6 +1200,14 @@ SellerWallet (1) ── (N) WalletTransaction
 | POST | `/api/chat/conversations/[id]/library` | เหมือนกัน | เก็บไฟล์เข้าคลัง — **รับแค่ `{ messageId }`** ค่าอื่นอ่านจากฐานฝั่ง server; idempotent (ชน `@@unique` → `created:false` ไม่ใช่ error) | เหมือนกัน |
 | DELETE | `/api/chat/conversations/[id]/library?fileId=` | เหมือนกัน | เอาออกจากคลัง (hard delete, idempotent — ไม่มีแถวก็ตอบ 200 `removed:false`) | เหมือนกัน |
 | PATCH | `/api/chat/conversations/[id]/library` | เหมือนกัน | แก้ `fileName`/`note` ของไฟล์ในคลัง | เหมือนกัน |
+| POST | `/api/chat/conversations/[id]/thread-control` | Seller (`resolveOutboundContext` → `canAccessShop`) | ขอสิทธิ์คุมเธรดคืนจากเอเจนต์ AI ของ Meta (เฉพาะ `MESSENGER`/`INSTAGRAM`) — body ว่าง, คืน `{ outcome: 'TAKEN' \| 'REQUESTED' \| 'FAILED', reason?, message? }` | `channel-chat.service::claimConversationControl` → `facebook/graph::claimThreadControl` |
+
+> 🛑 **`thread-control` ไม่รับ `pageId`/PSID จาก client** — resolve จาก `conversationId` ฝั่ง server
+> ล้วน (รับจาก client = ช่องยิงคำสั่ง handover ใส่เพจร้านอื่น) · **`outcome` มีสามค่าและต้องเดินทาง
+> ถึงหน้าจอครบ ห้ามยุบเป็น boolean**: `REQUESTED` แปลว่า "ส่งคำขอไปแล้ว ยังไม่รู้ว่าจะได้สิทธิ์ไหม"
+> ซึ่งไม่ใช่ทั้งสำเร็จและล้มเหลว (Meta ตอบ `success:true` ให้ *คำขอ* ไม่ใช่ให้ *สิทธิ์*) — การยุบรวม
+> คือการสร้างคำสัญญาที่ระบบทำตามไม่ได้ ซึ่งเป็นบั๊กที่ endpoint นี้ถูกเขียนขึ้นมาแก้พอดี
+> (ดู `docs/20 - Features/00018 …/EXTENSIONS-2026-08-26-thread-control-api.md`)
 
 > 🛑 **POST ห้ามรับ `fileId`/`kind`/`sentAt` จาก client** — ค่าที่ตัดสิน "เก็บอะไร" ต้องอ่านจาก
 > `ChatMessage` ฝั่ง server เสมอ (รับจาก client = เปิดช่องยัดไฟล์ของร้านอื่นเข้าคลังตัวเอง

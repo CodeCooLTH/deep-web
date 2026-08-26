@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getLastInboundTime, fetchMessageText, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, GraphApiError, type GraphThreadMessage, type GraphThreadAttachment } from '@/lib/facebook/graph'
+import { getLastInboundTime, fetchMessageText, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, claimThreadControl, GraphApiError, type GraphThreadMessage, type GraphThreadAttachment, type ThreadControlFailureReason } from '@/lib/facebook/graph'
 import type { ChannelAdapter, ChannelContext, OutboundMessagePart } from '@/lib/channels/adapter'
 import { MetaAdapter } from '@/lib/channels/meta-adapter'
 // (S-6, feature 00025) LineAdapter (S-4) + prefix builder (TD-005) — ตัวเดียวที่ประกอบ
@@ -2822,6 +2822,65 @@ export async function resolveOutboundContext(
   }
 
   return conversation
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ขอสิทธิ์คุมเธรดคืนจากเอเจนต์ AI ของ Meta — เส้นทางของปุ่ม "ตอบเอง" (2026-08-26)
+// ══════════════════════════════════════════════════════════════════════════
+
+/** ผลของการขอสิทธิ์ — สามค่านี้ต้องเดินทางถึงหน้าจอครบ ห้ามยุบเป็น boolean (ดู claimThreadControl) */
+export type ConversationControlResult =
+  | { outcome: 'TAKEN' }
+  | { outcome: 'REQUESTED' }
+  | { outcome: 'FAILED'; reason: ThreadControlFailureReason; message: string }
+
+/**
+ * ขอสิทธิ์คุมเธรดของช่องทางนอกให้ร้าน (Messenger / Instagram)
+ *
+ * 🛑 เฉพาะ Meta — LINE ไม่มีแนวคิด "เจ้าของเธรด" เลย (ไม่มีใครมาแย่ง ไม่มีอะไรให้ขอคืน) และ DEEP
+ * เป็นแชทในแอปเราเอง. ปฏิเสธด้วย `CHANNEL_NOT_SUPPORTED` แทนที่จะเงียบ ๆ คืน FAILED เพราะสองอย่างนี้
+ * คนละความหมาย: อันหนึ่งคือ "ขอแล้วไม่ได้" อีกอันคือ "ไม่มีอะไรให้ขอ" — ถ้าปนกัน หน้าจอจะขึ้นปุ่ม
+ * ชวนให้ผู้ขายไป Business Suite ของเพจที่ไม่มีอยู่จริง
+ *
+ * เขียน `ChatHandoverEvent` ทุกครั้งที่ยิง (สำเร็จหรือไม่ก็ตาม) — Vercel plan ที่ใช้อยู่ query
+ * runtime log ย้อนหลังไม่ได้ ⇒ `console.log` มีค่าเท่ากับไม่มี (เหตุผลเดียวกับ ingestHandoverEvent
+ * ซึ่งเป็นตัวที่เราเรียกใช้ตรงนี้). นี่คือหลักฐานชิ้นเดียวที่จะตอบได้ว่า `request_thread_control`
+ * ใช้ได้จริงไหมในสนาม — ซึ่งเป็นเหตุผลทั้งหมดที่ฟังก์ชันนี้ถูกเขียน
+ */
+export async function claimConversationControl(params: {
+  conversationId: string
+  actorUserId: string
+}): Promise<ConversationControlResult> {
+  const conversation = await resolveOutboundContext({
+    conversationId: params.conversationId,
+    actorUserId: params.actorUserId,
+  })
+
+  if (conversation.channel !== 'MESSENGER' && conversation.channel !== 'INSTAGRAM') {
+    throw new Error('CHANNEL_NOT_SUPPORTED')
+  }
+  // ถ้อยคำเดียวกับเส้นทางรีแอ็กชันในไฟล์นี้ (เรื่องเดียวกันต้องพูดเหมือนกัน — HR16)
+  if (conversation.shopChannel.status !== 'ACTIVE') throw new Error('CHANNEL_INACTIVE')
+
+  const pageToken = decryptToken(conversation.shopChannel.accessTokenEnc)
+  const psid = conversation.externalContact.externalUserId
+
+  const result = await claimThreadControl(pageToken, psid)
+
+  await ingestHandoverEvent({
+    provider: conversation.channel,
+    pageExternalId: conversation.shopChannel.externalId,
+    contactExternalId: psid,
+    // 'take' เมื่อได้สิทธิ์จริง · 'request' เมื่อได้แค่ส่งคำขอหรือไม่ได้อะไรเลย — ตรงกับ API ที่ยิงจริง
+    kind: result.outcome === 'TAKEN' ? 'take' : 'request',
+    // metadata แยกแถวของเราออกจาก event ที่ Meta ส่งมาเอง (ตารางนี้เก็บทั้งสองแหล่ง)
+    metadata: `deep-seller-takeover:${result.outcome}`,
+    rawEvent: result,
+  })
+
+  if (result.outcome === 'TAKEN') return { outcome: 'TAKEN' }
+  if (result.outcome === 'REQUESTED') return { outcome: 'REQUESTED' }
+  return { outcome: 'FAILED', reason: result.reason, message: result.message }
 }
 
 /** พารามิเตอร์ของเส้นทาง LINE — ยกออกมาจาก inline type เดิมของ `sendOutboundLineMessage`

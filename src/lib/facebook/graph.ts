@@ -1148,3 +1148,97 @@ export async function sendTemplateMessage(
   })
   return (json.message_id as string | undefined) ?? ''
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// Conversation Routing — ขอสิทธิ์คุมเธรดคืนจากเอเจนต์ AI ของ Meta (2026-08-26)
+// ══════════════════════════════════════════════════════════════════════════
+//
+// ที่มา: ปุ่ม "ตอบเอง" ในห้องแชทผู้ขาย **ไม่เคยยิงอะไรออกไปเลย** ตั้งแต่วันแรก (2026-08-08) —
+// มันแค่ `setRespondingManually(true)` ปลดล็อกช่องพิมพ์ฝั่งเรา แล้วผู้ขายก็ไปเจอ
+// `(#10) another app is controlling this thread` ตอนกดส่ง. ตอนนั้นเลือกทำแบบนั้นเพราะยิง
+// `take_thread_control` แล้วได้ `(#27) not supported when Conversation Routing is not enabled`
+// จึงสรุปว่า "ทำไม่ได้" — **แต่สรุปเร็วไป**: เอกสาร Conversation Routing ของ Meta เขียนไว้ว่า
+// ในโหมด default (ยังไม่ได้ตั้ง Default Application ที่เพจ) มีของ 2 ชิ้นที่ยังใช้ได้อยู่
+//
+//   "The Take Thread Control API is blocked unless a default application is set."
+//   "Request Thread Control API Available: Any application can request thread control,
+//    but only the first application to invoke the API will receive control."
+//
+// ⇒ `request_thread_control` **ไม่เคยถูกทดสอบเลยสักครั้ง** ทั้งที่เอกสารบอกว่าใช้ได้โดยไม่ต้อง
+// ตั้งค่าอะไรที่เพจ. ฟังก์ชันนี้จึงลองตามลำดับ take → request แล้วรายงานว่าได้ผลทางไหน
+//
+// 🛑 สามสถานะนี้ **ไม่ใช่ระดับความสำเร็จของสิ่งเดียวกัน** ห้ามยุบรวม:
+//   TAKEN     = Meta ยืนยันว่าเราเป็นเจ้าของเธรดแล้ว ⇒ ส่งข้อความผ่านแน่นอน
+//   REQUESTED = เรา "ขอ" ไปแล้ว เจ้าของเดิมจะให้หรือไม่ให้ก็ได้ ⇒ **ยังไม่รู้ว่าส่งจะผ่านไหม**
+//               (API ตอบ success:true แปลว่า "คำขอถูกส่ง" ไม่ได้แปลว่า "ได้สิทธิ์แล้ว")
+//   FAILED    = ทั้งสองทางปิด ⇒ ทางออกเดียวคือคนไปกดที่ Meta Business Suite ของเพจนั้น
+// การเอา REQUESTED ไปแสดงเป็น TAKEN คือการสร้างคำสัญญาแบบเดียวกับบั๊กที่ฟังก์ชันนี้มาแก้
+export type ThreadControlOutcome =
+  | { outcome: 'TAKEN'; raw: unknown }
+  | { outcome: 'REQUESTED'; raw: unknown; takeError: string }
+  | { outcome: 'FAILED'; reason: ThreadControlFailureReason; message: string; takeError: string }
+
+/** เหตุผลที่ขอสิทธิ์ไม่สำเร็จ — ผูกกับ *ทางออกที่ต่างกัน* ไม่ใช่แค่ป้ายชื่อ error */
+export type ThreadControlFailureReason =
+  /** เพจยังไม่ได้ตั้ง Default Application และ request ก็ไม่ผ่าน ⇒ ต้องไปกดที่ Business Suite */
+  | 'ROUTING_NOT_ENABLED'
+  /** token เพจตาย ⇒ ต้องเชื่อมเพจใหม่ (คนละทางแก้กับข้างบนโดยสิ้นเชิง) */
+  | 'TOKEN_INVALID'
+  | 'UNKNOWN'
+
+/**
+ * 🛑 คัดแยกด้วย **ถ้อยคำ** ไม่ใช่ code เปล่า ๆ — Meta ใช้เลขเดิมซ้ำกับสาเหตุคนละเรื่อง
+ * (`#10` เป็นได้ทั้ง "แอปอื่นคุมเธรด" และ "เกินหน้าต่าง 24 ชม." · `#100` เป็นได้หลายอย่าง)
+ * บทเรียนเดียวกับ RULES ใน `src/lib/chat-send-failure.ts` ซึ่งเขียนกติกานี้ไว้แล้ว
+ */
+function classifyThreadControlError(err: GraphApiError): ThreadControlFailureReason {
+  if (err.code === 190 || /access token/i.test(err.message)) return 'TOKEN_INVALID'
+  if (/conversation routing is not enabled/i.test(err.message)) return 'ROUTING_NOT_ENABLED'
+  return 'UNKNOWN'
+}
+
+/**
+ * ขอสิทธิ์คุมเธรดของลูกค้าหนึ่งราย — ลอง take ก่อน ถ้าไม่ผ่านค่อย request
+ *
+ * ใช้ `/me/...` ไม่ใช่ `/{page-id}/...` ด้วยเหตุผลเดียวกับ `sendTextMessage` (ดูคอมเมนต์เหนือ
+ * ฟังก์ชันนั้น): pageToken resolve เป็นเพจ/IG account ให้เองแล้ว การใส่ id ตรง ๆ ทำให้เส้นทาง IG
+ * ต้องเดาว่าจะใช้ Page ID หรือ IG Business Account ID ซึ่งเป็นคนละเลขกัน
+ *
+ * ไม่ throw — ผู้เรียกคือปุ่มบนหน้าจอ ทุกผลลัพธ์ต้องกลายเป็นคำที่ผู้ขายอ่านรู้เรื่อง ไม่ใช่ 500
+ */
+export async function claimThreadControl(
+  pageToken: string,
+  recipientId: string,
+  metadata = 'deep-seller-takeover',
+): Promise<ThreadControlOutcome> {
+  const body = { recipient: { id: recipientId }, metadata }
+
+  try {
+    const raw = await graphFetch('/me/take_thread_control', pageToken, { method: 'POST', body })
+    return { outcome: 'TAKEN', raw }
+  } catch (takeErr) {
+    const takeError = takeErr instanceof Error ? takeErr.message : String(takeErr)
+
+    // token ตาย = ทั้งสองทางตายเหมือนกัน ยิงซ้ำไม่มีประโยชน์ และ error ตัวที่สองจะกลบตัวแรก
+    // ทำให้ผู้ขายถูกชี้ไปหน้าที่แก้ไม่ตรงปัญหา (ไป Business Suite ทั้งที่ต้องไปเชื่อมเพจใหม่)
+    if (takeErr instanceof GraphApiError && classifyThreadControlError(takeErr) === 'TOKEN_INVALID') {
+      return { outcome: 'FAILED', reason: 'TOKEN_INVALID', message: takeError, takeError }
+    }
+
+    try {
+      const raw = await graphFetch('/me/request_thread_control', pageToken, { method: 'POST', body })
+      return { outcome: 'REQUESTED', raw, takeError }
+    } catch (reqErr) {
+      const message = reqErr instanceof Error ? reqErr.message : String(reqErr)
+      // จัดประเภทจาก error ของ **take** ไม่ใช่ของ request — ตัวที่บอกว่า "ทำไมเพจนี้ทำไม่ได้"
+      // คือ #27 ซึ่งมาจาก take เสมอ ส่วน request ล้มด้วยเหตุผลปลายทางที่คลุมเครือกว่า
+      const reason =
+        takeErr instanceof GraphApiError
+          ? classifyThreadControlError(takeErr)
+          : reqErr instanceof GraphApiError
+            ? classifyThreadControlError(reqErr)
+            : 'UNKNOWN'
+      return { outcome: 'FAILED', reason, message, takeError }
+    }
+  }
+}

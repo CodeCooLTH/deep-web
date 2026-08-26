@@ -96,6 +96,64 @@ const base = async (options: PacesConfirmOptions): Promise<boolean> => {
   return result.isConfirmed
 }
 
+/**
+ * pacesConfirmAsync — confirm ที่ "ทำงานจริง" ต่อในตัวโมดัลเอง แล้วคืนผลของงานนั้น
+ *
+ * ทำไมต้องมีตัวนี้แทน `pacesConfirm` + fetch ข้างนอก: `pacesConfirm` คืน boolean แล้วปิดโมดัลทันที
+ * ⇒ ช่วงที่งานจริงกำลังทำงาน (ยิง API 0.5–2 วิ) **ไม่มีที่ให้แสดงสถานะและไม่มีอะไรกันกดซ้ำ**
+ * ผู้ใช้เห็นโมดัลปิดไปเฉย ๆ แล้วจอนิ่ง — ซึ่งอ่านได้ทั้ง "เสร็จแล้ว" และ "ค้าง"
+ *
+ * `showLoaderOnConfirm` + `preConfirm` ของ Swal ทำสามอย่างให้ฟรี: สปินเนอร์บนปุ่มยืนยัน ·
+ * ปิดปุ่มยกเลิกระหว่างทำงาน · กันกดยืนยันซ้ำ
+ *
+ * 🛑 `run()` throw = **โมดัลไม่ปิด** ขึ้นข้อความแดงในตัวโมดัลแล้วกดใหม่ได้ทันที — สงวนไว้ให้
+ * "ยิงไม่ถึงปลายทาง" (เน็ตหลุด/500) เท่านั้น. ผลลัพธ์เชิงธุรกิจที่ปลายทาง *ตอบมาแล้วว่าไม่ให้*
+ * ต้อง `return` ค่าปกติออกไปให้ผู้เรียกจัดการ ไม่ใช่ throw — สองอย่างนี้มีขั้นตอนต่อไปคนละทาง
+ * (อันหนึ่ง "กดอีกที" อีกอันหนึ่ง "ไปทำอย่างอื่น") ถ้ารวมกันผู้ใช้จะถูกเชิญให้กดวนสิ่งที่ไม่มีวันผ่าน
+ *
+ * คืน `null` = ผู้ใช้กดยกเลิก/Esc (ไม่ใช่ "งานล้มเหลว")
+ */
+export const pacesConfirmAsync = async <T>(options: {
+  title: string
+  text?: string
+  confirmButtonText?: string
+  cancelButtonText?: string
+  confirmSemantic?: ConfirmSemantic
+  icon?: SweetAlertIcon
+  /** ข้อความที่ขึ้นในโมดัลเมื่อ `run()` throw — ต้องบอกขั้นตอนต่อไป ไม่ใช่แค่ชื่ออาการ */
+  errorText: string
+  run: () => Promise<T>
+}): Promise<T | null> => {
+  const Swal = await loadSwal()
+  const result = await Swal.fire({
+    buttonsStyling: false,
+    showCancelButton: true,
+    allowOutsideClick: false,
+    focusCancel: false,
+    icon: options.icon ?? 'question',
+    title: options.title,
+    text: options.text,
+    confirmButtonText: options.confirmButtonText ?? 'ยืนยัน',
+    cancelButtonText: options.cancelButtonText ?? 'ยกเลิก',
+    customClass: {
+      confirmButton: CONFIRM_BTN[options.confirmSemantic ?? 'primary'],
+      cancelButton: CANCEL_BTN,
+    },
+    showLoaderOnConfirm: true,
+    preConfirm: async () => {
+      try {
+        return await options.run()
+      } catch {
+        Swal.showValidationMessage(options.errorText)
+        return undefined
+      }
+    },
+  })
+  // isConfirmed=false → ยกเลิก · value=undefined → run() throw แล้ว Swal เปิดค้างอยู่จนผู้ใช้ปิดเอง
+  if (!result.isConfirmed || result.value === undefined) return null
+  return result.value as T
+}
+
 export interface PacesAlertOptions {
   title: string
   text?: string

@@ -79,7 +79,7 @@ import ThreadChipStrip, {
 import BotPausedBanner, { getBotPausedSummary } from './BotPausedBanner'
 import OrderProgressBar, { orderProgressChip } from './OrderProgressBar'
 import { pacesToast } from '@/lib/paces-toast'
-import { pacesConfirm } from '@/lib/paces-swal'
+import { pacesConfirm, pacesConfirmAsync } from '@/lib/paces-swal'
 import { parseMetaOrderCard } from '@/lib/meta-order-card'
 import Link from 'next/link'
 import Lightbox from 'yet-another-react-lightbox'
@@ -93,6 +93,11 @@ import { burstIdentity, computeBurstEndIds } from '@/lib/chat-message-burst'
 import { isSelfContainedBubble } from '@/lib/chat-bubble-frame'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
 import { parseMetaSystemNotice, parseMetaAiHandoffNotice, readMetaAiControlMarker } from '@/lib/meta-system-notice'
+import { META_BUSINESS_SUITE_INBOX_URL } from '@/lib/meta-system-notice'
+
+/** ผลของ POST /api/chat/conversations/[id]/thread-control — ต้องตรงกับ ConversationControlResult
+ *  ฝั่ง service (สามค่าแยกกันจริง ห้ามยุบเป็น boolean — ดูคอมเมนต์ที่ claimThreadControl) */
+type ThreadControlOutcomeName = 'TAKEN' | 'REQUESTED' | 'FAILED'
 import { withEmojiPresentation } from '@/lib/emoji-presentation'
 import { describeSendFailure, stripSendFailurePrefix } from '@/lib/chat-send-failure'
 import { resolveChatChannel } from '@/lib/chat-channel'
@@ -1633,15 +1638,29 @@ export default function ChatThread({
     return false
   }, [isExternal, messages])
 
-  // client gate ล้วน ๆ (ไม่ยิง API) — ผู้ขายกด "ตอบเอง" แล้วยืนยันผ่าน pacesConfirm จึงปลดล็อก
-  // composer ให้พิมพ์ได้ตามปกติ. ต้อง reset กลับ false เมื่อ aiAgentActive ไล่จาก false→true อีกครั้ง
-  // (ลูกค้าทักใหม่แล้ว AI กลับมาคุมระหว่างเปิดหน้าค้าง) ไม่งั้น composer จะปลดล็อกค้างทั้งที่ AI
-  // คุมจริงแล้ว — ใช้ ref เก็บค่ารอบก่อนหน้าเทียบเอง (ไม่ใช่แค่ if (aiAgentActive) เพราะนั่นจะ
-  // reset ทุกครั้งที่ยัง true อยู่ ทำให้กด "ตอบเอง" แล้วปลดล็อกไม่ได้เลยสักครั้ง)
-  const [respondingManually, setRespondingManually] = useState(false)
+  // ผลของการขอสิทธิ์คุมเธรดจาก Meta (2026-08-26 — เดิมเป็น client gate ล้วน ๆ ไม่ยิง API เลย)
+  //
+  // 🛑 ทำไมเป็น 3 ค่า ไม่ใช่ boolean: `requested` แปลว่า "ขอไปแล้ว ยังไม่รู้ว่าได้สิทธิ์ไหม" ซึ่ง
+  // ไม่ใช่ทั้งสำเร็จและล้มเหลว — ยุบให้เหลือ true/false เมื่อไหร่ ผู้ขายจะได้คำสัญญาแบบเดียวกับ
+  // บั๊กที่งานนี้มาแก้ (ปุ่มบอกว่าพิมพ์ได้ แล้ว Meta ปฏิเสธตอนกดส่ง)
+  //
+  // `takeoverFailed` แยกออกมาต่างหาก ไม่ยัดเป็นค่าที่ 4 ของตัวบน เพราะมันตอบคนละคำถาม:
+  // ตัวบน = "ตอนนี้เราถือสิทธิ์อยู่ในสถานะไหน" · ตัวนี้ = "ครั้งล่าสุดที่ขอ โดนปฏิเสธไหม"
+  // (ขอไม่ผ่าน = ยังอยู่สถานะ 'none' เหมือนเดิมทุกประการ แค่ต้องเปลี่ยนสิ่งที่แสดงบนจอ)
+  //
+  // ต้อง reset ทั้งคู่เมื่อ aiAgentActive ไล่จาก false→true อีกครั้ง (ลูกค้าทักใหม่แล้ว AI กลับมา
+  // คุมระหว่างเปิดหน้าค้าง) ไม่งั้น composer จะปลดล็อกค้างทั้งที่ AI คุมจริงแล้ว — ใช้ ref เก็บค่า
+  // รอบก่อนหน้าเทียบเอง (ไม่ใช่แค่ if (aiAgentActive) เพราะนั่นจะ reset ทุกครั้งที่ยัง true อยู่
+  // ทำให้กด "ตอบเอง" แล้วปลดล็อกไม่ได้เลยสักครั้ง)
+  const [manualOverrideStatus, setManualOverrideStatus] = useState<'none' | 'taken' | 'requested'>('none')
+  const [takeoverFailed, setTakeoverFailed] = useState(false)
+  const [takeoverBusy, setTakeoverBusy] = useState(false)
   const prevAiAgentActiveRef = useRef(aiAgentActive)
   useEffect(() => {
-    if (!prevAiAgentActiveRef.current && aiAgentActive) setRespondingManually(false)
+    if (!prevAiAgentActiveRef.current && aiAgentActive) {
+      setManualOverrideStatus('none')
+      setTakeoverFailed(false)
+    }
     prevAiAgentActiveRef.current = aiAgentActive
   }, [aiAgentActive])
 
@@ -1662,18 +1681,85 @@ export default function ChatThread({
    * — สถานะเตือนอื่น (token ใกล้หมด / webhook ผิด) ห้ามบล็อกเด็ดขาด
    */
   const showTokenInvalidComposer = isExternal && tokenInvalid && channel === 'LINE'
-  const showAiTakeoverComposer =
-    !composerDisabled && !showTokenInvalidComposer && aiAgentActive && !respondingManually
-  // แถบ "กำลังตอบเองแทน AI" หลังยืนยันแล้ว — หายเองเมื่อ aiAgentActive กลับเป็น false (ไม่มีปุ่มปิด)
-  const showManualOverrideStrip = !composerDisabled && aiAgentActive && respondingManually
+  // ลำดับความสำคัญเดิมคงเดิมทุกประการ (composerDisabled > tokenInvalid > กลุ่ม AI) —
+  // งานนี้แค่แตกกิ่ง "กลุ่ม AI" ออกเป็น 2 ทางตามว่าครั้งล่าสุดขอสิทธิ์แล้วโดนปฏิเสธหรือยัง
+  const aiComposerSlot = !composerDisabled && !showTokenInvalidComposer && aiAgentActive && manualOverrideStatus === 'none'
+  const showAiTakeoverComposer = aiComposerSlot && !takeoverFailed
+  const showAiTakeoverFailedComposer = aiComposerSlot && takeoverFailed
+  // แถบเหนือช่องพิมพ์หลังขอสิทธิ์แล้ว — หายเองเมื่อ aiAgentActive กลับเป็น false (ไม่มีปุ่มปิด)
+  const showManualOverrideStrip = !composerDisabled && aiAgentActive && manualOverrideStatus === 'taken'
+  const showManualRequestedStrip = !composerDisabled && aiAgentActive && manualOverrideStatus === 'requested'
+
+  /**
+   * ยิงขอสิทธิ์คุมเธรดจริง แล้วแปลผล 3 แบบเป็นสิ่งที่ผู้ขายเห็น
+   *
+   * 🛑 `throw` ใน `run()` สงวนไว้ให้ "ยิงไม่ถึงปลายทาง" เท่านั้น (เน็ตหลุด/500) — Meta ตอบมาแล้ว
+   * ว่าไม่ให้ (`FAILED`) ต้องคืนค่าปกติ เพราะขั้นตอนต่อไปคนละทาง: อันหนึ่งกดซ้ำได้เลย
+   * อีกอันต้องไปทำอย่างอื่นที่ Business Suite (ดู pacesConfirmAsync)
+   */
+  const requestThreadControl = async (): Promise<ThreadControlOutcomeName> => {
+    const res = await fetch(`/api/chat/conversations/${conversationId}/thread-control`, {
+      method: 'POST',
+    })
+    if (!res.ok) {
+      // 4xx/5xx = ไม่ได้คำตอบเชิงธุรกิจจาก Meta เลย → ให้โมดัลเปิดค้างแล้วกดใหม่ได้
+      throw new Error(`thread-control ${res.status}`)
+    }
+    const data = (await res.json()) as { outcome?: ThreadControlOutcomeName }
+    if (!data.outcome) throw new Error('thread-control: no outcome')
+    return data.outcome
+  }
+
+  const applyTakeoverOutcome = (outcome: ThreadControlOutcomeName) => {
+    if (outcome === 'TAKEN') {
+      setManualOverrideStatus('taken')
+      setTakeoverFailed(false)
+      pacesToast.success('ได้สิทธิ์ควบคุมแชทนี้แล้ว พิมพ์ตอบลูกค้าได้ตามปกติ')
+      return
+    }
+    if (outcome === 'REQUESTED') {
+      setManualOverrideStatus('requested')
+      setTakeoverFailed(false)
+      // ปลดล็อกให้พิมพ์ได้ทั้งที่ยังไม่แน่ใจ — "อาจส่งผ่าน" ดีกว่า "บล็อกทั้งที่อาจส่งผ่านได้จริง"
+      // (บทเรียนเดียวกับ aiAgentActive: บล็อกผิดแพงกว่าไม่บล็อก) ถ้าส่งไม่ผ่านจริง บับเบิลล้มเหลว
+      // ของระบบเดิมจะอธิบายเอง
+      pacesToast.warning('ส่งคำขอควบคุมแชทนี้ไปที่ Meta แล้ว ผลจะทราบภายหลัง')
+      return
+    }
+    setManualOverrideStatus('none')
+    setTakeoverFailed(true)
+    pacesToast.error('Meta ปฏิเสธคำขอควบคุมแชทนี้')
+  }
 
   const confirmTakeOverFromAi = async () => {
-    const ok = await pacesConfirm.question(
-      'ตอบเองแทน AI ของ Meta?',
-      'หลังจากนี้คุณพิมพ์ข้อความส่งหาลูกค้าได้ตามปกติ — แต่การหยุด AI ให้แน่ใจ 100% ต้องกดที่ Business Suite ของเพจนี้โดยตรง',
-      { confirmButtonText: 'ตอบเอง', cancelButtonText: 'ให้ AI ตอบต่อไป' },
-    )
-    if (ok) setRespondingManually(true)
+    if (takeoverBusy) return
+    setTakeoverBusy(true)
+    try {
+      const outcome = await pacesConfirmAsync<ThreadControlOutcomeName>({
+        title: 'ตอบเองแทน AI ของ Meta?',
+        text: 'Deep จะขอสิทธิ์ควบคุมแชทนี้จาก Meta ให้ทันที — บางเพจได้สิทธิ์เลย บางเพจต้องรอ Meta อนุมัติก่อน ระหว่างนั้นข้อความอาจส่งไม่ผ่านชั่วคราว',
+        confirmButtonText: 'ตอบเอง',
+        cancelButtonText: 'ให้ AI ตอบต่อไป',
+        errorText: 'เชื่อมต่อ Meta ไม่สำเร็จ — ลองอีกครั้ง',
+        run: requestThreadControl,
+      })
+      if (outcome) applyTakeoverOutcome(outcome)
+    } finally {
+      setTakeoverBusy(false)
+    }
+  }
+
+  /** ลองขอสิทธิ์ซ้ำจากบล็อกแดง — ไม่ถามยืนยันอีก ผู้ขายยืนยันเจตนาไปแล้วรอบแรก */
+  const retryTakeOverFromAi = async () => {
+    if (takeoverBusy) return
+    setTakeoverBusy(true)
+    try {
+      applyTakeoverOutcome(await requestThreadControl())
+    } catch {
+      pacesToast.error('เชื่อมต่อ Meta ไม่สำเร็จ — ลองอีกครั้ง')
+    } finally {
+      setTakeoverBusy(false)
+    }
   }
 
   // ── กดค้างบนข้อความ → เมนูลอย (user สั่ง 2026-08-02) ────────────────
@@ -3799,10 +3885,58 @@ export default function ChatThread({
             <button
               type="button"
               onClick={confirmTakeOverFromAi}
-              className="btn btn-sm bg-card text-default-700 min-h-11 shrink-0 sm:min-h-0"
+              disabled={takeoverBusy}
+              className="btn btn-sm bg-card text-default-700 min-h-11 shrink-0 disabled:opacity-60 sm:min-h-0"
             >
+              {/* กันกดซ้ำช่วง "ก่อนโมดัลเปิด" — Swal บล็อกให้ได้เฉพาะหลังเปิดแล้วเท่านั้น และ
+                  ช่วงนั้นมี dynamic import ของ sweetalert2 คั่นอยู่จริง ไม่ใช่ 0 วินาที */}
+              {takeoverBusy && <Icon icon="loader-2" className="me-1 animate-spin text-base" aria-hidden="true" />}
               ตอบเอง
             </button>
+          </div>
+        ) : showAiTakeoverFailedComposer ? (
+          /**
+           * บล็อก "Meta ปฏิเสธคำขอ" (2026-08-26)
+           *
+           * Base: บล็อก `showTokenInvalidComposer` ด้านบนในไฟล์นี้ (โครง/คลาสเดียวกันเป๊ะ รวม
+           * min-h-24 ที่ต้องเท่ากันทุกใบในตระกูลนี้ ไม่งั้นท้ายเธรดยุบตอนสลับสถานะ) — เปลี่ยนเป็น
+           * 2 ปุ่มในคลัสเตอร์เดียว
+           *
+           * 🛑 ปุ่มทึบมีได้ใบเดียว และต้องเป็นใบที่ **แก้ปัญหาได้จริง** — ตรงนี้คือ Business Suite
+           * (Meta ปฏิเสธทั้ง take และ request แล้ว การกดซ้ำจึงเป็นทางที่ *อาจ* ได้ผล ไม่ใช่ทางที่ได้ผล)
+           * ท่าเดียวกับ ShipmentStatusView ที่ผูกปุ่มทึบกับชนิดของ error
+           */
+          <div className="bg-danger/15 text-danger-ink flex min-h-24 flex-col items-center justify-center gap-2 rounded-lg px-3 py-2 text-center text-sm sm:flex-row sm:items-center sm:text-start">
+            <Icon icon="alert-circle" className="shrink-0 text-lg" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              ส่งข้อความหาลูกค้าไม่ได้ตอนนี้ — Meta ไม่ให้ Deep ควบคุมแชทนี้แทน AI
+              {/* บอกให้ชัดว่าตายข้างเดียว ไม่งั้นผู้ขายจะอ่านว่าทั้งห้องพังแล้วเลิกดูเธรดนี้
+                  (ถ้อยคำเดียวกับบล็อก tokenInvalid ด้านบน — เรื่องเดียวกันต้องพูดเหมือนกัน) */}
+              <span className="block text-xs opacity-80 sm:ms-1 sm:inline">
+                (ข้อความที่ลูกค้าส่งมายังอ่านได้ตามปกติ)
+              </span>
+            </span>
+            <span className="flex shrink-0 flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={retryTakeOverFromAi}
+                disabled={takeoverBusy}
+                title="ลองขอสิทธิ์ควบคุมอีกครั้ง"
+                aria-label="ลองขอสิทธิ์ควบคุมอีกครั้ง"
+                className="btn btn-icon bg-card text-default-700 min-h-11 disabled:opacity-60 sm:min-h-0"
+              >
+                <Icon icon={takeoverBusy ? 'loader-2' : 'refresh'} className={takeoverBusy ? 'animate-spin' : ''} />
+              </button>
+              <a
+                href={META_BUSINESS_SUITE_INBOX_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-sm bg-primary text-white min-h-11 sm:min-h-0"
+              >
+                เข้า Business Suite
+                <Icon icon="external-link" className="ms-1 text-sm" />
+              </a>
+            </span>
           </div>
         ) : (
           <>
@@ -4090,15 +4224,40 @@ export default function ChatThread({
             rounded-lg px-3 py-2`) — เปลี่ยน semantic primary→info, ไอคอน arrow-back-up→robot,
             เปลี่ยนปุ่ม x (ยกเลิก) เป็นลิงก์ออกไป Business Suite (เราสั่งให้ AI หยุดจริงไม่ได้ —
             เปิด AI กลับต้องทำที่ Business Suite ของเพจนั้นเอง) */}
+        {/* tone info→success (2026-08-26): แถบนี้โผล่ได้เฉพาะตอน Meta **ยืนยันแล้วจริง** ว่าเรา
+            ถือสิทธิ์ (outcome TAKEN) ไม่ใช่ "เรากดปุ่มแล้ว" เหมือนก่อนหน้านี้ — success ของ Paces
+            เป็น token ของสกินนี้เอง คนละตัวกับ Verified Green ของฝั่ง buyer */}
         {showManualOverrideStrip && (
-          <div className="border-info bg-info/5 mb-2 flex items-start gap-2 rounded-lg border-s-2 px-3 py-2">
-            <Icon icon="robot" className="text-info mt-0.5 shrink-0 text-base" />
-            <p className="text-info mb-0 min-w-0 grow text-xs font-semibold">กำลังตอบเองแทน AI ของ Meta</p>
+          <div className="border-success bg-success/5 mb-2 flex items-start gap-2 rounded-lg border-s-2 px-3 py-2">
+            <Icon icon="robot" className="text-success-ink mt-0.5 shrink-0 text-base" />
+            <p className="text-success-ink mb-0 min-w-0 grow text-xs font-semibold">กำลังตอบเองแทน AI ของ Meta</p>
             <a
-              href="https://business.facebook.com/latest/inbox/all"
+              href={META_BUSINESS_SUITE_INBOX_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-info flex shrink-0 items-center gap-1 text-xs font-semibold hover:underline"
+              className="text-success-ink flex shrink-0 items-center gap-1 text-xs font-semibold hover:underline"
+            >
+              Business Suite
+              <Icon icon="external-link" className="text-sm" />
+            </a>
+          </div>
+        )}
+
+        {/* แถบ "ขอไปแล้ว ยังไม่รู้ผล" (2026-08-26) — Base: แถบด้านบนทุกตัวอักษร เปลี่ยน tone
+            success→warning เพราะสถานะนี้ **ยังไม่ถูกยืนยัน**. ห้ามใช้ success กับมันเด็ดขาด:
+            ช่องพิมพ์ถูกปลดล็อกให้ลองพิมพ์ได้ก็จริง แต่ Meta อาจปฏิเสธตอนกดส่ง — ซึ่งเป็นบั๊ก
+            ที่งานทั้งงานนี้มาแก้ ถ้าแถบบอกว่าสำเร็จก็เท่ากับสร้างมันขึ้นมาใหม่ */}
+        {showManualRequestedStrip && (
+          <div className="border-warning bg-warning/5 mb-2 flex items-start gap-2 rounded-lg border-s-2 px-3 py-2">
+            <Icon icon="robot" className="text-warning-ink mt-0.5 shrink-0 text-base" />
+            <p className="text-warning-ink mb-0 min-w-0 grow text-xs font-semibold">
+              ส่งคำขอควบคุมแชทนี้แล้ว — ข้อความอาจส่งไม่ผ่านจนกว่า Meta จะอนุมัติ
+            </p>
+            <a
+              href={META_BUSINESS_SUITE_INBOX_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-warning-ink flex shrink-0 items-center gap-1 text-xs font-semibold hover:underline"
             >
               Business Suite
               <Icon icon="external-link" className="text-sm" />

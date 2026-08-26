@@ -5,7 +5,8 @@ import {
   exchangeCodeForToken,
   fetchThreadMessages,
   getContactProfile,
-  GraphApiError
+  GraphApiError,
+  claimThreadControl
 } from '@/lib/facebook/graph'
 
 const okJson = (data: unknown) =>
@@ -312,5 +313,72 @@ describe('getContactProfile — Messenger 2 ชั้น', () => {
     const res = await getContactProfile('IGSID', 'tok', 'INSTAGRAM')
     expect(res).toEqual({ name: 'supersek_', avatarUrl: 'https://cdninstagram.com/p.jpg' })
     expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1)
+  })
+})
+
+/**
+ * claimThreadControl — ปุ่ม "ตอบเอง" (2026-08-26)
+ *
+ * 🛑 [blocker] ทั้งบล็อก. บั๊กที่ฟังก์ชันนี้มาแก้คือ "ปุ่มที่สัญญาสิ่งที่ระบบทำไม่ได้" ⇒ เทสที่นี่
+ * จึงไม่ได้ตรวจว่า "ยิงผ่านไหม" แต่ตรวจว่า **ผลลัพธ์ที่คลุมเครือถูกรายงานว่าคลุมเครือหรือเปล่า**
+ * ถ้าวันหนึ่งมีคนยุบ REQUESTED ให้กลายเป็น TAKEN เพราะ "API ตอบ success:true เหมือนกัน"
+ * บั๊กเดิมจะกลับมาทั้งดุ้นโดยไม่มีอะไรอื่นฟ้อง
+ */
+describe('claimThreadControl', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const mockFetch = () => fetch as unknown as ReturnType<typeof vi.fn>
+  const routingOff = failJson({
+    error: { message: '(#27) Calling take_thread_control is not supported when Conversation Routing is not enabled', code: 27 },
+  })
+
+  it('[blocker] take ผ่าน → TAKEN และไม่ยิง request ตามอีก', async () => {
+    mockFetch().mockReturnValueOnce(okJson({ success: true }))
+    const r = await claimThreadControl('tok', 'PSID1')
+    expect(r.outcome).toBe('TAKEN')
+    expect(mockFetch()).toHaveBeenCalledTimes(1)
+    expect(mockFetch().mock.calls[0][0]).toContain('/me/take_thread_control')
+  })
+
+  it('[blocker] take ถูกบล็อกเพราะเพจยังไม่ตั้ง Default Application → ถอยไป request แล้วได้ REQUESTED (ห้ามเป็น TAKEN)', async () => {
+    mockFetch().mockReturnValueOnce(routingOff).mockReturnValueOnce(okJson({ success: true }))
+    const r = await claimThreadControl('tok', 'PSID1')
+    // request_thread_control ตอบ success:true แปลว่า "คำขอถูกส่ง" ไม่ใช่ "ได้สิทธิ์แล้ว"
+    expect(r.outcome).toBe('REQUESTED')
+    expect(mockFetch()).toHaveBeenCalledTimes(2)
+    expect(mockFetch().mock.calls[1][0]).toContain('/me/request_thread_control')
+  })
+
+  it('[blocker] ทั้ง take และ request ล้ม → FAILED และจัดประเภทจาก error ของ take (ตัวที่บอกว่าทำไมเพจนี้ทำไม่ได้)', async () => {
+    mockFetch()
+      .mockReturnValueOnce(routingOff)
+      // request ล้มด้วยถ้อยคำคลุมเครือกว่า — ถ้าไปอ่านตัวนี้จะได้ UNKNOWN แล้วชี้ผู้ขายผิดทาง
+      .mockReturnValueOnce(failJson({ error: { message: '(#100) Invalid request', code: 100 } }))
+    const r = await claimThreadControl('tok', 'PSID1')
+    expect(r.outcome).toBe('FAILED')
+    expect(r).toMatchObject({ reason: 'ROUTING_NOT_ENABLED' })
+  })
+
+  it('[blocker] token เพจตาย → FAILED/TOKEN_INVALID และต้องไม่ยิง request เลย (ไม่งั้นสาเหตุจริงถูกกลบ)', async () => {
+    mockFetch().mockReturnValueOnce(
+      failJson({ error: { message: 'Error validating access token: Session has expired', code: 190 } }),
+    )
+    const r = await claimThreadControl('tok', 'PSID1')
+    expect(r).toMatchObject({ outcome: 'FAILED', reason: 'TOKEN_INVALID' })
+    // ยิงซ้ำด้วย token ตัวเดียวกันไม่มีทางผ่าน และจะทำให้ผู้ขายถูกส่งไป Business Suite
+    // ทั้งที่ทางแก้จริงคือเชื่อมเพจใหม่
+    expect(mockFetch()).toHaveBeenCalledTimes(1)
+  })
+
+  it('[blocker] ส่ง PSID ใน recipient.id — ไม่ใช่ pageId และไม่ใช่รูปแบบอื่น', async () => {
+    mockFetch().mockReturnValueOnce(okJson({ success: true }))
+    await claimThreadControl('tok', 'PSID-XYZ')
+    const body = JSON.parse(mockFetch().mock.calls[0][1].body as string)
+    expect(body.recipient).toEqual({ id: 'PSID-XYZ' })
   })
 })
