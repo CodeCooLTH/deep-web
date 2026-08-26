@@ -288,3 +288,63 @@ tsc 0 · eslint 0 error · **4237 เทสเขียว (363 ไฟล์)** 
   รองรับอยู่แล้ว** (`FacebookPost`/`PageComment` ผูกด้วย `shopChannelId` ไม่ผูกช่องทาง) เหลือแค่
   ต่อตัวรับ + ขอ `instagram_manage_comments` (Standard ใช้ได้ทันทีกับ IG ของทีมเอง)
 - ยังไม่เอา `ai_generated` ไปใช้ตัดสิน "AI ถือห้อง" แทน marker
+
+---
+
+## 9. (รอบเดียวกัน) `share` — ชนิดของ Instagram ที่หายไปจากตารางมาตั้งแต่ต้น
+
+เอกสาร IG Messaging ระบุ attachment ไว้ **8 ชนิด**:
+`audio` · `file` · `image` · **`share`** · `story_mention` · `video` · `ig_reel` · `reel`
+
+ของเรามีครบทุกตัว **ยกเว้น `share`** — ไม่อยู่ทั้ง `MEDIA_TYPE` และ `LINK_TYPES`
+(`{fallback, post, ig_post}`) ⇒ ลูกค้าแชร์โพสต์/รีลเข้ามาถามว่า "มีตัวนี้ไหม"
+**ร้านเห็นเป็นกล่อง placeholder เปล่า** ทั้งที่ Meta ส่ง URL มาให้แล้ว
+
+จัดเป็น **ลิงก์ ไม่ใช่สื่อ** เพราะเอกสารเขียนตรงตัว: *"Only the URL for the shared media or post
+is included in the notification"* — ไม่มี asset ให้ mirror (เอาไปใส่ `MEDIA_TYPE` จะพยายาม mirror
+URL ภายนอกซึ่ง host allow-list บล็อกอยู่แล้ว = ได้กล่องเปล่าเหมือนเดิม)
+
+**ทำไมไม่มีใครเจอ:** prod มี attachment ของ IG เข้ามาแค่ 3 ชนิด (`image` 6 · `template` 1 ·
+`story_mention` 1) — **ยังไม่เคยมี `share` เข้ามาเลยสักครั้ง** เพราะบัญชี IG ที่เชื่อมอยู่มีผู้ติดตาม
+2 คน (ดู §10)
+
+เทส `[blocker]` 2 เคส · mutation 3 แบบแดงครบ (ถอด `share` ออกจาก `LINK_TYPES` · ย้ายไป
+`MEDIA_TYPE` · ให้ใช้คำกลาง `[ไฟล์แนบ]`) · 4239 เทสเขียว
+
+---
+
+## 10. ข้อจำกัดของ Instagram ที่ **แก้ฝั่งเราไม่ได้** (คัดจากเอกสารทางการ)
+
+> *"Messages with **gifs and stickers are not supported**. If a person sends a message with a gif
+> or sticker **a webhook will not be triggered** and a webhook notification will not be sent."*
+
+⇒ ลูกค้าส่งสติกเกอร์/GIF เข้ามา **เราไม่ได้รับอะไรเลยแม้แต่บรรทัดเดียว** — ต่างจากตอน *ร้าน* ส่งเอง
+ซึ่งได้ echo ติดธง `is_unsupported` (ดู §8)
+
+> *"Disappearing media (view once, allow replay) is not supported"* ⇒ รูป/คลิปดูครั้งเดียว ไม่มีทางเห็น
+> *"When a customer reacts to or forwards an image from a carousel … the notification will include
+> the **first image** in the carousel which may not be the image the customer reacted to"*
+> *"Story Replies webhook currently doesn't support GIF or sticker"*
+
+**ห้ามรับปากผู้ขายว่าจะทำให้เห็นเหมือนในแอป IG ทุกชนิด** — 4 ข้อนี้เป็นกำแพงของแพลตฟอร์ม
+
+---
+
+## 11. ยังไม่ได้ทำ — `reply_to.story` (ตอบสตอรี่)
+
+Meta ส่ง `message.reply_to.story = { url, id }` เมื่อลูกค้า**ตอบสตอรี่ของร้าน** แต่ schema เรา
+ประกาศไว้แค่ `reply_to: { mid }` ⇒ Valibot ตัด `story` ทิ้ง ⇒ บนจอเห็นเป็นข้อความลอย ๆ
+ไม่รู้ว่าตอบสตอรี่ไหน (ในแอป IG มีรูปสตอรี่ติดอยู่ข้างบนข้อความ)
+
+🛑 **ต้อง migration** — `ChatMessage` ไม่มีคอลัมน์ว่างให้เก็บบริบทสตอรี่ (`replyToMid` ใช้แทนไม่ได้
+เพราะ UI เอาไปหาแถว `ChatMessage` ที่ quote ซึ่งสตอรี่ไม่มี) ต้องเพิ่มอย่างน้อย
+`replyToStoryId` + `replyToStoryFileId` (mirror รูปสตอรี่ เพราะ CDN URL หมดอายุเมื่อสตอรี่หมด)
+
+**ยังไม่ทำในรอบนี้** — prod ยังไม่เคยมีเคสนี้เลย (0 แถว) และการเพิ่มคอลัมน์ = push ขึ้น main แล้ว
+`prisma migrate deploy` รันบน prod ทันที (HR15) จึงควรแจ้งและตัดสินใจแยกรอบ
+
+### อื่น ๆ ที่ schema ตัดทิ้งแต่ยังไม่กระทบใคร
+`quick_reply.payload` (Ice Breaker) · `referral.product.id` (IG Shops) — **ไม่ได้เพิ่มเข้า schema
+โดยตั้งใจ**: `rawMessage` เก็บ payload ดิบก่อน Valibot อยู่แล้ว ข้อมูลไม่หาย และการเพิ่ม field ที่ยัง
+ไม่มีใครอ่านคือโค้ดที่ไม่มีผู้เรียก (บทเรียน `FORWARD_OUTCOME` retro 08-25) — เพิ่มวันที่ทำฟีเจอร์จริง
+

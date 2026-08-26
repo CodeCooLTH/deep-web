@@ -101,3 +101,39 @@ describe('[blocker] chat-placeholder-text', () => {
     expect(src).toMatch(/emptyMessageText\(provider,/)
   })
 })
+
+/**
+ * 🛑 [blocker] `share` — ชนิดของ Instagram ที่หายไปจากตารางมาตั้งแต่ต้น
+ *
+ * เอกสาร IG Messaging ระบุ attachment 8 ชนิด: audio · file · image · **share** ·
+ * story_mention · video · ig_reel · reel — ของเรามีครบทุกตัว **ยกเว้น share**
+ * ⇒ ลูกค้าแชร์โพสต์/รีลมาถามว่า "มีตัวนี้ไหม" ร้านเห็นเป็นกล่องเปล่า
+ *
+ * จัดเป็น "ลิงก์" ไม่ใช่ "สื่อ" เพราะเอกสารเขียนว่า *"Only the URL for the shared media or
+ * post is included"* — ไม่มี asset ให้ mirror การเอาไปใส่ MEDIA_TYPE จะทำให้ระบบพยายาม
+ * mirror URL ภายนอกซึ่ง host allow-list บล็อกอยู่แล้ว = ได้กล่องเปล่าเหมือนเดิม
+ */
+describe('[blocker] attachment type ของ Instagram ต้องครบตามเอกสาร', () => {
+  const IG_TYPES = ['audio', 'file', 'image', 'share', 'story_mention', 'video', 'ig_reel', 'reel']
+
+  it('ทุกชนิดต้องมีคำเฉพาะของตัวเอง ไม่ตกไปคำกลาง "[ไฟล์แนบ]"', () => {
+    const generic = attachmentFailedText('INSTAGRAM', 'ชนิดที่ไม่มีจริง')
+    for (const t of IG_TYPES) {
+      if (t === 'file') continue // 'file' ใช้คำเดียวกับคำกลางโดยตั้งใจ
+      expect(attachmentFailedText('INSTAGRAM', t), t).not.toBe(generic)
+    }
+  })
+
+  it('share ต้องถูกจัดเป็น "ลิงก์" ใน LINK_TYPES ของ ingest (ไม่ใช่ MEDIA_TYPE)', () => {
+    const src = readFileSync(join(ROOT, 'src/services/channel-chat.service.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '')
+    const linkTypes = src.match(/const LINK_TYPES = new Set\(\[([^\]]*)\]\)/)
+    expect(linkTypes, 'หา LINK_TYPES ไม่เจอ').not.toBeNull()
+    expect(linkTypes![1]).toContain("'share'")
+    // และต้องไม่โผล่ใน MEDIA_TYPE — ไม่มี asset ให้ mirror
+    const mediaTypes = src.match(/const MEDIA_TYPE: Record<string, string> = \{([\s\S]*?)\}/)
+    expect(mediaTypes, 'หา MEDIA_TYPE ไม่เจอ').not.toBeNull()
+    expect(mediaTypes![1]).not.toContain('share')
+  })
+})

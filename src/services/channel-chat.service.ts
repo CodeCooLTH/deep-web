@@ -1238,7 +1238,12 @@ export async function ingestInboundMessage(params: {
   }
   // ลิงก์/โพสต์ที่ลูกค้าแชร์ — payload.url เป็น URL ภายนอก (ไม่ใช่ asset บน Meta CDN) mirror ไม่ได้
   // และไม่ควร (host allow-list บล็อกอยู่แล้ว) → แสดง title + url เป็นข้อความ ให้ร้านเห็นว่าลูกค้าแชร์อะไร
-  const LINK_TYPES = new Set(['fallback', 'post', 'ig_post'])
+  // 🛑 'share' คือชนิดที่ **Instagram** ใช้ตอนลูกค้าแชร์โพสต์/รีลเข้ามาในแชท (เอกสาร IG Messaging
+  // ระบุชนิดไว้ 8 ตัว: audio·file·image·**share**·story_mention·video·ig_reel·reel) — เดิมไม่มีใน
+  // ทั้ง MEDIA_TYPE และ LINK_TYPES ⇒ ตกไป placeholder "ข้อความที่ระบบแสดงไม่ได้" ทั้งที่ Meta ส่ง
+  // URL มาให้แล้ว. จัดเป็น LINK ไม่ใช่ MEDIA เพราะเอกสารเขียนตรงตัวว่า *"Only the URL for the
+  // shared media or post is included in the notification"* — ไม่มี asset ให้ mirror
+  const LINK_TYPES = new Set(['fallback', 'post', 'ig_post', 'share'])
 
   const attUrl = firstAttachment?.payload?.url
   const attTitle = firstAttachment?.payload?.title
@@ -1433,6 +1438,7 @@ export async function ingestInboundMessage(params: {
     fallback: '[ลิงก์ที่แชร์]',
     post: '[ลิงก์ที่แชร์]',
     ig_post: '[ลิงก์ที่แชร์]',
+    share: '[โพสต์ที่แชร์]',
     template: '[ข้อความจากระบบ]',
   }
   const singlePreview = isCallEvent

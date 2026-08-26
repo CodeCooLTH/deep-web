@@ -47,6 +47,8 @@ export function attachmentFailedText(provider: string, attType: string | null | 
     fallback: `[ลิงก์/โพสต์ที่แชร์ — เปิดดูใน ${app}]`,
     post: `[ลิงก์/โพสต์ที่แชร์ — เปิดดูใน ${app}]`,
     ig_post: `[ลิงก์/โพสต์ที่แชร์ — เปิดดูใน ${app}]`,
+    // share = ลูกค้าแชร์โพสต์/รีลเข้ามา (ชนิดของ Instagram) — Meta ส่งมาแค่ URL ไม่มีรูปปก/คำบรรยาย
+    share: `[โพสต์ที่แชร์ — เปิดดูใน ${app}]`,
     template: `[ข้อความจากระบบ (ออเดอร์/ชำระเงิน) — เปิดดูใน ${app}]`,
     // สตอรี่เป็นของ Instagram เสมอ ไม่ว่า provider จะถูกส่งมาว่าอะไร
     story_mention: '[กล่าวถึงในสตอรี่ — เปิดดูใน Instagram]',
