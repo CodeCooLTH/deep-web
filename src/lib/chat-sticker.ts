@@ -40,3 +40,27 @@ export function isStickerRawMessage(raw: unknown): boolean {
     .message?.attachments?.[0]?.payload?.url
   return typeof url === 'string' && giphyMessageKind(url) === 'sticker'
 }
+
+/**
+ * ซ่อนปุ่ม "บันทึกรูป" ใต้สื่อไหม (user สั่ง 2026-08-27: *"พวก sticker + gif หรือ thumbup
+ * ต้องไม่มีบันทึกรูป + save image"*)
+ *
+ * แยกออกจาก `isSticker` โดยตั้งใจ เพราะสองอย่างนี้ตอบคนละคำถาม:
+ *   `isSticker`  → **ความกว้าง** ของรูป (สติกเกอร์แคบกว่ารูปจริง `max-w-36`)
+ *   ตัวนี้        → **มีปุ่มบันทึกไหม**
+ * GIF ต้องกว้างเท่ารูปปกติ (มีพื้นหลัง ย่อแล้วดูไม่ออกว่าเป็นอะไร) แต่**ไม่ควรมีปุ่มบันทึก**
+ * เหมือนกับสติกเกอร์ — รวมสองเรื่องนี้เป็นธงเดียวเมื่อไหร่ ต้องยอมเสียอย่างหนึ่งเสมอ
+ *
+ * `.gif` = ภาพเคลื่อนไหว ไม่ใช่รูปถ่ายที่ผู้ขายจะเก็บไว้ใช้งาน (สลิป/รูปสินค้าเป็น jpg/png)
+ * ⇒ ใช้นามสกุลของไฟล์ที่ mirror ไว้เป็นเกณฑ์ ซึ่งครอบทุกที่มา: สติกเกอร์ที่เราส่งเอง ·
+ * สติกเกอร์/GIF ที่ลูกค้าส่งจากแอป · โดยไม่ต้องรู้ว่ามาจากคลังไหน
+ *
+ * 🛑 ที่ยัง**ครอบไม่ถึง**: echo ของสติกเกอร์ที่เราส่งออกไป — Meta โฮสต์ใหม่บน `lookaside.fbsbx.com`
+ * แล้ว **แปลงเป็น `.jpg`** (ภาพนิ่ง) ⇒ แยกจากรูปถ่ายจริงไม่ได้เลยจากฝั่งเรา ตกไปพึ่งเกณฑ์ขนาดรูป
+ * (`STICKER_MAX_PX`) อย่างเดียว
+ */
+export function hidesDownloadAffordance(storageKey: string, isSticker: boolean): boolean {
+  if (isSticker) return true
+  // ตัด query string ก่อน (fileId บางเส้นทางมี `?` ต่อท้าย) แล้วเทียบนามสกุลแบบ case-insensitive
+  return /\.gif$/i.test(storageKey.split('?')[0])
+}

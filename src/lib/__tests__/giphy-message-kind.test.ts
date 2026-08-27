@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { giphyMessageKind, giphyPreviewLabel } from '@/lib/giphy-message-kind'
-import { isStickerRawMessage } from '@/lib/chat-sticker'
+import { isStickerRawMessage, hidesDownloadAffordance } from '@/lib/chat-sticker'
 import * as v from 'valibot'
 import { SendChatMessageSchema } from '@/lib/validations'
 
@@ -135,5 +135,47 @@ describe('[blocker] SendChatMessageSchema.stickerId', () => {
     for (const bad of ['../etc/passwd', 'a/b', 'http://x', 'a.b', 'a:b', 'a b', '']) {
       expect(parse(bad).success, bad).toBe(false)
     }
+  })
+})
+
+/**
+ * [blocker] สติกเกอร์ + GIF ต้องไม่มีปุ่ม "บันทึกรูป" (user สั่ง 2026-08-27)
+ *
+ * 🛑 แยกจาก `isSticker` โดยตั้งใจ — `isSticker` คุม **ความกว้าง** (สติกเกอร์แคบกว่ารูป)
+ * ส่วนตัวนี้คุม **ปุ่มบันทึก** · GIF ต้องกว้างเท่ารูปปกติ (มีพื้นหลัง ย่อแล้วดูไม่ออก)
+ * แต่ไม่ควรมีปุ่มบันทึก — รวมเป็นธงเดียวเมื่อไหร่ต้องยอมเสียอย่างหนึ่งเสมอ
+ */
+describe('[blocker] hidesDownloadAffordance', () => {
+  it('สติกเกอร์ (ธงจาก server) → ซ่อนปุ่ม', () => {
+    expect(hidesDownloadAffordance('2026/08/27/abc.png', true)).toBe(true)
+  })
+
+  it('GIF → ซ่อนปุ่ม แม้ไม่ได้ถูกทำเครื่องหมายว่าเป็นสติกเกอร์', () => {
+    expect(hidesDownloadAffordance('2026/08/27/abc.gif', false)).toBe(true)
+    expect(hidesDownloadAffordance('2026/08/27/abc.GIF', false)).toBe(true)
+    expect(hidesDownloadAffordance('2026/08/27/abc.gif?v=2', false)).toBe(true)
+  })
+
+  it('[blocker] รูปถ่ายจริงต้องยังบันทึกได้ — ผู้ขายเก็บสลิป/รูปสินค้าจากแชทจริง', () => {
+    for (const k of ['2026/08/27/slip.jpg', '2026/08/27/a.jpeg', '2026/08/27/a.png', '2026/08/27/a.webp']) {
+      expect(hidesDownloadAffordance(k, false), k).toBe(false)
+    }
+  })
+
+  it('ชื่อไฟล์ที่มีคำว่า gif อยู่กลางทาง ต้องไม่ถูกนับ (เทียบนามสกุลเท่านั้น)', () => {
+    expect(hidesDownloadAffordance('2026/08/27/gift-box.jpg', false)).toBe(false)
+    expect(hidesDownloadAffordance('2026/08/27/giphy-screenshot.png', false)).toBe(false)
+  })
+
+  it('ปุ่มบันทึกต้องยังถูกเรนเดอร์ผ่านธงนี้ใน ChatThread ไม่ใช่เช็ค isSticker ตรง ๆ', () => {
+    const src = readFileSync(
+      join(ROOT, 'src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx'),
+      'utf8',
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '')
+    expect(src).toMatch(/!hidesDownloadAffordance\(storageKey, isSticker\)/)
+    expect(src).not.toMatch(/\{!isSticker && <MediaDownloadLink/)
   })
 })

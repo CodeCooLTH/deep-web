@@ -92,6 +92,7 @@ import { formatTime, formatTimeHM, formatDateTime } from '@/lib/format-date'
 import { burstIdentity, computeBurstEndIds } from '@/lib/chat-message-burst'
 import { isSelfContainedBubble } from '@/lib/chat-bubble-frame'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
+import { hidesDownloadAffordance } from '@/lib/chat-sticker'
 import { parseMetaSystemNotice, parseMetaAiHandoffNotice, readMetaAiControlMarker } from '@/lib/meta-system-notice'
 import { META_BUSINESS_SUITE_INBOX_URL } from '@/lib/meta-system-notice'
 // SSOT ของ "ผลลัพธ์นี้ทำให้หน้าจอทำอะไร + พูดว่าอะไร" — ห้ามตัดสินใจซ้ำที่นี่ (HR16)
@@ -549,7 +550,11 @@ function ChatImageMessage({
           }}
         />
       </button>
-      {!isSticker && <MediaDownloadLink storageKey={storageKey} label="บันทึกรูป" />}
+      {/* สติกเกอร์ **และ GIF** ไม่ต้องมีปุ่มบันทึก (user สั่ง 2026-08-27) — แต่ GIF ยังกว้างเท่ารูปปกติ
+          จึงแยกธง "ซ่อนปุ่ม" ออกจาก `isSticker` ที่คุมความกว้าง ดู hidesDownloadAffordance */}
+      {!hidesDownloadAffordance(storageKey, isSticker) && (
+        <MediaDownloadLink storageKey={storageKey} label="บันทึกรูป" />
+      )}
     </>
   )
 }
