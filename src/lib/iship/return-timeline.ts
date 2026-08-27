@@ -182,9 +182,16 @@ const ICON = {
    *
    * ชุดนี้ mirror กับขาไปพอดี:
    *   ขาไป   package · package-import · truck-delivery · circle-check
-   *   ขากลับ package-off · arrow-back-up · truck-delivery · building-store
+   *   ขากลับ package-off · package-export · truck-delivery · building-store
+   *
+   * 🛑 `bounceDepart` กับ `returnDepart` ใช้ **ชื่อไอคอนเดียวกัน** (`package-export`) โดยตั้งใจ —
+   * ทั้งคู่คือ "กล่องกำลังออกเดินทางกลับ" เหมือนกันจริง ๆ และ **ไม่มีทางอยู่บนแถบเดียวกัน**
+   * (BOUNCE กับ RETURN เป็นคนละกลไก `describeReturnLeg` คืนได้ทีละอัน) สิ่งที่ต่างคือทิศ:
+   * `bounceDepart` ถูก flip เพราะแถบ BOUNCE เดินขวา→ซ้าย
+   * ⇒ เทส `[blocker]` ที่กันจุดออกเดินทางของสองกลไกซ้ำกัน จึงเทียบที่ `dots[0]` ซึ่งคนละตัว
+   *   (`package-off` vs `package-export`) ไม่ใช่ที่ตัวนี้
    */
-  bounceDepart: 'arrow-back-up',
+  bounceDepart: 'package-export',
   returnDepart: 'package-export',
   accepted: 'package-import',
   inTransit: 'truck-delivery',
@@ -282,7 +289,12 @@ export function describeReturnLeg(input: ReturnLegInput): ReturnLeg | null {
   const dispatchedAt = toDate(input.returnDispatchedAt)
   const bounceDots: ReturnLegDot[] = [
     { label: BOUNCE_ORIGIN[a], icon: FORWARD_OUTCOME.failed.icon },
-    { label: DEPARTED.BOUNCE[a], icon: ICON.bounceDepart },
+    /**
+     * 🛑 `flipX` — ลูกศรของ `package-export` ชี้ขวาตามค่าตั้งต้น แต่แถบ BOUNCE เดิน
+     * **ขวา→ซ้าย** (ปลายทาง "ถึงร้านค้า" อยู่ซ้ายสุด ตรงกับจุดออกเดินทางของขาไปพอดี)
+     * ⇒ ไม่กลับด้าน = ลูกศรชี้สวนทางกับทิศที่แถบเล่า ซึ่งเป็นเหตุผลเดียวกับที่รถต้อง flip
+     */
+    { label: DEPARTED.BOUNCE[a], icon: ICON.bounceDepart, flipX: true },
     ...(dispatchedAt ? [{ label: DISPATCHED[a], icon: ICON.inTransit, flipX: true }] : []),
     { label: ARRIVED.BOUNCE[a], icon: ICON.arrived },
   ]

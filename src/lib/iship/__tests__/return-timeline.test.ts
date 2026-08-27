@@ -310,3 +310,62 @@ describe('[blocker] จุดที่ 4 "กำลังส่ง" (ขาก�
     expect(isReturnDispatchEvent(null, 'บริษัทขนส่งกำลังนำส่งพัสดุคืนผู้ส่ง')).toBe(false)
   })
 })
+
+describe('[blocker] ทุกจุดบนแถบเดียวกันต้องคนละไอคอน', () => {
+  /**
+   * 🛑 กฎนี้ถูก *เขียนไว้* ในคอมเมนต์ของ `ICON` มาตั้งแต่แรกแต่ **ไม่เคยมีด่านบังคับ**
+   * จนกระทั่งวันนี้ — ซึ่งคือรูปร่างของบั๊กเดิมเป๊ะ: รอบแรก `กำลังตีกลับ` กับ `กำลังส่ง`
+   * ใช้ `truck-return` ตัวเดียวกันทั้งคู่ ผ่าน tsc/build/eslint/เทสครบทุกด่าน
+   * **user เป็นคนสังเกตเห็นเองจากหน้าจอ** (2026-08-27)
+   * (docs/conventions/rule-must-be-enforced-not-described.md)
+   *
+   * ไล่ทุกรูปร่างของแถบที่เป็นไปได้จริง ไม่ใช่หยิบมาเคสเดียว — จำนวนจุดผันตามข้อมูล
+   * (3 หรือ 4 สำหรับ BOUNCE · 2/3/4 สำหรับ RETURN) ⇒ เคสที่ซ้ำอาจซ่อนอยู่ในรูปแบบเดียว
+   */
+  const SHAPES: Array<[string, ReturnLegInput]> = [
+    ['BOUNCE 3 จุด', seller({ carrierStatus: 'return_success' })],
+    [
+      'BOUNCE 4 จุด',
+      seller({ carrierStatus: 'return_success', returnDispatchedAt: '2026-08-24T03:00:00Z' }),
+    ],
+    ['RETURN NONE', seller({ orderReturn: { status: 'REQUESTED', trackingSource: 'NONE' } })],
+    ['RETURN MANUAL', seller({ orderReturn: { status: 'SHIPPED', trackingSource: 'MANUAL' } })],
+    ['RETURN ISHIP', seller({ orderReturn: { status: 'RECEIVED', trackingSource: 'ISHIP' } })],
+  ]
+
+  for (const [name, input] of SHAPES) {
+    it(`${name} — ไอคอนไม่ซ้ำกันเลยสักคู่`, () => {
+      const icons = describeReturnLeg(input)!.dots.map((d) => d.icon)
+      expect(new Set(icons).size, icons.join(' · ')).toBe(icons.length)
+    })
+  }
+})
+
+describe('[blocker] ลูกศร/รถ ต้องหันตามทิศที่แถบเดิน', () => {
+  /**
+   * 🛑 แถบ BOUNCE เดิน **ขวา→ซ้าย** (`standalone: true` ⇒ `flex-row-reverse`) จุดปลายทาง
+   * "ถึงร้านค้า" จึงอยู่ซ้ายสุด ตรงกับจุดออกเดินทางของขาไปพอดี — นั่นคือทั้งหมดของเหตุผล
+   * ที่ user ขอให้กลับด้าน ("มันต้อง invert กันกับขาไป")
+   *
+   * ไอคอนที่มี **ทิศในตัว** (ลูกศรออกจากกล่อง · หัวรถ) จึงต้อง `flipX` ทุกตัว ไม่งั้นมันชี้
+   * สวนทางกับเรื่องที่แถบกำลังเล่า — ผิดแบบที่ tsc/build/detector มองไม่เห็นเลยสักด่าน
+   * เพราะทุกอย่างถูกต้องตามชนิดทุกตัวอักษร (user จับได้เองจากหน้าจอทั้ง 2 ครั้ง)
+   */
+  const directional = (input: ReturnLegInput) =>
+    describeReturnLeg(input)!.dots.filter((d) => /export|truck/.test(d.icon))
+
+  it('BOUNCE — ทุกจุดที่ไอคอนมีทิศในตัว ต้องถูก flip', () => {
+    const dots = directional(
+      seller({ carrierStatus: 'return_success', returnDispatchedAt: '2026-08-24T03:00:00Z' }),
+    )
+    expect(dots.length, 'ไม่พบจุดที่มีทิศเลย — เปลี่ยนชุดไอคอนแล้วต้องมาแก้ด่านนี้ด้วย').toBe(2)
+    for (const d of dots) expect(d.flipX, `${d.label} (${d.icon})`).toBe(true)
+  })
+
+  it('จุด "กำลังตีกลับ" ใช้ package-export ที่กลับด้าน (มติ user 2026-08-27)', () => {
+    const dot = describeReturnLeg(seller({ carrierStatus: 'return' }))!.dots[1]
+    expect(dot.label).toBe('กำลังตีกลับ')
+    expect(dot.icon).toBe('package-export')
+    expect(dot.flipX).toBe(true)
+  })
+})
