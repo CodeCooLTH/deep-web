@@ -395,34 +395,20 @@ export default function ParcelTimeline({
               const reached = i <= leg.stage
               const isEnd = i === leg.dots.length - 1
               /**
-               * สีต้องตรงกับฝั่งร้าน (`ShipmentRail.TONE_SOLID`) — พัสดุใบเดียวกัน
-               * ผู้ซื้อกับผู้ขายต้องไม่เห็นคนละสี · เหลืองสงวนให้จุดที่เป็นปัญหาจริงจุดเดียว
-               * จุดระหว่างทาง = "ของกำลังเดินทาง" ใช้สีหลัก · ปลายทาง = เขียว
+               * เคสตีกลับใช้ **กติกาสีเดียวกับขาไปเป๊ะ** (ผ่านแล้ว = เขียว) — ทิศเป็นสิ่งเดียว
+               * ที่ต่าง · เคสคืนของยังใช้โทนของ `originTone` ตามเดิม
+               * พัสดุใบเดียวกันผู้ซื้อกับผู้ขายต้องไม่เห็นคนละสี (ตรงกับ `ShipmentRail`)
                */
-              const lineColor = !leg.standalone
-                ? leg.originTone === 'success'
+              const lineColor = leg.standalone
+                ? VERIFIED_INK
+                : leg.originTone === 'success'
                   ? VERIFIED_INK
                   : 'warning.main'
-                : isEnd
-                  ? VERIFIED_INK
-                  : i === 0
-                    ? 'warning.main'
-                    : 'primary.main'
               return (
                 <Box component='li' key={`d-${d.label}-${i}`} sx={{ display: 'contents' }}>
                   {i > 0 && (
                     <>
                       <Box aria-hidden sx={{ height: 2, flex: 1, bgcolor: reached ? lineColor : 'divider' }} />
-                      {/* ลูกศรบอกทิศ — สอดเป็น item ระหว่างเส้น ไม่วางทับแล้วเจาะพื้นหลัง
-                          ⇒ ไม่ต้องรู้ว่าการ์ดวางอยู่บนพื้นสีอะไร · ห้าม emoji (HR12) */}
-                      {i - 1 === Math.floor((leg.dots.length - 1) / 2) && (
-                        <Box
-                          aria-hidden
-                          sx={{ flexShrink: 0, display: 'flex', color: 'text.secondary', mx: 0.25 }}
-                        >
-                          <Icon icon='tabler-caret-left-filled' fontSize={14} />
-                        </Box>
-                      )}
                       <Box aria-hidden sx={{ height: 2, flex: 1, bgcolor: reached ? lineColor : 'divider' }} />
                     </>
                   )}

@@ -165,10 +165,20 @@ const ACCEPTED: Record<TimelineAudience, string> = { seller: 'รับเข้
  * `package-export` = กล่องมีลูกศรออก คู่กับ `package-import` ที่แถว 1 ใช้อยู่แล้ว
  */
 const ICON = {
-  bounceDepart: 'truck-return',
+  /**
+   * 🛑 4 จุด 4 ไอคอน — ห้ามซ้ำกัน
+   *
+   * รอบแรก `กำลังตีกลับ` กับ `กำลังส่ง` ใช้ `truck-return` ตัวเดียวกันทั้งคู่ ⇒ สองจุดกลาง
+   * ดูเหมือนกันเป๊ะ ต่างจากแถบขาไปที่ 4 จุดมี 4 รูป (user สังเกตเห็น 2026-08-27)
+   *
+   * ชุดนี้ mirror กับขาไปพอดี:
+   *   ขาไป   package · package-import · truck-delivery · circle-check
+   *   ขากลับ package-off · arrow-back-up · truck-delivery · building-store
+   */
+  bounceDepart: 'arrow-back-up',
   returnDepart: 'package-export',
   accepted: 'package-import',
-  inTransit: 'truck-return',
+  inTransit: 'truck-delivery',
   arrived: 'building-store',
 } as const
 

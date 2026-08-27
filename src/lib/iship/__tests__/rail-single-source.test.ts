@@ -21,6 +21,8 @@ import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
+import { describeReturnLeg } from '../return-timeline'
+
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
 
 /** ตัดคอมเมนต์ก่อนสแกนเสมอ — ไฟล์ที่ทำถูกกฎคือไฟล์ที่เขียนคำอธิบายกฎนั้นไว้ด้วย */
@@ -204,8 +206,27 @@ describe('[blocker] แถบตีกลับต้อง invert กับข�
     expect((upToNext.match(/flex-row-reverse/g) ?? []).length, branch && '').toBeGreaterThanOrEqual(2)
   })
 
-  it('ต้องมีลูกศรบอกทิศ — ไม่งั้นสายตาไทยอ่านแถบกลับหัว', () => {
-    const src = stripComments(read(RAIL))
-    expect(src).toContain('caret-left-filled')
+  /**
+   * 🛑 ด่านนี้เคยบังคับว่า "ต้องมีลูกศร `caret-left-filled`" — ถอดออกแล้ว (2026-08-27)
+   *
+   * user เห็นทั้งสองแบบแล้วเลือกให้แถบขากลับ **หน้าตาเหมือนขาไปเป๊ะ** (สี/ระยะ/ไม่มีอะไร
+   * คั่นระหว่างจุด) เหลือ *ทิศ* เป็นสิ่งเดียวที่ต่าง ⇒ ตัวที่บอกทิศคือลำดับคำ
+   * (`ถึงร้านค้า` ซ้ายสุด) และชุดไอคอนที่ mirror กับขาไป
+   *
+   * ด่านที่ผูกกับ **กลไก** (ชื่อไอคอน) จะแดงทันทีที่ดีไซน์เปลี่ยนทั้งที่เจตนายังอยู่ครบ
+   * ⇒ ย้ายไปบังคับสิ่งที่เป็นเจตนาจริง: **4 จุดต้องมี 4 ไอคอนไม่ซ้ำกัน**
+   * (รอบแรก `กำลังตีกลับ`/`กำลังส่ง` ใช้ `truck-return` ตัวเดียวกัน ⇒ สองจุดกลางดูเหมือนกันเป๊ะ)
+   */
+  it('ทุกจุดบนแถบขากลับต้องมีไอคอนไม่ซ้ำกัน', () => {
+    const dispatched = '2026-08-24T03:00:00Z'
+    for (const code of ['return', 'return_success']) {
+      const leg = describeReturnLeg({
+        audience: 'seller',
+        carrierStatus: code,
+        returnDispatchedAt: dispatched,
+      })!
+      const icons = leg.dots.map((d) => d.icon)
+      expect(new Set(icons).size, `${code}: ${icons.join(', ')}`).toBe(icons.length)
+    }
   })
 })
