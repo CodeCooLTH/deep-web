@@ -55,6 +55,11 @@ export const sellerMenuItems: MenuItemType[] = [
       // ป้ายเดิม "ภาพรวมยอดขาย" บอกไม่ครบ — หน้านี้คำนวณ netProfit (revenue − COGS − expense)
       // รายวันอยู่แล้วตั้งแต่ feature 00016 (ดู sales/components/data.ts::DailyRow)
       { url: '/sales', slug: 'seller:sales', label: 'ภาพรวมกำไร/ขาดทุน', icon: 'chart-line' },
+      // feature 00059 — ผลงานของคนในร้าน (ความเร็วตอบแชท / การปิดการขาย / ยอดขายรายคน)
+      // อยู่กลุ่ม ANALYTICS เพราะเป็น "ดูตัวเลข" ไม่ใช่ "จัดการคน" (เมนู /admins ที่กลุ่ม SHOPS
+      // คือที่ที่เชิญ/ถอดพนักงาน — คนละงานกัน ผู้จัดการเปิดหน้านี้ตอนทบทวนผลงาน ไม่ใช่ตอนแก้สิทธิ์)
+      // icon 'user-star' ยืนยันมีจริงใน tabler set (ใช้อยู่แล้วที่ CustomerBehaviorBadges)
+      { url: '/reports/agents', slug: 'seller:reports-agents', label: 'ผลงานแอดมิน', icon: 'user-star' },
     ],
   },
   /**
@@ -767,6 +772,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
   const BY_SLUG: Record<string, string> = {
     'seller:dashboard': m.dashboard,
     'seller:sales': m.sales,
+    'seller:reports-agents': m.reportsAgents,
     'seller:orders': m.orders[vertical as keyof typeof m.orders] ?? m.orders.ONLINE_SALES,
     'seller:auctions': m.auctions,
     'seller:products': m.products,

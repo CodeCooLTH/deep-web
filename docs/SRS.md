@@ -302,6 +302,7 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | **Onboarding (บังคับ, needsOnboarding=true)** | **`/onboarding`** |
 | Dashboard | `/dashboard` |
 | Sales (analytics) | `/sales` |
+| **ผลงานแอดมิน (feature 00059)** | **`/reports/agents`** และ **`/reports/agents/[agentId]`** — `[agentId]` = `User.id` ของคนในร้าน · พนักงานที่ยังไม่ได้รับสิทธิ์ข้อมูลการเงิน (`Shop.staffCanViewFinance=false`) เปิดของคนอื่นไม่ได้ (เห็นจอปฏิเสธ ไม่ใช่ 404) และไม่เห็นคอลัมน์ยอดขาย |
 | Products | `/products` |
 | Categories | `/categories` |
 | Customers | `/customers` |
@@ -1308,6 +1309,29 @@ endpoint ที่ถูกกดจาก **กล่องแชท** เช�
 
 route ที่รับ `?shopId=` แล้ว: `payments/**` (ใหม่) · `PATCH /api/orders/{token}/appointment` ·
 `POST /api/orders/{token}/appointment/outcome` · `GET /api/shops/current/service-resources`
+
+### 7.18 รายงานผลงานแอดมิน (`/api/seller/reports/agents/**`) — feature 00059 2026-08-26
+
+| Method | Path | หมายเหตุ |
+|---|---|---|
+| GET | `/api/seller/reports/agents` | ภาพรวม + ตารางจัดอันดับ + ตัวเลือกของตัวกรอง |
+| GET | `/api/seller/reports/agents/{agentId}` | ผลงานรายคน + แนวโน้มรายวัน |
+| GET | `/api/seller/reports/agents/{agentId}/conversations` | บทสนทนาที่ประกอบเป็นตัวเลข (`agentId='all'` = ทุกเธรด) |
+
+query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` · `source` (`ADS`/`SHORTLINK`/`DIRECT`) ·
+`shopChannelId` · (เฉพาะ endpoint ที่สาม) `limit` `offset`
+
+🛑 **อ่านอย่างเดียวทั้งหมด ไม่มี POST/PATCH/DELETE** และ **ไม่รับ `shopId` จาก query เด็ดขาด** —
+ร้านมาจาก session เท่านั้น (ต่างจากกติกา `?shopId=` ใน §7.17b โดยตั้งใจ: รายงานไม่ได้ถูกกดจากกล่องแชท
+และการเปิดช่องให้ระบุร้านในรายงาน = เปิดช่องอ่านตัวเลขข้ามร้านโดยไม่ได้อะไรกลับมา)
+
+🛑 **สิทธิ์ใช้ธงเดิม `Shop.staffCanViewFinance` ไม่ได้ตั้งธงใหม่** — `resolveAgentReportAccess()`
+คืน `FULL` (เจ้าของ หรือพนักงานที่เปิดสิทธิ์การเงินแล้ว) / `SELF` (พนักงานอื่น — เห็นเฉพาะของตัวเอง
+และ **ตัวเลขเงินถูกตัดออกจาก payload** ไม่ใช่แค่ไม่ render) / `NO_SHOP`
+
+ค่าตัวเลขทุกตัวเป็น `number | null` — **`null` = ไม่มีตัวอย่างให้คำนวณ ไม่ใช่ 0**
+นิยามของทุกตัวชี้วัดอยู่ที่ `src/lib/agent-performance.ts` (SSOT) — ดู
+`docs/20 - Features/00059 - Agent Performance Report/SRS.md` §3
 
 ## §8 Enums & Constants
 
