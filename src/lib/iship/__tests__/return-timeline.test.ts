@@ -77,11 +77,11 @@ describe('[blocker] ออเดอร์ปกติต้องไม่มี
  * จุดที่ 3 คือ `ส่งไม่สำเร็จ` — *เหตุ* ที่ทำให้แถวขากลับมีอยู่ และเป็นตัวแทนของแถวขาไป
  * ที่ถูกถอดออกไป (user สั่ง 2026-08-27: "ถ้ามีการตีกลับ ไม่จำเป็นต้องแสดงขาไป")
  */
-describe('[blocker] เคสตีกลับ (BOUNCE) — 3 จุด แถวเดียว ไม่วาดขาไป', () => {
+describe('[blocker] เคสตีกลับ (BOUNCE) — แถวเดียว invert กับขาไป ไม่วาดขาไป', () => {
   it('กำลังตีกลับ → อยู่จุดกลาง ปลายทางยังไม่ถึง', () => {
     const leg = describeReturnLeg(seller({ carrierStatus: 'return' }))!
     expect(leg.kind).toBe('BOUNCE')
-    expect(leg.dots.map((d) => d.label)).toEqual(['ส่งไม่สำเร็จ', 'กำลังตีกลับ', 'กลับถึงร้าน'])
+    expect(leg.dots.map((d) => d.label)).toEqual(['พัสดุมีปัญหา', 'กำลังตีกลับ', 'ถึงร้านค้า'])
     expect(leg.stage).toBe(1)
     expect(leg.originTone).toBe('warning')
   })
@@ -139,9 +139,9 @@ describe('[blocker] เคสตีกลับ (BOUNCE) — 3 จุด แถ�
 
 describe('[blocker] เคสคืนของ (RETURN) — จำนวนจุดผันตามแหล่งข้อมูล', () => {
   const cases = [
-    { src: 'ISHIP', labels: ['ลูกค้าแจ้งคืน', 'รับเข้าระบบ', 'กำลังจัดส่ง', 'กลับถึงร้าน'] },
-    { src: 'MANUAL', labels: ['ลูกค้าแจ้งคืน', 'กำลังจัดส่ง', 'กลับถึงร้าน'] },
-    { src: 'NONE', labels: ['ลูกค้าแจ้งคืน', 'กลับถึงร้าน'] },
+    { src: 'ISHIP', labels: ['ลูกค้าแจ้งคืน', 'รับเข้าระบบ', 'กำลังจัดส่ง', 'ถึงร้านค้า'] },
+    { src: 'MANUAL', labels: ['ลูกค้าแจ้งคืน', 'กำลังจัดส่ง', 'ถึงร้านค้า'] },
+    { src: 'NONE', labels: ['ลูกค้าแจ้งคืน', 'ถึงร้านค้า'] },
   ]
   for (const c of cases) {
     it(`trackingSource=${c.src} → ${c.labels.length} จุด`, () => {
@@ -205,15 +205,15 @@ describe('[blocker] คำฝั่งผู้ซื้อต่างเฉพ
   it('BOUNCE — ต่างเฉพาะ 2 จุดหลัง จุดแรกใช้คำร่วม', () => {
     const s = describeReturnLeg(seller({ carrierStatus: 'return_success' }))!
     const b = describeReturnLeg(buyer({ carrierStatus: 'return_success' }))!
-    expect(s.dots.map((d) => d.label)).toEqual(['ส่งไม่สำเร็จ', 'กำลังตีกลับ', 'กลับถึงร้าน'])
-    expect(b.dots.map((d) => d.label)).toEqual(['ส่งไม่สำเร็จ', 'กำลังส่งกลับร้าน', 'ของกลับถึงร้าน'])
+    expect(s.dots.map((d) => d.label)).toEqual(['พัสดุมีปัญหา', 'กำลังตีกลับ', 'ถึงร้านค้า'])
+    expect(b.dots.map((d) => d.label)).toEqual(['พัสดุมีปัญหา', 'กำลังส่งกลับร้าน', 'ของกลับถึงร้าน'])
   })
 
   it('RETURN — ต่างเฉพาะหัวกับท้าย จุดกลางใช้คำร่วม', () => {
     const o = { status: 'REQUESTED', trackingSource: 'ISHIP' }
     const s = describeReturnLeg(seller({ orderReturn: o }))!
     const b = describeReturnLeg(buyer({ orderReturn: o }))!
-    expect(s.dots.map((d) => d.label)).toEqual(['ลูกค้าแจ้งคืน', 'รับเข้าระบบ', 'กำลังจัดส่ง', 'กลับถึงร้าน'])
+    expect(s.dots.map((d) => d.label)).toEqual(['ลูกค้าแจ้งคืน', 'รับเข้าระบบ', 'กำลังจัดส่ง', 'ถึงร้านค้า'])
     expect(b.dots.map((d) => d.label)).toEqual(['คุณแจ้งคืน', 'รับเข้าระบบ', 'กำลังจัดส่ง', 'ร้านได้รับแล้ว'])
     // จุดกลางต้องเหมือนกันเป๊ะ — สองมุมมองไม่ควรแตกคำโดยไม่จำเป็น
     expect(s.dots[1].label).toBe(b.dots[1].label)
@@ -250,7 +250,7 @@ describe('[blocker] ไอคอนของจุดปลายทางต้
   })
 })
 
-describe('[blocker] จุดที่ 4 "กำลังนำส่งคืนร้าน" — โผล่เฉพาะเมื่อขนส่งบอกจริง', () => {
+describe('[blocker] จุดที่ 4 "กำลังส่ง" (ขากลับ) — โผล่เฉพาะเมื่อขนส่งบอกจริง', () => {
   /**
    * 🛑 ทำไมไม่ใช่ 4 จุดตายตัว (user ถามตรง ๆ ว่า "มันต้องมี 4 step ป่ะ")
    *
@@ -263,18 +263,18 @@ describe('[blocker] จุดที่ 4 "กำลังนำส่งคื�
    */
   it('ขนส่งไม่บอก (Flash) → 3 จุด ไม่มีจุดเทาที่ไม่มีวันสว่าง', () => {
     const leg = describeReturnLeg(seller({ carrierStatus: 'return_success' }))!
-    expect(leg.dots.map((d) => d.label)).toEqual(['ส่งไม่สำเร็จ', 'กำลังตีกลับ', 'กลับถึงร้าน'])
+    expect(leg.dots.map((d) => d.label)).toEqual(['พัสดุมีปัญหา', 'กำลังตีกลับ', 'ถึงร้านค้า'])
   })
 
-  it('ขนส่งบอก (SPX) → 4 จุด แทรก "กำลังนำส่งคืนร้าน" ก่อนปลายทาง', () => {
+  it('ขนส่งบอก (SPX) → 4 จุด แทรก "กำลังส่ง" ก่อนปลายทาง', () => {
     const leg = describeReturnLeg(
       seller({ carrierStatus: 'return_success', returnDispatchedAt: '2026-08-24T03:00:00Z' }),
     )!
     expect(leg.dots.map((d) => d.label)).toEqual([
-      'ส่งไม่สำเร็จ',
+      'พัสดุมีปัญหา',
       'กำลังตีกลับ',
-      'กำลังนำส่งคืนร้าน',
-      'กลับถึงร้าน',
+      'กำลังส่ง',
+      'ถึงร้านค้า',
     ])
     expect(leg.stage).toBe(3)
   })
@@ -284,7 +284,7 @@ describe('[blocker] จุดที่ 4 "กำลังนำส่งคื�
       seller({ carrierStatus: 'return', returnDispatchedAt: '2026-08-24T03:00:00Z' }),
     )!
     expect(leg.stage).toBe(2)
-    expect(leg.dots[leg.stage].label).toBe('กำลังนำส่งคืนร้าน')
+    expect(leg.dots[leg.stage].label).toBe('กำลังส่ง')
   })
 
   it('ยังไม่ถึงร้าน และขนส่งไม่บอก → ยืนที่ "กำลังตีกลับ"', () => {

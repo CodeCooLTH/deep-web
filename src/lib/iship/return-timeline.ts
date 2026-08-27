@@ -112,8 +112,8 @@ const ARRIVED: Record<ReturnLegKind, Record<TimelineAudience, string>> = {
    * ตัวเองเป็นคนส่งคืน ซึ่งเป็นเส้นแบ่งที่ `lib/order-return.ts` บังคับไว้ทั้งไฟล์ว่าห้ามเบลอ
    * (คนละความรับผิด คนละค่าส่ง คนละการตีความสถิติผู้ซื้อใน 00055)
    */
-  BOUNCE: { seller: 'กลับถึงร้าน', buyer: 'ของกลับถึงร้าน' },
-  RETURN: { seller: 'กลับถึงร้าน', buyer: 'ร้านได้รับแล้ว' },
+  BOUNCE: { seller: 'ถึงร้านค้า', buyer: 'ของกลับถึงร้าน' },
+  RETURN: { seller: 'ถึงร้านค้า', buyer: 'ร้านได้รับแล้ว' },
 }
 
 const DEPARTED: Record<ReturnLegKind, Record<TimelineAudience, string>> = {
@@ -134,8 +134,21 @@ const DEPARTED: Record<ReturnLegKind, Record<TimelineAudience, string>> = {
  */
 /** ขั้นสุดท้ายก่อนถึงร้าน — "ขนส่งเอาของออกมาส่งคืนแล้ว" ไม่ใช่ "ยังวิ่งอยู่ระหว่างศูนย์" */
 const DISPATCHED: Record<TimelineAudience, string> = {
-  seller: 'กำลังนำส่งคืนร้าน',
-  buyer: 'กำลังนำส่งคืนร้าน',
+  seller: 'กำลังส่ง',
+  buyer: 'กำลังส่ง',
+}
+
+/**
+ * จุดเริ่มของขากลับ — **คำที่ user กำหนดเอง** (2026-08-27)
+ *
+ * 🛑 คำนี้ชนกับ `SHIPPING_STAGE_LABEL.PROBLEM` และ `ORDER_STAGE_META.PARCEL_PROBLEM`
+ * ซึ่งใช้กับ `issue`/`cannot_pickup` = "มีปัญหาระหว่างทาง แต่ยังอาจส่งสำเร็จ"
+ * คนละสถานการณ์กับ "ส่งไม่สำเร็จแล้วกำลังตีกลับ" — บันทึกไว้ให้รู้ว่าเป็นการตัดสินใจ
+ * ไม่ใช่ความบังเอิญ (user เขียนคำนี้มาเอง 2 รอบ)
+ */
+const BOUNCE_ORIGIN: Record<TimelineAudience, string> = {
+  seller: 'พัสดุมีปัญหา',
+  buyer: 'พัสดุมีปัญหา',
 }
 
 const IN_TRANSIT: Record<TimelineAudience, string> = { seller: 'กำลังจัดส่ง', buyer: 'กำลังจัดส่ง' }
@@ -249,7 +262,7 @@ export function describeReturnLeg(input: ReturnLegInput): ReturnLeg | null {
    */
   const dispatchedAt = toDate(input.returnDispatchedAt)
   const bounceDots: ReturnLegDot[] = [
-    { label: FORWARD_OUTCOME.failed.label, icon: FORWARD_OUTCOME.failed.icon },
+    { label: BOUNCE_ORIGIN[a], icon: FORWARD_OUTCOME.failed.icon },
     { label: DEPARTED.BOUNCE[a], icon: ICON.bounceDepart },
     ...(dispatchedAt ? [{ label: DISPATCHED[a], icon: ICON.inTransit }] : []),
     { label: ARRIVED.BOUNCE[a], icon: ICON.arrived },

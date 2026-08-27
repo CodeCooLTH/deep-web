@@ -394,7 +394,20 @@ export default function ParcelTimeline({
             {leg.dots.map((d, i) => {
               const reached = i <= leg.stage
               const isEnd = i === leg.dots.length - 1
-              const lineColor = leg.originTone === 'success' ? VERIFIED_INK : 'warning.main'
+              /**
+               * สีต้องตรงกับฝั่งร้าน (`ShipmentRail.TONE_SOLID`) — พัสดุใบเดียวกัน
+               * ผู้ซื้อกับผู้ขายต้องไม่เห็นคนละสี · เหลืองสงวนให้จุดที่เป็นปัญหาจริงจุดเดียว
+               * จุดระหว่างทาง = "ของกำลังเดินทาง" ใช้สีหลัก · ปลายทาง = เขียว
+               */
+              const lineColor = !leg.standalone
+                ? leg.originTone === 'success'
+                  ? VERIFIED_INK
+                  : 'warning.main'
+                : isEnd
+                  ? VERIFIED_INK
+                  : i === 0
+                    ? 'warning.main'
+                    : 'primary.main'
               return (
                 <Box component='li' key={`d-${d.label}-${i}`} sx={{ display: 'contents' }}>
                   {i > 0 && (
@@ -424,7 +437,7 @@ export default function ParcelTimeline({
                       alignItems: 'center',
                       justifyContent: 'center',
                       // ปลายทาง = เขียวเสมอ (มติ user) แยกจาก "ส่งสำเร็จ" ด้วย **รูปไอคอน**
-                      bgcolor: reached ? (isEnd ? VERIFIED_INK : lineColor) : 'action.hover',
+                      bgcolor: reached ? lineColor : 'action.hover',
                       color: reached ? 'common.white' : 'text.secondary',
                       // จุดที่ "ยืนอยู่ตอนนี้" — วงแหวนรอบจุด เพราะสีอย่างเดียวแยกไม่ออก
                       // (เคสคืนของ: current/reached/ปลายทาง เป็นเขียวเหมือนกันหมดตามมติ user)

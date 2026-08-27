@@ -183,3 +183,29 @@ describe('[blocker] เคส "คืนของ" ต้องเข้าถ�
     expect(src).toContain('toDate(ret.receivedAt)')
   })
 })
+
+describe('[blocker] แถบตีกลับต้อง invert กับขาไป', () => {
+  /**
+   * 🛑 ขาไปเดินซ้าย→ขวา (ออกจากร้าน) · ขากลับต้องเดินขวา→ซ้าย (กลับเข้าร้าน)
+   *   ขาไป   รอส่งของ → รับเข้าระบบแล้ว → กำลังจัดส่ง → ส่งสำเร็จ
+   *   ขากลับ ถึงร้านค้า ← กำลังส่ง ← กำลังตีกลับ ← พัสดุมีปัญหา
+   *
+   * ทิศเป็น **ความหมาย** ไม่ใช่การตกแต่ง — ซ้าย = ร้าน = ต้นทาง · ของที่กำลังกลับมาหาเรา
+   * ต้องเคลื่อนเข้าหาเรา · ผมเคยเขียนเองว่า "ทิศกลับด้านมีความหมายก็ต่อเมื่อมีขาไปให้เทียบ"
+   * แล้ววาดเป็นซ้าย→ขวา ซึ่ง user ทักทันทีที่เห็น (2026-08-27)
+   */
+  const RAIL = 'src/components/safepay/iship/ShipmentRail.tsx'
+
+  it('สาขา standalone ต้องใช้ flex-row-reverse ทั้งแถวจุดและแถวป้าย', () => {
+    const src = stripComments(read(RAIL))
+    const branch = src.slice(src.indexOf('if (leg.standalone)'), src.indexOf('const n2 =') + 1 || undefined)
+    const seg = src.slice(src.indexOf('if (leg.standalone)'))
+    const upToNext = seg.slice(0, seg.indexOf('const row2'))
+    expect((upToNext.match(/flex-row-reverse/g) ?? []).length, branch && '').toBeGreaterThanOrEqual(2)
+  })
+
+  it('ต้องมีลูกศรบอกทิศ — ไม่งั้นสายตาไทยอ่านแถบกลับหัว', () => {
+    const src = stripComments(read(RAIL))
+    expect(src).toContain('caret-left-filled')
+  })
+})

@@ -34,8 +34,17 @@ const LABEL_W = { sm: 'w-6', lg: 'w-8' } as const
 const TONE_SOLID = {
   success: 'bg-success text-white',
   warning: 'bg-warning text-white',
+  /**
+   * "ของกำลังเดินทาง" — สีเดียวกับจุดปัจจุบันของแถบขาไป
+   *
+   * 🛑 ไม่ใช้ `warning` กับจุดระหว่างทางของขากลับ: 3 จุดเหลืองติดกันอ่านเป็น
+   * "เตือน เตือน เตือน" ทั้งที่ 2 จุดกลางแปลว่า *ของกำลังเดินทาง* เฉย ๆ
+   * เหลืองสงวนไว้ให้จุดที่เป็นปัญหาจริงจุดเดียว ("ส่งไม่สำเร็จ")
+   * ผลพลอยได้: ขาวบน `--color-warning` ได้ 1.66:1 (ตก 1.4.11) ส่วน primary ได้ ~4.7:1
+   */
+  moving: 'bg-primary text-white',
 } as const
-const TONE_LINE = { success: 'bg-success', warning: 'bg-warning' } as const
+const TONE_LINE = { success: 'bg-success', warning: 'bg-warning', moving: 'bg-primary' } as const
 const TONE_INK = { success: 'text-success-ink', warning: 'text-warning-ink' } as const
 
 export interface ShipmentRailProps {
@@ -197,36 +206,66 @@ export default function ShipmentRail({
    * ทิศทางกลับด้านมีความหมายก็ต่อเมื่อมี "ขาไป" ให้เทียบเท่านั้น
    */
   if (leg.standalone) {
+    /**
+     * 🛑 **invert กับขาไป** — เดินขวา→ซ้าย จบที่ซ้ายสุดซึ่งคือร้าน
+     *
+     *   ขาไป   รอส่งของ → รับเข้าระบบแล้ว → กำลังจัดส่ง → ส่งสำเร็จ   (ออกจากร้าน ไปขวา)
+     *   ขากลับ ถึงร้านค้า ← กำลังส่ง ← กำลังตีกลับ ← พัสดุมีปัญหา     (กลับเข้าร้าน มาซ้าย)
+     *
+     * ตอนถอดแถวขาไปออกผมเขียนเองว่า "ทิศกลับด้านมีความหมายก็ต่อเมื่อมีขาไปให้เทียบ"
+     * — **ผิด** ซ้าย = ร้าน = ต้นทาง เป็นความหมายในตัวมันเอง ของที่กำลังกลับมาหาเรา
+     * ต้องเคลื่อนเข้าหาเรา ไม่ใช่ออกห่าง (user ทัก 2026-08-27 · ตรงกับที่วาดไว้ตั้งแต่รอบแรก)
+     *
+     * `leg.dots` เรียงตามลำดับเวลาเสมอ ⇒ `flex-row-reverse` ทำให้ index 0 ("พัสดุมีปัญหา")
+     * ไปอยู่ขวาสุด และจุดสุดท้าย ("ถึงร้านค้า") มาอยู่ซ้ายสุด
+     */
+    const dotCls = (i: number) =>
+      i === 0
+        ? TONE_SOLID.warning // จุดที่เป็นปัญหาจริง ๆ มีจุดเดียว
+        : i === n - 1
+          ? TONE_SOLID.success // ถึงร้านแล้ว (มติ user) แยกจาก "ส่งสำเร็จ" ด้วยไอคอน
+          : TONE_SOLID.moving // ระหว่างทาง = ของกำลังเดินทาง ไม่ใช่คำเตือน
+    const lineCls = (i: number) =>
+      i === n - 1 ? TONE_LINE.success : i === 1 ? TONE_LINE.warning : TONE_LINE.moving
+
     return (
       <div role={role} aria-label={ariaLabel}>
-        <div className="flex items-center">
+        <div className="flex flex-row-reverse items-center">
           {leg.dots.map((d, i) => (
             <Fragment key={`s-${d.label}-${i}`}>
               {i > 0 && (
-                <span
-                  className={cn(
-                    'h-0.5 flex-1',
-                    i <= leg.stage ? (i === n - 1 ? TONE_LINE.success : TONE_LINE.warning) : 'bg-default-200',
+                <>
+                  <span className={cn('h-0.5 flex-1', i <= leg.stage ? lineCls(i) : 'bg-default-200')} />
+                  {/* ลูกศรบอกทิศ — สายตาไทยกวาดซ้าย→ขวาอัตโนมัติ ไม่มีเครื่องหมายบอกทิศ
+                      คนจะอ่านแถบนี้กลับหัว · สอดเป็น flex item ไม่ใช่วางทับเส้นแล้วเจาะพื้นหลัง
+                      ⇒ ไม่ต้องรู้ว่าการ์ดวางอยู่บนพื้นสีอะไร · ห้าม emoji (HR12) */}
+                  {i - 1 === Math.floor((n - 1) / 2) && (
+                    <Icon
+                      icon="caret-left-filled"
+                      className="text-default-500 shrink-0 text-sm"
+                      aria-hidden="true"
+                    />
                   )}
-                />
+                  <span className={cn('h-0.5 flex-1', i <= leg.stage ? lineCls(i) : 'bg-default-200')} />
+                </>
               )}
               {dot(
                 d.icon,
                 i === leg.stage ? 'current' : i < leg.stage ? 'reached' : 'future',
-                // ปลายทาง = เขียว (มติ user) แยกจาก "ส่งสำเร็จ" ด้วยไอคอน `building-store`
-                i === n - 1 ? TONE_SOLID.success : TONE_SOLID.warning,
+                dotCls(i),
                 undefined,
-                TONE_SOLID.warning,
+                dotCls(i),
               )}
             </Fragment>
           ))}
         </div>
         {labels && (
-          <div className="mt-1.5 flex items-start">
+          <div className="mt-1.5 flex flex-row-reverse items-start">
             {leg.dots.map((d, i) => (
               <Fragment key={`sl-${d.label}-${i}`}>
                 {i > 0 && <span className="flex-1" />}
-                {label(d.label, i === 0 ? 'start' : i === n - 1 ? 'end' : 'center', i === leg.stage)}
+                {/* i=0 อยู่ **ขวาสุดบนจอ** เพราะ row-reverse ⇒ align กลับด้านตามไปด้วย */}
+                {label(d.label, i === 0 ? 'end' : i === n - 1 ? 'start' : 'center', i === leg.stage)}
               </Fragment>
             ))}
           </div>
