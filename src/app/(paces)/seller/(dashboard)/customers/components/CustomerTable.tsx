@@ -23,7 +23,16 @@ import SellerEmptyState from '../../_shared/SellerEmptyState'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import { CustomerBehaviorIcons } from '@/components/safepay/CustomerBehaviorBadges'
-import CustomerTrustBar from '@/components/safepay/CustomerTrustBar'
+import {
+  crossShopReturnSummary,
+  returnRateTone,
+} from '@/lib/customer-risk-presentation'
+import type { BuyerReputation } from '@/lib/buyer-reputation'
+import {
+  RISK_TIER_ICON,
+  RISK_TIER_LABEL,
+  RISK_TIER_TONE,
+} from '@/lib/customer-risk-presentation'
 import ListBusyOverlay, {
   useListBusy,
 } from '@/app/(paces)/seller/(dashboard)/_shared/ListBusyOverlay'
@@ -32,7 +41,8 @@ import { formatDateTime } from '@/lib/format-date'
 import { formatBaht } from '@/lib/format-money'
 import { pacesToast } from '@/lib/paces-toast'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
-import type { CustomerListFilter } from '@/lib/customer-directory'
+import type { CustomerListFilter, CustomerRiskFilter } from '@/lib/customer-directory'
+import RiskTriageCard from './RiskTriageCard'
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -122,6 +132,17 @@ type CustomerTableProps = {
   hasAnyCustomer: boolean
   initialQuery: string
   initialFilter: CustomerListFilter
+  /** แกนที่สอง — ระดับความเสี่ยง **ข้ามร้าน** (AND กับ `initialFilter` ไม่ใช่แทนที่) */
+  initialRisk: CustomerRiskFilter
+  /**
+   * จำนวนต่อระดับความเสี่ยง — **นับที่ server ด้วย `matchesRiskFilter` ตัวเดียวกับที่กรองจริง**
+   * ห้ามนับซ้ำที่ client จาก `customers` เพราะ `customers` คือผลลัพธ์**หลังกรองแล้ว**
+   * ⇒ ไทล์จะเปลี่ยนเลขทุกครั้งที่พิมพ์ค้นหา แล้ว "กดเลข 2 เจอ 1"
+   */
+  riskCounts: { high: number; watch: number }
+  /** พัสดุตีกลับ **กับร้านนี้** — คนละขอบเขตกับ riskCounts (ทั้งระบบ) */
+  shopReturned: number
+  shopHasParcels: boolean
   /** จำนวนลูกค้าที่มีสัญญาณเตือน — โชว์บนชิปให้เห็นก่อนกด (ตัวเลขเดียวกับการ์ดสถิติ) */
   watchCount: number
   /**
@@ -131,6 +152,53 @@ type CustomerTableProps = {
   filterCounts: Record<CustomerListFilter, number>
   /** จำนวนลูกค้าทั้งร้าน **ก่อนกรอง** — จอว่างต้องบอกได้ว่าของไม่ได้หาย แค่ถูกตัวกรองบังอยู่ */
   totalCustomers: number
+}
+
+/**
+ * เซลล์ "ความน่าเชื่อถือ (ทั้งระบบ)" — ตัวเลขนำ + ฐานกำกับ
+ * 🛑 `—` ไม่ใช่ `0%` เมื่อฐานไม่พอ (0% แปลว่าวัดแล้วได้ศูนย์ คนละเรื่องกับยังวัดไม่ได้)
+ * และ **ห้ามซ่อนฐานทิ้ง** — ฐานคือสิ่งที่บอกว่าเชื่อเลขนั้นได้แค่ไหน
+ */
+function TrustCell({ trust }: { trust: BuyerReputation | null }) {
+  const sum = crossShopReturnSummary(trust)
+  if (sum.state === 'none') return <span className="text-default-400 text-xs">ยังไม่มีประวัติ</span>
+  if (sum.state === 'insufficient') {
+    return (
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-default-300 text-base font-bold">—</span>
+        <span className="text-default-400 text-2xs tabular-nums">
+          มี {sum.base} ใบ · ต้องครบ {sum.min}
+        </span>
+      </div>
+    )
+  }
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span className={`${returnRateTone(sum.pct)} text-base font-bold tabular-nums`}>{sum.pct}%</span>
+      <span className="text-default-400 text-2xs whitespace-nowrap tabular-nums">
+        ตีกลับ {sum.returned} จาก {sum.base} ใบ
+      </span>
+    </div>
+  )
+}
+
+/**
+ * เซลล์ "กับร้านนี้" — **นับใบ ไม่คิดอัตรา**
+ * 🛑 จงใจไม่มี gate ฐาน 3 ใบเหมือนคอลัมน์ซ้าย เพราะ "ตีกลับ 2 ครั้ง" เป็นข้อเท็จจริง
+ * ไม่ใช่สถิติ — วันนี้บน prod นี่คือคอลัมน์เดียวที่มีของจริงให้อ่าน (ลูกค้า 82% มีพัสดุ 1 ใบ)
+ */
+function ShopScopeCell({ row }: { row: CustomerRow }) {
+  if (row.shopShipped === 0) return <span className="text-default-300 text-xs">ยังไม่เคยส่ง</span>
+  if (row.shopReturned === 0) {
+    return (
+      <span className="text-default-400 text-xs tabular-nums">{row.shopShipped} ใบ ไม่มีปัญหา</span>
+    )
+  }
+  return (
+    <span className="badge bg-warning/15 text-warning-ink whitespace-nowrap tabular-nums">
+      ตีกลับ {row.shopReturned}/{row.shopShipped}
+    </span>
+  )
 }
 
 /**
@@ -151,6 +219,10 @@ const CustomerTable = ({
   hasAnyCustomer,
   initialQuery,
   initialFilter,
+  initialRisk,
+  riskCounts,
+  shopReturned,
+  shopHasParcels,
   watchCount,
   filterCounts,
   totalCustomers,
@@ -176,12 +248,21 @@ const CustomerTable = ({
    */
   const filtersRef = useRef(initialFilter)
   filtersRef.current = initialFilter
+  const riskRef = useRef(initialRisk)
+  riskRef.current = initialRisk
 
+  /**
+   * 🛑 คง **ทั้งสองแกน** ไว้ด้วยกันเสมอ (`?f=` ระดับร้าน · `?risk=` ข้ามร้าน) — เขียนแกนใดแกนหนึ่ง
+   * แล้วลืมอีกแกน = ผู้ใช้กดตัวกรองที่สองแล้วตัวแรกหายไปเงียบ ๆ (ท่าเดียวกับ `pushQuery`
+   * ของ `/orders` ที่คง `?status=`/`?stage=` ไว้ด้วยกันเพราะเป็นคนละแกน)
+   */
   const pushWith = useCallback(
-    (next: { q: string; f: CustomerListFilter }) => {
+    (next: { q: string; f: CustomerListFilter; risk?: CustomerRiskFilter }) => {
       const params = new URLSearchParams()
       if (next.q) params.set('q', next.q)
       if (next.f !== 'all') params.set('f', next.f)
+      const nextRisk = next.risk ?? riskRef.current
+      if (nextRisk !== 'all') params.set('risk', nextRisk)
       const qs = params.toString()
       router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
     },
@@ -272,7 +353,27 @@ const CustomerTable = ({
         </div>
       ),
       meta: { cellClassName: 'min-w-56' },
-      cell: ({ row }) => <CustomerTrustBar reputation={row.original.trust} />,
+      /**
+       * 🛑 เลิกใช้ `<CustomerTrustBar>` (แถบสัดส่วน) ในตาราง — **ไม่ได้แปลว่าแถบไม่ดี**
+       * แต่ในตารางทุกแถวยาวเท่ากันขณะที่ฐานไม่เท่ากัน ⇒ คนที่ส่ง 1 ใบรับ 1 ใบ ได้แถบเขียว
+       * เต็มเท่าคนที่ส่ง 12 รับ 12 ⇒ **เทียบข้ามแถวไม่ได้เลย** ซึ่งเป็นเหตุผลทั้งหมดที่
+       * ตารางมีอยู่ (user ชี้เอง 2026-08-26: "อันนี้ดูยากอ่ะ")
+       * แถบยังใช้ต่อที่ `/customers/[id]` ซึ่งดูทีละคน — ที่นั่นไม่มีการเทียบข้ามแถว
+       *
+       * ตัวเลข + ฐาน อ่านได้เท่ากันทั้งตอนมี 1 ใบและ 50 ใบ (วัด prod: วันนี้ค่าที่เป็นไปได้
+       * มีแค่ 0/1/2 ใบ · อีก 6 เดือนจะมีคนที่ 20-30 ใบ ดีไซน์เดียวต้องรอดทั้งสองยุค)
+       */
+      cell: ({ row }) => <TrustCell trust={row.original.trust} />,
+    }),
+    columnHelper.display({
+      id: 'shopScope',
+      header: () => (
+        <div className="flex flex-col">
+          <span>กับร้านนี้</span>
+          <span className="text-2xs text-default-400 font-normal">(พัสดุที่เปิดผ่าน Deep)</span>
+        </div>
+      ),
+      cell: ({ row }) => <ShopScopeCell row={row.original} />,
     }),
     columnHelper.accessor('contact', {
       header: 'ติดต่อ',
@@ -370,7 +471,36 @@ const CustomerTable = ({
     run(() => pushWith({ q: '', f: 'all' }))
   }
 
+  const pickRisk = (v: CustomerRiskFilter) =>
+    run(() => pushWith({ q: query, f: filtersRef.current, risk: v }))
+
   return (
+    <>
+      {/* มือถือเท่านั้น — จอใหญ่ใช้การ์ดสถิติ 4 ใบใน page.tsx แทน (คนละพรีเซนต์ ข้อมูลชุดเดียวกัน) */}
+      {hasAnyCustomer && (
+        <div className="mb-2.5 md:hidden">
+          <RiskTriageCard
+            rows={[
+              { tier: 'high', sub: 'ตีกลับ 2 ครั้งขึ้นไป', count: riskCounts.high },
+              { tier: 'watch', sub: 'เคยตีกลับอย่างน้อย 1 ครั้ง', count: riskCounts.watch },
+            ]}
+            active={initialRisk}
+            onPick={pickRisk}
+            shopReturned={shopReturned}
+            shopHasParcels={shopHasParcels}
+            onPickShopReturned={() =>
+              run(() =>
+                pushWith({
+                  q: query,
+                  f: filtersRef.current === 'returned' ? 'all' : 'returned',
+                  risk: riskRef.current,
+                }),
+              )
+            }
+          />
+        </div>
+      )}
+
     <div className="card">
       {/*
         แถวเครื่องมือ — user สั่ง 2026-08-25 พร้อมภาพหน้าจอ: "อยากให้ทำเหมือนหน้า order lists"
@@ -385,16 +515,31 @@ const CustomerTable = ({
         "สร้างลูกค้า" — ลูกค้าเกิดจากคำสั่งซื้อเท่านั้น ใส่ปุ่มไปก็ไม่มีอะไรให้กด
       */}
       <div className="card-header">
+        {/*
+          มือถือ = ช่องทรง pill (ภาษาเดียวกับหน้า `/inbox` ที่ user เลือก) · จอใหญ่ = `form-input`
+          เดิมของธีม — ไม่เปลี่ยนบนจอใหญ่เพราะที่นั่นอยู่ในแถวเดียวกับ `FilterDropdown`
+          ซึ่งเป็นทรงเหลี่ยม ปนกันแล้วดูเป็นสองระบบ
+          🛑 `type="search"` + `aria-label` ต้องคงไว้ทั้งสองทรง — placeholder หายทันทีที่พิมพ์
+        */}
         <div className="flex min-w-0 max-w-xl flex-1 gap-2.5">
-          <div className="input-icon-group">
+          <div className="input-icon-group hidden lg:block">
             <Icon icon="search" className="input-icon" />
             <input
               type="search"
               placeholder="ค้นหาชื่อ หรือ เบอร์โทร"
-              // placeholder หายทันทีที่พิมพ์ตัวแรก ⇒ ถ้าไม่มี aria-label ช่องนี้จะไม่มีชื่อ
-              // ให้ screen reader เลยตั้งแต่วินาทีที่ผู้ใช้เริ่มใช้งานมันจริง ๆ
               aria-label="ค้นหาลูกค้าด้วยชื่อ หรือ เบอร์โทร"
               className="form-input"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <div className="bg-light/40 border-default-200 flex min-h-11 w-full min-w-0 items-center gap-2 rounded-full border px-3 lg:hidden">
+            <Icon icon="solar:magnifer-linear" className="text-default-400 shrink-0 text-lg" aria-hidden="true" />
+            <input
+              type="search"
+              placeholder="ค้นหาชื่อ หรือ เบอร์โทร"
+              aria-label="ค้นหาลูกค้าด้วยชื่อ หรือ เบอร์โทร"
+              className="text-default-900 placeholder:text-default-400 min-w-0 flex-1 bg-transparent text-sm outline-hidden"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -486,8 +631,18 @@ const CustomerTable = ({
                   className="absolute inset-0 z-0"
                   aria-label={`ดูโปรไฟล์ของ ${c.displayName}`}
                 />
-                <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
-                  {c.initial}
+                {/* avatar + badge ระดับความเสี่ยงห้อยมุมล่างซ้าย — ภาษาเดียวกับรายการแชท
+                    (`/inbox`: avatar + โลโก้ช่องทางห้อยมุม) user เลือกสไตล์นี้เอง 2026-08-26 */}
+                <div className="relative shrink-0">
+                  <div className="bg-primary/10 text-primary flex size-11 items-center justify-center rounded-full text-sm font-semibold">
+                    {c.initial}
+                  </div>
+                  <span
+                    className={`${RISK_TIER_TONE[c.tier]} ring-card bg-card absolute bottom-0 left-0 flex size-5 items-center justify-center rounded-full text-xs ring-2`}
+                    role="img"
+                    aria-label={RISK_TIER_LABEL[c.tier]}>
+                    <Icon icon={RISK_TIER_ICON[c.tier]} aria-hidden="true" />
+                  </span>
                 </div>
 
                 {/* 🛑 `min-w-0` ที่กล่อง + `max-w-full truncate` ที่ชื่อ + `shrink-0` ที่ป้าย —
@@ -498,7 +653,24 @@ const CustomerTable = ({
                     <span className="max-w-full truncate">{c.displayName}</span>
                     <CustomerBehaviorIcons badges={c.badges} />
                   </p>
-                  <CustomerTrustBar reputation={c.trust} />
+                  {/* 🛑 บรรทัดนี้พูดขอบเขต **ทั้งระบบ** ต้องเขียนคำกำกับทุกครั้ง เพราะบรรทัด
+                      ถัดไป (ContactCell) กับยอดเงินขวามือเป็นเรื่องของร้านนี้ (HR16) */}
+                  <p className="text-default-500 mb-0 truncate text-xs">
+                    {(() => {
+                      const sum = crossShopReturnSummary(c.trust)
+                      if (sum.state === 'none') return 'ยังไม่มีประวัติ'
+                      if (sum.state === 'insufficient')
+                        return `ทั้งระบบ ${sum.base} ใบ · ยังบอกอัตราไม่ได้`
+                      return (
+                        <>
+                          ทั้งระบบ {sum.base} ใบ ·{' '}
+                          <b className={`${returnRateTone(sum.pct)} font-semibold`}>
+                            ตีกลับ {sum.pct}%
+                          </b>
+                        </>
+                      )
+                    })()}
+                  </p>
                   <span className="relative z-10 mt-1 inline-flex">
                     <ContactCell row={c} />
                   </span>
@@ -552,6 +724,7 @@ const CustomerTable = ({
         </div>
       )}
     </div>
+    </>
   )
 }
 
