@@ -346,6 +346,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                   carrierStatus={order.carrierStatus}
                   returnStartedAt={order.returnStartedAt}
                   returnedAt={order.returnedAt}
+                  returnDispatchedAt={order.returnDispatchedAt}
                   hasShipment
                   tracking={order.shipmentTracking}
                 />

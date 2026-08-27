@@ -270,6 +270,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
             // null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" (แถบตัดสินจุดจาก carrierStatus)
             returnStartedAt: o.shipments[0].returnStartedAt?.toISOString() ?? null,
             returnedAt: o.shipments[0].returnedAt?.toISOString() ?? null,
+            returnDispatchedAt: o.shipments[0].returnDispatchedAt?.toISOString() ?? null,
           }
         : o.shipmentTracking
           ? {
@@ -287,6 +288,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
               // (แถว 2 จะไม่โผล่เลยสำหรับใบพวกนี้ ซึ่งถูกแล้ว — เราไม่รู้จริง ๆ)
               returnStartedAt: null,
               returnedAt: null,
+              returnDispatchedAt: null,
             }
           : null,
     // นัดหมาย (feature 00036) — undefined = ร้านไม่มีแกนนี้, null = ร้านมีแกนแต่ใบนี้ walk-in

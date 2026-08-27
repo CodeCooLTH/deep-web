@@ -376,6 +376,7 @@ export default function OrderCard({
               shipmentStatus={order.shipment.status}
               returnStartedAt={order.shipment.returnStartedAt}
               returnedAt={order.shipment.returnedAt}
+              returnDispatchedAt={order.shipment.returnDispatchedAt}
               hasShipment
               cancelled={false}
               /* มือถือไม่มี hover — ต้องวาดแถบเต็มลงในการ์ดเลย ไม่งั้นแตะยังไงก็ไม่ขึ้น

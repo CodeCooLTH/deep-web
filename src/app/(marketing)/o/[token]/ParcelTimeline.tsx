@@ -50,6 +50,7 @@ type Props = {
    */
   returnStartedAt?: string | null
   returnedAt?: string | null
+  returnDispatchedAt?: string | null
   /**
    * มีพัสดุจริงไหม — ออเดอร์ที่จบโดยไม่เคยมีพัสดุ (รับเอง/บริการ) ได้ stage `DONE` เหมือนกัน
    * ถ้าไม่กันไว้จะวาดแถบเขียวครบ 4 จุดให้พัสดุที่ไม่มีอยู่จริง
@@ -70,6 +71,7 @@ export default function ParcelTimeline({
   carrierStatus,
   returnStartedAt,
   returnedAt,
+  returnDispatchedAt,
   hasShipment,
   tracking,
 }: Props) {
@@ -81,7 +83,7 @@ export default function ParcelTimeline({
    * 🛑 ผู้ซื้อต้องเห็นเรื่องนี้ ไม่ใช่ซ่อน — feature 00055 นับใบที่ตีกลับเป็นสถิติของเขาอยู่แล้ว
    * การไม่แสดงคือการตัดสินลับหลัง · และผู้ซื้อที่ของตีกลับเพราะที่อยู่ผิดจะไปทวงร้านว่าของหาย
    */
-  const leg = describeReturnLeg({ audience: 'buyer', carrierStatus, returnStartedAt, returnedAt })
+  const leg = describeReturnLeg({ audience: 'buyer', carrierStatus, returnStartedAt, returnedAt, returnDispatchedAt })
   // ขนส่งบอกเองชนะกองงานที่ระบบจัดให้ — ดูเหตุผลเต็มที่ MiniShipmentTimeline ฝั่งร้าน
   const progress = carrierStatus != null ? describeProgress('CREATED', carrierStatus, 'buyer') : null
   const raw = progress ? progress.stage : SHIPMENT_STAGE_DOT_INDEX[stage]

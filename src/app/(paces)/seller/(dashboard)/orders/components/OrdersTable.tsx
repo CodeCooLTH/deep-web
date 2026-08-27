@@ -541,6 +541,7 @@ export default function OrdersTable({
                   shipmentStatus={s!.status}
                   returnStartedAt={s!.returnStartedAt}
                   returnedAt={s!.returnedAt}
+                  returnDispatchedAt={s!.returnDispatchedAt}
                   shipmentId={s!.provider === 'ISHIP' ? (s!.id ?? null) : null}
                   trackingNo={s!.trackingNo}
                   courierName={s!.courierName ?? s!.courierCode}
@@ -591,6 +592,7 @@ export default function OrdersTable({
                       shipmentStatus={s!.status}
                       returnStartedAt={s!.returnStartedAt}
                       returnedAt={s!.returnedAt}
+                      returnDispatchedAt={s!.returnDispatchedAt}
                       hasShipment={Boolean(s!.trackingNo)}
                       cancelled={row.original.status === 'CANCELLED'}
                       plain

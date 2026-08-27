@@ -83,6 +83,7 @@ export type OrderRow = {
      */
     returnStartedAt: string | null
     returnedAt: string | null
+    returnDispatchedAt: string | null
   } | null
   /**
    * นัดหมายของใบนี้ (feature 00036) — null = ไม่มีนัด (walk-in) ซึ่งแปลว่า "ไม่อยู่ในแกนนี้"

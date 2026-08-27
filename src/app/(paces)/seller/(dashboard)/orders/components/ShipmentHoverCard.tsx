@@ -69,6 +69,7 @@ interface Props {
    */
   returnStartedAt?: string | Date | null
   returnedAt?: string | Date | null
+  returnDispatchedAt?: string | Date | null
   /** id ของ OrderShipment — null = พัสดุที่ร้านแจ้งเลขเอง (ไม่มี traces ให้ถาม) */
   shipmentId: string | null
   trackingNo: string | null
@@ -84,6 +85,7 @@ export default function ShipmentHoverCard({
   shipmentStatus,
   returnStartedAt,
   returnedAt,
+  returnDispatchedAt,
   shipmentId,
   trackingNo,
   courierName,
@@ -163,6 +165,7 @@ export default function ShipmentHoverCard({
     carrierStatus,
     returnStartedAt,
     returnedAt,
+    returnDispatchedAt,
   })
 
   const lastIdx = SHIPMENT_STAGES.length - 1

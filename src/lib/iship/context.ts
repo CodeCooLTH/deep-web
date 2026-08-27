@@ -96,6 +96,7 @@ export interface ShipmentViewJson {
    */
   returnStartedAt: string | null;
   returnedAt: string | null;
+  returnDispatchedAt: string | null;
   isOverWeight: boolean;
   isOverSize: boolean;
   labelPrintedAt: string | null;
@@ -131,11 +132,12 @@ export interface ShipmentContextJson extends ShipmentContextBase {
 
 type ShipmentViewDates = Omit<
   ShipmentViewJson,
-  "carrierStatusAt" | "labelPrintedAt" | "createdAt" | "returnStartedAt" | "returnedAt"
+  "carrierStatusAt" | "labelPrintedAt" | "createdAt" | "returnStartedAt" | "returnedAt" | "returnDispatchedAt"
 > & {
   carrierStatusAt: Date | null;
   returnStartedAt: Date | null;
   returnedAt: Date | null;
+  returnDispatchedAt: Date | null;
   labelPrintedAt: Date | null;
   createdAt: Date;
 };
@@ -146,6 +148,7 @@ export function toShipmentViewJson(s: ShipmentViewDates): ShipmentViewJson {
     carrierStatusAt: s.carrierStatusAt?.toISOString() ?? null,
     returnStartedAt: s.returnStartedAt?.toISOString() ?? null,
     returnedAt: s.returnedAt?.toISOString() ?? null,
+    returnDispatchedAt: s.returnDispatchedAt?.toISOString() ?? null,
     labelPrintedAt: s.labelPrintedAt?.toISOString() ?? null,
     createdAt: s.createdAt.toISOString(),
   };

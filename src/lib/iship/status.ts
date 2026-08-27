@@ -147,6 +147,27 @@ export function isReturnedCarrierStatus(code?: string | null): boolean {
  * ใบที่โผล่มาเป็น `return_success` เลยโดยไม่เคยผ่าน `return` (รอบ poll เห็นแค่สถานะล่าสุด
  * เกิดจริง 6 จาก 12 ใบบน prod) คือใบที่ *ไม่รู้ว่าเริ่มตีกลับเมื่อไร* ไม่ใช่ใบที่เริ่มตอนนั้น
  */
+/**
+ * วลีที่ขนส่งใช้บอกว่า "กำลังนำพัสดุมาส่งคืนที่ร้าน" — ขั้นสุดท้ายก่อนถึงร้าน
+ *
+ * 🛑 นี่คือ **ข้อความอิสระของขนส่ง ไม่ใช่รหัสสถานะ** — เก็บไว้ที่เดียวเพราะมันเปราะ
+ * วันที่ขนส่งเปลี่ยนคำ ต้องมีที่เดียวให้แก้ และมีเทส `[blocker]` ตรึงไว้
+ *
+ * ทำไมไม่ใช้ "ถึงศูนย์คัดแยก" ซึ่งพบบ่อยกว่า: มันวนสลับกับ "อยู่ระหว่างการขนส่ง"
+ * หลายรอบต่อพัสดุใบเดียว (TH065880509388 เกิด 4 ครั้ง) = บันทึกเส้นทาง ไม่ใช่ขั้นตอน
+ * ⇒ เอามาทำจุดบนแถบไม่ได้ เพราะแถบต้องเดินหน้าอย่างเดียว
+ */
+export const RETURN_DISPATCH_PHRASE = "กำลังนำส่งพัสดุคืนผู้ส่ง";
+
+/** สถานะสายตีกลับที่บอกว่า "ขนส่งกำลังเอาของมาคืนร้านแล้ว" — อ่านจาก statusDesc */
+export function isReturnDispatchEvent(
+  code?: string | null,
+  statusDesc?: string | null,
+): boolean {
+  if (!code?.startsWith("return") || !statusDesc) return false;
+  return statusDesc.includes(RETURN_DISPATCH_PHRASE);
+}
+
 export function returnLegStampOf(
   code?: string | null,
 ): "returnStartedAt" | "returnedAt" | null {

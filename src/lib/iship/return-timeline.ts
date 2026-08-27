@@ -132,6 +132,12 @@ const DEPARTED: Record<ReturnLegKind, Record<TimelineAudience, string>> = {
  * 🛑 ต้องเป็น "กำลังจัดส่ง" คำเดียวกับแถว 1 — มันคือเหตุการณ์เดียวกันเป๊ะ (ของอยู่บนรถ)
  * แค่คนละทิศ · ใช้คนละคำบนกราฟิกชิ้นเดียวกันห่างกัน 2 บรรทัด = ผู้ใช้ต้องเดาว่ามันต่างกันตรงไหน
  */
+/** ขั้นสุดท้ายก่อนถึงร้าน — "ขนส่งเอาของออกมาส่งคืนแล้ว" ไม่ใช่ "ยังวิ่งอยู่ระหว่างศูนย์" */
+const DISPATCHED: Record<TimelineAudience, string> = {
+  seller: 'กำลังนำส่งคืนร้าน',
+  buyer: 'กำลังนำส่งคืนร้าน',
+}
+
 const IN_TRANSIT: Record<TimelineAudience, string> = { seller: 'กำลังจัดส่ง', buyer: 'กำลังจัดส่ง' }
 const ACCEPTED: Record<TimelineAudience, string> = { seller: 'รับเข้าระบบ', buyer: 'รับเข้าระบบ' }
 
@@ -162,6 +168,13 @@ export interface ReturnLegInput {
   /** เวลาที่ประทับไว้บนแถวพัสดุขาไป — `null` ได้เสมอ แปลว่า "ไม่รู้" ไม่ใช่ "ไม่เกิด" */
   returnStartedAt?: Date | string | null
   returnedAt?: Date | string | null
+  /**
+   * เวลาที่ขนส่งเริ่มนำพัสดุมาส่งคืนที่ร้าน — **มีค่า = แถบได้จุดที่ 4**
+   *
+   * 🛑 `null` แปลว่า *ขนส่งเจ้านี้ไม่บอก* ไม่ใช่ *ยังไม่ถึงขั้นนั้น* (Flash ไม่ส่งเลยสักใบ)
+   * ⇒ ต้อง **ไม่วาดจุดนี้** เมื่อไม่มีค่า ไม่ใช่วาดเป็นจุดเทาที่ไม่มีวันสว่าง
+   */
+  returnDispatchedAt?: Date | string | null
   /**
    * ใบคืนของ (00056) ที่ยังไม่ถูกยกเลิก — `null` = ไม่มี
    *
@@ -228,6 +241,21 @@ export function describeReturnLeg(input: ReturnLegInput): ReturnLeg | null {
   if (!stampCol) return null
 
   /**
+   * จุดที่ 4 โผล่เฉพาะเมื่อขนส่งบอกจริง — **ไม่ใช่ 4 จุดตายตัว**
+   *
+   * iShip ส่งรหัสสถานะของขากลับมาแค่ 2 ตัว ขั้นนี้จึงมาจากข้อความอิสระที่มีแค่ SPX ส่ง
+   * (prod: SPX 6 ใบมีครบ · Flash 7 ใบไม่มีเลย) ⇒ ถ้าวาดตายตัว ครึ่งหนึ่งของใบจะมีจุด
+   * ที่ไม่มีวันสว่าง = โกหกว่า "ยังไปไม่ถึง" ทั้งที่ความจริงคือ "ขนส่งเจ้านี้ไม่บอก"
+   */
+  const dispatchedAt = toDate(input.returnDispatchedAt)
+  const bounceDots: ReturnLegDot[] = [
+    { label: FORWARD_OUTCOME.failed.label, icon: FORWARD_OUTCOME.failed.icon },
+    { label: DEPARTED.BOUNCE[a], icon: ICON.bounceDepart },
+    ...(dispatchedAt ? [{ label: DISPATCHED[a], icon: ICON.inTransit }] : []),
+    { label: ARRIVED.BOUNCE[a], icon: ICON.arrived },
+  ]
+
+  /**
    * 🛑 **3 จุด ไม่ใช่ 4** — iShip ส่ง *รหัสสถานะ* ของขากลับมาแค่ 2 ตัว (`return` /
    * `return_success`) ยืนยันจาก event ทั้งหมดหลังพัสดุเริ่มตีกลับบน prod (45+6 ครั้ง
    * จาก 13 ใบ ไม่มีรหัสอื่นเลย) ⇒ จุดที่ 3 คือ "ส่งไม่สำเร็จ" ซึ่งเป็น *เหตุ* ที่ขากลับมีอยู่
@@ -239,13 +267,15 @@ export function describeReturnLeg(input: ReturnLegInput): ReturnLeg | null {
    */
   return {
     kind: 'BOUNCE',
-    dots: [
-      { label: FORWARD_OUTCOME.failed.label, icon: FORWARD_OUTCOME.failed.icon },
-      { label: DEPARTED.BOUNCE[a], icon: ICON.bounceDepart },
-      { label: ARRIVED.BOUNCE[a], icon: ICON.arrived },
-    ],
+    dots: bounceDots,
     // จุดแรก ("ส่งไม่สำเร็จ") ถึงแล้วเสมอ — มันคือเหตุที่ทำให้แถวนี้มีอยู่
-    stage: stampCol === 'returnedAt' ? 2 : 1,
+    stage:
+      stampCol === 'returnedAt'
+        ? bounceDots.length - 1
+        : // ยังกลับไม่ถึง — อยู่จุด "กำลังนำส่งคืนร้าน" ถ้าขนส่งบอกแล้ว ไม่งั้นอยู่ "กำลังตีกลับ"
+          dispatchedAt
+          ? 2
+          : 1,
     startedAt: toDate(input.returnStartedAt),
     arrivedAt: toDate(input.returnedAt),
     originTone: 'warning',

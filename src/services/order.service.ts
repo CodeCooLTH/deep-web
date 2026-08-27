@@ -1258,7 +1258,7 @@ export async function getOrderByToken(publicToken: string) {
         select: {
           trackingNo: true, courierName: true, courierCode: true, carrierStatus: true,
           // แถวที่ 2 ของไทม์ไลน์ฝั่งผู้ซื้อ ("ขากลับ") — null = ขนส่งไม่ได้แจ้งเวลา
-          returnStartedAt: true, returnedAt: true,
+          returnStartedAt: true, returnedAt: true, returnDispatchedAt: true,
         },
         orderBy: { createdAt: 'desc' },
         take: 1,
@@ -1507,6 +1507,7 @@ function orderListInclude(opts?: { withPayments?: boolean }) {
           // null = "ขนส่งไม่ได้แจ้งเวลา" ไม่ใช่ "ไม่เกิด" — จุดสว่างตัดสินจาก carrierStatus
           returnStartedAt: true,
           returnedAt: true,
+          returnDispatchedAt: true,
           // ต้นทุนจริงของการจัดส่ง (D-EXT-10, 2026-08-09) — หน้า /sales รวมสองช่องนี้เป็น
           // "ค่าใช้จ่าย" รายวัน. null = iShip ยังไม่คิดเงิน (ขนส่งยังไม่เข้ารับ) **ไม่ใช่ ฿0**
           carrierPrice: true,
@@ -1690,7 +1691,7 @@ export async function getOrdersByCustomer(
         select: {
           trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true,
           // แถวที่ 2 ของ stepper ในแชท ("ขากลับ") — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด"
-          returnStartedAt: true, returnedAt: true,
+          returnStartedAt: true, returnedAt: true, returnDispatchedAt: true,
         },
       },
     },
@@ -1737,6 +1738,7 @@ export async function getOrdersByCustomer(
             // แถวที่ 2 ของ stepper ("ขากลับ") — Date ข้ามเส้น RSC/JSON ไม่ได้ ต้องเป็นสตริง
             returnStartedAt: o.shipments[0].returnStartedAt?.toISOString() ?? null,
             returnedAt: o.shipments[0].returnedAt?.toISOString() ?? null,
+            returnDispatchedAt: o.shipments[0].returnDispatchedAt?.toISOString() ?? null,
           }
         : null,
     })),

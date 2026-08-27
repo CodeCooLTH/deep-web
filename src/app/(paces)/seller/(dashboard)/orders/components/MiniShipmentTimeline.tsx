@@ -37,6 +37,7 @@ interface Props {
   /** เวลาของ "ขากลับ" — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" (ดู data.ts) */
   returnStartedAt?: string | Date | null
   returnedAt?: string | Date | null
+  returnDispatchedAt?: string | Date | null
   /** มีพัสดุ/เลขแทรคจริงไหม — DONE ของออเดอร์ที่ไม่เคยมีพัสดุต้องไม่วาดแถบเขียวลอย ๆ */
   hasShipment: boolean
   /** ออเดอร์ยกเลิกแล้ว — ไม่วาด timeline (สถานะพัสดุไม่ใช่สาระของใบนั้นอีก) */
@@ -68,6 +69,7 @@ export default function MiniShipmentTimeline({
   shipmentStatus,
   returnStartedAt,
   returnedAt,
+  returnDispatchedAt,
   hasShipment,
   cancelled,
   plain,
@@ -97,7 +99,7 @@ export default function MiniShipmentTimeline({
    * มีขากลับ = แถวในตารางวาด **แถบ 2 แถวจริง** (user สั่ง 2026-08-26 หลังเห็นของจริง —
    * กลับมติเดิมที่ให้ตารางคงแถวเดียว) · ไม่มีขากลับ = จุด 4 จุดเหมือนเดิมทุกประการ
    */
-  const leg = describeReturnLeg({ audience: 'seller', carrierStatus, returnStartedAt, returnedAt })
+  const leg = describeReturnLeg({ audience: 'seller', carrierStatus, returnStartedAt, returnedAt, returnDispatchedAt })
 
   /** คำใต้จุด — ขั้นสุดท้ายถูก override ได้ ("ส่งไม่สำเร็จ" ไม่ใช่ "ส่งสำเร็จ") */
   const stepLabel = (i: number) =>

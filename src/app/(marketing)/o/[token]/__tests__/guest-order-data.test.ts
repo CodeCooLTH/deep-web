@@ -122,6 +122,9 @@ describe('buildGuestOrderData', () => {
          */
         'returnStartedAt',
         'returnedAt',
+        // เวลาที่ขนส่งเริ่มนำพัสดุมาส่งคืนร้าน — เพิ่มเข้า allow-list โดยตั้งใจ (2026-08-27)
+        // ไม่ใช่ PII เช่นกัน: เป็นเวลาที่ *ขนส่ง* บันทึก ไม่ได้บอกตัวตน/สถานที่/พฤติกรรมของใคร
+        'returnDispatchedAt',
       ].sort(),
     )
   })

@@ -532,6 +532,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
                       returnedAtISO: shipmentPanel.shipment.returnedAt
                         ? (shipmentPanel.shipment.returnedAt as Date).toISOString()
                         : null,
+                      returnDispatchedAtISO: shipmentPanel.shipment.returnDispatchedAt
+                        ? (shipmentPanel.shipment.returnDispatchedAt as Date).toISOString()
+                        : null,
                     }
                   : null
               }

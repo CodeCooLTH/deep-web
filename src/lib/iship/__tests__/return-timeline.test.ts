@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest'
 
 import { describeReturnLeg, FORWARD_OUTCOME, type ReturnLegInput } from '../return-timeline'
+import { RETURN_DISPATCH_PHRASE, isReturnDispatchEvent } from '../status'
 
 const seller = (over: Partial<ReturnLegInput> = {}): ReturnLegInput => ({
   audience: 'seller',
@@ -246,5 +247,66 @@ describe('[blocker] ไอคอนของจุดปลายทางต้
       seller({ orderReturn: { status: 'REQUESTED', trackingSource: 'NONE' } }),
     )!
     expect(bounce.dots[0].icon).not.toBe(ret.dots[0].icon)
+  })
+})
+
+describe('[blocker] จุดที่ 4 "กำลังนำส่งคืนร้าน" — โผล่เฉพาะเมื่อขนส่งบอกจริง', () => {
+  /**
+   * 🛑 ทำไมไม่ใช่ 4 จุดตายตัว (user ถามตรง ๆ ว่า "มันต้องมี 4 step ป่ะ")
+   *
+   * iShip ส่ง **รหัสสถานะ** ของขากลับมาแค่ 2 ตัว · ขั้นที่ละเอียดกว่าอยู่ใน `statusDesc`
+   * ซึ่งเป็นข้อความอิสระ และ **มีแค่ SPX ที่ส่ง — Flash ไม่ส่งเลยสักใบ**
+   * (prod 2026-08-27: SPX 6/6 มี · Flash 7/7 ไม่มี)
+   *
+   * ⇒ 4 จุดตายตัว = ครึ่งหนึ่งของใบมีจุดที่ไม่มีวันสว่าง = โกหกว่า "ยังไปไม่ถึง"
+   * ทั้งที่ความจริงคือ "ขนส่งเจ้านี้ไม่บอก" — คนละเรื่องกันคนละความหมาย
+   */
+  it('ขนส่งไม่บอก (Flash) → 3 จุด ไม่มีจุดเทาที่ไม่มีวันสว่าง', () => {
+    const leg = describeReturnLeg(seller({ carrierStatus: 'return_success' }))!
+    expect(leg.dots.map((d) => d.label)).toEqual(['ส่งไม่สำเร็จ', 'กำลังตีกลับ', 'กลับถึงร้าน'])
+  })
+
+  it('ขนส่งบอก (SPX) → 4 จุด แทรก "กำลังนำส่งคืนร้าน" ก่อนปลายทาง', () => {
+    const leg = describeReturnLeg(
+      seller({ carrierStatus: 'return_success', returnDispatchedAt: '2026-08-24T03:00:00Z' }),
+    )!
+    expect(leg.dots.map((d) => d.label)).toEqual([
+      'ส่งไม่สำเร็จ',
+      'กำลังตีกลับ',
+      'กำลังนำส่งคืนร้าน',
+      'กลับถึงร้าน',
+    ])
+    expect(leg.stage).toBe(3)
+  })
+
+  it('ยังไม่ถึงร้าน แต่ขนส่งบอกว่านำส่งคืนแล้ว → ยืนที่จุดที่ 3', () => {
+    const leg = describeReturnLeg(
+      seller({ carrierStatus: 'return', returnDispatchedAt: '2026-08-24T03:00:00Z' }),
+    )!
+    expect(leg.stage).toBe(2)
+    expect(leg.dots[leg.stage].label).toBe('กำลังนำส่งคืนร้าน')
+  })
+
+  it('ยังไม่ถึงร้าน และขนส่งไม่บอก → ยืนที่ "กำลังตีกลับ"', () => {
+    const leg = describeReturnLeg(seller({ carrierStatus: 'return' }))!
+    expect(leg.stage).toBe(1)
+    expect(leg.dots[leg.stage].label).toBe('กำลังตีกลับ')
+  })
+
+  /**
+   * 🛑 วลีนี้เป็น **ข้อความอิสระของขนส่ง** ที่เราไปอ่าน ไม่ใช่สัญญาที่ใครรับประกัน
+   * วันที่ SPX เปลี่ยนคำ จุดนี้จะเลิกโผล่ **เงียบ ๆ ไม่มี error** ⇒ ตรึงไว้ที่เดียว
+   * และผลของการพลาดคือแถบถอยเป็น 3 จุด (ซึ่งยังถูก) ไม่ใช่พัง — degrade ปลอดภัย
+   */
+  it('วลีที่ใช้จับต้องอยู่ที่ SSOT ที่เดียว และตรงกับข้อความจริงบน prod', () => {
+    expect(RETURN_DISPATCH_PHRASE).toBe('กำลังนำส่งพัสดุคืนผู้ส่ง')
+    // ข้อความจริงที่ iShip ส่งมา (TH065880509388 · 2026-08-24 03:00)
+    expect(isReturnDispatchEvent('return', 'บริษัทขนส่งกำลังนำส่งพัสดุคืนผู้ส่ง')).toBe(true)
+    // ต้องไม่ไปจับ "ถึงศูนย์คัดแยก"/"อยู่ระหว่างการขนส่ง" ซึ่งวนสลับกันหลายรอบ
+    expect(isReturnDispatchEvent('return', 'พัสดุตีกลับไปยังผู้ส่ง ถึงศูนย์คัดแยกสินค้า: SOCW')).toBe(false)
+    expect(isReturnDispatchEvent('return', 'พัสดุตีกลับไปยังผู้ส่ง อยู่ระหว่างการขนส่ง: ATKTG')).toBe(false)
+    // สถานะนอกสายตีกลับต้องไม่เข้าเงื่อนไขแม้ข้อความจะบังเอิญตรง
+    expect(isReturnDispatchEvent('in_transit', 'บริษัทขนส่งกำลังนำส่งพัสดุคืนผู้ส่ง')).toBe(false)
+    expect(isReturnDispatchEvent(null, 'บริษัทขนส่งกำลังนำส่งพัสดุคืนผู้ส่ง')).toBe(false)
   })
 })

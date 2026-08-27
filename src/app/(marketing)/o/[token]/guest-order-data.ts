@@ -55,6 +55,7 @@ export type GuestOrderData = {
   carrierStatus: string | null
   returnStartedAt: string | null
   returnedAt: string | null
+  returnDispatchedAt: string | null
   paymentMethod: string | null
   /** เห็นได้เฉพาะ 3 ตัวท้าย — null = ไม่แสดงแถวนี้เลย (ไม่ใช่ "ไม่ระบุ") */
   maskedPhone: string | null
@@ -115,6 +116,7 @@ type OrderLike = {
     /** เวลาของ "ขากลับ" — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" */
     returnStartedAt: Date | null
     returnedAt: Date | null
+    returnDispatchedAt: Date | null
   }>
 }
 
@@ -218,6 +220,7 @@ export function buildGuestOrderData(
     // หรือถึงแล้ว ก่อนจะไปทวงร้านว่าของหาย (feature 00055 นับใบตีกลับเป็นสถิติของเขาอยู่แล้ว)
     returnStartedAt: shipment?.returnStartedAt?.toISOString() ?? null,
     returnedAt: shipment?.returnedAt?.toISOString() ?? null,
+    returnDispatchedAt: shipment?.returnDispatchedAt?.toISOString() ?? null,
     paymentMethod: order.paymentMethod ?? null,
     maskedPhone: maskPhoneForGuest(order.buyerContact),
     maskedShippingAddress: maskShippingAddressForGuest(
