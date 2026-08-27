@@ -39,7 +39,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
-import { CustomerBehaviorPills } from '@/components/safepay/CustomerBehaviorBadges'
 import CustomerFileLibrarySection from './CustomerFileLibrarySection'
 import { generateInitials } from '@/utils/helpers'
 import { relativeTimeTh } from '@/lib/relative-time-th'
@@ -65,9 +64,6 @@ import { ChannelBadge } from '../../components/ChannelBadge'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import type { Dictionary } from '@/i18n/dictionaries/th'
-import { customerBadges, type CustomerBehavior } from '@/lib/customer-behavior'
-import type { BuyerReputation } from '@/lib/buyer-reputation'
-import BuyerReputationRow from './BuyerReputationRow'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import OrderCardView from '../../../_components/OrderCardView'
@@ -158,15 +154,6 @@ export type CustomerPanelData = {
   /** สถิติลูกค้า (aggregate จริงทั้งหมด ไม่ใช่แค่ orders 20 แถวที่ list ใช้) — null = ยังไม่ผูก Customer
    *  orderCount = ทุกออเดอร์; totalSpent = ผลรวมที่ไม่ยกเลิก (Decimal→string); since = วันเป็นลูกค้า (ISO) */
   customerStats: { orderCount: number; totalSpent: string; since: string } | null
-  /** ตัวเลขดิบของป้ายพฤติกรรมลูกค้า (ส่วนขยาย 2026-08-11) — null = ยังไม่ผูกกับลูกค้าในระบบ */
-  customerBehavior: CustomerBehavior | null
-  /**
-   * สถิติ **ข้ามทุกร้าน** (feature 00055 · D-1) — null = ยังไม่ผูกกับลูกค้าในระบบ
-   *
-   * 🛑 ตัวเลขรวมล้วน **ไม่มีอะไรระบุร้านได้เลย** (D-2) — ร้าน A ไม่มีสิทธิ์รู้ว่าลูกค้าเคยสั่ง
-   * ร้าน B บังคับตั้งแต่ชั้น query ใน `buyer-reputation.service.ts` ไม่ใช่ที่การ render
-   */
-  buyerReputation: BuyerReputation | null
   /** feature 00018 E5 — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา (null = ไม่ได้มาจากโฆษณา)
    *  ใช้ทำป้ายกำกับอัตโนมัติ `ad_id.…` / `messenger_ads` แบบ Business Suite */
   adReferralId: string | null
@@ -812,22 +799,6 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
   /** คำนามที่ผันตาม vertical — ใช้แทน `cta.tabLabel` ทุกจุดที่เป็นข้อความบนจอ */
   const tabNoun = resolveTabNoun(t, data.vertical)
   const TABS = buildTabs(t, data.vertical)
-  /**
-   * ป้ายพฤติกรรมลูกค้า — คำนามผันตาม vertical ด้วย `resolveOrderVocab().noun`
-   *
-   * 🛑 ใช้ `noun` ไม่ใช่ `cta.tabLabel` — LODGING ตั้งใจให้สองค่านี้ไม่เท่ากัน (tabLabel="การจอง"
-   * ใช้เรียกลิสต์ ส่วน noun ใช้ในประโยค) มีคอมเมนต์เตือนไว้แล้วที่ resolveOrderVocab
-   *
-   * `hasHistory` ผูกกับ `customerStats` — ไม่ใช่ `customerBehavior.orders > 0`: เธรดที่ยังไม่ผูก
-   * กับลูกค้าในระบบจะไม่มี customerStats เลย และต้องไม่ขึ้นป้าย "ลูกค้าใหม่" (ยังไม่มีออเดอร์ใบแรก)
-   */
-  const behaviorBadges = data.customerBehavior
-    ? customerBadges(data.customerBehavior, {
-        hasHistory: !!data.customerStats,
-        orderNoun: resolveOrderVocab(data.vertical).noun,
-        copy: t.inbox.customerPanel,
-      })
-    : []
   const { openDraft } = useDraftOrders()
   // เปิดโมดัลสร้างคำสั่งซื้อ (พับได้/ค้างข้ามแชท) แทนการ navigate ไป /orders/new (user request 2026-07-24)
   const startCreateOrder = () =>
@@ -904,54 +875,22 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
 
   return (
     <>
-      {/* p-4 + gap-3 ให้เท่ากับ .card-body ของ Paces — user feedback บน prod ว่า padding เดิม
-          (px-4 py-3) อึดอัด หัวการ์ดชิดขอบเกินไป */}
-      <div className="flex items-center gap-3 border-b border-default-200 border-dashed p-4">
+      {/* หัวแผง = ตัวตนของคู่สนทนาอย่างเดียว (user สั่ง 2026-08-27)
+          เดิมใต้หัวมีอีก 3 แถวเรียงกัน — ป้ายพฤติกรรม ("ลูกค้าใหม่") · แถบ "ทั้งระบบ" (สั่ง/รับของ) ·
+          ลิงก์ "ดูโปรไฟล์เต็ม" — ถอดออกทั้งหมดตามคำสั่ง แล้วออกแบบหัวใหม่ให้กระชับ:
+          🛑 เลิกใช้เส้นประคั่นใต้หัว — เส้นนั้นเคยคั่นหัวออกจาก "แถวสัญญาณ" ที่ตามมา พอไม่มีแถวพวกนั้น
+          แล้ว มันจะไปอยู่ห่างจากเส้นทึบของแถบแท็บแค่บรรทัดเดียว = เส้น 2 ชั้นติดกันที่ไม่ได้คั่นอะไรเลย
+          ระยะ pt-4/pb-3 ให้หัวหายใจเท่า .card-body ด้านบน แล้วชิดแถบแท็บลงมาเล็กน้อย
+          (ป้าย/สถิติของ 00055 + 00057 ยังอยู่ครบที่ /customers และหน้าโปรไฟล์ลูกค้า — ถอดเฉพาะแผงนี้) */}
+      <div className="flex items-center gap-3 px-4 pt-4 pb-3">
         <PanelAvatar avatar={data.avatar} name={data.contactName} />
         <div className="min-w-0">
-          <p className="text-default-900 mb-1 truncate text-sm font-semibold">{data.contactName}</p>
+          <p className="text-default-900 mb-1 truncate text-sm font-semibold" title={data.contactName}>
+            {data.contactName}
+          </p>
           <ChannelBadge channel={data.channel} label={data.channelName} />
         </div>
       </div>
-
-      {/* ป้ายเตือนพฤติกรรมลูกค้า (user สั่ง 2026-08-11 "เตือน seller ไว้ว่าลูกค้าคนนี้พฤติกรรมเป็นอย่างไร")
-          🛑 อยู่ **นอกแท็บ** โดยตั้งใจ — ฝังในแท็บ "ข้อมูลลูกค้า" แล้วป้ายจะหายทันทีที่ผู้ขายกดดูแท็บ
-          "คำสั่งซื้อ" ซึ่งเป็นแท็บที่ป้ายนี้มีประโยชน์ที่สุด (กำลังจะตัดสินใจว่าจะเปิดพัสดุให้ไหม)
-          ไม่ซ้ำกับแถวสถิติในแท็บ: ที่นั่นเป็นจำนวนออเดอร์/ยอดซื้อ ไม่มีที่ไหนบอก "ตีกลับ/ยกเลิกเอง"
-          ไม่มีป้ายสักใบ → ไม่ render อะไรเลย (ค่าเริ่มต้นของระบบคือเงียบ ไม่ใช่ "ไม่มีข้อมูล") */}
-      {behaviorBadges.length > 0 && (
-        <div className="border-default-200 flex flex-wrap gap-1.5 border-b border-dashed px-4 pb-3">
-          {/* markup ย้ายไป `@/components/safepay/CustomerBehaviorBadges` แล้ว (00057) —
-              กล่องที่ห่ออยู่ (เส้นคั่น/ระยะ) ยังเป็นของหน้านี้ เพราะแต่ละจอวางป้ายคนละที่
-              สิ่งที่ต้องไม่ drift คือตัวป้าย ไม่ใช่กล่อง */}
-          <CustomerBehaviorPills badges={behaviorBadges} />
-        </div>
-      )}
-
-      {/* สถิติ "ทั้งระบบ" (feature 00055) — วางใต้ป้ายพฤติกรรมของร้านนี้โดยตั้งใจ: ป้ายบนตอบว่า
-          "ลูกค้าคนนี้ทำอะไรกับเรา" แถบนี้ตอบว่า "ทำอะไรกับทั้งระบบ" ต้องอ่านเรียงกันถึงจะตัดสินใจได้
-          ไม่มีลูกค้าในระบบ / ไม่เคยมีออเดอร์ → ไม่ render เลย ไม่ใช่แถบว่าง (BR-BR-12) */}
-      {data.buyerReputation && data.buyerReputation.orders > 0 && (
-        <BuyerReputationRow data={data.buyerReputation} />
-      )}
-
-      {/* ทางเข้าที่ 2 ของหน้าโปรไฟล์ลูกค้า (feature 00057 FR-012) — วางต่อจากสัญญาณทั้ง 2 ชั้น
-          เพราะจุดนี้คือตอนที่ผู้ขายเพิ่งอ่านสัญญาณแล้วอยากรู้ต่อว่า "เกิดอะไรขึ้นบ้างกับคนนี้"
-          ใช้ <a> ธรรมดา: แผงนี้อยู่ในหน้าแชทที่มี state เยอะ การ soft-navigate ทิ้งเธรดที่เปิดค้าง
-          ไว้กลางทางทำให้ผู้ขายเสียตำแหน่งที่อ่านอยู่ — เปิดแท็บใหม่ปลอดภัยกว่าในบริบทนี้ */}
-      {data.customer && (
-        <div className="border-default-200 border-b border-dashed px-4 pb-3">
-          <a
-            href={`/customers/c-${data.customer.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary-ink hover:text-primary inline-flex items-center gap-1 text-2xs font-medium">
-            <Icon icon="user-circle" className="text-xs" aria-hidden="true" />
-            ดูโปรไฟล์เต็ม
-            <Icon icon="external-link" className="text-xs" aria-hidden="true" />
-          </a>
-        </div>
-      )}
 
       {/* แถบสรุป 1 บรรทัดเหนือแท็บถูกย้ายลงไปเป็น "แถวสถิติ" ในแท็บข้อมูลลูกค้าแทน (user สั่ง 2026-07-24
           ส่งภาพรูปแบบ label-ซ้าย/ค่า-ขวามาให้) — เดิมโชว์ count+total เหนือแท็บ ซึ่งจะซ้ำกับแถวใหม่

@@ -68,10 +68,6 @@ import ChatThread from './components/ChatThread'
 import CustomerPanel, { type CustomerPanelData, type CustomerPanelOrder } from './components/CustomerPanel'
 import { resolveLibraryOwner } from '@/lib/customer-file-library'
 import { listSavedFileIds } from '@/services/customer-file-library.service'
-// SSOT ของ "ลูกค้าคนนี้มีพฤติกรรมอะไรบ้าง" — ใช้ร่วมกับป้ายท้ายชื่อลูกค้าในตาราง /orders (HR16)
-import { summarizeCustomerBehavior, type CustomerBehavior } from '@/lib/customer-behavior'
-import type { BuyerReputation } from '@/lib/buyer-reputation'
-import { getBuyerReputation } from '@/services/buyer-reputation.service'
 import { sellerContactDisplay } from '@/lib/seller-contact-display'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
@@ -140,6 +136,9 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       lastInboundAt: true,
       externalReadAt: true, // feature 00018 read receipt — watermark ลูกค้าอ่านถึงเวลานี้
       // feature 00023 — สถานะบอทของเธรดนี้ (พักเพราะคนเข้ามาตอบ / ส่งต่อคนแล้ว)
+      // `autoReplyEnabled` = สวิตช์ที่ "ร้านตั้งเอง" ต่อห้อง (null = ยังไม่เคยตั้ง) คนละชั้นกับ
+      // 2 ตัวล่างซึ่งเป็นสถานะที่ระบบตั้งให้เอง — แถบ ปิด/อัตโนมัติ ในหัวเธรดอ่านตัวนี้ (2026-08-27)
+      autoReplyEnabled: true,
       autoReplyPausedUntil: true,
       handoffAt: true,
       handoffReason: true,
@@ -560,36 +559,16 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   //   orderCount = ทุกออเดอร์ของลูกค้าในร้านนี้; totalSpent = ผลรวมเฉพาะที่ไม่ยกเลิก (= ยอดซื้อจริง)
   const orderTypeFilter = vertical === 'LODGING' ? { type: BOOKING_ORDER_TYPE } : {}
   let customerStats: { orderCount: number; totalSpent: string; since: string } | null = null
-  /** ตัวเลขดิบของป้ายพฤติกรรม — ป้ายจริงประกอบที่ client ด้วย `customerBadges` (SSOT เดียวกับ /orders) */
-  let customerBehavior: CustomerBehavior | null = null
-  /**
-   * สถิติ **ข้ามทุกร้าน** ของลูกค้าคนนี้ (feature 00055) — คนละตัวกับ customerBehavior ข้างบน
-   * ซึ่ง scope อยู่ที่ร้านนี้ร้านเดียว. ทั้งสองต้องอยู่คู่กัน ไม่ใช่แทนที่กัน: ร้านต้องเห็นทั้ง
-   * "ลูกค้าคนนี้ทำอะไรกับเรา" และ "ทำอะไรกับทั้งระบบ" แล้วตัดสินใจเอง (D-1)
-   */
-  let buyerReputation: BuyerReputation | null = null
   if (linkedCustomer) {
-    // 🛑 behaviorRows อยู่ในก้อนนี้ด้วย (เดิม await แยกทีหลัง) — ทั้งสามตัวขึ้นกับ linkedCustomer
-    // เท่านั้น ไม่ขึ้นกับกันเอง การเรียงต่อกันจึงเป็นการจ่ายค่า round-trip ฟรี ๆ หนึ่งรอบ
-    const [orderCount, spentAgg, behaviorRows] = await Promise.all([
+    // 🛑 2026-08-27: เดิมก้อนนี้มี `behaviorRows` (order.findMany ทุกใบของลูกค้า) + `getBuyerReputation`
+    // ต่อท้ายด้วย — ทั้งคู่มีผู้ใช้แค่ป้ายพฤติกรรม/แถบ "ทั้งระบบ" ในแผงขวา ซึ่ง user สั่งถอดออกแล้ว
+    // จึงถอดคิวรีตามไปด้วย (คิวรีที่ไม่มีใครอ่านผลคือค่าที่จ่ายทุกครั้งที่เปิดเธรด)
+    // ตัวป้าย/สถิติเองยังอยู่ครบที่ /customers และหน้าโปรไฟล์ลูกค้า — ที่นั่นมีคิวรีของตัวเอง
+    const [orderCount, spentAgg] = await Promise.all([
       prisma.order.count({ where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter } }),
       prisma.order.aggregate({
         where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter, status: { not: 'CANCELLED' } },
         _sum: { totalAmount: true },
-      }),
-      prisma.order.findMany({
-        where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter },
-        select: {
-          status: true,
-          cancelInitiator: true,
-          cancelReason: true,
-          shipments: {
-            where: LATEST_FORWARD_SHIPMENT,
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-            select: { carrierStatus: true },
-          },
-        },
       }),
     ])
     customerStats = {
@@ -597,30 +576,6 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       totalSpent: spentAgg._sum.totalAmount ? spentAgg._sum.totalAmount.toFixed(2) : '0.00',
       since: linkedCustomer.createdAt.toISOString(),
     }
-
-    /**
-     * ป้ายเตือนพฤติกรรมลูกค้า (user สั่ง 2026-08-11) — นับจาก "หลักฐานรายใบ" ผ่าน SSOT
-     * `summarizeCustomerBehavior` ไม่ใช่ groupBy ที่นี่ เพราะกฎ "ใบเดียวนับครั้งเดียว"
-     * (ตีกลับ + ผู้ซื้อยกเลิกในใบเดียวกัน) ตัดสินระดับแถวไม่ได้ด้วย aggregate
-     *
-     * select แค่ 3 ฟิลด์เล็ก ๆ ต่อใบ — ไม่ cap จำนวนโดยตั้งใจ: cap แล้วตัวเลขจะน้อยกว่าจริงเงียบ ๆ
-     * ซึ่งเป็นคลาสเดียวกับ `docs/conventions/partial-data-must-be-labeled-or-filled.md`
-     * (ป้ายที่บอก "ตีกลับ 2 ครั้ง" ทั้งที่จริง 5 แย่กว่าไม่มีป้าย)
-     *
-     * `shipments.where` ชุดเดียวกับที่ panelOrders ใช้ด้านบน — นิยาม "พัสดุของใบนี้" ต้องมีชุดเดียว
-     */
-    customerBehavior = summarizeCustomerBehavior(
-      behaviorRows.map((o) => ({
-        status: o.status,
-        cancelInitiator: o.cancelInitiator ?? null,
-        cancelReason: o.cancelReason ?? null,
-        activeShipmentCarrierStatus: o.shipments[0]?.carrierStatus ?? null,
-      })),
-    )
-
-    // ยิงแยกจาก behaviorRows ข้างบนโดยตั้งใจ — ชุดนั้น scope ด้วย shopId ของเธรด ส่วนตัวนี้
-    // ต้องไม่มี shopId เลย (BR-BR-01) เอามารวมเป็นคิวรีเดียวไม่ได้โดยไม่ทำให้อันใดอันหนึ่งผิด
-    buyerReputation = await getBuyerReputation(linkedCustomer.id)
   }
 
   /**
@@ -629,7 +584,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
    * ทำที่ server เพราะ ChatThread ต้องรู้ตั้งแต่ paint แรกว่าไฟล์ไหนเก็บไปแล้ว — ถ้าให้ client
    * ไปถามเอง ปุ่มจะขึ้น "เก็บเข้าคลัง" ก่อนแล้วค่อยกระพริบเป็น "เอาออกจากคลัง" ซึ่งอ่านเป็นบั๊ก
    */
-  mark('customerPanel(orders/stats/behavior)')
+  mark('customerPanel(orders/stats)')
   const savedFileIds = await savedFileIdsPromise
 
   // RSC PII: เบอร์โทร mask ที่นี่เสมอ ก่อนลง prop ที่ถูก serialize เข้า flight ของ client layout
@@ -647,8 +602,6 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       ? { id: linkedCustomer.id, phone: sellerContactDisplay(linkedCustomer.phone) }
       : null,
     customerStats,
-    customerBehavior,
-    buyerReputation,
     // feature 00018 E5 (user request 2026-07-26) — ป้ายกำกับอัตโนมัติแบบ Business Suite
     // (`ad_id.…` / `messenger_ads`) ให้ร้านแมพได้ว่าลูกค้าคนนี้มาจากโฆษณาไหน
     adReferralId: conversation.referralSource === 'ADS' ? conversation.referralAdId : null,
@@ -682,6 +635,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         buyerAvatar={buyerAvatar}
         shopAvatar={shopAvatar}
         externalReadAt={conversation.externalReadAt ? conversation.externalReadAt.toISOString() : null}
+        botAutoReplyEnabled={conversation.autoReplyEnabled}
         botPausedUntil={conversation.autoReplyPausedUntil ? conversation.autoReplyPausedUntil.toISOString() : null}
         botHandoffAt={conversation.handoffAt ? conversation.handoffAt.toISOString() : null}
         botHandoffReason={conversation.handoffReason}
