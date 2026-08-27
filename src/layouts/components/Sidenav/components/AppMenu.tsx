@@ -3,6 +3,7 @@ import { menuItems as defaultMenuItems } from '@/layouts/components/data'
 import type { MenuItemType } from '@/types'
 import { cn } from '@/utils/helpers'
 import { scrollToElement } from '@/utils/layout'
+import { computeMenuScrollTarget } from '@/lib/menu-scroll'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useState } from 'react'
@@ -122,15 +123,30 @@ const AppMenu = ({ items = defaultMenuItems }: { items?: MenuItemType[] }) => {
     if (candidates.length === 0) return null
     return candidates.reduce((a, b) => (b.length > a.length ? b : a))
   }, [items, pathname])
+  /**
+   * เลื่อนหาเมนูที่ active — 🛑 **เฉพาะตอนที่มันไม่อยู่ในสายตาแล้วจริง ๆ**
+   *
+   * user report 2026-08-27 (หน้าแชท): "ครั้งแรกที่เข้ามันจะไม่เห็นภาพรวมร้านค้า (มันเหมือนมัน
+   * auto scroll ลงมา)" — สูตรเดิมคือ `offsetTop - window.innerHeight * 0.4` ซึ่งเลื่อน *เสมอ*
+   * และวัดด้วยความสูงของ **จอ** ไม่ใช่ของกล่องที่เลื่อน (rail ของหน้าแชทเริ่มใต้ topbar จึงเตี้ยกว่า)
+   * ⇒ เมนูที่ active ถูกดันไปกลางจอ แล้วหัวรายการหลุดออกนอกกรอบตั้งแต่วินาทีแรก
+   *
+   * ตรรกะย้ายไป `computeMenuScrollTarget()` (ฟังก์ชันบริสุทธิ์ + เทส) — ที่นี่เหลือแค่อ่าน DOM
+   */
   const scrollToActiveLink = () => {
     const activeItem: HTMLAnchorElement | null = document.querySelector('.menu-link.active')
-    if (activeItem) {
-      const simpleBarContent = document.querySelector('#sidenav-menu .simplebar-content-wrapper')
-      if (simpleBarContent) {
-        const offset = activeItem.offsetTop - window.innerHeight * 0.4
-        scrollToElement(simpleBarContent, offset, 500)
-      }
-    }
+    if (!activeItem) return
+    const box = document.querySelector<HTMLElement>('#sidenav-menu .simplebar-content-wrapper')
+    if (!box) return
+    const target = computeMenuScrollTarget({
+      itemTop: activeItem.offsetTop,
+      itemHeight: activeItem.offsetHeight,
+      scrollTop: box.scrollTop,
+      clientHeight: box.clientHeight,
+      scrollHeight: box.scrollHeight,
+    })
+    if (target === null) return
+    scrollToElement(box, target, 500)
   }
   useEffect(() => {
     setTimeout(scrollToActiveLink, 150)
