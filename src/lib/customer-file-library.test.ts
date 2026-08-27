@@ -182,3 +182,35 @@ describe('คำในคลังไฟล์ (Hard Rule 16 + i18n 00047)', () 
     }
   })
 })
+
+/**
+ * [blocker] GIF ต้องไม่เข้าคลังไฟล์ลูกค้า (user สั่ง 2026-08-27)
+ *
+ * ธง `isSticker` กันได้เฉพาะสติกเกอร์ — GIF ของ GIPHY **ไม่ใช่สติกเกอร์โดยตั้งใจ** (ต้องกว้าง
+ * เท่ารูปปกติ) ⇒ ถ้าไม่ดูนามสกุลด้วย GIF จะยังเก็บเข้าคลังได้ ซึ่งคลังนั้นมีไว้เก็บสลิป/รูปสินค้า/เอกสาร
+ */
+describe('[blocker] isLibraryEligible — GIF', () => {
+  const img = { type: 'IMAGE', hasFile: true }
+
+  it('GIF ไม่เข้าเกณฑ์ แม้ isSticker เป็น false', () => {
+    expect(isLibraryEligible({ ...img, isSticker: false, storageKey: '2026/08/27/a.gif' })).toBe(false)
+    expect(isLibraryEligible({ ...img, storageKey: '2026/08/27/a.GIF' })).toBe(false)
+    expect(isLibraryEligible({ ...img, storageKey: '2026/08/27/a.gif?v=2' })).toBe(false)
+  })
+
+  it('รูปถ่ายจริงยังเข้าคลังได้ — คลังนี้มีไว้เก็บสลิป/รูปสินค้า', () => {
+    for (const k of ['2026/08/27/slip.jpg', '2026/08/27/a.png', '2026/08/27/gift-box.jpg']) {
+      expect(isLibraryEligible({ ...img, storageKey: k }), k).toBe(true)
+    }
+  })
+
+  it('ไม่ส่ง storageKey มา = พฤติกรรมเดิมทุกประการ (ผู้เรียกเก่าต้องไม่พัง)', () => {
+    expect(isLibraryEligible(img)).toBe(true)
+    expect(isLibraryEligible({ ...img, isSticker: true })).toBe(false)
+  })
+
+  it('วิดีโอ/ไฟล์ยังเข้าคลังได้เหมือนเดิม', () => {
+    expect(isLibraryEligible({ type: 'VIDEO', hasFile: true, storageKey: 'a.mp4' })).toBe(true)
+    expect(isLibraryEligible({ type: 'FILE', hasFile: true, storageKey: 'a.pdf' })).toBe(true)
+  })
+})

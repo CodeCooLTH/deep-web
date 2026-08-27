@@ -1898,6 +1898,7 @@ export default function ChatThread({
         isSticker: m.isSticker,
         fromCard: false,
         hasFile: Boolean(m.imageUrl),
+                    storageKey: m.imageUrl,
       }) &&
       !m.isDeleted &&
       !m._status &&
@@ -2145,6 +2146,7 @@ export default function ChatThread({
         isSticker: m.isSticker,
         fromCard: false,
         hasFile: true,
+        storageKey: m.imageUrl,
       })
       imageSlides.push({
         src: url,
@@ -3293,6 +3295,7 @@ export default function ChatThread({
                     isSticker: m.isSticker,
                     fromCard: false,
                     hasFile: Boolean(m.imageUrl),
+                    storageKey: m.imageUrl,
                   }) &&
                   !m.isDeleted &&
                   !m._status &&
