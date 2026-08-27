@@ -31,13 +31,24 @@ export const RISK_TIER_ICON: Record<CustomerRiskTier, string> = {
   new: 'solar:question-circle-bold-duotone',
 }
 
-/** สีตัวอักษร/ไอคอนล้วน (ไม่มีพื้น) */
+/**
+ * สีตัวอักษร/ไอคอนล้วน (ไม่มีพื้น)
+ *
+ * 🛑 ใช้ `-ink` ไม่ใช่สีฐาน — `--color-warning` (#f9bf59) บนพื้นการ์ดขาวได้ **1.66:1**
+ * ซึ่งต่ำกว่าเกณฑ์ 3:1 ของกราฟิกที่แบกความหมาย (WCAG 1.4.11) ⇒ บนมือถือกลางแดดคือแทบไม่เห็น
+ * และมติของฟีเจอร์นี้บอกให้ **ไอคอนเป็น 1 ใน 3 ตัวที่แบกความต่างของระดับ** (ไอคอน+คำ+ลำดับ)
+ * ตัวที่มองไม่เห็นแบกอะไรไม่ได้ (impeccable critique 2026-08-27)
+ *
+ * 🛑 นี่คือการปรับ **ความเข้ม** ไม่ใช่สลับเฉด — เหลืองยังเป็นเหลือง
+ * (`docs/conventions/contrast-fix-keeps-hue.md` — บทเรียน 2026-08-03 ที่สลับเฉดแล้วต้องย้อนทั้งหมด)
+ */
 export const RISK_TIER_TONE: Record<CustomerRiskTier, string> = {
-  high: 'text-warning',
-  watch: 'text-warning',
+  high: 'text-warning-ink',
+  watch: 'text-warning-ink',
   /** เขียว = ยืนยันแล้วจริง (ส่งครบฐานแล้วไม่ตีกลับเลย) — Verified-Means-Green */
-  ok: 'text-success',
-  new: 'text-default-300',
+  ok: 'text-success-ink',
+  /** `-300` ได้ 1.22:1 = มองไม่เห็น · `-400` (#627189) ได้ 4.95:1 */
+  new: 'text-default-400',
 }
 
 /** พื้น + ตัวอักษรสำหรับ badge (`bg-{semantic}/15 text-{semantic}-ink` ตาม HR7) */

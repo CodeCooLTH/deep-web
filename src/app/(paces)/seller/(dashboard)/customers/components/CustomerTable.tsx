@@ -209,7 +209,12 @@ function ShopScopeCell({ row }: { row: CustomerRow }) {
  */
 const FILTER_CHIPS: { value: CustomerListFilter; label: string; tone?: 'warning' }[] = [
   { value: 'all', label: 'ทั้งหมด' },
-  { value: 'warn', label: 'ต้องเฝ้าระวัง', tone: 'warning' },
+    /**
+   * 🛑 ต้องมี "กับร้านนี้" ต่อท้าย — คำว่า "ต้องเฝ้าระวัง" เฉย ๆ ชนกับไทล์/การ์ดที่นับ
+   * **ข้ามร้าน** (`riskCounts.watch`) ด้วยเกณฑ์คนละอัน ⇒ จอเดียวมีคำเดียวกัน 2 ตัวเลข
+   * ซึ่งเป็นรูปร่างของ HR16 เป๊ะ — และคอมเมนต์เหนือ array นี้เขียนเองว่าป้ายต้องบอกขอบเขต
+   */
+  { value: 'warn', label: 'มีสัญญาณเตือนกับร้านนี้', tone: 'warning' },
   { value: 'returned', label: 'เคยตีกลับกับร้านนี้' },
   { value: 'repeat', label: 'ซื้อซ้ำ' },
 ]
@@ -427,7 +432,13 @@ const CustomerTable = ({
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)
 
-  const hasFilter = !!query || initialFilter !== 'all'
+  /**
+   * 🛑 ต้องรวม **ทุกแกน** ที่ทำให้ผลลัพธ์แคบลง — ลืมแกนไหนแปลว่า ตอนกรองด้วยแกนนั้นอย่างเดียว
+   * แล้วได้ 0 แถว จอว่างจะขึ้นหัวเรื่อง `ไม่มีลูกค้าใน "ทั้งหมด"` (อ่านว่าร้านไม่มีลูกค้า)
+   * **และไม่มีปุ่มทางออกให้กดเลย** เพราะทั้ง actionButton และปุ่มท้ายลิสต์ผูกกับค่านี้
+   * (impeccable critique จับได้ 2026-08-27 — ผมลืมแกน `?risk=` ที่เพิ่งเพิ่มเองรอบเดียวกัน)
+   */
+  const hasFilter = !!query || initialFilter !== 'all' || initialRisk !== 'all'
   const filterLabel = FILTER_CHIPS.find((c) => c.value === initialFilter)?.label ?? ''
 
   /**
@@ -466,9 +477,15 @@ const CustomerTable = ({
     />
   )
 
+  /**
+   * 🛑 ต้องส่ง `risk: 'all'` **ชัด ๆ** — `pushWith` ตั้งใจ fallback ไป `riskRef.current`
+   * เมื่อผู้เรียกไม่ส่งมา (เพื่อไม่ให้แกนหายตอนกดแกนอื่น) ⇒ ปุ่ม "ล้างทั้งหมด" ที่ไม่ส่ง
+   * จะกลายเป็น "ล้างทุกอย่างยกเว้นความเสี่ยง" ผู้ใช้กดแล้วรายการไม่กลับมาเต็ม
+   * — กลไกที่ออกแบบไว้ถูก แต่ call site นี้ต้องเป็นข้อยกเว้นเดียวที่เขียนค่าตรง ๆ
+   */
   const clearFilters = () => {
     setQuery('')
-    run(() => pushWith({ q: '', f: 'all' }))
+    run(() => pushWith({ q: '', f: 'all', risk: 'all' }))
   }
 
   const pickRisk = (v: CustomerRiskFilter) =>
@@ -660,7 +677,7 @@ const CustomerTable = ({
                       const sum = crossShopReturnSummary(c.trust)
                       if (sum.state === 'none') return 'ยังไม่มีประวัติ'
                       if (sum.state === 'insufficient')
-                        return `ทั้งระบบ ${sum.base} ใบ · ยังบอกอัตราไม่ได้`
+                        return `ทั้งระบบ ${sum.base} ใบ · ต้องครบ ${sum.min} ถึงจะบอกอัตราได้`
                       return (
                         <>
                           ทั้งระบบ {sum.base} ใบ ·{' '}

@@ -16,10 +16,20 @@ import Icon from '@/components/wrappers/Icon'
 import { RISK_TIER_ICON, RISK_TIER_LABEL, RISK_TIER_TONE } from '@/lib/customer-risk-presentation'
 import type { CustomerRiskFilter } from '@/lib/customer-directory'
 
-/** HR7 carve-out: offset ติดลบ + min-w ของ badge ที่ลอยทับมุมไอคอน — ไม่มี token รองรับ
- *  (ค่าเดียวกับ OrderStatusBand.BADGE_CLS เพื่อให้ badge ทั้งแอปหน้าตาเหมือนกัน) */
+/**
+ * HR7 carve-out: offset ติดลบ + min-w ของ badge ที่ลอยทับมุมไอคอน — ไม่มี token รองรับ
+ *
+ * 🛑 **`bg-warning-ink` ไม่ใช่ `bg-danger`** ต่างจาก `OrderStatusBand.BADGE_CLS` ที่ยกโครงมา
+ * ตรงจุดเดียวนี้โดยตั้งใจ — ที่นั่น badge นับ *ออเดอร์ที่ค้าง* แดงจึงถูกตามบริบท
+ * แต่ที่นี่มันห้อยอยู่บนไอคอน **ระดับความเสี่ยงของคน** ซึ่งมติของฟีเจอร์ห้ามแดง
+ * ("เตือน ไม่ตัดสิน — ร้านยังตัดสินใจเองได้เสมอ" · `CustomerBadgeTone = 'info' | 'warning'`)
+ *
+ * ⚠️ ตัว type กันไม่ถึงเพราะนี่เป็นสตริงคลาสดิบ และ `DESIGN.md` เองยังลิสต์คำว่า "ความเสี่ยง"
+ * ไว้ใต้ Error Coral อยู่ ⇒ คนถัดไปที่อ่านเอกสารกลางจะทำแดงซ้ำได้เต็มปาก
+ * (impeccable critique จับได้ 2026-08-27 — ต้องแก้ DESIGN.md ตามในรอบถัดไป)
+ */
 const BADGE_CLS =
-  'absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-danger text-white rounded-full text-2xs font-bold flex items-center justify-center leading-none tabular-nums' // HR7 carve-out: offset ติดลบ + min-w ของ badge ที่ลอยทับมุมไอคอน ไม่มี token รองรับ (ค่าเดียวกับ OrderStatusBand.BADGE_CLS)
+  'absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-warning-ink text-white rounded-full text-2xs font-bold flex items-center justify-center leading-none tabular-nums' // HR7 carve-out: offset ติดลบ + min-w ไม่มี token รองรับ
 
 type Row = { tier: 'high' | 'watch'; sub: string; count: number }
 
