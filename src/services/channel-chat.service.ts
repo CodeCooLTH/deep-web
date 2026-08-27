@@ -1256,7 +1256,25 @@ export async function ingestInboundMessage(params: {
   // fallback (user report 2026-07-25: ข้อความเสียง Messenger ยัง mirror ไม่ผ่าน): media ที่ webhook
   // ไม่ส่ง payload.url มา หรือ url นั้น fetch ไม่ได้/หมดอายุ → ดึง file_url สดจาก Graph ด้วย mid แล้ว mirror
   // (Messenger voice message เจอเคส payload.url หายบ่อย — Graph คืน url สดที่ยังโหลดได้ host fbsbx)
-  if (isMedia && !mirroredFileId && event.message.mid) {
+  /**
+   * (2026-08-27) ขยาย fallback ให้ครอบ **ข้อความที่ Meta ติดธง `is_unsupported`** ด้วย
+   *
+   * ที่มา: ผู้ขายส่งสติกเกอร์จาก **sticker pack ของ Instagram เอง** → webhook มาแค่ `mid` +
+   * `is_unsupported: true` ไม่มี `attachments` เลย ⇒ `isMedia` เป็น false ⇒ เดิมข้ามการยิง Graph
+   * ไปทั้งดุ้น แล้วตกไป placeholder ทันที **โดยไม่เคยลองถามด้วยซ้ำ**
+   *
+   * 🛑 ยิงเฉพาะตอน **ไม่มี attachment เลย** — ถ้ามี attachment อยู่แล้วแต่ mirror ไม่ผ่าน
+   * สาขา `isMedia` ด้านบนจัดการอยู่แล้ว การยิงซ้ำจะเป็นการเรียก Graph สองรอบต่อข้อความเดียว
+   *
+   * ต้นทุน: ยิงเพิ่ม 1 ครั้งต่อข้อความชนิดนี้ ซึ่งบน prod เกิด 6 ครั้งใน 23 วัน — ถูกกว่าการปล่อยให้
+   * ผู้ขายเห็นกล่องเปล่าทุกใบมาก. ได้ url มา = แสดงรูปได้จริง · ไม่ได้ = ตกไป placeholder เหมือนเดิม
+   *
+   * หมายเหตุ: สติกเกอร์/GIF จาก **GIPHY** ไม่เดินมาทางนี้ — Meta ส่ง `type: image` +
+   * `media*.giphy.com` มาให้ตรง ๆ อยู่แล้ว (ยืนยันด้วย payload จริง 2026-08-27) ทางนี้จึงเหลือไว้
+   * ให้เฉพาะของที่ Meta ไม่ยอมส่งเนื้อหามา
+   */
+  const probeUnsupported = event.message.is_unsupported === true && !firstAttachment
+  if ((isMedia || probeUnsupported) && !mirroredFileId && event.message.mid) {
     const { url: graphUrl } = await getAdapter(provider).downloadContent(
       { provider, accessToken: channel.accessToken },
       { externalMessageId: event.message.mid },
@@ -1339,7 +1357,12 @@ export async function ingestInboundMessage(params: {
     ? 'CALL'
     : mirroredFileId && attType && MEDIA_TYPE[attType]
       ? MEDIA_TYPE[attType]
-      : isImageLike
+      : // ข้อความ `is_unsupported` ที่ยิง Graph แล้วได้ไฟล์กลับมา — ไม่มี `attType` ให้แมป
+        // (นั่นคือเหตุผลที่มันตกมาทางนี้ตั้งแต่แรก) แต่ของที่ได้คือรูป ⇒ ต้องเป็น IMAGE
+        // ไม่งั้นบับเบิลจะเป็น TEXT ที่มี imageUrl อยู่แต่ไม่มีใครเรนเดอร์
+        mirroredFileId && probeUnsupported
+        ? 'IMAGE'
+        : isImageLike
         ? 'IMAGE' // รูป/สติกเกอร์ที่ mirror ไม่ผ่าน → คง IMAGE (imageUrl null + placeholder)
         : 'TEXT' // media อื่นที่ mirror ไม่ผ่าน / ลิงก์ / ชนิดที่ไม่มี asset → TEXT
   const hasAttachment = !!firstAttachment

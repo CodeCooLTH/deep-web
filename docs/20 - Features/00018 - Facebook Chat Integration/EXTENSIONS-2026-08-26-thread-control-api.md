@@ -348,3 +348,69 @@ Meta ส่ง `message.reply_to.story = { url, id }` เมื่อลูก�
 โดยตั้งใจ**: `rawMessage` เก็บ payload ดิบก่อน Valibot อยู่แล้ว ข้อมูลไม่หาย และการเพิ่ม field ที่ยัง
 ไม่มีใครอ่านคือโค้ดที่ไม่มีผู้เรียก (บทเรียน `FORWARD_OUTCOME` retro 08-25) — เพิ่มวันที่ทำฟีเจอร์จริง
 
+---
+
+## 12. (2026-08-27) สติกเกอร์/GIF ของ Instagram — GIPHY + Graph probe
+
+### 🛑 สิ่งที่พิสูจน์แล้วว่าผมสรุปผิดมา 3 รอบ
+
+| ที่เคยสรุป | ความจริง (ยืนยันด้วย payload บน prod / ภาพหน้าจอ user) |
+|---|---|
+| "ลูกค้าส่งสติกเกอร์มา เราไม่ได้รับอะไรเลย เป็นไปไม่ได้" | **ผิด** — สติกเกอร์/GIF จาก **GIPHY เข้าปกติ** เป็น `type: image` + url `media*.giphy.com` (ทดสอบ 3 ใบ เข้า 2) |
+| "Instagram มีสติกเกอร์ตัวเดียวคือ `like_heart`" | **ผิด** — นั่นคือ *sticker API* ของ Meta ส่วนสติกเกอร์ในแอป IG คือ **GIPHY** ซึ่งเราดึงเองได้ |
+| "ส่ง GIF เข้า IG ไม่ได้ (รองรับแค่ png/jpeg)" | **ผิด** — หน้า *Send a Message* ลิสต์ไม่ครบ · หน้า **Attachment Upload API** ระบุ *"image (which include GIFs)"* · png, jpeg, **gif** ≤ **8MB** |
+
+**บทเรียน:** เอกสาร Meta ขัดกันเองระหว่างหน้า และขัดกับพฤติกรรมจริง — รีโปนี้มีบทเรียนคลาสนี้เขียนไว้
+หลายรอบแล้ว (`external-payload-schema.md`, `docs-claimed-constraint-verify-in-code.md`) แต่ยังพลาดซ้ำ
+เพราะ**เชื่อเอกสารแล้วสรุปให้ user ทันทีโดยไม่ยิงจริงก่อน**
+
+### กฎที่ได้จากข้อมูลจริง
+
+| แหล่งของสติกเกอร์ที่ลูกค้า/ร้านส่ง | webhook ส่งอะไรมา | Deep แสดงได้ไหม |
+|---|---|---|
+| **GIPHY** (แท็บ Stickers + GIF ในแอป IG) | `type: image` + url `media*.giphy.com` | ✅ ทำงานอยู่แล้ว ไม่ต้องแก้อะไร |
+| **sticker pack ของ IG เอง** (แถวไอคอนด้านบน) | `is_unsupported: true` ไม่มี attachment | ⚠️ ตอนนี้ยิง Graph ถามซ้ำแล้ว (ดูล่าง) |
+| AI stickers / Cutouts | ยังไม่ได้ทดสอบ | น่าจะเหมือน pack |
+
+### สิ่งที่ทำ
+
+**1. Graph probe เมื่อเจอ `is_unsupported`** (`channel-chat.service.ts`)
+เดิมยิง Graph เฉพาะตอน `isMedia` ⇒ ข้อความที่ไม่มี `type` **ไม่เคยถูกถามเลยสักครั้ง** ตกไป
+placeholder ทันที · ตอนนี้ `probeUnsupported = is_unsupported && !firstAttachment` → ยิง
+`GET /{mid}?fields=attachments{file_url,…}` ได้ url มาก็ mirror แสดงเป็นรูปจริง
+🛑 ยิงเฉพาะตอนไม่มี attachment เลย (มีแล้ว mirror ไม่ผ่าน = สาขาเดิมจัดการอยู่) ไม่งั้นยิงซ้ำ 2 รอบ
+🛑 ได้ไฟล์แล้ว `type` ต้องเป็น `IMAGE` — ไม่มี `attType` ให้แมป ถ้าไม่มีสาขานี้จะเป็น `TEXT`
+ที่มี `imageUrl` อยู่แต่ไม่มีใครเรนเดอร์
+
+**2. แผงสติกเกอร์/GIF จาก GIPHY สำหรับเธรด IG**
+- `src/lib/giphy.ts` (ใหม่) — `searchGiphy()` · `rating=g` บังคับ · **เลือกไฟล์ส่งจริงที่ ≤8MB
+  อัตโนมัติ ไล่จากคมชัดสุดลงมา** · ตัวที่อ่านขนาดไม่ได้ข้ามทิ้ง (ห้ามเดาว่าเล็กพอ — เกินแล้ว Meta
+  ปฏิเสธทั้งใบ ผู้ขายเห็นแค่ "ส่งไม่สำเร็จ") · `import 'server-only'` กันคีย์หลุด
+- `GET /api/chat/giphy` — auth (`sessionUserId`) + rate limit 60/นาที (คีย์ GIPHY เป็น beta โควตาต่ำ)
+  · allow-list `kind` ไม่ส่งค่าดิบต่อเข้า URL ของ GIPHY
+- `EmojiPicker.tsx` ขยาย provider ที่ 3 (`GIPHY`) **ในไฟล์เดิม** — sub-tab สติกเกอร์/GIF ·
+  trending ตอน `q` ว่าง · debounce 400ms · skeleton ไม่ใช่สปินเนอร์ · กริด GIF 2 คอลัมน์
+  (สติกเกอร์ 3-4) · `loading="lazy"` ทุกใบ · **ปุ่ม "โหลดเพิ่ม" ไม่ใช่ infinite-scroll**
+  (คุมจำนวนไฟล์เคลื่อนไหวที่ mount พร้อมกัน) · `AbortController` กัน race ตอนสลับแท็บ
+- 🛑 **กริดใช้ `previewUrl` · ส่งจริงใช้ `sendUrl`** ห้ามสลับกัน
+- ป้าย **"GIPHY"** ติดถาวรข้างช่องค้นหา — เงื่อนไขบังคับของ GIPHY ไม่ใช่ของประดับ
+- `ChatThread.tsx` บรรทัดเดียว: `channel === 'INSTAGRAM' ? 'GIPHY' : …` (เดิม IG ตกเป็น META
+  ⇒ ได้แผงของ Messenger ที่เลือกไปก็ส่งไม่ผ่าน)
+- env `GIPHY_API_KEY` (Vercel production + preview)
+
+### 🛑 ด่านจับของที่ทั้ง ux spec และบรีฟของ Controller เขียนผิดตรงกัน
+`btn btn-light` — **ไม่มีอยู่จริงในธีม Paces** เทส `[blocker] paces-phantom-btn-classes` แดงทันที
+(คลาสเดียวกับ `btn-warning`/`btn-ghost` ที่เคยพลาดใน 00033/00018) แก้เป็น
+`btn bg-default-100 text-default-800 hover:bg-default-200` ซึ่งใช้อยู่จริงในโฟลเดอร์เดียวกัน
+⇒ **spec ที่ผ่าน ux แล้วก็ยังมีคลาสผีได้ ด่านอัตโนมัติคือสิ่งเดียวที่จับได้**
+
+### พิสูจน์
+tsc 0 · eslint 0 error · build ผ่าน · **4242 เทสเขียว (363 ไฟล์)** · เทส `[blocker]` ของ probe
+3 เคส · **mutation 3 แบบแดงครบ** (ถอด probe ออกจากเงื่อนไข · ถอด `!firstAttachment` · ให้ type
+กลับเป็น TEXT) · theme-guard ผ่าน · HR7/HR9/HR12 grep clean
+
+### 🛑 ยังไม่ได้พิสูจน์
+**ยังไม่เคยยิง `.gif` เข้า Instagram จริงสักครั้ง** — อิงเอกสาร Attachment Upload + หลักฐานอ้อม
+(Meta ส่ง url ของ GIPHY เข้ามาทางขาเข้าเองได้) แต่**ขาออกยังเป็นการอนุมาน** ต้องกดส่งจริง 1 ครั้ง
+หลัง deploy แล้วเช็ค `ChatMessage.deliveryStatus` + `failureReason` ก่อนประกาศว่าใช้ได้
+

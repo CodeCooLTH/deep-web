@@ -1372,8 +1372,13 @@ export default function ChatThread({
   const [stickerOpen, setStickerOpen] = useState(false)
   // S-18b: เปิดให้ LINE ด้วย — ปุ่มเดิม/เงื่อนไขเดิมของ Meta ไม่เปลี่ยน แค่เพิ่มช่องทางที่ผ่าน
   const canSendSticker = channel === 'MESSENGER' || channel === 'INSTAGRAM' || channel === 'LINE'
-  /** แหล่งสติกเกอร์ผัน — LINE มีชุดปิดตายตัวจาก SSOT (ไม่ใช่ Sticker Catalog API ของ Meta) */
-  const stickerProvider: 'META' | 'LINE' = channel === 'LINE' ? 'LINE' : 'META'
+  /**
+   * แหล่งสติกเกอร์ผัน — LINE มีชุดปิดตายตัวจาก SSOT (ไม่ใช่ Sticker Catalog API ของ Meta)
+   * S-19: IG ใช้ GIPHY — Meta ไม่มี sticker API ให้ IG เลย (/sticker_packs, /sticker_search เป็นของ
+   * Messenger เท่านั้น) เดิม IG ตกไปเป็น META จึงได้แผงที่เลือกไปก็ส่งไม่ผ่าน (พบ 2026-08-26)
+   */
+  const stickerProvider: 'META' | 'LINE' | 'GIPHY' =
+    channel === 'LINE' ? 'LINE' : channel === 'INSTAGRAM' ? 'GIPHY' : 'META'
   // composer improvement #2/#3 — แผงเหนือช่องพิมพ์ (ข้อความสำเร็จรูป / AI ช่วยร่างคำตอบ)
   // state เดียวคุมทั้งคู่ (user สั่ง 2026-07-23: "ต้องไม่ขึ้นซ้อนกัน เปิดได้ทีละอัน") — เดิมแยก
   // boolean คนละตัว กดสองปุ่มแล้วกางพร้อมกันทับกัน (ทั้งคู่เป็นแถบ full-bleed -mt ติดลบ)
