@@ -1242,3 +1242,35 @@ export async function claimThreadControl(
     }
   }
 }
+
+/**
+ * Sender Actions — บอกลูกค้าว่า "ร้านกำลังพิมพ์อยู่" (Messenger + Instagram)
+ *
+ * เป็น field ระดับคำขอเดียวกับข้อความ (`sender_action`) ไม่ใช่ attachment และ **ห้ามส่ง `message`
+ * มาด้วย** — Meta ตีเป็นคำขอคนละชนิด
+ *
+ * `typing_on` มีอายุของมันเองราว 20 วินาที หรือหายทันทีเมื่อมีข้อความจริงถูกส่ง ⇒ ผู้เรียก
+ * **ไม่ต้อง**ยิง `typing_off` ตอนคนหยุดพิมพ์ (ยิงไปก็เปลืองโควตาเปล่า และถ้าจังหวะพลาดจะกลายเป็น
+ * จุดกระพริบให้ลูกค้าเห็น) — ปล่อยให้หมดอายุเอง
+ *
+ * 🛑 ไม่ throw: นี่คือของประดับ ล้มแล้วต้องไม่ทำให้การพิมพ์/ส่งข้อความจริงพลอยพัง
+ * (บทเรียนเดียวกับ followerCount/avatar ที่ "ของประกอบต้องไม่ล้มของหลัก")
+ */
+export async function sendSenderAction(
+  pageToken: string,
+  recipientId: string,
+  action: 'typing_on' | 'typing_off' | 'mark_seen',
+): Promise<boolean> {
+  try {
+    await graphFetch('/me/messages', pageToken, {
+      method: 'POST',
+      body: { recipient: { id: recipientId }, sender_action: action },
+    })
+    return true
+  } catch (e) {
+    // log ไว้ระดับ debug เท่านั้น — เคสที่ล้มบ่อยสุดคือหน้าต่าง 24 ชม. ปิด ซึ่งเป็นเรื่องปกติ
+    // ไม่ใช่ความผิดพลาด และไม่มีอะไรให้ผู้ขายทำต่อ
+    console.warn('[fb-sender-action] ส่งไม่สำเร็จ', action, e instanceof Error ? e.message : e)
+    return false
+  }
+}

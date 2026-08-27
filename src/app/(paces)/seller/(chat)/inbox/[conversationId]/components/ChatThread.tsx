@@ -1544,6 +1544,7 @@ export default function ChatThread({
     handleSend,
     replyingTo,
     setReplyingTo,
+    notifyTyping,
     retryMessage,
     resendMessage,
     cancelMessage,
@@ -4394,7 +4395,11 @@ export default function ChatThread({
                     : t.inbox.composerPlaceholder
               }
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value)
+                // แจ้ง "กำลังพิมพ์" เฉพาะตอนคนพิมพ์จริง — throttle อยู่ในตัว notifyTyping เอง
+                notifyTyping()
+              }}
               onPaste={handlePaste} // วางรูปจากคลิปบอร์ด (screenshot/Line/Ctrl+C) → แนบเลย (user 2026-07-25)
               // enterKeyHint="enter" → คีย์บอร์ดมือถือขึ้นปุ่ม "ขึ้นบรรทัดใหม่" ไม่ใช่ "ส่ง"
               // ให้ป้ายบนปุ่มตรงกับสิ่งที่เกิดขึ้นจริงตาม handler ข้างล่าง

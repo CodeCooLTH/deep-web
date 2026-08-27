@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getLastInboundTime, fetchMessageText, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, claimThreadControl, GraphApiError, type GraphThreadMessage, type GraphThreadAttachment, type ThreadControlFailureReason } from '@/lib/facebook/graph'
+import { getLastInboundTime, fetchMessageText, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, sendSenderAction, claimThreadControl, GraphApiError, type GraphThreadMessage, type GraphThreadAttachment, type ThreadControlFailureReason } from '@/lib/facebook/graph'
 import type { ChannelAdapter, ChannelContext, OutboundMessagePart } from '@/lib/channels/adapter'
 import { MetaAdapter } from '@/lib/channels/meta-adapter'
 // (S-6, feature 00025) LineAdapter (S-4) + prefix builder (TD-005) — ตัวเดียวที่ประกอบ
@@ -2908,6 +2908,66 @@ export async function claimConversationControl(params: {
   if (result.outcome === 'TAKEN') return { outcome: 'TAKEN' }
   if (result.outcome === 'REQUESTED') return { outcome: 'REQUESTED' }
   return { outcome: 'FAILED', reason: result.reason, message: result.message }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// "กำลังพิมพ์…" — บอกลูกค้าว่าร้านกำลังตอบอยู่ (2026-08-27)
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * ระยะห่างขั้นต่ำระหว่างการยิง `typing_on` ต่อเธรด
+ *
+ * Meta คงสถานะ "กำลังพิมพ์" ไว้เองราว 20 วินาที ⇒ ยิงถี่กว่านี้ไม่ได้อะไรเพิ่มเลย นอกจากกิน
+ * โควตา API ของเพจ (ซึ่งใช้ร่วมกับการส่งข้อความจริง — เธรดที่คุยกันรัว ๆ จะแย่งโควตากันเอง)
+ * 10 วินาที = ครึ่งหนึ่งของอายุจริง ⇒ สถานะไม่มีช่วงขาดตอนแม้ผู้ขายพิมพ์ยาว
+ */
+const TYPING_THROTTLE_MS = 10_000
+
+/**
+ * throttle ต่อเธรด — in-memory + globalThis (แพตเทิร์นเดียวกับ `syncMissingMessagesFromMeta`
+ * และ `api-rate-limit`) known-gap เดียวกันคือ serverless หลาย instance ต่างคนต่างนับ
+ * ⇒ กรณีแย่สุดคือยิงถี่กว่าที่ตั้งไว้เล็กน้อย ซึ่งรับได้สำหรับของประดับ
+ */
+function typingStore(): Map<string, number> {
+  const g = globalThis as { __igTypingAt?: Map<string, number> }
+  return (g.__igTypingAt ??= new Map())
+}
+
+/**
+ * ยิง "กำลังพิมพ์" ให้เธรดช่องทางนอกของ Meta
+ *
+ * 🛑 **Meta เท่านั้น** — LINE ไม่มี sender action แบบนี้ (มี loading animation คนละเรื่อง
+ * คนละ endpoint) และ DEEP เป็นแชทในแอปเราเอง ไม่มีปลายทางให้บอก
+ *
+ * ไม่ throw ทุกกรณี: ผู้เรียกคือ "ผู้ขายกำลังพิมพ์" — ห้ามให้ของประดับทำให้ช่องพิมพ์สะดุด
+ * คืน `false` เมื่อไม่ได้ยิง (throttle / ไม่ใช่ Meta / ช่องทางไม่พร้อม) เพื่อให้เทสจับได้ว่าเงื่อนไขทำงาน
+ */
+export async function notifyTyping(params: {
+  conversationId: string
+  actorUserId: string
+}): Promise<boolean> {
+  try {
+    const conversation = await resolveOutboundContext({
+      conversationId: params.conversationId,
+      actorUserId: params.actorUserId,
+    })
+    if (conversation.channel !== 'MESSENGER' && conversation.channel !== 'INSTAGRAM') return false
+    if (conversation.shopChannel.status !== 'ACTIVE') return false
+
+    const now = Date.now()
+    const store = typingStore()
+    const last = store.get(params.conversationId)
+    if (last && now - last < TYPING_THROTTLE_MS) return false
+    // จองคิวก่อนยิง ไม่ใช่หลัง — ระหว่างรอ network ผู้ขายพิมพ์ต่ออีกหลายตัวอักษร
+    // ถ้าจองหลังยิงจะได้คำขอซ้อนกันหลายใบต่อการพิมพ์หนึ่งครั้ง
+    store.set(params.conversationId, now)
+
+    const pageToken = decryptToken(conversation.shopChannel.accessTokenEnc)
+    return await sendSenderAction(pageToken, conversation.externalContact.externalUserId, 'typing_on')
+  } catch {
+    // รวมถึง FORBIDDEN / CONVERSATION_NOT_FOUND — ผู้เรียกไม่มีอะไรต้องทำต่อกับของประดับ
+    return false
+  }
 }
 
 /** พารามิเตอร์ของเส้นทาง LINE — ยกออกมาจาก inline type เดิมของ `sendOutboundLineMessage`
