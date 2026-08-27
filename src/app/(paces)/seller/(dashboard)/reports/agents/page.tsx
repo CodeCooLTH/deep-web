@@ -22,13 +22,15 @@ import { authOptions } from '@/lib/auth'
 import { formatBaht, formatNumberNoSymbol, pctChangeVsPrev } from '@/lib/format-money'
 import { formatPercent, formatResponseDuration } from '@/lib/agent-performance'
 import { MAX_RANGE_DAYS, parseReportQuery } from '@/lib/agent-report-query'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 import { resolveAgentReportAccess } from '@/services/agent-report-access.service'
 import { getAgentPerformanceOverview } from '@/services/agent-performance.service'
 import AgentLeaderboard from './components/AgentLeaderboard'
+import MetricGlossary from './components/MetricGlossary'
 import ReportFilters from './components/ReportFilters'
 import type { LeaderboardRow } from './components/data'
 
-export const metadata: Metadata = { title: 'ผลงานแอดมิน' }
+export const metadata: Metadata = { title: 'การตอบแชทของแอดมิน' }
 
 type SearchParams = {
   from?: string
@@ -54,7 +56,7 @@ export default async function AgentPerformanceReportPage({
   if (access.kind === 'NO_SHOP') {
     return (
       <>
-        <PageBreadcrumb title="ผลงานแอดมิน" subtitle="รายงาน" />
+        <PageBreadcrumb title="การตอบแชทของแอดมิน" subtitle="รายงาน" />
         <div className="card mx-auto max-w-2xl rounded-xl p-10 text-center">
           <Icon icon="building-store" className="text-warning mx-auto mb-4 size-16" />
           <h2 className="text-dark mb-2 text-xl font-bold">ยังไม่มีร้านค้า</h2>
@@ -91,7 +93,7 @@ export default async function AgentPerformanceReportPage({
     console.error('[reports/agents] getAgentPerformanceOverview failed', e)
     return (
       <>
-        <PageBreadcrumb title="ผลงานแอดมิน" subtitle="รายงาน" />
+        <PageBreadcrumb title="การตอบแชทของแอดมิน" subtitle="รายงาน" />
         <SellerErrorState
           title="โหลดรายงานไม่สำเร็จ"
           message="ระบบติดต่อฐานข้อมูลไม่ได้ชั่วคราว — ข้อมูลของคุณยังอยู่ครบ ลองใหม่อีกครั้งได้เลย"
@@ -103,6 +105,16 @@ export default async function AgentPerformanceReportPage({
 
   const { overview, previous } = result
   const canSeeRevenue = access.kind === 'FULL'
+
+  /**
+   * 🛑 คำนามของ "หนึ่งใบ" ต้องผันตามประเภทกิจการ — ห้าม hardcode "คำสั่งซื้อ"
+   *
+   * เจอตอน `/impeccable clarify` 2026-08-27: หน้านี้เขียน "คำสั่งซื้อ" ตายตัวทุกจุด แต่ร้านที่
+   * เราเอาข้อมูลจริงมาทดสอบ (BT Premium ทั้ง 3 สาขา) เป็น `SERVICE_QUEUE` ซึ่ง ORDER_VOCAB
+   * กำหนดคำว่า **"การเข้ารับบริการ"** ⇒ ทุกป้ายบนหน้านี้เป็นคำที่ผิดสำหรับธุรกิจของเขา
+   * และยังมีคำที่สาม ("บิล") โผล่ในคอลัมน์กรวยอีก = คำเดียวกันสามชื่อในจอเดียว (HR16)
+   */
+  const vocab = resolveOrderVocab(access.shop.vertical ?? '')
 
   const rows: LeaderboardRow[] = result.leaderboard.map((r) => ({
     agentUserId: r.agentUserId,
@@ -146,7 +158,7 @@ export default async function AgentPerformanceReportPage({
 
   return (
     <>
-      <PageBreadcrumb title="ผลงานแอดมิน" subtitle="รายงาน" />
+      <PageBreadcrumb title="การตอบแชทของแอดมิน" subtitle="รายงาน" />
 
       <ReportFilters
         from={parsed.label.from}
@@ -164,7 +176,7 @@ export default async function AgentPerformanceReportPage({
            🛑 ห้ามแสดงหน้าเปล่าหรือ 403: ผลงานของตัวเองคือข้อมูลของเจ้าตัวเอง */
         <p className="text-default-700 bg-default-100 mb-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm">
           <Icon icon="user-shield" className="shrink-0 text-base" aria-hidden="true" />
-          คุณกำลังดูผลงานของตัวเอง — เจ้าของร้านเป็นผู้เปิดสิทธิ์ดูผลงานของทั้งทีม
+          หน้านี้แสดงเฉพาะผลงานของคุณ — ถ้าต้องการดูของทั้งทีม ต้องให้เจ้าของร้านเปิดสิทธิ์ให้ก่อน
         </p>
       )}
 
@@ -199,12 +211,14 @@ export default async function AgentPerformanceReportPage({
         <p className="text-default-700 bg-default-100 mb-4 flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
           <Icon icon="info-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
           <span>
-            รายงานนี้นับเฉพาะคำสั่งซื้อที่เปิดจากในแชท — ช่วงนี้มีอีก{' '}
+            รายงานนี้นับเฉพาะ{vocab.noun}ที่เปิดจากในแชท — ช่วงนี้มีอีก{' '}
             {formatNumberNoSymbol(result.unlinkedOrderCount)} ใบที่เปิดนอกแชท (หน้าร้าน/POS/ลิงก์ตรง)
             ซึ่งไม่ได้อยู่ในตัวเลขข้างล่าง
           </span>
         </p>
       )}
+
+      <MetricGlossary slaSeconds={result.sla.firstResponseSec} orderNoun={vocab.noun} />
 
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <PacesStatCard
@@ -267,8 +281,8 @@ export default async function AgentPerformanceReportPage({
              ที่ BadgeDetailModal.tsx:49) คลาสจะไม่ผลิตสีอะไรเลยแล้วไอคอนหายไปกับพื้น
              ใช้คู่กลางแทน แบบเดียวกับการ์ด "ต้นทุนสินค้า" ใน PnlReportCard.tsx:84 */
           iconClass="bg-default-200 text-default-700"
-          title="คำสั่งซื้อที่เปิด"
-          note="ใบที่ผูกกับแชทในช่วงนี้ — รวมใบที่ยังไม่ยืนยันและใบที่ถูกยกเลิก"
+          title={`${vocab.noun}ที่เปิด`}
+          note={`ใบที่ผูกกับแชทในช่วงนี้ — รวมใบที่ยังไม่ยืนยันและใบที่ถูกยกเลิก`}
           text={formatNumberNoSymbol(overview.ordersCreated)}
           valueClass="text-default-900"
           changePercent={change(overview.ordersCreated, previous?.ordersCreated ?? null)}
@@ -314,6 +328,7 @@ export default async function AgentPerformanceReportPage({
         answeredOutsideSystemConversations={overview.answeredOutsideSystemConversations}
         canSeeRevenue={canSeeRevenue}
         queryString={qs.toString()}
+        orderNoun={vocab.noun}
       />
     </>
   )

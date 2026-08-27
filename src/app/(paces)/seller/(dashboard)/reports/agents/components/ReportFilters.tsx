@@ -18,6 +18,7 @@ import FilterDropdown from '@/components/safepay/FilterDropdown'
 import Icon from '@/components/wrappers/Icon'
 import { CHAT_CHANNELS, getChannelLabel } from '@/lib/chat-channel'
 import { REPORT_SOURCES } from '@/lib/agent-report-query'
+import { shiftIsoDate, todayThaiIsoDate } from '@/lib/date-range'
 import { SOURCE_LABEL } from './data'
 
 type Props = {
@@ -53,21 +54,34 @@ export default function ReportFilters(props: Props) {
     [params, pathname, router],
   )
 
-  /** ปุ่มลัด: N วันล่าสุด (รวมวันนี้) — คิดขอบด้วยเวลาไทยเหมือนฝั่ง server */
+  /**
+   * ปุ่มลัด: N วันล่าสุด (รวมวันนี้)
+   *
+   * 🛑 ใช้ `todayThaiIsoDate()` ตัวเดียวกับทั้งระบบ ไม่คำนวณ +7 ชั่วโมงเอง — "วันนี้ตามเวลาไทย"
+   * มี SSOT อยู่แล้วที่ `date-range.ts` การเขียนซ้ำคือนิยามที่สองของค่าเดียวกัน (HR16)
+   * และเป็นสิ่งที่ `SalesDateRange` (Base ของแถบนี้) อธิบายไว้ว่าทำไมถึงห้ามทำ
+   */
   const preset = (days: number) => {
-    const nowTh = new Date(Date.now() + 7 * 60 * 60 * 1000)
-    const end = nowTh.toISOString().slice(0, 10)
-    const start = new Date(nowTh.getTime() - (days - 1) * 86400000).toISOString().slice(0, 10)
-    push({ from: start, to: end })
+    const end = todayThaiIsoDate()
+    push({ from: shiftIsoDate(end, -(days - 1)), to: end })
+  }
+
+  /** ช่วงที่เลือกอยู่ตรงกับปุ่มลัดตัวไหนไหม — ปุ่มที่ active ต้องดูออกว่ากด/ไม่กด */
+  const activePreset = (days: number) => {
+    const end = todayThaiIsoDate()
+    return props.to === end && props.from === shiftIsoDate(end, -(days - 1))
   }
 
   return (
     <div className="card mb-4">
       <div className="card-body flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2" role="group" aria-label="ช่วงเวลาของรายงาน">
+            {/* 🛑 label ต้องบอกว่าเป็น "ตั้งแต่วันที่" ไม่ใช่ "ช่วงเวลา" — เดิมผูก htmlFor กับ
+                ช่อง from ทำให้ screen reader อ่านวันเริ่มต้นว่า "ช่วงเวลา" ส่วนวันจบอ่านถูก
+                (ชื่อของสองช่องจึงไม่เป็นคู่กัน) ชื่อกลุ่มไปอยู่ที่ aria-label ของ wrapper แทน */}
             <label className="text-default-700 shrink-0 text-sm" htmlFor="report-from">
-              ช่วงเวลา
+              ตั้งแต่
             </label>
             <input
               id="report-from"
@@ -96,13 +110,25 @@ export default function ReportFilters(props: Props) {
                 ของจริงใน `_buttons.css` มีแค่ .btn/.btn-lg/.btn-sm/.btn-icon ⇒ ต้องต่อสีเอง */}
             <button
               type="button"
-              className="btn btn-sm bg-light text-dark hover:bg-light-hover"
+              aria-pressed={activePreset(7)}
+              /* min-h-11 = พื้นที่นิ้ว 44px ตามที่ PRODUCT.md ประกาศไว้ (หน้าพี่น้องก็ใส่) */
+              className={`btn btn-sm min-h-11 lg:min-h-0 ${
+                activePreset(7)
+                  ? 'bg-primary text-white'
+                  : 'bg-light text-dark hover:bg-light-hover'
+              }`}
               onClick={() => preset(7)}>
               7 วัน
             </button>
             <button
               type="button"
-              className="btn btn-sm bg-light text-dark hover:bg-light-hover"
+              aria-pressed={activePreset(30)}
+              /* min-h-11 = พื้นที่นิ้ว 44px ตามที่ PRODUCT.md ประกาศไว้ (หน้าพี่น้องก็ใส่) */
+              className={`btn btn-sm min-h-11 lg:min-h-0 ${
+                activePreset(30)
+                  ? 'bg-primary text-white'
+                  : 'bg-light text-dark hover:bg-light-hover'
+              }`}
               onClick={() => preset(30)}>
               30 วัน
             </button>

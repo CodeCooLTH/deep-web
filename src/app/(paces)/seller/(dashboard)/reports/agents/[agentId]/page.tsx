@@ -23,12 +23,13 @@ import { formatPercent, formatResponseDuration } from '@/lib/agent-performance'
 import { MAX_RANGE_DAYS, parseReportQuery } from '@/lib/agent-report-query'
 import { resolveAgentReportAccess } from '@/services/agent-report-access.service'
 import { getAgentDetailBundle } from '@/services/agent-performance.service'
+import { prisma } from '@/lib/prisma'
 import AgentTrendChart from './components/AgentTrendChart'
 import ConversationBreakdownTable from './components/ConversationBreakdownTable'
 import ReportFilters from '../components/ReportFilters'
 import type { BreakdownRow } from '../components/data'
 
-export const metadata: Metadata = { title: 'ผลงานแอดมิน' }
+export const metadata: Metadata = { title: 'การตอบแชทของแอดมิน' }
 
 /** เพดานแถวของตารางย่อย — ตรงกับ `MAX_LIMIT` ของ API route ตัวเดียวกัน */
 const BREAKDOWN_LIMIT = 100
@@ -61,7 +62,7 @@ export default async function AgentPerformanceDetailPage({
   if (access.kind === 'SELF' && agentId !== access.scopeToAgentUserId) {
     return (
       <>
-        <PageBreadcrumb title="ผลงานแอดมิน" subtitle="รายงาน" />
+        <PageBreadcrumb title="การตอบแชทของแอดมิน" subtitle="รายงาน" />
         <div className="card mx-auto max-w-2xl rounded-xl p-10 text-center">
           <Icon icon="lock" className="text-warning mx-auto mb-4 size-16" />
           <h2 className="text-dark mb-2 text-xl font-bold">ดูผลงานของคนอื่นไม่ได้</h2>
@@ -89,19 +90,31 @@ export default async function AgentPerformanceDetailPage({
 
   let detail
   let breakdown
+  let channels: { id: string; name: string; provider: string }[] = []
   try {
     /* โหลดข้อมูลช่วงปัจจุบัน **ครั้งเดียว** แล้วแตกเป็นสองมุมมอง — เดิมสองฟังก์ชันต่างคนต่าง
        โหลดชุดเดียวกัน ทำให้หน้านี้ยิง 11 query โดย 3 ใน 11 ซ้ำกันเป๊ะ (วัดจริง: 813 ms → ดู
        `getAgentDetailBundle`) และเป็นผลข้างเคียงที่มองไม่เห็นจากฝั่งผู้เรียก */
-    ;({ detail, breakdown } = await getAgentDetailBundle(access.shop.id, agentId, parsed.filters, {
-      limit: BREAKDOWN_LIMIT,
-      offset: 0,
-    }))
+    ;[{ detail, breakdown }, channels] = await Promise.all([
+      getAgentDetailBundle(access.shop.id, agentId, parsed.filters, {
+        limit: BREAKDOWN_LIMIT,
+        offset: 0,
+      }),
+      /* 🛑 ต้องส่งรายชื่อเพจจริงเข้า ReportFilters — เดิมส่ง `channels={[]}` ทำให้ดรอปดาวน์
+         ไม่ถูก render ขณะที่ `?shopChannelId=` ที่ติดมาจากหน้าก่อนยัง **กรองอยู่**
+         ⇒ ตัวกรองที่มองไม่เห็นและถอดไม่ได้ ทุกตัวเลขจะไม่ตรงกับแถวใน leaderboard
+         โดยไม่มีอะไรบนจออธิบาย (impeccable critique 2026-08-27 · P1) */
+      prisma.shopChannel.findMany({
+        where: { shopId: access.shop.id, status: { not: 'DISCONNECTED' } },
+        select: { id: true, name: true, provider: true },
+        orderBy: { name: 'asc' },
+      }),
+    ])
   } catch (e) {
     console.error('[reports/agents/:id] load failed', e)
     return (
       <>
-        <PageBreadcrumb title="ผลงานแอดมิน" subtitle="รายงาน" />
+        <PageBreadcrumb title="การตอบแชทของแอดมิน" subtitle="รายงาน" />
         <SellerErrorState
           title="โหลดรายงานไม่สำเร็จ"
           message="ระบบติดต่อฐานข้อมูลไม่ได้ชั่วคราว — ข้อมูลของคุณยังอยู่ครบ ลองใหม่อีกครั้งได้เลย"
@@ -144,8 +157,8 @@ export default async function AgentPerformanceDetailPage({
     <>
       <PageBreadcrumb
         title={detail.agent.displayName}
-        subtitle="ผลงานแอดมิน"
-        trail={[{ label: 'ผลงานแอดมิน', href: '/reports/agents' }]}
+        subtitle="การตอบแชทของแอดมิน"
+        trail={[{ label: 'การตอบแชทของแอดมิน', href: '/reports/agents' }]}
       />
 
       <ReportFilters
@@ -154,7 +167,7 @@ export default async function AgentPerformanceDetailPage({
         channel={parsed.filters.channel ?? null}
         source={parsed.filters.source ?? null}
         shopChannelId={parsed.filters.shopChannelId ?? null}
-        channels={[]}
+        channels={channels}
         clamped={parsed.clamped}
         maxRangeDays={MAX_RANGE_DAYS}
       />

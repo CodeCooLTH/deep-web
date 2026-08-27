@@ -11,12 +11,10 @@
  * ต่างจากธีม: ตัด `yaxis.max: 100` ที่ตายตัวออก (ธีมเป็น demo data ที่รู้เพดานล่วงหน้า
  * ของเรามีทั้งจำนวนแชทและวินาที ซึ่งสเกลต่างกันคนละหลัก) และแยกเป็น 2 แกน
  */
-import { useState } from 'react'
-
 import ApexChart from '@/components/wrappers/ApexChart'
 import Icon from '@/components/wrappers/Icon'
 import { getColor } from '@/utils/helpers'
-import { formatBaht } from '@/lib/format-money'
+import { formatBaht, formatNumberNoSymbol } from '@/lib/format-money'
 import { formatResponseDuration } from '@/lib/agent-performance'
 import type { ApexOptions } from 'apexcharts'
 
@@ -30,18 +28,14 @@ export type TrendPoint = {
 }
 
 /**
- * มุมมองของกราฟ — 1 กราฟ 1 คำถาม ไม่ยัด 5 เส้นลงแกนเดียว
+ * กราฟผสมตัวเดียว ไม่มีแท็บให้สลับ (user เคาะ 2026-08-27: "ให้เป็น Mixed Chart เลย ไม่ต้อง switch")
  *
- * 🛑 ตัวเลข 5 ชนิดในโจทย์อยู่คนละหน่วยกันหมด (ใบ · วินาที · เปอร์เซ็นต์ · บาท)
- * วาดรวมแกนเดียวจะได้เส้นแบนติดพื้น 3 เส้นเสมอ ซึ่งอ่านไม่ได้และไม่ได้แปลว่าค่าน้อย
+ * 🛑 ตัวเลข 5 ชนิดนี้อยู่คนละหน่วยกันหมด (ใบ · บาท · วินาที · เปอร์เซ็นต์) การวางทุกเส้นบนแกน
+ * เดียวจะได้เส้นแบนติดพื้น 3 เส้นเสมอ ซึ่งอ่านว่า "ค่าน้อย" ทั้งที่แปลว่า "คนละหน่วย"
+ * ⇒ ใช้ 4 แกน: แกนซ้ายเป็น "จำนวน" (แชท+คำสั่งซื้อ ซึ่งหน่วยเดียวกันจริง) · แกนขวาเป็นเงิน ·
+ * เวลาตอบกับอัตราปิดการขายซ่อนแกนไว้ (`show: false`) แล้วไปโผล่ใน tooltip แทน
+ * — เส้นยังเห็นรูปร่างการขึ้นลงได้ครบ แต่ไม่มีแกนตัวเลข 4 ชุดมาแย่งพื้นที่กัน
  */
-const VIEWS = [
-  { key: 'work', label: 'ปริมาณงาน' },
-  { key: 'speed', label: 'ความเร็วตอบ' },
-  { key: 'sales', label: 'การขาย' },
-] as const
-type ViewKey = (typeof VIEWS)[number]['key']
-
 export default function AgentTrendChart({
   points,
   canSeeRevenue,
@@ -49,9 +43,7 @@ export default function AgentTrendChart({
   points: TrendPoint[]
   canSeeRevenue: boolean
 }) {
-  const [view, setView] = useState<ViewKey>('work')
-
-  /** ป้ายแกน x — "18 ส.ค." สั้นพอไม่ทับกันเมื่อช่วงยาว (ปีไม่ต้องมี ทั้งกราฟอยู่ในช่วงเดียว) */
+  /** ป้ายแกน x — "18/8" สั้นพอไม่ทับกันเมื่อช่วงยาว (ปีไม่ต้องมี ทั้งกราฟอยู่ในช่วงเดียว) */
   const labels = points.map((p) => {
     const [, m, d] = p.day.split('-')
     return `${Number(d)}/${Number(m)}`
@@ -61,106 +53,93 @@ export default function AgentTrendChart({
     (p) => p.conversations > 0 || p.orders > 0 || p.revenue > 0 || p.responseAvgSec !== null,
   )
 
-  const getOptions = (): ApexOptions => {
-    const base: ApexOptions = {
-      chart: { type: 'line', height: 320, toolbar: { show: false }, offsetX: 0 },
-      stroke: { width: [3, 2], curve: 'smooth', dashArray: [0, 6] },
-      grid: { strokeDashArray: 7 },
-      dataLabels: { enabled: false },
-      markers: { size: 0 },
-      xaxis: { categories: labels, axisBorder: { show: false }, labels: { offsetY: 2 } },
-      legend: { position: 'top', horizontalAlign: 'right' },
-    }
-
-    if (view === 'speed') {
-      return {
-        ...base,
-        colors: [getColor('chart-delta')],
-        stroke: { width: [3], curve: 'smooth' },
-        series: [
-          {
-            name: 'ตอบเฉลี่ย',
-            type: 'line',
-            // 🛑 null ต้องเป็นช่องว่างบนกราฟ ไม่ใช่ 0 — วันที่ไม่มีใครทักเข้ามาไม่ใช่
-            // "วันที่ตอบเร็ว 0 วินาที" (Apex เว้นช่องให้เองเมื่อค่าเป็น null)
-            data: points.map((p) => p.responseAvgSec),
-          },
-        ],
-        yaxis: {
-          tickAmount: 4,
-          min: 0,
-          labels: { formatter: (v: number) => formatResponseDuration(v), offsetX: -6 },
-          axisBorder: { show: false },
+  const getOptions = (): ApexOptions => ({
+    chart: { type: 'line', height: 340, toolbar: { show: false }, offsetX: 0, stacked: false },
+    /* คอลัมน์ 2 แท่งแรก แล้วเส้น 3 เส้น — ลำดับต้องตรงกับ `series` ด้านล่างเป๊ะ */
+    stroke: { width: [0, 0, 3, 2, 2], curve: 'smooth', dashArray: [0, 0, 0, 6, 3] },
+    plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },
+    colors: [
+      getColor('chart-primary'), // แชทที่ดูแล
+      getColor('chart-secondary'), // คำสั่งซื้อ
+      getColor('chart-alpha'), // ยอดขาย
+      getColor('chart-delta'), // เวลาตอบ
+      getColor('chart-beta'), // อัตราปิดการขาย
+    ],
+    grid: { strokeDashArray: 7 },
+    dataLabels: { enabled: false },
+    markers: { size: 0 },
+    xaxis: { categories: labels, axisBorder: { show: false }, labels: { offsetY: 2 } },
+    legend: { position: 'top', horizontalAlign: 'right', itemMargin: { horizontal: 8 } },
+    series: [
+      { name: 'แชทที่ดูแล', type: 'column', data: points.map((p) => p.conversations) },
+      { name: 'คำสั่งซื้อ', type: 'column', data: points.map((p) => p.orders) },
+      {
+        name: 'ยอดขาย',
+        type: 'line',
+        // ไม่มีสิทธิ์เห็นเงิน = ไม่ส่งข้อมูลลงมาเลย ไม่ใช่ส่ง 0 (0 แปลว่า "ขายไม่ได้")
+        data: canSeeRevenue ? points.map((p) => p.revenue) : points.map(() => null),
+      },
+      {
+        name: 'เวลาตอบเฉลี่ย',
+        type: 'line',
+        // 🛑 null ต้องเป็นช่องว่างบนกราฟ ไม่ใช่ 0 — วันที่ไม่มีใครทักเข้ามาไม่ใช่
+        // "วันที่ตอบเร็ว 0 วินาที" (Apex เว้นช่องให้เองเมื่อค่าเป็น null)
+        data: points.map((p) => p.responseAvgSec),
+      },
+      {
+        name: 'อัตราปิดการขาย',
+        type: 'line',
+        data: points.map((p) => p.conversionRatePct),
+      },
+    ],
+    yaxis: [
+      { seriesName: 'แชทที่ดูแล', tickAmount: 4, min: 0, axisBorder: { show: false }, labels: { offsetX: -6 } },
+      { seriesName: 'แชทที่ดูแล', show: false },
+      {
+        seriesName: 'ยอดขาย',
+        opposite: true,
+        show: canSeeRevenue,
+        tickAmount: 4,
+        min: 0,
+        axisBorder: { show: false },
+        labels: { formatter: (v: number) => formatNumberNoSymbol(Math.round(v)) },
+      },
+      { seriesName: 'เวลาตอบเฉลี่ย', show: false },
+      { seriesName: 'อัตราปิดการขาย', show: false, min: 0, max: 100 },
+    ],
+    tooltip: {
+      shared: true,
+      intersect: false,
+      /* หน่วยต่างกันทุกเส้น ⇒ ต้องจัดรูปทีละเส้น ไม่งั้น 27208 จะอ่านว่า "27,208 อะไร" */
+      y: {
+        formatter: (v: number, opts?: { seriesIndex: number }) => {
+          if (v === null || v === undefined) return '—'
+          switch (opts?.seriesIndex) {
+            case 2:
+              return formatBaht(v)
+            case 3:
+              return formatResponseDuration(v)
+            case 4:
+              return `${v}%`
+            default:
+              return formatNumberNoSymbol(v)
+          }
         },
-        tooltip: { y: { formatter: (v: number) => formatResponseDuration(v) } },
-      }
-    }
-
-    if (view === 'sales') {
-      return {
-        ...base,
-        colors: [getColor('chart-alpha'), getColor('chart-gamma')],
-        series: [
-          ...(canSeeRevenue
-            ? [{ name: 'ยอดขาย', type: 'area', data: points.map((p) => p.revenue) }]
-            : []),
-          { name: 'คำสั่งซื้อ', type: 'line', data: points.map((p) => p.orders) },
-        ],
-        yaxis: { tickAmount: 4, min: 0, axisBorder: { show: false }, labels: { offsetX: -6 } },
-        tooltip: {
-          y: {
-            formatter: (v: number, opts?: { seriesIndex: number }) =>
-              canSeeRevenue && opts?.seriesIndex === 0 ? formatBaht(v) : `${v}`,
-          },
-        },
-      }
-    }
-
-    return {
-      ...base,
-      colors: [getColor('chart-primary'), getColor('chart-beta')],
-      series: [
-        { name: 'แชทที่ดูแล', type: 'area', data: points.map((p) => p.conversations) },
-        {
-          name: 'อัตราปิดการขาย (%)',
-          type: 'line',
-          data: points.map((p) => p.conversionRatePct),
-        },
-      ],
-      yaxis: [
-        { tickAmount: 4, min: 0, axisBorder: { show: false }, labels: { offsetX: -6 } },
-        { opposite: true, tickAmount: 4, min: 0, max: 100, axisBorder: { show: false } },
-      ],
-    }
-  }
+      },
+    },
+  })
 
   return (
     <div className="card">
       <div className="card-header">
         <h4 className="card-title">แนวโน้มรายวัน</h4>
-        <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="เลือกมุมมองกราฟ">
-          {VIEWS.map((v) => (
-            <button
-              key={v.key}
-              type="button"
-              role="tab"
-              aria-selected={view === v.key}
-              onClick={() => setView(v.key)}
-              className={`btn btn-sm ${
-                view === v.key
-                  ? 'bg-primary text-white'
-                  : 'bg-light text-dark hover:bg-light-hover'
-              }`}>
-              {v.label}
-            </button>
-          ))}
-        </div>
+        <span className="text-default-400 text-xs">
+          เวลาตอบและอัตราปิดการขายซ่อนแกนไว้ — ดูค่าได้ที่ทูลทิป
+        </span>
       </div>
       <div className="card-body">
         {hasAny ? (
-          /* key บังคับให้ Apex สร้างกราฟใหม่เมื่อสลับมุมมอง — จำนวน series/แกนเปลี่ยน
-             การ update ทับของเดิมทำให้แกนที่สองค้างอยู่จากมุมมองก่อนหน้า */
-          <ApexChart key={view} type="line" height={320} getOptions={getOptions} />
+          <ApexChart type="line" height={340} getOptions={getOptions} />
         ) : (
           <p className="text-default-500 flex items-center justify-center gap-2 py-16 text-sm">
             <Icon icon="chart-line" className="text-base" aria-hidden="true" />

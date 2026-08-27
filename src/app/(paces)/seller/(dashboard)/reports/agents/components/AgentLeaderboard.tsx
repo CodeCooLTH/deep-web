@@ -19,6 +19,10 @@
 import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
+
+import ListBusyOverlay, { useListBusy } from '../../../_shared/ListBusyOverlay'
+import AgentDetailModal from './AgentDetailModal'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
@@ -79,8 +83,10 @@ type Props = {
   answeredOutsideSystemConversations: number
   /** ตัวเลขเงินถูกตัดออกตั้งแต่ฝั่ง server หรือเปล่า — ใช้ตัดสินว่าจะ render คอลัมน์ไหม */
   canSeeRevenue: boolean
-  /** query string ปัจจุบัน — พาไปหน้ารายละเอียดโดยคงช่วงเวลา/ตัวกรองเดิมไว้ */
+  /** query string ปัจจุบัน — ส่งต่อให้โมดัลเพื่อคงช่วงเวลา/ตัวกรองเดิมไว้ */
   queryString: string
+  /** คำนามของ "หนึ่งใบ" ผันตามประเภทกิจการ (ORDER_VOCAB) — ร้านบริการไม่เรียก "คำสั่งซื้อ" */
+  orderNoun: string
 }
 
 export default function AgentLeaderboard({
@@ -89,7 +95,15 @@ export default function AgentLeaderboard({
   answeredOutsideSystemConversations,
   canSeeRevenue,
   queryString,
+  orderNoun,
 }: Props) {
+  const router = useRouter()
+  /** แถวที่กำลังเปิดโมดัลอยู่ — null = ปิด (เก็บชื่อไว้ด้วยเพื่อโชว์ทันทีระหว่างโหลด) */
+  const [openAgent, setOpenAgent] = useState<{ id: string; name: string } | null>(null)
+  /* แผงโหลดทับ "พื้นที่ผลลัพธ์" ตอนเปลี่ยนหน้า/เรียงใหม่ — เดียวกับ /customers และ /orders
+     ตามที่ user สั่งไว้ 2026-08-07 ("ทุกการ filter หรือ load ข้อมูลใหม่ มี preloading ขึ้นมาทับ") */
+  const busy = useListBusy()
+  const { run } = busy
   const [sorting, setSorting] = useState<SortingState>([{ id: 'conversations', desc: true }])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
 
@@ -98,6 +112,21 @@ export default function AgentLeaderboard({
    * ที่ประกอบคอลัมน์ ฟังก์ชันที่ประกาศใหม่ทุก render จะทำให้คอลัมน์ถูกสร้างใหม่ทุกครั้ง
    * (identity ไม่เสถียร — คลาสเดียวกับ `docs/conventions/hook-return-identity-in-deps.md`)
    */
+  /**
+   * ปริมาณงานของคนที่ทำมากที่สุดในตาราง — ใช้เป็นฐานความยาวแถบกรวย
+   *
+   * 🛑 แถบเคยเข้ารหัส **อัตรา** (มีบิล ÷ ตอบแชท) ซึ่งกลับหัวความหมายบนจอจริง:
+   * คนที่ตอบ 525 แชทและเปิดบิล 51 ใบได้แถบสั้นเกือบว่าง (8.6%) ส่วนคนที่มี 1 แชท 1 บิล
+   * ได้แถบเต็ม (100%) — user เจอเองบน prod 2026-08-27 พร้อมภาพหน้าจอ
+   * ทุกตัวเลขรอบ ๆ แถบเป็น "จำนวน" คนอ่านจึงอ่านแถบว่า "ใครทำเยอะ" ไม่ใช่ "ใครแปลงได้ดี"
+   * ⇒ ให้แถบวัด **ปริมาณเทียบกับคนที่ทำมากที่สุด** ส่วนอัตราไปอยู่คอลัมน์ "ปิดการขาย" ซึ่ง
+   * เป็นที่ของมันอยู่แล้ว
+   */
+  const maxReplied = useMemo(
+    () => rows.reduce((mx, r) => Math.max(mx, r.repliedConversations), 0),
+    [rows],
+  )
+
   const href = useCallback(
     (id: string) => `/reports/agents/${id}${queryString ? `?${queryString}` : ''}`,
     [queryString],
@@ -191,23 +220,25 @@ export default function AgentLeaderboard({
        * — ตัวเลขที่ต้องคำนวณในหัวคือตัวเลขที่ไม่มีใครอ่าน
        */
       columnHelper.accessor('repliedConversations', {
-        header: 'ตอบแชท → เปิดบิล',
+        header: `ตอบแชท → เปิด${orderNoun}`,
         cell: ({ row }) => {
           const r = row.original
-          const pct = r.repliedConversations > 0
-            ? Math.round((r.conversationsWithOrder / r.repliedConversations) * 100)
-            : 0
+          // ความยาว = สัดส่วนปริมาณงานเทียบคนที่ทำมากที่สุด (ไม่ใช่อัตราแปลง — ดูคอมเมนต์ที่ maxReplied)
+          const pct =
+            maxReplied > 0 ? Math.round((r.repliedConversations / maxReplied) * 100) : 0
           return (
             <span className="flex min-w-0 flex-col gap-1">
-              <span className="bg-default-200 h-1.5 w-24 shrink-0 overflow-hidden rounded-full">
+              <span
+                className="bg-default-200 h-1.5 w-24 shrink-0 overflow-hidden rounded-full"
+                aria-hidden="true">
                 <span
                   className="bg-primary block h-full rounded-full"
-                  style={{ width: `${Math.max(pct, r.conversationsWithOrder > 0 ? 4 : 0)}%` }}
+                  style={{ width: `${Math.max(pct, r.repliedConversations > 0 ? 3 : 0)}%` }}
                 />
               </span>
               <span className="text-default-500 text-2xs tabular-nums">
                 {num(r.repliedConversations)} ตอบ →{' '}
-                <b className="text-default-900">{num(r.conversationsWithOrder)}</b> มีบิล →{' '}
+                <b className="text-default-900">{num(r.conversationsWithOrder)}</b> มี{orderNoun} →{' '}
                 <b className="text-default-900">{num(r.conversationsWithClosedOrder)}</b> ปิดได้
               </span>
             </span>
@@ -215,7 +246,7 @@ export default function AgentLeaderboard({
         },
       }),
       columnHelper.accessor('ordersCreated', {
-        header: 'เปิดบิลเอง',
+        header: `เปิด${orderNoun}เอง`,
         cell: ({ row }) => {
           const r = row.original
           /**
@@ -224,9 +255,17 @@ export default function AgentLeaderboard({
            * จึงติดชิปบอกว่ามีบิลออกมาจากแชทของเขากี่ใบ (เคสจริงบน prod: ตอบ 54 ห้อง บิล 4 ใบ เปิดเอง 0)
            */
           if (r.ordersCreated === 0 && r.ordersCreatedByOthers > 0) {
+            /**
+             * 🛑 เคยเป็น `bg-warning` แล้วขึ้นต้นด้วย `0` — เปลี่ยนแล้ว (critique 2026-08-27 · P3)
+             *
+             * สีเหลืองคือไวยากรณ์ "เตือนภัย" ของหน้านี้ (โทเคนเดียวกับแถบ "แชทไม่ถูกนับ")
+             * ในตารางที่เซลล์อื่นเป็นกลางหมด ชิปเหลืองใบเดียวอ่านว่า *คนนี้คือปัญหา*
+             * ทั้งที่สิ่งที่ผิดปกติคือ **ช่องว่างของการยกเครดิต** ไม่ใช่ตัวเขา
+             * และขึ้นต้นด้วยเครดิตที่เขาสร้าง ไม่ใช่เลขศูนย์ที่เขาไม่ได้เป็นคนทำให้เกิด
+             */
             return (
-              <span className="badge bg-warning/15 text-warning-ink tabular-nums whitespace-nowrap">
-                0 · คนอื่นเปิดให้ {num(r.ordersCreatedByOthers)}
+              <span className="badge bg-info/15 text-info-ink tabular-nums whitespace-nowrap">
+                {num(r.ordersCreatedByOthers)} ใบจากแชทของเขา · คนอื่นเปิด
               </span>
             )
           }
@@ -240,20 +279,32 @@ export default function AgentLeaderboard({
           )
         },
       }),
-      columnHelper.accessor('convertedConversations', {
-        header: 'ปิดการขาย',
-        cell: ({ row }) => (
-          <span className="tabular-nums">
-            {num(row.original.convertedConversations)}
-            <span className="text-default-400">/{num(row.original.qualifiedConversations)}</span>
-          </span>
-        ),
-      }),
+      /**
+       * ยุบ 3 คอลัมน์เดิม (ปิดการขาย · อัตราปิดการขาย · เวลาปิดการขาย) เหลือใบเดียว
+       *
+       * 🛑 `22/518` กับ `4.2%` คือ **ตัวตั้ง/ตัวหาร กับผลหารของกันเอง** — แยกเป็นสองคอลัมน์
+       * บังคับให้ผู้จัดการเอาเลขมาหารในหัวเพื่อตรวจว่าตรงกันไหม ซึ่งไม่มีใครทำ
+       * และมันกินความกว้างที่ทำให้คอลัมน์ชื่อคนหลุดจอตอนเลื่อนไปดูยอดขาย
+       * (impeccable critique 2026-08-27 · P1 — ตารางเดิม 11 คอลัมน์ ไม่มีคอลัมน์ชื่อที่ตรึงไว้)
+       */
       columnHelper.accessor((r) => r.conversionRatePct ?? undefined, {
         id: 'conversionRatePct',
-        header: 'อัตราปิดการขาย',
+        header: 'ปิดการขาย',
         sortUndefined: 'last',
-        cell: (info) => <span className="tabular-nums">{formatPercent(info.getValue())}</span>,
+        cell: ({ row }) => (
+          <span className="tabular-nums whitespace-nowrap">
+            <b>{formatPercent(row.original.conversionRatePct)}</b>
+            <span className="text-default-400 mx-1">·</span>
+            <span className="text-default-500">
+              {num(row.original.convertedConversations)}/{num(row.original.qualifiedConversations)}
+            </span>
+            <span className="text-default-400 block text-2xs font-normal">
+              {row.original.timeToCloseAvgSec === null
+                ? 'ยังไม่มีข้อมูลเวลาปิด'
+                : `ใช้เวลาเฉลี่ย ${formatResponseDuration(row.original.timeToCloseAvgSec)}`}
+            </span>
+          </span>
+        ),
       }),
       ...(canSeeRevenue
         ? [
@@ -269,14 +320,6 @@ export default function AgentLeaderboard({
             }),
           ]
         : []),
-      columnHelper.accessor((r) => r.timeToCloseAvgSec ?? undefined, {
-        id: 'timeToCloseAvgSec',
-        header: 'เวลาปิดการขาย',
-        sortUndefined: 'last',
-        cell: (info) => (
-          <span className="tabular-nums">{formatResponseDuration(info.getValue())}</span>
-        ),
-      }),
       columnHelper.accessor((r) => r.slaPct ?? undefined, {
         id: 'slaPct',
         header: 'ตอบทันเกณฑ์',
@@ -291,24 +334,28 @@ export default function AgentLeaderboard({
         id: 'open',
         header: '',
         cell: ({ row }) => (
-          <Link
-            href={href(row.original.agentUserId)}
-            className="text-default-400 hover:text-primary inline-flex size-8 items-center justify-center rounded-full"
+          <button
+            type="button"
+            onClick={() =>
+              setOpenAgent({ id: row.original.agentUserId, name: row.original.displayName })
+            }
+            /* 44px ตามเกณฑ์พื้นที่นิ้วที่ PRODUCT.md ประกาศไว้ — ย่อได้เฉพาะบนเดสก์ท็อป */
+            className="text-default-400 hover:text-primary inline-flex size-11 items-center justify-center rounded-full lg:size-8"
             aria-label={`ดูรายละเอียดของ ${row.original.displayName}`}>
             <Icon icon="chevron-right" aria-hidden="true" />
-          </Link>
+          </button>
         ),
       }),
     ],
-    [canSeeRevenue, href],
+    [canSeeRevenue, orderNoun, maxReplied],
   )
 
   const table = useReactTable({
     data: rows,
     columns,
     state: { sorting, pagination },
-    onSortingChange: setSorting,
-    onPaginationChange: setPagination,
+    onSortingChange: (u) => run(() => setSorting(u)),
+    onPaginationChange: (u) => run(() => setPagination(u)),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -321,7 +368,8 @@ export default function AgentLeaderboard({
   const end = Math.min(start + pageSize - 1, rows.length)
 
   return (
-    <div className="card">
+    <div className="card relative">
+      <ListBusyOverlay busy={busy.busy} label="กำลังคำนวณใหม่..." />
       <div className="card-header">
         <h4 className="card-title">ผลงานรายคน</h4>
         <span className="text-default-400 text-xs">กดที่แถวเพื่อดูรายละเอียด</span>
@@ -337,9 +385,15 @@ export default function AgentLeaderboard({
 
       <DataTable
         table={table}
-        onRowClick={(row) => {
-          window.location.href = href(row.original.agentUserId)
-        }}
+        /* 🛑 `router.push` ไม่ใช่ `window.location.href` — ตัวหลังโหลดเอกสารใหม่ทั้งหน้า
+           ขณะที่ chevron ห่างไปไม่กี่บรรทัดเป็น <Link> ที่ทำ client nav ⇒ แถวเดียวกัน
+           ทำงานสองแบบตามจุดที่กด (critique 2026-08-27 · P2) หน้าพี่น้องใช้ router.push */
+        /* กดแถว = เปิดโมดัล ไม่ย้ายหน้า (user เคาะ 2026-08-27) — ผู้จัดการเทียบคนหลายคน
+           ติด ๆ กัน การเด้งออกจากตารางทำให้เสียลำดับการเรียงและหน้าที่กำลังดูอยู่ทุกครั้ง
+           route เดิมยังอยู่สำหรับลิงก์ตรง (ปุ่ม "เปิดหน้าเต็ม" ในโมดัล) */
+        onRowClick={(row) =>
+          setOpenAgent({ id: row.original.agentUserId, name: row.original.displayName })
+        }
         emptyMessage={
           /**
            * 🛑 จอว่างมี **2 ความหมายที่ต่างกันสิ้นเชิง** และเดิมเขียนครอบไว้ข้อความเดียว
@@ -370,13 +424,17 @@ export default function AgentLeaderboard({
         mobileCard={(row) => {
           const r = row.original
           return (
-            <div className="card relative mb-3">
-              <div className="card-body flex flex-col gap-3">
+            /* 🛑 ห้ามใช้ `.card` ที่นี่ — DataTable.tsx:162 เขียนไว้เองว่าตารางอยู่ใน .card panel
+               แล้ว การใส่ card ซ้อนได้ขอบสองชั้น = nested cards ซึ่ง DESIGN.md แบนไว้
+               (critique 2026-08-27 · P2) ตัวห่อของ DataTable มี divide-y ให้อยู่แล้ว */
+            <div className="relative px-4 py-3">
+              <div className="flex flex-col gap-3">
                 {/* ลิงก์กินทั้งใบเป็นชั้นล่างสุด — แพตเทิร์นเดียวกับ ProductCard.tsx:85
                     🛑 `stretched-link` ไม่ใช่คลาสที่มีอยู่จริงในโปรเจกต์นี้ (เป็นแค่ชื่อที่ใช้เรียก
                     ในคอมเมนต์) ของจริงคือ `absolute inset-0` บนตัว <Link> เอง */}
-                <Link
-                  href={href(r.agentUserId)}
+                <button
+                  type="button"
+                  onClick={() => setOpenAgent({ id: r.agentUserId, name: r.displayName })}
                   className="active:bg-default-500/10 absolute inset-0 rounded transition-colors"
                   aria-label={`ดูรายละเอียดของ ${r.displayName}`}
                 />
@@ -397,16 +455,16 @@ export default function AgentLeaderboard({
                       {r.responseSampleCount > 0 && ` · จาก ${num(r.responseSampleCount)} ครั้ง`}
                     </span>
                   </dd>
-                  <dt className="text-default-500">ตอบแชท → เปิดบิล</dt>
+                  <dt className="text-default-500">ตอบแชท → เปิด{orderNoun}</dt>
                   <dd className="text-end tabular-nums">
                     {num(r.repliedConversations)} → {num(r.conversationsWithOrder)} →{' '}
                     {num(r.conversationsWithClosedOrder)}
                   </dd>
-                  <dt className="text-default-500">เปิดบิลเอง</dt>
+                  <dt className="text-default-500">เปิด{orderNoun}เอง</dt>
                   <dd className="text-end tabular-nums">
                     {r.ordersCreated === 0 && r.ordersCreatedByOthers > 0 ? (
-                      <span className="badge bg-warning/15 text-warning-ink whitespace-nowrap">
-                        0 · คนอื่นเปิดให้ {num(r.ordersCreatedByOthers)}
+                      <span className="badge bg-info/15 text-info-ink whitespace-nowrap">
+                        {num(r.ordersCreatedByOthers)} ใบจากแชทของเขา · คนอื่นเปิด
                       </span>
                     ) : (
                       num(r.ordersCreated)
@@ -427,6 +485,17 @@ export default function AgentLeaderboard({
             </div>
           )
         }}
+      />
+
+      <AgentDetailModal
+        /* remount ทุกครั้งที่เปลี่ยนคน — ได้ state สะอาดโดยไม่ต้อง setState ใน effect */
+        key={openAgent?.id ?? 'closed'}
+        agentUserId={openAgent?.id ?? null}
+        agentName={openAgent?.name ?? ''}
+        queryString={queryString}
+        canSeeRevenue={canSeeRevenue}
+        orderNoun={orderNoun}
+        onClose={() => setOpenAgent(null)}
       />
 
       {rows.length > pageSize && (
