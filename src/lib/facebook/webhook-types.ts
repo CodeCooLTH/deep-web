@@ -213,6 +213,12 @@ const MessagingEventSchema = v.object({
     v.object({
       title: v.optional(v.string()),
       payload: v.optional(v.string()),
+      /**
+       * mid ของ postback (Meta ส่งมาตั้งแต่ v11) — จำเป็นต่อ Ice Breakers (2026-08-27):
+       * เราเอา `title` (คำถามที่ลูกค้าแตะ) ไป ingest เป็นข้อความของลูกค้า เพื่อให้เธรดอ่านรู้เรื่อง
+       * และ `externalMessageId @unique` คือสิ่งเดียวที่กัน redelivery ของ Meta ไม่ให้เขียนซ้ำ
+       */
+      mid: v.optional(v.string()),
       referral: v.optional(ReferralSchema),
     }),
   ),

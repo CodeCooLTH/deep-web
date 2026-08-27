@@ -1274,3 +1274,49 @@ export async function sendSenderAction(
     return false
   }
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// Ice Breakers — คำถามยอดฮิตที่ Meta แสดงก่อนเริ่มแชทครั้งแรก (2026-08-27)
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 🛑 Messenger กับ Instagram เก็บ **profile คนละก้อน** — แยกด้วย query `?platform=instagram`
+ * ตั้งฝั่งหนึ่งไม่มีผลกับอีกฝั่งเลย (เพจ FB กับบัญชี IG ที่ผูกกันก็ยังต้องตั้งสองรอบ)
+ * ไม่ส่ง `platform` = Messenger (ค่าตั้งต้นของ Meta)
+ */
+function profileQuery(provider: string): Record<string, string> {
+  return provider === 'INSTAGRAM' ? { platform: 'instagram' } : {}
+}
+
+/** 1 รายการที่ลูกค้าเห็นเป็นปุ่ม — `payload` คือสิ่งที่วิ่งกลับมาทาง webhook ตอนถูกแตะ */
+export type IceBreakerItem = { question: string; payload: string }
+
+/**
+ * ตั้ง Ice Breakers (แทนที่ของเดิมทั้งชุดเสมอ — Meta ไม่มี partial update)
+ *
+ * 🛑 `locale: 'default'` **บังคับ** ตามเอกสาร ("default locale is REQUIRED") — ขาดแล้ว Meta
+ * ปฏิเสธทั้งก้อน เรายังไม่รองรับหลายภาษา จึงส่ง default ชุดเดียว
+ *
+ * throw เมื่อ Meta ปฏิเสธ — ต่างจาก sendSenderAction ตรงที่อันนี้เป็นการกระทำที่ผู้ขาย **กดเอง
+ * และรออยู่หน้าจอ** ⇒ ต้องรู้ว่าล้มเหลวเพราะอะไร ไม่ใช่เงียบแล้วเข้าใจว่าบันทึกแล้ว
+ */
+export async function setIceBreakers(
+  pageToken: string,
+  provider: string,
+  items: IceBreakerItem[],
+): Promise<void> {
+  await graphFetch('/me/messenger_profile', pageToken, {
+    method: 'POST',
+    query: profileQuery(provider),
+    body: { ice_breakers: [{ call_to_actions: items, locale: 'default' }] },
+  })
+}
+
+/** ลบทั้งชุด — Meta มี endpoint แยก (ส่ง `ice_breakers` ว่างไม่ได้แปลว่าลบ) */
+export async function deleteIceBreakers(pageToken: string, provider: string): Promise<void> {
+  await graphFetch('/me/messenger_profile', pageToken, {
+    method: 'DELETE',
+    query: profileQuery(provider),
+    body: { fields: ['ice_breakers'] },
+  })
+}

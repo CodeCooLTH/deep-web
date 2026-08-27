@@ -32,6 +32,7 @@ import { fmt } from '@/i18n/fmt'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 import BuyerAvatar from '../../orders/components/BuyerAvatar'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
+import IceBreakerStatusRow from './IceBreakerStatusRow'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -267,71 +268,83 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
             const isActive = channel.status === 'ACTIVE'
             const isTokenInvalid = channel.status === 'TOKEN_INVALID'
 
+            // Ice Breakers (Meta) เป็นของ Messenger/Instagram เท่านั้น — LINE/DEEP ไม่มีแถวนี้
+            // (ChannelsClient รับเฉพาะช่องทางที่ provider !== 'LINE' อยู่แล้วจาก page.tsx แต่เช็คซ้ำ
+            // ที่นี่ให้ fail-closed หาก provider อื่นเข้ามาในอนาคต)
+            const showIceBreakerRow = channel.provider === 'MESSENGER' || channel.provider === 'INSTAGRAM'
+
             return (
-              <div
-                key={channel.id}
-                className="flex flex-col gap-3 py-4 border-b border-default-200 last:border-0 sm:flex-row sm:items-center sm:justify-between"
-              >
-                {/* ซ้าย: avatar + provider badge overlay + ชื่อ + badge สถานะ */}
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="relative shrink-0">
-                    <BuyerAvatar src={channel.avatarUrl} name={channel.name} className="size-10" />
-                    {/* channel badge overlay — token size-4 rounded-full ring-2 ring-card
-                        (Theme Source Mapping ของสเปก "Channel badge (avatar overlay)")
-                        ไม่มี colorHex (fallback provider แปลกปลอม) → ใช้ Paces token bg-default-400 แทน hex */}
-                    <span
-                      className={`absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full ring-2 ring-card ${config.colorHex ? '' : 'bg-default-400'}`}
-                      style={config.colorHex ? { backgroundColor: config.colorHex } : undefined}
-                    >
-                      <Icon icon={config.icon} className="text-2xs text-white" aria-hidden="true" />
+              // border ย้ายมาไว้ที่ wrapper รอบนอก (เดิมอยู่ที่แถวเนื้อหาโดยตรง) เพื่อให้ IceBreakerStatusRow
+              // อยู่ใต้แถวเดียวกันแล้ว last:border-0 ยังตัดสินถูกว่าเป็นช่องทางสุดท้ายในรายการจริงไหม
+              <div key={channel.id} className="border-b border-default-200 last:border-0">
+                <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  {/* ซ้าย: avatar + provider badge overlay + ชื่อ + badge สถานะ */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="relative shrink-0">
+                      <BuyerAvatar src={channel.avatarUrl} name={channel.name} className="size-10" />
+                      {/* channel badge overlay — token size-4 rounded-full ring-2 ring-card
+                          (Theme Source Mapping ของสเปก "Channel badge (avatar overlay)")
+                          ไม่มี colorHex (fallback provider แปลกปลอม) → ใช้ Paces token bg-default-400 แทน hex */}
+                      <span
+                        className={`absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full ring-2 ring-card ${config.colorHex ? '' : 'bg-default-400'}`}
+                        style={config.colorHex ? { backgroundColor: config.colorHex } : undefined}
+                      >
+                        <Icon icon={config.icon} className="text-2xs text-white" aria-hidden="true" />
+                      </span>
                     </span>
-                  </span>
-                  <div className="min-w-0">
-                    {/* title= จำเป็นเพราะชื่อถูกตัด และหางของชื่อคือที่ที่เพจของร้านเดียวกันต่างกัน
-                        (พบโดย safepay-ux audit 2026-08-13) */}
-                    <p className="text-sm font-medium text-default-800 truncate" title={channel.name}>
-                      {channel.name}
-                    </p>
-                    <p className="text-xs text-default-400">{config.label}</p>
-                    {isActive && (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-success bg-success/15 px-2 py-0.5 rounded mt-1">
-                        <Icon icon="tabler:check" className="text-xs" aria-hidden="true" />
-                        {t.channels.connected}
-                      </span>
-                    )}
+                    <div className="min-w-0">
+                      {/* title= จำเป็นเพราะชื่อถูกตัด และหางของชื่อคือที่ที่เพจของร้านเดียวกันต่างกัน
+                          (พบโดย safepay-ux audit 2026-08-13) */}
+                      <p className="text-sm font-medium text-default-800 truncate" title={channel.name}>
+                        {channel.name}
+                      </p>
+                      <p className="text-xs text-default-400">{config.label}</p>
+                      {isActive && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-success bg-success/15 px-2 py-0.5 rounded mt-1">
+                          <Icon icon="tabler:check" className="text-xs" aria-hidden="true" />
+                          {t.channels.connected}
+                        </span>
+                      )}
+                      {isTokenInvalid && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-danger bg-danger/15 px-2 py-0.5 rounded mt-1">
+                          <Icon icon="tabler:alert-triangle" className="text-xs" aria-hidden="true" />
+                          {t.channels.tokenExpired}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ขวา: ปุ่ม action — stack แนวตั้งบนมือถือถ้าจำเป็น (flex-wrap) */}
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
                     {isTokenInvalid && (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-danger bg-danger/15 px-2 py-0.5 rounded mt-1">
-                        <Icon icon="tabler:alert-triangle" className="text-xs" aria-hidden="true" />
-                        {t.channels.tokenExpired}
-                      </span>
+                      <a
+                        href="/api/channels/facebook/connect"
+                        className="btn btn-sm bg-primary/15 text-primary hover:bg-primary/25 inline-flex items-center gap-1.5"
+                      >
+                        <Icon icon="tabler:refresh" className="text-sm" aria-hidden="true" />
+                        {t.channels.reconnect}
+                      </a>
                     )}
+                    <button
+                      type="button"
+                      disabled={isDisconnecting}
+                      onClick={() => handleDisconnect(channel)}
+                      className="btn btn-sm bg-danger/15 text-danger hover:bg-danger/25 disabled:opacity-50"
+                    >
+                      {isDisconnecting ? (
+                        <span className="size-4 border-2 border-danger border-t-transparent rounded-full animate-spin inline-block" />
+                      ) : (
+                        t.channels.disconnect
+                      )}
+                    </button>
                   </div>
                 </div>
 
-                {/* ขวา: ปุ่ม action — stack แนวตั้งบนมือถือถ้าจำเป็น (flex-wrap) */}
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  {isTokenInvalid && (
-                    <a
-                      href="/api/channels/facebook/connect"
-                      className="btn btn-sm bg-primary/15 text-primary hover:bg-primary/25 inline-flex items-center gap-1.5"
-                    >
-                      <Icon icon="tabler:refresh" className="text-sm" aria-hidden="true" />
-                      {t.channels.reconnect}
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    disabled={isDisconnecting}
-                    onClick={() => handleDisconnect(channel)}
-                    className="btn btn-sm bg-danger/15 text-danger hover:bg-danger/25 disabled:opacity-50"
-                  >
-                    {isDisconnecting ? (
-                      <span className="size-4 border-2 border-danger border-t-transparent rounded-full animate-spin inline-block" />
-                    ) : (
-                      t.channels.disconnect
-                    )}
-                  </button>
-                </div>
+                {/* คำถามแนะนำก่อนเริ่มแชท (Ice Breakers) — แถวเต็มความกว้างใต้บล็อกข้อมูล+ปุ่มเดิม
+                    คั่นด้วยเส้นประตามภาษาการออกแบบเดียวกับเมนูลัดใน LINE (RichMenuStatusRow) */}
+                {showIceBreakerRow && (
+                  <IceBreakerStatusRow channelId={channel.id} tokenInvalid={isTokenInvalid} />
+                )}
               </div>
             )
           })}

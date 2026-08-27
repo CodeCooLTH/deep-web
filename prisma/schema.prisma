@@ -1577,6 +1577,7 @@ model ShopChannel {
   conversations     Conversation[]
   // back-relation ของ AutoReplyRule.shopChannelId (feature 00023, additive) — เงื่อนไขเพจของกฎคำตอบ
   autoReplyRules    AutoReplyRule[]
+  iceBreakers       ChannelIceBreaker[]
   // back-relation ของ CommentReplyLog.shopChannelId (feature 00038, additive)
   commentReplyLogs  CommentReplyLog[]
   // back-relation ของ CommentReplyRule.shopChannelId (feature 00038 E2, additive)
@@ -3996,4 +3997,36 @@ model MediaAsset {
   // Meta CDN — index ธรรมดา ไม่ unique เพราะ sourceKey เป็นแค่ cache เสริมบน (shopId, hash) ที่เป็น
   // แหล่งความจริงเดียว (เหตุผลเต็มดู DATABASE.md §3.1)
   @@index([shopId, sourceKey])
+}
+
+/// Ice Breakers — คำถามยอดฮิตที่ Meta แสดงให้ลูกค้า **ก่อนเริ่มแชทครั้งแรก** (2026-08-27)
+///
+/// ลูกค้าแตะแล้ว Meta ส่ง `postback` มาให้เรา (ไม่ใช่ `message`) ⇒ ระบบตอบ `answer` กลับไปเอง
+///
+/// 🛑 ทำไมเป็นตารางแยก ไม่ใช่คอลัมน์ JSON บน ShopChannel: ตอนรับ postback ต้องค้นกลับจาก
+/// payload → คำตอบ ซึ่งเป็น query ตรง ๆ ที่ index ได้ · และ Meta รองรับหลาย locale ในอนาคต
+/// ซึ่ง JSON ก้อนเดียวจะกลายเป็นโครงซ้อนที่อ่านยากทันทีที่เพิ่ม
+///
+/// 🛑 **ตั้งแยกต่อช่องทาง** — เพจ FB กับบัญชี IG ของร้านเดียวกันเป็นคนละ ShopChannel และ Meta
+/// เก็บ profile แยกกัน (?platform=instagram) ⇒ ตั้งที่หนึ่งไม่มีผลกับอีกที่หนึ่ง
+///
+/// เพดาน 4 ข้อเป็นของ Meta ("A maximum of 4 questions can be set via the Ice Breaker API")
+/// บังคับที่ service ไม่ใช่ที่ DB — DB ไม่มี constraint แบบ "นับแถวต่อกลุ่ม" ที่เชื่อถือได้ภายใต้ race
+model ChannelIceBreaker {
+  id            String @id @default(uuid())
+  /// ลำดับที่ลูกค้าเห็น (0 = บนสุด) — Meta เรียงตามที่เราส่งไป
+  order         Int
+  /// คำถามที่ลูกค้าเห็นเป็นปุ่ม
+  question      String
+  /// ข้อความที่ระบบตอบกลับเมื่อลูกค้าแตะ
+  answer        String
+  shopChannelId String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  channel ShopChannel @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+
+  /// กันสองแถวชิงลำดับเดียวกันในช่องทางเดียว (แก้พร้อมกัน 2 แท็บ)
+  @@unique([shopChannelId, order])
+  @@index([shopChannelId])
 }

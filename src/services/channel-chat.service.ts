@@ -25,6 +25,13 @@ import { LINE_PREVIEW_MAX_SIZE } from '@/lib/chat-attachment'
 // (TOKEN_INVALID/CONTACT_BLOCKED/QUOTA_EXCEEDED/LINE_UNAVAILABLE) — ดู classifyLineOutboundError
 import { LineApiError } from '@/lib/line/client'
 import { decryptToken } from '@/lib/token-crypto'
+import { setIceBreakers, deleteIceBreakers } from '@/lib/facebook/graph'
+import {
+  iceBreakerPayload,
+  parseIceBreakerPayload,
+  validateIceBreakers,
+  type IceBreakerDraft,
+} from '@/lib/ice-breaker'
 // SSOT ของคำแทนเนื้อหาที่แสดงเองไม่ได้ — ผันตามช่องทาง (HR16)
 import { attachmentFailedText, emptyMessageText, emptyMessagePreview } from '@/lib/chat-placeholder-text'
 // แยกสติกเกอร์/GIF ของ GIPHY ออกจาก "รูปภาพ" ในรายการแชท (Meta ส่งมาเป็น type:image เหมือนกันหมด)
@@ -2968,6 +2975,142 @@ export async function notifyTyping(params: {
     // รวมถึง FORBIDDEN / CONVERSATION_NOT_FOUND — ผู้เรียกไม่มีอะไรต้องทำต่อกับของประดับ
     return false
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Ice Breakers — คำถามยอดฮิตก่อนเริ่มแชท (2026-08-27)
+// ══════════════════════════════════════════════════════════════════════════
+
+/** อ่านรายการปัจจุบันของช่องทาง (เรียงตามที่ลูกค้าเห็น) */
+export async function listIceBreakers(shopChannelId: string) {
+  return prisma.channelIceBreaker.findMany({
+    where: { shopChannelId },
+    orderBy: { order: 'asc' },
+    select: { id: true, order: true, question: true, answer: true },
+  })
+}
+
+/**
+ * บันทึกทั้งชุด + ยิงไปตั้งที่ Meta
+ *
+ * 🛑 **ลบของเดิมทั้งชุดแล้วเขียนใหม่** ไม่ใช่ upsert รายข้อ — Meta ไม่มี partial update
+ * (ส่ง `ice_breakers` ไปคือแทนที่ทั้งก้อน) ⇒ ถ้าฝั่งเราแก้ทีละแถว สถานะสองฝั่งจะเพี้ยนกันทันที
+ * ที่ผู้ขายลบข้อกลาง ๆ ออก · ลำดับก็ผูกกับ index ของอาร์เรย์ตรง ๆ ไม่ต้องเดา
+ *
+ * 🛑 **ยิง Meta ก่อน สำเร็จแล้วจึงเขียน DB** — Meta คือสิ่งที่ลูกค้าเห็นจริง ฐานเราเป็นแค่ที่เก็บ
+ * คำตอบ ⇒ ลำดับนี้ทำให้ "Meta ปฏิเสธ" = ไม่มีอะไรเปลี่ยนทั้งสองฝั่ง ผู้ขายแก้แล้วกดใหม่ได้
+ * ลำดับกลับด้าน (เขียน DB ก่อน) จะทำให้ฐานมีชุดใหม่ทั้งที่ลูกค้ายังเห็นชุดเก่า แล้วหน้าจอรายงานว่า
+ * "ลูกค้าเห็นอยู่" ซึ่งไม่จริง — และย้อนกลับไม่ได้เพราะทรานแซกชันปิดไปแล้ว
+ *
+ * ที่ทำแบบนี้ได้เพราะ `payload` ประกอบจาก (ช่องทาง, ลำดับ) ไม่ใช่ id ของแถว จึงรู้ค่าล่วงหน้า
+ */
+export async function saveIceBreakers(params: {
+  shopChannelId: string
+  actorUserId: string
+  drafts: IceBreakerDraft[]
+}): Promise<{ count: number }> {
+  const channel = await prisma.shopChannel.findUnique({
+    where: { id: params.shopChannelId },
+    select: { id: true, shopId: true, provider: true, status: true, accessTokenEnc: true },
+  })
+  if (!channel) throw new Error('CHANNEL_NOT_FOUND')
+  if (!(await canAccessShop(channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  // Ice Breakers เป็นของ Meta เท่านั้น — LINE มี Rich Menu ซึ่งเป็นคนละเรื่องคนละ endpoint
+  if (channel.provider !== 'MESSENGER' && channel.provider !== 'INSTAGRAM') {
+    throw new Error('CHANNEL_NOT_SUPPORTED')
+  }
+  if (channel.status !== 'ACTIVE') throw new Error('CHANNEL_INACTIVE')
+
+  const valid = validateIceBreakers(params.drafts)
+  if (!valid.ok) throw new Error(`INVALID:${valid.error}`)
+
+  const pageToken = decryptToken(channel.accessTokenEnc)
+  if (valid.items.length === 0) {
+    await deleteIceBreakers(pageToken, channel.provider)
+  } else {
+    await setIceBreakers(
+      pageToken,
+      channel.provider,
+      valid.items.map((item, i) => ({
+        question: item.question,
+        payload: iceBreakerPayload(channel.id, i),
+      })),
+    )
+  }
+
+  // Meta รับแล้ว — ฐานเราตามให้ตรง (ลบทั้งชุดแล้วเขียนใหม่ เพราะ Meta ไม่มี partial update
+  // ⇒ ถ้าฝั่งเราแก้ทีละแถว สถานะสองฝั่งจะเพี้ยนทันทีที่ผู้ขายลบข้อกลาง ๆ ออก)
+  await prisma.$transaction([
+    prisma.channelIceBreaker.deleteMany({ where: { shopChannelId: channel.id } }),
+    ...(valid.items.length === 0
+      ? []
+      : [
+          prisma.channelIceBreaker.createMany({
+            data: valid.items.map((item, i) => ({
+              shopChannelId: channel.id,
+              order: i,
+              question: item.question,
+              answer: item.answer,
+            })),
+          }),
+        ]),
+  ])
+
+  return { count: valid.items.length }
+}
+
+/**
+ * ลูกค้าแตะคำถาม → ตอบคำตอบที่ร้านตั้งไว้
+ *
+ * คืน `false` เมื่อ payload ไม่ใช่ของ Ice Breaker หรือหาแถวไม่เจอ (ผู้ขายลบไปแล้วแต่ปุ่มเก่ายังค้าง
+ * อยู่ในเครื่องลูกค้า — เกิดได้จริง ห้าม throw)
+ *
+ * 🛑 **ฟังก์ชันนี้ส่งเฉพาะ "คำตอบ"** — การบันทึก "คำถาม" ที่ลูกค้าแตะลงเธรดเป็นหน้าที่ของ
+ * webhook route ซึ่งเรียก `ingestInboundMessage()` ตัวเดิมโดยสังเคราะห์ `message.text` จาก
+ * `postback.title` (Meta ส่ง postback มาอย่างเดียว ไม่มี `message` ⇒ ถ้าไม่ทำ ผู้ขายจะเห็นแต่
+ * คำตอบลอย ๆ ไม่รู้ว่าลูกค้าถามอะไร)
+ *
+ * ที่แยกกันเพราะ ingest มีเรื่องที่ต้องทำถูกอีกหลายอย่าง (กันซ้ำด้วย mid · อัปเดต preview ·
+ * ปลุกเธรดที่ซ่อน · แจ้งเตือน) — เขียนแถวเองที่นี่คือการก็อปตรรกะทั้งชุดมาไว้อีกที่
+ */
+export async function answerIceBreaker(params: {
+  provider: string
+  pageExternalId: string
+  contactExternalId: string
+  payload: string | null | undefined
+  title: string | null | undefined
+  timestamp?: number
+}): Promise<boolean> {
+  const ref = parseIceBreakerPayload(params.payload)
+  if (!ref) return false
+
+  const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
+  // 🛑 payload ระบุช่องทางมาเอง — ต้องเทียบกับเพจที่ webhook มาจากจริงเสมอ ไม่งั้นใครก็ตาม
+  // ที่เดา payload ได้จะสั่งให้เราส่งคำตอบของร้านอื่นได้ (postback รับค่าจากภายนอกล้วน)
+  if (!channel || channel.id !== ref.shopChannelId) return false
+
+  const row = await prisma.channelIceBreaker.findUnique({
+    where: { shopChannelId_order: { shopChannelId: ref.shopChannelId, order: ref.order } },
+    select: { answer: true, question: true },
+  })
+  if (!row) return false
+
+  const conversation = await prisma.conversation.findFirst({
+    where: { shopChannelId: channel.id, externalContact: { externalUserId: params.contactExternalId } },
+    select: { id: true },
+  })
+  if (!conversation) return false
+
+  // คำถามที่ลูกค้าแตะ — บันทึกเป็นข้อความของลูกค้าเพื่อให้เธรดอ่านรู้เรื่อง
+  // ใช้ `title` ที่ Meta ส่งมา (คือคำถามที่ลูกค้าเห็นจริง ณ ตอนนั้น) ถอยไปใช้ของเราเมื่อไม่มี
+  await sendOutboundMessage({
+    conversationId: conversation.id,
+    actorUserId: null,
+    systemShopId: channel.shopId,
+    autoReplyKind: 'AUTO',
+    text: row.answer,
+  })
+  return true
 }
 
 /** พารามิเตอร์ของเส้นทาง LINE — ยกออกมาจาก inline type เดิมของ `sendOutboundLineMessage`
