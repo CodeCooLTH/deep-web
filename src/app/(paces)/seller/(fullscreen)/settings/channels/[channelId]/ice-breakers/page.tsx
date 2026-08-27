@@ -5,6 +5,9 @@ import { prisma } from '@/lib/prisma'
 import { sessionUserId } from '@/lib/session-user'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { listIceBreakers } from '@/services/channel-chat.service'
+import { getIceBreakers } from '@/lib/facebook/graph'
+import { decryptToken } from '@/lib/token-crypto'
+import { classifyExternalIceBreakers } from '@/lib/ice-breaker'
 import IceBreakerEditor from './IceBreakerEditor'
 
 /**
@@ -37,18 +40,40 @@ export default async function IceBreakerPage({ params }: { params: Promise<{ cha
   // scope ด้วย shopId + provider ใน WHERE — นอกขอบเขต/ไม่ใช่ช่องทาง Meta = ไม่มีอยู่ (404)
   const channel = await prisma.shopChannel.findFirst({
     where: { id: channelId, shopId: ctx.shopId, provider: { in: ['MESSENGER', 'INSTAGRAM'] } },
-    select: { id: true, name: true, status: true },
+    select: { id: true, name: true, status: true, provider: true, accessTokenEnc: true },
   })
   if (!channel) notFound()
 
+  const tokenInvalid = channel.status === 'TOKEN_INVALID'
   const items = await listIceBreakers(channel.id)
+
+  /**
+   * 🛑 อ่านค่าที่ **Meta ถืออยู่จริง** มาเทียบ — ฐานเราตอบแทนไม่ได้
+   * ร้านตั้ง "คำถามที่พบบ่อย" เองใน Business Suite / แอป IG ได้ตลอดโดยที่เราไม่รู้ และ Meta
+   * ประกาศเองว่าของที่ตั้งผ่าน API **ทับ** ของนั้น **และปิดไม่ให้ร้านแก้จากฝั่งนั้นอีก**
+   * ⇒ ปล่อยให้กดบันทึกโดยไม่เห็นของเดิม = ร้านเสียคำถามที่ลูกค้าเห็นอยู่จริงแบบกู้เองไม่ได้
+   *
+   * 🛑 อ่านที่นี่ที่เดียว **ห้ามไปอ่านในหน้ารายการช่องทาง** — Messenger Profile API จำกัด
+   * 10 ครั้ง/10 นาที ต่อเพจ ร้าน 3 เพจเปิดหน้ารายการซ้ำ 4 รอบก็ทะลุแล้ว หน้านี้ผู้ขาย
+   * ตั้งใจกดเข้ามา จึงคุ้มค่าเรียก
+   *
+   * token เสีย = ข้ามการยิงไปเลย (ยังไงก็ล้ม) แล้วตกเป็น UNKNOWN ซึ่งเตือนอยู่แล้ว
+   */
+  const external = tokenInvalid
+    ? null
+    : await getIceBreakers(decryptToken(channel.accessTokenEnc), channel.provider)
+  const externalState = classifyExternalIceBreakers(external, channel.id)
 
   return (
     <IceBreakerEditor
       channelId={channel.id}
       channelName={channel.name}
-      tokenInvalid={channel.status === 'TOKEN_INVALID'}
+      provider={channel.provider}
+      tokenInvalid={tokenInvalid}
       initialItems={items.map((it) => ({ question: it.question, answer: it.answer }))}
+      externalState={externalState}
+      // ส่งเฉพาะ "คำถาม" ไม่ส่ง payload — client ไม่มีอะไรต้องทำกับ payload และมันคือคีย์ภายใน
+      externalQuestions={externalState === 'FOREIGN' ? (external ?? []).map((it) => it.question) : []}
     />
   )
 }

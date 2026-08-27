@@ -33,6 +33,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { META_BUSINESS_SUITE_INBOX_URL } from '@/lib/meta-system-notice'
+import type { ExternalIceBreakerState } from '@/lib/ice-breaker'
 import { pacesConfirm } from '@/lib/paces-swal'
 import {
   ICE_BREAKER_ANSWER_MAX,
@@ -72,10 +74,19 @@ function serialize(list: { question: string; answer: string }[]): string {
 export default function IceBreakerEditor(props: {
   channelId: string
   channelName: string
+  provider: string
   tokenInvalid: boolean
   initialItems: SavedItem[]
+  /** สถานะของ "คำถามที่ Meta ถืออยู่จริง" ณ ตอนโหลดหน้า — คำนวณที่ server */
+  externalState: ExternalIceBreakerState
+  /** คำถามเดิมที่ไม่ใช่ของเรา (เฉพาะตอน FOREIGN) — ส่งมาเพื่อ **ให้ผู้ขายเห็นด้วยตา** ไม่ใช่แค่บอกว่ามี */
+  externalQuestions: string[]
 }) {
   const router = useRouter()
+  const isInstagram = props.provider === 'INSTAGRAM'
+  // ปุ่มบันทึกต้องบอกผลลัพธ์จริง — ตอนที่มีของเดิมของร้านอยู่ การกดปุ่มนี้ไม่ใช่แค่ "บันทึก"
+  // แต่คือ "ลบของเขาทิ้งแล้วเอาของเราใส่แทน" ⇒ คำต้องพูดสิ่งนั้น
+  const willReplaceForeign = props.externalState === 'FOREIGN'
   const [rows, setRows] = useState<DraftRow[]>(() => rowsFor(props.initialItems))
   // baseline = ชุดที่ยืนยันแล้วว่าอยู่บน Meta จริง (จาก server ตอนโหลด หรือหลังบันทึก/ลบสำเร็จ)
   // ใช้ตัดสินทั้ง isDirty, ข้อความ "สถานะตอนนี้" ใต้พรีวิว, และเงื่อนไขแสดงเมนู ⋯
@@ -220,7 +231,11 @@ export default function IceBreakerEditor(props: {
           className={`text-base ${busy === 'save' ? 'animate-spin' : ''}`}
           aria-hidden="true"
         />
-        {busy === 'save' ? 'กำลังบันทึก…' : 'บันทึกการเปลี่ยนแปลง'}
+        {busy === 'save'
+          ? 'กำลังบันทึก…'
+          : willReplaceForeign
+            ? 'แทนที่คำถามเดิมและบันทึก'
+            : 'บันทึกการเปลี่ยนแปลง'}
       </button>
     </>
   )
@@ -248,6 +263,65 @@ export default function IceBreakerEditor(props: {
         {props.tokenInvalid && (
           <div className="bg-danger/15 text-danger-ink mt-3 rounded-lg px-4 py-3 text-sm">
             การเชื่อมต่อมีปัญหา แก้คำถามได้ แต่บันทึกไม่ได้จนกว่าจะเชื่อมต่อใหม่
+          </div>
+        )}
+
+        {/*
+          คำถามเดิมที่ไม่ได้มาจาก Deep — เตือน **พร้อมโชว์ของเดิมให้เห็น**
+          บอกแค่ว่า "มีของอยู่" ไม่พอ ผู้ขายต้องเทียบเองได้ว่าจะเอาชุดไหน
+          ใช้โทน warning ไม่ใช่ danger — นี่คือเรื่องให้ตัดสินใจ ไม่ใช่ความผิดพลาดของใคร
+        */}
+        {props.externalState === 'FOREIGN' && (
+          <div className="bg-warning/15 text-warning-ink mt-3 rounded-lg px-4 py-3 text-sm">
+            <p className="mb-2 flex items-start gap-2 font-medium">
+              <Icon icon="alert-triangle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+              <span>
+                {isInstagram
+                  ? 'บัญชีนี้มีคำถามที่ตั้งไว้แล้วจากแอป Instagram — ไม่ได้มาจาก Deep'
+                  : 'เพจนี้มีคำถามที่ตั้งไว้แล้วจาก Facebook — ไม่ได้มาจาก Deep'}
+              </span>
+            </p>
+            <ul className="mb-2 flex flex-wrap gap-1.5 ps-0" aria-label="คำถามเดิมที่ตั้งไว้อยู่">
+              {props.externalQuestions.map((q, i) => (
+                <li
+                  key={`${q}-${i}`}
+                  className="bg-warning/10 border-warning/30 text-warning-ink max-w-full truncate rounded-full border px-3 py-1"
+                >
+                  {q}
+                </li>
+              ))}
+            </ul>
+            <p className="mb-0">
+              {isInstagram
+                ? 'กดบันทึกจะแทนที่คำถามชุดนี้ทั้งหมด — ยังไม่ทราบแน่ชัดว่าฝั่ง Instagram จะยังแก้ไขคำถามเดิมได้ไหมหลังจากนั้น ถ้ายังไม่อยากเปลี่ยน ปิดหน้านี้ได้เลย ของเดิมจะไม่ถูกแตะต้อง'
+                : 'กดบันทึกจะแทนที่คำถามชุดนี้ทั้งหมด และหลังจากนั้นจะแก้ไขคำถามจากฝั่ง Facebook ไม่ได้อีก จนกว่าจะลบคำถามแนะนำทั้งชุดออกจากหน้านี้'}
+            </p>
+            {!isInstagram && (
+              <a
+                href={META_BUSINESS_SUITE_INBOX_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-sm border-warning text-warning-ink hover:bg-warning/10 mt-3 inline-flex min-h-11 items-center gap-1.5 sm:min-h-0"
+              >
+                <Icon icon="external-link" className="text-sm" aria-hidden="true" />
+                จัดการที่ Meta Business Suite แทน
+              </a>
+            )}
+          </div>
+        )}
+
+        {/*
+          อ่านค่าจาก Meta ไม่สำเร็จ — ต้องบอก ไม่ใช่เงียบ
+          "ไม่รู้ว่ามีของเดิมไหม" ต่างจาก "รู้แล้วว่าไม่มี" คนละเรื่อง และอันแรกคือเคสที่
+          ผู้ขายอาจทับของตัวเองโดยไม่มีใครเห็น ⇒ ยังให้บันทึกได้ แต่ต้องรู้ตัวก่อน
+        */}
+        {props.externalState === 'UNKNOWN' && !props.tokenInvalid && (
+          <div className="bg-warning/15 text-warning-ink mt-3 flex items-start gap-2 rounded-lg px-4 py-3 text-sm">
+            <Icon icon="alert-triangle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+            <span>
+              ตอนนี้ตรวจสอบกับ Facebook/Instagram ไม่ได้ว่ามีคำถามเดิมตั้งอยู่ไหม —
+              ถ้าเคยตั้งเองไว้ก่อน การบันทึกที่นี่อาจเขียนทับโดยที่เราไม่รู้ (ยังแก้ไขและบันทึกได้ตามปกติ)
+            </span>
           </div>
         )}
 

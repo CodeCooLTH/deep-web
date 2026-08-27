@@ -113,3 +113,28 @@ export function validateIceBreakers(drafts: IceBreakerDraft[]): IceBreakerValida
   }
   return { ok: true, items }
 }
+
+/**
+ * "เพจนี้มีคำถามเดิมอยู่ไหม และเป็นของใคร" — ตัวจำแนกที่หน้าจอใช้ตัดสินว่าจะเตือนหรือไม่
+ *
+ * 🛑 มีอยู่เพราะ **Meta ประกาศเองว่าของที่ตั้งผ่าน API ทับของที่ร้านตั้งเองใน Page Inbox
+ * และปิดไม่ให้ร้านแก้จากฝั่งนั้นอีก** ⇒ การกดบันทึกโดยไม่รู้ว่ามีของเดิม = ทำให้ร้านเสียของ
+ * ที่ลูกค้าเห็นอยู่จริง แบบที่ไม่มีอะไรบอกและกู้เองไม่ได้
+ *
+ * 🛑 **`null` (อ่านไม่สำเร็จ) ต้องไม่ถูกยุบรวมกับ `[]` (ยืนยันแล้วว่าไม่มี)** — อันแรกแปลว่า
+ * "ไม่รู้" ซึ่งยังต้องเตือน อันหลังแปลว่า "รู้แล้วว่าว่าง" ซึ่งไม่ต้องเตือน
+ * ยุบรวม = เคสที่อันตรายที่สุดกลายเป็นเคสที่เงียบที่สุด
+ */
+export type ExternalIceBreakerState = 'OURS' | 'NONE' | 'FOREIGN' | 'UNKNOWN'
+
+export function classifyExternalIceBreakers(
+  external: { question: string; payload: string }[] | null,
+  shopChannelId: string,
+): ExternalIceBreakerState {
+  if (external === null) return 'UNKNOWN'
+  if (external.length === 0) return 'NONE'
+  // มีของที่ไม่ใช่ของเราแม้แถวเดียว = ต้องเตือน — ผู้ขายจะเสียแถวนั้นไปถ้ากดบันทึก
+  // (เกณฑ์เป็น "ทุกแถวต้องเป็นของเรา" ไม่ใช่ "มีของเราสักแถว")
+  const allOurs = external.every((it) => parseIceBreakerPayload(it.payload)?.shopChannelId === shopChannelId)
+  return allOurs ? 'OURS' : 'FOREIGN'
+}

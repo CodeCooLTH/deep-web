@@ -26,6 +26,7 @@ import { LINE_PREVIEW_MAX_SIZE } from '@/lib/chat-attachment'
 import { LineApiError } from '@/lib/line/client'
 import { decryptToken } from '@/lib/token-crypto'
 import { setIceBreakers, deleteIceBreakers } from '@/lib/facebook/graph'
+import { takeMessengerProfileSlot, profileRateLimitMessage } from '@/lib/messenger-profile-rl'
 import {
   iceBreakerPayload,
   parseIceBreakerPayload,
@@ -3023,6 +3024,10 @@ export async function saveIceBreakers(params: {
 
   const valid = validateIceBreakers(params.drafts)
   if (!valid.ok) throw new Error(`INVALID:${valid.error}`)
+
+  // 🛑 จองโควตา Meta **ก่อน** ยิง — คำขอที่ล้มก็กินโควตาไปแล้ว นับเฉพาะที่สำเร็จจะทะลุเพดานจริง
+  const slot = takeMessengerProfileSlot(channel.id)
+  if (!slot.ok) throw new Error(`INVALID:${profileRateLimitMessage(slot.retryAfterSec)}`)
 
   const pageToken = decryptToken(channel.accessTokenEnc)
   if (valid.items.length === 0) {

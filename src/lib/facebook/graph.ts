@@ -1312,6 +1312,73 @@ export async function setIceBreakers(
   })
 }
 
+/**
+ * อ่าน Ice Breakers **ที่ Meta ถืออยู่จริง** ณ ตอนนี้
+ *
+ * 🛑 มีไว้เพื่อตอบคำถามเดียว: *"เพจนี้มีคำถามตั้งอยู่ก่อนแล้วหรือเปล่า และเป็นของใคร"*
+ * ฐานเราตอบแทนไม่ได้ — ร้านตั้ง "คำถามที่พบบ่อย" เองใน Business Suite / แอป IG ได้ตลอดเวลา
+ * โดยที่เราไม่รู้ ⇒ อ่านจาก `ChannelIceBreaker` อย่างเดียวแล้วบอกผู้ขายว่า "ยังไม่ได้ตั้ง"
+ * คือการโกหกที่พาไปสู่การกดทับของตัวเองโดยไม่มีอะไรเตือน
+ *
+ * 🛑 **ต้องรับคืนได้ 2 รูปแบบ** — เอกสาร Meta เขียนเองว่า GET คืนโครงตามที่ *ของเดิมถูกตั้งมา*:
+ *   รูปแบบใหม่ → `data[].call_to_actions[]` (+ `locale`)
+ *   รูปแบบเก่า → `data[].ice_breakers[]`
+ * รับแบบเดียวแล้วอีกแบบจะถูกอ่านเป็น "ไม่มีอะไรเลย" ซึ่งคือรูปร่างของบั๊กที่ฟังก์ชันนี้มีไว้กัน
+ *
+ * 🛑 **คืน `null` เมื่ออ่านไม่ได้ ไม่ใช่ `[]`** — "ถามไม่สำเร็จ" กับ "ถามแล้วไม่มี" ต่างกันคนละเรื่อง
+ * ตีเป็น `[]` = หน้าจอจะบอกว่าไม่มีของเดิม แล้วผู้ขายกดทับทันที (เคสนี้อันตรายกว่าไม่แสดงอะไรเลย)
+ */
+export async function getIceBreakers(
+  pageToken: string,
+  provider: string,
+): Promise<IceBreakerItem[] | null> {
+  try {
+    const res = await graphFetch('/me/messenger_profile', pageToken, {
+      query: { ...profileQuery(provider), fields: 'ice_breakers' },
+    })
+    return parseIceBreakersResponse(res)
+  } catch {
+    // ล้มเหลว = ไม่รู้ ห้ามเดาว่าว่าง
+    return null
+  }
+}
+
+/**
+ * แปลง payload ของ `GET messenger_profile?fields=ice_breakers` เป็นรายการที่ใช้ได้
+ *
+ * แยกออกมาเป็นฟังก์ชันบริสุทธิ์เพราะนี่คือส่วนที่ผิดง่ายที่สุดและผิดแบบเงียบที่สุด —
+ * อ่านผิด = ได้ `[]` ซึ่งหน้าจอแปลว่า "ไม่มีของเดิม" แล้วผู้ขายกดทับทันที
+ * (`docs/conventions/ui-boolean-needs-a-testable-home.md`)
+ */
+export function parseIceBreakersResponse(res: unknown): IceBreakerItem[] {
+  const rows = Array.isArray((res as { data?: unknown } | null)?.data)
+    ? ((res as { data: unknown[] }).data)
+    : []
+  const out: IceBreakerItem[] = []
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue
+    const r = row as { call_to_actions?: unknown; ice_breakers?: unknown; locale?: unknown }
+    // ข้าม locale อื่น — เราตั้งเฉพาะ `default` และหน้าจอเทียบกับชุดนั้นเท่านั้น
+    // (ไม่มี `locale` = รูปแบบเก่าซึ่งไม่มีแนวคิด locale เลย ⇒ นับเป็น default)
+    if (typeof r.locale === 'string' && r.locale !== 'default') continue
+    const list = Array.isArray(r.call_to_actions)
+      ? r.call_to_actions
+      : Array.isArray(r.ice_breakers)
+        ? r.ice_breakers
+        : []
+    for (const it of list as unknown[]) {
+      if (!it || typeof it !== 'object') continue
+      const q = (it as { question?: unknown }).question
+      const p = (it as { payload?: unknown }).payload
+      // `question` คือสิ่งเดียวที่ลูกค้าเห็น — ไม่มีคำถาม = แถวนี้ไม่มีความหมายให้แสดง
+      // ส่วน `payload` ขาดได้ (ของที่ร้านตั้งเองจาก Business Suite ไม่มี payload ของเรา)
+      if (typeof q !== 'string' || q.trim() === '') continue
+      out.push({ question: q, payload: typeof p === 'string' ? p : '' })
+    }
+  }
+  return out
+}
+
 /** ลบทั้งชุด — Meta มี endpoint แยก (ส่ง `ice_breakers` ว่างไม่ได้แปลว่าลบ) */
 export async function deleteIceBreakers(pageToken: string, provider: string): Promise<void> {
   await graphFetch('/me/messenger_profile', pageToken, {

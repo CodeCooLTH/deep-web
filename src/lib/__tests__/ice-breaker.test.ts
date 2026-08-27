@@ -7,7 +7,15 @@ import {
   iceBreakerPayload,
   parseIceBreakerPayload,
   validateIceBreakers,
+  classifyExternalIceBreakers,
 } from '@/lib/ice-breaker'
+import { parseIceBreakersResponse } from '@/lib/facebook/graph'
+import {
+  PROFILE_RL_MAX,
+  PROFILE_RL_WINDOW_MS,
+  profileRateLimitMessage,
+  takeMessengerProfileSlot,
+} from '@/lib/messenger-profile-rl'
 
 const ok = (n: number) =>
   Array.from({ length: n }, (_, i) => ({ question: `คำถาม ${i}`, answer: `คำตอบ ${i}` }))
@@ -182,5 +190,162 @@ describe('[blocker] saveIceBreakers ยิง Meta ก่อนเขียน D
     const lookup = body.indexOf('channelIceBreaker.findUnique')
     expect(guard).toBeGreaterThan(-1)
     expect(guard).toBeLessThan(lookup)
+  })
+})
+
+/**
+ * [blocker] อ่านค่าที่ Meta ถืออยู่จริง — 2 รูปแบบ
+ *
+ * เอกสาร Meta: GET คืนโครงตามที่ **ของเดิมถูกตั้งมา** (ใหม่ = `call_to_actions` ·
+ * เก่า = `ice_breakers`) รับแบบเดียว = อีกแบบถูกอ่านเป็น "ไม่มีอะไรเลย" ⇒ หน้าจอบอกผู้ขายว่า
+ * ยังไม่ได้ตั้ง แล้วเขากดทับคำถามของตัวเองที่ลูกค้าเห็นอยู่จริง โดยไม่มีอะไรเตือน
+ */
+describe('[blocker] parseIceBreakersResponse', () => {
+  it('รูปแบบใหม่ (call_to_actions)', () => {
+    expect(
+      parseIceBreakersResponse({
+        data: [{ call_to_actions: [{ question: 'ค่าส่งเท่าไร', payload: 'A' }], locale: 'default' }],
+      }),
+    ).toEqual([{ question: 'ค่าส่งเท่าไร', payload: 'A' }])
+  })
+
+  it('[blocker] รูปแบบเก่า (ice_breakers) ต้องอ่านออกด้วย', () => {
+    // นี่คือรูปแบบที่ของเก่า/ของที่ตั้งจากฝั่ง Meta เองมักเป็น — พลาดตรงนี้ = ทับของร้านเงียบ ๆ
+    expect(
+      parseIceBreakersResponse({ data: [{ ice_breakers: [{ question: 'เปิดกี่โมง', payload: 'B' }] }] }),
+    ).toEqual([{ question: 'เปิดกี่โมง', payload: 'B' }])
+  })
+
+  it('[blocker] คำถามที่ไม่มี payload ต้องไม่ถูกทิ้ง', () => {
+    // ของที่ร้านตั้งเองใน Business Suite ไม่มี payload ของเรา — ทิ้งไป = มองไม่เห็นของที่กำลังจะทับ
+    expect(parseIceBreakersResponse({ data: [{ ice_breakers: [{ question: 'มีของไหม' }] }] })).toEqual([
+      { question: 'มีของไหม', payload: '' },
+    ])
+  })
+
+  it('ข้าม locale อื่น แต่แถวที่ไม่มี locale เลย (รูปแบบเก่า) ต้องนับ', () => {
+    const r = parseIceBreakersResponse({
+      data: [
+        { call_to_actions: [{ question: 'th', payload: 'A' }], locale: 'default' },
+        { call_to_actions: [{ question: 'en', payload: 'B' }], locale: 'en_GB' },
+        { ice_breakers: [{ question: 'old', payload: 'C' }] },
+      ],
+    })
+    expect(r.map((x) => x.question)).toEqual(['th', 'old'])
+  })
+
+  it('payload เพี้ยน/ว่าง = ลิสต์ว่าง ไม่ throw', () => {
+    for (const bad of [null, undefined, {}, { data: null }, { data: [null, 'x', 1] }, { data: [{}] }]) {
+      expect(parseIceBreakersResponse(bad), JSON.stringify(bad)).toEqual([])
+    }
+  })
+
+  it('คำถามว่าง/ไม่ใช่สตริง ถูกตัดทิ้ง (ปุ่มเปล่าไม่มีความหมายให้แสดง)', () => {
+    expect(
+      parseIceBreakersResponse({
+        data: [{ ice_breakers: [{ question: '  ' }, { question: 123 }, { question: 'ok' }] }],
+      }),
+    ).toEqual([{ question: 'ok', payload: '' }])
+  })
+
+  it('[blocker] getIceBreakers ต้องคืน null เมื่ออ่านไม่ได้ ห้ามคืน []', () => {
+    // "ถามไม่สำเร็จ" กับ "ถามแล้วไม่มี" ต่างกันคนละเรื่อง — ตีเป็น [] คือบอกว่าไม่มีของเดิม
+    // แล้วผู้ขายกดทับทันที (อันตรายกว่าไม่แสดงอะไรเลย)
+    const src = readFileSync(join(process.cwd(), 'src/lib/facebook/graph.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '')
+    const fn = src.slice(src.indexOf('export async function getIceBreakers'))
+    const body = fn.slice(0, fn.indexOf('\n}\n'))
+    expect(body).toMatch(/catch\s*\{\s*\n?\s*return null/)
+  })
+})
+
+/**
+ * [blocker] โควตา Messenger Profile API — Meta จำกัด 10 ครั้ง/10 นาที ต่อเพจ
+ */
+describe('[blocker] takeMessengerProfileSlot', () => {
+  const CH = 'ch-rl-1'
+  const T0 = 1_700_000_000_000
+
+  it(`ปล่อยผ่านได้ ${PROFILE_RL_MAX} ครั้ง แล้วตัน`, () => {
+    for (let i = 0; i < PROFILE_RL_MAX; i++) {
+      expect(takeMessengerProfileSlot(CH, T0 + i), `ครั้งที่ ${i + 1}`).toEqual({ ok: true })
+    }
+    const r = takeMessengerProfileSlot(CH, T0 + PROFILE_RL_MAX)
+    expect(r.ok).toBe(false)
+  })
+
+  it('[blocker] เพดานต้องต่ำกว่า 10 ของ Meta — ตั้งเท่ากันเป๊ะคือปล่อยให้ชนของจริงพอดี', () => {
+    expect(PROFILE_RL_MAX).toBeLessThan(10)
+  })
+
+  it('พ้น window แล้วกลับมาใช้ได้', () => {
+    const ch = 'ch-rl-2'
+    for (let i = 0; i < PROFILE_RL_MAX; i++) takeMessengerProfileSlot(ch, T0 + i)
+    expect(takeMessengerProfileSlot(ch, T0 + 1000).ok).toBe(false)
+    expect(takeMessengerProfileSlot(ch, T0 + PROFILE_RL_WINDOW_MS + 1).ok).toBe(true)
+  })
+
+  it('แยกตามช่องทาง — เพจหนึ่งเต็มต้องไม่กระทบอีกเพจ', () => {
+    const a = 'ch-rl-a', b = 'ch-rl-b'
+    for (let i = 0; i < PROFILE_RL_MAX; i++) takeMessengerProfileSlot(a, T0 + i)
+    expect(takeMessengerProfileSlot(a, T0 + 999).ok).toBe(false)
+    expect(takeMessengerProfileSlot(b, T0 + 999).ok).toBe(true)
+  })
+
+  it('[blocker] ข้อความบอก "อีกกี่นาที" ไม่ใช่ "ลองใหม่ภายหลัง"', () => {
+    // คำที่ไม่มีตัวเลขทำให้ผู้ใช้กดวนต่อทันที ซึ่งกินโควตาที่เหลือจนหมด
+    const msg = profileRateLimitMessage(305)
+    expect(msg).toMatch(/6 นาที/)
+    expect(msg).toMatch(new RegExp(String(PROFILE_RL_MAX)))
+  })
+
+  it('[blocker] service ต้องจองโควตาก่อนยิง Meta', () => {
+    const s = readFileSync(join(process.cwd(), 'src/services/channel-chat.service.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '')
+    const fn = s.slice(s.indexOf('export async function saveIceBreakers'), s.indexOf('export async function answerIceBreaker'))
+    const take = fn.indexOf('takeMessengerProfileSlot(')
+    const fire = Math.min(...[fn.indexOf('setIceBreakers('), fn.indexOf('deleteIceBreakers(')].filter((i) => i > -1))
+    expect(take).toBeGreaterThan(-1)
+    expect(take).toBeLessThan(fire)
+  })
+})
+
+/**
+ * [blocker] จำแนกว่าเพจมีคำถามเดิมอยู่ไหม และเป็นของใคร
+ *
+ * Meta ประกาศเองว่าของที่ตั้งผ่าน API ทับของที่ร้านตั้งใน Page Inbox และ **ปิดไม่ให้ร้านแก้
+ * จากฝั่งนั้นอีก** ⇒ จำแนกผิด = ร้านเสียคำถามที่ลูกค้าเห็นอยู่จริง โดยไม่มีอะไรบอก
+ */
+describe('[blocker] classifyExternalIceBreakers', () => {
+  const ours = (i: number) => ({ question: `q${i}`, payload: iceBreakerPayload(CH, i) })
+
+  it('อ่านไม่สำเร็จ (null) = UNKNOWN ไม่ใช่ NONE', () => {
+    expect(classifyExternalIceBreakers(null, CH)).toBe('UNKNOWN')
+  })
+
+  it('ยืนยันแล้วว่าว่าง ([]) = NONE', () => {
+    expect(classifyExternalIceBreakers([], CH)).toBe('NONE')
+  })
+
+  it('ของเราทั้งหมด = OURS (ไม่ต้องเตือน)', () => {
+    expect(classifyExternalIceBreakers([ours(0), ours(1)], CH)).toBe('OURS')
+  })
+
+  it('[blocker] ของร้านที่ตั้งเองจาก Meta (ไม่มี payload ของเรา) = FOREIGN', () => {
+    expect(classifyExternalIceBreakers([{ question: 'ค่าส่ง', payload: '' }], CH)).toBe('FOREIGN')
+    expect(classifyExternalIceBreakers([{ question: 'ค่าส่ง', payload: 'FAQ_1' }], CH)).toBe('FOREIGN')
+  })
+
+  it('[blocker] ปนกัน = FOREIGN (เกณฑ์คือทุกแถวต้องเป็นของเรา ไม่ใช่มีของเราสักแถว)', () => {
+    // ยอมให้ผ่านเป็น OURS = แถวของร้านที่ปนอยู่จะหายไปตอนบันทึกโดยไม่มีใครเห็น
+    expect(classifyExternalIceBreakers([ours(0), { question: 'x', payload: '' }], CH)).toBe('FOREIGN')
+  })
+
+  it('[blocker] ของเราแต่คนละช่องทาง = FOREIGN', () => {
+    // payload ของเพจอื่นหลุดมา (หรือเราอ่านผิดเพจ) ต้องไม่ถูกนับเป็นของเพจนี้
+    const other = { question: 'q', payload: iceBreakerPayload('ch-other', 0) }
+    expect(classifyExternalIceBreakers([other], CH)).toBe('FOREIGN')
   })
 })
