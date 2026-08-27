@@ -24,6 +24,12 @@
  * 🛑 ตรรกะเสียงอยู่ที่ `useThreadSound()` เจ้าของเดียวทั้งปุ่มกระดิ่งและเมนูนี้ (HR16) —
  * ห้ามให้ไฟล์ไหนเรียก `isChatSoundMuted()/isConversationMuted()` เองอีก
  *
+ * 🛑 **ไม่มีจุด `bell-off` ซ้อนมุมปุ่มแล้ว** (user สั่งถอด 2026-08-27) — เดิมมีไว้บอกว่าห้องนี้เงียบ
+ * โดยไม่ต้องเปิดเมนู แต่เงื่อนไขของมันคือ `appMuted || threadMuted` ⇒ พอปิดเสียง **ทั้งแอป**
+ * จุดนี้ขึ้นทุกห้องตลอดเวลา ทั้งที่ยังไม่เคยปิดเสียงห้องไหนเลย = ย้ำสิ่งที่ไอคอนลำโพงบนแถบบนสุด
+ * (`ChatHeader.tsx`) บอกอยู่แล้ว. ⚠️ หนี้ที่รับไว้: จอแคบตอนนี้ไม่มีตัวบอก "ห้องนี้ปิดเสียง"
+ * นอกเมนู — ถ้าจะเอากลับ ให้ผูกกับ `threadMuted` อย่างเดียว ห้ามใช้ `silenced`
+ *
  * 🛑 `[--auto-close:false]` — จำเป็น เพราะมี `form-switch` อยู่ข้างใน ถ้าเมนูปิดตัวเองทุกครั้งที่
  * แตะสวิตช์ ผู้ใช้จะอ่านผลของสิ่งที่เพิ่งกดไม่ทัน
  *
@@ -40,8 +46,7 @@ import { useThreadSound } from './ThreadSoundToggle'
 export default function ThreadOverflowMenu({ conversationId }: { conversationId: string }) {
   const t = useT()
   const uid = useId()
-  // ไอคอนสะท้อน "ผลลัพธ์รวม" ไม่ใช่สถานะของสวิตช์ใดสวิตช์หนึ่ง — ปิดจากระดับไหนก็คือห้องนี้เงียบ
-  const { appMuted, threadMuted, silenced, toggleThread } = useThreadSound(conversationId)
+  const { appMuted, threadMuted, toggleThread } = useThreadSound(conversationId)
 
   return (
     <div className="hs-dropdown relative inline-flex [--auto-close:false] [--placement:bottom-end] md:hidden">
@@ -52,17 +57,9 @@ export default function ThreadOverflowMenu({ conversationId }: { conversationId:
         aria-expanded="false"
         aria-label={t.inbox.threadMoreMenu}
         title={t.inbox.threadMoreMenu}
-        className="btn btn-icon hs-dropdown-toggle border-default-300 text-default-700 hover:bg-default-100 relative shrink-0"
+        className="btn btn-icon hs-dropdown-toggle border-default-300 text-default-700 hover:bg-default-100 shrink-0"
       >
         <Icon icon="dots-vertical" className="text-lg" />
-        {/* จุดบอกว่าห้องนี้ถูกปิดเสียงอยู่ — สวิตช์อยู่ในเมนู ถ้าไม่มีตัวบอกตรงนี้ ผู้ขายจะไม่มีทาง
-            รู้ว่าตัวเองปิดเสียงไว้จนกว่าจะเปิดเมนูดู (คลาสเดียวกับ "default ปิดที่ไม่มีใครรู้ว่ามีสวิตช์")
-            ใช้ `bell-off` ซ้อนมุม ไม่ใช่จุดสีเปล่า — จุดสีเปล่าไม่บอกว่าปิดอะไรอยู่ */}
-        {silenced && (
-          <span className="bg-card text-default-500 absolute -end-0.5 -bottom-0.5 flex size-4 items-center justify-center rounded-full">
-            <Icon icon="bell-off" className="text-2xs" />
-          </span>
-        )}
       </button>
 
       <div
