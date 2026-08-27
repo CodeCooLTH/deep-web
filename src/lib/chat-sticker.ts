@@ -1,3 +1,5 @@
+import { giphyMessageKind } from '@/lib/giphy-message-kind'
+
 /**
  * chat-sticker — ตัวตัดสินเดียวว่า "ข้อความนี้เป็นสติกเกอร์ไหม" (2026-08-10)
  *
@@ -20,5 +22,21 @@ export function isStickerRawMessage(raw: unknown): boolean {
   if (!raw || typeof raw !== 'object') return false
   const payload = (raw as { payload?: unknown }).payload
   if (!payload || typeof payload !== 'object') return false
-  return (payload as { kind?: unknown }).kind === 'sticker'
+  if ((payload as { kind?: unknown }).kind === 'sticker') return true
+
+  /**
+   * ขาเข้า Instagram (2026-08-27) — marker `payload.kind` ใช้ไม่ได้เพราะนี่คือ **payload ของ Meta**
+   * ไม่ใช่ของเรา (`{sender, message, recipient}`) และ Meta ส่งสติกเกอร์มาเป็น
+   * `attachments[0].type = "image"` เหมือนรูปถ่ายจริงทุกประการ
+   *
+   * ผลที่ผู้ใช้เห็นตอนยังไม่มีสาขานี้: สติกเกอร์แมวขึ้นเต็มความกว้างรูปปกติ **พร้อมปุ่ม "บันทึกรูป"**
+   * ขณะที่สติกเกอร์ที่ส่งจาก Deep เอง (ติด `kind:'sticker'`) แสดงถูก — สองใบติดกันในเธรดเดียว
+   * หน้าตาไม่เหมือนกัน (user แจ้ง 2026-08-27)
+   *
+   * 🛑 เฉพาะ `ct=s` (สติกเกอร์) — **GIF (`ct=g`) ไม่ใช่สติกเกอร์**: มันมีพื้นหลัง ควรกว้างเท่ารูปปกติ
+   * และควรบันทึกได้ การเหมารวมว่า "มาจาก GIPHY = สติกเกอร์" จะย่อ GIF จนดูไม่ออกว่าเป็นอะไร
+   */
+  const url = (payload as { message?: { attachments?: Array<{ payload?: { url?: unknown } }> } })
+    .message?.attachments?.[0]?.payload?.url
+  return typeof url === 'string' && giphyMessageKind(url) === 'sticker'
 }

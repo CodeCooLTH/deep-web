@@ -27,6 +27,8 @@ import { LineApiError } from '@/lib/line/client'
 import { decryptToken } from '@/lib/token-crypto'
 // SSOT ของคำแทนเนื้อหาที่แสดงเองไม่ได้ — ผันตามช่องทาง (HR16)
 import { attachmentFailedText, emptyMessageText, emptyMessagePreview } from '@/lib/chat-placeholder-text'
+// แยกสติกเกอร์/GIF ของ GIPHY ออกจาก "รูปภาพ" ในรายการแชท (Meta ส่งมาเป็น type:image เหมือนกันหมด)
+import { giphyMessageKind, giphyPreviewLabel } from '@/lib/giphy-message-kind'
 import { getFileUrl, getFile, getFileMeta } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
 // feature 00051 (S-3): choke point จริงของ dedup — saveMirroredBuffer กลายเป็น thin wrapper
@@ -1464,6 +1466,8 @@ export async function ingestInboundMessage(params: {
     share: '[โพสต์ที่แชร์]',
     template: '[ข้อความจากระบบ]',
   }
+  const giphyKind = giphyMessageKind(attUrl)
+  const giphyLabel = giphyKind ? giphyPreviewLabel(giphyKind) : null
   const singlePreview = isCallEvent
     ? // preview ในรายการแชทต้องเป็นไทยเหมือนการ์ดในเธรด — ถ้าปล่อยตกไปสาขา hasDisplayText
       // มันจะเอา title ของ Meta ("Missed call") มาแสดงดิบ ๆ คนละภาษากับที่เห็นตอนเปิดห้อง
@@ -1471,7 +1475,10 @@ export async function ingestInboundMessage(params: {
       ? '[สายที่ไม่ได้รับ]'
       : '[มีการโทรด้วยเสียง]'
     : mirroredFileId
-    ? (previewByType[type] ?? '[ไฟล์แนบ]')
+    ? // สติกเกอร์/GIF ของ IG มาเป็น `type: image` เหมือนรูปถ่ายจริงทุกประการ ⇒ ถ้าไม่แยกตรงนี้
+      // รายการแชทจะขึ้น "[รูปภาพ]" กับทุกอย่าง แล้วผู้ขายนึกว่าลูกค้าส่งรูปสินค้ามา
+      // (user แจ้ง 2026-08-27) — ตัวแยกอยู่ใน URL ของ GIPHY เอง อ่านไม่ออกก็ตกไปคำเดิม
+      (giphyLabel ?? previewByType[type] ?? '[ไฟล์แนบ]')
     : // การ์ดของ Meta → label สั้นตัวเดียวกับ SHORT_PREVIEW_BY_ATTTYPE.template ไม่ใช่เนื้อหาจริง
       // ตัด 100 ตัวอักษร (บทเรียน user report 2026-07-25: placeholder ยาวไปโผล่ในรายการแชท)
       // ต้องมาก่อนสาขา hasDisplayText เพราะการ์ดมี displayText เสมอหลังแก้ 2026-08-07
@@ -3605,11 +3612,28 @@ async function transmitMetaMessage(
         ])
       ).externalMessageId
     } else if (params.sticker) {
-      // สติกเกอร์: ยิง sticker_id ตรง ๆ ไม่ใช่ attachment (ดู lib/facebook/graph.ts sendStickerMessage)
+      /**
+       * 🛑 **Instagram ไม่รองรับ `sticker_id`** — Send API ของ IG มีสติกเกอร์ตัวเดียวคือ `like_heart`
+       * ส่วนสติกเกอร์ที่ผู้ใช้เห็นในแอป IG คือ **GIPHY** ซึ่งเป็นไฟล์ `.gif` ธรรมดา
+       *
+       * ยิง `message: { sticker_id }` ใส่ IG แล้ว Meta ตอบ **`(#100) Empty text`** เพราะมองว่า
+       * ข้อความไม่มีทั้ง text และ attachment ที่มันรู้จัก (ผู้ใช้เจอบน prod 2026-08-27 10:28
+       * — error เด้งขึ้น Swal ทันทีและ **ไม่ถูกบันทึกเป็นแถวเลย** จึงหาจากฐานไม่เจอ)
+       *
+       * IG ต้องส่งเป็น **ไฟล์แนบชนิด image ด้วย URL สาธารณะ** แทน (เอกสาร Attachment Upload API:
+       * *"image (which include GIFs)"* — png, jpeg, gif ≤8MB) URL ของ GIPHY เป็นสาธารณะอยู่แล้ว
+       * Meta ดึงเองได้ ไม่ต้อง presign เหมือนไฟล์ใน storage ของเรา
+       *
+       * Messenger ยังใช้ `sticker_id` เหมือนเดิม — คลังของมันเป็นของ Meta เอง ไม่ใช่ GIPHY
+       */
+      const stickerPart: OutboundMessagePart =
+        conversation.channel === 'INSTAGRAM'
+          ? { kind: 'attachment', attachmentKind: 'IMAGE', url: params.sticker.imageUrl }
+          : { kind: 'sticker', stickerId: params.sticker.id }
       // อยู่ใต้กฎหน้าต่างเวลาเดียวกัน จึงส่ง messageTag ไปด้วยเหมือนข้อความปกติ
       mid = (
         await adapter.sendMessages(sendCtx({ replyToExternalId: params.replyToMid, tag: messageTag }), [
-          { kind: 'sticker', stickerId: params.sticker.id },
+          stickerPart,
         ])
       ).externalMessageId
     } else if (attachment) {
