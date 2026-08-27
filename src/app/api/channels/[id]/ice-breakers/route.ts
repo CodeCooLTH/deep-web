@@ -17,13 +17,13 @@ import { prisma } from "@/lib/prisma";
  */
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ channelId: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
   const userId = sessionUserId(session);
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const { channelId } = await params;
+  const { id: channelId } = await params;
   // authz อยู่ที่ saveIceBreakers อยู่แล้วสำหรับ PUT — GET ต้องเช็คเองที่นี่
   const channel = await prisma.shopChannel.findUnique({
     where: { id: channelId },
@@ -39,13 +39,13 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ channelId: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
   const userId = sessionUserId(session);
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const { channelId } = await params;
+  const { id: channelId } = await params;
   const body = (await request.json().catch(() => null)) as { items?: unknown } | null;
   const raw = Array.isArray(body?.items) ? body.items : null;
   if (!raw) return NextResponse.json({ error: "รูปแบบข้อมูลไม่ถูกต้อง" }, { status: 400 });
