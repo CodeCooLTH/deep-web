@@ -76,7 +76,7 @@ export default function ShipmentRail({
   const stepIcon = (i: number) => (i === last ? (lastIcon ?? SHIPMENT_STAGES[i].icon) : SHIPMENT_STAGES[i].icon)
 
   const dot = (
-    icon: string,
+    icon: string | { icon: string; flipX?: boolean },
     state: 'current' | 'reached' | 'future',
     currentCls: string,
     /**
@@ -108,7 +108,11 @@ export default function ShipmentRail({
             : 'bg-default-100 text-default-500',
       )}
     >
-      <Icon icon={icon} className={DOT_ICON[size]} aria-hidden="true" />
+      <Icon
+        icon={typeof icon === 'string' ? icon : icon.icon}
+        className={cn(DOT_ICON[size], typeof icon !== 'string' && icon.flipX && '-scale-x-100')}
+        aria-hidden="true"
+      />
     </span>
   )
 
@@ -222,7 +226,7 @@ export default function ShipmentRail({
                 <span className={cn('h-0.5 flex-1', i <= leg.stage ? 'bg-success' : 'bg-default-200')} />
               )}
               {dot(
-                d.icon,
+                { icon: d.icon, flipX: d.flipX },
                 i === leg.stage ? 'current' : i < leg.stage ? 'reached' : 'future',
                 currentDotCls,
               )}
@@ -268,7 +272,7 @@ export default function ShipmentRail({
             </>
           )}
           {dot(
-            d.icon,
+            { icon: d.icon, flipX: d.flipX },
             i === leg.stage ? 'current' : i < leg.stage ? 'reached' : 'future',
             // จุดที่ยืนอยู่บนขากลับ: ถึงร้านแล้ว = เขียว (มติ user 2026-08-24 "เขียวเหมือนกัน"
             // แยกจาก "ส่งสำเร็จ" ด้วย **รูปร่างไอคอน** `building-store` ไม่ใช่ด้วยสี)

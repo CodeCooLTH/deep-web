@@ -64,6 +64,15 @@ export interface ReturnLegDot {
   label: string
   /** ชื่อ tabler ล้วน ไม่มี prefix — ผู้เรียกเติมเองตามที่แต่ละจอทำอยู่ */
   icon: string
+  /**
+   * กลับด้านซ้าย-ขวาของไอคอน — สำหรับรูปที่ "มีหน้ามีหลัง" บนแถบที่เดินย้อนทาง
+   *
+   * 🛑 tabler ไม่มีรถที่หันซ้าย และ `truck-return` เป็นรถหันขวาที่มีลูกศรกำกับ (คนละเรื่อง
+   * กับรถที่วิ่งกลับ) ⇒ ใช้วิธี mirror รูปเดิมแทนการหาไอคอนใหม่
+   * `-scale-x-100` เป็น utility มาตรฐานของ Tailwind v4 **ไม่ใช่ arbitrary value**
+   * (พิสูจน์กับ Tailwind CLI ของโปรเจกต์แล้วว่าถูก generate จริง) ⇒ ไม่ผิด HR7
+   */
+  flipX?: boolean
 }
 
 export interface ReturnLeg {
@@ -243,7 +252,7 @@ export function describeReturnLeg(input: ReturnLegInput): ReturnLeg | null {
       dots.push({ label: ACCEPTED[a], icon: ICON.accepted })
     }
     if (ret.trackingSource !== RETURN_TRACKING_SOURCE.NONE) {
-      dots.push({ label: IN_TRANSIT[a], icon: ICON.inTransit })
+      dots.push({ label: IN_TRANSIT[a], icon: ICON.inTransit, flipX: true })
     }
     dots.push({ label: ARRIVED.RETURN[a], icon: ICON.arrived })
 
@@ -274,7 +283,7 @@ export function describeReturnLeg(input: ReturnLegInput): ReturnLeg | null {
   const bounceDots: ReturnLegDot[] = [
     { label: BOUNCE_ORIGIN[a], icon: FORWARD_OUTCOME.failed.icon },
     { label: DEPARTED.BOUNCE[a], icon: ICON.bounceDepart },
-    ...(dispatchedAt ? [{ label: DISPATCHED[a], icon: ICON.inTransit }] : []),
+    ...(dispatchedAt ? [{ label: DISPATCHED[a], icon: ICON.inTransit, flipX: true }] : []),
     { label: ARRIVED.BOUNCE[a], icon: ICON.arrived },
   ]
 

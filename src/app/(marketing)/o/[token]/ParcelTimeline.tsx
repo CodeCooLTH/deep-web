@@ -432,7 +432,13 @@ export default function ParcelTimeline({
                         : {}),
                     }}
                   >
-                    <Icon icon={`tabler-${d.icon}`} fontSize={18} />
+                    {/* รถต้องหันตามทิศที่เดิน — แถบนี้เดินขวา→ซ้าย (ดู `ReturnLegDot.flipX`)
+                        ฝั่งนี้เป็น MUI จึงกลับด้านด้วย sx ไม่ใช่ utility ของ Paces */}
+                    <Icon
+                      icon={`tabler-${d.icon}`}
+                      fontSize={18}
+                      style={d.flipX ? { transform: 'scaleX(-1)' } : undefined}
+                    />
                   </Box>
                 </Box>
               )

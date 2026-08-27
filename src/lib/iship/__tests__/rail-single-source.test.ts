@@ -230,3 +230,44 @@ describe('[blocker] แถบตีกลับต้อง invert กับข�
     }
   })
 })
+
+describe('[blocker] ไอคอนที่ "มีหน้ามีหลัง" ต้องหันตามทิศที่แถบเดิน', () => {
+  /**
+   * 🛑 แถบขากลับเดินขวา→ซ้าย แต่ `truck-delivery` ของ tabler เป็นรถหันขวา
+   * ⇒ รถวิ่งสวนทางกับแถบที่มันอยู่ (user ทัก 2026-08-27: "icon truck invert ได้ไหม")
+   *
+   * tabler ไม่มีรถหันซ้าย และ `truck-return` เป็นรถหันขวาที่มีลูกศรกำกับ (คนละเรื่องกับ
+   * รถที่กำลังวิ่งกลับ) ⇒ mirror รูปเดิมแทนการหาไอคอนใหม่
+   *
+   * ด่านนี้บังคับที่ **ข้อมูล** (`flipX` บนจุดที่เป็นรถ) ไม่ใช่ที่ชื่อคลาส CSS —
+   * สองจอ render คนละสกิน (Paces `-scale-x-100` / MUI `scaleX(-1)`) ถ้าผูกกับคลาส
+   * ด่านจะจับได้จอเดียว
+   */
+  it('จุดที่ใช้ไอคอนรถต้องมี flipX', () => {
+    const legs = [
+      describeReturnLeg({
+        audience: 'seller',
+        carrierStatus: 'return_success',
+        returnDispatchedAt: '2026-08-24T03:00:00Z',
+      })!,
+      describeReturnLeg({
+        audience: 'seller',
+        orderReturn: { status: 'SHIPPING', trackingSource: 'ISHIP' },
+      })!,
+    ]
+    for (const leg of legs) {
+      const trucks = leg.dots.filter((d) => d.icon.startsWith('truck'))
+      expect(trucks.length, 'ควรมีจุดที่เป็นรถอย่างน้อย 1 จุด').toBeGreaterThan(0)
+      for (const t of trucks) expect(t.flipX, `${t.label} (${t.icon})`).toBe(true)
+    }
+  })
+
+  it('ทั้งสองจอต้องกลับด้านจริง — คนละสกินแต่ต้องทำเหมือนกัน', () => {
+    expect(stripComments(read('src/components/safepay/iship/ShipmentRail.tsx'))).toContain(
+      '-scale-x-100',
+    )
+    expect(stripComments(read('src/app/(marketing)/o/[token]/ParcelTimeline.tsx'))).toContain(
+      'scaleX(-1)',
+    )
+  })
+})
