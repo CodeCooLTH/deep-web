@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { giphyMessageKind, giphyPreviewLabel } from '@/lib/giphy-message-kind'
 import { isStickerRawMessage } from '@/lib/chat-sticker'
+import * as v from 'valibot'
+import { SendChatMessageSchema } from '@/lib/validations'
 
 const ROOT = process.cwd()
 
@@ -106,5 +108,32 @@ describe('[blocker] ingest ต้องใช้ป้ายของ GIPHY ใ�
 
   it('ป้ายของ GIPHY ต้องมาก่อน previewByType ไม่งั้นตกไป "[รูปภาพ]" เหมือนเดิม', () => {
     expect(src()).toMatch(/giphyLabel \?\? previewByType\[type\]/)
+  })
+})
+
+/**
+ * [blocker] `stickerId` ต้องรับ id ของ GIPHY ได้
+ *
+ * เดิม regex เป็น `^[0-9]+$` (สมัยที่มีแต่สติกเกอร์ Meta ซึ่ง id เป็นตัวเลขล้วน) ⇒ id ของ GIPHY
+ * โดนตีตกตั้งแต่ด่าน Valibot **ก่อนถึง service** → 400 Bad Request → ผู้ขายเห็นแค่ "ส่งไม่สำเร็จ"
+ * (prod 2026-08-27: `Invalid format: Expected /^[0-9]+$/ but received "06PsUSUsKBrhuhIYj0"`)
+ */
+describe('[blocker] SendChatMessageSchema.stickerId', () => {
+  const parse = (id: string) =>
+    v.safeParse(SendChatMessageSchema, { type: 'STICKER', stickerId: id, stickerImageUrl: 'https://media0.giphy.com/x.gif' })
+
+  it('รับ id ของ GIPHY (ตัวอักษรผสม) — ค่าจริงที่ผู้ใช้เจอ', () => {
+    expect(parse('06PsUSUsKBrhuhIYj0').success).toBe(true)
+    expect(parse('YrMpuzXd1aro5pAHiV').success).toBe(true)
+  })
+
+  it('ยังรับ id ของ Meta (ตัวเลขล้วน) เหมือนเดิม — ห้ามแก้ทางใหม่แล้วพังทางเก่า', () => {
+    expect(parse('369239263222822').success).toBe(true)
+  })
+
+  it('ยังกันอักขระที่พาไปเป็น path/URL ได้ (ค่านี้ถูกส่งต่อเข้า Graph + เก็บลง rawMessage)', () => {
+    for (const bad of ['../etc/passwd', 'a/b', 'http://x', 'a.b', 'a:b', 'a b', '']) {
+      expect(parse(bad).success, bad).toBe(false)
+    }
   })
 })

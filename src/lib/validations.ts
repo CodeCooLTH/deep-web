@@ -912,7 +912,17 @@ export const SendChatMessageSchema = v.object({
    */
   /** รูปหลายใบสำหรับ type='IMAGE_GRID' — fileId จาก POST /api/chat/upload (จำกัด 24 ใบต่อคำขอ) */
   imageFileIds: v.optional(v.pipe(v.array(v.pipe(v.string(), v.minLength(1))), v.maxLength(24))),
-  stickerId: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(32), v.regex(/^[0-9]+$/))),
+  /**
+   * 🛑 เดิมบังคับ `^[0-9]+$` เพราะตอนเขียน (2026-08-04) มีแต่สติกเกอร์ของ **Meta** ซึ่ง id เป็นตัวเลขล้วน
+   * พอเธรด Instagram ใช้คลัง **GIPHY** (id เป็นตัวอักษรผสม เช่น `06PsUSUsKBrhuhIYj0`) ด่านนี้ตีตก
+   * ตั้งแต่ก่อนถึง service ⇒ **400 Bad Request** ผู้ขายเห็นแค่ "ส่งไม่สำเร็จ" โดยไม่มีอะไรบอกว่าทำไม
+   * (ผู้ใช้เจอบน prod 2026-08-27 — error จริงคือ Valibot ของเราเอง ไม่ใช่ของ Meta)
+   *
+   * ยังคุมชุดอักขระไว้แน่น (`A-Za-z0-9_-`) เพราะค่านี้ถูกส่งต่อเข้า `sticker_id` ของ Graph และเก็บลง
+   * `rawMessage` — ห้ามให้มี `/`, `.`, `:` หรืออักขระที่พาไปเป็น path/URL ได้
+   * ส่วนว่า id นั้น "ส่งได้จริงไหม" ปลายทางเป็นคนตอบ (Meta/คลังของช่องทางนั้น) ไม่ใช่ regex ที่นี่
+   */
+  stickerId: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(64), v.regex(/^[A-Za-z0-9_-]+$/))),
   stickerImageUrl: v.optional(v.pipe(v.string(), v.url(), v.maxLength(2000), v.startsWith('https://'))),
 });
 // ตรวจ conditional-required ที่ route:
