@@ -95,7 +95,7 @@ export default function IceBreakerStatusRow({
           href={href}
           className="text-primary hover:text-primary-hover ms-auto inline-flex items-center gap-1 text-sm font-medium"
         >
-          {state === 'NONE' ? 'ตั้งคำถามแนะนำ' : 'จัดการคำถาม'}
+          {state === 'NONE' ? 'สร้างคำถามแนะนำ' : 'จัดการ'}
           <Icon icon="chevron-right" className="text-sm" aria-hidden="true" />
         </Link>
       )}
