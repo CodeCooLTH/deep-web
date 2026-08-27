@@ -3009,11 +3009,19 @@ export default function ChatThread({
                           {/* feature 00048 — ปุ่มผูกกับ "รูปนำของกลุ่ม" (ms[0]) เหมือนที่ reply/react
                               ทำอยู่แล้ว. รูปใบที่ 2 เป็นต้นไปเก็บได้จากใน lightbox ซึ่งมีปุ่มรายสไลด์
                               **ไม่ gate ด้วย !queued โดยตั้งใจ** — อ้าง imageUrl (fileId ของเรา) ไม่ใช่ mid */}
-                          <SaveToLibraryButton
-                            saved={Boolean(ms[0].imageUrl && savedFiles.has(ms[0].imageUrl))}
-                            busy={savingFileId === ms[0].imageUrl}
-                            onToggle={() => void toggleLibrary(ms[0])}
-                          />
+                          {isLibraryEligible({
+                            type: ms[0].type,
+                            isSticker: ms[0].isSticker,
+                            fromCard: false,
+                            hasFile: Boolean(ms[0].imageUrl),
+                            storageKey: ms[0].imageUrl,
+                          }) && (
+                            <SaveToLibraryButton
+                              saved={Boolean(ms[0].imageUrl && savedFiles.has(ms[0].imageUrl))}
+                              busy={savingFileId === ms[0].imageUrl}
+                              onToggle={() => void toggleLibrary(ms[0])}
+                            />
+                          )}
                           {!queued && (
                             <ReactMessageButton
                               onOpen={(rect) =>
@@ -3089,15 +3097,22 @@ export default function ChatThread({
                        * เติมเฉพาะปุ่มของฟีเจอร์นี้ ไม่เติม reply/react (นั่นเป็นช่องว่างเดิมคนละเรื่อง
                        * ที่ต้องตัดสินแยก ไม่ใช่ของแถมที่แอบใส่มากับงานนี้)
                        */}
-                      {!mine && (
-                        <div className="flex items-start gap-0.5">
-                          <SaveToLibraryButton
-                            saved={Boolean(ms[0].imageUrl && savedFiles.has(ms[0].imageUrl))}
-                            busy={savingFileId === ms[0].imageUrl}
-                            onToggle={() => void toggleLibrary(ms[0])}
-                          />
-                        </div>
-                      )}
+                      {!mine &&
+                        isLibraryEligible({
+                          type: ms[0].type,
+                          isSticker: ms[0].isSticker,
+                          fromCard: false,
+                          hasFile: Boolean(ms[0].imageUrl),
+                          storageKey: ms[0].imageUrl,
+                        }) && (
+                          <div className="flex items-start gap-0.5">
+                            <SaveToLibraryButton
+                              saved={Boolean(ms[0].imageUrl && savedFiles.has(ms[0].imageUrl))}
+                              busy={savingFileId === ms[0].imageUrl}
+                              onToggle={() => void toggleLibrary(ms[0])}
+                            />
+                          </div>
+                        )}
                     </div>
                   )
                 }
