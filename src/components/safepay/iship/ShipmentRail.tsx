@@ -90,6 +90,8 @@ export default function ShipmentRail({
      * แก้ด้วย **รูปร่าง** ไม่ใช่สี เพราะสีถูกล็อกด้วยมติ user แล้ว
      */
     ringTone?: 'success' | 'warning',
+    /** สีของจุดที่ "ผ่านมาแล้ว" — ไม่ส่ง = เขียวตามเดิม (เส้นทางที่สำเร็จ) */
+    reachedCls?: string,
   ) => (
     <span
       className={cn(
@@ -100,7 +102,9 @@ export default function ShipmentRail({
         state === 'current'
           ? currentCls
           : state === 'reached'
-            ? 'bg-success text-white'
+            ? // เส้นทางที่ผ่านมาแล้ว — ใช้สีเดียวกับจุดปัจจุบันเมื่อผู้เรียกส่ง tone ของตัวเองมา
+              // (แถวตีกลับ: ผ่านมาแล้วต้องไม่เขียว เพราะมันคือเส้นทางที่ล้มเหลว)
+              (reachedCls ?? 'bg-success text-white')
             : 'bg-default-100 text-default-500',
       )}
     >
@@ -181,8 +185,57 @@ export default function ShipmentRail({
     )
   }
 
-  // ── แถว 2 : ขากลับ (เดินขวา→ซ้าย) ───────────────────────────────────────────
   const n = leg.dots.length
+
+  /**
+   * ── เคสตีกลับ : แถวเดียว เดินซ้าย→ขวาปกติ ────────────────────────────────
+   *
+   * ไม่วาดขาไป เพราะจุดแรกของแถวนี้ ("ส่งไม่สำเร็จ") พูดแทนมันหมดแล้ว — วาดขาไปอีกแถว
+   * คือเล่าเรื่องเดิมซ้ำด้วยที่ 4 จุด (user สั่ง 2026-08-27)
+   *
+   * ⇒ ไม่มีงูเลื้อย ไม่มีข้อศอก ไม่มีลูกศรย้อน — เพราะไม่มีอะไรให้บรรจบกับอะไร
+   * ทิศทางกลับด้านมีความหมายก็ต่อเมื่อมี "ขาไป" ให้เทียบเท่านั้น
+   */
+  if (leg.standalone) {
+    return (
+      <div role={role} aria-label={ariaLabel}>
+        <div className="flex items-center">
+          {leg.dots.map((d, i) => (
+            <Fragment key={`s-${d.label}-${i}`}>
+              {i > 0 && (
+                <span
+                  className={cn(
+                    'h-0.5 flex-1',
+                    i <= leg.stage ? (i === n - 1 ? TONE_LINE.success : TONE_LINE.warning) : 'bg-default-200',
+                  )}
+                />
+              )}
+              {dot(
+                d.icon,
+                i === leg.stage ? 'current' : i < leg.stage ? 'reached' : 'future',
+                // ปลายทาง = เขียว (มติ user) แยกจาก "ส่งสำเร็จ" ด้วยไอคอน `building-store`
+                i === n - 1 ? TONE_SOLID.success : TONE_SOLID.warning,
+                undefined,
+                TONE_SOLID.warning,
+              )}
+            </Fragment>
+          ))}
+        </div>
+        {labels && (
+          <div className="mt-1.5 flex items-start">
+            {leg.dots.map((d, i) => (
+              <Fragment key={`sl-${d.label}-${i}`}>
+                {i > 0 && <span className="flex-1" />}
+                {label(d.label, i === 0 ? 'start' : i === n - 1 ? 'end' : 'center', i === leg.stage)}
+              </Fragment>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── แถว 2 : ขากลับ (เดินขวา→ซ้าย) ───────────────────────────────────────────
   const mid = Math.floor((n - 1) / 2) // segment ที่จะสอดลูกศรบอกทิศ (ปัดลง)
 
   const row2 = (
@@ -245,19 +298,6 @@ export default function ShipmentRail({
       {row2}
       {row2Labels}
 
-      {/* 🛑 ป้าย "ขากลับใช้เลขเดิม" อยู่ **ในแถบเอง** ไม่ใช่ให้ผู้เรียก 6 รายจำ
-          รอบแรกแยกเป็น component ให้ผู้เรียกวางเอง แล้วมีแค่ 3 จาก 6 จอที่วาง ⇒ จอที่พูด
-          เรื่องเลขพัสดุหนักที่สุด (โมดัลสถานะพัสดุ) กลับไม่มีคำตอบว่าเลขขากลับอยู่ไหน
-          และคอมเมนต์ของ component นั้นก็นับจอผิดเป็น "3 จอ" (impeccable audit 2026-08-26) */}
-      {leg.kind === 'BOUNCE' && labels && (
-        <p className="text-default-700 text-2xs mt-2 mb-0 flex justify-end">
-          {/* ข้อความจริง ไม่ใช่ `title=` — มือถือไม่มี hover และ `<span>` เปล่าไม่รองรับ
-              ชื่อจากผู้เขียน (docs/conventions/aria-name-requires-supporting-role.md) */}
-          <span className="bg-default-200 rounded-full px-2 py-px">
-            ขากลับใช้เลขพัสดุเดิม ขนส่งไม่ได้ออกเลขใหม่
-          </span>
-        </p>
-      )}
     </div>
   )
 }

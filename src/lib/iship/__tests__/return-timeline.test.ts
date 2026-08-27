@@ -62,13 +62,39 @@ describe('[blocker] ออเดอร์ปกติต้องไม่มี
   })
 })
 
-describe('[blocker] เคสตีกลับ (BOUNCE) — 2 จุดเสมอ', () => {
-  it('กำลังตีกลับ → จุดแรกสว่าง ปลายทางยังไม่ถึง', () => {
+/**
+ * 🛑 **3 จุด ไม่ใช่ 4** — พิสูจน์กับข้อมูล prod 2026-08-27:
+ *
+ * iShip ส่ง *รหัสสถานะ* ของขากลับมาแค่ 2 ตัว (`return` / `return_success`) — ตรวจ event
+ * ทั้งหมดหลังพัสดุเริ่มตีกลับ (45 + 6 ครั้ง จาก 13 ใบ) **ไม่มีรหัสอื่นเลยสักตัว**
+ *
+ * ขั้นย่อยที่ละเอียดกว่า (`ถึงศูนย์คัดแยก` / `อยู่ระหว่างการขนส่ง`) มีจริงแต่ซ่อนใน
+ * `statusDesc` ซึ่งเป็นข้อความอิสระ **และมีแค่ SPX ที่ส่งมา — Flash ไม่ส่งเลยสักตัว**
+ * (prod: SPX 6 ใบมีครบ · Flash 6 ใบเป็น 0 ทุกช่อง) ⇒ 4 จุดตายตัวจะทำให้ครึ่งหนึ่งของใบ
+ * มี 2 จุดที่ไม่มีวันสว่าง ซึ่งผิดหลักเดียวกับที่ทำให้จำนวนจุดผันตามข้อมูลตั้งแต่แรก
+ *
+ * จุดที่ 3 คือ `ส่งไม่สำเร็จ` — *เหตุ* ที่ทำให้แถวขากลับมีอยู่ และเป็นตัวแทนของแถวขาไป
+ * ที่ถูกถอดออกไป (user สั่ง 2026-08-27: "ถ้ามีการตีกลับ ไม่จำเป็นต้องแสดงขาไป")
+ */
+describe('[blocker] เคสตีกลับ (BOUNCE) — 3 จุด แถวเดียว ไม่วาดขาไป', () => {
+  it('กำลังตีกลับ → อยู่จุดกลาง ปลายทางยังไม่ถึง', () => {
     const leg = describeReturnLeg(seller({ carrierStatus: 'return' }))!
     expect(leg.kind).toBe('BOUNCE')
-    expect(leg.dots.map((d) => d.label)).toEqual(['กำลังตีกลับ', 'กลับถึงร้าน'])
-    expect(leg.stage).toBe(0)
+    expect(leg.dots.map((d) => d.label)).toEqual(['ส่งไม่สำเร็จ', 'กำลังตีกลับ', 'กลับถึงร้าน'])
+    expect(leg.stage).toBe(1)
     expect(leg.originTone).toBe('warning')
+  })
+
+  it('ต้องเป็น standalone — ห้ามวาดแถวขาไปคู่กัน', () => {
+    expect(describeReturnLeg(seller({ carrierStatus: 'return' }))!.standalone).toBe(true)
+    expect(describeReturnLeg(seller({ carrierStatus: 'return_success' }))!.standalone).toBe(true)
+  })
+
+  it('เคสคืนของยังต้องวาดขาไป — ขาไปสำเร็จจริง เป็นข้อเท็จจริงที่ต้องคงไว้ (00055)', () => {
+    const leg = describeReturnLeg(
+      seller({ orderReturn: { status: 'REQUESTED', trackingSource: 'ISHIP' } }),
+    )!
+    expect(leg.standalone).toBe(false)
   })
 
   it('ถึงร้านแล้ว → จุดสุดท้ายสว่าง', () => {
@@ -87,7 +113,7 @@ describe('[blocker] เคสตีกลับ (BOUNCE) — 2 จุดเส�
     const leg = describeReturnLeg(
       seller({ carrierStatus: 'return_success', returnedAt: null, returnStartedAt: null }),
     )!
-    expect(leg.stage).toBe(1)
+    expect(leg.stage).toBe(leg.dots.length - 1)
     expect(leg.arrivedAt).toBeNull()
     expect(leg.startedAt).toBeNull()
   })
@@ -175,11 +201,11 @@ describe('[blocker] เคสคืนของ (RETURN) — จำนวนจ�
 })
 
 describe('[blocker] คำฝั่งผู้ซื้อต่างเฉพาะจุดที่มีคำว่า "ร้าน"', () => {
-  it('BOUNCE — ต่างทั้ง 2 จุด', () => {
+  it('BOUNCE — ต่างเฉพาะ 2 จุดหลัง จุดแรกใช้คำร่วม', () => {
     const s = describeReturnLeg(seller({ carrierStatus: 'return_success' }))!
     const b = describeReturnLeg(buyer({ carrierStatus: 'return_success' }))!
-    expect(s.dots.map((d) => d.label)).toEqual(['กำลังตีกลับ', 'กลับถึงร้าน'])
-    expect(b.dots.map((d) => d.label)).toEqual(['กำลังส่งกลับร้าน', 'ของกลับถึงร้าน'])
+    expect(s.dots.map((d) => d.label)).toEqual(['ส่งไม่สำเร็จ', 'กำลังตีกลับ', 'กลับถึงร้าน'])
+    expect(b.dots.map((d) => d.label)).toEqual(['ส่งไม่สำเร็จ', 'กำลังส่งกลับร้าน', 'ของกลับถึงร้าน'])
   })
 
   it('RETURN — ต่างเฉพาะหัวกับท้าย จุดกลางใช้คำร่วม', () => {

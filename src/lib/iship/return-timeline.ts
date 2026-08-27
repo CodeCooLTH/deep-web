@@ -39,7 +39,7 @@
  * (docs/conventions/partial-data-must-be-labeled-or-filled.md)
  */
 
-import { returnLegStampOf } from './status'
+import { FORWARD_OUTCOME, returnLegStampOf } from './status'
 
 /**
  * มุมมองของคนอ่าน — คำที่มีคำว่า "ร้าน" อยู่ในนั้นแปลคนละอย่างจากสองฝั่ง
@@ -90,6 +90,17 @@ export interface ReturnLeg {
    * เป็นคนละเรื่องโดยเจตนา
    */
   originTone: 'warning' | 'success'
+  /**
+   * `true` = แถวนี้เล่าเรื่องครบในตัวเอง **ไม่ต้องวาดแถวขาไป**
+   *
+   * เคสตีกลับ: ขาไปจบด้วยความล้มเหลว และจุดแรกของแถวนี้ (`ส่งไม่สำเร็จ`) พูดแทนมันหมดแล้ว
+   * ⇒ วาดขาไปอีกแถวคือการเล่าเรื่องเดิมซ้ำด้วยที่ 4 จุด (user สั่ง 2026-08-27:
+   * *"ถ้ามีการตีกลับ ไม่จำเป็นต้องแสดงขาไป เหลือ timeline ขากลับก็พอ"*)
+   *
+   * เคสคืนของ: ขาไป **สำเร็จจริง** และเป็นข้อเท็จจริงที่ต้องคงไว้ (00055 แยก "ไม่เคยได้รับ"
+   * ออกจาก "ได้รับแล้วคืน") ⇒ ยังวาด 2 แถวเหมือนเดิม
+   */
+  standalone: boolean
 }
 
 // ─── คลังคำ ──────────────────────────────────────────────────────────────────
@@ -208,6 +219,7 @@ export function describeReturnLeg(input: ReturnLegInput): ReturnLeg | null {
       startedAt: toDate(ret.createdAt),
       arrivedAt: toDate(ret.receivedAt),
       originTone: 'success',
+      standalone: false,
     }
   }
 
@@ -215,17 +227,29 @@ export function describeReturnLeg(input: ReturnLegInput): ReturnLeg | null {
   const stampCol = returnLegStampOf(input.carrierStatus)
   if (!stampCol) return null
 
+  /**
+   * 🛑 **3 จุด ไม่ใช่ 4** — iShip ส่ง *รหัสสถานะ* ของขากลับมาแค่ 2 ตัว (`return` /
+   * `return_success`) ยืนยันจาก event ทั้งหมดหลังพัสดุเริ่มตีกลับบน prod (45+6 ครั้ง
+   * จาก 13 ใบ ไม่มีรหัสอื่นเลย) ⇒ จุดที่ 3 คือ "ส่งไม่สำเร็จ" ซึ่งเป็น *เหตุ* ที่ขากลับมีอยู่
+   *
+   * ขั้นย่อยที่ละเอียดกว่านี้ (`ถึงศูนย์คัดแยก` / `อยู่ระหว่างการขนส่ง`) **มีจริงแต่ซ่อนใน
+   * `statusDesc` ซึ่งเป็นข้อความอิสระ และมีแค่ SPX ที่ส่งมา — Flash ไม่ส่งเลยสักตัว**
+   * (prod: SPX 6 ใบมีครบ · Flash 6 ใบเป็น 0 ทุกช่อง) ⇒ ทำ 4 จุดตายตัว = ครึ่งหนึ่งของใบ
+   * จะมี 2 จุดที่ไม่มีวันสว่าง ซึ่งผิดหลักเดียวกับที่ทำให้จำนวนจุดผันตามข้อมูลตั้งแต่แรก
+   */
   return {
     kind: 'BOUNCE',
     dots: [
+      { label: FORWARD_OUTCOME.failed.label, icon: FORWARD_OUTCOME.failed.icon },
       { label: DEPARTED.BOUNCE[a], icon: ICON.bounceDepart },
       { label: ARRIVED.BOUNCE[a], icon: ICON.arrived },
     ],
-    // ถึงร้านแล้ว = จุดที่ 2 (index 1) · ยังกลับอยู่ = จุดที่ 1 (index 0)
-    stage: stampCol === 'returnedAt' ? 1 : 0,
+    // จุดแรก ("ส่งไม่สำเร็จ") ถึงแล้วเสมอ — มันคือเหตุที่ทำให้แถวนี้มีอยู่
+    stage: stampCol === 'returnedAt' ? 2 : 1,
     startedAt: toDate(input.returnStartedAt),
     arrivedAt: toDate(input.returnedAt),
     originTone: 'warning',
+    standalone: true,
   }
 }
 
@@ -263,7 +287,7 @@ function returnStageOf(
  * ⇒ คำเดียวกันประกาศ 3 ที่ ไม่มีอะไรบังคับให้ตรงกัน วันที่ใครแก้ที่หนึ่ง อีกสองที่เงียบ (HR16)
  * (impeccable clarify จับได้ 2026-08-25)
  */
-export { FORWARD_OUTCOME } from './status'
+export { FORWARD_OUTCOME }
 
 /**
  * railAriaLabel — ประโยคเดียวที่อธิบายทั้งแถบให้ screen reader
@@ -277,6 +301,8 @@ export { FORWARD_OUTCOME } from './status'
 export function railAriaLabel(forwardLabel: string, leg: ReturnLeg | null): string {
   if (!leg) return `สถานะพัสดุ ${forwardLabel}`
   const at = leg.dots[Math.min(leg.stage, leg.dots.length - 1)].label
+  // standalone = ไม่มีแถวขาไปบนจอ ⇒ ห้ามพูดถึงมันในเสียงด้วย ไม่งั้นคนฟังจะหาไม่เจอ
+  if (leg.standalone) return `สถานะพัสดุ ${at}`
   return `สถานะพัสดุ ขาไป ${forwardLabel} ขากลับ ${at}`
 }
 
