@@ -32,7 +32,7 @@ import { fmt } from '@/i18n/fmt'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 import BuyerAvatar from '../../orders/components/BuyerAvatar'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
-import IceBreakerStatusRow from './IceBreakerStatusRow'
+import IceBreakerChip from './IceBreakerChip'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -268,14 +268,12 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
             const isActive = channel.status === 'ACTIVE'
             const isTokenInvalid = channel.status === 'TOKEN_INVALID'
 
-            // Ice Breakers (Meta) เป็นของ Messenger/Instagram เท่านั้น — LINE/DEEP ไม่มีแถวนี้
+            // Ice Breakers (Meta) เป็นของ Messenger/Instagram เท่านั้น — ช่องทางอื่นไม่มี chip นี้
             // (ChannelsClient รับเฉพาะช่องทางที่ provider !== 'LINE' อยู่แล้วจาก page.tsx แต่เช็คซ้ำ
             // ที่นี่ให้ fail-closed หาก provider อื่นเข้ามาในอนาคต)
-            const showIceBreakerRow = channel.provider === 'MESSENGER' || channel.provider === 'INSTAGRAM'
+            const showIceBreaker = channel.provider === 'MESSENGER' || channel.provider === 'INSTAGRAM'
 
             return (
-              // border ย้ายมาไว้ที่ wrapper รอบนอก (เดิมอยู่ที่แถวเนื้อหาโดยตรง) เพื่อให้ IceBreakerStatusRow
-              // อยู่ใต้แถวเดียวกันแล้ว last:border-0 ยังตัดสินถูกว่าเป็นช่องทางสุดท้ายในรายการจริงไหม
               <div key={channel.id} className="border-b border-default-200 last:border-0">
                 <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
                   {/* ซ้าย: avatar + provider badge overlay + ชื่อ + badge สถานะ */}
@@ -337,14 +335,15 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
                         t.channels.disconnect
                       )}
                     </button>
+                    {/* คำถามแนะนำก่อนเริ่มแชท — ขวาสุดของแถว action (user สั่งย้ายเข้ามาจากแถวแยก
+                        2026-08-27: "อยากให้ปุ่มตั้ง อยู่แถวเดียว มุมขวาสุด จะได้ตั้งค่าง่ายๆ")
+                        กล่องนี้เป็น flex-wrap อยู่แล้ว ⇒ เคส token หมดอายุที่มีปุ่มครบ 3 ตัว
+                        (338px > 280px ที่ 320px) จะตกบรรทัดเองโดยไม่หลุดออกนอกกล่อง action */}
+                    {showIceBreaker && (
+                      <IceBreakerChip channelId={channel.id} tokenInvalid={isTokenInvalid} />
+                    )}
                   </div>
                 </div>
-
-                {/* คำถามแนะนำก่อนเริ่มแชท (Ice Breakers) — แถวเต็มความกว้างใต้บล็อกข้อมูล+ปุ่มเดิม
-                    คั่นด้วยเส้นประตามภาษาการออกแบบเดียวกับเมนูลัดใน LINE (RichMenuStatusRow) */}
-                {showIceBreakerRow && (
-                  <IceBreakerStatusRow channelId={channel.id} tokenInvalid={isTokenInvalid} />
-                )}
               </div>
             )
           })}
