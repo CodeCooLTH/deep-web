@@ -3,11 +3,11 @@ title: "API — นัดรับสินค้า และ การชำ�
 owner: shinobu22
 status: draft
 created: 2026-08-28
-tags: [feature, 00060, api]
+tags: [feature, 00062, api]
 related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]"]
 ---
 
-> **โมดูล:** M60-PickupBankTransfer
+> **โมดูล:** M62-PickupBankTransfer
 > **ประเภทเอกสาร:** API Contract
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-08-28

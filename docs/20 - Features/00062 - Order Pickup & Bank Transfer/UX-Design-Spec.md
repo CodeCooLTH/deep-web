@@ -1,16 +1,16 @@
 ---
-title: "UX Design Spec — นัดรับสินค้า และ การชำระเงินแบบโอน (00060)"
+title: "UX Design Spec — นัดรับสินค้า และ การชำระเงินแบบโอน (00062)"
 owner: shinobu22
 status: approved-design
 created: 2026-08-28
-tags: [feature, 00060, ux, design-spec, paces, vuexy]
+tags: [feature, 00062, ux, design-spec, paces, vuexy]
 related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]"]
 ---
 
-> **โมดูล:** M60-PickupBankTransfer
+> **โมดูล:** M62-PickupBankTransfer
 > **ประเภทเอกสาร:** UX Design Spec (mandatory gate ตาม Hard Rule 8)
 > **ผู้จัดทำ:** `safepay-ux` · **วันที่:** 2026-08-28
-> **อ่านครบตาม ux Hard Rule 9/10/11 ก่อนเขียน:** `DESIGN.md` + `.impeccable/design.json` + `PRODUCT.md` + Impeccable `shape.md`/`operate.md`/`craft-floor.md` (v4.1.1) + `docs/system/ui-guideline/paces-component-reference.md` + PRD/BRD 00060 (มติ D-1..D-5 ผูกพันแล้ว) + โค้ดจริงของทุกไฟล์ที่จะถูกแตะ
+> **อ่านครบตาม ux Hard Rule 9/10/11 ก่อนเขียน:** `DESIGN.md` + `.impeccable/design.json` + `PRODUCT.md` + Impeccable `shape.md`/`operate.md`/`craft-floor.md` (v4.1.1) + `docs/system/ui-guideline/paces-component-reference.md` + PRD/BRD 00062 (มติ D-1..D-5 ผูกพันแล้ว) + โค้ดจริงของทุกไฟล์ที่จะถูกแตะ
 
 **สำคัญ — scope นี้แตะ 2 สกินคนละธีม:** A1–A6 = Paces (seller, น้ำเงิน `#236dc9`) · B7–B8 = Vuexy/MUI (buyer, ม่วง `#7367F0` แต่ในสเปกนี้แทบไม่ใช้ม่วงเลยเพราะเป็นข้อมูล ไม่ใช่ action)
 

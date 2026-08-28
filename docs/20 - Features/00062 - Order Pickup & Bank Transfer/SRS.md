@@ -3,11 +3,11 @@ title: "SRS — นัดรับสินค้า และ การชำ�
 owner: shinobu22
 status: draft
 created: 2026-08-28
-tags: [feature, 00060, orders, payment, fulfillment, srs, technical]
+tags: [feature, 00062, orders, payment, fulfillment, srs, technical]
 related: ["[[PRD]]", "[[BRD]]", "[[API]]", "[[DATABASE]]", "[[UX-Design-Spec]]", "[[Feature-Docs-Ownership]]"]
 ---
 
-> **โมดูล:** M60-PickupBankTransfer
+> **โมดูล:** M62-PickupBankTransfer
 > **ประเภทเอกสาร:** Software Requirements Specification (SRS) — TECHNICAL
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-08-28
@@ -52,11 +52,11 @@ related: ["[[PRD]]", "[[BRD]]", "[[API]]", "[[DATABASE]]", "[[UX-Design-Spec]]",
 
 | เอกสาร | ความสัมพันธ์ |
 |--------|-------------|
-| `PRD.md` (00060) | เป้าหมายธุรกิจ, personas, มติ D-1..D-5 (§4.3) |
-| `BRD.md` (00060) | FR-PKP/FR-PAY/FR-BANK ฉบับเต็ม + เหตุผลเบื้องหลังมติ (§7.2) + หนี้ที่ฟีเจอร์นี้ปลุก (§7.3) |
-| `API.md` (00060) | API contract ฉบับสมบูรณ์ — เอกสารนี้**ไม่ลอก** request/response ซ้ำ อ้างอิงเป็นแหล่งจริงแทน |
-| `DATABASE.md` (00060) | schema/migration/CHECK/ERD ฉบับสมบูรณ์ — เอกสารนี้อ้างอิงและขยายเฉพาะส่วนที่เป็นตรรกะ (ไม่ใช่ schema) |
-| `UX-Design-Spec.md` (00060) | Layout/flow/edge state ที่ผูกกับตรรกะในเอกสารนี้ (A1–A6, B7–B8) |
+| `PRD.md` (00062) | เป้าหมายธุรกิจ, personas, มติ D-1..D-5 (§4.3) |
+| `BRD.md` (00062) | FR-PKP/FR-PAY/FR-BANK ฉบับเต็ม + เหตุผลเบื้องหลังมติ (§7.2) + หนี้ที่ฟีเจอร์นี้ปลุก (§7.3) |
+| `API.md` (00062) | API contract ฉบับสมบูรณ์ — เอกสารนี้**ไม่ลอก** request/response ซ้ำ อ้างอิงเป็นแหล่งจริงแทน |
+| `DATABASE.md` (00062) | schema/migration/CHECK/ERD ฉบับสมบูรณ์ — เอกสารนี้อ้างอิงและขยายเฉพาะส่วนที่เป็นตรรกะ (ไม่ใช่ schema) |
+| `UX-Design-Spec.md` (00062) | Layout/flow/edge state ที่ผูกกับตรรกะในเอกสารนี้ (A1–A6, B7–B8) |
 | `docs/SRS.md` §1 FR-6 | Simple OMS เดิมที่ฟีเจอร์นี้ต่อยอด — ต้อง sync หลัง implement (ดู §11) |
 | `docs/services/order-auto-confirm.service.ts` (feature 00039) | ต้นแบบที่ TFR-004 มิเรอร์ (grace period + dispute-gate + idempotent conditional update) |
 
@@ -550,7 +550,7 @@ erDiagram
 
 ## 13. สรุป (Summary)
 
-เอกสาร SRS นี้กำหนดข้อกำหนดเชิงเทคนิคของ **นัดรับสินค้า และ การชำระเงินแบบโอน** (feature 00060) ให้ DEV/QA/Reviewer นำไป implement/ทดสอบได้ตรงกับเจตนาธุรกิจใน PRD/BRD
+เอกสาร SRS นี้กำหนดข้อกำหนดเชิงเทคนิคของ **นัดรับสินค้า และ การชำระเงินแบบโอน** (feature 00062) ให้ DEV/QA/Reviewer นำไป implement/ทดสอบได้ตรงกับเจตนาธุรกิจใน PRD/BRD
 
 **ขอบเขตที่ครอบคลุม:**
 - 12 TFR ครอบ FR-PKP-01..05, FR-PAY-01..03, FR-BANK-01..05 ครบทุกข้อของ BRD

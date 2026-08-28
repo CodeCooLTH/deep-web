@@ -3,18 +3,18 @@ title: "DATABASE — นัดรับสินค้า และ การช
 owner: shinobu22
 status: draft
 created: 2026-08-28
-tags: [feature, 00060, orders, payment, fulfillment, database]
+tags: [feature, 00062, orders, payment, fulfillment, database]
 related: ["[[Feature-Docs-Ownership]]", "[[PRD]]", "[[BRD]]"]
 ---
 
-> **โมดูล:** M60-PickupBankTransfer
+> **โมดูล:** M62-PickupBankTransfer
 > **ประเภทเอกสาร:** DATABASE Design
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-08-28
 > **สถานะ:** Draft — ออกแบบจาก PRD/BRD (มติ D-1..D-5 อนุมัติแล้ว 2026-08-28) **ก่อน** SRS/SDS ของโมดูลนี้จะถูกเขียน
 > **เจ้าของเอกสาร:** SA (safepay-database)
 
-> 🛑 **หมายเหตุลำดับเอกสาร:** ตาม `docs/99 - Rules/Feature-Docs-Ownership.md` ลำดับปกติคือ PRD→BRD→SRS→SDS→(API.md+DATABASE.md) — เอกสารนี้ถูกสั่งให้เขียนก่อน SRS/SDS ของโมดูล 00060 จะถูกจัดทำ (คำสั่งจาก Controller) จึง trace กลับได้แค่ระดับ **BRD FR-ID** เท่านั้น (§7) ไม่ใช่ SDS component ตามฟอร์แมตเต็มของ template — เมื่อ SRS/SDS ของโมดูลนี้เขียนเสร็จ ต้องกลับมาตรวจว่า data model ที่นี่ตรงกับ SDS หรือไม่ (ระบุเป็น Open Question ท้ายเอกสาร)
+> 🛑 **หมายเหตุลำดับเอกสาร:** ตาม `docs/99 - Rules/Feature-Docs-Ownership.md` ลำดับปกติคือ PRD→BRD→SRS→SDS→(API.md+DATABASE.md) — เอกสารนี้ถูกสั่งให้เขียนก่อน SRS/SDS ของโมดูล 00062 จะถูกจัดทำ (คำสั่งจาก Controller) จึง trace กลับได้แค่ระดับ **BRD FR-ID** เท่านั้น (§7) ไม่ใช่ SDS component ตามฟอร์แมตเต็มของ template — เมื่อ SRS/SDS ของโมดูลนี้เขียนเสร็จ ต้องกลับมาตรวจว่า data model ที่นี่ตรงกับ SDS หรือไม่ (ระบุเป็น Open Question ท้ายเอกสาร)
 >
 > 🛑 **งานรอบนี้เป็นการออกแบบ + เขียนเอกสารล้วน** — ยังไม่แตะ `prisma/schema.prisma` และยังไม่สร้างไฟล์ `prisma/migrations/**` จริง (Hard Rule 14 — ห้ามรันคำสั่งที่แตะฐานข้อมูลใด ๆ ในรอบนี้) SQL ทั้งหมดใน §5 คือ**ฉบับที่เสนอให้ implement** ไม่ใช่ของที่ apply แล้ว
 >
@@ -196,7 +196,7 @@ prisma/migrations/20260828120000_order_event_pickup_payment_types/migration.sql
 #### Migration 1 — `20260828100000_order_pickup_handover_payment_confirm`
 
 ```sql
--- feature 00060 — นัดรับสินค้า: ร้านกด "มอบสินค้าแล้ว" (FR-PKP-03) + ยืนยันรับเงินโอน (FR-PAY-01)
+-- feature 00062 — นัดรับสินค้า: ร้านกด "มอบสินค้าแล้ว" (FR-PKP-03) + ยืนยันรับเงินโอน (FR-PAY-01)
 --
 -- 4 คอลัมน์ mirror Order.codReceivedAt/codReceivedByUserId ทุกประการ (ดู DATABASE.md §2 ตาราง
 -- "ใครเขียน/null แปลว่าอะไร") — additive ล้วน, nullable, ไม่มี default, ไม่แตะข้อมูลเดิม
@@ -259,7 +259,7 @@ ALTER TABLE "Order" VALIDATE CONSTRAINT "Order_handedOver_requires_pickup_check"
 #### Migration 2 — `20260828110000_order_shop_payout_account`
 
 ```sql
--- feature 00060 — บัญชีรับเงินของร้าน (D-5): เก็บเป็นฟิลด์เดี่ยวบน Shop (ไม่ใช่ตารางใหม่ — MVP
+-- feature 00062 — บัญชีรับเงินของร้าน (D-5): เก็บเป็นฟิลด์เดี่ยวบน Shop (ไม่ใช่ตารางใหม่ — MVP
 -- ไม่รองรับหลายบัญชี ดู BRD §7.2 D-5) + payoutSnapshot บน Order สำหรับ freeze ค่า ณ เวลาสร้างออเดอร์
 -- (BR-BANK-01, mirror OrderShipment.senderSnapshot/receiverSnapshot — schema.prisma:2302-2303)
 --
@@ -282,7 +282,7 @@ ALTER TABLE "Order" ADD COLUMN "payoutSnapshot" JSONB;
 #### Migration 3 — `20260828120000_order_event_pickup_payment_types`
 
 ```sql
--- feature 00060 — event 4 ชนิดใหม่บนใบเดิม: HANDED_OVER / HANDOVER_REVERTED /
+-- feature 00062 — event 4 ชนิดใหม่บนใบเดิม: HANDED_OVER / HANDOVER_REVERTED /
 --   PAYMENT_CONFIRMED / PAYMENT_CONFIRM_REVERTED
 --
 -- 🛑 ห้าม DROP+ADD ด้วยรายชื่อ hardcode — อ่านของเดิมจากฐานมาต่อท้ายเสมอ
@@ -446,4 +446,4 @@ END $$;
 1. `payoutSnapshot` เป็น `Json?` ก้อนเดียว — SDS ต้องนิยาม TS type ที่ตรงกับ 4 คีย์ที่ระบุใน §3.1 (`bankCode`/`accountNo`/`accountName`/`promptPayId`) เป็น SSOT เดียว (แบบเดียวกับที่ `OrderShipment` มี TS type คู่กับ `senderSnapshot`)
 2. ไทล์ "ออเดอร์โอนเงินที่ยังไม่ยืนยันรับเงิน" (ที่ index `Order_shopId_paymentConfirmedAt_idx` เตรียมรองรับไว้) — มีอยู่ใน scope MVP จริงไหม หรือเป็น "เผื่ออนาคต" (ถ้าไม่ต้องใช้จริงใน MVP ควรตัด index นี้ออกเพื่อลดต้นทุน write — SDS ตัดสิน)
 3. รายการรหัสธนาคารไทย (`src/lib/thai-banks.ts` หรือชื่อไฟล์ที่ SDS เลือก) ยังไม่มีในรีโป — ใครเป็นเจ้าของงานนี้ (SDS territory แต่ DATABASE.md ต้องรอผลเพื่อยืนยันว่า `payoutBankCode` เก็บเป็นรหัส (`"SCB"`) หรือชื่อเต็ม (`"ธนาคารไทยพาณิชย์"`) — ตอนนี้ schema เก็บเป็น `TEXT` เฉย ๆ ไม่ผูกความหมาย รอ SDS ตัดสิน ไม่กระทบ column type)
-4. เมื่อ SRS/SDS ของโมดูล 00060 เขียนเสร็จ ต้องกลับมาแก้ §7 Traceability ให้ trace กลับ SDS component แทน BRD FR-ID ตาม template มาตรฐาน
+4. เมื่อ SRS/SDS ของโมดูล 00062 เขียนเสร็จ ต้องกลับมาแก้ §7 Traceability ให้ trace กลับ SDS component แทน BRD FR-ID ตาม template มาตรฐาน

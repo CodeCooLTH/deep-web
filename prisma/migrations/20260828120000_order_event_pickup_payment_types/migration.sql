@@ -1,4 +1,4 @@
--- feature 00060 — event 4 ชนิดใหม่บนใบเดิม:
+-- feature 00062 — event 4 ชนิดใหม่บนใบเดิม:
 --   HANDED_OVER / HANDOVER_REVERTED / PAYMENT_CONFIRMED / PAYMENT_CONFIRM_REVERTED
 --
 -- 🛑 ห้าม DROP+ADD ด้วยรายชื่อ hardcode — อ่านของเดิมจากฐานมาต่อท้ายเสมอ

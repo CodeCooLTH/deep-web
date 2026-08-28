@@ -3,11 +3,11 @@ title: "PRD — นัดรับสินค้า และ การชำ�
 owner: shinobu22
 status: approved-requirements
 created: 2026-08-28
-tags: [feature, 00060, orders, payment, fulfillment, prd]
+tags: [feature, 00062, orders, payment, fulfillment, prd]
 related: ["[[Feature-Docs-Ownership]]", "[[00050 - Service Queue End-to-End]]", "[[00039 - Order Success Metrics]]", "[[00028 - Shop Business Type]]", "[[00041 - Buyer Order Experience]]"]
 ---
 
-> **โมดูล:** M60-PickupBankTransfer
+> **โมดูล:** M62-PickupBankTransfer
 > **ประเภทเอกสาร:** Product Requirements Document (PRD)
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-08-28

@@ -1,4 +1,4 @@
--- feature 00060 — บัญชีรับเงินของร้าน (D-5): ฟิลด์เดี่ยวบน Shop (ไม่ใช่ตารางใหม่ — MVP ไม่รองรับ
+-- feature 00062 — บัญชีรับเงินของร้าน (D-5): ฟิลด์เดี่ยวบน Shop (ไม่ใช่ตารางใหม่ — MVP ไม่รองรับ
 -- หลายบัญชี) + payoutSnapshot บน Order สำหรับ freeze ค่า ณ เวลาสร้างออเดอร์ (BR-BANK-01,
 -- mirror OrderShipment.senderSnapshot/receiverSnapshot)
 --

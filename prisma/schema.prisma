@@ -80,8 +80,8 @@ model User {
   ordersAsBuyer          Order[]                 @relation("BuyerOrders")
   ordersCreated          Order[]                 @relation("CreatedOrders") // ออเดอร์ที่คนนี้เป็นคนกดสร้าง (2026-08-04)
   ordersCodReceived      Order[]                 @relation("CodReceivedOrders") // ออเดอร์ที่คนนี้กดยืนยันรับเงินปลายทาง (2026-08-04)
-  ordersHandedOver       Order[]                 @relation("HandedOverOrders") // feature 00060 — ออเดอร์นัดรับที่คนนี้กด "มอบสินค้าแล้ว"
-  ordersPaymentConfirmed Order[]                 @relation("PaymentConfirmedOrders") // feature 00060 — ออเดอร์ที่คนนี้กด "ได้รับเงินแล้ว" (โอน/พร้อมเพย์/เงินสด)
+  ordersHandedOver       Order[]                 @relation("HandedOverOrders") // feature 00062 — ออเดอร์นัดรับที่คนนี้กด "มอบสินค้าแล้ว"
+  ordersPaymentConfirmed Order[]                 @relation("PaymentConfirmedOrders") // feature 00062 — ออเดอร์ที่คนนี้กด "ได้รับเงินแล้ว" (โอน/พร้อมเพย์/เงินสด)
   orderEventsActedOn     OrderEvent[]            @relation("OrderEventActor") // feature 00031 — เหตุการณ์ที่คนนี้เป็นผู้กระทำ
   customer               Customer? // feat 00014 — link Customer เมื่อสมัครเป็น buyer (Phase 2; nullable)
   reviewsGiven           Review[]                @relation("ReviewerReviews")
@@ -298,7 +298,7 @@ model Shop {
   // CHECK: appointmentGranularity IN ('DAY','TIME')
   appointmentGranularity String @default("DAY")
 
-  /// feature 00060 — บัญชีรับเงินของร้าน (FR-BANK-01) · 1 ชุดต่อร้าน (MVP ไม่รองรับหลายบัญชี)
+  /// feature 00062 — บัญชีรับเงินของร้าน (FR-BANK-01) · 1 ชุดต่อร้าน (MVP ไม่รองรับหลายบัญชี)
   ///
   /// 🛑 **แก้ได้เฉพาะ OWNER** (user เคาะ 2026-08-28) และต้องยืนยันตัวตนซ้ำทุกครั้งที่ *เปลี่ยน*
   /// (ตั้งครั้งแรกไม่ต้อง — ยังไม่มีอะไรให้สวมสิทธิ์) ดู PATCH /api/shops/payout
@@ -861,7 +861,7 @@ model Order {
   /// หน้าจอตีความ NULL ว่า "ระบบ" อยู่แล้วตาม pattern เดียวกับ createdByUserId
   codReceivedByUserId String?
 
-  /// feature 00060 — ร้านกด "มอบสินค้าแล้ว" ในออเดอร์นัดรับ (FR-PKP-03)
+  /// feature 00062 — ร้านกด "มอบสินค้าแล้ว" ในออเดอร์นัดรับ (FR-PKP-03)
   ///
   /// 🛑 **ไม่ใช่สถานะ** — ออเดอร์ยังเป็น PENDING อยู่หลังกด สิ่งที่เกิดคือเริ่มนับ grace period
   /// 48 ชม. (`PICKUP_AUTOCONFIRM_HOURS` ใน src/lib/order-pickup.ts — SSOT ตัวเดียว) ก่อนที่ job
@@ -873,7 +873,7 @@ model Order {
   /// คนที่กด — NULL = บัญชีถูกลบ (SetNull) ไม่ใช่ "ระบบ" เพราะระบบไม่มีทางกดปุ่มนี้แทนร้านได้
   handedOverByUserId  String?
 
-  /// feature 00060 — ร้านกด "ได้รับเงินแล้ว" สำหรับ TRANSFER/PROMPTPAY/CASH (FR-PAY-01)
+  /// feature 00062 — ร้านกด "ได้รับเงินแล้ว" สำหรับ TRANSFER/PROMPTPAY/CASH (FR-PAY-01)
   ///
   /// 🛑 คู่ขนานกับ codReceivedAt ไม่ใช่ตัวแทน — COD ใช้ codReceivedAt เดิม, สามแบบนี้ใช้ช่องนี้
   /// **ห้ามมีค่าพร้อมกันทั้งสองช่อง** บังคับด้วย CHECK `Order_payment_confirm_exclusive_check`
@@ -885,7 +885,7 @@ model Order {
   paymentConfirmedAt  DateTime?
   paymentConfirmedByUserId String?
 
-  /// feature 00060 — สำเนาบัญชีรับเงินของร้าน ณ เวลาสร้างออเดอร์ (FR-BANK-02)
+  /// feature 00062 — สำเนาบัญชีรับเงินของร้าน ณ เวลาสร้างออเดอร์ (FR-BANK-02)
   ///
   /// เขียนตอน createOrder เมื่อ paymentMethod ∈ {TRANSFER, PROMPTPAY} · อ่านจากช่องนี้เสมอ
   /// **ห้าม live-read จาก Shop** — ร้านเปลี่ยนบัญชีทีหลังแล้วออเดอร์เก่าต้องยังโชว์บัญชีที่ลูกค้า
@@ -944,8 +944,8 @@ model Order {
   buyer            User?                   @relation("BuyerOrders", fields: [buyerUserId], references: [id])
   createdBy        User?                   @relation("CreatedOrders", fields: [createdByUserId], references: [id], onDelete: SetNull)
   codReceivedBy    User?                   @relation("CodReceivedOrders", fields: [codReceivedByUserId], references: [id], onDelete: SetNull)
-  handedOverBy     User?                   @relation("HandedOverOrders", fields: [handedOverByUserId], references: [id], onDelete: SetNull) // feature 00060
-  paymentConfirmedBy User?                 @relation("PaymentConfirmedOrders", fields: [paymentConfirmedByUserId], references: [id], onDelete: SetNull) // feature 00060
+  handedOverBy     User?                   @relation("HandedOverOrders", fields: [handedOverByUserId], references: [id], onDelete: SetNull) // feature 00062
+  paymentConfirmedBy User?                 @relation("PaymentConfirmedOrders", fields: [paymentConfirmedByUserId], references: [id], onDelete: SetNull) // feature 00062
   customer         Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
   room             Room?                   @relation(fields: [roomId], references: [id], onDelete: Restrict)
   housekeeper      Housekeeper?            @relation(fields: [housekeeperId], references: [id], onDelete: SetNull)
@@ -1006,10 +1006,10 @@ model Order {
   @@index([shopChannelId], map: "Order_shopChannelId_idx") // 2026-08-10 — หารูป/ชื่อช่องทางต้นทางของออเดอร์ (หน้า /orders คอลัมน์ "ที่มา")
   @@index([conversationId], map: "Order_conversationId_idx") // 2026-08-12 — ปุ่ม "เปิดแชท" หาเธรดต้นทางของออเดอร์นี้ตรง ๆ (แทนการเดาจาก Customer)
   @@index([shopId, createdAt(sort: Desc), id(sort: Desc)], map: "Order_shopId_createdAt_id_idx") // CR 2026-08-25 — keyset pagination ของหน้า /orders
-  // feature 00060 — job ปิดงานนัดรับอัตโนมัติต้องคัด "PICKUP + PENDING + มอบของแล้วเกิน 48 ชม."
+  // feature 00062 — job ปิดงานนัดรับอัตโนมัติต้องคัด "PICKUP + PENDING + มอบของแล้วเกิน 48 ชม."
   // โดยไม่ scan ทั้งตาราง (ออเดอร์นัดรับไม่มี OrderShipment จึง query ตรงจาก Order ไม่ได้อาศัย index ของพัสดุ)
   @@index([fulfillmentMode, status, handedOverAt], map: "Order_fulfillmentMode_status_handedOverAt_idx")
-  // feature 00060 — mirror Order_shopId_codReceivedAt_idx สำหรับตัวนับ "โอนเงินแล้วยังไม่ยืนยันรับเงิน"
+  // feature 00062 — mirror Order_shopId_codReceivedAt_idx สำหรับตัวนับ "โอนเงินแล้วยังไม่ยืนยันรับเงิน"
   @@index([shopId, paymentConfirmedAt], map: "Order_shopId_paymentConfirmedAt_idx")
 }
 

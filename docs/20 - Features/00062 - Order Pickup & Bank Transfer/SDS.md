@@ -3,11 +3,11 @@ title: "SDS — นัดรับสินค้า และ การชำ�
 owner: shinobu22
 status: draft
 created: 2026-08-28
-tags: [feature, 00060, orders, payment, fulfillment, sds]
+tags: [feature, 00062, orders, payment, fulfillment, sds]
 related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]", "[[UX-Design-Spec]]", "[[TestCase]]", "[[Feature-Docs-Ownership]]"]
 ---
 
-> **โมดูล:** M60-PickupBankTransfer
+> **โมดูล:** M62-PickupBankTransfer
 > **ประเภทเอกสาร:** System Design Spec (SDS)
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-08-28
@@ -22,7 +22,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]", "[[UX-Desi
 
 ### 1.1 วัตถุประสงค์
 
-เอกสารนี้ออกแบบ **วิธี implement จริง** ของฟีเจอร์ 00060 — ไฟล์ที่ต้องแก้/สร้าง, ฟังก์ชัน/service ใหม่, ลำดับ commit ที่ปลอดภัย, และการตัดสินใจทางเทคนิคที่ผูกกับโค้ดจริงของ SafePay (ไม่ใช่ระบบ polyglot หลาย stack — repo นี้เป็น Next.js 16 monolith เดียว, Prisma/Postgres เดียว). ผู้อ่าน: `safepay-developer` (implement ตาม §3/§8), `safepay-qa` (ผูก TestCase.md เข้ากับ component จริง), `safepay-reviewer` (เทียบ diff กับ TD).
+เอกสารนี้ออกแบบ **วิธี implement จริง** ของฟีเจอร์ 00062 — ไฟล์ที่ต้องแก้/สร้าง, ฟังก์ชัน/service ใหม่, ลำดับ commit ที่ปลอดภัย, และการตัดสินใจทางเทคนิคที่ผูกกับโค้ดจริงของ SafePay (ไม่ใช่ระบบ polyglot หลาย stack — repo นี้เป็น Next.js 16 monolith เดียว, Prisma/Postgres เดียว). ผู้อ่าน: `safepay-developer` (implement ตาม §3/§8), `safepay-qa` (ผูก TestCase.md เข้ากับ component จริง), `safepay-reviewer` (เทียบ diff กับ TD).
 
 ### 1.2 ขอบเขตการออกแบบ
 
@@ -343,7 +343,7 @@ sequenceDiagram
 | TD-003 เป็น breaking change ของ `getPaymentBadge()` — call site ที่ grep ไม่เจอ (เช่นไฟล์ที่ import แบบ dynamic) | build จะแดงทันทีถ้า TypeScript compile ผ่าน grep ไม่ครบ — **ไม่ใช่ silent failure** เพราะ TS บังคับ param/return ครบ | รัน `tsc --noEmit` เต็มโปรเจกต์หลัง U13 ก่อน commit ถัดไป — ไม่ใช่แค่ dev server |
 | U6 (TD-007) แก้ 3 ไฟล์พร้อมกัน (`order-stage.ts`+`order-stage-sql.ts`+`order.service.ts`) — พลาดจุดใดจุดหนึ่งจะได้ parity เขียวแต่ Command Center ยังโป่งอยู่ (`getShippingStageCounts` เป็น TS ล้วน ไม่ผ่าน SQL parity test) | ไทล์นับผิดโดยไม่มี parity test จับ เพราะ parity test เทียบแค่ TS↔SQL ไม่เทียบกับ call site จริง | เพิ่ม integration test เฉพาะของ `getShippingStageCounts()` ที่สร้างออเดอร์ PICKUP จริงแล้วยืนยันว่าไม่ถูกนับในทุกกอง (ไม่ใช่แค่ unit test ของฟังก์ชันบริสุทธิ์) |
 | U4 (promptpay-qr.ts) ถ้าข้าม spike สแกนจริงแล้วต่อเข้า UI (U20) ทันที — payload ผิดจุดใดจุดหนึ่ง (CRC/tag length) จะทำให้ QR สแกนไม่ขึ้นหรือขึ้นยอดผิด | ผู้ซื้อโอนผิดยอด/ผิดบัญชี — อันตรายที่สุดในฟีเจอร์นี้ (เป็นเงินจริง) | บังคับ spike เป็น task แยก (U4) **ก่อน** U20 เสมอ ตามที่ระบุในตาราง §8 — ห้ามข้าม |
-| Migration 3 (U2) ใช้ `DO $$ ... $$` อ่านนิยามเดิมจากฐานแล้วต่อท้าย — ถ้า branch อื่น merge เข้ามาก่อนแล้วแก้ `OrderEvent_type_check` ด้วยชื่อ migration ที่มี timestamp ตามหลัง U2 | ค่าใหม่ของ branch อื่นอาจถูกทับ หรือ migration ของ 00060 รันไม่ผ่านเพราะ constraint เปลี่ยนไปแล้ว | grep `git log --all --name-only` ซ้ำก่อน implement จริงตามที่ DATABASE.md §5.1 เตือนไว้แล้ว — ไม่ใช่ความเสี่ยงใหม่ที่ SDS นี้สร้าง แค่ย้ำเพราะ U2 เป็น task แรก ๆ ที่เสี่ยงชนมากที่สุด |
+| Migration 3 (U2) ใช้ `DO $$ ... $$` อ่านนิยามเดิมจากฐานแล้วต่อท้าย — ถ้า branch อื่น merge เข้ามาก่อนแล้วแก้ `OrderEvent_type_check` ด้วยชื่อ migration ที่มี timestamp ตามหลัง U2 | ค่าใหม่ของ branch อื่นอาจถูกทับ หรือ migration ของ 00062 รันไม่ผ่านเพราะ constraint เปลี่ยนไปแล้ว | grep `git log --all --name-only` ซ้ำก่อน implement จริงตามที่ DATABASE.md §5.1 เตือนไว้แล้ว — ไม่ใช่ความเสี่ยงใหม่ที่ SDS นี้สร้าง แค่ย้ำเพราะ U2 เป็น task แรก ๆ ที่เสี่ยงชนมากที่สุด |
 
 ### 10.2 Rollback
 

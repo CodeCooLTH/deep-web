@@ -3,11 +3,11 @@ title: "BRD — นัดรับสินค้า และ การชำ�
 owner: shinobu22
 status: approved-requirements
 created: 2026-08-28
-tags: [feature, 00060, orders, payment, fulfillment, brd]
+tags: [feature, 00062, orders, payment, fulfillment, brd]
 related: ["[[Feature-Docs-Ownership]]", "[[PRD]]"]
 ---
 
-> **โมดูล:** M60-PickupBankTransfer
+> **โมดูล:** M62-PickupBankTransfer
 > **ประเภทเอกสาร:** Business Requirements Document (BRD) - NON-TECHNICAL
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-08-28

@@ -3,11 +3,11 @@ title: "Test Case — นัดรับสินค้า และ การ�
 owner: shinobu22
 status: draft
 created: 2026-08-28
-tags: [feature, 00060, orders, payment, fulfillment, test]
+tags: [feature, 00062, orders, payment, fulfillment, test]
 related: ["[[Index]]", "[[PRD]]", "[[BRD]]"]
 ---
 
-> **โมดูล:** M60-PickupBankTransfer
+> **โมดูล:** M62-PickupBankTransfer
 > **ประเภทเอกสาร:** Test Case
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-08-28
@@ -18,7 +18,7 @@ related: ["[[Index]]", "[[PRD]]", "[[BRD]]"]
 
 ## 1. Overview
 
-ชุดทดสอบนี้ครอบคลุมฟีเจอร์ **"นัดรับสินค้า และ การชำระเงินแบบโอน"** (feature 00060) — ส่วนขยายของ Simple OMS (`docs/SRS.md` FR-6) ที่เพิ่ม 3 กลุ่มความสามารถให้ร้าน `Shop.vertical = ONLINE_SALES`:
+ชุดทดสอบนี้ครอบคลุมฟีเจอร์ **"นัดรับสินค้า และ การชำระเงินแบบโอน"** (feature 00062) — ส่วนขยายของ Simple OMS (`docs/SRS.md` FR-6) ที่เพิ่ม 3 กลุ่มความสามารถให้ร้าน `Shop.vertical = ONLINE_SALES`:
 
 1. **นัดรับสินค้า (Pickup Fulfillment)** — `fulfillmentMode='PICKUP'`, ปุ่ม "มอบสินค้าแล้ว" (`handedOverAt`), ปิดงานอัตโนมัติหลัง grace period 48 ชม. พร้อม dispute-gate (mirror feature 00039)
 2. **การยืนยันรับเงินโอน (Payment Confirmation)** — ปุ่ม "ได้รับเงินแล้ว" (`paymentConfirmedAt`/`paymentConfirmedByUserId`) ครอบ `TRANSFER|PROMPTPAY|CASH` (ไม่ครอบ `COD`), ป้ายสถานะการชำระเงิน 3 สถานะ
@@ -53,7 +53,7 @@ related: ["[[Index]]", "[[PRD]]", "[[BRD]]"]
 ## 2. Test Scenarios
 
 > หมายเหตุการอ่าน: คอลัมน์ **ระดับ** = `unit` (ฟังก์ชันบริสุทธิ์ ไม่แตะ DB) / `integration` (service + DB จริงบน dev) / `browser` (Chrome DevTools MCP หรือ Playwright บน `*.deepth.local:4000`).
-> ทุกเคสที่แตะ DB ต้องสร้างข้อมูลของตัวเองด้วย `id`/`token` ที่ generate ใหม่ (เช่น `test-00060-<uuid>`) แล้วลบเฉพาะแถวที่ตัวเองสร้างตอนจบ (Hard Rule 13 — **ห้าม** `deleteMany()` ไม่มี `where`, ห้าม `cleanDatabase()`)
+> ทุกเคสที่แตะ DB ต้องสร้างข้อมูลของตัวเองด้วย `id`/`token` ที่ generate ใหม่ (เช่น `test-00062-<uuid>`) แล้วลบเฉพาะแถวที่ตัวเองสร้างตอนจบ (Hard Rule 13 — **ห้าม** `deleteMany()` ไม่มี `where`, ห้าม `cleanDatabase()`)
 
 ### 2.1 กลุ่ม นัดรับสินค้า (FR-PKP-01..05)
 
