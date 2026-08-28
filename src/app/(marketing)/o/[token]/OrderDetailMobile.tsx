@@ -32,7 +32,6 @@ import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
-import Chip from '@mui/material/Chip'
 import Dialog from '@mui/material/Dialog'
 import TextField from '@mui/material/TextField'
 import DialogActions from '@mui/material/DialogActions'
@@ -50,6 +49,7 @@ import { resolveOrderStatusBadge } from '@/lib/order-stage'
 import { resolveServiceOrderBadge } from '@/lib/order-display'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
+import { formatBaht } from '@/lib/format-money'
 import type { TimelineState, TimelineStep } from '@/lib/order-display'
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { resolveVerifyBadge } from '@/lib/verify-badge'
@@ -60,7 +60,7 @@ import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFoot
 import { orderContentWidthSx } from './content-width'
 import ShopCover from './ShopCover'
 import ShopEvidence from './ShopEvidence'
-import TrustPill from './TrustPill'
+import TrustPill, { VERIFIED_INK } from './TrustPill'
 import ReviewForm from './ReviewForm'
 import SectionTitle from './SectionTitle'
 // feature 00024 — การ์ดนัดหมาย (render เฉพาะออเดอร์ที่มีนัด)
@@ -201,11 +201,6 @@ type Props = {
 // ทั้งคู่พร้อมกัน" — ซึ่งคือนิยามซ้ำที่ใช้วินัยคนคุมแทน SSOT และมันเพี้ยนจริง: SHIPPED เขียนว่า
 // "จัดส่งแล้ว" ขณะที่ฝั่งร้านเขียน "กำลังจัดส่ง" ⇒ ออเดอร์ใบเดียวกันอ่านคนละคำสองหน้าจอ
 
-const baht = new Intl.NumberFormat('th-TH', {
-  style: 'currency',
-  currency: 'THB',
-  minimumFractionDigits: 0,
-})
 
 // ── TimelineDot — render single dot ตาม state, สีผ่าน theme.palette.* เท่านั้น (ไม่มี hex) ──
 /**
@@ -223,7 +218,7 @@ function TimelineDot({ state, stepNo }: { state: TimelineState; stepNo?: number 
           width: 17,
           height: 17,
           borderRadius: '50%',
-          bgcolor: 'success.main',
+          bgcolor: VERIFIED_INK,
           display: 'grid',
           placeItems: 'center',
         }}
@@ -272,7 +267,7 @@ function TimelineDot({ state, stepNo }: { state: TimelineState; stepNo?: number 
           width: 27,
           height: 27,
           borderRadius: '50%',
-          bgcolor: 'success.main',
+          bgcolor: VERIFIED_INK,
           boxShadow: '0 0 0 5px var(--mui-palette-success-lightOpacity)',
           display: 'grid',
           placeItems: 'center',
@@ -337,23 +332,34 @@ function connectorColor(state: TimelineState): string {
 }
 
 /**
- * สีป้ายตามสถานะขั้น
+ * สีป้ายตามสถานะขั้น — **กฎเดียว: ป้ายเป็นหมึก · สถานะอยู่ที่จุด**
  *
- * 🛑 `up`/`mute` ใช้ `text.secondary` **ไม่ใช่ `text.disabled`** — `text.disabled` คือหมึกที่
- * opacity 0.4 ซึ่งได้ **2.30:1 บนพื้นขาว ตก AA** (`SectionTitle.tsx` คำนวณตัวเลขนี้ไว้เองแล้ว)
+ * ## 🛑 ทำไมป้ายไม่ใช้สีตามสถานะอีกต่อไป
  *
- * ป้ายขั้นเป็น **ข้อความให้อ่าน ไม่ใช่ตัวควบคุมที่ปิดใช้งาน** จึงไม่เข้าข้อยกเว้นของ WCAG 1.4.3
- * และเจ็บเป็นพิเศษกับราง 4 ขั้น: ออเดอร์ที่เพิ่งเปิดจะมีขั้นที่ยังไม่ถึง **2 ใน 4**
- * ⇒ ครึ่งหนึ่งของรางอ่านไม่ออก (ราง 3 ขั้นเดิมมีแค่ขั้นเดียว จึงไม่มีใครสังเกต)
+ * วัดค่าจริงบนพื้น `background.paper` (#FFF) ด้วยสูตร WCAG แล้ว **4 ใน 5 กิ่งเดิมตก AA**:
  *
- * ความต่างระหว่าง "ยังไม่ถึง" กับ "ผ่านมาแล้ว" แบกด้วย **น้ำหนักตัวอักษร + หน้าตาของจุด**
- * (จุด `mute` มี opacity 0.6) ไม่ใช่ด้วยการทำให้อ่านไม่ออก
+ *     cur   info.main    #00BAD1   2.35:1  ❌   ← แย่ที่สุด และเป็นคำที่บอก "ตอนนี้อยู่ขั้นไหน"
+ *     fin   success.dark #24B364   2.72:1  ❌       ซึ่งเป็นเหตุผลทั้งหมดที่รางนี้มีอยู่
+ *     cx    error.main   #FF4C51   3.28:1  ❌
+ *     up    text.disabled          2.30:1  ❌
+ *     done  text.primary          10.00:1  ✅
+ *
+ * เกณฑ์คือ 4.5:1 และป้ายพวกนี้อยู่ที่ 12px — ต่ำกว่าเกณฑ์อยู่แล้วก่อนพูดถึงขนาด
+ * DESIGN.md ยังห้ามเขียวเป็นตัวหนังสือบนพื้นขาวไว้ตรงตัวด้วย (ต้องใช้ Verified Ink)
+ *
+ * ## ทางแก้ที่เลือก
+ *
+ * ป้าย = **ข้อความให้อ่าน** ⇒ ใช้หมึกที่อ่านออกเสมอ · สถานะแบกด้วย **จุด** (เช็ก/วงแหวน/กากบาท
+ * ต่างกันด้วยรูปร่าง ไม่ใช่แค่สี — WCAG 1.4.1) + **น้ำหนักตัวอักษร**
+ *
+ * ไม่ใช่การ "สลับเฉด" ตามที่ `contrast-fix-keeps-hue.md` ห้าม — เฉดยังอยู่ครบที่จุด
+ * สิ่งที่ย้ายคือ *ตัวแบกความหมาย* จากของที่อ่านไม่ออกไปยังของที่อ่านออก
+ * (ท่าเดียวกับที่ชิปเวลาคิวงานเคยย้ายความหมายจาก "จุด 6px" ไปที่ "สีตัวหนังสือ" เมื่อ 2026-08-09)
  */
-function labelColor(state: TimelineState): 'info.main' | 'success.dark' | 'error.main' | 'text.primary' | 'text.secondary' {
-  if (state === 'cur') return 'info.main'
-  if (state === 'fin') return 'success.dark'
-  if (state === 'cx') return 'error.main'
-  if (state === 'done') return 'text.primary'
+function labelColor(state: TimelineState): 'text.primary' | 'text.secondary' {
+  // ขั้นที่เกิดขึ้นแล้ว/กำลังเกิด/จบแบบไม่ได้ทำ = ข้อเท็จจริงที่ต้องอ่านชัด
+  if (state === 'cur' || state === 'fin' || state === 'cx' || state === 'done') return 'text.primary'
+  // ยังมาไม่ถึง / ไม่เกี่ยวกับใบนี้ — ยังต้องอ่านออก (5.22:1) แค่เบากว่า
   return 'text.secondary'
 }
 
@@ -372,6 +378,17 @@ function labelColor(state: TimelineState): 'info.main' | 'success.dark' | 'error
  * จะ **ดันรางให้กว้างเกินจอ** แทนที่จะตกบรรทัด (บทเรียน `flex-header-truncation.md`)
  */
 function HorizontalTimeline({ steps, numbered = false }: { steps: TimelineStep[]; numbered?: boolean }) {
+  /**
+   * 🛑 แถวคำอธิบายต้องหายไปทั้งแถวเมื่อไม่มีขั้นไหนมี `note`
+   *
+   * `getOrderTimeline()` (ราง 3 ขั้นของร้านขายออนไลน์) **ไม่เคยตั้ง `note` เลยสักเคส** ⇒
+   * ถ้าเรนเดอร์เสมอด้วย `minHeight` ออเดอร์ขายออนไลน์ **ทุกใบ** จะได้แถบว่าง ~27px
+   * เต็มความกว้างใต้ราง เพราะโค้ดที่จองที่ให้ vertical อีกอันหนึ่ง
+   *
+   * `minHeight` ยังจำเป็นอยู่ **ภายในรางที่มี note จริง** (ให้ทุกคอลัมน์สูงเท่ากันแม้บางขั้น
+   * ไม่มีคำอธิบาย) — เงื่อนไขนี้จึงเป็นระดับ "ราง" ไม่ใช่ระดับ "ขั้น"
+   */
+  const hasAnyNote = steps.some(s => s.note)
   return (
     <Box sx={{ display: 'flex', pb: 0.25 }}>
       {steps.map((step, i) => (
@@ -422,8 +439,14 @@ function HorizontalTimeline({ steps, numbered = false }: { steps: TimelineStep[]
               color: labelColor(step.state),
               mt: 0.75,
               lineHeight: 1.25,
-              /* พื้น 11px — ต่ำกว่านี้อ่านภาษาไทยไม่ออกบนมือถือจริง (ดูหัวฟังก์ชัน) */
-              fontSize: { xs: '0.6875rem', sm: '0.75rem' },
+              /* 🛑 ขนาดต้องอยู่บน ramp ของ DESIGN.md — ค่าเดิม 0.6875rem (11px) เป็นขั้น
+                 **dense-overlay** ซึ่ง DESIGN.md เขียนตรงตัวว่า "ใช้เฉพาะบนพื้นภาพเท่านั้น
+                 ห้ามใช้เป็นข้อความบนพื้นสีเรียบ"
+
+                 ผันตาม **จำนวนขั้น** ไม่ใช่ตาม breakpoint: ราง 3 ขั้นมีที่ว่างเหลือเฟือ
+                 (~104px/คอลัมน์ ที่จอ 360) ไม่มีเหตุผลให้ย่อ — ย่อเพราะราง 4 ขั้นแน่นกว่า
+                 แล้วลากร้านขายออนไลน์มาแบกด้วยคือการให้ vertical ที่ไม่ได้ขอปัญหานี้จ่ายแทน */
+              fontSize: steps.length > 3 ? '0.75rem' : '0.8125rem',
               px: 0.25,
               maxWidth: '100%',
               /* เบราว์เซอร์สมัยใหม่ตัดบรรทัดไทยตามพจนานุกรมให้เอง — `break-word` เป็นตัวสำรอง
@@ -439,21 +462,26 @@ function HorizontalTimeline({ steps, numbered = false }: { steps: TimelineStep[]
           {/* บรรทัดอธิบาย — มีเฉพาะขั้นที่มีอะไรจะบอก (`note` เป็น optional ที่ SSOT)
               🛑 จองที่ไว้ตายตัวแม้ไม่มีข้อความ เพื่อให้ทุกคอลัมน์เริ่มบรรทัดถัดไปตรงกัน
               ไม่งั้นแถวเวลาของแต่ละขั้นจะเหลื่อมกันตามความยาวของ note */}
-          <Typography
-            variant='caption'
-            sx={{
-              display: 'block',
-              mt: 0.25,
-              px: 0.25,
-              fontSize: '0.625rem',
-              lineHeight: 1.35,
-              color: 'text.secondary',
-              wordBreak: 'break-word',
-              minHeight: '2.7em',
-            }}
-          >
-            {step.note ?? ''}
-          </Typography>
+          {hasAnyNote && (
+            <Typography
+              variant='caption'
+              sx={{
+                display: 'block',
+                mt: 0.25,
+                px: 0.25,
+                /* 0.75rem = ขั้น Overline ที่มีอยู่จริงใน ramp ของ DESIGN.md
+                   ค่าเดิม 0.625rem (10px) ไม่มีอยู่ใน ramp เลย และ DESIGN.md บันทึกบทเรียนไว้เองว่า
+                   "หน้าร้านสาธารณะเคยมี 11 ขนาดในหน้าเดียว … อ่านออกว่าประกอบขึ้นมา" */
+                fontSize: '0.75rem',
+                lineHeight: 1.35,
+                color: 'text.secondary',
+                wordBreak: 'break-word',
+                minHeight: '2.7em',
+              }}
+            >
+              {step.note ?? ''}
+            </Typography>
+          )}
 
         </Box>
       ))}
@@ -757,7 +785,20 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
         : 'ยืนยันรับสินค้า'
 
   // total label ตาม status
-  const totalLabel = order.status === 'PENDING' ? 'ยอดที่ต้องชำระ' : 'ยอดรวม'
+  /**
+   * ป้ายยอดรวมของการ์ดรายการ
+   *
+   * 🛑 เมื่อมีการ์ดเงิน (`order.money`) ต้องเป็น **"ยอดรวม" เสมอ** ห้ามเป็น "ยอดที่ต้องชำระ"
+   *
+   * เพราะการ์ดเงินเป็นเจ้าของคำถาม "ต้องจ่ายอีกเท่าไร" และตอบด้วยแถว **คงเหลือ** ซึ่งหัก
+   * เงินที่ร้านยืนยันรับแล้วออกไปแล้ว ⇒ ปล่อยไว้จะได้จอที่ขึ้นพร้อมกันว่า
+   *   การ์ดเงิน:   คงเหลือ ฿1,000
+   *   การ์ดรายการ: ยอดที่ต้องชำระ ฿1,500
+   * **ตัวเลขที่ผู้ซื้อจะใช้พิมพ์ตอนโอนจริง ขัดกันเอง 2 ที่ ห่างกันหนึ่งการ์ด**
+   *
+   * ออเดอร์ที่ไม่มีการ์ดเงิน (ร้านขายออนไลน์ — `money` เป็น null) ยังได้คำเดิมทุกตัวอักษร
+   */
+  const totalLabel = order.status === 'PENDING' && !order.money ? 'ยอดที่ต้องชำระ' : 'ยอดรวม'
 
   // cancel copy ตาม cancelInitiator
   const cancelCopy =
@@ -843,7 +884,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                     width: 22,
                     height: 22,
                     borderRadius: '50%',
-                    bgcolor: 'success.main',
+                    bgcolor: VERIFIED_INK,
                     color: 'success.contrastText',
                     display: 'grid',
                     placeItems: 'center',
@@ -915,6 +956,9 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               color='secondary'
               size='small'
               startIcon={<Icon icon='tabler-building-store' fontSize={16} />}
+              /* `size='small'` ให้ ~33px — ต่ำกว่า baseline 44px ที่ PRODUCT.md กำหนด
+                 คงขนาดตัวอักษรเล็กไว้ (ปุ่มนี้ไม่ควรแข่งกับ CTA) แต่ดันความสูงขึ้นด้วย minHeight */
+              sx={{ minHeight: 44 }}
             >
               ดูโปรไฟล์ร้าน
             </Button>
@@ -1036,7 +1080,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
         <Box sx={{ bgcolor: 'background.paper', px: 2.25, pt: 1, pb: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.5 }}>
             <SectionTitle>{order.isServiceShop ? 'สถานะงานบริการ' : 'ขั้นตอน'}</SectionTitle>
-            <Typography variant='caption' color='text.secondary' sx={{ mb: 2, flexShrink: 0 }}>
+            <Typography variant='caption' color='text.secondary' sx={{ flexShrink: 0 }}>
               อัปเดตตามการดำเนินงานจริง
             </Typography>
           </Box>
@@ -1064,7 +1108,12 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 display: 'flex',
                 gap: 1,
                 alignItems: 'flex-start',
-                bgcolor: 'primary.lightOpacity',
+                /* 🛑 ไม่ใช้ม่วง — DESIGN.md §One Voice: *"Confident Violet ปรากฏ ≤ ~10%
+                   ของพื้นที่จอใดๆ — มันคือ accent ของ **action** ไม่ใช่ของตกแต่ง"*
+                   กล่องนี้เป็นคำอธิบาย ไม่ใช่ปุ่ม และเต็มความกว้าง ⇒ กลายเป็นก้อนม่วง
+                   ที่ **ใหญ่กว่าปุ่มยืนยันซึ่งเป็น action ที่อันตรายที่สุดในหน้า**
+                   ⇒ ม่วงเลิกแปลว่า "กดได้" แล้วปุ่มจริงก็เลิกเด่น */
+                bgcolor: 'action.hover',
                 borderRadius: 2,
                 px: 1.5,
                 py: 1.25,
@@ -1072,7 +1121,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             >
               <Icon
                 icon='tabler-info-circle'
-                style={{ fontSize: 16, flexShrink: 0, marginTop: 2, color: 'var(--mui-palette-primary-main)' }}
+                style={{ fontSize: 16, flexShrink: 0, marginTop: 2, color: 'var(--mui-palette-text-secondary)' }}
                 aria-hidden='true'
               />
               <Typography variant='caption' sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
@@ -1208,7 +1257,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
                         <Icon icon='tabler-check' style={{ fontSize: 12, color: 'var(--mui-palette-success-main)' }} />
-                        <Typography variant='caption' sx={{ fontWeight: 700, color: 'success.main' }}>
+                        <Typography variant='caption' sx={{ fontWeight: 700, color: VERIFIED_INK }}>
                           แนบสลิปแล้ว
                         </Typography>
                       </Box>
@@ -1250,7 +1299,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               {/* ตัวนับ (mockup 2026-08-28) — บอกว่าต้องเลื่อนดูอีกกี่รายการก่อนถึงยอดรวม
                   ห้ามนับจากตัวเลขที่พิมพ์เอง ต้องมาจาก `order.items` ตัวเดียวกับที่เรนเดอร์
                   ไม่งั้นจอบอก 3 แต่แสดง 2 (คลาสเดียวกับตัวนับที่เคยไม่ตรงใน `sibling-surface-parity`) */}
-              <Typography variant='caption' color='text.secondary' sx={{ mb: 2, flexShrink: 0 }}>
+              <Typography variant='caption' color='text.secondary' sx={{ flexShrink: 0 }}>
                 {order.items.length} รายการ
               </Typography>
             </Box>
@@ -1287,11 +1336,11 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                       </Typography>
                     )}
                     <Typography variant='caption' color='text.secondary' sx={{ display: 'block' }}>
-                      {item.qty} × {baht.format(item.price)}
+                      {item.qty} × {formatBaht(item.price)}
                     </Typography>
                   </Box>
                   <Typography sx={{ fontWeight: 700, fontSize: '0.8125rem', flexShrink: 0 }}>
-                    {baht.format(item.qty * item.price)}
+                    {formatBaht(item.qty * item.price)}
                   </Typography>
                 </Box>
               </Box>
@@ -1302,7 +1351,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             <Box sx={{ px: 1.75, py: 1.5, display: 'flex', justifyContent: 'space-between', bgcolor: 'action.hover' }}>
               <Typography variant='body2' color='text.secondary'>{totalLabel}</Typography>
               <Typography sx={{ fontSize: '1.125rem', fontWeight: 700 }}>
-                {baht.format(order.totalAmount)}
+                {formatBaht(order.totalAmount)}
               </Typography>
             </Box>
           </Card>
@@ -1395,7 +1444,13 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                       />
                     ))}
                   </Box>
-                  <Chip size='small' variant='tonal' color='success' label='รีวิวแล้ว' sx={{ ml: 'auto' }} />
+                  {/* 🛑 `TrustPill` ไม่ใช่ `Chip variant='tonal'` — tonal ของธีมนี้ให้ text =
+                      `{semantic}.main` บนพื้นจาง = **1.94:1 ตก AA** (`TrustPill.tsx` เขียนเหตุผล
+                      ไว้เองและถูกสร้างมาลบแพตเทิร์นนี้ทิ้ง) · ของเดิมก่อนงานนี้ แต่เก็บพร้อมกัน
+                      เพราะจอเดียวกันเหลือ "ป้าย" 2 หน้าตาไม่ได้ */}
+                  <Box sx={{ ml: 'auto' }}>
+                    <TrustPill tone='green' label='รีวิวแล้ว' />
+                  </Box>
                 </Box>
                 {order.review.comment && (
                   <Typography variant='body2' color='text.secondary' sx={{ lineHeight: 1.6, mb: 1 }}>
@@ -1701,12 +1756,17 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 (เงื่อนไขที่บรรทัด ~1086) ซึ่งเป็นทางออกเดียวของผู้ซื้อที่ยังไม่ได้ของ
                 — ก่อน 00041 ยังไม่มีปุ่มแจ้งปัญหาให้เสีย ตอนนี้มีแล้ว เดิมพันจึงสูงขึ้นจริง
                 ขณะที่ "ยกเลิกคำสั่งซื้อ" ที่อยู่ห่างลงไป 5 บรรทัดกลับมี dialog มาตลอด */}
+            {/* 🛑 `minHeight: 44` — PRODUCT.md §Accessibility + DESIGN.md §Do's ตั้ง tap target
+                ≥44px เป็น baseline · MUI `size='medium'` ในธีมนี้ให้ ~37px
+                ⇒ **ปุ่มที่กดแล้วย้อนไม่ได้ เล็กกว่าปุ่ม "ยืนยันนัด" ที่ย้อนได้** (44px)
+                ซึ่งกลับหัวกลับหางกับความสำคัญ (`AppointmentCard` ใส่ค่านี้ไว้ถูกแล้ว) */}
             <Button
               fullWidth
               variant='contained'
               color='primary'
               disabled={submitting}
               onClick={() => setConfirmDialogOpen(true)}
+              sx={{ minHeight: 44 }}
             >
               {ctaLabel}
             </Button>

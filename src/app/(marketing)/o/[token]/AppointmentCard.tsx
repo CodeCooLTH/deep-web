@@ -25,7 +25,6 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
-import Chip from '@mui/material/Chip'
 import Dialog from '@mui/material/Dialog'
 import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
@@ -40,6 +39,7 @@ import {
   type AppointmentStatus,
 } from '@/lib/appointments'
 import { formatDateTH, formatDateTimeTH, formatTimeHM, formatWeekdayDateTH } from '@/lib/format-date'
+import TrustPill, { VERIFIED_INK } from './TrustPill'
 
 /**
  * MiniFact — กล่องข้อเท็จจริงหนึ่งชิ้น (ป้าย + ค่า) ในตารางย่อของการ์ดนัดหมาย
@@ -86,12 +86,22 @@ const MAX_NOTE = 500
  * "นัดแล้ว" กับ "ขอเลื่อน" ยังไม่นิ่ง → warning ไม่ใช่เขียว เพื่อไม่ให้สัญญาณ trust เฟ้อ
  * "ไม่มาตามนัด" = error เพราะเป็นผลลบจริง
  */
-const STATUS_COLOR: Record<AppointmentStatus, 'warning' | 'success' | 'error'> = {
-  SCHEDULED: 'warning',
-  CONFIRMED_BY_BUYER: 'success',
-  RESCHEDULE_REQUESTED: 'warning',
-  COMPLETED: 'success',
-  NO_SHOW: 'error',
+/**
+ * โทนของ `TrustPill` ต่อสถานะนัด — คู่ bg/fg มาจาก `VERIFY_BADGE_PALETTE` ซึ่งเป็นคู่ "หมึก"
+ * ที่ผ่าน AA ทั้งชุด (green 4.97:1 · gold ~5.3:1 · neutral ~5.1:1)
+ *
+ * 🛑 แทนที่ `STATUS_COLOR` เดิม (สี MUI semantic สำหรับ `Chip variant='tonal'`) ซึ่งถูกลบทิ้ง
+ * พร้อมชิป — เก็บไว้โดยไม่มีผู้เรียกคือตารางที่รอให้คนหยิบไปใช้แล้วได้คอนทราสต์ 1.82:1 กลับมา
+ *
+ * `RESCHEDULE_REQUESTED` เป็น gold ไม่ใช่ neutral — มันคือสถานะที่ **ยังรอใครสักคนตัดสิน**
+ * เหมือน `SCHEDULED` ไม่ใช่เรื่องที่จบไปแล้ว
+ */
+const STATUS_TONE: Record<AppointmentStatus, 'green' | 'gold' | 'neutral'> = {
+  SCHEDULED: 'gold',
+  CONFIRMED_BY_BUYER: 'green',
+  RESCHEDULE_REQUESTED: 'gold',
+  COMPLETED: 'green',
+  NO_SHOW: 'neutral',
 }
 
 /** ข้อความ error ที่ผู้ใช้อ่านรู้เรื่อง — ใช้ message จาก server ถ้ามี ไม่งั้น map จาก code */
@@ -211,13 +221,12 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
             <Typography variant="subtitle2" color="text.secondary">
               นัดหมาย
             </Typography>
-            <Chip
-              size="small"
-              variant="tonal"
-              color={STATUS_COLOR[state.status]}
-              /* 🛑 ป้ายฝั่ง **ผู้ซื้อ** — ชุดของร้านเรียกเขาว่า "ลูกค้า" ซึ่งพออยู่บนหน้าของ
-                 ตัวเองจะอ่านเป็นการพูดถึงเขาเป็นบุคคลที่สาม และ `SCHEDULED` = "นัดแล้ว"
-                 ไม่บอกว่าเขาต้องทำอะไรทั้งที่ตรงนั้นเขาคือคนที่ต้องลงมือ (ดู `@/lib/appointments`) */
+            {/* 🛑 `TrustPill` ไม่ใช่ MUI `Chip variant='tonal'` — tonal ของธีมนี้ให้ text =
+                `{semantic}.main` บนพื้นจาง = **1.82:1 ตก AA** (`TrustPill.tsx` เขียนเหตุผลไว้เอง
+                และถูกสร้างมาลบแพตเทิร์นนี้ทิ้ง) · ป้ายนี้แบก **"คุณต้องลงมือ"** ของเรื่องนัด
+                ป้ายที่สำคัญที่สุดของการ์ดจึงเป็นป้ายที่อ่านไม่ออก */}
+            <TrustPill
+              tone={STATUS_TONE[state.status]}
               label={APPOINTMENT_STATUS_LABEL_BUYER[state.status]}
             />
           </div>
@@ -226,7 +235,9 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
             {/* มีชื่อวันด้วย ("จันทร์ 12 ส.ค. 2569") — คนที่ต้องมาตามนัดวางแผนจากชื่อวัน
                 ไม่ใช่จากเลขที่ ("12 ส.ค." ต้องเปิดปฏิทินอีกทีถึงจะรู้ว่าติดวันทำงานไหม)
                 หนี้ที่ค้างจาก 00024 ข้อ 4 — การ์ดนี้อ่านเป็น widget ของแอดมิน ไม่ใช่ของลูกค้า */}
-            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+            {/* 700 ไม่ใช่ 800 — DESIGN.md §Strong step ห้าม 800 กับ **ข้อความ** แล้ว
+                (800 สงวนให้ Metric/ตัวอักษรที่ทำหน้าที่เป็นภาพ) และวันที่อ่านเป็นประโยค */}
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
               {formatWeekdayDateTH(start)}
             </Typography>
             <Typography
@@ -241,8 +252,11 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
             >
               {/* มี label กำกับ — ชื่อคิวงานลอย ๆ ("ติดตั้งไฟหน้า") ลูกค้าอ่านไม่ออกว่าคืออะไร
                   ใช้คำเดียวกับป้ายในฟอร์มฝั่งผู้ขาย เพื่อให้สองฝั่งเรียกของเดียวกันด้วยคำเดียวกัน */}
+              {/* 🛑 ไม่ต่อ `· {durationText}` ตรงนี้ — มันโผล่ใน `MiniFact "ใช้เวลา"` ห่างลงไป
+                  ไม่กี่บรรทัดและ **โผล่พร้อมกันเสมอ** (กริดผูกเงื่อนไขเดียวกัน) ⇒ ผู้ซื้อเห็น
+                  "45 นาที" สองครั้งในการ์ดใบเดียว · เก็บตัวที่มีป้ายกำกับไว้ อ่านออกกว่า
+                  (จุดที่ 5 ของงานนี้ — คลาสเดียวกับวันเวลาในการ์ดนี้เอง · ยอดค้างในชิป · ช่องสถานะ) */}
               รับนัดโดย {state.resourceName}
-              {durationText ? ` · ${durationText}` : ''}
             </Typography>
           </div>
 
@@ -287,10 +301,13 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
           ) : showConfirm || showReschedule ? (
             <div className="flex flex-col gap-2">
               {/* ยืนยันแล้ว → ไม่มีปุ่มยืนยันอีก แต่บอกให้เห็นว่ายืนยันไปเมื่อไร
-                  success.dark ไม่ใช่ .main — เขียวสด #28C76F บนพื้นการ์ดขาวได้ราว 2.4:1
-                  เฉดเดียวกัน แค่เข้มขึ้นให้อ่านออก (หนี้ 00024 ข้อ 4) */}
+
+                  🛑 ใช้ `VERIFIED_INK` (#18804A = 4.97:1) — เดิมเป็น `success.dark` พร้อมคอมเมนต์
+                  ที่อ้างว่า "เข้มขึ้นให้อ่านออก" **แต่ไม่เคยวัด**: ค่าจริงคือ 2.72:1 ซึ่งยังตก AA
+                  DESIGN.md บังคับ Verified Ink สำหรับเขียวที่เป็นตัวหนังสือบนพื้นขาว
+                  และรีโป export ค่านี้ไว้ให้แล้วที่ `./TrustPill` (หนี้ 00024 ข้อ 4 — ปิดจริงรอบนี้) */}
               {state.status === 'CONFIRMED_BY_BUYER' && (
-                <Typography variant="body2" color="success.dark">
+                <Typography variant="body2" sx={{ color: VERIFIED_INK }}>
                   คุณยืนยันนัดนี้แล้ว
                   {state.buyerConfirmedAt
                     ? ` เมื่อ ${formatDateTimeTH(state.buyerConfirmedAt)}`

@@ -26,11 +26,12 @@
 import Card from '@mui/material/Card'
 import CircularProgress from '@mui/material/CircularProgress'
 import Box from '@mui/material/Box'
-import Chip from '@mui/material/Chip'
 import Divider from '@mui/material/Divider'
 import Typography from '@mui/material/Typography'
 
 import { formatDateTimeTH } from '@/lib/format-date'
+import { formatBaht } from '@/lib/format-money'
+import TrustPill, { VERIFIED_INK } from './TrustPill'
 import { ORDER_PAYMENT_KIND_LABEL, ORDER_PAYMENT_METHOD_LABEL } from '@/lib/order-payment'
 import type { OrderPaymentKind, OrderPaymentMethod } from '@/lib/order-payment'
 
@@ -44,8 +45,15 @@ export interface PublicOrderMoney {
   entries: { kind: string; amount: number; method: string; receivedAtIso: string }[]
 }
 
-const baht = (n: number) =>
-  `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+/**
+ * 🛑 ใช้ `formatBaht` จาก SSOT — ห้ามเขียนตัวจัดรูปแบบเงินของตัวเอง
+ *
+ * เดิมไฟล์นี้บังคับทศนิยม 2 ตำแหน่งเสมอ (`฿1,500.00`) ขณะที่การ์ดรายการที่อยู่ห่างไปหนึ่งบล็อก
+ * บังคับ 0 ตำแหน่ง (`฿1,500`) ⇒ **เงินก้อนเดียวกันแสดงคนละรูปแบบบนจอเดียว** (HR16)
+ *
+ * `formatBaht` ตัดสินจากค่าจริง: มีสตางค์ค่อยโชว์สตางค์ — ตอบทั้งสองบริบทด้วยกฎเดียว
+ */
+const baht = formatBaht
 
 /**
  * สัดส่วนที่ร้านยืนยันรับแล้ว (%) — ฟังก์ชันบริสุทธิ์เพื่อให้เทสจับได้
@@ -83,13 +91,17 @@ export default function PaymentSummaryCard({ money }: { money: PublicOrderMoney 
            *
            * ชิปตอบว่า *"จบหรือยัง"* · แถวตอบว่า *"เท่าไร"* — คนละคำถาม อย่างละที่
            */}
-          <Chip
-            size='small'
-            variant='tonal'
-            color={money.fullyPaid ? 'success' : 'warning'}
-            label={money.fullyPaid ? 'ชำระครบแล้ว' : 'ยังค้างชำระ'}
-            sx={{ ml: 'auto' }}
-          />
+          {/* 🛑 `TrustPill` ไม่ใช่ MUI `Chip variant='tonal'` — `TrustPill.tsx` เขียนเหตุผลไว้เองว่า
+              tonal ของธีมนี้ให้ text = `{semantic}.main` บนพื้นจาง ซึ่ง **วัดได้ 1.82–1.94:1
+              ทุกสี = ตก AA ทั้งชุด** และมันถูกสร้างมาเพื่อลบแพตเทิร์นนั้นทิ้ง
+              ป้ายนี้แบก "จบหรือยัง" ของเรื่องเงิน — อ่านไม่ออกคือเสียหน้าที่ทั้งใบ
+              (หน้านี้ใช้ `TrustPill` อยู่แล้ว 3 ที่ ⇒ ชิป tonal ยังทำให้จอเดียวมี "ป้าย" 2 หน้าตา) */}
+          <Box sx={{ ml: 'auto' }}>
+            <TrustPill
+              tone={money.fullyPaid ? 'green' : 'gold'}
+              label={money.fullyPaid ? 'ชำระครบแล้ว' : 'ยังค้างชำระ'}
+            />
+          </Box>
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -155,7 +167,7 @@ export default function PaymentSummaryCard({ money }: { money: PublicOrderMoney 
               <Typography variant='body2' color='text.secondary'>
                 ร้านยืนยันรับแล้ว
               </Typography>
-              <Typography variant='body2' sx={{ fontWeight: 600, color: 'success.main' }}>
+              <Typography variant='body2' sx={{ fontWeight: 600, color: VERIFIED_INK }}>
                 {baht(money.totalReceived)}
               </Typography>
             </Box>

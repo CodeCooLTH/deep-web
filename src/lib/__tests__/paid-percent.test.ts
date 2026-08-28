@@ -89,9 +89,16 @@ describe('[blocker] paidPercentOf', () => {
     )
       .replace(/\{\/\*[\s\S]*?\*\/\}|\/\*[\s\S]*?\*\//g, '')
       .replace(/(?<!:)\/\/.*$/gm, '')
-    const chipAt = src.indexOf('<Chip')
-    expect(chipAt, 'ต้องมีชิปสรุปสถานะ').toBeGreaterThan(-1)
-    const chipBlock = src.slice(chipAt, src.indexOf('/>', chipAt))
-    expect(chipBlock, 'ชิปต้องไม่มีตัวเลขเงิน').not.toMatch(/baht\(/)
+    /* ป้ายเปลี่ยนจาก MUI `Chip variant='tonal'` (1.82:1 ตก AA) เป็น `TrustPill` ที่ใช้คู่หมึก
+       จาก `VERIFY_BADGE_PALETTE` — ด่านผูกกับ **ป้ายสรุปสถานะ** ไม่ใช่กับชื่อ component
+       (ด่านที่ผูกกับวิธีเขียนพังทุกครั้งที่ refactor ทั้งที่ของยังถูก) */
+    const pillAt = src.indexOf('<TrustPill')
+    expect(pillAt, 'ต้องมีป้ายสรุปสถานะ').toBeGreaterThan(-1)
+    const pillBlock = src.slice(pillAt, src.indexOf('/>', pillAt))
+    expect(pillBlock, 'ป้ายสรุปต้องไม่มีตัวเลขเงิน').not.toMatch(/baht\(/)
+
+    /* 🛑 และห้ามกลับไปใช้ `Chip variant='tonal'` — `TrustPill.tsx` ถูกสร้างมาลบแพตเทิร์นนั้นทิ้ง
+       เพราะ tonal ของธีมนี้ให้ text = `{semantic}.main` บนพื้นจาง = ตก AA ทุกสี */
+    expect(src, "ห้ามใช้ Chip variant='tonal' บนหน้านี้").not.toMatch(/variant=['\"]tonal['\"]/)
   })
 })
