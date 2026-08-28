@@ -67,7 +67,15 @@ describe('[blocker] paidPercentOf', () => {
       join(process.cwd(), 'src/app/(marketing)/o/[token]/PaymentSummaryCard.tsx'),
       'utf8',
     ).replace(/\{\/\*[\s\S]*?\*\/\}|\/\*[\s\S]*?\*\//g, '')
-    expect(src).toMatch(/>\s*คงเหลือ\s*</)
-    expect(src).toMatch(/baht\(money\.outstanding\)/)
+    /* 🛑 ต้องเช็คว่า **ป้ายกับตัวเลขอยู่ในแถวเดียวกัน** ไม่ใช่เช็คแยกกันคนละที่ —
+       `baht(money.outstanding)` มีอยู่ในชิปบนหัวการ์ดด้วย ⇒ ร่างแรกที่เช็คสองอย่างแยกกัน
+       ยังเขียวแม้ถอดตัวเลขออกจากแถวไปแล้ว เพราะไปเจอตัวในชิปแทน
+       (`mutation-silence-means-weak-corpus.md` — เจอซ้ำเป็นครั้งที่สองในงานเดียวกัน) */
+    const at = src.search(/>\s*คงเหลือ\s*</)
+    expect(at, 'ต้องมีป้าย "คงเหลือ" เป็นแถวของตัวเอง').toBeGreaterThan(-1)
+    expect(
+      src.slice(at, at + 500),
+      'ตัวเลขคงเหลือต้องอยู่ในแถวเดียวกับป้าย ไม่ใช่แค่ในชิป',
+    ).toMatch(/baht\(money\.outstanding\)/)
   })
 })
