@@ -78,4 +78,20 @@ describe('[blocker] paidPercentOf', () => {
       'ตัวเลขคงเหลือต้องอยู่ในแถวเดียวกับป้าย ไม่ใช่แค่ในชิป',
     ).toMatch(/baht\(money\.outstanding\)/)
   })
+
+  it('[blocker] ยอดคงเหลือต้องมีที่เดียว — ชิปห้ามมีตัวเลขซ้ำ', () => {
+    /* 🛑 ชิปตอบว่า "จบหรือยัง" · แถวตอบว่า "เท่าไร" — คนละคำถาม อย่างละที่
+       ค่าเดียวกันสองที่บนจอเดียวคือรูปแบบที่เคยทำให้ตัวเลขไม่ตรงกันมาแล้ว
+       (เหตุผลเดียวกับที่ตัดช่อง "สถานะ"/"วันที่" ของ mockup ออกจากการ์ดนัดหมาย) */
+    const src = readFileSync(
+      join(process.cwd(), 'src/app/(marketing)/o/[token]/PaymentSummaryCard.tsx'),
+      'utf8',
+    )
+      .replace(/\{\/\*[\s\S]*?\*\/\}|\/\*[\s\S]*?\*\//g, '')
+      .replace(/(?<!:)\/\/.*$/gm, '')
+    const chipAt = src.indexOf('<Chip')
+    expect(chipAt, 'ต้องมีชิปสรุปสถานะ').toBeGreaterThan(-1)
+    const chipBlock = src.slice(chipAt, src.indexOf('/>', chipAt))
+    expect(chipBlock, 'ชิปต้องไม่มีตัวเลขเงิน').not.toMatch(/baht\(/)
+  })
 })
