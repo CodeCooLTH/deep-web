@@ -305,7 +305,7 @@ export function derivePickupStage(o: {
 | Actor | เลือกวิธีส่งมอบ (สร้าง/แก้ไข ตอน `PENDING`) | กด "มอบสินค้าแล้ว" / undo | กด "ได้รับเงินแล้ว" / undo | ตั้ง/เปลี่ยนบัญชีรับเงิน (`PATCH /shops/payout`) | ดูบัญชีรับเงิน + QR ที่ `/o/{token}` |
 |---|---|---|---|---|---|
 | **OWNER** (`ShopMember.role='OWNER'`) | ✅ | ✅ | ✅ | ✅ | ✅ (เหมือนทุก actor — guest view) |
-| **ADMIN** (`ShopMember.role='ADMIN'`, staff ที่ได้รับเชิญ) | ✅ (เท่ากับสิทธิ์แก้ไขออเดอร์ทั่วไปที่มีอยู่แล้ว — ไม่มีข้อจำกัดใหม่) | ✅ | ✅ | 🛑 **ต้องยืนยันจาก user** (ux เสนอ OWNER-only — ดู §8.1 Open Question) | ✅ |
+| **ADMIN** (`ShopMember.role='ADMIN'`, staff ที่ได้รับเชิญ) | ✅ (เท่ากับสิทธิ์แก้ไขออเดอร์ทั่วไปที่มีอยู่แล้ว — ไม่มีข้อจำกัดใหม่) | ✅ | ✅ | ❌ **ห้าม (user เคาะ 2026-08-28: เจ้าของร้านเท่านั้น)** — บัญชีธนาคารคือจุดเดียวที่ถ้าถูกสวมสิทธิ์แล้วเงินลูกค้าไหลออกทันที จึงเข้มกว่าการแก้ข้อมูลร้านทั่วไปโดยตั้งใจ | ✅ |
 | **ผู้ซื้อ (ล็อกอินแล้ว, `order.buyerUserId` ตรง)** | ❌ | ❌ | ❌ | ❌ | ✅ + กดยืนยันรับของเองได้ (TFR-005) + แนบสลิปได้ (TFR-008) |
 | **ผู้ซื้อ / guest (ไม่ล็อกอิน)** | ❌ | ❌ | ❌ | ❌ | ✅ (guest view เต็มรูป — บัญชีรับเงิน + QR + สถานะ, ไม่มี mutation ใด) |
 | **Cron (`CRON_SECRET`)** | ❌ | เขียนเฉพาะ `Order.status` ผ่าน `autoConfirmPickup()` — ไม่แตะ `handedOverAt` (มีอยู่แล้วก่อนหน้า) | ❌ | ❌ | ❌ |
@@ -525,7 +525,7 @@ erDiagram
 | Data model (Prisma schema section) | `Order` +5 คอลัมน์, `Shop` +5 คอลัมน์, `OrderEvent.type` 21→25 ค่า (comment ที่ `schema.prisma:3739-3741` ต้องแก้ในคอมมิตเดียวกับ migration — `DATABASE.md` §3.3 เตือนไว้แล้วว่าเคยค้างมาก่อน) |
 | API reference | เพิ่ม `POST/DELETE /api/orders/[token]/handover`, `POST/DELETE /api/orders/[token]/payment-confirm`, `PATCH /api/shops/payout`, `GET /api/cron/auto-confirm-pickup` เข้าตารางรวม |
 | `CreateOrderSchema`/`UpdateOrderSchema` validation rules | คีย์ใหม่ `fulfillmentMode?: 'SHIPPED' \| 'PICKUP'` |
-| Authorization matrix (ถ้ามีตารางรวมของทั้งระบบ) | สิทธิ์แก้บัญชีรับเงิน (รอ user เคาะ OWNER-only หรือรวม ADMIN — §4) |
+| Authorization matrix (ถ้ามีตารางรวมของทั้งระบบ) | สิทธิ์แก้บัญชีรับเงิน = **OWNER เท่านั้น** (user เคาะ 2026-08-28 — §4) |
 
 ---
 
@@ -560,7 +560,7 @@ erDiagram
 - ข้อพิสูจน์เชิงโค้ด 2 จุดที่ยืนยันแล้วว่าลดความเสี่ยงของแผน: `order-action-set.ts` เป็น allow-list อยู่แล้ว (ไม่ต้องแก้สำหรับ TFR-002) และ `shipOrder()` กัน `PICKUP` ไปเป็น `SHIPPED` อยู่แล้ว (ลดพื้นที่ทดสอบของ TFR-004)
 
 **ประเด็นที่ต้องตัดสินใจเพิ่ม (Open Questions):**
-1. 🛑 สิทธิ์แก้ไขบัญชีรับเงิน — OWNER-only (ตามที่ ux เสนอ) หรือรวม ADMIN ด้วย (§4) — **ต้องได้คำตอบจาก user ก่อน implement `PATCH /shops/payout`**
+1. ~~สิทธิ์แก้ไขบัญชีรับเงิน~~ → **ปิดแล้ว 2026-08-28: OWNER เท่านั้น** (user เคาะตรง ๆ) — `PATCH /shops/payout` ต้องมีด่าน `role === 'OWNER'` ที่ route + เทส `[blocker]` พิสูจน์ว่า ADMIN ถูกปฏิเสธ 403
 2. enum value ที่แน่นอนของ `ShippingStageKey` เมื่อ `fulfillmentMode='PICKUP'` — เอกสารนี้เสนอ `'DONE'` เสมอ (§3.4) แต่เป็นข้อเสนอ ไม่ใช่มติสุดท้าย — SDS ต้องยืนยันหรือเสนอทางอื่น
 3. `payoutSnapshot` ใน guest view ต้องรอผลการสแกน QR จริงกับแอปธนาคาร (TFR-011) ก่อนถือว่า FR-BANK-05 เสร็จสมบูรณ์ — ไม่ใช่แค่ unit test ผ่าน
 4. หลัง SDS ของโมดูลนี้เขียนเสร็จ ต้องกลับมาแก้ §12 Traceability ให้ trace กลับ SDS component แทน/เพิ่มเติมจาก BRD FR-ID (ตาม `DATABASE.md` Open Question #4 ที่ระบุเงื่อนไขเดียวกัน)
