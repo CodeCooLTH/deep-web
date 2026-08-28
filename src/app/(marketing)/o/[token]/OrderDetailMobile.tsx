@@ -208,7 +208,11 @@ const baht = new Intl.NumberFormat('th-TH', {
 })
 
 // ── TimelineDot — render single dot ตาม state, สีผ่าน theme.palette.* เท่านั้น (ไม่มี hex) ──
-function TimelineDot({ state }: { state: TimelineState }) {
+/**
+ * จุดบนราง — `stepNo` ใส่เลขขั้นให้จุดที่ยังไม่ถึง/กำลังทำ (ราง 4 ขั้นของร้านบริการ)
+ * ไม่ส่ง = พฤติกรรมเดิมทุกประการ (ราง 3 ขั้นของร้านขายของ ไม่มีเลข)
+ */
+function TimelineDot({ state, stepNo }: { state: TimelineState; stepNo?: number }) {
   // done: filled success + white check
   if (state === 'done') {
     return (
@@ -246,7 +250,15 @@ function TimelineDot({ state }: { state: TimelineState }) {
           placeItems: 'center',
         }}
       >
-        <Box sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: 'info.main' }} />
+        {/* เลขขั้นแทนจุดทึบเมื่อผู้เรียกส่งมา — ราง 4 ขั้นต้องบอกได้ว่า "นี่คือขั้นที่เท่าไร"
+            ไม่งั้นขั้นกลางสองขั้นแยกจากกันด้วยข้อความอย่างเดียว (mockup 2026-08-28) */}
+        {stepNo != null ? (
+          <Typography sx={{ fontSize: '0.6875rem', fontWeight: 700, color: 'info.main', lineHeight: 1 }}>
+            {stepNo}
+          </Typography>
+        ) : (
+          <Box sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: 'info.main' }} />
+        )}
       </Box>
     )
   }
@@ -297,15 +309,23 @@ function TimelineDot({ state }: { state: TimelineState }) {
       sx={{
         position: 'relative',
         zIndex: 1,
-        width: 17,
-        height: 17,
+        width: stepNo != null ? 23 : 17,
+        height: stepNo != null ? 23 : 17,
         borderRadius: '50%',
         bgcolor: 'background.paper',
         border: '2.5px solid',
         borderColor: 'divider',
         opacity: state === 'mute' ? 0.6 : 1,
+        display: 'grid',
+        placeItems: 'center',
       }}
-    />
+    >
+      {stepNo != null && (
+        <Typography sx={{ fontSize: '0.6875rem', fontWeight: 600, color: 'text.disabled', lineHeight: 1 }}>
+          {stepNo}
+        </Typography>
+      )}
+    </Box>
   )
 }
 
@@ -339,7 +359,7 @@ function labelColor(state: TimelineState): 'info.main' | 'success.dark' | 'error
  * `minWidth: 0` ที่คอลัมน์ — flex item มี `min-width:auto` เป็นค่าตั้งต้น ป้ายที่ยาวกว่าคอลัมน์
  * จะ **ดันรางให้กว้างเกินจอ** แทนที่จะตกบรรทัด (บทเรียน `flex-header-truncation.md`)
  */
-function HorizontalTimeline({ steps }: { steps: TimelineStep[] }) {
+function HorizontalTimeline({ steps, numbered = false }: { steps: TimelineStep[]; numbered?: boolean }) {
   return (
     <Box sx={{ display: 'flex', pb: 0.25 }}>
       {steps.map((step, i) => (
@@ -380,7 +400,7 @@ function HorizontalTimeline({ steps }: { steps: TimelineStep[] }) {
                     },
             }}
           >
-            <TimelineDot state={step.state} />
+            <TimelineDot state={step.state} stepNo={numbered ? i + 1 : undefined} />
           </Box>
           {/* label */}
           <Typography
@@ -403,6 +423,37 @@ function HorizontalTimeline({ steps }: { steps: TimelineStep[] }) {
           >
             {step.label}
           </Typography>
+
+          {/* บรรทัดอธิบาย — มีเฉพาะขั้นที่มีอะไรจะบอก (`note` เป็น optional ที่ SSOT)
+              🛑 จองที่ไว้ตายตัวแม้ไม่มีข้อความ เพื่อให้ทุกคอลัมน์เริ่มบรรทัดถัดไปตรงกัน
+              ไม่งั้นแถวเวลาของแต่ละขั้นจะเหลื่อมกันตามความยาวของ note */}
+          <Typography
+            variant='caption'
+            sx={{
+              display: 'block',
+              mt: 0.25,
+              px: 0.25,
+              fontSize: '0.625rem',
+              lineHeight: 1.35,
+              color: 'text.secondary',
+              wordBreak: 'break-word',
+              minHeight: '2.7em',
+            }}
+          >
+            {step.note ?? ''}
+          </Typography>
+
+          {/* เวลา — เรนเดอร์เฉพาะขั้นที่ **มีเวลาจริง** ห้ามใส่ขีดแทน
+              ขั้น "ร้านให้บริการ" ไม่มีคอลัมน์เก็บเวลาในระบบเลย ⇒ ขีดที่ขึ้นทุกใบตลอดไป
+              คือสัญญาณว่างเปล่าที่กินที่ ไม่ใช่ข้อมูล (เหตุผลเต็มที่ `TimelineStep.atIso`) */}
+          {step.atIso && (
+            <Typography
+              variant='caption'
+              sx={{ display: 'block', mt: 0.25, px: 0.25, fontSize: '0.5625rem', lineHeight: 1.3, color: 'text.disabled' }}
+            >
+              {formatDateTimeTH(step.atIso)}
+            </Typography>
+          )}
         </Box>
       ))}
     </Box>
@@ -443,6 +494,9 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   const [submitting, setSubmitting] = useState(false)
   // state สำหรับ tracking copy icon (เปลี่ยน icon → tabler-check 2 วิ)
   const [copied, setCopied] = useState(false)
+  /* 🛑 แยกจาก `copied` ของเลขพัสดุ — ใช้ตัวเดียวกันแล้วกดคัดลอกเลขงาน จะทำให้เช็กถูก
+     ไปโผล่ที่ปุ่มคัดลอกเลขพัสดุด้วย (คนละก้อนคนละความหมาย อยู่บนจอเดียวกันได้พร้อมกัน) */
+  const [copiedOrderNo, setCopiedOrderNo] = useState(false)
   // state สำหรับ cancel confirm dialog
   const router = useRouter()
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
@@ -659,8 +713,25 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
            ถ้าเดาจากเวลา ขั้น "ลูกค้ายืนยันนัด" จะไปค้างรอในใบที่ไม่มีนัดให้ยืนยัน */
         hasAppointment: order.appointment !== null,
         buyerConfirmedAt: order.appointment?.buyerConfirmedAt ?? null,
+        createdAtIso: order.createdAtIso,
       })
     : getOrderTimeline(order.status, order.fulfillmentMode, order.paymentMethod)
+
+  /** เลขงานที่ผู้ใช้เห็น — คำนวณสดจาก token+วันที่ (ดู `formatOrderNo`) ใช้ทั้งหัวเรื่องและปุ่มคัดลอก */
+  const orderNo = formatOrderNo(order.publicToken, order.createdAtIso)
+
+  const handleCopyOrderNo = async () => {
+    try {
+      await navigator.clipboard.writeText(orderNo)
+      setCopiedOrderNo(true)
+      toast.success('คัดลอกเลขคำสั่งซื้อแล้ว')
+      setTimeout(() => setCopiedOrderNo(false), 2000)
+    } catch {
+      /* ข้อความต้องบอก **ทางออกที่ทำได้จริง** ไม่ใช่ "ลองใหม่อีกครั้ง" ซึ่งกดกี่ครั้งก็เหมือนเดิม
+         (เบราว์เซอร์ที่ปฏิเสธ clipboard จะปฏิเสธตลอด — ท่าเดียวกับปุ่มคัดลอกเลขพัสดุ) */
+      toast.error('คัดลอกไม่สำเร็จ — กดค้างที่เลขคำสั่งซื้อเพื่อคัดลอกเองได้')
+    }
+  }
 
   // ใช้กับแถว "วิธีชำระเงิน" ด้านล่าง — จงใจไม่เกี่ยวกับป้ายปุ่มหลักอีกต่อไป (ดูเหตุผลถัดไป)
   const isCOD = isCODPayment(order.paymentMethod)
@@ -877,8 +948,43 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           </Box>
         )}
 
-        {/* ── 3. Status line — pill + meta ── */}
-        <Box sx={{ bgcolor: 'background.paper', px: 2.25, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+        {/* ── 3. หัวเรื่องของ "ใบนี้" — เลขงาน + ปุ่มคัดลอก ──
+            มาจาก mockup ที่หัวหน้าส่ง 2026-08-28 (`hero`) · เดิมเลขออเดอร์เป็นตัวจิ๋วสีจาง
+            ชิดขวาแถวเดียวกับป้ายสถานะ ⇒ **เลขที่ลูกค้าต้องอ่านให้ร้านฟังทางโทรศัพท์
+            เป็นข้อความที่เล็กที่สุดในหน้า** และคัดลอกไม่ได้เลย */}
+        <Box sx={{ bgcolor: 'background.paper', px: 2.25, pt: 1.5, pb: 0.5 }}>
+          <Typography variant='caption' sx={{ display: 'block', color: 'text.secondary', fontWeight: 500 }}>
+            {order.isServiceShop ? 'รายละเอียดคำสั่งบริการ' : 'รายละเอียดคำสั่งซื้อ'}
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25, mb: 1 }}>
+            <Typography
+              component='h1'
+              sx={{
+                m: 0,
+                fontSize: { xs: '1.375rem', sm: '1.625rem' },
+                fontWeight: 700,
+                letterSpacing: '-0.02em',
+                lineHeight: 1.2,
+                minWidth: 0,
+                wordBreak: 'break-all',
+              }}
+            >
+              {orderNo}
+            </Typography>
+            {/* ปุ่มไอคอน — ข้อความ "คัดลอกรหัส" จะเบียดกับเลข 13 ตัวอักษรบนจอ 360
+                44px = พื้นที่นิ้วขั้นต่ำที่ PRODUCT.md กำหนด (ก้อนไอคอนข้างในเล็กกว่านั้นได้) */}
+            <Button
+              onClick={handleCopyOrderNo}
+              aria-label='คัดลอกเลขคำสั่งซื้อ'
+              sx={{ minWidth: 44, width: 44, height: 44, p: 0, borderRadius: '50%', color: 'text.secondary', flexShrink: 0 }}
+            >
+              <Icon icon={copiedOrderNo ? 'tabler-check' : 'tabler-copy'} fontSize={18} />
+            </Button>
+          </Box>
+        </Box>
+
+        {/* ── 3b. แถวสถานะ + วันที่เปิดบิล ── */}
+        <Box sx={{ bgcolor: 'background.paper', px: 2.25, pb: 1.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           {/* ป้ายสถานะใช้ `TrustPill` เหมือนจอ guest — คำ/สีมาจาก SSOT เดียวกันอยู่แล้ว
               (`resolveOrderStatusBadge`) ที่ต่างคือทรง ซึ่งไม่มีเหตุผลให้ต่าง */}
           {/**
@@ -893,15 +999,68 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             tierColor={ORDER_STATUS_TONE_TO_MUI[statusBadge.tone]}
             label={statusBadge.label}
           />
-          <Typography variant='caption' color='text.disabled' sx={{ ml: 'auto' }}>
-            {formatOrderNo(order.publicToken, order.createdAtIso)} · {formatDateTimeTH(order.createdAtIso)}
+          {/* เลขออเดอร์ย้ายขึ้นไปเป็นหัวเรื่องแล้ว — ตรงนี้เหลือเฉพาะ "เปิดบิลเมื่อไร"
+              ซึ่งเป็นข้อเท็จจริงประกอบ ไม่ใช่ตัวระบุที่ลูกค้าต้องอ่านให้ใครฟัง */}
+          <Typography variant='caption' color='text.secondary' sx={{ ml: 'auto' }}>
+            {formatDateTimeTH(order.createdAtIso)}
           </Typography>
         </Box>
 
-        {/* ── 4. Horizontal Timeline 3-step — flat (ไม่มี card รอบ) ── */}
+        {/* ── 4. รางสถานะ — 4 ขั้นสำหรับร้านบริการ / 3 ขั้นสำหรับที่เหลือ ── */}
         <Box sx={{ bgcolor: 'background.paper', px: 2.25, pt: 1, pb: 1.5 }}>
-          <SectionTitle>ขั้นตอน</SectionTitle>
-          <HorizontalTimeline steps={timeline} />
+          <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.5 }}>
+            <SectionTitle>{order.isServiceShop ? 'สถานะงานบริการ' : 'ขั้นตอน'}</SectionTitle>
+            <Typography variant='caption' color='text.secondary' sx={{ mb: 2, flexShrink: 0 }}>
+              อัปเดตตามการดำเนินงานจริง
+            </Typography>
+          </Box>
+
+          {/* เลขขั้นเฉพาะราง 4 ขั้น — ราง 3 ขั้นของร้านขายของไม่เคยมีเลข การใส่เพิ่มคือ
+              เปลี่ยนหน้าตาของ vertical ที่ไม่ได้อยู่ในขอบเขตงานนี้ */}
+          <HorizontalTimeline steps={timeline} numbered={order.isServiceShop} />
+
+          {/**
+            * 🛑 กล่องนี้คือ **ตัวกันความเสียหาย** ไม่ใช่ของประดับ
+            *
+            * ขั้น 2 กับขั้น 4 เป็นการ "ยืนยัน" ของลูกค้าทั้งคู่ แต่คนละเรื่องกันสิ้นเชิง:
+            * ขั้น 2 บอกว่าจะมาตามนัด (ย้อนได้) · ขั้น 4 ปิดงาน (**ย้อนไม่ได้** + คะแนนร้านขยับ)
+            *
+            * ลูกค้าที่กดขั้น 4 ตั้งแต่ยังไม่ได้รับบริการ จะเสียทางออกทั้งหมดในหนึ่งแตะ —
+            * ปุ่มแจ้งปัญหาหายไปพร้อมกัน (เงื่อนไข `status !== 'CONFIRMED'` ด้านล่าง)
+            * นี่คือช่องทางสแกมแบบเดียวกับที่ `ctaLabel` เขียนอธิบายไว้ยาว ๆ แค่ย้ายมาอีกขั้น
+            *
+            * แสดงเฉพาะตอนที่ยังกดผิดได้ — ใบที่จบ/ยกเลิกแล้วอ่านแล้วสับสนเปล่า ๆ
+            */}
+          {order.isServiceShop && canConfirm && (
+            <Box
+              sx={{
+                mt: 2,
+                display: 'flex',
+                gap: 1,
+                alignItems: 'flex-start',
+                bgcolor: 'primary.lightOpacity',
+                borderRadius: 2,
+                px: 1.5,
+                py: 1.25,
+              }}
+            >
+              <Icon
+                icon='tabler-info-circle'
+                style={{ fontSize: 16, flexShrink: 0, marginTop: 2, color: 'var(--mui-palette-primary-main)' }}
+                aria-hidden='true'
+              />
+              <Typography variant='caption' sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
+                <Box component='strong' sx={{ fontWeight: 600, color: 'text.primary' }}>
+                  ยืนยันนัดหมาย
+                </Box>{' '}
+                คือยืนยันว่าคุณจะมาตามนัด ส่วน{' '}
+                <Box component='strong' sx={{ fontWeight: 600, color: 'text.primary' }}>
+                  {ctaLabel}
+                </Box>{' '}
+                คือปิดงานหลังได้รับบริการจริง และย้อนกลับไม่ได้
+              </Typography>
+            </Box>
+          )}
         </Box>
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, px: 1.5, pt: 1.5, pb: 2 }}>
