@@ -229,13 +229,6 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
             <Typography variant="h6" sx={{ fontWeight: 800 }}>
               {formatWeekdayDateTH(start)}
             </Typography>
-            <Typography variant="body1" color="text.primary">
-              {allDay
-                ? 'ทั้งวัน'
-                : crossesDay
-                  ? `${formatTimeHM(start)} – ${formatDateTH(end)} ${formatTimeHM(end)} น.`
-                  : `${formatTimeHM(start)} – ${formatTimeHM(end)} น.`}
-            </Typography>
             <Typography
               variant="body2"
               color="text.secondary"
@@ -253,24 +246,35 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
             </Typography>
           </div>
 
-          {/* ── ตารางย่อ วัน / เวลา / ระยะเวลา (mockup 2026-08-28 `appt-grid`) ──
-              เดิมข้อมูลสามชิ้นนี้ซ้อนกันเป็นสามบรรทัดความหนาต่างกัน อ่านเป็นย่อหน้า
-              ไม่ใช่ข้อมูลที่กวาดตาได้ · ผู้ซื้อเปิดหน้านี้เพื่อตอบคำถามเดียว "ต้องไปวันไหนกี่โมง"
+          {/* ── ตารางย่อ เวลา / ใช้เวลา (mockup 2026-08-28 `appt-grid`) ──
+              ข้อมูลที่ผู้ซื้อกวาดตาหาบนหน้านี้ ไม่ใช่ย่อหน้าที่ต้องอ่าน
 
-              🛑 ไม่ใส่ช่อง "สถานะ" ตาม mockup — ป้ายสถานะอยู่บนหัวการ์ดห่างไป 2 บรรทัดแล้ว
-              ใส่ซ้ำ = เลขเดียวกันสองที่บนจอเดียว ซึ่งเป็นรูปแบบที่เคยทำให้จอโชว์ตัวเลข
-              ไม่ตรงกันมาแล้ว (`sibling-surface-parity.md`) */}
+              🛑 **ไม่มีช่อง "วันที่"** ทั้งที่ mockup มี — วันที่เป็นหัวเรื่องของการ์ดอยู่แล้ว
+              และหัวเรื่องดีกว่าเพราะมี**ชื่อวัน** ("จันทร์ 12 ส.ค. 2569") ซึ่งเป็นสิ่งที่คนใช้
+              วางแผนจริง ส่วนช่องในตารางจะเหลือแค่เลขวันที่ · ใส่ทั้งสองที่ = ข้อมูลเดียวกัน
+              สองที่บนการ์ดเดียว ซึ่งเป็นเหตุผลเดียวกับที่ตัดช่อง "สถานะ" ของ mockup ทิ้ง
+
+              🛑 **ไม่มีช่อง "สถานะ"** — ป้ายอยู่บนหัวการ์ดห่างไป 2 บรรทัดแล้ว
+              (`sibling-surface-parity.md`: ค่าเดียวกันหลายที่ต้องมาจาก symbol เดียว
+              และถ้าเห็นพร้อมกันได้ ก็ไม่ควรมีสองที่ตั้งแต่แรก) */}
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: durationText ? { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' } : '1fr 1fr',
+              gridTemplateColumns: durationText ? '1fr 1fr' : '1fr',
               gap: 1,
             }}
           >
-            <MiniFact label='วันที่' value={formatDateTH(start)} />
             <MiniFact
               label='เวลา'
-              value={allDay ? 'ทั้งวัน' : `${formatTimeHM(start)} – ${formatTimeHM(end)}`}
+              value={
+                allDay
+                  ? 'ทั้งวัน'
+                  : crossesDay
+                    ? /* ข้ามวัน — ต้องบอกวันที่ของฝั่งจบด้วย ไม่งั้น "22:00 – 02:00"
+                         อ่านเป็นย้อนเวลากลับ */
+                      `${formatTimeHM(start)} – ${formatDateTH(end)} ${formatTimeHM(end)}`
+                    : `${formatTimeHM(start)} – ${formatTimeHM(end)}`
+              }
             />
             {durationText && <MiniFact label='ใช้เวลา' value={durationText} />}
           </Box>
