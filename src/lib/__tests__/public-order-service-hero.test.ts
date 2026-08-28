@@ -85,7 +85,18 @@ describe('[blocker] หน้าออเดอร์ลูกค้า — ห�
 
   it('[blocker] รางต้องได้ hasAppointment จาก "มีนัดไหม" ไม่ใช่ "มีเวลาไหม"', () => {
     /* งาน walk-in ที่ร้านกด "เริ่มงานเลย" ก็ได้เวลา ทั้งที่ไม่เคยมีการนัดหมาย —
-       เดาจากเวลา = ขั้น "ลูกค้ายืนยันนัด" ไปค้างรอในใบที่ไม่มีนัดให้ยืนยัน */
-    expect(code).toMatch(/hasAppointment:\s*order\.appointment\s*!==\s*null/)
+       เดาจากเวลา = ขั้น "ลูกค้ายืนยันนัด" ไปค้างรอในใบที่ไม่มีนัดให้ยืนยัน
+
+       🛑 ต้องตัดมาเฉพาะบล็อกของ `getServiceTimeline` — ในไฟล์นี้มี `hasAppointment` **2 จุด**
+       (ราง + ป้ายสถานะจาก `resolveServiceOrderBadge`) ร่างแรกของเทสค้นทั้งไฟล์ ⇒ mutation
+       ที่เปลี่ยนจุดของรางไปเดาจากเวลา **ยังเขียว** เพราะไปเจออีกจุดที่ไม่ได้ถูกแตะ
+       (`mutation-silence-means-weak-corpus.md` ตรงตัว) */
+    const at = code.indexOf('getServiceTimeline({')
+    expect(at, 'ต้องเรียก getServiceTimeline').toBeGreaterThan(-1)
+    const block = code.slice(at, code.indexOf('})', at))
+    expect(block, 'ในบล็อกของรางต้องเป็น order.appointment !== null').toMatch(
+      /hasAppointment:\s*order\.appointment\s*!==\s*null/,
+    )
+    expect(block, 'ห้ามเดาจากเวลานัด').not.toMatch(/hasAppointment:[^\n]*startIso/)
   })
 })
