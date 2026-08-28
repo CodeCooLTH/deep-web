@@ -1105,6 +1105,106 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
            */}
           {order.money && <PaymentSummaryCard money={order.money} />}
 
+          {/* ── สลิป — 🛑 ต้องอยู่ "ก่อน" โซนรีวิวเสมอ (FR-010) ──
+              เดิมอยู่ล่างสุดใต้ทุกอย่างรวมถึงรีวิว ซึ่งกลับลำดับของความเป็นจริง: การชำระเงิน
+              เกิดก่อนการรับของ และการรีวิวเกิดหลังรับของ — ผู้ซื้อที่เพิ่งโอนเงินต้องเลื่อนผ่าน
+              ทั้งหน้าเพื่อหาที่แนบสลิป ──
+
+              🛑 ย้ายขึ้นมาติดการ์ดเงิน 2026-08-28 — การย้ายรอบก่อนแก้ได้แค่ครึ่งเดียว:
+              มันยังอยู่ใต้การ์ดรายการ/วิธีชำระ/เลขพัสดุ ห่างจากการ์ดเงินราว 130 บรรทัด
+              ขณะที่**การ์ดเงินเป็นตัวที่เขียนว่า "แนบสลิปไว้ได้เลย"** ⇒ ประโยคชวนให้ทำ
+              กับตัวที่ให้ทำ อยู่คนละหน้าจอกัน · ยังอยู่ก่อนโซนรีวิวตาม FR-010 เหมือนเดิม ── */}
+          {showSlipZone(order.status, order.paymentMethod) && (
+            <>
+              <input
+                ref={slipInputRef}
+                type='file'
+                accept='image/*,application/pdf'
+                style={{ display: 'none' }}
+                onChange={e => {
+                  const file = e.target.files?.[0]
+                  if (file) handleSlipUpload(file)
+                }}
+              />
+
+              {slipFileId == null ? (
+                /* ── slip-empty: ยังไม่แนบสลิป ── */
+                <Card>
+                  <Box sx={{ px: 1.75, py: 2.25, textAlign: 'center' }}>
+                    <SectionTitle>แนบสลิป</SectionTitle>
+
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+                      <CustomAvatar skin='light' variant='rounded' color='primary' size={42}>
+                        <Icon icon='tabler-camera' fontSize={20} />
+                      </CustomAvatar>
+                    </Box>
+
+                    <Typography variant='body2' sx={{ fontWeight: 700 }}>
+                      อัปโหลดสลิปการโอนเงิน
+                    </Typography>
+                    <Typography variant='caption' color='text.disabled' sx={{ display: 'block', mt: 0.25 }}>
+                      ไฟล์ภาพหรือ PDF ≤ {SLIP_MAX_MB}MB
+                    </Typography>
+
+                    <Button
+                      fullWidth
+                      variant='outlined'
+                      color='primary'
+                      disabled={uploadingSlip}
+                      onClick={() => slipInputRef.current?.click()}
+                      startIcon={<Icon icon='tabler-plus' fontSize={15} />}
+                      sx={{ mt: 1.5, borderStyle: 'dashed' }}
+                    >
+                      {uploadingSlip ? 'กำลังอัปโหลด...' : 'เลือกรูปสลิป'}
+                    </Button>
+                  </Box>
+                </Card>
+              ) : (
+                /* ── slip-done: แนบสลิปแล้ว ── */
+                <Card>
+                  <Box sx={{ px: 1.75, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    {slipPreview ? (
+                      <Avatar
+                        variant='rounded'
+                        src={slipPreview}
+                        alt='ตัวอย่างสลิป'
+                        sx={{ width: 46, height: 62, borderRadius: 1.5, flexShrink: 0, border: '1px solid', borderColor: 'divider' }}
+                      />
+                    ) : (
+                      <CustomAvatar skin='light' variant='rounded' color='success' sx={{ width: 46, height: 62, borderRadius: 1.5, flexShrink: 0 }}>
+                        <Icon icon='tabler-file-check' fontSize={22} />
+                      </CustomAvatar>
+                    )}
+
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant='body2' sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {slipName ?? 'สลิปที่แนบ'}
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                        <Icon icon='tabler-check' style={{ fontSize: 12, color: 'var(--mui-palette-success-main)' }} />
+                        <Typography variant='caption' sx={{ fontWeight: 700, color: 'success.main' }}>
+                          แนบสลิปแล้ว
+                        </Typography>
+                      </Box>
+                    </Box>
+
+                    <Button
+                      size='small'
+                      variant='outlined'
+                      color='secondary'
+                      disabled={uploadingSlip}
+                      onClick={() => slipInputRef.current?.click()}
+                      sx={{ flexShrink: 0 }}
+                    >
+                      {uploadingSlip ? '...' : 'เปลี่ยน'}
+                    </Button>
+                  </Box>
+                </Card>
+              )}
+            </>
+          )}
+
+
           {/* ── 6. Items card ── */}
           <Card>
             <Box
@@ -1231,100 +1331,6 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 )}
               </Box>
             </Card>
-          )}
-
-          {/* ── สลิป — 🛑 ต้องอยู่ "ก่อน" โซนรีวิวเสมอ (FR-010) ──
-              เดิมอยู่ล่างสุดใต้ทุกอย่างรวมถึงรีวิว ซึ่งกลับลำดับของความเป็นจริง: การชำระเงิน
-              เกิดก่อนการรับของ และการรีวิวเกิดหลังรับของ — ผู้ซื้อที่เพิ่งโอนเงินต้องเลื่อนผ่าน
-              ทั้งหน้าเพื่อหาที่แนบสลิป ── */}
-          {showSlipZone(order.status, order.paymentMethod) && (
-            <>
-              <input
-                ref={slipInputRef}
-                type='file'
-                accept='image/*,application/pdf'
-                style={{ display: 'none' }}
-                onChange={e => {
-                  const file = e.target.files?.[0]
-                  if (file) handleSlipUpload(file)
-                }}
-              />
-
-              {slipFileId == null ? (
-                /* ── slip-empty: ยังไม่แนบสลิป ── */
-                <Card>
-                  <Box sx={{ px: 1.75, py: 2.25, textAlign: 'center' }}>
-                    <SectionTitle>แนบสลิป</SectionTitle>
-
-                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-                      <CustomAvatar skin='light' variant='rounded' color='primary' size={42}>
-                        <Icon icon='tabler-camera' fontSize={20} />
-                      </CustomAvatar>
-                    </Box>
-
-                    <Typography variant='body2' sx={{ fontWeight: 700 }}>
-                      อัปโหลดสลิปการโอนเงิน
-                    </Typography>
-                    <Typography variant='caption' color='text.disabled' sx={{ display: 'block', mt: 0.25 }}>
-                      ไฟล์ภาพหรือ PDF ≤ {SLIP_MAX_MB}MB
-                    </Typography>
-
-                    <Button
-                      fullWidth
-                      variant='outlined'
-                      color='primary'
-                      disabled={uploadingSlip}
-                      onClick={() => slipInputRef.current?.click()}
-                      startIcon={<Icon icon='tabler-plus' fontSize={15} />}
-                      sx={{ mt: 1.5, borderStyle: 'dashed' }}
-                    >
-                      {uploadingSlip ? 'กำลังอัปโหลด...' : 'เลือกรูปสลิป'}
-                    </Button>
-                  </Box>
-                </Card>
-              ) : (
-                /* ── slip-done: แนบสลิปแล้ว ── */
-                <Card>
-                  <Box sx={{ px: 1.75, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                    {slipPreview ? (
-                      <Avatar
-                        variant='rounded'
-                        src={slipPreview}
-                        alt='ตัวอย่างสลิป'
-                        sx={{ width: 46, height: 62, borderRadius: 1.5, flexShrink: 0, border: '1px solid', borderColor: 'divider' }}
-                      />
-                    ) : (
-                      <CustomAvatar skin='light' variant='rounded' color='success' sx={{ width: 46, height: 62, borderRadius: 1.5, flexShrink: 0 }}>
-                        <Icon icon='tabler-file-check' fontSize={22} />
-                      </CustomAvatar>
-                    )}
-
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant='body2' sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {slipName ?? 'สลิปที่แนบ'}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                        <Icon icon='tabler-check' style={{ fontSize: 12, color: 'var(--mui-palette-success-main)' }} />
-                        <Typography variant='caption' sx={{ fontWeight: 700, color: 'success.main' }}>
-                          แนบสลิปแล้ว
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    <Button
-                      size='small'
-                      variant='outlined'
-                      color='secondary'
-                      disabled={uploadingSlip}
-                      onClick={() => slipInputRef.current?.click()}
-                      sx={{ flexShrink: 0 }}
-                    >
-                      {uploadingSlip ? '...' : 'เปลี่ยน'}
-                    </Button>
-                  </Box>
-                </Card>
-              )}
-            </>
           )}
 
           {/* ── โซนรีวิว (3 สถานะ — ดู SDS TD-002) ── */}
