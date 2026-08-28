@@ -31,6 +31,7 @@ import { Icon } from '@iconify/react'
 import { signOut } from 'next-auth/react'
 
 import CustomAvatar from '@core/components/mui/Avatar'
+import Logo from '@components/layout/shared/Logo'
 
 export type OrderAccessBlockReason = 'owner-mismatch' | 'legacy'
 
@@ -78,6 +79,20 @@ export default function OrderAccessBlock({ reason }: { reason: OrderAccessBlockR
         bgcolor: 'background.default',
       }}
     >
+      {/**
+       * ตราแบรนด์ — 🛑 จอพี่น้องอีกสองจอ (`ClaimOtpPrompt` · `PhoneVerifyPrompt`) เพิ่มตรงนี้
+       * ไว้แล้วพร้อมเหตุผลเต็ม ๆ ว่า **จอกลุ่มนี้ไม่มีทางออกไปหน้าอื่นเลย** และ header ของ
+       * `FrontLayout` ที่เคยเป็นทางออกถูกถอดออกไปแล้ว (FR-019) — จอนี้ตกหล่นจากรอบนั้น
+       *
+       * ที่นี่มีลิงก์ "กลับหน้าหลัก" อยู่ท้ายจอก็จริง แต่มันเป็นข้อความสีจางใต้ปุ่ม ไม่ใช่
+       * จุดยึดสายตา · ผู้ซื้อที่มาถึงจอนี้กำลังงงว่าตัวเองอยู่ที่ไหน — ตราแบรนด์ตอบคำถามนั้น
+       * ก่อนที่เขาจะอ่านอะไรเลย และเป็นสิ่งเดียวกับที่อีกสองจอตอบให้แล้ว
+       * (`sibling-surface-parity.md`: จอพี่น้องบอกว่าหน้านี้ควรมีอะไร)
+       */}
+      <Link href='/' aria-label='กลับหน้าแรก' className='inline-flex'>
+        <Logo />
+      </Link>
+
       <CustomAvatar skin='light' variant='rounded' color={content.color} size={64}>
         <Icon icon={content.icon} fontSize={30} />
       </CustomAvatar>
