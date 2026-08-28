@@ -21,6 +21,7 @@
 
 import { useState } from 'react'
 
+import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
@@ -33,11 +34,32 @@ import { toast } from 'react-toastify'
 
 import CustomTextField from '@core/components/mui/TextField'
 import {
-  APPOINTMENT_STATUS_LABEL,
+  APPOINTMENT_STATUS_LABEL_BUYER,
+  formatDurationTH,
   isAllDayAppointment,
   type AppointmentStatus,
 } from '@/lib/appointments'
 import { formatDateTH, formatDateTimeTH, formatTimeHM, formatWeekdayDateTH } from '@/lib/format-date'
+
+/**
+ * MiniFact — กล่องข้อเท็จจริงหนึ่งชิ้น (ป้าย + ค่า) ในตารางย่อของการ์ดนัดหมาย
+ *
+ * ประกาศนอก component หลักโดยตั้งใจ — ประกาศในตัว render จะเป็น **ชนิดใหม่ทุก re-render**
+ * React จะ unmount แล้ว mount ใหม่ทั้งกล่องทุกครั้งที่กดปุ่มใด ๆ บนการ์ด
+ * (`docs/conventions/component-declared-in-render.md`)
+ */
+function MiniFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className='rounded-lg bg-[var(--mui-palette-action-hover)] px-3 py-2'>
+      <Typography variant='caption' color='text.secondary' sx={{ display: 'block', lineHeight: 1.4 }}>
+        {label}
+      </Typography>
+      <Typography variant='body2' sx={{ fontWeight: 600, lineHeight: 1.4, mt: 0.25 }}>
+        {value}
+      </Typography>
+    </div>
+  )
+}
 
 export type PublicAppointment = {
   resourceName: string
@@ -102,6 +124,18 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
   // ร้านที่รับนัดเป็นรายวัน (FR-RSV-13) — โชว์ "ทั้งวัน" แทนช่วงเวลาที่ไม่มีความหมายกับลูกค้า
   // ตัดสินจากข้อมูลจริงของนัดนี้ ไม่ใช่จากค่าตั้งค่าปัจจุบันของร้าน (BR-RSV-57)
   const allDay = isAllDayAppointment(start, end)
+
+  /**
+   * ระยะเวลา — คำนวณจากช่วงเวลาจริง ไม่ได้อ่านค่าตั้งต้นของประเภทงาน
+   * (ร้านแก้เวลาทับได้ทีละใบ ค่าตั้งต้นจึงไม่ใช่ความจริงของใบนี้เสมอไป)
+   *
+   * 🛑 คำมาจาก `formatDurationTH` ที่เดียว — ประกอบ `${นาที} นาที` เองจะได้ "90 นาที"
+   * ขณะที่จออื่นอ่านว่า "1 ชม. 30 นาที" เลขเดียวกันคนละคำคนละหน้าจอ (HR16)
+   *
+   * นัดทั้งวัน/ข้ามวันไม่แสดง — ตัวเลขชั่วโมงของช่วงแบบนั้นไม่ได้ตอบอะไรให้ผู้ซื้อ
+   */
+  const durationText =
+    allDay || crossesDay ? '' : formatDurationTH(Math.round((end.getTime() - start.getTime()) / 60000))
 
   const showConfirm = !orderCancelled && state.status === 'SCHEDULED'
   /**
@@ -181,7 +215,10 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
               size="small"
               variant="tonal"
               color={STATUS_COLOR[state.status]}
-              label={APPOINTMENT_STATUS_LABEL[state.status]}
+              /* 🛑 ป้ายฝั่ง **ผู้ซื้อ** — ชุดของร้านเรียกเขาว่า "ลูกค้า" ซึ่งพออยู่บนหน้าของ
+                 ตัวเองจะอ่านเป็นการพูดถึงเขาเป็นบุคคลที่สาม และ `SCHEDULED` = "นัดแล้ว"
+                 ไม่บอกว่าเขาต้องทำอะไรทั้งที่ตรงนั้นเขาคือคนที่ต้องลงมือ (ดู `@/lib/appointments`) */
+              label={APPOINTMENT_STATUS_LABEL_BUYER[state.status]}
             />
           </div>
 
@@ -212,8 +249,31 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
               {/* มี label กำกับ — ชื่อคิวงานลอย ๆ ("ติดตั้งไฟหน้า") ลูกค้าอ่านไม่ออกว่าคืออะไร
                   ใช้คำเดียวกับป้ายในฟอร์มฝั่งผู้ขาย เพื่อให้สองฝั่งเรียกของเดียวกันด้วยคำเดียวกัน */}
               รับนัดโดย {state.resourceName}
+              {durationText ? ` · ${durationText}` : ''}
             </Typography>
           </div>
+
+          {/* ── ตารางย่อ วัน / เวลา / ระยะเวลา (mockup 2026-08-28 `appt-grid`) ──
+              เดิมข้อมูลสามชิ้นนี้ซ้อนกันเป็นสามบรรทัดความหนาต่างกัน อ่านเป็นย่อหน้า
+              ไม่ใช่ข้อมูลที่กวาดตาได้ · ผู้ซื้อเปิดหน้านี้เพื่อตอบคำถามเดียว "ต้องไปวันไหนกี่โมง"
+
+              🛑 ไม่ใส่ช่อง "สถานะ" ตาม mockup — ป้ายสถานะอยู่บนหัวการ์ดห่างไป 2 บรรทัดแล้ว
+              ใส่ซ้ำ = เลขเดียวกันสองที่บนจอเดียว ซึ่งเป็นรูปแบบที่เคยทำให้จอโชว์ตัวเลข
+              ไม่ตรงกันมาแล้ว (`sibling-surface-parity.md`) */}
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: durationText ? { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' } : '1fr 1fr',
+              gap: 1,
+            }}
+          >
+            <MiniFact label='วันที่' value={formatDateTH(start)} />
+            <MiniFact
+              label='เวลา'
+              value={allDay ? 'ทั้งวัน' : `${formatTimeHM(start)} – ${formatTimeHM(end)}`}
+            />
+            {durationText && <MiniFact label='ใช้เวลา' value={durationText} />}
+          </Box>
 
           {/* ── ปุ่ม/ข้อความตามสถานะ ── */}
           {orderCancelled ? (

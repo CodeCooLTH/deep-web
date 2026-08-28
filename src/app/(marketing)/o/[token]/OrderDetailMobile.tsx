@@ -1107,22 +1107,60 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
 
           {/* ── 6. Items card ── */}
           <Card>
-            <Box sx={{ px: 1.75, pt: 1.5, pb: 0.75 }}>
+            <Box
+              sx={{
+                px: 1.75,
+                pt: 1.5,
+                pb: 0.75,
+                display: 'flex',
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+                gap: 1.5,
+              }}
+            >
               {/* ร้านบริการไม่ได้ขาย "สินค้า" — ลูกค้าที่จ้างล้างแอร์เห็นคำนี้แล้วสะดุด
                   (หัวหน้า 2026-08-15: "order detail ดูไม่รู้เรื่อง") */}
               <SectionTitle>{order.isServiceShop ? 'รายการบริการ' : 'รายการสินค้า'}</SectionTitle>
+              {/* ตัวนับ (mockup 2026-08-28) — บอกว่าต้องเลื่อนดูอีกกี่รายการก่อนถึงยอดรวม
+                  ห้ามนับจากตัวเลขที่พิมพ์เอง ต้องมาจาก `order.items` ตัวเดียวกับที่เรนเดอร์
+                  ไม่งั้นจอบอก 3 แต่แสดง 2 (คลาสเดียวกับตัวนับที่เคยไม่ตรงใน `sibling-surface-parity`) */}
+              <Typography variant='caption' color='text.secondary' sx={{ mb: 2, flexShrink: 0 }}>
+                {order.items.length} รายการ
+              </Typography>
             </Box>
 
             {order.items.map((item, idx) => (
               <Box key={item.id}>
                 {idx > 0 && <Divider />}
-                <Box sx={{ px: 1.75, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                <Box sx={{ px: 1.75, py: 1.5, display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
                   <ItemThumbnail imageUrl={item.imageUrl} name={item.name} grayscale={isCancelled} />
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography variant='body2' sx={{ fontWeight: 600 }}>
                       {item.name}
                     </Typography>
-                    <Typography variant='caption' color='text.secondary'>
+                    {/* คำอธิบายรายการ — ร้านบริการกรอกจริง (prod: 150 แถวจากทั้งหมด) และเป็น
+                        ที่ที่ "รุ่น/สเปก/เงื่อนไข" ของงานอยู่ เช่น "Mitsubishi MSY-GR13VF"
+                        เดิมถูกส่งเข้ามาใน `PublicOrderData.items[].description` แต่**ไม่เคยถูกแสดง
+                        สักที่เลย** ⇒ ลูกค้าเห็นแค่ชื่อบริการลอย ๆ ทั้งที่ร้านพิมพ์รายละเอียดไว้แล้ว
+
+                        ตัดที่ 2 บรรทัด — คำอธิบายบางรายการยาวเป็นย่อหน้า ปล่อยเต็มจะดันราคา
+                        ตกบรรทัดและทำให้รายการที่เหลือถูกดันพ้นจอแรก */}
+                    {item.description && (
+                      <Typography
+                        variant='caption'
+                        color='text.secondary'
+                        sx={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          lineHeight: 1.45,
+                        }}
+                      >
+                        {item.description}
+                      </Typography>
+                    )}
+                    <Typography variant='caption' color='text.secondary' sx={{ display: 'block' }}>
                       {item.qty} × {baht.format(item.price)}
                     </Typography>
                   </Box>
