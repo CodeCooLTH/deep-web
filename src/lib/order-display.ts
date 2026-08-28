@@ -136,7 +136,22 @@ export function getPaymentBadge(
  */
 export type OrderStatus = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED' | 'RETURNED'
 export type TimelineState = 'done' | 'cur' | 'fin' | 'up' | 'cx' | 'mute'
-export type TimelineStep = { label: string; state: TimelineState }
+export type TimelineStep = {
+  label: string
+  state: TimelineState
+  /**
+   * บรรทัดอธิบายใต้ป้าย — **optional** ผู้ผลิตรางที่ไม่มีอะไรจะอธิบายไม่ต้องส่ง
+   *
+   * มีไว้รับสถานะที่ **ไม่คู่ควรกับขั้นของตัวเอง แต่ทิ้งไปก็ไม่ได้**:
+   * `RESCHEDULE_REQUESTED` (ลูกค้าขอเลื่อน) · `NO_SHOW` (ไม่มาตามนัด) · งานที่ไม่ได้นัดล่วงหน้า
+   *
+   * 🛑 ถ้ายัดสถานะพวกนี้เป็น "ขั้น" เพิ่ม จำนวนขั้นจะผันตามข้อมูล ⇒ ลูกค้าที่เปิดสองครั้ง
+   * เห็นจอคนละรูปแล้วอ่านว่าระบบเพี้ยน — ราง = โครงคงที่ · note = สิ่งที่เกิดกับใบนี้
+   */
+  note?: string
+  /** ISO ของเวลาที่ขั้นนี้เกิด — ไม่มีข้อมูลให้ **ไม่ส่ง** ห้ามส่งขีดหรือค่าเดา */
+  atIso?: string
+}
 
 /**
  * ORDER_STATUS_META — badge สถานะออเดอร์แบบ Paces token (bg-{semantic}/15 text-{semantic}) + icon
@@ -405,22 +420,41 @@ export function resolveServiceOrderBadge(input: {
  * | เข้ารับบริการ | ปิดผลนัดแล้ว (`COMPLETED`) · กำลังถึงคิวเมื่อเลยเวลานัดมาแล้ว |
  * | ยืนยันแล้ว | `Order.status === 'CONFIRMED'` |
  */
+/** ป้ายของราง 4 ขั้น — คงลำดับนี้เสมอ ห้ามสลับ/ตัดขั้น (ดูเหตุผลที่ `getServiceTimeline`) */
+export const SERVICE_TIMELINE_LABELS = [
+  "จองบริการ",
+  "ลูกค้ายืนยันนัด",
+  "ร้านให้บริการ",
+  "ยืนยันเสร็จสิ้น",
+] as const;
+
 export function getServiceTimeline(input: {
   status: OrderStatus;
   /** ISO/Date ของเวลานัด — null = ยังไม่ระบุเวลา (walk-in ที่ร้านยังไม่กดเริ่ม) */
   serviceStart: string | Date | null | undefined;
   appointmentStatus: string | null | undefined;
+  /**
+   * ใบนี้มีนัดผูกอยู่ไหม — **ไม่ใช่** `serviceStart != null`
+   *
+   * แยกกันเพราะนัดที่ยังไม่ระบุเวลาก็เป็นนัด และ walk-in ที่ร้านกด "เริ่มงานเลย" ก็ได้เวลา
+   * ทั้งที่ไม่เคยมีการนัดหมาย — ขั้น "ลูกค้ายืนยันนัด" ต้องผูกกับ *การมีนัด* ไม่ใช่ *การมีเวลา*
+   */
+  hasAppointment?: boolean;
+  /** เวลาที่ลูกค้ากดยืนยัน**นัด** (`Order.buyerConfirmedAt`) — null = ยังไม่กด */
+  buyerConfirmedAt?: string | Date | null;
+  /** เวลาที่บิลถูกสร้าง (`Order.createdAt`) — เวลาของขั้น 1 */
+  createdAtIso?: string | null;
   now?: Date;
 }): TimelineStep[] {
-  if (input.status === "CANCELLED") {
-    return [
-      { label: "จองแล้ว", state: "done" },
-      { label: "ยกเลิก", state: "cx" },
-      { label: "ยืนยัน", state: "mute" },
-    ];
-  }
+  const confirmed = input.status === "CONFIRMED";
+  const served = input.appointmentStatus === "COMPLETED";
+  const noShow = input.appointmentStatus === "NO_SHOW";
+  /**
+   * มีนัดไหม — ผู้เรียกที่ยังไม่ส่ง `hasAppointment` ถอยไปเดาจากสัญญาณของนัดที่มี
+   * (ค่าใด ๆ ใน `appointmentStatus` แปลว่ามีนัดเสมอ เพราะคอลัมน์นี้ NULL เมื่อไม่มีนัด)
+   */
+  const hasAppt = input.hasAppointment ?? input.appointmentStatus != null;
 
-  const served = input.appointmentStatus === "COMPLETED" || input.appointmentStatus === "NO_SHOW";
   const startMs = input.serviceStart ? new Date(input.serviceStart).getTime() : NaN;
   const nowMs = (input.now ?? new Date()).getTime();
   /**
@@ -429,14 +463,109 @@ export function getServiceTimeline(input: {
    */
   const arrived = Number.isFinite(startMs) && nowMs >= startMs;
 
-  const confirmed = input.status === "CONFIRMED";
+  /* ── ขั้น 3: ร้านให้บริการ ────────────────────────────────────────────
+     `confirmed` นับเป็น done ด้วย — ลูกค้ากดปิดงานได้ก็ต่อเมื่อได้รับบริการแล้ว
+     (ร้านที่ลืมกดปิดผลนัดไม่ควรทำให้ไทม์ไลน์ของลูกค้าค้างย้อนหลัง) */
+  const servedState: TimelineState = served || confirmed ? "done" : noShow ? "cx" : arrived || !hasAppt ? "cur" : "up";
+  const step3Done = servedState === "done";
 
-  return [
-    { label: "จองแล้ว", state: "done" },
+  /* ── ขั้น 2: ลูกค้ายืนยันนัด ───────────────────────────────────────────
+     🛑 สามกรณีที่ต้องแยกกัน ไม่ใช่ done/up สองค่า:
+
+     · ไม่มีนัด           → `mute` ขั้นนี้ไม่มีอยู่จริงสำหรับใบนี้ (งาน walk-in)
+     · กดแล้ว             → `done`
+     · ไม่เคยกด แต่ขั้น 3 จบไปแล้ว → `mute` = **ข้ามไป** ห้ามค้างเป็น "รออยู่"
+       ไทม์ไลน์ที่ขั้นก่อนหน้ายังรอ ขณะที่ขั้นถัดไปเสร็จแล้ว คือไทม์ไลน์ที่โกหก
+       และเกิดบ่อยมาก (ลูกค้าส่วนใหญ่ไม่เคยกดยืนยันนัด แต่ก็มาตามนัด) */
+  const buyerConfirmed = input.buyerConfirmedAt != null || input.appointmentStatus === "CONFIRMED_BY_BUYER";
+  const confirmState: TimelineState = !hasAppt
+    ? "mute"
+    : buyerConfirmed
+      ? "done"
+      : step3Done || noShow
+        ? "mute"
+        : "cur";
+
+  /* ── ขั้น 4: ยืนยันเสร็จสิ้น ────────────────────────────────────────── */
+  const finishState: TimelineState = confirmed ? "fin" : noShow ? "mute" : step3Done ? "cur" : "up";
+
+  /**
+   * ── บรรทัดอธิบายใต้ป้าย ─────────────────────────────────────────────
+   *
+   * 🛑 นี่คือที่ที่สถานะซึ่ง "ไม่คู่ควรกับขั้นของตัวเอง" ไปอยู่ — ตรวจ prod 2026-08-28:
+   * `RESCHEDULE_REQUESTED` และ `NO_SHOW` ยังเป็น 0 ใบทั้งคู่ **แต่โค้ดผลิตได้ทั้งสองค่า**
+   * ปล่อยให้ตกลงมาเป็น `cur`/`cx` เฉย ๆ = จอบอกแค่ "รออยู่/ไม่สำเร็จ" โดยไม่บอกว่าเพราะอะไร
+   *
+   * `undefined` แปลว่า "ไม่มีอะไรต้องอธิบาย" — ห้ามใส่สตริงว่างหรือขีด (ตัวเรนเดอร์กันที่ว่างเอง)
+   */
+  const confirmNote = !hasAppt
+    ? "งานนี้ไม่ได้นัดล่วงหน้า"
+    : input.appointmentStatus === "RESCHEDULE_REQUESTED"
+      ? "ลูกค้าขอเลื่อนนัด"
+      : confirmState === "mute"
+        ? "ไม่ได้ยืนยัน"
+        : confirmState === "cur"
+          ? "รอยืนยันว่าจะมาตามนัด"
+          : undefined;
+
+  const servedNote = noShow ? "ไม่มาตามนัด" : servedState === "cur" ? "ถึงเวลานัดแล้ว" : undefined;
+
+  const finishNote =
+    finishState === "cur" ? "กดยืนยันเมื่อได้รับบริการแล้ว" : finishState === "mute" ? "ไม่มีการปิดงาน" : undefined;
+
+  const steps: TimelineStep[] = [
     {
-      label: "เข้ารับบริการ",
-      state: served || confirmed ? "done" : arrived ? "cur" : "up",
+      label: SERVICE_TIMELINE_LABELS[0],
+      state: "done",
+      ...(input.createdAtIso ? { atIso: input.createdAtIso } : {}),
     },
-    { label: "ยืนยันแล้ว", state: confirmed ? "fin" : "up" },
+    {
+      label: SERVICE_TIMELINE_LABELS[1],
+      state: confirmState,
+      ...(confirmNote ? { note: confirmNote } : {}),
+      /* เวลาของขั้นนี้มีจริงในฐาน (`Order.buyerConfirmedAt`) ต่างจากขั้น 3 ที่ไม่มีที่เก็บเลย
+         ⇒ ขั้นที่ไม่มีเวลา **ไม่ส่ง `atIso`** ไม่ใช่ส่งขีด (ดูคอมเมนต์ที่ `TimelineStep.atIso`) */
+      ...(buyerConfirmed && input.buyerConfirmedAt
+        ? { atIso: new Date(input.buyerConfirmedAt).toISOString() }
+        : {}),
+    },
+    {
+      label: SERVICE_TIMELINE_LABELS[2],
+      state: servedState,
+      ...(servedNote ? { note: servedNote } : {}),
+    },
+    {
+      label: SERVICE_TIMELINE_LABELS[3],
+      state: finishState,
+      ...(finishNote ? { note: finishNote } : {}),
+    },
   ];
+
+  /**
+   * ── ยกเลิก: ทับทับ "ขั้นที่หยุด" ไม่ใช่ทับทั้งเส้น ────────────────────
+   *
+   * ขั้นที่เดินผ่านไปแล้วยังเป็นความจริง (บิลถูกสร้างจริง · ลูกค้ายืนยันนัดจริง)
+   * ตัวแรกที่ยังไม่ผ่าน = จุดที่มันหยุด → `cx` · ที่เหลือ `mute` เพราะจะไม่เกิดอีกแล้ว
+   *
+   * ทำแบบนี้ไทม์ไลน์ยัง**บอกได้ว่ายกเลิกตอนไหน** ซึ่งเป็นสิ่งที่ลูกค้าอยากรู้จริง
+   * ต่างจากการทาแดงทั้งเส้นซึ่งบอกแค่ว่า "จบแล้ว" (คำอธิบายว่าใครยกเลิกอยู่ในแบนเนอร์แยก)
+   */
+  if (input.status === "CANCELLED") {
+    let stopped = false;
+    return steps.map((s) => {
+      if (s.state === "done") return s;
+      /* 🛑 ทิ้ง `note` ของขั้นที่เปลี่ยนสถานะ — คำอย่าง "รอยืนยันว่าจะมาตามนัด" เขียนไว้ตอนที่
+         ใบยังเดินอยู่ ปล่อยติดมากับใบที่ยกเลิกแล้วคือบอกให้ผู้ใช้รอสิ่งที่จะไม่เกิดขึ้นอีก
+         (`note` ที่เหลืออยู่บนขั้น `done` ยังจริง เพราะมันเล่าสิ่งที่เกิดไปแล้ว) */
+      const { note: _dropped, ...rest } = s;
+      void _dropped;
+      if (!stopped) {
+        stopped = true;
+        return { ...rest, state: "cx" as const };
+      }
+      return { ...rest, state: "mute" as const };
+    });
+  }
+
+  return steps;
 }

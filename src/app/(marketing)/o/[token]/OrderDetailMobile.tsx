@@ -325,7 +325,20 @@ function labelColor(state: TimelineState): 'info.main' | 'success.dark' | 'error
   return 'text.disabled'
 }
 
-// ── HorizontalTimeline — 3-step flat timeline ──
+/**
+ * HorizontalTimeline — รางสถานะ กว้างเท่ากันทุกขั้น (ใช้ได้ทั้ง 3 และ 4 ขั้น)
+ *
+ * 🛑 ร้านบริการใช้ **4 ขั้น** ตั้งแต่ 2026-08-28 (`getServiceTimeline`) ⇒ แต่ละคอลัมน์เหลือ 25%
+ * ของความกว้าง ซึ่งที่ 360px คือ ~78px ต่อขั้น และป้ายไทยยาวสุด ("ลูกค้ายืนยันนัด") ไม่มีช่องว่าง
+ * ให้เบราว์เซอร์ตัดบรรทัดตามปกติ
+ *
+ * ทางแก้ของ mockup ต้นทางคือย่อฟอนต์ลงเหลือ **9px** ที่จอ ≤390 — ต่ำกว่าเพดานที่อ่านออกจริง
+ * จึงคงคำเต็มไว้ตาม ref แล้วให้ **ตกบรรทัดที่ 11px** แทน (Hard Rule 6: เนื้อหาตาม ref ·
+ * ตัวอักษร/เลย์เอาต์ตามธีมของเรา)
+ *
+ * `minWidth: 0` ที่คอลัมน์ — flex item มี `min-width:auto` เป็นค่าตั้งต้น ป้ายที่ยาวกว่าคอลัมน์
+ * จะ **ดันรางให้กว้างเกินจอ** แทนที่จะตกบรรทัด (บทเรียน `flex-header-truncation.md`)
+ */
 function HorizontalTimeline({ steps }: { steps: TimelineStep[] }) {
   return (
     <Box sx={{ display: 'flex', pb: 0.25 }}>
@@ -334,6 +347,7 @@ function HorizontalTimeline({ steps }: { steps: TimelineStep[] }) {
           key={i}
           sx={{
             flex: 1,
+            minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -375,7 +389,16 @@ function HorizontalTimeline({ steps }: { steps: TimelineStep[] }) {
               fontWeight: step.state === 'cur' || step.state === 'fin' || step.state === 'cx' ? 700 : 500,
               color: labelColor(step.state),
               mt: 0.75,
-              lineHeight: 1.2,
+              lineHeight: 1.25,
+              /* พื้น 11px — ต่ำกว่านี้อ่านภาษาไทยไม่ออกบนมือถือจริง (ดูหัวฟังก์ชัน) */
+              fontSize: { xs: '0.6875rem', sm: '0.75rem' },
+              px: 0.25,
+              maxWidth: '100%',
+              /* เบราว์เซอร์สมัยใหม่ตัดบรรทัดไทยตามพจนานุกรมให้เอง — `break-word` เป็นตัวสำรอง
+                 สำหรับเอนจินที่ไม่ตัด ไม่ให้ป้ายล้นออกนอกคอลัมน์ */
+              wordBreak: 'break-word',
+              /* ตรึงความสูงให้ทุกคอลัมน์เริ่มบรรทัดเดียวกัน ไม่ว่าป้ายไหนจะตก 1 หรือ 2 บรรทัด */
+              minHeight: '2.5em',
             }}
           >
             {step.label}
@@ -631,6 +654,11 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
         status: order.status,
         serviceStart: order.appointment?.startIso ?? null,
         appointmentStatus: order.appointment?.status ?? null,
+        /* 🛑 `hasAppointment` ต้องมาจาก "มีอ็อบเจกต์นัดไหม" ไม่ใช่ "มี startIso ไหม" —
+           งาน walk-in ที่ร้านกด "เริ่มงานเลย" ก็ได้เวลาทั้งที่ไม่เคยมีการนัดหมาย
+           ถ้าเดาจากเวลา ขั้น "ลูกค้ายืนยันนัด" จะไปค้างรอในใบที่ไม่มีนัดให้ยืนยัน */
+        hasAppointment: order.appointment !== null,
+        buyerConfirmedAt: order.appointment?.buyerConfirmedAt ?? null,
       })
     : getOrderTimeline(order.status, order.fulfillmentMode, order.paymentMethod)
 
