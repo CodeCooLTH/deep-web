@@ -321,7 +321,7 @@ function TimelineDot({ state, stepNo }: { state: TimelineState; stepNo?: number 
       }}
     >
       {stepNo != null && (
-        <Typography sx={{ fontSize: '0.6875rem', fontWeight: 600, color: 'text.disabled', lineHeight: 1 }}>
+        <Typography sx={{ fontSize: '0.6875rem', fontWeight: 600, color: 'text.secondary', lineHeight: 1 }}>
           {stepNo}
         </Typography>
       )}
@@ -336,13 +336,25 @@ function connectorColor(state: TimelineState): string {
   return 'var(--mui-palette-divider)'
 }
 
-// ── label color ตาม state ──
-function labelColor(state: TimelineState): 'info.main' | 'success.dark' | 'error.main' | 'text.primary' | 'text.disabled' {
+/**
+ * สีป้ายตามสถานะขั้น
+ *
+ * 🛑 `up`/`mute` ใช้ `text.secondary` **ไม่ใช่ `text.disabled`** — `text.disabled` คือหมึกที่
+ * opacity 0.4 ซึ่งได้ **2.30:1 บนพื้นขาว ตก AA** (`SectionTitle.tsx` คำนวณตัวเลขนี้ไว้เองแล้ว)
+ *
+ * ป้ายขั้นเป็น **ข้อความให้อ่าน ไม่ใช่ตัวควบคุมที่ปิดใช้งาน** จึงไม่เข้าข้อยกเว้นของ WCAG 1.4.3
+ * และเจ็บเป็นพิเศษกับราง 4 ขั้น: ออเดอร์ที่เพิ่งเปิดจะมีขั้นที่ยังไม่ถึง **2 ใน 4**
+ * ⇒ ครึ่งหนึ่งของรางอ่านไม่ออก (ราง 3 ขั้นเดิมมีแค่ขั้นเดียว จึงไม่มีใครสังเกต)
+ *
+ * ความต่างระหว่าง "ยังไม่ถึง" กับ "ผ่านมาแล้ว" แบกด้วย **น้ำหนักตัวอักษร + หน้าตาของจุด**
+ * (จุด `mute` มี opacity 0.6) ไม่ใช่ด้วยการทำให้อ่านไม่ออก
+ */
+function labelColor(state: TimelineState): 'info.main' | 'success.dark' | 'error.main' | 'text.primary' | 'text.secondary' {
   if (state === 'cur') return 'info.main'
   if (state === 'fin') return 'success.dark'
   if (state === 'cx') return 'error.main'
   if (state === 'done') return 'text.primary'
-  return 'text.disabled'
+  return 'text.secondary'
 }
 
 /**
@@ -443,17 +455,6 @@ function HorizontalTimeline({ steps, numbered = false }: { steps: TimelineStep[]
             {step.note ?? ''}
           </Typography>
 
-          {/* เวลา — เรนเดอร์เฉพาะขั้นที่ **มีเวลาจริง** ห้ามใส่ขีดแทน
-              ขั้น "ร้านให้บริการ" ไม่มีคอลัมน์เก็บเวลาในระบบเลย ⇒ ขีดที่ขึ้นทุกใบตลอดไป
-              คือสัญญาณว่างเปล่าที่กินที่ ไม่ใช่ข้อมูล (เหตุผลเต็มที่ `TimelineStep.atIso`) */}
-          {step.atIso && (
-            <Typography
-              variant='caption'
-              sx={{ display: 'block', mt: 0.25, px: 0.25, fontSize: '0.5625rem', lineHeight: 1.3, color: 'text.disabled' }}
-            >
-              {formatDateTimeTH(step.atIso)}
-            </Typography>
-          )}
         </Box>
       ))}
     </Box>
@@ -713,7 +714,6 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
            ถ้าเดาจากเวลา ขั้น "ลูกค้ายืนยันนัด" จะไปค้างรอในใบที่ไม่มีนัดให้ยืนยัน */
         hasAppointment: order.appointment !== null,
         buyerConfirmedAt: order.appointment?.buyerConfirmedAt ?? null,
-        createdAtIso: order.createdAtIso,
       })
     : getOrderTimeline(order.status, order.fulfillmentMode, order.paymentMethod)
 

@@ -149,8 +149,6 @@ export type TimelineStep = {
    * เห็นจอคนละรูปแล้วอ่านว่าระบบเพี้ยน — ราง = โครงคงที่ · note = สิ่งที่เกิดกับใบนี้
    */
   note?: string
-  /** ISO ของเวลาที่ขั้นนี้เกิด — ไม่มีข้อมูลให้ **ไม่ส่ง** ห้ามส่งขีดหรือค่าเดา */
-  atIso?: string
 }
 
 /**
@@ -440,10 +438,14 @@ export function getServiceTimeline(input: {
    * ทั้งที่ไม่เคยมีการนัดหมาย — ขั้น "ลูกค้ายืนยันนัด" ต้องผูกกับ *การมีนัด* ไม่ใช่ *การมีเวลา*
    */
   hasAppointment?: boolean;
-  /** เวลาที่ลูกค้ากดยืนยัน**นัด** (`Order.buyerConfirmedAt`) — null = ยังไม่กด */
+  /**
+   * เวลาที่ลูกค้ากดยืนยัน**นัด** (`Order.buyerConfirmedAt`) — null = ยังไม่กด
+   *
+   * ใช้ตัดสิน *สถานะ* ของขั้น 2 อย่างเดียว **ไม่ได้เอาไปแสดงเป็นเวลาบนราง** —
+   * เวลานั้นแสดงอยู่ในการ์ดนัดหมายแล้ว ("คุณยืนยันนัดนี้แล้ว เมื่อ …")
+   * ใส่บนรางด้วยคือค่าเดียวกันสองที่บนจอเดียว (`sibling-surface-parity.md`)
+   */
   buyerConfirmedAt?: string | Date | null;
-  /** เวลาที่บิลถูกสร้าง (`Order.createdAt`) — เวลาของขั้น 1 */
-  createdAtIso?: string | null;
   now?: Date;
 }): TimelineStep[] {
   const confirmed = input.status === "CONFIRMED";
@@ -514,20 +516,11 @@ export function getServiceTimeline(input: {
     finishState === "cur" ? "กดยืนยันเมื่อได้รับบริการแล้ว" : finishState === "mute" ? "ไม่มีการปิดงาน" : undefined;
 
   const steps: TimelineStep[] = [
-    {
-      label: SERVICE_TIMELINE_LABELS[0],
-      state: "done",
-      ...(input.createdAtIso ? { atIso: input.createdAtIso } : {}),
-    },
+    { label: SERVICE_TIMELINE_LABELS[0], state: "done" },
     {
       label: SERVICE_TIMELINE_LABELS[1],
       state: confirmState,
       ...(confirmNote ? { note: confirmNote } : {}),
-      /* เวลาของขั้นนี้มีจริงในฐาน (`Order.buyerConfirmedAt`) ต่างจากขั้น 3 ที่ไม่มีที่เก็บเลย
-         ⇒ ขั้นที่ไม่มีเวลา **ไม่ส่ง `atIso`** ไม่ใช่ส่งขีด (ดูคอมเมนต์ที่ `TimelineStep.atIso`) */
-      ...(buyerConfirmed && input.buyerConfirmedAt
-        ? { atIso: new Date(input.buyerConfirmedAt).toISOString() }
-        : {}),
     },
     {
       label: SERVICE_TIMELINE_LABELS[2],

@@ -204,7 +204,10 @@ export default function PaymentSummaryCard({ money }: { money: PublicOrderMoney 
                   {/* 🛑 ทุกแถวในประวัติคือรายการที่ **ร้านยืนยันแล้ว** เท่านั้น (รายการที่ร้าน
                       ยกเลิกถูกกรองออกตั้งแต่ query) — เวลาที่แสดงคือเวลาที่ร้านกดรับ
                       ไม่ใช่เวลาที่ลูกค้าโอน คำกำกับจึงต้องไม่ปล่อยให้เดา */}
-                  <Typography variant='caption' color='text.disabled' sx={{ ml: 'auto', textAlign: 'right', lineHeight: 1.4 }}>
+                  {/* 🛑 `text.secondary` ไม่ใช่ `text.disabled` — ตัวหลังคือหมึกที่ opacity 0.4
+                      = **2.30:1 บนพื้นขาว ตก AA** (`SectionTitle.tsx` คำนวณไว้เองแล้ว)
+                      นี่คือ *เวลาที่ร้านยืนยันรับเงิน* ซึ่งเป็นหลักฐานของธุรกรรม ไม่ใช่ของประดับ */}
+                  <Typography variant='caption' color='text.secondary' sx={{ ml: 'auto', textAlign: 'right', lineHeight: 1.4 }}>
                     {formatDateTimeTH(e.receivedAtIso)}
                   </Typography>
                 </Box>
