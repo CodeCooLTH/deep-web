@@ -129,6 +129,13 @@ model User {
 
   // cron account-purge สแกน "ถูกลบแล้วแต่ยังไม่ล้าง" ทุกคืน — index คู่นี้ทำให้ scan ไม่ full-table
   // (มิเรอร์ Shop_deletedAt_purgedAt_idx)
+
+  // feature 00060 — บทบาท "ผู้ตรวจ" แยกจาก isAdmin โดยเจตนา (AC-INS-24-1)
+  // ผู้ตรวจท้องถิ่นเป็นบุคคลภายนอกที่จ้างรายครั้ง ให้สิทธิ์แอดมินเต็มไม่ได้เด็ดขาด
+  isInspector                Boolean              @default(false)
+  inspectionRounds           InspectionRound[]    @relation("InspectionRoundInspector")
+  inspectorRoleChangesOnMe   InspectorRoleChange[] @relation("InspectorRoleChangeTarget")
+  inspectorRoleChangesByMe   InspectorRoleChange[] @relation("InspectorRoleChangeActor")
   @@index([deletedAt, purgedAt], map: "User_deletedAt_purgedAt_idx")
 }
 
@@ -345,6 +352,12 @@ model Shop {
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
+
+  // feature 00060 — แผนการตรวจสอบร้าน (LODGING รอบแรก)
+  inspectionPlan             InspectionPlan? // 1 ร้าน = 1 แผน (AC-INS-01-3)
+  inspectionRounds           InspectionRound[]
+  inspectionResults          InspectionResult[]
+  inspectionTermsAcceptances InspectionTermsAcceptance[] // หลักฐานการรับทราบเงื่อนไขทุกครั้งที่จ่ายเงิน
   @@index([categories], type: Gin, map: "Shop_categories_gin_idx")
   @@index([salesChannels], type: Gin, map: "Shop_salesChannels_gin_idx")
   @@index([userId, kind], map: "Shop_userId_kind_idx") // NEW — switcher/owner lookup ครอบคลุมทั้ง 2 kind
@@ -398,6 +411,11 @@ model Room {
   shop   Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
   orders Order[] // การจองของห้องนี้ (Phase 2) — FK ฝั่ง Order เป็น Restrict ห้ามลบห้องที่มีการจอง
 
+
+  // feature 00060 — ข้อตรวจที่ผูกกับที่พักรายหลัง (D-16/FR-INS-029)
+  // FK ฝั่งตรงข้ามเป็น Restrict: ห้ามลบที่พักที่เคยถูกตรวจ ไม่งั้นประวัติหายขัด AC-INS-27-1
+  inspectionRounds  InspectionRound[]
+  inspectionResults InspectionResult[]
   @@index([shopId, isActive], map: "Room_shopId_isActive_idx") // list ห้องของร้าน + กรองเฉพาะที่เปิดใช้งาน
 }
 
@@ -4033,4 +4051,267 @@ model ChannelIceBreaker {
   /// กันสองแถวชิงลำดับเดียวกันในช่องทางเดียว (แก้พร้อมกัน 2 แท็บ)
   @@unique([shopChannelId, order])
   @@index([shopChannelId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// feature 00060 — แผนการตรวจสอบร้านค้า (Shop Inspection Plan)
+//
+// หลักการที่ทั้งชุดยืนอยู่บนมัน: ร้าน **ซื้อการตรวจ ไม่ได้ซื้อป้าย** — ป้ายมาจากผลตรวจ
+// ไม่ได้มาจากการจ่ายเงิน (โมเดลมิชลิน/ISO) · แกนนี้ **แยกขาดจาก Trust Score/Trust Tier**
+// ไม่มีจุดใดที่ผลตรวจแปลงเป็นคะแนน หรือในทางกลับกัน
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum InspectionPlanStatus {
+  ACTIVE
+  LAPSED
+  // 🛑 ห้ามเพิ่มค่าที่ 3 — "ยกเลิกแล้วแต่ยังไม่หมดรอบบิล" คือ ACTIVE + canceledAt != null
+  //    ไม่ใช่สถานะใหม่ (เพิ่มค่าที่ 3 จะบังคับให้ทุก query/UI ที่เคยเช็ค 2 ค่าต้องแก้ตาม
+  //    และที่ลืมแก้จะตกไป branch ผิดเงียบ ๆ — บทเรียน 00028 GENERAL→3 ค่า)
+}
+
+/// วิธีตรวจ — 🛑 ไม่ใช่แค่ป้ายชนิดงาน แต่เป็น **คีย์จัดกลุ่มรอบตรวจ** ของ createDueRounds()
+/// ติดป้ายผิดให้ข้อหนึ่ง = ลากข้ออื่นในกลุ่มไปตรวจถี่ตามอายุที่สั้นที่สุดของกลุ่ม
+enum InspectionMethod {
+  AUTO
+  DOCUMENT
+  VIDEO_CALL
+  ONSITE
+}
+
+/// ค่าที่ **เก็บจริง** ในคอลัมน์ — สถานะที่ผู้ใช้เห็นมี 5 แบบ อีก 2 แบบเป็นผลของการคำนวณ
+/// (RECHECK = PASS ที่เกิน expiresAt หรือถูก invalidate · NO_DATA = ไม่มีแถว)
+/// 🛑 ห้ามเพิ่ม RECHECK/NO_DATA เข้ามาที่นี่เด็ดขาด — ธงที่ต้องมีคนไปอัปเดตจะเน่าเงียบ
+///    ทันทีที่เวลาเดินผ่านเส้น expiresAt โดยไม่มีใครเขียนทับ
+enum InspectionOutcome {
+  PASS
+  FAIL
+  NOT_APPLICABLE
+}
+
+/// 🛑 default ต้องเป็น PRIVATE (fail-closed) — คนเพิ่มหลักฐานชนิดใหม่แล้วลืมตั้งค่า
+/// ต้องได้ "ไม่โชว์" บัตรประชาชน/โฉนดหลุดสาธารณะคือความเสียหายที่กู้ไม่ได้
+enum InspectionEvidenceVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum InspectionEvidenceKind {
+  PHOTO
+  VIDEO_STILL
+  DOCUMENT
+  GEO
+}
+
+/// แผนการตรวจสอบของร้านหนึ่งร้าน — มิเรอร์ InventoryEntitlement ทุกฟิลด์เวลาโดยตั้งใจ
+model InspectionPlan {
+  id     String               @id @default(uuid())
+  shopId String               @unique
+  /// ขั้นปัจจุบันเพียงค่าเดียว (AC-INS-07-2) — ประวัติการเปลี่ยนขั้นสร้างจาก InspectionRound.step
+  step   Int
+  status InspectionPlanStatus @default(ACTIVE)
+
+  /// "RENEWAL_FAILED" | "OWNER_CANCELLED" — String ตาม convention (เทียบ Shop.packageLockReason)
+  /// status='LAPSED' เพียงอย่างเดียวรวม 2 เหตุการณ์ที่ BRD แยกกันไว้ ⇒ ทำ KPI retention ไม่ได้
+  lapsedReason String?
+  /// OWNER กดยกเลิกเมื่อไร — 🛑 มีค่าแล้ว status ยัง ACTIVE จนถึง nextRenewalAt (AC-INS-26-3
+  /// "ยกเลิกมีผลตั้งแต่สิ้นรอบบิล ไม่ใช่ตัดสิทธิ์ทันทีกลางรอบที่จ่ายเงินไปแล้ว")
+  canceledAt DateTime? @db.Timestamptz(3)
+  /// เส้นตายผ่อนผันเมื่อเครดิตไม่พอ — เก็บวันที่จริงไม่คำนวณจาก lapsedAt เพื่อให้ร้านที่
+  /// ค้างไปแล้วไม่ถูกตัดป้ายเร็วขึ้นเมื่อเราแก้ค่าคงที่ (AC-INS-08-3 ต้องนับถอยหลังให้ร้านเห็น)
+  graceUntil DateTime? @db.Timestamptz(3)
+
+  activatedAt        DateTime  @db.Timestamptz(3)
+  currentPeriodStart DateTime  @db.Timestamptz(3)
+  /// 🛑 ตัวนี้คือ "สิ้นรอบบิลปัจจุบัน" ในตัวเอง — ห้ามเพิ่ม currentPeriodEnd แยก (HR16)
+  nextRenewalAt      DateTime  @db.Timestamptz(3)
+  lastRenewalAt      DateTime? @db.Timestamptz(3)
+  lapsedAt           DateTime? @db.Timestamptz(3)
+  /// แคชค่าล่าสุดเพื่ออ่านเร็ว — 🛑 แหล่งความจริงคือ InspectionTermsAcceptance ไม่ใช่คอลัมน์นี้
+  termsAcceptedAt    DateTime  @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextRenewalAt])
+}
+
+/// การตรวจหนึ่งครั้ง — เป็นทั้งตัวมอบหมายงาน (completedAt IS NULL = คิวรอผู้ตรวจ)
+/// และภาชนะของหลักฐานต่อรอบ
+model InspectionRound {
+  id     String @id @default(uuid())
+  shopId String
+  /// null = รอบระดับร้าน · มีค่า = รอบของที่พักหลังนั้น (D-16/FR-INS-029)
+  roomId String?
+  step   Int
+  method InspectionMethod
+
+  /// nullable เพราะ (1) method=AUTO ไม่มีคน (2) รอบที่ cron สร้างล่วงหน้ายังไม่มอบหมาย
+  inspectorUserId String?
+  /// 🛑 snapshot ชื่อ ณ รอบนั้น ไม่ใช่ live join — AC-INS-25-2 บังคับว่ารอบเก่าต้องคงชื่อ
+  /// ผู้ตรวจเดิมไว้แม้เปลี่ยนตัวผู้ตรวจภายหลัง (method=AUTO ใช้ "ระบบตรวจอัตโนมัติ")
+  inspectorDisplayName String
+
+  /// "เข้าคิวเมื่อไร" — มีค่าเสมอตั้งแต่แถวถูกสร้าง ไม่ว่าจะมอบหมายแล้วหรือยัง
+  assignedAt  DateTime  @db.Timestamptz(3)
+  /// 🛑 "ควรตรวจให้เสร็จเมื่อไร" — คนละตัวกับ assignedAt สับสนกันง่ายมากเพราะเป็นเวลาคู่กัน
+  /// คิวงานต้องเรียงด้วยตัวนี้ ไม่ใช่ createdAt (รอบ ONSITE สร้างล่วงหน้า 30 วันจะลอยขึ้น
+  /// เหนือรอบ DOCUMENT ที่เหลืออีก 2 วัน)
+  dueAt       DateTime? @db.Timestamptz(3)
+  completedAt DateTime? @db.Timestamptz(3)
+
+  /// ข้อสงสัยเรื่องฉ้อโกงที่ผู้ตรวจบันทึกไว้ — 🛑 ห้ามหลุดสู่ฝั่งร้านและสาธารณะเด็ดขาด
+  /// เป็นข้อสงสัยที่ยังไม่ถูกตัดสิน การเปิดเผยคือการกล่าวหา และถ้าร้านเห็นก่อนหลักฐานถูกทำลายได้
+  /// 🛑 ตารางนี้มีความชอบธรรมให้ฝั่งร้านเห็นบางส่วนอยู่แล้ว (คิว "รอผู้ตรวจเข้าตรวจ")
+  ///    ⇒ ทุก serializer ที่ส่ง InspectionRound ออกไปต้องเป็น allow-list ไม่ใช่ deny-list
+  suspectedFraudNote String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  shop          Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  room          Room?              @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  inspectorUser User?              @relation("InspectionRoundInspector", fields: [inspectorUserId], references: [id], onDelete: SetNull)
+  results       InspectionResult[]
+  evidence      InspectionEvidence[]
+
+  @@index([shopId, completedAt])
+  @@index([roomId])
+  @@index([inspectorUserId, completedAt])
+  /// แผงแอดมิน: รอบที่เลยกำหนดแล้วยังไม่เสร็จทั้งระบบ
+  @@index([completedAt, dueAt])
+  /// ด่าน idempotent ของ cron — "มีรอบที่ยังไม่เสร็จของ (shop, room, step) นี้อยู่แล้วไหม"
+  @@index([shopId, roomId, step, completedAt])
+}
+
+/// ผลตรวจ — 🛑 append-only **ประวัติ** ไม่ใช่ตารางสถานะปัจจุบัน
+/// แถวใหม่เกิดเฉพาะตอน "ผลเปลี่ยน" · ผลเหมือนเดิมให้ UPDATE เลื่อน lastConfirmedAt/expiresAt
+/// (ถ้า insert ทุกครั้งที่ตรวจ ไทม์ไลน์ของข้อขั้น 1 จะมี 365 บรรทัดเหมือนกันต่อปีจนกลบ
+///  รอบที่มีความหมาย ซึ่งไทม์ไลน์คือตัวสินค้าของฟีเจอร์นี้)
+/// 🛑 ห้ามมี unique บน (shopId, checkKey) หรือ (roomId, checkKey) — จะเขียนทับประวัติ
+///    ขัด AC-INS-16-3 และ AC-INS-27-1 ตรง ๆ
+model InspectionResult {
+  id      String  @id @default(uuid())
+  shopId  String
+  roomId  String?
+  /// ค่าคงที่ 18 ค่าจาก src/lib/inspection/checks.ts — ไม่ทำตาราง lookup เพราะเป็นค่าที่แอปกำหนด
+  checkKey String
+  /// รอบที่ยืนยัน/สร้างแถวนี้ล่าสุด (UPDATE เปลี่ยนได้ทุกครั้งที่มีรอบใหม่มายืนยันผลเดิม)
+  roundId String?
+
+  outcome InspectionOutcome
+
+  /// 🛑 เวลาที่ผลนี้ถูกตัดสิน **ครั้งแรก** — ตั้งครั้งเดียวตอน INSERT ห้ามแก้อีกตลอดอายุแถว
+  /// ใช้เรียงหาแถวล่าสุด และใช้ตอบ "ผลเปลี่ยนเมื่อไร" ในไทม์ไลน์
+  checkedAt       DateTime  @db.Timestamptz(3)
+  /// 🛑 เวลายืนยันผลเดิมล่าสุด — ใช้ตอบ "ตรวจล่าสุดเมื่อไร" บนป้าย และเป็นฐานของ expiresAt
+  /// สองฟิลด์นี้สลับกันแล้วโกหกผู้ใช้ทันทีโดยไม่มีอะไรฟ้อง (ป้ายจะขึ้นวันที่เก่ากว่าความจริง)
+  lastConfirmedAt DateTime  @db.Timestamptz(3)
+  /// = lastConfirmedAt + ttlDays(checkKey, planStep) · null = ไม่มีวันหมดอายุ (ไม่ใช่หมดอายุแล้ว)
+  /// 🛑 เป็น snapshot ไม่ใช่ค่าคำนวณสด ⇒ ตอนร้านเปลี่ยนขั้นต้อง recompute ในทรานแซกชันเดียวกัน
+  expiresAt       DateTime? @db.Timestamptz(3)
+
+  /// ถูกทำให้เป็นโมฆะก่อนกำหนด เช่นร้านเปลี่ยนภาพประกาศ (FR-INS-028)
+  invalidatedAt     DateTime? @db.Timestamptz(3)
+  invalidatedReason String?
+  note              String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  shop     Shop                 @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  room     Room?                @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  round    InspectionRound?     @relation(fields: [roundId], references: [id], onDelete: SetNull)
+  evidence InspectionEvidence[]
+
+  /// 🛑 tie-break ด้วย id DESC ห้ามตัดออก — cron ขั้น 1 เขียนหลายข้อในทรานแซกชันเดียว
+  /// checkedAt ซ้ำวินาทีเป็นเรื่องปกติ ไม่ใช่ edge case · index ต้องเรียงตรงกับ ORDER BY จริง
+  @@index([shopId, checkKey, checkedAt(sort: Desc), id(sort: Desc)])
+  @@index([roomId, checkKey, checkedAt(sort: Desc), id(sort: Desc)])
+  @@index([roundId])
+}
+
+model InspectionEvidence {
+  id       String  @id @default(uuid())
+  roundId  String
+  /// null = หลักฐานทั่วไปของรอบ ไม่ผูกข้อใดข้อเดียว
+  resultId String?
+
+  visibility InspectionEvidenceVisibility @default(PRIVATE)
+  kind       InspectionEvidenceKind
+
+  /// CHECK บังคับว่าต้องมี fileId หรือพิกัดอย่างน้อยหนึ่งอย่าง — แถวที่ไม่มีทั้งคู่คือแถวเปล่า
+  fileId  String?
+  lat     Decimal? @db.Decimal(9, 6)
+  lng     Decimal? @db.Decimal(9, 6)
+  caption String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  round  InspectionRound   @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  result InspectionResult? @relation(fields: [resultId], references: [id], onDelete: SetNull)
+
+  @@index([roundId, visibility])
+  @@index([resultId])
+}
+
+/// โควตารับสมัครรายเดือนต่อขั้น
+/// 🛑 ไม่มีแถวของเดือนนั้น = โควตา 0 = ปิดรับ (fail-closed ห้ามตีเป็นไม่จำกัด)
+///    แต่ cron ต้องสร้างแถวเดือนถัดไปให้เอง ไม่งั้น ops ลืมครั้งเดียว = ทุกขั้นปิดรับเงียบ ๆ
+///    และหน้าจอต้องแยกข้อความ "เต็มแล้ว" ออกจาก "ยังไม่เปิดรับ" ไม่งั้นเป็นการโกหกด้วยความจริง
+model InspectionIntakeQuota {
+  id              String @id @default(uuid())
+  /// "YYYY-MM" ค.ศ. ISO เช่น "2026-08"
+  periodYearMonth String
+  step            Int
+  capacity        Int
+  /// นับด้วย conditional updateMany (usedCount < capacity) ไม่ใช่ read-then-write
+  usedCount       Int    @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([periodYearMonth, step])
+}
+
+/// หลักฐานการรับทราบเงื่อนไขทุกครั้งที่จ่ายเงิน — append-only ห้ามลบห้ามแก้
+/// คำถามจริงตอนพิพาทไม่ใช่ "ยอมรับล่าสุดเมื่อไร" แต่คือ "ตอนจ่าย ฿599 เมื่อ 8 เดือนก่อน
+/// เห็นเงื่อนไขฉบับไหน ราคาเท่าไร" ⇒ InspectionPlan.termsAcceptedAt เป็นแค่แคชอ่านเร็ว
+model InspectionTermsAcceptance {
+  id     String @id @default(uuid())
+  shopId String
+
+  acceptedAt DateTime @db.Timestamptz(3)
+  step       Int
+  /// ราคาที่ผู้ใช้เห็นจริง ณ เวลานั้น — ราคาจะเปลี่ยนในอนาคต ตอนพิพาทต้องตอบให้ได้ว่าวันนั้นเท่าไร
+  priceSnapshotBaht Int
+  /// คีย์ที่ชี้ไฟล์ข้อความเงื่อนไขในรีโป — เวอร์ชันที่ย้อนกลับไปอ่านข้อความไม่ได้ = ไม่มีเวอร์ชัน
+  termsVersion      String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, acceptedAt])
+}
+
+/// audit การเปลี่ยนบทบาทผู้ตรวจ — append-only
+/// FK เป็น Restrict ทั้งคู่ (ต่างจาก convention Cascade ทั่วไปโดยเจตนา) เพื่อกัน audit
+/// หายถ้ามีคน hard-delete user
+model InspectorRoleChange {
+  id           String @id @default(uuid())
+  targetUserId String
+  actorUserId  String
+  /// ค่า **ใหม่** หลังเปลี่ยน ไม่ใช่ค่าก่อนเปลี่ยน
+  isInspector  Boolean
+  /// 🛑 บังคับ ไม่ nullable — audit ที่บอกแค่ "ใครตั้งให้ใครเมื่อไร" ตอบไม่ได้ว่าทำไม
+  /// และช่องที่ไม่บังคับจะว่างเสมอ
+  reason       String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  targetUser User @relation("InspectorRoleChangeTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
+  actorUser  User @relation("InspectorRoleChangeActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([targetUserId, createdAt])
 }
