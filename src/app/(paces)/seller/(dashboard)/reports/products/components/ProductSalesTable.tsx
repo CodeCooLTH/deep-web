@@ -1,0 +1,259 @@
+'use client'
+
+/**
+ * ProductSalesTable — ตารางสินค้าของรายงานยอดขายรายสินค้า เดสก์ท็อป/แท็บเล็ต (feature 00062)
+ *
+ * Base: src/app/(paces)/seller/(dashboard)/products/components/ProductsTable.tsx
+ *   (useReactTable + DataTable + TablePagination + คอลัมน์รูป/ชื่อสินค้า)
+ *   ซึ่ง copy มาจาก theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/products/
+ *   components/ProductsListing.tsx
+ *
+ * 🛑 การกดในแถวแยกหน้าที่ชัดเจน (user เคาะ 2026-08-29): ช่องติ๊ก = สลับเส้นบนกราฟ ·
+ * ชื่อสินค้า = ลิงก์ไปหน้าสินค้า · ที่เหลือของแถวกดไม่ได้ — สองการกระทำที่ผลลัพธ์คนละโลก
+ * (อยู่หน้าเดิม vs พาออกจากหน้า) ไม่ควรใช้พื้นที่กดร่วมกัน จึง **ไม่ส่ง `onRowClick`**
+ */
+import {
+  createColumnHelper,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type SortingState,
+} from '@tanstack/react-table'
+import Link from 'next/link'
+import { useMemo, useState } from 'react'
+
+import DataTable from '@/components/table/DataTable'
+import TablePagination from '@/components/table/TablePagination'
+import Icon from '@/components/wrappers/Icon'
+import { formatDayMonthTH } from '@/lib/format-date'
+import { formatBaht, formatNumberNoSymbol } from '@/lib/format-money'
+import DayStrip from './DayStrip'
+import PatternBadge from './PatternBadge'
+import {
+  UNIT_COLUMN_LABELS,
+  rowSeries,
+  rowTotal,
+  type ProductSalesViewRow,
+  type SalesUnit,
+} from './data'
+
+const columnHelper = createColumnHelper<ProductSalesViewRow>()
+
+type Props = {
+  rows: ProductSalesViewRow[]
+  unit: SalesUnit
+  selected: Set<string>
+  onToggle: (key: string) => void
+  /** true = ติ๊กเพิ่มไม่ได้แล้ว (ครบเพดานเส้น) — ช่องที่ยังไม่ติ๊กต้องถูกปิด */
+  atCap: boolean
+  cap: number
+  futureFrom: number | null
+  year: number
+  month0: number
+  monthLabel: string
+}
+
+export default function ProductSalesTable({
+  rows,
+  unit,
+  selected,
+  onToggle,
+  atCap,
+  cap,
+  futureFrom,
+  year,
+  month0,
+  monthLabel,
+}: Props) {
+  // useReactTable คืนฟังก์ชันที่ memo ไม่ได้อย่างปลอดภัย — ปิด React Compiler
+  // เฉพาะ component นี้ (ท่าเดียวกับ src/components/table/DataTable.tsx:71)
+  'use no memo'
+
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'total', desc: true }])
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 })
+
+  const unitLabel = unit === 'qty' ? 'ชิ้น' : 'บาท'
+
+  const columns = useMemo(
+    () => [
+      columnHelper.display({
+        id: 'select',
+        header: () => <span className="sr-only">แสดงบนกราฟ</span>,
+        cell: ({ row }) => {
+          const r = row.original
+          const isOn = selected.has(r.key)
+          // ยอด 0 ทั้งเดือน = ไม่มีอะไรให้ลากเส้น
+          const noData = r.totalQty === 0 && r.totalAmount === 0
+          const blocked = !isOn && (atCap || noData)
+          return (
+            <input
+              type="checkbox"
+              className="form-checkbox form-checkbox-light size-4.5"
+              checked={isOn}
+              disabled={blocked}
+              onChange={() => onToggle(r.key)}
+              aria-label={`แสดงเส้นของ ${r.name} บนกราฟ`}
+              title={
+                noData
+                  ? 'สินค้านี้ไม่มียอดขายในเดือนนี้ จึงไม่มีเส้นให้แสดง'
+                  : blocked
+                    ? `เลือกได้สูงสุด ${cap} เส้น — ยกเลิกเส้นอื่นก่อน`
+                    : undefined
+              }
+            />
+          )
+        },
+        enableSorting: false,
+      }),
+
+      columnHelper.accessor('name', {
+        header: 'สินค้า',
+        cell: ({ row }) => {
+          const r = row.original
+          return (
+            // min-w-0 ที่กล่อง + max-w-full ที่ลูก + truncate — ต้องมาเป็นชุด ไม่งั้นชื่อยาว
+            // จะดันกล่องกว้างเกินจอแทนที่จะถูกตัด (docs/conventions/flex-header-truncation.md)
+            <div className="flex min-w-0 items-center gap-3">
+              <RowThumb src={r.image} alt={r.name} isCustom={r.isCustom} />
+              <div className="min-w-0">
+                {r.isCustom ? (
+                  <span
+                    className="text-default-900 block max-w-full truncate text-sm font-medium"
+                    title="รวมรายการที่พิมพ์เองในแชท สินค้าจากการประมูล และสินค้าที่เคยลบไปแล้ว">
+                    {r.name}
+                  </span>
+                ) : (
+                  <Link
+                    href={`/products/${r.key}`}
+                    className="text-default-900 hover:text-primary block max-w-full truncate text-sm font-medium">
+                    {r.name}
+                  </Link>
+                )}
+                {!r.isActive && !r.isCustom && (
+                  <span className="badge bg-default-100 text-default-500 mt-1 inline-flex">
+                    ปิดการขาย
+                  </span>
+                )}
+              </div>
+            </div>
+          )
+        },
+      }),
+
+      columnHelper.display({
+        id: 'trend',
+        header: 'ขายวันไหนบ้าง',
+        cell: ({ row }) => (
+          <DayStrip
+            values={rowSeries(row.original, unit)}
+            futureFrom={futureFrom}
+            unitLabel={unitLabel}
+            monthLabel={monthLabel}
+            className="min-w-40"
+          />
+        ),
+        enableSorting: false,
+      }),
+
+      columnHelper.accessor((r) => r.pattern.kind, {
+        id: 'pattern',
+        header: 'รูปแบบการขาย',
+        cell: ({ row }) => <PatternBadge pattern={row.original.pattern} />,
+      }),
+
+      columnHelper.accessor((r) => r.lastSoldDayIndex ?? -1, {
+        id: 'lastSold',
+        header: 'ขายล่าสุด',
+        cell: ({ row }) => {
+          const idx = row.original.lastSoldDayIndex
+          if (idx === null) return <span className="text-default-400">—</span>
+          return (
+            <span className="text-default-700 whitespace-nowrap text-sm">
+              {formatDayMonthTH(new Date(Date.UTC(year, month0, idx + 1)))}
+            </span>
+          )
+        },
+      }),
+
+      columnHelper.accessor((r) => rowTotal(r, unit), {
+        id: 'total',
+        header: UNIT_COLUMN_LABELS[unit],
+        cell: ({ row }) => {
+          const v = rowTotal(row.original, unit)
+          return (
+            <span className="text-default-900 block text-right text-sm font-semibold tabular-nums">
+              {unit === 'baht' ? formatBaht(v) : `${formatNumberNoSymbol(v)} ชิ้น`}
+            </span>
+          )
+        },
+      }),
+    ],
+    [selected, unit, atCap, cap, futureFrom, unitLabel, monthLabel, year, month0, onToggle],
+  )
+
+  const table = useReactTable({
+    data: rows,
+    columns,
+    state: { sorting, pagination },
+    onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    enableRowSelection: false,
+  })
+
+  const pageIndex = table.getState().pagination.pageIndex
+  const pageSize = table.getState().pagination.pageSize
+  const totalItems = table.getFilteredRowModel().rows.length
+  const start = totalItems === 0 ? 0 : pageIndex * pageSize + 1
+  const end = Math.min(start + pageSize - 1, totalItems)
+
+  return (
+    <>
+      <DataTable<ProductSalesViewRow>
+        table={table}
+        emptyMessage="ไม่มีสินค้าที่มียอดขายในเดือนนี้"
+      />
+      {totalItems > 0 && (
+        <div className="card-footer">
+          <TablePagination
+            totalItems={totalItems}
+            start={start}
+            end={end}
+            itemsName="สินค้า"
+            showInfo
+            previousPage={table.previousPage}
+            canPreviousPage={table.getCanPreviousPage()}
+            pageCount={table.getPageCount()}
+            pageIndex={pageIndex}
+            setPageIndex={table.setPageIndex}
+            nextPage={table.nextPage}
+            canNextPage={table.getCanNextPage()}
+          />
+        </div>
+      )}
+    </>
+  )
+}
+
+/** รูปสินค้า + fallback — pattern เดียวกับ ProductCard.ProductImage ต่างแค่ขนาด */
+function RowThumb({ src, alt, isCustom }: { src: string | null; alt: string; isCustom: boolean }) {
+  if (isCustom || !src) {
+    return (
+      <span className="border-default-200 bg-default-100 text-default-400 flex size-10 shrink-0 items-center justify-center rounded-lg border">
+        <Icon icon={isCustom ? 'pencil' : 'package'} className="text-base" aria-hidden="true" />
+      </span>
+    )
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      className="border-default-200 bg-default-100 size-10 shrink-0 rounded-lg border object-cover"
+    />
+  )
+}

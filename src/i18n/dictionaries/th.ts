@@ -90,6 +90,7 @@ export const th = {
     dashboard: 'ภาพรวมร้านค้า',
     sales: 'ภาพรวมกำไร/ขาดทุน',
     reportsAgents: 'การตอบแชทของแอดมิน',
+    reportsProducts: 'ยอดขายรายสินค้า',
     orders: {
       ONLINE_SALES: 'คำสั่งซื้อ',
       SERVICE_QUEUE: 'การเข้ารับบริการ',

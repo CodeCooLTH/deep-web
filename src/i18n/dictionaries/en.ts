@@ -57,6 +57,7 @@ export const en: Dictionary = {
     // และเมนูซ้ายกว้างคงที่ 245px (BR-I18N-17)
     sales: 'P&L overview',
     reportsAgents: 'Agent Chat Response',
+    reportsProducts: 'Sales by Product',
     orders: {
       ONLINE_SALES: 'Orders',
       // ไม่ใช่ "Services" เฉย ๆ — ของเดิมคือ "การเข้ารับบริการ" ซึ่งหมายถึงใบงานที่ลูกค้าเข้ามารับ

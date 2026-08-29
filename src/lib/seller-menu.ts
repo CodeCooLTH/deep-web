@@ -64,6 +64,14 @@ export const sellerMenuItems: MenuItemType[] = [
       // (ไม่มีคะแนนรีวิว ไม่มีความพอใจลูกค้า ไม่มีการตรวจว่าตอบดีไหม) — ตั้งชื่อว่า "คุณภาพ"
       // คือการรับรองสิ่งที่ข้อมูลไม่ได้พูด วันที่เพิ่มตัวชี้วัดคุณภาพจริงค่อยเปลี่ยนชื่อได้
       { url: '/reports/agents', slug: 'seller:reports-agents', label: 'การตอบแชทของแอดมิน', icon: 'user-star' },
+      // feature 00062 — ยอดขายรายสินค้าเป็นไทม์ซีรีส์รายเดือน (สินค้าตัวไหนขายช่วงไหน)
+      // อยู่กลุ่ม ANALYTICS เพราะเป็น "ดูตัวเลข" เหมือนพี่น้องอีกสองหน้า
+      // 🛑 ชื่อ "ยอดขายรายสินค้า" ต่างจาก `/sales` ("ภาพรวมกำไร/ขาดทุน") ชัดเจน — คนละคำถาม
+      // คนละนิยามของคำว่ายอดขาย (หน้านี้นับออเดอร์ที่ยังไม่ถูกยกเลิก /sales นับที่ยืนยันแล้ว)
+      // นิยามถูกเขียนกำกับบนหน้าจอเสมอ ดู SALES_BASIS_NOTE ใน lib/product-sales-month.ts
+      // icon 'package' ใช้อยู่แล้วทั่วโปรเจกต์สำหรับ "สินค้า" — ผู้ใช้จำสัญลักษณ์นี้ได้แล้ว
+      // เห็นเฉพาะร้าน ONLINE_SALES (กรองด้วย applyVerticalMenu ด้านล่าง)
+      { url: '/reports/products', slug: 'seller:reports-products', label: 'ยอดขายรายสินค้า', icon: 'package' },
     ],
   },
   /**
@@ -343,7 +351,10 @@ export function applyExpenseMenu(
  * pattern เดียวกับ applyStaffMenu (กรอง child ออกจาก group) — ไม่ disable แต่ซ่อน
  */
 const LODGING_ONLY_SLUGS = ['seller:rooms', 'seller:calendar', 'seller:bookings', 'seller:housekeepers']
-const ONLINE_SALES_ONLY_SLUGS = ['seller:inventory', 'seller:auctions']
+// feature 00062: รายงานยอดขายรายสินค้าให้ความหมายถูกเฉพาะร้านที่ขายของเป็นชิ้น —
+// LODGING ขายเป็น "คืน/ห้อง" ที่คร่อมหลายวัน พล็อตลงแกน "วันที่สั่ง" แล้วผิดความหมาย
+// 🛑 การซ่อนเมนูไม่ใช่ด่าน — หน้ามี guard ของตัวเองที่ product-report-access.service.ts
+const ONLINE_SALES_ONLY_SLUGS = ['seller:inventory', 'seller:auctions', 'seller:reports-products']
 const SERVICE_QUEUE_ONLY_SLUGS = ['seller:queues', 'seller:settings-job-types']
 // seller:products ใช้ร่วมกันของ ONLINE_SALES และ SERVICE_QUEUE (matrix §8.1 แถว "สินค้า")
 const SHARED_PRODUCT_SLUGS = ['seller:products']
@@ -777,6 +788,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:dashboard': m.dashboard,
     'seller:sales': m.sales,
     'seller:reports-agents': m.reportsAgents,
+    'seller:reports-products': m.reportsProducts,
     'seller:orders': m.orders[vertical as keyof typeof m.orders] ?? m.orders.ONLINE_SALES,
     'seller:auctions': m.auctions,
     'seller:products': m.products,
