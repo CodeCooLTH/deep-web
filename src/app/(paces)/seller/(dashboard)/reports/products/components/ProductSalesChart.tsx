@@ -50,11 +50,22 @@ export default function ProductSalesChart({
 
   const getOptions = (): ApexOptions => ({
     chart: { type: 'line', height, toolbar: { show: false }, offsetX: 0 },
-    stroke: { width: 2, curve: 'smooth' },
+    /**
+      * 🛑 `curve: 'straight'` ไม่ใช่ `'smooth'` — ข้อมูลคือยอดรายวันที่กระจัดกระจายและเป็นศูนย์
+      * เป็นส่วนใหญ่ เส้นโค้งของ Apex จะเลยจุดควบคุม ⇒ สินค้าที่ขายวันที่ 5 กับวันที่ 20
+      * จะถูกวาดเป็นเนินต่อเนื่องคร่อมวันที่ 6–19 ทั้งที่วันเหล่านั้นขายไม่ได้เลยสักชิ้น
+      * = กราฟประดิษฐ์ยอดขายขึ้นมาเอง บนหน้าที่ทั้งหน้าถูกสร้างมาเพื่อตอบว่า "ขายวันไหน"
+      * (ไฟล์ต้นแบบใช้ smooth เพราะข้อมูลของมันเป็นรายได้ต่อเนื่อง — เส้นโค้งถูกสืบทอดมา
+      *  แต่ชนิดของข้อมูลไม่ได้ถูกสืบทอดมาด้วย)
+      * `dashArray` แยกเส้นด้วย *รูปแบบ* ไม่ใช่สีอย่างเดียว — 6 สีของธีมยุบเหลือ ~3 คู่
+      * เมื่อมองด้วยตาที่แยกแดง-เขียวไม่ได้ (WCAG 1.4.1)
+      */
+    stroke: { width: 2, curve: 'straight', dashArray: [0, 0, 4, 4, 8, 8] },
     colors: CHART_COLOR_TOKENS.map((t) => getColor(t)),
     grid: { strokeDashArray: 7 },
     dataLabels: { enabled: false },
-    markers: { size: 0 },
+    // จุดบนเส้น = วันที่มีการขายจริง ถ้าไม่มีจุด ผู้อ่านแยกไม่ออกว่าค่าไหนคือข้อมูลจริง
+    markers: { size: 3, strokeWidth: 0 },
     xaxis: {
       categories: labels,
       axisBorder: { show: false },
@@ -67,7 +78,9 @@ export default function ProductSalesChart({
         formatter: (value: string) => {
           const n = Number(value)
           if (!Number.isFinite(n)) return value
-          return n === 1 || n === days || n % 5 === 0 ? value : ''
+          // เว้นระยะจากวันสุดท้ายอย่างน้อย 3 วัน — ไม่งั้นเดือน 31 วันจะได้ป้าย 30 กับ 31
+          // ติดกัน ซึ่งคือการชนที่คอมเมนต์ข้างบนบอกว่ากันอยู่
+          return n === 1 || n === days || (n % 5 === 0 && days - n >= 3) ? value : ''
         },
       },
     },
@@ -82,7 +95,15 @@ export default function ProductSalesChart({
     },
     legend: compact
       ? { show: false }
-      : { position: 'bottom', horizontalAlign: 'left', itemMargin: { horizontal: 8, vertical: 4 } },
+      : {
+          position: 'bottom',
+          horizontalAlign: 'left',
+          itemMargin: { horizontal: 8, vertical: 4 },
+          // 🛑 ปิด toggle ของ legend — ค่าตั้งต้นของ Apex คือกดชื่อแล้วซ่อนเส้น ซึ่งทำให้มี
+          // สวิตช์สองตัวคุมของสิ่งเดียวกัน: เส้นหายแต่ช่องติ๊กยังติดอยู่และยังกินโควตา 6 เส้น
+          onItemClick: { toggleDataSeries: false },
+          onItemHover: { highlightDataSeries: true },
+        },
     annotations:
       futureFrom !== null && futureFrom < days
         ? {
@@ -101,7 +122,8 @@ export default function ProductSalesChart({
                   text: 'ยังไม่ถึงวัน',
                   position: 'top',
                   orientation: 'horizontal',
-                  style: { fontSize: '10px', color: getColor('default-500'), background: 'transparent' },
+                  // 11px = --text-2xs ซึ่งเป็นขั้นเล็กสุดที่ธีมมี (10px หลุดบันได)
+                  style: { fontSize: '11px', color: getColor('default-500'), background: 'transparent' },
                 },
               },
             ],

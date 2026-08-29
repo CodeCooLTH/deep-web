@@ -22,6 +22,7 @@ import {
   MIN_MONTH_ISO,
   daysInMonth,
   futureFromDayIndex,
+  isCurrentThaiMonth,
   maxSelectableMonth,
   parseMonthParam,
   referenceDayIndex,
@@ -154,7 +155,15 @@ export default async function ProductSalesReportPage({
     )
   }
 
-  if (!data.hasAnyProduct) {
+  /**
+   * 🛑 ต้องเช็ค `orderCount === 0` ควบคู่เสมอ — `hasAnyProduct` นับแถวในตาราง `Product`
+   * แต่รายงานนี้มีเส้นทางชั้นหนึ่งสำหรับ `productId === null` (แถว "รายการที่พิมพ์เอง")
+   * ⇒ ร้านที่ปิดการขายในแชทและพิมพ์ชื่อของเองโดยไม่เคยสร้างสินค้าในระบบ จะถูกตีกลับด้วย
+   * "ร้านนี้ยังไม่มีสินค้า" ทั้งที่ `data.rows` มียอดทั้งเดือนอยู่ในมือแล้ว
+   * — และนั่นคือกลุ่มผู้ใช้ที่เกณฑ์ `status != CANCELLED` ถูกเลือกมาเพื่อเขาโดยเฉพาะ
+   * (พบโดย /impeccable critique 2026-08-29 · ยืนยันกับ service แล้ว)
+   */
+  if (!data.hasAnyProduct && data.orderCount === 0) {
     return (
       <>
         {header}
@@ -208,7 +217,14 @@ export default async function ProductSalesReportPage({
           </div>
         </div>
       ) : (
+        /**
+         * 🛑 `key` ผูกกับเดือน — `?month=` เป็น soft navigation ของ route เดิม React จึงคง
+         * component ไว้และ `useState` initializer ไม่รันใหม่ ⇒ ย้ายจาก ส.ค. ไป ก.ค. แล้วกราฟ
+         * ยังพล็อตคีย์ของ ส.ค. ทับข้อมูล ก.ค. (สินค้าที่ไม่มีในเดือนใหม่กลายเป็นเส้นแบน 0)
+         * และที่ 768–1023px ไม่มีช่องติ๊กให้แก้เลย · เดือนใหม่ = รายงานใหม่ รีเซ็ตทั้งชุดถูกแล้ว
+         */
         <ProductSalesClient
+          key={month.iso}
           rows={data.rows}
           days={days}
           year={month.year}
@@ -216,6 +232,7 @@ export default async function ProductSalesReportPage({
           monthLabel={monthLabel}
           futureFrom={futureFromDayIndex(month.year, month.month0, now)}
           refDayIndex={referenceDayIndex(month.year, month.month0, now)}
+          isCurrentMonth={isCurrentThaiMonth(month.year, month.month0, now)}
           orderCount={data.orderCount}
           truncated={data.truncated}
         />

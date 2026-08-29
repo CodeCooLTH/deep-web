@@ -14,6 +14,7 @@ import Link from 'next/link'
 import { useEffect, useRef } from 'react'
 
 import Icon from '@/components/wrappers/Icon'
+import { useDialogFocus } from '@/hooks/useDialogFocus'
 import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 import { formatDayMonthTH } from '@/lib/format-date'
 import { formatBaht, formatNumberNoSymbol } from '@/lib/format-money'
@@ -47,6 +48,7 @@ export default function ProductDetailSheet({
 }: Props) {
   useLockBodyScroll(true)
 
+
   /**
    * ปุ่มย้อนกลับของเครื่องต้อง "ปิดชีต" ไม่ใช่ "ออกจากหน้ารายงาน" — ดันสถานะหลอกเข้า history
    * ตอนเปิด แล้วปิดเมื่อ popstate
@@ -54,6 +56,7 @@ export default function ProductDetailSheet({
    * 🛑 `pushedRef` กันการดัน state ซ้ำเมื่อ component re-render — ถ้าดันซ้ำ ผู้ใช้ต้องกดย้อนกลับ
    * สองครั้งกว่าชีตจะปิด ซึ่งอ่านเป็นปุ่มย้อนกลับเสีย
    */
+  const panelRef = useRef<HTMLDivElement>(null)
   const pushedRef = useRef(false)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
@@ -81,11 +84,23 @@ export default function ProductDetailSheet({
     onClose()
   }
 
+  /**
+   * 🛑 `aria-modal="true"` บังคับเฉพาะเคอร์เซอร์เสมือนของ screen reader **ไม่ใช่โฟกัสของ DOM**
+   * ⇒ ถ้าไม่มีกับดัก โฟกัสยังค้างที่ปุ่มแถวซึ่งตอนนี้อยู่ใต้ `fixed inset-0` และกด Tab จะเดิน
+   * เข้าเมนูข้างที่ `aria-modal` เพิ่งบอก screen reader ว่าไม่มีอยู่ — คือประกาศแล้วไม่ทำตาม
+   * `useDialogFocus` ถูกเขียนไว้เพื่อการนี้โดยตรง (2026-08-26) และหัวไฟล์ของมันสั่งเองว่า
+   * ผู้เรียกรายถัดไปให้ใช้ตัวนี้ ไม่ใช่เขียน effect ใหม่ — ได้ Escape + คืนโฟกัสตอนปิดมาด้วย
+   *
+   * ต้องอยู่ **หลัง** การประกาศ `close` เพราะ `const` ไม่ถูก hoist
+   */
+  useDialogFocus(true, panelRef, close)
+
   const series = rowSeries(row, unit)
   const patternLabel = salesPatternLabel(row.pattern)
 
   return (
     <div
+      ref={panelRef}
       className="bg-card fixed inset-0 z-50 flex flex-col"
       role="dialog"
       aria-modal="true"

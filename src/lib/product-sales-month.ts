@@ -100,7 +100,8 @@ export type SalesPattern =
   | { kind: 'NONE' }
   | { kind: 'CONCENTRATED' }
   | { kind: 'STEADY' }
-  | { kind: 'DORMANT'; days: number }
+  /** `toMonthEnd` = นับถึง "สิ้นเดือนที่ดู" ไม่ใช่ "วันนี้" — เดือนย้อนหลังต้องเป็น true */
+  | { kind: 'DORMANT'; days: number; toMonthEnd?: boolean }
 
 /**
  * classifySalesPattern — ป้ายสรุปของสินค้าหนึ่งตัวในเดือนหนึ่ง
@@ -126,6 +127,11 @@ export function classifySalesPattern(
   dailyQty: readonly number[],
   saleEvents: number,
   referenceDayIndex: number,
+  /**
+   * true = วันอ้างอิงคือสิ้นเดือนที่กำลังดู (เดือนที่ผ่านไปแล้ว) ไม่ใช่ "วันนี้"
+   * มีผลกับ *คำ* เท่านั้น ไม่มีผลกับการตัดสิน — ค่าตั้งต้น false เพื่อไม่ให้ผู้เรียกเดิมเปลี่ยนพฤติกรรม
+   */
+  refIsMonthEnd = false,
 ): SalesPattern {
   if (saleEvents < MIN_EVENTS_FOR_PATTERN) return { kind: 'NONE' }
 
@@ -140,7 +146,8 @@ export function classifySalesPattern(
 
   const lastActive = activeDayIndexes[activeDayIndexes.length - 1]
   const silentDays = referenceDayIndex - lastActive
-  if (silentDays >= DORMANT_DAY_THRESHOLD) return { kind: 'DORMANT', days: silentDays }
+  if (silentDays >= DORMANT_DAY_THRESHOLD)
+    return { kind: 'DORMANT', days: silentDays, toMonthEnd: refIsMonthEnd }
 
   const topDaysSum = [...dailyQty]
     .sort((a, b) => b - a)
@@ -163,7 +170,9 @@ export function salesPatternLabel(p: SalesPattern): string | null {
     case 'STEADY':
       return 'ขายสม่ำเสมอ'
     case 'DORMANT':
-      return `เงียบมาแล้ว ${p.days} วัน`
+      // 🛑 เดือนย้อนหลังต้องไม่พูดว่า "มาแล้ว" — ผู้อ่านจะเข้าใจว่านับถึงวันนี้ ทั้งที่นับถึงสิ้นเดือนนั้น
+      // (สินค้าที่ขายครั้งสุดท้าย 11 มิ.ย. 2568 จะถูกป้ายว่า "เงียบมาแล้ว 19 วัน" ซึ่งอ่านผิดสนิท)
+      return p.toMonthEnd ? `เงียบ ${p.days} วันท้ายเดือน` : `เงียบมาแล้ว ${p.days} วัน`
     case 'NONE':
       return null
   }
@@ -177,7 +186,9 @@ export function salesPatternDescription(p: SalesPattern): string | null {
     case 'STEADY':
       return 'มียอดขายเกินครึ่งของจำนวนวันในเดือน'
     case 'DORMANT':
-      return `ไม่มียอดขายมาแล้ว ${p.days} วันนับถึงวันล่าสุดของช่วงที่ดู`
+      return p.toMonthEnd
+        ? `ไม่มียอดขายใน ${p.days} วันสุดท้ายของเดือนที่ดูอยู่`
+        : `ไม่มียอดขายมาแล้ว ${p.days} วันนับถึงวันนี้`
     case 'NONE':
       return null
   }

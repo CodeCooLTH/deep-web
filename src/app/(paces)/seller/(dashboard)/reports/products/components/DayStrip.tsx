@@ -13,27 +13,30 @@
  *   กราฟเรนเดอร์กลับหัวบน iOS ที่ผู้ใช้เจอจริง (`docs/conventions/paces-charts-source.md`)
  *
  * ที่สำคัญกว่าเรื่องความเร็ว: แถบนี้ตอบคำถาม **"ขายวันไหน"** ซึ่งเป็นคำถามของรายงานนี้ตรง ๆ
- * (นับช่องได้ว่าวันที่เท่าไร) ส่วน sparkline ตอบ "รูปร่างของแนวโน้ม" ซึ่งเป็นคำถามคนละข้อ
+ * ส่วน sparkline ตอบ "รูปร่างของแนวโน้ม" ซึ่งเป็นคำถามคนละข้อ
  *
- * ความเข้มเทียบกับ **วันที่ดีที่สุดของสินค้าตัวเอง** ไม่ใช่เทียบข้ามสินค้า — ถ้า normalize
- * ข้ามสินค้า ตัวที่ขายน้อยจะกลายเป็นแถบเทาทั้งแถบ แล้วมองไม่ออกเลยว่าขายวันไหน
+ * ── ทำไมความหมายอยู่ที่ "ความสูง" ไม่ใช่ "ความเข้ม" (แก้ 2026-08-29 หลัง critique) ──
+ * 🛑 ฉบับแรกไล่ความเข้ม `bg-primary/25 → /45 → /70 → primary` ซึ่ง **ต่ำกว่าเกณฑ์ที่มองเห็นได้จริง**
+ * `bg-primary/25` บนการ์ดขาววัดได้ **1.42:1** (เกณฑ์ non-text คือ 3:1) และ `dayIntensity`
+ * คืนระดับ 1 ให้ทุกวันที่ยอด ≤25% ของวันที่ดีที่สุด ซึ่งเป็นวันส่วนใหญ่ของสินค้าส่วนใหญ่
+ * ⇒ สินค้าที่ขายได้วันละชิ้น 8 วัน เรนเดอร์ออกมาเป็น "แถวว่างเปล่า"
+ * แย่กว่านั้น: วันอนาคต (`bg-default-100`) กับวันที่ไม่มียอด (`bg-default-200`) ต่างกัน **1.05:1**
+ * ขณะที่คอมเมนต์เดิมในไฟล์นี้เขียนเองว่า "แยกออกจากกันได้ด้วยตา" — ไม่จริง
+ *
+ * ตอนนี้ความหมายอยู่ที่ **ความสูงของแท่ง** สีเดียวทึบ (`bg-primary` = 5.12:1) ซึ่งอ่านออกด้วย
+ * *รูปร่าง* ตาม WCAG 1.4.1 · วันอนาคตเป็นรางเปล่าและทำเครื่องหมายเส้นประ **ครั้งเดียวที่ขอบเขต**
+ * — เครื่องหมายที่มองเห็นหนึ่งอันดีกว่าช่องที่มองไม่เห็นยี่สิบช่อง
+ *
+ * ความสูงเทียบกับ **วันที่ดีที่สุดของสินค้าตัวเอง** ไม่ใช่เทียบข้ามสินค้า — ถ้า normalize
+ * ข้ามสินค้า ตัวที่ขายน้อยจะกลายเป็นแถบว่างทั้งแถบ แล้วมองไม่ออกเลยว่าขายวันไหน
  */
 import { dayIntensity } from '@/lib/product-sales-month'
 
 /**
- * คลาสของแต่ละระดับความเข้ม — ประกอบจาก primitive ของ Paces ทั้งหมด (HR7)
- * ไม่มีค่า arbitrary และไม่มี hex ดิบ
+ * ความสูงของแท่งตามระดับ — ประกอบจาก primitive ของ Paces ทั้งหมด (HR7)
+ * ระดับ 0 ไม่มีแท่งเลย เหลือแค่ราง จึงเป็นสตริงว่าง
  */
-const LEVEL_CLASS = [
-  'bg-default-200', // 0 — ไม่มียอด
-  'bg-primary/25',
-  'bg-primary/45',
-  'bg-primary/70',
-  'bg-primary', // 4 — วันที่ขายดีที่สุดของสินค้าตัวนี้
-] as const
-
-/** วันที่ยังมาไม่ถึง — จางกว่า "ไม่มียอด" เพื่อให้แยกออกจากกันได้ด้วยตา */
-const FUTURE_CLASS = 'bg-default-100'
+const BAR_HEIGHT = ['', 'h-1', 'h-2', 'h-3', 'h-4'] as const
 
 type Props = {
   /** ยอดรายวันแบบเต็ม ความยาว = จำนวนวันจริงของเดือนนั้น */
@@ -58,6 +61,10 @@ export default function DayStrip({ values, futureFrom, formatValue, monthLabel, 
   /**
    * 🛑 `role="img"` + `aria-label` — `<div>` เปล่าไม่รองรับ "ชื่อจากผู้เขียน" screen reader
    * ที่ทำตามสเปกจะทิ้ง label ทิ้งทั้งก้อน (docs/conventions/aria-name-requires-supporting-role.md)
+   *
+   * ⚠️ หนี้ที่รู้ตัวและยังไม่แก้: คำอธิบายนี้บอก "กี่วัน" กับ "วันที่ดีที่สุดได้เท่าไร" แต่
+   * **ไม่ได้บอกว่าวันไหน** ⇒ ผู้ใช้ screen reader ตอบคำถามหลักของหน้านี้จากแถบนี้ไม่ได้
+   * ต้องเข้าชีตรายสินค้าแทน (บันทึกไว้ใน TestCase.md)
    */
   // เว้นวรรครอบชื่อเดือนเสมอ — `formatMonthYearTH` คืน "ส.ค. 2569" ถ้าต่อติดจะอ่านว่า
   // "ในส.ค. 2569" ซึ่งไม่มีคนไทยเขียนแบบนั้น
@@ -67,18 +74,35 @@ export default function DayStrip({ values, futureFrom, formatValue, monthLabel, 
       : `มียอดขาย ${activeDays} วันใน ${monthLabel} · วันที่ขายได้มากที่สุด ${formatValue(max)}`
 
   return (
-    <div
+    // `<span>` ไม่ใช่ `<div>` — ตัวนี้ถูกเรนเดอร์อยู่ใน `<button>` ของรายการมือถือ
+    // (`<div>` ใน `<button>` ผิด content model ของ HTML)
+    <span
       role="img"
       aria-label={summary}
       title={summary}
       // grid-flow-col + auto-cols-fr = ทุกช่องกว้างเท่ากันและยืดเต็มพื้นที่ โดยไม่ต้องรู้จำนวนวัน
       // ล่วงหน้า (ก.พ. 28 ช่อง ธ.ค. 31 ช่อง ใช้คลาสชุดเดียวกัน)
-      className={`grid grid-flow-col auto-cols-fr gap-px ${className ?? ''}`}>
+      className={`grid auto-cols-fr grid-flow-col items-end gap-px ${className ?? ''}`}>
       {values.map((v, i) => {
         const isFuture = futureFrom !== null && i >= futureFrom
-        const cls = isFuture ? FUTURE_CLASS : LEVEL_CLASS[dayIntensity(v, max)]
-        return <span key={i} aria-hidden="true" className={`h-4 rounded-sm ${cls}`} />
+        // เส้นประคั่นครั้งเดียวตรงขอบเขต "ถึงแล้ว | ยังไม่ถึง" — เส้นประเป็นสำนวนที่ธีมใช้อยู่แล้ว
+        const boundary = futureFrom !== null && futureFrom > 0 && i === futureFrom
+        const level = isFuture ? 0 : dayIntensity(v, max)
+        return (
+          <span
+            key={i}
+            aria-hidden="true"
+            className={`bg-default-200 relative h-4 rounded-sm ${
+              boundary ? 'border-default-400 border-s border-dashed' : ''
+            }`}>
+            {level > 0 && (
+              <span
+                className={`bg-primary absolute inset-x-0 bottom-0 rounded-sm ${BAR_HEIGHT[level]}`}
+              />
+            )}
+          </span>
+        )
       })}
-    </div>
+    </span>
   )
 }

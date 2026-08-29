@@ -22,8 +22,15 @@ const ICONS: Record<Exclude<SalesPattern['kind'], 'NONE'>, string> = {
   DORMANT: 'clock',
 }
 
+/**
+ * 🛑 สามป้ายต้องมีสามโทน — เดิม CONCENTRATED กับ DORMANT ใช้ `warning` เหมือนกัน ทำให้
+ * คอลัมน์นี้สแกนด้วยสายตาไม่ได้ และลำดับความสำคัญที่ `classifySalesPattern` อุตส่าห์จัดไว้
+ * (เงียบ ชนะ กระจุก ชนะ สม่ำเสมอ) หายไปบนหน้าจอ
+ * สงวน `warning` ไว้ให้ DORMANT ตัวเดียว = "ตัวที่ต้องไปดูต่อจริง ๆ"
+ * ส่วน CONCENTRATED เป็นคำ *บรรยายรูปร่าง* จึงใช้โทนกลาง (9.05:1 บนพื้นนั้น)
+ */
 const TONES: Record<Exclude<SalesPattern['kind'], 'NONE'>, string> = {
-  CONCENTRATED: 'bg-warning/15 text-warning-ink',
+  CONCENTRATED: 'bg-default-100 text-default-700',
   STEADY: 'bg-info/15 text-info-ink',
   DORMANT: 'bg-warning/15 text-warning-ink',
 }

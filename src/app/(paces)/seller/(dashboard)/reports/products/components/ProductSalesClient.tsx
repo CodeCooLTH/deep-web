@@ -46,6 +46,8 @@ type Props = {
   monthLabel: string
   futureFrom: number | null
   refDayIndex: number
+  /** เดือนที่ดูคือเดือนปัจจุบันไหม — มีผลกับ *คำ* ของป้าย "เงียบ" */
+  isCurrentMonth: boolean
   orderCount: number
   truncated: boolean
 }
@@ -58,6 +60,7 @@ export default function ProductSalesClient({
   monthLabel,
   futureFrom,
   refDayIndex,
+  isCurrentMonth,
   orderCount,
   truncated,
 }: Props) {
@@ -69,8 +72,8 @@ export default function ProductSalesClient({
   )
 
   const viewRows = useMemo(
-    () => buildViewRows(rows, days, refDayIndex),
-    [rows, days, refDayIndex],
+    () => buildViewRows(rows, days, refDayIndex, isCurrentMonth),
+    [rows, days, refDayIndex, isCurrentMonth],
   )
 
   const soldRows = useMemo(() => viewRows.filter((r) => r.saleEvents > 0), [viewRows])
@@ -185,8 +188,9 @@ export default function ProductSalesClient({
             รายสินค้า{' '}
             <span className="text-default-400 font-normal">({visibleRows.length})</span>
           </h4>
+          {/* min-h-11 — ตัวควบคุมอื่นบนหน้านี้มีครบทุกตัว ตัวนี้เดิมสูง ~20px ทั้งที่เรนเดอร์ทุก breakpoint */}
           {zeroCount > 0 && (
-            <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
+            <label className="flex min-h-11 shrink-0 cursor-pointer items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 className="form-checkbox form-checkbox-light size-4.5"

@@ -85,7 +85,9 @@ export default function ProductMobileList({ rows, unit, futureFrom, monthLabel, 
 
             <Icon
               icon="chevron-right"
-              className="text-default-300 mt-1 shrink-0 text-base rtl:rotate-180"
+              /* text-default-300 = 1.22:1 บนขาว — ต่ำเกินกว่าจะเป็นตัวบอกว่าแถวนี้กดได้
+                 (default-400 = 4.95:1) */
+              className="text-default-400 mt-1 shrink-0 text-base rtl:rotate-180"
               aria-hidden="true"
             />
           </button>

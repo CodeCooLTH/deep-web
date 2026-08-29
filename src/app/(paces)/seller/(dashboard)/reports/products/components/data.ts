@@ -46,6 +46,8 @@ export function buildViewRows(
   rows: readonly ProductSalesRow[],
   days: number,
   refDayIndex: number,
+  /** false = เดือนที่ผ่านไปแล้ว ⇒ ป้าย "เงียบ" ต้องพูดว่านับถึงสิ้นเดือน ไม่ใช่ถึงวันนี้ */
+  isCurrentMonth: boolean,
 ): ProductSalesViewRow[] {
   return rows.map((r) => {
     const denseQty = toDense(r.qty, days)
@@ -53,7 +55,7 @@ export function buildViewRows(
       ...r,
       denseQty,
       denseAmount: toDense(r.amount, days),
-      pattern: classifySalesPattern(denseQty, r.saleEvents, refDayIndex),
+      pattern: classifySalesPattern(denseQty, r.saleEvents, refDayIndex, !isCurrentMonth),
     }
   })
 }
@@ -74,8 +76,11 @@ export function rowSeries(r: ProductSalesViewRow, unit: SalesUnit): number[] {
  * สลับตัวเองตอนกดปุ่มเปลี่ยนหน่วย ผู้ใช้จะเสียที่อ้างอิงทั้งหมดในทันที โดยที่ปุ่มนั้น
  * ดูเหมือนแค่ "เปลี่ยนหน่วย"
  *
- * `rows` ถูกเรียงจากขายดี→น้อยมาแล้วจาก service จึงหยิบจากหัวแถวได้ตรง ๆ ⇒ 5 แถวแรก
- * ของตารางคือ 5 เส้นบนกราฟพอดี (ความสัมพันธ์ที่อ่านออกโดยไม่ต้องอธิบาย)
+ * `rows` ถูกเรียงจากขายดี→น้อยมาแล้วจาก service จึงหยิบจากหัวแถวได้ตรง ๆ
+ *
+ * ⚠️ ความสัมพันธ์ "5 แถวแรกของตาราง = 5 เส้นบนกราฟ" **จริงเฉพาะโหมดจำนวนชิ้น** — ตาราง
+ * เรียงตามหน่วยที่เลือกอยู่ (`rowTotal(r, unit)`) ส่วนเส้นบนกราฟยึดจำนวนชิ้นเสมอ ⇒ ในโหมดบาท
+ * ห้าแถวแรกอาจไม่ใช่ห้าเส้นนั้น (ตั้งใจ — สลับเส้นตอนกดปุ่มหน่วยจะทำให้ผู้ใช้เสียที่อ้างอิง)
  */
 export function defaultSelectedKeys(rows: readonly ProductSalesRow[], take: number): string[] {
   return rows.filter((r) => r.totalQty > 0).slice(0, take).map((r) => r.key)

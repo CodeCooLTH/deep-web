@@ -67,7 +67,7 @@ describe('[blocker] classifySalesPattern — ลำดับความสำ�
     // ขายวันที่ 1-3 แล้วเงียบยาว: เข้าทั้ง CONCENTRATED และ DORMANT
     const d = daily(31, { 0: 10, 1: 10, 2: 10 })
     const r = classifySalesPattern(d, 6, 30)
-    expect(r).toEqual({ kind: 'DORMANT', days: 28 })
+    expect(r).toEqual({ kind: 'DORMANT', days: 28, toMonthEnd: false })
   })
 
   it('เงียบ 13 วัน (ต่ำกว่าเกณฑ์ 1 วัน) ยังไม่ใช่ DORMANT → ตกไป CONCENTRATED', () => {
@@ -80,7 +80,7 @@ describe('[blocker] classifySalesPattern — ลำดับความสำ�
     const last = 10
     const d = daily(31, { 0: 3, 5: 3, [last]: 3 })
     const r = classifySalesPattern(d, 5, last + DORMANT_DAY_THRESHOLD)
-    expect(r).toEqual({ kind: 'DORMANT', days: DORMANT_DAY_THRESHOLD })
+    expect(r).toEqual({ kind: 'DORMANT', days: DORMANT_DAY_THRESHOLD, toMonthEnd: false })
 
     const r2 = classifySalesPattern(d, 5, last + DORMANT_DAY_THRESHOLD - 1)
     expect(r2.kind).not.toBe('DORMANT')
@@ -114,6 +114,41 @@ describe('[blocker] classifySalesPattern — ลำดับความสำ�
     // ปรับให้ยอดกระจายพอไม่กระจุก: 8 วัน ยอดเท่ากัน ⇒ top3 = 3/8 < ครึ่ง, 8 < 31/2
     const d = daily(31, { 0: 1, 3: 1, 6: 1, 9: 1, 12: 1, 15: 1, 18: 1, 21: 1 })
     expect(classifySalesPattern(d, 8, 22)).toEqual({ kind: 'NONE' })
+  })
+})
+
+describe('[blocker] คำของ DORMANT ต้องบอกว่านับถึงเมื่อไร', () => {
+  /**
+   * 🛑 "เงียบมาแล้ว N วัน" อ่านว่า "นับถึงวันนี้" เสมอ — แต่ในเดือนย้อนหลัง วันอ้างอิงคือ
+   * สิ้นเดือนนั้น ⇒ สินค้าที่ขายครั้งสุดท้าย 11 มิ.ย. 2568 จะถูกป้ายว่า "เงียบมาแล้ว 19 วัน"
+   * ซึ่งผู้อ่านเข้าใจว่าเงียบมา 19 วันนับถึงตอนนี้ ทั้งที่ความจริงคือเงียบ 19 วันท้ายเดือนนั้น
+   * (พบโดย /impeccable critique 2026-08-29)
+   */
+  const d = daily(31, { 0: 10, 1: 10, 2: 10 })
+
+  it('เดือนปัจจุบัน (refIsMonthEnd=false) → "เงียบมาแล้ว N วัน"', () => {
+    const p = classifySalesPattern(d, 6, 30, false)
+    expect(p).toEqual({ kind: 'DORMANT', days: 28, toMonthEnd: false })
+    expect(salesPatternLabel(p)).toBe('เงียบมาแล้ว 28 วัน')
+  })
+
+  it('เดือนย้อนหลัง (refIsMonthEnd=true) → "เงียบ N วันท้ายเดือน" ไม่ใช่ "มาแล้ว"', () => {
+    const p = classifySalesPattern(d, 6, 30, true)
+    expect(p).toEqual({ kind: 'DORMANT', days: 28, toMonthEnd: true })
+    expect(salesPatternLabel(p)).toBe('เงียบ 28 วันท้ายเดือน')
+  })
+
+  it('ธงมีผลกับ *คำ* เท่านั้น ห้ามเปลี่ยนการตัดสิน', () => {
+    const a = classifySalesPattern(d, 6, 30, false)
+    const b = classifySalesPattern(d, 6, 30, true)
+    expect(a.kind).toBe(b.kind)
+    expect(a.kind === 'DORMANT' && b.kind === 'DORMANT' && a.days === b.days).toBe(true)
+  })
+
+  it('ป้ายอื่นไม่ได้รับผลจากธงนี้', () => {
+    const steady = daily(30, {})
+    for (let i = 0; i < 30; i++) steady[i] = 2
+    expect(salesPatternLabel(classifySalesPattern(steady, 40, 29, true))).toBe('ขายสม่ำเสมอ')
   })
 })
 
