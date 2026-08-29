@@ -32,8 +32,11 @@ export default function PatternBadge({ pattern }: { pattern: SalesPattern }) {
   const label = salesPatternLabel(pattern)
   if (pattern.kind === 'NONE' || !label) {
     // 🛑 ขีดกลาง ไม่ใช่ช่องว่างเปล่า — ผู้อ่านต้องแยก "ไม่มีป้าย" ออกจาก "ป้ายยังโหลดไม่เสร็จ"
+    // 🛑 `role="img"` + `aria-label` — `<span>` เปล่าไม่รองรับ "ชื่อจากผู้เขียน" และ `title=`
+    // ไม่ใช่ตัวแทน (มือถือไม่มี hover) ต้องมีคู่กันเสมอ
+    const why = 'ยังไม่ติดป้าย — ขายได้น้อยกว่า 3 ครั้งในเดือนนี้ หรือไม่เข้าเกณฑ์ใดเลย'
     return (
-      <span className="text-default-400" title="ขายได้น้อยกว่า 3 ครั้งในเดือนนี้ หรือไม่เข้าเกณฑ์ใด">
+      <span className="text-default-400" role="img" aria-label={why} title={why}>
         —
       </span>
     )

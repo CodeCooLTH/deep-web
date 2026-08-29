@@ -98,7 +98,7 @@ export default function ProductSalesChart({
                 fillColor: getColor('default-200'),
                 opacity: 0.45,
                 label: {
-                  text: 'ยังไม่ถึง',
+                  text: 'ยังไม่ถึงวัน',
                   position: 'top',
                   orientation: 'horizontal',
                   style: { fontSize: '10px', color: getColor('default-500'), background: 'transparent' },
@@ -120,9 +120,16 @@ export default function ProductSalesChart({
 
   if (series.length === 0) {
     return (
-      <p className="text-default-500 flex items-center justify-center gap-2 py-16 text-sm">
-        <Icon icon="chart-line" className="text-base" aria-hidden="true" />
-        เลือกสินค้าจากตารางด้านล่างเพื่อดูแนวโน้ม
+      /**
+       * 🛑 ข้อความต้องต่างกันตาม breakpoint — ที่ 768–1023px กราฟแสดงแล้ว แต่ตารางที่มี
+       * ช่องติ๊กเป็น `hidden lg:block` สิ่งที่อยู่ด้านล่างคือรายการการ์ดซึ่งไม่มีช่องติ๊กเลย
+       * ⇒ ประโยค "เลือกจากตารางด้านล่าง" เป็นคำสั่งที่ทำตามไม่ได้ ผู้ใช้แท็บเล็ตติดตาย
+       * (พบโดย /impeccable clarify 2026-08-29)
+       */
+      <p className="text-default-500 flex items-center justify-center gap-2 py-16 text-center text-sm">
+        <Icon icon="chart-line" className="shrink-0 text-base" aria-hidden="true" />
+        <span className="lg:hidden">เดือนนี้ยังไม่มีสินค้าที่มียอดขายพอจะลากเส้นแนวโน้มได้</span>
+        <span className="hidden lg:inline">ติ๊กสินค้าในตารางด้านล่างเพื่อดูเส้นแนวโน้ม</span>
       </p>
     )
   }

@@ -22,6 +22,7 @@ import Icon from '@/components/wrappers/Icon'
 import {
   CHART_SERIES_CAP,
   MONEY_MODE_CAVEAT,
+  SALES_BASIS_DETAIL,
   SALES_BASIS_NOTE,
 } from '@/lib/product-sales-month'
 import type { ProductSalesRow } from '@/services/product-sales-series.service'
@@ -100,9 +101,18 @@ export default function ProductSalesClient({
     <>
       {/* แถบควบคุม — จงใจไม่ห่อ .card เพื่อไม่ให้เกิดการ์ดซ้อนการ์ด (anti-slop) */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-default-400 mb-0 max-w-xl text-xs">
-          {SALES_BASIS_NOTE}
-        </p>
+        {/**
+          * 🛑 ฉบับแรกยัดนิยามทั้งก้อน (164 อักษร) ไว้เป็น text-xs สีเทาอ่อน = ของประดับที่สายตา
+          * ข้าม ทั้งที่มันคือประโยคที่ห้ามพลาดตาม HR16 — ย่อเหลือบรรทัดที่อ่านจบ แล้วเก็บ
+          * รายละเอียดไว้หลัง <details> (native ไม่ต้องมี state ไม่ต้องมี JS)
+          */}
+        <details className="group min-w-0 max-w-xl">
+          <summary className="text-default-500 hover:text-default-700 cursor-pointer list-none text-xs">
+            {SALES_BASIS_NOTE}
+            <span className="text-primary-ink ms-1 underline">ดูรายละเอียด</span>
+          </summary>
+          <p className="text-default-400 mt-1 mb-0 text-xs">{SALES_BASIS_DETAIL}</p>
+        </details>
         <div className="inline-flex shrink-0" role="group" aria-label="หน่วยที่แสดง">
           {(['qty', 'baht'] as const).map((u, i) => (
             <button
@@ -137,8 +147,8 @@ export default function ProductSalesClient({
         <p className="text-warning-ink bg-warning/15 mb-4 flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
           <Icon icon="alert-triangle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
           <span>
-            เดือนนี้มีรายการสินค้ามากเกินกว่าที่รายงานจะประมวลผลได้ทั้งหมด —
-            ตัวเลขที่เห็นเป็นเพียงบางส่วน กรุณาแจ้งทีมงาน
+            เดือนนี้มีรายการขายมากเกินกว่าที่รายงานจะรวมได้หมด ตัวเลขที่เห็นจึงไม่ใช่ยอดทั้งเดือน —
+            ใช้ดูแนวโน้มได้ แต่อย่าใช้เทียบยอดรวม ติดต่อทีมงานเพื่อให้เราขยายให้
           </span>
         </p>
       )}
@@ -147,10 +157,14 @@ export default function ProductSalesClient({
       <div className="card mb-4 hidden md:block">
         <div className="card-header">
           <h4 className="card-title">แนวโน้มรายวัน</h4>
+          {/* 🛑 "5 อันดับแรก" เฉย ๆ โกหกทันทีที่สลับเป็นบาท — อันดับยึดจำนวนชิ้นเสมอ
+              (defaultSelectedKeys) ไม่ผันตามหน่วย จึงต้องบอกว่ายึดอะไร */}
           <span className="text-default-400 text-xs">
-            <span className="lg:hidden">แสดง 5 อันดับแรกของเดือน</span>
+            <span className="lg:hidden">แสดง 5 อันดับแรกตามจำนวนชิ้น</span>
             <span className="hidden lg:inline">
-              เลือกได้สูงสุด {CHART_SERIES_CAP} รายการ — ติ๊กที่ตารางด้านล่าง
+              {selected.size >= CHART_SERIES_CAP
+                ? `เลือกแล้ว ${selected.size} จาก ${CHART_SERIES_CAP} รายการ — เอาออกก่อนจึงจะเลือกเพิ่มได้`
+                : `เลือกแล้ว ${selected.size} จาก ${CHART_SERIES_CAP} รายการ — ติ๊กที่ตารางด้านล่าง`}
             </span>
           </span>
         </div>
@@ -213,7 +227,7 @@ export default function ProductSalesClient({
       </div>
 
       <p className="text-default-400 mt-3 text-xs">
-        นับจากคำสั่งซื้อ {orderCount.toLocaleString('th-TH')} ใบใน{monthLabel}
+        นับจากคำสั่งซื้อ {orderCount.toLocaleString('th-TH')} ใบใน {monthLabel}
       </p>
 
       {openRow && (

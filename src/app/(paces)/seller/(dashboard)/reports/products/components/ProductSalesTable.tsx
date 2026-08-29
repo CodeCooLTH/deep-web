@@ -21,12 +21,13 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
 import { formatDayMonthTH } from '@/lib/format-date'
+import { CUSTOM_ITEM_NOTE } from '@/lib/product-sales-month'
 import { formatBaht, formatNumberNoSymbol } from '@/lib/format-money'
 import DayStrip from './DayStrip'
 import PatternBadge from './PatternBadge'
@@ -73,7 +74,16 @@ export default function ProductSalesTable({
   const [sorting, setSorting] = useState<SortingState>([{ id: 'total', desc: true }])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 })
 
-  const unitLabel = unit === 'qty' ? 'ชิ้น' : 'บาท'
+  /**
+   * 🛑 ต้อง `useCallback` — ฟังก์ชันที่สร้างใหม่ทุก render จะทำให้ dep array ของ `columns`
+   * ด้านล่างเปลี่ยนทุกครั้ง ⇒ สร้างคอลัมน์ใหม่ทั้งชุดทุก render แล้วส่งเข้า useReactTable
+   * (คลาสเดียวกับ docs/conventions/hook-return-identity-in-deps.md — ตัวที่ผิดคือความเสถียร
+   *  ของ identity ไม่ใช่ชนิดของค่า จึงไม่มี tsc/build ตัวไหนฟ้อง)
+   */
+  const fmtValue = useCallback(
+    (v: number) => (unit === 'baht' ? formatBaht(v) : `${formatNumberNoSymbol(v)} ชิ้น`),
+    [unit],
+  )
 
   const columns = useMemo(
     () => [
@@ -98,7 +108,7 @@ export default function ProductSalesTable({
                 noData
                   ? 'สินค้านี้ไม่มียอดขายในเดือนนี้ จึงไม่มีเส้นให้แสดง'
                   : blocked
-                    ? `เลือกได้สูงสุด ${cap} เส้น — ยกเลิกเส้นอื่นก่อน`
+                    ? `เลือกได้สูงสุด ${cap} รายการ — เอาออกก่อนจึงจะเลือกเพิ่มได้`
                     : undefined
               }
             />
@@ -118,11 +128,14 @@ export default function ProductSalesTable({
               <RowThumb src={r.image} alt={r.name} isCustom={r.isCustom} />
               <div className="min-w-0">
                 {r.isCustom ? (
-                  <span
-                    className="text-default-900 block max-w-full truncate text-sm font-medium"
-                    title="รวมรายการที่พิมพ์เองในแชท สินค้าจากการประมูล และสินค้าที่เคยลบไปแล้ว">
-                    {r.name}
-                  </span>
+                  <>
+                    <span className="text-default-900 block max-w-full truncate text-sm font-medium">
+                      {r.name}
+                    </span>
+                    {/* 🛑 คำอธิบายต้อง "เห็นได้" ไม่ใช่ซ่อนใน title= — ป้ายบอกน้อยกว่าความจริง
+                        (แถวนี้รวมสินค้าที่ถูกลบและของจากการประมูลด้วย) */}
+                    <span className="text-default-400 mt-0.5 block text-xs">{CUSTOM_ITEM_NOTE}</span>
+                  </>
                 ) : (
                   <Link
                     href={`/products/${r.key}`}
@@ -143,12 +156,13 @@ export default function ProductSalesTable({
 
       columnHelper.display({
         id: 'trend',
-        header: 'ขายวันไหนบ้าง',
+        // หัวคอลัมน์เป็นคำนามให้เข้าชุดกับหัวอื่นทั้งตาราง (สินค้า / รูปแบบการขาย / ขายล่าสุด)
+        header: 'ขายวันไหน',
         cell: ({ row }) => (
           <DayStrip
             values={rowSeries(row.original, unit)}
             futureFrom={futureFrom}
-            unitLabel={unitLabel}
+            formatValue={fmtValue}
             monthLabel={monthLabel}
             className="min-w-40"
           />
@@ -189,7 +203,7 @@ export default function ProductSalesTable({
         },
       }),
     ],
-    [selected, unit, atCap, cap, futureFrom, unitLabel, monthLabel, year, month0, onToggle],
+    [selected, unit, atCap, cap, futureFrom, fmtValue, monthLabel, year, month0, onToggle],
   )
 
   const table = useReactTable({

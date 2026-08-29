@@ -80,8 +80,8 @@ export default async function ProductSalesReportPage({
         <SellerEmptyState
           icon="chart-bar-off"
           title="รายงานนี้ใช้ได้เฉพาะร้านขายออนไลน์"
-          description="ร้านประเภทบริการและบ้านพักคิดยอดขายคนละแบบกับร้านที่ขายสินค้าเป็นชิ้น รายงานนี้จึงยังไม่รองรับ"
-          action={{ label: 'กลับไปหน้าภาพรวม', href: '/dashboard' }}
+          description={'รายงานนี้นับยอดเป็น "ชิ้น" ต่อวันที่ลูกค้าสั่ง จึงใช้ได้เฉพาะร้านที่ขายสินค้าเป็นชิ้น ร้านบริการและบ้านพักดูยอดขายได้ที่หน้าภาพรวมร้านค้า'}
+          action={{ label: 'ไปหน้าภาพรวมร้านค้า', href: '/dashboard' }}
         />
       </>
     )
@@ -92,10 +92,13 @@ export default async function ProductSalesReportPage({
       <>
         <PageBreadcrumb title={TITLE} subtitle={SUBTITLE} />
         {/* ไม่มีปุ่ม action โดยตั้งใจ — ผู้ใช้ไปหน้าอื่นแก้ปัญหานี้เองไม่ได้ ต้องให้เจ้าของร้านแก้ */}
+        {/* 🛑 ต้องเรียกสวิตช์ด้วยชื่อที่ผู้ใช้เห็นจริงบนหน้าจัดการพนักงาน
+            ("ให้พนักงานเห็นข้อมูลการเงิน" — FinanceVisibilityToggle) ไม่ใช่คำที่เราคิดเอง
+            ไม่งั้นเจ้าของร้านหาสวิตช์ไม่เจอ (HR16) */}
         <SellerEmptyState
           icon="lock"
           title="ยังไม่มีสิทธิ์ดูรายงานนี้"
-          description="ให้เจ้าของร้านเปิดสิทธิ์ดูข้อมูลการเงินให้ผู้ดูแลก่อน จึงจะเห็นยอดขายรายสินค้าได้"
+          description={'รายงานนี้เป็นข้อมูลการเงินของร้าน เจ้าของร้านต้องเปิดสวิตช์ "ให้พนักงานเห็นข้อมูลการเงิน" ที่หน้าจัดการพนักงานก่อน คุณจึงจะเห็นได้'}
         />
       </>
     )
@@ -175,7 +178,7 @@ export default async function ProductSalesReportPage({
         /* ลิงก์เก่าที่ถูกแชร์ต่อกันไม่ควรพาไปหน้าพัง — ถอยมาเดือนปัจจุบันแล้วบอกว่าเกิดอะไรขึ้น */
         <p className="text-default-700 bg-default-100 mb-4 flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
           <Icon icon="info-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
-          <span>เดือนที่ระบุมาในลิงก์ใช้ไม่ได้ — แสดงข้อมูลของ{monthLabel}แทน</span>
+          <span>เดือนที่ระบุมาในลิงก์ใช้ไม่ได้ — แสดงข้อมูลของ {monthLabel} แทน</span>
         </p>
       )}
 
@@ -185,7 +188,7 @@ export default async function ProductSalesReportPage({
        * โดยไม่มีคำอธิบาย จะสรุปว่าระบบคำนวณผิดแล้วเลิกเชื่อทั้งหน้า
        */}
       <p className="text-default-400 mb-3 text-xs">
-        อัปเดตล่าสุด {formatTimeHM(now)} น. · ออเดอร์ที่คีย์ย้อนหลังจะทำให้ตัวเลขของเดือนที่ผ่านไปแล้วเปลี่ยนได้
+        ข้อมูล ณ {formatTimeHM(now)} น. วันนี้ · ตัวเลขของเดือนเก่าเปลี่ยนได้ ถ้ามีคนคีย์ออเดอร์ย้อนหลัง
       </p>
 
       {data.orderCount === 0 ? (
@@ -194,7 +197,7 @@ export default async function ProductSalesReportPage({
             <SellerEmptyState
               compact
               icon="calendar-off"
-              title={`ยังไม่มีคำสั่งซื้อใน${monthLabel}`}
+              title={`ยังไม่มีคำสั่งซื้อใน ${monthLabel}`}
               description="ลองเลือกเดือนอื่นด้วยปุ่มลูกศรด้านบน"
             />
             <p className="text-default-400 mt-2 text-center text-xs">

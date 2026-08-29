@@ -17,7 +17,7 @@ import Icon from '@/components/wrappers/Icon'
 import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 import { formatDayMonthTH } from '@/lib/format-date'
 import { formatBaht, formatNumberNoSymbol } from '@/lib/format-money'
-import { salesPatternDescription, salesPatternLabel } from '@/lib/product-sales-month'
+import { CUSTOM_ITEM_NOTE, salesPatternDescription, salesPatternLabel } from '@/lib/product-sales-month'
 import ProductSalesChart from './ProductSalesChart'
 import PatternBadge from './PatternBadge'
 import { UNIT_LABELS, rowSeries, rowTotal, type ProductSalesViewRow, type SalesUnit } from './data'
@@ -107,6 +107,12 @@ export default function ProductDetailSheet({
       </header>
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+        {row.isCustom && (
+          <p className="text-default-700 bg-default-100 mb-4 rounded-lg px-3 py-2 text-xs">
+            {CUSTOM_ITEM_NOTE}
+          </p>
+        )}
+
         {/* สลับหน่วยได้จากในชีตด้วย — ผู้ใช้ที่เข้ามาถึงตรงนี้แล้วไม่ควรต้องถอยออกไปกดข้างนอก */}
         <div className="mb-4 inline-flex" role="group" aria-label="หน่วยที่แสดง">
           {(['qty', 'baht'] as const).map((u, i) => (

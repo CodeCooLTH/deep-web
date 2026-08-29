@@ -40,14 +40,18 @@ type Props = {
   values: readonly number[]
   /** ดัชนีวันแรกที่ยังมาไม่ถึง (0-based) — null = เดือนนี้จบไปแล้ว ไม่มีวันอนาคต */
   futureFrom: number | null
-  /** หน่วยที่กำลังแสดง ใช้ประกอบคำอธิบายให้ screen reader */
-  unitLabel: string
+  /**
+   * จัดรูปตัวเลขตามหน่วยที่แสดง — 🛑 ต้องรับเป็นฟังก์ชัน ไม่ใช่ต่อสตริงเอง
+   * ไม่งั้นโหมดบาทจะอ่านว่า "1250.5 บาท" (ไม่มีตัวคั่นหลักพัน มีทศนิยม) ต่างจากตัวเลข
+   * อื่นทั้งหน้าที่ผ่าน formatBaht/formatNumberNoSymbol
+   */
+  formatValue: (v: number) => string
   /** ชื่อเดือนภาษาไทยสำหรับคำอธิบาย */
   monthLabel: string
   className?: string
 }
 
-export default function DayStrip({ values, futureFrom, unitLabel, monthLabel, className }: Props) {
+export default function DayStrip({ values, futureFrom, formatValue, monthLabel, className }: Props) {
   const max = values.reduce((m, v) => (v > m ? v : m), 0)
   const activeDays = values.filter((v) => v > 0).length
 
@@ -55,10 +59,12 @@ export default function DayStrip({ values, futureFrom, unitLabel, monthLabel, cl
    * 🛑 `role="img"` + `aria-label` — `<div>` เปล่าไม่รองรับ "ชื่อจากผู้เขียน" screen reader
    * ที่ทำตามสเปกจะทิ้ง label ทิ้งทั้งก้อน (docs/conventions/aria-name-requires-supporting-role.md)
    */
+  // เว้นวรรครอบชื่อเดือนเสมอ — `formatMonthYearTH` คืน "ส.ค. 2569" ถ้าต่อติดจะอ่านว่า
+  // "ในส.ค. 2569" ซึ่งไม่มีคนไทยเขียนแบบนั้น
   const summary =
     activeDays === 0
-      ? `ไม่มียอดขายใน${monthLabel}`
-      : `มียอดขาย ${activeDays} วันใน${monthLabel} · สูงสุด ${max} ${unitLabel} ในหนึ่งวัน`
+      ? `ไม่มียอดขายใน ${monthLabel}`
+      : `มียอดขาย ${activeDays} วันใน ${monthLabel} · วันที่ขายได้มากที่สุด ${formatValue(max)}`
 
   return (
     <div

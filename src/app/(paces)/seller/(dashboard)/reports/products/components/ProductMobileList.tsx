@@ -15,6 +15,7 @@
  */
 import Icon from '@/components/wrappers/Icon'
 import { formatBaht, formatNumberNoSymbol } from '@/lib/format-money'
+import { CUSTOM_ITEM_NOTE } from '@/lib/product-sales-month'
 import DayStrip from './DayStrip'
 import PatternBadge from './PatternBadge'
 import { rowSeries, rowTotal, type ProductSalesViewRow, type SalesUnit } from './data'
@@ -28,7 +29,7 @@ type Props = {
 }
 
 export default function ProductMobileList({ rows, unit, futureFrom, monthLabel, onOpen }: Props) {
-  const unitLabel = unit === 'qty' ? 'ชิ้น' : 'บาท'
+  const fmtValue = (v: number) => (unit === 'baht' ? formatBaht(v) : `${formatNumberNoSymbol(v)} ชิ้น`)
 
   if (rows.length === 0) {
     return (
@@ -61,10 +62,15 @@ export default function ProductMobileList({ rows, unit, futureFrom, monthLabel, 
                 </span>
               </span>
 
+              {/* คำอธิบายของแถวรวมต้องมาถึงมือถือด้วย — เดิมอยู่ใน title= ที่นิ้วแตะไม่ได้ */}
+              {r.isCustom && (
+                <span className="text-default-400 mt-0.5 block text-xs">{CUSTOM_ITEM_NOTE}</span>
+              )}
+
               <DayStrip
                 values={rowSeries(r, unit)}
                 futureFrom={futureFrom}
-                unitLabel={unitLabel}
+                formatValue={fmtValue}
                 monthLabel={monthLabel}
                 className="mt-2"
               />

@@ -36,7 +36,9 @@ export default function MonthSwitcher({ iso, year, month0, prevHref, nextHref }:
         icon="chevron-left"
         label="เดือนก่อนหน้า"
       />
-      <span className="text-default-900 min-w-36 text-center text-sm font-semibold">{label}</span>
+      {/* ความกว้างคงที่ — ไม่งั้นปุ่ม ‹ › ขยับทุกครั้งที่เปลี่ยนเดือน (ชื่อเดือนย่อยาวไม่เท่ากัน:
+          "ก.ค. 2569" สั้นกว่า "พ.ย. 2569") 7rem พอดีกับรูปแบบย่อที่ formatMonthYearTH คืน */}
+      <span className="text-default-900 min-w-28 text-center text-sm font-semibold">{label}</span>
       <NavButton href={nextHref} icon="chevron-right" label="เดือนถัดไป" />
     </div>
   )
