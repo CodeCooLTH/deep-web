@@ -18,6 +18,7 @@ import { formatBaht, formatNumberNoSymbol } from '@/lib/format-money'
 import { CUSTOM_ITEM_NOTE } from '@/lib/product-sales-month'
 import DayStrip from './DayStrip'
 import PatternBadge from './PatternBadge'
+import ProductThumb from './ProductThumb'
 import { rowSeries, rowTotal, type ProductSalesViewRow, type SalesUnit } from './data'
 
 type Props = {
@@ -48,7 +49,7 @@ export default function ProductMobileList({ rows, unit, futureFrom, monthLabel, 
             onClick={() => onOpen(r.key)}
             // min-h-11 ไม่จำเป็นเพราะเนื้อในสูงเกิน 44px อยู่แล้ว แต่ใส่ไว้กันเคสชื่อสั้นสุด
             className="hover:bg-default-100 flex w-full min-h-11 items-start gap-3 px-1 py-3 text-start">
-            <Thumb src={r.image} alt={r.name} isCustom={r.isCustom} />
+            <ProductThumb src={r.image} alt={r.name} isCustom={r.isCustom} sizeClass="size-11" />
 
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline justify-between gap-2">
@@ -97,21 +98,3 @@ export default function ProductMobileList({ rows, unit, futureFrom, monthLabel, 
   )
 }
 
-function Thumb({ src, alt, isCustom }: { src: string | null; alt: string; isCustom: boolean }) {
-  if (isCustom || !src) {
-    return (
-      <span className="border-default-200 bg-default-100 text-default-400 flex size-11 shrink-0 items-center justify-center rounded-lg border">
-        <Icon icon={isCustom ? 'pencil' : 'package'} className="text-base" aria-hidden="true" />
-      </span>
-    )
-  }
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt={alt}
-      loading="lazy"
-      className="border-default-200 bg-default-100 size-11 shrink-0 rounded-lg border object-cover"
-    />
-  )
-}

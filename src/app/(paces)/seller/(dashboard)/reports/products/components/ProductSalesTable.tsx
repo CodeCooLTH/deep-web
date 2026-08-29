@@ -25,12 +25,12 @@ import { useCallback, useMemo, useState } from 'react'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
-import Icon from '@/components/wrappers/Icon'
 import { formatDayMonthTH } from '@/lib/format-date'
 import { CUSTOM_ITEM_NOTE } from '@/lib/product-sales-month'
 import { formatBaht, formatNumberNoSymbol } from '@/lib/format-money'
 import DayStrip from './DayStrip'
 import PatternBadge from './PatternBadge'
+import ProductThumb from './ProductThumb'
 import {
   UNIT_COLUMN_LABELS,
   rowSeries,
@@ -125,7 +125,7 @@ export default function ProductSalesTable({
             // min-w-0 ที่กล่อง + max-w-full ที่ลูก + truncate — ต้องมาเป็นชุด ไม่งั้นชื่อยาว
             // จะดันกล่องกว้างเกินจอแทนที่จะถูกตัด (docs/conventions/flex-header-truncation.md)
             <div className="flex min-w-0 items-center gap-3">
-              <RowThumb src={r.image} alt={r.name} isCustom={r.isCustom} />
+              <ProductThumb src={r.image} alt={r.name} isCustom={r.isCustom} sizeClass="size-10" />
               <div className="min-w-0">
                 {r.isCustom ? (
                   <>
@@ -252,22 +252,3 @@ export default function ProductSalesTable({
   )
 }
 
-/** รูปสินค้า + fallback — pattern เดียวกับ ProductCard.ProductImage ต่างแค่ขนาด */
-function RowThumb({ src, alt, isCustom }: { src: string | null; alt: string; isCustom: boolean }) {
-  if (isCustom || !src) {
-    return (
-      <span className="border-default-200 bg-default-100 text-default-400 flex size-10 shrink-0 items-center justify-center rounded-lg border">
-        <Icon icon={isCustom ? 'pencil' : 'package'} className="text-base" aria-hidden="true" />
-      </span>
-    )
-  }
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt={alt}
-      loading="lazy"
-      className="border-default-200 bg-default-100 size-10 shrink-0 rounded-lg border object-cover"
-    />
-  )
-}

@@ -104,31 +104,6 @@ export default function ProductSalesChart({
           onItemClick: { toggleDataSeries: false },
           onItemHover: { highlightDataSeries: true },
         },
-    annotations:
-      futureFrom !== null && futureFrom < days
-        ? {
-            xaxis: [
-              {
-                /**
-                 * 🛑 แถบเทาคลุมวันที่ยังมาไม่ถึง — ถ้าไม่มี หางกราฟจะแบนติดพื้นถึงสิ้นเดือน
-                 * แล้วอ่านเป็น "ยอดร่วง" ทั้งที่แปลว่า "ยังไม่ถึงวันนั้น"
-                 * (docs/conventions/partial-data-must-be-labeled-or-filled.md)
-                 */
-                x: labels[futureFrom],
-                x2: labels[days - 1],
-                fillColor: getColor('default-200'),
-                opacity: 0.45,
-                label: {
-                  text: 'ยังไม่ถึงวัน',
-                  position: 'top',
-                  orientation: 'horizontal',
-                  // 11px = --text-2xs ซึ่งเป็นขั้นเล็กสุดที่ธีมมี (10px หลุดบันได)
-                  style: { fontSize: '11px', color: getColor('default-500'), background: 'transparent' },
-                },
-              },
-            ],
-          }
-        : undefined,
     tooltip: {
       shared: true,
       intersect: false,
@@ -137,7 +112,26 @@ export default function ProductSalesChart({
         formatter: (v: number) => (v === null || v === undefined ? '—' : fmt(v)),
       },
     },
-    series: series.map((s) => ({ name: s.name, type: 'line', data: s.data })),
+    /**
+      * 🛑 วันที่ยังมาไม่ถึง = `null` ไม่ใช่ `0` — Apex จะไม่ลากเส้นไปถึงเลย เส้นจบที่วันนี้พอดี
+      *
+      * ฉบับแรกใช้ annotation แถบเทาคลุมวันอนาคตแทน ซึ่ง **พังบน prod**: annotation อ้างอิง
+      * category ด้วยสตริง (`labels[futureFrom]`) แต่ `xaxis.labels.formatter` คืนค่าว่างให้
+      * วันส่วนใหญ่ ⇒ Apex หา category นั้นไม่เจอ เลยตกไปที่ตำแหน่ง 0 **แถบจึงคลุมทั้งกราฟ**
+      * และป้ายไปเกาะมุมซ้ายบนทับตัวเลขแกน Y (user เจอเองจากภาพหน้าจอ 2026-08-29)
+      *
+      * การส่ง `null` แก้ปัญหาเดิม (หางแบนติดพื้นถึงสิ้นเดือนอ่านเป็น "ยอดร่วง") ได้ตรงกว่า
+      * โดยไม่ต้องพึ่ง annotation เลย — และเป็นท่าเดียวกับที่ `AgentTrendChart` ใช้อยู่แล้ว
+      * ("null ต้องเป็นช่องว่างบนกราฟ ไม่ใช่ 0")
+      */
+    series: series.map((s) => ({
+      name: s.name,
+      type: 'line',
+      data:
+        futureFrom === null
+          ? s.data
+          : s.data.map((v, i) => (i >= futureFrom ? null : v)),
+    })),
   })
 
   if (series.length === 0) {

@@ -21,6 +21,7 @@
 import { prisma } from '@/lib/prisma'
 import { thaiDayKey } from '@/lib/format-date'
 import { thaiMidnightUtc } from '@/lib/date-range'
+import { fileUrlOf } from '@/lib/file-url'
 import {
   CUSTOM_ITEM_KEY,
   CUSTOM_ITEM_LABEL,
@@ -219,10 +220,21 @@ export async function getProductSalesMonth(
   }
 }
 
+/**
+ * 🛑 `Product.images[0]` คือ **storage key** (เช่น `2026/08/11/uuid.jpg`) ไม่ใช่ URL —
+ * ต้องห่อด้วย `fileUrlOf()` เสมอ ไม่งั้นได้ `<img src="2026/08/11/uuid.jpg">` ซึ่งเบราว์เซอร์
+ * ตีความเป็น path สัมพัทธ์แล้ว 404 ทุกใบ
+ *
+ * ฉบับแรกส่งค่าดิบไป ⇒ **รูปสินค้าเสียทั้งหน้าบน prod** (user เจอเองจากมือถือ 2026-08-29)
+ * หน้า `/products` ทำถูกอยู่แล้วที่ `products/page.tsx:101` — ผมไม่ได้อ่านหน้าพี่น้องตรงจุดนี้
+ * (docs/conventions/sibling-surface-parity.md)
+ *
+ * `fileUrlOf` ปล่อยค่าที่เป็น URL อยู่แล้วผ่านไปตรง ๆ (seed/CDN/ภายนอก) จึงปลอดภัยกับทุกที่มา
+ */
 function firstImage(images: unknown): string | null {
   if (!Array.isArray(images)) return null
   const first = images[0]
-  return typeof first === 'string' && first.length > 0 ? first : null
+  return typeof first === 'string' && first.length > 0 ? fileUrlOf(first) : null
 }
 
 /** ปัดสองตำแหน่งกันเศษทศนิยมลอยของ float สะสมข้ามวัน */
