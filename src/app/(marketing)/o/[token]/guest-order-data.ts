@@ -18,6 +18,14 @@ import type { ShippingAddressLike } from '@/lib/shipping-address-status'
 export type GuestOrderData = {
   publicToken: string
   status: 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
+  /**
+   * feature 00062 — `deriveShippingStage()` ต้องใช้ตัดสินก่อนทุกกิ่ง ไม่งั้นออเดอร์นัดรับ
+   * จะขึ้นสถานะพัสดุกับผู้ซื้อทั้งที่ไม่มีอะไรถูกส่ง
+   *
+   * 🛑 ไฟล์นี้เป็น **allow-list ของสิ่งที่ผู้ซื้อที่ยังไม่ล็อกอินเห็นได้** — ฟิลด์ใหม่ต้องเพิ่ม
+   * ที่นี่โดยตั้งใจเสมอ ไม่ไหลตามฟิลด์อื่นเอง (ค่านี้ไม่ใช่ PII: เป็นวิธีส่งมอบของออเดอร์ตัวเอง)
+   */
+  fulfillmentMode: string
   createdAtIso: string
   totalAmount: number
   items: Array<{ id: string; name: string; qty: number; price: number; imageUrl: string | null }>
@@ -84,6 +92,8 @@ export type GuestOrderData = {
 type OrderLike = {
   publicToken: string
   status: string
+  /** feature 00062 — scalar ของ Order มากับ findUnique อยู่แล้ว ไม่เพิ่ม query */
+  fulfillmentMode: string
   createdAt: Date
   /** งานบริการ: ช่วงเวลานัด (scalar ของ Order — มากับ findUnique อยู่แล้ว ไม่เพิ่ม query) */
   serviceStart: Date | null
@@ -149,6 +159,7 @@ export function buildGuestOrderData(
   return {
     publicToken: order.publicToken,
     status: order.status as GuestOrderData['status'],
+    fulfillmentMode: order.fulfillmentMode,
     createdAtIso: order.createdAt.toISOString(),
     totalAmount: Number(order.totalAmount),
     items: order.items.map((it) => ({

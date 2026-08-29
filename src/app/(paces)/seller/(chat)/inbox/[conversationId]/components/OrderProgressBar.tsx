@@ -26,7 +26,7 @@ import { markServedFlow } from '../../../_components/mark-served'
 import { formatDateTime } from '@/lib/format-date'
 import { courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
-import { filterActiveOrders, orderShippingStage, STAGE_CHIP_CLS } from '@/lib/chat-order-progress'
+import { filterActiveOrders, orderShippingStage, shippingChipFor } from '@/lib/chat-order-progress'
 import {
   filterActiveServiceOrders,
   serviceProgressStage,
@@ -74,9 +74,7 @@ export function orderProgressChip({
   const headStage = orderShippingStage(head)
   const label = isService
     ? (headMeta?.label ?? '')
-    : headStage === 'DONE'
-      ? ''
-      : SHIPPING_STAGE_LABEL[headStage]
+    : (shippingChipFor(headStage)?.label ?? '')
 
   return {
     // ไอคอนต้องบอกแกนของร้าน — รถบรรทุกกับร้านที่ไม่เคยส่งของคือสัญลักษณ์ที่พูดผิดเรื่อง
@@ -172,9 +170,7 @@ export default function OrderProgressBar({
   const headMeta = headServiceStage === 'DONE' ? null : SERVICE_STAGE_CHIP_META[headServiceStage]
   const headLabel = isService
     ? (headMeta?.label ?? '')
-    : headStage === 'DONE'
-      ? ''
-      : SHIPPING_STAGE_LABEL[headStage]
+    : (shippingChipFor(headStage)?.label ?? '')
 
   /**
    * ใบที่กำลังเปิดชีตรับเงิน — derive จาก `payToken` ไม่เก็บ money ซ้อนไว้ใน state
@@ -344,11 +340,18 @@ export default function OrderProgressBar({
                             {svcMeta.label}
                           </span>
                         )
-                      : stage !== 'DONE' && (
-                          <span className={`${STAGE_CHIP_CLS[stage]} rounded px-1.5 py-0.5 text-2xs font-medium`}>
-                            {SHIPPING_STAGE_LABEL[stage]}
-                          </span>
-                        )}
+                      : (() => {
+                          /* null = ใบนี้ไม่มีเรื่องพัสดุให้พูดถึง (จบแล้ว หรือไม่เคยมีการส่งของเลย
+                             — feature 00062) ⇒ ไม่แสดงชิป ไม่ใช่แสดงชิปเปล่า */
+                          const chip = shippingChipFor(stage)
+                          return (
+                            chip && (
+                              <span className={`${chip.cls} rounded px-1.5 py-0.5 text-2xs font-medium`}>
+                                {chip.label}
+                              </span>
+                            )
+                          )
+                        })()}
                     {/**
                       * ชิป "วิธีเข้ารับบริการ" — ตอบคำถามหัวหน้า *"อยากรู้ว่าคนนี้เข้ามารับยังไง"*
                       *

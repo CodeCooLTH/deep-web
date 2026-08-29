@@ -350,6 +350,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
           // รายการที่กรองได้จะไม่ตรงกัน ทั้งที่เรียกฟังก์ชันเดียวกัน
           paymentMethod: o.paymentMethod ?? null,
           codReceivedAt: o.codReceivedAt ?? null,
+          fulfillmentMode: o.fulfillmentMode,
         })
       : undefined,
     id: (o.publicToken ?? o.id).slice(0, 8),

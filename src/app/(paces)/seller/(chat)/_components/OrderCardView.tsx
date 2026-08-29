@@ -201,6 +201,10 @@ function ShipmentSection({ data }: { data: OrderCardViewData }) {
   // จึงต้องบอกเหตุผลตรงนี้ ไม่งั้นร้านงงว่า "เขียวแล้วทำไมยังไม่จบ"
   const awaitingCod =
     orderShippingStage({
+      /* prop นี้ optional มาแต่เดิม (คอมเมนต์บรรทัด ~113: caller รู้ข้อมูลไม่เท่ากัน) —
+         ไม่รู้ = ถอยไปพฤติกรรมเดิมก่อน feature 00062 คือถือว่าเป็นออเดอร์ที่ส่งของ
+         ไม่ใช่เดาว่าเป็นนัดรับ (เดาผิดทางนั้นจะซ่อนสถานะพัสดุของใบที่ส่งจริง) */
+      fulfillmentMode: data.fulfillmentMode ?? 'SHIPPED',
       status: data.status,
       paymentMethod: data.paymentMethod,
       codReceivedAt: data.codReceivedAt,

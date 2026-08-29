@@ -48,7 +48,7 @@ export type CommandCenterData = {
    * ตัวนับ "ของอยู่ไหน" — มีเฉพาะร้าน ONLINE_SALES (user สั่ง 2026-08-04); vertical อื่นเป็น
    * undefined แล้วการ์ดตกกลับไปใช้ orderStatusCounts ชุดเดิม (บ้านพัก/คิวงานไม่มีพัสดุให้ไล่)
    */
-  shippingStageCounts?: Record<Exclude<ShippingStageKey, 'DONE'>, number>
+  shippingStageCounts?: Record<Exclude<ShippingStageKey, 'DONE' | 'NOT_SHIPPING'>, number>
   /**
    * จำนวนนัดของวันนี้ — มีเฉพาะร้านที่ผ่าน canUseAppointments (SERVICE_QUEUE) เท่านั้น
    * ส่งมา = ไทล์ที่ 2 ของ OrderStatusBand เปลี่ยนจาก "กำลังจัดส่ง" (ที่ร้านประเภทนี้เข้าไม่ถึง

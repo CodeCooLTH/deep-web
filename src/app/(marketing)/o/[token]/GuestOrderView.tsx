@@ -81,6 +81,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
     hasShipment: !!order.shipmentTracking,
     paymentMethod: order.paymentMethod,
     codReceivedAt: null,
+    fulfillmentMode: order.fulfillmentMode,
   })
 
   const verifyBadge = resolveVerifyBadge(order.maxVerifyLevel)

@@ -7,6 +7,7 @@
  */
 
 import { deriveShippingStage, SHIPPING_STAGE_LABEL, type ShippingStageInput } from '@/lib/order-stage'
+import { isPickupOrder } from '@/lib/order-pickup'
 
 export type OrderStatusCandidate = ShippingStageInput & {
   /** เลขออเดอร์ที่ผู้ใช้อ่านได้ — ต้องบอกในข้อความเสมอ ลูกค้าที่มีหลายใบจะได้ตรวจเองได้ */
@@ -41,6 +42,19 @@ export function buildOrderStatusText(order: OrderStatusCandidate): string {
   if (stage === 'DONE') {
     // ไม่ควรถูกเรียกด้วยใบที่จบแล้ว (pickOrder กรองออกไปแล้ว) — กันไว้ไม่ให้คืนข้อความว่าง
     return `คำสั่งซื้อ ${order.orderNo}: จัดส่งเรียบร้อยแล้ว`
+  }
+  /**
+   * 🛑 ออเดอร์ที่ไม่มีการจัดส่งเลย (นัดรับ/สินค้าดิจิทัล — feature 00062) **ห้ามยืมคำของพัสดุ
+   * มาตอบ** เพราะข้อความนี้ส่งถึงลูกค้าจริงทาง LINE: ตอบ "กำลังจัดส่ง" กับใบที่ไม่มีอะไรถูกส่ง
+   * คือการโกหกลูกค้าโดยตรง และทำให้เขารอของที่ไม่มีวันมาถึง
+   *
+   * ไม่ตอบ "ไม่พบข้อมูล" เช่นกัน — ออเดอร์มีอยู่จริง แค่ไม่ได้เดินทางด้วยขนส่ง
+   * บอกสิ่งที่เขาทำต่อได้จริงแทน (หลักเดียวกับ NO_ORDER_REPLY_TEXT ข้างล่าง)
+   */
+  if (stage === 'NOT_SHIPPING') {
+    return isPickupOrder(order.fulfillmentMode)
+      ? `คำสั่งซื้อ ${order.orderNo}: นัดรับที่ร้าน — ทักแชทกับร้านเพื่อนัดวันเวลารับสินค้าได้เลยครับ/ค่ะ`
+      : `คำสั่งซื้อ ${order.orderNo}: รายการนี้ไม่มีการจัดส่ง — ทักแชทกับร้านเพื่อสอบถามรายละเอียดได้เลยครับ/ค่ะ`
   }
   return `คำสั่งซื้อ ${order.orderNo}: ${SHIPPING_STAGE_LABEL[stage]}`
 }

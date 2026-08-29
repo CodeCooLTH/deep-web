@@ -57,6 +57,8 @@ const STAGE_COLUMNS = {
   carrierStatus: 's."carrierStatus"',
   paymentMethod: 'o."paymentMethod"',
   codReceivedAt: 'o."codReceivedAt"',
+  // feature 00062 — ต้องมีคู่กับฝั่ง TS เสมอ (เทส parity จับถ้าฝั่งใดฝั่งหนึ่งขาด)
+  fulfillmentMode: 'o."fulfillmentMode"',
 } as const
 
 /**

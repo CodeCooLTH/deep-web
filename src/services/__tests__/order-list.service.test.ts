@@ -37,6 +37,9 @@ const STAGE_COLUMNS = {
   carrierStatus: 's."carrierStatus"',
   paymentMethod: 'o."paymentMethod"',
   codReceivedAt: 'o."codReceivedAt"',
+  // feature 00062 — ต้องตรงกับ STAGE_COLUMNS จริงใน order-list.service.ts (สำเนาในเทสนี้
+  // เป็นสำเนาโดยเจตนา: ถ้าของจริงเปลี่ยนแล้วที่นี่ไม่เปลี่ยน tsc จะฟ้องที่ buildShippingStageSql)
+  fulfillmentMode: 'o."fulfillmentMode"',
 }
 
 const LATERAL = `
@@ -70,6 +73,7 @@ describe('order-list — กองงานที่นับด้วย SQL �
         carrier_status: string | null
         payment_method: string | null
         cod_received_at: Date | null
+        fulfillment_mode: string
         sql_stage: string
       }[]
     >(`
@@ -79,6 +83,7 @@ describe('order-list — กองงานที่นับด้วย SQL �
              s."carrierStatus"    AS carrier_status,
              o."paymentMethod"    AS payment_method,
              o."codReceivedAt"    AS cod_received_at,
+             o."fulfillmentMode"  AS fulfillment_mode,
              (${stageExpr})       AS sql_stage
       FROM "Order" o
       ${LATERAL}
@@ -96,6 +101,7 @@ describe('order-list — กองงานที่นับด้วย SQL �
           carrierStatus: r.carrier_status,
           paymentMethod: r.payment_method,
           codReceivedAt: r.cod_received_at,
+          fulfillmentMode: r.fulfillment_mode,
         })
         return fromTs === r.sql_stage
           ? null

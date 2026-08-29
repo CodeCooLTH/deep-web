@@ -93,6 +93,7 @@ describe('buildGuestOrderData', () => {
       [
         'carrierStatus',
         'createdAtIso',
+        'fulfillmentMode',
         'items',
         'maskedPhone',
         'maskedShippingAddress',

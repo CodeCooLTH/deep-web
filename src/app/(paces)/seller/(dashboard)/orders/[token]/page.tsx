@@ -368,6 +368,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
           hasShipment:
             shipmentPanel?.shipment?.status === 'CREATED' && !shipmentPanel.shipment.isDryRun,
           paymentMethod: order.paymentMethod ?? null,
+          fulfillmentMode: order.fulfillmentMode,
           codReceivedAt: order.codReceivedAt ?? null,
         })
       : undefined

@@ -17,6 +17,7 @@ describe('resolveOrderStatusBadge', () => {
     // stage มาจาก deriveShippingStage ตัวจริง ไม่ใช่ค่าที่เดาใส่มือ — ถ้าวันหลังนิยาม
     // AWAITING_COD เปลี่ยน เทสนี้ต้องแดงด้วย ไม่ใช่ผ่านไปเงียบ ๆ
     const stage = deriveShippingStage({
+      fulfillmentMode: 'SHIPPED',
       status: 'SHIPPED',
       carrierStatus: 'delivered',
       hasShipment: true,
@@ -34,6 +35,7 @@ describe('resolveOrderStatusBadge', () => {
 
   it('COD ที่ร้านกดรับเงินแล้ว → "ส่งถึงแล้ว" เขียว', () => {
     const stage = deriveShippingStage({
+      fulfillmentMode: 'SHIPPED',
       status: 'SHIPPED',
       carrierStatus: 'delivered',
       hasShipment: true,

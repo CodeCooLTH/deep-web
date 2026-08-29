@@ -1829,7 +1829,7 @@ export async function getOrderStatusCounts(
  */
 export async function getShippingStageCounts(
   shopId: string,
-): Promise<Record<Exclude<ShippingStageKey, "DONE">, number>> {
+): Promise<Record<Exclude<ShippingStageKey, "DONE" | "NOT_SHIPPING">, number>> {
   const rows = await prisma.order.findMany({
     where: { shopId, status: { not: "CANCELLED" } },
     select: {
@@ -1837,6 +1837,9 @@ export async function getShippingStageCounts(
       // ไทล์ "รอเงิน COD" ต้องรู้ว่าใบนี้เก็บเงินปลายทางไหม และร้านกดว่าได้เงินแล้วหรือยัง
       paymentMethod: true,
       codReceivedAt: true,
+      // feature 00062 — ออเดอร์นัดรับ/ไม่มีการส่งของ ต้องไม่ถูกนับในไทล์พัสดุใด ๆ
+      // (ไม่ใช่แค่ไม่แสดงคำ — ตัวเลขบนไทล์ที่โป่งขึ้นโดยไม่มีพัสดุจริงให้ทำคือสิ่งที่ร้านเห็นก่อน)
+      fulfillmentMode: true,
       shipments: {
         where: ACTIVE_FORWARD_SHIPMENT,
         orderBy: { createdAt: "desc" },
@@ -1861,8 +1864,10 @@ export async function getShippingStageCounts(
       hasShipment: o.shipments.length > 0,
       paymentMethod: o.paymentMethod,
       codReceivedAt: o.codReceivedAt,
+      fulfillmentMode: o.fulfillmentMode,
     });
-    if (stage !== "DONE") counts[stage] += 1;
+    // สองกองที่ไม่มีไทล์: DONE (จบแล้ว) และ NOT_SHIPPING (ไม่เคยมีการส่งของเลย)
+    if (stage !== "DONE" && stage !== "NOT_SHIPPING") counts[stage] += 1;
   }
   return counts;
 }
