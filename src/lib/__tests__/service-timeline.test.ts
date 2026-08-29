@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { getServiceTimeline, SERVICE_TIMELINE_LABELS } from '@/lib/order-display'
 
 /**
- * เส้นทางที่ลูกค้าร้านบริการเห็นบนหน้า /o/[token] — **4 ขั้น**
+ * เส้นทางที่ลูกค้าร้านบริการเห็นบนหน้า /o/[token] — **4 ขั้นเมื่อมีนัด · 3 ขั้นเมื่อ walk-in**
  *
  * 🛑 ชุดแรกสุด (NO_SHIPPING) เขียนว่า **"ส่งมอบแล้ว"** เป็นขั้นปัจจุบันตั้งแต่บิลยัง PENDING
  * ⇒ ลูกค้าที่จองไว้และยังไม่ได้รับบริการ เห็นคำที่อ้างสิ่งที่ยังไม่เกิด บนหน้าที่เขาใช้ตัดสินใจโอนเงิน
@@ -56,9 +56,15 @@ describe('getServiceTimeline — ราง 4 ขั้นของร้าน�
     }
   })
 
-  it('[blocker] มี 4 ขั้นเสมอ ตามลำดับเดิม — ทุกสถานะที่เป็นไปได้', () => {
-    /* จำนวนขั้นต้องคงที่ ไม่งั้นลูกค้าที่เปิดสองครั้งเห็นจอคนละรูปแล้วอ่านว่าระบบเพี้ยน
-       (นี่คือเหตุผลที่ขั้นที่ไม่เกี่ยวเป็น `mute` แทนที่จะถูกตัดออก) */
+  it('[blocker] ลำดับขั้นคงที่เสมอ — มีนัดได้ 4 ขั้น · walk-in ได้ 3 ขั้น (ไม่มี "ลูกค้ายืนยันนัด")', () => {
+    /* 🛑 ใบ walk-in ไม่มีนัดให้ยืนยัน ⇒ ขั้นนั้นถูก **ตัดออก** ไม่ใช่แสดงจาง ๆ
+       (หัวหน้าเห็นบนจอจริง 2026-08-29 แล้วสั่งตัด — ช่องที่บอกว่า "ไม่เกี่ยวกับคุณ"
+       กินที่ของอีก 3 ขั้นที่เป็นเรื่องจริง โดยไม่ได้อะไรกลับมา)
+
+       สิ่งที่ยังต้องคงที่คือ **ลำดับ** ไม่ใช่ **จำนวน** — ขั้นที่เหลือห้ามสลับที่กัน */
+    const WITH_APPT = [...SERVICE_TIMELINE_LABELS]
+    const WALK_IN = SERVICE_TIMELINE_LABELS.filter((l) => l !== BUYER_OK)
+
     for (const status of ['PENDING', 'SHIPPED', 'CONFIRMED', 'CANCELLED'] as const) {
       for (const appt of [null, 'SCHEDULED', 'CONFIRMED_BY_BUYER', 'RESCHEDULE_REQUESTED', 'COMPLETED', 'NO_SHOW'] as const) {
         for (const hasAppt of [true, false]) {
@@ -69,7 +75,7 @@ describe('getServiceTimeline — ราง 4 ขั้นของร้าน�
             hasAppointment: hasAppt,
             now: NOW,
           })
-          expect(labels(t), `${status}/${appt}/${hasAppt}`).toEqual([...SERVICE_TIMELINE_LABELS])
+          expect(labels(t), `${status}/${appt}/${hasAppt}`).toEqual(hasAppt ? WITH_APPT : WALK_IN)
         }
       }
     }
@@ -82,10 +88,20 @@ describe('getServiceTimeline — ราง 4 ขั้นของร้าน�
   })
 
   // ── ขั้น 2 · ลูกค้ายืนยันนัด ────────────────────────────────────────────
-  it('[blocker] ไม่มีนัด → ขั้น "ลูกค้ายืนยันนัด" ต้อง mute ไม่ใช่ค้างรอ', () => {
-    // งาน walk-in ไม่มีนัดให้ยืนยัน — ขั้นนี้ไม่มีอยู่จริงสำหรับใบนี้
+  it('[blocker] ไม่มีนัด → ขั้น "ลูกค้ายืนยันนัด" ต้องหายไปทั้งขั้น ไม่ใช่แสดงจาง ๆ', () => {
+    /* งาน walk-in ไม่มีนัดให้ยืนยัน — ขั้นนี้ไม่มีอยู่จริงสำหรับใบนี้
+       🛑 เช็ค `labels` ไม่ใช่ `stateOf` — `stateOf` คืน `undefined` ทั้งตอนที่ขั้นหายไปจริง
+       และตอนที่ขั้นยังอยู่แต่เขียนป้ายผิด ⇒ ผ่านได้ด้วยเหตุผลที่ไม่ใช่สิ่งที่เทสอ้าง */
     const t = run({ hasAppointment: false, appointmentStatus: null, serviceStart: null })
-    expect(stateOf(t, BUYER_OK)).toBe('mute')
+    expect(labels(t)).not.toContain(BUYER_OK)
+    expect(t).toHaveLength(3)
+  })
+
+  it('[blocker] walk-in ต้องไม่เหลือคำอธิบายที่พูดถึงนัด — ไม่มีขั้นแล้วก็ไม่ควรมีคำ', () => {
+    /* เดิมขั้นที่ถูกตัดมี note "งานนี้ไม่ได้นัดล่วงหน้า" — ถ้าคำนั้นย้ายไปเกาะขั้นอื่น
+       จะกลายเป็นคำอธิบายที่ไม่ตรงกับขั้นที่มันเกาะอยู่ (คลาสเดียวกับ note ที่ค้างบนใบยกเลิก) */
+    const t = run({ hasAppointment: false, appointmentStatus: null, serviceStart: null })
+    for (const s of t) expect(s.note ?? '', s.label).not.toMatch(/นัด/)
   })
 
   it('[blocker] มีนัด ยังไม่กด → เป็นขั้นปัจจุบัน (คนที่ต้องขยับคือลูกค้า)', () => {
@@ -250,9 +266,11 @@ describe('getServiceTimeline — บรรทัดอธิบาย (note)', (
     expect(noteOf(t, SERVED)).toBe('ไม่มาตามนัด')
   })
 
-  it('[blocker] งาน walk-in → บอกว่าไม่ได้นัดล่วงหน้า แทนที่จะปล่อยขั้นจาง ๆ ไว้เฉย ๆ', () => {
+  it('[blocker] งาน walk-in → ขั้นแรกที่ผู้ใช้เห็นต่อจาก "จองบริการ" คือ "ร้านให้บริการ"', () => {
+    /* เดิมขั้นที่ถูกตัดถูกแทนด้วยคำว่า "งานนี้ไม่ได้นัดล่วงหน้า" — ตอนนี้ไม่มีทั้งขั้นและคำ
+       ⇒ ต้องพิสูจน์ว่ารางยัง *เดินต่อได้ถูก* ไม่ใช่แค่ว่าขั้นหายไป */
     const t = run({ hasAppointment: false, appointmentStatus: null, serviceStart: null })
-    expect(noteOf(t, BUYER_OK)).toBe('งานนี้ไม่ได้นัดล่วงหน้า')
+    expect(labels(t)).toEqual([BOOKED, SERVED, DONE])
   })
 
   it('[blocker] ใบที่ยกเลิกแล้ว ห้ามเหลือคำที่สั่งให้ผู้ใช้รอ/ทำอะไรต่อ', () => {

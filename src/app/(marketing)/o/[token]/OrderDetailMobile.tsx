@@ -46,7 +46,7 @@ import CustomAvatar from '@core/components/mui/Avatar'
 
 import { getOrderTimeline, getServiceTimeline, isCODPayment, isHttpUrl, showSlipZone, ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
 import { resolveOrderStatusBadge } from '@/lib/order-stage'
-import { resolveServiceOrderBadge } from '@/lib/order-display'
+import { resolveServiceOrderBadge, shouldShowOrderOrigin } from '@/lib/order-display'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
 import { formatBaht } from '@/lib/format-money'
@@ -988,8 +988,13 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
          *
          * 🛑 ต่างจากบล็อก `ShopEvidence` ด้านบนซึ่งลิสต์ **ทุกเพจของร้าน** (หลักฐานว่าร้านมีตัวตน)
          * — อันนี้คือ *เพจเดียวที่ออเดอร์ใบนี้เกิดขึ้น* คนละคำถาม จึงอยู่คนละที่และห้ามยุบรวม
+         *
+         * ...**แต่ร้านที่มีเพจเดียว สองคำถามนั้นได้คำตอบเดียวกัน** ⇒ ชื่อเพจซ้ำสองบรรทัดติดกัน
+         * `shouldShowOrderOrigin()` เป็นตัวตัดสิน (ฟังก์ชันบริสุทธิ์ + เทส `[blocker]` —
+         * `ui-boolean-needs-a-testable-home.md`: เงื่อนไขที่ตัดสินว่า UI จะแสดงอะไร
+         * ห้ามอยู่ในเทอร์นารีกลาง JSX เพราะเขียนกลับด้านแล้วไม่มีอะไรจับได้)
          */}
-        {order.originPage && (
+        {order.originPage && shouldShowOrderOrigin(order.originPage.pageName, order.channels.map((c) => c.name)) && (
           <Box
             sx={{
               bgcolor: 'background.paper',
@@ -1282,27 +1287,34 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
 
           {/* ── 6. Items card ── */}
           <Card>
-            <Box
-              sx={{
-                px: 1.75,
-                pt: 1.5,
-                pb: 0.75,
-                display: 'flex',
-                alignItems: 'baseline',
-                justifyContent: 'space-between',
-                gap: 1.5,
-              }}
-            >
-              {/* ร้านบริการไม่ได้ขาย "สินค้า" — ลูกค้าที่จ้างล้างแอร์เห็นคำนี้แล้วสะดุด
-                  (หัวหน้า 2026-08-15: "order detail ดูไม่รู้เรื่อง") */}
-              <SectionTitle>{order.isServiceShop ? 'รายการบริการ' : 'รายการสินค้า'}</SectionTitle>
-              {/* ตัวนับ (mockup 2026-08-28) — บอกว่าต้องเลื่อนดูอีกกี่รายการก่อนถึงยอดรวม
-                  ห้ามนับจากตัวเลขที่พิมพ์เอง ต้องมาจาก `order.items` ตัวเดียวกับที่เรนเดอร์
-                  ไม่งั้นจอบอก 3 แต่แสดง 2 (คลาสเดียวกับตัวนับที่เคยไม่ตรงใน `sibling-surface-parity`) */}
-              <Typography variant='caption' color='text.secondary' sx={{ flexShrink: 0 }}>
-                {order.items.length} รายการ
-              </Typography>
-            </Box>
+            {/* 🛑 หัวข้อ + ตัวนับ ขึ้นเฉพาะเมื่อ**มีรายการจริง** — ไม่งั้นได้ "รายการบริการ · 0 รายการ"
+                คร่อมความว่างเปล่า ซึ่งอ่านว่า "ข้อมูลหาย" มากกว่า "ไม่มีรายการ"
+                ห้ามกั้นทั้ง `<Card>` เพราะ **แถวยอดรวมอยู่ในใบเดียวกัน** — กั้นทั้งใบ
+                = ยอดเงินหายไปด้วย ซึ่งแย่กว่าหัวข้อที่ว่างมาก
+                (ฐาน local 2026-08-29: 0 จาก 335 ใบ — ยังไม่เคยเกิด กันไว้เพราะราคาถูกกว่าการเจอ) */}
+            {order.items.length > 0 && (
+              <Box
+                sx={{
+                  px: 1.75,
+                  pt: 1.5,
+                  pb: 0.75,
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  justifyContent: 'space-between',
+                  gap: 1.5,
+                }}
+              >
+                {/* ร้านบริการไม่ได้ขาย "สินค้า" — ลูกค้าที่จ้างล้างแอร์เห็นคำนี้แล้วสะดุด
+                    (หัวหน้า 2026-08-15: "order detail ดูไม่รู้เรื่อง") */}
+                <SectionTitle>{order.isServiceShop ? 'รายการบริการ' : 'รายการสินค้า'}</SectionTitle>
+                {/* ตัวนับ (mockup 2026-08-28) — บอกว่าต้องเลื่อนดูอีกกี่รายการก่อนถึงยอดรวม
+                    ห้ามนับจากตัวเลขที่พิมพ์เอง ต้องมาจาก `order.items` ตัวเดียวกับที่เรนเดอร์
+                    ไม่งั้นจอบอก 3 แต่แสดง 2 (คลาสเดียวกับตัวนับที่เคยไม่ตรงใน `sibling-surface-parity`) */}
+                <Typography variant='caption' color='text.secondary' sx={{ flexShrink: 0 }}>
+                  {order.items.length} รายการ
+                </Typography>
+              </Box>
+            )}
 
             {order.items.map((item, idx) => (
               <Box key={item.id}>

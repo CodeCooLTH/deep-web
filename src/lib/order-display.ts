@@ -418,7 +418,13 @@ export function resolveServiceOrderBadge(input: {
  * | เข้ารับบริการ | ปิดผลนัดแล้ว (`COMPLETED`) · กำลังถึงคิวเมื่อเลยเวลานัดมาแล้ว |
  * | ยืนยันแล้ว | `Order.status === 'CONFIRMED'` |
  */
-/** ป้ายของราง 4 ขั้น — คงลำดับนี้เสมอ ห้ามสลับ/ตัดขั้น (ดูเหตุผลที่ `getServiceTimeline`) */
+/**
+ * ป้ายของรางงานบริการ — **คงลำดับนี้เสมอ ห้ามสลับ**
+ *
+ * 🛑 จำนวนขั้นไม่คงที่: ขั้น `"ลูกค้ายืนยันนัด"` มีเฉพาะใบที่มีนัดจริง
+ * ใบ walk-in จึงได้ราง 3 ขั้น (ดูเหตุผลที่ `getServiceTimeline`)
+ * ⇒ ห้าม index ตายตัวจากค่าคงที่นี้ไปหาขั้นบนราง ให้ค้นด้วย `label`
+ */
 export const SERVICE_TIMELINE_LABELS = [
   "จองบริการ",
   "ลูกค้ายืนยันนัด",
@@ -471,22 +477,21 @@ export function getServiceTimeline(input: {
   const servedState: TimelineState = served || confirmed ? "done" : noShow ? "cx" : arrived || !hasAppt ? "cur" : "up";
   const step3Done = servedState === "done";
 
-  /* ── ขั้น 2: ลูกค้ายืนยันนัด ───────────────────────────────────────────
-     🛑 สามกรณีที่ต้องแยกกัน ไม่ใช่ done/up สองค่า:
+  /* ── ขั้น 2: ลูกค้ายืนยันนัด — **มีเฉพาะใบที่มีนัดจริง** ────────────────
+     🛑 ใบ walk-in ไม่มีนัดให้ยืนยัน ⇒ **ตัดขั้นนี้ทิ้งทั้งขั้น** ไม่ใช่แสดงจาง ๆ
 
-     · ไม่มีนัด           → `mute` ขั้นนี้ไม่มีอยู่จริงสำหรับใบนี้ (งาน walk-in)
+     เดิมแสดงเป็น `mute` พร้อมคำอธิบาย "งานนี้ไม่ได้นัดล่วงหน้า" — หัวหน้าเห็นบนจอจริง
+     แล้วสั่งให้ตัดออก (2026-08-29): มันกินหนึ่งช่องบนรางเพื่อบอกว่า "ช่องนี้ไม่เกี่ยวกับคุณ"
+     ซึ่งทำให้อีก 3 ขั้นที่เป็นเรื่องจริงแคบลงโดยไม่ได้อะไรกลับมา
+     รางควรเล่าเฉพาะสิ่งที่จะเกิดกับใบนี้ ไม่ใช่ลิสต์ขั้นที่ระบบรองรับ
+
+     เหลือ 2 กรณีที่ต้องแยก (คำนวณเมื่อมีนัดเท่านั้น):
      · กดแล้ว             → `done`
      · ไม่เคยกด แต่ขั้น 3 จบไปแล้ว → `mute` = **ข้ามไป** ห้ามค้างเป็น "รออยู่"
        ไทม์ไลน์ที่ขั้นก่อนหน้ายังรอ ขณะที่ขั้นถัดไปเสร็จแล้ว คือไทม์ไลน์ที่โกหก
        และเกิดบ่อยมาก (ลูกค้าส่วนใหญ่ไม่เคยกดยืนยันนัด แต่ก็มาตามนัด) */
   const buyerConfirmed = input.buyerConfirmedAt != null || input.appointmentStatus === "CONFIRMED_BY_BUYER";
-  const confirmState: TimelineState = !hasAppt
-    ? "mute"
-    : buyerConfirmed
-      ? "done"
-      : step3Done || noShow
-        ? "mute"
-        : "cur";
+  const confirmState: TimelineState = buyerConfirmed ? "done" : step3Done || noShow ? "mute" : "cur";
 
   /* ── ขั้น 4: ยืนยันเสร็จสิ้น ────────────────────────────────────────── */
   const finishState: TimelineState = confirmed ? "fin" : noShow ? "mute" : step3Done ? "cur" : "up";
@@ -500,9 +505,8 @@ export function getServiceTimeline(input: {
    *
    * `undefined` แปลว่า "ไม่มีอะไรต้องอธิบาย" — ห้ามใส่สตริงว่างหรือขีด (ตัวเรนเดอร์กันที่ว่างเอง)
    */
-  const confirmNote = !hasAppt
-    ? "งานนี้ไม่ได้นัดล่วงหน้า"
-    : input.appointmentStatus === "RESCHEDULE_REQUESTED"
+  const confirmNote =
+    input.appointmentStatus === "RESCHEDULE_REQUESTED"
       ? "ลูกค้าขอเลื่อนนัด"
       : confirmState === "mute"
         ? "ไม่ได้ยืนยัน"
@@ -510,18 +514,33 @@ export function getServiceTimeline(input: {
           ? "รอยืนยันว่าจะมาตามนัด"
           : undefined;
 
-  const servedNote = noShow ? "ไม่มาตามนัด" : servedState === "cur" ? "ถึงเวลานัดแล้ว" : undefined;
+  /**
+   * 🛑 `"ถึงเวลานัดแล้ว"` พูดถึง**นัด** จึงใส่ได้เฉพาะใบที่มีนัดจริง
+   *
+   * ใบ walk-in เข้า `cur` ผ่านกิ่ง `!hasAppt` (ไม่ใช่ `arrived`) — เดิมจึงได้คำนี้ไปด้วย
+   * แล้วจอเดียวกันขึ้นสองบรรทัดที่ขัดกันเอง: ขั้น 2 "งานนี้ไม่ได้นัดล่วงหน้า" +
+   * ขั้น 3 "ถึงเวลานัดแล้ว" (หัวหน้าส่งภาพหน้าจอมา 2026-08-29 — เห็นทั้งคู่พร้อมกัน)
+   *
+   * ใบ walk-in ไม่มีคำอธิบาย เพราะไม่มีอะไรต้องอธิบายจริง ๆ: สถานะ `cur` บนจุดบอกครบแล้วว่า
+   * "อยู่ขั้นนี้" ส่วนเวลาที่ร้านเริ่มงานเป็นสิ่งที่ระบบไม่รู้ — เดาให้คือแต่งเรื่อง
+   */
+  const servedNote = noShow ? "ไม่มาตามนัด" : servedState === "cur" && hasAppt ? "ถึงเวลานัดแล้ว" : undefined;
 
   const finishNote =
     finishState === "cur" ? "กดยืนยันเมื่อได้รับบริการแล้ว" : finishState === "mute" ? "ไม่มีการปิดงาน" : undefined;
 
   const steps: TimelineStep[] = [
     { label: SERVICE_TIMELINE_LABELS[0], state: "done" },
-    {
-      label: SERVICE_TIMELINE_LABELS[1],
-      state: confirmState,
-      ...(confirmNote ? { note: confirmNote } : {}),
-    },
+    /* ขั้น 2 โผล่เฉพาะใบที่มีนัด — ใบ walk-in ข้ามไปขั้น "ร้านให้บริการ" เลย */
+    ...(hasAppt
+      ? [
+          {
+            label: SERVICE_TIMELINE_LABELS[1],
+            state: confirmState,
+            ...(confirmNote ? { note: confirmNote } : {}),
+          } satisfies TimelineStep,
+        ]
+      : []),
     {
       label: SERVICE_TIMELINE_LABELS[2],
       state: servedState,
@@ -561,4 +580,27 @@ export function getServiceTimeline(input: {
   }
 
   return steps;
+}
+
+/**
+ * แถว "จากการคุยที่ …" บนหน้าออเดอร์ผู้ซื้อ ควรขึ้นไหม
+ *
+ * 🛑 บล็อกหลักฐานร้าน (`ShopEvidence`) ลิสต์ **ทุกเพจของร้าน** อยู่เหนือแถวนี้พอดี ⇒
+ * ร้านที่มีเพจเดียวได้ชื่อเพจเดียวกัน **สองบรรทัดติดกัน** (หัวหน้าเห็นบนจอจริง 2026-08-29:
+ * "BT Premium Auto Xenon คลอง4 ธนบุรี" แล้วตามด้วย "จากการคุยที่ BT Premium Auto Xenon คลอง4 ธนบุรี")
+ *
+ * แถวนี้ตอบว่า "ใบนี้เกิดที่เพจไหน" ซึ่ง **มีความหมายก็ต่อเมื่อมีเพจให้สับสนมากกว่าหนึ่ง**
+ * หรือเพจต้นทางไม่ได้อยู่ในลิสต์ด้านบน — นอกนั้นคือค่าเดียวกันสองที่บนจอเดียว
+ * (คลาสเดียวกับที่ตัดช่อง "สถานะ"/"วันที่" ออกจากการ์ดนัดหมาย)
+ *
+ * @param originPageName ชื่อเพจต้นทาง — `null` เมื่อไม่รู้ชื่อ (ตัวเรนเดอร์จะขึ้นชื่อ *ช่องทาง* แทน
+ *   ซึ่งไม่ใช่ชื่อเพจ จึงไม่มีทางซ้ำกับลิสต์ด้านบน ⇒ แสดงได้เสมอ)
+ * @param channelNames ชื่อเพจทั้งหมดที่บล็อกหลักฐานกำลังแสดงอยู่
+ */
+export function shouldShowOrderOrigin(
+  originPageName: string | null | undefined,
+  channelNames: readonly string[],
+): boolean {
+  if (originPageName == null) return true;
+  return !(channelNames.length === 1 && channelNames[0] === originPageName);
 }
