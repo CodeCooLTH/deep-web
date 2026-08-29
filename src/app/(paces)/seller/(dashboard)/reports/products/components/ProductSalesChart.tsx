@@ -1,17 +1,27 @@
 'use client'
 
 /**
- * ProductSalesChart — กราฟเส้นยอดขายรายวันของสินค้าที่เลือก (feature 00063)
+ * ProductSalesChart — แท่งซ้อนรายวัน + เส้นยอดรวมของวัน (feature 00063)
  *
- * Base: theme/paces/Admin/TS/src/app/(admin)/widgets/charts/components/SalesReport.tsx
- *   (chart type 'line' + `stroke.curve: 'smooth'` + `grid.strokeDashArray: 7` +
- *    `colors: [getColor('chart-*')]` + โครง legend/tooltip ชุดเดียวกัน)
- *   ผ่าน `@/components/wrappers/ApexChart` ตาม Hard Rule 10 — ห้าม import react-apexcharts ตรง
- * Base (annotation แถบเทาของวันที่ยังไม่ถึง):
- *   theme/paces/Admin/TS/src/app/(admin)/charts/apex/line/components/data.ts
+ * Base: src/app/(paces)/seller/(dashboard)/dashboard/components/SalesChartCard.tsx
+ *   (mixed chart ของ Command Center: `type:'line'` + `stacked` + `stackOnlyBar` +
+ *    `columnWidth 92%` + `borderRadius 1` + เส้น `primary` หนา 2 + `markers.size 2` +
+ *    grid `chart-border-color` ประ 4 + ป้ายแกน 10px)
+ *   ซึ่ง cite Base ต่อไปที่ theme/paces/.../widgets/charts/components/ ตาม Hard Rule 10
+ *   ผ่าน `@/components/wrappers/ApexChart` — ห้าม import react-apexcharts ตรง
  *
- * ต่างจาก AgentTrendChart: ที่นั่นทุกเส้นคนละหน่วยจึงต้องมี 4 แกน — **ที่นี่ทุกเส้นหน่วยเดียวกัน**
- * (จำนวนชิ้น หรือ บาท อย่างใดอย่างหนึ่งทั้งกราฟ) จึงเหลือแกนเดียว
+ * 🛑 **เลิกใช้กราฟเส้นแล้ว** (user สั่ง 2026-08-29 หลังเปิด prod: "ไม่เอากราฟเส้น เอา bar
+ * chart ดีกว่า stacked") — เส้น 3–6 เส้นวิ่งทับกันในแถบค่า 0–6 ที่แคบมาก **ไม่ว่าจะแต่งสี
+ * ลดจุด หรือลดจำนวนเส้นอย่างไร เส้นก็ยังตัดกันอยู่ดี** เพราะปัญหาอยู่ที่รูปแบบกราฟเอง
+ * ไม่ใช่พารามิเตอร์ของมัน · แท่งซ้อนมี 1 แท่งต่อ 1 วัน ⇒ ไม่มีอะไรตัดกันได้โดยโครงสร้าง
+ *
+ * 🛑 `stackOnlyBar: true` **ห้ามถอด** — ถ้าไม่มี เส้นยอดรวมจะถูกบวกทับยอดสะสมของแท่ง
+ * แล้วไปลอยอยู่ที่ 2 เท่าของค่าจริง (คอมเมนต์ของ SalesChartCard เขียนเตือนเรื่องนี้ไว้เอง)
+ *
+ * 🛑 สีแท่งใช้ตระกูล `chart-*` **ไม่ใช่ success/warning แบบ Command Center** — ที่นั่นแท่ง
+ * คือ *สถานะ* (ยืนยันแล้ว/รอยืนยัน) เขียวจึงแปลว่า "สำเร็จ" ตาม Verified-Means-Green
+ * ของเราแท่งคือ *สินค้า* ถ้าใช้เขียว สินค้าตัวแรกจะดูเหมือน "ผ่านแล้ว" ทั้งที่ไม่ได้แปลว่าอะไร
+ * ส่วน **เส้นยอดรวมใช้ `primary` เหมือน Command Center เป๊ะ**
  */
 import type { ApexOptions } from 'apexcharts'
 
@@ -29,6 +39,12 @@ export type ChartSeries = {
   /** URL รูปสินค้า — null ได้เสมอ (แถว "รายการที่พิมพ์เอง" ไม่มีรูปโดยนิยาม) */
   image: string | null
 }
+
+/**
+ * ชื่อของเส้นยอดรวม — SSOT ของคำนี้ ใช้ทั้งใน series, legend และ tooltip
+ * 🛑 ห้ามพิมพ์ซ้ำที่อื่น (HR16) — legend กับ tooltip ต้องเรียกของสิ่งเดียวกันด้วยคำเดียวกัน
+ */
+export const SUM_SERIES_NAME = 'ยอดรวมของวัน'
 
 /** หนีอักขระ HTML — ชื่อสินค้าเป็นข้อความที่ผู้ขายพิมพ์เอง และ tooltip ต่อเป็น HTML string ดิบ */
 function esc(v: string): string {
@@ -59,56 +75,55 @@ export default function ProductSalesChart({
 
   const fmt = (v: number) => (unit === 'baht' ? formatBaht(v) : formatNumberNoSymbol(v))
 
-  /** จุดเฉพาะวันที่มียอดจริง — ตัด noise จาก ~155 จุดเหลือเท่าจำนวนวันที่ขายได้ */
-  const discreteMarkers = series.flatMap((s, si) =>
-    s.data.flatMap((v, di) =>
-      v > 0
-        ? [
-            {
-              seriesIndex: si,
-              dataPointIndex: di,
-              size: 3.5,
-              fillColor: getColor(CHART_COLOR_TOKENS[si % CHART_COLOR_TOKENS.length]),
-              strokeColor: 'transparent',
-            },
-          ]
-        : [],
-    ),
+
+  /**
+   * ยอดรวมของแต่ละวัน = ความสูงของแท่งซ้อน และเป็นข้อมูลของ "เส้น" ด้วย (user เลือกแบบ ก.
+   * 2026-08-29: เส้นวาดยอดรวมของสินค้าที่ติ๊กไว้ ไม่ใช่ของทั้งร้าน)
+   */
+  const dailyTotal = Array.from({ length: days }, (_, i) =>
+    series.reduce((sum, s) => sum + (s.data[i] ?? 0), 0),
   )
 
-  /** เพดานแกน Y ที่หารลงตัวกับจำนวน tick เสมอ (เฉพาะโหมดจำนวนชิ้น) */
-  const dataMax = series.reduce((m, s) => s.data.reduce((mm, v) => (v > mm ? v : mm), m), 0)
+  /** เพดานแกน Y คิดจาก "ยอดรวมของวัน" ไม่ใช่ค่าสูงสุดของสินค้าตัวใดตัวหนึ่ง (แท่งซ้อนกัน) */
+  const dataMax = dailyTotal.reduce((m, v) => (v > m ? v : m), 0)
   const yTicks = Math.min(4, Math.max(1, Math.ceil(dataMax)))
   const yMax = Math.max(1, Math.ceil(dataMax / yTicks) * yTicks)
 
   const getOptions = (): ApexOptions => ({
-    chart: { type: 'line', height, toolbar: { show: false }, offsetX: 0 },
-    /**
-      * 🛑 `curve: 'straight'` ไม่ใช่ `'smooth'` — ข้อมูลคือยอดรายวันที่กระจัดกระจายและเป็นศูนย์
-      * เป็นส่วนใหญ่ เส้นโค้งของ Apex จะเลยจุดควบคุม ⇒ สินค้าที่ขายวันที่ 5 กับวันที่ 20
-      * จะถูกวาดเป็นเนินต่อเนื่องคร่อมวันที่ 6–19 ทั้งที่วันเหล่านั้นขายไม่ได้เลยสักชิ้น
-      * = กราฟประดิษฐ์ยอดขายขึ้นมาเอง บนหน้าที่ทั้งหน้าถูกสร้างมาเพื่อตอบว่า "ขายวันไหน"
-      * (ไฟล์ต้นแบบใช้ smooth เพราะข้อมูลของมันเป็นรายได้ต่อเนื่อง — เส้นโค้งถูกสืบทอดมา
-      *  แต่ชนิดของข้อมูลไม่ได้ถูกสืบทอดมาด้วย)
-      * `dashArray` แยกเส้นด้วย *รูปแบบ* ไม่ใช่สีอย่างเดียว — 6 สีของธีมยุบเหลือ ~3 คู่
-      * เมื่อมองด้วยตาที่แยกแดง-เขียวไม่ได้ (WCAG 1.4.1)
-      */
-    stroke: { width: 2, curve: 'straight', dashArray: [0, 0, 4, 4, 8, 8] },
-    colors: CHART_COLOR_TOKENS.map((t) => getColor(t)),
-    grid: { strokeDashArray: 7 },
+    chart: {
+      type: 'line' as const, // mixed — ชนิดจริงกำหนดรายซีรีส์ด้านล่าง
+      height,
+      stacked: true,
+      stackOnlyBar: true, // 🛑 ห้ามถอด — ไม่งั้นเส้นถูกบวกทับยอดสะสมไปอยู่ที่ 2 เท่า
+      toolbar: { show: false },
+      zoom: { enabled: false },
+      selection: { enabled: false }, // จิ้มลากบนมือถือแล้วเกิดกล่อง selection ค้าง (บทเรียนของ SalesChartCard)
+    },
+    plotOptions: { bar: { columnWidth: '92%', borderRadius: 1 } },
+    /** เส้นเฉพาะซีรีส์สุดท้าย (ยอดรวม) — แท่งไม่มีขอบ ตามที่ user เคาะไว้ที่ Command Center */
+    stroke: {
+      show: true,
+      width: [...series.map(() => 0), 2],
+      curve: 'straight' as const,
+      colors: [...series.map(() => 'transparent'), getColor('primary')],
+    },
+    colors: [...series.map((_, i) => getColor(CHART_COLOR_TOKENS[i % CHART_COLOR_TOKENS.length])), getColor('primary')],
+    grid: {
+      show: true,
+      borderColor: getColor('chart-border-color'),
+      strokeDashArray: 4,
+      xaxis: { lines: { show: false } }, // เส้นตั้งรกกับแท่ง 31 อัน
+      yaxis: { lines: { show: true } },
+    },
     dataLabels: { enabled: false },
-    /**
-     * 🛑 จุดเฉพาะ "วันที่ขายได้จริง" ไม่ใช่ทุกวัน — เดิม `size: 3` วาดจุดที่ทุกวันรวมวันที่ยอด 0
-     * ⇒ 31 วัน × 5 เส้น = 155 จุด ซึ่งคือ noise ล้วน ๆ เพราะข้อมูลเป็น dense array
-     * (ทุกวันมีค่าอยู่แล้ว ไม่มีการ interpolate) จุดที่ค่า 0 จึงไม่ได้บอกอะไรเลย
-     * `discrete` ทำให้จุดกลายเป็น **สัญญาณบวกจริง ๆ** ("วันนี้ขายได้") แทนที่จะเป็นเส้นประดับ
-     */
-    markers: { size: 0, strokeWidth: 0, discrete: discreteMarkers },
+    /** marker เล็ก ๆ บนเส้นยอดรวมเท่านั้น — แท่งไม่มี marker อยู่แล้ว */
+    markers: { size: 2, strokeWidth: 0, colors: [getColor('primary')] },
     xaxis: {
       categories: labels,
       axisBorder: { show: false },
       labels: {
         offsetY: 2,
+        style: { fontSize: '10px', colors: getColor('default-700') },
         /**
          * 31 ป้ายชนกันแน่นอนบนความกว้างจริง — โชว์ทุก 5 วัน + วันสุดท้ายเสมอ
          * (แพตเทิร์นเดียวกับ `sales-chart-axis.ts` ที่หน้า dashboard ใช้ด้วยเหตุผลเดียวกัน)
@@ -156,6 +171,8 @@ export default function ProductSalesChart({
      * 🛑 เรียก `<Icon>` ข้างในไม่ได้ — ตรงนี้อยู่นอก React tree เป็นสตริงล้วน สินค้าที่ไม่มีรูป
      * จึงได้กล่องเทาเปล่า ไม่ใช่ไอคอน (ต่างจากในตารางที่ `ProductThumb` ใส่ไอคอนได้)
      * 🛑 ชื่อสินค้าเป็นข้อความที่ผู้ขายพิมพ์เอง ⇒ ต้อง escape ก่อนต่อเป็น HTML
+     * 🛑 ค่า radius ต้องอยู่ในบันไดของ DESIGN.md (4/6/8/10/14) — กล่องนอก 6px (rounded.md)
+     *    รูปข้างใน 4px (rounded.sm) · เคยเขียน 5px ซึ่งไม่มีในบันได (impeccable hook จับได้)
      */
     tooltip: {
       shared: true,
@@ -169,7 +186,7 @@ export default function ProductSalesChart({
             const v = s.data[dataPointIndex]
             const ring = getColor(CHART_COLOR_TOKENS[i % CHART_COLOR_TOKENS.length])
             const thumb = s.image
-              ? `<img src="${esc(s.image)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:5px" />`
+              ? `<img src="${esc(s.image)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:4px" />`
               : ''
             return (
               `<div style="display:flex;align-items:center;gap:8px;padding:3px 0">` +
@@ -183,33 +200,40 @@ export default function ProductSalesChart({
             )
           })
           .join('')
+        // แถวยอดรวม — คั่นเส้นให้เห็นว่าเป็นคนละชั้นกับรายสินค้า และใช้สีเดียวกับเส้นบนกราฟ
+        const total = dailyTotal[dataPointIndex] ?? 0
+        const sumRow =
+          `<div style="display:flex;align-items:center;gap:8px;padding:6px 0 0;margin-top:4px;` +
+          `border-top:1px solid ${dividerColor}">` +
+          `<span style="flex:0 0 auto;width:28px;display:flex;justify-content:center">` +
+          `<span style="width:14px;height:3px;border-radius:9999px;background:${getColor('primary')}"></span></span>` +
+          `<span style="flex:1 1 auto;color:${getColor('default-500')}">${SUM_SERIES_NAME}</span>` +
+          `<span style="flex:0 0 auto;font-weight:600;font-variant-numeric:tabular-nums">${esc(fmt(total))}</span>` +
+          `</div>`
         return (
           `<div style="padding:8px 10px;min-width:220px;font-size:13px">` +
           `<div style="font-weight:600;padding-bottom:6px;margin-bottom:4px;` +
-          `border-bottom:1px solid ${dividerColor}">วันที่ ${dataPointIndex + 1}</div>${rows}</div>`
+          `border-bottom:1px solid ${dividerColor}">วันที่ ${dataPointIndex + 1}</div>${rows}${sumRow}</div>`
         )
       },
     },
     /**
-      * 🛑 วันที่ยังมาไม่ถึง = `null` ไม่ใช่ `0` — Apex จะไม่ลากเส้นไปถึงเลย เส้นจบที่วันนี้พอดี
-      *
-      * ฉบับแรกใช้ annotation แถบเทาคลุมวันอนาคตแทน ซึ่ง **พังบน prod**: annotation อ้างอิง
-      * category ด้วยสตริง (`labels[futureFrom]`) แต่ `xaxis.labels.formatter` คืนค่าว่างให้
-      * วันส่วนใหญ่ ⇒ Apex หา category นั้นไม่เจอ เลยตกไปที่ตำแหน่ง 0 **แถบจึงคลุมทั้งกราฟ**
-      * และป้ายไปเกาะมุมซ้ายบนทับตัวเลขแกน Y (user เจอเองจากภาพหน้าจอ 2026-08-29)
-      *
-      * การส่ง `null` แก้ปัญหาเดิม (หางแบนติดพื้นถึงสิ้นเดือนอ่านเป็น "ยอดร่วง") ได้ตรงกว่า
-      * โดยไม่ต้องพึ่ง annotation เลย — และเป็นท่าเดียวกับที่ `AgentTrendChart` ใช้อยู่แล้ว
-      * ("null ต้องเป็นช่องว่างบนกราฟ ไม่ใช่ 0")
-      */
-    series: series.map((s) => ({
-      name: s.name,
-      type: 'line',
-      data:
-        futureFrom === null
-          ? s.data
-          : s.data.map((v, i) => (i >= futureFrom ? null : v)),
-    })),
+     * 🛑 วันที่ยังมาไม่ถึง = `null` ไม่ใช่ `0` — Apex จะไม่วาดแท่งและเส้นจบที่วันนี้พอดี
+     * ถ้าใช้ 0 จะได้แท่งความสูงศูนย์เรียงเป็นแถวและเส้นดิ่งลงพื้น ซึ่งอ่านเป็น "ยอดร่วง"
+     * ทั้งที่แปลว่า "ยังไม่ถึงวันนั้น"
+     */
+    series: [
+      ...series.map((s) => ({
+        name: s.name,
+        type: 'column' as const,
+        data: futureFrom === null ? s.data : s.data.map((v, i) => (i >= futureFrom ? null : v)),
+      })),
+      {
+        name: SUM_SERIES_NAME,
+        type: 'line' as const,
+        data: futureFrom === null ? dailyTotal : dailyTotal.map((v, i) => (i >= futureFrom ? null : v)),
+      },
+    ],
   })
 
   if (series.length === 0) {

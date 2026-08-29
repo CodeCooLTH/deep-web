@@ -307,8 +307,19 @@ describe('[blocker] เพดานเส้นกราฟต้องผูก
     for (const t of CHART_COLOR_TOKENS) expect(t.startsWith('chart-')).toBe(true)
   })
 
-  it('ไม่ใช้ chart-gamma — เหลืองอำพันอ่านเป็นสถานะเตือนปนกับ badge ในตารางเดียวกัน', () => {
-    expect(CHART_COLOR_TOKENS).not.toContain('chart-gamma')
+  /**
+   * 🛑 เทสข้อนี้เคยล็อกมติตรงข้าม ("ห้ามใช้ chart-gamma") — user กลับมติ 2026-08-29
+   * โดยชี้ภาพกราฟ Command Center ที่ใช้มิ้นต์+เหลืองเป็นแท่งอยู่แล้ว
+   * เปลี่ยนเทสให้ล็อก **มติใหม่** ไม่ใช่ลบทิ้งเฉย ๆ — สองสีแรกต้องเป็นคู่ของ Command Center
+   * ไม่งั้นวันหนึ่งมีคนเรียงใหม่แล้วโทนที่ user เลือกหายไปเงียบ ๆ
+   */
+  it('สองสีแรกต้องเป็นคู่ของ Command Center (มิ้นต์ + เหลืองอำพัน)', () => {
+    expect(CHART_COLOR_TOKENS[0]).toBe('chart-alpha')
+    expect(CHART_COLOR_TOKENS[1]).toBe('chart-gamma')
+  })
+
+  it('chart-delta อยู่ท้ายสุด — ฟ้าอ่อนใกล้เส้น primary ที่สุด ถ้าอยู่ต้น ๆ แท่งจะกลืนกับเส้น', () => {
+    expect(CHART_COLOR_TOKENS[CHART_COLOR_TOKENS.length - 1]).toBe('chart-delta')
   })
 })
 
