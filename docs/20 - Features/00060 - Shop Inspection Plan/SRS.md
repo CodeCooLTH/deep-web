@@ -80,7 +80,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[SDS]]", "[[API]]", "[[TestCas
 |-----------|----------|
 | **ขั้นการตรวจสอบ (`step`)** | จำนวนเต็ม 1–4 เก็บเป็น `Int` ไม่ใช่ enum และไม่ใช่ "ระดับ" ขั้นที่สูงกว่ารวมข้อตรวจของขั้นที่ต่ำกว่าทั้งหมด |
 | **ข้อตรวจ (`checkKey`)** | สตริงคีย์คงที่ 18 ค่า นิยามในโค้ดที่ `src/lib/inspection/checks.ts` **ไม่เก็บในฐานข้อมูล** |
-| **ขอบเขตข้อตรวจ (`scope`)** | `SHOP` = ผลใช้ร่วมทุกที่พักของร้าน · `PROPERTY` = ผลผูกกับ `Room` รายหลัง |
+| **ขอบเขตข้อตรวจ (`scope`)** | `SHOP` = ผลใช้ร่วมทุกที่พักของร้าน · `ROOM` = ผลผูกกับ `Room` รายหลัง — **ค่าคงที่ชื่อ `ROOM` ให้ตรงกับ entity `Room`/`roomId` ในสคีมา** ห้ามใช้ชื่อที่สอง (`PROPERTY`) สำหรับสิ่งเดียวกัน (Hard Rule 16) · ในเนื้อความเชิงธุรกิจยังเรียก "ที่พักรายหลัง" ได้ตามปกติ |
 | **ผลตรวจที่เก็บ (`outcome`)** | ค่าที่บันทึกจริงในฐานข้อมูล 3 ค่า: `PASS` / `FAIL` / `NOT_APPLICABLE` |
 | **สถานะที่แสดง (display status)** | 5 ค่าที่ผู้ใช้เห็น: ผ่าน / ไม่ผ่าน / รอตรวจซ้ำ / ยังไม่มีข้อมูล / ไม่เกี่ยวกับร้านประเภทนี้ — **2 ค่าเป็นผลลัพธ์ของการคำนวณ ไม่ได้เก็บ** |
 | **`checkedAt`** | เวลาที่ผลของแถวนั้นถูกตัดสิน **ครั้งแรก** — เขียนครั้งเดียวตอน INSERT แล้ว **ไม่เปลี่ยนอีกเลย** ตอบคำถาม "ผลเปลี่ยนเมื่อไร" (ใช้กับไทม์ไลน์) |
@@ -164,26 +164,27 @@ flowchart LR
 | `account_age` | 1 | SHOP | AUTO | 1 | false | อายุบัญชี |
 | `chat_response_speed` | 1 | SHOP | AUTO | 1 | false | ความเร็วตอบแชท |
 | `complaints` | 1 | SHOP | AUTO | 1 | false | ข้อร้องเรียน |
-| `duplicate_listing` | 1 | PROPERTY | AUTO | 1 | false | ที่พักไม่ถูกประกาศซ้ำโดยบัญชีอื่น |
+| `duplicate_listing` | 1 | ROOM | AUTO | 1 | false | ที่พักไม่ถูกประกาศซ้ำโดยบัญชีอื่น |
 | `id_card_selfie` | 2 | SHOP | DOCUMENT | 365 | false | บัตรประชาชนคู่เซลฟี่ |
 | `bank_account_name` | 2 | SHOP | DOCUMENT | 365 | false | ชื่อบัญชีรับเงินตรงกับเจ้าของ |
-| `lease_right_document` | 2 | PROPERTY | DOCUMENT | 365 | false | เอกสารสิทธิ์ปล่อยเช่า |
-| `hotel_license` | 2 | PROPERTY | DOCUMENT | 365 | false | ใบอนุญาตประกอบกิจการโรงแรม |
-| `video_tour` | 3 | PROPERTY | VIDEO_CALL | 180 | true | วิดีโอคอลนำชมสด |
-| `operating_evidence` | 3 | PROPERTY | DOCUMENT | 90 | false | หลักฐานการเปิดให้บริการจริง |
-| `location_exists` | 4 | PROPERTY | ONSITE | 365 | true | สถานที่มีอยู่จริงตามพิกัด |
-| `photos_match` | 4 | PROPERTY | ONSITE | 365 | true | ภาพประกาศตรงกับของจริง |
-| `room_count` | 4 | PROPERTY | ONSITE | 365 | true | จำนวนและประเภทห้องตรงตามประกาศ |
-| `facilities` | 4 | PROPERTY | ONSITE | 365 | true | สิ่งอำนวยความสะดวกมีอยู่จริง |
-| `accessibility` | 4 | PROPERTY | ONSITE | 365 | true | ที่พักเข้าถึงได้จริงตามที่ประกาศ |
-| `deep_photo_album` | 4 | PROPERTY | ONSITE | 365 | true | อัลบั้มภาพที่ผู้ตรวจของ Deep ถ่ายเอง |
+| `lease_right_document` | 2 | ROOM | DOCUMENT | 365 | false | เอกสารสิทธิ์ปล่อยเช่า |
+| `hotel_license` | 2 | ROOM | DOCUMENT | 365 | false | ใบอนุญาตประกอบกิจการโรงแรม |
+| `video_tour` | 3 | ROOM | VIDEO_CALL | 180 | true | วิดีโอคอลนำชมสด |
+| `operating_evidence` | 3 | ROOM | DOCUMENT | 90 | false | หลักฐานการเปิดให้บริการจริง |
+| `location_exists` | 4 | ROOM | ONSITE | 365 | true | สถานที่มีอยู่จริงตามพิกัด |
+| `photos_match` | 4 | ROOM | ONSITE | 365 | true | ภาพประกาศตรงกับของจริง |
+| `room_count` | 4 | ROOM | ONSITE | 365 | true | จำนวนและประเภทห้องตรงตามประกาศ |
+| `facilities` | 4 | ROOM | ONSITE | 365 | true | สิ่งอำนวยความสะดวกมีอยู่จริง |
+| `accessibility` | 4 | ROOM | ONSITE | 365 | true | ที่พักเข้าถึงได้จริงตามที่ประกาศ |
+| `deep_photo_album` | 4 | ROOM | ONSITE | 365 | true | อัลบั้มภาพที่ผู้ตรวจของ Deep ถ่ายเอง |
 
   รวม: ผูกร้าน 7 ข้อ · ผูกที่พักรายหลัง 11 ข้อ · ขั้นที่ 1 มี 6 ข้อพอดีตาม AC-INS-03-1
 - **Precondition:** ไม่มี — เป็นค่าคงที่ระดับ module
 - **Postcondition:** ทุกจุดในระบบที่ต้องรู้ว่า "ข้อนี้อยู่ขั้นไหน / ผูกอะไร / ตรวจด้วยวิธีไหน / หลักฐานเปิดได้ไหม / ชื่อไทยว่าอะไร" อ่านจากที่นี่ที่เดียว
 - **Error / Edge cases:**
   - `method` **ไม่ผูกกับ `step` แบบหนึ่งต่อหนึ่ง** — `operating_evidence` อยู่ขั้นที่ 3 แต่ method เป็น `DOCUMENT` ห้าม derive `method` จาก `step` (`no-derive-meaning-from-count.md` คลาสเดียวกัน)
-  - ร้าน LODGING ที่ยังไม่มีแถว `Room` เลย: ข้อตรวจ scope `PROPERTY` **ไม่มีเป้าหมายให้ตรวจ** ⇒ ไม่สร้างแถวผล = แสดง "ยังไม่มีข้อมูล" ห้ามสร้างแถวผลโดยตั้ง `roomId = null` แทน (จะกลายเป็นผลระดับร้านที่สืบทอดข้ามหลัง ผิด FR-INS-029)
+  - **หมายเหตุสำคัญ — `operating_evidence.method` ต้องเป็น `DOCUMENT` ห้ามเป็น `VIDEO_CALL` ทั้งที่อยู่ขั้นเดียวกับ `video_tour`** — `method` ไม่ได้เป็นแค่ป้ายบอกชนิดงาน แต่เป็น **คีย์จัดกลุ่มรอบตรวจ** (`createDueRounds()` จัดกลุ่มตาม `(shopId, roomId, method)` — TFR-021) ⇒ ถ้าตั้งเป็น `VIDEO_CALL` มันจะถูกจับกลุ่มเข้ากับ `video_tour` แล้วรอบนั้นจะถูกกำหนดด้วย `dueAt` ที่เร็วที่สุดในกลุ่ม ซึ่งคือ 90 วันของ `operating_evidence` ⇒ **ผู้ตรวจถูกบังคับให้นัดวิดีโอคอลทุก 90 วันทั้งที่ `video_tour` ต้องการแค่ 180 วัน = งานเพิ่มเท่าตัวโดยไม่ได้ข้อมูลเพิ่มแม้แต่ข้อเดียว** · หลักฐานการเปิดให้บริการจริงเป็นเอกสารย้อนหลังที่ร้านส่งได้เอง ไม่ต้องนัดเวลากับใคร การรวมเข้ากับงานที่ต้องนัดจึงผิดทั้งเชิงต้นทุนและเชิงความหมาย
+  - ร้าน LODGING ที่ยังไม่มีแถว `Room` เลย: ข้อตรวจ scope `ROOM` **ไม่มีเป้าหมายให้ตรวจ** ⇒ ไม่สร้างแถวผล = แสดง "ยังไม่มีข้อมูล" ห้ามสร้างแถวผลโดยตั้ง `roomId = null` แทน (จะกลายเป็นผลระดับร้านที่สืบทอดข้ามหลัง ผิด FR-INS-029)
   - เพิ่มคีย์ใหม่ในอนาคตต้องเพิ่มใน type union ก่อน แล้วให้ `tsc` ไล่จุดที่ยังไม่รองรับ — **ห้ามใช้ `Record<string, ...>`**
 
 ### TFR-002: `ttlDays(checkKey, planStep)` และการ recompute `expiresAt` เมื่อขั้นเปลี่ยน
@@ -216,11 +217,11 @@ flowchart LR
   ```
   latestResultPerCheck(rows: InspectionResultRow[]): Map<ResultScopeKey, InspectionResultRow>
   ```
-  คีย์คือ `(checkKey, roomId ?? null)` และ "ล่าสุด" ตัดสินด้วย **`checkedAt` มากสุด** (เท่ากันให้ใช้ `id` เป็นตัวตัดสินเพื่อให้ผลนิ่ง)
+  คีย์คือ `(checkKey, roomId ?? null)` และ **สูตรของ "ล่าสุด" คือ `ORDER BY checkedAt DESC, id DESC` เสมอ ทุกที่ ทั้ง SQL และ TS** — ห้ามมีที่ไหนเรียงด้วย `checkedAt` เปล่า ๆ
   ฝั่งฐานข้อมูลดึงด้วย `DISTINCT ON` ที่มี **`shopId` เป็นคีย์แรกเสมอ**:
   `SELECT DISTINCT ON ("shopId", "checkKey", "roomId") ... ORDER BY "shopId", "checkKey", "roomId", "checkedAt" DESC, "id" DESC`
 
-  🛑 **tie-break ด้วย `"id" DESC` ห้ามตัดออก และต้องเป็นสูตรเดียวกันเป๊ะทั้งฝั่ง SQL และฝั่ง TS (`latestResultPerCheck()`)** — cron ขั้นที่ 1 เขียนหลายข้อในทรานแซกชันเดียว `checkedAt` ซ้ำวินาทีจึงเป็นเรื่องปกติ ไม่ใช่ edge case ถ้าสองฝั่งเรียงไม่เหมือนกัน ป้ายกับไทม์ไลน์จะไม่ตรงกันแบบสุ่มโดยไม่มีอะไรฟ้อง ⇒ ต้องมีเทส parity ที่ป้อนแถวชุดเดียวกันเข้าทั้งสองทางแล้วยืนยันว่าได้แถวเดียวกัน
+  **หมายเหตุสำคัญ — tie-break ด้วย `"id" DESC` ห้ามตัดออก และต้องเป็นสูตรเดียวกันเป๊ะทั้งฝั่ง SQL และฝั่ง TS (`latestResultPerCheck()`)** — cron ขั้นที่ 1 เขียนหลายข้อในทรานแซกชันเดียว `checkedAt` ซ้ำวินาทีจึงเป็นเรื่องปกติ ไม่ใช่ edge case ถ้าสองฝั่งเรียงไม่เหมือนกัน ป้ายกับไทม์ไลน์จะไม่ตรงกันแบบสุ่มโดยไม่มีอะไรฟ้อง ⇒ ต้องมีเทส parity ที่ป้อนแถวชุดเดียวกันเข้าทั้งสองทางแล้วยืนยันว่าได้แถวเดียวกัน
   (บทเรียนในรีโปนี้: `DISTINCT ON` ที่ไม่มี shop key เป็นคีย์แรกทำให้ข้อมูลข้ามร้านได้ — ดู memory `feedback_distinct_on_needs_shop_key`)
 
   **ขั้นที่ 2 — แปลงแถวเป็นสถานะที่แสดง**
@@ -367,7 +368,7 @@ flowchart TD
   5. `deductCredit(shopId, amount, refId, description, reason, tx)` — ส่ง `tx` เข้าไปเสมอ เพื่อให้การหักเงินอยู่ในทรานแซกชันเดียวกับการจองโควตา
   6. **INSERT แถว `InspectionTermsAcceptance`** (`shopId`, `acceptedAt=now`, `step`, `priceSnapshotBaht`, `termsVersion`) — **นี่คือแหล่งความจริงของการรับทราบเงื่อนไข**
   7. `upsert` แถว `InspectionPlan` (`shopId` เป็น unique) ตั้ง `status='ACTIVE'`, `step`, `activatedAt`, `currentPeriodStart=now`, `nextRenewalAt=now+30วัน`, `termsAcceptedAt=now` (cache), `canceledAt=null`, `graceUntil=null`, `lapsedAt=null`, `lapsedReason=null`
-  8. ถ้า `step >= 2` สร้าง `InspectionRound` ที่ `completedAt = null` (สถานะภายใน "รอผู้ตรวจเข้าตรวจ") — 1 รอบต่อขั้นที่ต้องใช้คน และ **สร้างรายหลังสำหรับข้อตรวจ scope `PROPERTY`**
+  8. ถ้า `step >= 2` สร้าง `InspectionRound` ที่ `completedAt = null` (สถานะภายใน "รอผู้ตรวจเข้าตรวจ") — 1 รอบต่อขั้นที่ต้องใช้คน และ **สร้างรายหลังสำหรับข้อตรวจ scope `ROOM`**
 
   **หมายเหตุสำคัญ — `InspectionPlan.termsAcceptedAt` เป็นเพียง cache สำหรับอ่านเร็ว ไม่ใช่แหล่งความจริง** ช่องเดียวเก็บได้แค่ครั้งล่าสุด แต่ AC-INS-10-3 บังคับให้ต้องรับทราบซ้ำ **ทุกครั้งที่มีการชำระเงิน** (สมัคร · อัปเกรด · ต่ออายุ) ⇒ ถ้ามีแค่ช่องเดียว จะพิสูจน์ย้อนหลังไม่ได้ว่าร้านเคยรับทราบตอนจ่ายรอบไหนบ้าง ซึ่งเป็นหลักฐานที่ต้องใช้พอดีตอนร้านทักท้วงเรื่อง "ค่าตรวจไม่คืน" — `priceSnapshotBaht` และ `termsVersion` ต้องบันทึกไว้ด้วยเพราะราคาและถ้อยคำเงื่อนไขเปลี่ยนได้ในอนาคต และคำถามที่ต้องตอบคือ "ตอนนั้นเขาเห็นอะไร" ไม่ใช่ "ตอนนี้เขียนว่าอะไร"
 - **Precondition:** ร้าน LODGING · ผู้เรียกเป็น OWNER · โควตาเดือนนี้ของขั้นนั้นยังไม่เต็ม · เครดิตพอ
@@ -425,7 +426,7 @@ flowchart TD
 - **Postcondition:** ทุกรอบการรันบันทึกสรุปเป็นข้อมูลที่ query ย้อนหลังได้ (`renewed` / `grace` / `lapsed` / `autoCheckedShops` / `resultRowsWritten` / `roundsScheduled` / `quotaRowsCreated` / `errors`)
 - **Error / Edge cases:**
   - **ไม่มีงาน "ไล่อัปเดตสถานะที่หมดอายุ"** เพราะ "รอตรวจซ้ำ" เป็นสถานะที่คำนวณตอนอ่าน (TFR-003) — ถ้ามีใครเพิ่มงานแบบนั้นเข้ามา แปลว่ามีคอลัมน์สถานะซ้ำเกิดขึ้นแล้วที่ไหนสักแห่ง ต้องถอดออก ไม่ใช่เพิ่ม cron
-  - งานที่ 3 มีต้นทุนโตตามจำนวน `Room` ของแต่ละร้าน (เพราะ `duplicate_listing` เป็น scope `PROPERTY`) ต้อง batch และตั้ง `maxDuration = 60`
+  - งานที่ 3 มีต้นทุนโตตามจำนวน `Room` ของแต่ละร้าน (เพราะ `duplicate_listing` เป็น scope `ROOM`) ต้อง batch และตั้ง `maxDuration = 60`
   - ความล้มเหลวของร้านหนึ่งต้องไม่ทำให้ทั้งรอบหยุด — จับ error ต่อร้านแล้วนับเป็น `errors` (รูปแบบเดียวกับ `inventory-renewal`)
   - งานที่ 5 ต้อง idempotent (มีแถวแล้วไม่สร้างซ้ำ ไม่เขียนทับ `capacity` ที่แอดมินแก้ไว้เอง) และคำนวณ "เดือนถัดไป" จากเวลาไทย
   - **ความเสี่ยงที่ต้องทดสอบเคสขอบก่อนเปิดใช้** (PRD §6.2): ร้านที่เพิ่งเติมเครดิตในวันเดียวกับรอบตัด ต้องไม่ถูกตี `LAPSED` — buffer คือ `graceUntil` ไม่ใช่ความบังเอิญของลำดับงาน
@@ -455,16 +456,16 @@ flowchart TD
   - เปลี่ยนรูปแล้วเปลี่ยนกลับเป็นชุดเดิม ยังนับเป็นการเปลี่ยน (เราไม่เทียบเนื้อรูป) — ยอมรับตามเจตนา ฝั่งอนุรักษ์นิยมปลอดภัยกว่า
   - **ด่านต้องบังคับได้ ไม่ใช่แค่เขียนไว้** (`rule-must-be-enforced-not-described.md`): เทส `[blocker]` สแกนซอร์ส ทุกไฟล์ที่มี `images` ในบล็อก `room.update`/`room.create` ต้องปรากฏการเรียก `invalidatePhotosMatch(` ในไฟล์เดียวกัน และ mutation "ลบการเรียกออก" ต้องทำให้เทสแดง
 
-### TFR-010: ขอบเขต SHOP vs PROPERTY — ห้ามสืบทอดผลข้ามที่พัก
+### TFR-010: ขอบเขต SHOP vs ROOM — ห้ามสืบทอดผลข้ามที่พัก
 
 - **Trace to:** FR-INS-029 (AC-INS-29-1..29-5)
 - **คำอธิบายเชิงเทคนิค:** คีย์ตรรกะของแถวผลคือ `(shopId, checkKey, roomId)` โดย `roomId` เป็น `NULL` **เฉพาะ** ข้อที่ `scope === 'SHOP'` เท่านั้น การอ่านผลของที่พักหลังหนึ่งประกอบด้วย 2 ส่วนที่ไม่ปนกัน:
   - ข้อ `SHOP` 7 ข้อ → อ่านแถวที่ `roomId IS NULL` ใช้ร่วมทุกหลัง
-  - ข้อ `PROPERTY` 11 ข้อ → อ่านแถวที่ `roomId = <หลังนั้น>` เท่านั้น **ไม่มี fallback ไปหลังอื่นและไม่มี fallback ไป `roomId IS NULL`**
+  - ข้อ `ROOM` 11 ข้อ → อ่านแถวที่ `roomId = <หลังนั้น>` เท่านั้น **ไม่มี fallback ไปหลังอื่นและไม่มี fallback ไป `roomId IS NULL`**
 - **Postcondition:** หลังที่ยังไม่เคยถูกตรวจได้ "ยังไม่มีข้อมูล" จากการที่ **ไม่มีแถว** (TFR-003 ข้อ 1) โดยไม่ต้องสร้างแถวว่างใด ๆ
 - **Error / Edge cases:**
-  - การเขียน query ที่ `OR` เอาแถว `roomId IS NULL` มาเป็นค่าสำรองของข้อ `PROPERTY` คือรูปร่างของบั๊กทั้งหมดในเรื่องนี้ — เทส `[blocker]` ต้องมีเคสร้านที่มี 3 หลัง ตรวจหลัง A แล้วยืนยันว่า B และ C ได้ `NO_DATA` ไม่ใช่ `PASS` และไม่ใช่ `FAIL`
-  - Valibot ต้องปฏิเสธคำขอที่ส่ง `roomId` มากับข้อ `SHOP` หรือไม่ส่ง `roomId` มากับข้อ `PROPERTY` ด้วย **400 `CHECK_SCOPE_MISMATCH`** ห้าม ignore เงียบ ๆ (ดู §4.5)
+  - การเขียน query ที่ `OR` เอาแถว `roomId IS NULL` มาเป็นค่าสำรองของข้อ `ROOM` คือรูปร่างของบั๊กทั้งหมดในเรื่องนี้ — เทส `[blocker]` ต้องมีเคสร้านที่มี 3 หลัง ตรวจหลัง A แล้วยืนยันว่า B และ C ได้ `NO_DATA` ไม่ใช่ `PASS` และไม่ใช่ `FAIL`
+  - Valibot ต้องปฏิเสธคำขอที่ส่ง `roomId` มากับข้อ `SHOP` หรือไม่ส่ง `roomId` มากับข้อ `ROOM` ด้วย **400 `CHECK_SCOPE_MISMATCH`** ห้าม ignore เงียบ ๆ (ดู §4.5)
   - `roomId` ที่ส่งมาต้องเป็นห้องของร้านนั้นจริง ตรวจด้วย `WHERE id = roomId AND shopId = shopId` ไม่ใช่แค่ตรวจรูปแบบ uuid
 
 ### TFR-011: การมอบหมายรอบตรวจ และ snapshot ชื่อผู้ตรวจ
@@ -476,6 +477,7 @@ flowchart TD
   - รอบที่ `method === 'AUTO'` ไม่มีคนตรวจ ⇒ `inspectorUserId = null` และ `inspectorDisplayName = 'ระบบตรวจอัตโนมัติของ Deep'` — **ห้ามปล่อยว่าง** เพราะหน้าจอที่ render ชื่อจะได้ค่าว่างแล้วดูเหมือนข้อมูลหาย
   - `inspectorDisplayName` เป็นชื่อที่จะปรากฏต่อสาธารณะ ⇒ ต้องเป็นชื่อที่ตั้งใจให้เปิดเผย ไม่ใช่ `User.username` ที่อาจเป็น `fb1234567890`
   - การมอบหมายทำได้เฉพาะแอดมินระบบ และผู้ถูกมอบหมายต้องมี `User.isInspector = true` ณ เวลามอบหมาย (ตรวจใน service ไม่ใช่แค่กรอง dropdown)
+  - **ต้องมี `PATCH /api/admin/users/[id]/inspector` ให้ ops ตั้ง/ถอดสิทธิ์ผู้ตรวจได้เอง — ห้ามให้ไปแก้ที่ฐานข้อมูลตรง** เพราะผู้ตรวจท้องถิ่นเป็นคนนอกที่จ้างเป็นรายครั้งและ **หมุนเวียนตลอด** (PRD §2.3) ถ้าเปิดบัญชีใหม่ให้แต่ละคนไม่ได้ในทางปฏิบัติ ทีมจะแก้ปัญหาด้วยการ **เอาบัญชีเดิมไปใช้ซ้ำกันหลายคน** ซึ่งทำลาย `inspectorDisplayName` ทั้งกลไก — ชื่อที่ปรากฏบนโปรไฟล์จะไม่ใช่คนที่ตรวจจริง และ AC-INS-25-1 (ผลตรวจต้องตรวจสอบย้อนกลับถึงตัวผู้รับผิดชอบได้) จะเป็นเท็จทั้งที่ระบบยังแสดงชื่อครบทุกรอบ
 
 ### TFR-012: ขอบเขตการมองเห็นของผู้ตรวจ — บังคับใน `WHERE` เท่านั้น
 
@@ -524,7 +526,7 @@ flowchart TD
 ### TFR-015: สถานะ LAPSED บนโปรไฟล์ — แถบเทา ไม่ใช่การลงโทษ
 
 - **Trace to:** FR-INS-019, FR-INS-022
-- **คำอธิบายเชิงเทคนิค:** เมื่อ `InspectionPlan.status === 'LAPSED'` บล็อกแผนการตรวจสอบบนโปรไฟล์แสดง (1) ข้อความ "ไม่ได้อยู่ในแผนการตรวจสอบต่อเนื่องแล้ว" (2) **วันที่ของผลตรวจล่าสุดก่อนพ้นสถานะ** = `MAX(checkedAt)` ของผลที่ `outcome='PASS'` ก่อน `lapsedAt` (3) ไทม์ไลน์เดิมครบถ้วน
+- **คำอธิบายเชิงเทคนิค:** เมื่อ `InspectionPlan.status === 'LAPSED'` บล็อกแผนการตรวจสอบบนโปรไฟล์แสดง (1) ข้อความ "ไม่ได้อยู่ในแผนการตรวจสอบต่อเนื่องแล้ว" (2) **วันที่ของผลตรวจล่าสุดก่อนพ้นสถานะ** = `MAX(lastConfirmedAt)` ของผลที่ `outcome='PASS'` ก่อน `lapsedAt` — **ต้องเป็น `lastConfirmedAt` ไม่ใช่ `checkedAt`** เพราะคำถามที่แถบเทาตอบคือ "ข้อมูลนี้ตรวจล่าสุดเมื่อไร" ตรงตาม TFR-022 (ใช้ `checkedAt` จะได้วันที่ผลเปลี่ยนครั้งสุดท้าย ซึ่งเก่ากว่าความจริงและทำให้ร้านที่ถูกตรวจต่อเนื่องมาตลอดดูเหมือนถูกทิ้งร้างมานาน) (3) ไทม์ไลน์เดิมครบถ้วน
 - **Postcondition:** ไม่มีสีหรือถ้อยคำเชิงลงโทษ (แดง/คำเตือน/สัญลักษณ์อันตราย) ในบล็อกนี้ — สีเหล่านั้นสงวนให้สัญญาณจากฐานมิจฉาชีพเท่านั้น (AC-INS-18-3)
 - **Error / Edge cases:**
   - การเปลี่ยนเป็น `LAPSED` ต้องไม่แตะองค์ประกอบอื่นของโปรไฟล์เลย (AC-INS-22-1/22-2) — ป้ายยืนยันตัวตนเดิม ยอดออเดอร์ รีวิว Trust Tier คงเดิมทุกประการ
@@ -533,12 +535,18 @@ flowchart TD
 ### TFR-016: เส้นทางพบหลักฐานฉ้อโกง — แยกจากผลตรวจ ไม่ใช่ `FAIL` ที่หนักขึ้น
 
 - **Trace to:** FR-INS-023, FR-INS-021
-- **คำอธิบายเชิงเทคนิค:** `POST /api/inspector/rounds/[id]/fraud-report` เขียน 2 อย่างในทรานแซกชันเดียว: (1) รายงานเข้าฐานมิจฉาชีพผ่าน `scam-report.service::createScamReport` (2) ผลของข้อที่เกี่ยวข้องเป็น `FAIL` พร้อมหลักฐาน `PRIVATE`
+- **คำอธิบายเชิงเทคนิค:** เส้นทางนี้ **แยกอำนาจเป็น 2 ขั้น คนละบทบาท คนละ endpoint**:
+  1. **ผู้ตรวจบันทึก** — ส่ง `suspectedFraudNote` (optional) มากับคำขอบันทึกผลหรือปิดรอบของตัวเอง (`/results` หรือ `/complete`) พร้อมแนบหลักฐาน `PRIVATE` และบันทึกผลของข้อที่เกี่ยวข้องเป็น `FAIL` ตามที่ตรวจพบจริง — **การส่งบันทึกนี้ไม่เขียนอะไรลงฐานมิจฉาชีพเลย**
+  2. **แอดมินตัดสิน** — `POST /api/admin/inspection/fraud` เป็น **endpoint เดียวในระบบที่เรียก `scam-report.service::createScamReport`** โดยแอดมินอ่านบันทึกและหลักฐานของผู้ตรวจแล้วตัดสินเอง
+
+  **หมายเหตุสำคัญ — ทำไมต้องแยก:** การใส่ชื่อคนเข้าฐานมิจฉาชีพ **ย้อนกลับยากและกระทบคนจริง** จึงไม่ควรเป็นการตัดสินหน้างานของผู้ตรวจท้องถิ่นซึ่งเป็นบุคคลภายนอกที่จ้างเป็นรายครั้ง (PRD §2.3) — คนที่รับผลของการตัดสินนั้นคือ Deep ไม่ใช่ผู้ตรวจ **แต่ถ้าไม่มีช่องให้ผู้ตรวจส่งสัญญาณเลย สิ่งที่เขาเห็นหน้างานจะหายไปพร้อมกับตัวเขา** และไม่มีใครรู้ว่าเคยมีสัญญาณนั้นอยู่ ⇒ ต้องมีทั้งสองอย่าง: **ผู้ตรวจบันทึกได้ · แอดมินตัดสิน** การตัดข้อใดข้อหนึ่งออกทำให้ระบบพังคนละทาง (ตัดข้อแรก = ข้อมูลหาย · ตัดข้อสอง = คนนอกมีอำนาจขึ้นบัญชีดำคนอื่น)
 - **Postcondition:** สัญญาณอันตรายทำงานตามกลไกเดิมของ `/check` ซึ่ง **ไม่ขึ้นกับสถานะการซื้อแผนเลย** (AC-INS-21-1..21-3) และไม่มีเส้นทางใดที่ทำให้ร้านที่จ่ายเงินได้รับการยกเว้น
 - **Error / Edge cases:**
-  - บันทึกเป็น `FAIL` อย่างเดียวโดยไม่ส่งเข้า `/check` = ละเมิด AC-INS-23-2 ตรง ๆ ⇒ ต้องเป็นทรานแซกชันเดียว ไม่ใช่สองปุ่มให้ผู้ตรวจกดตามลำดับ
+  - **AC-INS-23-2 ยังถูกบังคับอยู่** (ห้ามจบที่ `FAIL` ข้อเดียวเฉย ๆ) แต่บังคับด้วย **กระบวนการ ไม่ใช่ทรานแซกชัน** ⇒ `suspectedFraudNote` ที่ยังไม่มีแอดมินตัดสิน **ต้องปรากฏเป็นคิวงานที่มีคนเห็น** บนหน้าจอแอดมิน — บันทึกที่ไม่มีใครเห็นมีค่าเท่ากับไม่มี และเป็นความล้มเหลวเงียบชนิดเดียวกับงานตรวจค้างใน TFR-021
+  - `suspectedFraudNote` เป็น **หลักฐานปิดเสมอ** ห้ามหลุดสู่สาธารณะไม่ว่ากรณีใด (เป็นข้อสงสัยที่ยังไม่ถูกตัดสิน การเปิดเผยคือการกล่าวหา)
   - ไม่มีสิทธิ์คืนเงินในทุกกรณี (AC-INS-23-3) — โค้ดต้องไม่มีเส้นทางคืนเครดิตจากโมดูลนี้เลย
-  - ข้อตรวจ `scam_db` ของขั้นที่ 1 อ่านจากฐานเดียวกัน ⇒ ร้านที่ถูกรายงานจะได้ `FAIL` ในข้อนี้ในรอบ cron ถัดไปโดยอัตโนมัติ (ไม่ต้องเขียนซ้ำ)
+  - ข้อตรวจ `scam_db` ของขั้นที่ 1 อ่านจากฐานเดียวกัน ⇒ ร้านที่แอดมินตัดสินให้เข้าฐานแล้วจะได้ `FAIL` ในข้อนี้ในรอบ cron ถัดไปโดยอัตโนมัติ (ไม่ต้องเขียนซ้ำ)
+  - เทส `[blocker]`: สแกนซอร์ส — `createScamReport(` ต้องปรากฏใน `src/app/api/admin/inspection/fraud/` **ที่เดียวเท่านั้น** และห้ามปรากฏใต้ `src/app/api/inspector/` เลย
 
 ### TFR-017: ความเป็นกลางต่อ Trust Score — บังคับด้วยด่านที่รันได้ ไม่ใช่คำสัญญาในเอกสาร
 
@@ -615,7 +623,8 @@ flowchart TD
   | ป้ายบนโปรไฟล์: **"ตรวจล่าสุดเมื่อไร"** (FR-INS-014, AC-INS-19-2) | **`lastConfirmedAt`** | ป้ายขึ้นวันที่**เก่ากว่าความจริง** — ข้อที่ระบบยืนยันซ้ำให้ทุกวันจะแสดงวันที่ของการตรวจครั้งแรกเมื่อหลายเดือนก่อน ผู้ซื้ออ่านว่า "ร้านนี้ไม่ได้ถูกตรวจมานานแล้ว" ทั้งที่ถูกตรวจเมื่อวานนี้ = โกหกผู้ใช้ในทางที่เสียหายต่อร้านที่จ่ายเงิน |
   | ไทม์ไลน์: **"ผลเปลี่ยนเมื่อไร"** (FR-INS-016) | **`checkedAt`** | ทุกบรรทัดในไทม์ไลน์ขยับวันที่ตามการยืนยันซ้ำรายวัน ⇒ ประวัติที่ควรนิ่งกลายเป็นเลื่อนไปเรื่อย ๆ ผู้ซื้ออ่านไม่ได้ว่าเหตุการณ์เกิดเมื่อไรจริง |
   | เกณฑ์หมดอายุ `expiresAt` | **`lastConfirmedAt`** | ข้อของขั้นที่ 1 หมดอายุในวันถัดไปเสมอ ทั้งที่ยืนยันซ้ำอยู่ทุกวัน |
-  | `latestResultPerCheck()` เลือกแถวล่าสุด | **`checkedAt`** | หยิบแถวที่ถูกแทนที่ไปแล้วกลับมาแสดง (เคส invalidate — TFR-009) |
+  | `latestResultPerCheck()` เลือกแถวล่าสุด | **`checkedAt DESC, id DESC`** | หยิบแถวที่ถูกแทนที่ไปแล้วกลับมาแสดง (เคส invalidate — TFR-009) |
+  | แถบเทาตอนพ้นแผน: "ข้อมูลล่าสุดเมื่อไร" (AC-INS-19-2) | **`MAX(lastConfirmedAt)`** | ร้านที่ถูกตรวจต่อเนื่องมาตลอดดูเหมือนถูกทิ้งร้างมานาน |
 
 - **Postcondition:** ทุกจุดที่แสดงวันที่ผ่าน `toPublicInspectionView()` ซึ่งตั้งชื่อฟิลด์ขาออกให้ตรงกับคำถาม (`lastInspectedAt` สำหรับป้าย · `occurredAt` สำหรับไทม์ไลน์) เพื่อไม่ให้ปลายทางต้องเลือกเอง
 - **Error / Edge cases:**
@@ -641,12 +650,11 @@ flowchart TD
 | POST | `/api/seller/inspection/documents` | แนบเอกสารหลักฐาน (commit `fileId` ที่อัปโหลดตรงเข้า storage แล้ว) | session + **OWNER เท่านั้น** |
 | GET | `/api/inspector/rounds` | รายการงานที่ตนได้รับมอบหมาย | session + `isInspector` |
 | GET | `/api/inspector/rounds/[id]` | รายละเอียดรอบ (เฉพาะของตน) | session + `isInspector` + `inspectorUserId = me` |
-| POST | `/api/inspector/rounds/[id]/results` | บันทึกผลรายข้อ (`checkKey`, `roomId?`, `outcome`) | เหมือนข้างบน |
-| POST | `/api/inspector/rounds/[id]/evidence` | commit หลักฐานเข้ารอบ | เหมือนข้างบน |
-| POST | `/api/inspector/rounds/[id]/complete` | ปิดรอบ (`completedAt = now`) | เหมือนข้างบน |
-| POST | `/api/inspector/rounds/[id]/fraud-report` | เส้นทางแยกเข้าฐานมิจฉาชีพ | เหมือนข้างบน |
+| POST | `/api/inspector/rounds/[id]/results` | บันทึกผลรายข้อ (`checkKey`, `roomId?`, `outcome`) **พร้อมแนบหลักฐานในคำขอเดียวกัน** และ `suspectedFraudNote?` | เหมือนข้างบน |
+| POST | `/api/inspector/rounds/[id]/complete` | ปิดรอบ (`completedAt = now`) รับ `suspectedFraudNote?` ได้ด้วย | เหมือนข้างบน |
 | GET/PUT | `/api/admin/inspection/quota` | ดู/ตั้งโควตารายเดือนต่อขั้น | session + `isAdmin` |
 | POST | `/api/admin/inspection/rounds` | มอบหมายผู้ตรวจให้รอบ | session + `isAdmin` |
+| POST | `/api/admin/inspection/fraud` | **ตัวเดียวที่เขียนเข้าฐานมิจฉาชีพ `/check`** — แอดมินตัดสินจากบันทึกของผู้ตรวจ | session + `isAdmin` |
 | PATCH | `/api/admin/users/[id]/inspector` | ตั้ง/ถอด `User.isInspector` | session + `isAdmin` |
 | GET/POST | `/api/cron/inspection-lifecycle` | งานรายวัน 3 อย่าง (TFR-008) | `Authorization: Bearer ${CRON_SECRET}` เท่านั้น |
 
@@ -682,9 +690,11 @@ flowchart TD
 - **Request:**
 ```json
 { "checkKey": "หนึ่งใน 18 คีย์ (allow-list จาก checks.ts)",
-  "roomId": "uuid — บังคับเมื่อ scope=PROPERTY, ห้ามส่งเมื่อ scope=SHOP",
+  "roomId": "uuid — บังคับเมื่อ scope=ROOM, ห้ามส่งเมื่อ scope=SHOP",
   "outcome": "PASS | FAIL | NOT_APPLICABLE",
-  "note": "string? — ภายในเท่านั้น ไม่หลุดสาธารณะ" }
+  "note": "string? — ภายในเท่านั้น ไม่หลุดสาธารณะ",
+  "evidence": "array? — หลักฐานของข้อนี้ แนบมาในคำขอเดียวกัน (ไม่มี endpoint แยกสำหรับหลักฐาน)",
+  "suspectedFraudNote": "string? — ข้อสงสัยฉ้อโกง เข้าคิวให้แอดมินตัดสิน ไม่เขียนเข้า /check เอง (TFR-016)" }
 ```
 - **Response (success 201):** แถวผลที่สร้าง พร้อม `expiresAt` ที่คำนวณจาก `ttlDays(checkKey, plan.step)`
 - **Error codes:**
@@ -712,7 +722,8 @@ flowchart TD
 |---------|----------|----------|---------|
 | Vercel Cron `0 16 * * *` | Vercel Platform | `/api/cron/inspection-lifecycle` | ไม่มี body — auth ผ่าน header เท่านั้น |
 | เขียน `Room.images` | `room.service` (ทุกทางเข้า) | `invalidatePhotosMatch()` **ในทรานแซกชันเดียวกัน** | `roomId` |
-| พบหลักฐานฉ้อโกง | `/api/inspector/rounds/[id]/fraud-report` | `scam-report.service::createScamReport` | ตามสัญญาเดิมของ `/check` |
+| ผู้ตรวจพบข้อสงสัยฉ้อโกง | `/api/inspector/rounds/[id]/results` หรือ `/complete` (ฟิลด์ `suspectedFraudNote`) | คิวงานบนหน้าจอแอดมิน — **ไม่ยิงเข้า `/check` โดยตรง** | บันทึกข้อความ + หลักฐาน `PRIVATE` |
+| แอดมินตัดสินว่าเข้าข่ายฉ้อโกง | `/api/admin/inspection/fraud` | `scam-report.service::createScamReport` | ตามสัญญาเดิมของ `/check` |
 
 ### 4.4 Sequence ของ flow สำคัญ — การสมัครแผน
 
@@ -758,13 +769,14 @@ sequenceDiagram
 | `step` | `v.picklist([1, 2, 3, 4])` บนค่า integer — **ห้าม `v.number()` เปล่า** และห้ามรับสตริง | `400 VALIDATION_ERROR` |
 | `checkKey` | `v.picklist(INSPECTION_CHECK_KEYS)` — allow-list จาก `checks.ts` ห้าม `v.string()` | `400 VALIDATION_ERROR` |
 | `checkKey` เทียบ `plan.step` | คีย์ต้องอยู่ในขั้น ≤ ขั้นของแผนร้านนั้น | `400 CHECK_NOT_IN_STEP` |
-| `roomId` มี/ไม่มี เทียบ `scope` | `scope === 'PROPERTY'` ⇒ บังคับมี · `scope === 'SHOP'` ⇒ **ห้ามมี** | `400 CHECK_SCOPE_MISMATCH` (ห้าม ignore เงียบ) |
+| `roomId` มี/ไม่มี เทียบ `scope` | `scope === 'ROOM'` ⇒ บังคับมี · `scope === 'SHOP'` ⇒ **ห้ามมี** | `400 CHECK_SCOPE_MISMATCH` (ห้าม ignore เงียบ) |
 | `roomId` เป็นของร้านนั้นจริง | query `room.findFirst({ where: { id, shopId } })` ไม่ใช่ตรวจรูปแบบ uuid | `404 ROOM_NOT_IN_SHOP` |
 | `outcome` | `v.picklist(['PASS', 'FAIL', 'NOT_APPLICABLE'])` | `400 VALIDATION_ERROR` |
 | `termsAccepted` | `v.literal(true)` — ค่า `"true"`, `1`, `undefined` ไม่ผ่าน | `400 VALIDATION_ERROR` |
 | `termsVersion` | สตริงไม่ว่าง ต้องส่งมาคู่กับ `termsAccepted` ทุกครั้ง เพื่อบันทึกลง `InspectionTermsAcceptance` | `400 VALIDATION_ERROR` |
 | **ฟิลด์วันที่ที่ส่งออกหน้าจอ** | ป้าย "ตรวจล่าสุด" ต้องมาจาก `lastConfirmedAt` · ไทม์ไลน์ต้องมาจาก `checkedAt` — **ห้ามสลับ** (TFR-022) บังคับด้วยการตั้งชื่อฟิลด์ขาออกให้ตรงกับคำถาม (`lastInspectedAt` / `occurredAt`) ที่ `toPublicInspectionView()` | เทส `[blocker]` ที่ใช้ข้อมูลซึ่งสองฟิลด์นี้ **ต่างกันจริง** |
 | หลักฐาน: ต้องมีเนื้อหาจริง | CHECK `fileId IS NOT NULL OR (lat IS NOT NULL AND lng IS NOT NULL)` — รองรับ `kind='GEO'` ที่ไม่มีไฟล์ | `400 EVIDENCE_EMPTY` |
+| `suspectedFraudNote` | สตริงไม่ว่างเมื่อส่งมา · **เป็นหลักฐานปิดเสมอ** ห้ามมีเส้นทางใดส่งค่านี้ออกสาธารณะ · การส่งค่านี้ **ต้องไม่เรียก `createScamReport`** จาก route ของผู้ตรวจ (TFR-016) | `400 VALIDATION_ERROR` + เทสสแกนซอร์ส |
 | `visibility` ของหลักฐาน | `v.picklist(['PUBLIC', 'PRIVATE'])` และ `PUBLIC` ผ่านได้เฉพาะเมื่อ `INSPECTION_CHECKS[checkKey].publicEvidence === true` | `400 EVIDENCE_MUST_BE_PRIVATE` |
 | `kind` ของหลักฐาน | `v.picklist(['PHOTO', 'VIDEO_STILL', 'DOCUMENT', 'GEO'])` | `400 VALIDATION_ERROR` |
 | `Shop.vertical` | ต้องเป็น `'LODGING'` ตรวจที่ **ทุก mutation ฝั่ง server** ไม่ใช่แค่ซ่อนปุ่ม (บทเรียน 00028: ระบบประมูล/Inventory ไม่เคยมี server-side guard เลย) | `409 VERTICAL_NOT_ELIGIBLE` |
@@ -893,7 +905,7 @@ erDiagram
 | D-1 | `InspectionPlan.shopId` unique — ร้านหนึ่งอยู่ขั้นเดียวในเวลาหนึ่ง (AC-INS-07-2) | `@unique` |
 | D-2 | `InspectionIntakeQuota` unique ที่ `(periodYearMonth, step)` | `@@unique` |
 | D-3 | `step` อยู่ในช่วง 1–4 | CHECK constraint (เขียนแบบ additive) + Valibot |
-| D-4 | อ่านผลล่าสุดต่อ `(shopId, checkKey, roomId)` ได้เร็ว | `@@index([shopId, checkKey, checkedAt(sort: Desc)])` และ `@@index([roomId, checkKey, checkedAt(sort: Desc)])` — **`shopId` ต้องเป็นคีย์แรก** ทั้งใน index และใน `DISTINCT ON` (memory `feedback_distinct_on_needs_shop_key`) |
+| D-4 | อ่านผลล่าสุดต่อ `(shopId, checkKey, roomId)` ได้เร็ว | `@@index([shopId, checkKey, checkedAt(sort: Desc), id(sort: Desc)])` และ `@@index([roomId, checkKey, checkedAt(sort: Desc), id(sort: Desc)])` — **`shopId` ต้องเป็นคีย์แรก** ทั้งใน index และใน `DISTINCT ON` (memory `feedback_distinct_on_needs_shop_key`) · ต่อท้าย `id` ให้ index เรียงตรงกับ `ORDER BY checkedAt DESC, id DESC` ที่ใช้จริง ไม่งั้น Postgres ต้อง sort เพิ่มทุกครั้ง |
 | D-4a | **`InspectionResult` ห้ามมี unique constraint บน `(shopId, checkKey)` หรือ `(roomId, checkKey)` ทั้งแบบเต็มและแบบ partial** | ไม่ประกาศ `@@unique` ใด ๆ — ตารางนี้เป็นประวัติ ไม่ใช่สถานะ (TFR-014) constraint แบบนั้นจะลบประวัติทิ้งโดยขัด AC-INS-16-3 และ AC-INS-27-1 |
 | D-5 | หางานของผู้ตรวจได้เร็วและ scope ถูก | `@@index([inspectorUserId, completedAt])` |
 | D-5a | นับงานค้างได้เร็ว (TFR-021) | `@@index([completedAt, dueAt])` — คิวรีคือ `completedAt IS NULL AND dueAt < now` |
@@ -920,7 +932,7 @@ erDiagram
 | ด้าน | ข้อกำหนด | เป้าหมายที่วัดได้ |
 |------|----------|-------------------|
 | **Performance** | โปรไฟล์สาธารณะของร้านที่มีที่พักหลายหลัง **ต้องไม่ N+1** — จำนวนคิวรีคงที่ไม่ว่าร้านมีกี่หลัง | ≤ 2 คิวรีสำหรับข้อมูลตรวจทั้งหมด (ผลล่าสุด 1 + หลักฐาน PUBLIC 1) · เวลาเพิ่มจาก baseline ของหน้าเดิม p95 ≤ 80ms ที่ร้าน 10 หลัง |
-| **Performance** | ผลล่าสุดต่อ `(shopId, checkKey, roomId)` ดึงด้วย `DISTINCT ON` เรียง `checkedAt DESC` โดยมี `shopId` เป็นคีย์แรกของทั้ง index และ `DISTINCT ON` | เวลา query ≤ 30ms ที่ 10,000 แถวต่อร้าน |
+| **Performance** | ผลล่าสุดต่อ `(shopId, checkKey, roomId)` ดึงด้วย `DISTINCT ON` เรียง **`checkedAt DESC, id DESC`** โดยมี `shopId` เป็นคีย์แรกของทั้ง index และ `DISTINCT ON` | เวลา query ≤ 30ms ที่ 10,000 แถวต่อร้าน · มีเทส parity ที่ยืนยันว่า SQL กับ TS คืนแถวเดียวกันเมื่อ `checkedAt` ซ้ำ |
 | **Observability (สำคัญที่สุดของฟีเจอร์นี้)** | **ต้องเฝ้าที่ "ตัวชี้วัดงานค้าง" ไม่ใช่ที่ error rate** — cron ไม่รันหรือไม่มีใครรับงานตรวจ **ความถูกต้องของข้อมูลไม่พังเลยแม้แต่นิดเดียว แต่บริการหยุดส่งมอบ** และ error rate จะเป็น 0 สวยงามตลอดเวลาที่ฟีเจอร์กำลังตายอยู่ | หน้าจอแอดมินแสดงจำนวนรอบที่ `dueAt < now` และยัง `completedAt IS NULL` แยกตามขั้นและวิธีตรวจ · ต้องมีเกณฑ์ที่ตกลงกันว่าค้างเท่าไรถือว่าผิดปกติ |
 | **Performance** | `photos_match` invalidate **ในทรานแซกชันเดียวกับการเขียน `Room.images`** ห้ามเป็นงานตามเก็บ | ช่องว่างเวลาระหว่างภาพใหม่ปรากฏกับป้ายตกเป็น "รอตรวจซ้ำ" = 0 |
 | **Scalability** | cron รอบเดียวรองรับร้าน `ACTIVE` ได้ทั้งหมดในเวลาที่กำหนด | จบภายใน `maxDuration = 60` วินาที ที่ 1,000 ร้าน × 10 หลัง — เกินกว่านั้นต้องแบ่ง batch ต่อรอบ |
@@ -946,7 +958,8 @@ erDiagram
 | ส่งเอกสารหลักฐานของร้าน | ไม่ได้ | **ไม่ได้** | ได้ | ไม่ได้ | ไม่ได้ |
 | ชำระเงิน / เห็นยอดเครดิต / เห็นสลิป | ไม่ได้ | ตามสิทธิ์เดิมของร้าน (ไม่เปลี่ยนแปลงในโมดูลนี้) | ได้ | **ไม่ได้เด็ดขาด** (AC-INS-24-3 — รวมร้านที่ตนได้รับมอบหมาย) | ได้ |
 | บันทึกผลตรวจ / แนบหลักฐาน / ปิดรอบ | ไม่ได้ | ไม่ได้ | ไม่ได้ | ได้ (เฉพาะรอบที่ `inspectorUserId = ตัวเอง`) | ไม่ได้ (มอบหมายอย่างเดียว) |
-| ส่งเรื่องเข้าฐานมิจฉาชีพจากรอบตรวจ | ไม่ได้ | ไม่ได้ | ไม่ได้ | ได้ (เฉพาะรอบของตน) | ได้ |
+| **บันทึกข้อสงสัยฉ้อโกง** (`suspectedFraudNote`) | ไม่ได้ | ไม่ได้ | ไม่ได้ | ได้ (เฉพาะรอบของตน) | ได้ |
+| **เขียนชื่อเข้าฐานมิจฉาชีพ `/check`** | ไม่ได้ | ไม่ได้ | ไม่ได้ | **ไม่ได้** (บันทึกได้ แต่ตัดสินไม่ได้ — TFR-016) | ได้ |
 | เห็นรายชื่อ/ข้อมูลร้านที่ตนไม่ได้รับมอบหมาย | ไม่ได้ | ไม่ได้ | ไม่ได้ | **ไม่ได้** (AC-INS-24-2) | ได้ |
 | มอบหมายผู้ตรวจให้รอบตรวจ | ไม่ได้ | ไม่ได้ | ไม่ได้ | ไม่ได้ | ได้ |
 | ตั้ง/แก้โควตารับสมัครรายเดือน | ไม่ได้ | ไม่ได้ | ไม่ได้ | ไม่ได้ | ได้ |
@@ -975,6 +988,7 @@ erDiagram
 | หลักฐาน `visibility = PUBLIC` (ภาพนิ่งจากวิดีโอคอล · อัลบั้มที่ Deep ถ่ายเอง · พิกัด) | ได้ | PRD §3.5 · AC-INS-15-1/15-2 |
 | หลักฐาน `visibility = PRIVATE` (บัตรประชาชน · เซลฟี่ · โฉนด · สัญญาเช่า · เลขบัญชี · สเตทเมนต์) รวมทั้ง `fileId` และ URL | **ไม่ได้** | AC-INS-17-1 — ผู้เยี่ยมชมเห็นได้แค่ว่าข้อที่เกี่ยวข้องผ่านเมื่อวันที่ใด |
 | `note` ที่ผู้ตรวจเขียน | **ไม่ได้** | เป็นบันทึกภายใน อาจมีรายละเอียดที่ยังไม่ยืนยัน |
+| `suspectedFraudNote` | **ไม่ได้เด็ดขาด** | เป็นข้อสงสัยที่ยังไม่ถูกแอดมินตัดสิน — การเปิดเผยคือการกล่าวหา (TFR-016) |
 | `InspectionPlan.step` และวันที่ข้อมูลล่าสุด | ได้ | จำเป็นต่อการอ่านป้ายและแถบเทา (AC-INS-19-2) |
 | `termsAcceptedAt` · `currentPeriodStart` · `nextRenewalAt` · `lastRenewalAt` · `canceledAt` · `graceUntil` · `lapsedReason` · ทั้งตาราง `InspectionTermsAcceptance` | **ไม่ได้** | เป็นข้อมูลสัญญา/รอบบิล/สถานะการชำระ ไม่ใช่ข้อเท็จจริงเกี่ยวกับร้าน — โดยเฉพาะ `lapsedReason` ที่ **หน้าสาธารณะต้องพูดเหมือนกันทั้งสองกรณี** ตาม BRD |
 | `dueAt` และรอบที่ยังไม่ถูกมอบหมาย | **ไม่ได้** | เป็นคิวงานภายในของ Deep — คลาสเดียวกับ "รอผู้ตรวจเข้าตรวจ" (AC-INS-17-2) |
@@ -1011,7 +1025,7 @@ erDiagram
 
 ### 7.3 สมมติฐานทางเทคนิค (Assumptions)
 
-- **A-T1:** ร้าน LODGING ที่สมัครมีแถว `Room` อย่างน้อย 1 หลัง — ถ้าไม่มี ข้อตรวจ scope `PROPERTY` ทั้ง 11 ข้อจะเป็น "ยังไม่มีข้อมูล" ตลอดไปโดยไม่มีอะไรผิดพลาด (พฤติกรรมที่ถูก แต่หน้าจอฝั่งร้านควรบอกว่าต้องสร้างห้องก่อน)
+- **A-T1:** ร้าน LODGING ที่สมัครมีแถว `Room` อย่างน้อย 1 หลัง — ถ้าไม่มี ข้อตรวจ scope `ROOM` ทั้ง 11 ข้อจะเป็น "ยังไม่มีข้อมูล" ตลอดไปโดยไม่มีอะไรผิดพลาด (พฤติกรรมที่ถูก แต่หน้าจอฝั่งร้านควรบอกว่าต้องสร้างห้องก่อน)
 - **A-T2:** จำนวนที่พักต่อร้านอยู่ในหลักหน่วยถึงหลักสิบ — ถ้าเกินหลักร้อย ต้นทุน cron ของข้อตรวจอัตโนมัติที่ผูกรายหลังต้องออกแบบใหม่
 - **A-T3:** `InspectionEvidence` ที่ผู้ตรวจอัปโหลดมีขนาดอยู่ในเพดานของ bucket ที่ตั้งไว้แล้ว — ไม่ต้องตั้ง bucket ใหม่
 - **A-T4:** ราคาค่าตรวจต่อขั้นถูกอ่านจากค่าคงที่ตัวเดียวใน `src/lib/inspection/pricing.ts` — **ยังไม่มีมติราคา** ห้ามกระจายตัวเลขไปหลายไฟล์ก่อนเคาะ (PRD A-4)
@@ -1066,7 +1080,7 @@ erDiagram
 | FR-INS-020 (ไม่แตะ Trust Score) | TFR-017 | เทสสแกนซอร์ส | Draft |
 | FR-INS-021 (สัญญาณอันตรายฟรี) | TFR-016 | `/check` เดิม (ทิศพึ่งพาทางเดียว) | Draft |
 | FR-INS-022 (ไม่ยึดของฟรีเดิม) | TFR-015 | public view snapshot test | Draft |
-| FR-INS-023 (เส้นทางฉ้อโกงแยก) | TFR-016 | `fraud-report` endpoint | Draft |
+| FR-INS-023 (เส้นทางฉ้อโกงแยก) | TFR-016 | `suspectedFraudNote` (ผู้ตรวจบันทึก) + `/api/admin/inspection/fraud` (แอดมินตัดสิน) | Draft |
 | FR-INS-024 (บทบาทผู้ตรวจแยก) | TFR-012, §6.1 | `isInspector` + WHERE-bound query | Draft |
 | FR-INS-025 (ชื่อผู้ตรวจคู่ผลตรวจ) | TFR-011 | `inspectorDisplayName` snapshot | Draft |
 | FR-INS-026 (ยกเลิก) | TFR-004, TFR-018 | `canceledAt` (สถานะยัง `ACTIVE` จนสิ้นรอบ) | Draft |

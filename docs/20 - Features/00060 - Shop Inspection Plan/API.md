@@ -35,7 +35,7 @@ API ชุดนี้เป็นสัญญาเชื่อมต่อข�
 
 - **เอกสารออกแบบต้นทาง:** [[SDS]] ของโมดูลนี้ — ทุก endpoint ต้อง trace กลับ component/decision ใน SDS ได้ (ตาราง §7)
 - **Provider:** `apps/web` — Next.js 16 App Router, Route Handlers ใต้ `src/app/api/**` (TypeScript strict) + service layer ที่ `src/services/inspection*.service.ts`
-- **Store:** PostgreSQL 16 ผ่าน Prisma (โมเดล `InspectionPlan` · `InspectionRound` · `InspectionResult` · `InspectionEvidence` · `InspectionIntakeQuota` · `InspectionTermsAcceptance` · คอลัมน์ `User.isInspector`) — ดู [[DATABASE]]
+- **Store:** PostgreSQL 16 ผ่าน Prisma (โมเดล `InspectionPlan` · `InspectionRound` · `InspectionResult` · `InspectionEvidence` · `InspectionIntakeQuota` · `InspectionTermsAcceptance` · `InspectorRoleChange` · คอลัมน์ `User.isInspector` · `InspectionRound.suspectedFraudNote`) — ดู [[DATABASE]]
 - **ผู้บริโภคสัญญานี้:** หน้าจอผู้ขายใต้ `(paces)/seller/**` · หน้าจอผู้ตรวจใต้ `(paces)/inspector/**` · หน้าจอแอดมินใต้ `(paces)/admin/**` — ทั้งหมดเป็น client component ในรีโปเดียวกัน ไม่มี 3rd-party consumer
 - **Base URL (relative):** `/api` — เสิร์ฟจากทุก subdomain (main / `seller.*` / `admin.*`) โดย `src/proxy.ts` ไม่ rewrite path ที่ขึ้นต้นด้วย `/api`
 - **Content-Type:** `application/json` ทั้งขาเข้าและขาออก — **ไม่มี endpoint ใดในโมดูลนี้รับ `multipart/form-data`** (ดู §3.4)
@@ -64,7 +64,7 @@ API ชุดนี้เป็นสัญญาเชื่อมต่อข�
 | **OWNER ของร้าน** | เป็นเจ้าของ `Shop` นั้น และ `Shop.vertical === 'LODGING'` | `/api/seller/inspection` ทุกตัว (อ่าน + เขียน) |
 | **ADMIN ของร้าน** (`ShopMember.role='ADMIN'`) | เป็นสมาชิกร้านนั้น | `GET /api/seller/inspection` เท่านั้น — mutation ทุกตัวได้ `403 NOT_OWNER` |
 | **ผู้ตรวจ** (`User.isInspector === true`) | รอบตรวจนั้นมี `inspectorUserId === sessionUserId()` | `/api/inspector/**` เฉพาะรอบที่ตนถือ |
-| **แอดมินระบบ** (`User.isAdmin === true`) | — | `/api/admin/inspection/**` |
+| **แอดมินระบบ** (`User.isAdmin === true`) | — | `/api/admin/inspection/**` + `PATCH /api/admin/users/[id]/inspector` |
 | **สาธารณะ** | ไม่ล็อกอิน | ไม่มี endpoint ใดเลย (ดู §3.3) |
 
 **สามข้อที่แยกขาดจากกัน ห้ามยุบรวม:**
@@ -96,8 +96,9 @@ API ชุดนี้เป็นสัญญาเชื่อมต่อข�
 | 4.13 | `POST` | `/api/admin/inspection/fraud` | แอดมินระบบ | เส้นทางแยกเมื่อพบหลักฐานฉ้อโกง |
 | 4.14 | `GET` | `/api/admin/inspection/rounds` | แอดมินระบบ | คิวรอบตรวจทั้งระบบ เรียง/กรองด้วย `dueAt` + ตัวชี้วัดงานค้าง |
 | 4.15 | `POST` | `/api/admin/inspection/rounds/[id]/assign` | แอดมินระบบ | มอบหมายผู้ตรวจให้รอบที่ cron สร้างไว้ |
+| 4.16 | `PATCH` | `/api/admin/users/[id]/inspector` | แอดมินระบบ | ตั้ง/ถอนบทบาทผู้ตรวจ + audit |
 
-**รวม 15 endpoint** — ไม่มี `DELETE` สักตัวในโมดูลนี้โดยตั้งใจ: ประวัติรอบตรวจต้องคงอยู่ถาวรแม้ร้านลดขั้นหรือยกเลิกแผน (FR-INS-027) การมีปุ่มลบคือการเปิดทางให้ลบสิ่งที่กฎห้ามลบ
+**รวม 16 endpoint** — ไม่มี `DELETE` สักตัวในโมดูลนี้โดยตั้งใจ: ประวัติรอบตรวจต้องคงอยู่ถาวรแม้ร้านลดขั้นหรือยกเลิกแผน (FR-INS-027) การมีปุ่มลบคือการเปิดทางให้ลบสิ่งที่กฎห้ามลบ
 
 **หมายเหตุการแยก 4.12 ออกจาก 4.15:** contract รอบ 3 ย้ายการ *สร้าง* รอบไปให้ cron ⇒ งานประจำวันของแอดมินคือ **มอบหมายผู้ตรวจให้รอบที่มีอยู่แล้ว** (4.15) ไม่ใช่สร้างรอบเอง แต่การสร้างรอบนอกกำหนดยังต้องมีที่อยู่ (ร้านแก้ไขแล้วขอตรวจใหม่ตาม FR-INS-013 · ที่พักหลังใหม่ที่เพิ่งเพิ่มเข้าร้าน · รอบชดเชยที่ cron พลาด) ⇒ คงไว้ที่ 4.12 แต่ **ไม่ใช่เส้นทางหลักอีกต่อไป** — รวมสองอย่างนี้เป็น endpoint เดียวที่รับ payload สองรูปจะทำให้ "มอบหมาย" กับ "สร้าง" ใช้ด่านชุดเดียวกันทั้งที่ต้องการคนละชุด (4.15 ไม่ต้องตรวจ scope ของ `checkKeys` เพราะรอบมีอยู่แล้ว · 4.12 ต้องตรวจครบ)
 
@@ -140,7 +141,7 @@ SSOT อยู่ในโค้ดที่ `src/lib/inspection/checks.ts` — 
 | `lease_right_document` | 2 | `ROOM` | `DOCUMENT` | 12 เดือน | ใช่ |
 | `hotel_license` | 2 | `ROOM` | `DOCUMENT` | 12 เดือน | ใช่ |
 | `video_tour` | 3 | `ROOM` | `VIDEO_CALL` | 6 เดือน | ไม่ |
-| `operating_evidence` | 3 | `ROOM` | `VIDEO_CALL` | 90 วัน | ใช่ |
+| `operating_evidence` | 3 | `ROOM` | `DOCUMENT` | 90 วัน | ใช่ |
 | `location_exists` | 4 | `ROOM` | `ONSITE` | 12 เดือน | ไม่ |
 | `photos_match` | 4 | `ROOM` | `ONSITE` | 12 เดือน | ไม่ |
 | `room_count` | 4 | `ROOM` | `ONSITE` | 12 เดือน | ไม่ |
@@ -149,6 +150,16 @@ SSOT อยู่ในโค้ดที่ `src/lib/inspection/checks.ts` — 
 | `deep_photo_album` | 4 | `ROOM` | `ONSITE` | 12 เดือน | ไม่ |
 
 รวม `SHOP` 7 ข้อ · `ROOM` 11 ข้อ
+
+**`operating_evidence` เป็น `DOCUMENT` ไม่ใช่ `VIDEO_CALL` — และนี่ไม่ใช่แค่ป้ายชื่อ**
+
+คอลัมน์ `method` เป็นส่วนหนึ่งของคีย์ที่ cron ใช้จัดกลุ่มรอบ (`(shopId, roomId, method)` — §3.2 ช) ⇒ ถ้าติดป้ายเป็น `VIDEO_CALL` มันจะถูกจับกลุ่มกับ `video_tour` แล้ว **ลากให้ทั้งกลุ่มต้องโทรวิดีโอทุก 90 วันตามอายุที่สั้นกว่า** ทั้งที่ `video_tour` เองต้องการแค่ 180 วัน = งานผู้ตรวจเพิ่มเท่าตัวโดยไม่ได้ข้อเท็จจริงอะไรเพิ่มเลย
+
+โดยเนื้องานมันก็เป็น `DOCUMENT` อยู่แล้ว — หลักฐานการเปิดให้บริการจริงคือใบจอง/รีวิวจากแพลตฟอร์มอื่นที่ร้านส่งเข้ามา (ตาราง "ร้านส่งเอกสารเองได้" = ใช่) เป็นการ**ตรวจเอกสาร** ไม่ใช่การโทรดูสถานที่
+
+ผลที่ตามมาซึ่งถูกต้องแล้ว: **ร้านขั้นที่ 3 จะมีรอบตรวจ 2 รอบต่อที่พักหนึ่งหลัง** — `VIDEO_CALL` ทุก 180 วัน (`video_tour`) และ `DOCUMENT` ทุก 90 วัน (`operating_evidence`) แยกกันตามจังหวะของตัวเอง
+
+**ป้าย scope ใช้ `ROOM` ไม่ใช่ `PROPERTY`** — ผูกกับชื่อ entity จริงในสคีมา (`Room` / `roomId`) การมีชื่อที่สองสำหรับสิ่งเดียวกันคือรูปแบบที่ Hard Rule 16 ห้าม เพราะวันหนึ่งจะมีคนเขียนโค้ดเทียบกับชื่อที่ไม่ตรงกับคอลัมน์แล้วไม่มี `tsc` ตัวไหนเห็น · **ในเอกสารเชิงธุรกิจยังเรียก "ที่พักรายหลัง" ได้ตามปกติ** — ข้อห้ามนี้ครอบเฉพาะชื่อค่าคงที่ในโค้ดและใน payload
 
 **ด่านที่ทุก endpoint ที่รับ `checkKey` ต้องผ่านตามลำดับนี้ ห้ามสลับ:**
 
@@ -264,6 +275,8 @@ bucket ที่มีอยู่วันนี้: `files` 600 · `upload` 30
 | `ONSITE` | 30 วัน |
 
 `ONSITE` ได้ 30 วันเพราะต้องหาผู้ตรวจในพื้นที่ นัดวัน และเดินทาง — งานที่มีข้อจำกัดทางกายภาพต้องการเวลาตั้งต้นมากกว่างานที่ทำจากโต๊ะ (`AUTO` ไม่มี lead time เพราะ cron รายวันรันเองอยู่แล้ว ไม่ต้องมีใครมอบหมาย)
+
+**`method` เป็นส่วนหนึ่งของคีย์จัดกลุ่ม ⇒ การติดป้าย `method` ผิดให้ข้อตรวจข้อหนึ่ง ทำให้ข้ออื่นในกลุ่มถูกลากไปตรวจถี่ตามอายุที่สั้นที่สุดในกลุ่ม** (ดูเคส `operating_evidence` ใน §3.2 ข) — `method` จึงเป็นตัวเลือกที่มีต้นทุนจริง ไม่ใช่ป้ายชื่อ
 
 **จัดกลุ่มเป็นรอบตาม `(shopId, roomId, method)` — หนึ่งรอบต่อหนึ่งกลุ่ม ไม่ใช่หนึ่งรอบต่อหนึ่งข้อตรวจ** ข้อตรวจของขั้นที่ 4 มี 6 ข้อที่ผู้ตรวจเก็บได้ในการเดินทางครั้งเดียว ⇒ แตกเป็น 6 รอบจะได้คิวที่บอกว่าต้องไปที่เดิม 6 ครั้ง ซึ่งไม่ตรงกับงานจริงและทำให้ตัวชี้วัดงานค้างอ่านผิดเป็นเท่าตัว · การจัดกลุ่มนี้เข้ากันพอดีกับกฎ "หนึ่งรอบต่อหนึ่ง scope" ของ 4.12 เพราะ `roomId` เป็นส่วนหนึ่งของคีย์กลุ่มอยู่แล้ว
 
@@ -407,6 +420,17 @@ sequenceDiagram
   ],
   "timeline": [
     {
+      "roundId": "8c40...",
+      "step": 3,
+      "method": "DOCUMENT",
+      "roomId": "0f2b6f5e-1c2a-4a77-9d1e-2b0a8c4d5e6f",
+      "roomName": "บ้านริมเขา หลัง A",
+      "completedAt": "2026-08-02T04:10:00.000Z",
+      "inspectorDisplayName": "สมชาย ก.",
+      "changedResults": [],
+      "confirmedCheckKeys": ["operating_evidence"]
+    },
+    {
       "roundId": "7b31...",
       "step": 3,
       "method": "VIDEO_CALL",
@@ -415,7 +439,7 @@ sequenceDiagram
       "completedAt": "2026-02-11T08:30:00.000Z",
       "inspectorDisplayName": "สมชาย ก.",
       "changedResults": [{ "checkKey": "video_tour", "outcome": "PASS", "outcomeSince": "2026-02-11T08:00:00.000Z" }],
-      "confirmedCheckKeys": ["operating_evidence"]
+      "confirmedCheckKeys": []
     }
   ],
   "pendingRounds": [
@@ -428,6 +452,8 @@ sequenceDiagram
 **อ่านตัวอย่างข้างบนที่ `scam_db`:** `outcomeSince` = 14 พ.ค. · `lastCheckedAt` = 28 ส.ค. — แปลว่า *ข้อนี้เป็น "ผ่าน" มาตั้งแต่กลางเดือนพฤษภาคม และตรวจยืนยันครั้งล่าสุดเมื่อวาน* หน้าจอต้องใช้ `lastCheckedAt` กับป้าย "ตรวจล่าสุด" **ถ้าต่อสายสลับกันจะขึ้นว่า "ตรวจล่าสุด 14 พ.ค." ซึ่งบอกผู้ซื้อว่าร้านนี้ถูกทิ้งไม่ตรวจมา 3 เดือนครึ่ง ทั้งที่ระบบตรวจให้ทุกวัน** — ตัวอย่างในเอกสารนี้จึงจงใจให้สองค่าต่างกัน ห้ามแก้เป็นค่าเท่ากันเวลาก็อปไปทำ fixture เพราะ fixture ที่ค่าเท่ากันจะผ่านเทสทั้งที่ต่อสายสลับ
 
 `video_tour` เป็นเคสตรงข้าม (สองค่าเท่ากัน = ตรวจครั้งแรกแล้วไม่เคยยืนยันซ้ำอีกเลยจนหมดอายุ ⇒ `RECHECK_DUE`)
+
+**ไทม์ไลน์ในตัวอย่างมี 2 รายการเพราะร้านขั้นที่ 3 มีรอบตรวจ 2 สายที่เดินคนละจังหวะ** (§3.2 ข) — รอบ `DOCUMENT` เมื่อ 2 ส.ค. เป็นรอบที่ `changedResults` ว่างและ `confirmedCheckKeys` มีค่า คือรูปร่างของ **"ผู้ตรวจมาแล้วยืนยันว่าทุกอย่างเหมือนเดิม"** ซึ่งเป็นผลลัพธ์ปกติและดี ไม่ใช่บรรทัดที่ผิดพลาด
 
 ---
 
@@ -684,7 +710,8 @@ prisma.inspectionRound.findMany({ where: { inspectorUserId: <sessionUserId>, com
 // Response 200
 {
   "rounds": [
-    { "id": "9a7c...", "step": 3, "method": "VIDEO_CALL", "shopName": "บ้านพักริมเขา", "roomName": "หลัง A", "assignedAt": "2026-08-28T09:00:00.000Z", "checkKeys": ["video_tour", "operating_evidence"] }
+    { "id": "9a7c...", "step": 3, "method": "VIDEO_CALL", "shopName": "บ้านพักริมเขา", "roomName": "หลัง A", "assignedAt": "2026-08-28T09:00:00.000Z", "checkKeys": ["video_tour"] },
+    { "id": "5d18...", "step": 3, "method": "DOCUMENT", "shopName": "บ้านพักริมเขา", "roomName": "หลัง A", "assignedAt": "2026-08-28T09:00:00.000Z", "checkKeys": ["operating_evidence"] }
   ]
 }
 ```
@@ -718,6 +745,7 @@ prisma.inspectionRound.findFirst({ where: { id, inspectorUserId: <sessionUserId>
 | `room` | `object \| null` | `{ id, name, listingImages[], declaredRoomCount, declaredFacilities[], lat, lng }` — ข้อมูล "ที่ประกาศไว้" ที่ผู้ตรวจต้องใช้เทียบกับของจริง |
 | `checks[]` | `array` | `{ checkKey, label, scope, currentDisplayStatus, evidence[] }` |
 | `checks[].evidence[]` | `array` | `{ evidenceId, kind, visibility, fileId, uploadedBy }` — หลักฐานที่ร้านส่งมา |
+| `suspectedFraudNote` | `string \| null` | บันทึกความสงสัยเรื่องฉ้อโกงของรอบนี้ (ผู้ตรวจเจ้าของรอบอ่าน/แก้ของตัวเองได้) |
 
 `room.listingImages` มีอยู่เพื่อ `photos_match` โดยเฉพาะ — ผู้ตรวจต้องเห็นภาพประกาศปัจจุบันขณะยืนอยู่หน้างาน ไม่ใช่ต้องสลับแอปไปเปิดโปรไฟล์เอง
 
@@ -744,8 +772,27 @@ prisma.inspectionRound.findFirst({ where: { id, inspectorUserId: <sessionUserId>
 | Body | `results[].evidence[].kind` | `'PHOTO' \| 'VIDEO_STILL' \| 'DOCUMENT' \| 'GEO'` | yes | |
 | Body | `results[].evidence[].fileId` | `string` | ตาม kind | บังคับทุก kind ยกเว้น `GEO` |
 | Body | `results[].evidence[].lat` / `.lng` | `number` | ตาม kind | บังคับเมื่อ `kind === 'GEO'` เท่านั้น |
+| Body | `suspectedFraudNote` | `string` (≤ 2000) | no | **ระดับรอบ ไม่ใช่ระดับข้อ** — ผู้ตรวจบันทึกสิ่งที่เห็นซึ่งเข้าข่ายฉ้อโกง |
 
 **`roomId` ไม่รับจาก body** — อ่านจาก `InspectionRound.roomId` ของรอบนั้น รับจาก client เมื่อไรก็แปลว่าผู้ตรวจที่ได้รับมอบหมายให้ตรวจหลัง A เขียนผลลง **หลัง B ที่ตัวเองไม่เคยไปเห็น** ได้ ซึ่งเป็นรูเดียวกับที่ AC-INS-29-5 ห้ามไว้ แค่มาทางฝั่งเขียนแทนที่จะมาทางฝั่งอ่าน
+
+**`suspectedFraudNote` — ผู้ตรวจบันทึกได้ แต่ตัดสินไม่ได้**
+
+เก็บที่ `InspectionRound.suspectedFraudNote` (ระดับรอบ ไม่ใช่ระดับข้อตรวจ — ความสงสัยเรื่องฉ้อโกงเป็นเรื่องของร้าน/สถานที่ ไม่ใช่ของข้อตรวจข้อใดข้อหนึ่ง)
+
+**การเขียนฟิลด์นี้ไม่แตะฐาน `/check` และไม่ส่งสัญญาณอันตรายใด ๆ ออกไป** — มันคือบันทึกภายในที่รอให้แอดมินอ่านแล้วตัดสินที่ 4.13
+
+เหตุผลที่แยกอำนาจแบบนี้ ไม่ใช่เพราะกลัวผู้ตรวจ: **การใส่ชื่อคนเข้าฐานมิจฉาชีพเป็นการกระทำที่ย้อนกลับยากและกระทบคนจริง** ไม่ควรเป็นการตัดสินหน้างานของบุคคลภายนอกที่จ้างรายครั้ง (PRD §3.8 — ผู้ตรวจท้องถิ่นไม่ใช่พนักงาน Deep) · แต่ถ้าไม่มีช่องให้บันทึกเลย **สิ่งที่ผู้ตรวจเห็นจะหายไปพร้อมกับตัวเขาเมื่อจบงาน** ⇒ ต้องมีทั้งสองอย่าง: ผู้ตรวจ **บันทึกได้** แอดมิน **ตัดสิน**
+
+| กรณี | พฤติกรรม |
+|---|---|
+| ไม่ส่งคีย์นี้มา | **ไม่แตะค่าเดิม** — ห้ามเขียน `null` ทับ |
+| ส่งข้อความมา | ทับค่าเดิมของรอบนั้น |
+| ส่งสตริงว่าง | `400 VALIDATION_ERROR` — การล้างบันทึกต้องไม่ใช่ผลข้างเคียงของการกดบันทึกผลข้ออื่น |
+
+กติกา "ไม่ส่ง = ไม่แตะ" สำคัญเพราะ 4.8 ถูกยิงได้หลายครั้งต่อรอบ ⇒ ถ้าคำขอที่สองซึ่งไม่ได้ตั้งใจแตะเรื่องนี้เขียน `null` ทับ บันทึกที่ผู้ตรวจพิมพ์ไว้ตอนแรกจะหายโดยไม่มีใครรู้ (คลาสเดียวกับคอลัมน์ที่มีผู้เขียนสองราย — ค่าที่หายจาก payload แปลว่า "ไม่รู้" ไม่ใช่ "ถูกลบ")
+
+**ฟิลด์นี้ห้ามปรากฏใน `GET /api/seller/inspection` หรือบนโปรไฟล์สาธารณะไม่ว่ากรณีใด** — ร้านต้องไม่เห็นข้อความ "ผู้ตรวจสงสัยว่าคุณฉ้อโกง" ก่อนที่ทีมจะตรวจสอบเสร็จ ทั้งเพราะมันยังไม่ใช่ข้อสรุป และเพราะการเตือนล่วงหน้าทำให้หลักฐานถูกทำลายได้ · ผู้อ่านมีสองกลุ่มเท่านั้น: ผู้ตรวจเจ้าของรอบ (4.7) และแอดมินระบบ (4.14)
 
 **`visibility` server ตัดสิน ไม่รับจาก client — fail-closed:**
 
@@ -810,19 +857,19 @@ route ทำได้แค่ผ่านด่านสิทธิ์/สโ�
 `401` · `400 VALIDATION_ERROR` · `400 UNKNOWN_CHECK_KEY` · `400 CHECK_NOT_IN_ROUND` · `400 EVIDENCE_VISIBILITY_FORBIDDEN` · `400 FILE_NOT_COMMITTED` · `403 NOT_INSPECTOR` · `403 ROUND_NOT_ASSIGNED` · `409 ROUND_ALREADY_COMPLETED` · `415 UNSUPPORTED_MEDIA_TYPE` · `500`
 
 ```json
-// Request
+// Request — รอบ ONSITE ของขั้นที่ 4 (ตัวอย่างนี้ใช้รอบเดียว เพราะทุกคีย์ต้องอยู่ใน round.checkKeys เดียวกัน)
 {
   "results": [
     {
-      "checkKey": "video_tour",
+      "checkKey": "facilities",
       "outcome": "PASS",
-      "note": "สุ่มขอมุมห้องนอนชั้น 2 และสระ ผู้ขายหมุนกล้องให้ครบระหว่างคอล",
+      "note": "สระ ครัว ที่จอดรถ ครบตามประกาศ",
       "evidence": [
-        { "kind": "VIDEO_STILL", "fileId": "s1a2...jpg" },
-        { "kind": "VIDEO_STILL", "fileId": "s3b4...jpg" }
+        { "kind": "PHOTO", "fileId": "s1a2...jpg" },
+        { "kind": "PHOTO", "fileId": "s3b4...jpg" }
       ]
     },
-    { "checkKey": "operating_evidence", "outcome": "FAIL", "note": "หลักฐานการเข้าพักย้อนหลัง 90 วันไม่ครบ" }
+    { "checkKey": "room_count", "outcome": "FAIL", "note": "ประกาศไว้ 4 ห้องนอน นับหน้างานได้ 3" }
   ]
 }
 
@@ -831,17 +878,17 @@ route ทำได้แค่ผ่านด่านสิทธิ์/สโ�
   "saved": 2,
   "results": [
     {
-      "checkKey": "video_tour",
+      "checkKey": "facilities",
       "outcome": "PASS",
       "displayStatus": "PASS",
       "changed": false,
       "lastCheckedAt": "2026-08-29T08:02:00.000Z",
-      "outcomeSince": "2026-02-11T08:00:00.000Z",
-      "expiresAt": "2027-02-28T08:02:00.000Z",
+      "outcomeSince": "2025-09-03T06:20:00.000Z",
+      "expiresAt": "2027-08-29T08:02:00.000Z",
       "evidenceIds": ["ev1...", "ev2..."]
     },
     {
-      "checkKey": "operating_evidence",
+      "checkKey": "room_count",
       "outcome": "FAIL",
       "displayStatus": "FAIL",
       "changed": true,
@@ -854,7 +901,9 @@ route ทำได้แค่ผ่านด่านสิทธิ์/สโ�
 }
 ```
 
-ตัวอย่างนี้จงใจให้เห็นทั้งสองพฤติกรรมในคำขอเดียว: `video_tour` ยัง `PASS` เหมือนรอบก่อน ⇒ `changed: false` และ `outcomeSince` ยังเป็น 11 ก.พ. (ไม่มีแถวใหม่ ไทม์ไลน์ไม่ยาวขึ้น) ส่วน `operating_evidence` พลิกจาก `PASS` เป็น `FAIL` ⇒ `changed: true` และ `outcomeSince` = วันนี้ (เกิดแถวใหม่ ไทม์ไลน์ได้บรรทัดที่มีความหมายเพิ่มมาหนึ่งบรรทัด)
+ตัวอย่างนี้จงใจให้เห็นทั้งสองพฤติกรรมในคำขอเดียว: `facilities` ยัง `PASS` เหมือนรอบก่อน ⇒ `changed: false` และ `outcomeSince` ยังเป็น ก.ย. ปีที่แล้ว (ไม่มีแถวใหม่ ไทม์ไลน์ไม่ยาวขึ้น) ส่วน `room_count` พลิกจาก `PASS` เป็น `FAIL` ⇒ `changed: true` และ `outcomeSince` = วันนี้ (เกิดแถวใหม่ ไทม์ไลน์ได้บรรทัดที่มีความหมายเพิ่มมาหนึ่งบรรทัด)
+
+**ทั้งสองคีย์อยู่ในรอบ `ONSITE` รอบเดียวกันได้** เพราะเป็นข้อของขั้นที่ 4 ที่ผู้ตรวจเก็บได้ในการเดินทางครั้งเดียว — **ห้ามใช้ตัวอย่างที่ผสม `video_tour` กับ `operating_evidence` ในคำขอเดียว** เพราะสองข้อนั้นอยู่คนละ `method` (`VIDEO_CALL` / `DOCUMENT`) จึงอยู่คนละรอบเสมอ และจะได้ `400 CHECK_NOT_IN_ROUND`
 
 `expiresAt` ของข้อที่ `FAIL` เป็น `null` — อายุผลตรวจมีความหมายเฉพาะกับผลที่ `PASS` (ของที่ยืนยันแล้วย่อมเก่าลงได้) ส่วน `FAIL` ไม่หมดอายุเป็นอย่างอื่นด้วยตัวเอง ต้องมีรอบตรวจใหม่มาพลิกเท่านั้น
 
@@ -882,8 +931,11 @@ route ทำได้แค่ผ่านด่านสิทธิ์/สโ�
 |------|-------|------|--------|----------|
 | Path Param | `id` | `string (uuid)` | yes | |
 | Body | `summary` | `string` (≤ 2000) | no | บันทึกสรุปภายใน ไม่แสดงสาธารณะ |
+| Body | `suspectedFraudNote` | `string` (≤ 2000) | no | กติกาเดียวกับ 4.8 ทุกข้อ (ไม่ส่ง = ไม่แตะ · สตริงว่าง = 400) — มีที่นี่ด้วยเพราะผู้ตรวจมักนึกออกตอนสรุปงาน ไม่ใช่ตอนกรอกผลรายข้อ |
 
-**Response — Success (200):** `{ "roundId", "completedAt", "checksConfirmed", "checksChanged" }`
+**Response — Success (200):** `{ "roundId", "completedAt", "checksConfirmed", "checksChanged", "hasFraudSignal" }`
+
+`hasFraudSignal` = `suspectedFraudNote` ของรอบนี้ไม่ว่าง — คืนกลับมาให้ผู้ตรวจเห็นว่าบันทึกของเขาถูกเก็บแล้วจริง ไม่ใช่หายไปเงียบ ๆ
 
 แยกสองตัวนับด้วยเหตุผลเดียวกับ `changed` ใน 4.8 — `checksChanged: 0` เป็นผลลัพธ์ปกติและดีของรอบที่ทุกอย่างยังเหมือนเดิม ไม่ใช่สัญญาณว่าอะไรพลาด ตัวนับรวมตัวเดียวจะทำให้แยกสองความหมายนี้ไม่ออก
 
@@ -999,6 +1051,10 @@ endpoint นี้เป็น upsert ของแถว `InspectionIntakeQuota`
 
 **ทำไมต้องเป็น endpoint แยก ไม่ใช่ธงบน 4.8:** `FAIL` แปลว่า "ตรวจแล้วข้อเท็จจริงไม่ตรงตามที่ประกาศ" ซึ่งเป็นเรื่องภายในของแผนการตรวจสอบ และ AC-INS-18 บังคับว่าห้ามขึ้นคำว่า "ไม่ผ่าน" ต่อสาธารณะ ⇒ ถ้าฉ้อโกงถูกบันทึกเป็น `FAIL` ผลคือ **ไม่มีใครนอกทีมเห็นอะไรเลย** ซึ่งตรงข้ามกับกฎ "สัญญาณอันตรายฟรีเสมอสำหรับทุกร้าน" (PRD §4.1) ที่บอกว่าความเสี่ยงต้องถูกพูด ไม่ใช่ถูกเก็บ ⇒ สองสิ่งนี้เดินคนละทางตั้งแต่ต้น ถ้าใช้ทางเดียวกันจะต้องมี `if` สักตัวคอยแยก และ `if` ตัวนั้นคือที่ที่ความผิดพลาดจะไปซ่อน
 
+**สัญญาณเข้ามาจากไหน:** ผู้ตรวจบันทึก `suspectedFraudNote` ไว้ที่รอบของตน (4.8 / 4.9) → แอดมินเห็นที่ 4.14 (`fraudSignalCount` + ตัวกรอง `hasFraudSignal`) → **แอดมินเป็นคนเดียวที่ยิง endpoint นี้** · ผู้ตรวจยิงเองไม่ได้ และไม่มี endpoint ฝั่งผู้ตรวจที่เขียนเข้าฐาน `/check` ได้เลย
+
+ส่ง `roundId` มาด้วยเมื่อเรื่องมาจากบันทึกของผู้ตรวจ เพื่อให้ย้อนได้ว่ารายงานนี้ตั้งต้นจากใครเห็นอะไร
+
 **สิ่งที่ endpoint นี้ทำ (สองอย่าง ต้องเกิดคู่กันเสมอ — AC-INS-23-2):**
 
 1. สร้างรายการเข้าสู่ฐานมิจฉาชีพที่ `/check` (`ScamReport` + `ScamReportIdentifier`) ผ่าน service ของโดเมนนั้น **ไม่ใช่เขียนตารางตรงจากที่นี่** — ตัวระบุ (เบอร์ / ชื่อ / เลขบัตร / บัญชีธนาคาร) ต้องเก็บเป็น HMAC ตามกฎ PDPA ที่โดเมนนั้นบังคับไว้แล้ว การเขียนตรงจะข้ามกฎนั้นไปทั้งชุด
@@ -1040,6 +1096,7 @@ endpoint นี้เป็น upsert ของแถว `InspectionIntakeQuota`
 | Query | `step` | `1..4` | no | |
 | Query | `method` | `'AUTO' \| 'DOCUMENT' \| 'VIDEO_CALL' \| 'ONSITE'` | no | |
 | Query | `shopId` | `string (uuid)` | no | |
+| Query | `hasFraudSignal` | `boolean` | no | `true` = เฉพาะรอบที่ผู้ตรวจบันทึกความสงสัยเรื่องฉ้อโกงไว้ |
 | Query | `limit` / `cursor` | `int` / `string` | no | ค่าเริ่มต้น 50 — คิวโตได้ไม่จำกัด ห้ามคืนทั้งตาราง |
 
 **เรียงตาม `dueAt` เก่า→ใหม่เป็นค่าเริ่มต้น** ไม่ใช่ `createdAt` — คิวงานที่เรียงตามเวลาที่สร้างจะทำให้รอบ `ONSITE` ที่สร้างล่วงหน้า 30 วันลอยขึ้นหัวคิวเหนือรอบ `DOCUMENT` ที่เหลืออีก 2 วัน ทั้งที่อันหลังใกล้พลาดกำหนดกว่า
@@ -1048,7 +1105,8 @@ endpoint นี้เป็น upsert ของแถว `InspectionIntakeQuota`
 
 | ฟิลด์ | ชนิด | คำอธิบาย |
 |-------|------|----------|
-| `rounds[]` | `array` | `{ roundId, shopId, shopName, roomId, roomName, step, method, checkKeys[], dueAt, assignedAt, completedAt, inspectorUserId, inspectorDisplayName, isOverdue }` |
+| `rounds[]` | `array` | `{ roundId, shopId, shopName, roomId, roomName, step, method, checkKeys[], dueAt, assignedAt, completedAt, inspectorUserId, inspectorDisplayName, isOverdue, suspectedFraudNote }` |
+| `fraudSignalCount` | `number` | จำนวนรอบที่มี `suspectedFraudNote` และยังไม่ถูกยกเป็นรายงานที่ 4.13 |
 | `nextCursor` | `string \| null` | |
 | `backlog[]` | `array` | **ตัวชี้วัดงานค้าง แยกตามขั้นและวิธีตรวจ** |
 | `backlog[].step` | `1..4` | |
@@ -1063,6 +1121,8 @@ endpoint นี้เป็น upsert ของแถว `InspectionIntakeQuota`
 - `overdueAssigned` สูง = **มอบหมายแล้วแต่ผู้ตรวจทำไม่ทัน** (กำลังผู้ตรวจไม่พอ หรือผู้ตรวจคนนั้นหายไป) — แก้ด้วยการหาผู้ตรวจเพิ่ม/เปลี่ยนตัว หรือลดโควตารับสมัครที่ 4.11
 
 ตัวเลขรวมตัวเดียวจะทำให้ทีมแก้ผิดทาง (จ้างผู้ตรวจเพิ่มทั้งที่ปัญหาคือไม่มีใครกดปุ่ม หรือกลับกัน) และ **การแยกตามขั้น/วิธีตรวจสำคัญพอกัน** เพราะ `ONSITE` ตันด้วยเหตุผลทางภูมิศาสตร์ที่ `DOCUMENT` ไม่มีวันเจอ
+
+**`fraudSignalCount` ต้องอยู่ระดับบนสุดของ response ไม่ใช่ซ่อนใน `backlog`** — บันทึกความสงสัยเรื่องฉ้อโกงที่ไม่มีใครเปิดอ่านมีค่าเท่ากับไม่เคยถูกเขียน และมันเป็นสิ่งเดียวในคิวนี้ที่ **มีความเร่งด่วนไม่ผูกกับ `dueAt`** ⇒ ถ้าไม่ยกขึ้นมาเป็นตัวเลขของตัวเอง มันจะจมอยู่ในรายการที่เรียงตามกำหนดเสร็จ แล้วรอบที่ผู้ตรวจเขียนว่า "เจ้าของอ้างว่าเป็นเจ้าของบ้านแต่เพื่อนบ้านบอกว่าบ้านร้างมา 2 ปี" จะรอคิวอยู่ล่างสุดเพราะ `dueAt` ยังอีกไกล
 
 **Response — Error:** `401` · `403 FORBIDDEN` · `400 VALIDATION_ERROR` · `500`
 
@@ -1084,10 +1144,12 @@ endpoint นี้เป็น upsert ของแถว `InspectionIntakeQuota`
       "completedAt": null,
       "inspectorUserId": null,
       "inspectorDisplayName": null,
-      "isOverdue": false
+      "isOverdue": false,
+      "suspectedFraudNote": null
     }
   ],
   "nextCursor": null,
+  "fraudSignalCount": 1,
   "backlog": [
     { "step": 4, "method": "ONSITE", "overdueUnassigned": 6, "overdueAssigned": 1, "dueSoon": 4 },
     { "step": 2, "method": "DOCUMENT", "overdueUnassigned": 0, "overdueAssigned": 9, "dueSoon": 12 }
@@ -1135,6 +1197,59 @@ endpoint นี้เป็น upsert ของแถว `InspectionIntakeQuota`
 
 ---
 
+### 4.16 `PATCH /api/admin/users/[id]/inspector`
+
+ตั้ง/ถอนบทบาทผู้ตรวจให้ผู้ใช้คนหนึ่ง (`User.isInspector`)
+
+**ทำไมต้องมี endpoint ไม่ใช่แก้ที่ฐานตรง ๆ เหมือน `isAdmin`:** แอดมินระบบมีไม่กี่คนและอยู่ถาวร การตั้งค่าปีละครั้งผ่าน DB จึงพอ **แต่ผู้ตรวจท้องถิ่นเป็นบุคคลภายนอกที่จ้างรายครั้งและหมุนเวียน** (PRD §3.3/§3.8) ⇒ ถ้าทีมปฏิบัติการต้องเข้าฐานทุกครั้งที่จ้างคนใหม่ พวกเขาจะทำเองไม่ได้ แล้วสิ่งที่เกิดขึ้นจริงคือ **เอา account ผู้ตรวจเดิมไปใช้ซ้ำกันหลายคน** ซึ่งพัง `inspectorDisplayName` ที่ทั้งฟีเจอร์ออกแบบมาเพื่อให้ชื่อผู้ตรวจปรากฏคู่ผลตรวจบนโปรไฟล์ (FR-INS-025) — ผลตรวจจะระบุชื่อคนที่ไม่ได้ไปตรวจ ซึ่งแย่กว่าไม่ระบุชื่อเลย
+
+**Request**
+
+| ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
+|------|-------|------|--------|----------|
+| Path Param | `id` | `string (uuid)` | yes | `User.id` ของคนที่จะตั้ง/ถอน |
+| Body | `isInspector` | `boolean` | yes | |
+| Body | `reason` | `string` (≤ 500) | yes | เหตุผล เช่น "จ้างตรวจพื้นที่เชียงใหม่ Q3/2569" — **บังคับทั้งตอนตั้งและตอนถอน** |
+
+**`reason` เป็นฟิลด์บังคับ ไม่ใช่ optional** — audit ที่บอกแค่ "ใครตั้งให้ใครเมื่อไร" ตอบไม่ได้ว่า *ทำไม* ซึ่งเป็นคำถามเดียวที่มีค่าเมื่อมีคนย้อนมาดูหลังเกิดเรื่อง และช่องที่ไม่บังคับจะว่างเสมอในทางปฏิบัติ
+
+**ด่านตามลำดับ:** `requireAdmin()` → ผู้ใช้มีอยู่และไม่ถูกลบ (`404 USER_NOT_FOUND`) → **ถ้าเป็นการถอน (`isInspector: false`) ต้องไม่มีรอบที่ยังเปิดค้างอยู่ในมือคนนี้** (`409 INSPECTOR_HAS_OPEN_ROUNDS`)
+
+**ด่านสุดท้ายสำคัญกว่าที่เห็น:** ถ้าถอนบทบาทได้ทั้งที่ยังถือรอบอยู่ รอบเหล่านั้นจะยังมี `inspectorUserId` ชี้ไปที่คนที่เปิด 4.6 ไม่ได้อีกแล้ว ⇒ **งานหายไปจากทุกหน้าจอพร้อมกัน**: ไม่โผล่ในคิวของใคร (เพราะเจ้าของเข้าไม่ได้) และไม่นับเป็น `overdueUnassigned` ที่ 4.14 (เพราะมันมีคนมอบหมายแล้ว) — มันจะไปอยู่ใน `overdueAssigned` ที่รอผู้ตรวจซึ่งไม่มีวันกลับมา และไม่มีอะไรฟ้อง response ต้องคืนรายชื่อรอบที่ค้างมาให้แอดมินไปมอบหมายใหม่ที่ 4.15 ก่อน
+
+**บันทึก audit เป็นแถวใหม่ทุกครั้ง (append-only)** — โมเดล `InspectorRoleChange`: `targetUserId · changedByUserId · isInspector · reason · changedAt` · **ห้าม update แถวเดิม** เพราะคำถามตอนสอบสวนคือ "ตอนที่รอบนั้นถูกมอบหมาย คนนี้มีสิทธิ์อยู่ไหม" ซึ่งต้องอ่านจากประวัติ ไม่ใช่จากสถานะปัจจุบัน (เหตุผลเดียวกับ `InspectionTermsAcceptance` §3.2 ฉ) · เขียนในทรานแซกชันเดียวกับการอัปเดต `User.isInspector`
+
+**Response — Success (200)**
+
+| ฟิลด์ | ชนิด | คำอธิบาย |
+|-------|------|----------|
+| `userId` | `string` | |
+| `isInspector` | `boolean` | ค่าหลังเปลี่ยน |
+| `changedAt` | `string (ISO)` | |
+| `changedByUserId` | `string` | จาก session ไม่รับจาก body |
+| `openRounds` | `number` | รอบที่ยังเปิดในมือคนนี้ (หลังเปลี่ยน) |
+
+**Response — Error:** `401` · `403 FORBIDDEN` · `400 VALIDATION_ERROR` · `404 USER_NOT_FOUND` · `409 INSPECTOR_HAS_OPEN_ROUNDS` · `500`
+
+```json
+// Request
+{ "isInspector": true, "reason": "จ้างตรวจพื้นที่เชียงใหม่ Q3/2569" }
+
+// Response 200
+{ "userId": "7c2d...", "isInspector": true, "changedAt": "2026-08-29T10:02:00.000Z", "changedByUserId": "1a0b...", "openRounds": 0 }
+
+// Response 409 (ตอนถอน)
+{
+  "error": "INSPECTOR_HAS_OPEN_ROUNDS",
+  "message": "ผู้ตรวจคนนี้ยังถือรอบตรวจที่ยังไม่ปิดอยู่ 3 รอบ กรุณามอบหมายผู้ตรวจคนใหม่ให้รอบเหล่านี้ก่อน",
+  "details": { "roundIds": ["c19f...", "d20a...", "e31b..."] }
+}
+```
+
+**endpoint นี้อยู่ใต้ `/api/admin/users/` ไม่ใช่ `/api/admin/inspection/`** เพราะสิ่งที่มันแก้คือคุณสมบัติของ **ผู้ใช้** ไม่ใช่ของแผนการตรวจสอบ — `User.isInspector` มีผลข้ามทุกร้านและไม่ผูกกับแผนใดแผนหนึ่ง การวางไว้ใต้ `inspection/` จะชวนให้คนถัดไปคิดว่ามันเป็นค่าต่อร้าน
+
+---
+
 ## 5. Error Code Table
 
 โครง error response มาตรฐาน — endpoint ทั้งหมดในโมดูลนี้คืนรูปนี้:
@@ -1179,13 +1294,15 @@ endpoint นี้เป็น upsert ของแถว `InspectionIntakeQuota`
 | `INSPECTOR_NOT_FOUND` | 400 | `inspectorUserId` ไม่มีอยู่หรือไม่ใช่ผู้ตรวจ | ไม่พบผู้ตรวจที่ระบุ |
 | `ROUND_NOT_FOUND` | 404 | แอดมินอ้าง `roundId` ที่ไม่มีอยู่ (ฝั่งแอดมินเท่านั้น — ฝั่งผู้ตรวจใช้ `ROUND_NOT_ASSIGNED`) | ไม่พบรอบตรวจที่ระบุ |
 | `ROUND_ALREADY_ASSIGNED` | 409 | มอบหมายทับรอบที่มีผู้ตรวจแล้วโดยไม่ส่ง `reassign: true` | รอบนี้มอบหมายให้ {ชื่อ} ไปแล้ว หากต้องการเปลี่ยนตัวให้ยืนยันอีกครั้ง |
+| `USER_NOT_FOUND` | 404 | `id` ใน 4.16 ไม่มีอยู่หรือถูกลบแล้ว | ไม่พบผู้ใช้ที่ระบุ |
+| `INSPECTOR_HAS_OPEN_ROUNDS` | 409 | ถอนบทบาทผู้ตรวจทั้งที่ยังถือรอบที่ไม่ปิด | ผู้ตรวจคนนี้ยังถือรอบตรวจที่ยังไม่ปิดอยู่ {n} รอบ กรุณามอบหมายผู้ตรวจคนใหม่ก่อน |
 | `EVIDENCE_VISIBILITY_FORBIDDEN` | 400 | ชนิดหลักฐานขัดกับข้อตรวจ (เช่น `DOCUMENT` กับคีย์กลุ่มสาธารณะ) | ชนิดหลักฐานไม่ตรงกับข้อตรวจนี้ |
 | `FILE_NOT_COMMITTED` | 400 | `fileId` ไม่มีอยู่จริงในที่เก็บ | ไฟล์แนบยังอัปโหลดไม่สำเร็จ กรุณาลองแนบใหม่ |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | ส่ง `multipart/form-data` | รูปแบบคำขอไม่ถูกต้อง |
 | `RATE_LIMITED` | 429 | `guardApi` ตัด (คืนโดย proxy ไม่ใช่ route) | คำขอถี่เกินไป กรุณารอสักครู่ |
 | `INTERNAL_ERROR` | 500 | อื่น ๆ | เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง |
 
-**รวม 31 error code**
+**รวม 33 error code**
 
 **หมายเหตุ `403` ที่ใช้แทน `404` โดยตั้งใจ 2 จุด** (`ROUND_NOT_ASSIGNED`, `ROOM_NOT_IN_SHOP`) — การแยก "ไม่มีของชิ้นนี้" ออกจาก "มีแต่ไม่ใช่ของคุณ" คือการยืนยันการมีอยู่ของทรัพยากรให้คนที่ไม่มีสิทธิ์ ซึ่งในโมดูลนี้แปลว่าเดา id ไปเรื่อย ๆ แล้วรู้ว่าร้านไหนอยู่ในแผน/มีที่พักกี่หลัง
 
@@ -1279,12 +1396,13 @@ sequenceDiagram
 | `GET /api/inspector/rounds` | InspectorQueueService · scope ใน WHERE | FR-INS-024 |
 | `GET /api/inspector/rounds/[id]` | InspectorQueueService · ownership guard | FR-INS-024, FR-INS-028 |
 | `POST /api/inspector/rounds/[id]/results` | InspectionResultService · insert-always (ไม่มี unique) · update ได้เฉพาะรอบที่ยังไม่ปิด · visibility allow-list | FR-INS-011, FR-INS-013, FR-INS-015, FR-INS-025, FR-INS-027, FR-INS-029 |
-| `POST /api/inspector/rounds/[id]/complete` | InspectionResultService · completeness guard | FR-INS-016, FR-INS-027 |
+| `POST /api/inspector/rounds/[id]/complete` | InspectionResultService · completeness guard · `suspectedFraudNote` | FR-INS-016, FR-INS-023, FR-INS-027 |
 | `GET /api/admin/inspection/quota` | IntakeQuotaService · `capacity` ไม่มีค่า "ไม่จำกัด" | FR-INS-009 |
 | `PATCH /api/admin/inspection/quota` | IntakeQuotaService · upsert แถวรายเดือน (คู่กับ cron ที่คัดลอก `capacity`) | FR-INS-009 |
 | `POST /api/admin/inspection/rounds` | InspectionAssignmentService · ad-hoc create · one-round-one-scope | FR-INS-013, FR-INS-024, FR-INS-029 |
 | `GET /api/admin/inspection/rounds` | InspectionQueueService · เรียงด้วย `dueAt` · ตัวชี้วัดงานค้างแยกสาเหตุ | FR-INS-009, FR-INS-012 |
 | `POST /api/admin/inspection/rounds/[id]/assign` | InspectionAssignmentService · snapshot `inspectorDisplayName` | FR-INS-024, FR-INS-025 |
+| `PATCH /api/admin/users/[id]/inspector` | InspectorRoleService · `InspectorRoleChange` append-only | FR-INS-024, FR-INS-025 |
 | — (cron) | RoundSchedulerJob · `dueAt` + lead time (§3.2 ช) | FR-INS-012, FR-INS-003, FR-INS-006 |
 | `POST /api/admin/inspection/fraud` | FraudEscalationService → scam-report domain | FR-INS-021, FR-INS-023 |
 | — (ไม่มี endpoint) | RSC read path บน `/u/[username]` และ `/b/[slug]` (§3.3) | FR-INS-014..FR-INS-019 |
@@ -1295,7 +1413,7 @@ sequenceDiagram
 
 ## 8. สรุป (Summary)
 
-เอกสาร API Contract นี้กำหนดสัญญาการเชื่อมต่อของ **แผนการตรวจสอบร้านค้า (M60-ShopInspection)** จำนวน **15 endpoint** แบ่งเป็นฝั่งร้าน 5 · ฝั่งผู้ตรวจ 4 · ฝั่งแอดมินระบบ 6 และ **ไม่มี public endpoint โดยเจตนา** (§3.3) พร้อมตาราง error 31 โค้ดใน §5 ที่ DEV ใช้ implement และ QA ใช้วางแผน negative case
+เอกสาร API Contract นี้กำหนดสัญญาการเชื่อมต่อของ **แผนการตรวจสอบร้านค้า (M60-ShopInspection)** จำนวน **16 endpoint** แบ่งเป็นฝั่งร้าน 5 · ฝั่งผู้ตรวจ 4 · ฝั่งแอดมินระบบ 7 และ **ไม่มี public endpoint โดยเจตนา** (§3.3) พร้อมตาราง error 33 โค้ดใน §5 ที่ DEV ใช้ implement และ QA ใช้วางแผน negative case
 
 กติกาที่ทุก endpoint ต้องเคารพร่วมกันอยู่ที่ §3.2 — Valibot ทุก input · allow-list 18 คีย์ + ตรวจ scope สองทิศ · `displayStatus` derive ฝั่ง server ที่เดียว · bucket rate-limit ใหม่สำหรับผู้ตรวจ · error ทุกตัวต้องมี route-catch จริง
 

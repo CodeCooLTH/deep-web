@@ -9,7 +9,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[Feature-Docs-Ownership]]"]
 
 > **โมดูล:** M60-ShopInspection
 > **ประเภทเอกสาร:** DATABASE Design
-> **เวอร์ชัน:** 1.4 (สุดท้ายจริง) — แก้ตาม feedback ของ Controller 4 รอบหลัง draft 1.0 (ดู §8 ประวัติการแก้)
+> **เวอร์ชัน:** 1.5 (รอบสุดท้ายจริง ๆ) — แก้ตาม feedback ของ Controller 5 รอบหลัง draft 1.0 (ดู §8 ประวัติการแก้)
 > **วันที่จัดทำ:** 2026-08-29
 > **สถานะ:** Draft — รอ user review ก่อน implement
 > **เจ้าของเอกสาร:** SA (`safepay-database`)
@@ -25,7 +25,8 @@ related: ["[[PRD]]", "[[BRD]]", "[[Feature-Docs-Ownership]]"]
 - **เอกสารต้นทาง:** PRD.md + BRD.md ของโมดูล M60-ShopInspection (ยังไม่มี SRS/SDS แยก — โมดูลนี้อยู่ในสถานะ Draft รอ user review ตาม Hard Rule 11 เอกสาร DATABASE ฉบับนี้จึงอ้างอิง FR/AC ของ BRD โดยตรง)
 - **Store:** PostgreSQL 16 (Supabase) ผ่าน Prisma ORM — ตารางเดียวกับระบบหลักทั้งหมด ไม่มี store แยก
 - **Engine/Charset:** InnoDB ไม่เกี่ยวข้อง (Postgres) — encoding UTF8 ตามฐานเดิม
-- **หลักการออกแบบที่ยึดตลอดเอกสารนี้:** โมดูลนี้เป็น **additive ล้วน** — ไม่แก้/ไม่ลบคอลัมน์เดิมของ `Shop`/`Room`/`User`/`SellerWallet` เพิ่มเฉพาะตารางใหม่ **6 ตาราง** + คอลัมน์ใหม่ 1 คอลัมน์บน `User` (ที่มีข้อมูลอยู่แล้ว — ตารางอื่นทั้งหมดเป็นตารางใหม่ล้วนจึงไม่นับเป็น "แก้ตารางเดิม")
+- **หลักการออกแบบที่ยึดตลอดเอกสารนี้:** โมดูลนี้เป็น **additive ล้วน** — ไม่แก้/ไม่ลบคอลัมน์เดิมของ `Shop`/`Room`/`User`/`SellerWallet` เพิ่มเฉพาะตารางใหม่ **7 ตาราง** + คอลัมน์ใหม่ 1 คอลัมน์บน `User` (ที่มีข้อมูลอยู่แล้ว — ตารางอื่นทั้งหมดเป็นตารางใหม่ล้วนจึงไม่นับเป็น "แก้ตารางเดิม")
+- **โมเดลที่ 7 (เพิ่มรอบ 5): `InspectorRoleChange`** (append-only audit log ของการตั้ง/ถอดสิทธิ์ผู้ตรวจ) + `InspectionRound.suspectedFraudNote` (ที่ผู้ตรวจบันทึกข้อสงสัยฉ้อโกงได้ แต่**ห้ามหลุดสู่ฝั่งร้าน/สาธารณะเด็ดขาด**) — ดู §3.2, §3.7
 - **มิเรอร์แบบแผนเดิม:** `InspectionPlan` มิเรอร์โครง `InventoryEntitlement` (feature 00003/00009) แทบทุกฟิลด์โดยตั้งใจ — ทีมคุ้นรูปแบบ `status/activatedAt/currentPeriodStart/nextRenewalAt/lastRenewalAt` อยู่แล้ว และ cron ใช้ query pattern เดียวกันได้ทันที (`@@index([status, nextRenewalAt])`)
 - **🛑 `InspectionResult` = ผสม insert/update ตามว่าผลเปลี่ยนหรือไม่ (แก้ 2 รอบจาก draft 1.0):** ตรวจแล้ว **ผลเหมือนแถวล่าสุด** → `UPDATE` เลื่อน `lastConfirmedAt`/`expiresAt` ในที่ (ไม่สร้างแถวใหม่) · ตรวจแล้ว **ผลต่างจากแถวล่าสุด** (หรือแถวเดิมกำลัง invalidated) → `INSERT` แถวใหม่ — เหตุผล: append-only ล้วนตามที่เคยแก้ไว้ (draft 1.1) ทำให้ข้อตรวจที่ต้องตรวจทุกวัน (ขั้น 1) มี "ผ่าน" ซ้ำ 365 บรรทัด/ปีกลบรอบที่มีความหมายจริง — **ไทม์ไลน์คือตัวสินค้าของฟีเจอร์นี้ (AC-INS-16) ถ้าอ่านไม่ได้ก็ไม่เหลืออะไร** ดูรายละเอียดเต็มใน §3.3
 - **โมเดลใหม่ที่เพิ่มในรอบ 3:** `InspectionTermsAcceptance` (append-only แท้ ๆ — บันทึกทุกครั้งที่ OWNER รับทราบเงื่อนไขก่อนจ่ายเงิน ดู §3.6) + `InspectionPlan.canceledAt`/`graceUntil` (บันทึกช่วงเปลี่ยนผ่านก่อนพ้นสถานะ ดู §3.1)
@@ -46,6 +47,8 @@ erDiagram
     User ||--o{ InspectionRound : "ผู้ตรวจที่รับมอบหมาย (optional, isInspector=true)"
     InspectionRound ||--o{ InspectionEvidence : "หลักฐานของรอบนี้"
     InspectionResult |o--o{ InspectionEvidence : "หลักฐานที่ผูกกับแถวผลตรวจนี้ (optional)"
+    User ||--o{ InspectorRoleChange : "เป้าหมายที่ถูกเปลี่ยนสิทธิ์ (targetUserId)"
+    User ||--o{ InspectorRoleChange : "แอดมินผู้สั่งเปลี่ยน (actorUserId)"
 
     InspectionPlan {
         string id PK
@@ -76,6 +79,7 @@ erDiagram
         datetime assignedAt "เข้าคิวเมื่อไร — มีค่าเสมอแม้ inspectorUserId ยังเป็น NULL"
         datetime dueAt "nullable — ควรตรวจให้เสร็จเมื่อไร (ต่างจาก assignedAt)"
         datetime completedAt "nullable — NULL = คิวรอผู้ตรวจ (AC-INS-17-2)"
+        string suspectedFraudNote "nullable — ผู้ตรวจบันทึกข้อสงสัย ห้ามหลุดสู่ร้าน/สาธารณะเด็ดขาด"
         datetime createdAt
     }
 
@@ -127,6 +131,15 @@ erDiagram
         int usedCount "default 0"
         datetime createdAt
         datetime updatedAt
+    }
+
+    InspectorRoleChange {
+        string id PK
+        string targetUserId FK "ผู้ถูกเปลี่ยนสิทธิ์"
+        string actorUserId FK "แอดมินผู้สั่งเปลี่ยน"
+        boolean isInspector "ค่าใหม่หลังเปลี่ยน"
+        string reason "บังคับ ไม่ nullable"
+        datetime createdAt
     }
 ```
 
@@ -186,6 +199,7 @@ erDiagram
 | `assignedAt` | `timestamptz` | NO | — | — |
 | `dueAt` | `timestamptz` | YES | `NULL` | **(เพิ่มรอบ 4)** IDX (ร่วมกับ completedAt — คิวงานค้าง) |
 | `completedAt` | `timestamptz` | YES | `NULL` | IDX (queue query, ร่วมกับ dueAt) |
+| `suspectedFraudNote` | `text` | YES | `NULL` | **(เพิ่มรอบ 5)** 🛑 ห้ามหลุดสู่ฝั่งร้าน/สาธารณะเด็ดขาด — ดูรายละเอียดด้านล่าง; IDX แบบ partial (ดู §4) |
 | `createdAt` | `timestamptz` | NO | `now()` | — |
 
 **หมายเหตุการออกแบบ:**
@@ -204,6 +218,27 @@ erDiagram
 - **Idempotent:** เงื่อนไข "มีรอบที่ `completedAt IS NULL` ของ `(shopId, roomId, step)` นี้อยู่แล้ว = ข้าม" กันไม่ให้ cron สร้างรอบซ้ำซ้อนทุกวันสำหรับข้อที่ยังไม่หมดอายุจริงแต่ใกล้ครบ 14 วันซ้ำหลายรอบ
 - **ขอบเขตของ "งานมอบหมาย" คือ `(shopId, roomId, step)` ไม่ใช่รายข้อ (`checkKey`)** เพราะ `InspectionRound` ไม่มีคอลัมน์ `checkKey` ของตัวเอง (checkKey อยู่ที่ `InspectionResult` เท่านั้น) — 1 รอบตรวจครอบคลุมได้หลายข้อตรวจพร้อมกันตามธรรมชาติของงาน (เช่น ผู้ตรวจนัดวิดีโอคอลครั้งเดียวตรวจได้ทั้งข้อ "นำชมสด" และ "หลักฐานเปิดใช้งานจริง" ของขั้น 3 ในนัดเดียว) — ตรงกับที่ §3.2 ออกแบบไว้ตั้งแต่ draft 1.0 อยู่แล้ว ไม่ต้องเพิ่มคอลัมน์ใหม่
 
+**🛑 `suspectedFraudNote` (เพิ่มรอบ 5) — ทำไมต้องมีช่องนี้ และทำไมมันอันตราย:**
+
+ผู้ตรวจ (โดยเฉพาะผู้ตรวจท้องถิ่นที่จ้างเป็นรายครั้งสำหรับขั้น 4 — บุคคลภายนอกตาม §3.8 ของ PRD) อาจเจอสัญญาณที่น่าสงสัยว่าเป็นการฉ้อโกงระหว่างตรวจ (เช่น สถานที่ไม่ตรงกับที่อ้าง เจ้าของปฏิเสธไม่ให้เห็นเอกสารบางส่วน) — **แต่การตัดสินว่าเข้าข่ายฉ้อโกงจริงและนำชื่อเข้าฐาน `/check` ต้องเป็นสิทธิ์ของแอดมินเท่านั้น** ไม่ใช่การตัดสินหน้างานของคนนอก (การใส่ชื่อคนเข้าฐานมิจฉาชีพย้อนกลับยาก กระทบชื่อเสียง/การขายของร้านจริง — ไม่ควรให้บุคคลภายนอกที่ไม่ได้ผ่านกระบวนการตรวจสอบสองชั้นเป็นคนกดเข้าฐานได้เอง) — แต่ถ้า**ไม่มี**ช่องให้บันทึกเลย สิ่งที่ผู้ตรวจเห็นหน้างานจะหายไปพร้อมตัวเขา ไม่มีใครสืบทวนได้อีก ⇒ `suspectedFraudNote` คือทางออก: **บันทึกได้ ไม่ตัดสิน** — แยกขั้นตอน "เห็น" ออกจากขั้นตอน "ตัดสิน" อย่างเด็ดขาดที่ระดับ schema (คอลัมน์นี้ไม่มีกลไกอัตโนมัติใดที่เขียนเข้าฐาน `/check` เอง ต้องผ่านแอดมินอ่านแล้วตัดสินใจเสมอ)
+
+🛑 **ห้ามหลุดสู่ฝั่งร้านและฝั่งสาธารณะเด็ดขาด — เหตุผล:** ข้อความในคอลัมน์นี้คือ**ข้อสงสัยที่ยังไม่ถูกตัดสิน** การเปิดเผยก่อนตัดสินคือการกล่าวหาที่ยังพิสูจน์ไม่ได้ และถ้าร้านที่ถูกสงสัยเห็นก่อน **หลักฐานสามารถถูกทำลายหรือปรับแต่งให้สอดคล้องได้ทันที** ทำให้การตรวจสอบจริงในภายหลัง (ถ้าแอดมินตัดสินใจสืบต่อ) เสียหายไปด้วย ระดับความลับนี้**เข้มกว่า** `InspectionEvidence.visibility='PRIVATE'` เสียอีก — หลักฐานปิดทั่วไป (บัตรประชาชน โฉนด) เป็นสิ่งที่ร้าน**ส่งมาเอง**จึงมีเหตุผลให้ร้านอาจเห็นข้อมูลของตัวเองได้ในบางบริบท แต่ `suspectedFraudNote` เป็นสิ่งที่**พูดถึงร้าน**โดยที่ร้านไม่รู้ตัว ร้านต้อง**ไม่มีทางเห็นได้เลยไม่ว่าทางใด** จนกว่า (ถ้ามี) กระบวนการ `/check` แยกต่างหากจะเริ่มอย่างเป็นทางการ (ซึ่งมีขั้นตอนของตัวเองอยู่แล้วนอกเหนือคอลัมน์นี้)
+
+- **ความเสี่ยงจุดที่ต้องระวังที่สุด:** `InspectionRound` เป็นตารางที่**มีความชอบธรรมให้ฝั่งร้านเห็นบางส่วนอยู่แล้ว** (AC-INS-17-2 อนุญาตให้ OWNER/ADMIN ของร้านเห็นสถานะคิว "รอผู้ตรวจเข้าตรวจ") ⇒ **ทุก serializer ที่ส่งข้อมูล `InspectionRound` ไปยังหน้าจอฝั่งร้านต้องเป็น allow-list ของฟิลด์ ไม่ใช่ deny-list** และต้อง**ไม่มีจุดไหนเลยที่ `select *`/serialize ทั้งแถวไปยังฝั่งร้าน** (สอดคล้องกับข้อห้าม "ห้าม `select *` กับตารางข้อมูลอ่อนไหวในตัวอย่าง query" ที่กำหนดไว้กับ SA agent ทุกตัวในโปรเจกต์นี้อยู่แล้ว) — ถ้าใครเผลอ `SELECT *` หรือ spread ทั้ง object ไปให้ฝั่งร้านสักจุดเดียว คอลัมน์นี้จะรั่วทันทีโดยไม่มี error ไม่มี type ผิด (ตรงกับคลาสบั๊ก PII ที่โปรเจกต์นี้เจอมาแล้วหลายรอบ — `feedback_rsc_pii_neutralize_at_source`)
+- **ผู้เข้าถึงได้:** เฉพาะแอดมินแพลตฟอร์ม (`User.isAdmin=true`) เท่านั้น — ไม่ใช่แม้แต่ OWNER/ADMIN ของร้าน ไม่ใช่แม้แต่ผู้ตรวจคนอื่นที่ไม่เกี่ยวข้อง
+
+**🛑 index สำหรับหา "รอบที่มีข้อสงสัยแต่ยังไม่มีใครตัดสิน" — ทำไมต้องเป็น partial index แยก ไม่ใช้ `dueAt` เดิม:**
+
+ความเร่งด่วนของแถวกลุ่มนี้**ไม่ผูกกับ `dueAt`** (ซึ่งวัด "ข้อตรวจใกล้หมดอายุ") — ข้อสงสัยฉ้อโกงเร่งด่วนตามธรรมชาติของมันเอง ไม่เกี่ยวกับว่าข้อตรวจนั้นจะหมดอายุเมื่อไหร่ ถ้าเรียงแผงแอดมินด้วย `dueAt` อย่างเดียว แถวที่มีข้อสงสัยฉ้อโกง (ซึ่ง `dueAt` อาจเป็น NULL หรือไกลมาก เพราะรอบนั้นอาจเป็นรอบตรวจถึงที่ปกติที่บังเอิญเจอสิ่งผิดปกติ ไม่ใช่รอบที่ถูกสร้างเพราะใกล้หมดอายุ) **จะจมอยู่ล่างสุดของคิว** ทั้งที่ควรถูกอ่านก่อนสิ่งอื่นทั้งหมด — ต้องมี index ของตัวเอง:
+```sql
+CREATE INDEX "InspectionRound_unresolved_fraud_note_idx"
+  ON "InspectionRound" ("createdAt")
+  WHERE "suspectedFraudNote" IS NOT NULL;
+```
+เป็น partial index (unmanaged SQL) เพราะเงื่อนไขนี้เกิดขึ้น**น้อยมาก**เทียบกับจำนวนรอบตรวจทั้งหมด (ส่วนใหญ่ไม่มีข้อสงสัยฉ้อโกงเลย) — partial index ทำให้ query "แผงแอดมิน: รอบที่มีข้อสงสัยรอตัดสิน" เร็วคงที่ไม่ว่าตาราง `InspectionRound` จะโตแค่ไหน (ต่างจาก index เต็มตารางที่ต้องแบกน้ำหนักของแถวปกติหลายหมื่นแถวไปด้วยทั้งที่ไม่เกี่ยวข้อง)
+
+🛑 **ข้อจำกัดที่ต้องบันทึกไว้ตรงไปตรงมา:** contract รอบนี้มีแค่ `suspectedFraudNote String?` **ไม่มีคอลัมน์ระบุว่า "แอดมินตัดสินแล้วหรือยัง/ผลตัดสินเป็นอย่างไร"** — เอกสารนี้ตีความ "ยังไม่มีใครตัดสิน" ในทางปฏิบัติเป็น `suspectedFraudNote IS NOT NULL` ทั้งหมด (คือทุกแถวที่มีข้อความในนี้ถือเป็น "ต้องมีคนอ่าน" เสมอ ไม่มีสถานะ "อ่านแล้ว/ปัดตกแล้ว" ในตารางนี้) — ถ้าแอดมินตรวจแล้วเห็นว่าไม่ใช่เรื่องจริง ไม่มีกลไกใน schema นี้ที่จะ "เคลียร์" แถวออกจากคิวได้ (จะค้างอยู่ใน partial index ตลอดไป) เป็น **open question สำหรับ SDS** ว่าจะเพิ่ม `reviewedAt`/`reviewedByUserId` ในรอบถัดไปหรือไม่ — ไม่ได้เพิ่มเองในเอกสารนี้เพราะ contract ของรอบนี้ระบุแค่ 1 คอลัมน์ (ดู §8 Open Questions)
+
 ### 3.3 `InspectionResult` (PostgreSQL — Supabase) — 🛑 ผสม insert/update, แก้ 2 รอบจาก draft 1.0
 
 **ประวัติของ "ช่วงที่ผลคงที่" (episode)** ของข้อตรวจ 1 ข้อ ต่อร้าน (หรือต่อที่พัก 1 หลัง) — หนึ่งคู่ `(scope, checkKey)` (`scope` = `shopId` เมื่อ `roomId IS NULL` หรือ `roomId` เมื่อมีค่า) มีได้**หลายแถว** แต่จำนวนแถวเท่ากับ **จำนวนครั้งที่ผลเปลี่ยนจริง** ไม่ใช่จำนวนครั้งที่ตรวจ
@@ -213,7 +248,7 @@ erDiagram
 | `id` | `uuid` | NO | `gen_random_uuid()` | PK — ใช้เป็น tie-break ลำดับที่ 2 (ดูด้านล่าง) |
 | `shopId` | `uuid` | NO | — | FK → `Shop.id`, IDX (ร่วมกับ checkKey/checkedAt/id — ดู §4) |
 | `roomId` | `uuid` | YES | `NULL` | FK → `Room.id`, IDX (null = ข้อผูกร้าน) |
-| `checkKey` | `text` | NO | — | ค่าคงที่จาก `src/lib/inspection/checks.ts` (18 ค่า, ดู §3.7) |
+| `checkKey` | `text` | NO | — | ค่าคงที่จาก `src/lib/inspection/checks.ts` (18 ค่า, ดู §3.8) |
 | `roundId` | `uuid` | YES | `NULL` | FK → `InspectionRound.id` — รอบที่ยืนยัน/สร้างแถวนี้**ล่าสุด** (`UPDATE` เปลี่ยนค่านี้ได้ทุกครั้งที่มีรอบใหม่มายืนยันผลเดิม); `NULL` เมื่อแถวนี้เป็นแถว invalidate สังเคราะห์จากเหตุการณ์เปลี่ยนภาพ |
 | `outcome` | `text` (enum `InspectionOutcome`) | NO | — | `PASS \| FAIL \| NOT_APPLICABLE` **เท่านั้น** |
 | `checkedAt` | `timestamptz` | NO | — | 🛑 **เวลาที่ผลนี้ถูกตัดสินครั้งแรก — ตั้งครั้งเดียวตอน `INSERT` ห้ามแก้อีกเลยตลอดอายุแถว** |
@@ -247,7 +282,7 @@ draft 1.1 (รอบก่อน) ให้ `INSERT` แถวใหม่**ท�
 4. **พบแถว และ (`outcome` ใหม่ต่างจากเดิม หรือแถวเดิมกำลัง `invalidatedAt IS NOT NULL`)** → `INSERT` แถวใหม่ (episode ใหม่): `checkedAt = lastConfirmedAt = now()`, `expiresAt = now() + ttlDays(checkKey)`, `invalidatedAt = NULL` — เหตุผลที่ "แถวเดิมกำลัง invalidated" ต้อง `INSERT` แม้ `outcome` จะเหมือนเดิม: **การหลุดจากสถานะ invalidated คือเหตุการณ์ที่มีความหมายเอง** (เช่น ตรวจซ้ำแล้วยืนยันว่าภาพใหม่ตรงกับของจริงหลังร้านเปลี่ยนภาพ) ต้องมีร่องรอยของตัวเองในไทม์ไลน์ ไม่ใช่แค่ "ยืนยันซ้ำ"
 5. **`invalidatedAt` (เคสเปลี่ยนภาพ, FR-INS-028)** → ยังเป็น `INSERT` แถวใหม่เสมอ (เข้าเงื่อนไขข้อ 4 อยู่แล้วในทางปฏิบัติ เพราะเป็นเหตุการณ์จริงที่ต้องเห็นในไทม์ไลน์ ไม่ใช่แค่การยืนยันซ้ำ) — ดูรายละเอียดด้านล่าง
 
-**🛑 `ttlDays(checkKey)` มาจาก metadata ของแต่ละ `checkKey` ใน `src/lib/inspection/checks.ts`** (SSOT เดียวกับ §3.7) — ค่าตามตาราง §3.2 ของ PRD: ขั้น 1 = 1 วัน, ขั้น 2 = 365 วัน, ขั้น 3 (นำชม) = ~182 วัน / (หลักฐานเปิดจริง) = 90 วัน, ขั้น 4 (ตรวจถึงที่) = 365 วัน / (ทวนขั้น 3) = 90 วัน — ไม่ hardcode ในเอกสารนี้เพราะเป็นค่าคงที่ระดับแอปเหมือน `checkKey` เอง
+**🛑 `ttlDays(checkKey)` มาจาก metadata ของแต่ละ `checkKey` ใน `src/lib/inspection/checks.ts`** (SSOT เดียวกับ §3.8) — ค่าตามตาราง §3.2 ของ PRD: ขั้น 1 = 1 วัน, ขั้น 2 = 365 วัน, ขั้น 3 (นำชม) = ~182 วัน / (หลักฐานเปิดจริง) = 90 วัน, ขั้น 4 (ตรวจถึงที่) = 365 วัน / (ทวนขั้น 3) = 90 วัน — ไม่ hardcode ในเอกสารนี้เพราะเป็นค่าคงที่ระดับแอปเหมือน `checkKey` เอง
 
 **🛑 tie-break `ORDER BY "checkedAt" DESC, "id" DESC` เป็น SSOT — ต้องเป็นสูตรเดียวกันเป๊ะทั้งฝั่ง TypeScript (Prisma `orderBy: [{checkedAt:'desc'},{id:'desc'}]`) และฝั่ง SQL ดิบ (cron/reporting query) ทุกจุดที่ต้องหา "แถวล่าสุด"** — เหตุผล: cron ของขั้น 1 เขียนหลายข้อของร้านเดียวกันในทรานแซกชันเดียว (`now()` เดียวกันในทรานแซกชัน Postgres) ⇒ **`checkedAt` เท่ากันเป๊ะในหลายแถวเป็นเรื่องปกติของระบบนี้ ไม่ใช่ edge case ที่หายาก** ถ้าฝั่งหนึ่งลืม `id DESC` (เช่น query ใหม่ที่เขียนทีหลังโดยคนละคน) จะเลือกคนละแถวเป็น "ปัจจุบัน" เมื่อชนวินาที — เขียนเป็นค่าคงที่/helper กลางไว้จุดเดียวใน SDS ไม่ใช่พิมพ์ `ORDER BY` ซ้ำมือทุกจุดที่เรียก
 
@@ -365,7 +400,27 @@ ALTER TABLE "InspectionEvidence" ADD CONSTRAINT "InspectionEvidence_has_content_
 - `InspectionPlan.termsAcceptedAt` **คงไว้** เป็นค่าล่าสุดเพื่ออ่านเร็ว (ไม่ต้อง join ทุกครั้งที่แค่อยากรู้ "รับทราบครั้งล่าสุดเมื่อไหร่") แต่ 🛑 **แหล่งความจริง (source of truth) คือตารางนี้เสมอ** — service layer ต้อง `INSERT` แถวใหม่ที่นี่ **และ** `UPDATE InspectionPlan.termsAcceptedAt` ในทรานแซกชันเดียวกันทุกครั้ง ห้ามเขียนที่ใดที่หนึ่งแล้วลืมอีกที่ (ไม่งั้นสอง state จะไม่ sync กันแล้วไม่มีใครรู้ว่าอันไหนถูก)
 - ไม่มี `updatedAt` โดยเจตนา — ตารางนี้ไม่มีการ `UPDATE` แถวใดเลยตลอดชีพ (append-only แท้ แตกต่างจาก `InspectionResult` ที่ยัง `UPDATE` ได้ในกรณียืนยันซ้ำ)
 
-### 3.7 การไม่เก็บ `checkKey` เป็นตาราง — ทำไม
+### 3.7 `InspectorRoleChange` (PostgreSQL — Supabase) — โมเดลที่ 7 เพิ่มรอบ 5
+
+audit log **append-only แท้ ๆ** (เหมือน `InspectionTermsAcceptance`) บันทึกทุกครั้งที่มีการตั้ง/ถอด `User.isInspector` ผ่าน `PATCH /api/admin/users/[id]/inspector`
+
+| Column | Type | Null | Default | Key |
+|--------|------|------|---------|-----|
+| `id` | `uuid` | NO | `gen_random_uuid()` | PK |
+| `targetUserId` | `uuid` | NO | — | FK → `User.id`, IDX (ร่วมกับ createdAt) — ผู้ถูกเปลี่ยนสิทธิ์ |
+| `actorUserId` | `uuid` | NO | — | FK → `User.id` — แอดมินผู้สั่งเปลี่ยน |
+| `isInspector` | `boolean` | NO | — | ค่า**ใหม่**หลังเปลี่ยน (ไม่ใช่ค่าก่อนเปลี่ยน — ดูเหตุผลด้านล่าง) |
+| `reason` | `text` | **NO** | — | 🛑 **บังคับ ไม่ nullable** |
+| `createdAt` | `timestamptz` | NO | `now()` | — |
+
+`@@index([targetUserId, createdAt])`
+
+**เหตุผลที่ต้องมีตารางนี้:** `User.isInspector` (§1) เป็นแค่คอลัมน์บูลีนสถานะปัจจุบัน — ไม่มีที่เก็บว่า **ใครเป็นคนตั้ง/ถอดสิทธิ์นี้ให้ใคร เมื่อไหร่ ด้วยเหตุผลอะไร** ทั้งที่สิทธิ์ผู้ตรวจเป็นสิทธิ์ที่กระทบความเป็นส่วนตัวของร้านอื่นโดยตรง (AC-INS-24-2/24-3 — ผู้ตรวจเห็นข้อมูลร้านที่ได้รับมอบหมาย) การให้/ถอดสิทธิ์นี้จึงต้องมีร่องรอยตรวจสอบย้อนกลับได้เสมอว่าใครอนุมัติ ไม่ต่างจาก audit log สิทธิ์แอดมินทั่วไป — เขียนในทรานแซกชันเดียวกับ `UPDATE User.isInspector` เสมอ (dual-write pattern เดียวกับ §3.6)
+- เก็บ **ค่าใหม่ (`isInspector`) ไม่ใช่ค่าก่อนเปลี่ยน** เพราะแถวก่อนหน้าของ `targetUserId` เดียวกัน (เรียงตาม `createdAt`) คือค่าก่อนเปลี่ยนอยู่แล้วโดยปริยาย — ไม่ต้องเก็บซ้ำสองคอลัมน์ที่บอกสิ่งเดียวกัน (คลาสเดียวกับเหตุผลที่ไม่เพิ่ม `currentPeriodEnd` ใน §3.1 — HR16)
+- 🛑 **`reason` ต้อง `NOT NULL`:** audit log ที่บอกแค่ "ใครตั้งให้ใครเมื่อไร" ตอบไม่ได้ว่า **ทำไม** ซึ่งเป็นคำถามแรกที่ถูกถามเสมอเวลาตรวจสอบย้อนหลัง (เช่น ทำไมผู้ตรวจคนนี้ถูกถอดสิทธิ์กะทันหัน) — และช่องที่ประกาศเป็น "ไม่บังคับ" ในระบบจริงจะว่างเสมอ (ไม่มีใครกรอกฟิลด์ optional ที่ไม่ต้องกรอก) ทำให้ audit log กลายเป็นข้อมูลที่มีแต่ "อะไร" ไม่มี "ทำไม" — บังคับที่ระดับ DB (`NOT NULL`) ไม่ใช่แค่ validation ฝั่ง UI เพื่อกันเส้นทางเขียนอื่นที่อาจข้าม UI (เช่น สคริปต์ภายใน) เขียนแถวว่างเปล่าเข้ามาได้
+- onDelete ของทั้ง `targetUserId` และ `actorUserId` = **`Restrict`** (ต่างจาก convention `Cascade` ทั่วไปของ relation ไป `Shop` ในโปรเจกต์นี้โดยเจตนา) — เหตุผล: audit log ต้องรอดจากการที่ตัวบุคคลถูกลบ ถ้า `Cascade` แล้วบัญชีแอดมิน/ผู้ตรวจถูกลบ (ไม่ว่าจงใจปิดบังร่องรอยหรือลบตามกระบวนการปกติ) ประวัติการให้สิทธิ์จะหายไปพร้อมกัน ซึ่งขัดจุดประสงค์ของตารางนี้โดยตรง — ในทางปฏิบัติแทบไม่มีผลเพราะ `User` ของโปรเจกต์นี้ **ห้าม physical DELETE อยู่แล้ว** (soft-delete เท่านั้น ตามคอมเมนต์ที่ `User.deletedAt`) แต่ตั้งเป็น `Restrict` ไว้เป็นเกราะสองชั้น ให้ล้มเสียงดังถ้ามีใครพยายาม hard-delete แทนที่จะเงียบ ๆ ทำลายหลักฐาน
+
+### 3.8 การไม่เก็บ `checkKey` เป็นตาราง — ทำไม
 
 นิยามข้อตรวจ (`checkKey` และ metadata ของมัน — ชื่อไทยที่แสดง, ผูกร้าน/ผูกที่พัก, อยู่ในขั้นไหน, `ttlDays`) **ไม่ใช่ตารางในฐานข้อมูล** เป็น SSOT ในโค้ดที่ `src/lib/inspection/checks.ts` มี 18 คีย์คงที่:
 
@@ -387,6 +442,7 @@ ALTER TABLE "InspectionEvidence" ADD CONSTRAINT "InspectionEvidence_has_content_
 | `InspectionRound` | `(inspectorUserId, completedAt)` | BTREE composite | รายการงานของผู้ตรวจคนหนึ่ง — **ต้อง scope ใน `WHERE` เสมอ** เพื่อบังคับ AC-INS-24-2 ที่ชั้น query |
 | `InspectionRound` | `(completedAt, dueAt)` | BTREE composite | **(เพิ่มรอบ 4)** แผงแอดมินหา "รอบที่เลยกำหนดแล้วยังไม่เสร็จ" ทั้งระบบ: `WHERE completedAt IS NULL AND dueAt < now()` — `completedAt IS NULL` เป็นตัวกรองหลักที่คัดกรองแรงที่สุด (ส่วนใหญ่ของแถวคือ `completedAt` มีค่าแล้ว) แล้วค่อยกรอง/เรียงด้วย `dueAt` ภายในกลุ่มนั้น — ถ้าไม่มี index นี้ ปัญหาที่ `dueAt` ถูกสร้างขึ้นมาแก้ (คิวงานกองเงียบ ๆ) จะย้ายไปเป็น "แอดมินมองไม่เห็นว่ากองอยู่" แทน |
 | `InspectionRound` | `(shopId, roomId, step, completedAt)` | BTREE composite | **(เพิ่มรอบ 4)** ด่าน idempotent ของ cron — เช็ค "มีรอบที่ `completedAt IS NULL` ของคู่ `(shopId, roomId, step)` นี้อยู่แล้วหรือยัง" ก่อนสร้างรอบใหม่ กันสร้างซ้ำซ้อนทุกวันที่ cron รันในช่วง 14 วันก่อนหมดอายุ |
+| `InspectionRound` | `(createdAt)` WHERE `suspectedFraudNote IS NOT NULL` | **Partial BTREE (unmanaged SQL)** | **(เพิ่มรอบ 5)** แผงแอดมินหา "รอบที่มีข้อสงสัยฉ้อโกงรอตัดสิน" — ไม่ผูกกับ `dueAt` เพราะความเร่งด่วนคนละแกน (ดู §3.2) เป็น partial เพราะเงื่อนไขนี้เกิดน้อยมากเทียบกับแถวทั้งหมด |
 | `InspectionResult` | `(shopId, checkKey, checkedAt DESC, id DESC)` | BTREE composite | 🛑 **เพิ่ม `id DESC` ต่อท้ายในรอบแก้นี้** — หา "แถวล่าสุด" ของข้อผูกร้านด้วย `DISTINCT ON`/`findFirst` ที่ `ORDER BY checkedAt DESC, id DESC` (§3.3) ทั้ง read-path (แสดงผล) และ write-path (เช็คว่าจะ UPDATE หรือ INSERT) ใช้ index เดียวกันนี้ — ไม่ต้อง sort เพิ่มเพราะลำดับ index ตรงกับ `ORDER BY` พอดีรวมทั้ง tie-break |
 | `InspectionResult` | `(roomId, checkKey, checkedAt DESC, id DESC)` | BTREE composite | เช่นเดียวกันสำหรับข้อผูกที่พักหลังเดียว |
 | `InspectionResult` | `(roundId)` | BTREE | join จากรอบตรวจไปหาผลที่รอบนั้นยืนยัน/สร้าง |
@@ -394,6 +450,7 @@ ALTER TABLE "InspectionEvidence" ADD CONSTRAINT "InspectionEvidence_has_content_
 | `InspectionEvidence` | `(resultId)` | BTREE | หน้าโปรไฟล์สาธารณะ query หลักฐานที่ผูกกับแถวผลตรวจแถวใดแถวหนึ่งโดยเฉพาะ |
 | `InspectionTermsAcceptance` | `(shopId, acceptedAt)` | BTREE composite | ตามที่ Controller ระบุ — ใช้ทั้ง lookup ประวัติการรับทราบเงื่อนไขของร้าน (ฝ่ายพิพาท/รายงาน) และหา "ครั้งล่าสุด" (`ORDER BY acceptedAt DESC LIMIT 1`) |
 | `InspectionIntakeQuota` | `(periodYearMonth, step)` | UNIQUE | lookup หลักของทุก read/write ของโควตา + จุดกันซ้ำ + จุด `ON CONFLICT` ของ upsert สร้างแถวเดือนถัดไป |
+| `InspectorRoleChange` | `(targetUserId, createdAt)` | BTREE composite | **(เพิ่มรอบ 5)** ตามที่ Controller ระบุ — ประวัติการเปลี่ยนสิทธิ์ผู้ตรวจของบุคคลหนึ่ง เรียงตามเวลา (หน้าแอดมิน "ประวัติสิทธิ์ของผู้ใช้นี้") |
 
 **🛑 ไม่ใช้ (ตัดสินใจแล้ว ไม่ใช่ลืม):** `InspectionResult (outcome, expiresAt)` บนตารางดิบ — การกรอง `outcome`/`expiresAt` ต้องเกิด**หลัง**ขั้นตอน dedup (`DISTINCT ON` หาแถวล่าสุดก่อนเสมอ — ดู §3.3) ดัชนีบนคอลัมน์ดิบจึงช่วย query รูปแบบนี้ไม่ได้ · `InspectionPlan (graceUntil)` — ไม่จำเป็นเพราะ index `(status, nextRenewalAt)` เดิมครอบคลุมอยู่แล้ว (เหตุผลใน §3.1/แถวบนของตารางนี้)
 
@@ -410,22 +467,23 @@ ALTER TABLE "InspectionEvidence" ADD CONSTRAINT "InspectionEvidence_has_content_
 | 1 | สร้าง enum `InspectionPlanStatus`, `InspectionMethod`, `InspectionOutcome`, `InspectionEvidenceVisibility`, `InspectionEvidenceKind` | Postgres (Prisma-managed) | ไม่มี dependency |
 | 2 | เพิ่มคอลัมน์ `User.isInspector Boolean NOT NULL DEFAULT false` | Postgres (Prisma-managed) | ไม่มี dependency |
 | 3 | สร้างตาราง `InspectionPlan` (รวม `lapsedReason`, `canceledAt`, `graceUntil`) + FK `shopId → Shop.id` + CHECK `step BETWEEN 1 AND 4` (raw SQL) + index `(status, nextRenewalAt)` | Postgres | ต้องมี `Shop` |
-| 4 | สร้างตาราง `InspectionRound` (รวม `dueAt`, เพิ่มรอบ 4) + FK `shopId/roomId/inspectorUserId` + CHECK `step BETWEEN 1 AND 4` (raw SQL) + index ทั้ง 5 ตัวใน §4 (รวม 2 ตัวใหม่ของรอบ 4 — ทั้งคู่ Prisma-managed ธรรมดา ไม่ต้อง raw SQL) | Postgres | ต้องมี `Shop`/`Room`/`User` |
+| 4 | สร้างตาราง `InspectionRound` (รวม `dueAt` จากรอบ 4 และ `suspectedFraudNote` จากรอบ 5) + FK `shopId/roomId/inspectorUserId` + CHECK `step BETWEEN 1 AND 4` (raw SQL) + index Prisma-managed 5 ตัว + **partial index ของ `suspectedFraudNote` 1 ตัว (raw SQL, เพิ่มรอบ 5)** | Postgres | ต้องมี `Shop`/`Room`/`User` |
 | 5 | สร้างตาราง `InspectionResult` (รวม `lastConfirmedAt`) + FK `shopId/roomId/roundId` + index composite ทั้ง 3 ตัวใน §4 (🛑 Prisma-managed ธรรมดา `@@index([shopId, checkKey, checkedAt(sort: Desc), id(sort: Desc)])` — ไม่ต้อง raw SQL) | Postgres | ต้องมีลำดับ 4 ก่อน |
-| 6 | สร้างตาราง `InspectionEvidence` + FK `roundId/resultId` + index ตาม §4 + **CHECK `fileId IS NOT NULL OR (lat IS NOT NULL AND lng IS NOT NULL)` (raw SQL, เพิ่มรอบแก้นี้)** | Postgres | ต้องมีลำดับ 4, 5 ก่อน |
-| 7 | สร้างตาราง `InspectionTermsAcceptance` (**ใหม่ทั้งตาราง เพิ่มรอบแก้นี้**) + FK `shopId → Shop.id` + CHECK `step BETWEEN 1 AND 4` (raw SQL) + index `(shopId, acceptedAt)` | Postgres | ต้องมี `Shop` |
-| 8 | สร้างตาราง `InspectionIntakeQuota` + unique `(periodYearMonth, step)` | Postgres | ไม่มี dependency กับตารางอื่น |
-| 9 | เพิ่ม cron endpoint `/api/cron/inspection-lifecycle` ใน `vercel.json` (`"0 16 * * *"`) — หน้าที่: (a) ตัดเครดิตรอบ 30 วัน + จัดการ state machine `canceledAt`/`graceUntil`/`status`/`lapsedReason` ตาม §3.1 (b) รันข้อตรวจอัตโนมัติของขั้น 1 รายวันด้วยกติกา insert/update ตาม §3.3 (c) สร้างแถว `InspectionIntakeQuota` ของเดือนถัดไปแบบ upsert idempotent (d) **(เพิ่มรอบ 4) สร้าง `InspectionRound` ที่ยังไม่มอบหมายล่วงหน้า lead time 14 วันสำหรับข้อของขั้น 2-4 ที่ใกล้หมดอายุ แบบ idempotent** ตาม §3.2 | Vercel config + application code | ช่องเวลาว่าง `16` UTC |
+| 6 | สร้างตาราง `InspectionEvidence` + FK `roundId/resultId` + index ตาม §4 + **CHECK `fileId IS NOT NULL OR (lat IS NOT NULL AND lng IS NOT NULL)` (raw SQL)** | Postgres | ต้องมีลำดับ 4, 5 ก่อน |
+| 7 | สร้างตาราง `InspectionTermsAcceptance` + FK `shopId → Shop.id` + CHECK `step BETWEEN 1 AND 4` (raw SQL) + index `(shopId, acceptedAt)` | Postgres | ต้องมี `Shop` |
+| 8 | **(ใหม่ทั้งตาราง เพิ่มรอบ 5) สร้างตาราง `InspectorRoleChange`** + FK `targetUserId/actorUserId → User.id` (onDelete `Restrict` ทั้งคู่ — ดู §3.7) + index `(targetUserId, createdAt)` (Prisma-managed) | Postgres | ต้องมี `User` |
+| 9 | สร้างตาราง `InspectionIntakeQuota` + unique `(periodYearMonth, step)` | Postgres | ไม่มี dependency กับตารางอื่น |
+| 10 | เพิ่ม cron endpoint `/api/cron/inspection-lifecycle` ใน `vercel.json` (`"0 16 * * *"`) — หน้าที่: (a) ตัดเครดิตรอบ 30 วัน + จัดการ state machine `canceledAt`/`graceUntil`/`status`/`lapsedReason` ตาม §3.1 (b) รันข้อตรวจอัตโนมัติของขั้น 1 รายวันด้วยกติกา insert/update ตาม §3.3 (c) สร้างแถว `InspectionIntakeQuota` ของเดือนถัดไปแบบ upsert idempotent (d) สร้าง `InspectionRound` ที่ยังไม่มอบหมายล่วงหน้า lead time 14 วันสำหรับข้อของขั้น 2-4 ที่ใกล้หมดอายุ แบบ idempotent ตาม §3.2 | Vercel config + application code | ช่องเวลาว่าง `16` UTC |
 
-**🛑 CHECK constraint เป็น unmanaged SQL ทั้งหมด 4 ตัว (เพิ่มจาก 2 ตัวในรอบก่อน):** `InspectionPlan.step`, `InspectionRound.step`, `InspectionTermsAcceptance.step` (ทั้งสามรูปแบบเดียวกัน `BETWEEN 1 AND 4`) และ `InspectionEvidence` (`fileId`/`lat`/`lng` ต้องมีอย่างน้อยหนึ่งอย่าง, เพิ่มรอบแก้นี้) — ทุกตัวอยู่บนตารางใหม่ล้วน ไม่มีข้อมูลเดิม จึงไม่ต้องกังวลเรื่อง collision กับ CHECK เดิมตาม `docs/conventions/migration-check-constraint-additive.md` (กฎนั้นสำหรับ CHECK ที่แก้ค่าบนตารางที่มีข้อมูลจริงอยู่แล้ว)
+**🛑 unmanaged SQL รวมทั้งหมด 5 รายการ (4 CHECK + 1 partial index ใหม่ของรอบนี้):** CHECK — `InspectionPlan.step`, `InspectionRound.step`, `InspectionTermsAcceptance.step` (รูปแบบเดียวกัน `BETWEEN 1 AND 4`) และ `InspectionEvidence` (`fileId`/`lat`/`lng` ต้องมีอย่างน้อยหนึ่งอย่าง) — ทุกตัวอยู่บนตารางใหม่ล้วน ไม่มีข้อมูลเดิม จึงไม่ต้องกังวลเรื่อง collision ตาม `docs/conventions/migration-check-constraint-additive.md` · Partial index — `InspectionRound_unresolved_fraud_note_idx` (`WHERE suspectedFraudNote IS NOT NULL`, §4) — **ต้องเขียน `DROP INDEX` เองถ้า rollback** เพราะ Prisma ไม่รู้จัก partial index (กลับมาเป็นเงื่อนไขเดียวกับที่เคยมีตอน draft 1.0 ก่อนถูกถอดออกในรอบ 2 — ครั้งนี้จำเป็นจริงเพราะเป็น partial ไม่ใช่ unique composite ธรรมดา)
 
 ### 5.2 Rollback
 
-- ลำดับ 1-8 เป็น `CREATE`/`ALTER ADD COLUMN` ล้วน — rollback คือ `DROP TABLE`/`DROP COLUMN` ย้อนลำดับ (8→1) ปลอดภัย **ตราบใดที่ยังไม่มีข้อมูลจริงเขียนเข้าตารางเหล่านี้**
-- **หลังเปิดขายจริงแล้ว:** rollback แบบ drop table **ไม่ใช่ทางเลือกที่ปลอดภัยอีกต่อไป** เพราะ BRD (FR-INS-027, AC-INS-27) บังคับว่าประวัติรอบตรวจ**และ**การรับทราบเงื่อนไข (`InspectionTermsAcceptance` — หลักฐานทางกฎหมาย/ข้อพิพาท) ห้ามถูกลบไม่ว่ากรณีใด — ถ้าจำเป็นต้อง rollback ต้อง `pg_dump` ตารางทั้ง 6 ก่อน ไม่ใช่ `DROP` ตรง ๆ
-- คอลัมน์ `User.isInspector`, `InspectionPlan.lapsedReason`/`canceledAt`/`graceUntil` มี default/nullable ที่ปลอดภัยทั้งหมด — rollback คือ `DROP COLUMN` ตรง ๆ
-- index composite ทั้ง 3 ตัวของ `InspectionResult` (รวม `id DESC`) เป็น Prisma-managed ธรรมดา `prisma migrate` จัดการเองได้ทั้งชุด — ไม่มีขั้นตอนพิเศษ
-- **CHECK constraint 4 ตัว** (§5.1) ต้อง `DROP CONSTRAINT` ด้วยมือถ้า rollback เพราะเป็น raw SQL ทั้งหมด — ไม่มี Prisma migration ไหนรู้จักมันโดยอัตโนมัติ
+- ลำดับ 1-9 เป็น `CREATE`/`ALTER ADD COLUMN` ล้วน — rollback คือ `DROP TABLE`/`DROP COLUMN` ย้อนลำดับ (9→1) ปลอดภัย **ตราบใดที่ยังไม่มีข้อมูลจริงเขียนเข้าตารางเหล่านี้**
+- **หลังเปิดขายจริงแล้ว:** rollback แบบ drop table **ไม่ใช่ทางเลือกที่ปลอดภัยอีกต่อไป** เพราะ BRD (FR-INS-027, AC-INS-27) บังคับว่าประวัติรอบตรวจ**และ**การรับทราบเงื่อนไข (`InspectionTermsAcceptance` — หลักฐานทางกฎหมาย/ข้อพิพาท) **และ**ประวัติสิทธิ์ผู้ตรวจ (`InspectorRoleChange`) ห้ามถูกลบไม่ว่ากรณีใด — ถ้าจำเป็นต้อง rollback ต้อง `pg_dump` ตารางทั้ง 7 ก่อน ไม่ใช่ `DROP` ตรง ๆ
+- คอลัมน์ `User.isInspector`, `InspectionPlan.lapsedReason`/`canceledAt`/`graceUntil`, `InspectionRound.dueAt`/`suspectedFraudNote` มี default/nullable ที่ปลอดภัยทั้งหมด — rollback คือ `DROP COLUMN` ตรง ๆ — 🛑 **ยกเว้น `suspectedFraudNote`: ถ้ามีข้อมูลจริงอยู่ในคอลัมน์นี้ตอน rollback ต้อง `pg_dump` แถวที่เกี่ยวข้องก่อนเสมอ** (ข้อสงสัยฉ้อโกงที่ยังไม่ได้ตัดสินไม่ควรหายไปเฉย ๆ จากการ rollback schema)
+- index composite ทั้ง 3 ตัวของ `InspectionResult` (รวม `id DESC`) และ index ของ `InspectorRoleChange` เป็น Prisma-managed ธรรมดา `prisma migrate` จัดการเองได้ทั้งชุด — ไม่มีขั้นตอนพิเศษ
+- **CHECK constraint 4 ตัว + partial index 1 ตัว** (§5.1) ต้อง `DROP CONSTRAINT`/`DROP INDEX` ด้วยมือถ้า rollback เพราะเป็น raw SQL ทั้งหมด — ไม่มี Prisma migration ไหนรู้จักมันโดยอัตโนมัติ
 
 ### 5.3 ผลกระทบ (Impact)
 
@@ -439,7 +497,7 @@ ALTER TABLE "InspectionEvidence" ADD CONSTRAINT "InspectionEvidence_has_content_
 ## 6. Retention / ข้อควรระวัง
 
 - **Data Retention:**
-  - `InspectionRound`/`InspectionEvidence`/`InspectionTermsAcceptance` เป็น **append-only ตลอดชีพ** (ไม่มี `UPDATE`/`DELETE` เลยแม้แต่ครั้งเดียวตลอดชีพ) — ไม่มี retention job ลบทิ้ง
+  - `InspectionRound`/`InspectionEvidence`/`InspectionTermsAcceptance`/`InspectorRoleChange` เป็น **append-only ตลอดชีพ** (ไม่มี `UPDATE`/`DELETE` เลยแม้แต่ครั้งเดียวตลอดชีพ) — ไม่มี retention job ลบทิ้ง — 🛑 **ข้อยกเว้นเดียว: `InspectionRound.suspectedFraudNote` เป็นคอลัมน์เดียวในตารางนี้ที่ *อาจ* ต้องแก้ได้ในอนาคต** (ถ้า SDS ตัดสินใจเพิ่มกลไก "เคลียร์" ในรอบถัดไปตาม open question §8) — ปัจจุบัน contract รอบนี้ยังไม่มีกลไกนั้น จึงยังนับเป็น insert-then-freeze เหมือนคอลัมน์อื่นของตารางนี้
   - `InspectionResult` เป็น **ผสม insert/update** (ดู §3.3) — แถวเก่าที่ episode จบไปแล้ว (ถูกแทนที่ด้วยแถวใหม่ตอนผลเปลี่ยน) จะไม่ถูกแตะอีกเลย ส่วนแถว "active" (episode ปัจจุบัน) ถูก `UPDATE` ซ้ำเรื่อย ๆ จนกว่าผลจะเปลี่ยน — ไม่มีแถวไหนถูกลบ ตรงตาม FR-INS-027
 
   - **🛑 ปรับประมาณการปริมาณข้อมูลใหม่รอบที่ 3 — ลดจากหลักแสนที่คำนวณไว้ใน draft 1.1 (~226,000 แถว/ปี) เหลือหลักพันหรือต่ำกว่าตามที่ Controller คาดไว้:**
@@ -459,14 +517,18 @@ ALTER TABLE "InspectionEvidence" ADD CONSTRAINT "InspectionEvidence_has_content_
 
     **`InspectionTermsAcceptance`:** เกิด 1 แถวต่อ **เหตุการณ์ชำระเงินเชิงโต้ตอบ** (สมัครครั้งแรก / อัปเกรดขั้น / ต่ออายุด้วยมือหลังพ้นสถานะ — ไม่ใช่ทุกรอบตัดเครดิตอัตโนมัติ 30 วัน) — ที่ 100 ร้าน ประมาณ 100-300 แถวตลอดปีแรก (สมัครครั้งแรกทุกร้าน + อัปเกรดบางส่วน) แล้วเพิ่มช้าลงปีถัดไป ปริมาณเล็กมากเทียบตารางอื่น ไม่ต้องมี retention job
 
+    **`InspectorRoleChange`:** เกิด 1 แถวต่อการตั้ง/ถอดสิทธิ์ผู้ตรวจ 1 ครั้ง — จำนวนผู้ตรวจทั้งระบบ (ภายใน + ท้องถิ่นที่จ้างรายครั้ง) คาดว่าอยู่ในหลักสิบคนตลอดปีแรก แต่ละคนอาจถูกเปลี่ยนสิทธิ์ไม่กี่ครั้งตลอดอายุงาน ⇒ ปริมาณเล็กมาก (หลักสิบถึงหลักร้อยแถว/ปี) เล็กกว่าทุกตารางอื่นในโมดูลนี้ ไม่ต้องมี retention job
+
   - `InspectionIntakeQuota` โตช้ามาก (4 แถว/เดือน + แถวที่ cron สร้างล่วงหน้า) ไม่ต้องมี retention job
 
 - **PII / ข้อมูลอ่อนไหว:**
   - `InspectionEvidence.fileId` เมื่อ `kind='DOCUMENT'` และ `visibility='PRIVATE'` อาจชี้ไปยังบัตรประชาชน/โฉนด/สเตทเมนต์ธนาคาร — ต้อง **ไม่มี query ใดใน public profile service ที่ query `InspectionEvidence` โดยไม่กรอง `visibility='PUBLIC'`** (index `(roundId, visibility)` ออกแบบมาเพื่อบังคับ pattern นี้)
   - `InspectionEvidence.lat`/`lng` แสดงสาธารณะได้เฉพาะเมื่อ `visibility='PUBLIC'` เท่านั้น (AC-INS-15-2)
   - `InspectionRound.inspectorUserId` เป็นบุคคลภายนอกในบางกรณี — ห้าม serialize ข้อมูลอื่นของ `User` แถวนั้นออกไปยัง endpoint สาธารณะ มีแต่ `inspectorDisplayName` (snapshot string) เท่านั้นที่โผล่ได้
+  - 🛑 **`InspectionRound.suspectedFraudNote` — ระดับความอ่อนไหวสูงสุดของทั้งโมดูล ต้องเข้มกว่า `InspectionEvidence.visibility='PRIVATE'`:** ห้ามหลุดสู่ฝั่งร้าน (OWNER/ADMIN ของร้านที่ถูกสงสัย) และฝั่งสาธารณะเด็ดขาดไม่ว่าทางใด — เข้าถึงได้เฉพาะแอดมินแพลตฟอร์ม (`isAdmin=true`) เท่านั้น เนื่องจาก `InspectionRound` มีความชอบธรรมให้ฝั่งร้านเห็นบางส่วนอยู่แล้ว (AC-INS-17-2) **ทุก serializer ที่ส่งข้อมูล `InspectionRound` ไปฝั่งร้านต้องเป็น allow-list ของฟิลด์ ไม่ใช่ deny-list และห้าม `select *`/spread ทั้งแถวไปให้ฝั่งร้านเด็ดขาด** (ดูรายละเอียดเต็ม + เหตุผลใน §3.2)
   - `InspectionPlan.lapsedReason`/`canceledAt`/`graceUntil` เป็นข้อมูลภายใน (ฝั่งร้าน+รายงาน) — ต้องไม่รั่วไปหน้าสาธารณะ
   - `InspectionTermsAcceptance.priceSnapshotBaht` เป็นข้อมูลราคาภายใน/หลักฐานพิพาท — ไม่มีเหตุผลต้องแสดงสาธารณะ แต่ไม่ใช่ PII ระดับสูง (เทียบเท่าราคาสินค้าทั่วไปที่โปรเจกต์แสดงอยู่แล้ว)
+  - `InspectorRoleChange` (`targetUserId`/`actorUserId`/`reason`) เป็นข้อมูลแอดมินภายในล้วน — ไม่มีเหตุผลใดที่ต้องแสดงต่อร้านหรือสาธารณะเลย ควรจำกัดเฉพาะหน้าแอดมินที่ต้องมี `isAdmin=true` เท่านั้น
 - **Performance:**
   - ความเสี่ยง hot row: **ต่ำ** — `InspectionResult.UPDATE` เกิดกระจายไปคนละแถวตาม `(scope, checkKey)` (เช่น 100 ร้าน × 6 checkKey ของขั้น 1 = 600 แถวที่ต่างกัน ถูก `UPDATE` วันละ 1 ครั้งต่อแถว) ไม่มีแถวเดียวที่รับ concurrent write จากหลาย process พร้อมกัน — ต่างจากแพตเทิร์น "hot row" ทั่วไป (เช่น counter กลางที่ทุกคนแย่งกันเขียน)
   - ตารางใหญ่ที่ต้องเฝ้าดู: ไม่มีตารางไหนน่ากังวลอีกต่อไปด้วยตัวเลขใหม่ (§6 ข้างบน) — `InspectionRound` ยังเป็นตารางที่โตเร็วสุด (จากขั้น 1 รายวัน ~36,500 แถว/ปีที่ 100 ร้าน ตามที่เคยประเมินไว้ตั้งแต่ draft 1.0) **บวกส่วนเพิ่มจากรอบ 4** — รอบที่ cron สร้างล่วงหน้าสำหรับขั้น 2-4 ที่ใกล้หมดอายุ อยู่ในอันดับเดียวกับตัวเลข "ผลเปลี่ยนจริง/invalidate" ที่ประเมินไว้ข้างบน (~500-800/ปีที่ 100 ร้าน) เพราะเป็นเหตุการณ์คู่กัน (ทุกครั้งที่ข้อตรวจใกล้หมดอายุจริง = ต้องมีรอบมาปิดงานนั้นพอดี ยกเว้นกรณี idempotent กันซ้ำเมื่อ cron รันหลายวันติดในช่วง lead time 14 วันเดียวกัน) — **รวมทั้งตารางยังอยู่ในระดับที่ Postgres จัดการได้สบาย** ไม่ต้อง partition ในอนาคตอันใกล้ ตัวเลขจากขั้น 1 ยังคงเป็นตัวครอบงำหลักเหมือนเดิม
@@ -479,12 +541,13 @@ ALTER TABLE "InspectionEvidence" ADD CONSTRAINT "InspectionEvidence_has_content_
 | Table | BRD FR/AC | สถานะ |
 |-------|-----------|-------|
 | `InspectionPlan` (รวม `lapsedReason`, `canceledAt`, `graceUntil`) | FR-INS-001, FR-INS-002, FR-INS-007, FR-INS-008 (AC-INS-08-3), FR-INS-010, FR-INS-019, FR-INS-026 (AC-INS-26-3), PRD §1.2 (KPI retention) | Draft |
-| `InspectionRound` (รวม `dueAt`) | FR-INS-003..006 (method/step), FR-INS-017 (AC-INS-17-2), FR-INS-024, FR-INS-025, FR-INS-012 (AC-INS-12-1 — เดิม derive สถานะได้อัตโนมัติ แต่ยังไม่มีกลไกสร้างงานให้คนมาตรวจซ้ำจริงจนกว่าจะเพิ่ม `dueAt`+cron รอบ 4) | Draft |
+| `InspectionRound` (รวม `dueAt`, `suspectedFraudNote`) | FR-INS-003..006 (method/step), FR-INS-017 (AC-INS-17-2), FR-INS-024, FR-INS-025, FR-INS-012 (AC-INS-12-1 — เดิม derive สถานะได้อัตโนมัติ แต่ยังไม่มีกลไกสร้างงานให้คนมาตรวจซ้ำจริงจนกว่าจะเพิ่ม `dueAt`+cron รอบ 4), FR-INS-023 (AC-INS-23-1 — `suspectedFraudNote` คือช่องบันทึกของผู้ตรวจก่อนเข้าสู่เส้นทางแยกที่ FR-INS-023 อธิบาย) | Draft |
 | `InspectionResult` (insert/update ผสม) | FR-INS-011, FR-INS-012, FR-INS-013, FR-INS-014, FR-INS-016 (AC-INS-16-1/16-3), FR-INS-018, FR-INS-020, FR-INS-021, FR-INS-027 (AC-INS-27-1), FR-INS-028, FR-INS-029 | Draft |
 | `InspectionEvidence` (รวม CHECK เนื้อหา) | FR-INS-015, FR-INS-016, FR-INS-017 (หลักฐานปิด) | Draft |
 | `InspectionTermsAcceptance` | FR-INS-010 (AC-INS-10-1/10-2/10-3), §8.7 (ค่าตรวจไม่คืน — เอกสารอ้างอิงข้อพิพาท) | Draft |
 | `InspectionIntakeQuota` | FR-INS-009 | Draft |
 | `User.isInspector` | FR-INS-024 (บทบาทผู้ตรวจแยกจากแอดมิน) | Draft |
+| `InspectorRoleChange` | FR-INS-024 (AC-INS-24-1 — บทบาทผู้ตรวจแยกจากแอดมิน จึงต้องมี audit ว่าใครให้สิทธิ์นี้กับใคร) — endpoint `PATCH /api/admin/users/[id]/inspector` ตาม API.md | Draft |
 
 ---
 
@@ -520,21 +583,31 @@ API agent (ผู้บริโภคเอกสารนี้ต่อ) ท�
 
 **การตัดสินใจย่อยที่ไม่ได้ถูกสั่งตรง ๆ แต่ต้องตัดสินเพื่อให้ schema สมบูรณ์:** `assignedAt` **ไม่เปลี่ยนเป็น nullable** — ตีความใหม่เป็น "เข้าคิวเมื่อไร" (มีค่าเสมอตั้งแต่แถวถูกสร้าง แม้ยังไม่มีผู้ตรวจตัวจริง) แยกจาก `dueAt` ("ควรเสร็จเมื่อไร") และแยกจาก "มีผู้ตรวจตัวจริงเมื่อไร" (ไม่มีคอลัมน์แยกสำหรับสิ่งนี้ — ดูได้จาก `inspectorUserId IS NOT NULL` เอง) — เลือกท่านี้เพราะ Controller ไม่ได้สั่งให้แก้ constraint เดิม และการเปลี่ยน `NOT NULL` เป็น `nullable` ของคอลัมน์ที่มีอยู่แล้วเป็นการเปลี่ยนโครงสร้างที่มีความเสี่ยงมากกว่าการตีความความหมายใหม่โดยไม่แก้ type
 
+### เวอร์ชัน 1.5 (2026-08-29, รอบสุดท้ายจริง ๆ) — รอบ 5: หนี้ 2 อย่างจาก API.md
+
+**ยืนยันครบ:** รอบ 4 ทั้งหมด (`InspectionRound.dueAt`, ยืนยัน `inspectorUserId` nullable, index คิวงานค้าง+idempotent, ปรับประมาณการปริมาณข้อมูล) **อยู่ในเอกสารฉบับนี้ครบ** ไม่มีข้อไหนตกหล่น
+
+รอบนี้ปิดหนี้ 2 อย่างที่ API agent ส่งต่อมาจาก API.md:
+
+1. ✓ **เพิ่ม `InspectionRound.suspectedFraudNote String?`** — ผู้ตรวจ (โดยเฉพาะคนนอกที่จ้างรายครั้งของขั้น 4) บันทึกข้อสงสัยฉ้อโกงได้ แต่**แอดมินเป็นคนตัดสิน**ว่าจะเข้าฐาน `/check` หรือไม่ (การใส่ชื่อคนเข้าฐานมิจฉาชีพย้อนกลับยากและกระทบคนจริง ไม่ควรเป็นการตัดสินหน้างานของคนนอก) — 🛑 **ห้ามหลุดสู่ฝั่งร้านและฝั่งสาธารณะเด็ดขาด** (ข้อสงสัยที่ยังไม่ถูกตัดสิน การเปิดเผยคือการกล่าวหา และร้านเห็นก่อน = หลักฐานถูกทำลายได้) เพิ่ม partial index (unmanaged SQL) หา "รอบที่มีข้อสงสัยแต่ยังไม่มีใครตัดสิน" แยกจาก `dueAt` เพราะความเร่งด่วนคนละแกน — ดู §3.2
+2. ✓ **เพิ่มโมเดลที่ 7: `InspectorRoleChange`** (append-only audit) — `id · targetUserId · actorUserId · isInspector · reason (NOT NULL) · createdAt` + index `[targetUserId, createdAt]` เกิดจาก `PATCH /api/admin/users/[id]/inspector` เขียนในทรานแซกชันเดียวกับ `User.isInspector` — `reason` บังคับเพราะ audit ที่บอกแค่ "ใคร/เมื่อไร" ตอบไม่ได้ว่า "ทำไม" และช่องไม่บังคับจะว่างเสมอ — ดู §3.7
+
 ### Open Questions ที่ยังเหลืออยู่ (ไม่ใช่ contract ผิด — เป็นรายละเอียด implementation ที่ SDS ควรพิจารณาต่อ)
 
-1. **`InspectionTermsAcceptance`/`InspectionPlan.termsAcceptedAt` เป็น dual-write** (ต้องเขียน 2 ที่ในทรานแซกชันเดียวกันทุกครั้ง) — schema เปิดช่องให้สอง state ไม่ sync กันได้ถ้า service layer เขียนไม่ครบ (ไม่มี DB constraint บังคับความสอดคล้องข้ามตารางแบบนี้ได้จริงใน Postgres โดยไม่ใช้ trigger) — เป็นวินัยของโค้ด ไม่ใช่ปัญหา schema แต่ควรมีเทส `[blocker]` ผูกไว้ตอน implement
+1. **`InspectionTermsAcceptance`/`InspectionPlan.termsAcceptedAt` เป็น dual-write** (ต้องเขียน 2 ที่ในทรานแซกชันเดียวกันทุกครั้ง) — schema เปิดช่องให้สอง state ไม่ sync กันได้ถ้า service layer เขียนไม่ครบ (ไม่มี DB constraint บังคับความสอดคล้องข้ามตารางแบบนี้ได้จริงใน Postgres โดยไม่ใช้ trigger) — เป็นวินัยของโค้ด ไม่ใช่ปัญหา schema แต่ควรมีเทส `[blocker]` ผูกไว้ตอน implement — 🛑 **เดียวกันกับ dual-write ของ `InspectorRoleChange`+`User.isInspector` ที่เพิ่มเข้ามารอบนี้** (ควรมีเทส `[blocker]` คู่เดียวกันด้วย)
 2. **`InspectionResult` write-path มี race window ระหว่าง "หาแถวล่าสุด" กับ "ตัดสิน UPDATE/INSERT"** — แนะนำให้ห่อด้วยทรานแซกชัน/`SELECT ... FOR UPDATE` แล้ว (§3.3) แต่รายละเอียด implementation (isolation level, retry strategy) เป็นเรื่องของ SDS/service layer ไม่ใช่ schema
 3. **ค่า "14 วัน lead time" ของรอบ 4 เป็นค่าตั้งต้นที่ยังไม่มีมติราคายืนยัน** เหมือนกับตัวเลขอื่น ๆ ที่ BRD ทำเครื่องหมาย "รอเคาะ" (โควตา, จำนวนวันผ่อนผัน) — ไม่ควร hardcode ถาวรจนกว่าจะมีมติแยกต่างหาก เป็นค่าคงที่ระดับแอปที่ควรอยู่ใน SSOT เดียวกับ `ttlDays`
 4. **ใครมอบหมายผู้ตรวจให้กับรอบที่ cron สร้างล่วงหน้า และมีแจ้งเตือนอะไรบ้าง** — schema รองรับสถานะ "รอมอบหมาย" ได้แล้ว (`inspectorUserId=NULL`) แต่ flow การแจ้งเตือนแอดมิน/มอบหมายงานเป็นเรื่องของ SDS ไม่ใช่ schema
+5. **`InspectionRound.suspectedFraudNote` ไม่มีกลไก "เคลียร์" ในตัว** — contract รอบนี้มีแค่คอลัมน์บันทึกข้อความ ไม่มี `reviewedAt`/`reviewedByUserId`/สถานะตัดสินใด ๆ ⇒ ทุกแถวที่มีค่านี้จะค้างอยู่ใน partial index "รอตัดสิน" ตลอดไปแม้แอดมินจะอ่านและปัดตกไปแล้ว — ต้องตัดสินใจในรอบ SDS ถัดไปว่าจะเพิ่มกลไกติดตามสถานะหรือไม่ (ดูรายละเอียดที่ §3.2)
 
 ---
 
 ## 9. สรุป (Summary)
 
-เอกสาร DATABASE นี้กำหนดโครงสร้างข้อมูลของ **แผนการตรวจสอบร้านค้า (Shop Inspection Plan)** — **6 ตารางใหม่** (`InspectionPlan`, `InspectionRound`, `InspectionResult`, `InspectionEvidence`, `InspectionTermsAcceptance`, `InspectionIntakeQuota`) + คอลัมน์ใหม่ 1 คอลัมน์บน `User` (`isInspector`) + enum ใหม่ 5 ตัว ทั้งหมดเป็น additive ไม่แตะโมเดลเดิม
+เอกสาร DATABASE นี้กำหนดโครงสร้างข้อมูลของ **แผนการตรวจสอบร้านค้า (Shop Inspection Plan)** — **7 ตารางใหม่** (`InspectionPlan`, `InspectionRound`, `InspectionResult`, `InspectionEvidence`, `InspectionTermsAcceptance`, `InspectionIntakeQuota`, `InspectorRoleChange`) + คอลัมน์ใหม่ 1 คอลัมน์บน `User` (`isInspector`) + enum ใหม่ 5 ตัว ทั้งหมดเป็น additive ไม่แตะโมเดลเดิม
 
-**ผ่านการแก้ 4 รอบจาก feedback ของ Controller หลัง review draft 1.0** (สรุปเต็มใน §8): รอบ 1 ปิด 3 ช่องโหว่แรก (append-only เบื้องต้น, `lapsedReason`, quota fail-closed) → รอบ 2 แก้ append-only ล้วนที่ทำลายไทม์ไลน์ด้วยกติกา insert-เมื่อเปลี่ยน/update-เมื่อเดิม (`lastConfirmedAt`) → รอบ 3 ปิด 4 ช่องโหว่ที่ API agent ทักกลับ (`canceledAt`/`graceUntil`, โมเดล `InspectionTermsAcceptance`, CHECK ของ `InspectionEvidence`, tie-break `id DESC`) → รอบ 4 ปิดปัญหา "ฟีเจอร์เสื่อมเองเงียบ ๆ" ของขั้น 2-4 ด้วย `InspectionRound.dueAt` + cron สร้างคิวงานล่วงหน้า
+**ผ่านการแก้ 5 รอบจาก feedback ของ Controller หลัง review draft 1.0** (สรุปเต็มใน §8): รอบ 1 ปิด 3 ช่องโหว่แรก (append-only เบื้องต้น, `lapsedReason`, quota fail-closed) → รอบ 2 แก้ append-only ล้วนที่ทำลายไทม์ไลน์ด้วยกติกา insert-เมื่อเปลี่ยน/update-เมื่อเดิม (`lastConfirmedAt`) → รอบ 3 ปิด 4 ช่องโหว่ที่ API agent ทักกลับ (`canceledAt`/`graceUntil`, โมเดล `InspectionTermsAcceptance`, CHECK ของ `InspectionEvidence`, tie-break `id DESC`) → รอบ 4 ปิดปัญหา "ฟีเจอร์เสื่อมเองเงียบ ๆ" ของขั้น 2-4 ด้วย `InspectionRound.dueAt` + cron สร้างคิวงานล่วงหน้า → รอบ 5 ปิดหนี้จาก API.md (`InspectionRound.suspectedFraudNote` ที่ห้ามหลุดสู่ร้าน/สาธารณะเด็ดขาด + โมเดลที่ 7 `InspectorRoleChange` audit log)
 
 ก่อนรัน `npx prisma migrate dev` จริงต้องมี user review ผ่าน PRD/BRD ก่อนตาม Hard Rule 11 (Doc-First) เนื่องจากทั้งสองฉบับยังอยู่สถานะ Draft
 
-**Open Questions:** ดู §8 ท้ายเอกสาร (2 ข้อที่เหลือเป็นวินัยการ implement ไม่ใช่ปัญหา contract)
+**Open Questions:** ดู §8 ท้ายเอกสาร (5 ข้อที่เหลือเป็นวินัยการ implement ไม่ใช่ปัญหา contract)
