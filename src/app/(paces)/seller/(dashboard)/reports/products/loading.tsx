@@ -1,5 +1,5 @@
 /**
- * loading.tsx — skeleton ของ /seller/reports/products (feature 00062)
+ * loading.tsx — skeleton ของ /seller/reports/products (feature 00063)
  *
  * Base: src/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton.tsx
  *

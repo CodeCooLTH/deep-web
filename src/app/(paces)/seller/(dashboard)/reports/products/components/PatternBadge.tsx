@@ -1,5 +1,5 @@
 /**
- * PatternBadge — ป้ายสรุปพฤติกรรมการขายของสินค้าหนึ่งตัว (feature 00062)
+ * PatternBadge — ป้ายสรุปพฤติกรรมการขายของสินค้าหนึ่งตัว (feature 00063)
  *
  * Base: docs/system/ui-guideline/paces-component-reference.md §6 Badge
  *   (`badge bg-{semantic}/15 text-{semantic}-ink` — ห้าม `text-{semantic}` เปล่า คอนทราสต์ตก)

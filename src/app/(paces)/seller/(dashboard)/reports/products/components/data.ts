@@ -1,5 +1,5 @@
 /**
- * data.ts — ชนิดข้อมูลและตัวช่วยฝั่งหน้าจอของรายงาน "ยอดขายรายสินค้า" (feature 00062)
+ * data.ts — ชนิดข้อมูลและตัวช่วยฝั่งหน้าจอของรายงาน "ยอดขายรายสินค้า" (feature 00063)
  *
  * ไฟล์นี้ไม่มี React และไม่มี prisma — เป็นตัวกลางระหว่าง service กับ component
  * (แพตเทิร์นเดียวกับ `sales/components/data.ts` และ `reports/agents/components/data.ts`)

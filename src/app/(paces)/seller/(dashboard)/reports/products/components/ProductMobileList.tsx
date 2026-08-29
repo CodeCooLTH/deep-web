@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * ProductMobileList — รายการสินค้าบนมือถือ (<768) ของรายงานยอดขายรายสินค้า (feature 00062)
+ * ProductMobileList — รายการสินค้าบนมือถือ (<768) ของรายงานยอดขายรายสินค้า (feature 00063)
  *
  * Base: src/app/(paces)/seller/(dashboard)/products/components/ProductCard.tsx
  *   (การ์ดแยกใบ + รูป/fallback + ลำดับชั้นข้อความ) และ orders/components/OrderCard.tsx (แถวกดได้)

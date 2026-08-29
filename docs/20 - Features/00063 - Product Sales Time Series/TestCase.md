@@ -3,11 +3,11 @@ title: "TestCase — ยอดขายรายสินค้า (Product Sale
 owner: shinobu22
 status: draft
 created: 2026-08-29
-tags: [feature, 00062, test]
+tags: [feature, 00063, test]
 related: ["[[BRD]]", "[[PRD]]", "[[DATABASE]]", "[[Feature-Docs-Ownership]]"]
 ---
 
-> **โมดูล:** M62-ProductSalesTimeSeries
+> **โมดูล:** M63-ProductSalesTimeSeries
 > **ประเภทเอกสาร:** Test Case
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-08-29
@@ -462,7 +462,7 @@ flowchart TD
 
 | Run | วันที่ | ขอบเขต | ผล | ผู้ทดสอบ |
 |-----|--------|---------|-----|-----------|
-| 1 | 2026-08-29 | อัตโนมัติเท่านั้น — `npx vitest run src/lib/__tests__/product-sales-month.test.ts src/lib/__tests__/product-report-guards.test.ts` | ✅ **Pass — 2 ไฟล์ / 64 เคส เขียวทั้งหมด** (344 ms) | agent (session เอกสาร 00062) |
+| 1 | 2026-08-29 | อัตโนมัติเท่านั้น — `npx vitest run src/lib/__tests__/product-sales-month.test.ts src/lib/__tests__/product-report-guards.test.ts` | ✅ **Pass — 2 ไฟล์ / 64 เคส เขียวทั้งหมด** (344 ms) | agent (session เอกสาร 00063) |
 | — | — | ตรวจด้วยตา (§2.2 — TC-M-01..20 × 3 breakpoint) | 🔴 **ยังไม่เคยรัน** (เวิร์กทรีไม่มี `.env`) | — |
 | — | — | E2E (Playwright) | ❌ ไม่มีชุดทดสอบ | — |
 

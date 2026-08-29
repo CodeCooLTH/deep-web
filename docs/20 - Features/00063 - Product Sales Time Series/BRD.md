@@ -3,11 +3,11 @@ title: "BRD — ยอดขายรายสินค้า"
 owner: shinobu22
 status: draft
 created: 2026-08-29
-tags: [feature, 00062, brd]
+tags: [feature, 00063, brd]
 related: ["[[PRD]]", "[[SRS]]"]
 ---
 
-> **โมดูล:** M62-ProductSalesTimeSeries
+> **โมดูล:** M63-ProductSalesTimeSeries
 > **ประเภทเอกสาร:** Business Requirements Document (BRD) — NON-TECHNICAL
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-08-29

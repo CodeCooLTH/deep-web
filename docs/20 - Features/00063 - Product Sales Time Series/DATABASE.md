@@ -3,11 +3,11 @@ title: "DATABASE — ยอดขายรายสินค้า (Product Sale
 owner: shinobu22
 status: draft
 created: 2026-08-29
-tags: [feature, 00062, database]
+tags: [feature, 00063, database]
 related: ["[[PRD]]", "[[BRD]]", "[[Feature-Docs-Ownership]]"]
 ---
 
-> **โมดูล:** M62-ProductSalesTimeSeries
+> **โมดูล:** M63-ProductSalesTimeSeries
 > **ประเภทเอกสาร:** DATABASE Design
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-08-29
@@ -381,7 +381,7 @@ PRD §6.2 และ BRD §7.2 บันทึก "`OrderItem` ไม่มี in
 |-------|----------------|-------|----------|
 | — | **ไม่มี** | — | ฟีเจอร์นี้ไม่มีไฟล์ migration เลยแม้แต่ไฟล์เดียว |
 
-ยืนยันได้จาก: ไม่มีโฟลเดอร์ `prisma/migrations/*` ที่อ้างถึง feature 00062 และ
+ยืนยันได้จาก: ไม่มีโฟลเดอร์ `prisma/migrations/*` ที่อ้างถึง feature 00063 และ
 `prisma/schema.prisma` ไม่มีบรรทัดใดที่เพิ่มเข้ามาเพื่อฟีเจอร์นี้
 
 ### 5.2 Rollback
@@ -514,7 +514,7 @@ column ที่ต้อง sync และไม่มี source of truth ท�
 
 ## 8. สรุป (Summary)
 
-เอกสาร DATABASE นี้บันทึกว่ารายงาน **ยอดขายรายสินค้า (00062)** ทำงานบน **โครงสร้างข้อมูลเดิม
+เอกสาร DATABASE นี้บันทึกว่ารายงาน **ยอดขายรายสินค้า (00063)** ทำงานบน **โครงสร้างข้อมูลเดิม
 ทั้งหมด** — ไม่มีตารางใหม่ ไม่มีคอลัมน์ใหม่ ไม่มี index ใหม่ ไม่มี migration และไม่มี write path
 จึงไม่มีอะไรให้ DEV เขียน migration และไม่มีความเสี่ยงต่อข้อมูลเดิมเลย
 
@@ -532,7 +532,7 @@ column ที่ต้อง sync และไม่มี source of truth ท�
 
 - 🛑 **ยังขาด `API.md`** — โมดูลนี้มี 6/7 ไฟล์ตาม template (PRD · BRD · SRS · SDS · DATABASE ·
   TestCase) ⇒ ตรวจด้วย
-  `diff <(ls "docs/99 - Rules/Feature-Templates/") <(ls "docs/20 - Features/00062 - Product Sales Time Series/")`
+  `diff <(ls "docs/99 - Rules/Feature-Templates/") <(ls "docs/20 - Features/00063 - Product Sales Time Series/")`
   ไม่ใช่นับจำนวนไฟล์ (HR11) · แม้เนื้อหาจะเป็น "ไม่มี endpoint ใหม่" ก็ยังต้องมีไฟล์บันทึกไว้
 - ⚠️ **SRS/SDS ถูกเขียนขนานกับเอกสารนี้** — ยังไม่มีใครอ่านทั้งสามฉบับเทียบกันทีเดียวเพื่อหา
   จุดที่เล่าไม่ตรงกัน ควรทำก่อน sign-off (จุดที่เสี่ยงที่สุดคือรายการค่า `Order.status` — §3.2)

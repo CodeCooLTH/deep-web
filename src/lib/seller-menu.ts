@@ -64,7 +64,7 @@ export const sellerMenuItems: MenuItemType[] = [
       // (ไม่มีคะแนนรีวิว ไม่มีความพอใจลูกค้า ไม่มีการตรวจว่าตอบดีไหม) — ตั้งชื่อว่า "คุณภาพ"
       // คือการรับรองสิ่งที่ข้อมูลไม่ได้พูด วันที่เพิ่มตัวชี้วัดคุณภาพจริงค่อยเปลี่ยนชื่อได้
       { url: '/reports/agents', slug: 'seller:reports-agents', label: 'การตอบแชทของแอดมิน', icon: 'user-star' },
-      // feature 00062 — ยอดขายรายสินค้าเป็นไทม์ซีรีส์รายเดือน (สินค้าตัวไหนขายช่วงไหน)
+      // feature 00063 — ยอดขายรายสินค้าเป็นไทม์ซีรีส์รายเดือน (สินค้าตัวไหนขายช่วงไหน)
       // อยู่กลุ่ม ANALYTICS เพราะเป็น "ดูตัวเลข" เหมือนพี่น้องอีกสองหน้า
       // 🛑 ชื่อ "ยอดขายรายสินค้า" ต่างจาก `/sales` ("ภาพรวมกำไร/ขาดทุน") ชัดเจน — คนละคำถาม
       // คนละนิยามของคำว่ายอดขาย (หน้านี้นับออเดอร์ที่ยังไม่ถูกยกเลิก /sales นับที่ยืนยันแล้ว)
@@ -351,7 +351,7 @@ export function applyExpenseMenu(
  * pattern เดียวกับ applyStaffMenu (กรอง child ออกจาก group) — ไม่ disable แต่ซ่อน
  */
 const LODGING_ONLY_SLUGS = ['seller:rooms', 'seller:calendar', 'seller:bookings', 'seller:housekeepers']
-// feature 00062: รายงานยอดขายรายสินค้าให้ความหมายถูกเฉพาะร้านที่ขายของเป็นชิ้น —
+// feature 00063: รายงานยอดขายรายสินค้าให้ความหมายถูกเฉพาะร้านที่ขายของเป็นชิ้น —
 // LODGING ขายเป็น "คืน/ห้อง" ที่คร่อมหลายวัน พล็อตลงแกน "วันที่สั่ง" แล้วผิดความหมาย
 // 🛑 การซ่อนเมนูไม่ใช่ด่าน — หน้ามี guard ของตัวเองที่ product-report-access.service.ts
 const ONLINE_SALES_ONLY_SLUGS = ['seller:inventory', 'seller:auctions', 'seller:reports-products']

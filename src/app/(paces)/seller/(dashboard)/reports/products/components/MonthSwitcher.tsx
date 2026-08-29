@@ -1,5 +1,5 @@
 /**
- * MonthSwitcher — ปุ่ม ‹ เดือน › ของรายงานยอดขายรายสินค้า (feature 00062)
+ * MonthSwitcher — ปุ่ม ‹ เดือน › ของรายงานยอดขายรายสินค้า (feature 00063)
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/buttons/page.tsx (`.btn.btn-icon` + button group)
  *

@@ -1,5 +1,5 @@
 /**
- * product-report-access.service — จุดตัดสินสิทธิ์เดียวของรายงาน "ยอดขายรายสินค้า" (feature 00062)
+ * product-report-access.service — จุดตัดสินสิทธิ์เดียวของรายงาน "ยอดขายรายสินค้า" (feature 00063)
  *
  * โครงเดียวกับ `agent-report-access.service.ts` และ `expense-access.service.ts` โดยตั้งใจ —
  * **ใช้ธงเดิม ไม่ตั้งธงใหม่**

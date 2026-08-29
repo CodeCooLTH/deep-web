@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * ProductSalesTable — ตารางสินค้าของรายงานยอดขายรายสินค้า เดสก์ท็อป/แท็บเล็ต (feature 00062)
+ * ProductSalesTable — ตารางสินค้าของรายงานยอดขายรายสินค้า เดสก์ท็อป/แท็บเล็ต (feature 00063)
  *
  * Base: src/app/(paces)/seller/(dashboard)/products/components/ProductsTable.tsx
  *   (useReactTable + DataTable + TablePagination + คอลัมน์รูป/ชื่อสินค้า)

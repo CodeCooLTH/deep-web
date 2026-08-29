@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * ProductDetailSheet — ชีตเต็มจอแสดงกราฟของสินค้าตัวเดียว (feature 00062, มือถือ <768)
+ * ProductDetailSheet — ชีตเต็มจอแสดงกราฟของสินค้าตัวเดียว (feature 00063, มือถือ <768)
  *
  * Base: src/app/(paces)/seller/(dashboard)/products/components/ProductsListing.tsx (filter modal:
  *   `fixed inset-0 z-50 flex flex-col bg-card` + header ย้อนกลับ/ชื่อ + `overflow-auto overscroll-contain`)

@@ -3,11 +3,11 @@ title: "PRD — ยอดขายรายสินค้า (Product Sales Tim
 owner: shinobu22
 status: draft
 created: 2026-08-29
-tags: [feature, 00062, report, sales, product, prd]
+tags: [feature, 00063, report, sales, product, prd]
 related: ["[[Feature-Docs-Ownership]]", "[[00059 - Agent Performance Report]]", "[[00033 - Backdated Order Date]]", "[[00028 - Shop Business Type]]"]
 ---
 
-> **โมดูล:** M62-ProductSalesTimeSeries
+> **โมดูล:** M63-ProductSalesTimeSeries
 > **ประเภทเอกสาร:** Product Requirements Document (PRD)
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-08-29

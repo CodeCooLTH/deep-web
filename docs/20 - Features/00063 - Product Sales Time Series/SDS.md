@@ -3,11 +3,11 @@ title: "SDS — ยอดขายรายสินค้า (Product Sales Tim
 owner: shinobu22
 status: draft
 created: 2026-08-29
-tags: [feature, 00062, sds, report]
+tags: [feature, 00063, sds, report]
 related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[API]]", "[[Feature-Docs-Ownership]]"]
 ---
 
-> **โมดูล:** M62-ProductSalesTimeSeries
+> **โมดูล:** M63-ProductSalesTimeSeries
 > **ประเภทเอกสาร:** System Design Spec (SDS)
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-08-29

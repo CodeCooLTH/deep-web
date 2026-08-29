@@ -1,5 +1,5 @@
 /**
- * product-sales-series.service — ข้อมูลของรายงาน "ยอดขายรายสินค้า" (feature 00062)
+ * product-sales-series.service — ข้อมูลของรายงาน "ยอดขายรายสินค้า" (feature 00063)
  *
  * ── นิยาม "ขายแล้ว" ──────────────────────────────────────────────────────────
  * 🛑 `status != 'CANCELLED'` — ชุดเดียวกับ `getBestSellerProducts()` (product.service.ts)

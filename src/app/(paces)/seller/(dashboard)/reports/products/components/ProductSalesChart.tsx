@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * ProductSalesChart — กราฟเส้นยอดขายรายวันของสินค้าที่เลือก (feature 00062)
+ * ProductSalesChart — กราฟเส้นยอดขายรายวันของสินค้าที่เลือก (feature 00063)
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/widgets/charts/components/SalesReport.tsx
  *   (chart type 'line' + `stroke.curve: 'smooth'` + `grid.strokeDashArray: 7` +
