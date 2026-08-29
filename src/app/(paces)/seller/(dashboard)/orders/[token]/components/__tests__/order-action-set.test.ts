@@ -257,7 +257,10 @@ describe('PICKUP + PENDING — ลำดับ primary เงินก่อน�
     expect(keys(r.menu)).toEqual(['copy-link', 'edit-order', 'cancel-order'])
   })
 
-  it('มอบของแล้ว (รอ grace) → primary=null, ghost=[คัดลอกลิงก์], menu=[edit-order,cancel-order] — ไม่สนว่าเงินจ่ายหรือยัง', () => {
+  // impeccable critique P0-1 (2026-08-29): menu ต้องมี undo (pickup-handover-undo) —
+  // มือถือไม่มีทางย้อน "มอบสินค้าแล้ว" เลยถ้าไม่มีตัวนี้ (การ์ดเดสก์ท็อปมี undo เป็น hidden lg:flex
+  // อยู่แล้ว แต่มือถือไม่เห็น) mutation: ถอด pickupHandoverUndo ออกจาก menu ต้องทำให้เทสนี้แดง
+  it('มอบของแล้ว (รอ grace) → primary=null, ghost=[คัดลอกลิงก์], menu=[undo,edit-order,cancel-order] — ไม่สนว่าเงินจ่ายหรือยัง', () => {
     for (const isPickupPaymentUnpaid of [true, false]) {
       const r = getOrderActionSet({
         status: 'PENDING',
@@ -268,7 +271,7 @@ describe('PICKUP + PENDING — ลำดับ primary เงินก่อน�
       })
       expect(r.primary).toBeNull()
       expect(keys(r.ghosts)).toEqual(['copy-link'])
-      expect(keys(r.menu)).toEqual(['edit-order', 'cancel-order'])
+      expect(keys(r.menu)).toEqual(['pickup-handover-undo', 'edit-order', 'cancel-order'])
     }
   })
 

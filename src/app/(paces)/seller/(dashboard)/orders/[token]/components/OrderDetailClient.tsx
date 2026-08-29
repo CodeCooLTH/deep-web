@@ -470,6 +470,32 @@ export default function OrderDetailClient({
   }
 
   /**
+   * impeccable critique P0-1 (2026-08-29) — "ยกเลิกการยืนยันมอบสินค้า" จากเมนู ⋮ (key=
+   * 'pickup-handover-undo') คนละจุดกับปุ่ม undo บนการ์ด "การนัดรับ" (ShippingAddress.tsx —
+   * self-contained ด้วยเหตุผลเดียวกับ handlePickupHandedOver ด้านล่าง) มิเรอร์
+   * `ShippingAddress.handleUndoHandover` ทุกตัวอักษร (ข้อความ/endpoint) ตาม sibling-surface-parity
+   */
+  const handlePickupHandoverUndo = async () => {
+    const ok = await pacesConfirm.question(
+      'ยกเลิกการยืนยันว่ามอบสินค้าแล้ว?',
+      'นาฬิกาปิดงานอัตโนมัติจะหยุดนับ — กดยืนยันใหม่ได้ทุกเมื่อ',
+      { confirmButtonText: 'ยกเลิกการยืนยัน', cancelButtonText: 'ไม่ใช่ตอนนี้' },
+    )
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/orders/${publicToken}/handover`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error || 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่')
+      }
+      pacesToast.success('ยกเลิกการยืนยันแล้ว')
+      router.refresh()
+    } catch (err: unknown) {
+      pacesToast.error(err instanceof Error ? err.message : 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่')
+    }
+  }
+
+  /**
    * feature 00062 (U16) — "มอบสินค้าแล้ว" จากแถบ action ล่างจอ (<1024, order-action-set.ts
    * key='pickup-handed-over') คนละจุดกับปุ่มบนการ์ด "การนัดรับ" (ShippingAddress.tsx — self
    * -contained เพราะการ์ดนั้นถูก page.tsx render ตรงใน sideCards ไม่ผ่าน OrderDetailClient)
@@ -541,6 +567,9 @@ export default function OrderDetailClient({
         return
       case 'pickup-handed-over':
         void handlePickupHandedOver()
+        return
+      case 'pickup-handover-undo':
+        void handlePickupHandoverUndo()
         return
       case 'cancel-order':
         void handleCancelOrder()
@@ -646,6 +675,7 @@ export default function OrderDetailClient({
                 paymentConfirmedAtISO={paymentConfirmedAtISO}
                 paymentMethod={paymentMethod}
                 slipFileId={slipFileId}
+                status={status}
                 totalAmount={totalAmount}
               />
             )

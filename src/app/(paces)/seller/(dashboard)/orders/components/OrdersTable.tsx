@@ -560,7 +560,11 @@ export default function OrdersTable({
                 /* ออเดอร์นัดรับ (feature 00062 U18) — ไม่มีพัสดุให้ถามเลย ต้องเช็คก่อน
                    hasCourier เสมอ (ใบพวกนี้ไม่มี shipment จึงตกไป "ไม่มีหมายเลขพัสดุ" ที่เดิม
                    ทั้งที่ความจริงคือ "ไม่มีการจัดส่งเลย" คนละความหมาย) */
-                <MiniShipmentTimeline pickupStage={row.original.pickupStage} plain />
+                <MiniShipmentTimeline
+                  pickupStage={row.original.pickupStage}
+                  cancelled={row.original.status === 'CANCELLED'}
+                  plain
+                />
               ) : hasCourier ? (
                 /* hover ที่บล็อกนี้ = การ์ดสถานะพัสดุเต็ม + ยิงถาม iShip สด (user สั่ง 2026-08-06) */
                 <ShipmentHoverCard

@@ -379,6 +379,8 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
               totalAmount={order.totalAmount}
               payoutSnapshot={order.payoutSnapshot}
               paymentBadge={paymentBadge}
+              status={order.status}
+              paymentConfirmedAt={order.paymentConfirmedAt}
               contactShopAction={
                 <AuthPingLink
                   href={loginHref}

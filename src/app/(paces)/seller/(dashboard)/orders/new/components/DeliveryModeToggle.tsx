@@ -29,10 +29,17 @@ export default function DeliveryModeToggle({ control }: Props) {
   const { field } = useController({ control, name: 'fulfillmentMode', defaultValue: undefined })
   const isPickup = field.value === 'PICKUP'
 
-  // soft-selected: bg-primary/15 text-primary (ชุดเดียวกับ FilterDropdown active state, ตาม UX spec)
-  // ไม่ได้เลือก: bg-light text-dark hover:text-primary — ตรง Theme Source Mapping ของ UX spec เป๊ะ
+  /**
+   * 🛑 `text-primary-ink` ไม่ใช่ `text-primary` — UX spec เขียนว่า `bg-primary/15 text-primary`
+   * แต่คู่นั้น **ตกคอนทราสต์ AA**: `order-display.ts` วัดไว้เองแล้วว่า `text-{semantic}` บนพื้น
+   * `bg-{semantic}/15` ได้ primary 4.17:1 (ต่ำกว่าเกณฑ์ข้อความปกติ 4.5:1) ส่วน token "หมึก"
+   * `text-primary-ink` ได้ 8.44:1 — และ `_root.css` ก็เขียนกำกับตัวเลขนี้ไว้เอง
+   *
+   * ปุ่มนี้เป็นตัวหนังสือขนาดปกติ ⇒ ใช้เกณฑ์ 4.5:1 ไม่ใช่ 3:1 ของ large text
+   * (PRODUCT.md ประกาศ WCAG 2.1 AA + "เข้าถึงพิเศษ" สำหรับผู้สูงวัยไว้เป็นข้อผูกพัน)
+   */
   const base = 'btn min-h-11 flex-1 items-center justify-center gap-1.5'
-  const selectedCls = 'bg-primary/15 text-primary'
+  const selectedCls = 'bg-primary/15 text-primary-ink'
   const unselectedCls = 'bg-light text-dark hover:text-primary'
 
   return (

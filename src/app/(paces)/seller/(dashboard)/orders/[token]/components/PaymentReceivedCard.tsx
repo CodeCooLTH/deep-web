@@ -7,10 +7,12 @@
  * hidden lg:flex) ต่างกัน 4 จุดตาม UX-Design-Spec.md §A3:
  *   (1) title "การชำระเงิน" แทน "เก็บเงินปลายทาง"
  *   (2) icon เปลี่ยนตาม paymentMethod จริง (PAYMENT_ICONS) แทน cash คงที่
- *   (3) badge tone ไม่ใช้ success แม้ตอนได้รับเงินแล้ว — Verified-Means-Green สงวนไว้เฉพาะ
- *       status===CONFIRMED เท่านั้น (§B8) "ร้านยืนยันเอง" เป็น self-report ไม่มีบุคคลที่สามยืนยัน
- *       — ต่างจาก CodCard (ต้นแบบที่ mirror มา) ซึ่งใช้เขียวกับ "ได้รับเงินปลายทางแล้ว"
- *       นี่คือจุดที่ precedent เดิมขัดกับ Impeccable และ ux เลือกทำตาม Impeccable + BRD
+ *   (3) [แก้ 2026-08-29, impeccable critique P1-4] badge ต้องผ่าน `getPaymentBadge()` SSOT
+ *       เดียวกับจอผู้ซื้อ (HR16) ไม่ใช่คำนวณเองจาก `received` ล้วนอีกต่อไป — เดิมการ์ดนี้ตั้งใจ
+ *       ไม่ใช้ success แม้ได้รับเงินแล้ว ("ร้านยืนยันเอง" เป็น self-report ไม่มีบุคคลที่สามยืนยัน)
+ *       แต่ SSOT เช็ค status===CONFIRMED เป็นกิ่งแรกเสมอ (Verified-Means-Green อนุญาตเขียวตรงนั้น
+ *       จริง — ผู้ซื้อยืนยันรับของแล้วคือบุคคลที่สาม) การไม่เรียก SSOT ทำให้จอผู้ขาย/ผู้ซื้อของ
+ *       ออเดอร์ใบเดียวกันขัดกันเอง (จอซื้อเขียว "ชำระแล้ว" จอขายส้ม "ยังไม่ได้รับเงิน" ค้างตลอดไป)
  *   (4) แสดงในทุกสถานะที่ไม่ใช่ CANCELLED (ผู้เรียก — OrderDetailClient.tsx — เป็นคนกรอง
  *       ไม่ผูกกับ SHIPPED-only เหมือน COD เพราะ user journey จริงคือ "โอนก่อน → มารับของทีหลัง")
  *
@@ -29,12 +31,22 @@
 import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { formatDateTimeTH } from '@/lib/format-date'
+import { getPaymentBadge } from '@/lib/order-display'
 import { PAYMENT_ICONS, PAYMENT_LABELS } from '../../components/data'
 import { formatAmount } from './order-detail-shared'
 import SlipViewer from './SlipViewer'
 
 export type PaymentReceivedCardProps = {
   totalAmount: unknown
+  /**
+   * impeccable critique P1-4 (2026-08-29) — Order.status ต้องส่งเข้ามาแล้ว เพราะ badge ของ
+   * การ์ดนี้ต้องผ่าน `getPaymentBadge()` SSOT เดียวกับจอผู้ซื้อ (UX-Design-Spec §B8, HR16)
+   * เดิมการ์ดนี้คำนวณ badge เองจาก `received` (paymentConfirmedAt) ล้วน ไม่รู้จัก status เลย ⇒
+   * ออเดอร์ที่ผู้ซื้อกดยืนยันรับของเอง (status='CONFIRMED') โดยร้านไม่เคยกด "ได้รับเงินแล้ว"
+   * จอผู้ซื้อขึ้นเขียว "ชำระแล้ว" (getPaymentBadge เช็ค CONFIRMED เป็นกิ่งแรก) แต่จอผู้ขายขึ้นส้ม
+   * "ยังไม่ได้รับเงิน" ค้างตลอดไปพร้อมปุ่ม primary ที่ไม่มีวันหายไปเอง
+   */
+  status: string
   /** วิธีชำระของออเดอร์นี้ — เลือก icon/คำอธิบายก่อนกด (TRANSFER/PROMPTPAY/CASH หรือ free text) */
   paymentMethod: string | null
   /** ISO — มีค่า = ร้านกดยืนยันรับเงินแล้ว */
@@ -50,6 +62,7 @@ export type PaymentReceivedCardProps = {
 
 export default function PaymentReceivedCard({
   totalAmount,
+  status,
   paymentMethod,
   paymentConfirmedAtISO,
   confirmedByLabel,
@@ -59,6 +72,8 @@ export default function PaymentReceivedCard({
   onUndo,
 }: PaymentReceivedCardProps) {
   const received = Boolean(paymentConfirmedAtISO)
+  // impeccable critique P1-4 — badge ต้องมาจาก SSOT เดียวกับฝั่งผู้ซื้อเสมอ ห้ามคำนวณเองอีก
+  const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId, paymentConfirmedAtISO)
   // fallback 'receipt' เป็นกลาง (UX §A3 edge state) — paymentMethod อาจเป็น free text ที่ร้านพิมพ์เอง
   // ("พร้อมเพย์ 081-234-5678") ซึ่งไม่ตรง key ใน PAYMENT_ICONS/PAYMENT_LABELS เป๊ะ
   const icon = paymentMethod ? (PAYMENT_ICONS[paymentMethod] ?? 'receipt') : 'receipt'
@@ -69,11 +84,9 @@ export default function PaymentReceivedCard({
     <div className="card">
       <div className="card-header">
         <h4 className="card-title">การชำระเงิน</h4>
-        {/* info ไม่ใช่ success แม้ตอนได้รับเงินแล้ว (Verified-Means-Green สงวนเขียวให้
-            status===CONFIRMED เท่านั้น) — ต่างจาก CodCard ที่ mirror มาซึ่งใช้เขียวตอนได้เงิน */}
-        <span className={received ? 'badge bg-info/15 text-info-ink' : 'badge bg-warning/15 text-warning-ink'}>
-          {received ? 'ได้รับเงินแล้ว' : 'ยังไม่ได้รับเงิน'}
-        </span>
+        {/* PaymentBadge type รวม `| null` ไว้เผื่ออนาคต (order-display.ts) — getPaymentBadge()
+            ปัจจุบันไม่มี branch ไหนคืน null จริง แต่ tsc บังคับให้ narrow ก่อนใช้ */}
+        {paymentBadge && <span className={paymentBadge.cls}>{paymentBadge.label}</span>}
       </div>
       <div className="card-body">
         <div className="flex items-center gap-3">
@@ -125,7 +138,8 @@ export default function PaymentReceivedCard({
             <Icon icon="arrow-back-up" className="me-1.5 text-base" aria-hidden="true" />
             ยกเลิกการยืนยัน
           </button>
-        ) : (
+        ) : status === 'CONFIRMED' ? null : ( // impeccable critique P1-4: ผู้ซื้อยืนยันรับของแล้ว badge บนขึ้น
+          // "ชำระแล้ว" เขียวแล้ว — ปุ่มนี้ต้องไม่ค้างให้กดซ้ำ (ดู comment prop `status` ด้านบน)
           <button
             className="btn bg-primary hover:bg-primary-hover mt-4 hidden w-full justify-center text-sm font-medium text-white disabled:opacity-60 lg:flex"
             disabled={busy}

@@ -72,7 +72,8 @@ FR-PKP-01 (BRD §2.1) — ร้าน ONLINE_SALES เลือก "นัด�
 
 ### Section breakdown
 - **แถว "วิธีส่งมอบ"** — label `text-sm font-semibold text-default-700` (ชุดเดียวกับ label แถว "ช่องทางการขาย"/"การชำระเงิน" ที่มีอยู่แล้ว) + ปุ่ม 2 ใบ `inline-flex` แบ่งครึ่งเท่ากัน (`flex-1`)
-- ปุ่มที่เลือกอยู่: `btn bg-primary/15 text-primary` (soft-selected, ชุดเดียวกับ FilterDropdown active state) + icon tone primary
+- ปุ่มที่เลือกอยู่: `btn bg-primary/15 text-primary-ink` (soft-selected) + icon tone primary
+  🛑 **แก้ 2026-08-29:** ฉบับแรกเขียน `text-primary` ซึ่ง **ตกคอนทราสต์ AA** — `order-display.ts` วัดไว้เองแล้วว่า `text-{semantic}` บนพื้น `/15` ได้ primary 4.17:1 (เกณฑ์ข้อความปกติคือ 4.5:1) ส่วน `text-primary-ink` ได้ 8.44:1 · จับได้จาก `/impeccable critique` ไม่ใช่จาก tsc/build/theme-guard (คลาสถูกต้องทุกตัวอักษร สิ่งที่ผิดคือค่าที่วัดได้)
 - ปุ่มที่ไม่ได้เลือก: `btn bg-light text-dark hover:text-primary`
 - ปุ่มซ้าย (`จัดส่ง`) = `rounded-e-none`, ปุ่มขวา (`นัดรับ`) = `rounded-s-none` (Paces Button Group primitive §2)
 - **แสดงเฉพาะร้าน `Shop.vertical === 'ONLINE_SALES'`** — ร้าน SERVICE_QUEUE/LODGING ไม่เห็นแถวนี้เลย (ไม่ใช่ disabled — ไม่มีอยู่ในหน้าเลย ตรงตาม FR-PKP-01 AC ข้อ 2)
@@ -556,3 +557,34 @@ BRD FR-PAY-02 AC เขียนชัดว่า "ไม่ใช้สีเ�
 **ใหม่:** `PaymentReceivedCard.tsx` (A3)
 **ส่วนขยาย:** `ShippingAddress.tsx` (A4+A2 รวม) · `CustomerQuickBlock.tsx`+`CartPanel.tsx` (A1) · `OrdersTable.tsx`/`OrderCard.tsx`+`MiniShipmentTimeline.tsx` (A5) · `ShopForm.tsx` (A6, การ์ดใหม่จาก `Bank.tsx` base) · `GuestOrderView.tsx`+`OrderDetailMobile.tsx` (B7)
 **แก้ SSOT (ต้อง sync กับ SDS):** `src/lib/shipping-address-status.ts` (`orderNeedsShippingAddress` เพิ่ม override) · `order-action-set.ts` (state matrix ใหม่) · `src/lib/order-display.ts` (`getPaymentBadge` เพิ่ม param + `tone`) · `src/lib/order-stage.ts`/`order-stage-sql.ts` (กัน PICKUP ตกกอง `AWAITING_PARCEL`) · `src/lib/paces-swal.ts` (variant ยืนยันตัวตนใหม่)
+
+---
+
+## ภาคผนวก: ผลจาก `/impeccable critique` (2026-08-29)
+
+**Design Health 28/40** · dual-agent · **source-only ไม่มี browser evidence** (เวิร์กทรีไม่มี `.env` · Postgres local ไม่ได้รัน) ⇒ ยังไม่ได้วัดคอนทราสต์/tap target จากพิกเซลจริง ไม่ได้ทดสอบคีย์บอร์ด ไม่ได้ดู dark mode
+
+### แก้แล้วในรอบเดียวกัน
+
+| # | ปัญหา | ทำไมถึงร้ายแรง |
+|---|---|---|
+| P0-1 | ผู้ขายบนมือถือกด "มอบสินค้าแล้ว" พลาดแล้ว **ย้อนไม่ได้เลย** (undo เป็น `hidden lg:flex` และแถบล่างไม่มีใน `⋮`) | ปุ่มนี้เป็น primary เต็มความกว้างของแถบล่าง = กดโดนง่ายสุดในจอ · กดแล้วนาฬิกา 48 ชม. เดินทันที และไปนับเป็นออเดอร์สำเร็จใน Trust Score ทั้งที่ลูกค้ายังไม่ได้ของ · **โมดัลยืนยันสัญญาไว้เองว่า "ยกเลิกได้ก่อนครบกำหนด"** = คำสัญญาที่จอนั้นทำตามไม่ได้ |
+| P0-2 | การ์ดโอนเงินฝั่งผู้ซื้อไม่ดู `status` เลย ⇒ ออเดอร์ที่จ่าย/ปิด/**ยกเลิก**แล้วยังโชว์ "ยอดที่ต้องโอน" + QR ที่สแกนจ่ายได้จริง | ป้ายเล็กมุมขวาบนแพ้ตัวเลขใหญ่กับ QR กลางจอเสมอ โดยเฉพาะกับกลุ่มผู้สูงวัยที่ `PRODUCT.md` ผูกไว้ · **โอนซ้ำ/โอนเข้าออเดอร์ที่ยกเลิกแล้ว = เงินหาย ระบบไม่มีกลไกตามคืน** |
+| P1-3 | ออเดอร์นัดรับที่ยกเลิกแล้วขึ้น "นัดรับ · เสร็จสิ้น" **สีเขียว** ในตารางเดสก์ท็อป | ละเมิด Verified-Means-Green ตรงตัว · ด่านถูกเขียนไว้แล้ว 2 ใน 3 จอ — จอที่ขาดคือจอที่ไม่มีใครเปิดตอนทดสอบบนมือถือ |
+| P1-4 | `PaymentReceivedCard` คำนวณ badge เองแทนใช้ `getPaymentBadge()` | ออเดอร์ที่ผู้ซื้อกดยืนยันเอง → จอผู้ซื้อขึ้น "ชำระแล้ว" เขียว แต่จอผู้ขายขึ้น "ยังไม่ได้รับเงิน" ส้ม พร้อมปุ่มค้างตลอดไป — สองจอตอบเรื่องเงินคนละคำตอบ (HR16) |
+| P2-5 | ปุ่ม "นัดรับ" ใช้ `bg-primary/15 text-primary` = **4.17:1 ตก AA** | 🛑 **UX spec ฉบับนี้เป็นคนสั่งเอง** ทั้งที่ `order-display.ts` วัดไว้แล้วและเขียนกำกับว่าให้ใช้ token `-ink` (8.44:1) — `tsc`/build/theme-guard ผ่านหมดเพราะคลาสถูกทุกตัวอักษร สิ่งที่ผิดคือค่าที่วัดได้ |
+
+### มติที่ user เคาะจาก critique (2026-08-29)
+
+- ✅ **บอกผู้ซื้อว่าบัญชีนี้ผูกกับออเดอร์ตั้งแต่สร้าง** — คำผ่าน `safepay-ux` แล้ว: *"บัญชีนี้ผูกกับออเดอร์นี้ตั้งแต่สร้าง ต่อให้ร้านเปลี่ยนบัญชีทีหลัง ที่นี่จะไม่เปลี่ยนตาม"* · 🛑 **จงใจไม่ใช้คำว่า "ล็อก"/"ปลอดภัย"/"ยืนยันแล้ว"** เพราะถูกอ่านเป็น "Deep รับประกันว่าปลอดภัย" ได้ ซึ่งระบบทำไม่ได้ · icon `lock` ไม่ใช่ `shield-*` · สี neutral ไม่ใช้เขียว/ฟ้า
+- ✅ **COD คงใช้สีเขียวไว้ตามเดิม ไม่แตะ `CodCard`** — 🛑 **เป็นมติ ไม่ใช่ของหลุด**: critique ทักว่าเหตุการณ์เดียวกัน (ร้านกดยืนยันเอง) ได้คนละสี (COD เขียว / โอน info) แต่ user ตัดสินว่า COD มีขนส่งเป็นบุคคลที่สามช่วยยืนยัน ต่างจากโอนเงินที่ร้านพูดฝ่ายเดียว — **สีที่ต่างกันจึงมีเหตุผลจริง ห้ามใครมาแก้ให้ "สม่ำเสมอ" ในรอบหลัง**
+
+### ยังไม่ได้แก้ (บันทึกไว้ ไม่ใช่ลืม)
+
+- **หนี้คอนทราสต์ที่มีมาก่อนรอบนี้** — `bg-{semantic}/15` + `text-{semantic}` (ไม่ใช่ `-ink`) อีก 7 จุดใน `CartPanel.tsx`, `CustomerQuickBlock.tsx`, `OrderCard.tsx` · อยู่นอกขอบเขต 00062
+- **tap target < 44px** — `size='small'` 6 จุดใน `OrderDetailMobile.tsx` ที่ไม่มี `minHeight` override (ของเดิม การ์ดใหม่ของฟีเจอร์นี้ทำถูกแล้ว) · ขัดกับ `PRODUCT.md` ที่ประกาศ ≥44px ไว้เป็นข้อผูกพัน
+- **ปุ่มคัดลอกหายเงียบ** เมื่อ `navigator.clipboard` ไม่มี (in-app webview เก่า/non-secure context) และเลขบัญชีไม่ได้ทำ `select-all` ไว้เป็นทางสำรอง
+- **`ShopPayoutField` บันทึกบัญชีครึ่งใบได้** (ธนาคาร+พร้อมเพย์ แต่ไม่มีเลข/ชื่อบัญชี) ⇒ ผู้ซื้อได้ QR แต่ไม่มีแถวเลขบัญชีเป็น fallback ซึ่ง §B7 บอกว่าต้องมีเสมอ
+- **`DeliveryModeToggle` ไม่มี `role="group"` + ชื่อกลุ่ม** ⇒ สกรีนรีดเดอร์ได้ยินแค่ "จัดส่ง กดอยู่" โดยไม่รู้ว่าเป็นกลุ่มอะไร
+- **"· โดย {ชื่อ}" ไม่มีวันแสดง** — `getOrderForShop()` ไม่ `include` relation ผู้กด
+- **ไม่มีขั้นตอนต่อหลังผู้ซื้อโอน** — จอไม่เปลี่ยนอะไรจนกว่าร้านจะกด = ช่วงเงียบที่กลุ่มระแวงตีความว่า "เงินหายไปแล้ว"

@@ -60,6 +60,14 @@ type Props = {
   /** ป้ายสถานะการชำระเงิน — จาก `getPaymentBadge()` SSOT เดียวกับฝั่งร้าน (UX-Design-Spec §B8) */
   paymentBadge: PaymentBadge
   /**
+   * impeccable critique P0-2 (2026-08-29) — Order.status ('PENDING'|'SHIPPED'|'CONFIRMED'|
+   * 'CANCELLED'|'RETURNED') เดิมการ์ดนี้ไม่รู้จักสถานะออเดอร์เลย จึงเชิญให้สแกน QR โอนซ้ำได้
+   * แม้ร้านยืนยันรับเงิน/ปิดงาน/**ยกเลิก**แล้ว — ดู `isSettled`/`isCancelled` ด้านล่าง
+   */
+  status: string
+  /** Order.paymentConfirmedAt (ISO) — null = ร้านยังไม่กดยืนยันรับเงิน */
+  paymentConfirmedAt: string | null
+  /**
    * ปุ่ม "ติดต่อร้านค้า" ที่ผู้เรียกประกอบเอง — ปลายทางต่างกันตามว่าล็อกอินหรือยัง
    * (guest → ลิงก์ไป sign-in ผ่าน `AuthPingLink`, หลังล็อกอิน → ลิงก์ `/messages/[shopId]` ตรง ๆ)
    * ไม่ใช่ธุรกิจของการ์ดนี้ว่าจะพาไปไหน — รับมาเป็น element สำเร็จรูป
@@ -67,7 +75,24 @@ type Props = {
   contactShopAction: ReactNode
 }
 
-export default function PayoutAccountCard({ totalAmount, payoutSnapshot, paymentBadge, contactShopAction }: Props) {
+export default function PayoutAccountCard({
+  totalAmount,
+  payoutSnapshot,
+  paymentBadge,
+  status,
+  paymentConfirmedAt,
+  contactShopAction,
+}: Props) {
+  /**
+   * impeccable critique P0-2 (2026-08-29) — ออเดอร์ที่ร้านยืนยันรับเงิน/ปิดงาน/ยกเลิกแล้ว
+   * ต้องถอด QR ที่สแกนจ่ายได้จริงออกทั้งบล็อก ไม่ใช่แค่ลดขนาด — โอนซ้ำ/โอนเข้าออเดอร์ที่ยกเลิก
+   * แล้ว = เงินหาย ระบบไม่มีกลไกตามคืน (กลุ่มผู้สูงวัยที่ PRODUCT.md ผูกไว้พลาดง่ายเป็นพิเศษ
+   * เพราะ QR กลางจอ + ตัวเลขใหญ่ ชนะป้ายเล็กมุมขวาบนเสมอ)
+   * `paymentConfirmedAt` ไม่ว่าง ครอบเคสที่ร้านกด "ได้รับเงินแล้ว" ตอน SHIPPED ซึ่ง status ยัง
+   * ไม่ใช่ CONFIRMED — เป็น OR ไม่ใช่ AND เพราะพลาดฝั่งไหนก็โชว์ QR ผิด
+   */
+  const isCancelled = status === 'CANCELLED'
+  const isSettled = status === 'CONFIRMED' || isCancelled || Boolean(paymentConfirmedAt)
   // state สำหรับ copy icon (เปลี่ยน icon → tabler-check 2 วิ) — pattern เดียวกับ handleCopyTracking
   const [copied, setCopied] = useState(false)
   const qrCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -131,13 +156,29 @@ export default function PayoutAccountCard({ totalAmount, payoutSnapshot, payment
           )}
         </Box>
 
-        {/* ── ยอดที่ต้องโอน — Strong (700) ไม่ใช่ Metric เพราะมีป้ายกำกับ อ่านเป็นประโยค ── */}
+        {/* ── ยอดที่ต้องโอน/ยอดที่ชำระ — Strong (700) ไม่ใช่ Metric เพราะมีป้ายกำกับ อ่านเป็นประโยค
+            impeccable critique P0-2: หัวข้อต้องผันตาม isSettled ไม่งั้น "ต้องโอน" ค้างอยู่แม้จ่ายแล้ว ── */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.5 }}>
           <Typography variant='body2' color='text.secondary'>
-            ยอดที่ต้องโอน
+            {isSettled ? 'ยอดที่ชำระ' : 'ยอดที่ต้องโอน'}
           </Typography>
           <Typography sx={{ fontSize: '1.125rem', fontWeight: 700 }}>{baht.format(totalAmount)}</Typography>
         </Box>
+
+        {/* ── ยกเลิกแล้ว — เตือนห้ามโอนตรง ๆ ไม่ใช่แค่ถอด QR เงียบ ๆ (P0-2) ── */}
+        {isCancelled && (
+          <Box sx={{ bgcolor: 'error.lightOpacity', borderRadius: 2, px: 1.5, py: 1.25, mt: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+              <Icon
+                icon='tabler-alert-triangle'
+                style={{ fontSize: 17, marginTop: 2, color: 'var(--mui-palette-error-main)', flexShrink: 0 }}
+              />
+              <Typography variant='body2' sx={{ fontWeight: 600, color: 'error.main' }}>
+                ออเดอร์นี้ถูกยกเลิกแล้ว — ห้ามโอนเงิน
+              </Typography>
+            </Box>
+          </Box>
+        )}
 
         {/* ── ร้านยังไม่ได้ตั้งบัญชี — fail-loud ห้ามเงียบ (UX-Design-Spec §B7 Edge states) ── */}
         {!payoutSnapshot && (
@@ -210,12 +251,46 @@ export default function PayoutAccountCard({ totalAmount, payoutSnapshot, payment
                 </Typography>
               </Box>
             )}
+
+            {/* ── "บัญชีนี้ผูกกับออเดอร์นี้ตั้งแต่สร้าง" (safepay-ux 2026-08-29) ─────────────
+                ที่มา: /impeccable critique ชี้ว่ากลไกกันมิจฉาชีพที่แข็งที่สุดของฟีเจอร์นี้
+                (`Order.payoutSnapshot` freeze ตั้งแต่ createOrder — หน้านี้อ่านจาก snapshot เสมอ
+                ไม่เคย live-read จากร้าน) **มีอยู่จริงแต่ไม่เคยพูดออกมาสักคำ** ⇒ ผู้ซื้อเห็นแค่
+                "เลขบัญชีลอย ๆ ในเว็บ" ซึ่งหน้าตาเหมือนกับที่มิจฉาชีพส่งมาในแชท
+                = Product Principle 1 (show, don't tell) ที่ทำจริงแต่ไม่แสดง
+
+                🛑 คำนี้ผ่าน ux แล้วและ **จงใจไม่ใช้คำว่า "ล็อก"/"ปลอดภัย"/"ยืนยันแล้ว"**:
+                คำพวกนั้นถูกอ่านเป็น "Deep รับประกันว่าปลอดภัย" ได้ ซึ่งระบบทำไม่ได้ (เราไม่ได้ตรวจ
+                ว่าบัญชีเป็นของร้านจริง ไม่มี escrow) — เข้าใจผิดแบบนั้นแย่กว่าไม่พูดเลย
+                พูดแค่ *พฤติกรรมของระบบ* แล้วให้ผู้อ่านสรุปเองว่า "ถ้ามีคนบอกให้โอนบัญชีอื่น
+                แปลว่าผิดปกติ" — ไม่ต้องใช้โทนเตือนภัย (PRODUCT.md: credibility ที่อบอุ่น)
+
+                🛑 icon เป็น `lock` ไม่ใช่ `shield-*` แม้ไฟล์พี่น้องจะใช้โล่: โล่สื่อ "ได้รับการ
+                ปกป้อง/ตรวจแล้ว" ซึ่งเกินจริง · สี neutral ล้วน ไม่ใช้เขียว (Verified-Means-Green
+                — บัญชีนี้ไม่ได้ถูกยืนยันโดยใคร) และไม่ใช้ฟ้า (จะกลายเป็น badge เชิงบวกที่ไป
+                แข่งกับ Verified chip จริงบนหน้าเดียวกัน)
+
+                ไม่แสดงเมื่อ `isSettled` — จ่าย/ปิด/ยกเลิกแล้วไม่มีใครต้องโอนอีก ── */}
+            {!isSettled && (
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75, mt: 1.5 }}>
+                <Icon
+                  icon='tabler-lock'
+                  fontSize={15}
+                  style={{ marginTop: 2, flexShrink: 0, color: 'var(--mui-palette-text-secondary)' }}
+                />
+                <Typography variant='caption' color='text.secondary'>
+                  บัญชีนี้ผูกกับออเดอร์นี้ตั้งแต่สร้าง ต่อให้ร้านเปลี่ยนบัญชีทีหลัง ที่นี่จะไม่เปลี่ยนตาม
+                </Typography>
+              </Box>
+            )}
           </>
         )}
 
         {/* ── QR พร้อมเพย์ — เฉพาะเมื่อ payload encode สำเร็จ (fail-closed, TFR-011) ──
-            ตั้งบัญชีธนาคารแต่ไม่ตั้งพร้อมเพย์/เบอร์ผิดรูปแบบ = ไม่มี block นี้เลย ไม่ใช่กล่องว่าง */}
-        {qrPayload && (
+            ตั้งบัญชีธนาคารแต่ไม่ตั้งพร้อมเพย์/เบอร์ผิดรูปแบบ = ไม่มี block นี้เลย ไม่ใช่กล่องว่าง
+            impeccable critique P0-2: `!isSettled` ต้องมาก่อนเสมอ — ออเดอร์ที่ชำระ/ปิดงาน/ยกเลิก
+            แล้วต้องไม่มี QR ที่สแกนจ่ายได้จริงให้เห็นเลย ไม่ใช่แค่ป้ายเล็กมุมบนบอกสถานะ */}
+        {!isSettled && qrPayload && (
           <>
             <Divider sx={{ my: 1.5 }} />
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.25 }}>

@@ -86,6 +86,15 @@ const buildActions = (orderNoun: string) =>
     // เป็นคนละแกน — ดูคอมเมนต์ isPickupPaymentUnpaid ด้านบน) label สั้นกว่าเพราะไม่มี "ปลายทาง"
     pickupPaymentReceived: { key: 'pickup-payment-received', label: 'ได้รับเงินแล้ว', icon: 'cash' },
     pickupHandedOver: { key: 'pickup-handed-over', label: 'มอบสินค้าแล้ว', icon: 'package-check' },
+    // impeccable critique P0-1 (2026-08-29) — เดิม undo มีแค่ใน ShippingAddress.tsx การ์ด
+    // ที่ `hidden lg:flex` (เดสก์ท็อปเท่านั้น) มือถือกด "มอบสินค้าแล้ว" พลาดแล้วย้อนไม่ได้เลย
+    // ทั้งที่โมดัลยืนยันสัญญาไว้เองว่า "ยกเลิกได้ก่อนครบกำหนด" — เพิ่มเข้า ⋮ (ไม่ใช่ปุ่มหลัก/ghost
+    // เพราะไม่ใช่ action ที่ควรกดพลาดง่ายบนแถบล่าง เหตุผลเดียวกับที่ undo เดิมซ่อนอยู่แล้วบนเดสก์ท็อป)
+    pickupHandoverUndo: {
+      key: 'pickup-handover-undo',
+      label: 'ยกเลิกการยืนยันมอบสินค้า',
+      icon: 'arrow-back-up',
+    },
   }) as const satisfies Record<string, ActionItem>
 
 /**
@@ -125,10 +134,16 @@ export function getOrderActionSet(input: GetOrderActionSetInput): OrderActionSet
      * PICKUP ยังให้ผลเหมือน NO_SHIPPING เป๊ะตาม regression test เดิม ไม่แตะ)
      */
     if (fulfillmentMode === 'PICKUP') {
-      // มอบของแล้ว รอ grace period — undo อยู่ในการ์ดเท่านั้น (hidden lg:flex) ไม่ใช่แถบล่าง
-      // เพราะไม่ใช่ action ที่ควรกดพลาดง่ายบนแถบล่าง (UX §A2 ตาราง แถวที่ 3)
+      // มอบของแล้ว รอ grace period — undo เดิมอยู่ในการ์ดเดสก์ท็อปเท่านั้น (hidden lg:flex)
+      // ไม่ใช่แถบล่าง เพราะไม่ใช่ action ที่ควรกดพลาดง่ายบนแถบล่าง (UX §A2 ตาราง แถวที่ 3)
+      // impeccable critique P0-1 (2026-08-29): มือถือไม่มีทางเข้าถึง undo เลย — เพิ่มเข้า ⋮
+      // (menu) แทน ไม่ใช่ ghost/primary ด้วยเหตุผลเดิม
       if (input.isPickupHandedOver) {
-        return { primary: null, ghosts: [ACTIONS.copyLink], menu: [ACTIONS.editOrder, ACTIONS.cancelOrder] }
+        return {
+          primary: null,
+          ghosts: [ACTIONS.copyLink],
+          menu: [ACTIONS.pickupHandoverUndo, ACTIONS.editOrder, ACTIONS.cancelOrder],
+        }
       }
       const menu: ActionItem[] = [ACTIONS.copyLink, ACTIONS.editOrder, ACTIONS.cancelOrder]
       if (input.isPickupPaymentUnpaid) {

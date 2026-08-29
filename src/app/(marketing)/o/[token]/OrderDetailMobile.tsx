@@ -948,6 +948,8 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               totalAmount={order.totalAmount}
               payoutSnapshot={order.payoutSnapshot}
               paymentBadge={paymentBadge}
+              status={order.status}
+              paymentConfirmedAt={order.paymentConfirmedAt}
               contactShopAction={
                 <Button
                   component={Link}
