@@ -552,6 +552,12 @@ export default function OrdersTable({
                   </span>
                 ))}
               </p>
+            ) : row.original.pickupStage ? (
+              /* ออเดอร์นัดรับ (feature 00062) — ไม่มีที่อยู่จัดส่งเพราะ *ไม่ต้องมี* ไม่ใช่เพราะ
+                 ยังกรอกไม่ครบ · "ยังไม่มีที่อยู่" อ่านเป็นข้อมูลขาดที่ต้องไปตามเก็บ ทั้งที่ชิป
+                 "นัดรับ" ใต้เส้นประอธิบายครบอยู่แล้ว (partial-data-must-be-labeled-or-filled.md
+                 ทิศกลับ: อย่าติดป้าย "ยังไม่มี" ให้ของที่ไม่ควรมี) */
+              null
             ) : (
               <p className="mb-0 text-xs text-default-400">ยังไม่มีที่อยู่</p>
             )}
@@ -601,7 +607,9 @@ export default function OrdersTable({
                   </p>
                   {/* ห้าม font-mono (Anuphan ไม่มี mono จะ fallback หลุดธีม) — tabular-nums พอ */}
                   {s!.trackingNo && (
-                    <p className="mb-0 flex items-center gap-1 text-xs font-semibold tabular-nums text-default-700">
+                    /* 🛑 <div> ไม่ใช่ <p> — `CopyLinkButton` เรนเดอร์ `<div>` ข้างใน (ดูเหตุผลเต็ม
+                       ที่ ShipmentHoverCard.tsx จุดเดียวกัน) นี่คือจุดที่ 2 ของบั๊กเดียวกัน */
+                    <div className="mb-0 flex items-center gap-1 text-xs font-semibold tabular-nums text-default-700">
                       <span className="select-all">
                         <HighlightText text={s!.trackingNo} query={searchQuery} />
                       </span>
@@ -612,7 +620,7 @@ export default function OrdersTable({
                         iconOnly
                         className="btn-sm border-none bg-transparent p-0 text-default-400 hover:bg-transparent hover:text-default-800"
                       />
-                    </p>
+                    </div>
                   )}
                   {/* ไทม์ไลน์อยู่ในการ์ดเดียวกับชื่อขนส่ง — user ทักว่า "order เดียวกัน hover
                       ได้ 2 ที่" เพราะเดิมมันอยู่นอกการ์ดแล้วเปิด panel เล็กของตัวเอง
@@ -753,7 +761,18 @@ export default function OrdersTable({
           // ผันคำตามประเภทกิจการ (feature 00036 FR-SOV-003) — ร้านบริการ/บ้านพักไม่มีการจัดส่ง
           // ให้พูดถึง คำมาจาก ORDER_VOCAB ที่เดียว ห้ามต่อสตริงที่นี่ (ต่างจากบรรทัดยกเลิกข้างบน
           // ที่ต่อได้ เพราะ "ยกเลิก"+noun อ่านเป็นภาษาคนทั้ง 3 ชุด ส่วนช่องนี้ไม่ใช่)
-          { label: vocab.fulfillLabel, done: o.status === 'SHIPPED' || o.status === 'CONFIRMED' },
+          /**
+           * ออเดอร์นัดรับ (feature 00062) ไม่มี "การจัดส่ง" ให้ยืนยัน และ **ไม่มีวันเป็น
+           * `SHIPPED`** (ร้านกด "มอบสินค้าแล้ว" → เขียน `handedOverAt` โดย `status` ยังเป็น
+           * PENDING ตาม D-1) ⇒ ใช้คำ/เกณฑ์ของกองจัดส่งกับใบพวกนี้ = ขั้นนี้ค้าง ✕ ตลอดกาล
+           * ทั้งที่ร้านมอบของไปแล้ว — เช็กลิสต์เล่าเรื่องผิดบนจอที่ผู้ขายกวาดตาทั้งวัน
+           *
+           * `vocab.fulfillLabel` ผันตาม *ประเภทร้าน* ส่วนวิธีส่งมอบเป็นของ *รายใบ* จึงต้อง
+           * แยกที่นี่ ไม่ใช่ไปเพิ่มคีย์ใน ORDER_VOCAB (คนละแกนกัน)
+           */
+          o.pickupStage
+            ? { label: 'มอบสินค้า', done: o.pickupStage !== 'AWAITING_HANDOVER' }
+            : { label: vocab.fulfillLabel, done: o.status === 'SHIPPED' || o.status === 'CONFIRMED' },
           ...(isCODPayment(o.paymentMethod)
             ? [{ label: 'รับเงินปลายทาง', done: Boolean(o.codReceivedAtISO) }]
             : []),

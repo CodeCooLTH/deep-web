@@ -30,7 +30,7 @@ import CustomerSelectBlock from './CustomerSelectBlock'
 import OrderDateRow from './OrderDateRow'
 import AddressSearchPanel, { type SelectedLocality } from './AddressSearchPanel'
 import { DEFAULT_CHANNEL_KEY, DEFAULT_PAYMENT_KEY } from './ChannelPaymentSelect'
-import DeliveryModeToggle from './DeliveryModeToggle'
+import DeliveryModeToggle, { PickupHint } from './DeliveryModeToggle'
 // SSOT ของตัวเลือก — ต้องเป็นชุดเดียวกับมือถือ (ดูเหตุผลใน order-options.ts)
 import { CHANNEL_OPTIONS, PAYMENT_OPTIONS } from './order-options'
 import type { CatalogProduct, FormValues, ItemsController } from './OrderCreateForm'
@@ -400,11 +400,16 @@ export default function CartPanel({
       {/* ── วิธีส่งมอบ (feature 00062 U15, เฉพาะร้าน ONLINE_SALES) ──
           แถวเดี่ยว ไม่ใช่ accordion — มีแค่ 2 ตัวเลือกไม่ต้องกาง/หุบ (UX-Design-Spec §A1) */}
       {showDeliveryToggle && (
-        <div className="flex items-center justify-between gap-3 border-t border-default-200 px-4 py-3">
-          <span className="text-sm font-semibold text-default-700">วิธีส่งมอบ</span>
-          <div className="w-56">
-            <DeliveryModeToggle control={control} />
+        <div className="border-t border-default-200 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-semibold text-default-700">วิธีส่งมอบ</span>
+            <div className="w-56">
+              <DeliveryModeToggle control={control} />
+            </div>
           </div>
+          {/* บรรทัดอธิบายตัวเดียวกับมือถือ — บล็อก "ที่อยู่จัดส่ง [จำเป็น]" ด้านล่างหายไปทั้ง accordion
+              ตอนเลือกนัดรับ ถ้าไม่มีบรรทัดนี้ผู้ขายจะไม่มีทางรู้ว่าหายเพราะอะไร */}
+          <PickupHint control={control} />
         </div>
       )}
 

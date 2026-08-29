@@ -56,10 +56,12 @@ import { resolveVerifyBadge } from '@/lib/verify-badge'
 import { uploadFileId } from '@/lib/upload-client'
 import { uploadMaxSize } from '@/lib/upload-policy'
 import { needsPayoutAccount } from '@/lib/shop-payout'
+import { isPickupOrder } from '@/lib/order-pickup'
 
 import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFooter'
 import { orderContentWidthSx } from './content-width'
 import PayoutAccountCard from './PayoutAccountCard'
+import PickupInfoCard from './PickupInfoCard'
 import ShopCover from './ShopCover'
 import ShopEvidence from './ShopEvidence'
 import TrustPill from './TrustPill'
@@ -98,6 +100,8 @@ export type PublicOrderData = {
   }>
   shop: {
     shopName: string
+    /** feature 00062 — ที่อยู่ร้าน = จุดนัดรับ (ชุดเดียวกับที่ buildGuestOrderData ส่งก่อนล็อกอิน) */
+    address: string | null
     user: {
       displayName: string
       username: string
@@ -192,6 +196,8 @@ export type PublicOrderData = {
   payoutSnapshot: import('@/lib/shop-payout').PayoutSnapshot | null
   /** feature 00062 (TFR-007) — เวลาที่ร้านกด "ได้รับเงินแล้ว" เอง — input ที่ 4 ของ getPaymentBadge */
   paymentConfirmedAt: string | null
+  /** feature 00062 — เวลาที่ร้านกด "มอบสินค้าแล้ว" (ISO) · `null` = ยังไม่ได้มอบ */
+  handedOverAt: string | null
 }
 
 type Props = {
@@ -963,6 +969,17 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                   ติดต่อร้านค้า
                 </Button>
               }
+            />
+          )}
+
+          {/* ── feature 00062: จุดนัดรับ — การ์ดเดียวกับจอ guest (sibling-surface-parity) ──
+              ต้องมีทั้งสองจอ ไม่งั้นผู้ซื้อคนเดียวกันเห็นคนละเรื่องก่อน/หลังล็อกอิน */}
+          {isPickupOrder(order.fulfillmentMode) && (
+            <PickupInfoCard
+              shopName={order.shop.shopName}
+              shopAddress={order.shop.address}
+              handedOverAt={order.handedOverAt}
+              status={order.status}
             />
           )}
 

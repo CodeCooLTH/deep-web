@@ -207,7 +207,12 @@ export default function ShipmentHoverCard({
           )}
           <div className="min-w-0">
             <p className="text-default-700 mb-0 truncate text-xs">{courierName ?? '—'}</p>
-            <p className="mb-0 flex items-center gap-1">
+            {/* 🛑 <div> ไม่ใช่ <p> — `CopyLinkButton` เรนเดอร์ `<div>` ข้างใน และ `<div>` ซ้อนใน
+                `<p>` เป็น HTML ที่ไม่ถูกต้อง ⇒ **hydration ล้มทั้งซับทรี** React ทิ้งของที่ SSR
+                มาแล้วสร้างใหม่ที่ client ทุกครั้งที่โหลดหน้า `/orders` ที่มีเลขพัสดุ
+                (ของเดิมก่อน 00062 — เจอตอน browser QA 2026-08-29 จาก overlay ของ Next
+                ไม่มี gate ไหนจับได้เพราะ JSX ถูกต้องทุกตัวอักษร ผิดที่ *ชนิดของแท็ก*) */}
+            <div className="mb-0 flex items-center gap-1">
               {/* ห้าม font-mono (Anuphan ไม่มี mono จะ fallback หลุดธีม) — tabular-nums พอ */}
               <span className="text-default-900 select-all text-sm font-bold tabular-nums">
                 {trackingNo ?? '—'}
@@ -221,7 +226,7 @@ export default function ShipmentHoverCard({
                   className="btn-sm border-none bg-transparent p-0 text-default-400 hover:bg-transparent hover:text-default-800"
                 />
               )}
-            </p>
+            </div>
           </div>
         </div>
 

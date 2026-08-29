@@ -33,6 +33,11 @@ export type GuestOrderData = {
   shop: {
     shopName: string
     vertical: string
+    /**
+     * feature 00062 — ที่อยู่ร้าน ใช้บอกจุดนัดรับเมื่อ `fulfillmentMode === 'PICKUP'`
+     * ไม่ใช่ PII ของผู้ซื้อ และเป็นข้อมูลที่ร้านกรอกเองเพื่อให้ลูกค้าหาร้านเจอ
+     */
+    address: string | null
     user: { displayName: string | null; username: string; trustScore: number; avatar: string | null }
   }
   maxVerifyLevel: number
@@ -102,6 +107,8 @@ export type GuestOrderData = {
    * badge สถานะการชำระเงินตรงกันทั้งก่อนและหลังล็อกอิน `null` = ร้านยังไม่กดยืนยัน
    */
   paymentConfirmedAt: string | null
+  /** feature 00062 — เวลาที่ร้านกด "มอบสินค้าแล้ว" (ISO) · `null` = ยังไม่ได้มอบ */
+  handedOverAt: string | null
 }
 
 /**
@@ -121,6 +128,8 @@ type OrderLike = {
   payoutSnapshot: unknown
   /** feature 00062 — scalar ของ Order มากับ findUnique อยู่แล้ว ไม่เพิ่ม query */
   paymentConfirmedAt: Date | null
+  /** feature 00062 — เวลาที่ร้านกด "มอบสินค้าแล้ว" (scalar ของ Order) */
+  handedOverAt: Date | null
   totalAmount: unknown
   buyerContact: string | null
   shippingAddress: unknown
@@ -136,6 +145,8 @@ type OrderLike = {
     shopName: string
     /** ประเภทกิจการ — ตัวผันคำทั้งหน้าฝั่งผู้ซื้อ (ORDER_VOCAB) */
     vertical: string
+    /** feature 00062 — scalar ของ Shop มากับ include อยู่แล้ว ไม่เพิ่ม query */
+    address: string | null
     /** โลโก้ร้าน — มาก่อนรูปส่วนตัวของเจ้าของเสมอ (ดูหมายเหตุที่จุด map) */
     logo: string | null
     user: { displayName: string | null; username: string; trustScore: number; avatar: string | null }
@@ -204,6 +215,8 @@ export function buildGuestOrderData(
       /* ประเภทกิจการ — ตัวผันคำทั้งหน้า (ORDER_VOCAB) ร้านบริการต้องไม่เห็นคำว่า "สินค้า"
          ค่าที่ไม่รู้จักตกไป ONLINE_SALES ที่ฝั่งอ่าน (fail-safe เดียวกับ seller-menu) */
       vertical: order.shop.vertical,
+      // feature 00062 — จุดนัดรับ (ใช้เฉพาะออเดอร์ PICKUP; ค่าว่างได้ ร้านไม่ถูกบังคับกรอก)
+      address: order.shop.address ?? null,
       user: {
         displayName: order.shop.user.displayName,
         username: order.shop.user.username,
@@ -267,5 +280,6 @@ export function buildGuestOrderData(
     // ยอดสดจาก totalAmount เสมอ (DATABASE.md §7.3) — null = ร้านยังไม่ได้ตั้งบัญชี
     payoutSnapshot: (order.payoutSnapshot as PayoutSnapshot | null | undefined) ?? null,
     paymentConfirmedAt: order.paymentConfirmedAt ? order.paymentConfirmedAt.toISOString() : null,
+    handedOverAt: order.handedOverAt ? order.handedOverAt.toISOString() : null,
   }
 }

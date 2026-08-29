@@ -36,8 +36,10 @@ import { ORDER_VOCAB } from '@/lib/seller-menu'
 import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
 import { resolveOrderStatusHeadline } from '@/lib/order-status-headline'
 import { needsPayoutAccount } from '@/lib/shop-payout'
+import { isPickupOrder } from '@/lib/order-pickup'
 import ParcelTimeline from './ParcelTimeline'
 import PayoutAccountCard from './PayoutAccountCard'
+import PickupInfoCard from './PickupInfoCard'
 import { orderContentWidthSx } from './content-width'
 import ShopCover from './ShopCover'
 import ShopEvidence from './ShopEvidence'
@@ -394,6 +396,18 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                   ติดต่อร้านค้า
                 </AuthPingLink>
               }
+            />
+          )}
+
+          {/* ── feature 00062: จุดนัดรับ (เจอตอน browser QA 2026-08-29 ว่าไม่มีเลย) ──
+              วางหลังการ์ดบัญชีรับเงิน = ลำดับที่ผู้ซื้ออ่านจริง: สถานะ → จ่ายยังไง → ไปรับที่ไหน
+              เงื่อนไขคือ `isPickupOrder()` SSOT ตัวเดียวกับฝั่งร้าน ไม่ใช่เทียบสตริงเอง */}
+          {isPickupOrder(order.fulfillmentMode) && (
+            <PickupInfoCard
+              shopName={order.shop.shopName}
+              shopAddress={order.shop.address}
+              handedOverAt={order.handedOverAt}
+              status={order.status}
             />
           )}
 

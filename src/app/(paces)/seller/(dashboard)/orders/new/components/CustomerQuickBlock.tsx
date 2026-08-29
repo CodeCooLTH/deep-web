@@ -15,7 +15,7 @@ import AddressSearchSheet, { type SelectedLocality } from './AddressSearchSheet'
 import PasteParseSheet from './PasteParseSheet'
 import CustomerSearchSheet, { type CustomerResult } from './CustomerSearchSheet'
 import PhoneSuggestHint from './PhoneSuggestHint'
-import DeliveryModeToggle from './DeliveryModeToggle'
+import DeliveryModeToggle, { PickupHint } from './DeliveryModeToggle'
 import { hasPhoneSuggestion, hasPhoneHint } from '@/lib/phone-hint'
 import { MOBILE_PHONE_RE } from '@/lib/phone'
 import type { FormValues } from './OrderCreateForm'
@@ -111,13 +111,6 @@ export default function CustomerQuickBlock({
    */
   const showAddress = needsShipping
   const addr = useWatch({ control, name: 'shippingAddress' }) as FormValues['shippingAddress']
-
-  /**
-   * feature 00062 (U15) — เลือก "นัดรับ" ไหม (ใช้แค่ตัดสินว่าจะโชว์บรรทัดอธิบายแทนที่บล็อกที่อยู่
-   * หรือเปล่า — ตัวที่บล็อกการบันทึกจริงคือ `showAddress`/`needsShipping` ด้านบน ซึ่งรับค่านี้ผ่าน
-   * SSOT `orderNeedsShippingAddress()` ที่ QuickForm เรียกอยู่แล้ว ไม่ใช่เขียนเงื่อนไขซ้ำที่นี่)
-   */
-  const isPickup = useWatch({ control, name: 'fulfillmentMode' }) === 'PICKUP'
 
   // ── สถานะที่อยู่ (bug user report 2026-08-02) ────────────────────────────────
   // เดิมปุ่มที่อยู่ขึ้นสถานะ "เลือกแล้ว" ทันทีที่มีตำบล *หรือ* จังหวัดอย่างใดอย่างหนึ่ง
@@ -365,14 +358,7 @@ export default function CustomerQuickBlock({
         <div className="mb-2.5">
           <span className="mb-2 block text-sm font-semibold text-default-700">วิธีส่งมอบ</span>
           <DeliveryModeToggle control={control} />
-          {/* text-default-400 บรรทัดเดียว ไม่ใช่ callout (UX-Design-Spec §A1) — เตือนเชิงข้อมูล
-              ไม่ใช่คำเตือนที่ต้องแย่งความสนใจแบบ showAddressBanner ด้านล่าง */}
-          {isPickup && (
-            <p className="mt-2 flex items-start gap-1.5 text-xs text-default-400">
-              <Icon icon="info-circle" className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-              ลูกค้ามารับเองที่ร้าน — ไม่ต้องกรอกที่อยู่จัดส่ง
-            </p>
-          )}
+          <PickupHint control={control} />
         </div>
       )}
 

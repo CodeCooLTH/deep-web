@@ -43,7 +43,7 @@ export default function DeliveryModeToggle({ control }: Props) {
   const unselectedCls = 'bg-light text-dark hover:text-primary'
 
   return (
-    <div className="inline-flex w-full">
+    <div className="inline-flex w-full" role="group" aria-label="วิธีส่งมอบ">
       <button
         type="button"
         aria-pressed={!isPickup}
@@ -63,5 +63,27 @@ export default function DeliveryModeToggle({ control }: Props) {
         นัดรับ
       </button>
     </div>
+  )
+}
+
+/**
+ * บรรทัดอธิบายใต้ปุ่มคู่ตอนเลือก "นัดรับ" (UX-Design-Spec §A1 Content outline)
+ *
+ * 🛑 อยู่ที่นี่ไม่ใช่เขียนซ้ำที่ผู้เรียก เพราะรอบแรกมันถูกเขียน inline ไว้ใน `CustomerQuickBlock`
+ * ที่เดียว ⇒ **เดสก์ท็อป (`CartPanel`) ไม่มีบรรทัดนี้เลย** บล็อก "ที่อยู่จัดส่ง [จำเป็น]" จึงหาย
+ * ไปเฉย ๆ โดยไม่มีอะไรบอกว่าทำไม (เจอตอนเปิดหน้าจริง 2026-08-29 — `tsc`/build/เทสผ่านหมด
+ * เพราะทั้งสองฝั่ง "ถูก" ในตัวเอง มันแค่ไม่เหมือนกัน · คลาสเดียวกับ sibling-surface-parity.md)
+ *
+ * text-default-400 บรรทัดเดียว ไม่ใช่ callout — เตือนเชิงข้อมูล ไม่ใช่คำเตือนที่ต้องแย่งความสนใจ
+ */
+export function PickupHint({ control }: Props) {
+  const { field } = useController({ control, name: 'fulfillmentMode', defaultValue: undefined })
+  if (field.value !== 'PICKUP') return null
+
+  return (
+    <p className="mt-2 flex items-start gap-1.5 text-xs text-default-400">
+      <Icon icon="info-circle" className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+      ลูกค้ามารับเองที่ร้าน — ไม่ต้องกรอกที่อยู่จัดส่ง
+    </p>
   )
 }
