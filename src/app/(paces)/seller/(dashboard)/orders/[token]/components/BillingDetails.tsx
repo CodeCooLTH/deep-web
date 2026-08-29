@@ -29,6 +29,12 @@ export type BillingDetailsProps = {
   salesChannel: string | null
   slipFileId: string | null
   /**
+   * feature 00062 — ISO ของเวลาที่ร้านกด "ได้รับเงินแล้ว" เอง (TRANSFER/PROMPTPAY/CASH)
+   * null = ยังไม่ได้กด/ไม่ใช่วิธีชำระที่ร้านยืนยันเองได้ — ส่งเข้า getPaymentBadge ตัวเดียวกับ
+   * ที่ status/paymentMethod/slipFileId ใช้ (SSOT เดียว, SDS TD-003)
+   */
+  paymentConfirmedAt: string | null
+  /**
    * เงินที่ **ได้รับจริง** ของใบนี้ (feature 00050) · null = ไม่มีเรื่องเงินให้พูดถึง
    *
    * 🛑 ทำไมต้องมีที่นี่ด้วย ทั้งที่ปุ่มรับเงินอยู่ในแชท: ก่อนหน้านี้จอนี้บอกได้แค่ "มีสลิปไหม"
@@ -54,11 +60,12 @@ export default function BillingDetails({
   paymentMethod,
   salesChannel,
   slipFileId,
+  paymentConfirmedAt,
   money,
 }: BillingDetailsProps) {
   // มีเรื่องเงินให้พูดถึง = ถือว่ามีข้อมูลการชำระ แม้ยังไม่ได้ระบุวิธีชำระ/ช่องทาง
   const hasPaymentInfo = paymentMethod !== null || salesChannel !== null || money !== null
-  const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId)
+  const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId, paymentConfirmedAt)
   const paymentIcon = paymentMethod ? (PAYMENT_ICONS[paymentMethod] ?? 'wallet') : 'credit-card-off'
   const paymentLabel = paymentMethod ? (PAYMENT_LABELS[paymentMethod] ?? paymentMethod) : 'ยังไม่ระบุวิธีชำระ'
 

@@ -107,6 +107,11 @@ export interface OrderDetailClientProps {
   totalAmount: number
   paymentMethod: string | null
   slipFileId: string | null
+  /**
+   * feature 00062 — ISO ของเวลาที่ร้านกด "ได้รับเงินแล้ว" เอง (TRANSFER/PROMPTPAY/CASH)
+   * ส่งต่อให้ OrderSummary → getPaymentBadge (SSOT เดียว, SDS TD-003) — null = ยังไม่กด
+   */
+  paymentConfirmedAtISO: string | null
   shipmentSource: ShipmentSource
 
   // ── ShipmentEntryModal (T9) ──────────────────────────────────────────────
@@ -173,6 +178,7 @@ export default function OrderDetailClient({
   totalAmount,
   paymentMethod,
   slipFileId,
+  paymentConfirmedAtISO,
   shipmentSource,
   ishipContext,
   hasIshipShipment,
@@ -492,6 +498,7 @@ export default function OrderDetailClient({
             salesChannel={salesChannel}
             pageLogoUrl={pageLogoUrl}
             slipFileId={slipFileId}
+            paymentConfirmedAt={paymentConfirmedAtISO}
             status={status}
             shippingStage={shippingStage}
             totalAmount={totalAmount}

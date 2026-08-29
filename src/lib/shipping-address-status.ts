@@ -65,6 +65,11 @@ export function toOrderItemShippingKind(
  *
  * ต้องให้ผลตรงกับ `createOrder`/`updateOrder` เป๊ะ ๆ (src/services/order.service.ts) — หน้าจอที่เข้ม
  * กว่า server = ขอข้อมูลที่ไม่มีอยู่จริง, หน้าจอที่หลวมกว่า = บันทึกไม่ผ่านโดยไม่รู้ว่าเพราะอะไร
+ *
+ * `deliveryOverride: 'PICKUP'` (feature 00062, TD-004) — ร้านเลือก "นัดรับ" เอง override การคำนวณ
+ * fulfillmentMode อัตโนมัติทั้งหมด ต้อง **short-circuit เป็นบรรทัดแรกสุด** ก่อนเช็ค `shipsGoods` —
+ * 🛑 ผู้เรียกทั้ง 3 จุดต้องส่งค่านี้เข้า SSOT ตัวนี้ตรง ๆ ห้ามเขียน `delivery === 'PICKUP' ? false : ...`
+ * ห่อ SSOT ไว้เองที่จุดเรียก (แพตเทิร์นที่พลาดมาแล้ว 2 ครั้ง 2026-08-07/08-10 ตามคอมเมนต์ข้างบน)
  */
 export function orderNeedsShippingAddress(input: {
   /** ร้านประเภทนี้ส่งของไหม — `shopShipsGoods(shop.vertical)` */
@@ -72,7 +77,10 @@ export function orderNeedsShippingAddress(input: {
   /** ช่องทางการขายของใบนี้ — 'STOREFRONT' = ลูกค้ามารับที่ร้าน ไม่ต้องมีที่อยู่ */
   salesChannel: string | null | undefined
   items: OrderItemShippingKind[]
+  /** ร้านเลือก "นัดรับ" เอง (feature 00062) — ชนะทุกเงื่อนไขข้างล่าง ไม่ว่า shipsGoods/salesChannel/items จะเป็นอะไร */
+  deliveryOverride?: 'PICKUP'
 }): boolean {
+  if (input.deliveryOverride === 'PICKUP') return false
   if (!input.shipsGoods) return false
   if (input.salesChannel === 'STOREFRONT') return false
   return input.items.some((kind) => kind === 'CUSTOM' || kind === 'SHIPPED')

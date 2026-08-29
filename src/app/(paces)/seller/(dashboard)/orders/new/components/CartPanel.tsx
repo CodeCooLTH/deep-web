@@ -78,6 +78,13 @@ interface Props {
   orderDateMessageTooOld?: boolean
   /** feature 00033 + impeccable clarify — ป้ายช่องวันที่ ผันตามประเภทกิจการ (ORDER_VOCAB.dateLabel) */
   orderDateLabel?: string
+  /**
+   * feature 00062 (U12/TD-004) — ร้านเลือก "นัดรับ" เอง ส่งตรงเข้า `orderNeedsShippingAddress()` SSOT
+   * เป็น input `deliveryOverride` ห้ามเขียนเงื่อนไข "ถ้าเลือกนัดรับ" ซ้ำที่นี่เอง (ดูคอมเมนต์
+   * shipping-address-status.ts) — ยังไม่มี UI toggle ให้ค่านี้จริง (U15) จึงไม่ส่ง = undefined เสมอตอนนี้
+   * → พฤติกรรมเดิมทุกประการ
+   */
+  deliveryOverride?: 'PICKUP'
 }
 
 export default function CartPanel({
@@ -96,6 +103,7 @@ export default function CartPanel({
   orderDateMessageTooOld,
   orderDateLabel,
   shipsGoods = true,
+  deliveryOverride,
 }: Props) {
   const items = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' }) as string | undefined
@@ -173,8 +181,9 @@ export default function CartPanel({
         items: items.map((i) =>
           toOrderItemShippingKind(i.productId, catalog.find((p) => p.id === i.productId)?.fulfillmentMode),
         ),
+        deliveryOverride,
       }),
-    [items, catalog, salesChannel, shipsGoods],
+    [items, catalog, salesChannel, shipsGoods, deliveryOverride],
   )
 
   // ── Summary math (LOCKED — copy จาก OrderSummaryPanel) ──

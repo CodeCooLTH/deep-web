@@ -147,7 +147,11 @@ flowchart LR
 - **Precondition:** `order.fulfillmentMode === 'PICKUP'`; `order.status === 'PENDING'` (ทั้งกดและ undo)
 - **Postcondition:** `handedOverAt`/`handedOverByUserId` ถูกตั้ง/ล้างเป็นคู่เสมอ; `OrderEvent` ใหม่ 1 แถวต่อการกระทำ; `Order.status` **ไม่เปลี่ยน**
 - **Error / Edge cases:**
-  - กดซ้ำ (ปุ่มควรถูกซ่อนแล้วที่ UI แต่ server ต้อง fail-closed เช่นกัน): กดครั้งที่สองไม่ throw error ใหม่ — เขียนทับ `handedOverAt` ด้วยเวลาใหม่ (idempotent ในความหมาย "ยืนยันซ้ำ") **แต่ยัง insert `OrderEvent` ใหม่ทุกครั้ง** เพราะ audit trail ต้องเห็นทุกครั้งที่กด (ต่างจาก auto-confirm ที่ conditional-update กันซ้ำเพราะเป็น cron ไม่ใช่ human action)
+  - 🛑 **กดซ้ำ = ไม่ทำอะไร ครั้งแรกชนะ** (แก้ 2026-08-29 — ฉบับร่างเขียนตรงข้ามว่าให้เขียนทับเวลาใหม่ + insert event ทุกครั้ง ซึ่งขัดกับ BRD FR-PKP-03 AC ข้อ 3 "กดซ้ำไม่ได้" และ TestCase TC-PKP-11 ที่เขียนไว้ตรงกันว่าห้ามสร้าง event ซ้ำ)
+
+    เหตุผลที่ครั้งแรกต้องชนะ ไม่ใช่แค่เรื่องความสะอาดของ audit trail: `handedOverAt` คือ**จุดเริ่มนับนาฬิกา 48 ชม.** ⇒ การเขียนทับเวลาใหม่แปลว่า **ดับเบิลคลิกโดยไม่ตั้งใจเลื่อนการปิดงานออกไปเงียบ ๆ** โดยไม่มีอะไรบนหน้าจอบอก และไทม์ไลน์จะได้แถว `HANDED_OVER` ซ้ำที่ไม่ได้บอกอะไรใหม่กับร้านเลย
+
+    ฝั่ง service คืนค่าเดิมกลับไป (ไม่ throw ไม่ update ไม่เขียน event) — พฤติกรรมเดียวกันกับ `setPaymentConfirmed()` · มีเทส `[blocker]` ผูกไว้ทั้งคู่ พิสูจน์ด้วย mutation แล้วว่าถอด guard ออกเมื่อไรเทสแดงทันที
   - race ระหว่างร้านกด undo กับ cron ปิดงานพอดี: cron ใช้ conditional `updateMany({ where: { status: 'PENDING' } })` (TFR-004) — ถ้า undo มาถึงก่อน cron จะเห็น `handedOverAt=null` แล้วข้ามใบนี้ (ไม่ error); ถ้า cron ปิดไปก่อน undo จะเจอ `status !== 'PENDING'` → 409 ตามที่ออกแบบไว้แล้ว
 
 #### TFR-004: ปิดงานอัตโนมัติหลัง grace period

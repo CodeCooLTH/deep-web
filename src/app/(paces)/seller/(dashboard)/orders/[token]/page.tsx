@@ -412,6 +412,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
         totalAmount={Number(order.totalAmount)}
         paymentMethod={order.paymentMethod ?? null}
         slipFileId={order.slipFileId ?? null}
+        // feature 00062 — ร้านกด "ได้รับเงินแล้ว" เอง (TRANSFER/PROMPTPAY/CASH) → getPaymentBadge SSOT (TD-003)
+        paymentConfirmedAtISO={order.paymentConfirmedAt ? (order.paymentConfirmedAt as Date).toISOString() : null}
         shipmentSource={shipmentSource}
         ishipContext={shipmentPanel ? toShipmentContextJson(shipmentPanel) : null}
         hasIshipShipment={hasLiveIshipShipment}
@@ -574,6 +576,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 paymentMethod={order.paymentMethod ?? null}
                 salesChannel={order.salesChannel ?? null}
                 slipFileId={order.slipFileId ?? null}
+                paymentConfirmedAt={order.paymentConfirmedAt ? (order.paymentConfirmedAt as Date).toISOString() : null}
                 status={order.status}
                 money={orderMoney}
               />

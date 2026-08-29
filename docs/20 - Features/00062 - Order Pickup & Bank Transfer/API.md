@@ -190,6 +190,10 @@ API ชุดนี้รองรับ SDS §3 (Component Design) — provider
 | `unauthorized` | 401 | `CRON_SECRET` ไม่ตรง/ไม่ตั้ง | inline guard `auto-confirm-pickup/route.ts` (มิเรอร์ `auto-confirm-delivered/route.ts` เป๊ะ) | ไม่ต้อง catch |
 | `internal_error` | 500 | exception ไม่คาดคิดใน `autoConfirmPickup()` | try/catch ที่ `auto-confirm-pickup/route.ts` | ตัว route เอง |
 
+> 🛑 **หมายเหตุการ implement (2026-08-29):** ด่านทั้งหมดในตารางนี้ถูกวางไว้ที่ **service layer (throw typed error)** ไม่ใช่ inline ที่ route อย่างที่ตารางอธิบายไว้ตอนออกแบบ — route ทำหน้าที่ catch แล้ว map เป็น HTTP status เท่านั้น HTTP response ที่ผู้เรียกได้รับตรงกับตารางทุกกรณี
+>
+> เหตุผลที่ย้าย: ด่าน `vertical='ONLINE_SALES'` และด่าน COD ต้อง**บังคับได้จริงและพิสูจน์ได้ด้วยเทส** (`rule-must-be-enforced-not-described.md`) — ด่านที่อยู่ใน route ทดสอบได้ยากกว่าและถูกข้ามได้ถ้ามีผู้เรียก service จากที่อื่นในอนาคต (เช่น cron/แอปมือถือ) การวางที่ service ทำให้ไม่มีทางเข้าไหนเลี่ยงด่านได้
+
 **โครง error response จริงของโปรเจกต์** (verified จาก `cod-received/route.ts` และทุก route ที่สำรวจ — ไม่ใช่ envelope ทั่วไปของ template):
 ```json
 { "error": "ข้อความภาษาไทยสำหรับผู้ใช้" }

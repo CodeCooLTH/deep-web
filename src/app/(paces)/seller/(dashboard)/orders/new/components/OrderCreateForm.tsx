@@ -693,6 +693,9 @@ export default function OrderCreateForm({
       items: items.map((item) =>
         toOrderItemShippingKind(item.productId, catalog.find((p) => p.id === item.productId)?.fulfillmentMode),
       ),
+      // feature 00062 (U12/TD-004) — ยังไม่มี UI toggle "นัดรับ" ในฟอร์มนี้ (U15) จึงยังไม่มีค่าจริง
+      // ให้ส่ง — เตรียมพารามิเตอร์ไว้ก่อนตาม SSOT เดียวกับ CartPanel/QuickForm undefined = พฤติกรรมเดิม
+      deliveryOverride: undefined,
     })
 
     // ── FR-6.5: ออเดอร์ที่ต้องจัดส่งต้องมีที่อยู่ครบขั้นต่ำ (ที่อยู่ + จังหวัด + รหัสไปรษณีย์) ──

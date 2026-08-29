@@ -7,7 +7,7 @@
 
 import { formatDateTimeTH } from './format-date'
 
-/** 13 ประเภทเหตุการณ์ — ต้องตรงกับ CHECK constraint `OrderEvent_type_check` ในฐานข้อมูลเป๊ะ */
+/** 17 ประเภทเหตุการณ์ — ต้องตรงกับ CHECK constraint `OrderEvent_type_check` ในฐานข้อมูลเป๊ะ */
 export const ORDER_EVENT_TYPES = [
   'ORDER_CREATED',
   'ORDER_EDITED',
@@ -36,6 +36,12 @@ export const ORDER_EVENT_TYPES = [
   'RETURN_SHIPPED',
   'RETURN_RECEIVED',
   'RETURN_CANCELLED',
+  // feature 00062 — นัดรับสินค้า + ยืนยันรับเงินโอน (U8/U9) — DB CHECK ขยายแล้วที่ migration
+  // 20260828120000_order_event_pickup_payment_types (ยืนยันก่อนเพิ่มค่า 4 ตัวนี้)
+  'HANDED_OVER',
+  'HANDOVER_REVERTED',
+  'PAYMENT_CONFIRMED',
+  'PAYMENT_CONFIRM_REVERTED',
 ] as const
 
 export type OrderEventType = (typeof ORDER_EVENT_TYPES)[number]
@@ -84,6 +90,15 @@ export const ORDER_EVENT_META: Record<
   RETURN_SHIPPED: { label: 'ส่งของคืนแล้ว', icon: 'truck-return', tone: 'neutral' },
   RETURN_RECEIVED: { label: 'ร้านรับของคืนแล้ว', icon: 'package-import', tone: 'danger' },
   RETURN_CANCELLED: { label: 'ยกเลิกเรื่องคืนของ', icon: 'circle-x', tone: 'neutral' },
+  // feature 00062 — นัดรับสินค้า (FR-PKP-03) — neutral ไม่ใช่ success: มอบของแล้วยังไม่เท่ากับ
+  // ปิดงาน (Order.status ยังเป็น PENDING ต่อ) เขียวสงวนให้ BUYER_CONFIRMED เท่านั้น
+  HANDED_OVER: { label: 'มอบสินค้าแล้ว', icon: 'package-export', tone: 'neutral' },
+  HANDOVER_REVERTED: { label: 'ยกเลิกการยืนยันมอบสินค้า', icon: 'package-off', tone: 'neutral' },
+  // feature 00062 — ยืนยันรับเงินโอน (FR-PAY-01) — neutral ไม่ใช่ success โดยเจตนา: ต่างจาก
+  // COD_SETTLED ตรงที่ไม่มีบุคคลที่สาม (ขนส่ง) ยืนยันเงินเข้า เป็น self-report ของร้านล้วน
+  // (BRD §4.2/SRS TFR-007) — ห้าม mirror สีเขียวของ CodCard.tsx ที่จุดนี้
+  PAYMENT_CONFIRMED: { label: 'ร้านยืนยันได้รับเงินแล้ว', icon: 'coin', tone: 'neutral' },
+  PAYMENT_CONFIRM_REVERTED: { label: 'ยกเลิกการยืนยันรับเงิน', icon: 'coin', tone: 'neutral' },
 }
 
 /**
