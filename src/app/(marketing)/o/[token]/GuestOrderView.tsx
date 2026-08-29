@@ -31,11 +31,13 @@ import AuthPingLink from './AuthPingLink'
 import SectionTitle from './SectionTitle'
 import { formatOrderNo } from '@/lib/order-no'
 import { formatDateTimeTH, formatTimeHM, formatTimeRangeHM, formatWeekdayDateTH } from '@/lib/format-date'
-import { ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
+import { ORDER_STATUS_TONE_TO_MUI, getPaymentBadge } from '@/lib/order-display'
 import { ORDER_VOCAB } from '@/lib/seller-menu'
 import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
 import { resolveOrderStatusHeadline } from '@/lib/order-status-headline'
+import { needsPayoutAccount } from '@/lib/shop-payout'
 import ParcelTimeline from './ParcelTimeline'
+import PayoutAccountCard from './PayoutAccountCard'
 import { orderContentWidthSx } from './content-width'
 import ShopCover from './ShopCover'
 import ShopEvidence from './ShopEvidence'
@@ -95,6 +97,15 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
     hasShipment: !!order.shipmentTracking,
   })
   const statusColor = ORDER_STATUS_TONE_TO_MUI[resolveOrderStatusBadge(order.status, stage).tone]
+
+  /**
+   * feature 00062 (UX-Design-Spec §B8) — badge สถานะการชำระเงิน จาก SSOT เดียวกับฝั่งร้าน
+   * (HR16) 🛑 guest ไม่มี `slipFileId` ใน allow-list (ไม่ใช่ PII ของผู้ซื้อ แต่ไฟล์นี้ยังไม่เปิด
+   * ให้ตั้งใจ — เพิ่มเฉพาะ 2 ฟิลด์ที่ task นี้ระบุ) ⇒ ส่ง `undefined` แทน "ยังไม่รู้" ไม่ใช่เดา
+   * เป็น false ซึ่งจะเบี่ยง badge จาก "รอตรวจสอบสลิป" ไปเป็น "รอชำระ" ถ้าลูกค้าคนอื่นที่ล็อกอิน
+   * แล้วเคยแนบสลิปไว้ก่อนหน้า — คนละบั๊กกับ payoutSnapshot
+   */
+  const paymentBadge = getPaymentBadge(order.status, order.paymentMethod, undefined, order.paymentConfirmedAt)
 
   /* คำทั้งหน้าผันตามประเภทกิจการ — ร้านบริการ/บ้านพักต้องไม่เห็นคำว่า "สินค้า" ที่ไหนเลย
      ค่าที่ไม่รู้จักตกไป ONLINE_SALES (fail-safe เดียวกับ VERTICAL_VISIBLE_SLUGS ของ seller-menu) */
@@ -354,6 +365,35 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
               )}
             </CardContent>
           </Card>
+
+          {/* ── feature 00062 (UX-Design-Spec §B7): บัญชีรับเงิน + QR พร้อมเพย์ ──
+              ทันทีหลัง Status card ก่อน Items card โดยตั้งใจ — การ์ดนี้คือ "สิ่งที่ต้องทำต่อ"
+              จากสถานะด้านบน และมี "ยอดที่ต้องโอน" ในตัวมันเอง (ทำหน้าที่เป็น payment summary)
+              จึงไม่จำเป็นต้องอ่าน Items card ก่อน (ไม่ใช่ท้ายหน้าแบบช่องแนบสลิปเดิมที่ใช้จริง
+              0/504 — PRD ระบุสาเหตุตรงนี้เอง)
+
+              needsPayoutAccount() คือ SSOT เดียวที่ตัดสิน "ออเดอร์นี้ต้องโอนไหม" — COD/เงินสด
+              ไม่ผ่านด่านนี้ จึงไม่มีการ์ดนี้เลย ตรงกับ Edge states ข้อแรกของสเปก */}
+          {needsPayoutAccount(order.paymentMethod) && (
+            <PayoutAccountCard
+              totalAmount={order.totalAmount}
+              payoutSnapshot={order.payoutSnapshot}
+              paymentBadge={paymentBadge}
+              contactShopAction={
+                <AuthPingLink
+                  href={loginHref}
+                  publicToken={order.publicToken}
+                  fullWidth
+                  variant='outlined'
+                  color='secondary'
+                  startIcon={<Icon icon='tabler-headset' fontSize={18} />}
+                  sx={{ minHeight: 44 }}
+                >
+                  ติดต่อร้านค้า
+                </AuthPingLink>
+              }
+            />
+          )}
 
           {/* ── รายการสินค้า ── */}
           <Card>

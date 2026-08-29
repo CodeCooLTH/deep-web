@@ -169,7 +169,20 @@ export const UpdateShopPayoutSchema = v.object({
       v.pipe(v.string(), v.check(isValidPromptPayId, 'PromptPay ID ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตร ปชช. 13 หลัก')),
     ),
   ),
-  reauth: PayoutReauthSchema,
+  /**
+   * 🛑 **optional โดยตั้งใจ** — บังคับเฉพาะตอน "เปลี่ยน" ไม่ใช่ตอน "ตั้งครั้งแรก" (BR-BANK-02)
+   * และตัวที่ตัดสินว่าเป็นครั้งไหนคือ `Shop.payoutUpdatedAt` ที่ฝั่ง server เท่านั้น
+   * (client บอกไม่ได้ — ถ้าให้ client ตัดสิน ก็แค่ส่ง "ครั้งแรก" มาเพื่อข้ามการยืนยัน)
+   *
+   * เดิมประกาศเป็น required ทำให้หน้าจอต้องส่ง **รหัสผ่านปลอมเป็นสตริงคงที่** มาให้ผ่าน schema
+   * ตอนตั้งครั้งแรก ซึ่งอันตรายกว่าที่เห็น: มันคือ magic string ที่หน้าตาเหมือน credential
+   * และวันที่มีคนทำให้ service ตรวจ reauth ทุกครั้ง (ซึ่งเป็นทิศที่ "ปลอดภัยขึ้น") การตั้งบัญชี
+   * ครั้งแรกจะพังทันทีโดยไม่มีใครเดาถูกว่าทำไม
+   *
+   * ด่านจริงยังอยู่ที่ `updateShopPayout()`: `payoutUpdatedAt !== null` แล้วไม่ส่ง reauth มา
+   * = ปฏิเสธ (401) — ไม่ใช่ปล่อยผ่าน
+   */
+  reauth: v.optional(PayoutReauthSchema),
 })
 
 export type UpdateShopPayoutInput = v.InferOutput<typeof UpdateShopPayoutSchema>

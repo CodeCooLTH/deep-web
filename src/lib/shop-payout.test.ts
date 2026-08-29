@@ -194,9 +194,20 @@ describe('UpdateShopPayoutSchema', () => {
     expect(() => v.parse(UpdateShopPayoutSchema, { ...validBase, payoutPromptPayId: '0712345678' })).toThrow()
   })
 
-  it('ไม่ส่ง reauth เลย → parse ล้ม (บังคับเสมอ)', () => {
+  /**
+   * 🛑 **ไม่ส่ง reauth = parse ผ่าน** (แก้ 2026-08-29) — schema ไม่ใช่ที่บังคับเรื่องนี้
+   *
+   * เดิมบังคับ `reauth` เสมอ ทำให้หน้าจอต้องส่ง **รหัสผ่านปลอมเป็นสตริงคงที่** มาให้ผ่าน schema
+   * ตอนตั้งบัญชีครั้งแรก (ซึ่ง service ข้ามการตรวจอยู่แล้วตาม BR-BANK-02)
+   *
+   * ตัวที่ตัดสินว่าต้อง reauth ไหมคือ `Shop.payoutUpdatedAt` **ในฐาน** เท่านั้น — ให้ client
+   * ตัดสินไม่ได้ (ก็แค่ส่ง "ครั้งแรก" มาเพื่อข้ามการยืนยัน) ⇒ ด่านอยู่ที่
+   * `updateShopPayout()` ซึ่งปฏิเสธ 401 เมื่อไม่ใช่ครั้งแรกแต่ไม่ส่ง reauth มา
+   * (เทส `[blocker]` คุมอยู่ที่ `src/services/__tests__/shop-payout.service.test.ts`)
+   */
+  it('ไม่ส่ง reauth เลย → parse ผ่าน (ด่านจริงอยู่ที่ service ไม่ใช่ schema)', () => {
     const { reauth: _reauth, ...withoutReauth } = validBase
-    expect(() => v.parse(UpdateShopPayoutSchema, withoutReauth)).toThrow()
+    expect(() => v.parse(UpdateShopPayoutSchema, withoutReauth)).not.toThrow()
   })
 
   it('reauth ไม่ระบุ password ตอน method=PASSWORD → parse ล้ม', () => {

@@ -477,9 +477,12 @@ export class PayoutReauthUnavailableError extends Error {
  * โดยนิยาม (`shop.userId === userId`) ส่วนร้าน Business ต้องเช็คแถว ShopMember จริง
  *
  * บันทึกครั้งแรก (`payoutUpdatedAt === null`) ข้ามบล็อก reauth ทั้งก้อน — BR-BANK-02 พูดถึง
- * "เปลี่ยน" ไม่ใช่ "ตั้งครั้งแรก" (ยังไม่มีอะไรให้สวมสิทธิ์) `data.reauth` ยังเป็น field บังคับ
- * ที่ Valibot layer (`UpdateShopPayoutSchema` ไม่มี `v.optional` ที่ `reauth`) แต่ฟังก์ชันนี้ไม่แตะ
- * เนื้อใน `data.reauth` เลยในกรณีนี้ (ไม่เรียก `verifyPassword`/`verifyOtp`)
+ * "เปลี่ยน" ไม่ใช่ "ตั้งครั้งแรก" (ยังไม่มีอะไรให้สวมสิทธิ์)
+ *
+ * 🛑 `data.reauth` เป็น **optional** ที่ Valibot — และ **ตัวที่ตัดสินว่าเป็นครั้งไหนคือ
+ * `payoutUpdatedAt` ในฐานเท่านั้น ไม่ใช่สิ่งที่ client ส่งมา** ถ้าให้ client เป็นคนบอกว่า
+ * "นี่ครั้งแรก" ก็เท่ากับไม่มีด่านเลย (ใครก็ส่งมาแบบนั้นได้)
+ * ⇒ ไม่ใช่ครั้งแรกแล้วไม่ส่ง reauth มา = ปฏิเสธ 401 ไม่ใช่ปล่อยผ่าน
  */
 export async function updateShopPayout(
   shopId: string,
@@ -513,6 +516,9 @@ export async function updateShopPayout(
       where: { id: userId },
       select: { passwordHash: true, phone: true },
     });
+
+    // ไม่ส่ง reauth มาทั้งที่ไม่ใช่ครั้งแรก = ปฏิเสธทันที (fail-closed)
+    if (!data.reauth) throw new PayoutReauthFailedError();
 
     let reauthOk: boolean;
     if (data.reauth.method === "PASSWORD" && user?.passwordHash) {

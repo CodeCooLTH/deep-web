@@ -45,7 +45,7 @@ import { toast } from 'react-toastify'
 
 import CustomAvatar from '@core/components/mui/Avatar'
 
-import { getOrderTimeline, getServiceTimeline, isCODPayment, isHttpUrl, showSlipZone, ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
+import { getOrderTimeline, getServiceTimeline, isCODPayment, isHttpUrl, showSlipZone, ORDER_STATUS_TONE_TO_MUI, getPaymentBadge } from '@/lib/order-display'
 import { resolveOrderStatusBadge } from '@/lib/order-stage'
 import { resolveServiceOrderBadge } from '@/lib/order-display'
 import { formatDateTimeTH } from '@/lib/format-date'
@@ -55,9 +55,11 @@ import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { resolveVerifyBadge } from '@/lib/verify-badge'
 import { uploadFileId } from '@/lib/upload-client'
 import { uploadMaxSize } from '@/lib/upload-policy'
+import { needsPayoutAccount } from '@/lib/shop-payout'
 
 import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFooter'
 import { orderContentWidthSx } from './content-width'
+import PayoutAccountCard from './PayoutAccountCard'
 import ShopCover from './ShopCover'
 import ShopEvidence from './ShopEvidence'
 import TrustPill from './TrustPill'
@@ -182,6 +184,14 @@ export type PublicOrderData = {
    * — ผูกคำไว้กับเงินคือบั๊กที่รอเกิด
    */
   isServiceShop: boolean
+  /**
+   * feature 00062 (TFR-009/TFR-010) — สำเนาบัญชีรับเงินของร้าน ณ เวลาสร้าง/แก้ไขออเดอร์ล่าสุด
+   * (freeze) — ไม่ใช่ PII ของผู้ซื้อ ชุดเดียวกับที่ `GuestOrderData` ส่งให้ก่อนล็อกอิน (parity)
+   * `null` = ร้านยังไม่ได้ตั้งบัญชี → UI ต้อง fallback (UX-Design-Spec §B7 Edge states)
+   */
+  payoutSnapshot: import('@/lib/shop-payout').PayoutSnapshot | null
+  /** feature 00062 (TFR-007) — เวลาที่ร้านกด "ได้รับเงินแล้ว" เอง — input ที่ 4 ของ getPaymentBadge */
+  paymentConfirmedAt: string | null
 }
 
 type Props = {
@@ -517,6 +527,13 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
         hasAppointment: order.appointment !== null,
       })
     : resolveOrderStatusBadge(order.status)
+
+  /**
+   * feature 00062 (UX-Design-Spec §B8) — badge สถานะการ "ชำระเงิน" คนละแกนกับ `statusBadge`
+   * ข้างบนซึ่งเป็นสถานะ "ออเดอร์" (PENDING/SHIPPED/CONFIRMED/…) — ใช้เฉพาะในหัวการ์ด
+   * PayoutAccountCard เดียวกับที่จอ guest เรียก ตัวเดียวกันทั้งสองจอ (HR16)
+   */
+  const paymentBadge = getPaymentBadge(order.status, order.paymentMethod, order.slipFileId, order.paymentConfirmedAt)
 
   const isCancelled = order.status === 'CANCELLED'
 
@@ -918,6 +935,35 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
            */}
           {order.money && <PaymentSummaryCard money={order.money} />}
 
+          {/* ── feature 00062 (UX-Design-Spec §B7): บัญชีรับเงิน + QR พร้อมเพย์ ──
+              ก่อน Items card เสมอ (สเปกบังคับตำแหน่งนี้ทั้ง 2 จอ) — วางไว้ใต้การ์ดนัด/เงินมัดจำ
+              ของ feature 00024/00050 แทนการแทรกเหนือมันโดยไม่อ่านมติเดิม (คอมเมนต์ด้านบนตัดสิน
+              ไว้แล้วว่า "เมื่อไหร่ → จ่ายเท่าไหร่ (มัดจำ) → ทำอะไรบ้าง" — บัญชีรับเงินคือขั้น
+              "จะจ่ายยังไง" ซึ่งต่อเนื่องจากขั้นจ่ายเท่าไหร่พอดี ก่อนไปถึงรายการสินค้า)
+              การ์ดเดียวกับที่จอ guest เรียก (sibling-surface-parity) — extend "Payment method
+              card" เดิมด้วยการแทนที่มันเมื่อ needsPayoutAccount() เป็น true (ดูเงื่อนไข #7
+              ด้านล่างซึ่งยังคงพฤติกรรมเดิมไว้สำหรับ COD/เงินสด) */}
+          {needsPayoutAccount(order.paymentMethod) && (
+            <PayoutAccountCard
+              totalAmount={order.totalAmount}
+              payoutSnapshot={order.payoutSnapshot}
+              paymentBadge={paymentBadge}
+              contactShopAction={
+                <Button
+                  component={Link}
+                  href={`/messages/${order.shopId}`}
+                  fullWidth
+                  variant='outlined'
+                  color='secondary'
+                  startIcon={<Icon icon='tabler-headset' fontSize={18} />}
+                  sx={{ minHeight: 44 }}
+                >
+                  ติดต่อร้านค้า
+                </Button>
+              }
+            />
+          )}
+
           {/* ── 6. Items card ── */}
           <Card>
             <Box sx={{ px: 1.75, pt: 1.5, pb: 0.75 }}>
@@ -956,9 +1002,12 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             </Box>
           </Card>
 
-          {/* ── 7. Payment method card (เมื่อ paymentMethod != null) ── */}
+          {/* ── 7. Payment method card (COD/เงินสด — needsPayoutAccount()=false) ──
+              feature 00062: TRANSFER/PROMPTPAY/อื่น ๆ ที่ต้องโอนย้ายไป PayoutAccountCard
+              ข้างบนแล้ว (มีบัญชี+QR ให้จริง) การ์ดนี้เหลือไว้เฉพาะกรณีที่ "ไม่ต้องโอน" ซึ่ง
+              ไม่มีอะไรให้บัญชี/QR แสดงอยู่แล้ว — พฤติกรรมเดิมทุกประการสำหรับ COD/เงินสด */}
           {/* D4: icon tonal info=โอนเงิน / warning=COD (ไม่ใช่ success — green สงวนไว้กับ verified) */}
-          {order.paymentMethod !== null && (
+          {order.paymentMethod !== null && !needsPayoutAccount(order.paymentMethod) && (
             <Card>
               <Box sx={{ px: 1.75, py: 1.5, display: 'flex', gap: 1.25, alignItems: 'center' }}>
                 <CustomAvatar skin='light' variant='rounded' color={isCOD ? 'warning' : 'info'} size={32}>

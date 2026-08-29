@@ -278,3 +278,36 @@ describe('updateShopPayout — ไม่ส่งฟิลด์ = ไม่เ�
     expect(call.data.payoutUpdatedAt).toBeInstanceOf(Date)
   })
 })
+
+/**
+ * 🛑 [blocker] `reauth` เป็น optional ที่ schema — ตัวตัดสินอยู่ที่ `payoutUpdatedAt` ในฐาน
+ * **ไม่ใช่สิ่งที่ client ส่งมา**
+ *
+ * ที่มา: หน้าจอเคยส่ง "รหัสผ่านปลอมเป็นสตริงคงที่" มาให้ผ่าน schema ตอนตั้งครั้งแรก เพราะ
+ * schema บังคับ `reauth` ทั้งที่ service ข้ามการตรวจอยู่แล้ว — ถอดออกแล้ว 2026-08-29
+ *
+ * ด่านนี้กันสองทิศพร้อมกัน:
+ * - ตั้งครั้งแรก + ไม่ส่ง reauth → **ต้องสำเร็จ** (ไม่งั้นตั้งบัญชีครั้งแรกไม่ได้เลย)
+ * - เปลี่ยนของเดิม + ไม่ส่ง reauth → **ต้องถูกปฏิเสธ** (ไม่งั้นแค่ละคีย์ทิ้งก็ข้ามการยืนยันได้)
+ */
+describe('[blocker] updateShopPayout — ไม่ส่ง reauth มา', () => {
+  it('ครั้งแรก (payoutUpdatedAt=null) + ไม่ส่ง reauth → สำเร็จ', async () => {
+    db.shop.findUnique.mockResolvedValue(PERSONAL_ONLINE_FIRST_TIME)
+    db.shop.update.mockResolvedValue({})
+
+    const { reauth: _omit, ...noReauth } = BODY
+    await expect(updateShopPayout('shop-1', 'user-1', noReauth as never)).resolves.toBeDefined()
+    expect(db.shop.update).toHaveBeenCalled()
+  })
+
+  it('🛑 เปลี่ยนของเดิม (payoutUpdatedAt != null) + ไม่ส่ง reauth → ปฏิเสธ ไม่ใช่ปล่อยผ่าน', async () => {
+    db.shop.findUnique.mockResolvedValue(PERSONAL_ONLINE_ALREADY_SET)
+    db.user.findUnique.mockResolvedValue({ passwordHash: 'hash', phone: '0812345678' })
+
+    const { reauth: _omit, ...noReauth } = BODY
+    await expect(updateShopPayout('shop-1', 'user-1', noReauth as never)).rejects.toBeInstanceOf(
+      PayoutReauthFailedError,
+    )
+    expect(db.shop.update).not.toHaveBeenCalled()
+  })
+})

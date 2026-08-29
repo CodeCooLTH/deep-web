@@ -19,6 +19,7 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
 import ShopSlugField from './ShopSlugField'
 import ShopLocationField from './ShopLocationField'
+import ShopPayoutField from './ShopPayoutField'
 import BusinessDangerZone from './BusinessDangerZone'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -96,6 +97,21 @@ interface ShopFormProps {
     latitude: number | null
     longitude: number | null
   }
+  /**
+   * บัญชีรับเงินของร้าน (2026-08-29, feature 00062 U19) — undefined = ไม่มีการ์ดนี้เลย
+   *
+   * ส่งมาเฉพาะร้านที่ `role==='OWNER'` (ไม่ใช่ ADMIN/staff — บัญชีธนาคารคือจุดที่ถ้าถูกสวมสิทธิ์
+   * แก้แล้วเงินไหลผิดที่ทันที เข้มกว่าการแก้ข้อมูลร้านทั่วไปโดยตั้งใจ) และ `Shop.vertical ===
+   * 'ONLINE_SALES'` (ร้าน SERVICE_QUEUE/LODGING ไม่มีการรับเงินผ่านออเดอร์แบบนี้) — ตรวจซ้ำ
+   * ที่ server (`updateShopPayout`) เสมออยู่แล้ว ฝั่งนี้แค่กันไม่ให้คนที่ไม่มีสิทธิ์เห็นการ์ดนี้เลย
+   */
+  bankAccountSetup?: {
+    payoutBankCode: string | null
+    payoutAccountNo: string | null
+    payoutAccountName: string | null
+    payoutPromptPayId: string | null
+    hasExistingPayout: boolean
+  }
 }
 
 // ข้อมูล step ที่เก็บไว้ใน SafePay MVP (2 step จาก 12 step ของ theme)
@@ -111,6 +127,7 @@ export default function ShopForm({
   dangerZone,
   slugSetup,
   locationSetup,
+  bankAccountSetup,
 }: ShopFormProps) {
   const router = useRouter()
 
@@ -697,6 +714,19 @@ export default function ShopForm({
           </div>
         </div>
       </div>
+
+      {/* การ์ด "บัญชีรับเงิน" (2026-08-29, feature 00062 U19) — การ์ดเสริมแยกจากฟอร์มหลัก
+          มีปุ่มบันทึกของตัวเอง (ยิง PATCH /api/shops/payout ทันที ไม่รอปุ่ม "บันทึกการเปลี่ยนแปลง"
+          ด้านบน) ตำแหน่งตามที่ UX spec §A6 ระบุ: ทันทีหลังการ์ดข้อมูลร้านหลัก */}
+      {bankAccountSetup && (
+        <ShopPayoutField
+          payoutBankCode={bankAccountSetup.payoutBankCode}
+          payoutAccountNo={bankAccountSetup.payoutAccountNo}
+          payoutAccountName={bankAccountSetup.payoutAccountName}
+          payoutPromptPayId={bankAccountSetup.payoutPromptPayId}
+          hasExistingPayout={bankAccountSetup.hasExistingPayout}
+        />
+      )}
 
     </form>
   )

@@ -375,6 +375,10 @@ export default async function PublicOrderPage({ params }: Props) {
           : null,
       paymentMethod: order.paymentMethod ?? null,
       fulfillmentMode: order.fulfillmentMode,
+      // feature 00062 — ชุดเดียวกับที่ buildGuestOrderData() ส่งให้ก่อนล็อกอิน (parity);
+      // payoutSnapshot เป็น scalar JSONB มากับ getOrderByToken() include อยู่แล้ว ไม่เพิ่ม query
+      payoutSnapshot: (order.payoutSnapshot as PublicOrderData['payoutSnapshot']) ?? null,
+      paymentConfirmedAt: order.paymentConfirmedAt ? order.paymentConfirmedAt.toISOString() : null,
       maxVerifyLevel,
       // cancelInitiator: derive copy ใน UI ว่าใครยกเลิก (S-13 T1)
       cancelInitiator: (order.cancelInitiator as 'seller' | 'buyer' | null) ?? null,

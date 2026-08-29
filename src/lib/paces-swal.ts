@@ -271,6 +271,68 @@ export const pacesConfirmWithText = async (options: {
   return result.isConfirmed && typeof result.value === 'string' ? result.value.trim() : null
 }
 
+/**
+ * pacesConfirmWithPassword — confirm ที่ขอรหัสผ่านก่อน แล้ว "ทำงานจริง" ต่อในตัวโมดัลเอง
+ * (feature 00062, U19 — เปลี่ยนบัญชีรับเงินของร้านที่มีอยู่แล้วต้อง reauth ตาม BR-BANK-02)
+ *
+ * โครงเดียวกับ `pacesConfirmAsync` เป๊ะ (showLoaderOnConfirm + preConfirm + throw=ไม่ปิดโมดัล)
+ * ต่างแค่มี input รหัสผ่านให้กรอกก่อนกด "ยืนยัน" — ไม่ขยาย `pacesConfirmAsync` ให้รับ input
+ * เพราะจะเปลี่ยน signature ที่ผู้เรียกเดิม (ไม่มี password) ทุกจุดไปด้วย
+ *
+ * 🛑 `run()` throw = โมดัลไม่ปิด ขึ้นข้อความในตัวโมดัลแล้วกดรหัสผ่านใหม่ได้ทันที — ตรงกับที่
+ * UX spec §A6 ต้องการ ("REAUTH_FAILED → error ในโมดัลเอง ไม่ปิดโมดัล") `Swal.showValidationMessage`
+ * ของ sweetalert2 เขียนด้วย innerHTML ภายใน (ไม่ใช่ textContent) — ข้อความจึงใส่ `<a href>`
+ * เป็นทางออกได้จริงเมื่อจำเป็น (เช่น REAUTH_UNAVAILABLE ต้องชี้ทางไปตั้งรหัสผ่าน/เบอร์ที่ /account
+ * ไม่ใช่แค่บอกว่าทำไม่ได้) — ผู้เรียกเป็นคนประกอบ HTML ใน message เอง ฟังก์ชันนี้ไม่ escape ให้
+ *
+ * คืน `null` = ผู้ใช้กดยกเลิก/Esc (ไม่ใช่ "ยืนยันตัวตนไม่ผ่าน")
+ */
+export const pacesConfirmWithPassword = async <T>(options: {
+  title: string
+  text?: string
+  html?: string
+  placeholder?: string
+  confirmButtonText?: string
+  cancelButtonText?: string
+  /** ข้อความเมื่อกดยืนยันโดยยังไม่กรอกรหัสผ่าน */
+  validationMessage: string
+  run: (password: string) => Promise<T>
+}): Promise<T | null> => {
+  const Swal = await loadSwal()
+  const result = await Swal.fire({
+    buttonsStyling: false,
+    showCancelButton: true,
+    allowOutsideClick: false,
+    focusCancel: false,
+    icon: 'question',
+    title: options.title,
+    text: options.text,
+    html: options.html,
+    input: 'password',
+    inputPlaceholder: options.placeholder ?? 'รหัสผ่าน',
+    inputAttributes: { autocomplete: 'current-password' },
+    inputValidator: (value) => (value ? undefined : options.validationMessage),
+    confirmButtonText: options.confirmButtonText ?? 'ยืนยัน',
+    cancelButtonText: options.cancelButtonText ?? 'ยกเลิก',
+    customClass: {
+      confirmButton: CONFIRM_BTN.primary,
+      cancelButton: CANCEL_BTN,
+    },
+    showLoaderOnConfirm: true,
+    preConfirm: async (password: string) => {
+      try {
+        return await options.run(password)
+      } catch (err) {
+        Swal.showValidationMessage(err instanceof Error && err.message ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่')
+        return undefined
+      }
+    },
+  })
+  // isConfirmed=false → ยกเลิก · value=undefined → run() throw แล้ว Swal เปิดค้างอยู่จนผู้ใช้ปิดเอง
+  if (!result.isConfirmed || result.value === undefined) return null
+  return result.value as T
+}
+
 export const pacesConfirm: PacesConfirmFn = Object.assign(base, {
   danger: (title: string, text?: string, opts?: Partial<PacesConfirmOptions>) =>
     base({ confirmSemantic: 'danger', icon: 'warning', ...opts, title, text }),

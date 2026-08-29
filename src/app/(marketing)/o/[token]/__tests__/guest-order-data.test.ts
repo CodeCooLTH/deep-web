@@ -126,6 +126,10 @@ describe('buildGuestOrderData', () => {
         // เวลาที่ขนส่งเริ่มนำพัสดุมาส่งคืนร้าน — เพิ่มเข้า allow-list โดยตั้งใจ (2026-08-27)
         // ไม่ใช่ PII เช่นกัน: เป็นเวลาที่ *ขนส่ง* บันทึก ไม่ได้บอกตัวตน/สถานที่/พฤติกรรมของใคร
         'returnDispatchedAt',
+        // feature 00062 (2026-08-29) — บัญชีรับเงินของ "ร้าน" ไม่ใช่ PII ของผู้ซื้อ ร้าน
+        // ต้องการให้ผู้ถือลิงก์เห็นอยู่แล้ว (เหตุผลเต็มที่ประกาศฟิลด์ใน guest-order-data.ts)
+        'payoutSnapshot',
+        'paymentConfirmedAt',
       ].sort(),
     )
   })
@@ -176,6 +180,32 @@ describe('buildGuestOrderData', () => {
 
   it('carrierStatus ส่งต่อไปให้คำนวณ stage ได้ (BR-BOE-12)', () => {
     expect(buildGuestOrderData(makeOrder(), 1).carrierStatus).toBe('in_transit')
+  })
+
+  // feature 00062 (TFR-010) — payoutSnapshot/paymentConfirmedAt ต้องเดินทางถึงจอ guest ครบ
+  // ไม่ใช่ default null ตลอด (ไม่งั้นการ์ดบัญชีรับเงินจะไม่มีวันมีเนื้อหาให้แสดง)
+  describe('[blocker] payoutSnapshot/paymentConfirmedAt เดินทางถึงจอ guest (feature 00062)', () => {
+    it('มี payoutSnapshot บน order → ส่งต่อทั้งก้อน ไม่ตัดคีย์ทิ้ง', () => {
+      const snapshot = { bankCode: 'KBANK', accountNo: '1234567890', accountName: 'ร้าน BT', promptPayId: '0812345678' }
+      const out = buildGuestOrderData(makeOrder({ payoutSnapshot: snapshot }), 1)
+      expect(out.payoutSnapshot).toEqual(snapshot)
+    })
+
+    it('ร้านยังไม่ได้ตั้งบัญชี (payoutSnapshot=null) → null ไม่ใช่ object ว่าง', () => {
+      const out = buildGuestOrderData(makeOrder({ payoutSnapshot: null }), 1)
+      expect(out.payoutSnapshot).toBeNull()
+    })
+
+    it('paymentConfirmedAt มีค่า → ส่งเป็น ISO string', () => {
+      const confirmedAt = new Date('2026-08-29T04:00:00.000Z')
+      const out = buildGuestOrderData(makeOrder({ paymentConfirmedAt: confirmedAt }), 1)
+      expect(out.paymentConfirmedAt).toBe(confirmedAt.toISOString())
+    })
+
+    it('ร้านยังไม่กดยืนยัน (paymentConfirmedAt=null) → null', () => {
+      const out = buildGuestOrderData(makeOrder({ paymentConfirmedAt: null }), 1)
+      expect(out.paymentConfirmedAt).toBeNull()
+    })
   })
 
   /* 🛑 [blocker] รูปที่ผู้ซื้อเห็นบนจอที่กำลังจะโอนเงิน ต้องเป็น "โลโก้ร้าน" ไม่ใช่รูปส่วนตัว
