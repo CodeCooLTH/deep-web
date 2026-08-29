@@ -22,7 +22,18 @@ import { CHART_COLOR_TOKENS } from '@/lib/product-sales-month'
 import { getColor } from '@/utils/helpers'
 import type { SalesUnit } from './data'
 
-export type ChartSeries = { key: string; name: string; data: number[] }
+export type ChartSeries = {
+  key: string
+  name: string
+  data: number[]
+  /** URL รูปสินค้า — null ได้เสมอ (แถว "รายการที่พิมพ์เอง" ไม่มีรูปโดยนิยาม) */
+  image: string | null
+}
+
+/** หนีอักขระ HTML — ชื่อสินค้าเป็นข้อความที่ผู้ขายพิมพ์เอง และ tooltip ต่อเป็น HTML string ดิบ */
+function esc(v: string): string {
+  return v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
 
 type Props = {
   series: ChartSeries[]
@@ -48,6 +59,28 @@ export default function ProductSalesChart({
 
   const fmt = (v: number) => (unit === 'baht' ? formatBaht(v) : formatNumberNoSymbol(v))
 
+  /** จุดเฉพาะวันที่มียอดจริง — ตัด noise จาก ~155 จุดเหลือเท่าจำนวนวันที่ขายได้ */
+  const discreteMarkers = series.flatMap((s, si) =>
+    s.data.flatMap((v, di) =>
+      v > 0
+        ? [
+            {
+              seriesIndex: si,
+              dataPointIndex: di,
+              size: 3.5,
+              fillColor: getColor(CHART_COLOR_TOKENS[si % CHART_COLOR_TOKENS.length]),
+              strokeColor: 'transparent',
+            },
+          ]
+        : [],
+    ),
+  )
+
+  /** เพดานแกน Y ที่หารลงตัวกับจำนวน tick เสมอ (เฉพาะโหมดจำนวนชิ้น) */
+  const dataMax = series.reduce((m, s) => s.data.reduce((mm, v) => (v > mm ? v : mm), m), 0)
+  const yTicks = Math.min(4, Math.max(1, Math.ceil(dataMax)))
+  const yMax = Math.max(1, Math.ceil(dataMax / yTicks) * yTicks)
+
   const getOptions = (): ApexOptions => ({
     chart: { type: 'line', height, toolbar: { show: false }, offsetX: 0 },
     /**
@@ -64,8 +97,13 @@ export default function ProductSalesChart({
     colors: CHART_COLOR_TOKENS.map((t) => getColor(t)),
     grid: { strokeDashArray: 7 },
     dataLabels: { enabled: false },
-    // จุดบนเส้น = วันที่มีการขายจริง ถ้าไม่มีจุด ผู้อ่านแยกไม่ออกว่าค่าไหนคือข้อมูลจริง
-    markers: { size: 3, strokeWidth: 0 },
+    /**
+     * 🛑 จุดเฉพาะ "วันที่ขายได้จริง" ไม่ใช่ทุกวัน — เดิม `size: 3` วาดจุดที่ทุกวันรวมวันที่ยอด 0
+     * ⇒ 31 วัน × 5 เส้น = 155 จุด ซึ่งคือ noise ล้วน ๆ เพราะข้อมูลเป็น dense array
+     * (ทุกวันมีค่าอยู่แล้ว ไม่มีการ interpolate) จุดที่ค่า 0 จึงไม่ได้บอกอะไรเลย
+     * `discrete` ทำให้จุดกลายเป็น **สัญญาณบวกจริง ๆ** ("วันนี้ขายได้") แทนที่จะเป็นเส้นประดับ
+     */
+    markers: { size: 0, strokeWidth: 0, discrete: discreteMarkers },
     xaxis: {
       categories: labels,
       axisBorder: { show: false },
@@ -84,9 +122,14 @@ export default function ProductSalesChart({
         },
       },
     },
+    /**
+     * 🛑 โหมด "จำนวนชิ้น" ต้องได้ tick เป็นจำนวนเต็มเสมอ — `tickAmount: 4` ตายตัวกับค่าสูงสุด
+     * ระดับ 6 ให้ tick เศษ (1.5 / 3 / 4.5 / 6) ซึ่งอ่านว่า "ขายได้ครึ่งชิ้น"
+     * คำนวณเพดานให้หารลงตัวกับจำนวน tick เสมอ · โหมดบาทปล่อยอัตโนมัติ (ตัวเลขใหญ่พอไม่มีปัญหานี้)
+     */
     yaxis: {
       min: 0,
-      tickAmount: 4,
+      ...(unit === 'qty' ? { tickAmount: yTicks, max: yMax } : { tickAmount: 4 }),
       axisBorder: { show: false },
       labels: {
         offsetX: -6,
@@ -104,12 +147,47 @@ export default function ProductSalesChart({
           onItemClick: { toggleDataSeries: false },
           onItemHover: { highlightDataSeries: true },
         },
+    /**
+     * tooltip เขียน HTML เอง เพื่อใส่ **รูปสินค้า** (user ขอ 2026-08-29)
+     * Base: src/app/(paces)/seller/(dashboard)/dashboard/components/SalesChartSheet.tsx:318
+     *   (แพตเทิร์น `tooltip.custom` คืน HTML string · inline style เพราะ render นอก React tree
+     *    · สีมาจาก `getColor()` ไม่ hardcode hex)
+     *
+     * 🛑 เรียก `<Icon>` ข้างในไม่ได้ — ตรงนี้อยู่นอก React tree เป็นสตริงล้วน สินค้าที่ไม่มีรูป
+     * จึงได้กล่องเทาเปล่า ไม่ใช่ไอคอน (ต่างจากในตารางที่ `ProductThumb` ใส่ไอคอนได้)
+     * 🛑 ชื่อสินค้าเป็นข้อความที่ผู้ขายพิมพ์เอง ⇒ ต้อง escape ก่อนต่อเป็น HTML
+     */
     tooltip: {
       shared: true,
       intersect: false,
-      x: { formatter: (v: number) => `วันที่ ${v}` },
-      y: {
-        formatter: (v: number) => (v === null || v === undefined ? '—' : fmt(v)),
+      custom: ({ dataPointIndex }: { dataPointIndex: number }) => {
+        // โทเคนของธีมเสมอ ห้าม hex ดิบ แม้จะอยู่ในสตริง HTML (HR7 — theme-guard จับได้จริง)
+        const placeholderBg = getColor('default-100')
+        const dividerColor = getColor('default-200')
+        const rows = series
+          .map((s, i) => {
+            const v = s.data[dataPointIndex]
+            const ring = getColor(CHART_COLOR_TOKENS[i % CHART_COLOR_TOKENS.length])
+            const thumb = s.image
+              ? `<img src="${esc(s.image)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:5px" />`
+              : ''
+            return (
+              `<div style="display:flex;align-items:center;gap:8px;padding:3px 0">` +
+              `<span style="flex:0 0 auto;width:28px;height:28px;border-radius:6px;overflow:hidden;` +
+              `background:${placeholderBg};box-shadow:0 0 0 2px ${ring}">${thumb}</span>` +
+              `<span style="flex:1 1 auto;min-width:0;max-width:150px;overflow:hidden;` +
+              `text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</span>` +
+              `<span style="flex:0 0 auto;font-weight:600;font-variant-numeric:tabular-nums">` +
+              `${v === null || v === undefined ? '—' : esc(fmt(v))}</span>` +
+              `</div>`
+            )
+          })
+          .join('')
+        return (
+          `<div style="padding:8px 10px;min-width:220px;font-size:13px">` +
+          `<div style="font-weight:600;padding-bottom:6px;margin-bottom:4px;` +
+          `border-bottom:1px solid ${dividerColor}">วันที่ ${dataPointIndex + 1}</div>${rows}</div>`
+        )
       },
     },
     /**

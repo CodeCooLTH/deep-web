@@ -50,6 +50,11 @@ type Props = {
   atCap: boolean
   cap: number
   futureFrom: number | null
+  /**
+   * สีวงแหวนรอบรูป — คีย์คือ `row.key` ค่าคือสีเดียวกับเส้นบนกราฟ (คำนวณที่ ProductSalesClient
+   * ที่เดียว) · แถวที่ไม่ได้อยู่บนกราฟจะไม่มีในแมพ = ขอบเทาเดิม
+   */
+  colorByKey: Map<string, string>
   year: number
   month0: number
   monthLabel: string
@@ -63,6 +68,7 @@ export default function ProductSalesTable({
   atCap,
   cap,
   futureFrom,
+  colorByKey,
   year,
   month0,
   monthLabel,
@@ -125,7 +131,13 @@ export default function ProductSalesTable({
             // min-w-0 ที่กล่อง + max-w-full ที่ลูก + truncate — ต้องมาเป็นชุด ไม่งั้นชื่อยาว
             // จะดันกล่องกว้างเกินจอแทนที่จะถูกตัด (docs/conventions/flex-header-truncation.md)
             <div className="flex min-w-0 items-center gap-3">
-              <ProductThumb src={r.image} alt={r.name} isCustom={r.isCustom} sizeClass="size-10" />
+              <ProductThumb
+                src={r.image}
+                alt={r.name}
+                isCustom={r.isCustom}
+                sizeClass="size-10"
+                ringColor={colorByKey.get(r.key)}
+              />
               <div className="min-w-0">
                 {r.isCustom ? (
                   <>
@@ -203,7 +215,7 @@ export default function ProductSalesTable({
         },
       }),
     ],
-    [selected, unit, atCap, cap, futureFrom, fmtValue, monthLabel, year, month0, onToggle],
+    [selected, unit, atCap, cap, futureFrom, colorByKey, fmtValue, monthLabel, year, month0, onToggle],
   )
 
   const table = useReactTable({

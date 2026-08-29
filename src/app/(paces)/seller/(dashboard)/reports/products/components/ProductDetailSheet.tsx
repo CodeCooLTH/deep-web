@@ -149,7 +149,7 @@ export default function ProductDetailSheet({
         </div>
 
         <ProductSalesChart
-          series={[{ key: row.key, name: row.name, data: series }]}
+          series={[{ key: row.key, name: row.name, data: series, image: row.image }]}
           unit={unit}
           futureFrom={futureFrom}
           days={days}

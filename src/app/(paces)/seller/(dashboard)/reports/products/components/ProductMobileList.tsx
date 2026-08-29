@@ -25,11 +25,23 @@ type Props = {
   rows: ProductSalesViewRow[]
   unit: SalesUnit
   futureFrom: number | null
+  /**
+   * สีวงแหวนรอบรูป — คีย์คือ `row.key` ค่าคือสีเดียวกับเส้นบนกราฟ (คำนวณที่ ProductSalesClient
+   * ที่เดียว) · แถวที่ไม่ได้อยู่บนกราฟจะไม่มีในแมพ = ขอบเทาเดิม
+   */
+  colorByKey: Map<string, string>
   monthLabel: string
   onOpen: (key: string) => void
 }
 
-export default function ProductMobileList({ rows, unit, futureFrom, monthLabel, onOpen }: Props) {
+export default function ProductMobileList({
+  rows,
+  unit,
+  futureFrom,
+  colorByKey,
+  monthLabel,
+  onOpen,
+}: Props) {
   const fmtValue = (v: number) => (unit === 'baht' ? formatBaht(v) : `${formatNumberNoSymbol(v)} ชิ้น`)
 
   if (rows.length === 0) {
@@ -49,7 +61,13 @@ export default function ProductMobileList({ rows, unit, futureFrom, monthLabel, 
             onClick={() => onOpen(r.key)}
             // min-h-11 ไม่จำเป็นเพราะเนื้อในสูงเกิน 44px อยู่แล้ว แต่ใส่ไว้กันเคสชื่อสั้นสุด
             className="hover:bg-default-100 flex w-full min-h-11 items-start gap-3 px-1 py-3 text-start">
-            <ProductThumb src={r.image} alt={r.name} isCustom={r.isCustom} sizeClass="size-11" />
+            <ProductThumb
+              src={r.image}
+              alt={r.name}
+              isCustom={r.isCustom}
+              sizeClass="size-11"
+              ringColor={colorByKey.get(r.key)}
+            />
 
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline justify-between gap-2">

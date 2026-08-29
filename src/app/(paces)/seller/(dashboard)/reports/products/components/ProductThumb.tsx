@@ -25,15 +25,28 @@ type Props = {
   isCustom: boolean
   /** คลาสขนาด เช่น `size-10` (ตาราง) หรือ `size-11` (รายการมือถือ) */
   sizeClass: string
+  /**
+   * สีวงแหวน = สีเส้นของสินค้านี้บนกราฟ · `undefined` = ไม่ได้อยู่บนกราฟ → ขอบเทาเดิม
+   *
+   * 🛑 ใช้ `box-shadow` แทน `border` เพื่อไม่ให้กล่องเปลี่ยนขนาดตอนติ๊ก/ถอด (border กินพื้นที่
+   * ใน box model แต่ box-shadow ไม่กิน) และหนา 2px เพราะสีอ่อนอย่างส้มอิฐ/ฟ้า 1px จะจางไปกับพื้นขาว
+   * เป็น "สี = ตัวตน" ไม่ใช่ข้อความ จึงไม่อยู่ใต้เกณฑ์คอนทราสต์ 4.5:1
+   * (docs/conventions/contrast-fix-keeps-hue.md)
+   */
+  ringColor?: string
 }
 
-export default function ProductThumb({ src, alt, isCustom, sizeClass }: Props) {
+export default function ProductThumb({ src, alt, isCustom, sizeClass, ringColor }: Props) {
+  const ring = ringColor ? { boxShadow: `0 0 0 2px ${ringColor}` } : undefined
   const [failed, setFailed] = useState(false)
 
   if (isCustom || !src || failed) {
     return (
       <span
-        className={`border-default-200 bg-default-100 text-default-400 flex ${sizeClass} shrink-0 items-center justify-center rounded-lg border`}
+        style={ring}
+        className={`bg-default-100 text-default-400 flex ${sizeClass} shrink-0 items-center justify-center rounded-lg border ${
+          ringColor ? 'border-transparent' : 'border-default-200'
+        }`}
         title={isCustom ? undefined : 'สินค้านี้ยังไม่มีรูป'}>
         <Icon icon={isCustom ? 'pencil' : 'package'} className="text-base" aria-hidden="true" />
       </span>
@@ -46,7 +59,10 @@ export default function ProductThumb({ src, alt, isCustom, sizeClass }: Props) {
       src={src}
       alt={alt}
       loading="lazy"
-      className={`border-default-200 bg-default-100 ${sizeClass} shrink-0 rounded-lg border object-cover`}
+      style={ring}
+      className={`bg-default-100 ${sizeClass} shrink-0 rounded-lg border object-cover ${
+        ringColor ? 'border-transparent' : 'border-default-200'
+      }`}
       onError={() => setFailed(true)}
     />
   )

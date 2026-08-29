@@ -20,11 +20,14 @@ import { useMemo, useState } from 'react'
 
 import Icon from '@/components/wrappers/Icon'
 import {
+  CHART_COLOR_TOKENS,
   CHART_SERIES_CAP,
+  DEFAULT_CHART_SERIES,
   MONEY_MODE_CAVEAT,
   SALES_BASIS_DETAIL,
   SALES_BASIS_NOTE,
 } from '@/lib/product-sales-month'
+import { getColor } from '@/utils/helpers'
 import type { ProductSalesRow } from '@/services/product-sales-series.service'
 import ProductDetailSheet from './ProductDetailSheet'
 import ProductMobileList from './ProductMobileList'
@@ -68,7 +71,7 @@ export default function ProductSalesClient({
   const [showZero, setShowZero] = useState(false)
   const [openKey, setOpenKey] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(defaultSelectedKeys(rows, 5)),
+    () => new Set(defaultSelectedKeys(rows, DEFAULT_CHART_SERIES)),
   )
 
   const viewRows = useMemo(
@@ -83,9 +86,26 @@ export default function ProductSalesClient({
     () =>
       viewRows
         .filter((r) => selected.has(r.key))
-        .map((r) => ({ key: r.key, name: r.name, data: rowSeries(r, unit) })),
+        .map((r) => ({ key: r.key, name: r.name, data: rowSeries(r, unit), image: r.image })),
     [viewRows, selected, unit],
   )
+
+  /**
+   * สีของสินค้าที่กำลังพล็อต — คำนวณ **ที่เดียว** แล้วส่งต่อ ไม่ให้ตาราง/รายการมือถือ/tooltip
+   * คำนวณเองคนละที่ (HR16) · ลำดับต้องตรงกับที่ ApexCharts แจกสีเป๊ะ คือ index ใน `chartSeries`
+   *
+   * 🛑 นี่คือทางแก้ของปัญหา "ชื่อสินค้ามีคำว่าสีอยู่ในตัว แต่สีเส้นไม่ตรง" — ไม่ได้พยายาม
+   * จับคู่สีเส้นให้ตรงกับคำในชื่อ (ทำไม่ได้ทั่วไป และชนกันเองเมื่อมีสินค้าสีเดียวกันสองตัว)
+   * แต่ทำให้ผู้ใช้ **ไม่ต้องจำสีเลย** — วงแหวนรอบรูปในตารางเป็นสีเดียวกับเส้นบนกราฟ
+   * มองจากตารางไปกราฟได้ทันที และใช้ได้บนมือถือด้วย (ไม่ต้อง hover)
+   */
+  const colorByKey = useMemo(() => {
+    const m = new Map<string, string>()
+    chartSeries.forEach((s, i) => {
+      m.set(s.key, getColor(CHART_COLOR_TOKENS[i % CHART_COLOR_TOKENS.length]))
+    })
+    return m
+  }, [chartSeries])
 
   const openRow = openKey ? (viewRows.find((r) => r.key === openKey) ?? null) : null
 
@@ -163,7 +183,7 @@ export default function ProductSalesClient({
           {/* 🛑 "5 อันดับแรก" เฉย ๆ โกหกทันทีที่สลับเป็นบาท — อันดับยึดจำนวนชิ้นเสมอ
               (defaultSelectedKeys) ไม่ผันตามหน่วย จึงต้องบอกว่ายึดอะไร */}
           <span className="text-default-400 text-xs">
-            <span className="lg:hidden">แสดง 5 อันดับแรกตามจำนวนชิ้น</span>
+            <span className="lg:hidden">แสดง {DEFAULT_CHART_SERIES} อันดับแรกตามจำนวนชิ้น</span>
             <span className="hidden lg:inline">
               {selected.size >= CHART_SERIES_CAP
                 ? `เลือกแล้ว ${selected.size} จาก ${CHART_SERIES_CAP} รายการ — เอาออกก่อนจึงจะเลือกเพิ่มได้`
@@ -213,6 +233,7 @@ export default function ProductSalesClient({
             atCap={selected.size >= CHART_SERIES_CAP}
             cap={CHART_SERIES_CAP}
             futureFrom={futureFrom}
+            colorByKey={colorByKey}
             year={year}
             month0={month0}
             monthLabel={monthLabel}
@@ -224,6 +245,7 @@ export default function ProductSalesClient({
             rows={visibleRows}
             unit={unit}
             futureFrom={futureFrom}
+            colorByKey={colorByKey}
             monthLabel={monthLabel}
             onOpen={setOpenKey}
           />
