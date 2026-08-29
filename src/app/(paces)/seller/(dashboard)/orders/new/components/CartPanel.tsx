@@ -30,6 +30,7 @@ import CustomerSelectBlock from './CustomerSelectBlock'
 import OrderDateRow from './OrderDateRow'
 import AddressSearchPanel, { type SelectedLocality } from './AddressSearchPanel'
 import { DEFAULT_CHANNEL_KEY, DEFAULT_PAYMENT_KEY } from './ChannelPaymentSelect'
+import DeliveryModeToggle from './DeliveryModeToggle'
 // SSOT ของตัวเลือก — ต้องเป็นชุดเดียวกับมือถือ (ดูเหตุผลใน order-options.ts)
 import { CHANNEL_OPTIONS, PAYMENT_OPTIONS } from './order-options'
 import type { CatalogProduct, FormValues, ItemsController } from './OrderCreateForm'
@@ -78,13 +79,8 @@ interface Props {
   orderDateMessageTooOld?: boolean
   /** feature 00033 + impeccable clarify — ป้ายช่องวันที่ ผันตามประเภทกิจการ (ORDER_VOCAB.dateLabel) */
   orderDateLabel?: string
-  /**
-   * feature 00062 (U12/TD-004) — ร้านเลือก "นัดรับ" เอง ส่งตรงเข้า `orderNeedsShippingAddress()` SSOT
-   * เป็น input `deliveryOverride` ห้ามเขียนเงื่อนไข "ถ้าเลือกนัดรับ" ซ้ำที่นี่เอง (ดูคอมเมนต์
-   * shipping-address-status.ts) — ยังไม่มี UI toggle ให้ค่านี้จริง (U15) จึงไม่ส่ง = undefined เสมอตอนนี้
-   * → พฤติกรรมเดิมทุกประการ
-   */
-  deliveryOverride?: 'PICKUP'
+  /** feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" เฉพาะร้าน ONLINE_SALES (SSOT: OrderCreateForm) */
+  showDeliveryToggle?: boolean
 }
 
 export default function CartPanel({
@@ -103,10 +99,14 @@ export default function CartPanel({
   orderDateMessageTooOld,
   orderDateLabel,
   shipsGoods = true,
-  deliveryOverride,
+  showDeliveryToggle = false,
 }: Props) {
   const items = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' }) as string | undefined
+  // feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" อ่านจาก control ตัวเดียวกันตรง ๆ (ไม่รับผ่าน prop
+  // แยก — CartPanel มี control อยู่แล้ว การ derive ที่นี่กันไม่ให้ต้องมี state คู่ขนานที่ต้อง sync เอง)
+  const fulfillmentMode = useWatch({ control, name: 'fulfillmentMode' }) as FormValues['fulfillmentMode']
+  const deliveryOverride: 'PICKUP' | undefined = fulfillmentMode === 'PICKUP' ? 'PICKUP' : undefined
 
   const { field: channelField } = useController({ control, name: 'salesChannel' })
   const { field: paymentField } = useController({ control, name: 'paymentMethod' })
@@ -396,6 +396,17 @@ export default function CartPanel({
           </div>
         )}
       </div>
+
+      {/* ── วิธีส่งมอบ (feature 00062 U15, เฉพาะร้าน ONLINE_SALES) ──
+          แถวเดี่ยว ไม่ใช่ accordion — มีแค่ 2 ตัวเลือกไม่ต้องกาง/หุบ (UX-Design-Spec §A1) */}
+      {showDeliveryToggle && (
+        <div className="flex items-center justify-between gap-3 border-t border-default-200 px-4 py-3">
+          <span className="text-sm font-semibold text-default-700">วิธีส่งมอบ</span>
+          <div className="w-56">
+            <DeliveryModeToggle control={control} />
+          </div>
+        </div>
+      )}
 
       {/* feature 00033 — แถววันที่สั่งซื้อ (ยุบไว้ + ปุ่มเปลี่ยน) อยู่นอก accordion ตาม D-7
           (ux ruling: ห้ามห่อด้วย accordion ซ้ำ — ยุบ/ขยายในตัวอยู่แล้ว) */}

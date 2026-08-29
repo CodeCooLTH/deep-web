@@ -172,14 +172,18 @@ describe('NO_SHIPPING (digital/service) ไม่มี action เกี่ย�
 describe('PICKUP (จองที่พัก) ไม่มี action เกี่ยวกับพัสดุ/ที่อยู่จัดส่ง — เหมือน NO_SHIPPING (G-1)', () => {
   const SHIPMENT_KEYS = ['report-tracking', 'edit-tracking', 'copy-tracking', 'copy-address']
 
-  it('PENDING + PICKUP → ไม่มี report-tracking/copy-address; ยังมี copy-link/edit-order/cancel-order', () => {
+  // feature 00062: PICKUP+PENDING ไม่ใช้ send-sms เป็น primary อีกต่อไปเมื่อรู้จักสถานะเงิน/ส่งมอบ
+  // (ดู describe "PICKUP + PENDING — ลำดับ primary เงินก่อนส่งมอบ" ด้านล่างสำหรับ 3 แถวของตาราง)
+  // เคสนี้ (ไม่ส่ง flag ใหม่เลย = เหมือนได้เงินแล้ว/ไม่เข้าเงื่อนไขเงิน) ยังไม่มี report-tracking/
+  // copy-address ปนมา และ menu ยังเป็นชุดเดิม
+  it('PENDING + PICKUP (ไม่ส่ง flag เงิน/ส่งมอบ) → ไม่มี report-tracking/copy-address; menu=[copy-link,edit-order,cancel-order]', () => {
     const r = getOrderActionSet({ status: 'PENDING', fulfillmentMode: 'PICKUP', shipmentSource: null })
     const all = [...(r.primary ? [r.primary] : []), ...r.ghosts, ...r.menu]
     for (const k of SHIPMENT_KEYS) {
       expect(keys(all)).not.toContain(k)
     }
     expect(keys(r.menu)).toEqual(['copy-link', 'edit-order', 'cancel-order'])
-    expect(r.primary?.key).toBe('send-sms')
+    expect(r.primary?.key).toBe('pickup-handed-over')
   })
 
   it('SHIPPED + PICKUP + MANUAL → ไม่มี report-tracking/edit-tracking/copy-tracking/copy-address (แม้ shipmentSource=MANUAL)', () => {
@@ -206,13 +210,98 @@ describe('PICKUP (จองที่พัก) ไม่มี action เกี�
     expect(keys(r.ghosts)).toEqual(['copy-link'])
   })
 
-  it('PICKUP ให้ผลเหมือน NO_SHIPPING เป๊ะทุกสถานะ (contract เดียวกัน)', () => {
+  // feature 00062: PENDING แยกออกไปแล้ว (PICKUP มีลำดับ primary ของตัวเอง — เงินก่อนส่งมอบ)
+  // ส่วนที่เหลือ (SHIPPED/CONFIRMED/CANCELLED) ยังต้อง contract เดียวกับ NO_SHIPPING เป๊ะเหมือนเดิม
+  it('PICKUP ให้ผลเหมือน NO_SHIPPING เป๊ะทุกสถานะ ยกเว้น PENDING (feature 00062 แยก primary เฉพาะ PENDING)', () => {
     for (const status of STATUSES) {
+      if (status === 'PENDING') continue
       for (const shipmentSource of SHIPMENT_SOURCES) {
         const pickup = getOrderActionSet({ status, fulfillmentMode: 'PICKUP', shipmentSource })
         const noShipping = getOrderActionSet({ status, fulfillmentMode: 'NO_SHIPPING', shipmentSource })
         expect(pickup).toEqual(noShipping)
       }
+    }
+  })
+})
+
+// -------------------------------------------------------------------------
+// feature 00062 (U16): PICKUP + PENDING — ลำดับ primary "เงินก่อน → ส่งมอบทีหลัง"
+// ตาราง UX-Design-Spec.md §A2 (3 แถว) — flag isPickupPaymentUnpaid/isPickupHandedOver
+// มีผลเฉพาะ status==='PENDING' เท่านั้น (SHIPPED/CONFIRMED/CANCELLED ทดสอบแยกไว้แล้วด้านบนว่า
+// ยังเหมือน NO_SHIPPING เป๊ะไม่ว่า flag จะเป็นอะไร)
+// -------------------------------------------------------------------------
+describe('PICKUP + PENDING — ลำดับ primary เงินก่อนส่งมอบ (feature 00062, UX §A2)', () => {
+  it('ยังไม่ได้เงิน + ยังไม่มอบของ → primary=ได้รับเงินแล้ว, ghost=[มอบสินค้าแล้ว], menu=[copy-link,edit-order,cancel-order]', () => {
+    const r = getOrderActionSet({
+      status: 'PENDING',
+      fulfillmentMode: 'PICKUP',
+      shipmentSource: null,
+      isPickupPaymentUnpaid: true,
+      isPickupHandedOver: false,
+    })
+    expect(r.primary).toEqual({ key: 'pickup-payment-received', label: 'ได้รับเงินแล้ว', icon: 'cash' })
+    expect(keys(r.ghosts)).toEqual(['pickup-handed-over'])
+    expect(keys(r.menu)).toEqual(['copy-link', 'edit-order', 'cancel-order'])
+  })
+
+  it('ได้เงินแล้ว + ยังไม่มอบของ → primary=มอบสินค้าแล้ว, ghost=[], menu=[copy-link,edit-order,cancel-order]', () => {
+    const r = getOrderActionSet({
+      status: 'PENDING',
+      fulfillmentMode: 'PICKUP',
+      shipmentSource: null,
+      isPickupPaymentUnpaid: false,
+      isPickupHandedOver: false,
+    })
+    expect(r.primary).toEqual({ key: 'pickup-handed-over', label: 'มอบสินค้าแล้ว', icon: 'package-check' })
+    expect(keys(r.ghosts)).toEqual([])
+    expect(keys(r.menu)).toEqual(['copy-link', 'edit-order', 'cancel-order'])
+  })
+
+  it('มอบของแล้ว (รอ grace) → primary=null, ghost=[คัดลอกลิงก์], menu=[edit-order,cancel-order] — ไม่สนว่าเงินจ่ายหรือยัง', () => {
+    for (const isPickupPaymentUnpaid of [true, false]) {
+      const r = getOrderActionSet({
+        status: 'PENDING',
+        fulfillmentMode: 'PICKUP',
+        shipmentSource: null,
+        isPickupPaymentUnpaid,
+        isPickupHandedOver: true,
+      })
+      expect(r.primary).toBeNull()
+      expect(keys(r.ghosts)).toEqual(['copy-link'])
+      expect(keys(r.menu)).toEqual(['edit-order', 'cancel-order'])
+    }
+  })
+
+  it('isPickupHandedOver=true ชนะเสมอ ไม่ว่า isPickupPaymentUnpaid จะเป็นอะไร (มอบของแล้ว = ปิดขั้นตอนเงินไปแล้วในทางปฏิบัติ)', () => {
+    const withUnpaid = getOrderActionSet({
+      status: 'PENDING', fulfillmentMode: 'PICKUP', shipmentSource: null,
+      isPickupPaymentUnpaid: true, isPickupHandedOver: true,
+    })
+    const withoutUnpaid = getOrderActionSet({
+      status: 'PENDING', fulfillmentMode: 'PICKUP', shipmentSource: null,
+      isPickupPaymentUnpaid: false, isPickupHandedOver: true,
+    })
+    expect(withUnpaid).toEqual(withoutUnpaid)
+  })
+
+  it('shipmentSource ไม่มีผลต่อ PICKUP+PENDING เลย (PICKUP ไม่มีพัสดุ)', () => {
+    for (const shipmentSource of SHIPMENT_SOURCES) {
+      const r = getOrderActionSet({
+        status: 'PENDING', fulfillmentMode: 'PICKUP', shipmentSource,
+        isPickupPaymentUnpaid: true, isPickupHandedOver: false,
+      })
+      expect(r.primary?.key).toBe('pickup-payment-received')
+    }
+  })
+
+  it('SHIPPED/CONFIRMED ของ PICKUP ไม่รับผลจาก isPickupPaymentUnpaid/isPickupHandedOver เลย (มีผลเฉพาะ PENDING)', () => {
+    for (const status of ['SHIPPED', 'CONFIRMED'] as OrderStatus[]) {
+      const withFlags = getOrderActionSet({
+        status, fulfillmentMode: 'PICKUP', shipmentSource: null,
+        isPickupPaymentUnpaid: true, isPickupHandedOver: true,
+      })
+      const withoutFlags = getOrderActionSet({ status, fulfillmentMode: 'PICKUP', shipmentSource: null })
+      expect(withFlags).toEqual(withoutFlags)
     }
   })
 })

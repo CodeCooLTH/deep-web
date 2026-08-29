@@ -1,5 +1,6 @@
 import type { AppointmentStatus } from '@/lib/appointments'
 import type { ShippingStageKey } from '@/lib/order-stage'
+import type { PickupStageKey } from '@/lib/order-pickup'
 /**
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/data.ts
  * (OrderRow/OrderStatus เป็น SafePay-specific; OrderStatCardData copy pattern จาก RevenueStat)
@@ -40,6 +41,20 @@ export type OrderItemRow = {
 }
 
 export type OrderRow = {
+  /**
+   * `Order.fulfillmentMode` ดิบ (feature 00062 U18) — undefined = ร้านไม่ใช่ ONLINE_SALES
+   * (คู่กับ shippingStage/shipment ข้างล่าง) นี่คือ symbol เดียวที่ทั้งตัวนับและตัวกรอง
+   * "วิธีส่งมอบ" (`?fulfillment=`) ใน OrdersList.tsx อ่าน — ห้ามแยกกันนับ/กรอง ไม่งั้นเจอบั๊ก
+   * "กดเลข 5 เข้าไปเจอ 4 ใบ" แบบเดียวกับ ?stage= (ดูคอมเมนต์หัวไฟล์ order-stage.ts)
+   */
+  fulfillmentMode?: string
+  /**
+   * สถานะกองนัดรับ (feature 00062 U18) — undefined = ใบนี้ไม่ใช่นัดรับ (`fulfillmentMode !==
+   * 'PICKUP'`) หรือร้านไม่ใช่ ONLINE_SALES คำนวณที่ server ด้วย derivePickupStage() ตัวเดียวกับ
+   * badge บนการ์ด A2/A4 ในหน้ารายละเอียด (HR16 — ห้ามพิมพ์คำซ้ำ) คอลัมน์ "ขนส่ง/เลขพัสดุ"
+   * (MiniShipmentTimeline) และ badge "นัดรับ" บนการ์ดมือถือต้องอ่านค่านี้เท่านั้น
+   */
+  pickupStage?: PickupStageKey
   /**
    * กองงานตามสถานะพัสดุ (user สั่ง 2026-08-04: กดไทล์บน Command Center แล้วรายการต้องกรองตรงกัน)
    * คำนวณที่ server ด้วย deriveShippingStage ตัวเดียวกับที่ตัวนับบนไทล์ใช้ — undefined = ร้านที่
@@ -219,6 +234,22 @@ export const SALES_CHANNEL_LABELS: Record<string, string> = {
   LINE: 'LINE',
   TIKTOK: 'TikTok',
   OTHER: 'อื่นๆ',
+}
+
+// ─── วิธีส่งมอบ (feature 00062 U18) — SSOT คำ+สี ตัวเดียวที่ทั้งดรอปดาวน์เดสก์ท็อป
+//     (OrdersTable) และแถวในโมดัลตัวกรองมือถือ (OrdersList) ต้องอ่าน — คนละแกนกับ
+//     Order.status (`SHIPPED` ในที่นี้คือ Order.fulfillmentMode ไม่ใช่ Order.status ที่
+//     ORDER_STATUS_META ดูแลอยู่แล้ว — เทส order-status-label-ssot.test.ts บังคับให้แยก
+//     module ออกมาแบบนี้ ไม่ใช่ inline object literal ที่มีคำว่า SHIPPED คู่กับ label ไทย)
+export const FULFILLMENT_FILTER_KEYS = ['SHIPPED', 'PICKUP'] as const
+export const FULFILLMENT_FILTER_LABEL: Record<(typeof FULFILLMENT_FILTER_KEYS)[number], string> = {
+  SHIPPED: 'จัดส่ง',
+  PICKUP: 'นัดรับ',
+}
+/** สี badge — นัดรับใช้ primary tone เดียวกับ badge "นัดรับ" บนการ์ดมือถือ (HR16), จัดส่งเป็นกลาง */
+export const FULFILLMENT_BADGE_CLS: Record<(typeof FULFILLMENT_FILTER_KEYS)[number], string> = {
+  SHIPPED: 'bg-default-100 text-default-700',
+  PICKUP: 'bg-primary/15 text-primary-ink',
 }
 
 // OrderStatCardData — การ์ดสถิติหัวหน้า orders (ตัวเลข + ไอคอนวงกลม + %เปลี่ยนแปลง)

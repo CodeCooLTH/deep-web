@@ -21,9 +21,29 @@ import { SHIPMENT_STAGE_DOT_INDEX, SHIPPING_STAGE_LABEL, type ShippingStageKey }
 import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
 import ShipmentRail from '@/components/safepay/iship/ShipmentRail'
 import { NOTICE_BOX, shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
+// สถานะกองนัดรับ (feature 00062 U18) — SSOT เดียวกับ badge บนการ์ด A2/A4 ในหน้ารายละเอียด (HR16)
+import { PICKUP_STAGE_LABEL, type PickupStageKey } from '@/lib/order-pickup'
+
+/** สีข้อความของแต่ละ tone (ไม่มีกรอบ badge) — เขียนเต็มคำกัน Tailwind purge (แพตเทิร์นเดียวกับ
+ *  tone.ts) — PICKUP_STAGE_LABEL ใช้แค่ warning/info/success จริง แต่ใส่ครบ OrderStatusTone
+ *  เพื่อให้ tsc บังคับถ้ามีคนเติม tone ใหม่ */
+const PICKUP_TEXT_TONE: Record<'warning' | 'info' | 'success' | 'danger' | 'neutral', string> = {
+  warning: 'text-warning-ink',
+  info: 'text-info-ink',
+  success: 'text-success-ink',
+  danger: 'text-danger-ink',
+  neutral: 'text-default-700',
+}
 
 interface Props {
-  stage: ShippingStageKey | undefined
+  /**
+   * สถานะกองนัดรับ (feature 00062 U18) — มีค่า = ใบนี้เป็นออเดอร์นัดรับ ไม่มีพัสดุให้วาดแถบเลย
+   * ⇒ เขียนทับทุก prop อื่นด้านล่างทันที (ไม่สนใจ `plain`/`inline` เพราะข้อความ "นัดรับ ·
+   * {สถานะย่อ}" เหมือนกันทั้งสองบริบท — คนละแกนกับ `stage` โดยสิ้นเชิง)
+   */
+  pickupStage?: PickupStageKey
+  /** optional เพราะผู้เรียกที่ส่ง `pickupStage` มาไม่มีสาระให้ระบุค่านี้เลย (คนละแกน) */
+  stage?: ShippingStageKey
   /**
    * สถานะล่าสุดจากขนส่ง (iShip) — มีค่า = ตัดสินขั้นด้วย `describeProgress()` **ตัวเดียวกับ
    * `ShippingCard` ในหน้ารายละเอียด** ⇒ ออเดอร์ใบเดียวกันไม่พูดคนละขั้นสองจอ
@@ -38,8 +58,13 @@ interface Props {
   returnStartedAt?: string | Date | null
   returnedAt?: string | Date | null
   returnDispatchedAt?: string | Date | null
-  /** มีพัสดุ/เลขแทรคจริงไหม — DONE ของออเดอร์ที่ไม่เคยมีพัสดุต้องไม่วาดแถบเขียวลอย ๆ */
-  hasShipment: boolean
+  /**
+   * มีพัสดุ/เลขแทรคจริงไหม — DONE ของออเดอร์ที่ไม่เคยมีพัสดุต้องไม่วาดแถบเขียวลอย ๆ
+   *
+   * optional (default false) เพราะออเดอร์นัดรับ (`pickupStage`) ไม่มีพัสดุให้ถามอยู่แล้ว —
+   * ผู้เรียกที่ส่ง `pickupStage` มาไม่ต้องส่งค่านี้ตาม (early return ก่อนถึงจุดที่ใช้)
+   */
+  hasShipment?: boolean
   /** ออเดอร์ยกเลิกแล้ว — ไม่วาด timeline (สถานะพัสดุไม่ใช่สาระของใบนั้นอีก) */
   cancelled?: boolean
   /**
@@ -64,17 +89,39 @@ interface Props {
 }
 
 export default function MiniShipmentTimeline({
+  pickupStage,
   stage,
   carrierStatus,
   shipmentStatus,
   returnStartedAt,
   returnedAt,
   returnDispatchedAt,
-  hasShipment,
+  hasShipment = false,
   cancelled,
   plain,
   inline,
 }: Props) {
+  /**
+   * ออเดอร์นัดรับ — ไม่มีพัสดุให้วาดแถบเลย ตอบคำถามคนละคำถามกับ "ของอยู่ไหนในเส้นทางขนส่ง"
+   * (UX-Design-Spec A5) เขียนก่อนทุกอย่างข้างล่างและไม่สนใจ `plain`/`inline`: ทั้งคอลัมน์
+   * "ขนส่ง/เลขพัสดุ" ในตาราง (เรียกแบบ `plain`) และการ์ดมือถือ (เรียกแบบ `inline`) ต้องได้
+   * ข้อความ "นัดรับ · {สถานะย่อ}" คำเดียวกันเป๊ะ — คำมาจาก PICKUP_STAGE_LABEL เท่านั้น (HR16
+   * ต้องตรงกับ badge บนการ์ด A2/A4 ในหน้ารายละเอียด)
+   */
+  if (pickupStage) {
+    const meta = PICKUP_STAGE_LABEL[pickupStage]
+    return (
+      <p className="mb-0 flex items-center gap-1.5 text-xs text-default-700">
+        <Icon icon="building-store" className="shrink-0 text-sm text-default-400" aria-hidden="true" />
+        <span>นัดรับ</span>
+        <span className="text-default-300" aria-hidden="true">
+          ·
+        </span>
+        <span className={cn('font-semibold', PICKUP_TEXT_TONE[meta.tone])}>{meta.label}</span>
+      </p>
+    )
+  }
+
   /**
    * 🛑 ลำดับความน่าเชื่อถือ: ขนส่งบอกเอง > กองงานที่เราจัดให้
    *

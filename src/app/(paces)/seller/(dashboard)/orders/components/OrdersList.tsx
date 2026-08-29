@@ -19,7 +19,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/utils/helpers'
-import type { OrderRow } from './data'
+import { FULFILLMENT_FILTER_KEYS, FULFILLMENT_FILTER_LABEL, type OrderRow } from './data'
 import { formatOrderNo } from '@/lib/order-no'
 import {
   ORDER_SEARCH_MIN_CHARS,
@@ -170,6 +170,16 @@ export default function OrdersList({
   const apptDayParam = searchParams.get('apptDay')
   const apptDay = isAppointmentDayKey(apptDayParam) ? apptDayParam : null
   /**
+   * `?fulfillment=` — แกน "วิธีส่งมอบ" (feature 00062 U18, UX-Design-Spec A5) คนละแกนกับ
+   * `?stage=`/`?appt=` ข้างบนโดยสิ้นเชิง — ไม่แทนที่แถวชิป อยู่เป็น dropdown/ส่วนแยกในโมดัลเสมอ
+   *
+   * อ่านจาก URL แบบเดียวกับแกนอื่นทุกประการ (ไม่ mirror เป็น state) · ค่าที่ไม่รู้จัก = ไม่กรอง
+   * (fail-open) — 'SHIPPED' | 'PICKUP' เท่านั้นที่มีความหมาย (ดู FULFILLMENT_FILTER_KEYS ใน
+   * OrdersTable.tsx)
+   */
+  const fulfillmentParam = searchParams.get('fulfillment')
+  const fulfillment = fulfillmentParam === 'SHIPPED' || fulfillmentParam === 'PICKUP' ? fulfillmentParam : null
+  /**
    * ตัวกรองช่วงเวลาของมือถือ (2026-08-08) — โมดัลนี้ไม่เคยมีตัวกรองวันที่เลย มีแต่ฝั่ง
    * เดสก์ท็อป แปลว่าผู้ใช้มือถือเข้าไม่ถึงแกนนี้มาตลอด · ค่าเดียวกับที่เดสก์ท็อปใช้
    * ('All' | preset | 'YYYY-MM-DD') และกรองด้วยฟังก์ชันตัวเดียวกัน (SSOT)
@@ -257,6 +267,7 @@ export default function OrdersList({
     stage?: string | null
     appt?: string | null
     apptDay?: string | null
+    fulfillment?: string | null
   }) => {
     const next = new URLSearchParams(searchParams.toString())
     for (const [k, v] of Object.entries(patch)) {
@@ -287,7 +298,7 @@ export default function OrdersList({
     setLocalStatus('all')
     setTypeFilter('')
     setDateFilter('All')
-    pushQuery({ status: null, stage: null, appt: null, apptDay: null })
+    pushQuery({ status: null, stage: null, appt: null, apptDay: null, fulfillment: null })
   }
 
   /** กดชิปที่เลือกอยู่ซ้ำ = ล้างตัวกรอง (ทางออกเดียวกับกากบาทบนชิป) */
@@ -344,6 +355,33 @@ export default function OrdersList({
   /** ร้านที่ไม่ใช่ ONLINE_SALES ไม่มีพัสดุให้ไล่ → shippingStage undefined ทุกแถว → ไม่มีแกนนี้ */
   const hasStageAxis =
     hasShippingAxis && (STAGE_CHIPS.some((k) => (stageCounts[k] ?? 0) > 0) || stage !== null)
+
+  /**
+   * ตัวนับดรอปดาวน์/แถว "วิธีส่งมอบ" (feature 00062 U18) — นับจาก `dayScoped` ก้อนเดียวกับ
+   * ตัวนับแกนอื่นทุกตัว ผ่าน field เดียวกับที่ `fulfillmentFiltered` ข้างล่างใช้กรองจริง
+   * (symbol เดียว — กันบั๊ก "กดเลข 5 เข้าไปเจอ 4 ใบ" ตามกติกาที่หัวไฟล์ order-list.service.ts เขียนไว้)
+   */
+  const fulfillmentCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const o of dayScoped) {
+      if (o.fulfillmentMode) counts[o.fulfillmentMode] = (counts[o.fulfillmentMode] ?? 0) + 1
+    }
+    return counts
+  }, [dayScoped])
+
+  /** ตัวเลือกแถวโมดัลมือถือ — คำจาก FULFILLMENT_FILTER_LABEL (data.ts), ตัวเลขจาก fulfillmentCounts
+   *  ก้อนเดียวกับดรอปดาวน์เดสก์ท็อป (symbol เดียว) */
+  const fulfillmentOptions = useMemo(
+    () => [
+      { value: null as string | null, label: 'ทั้งหมด', count: dayScoped.length },
+      ...FULFILLMENT_FILTER_KEYS.map((key) => ({
+        value: key as string | null,
+        label: FULFILLMENT_FILTER_LABEL[key],
+        count: fulfillmentCounts[key] ?? 0,
+      })),
+    ],
+    [dayScoped.length, fulfillmentCounts],
+  )
 
   /**
    * ตัวนับบนชิป/ดรอปดาวน์สถานะนัด — นับจาก `orders` ก้อนเดียวกับที่กรอง ผ่านฟังก์ชันเดียวกัน
@@ -466,8 +504,10 @@ export default function OrdersList({
     // 'NONE' กรองด้วยเงื่อนไขเดียวกับที่ noAppointmentCount นับ — ห้ามเขียนคนละแบบ
     if (appt === 'NONE') list = list.filter((o) => !o.appointment)
     else if (appt) list = list.filter((o) => o.appointment?.stage === appt)
+    // วิธีส่งมอบ (feature 00062 U18) — field เดียวกับที่ fulfillmentCounts นับ, AND กับแกนอื่น
+    if (fulfillment) list = list.filter((o) => o.fulfillmentMode === fulfillment)
     return list
-  }, [dayScoped, stage, appt])
+  }, [dayScoped, stage, appt, fulfillment])
 
   /** ทุกตัวกรองยกเว้นคำค้น — คำค้นถูกใส่เป็นชั้นสุดท้ายเสมอ (AND เกิดจากลำดับ ไม่ใช่จากเงื่อนไขซ้ำ) */
   const preSearch = useMemo(() => {
@@ -610,7 +650,9 @@ export default function OrdersList({
     // เงื่อนไขต้องตรงกับเงื่อนไขที่ render ส่วน "สถานะการขาย" ในโมดัลเป๊ะ (ดูข้างล่าง) —
     // feature 00036 เปิดให้ร้านคิวงานเห็นส่วนนั้นด้วย แต่ถ้าลืมแก้บรรทัดนี้คู่กัน จะกรองแล้ว
     // รายการหดจาก 120 เหลือ 3 โดยไม่มีสัญญาณอะไรบนจอเลยว่าเกิดจากตัวกรอง
-    ((hasStageAxis || hasAppointmentAxis) && localStatus !== 'all' ? 1 : 0)
+    ((hasStageAxis || hasAppointmentAxis) && localStatus !== 'all' ? 1 : 0) +
+    // วิธีส่งมอบ (feature 00062 U18) อยู่ในโมดัลอย่างเดียวเหมือนช่วงเวลา ไม่มีแถวชิปของตัวเอง
+    (fulfillment ? 1 : 0)
 
   return (
     <>
@@ -640,6 +682,16 @@ export default function OrdersList({
               : undefined
           }
           hasShippingAxis={hasShippingAxis}
+          fulfillmentFilter={
+            // เกทด้วย hasShippingAxis ตรง ๆ ไม่ใช่ hasStageAxis (UX-Design-Spec A5: ไม่ซ่อนตามข้อมูล)
+            hasShippingAxis
+              ? {
+                  value: fulfillment,
+                  counts: fulfillmentCounts,
+                  onChange: (v) => pushQuery({ fulfillment: v }),
+                }
+              : undefined
+          }
           appointmentFilter={
             hasAppointmentAxis
               ? {
@@ -1026,6 +1078,41 @@ export default function OrdersList({
               </>
             )}
 
+            {/* วิธีส่งมอบ (feature 00062 U18, UX-Design-Spec A5) — เกทด้วย hasShippingAxis ตรง ๆ
+                ไม่ตามข้อมูล (ร้านที่ยังไม่มีออเดอร์นัดรับเลยก็ต้องเห็นแถวนี้) โครงปุ่มเดียวกับ
+                "ประเภทออเดอร์" ข้างล่างทุกคลาส แต่ผูก `?fulfillment=` (URL) ไม่ใช่ local state
+                — pushQuery เป็นทางเดียวเหมือนดรอปดาวน์ชื่อเดียวกันบนเดสก์ท็อป (symbol เดียว) */}
+            {hasShippingAxis && (
+              <>
+                <p className="mb-2 text-sm font-medium text-default-900">วิธีส่งมอบ</p>
+                <div className="mb-5 space-y-1">
+                  {/* คำมาจาก FULFILLMENT_FILTER_LABEL (data.ts) เท่านั้น — SSOT เดียวกับดรอปดาวน์
+                      เดสก์ท็อป (HR16) · 'ทั้งหมด' ไม่ได้อยู่ใน SSOT นั้นเพราะไม่ใช่ค่าจริงของ
+                      fulfillmentMode เขียนตรงนี้ที่เดียว ไม่ใช่ค่าที่ต้องกันไม่ให้เพี้ยนข้ามจอ */}
+                  {fulfillmentOptions.map((opt) => {
+                    const active = fulfillment === opt.value
+                    return (
+                      <button
+                        key={opt.label}
+                        type="button"
+                        onClick={() => pushQuery({ fulfillment: opt.value })}
+                        className={cn(
+                          'flex w-full items-center justify-between rounded-lg border px-4 py-3 text-sm transition-colors',
+                          active ? 'border-primary bg-primary/5 text-primary' : 'border-default-200 text-default-700',
+                        )}
+                      >
+                        <span>
+                          {opt.label}
+                          <span className="ms-1.5 tabular-nums text-default-400">{opt.count}</span>
+                        </span>
+                        {active && <Icon icon="check" className="text-base" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+
             <p className="mb-2 text-sm font-medium text-default-900">ประเภทออเดอร์</p>
             <div className="space-y-1">
               {TYPE_OPTIONS.map((opt) => {
@@ -1123,6 +1210,9 @@ export default function OrdersList({
                 // ล้างเฉพาะสิ่งที่โมดัลนี้คุม — แถวชิปด้านนอกเป็นการเลือกของผู้ใช้ที่ยังเห็นอยู่
                 // ถ้าล้างไปด้วยจะเหมือนปุ่มนี้แอบไปกดชิปแทนเขา
                 if (hasStageAxis && localStatus !== 'all') handleStatusTab('all')
+                // วิธีส่งมอบ (feature 00062 U18) อยู่ในโมดัลนี้เท่านั้น (ไม่มีแถวชิปของตัวเอง)
+                // จึงต้องล้างที่นี่ — คนละ pushQuery เพราะ URL patch อื่นข้างบนยังไม่ได้ยิง
+                if (fulfillment) pushQuery({ fulfillment: null })
               }}
               className="btn flex-1 border-default-300 text-default-700"
             >

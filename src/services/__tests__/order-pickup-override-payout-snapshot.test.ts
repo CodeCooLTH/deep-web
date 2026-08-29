@@ -311,7 +311,12 @@ describe('updateOrder — payoutSnapshot ไม่เขียนทับขอ
 })
 
 describe('updateOrder — ล้าง handedOverAt เมื่อเปลี่ยน fulfillmentMode ออกจาก PICKUP (SRS TFR-001 edge case, DATABASE.md §5.1)', () => {
-  it('เดิม PICKUP + handedOverAt ไม่ว่าง → เปลี่ยนไป SHIPPED (ไม่ส่ง fulfillmentMode มา, auto-compute) → ล้าง handedOverAt/handedOverByUserId เป็น NULL + บันทึก HANDOVER_REVERTED', async () => {
+  /**
+   * 🛑 ต้องสลับโหมดด้วยการ **ส่ง `fulfillmentMode:'SHIPPED'` มาชัดเจน** (ท่าที่ปุ่มบน UI ใช้จริง)
+   * ไม่ใช่ "ไม่ส่งคีย์แล้วให้ auto-compute พลิกให้" — การไม่ส่งคีย์แปลว่า "อย่าเปลี่ยน" แล้ว
+   * (ดู describe `[blocker] ไม่ส่ง fulfillmentMode = คงโหมดเดิม` ท้ายไฟล์ และเหตุผลใน updateOrder)
+   */
+  it('เดิม PICKUP + handedOverAt ไม่ว่าง → ส่ง fulfillmentMode:"SHIPPED" มา → ล้าง handedOverAt/handedOverByUserId เป็น NULL + บันทึก HANDOVER_REVERTED', async () => {
     db.shop.findUnique.mockResolvedValue(SHOP_ONLINE_NO_PAYOUT)
     db.order.findFirst.mockResolvedValue({
       ...EXISTING_BASE,
@@ -325,7 +330,8 @@ describe('updateOrder — ล้าง handedOverAt เมื่อเปลี�
       'tok-existing',
       {
         type: 'PHYSICAL',
-        items: PHYSICAL_MANUAL_ITEM, // ไม่ส่ง fulfillmentMode → auto-compute = SHIPPED (ONLINE_SALES + PHYSICAL manual item)
+        items: PHYSICAL_MANUAL_ITEM,
+        fulfillmentMode: 'SHIPPED', // ร้านกดสลับปุ่มกลับเป็น "จัดส่ง"
         shippingAddress: { line1: 'บ้านเลขที่ 1', province: 'กรุงเทพ', postcode: '10110' },
       },
       'user-actor-1',
@@ -383,5 +389,44 @@ describe('updateOrder — ล้าง handedOverAt เมื่อเปลี�
     expect(
       db.orderEvent.create.mock.calls.some((call: any) => call[0].data.type === 'HANDOVER_REVERTED'),
     ).toBe(false)
+  })
+})
+
+/**
+ * 🛑 [blocker] ไม่ส่ง `fulfillmentMode` มา = "อย่าเปลี่ยน" ไม่ใช่ "คำนวณใหม่"
+ *
+ * ที่มา: U15 (UI) พบว่า `GET /api/orders/[token]` ไม่เคยคืน `fulfillmentMode` ⇒ หน้าแก้ไข
+ * โหลดค่ามาไม่ได้ และถ้าร้านกดบันทึกโดยไม่แตะปุ่ม ออเดอร์นัดรับจะ **กลายเป็น "จัดส่ง" เงียบ ๆ**
+ * พร้อมถูกบังคับกรอกที่อยู่ที่ไม่มีอยู่จริง และ `handedOverAt` ที่ร้านกดไว้ถูกล้างทิ้ง
+ *
+ * แก้ที่ service ไม่ใช่ที่ฟอร์ม เพราะผู้เรียกที่ไม่ส่งคีย์นี้มีได้หลายราย (client เก่า/แอปมือถือ/
+ * สคริปต์) — กันที่ฟอร์มอย่างเดียวคือกันเฉพาะคนที่เดินผ่านประตูบานนั้น
+ */
+describe('[blocker] updateOrder — ไม่ส่ง fulfillmentMode = คงโหมดเดิม ห้ามพลิกกลับเงียบ ๆ', () => {
+  it('ใบเดิมเป็น PICKUP + ไม่ส่งคีย์มา → ยังเป็น PICKUP (ไม่คำนวณใหม่จาก items)', async () => {
+    db.shop.findUnique.mockResolvedValue(SHOP_ONLINE_NO_PAYOUT)
+    db.order.findFirst.mockResolvedValue({ ...EXISTING_BASE, fulfillmentMode: 'PICKUP' })
+    db.order.update.mockResolvedValue({ id: 'order-9', items: [] })
+
+    await updateOrder('shop-1', 'tok-existing', {
+      type: 'PHYSICAL',
+      items: PHYSICAL_MANUAL_ITEM, // ปกติคำนวณได้ SHIPPED
+    })
+
+    expect(db.order.update.mock.calls[0]![0].data.fulfillmentMode).toBe('PICKUP')
+  })
+
+  it('ใบเดิมเป็น SHIPPED + ไม่ส่งคีย์มา → ยังคำนวณตามปกติ (ไม่ทำให้พฤติกรรมเดิมเปลี่ยน)', async () => {
+    db.shop.findUnique.mockResolvedValue(SHOP_ONLINE_NO_PAYOUT)
+    db.order.findFirst.mockResolvedValue({ ...EXISTING_BASE, fulfillmentMode: 'SHIPPED' })
+    db.order.update.mockResolvedValue({ id: 'order-9', items: [] })
+
+    await updateOrder('shop-1', 'tok-existing', {
+      type: 'PHYSICAL',
+      items: PHYSICAL_MANUAL_ITEM,
+      salesChannel: 'STOREFRONT', // เลี่ยงด่านที่อยู่ ไม่ใช่ประเด็นของเทสนี้
+    })
+
+    expect(db.order.update.mock.calls[0]![0].data.fulfillmentMode).toBe('SHIPPED')
   })
 })

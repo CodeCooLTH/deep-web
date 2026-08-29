@@ -798,6 +798,23 @@ export async function updateOrder(
   if (data.fulfillmentMode === "PICKUP") {
     if (shopRowForShipping?.vertical !== "ONLINE_SALES") throw new PickupNotAllowedError();
     fulfillmentMode = "PICKUP";
+  } else if (data.fulfillmentMode === undefined) {
+    /**
+     * 🛑 **ไม่ส่งคีย์มา = "อย่าเปลี่ยนวิธีส่งมอบ" ไม่ใช่ "คำนวณใหม่"**
+     *
+     * `fulfillmentMode` เป็น *ทางเลือกที่ผู้ใช้ตั้งใจเลือก* แล้วเก็บไว้บนออเดอร์ ไม่ใช่ค่าที่ derive
+     * ได้จาก items เสมอไป — ถ้าปล่อยให้ตกไปใช้ผลคำนวณจาก items ทุกครั้งที่ PATCH ผลคือ
+     * **แก้ราคา/หมายเหตุของออเดอร์นัดรับแล้วกดบันทึก → ออเดอร์กลายเป็น "จัดส่ง" เงียบ ๆ**
+     * พร้อมกับถูกบังคับกรอกที่อยู่ที่ไม่มีอยู่จริง และ `handedOverAt` ที่ร้านกดไว้ถูกล้างทิ้ง
+     *
+     * เกิดได้กับผู้เรียกทุกรายที่ไม่ได้ส่งคีย์นี้มา (client เก่า, แอปมือถือ, สคริปต์) ไม่ใช่แค่
+     * หน้าเว็บที่เพิ่งแก้ให้ส่งค่ามา — จึงต้องกันที่ service ไม่ใช่ที่ฟอร์ม
+     */
+    const current = await prisma.order.findFirst({
+      where: { publicToken, shopId },
+      select: { fulfillmentMode: true },
+    });
+    if (current?.fulfillmentMode === "PICKUP") fulfillmentMode = "PICKUP";
   }
 
   // FR-6.5 shipping required (เหมือน createOrder)

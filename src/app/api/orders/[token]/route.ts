@@ -64,6 +64,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       publicToken: true, status: true, type: true, createdAt: true,
       buyerName: true, buyerContact: true, paymentMethod: true, salesChannel: true,
       internalNote: true, discount: true, vatRate: true, vatAmount: true, shippingAddress: true,
+      // feature 00062 — หน้าแก้ไขต้องรู้ว่าใบนี้เป็น "นัดรับ" เพื่อ default ปุ่มให้ถูก
+      // 🛑 ถ้าไม่คืนค่านี้ ร้านที่กดบันทึกโดยไม่แตะปุ่มจะทำให้ออเดอร์นัดรับ **กลับเป็นจัดส่งเงียบ ๆ**
+      // (updateOrder คำนวณใหม่จาก items เมื่อไม่ได้รับค่า) — คลาสเดียวกับบั๊ก createAt ข้างล่าง
+      fulfillmentMode: true,
       items: { select: { productId: true, name: true, description: true, qty: true, price: true } },
     },
   });
@@ -81,6 +85,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       buyerContact: order.buyerContact,
       paymentMethod: order.paymentMethod,
       salesChannel: order.salesChannel,
+      fulfillmentMode: order.fulfillmentMode,
       internalNote: order.internalNote,
       discount: order.discount != null ? Number(order.discount) : null,
       // vatRate ใน DB เป็น decimal 0..1 — ฟอร์มใช้ % (ดู OrderCreateForm) แปลงกลับที่ client

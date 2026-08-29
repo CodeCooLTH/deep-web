@@ -255,11 +255,22 @@ export default function OrderCard({
             </div>
           </div>
 
-          {/* ขวา: #ID เทาเล็ก เหนือ status badge */}
+          {/* ขวา: #ID เทาเล็ก(+badge นัดรับ) เหนือ status badge */}
           <div className="flex shrink-0 flex-col items-end gap-1">
-            {/* ห้าม font-mono: Anuphan ไม่มี glyph mono → fallback Courier ผิดธีม (HR feedback) */}
-            <span className="text-2xs font-semibold text-default-500">
-              <HighlightText text={displayId} query={searchQuery} />
+            <span className="flex items-center gap-1">
+              {/* ห้าม font-mono: Anuphan ไม่มี glyph mono → fallback Courier ผิดธีม (HR feedback) */}
+              <span className="text-2xs font-semibold text-default-500">
+                <HighlightText text={displayId} query={searchQuery} />
+              </span>
+              {/* "นัดรับ" (feature 00062 U18) — คนละ badge กับ status ข้างล่าง: status ตอบว่า
+                  ออเดอร์นี้ถึงขั้นไหน ส่วนตัวนี้ตอบว่า "วิธีส่งมอบ" ซึ่งไม่เปลี่ยนตามสถานะเลย
+                  primary tone เดียวกับ FULFILLMENT_BADGE_CLS.PICKUP ในตารางเดสก์ท็อป (HR16) */}
+              {order.pickupStage && (
+                <span className="badge bg-primary/15 text-primary-ink inline-flex items-center gap-0.5 rounded-full">
+                  <Icon icon="tabler:building-store" className="size-3" aria-hidden="true" />
+                  นัดรับ
+                </span>
+              )}
             </span>
             {/* icon มาจาก SSOT เดียวกับตารางเดสก์ท็อป — ป้ายใบเดียวกันต้องหน้าตาเหมือนกันทุกจอ
                 (ไฟล์นี้ import Icon จาก @iconify/react ตรง ๆ ไม่ผ่าน wrapper จึงต้องเติม tabler: เอง) */}
@@ -363,6 +374,15 @@ export default function OrderCard({
             <span className="ms-auto truncate text-xs font-semibold tabular-nums text-default-900">
               <HighlightText text={order.shipment.trackingNo} query={searchQuery} />
             </span>
+          </div>
+        )}
+
+        {/* นัดรับ (feature 00062 U18) — ทดแทนบล็อกพัสดุข้างบน (ใบนัดรับไม่มีเลขพัสดุให้ขึ้นเลย)
+            ตำแหน่งเดียวกับบล็อกพัสดุ เพราะตอบคำถามชุดเดียวกัน "ของ/บริการไปถึงไหนแล้ว"
+            ซ่อนตอนยกเลิกเหมือนบล็อกพัสดุ — ยกเลิกแล้วไม่มีอะไรต้องมอบอีก */}
+        {order.pickupStage && order.status !== 'CANCELLED' && (
+          <div className="mt-2.5 border-t border-dashed border-default-200 pt-2.5">
+            <MiniShipmentTimeline pickupStage={order.pickupStage} inline />
           </div>
         )}
 
