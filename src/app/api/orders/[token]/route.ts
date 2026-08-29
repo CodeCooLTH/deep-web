@@ -12,6 +12,7 @@ import {
   ProductNotInShopError,
   ShippingAddressRequiredError,
   OrderDateOutOfWindowError,
+  PickupNotAllowedError,
 } from "@/services/order.service";
 import { ORDER_DATE_OUT_OF_WINDOW_MESSAGE } from "@/lib/order-date-window";
 
@@ -128,6 +129,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (e instanceof ProductNotInShopError) return NextResponse.json({ error: "มีสินค้าที่ไม่ใช่ของร้านนี้" }, { status: 400 });
     if (e instanceof ShippingAddressRequiredError) {
       return NextResponse.json({ error: "ออเดอร์ที่ต้องจัดส่งต้องกรอกที่อยู่ให้ครบ" }, { status: 400 });
+    }
+    // feature 00062 (API.md §5) — ร้านที่ไม่ใช่ ONLINE_SALES ส่ง fulfillmentMode:'PICKUP' มา
+    if (e instanceof PickupNotAllowedError) {
+      return NextResponse.json(
+        { error: "PICKUP_NOT_ALLOWED", message: "ร้านนี้ตั้งค่า \"นัดรับ\" ไม่ได้" },
+        { status: 400 },
+      );
     }
     if (e instanceof Error && e.name === "OutOfStockError") {
       return NextResponse.json({ error: "สินค้าบางรายการสต็อกไม่พอ" }, { status: 400 });

@@ -2,6 +2,7 @@ import * as v from 'valibot'
 import { describe, expect, it } from 'vitest'
 
 import {
+  needsPayoutAccount,
   PAYOUT_ACCOUNT_NO_RE,
   THAI_BANKS,
   UpdateShopPayoutSchema,
@@ -202,5 +203,46 @@ describe('UpdateShopPayoutSchema', () => {
     expect(() =>
       v.parse(UpdateShopPayoutSchema, { ...validBase, reauth: { method: 'PASSWORD' } }),
     ).toThrow()
+  })
+})
+
+/**
+ * 🛑 [blocker] needsPayoutAccount — SSOT ของ "ต้องแสดงบัญชีรับเงินให้ผู้ซื้อไหม"
+ *
+ * เทสชุดนี้ถูกเติมหลังพบว่า mutation "เปลี่ยนกลับเป็น allow-list `TRANSFER|PROMPTPAY`"
+ * **ยังเขียว** — แปลว่าไม่มี input ไหนในชุดเดิมที่ทำให้ความต่างโผล่เลย
+ * (docs/conventions/mutation-silence-means-weak-corpus.md)
+ *
+ * ความต่างที่สำคัญ: ค่าที่ระบบไม่รู้จัก (free text ที่ร้านพิมพ์เอง / ค่าใหม่ในอนาคต) ต้องได้
+ * บัญชีไปแสดง **ไม่ใช่ตกหาย** — ไม่งั้นผู้ซื้อเปิดลิงก์แล้วไม่รู้ว่าจะโอนที่ไหน ซึ่งเป็น
+ * ปัญหาเดียวกับที่ฟีเจอร์นี้ตั้งใจแก้ตั้งแต่แรก (prod ปัจจุบันยังไม่มี free text แต่ระบบเปิดช่องไว้)
+ */
+describe('[blocker] needsPayoutAccount — ผู้ซื้อต้องโอนเงินเองไหม', () => {
+  it('COD ทุกรูปแบบ → false (ขนส่งเก็บให้ ไม่ต้องโอน)', () => {
+    expect(needsPayoutAccount('COD')).toBe(false)
+    expect(needsPayoutAccount('เก็บเงินปลายทาง')).toBe(false)
+    expect(needsPayoutAccount('เก็บเงินปลายทาง (COD)')).toBe(false)
+  })
+
+  it('เงินสด → false (จ่ายต่อหน้า ไม่ต้องโอน)', () => {
+    expect(needsPayoutAccount('CASH')).toBe(false)
+    expect(needsPayoutAccount('เงินสด')).toBe(false)
+  })
+
+  it('โอนเงิน/พร้อมเพย์ → true', () => {
+    expect(needsPayoutAccount('TRANSFER')).toBe(true)
+    expect(needsPayoutAccount('PROMPTPAY')).toBe(true)
+  })
+
+  /**
+   * 🛑 เคสที่ mutation "allow-list 2 ค่า" จะทำให้แดง — ค่าที่ไม่รู้จักต้องได้บัญชี ไม่ใช่ตกหาย
+   */
+  it('[blocker] free text / ค่าที่ไม่รู้จัก / null → true (ห้ามตกหาย)', () => {
+    expect(needsPayoutAccount('พร้อมเพย์ 081-234-5678')).toBe(true)
+    expect(needsPayoutAccount('โอนผ่านแอปธนาคาร')).toBe(true)
+    expect(needsPayoutAccount('CARD')).toBe(true)
+    expect(needsPayoutAccount('OTHER')).toBe(true)
+    expect(needsPayoutAccount(null)).toBe(true)
+    expect(needsPayoutAccount(undefined)).toBe(true)
   })
 })

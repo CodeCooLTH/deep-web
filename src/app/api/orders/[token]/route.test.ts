@@ -31,6 +31,10 @@ vi.mock('@/services/order.service', () => ({
   ProductNotInShopError: class extends Error {},
   ShippingAddressRequiredError: class extends Error {},
   OrderDateOutOfWindowError: class extends Error {},
+  // feature 00062 (U11) — route.ts เพิ่ม `instanceof PickupNotAllowedError` เข้า catch block
+  // ต้องมีอยู่ในม็อกนี้เสมอ ไม่งั้น `instanceof undefined` throw TypeError ถ้ามีเทสในอนาคตที่
+  // ทำให้ updateOrder reject
+  PickupNotAllowedError: class extends Error {},
 }))
 
 import { GET, PATCH } from './route'

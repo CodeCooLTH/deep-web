@@ -6,6 +6,9 @@ import { normalizeSlug, isValidSlugFormat, isReservedSlug } from "@/lib/shop-slu
 import { getTierScoreRange } from "@/lib/trust-tier";
 import { computeCompletionRate, isRateExcludedCancellation } from "@/lib/order-stats";
 import { isThaiCoordinate } from "@/lib/geo-thailand";
+import { verifyPassword } from "@/lib/password";
+import { verifyOtp } from "@/lib/otp";
+import { normalizePayoutAccountNo, maskAccountNo, type UpdateShopPayoutInput } from "@/lib/shop-payout";
 
 export async function createShop(userId: string, data: {
   shopName: string;
@@ -423,4 +426,153 @@ export async function getShopProfileStats(shopId: string) {
     ratingDistribution: reviewCount > 0 ? ratingDistribution : null,
     channels,
   };
+}
+
+// ─── บัญชีรับเงินของร้าน (feature 00062, U14/TFR-009) ───────────────────────
+
+/**
+ * throw เมื่อผู้เรียกไม่ใช่เจ้าของร้าน (`role !== 'OWNER'`) หรือร้านไม่ใช่ประเภทที่เปิดฟีเจอร์นี้
+ * (`vertical !== 'ONLINE_SALES'`) — รวมสองเงื่อนไขไว้ error code เดียวกัน (`FORBIDDEN`, API.md
+ * §4.5/§5 มีแค่โค้ดเดียวสำหรับ endpoint นี้) mirror `OrderNotPickupError` ใน `order.service.ts`
+ * ที่รวมด่าน vertical เข้ากับด่านหลักตัวเดียวกันด้วยเหตุผลเดียวกัน: แยกโค้ดออกจากกันไม่มีความหมาย
+ * เพิ่มเติมต่อผู้เรียก (ทั้งสองกรณีคือ "ทำสิ่งนี้กับร้านนี้ไม่ได้")
+ */
+export class PayoutForbiddenError extends Error {
+  constructor() {
+    super("ไม่มีสิทธิ์แก้ไขบัญชีรับเงิน");
+    this.name = "PayoutForbiddenError";
+  }
+}
+
+/** throw เมื่อ reauth (รหัสผ่าน/OTP) ไม่ถูกต้อง — เฉพาะตอน "เปลี่ยน" บัญชีที่มีอยู่แล้ว (BR-BANK-02) */
+export class PayoutReauthFailedError extends Error {
+  constructor() {
+    super("ยืนยันตัวตนไม่ผ่าน");
+    this.name = "PayoutReauthFailedError";
+  }
+}
+
+/**
+ * throw เมื่อ user ไม่มีทั้ง `passwordHash` และ `phone` ให้ reauth ด้วย (ไม่มีช่องทางพิสูจน์ตัวตน
+ * เลย) — ห้ามปล่อยผ่านโดยไม่ reauth (feature 00062, API.md §6.1 sequence)
+ */
+export class PayoutReauthUnavailableError extends Error {
+  constructor() {
+    super("บัญชีนี้ยังไม่มีช่องทางยืนยันตัวตน (รหัสผ่าน/เบอร์โทร) จึงเปลี่ยนบัญชีรับเงินไม่ได้");
+    this.name = "PayoutReauthUnavailableError";
+  }
+}
+
+/**
+ * updateShopPayout — ตั้ง/เปลี่ยนบัญชีรับเงินของร้าน (feature 00062, U14/TFR-009, API.md §4.5/§6.1)
+ *
+ * ด่านทั้งหมด (OWNER-only · vertical=ONLINE_SALES · reauth) อยู่ที่นี่ทั้งก้อน ไม่ใช่ inline ที่
+ * route — mirror `setHandedOver`/`setPaymentConfirmed` (`order.service.ts`) ตาม "หมายเหตุการ
+ * implement" ใน API.md §5: ด่านที่ต้องพิสูจน์ด้วย mutation test ได้ต้องอยู่ที่ service ไม่งั้น
+ * ผู้เรียกในอนาคต (แอปมือถือ/cron) เลี่ยงด่านได้โดยไม่ผ่าน route นี้
+ *
+ * role resolve ที่นี่เอง (ไม่รับเป็น parameter จาก route) — re-verify membership เสมอ (pattern
+ * เดียวกับ `resolveActiveShopContext` ใน `shop-context.ts`): ร้าน Personal ไม่มีแถว ShopMember
+ * เลย (สร้างเฉพาะร้าน Business — `business-shop.service.ts`) เจ้าของร้าน Personal จึงเป็น OWNER
+ * โดยนิยาม (`shop.userId === userId`) ส่วนร้าน Business ต้องเช็คแถว ShopMember จริง
+ *
+ * บันทึกครั้งแรก (`payoutUpdatedAt === null`) ข้ามบล็อก reauth ทั้งก้อน — BR-BANK-02 พูดถึง
+ * "เปลี่ยน" ไม่ใช่ "ตั้งครั้งแรก" (ยังไม่มีอะไรให้สวมสิทธิ์) `data.reauth` ยังเป็น field บังคับ
+ * ที่ Valibot layer (`UpdateShopPayoutSchema` ไม่มี `v.optional` ที่ `reauth`) แต่ฟังก์ชันนี้ไม่แตะ
+ * เนื้อใน `data.reauth` เลยในกรณีนี้ (ไม่เรียก `verifyPassword`/`verifyOtp`)
+ */
+export async function updateShopPayout(
+  shopId: string,
+  userId: string,
+  data: UpdateShopPayoutInput,
+) {
+  const shop = await prisma.shop.findUnique({
+    where: { id: shopId },
+    select: { id: true, kind: true, userId: true, vertical: true, payoutUpdatedAt: true },
+  });
+  // ไม่ควรเกิด (route resolve ownership ผ่าน requireActiveShop มาก่อนแล้ว) — defense-in-depth
+  if (!shop) throw new PayoutForbiddenError();
+
+  if (shop.vertical !== "ONLINE_SALES") throw new PayoutForbiddenError();
+
+  const isOwner =
+    shop.kind === "PERSONAL"
+      ? shop.userId === userId
+      : (
+          await prisma.shopMember.findUnique({
+            where: { shopId_userId: { shopId, userId } },
+            select: { role: true },
+          })
+        )?.role === "OWNER";
+  if (!isOwner) throw new PayoutForbiddenError();
+
+  const isFirstTime = shop.payoutUpdatedAt === null;
+
+  if (!isFirstTime) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { passwordHash: true, phone: true },
+    });
+
+    let reauthOk: boolean;
+    if (data.reauth.method === "PASSWORD" && user?.passwordHash) {
+      reauthOk = await verifyPassword(data.reauth.password, user.passwordHash);
+    } else if (data.reauth.method === "OTP" && user?.phone) {
+      reauthOk = await verifyOtp(user.phone, data.reauth.code);
+    } else {
+      // ไม่มีช่องทางยืนยันตัวตนที่ผู้ใช้ขอมา (หรือไม่มีทั้งคู่เลย) — ห้ามปล่อยผ่าน (API.md §6.1)
+      throw new PayoutReauthUnavailableError();
+    }
+    if (!reauthOk) throw new PayoutReauthFailedError();
+  }
+
+  // FR-BANK-04 (Should) — best-effort: เจอแล้วแค่ log แจ้งทีมงาน ไม่บล็อกการบันทึก และห้ามให้
+  // ความล้มเหลวของขั้นนี้ (เช่น DB hiccup) ทำให้การบันทึกบัญชีจริงล้มไปด้วย — ครอบ try/catch ของ
+  // ตัวเองแยกจาก transaction หลัก
+  if (data.payoutAccountNo) {
+    try {
+      const normalized = normalizePayoutAccountNo(data.payoutAccountNo);
+      // dynamic import (ไม่ใช่ static ที่หัวไฟล์) เพราะ scam-identifier.ts throw ที่ module-load
+      // ทันทีถ้า NEXTAUTH_SECRET ไม่ได้ตั้งค่า (fail-closed ของไฟล์นั้นเอง) — ด่าน best-effort
+      // ของ FR-BANK-04 ต้อง "ห้ามพังการบันทึกบัญชีจริง" แม้แต่ตอน import ก็ตาม ไม่ใช่แค่ตอนเรียก
+      // ฟังก์ชัน การ import แบบ static ที่หัวไฟล์จะทำให้ทุก caller ของ shop.service.ts (รวม test
+      // ที่ไม่เกี่ยวกับ payout เลย) พังไปด้วยถ้า env ตัวนี้ไม่ถูกตั้ง
+      const { hashIdentifier } = await import("@/lib/scam-identifier");
+      const valueHash = hashIdentifier("BANK_ACCOUNT", normalized);
+      const hit = await prisma.scamReportIdentifier.findFirst({
+        where: { type: "BANK_ACCOUNT", valueHash, report: { status: "APPROVED" } },
+        select: { id: true },
+      });
+      if (hit) {
+        // ห้าม log เลขบัญชีเต็ม (DATABASE.md §6.2 / SRS §"Security" ข้อ 2) — mask ก่อนเสมอ
+        console.warn("[shop.service] payoutAccountNo matches ScamReportIdentifier", {
+          shopId,
+          accountNoMasked: maskAccountNo(normalized),
+        });
+      }
+    } catch (err) {
+      console.error("[shop.service] scam identifier check failed (best-effort, ignored)", err);
+    }
+  }
+
+  return prisma.shop.update({
+    where: { id: shopId },
+    data: {
+      ...(data.payoutBankCode !== undefined && { payoutBankCode: data.payoutBankCode }),
+      ...(data.payoutAccountNo !== undefined && {
+        payoutAccountNo:
+          data.payoutAccountNo !== null ? normalizePayoutAccountNo(data.payoutAccountNo) : null,
+      }),
+      ...(data.payoutAccountName !== undefined && { payoutAccountName: data.payoutAccountName }),
+      ...(data.payoutPromptPayId !== undefined && { payoutPromptPayId: data.payoutPromptPayId }),
+      payoutUpdatedAt: new Date(),
+    },
+    select: {
+      payoutBankCode: true,
+      payoutAccountNo: true,
+      payoutAccountName: true,
+      payoutPromptPayId: true,
+      payoutUpdatedAt: true,
+    },
+  });
 }

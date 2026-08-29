@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
 import { CreateOrderSchema, OrderAppointmentSchema } from "@/lib/validations";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
-import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequiredError, ProductNotInShopError, OrderDateOutOfWindowError } from "@/services/order.service";
+import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequiredError, ProductNotInShopError, OrderDateOutOfWindowError, PickupNotAllowedError } from "@/services/order.service";
 import { OutOfStockError } from "@/services/inventory-stock.service";
 import { requireActiveShop, requireShopForRequest } from "@/lib/shop-context";
 import { prisma } from "@/lib/prisma";
@@ -144,6 +144,13 @@ export async function POST(request: NextRequest) {
     if (e instanceof ShippingAddressRequiredError) {
       return NextResponse.json(
         { error: "ออเดอร์ที่ต้องจัดส่งต้องระบุที่อยู่จัดส่ง (ที่อยู่ / จังหวัด / รหัสไปรษณีย์)" },
+        { status: 400 },
+      );
+    }
+    // feature 00062 (API.md §5) — ร้านที่ไม่ใช่ ONLINE_SALES ส่ง fulfillmentMode:'PICKUP' มา
+    if (e instanceof PickupNotAllowedError) {
+      return NextResponse.json(
+        { error: "PICKUP_NOT_ALLOWED", message: "ร้านนี้ตั้งค่า \"นัดรับ\" ไม่ได้" },
         { status: 400 },
       );
     }

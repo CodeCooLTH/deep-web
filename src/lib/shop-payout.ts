@@ -17,6 +17,7 @@ import * as v from 'valibot'
 
 import { MOBILE_PHONE_RE } from '@/lib/phone'
 import { NATIONAL_ID_RE } from '@/lib/promptpay-qr'
+import { isCODPayment } from '@/lib/order-display'
 
 // ─── รายชื่อธนาคารไทย ──────────────────────────────────────────────────────
 // grep ทั้ง repo แล้วยืนยันว่าไม่มีไฟล์นี้อยู่ก่อน (`docs/20 - Features/00062 …/DATABASE.md`
@@ -172,3 +173,25 @@ export const UpdateShopPayoutSchema = v.object({
 })
 
 export type UpdateShopPayoutInput = v.InferOutput<typeof UpdateShopPayoutSchema>
+
+/**
+ * needsPayoutAccount — "ออเดอร์ใบนี้ต้องแสดงบัญชีรับเงินให้ผู้ซื้อไหม" (feature 00062)
+ *
+ * ใช้ตัดสิน 2 อย่างที่ต้องตรงกันเสมอ: จะเขียน `Order.payoutSnapshot` ตอนสร้างออเดอร์ไหม
+ * และจะแสดงบล็อกบัญชี/QR บนหน้า `/o/[token]` ไหม
+ *
+ * 🛑 **ต้องเป็นนิยามเดียว** (Hard Rule 16) — เดิมเขียนเป็น literal
+ * `pm === 'TRANSFER' || pm === 'PROMPTPAY'` ซ้ำ 2 ที่ใน `order.service.ts` (createOrder และ
+ * updateOrder) ซึ่งเป็นรูปแบบที่ไฟล์นั้นเคยพลาดมาแล้วหลายรอบ: แก้ที่เดียวแล้วอีกที่ค้าง
+ *
+ * เกณฑ์: **ผู้ซื้อต้องโอนเงินเองไหม** — ไม่ใช่ COD (ขนส่งเก็บให้) และไม่ใช่เงินสด (จ่ายต่อหน้า)
+ * เขียนเป็น deny-list ของ 2 กรณีที่ *ไม่* ต้องโอน แทน allow-list ของค่าที่ต้องโอน เพราะ
+ * `paymentMethod` เป็น free text ที่ร้านพิมพ์เองได้ (ยังไม่พบบน prod ณ 2026-08-29 — มีแต่
+ * COD/CASH/TRANSFER — แต่ระบบเปิดช่องไว้) ⇒ ค่าที่ไม่รู้จักควรได้บัญชีไปแสดงดีกว่าไม่ได้:
+ * แสดงเกินไป ผู้ซื้ออ่านผ่าน · ไม่แสดง ผู้ซื้อไม่รู้ว่าจะโอนที่ไหนแล้วต้องไปถามในแชท
+ * ซึ่งเป็นปัญหาที่ฟีเจอร์นี้ตั้งใจแก้ตั้งแต่แรก
+ */
+export function needsPayoutAccount(paymentMethod: string | null | undefined): boolean {
+  if (isCODPayment(paymentMethod)) return false
+  return !/CASH|เงินสด/i.test(paymentMethod ?? '')
+}

@@ -372,6 +372,9 @@ export const CreateOrderSchema = v.object({
   ),
   buyerName: v.optional(v.string()),
   paymentMethod: v.optional(v.string()),
+  // feature 00062 (TFR-001) — ร้านเลือก "นัดรับ" เอง (ONLINE_SALES เท่านั้น — service ตรวจซ้ำ)
+  // ไม่ส่งมา = พฤติกรรมเดิมทุกประการ (auto-derive จาก item/product ต่อไป, API.md §4.7/4.8)
+  fulfillmentMode: v.optional(v.picklist(["SHIPPED", "PICKUP"])),
   salesChannel: v.optional(v.string()),
   internalNote: v.optional(v.string()),
   // discount/vatRate/vatAmount เป็นตัวเลข: minValue(0) กัน negative

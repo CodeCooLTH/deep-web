@@ -19,6 +19,8 @@ import { formatOrderNo } from "@/lib/order-no";
 import { recordOrderEvent } from "@/services/order-event.service";
 import { orderDateRejectReason } from "@/lib/order-date-window";
 import { canSellerConfirmPayment, isCODPayment } from "@/lib/order-display";
+// feature 00062 (U11) — override fulfillmentMode='PICKUP' + freeze payoutSnapshot (TD-001/TFR-009)
+import { buildPayoutSnapshot, needsPayoutAccount, type ShopPayoutFields } from "@/lib/shop-payout";
 import {
   attachAppointmentInTx,
   computeAppointmentDeposit,
@@ -56,6 +58,17 @@ export class BookingConfirmViaShopError extends Error {
 // FR-6.5: order ที่ต้องจัดส่งต้องมีที่อยู่จัดส่ง — throw นี้ให้ route map เป็น 400
 export class ShippingAddressRequiredError extends Error {
   constructor() { super("SHIPPING_ADDRESS_REQUIRED"); this.name = "ShippingAddressRequiredError"; }
+}
+
+/**
+ * feature 00062 (TFR-001/TD-001) — ร้านส่ง `fulfillmentMode:'PICKUP'` มาแต่ `shop.vertical`
+ * ไม่ใช่ `ONLINE_SALES` (เช่น เรียก API ตรง ๆ ข้าม UI — UI จริงไม่มีวันส่งค่านี้ให้ร้านประเภทอื่น)
+ *
+ * fail-closed: throw ตรง ๆ ห้าม silent-fallback เป็น SHIPPED (คลาสเดียวกับ ProductNotInShopError
+ * ด้านบน) — route map เป็น 400 PICKUP_NOT_ALLOWED (API.md §5)
+ */
+export class PickupNotAllowedError extends Error {
+  constructor() { super("PICKUP_NOT_ALLOWED"); this.name = "PickupNotAllowedError"; }
 }
 
 // SECURITY FIX (feature 00016 Unit 3 + ปิด pre-existing vuln feature 00009) —
@@ -258,6 +271,14 @@ export async function createOrder(shopId: string, data: {
   buyerContact?: string;
   buyerName?: string;
   paymentMethod?: string;
+  /**
+   * feature 00062 (TFR-001) — ร้านเลือก "นัดรับ" เอง (เฉพาะร้าน ONLINE_SALES)
+   *
+   * ไม่ส่งมา = เส้นทางเดิมทุกประการ (auto-derive จาก item/product ต่อไป) ส่งมา = 'PICKUP'
+   * override ผลคำนวณอัตโนมัติทั้งหมดเป็นบรรทัดสุดท้าย ไม่สนใจว่ารายการสินค้าจะคำนวณเป็น SHIPPED
+   * หรือไม่ (SDS TD-001) — ร้านที่ไม่ใช่ ONLINE_SALES ส่งค่านี้มา = PickupNotAllowedError
+   */
+  fulfillmentMode?: "SHIPPED" | "PICKUP";
   salesChannel?: string;
   internalNote?: string;
   discount?: number;
@@ -351,9 +372,17 @@ export async function createOrder(shopId: string, data: {
    * (route ของ POS, โมดัลในแชท, iShip import) ถ้าปล่อยให้แต่ละที่ส่งมาเอง วันที่มีคนลืมส่ง
    * ร้านบริการจะกลับไปโดนบังคับที่อยู่อีกโดยไม่มีอะไรฟ้อง. lookup ด้วย PK ราคาถูกมาก
    */
+  // feature 00062 (U11) — เพิ่ม select payout* เข้าคิวรีเดิมตัวนี้ (ไม่เพิ่ม round-trip ใหม่ —
+  // SRS §7.9 Performance NFR) ใช้ตัดสินทั้ง PickupNotAllowedError (vertical) และ payoutSnapshot
   const shopRow = await prisma.shop.findUnique({
     where: { id: shopId },
-    select: { vertical: true },
+    select: {
+      vertical: true,
+      payoutBankCode: true,
+      payoutAccountNo: true,
+      payoutAccountName: true,
+      payoutPromptPayId: true,
+    },
   });
   const shipsGoods = shopShipsGoods(shopRow?.vertical);
 
@@ -399,6 +428,14 @@ export async function createOrder(shopId: string, data: {
     if (shippedProduct) {
       fulfillmentMode = "SHIPPED";
     }
+  }
+
+  // feature 00062 (TFR-001, SDS TD-001) — ร้านเลือก "นัดรับ" เอง override ผลคำนวณอัตโนมัติ
+  // ด้านบนทั้งหมดเป็นบรรทัดสุดท้าย ไม่สนใจว่ารายการสินค้าจะคำนวณเป็น SHIPPED หรือไม่ (BRD FR-PKP-01
+  // AC ข้อ 3) — เขียนเป็น override ท้ายสุดแทนแยก branch ตั้งแต่ต้น เพื่อไม่ต้องดูแลตรรกะเดิม 2 ชุด
+  if (data.fulfillmentMode === "PICKUP") {
+    if (shopRow?.vertical !== "ONLINE_SALES") throw new PickupNotAllowedError();
+    fulfillmentMode = "PICKUP";
   }
 
   // FR-6.5: ออเดอร์ที่ต้องจัดส่ง (SHIPPED) ต้องมีที่อยู่ครบขั้นต่ำ (line1 + จังหวัด + รหัสไปรษณีย์)
@@ -472,12 +509,25 @@ export async function createOrder(shopId: string, data: {
       })
     : undefined;
 
+  // feature 00062 (TFR-009) — freeze บัญชีรับเงินของร้าน ณ ตอนสร้างออเดอร์ เมื่อ paymentMethod
+  // เป็น TRANSFER/PROMPTPAY เท่านั้น — ห้าม live-read (DATABASE.md §3.1: ยอดเงินไม่อยู่ใน snapshot
+  // นี่ freeze แค่บัญชี, QR คำนวณจาก Order.totalAmount สดเสมอผ่าน promptpay-qr.ts คนละจุด)
+  // ร้านยังไม่ตั้งบัญชี (shopRow.payout* ทุกตัว null) → buildPayoutSnapshot คืน null ไม่ error
+  const payoutSnapshotValue =
+    shopRow && needsPayoutAccount(data.paymentMethod)
+      ? buildPayoutSnapshot(shopRow as ShopPayoutFields)
+      : null;
+
   const orderDataBase = {
     shopId,
     type: data.type,
     totalAmount,
     depositAmount: appointmentDeposit,
     fulfillmentMode,
+    // cast: PayoutSnapshot เป็น named interface (all-optional string fields) — Prisma
+    // InputJsonObject ต้องการ index signature ชัดเจน ต่างจาก data.shippingAddress ที่เป็น
+    // literal type ของพารามิเตอร์เอง (ได้ relaxed structural check) ค่าจริงยัง JSON-compatible ทุกกรณี
+    payoutSnapshot: (payoutSnapshotValue ?? undefined) as Prisma.InputJsonValue | undefined,
     shopChannelId: resolvedShopChannelId ?? undefined,
     // เธรดต้นทางระดับ "ห้อง" (ต่างจาก shopChannelId ที่เป็นระดับ "เพจ") — ดูคอมเมนต์เต็มที่
     // field ใน schema.prisma. เขียนครั้งเดียวตอนสร้าง ไม่มีหน้าจอให้แก้ทีหลัง
@@ -712,7 +762,18 @@ export async function updateOrder(
   // fulfillmentMode (เหมือน createOrder — รวมด่าน shopShipsGoods ทั้ง 2 ชั้น)
   // แก้ไขออเดอร์เดิมเคยไม่มีด่านนี้เลย: ร้านบริการที่กด "แก้ไข" ใบที่สร้างผ่านมาแล้วจะโดนบังคับ
   // ที่อยู่ใหม่ทุกครั้ง ทั้งที่ตอนสร้างไม่ต้องกรอก (กฎเดียวกันต้องอยู่ครบทุกทางเข้าที่เขียน Order)
-  const shopRowForShipping = await prisma.shop.findUnique({ where: { id: shopId }, select: { vertical: true } });
+  // feature 00062 (U11) — select payout* เข้าคิวรีเดิมตัวนี้ (เหมือน createOrder — ไม่เพิ่ม
+  // round-trip ใหม่) ใช้ตัดสินทั้ง PickupNotAllowedError (vertical) และ payoutSnapshot
+  const shopRowForShipping = await prisma.shop.findUnique({
+    where: { id: shopId },
+    select: {
+      vertical: true,
+      payoutBankCode: true,
+      payoutAccountNo: true,
+      payoutAccountName: true,
+      payoutPromptPayId: true,
+    },
+  });
   const shipsGoods = shopShipsGoods(shopRowForShipping?.vertical);
 
   let fulfillmentMode = "NO_SHIPPING";
@@ -731,6 +792,14 @@ export async function updateOrder(
     });
     if (shipped) fulfillmentMode = "SHIPPED";
   }
+
+  // feature 00062 (TFR-001, SDS TD-001) — override เหมือน createOrder (บรรทัดสุดท้าย หลังคำนวณ
+  // จาก items เสร็จแล้ว) — ต้องแก้ทั้ง 2 ฟังก์ชันคู่กัน (ไฟล์นี้เคยพลาดเพราะแก้ที่เดียวมาก่อน)
+  if (data.fulfillmentMode === "PICKUP") {
+    if (shopRowForShipping?.vertical !== "ONLINE_SALES") throw new PickupNotAllowedError();
+    fulfillmentMode = "PICKUP";
+  }
+
   // FR-6.5 shipping required (เหมือน createOrder)
   if (fulfillmentMode === "SHIPPED" && data.salesChannel !== "STOREFRONT") {
     const a = data.shippingAddress;
@@ -748,6 +817,9 @@ export async function updateOrder(
         buyerName: true, paymentMethod: true, salesChannel: true, internalNote: true,
         discount: true, vatRate: true, vatAmount: true, shippingAddress: true,
         createdAt: true, publicToken: true,
+        // feature 00062 (U11) — fulfillmentMode/handedOverAt ตัดสิน "ต้องล้าง handedOver ไหม"
+        // (TFR-001 error/edge cases); payoutSnapshot ตัดสิน "เขียนครั้งแรกไหม" (ห้ามเขียนทับของเดิม)
+        fulfillmentMode: true, handedOverAt: true, payoutSnapshot: true,
         items: { select: { productId: true, name: true, description: true, qty: true, price: true } },
       },
     });
@@ -819,6 +891,23 @@ export async function updateOrder(
     // ห้องนั้น "ไม่มีคำสั่งซื้อ" ทันทีที่กดบันทึก ทั้งที่ตั้งใจแค่แก้เบอร์
     await relinkThreadCustomer(tx, threadContact, customerId);
 
+    // feature 00062 (TFR-009 + task instruction U11) — "ไม่เขียนทับ snapshot เดิม": ตกลงบัญชี
+    // ไหนไว้กับลูกค้าก็ต้องเป็นบัญชีนั้น เขียนได้ครั้งเดียวคือตอนใบเดิมยังไม่มี snapshot เลย
+    // (existing.payoutSnapshot == null) แล้วเพิ่งเปลี่ยน paymentMethod เป็น TRANSFER/PROMPTPAY
+    const shouldWritePayoutSnapshot =
+      existing.payoutSnapshot == null &&
+      needsPayoutAccount(data.paymentMethod);
+    const payoutSnapshotValue =
+      shouldWritePayoutSnapshot && shopRowForShipping
+        ? buildPayoutSnapshot(shopRowForShipping as ShopPayoutFields)
+        : null;
+
+    // feature 00062 (SRS TFR-001 error/edge cases, DATABASE.md §5.1) — ร้านเปลี่ยน fulfillmentMode
+    // ออกจาก PICKUP หลังจากกด "มอบสินค้าแล้ว" ไปแล้ว ต้องล้าง handedOverAt/handedOverByUserId
+    // ในสเตทเมนต์เดียวกับการเปลี่ยน fulfillmentMode มิฉะนั้นชน CHECK
+    // Order_handedOver_requires_pickup_check (Postgres 23514 ดิบขึ้นจอผู้ใช้)
+    const shouldClearHandover = !!existing.handedOverAt && fulfillmentMode !== "PICKUP";
+
     // 7) update order + สร้าง items ชุดใหม่
     const order = await tx.order.update({
       where: { id: existing.id },
@@ -836,10 +925,27 @@ export async function updateOrder(
         vatAmount: data.vatAmount ?? null,
         shippingAddress: data.shippingAddress ?? Prisma.DbNull,
         ...(custPhone ? { customerId } : {}),
+        // ไม่ conditional-spread key (การมี/ไม่มี key ผัน type ของ object literal ทั้งก้อนจน
+        // Prisma แยก OrderUpdateInput/OrderUncheckedUpdateInput ไม่ได้ — ชนกับ ...(custPhone ? …
+        // : {}) ด้านบน) ใช้ undefined แทน "ไม่แตะคอลัมน์นี้" ซึ่ง Prisma ตีความเหมือนไม่ส่ง key มา
+        payoutSnapshot: (payoutSnapshotValue ?? undefined) as Prisma.InputJsonValue | undefined,
+        handedOverAt: shouldClearHandover ? null : undefined,
+        handedOverByUserId: shouldClearHandover ? null : undefined,
         items: { create: itemsCreateData },
       },
       include: { items: true },
     });
+
+    // feature 00062 — บันทึกไม่ให้ประวัติเงียบเมื่อ "มอบสินค้าแล้ว" ถูกล้างเพราะเปลี่ยนวิธีส่งมอบ
+    // (ไม่ใช่ร้านกด undo เอง — คนละเหตุการณ์กับ HANDOVER_REVERTED ที่ clearHandedOver() เขียน)
+    if (shouldClearHandover) {
+      await recordOrderEvent(tx, {
+        orderId: existing.id,
+        type: "HANDOVER_REVERTED",
+        actorUserId: actorUserId ?? null,
+        meta: { reason: "FULFILLMENT_MODE_CHANGED" },
+      });
+    }
 
     // 8) StockMovement ของ deduction ใหม่ (เหมือน createOrder)
     for (const [productId, d] of deductions) {
