@@ -282,7 +282,7 @@ sequenceDiagram
     RS->>DB: ผลเหมือนเดิม → UPDATE lastConfirmedAt = now (กรณีปกติ ~97%)<br/>ผลเปลี่ยน → INSERT แถวใหม่ (checkedAt = now)
     Note over RS: เป็น UPDATE เป็นหลัก ⇒ รันซ้ำวันเดียวกันปลอดภัยเอง (idempotent)<br/>duplicate_listing ผูกรายหลัง จึงวนต่อ Room ไม่ใช่ต่อร้าน
     C->>RD: createDueRounds() — TD-017 หัวใจความต่อเนื่อง
-    RD->>DB: หาข้อที่ expiresAt <= now + ROUND_LEAD_DAYS[method] ของแผน ACTIVE<br/>จัดกลุ่มตาม (shopId, roomId, method) แล้ว INSERT รอบละกลุ่ม<br/>inspectorUserId = null · dueAt = min(expiresAt)
+    RD->>DB: หาข้อที่ expiresAt <= now + ROUND_LEAD_DAYS[method] ของแผน ACTIVE<br/>จัดกลุ่มตาม (shopId, roomId, step, method) แล้ว INSERT รอบละกลุ่ม<br/>inspectorUserId = null · dueAt = min(expiresAt)
     Note over RD,DB: idempotent — มีรอบที่ completedAt IS NULL ของกลุ่มเดิมอยู่แล้ว = ข้าม
     C->>RD: countOverdueRounds() → ใส่ใน response ของ cron ให้เห็นจาก log
     C->>P: renewOrLapseInspectionPlan(shopId) ต่อร้านที่ครบรอบ
@@ -599,7 +599,7 @@ resolveResultStatus({ row, planStep, now }) →
 
   **(1) `createDueRounds()` ใน cron สร้างรอบล่วงหน้าเอง**
   - กวาดทุกแผนที่ `status = 'ACTIVE'` หาข้อตรวจที่ `expiresAt <= now + leadDays` **และอยู่ในขั้นที่ร้านจ่ายอยู่** (`stepCovers()`) — รวมถึงข้อที่ยังไม่มีแถวเลย (ยังไม่เคยตรวจ) ซึ่งต้องนับว่าถึงกำหนดทันที ไม่ใช่รอ `expiresAt` ที่ไม่มีอยู่
-  - **จัดกลุ่มก่อนสร้าง** — คีย์กลุ่มคือ `(shopId, roomId, method)` แล้วสร้าง **หนึ่งรอบต่อกลุ่ม** ไม่ใช่หนึ่งรอบต่อข้อตรวจ: การลงพื้นที่หนึ่งครั้งครอบข้อของขั้น 4 ได้ 6 ข้อพร้อมกัน ถ้าสร้างรายข้อจะได้ 6 รอบให้แอดมินมอบหมาย 6 ครั้งสำหรับการเดินทางครั้งเดียว แล้วผู้ตรวจต้องปิด 6 รอบด้วยหลักฐานชุดเดียวกัน
+  - **จัดกลุ่มก่อนสร้าง** — คีย์กลุ่มคือ `(shopId, roomId, step, method)` แล้วสร้าง **หนึ่งรอบต่อกลุ่ม** ไม่ใช่หนึ่งรอบต่อข้อตรวจ: การลงพื้นที่หนึ่งครั้งครอบข้อของขั้น 4 ได้ 6 ข้อพร้อมกัน ถ้าสร้างรายข้อจะได้ 6 รอบให้แอดมินมอบหมาย 6 ครั้งสำหรับการเดินทางครั้งเดียว แล้วผู้ตรวจต้องปิด 6 รอบด้วยหลักฐานชุดเดียวกัน
   - `inspectorUserId = null` (ยังไม่มอบหมาย) · `assignedAt = null` · **`dueAt = min(expiresAt)` ของข้อในกลุ่มนั้น** เพื่อให้คิวเรียงตามความเร่งด่วนจริง ไม่ใช่ตามเวลาที่ระบบบังเอิญสร้างแถว
 
   **(2) `leadDays` เป็นค่าคงที่ที่มีชื่อ และแยกตามวิธีตรวจ**
