@@ -27,6 +27,14 @@ export const ROUND_LEAD_DAYS: Record<InspectionMethod, number | null> = {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
+/**
+ * ชื่อที่ใส่ใน `InspectionRound.inspectorDisplayName` ตอนรอบยังไม่ถูกมอบหมาย
+ * 🛑 คอลัมน์นั้น NOT NULL และเป็น **snapshot ชื่อ ณ รอบนั้น** ไม่ใช่ join สด ⇒ ต้องมีคำที่
+ *    อ่านรู้เรื่องตั้งแต่แถวถูกสร้าง ไม่ใช่สตริงว่างที่หน้าจอต้องเดาความหมายเอาเอง
+ *    (ถ้อยคำเดียวทั้งระบบ — คิวแอดมิน หน้าผู้ตรวจ และไทม์ไลน์ฝั่งร้าน ต้องอ่านตัวนี้)
+ */
+export const UNASSIGNED_INSPECTOR_NAME = 'ยังไม่ได้มอบหมาย'
+
 /** ข้อตรวจหนึ่งข้อที่ใกล้ถึงกำหนดตรวจซ้ำ (หรือยังไม่เคยตรวจเลย) */
 export type DueCheck = {
   roomId: string | null

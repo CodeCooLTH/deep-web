@@ -17,7 +17,6 @@ import {
   computeExpiresAt,
   isInspectionCheckKey,
   ttlDays,
-  type InspectionCheckKey,
 } from './checks'
 import {
   latestResultPerCheck,

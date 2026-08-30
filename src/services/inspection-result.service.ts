@@ -3,6 +3,7 @@ import 'server-only'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import {
+  computeExpiresAt,
   isInspectionCheckKey,
   checkScope,
   type InspectionCheckKey,
@@ -218,4 +219,37 @@ export async function invalidatePhotosMatchForRoom(
     },
     tx,
   )
+}
+
+/**
+ * คำนวณ `expiresAt` ของผลตรวจที่ยังมีผลอยู่ใหม่ เมื่อขั้นของแผนเปลี่ยน (TFR-002 · TFR-019)
+ *
+ * 🛑 อายุผลตรวจบางข้อ **ผูกกับขั้นของแผน ไม่ใช่ผูกกับตัวข้อตรวจอย่างเดียว** (ขั้น 4 ตรวจซ้ำ
+ *    `video_tour`/`operating_evidence` ถี่กว่าขั้น 3) ⇒ ร้านที่อัปเกรดแล้วไม่คิดใหม่ จะได้
+ *    ป้าย "ผ่าน" ที่อ้างอิงรอบตรวจถี่ของขั้นใหม่ ทั้งที่วันหมดอายุยังเป็นของขั้นเก่า
+ *    = ขายความถี่ที่ไม่ได้ส่งมอบ
+ *
+ * 🛑 อยู่ในไฟล์นี้เพราะไฟล์นี้เป็น **ผู้เขียน `InspectionResult` เพียงรายเดียว** — ตัวนี้แตะ
+ *    เฉพาะ `expiresAt` เท่านั้น (ชุดคอลัมน์เดียวกับที่ CONFIRM แตะได้) ห้ามขยายไปแตะ
+ *    `outcome`/`checkedAt` เด็ดขาด มิฉะนั้นการอัปเกรดแผนจะเขียนประวัติย้อนหลัง
+ */
+export async function recomputeExpiryForPlanStep(
+  client: Prisma.TransactionClient,
+  shopId: string,
+  planStep: InspectionStep,
+): Promise<number> {
+  const rows = await client.inspectionResult.findMany({
+    where: { shopId, outcome: 'PASS', invalidatedAt: null },
+    select: { id: true, checkKey: true, lastConfirmedAt: true, expiresAt: true },
+  })
+
+  let changed = 0
+  for (const row of rows) {
+    if (!isInspectionCheckKey(row.checkKey)) continue
+    const next = computeExpiresAt(row.lastConfirmedAt, row.checkKey, planStep)
+    if (row.expiresAt !== null && next.getTime() === row.expiresAt.getTime()) continue
+    await client.inspectionResult.update({ where: { id: row.id }, data: { expiresAt: next } })
+    changed += 1
+  }
+  return changed
 }
