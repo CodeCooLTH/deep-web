@@ -21,23 +21,54 @@
 
 import { useState } from 'react'
 
+import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
-import Chip from '@mui/material/Chip'
 import Dialog from '@mui/material/Dialog'
 import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import Typography from '@mui/material/Typography'
 import { toast } from 'react-toastify'
 
+import { Icon } from '@iconify/react'
+
 import CustomTextField from '@core/components/mui/TextField'
 import {
-  APPOINTMENT_STATUS_LABEL,
+  APPOINTMENT_STATUS_LABEL_BUYER,
+  formatDurationTH,
   isAllDayAppointment,
+  isAppointmentPast,
   type AppointmentStatus,
 } from '@/lib/appointments'
 import { formatDateTH, formatDateTimeTH, formatTimeHM, formatWeekdayDateTH } from '@/lib/format-date'
+import TrustPill, { VERIFIED_INK } from './TrustPill'
+
+import { infoBoxSx } from './card-padding'
+
+/**
+ * MiniFact — กล่องข้อเท็จจริงหนึ่งชิ้น (ป้าย + ค่า) ในตารางย่อของการ์ดนัดหมาย
+ *
+ * ประกาศนอก component หลักโดยตั้งใจ — ประกาศในตัว render จะเป็น **ชนิดใหม่ทุก re-render**
+ * React จะ unmount แล้ว mount ใหม่ทั้งกล่องทุกครั้งที่กดปุ่มใด ๆ บนการ์ด
+ * (`docs/conventions/component-declared-in-render.md`)
+ */
+function MiniFact({ label, value }: { label: string; value: string }) {
+  return (
+    /* 🛑 ระยะ/รัศมีต้องตรงกับ "ช่อง" ใบอื่นทั้งหน้า — วัดจากเบราว์เซอร์ 2026-08-30 เจอกล่อง
+       ข้างในการ์ด **5 แบบไม่ซ้ำกันเลย** (6/8 · 10/12 · 8/12 · 6/7 · 6/6) และใบนี้เป็น
+       ใบเดียวที่รัศมี 8 ขณะที่ใบอื่น 12 (หัวหน้าเห็นเอง: "ช่องมันไม่เท่ากัน ดูไม่สวย")
+       ⇒ ใช้ `infoBoxSx` (12/10) + `rounded-xl` (12px) เหมือนทุกใบ */
+    <Box sx={{ ...infoBoxSx, borderRadius: 2, bgcolor: 'action.hover' }}>
+      <Typography variant='caption' color='text.secondary' sx={{ display: 'block', lineHeight: 1.4 }}>
+        {label}
+      </Typography>
+      <Typography variant='body2' sx={{ fontWeight: 600, lineHeight: 1.4, mt: 0.25 }}>
+        {value}
+      </Typography>
+    </Box>
+  )
+}
 
 export type PublicAppointment = {
   resourceName: string
@@ -64,12 +95,22 @@ const MAX_NOTE = 500
  * "นัดแล้ว" กับ "ขอเลื่อน" ยังไม่นิ่ง → warning ไม่ใช่เขียว เพื่อไม่ให้สัญญาณ trust เฟ้อ
  * "ไม่มาตามนัด" = error เพราะเป็นผลลบจริง
  */
-const STATUS_COLOR: Record<AppointmentStatus, 'warning' | 'success' | 'error'> = {
-  SCHEDULED: 'warning',
-  CONFIRMED_BY_BUYER: 'success',
-  RESCHEDULE_REQUESTED: 'warning',
-  COMPLETED: 'success',
-  NO_SHOW: 'error',
+/**
+ * โทนของ `TrustPill` ต่อสถานะนัด — คู่ bg/fg มาจาก `VERIFY_BADGE_PALETTE` ซึ่งเป็นคู่ "หมึก"
+ * ที่ผ่าน AA ทั้งชุด (green 4.97:1 · gold ~5.3:1 · neutral ~5.1:1)
+ *
+ * 🛑 แทนที่ `STATUS_COLOR` เดิม (สี MUI semantic สำหรับ `Chip variant='tonal'`) ซึ่งถูกลบทิ้ง
+ * พร้อมชิป — เก็บไว้โดยไม่มีผู้เรียกคือตารางที่รอให้คนหยิบไปใช้แล้วได้คอนทราสต์ 1.82:1 กลับมา
+ *
+ * `RESCHEDULE_REQUESTED` เป็น gold ไม่ใช่ neutral — มันคือสถานะที่ **ยังรอใครสักคนตัดสิน**
+ * เหมือน `SCHEDULED` ไม่ใช่เรื่องที่จบไปแล้ว
+ */
+const STATUS_TONE: Record<AppointmentStatus, 'green' | 'gold' | 'neutral'> = {
+  SCHEDULED: 'gold',
+  CONFIRMED_BY_BUYER: 'green',
+  RESCHEDULE_REQUESTED: 'gold',
+  COMPLETED: 'green',
+  NO_SHOW: 'neutral',
 }
 
 /** ข้อความ error ที่ผู้ใช้อ่านรู้เรื่อง — ใช้ message จาก server ถ้ามี ไม่งั้น map จาก code */
@@ -103,6 +144,18 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
   // ตัดสินจากข้อมูลจริงของนัดนี้ ไม่ใช่จากค่าตั้งค่าปัจจุบันของร้าน (BR-RSV-57)
   const allDay = isAllDayAppointment(start, end)
 
+  /**
+   * ระยะเวลา — คำนวณจากช่วงเวลาจริง ไม่ได้อ่านค่าตั้งต้นของประเภทงาน
+   * (ร้านแก้เวลาทับได้ทีละใบ ค่าตั้งต้นจึงไม่ใช่ความจริงของใบนี้เสมอไป)
+   *
+   * 🛑 คำมาจาก `formatDurationTH` ที่เดียว — ประกอบ `${นาที} นาที` เองจะได้ "90 นาที"
+   * ขณะที่จออื่นอ่านว่า "1 ชม. 30 นาที" เลขเดียวกันคนละคำคนละหน้าจอ (HR16)
+   *
+   * นัดทั้งวัน/ข้ามวันไม่แสดง — ตัวเลขชั่วโมงของช่วงแบบนั้นไม่ได้ตอบอะไรให้ผู้ซื้อ
+   */
+  const durationText =
+    allDay || crossesDay ? '' : formatDurationTH(Math.round((end.getTime() - start.getTime()) / 60000))
+
   const showConfirm = !orderCancelled && state.status === 'SCHEDULED'
   /**
    * "ขอเลื่อนนัด" ยังกดได้หลังยืนยันไปแล้ว (user ตัดสิน 2026-07-31: ถอนได้ถ้าจำเป็น
@@ -115,8 +168,34 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
    * ตั้งใจไม่ทำเป็น "ถอนการยืนยัน" ที่ย้อนสถานะกลับเป็น SCHEDULED เงียบ ๆ เพราะร้าน
    * จะไม่รู้ว่าลูกค้าเปลี่ยนใจ — ส่งเป็นคำขอให้ร้านเห็นดีกว่า
    */
+  /**
+   * เลยหน้าต่างเวลานัดไปแล้วหรือยัง
+   *
+   * 🛑 **คำนวณครั้งเดียวตอน mount** (`useState` initializer) ไม่ใช่ทุก render:
+   *   1. `new Date()` ระหว่าง SSR กับตอน hydrate เป็นคนละค่า ⇒ ถ้าคิดใน render body
+   *      จะได้ผลต่างกันสองรอบและ React เตือน hydration mismatch
+   *   2. ค่านี้เปลี่ยนได้อย่างมากวันละครั้งต่อการเปิดหน้าหนึ่งครั้ง — คิดใหม่ทุก render
+   *      คือการเสียงานเปล่าโดยไม่ได้อะไรกลับมา
+   *
+   * ตั้งใจ **ไม่ตั้ง timer มาอัปเดตสด** — ใบที่เปิดค้างไว้ข้ามเส้นเวลาพอดีเป็นเคสที่พบยากมาก
+   * และการมี interval วิ่งอยู่บนหน้าที่ผู้ซื้อเปิดทิ้งไว้ แพงกว่าประโยชน์ที่ได้
+   */
+  const [appointmentPast] = useState(() => isAppointmentPast(appointment.endIso))
+
+  /**
+   * 🛑 **เลยเวลานัดแล้วต้องไม่โชว์ปุ่ม "ขอเลื่อนนัด"**
+   *
+   * `requestAppointmentReschedule()` บล็อกที่ `now >= serviceEnd` แล้วตอบ `APPOINTMENT_PAST`
+   * ⇒ ก่อนหน้านี้จอโชว์ปุ่มที่ **ไม่มีวันสำเร็จ** แล้วค่อยบอกว่า "เลยเวลานัดไปแล้ว"
+   * หลังผู้ใช้กด — คลาสเดียวกับที่ `classifyRetryUX` ถูกสร้างมาลบทิ้ง
+   * (*"ข้อความที่เชิญให้กดสิ่งที่ไม่มีวันผ่าน"*)
+   *
+   * ปุ่ม "ยืนยันนัดหมาย" **ไม่ถูกซ่อน** เพราะ `confirmAppointmentByBuyer()` ไม่มีด่านเวลา —
+   * ลูกค้าที่มาถึงร้านสายยังกดยืนยันได้จริง (ตรวจกับ service แล้ว ไม่ได้เดา)
+   */
   const showReschedule =
     !orderCancelled &&
+    !appointmentPast &&
     (state.status === 'SCHEDULED' || state.status === 'CONFIRMED_BY_BUYER')
 
   const handleConfirm = async () => {
@@ -177,11 +256,13 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
             <Typography variant="subtitle2" color="text.secondary">
               นัดหมาย
             </Typography>
-            <Chip
-              size="small"
-              variant="tonal"
-              color={STATUS_COLOR[state.status]}
-              label={APPOINTMENT_STATUS_LABEL[state.status]}
+            {/* 🛑 `TrustPill` ไม่ใช่ MUI `Chip variant='tonal'` — tonal ของธีมนี้ให้ text =
+                `{semantic}.main` บนพื้นจาง = **1.82:1 ตก AA** (`TrustPill.tsx` เขียนเหตุผลไว้เอง
+                และถูกสร้างมาลบแพตเทิร์นนี้ทิ้ง) · ป้ายนี้แบก **"คุณต้องลงมือ"** ของเรื่องนัด
+                ป้ายที่สำคัญที่สุดของการ์ดจึงเป็นป้ายที่อ่านไม่ออก */}
+            <TrustPill
+              tone={STATUS_TONE[state.status]}
+              label={APPOINTMENT_STATUS_LABEL_BUYER[state.status]}
             />
           </div>
 
@@ -189,15 +270,10 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
             {/* มีชื่อวันด้วย ("จันทร์ 12 ส.ค. 2569") — คนที่ต้องมาตามนัดวางแผนจากชื่อวัน
                 ไม่ใช่จากเลขที่ ("12 ส.ค." ต้องเปิดปฏิทินอีกทีถึงจะรู้ว่าติดวันทำงานไหม)
                 หนี้ที่ค้างจาก 00024 ข้อ 4 — การ์ดนี้อ่านเป็น widget ของแอดมิน ไม่ใช่ของลูกค้า */}
-            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+            {/* 700 ไม่ใช่ 800 — DESIGN.md §Strong step ห้าม 800 กับ **ข้อความ** แล้ว
+                (800 สงวนให้ Metric/ตัวอักษรที่ทำหน้าที่เป็นภาพ) และวันที่อ่านเป็นประโยค */}
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
               {formatWeekdayDateTH(start)}
-            </Typography>
-            <Typography variant="body1" color="text.primary">
-              {allDay
-                ? 'ทั้งวัน'
-                : crossesDay
-                  ? `${formatTimeHM(start)} – ${formatDateTH(end)} ${formatTimeHM(end)} น.`
-                  : `${formatTimeHM(start)} – ${formatTimeHM(end)} น.`}
             </Typography>
             <Typography
               variant="body2"
@@ -211,9 +287,46 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
             >
               {/* มี label กำกับ — ชื่อคิวงานลอย ๆ ("ติดตั้งไฟหน้า") ลูกค้าอ่านไม่ออกว่าคืออะไร
                   ใช้คำเดียวกับป้ายในฟอร์มฝั่งผู้ขาย เพื่อให้สองฝั่งเรียกของเดียวกันด้วยคำเดียวกัน */}
+              {/* 🛑 ไม่ต่อ `· {durationText}` ตรงนี้ — มันโผล่ใน `MiniFact "ใช้เวลา"` ห่างลงไป
+                  ไม่กี่บรรทัดและ **โผล่พร้อมกันเสมอ** (กริดผูกเงื่อนไขเดียวกัน) ⇒ ผู้ซื้อเห็น
+                  "45 นาที" สองครั้งในการ์ดใบเดียว · เก็บตัวที่มีป้ายกำกับไว้ อ่านออกกว่า
+                  (จุดที่ 5 ของงานนี้ — คลาสเดียวกับวันเวลาในการ์ดนี้เอง · ยอดค้างในชิป · ช่องสถานะ) */}
               รับนัดโดย {state.resourceName}
             </Typography>
           </div>
+
+          {/* ── ตารางย่อ เวลา / ใช้เวลา (mockup 2026-08-28 `appt-grid`) ──
+              ข้อมูลที่ผู้ซื้อกวาดตาหาบนหน้านี้ ไม่ใช่ย่อหน้าที่ต้องอ่าน
+
+              🛑 **ไม่มีช่อง "วันที่"** ทั้งที่ mockup มี — วันที่เป็นหัวเรื่องของการ์ดอยู่แล้ว
+              และหัวเรื่องดีกว่าเพราะมี**ชื่อวัน** ("จันทร์ 12 ส.ค. 2569") ซึ่งเป็นสิ่งที่คนใช้
+              วางแผนจริง ส่วนช่องในตารางจะเหลือแค่เลขวันที่ · ใส่ทั้งสองที่ = ข้อมูลเดียวกัน
+              สองที่บนการ์ดเดียว ซึ่งเป็นเหตุผลเดียวกับที่ตัดช่อง "สถานะ" ของ mockup ทิ้ง
+
+              🛑 **ไม่มีช่อง "สถานะ"** — ป้ายอยู่บนหัวการ์ดห่างไป 2 บรรทัดแล้ว
+              (`sibling-surface-parity.md`: ค่าเดียวกันหลายที่ต้องมาจาก symbol เดียว
+              และถ้าเห็นพร้อมกันได้ ก็ไม่ควรมีสองที่ตั้งแต่แรก) */}
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: durationText ? '1fr 1fr' : '1fr',
+              gap: 1,
+            }}
+          >
+            <MiniFact
+              label='เวลา'
+              value={
+                allDay
+                  ? 'ทั้งวัน'
+                  : crossesDay
+                    ? /* ข้ามวัน — ต้องบอกวันที่ของฝั่งจบด้วย ไม่งั้น "22:00 – 02:00"
+                         อ่านเป็นย้อนเวลากลับ */
+                      `${formatTimeHM(start)} – ${formatDateTH(end)} ${formatTimeHM(end)}`
+                    : `${formatTimeHM(start)} – ${formatTimeHM(end)}`
+              }
+            />
+            {durationText && <MiniFact label='ใช้เวลา' value={durationText} />}
+          </Box>
 
           {/* ── ปุ่ม/ข้อความตามสถานะ ── */}
           {orderCancelled ? (
@@ -222,11 +335,61 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
             </Typography>
           ) : showConfirm || showReschedule ? (
             <div className="flex flex-col gap-2">
+              {/**
+               * ── เลยเวลานัดไปแล้ว ────────────────────────────────────────────
+               *
+               * 🛑 ก่อนหน้านี้ **ไม่มีอะไรบนหน้าจอบอกเลยว่าเลยเวลามาแล้ว** — ลูกค้าเห็น
+               * วันเวลานัดเฉย ๆ กับปุ่ม "ขอเลื่อนนัด" ที่กดแล้วล้มเสมอ แล้วเพิ่งรู้จาก
+               * ข้อความ error หลังกด (`APPOINTMENT_PAST` = "เลยเวลานัดไปแล้ว")
+               *
+               * แถบนี้ตอบสองอย่างที่ข้อความ error ตอบไม่ได้:
+               *   1. **บอกก่อนกด** ไม่ใช่หลังกด
+               *   2. **บอกว่าทำอะไรต่อได้** — ปุ่มที่ทำได้จริงถูกซ่อนไปแล้วหนึ่งตัว
+               *      ถ้าไม่บอกทางออก ลูกค้าจะค้างอยู่กับจอที่ไม่มีอะไรให้ทำ
+               *
+               * วางไว้ **เหนือปุ่ม** เพราะมันคือบริบทที่ต้องอ่านก่อนตัดสินใจกด
+               * ใช้ `warning` ไม่ใช่ `error`: สายแล้วยังแก้ได้ ไม่ใช่ความล้มเหลว
+               * (เหตุผลเดียวกับชิปยอดค้างที่เลือก warning — ดู `PaymentSummaryCard`)
+               */}
+              {appointmentPast && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    gap: 1,
+                    alignItems: 'flex-start',
+                    bgcolor: 'warning.lightOpacity',
+                    borderRadius: 2,
+                    ...infoBoxSx,
+                    minWidth: 0,
+                  }}
+                >
+                  <Icon
+                    icon="tabler-clock-exclamation"
+                    style={{ fontSize: 17, flexShrink: 0, marginTop: 1, color: 'var(--mui-palette-warning-main)' }}
+                    aria-hidden="true"
+                  />
+                  <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.6, minWidth: 0 }}>
+                    <Box component="strong" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      เลยเวลานัดนี้มาแล้ว
+                    </Box>{' '}
+                    {/* 🛑 ต้องอ้างเวลาจริงของนัด ไม่ใช่เขียนลอย ๆ ว่า "สายแล้ว" —
+                        ลูกค้าที่จำวันผิดต้องเห็นเลขที่ทำให้รู้ตัว · ใช้ SSOT ตัวเดียวกับ
+                        แถววันที่ด้านบน จึงไม่มีทางเป็นคนละรูปแบบกัน */}
+                    ({formatDateTimeTH(appointment.startIso)}) หากยังต้องการใช้บริการ{' '}
+                    <Box component="strong" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      ติดต่อร้านเพื่อนัดใหม่
+                    </Box>
+                  </Typography>
+                </Box>
+              )}
               {/* ยืนยันแล้ว → ไม่มีปุ่มยืนยันอีก แต่บอกให้เห็นว่ายืนยันไปเมื่อไร
-                  success.dark ไม่ใช่ .main — เขียวสด #28C76F บนพื้นการ์ดขาวได้ราว 2.4:1
-                  เฉดเดียวกัน แค่เข้มขึ้นให้อ่านออก (หนี้ 00024 ข้อ 4) */}
+
+                  🛑 ใช้ `VERIFIED_INK` (#18804A = 4.97:1) — เดิมเป็น `success.dark` พร้อมคอมเมนต์
+                  ที่อ้างว่า "เข้มขึ้นให้อ่านออก" **แต่ไม่เคยวัด**: ค่าจริงคือ 2.72:1 ซึ่งยังตก AA
+                  DESIGN.md บังคับ Verified Ink สำหรับเขียวที่เป็นตัวหนังสือบนพื้นขาว
+                  และรีโป export ค่านี้ไว้ให้แล้วที่ `./TrustPill` (หนี้ 00024 ข้อ 4 — ปิดจริงรอบนี้) */}
               {state.status === 'CONFIRMED_BY_BUYER' && (
-                <Typography variant="body2" color="success.dark">
+                <Typography variant="body2" sx={{ color: VERIFIED_INK }}>
                   คุณยืนยันนัดนี้แล้ว
                   {state.buyerConfirmedAt
                     ? ` เมื่อ ${formatDateTimeTH(state.buyerConfirmedAt)}`

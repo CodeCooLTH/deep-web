@@ -149,8 +149,36 @@ describe('จอ guest (ก่อนล็อกอิน) ต้องไม่
      */
     const src = stripComments(read('src/app/(marketing)/o/[token]/guest-order-data.ts'))
     expect(src, 'ห้าม spread order ทั้งก้อน').not.toMatch(/\.\.\.\s*order\b/)
-    expect(src, 'ห้ามส่ง shopChannel ต่อ').not.toContain('shopChannel')
     expect(src, 'ห้ามส่ง payments ต่อ').not.toContain('payments')
+
+    /**
+     * 🛑 **ผ่อนจาก "ห้ามมีคำว่า shopChannel" มาเป็น "ห้ามให้ทั้งแถวไหลออก" (2026-08-30)**
+     *
+     * จอ guest ต้องรู้ว่าออเดอร์ใบนี้คุยกันที่เพจไหน (ไปเป็นป้าย "คุยกันที่นี่") ซึ่งต้องอ่าน
+     * 2 คีย์จากแถวนี้ — การแบนคำทั้งคำจึงห้ามของที่ปลอดภัยไปด้วย
+     *
+     * สิ่งที่ต้องปกป้องจริงคือ **`accessTokenEnc` และเพื่อนบ้านในแถวเดียวกัน** ไม่ใช่ชื่อคอลัมน์
+     * ⇒ ย้ายไปบังคับที่ **รูปร่างของ type** ซึ่งแข็งกว่าการ grep คำ เพราะ `tsc` แดงตั้งแต่
+     * compile ถ้ามีคนอ่านคีย์นอก allow-list (grep จับได้แค่ตอนคนเขียนคำนั้นตรง ๆ)
+     *
+     * 🛑 ห้ามยุบกลับไปเป็น `not.toContain('shopChannel')` — จะแดงถาวรทั้งที่ไม่มีใครทำผิด
+     * (คลาสเดียวกับ grep gate ของ HR9 ที่แดงค้างจากคอมเมนต์ของตัวเองเมื่อ 2026-08-02→03)
+     */
+    expect(src, 'ห้าม spread ทั้งแถว shopChannel').not.toMatch(/\.\.\.\s*order\.shopChannel\b/)
+    /* ทุกจุดที่แตะ `order.shopChannel` ต้องตามด้วย `.`/`?.` (หยิบคีย์) หรือ `?` (เช็คว่ามีไหม)
+       🛑 `??` ต้องถูกจับเป็นการยกทั้งแถว — ร่างก่อนหน้าอนุญาต `?` ลอย ๆ เผื่อเทอร์นารี
+       แล้ว `order.shopChannel ?? null` ลอดไปได้ (mutation เขียว 14/14 ทั้งที่แถวหลุดออกไปแล้ว)
+       ⇒ alternation ต้องลอง `??` ก่อนเสมอ */
+    for (const m of src.matchAll(/order\.shopChannel\s*(\?\?|.)/g)) {
+      expect(m[1], `ห้ามยกทั้งแถวไปเป็นค่าที่ส่งออก — ต้องหยิบทีละคีย์ (เจอ "${m[0]}")`).toMatch(
+        /^[.?]$/,
+      )
+    }
+    /* type คือ allow-list ตัวจริง — คีย์ไหนไม่อยู่ในนี้ `tsc` ห้ามอ่านตั้งแต่ compile */
+    const decl = src.match(/shopChannel\?:\s*\{([^}]*)\}/)
+    expect(decl, 'ต้องประกาศรูปร่าง shopChannel ไว้ชัด ไม่ใช่ปล่อยเป็น any/unknown').toBeTruthy()
+    const keys = [...decl![1].matchAll(/(\w+)\s*:/g)].map((m) => m[1]).sort()
+    expect(keys, 'จอ guest อ่านได้แค่ provider กับ name เท่านั้น').toEqual(['name', 'provider'])
   })
 })
 

@@ -17,7 +17,7 @@ import * as v from 'valibot'
 
 import { MOBILE_PHONE_RE } from '@/lib/phone'
 import { NATIONAL_ID_RE } from '@/lib/promptpay-qr'
-import { isCODPayment } from '@/lib/order-display'
+import { isCashPayment, isCODPayment } from '@/lib/order-display'
 
 // ─── รายชื่อธนาคารไทย ──────────────────────────────────────────────────────
 // grep ทั้ง repo แล้วยืนยันว่าไม่มีไฟล์นี้อยู่ก่อน (`docs/20 - Features/00062 …/DATABASE.md`
@@ -206,5 +206,7 @@ export type UpdateShopPayoutInput = v.InferOutput<typeof UpdateShopPayoutSchema>
  */
 export function needsPayoutAccount(paymentMethod: string | null | undefined): boolean {
   if (isCODPayment(paymentMethod)) return false
-  return !/CASH|เงินสด/i.test(paymentMethod ?? '')
+  /* regex เงินสดย้ายไป `order-display.ts` แล้ว (2026-08-30) — ที่นี่เคยเป็น *ที่เดียว*
+     ที่รู้ว่า CASH ไม่ใช่การโอน ป้ายบน UI จึงแตกเองแบบ 2 ทางแล้วเรียก CASH ว่า "โอนเข้าบัญชี" */
+  return !isCashPayment(paymentMethod)
 }

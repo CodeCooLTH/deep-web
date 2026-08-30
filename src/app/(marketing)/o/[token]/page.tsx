@@ -18,6 +18,7 @@
  * Base: ไฟล์นี้เป็น RSC orchestrator/redirect gate ล้วน (ไม่มี JSX ของตัวเอง — delegate ทั้งหมดไป
  * PublicOrderClient/ClaimOtpPrompt/OrderAccessBlock ซึ่งแต่ละไฟล์อ้าง Base ของตัวเองแล้ว)
  */
+import { toFileUrl } from '@/lib/file-url'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
@@ -318,7 +319,11 @@ export default async function PublicOrderPage({ params }: Props) {
           ? {
               rating: order.review.rating,
               comment: order.review.comment,
-              images: (order.review.images as string[] | null) ?? [],
+              /* คอลัมน์เดียวกับ `Product.images` — เก็บ key เหมือนกัน ต้องแปลงเหมือนกัน
+                 (ฐาน local ยังไม่มีรีวิวที่แนบรูป จึงไม่มีใครเจอ — แต่รออยู่) */
+              images: ((order.review.images as string[] | null) ?? [])
+                .map((k) => toFileUrl(k))
+                .filter((u): u is string => u != null),
               // createdAt ของใบแรกเสมอ — ห้ามใช้ updatedAt เป็นฐานของหน้าต่าง 24 ชม.
               // ไม่งั้นแก้ทีละนิดจะยืดเวลาไปได้ไม่รู้จบ (BR-BOE-17)
               createdAtIso: order.review.createdAt.toISOString(),
@@ -338,10 +343,14 @@ export default async function PublicOrderPage({ params }: Props) {
         qty: it.qty,
         price: Number(it.price),
         // raw URL ไม่ผ่าน /api/files/ — pattern เดียวกับ /u/[username]/page.tsx:98 (S-1 T1)
-        imageUrl: (it.product?.images as string[] | undefined)?.[0] ?? null,
+        /* 🛑 `Product.images` เก็บเป็น storage key เหมือน `Shop.logo` — ส่งดิบ ๆ ได้ 404
+           แล้วรูปสินค้าหายทั้งใบโดยเงียบ (ตรวจฐาน 2026-08-29: `2026/08/08/uuid.jpg`) */
+        imageUrl: toFileUrl((it.product?.images as string[] | undefined)?.[0]),
       })),
       shop: {
         shopName: order.shop.shopName,
+        /* ปกที่ร้านตั้งเอง — เก็บเป็น storage key เหมือน `logo` จึงต้องผ่าน `toFileUrl` เช่นกัน */
+        coverImage: toFileUrl(order.shop.coverImage),
         // feature 00062 — จุดนัดรับ (scalar ของ Shop มากับ include อยู่แล้ว ไม่เพิ่ม query)
         address: order.shop.address,
         user: {
@@ -351,7 +360,19 @@ export default async function PublicOrderPage({ params }: Props) {
           /* raw URL — ลำดับเดียวกับ /u/[username]/page.tsx: โลโก้ร้านมาก่อนรูปส่วนตัวเจ้าของ
              (เหตุผลเต็มอยู่ที่ guest-order-data.ts จุดเดียวกัน — ทั้งสองจอต้องเลือกรูปด้วยกฎ
              เดียวกัน ไม่งั้นก่อนล็อกอินกับหลังล็อกอินจะเห็นคนละรูปของร้านเดียวกัน) */
-          avatar: order.shop.logo ?? order.shop.user.avatar ?? null,
+          /**
+           * 🛑 `Shop.logo` เก็บเป็น **storage key** (`2026/08/04/uuid.jpeg`) ไม่ใช่ URL —
+           * ส่งดิบ ๆ ให้ `<img src>` เบราว์เซอร์จะตีความเป็น path สัมพัทธ์ของหน้าปัจจุบัน
+           * ⇒ ยิงไปที่ `/o/2026/08/04/uuid.jpeg` แล้วได้ **404** · รูปร้านตกไปเป็นตัวอักษรย่อ
+           *
+           * **ทุกร้านที่อัปโหลดโลโก้ได้รับผลกระทบ** และเงียบสนิท เพราะ Avatar มี fallback
+           * เป็นตัวอักษรอยู่แล้ว — หน้าตาเลย "ดูปกติ" (เจอจาก 404 ใน console 2026-08-29)
+           *
+           * `avatar` ของ OAuth เป็น URL เต็มอยู่แล้ว — `toFileUrl` คืนค่าเดิมให้ จึงครอบได้ทั้งสองแบบ
+           * (นี่คือเหตุผลที่ `file-url.ts` มีอยู่: "เขียนแสดงรูปโดยลืมแปลง key เป็นความผิดพลาด
+           * ที่เกิดซ้ำมาแล้วหลายที่")
+           */
+          avatar: toFileUrl(order.shop.logo) ?? toFileUrl(order.shop.user.avatar) ?? null,
         },
       },
       /* หลักฐานร้าน — เกณฑ์ null/0 ต้องตรงกับ guest branch ทุกตัว ไม่งั้นร้านเดียวกันจะขึ้น

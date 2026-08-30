@@ -319,7 +319,7 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
                   >
                     แก้เบอร์
                   </Typography>
-                  <Typography color='text.disabled'>|</Typography>
+                  <Typography color='text.secondary'>|</Typography>
                   <Typography
                     component='button'
                     type='button'

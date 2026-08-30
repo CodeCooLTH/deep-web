@@ -298,7 +298,11 @@ export default function PayoutAccountCard({
                   mode, pattern เดียวกับ OrderQrSheet.tsx ฝั่ง Paces (bg-white) */}
               <Box
                 sx={{
-                  borderRadius: 3,
+                  /* 🛑 2 (12px) ไม่ใช่ 3 (18px) — ทุกกล่องบนหน้านี้ใช้ 12px เป็นค่าเดียว
+                     (มีเทส `[blocker]` `public-order-radius-scale` บังคับไว้) · การ์ดใบนี้มาจาก
+                     feature 00062 บน main ซึ่งตั้งค่าเองก่อนที่ชุดรัศมีของหน้าจะถูกรวมเป็นชุดเดียว
+                     ⇒ ปรับตอน merge ไม่ใช่ผ่อนเกณฑ์ให้ค่าใหม่ */
+                  borderRadius: 2,
                   border: '1px solid',
                   borderColor: 'divider',
                   bgcolor: '#fff',

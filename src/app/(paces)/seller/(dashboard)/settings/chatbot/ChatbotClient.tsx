@@ -15,6 +15,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import TestThreadsCard from '../auto-reply/[id]/TestThreadsCard'
 import { pacesConfirm } from '@/lib/paces-swal'
+import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
 
 export type GuardrailRow = {
   id: string
@@ -91,6 +92,8 @@ export default function ChatbotClient({
   walletBalance,
   knowledgeCount,
 }: Props) {
+  // ห้ามบอกให้ไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1 / 3.1.3(f)) — ดู `@/lib/app-shell`
+  const hidePayments = useHidePayments()
   const router = useRouter()
   const [cfg, setCfg] = useState(initialConfig)
   const [rules, setRules] = useState(initialGuardrails)
@@ -265,7 +268,22 @@ export default function ChatbotClient({
             <Icon icon="alert-triangle" className="text-warning mt-0.5 size-5 flex-none" aria-hidden="true" />
             <div className="text-sm">
               <p className="text-default-800 font-semibold">เงินในกระเป๋าหมด — AI ยังไม่ทำงาน</p>
-              <p className="text-default-700 mt-1">เติมเงินก่อน (กระเป๋าเดียวกับที่ใช้ส่ง SMS)</p>
+              {/* 🛑 ในแอป iOS ห้ามสั่งให้ไปจ่ายเงิน (Guideline 3.1.3(f): "no calls to action for
+                  purchase outside of the app") — คำว่า "เติมเงินก่อน" คือคำสั่งให้ไปซื้อ ถึงจะไม่มี
+                  ลิงก์ก็ตาม · Apple นับแม้แต่ "หน้าสมัครบัญชี" ว่าเป็นทางเข้าไปจ่ายเงินภายนอก
+                  (จดหมาย 2026-08-23) ประโยคที่สั่งตรง ๆ จึงชัดกว่านั้นอีก
+
+                  ข้อความในแอปยังต้องบอก **สาเหตุ** อยู่ ไม่ใช่ตัดทิ้ง — ไม่งั้น AI เงียบโดยไม่มี
+                  คำอธิบาย ซึ่งเป็นบั๊กคนละข้อ (2.1) · ที่ตัดคือ "สิ่งที่ต้องไปทำ" อย่างเดียว
+                  และบอกว่ามันกลับมาเองเมื่อมีเครดิต จึงไม่ใช่ทางตันสำหรับผู้ใช้
+
+                  ยอดคงเหลือที่แสดงอยู่ท้ายหน้า **ไม่ต้องซ่อน** — เป็นสถานะบัญชี ไม่ใช่ช่องทางจ่าย
+                  (มติเดิม 2026-08-10 เขียนไว้ที่ `useHidePayments`) */}
+              <p className="text-default-700 mt-1">
+                {hidePayments
+                  ? 'ChatBot จะกลับมาตอบอัตโนมัติเมื่อมีเครดิตอีกครั้ง (เครดิตก้อนเดียวกับที่ใช้ส่ง SMS)'
+                  : 'เติมเงินก่อน (กระเป๋าเดียวกับที่ใช้ส่ง SMS)'}
+              </p>
             </div>
           </div>
         </div>

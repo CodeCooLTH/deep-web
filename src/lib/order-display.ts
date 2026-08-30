@@ -22,6 +22,8 @@
  * Postgres `~*` เป็น POSIX regex case-insensitive ซึ่งให้ผลเหมือน `/…/i` ของ JS สำหรับ
  * แพตเทิร์นชุดนี้ (alternation ล้วน ไม่มี lookahead/backreference) — มีเทสเทียบสองฝั่งปักหมุดไว้
  */
+
+import { isAppointmentPast } from "./appointments";
 export const COD_PAYMENT_PATTERN = 'COD|ปลายทาง|เก็บเงิน'
 
 /**
@@ -40,6 +42,58 @@ const COD_PAYMENT_RE = new RegExp(COD_PAYMENT_PATTERN, 'i')
  */
 export function isCODPayment(paymentMethod: string | null | undefined): boolean {
   return COD_PAYMENT_RE.test(paymentMethod ?? '')
+}
+
+/**
+ * CASH_PAYMENT_PATTERN — "จ่ายเงินสดต่อหน้า" (ไม่ต้องโอน ไม่ใช่ปลายทาง)
+ *
+ * 🛑 นิยามเดียว (Hard Rule 16) — เดิม regex ตัวนี้เขียนสดอยู่ใน `needsPayoutAccount()`
+ * (`shop-payout.ts`) ซึ่งเป็น *ที่เดียวที่รู้* ว่า CASH ไม่ใช่การโอน ผลคือ UI ที่แตกป้ายเอง
+ * แบบ 2 ทาง (COD / ไม่ใช่ COD) เรียก CASH ว่า "โอนเข้าบัญชี" มาตลอด — เห็นบนจอจริง
+ * 2026-08-30: การ์ด "ช่องทางการชำระเงิน" ขึ้น **"โอนเข้าบัญชี / CASH"** พร้อมกันในกล่องเดียว
+ */
+export const CASH_PAYMENT_PATTERN = 'CASH|เงินสด'
+
+/** คอมไพล์ครั้งเดียวด้วยเหตุผลเดียวกับ COD_PAYMENT_RE */
+const CASH_PAYMENT_RE = new RegExp(CASH_PAYMENT_PATTERN, 'i')
+
+/** isCashPayment — จ่ายเงินสดต่อหน้า (ไม่ใช่ปลายทาง และไม่ต้องโอน) */
+export function isCashPayment(paymentMethod: string | null | undefined): boolean {
+  if (isCODPayment(paymentMethod)) return false
+  return CASH_PAYMENT_RE.test(paymentMethod ?? '')
+}
+
+/**
+ * paymentMethodLabel — คำที่ผู้ซื้ออ่านแล้วรู้ว่า *ต้องทำอะไรกับเงิน*
+ *
+ * 3 ทาง ไม่ใช่ 2: ปลายทาง / เงินสด / โอน — เกณฑ์เดียวกับ `needsPayoutAccount()` เป๊ะ
+ * (ค่าที่ระบบไม่รู้จักตกมาเป็น "โอนเข้าบัญชี" เพราะเป็นฝั่งที่ได้บัญชีไปแสดงด้วย
+ * ⇒ ป้ายกับกล่องบัญชีจะไม่มีวันขัดกันเอง)
+ */
+export function paymentMethodLabel(paymentMethod: string | null | undefined): string {
+  if (isCODPayment(paymentMethod)) return 'ชำระเมื่อได้รับสินค้า'
+  if (isCashPayment(paymentMethod)) return 'เงินสด'
+  return 'โอนเข้าบัญชี'
+}
+
+/**
+ * KNOWN_PAYMENT_TOKENS — ค่าที่ป้ายด้านบนอธิบายครบแล้ว ⇒ ไม่ต้องโชว์ค่าดิบซ้ำ
+ *
+ * `paymentMethod` เป็น free text ที่ร้านพิมพ์เอง: ถ้าร้านพิมพ์ "โอน SCB 123-4-5678"
+ * ค่านั้น *มีข้อมูลเพิ่ม* ต้องโชว์ แต่ถ้าพิมพ์แค่ "CASH" ค่านั้นคือคำเดียวกับป้าย
+ * แปลเป็นอังกฤษ — โชว์ซ้ำแล้วได้กล่องที่อ่านแล้วขัดกันเอง
+ */
+const KNOWN_PAYMENT_TOKENS = new Set([
+  'cod', 'cash', 'transfer', 'promptpay',
+  'ปลายทาง', 'เก็บเงินปลายทาง', 'เงินสด', 'โอน', 'โอนเงิน', 'พร้อมเพย์',
+])
+
+/** paymentMethodDetail — ค่าดิบของร้าน เฉพาะเมื่อมันบอกอะไรเกินกว่าป้าย */
+export function paymentMethodDetail(paymentMethod: string | null | undefined): string | null {
+  const raw = (paymentMethod ?? '').trim()
+  if (!raw) return null
+  if (KNOWN_PAYMENT_TOKENS.has(raw.toLowerCase())) return null
+  return raw
 }
 
 /**
@@ -191,7 +245,20 @@ export function getPaymentBadge(
  */
 export type OrderStatus = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED' | 'RETURNED'
 export type TimelineState = 'done' | 'cur' | 'fin' | 'up' | 'cx' | 'mute'
-export type TimelineStep = { label: string; state: TimelineState }
+export type TimelineStep = {
+  label: string
+  state: TimelineState
+  /**
+   * บรรทัดอธิบายใต้ป้าย — **optional** ผู้ผลิตรางที่ไม่มีอะไรจะอธิบายไม่ต้องส่ง
+   *
+   * มีไว้รับสถานะที่ **ไม่คู่ควรกับขั้นของตัวเอง แต่ทิ้งไปก็ไม่ได้**:
+   * `RESCHEDULE_REQUESTED` (ลูกค้าขอเลื่อน) · `NO_SHOW` (ไม่มาตามนัด) · งานที่ไม่ได้นัดล่วงหน้า
+   *
+   * 🛑 ถ้ายัดสถานะพวกนี้เป็น "ขั้น" เพิ่ม จำนวนขั้นจะผันตามข้อมูล ⇒ ลูกค้าที่เปิดสองครั้ง
+   * เห็นจอคนละรูปแล้วอ่านว่าระบบเพี้ยน — ราง = โครงคงที่ · note = สิ่งที่เกิดกับใบนี้
+   */
+  note?: string
+}
 
 /**
  * ORDER_STATUS_META — badge สถานะออเดอร์แบบ Paces token (bg-{semantic}/15 text-{semantic}) + icon
@@ -383,6 +450,26 @@ export function resolveBuyerDisplayName(input: {
 }
 
 /**
+ * คำเรียกสถานะการชำระเงิน — **ที่เดียวทั้งระบบ** (Hard Rule 16)
+ *
+ * 🛑 ข้อเท็จจริงเดียวกัน (`outstanding <= 0`) เคยถูกเรียกด้วยคำต่างกัน **บนจอเดียวกัน**:
+ *   ป้ายสถานะบนสุด (ร้านบริการ) → "ชำระเงินแล้ว" / "รอชำระ"
+ *   ป้ายบนการ์ดเงิน            → "ชำระครบแล้ว" / "ยังค้างชำระ"
+ *
+ * ผู้ซื้อที่กวาดตาเห็นสองคำนี้พร้อมกันต้องหยุดคิดว่ามันคนละเรื่องกันหรือเปล่า —
+ * บนหน้าที่เขากำลังตัดสินใจโอนเงิน · และไม่มี `tsc`/build/เทสตัวไหนฟ้อง เพราะ
+ * ทั้งสองคำ "ถูก" ในตัวเอง (HR16 เขียนไว้เองว่าจับได้ด้วย critique เท่านั้น)
+ *
+ * "จอง" ไม่อยู่ในนี้ เพราะเป็นสถานะของ **การนัด** ไม่ใช่ของเงิน (คนละคำถาม)
+ */
+export const PAYMENT_STATE_LABEL = {
+  /** รับเงินครบตามยอดบิลแล้ว */
+  paid: "ชำระเงินแล้ว",
+  /** ยังมียอดค้าง */
+  outstanding: "รอชำระ",
+} as const;
+
+/**
  * ป้ายสถานะของ **งานร้านบริการ** — แทนคำว่า "รอดำเนินการ" ที่ไม่ได้บอกอะไรเลย
  *
  * ## ทำไมต้องมี
@@ -426,7 +513,7 @@ export function resolveServiceOrderBadge(input: {
 
   if (outstanding <= 0) {
     return {
-      label: "ชำระเงินแล้ว",
+      label: PAYMENT_STATE_LABEL.paid,
       cls: "bg-success/15 text-success-ink",
       icon: "circle-check",
       tone: "success",
@@ -441,7 +528,7 @@ export function resolveServiceOrderBadge(input: {
     return { label: "จอง", cls: "bg-warning/15 text-warning-ink", icon: "calendar-event", tone: "warning" };
   }
 
-  return { label: "รอชำระ", cls: "bg-warning/15 text-warning-ink", icon: "cash-banknote", tone: "warning" };
+  return { label: PAYMENT_STATE_LABEL.outstanding, cls: "bg-warning/15 text-warning-ink", icon: "cash-banknote", tone: "warning" };
 }
 
 /**
@@ -467,22 +554,74 @@ export function resolveServiceOrderBadge(input: {
  * | เข้ารับบริการ | ปิดผลนัดแล้ว (`COMPLETED`) · กำลังถึงคิวเมื่อเลยเวลานัดมาแล้ว |
  * | ยืนยันแล้ว | `Order.status === 'CONFIRMED'` |
  */
+/**
+ * ถึงเวลาที่ผู้ซื้อ *ควร* กดปิดงานแล้วหรือยัง — ขั้นสุดท้ายของรางต้องเป็น `cur`
+ *
+ * 🛑 ปุ่มปิดงาน **ย้อนกลับไม่ได้** และทำให้คะแนนร้านขยับ — แต่เดิมมันเป็นปุ่มทึบเต็มความกว้าง
+ * ตั้งแต่วินาทีแรกที่เปิดหน้า **ก่อนร้านจะเริ่มให้บริการด้วยซ้ำ** ⇒ เป็นปุ่มที่เด่นที่สุดในจอ
+ * ในตอนที่ยังไม่ควรกดที่สุด ซึ่งเป็นรูปแบบเดียวกับช่องทางสแกมที่หน้านี้พยายามกันอยู่
+ *
+ * ไม่ใช้การ **ปิดปุ่ม** เพราะรางอิงเวลานัดกับสถานะที่ร้านกด — ร้านที่ลืมกดปิดผลนัด
+ * จะทำให้ลูกค้าที่ได้รับบริการจริงแล้วกดปิดงานไม่ได้เลย (กติกาเดียวกับ BR-RSV-18:
+ * "เต็มแล้ว" เป็นคำเตือนที่ยังกดได้ ไม่ใช่ตัวบล็อก) — ลดแค่ *น้ำหนักสายตา*
+ *
+ * อ่านจากรางที่เรนเดอร์อยู่จริง ไม่ใช่คำนวณเงื่อนไขใหม่ ⇒ ปุ่มกับรางพูดตรงกันเสมอ
+ */
+export function isFinalStepReady(steps: TimelineStep[]): boolean {
+  return steps[steps.length - 1]?.state === "cur";
+}
+
+/**
+ * ป้ายของรางงานบริการ — **คงลำดับนี้เสมอ ห้ามสลับ**
+ *
+ * 🛑 จำนวนขั้นไม่คงที่: ขั้น `"ลูกค้ายืนยันนัด"` มีเฉพาะใบที่มีนัดจริง
+ * ใบ walk-in จึงได้ราง 3 ขั้น (ดูเหตุผลที่ `getServiceTimeline`)
+ * ⇒ ห้าม index ตายตัวจากค่าคงที่นี้ไปหาขั้นบนราง ให้ค้นด้วย `label`
+ */
+export const SERVICE_TIMELINE_LABELS = [
+  "จองบริการ",
+  "ลูกค้ายืนยันนัด",
+  "ร้านให้บริการ",
+  "ยืนยันเสร็จสิ้น",
+] as const;
+
 export function getServiceTimeline(input: {
   status: OrderStatus;
   /** ISO/Date ของเวลานัด — null = ยังไม่ระบุเวลา (walk-in ที่ร้านยังไม่กดเริ่ม) */
   serviceStart: string | Date | null | undefined;
+  /**
+   * ISO/Date ของเวลา**สิ้นสุด**นัด — ใช้ตัดสินว่าเลยหน้าต่างเวลาไปแล้วหรือยัง
+   * (เส้นเดียวกับด่านของ backend · ดู `isAppointmentPast`)
+   * ไม่ส่งมา = ถือว่ายังไม่เลย ⇒ ผู้เรียกเดิมได้พฤติกรรมเดิมทุกประการ
+   */
+  serviceEnd?: string | Date | null;
   appointmentStatus: string | null | undefined;
+  /**
+   * ใบนี้มีนัดผูกอยู่ไหม — **ไม่ใช่** `serviceStart != null`
+   *
+   * แยกกันเพราะนัดที่ยังไม่ระบุเวลาก็เป็นนัด และ walk-in ที่ร้านกด "เริ่มงานเลย" ก็ได้เวลา
+   * ทั้งที่ไม่เคยมีการนัดหมาย — ขั้น "ลูกค้ายืนยันนัด" ต้องผูกกับ *การมีนัด* ไม่ใช่ *การมีเวลา*
+   */
+  hasAppointment?: boolean;
+  /**
+   * เวลาที่ลูกค้ากดยืนยัน**นัด** (`Order.buyerConfirmedAt`) — null = ยังไม่กด
+   *
+   * ใช้ตัดสิน *สถานะ* ของขั้น 2 อย่างเดียว **ไม่ได้เอาไปแสดงเป็นเวลาบนราง** —
+   * เวลานั้นแสดงอยู่ในการ์ดนัดหมายแล้ว ("คุณยืนยันนัดนี้แล้ว เมื่อ …")
+   * ใส่บนรางด้วยคือค่าเดียวกันสองที่บนจอเดียว (`sibling-surface-parity.md`)
+   */
+  buyerConfirmedAt?: string | Date | null;
   now?: Date;
 }): TimelineStep[] {
-  if (input.status === "CANCELLED") {
-    return [
-      { label: "จองแล้ว", state: "done" },
-      { label: "ยกเลิก", state: "cx" },
-      { label: "ยืนยัน", state: "mute" },
-    ];
-  }
+  const confirmed = input.status === "CONFIRMED";
+  const served = input.appointmentStatus === "COMPLETED";
+  const noShow = input.appointmentStatus === "NO_SHOW";
+  /**
+   * มีนัดไหม — ผู้เรียกที่ยังไม่ส่ง `hasAppointment` ถอยไปเดาจากสัญญาณของนัดที่มี
+   * (ค่าใด ๆ ใน `appointmentStatus` แปลว่ามีนัดเสมอ เพราะคอลัมน์นี้ NULL เมื่อไม่มีนัด)
+   */
+  const hasAppt = input.hasAppointment ?? input.appointmentStatus != null;
 
-  const served = input.appointmentStatus === "COMPLETED" || input.appointmentStatus === "NO_SHOW";
   const startMs = input.serviceStart ? new Date(input.serviceStart).getTime() : NaN;
   const nowMs = (input.now ?? new Date()).getTime();
   /**
@@ -491,14 +630,209 @@ export function getServiceTimeline(input: {
    */
   const arrived = Number.isFinite(startMs) && nowMs >= startMs;
 
-  const confirmed = input.status === "CONFIRMED";
+  const buyerConfirmed = input.buyerConfirmedAt != null || input.appointmentStatus === "CONFIRMED_BY_BUYER";
 
-  return [
-    { label: "จองแล้ว", state: "done" },
+  /* ── ขั้น 3: ร้านให้บริการ ────────────────────────────────────────────
+     `confirmed` นับเป็น done ด้วย — ลูกค้ากดปิดงานได้ก็ต่อเมื่อได้รับบริการแล้ว
+     (ร้านที่ลืมกดปิดผลนัดไม่ควรทำให้ไทม์ไลน์ของลูกค้าค้างย้อนหลัง)
+
+     🛑 **ขั้นนี้เดินไม่ได้จนกว่าลูกค้าจะยืนยันนัด** — เดิมใช้แค่ "เลยเวลานัดหรือยัง"
+     ⇒ ใบที่ลูกค้ายังไม่กดยืนยันแต่เลยเวลาแล้ว ได้ขั้นปัจจุบัน **สองขั้นพร้อมกัน**
+     (หัวหน้าเห็นบนจอจริง 2026-08-29: "2 สถานะ อันนี้สื่อถึงอันไหนอยู่หรือยังไง")
+
+     ตอนแรกผมแก้ด้วยการ *ข้ามขั้น 2 ทิ้ง* แต่หัวหน้าทักว่ากลับด้าน — ของจริงคือ
+     **ร้านให้บริการไม่ได้เพราะยังรอลูกค้ายืนยันอยู่** ⇒ ขั้น 3 ต้องยัง "ไม่ถึง"
+     และขั้น 2 ยังเป็นขั้นปัจจุบัน เพราะคนที่ต้องขยับคือลูกค้า
+
+     walk-in ไม่มีขั้น 2 ให้รอ ⇒ เข้า `cur` ได้ทันทีเหมือนเดิม */
+  const servedState: TimelineState =
+    served || confirmed
+      ? "done"
+      : noShow
+        ? "cx"
+        : !hasAppt || (buyerConfirmed && arrived)
+          ? "cur"
+          : "up";
+  const step3Done = servedState === "done";
+
+  /* ── ขั้น 2: ลูกค้ายืนยันนัด — **มีเฉพาะใบที่มีนัดจริง** ────────────────
+     🛑 ใบ walk-in ไม่มีนัดให้ยืนยัน ⇒ **ตัดขั้นนี้ทิ้งทั้งขั้น** ไม่ใช่แสดงจาง ๆ
+
+     เดิมแสดงเป็น `mute` พร้อมคำอธิบาย "งานนี้ไม่ได้นัดล่วงหน้า" — หัวหน้าเห็นบนจอจริง
+     แล้วสั่งให้ตัดออก (2026-08-29): มันกินหนึ่งช่องบนรางเพื่อบอกว่า "ช่องนี้ไม่เกี่ยวกับคุณ"
+     ซึ่งทำให้อีก 3 ขั้นที่เป็นเรื่องจริงแคบลงโดยไม่ได้อะไรกลับมา
+     รางควรเล่าเฉพาะสิ่งที่จะเกิดกับใบนี้ ไม่ใช่ลิสต์ขั้นที่ระบบรองรับ
+
+     เหลือ 2 กรณีที่ต้องแยก (คำนวณเมื่อมีนัดเท่านั้น):
+     · กดแล้ว             → `done`
+     · ไม่เคยกด แต่ขั้น 3 จบไปแล้ว → `mute` = **ข้ามไป** ห้ามค้างเป็น "รออยู่"
+       ไทม์ไลน์ที่ขั้นก่อนหน้ายังรอ ขณะที่ขั้นถัดไปเสร็จแล้ว คือไทม์ไลน์ที่โกหก
+       และเกิดบ่อยมาก (ลูกค้าส่วนใหญ่ไม่เคยกดยืนยันนัด แต่ก็มาตามนัด) */
+  /**
+   * 🛑 **รางต้องมีขั้นปัจจุบันได้ขั้นเดียว** — บังคับที่ขั้น 3 (ดูด้านบน) ไม่ใช่ที่นี่
+   *
+   * เดิมกฎนี้กันเฉพาะตอนขั้น 3 **จบแล้ว** ⇒ เคสที่พบบ่อยมากหลุดไป:
+   * ลูกค้าไม่เคยกดยืนยันนัด แล้ว **เลยเวลานัดมาแล้ว** (ร้านยังไม่กดปิดผล)
+   * ⇒ ขั้น 2 เป็น `cur` เพราะยังรอลูกค้า · ขั้น 3 เป็น `cur` เพราะถึงเวลาแล้ว
+   * ได้จุดวงแหวนหน้าตาเหมือนกันสองจุดติดกัน **แล้วรางตอบไม่ได้ว่าตอนนี้อยู่ไหน**
+   * ซึ่งเป็นคำถามเดียวที่รางมีไว้ตอบ (หัวหน้าเห็นบนจอจริง 2026-08-29:
+   * "2 สถานะ อันนี้สื่อถึงอันไหนอยู่หรือยังไง")
+   *
+   * พอเวลานัดมาถึง การกดยืนยัน "จะมาตามนัด" หมดความหมายไปแล้ว —
+   * ขั้น 2 จึงเป็นขั้นที่ **ถูกข้าม** ไม่ใช่ขั้นที่ยังรออยู่ (กติกาเดียวกับตอนขั้น 3 จบ)
+   */
+  const confirmState: TimelineState = buyerConfirmed ? "done" : step3Done || noShow ? "mute" : "cur";
+
+  /* ── ขั้น 4: ยืนยันเสร็จสิ้น ────────────────────────────────────────── */
+  const finishState: TimelineState = confirmed ? "fin" : noShow ? "mute" : step3Done ? "cur" : "up";
+
+  /**
+   * ── บรรทัดอธิบายใต้ป้าย ─────────────────────────────────────────────
+   *
+   * 🛑 นี่คือที่ที่สถานะซึ่ง "ไม่คู่ควรกับขั้นของตัวเอง" ไปอยู่ — ตรวจ prod 2026-08-28:
+   * `RESCHEDULE_REQUESTED` และ `NO_SHOW` ยังเป็น 0 ใบทั้งคู่ **แต่โค้ดผลิตได้ทั้งสองค่า**
+   * ปล่อยให้ตกลงมาเป็น `cur`/`cx` เฉย ๆ = จอบอกแค่ "รออยู่/ไม่สำเร็จ" โดยไม่บอกว่าเพราะอะไร
+   *
+   * `undefined` แปลว่า "ไม่มีอะไรต้องอธิบาย" — ห้ามใส่สตริงว่างหรือขีด (ตัวเรนเดอร์กันที่ว่างเอง)
+   */
+  const confirmNote =
+    input.appointmentStatus === "RESCHEDULE_REQUESTED"
+      ? "ลูกค้าขอเลื่อนนัด"
+      : confirmState === "mute"
+        ? "ไม่ได้ยืนยัน"
+        : confirmState === "cur"
+          ? /* 🛑 เลยหน้าต่างเวลานัดไปแล้ว คำว่า "รอยืนยันว่าจะมาตามนัด" กลายเป็นคำที่ไม่จริง —
+               มันบอกให้รอสิ่งที่ผ่านไปแล้ว · รางเล่าแค่ข้อเท็จจริงว่า "ยังไม่ได้ยืนยัน"
+               ส่วนคำอธิบายว่าเกิดอะไรขึ้นและทำอะไรต่อได้ อยู่ที่การ์ดนัดหมายที่เดียว
+               (ไม่พูดซ้ำสองที่ — คลาสที่ไล่ปิดมาทั้งหน้า) */
+            /* 🛑 ต้องส่ง `now` ของฟังก์ชันเข้าไปด้วย — ไม่งั้นตัวช่วยจะใช้ **เวลาจริง**
+               ขณะที่ส่วนอื่นของรางใช้ `input.now` ⇒ รางเดียวกันตัดสินเวลาด้วยนาฬิกาคนละเรือน
+               (เทสจับได้ทันที เพราะเทสฉีดเวลาเข้ามา — แต่บน prod จะเงียบสนิท) */
+            isAppointmentPast(input.serviceEnd, input.now ?? new Date())
+            ? "ยังไม่ได้ยืนยัน"
+            : "รอยืนยันว่าจะมาตามนัด"
+          : undefined;
+
+  /**
+   * 🛑 `"ถึงเวลานัดแล้ว"` พูดถึง**นัด** จึงใส่ได้เฉพาะใบที่มีนัดจริง
+   *
+   * ใบ walk-in เข้า `cur` ผ่านกิ่ง `!hasAppt` (ไม่ใช่ `arrived`) — เดิมจึงได้คำนี้ไปด้วย
+   * แล้วจอเดียวกันขึ้นสองบรรทัดที่ขัดกันเอง: ขั้น 2 "งานนี้ไม่ได้นัดล่วงหน้า" +
+   * ขั้น 3 "ถึงเวลานัดแล้ว" (หัวหน้าส่งภาพหน้าจอมา 2026-08-29 — เห็นทั้งคู่พร้อมกัน)
+   *
+   * ใบ walk-in ไม่มีคำอธิบาย เพราะไม่มีอะไรต้องอธิบายจริง ๆ: สถานะ `cur` บนจุดบอกครบแล้วว่า
+   * "อยู่ขั้นนี้" ส่วนเวลาที่ร้านเริ่มงานเป็นสิ่งที่ระบบไม่รู้ — เดาให้คือแต่งเรื่อง
+   */
+  const servedNote = noShow ? "ไม่มาตามนัด" : servedState === "cur" && hasAppt ? "ถึงเวลานัดแล้ว" : undefined;
+
+  const finishNote =
+    finishState === "cur" ? "กดยืนยันเมื่อได้รับบริการแล้ว" : finishState === "mute" ? "ไม่มีการปิดงาน" : undefined;
+
+  const steps: TimelineStep[] = [
+    { label: SERVICE_TIMELINE_LABELS[0], state: "done" },
+    /* ขั้น 2 โผล่เฉพาะใบที่มีนัด — ใบ walk-in ข้ามไปขั้น "ร้านให้บริการ" เลย */
+    ...(hasAppt
+      ? [
+          {
+            label: SERVICE_TIMELINE_LABELS[1],
+            state: confirmState,
+            ...(confirmNote ? { note: confirmNote } : {}),
+          } satisfies TimelineStep,
+        ]
+      : []),
     {
-      label: "เข้ารับบริการ",
-      state: served || confirmed ? "done" : arrived ? "cur" : "up",
+      label: SERVICE_TIMELINE_LABELS[2],
+      state: servedState,
+      ...(servedNote ? { note: servedNote } : {}),
     },
-    { label: "ยืนยันแล้ว", state: confirmed ? "fin" : "up" },
+    {
+      label: SERVICE_TIMELINE_LABELS[3],
+      state: finishState,
+      ...(finishNote ? { note: finishNote } : {}),
+    },
   ];
+
+  /**
+   * ── คืนของแล้ว (feature 00056) ───────────────────────────────────────
+   *
+   * 🛑 **เคสนี้เคยไม่มีอยู่เลยในฟังก์ชันนี้** ⇒ ตกลงมาเป็น "ยังเดินอยู่" — ใบที่จบไปแล้ว
+   * ขึ้นรางว่ากำลังรอร้านให้บริการ ซึ่งเป็นคำโกหกบนหน้าที่ผู้ซื้อใช้ตัดสินใจ
+   * (`getOrderTimeline` ราง 3 ขั้นจัดการค่านี้ครบตั้งแต่ 2026-08-25 พร้อมด่าน `never`
+   * แต่ฟังก์ชันนี้ไม่มีทั้งเคสและด่าน — และถูกปิดตาซ้ำด้วย cast ที่ `page.tsx`
+   * ซึ่งประกาศ `status` ไว้แค่ 4 ค่า)
+   *
+   * ต่างจาก `CANCELLED` ตรง **ไม่มีอะไรล้มเหลว** — ของเดินครบเส้นทางแล้วจึงถูกคืน
+   * ⇒ ขั้นที่ยังไม่ผ่านเป็น `mute` ("จะไม่เกิดขึ้นอีก") ทั้งหมด **ไม่มี `cx`**
+   * ส่วนคำว่าเกิดอะไรขึ้นอยู่ที่ป้ายสถานะ (`ORDER_STATUS_META.RETURNED` = "คืนของแล้ว")
+   * รางไม่ต้องพูดซ้ำ (HR16)
+   *
+   * ในทางปฏิบัติร้านบริการแทบไม่มีทางไปถึงค่านี้ (การคืนของผูกกับพัสดุ) — แต่คอลัมน์
+   * `Order.status` เป็น `String` ไม่มี enum กั้น ค่านี้จึงมาถึงได้จริงเสมอ
+   */
+  if (input.status === "RETURNED") {
+    return steps.map((s) =>
+      s.state === "done" ? s : { label: s.label, state: "mute" as const },
+    );
+  }
+
+  /**
+   * ── ยกเลิก: ทับทับ "ขั้นที่หยุด" ไม่ใช่ทับทั้งเส้น ────────────────────
+   *
+   * ขั้นที่เดินผ่านไปแล้วยังเป็นความจริง (บิลถูกสร้างจริง · ลูกค้ายืนยันนัดจริง)
+   * ตัวแรกที่ยังไม่ผ่าน = จุดที่มันหยุด → `cx` · ที่เหลือ `mute` เพราะจะไม่เกิดอีกแล้ว
+   *
+   * ทำแบบนี้ไทม์ไลน์ยัง**บอกได้ว่ายกเลิกตอนไหน** ซึ่งเป็นสิ่งที่ลูกค้าอยากรู้จริง
+   * ต่างจากการทาแดงทั้งเส้นซึ่งบอกแค่ว่า "จบแล้ว" (คำอธิบายว่าใครยกเลิกอยู่ในแบนเนอร์แยก)
+   */
+  if (input.status === "CANCELLED") {
+    let stopped = false;
+    return steps.map((s) => {
+      if (s.state === "done") return s;
+      /* 🛑 ทิ้ง `note` ของขั้นที่เปลี่ยนสถานะ — คำอย่าง "รอยืนยันว่าจะมาตามนัด" เขียนไว้ตอนที่
+         ใบยังเดินอยู่ ปล่อยติดมากับใบที่ยกเลิกแล้วคือบอกให้ผู้ใช้รอสิ่งที่จะไม่เกิดขึ้นอีก
+         (`note` ที่เหลืออยู่บนขั้น `done` ยังจริง เพราะมันเล่าสิ่งที่เกิดไปแล้ว) */
+      const { note: _dropped, ...rest } = s;
+      void _dropped;
+      if (!stopped) {
+        stopped = true;
+        return { ...rest, state: "cx" as const };
+      }
+      return { ...rest, state: "mute" as const };
+    });
+  }
+
+  return steps;
+}
+
+/**
+ * แถว "จากการคุยที่ …" บนหน้าออเดอร์ผู้ซื้อ ควรขึ้นไหม
+ *
+ * 🛑 บล็อกหลักฐานร้าน (`ShopEvidence`) ลิสต์ **ทุกเพจของร้าน** อยู่เหนือแถวนี้พอดี ⇒
+ * ร้านที่มีเพจเดียวได้ชื่อเพจเดียวกัน **สองบรรทัดติดกัน** (หัวหน้าเห็นบนจอจริง 2026-08-29:
+ * "BT Premium Auto Xenon คลอง4 ธนบุรี" แล้วตามด้วย "จากการคุยที่ BT Premium Auto Xenon คลอง4 ธนบุรี")
+ *
+ * 🛑 **2026-08-30 แถวนี้กลายเป็น *ทางสำรอง*** — คำตอบหลักย้ายไปเป็นป้าย "คุยกันที่นี่"
+ * บน **แถวเพจนั้นเอง** ในแถบช่องทาง (ที่ที่กดเข้าไปตรวจเพจต่อได้ทันที) บรรทัดนี้เหลือไว้
+ * สำหรับเพจที่แถบแสดงไม่ได้ — LINE · เพจที่ถอดออกแล้ว · เพจที่ไม่รู้ชื่อ — ถ้าลบทิ้ง
+ * ที่มาของออเดอร์กลุ่มนั้นจะหายเงียบ ๆ
+ *
+ * 🛑 **เกณฑ์คือ "ป้ายไปเกาะแถวไหนได้ไหม" ไม่ใช่ "มีเพจกี่ใบ"** — ของเดิมเขียน
+ * `channelNames.length === 1 && …` ซึ่งปล่อยผ่านทันทีที่ร้านมี 2 เพจ **แม้ทั้งสองใบชื่อเดียวกัน**
+ * (เคสจริงบนจอ: IG + Facebook ตั้งชื่อเหมือนกันเป๊ะ ⇒ ชื่อร้านโผล่ 4 รอบในการ์ดเดียว)
+ * เกณฑ์ที่ผูกกับ *จำนวน* พังทุกครั้งที่จำนวนเปลี่ยนโดยความหมายไม่เปลี่ยน
+ *
+ * 🛑 **เทียบด้วย (ช่องทาง, ชื่อ) ไม่ใช่ชื่อเปล่า** — ร้านตั้งชื่อเพจ IG กับ Facebook เหมือนกันได้
+ * เทียบแค่ชื่อแล้วป้ายจะไปเกาะ **ทั้งสองแถว** ซึ่งบอกความจริงผิด (ออเดอร์เกิดที่เพจเดียว)
+ * ⇒ ตัวกันนี้กับตัวติดป้ายต้องใช้เกณฑ์เดียวกันเป๊ะ ไม่งั้นได้ทั้งคู่พร้อมกันหรือไม่ได้สักอย่าง
+ *
+ * @param origin ช่องทาง+ชื่อเพจต้นทาง — `name` เป็น `null` เมื่อไม่รู้ชื่อ (ตัวเรนเดอร์ขึ้นชื่อ
+ *   *ช่องทาง* แทน ซึ่งจับคู่กับแถวไหนไม่ได้ ⇒ ต้องมีบรรทัดนี้เสมอ)
+ * @param channels ช่องทางทั้งหมดที่ **แถบช่องทางวาดออกมาได้จริง** (กรอง `isRenderableChannel` แล้ว)
+ */
+export function shouldShowOrderOrigin(
+  origin: { provider: string; name: string | null } | null | undefined,
+  channels: readonly { provider: string; name: string }[],
+): boolean {
+  if (origin?.name == null) return true;
+  return !channels.some((c) => c.provider === origin.provider && c.name === origin.name);
 }
