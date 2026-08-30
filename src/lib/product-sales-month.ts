@@ -340,6 +340,78 @@ export function referenceDayIndex(year: number, month0: number, now: Date): numb
   return Math.max(0, future - 1)
 }
 
+/* ────────────────────────── ตัวเลขประกอบของแต่ละแถว ────────────────────────── */
+
+/**
+ * เพดานวันที่ยอมบอกว่า "พอขายอีกกี่วัน" — เกินนี้ตัวเลขไม่มีความหมายในการวางแผนแล้ว
+ * (ของที่พอขายอีก 400 วันกับ 4,000 วัน ตัดสินใจเหมือนกันทุกประการ)
+ */
+export const RUNOUT_MAX_DAYS = 90
+
+/** ต่ำกว่านี้ = ควรเตือน (ประมาณสองสัปดาห์ ซึ่งเป็นรอบสั่งของทั่วไป) */
+export const RUNOUT_WARN_DAYS = 14
+
+export type RunoutEstimate =
+  /** ร้านไม่ได้เปิดนับสต็อกของสินค้านี้ (`stockQty` เป็น null) */
+  | { kind: 'UNTRACKED' }
+  /** นับสต็อกอยู่ แต่เดือนนี้ขายไม่ได้เลย จึงคำนวณอัตราไม่ได้ */
+  | { kind: 'NO_RATE'; stock: number }
+  /** ประมาณได้ */
+  | { kind: 'OK'; stock: number; days: number; low: boolean }
+  /** พอขายไปอีกนานเกินกว่าจะมีความหมาย */
+  | { kind: 'PLENTY'; stock: number }
+
+/**
+ * estimateRunoutDays — "ของที่เหลือพอขายอีกกี่วัน" จากอัตราขายจริงของเดือนที่กำลังดู
+ *
+ * 🛑 หารด้วย **จำนวนวันที่ผ่านไปแล้ว** ไม่ใช่จำนวนวันทั้งเดือน — ถ้าใช้ทั้งเดือน อัตราขายของ
+ * เดือนปัจจุบันจะต่ำกว่าความจริงเสมอ (ขายมา 10 วันแต่หารด้วย 31) แล้วตัวเลข "พอขายอีก"
+ * จะยาวเกินจริงราวสามเท่าในต้นเดือน ซึ่งเป็นช่วงที่ผู้ขายต้องตัดสินใจสั่งของพอดี
+ *
+ * 🛑 นี่คือ **การประมาณ ไม่ใช่คำทำนาย** — สมมติว่าอัตราขายคงที่ ซึ่งไม่จริงกับสินค้าที่
+ * `classifySalesPattern` บอกว่า "ขายกระจุก" · หน้าจอต้องใช้คำว่า "พอขายอีก ~N วัน"
+ * (มีตัวหนอน) ไม่ใช่ "จะหมดในวันที่ X"
+ */
+export function estimateRunoutDays(
+  stockQty: number | null,
+  soldQty: number,
+  elapsedDays: number,
+): RunoutEstimate {
+  if (stockQty === null) return { kind: 'UNTRACKED' }
+  if (soldQty <= 0 || elapsedDays <= 0) return { kind: 'NO_RATE', stock: stockQty }
+  const perDay = soldQty / elapsedDays
+  const days = Math.floor(stockQty / perDay)
+  if (days > RUNOUT_MAX_DAYS) return { kind: 'PLENTY', stock: stockQty }
+  return { kind: 'OK', stock: stockQty, days, low: days <= RUNOUT_WARN_DAYS }
+}
+
+/**
+ * shareOfTotalPct — สัดส่วนของสินค้านี้ต่อยอดรวมทั้งร้านในเดือนนั้น (ปัดเป็นจำนวนเต็ม)
+ *
+ * 🛑 คืน `null` เมื่อยอดรวมเป็น 0 — ไม่ใช่ 0% ("0% ของ 0" ไม่มีความหมาย และการแสดง 0%
+ * จะทำให้ผู้อ่านคิดว่าสินค้านี้ขายไม่ได้ ทั้งที่ความจริงคือทั้งร้านไม่มียอดเลย)
+ * 🛑 ปัดขึ้นเป็นอย่างน้อย 1% เมื่อมียอดจริง — สินค้าที่ขายได้ 1 จาก 500 ชิ้นต้องไม่แสดง "0%"
+ * ซึ่งอ่านว่า "ไม่ได้ขาย"
+ */
+export function shareOfTotalPct(value: number, total: number): number | null {
+  if (total <= 0) return null
+  if (value <= 0) return 0
+  return Math.max(1, Math.round((value / total) * 100))
+}
+
+/** วันที่ขายได้มากที่สุด — คืน index 0-based และจำนวน · null เมื่อไม่มียอดเลย */
+export function bestDay(values: readonly number[]): { index: number; value: number } | null {
+  let bi = -1
+  let bv = 0
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] > bv) {
+      bv = values[i]
+      bi = i
+    }
+  }
+  return bi < 0 ? null : { index: bi, value: bv }
+}
+
 /* ────────────────────────── การเข้ารหัสแบบย่อ ────────────────────────── */
 
 /**

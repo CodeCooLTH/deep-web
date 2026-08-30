@@ -19,7 +19,7 @@ import { CUSTOM_ITEM_NOTE } from '@/lib/product-sales-month'
 import DayStrip from './DayStrip'
 import PatternBadge from './PatternBadge'
 import ProductThumb from './ProductThumb'
-import { rowSeries, rowTotal, type ProductSalesViewRow, type SalesUnit } from './data'
+import { rowSeries, rowTotal, runoutLabel, type ProductSalesViewRow, type SalesUnit } from './data'
 
 type Props = {
   rows: ProductSalesViewRow[]
@@ -54,7 +54,11 @@ export default function ProductMobileList({
 
   return (
     <ul className="divide-default-200 divide-y">
-      {rows.map((r) => (
+      {rows.map((r) => {
+        // โชว์ป้ายสต็อกเฉพาะตอนใกล้หมดจริง — ถ้าโชว์ทุกกรณี ร้านที่ไม่ได้เปิดนับสต็อก
+        // (ซึ่งเป็นส่วนใหญ่) จะได้ป้ายเหมือนกันทุกแถว = ค่าคงที่ซ้ำ แบบเดียวกับที่เพิ่งตัดออก
+        const lowStock = r.runout.kind === 'OK' && r.runout.low
+        return (
         <li key={r.key}>
           <button
             type="button"
@@ -70,16 +74,28 @@ export default function ProductMobileList({
             />
 
             <span className="min-w-0 flex-1">
-              <span className="flex items-baseline justify-between gap-2">
-                <span className="text-default-900 max-w-full truncate text-sm font-medium">
-                  {r.name}
-                </span>
+              <span className="flex items-start justify-between gap-2">
+                {/* 🛑 2 บรรทัด ไม่ใช่ truncate — ชื่อสินค้าของร้านนี้คล้ายกันมากและต่างกันที่
+                    "หาง" ของชื่อ ("...สีแดง" / "...สีดำ" / "...สีเหลือง") การตัดบรรทัดเดียว
+                    จึงตัดคำที่ใช้แยกแยะทิ้งพอดี ⇒ ทุกแถวดูเหมือนกันหมด (user: "ดูยาก")
+                    ท่าเดียวกับ ProductCard.tsx ที่หน้าสินค้าใช้อยู่แล้ว */}
+                <span className="text-default-900 line-clamp-2 text-sm font-medium">{r.name}</span>
                 <span className="text-default-900 shrink-0 text-sm font-semibold tabular-nums">
                   {unit === 'baht'
                     ? formatBaht(rowTotal(r, 'baht'))
                     : `${formatNumberNoSymbol(r.totalQty)} ชิ้น`}
                 </span>
               </span>
+
+              {/* บรรทัดรอง — ราคาซ้าย สัดส่วนขวา · คำต้องตรงกับตารางเดสก์ท็อปเป๊ะ (HR16) */}
+              {(r.price !== null || r.sharePct !== null) && (
+                <span className="text-default-400 mt-0.5 flex items-baseline justify-between gap-2 text-xs">
+                  <span>{r.price !== null ? `${formatBaht(r.price)}/ชิ้น` : ''}</span>
+                  <span className="shrink-0 tabular-nums">
+                    {r.sharePct !== null ? `${r.sharePct}% ของร้าน` : ''}
+                  </span>
+                </span>
+              )}
 
               {/* คำอธิบายของแถวรวมต้องมาถึงมือถือด้วย — เดิมอยู่ใน title= ที่นิ้วแตะไม่ได้ */}
               {r.isCustom && (
@@ -94,12 +110,28 @@ export default function ProductMobileList({
                 className="mt-2"
               />
 
-              <span className="mt-2 flex items-center gap-2">
-                <PatternBadge pattern={r.pattern} />
-                {!r.isActive && !r.isCustom && (
-                  <span className="badge bg-default-100 text-default-500">ปิดการขาย</span>
-                )}
-              </span>
+              {/**
+                * 🛑 มือถือโชว์ป้าย **เฉพาะตัวที่ต้องไปดูต่อ** — ต่างจากเดสก์ท็อปที่โชว์ครบ 3 แบบ
+                * "ขายสม่ำเสมอ"/"ขายกระจุก" เป็นคำ *บรรยายรูปร่าง* ซึ่งซ้ำแทบทุกแถวในร้านจริง
+                * (ภาพหน้าจอ prod: 5 แถวติดกันเป็น "ขายสม่ำเสมอ" หมด) ⇒ กินความสูงทุกแถวโดย
+                * ไม่ช่วยแยกแยะอะไรเลย = ของตกแต่ง ไม่ใช่สัญญาณ
+                * เดสก์ท็อปคงครบเพราะมีคอลัมน์ของตัวเอง ไม่ได้แย่งความสูงกับใคร
+                * (viewport-adaptive โดยตั้งใจ ไม่ใช่ความไม่สอดคล้อง)
+                */}
+              {(r.pattern.kind === 'DORMANT' || lowStock || (!r.isActive && !r.isCustom)) && (
+                <span className="mt-2 flex flex-wrap items-center gap-2">
+                  {r.pattern.kind === 'DORMANT' && <PatternBadge pattern={r.pattern} />}
+                  {lowStock && (
+                    <span className="badge bg-warning/15 text-warning-ink inline-flex items-center gap-1">
+                      <Icon icon="alert-triangle" className="size-3.5 shrink-0" aria-hidden="true" />
+                      {runoutLabel(r.runout)}
+                    </span>
+                  )}
+                  {!r.isActive && !r.isCustom && (
+                    <span className="badge bg-default-100 text-default-500">ปิดการขาย</span>
+                  )}
+                </span>
+              )}
             </span>
 
             <Icon
@@ -111,7 +143,8 @@ export default function ProductMobileList({
             />
           </button>
         </li>
-      ))}
+        )
+      })}
     </ul>
   )
 }

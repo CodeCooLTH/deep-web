@@ -58,6 +58,18 @@ export type ProductSalesRow = {
   saleEvents: number
   /** วันล่าสุดที่มียอด (0-based) — null = ไม่มียอดเลยในเดือนนี้ */
   lastSoldDayIndex: number | null
+  /**
+   * ราคาขายปัจจุบันของสินค้า — null สำหรับแถวรวม "รายการที่พิมพ์เอง"
+   * 🛑 นี่คือราคา **ปัจจุบัน** ไม่ใช่ราคาที่ขายจริงในเดือนนั้น (`OrderItem.price` คือ snapshot
+   * ตอนสร้างออเดอร์) ⇒ ห้ามเอาไปคูณจำนวนแล้วอ้างว่าเป็นยอดขาย — ยอดขายมาจาก `totalAmount`
+   * ซึ่งรวมจาก snapshot จริงรายบรรทัด · ช่องนี้มีไว้บอกว่า "ของชิ้นนี้ตั้งราคาไว้เท่าไร" เท่านั้น
+   */
+  price: number | null
+  /**
+   * สต็อกคงเหลือ — `null` = ร้านไม่ได้เปิดนับสต็อกของสินค้านี้ (Inventory Add-on เป็น opt-in
+   * ต่อสินค้า ดู BR-INV-10) **ไม่ใช่ "เหลือศูนย์"** สองอย่างนี้ต้องแสดงคนละแบบบนหน้าจอ
+   */
+  stockQty: number | null
 }
 
 export type ProductSalesMonth = {
@@ -106,7 +118,9 @@ export async function getProductSalesMonth(
     // โดยไม่ยิงเซิร์ฟเวอร์ใหม่ ตามมติที่ไม่มี API endpoint เพิ่ม
     prisma.product.findMany({
       where: { shopId },
-      select: { id: true, name: true, images: true, isActive: true },
+      // เติมชื่อฟิลด์ในคิวรีเดิม ไม่ได้เพิ่ม query ใหม่ — `price`/`stockQty` ใช้แสดง
+      // "ราคาต่อชิ้น" และ "พอขายอีกกี่วัน" ในแถวสินค้า (user สั่ง 2026-08-30)
+      select: { id: true, name: true, images: true, isActive: true, price: true, stockQty: true },
       orderBy: { createdAt: 'desc' },
     }),
   ])
@@ -185,6 +199,8 @@ export async function getProductSalesMonth(
       totalAmount: round2(a.totalAmount),
       saleEvents: a.saleEvents,
       lastSoldDayIndex: lastSold,
+      price: isCustom || !p ? null : Number(p.price),
+      stockQty: isCustom ? null : (p?.stockQty ?? null),
     })
   }
 
@@ -204,6 +220,8 @@ export async function getProductSalesMonth(
       totalAmount: 0,
       saleEvents: 0,
       lastSoldDayIndex: null,
+      price: Number(p.price),
+      stockQty: p.stockQty ?? null,
     })
   }
 

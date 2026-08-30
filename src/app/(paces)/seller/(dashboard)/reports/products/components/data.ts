@@ -5,8 +5,12 @@
  * (แพตเทิร์นเดียวกับ `sales/components/data.ts` และ `reports/agents/components/data.ts`)
  */
 import {
+  type RunoutEstimate,
   type SalesPattern,
+  bestDay,
   classifySalesPattern,
+  estimateRunoutDays,
+  shareOfTotalPct,
   toDense,
 } from '@/lib/product-sales-month'
 import type { ProductSalesRow } from '@/services/product-sales-series.service'
@@ -33,6 +37,14 @@ export type ProductSalesViewRow = ProductSalesRow & {
   denseQty: number[]
   denseAmount: number[]
   pattern: SalesPattern
+  /** จำนวนวันที่มียอดขาย — ต่างจาก `saleEvents` ซึ่งนับ "บรรทัดรายการ" (วันเดียวขายได้หลายครั้ง) */
+  activeDays: number
+  /** วันที่ขายได้มากที่สุด (นับตามจำนวนชิ้นเสมอ ไม่ผันตามหน่วยที่เลือก) */
+  best: { index: number; value: number } | null
+  /** สัดส่วนของยอดรวมทั้งร้านในเดือนนั้น — null = ทั้งร้านไม่มียอดเลย */
+  sharePct: number | null
+  /** สต็อกพอขายอีกกี่วัน จากอัตราขายจริงของเดือนนั้น */
+  runout: RunoutEstimate
 }
 
 /**
@@ -49,6 +61,17 @@ export function buildViewRows(
   /** false = เดือนที่ผ่านไปแล้ว ⇒ ป้าย "เงียบ" ต้องพูดว่านับถึงสิ้นเดือน ไม่ใช่ถึงวันนี้ */
   isCurrentMonth: boolean,
 ): ProductSalesViewRow[] {
+  /**
+   * ยอดรวมทั้งร้านของเดือนนั้น — ตัวหารของ "สัดส่วน %"
+   * 🛑 รวมจาก `rows` ทั้งชุดที่ service ส่งมา (ซึ่งครอบสินค้าทุกตัว + แถวรายการที่พิมพ์เอง)
+   * ไม่ใช่จากแถวที่กำลังแสดงอยู่ — ไม่งั้นสวิตช์ "แสดงสินค้าที่ไม่มียอดขาย" จะทำให้เปอร์เซ็นต์
+   * ของทุกแถวขยับ ทั้งที่ยอดขายจริงไม่ได้เปลี่ยนอะไรเลย
+   */
+  const shopTotalQty = rows.reduce((sum, r) => sum + r.totalQty, 0)
+
+  /** จำนวนวันที่ผ่านไปแล้วในเดือนนั้น — ตัวหารของอัตราขายที่ใช้ประมาณ "พอขายอีกกี่วัน" */
+  const elapsedDays = refDayIndex + 1
+
   return rows.map((r) => {
     const denseQty = toDense(r.qty, days)
     return {
@@ -56,8 +79,27 @@ export function buildViewRows(
       denseQty,
       denseAmount: toDense(r.amount, days),
       pattern: classifySalesPattern(denseQty, r.saleEvents, refDayIndex, !isCurrentMonth),
+      activeDays: denseQty.reduce((n, v) => (v > 0 ? n + 1 : n), 0),
+      best: bestDay(denseQty),
+      sharePct: shareOfTotalPct(r.totalQty, shopTotalQty),
+      runout: estimateRunoutDays(r.stockQty, r.totalQty, elapsedDays),
     }
   })
+}
+
+/** ข้อความของ "พอขายอีกกี่วัน" — SSOT ของคำนี้ ห้ามพิมพ์ซ้ำที่ component (HR16) */
+export function runoutLabel(r: RunoutEstimate): string | null {
+  switch (r.kind) {
+    case 'UNTRACKED':
+      return null // ไม่ได้เปิดนับสต็อก — ไม่ต้องพูดถึงเลย ดีกว่าบอกว่า "ไม่ทราบ"
+    case 'NO_RATE':
+      return `สต็อก ${r.stock}`
+    case 'PLENTY':
+      return `สต็อก ${r.stock} · เหลือเยอะ`
+    case 'OK':
+      // 🛑 "~" บังคับ — นี่คือการประมาณจากอัตราขายที่สมมติว่าคงที่ ไม่ใช่คำทำนาย
+      return `สต็อก ${r.stock} · พอขายอีก ~${r.days} วัน`
+  }
 }
 
 /** ค่าที่ใช้แสดงตามหน่วยที่เลือก — ที่เดียวที่ตัดสินว่า "ตัวเลขของแถวนี้คืออะไร" */

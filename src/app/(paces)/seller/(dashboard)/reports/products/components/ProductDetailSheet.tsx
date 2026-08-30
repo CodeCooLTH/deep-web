@@ -21,7 +21,14 @@ import { formatBaht, formatNumberNoSymbol } from '@/lib/format-money'
 import { CUSTOM_ITEM_NOTE, salesPatternDescription, salesPatternLabel } from '@/lib/product-sales-month'
 import ProductSalesChart from './ProductSalesChart'
 import PatternBadge from './PatternBadge'
-import { UNIT_LABELS, rowSeries, rowTotal, type ProductSalesViewRow, type SalesUnit } from './data'
+import {
+  UNIT_LABELS,
+  rowSeries,
+  rowTotal,
+  runoutLabel,
+  type ProductSalesViewRow,
+  type SalesUnit,
+} from './data'
 
 type Props = {
   row: ProductSalesViewRow
@@ -175,11 +182,34 @@ export default function ProductDetailSheet({
             }
           />
           <Stat label="จำนวนครั้งที่ขายได้" value={`${formatNumberNoSymbol(row.saleEvents)} ครั้ง`} />
+          {/* รวม "กี่วัน" กับ "ดีสุดวันไหน" เป็นช่องเดียว ใช้คำเดียวกับคอลัมน์ของตาราง (HR16) */}
           <Stat
-            label="จำนวนวันที่มียอด"
-            value={`${formatNumberNoSymbol(row.denseQty.filter((v) => v > 0).length)} วัน`}
+            label="ขายวันไหน"
+            value={
+              row.best
+                ? `${formatNumberNoSymbol(row.activeDays)} วัน · ดีสุด ${formatDayMonthTH(
+                    new Date(Date.UTC(year, month0, row.best.index + 1)),
+                  )} (${formatNumberNoSymbol(row.best.value)})`
+                : 'ไม่มียอดขาย'
+            }
           />
+          {row.sharePct !== null && (
+            <Stat label="สัดส่วนของยอดร้าน" value={`${row.sharePct}%`} />
+          )}
+          {row.price !== null && <Stat label="ราคาต่อชิ้น" value={formatBaht(row.price)} />}
         </dl>
+
+        {/* บล็อกสต็อก — ประโยคเดียวจาก SSOT อธิบายตัวเองอยู่แล้ว ไม่ต้องมี label แยก */}
+        {runoutLabel(row.runout) && (
+          <p
+            className={`mt-4 rounded-lg px-3 py-2 text-sm ${
+              row.runout.kind === 'OK' && row.runout.low
+                ? 'bg-warning/15 text-warning-ink'
+                : 'bg-default-100 text-default-700'
+            }`}>
+            {runoutLabel(row.runout)}
+          </p>
+        )}
 
         {patternLabel && (
           <div className="border-default-200 mt-4 border-t pt-4">

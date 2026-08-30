@@ -35,6 +35,7 @@ import {
   UNIT_COLUMN_LABELS,
   rowSeries,
   rowTotal,
+  runoutLabel,
   type ProductSalesViewRow,
   type SalesUnit,
 } from './data'
@@ -160,6 +161,19 @@ export default function ProductSalesTable({
                     ปิดการขาย
                   </span>
                 )}
+                {/* บรรทัดรอง — ของที่ช่วยตัดสินใจสั่งของ ไม่ใช่ของที่ต้องอ่านทุกแถว จึงจางกว่า */}
+                {!r.isCustom && (
+                  <span className="text-default-400 mt-0.5 block text-xs">
+                    {r.price !== null && `${formatBaht(r.price)}/ชิ้น`}
+                    {r.price !== null && runoutLabel(r.runout) && ' · '}
+                    {/* สต็อกใกล้หมดเป็นเรื่องที่ต้องสะดุดตา — ตัวเดียวในบรรทัดนี้ที่มีสี */}
+                    {runoutLabel(r.runout) && (
+                      <span className={r.runout.kind === 'OK' && r.runout.low ? 'text-warning-ink' : ''}>
+                        {runoutLabel(r.runout)}
+                      </span>
+                    )}
+                  </span>
+                )}
               </div>
             </div>
           )
@@ -170,15 +184,25 @@ export default function ProductSalesTable({
         id: 'trend',
         // หัวคอลัมน์เป็นคำนามให้เข้าชุดกับหัวอื่นทั้งตาราง (สินค้า / รูปแบบการขาย / ขายล่าสุด)
         header: 'ขายวันไหน',
-        cell: ({ row }) => (
-          <DayStrip
-            values={rowSeries(row.original, unit)}
-            futureFrom={futureFrom}
-            formatValue={fmtValue}
-            monthLabel={monthLabel}
-            className="min-w-40"
-          />
-        ),
+        cell: ({ row }) => {
+          const r = row.original
+          return (
+            <>
+              <DayStrip
+                values={rowSeries(r, unit)}
+                futureFrom={futureFrom}
+                formatValue={fmtValue}
+                monthLabel={monthLabel}
+                className="min-w-40"
+              />
+              <span className="text-default-400 mt-1 block text-xs">
+                {r.activeDays > 0 ? `ขายได้ ${r.activeDays} วัน` : 'ไม่มียอดขาย'}
+                {r.best &&
+                  ` · ดีสุด ${formatDayMonthTH(new Date(Date.UTC(year, month0, r.best.index + 1)))} (${formatNumberNoSymbol(r.best.value)})`}
+              </span>
+            </>
+          )
+        },
         enableSorting: false,
       }),
 
@@ -206,10 +230,20 @@ export default function ProductSalesTable({
         id: 'total',
         header: UNIT_COLUMN_LABELS[unit],
         cell: ({ row }) => {
-          const v = rowTotal(row.original, unit)
+          const r = row.original
+          const v = rowTotal(r, unit)
           return (
-            <span className="text-default-900 block text-right text-sm font-semibold tabular-nums">
-              {unit === 'baht' ? formatBaht(v) : `${formatNumberNoSymbol(v)} ชิ้น`}
+            <span className="block text-right">
+              <span className="text-default-900 block text-sm font-semibold tabular-nums">
+                {unit === 'baht' ? formatBaht(v) : `${formatNumberNoSymbol(v)} ชิ้น`}
+              </span>
+              {/* หน่วยอีกด้าน + สัดส่วน — ผู้ขายไม่ต้องกดสลับหน่วยเพื่อดูตัวเลขอีกตัว */}
+              <span className="text-default-400 mt-0.5 block text-xs tabular-nums">
+                {unit === 'baht'
+                  ? `${formatNumberNoSymbol(r.totalQty)} ชิ้น`
+                  : formatBaht(r.totalAmount)}
+                {r.sharePct !== null && ` · ${r.sharePct}% ของร้าน`}
+              </span>
             </span>
           )
         },

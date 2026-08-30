@@ -69,6 +69,19 @@ export default function ProductSalesClient({
 }: Props) {
   const [unit, setUnit] = useState<SalesUnit>('qty')
   const [showZero, setShowZero] = useState(false)
+  /**
+   * ตัวกรอง "ขายวันนี้" — client state เหมือน showZero ไม่ใช่ URL
+   *
+   * 🛑 เป็น **ตัวกรองแถว** ไม่ใช่ preset ช่วงเวลา (ux ให้ความเห็น 2026-08-30 และผมเห็นด้วย):
+   * preset "วันนี้" จะทำลายความหมายของทั้งหน้า — แถบ 31 ช่องคือปฏิทินเดือน · ป้ายสรุปตัดสิน
+   * จากสัดส่วนวันในเดือน (เงียบ ≥14 วัน · สม่ำเสมอ > ครึ่งเดือน) · แกน X คือวันที่ในเดือน
+   * เลือก "วันนี้" แล้วทุกอย่างเหลือแท่งเดียวและป้ายไม่มีความหมาย — และเป็นการเอา
+   * "ช่วงเวลาอิสระ" กลับเข้ามา ซึ่ง user เพิ่งล็อกไว้เมื่อ 2026-08-29 ว่าไม่เอา
+   *
+   * ยืนยันแล้วว่าไม่ทับซ้อนกับหน้าแรก: Command Center ตอบ "วันนี้" ระดับ**ยอดรวมร้าน**
+   * และ**สถานะออเดอร์** แต่ไม่มีจุดไหนตอบว่า **สินค้าตัวไหน** ขายวันนี้
+   */
+  const [todayOnly, setTodayOnly] = useState(false)
   const [openKey, setOpenKey] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(defaultSelectedKeys(rows, DEFAULT_CHART_SERIES)),
@@ -80,7 +93,17 @@ export default function ProductSalesClient({
   )
 
   const soldRows = useMemo(() => viewRows.filter((r) => r.saleEvents > 0), [viewRows])
-  const visibleRows = showZero ? viewRows : soldRows
+
+  /** ขายวันนี้ไหม = คำถาม yes/no ไม่ผันตามหน่วยที่เลือก จึงดูจากจำนวนชิ้นเสมอ */
+  const todayCount = useMemo(
+    () => (isCurrentMonth ? viewRows.filter((r) => (r.denseQty[refDayIndex] ?? 0) > 0).length : 0),
+    [viewRows, refDayIndex, isCurrentMonth],
+  )
+
+  const visibleRows = useMemo(() => {
+    if (todayOnly) return viewRows.filter((r) => (r.denseQty[refDayIndex] ?? 0) > 0)
+    return showZero ? viewRows : soldRows
+  }, [todayOnly, showZero, viewRows, soldRows, refDayIndex])
 
   const chartSeries: ChartSeries[] = useMemo(
     () =>
@@ -203,18 +226,43 @@ export default function ProductSalesClient({
 
       {/* ── ตาราง/รายการ ── */}
       <div className="card">
-        <div className="card-header flex-nowrap">
+        {/* 🛑 ตอนนี้มีสวิตช์ 2 ตัว — บังคับ nowrap ต่อไปจะล้นขอบที่ 320px แน่นอน
+            (ชื่อการ์ด + "แสดงเฉพาะที่ขายวันนี้ (5)" ~188px + "แสดงสินค้าที่ไม่มียอดขาย (12)" ~236px)
+            ให้กลุ่มสวิตช์ตกลงมาเป็นบรรทัดของตัวเองบนจอแคบแทน แล้วค่อย nowrap ตั้งแต่ sm ขึ้นไป
+            (docs/conventions/flex-header-truncation.md — ต้องกางเลขงบพื้นที่ก่อนเลือกทางแก้) */}
+        <div className="card-header flex-wrap sm:flex-nowrap">
           <h4 className="card-title min-w-0 truncate">
             รายสินค้า{' '}
             <span className="text-default-400 font-normal">({visibleRows.length})</span>
           </h4>
-          {/* min-h-11 — ตัวควบคุมอื่นบนหน้านี้มีครบทุกตัว ตัวนี้เดิมสูง ~20px ทั้งที่เรนเดอร์ทุก breakpoint */}
-          {zeroCount > 0 && (
+          <span className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 sm:w-auto sm:shrink-0 sm:flex-nowrap">
+          {/* ตัวกรองวันนี้ — โผล่เฉพาะเดือนปัจจุบัน เดือนอื่นไม่มี "วันนี้" ให้พูดถึง
+              ⇒ ซ่อนทั้งตัว ไม่ใช่ disable+อธิบาย (คนละสถานะกับปุ่ม ‹ › ที่ชนขอบ) */}
+          {isCurrentMonth && todayCount > 0 && (
             <label className="flex min-h-11 shrink-0 cursor-pointer items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 className="form-checkbox form-checkbox-light size-4.5"
-                checked={showZero}
+                checked={todayOnly}
+                onChange={(e) => setTodayOnly(e.target.checked)}
+              />
+              <span className="text-default-700">แสดงเฉพาะที่ขายวันนี้ ({todayCount})</span>
+            </label>
+          )}
+          {/* min-h-11 — ตัวควบคุมอื่นบนหน้านี้มีครบทุกตัว ตัวนี้เดิมสูง ~20px ทั้งที่เรนเดอร์ทุก breakpoint */}
+          {zeroCount > 0 && (
+            <label
+              className={`flex min-h-11 shrink-0 items-center gap-2 text-sm ${
+                todayOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+              }`}
+              title={todayOnly ? 'ปิดใช้เพราะกำลังกรองเฉพาะที่ขายวันนี้อยู่' : undefined}>
+              {/* สินค้าที่ขายวันนี้ย่อมมียอดเดือนนี้มากกว่า 0 เสมอ ⇒ สวิตช์นี้ไม่มีผลอะไรเลย
+                  ขณะกรองวันนี้ · ปิดไปดีกว่าปล่อยให้กดได้แล้วไม่เกิดอะไรขึ้น */}
+              <input
+                type="checkbox"
+                className="form-checkbox form-checkbox-light size-4.5"
+                checked={showZero && !todayOnly}
+                disabled={todayOnly}
                 onChange={(e) => setShowZero(e.target.checked)}
               />
               <span className="text-default-700">
@@ -222,6 +270,7 @@ export default function ProductSalesClient({
               </span>
             </label>
           )}
+          </span>
         </div>
 
         <div className="hidden lg:block">

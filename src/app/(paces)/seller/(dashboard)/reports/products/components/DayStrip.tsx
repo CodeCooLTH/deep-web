@@ -27,6 +27,11 @@
  * *รูปร่าง* ตาม WCAG 1.4.1 · วันอนาคตเป็นรางเปล่าและทำเครื่องหมายเส้นประ **ครั้งเดียวที่ขอบเขต**
  * — เครื่องหมายที่มองเห็นหนึ่งอันดีกว่าช่องที่มองไม่เห็นยี่สิบช่อง
  *
+ * 🛑 **ไม่ปัดมุม** (แก้ 2026-08-30) — บนมือถือแต่ละช่องกว้าง ~7px มุมโค้ง `rounded-sm` (4px)
+ * กินเกือบทั้งช่อง ทำให้แท่งระดับ 1 (สูง 4px) เรนเดอร์ออกมาเป็น **จุดกลม** ไม่ใช่แท่ง
+ * ⇒ ทั้งแถบอ่านเป็น "แถวของจุด" แทนที่จะเป็นกราฟ (user: "ใน mobile ก็แสดงไม่สวยดูยาก")
+ * เหลี่ยมล้วนอ่านเป็นแท่งทันทีโดยไม่ต้องแตะความสูงหรือความหมายที่เพิ่งแก้ไปรอบก่อน
+ *
  * ความสูงเทียบกับ **วันที่ดีที่สุดของสินค้าตัวเอง** ไม่ใช่เทียบข้ามสินค้า — ถ้า normalize
  * ข้ามสินค้า ตัวที่ขายน้อยจะกลายเป็นแถบว่างทั้งแถบ แล้วมองไม่ออกเลยว่าขายวันไหน
  */
@@ -92,12 +97,12 @@ export default function DayStrip({ values, futureFrom, formatValue, monthLabel, 
           <span
             key={i}
             aria-hidden="true"
-            className={`bg-default-200 relative h-4 rounded-sm ${
+            className={`bg-default-200 relative h-4 ${
               boundary ? 'border-default-400 border-s border-dashed' : ''
             }`}>
             {level > 0 && (
               <span
-                className={`bg-primary absolute inset-x-0 bottom-0 rounded-sm ${BAR_HEIGHT[level]}`}
+                className={`bg-primary absolute inset-x-0 bottom-0 ${BAR_HEIGHT[level]}`}
               />
             )}
           </span>

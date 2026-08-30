@@ -13,6 +13,11 @@ import { describe, expect, it } from 'vitest'
 
 import {
   CHART_COLOR_TOKENS,
+  RUNOUT_MAX_DAYS,
+  RUNOUT_WARN_DAYS,
+  bestDay,
+  estimateRunoutDays,
+  shareOfTotalPct,
   CHART_SERIES_CAP,
   CONCENTRATED_TOP_DAYS,
   DORMANT_DAY_THRESHOLD,
@@ -329,5 +334,94 @@ describe('CONCENTRATED_TOP_DAYS ถูกใช้จริงในการค
     const d = daily(31, { 0: 5, 1: 5, 2: 5, 3: 5 })
     expect(CONCENTRATED_TOP_DAYS).toBe(3)
     expect(classifySalesPattern(d, 4, 3).kind).toBe('CONCENTRATED')
+  })
+})
+
+describe('[blocker] estimateRunoutDays — "พอขายอีกกี่วัน" คือคำแนะนำที่ผู้ขายเอาไปสั่งของจริง', () => {
+  /**
+   * 🛑 ตัวเลขนี้ทำให้ผู้ขังตัดสินใจใช้เงิน — ผิดทางไหนก็เสียหายคนละแบบ:
+   * ยาวเกินจริง = ของขาดกลางเดือน · สั้นเกินจริง = สั่งของมาจมทุน
+   */
+  it('หารด้วยจำนวนวันที่ผ่านไปแล้ว ไม่ใช่จำนวนวันทั้งเดือน', () => {
+    // ขายไป 30 ชิ้นใน 10 วัน = 3/วัน · เหลือ 30 ⇒ 10 วัน
+    expect(estimateRunoutDays(30, 30, 10)).toEqual({ kind: 'OK', stock: 30, days: 10, low: true })
+    // ถ้าเผลอหารด้วย 31 จะได้ ~31 วัน ซึ่งยาวเกินจริงสามเท่า
+    expect(estimateRunoutDays(30, 30, 31)).not.toEqual(
+      expect.objectContaining({ days: 10 }),
+    )
+  })
+
+  it('ไม่ได้เปิดนับสต็อก (null) = บอกตรง ๆ ไม่ใช่เดาว่าเป็น 0', () => {
+    expect(estimateRunoutDays(null, 50, 10)).toEqual({ kind: 'UNTRACKED' })
+  })
+
+  it('มีสต็อกแต่เดือนนี้ขายไม่ได้เลย = คำนวณอัตราไม่ได้ ต้องไม่หารด้วยศูนย์', () => {
+    expect(estimateRunoutDays(12, 0, 10)).toEqual({ kind: 'NO_RATE', stock: 12 })
+  })
+
+  it('วันที่ผ่านไป 0 (วันแรกของเดือนก่อนมีข้อมูล) ต้องไม่ระเบิด', () => {
+    expect(estimateRunoutDays(12, 5, 0)).toEqual({ kind: 'NO_RATE', stock: 12 })
+  })
+
+  it('สต็อก 0 = หมดแล้ว ไม่ใช่ "ไม่ได้นับ"', () => {
+    expect(estimateRunoutDays(0, 20, 10)).toEqual({ kind: 'OK', stock: 0, days: 0, low: true })
+  })
+
+  it(`เกิน ${RUNOUT_MAX_DAYS} วัน = บอกว่าเหลือเยอะ ไม่ต้องยัดตัวเลขที่ไม่มีความหมาย`, () => {
+    // ขาย 1 ชิ้นใน 10 วัน เหลือ 1000 ⇒ 10,000 วัน
+    expect(estimateRunoutDays(1000, 1, 10)).toEqual({ kind: 'PLENTY', stock: 1000 })
+  })
+
+  it('ขอบเขตพอดีของ PLENTY', () => {
+    // perDay = 1 ⇒ days = stock
+    expect(estimateRunoutDays(RUNOUT_MAX_DAYS, 10, 10).kind).toBe('OK')
+    expect(estimateRunoutDays(RUNOUT_MAX_DAYS + 1, 10, 10).kind).toBe('PLENTY')
+  })
+
+  it(`ธง low ติดเมื่อ ≤${RUNOUT_WARN_DAYS} วัน — ขอบเขตพอดีทั้งสองฝั่ง`, () => {
+    const at = estimateRunoutDays(RUNOUT_WARN_DAYS, 10, 10)
+    const over = estimateRunoutDays(RUNOUT_WARN_DAYS + 1, 10, 10)
+    expect(at).toEqual(expect.objectContaining({ low: true }))
+    expect(over).toEqual(expect.objectContaining({ low: false }))
+  })
+
+  it('ปัดลงเสมอ — 9.9 วันต้องอ่านว่า 9 ไม่ใช่ 10 (บอกน้อยกว่าจริงปลอดภัยกว่าบอกเกิน)', () => {
+    // ขาย 10 ใน 10 วัน = 1/วัน · เหลือ 9 ⇒ 9 วันพอดี; เหลือ 9 กับอัตรา 0.91 ⇒ 9.89 → 9
+    const r = estimateRunoutDays(9, 91, 100)
+    expect(r).toEqual(expect.objectContaining({ days: 9 }))
+  })
+})
+
+describe('[blocker] shareOfTotalPct — 0% ที่ไม่ควรมี', () => {
+  it('ยอดรวมทั้งร้านเป็น 0 = คืน null ไม่ใช่ 0% ("0% ของ 0" ไม่มีความหมาย)', () => {
+    expect(shareOfTotalPct(0, 0)).toBeNull()
+    expect(shareOfTotalPct(5, 0)).toBeNull()
+  })
+
+  it('มียอดจริงแต่น้อยมาก ต้องไม่แสดง 0% ซึ่งอ่านว่า "ไม่ได้ขาย"', () => {
+    expect(shareOfTotalPct(1, 500)).toBe(1)
+    expect(shareOfTotalPct(2, 10000)).toBe(1)
+  })
+
+  it('ไม่มียอดเลย = 0% จริง ๆ (ต่างจากกรณีข้างบน)', () => {
+    expect(shareOfTotalPct(0, 500)).toBe(0)
+  })
+
+  it('ปัดเป็นจำนวนเต็ม', () => {
+    expect(shareOfTotalPct(33, 100)).toBe(33)
+    expect(shareOfTotalPct(1, 3)).toBe(33)
+  })
+})
+
+describe('bestDay — วันที่ขายได้มากที่สุด', () => {
+  it('คืน index 0-based กับจำนวน', () => {
+    expect(bestDay([1, 0, 5, 2])).toEqual({ index: 2, value: 5 })
+  })
+  it('เสมอกัน = เอาวันแรก (อ่านซ้ายไปขวาเหมือนบนกราฟ)', () => {
+    expect(bestDay([4, 1, 4])).toEqual({ index: 0, value: 4 })
+  })
+  it('ไม่มียอดเลย = null ไม่ใช่ index 0', () => {
+    expect(bestDay([0, 0, 0])).toBeNull()
+    expect(bestDay([])).toBeNull()
   })
 })
