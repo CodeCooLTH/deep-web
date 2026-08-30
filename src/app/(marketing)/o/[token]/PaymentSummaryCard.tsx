@@ -33,7 +33,7 @@ import { formatDateTimeTH } from '@/lib/format-date'
 import { formatBaht } from '@/lib/format-money'
 import TrustPill, { VERIFIED_INK } from './TrustPill'
 import { ORDER_PAYMENT_KIND_LABEL, ORDER_PAYMENT_METHOD_LABEL } from '@/lib/order-payment'
-import { isCODPayment, PAYMENT_STATE_LABEL } from '@/lib/order-display'
+import { isCODPayment, paymentMethodDetail, paymentMethodLabel, PAYMENT_STATE_LABEL } from '@/lib/order-display'
 import { Icon } from '@iconify/react'
 
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -282,12 +282,17 @@ export default function PaymentSummaryCard({
               <Icon icon={isCODPayment(paymentMethod) ? 'tabler-coin' : 'tabler-credit-card'} fontSize={16} />
             </CustomAvatar>
             <Box sx={{ minWidth: 0 }}>
+              {/* ป้ายเป็น 3 ทาง (ปลายทาง/เงินสด/โอน) — เดิมแตก 2 ทางแล้วเรียก CASH ว่า
+                  "โอนเข้าบัญชี" ทับค่าดิบ "CASH" ที่อยู่บรรทัดล่างในกล่องเดียวกัน */}
               <Typography variant='caption' color='text.secondary' sx={{ display: 'block' }}>
-                {isCODPayment(paymentMethod) ? 'ชำระเมื่อได้รับสินค้า' : 'โอนเข้าบัญชี'}
+                {paymentMethodLabel(paymentMethod)}
               </Typography>
-              <Typography variant='body2' sx={{ fontWeight: 700 }}>
-                {paymentMethod}
-              </Typography>
+              {/* ค่าดิบขึ้นเฉพาะตอนที่ร้านพิมพ์อะไรที่ป้ายบอกไม่ได้ (เช่น "โอน SCB 123-4-5678") */}
+              {paymentMethodDetail(paymentMethod) !== null && (
+                <Typography variant='body2' sx={{ fontWeight: 700 }}>
+                  {paymentMethodDetail(paymentMethod)}
+                </Typography>
+              )}
             </Box>
           </Box>
         )}

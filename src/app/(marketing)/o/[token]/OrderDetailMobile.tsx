@@ -21,7 +21,7 @@
  *   - Timeline/payment/tracking/digital cards: bespoke Box/Card — recolor ผ่าน theme.palette.* เท่านั้น
  */
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import Link from 'next/link'
 
@@ -48,7 +48,8 @@ import CustomAvatar from '@core/components/mui/Avatar'
 import {
   getOrderTimeline,
   getServiceTimeline,
-  isCODPayment,
+  paymentMethodLabel,
+  paymentMethodDetail,
   isFinalStepReady,
   isHttpUrl,
   showSlipZone,
@@ -796,6 +797,21 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
 
   /**
+   * ความสูงจริงของแถบ CTA ล่างจอ — เอาไปกันที่ให้ท้ายหน้าเลื่อนพ้นแถบได้
+   *
+   * 🛑 วัดเอา ไม่ใช่ฮาร์ดโค้ด: แถบสูงไม่เท่ากันตามเบรกพอยต์ (บนจอกว้างปุ่มยกเลิกมีข้อความ
+   * ไม่ใช่ไอคอนล้วน) และยังบวก `env(safe-area-inset-bottom)` ของเครื่องที่มี home indicator
+   * ⇒ ตัวเลขคงที่ตัวเดียวจะผิดอย่างน้อยหนึ่งเคสเสมอ
+   *
+   * อาการที่วัดได้บนจอจริง 2026-08-30 (iPhone 390×844, เลื่อนสุดหน้าแล้ว):
+   * แถบเริ่มที่ y=786 แต่บรรทัด "© 2569 Deep" จบที่ y=857 ⇒ ท้าย footer 71px
+   * **เลื่อนลงไปดูไม่ได้เลย** เพราะหน้าเลื่อนสุดแล้ว — แถบ `fixed` ไม่กินที่ใน flow
+   */
+  const ctaBarRef = useRef<HTMLDivElement | null>(null)
+  const [ctaBarHeight, setCtaBarHeight] = useState(0)
+
+
+  /**
    * ลบรีวิว — เป็น soft delete ที่ฝั่ง server (แถวยังอยู่เพื่อกันการเขียนใหม่)
    * ผู้ใช้ไม่ต้องรู้เรื่องนั้น แต่ต้องรู้ว่า "ลบแล้วเขียนใหม่ไม่ได้" จึงบอกไว้ในกล่องยืนยัน
    */
@@ -861,6 +877,22 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
 
   // confirm เมื่อ PENDING หรือ SHIPPED (ผู้ซื้อกดรับ = terminal CONFIRMED)
   const canConfirm = order.status === 'PENDING' || order.status === 'SHIPPED'
+
+  /* ResizeObserver ไม่ใช่วัดครั้งเดียวตอน mount: ปุ่มยกเลิกเปลี่ยนจากไอคอนเป็นข้อความตอน
+     หมุนจอ/ย่อหน้าต่าง แล้วแถบสูงขึ้น — ถ้าวัดครั้งเดียวที่ว่างจะขาดไปเงียบ ๆ */
+  useEffect(() => {
+    const el = ctaBarRef.current
+    if (!el) {
+      setCtaBarHeight(0)
+      return
+    }
+    const sync = () => setCtaBarHeight(el.getBoundingClientRect().height)
+    sync()
+    const ro = new ResizeObserver(sync)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [canConfirm])
+
   // review เมื่อ CONFIRMED หรือ SHIPPED (spec §3 public order gate)
   const canReview =
     !order.hasReview &&
@@ -1029,9 +1061,6 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
       toast.error('คัดลอกไม่สำเร็จ — กดค้างที่เลขคำสั่งซื้อเพื่อคัดลอกเองได้')
     }
   }
-
-  // ใช้กับแถว "วิธีชำระเงิน" ด้านล่าง — จงใจไม่เกี่ยวกับป้ายปุ่มหลักอีกต่อไป (ดูเหตุผลถัดไป)
-  const isCOD = isCODPayment(order.paymentMethod)
 
   /**
    * ป้ายปุ่มหลัก — บอก "สิ่งที่จะเกิดขึ้น" ไม่ใช่บริบทของการชำระเงิน
@@ -2211,16 +2240,25 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                     bgcolor: 'action.hover',
                   }}
                 >
-                  <CustomAvatar skin='light' variant='rounded' color={isCOD ? 'warning' : 'info'} size={40}>
-                    <Icon icon={isCOD ? 'tabler-coin' : 'tabler-credit-card'} fontSize={20} />
+                  {/* การ์ดนี้ขึ้นเฉพาะ `!needsPayoutAccount()` (ปลายทาง/เงินสด) ⇒ ไม่มีเคสโอน
+                      ที่นี่ ไอคอนจึงคงที่ ไม่ต้องแตกกิ่ง — ฝั่งโอนไปอยู่การ์ดบัญชีรับเงินแทน */}
+                  <CustomAvatar skin='light' variant='rounded' color='warning' size={40}>
+                    <Icon icon='tabler-coin' fontSize={20} />
                   </CustomAvatar>
                   <Box sx={{ minWidth: 0 }}>
                     <Typography variant='body2' sx={{ fontWeight: 700 }}>
-                      {isCOD ? 'ชำระเมื่อได้รับสินค้า' : 'โอนเข้าบัญชี'}
+                      {paymentMethodLabel(order.paymentMethod)}
                     </Typography>
-                    <Typography variant='caption' color='text.secondary' sx={{ display: 'block' }}>
-                      {order.paymentMethod}
-                    </Typography>
+                    {/* ค่าดิบของร้านโชว์เฉพาะตอนที่มันบอกอะไรเกินกว่าป้าย — ไม่งั้นได้
+                        "เงินสด / CASH" ซ้อนกันในกล่องเดียว (เห็นบนจอจริง 2026-08-30)
+                        🛑 ต้อง short-circuit ทั้ง element ไม่ใช่ปล่อย null เข้าไปข้างใน:
+                        `<Typography display='block'>` ที่ว่างยังกินความสูงหนึ่งบรรทัด
+                        ⇒ ได้ที่ว่างโล่ง ๆ ใต้ป้ายเหมือนกรณี bio ในหน้า `/b/[slug]` */}
+                    {paymentMethodDetail(order.paymentMethod) !== null && (
+                      <Typography variant='caption' color='text.secondary' sx={{ display: 'block' }}>
+                        {paymentMethodDetail(order.paymentMethod)}
+                      </Typography>
+                    )}
                   </Box>
                 </Box>
               </Box>
@@ -2571,6 +2609,10 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
 
         {/* ท้ายหน้าชุดเดียวกับหน้าโปรไฟล์ร้านสาธารณะ — ดูเหตุผลที่ `PublicProfileFooter` */}
         <PublicProfileFooter />
+
+        {/* กันที่ให้แถบ CTA — แถบเป็น `fixed` จึงไม่กินที่ใน flow ถ้าไม่มีบล็อกนี้
+            ท้าย footer จะจมอยู่ใต้แถบถาวร เลื่อนลงไปอ่านไม่ได้เลย (วัดได้ 71px บน 390×844) */}
+        {canConfirm && <Box aria-hidden sx={{ height: ctaBarHeight }} />}
       </Box>
 
       {/* ── แถบ CTA ล่างจอ — เฉพาะ canConfirm (PENDING/SHIPPED) ──
@@ -2581,6 +2623,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           ที่เขาพร้อมจะกดที่สุด · fixed ทำให้แถบเป็น chrome ของจอจริง ๆ อยู่ตลอดเวลา */}
       {canConfirm && (
         <Box
+          ref={ctaBarRef}
           sx={{
             position: 'fixed',
             left: 0,

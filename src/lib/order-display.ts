@@ -45,6 +45,58 @@ export function isCODPayment(paymentMethod: string | null | undefined): boolean 
 }
 
 /**
+ * CASH_PAYMENT_PATTERN — "จ่ายเงินสดต่อหน้า" (ไม่ต้องโอน ไม่ใช่ปลายทาง)
+ *
+ * 🛑 นิยามเดียว (Hard Rule 16) — เดิม regex ตัวนี้เขียนสดอยู่ใน `needsPayoutAccount()`
+ * (`shop-payout.ts`) ซึ่งเป็น *ที่เดียวที่รู้* ว่า CASH ไม่ใช่การโอน ผลคือ UI ที่แตกป้ายเอง
+ * แบบ 2 ทาง (COD / ไม่ใช่ COD) เรียก CASH ว่า "โอนเข้าบัญชี" มาตลอด — เห็นบนจอจริง
+ * 2026-08-30: การ์ด "ช่องทางการชำระเงิน" ขึ้น **"โอนเข้าบัญชี / CASH"** พร้อมกันในกล่องเดียว
+ */
+export const CASH_PAYMENT_PATTERN = 'CASH|เงินสด'
+
+/** คอมไพล์ครั้งเดียวด้วยเหตุผลเดียวกับ COD_PAYMENT_RE */
+const CASH_PAYMENT_RE = new RegExp(CASH_PAYMENT_PATTERN, 'i')
+
+/** isCashPayment — จ่ายเงินสดต่อหน้า (ไม่ใช่ปลายทาง และไม่ต้องโอน) */
+export function isCashPayment(paymentMethod: string | null | undefined): boolean {
+  if (isCODPayment(paymentMethod)) return false
+  return CASH_PAYMENT_RE.test(paymentMethod ?? '')
+}
+
+/**
+ * paymentMethodLabel — คำที่ผู้ซื้ออ่านแล้วรู้ว่า *ต้องทำอะไรกับเงิน*
+ *
+ * 3 ทาง ไม่ใช่ 2: ปลายทาง / เงินสด / โอน — เกณฑ์เดียวกับ `needsPayoutAccount()` เป๊ะ
+ * (ค่าที่ระบบไม่รู้จักตกมาเป็น "โอนเข้าบัญชี" เพราะเป็นฝั่งที่ได้บัญชีไปแสดงด้วย
+ * ⇒ ป้ายกับกล่องบัญชีจะไม่มีวันขัดกันเอง)
+ */
+export function paymentMethodLabel(paymentMethod: string | null | undefined): string {
+  if (isCODPayment(paymentMethod)) return 'ชำระเมื่อได้รับสินค้า'
+  if (isCashPayment(paymentMethod)) return 'เงินสด'
+  return 'โอนเข้าบัญชี'
+}
+
+/**
+ * KNOWN_PAYMENT_TOKENS — ค่าที่ป้ายด้านบนอธิบายครบแล้ว ⇒ ไม่ต้องโชว์ค่าดิบซ้ำ
+ *
+ * `paymentMethod` เป็น free text ที่ร้านพิมพ์เอง: ถ้าร้านพิมพ์ "โอน SCB 123-4-5678"
+ * ค่านั้น *มีข้อมูลเพิ่ม* ต้องโชว์ แต่ถ้าพิมพ์แค่ "CASH" ค่านั้นคือคำเดียวกับป้าย
+ * แปลเป็นอังกฤษ — โชว์ซ้ำแล้วได้กล่องที่อ่านแล้วขัดกันเอง
+ */
+const KNOWN_PAYMENT_TOKENS = new Set([
+  'cod', 'cash', 'transfer', 'promptpay',
+  'ปลายทาง', 'เก็บเงินปลายทาง', 'เงินสด', 'โอน', 'โอนเงิน', 'พร้อมเพย์',
+])
+
+/** paymentMethodDetail — ค่าดิบของร้าน เฉพาะเมื่อมันบอกอะไรเกินกว่าป้าย */
+export function paymentMethodDetail(paymentMethod: string | null | undefined): string | null {
+  const raw = (paymentMethod ?? '').trim()
+  if (!raw) return null
+  if (KNOWN_PAYMENT_TOKENS.has(raw.toLowerCase())) return null
+  return raw
+}
+
+/**
  * isHttpUrl — ตรวจว่า string เป็น URL ที่มี scheme http: หรือ https: เท่านั้น
  *
  * ทำไม: accessUrl ที่ seller set อาจถูก inject เป็น javascript: หรือ data:
