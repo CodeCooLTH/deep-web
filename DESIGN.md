@@ -407,7 +407,15 @@ ramp ด้านบนเป็น ramp ของ "ข้อความ" — �
 - **Do** ใช้ Anuphan ทุก element ทุก surface; ลำดับชั้นด้วย scale + น้ำหนัก 400/500.
 - **Do** ใช้ขอบมน 6–8px, เงาฟุ้งผสมหมึกพลัม, พื้น Cool Mist + การ์ด Paper.
 - **Do** ใช้ sentence case กับปุ่ม/label; เขียน label เป็น กริยา+กรรม (เช่น "ยืนยันรับของ" ไม่ใช่ "ตกลง").
-- **Do** ผ่าน WCAG 2.1 AA: body contrast ≥4.5:1, focus state ชัด, tap target ≥44px, รองรับ `prefers-reduced-motion`, ค่า default ขนาด/spacing ใหญ่หน่อยเพื่อกลุ่ม digital-literacy ต่ำ/ผู้สูงวัย.
+- **Do** ผ่าน WCAG 2.1 AA: body contrast ≥4.5:1, focus state ชัด, tap target ≥44px
+  - **นิยามเดียวอยู่ที่ธีม** — `@core/theme/overrides/{button,icon-button,input}.ts` ตั้ง `minBlockSize: 44`
+    ⇒ ปุ่ม/ปุ่มไอคอน/ช่องกรอกทุกใบได้ 44px โดยไม่ต้องเขียน `sx` ทีละที่
+  - ลิงก์ข้อความในประโยค/ท้ายหน้าใช้ `inline-flex items-center min-bs-11` (ตัวหนังสือเท่าเดิม โตแค่พื้นที่แตะ)
+  - `LinkChip` (ตัวกรองที่กดได้) = 44px · `<Chip>` ที่เป็นป้ายอ่านอย่างเดียวไม่อยู่ใต้กฎนี้
+  - **ของที่ตาเห็นเล็กแต่พื้นที่แตะใหญ่** (เช่น `&::after { inset: -11px }`) ทำได้ แต่ต้องเขียนคอมเมนต์กำกับบรรทัด
+  🛑 ที่มา: วัดจอจริง 390px (2026-08-31) ก่อนแก้ ฝั่ง buyer มีเป้าที่กดได้ต่ำกว่า 44px **48 จุด**
+  — `/dashboard` หน้าเดียว 20 จุด · ปุ่มสูง 30/38/43px ปนกันทั้งระบบ
+  บังคับด้วย `theme-guard.sh` (`[TAP]`) + `buyer-card-radius.test.ts`, รองรับ `prefers-reduced-motion`, ค่า default ขนาด/spacing ใหญ่หน่อยเพื่อกลุ่ม digital-literacy ต่ำ/ผู้สูงวัย.
 - **Do** เช็กว่าอยู่สกินไหนก่อนเขียน responsive class — `md:` คนละเลขสองฝั่ง (ดู Layout).
 - **Do** ใช้ icon จริงจาก `@iconify/react` (ชื่อ tabler) ทุกจุดที่อยากได้สัญลักษณ์.
 

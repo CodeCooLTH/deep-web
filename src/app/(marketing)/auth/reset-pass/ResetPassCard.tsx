@@ -76,7 +76,9 @@ export default function ResetPassCard() {
               <Logo />
             </Link>
             <div className='flex flex-col gap-1 mbe-6'>
-              <Typography variant='h4'>ลืมรหัสผ่าน? 🔒</Typography>
+              {/* ถอด emoji 🔒 ออก — DESIGN.md §Don't ห้าม emoji เป็นไอคอนใน UI ทุกที่
+                  และไม่ใส่ไอคอนจริงแทน เพราะสเปกไม่ได้ระบุตัวไหน (เอกสารสั่งว่า "ให้ถามก่อน ห้ามเดา") */}
+              <Typography variant='h4'>ลืมรหัสผ่าน?</Typography>
               <Typography>กรอกเบอร์โทรเพื่อรับรหัส OTP สำหรับตั้งรหัสผ่านใหม่</Typography>
             </div>
             <form onSubmit={handleSubmit(onSubmit)} noValidate autoComplete='off' className='flex flex-col gap-6'>
@@ -104,7 +106,7 @@ export default function ResetPassCard() {
                 กลับไปเข้าสู่ระบบ
               </Typography>
             </form>
-            <Typography className='mt-7 text-center text-sm' color='text.disabled'>
+            <Typography className='mt-7 text-center text-[13px]' color='text.disabled'>
               &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
             </Typography>
           </CardContent>

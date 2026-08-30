@@ -31,6 +31,17 @@ const button: Theme['components'] = {
   MuiButton: {
     styleOverrides: {
       root: ({ theme, ownerState }) => ({
+        /**
+         * 🛑 tap target ≥44px — **นิยามเดียวของทั้งสกิน buyer** (DESIGN.md §Do's)
+         *
+         * วัดบนจอจริง 390px (2026-08-31): ปุ่มบนหน้า buyer สูง 30 / 38 / 43px กระจายทั้งระบบ
+         * — `/dashboard` อย่างเดียวมี 20 จุดที่ต่ำกว่าเกณฑ์ · กลุ่มผู้ใช้ที่ PRODUCT.md ผูกไว้
+         * คือผู้สูงวัย/digital-literacy ต่ำ ซึ่งเป็นกลุ่มที่พลาดกับปุ่มเล็กที่สุด
+         *
+         * ตั้งที่ธีมจุดเดียว ⇒ ไม่ต้องไล่ใส่ `sx={{ minHeight: 44 }}` ทีละใบแล้วลืมบางใบ
+         * (ตัวหนังสือ/padding เท่าเดิม — โตเฉพาะความสูงขั้นต่ำ)
+         */
+        minBlockSize: 44,
         '&.Mui-disabled': {
           opacity: 0.45
         },
@@ -412,13 +423,18 @@ const button: Theme['components'] = {
       }),
       sizeSmall: ({ theme }) => ({
         lineHeight: 1.38462,
-        fontSize: theme.typography.body2.fontSize,
-        borderRadius: 'var(--mui-shape-customBorderRadius-sm)'
+        fontSize: theme.typography.body2.fontSize
+        /* 🛑 ถอด `borderRadius: sm` (4px) ออก — พอทุกปุ่มสูง 44px เท่ากันแล้ว `size` ไม่ได้
+           ทำให้ปุ่มเล็กลงจริง เหลือแค่ตัวอักษร ⇒ รัศมีที่ต่างกันอ่านเป็น "ปุ่มคนละชุด"
+           บนหน้าเดียวกัน (เห็นบนจอจริง `/dashboard`: 4px 3 ใบ ปนกับ 6px 1 ใบ) */
       }),
       sizeLarge: {
-        fontSize: '1.0625rem',
-        lineHeight: 1.529412,
-        borderRadius: 'var(--mui-shape-customBorderRadius-lg)'
+        /* 1.125rem (18px) — เดิม 1.0625rem = **17px** ซึ่งไม่มีบน ramp ของ DESIGN.md
+           (ขั้นคือ 15 / 16 / 18) · ปุ่มหลักของหน้าแรกกับหน้าออเดอร์ใช้ size นี้
+           ⇒ ตัวอักษรที่ใหญ่ที่สุดบนปุ่มสำคัญที่สุดของเว็บอยู่นอกสเกลมาตลอด */
+        fontSize: '1.125rem',
+        lineHeight: 1.529412
+        /* ถอด `borderRadius: lg` (8px) ด้วยเหตุผลเดียวกับ sizeSmall — ปุ่มทุกใบ 6px */
       },
       startIcon: ({ theme, ownerState }) => ({
         ...(ownerState.size === 'small'

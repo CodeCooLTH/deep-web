@@ -88,7 +88,7 @@ const tierFg = (c: TierChipColor) =>
 
 const SectionTitle = ({ title, href }: { title: string; href?: string }) => (
   <div className='flex items-center justify-between mbe-2.5'>
-    <h2 className='text-[15px] font-semibold m-0 text-[var(--mui-palette-text-primary)]'>{title}</h2>
+    <h2 className='text-[15px] font-medium m-0 text-[var(--mui-palette-text-primary)]'>{title}</h2>
     {href && (
       <Link
         href={href}
@@ -115,7 +115,7 @@ const AuctionMiniCard = ({ a }: { a: AuctionCard }) => (
         {a.sellerTier && a.sellerTierColor && (
           <div className='flex items-center gap-1'>
             <span
-              className='inline-flex items-center gap-0.5 text-[9px] font-semibold leading-none pli-1.5 plb-0.5 rounded-full'
+              className='inline-flex items-center gap-0.5 text-[9px] font-medium leading-none pli-1.5 plb-0.5 rounded-full'
               style={{ background: tierBg(a.sellerTierColor), color: tierFg(a.sellerTierColor) }}
             >
               <i className='tabler-shield-check-filled text-[10px]' />
@@ -201,7 +201,7 @@ const HomeFeed = ({ trust, categories, hotAuctions, pastAuctions, trustedShops }
       {trustedShops.length > 0 && (
         <div>
           <div className='flex items-center justify-between mbe-0.5'>
-            <h2 className='text-[15px] font-semibold m-0 text-[var(--mui-palette-text-primary)]'>ร้านความน่าเชื่อถือ</h2>
+            <h2 className='text-[15px] font-medium m-0 text-[var(--mui-palette-text-primary)]'>ร้านความน่าเชื่อถือ</h2>
             <Link
               href='/m/shops'
               className='text-[13px] font-medium text-[var(--mui-palette-primary-main)] no-underline flex items-center gap-0.5'
@@ -234,7 +234,7 @@ const HomeFeed = ({ trust, categories, hotAuctions, pastAuctions, trustedShops }
                   >
                     <i className='tabler-shield-check-filled text-[13px]' />
                     <span className='text-[13px] font-extrabold'>{s.trustScore}</span>
-                    <span className='text-[9px] font-semibold'>{s.tierLabel.replace('Deep ', '')}</span>
+                    <span className='text-[9px] font-medium'>{s.tierLabel.replace('Deep ', '')}</span>
                   </span>
                   {/* เลเวล (dots 1-5) */}
                   <span className='flex items-center gap-0.5'>

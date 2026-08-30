@@ -27,6 +27,16 @@ fintech ที่เข้าถึงง่าย — เคาน์เตอ�
 - **ฟอนต์:** Anuphan เท่านั้น (Hard Rule 5)
 - **Mobile-first:** tap target ≥44px
 
+## เป้าที่กดได้ = 44px (The Forty-Four Rule)
+
+นิยามเดียวที่ธีม: `@core/theme/overrides/{button,icon-button,input}.ts` → `minBlockSize: 44`
+
+- ลิงก์ข้อความ → `inline-flex items-center min-bs-11`
+- `LinkChip` (ตัวกรองกดได้) → 44px · `<Chip>` ป้ายอ่านอย่างเดียว → ไม่เกี่ยว
+- ตาเห็นเล็กแต่พื้นที่แตะใหญ่ (`::after` inset ติดลบ) → ทำได้ ต้องมีคอมเมนต์กำกับ
+
+บังคับด้วย: `theme-guard.sh` (`[TAP]`) + `src/lib/__tests__/buyer-card-radius.test.ts`
+
 ## ระยะขอบในการ์ด = 20px (The Card-Padding-Is-20 Rule)
 
 ค่าเดียวทั้งสองสกิน — buyer `theme.spacing(5)` (`@core/theme/overrides/card.ts`) · Paces `.card-body { p-5 }`

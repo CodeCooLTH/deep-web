@@ -49,7 +49,7 @@ export default function PickupInfoCard({ shopName, shopAddress, handedOverAt, st
           <Typography sx={{ fontWeight: 700 }}>รับที่ร้าน</Typography>
         </Box>
 
-        <Typography variant='body2' sx={{ fontWeight: 600 }}>
+        <Typography variant='body2' sx={{ fontWeight: 500 }}>
           {shopName}
         </Typography>
         {shopAddress ? (

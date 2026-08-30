@@ -276,12 +276,18 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
                   {...pwForm.register('password')}
                 />
                 <div className='flex justify-end'>
-                  <Typography component={Link} href='/auth/reset-pass' color='primary.main' className='text-sm'>
+                  {/* พื้นที่แตะ 44px — ลิงก์เดิมสูงตามตัวหนังสือ 20px (DESIGN.md §Do's) */}
+                  <Typography
+                    component={Link}
+                    href='/auth/reset-pass'
+                    color='primary.main'
+                    className='text-[13px] inline-flex items-center min-bs-11'
+                  >
                     ลืมรหัสผ่าน?
                   </Typography>
                 </div>
                 {pwForm.formState.errors.root && (
-                  <Typography color='error.main' className='text-sm text-center'>
+                  <Typography color='error.main' className='text-[13px] text-center'>
                     {pwForm.formState.errors.root.message}
                   </Typography>
                 )}
@@ -294,7 +300,8 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
                   onClick={() => setLoginMode('otp')}
                   color='primary.main'
                   className='text-center'
-                  sx={{ background: 'none', border: 0, cursor: 'pointer' }}
+                  /* พื้นที่แตะ 44px — นี่คือ `<button>` จริง ไม่ใช่ข้อความ (สลับไปโหมด OTP) */
+                  sx={{ background: 'none', border: 0, cursor: 'pointer', minBlockSize: 44 }}
                 >
                   เข้าสู่ระบบด้วยรหัส OTP แทน
                 </Typography>
@@ -355,7 +362,7 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
             <div className={`flex flex-col gap-6 mbs-6 ${loginMode === 'channels' ? 'hidden' : ''}`}>
               <div className='flex justify-center items-center flex-wrap gap-2'>
                 <Typography>ยังไม่มีบัญชี?</Typography>
-                <Typography component={Link} href='/auth/sign-up' color='primary.main'>
+                <Typography component={Link} href='/auth/sign-up' color='primary.main' className='inline-flex items-center min-bs-11'>
                   สมัครสมาชิก
                 </Typography>
               </div>
@@ -410,7 +417,7 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
       )}
 
       {!orderContext && (
-        <Typography className='mt-7 text-center text-sm' color='text.disabled'>
+        <Typography className='mt-7 text-center text-[13px]' color='text.disabled'>
           &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
         </Typography>
       )}
@@ -433,7 +440,7 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
       <AuthIllustrationWrapper>
         <Card className='flex flex-col sm:is-[450px]'>
           <CardContent className='sm:!p-12'>
-            <Link href='/' className='flex justify-center mbe-6'>
+            <Link href='/' className='flex justify-center items-center min-bs-11 mbe-6'>
               <Logo />
             </Link>
             {body}

@@ -64,7 +64,7 @@ const CheckResult = ({ type, q, result }: Props) => {
             <div className='mbs-10'>
               {/* ป้ายผลการค้นหา + สิ่งที่ค้น (mask) */}
               <div className='flex items-center justify-between gap-2 flex-wrap mbe-4'>
-                <Typography className='font-semibold' color='text.primary'>
+                <Typography className='font-medium' color='text.primary'>
                   ผลการค้นหา
                 </Typography>
                 <div className='inline-flex items-center gap-2 rounded-full border bg-backgroundDefault plb-[6px] pli-3'>
@@ -72,7 +72,7 @@ const CheckResult = ({ type, q, result }: Props) => {
                     {IDENTIFIER_LABELS[type]}
                   </Typography>
                   <span className='bs-1 is-1 rounded-full bg-textDisabled' />
-                  <Typography variant='body2' className='font-semibold' color='text.primary'>
+                  <Typography variant='body2' className='font-medium' color='text.primary'>
                     {displayValue}
                   </Typography>
                 </div>

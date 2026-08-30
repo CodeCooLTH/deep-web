@@ -21,7 +21,17 @@
   .navbar {
     inline-size: calc(100% - 48px);
     padding-block: 0.438rem;
-    padding-inline: 1.5rem;
+    /*
+     * มือถือ 0.75rem (12px) ไม่ใช่ 1.5rem (24px)
+     *
+     * 🛑 หลังขยาย tap target เป็น 44px (2026-08-31) กลุ่มขวาตอนล็อกอินมี 3 ปุ่ม
+     * (โหมด · กระดิ่ง · อวตาร) = 44×3 + ช่องไฟ ≈ 148px ส่วนกลุ่มซ้าย (เมนู + โลโก้) ≈ 145px
+     * รวม ~293px แต่พื้นที่ในแถบเหลือแค่ 290px ⇒ **อวตารกับจุดสถานะทะลุขอบการ์ด**
+     * (หัวหน้าส่งภาพมาให้ดู — เห็นชัดว่าวงกลมอยู่นอกพิลขาว)
+     *
+     * แก้ที่ "ที่ว่างที่แถบให้" ไม่ใช่หดปุ่มกลับ — ปุ่มเล็กกว่า 44px คือสิ่งที่เพิ่งแก้ไป
+     */
+    padding-inline: 0.75rem;
     margin-inline: auto;
     margin-block-start: 1rem;
     pointer-events: auto;
@@ -38,6 +48,10 @@
     @media (min-width: 600px) {
       padding-inline: 2rem;
     }
+    /* 390–599 ยังแคบ · ตั้งแต่ 480 ขึ้นไปพื้นที่พอแล้วให้กลับไป 24px ตามเดิม */
+    @media (min-width: 480px) and (max-width: 599px) {
+      padding-inline: 1.5rem;
+    }
     /* ช่วง 900–1199 ให้ fluid (ไม่ cap 852) — iPad Pro 1024 ไม่เหลือขอบข้างเยอะ */
     @media (min-width: 1200px) {
       max-inline-size: calc(1200px - 48px);
@@ -50,7 +64,13 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 1.5rem;
+      /* มือถือ 0.5rem — 1.5rem กินที่ไปอีก 24px ทั้งที่สองกลุ่มถูกดันชิดขอบด้วย
+         `space-between` อยู่แล้ว ช่องไฟกลางจึงไม่ได้ทำอะไรนอกจากบีบปุ่ม */
+      gap: 0.5rem;
+
+      @media (min-width: 600px) {
+        gap: 1.5rem;
+      }
     }
   }
 }

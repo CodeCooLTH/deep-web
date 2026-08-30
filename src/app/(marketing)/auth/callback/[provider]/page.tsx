@@ -51,7 +51,7 @@ export default function OAuthCallbackPage() {
       <CircularProgress />
       <div className='flex flex-col items-center gap-1 text-center'>
         <Typography color='text.primary' className='font-medium'>กำลังเข้าสู่ระบบ…</Typography>
-        <Typography color='text.secondary' className='text-sm'>กำลังตั้งค่าบัญชีของคุณ</Typography>
+        <Typography color='text.secondary' className='text-[13px]'>กำลังตั้งค่าบัญชีของคุณ</Typography>
       </div>
     </div>
   )

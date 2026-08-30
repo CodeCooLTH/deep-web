@@ -57,7 +57,7 @@ export default function ProfileEditMobile({ displayName, username, phone, email,
     <div className='flex flex-col gap-5'>
       {/* ชื่อที่แสดง (แก้ได้) */}
       <div className='flex flex-col gap-2'>
-        <label className='text-[13px] font-semibold pli-1 text-[var(--mui-palette-text-secondary)]'>ชื่อที่แสดง</label>
+        <label className='text-[13px] font-medium pli-1 text-[var(--mui-palette-text-secondary)]'>ชื่อที่แสดง</label>
         <input
           value={name}
           onChange={e => setName(e.target.value)}
@@ -72,7 +72,7 @@ export default function ProfileEditMobile({ displayName, username, phone, email,
 
       {/* ข้อมูลที่แก้ไม่ได้ */}
       <div className='flex flex-col gap-2'>
-        <span className='text-[13px] font-semibold pli-1 text-[var(--mui-palette-text-secondary)]'>ข้อมูลบัญชี</span>
+        <span className='text-[13px] font-medium pli-1 text-[var(--mui-palette-text-secondary)]'>ข้อมูลบัญชี</span>
         <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] overflow-hidden'>
           <ReadonlyRow icon='tabler-at' label='ชื่อผู้ใช้' value={`@${username}`} note='ล็อก' />
           <ReadonlyRow icon='tabler-phone' label='เบอร์โทร' value={phone ?? '-'} note={phone ? 'ยืนยันแล้ว' : undefined} />
@@ -82,7 +82,7 @@ export default function ProfileEditMobile({ displayName, username, phone, email,
 
       {/* สรุป */}
       <div className='flex flex-col gap-2'>
-        <span className='text-[13px] font-semibold pli-1 text-[var(--mui-palette-text-secondary)]'>สรุป</span>
+        <span className='text-[13px] font-medium pli-1 text-[var(--mui-palette-text-secondary)]'>สรุป</span>
         <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] overflow-hidden'>
           <ReadonlyRow icon='tabler-shield-check' label='Trust Score' value={`${summary.trustScore} · ${summary.trustLevel}`} accent />
           <ReadonlyRow icon='tabler-calendar' label='สมาชิกตั้งแต่' value={summary.memberSince} />

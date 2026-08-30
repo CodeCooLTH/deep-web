@@ -165,7 +165,7 @@ export default function SignUpCard() {
       <AuthIllustrationWrapper>
         <Card className='flex flex-col sm:is-[450px]'>
           <CardContent className='sm:!p-12'>
-            <Link href='/' className='flex justify-center mbe-6'>
+            <Link href='/' className='flex justify-center items-center min-bs-11 mbe-6'>
               <Logo />
             </Link>
             <div className='flex flex-col gap-1 mbe-6'>
@@ -202,7 +202,7 @@ export default function SignUpCard() {
                 />
                 {usernameHint && (
                   <Typography
-                    className='mt-1 text-sm'
+                    className='mt-1 text-[13px]'
                     color={
                       usernameHint.color === 'success'
                         ? 'success.main'
@@ -274,7 +274,8 @@ export default function SignUpCard() {
               </Button>
               <div className='flex justify-center items-center flex-wrap gap-2'>
                 <Typography>มีบัญชีอยู่แล้ว?</Typography>
-                <Typography component={Link} href='/auth/sign-in' color='primary.main'>
+                {/* พื้นที่แตะ 44px — ลิงก์เดิมสูงตามตัวหนังสือ 22px */}
+                <Typography component={Link} href='/auth/sign-in' color='primary.main' className='inline-flex items-center min-bs-11'>
                   เข้าสู่ระบบ
                 </Typography>
               </div>
@@ -313,7 +314,7 @@ export default function SignUpCard() {
               </div>
             </form>
 
-            <Typography className='mt-7 text-center text-sm' color='text.disabled'>
+            <Typography className='mt-7 text-center text-[13px]' color='text.disabled'>
               &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
             </Typography>
           </CardContent>

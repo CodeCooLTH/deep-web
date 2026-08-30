@@ -88,7 +88,9 @@ const HeroSection = ({ mode }: { mode: SystemMode }) => {
       <img
         src={heroSectionBg}
         alt='hero-bg'
-        className={classnames('bs-[118%]', styles.heroSectionBg, {
+/* มือถือ 100% — 118% ทำให้ไล่สีล้นลงไปใต้เนื้อหาเป็นแถบเปล่า เพราะ hero บนมือถือ
+           เตี้ยกว่าเดสก์ท็อปมาก (ไม่มีการ์ดลอย) ⇒ ส่วนเกินไม่ได้ห่ออะไรเลย */
+        className={classnames('bs-full md:bs-[118%]', styles.heroSectionBg, {
           [styles.bgLight]: _mode === 'light',
           [styles.bgDark]: _mode === 'dark'
         })}
@@ -107,7 +109,7 @@ const HeroSection = ({ mode }: { mode: SystemMode }) => {
                   <Typography variant='body2' color='text.disabled' className='leading-none mbe-1'>
                     {card.label}
                   </Typography>
-                  <Typography className='font-semibold leading-none' color='text.primary'>
+                  <Typography className='font-medium leading-none' color='text.primary'>
                     {card.value}
                   </Typography>
                 </div>
@@ -118,7 +120,10 @@ const HeroSection = ({ mode }: { mode: SystemMode }) => {
       ))}
 
       <div
-        className={classnames('pbs-[72px] pbe-[60px] md:pbs-[100px] md:pbe-[120px] relative', frontCommonStyles.layoutSpacing)}
+/* มือถือ 40/40 ไม่ใช่ 72/60 — การ์ดลอยประกอบเป็น `hidden lg:block` ⇒ บนมือถือ hero
+             มีแค่ตัวหนังสือ แต่ยังแบกระยะของผังเดสก์ท็อป (132px รวมบน-ล่าง บนจอ 390px)
+             ผลคือปุ่มจบแล้วยังมีพื้นว่างอีกเกือบครึ่งจอก่อนถึงบล็อกถัดไป (หัวหน้าส่งภาพมา 2026-08-31) */
+        className={classnames('pbs-10 pbe-10 md:pbs-[100px] md:pbe-[120px] relative', frontCommonStyles.layoutSpacing)}
       >
         <div className='md:max-is-[600px] mbs-0 mli-auto text-center flex flex-col items-center relative z-[1]'>
           <Chip

@@ -144,7 +144,7 @@ const OrderList = ({
                   </div>
 
                   <div className='flex flex-col items-end gap-1.5 shrink-0'>
-                    <Typography className='font-semibold' color='text.primary'>
+                    <Typography className='font-medium' color='text.primary'>
                       {baht.format(Number(order.totalAmount))}
                     </Typography>
                     <Chip

@@ -57,7 +57,12 @@ const Wrapper = (props: WrapperProps) => {
         className={classnames('p-5', className)}
       >
         <div className='p-4 flex flex-col gap-x-3'>
-          <IconButton onClick={() => setIsDrawerOpen(false)} className='absolute inline-end-4 block-start-2'>
+          {/* 44×44 — ปุ่มปิดลิ้นชักเมนู sizeMedium = 38px ต่ำกว่า tap target */}
+          <IconButton
+            onClick={() => setIsDrawerOpen(false)}
+            className='absolute inline-end-4 block-start-2'
+            sx={{ inlineSize: 44, blockSize: 44 }}
+          >
             <i className='tabler-x' />
           </IconButton>
           {children}

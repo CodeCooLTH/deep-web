@@ -116,7 +116,7 @@ export default function OrderAccessBlock({ reason }: { reason: OrderAccessBlockR
         </Button>
       )}
 
-      <Typography component={Link} href='/' color='text.secondary' sx={{ fontWeight: 600, textDecoration: 'none' }}>
+      <Typography component={Link} href='/' color='text.secondary' sx={{ fontWeight: 500, textDecoration: 'none' }}>
         กลับหน้าหลัก
       </Typography>
     </Box>

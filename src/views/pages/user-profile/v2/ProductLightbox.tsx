@@ -347,7 +347,7 @@ export default function ProductLightbox({
               </Typography>
             )}
 
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5, minBlockSize: 34 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5, minBlockSize: 34 }}> {/* carve-out tap: แถวจัดวาง กดไม่ได้ — ปุ่มถูกใจข้างในมีพื้นที่แตะของตัวเอง */}
               {/* ปุ่มถูกใจตัวเดียวกับบนไทล์ แต่สถานะถือไว้ที่ผู้เรียก — กดในแผงแล้วปิดกลับมา
                   ไทล์ต้องขึ้นเลขใหม่ทันที ไม่ใช่ค้างเลขเก่าจนกว่าจะรีโหลดหน้า */}
               <ProductLikeButton

@@ -115,6 +115,31 @@ describe('[blocker] การ์ด buyer = 12px', () => {
     expect(bad, `<CardContent> ที่เขียน padding เอง:\n${bad.join('\n')}`).toEqual([])
   })
 
+  it('🛑 tap target 44px ตั้งที่ธีม — ห้ามหาย (The Forty-Four Rule)', () => {
+    /* วัดจอจริง 390px 2026-08-31: ก่อนแก้ ฝั่ง buyer มีเป้าที่กดได้ต่ำกว่า 44px **48 จุด**
+       (`/dashboard` หน้าเดียว 20 จุด) และปุ่มสูง 30/38/43px ปนกันทั้งระบบ
+       ถ้าใครถอด `minBlockSize` ออกจากธีม ทุกหน้าจะกลับไปเตี้ยพร้อมกันโดยไม่มีอะไรฟ้อง */
+    const T = (f: string) => readFileSync(join(ROOT, 'src/@core/theme/overrides', f), 'utf8')
+    expect(T('button.ts'), 'ปุ่มต้อง ≥44px').toMatch(/minBlockSize: 44\b/)
+    expect(T('icon-button.ts'), 'ปุ่มไอคอนต้อง 44×44').toMatch(/minInlineSize: 44,\s*\n\s*minBlockSize: 44\b/)
+    expect(T('input.ts'), 'ช่องกรอกต้อง ≥44px (filled + outlined)').toMatch(
+      /minBlockSize: 44[\s\S]*minBlockSize: 44/,
+    )
+  })
+
+  it('ปุ่มต้องเป็นทรงเดียว — ห้ามเอารัศมีที่ไล่ตามขนาดกลับมา', () => {
+    /* `sizeSmall`/`sizeLarge` เคยตั้ง 4px/8px ⇒ หน้าเดียวมีปุ่มสองสามทรง
+       พอทุกใบสูง 44 เท่ากันแล้ว `size` ไม่ได้ทำให้ปุ่มเล็กลงจริง เหลือแค่ตัวอักษร */
+    /* 🛑 ต้องตัดคอมเมนต์ก่อน match — คอมเมนต์ที่อธิบายว่า "ถอด borderRadius ออกแล้ว"
+       มีคำว่า `borderRadius` อยู่ในตัวมันเอง ⇒ ด่านจะแดงเพราะคำอธิบายของการแก้ที่ถูกต้อง
+       (พลาดจริงตอนเขียนด่านนี้เอง — คลาสเดียวกับที่ `theme-guard.sh` เขียนกำกับไว้) */
+    const btn = readFileSync(join(ROOT, 'src/@core/theme/overrides/button.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '')
+    expect(btn).not.toMatch(/sizeSmall[\s\S]{0,200}?borderRadius:/)
+    expect(btn).not.toMatch(/sizeLarge[\s\S]{0,200}?borderRadius:/)
+  })
+
   it('ขอบเขต: ธีม MUI ชุดนี้ถูก mount จาก (marketing) เท่านั้น — (paces) ต้องไม่โดน', () => {
     /* ถ้าวันหนึ่งมีใคร import ธีมนี้เข้า (paces) การ์ดหลังบ้านจะกระโดดจาก 4px เป็น 12px
        ทั้งระบบโดยไม่มีอะไรฟ้อง — ด่านนี้คือสิ่งที่ฟ้อง */

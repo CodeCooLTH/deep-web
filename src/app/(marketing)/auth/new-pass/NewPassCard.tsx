@@ -122,7 +122,8 @@ export default function NewPassCard() {
               <Logo />
             </Link>
             <div className='flex flex-col gap-1 mbe-6'>
-              <Typography variant='h4'>ตั้งรหัสผ่านใหม่ 🔑</Typography>
+              {/* ถอด emoji 🔑 ออก — เหตุผลเดียวกับหน้า reset-pass (DESIGN.md §Don't) */}
+              <Typography variant='h4'>ตั้งรหัสผ่านใหม่</Typography>
               <Typography>ตั้งรหัสผ่านใหม่สำหรับบัญชีของคุณ</Typography>
             </div>
             <form onSubmit={handleSubmit(onSubmit)} noValidate autoComplete='off' className='flex flex-col gap-6'>
@@ -172,7 +173,7 @@ export default function NewPassCard() {
                 กลับไปเข้าสู่ระบบ
               </Typography>
             </form>
-            <Typography className='mt-7 text-center text-sm' color='text.disabled'>
+            <Typography className='mt-7 text-center text-[13px]' color='text.disabled'>
               &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
             </Typography>
           </CardContent>

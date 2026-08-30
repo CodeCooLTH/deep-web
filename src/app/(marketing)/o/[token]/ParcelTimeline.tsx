@@ -496,7 +496,7 @@ export default function ParcelTimeline({
             px: 1.25,
             py: 1,
             borderRadius: 1,
-            fontWeight: 600,
+            fontWeight: 500,
             color: problem ? 'error.dark' : 'warning.dark',
             bgcolor: problem
               ? 'rgb(var(--mui-palette-error-mainChannel) / 0.15)'

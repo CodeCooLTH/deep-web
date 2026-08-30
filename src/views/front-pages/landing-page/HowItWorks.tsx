@@ -87,13 +87,18 @@ const StepCard = ({ step, className }: { step: Step; className?: string }) => (
         <i className={classnames(step.icon, 'text-[24px]')} />
       </CustomAvatar>
       <span
-        className='absolute -block-start-[6px] -inline-end-[6px] flex items-center justify-center is-[20px] bs-[20px] rounded-full text-[11px] font-bold text-white shadow'
-        style={{ backgroundColor: `var(--mui-palette-${step.color}-main)` }}
+        className='absolute -block-start-[6px] -inline-end-[6px] flex items-center justify-center is-[20px] bs-[20px] rounded-full text-[11px] font-bold text-white'
+        /* เงาของระบบ (หมึกพลัม) — คลาส `shadow` ของ Tailwind ให้เงา **ดำ** ซึ่งผิด
+           The Ink-Tinted Shadow Rule · ป้ายเลขยังต้องลอยเหนือไทล์ ไม่ใช่แบนติดกัน */
+        style={{
+          backgroundColor: `var(--mui-palette-${step.color}-main)`,
+          boxShadow: 'var(--mui-customShadows-sm)',
+        }}
       >
         {step.no}
       </span>
     </div>
-    <Typography className='font-semibold' color='text.primary'>
+    <Typography className='font-medium' color='text.primary'>
       {step.title}
     </Typography>
     <Typography variant='body2' color='text.secondary' className='max-is-[230px]'>

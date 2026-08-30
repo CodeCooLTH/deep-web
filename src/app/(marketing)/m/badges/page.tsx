@@ -19,7 +19,7 @@ const RARITY: Record<string, { label: string; color: SemColor }> = {
 
 const SectionLabel = ({ title, count }: { title: string; count: number }) => (
   <div className='flex items-baseline gap-2 mbe-2.5'>
-    <h2 className='text-[15px] font-semibold m-0 text-[var(--mui-palette-text-primary)]'>{title}</h2>
+    <h2 className='text-[15px] font-medium m-0 text-[var(--mui-palette-text-primary)]'>{title}</h2>
     <span className='text-[12px] text-[var(--mui-palette-text-disabled)]'>{count} ใบ</span>
   </div>
 )

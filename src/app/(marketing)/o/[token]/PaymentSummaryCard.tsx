@@ -170,7 +170,7 @@ export default function PaymentSummaryCard({
               <Typography variant='body2' color='text.secondary'>
                 ยอดรวม
               </Typography>
-              <Typography variant='body2' sx={{ fontWeight: 600 }}>
+              <Typography variant='body2' sx={{ fontWeight: 500 }}>
                 {baht(money.totalAmount)}
               </Typography>
             </Box>
@@ -194,7 +194,7 @@ export default function PaymentSummaryCard({
               <Typography variant='body2' color='text.secondary'>
                 ร้านยืนยันรับแล้ว
               </Typography>
-              <Typography variant='body2' sx={{ fontWeight: 600, color: VERIFIED_INK }}>
+              <Typography variant='body2' sx={{ fontWeight: 500, color: VERIFIED_INK }}>
                 {baht(money.totalReceived)}
               </Typography>
             </Box>
@@ -208,7 +208,7 @@ export default function PaymentSummaryCard({
              * สีแดงจะอ่านว่า "คุณผิดนัดชำระ" ซึ่งไม่จริง (เหตุผลเดียวกับชิปที่ใช้ warning)
              */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
-              <Typography variant='body2' sx={{ fontWeight: 600 }}>
+              <Typography variant='body2' sx={{ fontWeight: 500 }}>
                 คงเหลือ
               </Typography>
               {/* 🛑 จ่ายครบแล้วให้ *ลดน้ำหนัก* ได้ แต่ห้ามลดจนอ่านไม่ออก — `text.disabled`
@@ -229,13 +229,13 @@ export default function PaymentSummaryCard({
             <Divider sx={{ my: 1.5 }} />
             {/* หัวข้อ (mockup 2026-08-28) — เดิมรายการเงินลอยมาใต้เส้นเฉย ๆ อ่านไม่ออกว่า
                 เป็น "ประวัติ" ⇒ แถวเดียวถูกอ่านเป็นยอดอีกก้อนที่ต่อจากสรุปข้างบน */}
-            <Typography variant='caption' sx={{ display: 'block', fontWeight: 600, mb: 1 }}>
+            <Typography variant='caption' sx={{ display: 'block', fontWeight: 500, mb: 1 }}>
               ประวัติการชำระเงิน
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {money.entries.map((e, i) => (
                 <Box key={i} sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-                  <Typography variant='body2' sx={{ fontWeight: 600 }}>
+                  <Typography variant='body2' sx={{ fontWeight: 500 }}>
                     {baht(e.amount)}
                   </Typography>
                   <Typography variant='caption' color='text.secondary'>

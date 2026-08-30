@@ -135,12 +135,14 @@ export default function AccountSidebar() {
           />
         </label>
         <div className='min-w-0 flex-1'>
-          <Typography className='font-semibold truncate'>{displayName || 'ผู้ใช้'}</Typography>
+          <Typography className='font-medium truncate'>{displayName || 'ผู้ใช้'}</Typography>
           <Link
             href='/settings/profile'
-            className='text-xs text-[var(--mui-palette-text-secondary)] hover:text-[var(--mui-palette-primary-main)] inline-flex items-center gap-1 mt-0.5'
+            /* `min-bs-11` (44px) — เดิมสูง 16px ตามตัวหนังสือ ซึ่งต่ำกว่า tap target ที่บังคับไว้
+               ตัวหนังสือยังเท่าเดิม พื้นที่แตะโปร่งรอบ ๆ โตขึ้นอย่างเดียว */
+            className='text-xs text-[var(--mui-palette-text-secondary)] hover:text-[var(--mui-palette-primary-main)] inline-flex items-center gap-1 min-bs-11'
           >
-            <i className='tabler-pencil text-sm' />
+            <i className='tabler-pencil text-[13px]' />
             แก้ไขข้อมูลส่วนตัว
           </Link>
         </div>
@@ -154,7 +156,7 @@ export default function AccountSidebar() {
             <li key={item.href}>
               <Link href={item.href} className={itemCls(active)}>
                 <i className={classnames(item.icon, iconCls(active))} />
-                <span className='text-sm'>{item.label}</span>
+                <span className='text-[13px]'>{item.label}</span>
               </Link>
             </li>
           )
@@ -165,7 +167,7 @@ export default function AccountSidebar() {
           <li>
             <Link href={`/u/${user.username}`} className={itemCls(false)}>
               <i className={classnames('tabler-external-link', iconCls(false))} />
-              <span className='text-sm'>โปรไฟล์สาธารณะ</span>
+              <span className='text-[13px]'>โปรไฟล์สาธารณะ</span>
             </Link>
           </li>
         )}
@@ -180,8 +182,8 @@ export default function AccountSidebar() {
               className={itemCls(false)}
             >
               <i className={classnames('tabler-building-store', iconCls(false))} />
-              <span className='text-sm flex-1'>ไปหน้าร้านค้า</span>
-              <i className='tabler-external-link text-sm text-[var(--mui-palette-text-disabled)]' />
+              <span className='text-[13px] flex-1'>ไปหน้าร้านค้า</span>
+              <i className='tabler-external-link text-[13px] text-[var(--mui-palette-text-disabled)]' />
             </a>
           </li>
         )}

@@ -30,7 +30,7 @@ export default async function AppTopBar() {
           className='flex-1 flex items-center gap-2 h-10 pli-4 rounded-full bg-[var(--mui-palette-action-hover)] border border-[var(--mui-palette-divider)] no-underline min-w-0 transition-colors hover:border-[var(--mui-palette-primary-main)]'
         >
           <i className='tabler-search text-[1.25rem] text-[var(--mui-palette-primary-main)] shrink-0' />
-          <span className='text-sm text-[var(--mui-palette-text-secondary)] truncate'>เช็กก่อนโอน — เบอร์ / บัญชี / ร้าน</span>
+          <span className='text-[13px] text-[var(--mui-palette-text-secondary)] truncate'>เช็กก่อนโอน — เบอร์ / บัญชี / ร้าน</span>
         </Link>
 
         <Link

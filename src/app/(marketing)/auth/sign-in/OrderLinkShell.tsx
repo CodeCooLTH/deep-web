@@ -184,7 +184,7 @@ export default function OrderLinkShell({
               {badge && (
                 <div className='flex gap-1.5 flex-wrap mbe-3'>
                   <span
-                    className='text-[11.5px] font-semibold px-2.5 py-1 rounded-lg inline-flex items-center gap-1'
+                    className='text-[11.5px] font-medium px-2.5 py-1 rounded-lg inline-flex items-center gap-1'
                     style={{
                       backgroundColor: VERIFY_BADGE_PALETTE[badge.tone].bg,
                       color: VERIFY_BADGE_PALETTE[badge.tone].fg,
@@ -206,7 +206,7 @@ export default function OrderLinkShell({
                         {!ch.avatarUrl && (ch.provider === 'INSTAGRAM' ? 'IG' : 'f')}
                       </span>
                       <span className='min-is-0'>
-                        <span className='block text-[13px] font-semibold truncate'>{ch.name}</span>
+                        <span className='block text-[13px] font-medium truncate'>{ch.name}</span>
                         {/* text.secondary ไม่ใช่ text.disabled — ink ที่ 0.4 ได้คอนทราสต์ ~2.3:1
                             ตก AA (4.5:1) ส่วน 0.7 ได้ ~5.2:1 ผ่าน. นี่คือ "ชนิดของช่องทาง"
                             ซึ่งเป็นข้อมูลจริง ไม่ใช่สถานะปิดใช้งาน จึงไม่ควรอยู่ชั้น disabled

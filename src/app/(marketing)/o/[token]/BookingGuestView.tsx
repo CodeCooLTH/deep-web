@@ -91,7 +91,7 @@ export default function BookingGuestView({ booking }: { booking: BookingGuestDat
 
       {/* ── สถานะ ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 2 }}>
-        <Typography variant='h5' sx={{ fontWeight: 600 }}>
+        <Typography variant='h5' sx={{ fontWeight: 500 }}>
           {isConfirmed ? 'ใบจอง' : 'รายละเอียดการจอง'}
         </Typography>
         <Chip
@@ -115,7 +115,7 @@ export default function BookingGuestView({ booking }: { booking: BookingGuestDat
         <Typography variant='subtitle2' color='text.secondary'>
           {booking.shopName}
         </Typography>
-        <Typography variant='h6' sx={{ fontWeight: 600, mb: 2 }}>
+        <Typography variant='h6' sx={{ fontWeight: 500, mb: 2 }}>
           {booking.roomName}
         </Typography>
 
@@ -159,12 +159,12 @@ export default function BookingGuestView({ booking }: { booking: BookingGuestDat
               <Typography color='text.secondary'>
                 {isConfirmed ? 'มัดจำที่ชำระแล้ว' : 'มัดจำที่ต้องโอน'}
               </Typography>
-              <Typography sx={{ fontWeight: 600 }}>฿{baht(booking.depositAmount)}</Typography>
+              <Typography sx={{ fontWeight: 500 }}>฿{baht(booking.depositAmount)}</Typography>
             </Box>
             <Divider sx={{ my: 1.5 }} />
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography color='text.secondary'>ชำระวันเข้าพัก</Typography>
-              <Typography sx={{ fontWeight: 600 }}>฿{baht(remaining)}</Typography>
+              <Typography sx={{ fontWeight: 500 }}>฿{baht(remaining)}</Typography>
             </Box>
           </>
         )}
@@ -178,7 +178,7 @@ export default function BookingGuestView({ booking }: { booking: BookingGuestDat
       {/* ── แนบสลิป (เฉพาะเมื่อมีมัดจำ และยังไม่ยืนยัน/ยกเลิก) ── */}
       {needsDeposit && !isConfirmed && !isCancelled && (
         <Box sx={{ bgcolor: 'background.paper', borderRadius: 2, p: 2.5, boxShadow: 1, mb: 2 }}>
-          <Typography variant='subtitle1' sx={{ fontWeight: 600, mb: 0.5 }}>
+          <Typography variant='subtitle1' sx={{ fontWeight: 500, mb: 0.5 }}>
             โอนมัดจำแล้วแนบสลิป
           </Typography>
           <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
@@ -235,7 +235,7 @@ export default function BookingGuestView({ booking }: { booking: BookingGuestDat
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
             <Icon icon='tabler:rosette-discount-check-filled' width={22} style={{ color: 'var(--mui-palette-success-main)' }} />
-            <Typography variant='subtitle1' sx={{ fontWeight: 600 }}>
+            <Typography variant='subtitle1' sx={{ fontWeight: 500 }}>
               ยืนยันการจองแล้ว
             </Typography>
           </Box>
@@ -243,7 +243,7 @@ export default function BookingGuestView({ booking }: { booking: BookingGuestDat
             แสดงหน้านี้ตอนเช็คอินที่ {booking.shopName}
           </Typography>
           {booking.shortCode && (
-            <Typography sx={{ mt: 1.5, fontWeight: 600, letterSpacing: 1 }}>
+            <Typography sx={{ mt: 1.5, fontWeight: 500, letterSpacing: 1 }}>
               รหัสอ้างอิง {booking.shortCode}
             </Typography>
           )}

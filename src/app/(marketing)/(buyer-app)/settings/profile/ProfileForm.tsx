@@ -137,7 +137,7 @@ const ProfileForm = ({ user, summary }: Props) => {
           {/* About section */}
           <div className='flex flex-col gap-4'>
             <div className='flex items-center justify-between gap-2 flex-wrap'>
-              <Typography variant='subtitle2' className='font-semibold' color='text.primary'>
+              <Typography variant='subtitle2' className='font-medium' color='text.primary'>
                 ข้อมูลส่วนตัว
               </Typography>
               {!isEditing && (
@@ -226,7 +226,7 @@ const ProfileForm = ({ user, summary }: Props) => {
 
           {/* Overview section */}
           <div className='flex flex-col gap-4'>
-            <Typography variant='subtitle2' className='font-semibold' color='text.primary'>
+            <Typography variant='subtitle2' className='font-medium' color='text.primary'>
               สรุป
             </Typography>
             {overviewRows.map(renderReadonlyRow)}

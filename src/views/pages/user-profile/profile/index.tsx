@@ -754,7 +754,7 @@ export const ProfileRightContent = ({
                 <Box
                   role='group'
                   aria-label='เรียงลำดับสินค้า'
-                  sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2px', pbe: '4px' }}
+                  sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2px', pb: '4px' }} /* `pbe` เป็น utility ของ Tailwind ไม่ใช่คีย์ `sx` — เงียบมาตลอด */
                 >
                   {/* ป้ายนำหน้าทำให้แถวนี้อ่านเป็น "ตัวควบคุมการเรียง" ไม่ใช่ปุ่มสองปุ่มลอย ๆ
                       — โดยเฉพาะตอนยังไม่ได้เลือกชิปไหนเลย ซึ่งเป็นสถานะตั้งต้นที่ผู้ชมทุกคนเห็นก่อน */}
