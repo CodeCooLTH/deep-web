@@ -71,9 +71,11 @@ export default function TrustPill({
         gap: 0.5,
         px: 1,
         py: 0.375,
-        borderRadius: 999,
+        /* พิล — เขียนหน่วยตรง ๆ ให้ตรงกับที่อื่นทั้งระบบ · `999` เป็น *ตัวคูณ* ของ
+           shape.borderRadius จึงคำนวณออกมาเป็น 5994px ซึ่งไม่ใช่ค่าที่ใครตั้งใจ */
+        borderRadius: '9999px',
         fontSize: '0.8125rem',
-        fontWeight: 600,
+        fontWeight: 500,
         lineHeight: 1.4,
         bgcolor: palette.bg,
         color: tone === 'tier' ? tierInk : palette.fg,

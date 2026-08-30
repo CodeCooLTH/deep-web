@@ -29,7 +29,7 @@ type Props = {
 
 const Tile = ({ item }: { item: DataType }) => (
   <div
-    className='flex-1 min-w-0 flex flex-col justify-between gap-3 plb-5 pli-5 rounded-xl transition-shadow duration-200 hover:shadow-sm'
+    className='flex-1 min-w-0 flex flex-col justify-between gap-3 plb-5 pli-5 rounded-2xl transition-shadow duration-200 hover:shadow-sm'
     style={{ backgroundColor: `var(--mui-palette-${item.color}-lightOpacity)` }}
   >
     <div

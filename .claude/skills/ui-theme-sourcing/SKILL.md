@@ -33,6 +33,20 @@ Dropped: ...
 ```
 `Base:` ต้องชี้ `theme/...` — ห้ามชี้ `src/...` (retro 2026-05-10 task 12 พังเพราะข้อนี้).
 
+## รัศมีมุมฝั่ง buyer: ตามบทบาท ไม่ใช่ตามความรู้สึก (The Container-Is-12 Rule)
+
+`(marketing)/**` — **ของที่กดได้ 6px · รูป/อวตาร 8px · การ์ด/แผง 12px · chip = pill**
+(`(paces)/**` ยังเป็น 4px ตามเดิม ไม่เกี่ยวกัน — ธีม MUI mount ที่ `(marketing)/layout.tsx` ที่เดียว)
+
+นิยามอยู่ที่ธีมจุดเดียว: `@core/theme/overrides/card.ts` · `accordion.tsx` · `avatar.ts`
+
+🛑 **`<Card>` ห้ามใส่คลาสรัศมีทับ** (`rounded-2xl` ฯลฯ) — ให้รับจากธีมเสมอ
+🛑 **ห้ามแก้ด้วยการขยับ `shape.borderRadius`** — เป็น *ตัวคูณ* ของ `borderRadius: N` ทุกตัวใน `sx`
+ทั้งระบบ (`borderRadius: 2` = 12px วันนี้ จะกลายเป็น 24px ทันที) อยากเปลี่ยนให้ override เฉพาะคอมโพเนนต์
+
+ด่านที่บังคับ: `theme-guard.sh` (block ตอนเขียน) + `src/lib/__tests__/buyer-card-radius.test.ts` (CI)
+รายละเอียดเต็ม: `DESIGN.md` §Shapes
+
 ## Font: Anuphan เท่านั้น (Hard Rule 5)
 theme file ที่ copy มามักมี default font ของ theme เดิม (Vuexy=Public Sans, Paces=Poppins/Nunito) — เมื่อ adapt **ห้าม**ปล่อย/เพิ่ม `font-family`/`fontFamily` เป็นค่าอื่น. ใช้ `var(--font-anuphan)`/CSS variable ของ theme ที่ override เป็น Anuphan แล้วเท่านั้น. ยกเว้น: `monospace` ใน code block, icon font `@iconify`. รายละเอียด + จุด source-of-truth + known non-compliant: `docs/conventions/anuphan-font.md`. reviewer ต้อง grep `font-family|fontFamily` ในไฟล์ที่แตะ.
 

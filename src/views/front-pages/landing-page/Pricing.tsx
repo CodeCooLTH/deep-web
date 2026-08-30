@@ -128,7 +128,7 @@ const PricingPlan = () => {
     <section
       id='pricing-plans'
       className={classnames(
-        'flex flex-col gap-6 md:gap-8 lg:gap-12 plb-8 md:plb-[100px] bg-backgroundDefault rounded-3xl md:rounded-[60px]',
+        'flex flex-col gap-6 md:gap-8 lg:gap-12 plb-8 md:plb-[100px] bg-backgroundDefault rounded-3xl md:rounded-[60px]', /* carve-out รัศมี: รูปทรงของ section ไม่ใช่การ์ด — บันได 6/8/12 ใช้กับของที่อยู่ *ใน* หน้า ไม่ใช่ตัวหน้าเอง */
         styles.sectionStartRadius
       )}
     >
@@ -172,7 +172,7 @@ const PricingPlan = () => {
         <Grid container spacing={6}>
           {pricingPlans.map((plan, index) => (
             <Grid key={index} size={{ xs: 12, md: 6, lg: 3 }}>
-              <Card className='bs-full flex flex-col rounded-2xl border shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-1'>
+              <Card className='bs-full flex flex-col border shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-1'>
                 <CardContent className='flex flex-col gap-6 p-8 bs-full'>
                   <div className='is-full flex flex-col items-center gap-3'>
                     <CustomAvatar variant='rounded' skin='light' color={plan.color} size={64}>

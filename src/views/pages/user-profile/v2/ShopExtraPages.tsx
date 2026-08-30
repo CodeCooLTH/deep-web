@@ -131,14 +131,14 @@ export default function ShopExtraPages({
             <IconButton onClick={onClose} aria-label='ย้อนกลับ' size='large' className='shrink-0'>
               <Icon icon='tabler:arrow-left' width={21} />
             </IconButton>
-            <Typography id='shop-extra-page-title' component='h1' className='text-[16px] font-extrabold min-is-0 truncate'>
+            <Typography id='shop-extra-page-title' component='h1' className='text-[16px] font-bold min-is-0 truncate'>
               {TAB_TITLE[tab]}
             </Typography>
             {/* ตราแบรนด์ชิดขวาตาม ref — โลโก้ Deep ของจริง ไม่ใช่สี่เหลี่ยมม่วงหมุน 45° ของภาพจำลอง */}
             <span className='mis-auto flex items-center gap-2 shrink-0'>
               {/* eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ที่ import มาแล้ว */}
               <img src={logoDeepMark.src} alt='' className='bs-[18px] is-auto' />
-              <span className='text-[13px] font-black'>Deep</span>
+              <span className='text-[13px] font-bold'>Deep</span>
             </span>
           </div>
         </div>
@@ -156,7 +156,7 @@ export default function ShopExtraPages({
                     มี `shopName` ค่าเดียว การใส่ทั้งสองบรรทัดจึงได้ชื่อเดียวกันซ้อนกันสองครั้ง
                     (user เจอเองจากภาพหน้าจอ 2026-08-21) — เติมชื่อสั้นเองไม่ได้ เพราะการตัดคำ
                     ชื่อร้านคนอื่นคือการเปลี่ยนชื่อเขา */}
-                <Typography component='h2' className='text-[18px] font-extrabold leading-tight' style={{ letterSpacing: '-.02em' }}>
+                <Typography component='h2' className='text-[18px] font-bold leading-tight' style={{ letterSpacing: '-.02em' }}>
                   {shop.shopName}
                 </Typography>
                 <Typography className='text-[12px] mbs-1' color='text.secondary'>
@@ -207,7 +207,7 @@ function StoreLogo({ shop }: { shop: { shopName: string; avatar?: string | null 
         // eslint-disable-next-line @next/next/no-img-element -- URL หลากโดเมน (storage/CDN)
         <img src={src} alt='' onError={() => setFailed(true)} className='is-full bs-full object-cover' />
       ) : (
-        <span className='text-[22px] font-extrabold text-white'>{shop.shopName.trim().charAt(0)}</span>
+        <span className='text-[22px] font-bold text-white'>{shop.shopName.trim().charAt(0)}</span>
       )}
     </span>
   )
@@ -228,7 +228,7 @@ function StoreLogo({ shop }: { shop: { shopName: string; avatar?: string | null 
 function PanelHead({ title, sub }: { title: string; sub: string }) {
   return (
     <>
-      <Typography component='h3' className='text-[22px] sm:text-[26px] font-extrabold leading-tight' style={{ letterSpacing: '-.035em' }}>
+      <Typography component='h3' className='text-[22px] sm:text-[26px] font-bold leading-tight' style={{ letterSpacing: '-.035em' }}>
         {title}
       </Typography>
       <Typography className='text-[13px] leading-[1.8] mbs-2.5 max-is-[580px]' color='text.secondary'>
@@ -244,7 +244,7 @@ function NoteLine({ children }: { children: React.ReactNode }) {
     <div className='flex items-start gap-2.5 mbs-[18px] text-[11px] leading-[1.7]' style={{ color: '#8a8993' }}>
       <span
         aria-hidden
-        className='shrink-0 is-5 bs-5 rounded-full flex items-center justify-center text-[10px] font-bold'
+        className='shrink-0 is-5 bs-5 rounded-full flex items-center justify-center text-[12px] font-bold'
         style={{ background: '#f3f3f5', color: '#6e6d77' }}
       >
         i
@@ -279,13 +279,13 @@ function PagesPanel({ channels, shopName }: { channels: OfficialChannel[]; shopN
             >
               <ChannelMark c={c} size={52} />
               <div className='min-is-0'>
-                <div className='text-[15px] font-extrabold leading-snug truncate max-is-full'>{c.name}</div>
+                <div className='text-[15px] font-bold leading-snug truncate max-is-full'>{c.name}</div>
                 <Typography component='div' className='text-[12px] mbs-1' color='text.secondary'>
                   {CHANNEL_FULL_LABEL[c.provider] ?? c.provider}
                   {typeof c.followerCount === 'number' && (
                     <>
                       {' · '}
-                      <span className='font-semibold tabular-nums text-[var(--mui-palette-text-primary)]'>
+                      <span className='font-medium tabular-nums text-[var(--mui-palette-text-primary)]'>
                         {compactCount(c.followerCount)}
                       </span>
                       {` ${CHANNEL_FOLLOWER_LABEL[c.provider] ?? 'ผู้ติดตาม'}`}
@@ -294,7 +294,7 @@ function PagesPanel({ channels, shopName }: { channels: OfficialChannel[]; shopN
                 </Typography>
                 {/* `.connected` — 🛑 คำต้องเป็น "เชื่อมกับ Deep แล้ว" เท่านั้น ห้ามเป็น
                     "Deep ตรวจสอบแล้ว" เพราะเราไม่ได้ตรวจ เรารับผลจาก OAuth ของแพลตฟอร์ม */}
-                <div className='mbs-2 text-[11px] font-extrabold flex items-center gap-1' style={{ color: VERIFIED_INK }}>
+                <div className='mbs-2 text-[11px] font-bold flex items-center gap-1' style={{ color: VERIFIED_INK }}>
                   <Icon icon='tabler:circle-check-filled' width={13} aria-hidden />
                   เชื่อมกับ Deep แล้ว
                 </div>
@@ -308,7 +308,7 @@ function PagesPanel({ channels, shopName }: { channels: OfficialChannel[]; shopN
                   /* `min-bs-[44px]` — ลิงก์นี้เป็น action หลักของแถว ที่ plb-2 ได้แค่ 36px
                      ตกเกณฑ์ tap target 44px · ใช้ min-height แทนการเพิ่ม padding เพราะ padding
                      จะดันความสูงของทั้งแถวการ์ดขึ้นด้วย ส่วน min-height กินเฉพาะตอนเตี้ยกว่าเกณฑ์ */
-                  className='text-[13px] font-extrabold text-primary no-underline flex items-center gap-1 plb-2 min-bs-[44px] max-[760px]:[grid-column:2] max-[760px]:justify-self-start max-[760px]:pli-0 pli-2'
+                  className='text-[13px] font-bold text-primary no-underline flex items-center gap-1 plb-2 min-bs-[44px] max-[760px]:[grid-column:2] max-[760px]:justify-self-start max-[760px]:pli-0 pli-2'
                   aria-label={`เปิด ${c.name} ใน ${CHANNEL_FULL_LABEL[c.provider] ?? c.provider}`}
                 >
                   {`เปิดใน ${CHANNEL_FULL_LABEL[c.provider] ?? c.provider}`}
@@ -395,12 +395,12 @@ function BadgesPanel({
                   aria-controls='badge-stage'
                   aria-selected={active}
                   onClick={() => onPick(i)}
-                  className={`is-full border-0 rounded-xl p-2.5 grid items-center gap-2.5 text-start cursor-pointer font-[inherit] transition-colors [grid-template-columns:34px_minmax(0,1fr)_auto] max-[760px]:min-is-[168px] max-[760px]:[grid-template-columns:32px_minmax(0,1fr)] ${
+                  className={`is-full border-0 rounded p-2.5 grid items-center gap-2.5 text-start cursor-pointer font-[inherit] transition-colors [grid-template-columns:34px_minmax(0,1fr)_auto] max-[760px]:min-is-[168px] max-[760px]:[grid-template-columns:32px_minmax(0,1fr)] ${
                     active ? 'bg-[var(--mui-palette-primary-lightOpacity)]' : 'bg-transparent hover:bg-[var(--mui-palette-action-hover)]'
                   }`}
                 >
                   <span
-                    className='is-8 bs-8 rounded-[10px] flex items-center justify-center shrink-0'
+                    className='is-8 bs-8 rounded-lg flex items-center justify-center shrink-0'
                     style={
                       active
                         ? { background: 'var(--mui-palette-background-paper)', boxShadow: '0 3px 10px rgba(36,31,80,.07)' }
@@ -442,7 +442,7 @@ function BadgesPanel({
                  เป็นแท็บโดยไม่มีอะไรให้คุม screen reader จะอ่านว่า "แท็บ 1 จาก 6" แล้วผู้ใช้
                  กดแล้วไม่รู้ว่าอะไรเปลี่ยน (คลาสเดียวกับ `aria-name-requires-supporting-role.md`
                  — markup ถูกทุกตัวอักษร แต่ความหมายไม่ครบ และไม่มี gate ไหนจับได้) */
-              className='relative overflow-hidden rounded-[26px] border p-7 max-[760px]:p-[22px] min-bs-[300px] max-[760px]:min-bs-[320px]'
+              className='relative overflow-hidden rounded-2xl border p-7 max-[760px]:p-[22px] min-bs-[300px] max-[760px]:min-bs-[320px]'
               style={{
                 background:
                   'radial-gradient(circle at 70% 18%, rgba(115,103,240,.065), transparent 24%), linear-gradient(180deg, var(--mui-palette-background-paper), var(--mui-palette-background-default))',
@@ -455,10 +455,10 @@ function BadgesPanel({
               />
 
               <div className='relative z-[2] flex items-center justify-between gap-3'>
-                <div className='text-[11px] font-extrabold uppercase' style={{ color: '#85858f', letterSpacing: '.08em' }}>
+                <div className='text-[11px] font-bold uppercase' style={{ color: '#85858f', letterSpacing: '.08em' }}>
                   {current.categoryLabel ?? ''}
                 </div>
-                <div className='text-[11px] font-extrabold flex items-center gap-1' style={{ color: VERIFIED_INK }}>
+                <div className='text-[11px] font-bold flex items-center gap-1' style={{ color: VERIFIED_INK }}>
                   ได้รับแล้ว
                   <Icon icon='tabler:check' width={13} aria-hidden />
                 </div>
@@ -483,7 +483,7 @@ function BadgesPanel({
                 component='h4'
                 /* จัดกลางให้ตรงแกนเดียวกับเหรียญด้านบน — แถวข้อมูลใต้เส้นคั่นยังชิดซ้ายตามเดิม
                    เพราะมันเป็น "ตาราง 2 ช่อง" ที่หัวข้อกับค่าต้องเรียงตรงกัน ไม่ใช่หัวเรื่อง */
-                className='relative z-[2] text-[21px] sm:text-[24px] font-extrabold leading-tight text-center'
+                className='relative z-[2] text-[21px] sm:text-[24px] font-bold leading-tight text-center'
                 style={{ letterSpacing: '-.035em' }}
               >
                 {current.name}

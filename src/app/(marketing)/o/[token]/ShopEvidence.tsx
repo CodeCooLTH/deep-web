@@ -153,7 +153,17 @@ export function ShopStats({
           <Box sx={{ minWidth: 0 }}>
             <Typography
               variant='h6'
-              sx={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1.05, display: 'block' }}
+              sx={{
+                /* DESIGN.md §Metric — ตัวเลขที่ทำหน้าที่เป็นภาพ: 800 @ 32/22/20px
+                   + tabular-nums + letter-spacing ติดลบ · เดิมยืม variant='h6' (15px)
+                   มาแล้วดัน 800 ทับ ⇒ กลายเป็น 800 บน "ข้อความ" ซึ่งเอกสารห้ามไว้ */
+                fontSize: '1.25rem',
+                fontWeight: 800,
+                letterSpacing: '-0.01em',
+                fontVariantNumeric: 'tabular-nums',
+                lineHeight: 1.05,
+                display: 'block',
+              }}
             >
               {completedOrders.toLocaleString('th-TH')}
             </Typography>
@@ -176,7 +186,17 @@ export function ShopStats({
           <Box sx={{ minWidth: 0 }}>
             <Typography
               variant='h6'
-              sx={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1.05, display: 'block' }}
+              sx={{
+                /* DESIGN.md §Metric — ตัวเลขที่ทำหน้าที่เป็นภาพ: 800 @ 32/22/20px
+                   + tabular-nums + letter-spacing ติดลบ · เดิมยืม variant='h6' (15px)
+                   มาแล้วดัน 800 ทับ ⇒ กลายเป็น 800 บน "ข้อความ" ซึ่งเอกสารห้ามไว้ */
+                fontSize: '1.25rem',
+                fontWeight: 800,
+                letterSpacing: '-0.01em',
+                fontVariantNumeric: 'tabular-nums',
+                lineHeight: 1.05,
+                display: 'block',
+              }}
             >
               {avgRating}
             </Typography>

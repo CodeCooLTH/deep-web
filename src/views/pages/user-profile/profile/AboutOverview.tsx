@@ -63,7 +63,7 @@ const AboutCard = ({
 }) => (
   <Box
     sx={{
-      border: '1px solid #ececf2',
+      border: '1px solid var(--mui-palette-divider)',
       borderRadius: '20px',
       background: 'var(--mui-palette-background-paper)',
       boxShadow: '0 8px 24px rgba(29,24,62,.06)',
@@ -133,7 +133,7 @@ const DetailRow = ({ icon, label, children }: { icon: string; label: string; chi
       <Icon icon={icon} fontSize={16} />
     </Box>
     <Box sx={{ minInlineSize: 0 }}>
-      <Box component='small' sx={{ display: 'block', fontSize: '10px', marginBlockEnd: '3px' }} color='text.secondary'>
+      <Box component='small' sx={{ display: 'block', fontSize: '12px', marginBlockEnd: '3px' }} color='text.secondary'>
         {label}
       </Box>
       <Box component='b' sx={{ display: 'block', fontSize: '12px', lineHeight: 1.55, color: '#484755' }}>
@@ -268,7 +268,7 @@ const AboutOverview = ({ data }: { data: AboutData }) => {
             <Box
               sx={{
                 padding: '6px 9px',
-                borderRadius: '999px',
+                borderRadius: '9999px',
                 background: '#fff',
                 color: 'primary.main',
                 border: '1px solid #e4ddff',
@@ -285,18 +285,18 @@ const AboutOverview = ({ data }: { data: AboutData }) => {
           <Box
             role='img'
             aria-label={`ยืนยันแล้ว ${doneCount} จาก ${verifySteps.length} ระดับ`}
-            sx={{ blockSize: 8, borderRadius: '999px', background: '#ececf3', overflow: 'hidden' }}
+            sx={{ blockSize: 8, borderRadius: '9999px', background: '#ececf3', overflow: 'hidden' }}
           >
             <Box
               sx={{
                 blockSize: '100%',
                 inlineSize: `${progress}%`,
-                borderRadius: '999px',
+                borderRadius: '9999px',
                 background: 'linear-gradient(90deg,#6d52ff,#9a86ff)',
               }}
             />
           </Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBlockStart: '7px', fontSize: '10px' }} color='text.secondary'>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBlockStart: '7px', fontSize: '12px' }} color='text.secondary'>
             <span>เริ่มต้น</span>
             <span>ยืนยันครบทุกระดับ</span>
           </Box>
@@ -341,13 +341,13 @@ const AboutOverview = ({ data }: { data: AboutData }) => {
                 <Box component='b' sx={{ display: 'block', fontSize: '12px', lineHeight: 1.4 }} color='text.primary'>
                   {`ระดับ ${level} · ${VERIFY_LEVEL_TITLES[level]}`}
                 </Box>
-                <Box component='small' sx={{ display: 'block', marginBlockStart: '3px', fontSize: '10px', lineHeight: 1.45 }} color='text.secondary'>
+                <Box component='small' sx={{ display: 'block', marginBlockStart: '3px', fontSize: '12px', lineHeight: 1.45 }} color='text.secondary'>
                   {done ? badge.label : VERIFY_LEVEL_NOT_YET_LABEL}
                 </Box>
               </Box>
               <Box
                 sx={{
-                  fontSize: '10px',
+                  fontSize: '12px',
                   fontWeight: 900,
                   whiteSpace: 'nowrap',
                   color: done ? '#15966c' : '#a2a0aa',

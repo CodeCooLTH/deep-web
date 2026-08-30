@@ -58,7 +58,7 @@ const roundButtonSx = {
   alignItems: 'center',
   justifyContent: 'center',
   border: 0,
-  borderRadius: '999px',
+  borderRadius: '9999px',
   cursor: 'pointer',
   padding: 0,
   bgcolor: 'rgb(255 255 255 / .14)',
@@ -206,7 +206,7 @@ export default function ProfileLightbox({
             zIndex: 2,
             color: 'rgb(255 255 255 / .82)',
             fontSize: '0.8125rem',
-            fontWeight: 600,
+            fontWeight: 500,
             fontVariantNumeric: 'tabular-nums',
           }}
         >

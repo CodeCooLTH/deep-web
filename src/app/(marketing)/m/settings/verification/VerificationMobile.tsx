@@ -60,7 +60,7 @@ const Card = ({
   <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-4 flex flex-col gap-3'>
     <div className='flex items-start justify-between gap-2'>
       <div className='flex items-center gap-2.5 min-w-0'>
-        <span className='size-9 rounded-xl bg-[var(--mui-palette-primary-lightOpacity)] flex items-center justify-center text-[13px] font-bold text-[var(--mui-palette-primary-main)] shrink-0'>
+        <span className='size-9 rounded-lg bg-[var(--mui-palette-primary-lightOpacity)] flex items-center justify-center text-[13px] font-bold text-[var(--mui-palette-primary-main)] shrink-0'>
           L{level}
         </span>
         <div className='min-w-0'>
@@ -182,7 +182,7 @@ export default function VerificationMobile({ phoneVerified, records }: Props) {
     onPick: () => void
     onClear: () => void
   }) => (
-    <div className='flex items-center gap-3 rounded-xl border border-[var(--mui-palette-divider)] p-2.5'>
+    <div className='flex items-center gap-3 rounded-2xl border border-[var(--mui-palette-divider)] p-2.5'>
       <span className='size-10 rounded-lg bg-[var(--mui-palette-action-hover)] flex items-center justify-center shrink-0'>
         <i className={`${icon} text-[20px] text-[var(--mui-palette-primary-main)]`} />
       </span>

@@ -63,7 +63,7 @@ export default function ProfileEditMobile({ displayName, username, phone, email,
           onChange={e => setName(e.target.value)}
           maxLength={50}
           placeholder='ชื่อ-นามสกุล หรือชื่อเล่น'
-          className='h-11 pli-4 rounded-xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] text-[15px] text-[var(--mui-palette-text-primary)] outline-none focus:border-[var(--mui-palette-primary-main)] transition-colors'
+          className='h-11 pli-4 rounded bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] text-[15px] text-[var(--mui-palette-text-primary)] outline-none focus:border-[var(--mui-palette-primary-main)] transition-colors'
         />
         {trimmed.length > 0 && trimmed.length < 2 && (
           <span className='text-[12px] pli-1 text-[var(--mui-palette-error-main)]'>อย่างน้อย 2 ตัวอักษร</span>
@@ -95,7 +95,7 @@ export default function ProfileEditMobile({ displayName, username, phone, email,
         type='button'
         onClick={onSave}
         disabled={!dirty || saving}
-        className='h-11 rounded-xl text-[15px] font-medium text-white bg-[var(--mui-palette-primary-main)] border-0 cursor-pointer active:opacity-80 transition-opacity disabled:opacity-50'
+        className='h-11 rounded text-[15px] font-medium text-white bg-[var(--mui-palette-primary-main)] border-0 cursor-pointer active:opacity-80 transition-opacity disabled:opacity-50'
       >
         {saving ? 'กำลังบันทึก…' : 'บันทึก'}
       </button>

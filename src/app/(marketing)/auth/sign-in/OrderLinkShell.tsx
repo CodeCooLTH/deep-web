@@ -178,7 +178,7 @@ export default function OrderLinkShell({
         {/* เดิมมีขีดจับ (drag handle) อยู่กลางบนของแผ่นนี้ — ถอดออกแล้ว เพราะแผ่นนี้ลากไม่ได้จริง
             และไม่มีอะไรอยู่ใต้มันให้เผย เป็น affordance ที่สัญญาสิ่งที่ทำไม่ได้ บนจอที่ผู้ใช้กำลัง
             ตัดสินว่าหน้านี้ของจริงหรือของปลอม */}
-        <div className='relative -mbs-6 rounded-t-[22px] bg-[var(--mui-palette-background-paper)] p-5 pbe-6 flex-1'>
+        <div className='relative -mbs-6 rounded-t-2xl bg-[var(--mui-palette-background-paper)] p-5 pbe-6 flex-1'>
           {!compact && (
             <>
               {badge && (
@@ -223,7 +223,7 @@ export default function OrderLinkShell({
               {/* รีวิวจริงหนึ่งอัน — ข้อความจากคนซื้อจริงน่าเชื่อกว่าค่าเฉลี่ยลอย ๆ
                   ไม่มีรีวิวที่เขียนข้อความ → service คืน null → ซ่อนบล็อก ไม่แต่งคำชมเอง */}
               {ctx.latestReview && (
-                <div className='rounded-xl bg-[var(--mui-palette-action-hover)] p-3 mbe-3'>
+                <div className='rounded-2xl bg-[var(--mui-palette-action-hover)] p-3 mbe-3'>
                   <div className='flex items-center gap-2 mbe-1'>
                     {/* carve-out ของ HR12: typographic dingbat สีเดียว (★) ไม่ใช่ emoji — ตรงกับ
                         รายการยกเว้นใน docs/conventions/no-emoji-use-icons.md */}

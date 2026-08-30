@@ -20,10 +20,29 @@ fintech ที่เข้าถึงง่าย — เคาน์เตอ�
 ## Token ที่ต้องใช้ (ห้าม hardcode ค่าอื่น)
 - **สี:** primary(ม่วง), verified-green, signal-cyan, warning-amber(รอ/เตือน), error-coral, surface-mist `#F8F7FA`(พื้น) — ใช้ผ่าน `var(--mui-palette-*)` / Preline token
 - **เงา (design.json shadows):** sm `0 2px 8px rgb(47 43 61/.12)`(การ์ดพัก), md(hover), lg(modal), primary-sm(ปุ่มม่วง)
-- **มุมโค้ง:** นุ่ม (`rounded-lg`/`rounded-xl`/`rounded-2xl`)
+- **มุมโค้ง:** ตามบทบาท — กดได้ 6px · รูป 8px · **การ์ด/แผง 12px** · chip pill (ดูหัวข้อ "รัศมีมุม" ด้านล่าง)
+  🛑 บรรทัดนี้เคยเขียนว่า "นุ่ม (`rounded-lg`/`rounded-xl`/`rounded-2xl`)" ซึ่งเปิดช่องให้เลือกเอง 3 ค่า
+  ⇒ การ์ดในระบบเคยมี 6/8/12/16px ปนกันเพราะกฎไม่เคยชี้ตัวเลขเดียว (แก้ 2026-08-30)
 - **Motion:** easing `cubic-bezier(0.25,1,0.5,1)`; `150ms`(hover) / `200ms`(transition ทั่วไป)
 - **ฟอนต์:** Anuphan เท่านั้น (Hard Rule 5)
 - **Mobile-first:** tap target ≥44px
+
+## รัศมีมุม — ตามบทบาท (The Container-Is-12 Rule)
+
+`(marketing)/**` (buyer/landing/public):
+
+| บทบาท | ค่า | นิยามอยู่ที่ |
+|---|---|---|
+| ปุ่ม · อินพุต · ของที่กดได้ | 6px | `theme.shape.borderRadius` (small 4 / large 8 ตามขนาดปุ่ม) |
+| รูป · อวตาร `variant='rounded'` | 8px | `@core/theme/overrides/avatar.ts` |
+| **การ์ด · แผง · ภาชนะ** | **12px** | `@core/theme/overrides/card.ts` · `accordion.tsx` |
+| chip · พิล | `full` | — |
+
+`(paces)/**` = 4px ตามเดิม ไม่เปลี่ยนตาม (ธีม MUI ชุดนี้ mount ที่ `(marketing)/layout.tsx` ที่เดียว)
+
+🛑 `<Card>` ห้ามใส่คลาสรัศมีทับธีม · 🛑 ห้ามขยับ `shape.borderRadius` (เป็นตัวคูณของ `borderRadius: N` ทั้งระบบ)
+
+บังคับด้วย: `theme-guard.sh` (block ตอนเขียนไฟล์) + `src/lib/__tests__/buyer-card-radius.test.ts` (CI, mutation-proven)
 
 ## วิธี Impeccable (method) — ยึดตอนออกแบบ/รีวิว
 1. **Anti-slop** — ตัด default/reflex ของ AI ทิ้ง (เช่น "marketplace ไทย → เลย์เอาต์ Shopee", ฮีโร่บล็อกสีไม่มีภาพ, 4-icon แถวแบน). ดูว่ามัน "ดูเป็นเทมเพลต" ไหม

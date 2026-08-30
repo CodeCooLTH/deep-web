@@ -191,7 +191,7 @@ function ProductMedia({ images, name }: { images: string[]; name: string }) {
                 blockSize: 7,
                 p: 0,
                 border: 0,
-                borderRadius: '999px',
+                borderRadius: '9999px',
                 cursor: 'pointer',
                 bgcolor: n === i ? 'common.white' : 'rgb(255 255 255 / .42)',
                 // พื้นที่แตะ 44px โดยไม่ขยายจุดที่ตาเห็น (แพตเทิร์นเดียวกับปุ่มถูกใจบนไทล์)
@@ -313,7 +313,7 @@ export default function ProductLightbox({
                   color: 'primary.contrastText',
                   fontSize: '0.8125rem',
                   fontWeight: 700,
-                  borderRadius: '999px',
+                  borderRadius: '9999px',
                   px: '8px',
                   py: '2px',
                 }}

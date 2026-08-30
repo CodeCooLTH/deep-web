@@ -14,6 +14,18 @@ const card = (skin: Skin): Theme['components'] => {
       },
       styleOverrides: {
         root: ({ ownerState }) => ({
+          /**
+           * มุมการ์ด = 12px — **นิยามเดียวของทั้งสกิน buyer/public** (user เคาะ 2026-08-30)
+           *
+           * ก่อนหน้านี้ `<Card>` รับ `shape.borderRadius` (6px) มาตรง ๆ ขณะที่หน้าโปรไฟล์ร้าน
+           * `/b` กับ `/u` ประกอบการ์ดเองด้วย `div` แล้วตั้ง 12px ⇒ การ์ดของสองหน้าที่ผู้ซื้อ
+           * เดินสลับไปมา (หน้าร้าน ↔ หน้าออเดอร์) กลมไม่เท่ากันเป็นเท่าตัว
+           *
+           * 🛑 ห้ามแก้ด้วยการขยับ `shape.borderRadius` — ค่านั้นเป็น **ตัวคูณ** ของ
+           * `borderRadius: N` ทุกตัวใน `sx` ทั้งระบบ (2 = 12px วันนี้ จะกลายเป็น 24px ทันที)
+           * ที่ถูกคือ override เฉพาะ MuiCard อย่างที่ทำอยู่นี่
+           */
+          borderRadius: 12,
           ...(ownerState.variant !== 'outlined' && {
             boxShadow: 'var(--mui-customShadows-md)'
           })

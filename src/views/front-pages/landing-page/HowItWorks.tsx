@@ -78,7 +78,7 @@ const steps: Step[] = [
 const StepCard = ({ step, className }: { step: Step; className?: string }) => (
   <div
     className={classnames(
-      'flex flex-col items-center text-center gap-2.5 plb-5 pli-4 rounded-xl border bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-1 justify-center',
+      'flex flex-col items-center text-center gap-2.5 plb-5 pli-4 rounded-2xl border bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-1 justify-center',
       className
     )}
   >

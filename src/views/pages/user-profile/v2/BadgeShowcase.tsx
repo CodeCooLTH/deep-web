@@ -141,7 +141,7 @@ export default function BadgeShowcase({
           <Typography variant='caption' color='text.secondary' className='tabular-nums'>
             {`เหรียญ ${total} ใบ`}
           </Typography>
-          <span className='inline-flex items-center gap-0.5 text-[13px] font-semibold text-primary shrink-0'>
+          <span className='inline-flex items-center gap-0.5 text-[13px] font-medium text-primary shrink-0'>
             ดูทั้งหมด
             <Icon icon='tabler:chevron-right' width={14} aria-hidden />
           </span>

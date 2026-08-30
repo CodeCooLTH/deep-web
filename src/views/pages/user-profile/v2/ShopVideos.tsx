@@ -126,8 +126,8 @@ function VideoCell({ item, onOpen }: { item: ShopVideoItem; onOpen: () => void }
       // ⚠️ ตอนกดเล่น คลิปแนวตั้งจะมีแถบดำบน-ล่างในกรอบ 3:4 — แลกกับกริดที่ไม่กระโดด
       /* ขอบ + มุมมน 14 + เงาบาง = ภาษาเดียวกับการ์ดสินค้า/บริการ (เดิม `border-0` ไร้ขอบ
          เพราะไทล์ยุค IG ชิดกันเป็นผืนเดียว — พอมี gap 16px แล้วไทล์ลอยไร้ขอบจะอ่านเป็นรูปหลุด) */
-      className='group relative aspect-[3/4] bg-[var(--mui-palette-action-hover)] overflow-hidden rounded-[14px] border border-[#ececf2] p-0 cursor-pointer block is-full font-[inherit]'
-      style={{ boxShadow: '0 6px 18px rgba(30,27,56,.05)' }}
+      className='group relative aspect-[3/4] bg-[var(--mui-palette-action-hover)] overflow-hidden rounded-2xl border border-[color:var(--mui-palette-divider)] p-0 cursor-pointer block is-full font-[inherit]'
+      style={{ boxShadow: '0 6px 18px rgb(47 43 61 / .05)' }}
     >
       {item.thumbnailUrl && !imgFailed && (
         // eslint-disable-next-line @next/next/no-img-element -- รูปปกจาก storage ของเรา (mirror) หรือ CDN ของแพลตฟอร์ม
@@ -182,9 +182,9 @@ function VideoCell({ item, onOpen }: { item: ShopVideoItem; onOpen: () => void }
           🛑 ห้ามเอากลับมาโดยไม่ตอบก่อนว่า *ไทล์ใบไหนมีชื่อไม่ตรงกับเจ้าของหน้า* — ถ้าวันหนึ่ง
           หน้านี้รวมคลิปจากหลายบัญชี ค่อยกลับมาแสดง และตอนนั้นต้องแสดง **เฉพาะใบที่ต่าง** */}
       <span className='absolute bottom-0 inline-start-0 inline-end-0 p-2 text-white text-start'>
-        {/* `font-semibold` = ขั้น Dense overlay ของ DESIGN.md ("600, 11px") — เดิมมีแต่ขนาด
+        {/* `font-medium` = ขั้น Dense overlay ของ DESIGN.md ("600, 11px") — เดิมมีแต่ขนาด
             ไม่มีน้ำหนัก จึงตรง token แค่ครึ่งเดียว (ux audit 2026-08-14) */}
-        <span className='flex items-center gap-2.5 text-[11px] font-semibold mbs-0.5'>
+        <span className='flex items-center gap-2.5 text-[11px] font-medium mbs-0.5'>
           {item.viewCount != null && (
             <span className='flex items-center gap-1'>
               <Icon icon='lucide:play' width={11} />

@@ -87,8 +87,8 @@ function EvidenceLine({ text, tail, state }: { text: string; tail?: string | nul
         style={{ lineHeight: 1.6 }}
         sx={{ color: state === 'unknown' ? 'text.secondary' : 'text.primary' }}
       >
-        <span className='font-semibold'>{text}</span>
-        {tail && <span className='text-sm text-[var(--mui-palette-text-secondary)] tabular-nums'>{` · ${tail}`}</span>}
+        <span className='font-medium'>{text}</span>
+        {tail && <span className='text-[13px] text-[var(--mui-palette-text-secondary)] tabular-nums'>{` · ${tail}`}</span>}
       </Typography>
     </li>
   )
@@ -198,8 +198,8 @@ export default function EvidencePanel({
            `tierAccent` ถูกถอดออกจาก prop แล้วเพราะไม่มีใครใช้ — prop ที่ตายแล้วยังโกหกคนอ่านได้ */
         background: 'linear-gradient(180deg, rgba(115,103,240,.09), rgba(115,103,240,.035))',
         border: '1px solid rgba(115,103,240,.22)',
-        borderRadius: 18,
-        boxShadow: '0 4px 18px rgba(40,34,76,.08)',
+        borderRadius: 12,
+        boxShadow: '0 4px 18px rgb(47 43 61 / .08)',
       }}
     >
       {/* 15px/600 ไม่ใช่ 18px/bold — มันคือ **ป้ายกำกับของบล็อก** ไม่ใช่หัวเรื่องที่ต้องแข่งกับชื่อร้าน
@@ -213,7 +213,7 @@ export default function EvidencePanel({
           ในระบบ (HR16) และขัด `contrast-fix-keeps-hue.md` ที่ห้ามคิดเฉดใหม่นอก SSOT
           ทางแก้ที่เลือก: หัวข้อใช้หมึกกลาง — **พื้นย้อมแบกความเป็นระดับไว้ทั้งบล็อกอยู่แล้ว**
           หัวข้อไม่ต้องย้ำอีกครั้งด้วยสีที่อ่านไม่ออก */}
-      <Typography component='h2' className='text-[15px] font-semibold mbe-3.5' color='text.secondary'>
+      <Typography component='h2' className='text-[15px] font-medium mbe-3.5' color='text.secondary'>
         ทำไมร้านนี้ถึงเชื่อได้
       </Typography>
 

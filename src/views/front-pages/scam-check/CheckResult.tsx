@@ -24,7 +24,7 @@ type Props = {
 }
 
 const Stat = ({ label, value }: { label: string; value: string }) => (
-  <div className='rounded-xl border bg-backgroundDefault plb-4 pli-5 text-center'>
+  <div className='rounded-2xl border bg-backgroundDefault plb-4 pli-5 text-center'>
     <Typography variant='h5' className='font-extrabold' color='text.primary'>
       {value}
     </Typography>
@@ -80,7 +80,7 @@ const CheckResult = ({ type, q, result }: Props) => {
 
               {!found ? (
                 /* ── ไม่พบ ── */
-                <div className='rounded-3xl border bg-backgroundPaper plb-10 pli-8 md:plb-[60px] shadow-sm text-center'>
+                <div className='rounded-2xl border bg-backgroundPaper plb-10 pli-8 md:plb-[60px] shadow-sm text-center'>
                   <div
                     className='mli-auto mbe-5 flex bs-[88px] is-[88px] items-center justify-center rounded-full'
                     style={{ backgroundColor: 'var(--mui-palette-success-lightOpacity)' }}
@@ -94,7 +94,7 @@ const CheckResult = ({ type, q, result }: Props) => {
                     ยังไม่มีรายงานที่ตรวจสอบแล้วสำหรับข้อมูลนี้
                   </Typography>
                   <div
-                    className='mbs-6 mli-auto inline-flex items-center gap-2 rounded-xl plb-2.5 pli-4'
+                    className='mbs-6 mli-auto inline-flex items-center gap-2 rounded-2xl plb-2.5 pli-4'
                     style={{ backgroundColor: 'var(--mui-palette-warning-lightOpacity)' }}
                   >
                     <i className='tabler-alert-triangle text-warning' />
@@ -105,7 +105,7 @@ const CheckResult = ({ type, q, result }: Props) => {
                 </div>
               ) : (
                 /* ── พบการรายงาน ── */
-                <div className='rounded-3xl border bg-backgroundPaper plb-8 pli-6 md:pli-10 shadow-md'>
+                <div className='rounded-2xl border bg-backgroundPaper plb-8 pli-6 md:pli-10 shadow-md'>
                   <div className='flex flex-col items-center text-center'>
                     <div
                       className='mbe-4 flex bs-[88px] is-[88px] items-center justify-center rounded-full'
@@ -139,7 +139,7 @@ const CheckResult = ({ type, q, result }: Props) => {
                   </div>
 
                   <div
-                    className='mbs-6 flex items-start gap-2 rounded-xl p-4'
+                    className='mbs-6 flex items-start gap-2 rounded-2xl p-4'
                     style={{ backgroundColor: 'var(--mui-palette-info-lightOpacity)' }}
                   >
                     <i className='tabler-info-circle text-info text-lg shrink-0 mbs-[2px]' />

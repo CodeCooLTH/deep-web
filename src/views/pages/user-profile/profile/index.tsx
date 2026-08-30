@@ -248,11 +248,11 @@ const ProductCard = ({
         fontFamily: 'inherit',
         bgcolor: 'background.paper',
         /* `.product { border:1px solid var(--line); border-radius:14px }` */
-        border: '1px solid #ececf2',
-        borderRadius: '14px',
+        border: '1px solid var(--mui-palette-divider)',
+        borderRadius: '12px',
         /* เงาเดียวกับการ์ดบริการ/ห้องพัก/คลิป — เดิมการ์ดสินค้าเป็นใบเดียวที่ไม่มีเงา
            ทำให้แท็บสินค้าดู "แบน" กว่าแท็บอื่นทั้งที่ขอบกับมุมมนเท่ากันแล้ว (user ทัก 2026-08-23) */
-        boxShadow: '0 6px 18px rgba(30,27,56,.05)',
+        boxShadow: '0 6px 18px rgb(47 43 61 / .05)',
         cursor: clickable ? 'pointer' : 'default',
         '&:hover .askOverlay': { opacity: 1 },
         '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
@@ -328,9 +328,9 @@ const ProductCard = ({
             gap: '3px',
             bgcolor: 'primary.main',
             color: 'primary.contrastText',
-            fontSize: '10px',
+            fontSize: '12px',
             fontWeight: 700,
-            borderRadius: '999px',
+            borderRadius: '9999px',
             px: '8px',
             py: '3px',
           }}
@@ -384,7 +384,7 @@ const ProductCard = ({
               color: '#2F2B3D',
               fontSize: '13px',
               fontWeight: 700,
-              borderRadius: '999px',
+              borderRadius: '9999px',
               px: '14px',
               py: '7px',
             }}
@@ -430,7 +430,7 @@ const ProductCard = ({
             WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
             fontSize: '12px',
-            fontWeight: 800,
+            fontWeight: 700,
             lineHeight: 1.45,
             color: 'text.primary',
           }}
@@ -492,7 +492,7 @@ const ProductCard = ({
               paddingBlockStart: showPrices ? undefined : '5px',
               mt: showPrices ? '1px' : undefined,
               fontSize: '11px',
-              fontWeight: 600,
+              fontWeight: 500,
               color: 'text.secondary',
             }}
           >
@@ -801,7 +801,7 @@ export const ProfileRightContent = ({
                             outline: '2px solid',
                             outlineColor: 'primary.main',
                             outlineOffset: '-4px',
-                            borderRadius: '999px',
+                            borderRadius: '9999px',
                           },
                         }}
                       >
@@ -812,7 +812,7 @@ export const ProfileRightContent = ({
                             alignItems: 'center',
                             blockSize: '28px',
                             paddingInline: '12px',
-                            borderRadius: '999px',
+                            borderRadius: '9999px',
                             fontSize: '13px',
                             /* สถานะ "ถูกเลือก" ต่างมากกว่าสี — คนตาบอดสีต้องแยกออก (WCAG 1.4.1)
                                จึงเปลี่ยนทั้งน้ำหนักตัวอักษรและพื้นพร้อมกัน */
