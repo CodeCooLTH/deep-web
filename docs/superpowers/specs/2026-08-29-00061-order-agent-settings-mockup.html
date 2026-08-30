@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>00061 — หน้าตั้งค่า "สร้างออเดอร์อัตโนมัติจากคำสั่งในแชท" (Paces)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── โทเคนจริงจาก .impeccable/design.json (paces-*) — ห้ามแก้เป็นค่าอื่น ── */
+:root{
+  --primary:#236dc9; --primary-ink:#1e3a8a;
+  --success:#02bc9c; --success-ink:#065f46;
+  --warning:#f9bf59; --warning-ink:#92400e;
+  --danger:#f7577e;  --danger-ink:#7f1d1d;
+  --info:#5bc3e1;    --info-ink:#1e40af;
+  --surface:#f6f7fb; --card:#fff; --ink:#4c4c5c;
+  --d900:#2f3349; --d700:#4c4c5c; --d500:#7b8199; --d300:#c3c9d5; --d200:#e4e7ee; --d100:#f0f2f7; --d50:#f8f9fc;
+  --shadow:0 1px 4px rgba(130,143,163,.15);
+  --r:.5rem;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,system-ui,sans-serif;background:#eceef4;color:var(--ink);padding:24px;line-height:1.55}
+h1.pg{font-size:20px;font-weight:700;color:var(--d900);margin-bottom:4px}
+p.pg{font-size:13px;color:var(--d500);margin-bottom:24px}
+.rail{display:flex;gap:28px;align-items:flex-start;overflow-x:auto;padding-bottom:24px}
+.dev{flex:0 0 auto}
+.dev>.cap{font-size:12px;font-weight:600;color:var(--d500);margin-bottom:8px;letter-spacing:.02em}
+.frame{background:var(--surface);border:1px solid var(--d200);border-radius:14px;overflow:hidden;box-shadow:0 8px 28px rgba(47,51,73,.10)}
+.w320 .frame{width:320px} .w768 .frame{width:768px} .w1280 .frame{width:1280px}
+.scroll{max-height:920px;overflow-y:auto}
+/* ── Paces primitives ── */
+.appbar{background:var(--card);border-bottom:1px solid var(--d200);padding:12px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:5}
+.appbar .t{font-size:15px;font-weight:600;color:var(--d900)}
+.pad{padding:16px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--d200);border-radius:var(--r);box-shadow:var(--shadow)}
+.card-header{padding:14px 20px;border-bottom:1px solid var(--d200);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:nowrap}
+.card-title{font-size:14px;font-weight:600;color:var(--d900)}
+.card-body{padding:16px 20px}
+.sub{font-size:12px;color:var(--d500);margin-top:3px}
+.btn{font:inherit;font-size:13px;font-weight:500;border-radius:var(--r);padding:9px 14px;border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:38px}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-light{background:var(--d100);color:var(--d700);border-color:var(--d200)}
+.btn-sm{padding:6px 10px;min-height:32px;font-size:12px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px}
+.b-warn{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+.b-succ{background:rgba(2,188,156,.15);color:var(--success-ink)}
+.b-dang{background:rgba(247,87,126,.15);color:var(--danger-ink)}
+.b-pri{background:rgba(35,109,201,.12);color:var(--primary-ink)}
+/* segmented — แนวตั้ง <640px / แนวนอน ≥640px (ทางแก้งบพื้นที่ 320px) */
+.seg{display:inline-flex;flex-direction:row;background:var(--d100);border-radius:var(--r);padding:2px;gap:2px;width:100%}
+.seg button{font:inherit;font-size:13px;font-weight:500;border:0;background:transparent;color:var(--d700);padding:10px 12px;border-radius:6px;cursor:pointer;min-height:44px}
+.seg button[aria-checked="true"]{background:var(--card);color:var(--d900);font-weight:600;box-shadow:var(--shadow)}
+.seg button[aria-checked="true"].live{background:rgba(2,188,156,.15);color:var(--success-ink)}
+.w768 .seg,.w1280 .seg{flex-direction:row;width:auto}
+.w768 .seg button,.w1280 .seg button{min-height:36px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:rgba(35,109,201,.10);color:var(--primary-ink);border:1px solid rgba(35,109,201,.25);border-radius:999px;padding:0 4px 0 12px;font-size:13px;font-weight:500;min-height:36px}
+.chip .x{width:26px;height:26px;border-radius:999px;border:0;background:transparent;color:var(--primary-ink);cursor:pointer;display:grid;place-items:center}
+.chip-add{border:1px dashed var(--d300);background:transparent;color:var(--d700);padding:0 12px}
+.pglist{display:flex;flex-direction:column;gap:2px}
+.pgrow{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:6px;min-height:44px}
+.pgrow:hover{background:var(--d50)}
+.pgrow .nm{font-size:13px;color:var(--d900);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.pgrow .ch{font-size:11px;color:var(--d500)}
+.cbx{width:18px;height:18px;border-radius:4px;border:1.5px solid var(--d300);flex:0 0 auto;display:grid;place-items:center;background:var(--card)}
+.cbx.on{background:var(--primary);border-color:var(--primary)}
+.note{border-radius:var(--r);padding:12px 14px;font-size:12.5px;display:flex;gap:10px;align-items:flex-start}
+.note-warn{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+.note-dang{background:rgba(247,87,126,.12);color:var(--danger-ink)}
+.note-info{background:var(--d50);color:var(--d700);border:1px solid var(--d200)}
+.tmpl{width:100%;font-family:Anuphan,monospace;font-size:12.5px;line-height:1.85;color:var(--d900);background:var(--d50);border:1px dashed var(--d300);border-radius:var(--r);padding:12px 14px;resize:none}
+.hint{font-size:11.5px;color:var(--d500);margin-top:8px;line-height:1.7}
+.savebar{position:sticky;bottom:0;background:var(--card);border-top:1px solid var(--d200);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 -2px 10px rgba(47,51,73,.06)}
+.savebar .m{font-size:12px;color:var(--d500)}
+.grid2{display:grid;grid-template-columns:1fr;gap:14px}
+.w1280 .grid2{grid-template-columns:7fr 3fr;align-items:start}
+.w1280 .side{position:sticky;top:16px}
+.hstack{display:flex;gap:14px;flex-direction:column}
+.dry{font-size:12.5px}
+.dry .bub{background:var(--d50);border:1px solid var(--d200);border-radius:var(--r);padding:10px 12px;white-space:pre-line;color:var(--d900);margin-bottom:10px}
+.ta{width:100%;font:inherit;font-size:13px;border:1px solid var(--d300);border-radius:var(--r);padding:10px 12px;min-height:88px;resize:none}
+svg{flex:0 0 auto}
+.states{margin-top:8px;display:flex;flex-direction:column;gap:8px}
+.strow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:var(--r);font-size:12.5px}
+.legend{font-size:11px;color:var(--d500);margin-top:6px}
+</style>
+</head>
+<body>
+<h1 class="pg">00061 — หน้าตั้งค่า “สร้างออเดอร์อัตโนมัติจากคำสั่งในแชท”</h1>
+<p class="pg">Base: <code>KeywordEditorClient.tsx</code> · <code>ChannelsClient.tsx</code> · <code>TestThreadsCard.tsx</code> · โทเคนสีจาก <code>.impeccable/design.json</code> (paces-*) · ฟอนต์ Anuphan · ไม่มี emoji (ไอคอนเป็น SVG จริง)</p>
+
+<svg style="display:none">
+  <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.24 3.957l-8.422 14.06A2 2 0 0 0 3.518 21h16.964a2 2 0 0 0 1.7-2.983L13.76 3.957a2 2 0 0 0-3.52 0z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></symbol>
+  <symbol id="i-fb" viewBox="0 0 24 24" fill="currentColor"><path d="M13 22v-9h3l.5-4H13V6.5c0-1.1.3-1.8 1.9-1.8H17V1.2C16.6 1.1 15.4 1 14 1c-3 0-5 1.8-5 5.1V9H6v4h3v9h4z"/></symbol>
+  <symbol id="i-ig" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-line" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C6.5 3 2 6.6 2 11c0 3.9 3.5 7.2 8.2 7.9.3.07.8.2.9.5.1.3.06.7 0 1l-.15.9c-.05.27-.2 1.05.93.57 1.13-.47 6.1-3.6 8.32-6.16C21.7 14.1 22 12.6 22 11c0-4.4-4.5-8-10-8z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9" opacity=".9"/></symbol>
+</svg>
+
+<div class="rail">
+
+<!-- ══════════════ 320px ══════════════ -->
+<div class="dev w320">
+  <div class="cap">320px — มือถือ (ตั้งค่าไม่ได้ · ส่งไปใช้จอใหญ่กว่า)</div>
+  <div class="frame"><div class="scroll" style="max-height:520px">
+    <div class="appbar">
+      <svg width="20" height="20"><use href="#i-back"/></svg>
+      <div class="t">สร้างออเดอร์อัตโนมัติ</div>
+    </div>
+    <div class="pad" style="padding-top:32px">
+      <div class="card">
+        <div class="card-body" style="text-align:center;padding:28px 20px">
+          <div style="width:52px;height:52px;border-radius:14px;background:var(--d100);display:grid;place-items:center;margin:0 auto 16px">
+            <svg width="26" height="26" style="color:var(--d500)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="12" rx="2"/><path d="M7 20h10M12 16v4"/>
+            </svg>
+          </div>
+          <div style="font-size:15px;font-weight:600;color:var(--d900)">ตั้งค่าหน้านี้บนแท็บเล็ตหรือคอมพิวเตอร์</div>
+          <div style="font-size:12.5px;color:var(--d500);margin-top:8px;line-height:1.75">
+            หน้าตั้งค่านี้ต้องดูแม่แบบข้อความ รายชื่อเพจ และผลการทดสอบพร้อมกัน จอมือถือแคบเกินกว่าจะตั้งค่าได้อย่างมั่นใจ
+          </div>
+        </div>
+      </div>
+
+      <div class="note note-info" style="align-items:flex-start">
+        <svg width="16" height="16" style="margin-top:2px;color:var(--success-ink)"><use href="#i-check"/></svg>
+        <div><b style="color:var(--d900)">ระบบยังทำงานบนมือถือตามปกติ</b><br>
+        ที่ตั้งค่าไว้แล้วยังทำงานทุกครั้งที่คุณพิมพ์สรุปคำสั่งซื้อจากมือถือ — และผลลัพธ์ (สร้างออเดอร์แล้ว / ยังไม่ครบ) ยังขึ้นในห้องแชทเหมือนเดิม</div>
+      </div>
+
+      <div class="card">
+        <div class="card-body" style="padding:14px 16px">
+          <div style="font-size:12px;color:var(--d500);margin-bottom:10px">ทำต่อบนมือถือได้</div>
+          <div class="states">
+            <div class="strow" style="background:var(--d50);justify-content:flex-start;gap:10px">
+              <svg width="16" height="16" style="color:var(--d500)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span>ดูผลในห้องแชท</span>
+            </div>
+            <div class="strow" style="background:var(--d50);justify-content:space-between;gap:10px">
+              <span style="display:flex;gap:10px;align-items:center">
+                <svg width="16" height="16" style="color:var(--d500)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v16l-7-4-7 4z"/></svg>
+                <span>คำสั่งซื้อที่ยังไม่ครบ</span>
+              </span>
+              <span class="badge b-warn">3</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="legend" style="padding:0 4px">ประตูอยู่ที่ &lt;768px — ที่ 768px ขึ้นไปเห็นหน้าตั้งค่าเต็ม</div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ══════════════ 768px ══════════════ -->
+<div class="dev w768">
+  <div class="cap">768px — แท็บเล็ต (จอเล็กสุดที่ตั้งค่าได้ · 1 คอลัมน์)</div>
+  <div class="frame"><div class="scroll">
+    <div class="appbar"><div class="t">สร้างออเดอร์อัตโนมัติจากคำสั่งในแชท</div></div>
+    <div class="pad">
+      <div class="card" style="border-color:rgba(249,191,89,.5)">
+        <div class="card-body" style="padding:14px 20px;display:flex;gap:12px;align-items:center;justify-content:space-between">
+          <div style="display:flex;gap:10px;align-items:flex-start;min-width:0">
+            <svg width="18" height="18" style="color:var(--warning-ink);margin-top:2px"><use href="#i-warn"/></svg>
+            <div><div style="font-size:13px;font-weight:600;color:var(--d900)">เพจที่ตั้งค่าไม่ครบ</div>
+            <div style="font-size:12px;color:var(--warning-ink);margin-top:2px">“ร้านดอกไม้บางนา สาขาเซ็นทรัล” ยังไม่ได้เปิดสิทธิ์ที่จำเป็น ระบบจะอ่านข้อความที่คุณพิมพ์จากเพจนี้ไม่ได้</div></div>
+          </div>
+          <button class="btn btn-light btn-sm" style="flex:0 0 auto">ซ่อมให้</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">สถานะ</div>
+          <div class="seg" role="radiogroup" aria-label="สถานะของระบบสร้างออเดอร์อัตโนมัติ" aria-orientation="horizontal">
+            <button role="radio" aria-checked="false">ไม่ใช้งาน</button>
+            <button role="radio" aria-checked="false">ทดสอบ</button>
+            <button role="radio" aria-checked="true" class="live">สร้างออเดอร์จริง</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div><div class="card-title">วลีจุดชนวน</div><div class="sub">เมื่อข้อความที่คุณพิมพ์ในแชทมีวลีนี้อยู่ ระบบจะอ่านข้อความทั้งก้อนเพื่อลองสร้างคำสั่งซื้อให้</div></div></div>
+        <div class="card-body"><div class="chips">
+          <span class="chip">สรุปคำสั่งซื้อ<button class="x" disabled title="ต้องมีวลีอย่างน้อย 1 คำเสมอ"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+          <span class="chip">/go<button class="x"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+          <button class="chip chip-add"><svg width="14" height="14"><use href="#i-plus"/></svg>เพิ่มวลี</button>
+        </div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div><div class="card-title">เปิดใช้กับเพจไหนบ้าง</div><div class="sub">ระบบจะอ่านข้อความที่คุณพิมพ์เฉพาะเพจ/ช่องทางที่เลือกไว้เท่านั้น</div></div></div>
+        <div class="card-body"><div class="pglist" style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px">
+          <div class="pgrow"><span class="cbx on"><svg width="12" height="12" style="color:#fff"><use href="#i-check"/></svg></span><svg width="16" height="16" style="color:#1877F2"><use href="#i-fb"/></svg><span style="min-width:0"><span class="nm" style="display:block">ร้านดอกไม้บางนา สาขาเซ็นทรัล</span><span class="ch">Messenger</span></span></div>
+          <div class="pgrow"><span class="cbx"></span><svg width="16" height="16" style="color:#C13584"><use href="#i-ig"/></svg><span><span class="nm" style="display:block">flowershop.bkk</span><span class="ch">Instagram</span></span></div>
+          <div class="pgrow"><span class="cbx on"><svg width="12" height="12" style="color:#fff"><use href="#i-check"/></svg></span><svg width="16" height="16" style="color:#06C755"><use href="#i-line"/></svg><span><span class="nm" style="display:block">ร้านดอกไม้บางนา</span><span class="ch">LINE</span></span></div>
+        </div></div>
+      </div>
+
+      <div class="note note-warn">
+        <svg width="16" height="16" style="margin-top:2px"><use href="#i-warn"/></svg>
+        <div>สำหรับ LINE ระบบอ่านได้เฉพาะข้อความที่คุณพิมพ์จากกล่องแชทของ Deep หน้านี้เท่านั้น — ถ้าคุณพิมพ์จากแอป LINE Official Account Manager โดยตรง ข้อความนั้นจะไม่ถูกอ่านและจะไม่มีคำสั่งซื้อเกิดขึ้น <b>เปิดห้องแชทจาก Deep แล้วพิมพ์ที่นี่แทนทุกครั้ง</b></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">แม่แบบสรุปคำสั่งซื้อ</div><button class="btn btn-light btn-sm"><svg width="14" height="14"><use href="#i-copy"/></svg>คัดลอกข้อความนี้</button></div>
+        <div class="card-body">
+          <div class="sub" style="margin:0 0 10px">ก็อปไปใช้เป็นแบบพิมพ์ทุกครั้งที่คุณจะพิมพ์สรุปคำสั่งซื้อในแชท — ระบบอ่านได้ก็ต่อเมื่อพิมพ์ตามหัวข้อเหล่านี้</div>
+          <textarea class="tmpl" rows="9" readonly aria-label="ตัวอย่างข้อความแม่แบบสรุปคำสั่งซื้อ">สรุปคำสั่งซื้อ
+ชื่อ: สมชาย ใจดี
+เบอร์: 0812345678
+ที่อยู่: 99/1 ม.3 ต.บางรัก อ.เมือง จ.ชลบุรี 20000
+รายการ:
+- เสื้อยืดสีดำ x2 @250
+- กางเกงขาสั้น @390
+ส่วนลด: 50
+ยอดรวม: 840</textarea>
+          <div class="hint">หัวข้อ ชื่อ/เบอร์/ที่อยู่/รายการ พิมพ์คำพ้องได้ เช่น “เบอร์โทร” หรือ “ที่อยู่จัดส่ง” · แต่ละบรรทัดสินค้า: <b>- ชื่อสินค้า xจำนวน @ราคา</b> (ไม่ใส่จำนวน = 1 ชิ้น แต่ @ราคาต้องมีเสมอ) · ส่วนลด/ยอดรวมไม่บังคับ</div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-header"><div class="card-title">แชทสำหรับทดสอบ (2)</div><button class="btn btn-light btn-sm"><svg width="14" height="14"><use href="#i-plus"/></svg>เพิ่มแชท</button></div></div>
+    </div>
+    <div class="savebar"><span class="m">แก้ไข 2 อย่าง: วลีจุดชนวน, เพจที่เปิดใช้</span><span style="display:flex;gap:8px"><button class="btn btn-light">ล้างที่แก้ไว้</button><button class="btn btn-primary">บันทึกการเปลี่ยนแปลง</button></span></div>
+  </div></div>
+</div>
+
+<!-- ══════════════ 1280px ══════════════ -->
+<div class="dev w1280">
+  <div class="cap">1280px — เดสก์ท็อป (7:3 · แผง “ลองพิมพ์ดู” sticky)</div>
+  <div class="frame"><div class="scroll">
+    <div class="appbar"><div class="t">สร้างออเดอร์อัตโนมัติจากคำสั่งในแชท</div></div>
+    <div class="pad">
+      <div class="card" style="border-color:rgba(249,191,89,.5)">
+        <div class="card-body" style="padding:14px 20px;display:flex;gap:12px;align-items:center;justify-content:space-between">
+          <div style="display:flex;gap:10px;align-items:flex-start"><svg width="18" height="18" style="color:var(--warning-ink);margin-top:2px"><use href="#i-warn"/></svg>
+            <div><div style="font-size:13px;font-weight:600;color:var(--d900)">เพจที่ตั้งค่าไม่ครบ</div>
+            <div style="font-size:12px;color:var(--warning-ink);margin-top:2px">“ร้านดอกไม้บางนา สาขาเซ็นทรัล” ยังไม่ได้เปิดสิทธิ์ที่จำเป็น ระบบจะอ่านข้อความที่คุณพิมพ์จากเพจนี้ไม่ได้</div></div></div>
+          <button class="btn btn-light btn-sm">ซ่อมให้</button>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="hstack">
+          <div class="card">
+            <div class="card-header"><div class="card-title">สถานะ</div>
+              <div class="seg" role="radiogroup" aria-orientation="horizontal" aria-label="สถานะของระบบสร้างออเดอร์อัตโนมัติ">
+                <button role="radio" aria-checked="false">ไม่ใช้งาน</button>
+                <button role="radio" aria-checked="false">ทดสอบ</button>
+                <button role="radio" aria-checked="true" class="live">สร้างออเดอร์จริง</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div><div class="card-title">วลีจุดชนวน</div><div class="sub">เมื่อข้อความที่คุณพิมพ์ในแชทมีวลีนี้อยู่ ระบบจะอ่านข้อความทั้งก้อนเพื่อลองสร้างคำสั่งซื้อให้</div></div></div>
+            <div class="card-body"><div class="chips">
+              <span class="chip">สรุปคำสั่งซื้อ<button class="x" disabled title="ต้องมีวลีอย่างน้อย 1 คำเสมอ"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+              <span class="chip">/go<button class="x"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+              <button class="chip chip-add"><svg width="14" height="14"><use href="#i-plus"/></svg>เพิ่มวลี</button>
+            </div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div><div class="card-title">เปิดใช้กับเพจไหนบ้าง</div><div class="sub">ระบบจะอ่านข้อความที่คุณพิมพ์เฉพาะเพจ/ช่องทางที่เลือกไว้เท่านั้น</div></div></div>
+            <div class="card-body"><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px">
+              <div class="pgrow"><span class="cbx on"><svg width="12" height="12" style="color:#fff"><use href="#i-check"/></svg></span><svg width="16" height="16" style="color:#1877F2"><use href="#i-fb"/></svg><span style="min-width:0"><span class="nm" style="display:block">ร้านดอกไม้บางนา สาขาเซ็นทรัล</span><span class="ch">Messenger</span></span></div>
+              <div class="pgrow"><span class="cbx"></span><svg width="16" height="16" style="color:#C13584"><use href="#i-ig"/></svg><span><span class="nm" style="display:block">flowershop.bkk</span><span class="ch">Instagram</span></span></div>
+              <div class="pgrow"><span class="cbx on"><svg width="12" height="12" style="color:#fff"><use href="#i-check"/></svg></span><svg width="16" height="16" style="color:#06C755"><use href="#i-line"/></svg><span><span class="nm" style="display:block">ร้านดอกไม้บางนา</span><span class="ch">LINE</span></span></div>
+            </div></div>
+          </div>
+
+          <div class="note note-warn"><svg width="16" height="16" style="margin-top:2px"><use href="#i-warn"/></svg>
+            <div>สำหรับ LINE ระบบอ่านได้เฉพาะข้อความที่คุณพิมพ์จากกล่องแชทของ Deep หน้านี้เท่านั้น — ถ้าคุณพิมพ์จากแอป LINE Official Account Manager โดยตรง ข้อความนั้นจะไม่ถูกอ่านและจะไม่มีคำสั่งซื้อเกิดขึ้น <b>เปิดห้องแชทจาก Deep แล้วพิมพ์ที่นี่แทนทุกครั้ง</b></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div class="card-title">แม่แบบสรุปคำสั่งซื้อ</div><button class="btn btn-light btn-sm"><svg width="14" height="14"><use href="#i-copy"/></svg>คัดลอกข้อความนี้</button></div>
+            <div class="card-body">
+              <div class="sub" style="margin:0 0 10px">ก็อปไปใช้เป็นแบบพิมพ์ทุกครั้งที่คุณจะพิมพ์สรุปคำสั่งซื้อในแชท — ระบบอ่านได้ก็ต่อเมื่อพิมพ์ตามหัวข้อเหล่านี้</div>
+              <textarea class="tmpl" rows="9" readonly aria-label="ตัวอย่างข้อความแม่แบบสรุปคำสั่งซื้อ">สรุปคำสั่งซื้อ
+ชื่อ: สมชาย ใจดี
+เบอร์: 0812345678
+ที่อยู่: 99/1 ม.3 ต.บางรัก อ.เมือง จ.ชลบุรี 20000
+รายการ:
+- เสื้อยืดสีดำ x2 @250
+- กางเกงขาสั้น @390
+ส่วนลด: 50
+ยอดรวม: 840</textarea>
+              <div class="hint">หัวข้อ ชื่อ/เบอร์/ที่อยู่/รายการ พิมพ์คำพ้องได้ เช่น “เบอร์โทร” หรือ “ที่อยู่จัดส่ง” · แต่ละบรรทัดสินค้า: <b>- ชื่อสินค้า xจำนวน @ราคา</b> (ไม่ใส่จำนวน = 1 ชิ้น แต่ @ราคาต้องมีเสมอ) · ส่วนลด/ยอดรวมไม่บังคับ</div>
+            </div>
+          </div>
+
+          <div class="card"><div class="card-header"><div class="card-title">แชทสำหรับทดสอบ (2)</div><button class="btn btn-light btn-sm"><svg width="14" height="14"><use href="#i-plus"/></svg>เพิ่มแชท</button></div></div>
+        </div>
+
+        <div class="side hstack">
+          <div class="card">
+            <div class="card-header"><div><div class="card-title">ลองพิมพ์ดูว่าระบบจะทำอะไร</div><div class="sub">ร้านดอกไม้บางนา · Messenger</div></div></div>
+            <div class="card-body dry">
+              <div class="bub">สรุปคำสั่งซื้อ
+ชื่อ: สมชาย ใจดี
+เบอร์: 0812345678
+ที่อยู่: 99/1 ม.3 ต.บางรัก อ.เมือง จ.ชลบุรี 20000
+รายการ:
+- เสื้อยืดสีดำ x2 @250</div>
+              <div class="strow" style="background:rgba(35,109,201,.10);color:var(--primary-ink);font-weight:600">
+                <span style="display:flex;gap:8px;align-items:center"><svg width="16" height="16"><use href="#i-check"/></svg>สร้างคำสั่งซื้อได้</span>
+                <span style="font-weight:700">฿500</span>
+              </div>
+              <div class="legend" style="margin-top:10px">1 รายการ · เสื้อยืดสีดำ ×2</div>
+              <textarea class="ta" style="margin-top:12px" placeholder="พิมพ์ตามแม่แบบด้านบนแล้วกดทดสอบ"></textarea>
+              <button class="btn btn-primary btn-sm" style="margin-top:8px;width:100%;justify-content:center">ทดสอบ</button>
+              <div class="legend" style="margin-top:8px">การทดสอบนี้ไม่บันทึกอะไรลงระบบจริง</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div class="card-title">สถานะอื่นของหน้านี้</div></div>
+            <div class="card-body states">
+              <div class="strow note-info"><span style="display:flex;gap:8px;align-items:center"><svg width="15" height="15"><use href="#i-lock"/></svg>ดูได้อย่างเดียว (พนักงาน)</span><span class="badge b-pri">STAFF</span></div>
+              <div class="strow" style="background:var(--d50)"><span style="display:flex;gap:8px;align-items:center"><svg width="15" height="15" style="color:var(--d500)"><use href="#i-spin"/></svg>ตรวจสิทธิ์เพจอยู่</span></div>
+              <div class="strow" style="background:rgba(249,191,89,.15);color:var(--warning-ink)"><span style="display:flex;gap:8px;align-items:center"><svg width="15" height="15"><use href="#i-warn"/></svg>ยังไม่ได้เปิดสิทธิ์</span><button class="btn btn-light btn-sm">ซ่อมให้</button></div>
+              <div class="strow" style="background:var(--d50)"><span style="display:flex;gap:8px;align-items:center"><svg width="15" height="15" style="color:var(--d500)"><use href="#i-spin"/></svg>กำลังซ่อม...</span></div>
+              <div class="strow note-dang"><span style="display:flex;gap:8px;align-items:center"><svg width="15" height="15"><use href="#i-warn"/></svg>ซ่อมไม่สำเร็จ</span><span style="display:flex;gap:6px"><button class="btn btn-light btn-sm">ลองอีกครั้ง</button><button class="btn btn-light btn-sm">ไปเชื่อมเพจใหม่</button></span></div>
+              <div class="strow" style="background:rgba(2,188,156,.15);color:var(--success-ink)"><span style="display:flex;gap:8px;align-items:center"><svg width="15" height="15"><use href="#i-check"/></svg>ทุกเพจพร้อมใช้งาน — การ์ดนี้ซ่อนทั้งใบ</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="savebar"><span class="m">แก้ไข 2 อย่าง: วลีจุดชนวน, เพจที่เปิดใช้</span><span style="display:flex;gap:8px"><button class="btn btn-light">ล้างที่แก้ไว้</button><button class="btn btn-primary">บันทึกการเปลี่ยนแปลง</button></span></div>
+  </div></div>
+</div>
+
+</div>
+</body>
+</html>
