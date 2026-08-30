@@ -10,11 +10,15 @@
  * จะได้ round trip ที่ไม่ได้อะไรกลับมา ส่วน "เดือน" ต้อง query ใหม่จริงจึงอยู่ใน URL
  *
  * ── การแบ่งจอ (ไม่เท่ากันโดยตั้งใจ) ────────────────────────────────────────────
- *   <768   : รายการสินค้า + แถบรายวัน · ไม่มีกราฟ (5 เส้น × 31 จุดบน 360px อ่านไม่ออก)
- *   768-1023: **มีกราฟ** (อ่านออกสบายที่ความกว้างนี้) + รายการสินค้า — ยังไม่มีช่องติ๊ก
- *             กราฟจึงแสดง Top 5 ตายตัว มีคำกำกับบอกไว้
+ *   <768   : แถบเครื่องมือ **ติดบน** (เดือน + หน่วย) · กราฟ · รายการการ์ด (ต้น/กลาง/ปลายเดือน)
+ *            + ดรอปดาวน์ มุมมอง/เรียงลำดับ + สวิตช์ท้ายรายการ
+ *   768-1023: กราฟ + รายการการ์ด — ยังไม่มีช่องติ๊ก กราฟจึงล็อก Top N มีคำกำกับบอกไว้
  *   ≥1024  : กราฟ + ตารางเต็มพร้อมช่องติ๊ก (ตาราง 6 คอลัมน์ต้องการความกว้างระดับนี้ —
  *            แพตเทิร์นเดียวกับ `ProductsListing.tsx` ที่ตัดที่ lg ด้วยเหตุผลเดียวกัน)
+ *
+ * 🛑 **ตัวควบคุมรายการต่างกันตาม breakpoint โดยตั้งใจ** — มือถือใช้ดรอปดาวน์ (มุมมอง+เรียง)
+ * เพราะ *ไม่มีตาราง* ให้กดหัวคอลัมน์เรียง · เดสก์ท็อปคงช่องติ๊กคู่เดิมเพราะตารางมีการเรียง
+ * ของตัวเองอยู่แล้ว การใส่เมนู "เรียงตาม" ไปด้วยจะเป็นตัวควบคุมซ้ำของสิ่งเดียวกัน
  */
 import { useMemo, useState } from 'react'
 
@@ -26,9 +30,13 @@ import {
   MONEY_MODE_CAVEAT,
   SALES_BASIS_DETAIL,
   SALES_BASIS_NOTE,
+  sortProductRows,
+  type ProductSortKey,
 } from '@/lib/product-sales-month'
 import { getColor } from '@/utils/helpers'
 import type { ProductSalesRow } from '@/services/product-sales-series.service'
+import ListControlDropdown, { type ListView } from './ListControlDropdown'
+import MonthSwitcher from './MonthSwitcher'
 import ProductDetailSheet from './ProductDetailSheet'
 import ProductMobileList from './ProductMobileList'
 import ProductSalesChart, { type ChartSeries } from './ProductSalesChart'
@@ -38,6 +46,7 @@ import {
   buildViewRows,
   defaultSelectedKeys,
   rowSeries,
+  rowTotal,
   type SalesUnit,
 } from './data'
 
@@ -53,6 +62,17 @@ type Props = {
   isCurrentMonth: boolean
   orderCount: number
   truncated: boolean
+  /** `YYYY-MM` + ปลายทางของปุ่ม ‹ › — ส่งลงมาเพื่อประกอบแถบเครื่องมือติดบนของมือถือ */
+  monthIso: string
+  prevHref: string | null
+  nextHref: string | null
+  /**
+   * 🛑 ย้ายลงมาจากหัวหน้า (2026-08-30) — มันเป็น *ข้อควรรู้ของตัวเลขที่ดูจบแล้ว* ไม่ใช่สิ่งที่
+   * ต้องรู้ก่อนดู (ต่างจากนิยาม "ขายแล้ว" ที่ต้องมาก่อนเสมอตาม HR16) การวางไว้บนสุดกิน
+   * 2 บรรทัดของจอมือถือก่อนจะเห็นข้อมูลอะไรเลย · **ย้ายที่ ไม่ใช่ตัดทิ้ง** — ยังอ่านเจอ
+   * ทุกครั้งที่เลื่อนจบหน้า รวมกับบรรทัด "นับจากคำสั่งซื้อ N ใบ" ที่ทำหน้าที่เดียวกัน
+   */
+  freshnessNote: string
 }
 
 export default function ProductSalesClient({
@@ -66,6 +86,10 @@ export default function ProductSalesClient({
   isCurrentMonth,
   orderCount,
   truncated,
+  monthIso,
+  prevHref,
+  nextHref,
+  freshnessNote,
 }: Props) {
   const [unit, setUnit] = useState<SalesUnit>('qty')
   const [showZero, setShowZero] = useState(false)
@@ -82,6 +106,12 @@ export default function ProductSalesClient({
    * และ**สถานะออเดอร์** แต่ไม่มีจุดไหนตอบว่า **สินค้าตัวไหน** ขายวันนี้
    */
   const [todayOnly, setTodayOnly] = useState(false)
+  /**
+   * การเรียงลำดับของ **รายการมือถือเท่านั้น** — ตารางเดสก์ท็อปมี TanStack sort ของตัวเอง
+   * 🛑 ก่อนหน้านี้มือถือเรียงไม่ได้เลย ล็อกที่ "ยอดมากไปน้อย" มาตั้งแต่วันแรก ⇒ คำถาม
+   * "ตัวไหนเงียบที่สุด" ตอบไม่ได้บนอุปกรณ์ที่หน้านี้ออกแบบมาเพื่อมันโดยเฉพาะ
+   */
+  const [sort, setSort] = useState<ProductSortKey>('TOP')
   const [openKey, setOpenKey] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(defaultSelectedKeys(rows, DEFAULT_CHART_SERIES)),
@@ -104,6 +134,20 @@ export default function ProductSalesClient({
     if (todayOnly) return viewRows.filter((r) => (r.denseQty[refDayIndex] ?? 0) > 0)
     return showZero ? viewRows : soldRows
   }, [todayOnly, showZero, viewRows, soldRows, refDayIndex])
+
+  /**
+   * 🛑 เรียงตาม **หน่วยที่กำลังแสดง** — ไม่งั้นสลับไปโหมดบาทแล้วลำดับยังเป็นของจำนวนชิ้น
+   * ซึ่งอ่านเป็น "เรียงมั่ว" (ต่างจาก `defaultSelectedKeys` ที่ยึดชิ้นเสมอโดยตั้งใจ เพราะ
+   * นั่นคือ *ตัวเลือกตั้งต้นของกราฟ* ที่ไม่ควรสลับไปมาเวลาเปลี่ยนหน่วย)
+   */
+  const mobileRows = useMemo(
+    () =>
+      sortProductRows(
+        visibleRows.map((r) => ({ ...r, total: rowTotal(r, unit) })),
+        sort,
+      ),
+    [visibleRows, sort, unit],
+  )
 
   const chartSeries: ChartSeries[] = useMemo(
     () =>
@@ -143,41 +187,73 @@ export default function ProductSalesClient({
 
   const zeroCount = viewRows.length - soldRows.length
 
+  /**
+   * เดือนปัจจุบันที่ยังไม่จบ — ช่วง "ปลายเดือน" ในแถบ 3 ท่อนมีข้อมูลไม่ครบ
+   * 🛑 `partial-data-must-be-labeled-or-filled.md`: ยอดของช่วงที่ยังมาไม่ครบ **ไม่ใช่ "ขายน้อย"
+   * แต่คือ "ยังไม่ถึงเวลา"** — ห้ามปล่อยให้หน้าตาเหมือนกัน · บอกครั้งเดียวเหนือรายการเพราะ
+   * เป็นคุณสมบัติของเดือน ไม่ใช่ของสินค้าแต่ละตัว
+   */
+  const incompleteNote =
+    isCurrentMonth && refDayIndex + 1 < days
+      ? `เดือนนี้ยังไม่จบ — ช่วงปลายเดือนนับถึงวันที่ ${refDayIndex + 1} เท่านั้น`
+      : null
+
+  /** ปุ่มสลับหน่วย — ใช้ 2 ที่ (แถบติดบนของมือถือ / แถวควบคุมของเดสก์ท็อป) จึงประกาศครั้งเดียว */
+  const unitToggle = (
+    <span className="inline-flex shrink-0" role="group" aria-label="หน่วยที่แสดง">
+      {(['qty', 'baht'] as const).map((u, i) => (
+        <button
+          key={u}
+          type="button"
+          onClick={() => setUnit(u)}
+          aria-pressed={unit === u}
+          className={`btn border-default-300 min-h-11 border text-sm ${
+            i === 0 ? 'rounded-e-none' : 'rounded-s-none border-s-0'
+          } ${
+            unit === u
+              ? 'bg-primary hover:bg-primary-hover text-white'
+              : 'text-default-700 hover:bg-default-100'
+          }`}>
+          {UNIT_LABELS[u]}
+        </button>
+      ))}
+    </span>
+  )
+
   return (
     <>
-      {/* แถบควบคุม — จงใจไม่ห่อ .card เพื่อไม่ให้เกิดการ์ดซ้อนการ์ด (anti-slop) */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        {/**
-          * 🛑 ฉบับแรกยัดนิยามทั้งก้อน (164 อักษร) ไว้เป็น text-xs สีเทาอ่อน = ของประดับที่สายตา
-          * ข้าม ทั้งที่มันคือประโยคที่ห้ามพลาดตาม HR16 — ย่อเหลือบรรทัดที่อ่านจบ แล้วเก็บ
-          * รายละเอียดไว้หลัง <details> (native ไม่ต้องมี state ไม่ต้องมี JS)
-          */}
-        <details className="group min-w-0 max-w-xl">
-          <summary className="text-default-500 hover:text-default-700 cursor-pointer list-none text-xs">
-            {SALES_BASIS_NOTE}
-            <span className="text-primary-ink ms-1 underline">ดูรายละเอียด</span>
-          </summary>
-          <p className="text-default-400 mt-1 mb-0 text-xs">{SALES_BASIS_DETAIL}</p>
-        </details>
-        <div className="inline-flex shrink-0" role="group" aria-label="หน่วยที่แสดง">
-          {(['qty', 'baht'] as const).map((u, i) => (
-            <button
-              key={u}
-              type="button"
-              onClick={() => setUnit(u)}
-              aria-pressed={unit === u}
-              className={`btn border-default-300 min-h-11 border text-sm ${
-                i === 0 ? 'rounded-e-none' : 'rounded-s-none border-s-0'
-              } ${
-                unit === u
-                  ? 'bg-primary hover:bg-primary-hover text-white'
-                  : 'text-default-700 hover:bg-default-100'
-              }`}>
-              {UNIT_LABELS[u]}
-            </button>
-          ))}
-        </div>
+      {/**
+        * แถบเครื่องมือ **ติดบน** ของมือถือ — เดือน + หน่วย ตามอยู่ตลอดเวลาที่เลื่อน
+        * (user เลือกแบบนี้จากม็อกอัพ 2026-08-30)
+        *
+        * 🛑 `top` ต้องเท่ากับความสูงจริงของ `SellerMobileHeader` โหมด sub-page ซึ่งคือ
+        * `pt-3.5 + h-11 + pb-2.5 = 4.25rem` **บวก `env(safe-area-inset-top)`** ที่หัวนั้นรับไว้
+        * — ตัวเลขตายตัวใช้ไม่ได้เพราะ `env()` เป็นค่า runtime ที่ต่างกันตามเครื่อง
+        * (iPhone มี Dynamic Island กับเครื่องไม่มีให้คนละค่า — docs/conventions/ios-safe-area.md)
+        * `-mx-4 px-4` ให้แถบกินเต็มความกว้างจอ (shell มี `padding-inline: 1rem` บนมือถือ)
+        *
+        * 🛑 `z-20` ไม่ใช่ `z-10` — **`.btn` ของธีม Paces ตั้ง `z-index: 10` ให้ตัวเองทุกปุ่ม**
+        * แถบ sticky ที่ใช้ z เท่ากันจะแพ้ปุ่มที่อยู่หลังกว่าใน DOM แล้วปุ่มจะลอยขึ้นมาทับแถบ
+        * ตอนเลื่อน (เกิดจริงบน prod 2026-08-23 ที่ `/products/new`) — มีเทส [blocker]
+        * `paces-sticky-z-index.test.ts` บังคับข้อนี้ และมันจับตัวนี้ได้จริงตอนเขียน
+        */}
+      <div
+        className="bg-body-bg border-default-200 sticky z-20 -mx-4 mb-3 flex items-center gap-2 border-b px-4 py-2 md:hidden top-[calc(4.25rem+env(safe-area-inset-top))]" /* carve-out HR7: ความสูงหัวแอป + safe-area ไม่มี token ในธีม */
+      >
+        <span className="min-w-0 flex-1">
+          <MonthSwitcher
+            iso={monthIso}
+            year={year}
+            month0={month0}
+            prevHref={prevHref}
+            nextHref={nextHref}
+          />
+        </span>
+        {unitToggle}
       </div>
+
+      {/* เดสก์ท็อป: เดือนอยู่บนหัวหน้าอยู่แล้ว เหลือแค่ปุ่มหน่วย */}
+      <div className="mb-4 hidden justify-end md:flex">{unitToggle}</div>
 
       {unit === 'baht' && (
         /* 🛑 แสดงเฉพาะโหมดบาท — โหมดจำนวนชิ้นไม่มีปัญหานี้ การขึ้นเตือนตลอดเวลาจะทำให้
@@ -207,7 +283,19 @@ export default function ProductSalesClient({
         * เพราะเปลี่ยนจากกราฟเส้นเป็นแท่งซ้อนไปแล้ว แท่งไม่ตัดกันจึงอ่านออกที่ความกว้างนี้จริง
         * และ Command Center บนหน้าแรกก็แสดงแท่ง 31 อันบนมือถืออยู่แล้ว (height 168) เป็นหลักฐาน
         */}
-      <div className="card mb-4">
+      {/**
+        * `-mx-4 md:mx-0` — **การ์ดกินเต็มความกว้างจอบนมือถือ** (user ทัก 2026-08-30:
+        * "ใน Mobile เค้าน่าจะ full-width กันป่ะ" — ถูก และหน้านี้เป็นหน้าเดียวที่ไม่ได้ทำ)
+        *
+        * แบบแผนของโปรเจกต์อยู่แล้ว: `OrdersList.tsx:728` · `ProductsListing.tsx:263` ·
+        * `CommandCenter.tsx:36` ใช้ `-mx-4` หักล้าง `padding-inline: 1rem` ของ shell เหมือนกันหมด
+        *
+        * 🛑 **ไม่ใช้คลาส marker `*-fullbleed` ของสองหน้านั้น** — marker นั้นพ่วง `margin-top: 0`
+        * และ `footer { display: none }` มาด้วย ซึ่งเขาต้องการเพราะ `/orders` `/products`
+        * **แทนที่หัวแอปด้วยหัวสติกกี้ของตัวเอง** (`SellerMobileHeader` คืน `null` ให้สองหน้านั้น)
+        * หน้านี้ยังใช้หัวแอปปกติ ⇒ เอาผลข้างเคียงมาด้วยจะได้ระยะบนที่ผิด
+        */}
+      <div className="card mb-4 -mx-4 md:mx-0">
         <div className="card-header">
           <h4 className="card-title">แนวโน้มรายวัน</h4>
           {/* 🛑 "5 อันดับแรก" เฉย ๆ โกหกทันทีที่สลับเป็นบาท — อันดับยึดจำนวนชิ้นเสมอ
@@ -230,23 +318,52 @@ export default function ProductSalesClient({
             futureFrom={futureFrom}
             days={days}
           />
+          {/**
+            * 🛑 `SALES_BASIS_NOTE` **ต้องมองเห็นได้เสมอ ห้ามซ่อนหลังปุ่ม** — คอมเมนต์ที่ตัว
+            * ค่าคงที่เองเขียนไว้ว่า "ต้องโผล่ใต้กราฟเสมอ" เพราะระบบมีนิยาม "ยอดขาย" หลายชุด
+            * ตัวเลขที่ไม่ตรงกับหน้าอื่นโดยไม่มีคำอธิบาย = ผู้ขายเลิกเชื่อทั้งหน้า (HR16)
+            * ฉบับม็อกอัพเคยยุบไว้หลังปุ่ม `i` บนแถบติดบน — ถอดทิ้งแล้วด้วยเหตุผลนี้
+            *
+            * รายละเอียดยาวอยู่หลัง <details> (native ไม่ต้องมี state ไม่ต้องมี JS)
+            */}
+          <details className="group border-default-200 mt-3 border-t pt-3">
+            <summary className="text-default-500 hover:text-default-700 flex min-h-11 cursor-pointer list-none items-center text-xs [&::-webkit-details-marker]:hidden">
+              <span>
+                {SALES_BASIS_NOTE}
+                <span className="text-primary-ink ms-1 underline">ดูรายละเอียด</span>
+              </span>
+            </summary>
+            <p className="text-default-400 mt-1 mb-0 text-xs">{SALES_BASIS_DETAIL}</p>
+          </details>
         </div>
       </div>
 
       {/* ── ตาราง/รายการ ── */}
-      <div className="card">
-        {/* 🛑 ตอนนี้มีสวิตช์ 2 ตัว — บังคับ nowrap ต่อไปจะล้นขอบที่ 320px แน่นอน
-            (ชื่อการ์ด + "แสดงเฉพาะที่ขายวันนี้ (5)" ~188px + "แสดงสินค้าที่ไม่มียอดขาย (12)" ~236px)
-            ให้กลุ่มสวิตช์ตกลงมาเป็นบรรทัดของตัวเองบนจอแคบแทน แล้วค่อย nowrap ตั้งแต่ sm ขึ้นไป
-            (docs/conventions/flex-header-truncation.md — ต้องกางเลขงบพื้นที่ก่อนเลือกทางแก้) */}
-        <div className="card-header flex-wrap sm:flex-nowrap">
+      <div className="card -mx-4 md:mx-0">
+        <div className="card-header flex-nowrap">
           <h4 className="card-title min-w-0 truncate">
-            รายสินค้า{' '}
-            <span className="text-default-400 font-normal">({visibleRows.length})</span>
+            รายสินค้า <span className="text-default-400 font-normal">({visibleRows.length})</span>
           </h4>
-          <span className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 sm:w-auto sm:shrink-0 sm:flex-nowrap">
-          {/* ตัวกรองวันนี้ — โผล่เฉพาะเดือนปัจจุบัน เดือนอื่นไม่มี "วันนี้" ให้พูดถึง
-              ⇒ ซ่อนทั้งตัว ไม่ใช่ disable+อธิบาย (คนละสถานะกับปุ่ม ‹ › ที่ชนขอบ) */}
+
+          {/**
+            * มือถือ: ดรอปดาวน์เดียวคุมทั้ง "มุมมอง" และ "การเรียง"
+            * 🛑 ของเดิมเป็นช่องติ๊กสองตัวที่ user ทักว่า "มันแปลกๆ" — ต้นเหตุคือ **ทำงาน
+            * คนละทิศแต่แต่งตัวเหมือนกัน**: ตัวหนึ่งกรองให้แคบลง (35→3) อีกตัวเพิ่มของเข้ามา
+            * (35→37) ⇒ ตัวที่ "เลือกมุมมอง" มาอยู่ในเมนูนี้ · ตัวที่ "เพิ่มของ" ไปเป็นสวิตช์
+            * ท้ายรายการ ตรงจุดที่มันมีผลพอดี
+            */}
+          <span className="shrink-0 lg:hidden">
+            <ListControlDropdown
+              view={todayOnly ? 'TODAY' : 'ALL'}
+              onViewChange={(v: ListView) => setTodayOnly(v === 'TODAY')}
+              todayCount={isCurrentMonth ? todayCount : 0}
+              sort={sort}
+              onSortChange={setSort}
+            />
+          </span>
+
+          {/* เดสก์ท็อป: ช่องติ๊กคู่เดิม ไม่แตะ — ตารางมีการเรียงในหัวคอลัมน์ของตัวเองอยู่แล้ว */}
+          <span className="hidden shrink-0 items-center gap-x-4 lg:flex">
           {isCurrentMonth && todayCount > 0 && (
             <label className="flex min-h-11 shrink-0 cursor-pointer items-center gap-2 text-sm">
               <input
@@ -258,15 +375,12 @@ export default function ProductSalesClient({
               <span className="text-default-700">แสดงเฉพาะที่ขายวันนี้ ({todayCount})</span>
             </label>
           )}
-          {/* min-h-11 — ตัวควบคุมอื่นบนหน้านี้มีครบทุกตัว ตัวนี้เดิมสูง ~20px ทั้งที่เรนเดอร์ทุก breakpoint */}
           {zeroCount > 0 && (
             <label
               className={`flex min-h-11 shrink-0 items-center gap-2 text-sm ${
                 todayOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
               }`}
               title={todayOnly ? 'ปิดใช้เพราะกำลังกรองเฉพาะที่ขายวันนี้อยู่' : undefined}>
-              {/* สินค้าที่ขายวันนี้ย่อมมียอดเดือนนี้มากกว่า 0 เสมอ ⇒ สวิตช์นี้ไม่มีผลอะไรเลย
-                  ขณะกรองวันนี้ · ปิดไปดีกว่าปล่อยให้กดได้แล้วไม่เกิดอะไรขึ้น */}
               <input
                 type="checkbox"
                 className="form-checkbox form-checkbox-light size-4.5"
@@ -274,9 +388,7 @@ export default function ProductSalesClient({
                 disabled={todayOnly}
                 onChange={(e) => setShowZero(e.target.checked)}
               />
-              <span className="text-default-700">
-                แสดงสินค้าที่ไม่มียอดขาย ({zeroCount})
-              </span>
+              <span className="text-default-700">แสดงสินค้าที่ไม่มียอดขาย ({zeroCount})</span>
             </label>
           )}
           </span>
@@ -300,18 +412,25 @@ export default function ProductSalesClient({
 
         <div className="card-body lg:hidden">
           <ProductMobileList
-            rows={visibleRows}
+            rows={mobileRows}
             unit={unit}
             futureFrom={futureFrom}
             colorByKey={colorByKey}
             monthLabel={monthLabel}
             onOpen={setOpenKey}
+            incompleteNote={incompleteNote}
+            zeroCount={zeroCount}
+            showZero={showZero}
+            onShowZeroChange={setShowZero}
+            zeroDisabled={todayOnly}
           />
         </div>
       </div>
 
       <p className="text-default-400 mt-3 text-xs">
         นับจากคำสั่งซื้อ {orderCount.toLocaleString('th-TH')} ใบใน {monthLabel}
+        <br />
+        {freshnessNote}
       </p>
 
       {openRow && (

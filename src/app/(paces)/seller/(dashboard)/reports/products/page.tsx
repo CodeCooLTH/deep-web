@@ -118,19 +118,33 @@ export default async function ProductSalesReportPage({
   const prevHref = curNum - 1 >= minNum ? `?month=${shiftMonthIso(month.iso, -1)}` : null
   const nextHref = curNum + 1 <= maxNum ? `?month=${shiftMonthIso(month.iso, 1)}` : null
 
-  const header = (
+  const monthNav = (
+    <MonthSwitcher
+      iso={month.iso}
+      year={month.year}
+      month0={month.month0}
+      prevHref={prevHref}
+      nextHref={nextHref}
+    />
+  )
+
+  /** สถานะที่ไม่ได้เรนเดอร์ตัวหลัก (ว่าง/ล้มเหลว/ไม่มีสิทธิ์) — ต้องมีตัวเลือกเดือนครบทุกจอ */
+  const header = <PageBreadcrumb title={TITLE} subtitle={SUBTITLE} action={monthNav} />
+
+  /**
+   * 🛑 หัวของ **เส้นทางหลัก** ต่างจากข้างบน 2 อย่าง เฉพาะบนมือถือ:
+   * (1) ซ่อนชื่อหน้า เพราะ `SellerMobileHeader` พิมพ์คำเดียวกันเป๊ะอยู่แล้วห่างกัน 40px
+   *     (ยืนยันด้วยเทส [blocker] ใน `getSellerPageTitle.test.ts` — วันที่มีคนถอด route นี้
+   *     ออกจากเมนู หัวจอจะกลายเป็น "Deep ผู้ขาย" เงียบ ๆ แล้วหน้าจะไม่มีชื่ออะไรเหลือเลย)
+   * (2) ซ่อนตัวเลือกเดือน เพราะมันย้ายไปอยู่ในแถบเครื่องมือ **ติดบน** ของ ProductSalesClient
+   *     ซึ่งตามผู้ใช้ไปตลอดเวลาที่เลื่อน
+   */
+  const headerMain = (
     <PageBreadcrumb
       title={TITLE}
       subtitle={SUBTITLE}
-      action={
-        <MonthSwitcher
-          iso={month.iso}
-          year={month.year}
-          month0={month.month0}
-          prevHref={prevHref}
-          nextHref={nextHref}
-        />
-      }
+      hideTitleBelowMd
+      action={<span className="max-md:hidden">{monthNav}</span>}
     />
   )
 
@@ -181,7 +195,7 @@ export default async function ProductSalesReportPage({
 
   return (
     <>
-      {header}
+      {headerMain}
 
       {month.clamped && (
         /* ลิงก์เก่าที่ถูกแชร์ต่อกันไม่ควรพาไปหน้าพัง — ถอยมาเดือนปัจจุบันแล้วบอกว่าเกิดอะไรขึ้น */
@@ -190,15 +204,6 @@ export default async function ProductSalesReportPage({
           <span>เดือนที่ระบุมาในลิงก์ใช้ไม่ได้ — แสดงข้อมูลของ {monthLabel} แทน</span>
         </p>
       )}
-
-      {/**
-       * 🛑 `Order.createdAt` = "วันที่ลูกค้าสั่ง" ที่ผู้ขายระบุย้อนหลังได้ 90 วัน / ล่วงหน้า 7 วัน
-       * ⇒ ตัวเลขของเดือนที่ปิดไปแล้วยังขยับได้ ผู้ขายที่เปิดดูสองครั้งแล้วเห็นเลขไม่ตรงกัน
-       * โดยไม่มีคำอธิบาย จะสรุปว่าระบบคำนวณผิดแล้วเลิกเชื่อทั้งหน้า
-       */}
-      <p className="text-default-400 mb-3 text-xs">
-        ข้อมูล ณ {formatTimeHM(now)} น. วันนี้ · ตัวเลขของเดือนเก่าเปลี่ยนได้ ถ้ามีคนคีย์ออเดอร์ย้อนหลัง
-      </p>
 
       {data.orderCount === 0 ? (
         <div className="card">
@@ -235,6 +240,10 @@ export default async function ProductSalesReportPage({
           isCurrentMonth={isCurrentThaiMonth(month.year, month.month0, now)}
           orderCount={data.orderCount}
           truncated={data.truncated}
+          monthIso={month.iso}
+          prevHref={prevHref}
+          nextHref={nextHref}
+          freshnessNote={`ข้อมูล ณ ${formatTimeHM(now)} น. วันนี้ · ตัวเลขของเดือนเก่าเปลี่ยนได้ ถ้ามีคนคีย์ออเดอร์ย้อนหลัง`}
         />
       )}
     </>

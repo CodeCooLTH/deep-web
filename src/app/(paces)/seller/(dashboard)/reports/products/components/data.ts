@@ -5,13 +5,16 @@
  * (แพตเทิร์นเดียวกับ `sales/components/data.ts` และ `reports/agents/components/data.ts`)
  */
 import {
-  type RunoutEstimate,
-  type SalesPattern,
   bestDay,
   classifySalesPattern,
   estimateRunoutDays,
+  lastSoldIndex,
+  monthThirds,
   shareOfTotalPct,
   toDense,
+  type MonthThird,
+  type RunoutEstimate,
+  type SalesPattern,
 } from '@/lib/product-sales-month'
 import type { ProductSalesRow } from '@/services/product-sales-series.service'
 
@@ -45,6 +48,15 @@ export type ProductSalesViewRow = ProductSalesRow & {
   sharePct: number | null
   /** สต็อกพอขายอีกกี่วัน จากอัตราขายจริงของเดือนนั้น */
   runout: RunoutEstimate
+  /**
+   * ยอดแบ่งเป็น ต้น/กลาง/ปลายเดือน — **แทนแถบ 31 ช่องบนมือถือ** (user สั่ง 2026-08-30:
+   * "ตัด chart ยาวๆ ในแต่ละ card ออก หาข้อมูลอื่นที่น่าสนใจมาแทน")
+   * นับตาม **จำนวนชิ้นเสมอ** ไม่ผันตามหน่วยที่เลือก — เหตุผลเดียวกับ `best`: คำถาม
+   * "ขายช่วงไหน" เป็นเรื่องของจังหวะการขาย ไม่ใช่มูลค่า สลับหน่วยแล้วรูปทรงไม่ควรเปลี่ยน
+   */
+  thirds: MonthThird[]
+  /** วันสุดท้ายที่ขายได้ (index 0-based) · null = เดือนนี้ไม่เคยขายเลย — ใช้เรียงลำดับบนมือถือ */
+  lastSold: number | null
 }
 
 /**
@@ -83,6 +95,8 @@ export function buildViewRows(
       best: bestDay(denseQty),
       sharePct: shareOfTotalPct(r.totalQty, shopTotalQty),
       runout: estimateRunoutDays(r.stockQty, r.totalQty, elapsedDays),
+      thirds: monthThirds(denseQty, days, elapsedDays),
+      lastSold: lastSoldIndex(denseQty),
     }
   })
 }

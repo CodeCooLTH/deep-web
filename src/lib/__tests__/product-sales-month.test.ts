@@ -13,24 +13,28 @@ import { describe, expect, it } from 'vitest'
 
 import {
   CHART_COLOR_TOKENS,
-  RUNOUT_MAX_DAYS,
-  RUNOUT_WARN_DAYS,
-  bestDay,
-  estimateRunoutDays,
-  shareOfTotalPct,
   CHART_SERIES_CAP,
   CONCENTRATED_TOP_DAYS,
   DORMANT_DAY_THRESHOLD,
   MIN_EVENTS_FOR_PATTERN,
+  RUNOUT_MAX_DAYS,
+  RUNOUT_WARN_DAYS,
+  bestDay,
   classifySalesPattern,
   dayIntensity,
   daysInMonth,
+  estimateRunoutDays,
   futureFromDayIndex,
   isCurrentThaiMonth,
+  lastSoldIndex,
+  monthThirds,
+  monthThirdsAriaLabel,
   parseMonthParam,
   referenceDayIndex,
   salesPatternLabel,
+  shareOfTotalPct,
   shiftMonthIso,
+  sortProductRows,
   toDense,
   toSparse,
 } from '../product-sales-month'
@@ -423,5 +427,128 @@ describe('bestDay — วันที่ขายได้มากที่ส�
   it('ไม่มียอดเลย = null ไม่ใช่ index 0', () => {
     expect(bestDay([0, 0, 0])).toBeNull()
     expect(bestDay([])).toBeNull()
+  })
+})
+
+/* ═══════════════ ต้นเดือน / กลางเดือน / ปลายเดือน (แทนแถบ 31 ช่องบนมือถือ) ═══════════════ */
+
+describe('[blocker] monthThirds — ขอบเขตช่วงตามที่คนไทยพูดจริง (1–10 · 11–20 · 21–สิ้นเดือน)', () => {
+  const ones = (n: number) => Array.from({ length: n }, () => 1)
+
+  it('เดือน 31 วัน: ช่วงท้ายยาว 11 วัน ไม่ใช่ 10', () => {
+    const t = monthThirds(ones(31), 31, 31)
+    expect(t.map((x) => [x.fromDay, x.toDay])).toEqual([
+      [1, 10],
+      [11, 20],
+      [21, 31],
+    ])
+    expect(t.map((x) => x.totalDays)).toEqual([10, 10, 11])
+  })
+
+  it('เดือน 28 วัน: ช่วงท้ายหดเหลือ 8 วัน ไม่ใช่หายไป', () => {
+    const t = monthThirds(ones(28), 28, 28)
+    expect(t).toHaveLength(3)
+    expect([t[2].fromDay, t[2].toDay, t[2].totalDays]).toEqual([21, 28, 8])
+  })
+
+  it('บวกยอดเข้าช่วงถูกต้อง — ค่าที่ขอบ (วันที่ 10/11/20/21) ต้องไม่หล่นข้ามช่วง', () => {
+    const v = Array.from({ length: 31 }, () => 0)
+    v[9] = 5 // วันที่ 10 → EARLY
+    v[10] = 7 // วันที่ 11 → MID
+    v[19] = 3 // วันที่ 20 → MID
+    v[20] = 9 // วันที่ 21 → LATE
+    const t = monthThirds(v, 31, 31)
+    expect(t.map((x) => x.sum)).toEqual([5, 10, 9])
+  })
+
+  /**
+   * 🛑 เคสที่ทำให้ตัวเลขโกหกได้เงียบที่สุด — `partial-data-must-be-labeled-or-filled.md`
+   * 30 ส.ค. ช่วง "ปลายเดือน" มีข้อมูลจริงแค่ 10 จาก 11 วัน ถ้า `complete` ไม่เป็น false
+   * UI จะวาดแท่งเทียบกับช่วงอื่นตรง ๆ แล้วผู้ขายอ่านว่า "ปลายเดือนขายตก" ทั้งที่ยังไม่เกิด
+   */
+  it('เดือนปัจจุบันที่ยังไม่จบ: ช่วงท้ายต้องรายงานว่ายังไม่ครบ', () => {
+    const t = monthThirds(ones(31), 31, 30)
+    expect(t[0].complete).toBe(true)
+    expect(t[1].complete).toBe(true)
+    expect(t[2].complete).toBe(false)
+    expect(t[2].elapsedDays).toBe(10)
+    expect(t[2].totalDays).toBe(11)
+  })
+
+  it('ช่วงที่ยังไม่เริ่มเลย ต้องแยกจาก "ผ่านแล้วแต่ขายไม่ได้" — ทั้งคู่ sum เป็น 0 เหมือนกัน', () => {
+    const t = monthThirds(Array.from({ length: 31 }, () => 0), 31, 15)
+    expect(t[1].notStarted).toBe(false) // ผ่านมาแล้ว 5 วัน ขายไม่ได้จริง
+    expect(t[2].notStarted).toBe(true) // ยังไม่ถึงวันที่ 21
+    expect(t[2].sum).toBe(0)
+  })
+
+  it('วันแรกของเดือน (ยังไม่ผ่านไปสักวัน): ทุกช่วง notStarted', () => {
+    const t = monthThirds(ones(31), 31, 0)
+    expect(t.every((x) => x.notStarted)).toBe(true)
+    expect(t.every((x) => !x.complete)).toBe(true)
+  })
+
+  it('elapsedDays เกินจำนวนวันในเดือน ต้องไม่ทำให้ elapsed ของช่วงล้น', () => {
+    const t = monthThirds(ones(30), 30, 99)
+    expect(t.every((x) => x.elapsedDays === x.totalDays)).toBe(true)
+  })
+})
+
+describe('[blocker] monthThirdsAriaLabel — ต้องบอกทั้ง "วันไหน" และ "ยังไม่ครบ"', () => {
+  it('ช่วงที่ยังไม่จบต้องมีคำบอกว่าผ่านไปกี่วัน', () => {
+    const s = monthThirdsAriaLabel(monthThirds([1, 1, 1], 31, 30), 'ชิ้น')
+    expect(s).toMatch(/ผ่านไป 10 จาก 11 วัน/)
+  })
+
+  it('ช่วงที่ยังไม่ถึงต้องพูดว่า "ยังไม่ถึง" ไม่ใช่รายงานเป็น 0', () => {
+    const s = monthThirdsAriaLabel(monthThirds([], 31, 5), 'ชิ้น')
+    expect(s).toMatch(/ยังไม่ถึง/)
+  })
+
+  /** หนี้เดิมของ DayStrip คือบอกจำนวนแต่ไม่บอกว่าวันไหน — อันใหม่ต้องไม่รับมา */
+  it('ต้องมีเลขวันที่เสมอ ไม่ใช่แค่ชื่อช่วง', () => {
+    const s = monthThirdsAriaLabel(monthThirds([1], 31, 31), 'ชิ้น')
+    expect(s).toMatch(/วันที่ 1 ถึง 10/)
+    expect(s).toMatch(/วันที่ 21 ถึง 31/)
+  })
+})
+
+describe('[blocker] sortProductRows — null ต้องไปคนละทางของสองการเรียงที่ดูกลับด้านกัน', () => {
+  const R = (name: string, total: number, lastSold: number | null) => ({ name, total, lastSold })
+  const rows = [R('ก', 10, 3), R('ข', 30, null), R('ค', 20, 9)]
+
+  it('TOP / BOTTOM เรียงตามยอด', () => {
+    expect(sortProductRows(rows, 'TOP').map((r) => r.name)).toEqual(['ข', 'ค', 'ก'])
+    expect(sortProductRows(rows, 'BOTTOM').map((r) => r.name)).toEqual(['ก', 'ค', 'ข'])
+  })
+
+  it('RECENT: ตัวที่ไม่เคยขายเลยไปอยู่ท้ายสุด (ไม่มีวันที่ให้เรียง)', () => {
+    expect(sortProductRows(rows, 'RECENT').map((r) => r.name)).toEqual(['ค', 'ก', 'ข'])
+  })
+
+  it('DORMANT: ตัวที่ไม่เคยขายเลยไปอยู่บนสุด (เงียบที่สุดเท่าที่เป็นไปได้)', () => {
+    expect(sortProductRows(rows, 'DORMANT').map((r) => r.name)).toEqual(['ข', 'ก', 'ค'])
+  })
+
+  it('ค่าที่เท่ากันตัดสินด้วยชื่อเสมอ — ไม่งั้นลำดับสลับเองทุก re-render', () => {
+    const tie = [R('ผ', 5, 1), R('ก', 5, 1), R('ม', 5, 1)]
+    expect(sortProductRows(tie, 'TOP').map((r) => r.name)).toEqual(['ก', 'ผ', 'ม'])
+    expect(sortProductRows(tie, 'DORMANT').map((r) => r.name)).toEqual(['ก', 'ผ', 'ม'])
+  })
+
+  it('ไม่แก้อาร์เรย์เดิม', () => {
+    const src = [R('ก', 1, 0), R('ข', 9, 0)]
+    sortProductRows(src, 'TOP')
+    expect(src.map((r) => r.name)).toEqual(['ก', 'ข'])
+  })
+})
+
+describe('[blocker] lastSoldIndex', () => {
+  it('คืนวันสุดท้ายที่มียอด ไม่ใช่วันแรก', () => {
+    expect(lastSoldIndex([2, 0, 5, 0, 0])).toBe(2)
+  })
+  it('ไม่เคยขายเลย = null ไม่ใช่ 0 หรือ -1', () => {
+    expect(lastSoldIndex([0, 0, 0])).toBeNull()
+    expect(lastSoldIndex([])).toBeNull()
   })
 })

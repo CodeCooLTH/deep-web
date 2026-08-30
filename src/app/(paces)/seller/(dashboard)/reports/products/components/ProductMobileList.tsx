@@ -6,8 +6,11 @@
  * Base: src/app/(paces)/seller/(dashboard)/products/components/ProductCard.tsx
  *   (การ์ดแยกใบ + รูป/fallback + ลำดับชั้นข้อความ) และ orders/components/OrderCard.tsx (แถวกดได้)
  *
- * 🛑 **ไม่มีกราฟรวมบนมือถือ** — 5 เส้น × 31 จุดบนความกว้าง 360px ได้ ~11px ต่อจุด อ่านไม่ออกจริง
- * ไม่ว่าจะปรับอย่างไร แถวละแถบ 31 ช่องอ่านออกกว่าและตอบคำถาม "ขายวันไหน" ตรงกว่า
+ * 🛑 **แต่ละแถวไม่มีแถบ 31 ช่องแล้ว** (user สั่ง 2026-08-30: "ตัด chart ยาวๆ ในแต่ละ card ออก
+ * หาข้อมูลอื่นที่น่าสนใจมาแทน") — แทนด้วย `MonthThirdsBar` (ต้น/กลาง/ปลายเดือน) ซึ่งตอบ
+ * คำถามเดียวกันด้วยหมึก 1/10 · แถบ 31 ช่องยังอยู่ที่ตารางเดสก์ท็อปและในชีตรายละเอียด
+ * เหตุผลเชิงตัวเลข: บนมือถือแถบเดิมได้ช่องละ ~5.4px ที่ 360px (~4.3px ที่ 320px) ซึ่ง
+ * อ่านไม่ออกอยู่แล้ว — ไม่ได้เสียความสามารถไป แค่ย้ายไปตอบในที่ที่มีพื้นที่พอ
  *
  * 🛑 ทั้งแถวเป็น `<button>` เปิดชีต **ไม่ใช่ลิงก์ไปหน้าสินค้า** (ต่างจาก ProductCard ที่ทั้งใบ
  * ลิงก์ไปหน้าสินค้า) เพราะงานหลักของหน้านี้บนมือถือคือ "ดูแนวโน้ม" ไม่ใช่ "จัดการสินค้า" —
@@ -16,10 +19,10 @@
 import Icon from '@/components/wrappers/Icon'
 import { formatBaht, formatNumberNoSymbol } from '@/lib/format-money'
 import { CUSTOM_ITEM_NOTE } from '@/lib/product-sales-month'
-import DayStrip from './DayStrip'
+import MonthThirdsBar from './MonthThirdsBar'
 import PatternBadge from './PatternBadge'
 import ProductThumb from './ProductThumb'
-import { rowSeries, rowTotal, runoutLabel, type ProductSalesViewRow, type SalesUnit } from './data'
+import { rowTotal, runoutLabel, type ProductSalesViewRow, type SalesUnit } from './data'
 
 type Props = {
   rows: ProductSalesViewRow[]
@@ -32,6 +35,18 @@ type Props = {
   colorByKey: Map<string, string>
   monthLabel: string
   onOpen: (key: string) => void
+  /**
+   * ประโยคเตือนว่าเดือนยังไม่จบ — โผล่ **ครั้งเดียวเหนือรายการ ไม่ใช่ทุกแถว**
+   * เพราะมันเป็นคุณสมบัติของ *เดือน* ไม่ใช่ของสินค้า (ถ้าใส่ทุกแถวจะซ้ำ 35 รอบ ซึ่งเป็น
+   * ปัญหาเดียวกับป้ายวันที่ใต้แถบเดิมที่เพิ่งตัดออกไป)
+   */
+  incompleteNote: string | null
+  /** สวิตช์ท้ายรายการ — ย้ายลงมาจากหัวการ์ด (ดู ListControlDropdown ว่าทำไม) */
+  zeroCount: number
+  showZero: boolean
+  onShowZeroChange: (v: boolean) => void
+  /** true = กำลังกรอง "ขายวันนี้" ⇒ สวิตช์ไม่มีผล เพราะของที่ขายวันนี้ย่อมมียอดเดือนนี้ > 0 */
+  zeroDisabled: boolean
 }
 
 export default function ProductMobileList({
@@ -41,9 +56,12 @@ export default function ProductMobileList({
   colorByKey,
   monthLabel,
   onOpen,
+  incompleteNote,
+  zeroCount,
+  showZero,
+  onShowZeroChange,
+  zeroDisabled,
 }: Props) {
-  const fmtValue = (v: number) => (unit === 'baht' ? formatBaht(v) : `${formatNumberNoSymbol(v)} ชิ้น`)
-
   if (rows.length === 0) {
     return (
       <p className="text-default-400 py-10 text-center text-sm">
@@ -53,7 +71,11 @@ export default function ProductMobileList({
   }
 
   return (
-    <ul className="divide-default-200 divide-y">
+    <>
+      {incompleteNote && (
+        <p className="text-default-400 mb-2 text-xs">{incompleteNote}</p>
+      )}
+      <ul className="divide-default-200 divide-y">
       {rows.map((r) => {
         // โชว์ป้ายสต็อกเฉพาะตอนใกล้หมดจริง — ถ้าโชว์ทุกกรณี ร้านที่ไม่ได้เปิดนับสต็อก
         // (ซึ่งเป็นส่วนใหญ่) จะได้ป้ายเหมือนกันทุกแถว = ค่าคงที่ซ้ำ แบบเดียวกับที่เพิ่งตัดออก
@@ -102,13 +124,9 @@ export default function ProductMobileList({
                 <span className="text-default-400 mt-0.5 block text-xs">{CUSTOM_ITEM_NOTE}</span>
               )}
 
-              <DayStrip
-                values={rowSeries(r, unit)}
-                futureFrom={futureFrom}
-                formatValue={fmtValue}
-                monthLabel={monthLabel}
-                className="mt-2"
-              />
+              {/* 🛑 นับตามจำนวนชิ้นเสมอ ไม่ผันตามหน่วย — "ขายช่วงไหน" เป็นเรื่องจังหวะการขาย
+                  ไม่ใช่มูลค่า สลับไปโหมดบาทแล้วรูปทรงของเดือนไม่ควรเปลี่ยน (เหตุผลเดียวกับ `best`) */}
+              <MonthThirdsBar thirds={r.thirds} unitWord="ชิ้น" className="mt-2" />
 
               {/**
                 * 🛑 มือถือโชว์ป้าย **เฉพาะตัวที่ต้องไปดูต่อ** — ต่างจากเดสก์ท็อปที่โชว์ครบ 3 แบบ
@@ -145,7 +163,29 @@ export default function ProductMobileList({
         </li>
         )
       })}
-    </ul>
+      </ul>
+      {zeroCount > 0 && (
+        /**
+         * สวิตช์อยู่ **ท้ายรายการ** ไม่ใช่หัวการ์ด — มันคือ "เพิ่มของเข้ามา" ผลของมันจึงอยู่
+         * ตรงนี้พอดี (ของที่เพิ่มเข้ามาต่อท้าย) และแยกร่างจากตัวที่ "กรองให้แคบลง" ซึ่งอยู่ใน
+         * ดรอปดาวน์บนหัว ⇒ อ่านสลับกันไม่ได้อีก (user: ของเดิม "มันแปลกๆ")
+         */
+        <label
+          className={`border-default-200 mt-2 flex min-h-11 items-center justify-between gap-3 border-t pt-3 text-sm ${
+            zeroDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+          }`}
+          title={zeroDisabled ? 'ปิดใช้เพราะกำลังกรองเฉพาะที่ขายวันนี้อยู่' : undefined}>
+          <span className="text-default-700">รวมสินค้าที่ยังไม่ขายเดือนนี้ ({zeroCount})</span>
+          <input
+            type="checkbox"
+            className="form-checkbox form-checkbox-light size-4.5 shrink-0"
+            checked={showZero && !zeroDisabled}
+            disabled={zeroDisabled}
+            onChange={(e) => onShowZeroChange(e.target.checked)}
+          />
+        </label>
+      )}
+    </>
   )
 }
 

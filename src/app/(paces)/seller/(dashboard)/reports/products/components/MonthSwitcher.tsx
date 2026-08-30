@@ -3,17 +3,26 @@
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/buttons/page.tsx (`.btn.btn-icon` + button group)
  *
- * 🛑 เป็น **server component ล้วน** และปุ่มเป็น `<Link>` จริง ไม่ใช่ปุ่มที่แก้ state —
+ * 🛑 ปุ่ม `‹ ›` เป็น `<Link>` จริง ไม่ใช่ปุ่มที่แก้ state —
  * ผู้ใช้ต้องกด back ของเบราว์เซอร์แล้วกลับมาเดือนเดิมได้ และส่งลิงก์ให้กันดูได้
  * (แพตเทิร์นเดียวกับ `?from=&to=` ของ `/sales` และ `/reports/agents`)
+ * ไฟล์นี้เคยเป็น server component ล้วน — ต้องเติม `'use client'` เพราะป้ายเดือนเปิดชีตได้แล้ว
+ * (2026-08-30) **แต่ตัวลิงก์ยังเป็น `<Link>` ทั้งหมด ทั้งปุ่ม ‹ › และทุกเดือนในชีต**
+ *
+ * 🛑 ป้ายเดือนกดได้เพราะ user ทักว่า "วันที่กดยาก" — ปุ่ม ‹ › ผ่านเกณฑ์นิ้ว 44px อยู่แล้ว
+ * ตัวที่กดไม่ได้คือป้ายกลาง ⇒ ย้อนไป ก.พ. 2569 ต้องกด ‹ **หกครั้ง** กระโดดไม่ได้เลย
  *
  * 🛑 `min-h-11 min-w-11` — `.btn.btn-icon` ของธีมสูง 37px ซึ่งต่ำกว่าเกณฑ์พื้นที่นิ้ว 44px
  * ที่ `PRODUCT.md` ประกาศไว้เอง (ท่าเดียวกับที่ `ReportFilters.tsx` ทำกับปุ่ม preset)
  */
+'use client'
+
 import Link from 'next/link'
+import { useState } from 'react'
 
 import Icon from '@/components/wrappers/Icon'
 import { formatMonthYearTH } from '@/lib/format-date'
+import MonthPickerSheet from './MonthPickerSheet'
 
 type Props = {
   /** `YYYY-MM` ของเดือนที่กำลังดู */
@@ -28,6 +37,7 @@ type Props = {
 export default function MonthSwitcher({ iso, year, month0, prevHref, nextHref }: Props) {
   // วันที่ 1 เวลา 07:00 ไทย — ปลอดภัยจากการตกเดือนไม่ว่าเซิร์ฟเวอร์จะอยู่โซนไหน
   const label = formatMonthYearTH(new Date(Date.UTC(year, month0, 1, 0, 0, 0)))
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   return (
     <div className="flex items-center gap-1" data-month={iso}>
@@ -38,14 +48,27 @@ export default function MonthSwitcher({ iso, year, month0, prevHref, nextHref }:
         disabledLabel="ไม่มีข้อมูลก่อนหน้านี้"
       />
       {/* ความกว้างคงที่ — ไม่งั้นปุ่ม ‹ › ขยับทุกครั้งที่เปลี่ยนเดือน (ชื่อเดือนย่อยาวไม่เท่ากัน:
-          "ก.ค. 2569" สั้นกว่า "พ.ย. 2569") 7rem พอดีกับรูปแบบย่อที่ formatMonthYearTH คืน */}
-      <span className="text-default-900 min-w-28 text-center text-sm font-semibold">{label}</span>
+          "ก.ค. 2569" สั้นกว่า "พ.ย. 2569") 7rem พอดีกับรูปแบบย่อที่ formatMonthYearTH คืน
+          🛑 **ไม่มีกรอบ** — ลองทำเป็นกล่องฟอร์มแล้ว user ปฏิเสธ ("input เลือกเดือนมันแปลกๆ")
+          กล่องกลางหัวหน้าอ่านเป็น "ช่องกรอก" และทำให้กลุ่ม ‹ เดือน › แตกเป็นสามก้อนคนละทรง */}
+      <button
+        type="button"
+        onClick={() => setPickerOpen(true)}
+        aria-haspopup="dialog"
+        aria-label={`${label} — แตะเพื่อเลือกเดือนอื่น`}
+        className="text-default-900 hover:bg-default-100 inline-flex min-h-11 min-w-28 items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-semibold">
+        {label}
+        <Icon icon="chevron-down" className="text-default-400 size-3.5 shrink-0" aria-hidden="true" />
+      </button>
       <NavButton
         href={nextHref}
         icon="chevron-right"
         label="เดือนถัดไป"
         disabledLabel="ยังไม่มีข้อมูลของเดือนถัดไป"
       />
+      {pickerOpen && (
+        <MonthPickerSheet year={year} month0={month0} onClose={() => setPickerOpen(false)} />
+      )}
     </div>
   )
 }

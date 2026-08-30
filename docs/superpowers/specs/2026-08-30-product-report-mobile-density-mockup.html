@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<title>ม็อกอัพ — รายงานยอดขายรายสินค้า มือถือ (00063)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#236dc9; --primary-ink:#173f73;
+  --chart-alpha:#02bc9c; --chart-gamma:#f9bf59; --chart-beta:#f7577e;
+  --warning:#f9bf59; --warning-ink:#92400e;
+  --default-100:#f1f2f6; --default-200:#e9eaee; --default-300:#dcdee5;
+  --default-400:#8a91a5; --default-500:#6b7280; --default-700:#4c4c5c; --default-900:#2f2b3d;
+  --card:#fff; --body-bg:#f6f7fb;
+  --danger:#ef4444; --success:#28c76f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,sans-serif;background:#eceef4;color:var(--default-900);padding:24px 16px 80px;-webkit-font-smoothing:antialiased}
+h1{font-size:20px;font-weight:700;margin-bottom:4px}
+.lede{font-size:13px;color:var(--default-500);max-width:900px;line-height:1.7;margin-bottom:20px}
+.lede b{color:var(--default-900)}
+.rail{display:flex;gap:20px;align-items:flex-start;overflow-x:auto;padding-bottom:16px}
+.dev{flex:0 0 auto}
+.dev>figcaption{font-size:12px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:9999px}
+.tag.bad{background:#fee2e2;color:#991b1b}
+.tag.good{background:#dcfce7;color:#166534}
+.tag.same{background:var(--default-200);color:var(--default-700)}
+.phone{width:360px;height:720px;background:var(--body-bg);border:8px solid #1c1c28;border-radius:34px;overflow:hidden;position:relative}
+.wide{border-radius:10px;border-width:4px;height:640px}
+.scroll{height:100%;overflow-y:auto;position:relative}
+.fold{position:absolute;left:0;right:0;border-top:2px dashed var(--danger);z-index:40;pointer-events:none}
+.fold::after{content:attr(data-l);position:absolute;right:4px;top:-16px;font-size:9px;font-weight:700;color:var(--danger);background:#fff;padding:1px 5px;border-radius:4px;border:1px solid var(--danger)}
+/* ── shell ── */
+.appbar{height:52px;background:#fff;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--default-200);position:sticky;top:0;z-index:30}
+.appbar .t{flex:1;text-align:center;font-size:15px;font-weight:600}
+.ic{width:28px;height:28px;display:grid;place-items:center;color:var(--default-700);font-size:16px}
+.pg{padding:0 12px}
+/* ── หัวหน้า ── */
+.titlehead{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:8px 0;margin:12px 0}
+.titlehead.compact{padding:0;margin:10px 0 8px;min-height:44px}
+.h4{font-size:16px;font-weight:600}
+.msw{display:flex;align-items:center;gap:4px}
+.navbtn{min-width:44px;min-height:44px;display:grid;place-items:center;border:1px solid var(--default-300);border-radius:6px;background:#fff;color:var(--default-700);font-size:15px}
+.mlabel{min-width:112px;text-align:center;font-size:14px;font-weight:600}
+.mbtn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:0 10px;border:0;background:transparent;font-family:inherit;font-size:14px;font-weight:600;color:var(--default-900);border-radius:6px;min-width:128px}
+.mbtn:hover{background:var(--default-100)}
+.mbtn i{font-style:normal;font-size:11px;color:var(--default-400)}
+/* ชีตเลือกเดือน */
+.sheet{position:absolute;inset:0;background:rgba(47,43,61,.45);z-index:50;display:flex;align-items:flex-end}
+.spanel{background:#fff;width:100%;border-radius:16px 16px 0 0;padding:16px 16px 24px;max-height:70%}
+.shd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.shd b{font-size:15px}
+.yr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.yr span{font-size:14px;font-weight:700}
+.mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mgrid button{min-height:44px;border:1px solid var(--default-300);border-radius:8px;background:#fff;font-family:inherit;font-size:13px;font-weight:600;color:var(--default-700)}
+.mgrid button.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.mgrid button:disabled{opacity:.35}
+/* แถบรายวันเต็มความกว้าง */
+.stripwide{display:flex;gap:1px;align-items:flex-end;height:18px;margin-top:10px}
+.stripwide s{flex:1;background:var(--default-200);text-decoration:none;display:block}
+.stripwide s.a{background:var(--primary)}
+.striplbl{display:flex;justify-content:space-between;font-size:9.5px;color:var(--default-400);margin-top:3px}
+.prow2{padding:12px 0;border-bottom:1px dashed var(--default-200)}
+.prow2:last-child{border-bottom:0}
+.ptop{display:flex;gap:12px;align-items:flex-start}
+.meta{font-size:12px;color:var(--default-400);line-height:1.6;margin-bottom:10px}
+.meta a{color:var(--primary-ink);text-decoration:underline}
+.seg{display:inline-flex;border:1px solid var(--default-300);border-radius:8px;overflow:hidden;background:#fff;margin-bottom:12px}
+.seg button{min-height:44px;padding:0 18px;border:0;background:#fff;font-family:inherit;font-size:14px;font-weight:600;color:var(--default-700)}
+.seg button.on{background:var(--primary);color:#fff}
+/* ── การ์ด ── */
+.card{background:var(--card);border-radius:8px;box-shadow:0 1px 2px rgba(47,43,61,.08);margin-bottom:16px;overflow:hidden}
+.card.tight{margin-bottom:12px}
+.chd{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:15px 20px;border-bottom:1px dashed var(--default-300)}
+.chd.stack{flex-direction:column;align-items:flex-start;gap:8px}
+.ctitle{font-size:15px;font-weight:600}
+.chint{font-size:12px;color:var(--default-400)}
+.cbd{padding:20px}
+.cbd.flush{padding:12px 16px}
+/* ── chip ── */
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{min-height:44px;display:inline-flex;align-items:center;padding:0 14px;border-radius:8px;background:var(--default-100);color:var(--default-700);font-size:13px;font-weight:600;border:1px solid transparent}
+.chip.on{background:var(--primary);color:#fff}
+.chip.off{opacity:.45}
+/* ── checkbox เดิม ── */
+.cbrow{min-height:44px;display:flex;align-items:center;gap:10px;font-size:14px;font-weight:500}
+.box{width:20px;height:20px;border:2px solid var(--default-300);border-radius:4px;flex:0 0 auto}
+/* ── กราฟ ── */
+.chart{height:240px;display:flex;align-items:flex-end;gap:1px;padding:12px 0 0}
+.chart.mini{height:200px}
+.col{flex:1;display:flex;flex-direction:column-reverse;gap:0}
+.col i{display:block;width:100%}
+.xax{display:flex;justify-content:space-between;font-size:10px;color:var(--default-400);padding-top:6px;border-top:1px solid var(--default-200);margin-top:2px}
+/* ── รายการสินค้า ── */
+.prow{display:flex;gap:12px;padding:12px 0;border-bottom:1px dashed var(--default-200);align-items:flex-start}
+.prow:last-child{border-bottom:0}
+.th{width:44px;height:44px;border-radius:8px;flex:0 0 auto;background:var(--default-200);box-shadow:0 0 0 2px var(--r,transparent)}
+.pmain{flex:1;min-width:0}
+.pn{font-size:14px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.psub{font-size:11px;color:var(--default-400);margin-top:2px}
+.pv{font-size:14px;font-weight:700;white-space:nowrap;padding-left:6px}
+.strip{display:flex;gap:1px;align-items:flex-end;height:16px;margin-top:6px}
+.strip s{flex:1;background:var(--default-200);text-decoration:none;display:block}
+.strip s.a{background:var(--primary)}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:9999px;margin-top:6px}
+.badge.w{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+/* ── หมายเหตุ ── */
+.note{max-width:940px;background:#fff;border-radius:10px;padding:18px 20px;margin-top:24px;font-size:13px;line-height:1.8;box-shadow:0 1px 3px rgba(47,43,61,.08)}
+.note h2{font-size:15px;margin-bottom:10px}
+.note table{width:100%;border-collapse:collapse;margin:10px 0 16px;font-size:12.5px}
+.note th,.note td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--default-200);vertical-align:top}
+.note th{background:var(--default-100);font-weight:700}
+.note code{background:var(--default-100);padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:ui-monospace,monospace}
+.stop{color:#b91c1c;font-weight:700}
+</style></head><body>
+
+<h1>รายงานยอดขายรายสินค้า — แก้ความหนาแน่นบนมือถือ</h1>
+<p class="lede">
+  ตอบ 3 ข้อที่คุณบอกหลังเปิดของจริง: <b>“ข้อความด้านบนเยอะไป · วันที่กดยาก · padding เยอะไป”</b><br>
+  เส้นประแดง = ขอบล่างของจอ iPhone โดยประมาณ (~660px หลังหักแถบสถานะและแถบเมนูล่าง)
+  — ของที่อยู่ใต้เส้นคือของที่ต้องเลื่อนถึงจะเห็น<br>
+  ชื่อสินค้าและตัวเลขทั้งหมดคัดจากภาพหน้าจอ prod ของคุณ ไม่ใช่ข้อมูลสมมติ
+</p>
+
+<div class="rail">
+
+<!-- ══════════ ก่อน ══════════ -->
+<figure class="dev">
+  <figcaption>360px — ตอนนี้บน prod <span class="tag bad">สินค้าแถวแรกหลุดจอ</span></figcaption>
+  <div class="phone"><div class="scroll">
+    <div class="fold" data-l="ขอบจอ" style="top:660px"></div>
+    <div class="appbar"><span class="ic">←</span><span class="t">ยอดขายรายสินค้า</span><span class="ic">🔔</span></div>
+    <div class="pg">
+      <div class="titlehead">
+        <span class="h4">ยอดขายรายสินค้า</span>
+        <span class="msw"><span class="navbtn">‹</span><span class="mlabel">ส.ค. 2569</span><span class="navbtn">›</span></span>
+      </div>
+      <p class="meta">ข้อมูล ณ 11:22 น. วันนี้ · ตัวเลขของเดือนเก่าเปลี่ยนได้ ถ้ามีคนคีย์ออเดอร์ย้อนหลัง</p>
+      <p class="meta">นับทุกออเดอร์ที่ยังไม่ถูกยกเลิก ไม่ต้องรอลูกค้ายืนยัน <a href="#">ดูรายละเอียด</a></p>
+      <div class="seg"><button class="on">จำนวน (ชิ้น)</button><button>ยอดขาย (บาท)</button></div>
+      <div class="card">
+        <div class="chd"><span class="ctitle">แนวโน้มรายวัน</span><span class="chint">แสดง 3 อันดับแรกตามจำนวนชิ้น</span></div>
+        <div class="cbd"><div class="chart" id="c1"></div><div class="xax"><span>1</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span><span>31</span></div></div>
+      </div>
+      <div class="card">
+        <div class="chd stack">
+          <span class="ctitle">รายสินค้า (35)</span>
+          <div><div class="cbrow"><span class="box"></span>แสดงเฉพาะที่ขายวันนี้ (3)</div>
+          <div class="cbrow"><span class="box"></span>แสดงสินค้าที่ไม่มียอดขาย (2)</div></div>
+        </div>
+        <div class="cbd flush" id="l1"></div>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<!-- ══════════ หลัง ══════════ -->
+<figure class="dev">
+  <figcaption>360px — หลังแก้ <span class="tag good">เห็นสินค้า 2 แถวในจอแรก</span></figcaption>
+  <div class="phone"><div class="scroll">
+    <div class="fold" data-l="ขอบจอ" style="top:660px"></div>
+    <div class="appbar"><span class="ic">←</span><span class="t">ยอดขายรายสินค้า</span><span class="ic">🔔</span></div>
+    <div class="pg">
+      <div class="titlehead compact">
+        <span class="msw"><span class="navbtn">‹</span>
+          <button class="mbtn">สิงหาคม 2569 <i>▾</i></button>
+        <span class="navbtn">›</span></span>
+      </div>
+      <p class="meta">นับทุกออเดอร์ที่ยังไม่ถูกยกเลิก ไม่ต้องรอลูกค้ายืนยัน <a href="#">ดูรายละเอียด</a></p>
+      <div class="seg"><button class="on">จำนวน (ชิ้น)</button><button>ยอดขาย (บาท)</button></div>
+      <div class="card tight">
+        <div class="chd"><span class="ctitle">แนวโน้มรายวัน</span><span class="chint">3 อันดับแรก</span></div>
+        <div class="cbd flush"><div class="chart mini" id="c2"></div><div class="xax"><span>1</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span><span>31</span></div></div>
+      </div>
+      <div class="card">
+        <div class="chd stack">
+          <span class="ctitle">รายสินค้า (35)</span>
+          <div class="chips"><span class="chip">วันนี้ (3)</span><span class="chip">ไม่มียอดขาย (2)</span></div>
+        </div>
+        <div class="cbd flush" id="l2"></div>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<!-- ══════════ แท็บเล็ต ══════════ -->
+<figure class="dev">
+  <figcaption>768px — แท็บเล็ต <span class="tag same">ชื่อหน้ากลับมา</span></figcaption>
+  <div class="phone wide" style="width:768px"><div class="scroll">
+    <div class="pg" style="padding:14px 20px">
+      <div class="titlehead">
+        <span class="h4">ยอดขายรายสินค้า</span>
+        <span class="msw"><span class="navbtn">‹</span>
+          <button class="mbtn">สิงหาคม 2569 <i>▾</i></button>
+        <span class="navbtn">›</span></span>
+      </div>
+      <p class="meta">ข้อมูล ณ 11:22 น. วันนี้ · นับทุกออเดอร์ที่ยังไม่ถูกยกเลิก ไม่ต้องรอลูกค้ายืนยัน <a href="#">ดูรายละเอียด</a></p>
+      <div class="seg"><button class="on">จำนวน (ชิ้น)</button><button>ยอดขาย (บาท)</button></div>
+      <div class="card tight">
+        <div class="chd"><span class="ctitle">แนวโน้มรายวัน</span><span class="chint">แสดง 3 อันดับแรกตามจำนวนชิ้น</span></div>
+        <div class="cbd"><div class="chart" id="c3"></div><div class="xax"><span>1</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span><span>31</span></div></div>
+      </div>
+      <div class="card">
+        <div class="chd"><span class="ctitle">รายสินค้า (35)</span>
+          <div class="chips"><span class="chip">วันนี้ (3)</span><span class="chip">ไม่มียอดขาย (2)</span></div></div>
+        <div class="cbd flush" id="l3"></div>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<figure class="dev">
+  <figcaption>360px — กดที่ชื่อเดือน <span class="tag good">กระโดดข้ามเดือนได้</span></figcaption>
+  <div class="phone"><div class="scroll">
+    <div class="appbar"><span class="ic">←</span><span class="t">ยอดขายรายสินค้า</span><span class="ic">🔔</span></div>
+    <div class="pg">
+      <div class="titlehead compact">
+        <span class="msw"><span class="navbtn">‹</span><button class="mbtn">สิงหาคม 2569 <i>▾</i></button><span class="navbtn">›</span></span>
+      </div>
+      <p class="meta">นับทุกออเดอร์ที่ยังไม่ถูกยกเลิก ไม่ต้องรอลูกค้ายืนยัน <a href="#">ดูรายละเอียด</a></p>
+      <div class="seg"><button class="on">จำนวน (ชิ้น)</button><button>ยอดขาย (บาท)</button></div>
+      <div class="card tight"><div class="chd"><span class="ctitle">แนวโน้มรายวัน</span></div><div class="cbd flush"><div class="chart mini" id="c4"></div></div></div>
+    </div>
+    <div class="sheet"><div class="spanel">
+      <div class="shd"><b>เลือกเดือน</b><span class="ic">✕</span></div>
+      <div class="yr"><span class="navbtn" style="min-width:36px;min-height:36px">‹</span><span>2569</span><span class="navbtn" style="min-width:36px;min-height:36px">›</span></div>
+      <div class="mgrid">
+        <button>ม.ค.</button><button>ก.พ.</button><button>มี.ค.</button>
+        <button>เม.ย.</button><button>พ.ค.</button><button>มิ.ย.</button>
+        <button>ก.ค.</button><button class="on">ส.ค.</button><button disabled>ก.ย.</button>
+        <button disabled>ต.ค.</button><button disabled>พ.ย.</button><button disabled>ธ.ค.</button>
+      </div>
+    </div></div>
+  </div></div>
+</figure>
+
+</div>
+
+<div class="note">
+<h2>สิ่งที่เปลี่ยน · ทำไม</h2>
+<table>
+<tr><th>ของ</th><th>ทำอะไร</th><th>เหตุผล</th></tr>
+<tr><td>ชื่อหน้า “ยอดขายรายสินค้า” ใน <code>PageBreadcrumb</code></td><td class="stop">ซ่อนเฉพาะมือถือ</td>
+<td>หัวแอปพิมพ์คำนี้อยู่แล้ว <b>คำเดียวกันเป๊ะ ห่างกัน 40px</b> ไม่ให้ข้อมูลใหม่เลย และเป็นตัวที่เบียด ‹ › จนแคบ · ≥768px คืนกลับ (ที่นั่นไม่มีหัวแอป)</td></tr>
+<tr><td>ป้ายเดือน</td><td>กดได้ (เลือกเดือน)</td>
+<td><b>นี่คือ “วันที่กดยาก” ตัวจริง</b> — ปุ่ม ‹ › ผ่าน 44px อยู่แล้ว แต่ป้ายกลางเป็นข้อความเฉย ๆ ⇒ จะย้อนไป ก.พ. 2569 ต้องกด ‹ <b>หกครั้ง</b> กระโดดไม่ได้เลย · เลือกได้ 32 เดือน (ม.ค. 2567 ถึงเดือนนี้ — ตัวเลขจาก <code>MIN_MONTH_ISO</code> จริง)</td></tr>
+<tr><td>“ข้อมูล ณ 11:22 น. …”</td><td>ย้ายไปท้ายหน้า</td>
+<td>เป็น <b>ข้อควรรู้ของตัวเลขที่ดูจบแล้ว</b> ไม่ใช่สิ่งที่ต้องรู้ก่อนดู — ไปรวมกับบรรทัด “นับจากคำสั่งซื้อ N ใบ” ที่ทำหน้าที่เดียวกันอยู่ท้ายหน้า <b>ไม่ได้ตัดทิ้ง</b></td></tr>
+<tr><td>“นับทุกออเดอร์ที่ยังไม่ถูกยกเลิก …”</td><td class="stop">อยู่ที่เดิม</td>
+<td><b>ห้ามย้าย</b> — หน้านี้ใช้นิยาม “ขายแล้ว” ต่างจาก <code>/sales</code> ตัวเลขจึงไม่ตรงกันโดยตั้งใจ ถ้าย้ายไปท้ายหน้า ผู้ใช้จะอ่านตัวเลขจบก่อนรู้นิยาม แล้วสรุปว่าระบบคำนวณผิด (Hard Rule 16)</td></tr>
+<tr><td>ช่องติ๊ก 2 ตัว</td><td>เป็นชิปแถวเดียว</td>
+<td>เดิมกิน <b>92px</b> (44+4+44) ก่อนถึงสินค้าตัวแรก · ชิปแบบเดียวกับ <code>ReportFilters.tsx</code> และปุ่มหน่วยบนหน้านี้เอง — ไม่ใช่ท่าใหม่ · คำสั้นลงได้เพราะ <b>พื้นทึบบอกอยู่แล้วว่ากำลังกรอง</b> (คำเต็มยังอยู่ใน <code>aria-label</code>)</td></tr>
+<tr><td>padding ของการ์ด</td><td class="stop">ไม่แตะ</td>
+<td><code>.card-header</code> 20/15px และ <code>.card-body</code> 20px คือโทเคนของธีมที่ <b>การ์ดทุกใบในหลังบ้านใช้เหมือนกันหมด</b> ลดเฉพาะหน้านี้ = การ์ดหน้านี้แปลกกว่าที่อื่น · <b>ตัวการจริงไม่ใช่ padding แต่คือจำนวนแถวสูง 44px ที่ซ้อนกัน</b></td></tr>
+<tr><td>ความสูงกราฟ</td><td>240 → 200 บนมือถือ</td>
+<td>ให้กราฟจบในจอแรกพร้อมสินค้า · <b>ตั้งใน <code>responsive[]</code> ไม่ได้</b> (prop ชนะ options ⇒ กล่องกับภาพคนละความสูง กราฟถูกตัด — เคยเกิดบน prod) ต้องส่งจากฝั่ง React</td></tr>
+</table>
+
+<h2>ที่ยังไม่ทำ · อยากให้เคาะ</h2>
+<table>
+<tr><th>เรื่อง</th><th>ทางเลือก</th></tr>
+<tr><td><b>ชื่อหน้าซ้ำ เป็นปัญหาของทั้งระบบ ไม่ใช่หน้านี้หน้าเดียว</b></td>
+<td>ทุกหน้าย่อยใน <code>(paces)</code> ที่ไม่ใช่แท็บหลักโดนเหมือนกันหมด — รอบนี้แก้เฉพาะหน้านี้ (ปลอดภัย) แต่ควรสำรวจว่าอีกกี่หน้าเป็น แล้วแก้ทีเดียว</td></tr>
+<tr><td>ป้าย “ขายสม่ำเสมอ” บนมือถือ</td><td>ถอดไปแล้วรอบก่อน (ซ้ำแทบทุกแถวจนไม่ช่วยแยกแยะ) — เหลือเฉพาะป้ายที่ต้องไปดูต่อ (เงียบมาแล้ว / สต็อกใกล้หมด / ปิดการขาย) ถ้าอยากได้คืนบอกได้</td></tr>
+<tr><td class="stop">ตัวเลขความสูงในม็อกอัพนี้</td>
+<td><b>คำนวณจากคลาส ไม่ได้วัดจากเครื่องจริง</b> — “เห็น 2 แถว” เป็นค่าประมาณบน iPhone ขนาดกลาง เครื่องเล็ก (SE) อาจเห็นแถวเดียว ต้องเปิดจริงถึงจะยืนยันได้</td></tr>
+</table>
+</div>
+
+<script>
+const DAYS=[3,1,2,1,4,3,2,1,5,3,2,4,1,3,2,4,3,3,4,5,6,4,5,6,3,2,4,5,4,1,0];
+function chart(id,h){const el=document.getElementById(id);if(!el)return;
+  const mx=Math.max(...DAYS);
+  DAYS.forEach(v=>{const c=document.createElement('div');c.className='col';
+    const parts=[['var(--chart-alpha)',.5],['var(--chart-gamma)',.3],['var(--chart-beta)',.2]];
+    parts.forEach(([col,f])=>{const i=document.createElement('i');
+      i.style.background=col;i.style.height=((v*f)/mx*(h-24))+'px';c.appendChild(i)});
+    el.appendChild(c)})}
+chart('c1',240);chart('c2',200);chart('c3',240);
+
+const P=[
+ {n:'โช๊คหลัง 110 สีแดง',v:'86 ชิ้น',r:'var(--chart-alpha)',p:'฿300/ชิ้น · 14% ของร้าน'},
+ {n:'โช๊คหลัง 110 สีดำ',v:'80 ชิ้น',r:'var(--chart-gamma)',p:'฿300/ชิ้น · 13% ของร้าน'},
+ {n:'โช๊คหลัง 110 สีเหลือง',v:'44 ชิ้น',r:'var(--chart-beta)',p:'฿300/ชิ้น · 7% ของร้าน',b:'สต็อกเหลือ 6 · พอขายอีก ~4 วัน'},
+ {n:'โช๊คหลัง สามล้อ สีดำ',v:'40 ชิ้น',r:'transparent',p:'฿450/ชิ้น · 6% ของร้าน'},
+ {n:'โช๊คหลัง 125 สีน้ำเงิน',v:'40 ชิ้น',r:'transparent',p:'฿380/ชิ้น · 6% ของร้าน'}];
+function bars(cls){let s='';for(let i=0;i<31;i++){s+=`<s class="${DAYS[i]>0&&(i*7)%10>3?'a':''}" style="height:${DAYS[i]>0?Math.max(3,DAYS[i]*2.6):3}px"></s>`}return s}
+/* wide=true → แถบเป็นแถวเต็มความกว้าง (audit P2-10: ในคอลัมน์ข้อความได้แค่ ~5px/วัน) */
+function list(id,wide){const el=document.getElementById(id);if(!el)return;
+  P.forEach(p=>{const d=document.createElement('div');
+    if(wide){d.className='prow2';
+      d.innerHTML=`<div class="ptop"><span class="th" style="--r:${p.r}"></span>
+        <span class="pmain"><span class="pn">${p.n}</span><span class="psub">${p.p}</span>
+        ${p.b?`<span class="badge w">▲ ${p.b}</span>`:''}</span><span class="pv">${p.v}</span></div>
+        <div class="stripwide">${bars()}</div>
+        <div class="striplbl"><span>1</span><span>10</span><span>20</span><span>31</span></div>`;
+    }else{d.className='prow';
+      d.innerHTML=`<span class="th" style="--r:${p.r}"></span>
+        <span class="pmain"><span class="pn">${p.n}</span><span class="psub">${p.p}</span>
+        <span class="strip">${bars()}</span>${p.b?`<span class="badge w">▲ ${p.b}</span>`:''}</span>
+        <span class="pv">${p.v}</span>`}
+    el.appendChild(d)})}
+list('l1',false);list('l2',true);list('l3',false);
+chart('c4',200);
+</script>
+</body></html>

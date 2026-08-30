@@ -467,3 +467,176 @@ export function dayIntensity(value: number, maxValue: number): 0 | 1 | 2 | 3 | 4
   if (ratio > 0.25) return 2
   return 1
 }
+
+/* ────────────────────────── ต้นเดือน / กลางเดือน / ปลายเดือน ────────────────────────── */
+
+/**
+ * แบ่งเดือนเป็น 3 ช่วงแบบที่คนไทยพูดกันจริง: **1–10 · 11–20 · 21–สิ้นเดือน**
+ *
+ * 🛑 จงใจ **ไม่แบ่งเป็นสามส่วนเท่ากันทางคณิตศาสตร์** (31÷3 = 10.33) เพราะตัวเลขนี้มีไว้
+ * ให้ผู้ขายอ่านแล้วเอาไปเทียบกับสิ่งที่เขารู้อยู่แล้ว — "ต้นเดือน" ในหัวคนไทยคือช่วง
+ * เงินเดือนออก ซึ่งคือวันที่ 1–10 ไม่ใช่ 1–10.33 · การแบ่งให้ตรงกับภาษาสำคัญกว่าการแบ่ง
+ * ให้เท่ากัน เพราะช่วงที่ยาวไม่เท่ากันมีป้ายจำนวนวันกำกับอยู่แล้ว
+ *
+ * ผลข้างเคียงที่ยอมรับ: ช่วงท้ายยาว 8–11 วันแล้วแต่เดือน ⇒ **ห้ามเทียบผลรวมข้ามช่วงตรง ๆ
+ * โดยไม่ดูจำนวนวัน** ซึ่งเป็นเหตุผลที่ทุกช่วงคืน `totalDays`/`elapsedDays` มาด้วย
+ */
+export const MONTH_THIRD_KEYS = ['EARLY', 'MID', 'LATE'] as const
+export type MonthThirdKey = (typeof MONTH_THIRD_KEYS)[number]
+
+/** คำเรียกช่วง — SSOT เดียวทั้งระบบ (HR16) ห้ามพิมพ์คำพวกนี้ซ้ำที่อื่น */
+export const MONTH_THIRD_LABELS: Record<MonthThirdKey, { full: string; short: string }> = {
+  EARLY: { full: 'ต้นเดือน', short: 'ต้น' },
+  MID: { full: 'กลางเดือน', short: 'กลาง' },
+  LATE: { full: 'ปลายเดือน', short: 'ปลาย' },
+}
+
+export type MonthThird = {
+  key: MonthThirdKey
+  /** ยอดรวมของช่วงนี้ (หน่วยเดียวกับที่ป้อนเข้ามา) */
+  sum: number
+  /** วันที่เริ่ม–จบของช่วง (1-based, inclusive) */
+  fromDay: number
+  toDay: number
+  /** จำนวนวันในช่วงที่ **ผ่านไปแล้วจริง** — เดือนที่จบแล้วจะเท่ากับ `totalDays` เสมอ */
+  elapsedDays: number
+  totalDays: number
+  /**
+   * 🛑 `false` = ช่วงนี้ยังไม่จบ (หรือยังไม่เริ่มเลย) ⇒ **ห้ามอ่าน `sum` ว่า "ขายได้เท่านี้"**
+   * `partial-data-must-be-labeled-or-filled.md`: วันที่ 30 ส.ค. ช่วง "ปลายเดือน" มีข้อมูลจริง
+   * แค่ 10 จาก 11 วัน ถ้าวาดแท่งเทียบกับช่วงอื่นตรง ๆ ผู้ขายจะอ่านว่า "ปลายเดือนขายตก"
+   * ทั้งที่มันยังไม่เกิด — UI ต้องบอกด้วยว่ายังไม่ครบ (`sum` เป็น 0 กับ "ยังไม่ถึง" คนละเรื่อง)
+   */
+  complete: boolean
+  /** ยังไม่ถึงช่วงนี้เลยสักวัน — ต่างจาก "ผ่านแล้วแต่ขายไม่ได้" ซึ่ง `sum` เป็น 0 เหมือนกัน */
+  notStarted: boolean
+}
+
+/**
+ * monthThirds — ยุบอนุกรมรายวันเป็น 3 ช่วง
+ *
+ * @param dailyValues ยอดรายวัน index 0 = วันที่ 1 (ความยาวควรเท่ากับจำนวนวันในเดือน)
+ * @param days        จำนวนวันในเดือนนั้น (28–31)
+ * @param elapsedDays จำนวนวันที่ผ่านไปแล้วในเดือนนั้น — เดือนที่จบแล้วส่ง `days`
+ */
+export function monthThirds(
+  dailyValues: readonly number[],
+  days: number,
+  elapsedDays: number,
+): MonthThird[] {
+  // ขอบเขตแบบ 1-based inclusive — ช่วงท้ายรับส่วนที่เหลือทั้งหมดของเดือน
+  const bounds: [MonthThirdKey, number, number][] = [
+    ['EARLY', 1, Math.min(10, days)],
+    ['MID', 11, Math.min(20, days)],
+    ['LATE', 21, days],
+  ]
+  const passed = Math.max(0, Math.min(days, elapsedDays))
+
+  return bounds
+    .filter(([, from]) => from <= days)
+    .map(([key, from, to]) => {
+      let sum = 0
+      for (let d = from; d <= to; d++) sum += dailyValues[d - 1] ?? 0
+      const totalDays = to - from + 1
+      // จำนวนวันของช่วงนี้ที่ผ่านไปแล้ว = ส่วนที่ทับกันระหว่าง [from,to] กับ [1,passed]
+      const elapsed = Math.max(0, Math.min(to, passed) - from + 1)
+      return {
+        key,
+        sum,
+        fromDay: from,
+        toDay: to,
+        elapsedDays: elapsed,
+        totalDays,
+        complete: elapsed >= totalDays,
+        notStarted: elapsed <= 0,
+      }
+    })
+}
+
+/**
+ * คำอธิบายช่วงสำหรับ screen reader — ประกอบไว้ที่เดียวเพราะ **จุดที่พลาดง่ายที่สุดคือ
+ * การลืมบอกว่าช่วงยังไม่จบ** แล้ว label จะกลายเป็นคำโกหกที่ตรวจไม่เจอด้วยตา
+ * (หนี้เดิมของ `DayStrip` คือ label บอกจำนวนแต่ไม่บอกว่าวันไหน — อันนี้ต้องไม่รับมา)
+ */
+export function monthThirdsAriaLabel(thirds: readonly MonthThird[], unitWord: string): string {
+  const parts = thirds.map((t) => {
+    const l = MONTH_THIRD_LABELS[t.key].full
+    if (t.notStarted) return `${l} (วันที่ ${t.fromDay} ถึง ${t.toDay}) ยังไม่ถึง`
+    const tail = t.complete ? '' : ` (ผ่านไป ${t.elapsedDays} จาก ${t.totalDays} วัน)`
+    return `${l} วันที่ ${t.fromDay} ถึง ${t.toDay} ${t.sum} ${unitWord}${tail}`
+  })
+  return `แบ่งตามช่วงของเดือน: ${parts.join(' · ')}`
+}
+
+/* ────────────────────────── การเรียงลำดับในรายการมือถือ ────────────────────────── */
+
+/**
+ * 🛑 มือถือ **เรียงลำดับไม่ได้เลยมาตั้งแต่วันแรก** — เดสก์ท็อปกดหัวคอลัมน์เรียงได้ 4 แบบ
+ * แต่มือถือถูกล็อกที่ "ยอดมากไปน้อย" อย่างเดียว ⇒ คำถาม "ตัวไหนเงียบที่สุด" ตอบไม่ได้
+ * บนอุปกรณ์ที่หน้านี้ออกแบบมาเพื่อมันโดยเฉพาะ (พบตอนทำม็อกอัพ 2026-08-30)
+ */
+export const PRODUCT_SORT_KEYS = ['TOP', 'BOTTOM', 'RECENT', 'DORMANT', 'NAME'] as const
+export type ProductSortKey = (typeof PRODUCT_SORT_KEYS)[number]
+
+/** คำบนปุ่ม/ในเมนู — SSOT เดียว (HR16) */
+export const PRODUCT_SORT_LABELS: Record<ProductSortKey, string> = {
+  TOP: 'ขายดีสุด',
+  BOTTOM: 'ขายน้อยสุด',
+  RECENT: 'ขายล่าสุด',
+  DORMANT: 'เงียบนานสุด',
+  NAME: 'ชื่อ ก–ฮ',
+}
+
+/** วันที่ขายได้ครั้งสุดท้าย (index 0-based) · null = เดือนนี้ไม่เคยขายได้เลย */
+export function lastSoldIndex(values: readonly number[]): number | null {
+  for (let i = values.length - 1; i >= 0; i--) if (values[i] > 0) return i
+  return null
+}
+
+export type SortableProductRow = {
+  name: string
+  total: number
+  /** null = ไม่เคยขายได้เลยในเดือนนี้ */
+  lastSold: number | null
+}
+
+/**
+ * sortProductRows — คืน **อาร์เรย์ใหม่** ไม่แก้ของเดิม
+ *
+ * 🛑 `lastSold === null` (ไม่เคยขายเลย) ต้องไปคนละทางของสองการเรียงที่ดูเหมือนกลับด้านกัน:
+ * `RECENT` ("ขายล่าสุดก่อน") ดันไว้**ท้ายสุด** เพราะมันไม่มีวันที่ให้เรียง · `DORMANT`
+ * ("เงียบนานสุดก่อน") ดันไว้**บนสุด** เพราะไม่เคยขายเลย = เงียบที่สุดเท่าที่เป็นไปได้
+ * ถ้าเขียนเป็น `-x` ของกันและกัน `null` จะไปโผล่ผิดฝั่งข้างหนึ่งเสมอโดยไม่มีอะไรฟ้อง
+ *
+ * ตัวตัดสินเสมอเป็น **ชื่อ** ทุกกรณี — ไม่งั้นลำดับของแถวที่ค่าเท่ากันจะสลับไปมาระหว่าง
+ * การ re-render ตามลำดับที่ข้อมูลมาจากฐาน (ผู้ใช้เห็นเป็นรายการกระโดดเองโดยไม่มีสาเหตุ)
+ */
+export function sortProductRows<T extends SortableProductRow>(
+  rows: readonly T[],
+  key: ProductSortKey,
+): T[] {
+  const byName = (a: T, b: T) => a.name.localeCompare(b.name, 'th')
+  const out = [...rows]
+  switch (key) {
+    case 'TOP':
+      return out.sort((a, b) => b.total - a.total || byName(a, b))
+    case 'BOTTOM':
+      return out.sort((a, b) => a.total - b.total || byName(a, b))
+    case 'RECENT':
+      return out.sort((a, b) => {
+        if (a.lastSold === null && b.lastSold === null) return byName(a, b)
+        if (a.lastSold === null) return 1
+        if (b.lastSold === null) return -1
+        return b.lastSold - a.lastSold || byName(a, b)
+      })
+    case 'DORMANT':
+      return out.sort((a, b) => {
+        if (a.lastSold === null && b.lastSold === null) return byName(a, b)
+        if (a.lastSold === null) return -1
+        if (b.lastSold === null) return 1
+        return a.lastSold - b.lastSold || byName(a, b)
+      })
+    case 'NAME':
+      return out.sort(byName)
+  }
+}

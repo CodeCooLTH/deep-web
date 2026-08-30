@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<title>แถวสินค้าไม่มีแถบ 31 ช่อง — 6 ท่า (00063)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--primary:#236dc9;--primary-ink:#173f73;--alpha:#02bc9c;--gamma:#f9bf59;--beta:#f7577e;
+ --success:#28c76f;--success-ink:#166534;--danger:#ef4444;--danger-ink:#991b1b;
+ --warning-ink:#92400e;--d100:#f1f2f6;--d200:#e9eaee;--d300:#dcdee5;--d400:#8a91a5;--d500:#6b7280;--d700:#4c4c5c;--d900:#2f2b3d;--body:#f6f7fb}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,sans-serif;background:#e8eaf0;color:var(--d900);padding:22px 16px 60px;-webkit-font-smoothing:antialiased}
+h1{font-size:19px;font-weight:700}
+.sub{font-size:13px;color:var(--d500);line-height:1.7;max-width:1060px;margin:4px 0 18px}
+.sub b{color:var(--d900)}.sub code{background:#fff;padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:ui-monospace,monospace}
+.rail{display:flex;gap:18px;overflow-x:auto;padding-bottom:18px;align-items:flex-start}
+figure{flex:0 0 auto;width:360px}
+figcaption{margin-bottom:9px}
+.vn{font-size:13px;font-weight:700;display:block}
+.vd{font-size:11.5px;color:var(--d500);line-height:1.55;display:block;margin-top:2px;min-height:76px}
+.q{font-size:10.5px;font-weight:700;border-radius:5px;padding:2px 7px;display:inline-block;margin-top:4px}
+.q.free{background:rgba(40,199,111,.15);color:var(--success-ink)}
+.q.cost{background:rgba(249,191,89,.2);color:var(--warning-ink)}
+.phone{width:360px;height:700px;background:var(--body);border:7px solid #1c1c28;border-radius:30px;overflow:hidden}
+.sc{height:100%;overflow-y:auto}
+.ab{height:50px;background:#fff;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--d200);position:sticky;top:0;z-index:40}
+.ab .t{flex:1;text-align:center;font-size:15px;font-weight:600}
+.ic{width:26px;height:26px;display:grid;place-items:center;color:var(--d700);font-size:15px;flex:0 0 auto}
+.sticky{position:sticky;top:50px;z-index:35;background:var(--body);padding:8px 12px;border-bottom:1px solid var(--d200);display:flex;align-items:center;gap:8px}
+.nb{min-width:40px;min-height:40px;display:grid;place-items:center;border:1px solid var(--d300);border-radius:8px;background:#fff;color:var(--d700);font-size:14px;flex:0 0 auto}
+.ml{flex:1;text-align:center;font-size:15px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:40px}
+.ml i{font-style:normal;font-size:10px;color:var(--d400)}
+.seg{display:flex;border:1px solid var(--d300);border-radius:8px;overflow:hidden;background:#fff;flex:0 0 auto}
+.seg b{min-height:38px;display:grid;place-items:center;padding:0 13px;font-size:13px;font-weight:600;color:var(--d700)}
+.seg b.on{background:var(--primary);color:#fff}
+.pg{padding:10px 12px 20px}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 2px rgba(47,43,61,.07);margin-bottom:12px}
+.ch{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 14px;border-bottom:1px dashed var(--d300)}
+.ct{font-size:14.5px;font-weight:600}.ct em{font-style:normal;color:var(--d400);font-weight:500}
+.fd{min-height:36px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:8px;border:1px solid var(--d300);background:#fff;font-size:12.5px;font-weight:600;color:var(--d700);white-space:nowrap}
+.fd i{font-style:normal;font-size:9px;color:var(--d400)}
+.cb{padding:4px 14px 12px}
+.ct2{display:flex;align-items:flex-end;gap:1px}
+.ct2 .col{flex:1;display:flex;flex-direction:column-reverse}
+.ct2 .col i{display:block;width:100%}
+.xa{display:flex;justify-content:space-between;font-size:9.5px;color:var(--d400);margin-top:5px;padding-top:4px;border-top:1px solid var(--d200)}
+.lgd{display:flex;gap:10px;flex-wrap:wrap;font-size:10.5px;color:var(--d500);margin-top:8px}
+.lgd span{display:inline-flex;align-items:center;gap:4px}
+.dot{width:9px;height:9px;border-radius:3px;flex:0 0 auto;display:inline-block}
+.th{border-radius:8px;flex:0 0 auto;background:linear-gradient(140deg,#b9c0d0,#dfe3ec 45%,#c8cedd);box-shadow:0 0 0 2px var(--rc,transparent);position:relative;overflow:hidden}
+.th::after{content:'';position:absolute;left:18%;top:24%;width:64%;height:52%;border-radius:4px;background:rgba(255,255,255,.45)}
+.r{display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-bottom:1px dashed var(--d200)}
+.r:last-of-type{border-bottom:0}
+.nm{font-size:13.5px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ss{font-size:10.5px;color:var(--d400);margin-top:1px}
+.rr{text-align:right;white-space:nowrap;flex:0 0 auto}
+.vv{font-size:14px;font-weight:700}
+.dl{font-size:11px;color:var(--d500);margin-top:4px;line-height:1.5}
+.dl b{color:var(--d900);font-weight:600}
+.tp{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:9999px;margin-top:4px}
+.tp.up{background:rgba(40,199,111,.15);color:var(--success-ink)}
+.tp.dn{background:rgba(239,68,68,.13);color:var(--danger-ink)}
+.tp.fl{background:var(--d100);color:var(--d500)}
+.bd{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:9999px;background:rgba(249,191,89,.16);color:var(--warning-ink);margin-top:5px}
+.stk{height:6px;border-radius:9999px;background:var(--d200);margin-top:6px;overflow:hidden}
+.stk i{display:block;height:100%;border-radius:9999px}
+.thirds{display:flex;gap:2px;margin-top:6px;height:8px}
+.thirds i{border-radius:2px;background:var(--primary)}
+.thl{display:flex;font-size:9.5px;color:var(--d400);margin-top:3px}
+.thl span{text-align:center}
+.mini{display:flex;gap:1px;align-items:flex-end;height:16px;width:74px;flex:0 0 auto;margin-top:5px}
+.mini s{flex:1;background:var(--d300);display:block;text-decoration:none;border-radius:1px}
+.mini s.a{background:var(--primary)}
+.swtch{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0 2px;border-top:1px dashed var(--d200);margin-top:6px}
+.swtch u{text-decoration:none;font-size:12.5px;color:var(--d500)}
+.tg{width:38px;height:22px;border-radius:9999px;background:var(--d300);position:relative;flex:0 0 auto}
+.tg::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.note{background:#fff;border-radius:12px;padding:18px 20px;margin-top:20px;font-size:13px;line-height:1.75;box-shadow:0 1px 3px rgba(47,43,61,.08);max-width:1180px}
+.note h2{font-size:15px;margin:14px 0 8px}.note h2:first-child{margin-top:0}
+.note table{width:100%;border-collapse:collapse;font-size:12.5px}
+.note th,.note td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--d200);vertical-align:top}
+.note th{background:var(--d100);font-weight:700}
+.note code{background:var(--d100);padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:ui-monospace,monospace}
+.stop{color:#b91c1c;font-weight:700}
+.ok{color:#166534;font-weight:700}
+</style></head><body>
+
+<h1>ตัดแถบ 31 ช่องออกจากแถว — ใส่อะไรแทนดี</h1>
+<p class="sub">
+  โครง <b>A + หัวการ์ดแบบ 4 + แถวแบบ 1</b> ล็อกแล้วทุกใบ · แถบ 31 ช่องถูกตัดออกทั้งหมด
+  (รูปทรงรายเดือนยังอยู่ที่<b>กราฟด้านบน</b> และดูรายตัวได้ในชีตตอนกดเข้าไป)<br>
+  <span class="ok">5 ใน 6 ท่าคำนวณจากข้อมูลที่ดึงมาอยู่แล้ว — ไม่ต้องยิงคิวรีเพิ่มเลย</span> ·
+  มีท่าเดียวที่ต้องขยายช่วงคิวรี ผมติดป้ายไว้ให้
+</p>
+
+<div class="rail" id="rail"></div>
+
+<div class="note">
+<h2>เทียบกัน</h2>
+<table>
+<tr><th>ท่า</th><th>ใส่อะไรแทน</th><th>ตอบคำถามอะไร</th><th>ต้นทุน</th></tr>
+<tr><td><b>1 · เทียบ 7 วันล่าสุด</b></td><td><code>7 วันล่าสุด 18 ชิ้น</code> + ป้าย <code>▲ 38%</code> (เทียบ 7 วันก่อนหน้า)</td>
+<td><b>“ตอนนี้มาแรงหรือกำลังตก”</b> — ตัวเดียวที่บอกทิศทาง ณ ปัจจุบัน ไม่ใช่สรุปทั้งเดือน</td><td class="ok">ฟรี</td></tr>
+<tr><td><b>2 · เทียบเดือนก่อน</b></td><td><code>เดือนก่อน 62 ชิ้น</code> + ป้าย <code>▲ 39%</code></td>
+<td><b>“เดือนนี้ดีกว่าเดือนที่แล้วไหม”</b> — คำถามที่เป็นธรรมชาติที่สุดของรายงานรายเดือน</td><td class="cost">ขยายคิวรี 1 เดือน</td></tr>
+<tr><td><b>3 · จังหวะการขาย</b></td><td><code>ขายได้ 18 จาก 29 วัน · ดีสุด 21 ส.ค. (6) · ล่าสุด 2 วันก่อน</code></td>
+<td>ใกล้เคียงที่แถบเคยบอกที่สุด แต่เป็นคำ — และ <b>“ล่าสุดกี่วันก่อน”</b> คือสิ่งที่แถบบอกไม่ได้เลย</td><td class="ok">ฟรี</td></tr>
+<tr><td><b>4 · สต็อกและของจะหมด</b></td><td><code>เหลือ 24 ชิ้น · พอขายอีก ~8 วัน</code> + แถบระดับสต็อก</td>
+<td><b>“ต้องสั่งของตัวไหนก่อน”</b> — เป็นท่าเดียวที่นำไปสู่การลงมือทำทันที</td><td class="ok">ฟรี</td></tr>
+<tr><td><b>5 · เงินและค่าเฉลี่ย</b></td><td><code>฿25,800 · เฉลี่ยวันละ 3 ชิ้น</code> (โชว์อีกหน่วยเสมอ)</td>
+<td><b>“ตัวไหนทำเงินจริง”</b> — ของถูกที่ขายเยอะอาจแพ้ของแพงที่ขายน้อย ซึ่งโหมดชิ้นอย่างเดียวมองไม่เห็น</td><td class="ok">ฟรี</td></tr>
+<tr><td><b>6 · ต้น / กลาง / ปลายเดือน</b></td><td>แถบ 3 ท่อน + <code>ต้น 22 · กลาง 31 · ปลาย 33</code></td>
+<td><b>“ขายช่วงไหนของเดือน”</b> — คำถามหลักของหน้านี้ตรง ๆ ในหมึกหนึ่งบรรทัด · ตรงกับที่ร้านคิดจริง (ต้นเดือนเงินเดือนออก)</td><td class="ok">ฟรี</td></tr>
+</table>
+
+<h2>ทำไมถึงเสนอชุดนี้</h2>
+<table>
+<tr><td><b>ตรวจแล้วว่าอะไรฟรีจริง</b></td><td>คิวรีดึง <b>ยอดรายวันต่อสินค้า</b> มาอยู่แล้ว + <code>price</code> <code>stockQty</code> <code>isActive</code> ⇒ จำนวนวันที่ขายได้ · วันดีสุด · ขายล่าสุด · ครึ่งเดือน/สามส่วน · 7 วันล่าสุด · ยอดเงิน · ค่าเฉลี่ย <b>คำนวณต่อยอดได้หมด</b> · มีแค่ “เทียบเดือนก่อน” ที่ต้องขยายช่วงคิวรี</td></tr>
+<tr><td><b>ท่า 6 ทดแทนแถบได้ตรงที่สุด</b></td><td>แถบ 31 ช่องมีไว้ตอบ “ขายช่วงไหน” — ท่า 6 ตอบคำถามเดียวกันด้วยหมึก 1/10 · <b>เสียความละเอียดรายวัน</b> แต่รายวันบนมือถือได้ช่องละ ~5px ซึ่งอ่านไม่ออกอยู่แล้ว</td></tr>
+<tr><td><b>ท่า 1 กับ 2 ต่างกันจริง</b></td><td>ท่า 2 ตอบ “เดือนนี้เทียบเดือนก่อน” (สรุปย้อนหลัง) · ท่า 1 ตอบ “<b>อาทิตย์นี้เทียบอาทิตย์ที่แล้ว</b>” (ทิศทางตอนนี้) — สินค้าที่เดือนนี้ยังนำอยู่แต่ 7 วันหลังร่วง จะเห็นเฉพาะในท่า 1</td></tr>
+<tr><td class="stop">ผสมกันได้ แต่ห้ามใส่หมด</td><td>ยัด 3–4 อย่างในแถวเดียวจะกลายเป็นกำแพงตัวเลขที่ไม่มีอะไรเด่น — ถ้าชอบหลายอัน บอกมา ผมจัดลำดับให้ว่าอันไหนอยู่แถว อันไหนไปอยู่ในชีต</td></tr>
+</table>
+</div>
+
+<script>
+const D=[3,1,2,1,4,3,2,1,5,3,2,4,1,3,2,4,3,3,4,5,6,4,5,6,3,2,4,5,4,1,0];
+const MX=Math.max(...D);
+const P=[
+ {n:'โช๊คหลัง 110 สีแดง',v:86,c:'var(--alpha)',pr:'฿300',sh:'14%',w:18,d:38,pm:62,pmd:39,days:18,best:'21 ส.ค.',bq:6,last:2,stk:24,ro:8,rev:'฿25,800',avg:3,t1:22,t2:31,t3:33},
+ {n:'โช๊คหลัง 110 สีดำ',v:80,c:'var(--gamma)',pr:'฿300',sh:'13%',w:12,d:-24,pm:91,pmd:-12,days:17,best:'24 ส.ค.',bq:5,last:1,stk:41,ro:15,rev:'฿24,000',avg:3,t1:30,t2:26,t3:24},
+ {n:'โช๊คหลัง 110 สีเหลือง',v:44,c:'var(--beta)',pr:'฿300',sh:'7%',w:9,d:0,pm:44,pmd:0,days:14,best:'9 ส.ค.',bq:5,last:3,stk:6,ro:4,rev:'฿13,200',avg:3,t1:19,t2:14,t3:11,warn:'สต็อกเหลือ 6 · พอขายอีก ~4 วัน'},
+ {n:'โช๊คหลัง สามล้อ สีดำ',v:40,c:'transparent',pr:'฿450',sh:'6%',w:7,d:15,pm:28,pmd:43,days:12,best:'12 ส.ค.',bq:4,last:4,stk:33,ro:24,rev:'฿18,000',avg:3,t1:12,t2:15,t3:13}];
+
+const chart=h=>`<div class="ct2" style="height:${h}px">`+D.map(v=>`<div class="col">`+
+ [['var(--alpha)',.5],['var(--gamma)',.3],['var(--beta)',.2]].map(([c,f])=>
+ `<i style="background:${c};height:${(v*f)/MX*(h-10)}px;box-shadow:0 -1px 0 #fff"></i>`).join('')+`</div>`).join('')+
+ `</div><div class="xa"><span>1</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span><span>31</span></div>`;
+const th=p=>`<span class="th" style="width:44px;height:44px;--rc:${p.c}"></span>`;
+const warn=p=>p.warn?`<span class="bd">▲ ${p.warn}</span>`:'';
+const trend=d=>d>0?`<span class="tp up">▲ ${d}%</span>`:d<0?`<span class="tp dn">▼ ${Math.abs(d)}%</span>`:`<span class="tp fl">เท่าเดิม</span>`;
+const wrap=(p,inner,right)=>`<div class="r">${th(p)}<span style="flex:1;min-width:0">
+ <span class="nm">${p.n}</span><span class="ss">${p.pr}/ชิ้น · ${p.sh} ของร้าน</span>${inner}${warn(p)}</span>
+ <span class="rr"><span class="vv">${p.v} ชิ้น</span>${right||''}</span></div>`;
+
+const R={
+1:p=>wrap(p,`<span class="dl">7 วันล่าสุด <b>${p.w} ชิ้น</b></span>`,trend(p.d)),
+2:p=>wrap(p,`<span class="dl">เดือนก่อน <b>${p.pm} ชิ้น</b></span>`,trend(p.pmd)),
+3:p=>wrap(p,`<span class="dl">ขายได้ <b>${p.days} จาก 29 วัน</b> · ดีสุด <b>${p.best}</b> (${p.bq})<br>ขายล่าสุด <b>${p.last} วันก่อน</b></span>`),
+4:p=>wrap(p,`<span class="dl">เหลือ <b>${p.stk} ชิ้น</b> · พอขายอีก <b>~${p.ro} วัน</b></span>
+ <span class="stk"><i style="width:${Math.min(100,p.ro/30*100)}%;background:${p.ro<=7?'var(--danger)':p.ro<=14?'var(--gamma)':'var(--primary)'}"></i></span>`),
+5:p=>wrap(p,`<span class="dl"><b>${p.rev}</b> · เฉลี่ยวันละ <b>${p.avg} ชิ้น</b></span>`),
+6:p=>{const t=p.t1+p.t2+p.t3;return wrap(p,
+ `<span class="thirds"><i style="flex:${p.t1}"></i><i style="flex:${p.t2};opacity:.72"></i><i style="flex:${p.t3};opacity:.48"></i></span>
+  <span class="thl"><span style="flex:${p.t1}">ต้น ${p.t1}</span><span style="flex:${p.t2}">กลาง ${p.t2}</span><span style="flex:${p.t3}">ปลาย ${p.t3}</span></span>`)};
+
+const V=[
+{k:'1',t:'เทียบ 7 วันล่าสุด',f:1,d:'<b>“ตอนนี้มาแรงหรือกำลังตก”</b> — ตัวเดียวที่บอกทิศทาง ณ ปัจจุบัน ไม่ใช่สรุปทั้งเดือน · สินค้าที่ยอดเดือนยังนำแต่อาทิตย์หลังร่วง จะเห็นเฉพาะท่านี้'},
+{k:'2',t:'เทียบเดือนก่อน',f:0,d:'<b>“เดือนนี้ดีกว่าเดือนที่แล้วไหม”</b> — คำถามธรรมชาติที่สุดของรายงานรายเดือน · ท่าเดียวที่ต้องขยายช่วงคิวรีอีก 1 เดือน'},
+{k:'3',t:'จังหวะการขาย',f:1,d:'ใกล้ที่แถบเคยบอกที่สุดแต่เป็นคำ — และ <b>“ขายล่าสุดกี่วันก่อน”</b> คือสิ่งที่แถบบอกไม่ได้เลย'},
+{k:'4',t:'สต็อกและของจะหมด',f:1,d:'<b>“ต้องสั่งของตัวไหนก่อน”</b> — ท่าเดียวที่นำไปสู่การลงมือทำทันที · แถบสีเปลี่ยนตามความเร่งด่วน'},
+{k:'5',t:'เงินและค่าเฉลี่ย',f:1,d:'<b>“ตัวไหนทำเงินจริง”</b> — ของถูกที่ขายเยอะอาจแพ้ของแพงที่ขายน้อย ซึ่งโหมดชิ้นอย่างเดียวมองไม่เห็น'},
+{k:'6',t:'ต้น / กลาง / ปลายเดือน',f:1,d:'<b>ตอบคำถามหลักของหน้านี้ตรง ๆ</b> ด้วยหมึก 1/10 ของแถบเดิม · ตรงกับที่ร้านคิดจริง (ต้นเดือนเงินเดือนออก)'}];
+
+const head=`<div class="ab"><span class="ic">←</span><span class="t">ยอดขายรายสินค้า</span><span class="ic">🔔</span></div>
+<div class="sticky"><span class="nb">‹</span><span class="ml">สิงหาคม 2569 <i>▾</i></span>
+<div class="seg"><b class="on">ชิ้น</b><b>บาท</b></div><span class="ic" style="border:1px solid var(--d300);border-radius:8px;width:34px;height:34px">i</span></div>`;
+
+document.getElementById('rail').innerHTML=V.map(v=>
+`<figure><figcaption><span class="vn">${v.k} · ${v.t}</span><span class="vd">${v.d}</span>
+<span class="q ${v.f?'free':'cost'}">${v.f?'ไม่ต้องยิงคิวรีเพิ่ม':'ต้องขยายคิวรี 1 เดือน'}</span></figcaption>
+<div class="phone"><div class="sc">${head}<div class="pg">
+<div class="card"><div class="ch"><span class="ct">แนวโน้มรายวัน</span><span class="ct" style="font-size:11px;color:var(--d400);font-weight:400">3 อันดับแรก</span></div>
+<div class="cb" style="padding-top:12px">${chart(130)}<div class="lgd">
+<span><i class="dot" style="background:var(--alpha)"></i>110 สีแดง</span><span><i class="dot" style="background:var(--gamma)"></i>110 สีดำ</span><span><i class="dot" style="background:var(--beta)"></i>110 สีเหลือง</span></div></div></div>
+<div class="card"><div class="ch"><span class="ct">รายสินค้า <em>(35)</em></span><span class="fd">↓ ขายดีสุด <i>▾</i></span></div>
+<div class="cb">${P.map(R[v.k]).join('')}
+<div class="swtch"><u>รวมสินค้าที่ยังไม่ขายเดือนนี้ (2)</u><span class="tg"></span></div></div></div>
+</div></div></div></figure>`).join('');
+</script>
+</body></html>
