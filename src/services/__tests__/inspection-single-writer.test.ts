@@ -90,3 +90,36 @@ describe('[blocker] assertScopeMatches — scope ของ checkKey ต้อง
     expect(() => assertScopeMatches('duplicate_listing', null)).toThrow(InspectionScopeMismatchError)
   })
 })
+
+describe('[blocker] เส้นทางสาธารณะต้องไม่ select คอลัมน์ลับ', () => {
+  const PUBLIC_SVC = 'src/services/inspection-public.service.ts'
+  const src = stripComments(readFileSync(join(process.cwd(), PUBLIC_SVC), 'utf8'))
+
+  it('🛑 mutation: เพิ่ม suspectedFraudNote เข้า select → เคสนี้ต้องแดง', () => {
+    // ข้อสงสัยที่ยังไม่ถูกตัดสิน — การเปิดเผยคือการกล่าวหา และถ้าร้านเห็นก่อน
+    // หลักฐานถูกทำลายได้ · ตรวจที่ซอร์สเพราะบั๊กนี้ไม่มี error ให้เทส runtime จับ
+    expect(src).not.toContain('suspectedFraudNote')
+  })
+
+  it('🛑 บันทึกภายในของผู้ตรวจต้องไม่ถูก select', () => {
+    expect(src).not.toContain('invalidatedReason')
+    expect(src).not.toContain('note: true')
+  })
+
+  it("🛑 mutation: ถอด where visibility='PUBLIC' → เคสนี้ต้องแดง (กรองต้องอยู่ใน query ไม่ใช่ JS)", () => {
+    expect(src).toContain("visibility: 'PUBLIC'")
+  })
+
+  it('🛑 mutation: ถอดการกรองรอบที่ยังไม่เสร็จออกจาก WHERE → เคสนี้ต้องแดง', () => {
+    expect(src).toContain('completedAt: { not: null }')
+  })
+
+  it('การเรียง "แถวล่าสุด" ต้องมี tie-break id ให้ตรงกับฝั่ง TS', () => {
+    expect(src).toContain("{ checkedAt: 'desc' }, { id: 'desc' }")
+  })
+
+  it('ห้ามวน query ต่อที่พักรายหลัง (N+1)', () => {
+    // จำนวนคำสั่ง findMany ต้องคงที่ ไม่ขึ้นกับจำนวนห้อง
+    expect((src.match(/findMany\(/g) ?? []).length).toBe(3)
+  })
+})
