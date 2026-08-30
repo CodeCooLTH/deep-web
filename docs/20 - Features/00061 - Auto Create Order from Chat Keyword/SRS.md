@@ -340,7 +340,12 @@ export async function validateAutoOrderCompleteness(
 2. `shipsGoods && (!line1 || !province || !postcode)` → `ADDRESS_INCOMPLETE`
 3. `!isOrderDateInWindow()` → `DATE_OUT_OF_WINDOW`
 4. `items.length===0` → `NO_ITEMS` · มิฉะนั้น: มี `price===null` → `ITEM_PRICE_MISSING` (ครั้งเดียวไม่ว่ากี่รายการ) · มี `matchedProductId===null` → `ITEM_NOT_MATCHED` (ครั้งเดียว)
-5. 🛑 **เช็คยอดรวมเฉพาะเมื่อ items ผ่านครบข้อ 4** — ยอดที่คำนวณจาก item ที่ยังไม่ครบคือยอด**ที่ไม่มีความหมาย** เทียบแล้วได้ `TOTAL_MISMATCH` ปลอมที่**ซ้ำเติมสิ่งที่ผู้ขายต้องแก้อยู่แล้วโดยไม่ให้ข้อมูลใหม่** · ผ่านครบ + `statedTotal!==null` → เทียบ `sum(qty*price)` ต่างแม้ 1 บาท → `TOTAL_MISMATCH`
+5. 🛑 **เช็คยอดรวมเฉพาะเมื่อ items ผ่านครบข้อ 4** — ยอดที่คำนวณจาก item ที่ยังไม่ครบคือยอด**ที่ไม่มีความหมาย** เทียบแล้วได้ `TOTAL_MISMATCH` ปลอมที่**ซ้ำเติมสิ่งที่ผู้ขายต้องแก้อยู่แล้วโดยไม่ให้ข้อมูลใหม่** · ผ่านครบ + `statedTotal!==null` → เทียบกับ **`computeItemsTotal()`** ต่างแม้ 1 บาท → `TOTAL_MISMATCH`
+   > 🛑 **แก้ 2026-08-30 ตอน implement — ฉบับแรกเขียนว่าเทียบ `sum(qty*price)` เฉย ๆ ซึ่ง *ลืมหักส่วนลด***
+   > นิยาม "ยอดรวม" ของทั้งระบบคือ **`subtotal − discount + vat`** (`order.service.ts:332-334`)
+   > ⇒ ถ้าใช้ `sum(qty*price)` **เทมเพลตตัวอย่างของฟีเจอร์เอง** (`2×250 + @390` · `ส่วนลด: 50` · `ยอดรวม: 840`)
+   > **จะได้ `TOTAL_MISMATCH` ทุกครั้ง เพราะ 890 ≠ 840 — happy path ของตัวเองไม่มีวันผ่าน**
+   > นี่คือ **HR16** ตรงตัว (ศัพท์ธุรกิจต้องมีนิยามเดียวทั้งระบบ) · ตัวคำนวณอยู่ที่ `auto-order-reasons.ts::computeItemsTotal()` ที่เดียว
 
 - **คืนค่า:** `complete = reasons.length===0`
 - 🛑 **ด่านบังคับ (AC-27 parity กับฟอร์ม):** `auto-order-reasons.test.ts::"parity กับ CreateOrderSchema"` — ไล่ทุกเคสที่ `CreateOrderSchema` ปฏิเสธ แล้วยืนยัน `deriveDraftReasons()` คืน `length > 0` เสมอ · mutation: ลบเงื่อนไข `ADDRESS_INCOMPLETE` → แดง (เคสที่อยู่ขาดกลายเป็น `complete:true`)
@@ -354,7 +359,7 @@ export async function validateAutoOrderCompleteness(
 
 ### TFR-012 — ยอดรวมต้องตรงกับที่คำนวณได้ (contract ของค่าที่แสดง)
 **Trace:** BR-ACO-17 · **AC:** 29
-- `TOTAL_MISMATCH` ต้องพ่วง **ส่วนต่างเป็นตัวเลขบาท ไม่ใช่แค่ boolean** — เก็บ `Order.draftStatedTotalAmount` (ยอดที่ร้านพิมพ์) แล้ว **คำนวณส่วนต่างสดตอนแสดงผล** (`computed = sum(qty*price)`, `diff = stated − computed`) 🛑 **ไม่เก็บส่วนต่างเป็นคอลัมน์แยก** (ค่าที่ derive ได้ห้ามมี 2 แหล่ง — HR16)
+- `TOTAL_MISMATCH` ต้องพ่วง **ส่วนต่างเป็นตัวเลขบาท ไม่ใช่แค่ boolean** — เก็บ `Order.draftStatedTotalAmount` (ยอดที่ร้านพิมพ์) แล้ว **คำนวณส่วนต่างสดตอนแสดงผล** (`computed = computeItemsTotal()` = `subtotal − discount`, `diff = stated − computed`) 🛑 **ไม่เก็บส่วนต่างเป็นคอลัมน์แยก** (ค่าที่ derive ได้ห้ามมี 2 แหล่ง — HR16)
 - **Edge:** `statedTotal===null` (ร้านไม่พิมพ์ "ยอดรวม:") → **ไม่เกิด `TOTAL_MISMATCH` เลย ไม่ใช่ error** (BR-ACO-17 พูดถึงกรณี "ยอดที่พิมพ์ไว้ *ถ้ามี*")
 
 ### TFR-013 — `createdVia` + แถบเตือน "ลูกค้ายังไม่เห็นสรุปนี้"
