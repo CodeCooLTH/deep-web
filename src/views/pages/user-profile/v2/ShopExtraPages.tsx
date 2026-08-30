@@ -442,7 +442,7 @@ function BadgesPanel({
                  เป็นแท็บโดยไม่มีอะไรให้คุม screen reader จะอ่านว่า "แท็บ 1 จาก 6" แล้วผู้ใช้
                  กดแล้วไม่รู้ว่าอะไรเปลี่ยน (คลาสเดียวกับ `aria-name-requires-supporting-role.md`
                  — markup ถูกทุกตัวอักษร แต่ความหมายไม่ครบ และไม่มี gate ไหนจับได้) */
-              className='relative overflow-hidden rounded-2xl border p-7 max-[760px]:p-[22px] min-bs-[300px] max-[760px]:min-bs-[320px]'
+              className='relative overflow-hidden rounded-2xl border max-[760px]: min-bs-[300px] max-[760px]:min-bs-[320px] p-5'
               style={{
                 background:
                   'radial-gradient(circle at 70% 18%, rgba(115,103,240,.065), transparent 24%), linear-gradient(180deg, var(--mui-palette-background-paper), var(--mui-palette-background-default))',

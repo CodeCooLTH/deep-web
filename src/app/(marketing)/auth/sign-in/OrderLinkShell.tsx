@@ -223,7 +223,7 @@ export default function OrderLinkShell({
               {/* รีวิวจริงหนึ่งอัน — ข้อความจากคนซื้อจริงน่าเชื่อกว่าค่าเฉลี่ยลอย ๆ
                   ไม่มีรีวิวที่เขียนข้อความ → service คืน null → ซ่อนบล็อก ไม่แต่งคำชมเอง */}
               {ctx.latestReview && (
-                <div className='rounded-2xl bg-[var(--mui-palette-action-hover)] p-3 mbe-3'>
+                <div className='rounded-2xl bg-[var(--mui-palette-action-hover)] mbe-3 p-5'>
                   <div className='flex items-center gap-2 mbe-1'>
                     {/* carve-out ของ HR12: typographic dingbat สีเดียว (★) ไม่ใช่ emoji — ตรงกับ
                         รายการยกเว้นใน docs/conventions/no-emoji-use-icons.md */}

@@ -16,7 +16,7 @@ import { MPageTitle } from '../_components/ui'
 export const metadata: Metadata = { title: 'เช็กมิจฉาชีพ' }
 
 const Stat = ({ label, value }: { label: string; value: string }) => (
-  <div className='rounded-2xl border border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-default)] plb-3 pli-3 text-center'>
+  <div className='rounded-2xl border border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-default)] text-center p-5'>
     <p className='text-[16px] font-extrabold m-0 text-[var(--mui-palette-text-primary)]'>{value}</p>
     <p className='text-[11px] m-0 mbs-0.5 text-[var(--mui-palette-text-disabled)]'>{label}</p>
   </div>
@@ -49,7 +49,7 @@ export default async function MobileCheckPage({
       <ScamSearchBar defaultType={type ?? 'PHONE'} defaultQ={q} />
 
       {!type ? (
-        <div className='flex items-start gap-2.5 rounded-2xl border border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)] p-3.5'>
+        <div className='flex items-start gap-2.5 rounded-2xl border border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)] p-5'>
           <i className='tabler-search text-[20px] text-[var(--mui-palette-text-secondary)] shrink-0 mbs-0.5' />
           <p className='text-[13px] m-0 text-[var(--mui-palette-text-secondary)]'>
             กรอกข้อมูลด้านบนแล้วกดตรวจสอบ เพื่อค้นว่ามีการรายงานหรือไม่
@@ -69,7 +69,7 @@ export default async function MobileCheckPage({
 
           {!found ? (
             /* ── ไม่พบ ── */
-            <div className='rounded-2xl border border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)] p-6 text-center flex flex-col items-center'>
+            <div className='rounded-2xl border border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)] text-center flex flex-col items-center p-5'>
               <span
                 className='size-[72px] rounded-full flex items-center justify-center mbe-3'
                 style={{ background: 'var(--mui-palette-success-lightOpacity)' }}
@@ -81,7 +81,7 @@ export default async function MobileCheckPage({
                 ยังไม่มีรายงานที่ตรวจสอบแล้วสำหรับข้อมูลนี้
               </p>
               <div
-                className='mbs-4 inline-flex items-center gap-2 rounded-2xl plb-2 pli-3'
+                className='mbs-4 inline-flex items-center gap-2 rounded-2xl p-5'
                 style={{ background: 'var(--mui-palette-warning-lightOpacity)' }}
               >
                 <i className='tabler-alert-triangle text-[16px] text-[var(--mui-palette-warning-main)]' />
@@ -127,7 +127,7 @@ export default async function MobileCheckPage({
               </div>
 
               <div
-                className='mbs-4 flex items-start gap-2 rounded-2xl p-3'
+                className='mbs-4 flex items-start gap-2 rounded-2xl p-5'
                 style={{ background: 'var(--mui-palette-info-lightOpacity)' }}
               >
                 <i className='tabler-info-circle text-[16px] text-[var(--mui-palette-info-main)] shrink-0 mbs-0.5' />

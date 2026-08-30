@@ -519,7 +519,7 @@
       "refersTo": "card",
       "description": "การ์ด Paper บนพื้น Cool Mist — เงาฟุ้งผสมหมึก ไม่มีขอบหนัก.",
       "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">ร้านน่าเชื่อถือ</div><div class=\"ds-card-body\">ยืนยันตัวตน L2 · 142 ออเดอร์สำเร็จ · ตรงเวลา 98%</div></div>",
-      "css": ".ds-card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgb(47 43 61 / 0.12); transition: box-shadow 200ms cubic-bezier(0.25,1,0.5,1); } .ds-card:hover { box-shadow: 0 3px 12px rgb(47 43 61 / 0.14); } .ds-card-title { font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 1.125rem; font-weight: 500; color: #2F2B3D; margin-bottom: 6px; } .ds-card-body { font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 0.8125rem; color: rgb(47 43 61 / 0.7); line-height: 1.54; }"
+      "css": ".ds-card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgb(47 43 61 / 0.12); transition: box-shadow 200ms cubic-bezier(0.25,1,0.5,1); } .ds-card:hover { box-shadow: 0 3px 12px rgb(47 43 61 / 0.14); } .ds-card-title { font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 1.125rem; font-weight: 500; color: #2F2B3D; margin-bottom: 6px; } .ds-card-body { font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 0.8125rem; color: rgb(47 43 61 / 0.7); line-height: 1.54; }"
     },
     {
       "name": "Paces Primary Button",
@@ -631,6 +631,11 @@
         "name": "The Container-Is-12 Rule",
         "body": "ฝั่ง buyer (`(marketing)/**`) รัศมีเดินตาม **บทบาท** ไม่ใช่ตามความรู้สึก: ของที่กดได้ 6px · รูป/อวตาร 8px · **การ์ด/แผง/ภาชนะ 12px** · chip เป็น pill. ยิ่งเป็นภาชนะยิ่งกลม — ความต่างนี้คือสิ่งที่บอกผู้ใช้ว่าอะไรกดได้ อะไรคือกล่องใส่ของ. นิยามอยู่ที่ธีมจุดเดียว (`@core/theme/overrides/card.ts`, `accordion.tsx`, `avatar.ts`) ⇒ `<Card>` **ห้ามใส่คลาสรัศมีทับ** และ **ห้ามแก้ด้วยการขยับ `shape.borderRadius`** เพราะค่านั้นเป็นตัวคูณของ `borderRadius: N` ทุกตัวใน sx ทั้งระบบ. ขอบเขต: buyer เท่านั้น — Paces ยังเป็น 4px ตามเดิม (ธีม MUI ชุดนี้ mount ที่ `(marketing)/layout.tsx` ที่เดียว).",
         "section": "shapes"
+      },
+      {
+        "name": "The Card-Padding-Is-20 Rule",
+        "body": "ระยะขอบในของการ์ด = **20px ค่าเดียวทั้งสองสกิน** (buyer `theme.spacing(5)` · Paces `.card-body p-5`). นิยามอยู่ที่ธีมจุดเดียว — `<CardContent>` ห้ามเขียนคลาส padding ทับ. ที่มา: ก่อนแก้ฝั่ง buyer มี 14 · 20 · 24 · 32px ปนกัน โดยการ์ดสองใบที่วางติดกันบนจอเดียว ต่างกัน 10px ซึ่งมองเห็นด้วยตา.",
+        "section": "components"
       }
     ],
     "dos": [

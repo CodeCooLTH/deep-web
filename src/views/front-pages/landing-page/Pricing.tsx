@@ -173,7 +173,7 @@ const PricingPlan = () => {
           {pricingPlans.map((plan, index) => (
             <Grid key={index} size={{ xs: 12, md: 6, lg: 3 }}>
               <Card className='bs-full flex flex-col border shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-1'>
-                <CardContent className='flex flex-col gap-6 p-8 bs-full'>
+                <CardContent className='flex flex-col gap-6 bs-full'>
                   <div className='is-full flex flex-col items-center gap-3'>
                     <CustomAvatar variant='rounded' skin='light' color={plan.color} size={64}>
                       <i className={classnames(plan.icon, 'text-[32px]')} />

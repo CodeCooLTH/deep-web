@@ -144,7 +144,7 @@ export default function ShopsBrowse({ initialCategory }: { initialCategory?: str
       {loading ? (
         <div className='flex flex-col gap-2.5'>
           {[0, 1, 2, 3, 4].map(i => (
-            <div key={i} className='rounded-2xl border border-[var(--mui-palette-divider)] p-3 flex items-center gap-3'>
+            <div key={i} className='rounded-2xl border border-[var(--mui-palette-divider)] flex items-center gap-3 p-5'>
               <span className='size-12 rounded-full bg-[var(--mui-palette-action-hover)] shrink-0' />
               <div className='flex-1 flex flex-col gap-1.5'>
                 <span className='h-3 w-1/2 rounded bg-[var(--mui-palette-action-hover)]' />
@@ -168,7 +168,7 @@ export default function ShopsBrowse({ initialCategory }: { initialCategory?: str
             <Link
               key={s.username}
               href={`/u/${s.username}`}
-              className='no-underline rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-3 flex items-center gap-3'
+              className='no-underline rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] flex items-center gap-3 p-5'
             >
               <div className='rounded-full p-[2.5px] shrink-0' style={{ background: tierFg(s.tierColor) }}>
                 <div className='rounded-full p-[2px] bg-[var(--mui-palette-background-paper)]'>

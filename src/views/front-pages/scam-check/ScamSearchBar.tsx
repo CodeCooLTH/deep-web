@@ -46,7 +46,7 @@ const ScamSearchBar = ({
 
   return (
     <Card className='mli-auto max-is-[720px] shadow-md'>
-      <CardContent className='p-6 md:p-8'>
+      <CardContent>
         <div className='flex flex-col sm:flex-row gap-4 items-stretch sm:items-end'>
           <CustomTextField
             select

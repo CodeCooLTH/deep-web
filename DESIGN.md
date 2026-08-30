@@ -370,7 +370,13 @@ ramp ด้านบนเป็น ramp ของ "ข้อความ" — �
 - **Background:** Paper `#FFFFFF` บนพื้น Cool Mist (buyer) / Paces Mist `#f6f7fb` (seller/admin).
 - **Shadow:** sm ตอนพัก (ดู Elevation & Depth) — ไม่ซ้อนการ์ดในการ์ด.
 - **Border:** ใช้เงาแทนขอบเป็นหลัก; ถ้าต้องมีขอบใช้ divider `rgb(47 43 61 / 0.12)` เต็มกรอบ 1px เท่านั้น.
-- **Padding:** 24px (`{spacing.lg}`) ฝั่ง buyer; 20px (`.card-body { p-5 }`) ฝั่ง Paces; การ์ดหนาแน่น 16px.
+- **Padding:** **20px** ทั้งสองสกิน (`theme.spacing(5)` ฝั่ง buyer · `.card-body { p-5 }` ฝั่ง Paces); การ์ดหนาแน่น 16px.
+  🛑 แก้ 2026-08-30 (user เคาะ): เดิมประกาศ buyer 24 / Paces 20 — ของจริงฝั่ง buyer มี 14 · 20 · 24 · 32px ปนกันบนจอเดียวกัน (การ์ด "การชำระเงิน" 14px ติดกับ "ช่องทางการชำระเงิน" 24px ต่างกัน 10px เห็นด้วยตา). ยุบเหลือ **20px ค่าเดียวทั้งระบบ** ⇒ ไม่ต้องจำว่าอยู่สกินไหน. นิยามเดียวที่ `@core/theme/overrides/card.ts` (Header/Content/Actions) — 🛑 `<CardContent>` **ห้ามเขียนคลาส padding ทับ** (`p-8` ฯลฯ) ให้รับจากธีมเสมอ.
+  **กล่องข้างในการ์ด** (callout/กล่องค่า) = **12/10px** — คนละบทบาทกับการ์ด ถ้าใช้ 20px เท่ากัน
+  จะอ่านเป็นการ์ดซ้อนการ์ด (§Don't ห้ามซ้อนการ์ดในการ์ด) นิยามเดียวที่ `infoBoxSx` ใน
+  `src/app/(marketing)/o/[token]/card-padding.ts`.
+  **ไทล์สื่อ** (รูป/คลิปเต็มกรอบ) = **0** — ภาพต้องชนขอบ ไม่มีขอบใน.
+  ข้อยกเว้นที่ขึ้นทะเบียน: **การ์ด auth/OTP = `p-12` (48px)** — การ์ดใบเดียวกลางหน้าว่าง คนละ archetype กับการ์ดที่เรียงกันเป็นรายการในหน้า (sign-in · sign-up · reset-pass · new-pass · verify-otp · ClaimOtpPrompt · PhoneVerifyPrompt).
 - **Header:** ฝั่ง Paces `.card-header` = `px-5 py-3.75` + เส้นประล่าง (ดู Shapes).
 
 ### Inputs / Fields
