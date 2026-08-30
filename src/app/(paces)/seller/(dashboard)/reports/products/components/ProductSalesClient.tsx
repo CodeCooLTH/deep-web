@@ -199,13 +199,22 @@ export default function ProductSalesClient({
         </p>
       )}
 
-      {/* ── กราฟ: ตั้งแต่ 768px ขึ้นไป ── */}
-      <div className="card mb-4 hidden md:block">
+      {/**
+        * 🛑 กราฟโผล่ **ทุกจอรวมมือถือ** แล้ว (user สั่ง 2026-08-30: "อยากให้มี chart ในหน้านี้เลย
+        * เหมือน mobile command center")
+        *
+        * เหตุผลเดิมที่ไม่ใส่บนมือถือคือ "5 เส้น × 31 จุดบน 360px อ่านไม่ออก" — **ใช้ไม่ได้แล้ว**
+        * เพราะเปลี่ยนจากกราฟเส้นเป็นแท่งซ้อนไปแล้ว แท่งไม่ตัดกันจึงอ่านออกที่ความกว้างนี้จริง
+        * และ Command Center บนหน้าแรกก็แสดงแท่ง 31 อันบนมือถืออยู่แล้ว (height 168) เป็นหลักฐาน
+        */}
+      <div className="card mb-4">
         <div className="card-header">
           <h4 className="card-title">แนวโน้มรายวัน</h4>
           {/* 🛑 "5 อันดับแรก" เฉย ๆ โกหกทันทีที่สลับเป็นบาท — อันดับยึดจำนวนชิ้นเสมอ
               (defaultSelectedKeys) ไม่ผันตามหน่วย จึงต้องบอกว่ายึดอะไร */}
           <span className="text-default-400 text-xs">
+            {/* ต่ำกว่า lg ไม่มีช่องติ๊ก กราฟจึงล็อกที่ N อันดับแรก — ต้องบอกไว้ ไม่งั้นผู้ใช้
+                จะหาวิธีเปลี่ยนเส้นแล้วไม่เจอ */}
             <span className="lg:hidden">แสดง {DEFAULT_CHART_SERIES} อันดับแรกตามจำนวนชิ้น</span>
             <span className="hidden lg:inline">
               {selected.size >= CHART_SERIES_CAP

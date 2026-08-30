@@ -67,7 +67,7 @@ export default function ProductSalesChart({
   unit,
   futureFrom,
   days,
-  height = 340,
+  height = 240,
   compact = false,
 }: Props) {
   /** ป้ายแกน x = เลขวันที่ล้วน — ทั้งกราฟอยู่ในเดือนเดียว เดือน/ปีจึงไม่ต้องซ้ำ 31 ครั้ง */
@@ -174,6 +174,30 @@ export default function ProductSalesChart({
      * 🛑 ค่า radius ต้องอยู่ในบันไดของ DESIGN.md (4/6/8/10/14) — กล่องนอก 6px (rounded.md)
      *    รูปข้างใน 4px (rounded.sm) · เคยเขียน 5px ซึ่งไม่มีในบันได (impeccable hook จับได้)
      */
+    /**
+     * 🛑 ปรับได้เฉพาะสิ่งที่ **ไม่ใช่ `height`** — `ApexChart` wrapper เขียนว่า
+     * `height={height ?? options.chart?.height}` ⇒ **prop ชนะ options เสมอ** ถ้าตั้งความสูง
+     * ใน `responsive` มันจะวาดที่ความสูงหนึ่งแต่กล่องยังสูงอีกอย่าง แล้วกราฟถูกตัด
+     * (เคยเกิดจริงบน prod — `docs/conventions/paces-charts-source.md` §"prop ชนะ options เสมอ")
+     * ⇒ ใช้ความสูงเดียว 240 ทุกจอ แล้วประหยัดพื้นที่มือถือด้วยการถอดของที่ไม่จำเป็นแทน
+     *
+     * ซ่อน **แกน y** บนมือถือ: กินความกว้าง ~30px จาก 31 แท่งที่แคบอยู่แล้ว เส้นสเกลพอ
+     * (เหตุผลเดียวกับที่ SalesChartCard เขียนไว้เอง) · ตัวเลขจริงอ่านได้จาก tooltip
+     *
+     * ซ่อน **legend** บนมือถือ: รายการสินค้าที่อยู่ใต้กราฟมี **วงแหวนสีเดียวกับแท่ง** อยู่แล้ว
+     * มันทำหน้าที่ legend ให้ในตัว — legend ของ Apex ที่มีชื่อไทยยาว 3 ชื่อจะตกเป็น 3 บรรทัด
+     * กินที่เท่ากับครึ่งหนึ่งของกราฟเอง
+     */
+    responsive: [
+      {
+        breakpoint: 640,
+        options: {
+          yaxis: { labels: { show: false } },
+          legend: { show: false },
+          grid: { padding: { left: 0, right: 0 } },
+        },
+      },
+    ],
     tooltip: {
       shared: true,
       intersect: false,
