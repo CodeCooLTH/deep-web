@@ -19,13 +19,13 @@
 import type { SxProps, Theme } from '@mui/material/styles'
 
 /** ระยะขอบในมาตรฐานของการ์ด — 24px รอบด้าน */
-export const cardBodySx = { p: 6 } as const satisfies SxProps<Theme>
+export const cardBodySx = { p: 5 } as const satisfies SxProps<Theme>
 
 /**
  * ระยะขอบ **แนวนอน** สำหรับบล็อกที่ซ้อนกันหลายชั้นในการ์ดใบเดียว (หัวออเดอร์ · ราง · หัวร้าน)
  * — ใบพวกนั้นแบ่งเป็นหลายบล็อกที่คุมระยะบน-ล่างเอง แต่ขอบซ้าย-ขวาต้องตรงกับการ์ดใบอื่น
  */
-export const cardInlinePadSx = { px: 6 } as const satisfies SxProps<Theme>
+export const cardInlinePadSx = { px: 5 } as const satisfies SxProps<Theme>
 
 /**
  * ระยะขอบในของ **กล่องข้อมูลที่ซ้อนอยู่ในการ์ด** (แถบคำอธิบาย · กล่องเตือน · แถบสถานะ)

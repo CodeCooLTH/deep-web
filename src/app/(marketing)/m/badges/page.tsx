@@ -58,7 +58,7 @@ export default async function MobileBadgesPage() {
                   return (
                     <div
                       key={i.badge.id}
-                      className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-3 flex flex-col items-center gap-1.5 text-center'
+                      className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] flex flex-col items-center gap-1.5 text-center p-5'
                     >
                       <div className='size-14 rounded-full bg-[var(--mui-palette-primary-lightOpacity)] flex items-center justify-center'>
                         <BadgeIcon imageUrl={i.badge.imageUrl} nameEN={i.badge.nameEN} icon={i.badge.icon} size={30} alt={i.badge.name} />
@@ -84,7 +84,7 @@ export default async function MobileBadgesPage() {
                   return (
                     <div
                       key={i.badge.id}
-                      className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-3 flex items-center gap-3'
+                      className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] flex items-center gap-3 p-5'
                     >
                       <div className='size-11 rounded-full bg-[var(--mui-palette-action-hover)] flex items-center justify-center shrink-0'>
                         <BadgeIcon imageUrl={i.badge.imageUrl} nameEN={i.badge.nameEN} icon={i.badge.icon} size={24} alt={i.badge.name} />

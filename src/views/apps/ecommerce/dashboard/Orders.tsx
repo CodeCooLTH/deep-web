@@ -109,7 +109,9 @@ const Orders = ({ orders }: Props) => {
               <Link
                 key={order.id}
                 href={`/o/${order.publicToken}`}
-                className='flex items-center gap-4 no-underline rounded-2xl hover:bg-[var(--mui-palette-action-hover)] -mx-2 px-2 py-1'
+                /* carve-out padding: แถวในรายการ ไม่ใช่การ์ด — `-mx-2 px-2` คือพื้นที่ hover
+                   ที่กินออกนอกขอบเนื้อหาพอดี ไม่ใช่ขอบในของกล่อง */
+                className='flex items-center gap-4 no-underline rounded-2xl hover:bg-[var(--mui-palette-action-hover)] -mx-2 px-2 py-1' /* carve-out padding: แถว ไม่ใช่การ์ด */
               >
                 <CustomAvatar skin='light' variant='rounded' color={statusColor} size={34}>
                   <i className={classnames(icon, 'text-[22px]')} />

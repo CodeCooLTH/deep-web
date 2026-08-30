@@ -126,7 +126,7 @@ function VideoCell({ item, onOpen }: { item: ShopVideoItem; onOpen: () => void }
       // ⚠️ ตอนกดเล่น คลิปแนวตั้งจะมีแถบดำบน-ล่างในกรอบ 3:4 — แลกกับกริดที่ไม่กระโดด
       /* ขอบ + มุมมน 14 + เงาบาง = ภาษาเดียวกับการ์ดสินค้า/บริการ (เดิม `border-0` ไร้ขอบ
          เพราะไทล์ยุค IG ชิดกันเป็นผืนเดียว — พอมี gap 16px แล้วไทล์ลอยไร้ขอบจะอ่านเป็นรูปหลุด) */
-      className='group relative aspect-[3/4] bg-[var(--mui-palette-action-hover)] overflow-hidden rounded-2xl border border-[color:var(--mui-palette-divider)] p-0 cursor-pointer block is-full font-[inherit]'
+      className='group relative aspect-[3/4] bg-[var(--mui-palette-action-hover)] overflow-hidden rounded-2xl border border-[color:var(--mui-palette-divider)] cursor-pointer block is-full font-[inherit] p-0'
       style={{ boxShadow: '0 6px 18px rgb(47 43 61 / .05)' }}
     >
       {item.thumbnailUrl && !imgFailed && (

@@ -115,7 +115,7 @@ export default async function MobileAccountPage() {
   return (
     <div className='flex flex-col gap-5'>
       {/* ── โปรไฟล์ (สไตล์ IG) ── */}
-      <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-4 flex flex-col gap-3.5'>
+      <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] flex flex-col gap-3.5 p-5'>
         <div className='flex items-center gap-4'>
           {/* avatar + วงแหวน tier (story-ring) — แตะเปลี่ยนรูปได้ */}
           <div className='rounded-full p-[3px] shrink-0' style={{ background: gradient }}>
@@ -185,7 +185,7 @@ export default async function MobileAccountPage() {
       </div>
 
       {/* ── คำสั่งซื้อของฉัน ── */}
-      <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-4'>
+      <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-5'>
         <div className='flex items-center justify-between mbe-3'>
           <h2 className='text-[15px] font-semibold m-0 text-[var(--mui-palette-text-primary)]'>คำสั่งซื้อของฉัน</h2>
           <Link href='/orders' className='text-[13px] font-medium text-[var(--mui-palette-primary-main)] no-underline flex items-center gap-0.5'>
@@ -213,7 +213,7 @@ export default async function MobileAccountPage() {
       {/* ── nudge ยืนยันตัวตน (โชว์เมื่อยังไม่ครบ L3) ── */}
       {verifyLevel < 3 && (
         <Link href='/settings/verification' className='no-underline block'>
-          <div className='flex items-center gap-3 rounded-2xl bg-[var(--mui-palette-success-lightOpacity)] border border-[var(--mui-palette-success-main)]/30 p-3'>
+          <div className='flex items-center gap-3 rounded-2xl bg-[var(--mui-palette-success-lightOpacity)] border border-[var(--mui-palette-success-main)]/30 p-5'>
             <span className='size-9 rounded-lg bg-[var(--mui-palette-success-main)] flex items-center justify-center shrink-0'>
               <i className='tabler-shield-check text-[20px] text-white' />
             </span>

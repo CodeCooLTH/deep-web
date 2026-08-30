@@ -189,7 +189,7 @@ const CustomerReviews = () => {
               {data.map((item, index) => (
                 <div key={index} className='keen-slider__slide flex p-2 sm:p-3'>
                   <Card elevation={8} className='flex items-start'>
-                    <CardContent className='p-8 items-center mlb-auto'>
+                    <CardContent className='items-center mlb-auto'>
                       <div className='flex flex-col gap-4 items-start'>
                         <Typography>{item.desc}</Typography>
                         <Rating value={item.rating} readOnly />

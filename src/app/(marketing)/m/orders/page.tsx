@@ -107,7 +107,7 @@ export default async function MobileOrdersPage({
               <Link
                 key={o.id}
                 href={`/o/${o.publicToken}`}
-                className='no-underline rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-3.5 flex flex-col gap-2.5'
+                className='no-underline rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] flex flex-col gap-2.5 p-5'
               >
                 <div className='flex items-center justify-between gap-2'>
                   <div className='flex items-center gap-1.5 min-w-0'>

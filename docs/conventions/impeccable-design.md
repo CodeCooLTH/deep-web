@@ -27,6 +27,15 @@ fintech ที่เข้าถึงง่าย — เคาน์เตอ�
 - **ฟอนต์:** Anuphan เท่านั้น (Hard Rule 5)
 - **Mobile-first:** tap target ≥44px
 
+## ระยะขอบในการ์ด = 20px (The Card-Padding-Is-20 Rule)
+
+ค่าเดียวทั้งสองสกิน — buyer `theme.spacing(5)` (`@core/theme/overrides/card.ts`) · Paces `.card-body { p-5 }`
+
+🛑 `<CardContent>` ห้ามเขียนคลาส padding ทับ (`p-8`, `p-6 md:p-8` ฯลฯ) ให้รับจากธีมเสมอ
+🛑 บล็อกที่ซ้อนในการ์ดและกินขอบบน/ล่างของการ์ด ต้องใช้ `spacing(5)` ให้ตรงกัน ไม่ใช่เลขที่คิดเอง
+
+บังคับด้วย: `src/lib/__tests__/public-order-card-padding.test.ts`
+
 ## รัศมีมุม — ตามบทบาท (The Container-Is-12 Rule)
 
 `(marketing)/**` (buyer/landing/public):

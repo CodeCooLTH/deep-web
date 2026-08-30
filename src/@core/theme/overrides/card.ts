@@ -35,7 +35,15 @@ const card = (skin: Skin): Theme['components'] => {
     MuiCardHeader: {
       styleOverrides: {
         root: ({ theme }) => ({
-          padding: theme.spacing(6),
+          /**
+           * padding การ์ด = **20px** ทั้งฝั่ง buyer (user เคาะ 2026-08-30) — เดิม 24px
+           *
+           * `theme.spacing(5)` = 5 × 4px · นิยามเดียวสำหรับ Header/Content/Actions
+           * ⇒ `<Card>` ทุกใบในสกิน `(marketing)` ได้ค่าเดียวกันโดยไม่ต้องไล่แก้ทีละหน้า
+           *
+           * 🛑 เปลี่ยนตรงนี้ที่เดียว — ห้ามไปเขียน `p: N` ทับบนการ์ดรายใบ
+           */
+          padding: theme.spacing(5),
           '& + .MuiCardContent-root, & + .MuiCardActions-root': {
             paddingBlockStart: 0
           },
@@ -62,10 +70,10 @@ const card = (skin: Skin): Theme['components'] => {
     MuiCardContent: {
       styleOverrides: {
         root: ({ theme }) => ({
-          padding: theme.spacing(6),
+          padding: theme.spacing(5),
           color: 'var(--mui-palette-text-secondary)',
           '&:last-child': {
-            paddingBlockEnd: theme.spacing(6)
+            paddingBlockEnd: theme.spacing(5)
           },
           '& + .MuiCardHeader-root, & + .MuiCardContent-root, & + .MuiCardActions-root': {
             paddingBlockStart: 0
@@ -80,7 +88,7 @@ const card = (skin: Skin): Theme['components'] => {
     MuiCardActions: {
       styleOverrides: {
         root: ({ theme }) => ({
-          padding: theme.spacing(6),
+          padding: theme.spacing(5),
           '& .MuiButtonBase-root:not(:first-of-type)': {
             marginInlineStart: theme.spacing(4)
           },

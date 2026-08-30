@@ -34,6 +34,7 @@ import { formatBaht } from '@/lib/format-money'
 import TrustPill, { VERIFIED_INK } from './TrustPill'
 import { ORDER_PAYMENT_KIND_LABEL, ORDER_PAYMENT_METHOD_LABEL } from '@/lib/order-payment'
 import { isCODPayment, paymentMethodDetail, paymentMethodLabel, PAYMENT_STATE_LABEL } from '@/lib/order-display'
+import { cardBodySx } from './card-padding'
 import { Icon } from '@iconify/react'
 
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -95,7 +96,9 @@ export default function PaymentSummaryCard({
 
   return (
     <Card>
-      <Box sx={{ px: 1.75, py: 1.75 }}>
+      {/* padding การ์ดยกจากนิยามกลาง — เดิม 1.75 (=14px) ซึ่งแคบกว่าการ์ดที่อยู่ใต้มัน
+          บนจอเดียวกัน 6px (หัวหน้าเห็นจากภาพจริง 2026-08-30) */}
+      <Box sx={cardBodySx}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
           <Typography variant='overline' color='text.secondary' sx={{ lineHeight: 1 }}>
             การชำระเงิน

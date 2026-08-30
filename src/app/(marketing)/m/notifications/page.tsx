@@ -46,7 +46,7 @@ export default async function MobileNotificationsPage() {
             const meta = KIND_META[n.kind] ?? DEFAULT_META
             const inner = (
               <div
-                className={`flex items-start gap-3 rounded-2xl border p-3 ${
+                className={`flex items-start gap-3 rounded-2xl border p-5 ${
                   n.read
                     ? 'bg-[var(--mui-palette-background-paper)] border-[var(--mui-palette-divider)]'
                     : 'bg-[var(--mui-palette-primary-lightOpacity)] border-[var(--mui-palette-primary-main)]/30'

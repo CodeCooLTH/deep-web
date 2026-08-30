@@ -400,7 +400,9 @@ export function ChannelStrip({
           /* 56px = ความสูงเดียวกับแถวการกระทำในการ์ดเดียวกัน (ชื่อ + คำอธิบาย สองบรรทัด)
              ⇒ ทั้งการ์ดอ่านเป็นรายการเดียวกัน ไม่ใช่ของสองชนิดต่อกัน */
           const rowCls =
-            'flex items-center gap-1.5 min-bs-[56px] plb-2 pli-[5px] rounded-2xl no-underline text-[color:inherit] hover:bg-[var(--mui-palette-action-hover)] transition-colors'
+            /* carve-out padding: **แถวในรายการ** ไม่ใช่การ์ด — ระยะของมันคือจังหวะของแถว
+               (สูง 56px คงที่) ถ้าใส่ 20px รอบด้านแถวจะสูงเป็นสองเท่าและอ่านเป็นการ์ดซ้อนการ์ด */
+            'flex items-center gap-1.5 min-bs-[56px] plb-2 pli-[5px] rounded-2xl no-underline text-[color:inherit] hover:bg-[var(--mui-palette-action-hover)] transition-colors' /* carve-out padding: แถว ไม่ใช่การ์ด */
 
           return href ? (
             <a

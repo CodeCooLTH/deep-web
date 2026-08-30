@@ -214,7 +214,7 @@ const HomeFeed = ({ trust, categories, hotAuctions, pastAuctions, trustedShops }
           <div className={`flex gap-2.5 overflow-x-auto -mx-4 px-4 ${NO_SCROLLBAR}`}>
             {trustedShops.map(s => (
               <Link key={s.username} href={`/u/${s.username}`} className='no-underline shrink-0 w-[136px]'>
-                <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-3 flex flex-col items-center gap-1.5 text-center'>
+                <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] flex flex-col items-center gap-1.5 text-center p-5'>
                   {/* avatar + วงแหวนสี tier + verified */}
                   <div className='relative rounded-full p-[2.5px]' style={{ background: tierFg(s.tierColor) }}>
                     <div className='rounded-full p-[2px] bg-[var(--mui-palette-background-paper)]'>

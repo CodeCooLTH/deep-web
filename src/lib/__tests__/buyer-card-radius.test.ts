@@ -88,6 +88,33 @@ describe('[blocker] การ์ด buyer = 12px', () => {
     expect(bad, `รัศมีนอกบันได:\n${bad.join('\n')}`).toEqual([])
   })
 
+  it('🛑 <CardContent> ห้ามเขียนคลาส padding ทับธีม — การ์ด = 20px นิยามเดียว', () => {
+    /* วัดได้ก่อนแก้ 2026-08-30: ฝั่ง buyer มี 14 · 20 · 24 · 32px ปนกัน
+       และการ์ด "การชำระเงิน" (14px) วางติดกับ "ช่องทางการชำระเงิน" (24px) บนจอเดียว
+       ⇒ ต่างกัน 10px ซึ่งมองเห็นด้วยตา · ที่มาคือแต่ละใบเขียน padding เอง */
+    /* `p-12` (48px) = การ์ด auth/OTP — **ขึ้นทะเบียนเป็นข้อยกเว้น** ไม่ใช่ของหลุด:
+       มันคือการ์ดใบเดียวกลางหน้าว่าง คนละ archetype กับการ์ดที่เรียงกันเป็นรายการในหน้า
+       (ยุบเหลือ 20px แล้วฟอร์มล็อกอินจะอัดจนดูผิดที่ผิดทาง — Vuexy ตั้งมาแบบนี้แต่แรก) */
+    const PAD = /\b(p|px|py|pt|pb|pli|plb)-(\[|\d)/
+    const AUTH_CARD_OK = /\bp-12\b/
+    const bad: string[] = []
+    const walk = (d: string) => {
+      for (const e of readdirSync(join(ROOT, d), { withFileTypes: true })) {
+        const rel = `${d}/${e.name}`
+        if (e.isDirectory()) walk(rel)
+        else if (e.name.endsWith('.tsx')) {
+          const src = readFileSync(join(ROOT, rel), 'utf8')
+          for (const m of src.matchAll(/<CardContent\b[^>]*className=(['"`])([^'"`]*)\1/g)) {
+            if (AUTH_CARD_OK.test(m[2])) continue
+            if (PAD.test(m[2])) bad.push(`${rel}: ${m[2].match(PAD.source ? new RegExp(PAD.source + '\\S*') : PAD)?.[0]}`)
+          }
+        }
+      }
+    }
+    ;['src/app/(marketing)', 'src/views'].forEach(walk)
+    expect(bad, `<CardContent> ที่เขียน padding เอง:\n${bad.join('\n')}`).toEqual([])
+  })
+
   it('ขอบเขต: ธีม MUI ชุดนี้ถูก mount จาก (marketing) เท่านั้น — (paces) ต้องไม่โดน', () => {
     /* ถ้าวันหนึ่งมีใคร import ธีมนี้เข้า (paces) การ์ดหลังบ้านจะกระโดดจาก 4px เป็น 12px
        ทั้งระบบโดยไม่มีอะไรฟ้อง — ด่านนี้คือสิ่งที่ฟ้อง */

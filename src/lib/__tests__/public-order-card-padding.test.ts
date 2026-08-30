@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
  *
  * 🛑 วัดจากเบราว์เซอร์จริง 2026-08-30 — แต่ละใบตั้งค่าเอง แล้วไม่มีคู่ไหนตรงกันเลย:
  *
- *   /dashboard (ธีมอ้างอิง)  ทุกใบ 24/24
+ *   /dashboard (ธีมอ้างอิง)  ทุกใบ 24/24  ← 2026-08-30 ทั้งระบบย้ายมา **20px** (user เคาะ)
  *   /o/[token]  หัวออเดอร์ 6/18 · รายการ 6/7 · ช่วยเหลือ 7/7 · แนบสลิป 9/7
  *               ช่องทางชำระเงิน 8/7 · รีวิว 8/7 · trust 8/7 · นัดหมาย 24/24
  *
@@ -29,12 +29,13 @@ const read = (rel: string) => strip(readFileSync(join(process.cwd(), rel), 'utf8
 const ODM = 'src/app/(marketing)/o/[token]/OrderDetailMobile.tsx'
 
 describe('[blocker] การ์ดทุกใบต้องใช้ระยะขอบในชุดเดียวกัน', () => {
-  it('มีนิยามเดียว และเป็น 24px เท่ากับ /dashboard', () => {
+  it('มีนิยามเดียว และเป็น 20px เท่ากับการ์ดของธีม', () => {
     const tok = read('src/app/(marketing)/o/[token]/card-padding.ts')
-    /* 24px = `spacing(6)` ของธีมนี้ (ฐาน 4px) — ค่าเดียวกับที่ `/dashboard`, `/orders`
+    /* 20px = `spacing(5)` ของธีมนี้ (ฐาน 4px) — ค่าเดียวกับ `MuiCardContent` ของธีม
+       ที่ `/dashboard`, `/orders`
        และการ์ดนัดหมายใช้อยู่แล้ว · เปลี่ยนตัวเลขได้ แต่ต้องเปลี่ยนที่นี่ที่เดียว */
-    expect(tok, 'ต้องมี cardBodySx').toMatch(/export const cardBodySx = \{ p: 6 \}/)
-    expect(tok, 'ต้องมี cardInlinePadSx').toMatch(/export const cardInlinePadSx = \{ px: 6 \}/)
+    expect(tok, 'ต้องมี cardBodySx').toMatch(/export const cardBodySx = \{ p: 5 \}/)
+    expect(tok, 'ต้องมี cardInlinePadSx').toMatch(/export const cardInlinePadSx = \{ px: 5 \}/)
   })
 
   it('🛑 การ์ดห้ามเขียน padding เอง — ต้อง spread จากนิยามกลาง', () => {

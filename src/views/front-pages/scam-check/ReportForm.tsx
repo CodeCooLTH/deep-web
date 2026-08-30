@@ -128,7 +128,7 @@ const ReportForm = () => {
           </Alert>
 
           <Card className='border'>
-            <CardContent className='flex flex-col gap-6 p-6 md:p-8'>
+            <CardContent className='flex flex-col gap-6'>
               {/* ตัวระบุ */}
               <div className='flex flex-col gap-4'>
                 <Typography className='font-medium' color='text.primary'>
