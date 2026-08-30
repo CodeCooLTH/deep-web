@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest";
 import {
   deriveOrderStage,
   deriveShippingStage,
+  resolveOrderStatusBadge,
+  SHIPPING_STAGE_LABEL,
   orderStageChipLabel,
   shouldPromptCloseReturnedOrder,
 } from "./order-stage";
@@ -19,6 +21,8 @@ const base = {
   labelPrintedAt: null,
   carrierStatus: null,
   hasShipment: true,
+  // feature 00062 — fixture ทั้งไฟล์นี้เป็นออเดอร์ที่ส่งของจริง (เคสนัดรับมี describe แยกท้ายไฟล์)
+  fulfillmentMode: "SHIPPED",
 };
 
 describe("deriveOrderStage — พัสดุมีปัญหาต้องเด่นกว่าทุกขั้น", () => {
@@ -86,7 +90,7 @@ describe("deriveOrderStage — พัสดุมีปัญหาต้อง�
 // รับเงิน → ใบนั้นหายไปจากทุกไทล์ทันที เพราะ deriveShippingStage คืน DONE จาก
 // carrierStatus='delivered' โดยไม่ดูว่าร้านยังมีงานค้างอยู่ไหม
 // (ยืนยันจากฐาน prod: DP2569085F97153B ผู้ซื้อ "มงคล บับภาเอก")
-const shipped = { status: "SHIPPED", hasShipment: true };
+const shipped = { status: "SHIPPED", hasShipment: true, fulfillmentMode: "SHIPPED" };
 
 describe("deriveShippingStage — พัสดุจบเส้นทางแล้ว ไม่ได้แปลว่างานของร้านจบ", () => {
   it("COD ส่งถึงแล้ว แต่ร้านยังไม่กดรับเงิน → รอเงิน COD (ห้ามหายจากทุกไทล์)", () => {
@@ -109,6 +113,7 @@ describe("deriveShippingStage — พัสดุจบเส้นทางแ�
   it("ผู้ซื้อยืนยันรับของแล้วก็ยังต้องรอเงิน COD ถ้าร้านยังไม่กด (เงินคนละแกนกับสถานะออเดอร์)", () => {
     expect(
       deriveShippingStage({
+        fulfillmentMode: "SHIPPED",
         status: "CONFIRMED",
         hasShipment: true,
         carrierStatus: "delivered",
@@ -141,7 +146,7 @@ describe("deriveShippingStage — พัสดุจบเส้นทางแ�
 
   it("ยกเลิกทั้งใบ → DONE เสมอ ไม่ว่าพัสดุอยู่สถานะไหน", () => {
     expect(
-      deriveShippingStage({ status: "CANCELLED", carrierStatus: "delivered", hasShipment: true, paymentMethod: "COD" }),
+      deriveShippingStage({ status: "CANCELLED", carrierStatus: "delivered", hasShipment: true, paymentMethod: "COD", fulfillmentMode: "SHIPPED" }),
     ).toBe("DONE");
   });
 
@@ -150,9 +155,9 @@ describe("deriveShippingStage — พัสดุจบเส้นทางแ�
   });
 
   it("กองงานเดิม 3 กองไม่เปลี่ยนพฤติกรรม", () => {
-    expect(deriveShippingStage({ status: "PENDING", carrierStatus: null, hasShipment: false })).toBe("AWAITING_PARCEL");
-    expect(deriveShippingStage({ status: "PENDING", carrierStatus: null, hasShipment: true })).toBe("AWAITING_PICKUP");
-    expect(deriveShippingStage({ status: "PENDING", carrierStatus: "in_transit", hasShipment: true })).toBe("SHIPPING");
+    expect(deriveShippingStage({ status: "PENDING", carrierStatus: null, hasShipment: false, fulfillmentMode: "SHIPPED" })).toBe("AWAITING_PARCEL");
+    expect(deriveShippingStage({ status: "PENDING", carrierStatus: null, hasShipment: true, fulfillmentMode: "SHIPPED" })).toBe("AWAITING_PICKUP");
+    expect(deriveShippingStage({ status: "PENDING", carrierStatus: "in_transit", hasShipment: true, fulfillmentMode: "SHIPPED" })).toBe("SHIPPING");
   });
 });
 
@@ -164,6 +169,7 @@ describe("payment_success = ปลายทาง ไม่ใช่ระหว
     carrierStatus: "payment_success",
     hasShipment: true,
     paymentMethod: "COD",
+    fulfillmentMode: "SHIPPED",
   };
 
   it("ได้เงิน COD แล้ว → DONE ไม่ใช่ AWAITING_PICKUP (ไทม์ไลน์ห้ามถอยกลับจุดแรก)", () => {
@@ -185,6 +191,7 @@ describe("payment_success = ปลายทาง ไม่ใช่ระหว
   it("close (id 99 ปิดงาน) จบเส้นทางแล้วเช่นกัน — ห้ามค้างเป็น 'รอรับเข้า'", () => {
     expect(
       deriveShippingStage({
+        fulfillmentMode: "SHIPPED",
         status: "SHIPPED",
         carrierStatus: "close",
         hasShipment: true,
@@ -249,6 +256,7 @@ describe('พัสดุมีปัญหา — นับทุกใบ + re
       expect(deriveOrderStage(o, NOW)).toBeNull()
       expect(
         deriveShippingStage({
+          fulfillmentMode: "SHIPPED",
           status: 'SHIPPED',
           carrierStatus: code,
           hasShipment: true,
@@ -304,3 +312,66 @@ describe('พัสดุมีปัญหา — นับทุกใบ + re
     expect(orderStageChipLabel(s!)).toBe('กำลังจัดส่ง')
   })
 })
+
+/**
+ * feature 00062 — ออเดอร์ที่ไม่มีการจัดส่งเลย (นัดรับ/ดิจิทัล) ต้องไม่ถูกลากเข้ากองพัสดุ
+ *
+ * ที่มา: BRD §7.3 หนี้ข้อ 1 — `deriveShippingStage()` เดิมไม่เคยอ่าน `fulfillmentMode` เลย
+ * ออเดอร์นัดรับที่ยัง PENDING จึงตกไป `AWAITING_PARCEL` ("รอเลขพัสดุ") ทั้งบนไทล์หน้าแรก
+ * และตัวกรอง `/orders?stage=` ทั้งที่ไม่มีพัสดุให้รอเลขเลย
+ *
+ * และที่มาของการ *ไม่* ยืมค่า `'DONE'` มาใช้: Controller review (SDS §11) — `'DONE'` มี badge
+ * ของตัวเองคือ "ส่งถึงแล้ว" สีเขียว ⇒ ออเดอร์ที่ลูกค้ายังไม่มารับจะขึ้นว่าส่งถึงแล้ว
+ */
+describe("[blocker] deriveShippingStage — ออเดอร์ที่ไม่มีการจัดส่ง (feature 00062)", () => {
+  const NON_SHIPPED = ["PICKUP", "NO_SHIPPING"];
+  const STATUSES = ["PENDING", "SHIPPED", "CONFIRMED", "CANCELLED", "RETURNED"];
+
+  it("ทุกคอมบิเนชันของ status/พัสดุ → NOT_SHIPPING เสมอ (ห้ามหลุดไป AWAITING_PARCEL หรือ DONE)", () => {
+    for (const fulfillmentMode of NON_SHIPPED) {
+      for (const status of STATUSES) {
+        for (const hasShipment of [true, false]) {
+          for (const carrierStatus of [null, "in_transit", "delivered", "issue", "return_success"]) {
+            const stage = deriveShippingStage({
+              status,
+              hasShipment,
+              carrierStatus,
+              paymentMethod: "COD",
+              codReceivedAt: null,
+              fulfillmentMode,
+            });
+            expect(stage).toBe("NOT_SHIPPING");
+          }
+        }
+      }
+    }
+  });
+
+  it("ออเดอร์ที่ส่งของจริงต้องไม่ถูกกระทบ — ยังได้กองเดิมทุกประการ", () => {
+    expect(
+      deriveShippingStage({ status: "PENDING", hasShipment: false, carrierStatus: null, fulfillmentMode: "SHIPPED" }),
+    ).toBe("AWAITING_PARCEL");
+    expect(
+      deriveShippingStage({ status: "PENDING", hasShipment: true, carrierStatus: null, fulfillmentMode: "SHIPPED" }),
+    ).toBe("AWAITING_PICKUP");
+  });
+
+  /**
+   * 🛑 ด่านนี้คือสิ่งที่กันไม่ให้คนถัดไป "เติมคำให้ครบ" ตามสัญชาตญาณ
+   *
+   * ถ้ามีคำใน `SHIPPING_STAGE_LABEL` ⇒ `?stage=NOT_SHIPPING` จะกลายเป็นตัวกรองที่ใช้ได้จริง
+   * แต่ไม่มีชิปไหนพาไป · ถ้ามีใน `STAGE_BADGE_OVERRIDE` ⇒ ออเดอร์นัดรับได้ป้ายพัสดุปลอม
+   */
+  it("ต้องไม่มีคำใน SHIPPING_STAGE_LABEL (ไม่งั้นจะกลายเป็นตัวกรองที่ไม่มีชิปพาไป)", () => {
+    expect("NOT_SHIPPING" in SHIPPING_STAGE_LABEL).toBe(false);
+  });
+
+  it("resolveOrderStatusBadge ต้องตกกลับไปใช้ป้ายของ Order.status ไม่ใช่ป้ายพัสดุ", () => {
+    const pickup = resolveOrderStatusBadge("PENDING", "NOT_SHIPPING");
+    // ห้ามเป็นป้ายเขียว "ส่งถึงแล้ว" ของกอง DONE — นั่นคือบั๊กที่ Controller review จับได้
+    expect(pickup.label).not.toBe("ส่งถึงแล้ว");
+    expect(pickup.cls).not.toContain("success");
+    // ต้องเท่ากับป้ายของสถานะล้วน ๆ (stage ที่ไม่มี override ให้ผลเดียวกัน)
+    expect(pickup).toEqual(resolveOrderStatusBadge("PENDING", "AWAITING_PARCEL"));
+  });
+});

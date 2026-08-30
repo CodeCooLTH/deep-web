@@ -9,6 +9,14 @@ import { SHIPPING_STAGE_KEYS_ALL } from '@/lib/order-stage'
 /**
  * order-list.service — เลือก "หน้าเดียว" ของรายการคำสั่งซื้อที่ฐานข้อมูล (CR 2026-08-25)
  *
+ * 🛑 **โมดูลนี้ยังไม่มีผู้เรียกใน production code เลย ณ 2026-08-29** (ตรวจด้วย grep ทั้ง `src/`)
+ * — เป็นครึ่งทางของ CR 2026-08-25 ที่ยังไม่ได้ต่อเข้า `orders/page.tsx` ซึ่งยังดึงทั้งร้าน
+ * แล้วกรองใน TS อยู่ ⇒ **ตัวกรองที่เพิ่มในไฟล์นี้ยังไม่ทำงานจริงกับหน้าใด ๆ**
+ *
+ * ที่ยังเก็บไว้และเติมตัวกรองใหม่ตามให้ครบ (แทนที่จะปล่อยให้ล้าสมัย) เพราะวันที่มีคนต่อสาย
+ * โมดูลนี้เข้าหน้าจริง ตัวกรองที่ขาดจะ **หายไปเงียบ ๆ** โดยไม่มีอะไรฟ้อง — อันตรายกว่าโค้ดที่
+ * ยังไม่มีใครเรียกเฉย ๆ
+ *
  * ── ทำไมคืนแค่ `id` ไม่ใช่ทั้งแถว ────────────────────────────────────────────
  * ปัญหาที่ CR นี้แก้คือ **"enrich และ serialize แถวที่ผู้ใช้ไม่มีวันเห็น"** ไม่ใช่ "query ช้า"
  * (ข้อมูล prod 2026-08-25: ข้อมูลดิบทั้งร้านใหญ่ < 400 KB แต่ payload ที่ข้าม RSC 500–800 KB
@@ -34,6 +42,13 @@ export type OrderListFilters = {
   status?: string | null
   /** กองงานพัสดุ (`AWAITING_PARCEL` ฯลฯ) — ไม่ส่ง = ทุกกอง */
   stage?: string | null
+  /**
+   * `Order.fulfillmentMode` (feature 00062 U18) — `'SHIPPED' | 'PICKUP'`, ไม่ส่ง = ทุกวิธี
+   * คนละแกนกับ `stage` (นั่นตอบว่า "ของอยู่ไหนในเส้นทางขนส่ง" — ไม่มีความหมายกับใบนัดรับเลย)
+   * กรองที่ query ตรง ๆ ไม่ใช่ TS หลังดึงมา เหตุผลเดียวกับ `stage`: ตัวนับกับตัวกรองต้องมา
+   * จาก WHERE เดียวกันเสมอ ไม่งั้นกดตัวเลขบนตัวกรองแล้วเข้าไปเจอจำนวนไม่ตรง
+   */
+  fulfillment?: string | null
   /** `Order.type` */
   type?: string | null
   /** ช่วงเวลาแบบวันเจาะจง `YYYY-MM-DD` (เวลาไทย) หรือช่วง [from,to) เป็น ISO */
@@ -57,6 +72,8 @@ const STAGE_COLUMNS = {
   carrierStatus: 's."carrierStatus"',
   paymentMethod: 'o."paymentMethod"',
   codReceivedAt: 'o."codReceivedAt"',
+  // feature 00062 — ต้องมีคู่กับฝั่ง TS เสมอ (เทส parity จับถ้าฝั่งใดฝั่งหนึ่งขาด)
+  fulfillmentMode: 'o."fulfillmentMode"',
 } as const
 
 /**
@@ -82,6 +99,8 @@ const ACTIVE_SHIPMENT_LATERAL = `
 function whereFragments(shopId: string, f: OrderListFilters): Prisma.Sql[] {
   const parts: Prisma.Sql[] = [Prisma.sql`o."shopId" = ${shopId}`]
   if (f.status) parts.push(Prisma.sql`o."status" = ${f.status}`)
+  // feature 00062 U18 — คนละคอลัมน์กับ stage (คอลัมน์ดิบ ไม่ใช่สูตร CASE) ผูก WHERE ตรงเลยได้
+  if (f.fulfillment) parts.push(Prisma.sql`o."fulfillmentMode" = ${f.fulfillment}`)
   if (f.type) parts.push(Prisma.sql`o."type" = ${f.type}`)
   if (f.createdFrom) parts.push(Prisma.sql`o."createdAt" >= ${f.createdFrom}`)
   if (f.createdTo) parts.push(Prisma.sql`o."createdAt" < ${f.createdTo}`)

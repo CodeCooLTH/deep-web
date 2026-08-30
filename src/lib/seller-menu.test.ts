@@ -53,6 +53,12 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:orders',
         'seller:products',
         'seller:public-profile',
+        // เพิ่ม 2026-08-26 — เมนู "ผลงานแอดมิน" (feature 00059)
+        // slug ใหม่ล้วน ไม่มีแถว SellerShortcutPreference เดิมอ้างถึงได้ = การเพิ่มที่ปลอดภัย
+        'seller:reports-agents',
+        // เพิ่ม 2026-08-29 — เมนู "ยอดขายรายสินค้า" (feature 00063)
+        // slug ใหม่ล้วน ไม่มีแถว SellerShortcutPreference เดิมอ้างถึงได้ = การเพิ่มที่ปลอดภัย
+        'seller:reports-products',
         'seller:queues',
         'seller:reviews',
         'seller:rooms',

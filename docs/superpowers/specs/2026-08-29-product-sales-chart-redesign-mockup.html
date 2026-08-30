@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mockup — กราฟยอดขายรายสินค้า (00063) mixed: แท่งซ้อน + เส้นยอดรวม</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* โทเคนจริงจาก src/assets/css/config/_root.css — ห้ามแก้ค่าที่นี่โดยไม่แก้ที่ต้นทาง */
+  :root{
+    --chart-primary:#236dc9; --chart-secondary:#7b70ef; --chart-alpha:#02bc9c;
+    --chart-beta:#f7577e;    --chart-gamma:#f9bf59;     --chart-delta:#5bc3e1;
+    --chart-zeta:#db9052;
+    --warning:#f9bf59; --warning-ink:#92400e; --info:#5bc3e1; --info-ink:#1e40af;
+    --default-100:#f1f2f6; --default-200:#e9eaee; --default-300:#dcdee5;
+    --default-400:#8a91a5; --default-500:#6b7280; --default-700:#4c4c5c; --default-900:#2f2b3d;
+    --card:#fff; --body-bg:#f6f7fb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eceef3;font-family:Anuphan,system-ui,sans-serif;color:var(--default-900);padding:24px}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--default-500);font-size:13px;margin:0 0 24px;max-width:960px;line-height:1.6}
+  .lane{margin-bottom:40px}
+  .lane>h2{font-size:14px;font-weight:600;color:var(--default-700);margin:0 0 8px}
+  .lane>h2 span{font-weight:400;color:var(--default-400)}
+  .frame{background:var(--body-bg);border:1px solid var(--default-300);border-radius:10px;overflow:hidden}
+  .card{background:var(--card);border-radius:8px;box-shadow:0 1px 4px rgba(130,143,163,.15);margin:12px}
+  .card-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px dashed var(--default-200)}
+  .card-title{font-size:15px;font-weight:600;margin:0}
+  .cap{font-size:11px;color:var(--default-400)}
+  .card-body{padding:14px 16px}
+  svg{display:block;width:100%;height:auto}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:12px;color:var(--default-700)}
+  .legend i{width:10px;height:10px;border-radius:9999px;display:inline-block;margin-inline-end:6px;vertical-align:-1px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:start;font-weight:600;color:var(--default-500);font-size:12px;padding:8px 10px;border-bottom:1px solid var(--default-200)}
+  td{padding:9px 10px;border-bottom:1px solid var(--default-200);vertical-align:middle}
+  .thumb{width:40px;height:40px;border-radius:8px;background:var(--default-100);display:flex;align-items:center;justify-content:center;color:var(--default-400);font-size:16px;flex:0 0 auto;border:1px solid var(--default-200)}
+  .thumb.ring{border-color:transparent}
+  .pname{display:flex;align-items:center;gap:10px;min-width:0}
+  .pname b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
+  .badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:9999px;white-space:nowrap}
+  .b-steady{background:rgba(91,195,225,.15);color:var(--info-ink)}
+  .b-dormant{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+  .b-none{color:var(--default-400)}
+  .num{text-align:end;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .strip{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;align-items:end;gap:1px;min-width:160px}
+  .strip span{height:16px;border-radius:4px;background:var(--default-200);position:relative}
+  .strip span i{position:absolute;inset-inline:0;bottom:0;border-radius:4px;background:var(--chart-primary);display:block}
+  .strip span.bd{border-inline-start:1px dashed var(--default-400)}
+  /* tooltip */
+  .tip{position:absolute;background:#fff;border-radius:6px;box-shadow:0 4px 16px rgba(76,76,92,.2);padding:8px 10px;min-width:220px;font-size:13px}
+  .tip .h{font-weight:600;padding-bottom:6px;margin-bottom:4px;border-bottom:1px solid var(--default-200)}
+  .tip .r{display:flex;align-items:center;gap:8px;padding:3px 0}
+  .tip .r .t{flex:0 0 auto;width:28px;height:28px;border-radius:6px;background:var(--default-100);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--default-400)}
+  .tip .r .n{flex:1 1 auto;min-width:0;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tip .r .v{flex:0 0 auto;font-weight:600;font-variant-numeric:tabular-nums}
+  .note{background:#fff;border:1px solid var(--default-300);border-inline-start:3px solid var(--chart-primary);border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.7;margin-bottom:16px;max-width:1180px}
+  .note b{color:var(--default-900)}
+  .row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+  .m360{width:360px}.m768{width:768px}.m1280{width:1280px;max-width:100%}
+  .mobile-row{display:flex;gap:10px;padding:12px 4px;border-bottom:1px solid var(--default-200);align-items:flex-start}
+  .mobile-row .col{flex:1;min-width:0}
+  .mobile-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+  .mobile-top b{font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chev{color:var(--default-400);font-size:16px;margin-top:2px}
+</style>
+</head>
+<body>
+
+<h1>กราฟยอดขายรายสินค้า — แท่งซ้อน + เส้นยอดรวม (โทน Command Center)</h1>
+<p class="sub">
+  ใช้ <b>ชื่อสินค้าและตัวเลขจริง</b>จากภาพหน้าจอ prod ของร้าน "ธนภัทร์ อะไหล่มอเตอร์ไซค์" (ส.ค. 2569 · สินค้า 35 ตัว)
+  — ไม่ใช่ข้อมูลสมมติ · วันที่ 30–31 ยังมาไม่ถึง (วันนี้คือ 29) จึงไม่มีเส้น
+  · รูปสินค้าในร้านนี้ยังไม่มีจริง จึงแสดงเป็นกล่อง fallback ตามที่ระบบจะเรนเดอร์จริง
+</p>
+
+<!-- ═══════════════ ก่อน ═══════════════ -->
+<div class="lane">
+  <h2>ตอนนี้บน prod — กราฟเส้น <span>· 3 เส้น · เส้นยังตัดกันไปมา อ่านยากอยู่ดี</span></h2>
+  <div class="frame m1280">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">แนวโน้มรายวัน</h3><span class="cap">เลือกแล้ว 3 จาก 6 รายการ</span></div>
+      <div class="card-body"><svg id="before" viewBox="0 0 1180 300" role="img" aria-label="กราฟแบบเดิม"></svg>
+        <div class="legend" id="legend-before"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ หลัง ═══════════════ -->
+<div class="lane">
+  <h2>ที่เสนอ — แท่งซ้อน + เส้นยอดรวม เดสก์ท็อป 1280 <span>· โทนเดียวกับกราฟบนหน้าแรก</span></h2>
+  <div class="note">
+    <b>ทำไมแท่งซ้อนแก้ปัญหาได้จริง</b> — กราฟเส้นให้เส้น 3–6 เส้นวิ่งทับกันในแถบค่า 0–6 ที่แคบมาก
+    <b>ไม่ว่าจะแต่งสีอย่างไรเส้นก็ยังตัดกัน</b> · แท่งซ้อนมี <b>1 แท่งต่อ 1 วัน</b> แต่ละแท่งแบ่งเป็นช่วงสีตามสินค้า
+    ⇒ ไม่มีอะไรตัดกันเลย และได้ข้อมูลเพิ่มฟรี: <b>ความสูงรวมของแท่ง = ยอดขายรวมของวันนั้น</b>
+    ซึ่งกราฟเส้นตอบไม่ได้<br /><br />
+    <b>โทน Command Center ยกมาทั้งชุด</b> — กราฟบนหน้าแรก (`SalesChartCard.tsx`) เป็น mixed chart
+    อยู่แล้วเป๊ะ ๆ: <code>stacked:true</code> + <code>stackOnlyBar:true</code> (กันไม่ให้เส้นถูกบวกทับยอดสะสม)
+    · แท่งบาง <code>columnWidth 92%</code> มุมโค้ง 1px · เส้นสี <code>primary</code> หนา 2 จุด marker 2
+    · เส้นตารางสี <code>chart-border-color</code> ประ 4 · ป้ายแกน 10px
+    <b>ยกมาได้ทั้งหมดโดยไม่ต้องประดิษฐ์</b><br /><br />
+    ✅ <b>สีแท่ง = โทน Command Center เป๊ะ</b> — ตรวจ hex แล้ว <code>chart-alpha</code> = <code>--color-success</code>
+    = <b>#02bc9c</b> (แท่งมิ้นต์) และ <code>chart-gamma</code> = <code>--color-warning</code> = <b>#f9bf59</b>
+    (แท่งเหลือง) ⇒ สร้างโทนนั้นได้ด้วยโทเคนตระกูล <code>chart-*</code> โดยตรง
+    <span style="display:none"> — ที่นั่นแท่ง 2 อันคือ
+    "ยืนยันแล้ว/รอยืนยัน" ซึ่งเป็น <b>สถานะ</b> เขียวจึงแปลว่า "สำเร็จ" ตามกฎ Verified-Means-Green
+    · ของเราแท่งคือ <b>สินค้า</b> ถ้าใช้เขียว สินค้าตัวแรกจะดูเหมือน "ผ่านแล้ว" ทั้งที่ไม่ได้แปลว่าอะไรเลย
+</span> <b>เส้นยอดรวมใช้ <code>primary</code> เหมือนเส้น "คำสั่งซื้อ" ที่นั่นเป๊ะ</b>
+  </div>
+  <div class="frame m1280">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">แนวโน้มรายวัน</h3><span class="cap">เลือกแล้ว 3 จาก 6 รายการ — ติ๊กที่ตารางด้านล่าง</span></div>
+      <div class="card-body" style="position:relative">
+        <svg id="after" viewBox="0 0 1180 300" role="img" aria-label="กราฟแบบใหม่"></svg>
+        <div class="legend" id="legend-after"></div>
+        <!-- tooltip ตัวอย่าง -->
+        <div class="tip" style="inset-inline-start:520px;top:26px">
+          <div class="h">วันที่ 21</div>
+          <div class="r"><span class="t" style="box-shadow:0 0 0 2px var(--chart-alpha)">▦</span><span class="n">โช๊คหลัง 110 สีแดง</span><span class="v">6</span></div>
+          <div class="r"><span class="t" style="box-shadow:0 0 0 2px var(--chart-gamma)">▦</span><span class="n">โช๊คหลัง 110 สีดำ</span><span class="v">5</span></div>
+          <div class="r"><span class="t" style="box-shadow:0 0 0 2px var(--chart-beta)">▦</span><span class="n">โช๊คหลัง 110 สีเหลือง</span><span class="v">2</span></div>
+          <div class="r" style="border-top:1px solid var(--default-200);margin-top:4px;padding-top:6px">
+            <span class="n" style="color:var(--default-500)">ยอดรวมทั้งร้านวันนี้</span><span class="v">15</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">รายสินค้า <span style="color:var(--default-400);font-weight:400">(35)</span></h3>
+        <span class="cap">☐ แสดงสินค้าที่ไม่มียอดขาย (2)</span></div>
+      <table>
+        <thead><tr><th style="width:34px"></th><th>สินค้า</th><th style="width:190px">ขายวันไหน</th><th style="width:150px">รูปแบบการขาย</th><th style="width:90px">ขายล่าสุด</th><th style="width:100px" class="num">จำนวนที่ขาย</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="lane">
+  <h2>🛑 ต้องเลือก — "ยอดรวมของวัน" หมายถึงอันไหน <span>· เปลี่ยนความหมายของกราฟทั้งใบ</span></h2>
+  <div class="note" style="border-inline-start-color:var(--chart-beta)">
+    แท่งซ้อน<b>มีความสูงรวม = ยอดของสินค้าที่ติ๊กไว้อยู่แล้ว</b> ⇒ ถ้าเส้นวาดยอดรวมของสินค้าชุดเดียวกัน
+    มันจะลากทับหลังคาแท่งพอดี (แบบ ก) — ได้ความชัดของ "จังหวะเดือน" แต่ไม่ได้ข้อมูลใหม่<br />
+    ถ้าเส้นวาด<b>ยอดรวมของสินค้าทั้งร้าน</b> (แบบ ข) จะได้ข้อมูลที่แท่งบอกไม่ได้เลย คือ
+    <b>"สินค้าที่ติ๊กไว้คิดเป็นสัดส่วนเท่าไรของทั้งร้าน"</b> — และตรงกับวิธีที่ Command Center ใช้
+    (ที่นั่นเส้นคือ "จำนวนใบ" ซึ่งเป็นคนละหน่วยกับแท่ง จึงมีแกนของตัวเอง)<br /><br />
+    <b>ทั้งสองแบบไม่ต้องแก้ฝั่งเซิร์ฟเวอร์เลย</b> — ข้อมูลของสินค้าทุกตัวถูกส่งลงมาอยู่แล้ว
+  </div>
+  <div class="row">
+    <div class="frame" style="width:580px">
+      <div class="card">
+        <div class="card-header"><h3 class="card-title" style="font-size:14px">ก. เส้น = ยอดรวมของ 3 ตัวที่ติ๊ก</h3>
+          <span class="cap">ลากทับหลังคาแท่ง</span></div>
+        <div class="card-body"><svg id="optA" viewBox="0 0 540 250"></svg><div class="legend" id="legend-optA"></div></div>
+      </div>
+    </div>
+    <div class="frame" style="width:580px">
+      <div class="card">
+        <div class="card-header"><h3 class="card-title" style="font-size:14px">ข. เส้น = ยอดรวมทั้งร้าน (35 สินค้า)</h3>
+          <span class="cap">เห็นสัดส่วนว่าติ๊กไว้กี่ % ของทั้งร้าน</span></div>
+        <div class="card-body"><svg id="optB" viewBox="0 0 540 250"></svg><div class="legend" id="legend-optB"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="lane">
+  <h2>🛑 ต้องเลือก — ข้อมูลในแถวสินค้า <span>· user ขอ "อยากได้ข้อมูลมากกว่านี้"</span></h2>
+  <div class="note" style="border-inline-start-color:var(--chart-zeta)">
+    <b>ของที่มีอยู่แล้ว ไม่ต้องยิง query เพิ่มเลย</b> — ยอดเงิน (คำนวณไว้แล้วทั้งคู่ แต่ตอนนี้โชว์ทีละอย่างตาม toggle)
+    · จำนวนครั้งที่ขาย · จำนวนวันที่ขายได้ · วันที่ขายดีที่สุด · สัดส่วน % ของยอดรวมทั้งร้าน<br />
+    <b>ของที่เติมได้ด้วยการเพิ่มชื่อฟิลด์ใน select เดิม</b> (ไม่เพิ่ม query) — <code>price</code> ราคาขาย ·
+    <code>stockQty</code> สต็อกคงเหลือ ⇒ คำนวณ <b>"พอขายอีกกี่วัน"</b> จากอัตราขายจริงของเดือนนั้น<br /><br />
+    🛑 <b>ต้นทุน/กำไรไม่อยู่ในตัวเลือก</b> — เป็นข้อมูลที่ถูกกั้นด้วยสิทธิ์การเงิน ถ้าใส่จะทำให้หน้านี้
+    กลายเป็นหน้าการเงินซึ่งเปลี่ยนกฎการเข้าถึงทั้งหน้า
+  </div>
+
+  <h3 style="font-size:13px;color:var(--default-700);margin:16px 0 8px">แบบ ก — เพิ่มคอลัมน์ (แถวยังสูงเท่าเดิม)</h3>
+  <div class="frame m1280">
+    <div class="card">
+      <table>
+        <thead><tr><th style="width:34px"></th><th>สินค้า</th><th style="width:150px">ขายวันไหน</th>
+          <th style="width:120px">รูปแบบ</th><th style="width:90px" class="num">ชิ้น</th>
+          <th style="width:100px" class="num">ยอดเงิน</th><th style="width:80px" class="num">สัดส่วน</th>
+          <th style="width:110px" class="num">สต็อก</th></tr></thead>
+        <tbody id="tb-a"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <h3 style="font-size:13px;color:var(--default-700);margin:20px 0 8px">แบบ ข — แถวสองชั้น (ข้อมูลรองอยู่บรรทัดล่าง สีจาง)</h3>
+  <div class="frame m1280">
+    <div class="card">
+      <table>
+        <thead><tr><th style="width:34px"></th><th>สินค้า</th><th style="width:170px">ขายวันไหน</th>
+          <th style="width:150px">รูปแบบการขาย</th><th style="width:130px" class="num">ยอดขาย</th></tr></thead>
+        <tbody id="tb-b"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <h3 style="font-size:13px;color:var(--default-700);margin:20px 0 8px">มือถือ — การ์ดที่ข้อมูลแน่นขึ้น</h3>
+  <div class="frame m360">
+    <div class="card"><div class="card-body" style="padding:4px 12px" id="mob-rich"></div></div>
+  </div>
+</div>
+
+<div class="lane">
+  <h2>ที่เสนอ — แท็บเล็ต 768 <span>· มีกราฟ แต่ยังไม่มีช่องติ๊ก (ล็อก 3 อันดับแรก)</span></h2>
+  <div class="frame m768">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">แนวโน้มรายวัน</h3><span class="cap">แสดง 3 อันดับแรกตามจำนวนชิ้น</span></div>
+      <div class="card-body"><svg id="tablet" viewBox="0 0 720 260" role="img" aria-label="กราฟบนแท็บเล็ต"></svg>
+        <div class="legend" id="legend-tablet"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="lane">
+  <h2>ที่เสนอ — มือถือ 360 <span>· ไม่มีกราฟรวม · วงแหวนสีบอกว่าสินค้าไหนอยู่บนกราฟ</span></h2>
+  <div class="row">
+    <div class="frame m360">
+      <div class="card">
+        <div class="card-header"><h3 class="card-title" style="font-size:14px">รายสินค้า <span style="color:var(--default-400);font-weight:400">(35)</span></h3>
+          <span class="cap">☐ ไม่มียอดขาย (2)</span></div>
+        <div class="card-body" style="padding:4px 12px" id="mobile"></div>
+      </div>
+    </div>
+    <div class="note" style="max-width:420px">
+      <b>ทำไมมีวงแหวนสีบนมือถือทั้งที่ไม่มีกราฟ</b><br />
+      ชื่อสินค้าของร้านคุณ<b>มีคำว่า "สี" อยู่ในตัวเอง</b> — "โช๊คหลัง 110 <b>สีแดง</b>" ถูกวาดด้วยเส้น<b>สีน้ำเงิน</b>
+      ตาจึงต้องแปลสองชั้นตลอดเวลา<br /><br />
+      ทางแก้ไม่ใช่การจับคู่สีเส้นให้ตรงกับคำในชื่อ (ทำไม่ได้ทั่วไป และชนกันเองทันทีถ้ามีสินค้าสีเดียวกันสองตัว)
+      แต่คือ<b>ทำให้ไม่ต้องจำสีเลย</b> — วงแหวนรอบรูปในตารางเป็นสีเดียวกับเส้นบนกราฟ
+      มองจากตารางไปกราฟได้ตรง ๆ และใช้ได้บนมือถือเพราะไม่ต้อง hover
+    </div>
+  </div>
+</div>
+
+<script>
+// ── ข้อมูลจริงจากภาพหน้าจอ prod (29 วัน วันที่ 30–31 ยังมาไม่ถึง) ──
+const DAYS = 31, TODAY = 29;
+const S = [
+  {name:'โช๊คหลัง 110 สีแดง',   total:86, last:'29 ส.ค.', pat:'steady', c:'--chart-alpha',     d:[3,2,2,1,1,4,2,2,0,5,3,5,5,0,3,3,3,3,3,4,6,3,5,3,3,5,5,4,2]},
+  {name:'โช๊คหลัง 110 สีดำ',    total:79, last:'29 ส.ค.', pat:'steady', c:'--chart-gamma',     d:[2,1,1,1,4,5,2,2,0,5,2,2,1,0,5,2,3,3,3,4,5,6,3,5,3,3,1,3,3]},
+  {name:'โช๊คหลัง 110 สีเหลือง', total:44, last:'29 ส.ค.', pat:'steady', c:'--chart-beta',      d:[4,0,0,0,4,4,1,1,1,1,1,1,1,0,2,1,2,2,1,1,2,1,4,1,1,1,1,0,1]},
+  {name:'โช๊คหลัง สามล้อ สีดำ',  total:40, last:'21 ส.ค.', pat:'dormant',c:'--chart-zeta',      d:[0,1,4,1,1,1,1,0,1,1,1,3,2,1,1,4,1,3,3,1,2,0,0,0,0,0,0,0,0]},
+  {name:'โช๊คหลัง 125 สีน้ำเงิน',total:40, last:'28 ส.ค.', pat:'steady', c:'--chart-secondary',d:[1,0,0,1,2,4,0,1,1,1,1,1,2,3,1,2,1,3,1,2,5,4,2,1,3,2,1,1,0]},
+];
+const OLD_C = ['--chart-primary','--chart-secondary','--chart-alpha','--chart-beta','--chart-delta'];
+const OLD_DASH = ['none','none','5 4','5 4','9 5'];
+
+function draw(id, legendId, series, colors, opt={}){
+  const svg=document.getElementById(id); const W=svg.viewBox.baseVal.width, H=svg.viewBox.baseVal.height;
+  const L=42,R=14,T=14,B=30, pw=W-L-R, ph=H-T-B;
+  // แท่งซ้อน: เพดานคือ "ผลรวมของวัน" ไม่ใช่ค่าสูงสุดของเส้นใดเส้นหนึ่ง
+  const max = opt.stacked
+    ? Math.max(...Array.from({length:TODAY},(_,i)=>series.reduce((a,s)=>a+(s.d[i]||0),0)))
+    : Math.max(...series.flatMap(s=>s.d));
+  const ticks=Math.min(4,Math.max(1,Math.ceil(max)));
+  const yMax=opt.raw? Math.ceil(max*1.15) : Math.max(1,Math.ceil(max/ticks)*ticks);
+  const x=i=>L+(pw*i)/(DAYS-1), y=v=>T+ph-(ph*v)/yMax;
+  let g='';
+  const tn = opt.raw? 4 : ticks;
+  for(let t=0;t<=tn;t++){const v=(yMax*t)/tn, yy=y(v);
+    g+=`<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="#ecf4fc" stroke-dasharray="4 4"/>`;
+    g+=`<text x="${L-8}" y="${yy+4}" text-anchor="end" font-size="11" fill="var(--default-400)">${opt.raw? (Math.round(v*10)/10) : v}</text>`;}
+  for(let i=0;i<DAYS;i++){const n=i+1; if(n===1||n===DAYS||n%5===0)
+    g+=`<text x="${x(i)}" y="${H-10}" text-anchor="middle" font-size="11" fill="var(--default-400)">${n}</text>`;}
+
+  if(opt.stacked){
+    const bw=(pw/(DAYS-1))*0.92;              // columnWidth 92% เท่ากับ Command Center
+    for(let i=0;i<TODAY;i++){
+      let acc=0;
+      series.forEach((s,si)=>{const v=s.d[i]||0; if(v<=0) return;
+        const yTop=y(acc+v), hgt=y(acc)-y(acc+v); acc+=v;
+        g+=`<rect x="${x(i)-bw/2}" y="${yTop}" width="${bw}" height="${Math.max(hgt,1)}"
+             fill="var(${colors[si]})" rx="1" ry="1"/>`;
+      });
+    }
+    // เส้นยอดรวม — สี primary หนา 2 marker 2 เหมือน SalesChartCard เป๊ะ
+    if(opt.sum){
+      const pts=[]; for(let i=0;i<TODAY;i++) pts.push(`${x(i)},${y(opt.sum[i])}`);
+      g+=`<polyline points="${pts.join(' ')}" fill="none" stroke="var(--chart-primary)" stroke-width="2" stroke-linejoin="round"/>`;
+      for(let i=0;i<TODAY;i++) g+=`<circle cx="${x(i)}" cy="${y(opt.sum[i])}" r="2" fill="var(--chart-primary)"/>`;
+    }
+  } else {
+    series.forEach((s,si)=>{const col=`var(${colors[si]})`;
+      const pts=s.d.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
+      g+=`<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"${opt.dash?` stroke-dasharray="${opt.dash[si]}"`:''}/>`;
+      s.d.forEach((v,i)=>{ if(opt.allDots || v>0)
+        g+=`<circle cx="${x(i)}" cy="${y(v)}" r="${opt.allDots?3:3.5}" fill="${col}"/>`; });
+    });
+  }
+  svg.innerHTML=g;
+  document.getElementById(legendId).innerHTML=series.map((s,si)=>
+    `<span><i style="background:var(${colors[si]})"></i>${s.name}</span>`).join('')
+    + (opt.sum? `<span><i style="background:var(--chart-primary);border-radius:2px;height:3px;width:14px"></i>ยอดรวมของวัน</span>`:'');
+}
+
+draw('before','legend-before',S.slice(0,3),S.slice(0,3).map(s=>s.c));
+const sumSel=Array.from({length:TODAY},(_,i)=>S.slice(0,3).reduce((a,s)=>a+(s.d[i]||0),0));
+const sumAll=Array.from({length:TODAY},(_,i)=>S.reduce((a,s)=>a+(s.d[i]||0),0)+2); // +2 = สินค้าอีก 30 ตัวที่ไม่ได้ติ๊ก
+draw('after','legend-after',S.slice(0,3),S.slice(0,3).map(s=>s.c),{stacked:true,sum:sumAll});
+draw('optA','legend-optA',S.slice(0,3),S.slice(0,3).map(s=>s.c),{stacked:true,sum:sumSel});
+draw('optB','legend-optB',S.slice(0,3),S.slice(0,3).map(s=>s.c),{stacked:true,sum:sumAll});
+draw('tablet','legend-tablet',S.slice(0,3),S.slice(0,3).map(s=>s.c),{stacked:true,sum:sumAll});
+
+// ── ข้อมูลเสริมรายสินค้า (มีอยู่แล้ว/เติมได้จาก select เดิม) ──
+const EXTRA={
+ 'โช๊คหลัง 110 สีแดง':{baht:'฿25,800',price:'฿300',share:18,stock:24,days:18,best:'21 ส.ค. (6)'},
+ 'โช๊คหลัง 110 สีดำ':{baht:'฿23,700',price:'฿300',share:17,stock:6,days:17,best:'22 ส.ค. (6)'},
+ 'โช๊คหลัง 110 สีเหลือง':{baht:'฿13,200',price:'฿300',share:9,stock:null,days:12,best:'1 ส.ค. (4)'},
+ 'โช๊คหลัง สามล้อ สีดำ':{baht:'฿16,000',price:'฿400',share:8,stock:31,days:11,best:'3 ส.ค. (4)'},
+ 'โช๊คหลัง 125 สีน้ำเงิน':{baht:'฿14,000',price:'฿350',share:8,stock:9,days:14,best:'21 ส.ค. (5)'},
+};
+const runout=(st,total)=>{ if(st===null) return '<span style="color:var(--default-400)">ไม่ได้นับสต็อก</span>';
+  const perDay=total/29, d=Math.round(st/perDay);
+  const warn=d<=10?'style="color:var(--warning-ink)"':'';
+  return `${st} ชิ้น<br /><span ${warn} style="font-size:11px">พอขายอีก ~${d} วัน</span>`;};
+
+// ── ตาราง ──
+const PAT={steady:['b-steady','ขายสม่ำเสมอ'],dormant:['b-dormant','เงียบ 8 วันท้ายเดือน'],none:['b-none','—']};
+const stripOf=(d,col)=>{const m=Math.max(...d,1);let h='';
+  for(let i=0;i<DAYS;i++){const fut=i>=TODAY;const v=fut?0:(d[i]||0);
+    const lv=v<=0?0:(v/m>.75?4:v/m>.5?3:v/m>.25?2:1);
+    h+=`<span class="${i===TODAY?'bd':''}">${lv?`<i style="height:${lv*4}px;background:${col}"></i>`:''}</span>`;}
+  return `<div class="strip">${h}</div>`;};
+
+document.getElementById('tbody').innerHTML=S.map((s,i)=>{
+  const on=i<3, col=on?`var(${s.c})`:'var(--chart-primary)';
+  const [cls,txt]=PAT[s.pat];
+  return `<tr><td>${on?'☑':'☐'}</td>
+    <td><div class="pname"><span class="thumb${on?' ring':''}"${on?` style="box-shadow:0 0 0 2px var(${s.c})"`:''}>▦</span><b>${s.name}</b></div></td>
+    <td>${stripOf(s.d,col)}</td><td><span class="badge ${cls}">${txt}</span></td>
+    <td style="color:var(--default-700)">${s.last}</td><td class="num">${s.total} ชิ้น</td></tr>`;}).join('');
+
+document.getElementById('mobile').innerHTML=S.map((s,i)=>{
+  const on=i<3, col=on?`var(${s.c})`:'var(--chart-primary)';
+  const [cls,txt]=PAT[s.pat];
+  return `<div class="mobile-row">
+    <span class="thumb${on?' ring':''}"${on?` style="box-shadow:0 0 0 2px var(${s.c});width:44px;height:44px"`:' style="width:44px;height:44px"'}>▦</span>
+    <div class="col"><div class="mobile-top"><b>${s.name}</b><span class="num" style="font-size:13px">${s.total} ชิ้น</span></div>
+      ${stripOf(s.d,col)}<div style="margin-top:6px"><span class="badge ${cls}">${txt}</span></div></div>
+    <span class="chev">›</span></div>`;}).join('');
+</script>
+</body>
+</html>
+
+<script>
+// แบบ ก — เพิ่มคอลัมน์
+document.getElementById('tb-a').innerHTML=S.map((s,i)=>{const e=EXTRA[s.name],on=i<3;
+  const col=on?`var(${s.c})`:'var(--chart-primary)';const [cls,txt]=PAT[s.pat];
+  return `<tr><td>${on?'☑':'☐'}</td>
+  <td><div class="pname"><span class="thumb${on?' ring':''}"${on?` style="box-shadow:0 0 0 2px var(${s.c})"`:''}>▦</span><b>${s.name}</b></div></td>
+  <td>${stripOf(s.d,col)}</td><td><span class="badge ${cls}">${txt}</span></td>
+  <td class="num">${s.total}</td><td class="num">${e.baht}</td>
+  <td class="num">${e.share}%</td><td class="num" style="font-weight:400">${runout(e.stock,s.total)}</td></tr>`;}).join('');
+
+// แบบ ข — แถวสองชั้น
+document.getElementById('tb-b').innerHTML=S.map((s,i)=>{const e=EXTRA[s.name],on=i<3;
+  const col=on?`var(${s.c})`:'var(--chart-primary)';const [cls,txt]=PAT[s.pat];
+  return `<tr><td>${on?'☑':'☐'}</td>
+  <td><div class="pname"><span class="thumb${on?' ring':''}"${on?` style="box-shadow:0 0 0 2px var(${s.c})"`:''}>▦</span>
+    <span style="min-width:0"><b style="display:block">${s.name}</b>
+    <span style="font-size:11px;color:var(--default-400)">${e.price}/ชิ้น · สต็อก ${e.stock??'—'} · ขายดีสุด ${e.best}</span></span></div></td>
+  <td>${stripOf(s.d,col)}<span style="font-size:11px;color:var(--default-400)">ขายได้ ${e.days} วัน · ล่าสุด ${s.last}</span></td>
+  <td><span class="badge ${cls}">${txt}</span></td>
+  <td class="num">${s.total} ชิ้น<br /><span style="font-size:11px;font-weight:400;color:var(--default-400)">${e.baht} · ${e.share}% ของร้าน</span></td></tr>`;}).join('');
+
+// มือถือ
+document.getElementById('mob-rich').innerHTML=S.map((s,i)=>{const e=EXTRA[s.name],on=i<3;
+  const col=on?`var(${s.c})`:'var(--chart-primary)';const [cls,txt]=PAT[s.pat];
+  return `<div class="mobile-row">
+  <span class="thumb${on?' ring':''}"${on?` style="box-shadow:0 0 0 2px var(${s.c});width:44px;height:44px"`:' style="width:44px;height:44px"'}>▦</span>
+  <div class="col"><div class="mobile-top"><b>${s.name}</b><span class="num" style="font-size:13px">${s.total} ชิ้น</span></div>
+    <div style="font-size:11px;color:var(--default-400);margin-top:1px">${e.baht} · ${e.share}% ของร้าน</div>
+    ${stripOf(s.d,col)}
+    <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+      <span class="badge ${cls}">${txt}</span>
+      <span style="font-size:11px;color:var(--default-400)">ขายได้ ${e.days} วัน · สต็อก ${e.stock??'—'}</span></div></div>
+  <span class="chev">›</span></div>`;}).join('');
+</script>

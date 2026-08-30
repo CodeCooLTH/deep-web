@@ -61,6 +61,8 @@ interface Props {
   orderDateMessageTooOld?: boolean
   /** feature 00033 + impeccable clarify — ป้ายช่องวันที่ ผันตามประเภทกิจการ (ORDER_VOCAB.dateLabel) */
   orderDateLabel?: string
+  /** feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" เฉพาะร้าน ONLINE_SALES (SSOT: OrderCreateForm) */
+  showDeliveryToggle?: boolean
 }
 
 export default function QuickForm({
@@ -86,6 +88,7 @@ export default function QuickForm({
   orderDateLabel,
   shipsGoods = true,
   channelLocked = false,
+  showDeliveryToggle = false,
 }: Props) {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null)
 
@@ -94,6 +97,9 @@ export default function QuickForm({
   // ที่เดียว → หน้าจอ "ขอ" ที่อยู่ในสิ่งที่ตัวบล็อกจริงไม่ได้บังคับ (ดูเหตุผลเต็มใน lib/shipping-address-status)
   const watchedItems = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' })
+  // feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" อยู่ใน CustomerQuickBlock (มือถือ) แต่ needsShipping
+  // ต้องรู้ค่านี้ที่นี่ด้วย เพราะ QuickForm เป็นเจ้าของ SSOT call ที่ต้องส่งลงเป็น prop `needsShipping`
+  const fulfillmentMode = useWatch({ control, name: 'fulfillmentMode' }) as FormValues['fulfillmentMode']
   const needsShipping = useMemo(
     () =>
       orderNeedsShippingAddress({
@@ -102,8 +108,9 @@ export default function QuickForm({
         items: watchedItems.map((i) =>
           toOrderItemShippingKind(i?.productId, catalog.find((p) => p.id === i?.productId)?.fulfillmentMode),
         ),
+        deliveryOverride: fulfillmentMode === 'PICKUP' ? 'PICKUP' : undefined,
       }),
-    [watchedItems, catalog, salesChannel, shipsGoods],
+    [watchedItems, catalog, salesChannel, shipsGoods, fulfillmentMode],
   )
 
   // compact (โมดัลในแชท): ไม่ bleed ขอบ (ไม่มี fullscreen layout p-4/p-8 ให้หักล้าง) + padding คงที่ px-4
@@ -126,6 +133,7 @@ export default function QuickForm({
           setValue={setValue}
           needsShipping={needsShipping}
           prefillParseText={prefillParseText}
+          showDeliveryToggle={showDeliveryToggle}
         />
       </section>
 

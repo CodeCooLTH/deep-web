@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<title>แบบ A + ส่วนรายการสินค้า 6 แบบ (00063)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--primary:#236dc9;--primary-ink:#173f73;--alpha:#02bc9c;--gamma:#f9bf59;--beta:#f7577e;
+ --warning-ink:#92400e;--success:#28c76f;--success-ink:#166534;
+ --d100:#f1f2f6;--d200:#e9eaee;--d300:#dcdee5;--d400:#8a91a5;--d500:#6b7280;--d700:#4c4c5c;--d900:#2f2b3d;--body:#f6f7fb}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,sans-serif;background:#e8eaf0;color:var(--d900);padding:22px 16px 60px;-webkit-font-smoothing:antialiased}
+h1{font-size:19px;font-weight:700}
+.sub{font-size:13px;color:var(--d500);line-height:1.7;max-width:1050px;margin:4px 0 18px}
+.sub b{color:var(--d900)}
+.rail{display:flex;gap:18px;overflow-x:auto;padding-bottom:18px;align-items:flex-start}
+figure{flex:0 0 auto;width:360px}
+figcaption{margin-bottom:9px}
+.vn{font-size:13px;font-weight:700;display:block}
+.vd{font-size:11.5px;color:var(--d500);line-height:1.55;display:block;margin-top:2px;min-height:62px}
+.phone{width:360px;height:700px;background:var(--body);border:7px solid #1c1c28;border-radius:30px;overflow:hidden}
+.sc{height:100%;overflow-y:auto;position:relative}
+.fold{position:absolute;left:0;right:0;top:648px;border-top:2px dashed #ef4444;z-index:60;pointer-events:none}
+.fold::after{content:'ขอบจอ';position:absolute;right:5px;top:-15px;font-size:9px;font-weight:700;color:#ef4444;background:#fff;padding:1px 5px;border-radius:4px;border:1px solid #ef4444}
+.ab{height:50px;background:#fff;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--d200);position:sticky;top:0;z-index:40}
+.ab .t{flex:1;text-align:center;font-size:15px;font-weight:600}
+.ic{width:26px;height:26px;display:grid;place-items:center;color:var(--d700);font-size:15px;flex:0 0 auto}
+.sticky{position:sticky;top:50px;z-index:35;background:var(--body);padding:8px 12px;border-bottom:1px solid var(--d200);display:flex;align-items:center;gap:8px}
+.nb{min-width:40px;min-height:40px;display:grid;place-items:center;border:1px solid var(--d300);border-radius:8px;background:#fff;color:var(--d700);font-size:14px;flex:0 0 auto}
+.ml{flex:1;text-align:center;font-size:15px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:40px;border-radius:8px}
+.ml i{font-style:normal;font-size:10px;color:var(--d400)}
+.seg{display:flex;border:1px solid var(--d300);border-radius:8px;overflow:hidden;background:#fff;flex:0 0 auto}
+.seg b{min-height:38px;display:grid;place-items:center;padding:0 13px;font-size:13px;font-weight:600;color:var(--d700)}
+.seg b.on{background:var(--primary);color:#fff}
+.pg{padding:10px 12px 20px}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 2px rgba(47,43,61,.07);margin-bottom:12px;overflow:hidden}
+.ch{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px dashed var(--d300)}
+.ct{font-size:14.5px;font-weight:600}
+.cn{font-size:11px;color:var(--d400)}
+.cb{padding:4px 14px 12px}
+.ct2{display:flex;align-items:flex-end;gap:1px}
+.ct2 .col{flex:1;display:flex;flex-direction:column-reverse}
+.ct2 .col i{display:block;width:100%}
+.xa{display:flex;justify-content:space-between;font-size:9.5px;color:var(--d400);margin-top:5px;padding-top:4px;border-top:1px solid var(--d200)}
+.lgd{display:flex;gap:10px;flex-wrap:wrap;font-size:10.5px;color:var(--d500);margin-top:8px}
+.lgd span{display:inline-flex;align-items:center;gap:4px}
+.dot{width:9px;height:9px;border-radius:3px;flex:0 0 auto;display:inline-block}
+/* แถวสินค้า */
+.r{padding:10px 0;border-bottom:1px dashed var(--d200)}
+.r:last-child{border:0}
+.rt{display:flex;gap:10px;align-items:flex-start}
+.th{border-radius:8px;flex:0 0 auto;background:linear-gradient(135deg,#cfd4e0,#e6e9f0);box-shadow:0 0 0 2px var(--rc,transparent)}
+.nm{font-size:13.5px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ss{font-size:10.5px;color:var(--d400);margin-top:1px}
+.vv{font-size:14px;font-weight:700;white-space:nowrap}
+.sw{display:flex;gap:1px;align-items:flex-end;height:20px;margin-top:8px}
+.sw s{flex:1;background:var(--d200);display:block;text-decoration:none;border-radius:1px}
+.sw s.a{background:var(--primary)}
+.swl{display:flex;justify-content:space-between;font-size:9px;color:var(--d400);margin-top:2px}
+.bd{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:9999px;background:rgba(249,191,89,.16);color:var(--warning-ink);margin-top:5px}
+/* ตัวควบคุมรายการ — 6 ท่า */
+.vseg{display:flex;background:var(--d100);border-radius:9px;padding:3px;gap:3px;margin:10px 0 4px}
+.vseg b{flex:1;text-align:center;min-height:36px;display:grid;place-items:center;font-size:12.5px;font-weight:600;color:var(--d500);border-radius:6px;line-height:1.15}
+.vseg b.on{background:#fff;color:var(--primary-ink);box-shadow:0 1px 2px rgba(47,43,61,.12)}
+.vseg b u{display:block;font-size:10px;font-weight:500;text-decoration:none;color:var(--d400)}
+.vseg b.on u{color:var(--primary)}
+.sortrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0 2px}
+.sortbtn{min-height:36px;display:inline-flex;align-items:center;gap:5px;padding:0 10px;border-radius:8px;background:var(--d100);font-size:12.5px;font-weight:600;color:var(--d700)}
+.sortbtn i{font-style:normal;font-size:10px;color:var(--d400)}
+.srch{display:flex;align-items:center;gap:8px;min-height:40px;border:1px solid var(--d300);border-radius:9px;padding:0 11px;background:#fff;margin:10px 0 6px}
+.srch span{color:var(--d400);font-size:13px}
+.srch u{text-decoration:none;color:var(--d400);font-size:13px}
+.fbtn{min-height:36px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;border-radius:8px;border:1px solid var(--d300);background:#fff;font-size:12.5px;font-weight:600;color:var(--d700)}
+.fbtn em{font-style:normal;background:var(--primary);color:#fff;border-radius:9999px;font-size:10px;padding:1px 6px}
+.sect{display:flex;align-items:center;gap:8px;padding:9px 0 5px;font-size:12px;font-weight:700;color:var(--d500)}
+.sect span{flex:1;height:1px;background:var(--d200)}
+.sect em{font-style:normal;font-weight:600;color:var(--d400);font-size:11px}
+.swtch{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0 4px;border-top:1px dashed var(--d200);margin-top:6px}
+.swtch u{text-decoration:none;font-size:12.5px;color:var(--d500)}
+.tg{width:38px;height:22px;border-radius:9999px;background:var(--d300);position:relative;flex:0 0 auto}
+.tg::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.tg.on{background:var(--primary)}
+.tg.on::after{left:18px}
+.note{background:#fff;border-radius:12px;padding:18px 20px;margin-top:20px;font-size:13px;line-height:1.75;box-shadow:0 1px 3px rgba(47,43,61,.08);max-width:1150px}
+.note h2{font-size:15px;margin:14px 0 8px}.note h2:first-child{margin-top:0}
+.note table{width:100%;border-collapse:collapse;font-size:12.5px}
+.note th,.note td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--d200);vertical-align:top}
+.note th{background:var(--d100);font-weight:700}
+.note code{background:var(--d100);padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:ui-monospace,monospace}
+.stop{color:#b91c1c;font-weight:700}
+</style></head><body>
+
+<h1>แบบ A — ปรับส่วน “รายการสินค้า” 6 ท่า</h1>
+<p class="sub">
+  หัวหน้าเป็นแบบ A ทุกใบ (แถบเดือน+หน่วยติดหนึบ) — ที่ต่างคือ<b>ส่วนควบคุมรายการ</b><br>
+  🛑 <b>ต้นเหตุที่มันดูแปลก:</b> ชิปเดิมสองตัวทำงานคนละทิศแต่แต่งตัวเหมือนกัน —
+  <code>วันนี้ (3)</code> <b>กรองให้แคบลง</b> (35→3) ส่วน <code>ไม่มียอดขาย (2)</code>
+  <b>เพิ่มของเข้ามา</b> (35→37) · ทุกแบบข้างล่างแก้ข้อนี้คนละวิธี
+</p>
+
+<div class="rail" id="rail"></div>
+
+<div class="note">
+<h2>เทียบกัน</h2>
+<table>
+<tr><th>แบบ</th><th>แก้ปัญหา “ทิศทางสวนกัน” ยังไง</th><th>ได้เพิ่ม</th><th>เสีย</th></tr>
+<tr><td><b>1 · แถบมุมมอง</b></td><td><b>ยุบเป็นแกนเดียว</b> — เลือกได้ทีละมุมมอง ไม่มีคำถามว่ากดพร้อมกันแล้วได้อะไร</td><td>เห็นจำนวนทั้ง 3 มุมมองพร้อมกันโดยไม่ต้องกด</td><td>ดู “ขายวันนี้ + ยังไม่ขาย” พร้อมกันไม่ได้ (ซึ่งไม่มีความหมายอยู่แล้ว)</td></tr>
+<tr><td><b>2 · แถบมุมมอง + เรียงลำดับ</b></td><td>เหมือนแบบ 1</td><td><b>เรียงลำดับได้บนมือถือเป็นครั้งแรก</b> — ตอนนี้เดสก์ท็อปกดหัวคอลัมน์ได้ แต่มือถือถูกล็อกไว้ที่ “ยอดมากไปน้อย” อย่างเดียว</td><td>สูงขึ้น 36px</td></tr>
+<tr><td><b>3 · ค้นหา + แถบมุมมอง</b></td><td>เหมือนแบบ 1</td><td>พิมพ์หาชื่อได้ตรง ๆ — ร้านคุณมีสินค้าชื่อคล้ายกันมาก (“โช๊คหลัง 110 …” 3 ตัว)</td><td>สูงขึ้น 46px · แป้นพิมพ์เด้งบังครึ่งจอตอนพิมพ์</td></tr>
+<tr><td><b>4 · ปุ่มตัวกรองเดียว</b></td><td><b>ย้ายเข้าชีต</b> — ในชีตมีที่พอจะเขียนว่าอันไหนกรอง อันไหนเพิ่ม</td><td>ประหยัดที่สุด (36px) · ใส่ตัวกรองเพิ่มทีหลังได้ไม่รก</td><td>ต้องกดถึงจะรู้ว่ากรองอะไรได้บ้าง · ตัวเลข (3)/(2) ไม่โผล่ให้เห็น</td></tr>
+<tr><td><b>5 · แบ่งกลุ่มในรายการ</b></td><td><b>ไม่มีตัวกรองเลย</b> — เปลี่ยนจาก “ซ่อนของ” เป็น “จัดของ” เลื่อนผ่านได้หมด</td><td>เห็นครบทุกตัวโดยไม่ต้องตัดสินใจอะไรก่อน · หัวกลุ่มติดหนึบตอนเลื่อน</td><td>ต้องเลื่อนไกลกว่าถ้าอยากดูเฉพาะกลุ่มท้าย</td></tr>
+<tr><td><b>6 · เรียงลำดับ + สวิตช์</b></td><td><b>แยกร่างให้ชัด</b> — “เรียง” เป็นปุ่มบนสุด ส่วน “รวมสินค้าที่ยังไม่ขาย” เป็น<b>สวิตช์ท้ายรายการ</b> ตรงที่มันมีผลพอดี</td><td>ท่าที่ใกล้ของเดิมที่สุด — แค่ย้ายที่และเปลี่ยนร่าง</td><td>ไม่มีตัวกรอง “ขายวันนี้” แล้ว (ต้องเรียงตาม “ขายล่าสุด” แทน)</td></tr>
+</table>
+
+<h2>ข้อสังเกตที่เจอระหว่างทำ</h2>
+<table>
+<tr><td><b>มือถือเรียงลำดับไม่ได้เลย</b></td><td>เดสก์ท็อปกดหัวคอลัมน์เรียงได้ 4 แบบ · <b>มือถือถูกล็อกที่ “ยอดมากไปน้อย” อย่างเดียวมาตั้งแต่วันแรก</b> ⇒ คำถาม “ตัวไหนเงียบที่สุด” ตอบไม่ได้บนมือถือ ต้องเลื่อนไปสุด</td></tr>
+<tr><td><b>“ไม่มียอดขาย (2)” เป็นคำที่กำกวมในตัวเอง</b></td><td>อ่านได้ทั้ง “กรองเอาเฉพาะตัวที่ไม่มียอด” และ “เอาตัวที่ไม่มียอดเข้ามาด้วย” — ของจริงคืออย่างหลัง · แบบ 1/2/3 เปลี่ยนคำเป็น <b>“ยังไม่ขาย”</b> และทำให้เป็นมุมมอง จึงไม่กำกวมอีก</td></tr>
+<tr><td class="stop">ตัวเลขความสูงทั้งหมด</td><td>คำนวณจากคลาส <b>ไม่ได้วัดจากเครื่องจริง</b></td></tr>
+</table>
+</div>
+
+<script>
+const D=[3,1,2,1,4,3,2,1,5,3,2,4,1,3,2,4,3,3,4,5,6,4,5,6,3,2,4,5,4,1,0];
+const MX=Math.max(...D);
+const P=[
+ {n:'โช๊คหลัง 110 สีแดง',v:86,c:'var(--alpha)',p:'฿300/ชิ้น · 14% ของร้าน'},
+ {n:'โช๊คหลัง 110 สีดำ',v:80,c:'var(--gamma)',p:'฿300/ชิ้น · 13% ของร้าน'},
+ {n:'โช๊คหลัง 110 สีเหลือง',v:44,c:'var(--beta)',p:'฿300/ชิ้น · 7% ของร้าน',b:'สต็อกเหลือ 6 · พอขายอีก ~4 วัน'},
+ {n:'โช๊คหลัง สามล้อ สีดำ',v:40,c:'transparent',p:'฿450/ชิ้น · 6% ของร้าน'},
+ {n:'โช๊คหลัง 125 สีน้ำเงิน',v:40,c:'transparent',p:'฿380/ชิ้น · 6% ของร้าน'}];
+const Z={n:'โช๊คหน้า เวฟ 110 สีดำ',v:0,c:'transparent',p:'฿480/ชิ้น · ยังไม่มียอดเดือนนี้'};
+
+const chart=h=>`<div class="ct2" style="height:${h}px">`+D.map(v=>`<div class="col">`+
+ [['var(--alpha)',.5],['var(--gamma)',.3],['var(--beta)',.2]].map(([c,f])=>
+ `<i style="background:${c};height:${(v*f)/MX*(h-10)}px;box-shadow:0 -1px 0 #fff"></i>`).join('')+`</div>`).join('')+
+ `</div><div class="xa"><span>1</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span><span>31</span></div>`;
+const bars=z=>D.map((v,i)=>`<s class="${!z&&v>0&&(i*7)%10>3?'a':''}" style="height:${!z&&v>0?Math.max(3,v/MX*20):3}px"></s>`).join('');
+const row=(p,z)=>`<div class="r"><div class="rt">
+ <span class="th" style="width:44px;height:44px;--rc:${p.c}"></span>
+ <span style="flex:1;min-width:0"><span class="nm">${p.n}</span><span class="ss">${p.p}</span>
+ ${p.b?`<span class="bd">▲ ${p.b}</span>`:''}</span>
+ <span class="vv" style="${z?'color:var(--d400)':''}">${p.v} ชิ้น</span></div>
+ <div class="sw">${bars(z)}</div><div class="swl"><span>1</span><span>10</span><span>20</span><span>31</span></div></div>`;
+const rows=n=>P.slice(0,n).map(p=>row(p)).join('');
+
+const head=`<div class="ab"><span class="ic">←</span><span class="t">ยอดขายรายสินค้า</span><span class="ic">🔔</span></div>
+<div class="sticky"><span class="nb">‹</span><span class="ml" style="flex:1">สิงหาคม 2569 <i>▾</i></span>
+<div class="seg"><b class="on">ชิ้น</b><b>บาท</b></div><span class="ic" style="border:1px solid var(--d300);border-radius:8px;width:34px;height:34px">i</span></div>`;
+const chartcard=`<div class="card"><div class="ch"><span class="ct">แนวโน้มรายวัน</span><span class="cn">3 อันดับแรก</span></div>
+<div class="cb" style="padding-top:12px">${chart(150)}<div class="lgd">
+<span><i class="dot" style="background:var(--alpha)"></i>110 สีแดง</span><span><i class="dot" style="background:var(--gamma)"></i>110 สีดำ</span><span><i class="dot" style="background:var(--beta)"></i>110 สีเหลือง</span></div></div></div>`;
+
+const vseg=`<div class="vseg"><b class="on">ทั้งหมด<u>35</u></b><b>ขายวันนี้<u>3</u></b><b>ยังไม่ขาย<u>2</u></b></div>`;
+
+const V=[
+{k:'1',t:'แถบมุมมอง',d:'ยุบชิป 2 ตัวที่ทิศสวนกัน ให้เหลือ<b>แกนเดียว</b> — เลือกได้ทีละมุมมอง และเห็นจำนวนทั้ง 3 พร้อมกันโดยไม่ต้องกด',
+ h:`<div class="card"><div class="ch"><span class="ct">รายสินค้า</span><span class="cn">เรียงตามยอด</span></div>
+ <div class="cb">${vseg}${rows(3)}</div></div>`},
+
+{k:'2',t:'แถบมุมมอง + เรียงลำดับ',d:'เหมือนแบบ 1 แต่เพิ่มปุ่มเรียงลำดับ — <b>ตอนนี้มือถือเรียงไม่ได้เลย</b> ถูกล็อกที่ “ยอดมากไปน้อย” อย่างเดียว',
+ h:`<div class="card"><div class="ch"><span class="ct">รายสินค้า</span></div>
+ <div class="cb">${vseg}<div class="sortrow"><span style="font-size:11.5px;color:var(--d400)">35 รายการ</span>
+ <span class="sortbtn">เรียง: ขายดีสุด <i>▾</i></span></div>${rows(3)}</div></div>`},
+
+{k:'3',t:'ค้นหา + แถบมุมมอง',d:'เพิ่มช่องค้นหา — ร้านคุณมีชื่อคล้ายกันมาก (“โช๊คหลัง 110 …” สามตัวติดกัน) การไล่หาด้วยตาจึงช้า',
+ h:`<div class="card"><div class="ch"><span class="ct">รายสินค้า</span><span class="cn">35 รายการ</span></div>
+ <div class="cb"><div class="srch"><span>⌕</span><u>ค้นหาชื่อสินค้า</u></div>${vseg}${rows(2)}</div></div>`},
+
+{k:'4',t:'ปุ่มตัวกรองเดียว',d:'ย้ายเข้าชีต — <b>ในชีตมีที่พอจะเขียนได้ว่าอันไหนกรอง อันไหนเพิ่ม</b> ซึ่งบนชิปเขียนไม่ได้ · ประหยัดที่สุด',
+ h:`<div class="card"><div class="ch"><span class="ct">รายสินค้า (35)</span><span class="fbtn">ตัวกรอง <em>1</em> ▾</span></div>
+ <div class="cb" style="padding-top:10px">${rows(4)}</div></div>`},
+
+{k:'5',t:'แบ่งกลุ่มในรายการ',d:'<b>ไม่มีตัวกรองเลย</b> — เปลี่ยนจาก “ซ่อนของ” เป็น “จัดของ” เลื่อนผ่านได้หมด หัวกลุ่มติดหนึบตอนเลื่อน',
+ h:`<div class="card"><div class="ch"><span class="ct">รายสินค้า (35)</span><span class="sortbtn" style="min-height:30px">เรียง <i>▾</i></span></div>
+ <div class="cb" style="padding-top:2px">
+ <div class="sect">ขายวันนี้ <em>3</em><span></span></div>${rows(2)}
+ <div class="sect">ขายเดือนนี้ <em>30</em><span></span></div>${row(P[3])}
+ <div class="sect">ยังไม่ขายเลยเดือนนี้ <em>2</em><span></span></div>${row(Z,true)}</div></div>`},
+
+{k:'6',t:'เรียงลำดับ + สวิตช์',d:'<b>แยกร่างให้ชัด</b> — “เรียง” เป็นปุ่มบนสุด ส่วน “รวมสินค้าที่ยังไม่ขาย” เป็นสวิตช์<b>ท้ายรายการ</b> ตรงที่มันมีผลพอดี',
+ h:`<div class="card"><div class="ch"><span class="ct">รายสินค้า (35)</span><span class="sortbtn" style="min-height:30px">ขายดีสุด <i>▾</i></span></div>
+ <div class="cb" style="padding-top:8px">${rows(4)}
+ <div class="swtch"><u>รวมสินค้าที่ยังไม่ขายเดือนนี้ (2)</u><span class="tg"></span></div></div></div>`}];
+
+document.getElementById('rail').innerHTML=V.map(v=>
+`<figure><figcaption><span class="vn">${v.k} · ${v.t}</span><span class="vd">${v.d}</span></figcaption>
+<div class="phone"><div class="sc"><div class="fold"></div>${head}<div class="pg">${chartcard}${v.h}</div></div></div></figure>`).join('');
+</script>
+</body></html>

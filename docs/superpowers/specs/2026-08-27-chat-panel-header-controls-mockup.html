@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>แผงขวา + สวิตช์เสียง + แถบตอบอัตโนมัติ (ม็อกอัพ 2026-08-27)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════
+   ม็อกอัพนี้ "ไม่" ดึง CSS สดจาก dev server — ทุกค่าก็อปตรงจากไฟล์จริง
+   โทเคน: src/assets/css/config/_root.css (บรรทัด 10–74)
+   ถ้าไฟล์จริงเปลี่ยน ม็อกอัพนี้เก่าทันที
+   ═══════════════════════════════════════════════════════════════════════ */
+:root{
+  --color-white:#fff; --color-card:var(--color-white);
+  --color-body-bg:#f6f7fb;
+  --color-primary:#236dc9; --color-primary-ink:#1e3a8a;
+  --color-light:#eef2f7;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#8a969c;
+  --color-default-500:#58626b; --color-default-600:#4a5358; --color-default-700:#40454a;
+  --color-default-900:#313a46;
+  --shadow-sm:0 1px 2px rgba(49,58,70,.10);
+  --shadow-card:0 1px 2px rgba(49,58,70,.06);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--color-body-bg);font-family:Anuphan,sans-serif;color:var(--color-default-900)}
+.wrap{max-width:1560px;margin:0 auto;padding:28px 20px 80px}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:16px;margin:38px 0 10px;padding-top:18px;border-top:1px solid var(--color-default-200)}
+h3{font-size:13px;font-weight:600;color:var(--color-default-600);margin:16px 0 8px}
+p.lead{color:var(--color-default-600);font-size:13px;margin:0 0 8px;line-height:1.65}
+.note{font-size:12px;color:var(--color-default-500);line-height:1.7;margin:8px 0 0}
+.row{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+.frame{background:var(--color-body-bg);border:1px solid var(--color-default-300);border-radius:12px;padding:12px;overflow:hidden}
+.frame > .cap{font-size:11px;font-weight:600;color:var(--color-default-500);margin-bottom:8px;display:flex;justify-content:space-between;gap:8px}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--color-default-200);color:var(--color-default-600)}
+.tag.bad{background:#fdecef;color:#a1143a}
+.tag.good{background:#e2f6f2;color:#065f46}
+
+/* ── Paces primitives (ก็อปพฤติกรรมที่ใช้จริงเท่านั้น) ── */
+.card{background:var(--color-card);border:1px solid var(--color-default-200);border-radius:10px;box-shadow:var(--shadow-card)}
+.btn-icon{width:37px;height:37px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid var(--color-default-300);background:var(--color-card);color:var(--color-default-700);flex:0 0 auto;position:relative}
+.btn-icon.plain{border-color:transparent;background:transparent}
+.avatar{width:40px;height:40px;border-radius:999px;background:rgba(35,109,201,.10);color:var(--color-primary);
+  display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;flex:0 0 auto}
+.avatar.sm{width:36px;height:36px;font-size:13px}
+.name{font-size:14px;font-weight:600;color:var(--color-default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0 0 4px}
+.chan{display:inline-flex;align-items:center;gap:6px;background:var(--color-default-200);border-radius:999px;
+  padding:3px 10px 3px 3px;font-size:12px;color:var(--color-default-700);max-width:100%}
+.chan b{width:18px;height:18px;border-radius:999px;background:#1877f2;color:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.chan span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tabs{display:flex;flex-wrap:nowrap;gap:0;border-bottom:1px solid var(--color-default-200);padding:0 16px}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:12px 8px;font-family:inherit;
+  font-size:14px;color:var(--color-default-600);display:inline-flex;align-items:center;gap:6px;white-space:nowrap;cursor:default}
+.tabs button.on{color:var(--color-primary);border-bottom-color:var(--color-primary);font-weight:600}
+.tabs .cnt{background:var(--color-default-100);color:var(--color-default-700);border-radius:999px;font-size:10px;padding:1px 6px}
+.dash{border-bottom:1px dashed var(--color-default-200)}
+
+/* ── แถบ ปิด / อัตโนมัติ — ตรงกับ ThreadAutoReplyToggle.tsx ── */
+.seg{display:inline-flex;align-items:center;gap:2px;background:var(--color-light);border-radius:999px;padding:4px;flex:0 0 auto}
+.seg button{border:0;background:none;font-family:inherit;font-size:14px;font-weight:500;color:var(--color-default-600);
+  border-radius:999px;padding:4px 12px;display:inline-flex;align-items:center;gap:4px;cursor:default;white-space:nowrap}
+.seg button.on{background:var(--color-card);color:var(--color-primary-ink);font-weight:600;box-shadow:var(--shadow-sm)}
+
+/* ── เมนู ⋯ ── */
+.menu{width:240px;background:var(--color-card);border:1px solid var(--color-default-200);border-radius:10px;
+  box-shadow:0 8px 24px rgba(49,58,70,.14);padding:6px}
+.menu h6{margin:0;padding:8px 11px;font-size:14px;font-weight:600;color:var(--color-default-700)}
+.menu .item{display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:8px;font-size:14px;color:var(--color-default-700)}
+.menu .item iconify-icon{color:var(--color-default-500)}
+.menu hr{border:0;border-top:1px solid var(--color-default-200);margin:6px 0}
+.sw{width:36px;height:20px;border-radius:999px;background:var(--color-default-300);position:relative;flex:0 0 auto}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:999px;background:#fff}
+.sw.on{background:var(--color-primary)} .sw.on::after{left:18px}
+.hint{font-size:11px;color:var(--color-default-500);padding:0 11px 8px;margin:0}
+
+.grp{display:flex;align-items:center;gap:4px;flex:0 0 auto}
+/* ── หัวเธรด ── */
+.thead{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--color-default-200);background:var(--color-card);border-radius:10px 10px 0 0}
+.thead .who{min-width:0;flex:1 1 auto}
+.msauto{margin-left:auto}
+.body-stub{height:110px;background:var(--color-card);border-radius:0 0 10px 10px;
+  background-image:linear-gradient(var(--color-default-100) 0 0);background-size:100% 100%;
+  display:flex;align-items:center;justify-content:center;color:var(--color-default-400);font-size:12px}
+.dot{width:6px;height:6px;border-radius:999px;background:var(--color-default-300);display:inline-block;margin:0 4px}
+table{border-collapse:collapse;font-size:12.5px;width:100%;max-width:760px;background:var(--color-card);border-radius:8px;overflow:hidden}
+th,td{text-align:start;padding:7px 10px;border-bottom:1px solid var(--color-default-200)}
+th{background:var(--color-default-100);font-weight:600;color:var(--color-default-700)}
+code{font-size:11.5px;background:var(--color-default-100);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>แผงขวา + สวิตช์เสียง + แถบตอบอัตโนมัติ</h1>
+<p class="lead">ม็อกอัพของ <b>โค้ดที่เขียนไปแล้ว</b> รอบ 2026-08-27 — ไม่ใช่ข้อเสนอ. ทุกค่าสี/ระยะก็อปจากไฟล์จริง<br>
+ไฟล์: <code>CustomerPanel.tsx</code> · <code>ThreadSoundToggle.tsx</code> · <code>ThreadAutoReplyToggle.tsx</code> · <code>ThreadOverflowMenu.tsx</code> · <code>ChatThread.tsx</code></p>
+
+<!-- ══════════ A. แผงขวา ══════════ -->
+<h2>A · แผงข้อมูลลูกค้า (คอลัมน์ขวา 384px — เห็นตั้งแต่ 1280px)</h2>
+<div class="row">
+
+  <div class="frame" style="width:412px">
+    <div class="cap"><span>ก่อน</span><span class="tag bad">4 บล็อกก่อนถึงแท็บ</span></div>
+    <div class="card" style="width:384px">
+      <div class="dash" style="display:flex;align-items:center;gap:12px;padding:16px">
+        <div class="avatar">SS</div>
+        <div style="min-width:0">
+          <p class="name">Suppaphon Suebsanguan</p>
+          <span class="chan"><b><iconify-icon icon="tabler:brand-facebook" width="11"></iconify-icon></b><span>ธนภักตร์ อะไหล่มอเตอร์ไซค์</span></span>
+        </div>
+      </div>
+      <div class="dash" style="padding:0 16px 12px">
+        <span style="display:inline-flex;align-items:center;gap:5px;background:rgba(35,109,201,.12);color:var(--color-primary-ink);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600">
+          <iconify-icon icon="tabler:sparkles" width="13"></iconify-icon>ลูกค้าใหม่</span>
+      </div>
+      <div class="dash" style="padding:0 16px 12px">
+        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--color-default-600);margin-bottom:8px">
+          <iconify-icon icon="tabler:world" width="15"></iconify-icon>ทั้งระบบ</div>
+        <span style="background:var(--color-default-200);border-radius:6px;padding:4px 10px;font-size:13px;margin-inline-end:6px">สั่ง 1</span>
+        <span style="background:#e2f6f2;border-radius:6px;padding:4px 10px;font-size:13px;color:#065f46">รับของ 0</span>
+      </div>
+      <div class="dash" style="padding:0 16px 12px">
+        <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--color-primary-ink)">
+          <iconify-icon icon="tabler:user-circle" width="13"></iconify-icon>ดูโปรไฟล์เต็ม<iconify-icon icon="tabler:external-link" width="13"></iconify-icon></span>
+      </div>
+      <div class="tabs">
+        <button class="on"><iconify-icon icon="tabler:user-circle" width="17"></iconify-icon>ข้อมูล</button>
+        <button><iconify-icon icon="tabler:shopping-cart" width="17"></iconify-icon>คำสั่งซื้อ<span class="cnt">1</span></button>
+        <button><iconify-icon icon="tabler:folder" width="17"></iconify-icon>ไฟล์</button>
+        <button><iconify-icon icon="tabler:notes" width="17"></iconify-icon>โน้ต</button>
+      </div>
+      <div class="body-stub">เนื้อหาแท็บ</div>
+    </div>
+    <p class="note">สูงจากขอบบนถึงแถบแท็บ ≈ <b>232px</b></p>
+  </div>
+
+  <div class="frame" style="width:412px">
+    <div class="cap"><span>หลัง</span><span class="tag good">หัว → แท็บ ติดกัน</span></div>
+    <div class="card" style="width:384px">
+      <div style="display:flex;align-items:center;gap:12px;padding:16px 16px 12px">
+        <div class="avatar">SS</div>
+        <div style="min-width:0">
+          <p class="name">Suppaphon Suebsanguan</p>
+          <span class="chan"><b><iconify-icon icon="tabler:brand-facebook" width="11"></iconify-icon></b><span>ธนภักตร์ อะไหล่มอเตอร์ไซค์</span></span>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="on"><iconify-icon icon="tabler:user-circle" width="17"></iconify-icon>ข้อมูล</button>
+        <button><iconify-icon icon="tabler:shopping-cart" width="17"></iconify-icon>คำสั่งซื้อ<span class="cnt">1</span></button>
+        <button><iconify-icon icon="tabler:folder" width="17"></iconify-icon>ไฟล์</button>
+        <button><iconify-icon icon="tabler:notes" width="17"></iconify-icon>โน้ต</button>
+      </div>
+      <div class="body-stub">เนื้อหาแท็บ (ได้พื้นที่คืน ~124px)</div>
+    </div>
+    <p class="note">≈ <b>108px</b> · เลิกใช้เส้นประใต้หัว เพราะเส้นทึบของแถบแท็บอยู่ห่างแค่บรรทัดเดียว = เส้น 2 ชั้นที่ไม่ได้คั่นอะไร<br>
+    ป้ายพฤติกรรม + แถบ “ทั้งระบบ” + ลิงก์โปรไฟล์ ยังอยู่ครบที่ <code>/customers</code> และหน้าโปรไฟล์ลูกค้า</p>
+  </div>
+</div>
+
+<!-- ══════════ B. หัวเธรด 3 ขนาด ══════════ -->
+<h2>B · หัวห้องแชท — 3 ขนาดจอ</h2>
+<p class="lead">สิ่งที่เปลี่ยน: <b>แถบ ปิด/อัตโนมัติ</b> (ใหม่) · <b>ปุ่มกระดิ่ง</b> แทนการซ่อนสวิตช์เสียงไว้ในเมนู · <b>ปุ่ม ⋯ หายไปตั้งแต่ 768px</b></p>
+
+<div class="row">
+
+  <div class="frame" style="width:399px">
+    <div class="cap"><span>Mobile — 375px</span><span class="tag">&lt;768</span></div>
+    <div style="width:375px">
+      <div class="thead" style="padding:12px 20px;gap:12px">
+        <div class="btn-icon"><iconify-icon icon="tabler:arrow-left" width="19"></iconify-icon></div>
+        <div class="avatar sm" style="position:relative">SO
+          <span style="position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:999px;background:#1877f2;color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid #fff">
+            <iconify-icon icon="tabler:brand-facebook" width="9"></iconify-icon></span>
+        </div>
+        <div class="who"><p class="name" style="font-size:15px;margin:0">Sekson Oon…</p></div>
+        <div class="grp msauto">
+          <div class="btn-icon" style="color:var(--color-primary-ink)"><iconify-icon icon="tabler:robot" width="19"></iconify-icon></div>
+          <div class="btn-icon"><iconify-icon icon="tabler:user-circle" width="19"></iconify-icon></div>
+          <div class="btn-icon" style="position:relative"><iconify-icon icon="tabler:dots-vertical" width="19"></iconify-icon>
+            <span style="position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:999px;background:#fff;display:flex;align-items:center;justify-content:center">
+              <iconify-icon icon="tabler:bell-off" width="11" style="color:var(--color-default-500)"></iconify-icon></span>
+          </div>
+        </div>
+      </div>
+      <div class="body-stub">บทสนทนา</div>
+    </div>
+    <p class="note"><b>ลำดับที่ user เคาะ: [ตอบอัตโนมัติ] [ข้อมูล] [<code>⋯</code>]</b> — <code>⋯</code> ถือของชิ้นเดียวคือสวิตช์เสียง<br>
+    กลุ่มปุ่มขวาใช้ <code>gap-1</code> (4px) ไม่ใช่ <code>gap-3</code> (12px) ของ <code>.card-header</code> · ไม่มีปุ่มคลังไฟล์แล้ว<br>
+    ตอบอัตโนมัติที่จอแคบ = ไอคอนกดสลับ (<code>robot</code> เปิด / <code>robot-off</code> ปิด) โผล่เฉพาะร้านที่มีบอทตอบได้<br>
+    จุด <code>bell-off</code> ซ้อนมุม <code>⋯</code> = ห้องนี้เงียบอยู่ (อ่านได้โดยไม่ต้องเปิดเมนู)<br>
+    ชื่อลูกค้าเหลือ: 3 ปุ่ม <b>107px @375</b> · 52px @320 — 2 ปุ่ม (ร้านไม่มีบอท) <b>148px @375</b> · 93px @320<br>
+    ชิปชื่อเพจใต้ชื่อถูกถอดไปตั้งแต่ 2026-08-07 แล้ว — ตราเพจเกาะมุมรูปแทน (ม็อกอัพรอบแรกวาดผิด แก้แล้ว)</p>
+  </div>
+
+  <div class="frame" style="width:792px">
+    <div class="cap"><span>Tablet — 768px</span><span class="tag bad">จุดที่ต้องดูด้วยตา</span></div>
+    <div style="width:768px">
+      <div class="thead">
+        <div class="avatar sm">SO</div>
+        <div class="who">
+          <p class="name">Sekson Oonnom</p>
+          <span class="chan"><b><iconify-icon icon="tabler:brand-facebook" width="11"></iconify-icon></b><span>ธนภักตร์ อะไหล่มอเตอร์ไซค์</span></span>
+        </div>
+        <div class="seg msauto">
+          <button><iconify-icon icon="tabler:robot-off" width="16"></iconify-icon>ปิด</button>
+          <button class="on"><iconify-icon icon="tabler:robot" width="16"></iconify-icon>อัตโนมัติ</button>
+        </div>
+        <div class="grp">
+          <div class="btn-icon"><iconify-icon icon="tabler:bell" width="19"></iconify-icon></div>
+          <div class="btn-icon"><iconify-icon icon="tabler:user-circle" width="19"></iconify-icon></div>
+        </div>
+      </div>
+      <div class="body-stub">บทสนทนา</div>
+    </div>
+    <p class="note">ของทางขวารวม ≈ 150 + (37×2 + 4) = <b>~228px</b> เหลือให้ชื่อ ~<b>475px</b><br>
+    ไอคอนตอบอัตโนมัติ (<code>md:hidden</code>) หายไป เพราะมีที่ว่างพอให้แถบ segmented ซึ่งบอกสถานะได้ดีกว่า</p>
+  </div>
+
+  <div class="frame" style="width:760px">
+    <div class="cap"><span>Desktop — 1440px (คอลัมน์เธรด ~700px เพราะมีแผงขวา 384 + rail)</span><span class="tag good">≥1280</span></div>
+    <div style="width:720px">
+      <div class="thead">
+        <div class="avatar sm">SO</div>
+        <div class="who">
+          <p class="name">Sekson Oonnom</p>
+          <span class="chan"><b><iconify-icon icon="tabler:brand-facebook" width="11"></iconify-icon></b><span>ธนภักตร์ อะไหล่มอเตอร์ไซค์</span></span>
+        </div>
+        <div class="seg msauto">
+          <button><iconify-icon icon="tabler:robot-off" width="16"></iconify-icon>ปิด</button>
+          <button class="on"><iconify-icon icon="tabler:robot" width="16"></iconify-icon>อัตโนมัติ</button>
+        </div>
+        <div class="btn-icon"><iconify-icon icon="tabler:bell" width="19"></iconify-icon></div>
+      </div>
+      <div class="body-stub">บทสนทนา</div>
+    </div>
+    <p class="note">ปุ่มคลังไฟล์/ข้อมูลลูกค้าเป็น <code>xl:hidden</code> เพราะแผงขวาอยู่ข้าง ๆ แล้ว ⇒ หัวเธรดเหลือ 2 ตัวควบคุม</p>
+  </div>
+</div>
+
+<h3>สถานะของทั้งสองตัวควบคุม</h3>
+<div class="row">
+  <div class="frame"><div class="cap"><span>ตอบอัตโนมัติ: เปิด</span></div>
+    <div class="seg"><button><iconify-icon icon="tabler:robot-off" width="16"></iconify-icon>ปิด</button><button class="on"><iconify-icon icon="tabler:robot" width="16"></iconify-icon>อัตโนมัติ</button></div></div>
+  <div class="frame"><div class="cap"><span>ตอบอัตโนมัติ: ปิด</span></div>
+    <div class="seg"><button class="on"><iconify-icon icon="tabler:robot-off" width="16"></iconify-icon>ปิด</button><button><iconify-icon icon="tabler:robot" width="16"></iconify-icon>อัตโนมัติ</button></div></div>
+  <div class="frame"><div class="cap"><span>เสียง: เปิด</span></div>
+    <div class="btn-icon"><iconify-icon icon="tabler:bell" width="19"></iconify-icon></div></div>
+  <div class="frame"><div class="cap"><span>เสียง: ปิด (ระดับห้อง หรือ ระดับแอป)</span></div>
+    <div class="btn-icon" style="color:var(--color-default-500)"><iconify-icon icon="tabler:bell-off" width="19"></iconify-icon></div></div>
+  <div class="frame"><div class="cap"><span>ร้านไม่มีบอทที่ตอบได้</span></div>
+    <div style="font-size:12.5px;color:var(--color-default-500);padding:6px 2px">— ไม่ render แถบเลย —</div></div>
+</div>
+
+<!-- ══════════ C ══════════ -->
+<h2>C · เมนู <code>⋯</code> — เหลือสวิตช์เสียงอย่างเดียว (จอแคบเท่านั้น)</h2>
+<p class="lead">user: “[ตอบอัตโนมัติ] [ข้อมูล] [dropdown] ← dropdown ให้แสดง เปิดปิดเสียง”<br>
+เสียงเป็นของที่ตั้งครั้งเดียวแล้วแทบไม่แตะอีก จึงเป็นตัวเดียวที่ยอมให้ลึกลงไป 1 ชั้น · <b>≥768px ไม่มี dropdown</b> เสียงเป็นปุ่มกระดิ่งของตัวเอง</p>
+<div class="row">
+  <div class="frame"><div class="cap"><span>ก่อน — ต้องกด <code>⋯</code> ก่อน</span><span class="tag bad">2 แตะ</span></div>
+    <div class="menu">
+      <div class="item"><iconify-icon icon="tabler:user-circle" width="17"></iconify-icon>ข้อมูลลูกค้า</div>
+      <div class="item"><iconify-icon icon="tabler:shopping-cart" width="17"></iconify-icon>คำสั่งซื้อ</div>
+      <hr>
+      <h6>เสียงแจ้งเตือนข้อความใหม่</h6>
+      <div class="item" style="justify-content:space-between">ทั้งแอป (ทุกแชท)<span class="sw"></span></div>
+      <div class="item" style="justify-content:space-between;color:var(--color-default-500)">เฉพาะแชทนี้<span class="sw"></span></div>
+      <p class="hint">ปิดอยู่เพราะปิดเสียงทั้งแอป — เปิดสวิตช์ด้านบนก่อน</p>
+    </div>
+  </div>
+
+  <div class="frame"><div class="cap"><span>หลัง — อยู่บนแถบหมด</span><span class="tag good">1 แตะ</span></div>
+    <table style="max-width:430px">
+      <tr><th>ของในเมนูเดิม</th><th>ย้ายไปไหน</th></tr>
+      <tr><td>ข้อมูลลูกค้า</td><td><b>ปุ่มไอคอน <code>user-circle</code></b> (ทุกจอ · <code>xl:hidden</code>) — ตัวที่ user ขอ</td></tr>
+      <tr><td>เสียง — เฉพาะแชทนี้</td><td>&lt;768px อยู่ใน <code>⋯</code> เหมือนเดิม · ≥768px เป็นปุ่มกระดิ่ง</td></tr>
+      <tr><td>เสียง — ทั้งแอป</td><td>ถอดตามคำสั่ง (ยังอยู่ที่ไอคอนลำโพงบนแถบบนสุด)</td></tr>
+      <tr><td>ตอบอัตโนมัติ</td><td>แถบ segmented (≥768) / ไอคอนกดสลับ (&lt;768)</td></tr>
+      <tr><td>คำสั่งซื้อ</td><td><b style="color:#a1143a">ถอดทางลัด</b> — เปิดแผงข้อมูลลูกค้าแล้วแท็บอยู่ตรงนั้น (+1 แตะ)</td></tr>
+      <tr><td>คลังไฟล์ <i>(เคยเป็นปุ่มบนแถบ)</i></td><td><b style="color:#a1143a">ถอดปุ่ม</b> — user: “ปุ่มมันเยอะไปป่ะ” · เปิดแผงแล้วแท็บ “ไฟล์” อยู่ตรงนั้น (+1 แตะ)<br><span style="color:#a1143a">⚠️ ตัวนับ “มีไฟล์ N ใบ” ที่เคยเกาะมุมปุ่มหายไปด้วย — ยังไม่ได้ย้าย</span></td></tr>
+    </table>
+    <p class="note"><code>ThreadOverflowMenu.tsx</code> <b>ยังไม่ถูกลบ</b> — ติดคอมเมนต์ไว้ว่าไม่ถูก mount แล้ว รอ user เคาะก่อนลบ</p>
+  </div>
+</div>
+
+<!-- ══════════ D. โทเคน ══════════ -->
+<h2>D · โทเคนที่ใช้ (cross-check กับ <code>_root.css</code> / DESIGN.md)</h2>
+<table>
+<tr><th>จุด</th><th>คลาส</th><th>ค่า</th><th>เหตุผล</th></tr>
+<tr><td>พื้นแถบ segmented</td><td><code>bg-light</code></td><td>#eef2f7</td><td>ชุดเดียวกับสวิตช์ 3 สถานะที่ <code>/settings/chatbot</code></td></tr>
+<tr><td>ช่องที่เลือก</td><td><code>bg-card</code> + <code>shadow-sm</code></td><td>#fff</td><td>การ์ดยกขึ้น = แพตเทิร์นเดิมของ Paces</td></tr>
+<tr><td>ตัวอักษรช่องที่เลือก</td><td><code>text-primary-ink</code></td><td>#1e3a8a</td><td><b>8.44:1</b> — <code>text-primary</code> (#236dc9) ได้ 4.17:1 ตก AA</td></tr>
+<tr><td>ตัวอักษรช่องที่ไม่ได้เลือก</td><td><code>text-default-600</code></td><td>#4a5358</td><td>7.6:1 บน #eef2f7</td></tr>
+<tr><td>กระดิ่งตอนเงียบ</td><td><code>text-default-500</code></td><td>#58626b</td><td>ลดน้ำหนัก ไม่เปลี่ยนเฉด (contrast-fix-keeps-hue)</td></tr>
+<tr><td>ไอคอน</td><td>tabler <code>robot</code> / <code>robot-off</code> · <code>bell</code> / <code>bell-off</code></td><td>—</td><td>🛑 <code>robot-off</code> = ชุดเดียวกับ <code>BotPausedBanner</code> — <b>ห้าม <code>bolt</code></b> (=ข้อความสำเร็จรูป) และ <b>ห้าม <code>sparkles</code></b> (=DeepAI ช่วยร่าง) ทั้งคู่จองความหมายไว้แล้วในจอเดียวกัน</td></tr>
+<tr><td>ตัวอักษร</td><td>Anuphan</td><td>400/500/600</td><td>HR5</td></tr>
+</table>
+<p class="note">ไม่มี arbitrary value สักตัว (HR7) — <code>theme-guard.sh</code> ผ่านทั้ง 4 ไฟล์</p>
+
+</div>
+</body>
+</html>

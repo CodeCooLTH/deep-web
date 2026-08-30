@@ -4,7 +4,8 @@ import { Prisma } from '@prisma/client'
 import { timingSafeEqual } from 'crypto'
 import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEventsWithRaw, extractFeedChanges } from '@/lib/facebook/webhook-types'
-import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestDeliveryEvent, ingestReactionEvent, ingestMessageEdit, ingestHandoverEvent, ingestPostbackEvent } from '@/services/channel-chat.service'
+import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestDeliveryEvent, ingestReactionEvent, ingestMessageEdit, ingestHandoverEvent, ingestPostbackEvent, answerIceBreaker } from '@/services/channel-chat.service'
+import { parseIceBreakerPayload } from '@/lib/ice-breaker'
 import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
 import { pushNewChatMessage } from '@/services/seller-push.service'
 import { ingestFeedComment } from '@/services/page-comment.service'
@@ -222,6 +223,46 @@ export async function POST(request: NextRequest) {
           contactExternalId: event.sender.id,
           timestamp: event.timestamp,
         })
+        /**
+         * Ice Breakers (2026-08-27) — ลูกค้าแตะคำถามยอดฮิตก่อนเริ่มแชท
+         *
+         * 🛑 บันทึก "คำถาม" ลงเธรดก่อนตอบ โดย **ใช้ `ingestInboundMessage()` ตัวเดิม** ไม่ใช่
+         * เขียนแถวเอง — Meta ส่ง postback มาอย่างเดียวไม่มี `message` ถ้าไม่ทำ ผู้ขายจะเห็นแต่
+         * คำตอบลอย ๆ ไม่รู้ว่าลูกค้าถามอะไร · ที่ต้องผ่าน ingest เพราะมันทำเรื่องที่ต้องถูกอีกหลาย
+         * อย่างให้ (กันซ้ำด้วย mid · อัปเดต preview · ปลุกเธรดที่ซ่อน · แจ้งเตือนผู้ขาย)
+         *
+         * ไม่มี `mid` = ข้ามการบันทึกไปเลย ยอมให้เธรดขาดคำถาม ดีกว่าประกอบ id เองแล้วชนกับของจริง
+         * (`externalMessageId` เป็น @unique — ชนแล้วข้อความจริงของลูกค้าจะเขียนไม่ลง)
+         */
+        const ibPayload = event.postback.payload
+        if (parseIceBreakerPayload(ibPayload)) {
+          const title = event.postback.title?.trim()
+          const mid = event.postback.mid
+          if (title && mid) {
+            await ingestInboundMessage({
+              provider,
+              pageExternalId: pageId,
+              event: { ...event, message: { mid, text: title } },
+              rawEvent: event,
+              standby,
+            }).catch((e) => {
+              console.error('[fb-icebreaker] บันทึกคำถามไม่สำเร็จ', e instanceof Error ? e.message : e)
+            })
+          }
+          // ตอบเป็น after() ไม่ให้ webhook ค้างรอ Meta — Meta retry ทั้ง batch ถ้าเราตอบช้า
+          after(() =>
+            answerIceBreaker({
+              provider,
+              pageExternalId: pageId,
+              contactExternalId: event.sender.id,
+              payload: ibPayload,
+              title: event.postback?.title,
+              timestamp: event.timestamp,
+            }).catch((e) =>
+              console.error('[fb-icebreaker] ตอบไม่สำเร็จ', e instanceof Error ? e.message : e),
+            ),
+          )
+        }
       } else if (event.pass_thread_control || event.take_thread_control || event.request_thread_control) {
         /**
          * Handover Protocol (2026-08-08) — สิทธิ์คุมห้องเปลี่ยนมือ

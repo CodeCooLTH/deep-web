@@ -53,6 +53,7 @@ export type ShippingCardProps = {
     /** เวลาของ "ขากลับ" — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" */
     returnStartedAtISO?: string | null
     returnedAtISO?: string | null
+    returnDispatchedAtISO?: string | null
   } | null
   /**
    * ใบคืนของ (00056) ที่ยังไม่ถูกยกเลิก — `null` = ไม่มี
@@ -89,6 +90,7 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
     carrierStatus: iship?.carrierStatus,
     returnStartedAt: iship?.returnStartedAtISO,
     returnedAt: iship?.returnedAtISO,
+    returnDispatchedAt: iship?.returnDispatchedAtISO,
     orderReturn: orderReturn
       ? {
           status: orderReturn.status,

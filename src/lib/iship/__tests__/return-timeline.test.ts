@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest'
 
 import { describeReturnLeg, FORWARD_OUTCOME, type ReturnLegInput } from '../return-timeline'
+import { RETURN_DISPATCH_PHRASE, isReturnDispatchEvent } from '../status'
 
 const seller = (over: Partial<ReturnLegInput> = {}): ReturnLegInput => ({
   audience: 'seller',
@@ -62,13 +63,39 @@ describe('[blocker] ออเดอร์ปกติต้องไม่มี
   })
 })
 
-describe('[blocker] เคสตีกลับ (BOUNCE) — 2 จุดเสมอ', () => {
-  it('กำลังตีกลับ → จุดแรกสว่าง ปลายทางยังไม่ถึง', () => {
+/**
+ * 🛑 **3 จุด ไม่ใช่ 4** — พิสูจน์กับข้อมูล prod 2026-08-27:
+ *
+ * iShip ส่ง *รหัสสถานะ* ของขากลับมาแค่ 2 ตัว (`return` / `return_success`) — ตรวจ event
+ * ทั้งหมดหลังพัสดุเริ่มตีกลับ (45 + 6 ครั้ง จาก 13 ใบ) **ไม่มีรหัสอื่นเลยสักตัว**
+ *
+ * ขั้นย่อยที่ละเอียดกว่า (`ถึงศูนย์คัดแยก` / `อยู่ระหว่างการขนส่ง`) มีจริงแต่ซ่อนใน
+ * `statusDesc` ซึ่งเป็นข้อความอิสระ **และมีแค่ SPX ที่ส่งมา — Flash ไม่ส่งเลยสักตัว**
+ * (prod: SPX 6 ใบมีครบ · Flash 6 ใบเป็น 0 ทุกช่อง) ⇒ 4 จุดตายตัวจะทำให้ครึ่งหนึ่งของใบ
+ * มี 2 จุดที่ไม่มีวันสว่าง ซึ่งผิดหลักเดียวกับที่ทำให้จำนวนจุดผันตามข้อมูลตั้งแต่แรก
+ *
+ * จุดที่ 3 คือ `ส่งไม่สำเร็จ` — *เหตุ* ที่ทำให้แถวขากลับมีอยู่ และเป็นตัวแทนของแถวขาไป
+ * ที่ถูกถอดออกไป (user สั่ง 2026-08-27: "ถ้ามีการตีกลับ ไม่จำเป็นต้องแสดงขาไป")
+ */
+describe('[blocker] เคสตีกลับ (BOUNCE) — แถวเดียว invert กับขาไป ไม่วาดขาไป', () => {
+  it('กำลังตีกลับ → อยู่จุดกลาง ปลายทางยังไม่ถึง', () => {
     const leg = describeReturnLeg(seller({ carrierStatus: 'return' }))!
     expect(leg.kind).toBe('BOUNCE')
-    expect(leg.dots.map((d) => d.label)).toEqual(['กำลังตีกลับ', 'กลับถึงร้าน'])
-    expect(leg.stage).toBe(0)
+    expect(leg.dots.map((d) => d.label)).toEqual(['พัสดุมีปัญหา', 'กำลังตีกลับ', 'ถึงร้านค้า'])
+    expect(leg.stage).toBe(1)
     expect(leg.originTone).toBe('warning')
+  })
+
+  it('ต้องเป็น standalone — ห้ามวาดแถวขาไปคู่กัน', () => {
+    expect(describeReturnLeg(seller({ carrierStatus: 'return' }))!.standalone).toBe(true)
+    expect(describeReturnLeg(seller({ carrierStatus: 'return_success' }))!.standalone).toBe(true)
+  })
+
+  it('เคสคืนของยังต้องวาดขาไป — ขาไปสำเร็จจริง เป็นข้อเท็จจริงที่ต้องคงไว้ (00055)', () => {
+    const leg = describeReturnLeg(
+      seller({ orderReturn: { status: 'REQUESTED', trackingSource: 'ISHIP' } }),
+    )!
+    expect(leg.standalone).toBe(false)
   })
 
   it('ถึงร้านแล้ว → จุดสุดท้ายสว่าง', () => {
@@ -87,7 +114,7 @@ describe('[blocker] เคสตีกลับ (BOUNCE) — 2 จุดเส�
     const leg = describeReturnLeg(
       seller({ carrierStatus: 'return_success', returnedAt: null, returnStartedAt: null }),
     )!
-    expect(leg.stage).toBe(1)
+    expect(leg.stage).toBe(leg.dots.length - 1)
     expect(leg.arrivedAt).toBeNull()
     expect(leg.startedAt).toBeNull()
   })
@@ -112,9 +139,9 @@ describe('[blocker] เคสตีกลับ (BOUNCE) — 2 จุดเส�
 
 describe('[blocker] เคสคืนของ (RETURN) — จำนวนจุดผันตามแหล่งข้อมูล', () => {
   const cases = [
-    { src: 'ISHIP', labels: ['ลูกค้าแจ้งคืน', 'รับเข้าระบบ', 'กำลังจัดส่ง', 'กลับถึงร้าน'] },
-    { src: 'MANUAL', labels: ['ลูกค้าแจ้งคืน', 'กำลังจัดส่ง', 'กลับถึงร้าน'] },
-    { src: 'NONE', labels: ['ลูกค้าแจ้งคืน', 'กลับถึงร้าน'] },
+    { src: 'ISHIP', labels: ['ลูกค้าแจ้งคืน', 'รับเข้าระบบ', 'กำลังจัดส่ง', 'ถึงร้านค้า'] },
+    { src: 'MANUAL', labels: ['ลูกค้าแจ้งคืน', 'กำลังจัดส่ง', 'ถึงร้านค้า'] },
+    { src: 'NONE', labels: ['ลูกค้าแจ้งคืน', 'ถึงร้านค้า'] },
   ]
   for (const c of cases) {
     it(`trackingSource=${c.src} → ${c.labels.length} จุด`, () => {
@@ -175,18 +202,18 @@ describe('[blocker] เคสคืนของ (RETURN) — จำนวนจ�
 })
 
 describe('[blocker] คำฝั่งผู้ซื้อต่างเฉพาะจุดที่มีคำว่า "ร้าน"', () => {
-  it('BOUNCE — ต่างทั้ง 2 จุด', () => {
+  it('BOUNCE — ต่างเฉพาะ 2 จุดหลัง จุดแรกใช้คำร่วม', () => {
     const s = describeReturnLeg(seller({ carrierStatus: 'return_success' }))!
     const b = describeReturnLeg(buyer({ carrierStatus: 'return_success' }))!
-    expect(s.dots.map((d) => d.label)).toEqual(['กำลังตีกลับ', 'กลับถึงร้าน'])
-    expect(b.dots.map((d) => d.label)).toEqual(['กำลังส่งกลับร้าน', 'ของกลับถึงร้าน'])
+    expect(s.dots.map((d) => d.label)).toEqual(['พัสดุมีปัญหา', 'กำลังตีกลับ', 'ถึงร้านค้า'])
+    expect(b.dots.map((d) => d.label)).toEqual(['พัสดุมีปัญหา', 'กำลังส่งกลับร้าน', 'ของกลับถึงร้าน'])
   })
 
   it('RETURN — ต่างเฉพาะหัวกับท้าย จุดกลางใช้คำร่วม', () => {
     const o = { status: 'REQUESTED', trackingSource: 'ISHIP' }
     const s = describeReturnLeg(seller({ orderReturn: o }))!
     const b = describeReturnLeg(buyer({ orderReturn: o }))!
-    expect(s.dots.map((d) => d.label)).toEqual(['ลูกค้าแจ้งคืน', 'รับเข้าระบบ', 'กำลังจัดส่ง', 'กลับถึงร้าน'])
+    expect(s.dots.map((d) => d.label)).toEqual(['ลูกค้าแจ้งคืน', 'รับเข้าระบบ', 'กำลังจัดส่ง', 'ถึงร้านค้า'])
     expect(b.dots.map((d) => d.label)).toEqual(['คุณแจ้งคืน', 'รับเข้าระบบ', 'กำลังจัดส่ง', 'ร้านได้รับแล้ว'])
     // จุดกลางต้องเหมือนกันเป๊ะ — สองมุมมองไม่ควรแตกคำโดยไม่จำเป็น
     expect(s.dots[1].label).toBe(b.dots[1].label)
@@ -220,5 +247,125 @@ describe('[blocker] ไอคอนของจุดปลายทางต้
       seller({ orderReturn: { status: 'REQUESTED', trackingSource: 'NONE' } }),
     )!
     expect(bounce.dots[0].icon).not.toBe(ret.dots[0].icon)
+  })
+})
+
+describe('[blocker] จุดที่ 4 "กำลังส่ง" (ขากลับ) — โผล่เฉพาะเมื่อขนส่งบอกจริง', () => {
+  /**
+   * 🛑 ทำไมไม่ใช่ 4 จุดตายตัว (user ถามตรง ๆ ว่า "มันต้องมี 4 step ป่ะ")
+   *
+   * iShip ส่ง **รหัสสถานะ** ของขากลับมาแค่ 2 ตัว · ขั้นที่ละเอียดกว่าอยู่ใน `statusDesc`
+   * ซึ่งเป็นข้อความอิสระ และ **มีแค่ SPX ที่ส่ง — Flash ไม่ส่งเลยสักใบ**
+   * (prod 2026-08-27: SPX 6/6 มี · Flash 7/7 ไม่มี)
+   *
+   * ⇒ 4 จุดตายตัว = ครึ่งหนึ่งของใบมีจุดที่ไม่มีวันสว่าง = โกหกว่า "ยังไปไม่ถึง"
+   * ทั้งที่ความจริงคือ "ขนส่งเจ้านี้ไม่บอก" — คนละเรื่องกันคนละความหมาย
+   */
+  it('ขนส่งไม่บอก (Flash) → 3 จุด ไม่มีจุดเทาที่ไม่มีวันสว่าง', () => {
+    const leg = describeReturnLeg(seller({ carrierStatus: 'return_success' }))!
+    expect(leg.dots.map((d) => d.label)).toEqual(['พัสดุมีปัญหา', 'กำลังตีกลับ', 'ถึงร้านค้า'])
+  })
+
+  it('ขนส่งบอก (SPX) → 4 จุด แทรก "กำลังส่ง" ก่อนปลายทาง', () => {
+    const leg = describeReturnLeg(
+      seller({ carrierStatus: 'return_success', returnDispatchedAt: '2026-08-24T03:00:00Z' }),
+    )!
+    expect(leg.dots.map((d) => d.label)).toEqual([
+      'พัสดุมีปัญหา',
+      'กำลังตีกลับ',
+      'กำลังส่ง',
+      'ถึงร้านค้า',
+    ])
+    expect(leg.stage).toBe(3)
+  })
+
+  it('ยังไม่ถึงร้าน แต่ขนส่งบอกว่านำส่งคืนแล้ว → ยืนที่จุดที่ 3', () => {
+    const leg = describeReturnLeg(
+      seller({ carrierStatus: 'return', returnDispatchedAt: '2026-08-24T03:00:00Z' }),
+    )!
+    expect(leg.stage).toBe(2)
+    expect(leg.dots[leg.stage].label).toBe('กำลังส่ง')
+  })
+
+  it('ยังไม่ถึงร้าน และขนส่งไม่บอก → ยืนที่ "กำลังตีกลับ"', () => {
+    const leg = describeReturnLeg(seller({ carrierStatus: 'return' }))!
+    expect(leg.stage).toBe(1)
+    expect(leg.dots[leg.stage].label).toBe('กำลังตีกลับ')
+  })
+
+  /**
+   * 🛑 วลีนี้เป็น **ข้อความอิสระของขนส่ง** ที่เราไปอ่าน ไม่ใช่สัญญาที่ใครรับประกัน
+   * วันที่ SPX เปลี่ยนคำ จุดนี้จะเลิกโผล่ **เงียบ ๆ ไม่มี error** ⇒ ตรึงไว้ที่เดียว
+   * และผลของการพลาดคือแถบถอยเป็น 3 จุด (ซึ่งยังถูก) ไม่ใช่พัง — degrade ปลอดภัย
+   */
+  it('วลีที่ใช้จับต้องอยู่ที่ SSOT ที่เดียว และตรงกับข้อความจริงบน prod', () => {
+    expect(RETURN_DISPATCH_PHRASE).toBe('กำลังนำส่งพัสดุคืนผู้ส่ง')
+    // ข้อความจริงที่ iShip ส่งมา (TH065880509388 · 2026-08-24 03:00)
+    expect(isReturnDispatchEvent('return', 'บริษัทขนส่งกำลังนำส่งพัสดุคืนผู้ส่ง')).toBe(true)
+    // ต้องไม่ไปจับ "ถึงศูนย์คัดแยก"/"อยู่ระหว่างการขนส่ง" ซึ่งวนสลับกันหลายรอบ
+    expect(isReturnDispatchEvent('return', 'พัสดุตีกลับไปยังผู้ส่ง ถึงศูนย์คัดแยกสินค้า: SOCW')).toBe(false)
+    expect(isReturnDispatchEvent('return', 'พัสดุตีกลับไปยังผู้ส่ง อยู่ระหว่างการขนส่ง: ATKTG')).toBe(false)
+    // สถานะนอกสายตีกลับต้องไม่เข้าเงื่อนไขแม้ข้อความจะบังเอิญตรง
+    expect(isReturnDispatchEvent('in_transit', 'บริษัทขนส่งกำลังนำส่งพัสดุคืนผู้ส่ง')).toBe(false)
+    expect(isReturnDispatchEvent(null, 'บริษัทขนส่งกำลังนำส่งพัสดุคืนผู้ส่ง')).toBe(false)
+  })
+})
+
+describe('[blocker] ทุกจุดบนแถบเดียวกันต้องคนละไอคอน', () => {
+  /**
+   * 🛑 กฎนี้ถูก *เขียนไว้* ในคอมเมนต์ของ `ICON` มาตั้งแต่แรกแต่ **ไม่เคยมีด่านบังคับ**
+   * จนกระทั่งวันนี้ — ซึ่งคือรูปร่างของบั๊กเดิมเป๊ะ: รอบแรก `กำลังตีกลับ` กับ `กำลังส่ง`
+   * ใช้ `truck-return` ตัวเดียวกันทั้งคู่ ผ่าน tsc/build/eslint/เทสครบทุกด่าน
+   * **user เป็นคนสังเกตเห็นเองจากหน้าจอ** (2026-08-27)
+   * (docs/conventions/rule-must-be-enforced-not-described.md)
+   *
+   * ไล่ทุกรูปร่างของแถบที่เป็นไปได้จริง ไม่ใช่หยิบมาเคสเดียว — จำนวนจุดผันตามข้อมูล
+   * (3 หรือ 4 สำหรับ BOUNCE · 2/3/4 สำหรับ RETURN) ⇒ เคสที่ซ้ำอาจซ่อนอยู่ในรูปแบบเดียว
+   */
+  const SHAPES: Array<[string, ReturnLegInput]> = [
+    ['BOUNCE 3 จุด', seller({ carrierStatus: 'return_success' })],
+    [
+      'BOUNCE 4 จุด',
+      seller({ carrierStatus: 'return_success', returnDispatchedAt: '2026-08-24T03:00:00Z' }),
+    ],
+    ['RETURN NONE', seller({ orderReturn: { status: 'REQUESTED', trackingSource: 'NONE' } })],
+    ['RETURN MANUAL', seller({ orderReturn: { status: 'SHIPPED', trackingSource: 'MANUAL' } })],
+    ['RETURN ISHIP', seller({ orderReturn: { status: 'RECEIVED', trackingSource: 'ISHIP' } })],
+  ]
+
+  for (const [name, input] of SHAPES) {
+    it(`${name} — ไอคอนไม่ซ้ำกันเลยสักคู่`, () => {
+      const icons = describeReturnLeg(input)!.dots.map((d) => d.icon)
+      expect(new Set(icons).size, icons.join(' · ')).toBe(icons.length)
+    })
+  }
+})
+
+describe('[blocker] ลูกศร/รถ ต้องหันตามทิศที่แถบเดิน', () => {
+  /**
+   * 🛑 แถบ BOUNCE เดิน **ขวา→ซ้าย** (`standalone: true` ⇒ `flex-row-reverse`) จุดปลายทาง
+   * "ถึงร้านค้า" จึงอยู่ซ้ายสุด ตรงกับจุดออกเดินทางของขาไปพอดี — นั่นคือทั้งหมดของเหตุผล
+   * ที่ user ขอให้กลับด้าน ("มันต้อง invert กันกับขาไป")
+   *
+   * ไอคอนที่มี **ทิศในตัว** (ลูกศรออกจากกล่อง · หัวรถ) จึงต้อง `flipX` ทุกตัว ไม่งั้นมันชี้
+   * สวนทางกับเรื่องที่แถบกำลังเล่า — ผิดแบบที่ tsc/build/detector มองไม่เห็นเลยสักด่าน
+   * เพราะทุกอย่างถูกต้องตามชนิดทุกตัวอักษร (user จับได้เองจากหน้าจอทั้ง 2 ครั้ง)
+   */
+  const directional = (input: ReturnLegInput) =>
+    describeReturnLeg(input)!.dots.filter((d) => /export|truck/.test(d.icon))
+
+  it('BOUNCE — ทุกจุดที่ไอคอนมีทิศในตัว ต้องถูก flip', () => {
+    const dots = directional(
+      seller({ carrierStatus: 'return_success', returnDispatchedAt: '2026-08-24T03:00:00Z' }),
+    )
+    expect(dots.length, 'ไม่พบจุดที่มีทิศเลย — เปลี่ยนชุดไอคอนแล้วต้องมาแก้ด่านนี้ด้วย').toBe(2)
+    for (const d of dots) expect(d.flipX, `${d.label} (${d.icon})`).toBe(true)
+  })
+
+  it('จุด "กำลังตีกลับ" ใช้ package-export ที่กลับด้าน (มติ user 2026-08-27)', () => {
+    const dot = describeReturnLeg(seller({ carrierStatus: 'return' }))!.dots[1]
+    expect(dot.label).toBe('กำลังตีกลับ')
+    expect(dot.icon).toBe('package-export')
+    expect(dot.flipX).toBe(true)
   })
 })

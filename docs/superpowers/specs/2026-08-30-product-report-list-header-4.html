@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<title>ตัวควบคุมรายการชิดขวาแถวหัวการ์ด — 4 ท่า (00063)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--primary:#236dc9;--primary-ink:#173f73;--alpha:#02bc9c;--gamma:#f9bf59;--beta:#f7577e;
+ --warning-ink:#92400e;--d100:#f1f2f6;--d200:#e9eaee;--d300:#dcdee5;--d400:#8a91a5;--d500:#6b7280;--d700:#4c4c5c;--d900:#2f2b3d;--body:#f6f7fb}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,sans-serif;background:#e8eaf0;color:var(--d900);padding:22px 16px 60px;-webkit-font-smoothing:antialiased}
+h1{font-size:19px;font-weight:700}
+.sub{font-size:13px;color:var(--d500);line-height:1.7;max-width:1050px;margin:4px 0 18px}
+.sub b{color:var(--d900)} .sub code{background:#fff;padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:ui-monospace,monospace}
+.rail{display:flex;gap:18px;overflow-x:auto;padding-bottom:18px;align-items:flex-start}
+figure{flex:0 0 auto;width:360px}
+figcaption{margin-bottom:9px}
+.vn{font-size:13px;font-weight:700;display:block}
+.vd{font-size:11.5px;color:var(--d500);line-height:1.55;display:block;margin-top:2px;min-height:74px}
+.phone{width:360px;height:700px;background:var(--body);border:7px solid #1c1c28;border-radius:30px;overflow:hidden}
+.sc{height:100%;overflow-y:auto;position:relative}
+.ab{height:50px;background:#fff;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--d200);position:sticky;top:0;z-index:40}
+.ab .t{flex:1;text-align:center;font-size:15px;font-weight:600}
+.ic{width:26px;height:26px;display:grid;place-items:center;color:var(--d700);font-size:15px;flex:0 0 auto}
+.sticky{position:sticky;top:50px;z-index:35;background:var(--body);padding:8px 12px;border-bottom:1px solid var(--d200);display:flex;align-items:center;gap:8px}
+.nb{min-width:40px;min-height:40px;display:grid;place-items:center;border:1px solid var(--d300);border-radius:8px;background:#fff;color:var(--d700);font-size:14px;flex:0 0 auto}
+.ml{flex:1;text-align:center;font-size:15px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:40px;border-radius:8px}
+.ml i{font-style:normal;font-size:10px;color:var(--d400)}
+.seg{display:flex;border:1px solid var(--d300);border-radius:8px;overflow:hidden;background:#fff;flex:0 0 auto}
+.seg b{min-height:38px;display:grid;place-items:center;padding:0 13px;font-size:13px;font-weight:600;color:var(--d700)}
+.seg b.on{background:var(--primary);color:#fff}
+.pg{padding:10px 12px 20px}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 2px rgba(47,43,61,.07);margin-bottom:12px;overflow:visible;position:relative}
+.ch{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 14px;border-bottom:1px dashed var(--d300)}
+.ct{font-size:14.5px;font-weight:600}
+.ct em{font-style:normal;color:var(--d400);font-weight:500}
+.cn{font-size:11px;color:var(--d400)}
+.cb{padding:4px 14px 12px}
+.ct2{display:flex;align-items:flex-end;gap:1px}
+.ct2 .col{flex:1;display:flex;flex-direction:column-reverse}
+.ct2 .col i{display:block;width:100%}
+.xa{display:flex;justify-content:space-between;font-size:9.5px;color:var(--d400);margin-top:5px;padding-top:4px;border-top:1px solid var(--d200)}
+.lgd{display:flex;gap:10px;flex-wrap:wrap;font-size:10.5px;color:var(--d500);margin-top:8px}
+.lgd span{display:inline-flex;align-items:center;gap:4px}
+.dot{width:9px;height:9px;border-radius:3px;flex:0 0 auto;display:inline-block}
+/* ปุ่มดรอปดาวน์ = FilterDropdown ของจริง */
+.fd{min-height:36px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:8px;border:1px solid var(--d300);background:#fff;font-size:12.5px;font-weight:600;color:var(--d700);white-space:nowrap;flex:0 0 auto}
+.fd.act{background:rgba(35,109,201,.12);border-color:transparent;color:var(--primary-ink)}
+.fd i{font-style:normal;font-size:9px;color:var(--d400)}
+.fd u{text-decoration:none;font-size:13px}
+.menu{position:absolute;right:14px;top:48px;z-index:50;background:#fff;border-radius:10px;box-shadow:0 8px 24px rgba(47,43,61,.18);border:1px solid var(--d200);padding:5px;min-width:198px}
+.menu b{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:40px;padding:0 11px;border-radius:7px;font-size:13px;font-weight:500;color:var(--d700)}
+.menu b.on{background:rgba(35,109,201,.12);color:var(--primary-ink);font-weight:600}
+.menu b em{font-style:normal;font-size:11px;font-weight:600;padding:1px 7px;border-radius:9999px;background:var(--d100);color:var(--d500)}
+.menu b.on em{background:var(--primary);color:#fff}
+.menu hr{border:0;border-top:1px solid var(--d200);margin:5px 0}
+.menu u{display:block;text-decoration:none;font-size:10.5px;font-weight:700;color:var(--d400);padding:5px 11px 3px}
+/* แถว */
+.r{padding:10px 0;border-bottom:1px dashed var(--d200)}
+.r:last-child{border:0}
+.rt{display:flex;gap:10px;align-items:flex-start}
+.th{border-radius:8px;flex:0 0 auto;background:linear-gradient(135deg,#cfd4e0,#e6e9f0);box-shadow:0 0 0 2px var(--rc,transparent)}
+.nm{font-size:13.5px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ss{font-size:10.5px;color:var(--d400);margin-top:1px}
+.vv{font-size:14px;font-weight:700;white-space:nowrap}
+.sw{display:flex;gap:1px;align-items:flex-end;height:20px;margin-top:8px}
+.sw s{flex:1;background:var(--d200);display:block;text-decoration:none;border-radius:1px}
+.sw s.a{background:var(--primary)}
+.swl{display:flex;justify-content:space-between;font-size:9px;color:var(--d400);margin-top:2px}
+.bd{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:9999px;background:rgba(249,191,89,.16);color:var(--warning-ink);margin-top:5px}
+.swtch{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0 2px;border-top:1px dashed var(--d200);margin-top:6px}
+.swtch u{text-decoration:none;font-size:12.5px;color:var(--d500)}
+.tg{width:38px;height:22px;border-radius:9999px;background:var(--d300);position:relative;flex:0 0 auto}
+.tg::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.note{background:#fff;border-radius:12px;padding:18px 20px;margin-top:20px;font-size:13px;line-height:1.75;box-shadow:0 1px 3px rgba(47,43,61,.08);max-width:1100px}
+.note h2{font-size:15px;margin:14px 0 8px}.note h2:first-child{margin-top:0}
+.note table{width:100%;border-collapse:collapse;font-size:12.5px}
+.note th,.note td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--d200);vertical-align:top}
+.note th{background:var(--d100);font-weight:700}
+.note code{background:var(--d100);padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:ui-monospace,monospace}
+.stop{color:#b91c1c;font-weight:700}
+</style></head><body>
+
+<h1>ตัวควบคุมย้ายไปมุมขวา แถวเดียวกับ “รายสินค้า”</h1>
+<p class="sub">
+  ทั้ง 4 ท่าใช้ <code>FilterDropdown</code> ที่<b>มีอยู่ในระบบแล้ว</b> — <code>/orders</code>
+  <code>/customers</code> <code>/inventory</code> และอีก 5 หน้าใช้ตัวนี้อยู่ และมันรองรับ
+  <b>ตัวเลขท้ายตัวเลือก</b> มาแต่เดิม ⇒ ไม่ต้องประดิษฐ์อะไรใหม่ และหน้านี้จะหน้าตาเหมือนหน้าอื่นในหลังบ้าน<br>
+  ใบที่ 1 กับ 4 <b>เปิดเมนูค้างไว้</b>ให้ดูว่าข้างในมีอะไร
+</p>
+
+<div class="rail" id="rail"></div>
+
+<div class="note">
+<h2>เทียบกัน</h2>
+<table>
+<tr><th>ท่า</th><th>บนแถวหัวการ์ด</th><th>ข้อดี</th><th>ข้อเสีย</th></tr>
+<tr><td><b>1 · ดรอปดาวน์เดียว</b></td><td><code>รายสินค้า</code> ··· <code>[⊞ ทั้งหมด ▾]</code></td>
+<td>เรียบที่สุด · ตัวเลขทั้ง 3 มุมมองอยู่ในเมนู · <b>ยุบ “กรองแคบลง” กับ “เพิ่มของเข้ามา” เป็นแกนเดียว</b> ความกำกวมหายไปทั้งก้อน</td>
+<td>ต้องกดถึงจะเห็นว่ามี 3 มุมมอง</td></tr>
+<tr><td><b>2 · ดรอปดาวน์ + จำนวนในชื่อ</b></td><td><code>รายสินค้า (3)</code> ··· <code>[ขายวันนี้ ▾]</code></td>
+<td>ชื่อการ์ด<b>บอกผลลัพธ์ตลอดเวลา</b> — กรองแล้วเลขเปลี่ยนทันที ไม่ต้องเดาว่าที่เห็นคือทั้งหมดหรือถูกกรองอยู่</td>
+<td>เลขในวงเล็บเปลี่ยนไปมา อาจสับสนว่าร้านมีของกี่ตัวกันแน่</td></tr>
+<tr><td><b>3 · สองปุ่มชิดขวา</b></td><td><code>รายสินค้า</code> ··· <code>[มุมมอง ▾] [เรียง ▾]</code></td>
+<td><b>เรียงลำดับได้บนมือถือเป็นครั้งแรก</b> — เดสก์ท็อปกดหัวคอลัมน์เรียงได้ 4 แบบ มือถือถูกล็อกที่ “ยอดมากไปน้อย” มาตั้งแต่วันแรก</td>
+<td>ที่ 320px สองปุ่มเบียดกับชื่อการ์ด ต้องย่อคำ</td></tr>
+<tr><td><b>4 · เรียงอย่างเดียว + สวิตช์ท้าย</b></td><td><code>รายสินค้า (35)</code> ··· <code>[ขายดีสุด ▾]</code></td>
+<td><b>แยกร่างตามหน้าที่</b> — สิ่งที่ “จัดเรียง” อยู่บนหัว · สิ่งที่ “เพิ่มของ” เป็นสวิตช์ท้ายรายการ ตรงจุดที่มันมีผลพอดี ⇒ ไม่มีทางอ่านสลับกันได้อีก</td>
+<td>ไม่มีทางกรอง “ขายวันนี้” แล้ว — ต้องเรียงตาม “ขายล่าสุด” แทน</td></tr>
+</table>
+
+<h2>ที่เจอระหว่างทำ</h2>
+<table>
+<tr><td><b>คำว่า “ไม่มียอดขาย” กำกวมในตัวเอง</b></td><td>อ่านได้ทั้ง “กรองเอาเฉพาะตัวที่ไม่มียอด” และ “เอาตัวที่ไม่มียอดเข้ามาด้วย” — ของจริงคืออย่างหลัง ⇒ ท่า 1–3 เปลี่ยนเป็น <b>“ยังไม่ขาย”</b> และทำให้เป็นมุมมอง จึงไม่กำกวมอีก · ท่า 4 เขียนเต็มประโยคได้เพราะสวิตช์มีที่ให้เขียน</td></tr>
+<tr><td><b>มือถือเรียงลำดับไม่ได้เลย</b></td><td>ล็อกที่ “ยอดมากไปน้อย” อย่างเดียว ⇒ คำถาม “ตัวไหนเงียบที่สุด” ตอบไม่ได้บนมือถือ ต้องเลื่อนไปสุดรายการ (ท่า 3/4 แก้ให้)</td></tr>
+<tr><td class="stop">ตัวเลขความสูง/ความกว้าง</td><td>คำนวณจากคลาส <b>ไม่ได้วัดจากเครื่องจริง</b> — ท่า 3 ที่ 320px ต้องเปิดจริงถึงจะรู้ว่าเบียดจนต้องย่อคำไหม</td></tr>
+</table>
+</div>
+
+<script>
+const D=[3,1,2,1,4,3,2,1,5,3,2,4,1,3,2,4,3,3,4,5,6,4,5,6,3,2,4,5,4,1,0];
+const MX=Math.max(...D);
+const P=[
+ {n:'โช๊คหลัง 110 สีแดง',v:86,c:'var(--alpha)',p:'฿300/ชิ้น · 14% ของร้าน'},
+ {n:'โช๊คหลัง 110 สีดำ',v:80,c:'var(--gamma)',p:'฿300/ชิ้น · 13% ของร้าน'},
+ {n:'โช๊คหลัง 110 สีเหลือง',v:44,c:'var(--beta)',p:'฿300/ชิ้น · 7% ของร้าน',b:'สต็อกเหลือ 6 · พอขายอีก ~4 วัน'},
+ {n:'โช๊คหลัง สามล้อ สีดำ',v:40,c:'transparent',p:'฿450/ชิ้น · 6% ของร้าน'}];
+const chart=h=>`<div class="ct2" style="height:${h}px">`+D.map(v=>`<div class="col">`+
+ [['var(--alpha)',.5],['var(--gamma)',.3],['var(--beta)',.2]].map(([c,f])=>
+ `<i style="background:${c};height:${(v*f)/MX*(h-10)}px;box-shadow:0 -1px 0 #fff"></i>`).join('')+`</div>`).join('')+
+ `</div><div class="xa"><span>1</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span><span>31</span></div>`;
+const bars=()=>D.map((v,i)=>`<s class="${v>0&&(i*7)%10>3?'a':''}" style="height:${v>0?Math.max(3,v/MX*20):3}px"></s>`).join('');
+const row=p=>`<div class="r"><div class="rt">
+ <span class="th" style="width:44px;height:44px;--rc:${p.c}"></span>
+ <span style="flex:1;min-width:0"><span class="nm">${p.n}</span><span class="ss">${p.p}</span>
+ ${p.b?`<span class="bd">▲ ${p.b}</span>`:''}</span><span class="vv">${p.v} ชิ้น</span></div>
+ <div class="sw">${bars()}</div><div class="swl"><span>1</span><span>10</span><span>20</span><span>31</span></div></div>`;
+const rows=n=>P.slice(0,n).map(row).join('');
+const head=`<div class="ab"><span class="ic">←</span><span class="t">ยอดขายรายสินค้า</span><span class="ic">🔔</span></div>
+<div class="sticky"><span class="nb">‹</span><span class="ml">สิงหาคม 2569 <i>▾</i></span>
+<div class="seg"><b class="on">ชิ้น</b><b>บาท</b></div><span class="ic" style="border:1px solid var(--d300);border-radius:8px;width:34px;height:34px">i</span></div>`;
+const cc=`<div class="card"><div class="ch"><span class="ct">แนวโน้มรายวัน</span><span class="cn">3 อันดับแรก</span></div>
+<div class="cb" style="padding-top:12px">${chart(140)}<div class="lgd">
+<span><i class="dot" style="background:var(--alpha)"></i>110 สีแดง</span><span><i class="dot" style="background:var(--gamma)"></i>110 สีดำ</span><span><i class="dot" style="background:var(--beta)"></i>110 สีเหลือง</span></div></div></div>`;
+
+const V=[
+{k:'1',t:'ดรอปดาวน์เดียว',d:'<b>ยุบชิปที่ทิศสวนกันให้เหลือแกนเดียว</b> — เลือกได้ทีละมุมมอง ความกำกวมหายทั้งก้อน · ตัวเลขทั้ง 3 อยู่ในเมนู',
+ h:`<div class="card"><div class="ch"><span class="ct">รายสินค้า</span><span class="fd">⊞ ทั้งหมด <i>▾</i></span></div>
+ <div class="menu"><b class="on">ทั้งหมด <em>35</em></b><b>ขายวันนี้ <em>3</em></b><b>ยังไม่ขายเดือนนี้ <em>2</em></b></div>
+ <div class="cb" style="padding-top:10px">${rows(3)}</div></div>`},
+
+{k:'2',t:'ดรอปดาวน์ + จำนวนในชื่อ',d:'ชื่อการ์ด<b>บอกผลลัพธ์ตลอดเวลา</b> — กรองแล้วเลขเปลี่ยนทันที ไม่ต้องเดาว่าที่เห็นคือทั้งหมดหรือถูกกรองอยู่',
+ h:`<div class="card"><div class="ch"><span class="ct">รายสินค้า <em>(3)</em></span><span class="fd act">ขายวันนี้ <i>▾</i></span></div>
+ <div class="cb" style="padding-top:10px">${rows(3)}</div></div>`},
+
+{k:'3',t:'สองปุ่มชิดขวา',d:'เพิ่มการเรียงลำดับ — <b>ตอนนี้มือถือเรียงไม่ได้เลย</b> ถูกล็อกที่ “ยอดมากไปน้อย” มาตั้งแต่วันแรก คำถาม “ตัวไหนเงียบสุด” จึงตอบไม่ได้',
+ h:`<div class="card"><div class="ch"><span class="ct">รายสินค้า</span>
+ <span style="display:flex;gap:6px"><span class="fd">ทั้งหมด <i>▾</i></span><span class="fd">↓ ขายดี <i>▾</i></span></span></div>
+ <div class="cb" style="padding-top:10px">${rows(3)}</div></div>`},
+
+{k:'4',t:'เรียงอย่างเดียว + สวิตช์ท้าย',d:'<b>แยกร่างตามหน้าที่</b> — สิ่งที่ “จัดเรียง” อยู่บนหัว · สิ่งที่ “เพิ่มของ” เป็นสวิตช์ท้ายรายการ ตรงจุดที่มันมีผลพอดี ⇒ อ่านสลับกันไม่ได้อีก',
+ h:`<div class="card"><div class="ch"><span class="ct">รายสินค้า <em>(35)</em></span><span class="fd">↓ ขายดีสุด <i>▾</i></span></div>
+ <div class="menu"><u>เรียงตาม</u><b class="on">ขายดีสุด</b><b>ขายน้อยสุด</b><b>ขายล่าสุด</b><b>เงียบนานสุด</b><hr><b>ชื่อ ก–ฮ</b></div>
+ <div class="cb" style="padding-top:10px">${rows(3)}
+ <div class="swtch"><u>รวมสินค้าที่ยังไม่ขายเดือนนี้ (2)</u><span class="tg"></span></div></div></div>`}];
+
+document.getElementById('rail').innerHTML=V.map(v=>
+`<figure><figcaption><span class="vn">${v.k} · ${v.t}</span><span class="vd">${v.d}</span></figcaption>
+<div class="phone"><div class="sc">${head}<div class="pg">${cc}${v.h}</div></div></div></figure>`).join('');
+</script>
+</body></html>

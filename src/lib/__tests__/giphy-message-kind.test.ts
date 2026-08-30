@@ -1,0 +1,181 @@
+import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { giphyMessageKind, giphyPreviewLabel } from '@/lib/giphy-message-kind'
+import { isStickerRawMessage, hidesDownloadAffordance } from '@/lib/chat-sticker'
+import * as v from 'valibot'
+import { SendChatMessageSchema } from '@/lib/validations'
+
+const ROOT = process.cwd()
+
+/**
+ * URL จริงจาก payload บน prod (2026-08-27) — **ห้ามแต่งเอง**
+ * ทั้งคู่หน้าตาเหมือนกันทุกประการยกเว้นค่า `ct=` ที่ฝังอยู่ใน base64 ของ path
+ * (`ct=s` = สติกเกอร์ · `ct=g` = GIF) ซึ่งเป็นสิ่งเดียวที่แยกสองอย่างนี้ได้
+ */
+const STICKER_URL =
+  'https://media4.giphy.com/media/v1.Y2lkPTQyMzA0NmQwdjc3aXRyZXBxamIwNTUyODA5eXBieWNpZ2l0cmJ3dThiYXo2aTM2cCZlcD12MV9naWZzX2dpZklkJmN0PXM/YrMpuzXd1aro5pAHiV/200.gif'
+const GIF_URL =
+  'https://media1.giphy.com/media/v1.Y2lkPTIwMmUwMjFmY241ZjUwMjVvc3Vqb24wenEwN3J2Nnp3djdkaHBna3VtbjJvaW9ldCZlcD12MV9naWZzX2dpZklkJmN0PWc/aBQK2SxwLTiSc/200.gif'
+
+const igWebhookRaw = (url: string) => ({
+  source: 'webhook',
+  provider: 'INSTAGRAM',
+  payload: {
+    sender: { id: '17841436034417448' },
+    recipient: { id: '1778524736525089' },
+    message: { mid: 'x', is_echo: true, attachments: [{ type: 'image', payload: { url } }] },
+  },
+})
+
+describe('[blocker] giphyMessageKind', () => {
+  it('แยกสติกเกอร์ออกจาก GIF ได้จาก URL จริง', () => {
+    expect(giphyMessageKind(STICKER_URL)).toBe('sticker')
+    expect(giphyMessageKind(GIF_URL)).toBe('gif')
+  })
+
+  it('ไม่ใช่ GIPHY → null (ห้ามไปตีความ URL ของเจ้าอื่น)', () => {
+    expect(giphyMessageKind('https://scontent.xx.fbcdn.net/v/t1.png')).toBeNull()
+    expect(giphyMessageKind('https://media.giphy.com.evil.example/media/v1.Y3Q9cw/a/200.gif')).toBeNull()
+  })
+
+  it('[blocker] fail-open ทุกกรณีที่อ่านไม่ออก — ห้าม throw ห้ามคืนค่ามั่ว', () => {
+    for (const bad of [null, undefined, '', 'ไม่ใช่ url', 'https://media.giphy.com/x/y.gif']) {
+      expect(() => giphyMessageKind(bad as string)).not.toThrow()
+      expect(giphyMessageKind(bad as string)).toBeNull()
+    }
+  })
+
+  it('คำที่ใช้ในรายการแชทต้องสั้นและต่างกันจริง', () => {
+    expect(giphyPreviewLabel('sticker')).toBe('[สติกเกอร์]')
+    expect(giphyPreviewLabel('gif')).toBe('[GIF]')
+    expect(giphyPreviewLabel('sticker')).not.toBe(giphyPreviewLabel('gif'))
+  })
+})
+
+/**
+ * 🛑 [blocker] สติกเกอร์ **ขาเข้า** ของ IG ต้องถูกทำเครื่องหมายว่าเป็นสติกเกอร์
+ *
+ * marker เดิม (`payload.kind === 'sticker'`) ใช้ได้เฉพาะของที่ **เราเป็นคนเขียน** — ขาเข้าเป็น
+ * payload ของ Meta ซึ่งส่งสติกเกอร์มาเป็น `type: "image"` เหมือนรูปถ่ายจริง ⇒ สติกเกอร์ที่ลูกค้า
+ * ส่งมาขึ้นเต็มความกว้าง **พร้อมปุ่ม "บันทึกรูป"** ขณะที่ใบที่ส่งจาก Deep เองแสดงถูก
+ * (สองใบติดกันในเธรดเดียวหน้าตาไม่เหมือนกัน — user แจ้ง 2026-08-27)
+ */
+describe('[blocker] isStickerRawMessage — ขาเข้า Instagram', () => {
+  it('สติกเกอร์ GIPHY ขาเข้า = สติกเกอร์', () => {
+    expect(isStickerRawMessage(igWebhookRaw(STICKER_URL))).toBe(true)
+  })
+
+  it('GIF ไม่ใช่สติกเกอร์ — มีพื้นหลัง ต้องกว้างเท่ารูปปกติและบันทึกได้', () => {
+    expect(isStickerRawMessage(igWebhookRaw(GIF_URL))).toBe(false)
+  })
+
+  it('รูปถ่ายจริงจากลูกค้า ยังไม่ใช่สติกเกอร์', () => {
+    expect(isStickerRawMessage(igWebhookRaw('https://scontent.xx.fbcdn.net/v/t1.jpg'))).toBe(false)
+  })
+
+  it('marker เดิมของขาออก (payload.kind) ต้องยังทำงาน — ห้ามแก้ทางใหม่แล้วพังทางเก่า', () => {
+    expect(isStickerRawMessage({ payload: { kind: 'sticker' } })).toBe(true)
+    expect(isStickerRawMessage({ payload: { kind: 'image' } })).toBe(false)
+  })
+
+  it('payload ผิดรูป/ว่าง ต้องไม่ throw และตกไป "ไม่ใช่สติกเกอร์"', () => {
+    for (const bad of [null, undefined, 'x', 42, {}, { payload: null }, { payload: { message: {} } }]) {
+      expect(() => isStickerRawMessage(bad)).not.toThrow()
+      expect(isStickerRawMessage(bad)).toBe(false)
+    }
+  })
+})
+
+/**
+ * [blocker] ป้ายในรายการแชท (คอลัมน์ซ้าย) ต้องใช้คำของ GIPHY ไม่ใช่ "[รูปภาพ]"
+ *
+ * Meta ส่งสติกเกอร์/GIF มาเป็น `type: image` เหมือนรูปถ่ายจริง ⇒ ถ้า ingest ไม่เรียกตัวแยกนี้
+ * รายการแชทจะขึ้น "[รูปภาพ]" กับทุกอย่าง แล้วผู้ขายนึกว่าลูกค้าส่งรูปสินค้ามา (user แจ้ง 2026-08-27)
+ *
+ * เทสนี้สแกนซอร์สเพราะตรรกะอยู่กลาง `ingestInboundMessage` ซึ่งแยกออกมาเรียกตรง ๆ ไม่ได้
+ * (ตัดคอมเมนต์ก่อนสแกน — ไฟล์ที่ทำถูกคือไฟล์ที่เขียนคำอธิบายของกฎนี้ไว้ด้วย)
+ */
+describe('[blocker] ingest ต้องใช้ป้ายของ GIPHY ในรายการแชท', () => {
+  const src = () =>
+    readFileSync(join(ROOT, 'src/services/channel-chat.service.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '')
+
+  it('เรียก giphyMessageKind กับ URL ของไฟล์แนบจริง', () => {
+    expect(src()).toMatch(/const giphyKind = giphyMessageKind\(attUrl\)/)
+  })
+
+  it('ป้ายของ GIPHY ต้องมาก่อน previewByType ไม่งั้นตกไป "[รูปภาพ]" เหมือนเดิม', () => {
+    expect(src()).toMatch(/giphyLabel \?\? previewByType\[type\]/)
+  })
+})
+
+/**
+ * [blocker] `stickerId` ต้องรับ id ของ GIPHY ได้
+ *
+ * เดิม regex เป็น `^[0-9]+$` (สมัยที่มีแต่สติกเกอร์ Meta ซึ่ง id เป็นตัวเลขล้วน) ⇒ id ของ GIPHY
+ * โดนตีตกตั้งแต่ด่าน Valibot **ก่อนถึง service** → 400 Bad Request → ผู้ขายเห็นแค่ "ส่งไม่สำเร็จ"
+ * (prod 2026-08-27: `Invalid format: Expected /^[0-9]+$/ but received "06PsUSUsKBrhuhIYj0"`)
+ */
+describe('[blocker] SendChatMessageSchema.stickerId', () => {
+  const parse = (id: string) =>
+    v.safeParse(SendChatMessageSchema, { type: 'STICKER', stickerId: id, stickerImageUrl: 'https://media0.giphy.com/x.gif' })
+
+  it('รับ id ของ GIPHY (ตัวอักษรผสม) — ค่าจริงที่ผู้ใช้เจอ', () => {
+    expect(parse('06PsUSUsKBrhuhIYj0').success).toBe(true)
+    expect(parse('YrMpuzXd1aro5pAHiV').success).toBe(true)
+  })
+
+  it('ยังรับ id ของ Meta (ตัวเลขล้วน) เหมือนเดิม — ห้ามแก้ทางใหม่แล้วพังทางเก่า', () => {
+    expect(parse('369239263222822').success).toBe(true)
+  })
+
+  it('ยังกันอักขระที่พาไปเป็น path/URL ได้ (ค่านี้ถูกส่งต่อเข้า Graph + เก็บลง rawMessage)', () => {
+    for (const bad of ['../etc/passwd', 'a/b', 'http://x', 'a.b', 'a:b', 'a b', '']) {
+      expect(parse(bad).success, bad).toBe(false)
+    }
+  })
+})
+
+/**
+ * [blocker] สติกเกอร์ + GIF ต้องไม่มีปุ่ม "บันทึกรูป" (user สั่ง 2026-08-27)
+ *
+ * 🛑 แยกจาก `isSticker` โดยตั้งใจ — `isSticker` คุม **ความกว้าง** (สติกเกอร์แคบกว่ารูป)
+ * ส่วนตัวนี้คุม **ปุ่มบันทึก** · GIF ต้องกว้างเท่ารูปปกติ (มีพื้นหลัง ย่อแล้วดูไม่ออก)
+ * แต่ไม่ควรมีปุ่มบันทึก — รวมเป็นธงเดียวเมื่อไหร่ต้องยอมเสียอย่างหนึ่งเสมอ
+ */
+describe('[blocker] hidesDownloadAffordance', () => {
+  it('สติกเกอร์ (ธงจาก server) → ซ่อนปุ่ม', () => {
+    expect(hidesDownloadAffordance('2026/08/27/abc.png', true)).toBe(true)
+  })
+
+  it('GIF → ซ่อนปุ่ม แม้ไม่ได้ถูกทำเครื่องหมายว่าเป็นสติกเกอร์', () => {
+    expect(hidesDownloadAffordance('2026/08/27/abc.gif', false)).toBe(true)
+    expect(hidesDownloadAffordance('2026/08/27/abc.GIF', false)).toBe(true)
+    expect(hidesDownloadAffordance('2026/08/27/abc.gif?v=2', false)).toBe(true)
+  })
+
+  it('[blocker] รูปถ่ายจริงต้องยังบันทึกได้ — ผู้ขายเก็บสลิป/รูปสินค้าจากแชทจริง', () => {
+    for (const k of ['2026/08/27/slip.jpg', '2026/08/27/a.jpeg', '2026/08/27/a.png', '2026/08/27/a.webp']) {
+      expect(hidesDownloadAffordance(k, false), k).toBe(false)
+    }
+  })
+
+  it('ชื่อไฟล์ที่มีคำว่า gif อยู่กลางทาง ต้องไม่ถูกนับ (เทียบนามสกุลเท่านั้น)', () => {
+    expect(hidesDownloadAffordance('2026/08/27/gift-box.jpg', false)).toBe(false)
+    expect(hidesDownloadAffordance('2026/08/27/giphy-screenshot.png', false)).toBe(false)
+  })
+
+  it('ปุ่มบันทึกต้องยังถูกเรนเดอร์ผ่านธงนี้ใน ChatThread ไม่ใช่เช็ค isSticker ตรง ๆ', () => {
+    const src = readFileSync(
+      join(ROOT, 'src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx'),
+      'utf8',
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '')
+    expect(src).toMatch(/!hidesDownloadAffordance\(storageKey, isSticker\)/)
+    expect(src).not.toMatch(/\{!isSticker && <MediaDownloadLink/)
+  })
+})

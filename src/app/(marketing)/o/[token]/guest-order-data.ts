@@ -14,16 +14,30 @@
 import { toFileUrl } from '@/lib/file-url'
 import { maskPhoneForGuest, maskShippingAddressForGuest, type MaskedShippingAddress } from '@/lib/order-pii-mask'
 import type { ShippingAddressLike } from '@/lib/shipping-address-status'
+import type { PayoutSnapshot } from '@/lib/shop-payout'
 
 export type GuestOrderData = {
   publicToken: string
   status: 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
+  /**
+   * feature 00062 — `deriveShippingStage()` ต้องใช้ตัดสินก่อนทุกกิ่ง ไม่งั้นออเดอร์นัดรับ
+   * จะขึ้นสถานะพัสดุกับผู้ซื้อทั้งที่ไม่มีอะไรถูกส่ง
+   *
+   * 🛑 ไฟล์นี้เป็น **allow-list ของสิ่งที่ผู้ซื้อที่ยังไม่ล็อกอินเห็นได้** — ฟิลด์ใหม่ต้องเพิ่ม
+   * ที่นี่โดยตั้งใจเสมอ ไม่ไหลตามฟิลด์อื่นเอง (ค่านี้ไม่ใช่ PII: เป็นวิธีส่งมอบของออเดอร์ตัวเอง)
+   */
+  fulfillmentMode: string
   createdAtIso: string
   totalAmount: number
   items: Array<{ id: string; name: string; qty: number; price: number; imageUrl: string | null }>
   shop: {
     shopName: string
     vertical: string
+    /**
+     * feature 00062 — ที่อยู่ร้าน ใช้บอกจุดนัดรับเมื่อ `fulfillmentMode === 'PICKUP'`
+     * ไม่ใช่ PII ของผู้ซื้อ และเป็นข้อมูลที่ร้านกรอกเองเพื่อให้ลูกค้าหาร้านเจอ
+     */
+    address: string | null
     user: { displayName: string | null; username: string; trustScore: number; avatar: string | null }
   }
   maxVerifyLevel: number
@@ -65,6 +79,7 @@ export type GuestOrderData = {
   carrierStatus: string | null
   returnStartedAt: string | null
   returnedAt: string | null
+  returnDispatchedAt: string | null
   paymentMethod: string | null
   /** เห็นได้เฉพาะ 3 ตัวท้าย — null = ไม่แสดงแถวนี้เลย (ไม่ใช่ "ไม่ระบุ") */
   maskedPhone: string | null
@@ -84,6 +99,26 @@ export type GuestOrderData = {
    */
   serviceStartIso: string | null
   serviceEndIso: string | null
+  /**
+   * feature 00062 (TFR-010) — สำเนาบัญชีรับเงินของร้าน ณ เวลาสร้าง/แก้ไขออเดอร์ล่าสุด (freeze)
+   *
+   * 🛑 เพิ่มเข้า allow-list อย่างตั้งใจ — ไม่ใช่ PII ของผู้ซื้อ เป็นข้อมูลที่ **ร้านเป็นเจ้าของ**
+   * และร้านต้องการให้ผู้ถือลิงก์เห็นอยู่แล้ว (นั่นคือเหตุผลที่ฟีเจอร์นี้มีอยู่) — คนละแกนกับ
+   * PII ของผู้ซื้อที่ไฟล์นี้กันเข้มงวดอยู่ทั้งไฟล์
+   *
+   * `null` = ร้านยังไม่ได้ตั้งบัญชีตอนสร้าง/แก้ไขออเดอร์ล่าสุด — ฝั่งอ่านต้องมี fallback
+   * (UX-Design-Spec B7 Edge states) ไม่ใช่การ์ดว่าง/พัง
+   */
+  payoutSnapshot: PayoutSnapshot | null
+  /**
+   * feature 00062 (TFR-007/TFR-010) — เวลาที่ร้านกด "ได้รับเงินแล้ว" เอง (self-report)
+   *
+   * ใช้เป็น input ตัวที่ 4 ของ `getPaymentBadge()` (SSOT เดียวกับฝั่งร้าน — HR16) เพื่อให้
+   * badge สถานะการชำระเงินตรงกันทั้งก่อนและหลังล็อกอิน `null` = ร้านยังไม่กดยืนยัน
+   */
+  paymentConfirmedAt: string | null
+  /** feature 00062 — เวลาที่ร้านกด "มอบสินค้าแล้ว" (ISO) · `null` = ยังไม่ได้มอบ */
+  handedOverAt: string | null
 }
 
 /**
@@ -93,10 +128,18 @@ export type GuestOrderData = {
 type OrderLike = {
   publicToken: string
   status: string
+  /** feature 00062 — scalar ของ Order มากับ findUnique อยู่แล้ว ไม่เพิ่ม query */
+  fulfillmentMode: string
   createdAt: Date
   /** งานบริการ: ช่วงเวลานัด (scalar ของ Order — มากับ findUnique อยู่แล้ว ไม่เพิ่ม query) */
   serviceStart: Date | null
   serviceEnd: Date | null
+  /** feature 00062 — scalar ของ Order (JSONB) มากับ findUnique อยู่แล้ว ไม่เพิ่ม query */
+  payoutSnapshot: unknown
+  /** feature 00062 — scalar ของ Order มากับ findUnique อยู่แล้ว ไม่เพิ่ม query */
+  paymentConfirmedAt: Date | null
+  /** feature 00062 — เวลาที่ร้านกด "มอบสินค้าแล้ว" (scalar ของ Order) */
+  handedOverAt: Date | null
   totalAmount: unknown
   buyerContact: string | null
   shippingAddress: unknown
@@ -112,6 +155,8 @@ type OrderLike = {
     shopName: string
     /** ประเภทกิจการ — ตัวผันคำทั้งหน้าฝั่งผู้ซื้อ (ORDER_VOCAB) */
     vertical: string
+    /** feature 00062 — scalar ของ Shop มากับ include อยู่แล้ว ไม่เพิ่ม query */
+    address: string | null
     /** โลโก้ร้าน — มาก่อนรูปส่วนตัวของเจ้าของเสมอ (ดูหมายเหตุที่จุด map) */
     logo: string | null
     user: { displayName: string | null; username: string; trustScore: number; avatar: string | null }
@@ -130,6 +175,7 @@ type OrderLike = {
     /** เวลาของ "ขากลับ" — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" */
     returnStartedAt: Date | null
     returnedAt: Date | null
+    returnDispatchedAt: Date | null
   }>
 }
 
@@ -162,6 +208,7 @@ export function buildGuestOrderData(
   return {
     publicToken: order.publicToken,
     status: order.status as GuestOrderData['status'],
+    fulfillmentMode: order.fulfillmentMode,
     createdAtIso: order.createdAt.toISOString(),
     totalAmount: Number(order.totalAmount),
     items: order.items.map((it) => ({
@@ -183,6 +230,8 @@ export function buildGuestOrderData(
       /* ประเภทกิจการ — ตัวผันคำทั้งหน้า (ORDER_VOCAB) ร้านบริการต้องไม่เห็นคำว่า "สินค้า"
          ค่าที่ไม่รู้จักตกไป ONLINE_SALES ที่ฝั่งอ่าน (fail-safe เดียวกับ seller-menu) */
       vertical: order.shop.vertical,
+      // feature 00062 — จุดนัดรับ (ใช้เฉพาะออเดอร์ PICKUP; ค่าว่างได้ ร้านไม่ถูกบังคับกรอก)
+      address: order.shop.address ?? null,
       user: {
         displayName: order.shop.user.displayName,
         username: order.shop.user.username,
@@ -236,6 +285,7 @@ export function buildGuestOrderData(
     // หรือถึงแล้ว ก่อนจะไปทวงร้านว่าของหาย (feature 00055 นับใบตีกลับเป็นสถิติของเขาอยู่แล้ว)
     returnStartedAt: shipment?.returnStartedAt?.toISOString() ?? null,
     returnedAt: shipment?.returnedAt?.toISOString() ?? null,
+    returnDispatchedAt: shipment?.returnDispatchedAt?.toISOString() ?? null,
     paymentMethod: order.paymentMethod ?? null,
     maskedPhone: maskPhoneForGuest(order.buyerContact),
     maskedShippingAddress: maskShippingAddressForGuest(
@@ -244,5 +294,10 @@ export function buildGuestOrderData(
     // ด่าน vertical มาก่อนเสมอ — เหตุผลเต็มอยู่ที่ประกาศฟิลด์ใน GuestOrderData
     serviceStartIso: isServiceShop && order.serviceStart ? order.serviceStart.toISOString() : null,
     serviceEndIso: isServiceShop && order.serviceEnd ? order.serviceEnd.toISOString() : null,
+    // feature 00062 — freeze ตอน create/update เท่านั้น (ไม่ live-read) ต่างจาก QR ที่คำนวณ
+    // ยอดสดจาก totalAmount เสมอ (DATABASE.md §7.3) — null = ร้านยังไม่ได้ตั้งบัญชี
+    payoutSnapshot: (order.payoutSnapshot as PayoutSnapshot | null | undefined) ?? null,
+    paymentConfirmedAt: order.paymentConfirmedAt ? order.paymentConfirmedAt.toISOString() : null,
+    handedOverAt: order.handedOverAt ? order.handedOverAt.toISOString() : null,
   }
 }

@@ -13,10 +13,13 @@ import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 
 import {
+  classifyCustomerRiskTier,
+  HIGH_RISK_MIN_RETURNED,
   MIN_SHIPPED_FOR_RATE,
   shouldWarnCodReturnRisk,
   summarizeBuyerReputation,
   type BuyerOrderEvidence,
+  type BuyerReputation,
 } from '../buyer-reputation'
 import { cancelReasonIsBuyerFault } from '../cancel-reason-buyer-fault'
 import { cancelReasonCountsAgainstGuest } from '../lodging'
@@ -198,5 +201,68 @@ describe('[blocker] shouldWarnCodReturnRisk (BR-BR-08 · D-3)', () => {
     expect(i).toBeGreaterThan(-1)
     expect(src).not.toMatch(/disabled=\{[^}]*shouldWarnCodReturnRisk/)
     expect(src).not.toMatch(/if \(shouldWarnCodReturnRisk[^)]*\)\s*return/)
+  })
+})
+
+/**
+ * ระดับความเสี่ยงต้องตัดสินด้วย "จำนวน" ไม่ใช่ "อัตรา" (มติ user 2026-08-26)
+ *
+ * 🛑 เคสชี้ขาดคือ **ตีกลับ 2 ใบ จากพัสดุ 2 ใบ** — อัตราเป็น `null` เพราะฐานไม่ถึง 3
+ * เกณฑ์เดิมบังคับ `returnRate !== null` จึงตกเป็น WATCH ทั้งที่ตีกลับ 2 ครั้งแล้ว
+ * และเพราะ **ไม่มีลูกค้าคนไหนบน prod มีพัสดุถึง 3 ใบเลย** (สูงสุดในระบบ = 2 ใบ)
+ * กิ่ง HIGH จึงไม่มีทางถูกเลือก = ไทล์ "ลูกค้าเสี่ยงสูง" เป็น 0 ถาวร
+ *
+ * เทสเดิม (AC-BR-03/04) **แยกกฎเก่ากับกฎใหม่ไม่ออก** — ทั้งสองเคสให้ผลเหมือนกันทั้งสองกฎ
+ * เคสนี้จึงเป็นตัวเดียวที่ทำให้ mutation รู้สึก (`mutation-silence-means-weak-corpus.md`)
+ *
+ * mutation ที่พิสูจน์แล้วว่าแดง (2026-08-26): เอา `&& returnRate !== null` กลับเข้าเงื่อนไข HIGH
+ */
+describe('[blocker] ระดับความเสี่ยงตัดสินด้วยจำนวน ไม่ใช่อัตรา', () => {
+  const returnedOrd = () => ord({ status: 'SHIPPED', activeShipmentCarrierStatus: 'return_success' })
+
+  it('ตีกลับ 2 จากพัสดุ 2 (อัตรายังบอกไม่ได้) → HIGH', () => {
+    const r = summarizeBuyerReputation([returnedOrd(), returnedOrd()])
+    expect(r.shipped).toBe(2)
+    expect(r.shipped).toBeLessThan(MIN_SHIPPED_FOR_RATE)
+    // อัตรายังต้องเป็น null — gate ของ "การแสดงผล" ไม่ได้ถูกผ่อนตาม
+    expect(r.returnRate).toBeNull()
+    expect(r.returned).toBeGreaterThanOrEqual(HIGH_RISK_MIN_RETURNED)
+    expect(r.riskLevel).toBe('HIGH')
+  })
+
+  it('ตีกลับ 1 ใบ → WATCH ไม่ใช่ HIGH (เกณฑ์ไม่ได้ถูกผ่อนจนทุกคนเป็นเสี่ยงสูง)', () => {
+    expect(summarizeBuyerReputation([returnedOrd(), ord()]).riskLevel).toBe('WATCH')
+  })
+
+  it('ไม่เคยตีกลับ → NONE เสมอ (คำเตือน COD ต้องไม่เปลี่ยนพฤติกรรมจากงานนี้)', () => {
+    const r = summarizeBuyerReputation([ord(), ord(), ord()])
+    expect(r.riskLevel).toBe('NONE')
+    expect(shouldWarnCodReturnRisk(r, 500)).toBe(false)
+  })
+})
+
+/**
+ * `classifyCustomerRiskTier` — ระดับที่หน้ารายชื่อลูกค้าใช้จัดกลุ่ม/ลงสี
+ * mutation ที่พิสูจน์แล้วว่าแดง: ให้ `ok` คืนโดยไม่เช็ค `shipped >= MIN_SHIPPED_FOR_RATE`
+ */
+describe('[blocker] classifyCustomerRiskTier', () => {
+  const rep = (o: Partial<BuyerReputation>): BuyerReputation => ({
+    orders: 1, shipped: 0, received: 0, returned: 0, cancelledByBuyer: 0,
+    returnRate: null, riskLevel: 'NONE', ...o,
+  })
+
+  it('ไม่มีประวัติ / ไม่เคยเปิดพัสดุ → new', () => {
+    expect(classifyCustomerRiskTier(null)).toBe('new')
+    expect(classifyCustomerRiskTier(rep({ shipped: 0 }))).toBe('new')
+  })
+
+  it('HIGH/WATCH ส่งต่อตามระดับ', () => {
+    expect(classifyCustomerRiskTier(rep({ shipped: 2, returned: 2, riskLevel: 'HIGH' }))).toBe('high')
+    expect(classifyCustomerRiskTier(rep({ shipped: 2, returned: 1, riskLevel: 'WATCH' }))).toBe('watch')
+  })
+
+  it('🛑 ส่งใบเดียวแล้วถึงมือ = new ไม่ใช่ ok — เขียวสงวนให้สิ่งที่ยืนยันแล้วจริง', () => {
+    expect(classifyCustomerRiskTier(rep({ shipped: 1, received: 1 }))).toBe('new')
+    expect(classifyCustomerRiskTier(rep({ shipped: MIN_SHIPPED_FOR_RATE, received: 3 }))).toBe('ok')
   })
 })

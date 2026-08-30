@@ -1,0 +1,642 @@
+/**
+ * product-sales-month — SSOT ของรายงาน "ยอดขายรายสินค้า" (feature 00063)
+ *
+ * ทุกอย่างในไฟล์นี้เป็น **ฟังก์ชันบริสุทธิ์** ไม่มี prisma ไม่มี React — เพื่อให้เกณฑ์ที่ตัดสิน
+ * ว่าหน้าจอจะพูดอะไร (ป้าย "ขายกระจุก"/"เงียบมาแล้ว N วัน") มีที่ให้เทสจับได้จริง
+ * (docs/conventions/ui-boolean-needs-a-testable-home.md — เกณฑ์ไม่ใช่ "ซับซ้อนพอไหม"
+ * แต่คือ "ถ้าเขียนกลับด้านแล้วจะมีอะไรจับได้ไหม")
+ *
+ * 🛑 นิยาม "ขายแล้ว" ของรายงานนี้ = OrderItem ของ Order ที่ `status != 'CANCELLED'`
+ * ซึ่งเป็นชุดเดียวกับ `getBestSellerProducts()` (product.service.ts) **ไม่ใช่**
+ * `revenueOrderWhere` ที่หน้า /sales และ /expenses ใช้ — เหตุผลอยู่ที่ SALES_BASIS_NOTE
+ * ข้างล่าง และต้องถูกแสดงบนหน้าจอเสมอ ไม่ใช่แค่คอมเมนต์ (HR16)
+ */
+
+/** คีย์ของแถวรวม "รายการที่พิมพ์เอง" — OrderItem ที่ productId เป็น null ทุกใบตกมารวมที่นี่ */
+export const CUSTOM_ITEM_KEY = '__custom__'
+
+/** ชื่อที่แสดงของแถวรวมข้างบน — ห้ามพิมพ์สตริงนี้ซ้ำที่อื่น (HR16) */
+export const CUSTOM_ITEM_LABEL = 'รายการที่พิมพ์เอง'
+
+/**
+ * คำอธิบายของแถวรวม — 🛑 ต้องแสดงให้ **เห็นได้จริง** ทุก surface ไม่ใช่ซ่อนใน `title=`
+ *
+ * ป้าย "รายการที่พิมพ์เอง" บอกน้อยกว่าความจริง เพราะแถวนี้รวมสินค้าที่ถูกลบไปแล้วและของจาก
+ * การประมูลอยู่ด้วย และ `title=` ไม่ใช่ตัวแทน — มือถือไม่มี hover
+ * (docs/conventions/aria-name-requires-supporting-role.md)
+ */
+export const CUSTOM_ITEM_NOTE =
+  'รวมของที่พิมพ์ชื่อเองในแชท ของจากการประมูล และสินค้าที่ลบไปแล้ว — แยกออกจากกันไม่ได้'
+
+/**
+ * 🛑 ประโยคนิยาม "ขายแล้ว" ที่ต้องโผล่ใต้กราฟเสมอ
+ *
+ * ทำไมต้องมี: ระบบนี้มีนิยาม "ยอดขาย" อยู่ 3 ชุดที่ใช้งานจริงพร้อมกันโดยตั้งใจ
+ * (`revenueOrderWhere` ของ P&L · `status != CANCELLED` ของสินค้าขายดี · CONFIRMED-only
+ * ของหน้าร้านสาธารณะ) — ตัวเลขสองหน้าที่ไม่ตรงกันโดยไม่มีคำอธิบาย คือสิ่งที่ทำให้ผู้ขาย
+ * เลิกเชื่อตัวเลขทั้งระบบ ไม่ใช่แค่หน้าเดียว
+ */
+export const SALES_BASIS_NOTE = 'นับทุกออเดอร์ที่ยังไม่ถูกยกเลิก ไม่ต้องรอลูกค้ายืนยัน'
+
+/**
+ * รายละเอียดของนิยามข้างบน — ซ่อนไว้หลังปุ่มขยาย ไม่ใช่กองไว้บนจอ
+ *
+ * 🛑 แก้ 2026-08-29 หลัง `/impeccable clarify`: ฉบับแรกเขียนว่า "เกณฑ์เดียวกับ *สั่งซื้อแล้ว*
+ * ในหน้าสินค้า" ซึ่ง **ผิด** — หน้า `/products` ใช้คำว่า "ขายแล้ว" และนับจาก
+ * `status === 'CONFIRMED'` ล้วน (`products/page.tsx:82`) คนละเกณฑ์กับรายงานนี้คนละเรื่อง
+ * ผู้ขายที่ทำตามคำแนะนำไปเทียบจะเจอเลขไม่ตรง ซึ่งคือหายนะที่ประโยคนี้ถูกเขียนมาเพื่อกัน
+ * ที่ใช้เกณฑ์เดียวกันจริงคือบล็อก "สินค้าขายดี" บนหน้าภาพรวมร้านค้า (`getBestSellerProducts()`
+ * → `PRODUCT_VOCAB.soldLine` = "สั่งซื้อแล้ว N ชิ้น")
+ * และ `/sales` ก็ไม่ได้นับแค่ "ยืนยันแล้ว" — `revenueOrderWhere` รับ SHIPPED ที่ขนส่งรับของแล้วด้วย
+ */
+export const SALES_BASIS_DETAIL =
+  'เกณฑ์เดียวกับ "สินค้าขายดี" ในหน้าภาพรวมร้านค้า ตัวเลขจึงสูงกว่าหน้า "ภาพรวมกำไร/ขาดทุน" ซึ่งนับเฉพาะใบที่ยืนยันแล้วหรือส่งถึงมือลูกค้าแล้ว'
+
+/**
+ * 🛑 คำเตือนของโหมดบาท — ต้องแสดงเมื่อ unit=baht เท่านั้น
+ *
+ * `Order.discount` และ `Order.vatAmount` เก็บที่ **ระดับออเดอร์** ไม่มีรายบรรทัดสินค้า
+ * (`OrderItem` ไม่มีคอลัมน์ทั้งสอง) ⇒ ยอดรายสินค้าบวกกันแล้วจะไม่เท่ากับ `Order.totalAmount`
+ * ทางแก้ที่ "ดูถูกต้องกว่า" คือเฉลี่ยส่วนลด/VAT ลงรายบรรทัด — แต่นั่นคือการสร้างนิยาม
+ * "ยอดขาย" ชุดที่ 4 ขึ้นมาในระบบ และเป็นตัวเลขที่อธิบายที่มาให้ผู้ขายไม่ได้เลย
+ */
+export const MONEY_MODE_CAVEAT =
+  'ยอดในโหมดนี้คิดจากจำนวน × ราคาต่อชิ้น ยังไม่หักส่วนลดและยังไม่รวม VAT ที่คิดระดับทั้งออเดอร์ — ตัวเลขจึงไม่เท่ากับหน้า "ภาพรวมกำไร/ขาดทุน"'
+
+/**
+ * เพดานจำนวนเส้นบนกราฟ = จำนวนโทเคนสีที่ธีมมีให้จริง
+ *
+ * 🛑 ผูกกับ CHART_COLOR_TOKENS ข้างล่างเสมอ — เพิ่มเพดานโดยไม่มีโทเคนรองรับ แปลว่า
+ * ต้อง hardcode hex ซึ่งขัด HR7/HR10 ทันที
+ */
+export const CHART_SERIES_CAP = 6
+
+/**
+ * จำนวนเส้นที่ติ๊กให้ตั้งแต่เปิดหน้า — **น้อยกว่าเพดาน** โดยตั้งใจ
+ *
+ * 🛑 ลดจาก 5 → 3 (2026-08-29 หลัง user เปิดของจริงแล้วบอกว่า "chart ดูยาก")
+ * ต้นเหตุไม่ใช่เฉดสี แต่คือ **ปริมาณข้อมูลต่อพื้นที่**: ค่าอยู่ในช่วง 0–6 (แคบมาก) × 31 วัน
+ * × 5 เส้น ⇒ เส้นกองทับกันในแถบแนวตั้งบาง ๆ และตัดกันตลอดทั้งกราฟ
+ * ลดจำนวนเส้นคือตัวลดจุดตัดที่ได้ผลตรงที่สุดโดยไม่เสียความสามารถ — ผู้ใช้ยังติ๊กเพิ่มได้ถึง 6
+ */
+export const DEFAULT_CHART_SERIES = 3
+
+/**
+ * โทเคนสีของเส้นกราฟ — ส่งเข้า `getColor()` เท่านั้น ห้าม hardcode hex (HR10)
+ *
+ * ธีมมี 7 โทเคนเชิงหมวดหมู่ แต่ตัดใช้ 6 โดยข้าม `chart-gamma` (#f9bf59 เหลืองอำพัน)
+ * เพราะอ่านเป็น "สถานะเตือน" ปนกับ badge warning ในตารางเดียวกัน — `AgentTrendChart.tsx`
+ * ข้ามตัวนี้ด้วยเหตุผลเดียวกันอยู่แล้ว
+ */
+/**
+ * ลำดับสำคัญกว่ารายชื่อ — ตำแหน่งในอาเรย์กำหนดว่าสินค้าอันดับที่เท่าไรได้สีอะไร
+ *
+ * 🛑 **เรียงตามโทนของ Command Center** (user ชี้ภาพหน้าจอกราฟหน้าแรก 2026-08-29:
+ * "chart สี tone Mobile Command Center") — กราฟนั้นคือแท่ง **มิ้นต์ + เหลืองอำพัน**
+ * และเส้น **น้ำเงิน** · ตรวจ hex แล้วสร้างโทนนั้นได้เป๊ะด้วยโทเคนตระกูล `chart-*`:
+ *   `chart-alpha` = `--color-success` = **#02bc9c** (แท่งหลักของ Command Center)
+ *   `chart-gamma` = `--color-warning` = **#f9bf59** (แท่งรอง)
+ *   เส้นยอดรวมใช้ `primary` #236dc9 ตรงกับเส้น "คำสั่งซื้อ" ที่นั่น
+ *
+ * 🛑 **นี่คือการกลับคำของรอบก่อน** — ผมเคยตัด `chart-gamma` ออกโดยให้เหตุผลว่ามันมี hex
+ * เดียวกับ `--color-warning` แล้วจะอ่านปนกับ badge "เงียบมาแล้ว" · ข้อโต้แย้งนั้น**เข้มเกินจริง**
+ * เพราะ Command Center ใช้สองสีนี้เป็นแท่งอยู่แล้วในผลิตภัณฑ์เดียวกัน และ badge เป็นชิปสีจาง
+ * (`bg-warning/15`) ซึ่งหน้าตาต่างจากแท่งทึบชัดเจน — user เห็นของจริงแล้วและเป็นคนเคาะ
+ *
+ * `chart-delta` (#5bc3e1 ฟ้าอ่อน) อยู่ท้ายสุดเพราะใกล้กับ **เส้น** `primary` มากที่สุด
+ * ถ้าอยู่ต้น ๆ แท่งของมันจะกลืนกับเส้นยอดรวมที่พาดอยู่ข้างบน
+ */
+export const CHART_COLOR_TOKENS = [
+  'chart-alpha', // #02bc9c มิ้นต์ — สีแท่งหลักของ Command Center
+  'chart-gamma', // #f9bf59 เหลืองอำพัน — สีแท่งรองของ Command Center
+  'chart-beta', // #f7577e ชมพูแดง
+  'chart-zeta', // #db9052 ส้มอิฐ
+  'chart-secondary', // #7b70ef ม่วง
+  'chart-delta', // #5bc3e1 ฟ้าอ่อน — ท้ายสุด ใกล้เส้น primary ที่สุด
+] as const
+
+/** จำนวนครั้งขั้นต่ำที่ยอมให้ติดป้ายสรุปได้ — ต่ำกว่านี้คือเดา ไม่ใช่สรุป */
+export const MIN_EVENTS_FOR_PATTERN = 3
+
+/** จำนวนวันที่เงียบติดกันก่อนจะเรียกว่า "เงียบมาแล้ว" */
+export const DORMANT_DAY_THRESHOLD = 14
+
+/** จำนวนวันสูงสุดที่ยอดกระจุกได้ก่อนเรียกว่า "ขายกระจุก" */
+export const CONCENTRATED_TOP_DAYS = 3
+
+export type SalesPattern =
+  | { kind: 'NONE' }
+  | { kind: 'CONCENTRATED' }
+  | { kind: 'STEADY' }
+  /** `toMonthEnd` = นับถึง "สิ้นเดือนที่ดู" ไม่ใช่ "วันนี้" — เดือนย้อนหลังต้องเป็น true */
+  | { kind: 'DORMANT'; days: number; toMonthEnd?: boolean }
+
+/**
+ * classifySalesPattern — ป้ายสรุปของสินค้าหนึ่งตัวในเดือนหนึ่ง
+ *
+ * ลำดับการตัดสิน (user เคาะ 2026-08-29 + ขยายผลตามหลักการเดียวกัน):
+ *   1. **DORMANT** — เงียบติดกัน ≥14 วันนับถึงวันอ้างอิง ชนะทุกป้าย
+ *      เหตุผล: ป้ายมีไว้ "ชี้สิ่งที่ควรไปดูต่อ" ของที่เงียบมาสองสัปดาห์คือสิ่งนั้น และมันไม่ใช่
+ *      "ขายสม่ำเสมอ" อยู่แล้วโดยนิยาม ส่วนการเรียกมันว่า "ขายกระจุก" จะกลบข้อเท็จจริง
+ *      ที่ actionable กว่าไว้ข้างหลังคำที่บรรยายรูปร่างเฉย ๆ
+ *   2. **CONCENTRATED** — ยอดเกินครึ่งกระจุกอยู่ใน ≤3 วัน (ชนะ STEADY ตามที่ user เคาะ)
+ *   3. **STEADY** — มียอดเกินครึ่งของจำนวนวันในเดือน
+ *   4. **NONE** — ไม่เข้าเกณฑ์ไหน
+ *
+ * 🛑 ขายได้น้อยกว่า MIN_EVENTS_FOR_PATTERN ครั้ง = ไม่ติดป้ายเลย ไม่ว่ารูปร่างจะเป็นยังไง
+ * ข้อมูล 1-2 ครั้งบอกจังหวะการขายไม่ได้ การติดป้ายคือคำที่ฟังดูมั่นใจโดยไม่มีอะไรรองรับ
+ *
+ * @param dailyQty  ยอดรายวันเรียงตามวันที่ 1..n (index 0 = วันที่ 1) ความยาว = จำนวนวันในเดือน
+ * @param saleEvents จำนวน "ครั้ง" ที่ขายได้ = จำนวนบรรทัดรายการสินค้าในเดือนนั้น
+ * @param referenceDayIndex วันอ้างอิงสำหรับนับความเงียบ (0-based) — เดือนปัจจุบันคือ "วันนี้",
+ *        เดือนที่ผ่านไปแล้วคือวันสุดท้ายของเดือน
+ */
+export function classifySalesPattern(
+  dailyQty: readonly number[],
+  saleEvents: number,
+  referenceDayIndex: number,
+  /**
+   * true = วันอ้างอิงคือสิ้นเดือนที่กำลังดู (เดือนที่ผ่านไปแล้ว) ไม่ใช่ "วันนี้"
+   * มีผลกับ *คำ* เท่านั้น ไม่มีผลกับการตัดสิน — ค่าตั้งต้น false เพื่อไม่ให้ผู้เรียกเดิมเปลี่ยนพฤติกรรม
+   */
+  refIsMonthEnd = false,
+): SalesPattern {
+  if (saleEvents < MIN_EVENTS_FOR_PATTERN) return { kind: 'NONE' }
+
+  const total = dailyQty.reduce((sum, v) => sum + v, 0)
+  if (total <= 0) return { kind: 'NONE' }
+
+  const activeDayIndexes: number[] = []
+  for (let i = 0; i < dailyQty.length; i++) {
+    if (dailyQty[i] > 0) activeDayIndexes.push(i)
+  }
+  if (activeDayIndexes.length === 0) return { kind: 'NONE' }
+
+  const lastActive = activeDayIndexes[activeDayIndexes.length - 1]
+  const silentDays = referenceDayIndex - lastActive
+  if (silentDays >= DORMANT_DAY_THRESHOLD)
+    return { kind: 'DORMANT', days: silentDays, toMonthEnd: refIsMonthEnd }
+
+  const topDaysSum = [...dailyQty]
+    .sort((a, b) => b - a)
+    .slice(0, CONCENTRATED_TOP_DAYS)
+    .reduce((sum, v) => sum + v, 0)
+  // "เกินครึ่ง" = มากกว่า 50% จริง ๆ ไม่ใช่ ≥ (สินค้าที่ขายวันเว้นวันพอดีจะได้ 50% เป๊ะ
+  // ซึ่งไม่ควรอ่านว่า "กระจุก")
+  if (topDaysSum > total / 2) return { kind: 'CONCENTRATED' }
+
+  if (activeDayIndexes.length > dailyQty.length / 2) return { kind: 'STEADY' }
+
+  return { kind: 'NONE' }
+}
+
+/** ข้อความไทยของป้าย — SSOT ของ *คำ* ห้ามพิมพ์ซ้ำที่ component (HR16) */
+export function salesPatternLabel(p: SalesPattern): string | null {
+  switch (p.kind) {
+    case 'CONCENTRATED':
+      return 'ขายกระจุก'
+    case 'STEADY':
+      return 'ขายสม่ำเสมอ'
+    case 'DORMANT':
+      // 🛑 เดือนย้อนหลังต้องไม่พูดว่า "มาแล้ว" — ผู้อ่านจะเข้าใจว่านับถึงวันนี้ ทั้งที่นับถึงสิ้นเดือนนั้น
+      // (สินค้าที่ขายครั้งสุดท้าย 11 มิ.ย. 2568 จะถูกป้ายว่า "เงียบมาแล้ว 19 วัน" ซึ่งอ่านผิดสนิท)
+      return p.toMonthEnd ? `เงียบ ${p.days} วันท้ายเดือน` : `เงียบมาแล้ว ${p.days} วัน`
+    case 'NONE':
+      return null
+  }
+}
+
+/** คำอธิบายยาวของป้าย — ใช้ใน title/tooltip และในชีตมือถือ */
+export function salesPatternDescription(p: SalesPattern): string | null {
+  switch (p.kind) {
+    case 'CONCENTRATED':
+      return `ยอดเกินครึ่งของเดือนกระจุกอยู่ใน ${CONCENTRATED_TOP_DAYS} วัน`
+    case 'STEADY':
+      return 'มียอดขายเกินครึ่งของจำนวนวันในเดือน'
+    case 'DORMANT':
+      return p.toMonthEnd
+        ? `ไม่มียอดขายใน ${p.days} วันสุดท้ายของเดือนที่ดูอยู่`
+        : `ไม่มียอดขายมาแล้ว ${p.days} วันนับถึงวันนี้`
+    case 'NONE':
+      return null
+  }
+}
+
+/* ────────────────────────── เดือนและช่วงเวลา ────────────────────────── */
+
+export type MonthSelection = {
+  /** ค.ศ. */
+  year: number
+  /** 0-based เหมือน Date.getMonth() */
+  month0: number
+  /** `YYYY-MM` สำหรับใส่กลับใน URL */
+  iso: string
+  /** true = ค่าที่ส่งมาใช้ไม่ได้/เกินขอบ แล้วถูกดึงกลับ */
+  clamped: boolean
+}
+
+/** เดือนแรกสุดที่ยอมให้เลือก — ก่อนหน้านี้ไม่มีข้อมูลในระบบแน่นอน */
+export const MIN_MONTH_ISO = '2024-01'
+
+/**
+ * เพดานบน = เดือนถัดจากเดือนปัจจุบัน 1 เดือน
+ * เพราะผู้ขายคีย์วันที่ล่วงหน้าได้ 7 วัน (order-date-window) ⇒ ปลายเดือนจะมีออเดอร์
+ * ที่ตกไปอยู่เดือนถัดไปได้จริง การล็อกไว้แค่เดือนปัจจุบันจะทำให้ข้อมูลนั้นดูไม่ได้เลย
+ */
+export function maxSelectableMonth(now: Date): { year: number; month0: number } {
+  const t = new Date(now.getTime() + TZ_OFFSET_MS_LOCAL)
+  const y = t.getUTCFullYear()
+  const m = t.getUTCMonth()
+  return m === 11 ? { year: y + 1, month0: 0 } : { year: y, month0: m + 1 }
+}
+
+/** สำเนาเฉพาะกิจของ offset เวลาไทย — ไฟล์นี้ต้องไม่ import อะไรเลยเพื่อให้เทสเบา */
+const TZ_OFFSET_MS_LOCAL = 7 * 60 * 60 * 1000
+
+function monthIso(year: number, month0: number): string {
+  return `${year}-${String(month0 + 1).padStart(2, '0')}`
+}
+
+/**
+ * parseMonthParam — แปลง `?month=YYYY-MM` เป็นเดือนที่ใช้ได้จริง
+ *
+ * ค่าที่ผิดรูป/เกินขอบ **ไม่ throw และไม่ 404** — ดึงกลับมาที่เดือนปัจจุบันแล้วติดธง `clamped`
+ * ให้หน้าจอบอกผู้ใช้ได้ (ลิงก์เก่าที่ถูกแชร์ต่อกันไม่ควรพาไปหน้าพัง)
+ */
+export function parseMonthParam(raw: string | undefined | null, now: Date): MonthSelection {
+  const nowThai = new Date(now.getTime() + TZ_OFFSET_MS_LOCAL)
+  const current = { year: nowThai.getUTCFullYear(), month0: nowThai.getUTCMonth() }
+
+  if (!raw) {
+    return { ...current, iso: monthIso(current.year, current.month0), clamped: false }
+  }
+
+  const m = /^(\d{4})-(\d{2})$/.exec(raw.trim())
+  if (!m) {
+    return { ...current, iso: monthIso(current.year, current.month0), clamped: true }
+  }
+
+  const year = Number(m[1])
+  const month0 = Number(m[2]) - 1
+  if (!Number.isInteger(year) || month0 < 0 || month0 > 11) {
+    return { ...current, iso: monthIso(current.year, current.month0), clamped: true }
+  }
+
+  const max = maxSelectableMonth(now)
+  const [minY, minM] = MIN_MONTH_ISO.split('-').map(Number)
+  const asNum = year * 12 + month0
+  if (asNum < minY * 12 + (minM - 1) || asNum > max.year * 12 + max.month0) {
+    return { ...current, iso: monthIso(current.year, current.month0), clamped: true }
+  }
+
+  return { year, month0, iso: monthIso(year, month0), clamped: false }
+}
+
+/** จำนวนวันของเดือนนั้น (นับตามปฏิทิน ไม่ใช่ 31 ตายตัว) */
+export function daysInMonth(year: number, month0: number): number {
+  return new Date(Date.UTC(year, month0 + 1, 0)).getUTCDate()
+}
+
+/** เดือนก่อนหน้า/ถัดไปในรูป `YYYY-MM` — ใช้ทำ href ของปุ่ม ‹ › */
+export function shiftMonthIso(iso: string, delta: number): string {
+  const [y, m] = iso.split('-').map(Number)
+  const total = y * 12 + (m - 1) + delta
+  return monthIso(Math.floor(total / 12), ((total % 12) + 12) % 12)
+}
+
+/** เดือนนี้เป็นเดือนปัจจุบัน (เวลาไทย) หรือไม่ — ใช้ตัดสินว่าต้องเทาวันอนาคตไหม */
+export function isCurrentThaiMonth(year: number, month0: number, now: Date): boolean {
+  const t = new Date(now.getTime() + TZ_OFFSET_MS_LOCAL)
+  return t.getUTCFullYear() === year && t.getUTCMonth() === month0
+}
+
+/**
+ * futureFromDayIndex — วันแรก (0-based) ที่ "ยังไม่ถึง" ของเดือนที่กำลังดู
+ *
+ * 🛑 คืน `null` เมื่อเดือนนั้นจบไปแล้ว — ไม่ใช่คืนความยาวเดือน เพราะสองอย่างนี้ต้องทำให้
+ * หน้าจอทำคนละเรื่อง (เดือนที่จบแล้วไม่ควรมีแถบเทาอะไรเลย)
+ *
+ * เดือนอนาคตทั้งเดือน → 0 (เทาทั้งแถบ)
+ */
+export function futureFromDayIndex(year: number, month0: number, now: Date): number | null {
+  const t = new Date(now.getTime() + TZ_OFFSET_MS_LOCAL)
+  const nowNum = t.getUTCFullYear() * 12 + t.getUTCMonth()
+  const selNum = year * 12 + month0
+  if (selNum < nowNum) return null
+  if (selNum > nowNum) return 0
+  // เดือนปัจจุบัน: วันนี้ยังนับว่า "ถึงแล้ว" (ข้อมูลของวันนี้กำลังทยอยเข้า)
+  return t.getUTCDate()
+}
+
+/**
+ * referenceDayIndex — วันอ้างอิงสำหรับนับ "เงียบมาแล้วกี่วัน"
+ *
+ * เดือนปัจจุบัน = วันนี้ · เดือนที่ผ่านไปแล้ว = วันสุดท้ายของเดือน · เดือนอนาคต = วันแรก
+ * (ถ้าใช้วันสุดท้ายของเดือนกับเดือนปัจจุบันเสมอ สินค้าที่ขายเมื่อวานจะถูกป้ายว่าเงียบ 20 วัน)
+ */
+export function referenceDayIndex(year: number, month0: number, now: Date): number {
+  const future = futureFromDayIndex(year, month0, now)
+  if (future === null) return daysInMonth(year, month0) - 1
+  return Math.max(0, future - 1)
+}
+
+/* ────────────────────────── ตัวเลขประกอบของแต่ละแถว ────────────────────────── */
+
+/**
+ * เพดานวันที่ยอมบอกว่า "พอขายอีกกี่วัน" — เกินนี้ตัวเลขไม่มีความหมายในการวางแผนแล้ว
+ * (ของที่พอขายอีก 400 วันกับ 4,000 วัน ตัดสินใจเหมือนกันทุกประการ)
+ */
+export const RUNOUT_MAX_DAYS = 90
+
+/** ต่ำกว่านี้ = ควรเตือน (ประมาณสองสัปดาห์ ซึ่งเป็นรอบสั่งของทั่วไป) */
+export const RUNOUT_WARN_DAYS = 14
+
+export type RunoutEstimate =
+  /** ร้านไม่ได้เปิดนับสต็อกของสินค้านี้ (`stockQty` เป็น null) */
+  | { kind: 'UNTRACKED' }
+  /** นับสต็อกอยู่ แต่เดือนนี้ขายไม่ได้เลย จึงคำนวณอัตราไม่ได้ */
+  | { kind: 'NO_RATE'; stock: number }
+  /** ประมาณได้ */
+  | { kind: 'OK'; stock: number; days: number; low: boolean }
+  /** พอขายไปอีกนานเกินกว่าจะมีความหมาย */
+  | { kind: 'PLENTY'; stock: number }
+
+/**
+ * estimateRunoutDays — "ของที่เหลือพอขายอีกกี่วัน" จากอัตราขายจริงของเดือนที่กำลังดู
+ *
+ * 🛑 หารด้วย **จำนวนวันที่ผ่านไปแล้ว** ไม่ใช่จำนวนวันทั้งเดือน — ถ้าใช้ทั้งเดือน อัตราขายของ
+ * เดือนปัจจุบันจะต่ำกว่าความจริงเสมอ (ขายมา 10 วันแต่หารด้วย 31) แล้วตัวเลข "พอขายอีก"
+ * จะยาวเกินจริงราวสามเท่าในต้นเดือน ซึ่งเป็นช่วงที่ผู้ขายต้องตัดสินใจสั่งของพอดี
+ *
+ * 🛑 นี่คือ **การประมาณ ไม่ใช่คำทำนาย** — สมมติว่าอัตราขายคงที่ ซึ่งไม่จริงกับสินค้าที่
+ * `classifySalesPattern` บอกว่า "ขายกระจุก" · หน้าจอต้องใช้คำว่า "พอขายอีก ~N วัน"
+ * (มีตัวหนอน) ไม่ใช่ "จะหมดในวันที่ X"
+ */
+export function estimateRunoutDays(
+  stockQty: number | null,
+  soldQty: number,
+  elapsedDays: number,
+): RunoutEstimate {
+  if (stockQty === null) return { kind: 'UNTRACKED' }
+  if (soldQty <= 0 || elapsedDays <= 0) return { kind: 'NO_RATE', stock: stockQty }
+  const perDay = soldQty / elapsedDays
+  const days = Math.floor(stockQty / perDay)
+  if (days > RUNOUT_MAX_DAYS) return { kind: 'PLENTY', stock: stockQty }
+  return { kind: 'OK', stock: stockQty, days, low: days <= RUNOUT_WARN_DAYS }
+}
+
+/**
+ * shareOfTotalPct — สัดส่วนของสินค้านี้ต่อยอดรวมทั้งร้านในเดือนนั้น (ปัดเป็นจำนวนเต็ม)
+ *
+ * 🛑 คืน `null` เมื่อยอดรวมเป็น 0 — ไม่ใช่ 0% ("0% ของ 0" ไม่มีความหมาย และการแสดง 0%
+ * จะทำให้ผู้อ่านคิดว่าสินค้านี้ขายไม่ได้ ทั้งที่ความจริงคือทั้งร้านไม่มียอดเลย)
+ * 🛑 ปัดขึ้นเป็นอย่างน้อย 1% เมื่อมียอดจริง — สินค้าที่ขายได้ 1 จาก 500 ชิ้นต้องไม่แสดง "0%"
+ * ซึ่งอ่านว่า "ไม่ได้ขาย"
+ */
+export function shareOfTotalPct(value: number, total: number): number | null {
+  if (total <= 0) return null
+  if (value <= 0) return 0
+  return Math.max(1, Math.round((value / total) * 100))
+}
+
+/** วันที่ขายได้มากที่สุด — คืน index 0-based และจำนวน · null เมื่อไม่มียอดเลย */
+export function bestDay(values: readonly number[]): { index: number; value: number } | null {
+  let bi = -1
+  let bv = 0
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] > bv) {
+      bv = values[i]
+      bi = i
+    }
+  }
+  return bi < 0 ? null : { index: bi, value: bv }
+}
+
+/* ────────────────────────── การเข้ารหัสแบบย่อ ────────────────────────── */
+
+/**
+ * อนุกรมรายวันแบบย่อ: `[dayIndex0based, value][]` เก็บเฉพาะวันที่มียอดจริง
+ *
+ * ทำไมต้องส่งอนุกรมของสินค้า **ทุกตัว** ลง client: เพื่อให้ติ๊กสลับเส้นบนกราฟและสวิตช์
+ * "แสดงสินค้าที่ไม่มียอดขาย" ทำงานได้ทันทีโดยไม่ยิง API (มติข้อ 5 — ไม่มี endpoint ใหม่)
+ *
+ * 🛑 **ตัวเลขที่วัดจริง 2026-08-29 ไม่ใช่ที่ประมาณไว้ตอนออกแบบ** — ตอนเสนอผมบอกว่า
+ * "เล็กลงหลายเท่า" ซึ่งผิด ของจริงคือ:
+ *   สินค้า 300 ตัว ขายได้จริง 25 ตัว × 6 วัน → ย่อ 122 KB · เต็ม 156 KB (ประหยัด 22%)
+ *   สินค้า 300 ตัว ขายได้ทุกตัว × 20 วัน   → ย่อ 223 KB · เต็ม 181 KB (**แย่กว่า 23%**)
+ * จุดคุ้มทุนอยู่ที่ ~9 วันขายต่อสินค้าต่อเดือน เพราะคู่ `[12,7],` กินที่มากกว่า `0,` หลายเท่า
+ *
+ * เก็บวิธีย่อไว้เพราะข้อมูลจริงมีรูปร่างหางยาว (สินค้าส่วนใหญ่ในร้านไม่มียอดในเดือนใด
+ * เดือนหนึ่ง → `[]` แทน array ศูนย์ 31 ตัว) **แต่มันไม่ใช่สิ่งที่ทำให้หน้านี้ไหว** —
+ * ตัวเลขรวมอยู่ที่ 120–160 KB ทั้งสองแบบ ซึ่งต่ำกว่าหน้า `/sales` ที่ส่ง 500–800 KB
+ * ทุกวันนี้อยู่แล้ว ⇒ ถ้าวันไหนวิธีย่อทำให้โค้ดยุ่งขึ้น เปลี่ยนกลับเป็น array เต็มได้เลย
+ * โดยไม่ต้องกลัวเรื่องขนาด
+ */
+export type SparseSeries = [number, number][]
+
+export function toSparse(dense: readonly number[]): SparseSeries {
+  const out: SparseSeries = []
+  for (let i = 0; i < dense.length; i++) {
+    if (dense[i] !== 0) out.push([i, dense[i]])
+  }
+  return out
+}
+
+export function toDense(sparse: SparseSeries, length: number): number[] {
+  const out = new Array<number>(length).fill(0)
+  for (const [i, v] of sparse) {
+    if (i >= 0 && i < length) out[i] = v
+  }
+  return out
+}
+
+/* ────────────────────────── ความเข้มของแถบรายวัน ────────────────────────── */
+
+/**
+ * dayIntensity — ระดับความเข้มของช่องในแถบ 31 ช่อง (0 = ไม่มียอด, 1..4 = อ่อน→เข้ม)
+ *
+ * แบ่งตามสัดส่วนของ "วันที่ขายดีที่สุดของสินค้าตัวนั้นเอง" ไม่ใช่เทียบข้ามสินค้า —
+ * แถบนี้ตอบคำถาม "ตัวนี้ขายวันไหน" ซึ่งเป็นคำถามภายในสินค้าหนึ่งตัว การ normalize ข้ามสินค้า
+ * จะทำให้สินค้าที่ขายน้อยกลายเป็นแถบเทาทั้งแถบ แล้วมองไม่ออกเลยว่าขายวันไหน
+ */
+export function dayIntensity(value: number, maxValue: number): 0 | 1 | 2 | 3 | 4 {
+  if (value <= 0 || maxValue <= 0) return 0
+  const ratio = value / maxValue
+  if (ratio > 0.75) return 4
+  if (ratio > 0.5) return 3
+  if (ratio > 0.25) return 2
+  return 1
+}
+
+/* ────────────────────────── ต้นเดือน / กลางเดือน / ปลายเดือน ────────────────────────── */
+
+/**
+ * แบ่งเดือนเป็น 3 ช่วงแบบที่คนไทยพูดกันจริง: **1–10 · 11–20 · 21–สิ้นเดือน**
+ *
+ * 🛑 จงใจ **ไม่แบ่งเป็นสามส่วนเท่ากันทางคณิตศาสตร์** (31÷3 = 10.33) เพราะตัวเลขนี้มีไว้
+ * ให้ผู้ขายอ่านแล้วเอาไปเทียบกับสิ่งที่เขารู้อยู่แล้ว — "ต้นเดือน" ในหัวคนไทยคือช่วง
+ * เงินเดือนออก ซึ่งคือวันที่ 1–10 ไม่ใช่ 1–10.33 · การแบ่งให้ตรงกับภาษาสำคัญกว่าการแบ่ง
+ * ให้เท่ากัน เพราะช่วงที่ยาวไม่เท่ากันมีป้ายจำนวนวันกำกับอยู่แล้ว
+ *
+ * ผลข้างเคียงที่ยอมรับ: ช่วงท้ายยาว 8–11 วันแล้วแต่เดือน ⇒ **ห้ามเทียบผลรวมข้ามช่วงตรง ๆ
+ * โดยไม่ดูจำนวนวัน** ซึ่งเป็นเหตุผลที่ทุกช่วงคืน `totalDays`/`elapsedDays` มาด้วย
+ */
+export const MONTH_THIRD_KEYS = ['EARLY', 'MID', 'LATE'] as const
+export type MonthThirdKey = (typeof MONTH_THIRD_KEYS)[number]
+
+/** คำเรียกช่วง — SSOT เดียวทั้งระบบ (HR16) ห้ามพิมพ์คำพวกนี้ซ้ำที่อื่น */
+export const MONTH_THIRD_LABELS: Record<MonthThirdKey, { full: string; short: string }> = {
+  EARLY: { full: 'ต้นเดือน', short: 'ต้น' },
+  MID: { full: 'กลางเดือน', short: 'กลาง' },
+  LATE: { full: 'ปลายเดือน', short: 'ปลาย' },
+}
+
+export type MonthThird = {
+  key: MonthThirdKey
+  /** ยอดรวมของช่วงนี้ (หน่วยเดียวกับที่ป้อนเข้ามา) */
+  sum: number
+  /** วันที่เริ่ม–จบของช่วง (1-based, inclusive) */
+  fromDay: number
+  toDay: number
+  /** จำนวนวันในช่วงที่ **ผ่านไปแล้วจริง** — เดือนที่จบแล้วจะเท่ากับ `totalDays` เสมอ */
+  elapsedDays: number
+  totalDays: number
+  /**
+   * 🛑 `false` = ช่วงนี้ยังไม่จบ (หรือยังไม่เริ่มเลย) ⇒ **ห้ามอ่าน `sum` ว่า "ขายได้เท่านี้"**
+   * `partial-data-must-be-labeled-or-filled.md`: วันที่ 30 ส.ค. ช่วง "ปลายเดือน" มีข้อมูลจริง
+   * แค่ 10 จาก 11 วัน ถ้าวาดแท่งเทียบกับช่วงอื่นตรง ๆ ผู้ขายจะอ่านว่า "ปลายเดือนขายตก"
+   * ทั้งที่มันยังไม่เกิด — UI ต้องบอกด้วยว่ายังไม่ครบ (`sum` เป็น 0 กับ "ยังไม่ถึง" คนละเรื่อง)
+   */
+  complete: boolean
+  /** ยังไม่ถึงช่วงนี้เลยสักวัน — ต่างจาก "ผ่านแล้วแต่ขายไม่ได้" ซึ่ง `sum` เป็น 0 เหมือนกัน */
+  notStarted: boolean
+}
+
+/**
+ * monthThirds — ยุบอนุกรมรายวันเป็น 3 ช่วง
+ *
+ * @param dailyValues ยอดรายวัน index 0 = วันที่ 1 (ความยาวควรเท่ากับจำนวนวันในเดือน)
+ * @param days        จำนวนวันในเดือนนั้น (28–31)
+ * @param elapsedDays จำนวนวันที่ผ่านไปแล้วในเดือนนั้น — เดือนที่จบแล้วส่ง `days`
+ */
+export function monthThirds(
+  dailyValues: readonly number[],
+  days: number,
+  elapsedDays: number,
+): MonthThird[] {
+  // ขอบเขตแบบ 1-based inclusive — ช่วงท้ายรับส่วนที่เหลือทั้งหมดของเดือน
+  const bounds: [MonthThirdKey, number, number][] = [
+    ['EARLY', 1, Math.min(10, days)],
+    ['MID', 11, Math.min(20, days)],
+    ['LATE', 21, days],
+  ]
+  const passed = Math.max(0, Math.min(days, elapsedDays))
+
+  return bounds
+    .filter(([, from]) => from <= days)
+    .map(([key, from, to]) => {
+      let sum = 0
+      for (let d = from; d <= to; d++) sum += dailyValues[d - 1] ?? 0
+      const totalDays = to - from + 1
+      // จำนวนวันของช่วงนี้ที่ผ่านไปแล้ว = ส่วนที่ทับกันระหว่าง [from,to] กับ [1,passed]
+      const elapsed = Math.max(0, Math.min(to, passed) - from + 1)
+      return {
+        key,
+        sum,
+        fromDay: from,
+        toDay: to,
+        elapsedDays: elapsed,
+        totalDays,
+        complete: elapsed >= totalDays,
+        notStarted: elapsed <= 0,
+      }
+    })
+}
+
+/**
+ * คำอธิบายช่วงสำหรับ screen reader — ประกอบไว้ที่เดียวเพราะ **จุดที่พลาดง่ายที่สุดคือ
+ * การลืมบอกว่าช่วงยังไม่จบ** แล้ว label จะกลายเป็นคำโกหกที่ตรวจไม่เจอด้วยตา
+ * (หนี้เดิมของ `DayStrip` คือ label บอกจำนวนแต่ไม่บอกว่าวันไหน — อันนี้ต้องไม่รับมา)
+ */
+export function monthThirdsAriaLabel(thirds: readonly MonthThird[], unitWord: string): string {
+  const parts = thirds.map((t) => {
+    const l = MONTH_THIRD_LABELS[t.key].full
+    if (t.notStarted) return `${l} (วันที่ ${t.fromDay} ถึง ${t.toDay}) ยังไม่ถึง`
+    const tail = t.complete ? '' : ` (ผ่านไป ${t.elapsedDays} จาก ${t.totalDays} วัน)`
+    return `${l} วันที่ ${t.fromDay} ถึง ${t.toDay} ${t.sum} ${unitWord}${tail}`
+  })
+  return `แบ่งตามช่วงของเดือน: ${parts.join(' · ')}`
+}
+
+/* ────────────────────────── การเรียงลำดับในรายการมือถือ ────────────────────────── */
+
+/**
+ * 🛑 มือถือ **เรียงลำดับไม่ได้เลยมาตั้งแต่วันแรก** — เดสก์ท็อปกดหัวคอลัมน์เรียงได้ 4 แบบ
+ * แต่มือถือถูกล็อกที่ "ยอดมากไปน้อย" อย่างเดียว ⇒ คำถาม "ตัวไหนเงียบที่สุด" ตอบไม่ได้
+ * บนอุปกรณ์ที่หน้านี้ออกแบบมาเพื่อมันโดยเฉพาะ (พบตอนทำม็อกอัพ 2026-08-30)
+ */
+export const PRODUCT_SORT_KEYS = ['TOP', 'BOTTOM', 'RECENT', 'DORMANT', 'NAME'] as const
+export type ProductSortKey = (typeof PRODUCT_SORT_KEYS)[number]
+
+/** คำบนปุ่ม/ในเมนู — SSOT เดียว (HR16) */
+export const PRODUCT_SORT_LABELS: Record<ProductSortKey, string> = {
+  TOP: 'ขายดีสุด',
+  BOTTOM: 'ขายน้อยสุด',
+  RECENT: 'ขายล่าสุด',
+  DORMANT: 'เงียบนานสุด',
+  NAME: 'ชื่อ ก–ฮ',
+}
+
+/** วันที่ขายได้ครั้งสุดท้าย (index 0-based) · null = เดือนนี้ไม่เคยขายได้เลย */
+export function lastSoldIndex(values: readonly number[]): number | null {
+  for (let i = values.length - 1; i >= 0; i--) if (values[i] > 0) return i
+  return null
+}
+
+export type SortableProductRow = {
+  name: string
+  total: number
+  /** null = ไม่เคยขายได้เลยในเดือนนี้ */
+  lastSold: number | null
+}
+
+/**
+ * sortProductRows — คืน **อาร์เรย์ใหม่** ไม่แก้ของเดิม
+ *
+ * 🛑 `lastSold === null` (ไม่เคยขายเลย) ต้องไปคนละทางของสองการเรียงที่ดูเหมือนกลับด้านกัน:
+ * `RECENT` ("ขายล่าสุดก่อน") ดันไว้**ท้ายสุด** เพราะมันไม่มีวันที่ให้เรียง · `DORMANT`
+ * ("เงียบนานสุดก่อน") ดันไว้**บนสุด** เพราะไม่เคยขายเลย = เงียบที่สุดเท่าที่เป็นไปได้
+ * ถ้าเขียนเป็น `-x` ของกันและกัน `null` จะไปโผล่ผิดฝั่งข้างหนึ่งเสมอโดยไม่มีอะไรฟ้อง
+ *
+ * ตัวตัดสินเสมอเป็น **ชื่อ** ทุกกรณี — ไม่งั้นลำดับของแถวที่ค่าเท่ากันจะสลับไปมาระหว่าง
+ * การ re-render ตามลำดับที่ข้อมูลมาจากฐาน (ผู้ใช้เห็นเป็นรายการกระโดดเองโดยไม่มีสาเหตุ)
+ */
+export function sortProductRows<T extends SortableProductRow>(
+  rows: readonly T[],
+  key: ProductSortKey,
+): T[] {
+  const byName = (a: T, b: T) => a.name.localeCompare(b.name, 'th')
+  const out = [...rows]
+  switch (key) {
+    case 'TOP':
+      return out.sort((a, b) => b.total - a.total || byName(a, b))
+    case 'BOTTOM':
+      return out.sort((a, b) => a.total - b.total || byName(a, b))
+    case 'RECENT':
+      return out.sort((a, b) => {
+        if (a.lastSold === null && b.lastSold === null) return byName(a, b)
+        if (a.lastSold === null) return 1
+        if (b.lastSold === null) return -1
+        return b.lastSold - a.lastSold || byName(a, b)
+      })
+    case 'DORMANT':
+      return out.sort((a, b) => {
+        if (a.lastSold === null && b.lastSold === null) return byName(a, b)
+        if (a.lastSold === null) return -1
+        if (b.lastSold === null) return 1
+        return a.lastSold - b.lastSold || byName(a, b)
+      })
+    case 'NAME':
+      return out.sort(byName)
+  }
+}

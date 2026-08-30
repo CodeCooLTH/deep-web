@@ -1,0 +1,194 @@
+'use client'
+
+/**
+ * ReportFilters — แถบตัวกรองของรายงานผลงานแอดมิน (feature 00059)
+ *
+ * Base (toolbar/dropdown): src/components/safepay/FilterDropdown.tsx
+ *   ซึ่ง copy markup มาจาก theme/paces/Admin/TS/src/app/(admin)/ui/dropdowns/page.tsx
+ * Base (ช่องวันที่ + ปุ่ม preset): src/app/(paces)/seller/(dashboard)/sales/components/SalesDateRange.tsx
+ *   (แพตเทิร์นเดิมของโปรเจกต์: input type="date" คู่กับ ?from=&to= ใน URL ไม่ใช่ Flatpickr)
+ *
+ * 🛑 ตัวกรองอยู่ใน URL ไม่ใช่ใน React state — ผู้จัดการต้องส่งลิงก์ของ "ช่วงที่กำลังดูอยู่"
+ * ให้กันได้ และปุ่มย้อนกลับของเบราว์เซอร์ต้องพากลับไปที่ช่วงเดิม
+ */
+import { useCallback, useTransition } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+
+import FilterDropdown from '@/components/safepay/FilterDropdown'
+import Icon from '@/components/wrappers/Icon'
+import { CHAT_CHANNELS, getChannelLabel } from '@/lib/chat-channel'
+import { REPORT_SOURCES } from '@/lib/agent-report-query'
+import { shiftIsoDate, todayThaiIsoDate } from '@/lib/date-range'
+import { SOURCE_LABEL } from './data'
+
+type Props = {
+  from: string
+  to: string
+  channel: string | null
+  source: string | null
+  shopChannelId: string | null
+  channels: { id: string; name: string; provider: string }[]
+  /** ผู้ใช้ขอช่วงยาวเกินเพดานแล้วถูกหั่น — ต้องบอก ห้ามหั่นเงียบ ๆ */
+  clamped: boolean
+  maxRangeDays: number
+}
+
+const ALL = 'ALL'
+
+export default function ReportFilters(props: Props) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const params = useSearchParams()
+  const [pending, startTransition] = useTransition()
+
+  /** เขียนค่าลง URL แล้วให้ RSC โหลดใหม่ — คงค่าที่เหลือไว้เสมอ (ตัวกรองคนละแกนกัน) */
+  const push = useCallback(
+    (patch: Record<string, string | null>) => {
+      const next = new URLSearchParams(params.toString())
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === null || v === '' || v === ALL) next.delete(k)
+        else next.set(k, v)
+      }
+      startTransition(() => router.push(`${pathname}?${next.toString()}`))
+    },
+    [params, pathname, router],
+  )
+
+  /**
+   * ปุ่มลัด: N วันล่าสุด (รวมวันนี้)
+   *
+   * 🛑 ใช้ `todayThaiIsoDate()` ตัวเดียวกับทั้งระบบ ไม่คำนวณ +7 ชั่วโมงเอง — "วันนี้ตามเวลาไทย"
+   * มี SSOT อยู่แล้วที่ `date-range.ts` การเขียนซ้ำคือนิยามที่สองของค่าเดียวกัน (HR16)
+   * และเป็นสิ่งที่ `SalesDateRange` (Base ของแถบนี้) อธิบายไว้ว่าทำไมถึงห้ามทำ
+   */
+  const preset = (days: number) => {
+    const end = todayThaiIsoDate()
+    push({ from: shiftIsoDate(end, -(days - 1)), to: end })
+  }
+
+  /** ช่วงที่เลือกอยู่ตรงกับปุ่มลัดตัวไหนไหม — ปุ่มที่ active ต้องดูออกว่ากด/ไม่กด */
+  const activePreset = (days: number) => {
+    const end = todayThaiIsoDate()
+    return props.to === end && props.from === shiftIsoDate(end, -(days - 1))
+  }
+
+  return (
+    <div className="card mb-4">
+      <div className="card-body flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2" role="group" aria-label="ช่วงเวลาของรายงาน">
+            {/* 🛑 label ต้องบอกว่าเป็น "ตั้งแต่วันที่" ไม่ใช่ "ช่วงเวลา" — เดิมผูก htmlFor กับ
+                ช่อง from ทำให้ screen reader อ่านวันเริ่มต้นว่า "ช่วงเวลา" ส่วนวันจบอ่านถูก
+                (ชื่อของสองช่องจึงไม่เป็นคู่กัน) ชื่อกลุ่มไปอยู่ที่ aria-label ของ wrapper แทน */}
+            <label className="text-default-700 shrink-0 text-sm" htmlFor="report-from">
+              ตั้งแต่
+            </label>
+            <input
+              id="report-from"
+              type="date"
+              className="form-input w-40"
+              value={props.from}
+              max={props.to}
+              onChange={(e) => push({ from: e.target.value })}
+            />
+            <span className="text-default-500">–</span>
+            <input
+              id="report-to"
+              type="date"
+              aria-label="ถึงวันที่"
+              className="form-input w-40"
+              value={props.to}
+              min={props.from}
+              onChange={(e) => push({ to: e.target.value })}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* 🛑 `btn-light` **ไม่มีอยู่จริงในธีม** — ที่ grep เจอคือ `.btn-light.active` ของ
+                toolbar กราฟใน `plugins/_apexcharts.css` ไม่ใช่ปุ่ม variant (มีคน ship คลาสนี้
+                ขึ้น prod แล้วได้ตัวหนังสือลอยไม่มีพื้นหลัง 2026-08-15)
+                ของจริงใน `_buttons.css` มีแค่ .btn/.btn-lg/.btn-sm/.btn-icon ⇒ ต้องต่อสีเอง */}
+            <button
+              type="button"
+              aria-pressed={activePreset(7)}
+              /* min-h-11 = พื้นที่นิ้ว 44px ตามที่ PRODUCT.md ประกาศไว้ (หน้าพี่น้องก็ใส่) */
+              className={`btn btn-sm min-h-11 lg:min-h-0 ${
+                activePreset(7)
+                  ? 'bg-primary text-white'
+                  : 'bg-light text-dark hover:bg-light-hover'
+              }`}
+              onClick={() => preset(7)}>
+              7 วัน
+            </button>
+            <button
+              type="button"
+              aria-pressed={activePreset(30)}
+              /* min-h-11 = พื้นที่นิ้ว 44px ตามที่ PRODUCT.md ประกาศไว้ (หน้าพี่น้องก็ใส่) */
+              className={`btn btn-sm min-h-11 lg:min-h-0 ${
+                activePreset(30)
+                  ? 'bg-primary text-white'
+                  : 'bg-light text-dark hover:bg-light-hover'
+              }`}
+              onClick={() => preset(30)}>
+              30 วัน
+            </button>
+          </div>
+
+          <div className="ms-auto flex flex-wrap items-center gap-2">
+            <FilterDropdown
+              icon="messages"
+              value={props.channel ?? ALL}
+              resetValue={ALL}
+              defaultLabel="ช่องทาง"
+              options={[
+                { value: ALL, label: 'ทุกช่องทาง' },
+                ...CHAT_CHANNELS.map((c) => ({ value: c, label: getChannelLabel(c) })),
+              ]}
+              onChange={(v) => push({ channel: v })}
+            />
+            <FilterDropdown
+              icon="target-arrow"
+              value={props.source ?? ALL}
+              resetValue={ALL}
+              defaultLabel="ที่มา"
+              options={[
+                { value: ALL, label: 'ทุกที่มา' },
+                ...REPORT_SOURCES.map((s) => ({ value: s, label: SOURCE_LABEL[s] })),
+              ]}
+              onChange={(v) => push({ source: v })}
+            />
+            {props.channels.length > 1 && (
+              <FilterDropdown
+                icon="brand-facebook"
+                align="right"
+                value={props.shopChannelId ?? ALL}
+                resetValue={ALL}
+                defaultLabel="เพจ/บัญชี"
+                options={[
+                  { value: ALL, label: 'ทุกเพจ/บัญชี' },
+                  ...props.channels.map((c) => ({ value: c.id, label: c.name })),
+                ]}
+                onChange={(v) => push({ shopChannelId: v })}
+              />
+            )}
+          </div>
+        </div>
+
+        {props.clamped && (
+          /* หั่นช่วงให้แล้ว — ต้องบอกทันที ไม่งั้นผู้ใช้อ่านตัวเลขของช่วงที่ตัวเองไม่ได้ขอ */
+          <p className="text-warning-ink bg-warning/15 flex items-center gap-2 rounded-lg px-3 py-2 text-sm">
+            <Icon icon="alert-triangle" className="shrink-0 text-base" aria-hidden="true" />
+            ดูย้อนหลังได้ครั้งละไม่เกิน {props.maxRangeDays} วัน — ระบบปรับวันเริ่มต้นให้แล้ว
+          </p>
+        )}
+
+        {pending && (
+          <p className="text-default-500 flex items-center gap-2 text-sm" role="status">
+            <Icon icon="loader-2" className="animate-spin text-base" aria-hidden="true" />
+            กำลังคำนวณใหม่…
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}

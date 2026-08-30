@@ -4,6 +4,8 @@ import { filterActiveOrders, orderShippingStage } from '../chat-order-progress'
 // fixture ย่อ — shape เดียวกับที่การ์ด/แถบปักได้รับจริง (ดู plan Task 3)
 const base = {
   status: 'PENDING',
+  // feature 00062 — fixture ชุดนี้เป็นออเดอร์ที่ส่งของจริง (เคสนัดรับอยู่ใน describe แยก)
+  fulfillmentMode: 'SHIPPED',
   paymentMethod: null as string | null,
   codReceivedAt: null as string | null,
   shipment: null as { status: string; carrierStatus: string | null } | null,

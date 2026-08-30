@@ -30,6 +30,8 @@ export type SalesSeriesMode = 'daily' | 'monthly'
  */
 type StageRow = {
   status: string
+  /** feature 00062 — `deriveShippingStage()` ต้องใช้ตัดสินก่อนทุกกิ่ง (ออเดอร์นัดรับไม่มีพัสดุ) */
+  fulfillmentMode: string
   paymentMethod?: string | null
   codReceivedAt?: Date | string | null
   shipments?: { status: string; isDryRun: boolean; carrierStatus: string | null; createdAt: Date }[] | null
@@ -44,6 +46,7 @@ const toShippingStageInput = (r: StageRow) => {
     hasShipment: active.length > 0,
     paymentMethod: r.paymentMethod ?? null,
     codReceivedAt: r.codReceivedAt ?? null,
+    fulfillmentMode: r.fulfillmentMode,
   }
 }
 
@@ -273,6 +276,8 @@ export async function getSalesSeries(
         //  แล้วตัวเลขบนชีตกับไทล์หน้าแรกจะไม่ตรงกันทั้งที่เรียกฟังก์ชันเดียวกัน)
         paymentMethod: true,
         codReceivedAt: true,
+        // feature 00062 — ออเดอร์นัดรับ/ไม่มีการส่งของ ต้องไม่ถูกนับเป็น "รอเงิน COD"
+        fulfillmentMode: true,
         // ต้องรู้ว่าขนส่งรับของไปแล้วหรือยัง — เกณฑ์ "นับเป็นยอดขาย" ไม่ได้ดูแค่ status
         // (SSOT: lib/order-revenue.ts) select แคบ ๆ ไม่ให้ payload บวม
         // createdAt: ใช้หา "พัสดุ active ใบล่าสุด" ให้ deriveShippingStage — ที่นี่กรอง/เรียงใน TS

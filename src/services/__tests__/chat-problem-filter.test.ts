@@ -27,6 +27,7 @@ const chatServiceSrc = stripComments(
 
 const stage = (carrierStatus: string) =>
   deriveShippingStage({
+    fulfillmentMode: 'SHIPPED',
     status: 'SHIPPED',
     carrierStatus,
     hasShipment: true,
@@ -69,6 +70,7 @@ describe('นิยาม "พัสดุมีปัญหา" ต้องเ
   it('[blocker] ใบ COD ที่ตีกลับต้องไม่กลายเป็น "รอเงิน COD"', () => {
     expect(
       deriveShippingStage({
+        fulfillmentMode: 'SHIPPED',
         status: 'SHIPPED',
         carrierStatus: 'return_success',
         hasShipment: true,

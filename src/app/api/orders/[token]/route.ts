@@ -12,6 +12,7 @@ import {
   ProductNotInShopError,
   ShippingAddressRequiredError,
   OrderDateOutOfWindowError,
+  PickupNotAllowedError,
 } from "@/services/order.service";
 import { ORDER_DATE_OUT_OF_WINDOW_MESSAGE } from "@/lib/order-date-window";
 
@@ -63,6 +64,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       publicToken: true, status: true, type: true, createdAt: true,
       buyerName: true, buyerContact: true, paymentMethod: true, salesChannel: true,
       internalNote: true, discount: true, vatRate: true, vatAmount: true, shippingAddress: true,
+      // feature 00062 — หน้าแก้ไขต้องรู้ว่าใบนี้เป็น "นัดรับ" เพื่อ default ปุ่มให้ถูก
+      // 🛑 ถ้าไม่คืนค่านี้ ร้านที่กดบันทึกโดยไม่แตะปุ่มจะทำให้ออเดอร์นัดรับ **กลับเป็นจัดส่งเงียบ ๆ**
+      // (updateOrder คำนวณใหม่จาก items เมื่อไม่ได้รับค่า) — คลาสเดียวกับบั๊ก createAt ข้างล่าง
+      fulfillmentMode: true,
       items: { select: { productId: true, name: true, description: true, qty: true, price: true } },
     },
   });
@@ -80,6 +85,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       buyerContact: order.buyerContact,
       paymentMethod: order.paymentMethod,
       salesChannel: order.salesChannel,
+      fulfillmentMode: order.fulfillmentMode,
       internalNote: order.internalNote,
       discount: order.discount != null ? Number(order.discount) : null,
       // vatRate ใน DB เป็น decimal 0..1 — ฟอร์มใช้ % (ดู OrderCreateForm) แปลงกลับที่ client
@@ -128,6 +134,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (e instanceof ProductNotInShopError) return NextResponse.json({ error: "มีสินค้าที่ไม่ใช่ของร้านนี้" }, { status: 400 });
     if (e instanceof ShippingAddressRequiredError) {
       return NextResponse.json({ error: "ออเดอร์ที่ต้องจัดส่งต้องกรอกที่อยู่ให้ครบ" }, { status: 400 });
+    }
+    // feature 00062 (API.md §5) — ร้านที่ไม่ใช่ ONLINE_SALES ส่ง fulfillmentMode:'PICKUP' มา
+    if (e instanceof PickupNotAllowedError) {
+      return NextResponse.json(
+        { error: "PICKUP_NOT_ALLOWED", message: "ร้านนี้ตั้งค่า \"นัดรับ\" ไม่ได้" },
+        { status: 400 },
+      );
     }
     if (e instanceof Error && e.name === "OutOfStockError") {
       return NextResponse.json({ error: "สินค้าบางรายการสต็อกไม่พอ" }, { status: 400 });

@@ -178,6 +178,7 @@ export default function ShipmentStatusView({
     carrierStatus: carrier.carrierStatus,
     returnStartedAt: shipment.returnStartedAt,
     returnedAt: shipment.returnedAt,
+    returnDispatchedAt: shipment.returnDispatchedAt,
   })
   const railLastIdx = SHIPMENT_STAGES.length - 1
   const railCurrentLabel =

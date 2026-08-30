@@ -77,11 +77,47 @@ export function showSlipZone(
 /**
  * PaymentBadge — badge สถานะการชำระเงิน (แยกจาก ORDER_STATUS_META ที่เป็น badge สถานะออเดอร์)
  * null = ไม่แสดง badge (วิธีชำระที่ไม่รู้จัก เช่น CASH/CARD/OTHER หรือ paymentMethod ว่าง)
+ *
+ * 🛑 `tone` เพิ่มเข้ามา (feature 00062, SDS TD-003) — breaking change ที่ตั้งใจ: `cls` เป็น
+ * Tailwind/Paces class string ใช้กับฝั่งผู้ซื้อ (Vuexy/MUI) ตรง ๆ ไม่ได้ ต้องมี `tone` เป็น
+ * สะพานผ่าน `ORDER_STATUS_TONE_TO_MUI[tone]` (นิยามอยู่ท้ายไฟล์นี้) เพื่อให้ทั้งสองสกินอ่าน
+ * คำเดียวกันจาก SSOT เดียวกัน (Hard Rule 16) — ทุก branch ของ getPaymentBadge ต้องคืน tone
+ * คู่กับ cls เสมอ ห้ามลืมแม้แต่ branch เดียว
  */
-export type PaymentBadge = { label: string; cls: string } | null
+export type PaymentBadge = { label: string; cls: string; tone: OrderStatusTone } | null
 
 /**
- * getPaymentBadge — derive badge การชำระเงินจากสถานะออเดอร์ + วิธีชำระ + สลิป
+ * canSellerConfirmPayment — "ออเดอร์ใบนี้ร้านกดยืนยันรับเงินเองได้ไหม" (feature 00062)
+ *
+ * 🛑 **นิยามคือ "ไม่ใช่ COD" ไม่ใช่ allow-list 3 ค่า** — เหตุผล 2 ชั้น:
+ *
+ * 1. **ข้อมูลจริงบน prod เป็น free text** — `paymentMethod` ไม่ใช่ enum ร้านพิมพ์เองได้
+ *    (เช่น "พร้อมเพย์ 081-234-5678" ซึ่งมีจริง ดูคอมเมนต์ T14 P4 ท้ายฟังก์ชัน getPaymentBadge)
+ *    ถ้าใช้ equality กับ 3 ค่า ออเดอร์พวกนี้จะ "ยืนยันได้ที่ฝั่ง service แต่ป้ายบนจอไม่เปลี่ยน"
+ *    = ร้านกดแล้วไม่เกิดอะไรขึ้นบนหน้าจอ ตลอดไป
+ * 2. **สิ่งเดียวที่ต้องห้ามจริง ๆ คือ COD** เพราะ `Order.codReceivedAt` เป็นเจ้าของคำถามนั้นอยู่แล้ว
+ *    และ DB มี CHECK `Order_payment_confirm_exclusive_check` กันสองช่องมีค่าพร้อมกัน
+ *
+ * 🛑 ตัวนี้ต้องเป็นเกณฑ์เดียวกับที่ `setPaymentConfirmed()` (order.service.ts) ใช้ตัดสินตอนเขียน
+ * (Hard Rule 16) — เคยแตกกันมาแล้วในรอบเดียวกันที่สร้างมันขึ้นมา: ฝั่งเขียนใช้ `!isCODPayment`
+ * ส่วนฝั่งป้ายใช้ equality 3 ค่า ⇒ ออเดอร์ `CARD`/free-text ยืนยันได้แต่ป้ายค้างที่
+ * "ยังไม่ยืนยันการชำระ" ตลอดไปโดยไม่มี gate ไหนฟ้อง
+ *
+ * ทำไม: SSOT เดียวของ "นี่คือการชำระที่ร้านกด 'ได้รับเงินแล้ว' เองได้ไหม" (feature 00062,
+ * FR-PAY-01/FR-PAY-02) — ใช้ equality ตรง ๆ กับ 3 ค่า enum ที่ระบบควบคุมเอง (ตรงกับที่
+ * `getPaymentBadge` เดิมใช้ equality ตัดสิน TRANSFER/PROMPTPAY อยู่แล้ว) ไม่ใช่ regex บน
+ * free text — SRS FR-PAY-02 ห้ามสร้าง criteria ที่สามของ "นี่คือการโอนไหม" (มีอยู่แล้ว 2 ชุด:
+ * `isCODPayment`/`COD_PAYMENT_PATTERN` ที่ match free text กับเกณฑ์ equality ตรงนี้)
+ */
+export function canSellerConfirmPayment(paymentMethod: string | null | undefined): boolean {
+  return !isCODPayment(paymentMethod)
+}
+
+/** @deprecated ใช้ `canSellerConfirmPayment` — ชื่อเดิมชวนเข้าใจว่าเป็น allow-list 3 ค่า */
+export const isTransferLikePayment = canSellerConfirmPayment
+
+/**
+ * getPaymentBadge — derive badge การชำระเงินจากสถานะออเดอร์ + วิธีชำระ + สลิป + การยืนยันของร้าน
  *
  * ทำไม: ยกมาจาก local fn ใน PaymentCard.tsx (T5, contract กลางให้ task อื่น import ร่วม)
  * ต่างจาก ORDER_STATUS_META (badge สถานะออเดอร์ 4 ค่า PENDING/SHIPPED/CONFIRMED/CANCELLED)
@@ -89,37 +125,56 @@ export type PaymentBadge = { label: string; cls: string } | null
  * แต่ badge การชำระเงิน = "ชำระแล้ว" คนละแกนกัน
  *
  * Verified-Means-Green: เขียว (bg-success) สงวนไว้เฉพาะ "ชำระแล้ว" จริง (status=CONFIRMED)
- * เท่านั้น — "รอตรวจสอบสลิป"/"รอชำระ"/"รอเก็บปลายทาง" ต้องเป็น info/warning ห้ามเขียว
+ * เท่านั้น — "รอตรวจสอบสลิป"/"รอชำระ"/"รอเก็บปลายทาง"/"ร้านยืนยันรับเงินแล้ว" ต้องเป็น
+ * info/warning ห้ามเขียว
+ *
+ * 🛑 feature 00062 (UX-Design-Spec §B8, SDS TD-003): `paymentConfirmedAt` มีค่า = ร้านกด
+ * "ได้รับเงินแล้ว" เอง (self-report ไม่มีบุคคลที่สามยืนยัน) ⇒ ต้อง **เช็คก่อน `slipFileId`
+ * เสมอ** — ร้านยืนยันแล้วชนะ "รอตรวจสอบสลิป" (สัญญาณจากร้านแน่นอนกว่าสลิปที่ยังไม่ตรวจ)
+ * และ **ห้ามใช้ tone success/เขียว** — เขียวสงวนให้ status===CONFIRMED เท่านั้น
  */
 export function getPaymentBadge(
   status: string,
   paymentMethod: string | null | undefined,
   slipFileId: string | null | undefined,
+  paymentConfirmedAt: Date | string | null | undefined,
 ): PaymentBadge {
   // T14 P1: text-{semantic} บน bg-{semantic}/15 ตกคอนทราสต์ AA (วัดจริง: warning 1.54:1 ฯลฯ)
   // → ใช้ token "หมึก" คู่กัน (text-{semantic}-ink, src/assets/css/config/_root.css) ผ่าน ≥4.5:1
   if (status === 'CONFIRMED') {
-    return { label: 'ชำระแล้ว', cls: 'badge bg-success/15 text-success-ink' }
+    return { label: 'ชำระแล้ว', cls: 'badge bg-success/15 text-success-ink', tone: 'success' }
   }
   if (status === 'CANCELLED') {
     // default-400 บน default-100 = 2.3:1 (ไม่ผ่าน) → default-800 (~10.7:1)
-    return { label: 'ยกเลิก', cls: 'badge bg-default-100 text-default-800' }
+    /**
+     * 🛑 tone ต้องเป็น 'neutral' ให้ตรงกับ cls สีเทา — ไม่ใช่ 'warning'
+     *
+     * cls (Paces) กับ tone (สะพานไป MUI ฝั่งผู้ซื้อ) ต้องพูดสีเดียวกันเสมอ ไม่งั้นออเดอร์ใบเดียวกัน
+     * จะขึ้นเทาบนจอผู้ขายแต่ส้มบนจอผู้ซื้อ — และ "ยกเลิก" ในบริบท *การชำระเงิน* ไม่ใช่เรื่องที่ต้อง
+     * แย่งความสนใจ (งานจบไปแล้ว ไม่มีอะไรให้ทำต่อ) ต่างจาก ORDER_STATUS_META.CANCELLED ที่เป็น
+     * ป้าย *สถานะออเดอร์* ซึ่งใช้ danger เพราะเป็นข้อมูลหลักของใบนั้น
+     */
+    return { label: 'ยกเลิก', cls: 'badge bg-default-100 text-default-800', tone: 'neutral' }
   }
   if (isCODPayment(paymentMethod)) {
-    return { label: 'รอเก็บปลายทาง', cls: 'badge bg-info/15 text-info-ink' }
+    return { label: 'รอเก็บปลายทาง', cls: 'badge bg-info/15 text-info-ink', tone: 'info' }
+  }
+  // feature 00062 — ต้องมาก่อนกิ่ง slipFileId เสมอ (ดูคอมเมนต์หัวฟังก์ชัน) ห้ามสลับลำดับ
+  if (canSellerConfirmPayment(paymentMethod) && paymentConfirmedAt) {
+    return { label: 'ร้านยืนยันรับเงินแล้ว', cls: 'badge bg-info/15 text-info-ink', tone: 'info' }
   }
   // TRANSFER / PROMPTPAY
   if (paymentMethod === 'TRANSFER' || paymentMethod === 'PROMPTPAY') {
-    if (slipFileId) return { label: 'รอตรวจสอบสลิป', cls: 'badge bg-info/15 text-info-ink' }
+    if (slipFileId) return { label: 'รอตรวจสอบสลิป', cls: 'badge bg-info/15 text-info-ink', tone: 'info' }
     // "รอชำระ" เป็นสถานะปกติของออเดอร์ที่เพิ่งสร้าง ไม่ใช่ความผิดพลาด — ห้ามใช้ danger (แดง)
     // ทำให้ออเดอร์ใหม่ทุกใบขึ้นแดงตั้งแต่วินาทีแรก แดงเลยไม่เหลือความหมาย
-    return { label: 'รอชำระ', cls: 'badge bg-warning/15 text-warning-ink' }
+    return { label: 'รอชำระ', cls: 'badge bg-warning/15 text-warning-ink', tone: 'warning' }
   }
   // T14 P4 fix: เดิม return null ตรงนี้ทำให้ badge หายทั้งหน้าเมื่อ paymentMethod เป็น free text
   // จริงในฐาน (เช่น "พร้อมเพย์ 081-234-5678" ที่ seller กรอกเอง ไม่ตรง enum TRANSFER/PROMPTPAY/COD
   // เป๊ะ ๆ) — คำถาม "ได้เงินหรือยัง" ต้องตอบได้เสมอ ใช้ warning (ไม่ใช่เขียว, Verified-Means-Green
   // สงวนไว้ให้ status===CONFIRMED เท่านั้น) แทนการซ่อนข้อมูลไปเงียบ ๆ
-  return { label: 'ยังไม่ยืนยันการชำระ', cls: 'badge bg-warning/15 text-warning-ink' }
+  return { label: 'ยังไม่ยืนยันการชำระ', cls: 'badge bg-warning/15 text-warning-ink', tone: 'warning' }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -161,7 +216,7 @@ export type TimelineStep = {
  * ตั้งแต่ feature 00041 (HR16) ฝั่ง buyer ก็อ่านชุดนี้ผ่าน resolveOrderStatusBadge() เช่นกัน
  * — เดิมมี getStatusPill (hex ดิบ) เป็นชุดที่สอง ถูกถอดทิ้งแล้วเพราะไม่มีผู้เรียกจริง
  */
-export type OrderStatusTone = 'warning' | 'info' | 'success' | 'danger'
+export type OrderStatusTone = 'warning' | 'info' | 'success' | 'danger' | 'neutral'
 
 export const ORDER_STATUS_META: Record<
   string,
@@ -197,6 +252,11 @@ export const ORDER_STATUS_TONE_BORDER: Record<OrderStatusTone, string> = {
   info: 'border-info',
   success: 'border-success',
   danger: 'border-danger',
+  /**
+   * feature 00062 — "ไม่มีอะไรต้องทำแล้ว" (เช่นป้ายการชำระเงินของใบที่ยกเลิก) ไม่ใช่สถานะ
+   * ที่ควรแย่งความสนใจ ⇒ เทา ไม่ใช่ส้ม/แดง
+   */
+  neutral: 'border-default-300',
 }
 
 /**
@@ -213,6 +273,8 @@ export const ORDER_STATUS_TONE_TO_MUI = {
   info: 'info',
   success: 'success',
   danger: 'error',
+  // MUI ไม่มี 'neutral' — 'secondary' คือสีเทาของ Vuexy ซึ่งตรงกับ bg-default-100 ฝั่ง Paces
+  neutral: 'secondary',
 } as const satisfies Record<OrderStatusTone, string>
 
 /**

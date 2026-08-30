@@ -55,6 +55,12 @@ export type OrderSummaryProps = {
   paymentMethod: string | null
   slipFileId: string | null
   /**
+   * feature 00062 — ISO ของเวลาที่ร้านกด "ได้รับเงินแล้ว" เอง (TRANSFER/PROMPTPAY/CASH)
+   * null = ยังไม่ได้กด/ไม่ใช่วิธีชำระที่ร้านยืนยันเองได้ — เข้า getPaymentBadge SSOT เดียวกับ
+   * BillingDetails.tsx (SDS TD-003)
+   */
+  paymentConfirmedAt: string | null
+  /**
    * ป้ายสถานะที่ผู้เรียกคำนวณมาแล้ว (ร้านบริการ) — null = ใช้ป้ายเดิมจาก `status`
    *
    * 🛑 รับ **ผลลัพธ์** ไม่ใช่ `money` ดิบ: การ์ดนี้ใช้ร่วมทุก vertical ถ้าให้มันตัดสินเอง
@@ -85,6 +91,7 @@ export default function OrderSummary({
   isCod,
   paymentMethod,
   slipFileId,
+  paymentConfirmedAt,
   isFromAuction,
   items,
   discount,
@@ -99,7 +106,7 @@ export default function OrderSummary({
   // ป้ายหัวต้องรวมสถานะพัสดุด้วย ไม่ใช่อ่าน status ดิบ — ใบ COD ที่ส่งถึงแล้วแต่ร้านยังไม่ได้
   // กดรับเงิน เดิมขึ้น "กำลังจัดส่ง" ขัดกับการ์ด "เก็บเงินปลายทาง" ที่อยู่ขวามือในหน้าเดียวกัน
   const meta = serviceBadge ?? resolveOrderStatusBadge(status, shippingStage)
-  const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId)
+  const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId, paymentConfirmedAt)
   const channelLabel = getSalesChannelDisplay(salesChannel || 'OTHER').label
 
   const subtotal = items.reduce((sum, it) => sum + toNum(it.price) * it.qty, 0)

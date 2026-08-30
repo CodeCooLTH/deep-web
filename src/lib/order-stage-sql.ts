@@ -45,6 +45,11 @@ export type StageSqlColumns = {
   paymentMethod: string
   /** `Order.codReceivedAt` */
   codReceivedAt: string
+  /**
+   * `Order.fulfillmentMode` (feature 00062, TD-007) — ต้องเช็คก่อนทุกกิ่ง คู่ขนานกับ
+   * `deriveShippingStage()` ฝั่ง TS เป๊ะ ห้ามลืมแก้ฝั่งใดฝั่งหนึ่ง (เทส parity จะจับ)
+   */
+  fulfillmentMode: string
 }
 
 /** ใส่ quote ให้ literal สตริงแบบปลอดภัย — ใช้กับค่าคงที่ในโค้ดเท่านั้น ไม่ใช่ input ผู้ใช้ */
@@ -62,11 +67,14 @@ function inList(column: string, values: readonly string[]): string {
  *
  * ผลลัพธ์เป็นสตริงของ `CASE … END` ที่เอาไปวางใน `SELECT`, `WHERE` หรือ `GROUP BY` ได้
  * ค่าที่คืน: `AWAITING_PARCEL` | `AWAITING_PICKUP` | `SHIPPING` | `AWAITING_COD`
- *          | `PROBLEM` | `RETURNED` | `DONE`
+ *          | `PROBLEM` | `RETURNED` | `DONE` | `NOT_SHIPPING`
  */
 export function buildShippingStageSql(c: StageSqlColumns): string {
   const isCod = `${c.paymentMethod} ~* ${lit(COD_PAYMENT_PATTERN)}`
   return `CASE
+    -- 0) ไม่มีการจัดส่งเลย (feature 00062) — เช็คก่อนทุกอย่างรวมทั้งยกเลิก/คืนของ ตรงกับ
+    -- deriveShippingStage() เป๊ะ (ดูคอมเมนต์ที่นั่นว่าทำไม 'NOT_SHIPPING' ไม่ใช่ 'DONE')
+    WHEN ${c.fulfillmentMode} <> 'SHIPPED' THEN 'NOT_SHIPPING'
     -- 1) ยกเลิก/คืนของ = ไม่ใช่งานค้าง ไม่ว่าพัสดุจะอยู่สถานะไหน
     WHEN ${c.orderStatus} IN ('CANCELLED', 'RETURNED') THEN 'DONE'
     -- 2) มีพัสดุ — เรียงตาม deriveShippingStage เป๊ะ: ตีกลับ → มีปัญหา → ปลายทาง → ระหว่างทาง

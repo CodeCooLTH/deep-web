@@ -96,9 +96,20 @@ export function isLibraryEligible(m: {
   isSticker?: boolean | null
   fromCard?: boolean | null
   hasFile: boolean
+  /**
+   * fileId/นามสกุลของไฟล์ที่ mirror ไว้ (2026-08-27) — ใช้กัน **GIF** ออกจากคลัง
+   *
+   * ธง `isSticker` กันได้เฉพาะสติกเกอร์ แต่ GIF ของ GIPHY ไม่ใช่สติกเกอร์โดยตั้งใจ (มันต้องกว้าง
+   * เท่ารูปปกติ ดู hidesDownloadAffordance) ⇒ ถ้าไม่ดูนามสกุลด้วย GIF จะยังเก็บเข้าคลังไฟล์ลูกค้าได้
+   * ซึ่งคลังนั้นมีไว้เก็บ **สลิป/รูปสินค้า/เอกสาร** ไม่ใช่ของเล่นในบทสนทนา (user สั่ง 2026-08-27)
+   *
+   * ไม่ส่งมา = พฤติกรรมเดิมทุกประการ (ผู้เรียกเก่าที่ยังไม่อัปเดตจึงไม่พัง)
+   */
+  storageKey?: string | null
 }): boolean {
   if (!m.hasFile) return false
   if (m.fromCard === true) return false
+  if (m.storageKey && /\.gif$/i.test(m.storageKey.split('?')[0])) return false
   if (m.type === 'IMAGE') return m.isSticker !== true
   if (m.type === 'VIDEO' || m.type === 'FILE') return true
   // AUDIO / PRODUCT / ORDER / TEXT / ชนิดที่ยังไม่มีในวันนี้ → ปิดไว้ก่อนเสมอ

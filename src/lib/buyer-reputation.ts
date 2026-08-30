@@ -123,14 +123,49 @@ export function summarizeBuyerReputation(orders: BuyerOrderEvidence[]): BuyerRep
    */
   const returnRate = shipped >= MIN_SHIPPED_FOR_RATE ? returned / shipped : null
 
+  /**
+   * 🛑 **ระดับความเสี่ยงตัดสินด้วย "จำนวน" ไม่ใช่ "อัตรา"** (user เคาะ 2026-08-26)
+   *
+   * เดิมเงื่อนไข HIGH ต้องผ่าน `returnRate !== null` ซึ่งต้องมีพัสดุครบ `MIN_SHIPPED_FOR_RATE`
+   * แต่วัด prod แล้ว **ไม่มีลูกค้าคนไหนในระบบมีพัสดุถึง 3 ใบเลยสักคน** (0 ใบ 16% · 1 ใบ 82% ·
+   * 2 ใบ 0.9% · สูงสุดในระบบ = 2) ⇒ `returnRate` เป็น `null` เสมอ ⇒ **กิ่ง HIGH ไม่มีทางถูกเลือก**
+   * ⇒ ทุกจอที่นับ "ลูกค้าเสี่ยงสูง" เป็น 0 ถาวร = ไทล์ที่ไม่มีวันติด
+   * (`feedback_dead_tile_change_what_it_counts`)
+   *
+   * ปมคือโค้ดเอา **เกณฑ์แสดงผล** กับ **เกณฑ์ตัดสินความเสี่ยง** มารวมกัน ทั้งที่ตอบคนละคำถาม:
+   *   · "อัตรา 33%" เป็น **สถิติ** → ต้องมีฐาน ไม่งั้น 1/1 = 100% อ่านว่าเลวร้ายที่สุดในระบบ
+   *   · "ตีกลับ 2 ครั้ง" เป็น **ข้อเท็จจริง** → ไม่ต้องมีฐาน ตีกลับ 2 ครั้งก็คือ 2 ครั้ง
+   * ⇒ แยกออกจากกัน: ระดับใช้จำนวนล้วน · `returnRate` ยังคง gate ที่ 3 ใบเหมือนเดิม
+   *
+   * 🛑 `NONE` ยังเป็น `returned === 0` เหมือนเดิมเป๊ะ ⇒ `shouldWarnCodReturnRisk`
+   * (ซึ่งเช็คแค่ `!== 'NONE'`) **ไม่เปลี่ยนพฤติกรรมบน prod** สิ่งที่เปลี่ยนคือลูกค้าที่ตีกลับ ≥2
+   * ย้ายจากป้าย WATCH เป็น HIGH เท่านั้น — และทั้งสองระดับใช้สีเหลืองเหมือนกันอยู่แล้ว
+   * (`BuyerReputationRow.RISK_META` — ห้ามแดง BR-BR-08/09)
+   *
+   * `HIGH_RISK_MIN_RATE` ยังคงไว้เป็นค่าคงที่เพราะยังใช้อธิบายเกณฑ์บนหน้าจอ
+   * แต่ **ไม่ได้อยู่ในเงื่อนไขตัดสินอีกแล้ว** — ห้ามเอากลับเข้ามาโดยไม่แก้คอมเมนต์นี้
+   */
   const riskLevel: BuyerRiskLevel =
-    returned === 0
-      ? 'NONE'
-      : returned >= HIGH_RISK_MIN_RETURNED && returnRate !== null && returnRate >= HIGH_RISK_MIN_RATE
-        ? 'HIGH'
-        : 'WATCH'
+    returned === 0 ? 'NONE' : returned >= HIGH_RISK_MIN_RETURNED ? 'HIGH' : 'WATCH'
 
   return { orders: orders.length, shipped, received, returned, cancelledByBuyer, returnRate, riskLevel }
+}
+
+/** ระดับที่หน้าจอใช้ — รวม "ยังบอกไม่ได้" ซึ่งไม่ใช่ระดับความเสี่ยง แต่เป็นสถานะข้อมูล */
+export type CustomerRiskTier = 'high' | 'watch' | 'ok' | 'new'
+
+/**
+ * แปลง `BuyerReputation` เป็นระดับที่หน้ารายชื่อลูกค้าใช้จัดกลุ่ม/ลงสี
+ *
+ * 🛑 `ok` ("ประวัติดี") ต้องมีฐานพอ — ส่งครบ 3 ใบแล้วไม่ตีกลับเลย ถึงจะเรียกว่าดีได้
+ * ส่งใบเดียวแล้วถึงมือ **ไม่ใช่ประวัติดี มันคือยังไม่รู้** (นี่คือเหตุผลเดียวกับที่อัตรามี gate)
+ * ⇒ ไม่ถึงฐาน = `new` ไม่ใช่ `ok` — เขียวสงวนให้สิ่งที่ยืนยันแล้วจริง (Verified-Means-Green)
+ */
+export function classifyCustomerRiskTier(rep: BuyerReputation | null): CustomerRiskTier {
+  if (!rep || rep.shipped === 0) return 'new'
+  if (rep.riskLevel === 'HIGH') return 'high'
+  if (rep.riskLevel === 'WATCH') return 'watch'
+  return rep.shipped >= MIN_SHIPPED_FOR_RATE ? 'ok' : 'new'
 }
 
 /**

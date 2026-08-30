@@ -3,7 +3,14 @@
 // Phase 2 additions (S-3, S-13): isCODPayment, isHttpUrl, showSlipZone
 
 import { describe, it, expect } from 'vitest'
-import { getOrderTimeline, isCODPayment, isHttpUrl, showSlipZone, getPaymentBadge } from './order-display'
+import {
+  getOrderTimeline,
+  isCODPayment,
+  isHttpUrl,
+  showSlipZone,
+  getPaymentBadge,
+  canSellerConfirmPayment,
+} from './order-display'
 
 // -------------------------------------------------------------------------
 // getOrderTimeline
@@ -255,91 +262,244 @@ describe('showSlipZone', () => {
 
 // -------------------------------------------------------------------------
 // T5: getPaymentBadge — badge สถานะการชำระเงิน (Verified-Means-Green)
+// feature 00062 (U13): เพิ่ม param ที่ 4 paymentConfirmedAt + field `tone` (SDS TD-003)
 // -------------------------------------------------------------------------
 describe('getPaymentBadge', () => {
   it('CONFIRMED → ชำระแล้ว + success (เขียว — จุดเดียวที่อนุญาต)', () => {
-    const b = getPaymentBadge('CONFIRMED', 'TRANSFER', 'slip-1')
-    expect(b).toEqual({ label: 'ชำระแล้ว', cls: 'badge bg-success/15 text-success-ink' })
+    const b = getPaymentBadge('CONFIRMED', 'TRANSFER', 'slip-1', null)
+    expect(b).toEqual({ label: 'ชำระแล้ว', cls: 'badge bg-success/15 text-success-ink', tone: 'success' })
   })
 
   it('CONFIRMED + COD → ยังเป็น ชำระแล้ว (status ชนะก่อน isCODPayment check)', () => {
-    const b = getPaymentBadge('CONFIRMED', 'COD', null)
+    const b = getPaymentBadge('CONFIRMED', 'COD', null, null)
     expect(b?.label).toBe('ชำระแล้ว')
   })
 
-  it('CANCELLED → ยกเลิก + default (ไม่ใช่เขียว)', () => {
-    const b = getPaymentBadge('CANCELLED', 'TRANSFER', null)
-    expect(b).toEqual({ label: 'ยกเลิก', cls: 'badge bg-default-100 text-default-800' })
+  // regression: paymentConfirmedAt มีค่าแล้วยัง status===CONFIRMED ต้องยังเขียว ไม่ใช่ "ร้านยืนยันรับเงินแล้ว"
+  it('CONFIRMED + TRANSFER + paymentConfirmedAt มีค่า → ยังเป็น ชำระแล้ว/success (status ชนะทุกกิ่งที่เหลือ)', () => {
+    const b = getPaymentBadge('CONFIRMED', 'TRANSFER', null, '2026-08-28T10:00:00.000Z')
+    expect(b).toEqual({ label: 'ชำระแล้ว', cls: 'badge bg-success/15 text-success-ink', tone: 'success' })
+  })
+
+  it('CANCELLED → ยกเลิก + เทา — tone ต้องเป็น neutral ให้ตรงกับ cls (ไม่ใช่ warning)', () => {
+    const b = getPaymentBadge('CANCELLED', 'TRANSFER', null, null)
+    expect(b).toEqual({ label: 'ยกเลิก', cls: 'badge bg-default-100 text-default-800', tone: 'neutral' })
     expect(b?.cls).not.toContain('success')
   })
 
   it('PENDING + COD → รอเก็บปลายทาง + info (ไม่ใช่เขียว)', () => {
-    const b = getPaymentBadge('PENDING', 'COD', null)
-    expect(b).toEqual({ label: 'รอเก็บปลายทาง', cls: 'badge bg-info/15 text-info-ink' })
+    const b = getPaymentBadge('PENDING', 'COD', null, null)
+    expect(b).toEqual({ label: 'รอเก็บปลายทาง', cls: 'badge bg-info/15 text-info-ink', tone: 'info' })
   })
 
   it('SHIPPED + COD → รอเก็บปลายทาง (ไม่ใช่แค่ PENDING)', () => {
-    const b = getPaymentBadge('SHIPPED', 'เก็บเงินปลายทาง', null)
+    const b = getPaymentBadge('SHIPPED', 'เก็บเงินปลายทาง', null, null)
     expect(b?.label).toBe('รอเก็บปลายทาง')
     expect(b?.cls).not.toContain('success')
   })
 
-  it('PENDING + TRANSFER + มีสลิป → รอตรวจสอบสลิป + info (ไม่ใช่เขียว)', () => {
-    const b = getPaymentBadge('PENDING', 'TRANSFER', 'slip-abc')
-    expect(b).toEqual({ label: 'รอตรวจสอบสลิป', cls: 'badge bg-info/15 text-info-ink' })
+  it('PENDING + TRANSFER + มีสลิป (ไม่มี paymentConfirmedAt) → รอตรวจสอบสลิป + info (ไม่ใช่เขียว)', () => {
+    const b = getPaymentBadge('PENDING', 'TRANSFER', 'slip-abc', null)
+    expect(b).toEqual({ label: 'รอตรวจสอบสลิป', cls: 'badge bg-info/15 text-info-ink', tone: 'info' })
   })
 
   it('PENDING + PROMPTPAY + มีสลิป → รอตรวจสอบสลิป', () => {
-    const b = getPaymentBadge('PENDING', 'PROMPTPAY', 'slip-abc')
+    const b = getPaymentBadge('PENDING', 'PROMPTPAY', 'slip-abc', null)
     expect(b?.label).toBe('รอตรวจสอบสลิป')
   })
 
   it('PENDING + TRANSFER + ไม่มีสลิป → รอชำระ + warning (ไม่ใช่ danger/แดง หรือเขียว)', () => {
-    const b = getPaymentBadge('PENDING', 'TRANSFER', null)
-    expect(b).toEqual({ label: 'รอชำระ', cls: 'badge bg-warning/15 text-warning-ink' })
+    const b = getPaymentBadge('PENDING', 'TRANSFER', null, null)
+    expect(b).toEqual({ label: 'รอชำระ', cls: 'badge bg-warning/15 text-warning-ink', tone: 'warning' })
   })
 
   it('PENDING + PROMPTPAY + ไม่มีสลิป → รอชำระ + warning', () => {
-    const b = getPaymentBadge('PENDING', 'PROMPTPAY', undefined)
+    const b = getPaymentBadge('PENDING', 'PROMPTPAY', undefined, undefined)
     expect(b?.label).toBe('รอชำระ')
     expect(b?.cls).toContain('warning')
   })
 
   // T14 P4: เดิม return null ทำให้ badge หายเงียบ ๆ เมื่อ paymentMethod เป็น free text/ไม่รู้จัก
   // (เช่น seller กรอกเอง "พร้อมเพย์ 081-234-5678") — ตอนนี้ต้องตอบคำถาม "ได้เงินหรือยัง" ได้เสมอ
-  it('PENDING + CASH (วิธีที่ไม่รู้จัก) → badge fallback "ยังไม่ยืนยันการชำระ" + warning (ไม่ใช่เขียว)', () => {
-    const b = getPaymentBadge('PENDING', 'CASH', null)
-    expect(b).toEqual({ label: 'ยังไม่ยืนยันการชำระ', cls: 'badge bg-warning/15 text-warning-ink' })
+  it('PENDING + CASH (ไม่มี paymentConfirmedAt) → badge fallback "ยังไม่ยืนยันการชำระ" + warning (ไม่ใช่เขียว)', () => {
+    const b = getPaymentBadge('PENDING', 'CASH', null, null)
+    expect(b).toEqual({ label: 'ยังไม่ยืนยันการชำระ', cls: 'badge bg-warning/15 text-warning-ink', tone: 'warning' })
   })
 
   it('PENDING + paymentMethod null → badge fallback "ยังไม่ยืนยันการชำระ" (ไม่ใช่ null — ไม่หายไปเงียบ ๆ)', () => {
-    const b = getPaymentBadge('PENDING', null, null)
-    expect(b).toEqual({ label: 'ยังไม่ยืนยันการชำระ', cls: 'badge bg-warning/15 text-warning-ink' })
+    const b = getPaymentBadge('PENDING', null, null, null)
+    expect(b).toEqual({ label: 'ยังไม่ยืนยันการชำระ', cls: 'badge bg-warning/15 text-warning-ink', tone: 'warning' })
   })
 
   it('PENDING + free-text paymentMethod จริงจากฐาน → ยังได้ badge fallback ไม่ใช่หายไปทั้งหน้า', () => {
-    const b = getPaymentBadge('PENDING', 'พร้อมเพย์ 081-234-5678', null)
+    const b = getPaymentBadge('PENDING', 'พร้อมเพย์ 081-234-5678', null, null)
     expect(b).not.toBeNull()
     expect(b?.label).toBe('ยังไม่ยืนยันการชำระ')
     expect(b?.cls).not.toContain('success')
   })
 
+  // -----------------------------------------------------------------------
+  // feature 00062 (U13) — "ร้านยืนยันรับเงินแล้ว" (UX-Design-Spec §B8 ตาราง 7 แถว)
+  // -----------------------------------------------------------------------
+
+  it('PENDING + TRANSFER + paymentConfirmedAt (Date) → ร้านยืนยันรับเงินแล้ว + tone info (ห้ามเขียว)', () => {
+    const b = getPaymentBadge('PENDING', 'TRANSFER', null, new Date('2026-08-28T10:00:00.000Z'))
+    expect(b).toEqual({
+      label: 'ร้านยืนยันรับเงินแล้ว',
+      cls: 'badge bg-info/15 text-info-ink',
+      tone: 'info',
+    })
+  })
+
+  it('PENDING + PROMPTPAY + paymentConfirmedAt (ISO string) → ร้านยืนยันรับเงินแล้ว + tone info', () => {
+    const b = getPaymentBadge('PENDING', 'PROMPTPAY', null, '2026-08-28T10:00:00.000Z')
+    expect(b).toEqual({
+      label: 'ร้านยืนยันรับเงินแล้ว',
+      cls: 'badge bg-info/15 text-info-ink',
+      tone: 'info',
+    })
+  })
+
+  it('PENDING + CASH + paymentConfirmedAt → ร้านยืนยันรับเงินแล้ว (CASH นับเป็น transfer-like ด้วย)', () => {
+    const b = getPaymentBadge('PENDING', 'CASH', null, '2026-08-28T10:00:00.000Z')
+    expect(b?.label).toBe('ร้านยืนยันรับเงินแล้ว')
+    expect(b?.tone).toBe('info')
+  })
+
+  /**
+   * 🛑 [blocker] — เคสหัวใจของ U13: มีทั้งสลิป **และ** paymentConfirmedAt พร้อมกัน
+   * ต้องได้ "ร้านยืนยันรับเงินแล้ว" เสมอ (ร้านยืนยันเองชนะ "รอตรวจสอบสลิป" เพราะเป็นสัญญาณ
+   * ที่แน่นอนกว่า) — ยืนยันด้วยการ mutation: สลับลำดับกิ่ง paymentConfirmedAt กับ slipFileId
+   * ในโค้ดจริง (เอากิ่ง TRANSFER/PROMPTPAY+slipFileId ไปไว้ก่อนกิ่งใหม่) แล้วรันเทสนี้ซ้ำ
+   * ต้องได้ "รอตรวจสอบสลิป" (ผิด) → เทสนี้ต้องแดงทันที ถ้าไม่แดงแปลว่าเทสยังไม่ครอบเคสนี้จริง
+   */
+  it('[blocker] PENDING + TRANSFER + มีทั้งสลิปและ paymentConfirmedAt พร้อมกัน → ร้านยืนยันรับเงินแล้ว (ชนะ "รอตรวจสอบสลิป")', () => {
+    const b = getPaymentBadge('PENDING', 'TRANSFER', 'slip-abc', '2026-08-28T10:00:00.000Z')
+    expect(b?.label).toBe('ร้านยืนยันรับเงินแล้ว')
+    expect(b?.label).not.toBe('รอตรวจสอบสลิป')
+    expect(b?.tone).toBe('info')
+  })
+
+  it('[blocker] PENDING + PROMPTPAY + มีทั้งสลิปและ paymentConfirmedAt พร้อมกัน → ร้านยืนยันรับเงินแล้ว', () => {
+    const b = getPaymentBadge('PENDING', 'PROMPTPAY', 'slip-xyz', new Date())
+    expect(b?.label).toBe('ร้านยืนยันรับเงินแล้ว')
+  })
+
+  /**
+   * 🛑 [blocker] tone ของกิ่งใหม่ห้ามเป็น success — Verified-Means-Green สงวนไว้เฉพาะ
+   * status===CONFIRMED เท่านั้น (UX-Design-Spec §B8 "ทำไมเลือก tone info ไม่ใช่ success")
+   * mutation: เปลี่ยน tone ของ branch "ร้านยืนยันรับเงินแล้ว" เป็น 'success' → เทสนี้ต้องแดง
+   */
+  it('[blocker] tone ของ "ร้านยืนยันรับเงินแล้ว" ต้องเป็น info ห้ามเป็น success', () => {
+    const b = getPaymentBadge('PENDING', 'TRANSFER', null, '2026-08-28T10:00:00.000Z')
+    expect(b?.tone).toBe('info')
+    expect(b?.tone).not.toBe('success')
+    expect(b?.cls).not.toContain('bg-success')
+  })
+
   it('ไม่มี label ไหนได้ bg-success ยกเว้น "ชำระแล้ว" (Verified-Means-Green regression)', () => {
     const cases: Parameters<typeof getPaymentBadge>[] = [
-      ['PENDING', 'COD', null],
-      ['PENDING', 'TRANSFER', 'slip-1'],
-      ['PENDING', 'TRANSFER', null],
-      ['PENDING', 'PROMPTPAY', 'slip-1'],
-      ['SHIPPED', 'COD', null],
-      ['CANCELLED', 'TRANSFER', null],
-      ['PENDING', 'CASH', null],
-      ['PENDING', null, null],
+      ['PENDING', 'COD', null, null],
+      ['PENDING', 'TRANSFER', 'slip-1', null],
+      ['PENDING', 'TRANSFER', null, null],
+      ['PENDING', 'PROMPTPAY', 'slip-1', null],
+      ['SHIPPED', 'COD', null, null],
+      ['CANCELLED', 'TRANSFER', null, null],
+      ['PENDING', 'CASH', null, null],
+      ['PENDING', null, null, null],
+      // feature 00062 — branch ใหม่ต้องไม่หลุดเข้ากฎ Verified-Means-Green ด้วย
+      ['PENDING', 'TRANSFER', null, '2026-08-28T10:00:00.000Z'],
+      ['PENDING', 'PROMPTPAY', 'slip-1', new Date()],
+      ['PENDING', 'CASH', null, new Date()],
     ]
-    for (const [status, pm, slip] of cases) {
-      const b = getPaymentBadge(status, pm, slip)
+    for (const [status, pm, slip, confirmedAt] of cases) {
+      const b = getPaymentBadge(status, pm, slip, confirmedAt)
       if (b && b.label !== 'ชำระแล้ว') {
         expect(b.cls).not.toContain('success')
+        expect(b.tone).not.toBe('success')
       }
+    }
+  })
+})
+
+// -------------------------------------------------------------------------
+// feature 00062 (U13): isTransferLikePayment — SSOT "นี่คือการชำระที่ร้านยืนยันเองได้ไหม"
+// -------------------------------------------------------------------------
+describe('canSellerConfirmPayment — "ร้านกดยืนยันรับเงินเองได้ไหม"', () => {
+  for (const pm of ['TRANSFER', 'PROMPTPAY', 'CASH']) {
+    it(`${pm} → true`, () => {
+      expect(canSellerConfirmPayment(pm)).toBe(true)
+    })
+  }
+
+  /**
+   * 🛑 [blocker] COD ต้อง false เสมอ — `Order.codReceivedAt` เป็นเจ้าของคำถามนั้นอยู่แล้ว
+   * และ DB มี CHECK `Order_payment_confirm_exclusive_check` กันสองช่องมีค่าพร้อมกัน
+   * mutation: ทำให้คืน true กับ COD → เทสนี้ต้องแดง
+   */
+  it('[blocker] COD ทุกรูปแบบ → false', () => {
+    expect(canSellerConfirmPayment('COD')).toBe(false)
+    expect(canSellerConfirmPayment('เก็บเงินปลายทาง')).toBe(false)
+    expect(canSellerConfirmPayment('เก็บเงินปลายทาง (COD)')).toBe(false)
+  })
+
+  /**
+   * 🛑 [blocker] free text / CARD / OTHER / null ต้อง **true** — ไม่ใช่ false
+   *
+   * นี่คือเคสที่แตกกันจริงในรอบที่สร้างฟีเจอร์นี้: ฝั่งเขียน (`setPaymentConfirmed`) ใช้
+   * "ไม่ใช่ COD" ส่วนฝั่งป้ายเคยใช้ equality 3 ค่า ⇒ ออเดอร์ที่ร้านพิมพ์วิธีชำระเอง
+   * (มีจริงบน prod เช่น "พร้อมเพย์ 081-234-5678") จะยืนยันได้แต่ป้ายค้างที่
+   * "ยังไม่ยืนยันการชำระ" ตลอดไป — mutation: เปลี่ยนกลับเป็น allow-list 3 ค่า → เทสนี้ต้องแดง
+   */
+  it('[blocker] free text ที่ไม่ใช่ COD → true (ข้อมูลจริงบน prod เป็น free text)', () => {
+    expect(canSellerConfirmPayment('พร้อมเพย์ 081-234-5678')).toBe(true)
+    expect(canSellerConfirmPayment('CARD')).toBe(true)
+    expect(canSellerConfirmPayment('OTHER')).toBe(true)
+    expect(canSellerConfirmPayment(null)).toBe(true)
+    expect(canSellerConfirmPayment(undefined)).toBe(true)
+  })
+
+  /**
+   * 🛑 [blocker] ป้ายต้องเปลี่ยนตามทุกค่าที่ฝั่งเขียนยอมรับ (HR16)
+   *
+   * ผูกสองฝั่งเข้าด้วยกันตรง ๆ: ถ้า `canSellerConfirmPayment` บอกว่ายืนยันได้
+   * `getPaymentBadge` ต้องขึ้น "ร้านยืนยันรับเงินแล้ว" เมื่อมี `paymentConfirmedAt`
+   * ไม่ใช่ตกไปกิ่ง fallback
+   */
+  it('[blocker] ทุกค่าที่ยืนยันได้ → ป้ายต้องเป็น "ร้านยืนยันรับเงินแล้ว"', () => {
+    for (const pm of ['TRANSFER', 'PROMPTPAY', 'CASH', 'CARD', 'OTHER', 'พร้อมเพย์ 081-234-5678']) {
+      expect(canSellerConfirmPayment(pm)).toBe(true)
+      expect(getPaymentBadge('PENDING', pm, null, new Date())?.label).toBe('ร้านยืนยันรับเงินแล้ว')
+    }
+  })
+})
+
+/**
+ * 🛑 ด่านกัน "cls กับ tone พูดคนละสี" (feature 00062)
+ *
+ * `cls` ใช้ฝั่งผู้ขาย (Paces/Tailwind) ส่วน `tone` ถูกแปลงเป็นสี MUI ให้ฝั่งผู้ซื้อผ่าน
+ * `ORDER_STATUS_TONE_TO_MUI` — ถ้าสองอันไม่ตรงกัน ออเดอร์ใบเดียวกันจะขึ้นคนละสีบนสองจอ
+ * โดยไม่มีอะไรฟ้อง (ทั้งคู่เป็นค่าที่ "ถูก" ในตัวเอง) เกิดมาแล้วจริงตอนเพิ่ม tone รอบแรก:
+ * ยกเลิก = เทาฝั่งผู้ขาย แต่ส้มฝั่งผู้ซื้อ
+ */
+describe('[blocker] getPaymentBadge — cls กับ tone ต้องพูดสีเดียวกันทุก branch', () => {
+  const CASES: Array<[string, string | null, string | null, Date | null]> = [
+    ['CONFIRMED', 'TRANSFER', null, null],
+    ['CANCELLED', 'TRANSFER', null, null],
+    ['PENDING', 'COD', null, null],
+    ['PENDING', 'TRANSFER', null, new Date()],
+    ['PENDING', 'TRANSFER', 'file1', null],
+    ['PENDING', 'TRANSFER', null, null],
+    ['PENDING', 'อะไรก็ไม่รู้', null, null],
+  ]
+
+  it('ทุก branch: tone ต้องปรากฏเป็นคำใน cls (หรือเป็น neutral คู่กับ default)', () => {
+    for (const [status, pm, slip, confirmed] of CASES) {
+      const b = getPaymentBadge(status, pm, slip, confirmed)
+      if (!b) continue
+      const ok =
+        b.tone === 'neutral' ? b.cls.includes('default') : b.cls.includes(b.tone)
+      expect(ok, `${status}/${pm}/${slip}/${confirmed} → cls="${b.cls}" tone="${b.tone}"`).toBe(true)
     }
   })
 })

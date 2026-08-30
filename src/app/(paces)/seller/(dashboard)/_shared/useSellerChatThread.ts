@@ -384,6 +384,30 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
    */
   const [quotaExceeded, setQuotaExceeded] = useState(false)
   const [text, setText] = useState('')
+
+  /**
+   * "กำลังพิมพ์…" ฝั่งลูกค้า (2026-08-27) — ยิงตอนผู้ขายพิมพ์ในช่องข้อความ
+   *
+   * throttle ฝั่ง client ด้วยเพราะ `onChange` ยิงทุกตัวอักษร — ถ้าไม่กันตรงนี้ พิมพ์ประโยคเดียว
+   * = คำขอหลายสิบใบวิ่งไปหา server ทั้งที่ **ปลายทางคงสถานะไว้เอง ~20 วินาที** อยู่แล้ว
+   * (server มี throttle ของตัวเองอีกชั้นเป็นด่านจริง — ชั้นนี้แค่ลดคำขอที่ไม่มีประโยชน์)
+   *
+   * 🛑 ผูกกับ **การพิมพ์ของคน** เท่านั้น ห้ามเรียกจากที่ที่ `setText` ถูกตั้งด้วยโค้ด
+   * (เลือกคำตอบจาก AI / ข้อความสำเร็จรูป / เลือกสินค้า) — นั่นไม่ใช่การพิมพ์ และจะทำให้ลูกค้า
+   * เห็น "กำลังพิมพ์" ทั้งที่ผู้ขายแค่กดปุ่มเลือกของ
+   */
+  const typingAtRef = useRef(0)
+  // เปลี่ยนเธรด = เริ่มนับใหม่ ไม่งั้นเธรดถัดไปจะโดน throttle ค้างจากเธรดก่อนหน้า
+  useEffect(() => {
+    typingAtRef.current = 0
+  }, [conversationId])
+  const notifyTyping = useCallback(() => {
+    const now = Date.now()
+    if (now - typingAtRef.current < 10_000) return
+    typingAtRef.current = now
+    // ของประดับล้วน — ล้มแล้วเงียบ ห้ามให้ช่องพิมพ์สะดุดหรือ console เต็มไปด้วยสีแดง
+    void fetch(`/api/chat/conversations/${conversationId}/typing`, { method: 'POST' }).catch(() => {})
+  }, [conversationId])
   // reply/quote (user 2026-07-25): ข้อความที่กำลังจะ "ตอบทับ" — แสดง preview เหนือ composer, เคลียร์เมื่อส่ง/ยกเลิก
   const [replyingTo, setReplyingTo] = useState<ChatMessageView | null>(null)
   // multi-image (user สั่ง 2026-07-23 "ข้อความสำเร็จรูปใส่รูปได้มากกว่า 1"): เก็บเป็นคิวของรูปที่
@@ -1258,6 +1282,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     errorState,
     text,
     setText,
+    notifyTyping,
     pendingImage,
     // feature 00018 composer #2 — ให้ composer แนบรูปจาก "ข้อความสำเร็จรูป"/สินค้า (storage fileId
     // ที่มีอยู่แล้ว ไม่ต้อง upload ใหม่) ได้โดยตรง — set เป็นคิวรูปแล้วใช้ flow handleSend เดิม

@@ -1,175 +1,74 @@
 'use client'
 
 /**
- * ThreadOverflowMenu — เมนู `⋯` ของหัวห้องแชท (2026-08-14)
+ * ThreadOverflowMenu — เมนู `⋯` ของหัวห้องแชท (เหลือแค่สวิตช์เสียง)
  *
- * ที่มา: user สั่ง re-design หัวเธรดบนมือถือ เพราะ "จะเข้าไปดูไฟล์ที่ใช้ร่วมกันยากมาก"
- * ทางแก้ที่เลือก (แบบ A ในม็อกอัพ `docs/superpowers/specs/2026-08-14-chat-mobile-topbar-prototype.html`)
- * คือยกปุ่ม **คลังไฟล์** ขึ้นเป็นปุ่มระดับหนึ่งในหัวเธรด — แต่หัวเธรดไม่มีที่ว่างให้ปุ่มที่เพิ่มขึ้น
+ * ═══ ประวัติของกล่องนี้ กลับมติ 2 รอบในวันเดียว อ่านก่อนแก้ ═══
  *
- * 🛑 งบพื้นที่จริงที่ 320px (ค่าจากธีม ไม่ใช่การประมาณ — `flex-header-truncation.md` สั่งให้กางเลข
- * ก่อนเสนอทางแก้แถบเครื่องมือเสมอ): `.card-header` `px-5` = 40 · `gap-3` = 12 · `.btn.btn-icon`
- * (`size-9.25`) = 37 · avatar `size-9` = 36 · ปุ่ม "ข้อมูลลูกค้า" เดิม (`btn-sm` + ไอคอน) ≈ 40
+ * 2026-08-14  เกิดขึ้นเพื่อยุบ "ข้อมูลลูกค้า + เสียงแจ้งเตือน" ออกจากหัวเธรด เอาที่ว่างไปให้ปุ่ม
+ *             คลังไฟล์ (user: "จะเข้าไปดูไฟล์ที่ใช้ร่วมกันยากมาก")
+ * 2026-08-27  user: "ไม่ต้องมี dropdown บน desktop ให้ desktop แสดง icon เต็ม ๆ ไปเลย"
+ *             → เมนูเป็น `md:hidden`
+ * 2026-08-27  user: "ใน mobile ผมอยากให้มี [bell] [customer info] หน่อย ตอนนี้มันต้องกด dropdown ก่อน"
+ *             → ยกทุกอย่างขึ้นแถบ เมนูถูกถอดทิ้งชั่วคราว
+ * 2026-08-27  user: "ปุ่มมันเยอะไปป่ะ" → ถอดปุ่มคลังไฟล์
+ * 2026-08-27  **มติปัจจุบัน** — user: "[ตอบอัตโนมัติ] [ข้อมูล] [dropdown] ← dropdown ให้แสดง
+ *             เปิดปิดเสียง" ⇒ เมนูกลับมา **เฉพาะจอแคบ** และถือของชิ้นเดียวคือสวิตช์เสียง
  *
- *   เดิม        40 + 37 + 12 + 36 + 12 + [ชื่อ] + 12 + 40 + 12 + 37 = 238  → ชื่อเหลือ 82px
- *   เติมปุ่มไฟล์ตรง ๆ                              +37 +12 = 287  → ชื่อเหลือ 33px ⇒ ใส่ไม่ลง
- *   ยุบ 2 ปุ่มเป็น ⋯  40 + 37 + 12 + 36 + 12 + [ชื่อ] + 12 + 37 + 12 + 37 = 235 → ชื่อ 85px ✓
+ * ⇒ ลำดับความสำคัญที่ user เคาะสำหรับจอแคบ: **ตอบอัตโนมัติ > ข้อมูลลูกค้า > เสียง**
+ *   (เสียงเป็นของที่ตั้งครั้งเดียวแล้วแทบไม่แตะอีก จึงเป็นตัวที่ยอมให้ลึกลงไป 1 ชั้นได้)
  *
- * จึงยุบ **ข้อมูลลูกค้า + เสียงแจ้งเตือน** มาไว้ที่นี่ (user เคาะ 2026-08-14)
+ * 🛑 เดสก์ท็อป (≥768px) **ห้ามมีเมนูนี้** — คำสั่งเดิมของ user ยังอยู่ ที่นั่นเสียงเป็นปุ่มกระดิ่ง
+ * ของตัวเอง (`ThreadSoundButton`) ที่ `hidden md:inline-flex`
  *
- * 🛑 ทำไมสวิตช์เสียงถูก "ย้ายเข้ามา" ไม่ใช่ "เรียก NotificationSoundMenu ต่อ": สวิตช์ชุดเดียวกัน
- * ห้ามมี 2 เจ้าของ (HR16) — ถ้าปล่อยให้ทั้งสองไฟล์ถือ state เดียวกัน วันที่มีคนแก้กติกาข้างหนึ่ง
- * อีกข้างจะเงียบ ๆ พูดคนละเรื่องโดยไม่มี tsc/เทสตัวไหนฟ้อง. `NotificationSoundMenu.tsx` ถูกลบไป
- * พร้อมกับรอบนี้ เหตุผลทั้งหมดของมันย้ายมาอยู่ในคอมเมนต์นี้แทน:
- *   - มันเกิดขึ้นเพราะ user report 2026-08-10 ว่า **บนมือถือ ตอนอยู่ในห้องแชทไม่มีสวิตช์เสียงเลย**
- *     (สวิตช์ระดับแอปอยู่ใน ChatHeader ซึ่ง `hidden lg:flex` ในหน้าเธรด) ⇒ ต้องยังกดถึงได้จากในห้อง
- *     เสมอ ห้ามย้ายกลับออกไปหน้าอื่น. อยู่ใน ⋯ = ยังกดถึงจากในห้อง แค่ลึกลงไป 1 ชั้น
- *   - แถวรายเธรดเป็น `disabled` ไม่ใช่ซ่อน: ซ่อนแล้วผู้ใช้ไม่มีทางรู้ว่ามีสวิตช์นี้อยู่และไม่รู้ว่าทำไมมันหาย
- *   - ไอคอนบนปุ่มสะท้อน **ผลลัพธ์รวม** ("ห้องนี้จะมีเสียงไหม") ไม่ใช่สถานะของสวิตช์ใดสวิตช์หนึ่ง
+ * 🛑 ตรรกะเสียงอยู่ที่ `useThreadSound()` เจ้าของเดียวทั้งปุ่มกระดิ่งและเมนูนี้ (HR16) —
+ * ห้ามให้ไฟล์ไหนเรียก `isChatSoundMuted()/isConversationMuted()` เองอีก
  *
- * 🛑 `[--auto-close:false]` — จำเป็น เพราะเมนูนี้มี `form-switch` อยู่ข้างใน ถ้าเมนูปิดตัวเองทุกครั้ง
- * ที่แตะสวิตช์ ผู้ใช้จะสลับสวิตช์ที่สองไม่ได้เลยโดยไม่เปิดเมนูใหม่. ผลข้างเคียงคือ **รายการที่เป็น
- * การนำทางต้องสั่งปิดเมนูเอง** (`closeMenu()`) ไม่งั้นเมนูจะค้างเปิดอยู่หลังชีตถูกปิด
+ * 🛑 **ไม่มีจุด `bell-off` ซ้อนมุมปุ่มแล้ว** (user สั่งถอด 2026-08-27) — เดิมมีไว้บอกว่าห้องนี้เงียบ
+ * โดยไม่ต้องเปิดเมนู แต่เงื่อนไขของมันคือ `appMuted || threadMuted` ⇒ พอปิดเสียง **ทั้งแอป**
+ * จุดนี้ขึ้นทุกห้องตลอดเวลา ทั้งที่ยังไม่เคยปิดเสียงห้องไหนเลย = ย้ำสิ่งที่ไอคอนลำโพงบนแถบบนสุด
+ * (`ChatHeader.tsx`) บอกอยู่แล้ว. ⚠️ หนี้ที่รับไว้: จอแคบตอนนี้ไม่มีตัวบอก "ห้องนี้ปิดเสียง"
+ * นอกเมนู — ถ้าจะเอากลับ ให้ผูกกับ `threadMuted` อย่างเดียว ห้ามใช้ `silenced`
+ *
+ * 🛑 `[--auto-close:false]` — จำเป็น เพราะมี `form-switch` อยู่ข้างใน ถ้าเมนูปิดตัวเองทุกครั้งที่
+ * แตะสวิตช์ ผู้ใช้จะอ่านผลของสิ่งที่เพิ่งกดไม่ทัน
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/dropdowns/page.tsx (AutoCloseBehavior "Manual close"
- *       — `[--auto-close:false]`, `<h6>` หัวเมนู, `dropdown-divider`)
+ *       — `[--auto-close:false]`, `<h6>` หัวเมนู)
  *       theme/paces/Admin/TS/src/app/(admin)/apps/promo/discounts/components/DiscountTable.tsx (form-switch)
  */
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
-import {
-  CHAT_SOUND_EVENT,
-  isChatSoundMuted,
-  isConversationMuted,
-  setChatSoundMuted,
-  setConversationMuted,
-} from '@/lib/chat-sound'
+import { useThreadSound } from './ThreadSoundToggle'
 
-export default function ThreadOverflowMenu({
-  conversationId,
-  ordersLabel,
-  onOpenPanel,
-}: {
-  conversationId: string
-  /** คำเรียกรายการตามประเภทกิจการ (คำสั่งซื้อ / การจอง / งาน) — ห้ามพิมพ์เองที่นี่ */
-  ordersLabel: string
-  onOpenPanel: (tab: 'customer' | 'orders') => void
-}) {
+export default function ThreadOverflowMenu({ conversationId }: { conversationId: string }) {
   const t = useT()
-  // อ่านหลัง mount เท่านั้น — localStorage ไม่มีฝั่ง server ถ้าอ่านตอน render แรกจะ hydration mismatch
-  const [appMuted, setAppMuted] = useState(false)
-  const [threadMuted, setThreadMuted] = useState(false)
   const uid = useId()
-  const triggerRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    const sync = () => {
-      setAppMuted(isChatSoundMuted())
-      setThreadMuted(isConversationMuted(conversationId))
-    }
-    sync()
-    // อีกแท็บ/อีกจุดบนจอเดียวกันเปลี่ยนค่า → ตามให้ทัน (ค่าที่ค้างอยู่ในเมนูที่เปิดอยู่จะโกหกทันที)
-    window.addEventListener(CHAT_SOUND_EVENT, sync)
-    return () => window.removeEventListener(CHAT_SOUND_EVENT, sync)
-  }, [conversationId])
-
-  // ไอคอนสะท้อน "ผลลัพธ์รวม" ไม่ใช่สถานะของสวิตช์ใดสวิตช์หนึ่ง — ปิดจากระดับไหนก็คือห้องนี้เงียบ
-  const silenced = appMuted || threadMuted
-
-  /**
-   * ปิดเมนูด้วยการกดปุ่มเปิดซ้ำ — Preline toggle ที่ตัว trigger เอง ไม่ต้องพึ่ง JS API ของมัน
-   * (รีโปนี้เรียก `window.HSOverlay` อยู่บ้าง แต่ไม่เคยเรียก HSDropdown เลยสักที่ จึงไม่มี
-   *  precedent ให้ยืนยันว่ามีจริงในเวอร์ชันที่ใช้อยู่ — การกด trigger ซ้ำเป็นทางที่พิสูจน์ได้จาก
-   *  พฤติกรรมที่ผู้ใช้ทำได้เองอยู่แล้ว)
-   */
-  const closeMenu = () => triggerRef.current?.click()
+  const { appMuted, threadMuted, toggleThread } = useThreadSound(conversationId)
 
   return (
-    <div className="hs-dropdown relative inline-flex [--auto-close:false] [--placement:bottom-end]">
+    <div className="hs-dropdown relative inline-flex [--auto-close:false] [--placement:bottom-end] md:hidden">
       <button
-        ref={triggerRef}
         type="button"
         id={`${uid}-more-trigger`}
         aria-haspopup="menu"
         aria-expanded="false"
         aria-label={t.inbox.threadMoreMenu}
         title={t.inbox.threadMoreMenu}
-        className="btn btn-icon hs-dropdown-toggle hover:bg-default-100 text-default-700 relative shrink-0"
+        className="btn btn-icon hs-dropdown-toggle border-default-300 text-default-700 hover:bg-default-100 shrink-0"
       >
         <Icon icon="dots-vertical" className="text-lg" />
-        {/* จุดบอกว่าห้องนี้ถูกปิดเสียงอยู่ — เดิมสถานะนี้อ่านได้จากไอคอนกระดิ่งบนหัวเธรดโดยตรง
-            พอกระดิ่งถูกยุบเข้าเมนู ถ้าไม่มีตัวบอกตรงนี้ ผู้ขายจะไม่มีทางรู้ว่าตัวเองปิดเสียงไว้
-            จนกว่าจะเปิดเมนูดู (คลาสเดียวกับ "default ปิดที่ไม่มีใครรู้ว่ามีสวิตช์")
-            ใช้ `bell-off` ซ้อนมุม ไม่ใช่จุดสีเปล่า — จุดสีเปล่าไม่บอกว่าปิดอะไรอยู่ */}
-        {silenced && (
-          <span className="bg-card text-default-500 absolute -end-0.5 -bottom-0.5 flex size-4 items-center justify-center rounded-full">
-            <Icon icon="bell-off" className="text-2xs" />
-          </span>
-        )}
       </button>
 
       <div
-        // คลาสชุดเดียวกับ ChatShopSwitcher/theme (hs-dropdown-menu + min-w-*) — Preline จัดการ
-        // การซ่อน/แสดงและ transition เอง ไม่ต้องเติม hidden/opacity เองให้ชนกับของมัน
         className="hs-dropdown-menu min-w-60"
         role="menu"
         aria-orientation="vertical"
         aria-labelledby={`${uid}-more-trigger`}
       >
-        {/**
-         * 🛑 รายการนำทางโผล่เฉพาะ `<md` (2026-08-14, user: "ตรงนี้ใน desktop ไม่น่าจะต้องมีนะ")
-         *
-         *   <768px   ไม่มีที่อื่นให้กด → ต้องมีในเมนู
-         *   768–1279 มีปุ่ม "ข้อมูลลูกค้า" ของตัวเองในหัวเธรดแล้ว → มีในเมนูด้วย = ของซ้ำบนจอเดียว
-         *   ≥1280px  CustomerPanel เป็นคอลัมน์ถาวรอยู่ข้าง ๆ → เมนูเหลือแต่สวิตช์เสียง
-         *
-         * ใช้ `md:hidden` ไม่ใช่ `xl:hidden` เพราะตัวที่ทำให้ซ้ำคือปุ่มในหัวเธรดที่โผล่ตั้งแต่ md
-         * ไม่ใช่คอลัมน์ที่โผล่ตอน xl
-         */}
-        <button
-          type="button"
-          role="menuitem"
-          onClick={() => {
-            closeMenu()
-            onOpenPanel('customer')
-          }}
-          className="dropdown-item flex w-full items-center gap-2.5 md:hidden"
-        >
-          <Icon icon="user-circle" className="text-default-500 text-base" />
-          {t.inbox.customerInfo}
-        </button>
-
-        <button
-          type="button"
-          role="menuitem"
-          onClick={() => {
-            closeMenu()
-            onOpenPanel('orders')
-          }}
-          className="dropdown-item flex w-full items-center gap-2.5 md:hidden"
-        >
-          <Icon icon="shopping-cart" className="text-default-500 text-base" />
-          {ordersLabel}
-        </button>
-
-        <hr className="dropdown-divider md:hidden" />
-
         <h6 className="text-default-800 px-2.75 py-2 font-semibold">{t.inbox.threadSoundTitle}</h6>
-
-        <div className="flex items-center justify-between gap-3 px-2.75 py-2">
-          <label htmlFor={`${uid}-app`} className="text-default-700 mb-0 text-sm">
-            {t.inbox.threadSoundAllApp}
-          </label>
-          <input
-            id={`${uid}-app`}
-            type="checkbox"
-            className="form-switch shrink-0"
-            checked={!appMuted}
-            onChange={() => setChatSoundMuted(!appMuted)}
-          />
-        </div>
 
         <div className="px-2.75 pt-1 pb-2">
           <div className="flex items-center justify-between gap-3">
@@ -186,13 +85,11 @@ export default function ThreadOverflowMenu({
               // ปิดทั้งแอปอยู่ = สวิตช์นี้ไม่มีผลอะไร แต่ต้องยังเห็นว่ามีอยู่ (ไม่ใช่หายไปเฉย ๆ)
               disabled={appMuted}
               checked={!appMuted && !threadMuted}
-              onChange={() => setConversationMuted(conversationId, !threadMuted)}
+              onChange={toggleThread}
             />
           </div>
           {appMuted && (
-            <p className="text-default-500 mt-1 mb-0 text-2xs">
-              {t.inbox.threadSoundMutedHint}
-            </p>
+            <p className="text-default-500 mt-1 mb-0 text-2xs">{t.inbox.threadSoundAppMutedHint}</p>
           )}
         </div>
       </div>

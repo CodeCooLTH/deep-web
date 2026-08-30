@@ -30,6 +30,7 @@ import {
   impliesDispatched,
   isDeliveredCarrierStatus,
   parseCarrierTimestamp,
+  isReturnDispatchEvent,
   returnLegStampOf,
   readCodSettlement,
   readCarrierCharges,
@@ -121,6 +122,7 @@ export interface ShipmentView {
   /** เวลาของ "ขากลับ" — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" (ดู schema.prisma) */
   returnStartedAt: Date | null;
   returnedAt: Date | null;
+  returnDispatchedAt: Date | null;
   isOverWeight: boolean;
   isOverSize: boolean;
   labelPrintedAt: Date | null;
@@ -445,6 +447,7 @@ function toShipmentView(s: {
   createdAt: Date;
   returnStartedAt: Date | null;
   returnedAt: Date | null;
+  returnDispatchedAt: Date | null;
 }): ShipmentView {
   return {
     ...s,
@@ -498,6 +501,7 @@ const SHIPMENT_SELECT = {
   carrierStatusAt: true,
   returnStartedAt: true,
   returnedAt: true,
+  returnDispatchedAt: true,
   isOverWeight: true,
   isOverSize: true,
   labelPrintedAt: true,
@@ -1673,6 +1677,7 @@ export async function getTraces(
       },
       update: {},
     });
+    await stampReturnDispatch(row.id, r.status, r.status_desc, occurredAt);
   }
 
   // sync สถานะล่าสุดลง OrderShipment ด้วย ไม่ใช่บันทึกแค่ไทม์ไลน์
@@ -1849,6 +1854,26 @@ async function stampReturnLeg(
   }
 }
 
+/**
+ * stampReturnDispatch — ประทับเวลา "ขนส่งกำลังนำพัสดุมาส่งคืนที่ร้าน" (write-once)
+ *
+ * 🛑 ต้องเรียกจาก **ทุกที่ที่เขียน `ShipmentEvent`** เพราะสัญญาณนี้อยู่ใน `statusDesc`
+ * ซึ่งมีเฉพาะตอนเขียน event ไม่ได้อยู่ในรหัสสถานะที่ `applyCarrierStatus` เห็น
+ * ⇒ ต่างจาก `stampReturnLeg` ที่ผูกกับรหัส — สองตัวนี้จึงเรียกคนละจุดกัน
+ */
+async function stampReturnDispatch(
+  shipmentId: string,
+  code: string | null | undefined,
+  statusDesc: string | null | undefined,
+  occurredAt: Date,
+): Promise<void> {
+  if (!isReturnDispatchEvent(code, statusDesc)) return;
+  await prisma.orderShipment.updateMany({
+    where: { id: shipmentId, returnDispatchedAt: null },
+    data: { returnDispatchedAt: occurredAt },
+  });
+}
+
 // ─── webhook (ไม่มี session — จับคู่จากข้อมูลใน payload) ────────────────────
 
 /**
@@ -1931,8 +1956,14 @@ export async function handleStatusWebhook(payload: unknown): Promise<void> {
     });
   }
 
-  // ฝาแฝดขากลับของบล็อกข้างบน — ไทม์ไลน์แถวที่ 2 อ่านเวลาจากสองคอลัมน์นี้
+  // ฝาแฝดขากลับของบล็อกข้างบน — ไทม์ไลน์ขากลับอ่านเวลาจากคอลัมน์เหล่านี้
   await stampReturnLeg(shipment.id, status, occurredAt);
+  await stampReturnDispatch(
+    shipment.id,
+    status,
+    typeof p.status_desc === "string" ? p.status_desc : null,
+    occurredAt,
+  );
 
   await advanceOrderOnCarrierMove(shipment.orderId, status);
 }

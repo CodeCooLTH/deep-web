@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>เลือกไอคอนจุด "กำลังตีกลับ"</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+:root{--success:#02bc9c;--d200:#eef2f7;--d500:#58626b;--d700:#40454a;--d900:#313a46;--card:#fff;--body:#f0f1f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--body);font-family:Anuphan,system-ui,sans-serif;color:var(--d900);padding:28px 20px 60px}
+.wrap{max-width:820px;margin:0 auto}
+h1{font-size:20px;margin:0 0 4px}
+p.sub{color:var(--d500);font-size:13px;margin:0 0 24px;line-height:1.7}
+.opt{background:var(--card);border-radius:12px;padding:16px 18px;margin-bottom:14px;box-shadow:0 1px 6px rgba(49,58,70,.07)}
+.opt h2{font-size:13px;margin:0 0 2px;font-weight:700}
+.opt .why{font-size:12px;color:var(--d500);margin:0 0 14px;line-height:1.6}
+.opt code{background:var(--d200);border-radius:4px;padding:1px 5px;font-size:11px;font-family:inherit}
+.rail{display:flex;flex-direction:row-reverse;align-items:center;max-width:420px}
+.dot{width:32px;height:32px;border-radius:999px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+     background:var(--success);color:#fff;font-size:15px}
+.seg{height:2px;flex:1;background:var(--success);min-width:8px}
+.lbs{display:flex;flex-direction:row-reverse;margin-top:6px;max-width:420px}
+.lb{flex:0 0 32px;display:flex;justify-content:center}
+.lb span{font-size:10px;line-height:1.25;white-space:nowrap;color:var(--d700)}
+.lb.first{justify-content:flex-end}.lb.last{justify-content:flex-start}
+.sp{flex:1}
+.flip{transform:scaleX(-1)}
+.tag{display:inline-block;font-size:10px;font-weight:700;background:var(--success);color:#fff;border-radius:999px;padding:1px 8px;margin-left:6px}
+</style>
+</head>
+<body><div class="wrap">
+<h1>จุด “กำลังตีกลับ” — เลือกไอคอน</h1>
+<p class="sub">
+  อีก 3 จุดคงเดิม: <code>package-off</code> · <code>truck-delivery</code> (กลับด้าน) · <code>building-store</code><br>
+  แถบอ่าน <b>ขวา→ซ้าย</b> · ทุกตัวเช็คแล้วว่ามีจริงใน tabler
+</p>
+
+<div id="opts"></div>
+
+<script>
+const OPTS = [
+  ['arrow-back-up','ของตอนนี้','ลูกศรย้อนกลับเปล่า ๆ — อ่านออกแน่นอนแต่จืดกว่าอีก 3 จุดที่เป็นรูปของจริง (กล่อง/รถ/ร้าน)'],
+  ['transfer-in','แนะนำ','ลูกศรวิ่งเข้าหาเส้น = “ของกำลังถูกส่งกลับเข้ามา” ตรงกับทิศของแถบพอดี และไม่ซ้ำรูปทรงกับจุดไหน'],
+  ['package-export','','กล่องมีลูกศรออก — อยู่ตระกูลเดียวกับ package-off ที่จุดข้าง ๆ แต่ 00056 (ลูกค้าคืนของ) ใช้ตัวนี้อยู่แล้ว อาจสับสนข้ามแถบ'],
+  ['arrow-loop-left','','ลูกศรวนกลับ — สื่อ “ย้อนกลับ” ชัดกว่าลูกศรตรง แต่ยังเป็นลูกศรเปล่าเหมือนของเดิม'],
+  ['truck-return','','รถ + ลูกศรย้อน — ตรงความหมายที่สุด แต่จุดถัดไปเป็นรถอยู่แล้ว จะได้รถ 2 คันติดกัน'],
+  ['rotate-2','','ลูกศรวนรอบ — อ่านได้ว่า “ทำใหม่/ย้อน” มากกว่า “ของกำลังเดินทางกลับ”'],
+]
+document.getElementById('opts').innerHTML = OPTS.map(([icon,tag,why]) => `
+  <div class="opt">
+    <h2><code>${icon}</code>${tag?`<span class="tag">${tag}</span>`:''}</h2>
+    <p class="why">${why}</p>
+    <div class="rail">
+      <span class="dot"><iconify-icon icon="tabler:package-off"></iconify-icon></span>
+      <span class="seg"></span>
+      <span class="dot"><iconify-icon icon="tabler:${icon}"></iconify-icon></span>
+      <span class="seg"></span>
+      <span class="dot"><iconify-icon icon="tabler:truck-delivery" class="flip"></iconify-icon></span>
+      <span class="seg"></span>
+      <span class="dot"><iconify-icon icon="tabler:building-store"></iconify-icon></span>
+    </div>
+    <div class="lbs">
+      <span class="lb first"><span>พัสดุมีปัญหา</span></span><span class="sp"></span>
+      <span class="lb"><span>กำลังตีกลับ</span></span><span class="sp"></span>
+      <span class="lb"><span>กำลังส่ง</span></span><span class="sp"></span>
+      <span class="lb last"><span>ถึงร้านค้า</span></span>
+    </div>
+  </div>`).join('')
+</script>
+</div></body></html>

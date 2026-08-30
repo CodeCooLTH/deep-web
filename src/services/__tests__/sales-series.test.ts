@@ -79,6 +79,7 @@ describe('getSalesSeries — รอเงิน COD ต่อวัน', () => {
         createdAt: thaiNoon(2026, 3, 5),
         status: 'SHIPPED',
         paymentMethod: 'COD',
+        fulfillmentMode: 'SHIPPED',
         codReceivedAt: null,
         shipments: activeShipment('delivered'),
       },
@@ -98,6 +99,7 @@ describe('getSalesSeries — รอเงิน COD ต่อวัน', () => {
         createdAt: thaiNoon(2026, 3, 5),
         status: 'SHIPPED',
         paymentMethod: 'COD',
+        fulfillmentMode: 'SHIPPED',
         codReceivedAt: thaiNoon(2026, 3, 6), // ร้านกดรับเงินแล้ว
         shipments: activeShipment('delivered'),
       },
@@ -106,6 +108,7 @@ describe('getSalesSeries — รอเงิน COD ต่อวัน', () => {
         createdAt: thaiNoon(2026, 3, 5),
         status: 'SHIPPED',
         paymentMethod: 'โอนเงิน',
+        fulfillmentMode: 'SHIPPED',
         codReceivedAt: null,
         shipments: activeShipment('delivered'),
       },
@@ -114,6 +117,7 @@ describe('getSalesSeries — รอเงิน COD ต่อวัน', () => {
         createdAt: thaiNoon(2026, 3, 5),
         status: 'SHIPPED',
         paymentMethod: 'COD',
+        fulfillmentMode: 'SHIPPED',
         codReceivedAt: null,
         shipments: activeShipment('in_transit'), // ยังไม่ถึงปลายทาง
       },
@@ -131,6 +135,7 @@ describe('getSalesSeries — รอเงิน COD ต่อวัน', () => {
         createdAt: thaiNoon(2026, 3, 7),
         status: 'SHIPPED',
         paymentMethod: 'เก็บเงินปลายทาง',
+        fulfillmentMode: 'SHIPPED',
         codReceivedAt: null,
         shipments: [
           { status: 'CREATED', isDryRun: true, carrierStatus: 'delivered', createdAt: thaiNoon(2026, 3, 7) },

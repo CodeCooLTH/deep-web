@@ -45,7 +45,16 @@ import { toast } from 'react-toastify'
 
 import CustomAvatar from '@core/components/mui/Avatar'
 
-import { getOrderTimeline, getServiceTimeline, isCODPayment, isFinalStepReady, isHttpUrl, showSlipZone, ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
+import {
+  getOrderTimeline,
+  getServiceTimeline,
+  isCODPayment,
+  isFinalStepReady,
+  isHttpUrl,
+  showSlipZone,
+  ORDER_STATUS_TONE_TO_MUI,
+  getPaymentBadge,
+} from '@/lib/order-display'
 import { resolveOrderStatusBadge } from '@/lib/order-stage'
 import { resolveServiceOrderBadge, shouldShowOrderOrigin } from '@/lib/order-display'
 import { isRenderableChannel } from '@/views/pages/user-profile/v2/OfficialChannels'
@@ -57,11 +66,15 @@ import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { resolveVerifyBadge } from '@/lib/verify-badge'
 import { uploadFileId } from '@/lib/upload-client'
 import { uploadMaxSize } from '@/lib/upload-policy'
+import { needsPayoutAccount } from '@/lib/shop-payout'
+import { isPickupOrder } from '@/lib/order-pickup'
 
 import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFooter'
 import { cardBodySx, cardInlinePadSx, infoBoxSx } from './card-padding'
 import { ORDER_TWO_COL_MQ, orderDetailWidthSx } from './content-width'
 import CoverActions from './CoverActions'
+import PayoutAccountCard from './PayoutAccountCard'
+import PickupInfoCard from './PickupInfoCard'
 import ShopCover from './ShopCover'
 import { ShopChannels, ShopStats } from './ShopEvidence'
 import TrustPill, { VERIFIED_INK } from './TrustPill'
@@ -121,6 +134,8 @@ export type PublicOrderData = {
      * ปกนั้นไม่เคยโผล่บนหน้าที่ลูกค้าเปิดดูออเดอร์ (เจอ 2026-08-29)
      */
     coverImage: string | null
+    /** feature 00062 — ที่อยู่ร้าน = จุดนัดรับ (ชุดเดียวกับที่ buildGuestOrderData ส่งก่อนล็อกอิน) */
+    address: string | null
     user: {
       displayName: string
       username: string
@@ -207,6 +222,16 @@ export type PublicOrderData = {
    * — ผูกคำไว้กับเงินคือบั๊กที่รอเกิด
    */
   isServiceShop: boolean
+  /**
+   * feature 00062 (TFR-009/TFR-010) — สำเนาบัญชีรับเงินของร้าน ณ เวลาสร้าง/แก้ไขออเดอร์ล่าสุด
+   * (freeze) — ไม่ใช่ PII ของผู้ซื้อ ชุดเดียวกับที่ `GuestOrderData` ส่งให้ก่อนล็อกอิน (parity)
+   * `null` = ร้านยังไม่ได้ตั้งบัญชี → UI ต้อง fallback (UX-Design-Spec §B7 Edge states)
+   */
+  payoutSnapshot: import('@/lib/shop-payout').PayoutSnapshot | null
+  /** feature 00062 (TFR-007) — เวลาที่ร้านกด "ได้รับเงินแล้ว" เอง — input ที่ 4 ของ getPaymentBadge */
+  paymentConfirmedAt: string | null
+  /** feature 00062 — เวลาที่ร้านกด "มอบสินค้าแล้ว" (ISO) · `null` = ยังไม่ได้มอบ */
+  handedOverAt: string | null
 }
 
 type Props = {
@@ -851,6 +876,13 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
         hasAppointment: order.appointment !== null,
       })
     : resolveOrderStatusBadge(order.status)
+
+  /**
+   * feature 00062 (UX-Design-Spec §B8) — badge สถานะการ "ชำระเงิน" คนละแกนกับ `statusBadge`
+   * ข้างบนซึ่งเป็นสถานะ "ออเดอร์" (PENDING/SHIPPED/CONFIRMED/…) — ใช้เฉพาะในหัวการ์ด
+   * PayoutAccountCard เดียวกับที่จอ guest เรียก ตัวเดียวกันทั้งสองจอ (HR16)
+   */
+  const paymentBadge = getPaymentBadge(order.status, order.paymentMethod, order.slipFileId, order.paymentConfirmedAt)
 
   const isCancelled = order.status === 'CANCELLED'
 
@@ -1783,7 +1815,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           </Box>
 
           {/* ↳ รายการบริการ */}
-          <Box sx={{ order: 5, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
+          <Box sx={{ order: 7, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
           {/* ── 6. Items card ── */}
           <Card>
             {/* 🛑 หัวข้อ + ตัวนับ ขึ้นเฉพาะเมื่อ**มีรายการจริง** — ไม่งั้นได้ "รายการบริการ · 0 รายการ"
@@ -1893,7 +1925,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           </Box>
 
           {/* ↳ ต้องการความช่วยเหลือ */}
-          <Box sx={{ order: 10, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
+          <Box sx={{ order: 12, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
           {/* ── ต้องการความช่วยเหลือ? — ตำแหน่งที่ ux ตัดสิน (คำตอบของ SDS TD-001) ──
               🛑 การ์ดนี้ render "นอก" เงื่อนไข canConfirm/isCancelled โดยตั้งใจ
               ของเดิมปุ่ม "ติดต่อร้านค้า" อยู่ใน (!canConfirm && isCancelled) = โผล่เฉพาะออเดอร์
@@ -2004,6 +2036,50 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           {order.money && <PaymentSummaryCard money={order.money} paymentMethod={order.paymentMethod} />}
           </Box>
 
+          {/**
+           * ── feature 00062 (จาก main): บัญชีรับเงิน + QR · จุดนัดรับ ──
+           *
+           * 🛑 สเปกบังคับให้อยู่ **ก่อนการ์ดรายการเสมอทั้งสองจอ** — บนโครง 2 คอลัมน์ของเรา
+           * แปลว่าต้องได้ `order` ที่น้อยกว่าการ์ดรายการ (ซึ่งเป็น 7) · วางในคอลัมน์ขวา
+           * รวมกับการ์ดเงิน เพราะทั้งคู่ตอบคำถามเดียวกันว่า "จ่ายยังไง"
+           * (การ์ดเดียวกับที่จอ guest เรียก — `sibling-surface-parity`)
+           */}
+          <Box sx={{ order: 5, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
+          {needsPayoutAccount(order.paymentMethod) && (
+            <PayoutAccountCard
+              totalAmount={order.totalAmount}
+              payoutSnapshot={order.payoutSnapshot}
+              paymentBadge={paymentBadge}
+              status={order.status}
+              paymentConfirmedAt={order.paymentConfirmedAt}
+              contactShopAction={
+                <Button
+                  component={Link}
+                  href={`/messages/${order.shopId}`}
+                  fullWidth
+                  variant='tonal'
+                  color='primary'
+                  startIcon={<Icon icon='tabler-headset' fontSize={18} />}
+                  sx={{ minHeight: 44, fontWeight: 600 }}
+                >
+                  ติดต่อร้านค้า
+                </Button>
+              }
+            />
+          )}
+          </Box>
+
+          <Box sx={{ order: 6, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
+          {isPickupOrder(order.fulfillmentMode) && (
+            <PickupInfoCard
+              shopName={order.shop.shopName}
+              shopAddress={order.shop.address}
+              handedOverAt={order.handedOverAt}
+              status={order.status}
+            />
+          )}
+          </Box>
+
           {/* ↳ แนบสลิป */}
           <Box sx={{ order: 4, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
           {/* ── สลิป — 🛑 ต้องอยู่ "ก่อน" โซนรีวิวเสมอ (FR-010) ──
@@ -2107,13 +2183,16 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           </Box>
 
           {/* ↳ ช่องทางชำระเงิน */}
-          <Box sx={{ order: 6, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
-          {/* ── 7. Payment method card (เมื่อ paymentMethod != null) ── */}
+          <Box sx={{ order: 8, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
+          {/* ── 7. Payment method card (COD/เงินสด — `needsPayoutAccount()` = false) ──
+              feature 00062 (จาก main): TRANSFER/PROMPTPAY/อื่น ๆ ที่ต้องโอน ย้ายไป
+              `PayoutAccountCard` ข้างบนแล้ว (มีบัญชี+QR ให้จริง) การ์ดนี้เหลือไว้เฉพาะกรณี
+              "ไม่ต้องโอน" ซึ่งไม่มีอะไรให้บัญชี/QR แสดงอยู่แล้ว
+              🛑 เงื่อนไขเดิมของเราคือ `!order.money` — **ต้องใช้ของ main แทน** เพราะ 00062
+              ย้ายเคสโอนออกไปทั้งกลุ่ม ถ้าคงเงื่อนไขเดิมไว้ ออเดอร์โอนจะได้การ์ดสองใบพูดเรื่อง
+              เดียวกัน (การ์ดบัญชีของ 00062 + การ์ดช่องทางของเรา) */}
           {/* D4: icon tonal info=โอนเงิน / warning=COD (ไม่ใช่ success — green สงวนไว้กับ verified) */}
-          {/* 🛑 ขึ้นเป็นการ์ดแยก **เฉพาะตอนไม่มีการ์ดเงิน** (ร้านขายออนไลน์)
-              ร้านบริการมีการ์ดเงินอยู่แล้ว ⇒ ช่องทางจ่ายถูกยุบเข้าไปเป็นแถวในนั้น
-              เพื่อให้ "จะโอนเท่าไร" กับ "เข้าช่องทางไหน" อยู่ด้วยกัน (ลดบล็อกบนมือถือ 1 ใบ) */}
-          {order.paymentMethod !== null && !order.money && (
+          {order.paymentMethod !== null && !needsPayoutAccount(order.paymentMethod) && (
             <Card>
               <Box sx={cardBodySx}>
                 {/* หัวข้อการ์ดตามม็อกอัพ v5 — ของเดิมมีแต่แถวเนื้อหาลอย ๆ ไม่มีอะไรบอกว่า
@@ -2150,7 +2229,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           </Box>
 
           {/* ↳ เลขพัสดุ */}
-          <Box sx={{ order: 7, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
+          <Box sx={{ order: 9, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
           {/* ── 8. Shipment tracking card (เมื่อ shipmentTracking != null) ── */}
           {order.shipmentTracking && (
             <Card>
@@ -2185,7 +2264,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           </Box>
 
           {/* ↳ โซนรีวิว */}
-          <Box sx={{ order: 8, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
+          <Box sx={{ order: 10, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
           {/* ── โซนรีวิว (3 สถานะ — ดู SDS TD-002) ── */}
           {order.hasReview && order.review && editingReview && (
             <Card>
@@ -2380,7 +2459,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
            *
            * ถ้าวันหนึ่งข้อไหนไม่จริงแล้ว ต้องลบบรรทัดนั้นทิ้ง ไม่ใช่แก้คำให้กำกวมลง
            */}
-          <Box sx={{ order: 12, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
+          <Box sx={{ order: 14, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
             <Card sx={{ bgcolor: 'primary.lightOpacity' }}>
               <Box sx={cardBodySx}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.5 }}>
@@ -2427,7 +2506,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           </Box>
 
           {/* ↳ ลิงก์ดิจิทัล */}
-          <Box sx={{ order: 9, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
+          <Box sx={{ order: 11, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
           {/* ── S-10: Digital access-link card (OOS-2) ── */}
           {order.fulfillmentMode === 'NO_SHIPPING' &&
             order.accessUrl != null &&
@@ -2464,7 +2543,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           </Box>
 
           {/* ↳ ท้ายหน้า */}
-          <Box sx={{ order: 11, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
+          <Box sx={{ order: 13, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
           {/* ── Footer — non-canConfirm states ── */}
           {!canConfirm && (
             <Box sx={{ textAlign: 'center', py: 2, ...cardInlinePadSx }}>

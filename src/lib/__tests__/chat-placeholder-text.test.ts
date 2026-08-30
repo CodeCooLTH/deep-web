@@ -137,3 +137,41 @@ describe('[blocker] attachment type ของ Instagram ต้องครบต
     expect(mediaTypes![1]).not.toContain('share')
   })
 })
+
+/**
+ * 🛑 [blocker] Graph probe สำหรับข้อความที่ Meta ติดธง `is_unsupported`
+ *
+ * ที่มา (prod 2026-08-27): ผู้ขายส่งสติกเกอร์จาก **sticker pack ของ Instagram เอง** → webhook มา
+ * แค่ `mid` + `is_unsupported: true` ไม่มี `attachments` เลย ⇒ `isMedia` เป็น false ⇒ โค้ดเดิม
+ * **ข้ามการยิง Graph ไปทั้งดุ้น** แล้วตกไป placeholder โดยไม่เคยลองถามด้วยซ้ำ
+ *
+ * (สติกเกอร์/GIF จาก GIPHY ไม่เดินทางนี้ — Meta ส่ง `type:image` + `media*.giphy.com` มาให้ตรง ๆ
+ * ยืนยันด้วย payload จริง: สลอธ + คอร์กี้เข้าปกติ ส่วนตัวตลกจาก pack ของ IG ตกมาที่ธงนี้)
+ */
+describe('[blocker] ยิง Graph ถามซ้ำเมื่อ Meta ไม่ส่งเนื้อหามา', () => {
+  const src = () =>
+    readFileSync(join(ROOT, 'src/services/channel-chat.service.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '')
+
+  it('เงื่อนไข probe ต้องผูกกับ is_unsupported และยิงเฉพาะตอนไม่มี attachment', () => {
+    const s = src()
+    const decl = s.match(/const probeUnsupported =([^\n]*)/)
+    expect(decl, 'หา probeUnsupported ไม่เจอ').not.toBeNull()
+    expect(decl![1]).toContain('is_unsupported')
+    // 🛑 ต้องมี !firstAttachment — ถ้ามี attachment อยู่แล้ว สาขา isMedia จัดการอยู่แล้ว
+    // การถอดออกจะทำให้ยิง Graph สองรอบต่อข้อความเดียว
+    expect(decl![1]).toMatch(/!\s*firstAttachment/)
+  })
+
+  it('probe ต้องถูกใส่เข้าเงื่อนไขที่ยิง Graph จริง ไม่ใช่ประกาศทิ้งไว้เฉย ๆ', () => {
+    const s = src()
+    expect(s).toMatch(/if \(\(isMedia \|\| probeUnsupported\) && !mirroredFileId && event\.message\.mid\)/)
+  })
+
+  it('[blocker] ได้ไฟล์กลับมาแล้วต้องเป็น IMAGE ไม่ใช่ TEXT (ไม่งั้นบับเบิลมีรูปแต่ไม่มีใครเรนเดอร์)', () => {
+    const s = src()
+    // ข้อความชนิดนี้ไม่มี attType ให้แมป จึงต้องมีสาขาเฉพาะที่อิง probeUnsupported
+    expect(s).toMatch(/mirroredFileId && probeUnsupported\s*\n?\s*\?\s*'IMAGE'/)
+  })
+})

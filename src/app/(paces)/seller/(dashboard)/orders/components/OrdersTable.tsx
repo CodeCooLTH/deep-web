@@ -42,7 +42,15 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
-import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderItemRow, type OrderRow } from './data'
+import {
+  PAYMENT_LABELS,
+  PAYMENT_ICONS,
+  FULFILLMENT_FILTER_KEYS,
+  FULFILLMENT_FILTER_LABEL,
+  FULFILLMENT_BADGE_CLS,
+  type OrderItemRow,
+  type OrderRow,
+} from './data'
 import { formatOrderNo } from '@/lib/order-no'
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
@@ -108,6 +116,10 @@ const STAGE_BADGE_CLS: Record<(typeof STAGE_FILTER_KEYS)[number], string> = {
   RETURNED: 'bg-warning/15 text-warning-ink',
 }
 
+// ─── ตัวกรองวิธีส่งมอบ (?fulfillment=) — feature 00062 U18 ─────────────────────
+// คนละแกนกับ STAGE_FILTER_KEYS ข้างบน (UX-Design-Spec A5) — แสดงเฉพาะร้าน ONLINE_SALES
+// SSOT (คำ+สี) อยู่ที่ data.ts แล้ว (ใช้ร่วมกับโมดัลตัวกรองมือถือใน OrdersList.tsx — HR16)
+
 // ─── date range filter — ตรรกะอยู่ที่ src/lib/order-date-filter.ts (SSOT ร่วมกับโมดัลมือถือ) ───
 // เดิมเขียนไว้ที่ไฟล์นี้ที่เดียว แปลว่ามือถือไม่มีตัวกรองช่วงเวลาเลย · และตัดวันด้วย
 // new Date() ของเครื่องแทน thaiDayKey (บังเอิญตรงเพราะเครื่องในไทยตั้ง tz ไทย)
@@ -137,6 +149,16 @@ type Props = {
    * undefined = ร้านไม่มีแกนพัสดุ (ไม่ใช่ ONLINE_SALES) ไม่แสดง dropdown
    */
   stageFilter?: {
+    value: string | null
+    counts: Record<string, number>
+    onChange: (value: string | null) => void
+  }
+  /**
+   * ตัวกรองวิธีส่งมอบ (`?fulfillment=` — feature 00062 U18) — โครงเดียวกับ stageFilter
+   * แต่เกทด้วย `hasShippingAxis` ตรง ๆ ไม่ใช่ `hasStageAxis`: UX-Design-Spec A5 สั่งไม่ให้
+   * ซ่อนตามข้อมูล — ร้าน ONLINE_SALES ที่ยังไม่มีออเดอร์นัดรับสักใบก็ต้องเห็น dropdown นี้อยู่
+   */
+  fulfillmentFilter?: {
     value: string | null
     counts: Record<string, number>
     onChange: (value: string | null) => void
@@ -203,6 +225,7 @@ export default function OrdersTable({
   vocab,
   vertical,
   stageFilter,
+  fulfillmentFilter,
   busy,
   hasShippingAxis = true,
   appointmentFilter,
@@ -529,11 +552,26 @@ export default function OrdersTable({
                   </span>
                 ))}
               </p>
+            ) : row.original.pickupStage ? (
+              /* ออเดอร์นัดรับ (feature 00062) — ไม่มีที่อยู่จัดส่งเพราะ *ไม่ต้องมี* ไม่ใช่เพราะ
+                 ยังกรอกไม่ครบ · "ยังไม่มีที่อยู่" อ่านเป็นข้อมูลขาดที่ต้องไปตามเก็บ ทั้งที่ชิป
+                 "นัดรับ" ใต้เส้นประอธิบายครบอยู่แล้ว (partial-data-must-be-labeled-or-filled.md
+                 ทิศกลับ: อย่าติดป้าย "ยังไม่มี" ให้ของที่ไม่ควรมี) */
+              null
             ) : (
               <p className="mb-0 text-xs text-default-400">ยังไม่มีที่อยู่</p>
             )}
             <div className="border-default-200 mt-2 border-t border-dashed pt-2">
-              {hasCourier ? (
+              {row.original.pickupStage ? (
+                /* ออเดอร์นัดรับ (feature 00062 U18) — ไม่มีพัสดุให้ถามเลย ต้องเช็คก่อน
+                   hasCourier เสมอ (ใบพวกนี้ไม่มี shipment จึงตกไป "ไม่มีหมายเลขพัสดุ" ที่เดิม
+                   ทั้งที่ความจริงคือ "ไม่มีการจัดส่งเลย" คนละความหมาย) */
+                <MiniShipmentTimeline
+                  pickupStage={row.original.pickupStage}
+                  cancelled={row.original.status === 'CANCELLED'}
+                  plain
+                />
+              ) : hasCourier ? (
                 /* hover ที่บล็อกนี้ = การ์ดสถานะพัสดุเต็ม + ยิงถาม iShip สด (user สั่ง 2026-08-06) */
                 <ShipmentHoverCard
                   stage={row.original.shippingStage}
@@ -541,6 +579,7 @@ export default function OrdersTable({
                   shipmentStatus={s!.status}
                   returnStartedAt={s!.returnStartedAt}
                   returnedAt={s!.returnedAt}
+                  returnDispatchedAt={s!.returnDispatchedAt}
                   shipmentId={s!.provider === 'ISHIP' ? (s!.id ?? null) : null}
                   trackingNo={s!.trackingNo}
                   courierName={s!.courierName ?? s!.courierCode}
@@ -568,7 +607,9 @@ export default function OrdersTable({
                   </p>
                   {/* ห้าม font-mono (Anuphan ไม่มี mono จะ fallback หลุดธีม) — tabular-nums พอ */}
                   {s!.trackingNo && (
-                    <p className="mb-0 flex items-center gap-1 text-xs font-semibold tabular-nums text-default-700">
+                    /* 🛑 <div> ไม่ใช่ <p> — `CopyLinkButton` เรนเดอร์ `<div>` ข้างใน (ดูเหตุผลเต็ม
+                       ที่ ShipmentHoverCard.tsx จุดเดียวกัน) นี่คือจุดที่ 2 ของบั๊กเดียวกัน */
+                    <div className="mb-0 flex items-center gap-1 text-xs font-semibold tabular-nums text-default-700">
                       <span className="select-all">
                         <HighlightText text={s!.trackingNo} query={searchQuery} />
                       </span>
@@ -579,7 +620,7 @@ export default function OrdersTable({
                         iconOnly
                         className="btn-sm border-none bg-transparent p-0 text-default-400 hover:bg-transparent hover:text-default-800"
                       />
-                    </p>
+                    </div>
                   )}
                   {/* ไทม์ไลน์อยู่ในการ์ดเดียวกับชื่อขนส่ง — user ทักว่า "order เดียวกัน hover
                       ได้ 2 ที่" เพราะเดิมมันอยู่นอกการ์ดแล้วเปิด panel เล็กของตัวเอง
@@ -591,6 +632,7 @@ export default function OrdersTable({
                       shipmentStatus={s!.status}
                       returnStartedAt={s!.returnStartedAt}
                       returnedAt={s!.returnedAt}
+                      returnDispatchedAt={s!.returnDispatchedAt}
                       hasShipment={Boolean(s!.trackingNo)}
                       cancelled={row.original.status === 'CANCELLED'}
                       plain
@@ -719,7 +761,18 @@ export default function OrdersTable({
           // ผันคำตามประเภทกิจการ (feature 00036 FR-SOV-003) — ร้านบริการ/บ้านพักไม่มีการจัดส่ง
           // ให้พูดถึง คำมาจาก ORDER_VOCAB ที่เดียว ห้ามต่อสตริงที่นี่ (ต่างจากบรรทัดยกเลิกข้างบน
           // ที่ต่อได้ เพราะ "ยกเลิก"+noun อ่านเป็นภาษาคนทั้ง 3 ชุด ส่วนช่องนี้ไม่ใช่)
-          { label: vocab.fulfillLabel, done: o.status === 'SHIPPED' || o.status === 'CONFIRMED' },
+          /**
+           * ออเดอร์นัดรับ (feature 00062) ไม่มี "การจัดส่ง" ให้ยืนยัน และ **ไม่มีวันเป็น
+           * `SHIPPED`** (ร้านกด "มอบสินค้าแล้ว" → เขียน `handedOverAt` โดย `status` ยังเป็น
+           * PENDING ตาม D-1) ⇒ ใช้คำ/เกณฑ์ของกองจัดส่งกับใบพวกนี้ = ขั้นนี้ค้าง ✕ ตลอดกาล
+           * ทั้งที่ร้านมอบของไปแล้ว — เช็กลิสต์เล่าเรื่องผิดบนจอที่ผู้ขายกวาดตาทั้งวัน
+           *
+           * `vocab.fulfillLabel` ผันตาม *ประเภทร้าน* ส่วนวิธีส่งมอบเป็นของ *รายใบ* จึงต้อง
+           * แยกที่นี่ ไม่ใช่ไปเพิ่มคีย์ใน ORDER_VOCAB (คนละแกนกัน)
+           */
+          o.pickupStage
+            ? { label: 'มอบสินค้า', done: o.pickupStage !== 'AWAITING_HANDOVER' }
+            : { label: vocab.fulfillLabel, done: o.status === 'SHIPPED' || o.status === 'CONFIRMED' },
           ...(isCODPayment(o.paymentMethod)
             ? [{ label: 'รับเงินปลายทาง', done: Boolean(o.codReceivedAtISO) }]
             : []),
@@ -957,6 +1010,30 @@ export default function OrdersTable({
                 })),
               ]}
               onChange={(v) => stageFilter.onChange(v === 'All' ? null : v)}
+            />
+          )}
+
+          {/* วิธีส่งมอบ (?fulfillment= URL — state อยู่ที่ OrdersList ตัวเดียวกับชิปมือถือ,
+              feature 00062 U18) — คนละแกนกับ "พัสดุ" ข้างบน (UX-Design-Spec A5) เกทด้วย
+              hasShippingAxis ตรง ๆ ไม่ตามข้อมูล: ร้านที่ยังไม่มีออเดอร์นัดรับเลยก็ต้องเห็น */}
+          {fulfillmentFilter && (
+            <FilterDropdown
+              icon="building-store"
+              defaultLabel="วิธีส่งมอบ"
+              resetValue="All"
+              value={fulfillmentFilter.value ?? 'All'}
+              options={[
+                { value: 'All', label: 'ทั้งหมด' },
+                ...FULFILLMENT_FILTER_KEYS.map((key) => ({
+                  value: key,
+                  label: FULFILLMENT_FILTER_LABEL[key],
+                  badge: {
+                    label: fulfillmentFilter.counts[key] ?? 0,
+                    className: FULFILLMENT_BADGE_CLS[key],
+                  },
+                })),
+              ]}
+              onChange={(v) => fulfillmentFilter.onChange(v === 'All' ? null : v)}
             />
           )}
 

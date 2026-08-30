@@ -83,6 +83,8 @@ export async function replyOrderStatus(params: {
         status: true,
         paymentMethod: true,
         codReceivedAt: true,
+        // feature 00062 — ข้อความที่ตอบลูกค้าทาง LINE ต้องไม่พูดเรื่องพัสดุกับใบที่ไม่มีการส่งของ
+        fulfillmentMode: true,
         shipments: {
           where: ACTIVE_FORWARD_SHIPMENT,
           orderBy: { createdAt: 'desc' },
@@ -99,6 +101,7 @@ export async function replyOrderStatus(params: {
       hasShipment: o.shipments.length > 0,
       paymentMethod: o.paymentMethod,
       codReceivedAt: o.codReceivedAt,
+      fulfillmentMode: o.fulfillmentMode,
     }))
 
     const picked = pickOrderForStatusReply(candidates)

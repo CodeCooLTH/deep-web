@@ -89,6 +89,8 @@ export const th = {
   menu: {
     dashboard: 'ภาพรวมร้านค้า',
     sales: 'ภาพรวมกำไร/ขาดทุน',
+    reportsAgents: 'การตอบแชทของแอดมิน',
+    reportsProducts: 'ยอดขายรายสินค้า',
     orders: {
       ONLINE_SALES: 'คำสั่งซื้อ',
       SERVICE_QUEUE: 'การเข้ารับบริการ',
@@ -677,10 +679,24 @@ export const th = {
     backToList: 'กลับรายการ',
     customerInfo: 'ข้อมูลลูกค้า',
     threadSoundTitle: 'เสียงแจ้งเตือนข้อความใหม่',
+    /** หัวข้อของแถบ ปิด/อัตโนมัติ — พูดถึง auto-reply ทั้งชุด (DeepBot กลุ่มคำ + DeepAI) ไม่ใช่ตัวใดตัวหนึ่ง */
+    threadAutoReplyTitle: 'ตอบอัตโนมัติในแชทนี้',
+    threadAutoReplyOff: 'ปิด',
+    threadAutoReplyAuto: 'อัตโนมัติ',
+    threadAutoReplyOnDone: 'บอทจะตอบแชทนี้อัตโนมัติ',
+    threadAutoReplyOffDone: 'ปิดการตอบอัตโนมัติของแชทนี้แล้ว',
+    threadAutoReplyFailed: 'เปลี่ยนโหมดตอบอัตโนมัติไม่สำเร็จ',
     threadChipCollapse: 'ย่อ',
-    threadSoundAllApp: 'ทั้งแอป (ทุกแชท)',
     threadSoundThisChat: 'เฉพาะแชทนี้',
-    threadSoundMutedHint: 'ปิดอยู่เพราะปิดเสียงทั้งแอป — เปิดสวิตช์ด้านบนก่อน',
+    /** ปุ่มกระดิ่งในหัวเธรด (≥768px) — คำบอก "กดแล้วจะเกิดอะไร" ไม่ใช่ "ตอนนี้เป็นอะไร" */
+    threadSoundMute: 'ปิดเสียงแชทนี้',
+    threadSoundUnmute: 'เปิดเสียงแชทนี้',
+    /**
+     * ปิดเสียงทั้งแอปอยู่ = ตั้งค่ารายแชทยังไม่มีผล
+     * 🛑 ห้ามระบุตำแหน่งของสวิตช์ระดับแอปในประโยคนี้ — มันอยู่ในแถบบนสุด (`ChatHeader`) ซึ่ง
+     * `hidden lg:flex` ในหน้าเธรด ⇒ คนที่เห็นข้อความนี้บนมือถือจะถูกชี้ไปหาของที่ไม่อยู่บนจอ
+     */
+    threadSoundAppMutedHint: 'ตอนนี้ปิดเสียงทั้งแอปอยู่ — ตั้งค่านี้จะยังไม่มีผล',
     threadMoreMenu: 'ตัวเลือกเพิ่มเติม',
     libraryOpen: 'คลังไฟล์',
 

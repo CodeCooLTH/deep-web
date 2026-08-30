@@ -30,6 +30,9 @@ const ALL_STAGES: ShippingStageKey[] = [
   'PROBLEM',
   'RETURNED',
   'DONE',
+  // feature 00062 — ออเดอร์ที่ไม่มีการจัดส่งเลย (นัดรับ/ดิจิทัล) ต้องมี entry ในตารางจุดด้วย
+  // (ค่าเป็น null = ไม่มีแถบให้วาด) ไม่งั้น index ด้วยค่านี้จะได้ undefined ตอน runtime
+  'NOT_SHIPPING',
 ]
 
 describe('SHIPMENT_STAGE_DOT_INDEX', () => {

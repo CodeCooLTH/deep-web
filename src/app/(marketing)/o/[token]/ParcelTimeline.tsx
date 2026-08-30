@@ -50,6 +50,7 @@ type Props = {
    */
   returnStartedAt?: string | null
   returnedAt?: string | null
+  returnDispatchedAt?: string | null
   /**
    * มีพัสดุจริงไหม — ออเดอร์ที่จบโดยไม่เคยมีพัสดุ (รับเอง/บริการ) ได้ stage `DONE` เหมือนกัน
    * ถ้าไม่กันไว้จะวาดแถบเขียวครบ 4 จุดให้พัสดุที่ไม่มีอยู่จริง
@@ -70,6 +71,7 @@ export default function ParcelTimeline({
   carrierStatus,
   returnStartedAt,
   returnedAt,
+  returnDispatchedAt,
   hasShipment,
   tracking,
 }: Props) {
@@ -81,7 +83,7 @@ export default function ParcelTimeline({
    * 🛑 ผู้ซื้อต้องเห็นเรื่องนี้ ไม่ใช่ซ่อน — feature 00055 นับใบที่ตีกลับเป็นสถิติของเขาอยู่แล้ว
    * การไม่แสดงคือการตัดสินลับหลัง · และผู้ซื้อที่ของตีกลับเพราะที่อยู่ผิดจะไปทวงร้านว่าของหาย
    */
-  const leg = describeReturnLeg({ audience: 'buyer', carrierStatus, returnStartedAt, returnedAt })
+  const leg = describeReturnLeg({ audience: 'buyer', carrierStatus, returnStartedAt, returnedAt, returnDispatchedAt })
   // ขนส่งบอกเองชนะกองงานที่ระบบจัดให้ — ดูเหตุผลเต็มที่ MiniShipmentTimeline ฝั่งร้าน
   const progress = carrierStatus != null ? describeProgress('CREATED', carrierStatus, 'buyer') : null
   const raw = progress ? progress.stage : SHIPMENT_STAGE_DOT_INDEX[stage]
@@ -260,6 +262,10 @@ export default function ParcelTimeline({
           2026-08-06 ด้วยเหตุผลว่าจุดอยู่กลางคอลัมน์ทำให้แถบดูหดเข้ามาจากขอบทั้งสองข้าง
           ที่นี่ยังค้างของเก่าไว้ · และมันสำคัญกว่าความสวยตอนนี้: ถ้าแถว 1 จุดอยู่ที่ 12.5%/87.5%
           แต่แถว 2 จุดอยู่ที่ 0%/100% **งูเลื้อยจะไม่บรรจบ** = เสียเหตุผลเดียวที่เลือกรูปนี้ */}
+      {/* เคสตีกลับ (`standalone`) ไม่วาดขาไป — จุดแรกของแถวขากลับ ("ส่งไม่สำเร็จ")
+          พูดแทนมันหมดแล้ว · เคสคืนของยังวาด 2 แถวเหมือนเดิม เพราะขาไปสำเร็จจริง */}
+      {!leg?.standalone && (
+        <>
       <Box
         component='ol'
         sx={{
@@ -349,6 +355,9 @@ export default function ParcelTimeline({
 
           จุดเรียงจาก `leg.dots` ซึ่งเป็น **ลำดับเวลา** เสมอ — กลับทิศด้วย row-reverse ที่นี่
           เพื่อให้จุดสุดท้าย ("ร้านได้รับแล้ว") ไปจบใต้จุดออกเดินทางของแถว 1 พอดี */}
+        </>
+      )}
+
       {leg && (
         <>
           {/* ข้อศอก — เส้นตั้งชิดขวา ตรงกับศูนย์กลางจุดสุดท้ายของแถว 1 (ครึ่งของจุด 32px = 16px) */}
@@ -385,22 +394,21 @@ export default function ParcelTimeline({
             {leg.dots.map((d, i) => {
               const reached = i <= leg.stage
               const isEnd = i === leg.dots.length - 1
-              const lineColor = leg.originTone === 'success' ? VERIFIED_INK : 'warning.main'
+              /**
+               * เคสตีกลับใช้ **กติกาสีเดียวกับขาไปเป๊ะ** (ผ่านแล้ว = เขียว) — ทิศเป็นสิ่งเดียว
+               * ที่ต่าง · เคสคืนของยังใช้โทนของ `originTone` ตามเดิม
+               * พัสดุใบเดียวกันผู้ซื้อกับผู้ขายต้องไม่เห็นคนละสี (ตรงกับ `ShipmentRail`)
+               */
+              const lineColor = leg.standalone
+                ? VERIFIED_INK
+                : leg.originTone === 'success'
+                  ? VERIFIED_INK
+                  : 'warning.main'
               return (
                 <Box component='li' key={`d-${d.label}-${i}`} sx={{ display: 'contents' }}>
                   {i > 0 && (
                     <>
                       <Box aria-hidden sx={{ height: 2, flex: 1, bgcolor: reached ? lineColor : 'divider' }} />
-                      {/* ลูกศรบอกทิศ — สอดเป็น item ระหว่างเส้น ไม่วางทับแล้วเจาะพื้นหลัง
-                          ⇒ ไม่ต้องรู้ว่าการ์ดวางอยู่บนพื้นสีอะไร · ห้าม emoji (HR12) */}
-                      {i - 1 === Math.floor((leg.dots.length - 1) / 2) && (
-                        <Box
-                          aria-hidden
-                          sx={{ flexShrink: 0, display: 'flex', color: 'text.secondary', mx: 0.25 }}
-                        >
-                          <Icon icon='tabler-caret-left-filled' fontSize={14} />
-                        </Box>
-                      )}
                       <Box aria-hidden sx={{ height: 2, flex: 1, bgcolor: reached ? lineColor : 'divider' }} />
                     </>
                   )}
@@ -415,7 +423,7 @@ export default function ParcelTimeline({
                       alignItems: 'center',
                       justifyContent: 'center',
                       // ปลายทาง = เขียวเสมอ (มติ user) แยกจาก "ส่งสำเร็จ" ด้วย **รูปไอคอน**
-                      bgcolor: reached ? (isEnd ? VERIFIED_INK : lineColor) : 'action.hover',
+                      bgcolor: reached ? lineColor : 'action.hover',
                       color: reached ? 'common.white' : 'text.secondary',
                       // จุดที่ "ยืนอยู่ตอนนี้" — วงแหวนรอบจุด เพราะสีอย่างเดียวแยกไม่ออก
                       // (เคสคืนของ: current/reached/ปลายทาง เป็นเขียวเหมือนกันหมดตามมติ user)
@@ -424,7 +432,13 @@ export default function ParcelTimeline({
                         : {}),
                     }}
                   >
-                    <Icon icon={`tabler-${d.icon}`} fontSize={18} />
+                    {/* รถต้องหันตามทิศที่เดิน — แถบนี้เดินขวา→ซ้าย (ดู `ReturnLegDot.flipX`)
+                        ฝั่งนี้เป็น MUI จึงกลับด้านด้วย sx ไม่ใช่ utility ของ Paces */}
+                    <Icon
+                      icon={`tabler-${d.icon}`}
+                      fontSize={18}
+                      style={d.flipX ? { transform: 'scaleX(-1)' } : undefined}
+                    />
                   </Box>
                 </Box>
               )

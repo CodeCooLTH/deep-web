@@ -51,6 +51,19 @@ export type GetOrderActionSetInput = {
    * รูปแบบข้อความวิธีชำระ (SSOT อยู่ที่ isCODPayment ใน lib/order-display)
    */
   isCodUnpaid?: boolean
+  /**
+   * feature 00062 — ออเดอร์นัดรับ (fulfillmentMode='PICKUP') ที่ยังไม่ได้รับเงินโอน/พร้อมเพย์/เงินสด
+   * (caller คำนวณจาก `canSellerConfirmPayment(paymentMethod) && !paymentConfirmedAt` — ห้าม derive
+   * ที่นี่ด้วยเหตุผลเดียวกับ isCodUnpaid) มีผลเฉพาะตอน status==='PENDING' เท่านั้น (ตาราง UX §A2)
+   * 🛑 ห้ามทับ/ปนกับ isCodUnpaid — COD กับ PICKUP+TRANSFER เป็นคนละ paymentMethod เสมอ ไม่มีวันชนกัน
+   */
+  isPickupPaymentUnpaid?: boolean
+  /**
+   * feature 00062 — ร้านกด "มอบสินค้าแล้ว" ในออเดอร์นัดรับนี้แล้วหรือยัง (handedOverAt != null)
+   * มีผลเฉพาะตอน status==='PENDING' เช่นกัน — SHIPPED/CONFIRMED/CANCELLED ของ PICKUP ยังให้ผล
+   * เหมือน NO_SHIPPING เป๊ะ (ไม่แตะ — regression test เดิมยังต้องผ่าน)
+   */
+  isPickupHandedOver?: boolean
 }
 
 // ── action item catalog — key เดียว ใช้ซ้ำได้ทุกสถานะ ──────────────────────────
@@ -69,6 +82,19 @@ const buildActions = (orderNoun: string) =>
     // ปุ่มเดียวที่เคลียร์ไทล์ "รอเงิน COD" ได้ — iShip ไม่มีสถานะไหนบอกว่าโอนเข้าร้านแล้ว
     // (ยืนยันจากรายการ order_statuses เต็ม ๆ 2026-08-04) จึงต้องมาจากคนที่เห็นเงินจริง
     codReceived: { key: 'cod-received', label: 'ได้รับเงินปลายทางแล้ว', icon: 'cash' },
+    // feature 00062 — คนละคีย์กับ codReceived โดยตั้งใจ (COD vs โอน/พร้อมเพย์/เงินสดของออเดอร์นัดรับ
+    // เป็นคนละแกน — ดูคอมเมนต์ isPickupPaymentUnpaid ด้านบน) label สั้นกว่าเพราะไม่มี "ปลายทาง"
+    pickupPaymentReceived: { key: 'pickup-payment-received', label: 'ได้รับเงินแล้ว', icon: 'cash' },
+    pickupHandedOver: { key: 'pickup-handed-over', label: 'มอบสินค้าแล้ว', icon: 'package-check' },
+    // impeccable critique P0-1 (2026-08-29) — เดิม undo มีแค่ใน ShippingAddress.tsx การ์ด
+    // ที่ `hidden lg:flex` (เดสก์ท็อปเท่านั้น) มือถือกด "มอบสินค้าแล้ว" พลาดแล้วย้อนไม่ได้เลย
+    // ทั้งที่โมดัลยืนยันสัญญาไว้เองว่า "ยกเลิกได้ก่อนครบกำหนด" — เพิ่มเข้า ⋮ (ไม่ใช่ปุ่มหลัก/ghost
+    // เพราะไม่ใช่ action ที่ควรกดพลาดง่ายบนแถบล่าง เหตุผลเดียวกับที่ undo เดิมซ่อนอยู่แล้วบนเดสก์ท็อป)
+    pickupHandoverUndo: {
+      key: 'pickup-handover-undo',
+      label: 'ยกเลิกการยืนยันมอบสินค้า',
+      icon: 'arrow-back-up',
+    },
   }) as const satisfies Record<string, ActionItem>
 
 /**
@@ -100,6 +126,34 @@ export function getOrderActionSet(input: GetOrderActionSetInput): OrderActionSet
   }
 
   if (status === 'PENDING') {
+    /**
+     * feature 00062 — ออเดอร์นัดรับ (PICKUP) มีลำดับ primary ของตัวเอง (เงินก่อน → ส่งมอบทีหลัง)
+     * แยกออกจาก branch ด้านล่างทั้งหมดตั้งแต่ต้น เพราะ PICKUP ไม่มีคอนเซปต์ "แจ้งเลขพัสดุ"/
+     * "ส่ง SMS" เป็น primary เหมือน NO_SHIPPING อีกต่อไป — มีขั้นตอนเงิน+ส่งมอบเป็นของตัวเอง
+     * ตามตาราง UX-Design-Spec §A2 (เฉพาะ PENDING เท่านั้น — SHIPPED/CONFIRMED/CANCELLED ของ
+     * PICKUP ยังให้ผลเหมือน NO_SHIPPING เป๊ะตาม regression test เดิม ไม่แตะ)
+     */
+    if (fulfillmentMode === 'PICKUP') {
+      // มอบของแล้ว รอ grace period — undo เดิมอยู่ในการ์ดเดสก์ท็อปเท่านั้น (hidden lg:flex)
+      // ไม่ใช่แถบล่าง เพราะไม่ใช่ action ที่ควรกดพลาดง่ายบนแถบล่าง (UX §A2 ตาราง แถวที่ 3)
+      // impeccable critique P0-1 (2026-08-29): มือถือไม่มีทางเข้าถึง undo เลย — เพิ่มเข้า ⋮
+      // (menu) แทน ไม่ใช่ ghost/primary ด้วยเหตุผลเดิม
+      if (input.isPickupHandedOver) {
+        return {
+          primary: null,
+          ghosts: [ACTIONS.copyLink],
+          menu: [ACTIONS.pickupHandoverUndo, ACTIONS.editOrder, ACTIONS.cancelOrder],
+        }
+      }
+      const menu: ActionItem[] = [ACTIONS.copyLink, ACTIONS.editOrder, ACTIONS.cancelOrder]
+      if (input.isPickupPaymentUnpaid) {
+        // ยังไม่ได้เงิน + ยังไม่มอบของ — เก็บเงินก่อนมอบของคือลำดับที่ปลอดภัยกว่า (UX §A2 D-3)
+        return { primary: ACTIONS.pickupPaymentReceived, ghosts: [ACTIONS.pickupHandedOver], menu }
+      }
+      // ได้เงินแล้ว (หรือวิธีชำระไม่เข้าเงื่อนไขให้ร้านยืนยันเอง) + ยังไม่มอบของ
+      return { primary: ACTIONS.pickupHandedOver, ghosts: [], menu }
+    }
+
     /**
      * 2026-08-04 (user request): "ส่งลิงก์ทาง SMS" ย้ายลงไปอยู่ใน ⋮ แทนที่จะเป็นปุ่มหลัก
      *

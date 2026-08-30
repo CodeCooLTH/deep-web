@@ -76,11 +76,34 @@ export const EMOJI_CATEGORIES: { key: string; label: string; codepoints: number[
 
 /** สติกเกอร์จาก Sticker Catalog API ของ Meta (ผ่าน /api/channels/facebook/stickers) หรือจากชุดปิด
  *  ตายตัวของ LINE (`@/lib/line/stickers`) — shape เดียวกันทั้งคู่ ตัวเรนเดอร์ใช้ร่วมได้ */
-export type StickerItem = { id: string; name: string | null; imageUrl: string }
+/** S-19: GIPHY มี 2 คลังแยกกันในตัวมันเอง (สติกเกอร์/GIF) — ต้องรู้ว่าไอเทมที่เลือกมาจากคลังไหน
+ *  เพื่อเขียน recents ลง namespace ที่ถูก (ดู recentKeyFor ด้านล่าง) */
+export type GiphyKind = 'stickers' | 'gifs'
+
+/** ไอเทม GIPHY 1 ชิ้น — shape เดียวกับ GiphyItem ใน lib/giphy.ts (คัดลอกนิยามมาไว้ในไฟล์นี้ ไม่ import
+ *  ตรง เพราะ lib/giphy.ts มี `import 'server-only'` ห้ามลากเข้าไฟล์ client) */
+export type GiphyGridItem = {
+  id: string
+  title: string
+  previewUrl: string
+  previewWidth: number
+  previewHeight: number
+  sendUrl: string
+  sendBytes: number
+}
+
+export type StickerItem = {
+  id: string
+  name: string | null
+  imageUrl: string
+  /** ตั้งเฉพาะไอเทมจาก GIPHY — แยก namespace recents ระหว่างสติกเกอร์/GIF (ดู rememberRecentSticker) */
+  giphyKind?: GiphyKind
+}
 type StickerPack = { id: string; name: string; previewImageUrl: string | null }
 
-/** แหล่งสติกเกอร์ — S-18b: LINE มีชุดปิดตายตัวจาก SSOT คนละแหล่งกับ Sticker Catalog API ของ Meta */
-export type StickerProvider = 'META' | 'LINE'
+/** แหล่งสติกเกอร์ — S-18b: LINE มีชุดปิดตายตัวจาก SSOT คนละแหล่งกับ Sticker Catalog API ของ Meta
+ *  S-19: GIPHY = คลังสติกเกอร์/GIF ของเธรด Instagram (เหตุผลที่ไม่ใช้ Meta ดู lib/giphy.ts หัวไฟล์) */
+export type StickerProvider = 'META' | 'LINE' | 'GIPHY'
 
 /** สติกเกอร์ที่ใช้ล่าสุด (user สั่ง 2026-08-04 "มี recent ให้ใช้ด้วย") — เก็บที่เครื่อง ไม่ต้องมี
  *  ตารางใหม่: มันเป็นความชอบส่วนตัวของเครื่องที่ใช้ ไม่ใช่ข้อมูลร้านที่ต้องแชร์ข้ามอุปกรณ์
@@ -93,18 +116,24 @@ export type StickerProvider = 'META' | 'LINE'
 const RECENT_KEY_LEGACY = 'deep.chat.recentStickers'
 const RECENT_KEY_META = 'deep.chat.recentStickers.meta'
 const RECENT_KEY_LINE = 'deep.chat.recentStickers.line'
+// S-19: GIPHY แยก namespace ตามคลัง (สติกเกอร์/GIF) — id ของ GIPHY เป็นตัวเลขล้วนเหมือน Meta/LINE
+// ชนกันได้ในทางทฤษฎี (คนละผู้ให้บริการ) จึงต้องคนละคีย์เสมอ ไม่ใช่แค่กันชนกับ META/LINE
+const RECENT_KEY_GIPHY_STICKER = 'deep.chat.recentStickers.giphy.stickers'
+const RECENT_KEY_GIPHY_GIF = 'deep.chat.recentStickers.giphy.gifs'
 /** ค่าพิเศษของแท็บ "ใช้ล่าสุด" — ไม่ใช่ id แพ็กจริง (id ของ Meta/LINE เป็นตัวเลขล้วน ไม่ชนกัน) */
 const RECENT_TAB = 'RECENT'
 const RECENT_MAX = 16
 
-function recentKeyFor(provider: StickerProvider): string {
-  return provider === 'LINE' ? RECENT_KEY_LINE : RECENT_KEY_META
+function recentKeyFor(provider: StickerProvider, giphyKind?: GiphyKind): string {
+  if (provider === 'LINE') return RECENT_KEY_LINE
+  if (provider === 'GIPHY') return giphyKind === 'gifs' ? RECENT_KEY_GIPHY_GIF : RECENT_KEY_GIPHY_STICKER
+  return RECENT_KEY_META
 }
 
-function readRecentStickers(provider: StickerProvider): StickerItem[] {
+function readRecentStickers(provider: StickerProvider, giphyKind?: GiphyKind): StickerItem[] {
   if (typeof window === 'undefined') return []
   try {
-    const key = recentKeyFor(provider)
+    const key = recentKeyFor(provider, giphyKind)
     let raw = window.localStorage.getItem(key)
     // migrate ของเดิม (คีย์เดียวก่อนแยก provider) เข้าคีย์ .meta ครั้งแรกที่อ่าน — ของเดิมมีแต่
     // สติกเกอร์ Meta เท่านั้น (ตอนนั้นยังไม่มี LINE) จึงย้ายไปฝั่ง META เสมอ ไม่ลบคีย์เก่าทิ้ง
@@ -129,8 +158,11 @@ function readRecentStickers(provider: StickerProvider): StickerItem[] {
 export function rememberRecentSticker(sticker: StickerItem, provider: StickerProvider = 'META'): void {
   if (typeof window === 'undefined') return
   try {
-    const key = recentKeyFor(provider)
-    const next = [sticker, ...readRecentStickers(provider).filter((s) => s.id !== sticker.id)].slice(0, RECENT_MAX)
+    const key = recentKeyFor(provider, sticker.giphyKind)
+    const next = [sticker, ...readRecentStickers(provider, sticker.giphyKind).filter((s) => s.id !== sticker.id)].slice(
+      0,
+      RECENT_MAX,
+    )
     window.localStorage.setItem(key, JSON.stringify(next))
   } catch {
     /* localStorage เต็ม/ปิดอยู่ — recents เป็นของเสริม ห้ามทำให้ส่งสติกเกอร์ไม่ได้ */
@@ -172,9 +204,9 @@ type Props = {
    */
   align?: 'left' | 'right'
   /**
-   * S-18b: แหล่งสติกเกอร์ — เฉพาะตอน mode='STICKER'. ผู้เรียกต้อง derive จาก channel ของเธรด เอง
-   * (ChatThread.tsx: channel==='LINE' ? 'LINE' : 'META') ไม่ default เป็น LINE เพราะ Meta คือ
-   * ของเดิมที่ผ่านการใช้งานจริงมาก่อน
+   * S-18b/S-19: แหล่งสติกเกอร์ — เฉพาะตอน mode='STICKER'. ผู้เรียกต้อง derive จาก channel ของเธรดเอง
+   * (ChatThread.tsx: channel==='LINE' ? 'LINE' : channel==='INSTAGRAM' ? 'GIPHY' : 'META') ไม่ default
+   * เป็น LINE/GIPHY เพราะ Meta คือของเดิมที่ผ่านการใช้งานจริงมาก่อน
    */
   stickerProvider?: StickerProvider
 }
@@ -228,7 +260,8 @@ export default function EmojiPicker({
   //
   // S-18b: LINE ไม่มี Graph ให้ยิง — 15 แพ็กเป็น constant ปิดตายตัว ตั้งค่า packs แบบ sync ได้เลย
   useEffect(() => {
-    if (tab !== 'STICKER') return
+    // S-19: GIPHY มี effect โหลดของตัวเองแยกต่างหากด้านล่าง — ไม่มีแพ็ก/recents-tab แบบ META/LINE
+    if (tab !== 'STICKER' || stickerProvider === 'GIPHY') return
     setRecents(readRecentStickers(stickerProvider))
     if (packs === null) {
       if (stickerProvider === 'LINE') setPacks(lineStickerPacksAsPacks())
@@ -239,7 +272,7 @@ export default function EmojiPicker({
   // ได้รายการแพ็กแล้ว → เปิดแพ็กแรกให้เลย (user report 2026-08-04: แผงค้างที่ข้อความ "เลือกแพ็ก
   // ด้านล่าง" ซึ่งเท่ากับบังคับให้กดอีกครั้งก่อนเห็นของ — Messenger เปิดมาเห็นสติกเกอร์ทันที)
   useEffect(() => {
-    if (tab !== 'STICKER' || packId !== null || q.trim()) return
+    if (tab !== 'STICKER' || stickerProvider === 'GIPHY' || packId !== null || q.trim()) return
     // มีของที่ใช้ล่าสุด → เปิดแท็บนั้นก่อนเสมอ (ไม่ต้องยิง Graph เลย)
     if (recents.length > 0) {
       setPackId(RECENT_TAB)
@@ -255,8 +288,9 @@ export default function EmojiPicker({
 
   // ค้นหา — debounce กันยิงทุกตัวอักษร; Meta บังคับ ≥2 ตัวอักษร
   // S-18b: LINE ไม่มีช่องค้นหา (ชุดปิดตายตัว 15 แพ็ก) — สาขานี้จึงไม่มีผลกับ LINE เลย
+  // S-19: GIPHY มี effect ค้นหา/trending ของตัวเองแยกด้านล่าง (endpoint คนละตัว คนละ shape)
   useEffect(() => {
-    if (tab !== 'STICKER' || stickerProvider === 'LINE') return
+    if (tab !== 'STICKER' || stickerProvider !== 'META') return
     const term = q.trim()
     if (term.length < 2) return
     const t = setTimeout(() => {
@@ -265,6 +299,110 @@ export default function EmojiPicker({
     }, 400)
     return () => clearTimeout(t)
   }, [q, tab, loadStickers, stickerProvider])
+
+  /**
+   * S-19: GIPHY — คลังสติกเกอร์/GIF ของเธรด Instagram (ไม่มีแพ็ก ไม่มี Graph ของ Meta ให้ยิง)
+   * แยกสถานะ/effect ออกจากของ META/LINE ทั้งชุด ไม่ปนกับ `packs`/`packId`/`stickers` ข้างบน
+   */
+  const [giphyTab, setGiphyTab] = useState<GiphyKind>('stickers')
+  const [giphyState, setGiphyState] = useState<{
+    items: GiphyGridItem[]
+    visible: number
+    loading: boolean
+    error: string | null
+    hasMoreFromServer: boolean
+  }>({ items: [], visible: 0, loading: true, error: null, hasMoreFromServer: true })
+  const giphyAbortRef = useRef<AbortController | null>(null)
+  const giphyReqIdRef = useRef(0)
+
+  /**
+   * ดึง 1 หน้าจาก GET /api/chat/giphy — offset=0 คือรีเซ็ตทั้งชุด (เปลี่ยนแท็บ/คำค้น), offset>0 คือ
+   * "โหลดเพิ่ม" หลัง buffer จากหน้าเดิมหมดแล้ว (server คืนทีละ ≤24 เสมอไม่ว่า kind ไหน — ดู route.ts)
+   *
+   * 🛑 กันผลเก่าทับแท็บใหม่ด้วย 2 ชั้น: reqId (ตรวจหลัง await ก่อนแตะ state) + AbortController
+   * (ยกเลิก request จริง ๆ ไม่ปล่อยยิงทิ้งเปล่า ๆ เวลาสลับแท็บ/พิมพ์ค้นหาถี่ ๆ)
+   */
+  const fetchGiphyPage = useCallback(async (kind: GiphyKind, query: string, offset: number) => {
+    giphyAbortRef.current?.abort()
+    const controller = new AbortController()
+    giphyAbortRef.current = controller
+    const reqId = ++giphyReqIdRef.current
+    setGiphyState((s) => ({ ...s, loading: true, error: null }))
+    try {
+      const res = await fetch(`/api/chat/giphy?kind=${kind}&q=${encodeURIComponent(query)}&offset=${offset}`, {
+        signal: controller.signal,
+      })
+      if (reqId !== giphyReqIdRef.current) return
+      const body = (await res.json().catch(() => null)) as { items?: GiphyGridItem[]; error?: string } | null
+      if (!res.ok) {
+        setGiphyState((s) => ({ ...s, loading: false, error: body?.error ?? 'โหลดไม่สำเร็จ' }))
+        return
+      }
+      const items = body?.items ?? []
+      setGiphyState((s) => {
+        const nextItems = offset === 0 ? items : [...s.items, ...items]
+        // หน้าแรก (offset 0) เริ่มนับ visible ใหม่จาก 0 เสมอ — กัน visible เดิมจากแท็บ/คำค้นก่อนหน้า
+        // ไหลข้ามมา (reset effect ด้านล่างเคลียร์ items/visible ไปก่อนเรียกแล้ว แต่ตรงนี้กันซ้ำอีกชั้น)
+        const prevVisible = offset === 0 ? 0 : s.visible
+        const pageSize = kind === 'gifs' ? 16 : 24
+        return {
+          items: nextItems,
+          visible: Math.min(nextItems.length, prevVisible + pageSize),
+          loading: false,
+          error: null,
+          // route.ts ใช้ limit=24 คงที่เสมอ — ได้น้อยกว่า 24 แปลว่าหมดจริง ไม่ใช่แค่หมด "หน้านี้"
+          hasMoreFromServer: items.length >= 24,
+        }
+      })
+    } catch (e) {
+      if (reqId !== giphyReqIdRef.current) return
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      setGiphyState((s) => ({ ...s, loading: false, error: 'เชื่อมต่อไม่สำเร็จ' }))
+    }
+  }, [])
+
+  // เปลี่ยนแท็บ (สติกเกอร์/GIF) หรือคำค้นที่ debounce แล้ว → รีเซ็ตแล้วโหลดหน้าแรกใหม่
+  // q ว่าง = trending ทันที (ไม่หน่วง) · ค้นหา ≥2 ตัวอักษร = หน่วง 400ms (ค่าเดียวกับ META ด้านบน)
+  // 1 ตัวอักษร = ยังไม่ค้น คงผลเดิมไว้เฉย ๆ (พฤติกรรมเดียวกับ META)
+  useEffect(() => {
+    if (tab !== 'STICKER' || stickerProvider !== 'GIPHY') return
+    const term = q.trim()
+    if (term.length === 1) return
+    setGiphyState((s) => ({ ...s, items: [], visible: 0, error: null }))
+    const t = setTimeout(
+      () => {
+        void fetchGiphyPage(giphyTab, term, 0)
+      },
+      term ? 400 : 0,
+    )
+    return () => clearTimeout(t)
+  }, [tab, stickerProvider, giphyTab, q, fetchGiphyPage])
+
+  // ปิดแผง/unmount ระหว่างที่ยังมี request ค้าง — ยกเลิกทิ้ง กัน setState หลัง unmount
+  useEffect(() => {
+    return () => {
+      giphyAbortRef.current?.abort()
+    }
+  }, [])
+
+  /** ปุ่ม "โหลดเพิ่ม" — เปิดเผยของที่ fetch มาแล้วแต่ยังไม่โชว์ก่อนเสมอ (server คืนทีละ ≤24 ไม่ว่า kind
+   *  ไหน ⇒ ต่อหน้าของ GIF (16) ย่อยมาจากชุด 24 ที่ fetch มาแล้ว) ยิง network ใหม่เฉพาะตอน buffer หมดจริง */
+  function handleLoadMoreGiphy() {
+    const pageSize = giphyTab === 'gifs' ? 16 : 24
+    if (giphyState.visible < giphyState.items.length) {
+      setGiphyState((s) => ({ ...s, visible: Math.min(s.items.length, s.visible + pageSize) }))
+      return
+    }
+    if (giphyState.hasMoreFromServer && !giphyState.loading) {
+      void fetchGiphyPage(giphyTab, q.trim(), giphyState.items.length)
+    }
+  }
+
+  /** ปุ่ม "ลองใหม่" ตอน error — ยิงหน้าเดิมซ้ำโดยไม่ล้างคำค้น: offset = จำนวนที่มีอยู่แล้ว (0 ถ้ายังไม่เคย
+   *  ได้อะไรเลย มากกว่านั้นถ้าเพิ่งล้มตอนกด "โหลดเพิ่ม") */
+  function handleRetryGiphy() {
+    void fetchGiphyPage(giphyTab, q.trim(), giphyState.items.length)
+  }
 
   /**
    * มือถือ (<768px) = bottom sheet ครึ่งจอ ไม่ใช่ popover เกาะปุ่ม — user สั่ง 2026-08-06:
@@ -347,7 +485,13 @@ export default function EmojiPicker({
           <div className="bg-default-300 mx-auto mb-2 h-1 w-9 rounded-full" />
           <div className="mb-1 flex items-center justify-between px-4">
             <h3 className="text-default-900 mb-0 text-base font-bold">
-              {tab === 'STICKER' ? 'สติกเกอร์' : 'อิโมจิ'}
+              {tab !== 'STICKER'
+                ? 'อิโมจิ'
+                : stickerProvider === 'GIPHY'
+                  ? giphyTab === 'gifs'
+                    ? 'GIF'
+                    : 'สติกเกอร์'
+                  : 'สติกเกอร์'}
             </h3>
             <button
               type="button"
@@ -363,6 +507,107 @@ export default function EmojiPicker({
 
       {tab === 'STICKER' && onSelectSticker ? (
         <div className={`flex flex-col ${isSheet ? 'min-h-0 flex-1' : ''}`}>
+        {stickerProvider === 'GIPHY' ? (
+          <>
+            {/* S-19: ช่องค้นหา + ป้าย "GIPHY" — เงื่อนไขบังคับของ GIPHY เอง ไม่ใช่ของประดับ (HR1) ห้ามซ่อน
+                วางเป็น sibling ขวาของ input-icon-group แทนการ absolute ทับใน input เดิม เลี่ยงชนกับ
+                pe-10 ที่ _forms.css บังคับให้ input-icon-group ที่ไม่ใช่ unlayered utility */}
+            <div className="border-default-200 flex shrink-0 items-center gap-2 border-b p-2">
+              <div className="input-icon-group flex-1">
+                <Icon icon="search" className="input-icon" />
+                <input
+                  type="search"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="ค้นหาใน GIPHY"
+                  aria-label="ค้นหาใน GIPHY"
+                  className="form-input"
+                />
+              </div>
+              <span className="text-2xs text-default-700 shrink-0 font-semibold">GIPHY</span>
+            </div>
+
+            <div className={`overflow-y-auto overscroll-contain p-2 ${isSheet ? 'min-h-0 flex-1' : 'max-h-80'}`}>
+              {!q.trim() && <p className="text-default-700 mb-1.5 text-2xs font-semibold">กำลังนิยม</p>}
+              {giphyState.error ? (
+                <div className="text-default-700 flex flex-col items-center gap-2 py-4 text-center text-sm">
+                  <span>{giphyState.error}</span>
+                  <button type="button" onClick={handleRetryGiphy} className="btn border-default-300 min-h-11">
+                    <Icon icon="refresh" className="me-1" /> ลองใหม่
+                  </button>
+                </div>
+              ) : giphyState.loading && giphyState.items.length === 0 ? (
+                // skeleton tile ตามสัดส่วนของแท็บนั้น — ห้ามใช้ข้อความ "กำลังโหลด..." (Base: ProductPickerPanel.tsx:368-380)
+                <div
+                  className={
+                    giphyTab === 'gifs' ? 'grid grid-cols-2 gap-1.5' : `grid gap-1.5 ${isSheet ? 'grid-cols-4' : 'grid-cols-3 sm:grid-cols-4'}`
+                  }
+                >
+                  {Array.from({ length: giphyTab === 'gifs' ? 6 : 12 }).map((_, i) => (
+                    <div
+                      key={i}
+                      role="status"
+                      aria-label={giphyTab === 'gifs' ? 'กำลังโหลด GIF' : 'กำลังโหลดสติกเกอร์'}
+                      className={`bg-default-100 animate-pulse rounded-xl ${giphyTab === 'gifs' ? 'aspect-video' : 'aspect-square'}`}
+                    />
+                  ))}
+                </div>
+              ) : giphyState.items.length === 0 ? (
+                <p className="text-default-700 p-2 text-xs">
+                  {giphyTab === 'gifs' ? 'ไม่พบ GIF ที่ค้นหา' : 'ไม่พบสติกเกอร์ที่ค้นหา'}
+                </p>
+              ) : (
+                <>
+                  {/* key ผูกกับ tab+q — เปลี่ยนแท็บ/คำค้น = unmount กริดเดิมทันที ไม่ปล่อย GIF เดิมเล่นค้าง */}
+                  <div
+                    key={`${giphyTab}:${q.trim()}`}
+                    className={
+                      giphyTab === 'gifs' ? 'grid grid-cols-2 gap-1.5' : `grid gap-1.5 ${isSheet ? 'grid-cols-4' : 'grid-cols-3 sm:grid-cols-4'}`
+                    }
+                  >
+                    {giphyState.items.slice(0, giphyState.visible).map((item) => (
+                      <GiphyButton key={item.id} item={item} giphyKind={giphyTab} onPick={onSelectSticker} />
+                    ))}
+                  </div>
+                  {(giphyState.visible < giphyState.items.length || giphyState.hasMoreFromServer) && (
+                    <button
+                      type="button"
+                      onClick={handleLoadMoreGiphy}
+                      disabled={giphyState.loading}
+                      className="btn bg-default-100 text-default-800 hover:bg-default-200 min-h-11 mt-2 w-full"
+                    >
+                      {giphyState.loading ? (
+                        <>
+                          <Icon icon="loader-2" className="me-1 animate-spin" aria-hidden="true" /> กำลังโหลดเพิ่ม…
+                        </>
+                      ) : (
+                        'โหลดเพิ่ม'
+                      )}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* S-19: ไม่มีแพ็ก — แทนแถบแพ็กด้วย sub-tab 2 ปุ่ม (ยกท่าสีจากปุ่ม "ใช้ล่าสุด" เดิมของไฟล์นี้) */}
+            <div className="border-default-200 flex shrink-0 gap-1.5 border-t p-2">
+              {(['stickers', 'gifs'] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setGiphyTab(k)}
+                  aria-pressed={giphyTab === k}
+                  className={`flex min-h-11 flex-1 items-center justify-center rounded-lg text-sm font-medium ${
+                    giphyTab === k ? 'bg-primary/15 text-primary' : 'text-default-700 hover:bg-default-100'
+                  }`}
+                >
+                  {k === 'gifs' ? 'GIF' : 'สติกเกอร์'}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+        <>
           {/* S-18b — notice ถาวรบน LINE: ชุดนี้ปิดตายตัว 15 แพ็ก ไม่ใช่แคตาล็อกหลักพันแบบ Meta และ
               สติกเกอร์ที่ร้านซื้อไว้ตอบจากที่นี่ไม่ได้ (LINE ไม่เปิด API ให้ยิงสติกเกอร์ที่ไม่อยู่ใน
               รายการสาธารณะ) — ไม่มีปุ่มปิดเพราะเป็นข้อจำกัดถาวร ไม่ใช่เรื่องแจ้งครั้งเดียว */}
@@ -476,6 +721,8 @@ export default function EmojiPicker({
               ))}
             </div>
           )}
+        </>
+        )}
         </div>
       ) : (
       <div className={`overflow-y-auto overscroll-contain p-3 ${isSheet ? 'min-h-0 flex-1' : 'max-h-64'}`}>
@@ -533,6 +780,40 @@ function StickerButton({ sticker, onPick }: { sticker: StickerItem; onPick: (s: 
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={sticker.imageUrl} alt={sticker.name ?? ''} loading="lazy" className="max-h-full max-w-full object-contain" />
+    </button>
+  )
+}
+
+/**
+ * S-19: ไอเทม GIPHY 1 ใบในกริด — ต่างจาก StickerButton ตรงที่ grid ใช้ `previewUrl` (ไฟล์เบา) เสมอ
+ * แต่ส่งจริงด้วย `sendUrl` (การันตี ≤ IG_IMAGE_MAX_BYTES) — ห้ามสลับกัน (ดู lib/giphy.ts หัวไฟล์)
+ * สติกเกอร์ = จัตุรัส/object-contain (ไม่บีบสัดส่วน) · GIF = 16:9/object-cover (เต็มกรอบ ตามสเปก)
+ */
+function GiphyButton({
+  item,
+  giphyKind,
+  onPick,
+}: {
+  item: GiphyGridItem
+  giphyKind: GiphyKind
+  onPick: (s: StickerItem) => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onPick({ id: item.id, name: item.title, imageUrl: item.sendUrl, giphyKind })}
+      aria-label={item.title}
+      className={`hover:bg-default-100 flex items-center justify-center overflow-hidden rounded-lg ${
+        giphyKind === 'gifs' ? 'aspect-video' : 'aspect-square p-1'
+      }`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={item.previewUrl}
+        alt={item.title}
+        loading="lazy"
+        className={giphyKind === 'gifs' ? 'h-full w-full object-cover' : 'max-h-full max-w-full object-contain'}
+      />
     </button>
   )
 }

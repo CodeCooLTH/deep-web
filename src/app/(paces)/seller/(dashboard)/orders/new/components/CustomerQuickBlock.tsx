@@ -15,6 +15,7 @@ import AddressSearchSheet, { type SelectedLocality } from './AddressSearchSheet'
 import PasteParseSheet from './PasteParseSheet'
 import CustomerSearchSheet, { type CustomerResult } from './CustomerSearchSheet'
 import PhoneSuggestHint from './PhoneSuggestHint'
+import DeliveryModeToggle, { PickupHint } from './DeliveryModeToggle'
 import { hasPhoneSuggestion, hasPhoneHint } from '@/lib/phone-hint'
 import { MOBILE_PHONE_RE } from '@/lib/phone'
 import type { FormValues } from './OrderCreateForm'
@@ -33,9 +34,18 @@ interface Props {
    * สร้างคำสั่งซื้อ) กระจายรอบเดียวตอน mount เท่านั้น ไม่ตามค่า prop ที่เปลี่ยนทีหลัง
    */
   prefillParseText?: string
+  /** feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" เฉพาะร้าน ONLINE_SALES (SSOT: OrderCreateForm) */
+  showDeliveryToggle?: boolean
 }
 
-export default function CustomerQuickBlock({ control, errors, setValue, needsShipping, prefillParseText }: Props) {
+export default function CustomerQuickBlock({
+  control,
+  errors,
+  setValue,
+  needsShipping,
+  prefillParseText,
+  showDeliveryToggle = false,
+}: Props) {
   const [pasteOpen, setPasteOpen] = useState(false)
   /** ข้อความตั้งต้นในชีตกระจาย — มีค่าเมื่อเปิดชีตเพราะกระจายได้ไม่ครบ (ให้ร้านแก้ต่อจากของเดิม) */
   const [pasteInitialText, setPasteInitialText] = useState('')
@@ -342,6 +352,15 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
           errorMessage={contactErrorMessage}
         />
       </div>
+
+      {/* วิธีส่งมอบ — ปุ่มคู่ "จัดส่ง | นัดรับ" (feature 00062 U15, เฉพาะร้าน ONLINE_SALES) */}
+      {showDeliveryToggle && (
+        <div className="mb-2.5">
+          <span className="mb-2 block text-sm font-semibold text-default-700">วิธีส่งมอบ</span>
+          <DeliveryModeToggle control={control} />
+          <PickupHint control={control} />
+        </div>
+      )}
 
       {/* ที่อยู่ (ไม่ใช่ STOREFRONT) */}
       {showAddress && (

@@ -45,6 +45,14 @@ function makeOrder(over: Record<string, unknown> = {}) {
     shop: {
       shopName: 'ร้านทดสอบ',
       logo: null,
+      /**
+       * feature 00062 — จุดนัดรับ; ต้องมีในฟิกซ์เจอร์ ไม่งั้นเทสคีย์ผ่านด้วยค่า `undefined`
+       *
+       * 🛑 ห้ามใช้คำซ้ำกับ `RAW_ADDR` (ที่อยู่ผู้ซื้อ) เด็ดขาด — เทส "ที่อยู่ถูก mask" เช็คด้วย
+       * `JSON.stringify(out)).not.toContain(...)` ทั้งก้อน ⇒ คำที่โผล่จาก **ที่อยู่ร้าน**
+       * จะทำให้มันแดงโดยที่ไม่มีอะไรรั่วจริง (พลาดมาแล้วตอนเพิ่มฟิลด์นี้)
+       */
+      address: 'ต.ท่าศาลา อ.เมืองเชียงใหม่ จ.เชียงใหม่ 50000',
       user: { displayName: 'เจ้าของร้าน', username: 'shop1', trustScore: 26, avatar: null },
     },
     shipmentTracking: null,
@@ -93,6 +101,7 @@ describe('buildGuestOrderData', () => {
       [
         'carrierStatus',
         'createdAtIso',
+        'fulfillmentMode',
         'items',
         'maskedPhone',
         'maskedShippingAddress',
@@ -130,7 +139,36 @@ describe('buildGuestOrderData', () => {
          */
         'returnStartedAt',
         'returnedAt',
+        // เวลาที่ขนส่งเริ่มนำพัสดุมาส่งคืนร้าน — เพิ่มเข้า allow-list โดยตั้งใจ (2026-08-27)
+        // ไม่ใช่ PII เช่นกัน: เป็นเวลาที่ *ขนส่ง* บันทึก ไม่ได้บอกตัวตน/สถานที่/พฤติกรรมของใคร
+        'returnDispatchedAt',
+        // feature 00062 (2026-08-29) — บัญชีรับเงินของ "ร้าน" ไม่ใช่ PII ของผู้ซื้อ ร้าน
+        // ต้องการให้ผู้ถือลิงก์เห็นอยู่แล้ว (เหตุผลเต็มที่ประกาศฟิลด์ใน guest-order-data.ts)
+        'payoutSnapshot',
+        'paymentConfirmedAt',
+        /**
+         * feature 00062 (2026-08-29) — เวลาที่ร้านกด "มอบสินค้าแล้ว" — เพิ่มเข้า allow-list
+         * โดยตั้งใจ
+         *
+         * ไม่ใช่ PII: เป็นเวลาที่ *ร้าน* กดปุ่มบนออเดอร์ใบนี้ ไม่ได้บอกตัวตน/สถานที่/พฤติกรรม
+         * ของใคร — และผู้ซื้อคือคนที่ต้องรู้ที่สุด เพราะมันเป็นตัวเริ่มนาฬิกา 48 ชม. ที่จะปิดงาน
+         * ให้อัตโนมัติถ้าเขาไม่ทักท้วง (ไม่บอก = ปิดงานลับหลัง)
+         */
+        'handedOverAt',
       ].sort(),
+    )
+  })
+
+  /**
+   * ด่านชั้นสองของ allow-list — `shop` เป็น object ซ้อน คีย์ที่เพิ่มข้างในมัน **ไม่ทำให้เทส
+   * ด้านบนแดง** (มันเทียบแค่คีย์ชั้นนอก) ⇒ ฟิลด์ของร้านที่หลุดเข้ามาจะเงียบสนิท
+   * เพิ่มตอน feature 00062 เปิด `shop.address` ให้ผู้ถือลิงก์เห็น (จุดนัดรับ)
+   */
+  it('[blocker] คีย์ใน shop ไม่มีอะไรเกินที่ตั้งใจเปิด', () => {
+    const out = buildGuestOrderData(makeOrder(), 1)
+    expect(Object.keys(out.shop).sort()).toEqual(['address', 'shopName', 'user', 'vertical'].sort())
+    expect(Object.keys(out.shop.user).sort()).toEqual(
+      ['avatar', 'displayName', 'trustScore', 'username'].sort(),
     )
   })
 
@@ -180,6 +218,32 @@ describe('buildGuestOrderData', () => {
 
   it('carrierStatus ส่งต่อไปให้คำนวณ stage ได้ (BR-BOE-12)', () => {
     expect(buildGuestOrderData(makeOrder(), 1).carrierStatus).toBe('in_transit')
+  })
+
+  // feature 00062 (TFR-010) — payoutSnapshot/paymentConfirmedAt ต้องเดินทางถึงจอ guest ครบ
+  // ไม่ใช่ default null ตลอด (ไม่งั้นการ์ดบัญชีรับเงินจะไม่มีวันมีเนื้อหาให้แสดง)
+  describe('[blocker] payoutSnapshot/paymentConfirmedAt เดินทางถึงจอ guest (feature 00062)', () => {
+    it('มี payoutSnapshot บน order → ส่งต่อทั้งก้อน ไม่ตัดคีย์ทิ้ง', () => {
+      const snapshot = { bankCode: 'KBANK', accountNo: '1234567890', accountName: 'ร้าน BT', promptPayId: '0812345678' }
+      const out = buildGuestOrderData(makeOrder({ payoutSnapshot: snapshot }), 1)
+      expect(out.payoutSnapshot).toEqual(snapshot)
+    })
+
+    it('ร้านยังไม่ได้ตั้งบัญชี (payoutSnapshot=null) → null ไม่ใช่ object ว่าง', () => {
+      const out = buildGuestOrderData(makeOrder({ payoutSnapshot: null }), 1)
+      expect(out.payoutSnapshot).toBeNull()
+    })
+
+    it('paymentConfirmedAt มีค่า → ส่งเป็น ISO string', () => {
+      const confirmedAt = new Date('2026-08-29T04:00:00.000Z')
+      const out = buildGuestOrderData(makeOrder({ paymentConfirmedAt: confirmedAt }), 1)
+      expect(out.paymentConfirmedAt).toBe(confirmedAt.toISOString())
+    })
+
+    it('ร้านยังไม่กดยืนยัน (paymentConfirmedAt=null) → null', () => {
+      const out = buildGuestOrderData(makeOrder({ paymentConfirmedAt: null }), 1)
+      expect(out.paymentConfirmedAt).toBeNull()
+    })
   })
 
   /* 🛑 [blocker] รูปที่ผู้ซื้อเห็นบนจอที่กำลังจะโอนเงิน ต้องเป็น "โลโก้ร้าน" ไม่ใช่รูปส่วนตัว

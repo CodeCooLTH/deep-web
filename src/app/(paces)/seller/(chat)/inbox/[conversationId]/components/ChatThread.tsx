@@ -70,7 +70,6 @@
  */
 import Icon from '@/components/wrappers/Icon'
 import AutoReplyTag from './AutoReplyTag'
-import ThreadOverflowMenu from './ThreadOverflowMenu'
 import ThreadChipStrip, {
   type ThreadChipItem,
   type ThreadStatusItem,
@@ -92,6 +91,7 @@ import { formatTime, formatTimeHM, formatDateTime } from '@/lib/format-date'
 import { burstIdentity, computeBurstEndIds } from '@/lib/chat-message-burst'
 import { isSelfContainedBubble } from '@/lib/chat-bubble-frame'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
+import { hidesDownloadAffordance } from '@/lib/chat-sticker'
 import { parseMetaSystemNotice, parseMetaAiHandoffNotice, readMetaAiControlMarker } from '@/lib/meta-system-notice'
 import { META_BUSINESS_SUITE_INBOX_URL } from '@/lib/meta-system-notice'
 // SSOT ของ "ผลลัพธ์นี้ทำให้หน้าจอทำอะไร + พูดว่าอะไร" — ห้ามตัดสินใจซ้ำที่นี่ (HR16)
@@ -152,6 +152,9 @@ function mediaSrc(key: string): string {
   return fileUrlOf(key)
 }
 import AiSuggestPanel from './AiSuggestPanel'
+import ThreadSoundButton from './ThreadSoundToggle'
+import ThreadOverflowMenu from './ThreadOverflowMenu'
+import ThreadAutoReplyToggle from './ThreadAutoReplyToggle'
 import AppointmentDateSheet from '@/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentDateSheet'
 import QuickMessageBar from './QuickMessageBar'
 import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
@@ -549,7 +552,11 @@ function ChatImageMessage({
           }}
         />
       </button>
-      {!isSticker && <MediaDownloadLink storageKey={storageKey} label="บันทึกรูป" />}
+      {/* สติกเกอร์ **และ GIF** ไม่ต้องมีปุ่มบันทึก (user สั่ง 2026-08-27) — แต่ GIF ยังกว้างเท่ารูปปกติ
+          จึงแยกธง "ซ่อนปุ่ม" ออกจาก `isSticker` ที่คุมความกว้าง ดู hidesDownloadAffordance */}
+      {!hidesDownloadAffordance(storageKey, isSticker) && (
+        <MediaDownloadLink storageKey={storageKey} label="บันทึกรูป" />
+      )}
     </>
   )
 }
@@ -637,14 +644,13 @@ function ShopDeliveryStatus({
   // ไฟล์นี้เองที่ตัวโหลดข้อความเก่า (P3 · impeccable critique 2026-08-23)
   if (sending) {
     return (
-      // 🛑 (P2) ข้อความนี้ **ต้องมองเห็นได้ตลอด ห้ามย้ายกลับไปเป็น `title=`** — เดิมเป็น tooltip
-      // ซึ่งมือถือไม่มี hover ⇒ ประโยคที่เขียนมาเพื่อกันอาการ "คิดว่าค้างเลยส่งซ้ำ" (อาการเดียวกับ
-      // บั๊กต้นเรื่อง) ไม่เคยถึงคนที่ต้องการมันเลย ทั้งที่ผู้ขายทำงานบนมือถือเป็นหลัก
-      // กฎนี้โปรเจกต์เขียนไว้เองที่ docs/conventions/aria-name-requires-supporting-role.md
+      // 🛑 เหลือคำว่า "กำลังส่ง" คำเดียว — เจ้าของระบบสั่งถอดประโยค "ไม่ต้องส่งซ้ำ" ออก (2026-08-27)
+      // สปินเนอร์ที่หมุนอยู่บอกว่างานยังเดินอยู่แล้ว ประโยคสั่งห้ามจึงเป็นเสียงรบกวนในแถวสถานะที่
+      // โผล่ทุกครั้งที่ส่ง. ห้ามย้ายคำนี้ไปเป็น `title=` (มือถือไม่มี hover — ด่านด้านล่างกันไว้)
       // สี/ขนาดคงเดิม (inherit text-default-700 12px) ไม่มีสีเตือน ไม่มีตัวนับถอยหลัง (D-2)
       <span role="status" className="flex items-center gap-1">
         <Icon icon="loader-2" className="animate-spin" />
-        กำลังส่ง · ไม่ต้องส่งซ้ำ
+        กำลังส่ง
       </span>
     )
   }
@@ -747,7 +753,7 @@ function buildAlbumRows(items: ChatMessageView[]): AlbumRow[] {
   flush()
   return rows
 }
-import { VERTICAL_CTA, resolveTabNoun, type CustomerPanelData, type Tab as CustomerPanelTab } from './CustomerPanel'
+import { VERTICAL_CTA, type CustomerPanelData, type Tab as CustomerPanelTab } from './CustomerPanel'
 
 type Props = {
   conversationId: string
@@ -765,6 +771,9 @@ type Props = {
   shopAvatar: string | null
   /** feature 00018 read receipt — watermark ลูกค้าอ่านถึงเวลานี้ (ISO); ข้อความ SHOP ที่ createdAt <= ค่านี้ = อ่านแล้ว */
   externalReadAt: string | null
+  /** feature 00023 — สวิตช์ auto-reply ที่ร้านตั้งเองต่อห้อง (`Conversation.autoReplyEnabled`)
+   *  null = ยังไม่เคยตั้ง ซึ่งวันนี้ให้ผลเท่ากับเปิด (ดู ThreadAutoReplyToggle) */
+  botAutoReplyEnabled?: boolean | null
   /** feature 00023 — สถานะบอทของเธรดนี้ (ดู BotPausedBanner) */
   botPausedUntil?: string | null
   botHandoffAt?: string | null
@@ -1191,6 +1200,7 @@ export default function ChatThread({
   buyerAvatar,
   shopAvatar,
   externalReadAt: externalReadAtInitial,
+  botAutoReplyEnabled = null,
   botPausedUntil = null,
   botHandoffAt = null,
   botHandoffReason = null,
@@ -1372,8 +1382,13 @@ export default function ChatThread({
   const [stickerOpen, setStickerOpen] = useState(false)
   // S-18b: เปิดให้ LINE ด้วย — ปุ่มเดิม/เงื่อนไขเดิมของ Meta ไม่เปลี่ยน แค่เพิ่มช่องทางที่ผ่าน
   const canSendSticker = channel === 'MESSENGER' || channel === 'INSTAGRAM' || channel === 'LINE'
-  /** แหล่งสติกเกอร์ผัน — LINE มีชุดปิดตายตัวจาก SSOT (ไม่ใช่ Sticker Catalog API ของ Meta) */
-  const stickerProvider: 'META' | 'LINE' = channel === 'LINE' ? 'LINE' : 'META'
+  /**
+   * แหล่งสติกเกอร์ผัน — LINE มีชุดปิดตายตัวจาก SSOT (ไม่ใช่ Sticker Catalog API ของ Meta)
+   * S-19: IG ใช้ GIPHY — Meta ไม่มี sticker API ให้ IG เลย (/sticker_packs, /sticker_search เป็นของ
+   * Messenger เท่านั้น) เดิม IG ตกไปเป็น META จึงได้แผงที่เลือกไปก็ส่งไม่ผ่าน (พบ 2026-08-26)
+   */
+  const stickerProvider: 'META' | 'LINE' | 'GIPHY' =
+    channel === 'LINE' ? 'LINE' : channel === 'INSTAGRAM' ? 'GIPHY' : 'META'
   // composer improvement #2/#3 — แผงเหนือช่องพิมพ์ (ข้อความสำเร็จรูป / AI ช่วยร่างคำตอบ)
   // state เดียวคุมทั้งคู่ (user สั่ง 2026-07-23: "ต้องไม่ขึ้นซ้อนกัน เปิดได้ทีละอัน") — เดิมแยก
   // boolean คนละตัว กดสองปุ่มแล้วกางพร้อมกันทับกัน (ทั้งคู่เป็นแถบ full-bleed -mt ติดลบ)
@@ -1534,6 +1549,7 @@ export default function ChatThread({
     handleSend,
     replyingTo,
     setReplyingTo,
+    notifyTyping,
     retryMessage,
     resendMessage,
     cancelMessage,
@@ -1888,6 +1904,7 @@ export default function ChatThread({
         isSticker: m.isSticker,
         fromCard: false,
         hasFile: Boolean(m.imageUrl),
+                    storageKey: m.imageUrl,
       }) &&
       !m.isDeleted &&
       !m._status &&
@@ -2135,6 +2152,7 @@ export default function ChatThread({
         isSticker: m.isSticker,
         fromCard: false,
         hasFile: true,
+        storageKey: m.imageUrl,
       })
       imageSlides.push({
         src: url,
@@ -2736,33 +2754,74 @@ export default function ChatThread({
          * ซ่อนที่ `xl` เหมือนปุ่มเดิม — ที่ ≥1280px มี CustomerPanel เป็นคอลัมน์ถาวรอยู่ข้าง ๆ แล้ว
          * (breakpoint ต้องตรงกับ `xl:block` ของคอลัมน์ขวาใน page.tsx เสมอ)
          */}
-        <button
-          type="button"
-          onClick={() => openPanel('files')}
-          title={t.inbox.libraryOpen}
-          aria-label={t.inbox.libraryOpen}
-          className="btn btn-icon border-default-300 text-default-700 hover:bg-default-100 relative ms-auto shrink-0 xl:hidden"
-        >
-          <Icon icon="folder" className="text-lg" />
-          {savedFiles.size > 0 && (
-            <span className="bg-primary border-card absolute -end-1 -top-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full border-2 px-1 text-2xs font-bold text-white">
-              {savedFiles.size > 99 ? '99+' : savedFiles.size}
-            </span>
-          )}
-        </button>
+        {/**
+         * แถบ ปิด / อัตโนมัติ ของ auto-reply รายห้อง (2026-08-27, user ส่งภาพ segmented pill มา)
+         *
+         * `ms-auto` อยู่ที่นี่แทนที่จะเป็นปุ่มคลังไฟล์ — ตัวแรกที่มี ms-auto คือตัวที่กินที่ว่าง
+         * ทั้งหมด ปุ่มถัดไปจึงเรียงชิดขวาตามเดิมทุกตัว (ปุ่มคลังไฟล์ยังมี ms-auto ของตัวเองไว้
+         * สำหรับตอน <md ที่แถบนี้ไม่ถูก render)
+         *
+         * `hidden md:flex` — user สั่งเฉพาะ desktop. ที่ 320px แถบนี้กว้าง ~150px ซึ่งกินที่ของ
+         * ชื่อลูกค้าที่เหลืออยู่ 85px จนหมด (เลขเต็มอยู่ที่กลุ่มปุ่มขวาด้านล่าง) จอแคบจึงใช้
+         * `variant="icon"` ของตัวเดียวกันแทน — ไม่ปล่อยให้มือถือเข้าไม่ถึงสิ่งที่เดสก์ท็อปมี
+         *
+         * ไม่ render เมื่อ `botCouldReply=false` ด้วยเหตุผลเดียวกับ BotPausedBanner — ร้านที่ยัง
+         * ไม่มีบอทตัวไหนทำงานเลย การให้เลือก "อัตโนมัติ" คือการเสนอสิ่งที่ไม่มีทางเกิดขึ้น
+         */}
+        {botCouldReply && (
+          <ThreadAutoReplyToggle
+            conversationId={conversationId}
+            enabled={botAutoReplyEnabled}
+            className="ms-auto hidden md:flex"
+          />
+        )}
 
-        {/* เสียงแจ้งเตือน — เมนูเดียวคุมทั้ง "ทั้งแอป" และ "เฉพาะแชทนี้" (user report 2026-08-10)
-            เดิมที่นี่เป็นปุ่มกระดิ่งรายเธรดที่ถูกซ่อนเมื่อปิดเสียงระดับแอป และสวิตช์ระดับแอปอยู่ใน
-            ChatHeader ซึ่ง hidden lg:flex ในหน้าเธรด ⇒ **บนมือถือในห้องแชทไม่มีสวิตช์เสียงให้แตะเลย**
-            แทนที่ 1:1 ไม่เพิ่มปุ่มใหม่ (งบพื้นที่หัวเธรดที่ 320px ตึงอยู่แล้ว — flex-header-truncation) */}
+        {/**
+         * กลุ่มปุ่มขวาของหัวเธรด — `gap-1` ไม่ใช่ `gap-3` ของ `.card-header` (2026-08-27 รอบสอง)
+         *
+         * 🛑 การยุบ gap คือสิ่งที่ทำให้ "มือถือเห็นกระดิ่ง + ข้อมูลลูกค้าตรง ๆ" เป็นไปได้จริง —
+         * กางงบที่ 320px (`.card-header px-5`=40 · `gap-3`=12 · `.btn.btn-icon`=37 · avatar=36):
+         *
+         * ส่วนคงที่ = 40 + 37(back) + 12 + 36(avatar) + 12 + [ชื่อ] + 12 = **149 + ชื่อ + กลุ่มปุ่ม**
+         *
+         *   เดิม (folder + `⋯` ที่ gap-3)      กลุ่ม 86  → 235 → ชื่อ **85px @320 · 140px @375**
+         *   เติม bell+customer ที่ gap-3 เท่าเดิม  กลุ่ม 184 → 333 → ชื่อ **−13px** ใส่ไม่ลงเลย
+         *   ── มติปัจจุบัน: gap-1 + [ตอบอัตโนมัติ][ข้อมูล][`⋯`] ──
+         *   2 ปุ่ม (ร้านไม่มีบอท)               กลุ่ม 78  → 227 → ชื่อ **93px @320 · 148px @375**
+         *   3 ปุ่ม (ร้านมีบอท)                  กลุ่ม 119 → 268 → ชื่อ **52px @320 · 107px @375**
+         *
+         * 🛑 ลำดับความสำคัญที่ user เคาะสำหรับจอแคบ: **ตอบอัตโนมัติ > ข้อมูลลูกค้า > เสียง**
+         * เสียงเป็นของที่ตั้งครั้งเดียวแล้วแทบไม่แตะอีก จึงเป็นตัวเดียวที่ยอมให้ลึกลงไปอยู่ใน `⋯`
+         *
+         * 🛑 ปุ่มคลังไฟล์ถูกถอด (user: "ปุ่มมันเยอะไปป่ะ") — ไม่ใช่การกลับมติ 2026-08-14 แต่เพราะ
+         * **เงื่อนไขที่ทำให้มันเกิดหมดไปแล้ว**: ตอนนั้นไฟล์อยู่ลึก 4 ชั้นเพราะปุ่ม "ข้อมูลลูกค้า"
+         * ไม่มีบนมือถือ ตอนนี้ปุ่มนั้นอยู่บนแถบแล้ว ไฟล์เหลือ 2 แตะ และทั้งสองปุ่มเปิด **ชีตใบเดียวกัน**
+         * ต่างแค่แท็บ ⚠️ ของที่หายไปด้วยคือตัวนับ "มีไฟล์ N ใบ" ที่เคยเกาะมุมปุ่ม — ยังไม่ได้ย้ายไปไหน
+         */}
+        <div className="ms-auto flex shrink-0 items-center gap-1">
+
+        {/* จอแคบ: ไอคอนกดสลับตอบอัตโนมัติ — มาก่อนเสมอตามลำดับที่ user เคาะ
+            ≥768px ใช้แถบ segmented ที่อยู่ก่อนกลุ่มนี้แทน (component เดียวกัน คนละ variant) */}
+        {botCouldReply && (
+          <ThreadAutoReplyToggle
+            conversationId={conversationId}
+            enabled={botAutoReplyEnabled}
+            variant="icon"
+            className="md:hidden"
+          />
+        )}
+
+        {/* เสียงแจ้งเตือนของแชทนี้ — ≥768px เป็นปุ่มกระดิ่งของตัวเอง (user: "ไม่ต้องมี dropdown
+            บน desktop ให้ desktop แสดง icon เต็ม ๆ ไปเลย") · จอแคบอยู่ในเมนู `⋯` ท้ายแถว
+            (เหตุผลเดิมของ 2026-08-10 ยังอยู่: บนมือถือในห้องแชทต้องกดถึงสวิตช์เสียงได้เสมอ) */}
+        <ThreadSoundButton conversationId={conversationId} />
         {/**
          * ข้อมูลลูกค้า — ปุ่มของตัวเองเมื่อ "มีที่ว่างพอ" เท่านั้น (2026-08-14,
          * user: "พวก action อื่นก็ควรแสดงไหม ถ้ามีพื้นที่พอ")
          *
-         *   <768px   ซ่อน — งบพื้นที่หัวเธรดที่ 320px เหลือให้ชื่อลูกค้าแค่ 85px อยู่แล้ว
-         *            (ดูเลขเต็มในหัว ThreadOverflowMenu) ปุ่มที่ 3 จะกินส่วนนั้นทันที
-         *   768–1279 โผล่ — ที่ 768px หัวเธรดใช้ไป 284px เหลือให้ชื่อ ~484px มีที่เหลือเฟือ
-         *            และเมนู ⋯ ซ่อนรายการเดียวกันนี้ด้วย `md:hidden` ⇒ ไม่มีของซ้ำบนจอเดียว
+         *   <1280px  โผล่ — 🛑 2026-08-27 user สั่งตรง ๆ ว่ามือถือต้องเห็นปุ่มนี้ ไม่ต้องกดเมนูก่อน
+         *            (เดิม `hidden md:inline-flex`) ที่ว่างมาจากการยุบ gap ของกลุ่มปุ่มขวาเป็น
+         *            `gap-1` + ถอดปุ่มคลังไฟล์ ดูงบเต็มที่หัวกลุ่มปุ่มด้านบน
          *   ≥1280px  ซ่อน — CustomerPanel เป็นคอลัมน์ถาวรอยู่ข้าง ๆ แล้ว (ต้องตรงกับ `xl:block`
          *            ของคอลัมน์ขวาใน page.tsx เสมอ — ช่วง iPad Pro 1024–1279 เคยตกหล่นมาแล้ว)
          */}
@@ -2771,16 +2830,15 @@ export default function ChatThread({
           onClick={() => openPanel('customer')}
           title={t.inbox.customerInfo}
           aria-label={t.inbox.customerInfo}
-          className="btn btn-icon border-default-300 text-default-700 hover:bg-default-100 hidden shrink-0 md:inline-flex xl:hidden"
+          className="btn btn-icon border-default-300 text-default-700 hover:bg-default-100 shrink-0 xl:hidden"
         >
           <Icon icon="user-circle" className="text-lg" />
         </button>
 
-        <ThreadOverflowMenu
-          conversationId={conversationId}
-          ordersLabel={resolveTabNoun(t, customerPanelData.vertical)}
-          onOpenPanel={openPanel}
-        />
+        {/* `⋯` จอแคบเท่านั้น — ถือของชิ้นเดียวคือสวิตช์เสียง (user เคาะ 2026-08-27)
+            ตัวปุ่มมีจุด `bell-off` ซ้อนมุมเมื่อห้องนี้เงียบ ⇒ อ่านสถานะได้โดยไม่ต้องเปิดเมนู */}
+        <ThreadOverflowMenu conversationId={conversationId} />
+        </div>
       </div>
 
       {/**
@@ -2997,11 +3055,19 @@ export default function ChatThread({
                           {/* feature 00048 — ปุ่มผูกกับ "รูปนำของกลุ่ม" (ms[0]) เหมือนที่ reply/react
                               ทำอยู่แล้ว. รูปใบที่ 2 เป็นต้นไปเก็บได้จากใน lightbox ซึ่งมีปุ่มรายสไลด์
                               **ไม่ gate ด้วย !queued โดยตั้งใจ** — อ้าง imageUrl (fileId ของเรา) ไม่ใช่ mid */}
-                          <SaveToLibraryButton
-                            saved={Boolean(ms[0].imageUrl && savedFiles.has(ms[0].imageUrl))}
-                            busy={savingFileId === ms[0].imageUrl}
-                            onToggle={() => void toggleLibrary(ms[0])}
-                          />
+                          {isLibraryEligible({
+                            type: ms[0].type,
+                            isSticker: ms[0].isSticker,
+                            fromCard: false,
+                            hasFile: Boolean(ms[0].imageUrl),
+                            storageKey: ms[0].imageUrl,
+                          }) && (
+                            <SaveToLibraryButton
+                              saved={Boolean(ms[0].imageUrl && savedFiles.has(ms[0].imageUrl))}
+                              busy={savingFileId === ms[0].imageUrl}
+                              onToggle={() => void toggleLibrary(ms[0])}
+                            />
+                          )}
                           {!queued && (
                             <ReactMessageButton
                               onOpen={(rect) =>
@@ -3077,15 +3143,22 @@ export default function ChatThread({
                        * เติมเฉพาะปุ่มของฟีเจอร์นี้ ไม่เติม reply/react (นั่นเป็นช่องว่างเดิมคนละเรื่อง
                        * ที่ต้องตัดสินแยก ไม่ใช่ของแถมที่แอบใส่มากับงานนี้)
                        */}
-                      {!mine && (
-                        <div className="flex items-start gap-0.5">
-                          <SaveToLibraryButton
-                            saved={Boolean(ms[0].imageUrl && savedFiles.has(ms[0].imageUrl))}
-                            busy={savingFileId === ms[0].imageUrl}
-                            onToggle={() => void toggleLibrary(ms[0])}
-                          />
-                        </div>
-                      )}
+                      {!mine &&
+                        isLibraryEligible({
+                          type: ms[0].type,
+                          isSticker: ms[0].isSticker,
+                          fromCard: false,
+                          hasFile: Boolean(ms[0].imageUrl),
+                          storageKey: ms[0].imageUrl,
+                        }) && (
+                          <div className="flex items-start gap-0.5">
+                            <SaveToLibraryButton
+                              saved={Boolean(ms[0].imageUrl && savedFiles.has(ms[0].imageUrl))}
+                              busy={savingFileId === ms[0].imageUrl}
+                              onToggle={() => void toggleLibrary(ms[0])}
+                            />
+                          </div>
+                        )}
                     </div>
                   )
                 }
@@ -3283,6 +3356,7 @@ export default function ChatThread({
                     isSticker: m.isSticker,
                     fromCard: false,
                     hasFile: Boolean(m.imageUrl),
+                    storageKey: m.imageUrl,
                   }) &&
                   !m.isDeleted &&
                   !m._status &&
@@ -4366,7 +4440,11 @@ export default function ChatThread({
                     : t.inbox.composerPlaceholder
               }
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value)
+                // แจ้ง "กำลังพิมพ์" เฉพาะตอนคนพิมพ์จริง — throttle อยู่ในตัว notifyTyping เอง
+                notifyTyping()
+              }}
               onPaste={handlePaste} // วางรูปจากคลิปบอร์ด (screenshot/Line/Ctrl+C) → แนบเลย (user 2026-07-25)
               // enterKeyHint="enter" → คีย์บอร์ดมือถือขึ้นปุ่ม "ขึ้นบรรทัดใหม่" ไม่ใช่ "ส่ง"
               // ให้ป้ายบนปุ่มตรงกับสิ่งที่เกิดขึ้นจริงตาม handler ข้างล่าง

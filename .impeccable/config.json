@@ -86,6 +86,12 @@
         "value": "#e1306c",
         "createdAt": "2026-08-23T06:11:15.512Z",
         "reason": "brand asset Instagram — CLAUDE.md Hard Rule 6 carve-out; คอมเมนต์กำกับอยู่ที่ SignInForm.tsx"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "4px",
+        "createdAt": "2026-08-29T11:40:06.019Z",
+        "reason": "4px คือ rounded.sm ที่ประกาศใน DESIGN.md:72 และเป็นฐาน --radius ของฝั่ง Paces (DESIGN.md:309) — ค่าที่อยู่ในบันไดอยู่แล้ว ตัวตรวจแมปกลับเป็นโทเคนไม่ได้เพราะอยู่ใน HTML string ของ tooltip.custom ซึ่งเรนเดอร์นอก React tree จึงใช้คลาส Tailwind ไม่ได้ (ProductSalesChart.tsx)"
       }
     ]
   }

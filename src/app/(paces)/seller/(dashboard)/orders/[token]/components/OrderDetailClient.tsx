@@ -35,12 +35,13 @@ import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
 import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
 import type { ShopVertical } from '@/lib/lodging'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
-import type { OrderStatus } from '@/lib/order-display'
+import { canSellerConfirmPayment, type OrderStatus } from '@/lib/order-display'
 import { shouldPromptCloseReturnedOrder, type ShippingStageKey } from '@/lib/order-stage'
 import type { OrderVocab } from '@/lib/seller-menu'
 import type { ShipmentContextJson } from '@/lib/iship/context'
 import OrderActionBar from '@/components/safepay/OrderActionBar'
 import CodCard from './CodCard'
+import PaymentReceivedCard from './PaymentReceivedCard'
 import dynamic from 'next/dynamic'
 import OrderSummary, { type OrderSummaryProps } from './OrderSummary'
 import type { OrderFactsItem } from './order-detail-shared'
@@ -107,6 +108,11 @@ export interface OrderDetailClientProps {
   totalAmount: number
   paymentMethod: string | null
   slipFileId: string | null
+  /**
+   * feature 00062 — ISO ของเวลาที่ร้านกด "ได้รับเงินแล้ว" เอง (TRANSFER/PROMPTPAY/CASH)
+   * ส่งต่อให้ OrderSummary → getPaymentBadge (SSOT เดียว, SDS TD-003) — null = ยังไม่กด
+   */
+  paymentConfirmedAtISO: string | null
   shipmentSource: ShipmentSource
 
   // ── ShipmentEntryModal (T9) ──────────────────────────────────────────────
@@ -154,6 +160,17 @@ export interface OrderDetailClientProps {
   codReceivedByLabel: string | null
   /** true = ออเดอร์นี้เก็บเงินปลายทาง (แสดงการ์ดเงินแทนการ์ดการชำระเงิน) */
   isCod: boolean
+  /**
+   * feature 00062 (U17) — ชื่อคนที่กด "ได้รับเงินแล้ว" (โอน/พร้อมเพย์/เงินสด) — null เสมอตอนนี้
+   * (getOrderForShop ยังไม่ include ความสัมพันธ์ paymentConfirmedBy — นอกขอบเขตไฟล์ที่แตะได้ของ
+   * งานนี้ ดู PaymentReceivedCard ที่รองรับ null ได้อยู่แล้ว เหมือน codReceivedByLabel)
+   */
+  paymentConfirmedByLabel: string | null
+  /**
+   * feature 00062 (U16) — ISO ของเวลาที่ร้านกด "มอบสินค้าแล้ว" ในออเดอร์นัดรับ — null = ยังไม่กด/
+   * ไม่ใช่ออเดอร์นัดรับ ใช้คำนวณ flag isPickupHandedOver ให้ order-action-set.ts (แถบล่าง <1024)
+   */
+  handedOverAtISO: string | null
 }
 
 export default function OrderDetailClient({
@@ -173,6 +190,7 @@ export default function OrderDetailClient({
   totalAmount,
   paymentMethod,
   slipFileId,
+  paymentConfirmedAtISO,
   shipmentSource,
   ishipContext,
   hasIshipShipment,
@@ -195,6 +213,8 @@ export default function OrderDetailClient({
   codReceivedAtISO,
   codReceivedByLabel,
   isCod,
+  paymentConfirmedByLabel,
+  handedOverAtISO,
 }: OrderDetailClientProps) {
   // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
   const hidePayments = useHidePayments()
@@ -205,12 +225,22 @@ export default function OrderDetailClient({
   const [returnOpen, setReturnOpen] = useState(false)
   const isOnlineSales = vertical === 'ONLINE_SALES'
 
+  // feature 00062 — flag ที่ order-action-set.ts ห้ามคำนวณเอง (pure module ห้ามรู้จักรูปแบบ
+  // ข้อความวิธีชำระ) มีผลเฉพาะ fulfillmentMode==='PICKUP' + status==='PENDING' เท่านั้น
+  const isPickupOrder = fulfillmentMode === 'PICKUP'
+  const isPickupPaymentUnpaid =
+    isPickupOrder && canSellerConfirmPayment(paymentMethod) && !paymentConfirmedAtISO
+  const isPickupHandedOver = isPickupOrder && Boolean(handedOverAtISO)
+
   // T5 — ชุดเดียวสำหรับแถบล่าง <1024 (ดู comment หัวไฟล์: StatusHero คำนวณชุดเดียวกันซ้ำภายในตัวเอง)
   const baseActionSet = getOrderActionSet({
     status: status as OrderStatus,
     fulfillmentMode,
     shipmentSource,
     orderNoun: vocab.noun,
+    isCodUnpaid,
+    isPickupPaymentUnpaid,
+    isPickupHandedOver,
   })
 
   /**
@@ -385,6 +415,117 @@ export default function OrderDetailClient({
     }
   }
 
+  /**
+   * feature 00062 (U17) — ยืนยันได้รับเงินโอน/พร้อมเพย์/เงินสด
+   *
+   * 🛑 **มี confirm เหมือน `handleCodReceived` ข้างบน** — UX-Design-Spec §A3 เดิมเขียนว่า
+   * "ไม่ต้องมี confirm (mirror CodCard ซึ่งไม่มีเช่นกัน)" แต่**คำอ้างนั้นผิด**: เปิดโค้ดดูแล้ว
+   * `handleCodReceived`/`handleCodUndo` มี `pacesConfirm.question` ทั้งคู่ (ตรวจ 2026-08-29)
+   * — เป็นกรณีที่เอกสารอ้างพฤติกรรมโค้ดผิดแล้วถูกใช้เป็นเหตุผลในการออกแบบ
+   * (`docs/conventions/docs-claimed-constraint-verify-in-code.md`)
+   *
+   * เมื่อเหตุผลที่อ้างไม่จริง จึงยึดตามความเสี่ยงจริงแทน: ปุ่มนี้เป็น **คำยืนยันเรื่องเงิน**
+   * กดพลาดแล้วตัวเลขในระบบผิด และการ์ดสองใบที่นั่งข้างกันในคอลัมน์เดียวกันไม่ควรมีพฤติกรรม
+   * ต่างกันโดยไม่มีเหตุผลที่ผู้ใช้เดาได้ (`docs/conventions/sibling-surface-parity.md`)
+   */
+  const handlePaymentReceived = async () => {
+    const ok = await pacesConfirm.question(
+      'ยืนยันว่าได้รับเงินแล้ว?',
+      'ระบบจะบันทึกว่าร้านได้รับเงินของคำสั่งซื้อนี้แล้ว — ยกเลิกภายหลังได้ถ้ากดผิด',
+      { confirmButtonText: 'ได้รับเงินแล้ว', cancelButtonText: 'ยังไม่ได้รับ' },
+    )
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/orders/${publicToken}/payment-confirm`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error || 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
+      }
+      pacesToast.success('บันทึกแล้ว')
+      router.refresh()
+    } catch (err: unknown) {
+      pacesToast.error(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
+    }
+  }
+
+  /** ย้อนการยืนยัน — เหตุผลเดียวกับ `handleCodUndo`: กดผิดแล้วต้องแก้ได้ ไม่งั้นตัวเลขเงินผิดถาวร */
+  const handlePaymentUndo = async () => {
+    const ok = await pacesConfirm.question(
+      'ยกเลิกการยืนยันรับเงิน?',
+      'ป้ายสถานะจะกลับไปเป็น "รอชำระ" — กดยืนยันใหม่ได้ทุกเมื่อ',
+      { confirmButtonText: 'ยกเลิกการยืนยัน', cancelButtonText: 'ไม่ใช่ตอนนี้' },
+    )
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/orders/${publicToken}/payment-confirm`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error || 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่')
+      }
+      pacesToast.success('ยกเลิกการยืนยันแล้ว')
+      router.refresh()
+    } catch (err: unknown) {
+      pacesToast.error(err instanceof Error ? err.message : 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่')
+    }
+  }
+
+  /**
+   * impeccable critique P0-1 (2026-08-29) — "ยกเลิกการยืนยันมอบสินค้า" จากเมนู ⋮ (key=
+   * 'pickup-handover-undo') คนละจุดกับปุ่ม undo บนการ์ด "การนัดรับ" (ShippingAddress.tsx —
+   * self-contained ด้วยเหตุผลเดียวกับ handlePickupHandedOver ด้านล่าง) มิเรอร์
+   * `ShippingAddress.handleUndoHandover` ทุกตัวอักษร (ข้อความ/endpoint) ตาม sibling-surface-parity
+   */
+  const handlePickupHandoverUndo = async () => {
+    const ok = await pacesConfirm.question(
+      'ยกเลิกการยืนยันว่ามอบสินค้าแล้ว?',
+      'นาฬิกาปิดงานอัตโนมัติจะหยุดนับ — กดยืนยันใหม่ได้ทุกเมื่อ',
+      { confirmButtonText: 'ยกเลิกการยืนยัน', cancelButtonText: 'ไม่ใช่ตอนนี้' },
+    )
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/orders/${publicToken}/handover`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error || 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่')
+      }
+      pacesToast.success('ยกเลิกการยืนยันแล้ว')
+      router.refresh()
+    } catch (err: unknown) {
+      pacesToast.error(err instanceof Error ? err.message : 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่')
+    }
+  }
+
+  /**
+   * feature 00062 (U16) — "มอบสินค้าแล้ว" จากแถบ action ล่างจอ (<1024, order-action-set.ts
+   * key='pickup-handed-over') คนละจุดกับปุ่มบนการ์ด "การนัดรับ" (ShippingAddress.tsx — self
+   * -contained เพราะการ์ดนั้นถูก page.tsx render ตรงใน sideCards ไม่ผ่าน OrderDetailClient)
+   * ต้อง fetch เดียวกันซ้ำ 2 จุดโดยสถาปัตยกรรม — ไม่มีจุดกลางให้เรียกร่วมโดยไม่แตะไฟล์นอกขอบเขต
+   */
+  const handlePickupHandedOver = async () => {
+    /**
+     * 🛑 ต้อง confirm เพราะปุ่มนี้ **เริ่มนับนาฬิกาปิดงานอัตโนมัติ 48 ชม.** — กดพลาดแล้วออเดอร์
+     * จะถูกปิดเองโดยที่ลูกค้ายังไม่ได้รับของ ซึ่งไปนับเป็นออเดอร์สำเร็จของร้าน (Trust Score)
+     * ไม่ใช่แค่ป้ายบนจอเปลี่ยน
+     */
+    const ok = await pacesConfirm.question(
+      'ยืนยันว่ามอบสินค้าให้ลูกค้าแล้ว?',
+      'ระบบจะปิดงานให้อัตโนมัติเมื่อครบ 48 ชั่วโมง หากลูกค้าไม่ทักท้วง — ยกเลิกได้ก่อนครบกำหนด',
+      { confirmButtonText: 'มอบสินค้าแล้ว', cancelButtonText: 'ยังไม่ได้มอบ' },
+    )
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/orders/${publicToken}/handover`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error || 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
+      }
+      pacesToast.success('บันทึกแล้ว')
+      router.refresh()
+    } catch (err: unknown) {
+      pacesToast.error(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
+    }
+  }
+
   // ปุ่ม action ทั้งหมดของหน้านี้ (StatusHero inline/stuck + OrderActionBar variant="bottom") วิ่งเข้า
   // handler เดียวนี้ผ่าน key จาก order-action-set.ts — ดูตาราง key → พฤติกรรมในรายงาน T11
   const handleAction = (key: string) => {
@@ -420,6 +561,15 @@ export default function OrderDetailClient({
         return
       case 'cod-received':
         void handleCodReceived()
+        return
+      case 'pickup-payment-received':
+        void handlePaymentReceived()
+        return
+      case 'pickup-handed-over':
+        void handlePickupHandedOver()
+        return
+      case 'pickup-handover-undo':
+        void handlePickupHandoverUndo()
         return
       case 'cancel-order':
         void handleCancelOrder()
@@ -492,6 +642,7 @@ export default function OrderDetailClient({
             salesChannel={salesChannel}
             pageLogoUrl={pageLogoUrl}
             slipFileId={slipFileId}
+            paymentConfirmedAt={paymentConfirmedAtISO}
             status={status}
             shippingStage={shippingStage}
             totalAmount={totalAmount}
@@ -503,7 +654,7 @@ export default function OrderDetailClient({
         <div className="space-y-base">
           {customerCard}
           {/* การ์ดเงินอยู่ใต้ผู้ซื้อ = ลำดับที่ร้านอ่านจริง (ใครซื้อ → ได้เงินหรือยัง → ส่งที่ไหน) */}
-          {isCod && (
+          {isCod ? (
             <CodCard
               codReceivedAtISO={codReceivedAtISO}
               onMarkReceived={handleCodReceived}
@@ -511,6 +662,23 @@ export default function OrderDetailClient({
               receivedByLabel={codReceivedByLabel}
               totalAmount={totalAmount}
             />
+          ) : (
+            // feature 00062 (U17) — mutually exclusive กับ CodCard (paymentMethod มีค่าเดียว)
+            // แสดงทุกสถานะที่ไม่ใช่ CANCELLED โดยไม่สนใจ order.status (UX §A3 — ต่างจาก COD ที่
+            // ผูก SHIPPED/CONFIRMED เพราะเงินโอน/พร้อมเพย์/เงินสดรับได้ตั้งแต่ PENDING)
+            canSellerConfirmPayment(paymentMethod) &&
+            status !== 'CANCELLED' && (
+              <PaymentReceivedCard
+                confirmedByLabel={paymentConfirmedByLabel}
+                onMarkReceived={handlePaymentReceived}
+                onUndo={handlePaymentUndo}
+                paymentConfirmedAtISO={paymentConfirmedAtISO}
+                paymentMethod={paymentMethod}
+                slipFileId={slipFileId}
+                status={status}
+                totalAmount={totalAmount}
+              />
+            )
           )}
           {/* กำไรอยู่ในกลุ่ม "ข้อมูลการเงินของใบนี้" ต่อจาก COD — ไม่ใช่แถวในการ์ดสรุปยอด
               เพราะยอดที่ลูกค้าจ่ายกับกำไรที่ร้านได้หน้าตาเหมือนกันจนอ่านสลับกันได้ */}

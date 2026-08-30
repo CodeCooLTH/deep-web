@@ -15,6 +15,7 @@
  * `text-lg` ไม่ใช่ `text-xl` ของธีม — ที่ `lg:grid-cols-4` การ์ดกว้างราว 270px และค่าที่ยาวที่สุด
  * คือจำนวนเต็มหลักร้อย/เปอร์เซ็นต์ ซึ่งพอดีอยู่แล้ว ส่วน `tabular-nums` กันตัวเลขขยับตอนค่าเปลี่ยน
  */
+import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 
@@ -27,12 +28,19 @@ export type CustomerStatItem = {
   icon: string
   /** คลาสพื้นหลังของวงกลมไอคอน เช่น `bg-primary` */
   tone: string
+  /**
+   * ปลายทางเมื่อกด — ไม่ส่ง = การ์ดเป็นตัวเลขอ่านอย่างเดียว
+   * 🛑 การ์ดที่โชว์เลขแล้วกดไม่ได้คือคำเชิญที่ไม่มีปลายทาง (user เคาะ 2026-08-26 ให้กดกรองได้)
+   * ⇒ ใบไหนกดได้ต้องมี href จริง ห้ามใส่ onClick ที่ไม่ทำอะไร
+   */
+  href?: string
+  /** กำลังถูกใช้เป็นตัวกรองอยู่ — ให้ขอบ primary รู้ว่าเลขที่เห็นด้านล่างมาจากใบนี้ */
+  active?: boolean
 }
 
 export default function CustomerStatCard({ item }: { item: CustomerStatItem }) {
-  return (
-    <div className="card h-full">
-      <div className="card-body">
+  const body = (
+    <>
         <div className="mb-5 flex w-full items-center justify-between gap-3">
           <h3 className="text-default-900 text-lg font-bold tabular-nums">{item.value}</h3>
           <div
@@ -43,11 +51,29 @@ export default function CustomerStatCard({ item }: { item: CustomerStatItem }) {
             <Icon icon={item.icon} className="size-5.5 text-white" aria-hidden="true" />
           </div>
         </div>
-        <div className="flex flex-col gap-0.5">
-          <span className="text-default-900 text-xs font-bold">{item.title}</span>
-          {item.caption && <span className="text-2xs text-default-400">{item.caption}</span>}
-        </div>
+      <div className="flex flex-col gap-0.5">
+        <span className="text-default-900 text-xs font-bold">{item.title}</span>
+        {item.caption && <span className="text-2xs text-default-400">{item.caption}</span>}
       </div>
-    </div>
+    </>
+  )
+
+  const cls = cn('card h-full', item.active && 'border-primary border')
+
+  // การ์ดที่กดได้เป็น <Link> จริง ไม่ใช่ div ที่ผูก onClick — คีย์บอร์ด/เปิดแท็บใหม่ต้องใช้ได้
+  if (!item.href) {
+    return (
+      <div className={cls}>
+        <div className="card-body">{body}</div>
+      </div>
+    )
+  }
+  return (
+    <Link
+      href={item.href}
+      aria-pressed={item.active ?? false}
+      className={cn(cls, 'hover:border-primary/50 transition-colors')}>
+      <div className="card-body">{body}</div>
+    </Link>
   )
 }

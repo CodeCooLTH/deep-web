@@ -10,7 +10,7 @@
  * page.tsx ต้อง map ทีละ field เสมอ (`feedback_rsc_pii_neutralize_at_source`)
  */
 import type { CustomerBadge } from '@/lib/customer-behavior'
-import type { BuyerReputation } from '@/lib/buyer-reputation'
+import type { BuyerReputation, CustomerRiskTier } from '@/lib/buyer-reputation'
 
 export type CustomerRow = {
   /**
@@ -51,4 +51,13 @@ export type CustomerRow = {
    * **ระดับร้าน** — ทุกจุดบนหน้าจอต้องมีป้ายกำกับขอบเขต ห้ามปล่อยให้ผู้ใช้เดา (HR16)
    */
   trust: BuyerReputation | null
+  /**
+   * ระดับที่ใช้จัดกลุ่ม/ลงสี — derive ที่ server ด้วย `classifyCustomerRiskTier`
+   * 🛑 ห้าม derive ซ้ำที่ client จาก `trust` — เกณฑ์จะ drift ทันทีที่ฝั่งใดฝั่งหนึ่งถูกแก้
+   * และตัวเลขบนไทล์ (นับที่ server) จะไม่ตรงกับสีบนแถว (คำนวณที่ client)
+   */
+  tier: CustomerRiskTier
+  /** จำนวนพัสดุ **กับร้านนี้** — คนละขอบเขตกับ `trust` (ทั้งระบบ) ไม่มี PII */
+  shopShipped: number
+  shopReturned: number
 }

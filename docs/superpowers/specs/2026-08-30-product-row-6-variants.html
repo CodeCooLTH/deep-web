@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<title>แถวสินค้า 6 ท่า — บนโครงแบบ 4 (00063)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--primary:#236dc9;--primary-ink:#173f73;--alpha:#02bc9c;--gamma:#f9bf59;--beta:#f7577e;
+ --warning-ink:#92400e;--d100:#f1f2f6;--d200:#e9eaee;--d300:#dcdee5;--d400:#8a91a5;--d500:#6b7280;--d700:#4c4c5c;--d900:#2f2b3d;--body:#f6f7fb}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,sans-serif;background:#e8eaf0;color:var(--d900);padding:22px 16px 60px;-webkit-font-smoothing:antialiased}
+h1{font-size:19px;font-weight:700}
+.sub{font-size:13px;color:var(--d500);line-height:1.7;max-width:1050px;margin:4px 0 18px}
+.sub b{color:var(--d900)}.sub code{background:#fff;padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:ui-monospace,monospace}
+.rail{display:flex;gap:18px;overflow-x:auto;padding-bottom:18px;align-items:flex-start}
+figure{flex:0 0 auto;width:360px}
+figcaption{margin-bottom:9px}
+.vn{font-size:13px;font-weight:700;display:block}
+.vd{font-size:11.5px;color:var(--d500);line-height:1.55;display:block;margin-top:2px;min-height:76px}
+.hgt{font-size:10.5px;font-weight:700;color:var(--primary-ink);background:rgba(35,109,201,.1);border-radius:5px;padding:2px 7px;display:inline-block;margin-top:4px}
+.phone{width:360px;height:700px;background:var(--body);border:7px solid #1c1c28;border-radius:30px;overflow:hidden}
+.sc{height:100%;overflow-y:auto;position:relative}
+.ab{height:50px;background:#fff;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--d200);position:sticky;top:0;z-index:40}
+.ab .t{flex:1;text-align:center;font-size:15px;font-weight:600}
+.ic{width:26px;height:26px;display:grid;place-items:center;color:var(--d700);font-size:15px;flex:0 0 auto}
+.sticky{position:sticky;top:50px;z-index:35;background:var(--body);padding:8px 12px;border-bottom:1px solid var(--d200);display:flex;align-items:center;gap:8px}
+.nb{min-width:40px;min-height:40px;display:grid;place-items:center;border:1px solid var(--d300);border-radius:8px;background:#fff;color:var(--d700);font-size:14px;flex:0 0 auto}
+.ml{flex:1;text-align:center;font-size:15px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:40px}
+.ml i{font-style:normal;font-size:10px;color:var(--d400)}
+.seg{display:flex;border:1px solid var(--d300);border-radius:8px;overflow:hidden;background:#fff;flex:0 0 auto}
+.seg b{min-height:38px;display:grid;place-items:center;padding:0 13px;font-size:13px;font-weight:600;color:var(--d700)}
+.seg b.on{background:var(--primary);color:#fff}
+.pg{padding:10px 12px 20px}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 2px rgba(47,43,61,.07);margin-bottom:12px}
+.ch{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 14px;border-bottom:1px dashed var(--d300)}
+.ct{font-size:14.5px;font-weight:600}
+.ct em{font-style:normal;color:var(--d400);font-weight:500}
+.fd{min-height:36px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:8px;border:1px solid var(--d300);background:#fff;font-size:12.5px;font-weight:600;color:var(--d700);white-space:nowrap}
+.fd i{font-style:normal;font-size:9px;color:var(--d400)}
+.cb{padding:4px 14px 12px}
+/* แกนวันที่ร่วม */
+.axis{display:flex;justify-content:space-between;font-size:9.5px;color:var(--d400);padding:6px 0 2px;border-bottom:1px solid var(--d200);margin-bottom:2px}
+.axis b{font-weight:600}
+/* รูป */
+.th{border-radius:8px;flex:0 0 auto;background:linear-gradient(140deg,#b9c0d0 0%,#dfe3ec 45%,#c8cedd 100%);box-shadow:0 0 0 2px var(--rc,transparent);position:relative;overflow:hidden}
+.th::after{content:'';position:absolute;left:18%;top:24%;width:64%;height:52%;border-radius:4px;background:rgba(255,255,255,.45)}
+/* แถว */
+.r{padding:10px 0;border-bottom:1px dashed var(--d200)}
+.r:last-of-type{border-bottom:0}
+.rt{display:flex;gap:10px;align-items:flex-start}
+.nm{font-size:13.5px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nm1{-webkit-line-clamp:1}
+.ss{font-size:10.5px;color:var(--d400);margin-top:1px}
+.vv{font-size:14px;font-weight:700;white-space:nowrap}
+.vbig{font-size:19px;font-weight:700;line-height:1.1;text-align:right;white-space:nowrap}
+.vbig u{display:block;text-decoration:none;font-size:10px;font-weight:500;color:var(--d400)}
+.sw{display:flex;gap:1px;align-items:flex-end;margin-top:8px}
+.sw s{flex:1;background:var(--d200);display:block;text-decoration:none;border-radius:1px}
+.sw s.a{background:var(--primary)}
+.sw s.best{background:var(--primary-ink)}
+.swl{display:flex;justify-content:space-between;font-size:9px;color:var(--d400);margin-top:2px}
+.bd{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:9999px;background:rgba(249,191,89,.16);color:var(--warning-ink);margin-top:5px}
+.stats{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.stats b{font-size:10.5px;font-weight:600;color:var(--d700);background:var(--d100);border-radius:5px;padding:2px 7px}
+.words{font-size:11px;color:var(--d500);margin-top:3px}
+.words b{color:var(--d900);font-weight:600}
+.bar{width:4px;border-radius:9999px;flex:0 0 auto;align-self:stretch;min-height:38px}
+.swtch{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0 2px;border-top:1px dashed var(--d200);margin-top:6px}
+.swtch u{text-decoration:none;font-size:12.5px;color:var(--d500)}
+.tg{width:38px;height:22px;border-radius:9999px;background:var(--d300);position:relative;flex:0 0 auto}
+.tg::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.note{background:#fff;border-radius:12px;padding:18px 20px;margin-top:20px;font-size:13px;line-height:1.75;box-shadow:0 1px 3px rgba(47,43,61,.08);max-width:1150px}
+.note h2{font-size:15px;margin:14px 0 8px}.note h2:first-child{margin-top:0}
+.note table{width:100%;border-collapse:collapse;font-size:12.5px}
+.note th,.note td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--d200);vertical-align:top}
+.note th{background:var(--d100);font-weight:700}
+.note code{background:var(--d100);padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:ui-monospace,monospace}
+.stop{color:#b91c1c;font-weight:700}
+</style></head><body>
+
+<h1>แถวสินค้า 6 ท่า — บนโครงแบบ 4</h1>
+<p class="sub">
+  หัวหน้า · ปุ่มเรียงมุมขวา · สวิตช์ท้ายรายการ = <b>ล็อกแล้วเหมือนกันทุกใบ</b> ที่ต่างคือ<b>รูปแบบแถว</b><br>
+  🛑 <b>ของที่ตัดออกได้ทันทีโดยไม่เสียอะไร:</b> ป้าย <code>1 · 10 · 20 · 31</code> ในภาพของคุณ
+  <b>พิมพ์ซ้ำใต้ทุกแถว 35 รอบ ทั้งที่เป็นแกนเดียวกันหมด</b> — ย้ายขึ้นไปไว้บนหัวรายการครั้งเดียว
+  ประหยัด ~14px × 35 แถว และลดเสียงรบกวนที่ตาต้องข้ามทุกแถว (ท่า 1–5 ทำแล้ว)
+</p>
+
+<div class="rail" id="rail"></div>
+
+<div class="note">
+<h2>เทียบกัน</h2>
+<table>
+<tr><th>ท่า</th><th>แนวคิด</th><th>เห็นกี่ตัว/จอ</th><th>เสียอะไร</th></tr>
+<tr><td><b>1 · แกนวันที่ร่วม</b></td><td>เหมือนของคุณทุกอย่าง <b>ยกเว้นย้ายป้ายวันที่ขึ้นไปบนหัวครั้งเดียว</b> — เปลี่ยนน้อยที่สุด ได้ผลทันที</td><td><b>4</b></td><td>ไม่เสียอะไร</td></tr>
+<tr><td><b>2 · ตัวเลขนำ</b></td><td>ยอดเป็นจุดยึดสายตา (19px) พร้อมหน่วยใต้ตัวเลข ⇒ กวาดตาลงคอลัมน์ขวาเทียบยอดได้เร็ว</td><td><b>4</b></td><td>ชื่อสินค้าถูกลดน้ำหนักลง</td></tr>
+<tr><td><b>3 · แถบเป็นพระเอก</b></td><td>แถบสูง 30px + <b>ย้อมวันที่ขายดีที่สุดให้เข้มกว่า</b> ⇒ ตอบคำถามหลักของหน้า (“ขายช่วงไหน”) ได้จากแถวโดยไม่ต้องกดเข้าไปดู</td><td>3–4</td><td>สูงที่สุด</td></tr>
+<tr><td><b>4 · สถิติเป็นชิป</b></td><td>ยัดของที่ต้องกดเข้าไปดูขึ้นมาบนแถว (<b>ขายได้ 18 วัน · ดีสุด 21 ส.ค. · ฿300</b>)</td><td>3</td><td>แน่นสุด · ชิปแย่งความสนใจกับแถบ</td></tr>
+<tr><td><b>5 · ไม่มีแถบในแถว</b></td><td>แทนแถบด้วยประโยคสรุป — <b>แถวเตี้ยลงครึ่งหนึ่ง</b> · แถบไปอยู่ในชีตตอนกดเข้าไป</td><td><b>7–8</b></td><td class="stop">เสียรูปทรงรายเดือน ซึ่งเป็นเหตุผลที่หน้านี้มีอยู่ — ใช้ได้ก็ต่อเมื่อกราฟด้านบนแบกหน้าที่นั้นแทนได้จริง</td></tr>
+<tr><td><b>6 · ไม่มีรูป ใช้แถบสีขอบซ้าย</b></td><td>เอา 44px คืนให้ชื่อ ⇒ ชื่อยาวไม่ถูกตัด · สีทำหน้าที่โยงกับกราฟเหมือนเดิม</td><td>5–6</td><td class="stop">ขัดกับที่คุณสั่งไว้เองว่า “อยากให้มีการใส่รูปด้วย” — ใส่มาเพื่อให้เห็นว่าถ้าไม่มีรูปแล้วได้อะไรกลับมา</td></tr>
+</table>
+
+<h2>ข้อสังเกต</h2>
+<table>
+<tr><td><b>“86 ชิ้น” มุมขวาบนถูกแล้ว</b></td><td>เป็นตัวเลขที่ใช้เรียงลำดับ วางไว้ขอบขวาทำให้กวาดตาลงมาเทียบกันได้เป็นคอลัมน์ — ทุกท่าคงตำแหน่งนี้</td></tr>
+<tr><td><b>รูปในภาพของคุณเป็นกล่องเทาเปล่า</b></td><td>ในม็อกอัพนี้ผมวาดให้ดูเหมือนรูปจริง เพราะกล่องเทาทำให้ประเมินน้ำหนักของแถวผิด — <b>ของจริงมีรูปอยู่แล้ว</b></td></tr>
+<tr><td><b>วงแหวนสีมีเฉพาะ 3 ตัวแรก</b></td><td>เพราะกราฟแสดง 3 อันดับแรก ตัวที่ 4 เป็นต้นไปจึงไม่มีสีให้โยง — ถ้าอยากให้ทุกตัวมีสี ต้องคุยกันก่อนว่ากราฟจะแสดงกี่เส้น</td></tr>
+<tr><td class="stop">ตัวเลข “เห็นกี่ตัว/จอ”</td><td>คำนวณจากคลาส <b>ไม่ได้วัดจากเครื่องจริง</b> — เป็นค่าประมาณบน iPhone ขนาดกลาง</td></tr>
+</table>
+</div>
+
+<script>
+const D=[3,1,2,1,4,3,2,1,5,3,2,4,1,3,2,4,3,3,4,5,6,4,5,6,3,2,4,5,4,1,0];
+const MX=Math.max(...D),BEST=D.indexOf(6);
+const P=[
+ {n:'โช๊คหลัง 110 สีแดง',v:86,c:'var(--alpha)',pr:'฿300',sh:'14%'},
+ {n:'โช๊คหลัง 110 สีดำ',v:80,c:'var(--gamma)',pr:'฿300',sh:'13%'},
+ {n:'โช๊คหลัง 110 สีเหลือง',v:44,c:'var(--beta)',pr:'฿300',sh:'7%',b:'สต็อกเหลือ 6 · พอขายอีก ~4 วัน'},
+ {n:'โช๊คหลัง สามล้อ สีดำ',v:40,c:'transparent',pr:'฿450',sh:'6%'},
+ {n:'โช๊คหลัง 125 สีน้ำเงิน',v:40,c:'transparent',pr:'฿380',sh:'6%'},
+ {n:'โช๊คหลัง เวฟ 100 สีเขียว',v:31,c:'transparent',pr:'฿280',sh:'5%'},
+ {n:'โช๊คหน้า ดรีม สีเงิน',v:24,c:'transparent',pr:'฿520',sh:'4%'},
+ {n:'โช๊คหลัง มิโอ สีส้ม',v:12,c:'transparent',pr:'฿310',sh:'2%'}];
+const bars=(h,best)=>D.map((v,i)=>`<s class="${v>0&&(i*7)%10>3?(best&&i===BEST?'best':'a'):''}" style="height:${v>0?Math.max(3,v/MX*h):3}px"></s>`).join('');
+const axis=`<div class="axis"><b>1</b><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span><b>31</b></div>`;
+const th=(p,s)=>`<span class="th" style="width:${s}px;height:${s}px;--rc:${p.c}"></span>`;
+const bd=p=>p.b?`<span class="bd">▲ ${p.b}</span>`:'';
+
+const R={
+1:p=>`<div class="r"><div class="rt">${th(p,44)}<span style="flex:1;min-width:0">
+ <span class="nm">${p.n}</span><span class="ss">${p.pr}/ชิ้น · ${p.sh} ของร้าน</span>${bd(p)}</span>
+ <span class="vv">${p.v} ชิ้น</span></div><div class="sw" style="height:20px">${bars(20)}</div></div>`,
+2:p=>`<div class="r"><div class="rt">${th(p,44)}<span style="flex:1;min-width:0">
+ <span class="nm">${p.n}</span><span class="ss">${p.pr}/ชิ้น · ${p.sh} ของร้าน</span>${bd(p)}</span>
+ <span class="vbig">${p.v}<u>ชิ้น</u></span></div><div class="sw" style="height:18px">${bars(18)}</div></div>`,
+3:p=>`<div class="r"><div class="rt">${th(p,40)}<span style="flex:1;min-width:0">
+ <span class="nm nm1">${p.n}</span><span class="ss">${p.pr}/ชิ้น · ${p.sh} ของร้าน</span>${bd(p)}</span>
+ <span class="vv">${p.v} ชิ้น</span></div><div class="sw" style="height:30px">${bars(30,true)}</div>
+ <div class="words" style="margin-top:4px">ขายดีสุด <b>21 ส.ค.</b> (6 ชิ้น) · ขายได้ <b>18 วัน</b></div></div>`,
+4:p=>`<div class="r"><div class="rt">${th(p,44)}<span style="flex:1;min-width:0">
+ <span class="nm nm1">${p.n}</span>
+ <span class="stats"><b>${p.pr}/ชิ้น</b><b>${p.sh} ของร้าน</b><b>ขายได้ 18 วัน</b><b>ดีสุด 21 ส.ค.</b></span>${bd(p)}</span>
+ <span class="vv">${p.v} ชิ้น</span></div><div class="sw" style="height:18px">${bars(18)}</div></div>`,
+5:p=>`<div class="r" style="padding:9px 0"><div class="rt">${th(p,40)}<span style="flex:1;min-width:0">
+ <span class="nm nm1">${p.n}</span>
+ <span class="words">ขายได้ <b>18 วัน</b> · ดีสุด <b>21 ส.ค.</b> (6) · ${p.pr}/ชิ้น</span>${bd(p)}</span>
+ <span class="vv">${p.v} ชิ้น</span></div></div>`,
+6:p=>`<div class="r"><div class="rt"><span class="bar" style="background:${p.c==='transparent'?'var(--d300)':p.c}"></span>
+ <span style="flex:1;min-width:0"><span class="nm nm1">${p.n}</span>
+ <span class="ss">${p.pr}/ชิ้น · ${p.sh} ของร้าน</span>${bd(p)}</span>
+ <span class="vv">${p.v} ชิ้น</span></div><div class="sw" style="height:20px">${bars(20)}</div></div>`};
+
+const V=[
+{k:'1',t:'แกนวันที่ร่วม',d:'เหมือนของคุณทุกอย่าง <b>ยกเว้นย้ายป้าย 1·10·20·31 ขึ้นไปไว้บนหัวครั้งเดียว</b> แทนที่จะพิมพ์ซ้ำใต้ทุกแถว — เปลี่ยนน้อยสุด ได้ผลทันที',n:4,ax:1},
+{k:'2',t:'ตัวเลขนำ',d:'ยอดเป็นจุดยึดสายตา (19px + หน่วยใต้ตัวเลข) ⇒ กวาดตาลงคอลัมน์ขวาเทียบยอดกันได้เร็ว',n:4,ax:1},
+{k:'3',t:'แถบเป็นพระเอก',d:'แถบสูง 30px + <b>ย้อมวันที่ขายดีสุดให้เข้มกว่า</b> ⇒ ตอบ “ขายช่วงไหน” ได้จากแถวเลย ไม่ต้องกดเข้าไปดู',n:3,ax:1},
+{k:'4',t:'สถิติเป็นชิป',d:'ยกของที่ต้องกดเข้าไปดูขึ้นมาไว้บนแถว (ขายได้ 18 วัน · ดีสุด 21 ส.ค.)',n:3,ax:1},
+{k:'5',t:'ไม่มีแถบในแถว',d:'แทนแถบด้วยประโยคสรุป — <b>แถวเตี้ยลงครึ่งหนึ่ง เห็น 7–8 ตัว</b> · แถบไปอยู่ในชีตตอนกดเข้าไป',n:8,ax:0},
+{k:'6',t:'ไม่มีรูป · แถบสีขอบซ้าย',d:'เอา 44px คืนให้ชื่อ ⇒ ชื่อยาวไม่ถูกตัด · <b>ขัดกับที่คุณสั่งว่าอยากมีรูป</b> ใส่มาให้เห็นว่าแลกแล้วได้อะไร',n:6,ax:1}];
+
+const head=`<div class="ab"><span class="ic">←</span><span class="t">ยอดขายรายสินค้า</span><span class="ic">🔔</span></div>
+<div class="sticky"><span class="nb">‹</span><span class="ml">สิงหาคม 2569 <i>▾</i></span>
+<div class="seg"><b class="on">ชิ้น</b><b>บาท</b></div><span class="ic" style="border:1px solid var(--d300);border-radius:8px;width:34px;height:34px">i</span></div>`;
+
+document.getElementById('rail').innerHTML=V.map(v=>
+`<figure><figcaption><span class="vn">${v.k} · ${v.t}</span><span class="vd">${v.d}</span>
+<span class="hgt">เห็น ~${v.n>6?'7–8':v.n} ตัวในจอแรก</span></figcaption>
+<div class="phone"><div class="sc">${head}<div class="pg">
+<div class="card"><div class="ch"><span class="ct">รายสินค้า <em>(35)</em></span><span class="fd">↓ ขายดีสุด <i>▾</i></span></div>
+<div class="cb">${v.ax?axis:''}${P.slice(0,v.n).map(R[v.k]).join('')}
+<div class="swtch"><u>รวมสินค้าที่ยังไม่ขายเดือนนี้ (2)</u><span class="tg"></span></div></div></div>
+</div></div></div></figure>`).join('');
+</script>
+</body></html>

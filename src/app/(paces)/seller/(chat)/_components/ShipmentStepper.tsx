@@ -23,6 +23,7 @@ export default function ShipmentStepper({
   carrierStatus,
   returnStartedAt,
   returnedAt,
+  returnDispatchedAt,
   size = 'md',
   showNotice = true,
 }: {
@@ -33,6 +34,7 @@ export default function ShipmentStepper({
   /** เวลาของ "ขากลับ" — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" */
   returnStartedAt?: string | Date | null
   returnedAt?: string | Date | null
+  returnDispatchedAt?: string | Date | null
   /** md = ในการ์ดออเดอร์ (dot size-7) · sm = แถบสถานะใต้หัวเธรด (dot size-6 เท่าโมดัลพัสดุย่อ) */
   size?: 'md' | 'sm'
   /** แถบปักพื้นที่จำกัด — ปิด notice ได้ (การ์ดเปิดเสมอ) */
@@ -47,7 +49,7 @@ export default function ShipmentStepper({
    * โค้ดชุดที่ 3 ที่วาดเรื่องเดียวกัน (คลาสเดียวกับที่ `ParcelTimeline` เคย drift จนพัสดุที่
    * ส่งถึงแล้วโชว์ "สร้างพัสดุ") ⇒ ย้ายมาใช้ `ShipmentRail` ตัวกลางแทน
    */
-  const leg = describeReturnLeg({ audience: 'seller', carrierStatus, returnStartedAt, returnedAt })
+  const leg = describeReturnLeg({ audience: 'seller', carrierStatus, returnStartedAt, returnedAt, returnDispatchedAt })
   const lastIdx = SHIPMENT_STAGES.length - 1
   const currentLabel =
     progress.stage === lastIdx ? (progress.lastLabel ?? SHIPMENT_STAGES[lastIdx].label)

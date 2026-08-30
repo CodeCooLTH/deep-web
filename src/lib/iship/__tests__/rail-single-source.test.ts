@@ -21,6 +21,8 @@ import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
+import { describeReturnLeg } from '../return-timeline'
+
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
 
 /** ตัดคอมเมนต์ก่อนสแกนเสมอ — ไฟล์ที่ทำถูกกฎคือไฟล์ที่เขียนคำอธิบายกฎนั้นไว้ด้วย */
@@ -181,5 +183,91 @@ describe('[blocker] เคส "คืนของ" ต้องเข้าถ�
     const src = stripComments(read('src/lib/iship/return-timeline.ts'))
     expect(src).toContain('toDate(ret.createdAt)')
     expect(src).toContain('toDate(ret.receivedAt)')
+  })
+})
+
+describe('[blocker] แถบตีกลับต้อง invert กับขาไป', () => {
+  /**
+   * 🛑 ขาไปเดินซ้าย→ขวา (ออกจากร้าน) · ขากลับต้องเดินขวา→ซ้าย (กลับเข้าร้าน)
+   *   ขาไป   รอส่งของ → รับเข้าระบบแล้ว → กำลังจัดส่ง → ส่งสำเร็จ
+   *   ขากลับ ถึงร้านค้า ← กำลังส่ง ← กำลังตีกลับ ← พัสดุมีปัญหา
+   *
+   * ทิศเป็น **ความหมาย** ไม่ใช่การตกแต่ง — ซ้าย = ร้าน = ต้นทาง · ของที่กำลังกลับมาหาเรา
+   * ต้องเคลื่อนเข้าหาเรา · ผมเคยเขียนเองว่า "ทิศกลับด้านมีความหมายก็ต่อเมื่อมีขาไปให้เทียบ"
+   * แล้ววาดเป็นซ้าย→ขวา ซึ่ง user ทักทันทีที่เห็น (2026-08-27)
+   */
+  const RAIL = 'src/components/safepay/iship/ShipmentRail.tsx'
+
+  it('สาขา standalone ต้องใช้ flex-row-reverse ทั้งแถวจุดและแถวป้าย', () => {
+    const src = stripComments(read(RAIL))
+    const branch = src.slice(src.indexOf('if (leg.standalone)'), src.indexOf('const n2 =') + 1 || undefined)
+    const seg = src.slice(src.indexOf('if (leg.standalone)'))
+    const upToNext = seg.slice(0, seg.indexOf('const row2'))
+    expect((upToNext.match(/flex-row-reverse/g) ?? []).length, branch && '').toBeGreaterThanOrEqual(2)
+  })
+
+  /**
+   * 🛑 ด่านนี้เคยบังคับว่า "ต้องมีลูกศร `caret-left-filled`" — ถอดออกแล้ว (2026-08-27)
+   *
+   * user เห็นทั้งสองแบบแล้วเลือกให้แถบขากลับ **หน้าตาเหมือนขาไปเป๊ะ** (สี/ระยะ/ไม่มีอะไร
+   * คั่นระหว่างจุด) เหลือ *ทิศ* เป็นสิ่งเดียวที่ต่าง ⇒ ตัวที่บอกทิศคือลำดับคำ
+   * (`ถึงร้านค้า` ซ้ายสุด) และชุดไอคอนที่ mirror กับขาไป
+   *
+   * ด่านที่ผูกกับ **กลไก** (ชื่อไอคอน) จะแดงทันทีที่ดีไซน์เปลี่ยนทั้งที่เจตนายังอยู่ครบ
+   * ⇒ ย้ายไปบังคับสิ่งที่เป็นเจตนาจริง: **4 จุดต้องมี 4 ไอคอนไม่ซ้ำกัน**
+   * (รอบแรก `กำลังตีกลับ`/`กำลังส่ง` ใช้ `truck-return` ตัวเดียวกัน ⇒ สองจุดกลางดูเหมือนกันเป๊ะ)
+   */
+  it('ทุกจุดบนแถบขากลับต้องมีไอคอนไม่ซ้ำกัน', () => {
+    const dispatched = '2026-08-24T03:00:00Z'
+    for (const code of ['return', 'return_success']) {
+      const leg = describeReturnLeg({
+        audience: 'seller',
+        carrierStatus: code,
+        returnDispatchedAt: dispatched,
+      })!
+      const icons = leg.dots.map((d) => d.icon)
+      expect(new Set(icons).size, `${code}: ${icons.join(', ')}`).toBe(icons.length)
+    }
+  })
+})
+
+describe('[blocker] ไอคอนที่ "มีหน้ามีหลัง" ต้องหันตามทิศที่แถบเดิน', () => {
+  /**
+   * 🛑 แถบขากลับเดินขวา→ซ้าย แต่ `truck-delivery` ของ tabler เป็นรถหันขวา
+   * ⇒ รถวิ่งสวนทางกับแถบที่มันอยู่ (user ทัก 2026-08-27: "icon truck invert ได้ไหม")
+   *
+   * tabler ไม่มีรถหันซ้าย และ `truck-return` เป็นรถหันขวาที่มีลูกศรกำกับ (คนละเรื่องกับ
+   * รถที่กำลังวิ่งกลับ) ⇒ mirror รูปเดิมแทนการหาไอคอนใหม่
+   *
+   * ด่านนี้บังคับที่ **ข้อมูล** (`flipX` บนจุดที่เป็นรถ) ไม่ใช่ที่ชื่อคลาส CSS —
+   * สองจอ render คนละสกิน (Paces `-scale-x-100` / MUI `scaleX(-1)`) ถ้าผูกกับคลาส
+   * ด่านจะจับได้จอเดียว
+   */
+  it('จุดที่ใช้ไอคอนรถต้องมี flipX', () => {
+    const legs = [
+      describeReturnLeg({
+        audience: 'seller',
+        carrierStatus: 'return_success',
+        returnDispatchedAt: '2026-08-24T03:00:00Z',
+      })!,
+      describeReturnLeg({
+        audience: 'seller',
+        orderReturn: { status: 'SHIPPING', trackingSource: 'ISHIP' },
+      })!,
+    ]
+    for (const leg of legs) {
+      const trucks = leg.dots.filter((d) => d.icon.startsWith('truck'))
+      expect(trucks.length, 'ควรมีจุดที่เป็นรถอย่างน้อย 1 จุด').toBeGreaterThan(0)
+      for (const t of trucks) expect(t.flipX, `${t.label} (${t.icon})`).toBe(true)
+    }
+  })
+
+  it('ทั้งสองจอต้องกลับด้านจริง — คนละสกินแต่ต้องทำเหมือนกัน', () => {
+    expect(stripComments(read('src/components/safepay/iship/ShipmentRail.tsx'))).toContain(
+      '-scale-x-100',
+    )
+    expect(stripComments(read('src/app/(marketing)/o/[token]/ParcelTimeline.tsx'))).toContain(
+      'scaleX(-1)',
+    )
   })
 })

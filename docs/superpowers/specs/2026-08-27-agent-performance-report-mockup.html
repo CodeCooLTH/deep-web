@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — รายงานผลงานแอดมิน (feature 00059)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* โทเคนคัดจาก DESIGN.md (paces-*) + src/assets/css/config/_root.css — ห้ามคิดสีใหม่ในไฟล์นี้ */
+:root{
+  --primary:#236dc9; --primary-hover:#1e5dab; --primary-ink:#1e3a8a;
+  --success:#02bc9c; --success-ink:#065f46;
+  --info:#5bc3e1;    --info-ink:#1e40af;
+  --warning:#f9bf59; --warning-ink:#92400e;
+  --danger:#f7577e;  --danger-ink:#7f1d1d;
+  --surface:#f6f7fb; --paper:#fff; --ink:#4c4c5c; --ink-900:#2f2b3d;
+  --d100:#f1f2f6; --d200:#e6e8ef; --d300:#d3d7e2; --d400:#a9aec0; --d500:#8a90a2;
+  --r-lg:8px; --r-xl:10px; --r-full:9999px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;background:#e9ecf3;color:var(--ink);padding:28px;line-height:1.5}
+.page-note{max-width:1180px;margin:0 auto 28px;background:var(--paper);border:1px solid var(--d200);border-radius:var(--r-xl);padding:18px 20px}
+.page-note h1{font-size:20px;font-weight:600;color:var(--ink-900);margin-bottom:6px}
+.page-note p{font-size:14px;margin-bottom:6px}
+.page-note strong{color:var(--ink-900);font-weight:600}
+.frames{display:flex;flex-direction:column;gap:36px;align-items:center}
+.frame{background:var(--surface);border:1px solid var(--d300);border-radius:14px;overflow:hidden;box-shadow:0 6px 24px rgba(47,43,61,.08)}
+.frame-label{background:var(--ink-900);color:#fff;font-size:12px;font-weight:600;padding:7px 14px;letter-spacing:.3px}
+.frame-body{padding:16px}
+.w-desktop{width:1180px}.w-tablet{width:834px}.w-mobile{width:390px}
+
+.card{background:var(--paper);border:1px solid var(--d200);border-radius:var(--r-xl);margin-bottom:14px}
+.card-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--d200)}
+.card-title{font-size:15px;font-weight:600;color:var(--ink-900)}
+.card-body{padding:16px}
+.muted{color:var(--d500);font-size:12px}
+.crumb{font-size:13px;color:var(--d500);margin-bottom:4px}
+.h-page{font-size:19px;font-weight:600;color:var(--ink-900);margin-bottom:14px}
+
+/* แถบตัวกรอง */
+.filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.field{height:38px;border:1px solid var(--d300);border-radius:var(--r-lg);padding:0 11px;display:flex;align-items:center;font-size:13px;background:var(--paper);color:var(--ink-900)}
+.btn{height:34px;border-radius:var(--r-lg);padding:0 13px;font-size:13px;font-weight:500;border:1px solid transparent;display:inline-flex;align-items:center;gap:6px;cursor:default}
+.btn-light{background:var(--d100);color:var(--ink-900)}
+.btn-pri{background:var(--primary);color:#fff}
+.dd{height:34px;border:1px solid var(--d300);border-radius:var(--r-lg);padding:0 11px;display:inline-flex;align-items:center;gap:7px;font-size:13px;background:var(--paper)}
+.spacer{margin-left:auto}
+
+/* แถบเตือน */
+.alert{display:flex;gap:9px;align-items:flex-start;border-radius:var(--r-lg);padding:10px 13px;font-size:13px;margin-bottom:14px}
+.alert-warn{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+.alert-neutral{background:var(--d100);color:var(--ink)}
+.alert b{font-weight:600}
+.dot{width:16px;height:16px;border-radius:var(--r-full);flex:0 0 auto;margin-top:2px}
+.dot-warn{background:var(--warning)}.dot-info{background:var(--d400)}
+
+/* การ์ดสถิติ — โครง 3 แถวของ PacesStatCard */
+.stats{display:grid;gap:14px;margin-bottom:14px}
+.g4{grid-template-columns:repeat(4,1fr)}.g2{grid-template-columns:repeat(2,1fr)}.g1{grid-template-columns:1fr}
+.stat{background:var(--paper);border:1px solid var(--d200);border-radius:var(--r-xl);padding:15px}
+.stat .t{font-size:13px;font-weight:600;color:var(--ink-900);display:flex;align-items:center;gap:5px;margin-bottom:14px}
+.stat .row2{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+.chip{width:34px;height:34px;border-radius:var(--r-full);display:flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:15px;font-weight:700}
+.c-pri{background:rgba(35,109,201,.15);color:var(--primary-ink)}
+.c-suc{background:rgba(2,188,156,.15);color:var(--success-ink)}
+.c-inf{background:rgba(91,195,225,.15);color:var(--info-ink)}
+.c-neu{background:var(--d200);color:var(--ink)}
+.stat .v{font-size:21px;font-weight:600;color:var(--ink-900);font-variant-numeric:tabular-nums}
+.badge{margin-left:auto;font-size:11px;font-weight:600;border-radius:var(--r-full);padding:2px 8px}
+.b-up{background:rgba(2,188,156,.15);color:var(--success-ink)}
+.b-dn{background:rgba(247,87,126,.15);color:var(--danger-ink)}
+.stat .row3{display:flex;justify-content:space-between;font-size:12px;padding-top:11px;border-top:1px dashed var(--d200)}
+.stat .row3 .k{color:var(--d500)}.stat .row3 .n{font-weight:600;color:var(--ink-900);font-variant-numeric:tabular-nums}
+
+/* ตาราง */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:600;color:var(--d500);font-size:11.5px;padding:9px 10px;border-bottom:1px solid var(--d200);white-space:nowrap}
+th.num,td.num{text-align:right}
+td{padding:11px 10px;border-bottom:1px solid var(--d200);color:var(--ink-900);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.who{display:flex;align-items:center;gap:8px}
+.av{width:30px;height:30px;border-radius:var(--r-full);background:rgba(35,109,201,.15);color:var(--primary-ink);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:0 0 auto}
+.nm{font-weight:600;font-size:13px}
+.sub{font-size:11px;color:var(--d500)}
+.num{font-variant-numeric:tabular-nums}
+.dim{color:var(--d400)}
+.pill{display:inline-block;font-size:11px;font-weight:600;border-radius:var(--r-full);padding:2px 8px}
+.p-suc{background:rgba(2,188,156,.15);color:var(--success-ink)}
+.p-warn{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+.p-neu{background:var(--d200);color:var(--ink)}
+.sort::after{content:"▾";margin-left:4px;color:var(--primary)}
+
+/* กรวย ตอบแชท → เปิดบิล */
+.funnel{display:flex;align-items:center;gap:6px}
+.fbar{height:7px;border-radius:var(--r-full);background:var(--d200);overflow:hidden;flex:1;min-width:52px}
+.fbar span{display:block;height:100%;border-radius:var(--r-full)}
+.f-pri{background:var(--primary)}.f-suc{background:var(--success)}
+.split{font-size:11px;color:var(--d500)}
+.split b{color:var(--ink-900)}
+
+.note{font-size:11.5px;color:var(--d500);padding:9px 16px;border-top:1px dashed var(--d200);background:#fbfcfe}
+.empty{text-align:center;padding:34px 18px}
+.empty .ttl{font-weight:600;color:var(--ink-900);margin:9px 0 5px;font-size:14px}
+.empty .ds{font-size:12.5px;color:var(--d500);max-width:430px;margin:0 auto 13px}
+.mcard{background:var(--paper);border:1px solid var(--d200);border-radius:var(--r-xl);padding:13px;margin-bottom:10px}
+.mrow{display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0}
+.mrow .k{color:var(--d500)}
+.mrow .n{font-weight:600;font-variant-numeric:tabular-nums}
+.chart{height:150px;border:1px dashed var(--d300);border-radius:var(--r-lg);display:flex;align-items:flex-end;gap:5px;padding:12px}
+.chart i{flex:1;background:rgba(35,109,201,.25);border-radius:3px 3px 0 0;display:block}
+.tabs{display:flex;gap:6px}
+</style>
+</head>
+<body>
+
+<div class="page-note">
+  <h1>Mockup — รายงานผลงานแอดมิน (feature 00059)</h1>
+  <p><strong>ตัวเลขทุกตัวในหน้านี้เป็นของจริง</strong> จาก production ร้าน <em>BT Premium - คลอง 4 ธัญบุรี</em> ช่วง 30 วันล่าสุด (ดึงแบบอ่านอย่างเดียว 2026-08-27) — ไม่มีตัวเลขแต่งขึ้นสักตัว ตามหลัก “ห้ามแต่งข้อมูล” ใน PRODUCT.md</p>
+  <p><strong>ชื่อแอดมินเป็นชื่อจริงจากฐานข้อมูล</strong> — ถ้าไม่อยากให้ไฟล์นี้เข้า git บอกได้ ผมเปลี่ยนเป็นชื่อสมมติให้</p>
+  <p><strong>ตัวอักษรในวงกลมไอคอน (฿ ⌁ ✓ ↗ ≡ ?) เป็นตัวแทนชั่วคราวของ mockup เท่านั้น</strong> — ของจริงใช้ไอคอน tabler ผ่าน <code>@iconify/react</code> (messages · clock-bolt · shield-check · target-arrow · receipt-2 · user-question) ห้ามหยิบตัวอักษรพวกนี้ไปใส่โค้ดจริง (Hard Rule 12: ห้าม emoji ใน UI ใช้ icon จริงเท่านั้น)</p>
+  <p>สิ่งที่เพิ่มจากที่ implement ไปแล้ว และอยากให้ช่วยตัดสิน: คอลัมน์กลุ่ม <strong>“ตอบแชท → เปิดบิล”</strong> (ตอบคำถามว่าแอดมินคนนั้นตอบแชทแล้วไปจนถึงเปิดบิลเองได้ไหม)</p>
+</div>
+
+<div class="frames">
+
+<!-- ═══════════ DESKTOP ═══════════ -->
+<div class="frame w-desktop">
+  <div class="frame-label">เดสก์ท็อป — 1180px</div>
+  <div class="frame-body">
+    <div class="crumb">หน้าหลัก › รายงาน</div>
+    <div class="h-page">ผลงานแอดมิน</div>
+
+    <div class="card"><div class="card-body">
+      <div class="filters">
+        <span style="font-size:13px;color:var(--d500)">ช่วงเวลา</span>
+        <span class="field">28 ก.ค. 2569</span><span style="color:var(--d400)">–</span><span class="field">27 ส.ค. 2569</span>
+        <span class="btn btn-light">7 วัน</span><span class="btn btn-pri">30 วัน</span>
+        <span class="spacer"></span>
+        <span class="dd">ทุกช่องทาง ▾</span><span class="dd">ทุกที่มา ▾</span><span class="dd">ทุกเพจ/บัญชี ▾</span>
+      </div>
+    </div></div>
+
+    <div class="alert alert-warn">
+      <span class="dot dot-warn"></span>
+      <div>อีก <b>312 แชท</b> ถูกตอบจากแอปของแพลตฟอร์มโดยตรง (เช่น Facebook Business Suite) ซึ่งไม่ส่งชื่อผู้พิมพ์กลับมา — <b>ไม่ถูกนับในตัวเลขทั้งหน้านี้</b> ทั้งเวลาตอบและ SLA เพราะระบบไม่รู้ว่าใครตอบและตอบเมื่อไร ให้ทีมตอบผ่านกล่องข้อความของ Deep แล้วแชทกลุ่มนี้จะเข้ามาเองทันที</div>
+    </div>
+    <div class="alert alert-neutral">
+      <span class="dot dot-info"></span>
+      <div>รายงานนี้นับเฉพาะคำสั่งซื้อที่เปิดจากในแชท — ช่วงนี้มีอีก <b>58 ใบ</b> ที่เปิดนอกแชท (หน้าร้าน/POS/ลิงก์ตรง) ซึ่งไม่ได้อยู่ในตัวเลขข้างล่าง</div>
+    </div>
+
+    <div class="stats g4">
+      <div class="stat"><div class="t">แชททั้งหมด</div><div class="row2"><span class="chip c-pri">฿</span><span class="v">917</span><span class="badge b-up">+6.2%</span></div><div class="row3"><span class="k">เข้าเกณฑ์ปิดการขาย</span><span class="n">566</span></div></div>
+      <div class="stat"><div class="t">ตอบครั้งแรกเฉลี่ย</div><div class="row2"><span class="chip c-inf">⌁</span><span class="v">7 ชม. 33 น.</span><span class="badge b-dn">−12%</span></div><div class="row3"><span class="k">ค่ากลาง</span><span class="n">18 น.</span></div></div>
+      <div class="stat"><div class="t">ตอบเฉลี่ยทั้งบทสนทนา</div><div class="row2"><span class="chip c-inf">⌁</span><span class="v">6 ชม. 40 น.</span></div><div class="row3"><span class="k">จำนวนครั้งที่วัดได้</span><span class="n">1,292</span></div></div>
+      <div class="stat"><div class="t">ตอบทันเกณฑ์ (5 นาที)</div><div class="row2"><span class="chip c-suc">✓</span><span class="v">27.7%</span><span class="badge b-dn">−3.1%</span></div><div class="row3"><span class="k">ยังไม่มีใครตอบ</span><span class="n">1</span></div></div>
+      <div class="stat"><div class="t">คำสั่งซื้อที่เปิดจากแชท</div><div class="row2"><span class="chip c-neu">≡</span><span class="v">52</span><span class="badge b-up">+18%</span></div><div class="row3"><span class="k">แชทที่ปิดการขายได้</span><span class="n">22</span></div></div>
+      <div class="stat"><div class="t">อัตราปิดการขาย</div><div class="row2"><span class="chip c-suc">↗</span><span class="v">3.9%</span><span class="badge b-up">+0.4%</span></div><div class="row3"><span class="k">เวลาปิดการขายเฉลี่ย</span><span class="n">1 วัน 4 ชม.</span></div></div>
+      <div class="stat"><div class="t">ยอดขายจากแชท</div><div class="row2"><span class="chip c-suc">฿</span><span class="v">฿178,900</span><span class="badge b-up">+22%</span></div><div class="row3"><span class="k">เฉลี่ยต่อแชทที่ปิดได้</span><span class="n">฿8,132</span></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">ผลงานรายคน</span><span class="muted">กดที่แถวเพื่อดูรายละเอียด</span></div>
+      <table>
+        <thead><tr>
+          <th>แอดมิน</th>
+          <th class="num sort">แชทที่ดูแล</th>
+          <th class="num">ตอบครั้งแรก<div style="font-weight:400;color:var(--d400)">เฉลี่ย / ค่ากลาง</div></th>
+          <th class="num">ตอบเฉลี่ย</th>
+          <th style="min-width:150px">ตอบแชท → เปิดบิล</th>
+          <th class="num">เปิดบิลเอง</th>
+          <th class="num">อัตราปิดการขาย</th>
+          <th class="num">ยอดขาย</th>
+          <th class="num">ตอบทันเกณฑ์</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="who"><span class="av">ด</span><div><div class="nm">ดรีม ดรีม</div></div></div></td>
+            <td class="num">523</td>
+            <td class="num">7 ชม. 33 น. <span class="dim">/</span> <b>18 น.</b></td>
+            <td class="num">6 ชม. 16 น.</td>
+            <td><div class="funnel"><span class="fbar"><span class="f-pri" style="width:100%"></span></span></div>
+                <div class="split">523 ตอบ → <b>45</b> มีบิล → <b>22</b> ปิดได้</div></td>
+            <td class="num"><b>51</b> <span class="split">/ อื่น 1</span></td>
+            <td class="num">4.2%</td>
+            <td class="num"><b>฿178,900</b></td>
+            <td class="num">27.8% <span class="split">144/518</span></td>
+          </tr>
+          <tr>
+            <td><div class="who"><span class="av">D</span><div><div class="nm">Deep Nattapat</div></div></div></td>
+            <td class="num">54</td>
+            <td class="num">16 ชม. 29 น. <span class="dim">/</span> <b>11 น. 38 วิ</b></td>
+            <td class="num">10 ชม. 28 น.</td>
+            <td><div class="funnel"><span class="fbar"><span class="f-pri" style="width:10%"></span></span></div>
+                <div class="split">54 ตอบ → <b>3</b> มีบิล → <b>1</b> ปิดได้</div></td>
+            <td class="num"><span class="pill p-warn">0 · คนอื่นเปิดให้ 4</span></td>
+            <td class="num">0%</td>
+            <td class="num dim">—</td>
+            <td class="num">27.7% <span class="split">13/47</span></td>
+          </tr>
+          <tr>
+            <td><div class="who"><span class="av">S</span><div><div class="nm">Sekson Oonnom</div></div></div></td>
+            <td class="num">1</td>
+            <td class="num">4 วัน 22 ชม. <span class="dim">/</span> <b>4 วัน 22 ชม.</b></td>
+            <td class="num">2 วัน 11 ชม.</td>
+            <td><div class="funnel"><span class="fbar"><span class="f-pri" style="width:2%"></span></span></div>
+                <div class="split">1 ตอบ → <b>1</b> มีบิล → <b>0</b> ปิดได้</div></td>
+            <td class="num">1</td>
+            <td class="num">0%</td>
+            <td class="num dim">—</td>
+            <td class="num">0% <span class="split">0/1</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">แชทที่หลายคนช่วยกันตอบถูกนับให้ทุกคนที่ตอบ ⇒ ผลรวมคอลัมน์ “แชทที่ดูแล” มากกว่า 566 ได้ · คอลัมน์ที่ผูกกับเงินยกให้คนเดียวเสมอ ผลรวมจึงตรงกับการ์ดด้านบนพอดี</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ TABLET ═══════════ -->
+<div class="frame w-tablet">
+  <div class="frame-label">แท็บเล็ต — 834px · การ์ดยุบเหลือ 2 คอลัมน์ · ตารางเลื่อนแนวนอน</div>
+  <div class="frame-body">
+    <div class="crumb">หน้าหลัก › รายงาน</div>
+    <div class="h-page">ผลงานแอดมิน</div>
+    <div class="card"><div class="card-body"><div class="filters">
+      <span class="field">28 ก.ค.</span><span style="color:var(--d400)">–</span><span class="field">27 ส.ค.</span>
+      <span class="btn btn-light">7 วัน</span><span class="btn btn-pri">30 วัน</span>
+      <span class="spacer"></span><span class="dd">ช่องทาง ▾</span><span class="dd">ที่มา ▾</span>
+    </div></div></div>
+    <div class="alert alert-warn"><span class="dot dot-warn"></span><div>อีก <b>312 แชท</b> ตอบจากนอกระบบ — ไม่ถูกนับในตัวเลขทั้งหน้านี้</div></div>
+    <div class="stats g2">
+      <div class="stat"><div class="t">แชททั้งหมด</div><div class="row2"><span class="chip c-pri">฿</span><span class="v">917</span><span class="badge b-up">+6.2%</span></div><div class="row3"><span class="k">เข้าเกณฑ์</span><span class="n">566</span></div></div>
+      <div class="stat"><div class="t">ตอบครั้งแรกเฉลี่ย</div><div class="row2"><span class="chip c-inf">⌁</span><span class="v">7 ชม. 33 น.</span></div><div class="row3"><span class="k">ค่ากลาง</span><span class="n">18 น.</span></div></div>
+      <div class="stat"><div class="t">อัตราปิดการขาย</div><div class="row2"><span class="chip c-suc">↗</span><span class="v">3.9%</span></div><div class="row3"><span class="k">ปิดได้</span><span class="n">22</span></div></div>
+      <div class="stat"><div class="t">ยอดขายจากแชท</div><div class="row2"><span class="chip c-suc">฿</span><span class="v">฿178,900</span></div><div class="row3"><span class="k">ต่อแชทที่ปิดได้</span><span class="n">฿8,132</span></div></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">ผลงานรายคน</span><span class="muted">เลื่อนตารางแนวนอนได้</span></div>
+      <div style="overflow-x:auto">
+        <table style="min-width:720px">
+          <thead><tr><th>แอดมิน</th><th class="num sort">แชท</th><th class="num">ตอบครั้งแรก (กลาง)</th><th style="min-width:140px">ตอบแชท → เปิดบิล</th><th class="num">เปิดบิลเอง</th><th class="num">ยอดขาย</th></tr></thead>
+          <tbody>
+            <tr><td><div class="who"><span class="av">ด</span><span class="nm">ดรีม ดรีม</span></div></td><td class="num">523</td><td class="num">18 น.</td>
+              <td><div class="split">523 → <b>45</b> → <b>22</b></div></td><td class="num"><b>51</b></td><td class="num"><b>฿178,900</b></td></tr>
+            <tr><td><div class="who"><span class="av">D</span><span class="nm">Deep Nattapat</span></div></td><td class="num">54</td><td class="num">11 น. 38 วิ</td>
+              <td><div class="split">54 → <b>3</b> → <b>1</b></div></td><td class="num"><span class="pill p-warn">0 · อื่น 4</span></td><td class="num dim">—</td></tr>
+            <tr><td><div class="who"><span class="av">S</span><span class="nm">Sekson Oonnom</span></div></td><td class="num">1</td><td class="num">4 วัน 22 ชม.</td>
+              <td><div class="split">1 → <b>1</b> → <b>0</b></div></td><td class="num">1</td><td class="num dim">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MOBILE ═══════════ -->
+<div class="frame w-mobile">
+  <div class="frame-label">มือถือ — 390px · ตารางกลายเป็นการ์ด</div>
+  <div class="frame-body">
+    <div class="h-page" style="font-size:17px">ผลงานแอดมิน</div>
+    <div class="card"><div class="card-body" style="padding:12px">
+      <div class="filters"><span class="field" style="flex:1;height:36px">28 ก.ค. – 27 ส.ค.</span></div>
+      <div style="display:flex;gap:6px;margin-top:8px"><span class="btn btn-light" style="flex:1;justify-content:center">7 วัน</span><span class="btn btn-pri" style="flex:1;justify-content:center">30 วัน</span><span class="dd" style="flex:1;justify-content:center">กรอง ▾</span></div>
+    </div></div>
+
+    <div class="alert alert-warn"><span class="dot dot-warn"></span><div><b>312 แชท</b> ตอบจากนอกระบบ ไม่ถูกนับ</div></div>
+
+    <div class="stats g2">
+      <div class="stat" style="padding:12px"><div class="t" style="font-size:12px;margin-bottom:9px">แชททั้งหมด</div><div class="row2" style="margin-bottom:9px"><span class="v" style="font-size:19px">917</span><span class="badge b-up">+6.2%</span></div><div class="row3"><span class="k">เข้าเกณฑ์</span><span class="n">566</span></div></div>
+      <div class="stat" style="padding:12px"><div class="t" style="font-size:12px;margin-bottom:9px">ตอบครั้งแรก (กลาง)</div><div class="row2" style="margin-bottom:9px"><span class="v" style="font-size:19px">18 น.</span></div><div class="row3"><span class="k">เฉลี่ย</span><span class="n">7 ชม. 33 น.</span></div></div>
+      <div class="stat" style="padding:12px"><div class="t" style="font-size:12px;margin-bottom:9px">อัตราปิดการขาย</div><div class="row2" style="margin-bottom:9px"><span class="v" style="font-size:19px">3.9%</span></div><div class="row3"><span class="k">ปิดได้</span><span class="n">22</span></div></div>
+      <div class="stat" style="padding:12px"><div class="t" style="font-size:12px;margin-bottom:9px">ยอดขาย</div><div class="row2" style="margin-bottom:9px"><span class="v" style="font-size:19px">฿178,900</span></div><div class="row3"><span class="k">ต่อดีล</span><span class="n">฿8,132</span></div></div>
+    </div>
+
+    <div style="font-size:13px;font-weight:600;color:var(--ink-900);margin:16px 0 9px">ผลงานรายคน</div>
+
+    <div class="mcard">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px">
+        <div class="who"><span class="av">ด</span><span class="nm">ดรีม ดรีม</span></div><span class="dim">›</span>
+      </div>
+      <div style="border-top:1px dashed var(--d200);padding-top:8px">
+        <div class="mrow"><span class="k">แชทที่ดูแล</span><span class="n">523</span></div>
+        <div class="mrow"><span class="k">ตอบครั้งแรก (ค่ากลาง)</span><span class="n">18 น.</span></div>
+        <div class="mrow"><span class="k">ตอบแชท → เปิดบิล</span><span class="n">523 → 45 → 22</span></div>
+        <div class="mrow"><span class="k">เปิดบิลเอง</span><span class="n">51 <span class="split">/ อื่น 1</span></span></div>
+        <div class="mrow"><span class="k">ยอดขาย</span><span class="n">฿178,900</span></div>
+      </div>
+    </div>
+
+    <div class="mcard">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px">
+        <div class="who"><span class="av">D</span><span class="nm">Deep Nattapat</span></div><span class="dim">›</span>
+      </div>
+      <div style="border-top:1px dashed var(--d200);padding-top:8px">
+        <div class="mrow"><span class="k">แชทที่ดูแล</span><span class="n">54</span></div>
+        <div class="mrow"><span class="k">ตอบครั้งแรก (ค่ากลาง)</span><span class="n">11 น. 38 วิ</span></div>
+        <div class="mrow"><span class="k">ตอบแชท → เปิดบิล</span><span class="n">54 → 3 → 1</span></div>
+        <div class="mrow"><span class="k">เปิดบิลเอง</span><span class="n"><span class="pill p-warn">0 · คนอื่นเปิดให้ 4</span></span></div>
+        <div class="mrow"><span class="k">ยอดขาย</span><span class="n dim">—</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ EMPTY STATE ═══════════ -->
+<div class="frame w-desktop">
+  <div class="frame-label">จอว่างแบบที่ 1 — ร้านที่ตอบจากนอกระบบทั้งหมด (เคสจริง: สาขาพุทธมณฑลสาย 3 · 830 จาก 834 แชท)</div>
+  <div class="frame-body">
+    <div class="card">
+      <div class="card-header"><span class="card-title">ผลงานรายคน</span></div>
+      <div class="empty">
+        <div style="width:46px;height:46px;border-radius:var(--r-full);background:var(--d100);display:flex;align-items:center;justify-content:center;margin:0 auto;color:var(--d500);font-size:20px">?</div>
+        <div class="ttl">มีการตอบแชท แต่ระบบไม่รู้ว่าใครเป็นคนตอบ</div>
+        <div class="ds">ช่วงนี้ร้านคุณตอบลูกค้าไปแล้ว 830 แชท แต่ข้อความถูกพิมพ์จากแอปของแพลตฟอร์มโดยตรง (เช่น Facebook Business Suite) ซึ่งไม่ส่งชื่อผู้พิมพ์กลับมา — ให้ทีมตอบผ่านกล่องข้อความของ Deep แล้วตัวเลขจะขึ้นเองทันที</div>
+        <span class="btn btn-pri">ไปที่กล่องข้อความ</span>
+      </div>
+    </div>
+    <div class="note" style="border:0;background:transparent;padding-left:0">เทียบกับจอว่างแบบที่ 2 (ไม่มีลูกค้าทักเข้ามาเลยจริง ๆ): “ยังไม่มีผลงานในช่วงนี้ — ตัวเลขจะขึ้นเมื่อมีลูกค้าทักเข้ามาและมีคนในร้านตอบ” · สองแบบนี้ห้ามใช้ข้อความเดียวกัน</div>
+  </div>
+</div>
+
+<!-- ═══════════ DETAIL ═══════════ -->
+<div class="frame w-desktop">
+  <div class="frame-label">หน้ารายละเอียดรายคน — /reports/agents/{id}</div>
+  <div class="frame-body">
+    <div class="crumb">หน้าหลัก › รายงาน › ผลงานแอดมิน</div>
+    <div class="h-page">ดรีม ดรีม</div>
+    <div class="stats g4">
+      <div class="stat"><div class="t">แชทที่ดูแล</div><div class="row2"><span class="chip c-pri">฿</span><span class="v">523</span></div><div class="row3"><span class="k">เข้าเกณฑ์</span><span class="n">523</span></div></div>
+      <div class="stat"><div class="t">ตอบครั้งแรกเฉลี่ย</div><div class="row2"><span class="chip c-inf">⌁</span><span class="v">7 ชม. 33 น.</span></div><div class="row3"><span class="k">ค่ากลาง</span><span class="n">18 น.</span></div></div>
+      <div class="stat"><div class="t">ตอบทันเกณฑ์</div><div class="row2"><span class="chip c-suc">✓</span><span class="v">27.8%</span></div><div class="row3"><span class="k">ทันเกณฑ์</span><span class="n">144/518</span></div></div>
+      <div class="stat"><div class="t">ยอดขาย</div><div class="row2"><span class="chip c-suc">฿</span><span class="v">฿178,900</span></div><div class="row3"><span class="k">ต่อแชทที่ปิดได้</span><span class="n">฿8,132</span></div></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">แนวโน้มรายวัน</span>
+        <div class="tabs"><span class="btn btn-pri">ปริมาณงาน</span><span class="btn btn-light">ความเร็วตอบ</span><span class="btn btn-light">การขาย</span></div></div>
+      <div class="card-body"><div class="chart">
+        <i style="height:38%"></i><i style="height:62%"></i><i style="height:45%"></i><i style="height:80%"></i><i style="height:55%"></i><i style="height:34%"></i><i style="height:22%"></i>
+        <i style="height:70%"></i><i style="height:58%"></i><i style="height:66%"></i><i style="height:41%"></i><i style="height:88%"></i><i style="height:52%"></i><i style="height:30%"></i>
+      </div></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">บทสนทนาที่เกี่ยวข้อง</span><span class="muted">กดเพื่อเปิดแชทจริง</span></div>
+      <table>
+        <thead><tr><th>ลูกค้า</th><th>ช่องทาง</th><th>ผู้รับผิดชอบ</th><th class="num">ตอบครั้งแรก</th><th class="num">ระยะเวลาคุย</th><th>คำสั่งซื้อ</th><th class="num">มูลค่า</th><th>ผล</th></tr></thead>
+        <tbody>
+          <tr><td>คุณลูกค้า A</td><td>Messenger<div class="sub">จากโฆษณา</div></td><td>ดรีม ดรีม</td><td class="num">2 น. 14 วิ</td><td class="num">3 ชม. 20 น.</td><td class="num">DP2569080A1B2C</td><td class="num">฿12,900</td><td><span class="pill p-suc">ปิดการขายได้</span></td></tr>
+          <tr><td>คุณลูกค้า B</td><td>LINE<div class="sub">ทักเข้ามาเอง</div></td><td>ดรีม ดรีม</td><td class="num">18 น.</td><td class="num">1 วัน 2 ชม.</td><td class="num">DP2569080D4E5F</td><td class="num">฿6,500</td><td><span class="pill p-warn">รอชำระ/ยังไม่ยืนยัน</span></td></tr>
+          <tr><td>คุณลูกค้า C</td><td>Messenger<div class="sub">ทักเข้ามาเอง</div></td><td>ดรีม ดรีม</td><td class="num">9 ชม. 41 น.</td><td class="num">42 น.</td><td class="num dim">—</td><td class="num dim">—</td><td><span class="pill p-neu">ยังไม่มีคำสั่งซื้อ</span></td></tr>
+        </tbody>
+      </table>
+      <div class="note">แถวในตารางนี้เป็นตัวอย่างโครงสร้าง (ชื่อลูกค้า/เลขบิลถูกปิดบัง) — ตัวเลขสรุปด้านบนทุกตัวเป็นของจริง</div>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

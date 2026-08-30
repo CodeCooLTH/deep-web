@@ -39,7 +39,7 @@
  * (docs/conventions/partial-data-must-be-labeled-or-filled.md)
  */
 
-import { returnLegStampOf } from './status'
+import { FORWARD_OUTCOME, returnLegStampOf } from './status'
 
 /**
  * มุมมองของคนอ่าน — คำที่มีคำว่า "ร้าน" อยู่ในนั้นแปลคนละอย่างจากสองฝั่ง
@@ -64,6 +64,15 @@ export interface ReturnLegDot {
   label: string
   /** ชื่อ tabler ล้วน ไม่มี prefix — ผู้เรียกเติมเองตามที่แต่ละจอทำอยู่ */
   icon: string
+  /**
+   * กลับด้านซ้าย-ขวาของไอคอน — สำหรับรูปที่ "มีหน้ามีหลัง" บนแถบที่เดินย้อนทาง
+   *
+   * 🛑 tabler ไม่มีรถที่หันซ้าย และ `truck-return` เป็นรถหันขวาที่มีลูกศรกำกับ (คนละเรื่อง
+   * กับรถที่วิ่งกลับ) ⇒ ใช้วิธี mirror รูปเดิมแทนการหาไอคอนใหม่
+   * `-scale-x-100` เป็น utility มาตรฐานของ Tailwind v4 **ไม่ใช่ arbitrary value**
+   * (พิสูจน์กับ Tailwind CLI ของโปรเจกต์แล้วว่าถูก generate จริง) ⇒ ไม่ผิด HR7
+   */
+  flipX?: boolean
 }
 
 export interface ReturnLeg {
@@ -90,6 +99,17 @@ export interface ReturnLeg {
    * เป็นคนละเรื่องโดยเจตนา
    */
   originTone: 'warning' | 'success'
+  /**
+   * `true` = แถวนี้เล่าเรื่องครบในตัวเอง **ไม่ต้องวาดแถวขาไป**
+   *
+   * เคสตีกลับ: ขาไปจบด้วยความล้มเหลว และจุดแรกของแถวนี้ (`ส่งไม่สำเร็จ`) พูดแทนมันหมดแล้ว
+   * ⇒ วาดขาไปอีกแถวคือการเล่าเรื่องเดิมซ้ำด้วยที่ 4 จุด (user สั่ง 2026-08-27:
+   * *"ถ้ามีการตีกลับ ไม่จำเป็นต้องแสดงขาไป เหลือ timeline ขากลับก็พอ"*)
+   *
+   * เคสคืนของ: ขาไป **สำเร็จจริง** และเป็นข้อเท็จจริงที่ต้องคงไว้ (00055 แยก "ไม่เคยได้รับ"
+   * ออกจาก "ได้รับแล้วคืน") ⇒ ยังวาด 2 แถวเหมือนเดิม
+   */
+  standalone: boolean
 }
 
 // ─── คลังคำ ──────────────────────────────────────────────────────────────────
@@ -101,8 +121,8 @@ const ARRIVED: Record<ReturnLegKind, Record<TimelineAudience, string>> = {
    * ตัวเองเป็นคนส่งคืน ซึ่งเป็นเส้นแบ่งที่ `lib/order-return.ts` บังคับไว้ทั้งไฟล์ว่าห้ามเบลอ
    * (คนละความรับผิด คนละค่าส่ง คนละการตีความสถิติผู้ซื้อใน 00055)
    */
-  BOUNCE: { seller: 'กลับถึงร้าน', buyer: 'ของกลับถึงร้าน' },
-  RETURN: { seller: 'กลับถึงร้าน', buyer: 'ร้านได้รับแล้ว' },
+  BOUNCE: { seller: 'ถึงร้านค้า', buyer: 'ของกลับถึงร้าน' },
+  RETURN: { seller: 'ถึงร้านค้า', buyer: 'ร้านได้รับแล้ว' },
 }
 
 const DEPARTED: Record<ReturnLegKind, Record<TimelineAudience, string>> = {
@@ -121,6 +141,25 @@ const DEPARTED: Record<ReturnLegKind, Record<TimelineAudience, string>> = {
  * 🛑 ต้องเป็น "กำลังจัดส่ง" คำเดียวกับแถว 1 — มันคือเหตุการณ์เดียวกันเป๊ะ (ของอยู่บนรถ)
  * แค่คนละทิศ · ใช้คนละคำบนกราฟิกชิ้นเดียวกันห่างกัน 2 บรรทัด = ผู้ใช้ต้องเดาว่ามันต่างกันตรงไหน
  */
+/** ขั้นสุดท้ายก่อนถึงร้าน — "ขนส่งเอาของออกมาส่งคืนแล้ว" ไม่ใช่ "ยังวิ่งอยู่ระหว่างศูนย์" */
+const DISPATCHED: Record<TimelineAudience, string> = {
+  seller: 'กำลังส่ง',
+  buyer: 'กำลังส่ง',
+}
+
+/**
+ * จุดเริ่มของขากลับ — **คำที่ user กำหนดเอง** (2026-08-27)
+ *
+ * 🛑 คำนี้ชนกับ `SHIPPING_STAGE_LABEL.PROBLEM` และ `ORDER_STAGE_META.PARCEL_PROBLEM`
+ * ซึ่งใช้กับ `issue`/`cannot_pickup` = "มีปัญหาระหว่างทาง แต่ยังอาจส่งสำเร็จ"
+ * คนละสถานการณ์กับ "ส่งไม่สำเร็จแล้วกำลังตีกลับ" — บันทึกไว้ให้รู้ว่าเป็นการตัดสินใจ
+ * ไม่ใช่ความบังเอิญ (user เขียนคำนี้มาเอง 2 รอบ)
+ */
+const BOUNCE_ORIGIN: Record<TimelineAudience, string> = {
+  seller: 'พัสดุมีปัญหา',
+  buyer: 'พัสดุมีปัญหา',
+}
+
 const IN_TRANSIT: Record<TimelineAudience, string> = { seller: 'กำลังจัดส่ง', buyer: 'กำลังจัดส่ง' }
 const ACCEPTED: Record<TimelineAudience, string> = { seller: 'รับเข้าระบบ', buyer: 'รับเข้าระบบ' }
 
@@ -135,10 +174,27 @@ const ACCEPTED: Record<TimelineAudience, string> = { seller: 'รับเข้
  * `package-export` = กล่องมีลูกศรออก คู่กับ `package-import` ที่แถว 1 ใช้อยู่แล้ว
  */
 const ICON = {
-  bounceDepart: 'truck-return',
+  /**
+   * 🛑 4 จุด 4 ไอคอน — ห้ามซ้ำกัน
+   *
+   * รอบแรก `กำลังตีกลับ` กับ `กำลังส่ง` ใช้ `truck-return` ตัวเดียวกันทั้งคู่ ⇒ สองจุดกลาง
+   * ดูเหมือนกันเป๊ะ ต่างจากแถบขาไปที่ 4 จุดมี 4 รูป (user สังเกตเห็น 2026-08-27)
+   *
+   * ชุดนี้ mirror กับขาไปพอดี:
+   *   ขาไป   package · package-import · truck-delivery · circle-check
+   *   ขากลับ package-off · package-export · truck-delivery · building-store
+   *
+   * 🛑 `bounceDepart` กับ `returnDepart` ใช้ **ชื่อไอคอนเดียวกัน** (`package-export`) โดยตั้งใจ —
+   * ทั้งคู่คือ "กล่องกำลังออกเดินทางกลับ" เหมือนกันจริง ๆ และ **ไม่มีทางอยู่บนแถบเดียวกัน**
+   * (BOUNCE กับ RETURN เป็นคนละกลไก `describeReturnLeg` คืนได้ทีละอัน) สิ่งที่ต่างคือทิศ:
+   * `bounceDepart` ถูก flip เพราะแถบ BOUNCE เดินขวา→ซ้าย
+   * ⇒ เทส `[blocker]` ที่กันจุดออกเดินทางของสองกลไกซ้ำกัน จึงเทียบที่ `dots[0]` ซึ่งคนละตัว
+   *   (`package-off` vs `package-export`) ไม่ใช่ที่ตัวนี้
+   */
+  bounceDepart: 'package-export',
   returnDepart: 'package-export',
   accepted: 'package-import',
-  inTransit: 'truck-return',
+  inTransit: 'truck-delivery',
   arrived: 'building-store',
 } as const
 
@@ -151,6 +207,13 @@ export interface ReturnLegInput {
   /** เวลาที่ประทับไว้บนแถวพัสดุขาไป — `null` ได้เสมอ แปลว่า "ไม่รู้" ไม่ใช่ "ไม่เกิด" */
   returnStartedAt?: Date | string | null
   returnedAt?: Date | string | null
+  /**
+   * เวลาที่ขนส่งเริ่มนำพัสดุมาส่งคืนที่ร้าน — **มีค่า = แถบได้จุดที่ 4**
+   *
+   * 🛑 `null` แปลว่า *ขนส่งเจ้านี้ไม่บอก* ไม่ใช่ *ยังไม่ถึงขั้นนั้น* (Flash ไม่ส่งเลยสักใบ)
+   * ⇒ ต้อง **ไม่วาดจุดนี้** เมื่อไม่มีค่า ไม่ใช่วาดเป็นจุดเทาที่ไม่มีวันสว่าง
+   */
+  returnDispatchedAt?: Date | string | null
   /**
    * ใบคืนของ (00056) ที่ยังไม่ถูกยกเลิก — `null` = ไม่มี
    *
@@ -196,7 +259,7 @@ export function describeReturnLeg(input: ReturnLegInput): ReturnLeg | null {
       dots.push({ label: ACCEPTED[a], icon: ICON.accepted })
     }
     if (ret.trackingSource !== RETURN_TRACKING_SOURCE.NONE) {
-      dots.push({ label: IN_TRANSIT[a], icon: ICON.inTransit })
+      dots.push({ label: IN_TRANSIT[a], icon: ICON.inTransit, flipX: true })
     }
     dots.push({ label: ARRIVED.RETURN[a], icon: ICON.arrived })
 
@@ -208,6 +271,7 @@ export function describeReturnLeg(input: ReturnLegInput): ReturnLeg | null {
       startedAt: toDate(ret.createdAt),
       arrivedAt: toDate(ret.receivedAt),
       originTone: 'success',
+      standalone: false,
     }
   }
 
@@ -215,17 +279,51 @@ export function describeReturnLeg(input: ReturnLegInput): ReturnLeg | null {
   const stampCol = returnLegStampOf(input.carrierStatus)
   if (!stampCol) return null
 
+  /**
+   * จุดที่ 4 โผล่เฉพาะเมื่อขนส่งบอกจริง — **ไม่ใช่ 4 จุดตายตัว**
+   *
+   * iShip ส่งรหัสสถานะของขากลับมาแค่ 2 ตัว ขั้นนี้จึงมาจากข้อความอิสระที่มีแค่ SPX ส่ง
+   * (prod: SPX 6 ใบมีครบ · Flash 7 ใบไม่มีเลย) ⇒ ถ้าวาดตายตัว ครึ่งหนึ่งของใบจะมีจุด
+   * ที่ไม่มีวันสว่าง = โกหกว่า "ยังไปไม่ถึง" ทั้งที่ความจริงคือ "ขนส่งเจ้านี้ไม่บอก"
+   */
+  const dispatchedAt = toDate(input.returnDispatchedAt)
+  const bounceDots: ReturnLegDot[] = [
+    { label: BOUNCE_ORIGIN[a], icon: FORWARD_OUTCOME.failed.icon },
+    /**
+     * 🛑 `flipX` — ลูกศรของ `package-export` ชี้ขวาตามค่าตั้งต้น แต่แถบ BOUNCE เดิน
+     * **ขวา→ซ้าย** (ปลายทาง "ถึงร้านค้า" อยู่ซ้ายสุด ตรงกับจุดออกเดินทางของขาไปพอดี)
+     * ⇒ ไม่กลับด้าน = ลูกศรชี้สวนทางกับทิศที่แถบเล่า ซึ่งเป็นเหตุผลเดียวกับที่รถต้อง flip
+     */
+    { label: DEPARTED.BOUNCE[a], icon: ICON.bounceDepart, flipX: true },
+    ...(dispatchedAt ? [{ label: DISPATCHED[a], icon: ICON.inTransit, flipX: true }] : []),
+    { label: ARRIVED.BOUNCE[a], icon: ICON.arrived },
+  ]
+
+  /**
+   * 🛑 **3 จุด ไม่ใช่ 4** — iShip ส่ง *รหัสสถานะ* ของขากลับมาแค่ 2 ตัว (`return` /
+   * `return_success`) ยืนยันจาก event ทั้งหมดหลังพัสดุเริ่มตีกลับบน prod (45+6 ครั้ง
+   * จาก 13 ใบ ไม่มีรหัสอื่นเลย) ⇒ จุดที่ 3 คือ "ส่งไม่สำเร็จ" ซึ่งเป็น *เหตุ* ที่ขากลับมีอยู่
+   *
+   * ขั้นย่อยที่ละเอียดกว่านี้ (`ถึงศูนย์คัดแยก` / `อยู่ระหว่างการขนส่ง`) **มีจริงแต่ซ่อนใน
+   * `statusDesc` ซึ่งเป็นข้อความอิสระ และมีแค่ SPX ที่ส่งมา — Flash ไม่ส่งเลยสักตัว**
+   * (prod: SPX 6 ใบมีครบ · Flash 6 ใบเป็น 0 ทุกช่อง) ⇒ ทำ 4 จุดตายตัว = ครึ่งหนึ่งของใบ
+   * จะมี 2 จุดที่ไม่มีวันสว่าง ซึ่งผิดหลักเดียวกับที่ทำให้จำนวนจุดผันตามข้อมูลตั้งแต่แรก
+   */
   return {
     kind: 'BOUNCE',
-    dots: [
-      { label: DEPARTED.BOUNCE[a], icon: ICON.bounceDepart },
-      { label: ARRIVED.BOUNCE[a], icon: ICON.arrived },
-    ],
-    // ถึงร้านแล้ว = จุดที่ 2 (index 1) · ยังกลับอยู่ = จุดที่ 1 (index 0)
-    stage: stampCol === 'returnedAt' ? 1 : 0,
+    dots: bounceDots,
+    // จุดแรก ("ส่งไม่สำเร็จ") ถึงแล้วเสมอ — มันคือเหตุที่ทำให้แถวนี้มีอยู่
+    stage:
+      stampCol === 'returnedAt'
+        ? bounceDots.length - 1
+        : // ยังกลับไม่ถึง — อยู่จุด "กำลังนำส่งคืนร้าน" ถ้าขนส่งบอกแล้ว ไม่งั้นอยู่ "กำลังตีกลับ"
+          dispatchedAt
+          ? 2
+          : 1,
     startedAt: toDate(input.returnStartedAt),
     arrivedAt: toDate(input.returnedAt),
     originTone: 'warning',
+    standalone: true,
   }
 }
 
@@ -263,7 +361,7 @@ function returnStageOf(
  * ⇒ คำเดียวกันประกาศ 3 ที่ ไม่มีอะไรบังคับให้ตรงกัน วันที่ใครแก้ที่หนึ่ง อีกสองที่เงียบ (HR16)
  * (impeccable clarify จับได้ 2026-08-25)
  */
-export { FORWARD_OUTCOME } from './status'
+export { FORWARD_OUTCOME }
 
 /**
  * railAriaLabel — ประโยคเดียวที่อธิบายทั้งแถบให้ screen reader
@@ -277,6 +375,8 @@ export { FORWARD_OUTCOME } from './status'
 export function railAriaLabel(forwardLabel: string, leg: ReturnLeg | null): string {
   if (!leg) return `สถานะพัสดุ ${forwardLabel}`
   const at = leg.dots[Math.min(leg.stage, leg.dots.length - 1)].label
+  // standalone = ไม่มีแถวขาไปบนจอ ⇒ ห้ามพูดถึงมันในเสียงด้วย ไม่งั้นคนฟังจะหาไม่เจอ
+  if (leg.standalone) return `สถานะพัสดุ ${at}`
   return `สถานะพัสดุ ขาไป ${forwardLabel} ขากลับ ${at}`
 }
 

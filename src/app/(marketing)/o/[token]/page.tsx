@@ -351,6 +351,8 @@ export default async function PublicOrderPage({ params }: Props) {
         shopName: order.shop.shopName,
         /* ปกที่ร้านตั้งเอง — เก็บเป็น storage key เหมือน `logo` จึงต้องผ่าน `toFileUrl` เช่นกัน */
         coverImage: toFileUrl(order.shop.coverImage),
+        // feature 00062 — จุดนัดรับ (scalar ของ Shop มากับ include อยู่แล้ว ไม่เพิ่ม query)
+        address: order.shop.address,
         user: {
           displayName: order.shop.user.displayName,
           username: order.shop.user.username,
@@ -396,6 +398,11 @@ export default async function PublicOrderPage({ params }: Props) {
           : null,
       paymentMethod: order.paymentMethod ?? null,
       fulfillmentMode: order.fulfillmentMode,
+      // feature 00062 — ชุดเดียวกับที่ buildGuestOrderData() ส่งให้ก่อนล็อกอิน (parity);
+      // payoutSnapshot เป็น scalar JSONB มากับ getOrderByToken() include อยู่แล้ว ไม่เพิ่ม query
+      payoutSnapshot: (order.payoutSnapshot as PublicOrderData['payoutSnapshot']) ?? null,
+      paymentConfirmedAt: order.paymentConfirmedAt ? order.paymentConfirmedAt.toISOString() : null,
+      handedOverAt: order.handedOverAt ? order.handedOverAt.toISOString() : null,
       maxVerifyLevel,
       // cancelInitiator: derive copy ใน UI ว่าใครยกเลิก (S-13 T1)
       cancelInitiator: (order.cancelInitiator as 'seller' | 'buyer' | null) ?? null,

@@ -195,6 +195,13 @@ export interface FormValues {
   /** feature 00033 — วันที่สั่งซื้อเป็นค่า datetime-local ("YYYY-MM-DDTHH:mm" เวลาเครื่อง)
    *  undefined = ใช้เวลาปัจจุบัน (ไม่ส่งฟิลด์ไป API เลย → เส้นทางเดิมทุกประการ) */
   orderedAt?: string
+  /**
+   * feature 00062 (U15) — ร้านเลือก "นัดรับ" เอง (ปุ่มคู่ "จัดส่ง | นัดรับ" — เฉพาะร้าน ONLINE_SALES)
+   * undefined = "จัดส่ง" (ค่าเริ่มต้น พฤติกรรมเดิม ไม่ส่งคีย์นี้เข้า payload) · 'PICKUP' = override
+   * fulfillmentMode อัตโนมัติทั้งหมด — ห้ามเขียนเงื่อนไขซ้ำที่นี่ ส่งตรงเข้า deliveryOverride ของ
+   * orderNeedsShippingAddress() (SSOT: lib/shipping-address-status.ts)
+   */
+  fulfillmentMode?: 'PICKUP'
 }
 
 // ─── itemSchema — ใช้ใน Yup schema + ยืม pattern ของ OrderCreateForm เดิม ────
@@ -270,6 +277,9 @@ const schema = Yup.object({
       const reason = orderDateRejectReason(new Date(value).getTime(), Date.now())
       return reason ? ctx.createError({ message: reason }) : true
     }),
+  // feature 00062 (U15) — mirror CreateOrderSchema.fulfillmentMode (SSOT) ค่าที่รับได้มีแค่ 'PICKUP'
+  // (ฟอร์มนี้ไม่มีปุ่ม "SHIPPED" ตรง ๆ — ไม่เลือกนัดรับ = ไม่ส่งคีย์นี้เลย)
+  fulfillmentMode: Yup.string().oneOf(['PICKUP']).optional(),
   shippingAddress: Yup.object({
     line1: Yup.string().optional(),
     subdistrict: Yup.string().optional(),
@@ -327,6 +337,9 @@ export default function OrderCreateForm({
 }: Props) {
   // ร้านนี้ส่งของไหม — ตัวเดียวกับที่ createOrder ใช้ตัดสิน (SSOT: lib/shipping-address-status)
   const shipsGoods = shopShipsGoods(shopVertical)
+  // feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" เฉพาะร้าน ONLINE_SALES (UX-Design-Spec §A1:
+  // "ร้าน SERVICE_QUEUE/LODGING ไม่เห็นแถวนี้เลย ไม่ใช่ disabled") ไม่ผูกกับ shipsGoods เพราะคนละคำถาม
+  const showDeliveryToggle = shopVertical === 'ONLINE_SALES'
   /**
    * คำเรียก "ของที่ร้านขาย" ตามประเภทกิจการ (SSOT: PRODUCT_VOCAB) — ร้านคิวงานเรียก "บริการ"
    * ร้านบ้านพักเรียก "ห้องพัก". ทั้งฟอร์มนี้เคยเขียน "สินค้า" ตายตัวทุกจุด ทั้งที่หน้าอื่นของ
@@ -390,6 +403,8 @@ export default function OrderCreateForm({
       },
       // feature 00033 — เวลาข้อความในแชท (ถ้ามี) เป็นวันที่สั่งซื้อเริ่มต้น
       orderedAt: effectivePrefillCreatedAt ? toDatetimeLocalValue(new Date(effectivePrefillCreatedAt)) : undefined,
+      // feature 00062 (U15) — ค่าเริ่มต้น = "จัดส่ง" เสมอ (ไม่มีปุ่มดาวจำค่าเริ่มต้นแบบ channel/payment)
+      fulfillmentMode: undefined,
     },
   })
 
@@ -441,6 +456,11 @@ export default function OrderCreateForm({
           },
           // feature 00033 — โหลดวันที่สั่งซื้อเดิมเข้าฟอร์ม (ยุบไว้ ไม่ auto-open)
           orderedAt: o.createdAt ? toDatetimeLocalValue(new Date(o.createdAt)) : undefined,
+          // feature 00062 (U15) — โหลด fulfillmentMode เดิมเข้าปุ่มคู่ตอนแก้ไข
+          // 🛑 GET /api/orders/[token] (route.ts, นอกขอบเขตไฟล์ของ task นี้) ยังไม่ select/คืนคีย์นี้
+          // มาให้ — `o.fulfillmentMode` จะเป็น undefined เสมอตอนนี้ จึงยังไม่มีผลจริง (เขียนไว้ล่วงหน้า
+          // ให้พร้อมทำงานทันทีที่ route.ts เพิ่ม field นี้ในภายหลัง โดยไม่ต้องแก้ไฟล์นี้ซ้ำ)
+          fulfillmentMode: o.fulfillmentMode === 'PICKUP' ? 'PICKUP' : undefined,
         })
       } catch {
         if (!cancelled) setSubmitError(`โหลดข้อมูล${vocab.noun}ไม่สำเร็จ`)
@@ -693,6 +713,9 @@ export default function OrderCreateForm({
       items: items.map((item) =>
         toOrderItemShippingKind(item.productId, catalog.find((p) => p.id === item.productId)?.fulfillmentMode),
       ),
+      // feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" ต่อสายเข้า SSOT ตัวเดียวกับ QuickForm/CartPanel
+      // ตรงนี้เป็นจุดเรียกที่ 3 ของ 3 (เอกสารเตือนไว้ที่ shipping-address-status.ts ว่าห้ามพลาดจุดนี้)
+      deliveryOverride: values.fulfillmentMode === 'PICKUP' ? 'PICKUP' : undefined,
     })
 
     // ── FR-6.5: ออเดอร์ที่ต้องจัดส่งต้องมีที่อยู่ครบขั้นต่ำ (ที่อยู่ + จังหวัด + รหัสไปรษณีย์) ──
@@ -803,6 +826,9 @@ export default function OrderCreateForm({
       // ว่า payload ก้อนนี้ผูกร้านไหน; ฝั่ง server เป็น optional เพื่อ backward-compat กับ caller เดิม
       shopId,
       type: derivedType,
+      // feature 00062 (U15) — ส่งเฉพาะตอนเลือก "นัดรับ" จริง (mirror CreateOrderSchema.fulfillmentMode)
+      // ไม่ส่งคีย์นี้เลย = พฤติกรรมเดิมทุกประการ (server auto-derive จาก item/product ต่อไป)
+      ...(values.fulfillmentMode === 'PICKUP' ? { fulfillmentMode: 'PICKUP' as const } : {}),
       items: items.map((item) => ({
         ...(item.productId ? { productId: item.productId } : {}),
         name: item.name,
@@ -1043,6 +1069,7 @@ export default function OrderCreateForm({
           orderDateFromMessage={!!effectivePrefillCreatedAt}
           orderDateMessageTooOld={effectivePrefillTooOld}
           orderDateLabel={vocab.dateLabel}
+          showDeliveryToggle={showDeliveryToggle}
         />
       </div>
 
@@ -1075,6 +1102,7 @@ export default function OrderCreateForm({
             orderDateFromMessage={!!effectivePrefillCreatedAt}
             orderDateMessageTooOld={effectivePrefillTooOld}
             orderDateLabel={vocab.dateLabel}
+            showDeliveryToggle={showDeliveryToggle}
           />
         </div>
       </div>

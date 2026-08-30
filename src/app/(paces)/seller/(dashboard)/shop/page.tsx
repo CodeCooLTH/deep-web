@@ -136,6 +136,21 @@ export default async function ShopSettingsPage() {
               }
             : undefined
         }
+        /* บัญชีรับเงิน (2026-08-29, feature 00062 U19) — เฉพาะ OWNER (ไม่ใช่ ADMIN/staff — UX
+           spec §A6 เคาะแล้ว 2026-08-28 ว่าบัญชีธนาคารเข้มกว่าการแก้ข้อมูลร้านทั่วไป) + ร้าน
+           ONLINE_SALES เท่านั้น (SERVICE_QUEUE/LODGING ไม่มีการ์ดนี้เลย ไม่ใช่ disabled) — ตรวจ
+           ซ้ำที่ server (updateShopPayout) เสมอ ฝั่งนี้กันแค่ไม่ให้คนไม่มีสิทธิ์เห็นการ์ดนี้เลย */
+        bankAccountSetup={
+          isExisting && shopRole === 'OWNER' && shop.vertical === 'ONLINE_SALES'
+            ? {
+                payoutBankCode: shop.payoutBankCode ?? null,
+                payoutAccountNo: shop.payoutAccountNo ?? null,
+                payoutAccountName: shop.payoutAccountName ?? null,
+                payoutPromptPayId: shop.payoutPromptPayId ?? null,
+                hasExistingPayout: shop.payoutUpdatedAt !== null,
+              }
+            : undefined
+        }
       />
 
       {/* รายการ "จัดการร้าน" + ออกจากระบบ — เฉพาะ <1024px

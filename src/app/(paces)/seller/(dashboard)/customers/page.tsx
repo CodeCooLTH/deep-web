@@ -33,10 +33,16 @@ import {
   matchesCustomerFilter,
   matchesCustomerQuery,
   parseCustomerFilter,
+  parseCustomerRiskFilter,
+  matchesRiskFilter,
   type CustomerListFilter,
+  type CustomerRiskFilter,
 } from '@/lib/customer-directory'
 import { aggregateShopCustomers } from '@/services/customer-directory.service'
+import { classifyCustomerRiskTier, HIGH_RISK_MIN_RETURNED } from '@/lib/buyer-reputation'
 import { getBuyerReputations } from '@/services/buyer-reputation.service'
+import CustomerHero from './components/CustomerHero'
+import NoParcelNotice from './components/NoParcelNotice'
 import CustomerStatCard, { type CustomerStatItem } from './components/CustomerStatCard'
 import type { Metadata } from 'next'
 import type { CustomerRow } from './components/data'
@@ -45,7 +51,7 @@ import CustomerTable from './components/CustomerTable'
 export const metadata: Metadata = { title: 'ลูกค้า' }
 
 interface PageProps {
-  searchParams: Promise<{ q?: string; f?: string }>
+  searchParams: Promise<{ q?: string; f?: string; risk?: string }>
 }
 
 export default async function CustomersPage({ searchParams }: PageProps) {
@@ -110,6 +116,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
 
   const q = (sp.q ?? '').trim()
   const filter = parseCustomerFilter(sp.f)
+  const risk = parseCustomerRiskFilter(sp.risk)
 
   /**
    * ป้ายคำนวณที่นี่ (ไม่ใช่ที่ client) เพราะต้องใช้ dictionary + คำนามผันตาม vertical —
@@ -153,6 +160,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     ).length,
   }
 
+  const shopHasParcelsEarly = stats.shipped > 0
   const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%`)
   const share = (n: number) =>
     stats.totalCustomers === 0 ? undefined : `${Math.round((n / stats.totalCustomers) * 100)}% ของลูกค้าทั้งหมด`
@@ -161,52 +169,98 @@ export default async function CustomersPage({ searchParams }: PageProps) {
    * 4 การ์ด — ทุกใบผูกกับข้อมูลจริงที่มี **และไม่มีใบไหนเป็น 0 หรือ 100% เสมอโดยโครงสร้าง**
    * ไม่มี badge % เปลี่ยนแปลงแบบธีม เพราะเราไม่มีข้อมูลย้อนหลังมาเทียบ (จะเป็นเลขที่ไม่มีที่มา)
    */
+
+  /**
+   * ชื่อเสียง **ข้ามร้าน** ของทุกแถวในหน้าเดียว — batch query เดียว ไม่ใช่ N+1
+   *
+   * 🛑 ดึง **ทุก entry ก่อนกรอง** (เดิมดึงเฉพาะที่ผ่านตัวกรองแล้ว) เพราะตั้งแต่มีแกน `?risk=`
+   * ตัวเลขบนไทล์/การ์ดที่กดได้ต้องนับจากทั้งร้าน ไม่ใช่จากผลลัพธ์ที่กรองแล้ว
+   * — ถ้านับจากผลลัพธ์ ไทล์จะเปลี่ยนเลขทุกครั้งที่พิมพ์ค้นหา แล้ว "กดเลข 2 เจอ 1"
+   * (บทเรียน Command Center 2026-08-04) · จำนวน query ไม่เพิ่ม ยังเป็น batch เดียว
+   */
+  const reputations = await getBuyerReputations(
+    entries.map((e) => e.customerId).filter((x): x is string => !!x),
+  )
+  const tierOf = new Map(
+    entries.map((e) => [
+      e.key,
+      classifyCustomerRiskTier(e.customerId ? (reputations.get(e.customerId) ?? null) : null),
+    ]),
+  )
+
+  /**
+   * จำนวนต่อระดับความเสี่ยง — **นับด้วย `matchesRiskFilter` ตัวเดียวกับที่กรองจริง**
+   * และนับจาก `entries` ทั้งหมด ไม่ผูกกับคำค้น/ตัวกรองอีกแกน
+   */
+  const riskCounts = {
+    high: entries.filter((e) => matchesRiskFilter(tierOf.get(e.key) ?? 'new', 'high')).length,
+    watch: entries.filter((e) => matchesRiskFilter(tierOf.get(e.key) ?? 'new', 'watch')).length,
+  }
+
+  /**
+   * 4 การ์ด — **2 ใบแรกกดกรองได้** (แกน `?risk=` ข้ามร้าน) · 2 ใบหลังเป็นตัวเลขภาพรวมร้าน
+   *
+   * 🛑 ป้ายต้องบอกขอบเขตในตัวเองทุกใบ — ใบที่ 1-2 เป็น **ทั้งระบบ** ส่วนใบที่ 3-4 เป็น
+   * **ร้านนี้** สองชุดนี้อยู่ในแถวเดียวกัน ถ้าไม่เขียนกำกับผู้ขายจะอ่านว่าเป็นชุดเดียวกัน (HR16)
+   *
+   * 🛑 ตัวเลขบนใบที่กดได้มาจาก `riskCounts` ซึ่งนับด้วย `matchesRiskFilter` **ตัวเดียวกับ
+   * ที่กรองจริง** และนับจาก `entries` ทั้งหมด ไม่ผูกกับคำค้น — กดเลขไหนต้องเจอเท่านั้น
+   *
+   * เดิมชุดนี้เป็นอัตรารับของ/อัตราตีกลับระดับร้าน แต่วัด prod แล้วร้านส่วนใหญ่มีข้อมูล
+   * ระดับร้านบางเกินกว่าจะมีความหมาย (6 ใน 7 ร้านไม่เคยเปิดพัสดุเลย) ⇒ ยกสัญญาณข้ามร้าน
+   * ขึ้นมาเป็นใบหลักแทน
+   */
+  const riskHref = (v: 'high' | 'watch') => {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (filter !== 'all') params.set('f', filter)
+    if (risk !== v) params.set('risk', v)
+    const qs = params.toString()
+    return qs ? `/customers?${qs}` : '/customers'
+  }
+
   const statItems: CustomerStatItem[] = [
     {
-      value: pct(stats.receivedRate),
-      title: 'อัตรารับของสำเร็จ (ร้านนี้)',
-      caption:
-        stats.receivedRate === null
-          ? 'ยังเปิดพัสดุไม่ถึง 3 ใบ'
-          : `${stats.received} จาก ${stats.shipped} ใบที่เปิดพัสดุ`,
-      icon: 'package-import',
-      tone: 'bg-success',
-    },
-    {
-      value: pct(stats.returnRate),
-      title: 'พัสดุตีกลับ (ร้านนี้)',
-      caption: `${stats.returned} ใบ`,
-      icon: 'arrow-back-up',
+      value: String(riskCounts.high),
+      title: 'ลูกค้าเสี่ยงสูง (ทั้งระบบ)',
+      caption: `ตีกลับ ${HIGH_RISK_MIN_RETURNED} ครั้งขึ้นไป · ${share(riskCounts.high) ?? ''}`,
+      icon: 'solar:danger-triangle-bold-duotone',
       tone: 'bg-warning',
+      href: riskHref('high'),
+      active: risk === 'high',
     },
     {
-      value: String(stats.watchCount),
-      title: 'ลูกค้าต้องเฝ้าระวัง (ร้านนี้)',
-      caption: share(stats.watchCount),
-      icon: 'alert-triangle',
-      tone: 'bg-dark',
+      value: String(riskCounts.watch),
+      title: 'ต้องเฝ้าระวัง (ทั้งระบบ)',
+      caption: `เคยตีกลับอย่างน้อย 1 ครั้ง · ${share(riskCounts.watch) ?? ''}`,
+      icon: 'solar:eye-bold-duotone',
+      tone: 'bg-warning',
+      href: riskHref('watch'),
+      active: risk === 'watch',
+    },
+    {
+      value: String(stats.returned),
+      title: 'พัสดุตีกลับ (ร้านนี้)',
+      caption: shopHasParcelsEarly
+        ? `จาก ${stats.shipped} ใบที่เปิดพัสดุ`
+        : 'ร้านยังไม่เคยเปิดพัสดุผ่าน Deep',
+      icon: 'solar:box-bold-duotone',
+      tone: 'bg-info',
     },
     {
       value: stats.totalCustomers.toLocaleString('th-TH'),
       title: 'ลูกค้าทั้งหมด (ร้านนี้)',
       caption: undefined,
-      icon: 'users',
+      icon: 'solar:users-group-rounded-bold-duotone',
       tone: 'bg-primary',
     },
   ]
 
   const filtered = withWarning.filter(({ entry: e, badges }) => {
     if (!matchesCustomerQuery(e, q)) return false
+    if (!matchesRiskFilter(tierOf.get(e.key) ?? 'new', risk)) return false
     return matchesCustomerFilter(e, filter, hasBehaviorWarning(badges))
   })
-
-  /**
-   * ชื่อเสียง **ข้ามร้าน** ของทุกแถวในหน้าเดียว — batch query เดียว ไม่ใช่ N+1
-   * ดึงเฉพาะแถวที่ผ่านตัวกรองแล้ว (ไม่ใช่ทั้งร้าน) เพราะแถวที่ไม่แสดงไม่ต้องใช้
-   */
-  const reputations = await getBuyerReputations(
-    filtered.map(({ entry: e }) => e.customerId).filter((x): x is string => !!x),
-  )
 
   const customers: CustomerRow[] = filtered.map(({ entry: e, badges }) => ({
     key: e.key,
@@ -221,21 +275,55 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     lastOrderISO: e.lastOrderISO,
     badges,
     trust: e.customerId ? (reputations.get(e.customerId) ?? null) : null,
+    tier: tierOf.get(e.key) ?? 'new',
+    /** ตัวเลข **กับร้านนี้** — คอลัมน์ "กับร้านนี้" ต้องมี raw count ฝั่ง client (ไม่มี PII) */
+    shopShipped: e.shopReputation.shipped,
+    shopReturned: e.shopReputation.returned,
   }))
+
+  const shopHasParcels = shopHasParcelsEarly
 
   return (
     <>
-      <PageBreadcrumb title="ลูกค้า" subtitle="ร้านค้า" />
+      {/*
+        🛑 มือถือ = hero แทน breadcrumb · จอใหญ่ = breadcrumb ไม่มี hero
+        ใส่ทั้งคู่พร้อมกันจะได้หัวเรื่อง "ลูกค้า" ซ้อนกันสองอันในจอเดียว
+        (dashboard ก็ไม่มี breadcrumb ในบล็อกมือถือด้วยเหตุผลเดียวกัน — page.tsx:518,568)
+        แพตเทิร์นสองชุดใน DOM ให้ CSS ตัดสิน · จุดตัด `md` (768) เพราะ user เคาะว่า
+        **แท็บเล็ตเป็นแบบเดียวกับเดสก์ท็อป** (dashboard ใช้ `lg` ซึ่งเป็นคนละมติ)
+      */}
+      <div className="hidden md:block">
+        <PageBreadcrumb title="ลูกค้า" subtitle="ร้านค้า" />
+      </div>
+      {entries.length > 0 && (
+        <div className="-mx-4 mb-2.5 md:hidden">
+          <CustomerHero
+            totalCustomers={stats.totalCustomers}
+            receivedRate={stats.receivedRate}
+            returned={stats.returned}
+            hasParcels={shopHasParcels}
+          />
+        </div>
+      )}
 
       {/* Base: theme/paces/.../ecommerce/(orders)/orders/page.tsx — grid การ์ดสถิติเหนือการ์ดตาราง
           `gap-1.25` (5px) ยกจากธีมตรงตัว · เหลือ 4 ใบไม่ใช่ 5 ตามที่ user เคาะ
           🛑 ร้านที่ยังไม่มีลูกค้าเลย → ไม่ render แถวนี้ (การ์ด 4 ใบที่อ่านว่า 0 ทั้งหมด
-          คือข้อมูลซ้ำกับข้อความว่างในตารางข้างล่าง) */}
+          คือข้อมูลซ้ำกับข้อความว่างในตารางข้างล่าง)
+          🛑 จอใหญ่เท่านั้น — มือถือใช้ `RiskTriageCard` (3 แถวใหญ่) แทน เพราะการ์ด 4 ใบ
+          เรียงลงมาบนมือถือกิน ~500px ก่อนถึงลูกค้าคนแรก (บทเรียนเดียวกับที่ /orders เจอ) */}
       {entries.length > 0 && (
-        <div className="mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-1.25 hidden grid-cols-1 gap-1.25 md:grid md:grid-cols-2 lg:grid-cols-4">
           {statItems.map((item) => (
             <CustomerStatCard key={item.title} item={item} />
           ))}
+        </div>
+      )}
+
+      {/* ร้านที่ไม่เคยเปิดพัสดุ — 6 จาก 7 ร้านบน prod เป็นแบบนี้ ไม่ใช่เคสขอบ */}
+      {entries.length > 0 && !shopHasParcels && (
+        <div className="mb-2.5">
+          <NoParcelNotice />
         </div>
       )}
 
@@ -248,9 +336,13 @@ export default async function CustomersPage({ searchParams }: PageProps) {
         hasAnyCustomer={entries.length > 0}
         initialQuery={q}
         initialFilter={filter}
+        initialRisk={risk}
         filterCounts={filterCounts}
         totalCustomers={entries.length}
         watchCount={stats.watchCount}
+        riskCounts={riskCounts}
+        shopReturned={stats.returned}
+        shopHasParcels={shopHasParcels}
       />
     </>
   )

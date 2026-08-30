@@ -453,12 +453,23 @@ html[data-theme='dark'] .chat-nav-rail {
    ไม่มี) — 66px นั้นคือพื้นที่ที่แลกมาเป็นการต้อง scroll เร็วขึ้นโดยไม่ได้อะไรกลับ */
 .chat-nav-rail .side-nav {
   @apply pt-2 pb-4;
+  /* compact — ธีมให้ `gap-1.25` (5px) ระหว่างรายการ (ดูเหตุผลเต็มที่บล็อกถัดไป) */
+  gap: 0.125rem;
 }
 
-/* tap target ของรายการเมนู — ธีมให้ padding 10px + line-height 17.5px ≈ 37px (ตอนหุบไอคอนโต
-   ขึ้นเป็น ~41px) ทั้งคู่ต่ำกว่าเกณฑ์ 44px ที่ PRODUCT.md ประกาศไว้เอง */
+/* ── ระยะแบบ compact (user 2026-08-27: "ระยะห่างมันสูงเกิน กินพื้นที่ ช่วยลดให้ compact หน่อย")
+   ก่อนแก้: `.side-nav gap:1.25` (5px) + `.menu-link min-height:2.75rem` (44px) = **pitch 49px**
+   หลังแก้: gap 2px + min-height 36px = **pitch 38px** ⇒ เห็นเมนูเพิ่ม ~2 รายการต่อจอ 600px
+
+   🛑 การลด min-height จาก 44px เป็นการ **ผ่อนเกณฑ์ tap target ของ PRODUCT.md อย่างตั้งใจ**
+   ไม่ใช่ลืม — เหตุผลที่ผ่อนได้เฉพาะที่นี่: rail เป็น `hidden lg:flex` = **เดสก์ท็อป ≥1024px
+   เท่านั้น** และกางด้วย hover/focus ⇒ ตัวชี้เป็นเมาส์/คีย์บอร์ด ไม่ใช่นิ้ว เกณฑ์ 44px มีไว้กับนิ้ว
+   36px ยังสูงกว่าเพดานล่างของ WCAG 2.2 Target Size (Minimum) ที่ 24×24px อยู่ 1.5 เท่า
+   ⚠️ ถ้าวันไหนเอา rail นี้ไปโผล่บนมือถือ ต้องคืน 44px ในคอมมิตเดียวกัน */
 .chat-nav-rail .side-nav .menu-item > .menu-link {
-  min-height: 2.75rem;
+  min-height: 2.25rem;
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
 }
 
 /* ── เส้นคั่นกลุ่ม ────────────────────────────────────────────────────────────────
@@ -469,8 +480,16 @@ html[data-theme='dark'] .chat-nav-rail {
    หน้า seller อื่นทุกหน้า — แก้ markup ที่นั่นคือแก้ทั้งระบบเพื่องานของหน้าเดียว */
 .chat-nav-rail .side-nav > .menu-title {
   border-top: 1px solid var(--sidenav-border-color);
-  margin-top: 0.5rem;
-  padding-top: 0.75rem;
+  /* compact: เดิม mt .5rem / pt .75rem — หัวข้อกลุ่มมี padding-y ของธีม (10px) ซ้อนอยู่แล้ว
+     รวมเดิมจึงกินไปเกือบ 50px ต่อกลุ่ม × 4 กลุ่ม */
+  margin-top: 0.375rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.25rem;
+  /* ธีมไม่ได้ตั้ง line-height ให้ `.menu-title` (สืบทอดมา ~1.5 จาก body) — บีบเหลือ 1.2
+     เพราะตัวหนังสือมันขนาด 0.7× อยู่แล้ว ช่องว่างบน/ล่างของบรรทัดจึงเป็นที่ว่างเปล่าล้วน ๆ
+     (margin-top ของธีมที่ตั้งไว้ 10px ตรง ๆ ถูกทับด้วย margin-top ข้างบนนี้อยู่แล้ว —
+      selector นี้มี 3 คลาส ชนะ `.side-nav .menu-title` ที่มี 2) */
+  line-height: 1.2;
 }
 /* กลุ่มแรกไม่ต้องมีเส้นเหนือมัน — ไม่มีอะไรอยู่ข้างบนให้คั่น */
 .chat-nav-rail .side-nav > .menu-title:first-child {
@@ -595,4 +614,19 @@ html[data-theme='dark'] .chat-nav-rail {
     black calc(100% - 12px),
     transparent 100%
   );
+}
+
+/* ── ซ่อนแท่ง scrollbar แต่ยังเลื่อนได้ (user 2026-08-27: "ตอน scroll appMenu ด้านซ้าย
+   ไม่โชว์ scrolling ได้ไหม แต่ยังต้อง scroll ได้")
+
+   ปลอดภัยเพราะ **SimpleBar แยก "ตัวเลื่อนจริง" ออกจาก "ตัวแสดงผล" อยู่แล้ว**: การเลื่อนเกิดที่
+   `.simplebar-content-wrapper` ซึ่งเป็น `overflow:auto` ของเบราว์เซอร์เอง (ล้อเมาส์/ทัชแพด/
+   ลากนิ้ว/PageUp-Down/Tab แล้วโฟกัสวิ่งไปหาเมนูที่อยู่นอกจอ — ทำงานครบเหมือนเดิม) ส่วน
+   `.simplebar-track` เป็นแค่แท่งที่ SimpleBar วาดทับให้ดูสวย ซ่อนได้โดยไม่กระทบการเลื่อน
+
+   🛑 ห้ามไปแตะ `overflow` ของ `.simplebar-content-wrapper` เพื่อซ่อนแท่งนี้ — นั่นคือตัวเลื่อนจริง
+   สัญญาณ "ยังมีเมนูต่อ" ไม่ได้หายไปไหน: เฟดขอบบน/ล่างในบล็อกด้านบนทำหน้าที่นั้นอยู่แล้ว
+   (นั่นคือเหตุผลที่มันถูกเพิ่มเข้ามาตั้งแต่แรก — แท่งบนแถบ 75px แคบจนแทบมองไม่เห็น) */
+.chat-nav-rail .simplebar-track {
+  display: none;
 }

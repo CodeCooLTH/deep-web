@@ -115,6 +115,19 @@ export type ShippingStageKey =
   | 'RETURNED'
   /** จบแล้ว/ไม่ใช่งานค้าง — ไม่นับบนไทล์ และไม่ขึ้นในตัวกรอง */
   | 'DONE'
+  /**
+   * ออเดอร์นี้ไม่มีการจัดส่งเลย (`fulfillmentMode !== 'SHIPPED'` — feature 00062 นัดรับสินค้า
+   * และของที่ไม่มีการส่งอื่น ๆ เช่นสินค้าดิจิทัล/ขายหน้าร้าน) ⇒ คำถาม "ของอยู่ไหนในเส้นทางขนส่ง"
+   * ไม่มีความหมายกับใบนี้เลย ไม่ใช่แค่ "ยังไม่มีพัสดุ"
+   *
+   * 🛑 **ห้ามใส่ค่านี้ลงใน `SHIPPING_STAGE_LABEL` และห้ามใส่ใน `STAGE_BADGE_OVERRIDE` เด็ดขาด**
+   * (Controller review 2026-08-28 แก้ TD-007 เดิมที่เสนอให้ยืม `'DONE'` มาใช้ — `'DONE'` มี badge
+   * ของตัวเองอยู่แล้วคือ "ส่งถึงแล้ว" สีเขียว ซึ่งเป็นการโกหกบนหน้าจอสำหรับออเดอร์นัดรับที่ลูกค้า
+   * ยังไม่มารับ + ละเมิด Verified-Means-Green เพราะไม่มีขนส่งมายืนยันอะไรเลย) ถ้าไม่มีคำ ก็ไม่มี
+   * ทางขึ้นคำผิด — ป้ายที่ผู้ใช้เห็นสำหรับออเดอร์นัดรับต้องมาจาก `derivePickupStage()`
+   * (`src/lib/order-pickup.ts`) เท่านั้น คนละแกน คนละคำ
+   */
+  | 'NOT_SHIPPING'
 
 /**
  * จุดที่ไฮไลต์บนแถบพัสดุ 4 จุด (`SHIPMENT_STAGES`) ต่อ stage หนึ่งค่า
@@ -140,6 +153,8 @@ export const SHIPMENT_STAGE_DOT_INDEX: Record<ShippingStageKey, number | null> =
   RETURNED: 2,
   AWAITING_COD: 4,
   DONE: 4,
+  // ไม่มีพัสดุให้วาดแถบเลยโดยนิยาม (feature 00062) — เหมือน AWAITING_PARCEL
+  NOT_SHIPPING: null,
 }
 
 export interface ShippingStageInput {
@@ -152,6 +167,15 @@ export interface ShippingStageInput {
   paymentMethod?: string | null
   /** ร้านกดยืนยันรับเงินปลายทางแล้วหรือยัง (Order.codReceivedAt) — null = ยังไม่ได้รับ */
   codReceivedAt?: Date | string | null
+  /**
+   * `Order.fulfillmentMode` — SHIPPED | PICKUP | NO_SHIPPING (feature 00062, TD-007)
+   *
+   * 🛑 บังคับ (ไม่ใช่ optional) โดยตั้งใจ: ก่อนหน้านี้ฟังก์ชันนี้ไม่รู้จักฟิลด์นี้เลย ทำให้
+   * ออเดอร์นัดรับที่ `status='PENDING'` ไม่มีพัสดุ ตกไป `return 'AWAITING_PARCEL'` ท้ายฟังก์ชัน
+   * เงียบ ๆ (BRD §7.3 ยืนยันจากโค้ดจริง) — ถ้าเป็น optional ผู้เรียกที่ลืมส่งจะได้บั๊กเดิมกลับมา
+   * โดย `tsc` ไม่ฟ้อง ทำให้เป็น required เพื่อให้ compiler ไล่ผู้เรียกทุกจุดให้ส่งค่ามาแทน
+   */
+  fulfillmentMode: string
 }
 
 /**
@@ -165,6 +189,15 @@ export interface ShippingStageInput {
  */
 
 export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
+  /**
+   * ออเดอร์ที่ไม่มีการจัดส่งเลย (นัดรับ/ดิจิทัล/ขายหน้าร้าน) — เช็คก่อนทุกอย่างรวมทั้ง
+   * CANCELLED/RETURNED เพราะคำถาม "ของอยู่ไหนในเส้นทางขนส่ง" ไม่มีความหมายกับใบพวกนี้เลย
+   * ไม่ว่าสถานะออเดอร์จะเป็นอะไร (ใบนัดรับที่ถูกยกเลิกก็ไม่เคยมีพัสดุให้พูดถึงเช่นกัน)
+   *
+   * 🛑 ต้องคืน 'NOT_SHIPPING' ไม่ใช่ 'DONE' — ดูคอมเมนต์ที่ประกาศ type ของค่านี้
+   */
+  if (o.fulfillmentMode !== 'SHIPPED') return 'NOT_SHIPPING'
+
   /**
    * ยกเลิกทั้งใบ = ไม่ใช่งานค้าง ไม่ว่าพัสดุจะอยู่สถานะไหน
    *
@@ -222,11 +255,20 @@ const ALL_SHIPPING_STAGES: Record<ShippingStageKey, true> = {
   PROBLEM: true,
   RETURNED: true,
   DONE: true,
+  // เหมือน DONE — ไม่มีชิป/ไทล์ไหนพากอง NOT_SHIPPING ไปดู แต่ยังต้องขึ้น 0 ในตัวนับรวม
+  // ไม่ใช่หายไปเงียบ ๆ (feature 00062)
+  NOT_SHIPPING: true,
 }
 export const SHIPPING_STAGE_KEYS_ALL = Object.keys(ALL_SHIPPING_STAGES) as ShippingStageKey[]
 
-/** ป้ายไทยของแต่ละกอง — ใช้ทั้งไทล์บน Command Center และชิปตัวกรองในหน้า /orders */
-export const SHIPPING_STAGE_LABEL: Record<Exclude<ShippingStageKey, 'DONE'>, string> = {
+/**
+ * ป้ายไทยของแต่ละกอง — ใช้ทั้งไทล์บน Command Center และชิปตัวกรองในหน้า /orders
+ *
+ * 🛑 `NOT_SHIPPING` ต้องอยู่นอก record นี้เสมอ (คู่กับ `'DONE'`) — ตาม Controller review
+ * ที่แก้ TD-007: ถ้าไม่มีคำในนี้ ก็ไม่มีทางมีตัวกรอง `?stage=NOT_SHIPPING` ที่ใช้ได้จริงแต่
+ * ไม่มีชิปไหนพาไป (ดูคำอธิบายเต็มที่ประกาศ type ของค่านี้ใน `ShippingStageKey`)
+ */
+export const SHIPPING_STAGE_LABEL: Record<Exclude<ShippingStageKey, 'DONE' | 'NOT_SHIPPING'>, string> = {
   AWAITING_PARCEL: 'รอเลขพัสดุ',
   AWAITING_PICKUP: 'รอรับเข้า',
   SHIPPING: 'กำลังจัดส่ง',
@@ -247,6 +289,10 @@ export const SHIPPING_STAGE_LABEL: Record<Exclude<ShippingStageKey, 'DONE'>, str
  * deriveShippingStage ตัดสินไว้แล้ว. Order.status ไม่ถูกแตะแม้แต่นิดเดียว: CONFIRMED
  * ต้องมาจากผู้ซื้อกดยืนยันเท่านั้น (BR-ISHIP-41) เพราะไปคิด Trust Score + สิทธิ์รีวิว
  * ถ้าปล่อยให้ขนส่งดันได้ = ปั่นคะแนนความน่าเชื่อถือด้วยพัสดุปลอมได้
+ *
+ * 🛑 `NOT_SHIPPING` ห้ามมี entry ในนี้เด็ดขาด (feature 00062, Controller review) — ไม่งั้น
+ * ออเดอร์นัดรับที่ยังไม่มีอะไรเกิดขึ้นเลยจะได้ badge ปลอม ปล่อยให้ `resolveOrderStatusBadge`
+ * ตกกลับไปใช้ `ORDER_STATUS_META[status]` เดิม (พฤติกรรมเดียวกับ stage ที่ไม่รู้จักอื่น ๆ)
  */
 const STAGE_BADGE_OVERRIDE: Partial<
   Record<ShippingStageKey, { label: string; cls: string; icon: string; tone: OrderStatusTone }>

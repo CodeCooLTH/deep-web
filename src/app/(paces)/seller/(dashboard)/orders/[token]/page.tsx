@@ -368,6 +368,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
           hasShipment:
             shipmentPanel?.shipment?.status === 'CREATED' && !shipmentPanel.shipment.isDryRun,
           paymentMethod: order.paymentMethod ?? null,
+          fulfillmentMode: order.fulfillmentMode,
           codReceivedAt: order.codReceivedAt ?? null,
         })
       : undefined
@@ -411,6 +412,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
         totalAmount={Number(order.totalAmount)}
         paymentMethod={order.paymentMethod ?? null}
         slipFileId={order.slipFileId ?? null}
+        // feature 00062 — ร้านกด "ได้รับเงินแล้ว" เอง (TRANSFER/PROMPTPAY/CASH) → getPaymentBadge SSOT (TD-003)
+        paymentConfirmedAtISO={order.paymentConfirmedAt ? (order.paymentConfirmedAt as Date).toISOString() : null}
         shipmentSource={shipmentSource}
         ishipContext={shipmentPanel ? toShipmentContextJson(shipmentPanel) : null}
         hasIshipShipment={hasLiveIshipShipment}
@@ -443,6 +446,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
         codReceivedAtISO={order.codReceivedAt ? (order.codReceivedAt as Date).toISOString() : null}
         codReceivedByLabel={order.codReceivedBy?.displayName ?? order.codReceivedBy?.username ?? null}
         isCod={isCODPayment(order.paymentMethod)}
+        // feature 00062 (U17) — getOrderForShop ยังไม่ include ความสัมพันธ์ paymentConfirmedBy
+        // (นอกขอบเขตไฟล์ที่แตะได้ของงานนี้) จึงยังบอกชื่อคนกดยืนยันไม่ได้ — PaymentReceivedCard
+        // รองรับ null ได้อยู่แล้ว (แสดงแค่วันเวลา ไม่มี "· โดย ...")
+        paymentConfirmedByLabel={null}
+        // feature 00062 (U16) — ส่งให้ order-action-set.ts คำนวณ isPickupHandedOver (แถบล่าง <1024)
+        handedOverAtISO={order.handedOverAt ? (order.handedOverAt as Date).toISOString() : null}
         shippingActivity={<ShippingActivity events={orderEvents} orderNoun={vocab.noun} createLabel={vocab.createLabel} />}
         customerCard={
           <CustomerDetails
@@ -507,6 +516,19 @@ export default async function OrderDetailPage({ params }: PageProps) {
                * เพราะใบที่ type เพี้ยนแต่มีนัดจริงต้องไม่หลุดกลับไปเจอฟอร์มนั้นเหมือนกัน
                */
               isServiceOrder={order.type === 'SERVICE' || Boolean(order.serviceStart)}
+              // feature 00062 (U16) — การ์ด "การนัดรับ" (คัดกรอง PICKUP ของฟีเจอร์นี้ออกจาก PICKUP
+              // ของการจองที่พัก 00017/LODGING ซึ่งใช้ค่า fulfillmentMode เดียวกัน — ดู comment
+              // หัวไฟล์ ShippingAddress.tsx)
+              isOnlineSalesShop={shop.vertical === 'ONLINE_SALES'}
+              status={order.status}
+              handedOverAtISO={order.handedOverAt ? (order.handedOverAt as Date).toISOString() : null}
+              // getOrderForShop ยังไม่ include ความสัมพันธ์ handedOverBy (นอกขอบเขตไฟล์ที่แตะได้ของ
+              // งานนี้) จึงยังบอกชื่อคนกดมอบของไม่ได้ — ShippingAddress.tsx รองรับ null ได้อยู่แล้ว
+              handedOverByLabel={null}
+              disputeOpenedAtISO={order.disputeOpenedAt ? (order.disputeOpenedAt as Date).toISOString() : null}
+              disputeResolvedAtISO={order.disputeResolvedAt ? (order.disputeResolvedAt as Date).toISOString() : null}
+              shopName={shop.shopName}
+              shopAddress={shop.address ?? null}
             />
             {/* ใต้ "ที่อยู่จัดส่ง" (user 2026-08-05) — ของสองอย่างนี้ตอบคำถามเดียวกันว่า
                 "ของไปถึงไหนแล้ว/จะไปที่ไหน" อยู่ติดกันแล้วอ่านต่อเนื่องกว่าแยกคนละคอลัมน์ */}
@@ -531,6 +553,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
                         : null,
                       returnedAtISO: shipmentPanel.shipment.returnedAt
                         ? (shipmentPanel.shipment.returnedAt as Date).toISOString()
+                        : null,
+                      returnDispatchedAtISO: shipmentPanel.shipment.returnDispatchedAt
+                        ? (shipmentPanel.shipment.returnDispatchedAt as Date).toISOString()
                         : null,
                     }
                   : null
@@ -570,6 +595,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 paymentMethod={order.paymentMethod ?? null}
                 salesChannel={order.salesChannel ?? null}
                 slipFileId={order.slipFileId ?? null}
+                paymentConfirmedAt={order.paymentConfirmedAt ? (order.paymentConfirmedAt as Date).toISOString() : null}
                 status={order.status}
                 money={orderMoney}
               />

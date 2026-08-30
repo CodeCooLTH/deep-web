@@ -284,6 +284,12 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 
 > **feature 00035 (ตัวจัดหน้าร้าน) — โหมด draft preview:** `/u/{username}?builderDraft=1` และ `/b/{slug}?builderDraft=1` mount `BuilderPreviewBridge` (ฟัง `postMessage` จาก builder iframe) **เฉพาะเมื่อผู้เปิดเป็นเจ้าของ/ทีมงานร้าน** (`canAccessShop`) — query param เองไม่มีผลด้าน authorization ใด ๆ ผู้เยี่ยมชมทั่วไปเดา URL เดียวกันเห็นหน้าปกติเป๊ะ (ไม่มี Bridge ห่อ). `generateMetadata` ใส่ `robots:{index:false,follow:false}` เฉพาะ URL รูปแบบนี้ (ไม่ผูกกับสิทธิ์ — กัน search engine เก็บ URL พรีวิวไว้เฉย ๆ)
 
+> **feature 00060 (แผนการตรวจสอบร้านค้า) — Draft, ยังไม่ implement:** เมื่อ implement แล้ว `/u/{username}`
+> และ `/b/{slug}` จะมีบล็อกผลตรวจ + ไทม์ไลน์เพิ่ม (อ่านผ่าน RSC/service call ตรง **ไม่มี public API
+> endpoint** — ดู §7.19) แสดงเฉพาะร้าน `vertical='LODGING'` ที่เคยสมัครแผน (มีแถว `InspectionPlan`)
+> เป็นบล็อกคนละคำจาก Trust Tier เสมอ (ห้ามยืมคำ/ผสมคะแนน — ดู `CONTEXT.md` หัวข้อ "ความน่าเชื่อถือ:
+> สองแกน") หลักฐานที่ `visibility='PRIVATE'` ต้องไม่หลุดเข้า flight payload ของหน้านี้ไม่ว่ากรณีใด
+
 ### 3.3 Buyer (`deepthailand.app/...`) — ต้อง login
 
 | เมนู | Path |
@@ -302,6 +308,8 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | **Onboarding (บังคับ, needsOnboarding=true)** | **`/onboarding`** |
 | Dashboard | `/dashboard` |
 | Sales (analytics) | `/sales` |
+| **ผลงานแอดมิน (feature 00059)** | **`/reports/agents`** และ **`/reports/agents/[agentId]`** — `[agentId]` = `User.id` ของคนในร้าน · พนักงานที่ยังไม่ได้รับสิทธิ์ข้อมูลการเงิน (`Shop.staffCanViewFinance=false`) เปิดของคนอื่นไม่ได้ (เห็นจอปฏิเสธ ไม่ใช่ 404) และไม่เห็นคอลัมน์ยอดขาย |
+| **ยอดขายรายสินค้า (feature 00063)** | **`/reports/products`** — รายงานไทม์ซีรีส์รายเดือน รับ `?month=YYYY-MM` (ไม่ระบุ = เดือนปัจจุบันเวลาไทย · ผิดรูป/เกินขอบ = ถอยมาเดือนปัจจุบัน + แถบแจ้ง **ไม่ throw ไม่ 404**) · 🛑 **เห็นเฉพาะ `Shop.vertical='ONLINE_SALES'`** และด่านอยู่ที่ `resolveProductReportAccess()` ฝั่งเซิร์ฟเวอร์ ไม่ใช่แค่ซ่อนเมนู — ร้านประเภทอื่นเข้า URL ตรงเห็นการ์ดข้อความ ไม่ redirect เงียบ และ **ไม่มี query ยอดขายเกิดขึ้นเลย** · สิทธิ์ใช้ธงเดิม `Shop.staffCanViewFinance` ตัวเดียวกับ `/expenses` และ `/reports/agents` (ไม่มีธงใหม่) · 🛑 นิยาม "ขายแล้ว" ของหน้านี้ = `OrderItem` ของ `Order.status != 'CANCELLED'` (ชุดเดียวกับ `getBestSellerProducts()`) **ไม่ใช่** `revenueOrderWhere` ของ `/sales` ⇒ ตัวเลขสองหน้าไม่เท่ากันโดยตั้งใจ และหน้าจอต้องแสดง `SALES_BASIS_NOTE` เสมอ (HR16) · **ไม่มี API endpoint ใหม่ ไม่มี migration ไม่มี index ใหม่** |
 | Products | `/products` |
 | Categories | `/categories` |
 | Customers | `/customers` |
@@ -315,9 +323,22 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | Shop Settings | `/shop` |
 | Verification | `/verification` |
 | Auth (sign-in/sign-up/verify-otp/reset-pass/new-pass) | `/auth/*` |
+| **แผนการตรวจสอบ (feature 00060 — Draft, ยังไม่ implement)** | **`/inspection`** — เฉพาะร้าน `vertical='LODGING'`; OWNER จัดการเต็ม ADMIN ดูอย่างเดียว |
 
 > path ฝั่ง seller **ไม่มี** `/settings/` prefix (sync ตามโค้ดจริง)
 > **force-redirect:** seller authed + `needsOnboarding` → proxy redirect ทุก route → `/onboarding` (ยกเว้น `/auth/*`, `/api/*`)
+
+### 3.4a ผู้ตรวจ (feature 00060 — Draft, ยังไม่ implement)
+
+> **หมายเหตุความไม่ตรงกัน:** เอกสารต้นทางของ feature 00060 (`DATABASE.md`/`API.md`) ไม่ได้ระบุ
+> subdomain ที่แน่ชัดของบทบาทนี้ — component อยู่ใต้ `(paces)/inspector/**` (Paces เหมือน seller/admin)
+> แต่ยังไม่ชัดว่าเสิร์ฟจาก `seller.*`, `admin.*`, หรือ subdomain ใหม่ — **ต้องตัดสินก่อน implement จริง**
+> ไม่ใช่ contract ที่ล็อกแล้ว (path ด้านล่างเป็น path สัมพัทธ์ ยังไม่ผูก subdomain)
+
+| เมนู | Path |
+|------|------|
+| คิวรอบตรวจของตน | `/inspector/rounds` |
+| รายละเอียดรอบ + บันทึกผล | `/inspector/rounds/[id]` |
 
 ### 3.5 Admin (`admin.deepthailand.app/...`) — login แยก + isAdmin
 
@@ -329,6 +350,7 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | Orders | `/orders` |
 | **เติมเครดิต SMS (topup queue)** | **`/topups`** |
 | Badges | `/badges` |
+| **โควตารับสมัคร + คิวรอบตรวจ (feature 00060 — Draft, ยังไม่ implement)** | **`/inspection/quota`**, **`/inspection/rounds`** |
 
 ### 3.6 Route Auth
 
@@ -346,6 +368,7 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 | NFR-1.1 | API response < 500ms (p95) |
 | NFR-1.2 | Public Profile โหลด < 2s |
 | NFR-1.3 | File upload: แชท ≤ 25MB · รูป/เอกสาร ≤ 10MB (ต่อไฟล์), ภาพสินค้า ≤ 10 รูป — เพดานต่อ purpose อยู่ที่ `src/lib/upload-policy.ts` (SSOT) และถูกบังคับ 2 ชั้น: `file_size_limit` ของ bucket (25MB, Supabase ตอบ 413 เอง) + `POST /api/uploads/commit` ที่อ่านขนาดจริงด้วย HEAD. 🛑 เดิมระบุ 5MB แต่ **ไม่มีผลจริง** เพราะทุก upload วิ่งผ่าน body ของ Vercel Function ที่จำกัด 4.5MB → ตกตั้งแต่ 4.5MB (แก้ 2026-08-10 ด้วย direct upload; ดู `docs/conventions/upload-body-size-limit.md`) |
+| NFR-1.4 | **feature 00060 (Draft, ยังไม่ implement)** — โปรไฟล์สาธารณะของร้านที่มีที่พักหลายหลัง (`Room`) ต้องอ่านผลตรวจแบบไม่ N+1 (query รวมทุกหลังครั้งเดียวด้วย `DISTINCT ON`, ไม่ query ต่อหลัง) |
 
 ### NFR-2: Security
 
@@ -359,6 +382,7 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 | NFR-2.6 | OTP rate limit 3 ครั้ง/10 นาที/เบอร์ |
 | NFR-2.7 | Admin self-review block (verification) — FR-2.6 |
 | NFR-2.8 | **feature 00035** — `BuilderPreviewBridge` (postMessage ระหว่าง builder iframe กับ `/u`,`/b` โหมด draft) ต้องตรวจ `event.origin` ผ่าน `isAllowedOrigin()` (reuse `lib/csrf-origin.ts`) ก่อนรับ/ตอบข้อความทุกครั้ง — ห้าม `targetOrigin: '*'` ทั้งสองทาง |
+| NFR-2.9 | **feature 00060 (Draft, ยังไม่ implement)** — `InspectionEvidence.visibility='PRIVATE'` (บัตรประชาชน/โฉนด/สเตทเมนต์/บัญชีธนาคาร) ห้ามหลุดเข้า RSC flight payload ของหน้าโปรไฟล์สาธารณะไม่ว่ากรณีใด — mask/neutralize ที่ server boundary (แพตเทิร์นเดียวกับ S-C1) และ query ฝั่งสาธารณะต้องกรอง `visibility='PUBLIC'` ที่ระดับ SQL ไม่ใช่กรองหลังดึง |
 
 ### NFR-3: Usability
 
@@ -375,6 +399,7 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 |----|---------|
 | NFR-4.1 | Uptime > 99% |
 | NFR-4.2 | Database backup รายวัน (Supabase) |
+| NFR-4.3 | **feature 00060 (Draft, ยังไม่ implement)** — ต้องเฝ้าที่ **ตัวชี้วัดงานค้าง** ของคิวรอบตรวจ ไม่ใช่ที่ error rate เพราะ error rate เป็น 0 ตลอดเวลาที่ฟีเจอร์กำลังเสื่อมเงียบ ๆ (ป้ายผลตรวจตกเป็น "รอตรวจซ้ำ" ทีละข้อโดยไม่มีใครมาตรวจซ้ำเลย ทั้งที่โค้ดถูกทุกบรรทัด) — เกณฑ์ "ค้างเท่าไรถือว่าผิดปกติ" และเจ้าของตัวชี้วัดยัง **รอเคาะ** (open question ของเอกสารต้นทาง) |
 
 ### NFR-5: Maintainability
 
@@ -440,6 +465,16 @@ Order (1) ──────── (N) SmsCode
 Order (1) ──────── (N) OrderEvent [Activity Log — insert-only]
 
 SellerWallet (1) ── (N) WalletTransaction
+
+Shop (1) ──────── (0..1) InspectionPlan             [feature 00060 — Draft, ยังไม่ implement]
+Shop (1) ──────── (N) InspectionRound                [feature 00060 — Draft]
+Shop (1) ──────── (N) InspectionResult               [feature 00060 — Draft]
+Shop (1) ──────── (N) InspectionTermsAcceptance      [feature 00060 — Draft, append-only]
+Room (1) ──────── (N) InspectionRound                [feature 00060 — Draft, roomId nullable = รอบระดับร้าน]
+Room (1) ──────── (N) InspectionResult               [feature 00060 — Draft, roomId nullable = ข้อผูกร้าน]
+User (1) ──────── (N) InspectionRound [as inspector, optional]  [feature 00060 — Draft]
+InspectionRound (1) ─ (N) InspectionEvidence         [feature 00060 — Draft]
+InspectionResult (0..1) ─ (N) InspectionEvidence     [feature 00060 — Draft, optional]
 ```
 
 ### 6.1a `CustomerFile` (feature 00048 — คลังไฟล์ต่อลูกค้า)
@@ -455,6 +490,20 @@ SellerWallet (1) ── (N) WalletTransaction
 | `sentAt` | เวลาที่ไฟล์ถูกส่งจริง (`ChatMessage.createdAt`) = **คีย์เรียงลำดับของคลัง** ไม่ใช่ `savedAt` |
 | `savedByName` | snapshot ชื่อผู้เก็บ — ต้องยังอ่านได้แม้คนนั้นออกจากทีมร้านไปแล้ว จึงไม่ join ตอนอ่าน |
 | Cascade | ร้าน/ผู้ติดต่อ/เธรดถูกลบ → แถวคลังหายตาม **แต่ไฟล์ใน storage ไม่ถูกลบ** (ยังถูกอ้างจาก `ChatMessage`) |
+
+### 6.1b `ChannelIceBreaker` (2026-08-27 — คำถามแนะนำก่อนเริ่มแชท)
+
+คำถามสำเร็จรูป ≤4 ข้อที่ Meta แสดงในกล่องแชท **เฉพาะเธรดที่ยังไม่เคยมีข้อความ และเฉพาะมือถือ**
+พร้อมคำตอบที่ระบบส่งให้อัตโนมัติเมื่อลูกค้าแตะ
+
+| กติกา | รายละเอียด |
+|-------|-----------|
+| ขอบเขต | `MESSENGER` / `INSTAGRAM` เท่านั้น — LINE มี Rich Menu (feature 00045) ซึ่งเป็นคนละกลไกคนละ endpoint |
+| ลำดับ | `@@unique([shopChannelId, order])` · `order` = 0..3 · **เป็นส่วนหนึ่งของ `payload` ที่ส่งให้ Meta** จึงต้องคงที่ระหว่างสองฝั่ง |
+| เจ้าของความจริง | **Meta** สำหรับ *คำถาม* (สิ่งที่ลูกค้าเห็น) · **ตารางนี้** สำหรับ *คำตอบ* (Meta ไม่เก็บให้) ⇒ เขียนตารางนี้ได้ก็ต่อเมื่อ Meta รับชุดนั้นไปแล้ว |
+| การแก้ | ลบทั้งชุดแล้วเขียนใหม่เสมอ — Meta ไม่มี partial update (D-IB-3) |
+| Cascade | ช่องทางถูกถอด → คำถามหายตาม (`onDelete: Cascade`) — ค่าที่ค้างอยู่จะชี้ไปยังเพจที่เราไม่มี token แล้ว |
+| ความยาว | คำถาม ≤80 (ความกว้างปุ่มของ Meta) · คำตอบ ≤**1,000** (เพดานข้อความของ Instagram — ไม่ใช่ 2,000 ของ `QuickMessage` เพราะคำตอบเดินทางออกเป็นข้อความแชทจริง) · นับด้วย **code point** ไม่ใช่ `.length` |
 
 ### 6.2 Models
 
@@ -924,6 +973,138 @@ SellerWallet (1) ── (N) WalletTransaction
 เคส "คำนวณเงินโดยไม่มีแถวเงินอยู่ในมือ" ซึ่งอ่านไม่ต่างจาก "ยังไม่จ่ายสักบาท" เลย
 (ด่าน: `src/lib/__tests__/service-queue-vertical-gate.test.ts`)
 
+### 6.z แผนการตรวจสอบร้านค้า — Shop Inspection Plan (feature 00060 — Draft, ยังไม่ implement)
+
+> **สถานะ: Draft** — เอกสาร PRD/BRD/DATABASE/API ของ feature 00060 ผ่าน draft รอบสุดท้ายแล้ว
+> (2026-08-29) แต่ **ยังไม่มี migration/โค้ดจริงบนดิสก์** ตาม Hard Rule 11 (Doc-First) ต้องรอ user
+> review ผ่านก่อนจึง implement — section นี้ sync ล่วงหน้าเพื่อไม่ให้เป็นหนี้เอกสารซ้ำ (บทเรียน 00033)
+> เมื่อ implement จริงแล้วให้ตัดป้าย "Draft, ยังไม่ implement" ออกและยืนยันเลขคอลัมน์/enum กับ
+> `prisma/schema.prisma` อีกครั้ง
+>
+> โมดูลนี้เป็นแกนความน่าเชื่อถือที่ **แยกขาดจาก Trust Score/Trust Tier โดยสมบูรณ์** — ห้ามมีคอลัมน์/
+> query ใดในกลุ่มนี้แตะ `trust-score.service` เลยแม้แต่บรรทัดเดียว (ดู `CONTEXT.md` หัวข้อ
+> "ความน่าเชื่อถือ: สองแกน") · ห้ามใช้คำว่า "ระดับ/Level/Tier" — คำที่ใช้คือ **ขั้นการตรวจสอบ (step)**
+>
+> เอกสารต้นทาง: `docs/20 - Features/00060 - Shop Inspection Plan/{PRD,BRD,SRS,DATABASE,API}.md`
+
+**คอลัมน์ใหม่บน `User`:** `isInspector Boolean @default(false)` — ไม่มีความสัมพันธ์เชิงลำดับชั้นกับ
+`isAdmin` (ผู้ตรวจส่วนใหญ่เป็นบุคคลภายนอกที่จ้างรายครั้ง ไม่ใช่ทีมภายใน) · **ไม่มี endpoint ตั้งค่านี้
+ในสัญญา API ที่ล็อกแล้ว (15 endpoint)** — ตั้งผ่าน DB โดยตรงเหมือน `User.isAdmin` (ดู §9.6)
+
+#### `InspectionPlan` — 1 ร้าน 1 แผน (มิเรอร์โครง `InventoryEntitlement`)
+
+| Column | Type | Null | หมายเหตุ |
+|---|---|---|---|
+| `shopId` | uuid | NO | FK → `Shop.id`, **UNIQUE** |
+| `step` | int | NO | CHECK 1-4 — ขั้นการตรวจสอบปัจจุบัน |
+| `status` | `InspectionPlanStatus` | NO | `ACTIVE \| LAPSED` **เท่านั้น — ห้ามเพิ่มค่าที่ 3** |
+| `lapsedReason` | text? | YES | `"RENEWAL_FAILED"` \| `"OWNER_CANCELLED"` — String ตาม convention (ไม่มี DB CHECK) |
+| `canceledAt` | timestamptz? | YES | OWNER กดยกเลิก — มีผลตอนสิ้นรอบบิล ไม่ใช่ทันที |
+| `graceUntil` | timestamptz? | YES | เส้นตายผ่อนผันเมื่อหักเครดิตไม่สำเร็จ |
+| `nextRenewalAt` | timestamptz | NO | = "สิ้นรอบบิล" ในตัวเอง — **ไม่มี `currentPeriodEnd` แยก** (ความหมายเดียวกัน, HR16) |
+| `termsAcceptedAt` | timestamptz | NO | แคชค่าล่าสุด — แหล่งความจริงคือ `InspectionTermsAcceptance` |
+
+🛑 **"ยกเลิกแล้วแต่ยังไม่หมดรอบ" = `status='ACTIVE' AND canceledAt IS NOT NULL` ไม่ใช่ค่าที่สามของ
+enum** — ระหว่างนี้ป้ายบนโปรไฟล์สาธารณะยังแสดงปกติทุกประการ (ข้อตรวจอัตโนมัติยังรัน · รอบที่ค้างอยู่
+ยังถูกทำต่อจนจบ)
+
+#### `InspectionRound` — การตรวจหนึ่งครั้ง (ตัวมอบหมายงาน + ภาชนะหลักฐาน)
+
+| Column | Type | Null | หมายเหตุ |
+|---|---|---|---|
+| `shopId` / `roomId` | uuid / uuid? | NO / YES | `roomId=NULL` = รอบระดับร้าน |
+| `step` | int | NO | CHECK 1-4 |
+| `method` | `InspectionMethod` | NO | `AUTO \| DOCUMENT \| VIDEO_CALL \| ONSITE` — **ไม่ผูกกับ `step` แบบ 1:1** |
+| `inspectorUserId` | uuid? | YES | FK → `User.id` — NULL เมื่อ `method='AUTO'` **หรือ** เป็นรอบที่ cron สร้างล่วงหน้ายังไม่มอบหมาย |
+| `inspectorDisplayName` | text | NO | **snapshot ชื่อ ณ รอบนั้น ไม่ใช่ live join** — ผู้ตรวจถูกแก้โปรไฟล์ทีหลังไม่กระทบประวัติเก่า |
+| `assignedAt` | timestamptz | NO | เข้าคิวเมื่อไร — มีค่าเสมอแม้ยังไม่มีผู้ตรวจตัวจริง |
+| `dueAt` | timestamptz? | YES | ควรเสร็จเมื่อไร (ผูกกับ `expiresAt` ของข้อตรวจ) — **คนละความหมายกับ `assignedAt`** |
+| `completedAt` | timestamptz? | YES | `NULL` = คิวรอผู้ตรวจ — สถานะภายใน ผู้ซื้อห้ามเห็น |
+
+🛑 **cron `/api/cron/inspection-lifecycle` ต้องสร้างรอบล่วงหน้าเองสำหรับข้อตรวจขั้น 2-4 ที่ใกล้หมดอายุ**
+(lead time: `DOCUMENT`/`VIDEO_CALL` 14 วัน, `ONSITE` 30 วัน) — ถ้าไม่มีกลไกนี้ ร้านที่จ่ายเงินต่อเนื่อง
+จะเห็นป้ายของตัวเองตกเป็น "รอตรวจซ้ำ" ทีละข้อโดยไม่มีใครมาตรวจซ้ำเลย ทั้งที่โค้ดถูกทุกบรรทัด (ฟีเจอร์
+เสื่อมเองเงียบ ๆ ภายใน 6-12 เดือน) — จัดกลุ่มรอบตาม `(shopId, roomId, method)` ไม่ใช่รายข้อตรวจ
+
+#### `InspectionResult` — ประวัติ "ช่วงที่ผลคงที่" ต่อข้อ (ผสม insert/update ไม่ใช่ append-only ล้วน)
+
+| Column | Type | Null | หมายเหตุ |
+|---|---|---|---|
+| `shopId` / `roomId` | uuid / uuid? | NO / YES | `roomId=NULL` = ข้อผูกร้าน |
+| `checkKey` | text | NO | 1 ใน 18 คีย์คงที่ — SSOT `src/lib/inspection/checks.ts` (ไม่ใช่ตาราง DB) |
+| `roundId` | uuid? | YES | รอบที่ยืนยัน/สร้างแถวนี้**ล่าสุด** — `NULL` เมื่อเป็นแถว invalidate ที่ระบบสร้างเอง |
+| `outcome` | `InspectionOutcome` | NO | `PASS \| FAIL \| NOT_APPLICABLE` **เก็บแค่ 3 ค่า** |
+| `checkedAt` | timestamptz | NO | เวลาตัดสินครั้งแรก — เขียนครั้งเดียวตอน INSERT **ห้ามแก้อีกเลย** |
+| `lastConfirmedAt` | timestamptz | NO | เวลายืนยันผลเดิมล่าสุด — UPDATE ได้ทุกครั้งที่ผลไม่เปลี่ยน |
+| `expiresAt` | timestamptz? | YES | `= lastConfirmedAt + ttlDays(checkKey)` **ไม่ใช่นับจาก `checkedAt`** |
+| `invalidatedAt` / `invalidatedReason` | timestamptz? / text? | YES | เปลี่ยนภาพประกาศ (`photos_match`) → เขียนแถวใหม่เสมอ |
+
+🛑 **ไม่มี unique constraint บน `(shopId, checkKey)` หรือ `(roomId, checkKey)` ทั้งเต็มรูปและ partial**
+— ถ้ามี ประวัติของช่วงก่อนหน้าจะหายทันทีที่ผลเปลี่ยน โดยไม่มีคำสั่งลบสักบรรทัดให้สังเกต
+
+🛑 **สถานะที่ผู้ใช้เห็นมี 5 ค่า แต่คอลัมน์เก็บมี 3 ค่า** — 2 ค่าที่เหลือเป็น derived state
+**ห้ามเก็บเป็นคอลัมน์เด็ดขาด**:
+
+| สถานะที่แสดง | มาจาก |
+|---|---|
+| ผ่าน (`PASS`) | แถวล่าสุด `outcome='PASS'` และยังไม่หมดอายุ/ไม่ถูก invalidate |
+| ไม่ผ่าน (`FAIL`) | แถวล่าสุด `outcome='FAIL'` |
+| ไม่เกี่ยวกับร้านประเภทนี้ (`NOT_APPLICABLE`) | แถวล่าสุด `outcome='NOT_APPLICABLE'` |
+| รอตรวจซ้ำ (`RECHECK_DUE`, derived) | แถวล่าสุด `outcome='PASS'` และ (`expiresAt <= now` หรือ `invalidatedAt` ไม่ว่าง) |
+| ยังไม่มีข้อมูล (`NO_DATA`, derived) | ไม่มีแถวเลยสำหรับคู่ `(scope, checkKey)` นั้น |
+
+**Tie-break หา "แถวล่าสุด" ต้องเป็นสูตรเดียวกันเป๊ะทั้ง TypeScript และ SQL:**
+`ORDER BY checkedAt DESC, id DESC` — cron ของขั้น 1 เขียนหลายข้อของร้านเดียวกันในทรานแซกชันเดียว ⇒
+`checkedAt` ซ้ำวินาทีกันเป็นเรื่องปกติของระบบนี้ ไม่ใช่ edge case (SSOT: `src/lib/inspection/result-status.ts`)
+
+**สองคอลัมน์วันที่ห้ามสลับกัน:** `checkedAt` = "ผลเป็นค่านี้ตั้งแต่เมื่อไร" (นิ่ง) ·
+`lastConfirmedAt` = "ตรวจล่าสุดเมื่อไร" (เลื่อนได้) — ป้าย "ตรวจล่าสุด" บนหน้าจอต้องอ่านจาก
+`lastConfirmedAt` เท่านั้น ไม่งั้นข้อที่ผลนิ่งมานาน (สุขภาพดีที่สุด) จะโกหกผู้ใช้ว่าไม่ได้ถูกตรวจมานาน
+
+#### `InspectionEvidence` — หลักฐานของรอบตรวจ
+
+| Column | Type | Null | หมายเหตุ |
+|---|---|---|---|
+| `roundId` | uuid | NO | FK → `InspectionRound.id` |
+| `resultId` | uuid? | YES | FK → `InspectionResult.id` — ผูกหลักฐานกับผลตรวจแถวใดแถวหนึ่งโดยเฉพาะ |
+| `visibility` | `InspectionEvidenceVisibility` | NO | **default `PRIVATE` (fail-closed)** — ห้ามแก้เป็น `PUBLIC` |
+| `kind` | `InspectionEvidenceKind` | NO | `PHOTO \| VIDEO_STILL \| DOCUMENT \| GEO` |
+| `fileId` | text? | YES | CHECK: `fileId` หรือคู่ `(lat, lng)` ต้องมีอย่างน้อยหนึ่งอย่าง |
+| `lat` / `lng` | decimal(9,6)? | YES | ใช้กับ `kind='GEO'` |
+
+🛑 **`default='PRIVATE'` คือ fail-closed** — หลักฐานปิด (บัตรประชาชน/โฉนด/สเตทเมนต์/บัญชีธนาคาร) กับ
+หลักฐานสาธารณะ (ภาพที่พัก) ใช้ตาราง**เดียวกัน** แยกด้วยคอลัมน์นี้คอลัมน์เดียว — ลืมส่งค่าจุดใดจุดหนึ่ง
+= รั่วสู่สาธารณะทันที
+
+#### `InspectionTermsAcceptance` — append-only แท้ ๆ
+
+| Column | Type | Null | หมายเหตุ |
+|---|---|---|---|
+| `shopId` | uuid | NO | FK → `Shop.id` |
+| `acceptedAt` | timestamptz | NO | เวลาที่กดยอมรับ |
+| `step` | int | NO | CHECK 1-4 — ขั้นที่กำลังจ่ายในครั้งนั้น |
+| `priceSnapshotBaht` | int | NO | ราคาที่แสดงให้ร้านเห็น ณ ตอนนั้น (snapshot — ราคาจะเปลี่ยนในอนาคต) |
+| `termsVersion` | text | NO | เวอร์ชันข้อความเงื่อนไข ณ ตอนนั้น |
+
+บันทึก**ทุกครั้ง**ที่ OWNER รับทราบเงื่อนไข "ไม่คืนเงิน + เส้นทางกรณีพบหลักฐานฉ้อโกง" ก่อนจ่ายเงิน
+(สมัคร/อัปเกรด/ต่ออายุ) — `InspectionPlan.termsAcceptedAt` เก็บได้แค่ค่าล่าสุดจึงไม่พอเป็นหลักฐาน
+ย้อนหลัง 🛑 **INSERT ในทรานแซกชันเดียวกับการหักเครดิตเสมอ ห้าม update แถวเดิม**
+
+#### `InspectionIntakeQuota` — โควตารับสมัครใหม่รายเดือนต่อขั้น (ไม่มี FK ไปร้านใด)
+
+| Column | Type | Null | หมายเหตุ |
+|---|---|---|---|
+| `periodYearMonth` | text | NO | รูปแบบ `"YYYY-MM"` ค.ศ. — ส่วนหนึ่งของ `@@unique` |
+| `step` | int | NO | ส่วนหนึ่งของ `@@unique` |
+| `capacity` | int | NO | เพดานจำนวนร้านใหม่ |
+| `usedCount` | int | NO | default 0 |
+
+🛑 **"ไม่มีแถว = โควตา 0 = ปิดรับ" (fail-closed ไม่ใช่ "ไม่จำกัด")** — นับแบบ conditional
+`updateMany` (`usedCount < capacity`) ห้าม read-then-write แยกคำสั่ง · cron สร้างแถวเดือนถัดไป
+ล่วงหน้าให้เองแบบ upsert idempotent โดยคัดลอก `capacity` ของเดือนปัจจุบัน
+
+---
+
 ## §7 API Reference
 
 > ทุก endpoint อยู่ใต้ `/api/` — ดู `src/app/api/**/route.ts`
@@ -1209,6 +1390,19 @@ SellerWallet (1) ── (N) WalletTransaction
 > คือการสร้างคำสัญญาที่ระบบทำตามไม่ได้ ซึ่งเป็นบั๊กที่ endpoint นี้ถูกเขียนขึ้นมาแก้พอดี
 > (ดู `docs/20 - Features/00018 …/EXTENSIONS-2026-08-26-thread-control-api.md`)
 
+| GET | `/api/channels/[channelId]/ice-breakers` | Seller (`canAccessShop`) | คำถามแนะนำก่อนเริ่มแชทของช่องทางนั้น เรียงตามที่ลูกค้าเห็น | `channel-chat.service::listIceBreakers` |
+| PUT | `/api/channels/[channelId]/ice-breakers` | เหมือนกัน + เฉพาะ `MESSENGER`/`INSTAGRAM` ที่ `status='ACTIVE'` | แทนที่ทั้งชุด (≤4 ข้อ) แล้วยิงไปตั้งที่ Meta — **`items: []` = ลบทั้งชุด** | `channel-chat.service::saveIceBreakers` → `facebook/graph::setIceBreakers` |
+
+> 🛑 **ไม่มี POST/DELETE รายข้อโดยตั้งใจ** — Meta ไม่มี partial update (ส่ง `ice_breakers` ไปคือ
+> แทนที่ทั้งก้อน) ถ้าเปิด API รายข้อ สถานะสองฝั่งจะเพี้ยนกันทันทีที่ผู้ขายลบข้อกลาง ๆ ออก
+> 🛑 **ยิง Meta ก่อน สำเร็จแล้วจึงเขียน DB** — Meta คือสิ่งที่ลูกค้าเห็นจริง ฐานเราเป็นแค่ที่เก็บ
+> *คำตอบ* ⇒ ลำดับนี้ทำให้ "Meta ปฏิเสธ" = ไม่มีอะไรเปลี่ยนทั้งสองฝั่ง · ลำดับกลับด้านจะทำให้ฐาน
+> มีชุดใหม่ทั้งที่ลูกค้ายังเห็นชุดเก่า แล้วหน้าจอรายงานว่า "ลูกค้าเห็นอยู่" ซึ่งไม่จริง (ย้อนไม่ได้
+> เพราะทรานแซกชันปิดไปแล้ว) — ที่ทำได้เพราะ `payload` ประกอบจาก **(ช่องทาง, ลำดับ)** ไม่ใช่ id ของแถว
+> 🛑 **`payload` ระบุช่องทางมาเอง และมาจากภายนอกล้วน** ⇒ `answerIceBreaker()` ต้องเทียบกับเพจที่
+> webhook มาจากจริง **ก่อน** เอาไปค้นฐานเสมอ ไม่งั้นใครเดา payload ได้ก็สั่งให้เราส่งคำตอบของร้านอื่นได้
+> (ดู `docs/20 - Features/00018 …/EXTENSIONS-2026-08-27-ice-breakers.md`)
+
 > 🛑 **POST ห้ามรับ `fileId`/`kind`/`sentAt` จาก client** — ค่าที่ตัดสิน "เก็บอะไร" ต้องอ่านจาก
 > `ChatMessage` ฝั่ง server เสมอ (รับจาก client = เปิดช่องยัดไฟล์ของร้านอื่นเข้าคลังตัวเอง
 > และทำให้ลำดับในคลังเป็นค่าที่หน้าจอแต่งได้)
@@ -1281,6 +1475,100 @@ endpoint ที่ถูกกดจาก **กล่องแชท** เช�
 
 route ที่รับ `?shopId=` แล้ว: `payments/**` (ใหม่) · `PATCH /api/orders/{token}/appointment` ·
 `POST /api/orders/{token}/appointment/outcome` · `GET /api/shops/current/service-resources`
+
+### 7.18 รายงานผลงานแอดมิน (`/api/seller/reports/agents/**`) — feature 00059 2026-08-26
+
+| Method | Path | หมายเหตุ |
+|---|---|---|
+| GET | `/api/seller/reports/agents` | ภาพรวม + ตารางจัดอันดับ + ตัวเลือกของตัวกรอง |
+| GET | `/api/seller/reports/agents/{agentId}` | ผลงานรายคน + แนวโน้มรายวัน |
+| GET | `/api/seller/reports/agents/{agentId}/conversations` | บทสนทนาที่ประกอบเป็นตัวเลข (`agentId='all'` = ทุกเธรด) |
+
+query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` · `source` (`ADS`/`SHORTLINK`/`DIRECT`) ·
+`shopChannelId` · (เฉพาะ endpoint ที่สาม) `limit` `offset`
+
+🛑 **อ่านอย่างเดียวทั้งหมด ไม่มี POST/PATCH/DELETE** และ **ไม่รับ `shopId` จาก query เด็ดขาด** —
+ร้านมาจาก session เท่านั้น (ต่างจากกติกา `?shopId=` ใน §7.17b โดยตั้งใจ: รายงานไม่ได้ถูกกดจากกล่องแชท
+และการเปิดช่องให้ระบุร้านในรายงาน = เปิดช่องอ่านตัวเลขข้ามร้านโดยไม่ได้อะไรกลับมา)
+
+🛑 **สิทธิ์ใช้ธงเดิม `Shop.staffCanViewFinance` ไม่ได้ตั้งธงใหม่** — `resolveAgentReportAccess()`
+คืน `FULL` (เจ้าของ หรือพนักงานที่เปิดสิทธิ์การเงินแล้ว) / `SELF` (พนักงานอื่น — เห็นเฉพาะของตัวเอง
+และ **ตัวเลขเงินถูกตัดออกจาก payload** ไม่ใช่แค่ไม่ render) / `NO_SHOP`
+
+ค่าตัวเลขทุกตัวเป็น `number | null` — **`null` = ไม่มีตัวอย่างให้คำนวณ ไม่ใช่ 0**
+นิยามของทุกตัวชี้วัดอยู่ที่ `src/lib/agent-performance.ts` (SSOT) — ดู
+`docs/20 - Features/00059 - Agent Performance Report/SRS.md` §3
+
+### 7.19 แผนการตรวจสอบร้านค้า (`/api/seller/inspection/**`, `/api/inspector/**`, `/api/admin/inspection/**`) — feature 00060, Draft ยังไม่ implement
+
+> **สถานะ: Draft** — สัญญานี้ล็อกแล้วใน `API.md` ของ feature 00060 (เวอร์ชัน 1.0, 15 endpoint) แต่
+> **ยังไม่มี route ใดในโมดูลนี้อยู่บนดิสก์จริง** รอ user review ผ่าน PRD/BRD ก่อนตาม Hard Rule 11
+>
+> **ไม่มี public endpoint โดยเจตนา** — หน้าโปรไฟล์สาธารณะ (`/u/[username]`, `/b/[slug]`) อ่านผ่าน
+> RSC/service call ตรง ไม่ผ่าน HTTP endpoint (ลด attack surface + กัน scrape ทั้งไดเรกทอรี)
+>
+> **ทุก endpoint รับได้แค่ `fileId` ที่ commit แล้ว** ผ่าน `@/lib/upload-client` — ห้ามส่งไฟล์ผ่าน body
+> (`docs/conventions/upload-body-size-limit.md`)
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| GET | `/api/seller/inspection` | OWNER + ADMIN ร้าน (`vertical='LODGING'`) | สถานะแผน + ผลปัจจุบันรายข้อ + ไทม์ไลน์ + คิวรอผู้ตรวจ + สถานะโควตาเปิดรับ |
+| POST | `/api/seller/inspection/subscribe` | OWNER | สมัครแผนครั้งแรก — จองโควตา + หักเครดิต + `InspectionTermsAcceptance` ในทรานแซกชันเดียว |
+| POST | `/api/seller/inspection/upgrade` | OWNER | เลื่อนขึ้นขั้นที่สูงกว่า |
+| POST | `/api/seller/inspection/cancel` | OWNER | แจ้งยกเลิก — มีผลสิ้นรอบบิล ไม่ใช่ทันที |
+| POST | `/api/seller/inspection/documents` | OWNER | ผูก `fileId` เข้ากับข้อตรวจ (หลักฐานปิดที่ร้านส่งเองได้ 5 คีย์) |
+| GET | `/api/inspector/rounds` | `isInspector=true` | คิวรอบตรวจที่ตนได้รับมอบหมาย — scope ด้วย `WHERE` |
+| GET | `/api/inspector/rounds/[id]` | ผู้ตรวจเจ้าของรอบ | รายละเอียดรอบ + ข้อตรวจที่ต้องบันทึก |
+| POST | `/api/inspector/rounds/[id]/results` | ผู้ตรวจเจ้าของรอบ | บันทึกผลรายข้อเป็นชุด (1-18 คีย์) + แนบหลักฐาน |
+| POST | `/api/inspector/rounds/[id]/complete` | ผู้ตรวจเจ้าของรอบ | ปิดรอบ — ล็อกถาวร ต้องบันทึกผลครบทุกคีย์ก่อน |
+| GET | `/api/admin/inspection/quota` | `isAdmin=true` | อ่านโควตารายเดือนต่อขั้น + ยอดที่ใช้ |
+| PATCH | `/api/admin/inspection/quota` | `isAdmin=true` | ตั้ง/แก้เพดานโควตา |
+| POST | `/api/admin/inspection/rounds` | `isAdmin=true` | สร้างรอบตรวจนอกกำหนด (ad-hoc) — ไม่ใช่เส้นทางหลัก (หลักคือ cron) |
+| GET | `/api/admin/inspection/rounds` | `isAdmin=true` | คิวรอบตรวจทั้งระบบ เรียง/กรองด้วย `dueAt` + ตัวชี้วัดงานค้าง |
+| POST | `/api/admin/inspection/rounds/[id]/assign` | `isAdmin=true` | มอบหมายผู้ตรวจให้รอบที่ cron สร้างไว้ — เส้นทางหลักของงานประจำวัน |
+| POST | `/api/admin/inspection/fraud` | `isAdmin=true` | เส้นทางแยกเมื่อพบหลักฐานฉ้อโกง → ควบคู่ `scam-report.service` (`/check`) |
+
+**ไม่มี `DELETE` สักตัวโดยตั้งใจ** — ประวัติรอบตรวจต้องอยู่ถาวรแม้ร้านลดขั้น/ยกเลิกแผน (ห้ามลบ)
+
+**ผู้ตรวจ (`User.isInspector`) ห้ามเห็นข้อมูลการเงินทุกชนิดไม่ว่าร้านไหน** (ยอดเครดิต · ประวัติชำระ ·
+`slipFileId` · ราคาแผน) — payload ของ `/api/inspector/**` ไม่มีฟิลด์การเงินสักตัว
+
+**ไม่มี endpoint ตั้งค่า `User.isInspector`** ในสัญญาที่ล็อกแล้ว — ตั้งผ่าน DB โดยตรงเหมือน `isAdmin`
+(เอกสาร `SRS.md` ต้นทางของ 00060 เคยระบุ `PATCH /api/admin/users/[id]/inspector` แต่ endpoint นั้น
+ไม่อยู่ใน `API.md` ฉบับ 15-endpoint ที่ล็อกล่าสุด — ดูรายงานความไม่ตรงกันในสรุปการ sync รอบนี้)
+
+**31 error code** — ดูฉบับเต็มที่ `API.md` §5 ของ 00060 (ยังไม่คัดลงที่นี่เพราะยาวเกินขอบเขต summary
+ของไฟล์นี้ — ให้ dev เปิดเอกสารต้นทางตอน implement จริง)
+
+### 7.20 Cron Jobs (Vercel Scheduled Functions — `vercel.json`)
+
+> `docs/SRS.md` ไม่เคยมีหัวข้อรวมรายการ cron มาก่อน — สร้างขึ้นครั้งแรกพร้อมงาน 00060 กัน `vercel.json`
+> เป็นที่เดียวที่รู้ว่าระบบมี cron อะไรบ้าง (ยืนยันด้วยการอ่าน `vercel.json` จริง 2026-08-29 — 10 ตัว)
+> เวลาทั้งหมดเป็น **UTC** ตาม Vercel cron spec — เวลาไทย = UTC+7
+
+| Path | Schedule (UTC) | เวลาไทย |
+|---|---|---|
+| `/api/cron/inventory-renewal` | `0 19 * * *` | 02:00 |
+| `/api/cron/business-package-lifecycle` | `0 20 * * *` | 03:00 |
+| `/api/cron/chat-response-metrics` | `0 21 * * *` | 04:00 |
+| `/api/cron/auto-reply-sweeper` | `0 22 * * *` | 05:00 |
+| `/api/cron/account-purge` | `0 23 * * *` | 06:00 |
+| `/api/cron/auto-confirm-delivered` | `0 18 * * *` | 01:00 |
+| `/api/cron/line-token-health` | `0 19 * * *` | 02:00 |
+| `/api/cron/iship-status-sync` | `*/5 * * * *` | ทุก 5 นาที |
+| `/api/cron/comment-attachment-repair` | `0 17 * * *` | 00:00 |
+| `/api/cron/chat-outbox` | `* * * * *` | ทุกนาที |
+| **`/api/cron/inspection-lifecycle`** (feature 00060 — **Draft, ยังไม่ implement**) | **`0 16 * * *`** | **23:00** |
+
+**`/api/cron/inspection-lifecycle` (เมื่อ implement แล้ว) ทำ 4 งานในครั้งเดียว:** (1) ตัดเครดิตรอบ
+30 วัน + จัดการ `canceledAt`/`graceUntil`/`status`/`lapsedReason` (2) รันข้อตรวจอัตโนมัติของขั้น 1
+รายวัน (3) สร้างแถว `InspectionIntakeQuota` ของเดือนถัดไปแบบ upsert idempotent (4) สร้าง
+`InspectionRound` ล่วงหน้าแบบยังไม่มอบหมายสำหรับข้อของขั้น 2-4 ที่ใกล้หมดอายุ — auth ต้องเทียบ
+`Authorization: Bearer ${CRON_SECRET}` เต็มสตริง และ **reject ทันทีถ้า `CRON_SECRET` ว่าง**
+(ห้ามปล่อยให้เทียบกับ `Bearer undefined` แล้วผ่าน) · ต้อง export ทั้ง `GET` (Vercel ยิง GET) และ
+`POST` (manual trigger) ไม่งั้นได้ 405 และไม่เคยรันจริงโดยไม่มีอะไรฟ้อง
+
+---
 
 ## §8 Enums & Constants
 
@@ -1483,6 +1771,70 @@ route ที่รับ `?shopId=` แล้ว: `payments/**` (ใหม่) �
 
 ---
 
+### 8.8 แผนการตรวจสอบร้านค้า (feature 00060 — Draft, ยังไม่ implement)
+
+> **ห้ามใช้คำว่า "ระดับ/Level/Tier" กับสินค้านี้** — สงวนให้ Trust Tier ซึ่งเป็นคนละแกน (`CONTEXT.md`)
+> คำที่ใช้คือ **ขั้นการตรวจสอบ (step)**
+
+**`InspectionPlanStatus`** — `ACTIVE` \| `LAPSED` **เท่านั้น ห้ามเพิ่มค่าที่ 3** (เพิ่มค่าที่ 3 จะทำให้
+ทุกจุดที่เช็ค `status === 'ACTIVE'` (การตรวจ/ป้าย/การตัดเครดิต) ตกกรณี "ยกเลิกแล้วรอสิ้นรอบ" เงียบ ๆ —
+คลาสเดียวกับ `docs/conventions/enum-value-removal.md`) "ยกเลิกแล้วรอสิ้นรอบ" = `ACTIVE` +
+`canceledAt != null` ไม่ใช่ค่าที่สาม
+
+**`InspectionMethod`** — `AUTO` \| `DOCUMENT` \| `VIDEO_CALL` \| `ONSITE` — **ไม่ผูกกับ `step` แบบ
+หนึ่งต่อหนึ่ง** ห้าม derive `method` จาก `step`
+
+**`InspectionOutcome`** — `PASS` \| `FAIL` \| `NOT_APPLICABLE` เท่านั้น (เก็บใน DB) — สถานะที่ผู้ใช้
+เห็นมี 5 ค่า (เพิ่ม `RECHECK_DUE`/`NO_DATA`) เป็น derived state ห้ามเก็บเป็นคอลัมน์ (ดู §6.z)
+
+**`InspectionEvidenceVisibility`** — `PUBLIC` \| `PRIVATE` · default **`PRIVATE`** (fail-closed)
+
+**`InspectionEvidenceKind`** — `PHOTO` \| `VIDEO_STILL` \| `DOCUMENT` \| `GEO`
+
+**`lapsedReason`** (บน `InspectionPlan`) — `String?` **ไม่ใช่ enum** (มิเรอร์ `Shop.packageLockReason`
+— ไม่มี DB CHECK บังคับรายชื่อ): `"RENEWAL_FAILED"` (ค้างชำระเกินผ่อนผัน) \| `"OWNER_CANCELLED"`
+(OWNER กดยกเลิกเอง) — หน้าโปรไฟล์สาธารณะแสดงข้อความเดียวกันทั้งสองกรณี มีผลเฉพาะฝั่งร้าน+รายงาน
+
+**ข้อตรวจ 18 คีย์คงที่** — SSOT ในโค้ดที่ `src/lib/inspection/checks.ts` **ไม่ใช่ตาราง DB** (มิเรอร์
+รูปแบบ `Shop.categories`/`Room.facilities`) — ผูกร้าน (`SHOP`, 7 คีย์): `scam_db` · `phone_identity`
+· `account_age` · `chat_response_speed` · `complaints` · `id_card_selfie` · `bank_account_name` —
+ผูกที่พักรายหลัง (`ROOM`, 11 คีย์): `duplicate_listing` · `lease_right_document` · `hotel_license`
+· `video_tour` · `operating_evidence` · `location_exists` · `photos_match` · `room_count` ·
+`facilities` · `accessibility` · `deep_photo_album`
+
+| checkKey | ขั้น | scope | method | อายุผล (ttlDays) | ร้านส่งเอกสารเองได้ |
+|---|---|---|---|---|---|
+| `scam_db` | 1 | SHOP | AUTO | 1 วัน | ไม่ |
+| `phone_identity` | 1 | SHOP | AUTO | 1 วัน | ไม่ |
+| `account_age` | 1 | SHOP | AUTO | 1 วัน | ไม่ |
+| `chat_response_speed` | 1 | SHOP | AUTO | 1 วัน | ไม่ |
+| `complaints` | 1 | SHOP | AUTO | 1 วัน | ไม่ |
+| `duplicate_listing` | 1 | ROOM | AUTO | 1 วัน | ไม่ |
+| `id_card_selfie` | 2 | SHOP | DOCUMENT | 12 เดือน | ใช่ |
+| `bank_account_name` | 2 | SHOP | DOCUMENT | 12 เดือน | ใช่ |
+| `lease_right_document` | 2 | ROOM | DOCUMENT | 12 เดือน | ใช่ |
+| `hotel_license` | 2 | ROOM | DOCUMENT | 12 เดือน | ใช่ |
+| `video_tour` | 3 | ROOM | VIDEO_CALL | 6 เดือน | ไม่ |
+| `operating_evidence` | 3 | ROOM | VIDEO_CALL | 90 วัน | ใช่ |
+| `location_exists` | 4 | ROOM | ONSITE | 12 เดือน | ไม่ |
+| `photos_match` | 4 | ROOM | ONSITE | 12 เดือน | ไม่ |
+| `room_count` | 4 | ROOM | ONSITE | 12 เดือน | ไม่ |
+| `facilities` | 4 | ROOM | ONSITE | 12 เดือน | ไม่ |
+| `accessibility` | 4 | ROOM | ONSITE | 12 เดือน | ไม่ |
+| `deep_photo_album` | 4 | ROOM | ONSITE | 12 เดือน | ไม่ |
+
+🛑 **ตารางนี้ยึดตาม `API.md` ของ 00060 (§3.2 ข) ไม่ใช่ตาม `SRS.md` ของ 00060 (TFR-001)** — สองไฟล์นั้น
+ขัดกันเอง 2 จุดที่ไม่ใช่แค่การตั้งชื่อ: (1) ป้าย scope `PROPERTY` (SRS) เทียบกับ `ROOM` (API) —
+ความหมายเดียวกัน เลือกใช้ `ROOM` ตาม API.md ที่นี่ (2) **`operating_evidence` — SRS ระบุ
+`method='DOCUMENT'`, API ระบุ `method='VIDEO_CALL'`** เป็นค่าที่ต่างกันจริง ไม่ใช่แค่ป้าย — **ต้อง
+ยืนยันกับทีมก่อน implement** (ดูรายงานความไม่ตรงกันท้ายสรุปการ sync รอบนี้)
+
+`ttlDays` มาจาก metadata ของแต่ละ `checkKey` ผ่านฟังก์ชัน `ttlDays(checkKey, planStep)` — **ไม่ใช่ค่า
+คงที่ต่อคีย์**: ร้านขั้นที่ 4 ต้องทวน `video_tour`/`operating_evidence` ทุก **90 วัน** (ไม่ใช่ 180)
+เพราะขั้นที่สูงกว่าตรวจถี่กว่า — ผูกกับ **`lastConfirmedAt`** ของแถวผลตรวจ ไม่ใช่ `checkedAt`
+
+---
+
 ## §9 Authorization Matrix
 
 > "phone parity" = ต้องส่ง `contact` ที่ตรงกับ `order.buyerContact` ใน DB
@@ -1596,6 +1948,26 @@ route ที่รับ `?shopId=` แล้ว: `payments/**` (ใหม่) �
 ⚠️ **KG-EXT-01 — ช่องว่างที่รู้ตัวและเลือกไว้ก่อน (D-EXT-2):** `staffCanViewFinance` **ไม่ครอบ `Product.cost`** — `isCostEditAllowed()` ไม่เคยเช็ค role/toggle เลย (คอมเมนต์ในโค้ดยอมรับเอง) หลังเปิดฟรี 2026-08-07 ความเสี่ยงนี้ขยายจาก "เฉพาะร้านที่จ่ายเงิน" เป็น **ทุกร้านที่มี staff** — user รับทราบและเลือก defer ไว้ก่อน รายละเอียดที่ BRD ของ 00016 §11.2
 
 🛑 **ไม่มี gate ของ subscription ในหมวดนี้อีกแล้ว** — ถ้าเจอโค้ดที่เรียก `getSubscriptionStatus()` แล้วบล็อกการเข้าถึงต้นทุน/P&L แปลว่าตกหล่นจากรอบ D-EXT-1 ให้ถอด. `getSubscriptionStatus()` ที่เรียกจาก **AI quota / โควตาหลายร้าน / หน้าจัดการแพ็กเกจ** เป็นคนละเรื่อง — ห้ามแตะ
+
+---
+
+### 9.8 แผนการตรวจสอบร้านค้า (feature 00060 — Draft, ยังไม่ implement)
+
+| ผู้เรียก | เงื่อนไข | เข้าถึงได้ |
+|---|---|---|
+| OWNER ของร้าน | `Shop.vertical === 'LODGING'` | `/api/seller/inspection/**` ทั้งอ่าน+เขียน |
+| ADMIN ของร้าน (`ShopMember.role='ADMIN'`) | เป็นสมาชิกร้านนั้น | `GET /api/seller/inspection` เท่านั้น — mutation ได้ `403 NOT_OWNER` |
+| **ผู้ตรวจ** (`User.isInspector === true`) | รอบตรวจนั้นมี `inspectorUserId === sessionUserId()` | `/api/inspector/**` เฉพาะรอบที่ตนถือ — **ห้ามเห็นข้อมูลการเงินทุกชนิดไม่ว่าร้านไหน** |
+| แอดมินระบบ (`User.isAdmin === true`) | — | `/api/admin/inspection/**` |
+| สาธารณะ (ไม่ล็อกอิน) | — | ไม่มี endpoint ใดเลย — อ่านผลตรวจผ่าน RSC/service call ที่กรอง `visibility='PUBLIC'` เท่านั้น |
+
+🛑 **บทบาทใหม่ "ผู้ตรวจ" ไม่เคยอยู่ในเมทริกซ์นี้มาก่อน** — เป็น actor แรกในระบบที่ **ไม่ใช่**
+`isAdmin`/`ShopMember`/buyer แต่มีสิทธิ์เขียนข้อมูลที่กระทบโปรไฟล์สาธารณะได้ ต้อง scope ด้วย
+`WHERE inspectorUserId = <session>` ในคิวรีแรกเสมอ ห้ามดึงมาแล้วกรองใน TypeScript ทีหลัง —
+`isInspector === true` **ไม่ได้แปลว่าเห็นทุกรอบ**
+
+🛑 **ไม่มีวิธี self-service ตั้ง `User.isInspector`** ในสัญญาที่ล็อกแล้ว — ตั้งผ่าน DB โดยตรง
+เหมือน `User.isAdmin` (ดู §9.6)
 
 ---
 
@@ -1962,6 +2334,30 @@ SSOT: **`src/lib/order-return.ts`** (กฎ) + **`src/lib/iship/courier.ts`** (�
 
 ที่มา: `docs/20 - Features/00056 - Order Return/BRD.md` §8
 
+### §10.16 แผนการตรวจสอบร้านค้า (feature 00060 — Draft, ยังไม่ implement)
+
+SSOT: **`src/lib/inspection/checks.ts`** (checkKey allow-list 18 ค่า + `ttlDays()`) — ยังไม่มีไฟล์นี้
+อยู่บนดิสก์จริง ณ วันที่ sync เอกสารนี้
+
+| กฎ | รายละเอียด |
+|---|---|
+| `step` | picklist จำนวนเต็ม 1-4 เท่านั้น — CHECK ระดับ DB ด้วย (`InspectionPlan`/`InspectionRound`/`InspectionTermsAcceptance` ทั้ง 3 ตาราง) |
+| `checkKey` | ต้องอยู่ใน allow-list 18 ค่า — ไม่อยู่ = `400 UNKNOWN_CHECK_KEY` (ห้ามเงียบ/ignore) |
+| scope ↔ `roomId` | `scope='SHOP'` แล้วส่ง `roomId` มา = `400 CHECK_SCOPE_MISMATCH` · `scope='ROOM'` แล้วไม่ส่ง `roomId` = `400 CHECK_SCOPE_MISMATCH` — **ตรวจสองทิศ ไม่ใช่ทิศเดียว** |
+| `roomId` เป็นของร้านนั้นจริง | ต้อง scope ใน `WHERE` (`prisma.room.findFirst({ where: { id, shopId } })`) ไม่ใช่ดึงมาแล้วเทียบทีหลัง — ไม่ตรง = `403 ROOM_NOT_IN_SHOP` |
+| `termsAccepted` | `v.literal(true)` — ปฏิเสธถ้าไม่ใช่ `true` เป๊ะ (`400 TERMS_NOT_ACCEPTED`) |
+| `vertical === 'LODGING'` | ทุก mutation ของ `/api/seller/inspection/**` ต้องเช็คซ้ำที่ server (ไม่ใช่แค่ซ่อนเมนู) — ไม่ผ่าน = `403 NOT_LODGING` |
+| `method` (สร้างรอบ ad-hoc) | ห้ามรับ `AUTO` จาก client — รอบอัตโนมัติสร้างโดย cron เท่านั้น (`400 VALIDATION_ERROR`) |
+| ไฟล์แนบ | รับได้เฉพาะ `fileId` ที่ commit แล้ว — เจอ `Content-Type: multipart/form-data` = `415 UNSUPPORTED_MEDIA_TYPE` ทันที ไม่อ่าน body |
+| `termsVersion` / `priceSnapshotBaht` | มาจาก server เท่านั้น **ห้ามรับจาก client** — ทั้งสองค่าคือสิ่งที่หลักฐาน `InspectionTermsAcceptance` ยืนยัน |
+
+**Valibot schema ที่ต้องเพิ่มใน `src/lib/validations.ts`:** `SubscribeInspectionSchema` ·
+`UpgradeInspectionSchema` · `CancelInspectionSchema` · `SubmitInspectionDocumentSchema` ·
+`RecordInspectionResultsSchema` · `CompleteInspectionRoundSchema` · `UpdateInspectionQuotaSchema` ·
+`AssignInspectionRoundSchema` · `ReportInspectionFraudSchema` (9 schema — ชื่อเป็นสัญญา ห้ามตั้งอื่น)
+
+ที่มา: `docs/20 - Features/00060 - Shop Inspection Plan/{SRS,API}.md`
+
 ### 10.11 หมายเหตุ
 
 - **Valibot (backend):** ใช้กับ API routes ทุกตัวที่มี mutation — `v.safeParse()` ก่อน service call
@@ -1969,6 +2365,17 @@ SSOT: **`src/lib/order-return.ts`** (กฎ) + **`src/lib/iship/courier.ts`** (�
 - **ไม่มี email+password schema** — ตัดถาวร (FR-1.6)
 
 ---
+
+_อัปเดต 2026-08-29: sync ล่วงหน้าตามเอกสาร feature 00060 (แผนการตรวจสอบร้านค้า — Shop Inspection
+Plan) ซึ่ง PRD/BRD/DATABASE/API ผ่าน draft รอบสุดท้ายแล้วแต่ **ยังไม่ implement โค้ดจริง** (Hard Rule 11
+บังคับ sync เอกสารระบบแม้ก่อนขึ้นโค้ด กันเอกสารค้าง — บทเรียน 00033) เพิ่ม §6.z (โมเดล 6 ตาราง +
+คอลัมน์ `User.isInspector`) · §6.1 ER lines · §7.19-7.20 (15 endpoint + คอลัมน์ cron ใหม่ — สร้างหัวข้อ
+cron รวมครั้งแรก) · §8.8 (enum 5 ตัว + checkKey 18 คีย์) · §9.8 (บทบาทใหม่ "ผู้ตรวจ") · §10.16
+(validation) · §3/§4 (route + NFR ที่เกี่ยวข้อง). **พบความไม่ตรงกันระหว่างเอกสารของ 00060 เอง**
+(SRS-00060 ฉบับร่างต้นเทียบกับ DATABASE.md/API.md ฉบับล็อกล่าสุด) — ยึด DATABASE.md/API.md เป็นหลัก
+ตามที่ผู้สั่งงานกำหนด และบันทึกจุดขัดแย้งไว้ในเนื้อหาแต่ละหัวข้อ (`operating_evidence.method`,
+scope label `PROPERTY` vs `ROOM`, endpoint `PATCH /api/admin/users/[id]/inspector` ที่ไม่อยู่ใน
+สัญญาสุดท้าย) — เมื่อ implement จริงต้องยืนยันกับ `prisma/schema.prisma` อีกครั้งแล้วตัดป้าย Draft ออก.
 
 _เอกสาร SRS นี้ sync กับโค้ดจริง ณ 2026-08-08 (feature 00038 — ตอบกลับคอมเมนต์ (Comment Auto-Reply
 & Private Reply); เพิ่ม model `CommentReplyLog` + entry เวอร์ชันย่อของ `ShopChannel`/`PageComment`

@@ -16,6 +16,7 @@ import { resolveShopVertical } from '@/lib/lodging'
 import { prisma } from '@/lib/prisma'
 import { getOrdersByShop } from '@/services/order.service'
 import { deriveShippingStage } from '@/lib/order-stage'
+import { derivePickupStage, isPickupOrder } from '@/lib/order-pickup'
 import { computeOrderMoneyFromSerialized, hasMoneyStory } from '@/lib/order-payment'
 import { deriveAppointmentStage } from '@/lib/appointment-stage'
 import { canUseAppointments, isAllDayAppointment } from '@/lib/appointments'
@@ -270,6 +271,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
             // null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" (แถบตัดสินจุดจาก carrierStatus)
             returnStartedAt: o.shipments[0].returnStartedAt?.toISOString() ?? null,
             returnedAt: o.shipments[0].returnedAt?.toISOString() ?? null,
+            returnDispatchedAt: o.shipments[0].returnDispatchedAt?.toISOString() ?? null,
           }
         : o.shipmentTracking
           ? {
@@ -287,6 +289,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
               // (แถว 2 จะไม่โผล่เลยสำหรับใบพวกนี้ ซึ่งถูกแล้ว — เราไม่รู้จริง ๆ)
               returnStartedAt: null,
               returnedAt: null,
+              returnDispatchedAt: null,
             }
           : null,
     // นัดหมาย (feature 00036) — undefined = ร้านไม่มีแกนนี้, null = ร้านมีแกนแต่ใบนี้ walk-in
@@ -348,8 +351,29 @@ export default async function OrdersPage({ searchParams }: PageProps) {
           // รายการที่กรองได้จะไม่ตรงกัน ทั้งที่เรียกฟังก์ชันเดียวกัน
           paymentMethod: o.paymentMethod ?? null,
           codReceivedAt: o.codReceivedAt ?? null,
+          fulfillmentMode: o.fulfillmentMode,
         })
       : undefined,
+    /**
+     * `Order.fulfillmentMode` ดิบ + สถานะกองนัดรับ (feature 00062 U18) — symbol เดียวที่ทั้ง
+     * ตัวนับและตัวกรอง "วิธีส่งมอบ" (?fulfillment=) ใน OrdersList.tsx อ่าน (ดู data.ts)
+     *
+     * pickupStage คำนวณด้วย derivePickupStage() ตัวเดียวกับ badge บนการ์ด A2/A4 ในหน้ารายละเอียด
+     * (HR16) — ต้องกั้นด้วย isPickupOrder ก่อนเสมอ เพราะ derivePickupStage ไม่รู้จัก
+     * fulfillmentMode เลย (มันดูแค่ status/handedOverAt/dispute*) ออเดอร์ที่ส่งของปกติก็จะมี
+     * handedOverAt เป็น null เหมือนกัน ⇒ ถ้าไม่กั้นจะได้ pickupStage='AWAITING_HANDOVER' ปลอม
+     * ติดไปกับทุกใบที่ไม่ใช่นัดรับเลย
+     */
+    fulfillmentMode: isOnlineSales ? (o.fulfillmentMode as string) : undefined,
+    pickupStage:
+      isOnlineSales && isPickupOrder(o.fulfillmentMode)
+        ? derivePickupStage({
+            status: o.status,
+            handedOverAt: o.handedOverAt,
+            disputeOpenedAt: o.disputeOpenedAt,
+            disputeResolvedAt: o.disputeResolvedAt,
+          })
+        : undefined,
     id: (o.publicToken ?? o.id).slice(0, 8),
     publicToken: o.publicToken ?? o.id,
     shortCode: o.shortCode ?? null,

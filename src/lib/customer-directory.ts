@@ -17,7 +17,7 @@
  */
 
 import type { CustomerBehavior } from './customer-behavior'
-import { MIN_SHIPPED_FOR_RATE, type BuyerReputation } from './buyer-reputation'
+import { MIN_SHIPPED_FOR_RATE, type BuyerReputation, type CustomerRiskTier } from './buyer-reputation'
 
 /** ออเดอร์ 1 ใบเท่าที่หน้าลูกค้าต้องใช้ — ผู้เรียก select มาให้เท่านี้พอ */
 export type CustomerDirectoryOrder = {
@@ -166,6 +166,37 @@ export function matchesCustomerQuery(
 export type CustomerListFilter = 'all' | 'warn' | 'returned' | 'repeat'
 
 const FILTERS: CustomerListFilter[] = ['all', 'warn', 'returned', 'repeat']
+
+/**
+ * แกนที่ **สอง** ของหน้ารายชื่อลูกค้า — ระดับความเสี่ยง **ข้ามร้าน** (user เคาะ 2026-08-26)
+ *
+ * 🛑 เป็นคนละแกนกับ `CustomerListFilter` และ **AND กัน** ไม่ใช่แทนที่กัน:
+ *   · `?f=` ถามว่า "ลูกค้าคนนี้ทำอะไรกับ **ร้านฉัน**" (ตีกลับกับร้านนี้ / ซื้อซ้ำที่ร้านนี้)
+ *   · `?risk=` ถามว่า "ลูกค้าคนนี้มีประวัติยังไง **ทั้งระบบ**"
+ * สองคำถามนี้ตอบต่างกันได้ในคนเดียวกัน (ไม่เคยตีกลับกับเรา แต่ตีกลับร้านอื่น 4 ครั้ง)
+ * ⇒ ยุบเป็นแกนเดียวเมื่อไหร่ ข้อมูลข้ามร้านจะหายไปจากหน้าจอทันที
+ *
+ * 🛑 ตัวเลขบนไทล์/การ์ดที่กดได้ **ต้องนับด้วยฟังก์ชันนี้ตัวเดียวกับที่กรองจริง**
+ * ไม่งั้นกดเลข 2 เข้าไปเจอ 1 (บทเรียน Command Center 2026-08-04)
+ */
+export type CustomerRiskFilter = 'all' | 'high' | 'watch'
+
+const RISK_FILTERS: CustomerRiskFilter[] = ['all', 'high', 'watch']
+
+/** fail-closed เหมือน `parseCustomerFilter` — ค่าที่ไม่รู้จักตกเป็น 'all' */
+export function parseCustomerRiskFilter(v: string | undefined | null): CustomerRiskFilter {
+  return RISK_FILTERS.includes(v as CustomerRiskFilter) ? (v as CustomerRiskFilter) : 'all'
+}
+
+/**
+ * แถวนี้ผ่านตัวกรองความเสี่ยงไหม
+ *
+ * 🛑 `tier` ส่งเข้ามาจากผู้เรียก ไม่ derive ที่นี่ — ไฟล์นี้ไม่รู้จัก `BuyerReputation`
+ * ข้ามร้าน (มันมาจาก batch query คนละชั้น) และการ derive ซ้ำคือช่องให้เกณฑ์ drift
+ */
+export function matchesRiskFilter(tier: CustomerRiskTier, filter: CustomerRiskFilter): boolean {
+  return filter === 'all' || tier === filter
+}
 
 /** fail-closed — ค่าที่ไม่รู้จัก (พิมพ์ใน URL เอง/ของเก่าที่ bookmark ไว้) ตกเป็น 'all' ไม่ใช่ throw */
 export function parseCustomerFilter(v: string | undefined | null): CustomerListFilter {

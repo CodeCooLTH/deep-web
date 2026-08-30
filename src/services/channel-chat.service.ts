@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getLastInboundTime, fetchMessageText, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, claimThreadControl, GraphApiError, type GraphThreadMessage, type GraphThreadAttachment, type ThreadControlFailureReason } from '@/lib/facebook/graph'
+import { getLastInboundTime, fetchMessageText, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, sendSenderAction, claimThreadControl, GraphApiError, type GraphThreadMessage, type GraphThreadAttachment, type ThreadControlFailureReason } from '@/lib/facebook/graph'
 import type { ChannelAdapter, ChannelContext, OutboundMessagePart } from '@/lib/channels/adapter'
 import { MetaAdapter } from '@/lib/channels/meta-adapter'
 // (S-6, feature 00025) LineAdapter (S-4) + prefix builder (TD-005) — ตัวเดียวที่ประกอบ
@@ -25,8 +25,18 @@ import { LINE_PREVIEW_MAX_SIZE } from '@/lib/chat-attachment'
 // (TOKEN_INVALID/CONTACT_BLOCKED/QUOTA_EXCEEDED/LINE_UNAVAILABLE) — ดู classifyLineOutboundError
 import { LineApiError } from '@/lib/line/client'
 import { decryptToken } from '@/lib/token-crypto'
+import { setIceBreakers, deleteIceBreakers } from '@/lib/facebook/graph'
+import { takeMessengerProfileSlot, profileRateLimitMessage } from '@/lib/messenger-profile-rl'
+import {
+  iceBreakerPayload,
+  parseIceBreakerPayload,
+  validateIceBreakers,
+  type IceBreakerDraft,
+} from '@/lib/ice-breaker'
 // SSOT ของคำแทนเนื้อหาที่แสดงเองไม่ได้ — ผันตามช่องทาง (HR16)
 import { attachmentFailedText, emptyMessageText, emptyMessagePreview } from '@/lib/chat-placeholder-text'
+// แยกสติกเกอร์/GIF ของ GIPHY ออกจาก "รูปภาพ" ในรายการแชท (Meta ส่งมาเป็น type:image เหมือนกันหมด)
+import { giphyMessageKind, giphyPreviewLabel } from '@/lib/giphy-message-kind'
 import { getFileUrl, getFile, getFileMeta } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
 // feature 00051 (S-3): choke point จริงของ dedup — saveMirroredBuffer กลายเป็น thin wrapper
@@ -1256,7 +1266,25 @@ export async function ingestInboundMessage(params: {
   // fallback (user report 2026-07-25: ข้อความเสียง Messenger ยัง mirror ไม่ผ่าน): media ที่ webhook
   // ไม่ส่ง payload.url มา หรือ url นั้น fetch ไม่ได้/หมดอายุ → ดึง file_url สดจาก Graph ด้วย mid แล้ว mirror
   // (Messenger voice message เจอเคส payload.url หายบ่อย — Graph คืน url สดที่ยังโหลดได้ host fbsbx)
-  if (isMedia && !mirroredFileId && event.message.mid) {
+  /**
+   * (2026-08-27) ขยาย fallback ให้ครอบ **ข้อความที่ Meta ติดธง `is_unsupported`** ด้วย
+   *
+   * ที่มา: ผู้ขายส่งสติกเกอร์จาก **sticker pack ของ Instagram เอง** → webhook มาแค่ `mid` +
+   * `is_unsupported: true` ไม่มี `attachments` เลย ⇒ `isMedia` เป็น false ⇒ เดิมข้ามการยิง Graph
+   * ไปทั้งดุ้น แล้วตกไป placeholder ทันที **โดยไม่เคยลองถามด้วยซ้ำ**
+   *
+   * 🛑 ยิงเฉพาะตอน **ไม่มี attachment เลย** — ถ้ามี attachment อยู่แล้วแต่ mirror ไม่ผ่าน
+   * สาขา `isMedia` ด้านบนจัดการอยู่แล้ว การยิงซ้ำจะเป็นการเรียก Graph สองรอบต่อข้อความเดียว
+   *
+   * ต้นทุน: ยิงเพิ่ม 1 ครั้งต่อข้อความชนิดนี้ ซึ่งบน prod เกิด 6 ครั้งใน 23 วัน — ถูกกว่าการปล่อยให้
+   * ผู้ขายเห็นกล่องเปล่าทุกใบมาก. ได้ url มา = แสดงรูปได้จริง · ไม่ได้ = ตกไป placeholder เหมือนเดิม
+   *
+   * หมายเหตุ: สติกเกอร์/GIF จาก **GIPHY** ไม่เดินมาทางนี้ — Meta ส่ง `type: image` +
+   * `media*.giphy.com` มาให้ตรง ๆ อยู่แล้ว (ยืนยันด้วย payload จริง 2026-08-27) ทางนี้จึงเหลือไว้
+   * ให้เฉพาะของที่ Meta ไม่ยอมส่งเนื้อหามา
+   */
+  const probeUnsupported = event.message.is_unsupported === true && !firstAttachment
+  if ((isMedia || probeUnsupported) && !mirroredFileId && event.message.mid) {
     const { url: graphUrl } = await getAdapter(provider).downloadContent(
       { provider, accessToken: channel.accessToken },
       { externalMessageId: event.message.mid },
@@ -1339,7 +1367,12 @@ export async function ingestInboundMessage(params: {
     ? 'CALL'
     : mirroredFileId && attType && MEDIA_TYPE[attType]
       ? MEDIA_TYPE[attType]
-      : isImageLike
+      : // ข้อความ `is_unsupported` ที่ยิง Graph แล้วได้ไฟล์กลับมา — ไม่มี `attType` ให้แมป
+        // (นั่นคือเหตุผลที่มันตกมาทางนี้ตั้งแต่แรก) แต่ของที่ได้คือรูป ⇒ ต้องเป็น IMAGE
+        // ไม่งั้นบับเบิลจะเป็น TEXT ที่มี imageUrl อยู่แต่ไม่มีใครเรนเดอร์
+        mirroredFileId && probeUnsupported
+        ? 'IMAGE'
+        : isImageLike
         ? 'IMAGE' // รูป/สติกเกอร์ที่ mirror ไม่ผ่าน → คง IMAGE (imageUrl null + placeholder)
         : 'TEXT' // media อื่นที่ mirror ไม่ผ่าน / ลิงก์ / ชนิดที่ไม่มี asset → TEXT
   const hasAttachment = !!firstAttachment
@@ -1441,6 +1474,8 @@ export async function ingestInboundMessage(params: {
     share: '[โพสต์ที่แชร์]',
     template: '[ข้อความจากระบบ]',
   }
+  const giphyKind = giphyMessageKind(attUrl)
+  const giphyLabel = giphyKind ? giphyPreviewLabel(giphyKind) : null
   const singlePreview = isCallEvent
     ? // preview ในรายการแชทต้องเป็นไทยเหมือนการ์ดในเธรด — ถ้าปล่อยตกไปสาขา hasDisplayText
       // มันจะเอา title ของ Meta ("Missed call") มาแสดงดิบ ๆ คนละภาษากับที่เห็นตอนเปิดห้อง
@@ -1448,7 +1483,10 @@ export async function ingestInboundMessage(params: {
       ? '[สายที่ไม่ได้รับ]'
       : '[มีการโทรด้วยเสียง]'
     : mirroredFileId
-    ? (previewByType[type] ?? '[ไฟล์แนบ]')
+    ? // สติกเกอร์/GIF ของ IG มาเป็น `type: image` เหมือนรูปถ่ายจริงทุกประการ ⇒ ถ้าไม่แยกตรงนี้
+      // รายการแชทจะขึ้น "[รูปภาพ]" กับทุกอย่าง แล้วผู้ขายนึกว่าลูกค้าส่งรูปสินค้ามา
+      // (user แจ้ง 2026-08-27) — ตัวแยกอยู่ใน URL ของ GIPHY เอง อ่านไม่ออกก็ตกไปคำเดิม
+      (giphyLabel ?? previewByType[type] ?? '[ไฟล์แนบ]')
     : // การ์ดของ Meta → label สั้นตัวเดียวกับ SHORT_PREVIEW_BY_ATTTYPE.template ไม่ใช่เนื้อหาจริง
       // ตัด 100 ตัวอักษร (บทเรียน user report 2026-07-25: placeholder ยาวไปโผล่ในรายการแชท)
       // ต้องมาก่อนสาขา hasDisplayText เพราะการ์ดมี displayText เสมอหลังแก้ 2026-08-07
@@ -2880,6 +2918,206 @@ export async function claimConversationControl(params: {
   return { outcome: 'FAILED', reason: result.reason, message: result.message }
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// "กำลังพิมพ์…" — บอกลูกค้าว่าร้านกำลังตอบอยู่ (2026-08-27)
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * ระยะห่างขั้นต่ำระหว่างการยิง `typing_on` ต่อเธรด
+ *
+ * Meta คงสถานะ "กำลังพิมพ์" ไว้เองราว 20 วินาที ⇒ ยิงถี่กว่านี้ไม่ได้อะไรเพิ่มเลย นอกจากกิน
+ * โควตา API ของเพจ (ซึ่งใช้ร่วมกับการส่งข้อความจริง — เธรดที่คุยกันรัว ๆ จะแย่งโควตากันเอง)
+ * 10 วินาที = ครึ่งหนึ่งของอายุจริง ⇒ สถานะไม่มีช่วงขาดตอนแม้ผู้ขายพิมพ์ยาว
+ */
+const TYPING_THROTTLE_MS = 10_000
+
+/**
+ * throttle ต่อเธรด — in-memory + globalThis (แพตเทิร์นเดียวกับ `syncMissingMessagesFromMeta`
+ * และ `api-rate-limit`) known-gap เดียวกันคือ serverless หลาย instance ต่างคนต่างนับ
+ * ⇒ กรณีแย่สุดคือยิงถี่กว่าที่ตั้งไว้เล็กน้อย ซึ่งรับได้สำหรับของประดับ
+ */
+function typingStore(): Map<string, number> {
+  const g = globalThis as { __igTypingAt?: Map<string, number> }
+  return (g.__igTypingAt ??= new Map())
+}
+
+/**
+ * ยิง "กำลังพิมพ์" ให้เธรดช่องทางนอกของ Meta
+ *
+ * 🛑 **Meta เท่านั้น** — LINE ไม่มี sender action แบบนี้ (มี loading animation คนละเรื่อง
+ * คนละ endpoint) และ DEEP เป็นแชทในแอปเราเอง ไม่มีปลายทางให้บอก
+ *
+ * ไม่ throw ทุกกรณี: ผู้เรียกคือ "ผู้ขายกำลังพิมพ์" — ห้ามให้ของประดับทำให้ช่องพิมพ์สะดุด
+ * คืน `false` เมื่อไม่ได้ยิง (throttle / ไม่ใช่ Meta / ช่องทางไม่พร้อม) เพื่อให้เทสจับได้ว่าเงื่อนไขทำงาน
+ */
+export async function notifyTyping(params: {
+  conversationId: string
+  actorUserId: string
+}): Promise<boolean> {
+  try {
+    const conversation = await resolveOutboundContext({
+      conversationId: params.conversationId,
+      actorUserId: params.actorUserId,
+    })
+    if (conversation.channel !== 'MESSENGER' && conversation.channel !== 'INSTAGRAM') return false
+    if (conversation.shopChannel.status !== 'ACTIVE') return false
+
+    const now = Date.now()
+    const store = typingStore()
+    const last = store.get(params.conversationId)
+    if (last && now - last < TYPING_THROTTLE_MS) return false
+    // จองคิวก่อนยิง ไม่ใช่หลัง — ระหว่างรอ network ผู้ขายพิมพ์ต่ออีกหลายตัวอักษร
+    // ถ้าจองหลังยิงจะได้คำขอซ้อนกันหลายใบต่อการพิมพ์หนึ่งครั้ง
+    store.set(params.conversationId, now)
+
+    const pageToken = decryptToken(conversation.shopChannel.accessTokenEnc)
+    return await sendSenderAction(pageToken, conversation.externalContact.externalUserId, 'typing_on')
+  } catch {
+    // รวมถึง FORBIDDEN / CONVERSATION_NOT_FOUND — ผู้เรียกไม่มีอะไรต้องทำต่อกับของประดับ
+    return false
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Ice Breakers — คำถามยอดฮิตก่อนเริ่มแชท (2026-08-27)
+// ══════════════════════════════════════════════════════════════════════════
+
+/** อ่านรายการปัจจุบันของช่องทาง (เรียงตามที่ลูกค้าเห็น) */
+export async function listIceBreakers(shopChannelId: string) {
+  return prisma.channelIceBreaker.findMany({
+    where: { shopChannelId },
+    orderBy: { order: 'asc' },
+    select: { id: true, order: true, question: true, answer: true },
+  })
+}
+
+/**
+ * บันทึกทั้งชุด + ยิงไปตั้งที่ Meta
+ *
+ * 🛑 **ลบของเดิมทั้งชุดแล้วเขียนใหม่** ไม่ใช่ upsert รายข้อ — Meta ไม่มี partial update
+ * (ส่ง `ice_breakers` ไปคือแทนที่ทั้งก้อน) ⇒ ถ้าฝั่งเราแก้ทีละแถว สถานะสองฝั่งจะเพี้ยนกันทันที
+ * ที่ผู้ขายลบข้อกลาง ๆ ออก · ลำดับก็ผูกกับ index ของอาร์เรย์ตรง ๆ ไม่ต้องเดา
+ *
+ * 🛑 **ยิง Meta ก่อน สำเร็จแล้วจึงเขียน DB** — Meta คือสิ่งที่ลูกค้าเห็นจริง ฐานเราเป็นแค่ที่เก็บ
+ * คำตอบ ⇒ ลำดับนี้ทำให้ "Meta ปฏิเสธ" = ไม่มีอะไรเปลี่ยนทั้งสองฝั่ง ผู้ขายแก้แล้วกดใหม่ได้
+ * ลำดับกลับด้าน (เขียน DB ก่อน) จะทำให้ฐานมีชุดใหม่ทั้งที่ลูกค้ายังเห็นชุดเก่า แล้วหน้าจอรายงานว่า
+ * "ลูกค้าเห็นอยู่" ซึ่งไม่จริง — และย้อนกลับไม่ได้เพราะทรานแซกชันปิดไปแล้ว
+ *
+ * ที่ทำแบบนี้ได้เพราะ `payload` ประกอบจาก (ช่องทาง, ลำดับ) ไม่ใช่ id ของแถว จึงรู้ค่าล่วงหน้า
+ */
+export async function saveIceBreakers(params: {
+  shopChannelId: string
+  actorUserId: string
+  drafts: IceBreakerDraft[]
+}): Promise<{ count: number }> {
+  const channel = await prisma.shopChannel.findUnique({
+    where: { id: params.shopChannelId },
+    select: { id: true, shopId: true, provider: true, status: true, accessTokenEnc: true },
+  })
+  if (!channel) throw new Error('CHANNEL_NOT_FOUND')
+  if (!(await canAccessShop(channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  // Ice Breakers เป็นของ Meta เท่านั้น — LINE มี Rich Menu ซึ่งเป็นคนละเรื่องคนละ endpoint
+  if (channel.provider !== 'MESSENGER' && channel.provider !== 'INSTAGRAM') {
+    throw new Error('CHANNEL_NOT_SUPPORTED')
+  }
+  if (channel.status !== 'ACTIVE') throw new Error('CHANNEL_INACTIVE')
+
+  const valid = validateIceBreakers(params.drafts)
+  if (!valid.ok) throw new Error(`INVALID:${valid.error}`)
+
+  // 🛑 จองโควตา Meta **ก่อน** ยิง — คำขอที่ล้มก็กินโควตาไปแล้ว นับเฉพาะที่สำเร็จจะทะลุเพดานจริง
+  const slot = takeMessengerProfileSlot(channel.id)
+  if (!slot.ok) throw new Error(`INVALID:${profileRateLimitMessage(slot.retryAfterSec)}`)
+
+  const pageToken = decryptToken(channel.accessTokenEnc)
+  if (valid.items.length === 0) {
+    await deleteIceBreakers(pageToken, channel.provider)
+  } else {
+    await setIceBreakers(
+      pageToken,
+      channel.provider,
+      valid.items.map((item, i) => ({
+        question: item.question,
+        payload: iceBreakerPayload(channel.id, i),
+      })),
+    )
+  }
+
+  // Meta รับแล้ว — ฐานเราตามให้ตรง (ลบทั้งชุดแล้วเขียนใหม่ เพราะ Meta ไม่มี partial update
+  // ⇒ ถ้าฝั่งเราแก้ทีละแถว สถานะสองฝั่งจะเพี้ยนทันทีที่ผู้ขายลบข้อกลาง ๆ ออก)
+  await prisma.$transaction([
+    prisma.channelIceBreaker.deleteMany({ where: { shopChannelId: channel.id } }),
+    ...(valid.items.length === 0
+      ? []
+      : [
+          prisma.channelIceBreaker.createMany({
+            data: valid.items.map((item, i) => ({
+              shopChannelId: channel.id,
+              order: i,
+              question: item.question,
+              answer: item.answer,
+            })),
+          }),
+        ]),
+  ])
+
+  return { count: valid.items.length }
+}
+
+/**
+ * ลูกค้าแตะคำถาม → ตอบคำตอบที่ร้านตั้งไว้
+ *
+ * คืน `false` เมื่อ payload ไม่ใช่ของ Ice Breaker หรือหาแถวไม่เจอ (ผู้ขายลบไปแล้วแต่ปุ่มเก่ายังค้าง
+ * อยู่ในเครื่องลูกค้า — เกิดได้จริง ห้าม throw)
+ *
+ * 🛑 **ฟังก์ชันนี้ส่งเฉพาะ "คำตอบ"** — การบันทึก "คำถาม" ที่ลูกค้าแตะลงเธรดเป็นหน้าที่ของ
+ * webhook route ซึ่งเรียก `ingestInboundMessage()` ตัวเดิมโดยสังเคราะห์ `message.text` จาก
+ * `postback.title` (Meta ส่ง postback มาอย่างเดียว ไม่มี `message` ⇒ ถ้าไม่ทำ ผู้ขายจะเห็นแต่
+ * คำตอบลอย ๆ ไม่รู้ว่าลูกค้าถามอะไร)
+ *
+ * ที่แยกกันเพราะ ingest มีเรื่องที่ต้องทำถูกอีกหลายอย่าง (กันซ้ำด้วย mid · อัปเดต preview ·
+ * ปลุกเธรดที่ซ่อน · แจ้งเตือน) — เขียนแถวเองที่นี่คือการก็อปตรรกะทั้งชุดมาไว้อีกที่
+ */
+export async function answerIceBreaker(params: {
+  provider: string
+  pageExternalId: string
+  contactExternalId: string
+  payload: string | null | undefined
+  title: string | null | undefined
+  timestamp?: number
+}): Promise<boolean> {
+  const ref = parseIceBreakerPayload(params.payload)
+  if (!ref) return false
+
+  const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
+  // 🛑 payload ระบุช่องทางมาเอง — ต้องเทียบกับเพจที่ webhook มาจากจริงเสมอ ไม่งั้นใครก็ตาม
+  // ที่เดา payload ได้จะสั่งให้เราส่งคำตอบของร้านอื่นได้ (postback รับค่าจากภายนอกล้วน)
+  if (!channel || channel.id !== ref.shopChannelId) return false
+
+  const row = await prisma.channelIceBreaker.findUnique({
+    where: { shopChannelId_order: { shopChannelId: ref.shopChannelId, order: ref.order } },
+    select: { answer: true, question: true },
+  })
+  if (!row) return false
+
+  const conversation = await prisma.conversation.findFirst({
+    where: { shopChannelId: channel.id, externalContact: { externalUserId: params.contactExternalId } },
+    select: { id: true },
+  })
+  if (!conversation) return false
+
+  // คำถามที่ลูกค้าแตะ — บันทึกเป็นข้อความของลูกค้าเพื่อให้เธรดอ่านรู้เรื่อง
+  // ใช้ `title` ที่ Meta ส่งมา (คือคำถามที่ลูกค้าเห็นจริง ณ ตอนนั้น) ถอยไปใช้ของเราเมื่อไม่มี
+  await sendOutboundMessage({
+    conversationId: conversation.id,
+    actorUserId: null,
+    systemShopId: channel.shopId,
+    autoReplyKind: 'AUTO',
+    text: row.answer,
+  })
+  return true
+}
+
 /** พารามิเตอร์ของเส้นทาง LINE — ยกออกมาจาก inline type เดิมของ `sendOutboundLineMessage`
  *  ทุกตัวอักษร (ชุดย่อยของ `SendOutboundParams`: ไม่มี conversationId/systemShopId/template) */
 type LineOutboundParams = {
@@ -3582,11 +3820,28 @@ async function transmitMetaMessage(
         ])
       ).externalMessageId
     } else if (params.sticker) {
-      // สติกเกอร์: ยิง sticker_id ตรง ๆ ไม่ใช่ attachment (ดู lib/facebook/graph.ts sendStickerMessage)
+      /**
+       * 🛑 **Instagram ไม่รองรับ `sticker_id`** — Send API ของ IG มีสติกเกอร์ตัวเดียวคือ `like_heart`
+       * ส่วนสติกเกอร์ที่ผู้ใช้เห็นในแอป IG คือ **GIPHY** ซึ่งเป็นไฟล์ `.gif` ธรรมดา
+       *
+       * ยิง `message: { sticker_id }` ใส่ IG แล้ว Meta ตอบ **`(#100) Empty text`** เพราะมองว่า
+       * ข้อความไม่มีทั้ง text และ attachment ที่มันรู้จัก (ผู้ใช้เจอบน prod 2026-08-27 10:28
+       * — error เด้งขึ้น Swal ทันทีและ **ไม่ถูกบันทึกเป็นแถวเลย** จึงหาจากฐานไม่เจอ)
+       *
+       * IG ต้องส่งเป็น **ไฟล์แนบชนิด image ด้วย URL สาธารณะ** แทน (เอกสาร Attachment Upload API:
+       * *"image (which include GIFs)"* — png, jpeg, gif ≤8MB) URL ของ GIPHY เป็นสาธารณะอยู่แล้ว
+       * Meta ดึงเองได้ ไม่ต้อง presign เหมือนไฟล์ใน storage ของเรา
+       *
+       * Messenger ยังใช้ `sticker_id` เหมือนเดิม — คลังของมันเป็นของ Meta เอง ไม่ใช่ GIPHY
+       */
+      const stickerPart: OutboundMessagePart =
+        conversation.channel === 'INSTAGRAM'
+          ? { kind: 'attachment', attachmentKind: 'IMAGE', url: params.sticker.imageUrl }
+          : { kind: 'sticker', stickerId: params.sticker.id }
       // อยู่ใต้กฎหน้าต่างเวลาเดียวกัน จึงส่ง messageTag ไปด้วยเหมือนข้อความปกติ
       mid = (
         await adapter.sendMessages(sendCtx({ replyToExternalId: params.replyToMid, tag: messageTag }), [
-          { kind: 'sticker', stickerId: params.sticker.id },
+          stickerPart,
         ])
       ).externalMessageId
     } else if (attachment) {

@@ -51,7 +51,7 @@ export interface OrderStatusBandProps {
    * 2026-08-24) ถ้าที่นี่ถือรายชื่อของตัวเอง ไทล์จะขาดไปหนึ่งช่องเงียบ ๆ โดย `tsc` ไม่ฟ้อง
    * เพราะ object ที่ "มีช่องเกิน" ยัง assign ได้ปกติ
    */
-  shipping?: Record<Exclude<ShippingStageKey, 'DONE'>, number>
+  shipping?: Record<Exclude<ShippingStageKey, 'DONE' | 'NOT_SHIPPING'>, number>
   /**
    * จำนวนนัดของวันนี้ — ส่งมา = แทนไทล์ที่ 2 ("กำลังจัดส่ง") ด้วย "นัดวันนี้" (user เคาะ 2026-08-07)
    *

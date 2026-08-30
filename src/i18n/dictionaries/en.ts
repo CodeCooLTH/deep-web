@@ -56,6 +56,8 @@ export const en: Dictionary = {
     // "ภาพรวมกำไร/ขาดทุน" — ใช้ P&L ซึ่งเป็นศัพท์บัญชีสากล สั้นกว่า "Profit and loss" มาก
     // และเมนูซ้ายกว้างคงที่ 245px (BR-I18N-17)
     sales: 'P&L overview',
+    reportsAgents: 'Agent Chat Response',
+    reportsProducts: 'Sales by Product',
     orders: {
       ONLINE_SALES: 'Orders',
       // ไม่ใช่ "Services" เฉย ๆ — ของเดิมคือ "การเข้ารับบริการ" ซึ่งหมายถึงใบงานที่ลูกค้าเข้ามารับ
@@ -548,10 +550,17 @@ export const en: Dictionary = {
     backToList: 'Back to list',
     customerInfo: 'Customer info',
     threadSoundTitle: 'New message sound',
+    threadAutoReplyTitle: 'Auto-reply in this chat',
+    threadAutoReplyOff: 'Off',
+    threadAutoReplyAuto: 'Auto',
+    threadAutoReplyOnDone: 'The bot will now reply in this chat automatically.',
+    threadAutoReplyOffDone: 'Auto-reply is off for this chat.',
+    threadAutoReplyFailed: 'Could not change the auto-reply mode.',
     threadChipCollapse: 'Collapse',
-    threadSoundAllApp: 'All chats',
     threadSoundThisChat: 'This chat only',
-    threadSoundMutedHint: 'Muted because all chats are muted — turn on the switch above first.',
+    threadSoundMute: 'Mute this chat',
+    threadSoundUnmute: 'Unmute this chat',
+    threadSoundAppMutedHint: 'All chats are muted right now — this setting has no effect yet.',
     threadMoreMenu: 'More options',
     libraryOpen: 'File library',
 

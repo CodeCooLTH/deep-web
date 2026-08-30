@@ -4,6 +4,7 @@ import {
   orderNeedsShippingAddress,
   shopShipsGoods,
   toOrderItemShippingKind,
+  type OrderItemShippingKind,
 } from './shipping-address-status'
 
 describe('shopShipsGoods — รายการพิมพ์เองแปลว่าต้องจัดส่งไหม (user 2026-08-07)', () => {
@@ -64,6 +65,48 @@ describe('orderNeedsShippingAddress — [blocker] ใบนี้ต้องม
     expect(
       orderNeedsShippingAddress({ shipsGoods: true, salesChannel: 'FACEBOOK', items: ['NO_SHIPPING'] }),
     ).toBe(false)
+  })
+})
+
+// 🛑 [blocker] feature 00062 TD-004 — deliveryOverride='PICKUP' ต้อง short-circuit เป็นบรรทัดแรกสุด
+// (ก่อน shipsGoods check) — ครอบ shipsGoods × salesChannel × items ทุกชนิดที่ปกติจะได้ true
+describe('orderNeedsShippingAddress — [blocker] deliveryOverride=PICKUP ต้องชนะทุกเงื่อนไข (00062 TD-004)', () => {
+  it.each<boolean>([true, false])(
+    '[blocker] shipsGoods=%s + PICKUP + salesChannel ที่ปกติต้องมีที่อยู่ + items SHIPPED/CUSTOM → false เสมอ',
+    (shipsGoods) => {
+      for (const salesChannel of ['FACEBOOK', 'LINE', 'TIKTOK', 'OTHER', 'STOREFRONT', null, undefined]) {
+        for (const items of [['SHIPPED'], ['CUSTOM'], ['SHIPPED', 'CUSTOM'], ['NO_SHIPPING'], []] as const) {
+          expect(
+            orderNeedsShippingAddress({
+              shipsGoods,
+              salesChannel,
+              items: [...items],
+              deliveryOverride: 'PICKUP',
+            }),
+          ).toBe(false)
+        }
+      }
+    },
+  )
+
+  // เคสที่พิสูจน์ short-circuit จริง ๆ (ไม่ใช่แค่บังเอิญ false จาก branch อื่น): ร้านส่งของ
+  // (shipsGoods=true) + ช่องทางแชท (ไม่ใช่ STOREFRONT) + มีสินค้า SHIPPED — ทุก operand ที่เหลือ
+  // ต้องคืน true ถ้าไม่มี deliveryOverride แต่ต้องคืน false ทันทีเมื่อมี PICKUP
+  it('[blocker] shipsGoods=true + ช่องทางแชท + SHIPPED (ปกติต้อง true) → PICKUP override เป็น false', () => {
+    const base = { shipsGoods: true, salesChannel: 'FACEBOOK', items: ['SHIPPED'] as OrderItemShippingKind[] }
+    expect(orderNeedsShippingAddress(base)).toBe(true) // sanity: ไม่มี override ต้องยังเป็น true
+    expect(orderNeedsShippingAddress({ ...base, deliveryOverride: 'PICKUP' })).toBe(false)
+  })
+
+  it('ไม่ส่ง deliveryOverride (undefined) → พฤติกรรมเดิมทุกประการ', () => {
+    expect(
+      orderNeedsShippingAddress({
+        shipsGoods: true,
+        salesChannel: 'FACEBOOK',
+        items: ['SHIPPED'],
+        deliveryOverride: undefined,
+      }),
+    ).toBe(true)
   })
 })
 

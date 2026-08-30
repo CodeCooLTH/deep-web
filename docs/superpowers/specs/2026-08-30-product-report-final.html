@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<title>ผลลัพธ์จริงหลัง implement — รายงานยอดขายรายสินค้า (00063)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--primary:#236dc9;--primary-ink:#173f73;--alpha:#02bc9c;--gamma:#f9bf59;--beta:#f7577e;
+ --warning-ink:#92400e;--d100:#f1f2f6;--d200:#e9eaee;--d300:#dcdee5;--d400:#8a91a5;--d500:#6b7280;--d700:#4c4c5c;--d900:#2f2b3d;--body:#f6f7fb}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,sans-serif;background:#e8eaf0;color:var(--d900);padding:22px 16px 60px;-webkit-font-smoothing:antialiased}
+h1{font-size:19px;font-weight:700}
+.sub{font-size:13px;color:var(--d500);line-height:1.7;max-width:1050px;margin:4px 0 18px}
+.sub b{color:var(--d900)}
+.rail{display:flex;gap:20px;overflow-x:auto;padding-bottom:18px;align-items:flex-start}
+figure{flex:0 0 auto}
+figcaption{margin-bottom:9px;font-size:13px;font-weight:700}
+.phone{width:360px;height:720px;background:var(--body);border:7px solid #1c1c28;border-radius:30px;overflow:hidden}
+.sc{height:100%;overflow-y:auto;position:relative}
+.ab{height:68px;background:#fff;display:flex;align-items:center;gap:8px;padding:0 16px;position:sticky;top:0;z-index:20;border-bottom:1px solid var(--d200)}
+.ab .t{flex:1;text-align:center;font-size:15px;font-weight:600}
+.ic{width:26px;height:26px;display:grid;place-items:center;color:var(--d700);font-size:15px;flex:0 0 auto}
+.bar{position:sticky;top:68px;z-index:20;background:var(--body);border-bottom:1px solid var(--d200);display:flex;align-items:center;gap:8px;padding:8px 16px}
+.msw{flex:1;min-width:0;display:flex;align-items:center;gap:4px}
+.nb{min-width:40px;min-height:40px;display:grid;place-items:center;border:1px solid var(--d300);border-radius:8px;background:#fff;color:var(--d700);font-size:14px;flex:0 0 auto}
+.ml{flex:1;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:8px;font-size:14px;font-weight:600}
+.ml i{font-style:normal;font-size:10px;color:var(--d400)}
+.seg{display:flex;border:1px solid var(--d300);border-radius:8px;overflow:hidden;background:#fff;flex:0 0 auto}
+.seg b{min-height:38px;display:grid;place-items:center;padding:0 12px;font-size:13px;font-weight:600;color:var(--d700)}
+.seg b.on{background:var(--primary);color:#fff}
+.pg{padding:12px 0 24px}
+.card{background:#fff;border-radius:4px;box-shadow:0 1px 2px rgba(47,43,61,.07);margin-bottom:12px;position:relative}
+.ch{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:nowrap;padding:11px 14px;border-bottom:1px dashed var(--d300)}
+.ct{font-size:14.5px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ct em{font-style:normal;color:var(--d400);font-weight:400}
+.cn{font-size:11px;color:var(--d400);flex:0 0 auto}
+.cb{padding:12px 14px}
+.ct2{display:flex;align-items:flex-end;gap:1px;height:140px}
+.ct2 .col{flex:1;display:flex;flex-direction:column-reverse}
+.ct2 .col i{display:block;width:100%;box-shadow:0 -1px 0 #fff}
+.xa{display:flex;justify-content:space-between;font-size:9.5px;color:var(--d400);margin-top:5px;padding-top:4px;border-top:1px solid var(--d200)}
+.lgd{display:flex;gap:10px;flex-wrap:wrap;font-size:10.5px;color:var(--d500);margin-top:8px}
+.lgd span{display:inline-flex;align-items:center;gap:4px}
+.dot{width:9px;height:9px;border-radius:3px;display:inline-block}
+.basis{border-top:1px solid var(--d200);margin-top:12px;padding-top:12px;font-size:11.5px;color:var(--d500);min-height:44px;display:flex;align-items:center}
+.basis u{color:var(--primary-ink)}
+.fd{min-height:44px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:6px;background:var(--d100);font-size:12.5px;font-weight:600;color:var(--d700);white-space:nowrap;flex:0 0 auto}
+.fd.act{background:rgba(35,109,201,.15);color:var(--primary-ink)}
+.fd i{font-style:normal;font-size:9px;color:var(--d400)}
+.menu{position:absolute;right:12px;top:52px;z-index:30;background:#fff;border-radius:6px;box-shadow:0 8px 24px rgba(47,43,61,.18);border:1px solid var(--d300);padding:4px;min-width:208px}
+.menu b{display:flex;align-items:center;justify-content:space-between;min-height:44px;padding:0 10px;border-radius:5px;font-size:13px;font-weight:400;color:var(--d700)}
+.menu b.on{background:rgba(35,109,201,.15);color:var(--primary-ink);font-weight:600}
+.menu hr{border:0;border-top:1px solid var(--d200);margin:4px 0}
+.menu u{display:block;text-decoration:none;font-size:11px;font-weight:600;color:var(--d400);padding:4px 10px 2px}
+.note{font-size:11.5px;color:var(--d400);margin-bottom:8px}
+.r{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px dashed var(--d200)}
+.r:last-of-type{border-bottom:0}
+.th{width:44px;height:44px;border-radius:8px;flex:0 0 auto;background:linear-gradient(140deg,#b9c0d0,#dfe3ec 45%,#c8cedd);box-shadow:0 0 0 2px var(--rc,transparent);position:relative;overflow:hidden}
+.th::after{content:'';position:absolute;left:18%;top:24%;width:64%;height:52%;border-radius:4px;background:rgba(255,255,255,.45)}
+.nm{font-size:13.5px;font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ss{font-size:11px;color:var(--d400);margin-top:2px;display:flex;justify-content:space-between;gap:8px}
+.vv{font-size:13.5px;font-weight:600;white-space:nowrap;flex:0 0 auto}
+/* แถบ 3 ท่อน — ตามโค้ดจริง: 3 คอลัมน์กว้างเท่ากัน ความสูงแบกความหมาย */
+.t3{margin-top:8px}
+.t3 .bars{display:flex;align-items:flex-end;gap:4px;height:24px}
+.t3 .trk{flex:1;height:100%;background:var(--d200);border-radius:4px;display:flex;align-items:flex-end;overflow:hidden}
+.t3 .trk.inc{background:transparent;border:1px dashed var(--d300)}
+.t3 .trk i{display:block;width:100%;background:var(--primary);border-radius:4px}
+.t3 .lbl{display:flex;gap:4px;margin-top:4px;font-size:11px;color:var(--d400)}
+.t3 .lbl span{flex:1;text-align:center}
+.bd{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:2px 8px;border-radius:9999px;background:rgba(249,191,89,.15);color:var(--warning-ink);margin-top:6px}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;border-top:1px solid var(--d200);margin-top:8px;padding-top:12px;font-size:13px;color:var(--d700)}
+.cbx{width:18px;height:18px;border:2px solid var(--d400);border-radius:4px;flex:0 0 auto}
+.foot{font-size:11.5px;color:var(--d400);line-height:1.7;margin-top:12px;padding:0 16px}
+/* ชีตเลือกเดือน */
+.sheet{position:absolute;inset:0;background:#fff;z-index:60;display:flex;flex-direction:column}
+.shd{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--d200)}
+.shd h2{font-size:16px;font-weight:600}
+.sbd{padding:16px}
+.yr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.yr span{font-size:16px;font-weight:600}
+.mg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mg a,.mg button{min-height:44px;display:grid;place-items:center;border:1px solid var(--d300);border-radius:6px;background:#fff;font-family:inherit;font-size:13px;font-weight:500;color:var(--d700);text-decoration:none}
+.mg a.on{background:var(--primary);border-color:transparent;color:#fff;font-weight:600}
+.mg button:disabled{opacity:.5}
+.doc{background:#fff;border-radius:12px;padding:18px 20px;margin-top:20px;font-size:13px;line-height:1.75;box-shadow:0 1px 3px rgba(47,43,61,.08);max-width:1150px}
+.doc h2{font-size:15px;margin:14px 0 8px}.doc h2:first-child{margin-top:0}
+.doc table{width:100%;border-collapse:collapse;font-size:12.5px}
+.doc th,.doc td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--d200);vertical-align:top}
+.doc th{background:var(--d100);font-weight:700}
+.doc code{background:var(--d100);padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:ui-monospace,monospace}
+.stop{color:#b91c1c;font-weight:700}
+</style></head><body>
+
+<h1>ผลลัพธ์จริงหลังเขียนโค้ดเสร็จ — ยังไม่ push</h1>
+<p class="sub">
+  ประกอบจาก <b>A</b> (แถบติดบน) + <b>หัวการ์ด 4</b> (ปุ่มมุมขวา + สวิตช์ท้าย) + <b>แถว 6</b> (ต้น/กลาง/ปลายเดือน)<br>
+  🛑 มี <b>2 จุดที่ทำต่างจากม็อกอัพ</b> ดูตารางล่างสุด
+</p>
+
+<div class="rail">
+
+<figure><figcaption>1 · หน้าหลัก</figcaption>
+<div class="phone"><div class="sc" id="p1"></div></div></figure>
+
+<figure><figcaption>2 · เปิดเมนู มุมมอง/เรียงลำดับ</figcaption>
+<div class="phone"><div class="sc" id="p2"></div></div></figure>
+
+<figure><figcaption>3 · แตะชื่อเดือน → ชีตเลือกเดือน</figcaption>
+<div class="phone"><div class="sc" id="p3"></div></div></figure>
+
+</div>
+
+<div class="doc">
+<h2>🛑 สองจุดที่ต่างจากม็อกอัพที่คุณดู</h2>
+<table>
+<tr><th>เรื่อง</th><th>ม็อกอัพ</th><th>ของจริง · ทำไม</th></tr>
+<tr><td><b>แถบ ต้น/กลาง/ปลาย</b></td><td>สามท่อน<b>กว้างไม่เท่ากัน</b> ตามยอด สีจางลงเรื่อย ๆ</td>
+<td>สามคอลัมน์<b>กว้างเท่ากัน · ความสูงบอกยอด · สีทึบเดียวกันหมด</b><br>
+เพราะไฟล์ข้าง ๆ ในฟีเจอร์นี้เคยใช้สีจางไล่ระดับแล้ววัดได้ <b>1.42:1</b> ตกเกณฑ์ 3:1 ต้องแก้ไปเมื่อวาน — ถ้าทำซ้ำก็จะตกเกณฑ์เดิมอีก · และความกว้างไม่เท่ากันทำให้ป้ายข้างล่างไม่ตรงกับท่อนของตัวเอง</td></tr>
+<tr><td><b>ปุ่ม <code>i</code> บนแถบติดบน</b></td><td>มี — ซ่อนคำอธิบายไว้ข้างใน</td>
+<td><b>ถอดทิ้ง</b> — คำอธิบายนิยาม "ขายแล้ว" ย้ายไปอยู่<b>ใต้กราฟแบบเห็นตลอด</b><br>
+เพราะโค้ดของค่านั้นเขียนกำกับตัวเองไว้ว่า <b>"ต้องโผล่ใต้กราฟเสมอ"</b> (ระบบมีนิยามยอดขายหลายชุด ตัวเลขไม่ตรงกับหน้าอื่นโดยไม่มีคำอธิบาย = ร้านเลิกเชื่อทั้งหน้า) · ปุ่ม <code>i</code> เป็นของที่ผมใส่เองในม็อกอัพ ไม่ใช่สิ่งที่คุณสั่ง · ผลพลอยได้: แถบเหลือ 4 ปุ่มพอดีที่ 320px</td></tr>
+</table>
+
+<h2>ที่เปลี่ยนทั้งหมด</h2>
+<table>
+<tr><td><b>ชื่อหน้าไม่ซ้ำแล้ว</b></td><td>ซ่อน <code>h4</code> บนมือถือ (เดสก์ท็อปคงไว้เพราะไม่มีหัวแอป) + <b>ผูกเทสไว้</b> ว่าหัวแอปต้องได้ชื่อถูก — วันที่มีคนถอด route ออกจากเมนู หัวจะกลายเป็น "Deep ผู้ขาย" เงียบ ๆ แล้วหน้าจะไม่มีชื่อเหลือเลย</td></tr>
+<tr><td><b>ชื่อเดือนกดได้</b></td><td>เปิดชีต 12 ช่อง เดินปีได้ · เดือนที่ยังไม่ถึง<b>และก่อน ม.ค. 2567</b> เป็นปุ่มกดไม่ได้ (ขอบมี 2 ด้าน — ux ทัก ผมคิดถึงแค่ด้านบน)</td></tr>
+<tr><td><b>แถบเดือน+หน่วยติดบน</b></td><td>ยึดใต้หัวแอปพอดีด้วย <code>calc(4.25rem + safe-area)</code> — ตัวเลขตายตัวใช้ไม่ได้เพราะ iPhone มี Dynamic Island กับไม่มีให้ค่าคนละอย่าง</td></tr>
+<tr><td><b>ปุ่มเดียวมุมขวา</b></td><td>เมนู 2 หมวด: แสดง (ทั้งหมด/ขายวันนี้) · เรียงตาม 5 แบบ — <b>มือถือเรียงลำดับได้เป็นครั้งแรก</b> (เดิมล็อกที่ "ยอดมากไปน้อย" มาตั้งแต่วันแรก)</td></tr>
+<tr><td><b>สวิตช์ท้ายรายการ</b></td><td>"รวมสินค้าที่ยังไม่ขายเดือนนี้" — แยกร่างจากตัวที่กรอง ⇒ อ่านสลับกันไม่ได้อีก</td></tr>
+<tr><td><b>การ์ดเต็มขอบจอบนมือถือ</b></td><td>ตามที่คุณทัก — <code>/orders</code> <code>/products</code> <code>Command Center</code> ทำอยู่แล้ว หน้านี้เป็นหน้าเดียวที่ไม่ได้ทำ · <b>ไม่ได้ยกคลาส <code>*-fullbleed</code> ของเขามาทั้งดุ้น</b> เพราะคลาสนั้นพ่วง "ตัด margin บน + ซ่อน footer" ซึ่งเขาต้องการเพราะสองหน้านั้น<b>แทนที่หัวแอปด้วยหัวของตัวเอง</b> — หน้าเรายังใช้หัวแอปปกติ เอามาจะได้ระยะบนผิด</td></tr>
+<tr><td><b>แถบ 31 ช่องหายจากแถว</b></td><td>ยังอยู่ที่<b>ตารางเดสก์ท็อป</b>และ<b>ในชีตตอนกดเข้าไป</b> · บนมือถือมันได้ช่องละ ~5.4px ซึ่งอ่านไม่ออกอยู่แล้ว</td></tr>
+<tr><td><b>"ข้อมูล ณ …" ย้ายลงท้ายหน้า</b></td><td>เป็นข้อควรรู้ของตัวเลขที่ดูจบแล้ว ไม่ใช่สิ่งที่ต้องรู้ก่อนดู — <b>ย้ายที่ ไม่ได้ตัดทิ้ง</b></td></tr>
+<tr><td><b>แก้บั๊กที่ผมทำค้างเมื่อวาน</b></td><td>จอโหลดยังซ่อนโครงกราฟบนมือถืออยู่ ⇒ กราฟโผล่มาทีหลังแล้วดันทุกอย่างลง = จอกระตุก</td></tr>
+</table>
+
+<h2>ตรวจแล้ว</h2>
+<table>
+<tr><td>tsc 0 · eslint 0 error · build ผ่าน · <b>vitest 4,755 เขียวทั้งชุด</b> · theme-guard ผ่าน · impeccable detector 0 finding</td></tr>
+<tr><td><b>เทสของโปรเจกต์จับผมได้ 1 ครั้ง</b> — แถบติดบนใช้ <code>z-10</code> ซึ่งเสมอกับ <code>.btn</code> ที่ธีมตั้ง <code>z-index:10</code> ให้ทุกปุ่มอยู่แล้ว ⇒ ปุ่มที่อยู่หลังใน DOM จะลอยทับแถบตอนเลื่อน (เคยเกิดบน prod 2026-08-23) แก้เป็น <code>z-20</code></td></tr>
+<tr><td class="stop">ยังไม่เคยเปิดหน้าจริง — เวิร์กทรีนี้ไม่มี <code>.env</code> ทุกอย่างข้างบนมาจากการอ่านโค้ดและคำนวณ</td></tr>
+</table>
+</div>
+
+<script>
+const D=[3,1,2,1,4,3,2,1,5,3,2,4,1,3,2,4,3,3,4,5,6,4,5,6,3,2,4,5,4,1,0];
+const MX=Math.max(...D);
+const P=[
+ {n:'โช๊คหลัง 110 สีแดง',v:'86 ชิ้น',c:'var(--alpha)',pr:'฿300/ชิ้น',sh:'14% ของร้าน',t:[22,31,33]},
+ {n:'โช๊คหลัง 110 สีดำ',v:'80 ชิ้น',c:'var(--gamma)',pr:'฿300/ชิ้น',sh:'13% ของร้าน',t:[30,26,24]},
+ {n:'โช๊คหลัง 110 สีเหลือง',v:'44 ชิ้น',c:'var(--beta)',pr:'฿300/ชิ้น',sh:'7% ของร้าน',t:[19,14,11],b:'สต็อกเหลือ 6 · พอขายอีก ~4 วัน'},
+ {n:'โช๊คหลัง สามล้อ สีดำ',v:'40 ชิ้น',c:'transparent',pr:'฿450/ชิ้น',sh:'6% ของร้าน',t:[12,15,13]}];
+
+const chart=`<div class="ct2">`+D.map(v=>`<div class="col">`+
+ [['var(--alpha)',.5],['var(--gamma)',.3],['var(--beta)',.2]].map(([c,f])=>
+ `<i style="background:${c};height:${(v*f)/MX*130}px"></i>`).join('')+`</div>`).join('')+
+ `</div><div class="xa"><span>1</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span><span>31</span></div>`;
+
+// แถบ 3 ท่อน — ตามโค้ดจริง: กว้างเท่ากัน ความสูงบอกยอด ท่อนที่ยังไม่ครบได้ขอบประ
+const thirds=t=>{const m=Math.max(...t);return `<span class="t3"><span class="bars">`+
+ t.map((v,i)=>`<span class="trk${i===2?' inc':''}"><i style="height:${Math.max(v>0?12:0,v/m*100)}%"></i></span>`).join('')+
+ `</span><span class="lbl"><span>ต้น ${t[0]}</span><span>กลาง ${t[1]}</span><span>ปลาย ${t[2]}</span></span></span>`};
+
+const row=p=>`<div class="r"><span class="th" style="--rc:${p.c}"></span>
+ <span style="flex:1;min-width:0">
+  <span style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+   <span class="nm">${p.n}</span><span class="vv">${p.v}</span></span>
+  <span class="ss"><span>${p.pr}</span><span>${p.sh}</span></span>
+  ${p.b?`<span class="bd">▲ ${p.b}</span>`:''}
+  ${thirds(p.t)}
+ </span></div>`;
+
+const head=`<div class="ab"><span class="ic">←</span><span class="t">ยอดขายรายสินค้า</span><span class="ic">🔔</span></div>
+<div class="bar"><span class="msw"><span class="nb">‹</span><span class="ml">ส.ค. 2569 <i>▾</i></span><span class="nb">›</span></span>
+<span class="seg"><b class="on">จำนวน</b><b>บาท</b></span></div>`;
+
+const body=(menu)=>`<div class="pg">
+<div class="card"><div class="ch"><span class="ct">แนวโน้มรายวัน</span><span class="cn">แสดง 3 อันดับแรก</span></div>
+<div class="cb">${chart}<div class="lgd">
+<span><i class="dot" style="background:var(--alpha)"></i>110 สีแดง</span><span><i class="dot" style="background:var(--gamma)"></i>110 สีดำ</span><span><i class="dot" style="background:var(--beta)"></i>110 สีเหลือง</span></div>
+<div class="basis">นับทุกออเดอร์ที่ยังไม่ถูกยกเลิก ไม่ต้องรอลูกค้ายืนยัน <u>ดูรายละเอียด</u></div></div></div>
+
+<div class="card"><div class="ch"><span class="ct">รายสินค้า <em>(33)</em></span>
+<span class="fd${menu?' act':''}">${menu?'ขายดีสุด':'ขายดีสุด'} <i>▾</i></span></div>
+${menu?`<div class="menu"><u>แสดง</u><b class="on">ทั้งหมด ✓</b><b>ขายวันนี้ (3)</b><hr>
+<u>เรียงตาม</u><b class="on">ขายดีสุด ✓</b><b>ขายน้อยสุด</b><b>ขายล่าสุด</b><b>เงียบนานสุด</b><b>ชื่อ ก–ฮ</b></div>`:''}
+<div class="cb"><p class="note">เดือนนี้ยังไม่จบ — ช่วงปลายเดือนนับถึงวันที่ 30 เท่านั้น</p>
+${P.map(row).join('')}
+<div class="sw"><span>รวมสินค้าที่ยังไม่ขายเดือนนี้ (2)</span><span class="cbx"></span></div></div></div>
+
+<p class="foot">นับจากคำสั่งซื้อ 214 ใบใน ส.ค. 2569<br>ข้อมูล ณ 11:22 น. วันนี้ · ตัวเลขของเดือนเก่าเปลี่ยนได้ ถ้ามีคนคีย์ออเดอร์ย้อนหลัง</p>
+</div>`;
+
+document.getElementById('p1').innerHTML=head+body(false);
+document.getElementById('p2').innerHTML=head+body(true);
+document.getElementById('p3').innerHTML=head+body(false)+
+`<div class="sheet"><div class="shd"><span class="ic">✕</span><h2>เลือกเดือน</h2></div>
+<div class="sbd"><div class="yr"><span class="nb">‹</span><span>2569</span><span class="nb">›</span></div>
+<div class="mg"><a href="#">ม.ค.</a><a href="#">ก.พ.</a><a href="#">มี.ค.</a>
+<a href="#">เม.ย.</a><a href="#">พ.ค.</a><a href="#">มิ.ย.</a>
+<a href="#">ก.ค.</a><a href="#" class="on">ส.ค.</a><button disabled>ก.ย.</button>
+<button disabled>ต.ค.</button><button disabled>พ.ย.</button><button disabled>ธ.ค.</button></div></div></div>`;
+</script>
+</body></html>
