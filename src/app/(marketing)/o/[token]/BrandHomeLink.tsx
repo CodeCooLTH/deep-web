@@ -17,28 +17,25 @@
  *
  * Base: src/views/pages/user-profile/v2/ProfileHero.tsx (พิลตราแบรนด์บนปก — E1)
  */
-import NextLink from 'next/link'
-
 import logoDeepMark from '@/assets/images/logo-deep-mark.png'
 import themeConfig from '@configs/themeConfig'
 
+import CoverPill from './CoverPill'
+
 export default function BrandHomeLink({ className = '' }: { className?: string }) {
   return (
-    <NextLink
+    /* 🛑 ทรงพิลมาจาก `CoverPill` ที่เดียว — ห้ามเขียนพื้น/รัศมี/ขนาดตัวอักษรเองอีก
+       ปุ่มฝั่งขวาของปกใช้ตัวเดียวกัน ⇒ สองฝั่งเท่ากันเสมอโดยไม่ต้องไล่จูน
+       (ดูตารางความต่างที่เคยเกิดขึ้นในหัวไฟล์ `CoverPill`) */
+    <CoverPill
       href='/'
       aria-label={`${themeConfig.templateName} — กลับหน้าแรก`}
-      /* p-2.5 เป็น hit-area ที่มองไม่เห็น ดัน tap target รวมให้ถึง 44px ตามเกณฑ์ AA
-         ขณะที่พิลที่ตาเห็นยังสูงราว 30px (ไม่ให้แย่งสายตาไปจากชื่อร้าน) */
-      className={`p-2.5 no-underline ${className}`}
+      className={className}
     >
-      <span className='inline-flex items-center gap-1.5 rounded-full plb-1.5 pli-3 bg-[var(--mui-palette-background-paper)] shadow-sm'>
-        {/* โลโก้ Deep ของจริง (เดิมเป็น `VuexyLogo` ของธีม) — มีคำว่า Deep อยู่ข้าง ๆ จึงใช้มาร์ก */}
-        {/* eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ที่ import มาแล้ว */}
-        <img src={logoDeepMark.src} alt='' className='bs-4 is-auto' />
-        <span className='text-[13px] font-bold text-[var(--mui-palette-text-primary)]'>
-          {themeConfig.templateName}
-        </span>
-      </span>
-    </NextLink>
+      {/* โลโก้ Deep ของจริง (เดิมเป็น `VuexyLogo` ของธีม) — มีคำว่า Deep อยู่ข้าง ๆ จึงใช้มาร์ก */}
+      {/* eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ที่ import มาแล้ว */}
+      <img src={logoDeepMark.src} alt='' className='bs-4 is-auto' />
+      {themeConfig.templateName}
+    </CoverPill>
   )
 }

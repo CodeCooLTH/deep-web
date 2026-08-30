@@ -244,6 +244,27 @@ export const APPOINTMENT_STATUS_LABEL: Record<AppointmentStatus, string> = {
 };
 
 /**
+ * เลย **หน้าต่างเวลานัด** ไปแล้วหรือยัง
+ *
+ * 🛑 ใช้ `serviceEnd` ไม่ใช่ `serviceStart` — และต้องตรงกับด่านฝั่งเซิร์ฟเวอร์เป๊ะ
+ * (`appointment.service.ts::requestAppointmentReschedule` → `now >= serviceEnd`)
+ * ถ้าสองที่ใช้เส้นคนละเส้น จะเกิดช่วงเวลาที่จอบอกว่ากดได้แต่ server ปฏิเสธ
+ * ซึ่งเป็นอาการที่แย่กว่าไม่บอกอะไรเลย (HR16 — กติกาเดียวต้องมีนิยามเดียว)
+ *
+ * ระหว่างช่วงนัด (start ≤ now < end) **ยังไม่นับว่าเลย** — ตอนนั้นคือ "ถึงเวลาแล้ว"
+ * ซึ่งเป็นคนละเรื่องกับ "เลยเวลาแล้ว"
+ *
+ * @param endIso เวลาสิ้นสุดนัด · ค่าที่แปลงเป็นเวลาไม่ได้ให้ถือว่า **ยังไม่เลย**
+ *   (fail-open ตรงนี้ปลอดภัยกว่า: เดาว่าเลยแล้วจะไปซ่อนปุ่มของใบที่ยังใช้ได้)
+ */
+export function isAppointmentPast(endIso: string | Date | null | undefined, now: Date = new Date()): boolean {
+  if (endIso == null) return false;
+  const end = new Date(endIso).getTime();
+  if (!Number.isFinite(end)) return false;
+  return now.getTime() >= end;
+}
+
+/**
  * ป้ายเดียวกัน แต่พูดกับ **ผู้ซื้อ** — ใช้เฉพาะหน้า `/o/[token]`
  *
  * ## 🛑 ทำไมต้องมีสองชุด ไม่ใช่ชุดเดียว

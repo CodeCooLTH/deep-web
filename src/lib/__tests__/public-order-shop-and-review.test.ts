@@ -33,9 +33,14 @@ describe('[blocker] บล็อกร้าน', () => {
     const at = code.indexOf('ดูโปรไฟล์ร้าน')
     expect(at, 'ต้องมีปุ่มไปโปรไฟล์ร้าน').toBeGreaterThan(-1)
 
-    /* ต้องเป็นปุ่มจริงและชี้ไปโปรไฟล์ร้านจริง — ข้อความเปล่า ๆ ที่กดไม่ได้ไม่นับ */
-    const block = code.slice(Math.max(0, at - 600), at)
-    expect(block, 'ต้องเป็น Button').toMatch(/<Button/)
+    /* ต้องเป็นปุ่มจริงและชี้ไปโปรไฟล์ร้านจริง — ข้อความเปล่า ๆ ที่กดไม่ได้ไม่นับ
+
+       🛑 **ห้ามใช้หน้าต่างความยาวคงที่** — ไฟล์นี้แทนคอมเมนต์ด้วยช่องว่างที่ยาวเท่าเดิม
+       การเพิ่มคำอธิบายเหนือปุ่มจึงดัน `<Button` หลุดกรอบ แล้วแดงทั้งที่ของถูก
+       (พลาดแบบเดียวกันเป็นครั้งที่หกในงานนี้ — เลิกใช้ระยะ ใช้ "ตัวเปิดที่ใกล้ที่สุด" แทน) */
+    const btn = code.lastIndexOf('<Button', at)
+    expect(btn, 'ต้องเป็น Button').toBeGreaterThan(-1)
+    const block = code.slice(btn, at)
     expect(block, 'ต้องชี้ /u/{username}').toMatch(/href=\{`\/u\/\$\{order\.shop\.user\.username\}`\}/)
   })
 
@@ -44,8 +49,9 @@ describe('[blocker] บล็อกร้าน', () => {
        การไปดูโปรไฟล์เป็นการ *หาข้อมูลเพิ่ม* ไม่ใช่ขั้นตอนของงาน
        ถ้าทำเป็นปุ่มทึบ จะแข่งสายตากับปุ่มที่กดแล้วปิดงานถาวร ซึ่งอันตราย */
     const at = code.indexOf('ดูโปรไฟล์ร้าน')
-    const block = code.slice(Math.max(0, at - 600), at)
-    expect(block, 'ห้ามเป็นปุ่มทึบ').not.toMatch(/variant='contained'/)
+    const btn = code.lastIndexOf('<Button', at)
+    expect(btn).toBeGreaterThan(-1)
+    expect(code.slice(btn, at), 'ห้ามเป็นปุ่มทึบ').not.toMatch(/variant='contained'/)
   })
 })
 

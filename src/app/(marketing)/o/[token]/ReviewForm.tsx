@@ -112,7 +112,7 @@ export default function ReviewForm({ token, mode = 'create', initial, onCancel }
             และไม่มีเหตุผลกำกับ (impeccable hook จับได้ตอนเขียนไฟล์นี้ใหม่) · size='large'
             ของ MUI มีสเกลของตัวเองที่ผูกกับธีมอยู่แล้ว การใส่เลขทับคือการหลุดออกจากระบบเปล่า ๆ */}
         <Rating name='order-review-rating' value={rating} onChange={(_e, v) => setRating(v ?? 0)} size='large' />
-        <Typography variant='caption' color='text.disabled'>
+        <Typography variant='caption' color='text.secondary'>
           {rating ? `${rating}/5` : 'แตะเพื่อให้คะแนน'}
         </Typography>
       </Box>
@@ -131,7 +131,7 @@ export default function ReviewForm({ token, mode = 'create', initial, onCancel }
 
       {/* ── รูปแนบ ── */}
       <Box sx={{ mt: 2 }}>
-        <Typography variant='caption' color='text.disabled' sx={{ display: 'block', mb: 0.75 }}>
+        <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mb: 0.75 }}>
           แนบรูป (ไม่บังคับ, สูงสุด {MAX_IMAGES} รูป)
         </Typography>
         <input

@@ -33,6 +33,10 @@ import { formatDateTimeTH } from '@/lib/format-date'
 import { formatBaht } from '@/lib/format-money'
 import TrustPill, { VERIFIED_INK } from './TrustPill'
 import { ORDER_PAYMENT_KIND_LABEL, ORDER_PAYMENT_METHOD_LABEL } from '@/lib/order-payment'
+import { isCODPayment, PAYMENT_STATE_LABEL } from '@/lib/order-display'
+import { Icon } from '@iconify/react'
+
+import CustomAvatar from '@core/components/mui/Avatar'
 import type { OrderPaymentKind, OrderPaymentMethod } from '@/lib/order-payment'
 
 export interface PublicOrderMoney {
@@ -70,14 +74,30 @@ export function paidPercentOf(money: Pick<PublicOrderMoney, 'totalAmount' | 'tot
   return Math.min(100, Math.max(0, Math.round((money.totalReceived / money.totalAmount) * 100)))
 }
 
-export default function PaymentSummaryCard({ money }: { money: PublicOrderMoney }) {
+export default function PaymentSummaryCard({
+  money,
+  paymentMethod = null,
+}: {
+  money: PublicOrderMoney
+  /**
+   * ช่องทางที่ตกลงจะจ่าย — เดิมเป็น **การ์ดแยกอีกใบ** ต่อท้ายรายการสินค้า
+   *
+   * 🛑 เรื่องเงินของออเดอร์เดียวกันเคยกระจายอยู่ 3 การ์ด (ยอด · สลิป · ช่องทาง)
+   * โดยมีการ์ด "รายการบริการ" มาคั่นกลางบนมือถือ ⇒ ผู้ซื้อต้องเลื่อนขึ้นลงเทียบเอง
+   * ว่าจะโอนเท่าไร เข้าช่องทางไหน — สองอย่างที่ต้องอ่านคู่กันเสมอ
+   *
+   * `null` = ร้านยังไม่ระบุ ⇒ ไม่ต้องขึ้นแถวนี้
+   * (กติกาเดียวกับบล็อกอื่นบนหน้านี้: ไม่มีอะไรจะบอก = ไม่ต้องแสดง)
+   */
+  paymentMethod?: string | null
+}) {
   const paidPercent = paidPercentOf(money)
 
   return (
     <Card>
       <Box sx={{ px: 1.75, py: 1.75 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
-          <Typography variant='overline' color='text.disabled' sx={{ lineHeight: 1 }}>
+          <Typography variant='overline' color='text.secondary' sx={{ lineHeight: 1 }}>
             การชำระเงิน
           </Typography>
           {/**
@@ -97,9 +117,13 @@ export default function PaymentSummaryCard({ money }: { money: PublicOrderMoney 
               ป้ายนี้แบก "จบหรือยัง" ของเรื่องเงิน — อ่านไม่ออกคือเสียหน้าที่ทั้งใบ
               (หน้านี้ใช้ `TrustPill` อยู่แล้ว 3 ที่ ⇒ ชิป tonal ยังทำให้จอเดียวมี "ป้าย" 2 หน้าตา) */}
           <Box sx={{ ml: 'auto' }}>
+            {/* 🛑 คำต้องมาจาก `PAYMENT_STATE_LABEL` (SSOT) ไม่ใช่พิมพ์เอง —
+                ป้ายสถานะบนสุดของร้านบริการ derive จาก **เงินก้อนเดียวกันนี้**
+                เดิมจึงได้ "ชำระเงินแล้ว" ข้างบน กับ "ชำระครบแล้ว" ข้างล่าง
+                = ข้อเท็จจริงเดียวกันสองคำบนจอเดียว (Hard Rule 16) */}
             <TrustPill
               tone={money.fullyPaid ? 'green' : 'gold'}
-              label={money.fullyPaid ? 'ชำระครบแล้ว' : 'ยังค้างชำระ'}
+              label={money.fullyPaid ? PAYMENT_STATE_LABEL.paid : PAYMENT_STATE_LABEL.outstanding}
             />
           </Box>
         </Box>
@@ -184,9 +208,12 @@ export default function PaymentSummaryCard({ money }: { money: PublicOrderMoney 
               <Typography variant='body2' sx={{ fontWeight: 600 }}>
                 คงเหลือ
               </Typography>
+              {/* 🛑 จ่ายครบแล้วให้ *ลดน้ำหนัก* ได้ แต่ห้ามลดจนอ่านไม่ออก — `text.disabled`
+                  วัดได้ 2.30:1 บนพื้นขาว (ตก AA ไปไกล) และนี่คือ **ตัวเลขเงิน**
+                  ที่ผู้ซื้อเปิดหน้านี้มาดู · `text.secondary` = 5.22:1 ผ่าน AA และยังจางกว่าหมึกหลัก */}
               <Typography
                 variant='body2'
-                sx={{ fontWeight: 700, color: money.fullyPaid ? 'text.disabled' : 'text.primary' }}
+                sx={{ fontWeight: 700, color: money.fullyPaid ? 'text.secondary' : 'text.primary' }}
               >
                 {baht(money.outstanding)}
               </Typography>
@@ -232,8 +259,41 @@ export default function PaymentSummaryCard({ money }: { money: PublicOrderMoney 
          * บรรทัดอธิบาย — โผล่เฉพาะตอน **ยังไม่มีรายการเลย** ซึ่งเป็นตอนที่ผู้ใช้สับสนที่สุด
          * (แนบสลิปไปแล้วแต่ยอดยังเป็น 0) ตอนมีรายการแล้วไม่ต้องอธิบาย ตัวเลขพูดแทนหมด
          */}
+        {/* ── ช่องทางที่ตกลงจะจ่าย — ยุบมาจากการ์ดแยกใบ (ลดบล็อกบนมือถือ) ── */}
+        {paymentMethod !== null && (
+          <Box
+            sx={{
+              mt: 1.75,
+              pt: 1.5,
+              borderTop: '1px solid',
+              borderColor: 'divider',
+              display: 'flex',
+              gap: 1.25,
+              alignItems: 'center',
+            }}
+          >
+            {/* D4: icon tonal info=โอนเงิน / warning=COD (ไม่ใช่ success — เขียวสงวนไว้กับ verified) */}
+            <CustomAvatar
+              skin='light'
+              variant='rounded'
+              color={isCODPayment(paymentMethod) ? 'warning' : 'info'}
+              size={34}
+            >
+              <Icon icon={isCODPayment(paymentMethod) ? 'tabler-coin' : 'tabler-credit-card'} fontSize={16} />
+            </CustomAvatar>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant='caption' color='text.secondary' sx={{ display: 'block' }}>
+                {isCODPayment(paymentMethod) ? 'ชำระเมื่อได้รับสินค้า' : 'โอนเข้าบัญชี'}
+              </Typography>
+              <Typography variant='body2' sx={{ fontWeight: 700 }}>
+                {paymentMethod}
+              </Typography>
+            </Box>
+          </Box>
+        )}
+
         {money.entries.length === 0 && (
-          <Typography variant='caption' color='text.disabled' sx={{ display: 'block', mt: 1.25, lineHeight: 1.6 }}>
+          <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 1.25, lineHeight: 1.6 }}>
             ยอดนี้จะอัปเดตเมื่อร้านกดยืนยันว่าได้รับเงินแล้ว — แนบสลิปไว้ได้เลย ร้านจะเห็นทันที
           </Typography>
         )}

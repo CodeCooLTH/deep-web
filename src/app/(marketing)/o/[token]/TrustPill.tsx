@@ -48,6 +48,20 @@ export default function TrustPill({
 }) {
   const palette = tone === 'tier' ? { bg: 'action.hover', fg: 'text.primary' } : VERIFY_BADGE_PALETTE[tone]
 
+  /**
+   * 🛑 `getTierColor()` คืน **`'default'`** ให้ร้าน tier B (Deep Silver) — ซึ่งเป็นค่าของ
+   * `Chip` ของ MUI **ไม่ใช่คีย์ใน palette** ⇒ `'default.dark'` ที่ต่อขึ้นมาไม่มีอยู่จริง
+   *
+   * MUI แปลงไม่ได้ก็ปล่อยสตริงผ่านลง CSS ตรง ๆ (`color: default.dark`) ซึ่งเบราว์เซอร์ทิ้ง
+   * ⇒ ป้ายสืบสีจากพ่อแทน **โดยไม่มี error ไม่มี warning และหน้าตายังดูใช้ได้**
+   * เป็นสีที่ไม่มีใครตั้งใจ และจะเปลี่ยนไปเองทันทีที่มีคนแก้สีของพ่อ
+   *
+   * ค่าที่ไม่มี `.dark` ให้ถอยไปใช้หมึกหลัก — เข้มพอสำหรับพื้น `action.hover` เสมอ
+   * (`getTierColor` คืนได้ 4 ค่า: secondary · info · warning · default)
+   */
+  const TIER_HAS_DARK = ['primary', 'secondary', 'info', 'success', 'warning', 'error']
+  const tierInk = tierColor && TIER_HAS_DARK.includes(tierColor) ? `${tierColor}.dark` : 'text.primary'
+
   return (
     <Box
       component='span'
@@ -62,7 +76,7 @@ export default function TrustPill({
         fontWeight: 600,
         lineHeight: 1.4,
         bgcolor: palette.bg,
-        color: tone === 'tier' && tierColor ? `${tierColor}.dark` : palette.fg,
+        color: tone === 'tier' ? tierInk : palette.fg,
       }}
     >
       {icon && <Icon icon={icon} fontSize={14} />}

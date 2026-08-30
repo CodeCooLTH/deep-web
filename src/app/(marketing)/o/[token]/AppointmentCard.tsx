@@ -31,15 +31,20 @@ import DialogContent from '@mui/material/DialogContent'
 import Typography from '@mui/material/Typography'
 import { toast } from 'react-toastify'
 
+import { Icon } from '@iconify/react'
+
 import CustomTextField from '@core/components/mui/TextField'
 import {
   APPOINTMENT_STATUS_LABEL_BUYER,
   formatDurationTH,
   isAllDayAppointment,
+  isAppointmentPast,
   type AppointmentStatus,
 } from '@/lib/appointments'
 import { formatDateTH, formatDateTimeTH, formatTimeHM, formatWeekdayDateTH } from '@/lib/format-date'
 import TrustPill, { VERIFIED_INK } from './TrustPill'
+
+import { infoBoxSx } from './card-padding'
 
 /**
  * MiniFact — กล่องข้อเท็จจริงหนึ่งชิ้น (ป้าย + ค่า) ในตารางย่อของการ์ดนัดหมาย
@@ -50,14 +55,18 @@ import TrustPill, { VERIFIED_INK } from './TrustPill'
  */
 function MiniFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className='rounded-lg bg-[var(--mui-palette-action-hover)] px-3 py-2'>
+    /* 🛑 ระยะ/รัศมีต้องตรงกับ "ช่อง" ใบอื่นทั้งหน้า — วัดจากเบราว์เซอร์ 2026-08-30 เจอกล่อง
+       ข้างในการ์ด **5 แบบไม่ซ้ำกันเลย** (6/8 · 10/12 · 8/12 · 6/7 · 6/6) และใบนี้เป็น
+       ใบเดียวที่รัศมี 8 ขณะที่ใบอื่น 12 (หัวหน้าเห็นเอง: "ช่องมันไม่เท่ากัน ดูไม่สวย")
+       ⇒ ใช้ `infoBoxSx` (12/10) + `rounded-xl` (12px) เหมือนทุกใบ */
+    <Box sx={{ ...infoBoxSx, borderRadius: 2, bgcolor: 'action.hover' }}>
       <Typography variant='caption' color='text.secondary' sx={{ display: 'block', lineHeight: 1.4 }}>
         {label}
       </Typography>
       <Typography variant='body2' sx={{ fontWeight: 600, lineHeight: 1.4, mt: 0.25 }}>
         {value}
       </Typography>
-    </div>
+    </Box>
   )
 }
 
@@ -159,8 +168,34 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
    * ตั้งใจไม่ทำเป็น "ถอนการยืนยัน" ที่ย้อนสถานะกลับเป็น SCHEDULED เงียบ ๆ เพราะร้าน
    * จะไม่รู้ว่าลูกค้าเปลี่ยนใจ — ส่งเป็นคำขอให้ร้านเห็นดีกว่า
    */
+  /**
+   * เลยหน้าต่างเวลานัดไปแล้วหรือยัง
+   *
+   * 🛑 **คำนวณครั้งเดียวตอน mount** (`useState` initializer) ไม่ใช่ทุก render:
+   *   1. `new Date()` ระหว่าง SSR กับตอน hydrate เป็นคนละค่า ⇒ ถ้าคิดใน render body
+   *      จะได้ผลต่างกันสองรอบและ React เตือน hydration mismatch
+   *   2. ค่านี้เปลี่ยนได้อย่างมากวันละครั้งต่อการเปิดหน้าหนึ่งครั้ง — คิดใหม่ทุก render
+   *      คือการเสียงานเปล่าโดยไม่ได้อะไรกลับมา
+   *
+   * ตั้งใจ **ไม่ตั้ง timer มาอัปเดตสด** — ใบที่เปิดค้างไว้ข้ามเส้นเวลาพอดีเป็นเคสที่พบยากมาก
+   * และการมี interval วิ่งอยู่บนหน้าที่ผู้ซื้อเปิดทิ้งไว้ แพงกว่าประโยชน์ที่ได้
+   */
+  const [appointmentPast] = useState(() => isAppointmentPast(appointment.endIso))
+
+  /**
+   * 🛑 **เลยเวลานัดแล้วต้องไม่โชว์ปุ่ม "ขอเลื่อนนัด"**
+   *
+   * `requestAppointmentReschedule()` บล็อกที่ `now >= serviceEnd` แล้วตอบ `APPOINTMENT_PAST`
+   * ⇒ ก่อนหน้านี้จอโชว์ปุ่มที่ **ไม่มีวันสำเร็จ** แล้วค่อยบอกว่า "เลยเวลานัดไปแล้ว"
+   * หลังผู้ใช้กด — คลาสเดียวกับที่ `classifyRetryUX` ถูกสร้างมาลบทิ้ง
+   * (*"ข้อความที่เชิญให้กดสิ่งที่ไม่มีวันผ่าน"*)
+   *
+   * ปุ่ม "ยืนยันนัดหมาย" **ไม่ถูกซ่อน** เพราะ `confirmAppointmentByBuyer()` ไม่มีด่านเวลา —
+   * ลูกค้าที่มาถึงร้านสายยังกดยืนยันได้จริง (ตรวจกับ service แล้ว ไม่ได้เดา)
+   */
   const showReschedule =
     !orderCancelled &&
+    !appointmentPast &&
     (state.status === 'SCHEDULED' || state.status === 'CONFIRMED_BY_BUYER')
 
   const handleConfirm = async () => {
@@ -300,6 +335,53 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
             </Typography>
           ) : showConfirm || showReschedule ? (
             <div className="flex flex-col gap-2">
+              {/**
+               * ── เลยเวลานัดไปแล้ว ────────────────────────────────────────────
+               *
+               * 🛑 ก่อนหน้านี้ **ไม่มีอะไรบนหน้าจอบอกเลยว่าเลยเวลามาแล้ว** — ลูกค้าเห็น
+               * วันเวลานัดเฉย ๆ กับปุ่ม "ขอเลื่อนนัด" ที่กดแล้วล้มเสมอ แล้วเพิ่งรู้จาก
+               * ข้อความ error หลังกด (`APPOINTMENT_PAST` = "เลยเวลานัดไปแล้ว")
+               *
+               * แถบนี้ตอบสองอย่างที่ข้อความ error ตอบไม่ได้:
+               *   1. **บอกก่อนกด** ไม่ใช่หลังกด
+               *   2. **บอกว่าทำอะไรต่อได้** — ปุ่มที่ทำได้จริงถูกซ่อนไปแล้วหนึ่งตัว
+               *      ถ้าไม่บอกทางออก ลูกค้าจะค้างอยู่กับจอที่ไม่มีอะไรให้ทำ
+               *
+               * วางไว้ **เหนือปุ่ม** เพราะมันคือบริบทที่ต้องอ่านก่อนตัดสินใจกด
+               * ใช้ `warning` ไม่ใช่ `error`: สายแล้วยังแก้ได้ ไม่ใช่ความล้มเหลว
+               * (เหตุผลเดียวกับชิปยอดค้างที่เลือก warning — ดู `PaymentSummaryCard`)
+               */}
+              {appointmentPast && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    gap: 1,
+                    alignItems: 'flex-start',
+                    bgcolor: 'warning.lightOpacity',
+                    borderRadius: 2,
+                    ...infoBoxSx,
+                    minWidth: 0,
+                  }}
+                >
+                  <Icon
+                    icon="tabler-clock-exclamation"
+                    style={{ fontSize: 17, flexShrink: 0, marginTop: 1, color: 'var(--mui-palette-warning-main)' }}
+                    aria-hidden="true"
+                  />
+                  <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.6, minWidth: 0 }}>
+                    <Box component="strong" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      เลยเวลานัดนี้มาแล้ว
+                    </Box>{' '}
+                    {/* 🛑 ต้องอ้างเวลาจริงของนัด ไม่ใช่เขียนลอย ๆ ว่า "สายแล้ว" —
+                        ลูกค้าที่จำวันผิดต้องเห็นเลขที่ทำให้รู้ตัว · ใช้ SSOT ตัวเดียวกับ
+                        แถววันที่ด้านบน จึงไม่มีทางเป็นคนละรูปแบบกัน */}
+                    ({formatDateTimeTH(appointment.startIso)}) หากยังต้องการใช้บริการ{' '}
+                    <Box component="strong" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      ติดต่อร้านเพื่อนัดใหม่
+                    </Box>
+                  </Typography>
+                </Box>
+              )}
               {/* ยืนยันแล้ว → ไม่มีปุ่มยืนยันอีก แต่บอกให้เห็นว่ายืนยันไปเมื่อไร
 
                   🛑 ใช้ `VERIFIED_INK` (#18804A = 4.97:1) — เดิมเป็น `success.dark` พร้อมคอมเมนต์

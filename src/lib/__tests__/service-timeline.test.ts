@@ -136,10 +136,19 @@ describe('getServiceTimeline — ราง 4 ขั้นของร้าน�
     expect(stateOf(run({ serviceStart: BEFORE }), SERVED)).toBe('up')
   })
 
-  it('[blocker] เลยเวลานัดมาแล้วแต่ร้านยังไม่กดปิดผล → กำลังถึงคิว', () => {
+  it('[blocker] ลูกค้ายืนยันแล้ว + เลยเวลานัด แต่ร้านยังไม่กดปิดผล → กำลังถึงคิว', () => {
     /* ตัดสินจากเวลาที่ผ่านไป ไม่ใช่จากปุ่มที่ร้านกด — ร้านที่ยุ่งจะกดทีหลัง
        ถ้ารอปุ่ม ลูกค้าที่นั่งอยู่ในร้านจะเห็นว่า "ยังไม่ถึงคิว" ซึ่งขัดกับสิ่งที่เห็นด้วยตา */
-    expect(stateOf(run({ serviceStart: AFTER }), SERVED)).toBe('cur')
+    expect(stateOf(run({ serviceStart: AFTER, appointmentStatus: 'CONFIRMED_BY_BUYER' }), SERVED)).toBe('cur')
+  })
+
+  it('[blocker] เลยเวลานัดแล้วแต่ลูกค้ายังไม่ยืนยัน → ขั้น 3 ต้องยัง "ไม่ถึง"', () => {
+    /* 🛑 หัวหน้าชี้กติกานี้เอง (2026-08-29): "ร้านให้บริการ ยังเหมือนเดิม เพราะต้องรอลูกค้าก่อน"
+       ร้านลงมือไม่ได้จนกว่าลูกค้าจะยืนยันว่าจะมา ⇒ เวลาที่ผ่านไปอย่างเดียวไม่พาขั้น 3 ให้เดิน
+       (ก่อนหน้านี้ผมแก้กลับด้าน — ไปข้ามขั้น 2 ทิ้ง ซึ่งลบข้อมูลว่าใครต้องขยับต่อ) */
+    const t = run({ serviceStart: AFTER, appointmentStatus: 'SCHEDULED', buyerConfirmedAt: null })
+    expect(stateOf(t, SERVED), 'ขั้น 3 ต้องยังไม่ถึง').toBe('up')
+    expect(stateOf(t, BUYER_OK), 'ขั้น 2 ต้องเป็นขั้นปัจจุบัน — คนที่ต้องขยับคือลูกค้า').toBe('cur')
   })
 
   it('[blocker] ปิดผลนัดแล้ว → done แม้ยังไม่ถึงเวลาที่นัดไว้', () => {
@@ -273,6 +282,37 @@ describe('getServiceTimeline — บรรทัดอธิบาย (note)', (
     expect(labels(t)).toEqual([BOOKED, SERVED, DONE])
   })
 
+  // ── คืนของแล้ว (feature 00056) ─────────────────────────────────────────
+  it('[blocker] RETURNED ต้องไม่ขึ้นว่า "ยังเดินอยู่" — ใบนี้จบไปแล้ว', () => {
+    /* 🛑 เคสนี้เคยไม่มีในฟังก์ชันเลย ⇒ ตกลงมาเป็นใบที่กำลังรอร้านให้บริการ
+       ซึ่งเป็นคำโกหกบนหน้าที่ผู้ซื้อใช้ตัดสินใจ · ถูกปิดตาซ้ำด้วย cast ที่ `page.tsx`
+       ซึ่งประกาศ `status` ไว้แค่ 4 ค่าทั้งที่ SSOT มี 5 (prod ยังมี 0 ใบ — มันรออยู่เฉย ๆ) */
+    const t = run({ status: 'RETURNED', appointmentStatus: 'SCHEDULED', serviceStart: AFTER })
+    for (const s of t) {
+      expect(['done', 'mute'], `${s.label} ต้องเป็น done หรือ mute เท่านั้น`).toContain(s.state)
+    }
+    expect(t.some((s) => s.state === 'cur'), 'ห้ามมีขั้นที่กำลังรอ').toBe(false)
+    expect(t.some((s) => s.state === 'up'), 'ห้ามมีขั้นที่ "ยังไม่ถึง"').toBe(false)
+  })
+
+  it('[blocker] RETURNED ต่างจาก CANCELLED — ไม่มีอะไรล้มเหลว จึงห้ามมี cx', () => {
+    /* ของเดินครบเส้นทางแล้วจึงถูกคืน — `cx` แปลว่า "หยุดเพราะล้มเหลว" ซึ่งคนละเรื่อง
+       (ความต่างนี้ `getOrderTimeline` เขียนไว้เองแล้วสำหรับราง 3 ขั้น ต้องพูดตรงกัน HR16) */
+    const t = run({ status: 'RETURNED', appointmentStatus: 'SCHEDULED', serviceStart: AFTER })
+    expect(t.some((s) => s.state === 'cx'), 'RETURNED ห้ามทาแดง').toBe(false)
+
+    const cancelled = run({ status: 'CANCELLED', appointmentStatus: 'SCHEDULED', serviceStart: AFTER })
+    expect(cancelled.some((s) => s.state === 'cx'), 'CANCELLED ต้องบอกว่าหยุดตรงไหน').toBe(true)
+  })
+
+  it('[blocker] RETURNED ต้องไม่เหลือคำที่สั่งให้ผู้ใช้รอ', () => {
+    const t = run({ status: 'RETURNED', appointmentStatus: 'SCHEDULED', serviceStart: AFTER })
+    for (const s of t) {
+      if (s.state === 'done') continue
+      expect(s.note ?? '', s.label).not.toMatch(/รอ|กด|ยืนยันเมื่อ/)
+    }
+  })
+
   it('[blocker] ใบที่ยกเลิกแล้ว ห้ามเหลือคำที่สั่งให้ผู้ใช้รอ/ทำอะไรต่อ', () => {
     /* คำอย่าง "รอยืนยันว่าจะมาตามนัด" เขียนไว้ตอนใบยังเดินอยู่ — ติดมากับใบที่ยกเลิกแล้ว
        คือบอกให้ผู้ใช้รอสิ่งที่จะไม่เกิดขึ้นอีก */
@@ -308,5 +348,96 @@ describe('getServiceTimeline — บรรทัดอธิบาย (note)', (
     for (const s of all as unknown as Record<string, unknown>[]) {
       expect(s.atIso, `"${s.label}" ต้องไม่มีเวลา`).toBeUndefined()
     }
+  })
+})
+
+describe('[blocker] รางต้องมี "ขั้นปัจจุบัน" ได้ขั้นเดียว', () => {
+  /**
+   * 🛑 หัวหน้าเห็นบนจอจริง 2026-08-29: "2 สถานะ อันนี้สื่อถึงอันไหนอยู่หรือยังไง"
+   *
+   * เคสที่หลุด: ลูกค้าไม่เคยกดยืนยันนัด แล้ว **เลยเวลานัดมาแล้ว** (ร้านยังไม่กดปิดผล)
+   * ⇒ ขั้น 2 เป็น `cur` เพราะยังรอลูกค้า · ขั้น 3 เป็น `cur` เพราะถึงเวลาแล้ว
+   * ได้จุดวงแหวนหน้าตาเหมือนกันสองจุดติดกัน แล้วรางตอบไม่ได้ว่าตอนนี้อยู่ไหน
+   * ซึ่งเป็น **คำถามเดียวที่รางมีไว้ตอบ**
+   *
+   * กฎเดิมกันเฉพาะตอนขั้น 3 *จบแล้ว* — ไม่ได้กันตอนขั้น 3 *กำลังเกิด*
+   */
+  it('ไม่มีชุดค่าไหนที่ให้ cur เกิน 1 ขั้น — กวาดทุกคอมบิเนชัน', () => {
+    let worst: string | null = null
+    for (const status of ['PENDING', 'SHIPPED', 'CONFIRMED', 'CANCELLED', 'RETURNED'] as const)
+      for (const appt of [null, 'SCHEDULED', 'CONFIRMED_BY_BUYER', 'RESCHEDULE_REQUESTED', 'COMPLETED', 'NO_SHOW'] as const)
+        for (const has of [true, false])
+          for (const start of [null, AFTER, BEFORE])
+            for (const bc of [null, '2026-08-15T10:00:00+07:00']) {
+              const t = getServiceTimeline({
+                status,
+                appointmentStatus: appt,
+                hasAppointment: has,
+                serviceStart: start,
+                buyerConfirmedAt: bc,
+                now: NOW,
+              })
+              const n = t.filter((s) => s.state === 'cur').length
+              if (n > 1) worst = `${status}/${appt}/hasAppt=${has}/start=${start}/bc=${bc} → cur=${n}`
+            }
+    expect(worst, `มีชุดที่รางบอกขั้นปัจจุบันสองขั้น: ${worst}`).toBeNull()
+  })
+
+  it('[blocker] เลยเวลานัดแล้วแต่ลูกค้าไม่เคยกดยืนยัน → ขั้น 2 ยังเป็นขั้นปัจจุบัน', () => {
+    /* 🛑 กติกาที่หัวหน้าชี้ (2026-08-29) — ร้านให้บริการไม่ได้จนกว่าลูกค้าจะยืนยัน
+       ⇒ ตัวที่ต้องหยุดคือ **ขั้น 3** ไม่ใช่ขั้น 2 · ขั้น 2 ยังเป็นขั้นปัจจุบันเพราะยังกดได้
+       และเป็นสิ่งเดียวที่จะทำให้เรื่องเดินต่อ
+
+       (ร่างก่อนหน้าผมทำกลับด้าน — ข้ามขั้น 2 ทิ้งแล้วให้ขั้น 3 เดิน ซึ่งลบข้อมูล
+       ว่าใครต้องขยับต่อ และอ้างว่าร้านกำลังให้บริการทั้งที่ยังไม่ได้เริ่ม) */
+    const t = run({ appointmentStatus: 'SCHEDULED', serviceStart: AFTER, buyerConfirmedAt: null })
+    expect(stateOf(t, BUYER_OK), 'ขั้น 2 ต้องเป็นขั้นปัจจุบัน').toBe('cur')
+    expect(stateOf(t, SERVED), 'ขั้น 3 ต้องยังไม่ถึง').toBe('up')
+  })
+
+  it('ยังไม่ถึงเวลานัด → ขั้น 2 ยังเป็นขั้นปัจจุบันตามเดิม (ห้ามข้ามเร็วเกินไป)', () => {
+    /* กันไม่ให้แก้แล้วเลยเถิด — ก่อนถึงเวลา การกดยืนยันยังมีความหมายเต็ม ๆ */
+    const t = run({ appointmentStatus: 'SCHEDULED', serviceStart: BEFORE, buyerConfirmedAt: null })
+    expect(stateOf(t, BUYER_OK)).toBe('cur')
+    expect(stateOf(t, SERVED)).toBe('up')
+  })
+})
+
+describe('[blocker] เลยเวลานัดแล้ว — คำบนรางต้องไม่บอกให้รอสิ่งที่ผ่านไปแล้ว', () => {
+  /**
+   * 🛑 `"รอยืนยันว่าจะมาตามนัด"` หลังเลยหน้าต่างเวลาไปแล้ว เป็นคำที่ไม่จริง
+   * มันบอกให้ผู้ซื้อรอสิ่งที่ผ่านไปแล้ว
+   *
+   * รางเล่าแค่ข้อเท็จจริง (`ยังไม่ได้ยืนยัน`) ส่วนคำอธิบาย + ทางออก อยู่ที่การ์ดนัดหมาย
+   * **ที่เดียว** — ไม่พูดซ้ำสองที่ (คลาสที่ไล่ปิดมาทั้งหน้า)
+   */
+  /* `noteOf` ตัวเดิมถูกประกาศไว้ใน describe อื่น — ประกาศของตัวเองแทนการย้ายมันขึ้นบน
+     (การย้ายจะแตะบล็อกที่ไม่เกี่ยวกับงานนี้โดยไม่จำเป็น) */
+  const noteOf = (s: ReturnType<typeof getServiceTimeline>, label: string) =>
+    s.find((x) => x.label === label)?.note
+
+  const PAST_END = '2026-08-16T10:00:00+07:00' // จบไปแล้วเทียบกับ NOW
+  const FUTURE_END = '2026-08-16T19:00:00+07:00' // ยังไม่ถึง
+
+  it('เลยเวลาแล้ว → คำต้องเป็นข้อเท็จจริง ไม่ใช่คำสั่งให้รอ', () => {
+    const t = run({ serviceStart: AFTER, serviceEnd: PAST_END, appointmentStatus: 'SCHEDULED' })
+    expect(noteOf(t, BUYER_OK)).toBe('ยังไม่ได้ยืนยัน')
+  })
+
+  it('ยังไม่เลยเวลา → คำเดิมที่บอกว่าต้องทำอะไร', () => {
+    const t = run({ serviceStart: BEFORE, serviceEnd: FUTURE_END, appointmentStatus: 'SCHEDULED' })
+    expect(noteOf(t, BUYER_OK)).toBe('รอยืนยันว่าจะมาตามนัด')
+  })
+
+  it('ไม่ส่ง serviceEnd มา → ต้องได้พฤติกรรมเดิมทุกประการ (ผู้เรียกเก่าไม่พัง)', () => {
+    const t = run({ serviceStart: BEFORE, appointmentStatus: 'SCHEDULED' })
+    expect(noteOf(t, BUYER_OK)).toBe('รอยืนยันว่าจะมาตามนัด')
+  })
+
+  it('🛑 เส้นแบ่งต้องเป็นปลายนัด ไม่ใช่ต้นนัด — ระหว่างช่วงนัดยังไม่นับว่าเลย', () => {
+    /* ถ้าใช้ `serviceStart` ลูกค้าที่กำลังนั่งอยู่ในร้านจะถูกบอกว่าเลยเวลาแล้ว
+       และปุ่มขอเลื่อนจะหายไปทั้งที่ server ยังรับอยู่ */
+    const t = run({ serviceStart: AFTER, serviceEnd: FUTURE_END, appointmentStatus: 'SCHEDULED' })
+    expect(noteOf(t, BUYER_OK), 'อยู่ในช่วงนัด ยังไม่ถือว่าเลย').toBe('รอยืนยันว่าจะมาตามนัด')
   })
 })

@@ -37,6 +37,7 @@ import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
 import { resolveOrderStatusHeadline } from '@/lib/order-status-headline'
 import ParcelTimeline from './ParcelTimeline'
 import { orderContentWidthSx } from './content-width'
+import CoverActions from './CoverActions'
 import ShopCover from './ShopCover'
 import ShopEvidence from './ShopEvidence'
 import TrustPill, { VERIFIED_BG, VERIFIED_INK } from './TrustPill'
@@ -123,7 +124,13 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
             ฝั่งผู้ซื้อยังไม่ได้ใช้ที่ไหนเลย — user รับข้อแลกเปลี่ยนนี้แล้วตอนเลือกจาก mockup */}
         {/* 🛑 ส่ง isNewShop แยก ไม่ใช่ completionRate — ร้านที่ยังไม่มีออเดอร์จบต้องไม่ได้
             แบนเนอร์ไล่สีที่หน้าตาเหมือนรางวัล (ดูเหตุผลเต็มที่ prop ของ ShopCover) */}
-        <ShopCover trustScore={order.shop.user.trustScore} isNewShop={order.completedOrders == null} />
+        <ShopCover
+          trustScore={order.shop.user.trustScore}
+          isNewShop={order.completedOrders == null}
+          /* จอนี้คือจอที่คนได้ลิงก์จากแชทเห็นก่อน — ปุ่ม "ช่วยเหลือ" ต้องมีที่นี่ยิ่งกว่าที่อื่น
+             (คนที่สงสัยว่าโดนหลอก คือคนที่ยังไม่ได้ล็อกอิน) */
+          actions={<CoverActions orderNo={formatOrderNo(order.publicToken, order.createdAtIso)} />}
+        />
 
         {/* 🛑 `position: relative` ไม่ใช่ของประดับ — `ShopCover` เป็น element ที่ positioned
             ส่วนบล็อกนี้ไม่ใช่ ⇒ ตามลำดับการวาดของ CSS ปกจะถูกวาด **ทับ** ลูกทุกตัวของบล็อกนี้
@@ -224,6 +231,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
             avgRating={order.avgRating}
             reviewCount={order.reviewCount}
             channels={order.channels}
+            originChannel={order.originChannel}
           />
 
           {/* รีวิวจริงหนึ่งอัน — ข้อความจากคนซื้อจริงน่าเชื่อกว่าค่าเฉลี่ยลอย ๆ
@@ -246,7 +254,9 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                     bgcolor: VERIFIED_BG,
                     px: 0.75,
                     py: 0.25,
-                    borderRadius: 0.75,
+                    /* 6px = ค่าเล็กสุดในชุดรัศมีของหน้านี้ — เดิม 4.5px เป็นค่าที่ไม่มีที่อื่นใช้เลย
+                       ป้ายเล็กชิ้นเดียวที่พูดคนละภาษากับทั้งหน้า */
+                    borderRadius: 1,
                   }}
                 >
                   ซื้อจริง

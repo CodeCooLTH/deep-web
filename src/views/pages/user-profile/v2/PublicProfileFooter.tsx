@@ -4,6 +4,8 @@ import NextLink from 'next/link'
 
 import themeConfig from '@configs/themeConfig'
 
+import { HELP_CENTER_HREF } from '@/lib/public-links'
+
 /**
  * PublicProfileFooter — ท้ายหน้าโปรไฟล์ร้านสาธารณะ (`/b/[slug]` + `/u/[username]`)
  *
@@ -24,7 +26,8 @@ import themeConfig from '@configs/themeConfig'
 const LINKS = [
   { href: '/terms', label: 'ข้อกำหนดการใช้บริการ' },
   { href: '/privacy', label: 'นโยบายความเป็นส่วนตัว' },
-  { href: '/support', label: 'ศูนย์ช่วยเหลือ' },
+  /* ปลายทางเดียวกับพิล "ช่วยเหลือ" บนปกหน้าออเดอร์ — ดึงจาก SSOT ไม่พิมพ์ซ้ำ (HR16) */
+  { href: HELP_CENTER_HREF, label: 'ศูนย์ช่วยเหลือ' },
   { href: '/report', label: 'แจ้งมิจฉาชีพ' },
 ] as const
 
@@ -42,7 +45,27 @@ export default function PublicProfileFooter() {
       <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', columnGap: 4, rowGap: 1 }}>
         {LINKS.map((l) => (
           <NextLink key={l.href} href={l.href} style={{ textDecoration: 'none' }}>
-            <Typography variant='caption' color='text.secondary' sx={{ '&:hover': { color: 'text.primary' } }}>
+            <Typography
+              variant='caption'
+              color='text.secondary'
+              sx={{
+                /**
+                 * 🛑 พื้นที่แตะ 44px — `PRODUCT.md` ประกาศไว้เป็น baseline แต่ลิงก์ชุดนี้
+                 * วัดได้จริงแค่ **22px** (ครึ่งเดียว) ทุกความกว้าง (วัดด้วยเบราว์เซอร์ 2026-08-30)
+                 *
+                 * นิ้วโป้งบนมือถือกดพลาดไปโดนลิงก์ข้างเคียงได้ง่าย — และลิงก์ชุดนี้มี
+                 * **"แจ้งมิจฉาชีพ"** อยู่ด้วย ซึ่งเป็นทางออกฉุกเฉินของคนที่กำลังโดนโกง
+                 * ทางออกที่กดยากคือทางออกที่ไม่มีอยู่จริง
+                 *
+                 * ขยายพื้นที่แตะโดย **ไม่ขยายตัวอักษร** — footer ยังเบาเหมือนเดิม
+                 * (ท่าเดียวกับปุ่มคัดลอกเลขออเดอร์และชิปเบอร์โทรที่ทำไว้แล้ว)
+                 */
+                display: 'inline-flex',
+                alignItems: 'center',
+                minHeight: 44,
+                '&:hover': { color: 'text.primary' },
+              }}
+            >
               {l.label}
             </Typography>
           </NextLink>

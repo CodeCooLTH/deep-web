@@ -44,6 +44,16 @@ export type GuestOrderData = {
   channels: { provider: string; name: string; avatarUrl: string | null; externalId: string; followerCount: number | null }[]
   latestReview: { rating: number; comment: string } | null
   /**
+   * ช่องทาง+ชื่อเพจที่ออเดอร์ใบนี้เกิดขึ้น — ไปเป็นป้าย "คุยกันที่นี่" บนแถวเพจ
+   *
+   * 🛑 จอ guest คือจอที่ผู้ซื้อเห็น **ก่อน** จอหลังล็อกอิน และเป็นจอที่คำถาม "นี่ร้านเดียวกับ
+   * ที่เพิ่งคุยด้วยไหม" ถูกถามจริง ๆ — ให้ป้ายเฉพาะจอหลังล็อกอินคือให้ของกับคนที่ตัดสินใจไปแล้ว
+   *
+   * 🛑 ต้องมี `provider` ด้วย ไม่ใช่ชื่ออย่างเดียว — ร้านตั้งชื่อเพจ IG กับ Facebook เหมือนกัน
+   * เป๊ะได้ แล้วป้ายจะไปเกาะทั้งสองแถว
+   */
+  originChannel: { provider: string; name: string | null } | null
+  /**
    * ขนส่ง + เลขพัสดุที่ผู้ซื้อเห็น
    *
    * `courierCode` มีเฉพาะทางเข้าที่เปิดพัสดุผ่าน iShip — ที่ร้านแจ้งเลขเอง (`ShipmentTracking`)
@@ -106,6 +116,11 @@ type OrderLike = {
     logo: string | null
     user: { displayName: string | null; username: string; trustScore: number; avatar: string | null }
   }
+  /** เพจต้นทางของออเดอร์ (relation `shopChannel`) — optional เพราะเทสเดิมสร้าง order จำลอง
+      โดยไม่มีคีย์นี้ และ "ไม่มีเพจต้นทาง" เป็นเคสปกติของออเดอร์ที่ร้านสร้างเอง
+      🛑 รูปร่างนี้คือ **allow-list** ตัวจริง — แถว `ShopChannel` มี `accessTokenEnc` อยู่ด้วย
+      `tsc` จะห้ามอ่านคีย์นอกสองตัวนี้ตั้งแต่ compile */
+  shopChannel?: { provider: string; name: string | null } | null
   shipmentTracking: { provider: string; trackingNo: string } | null
   shipments: Array<{
     trackingNo: string | null
@@ -197,6 +212,9 @@ export function buildGuestOrderData(
     // 🛑 ส่งเฉพาะ rating + comment — ไม่ส่งชื่อผู้รีวิวหรือวันที่ ซึ่งประกอบกับ "ร้านไหน"
     // แล้วชี้ตัวคนซื้อได้ในร้านที่ยังมีออเดอร์น้อย (บน prod ตอนนี้ร้านส่วนใหญ่เป็นแบบนั้น)
     latestReview: stats.latestReview,
+    originChannel: order.shopChannel
+      ? { provider: order.shopChannel.provider, name: order.shopChannel.name }
+      : null,
     // ลำดับเดียวกับฝั่ง authenticated: สิ่งที่ร้านแจ้งเองมาก่อน แล้วค่อย fallback เป็นพัสดุ iShip
     shipmentTracking: order.shipmentTracking
       ? {

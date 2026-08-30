@@ -71,6 +71,19 @@ const PROVIDER: Record<string, { label: string; icon: string; bg: string; url: (
 }
 
 /**
+ * ช่องทางที่ **แถบช่องทางวาดออกมาได้จริง** — ตัวที่ไม่มีใน `PROVIDER` จะถูก
+ * `if (!meta) return null` ทิ้งเงียบ ๆ
+ *
+ * 🛑 ต้อง export เพราะฝั่งที่ตัดสินใจเรื่อง **ข้อมูล** ต้องถามได้ว่า "อันนี้จะโผล่บนจอไหม"
+ * เคสจริง 2026-08-29: ร้านมี 2 ช่องทางในฐาน (Messenger + LINE) แต่เรนเดอร์ได้ 1
+ * ⇒ ตัวกัน "ชื่อเพจซ้ำ" ที่นับจากข้อมูลเห็น 2 เลยปล่อยผ่าน แล้วผู้ซื้อเห็นชื่อเดียวกัน
+ * สองบรรทัดติดกันบนจอ · ข้อมูลกับสิ่งที่เห็นต้องนับด้วยเกณฑ์เดียวกัน
+ */
+export function isRenderableChannel(provider: string): boolean {
+  return provider in PROVIDER
+}
+
+/**
  * รูปเพจขนาด 38px ในแท็บ "ช่องทาง"
  *
  * 🛑 ใช้ `CustomAvatar` ของธีม (`@core/components/mui/Avatar` — ห่อ MUI `Avatar`) ไม่ใช่แท็กรูป
@@ -192,13 +205,223 @@ function trustNote(providerLabel: string) {
   return `ร้านเชื่อมเพจนี้ด้วยการเข้าสู่ระบบ ${providerLabel} แล้วกดอนุญาตเอง ไม่ใช่ลิงก์ที่พิมพ์กรอกเข้ามา จึงยืนยันได้ว่าเพจนี้อยู่ในความดูแลของร้านนี้จริง`
 }
 
-export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
+export function ChannelStrip({
+  channels,
+  /**
+   * ช่องทาง+ชื่อเพจที่ออเดอร์ใบนี้เกิดขึ้น — แถวที่ตรงกันได้ป้าย "คุยกันที่นี่"
+   *
+   * 🛑 มีไว้แทน **บรรทัดลอยท้ายการ์ด** ("จากการคุยที่ …") ที่พิมพ์ชื่อเพจซ้ำอีกรอบ —
+   * ร้านที่ตั้งชื่อเพจเหมือนชื่อร้าน (ปกติมาก) ทำให้ชื่อเดียวกันโผล่ 3–4 รอบในการ์ดเดียว
+   * คำตอบอยู่ถูกที่กว่าด้วย: "ใบนี้คุยกันที่เพจไหน" กับ "กดไปดูเพจนั้น" คือสิ่งเดียวกัน
+   *
+   * 🛑 ต้องเป็น **(ช่องทาง, ชื่อ)** ไม่ใช่ชื่อเปล่า — ร้านตั้งชื่อเพจ IG กับ Facebook เหมือนกัน
+   * เป๊ะได้ เทียบแค่ชื่อแล้วป้ายขึ้น **ทั้งสองแถว** (เจอจริงตอนเปิดหน้าหลังเขียนโค้ดเสร็จ —
+   * เทสสแกนซอร์สจับไม่ได้เลยเพราะโค้ดถูกทุกบรรทัด สิ่งที่ผิดคือเกณฑ์)
+   *
+   * `null` = ผู้เรียกไม่มีข้อมูลนี้ (หน้าโปรไฟล์ `/u`, `/b`) ⇒ ไม่มีป้าย เหมือนเดิมทุกพิกเซล
+   */
+  originChannel = null,
+  variant = 'strip',
+}: {
+  channels: OfficialChannel[]
+  originChannel?: { provider: string; name: string | null } | null
+  /**
+   * `'strip'` — แถวเดียวจัดกลาง แบบที่หัวโปรไฟล์ใช้ (ค่าตั้งต้น ไม่กระทบผู้เรียกเดิม)
+   *
+   * `'rows'` — **แถวเต็มความกว้าง ใบละบรรทัด** สำหรับการ์ดที่กว้าง
+   * 🛑 มีโหมดนี้เพราะ `'strip'` ถูกออกแบบมาสำหรับหัวโปรไฟล์ที่แคบ — พอเอาไปวางบนการ์ด
+   * กว้าง ๆ มันพัง 2 ทาง: ช่องทางเดียว → รูปกับชื่อลอยกันคนละที่ · สองช่องทาง → เบียดกัน
+   * แล้วป้าย "คุยกันที่นี่" หล่นไปอยู่ใต้ใบซ้ายอย่างเดียว (หัวหน้าเห็นทั้งสองแบบ 2026-08-30)
+   */
+  variant?: 'strip' | 'rows' | 'logos'
+}) {
   const [expanded, setExpanded] = useState(false)
   if (channels.length === 0) return null
 
   const VISIBLE = 2
-  const shown = expanded ? channels : channels.slice(0, VISIBLE)
-  const rest = channels.length - shown.length
+  const isOriginRow = (c: OfficialChannel) =>
+    originChannel?.name != null && c.provider === originChannel.provider && c.name === originChannel.name
+  /**
+   * 🛑 เพจต้นทางต้องอยู่ใน **สองใบแรก** เสมอ — ไม่งั้นร้านที่มี 3 เพจขึ้นไปจะซ่อนป้าย
+   * "คุยกันที่นี่" ไว้หลังปุ่ม "อีก N" **พร้อมกับที่บรรทัดสำรองถูกซ่อนไปแล้ว**
+   * (`shouldShowOrderOrigin` ซ่อนทันทีที่จับคู่ได้) ⇒ ที่มาหายทั้งสองทาง
+   *
+   * `sort` ของ JS เสถียร (ES2019) ⇒ ลำดับเดิมของใบที่เหลือไม่ถูกสลับ
+   */
+  const ordered =
+    originChannel == null
+      ? channels
+      : [...channels].sort((a, b) => Number(isOriginRow(b)) - Number(isOriginRow(a)))
+  const shown = expanded ? ordered : ordered.slice(0, VISIBLE)
+  const rest = ordered.length - shown.length
+
+  if (variant === 'logos') {
+    /**
+     * ── โลโก้ล้วน (ม็อกอัพ v5 `.socials` = วงกลม 36px ไม่มีชื่อ) ──
+     *
+     * 🛑 ผ่านมา 3 ผังแล้วและ "ไม่สวย" ทุกครั้ง (คอลัมน์ขวา · ใต้สถิติ · แถวในการ์ดช่วยเหลือ)
+     * ทั้งสามผังมีของเหมือนกันอย่างหนึ่ง: **ชื่อเพจไทยยาว ๆ ที่ซ้ำกันแทบทุกตัวอักษร**
+     * ("ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง" สองบรรทัดติดกัน) ⇒ ไม่ว่าจัดยังไงก็อ่านเป็นบล็อกรก
+     *
+     * v5 แก้ปัญหานี้ด้วยการ **ไม่แสดงชื่อเลย** — เหลือแค่โลโก้แพลตฟอร์ม ซึ่งเป็นสิ่งเดียวที่
+     * ผู้ซื้อต้องรู้จริง ๆ ("ร้านนี้มีเพจ Facebook กับ Instagram ที่ยืนยันแล้ว")
+     * ชื่อเต็ม + ยอดผู้ติดตาม + คำอธิบายว่ายืนยันยังไง ย้ายไปอยู่ใน tooltip/`aria-label`
+     * ⇒ ข้อมูลไม่หาย แต่เลิกกินพื้นที่
+     */
+    return (
+      <div className='flex items-center justify-center gap-2 flex-wrap'>
+        {ordered.map((c) => {
+          const meta = PROVIDER[c.provider]
+          if (!meta) return null
+          const href = meta.url(c)
+          const label = FOLLOWER_LABEL[c.provider] ?? 'ผู้ติดตาม'
+          const isOrigin = isOriginRow(c)
+          const count =
+            typeof c.followerCount === 'number' ? ` · ${compactCount(c.followerCount)} ${label}` : ''
+          const note = `${isOrigin ? 'คุยกันที่นี่ — ' : ''}${c.name} · ${meta.label}${count}\n${trustNote(meta.label)}`
+
+          /* พื้นที่แตะ 44px รอบโลโก้ 40px — โลโก้เล็กแต่ต้องกดโดน (`PRODUCT.md`) */
+          const cls =
+            'inline-flex items-center justify-center is-11 bs-11 rounded-full no-underline text-[color:inherit]'
+          const mark = (
+            <span
+              /* วงแหวนม่วง = เพจที่ออเดอร์ใบนี้เกิดขึ้น · คำเต็มอยู่ใน tooltip + aria-label
+                 (ไม่ใช้ข้อความบนจอ เพราะทั้งโหมดนี้มีอยู่เพื่อเลิกใส่ข้อความ) */
+              className='rounded-full grid place-items-center'
+              style={
+                isOrigin
+                  ? { outline: '2px solid var(--mui-palette-primary-main)', outlineOffset: 2 }
+                  : undefined
+              }
+            >
+              <ChannelMark
+                src={c.avatarUrl}
+                provider={c.provider}
+                icon={meta.icon}
+                bg={meta.bg}
+                providerLabel={meta.label}
+                size={40}
+              />
+            </span>
+          )
+
+          return (
+            <Tooltip
+              key={`${c.provider}-${c.externalId}`}
+              title={<span style={{ whiteSpace: 'pre-line' }}>{note}</span>}
+              enterTouchDelay={0}
+              leaveTouchDelay={6000}
+              slotProps={{ tooltip: { sx: { maxInlineSize: 260, fontSize: '13px', lineHeight: 1.5 } } }}
+            >
+              {href ? (
+                <a
+                  href={href}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className={cls}
+                  aria-label={`${isOrigin ? 'คุยกันที่นี่ — ' : ''}เปิด ${c.name} ใน ${meta.label}`}
+                >
+                  {mark}
+                </a>
+              ) : (
+                <span className={cls} aria-label={`${c.name} · ${meta.label}`}>
+                  {mark}
+                </span>
+              )}
+            </Tooltip>
+          )
+        })}
+      </div>
+    )
+  }
+
+  if (variant === 'rows') {
+    return (
+      <div className='flex flex-col'>
+        {ordered.map((c) => {
+          const meta = PROVIDER[c.provider]
+          if (!meta) return null
+          const href = meta.url(c)
+          const label = FOLLOWER_LABEL[c.provider] ?? 'ผู้ติดตาม'
+          const isOrigin = isOriginRow(c)
+
+          const inner = (
+            <>
+              {/* 🛑 กล่อง 44px ครอบตรา 28px — แถวการกระทำในการ์ดเดียวกันใช้แผ่นไอคอน 44px
+                  ถ้าไม่ครอบ คอลัมน์ข้อความของสองชนิดจะเริ่มคนละ x ต่างกัน ~10px
+                  ซึ่งเป็นระยะที่ตาจับได้พอดีว่า "ไม่ตรงกัน" */}
+              <span className='is-11 flex justify-center shrink-0'>
+                <ChannelMark
+                  src={c.avatarUrl}
+                  provider={c.provider}
+                  icon={meta.icon}
+                  bg={meta.bg}
+                  providerLabel={meta.label}
+                />
+              </span>
+              <span className='min-is-0 flex-1'>
+                <span className='block text-sm font-semibold truncate'>{c.name}</span>
+                <span className='block text-[13px] text-[var(--mui-palette-text-secondary)]'>
+                  {meta.label}
+                  {typeof c.followerCount === 'number' && (
+                    <>
+                      {' · '}
+                      <span className='font-semibold tabular-nums text-[var(--mui-palette-text-primary)]'>
+                        {compactCount(c.followerCount)}
+                      </span>
+                      {` ${label}`}
+                    </>
+                  )}
+                </span>
+              </span>
+              {isOrigin && (
+                <span
+                  className='shrink-0 inline-flex items-center gap-1 rounded-full plb-[2px] pli-1.5 text-[11px] font-semibold'
+                  style={{
+                    background: 'var(--mui-palette-primary-lightOpacity)',
+                    color: 'var(--mui-palette-primary-main)',
+                  }}
+                >
+                  <Icon icon='tabler-message-circle' width={11} aria-hidden='true' />
+                  คุยกันที่นี่
+                </span>
+              )}
+              {href && (
+                <Icon
+                  icon='tabler-external-link'
+                  fontSize={16}
+                  aria-hidden='true'
+                  className='shrink-0 text-[color:var(--mui-palette-text-secondary)]'
+                />
+              )}
+            </>
+          )
+
+          /* 56px = ความสูงเดียวกับแถวการกระทำในการ์ดเดียวกัน (ชื่อ + คำอธิบาย สองบรรทัด)
+             ⇒ ทั้งการ์ดอ่านเป็นรายการเดียวกัน ไม่ใช่ของสองชนิดต่อกัน */
+          const rowCls =
+            'flex items-center gap-1.5 min-bs-[56px] plb-2 pli-[5px] rounded-xl no-underline text-[color:inherit] hover:bg-[var(--mui-palette-action-hover)] transition-colors'
+
+          return href ? (
+            <a
+              key={`${c.provider}-${c.externalId}`}
+              href={href}
+              target='_blank'
+              rel='noopener noreferrer'
+              className={rowCls}
+              aria-label={`เปิด ${c.name} ใน ${meta.label}`}
+            >
+              {inner}
+            </a>
+          ) : (
+            <div key={`${c.provider}-${c.externalId}`} className={rowCls}>
+              {inner}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
     /* gap-x กว้างกว่า gap-y เพื่อให้แต่ละช่องทางเป็นก้อนที่แยกจากกันได้ด้วยระยะ ไม่ต้องใช้เส้น/กรอบ
@@ -212,10 +435,18 @@ export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
         if (!meta) return null
         const href = meta.url(c)
         const label = FOLLOWER_LABEL[c.provider] ?? 'ผู้ติดตาม'
+        /* เกณฑ์เดียวกับ `shouldShowOrderOrigin` เป๊ะ — สองฝั่งต้องตัดสินเหมือนกัน */
+        const isOrigin = isOriginRow(c)
 
         const inner = (
           <>
-            <ChannelMark src={c.avatarUrl} provider={c.provider} icon={meta.icon} bg={meta.bg} />
+            <ChannelMark
+              src={c.avatarUrl}
+              provider={c.provider}
+              icon={meta.icon}
+              bg={meta.bg}
+              providerLabel={meta.label}
+            />
             <span className='flex flex-col leading-tight min-is-0'>
               {/* 🛑 2 บรรทัดแทน `truncate` บรรทัดเดียว — backport จาก `OfficialChannelsBlock.tsx`
                   (ux audit 2026-08-14: บั๊กเดียวกันถูกแก้ที่โปรไฟล์สาธารณะแล้วแต่ค้างที่นี่)
@@ -226,7 +457,11 @@ export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
                   เห็นห่างจากโปรไฟล์ไม่กี่วินาที — ตัดหางที่จอหนึ่งแต่ไม่ตัดที่อีกจอ คือความแม่นยำ
                   ที่ไม่ตรงกัน ไม่ใช่แค่สไตล์ที่ต่างกัน */}
               <span
-                className='text-[13px] font-semibold max-is-[150px]'
+                /* 🛑 เพดาน 150px ตั้งไว้ตอนบล็อกนี้อยู่บนการ์ดแคบ — บนหน้าออเดอร์จอกว้าง
+                   การ์ดกว้าง ~1160px แต่ชื่อยังถูกบีบให้หักเป็น 2 บรรทัดโดยไม่จำเป็น
+                   (หัวหน้าเห็นบนจอจริง 2026-08-29) · ขยายเพดานเมื่อมีที่ **แต่คง clamp 2 บรรทัดไว้**
+                   เพราะเหตุผลเดิมยังจริง: หางชื่อคือตัวที่แยกสาขาออกจากกัน ตัดทิ้งไม่ได้ */
+                className='text-[13px] font-semibold max-is-[150px] min-[861px]:max-is-[420px]'
                 style={{
                   display: '-webkit-box',
                   WebkitBoxOrient: 'vertical',
@@ -251,6 +486,27 @@ export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
                   </>
                 )}
               </span>
+              {/**
+               * ป้าย "คุยกันที่นี่" — บรรทัดที่สาม ไม่ใช่ต่อท้ายแนวนอน
+               *
+               * แถวนี้เป็น `flex items-center` ที่ไม่ wrap — ยัดป้ายเป็นลูกแนวนอนจะไปแย่งที่
+               * กับชื่อเพจซึ่งยาวได้ถึง 34 ตัวอักษร แล้วดันแถวกว้างเกินจอที่ 320px
+               * (คลาสเดียวกับ `flex-header-truncation.md`)
+               */}
+              {isOrigin && (
+                <span
+                  className='self-start inline-flex items-center gap-1 rounded-full mbs-1 plb-[2px] pli-1.5 text-[11px] font-semibold'
+                  style={{
+                    /* ม่วงคือสีของ "การกระทำ" บนหน้านี้ (One Voice ≤10%) — ป้ายนี้เป็น
+                       *ข้อเท็จจริงของออเดอร์* ไม่ใช่ปุ่ม ⇒ ผิวจาง + หมึกเข้ม ไม่ใช่พื้นทึบ */
+                    background: 'var(--mui-palette-primary-lightOpacity)',
+                    color: 'var(--mui-palette-primary-main)',
+                  }}
+                >
+                  <Icon icon='tabler-message-circle' width={11} aria-hidden='true' />
+                  คุยกันที่นี่
+                </span>
+              )}
             </span>
           </>
         )
@@ -290,6 +546,23 @@ export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
                 aria-label={`เปิด ${c.name} ใน ${meta.label}`}
               >
                 {inner}
+                {/**
+                 * 🛑 ไอคอน "ออกนอกเว็บ" — ลิงก์นี้เปิดแท็บใหม่ไปเว็บของ Meta/LINE
+                 * แต่เดิม **ไม่มีอะไรบนจอบอกเลย** ผู้ซื้อที่กดจากหน้าออเดอร์จะเจอเว็บอื่น
+                 * โดยไม่รู้ว่าทำไม (หัวหน้าสั่ง 2026-08-30: "ให้เขารู้แต่ละปุ่ม แต่ละที่ทำไร")
+                 *
+                 * `aria-label` บอก screen reader อยู่แล้ว — ที่ขาดคือคนที่ **มองเห็น**
+                 * ⇒ ต้องมีทั้งคู่ ไม่ใช่อย่างใดอย่างหนึ่ง
+                 *
+                 * `aria-hidden` เพราะ `aria-label` ของ `<a>` พูดครบแล้ว
+                 * ปล่อยให้อ่านซ้ำจะได้ "เปิด X ใน Y, ลิงก์ภายนอก" ซึ่งยืดโดยไม่เพิ่มข้อมูล
+                 */}
+                <Icon
+                  icon='tabler-external-link'
+                  fontSize={13}
+                  aria-hidden='true'
+                  className='shrink-0 text-[color:var(--mui-palette-text-secondary)]'
+                />
               </a>,
             )
           : withNote(<div className={cls}>{inner}</div>)
@@ -320,11 +593,17 @@ function ChannelMark({
   provider,
   icon,
   bg,
+  providerLabel,
+  size = 28,
 }: {
   src: string | null
   provider: string
   icon: string
   bg: string
+  /** "Facebook Page" / "Instagram" — ใช้เป็นคำใน tooltip ของตราแพลตฟอร์ม */
+  providerLabel: string
+  /** ขนาดวงกลม — 28 ในแถว · 40 ในโหมดโลโก้ล้วน */
+  size?: number
 }) {
   const brandLogo =
     provider === 'MESSENGER'
@@ -334,7 +613,9 @@ function ChannelMark({
         : null
 
   return (
-    <span className='is-5 bs-5 shrink-0 relative'>
+    /* 20 → 28px — ต้องมีที่พอให้ตราแพลตฟอร์มกับเช็คเขียวอยู่คนละมุมโดยไม่ทับกัน
+       `ChannelStrip` ถูกใช้ที่หน้าออเดอร์ที่เดียว (ตรวจแล้ว) การขยายจึงไม่กระทบหน้าอื่น */
+    <span className='shrink-0 relative' style={{ inlineSize: size, blockSize: size }}>
       {/* ลำดับ fallback 3 ชั้นยังเหมือนเดิมเป๊ะ: รูปเพจจริง → โลโก้แบรนด์ → พื้นสีแบรนด์ + ไอคอน
           MUI Avatar จะ render children ก็ต่อเมื่อ **ไม่มี src หรือ src โหลดไม่ขึ้น** ชั้นที่ 2/3
           จึงอยู่ใน children ได้โดยไม่ต้องถือ state เอง (ดูเหตุผลเต็มที่ ChannelAvatar)
@@ -343,8 +624,8 @@ function ChannelMark({
         src={src ?? undefined}
         alt=''
         sx={{
-          inlineSize: 20,
-          blockSize: 20,
+          inlineSize: size,
+          blockSize: size,
           background: brandLogo ? 'transparent' : bg,
           color: 'common.white',
         }}
@@ -353,14 +634,40 @@ function ChannelMark({
           // eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ใน public/
           <img src={brandLogo} alt='' className='is-full bs-full' />
         ) : (
-          <Icon icon={icon} width={12} />
+          <Icon icon={icon} width={16} />
         )}
       </CustomAvatar>
-      {/* เช็คเขียว = ยืนยันความเป็นเจ้าของผ่าน OAuth ปลอมไม่ได้ — เหตุผลเดียวที่บล็อกนี้มีค่า */}
+
+      {/**
+       * 🛑 **ตราแพลตฟอร์มมุมขวาล่าง** (หัวหน้าสั่ง 2026-08-30: "ใส่ logo face")
+       *
+       * รูปวงกลมคือ **รูปเพจของร้าน** ซึ่งบอกไม่ได้เลยว่ามาจากแพลตฟอร์มไหน — ชื่อช่องทาง
+       * อยู่เป็นตัวหนังสือเล็ก ๆ ใต้ชื่อเพจ ซึ่งต้องอ่านถึงจะรู้ · ตราโลโก้อ่านออกทันทีที่เห็น
+       *
+       * วงขาวรอบโลโก้จำเป็น: โลโก้ทับอยู่บนรูปเพจซึ่งสีอะไรก็ได้ (เคสจริงคือรูปดำสนิท)
+       * ⇒ ถ้าไม่มีวงรอง โลโก้จะจมหายไปกับรูปบางใบ (คลาสเดียวกับ `TILE_SCRIM`)
+       *
+       * `title` ไม่ใช่ของแทน Tooltip — แถวทั้งแถวมี MUI Tooltip อยู่แล้ว อันนี้เป็นชั้นเสริม
+       * สำหรับเมาส์ที่ชี้ตรงตราพอดี
+       */}
+      {brandLogo && (
+        <span
+          title={`ยืนยันแล้วว่าเป็นเพจของร้านนี้บน ${providerLabel}`}
+          className='absolute inline-end-[-3px] block-end-[-3px] is-[15px] bs-[15px] rounded-full bg-[var(--mui-palette-background-paper)] border-[1.5px] border-[var(--mui-palette-background-paper)] shadow-sm grid place-items-center overflow-hidden'
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ใน public/ */}
+          <img src={brandLogo} alt='' className='is-full bs-full' />
+        </span>
+      )}
+
+      {/* เช็คเขียว = ยืนยันความเป็นเจ้าของผ่าน OAuth ปลอมไม่ได้ — เหตุผลเดียวที่บล็อกนี้มีค่า
+          ย้ายมามุมขวา**บน** เพราะมุมขวาล่างเป็นที่ของตราแพลตฟอร์มแล้ว (ยังอยู่ครบ ไม่ได้ถอด) */}
       <span
-        className='absolute inline-end-[-2px] block-end-[-2px] is-[9px] bs-[9px] rounded-full bg-success border-[1.5px] border-[var(--mui-palette-background-paper)]'
+        className='absolute inline-end-[-2px] block-start-[-2px] is-[11px] bs-[11px] rounded-full bg-success text-white border-[1.5px] border-[var(--mui-palette-background-paper)] grid place-items-center'
         title='ยืนยันความเป็นเจ้าของแล้ว'
-      />
+      >
+        <Icon icon='lucide:check' width={7} />
+      </span>
     </span>
   )
 }
