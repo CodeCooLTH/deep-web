@@ -337,7 +337,9 @@ export function ChannelStrip({
 
   if (variant === 'rows') {
     return (
-      <div className='flex flex-col'>
+      /* ม็อกอัพ `.channel-grid` — 2 คอลัมน์บนจอกว้าง 1 คอลัมน์บนมือถือ
+         `md:` ในสกินนี้ = 900px ตรงกับเบรกพอยต์ของม็อกอัพพอดี (marketing.css remap ไว้) */
+      <div className='grid gap-2.5 md:grid-cols-2'>
         {ordered.map((c) => {
           const meta = PROVIDER[c.provider]
           if (!meta) return null
@@ -402,7 +404,7 @@ export function ChannelStrip({
           const rowCls =
             /* carve-out padding: **แถวในรายการ** ไม่ใช่การ์ด — ระยะของมันคือจังหวะของแถว
                (สูง 56px คงที่) ถ้าใส่ 20px รอบด้านแถวจะสูงเป็นสองเท่าและอ่านเป็นการ์ดซ้อนการ์ด */
-            'flex items-center gap-1.5 min-bs-[56px] plb-2 pli-[5px] rounded-2xl no-underline text-[color:inherit] hover:bg-[var(--mui-palette-action-hover)] transition-colors' /* carve-out padding: แถว ไม่ใช่การ์ด */
+            'flex items-center gap-3 min-is-0 min-bs-[68px] p-3 rounded-2xl border border-[color:var(--mui-palette-divider)] bg-[var(--mui-palette-background-default)] no-underline text-[color:inherit] hover:bg-[var(--mui-palette-background-paper)] hover:border-[color:var(--mui-palette-primary-main)]/30 transition-colors' /* carve-out padding: ไทล์ช่องทาง ไม่ใช่การ์ด — ม็อกอัพ `.channel{padding:12px 14px}` */ /* carve-out padding: แถว ไม่ใช่การ์ด */
 
           return href ? (
             <a
