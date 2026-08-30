@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest'
  * (12px กับ 18px) ⇒ ของที่ทำหน้าที่เหมือนกันต้องหน้าตาเหมือนกัน
  *
  * ค่าที่อนุญาตคือชุดที่หน้านี้ใช้จริงอยู่แล้ว ไม่ใช่เลขที่คิดขึ้นใหม่:
- *   1 (6px)  = ปุ่ม/อินพุต (DESIGN.md §Shapes) · 1.5 (9px) = แผ่นไอคอนเล็ก
+ *   1 (6px)  = ปุ่ม/อินพุต (DESIGN.md §Shapes) · แผ่นไอคอน = '8px' เขียนหน่วยตรง ๆ
  *
  *   🛑 2026-08-30 การ์ดของธีมเปลี่ยนจาก 6px เป็น **12px** แล้ว (user เคาะ) นิยามอยู่ที่
  *   `src/@core/theme/overrides/card.ts` — เพื่อให้ `<Card>` ของ `/o` กลมเท่ากับการ์ดที่
@@ -32,7 +32,7 @@ const strip = (raw: string) =>
     .replace(/(?<!:)\/\/.*$/gm, (m) => ' '.repeat(m.length))
 
 /** ค่าที่หน้านี้ใช้จริง — เพิ่มค่าใหม่ต้องมีเหตุผล ไม่ใช่เพราะ "ดูดีกว่า" ในจุดเดียว */
-const ALLOWED = new Set(['1', '1.5', '2'])
+const ALLOWED = new Set(['1', '2'])
 
 describe('[blocker] รัศมีมุมต้องอยู่ในชุดเดียว', () => {
   const files = readdirSync(join(process.cwd(), DIR)).filter((f) => f.endsWith('.tsx'))

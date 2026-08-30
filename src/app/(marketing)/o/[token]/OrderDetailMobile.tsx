@@ -540,6 +540,12 @@ function HelpActionRow({
         minHeight: 56,
         px: 1.25,
         py: 1,
+        /* ม็อกอัพ `.help-item{border-top:1px solid}` — เส้นคั่นบนทุกแถว ยกเว้นใบแรก
+           ⇒ อ่านเป็น *รายการ* ไม่ใช่ปุ่มสองใบที่บังเอิญวางซ้อนกัน · พื้น hover ยังอยู่
+           เพราะเส้นบอก "ขอบเขต" ส่วนพื้นบอก "กดได้" คนละหน้าที่กัน */
+        borderTop: '1px solid',
+        borderColor: 'divider',
+        '&:first-of-type': { borderTop: 'none' },
         borderRadius: 2,
         textAlign: 'start',
         /* 🛑 `'none'` ไม่ใช่ `0` — `border: 0` มีสตริง `order: 0` อยู่ข้างใน แล้วด่านที่
@@ -1264,22 +1270,35 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             mt: '-42px',
             pb: 1.5,
             textAlign: 'center',
-            [ORDER_TWO_COL_MQ]: { mt: 0, ...cardInlinePadSx },
+            [ORDER_TWO_COL_MQ]: { mt: 0, ...cardInlinePadSx, pb: 5, textAlign: 'start' },
           }}
         >
-          {/* ══ คอลัมน์กลาง — ตัวตนร้าน (ใครคือคนที่คุณกำลังจะกดยืนยันด้วย) ══ */}
+          {/**
+           * ── แถวโปรไฟล์ 3 คอลัมน์ (ม็อกอัพ `.profile-top`) ──────────────────
+           *
+           * `auto 1fr auto` + `align-items: start` แล้วดึงทั้งแถวขึ้น `-54px` — ตัวหนังสือกับ
+           * สถิติถูกดันกลับลงมาด้วย `pt` ของตัวเอง (60 / 57) ⇒ **มีแค่โลโก้ที่ยื่นคร่อมขอบปก**
+           *
+           * 🛑 นี่คือท่าที่แก้ปัญหาที่เคยพังสองรอบ (ดูคอมเมนต์ของบล็อกสถิติด้านล่าง):
+           * ก่อนหน้านี้ช่องทางร้านอยู่ในคอลัมน์เดียวกับสถิติ ⇒ คอลัมน์นั้นสูงกว่าเพื่อนเสมอ
+           * และดันความสูงของแถวจนเกิดช่องว่างเปล่า ~180px · ม็อกอัพย้ายช่องทางออกไปเป็น
+           * บล็อกของตัวเองใต้เส้นคั่น ⇒ แถวบนเหลือของสูงไล่เลี่ยกันสามชิ้น ปัญหาหายที่ราก
+           */}
           <Box
             sx={{
-              minWidth: 0,
               [ORDER_TWO_COL_MQ]: {
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                /* ครึ่งหนึ่งของอวตาร 116px — ดึงเฉพาะคอลัมน์นี้ให้ยื่นขึ้นไปคร่อมขอบปก */
-                mt: '-58px',
+                display: 'grid',
+                /* ทุกคอลัมน์ห่อ `minmax(0,…)` — ค่า `auto`/`1fr` เปล่า ๆ มี min-width เป็น min-content
+                   ⇒ ชื่อร้านยาว ๆ ดันกริดกว้างเกินการ์ดแล้วจอเลื่อนซ้ายขวา (ด่าน two-column) */
+                gridTemplateColumns: 'minmax(0, auto) minmax(0, 1fr) minmax(0, auto)',
+                alignItems: 'start',
+                gap: 5,
+                mt: '-54px',
               },
             }}
           >
+          {/* ══ คอลัมน์กลาง — ตัวตนร้าน (ใครคือคนที่คุณกำลังจะกดยืนยันด้วย) ══ */}
+          {/* คอลัมน์ 1 — โลโก้ร้าน (ตัวเดียวที่ยื่นคร่อมขอบปก) */}
           <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
             {/* v5 `.shop-avatar` = 116px บนจอกว้าง · 82px บนมือถือ — เราคง 84 ของเดิมไว้บนมือถือ
                 (ต่างจาก 82 แค่ 2px แต่เป็นเลขที่จอ guest ใช้อยู่ ร้านเดียวกันต้องเท่ากันทั้งสองจอ) */}
@@ -1345,6 +1364,9 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             </Box>
           </Box>
 
+          {/* คอลัมน์ 2 — ตัวตนร้าน · `pt` ดันกลับลงมาหลังทั้งแถวถูกดึงขึ้น -54px */}
+          <Box sx={{ minWidth: 0, [ORDER_TWO_COL_MQ]: { pt: '60px' } }}>
+
           {/**
            * ชื่อร้าน — **ข้อความ ไม่ใช่ลิงก์** (แก้ 2026-08-30)
            *
@@ -1368,7 +1390,9 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               fontWeight: 700,
               /* ม็อกอัพ `.profile-center h1{font-size:23px;letter-spacing:-.035em}` —
                  บนจอกว้างชื่อร้านคือสิ่งที่ใหญ่ที่สุดในหัวการ์ด ไม่ใช่ขนาดเดียวกับหัวข้อ section */
-              [ORDER_TWO_COL_MQ]: { fontSize: '1.4375rem', lineHeight: 1.25, letterSpacing: '-0.035em' },
+              /* ม็อกอัพ `.store-title{font-size:26px}` — 26 ไม่มีบน ramp ขั้นใกล้สุดคือ h4 = 24px
+                 (DESIGN.md §Typography: ข้อความทุกจุดต้องอยู่บน ramp) */
+              [ORDER_TWO_COL_MQ]: { fontSize: '1.5rem', lineHeight: 1.25, letterSpacing: '-0.028em' },
             }}
           >
             {order.shop.shopName}
@@ -1388,7 +1412,18 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               ชิป `Trust {score}` ถูกถอดออก: ตัวเลขดิบไม่มีคำอธิบายว่าเต็มเท่าไรหรือดีแค่ไหน
               ส่วน `tierLabel` ที่อยู่ติดกันคือชื่อของช่วงคะแนนนั้นอยู่แล้ว = พูดเรื่องเดียวกัน
               สองครั้งโดยครั้งที่อ่านง่ายกว่าอยู่ข้าง ๆ กัน (จอ guest ไม่เคยมีชิปนี้) */}
-          <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'center', mt: 1, flexWrap: 'wrap', px: 2 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 0.75,
+              justifyContent: 'center',
+              mt: 1,
+              flexWrap: 'wrap',
+              px: 2,
+              /* ม็อกอัพ `.badges` อยู่ใต้ @handle ชิดซ้าย — จอกว้างทั้งคอลัมน์ชิดซ้ายแล้ว */
+              [ORDER_TWO_COL_MQ]: { justifyContent: 'flex-start', px: 0 },
+            }}
+          >
             {verifyBadge && (
               <TrustPill
                 tone={verifyBadge.tone}
@@ -1398,48 +1433,10 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             )}
             <TrustPill tone='tier' tierColor={tierColor} label={tierLabel} />
             </Box>
+          </Box>
 
-            {/**
-             * ทางเข้าโปรไฟล์ร้าน — **ลิงก์ใต้ชิป ไม่ใช่ปุ่มในคอลัมน์ขวา**
-             *
-             * 🛑 ผ่านมา 5 ท่า หัวหน้าทักทุกท่า · บทเรียนที่ตกผลึก: มันเป็น **ทางเข้าไปดู
-             * ข้อมูลเพิ่ม** ไม่ใช่การกระทำกับออเดอร์ใบนี้ ⇒ ต้องเบากว่าทุกปุ่มบนหน้า
-             * และอยู่ติดกับ *ตัวตนร้าน* ที่มันขยายความ · ข้อความ + ลูกศร คือภาษาของ
-             * "ไปที่อื่น" ที่ไม่ยืมรูปทรงจากปุ่มไหนเลย
-             */}
-            <Button
-              component={Link}
-              href={`/u/${order.shop.user.username}`}
-              variant='text'
-              color='primary'
-              endIcon={<Icon icon='tabler-chevron-right' fontSize={16} />}
-              sx={{ minHeight: 44, mt: 0.5, fontSize: '0.8125rem', fontWeight: 500, px: 1.5 }}
-            >
-              ดูโปรไฟล์ร้าน
-            </Button>
-
-            {/**
-             * ── ช่องทางของร้าน = **โลโก้ล้วน** ใต้ตัวตนร้าน (ที่ 4 — หัวหน้าสั่ง 2026-08-30) ──
-             *
-             * 🛑 ผังก่อนหน้า 3 แบบถูกตีกลับหมด (คอลัมน์ขวา · ใต้สถิติ · แถวในการ์ดช่วยเหลือ)
-             * ทั้งสามมีของเหมือนกันอย่างเดียว: **ชื่อเพจไทยยาว ๆ ที่ซ้ำกันแทบทุกตัวอักษร**
-             * ⇒ ปัญหาไม่ใช่ "อยู่ตรงไหน" แต่คือ **แสดงอะไร** · เปลี่ยนวิธีแสดงแทนการย้ายที่อีกรอบ
-             *
-             * โลโก้ 2 วงเล็ก ๆ ใต้ชื่อร้านตอบคำถามที่ผู้ซื้อถามจริง ("ร้านนี้มีเพจที่ยืนยันแล้วไหม")
-             * ในพื้นที่ 1 บรรทัด · ชื่อเต็ม + ยอดผู้ติดตาม + วิธียืนยัน ยังอยู่ครบใน tooltip
-             * และ `aria-label` · เพจที่ออเดอร์ใบนี้เกิดขึ้นมีวงแหวนม่วงกำกับ
-             */}
-            <Box sx={{ mt: 1 }}>
-              <ShopChannels
-                channels={order.channels}
-                originChannel={
-                  order.originPage
-                    ? { provider: order.originPage.channel, name: order.originPage.pageName }
-                    : null
-                }
-                variant='logos'
-              />
-            </Box>
+          {/* คอลัมน์ 3 — สถิติร้าน (ม็อกอัพ `.stats{padding-top:57px}`) */}
+          <Box sx={{ [ORDER_TWO_COL_MQ]: { pt: '57px' } }}>
 
             {/**
              * ── สถิติร้าน (ม็อกอัพ v5 `.stats`) ──
@@ -1462,9 +1459,70 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
 
             </Box>
           </Box>
+        </Box>
 
+          {/**
+           * ── บล็อก "ช่องทางที่เชื่อมต่อ" (ม็อกอัพ `.connected`) ────────────────
+           *
+           * แยกออกมาจากแถวโปรไฟล์ **โดยตั้งใจ** — ตอนอยู่ในแถวเดียวกัน คอลัมน์ที่มีช่องทาง
+           * สูงกว่าเพื่อนเสมอ แล้วดันความสูงของทั้งแถวจนเกิดช่องว่างเปล่า (พังมาแล้ว 2 ท่า)
+           * ที่นี่มันได้ความกว้างเต็มการ์ด ⇒ ไทล์เรียง 2 คอลัมน์ได้ตามม็อกอัพ
+           */}
+          <Box
+            sx={{
+              ...cardInlinePadSx,
+              mt: 2.5,
+              pt: 2.25,
+              borderTop: '1px solid',
+              borderColor: 'divider',
+              textAlign: 'start',
+              [ORDER_TWO_COL_MQ]: { px: 0 },
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 1.5 }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography component='h3' sx={{ m: 0, fontSize: '0.9375rem', fontWeight: 700 }}>
+                  ช่องทางที่เชื่อมต่อ
+                </Typography>
+                <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.25 }}>
+                  บัญชีทางการของร้านที่ยืนยันกับ Deep
+                </Typography>
+              </Box>
 
+            {/**
+             * ทางเข้าโปรไฟล์ร้าน — **ลิงก์ใต้ชิป ไม่ใช่ปุ่มในคอลัมน์ขวา**
+             *
+             * 🛑 ผ่านมา 5 ท่า หัวหน้าทักทุกท่า · บทเรียนที่ตกผลึก: มันเป็น **ทางเข้าไปดู
+             * ข้อมูลเพิ่ม** ไม่ใช่การกระทำกับออเดอร์ใบนี้ ⇒ ต้องเบากว่าทุกปุ่มบนหน้า
+             * และอยู่ติดกับ *ตัวตนร้าน* ที่มันขยายความ · ข้อความ + ลูกศร คือภาษาของ
+             * "ไปที่อื่น" ที่ไม่ยืมรูปทรงจากปุ่มไหนเลย
+             */}
+            <Button
+              component={Link}
+              href={`/u/${order.shop.user.username}`}
+              variant='outlined'
+              color='primary'
+              /* 🛑 ลูกศรท้ายปุ่มคือ **ภาษาของ "ไปที่อื่น"** — ด่าน affordance บังคับไว้
+                 (ม็อกอัพใส่ไอคอนนำหน้าแทน แต่ของเราต้องบอกให้ชัดว่ากดแล้วออกจากหน้าออเดอร์) */
+              endIcon={<Icon icon='tabler-chevron-right' fontSize={16} />}
+              /* ม็อกอัพ `.profile-action` — ปุ่มมีขอบสีม่วงจาง ไม่ใช่ลิงก์เปล่า
+                 เพราะตอนนี้มันอยู่คู่กับหัวข้อบล็อก ไม่ได้อยู่ใต้ชื่อร้านแล้ว */
+              sx={{ minHeight: 44, flexShrink: 0, fontSize: '0.8125rem', fontWeight: 500 }}
+            >
+              ดูโปรไฟล์ร้าน
+            </Button>
+            </Box>
 
+            <ShopChannels
+              channels={order.channels}
+              originChannel={
+                order.originPage
+                  ? { provider: order.originPage.channel, name: order.originPage.pageName }
+                  : null
+              }
+              variant='rows'
+            />
+          </Box>
         </Box>
 
         {/**
@@ -1621,7 +1679,9 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               component='h1'
               sx={{
                 m: 0,
-                fontSize: { xs: '1.375rem', sm: '1.625rem' },
+                /* ม็อกอัพ `.order-id{font-size:24px}` — และ 26px (1.625rem) ที่ใช้อยู่เดิม
+                   **ไม่มีบน ramp** ของ DESIGN.md ด้วย (ขั้นคือ 22 / 24 / 28) */
+                fontSize: { xs: '1.375rem', sm: '1.5rem' },
                 fontWeight: 700,
                 letterSpacing: '-0.02em',
                 lineHeight: 1.2,
@@ -1685,7 +1745,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             เกือบชนขอบล่าง ขณะที่ขอบบนเว้น 24px (หัวหน้าเห็นบนจอจริง 2026-08-30) */}
         <Box sx={{ bgcolor: 'background.paper', ...cardInlinePadSx, pt: 1, pb: 6 }}>
           <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.5 }}>
-            <SectionTitle>{order.isServiceShop ? 'สถานะงานบริการ' : 'ขั้นตอน'}</SectionTitle>
+            <SectionTitle icon='tabler-progress-check'>{order.isServiceShop ? 'สถานะงานบริการ' : 'ขั้นตอน'}</SectionTitle>
             {/* 🛑 กลับมาแสดง **ทุกจอ** — กล่อง `.order-info` ที่เคยพูดประโยคนี้แทนบนจอกว้าง
                 ถูกถอดทิ้งแล้ว (หัวหน้าสั่ง 2026-08-30) ถ้ายังซ่อนไว้ จอกว้างจะไม่มีใครบอกเลย
                 ว่ารางนี้อัปเดตจากอะไร */}
@@ -1870,7 +1930,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               >
                 {/* ร้านบริการไม่ได้ขาย "สินค้า" — ลูกค้าที่จ้างล้างแอร์เห็นคำนี้แล้วสะดุด
                     (หัวหน้า 2026-08-15: "order detail ดูไม่รู้เรื่อง") */}
-                <SectionTitle>{order.isServiceShop ? 'รายการบริการ' : 'รายการสินค้า'}</SectionTitle>
+                <SectionTitle icon='tabler-list-details'>{order.isServiceShop ? 'รายการบริการ' : 'รายการสินค้า'}</SectionTitle>
                 {/* ตัวนับ (mockup 2026-08-28) — บอกว่าต้องเลื่อนดูอีกกี่รายการก่อนถึงยอดรวม
                     ห้ามนับจากตัวเลขที่พิมพ์เอง ต้องมาจาก `order.items` ตัวเดียวกับที่เรนเดอร์
                     ไม่งั้นจอบอก 3 แต่แสดง 2 (คลาสเดียวกับตัวนับที่เคยไม่ตรงใน `sibling-surface-parity`) */}
@@ -1967,7 +2027,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               เพราะตอนออกแบบปุ่มยัง disabled ถาวร ตำแหน่งจึงไม่มีนัยอะไร ── */}
           <Card>
             <Box sx={cardBodySx}>
-              <SectionTitle>ต้องการความช่วยเหลือ?</SectionTitle>
+              <SectionTitle icon='tabler-lifebuoy'>ต้องการความช่วยเหลือ?</SectionTitle>
 
               {/**
                * ── สองทางออก = **แถวที่มีแผ่นไอคอน** (ธีมของ `/dashboard` และ `/orders`) ──
@@ -2141,7 +2201,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 /* ── slip-empty: ยังไม่แนบสลิป ── */
                 <Card>
                   <Box sx={{ ...cardBodySx, textAlign: 'center' }}>
-                    <SectionTitle>แนบสลิป</SectionTitle>
+                    <SectionTitle icon='tabler-upload'>แนบสลิป</SectionTitle>
 
                     <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
                       <CustomAvatar skin='light' variant='rounded' color='primary' size={42}>
@@ -2178,10 +2238,10 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                         variant='rounded'
                         src={slipPreview}
                         alt='ตัวอย่างสลิป'
-                        sx={{ width: 46, height: 62, borderRadius: 1.5, flexShrink: 0, border: '1px solid', borderColor: 'divider' }}
+                        sx={{ width: 46, height: 62, borderRadius: '8px', flexShrink: 0, border: '1px solid', borderColor: 'divider' }}
                       />
                     ) : (
-                      <CustomAvatar skin='light' variant='rounded' color='success' sx={{ width: 46, height: 62, borderRadius: 1.5, flexShrink: 0 }}>
+                      <CustomAvatar skin='light' variant='rounded' color='success' sx={{ width: 46, height: 62, borderRadius: '8px', flexShrink: 0 }}>
                         <Icon icon='tabler-file-check' fontSize={22} />
                       </CustomAvatar>
                     )}
@@ -2230,7 +2290,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               <Box sx={cardBodySx}>
                 {/* หัวข้อการ์ดตามม็อกอัพ v5 — ของเดิมมีแต่แถวเนื้อหาลอย ๆ ไม่มีอะไรบอกว่า
                     การ์ดใบนี้ตอบคำถามอะไร ต่างจากการ์ดใบอื่นในคอลัมน์เดียวกันที่มีหัวข้อครบ */}
-                <SectionTitle>ช่องทางการชำระเงิน</SectionTitle>
+                <SectionTitle icon='tabler-credit-card'>ช่องทางการชำระเงิน</SectionTitle>
                 <Box
                   sx={{
                     display: 'flex',
@@ -2311,7 +2371,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           {order.hasReview && order.review && editingReview && (
             <Card>
               <Box sx={cardBodySx}>
-                <SectionTitle>แก้ไขรีวิว</SectionTitle>
+                <SectionTitle icon='tabler-star'>แก้ไขรีวิว</SectionTitle>
                 <ReviewForm
                   token={order.publicToken}
                   mode='edit'
@@ -2329,7 +2389,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           {order.hasReview && order.review && !editingReview && (
             <Card>
               <Box sx={cardBodySx}>
-                <SectionTitle>รีวิวของคุณ</SectionTitle>
+                <SectionTitle icon='tabler-star'>รีวิวของคุณ</SectionTitle>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                   <Box sx={{ display: 'flex', gap: 0.25 }}>
                     {Array.from({ length: 5 }).map((_, i) => (
@@ -2448,9 +2508,14 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
            */}
           {!order.hasReview && !canReview && !isCancelled && (
             <Card>
-              <Box sx={{ ...cardBodySx, textAlign: 'center' }}>
-                <SectionTitle>รีวิวร้านค้า</SectionTitle>
-                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5, mb: 1 }} aria-hidden='true'>
+              <Box sx={cardBodySx}>
+                <SectionTitle icon='tabler-star'>รีวิวร้านค้า</SectionTitle>
+                {/* ม็อกอัพ `.review-disabled` — ดาว + คำอธิบายชิดซ้าย · ป้าย "ยังไม่เปิดให้รีวิว"
+                    ชิดขวา · เดิมจัดกลางทั้งบล็อก ทำให้อ่านเหมือน empty-state ทั้งที่มันคือ
+                    "ยังไม่ถึงเวลา" ⇒ ป้ายบอกสถานะที่ขอบขวาทำให้เห็นทันทีว่าติดอะไรอยู่ */}
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                  <Box sx={{ minWidth: 0 }}>
+                <Box sx={{ display: 'flex', gap: 0.5, mb: 1 }} aria-hidden='true'>
                   {[0, 1, 2, 3, 4].map(i => (
                     <Icon
                       key={i}
@@ -2464,6 +2529,16 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                       ไม่งั้นจะบอกให้กดปุ่มที่ไม่มีอยู่ (HR16 · เหตุผลเดียวกับกล่องอธิบายบนราง) */}
                   เขียนรีวิวได้หลังกด &ldquo;{ctaLabel}&rdquo;
                 </Typography>
+                  </Box>
+                  <Typography
+                    variant='caption'
+                    /* ไม่ใช้ `text.disabled` — 2.30:1 บนพื้นขาว ตก AA (ด่าน timeline-a11y) */
+                    color='text.secondary'
+                    sx={{ flexShrink: 0, textAlign: 'end' }}
+                  >
+                    ยังไม่เปิดให้รีวิว
+                  </Typography>
+                </Box>
               </Box>
             </Card>
           )}
@@ -2471,7 +2546,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           {canReview && (
             <Card>
               <Box sx={cardBodySx}>
-                <SectionTitle>รีวิวร้านค้า</SectionTitle>
+                <SectionTitle icon='tabler-star'>รีวิวร้านค้า</SectionTitle>
                 {/* คำผันตามประเภทร้าน — ร้านบริการไม่มี "สินค้า" ให้ "ถึงมือ"
                     (คลาสเดียวกับหัวข้อ "รายการบริการ" ที่แก้ไปแล้วเหนือขึ้นไป) */}
                 <Typography variant='subtitle1' sx={{ fontWeight: 700, mb: 0.25 }}>

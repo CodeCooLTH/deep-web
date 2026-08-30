@@ -29,6 +29,8 @@ import Dialog from '@mui/material/Dialog'
 import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import Typography from '@mui/material/Typography'
+
+import SectionTitle from './SectionTitle'
 import { toast } from 'react-toastify'
 
 import { Icon } from '@iconify/react'
@@ -253,9 +255,9 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
       <Card sx={{ opacity: orderCancelled ? 0.6 : 1 }}>
         <CardContent className="flex flex-col gap-4">
           <div className="flex items-start justify-between gap-3">
-            <Typography variant="subtitle2" color="text.secondary">
-              นัดหมาย
-            </Typography>
+            {/* หัวข้อชุดเดียวกับการ์ดใบอื่นบนหน้านี้ (`SectionTitle` + แผ่นไอคอน) —
+                เดิมเป็น `subtitle2` สีรอง ⇒ การ์ดนัดหมายเป็นใบเดียวที่หัวข้อคนละทรงกับเพื่อน */}
+            <SectionTitle icon="tabler-calendar-event">นัดหมาย</SectionTitle>
             {/* 🛑 `TrustPill` ไม่ใช่ MUI `Chip variant='tonal'` — tonal ของธีมนี้ให้ text =
                 `{semantic}.main` บนพื้นจาง = **1.82:1 ตก AA** (`TrustPill.tsx` เขียนเหตุผลไว้เอง
                 และถูกสร้างมาลบแพตเทิร์นนี้ทิ้ง) · ป้ายนี้แบก **"คุณต้องลงมือ"** ของเรื่องนัด

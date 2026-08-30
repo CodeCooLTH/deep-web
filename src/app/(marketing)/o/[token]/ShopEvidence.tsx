@@ -65,7 +65,7 @@ const statIcon = {
     height: 34,
     /* แผ่นไอคอนเล็กกว่ากล่องที่ครอบ ⇒ รัศมีต้องเล็กกว่าด้วย (9px < 12px)
        ไม่งั้นมุมของไอคอนจะโค้งกว่ามุมของกล่อง ซึ่งอ่านเป็นของคนละชุด */
-    borderRadius: 1.5,
+    borderRadius: '8px',
     bgcolor: 'primary.lightOpacity',
     color: 'primary.main',
   },
@@ -82,7 +82,8 @@ const metricBox = {
     borderRadius: 2,
     border: '1px solid',
     borderColor: 'divider',
-    minHeight: 74,
+    /* ม็อกอัพ `.stat{min-height:80px}` */
+    minHeight: 80,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
