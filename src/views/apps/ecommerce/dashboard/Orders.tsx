@@ -109,7 +109,7 @@ const Orders = ({ orders }: Props) => {
               <Link
                 key={order.id}
                 href={`/o/${order.publicToken}`}
-                className='flex items-center gap-4 no-underline rounded-md hover:bg-[var(--mui-palette-action-hover)] -mx-2 px-2 py-1'
+                className='flex items-center gap-4 no-underline rounded-2xl hover:bg-[var(--mui-palette-action-hover)] -mx-2 px-2 py-1'
               >
                 <CustomAvatar skin='light' variant='rounded' color={statusColor} size={34}>
                   <i className={classnames(icon, 'text-[22px]')} />

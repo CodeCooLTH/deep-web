@@ -58,15 +58,15 @@ export default function AvailabilityCalendar({ data }: { data: AvailabilityData 
   ]
 
   return (
-    /* กรอบการ์ดชุดเดียวกับ `.info-box` ของไฟล์อ้างอิง (ขอบ #ececf2 · มุมมน 14 (ปรับจาก 15 ให้เท่าการ์ดอื่นทั้งหน้า · user เคาะ 2026-08-23) · padding 17)
+    /* กรอบการ์ดชุดเดียวกับ `.info-box` ของไฟล์อ้างอิง (ขอบ var(--mui-palette-divider) · มุมมน 14 (ปรับจาก 15 ให้เท่าการ์ดอื่นทั้งหน้า · user เคาะ 2026-08-23) · padding 17)
        — ปฏิทินเคยเป็นบล็อกลอยไม่มีขอบ ซึ่งพอทุกอย่างรอบตัวกลายเป็นการ์ดหมดแล้ว มันจะอ่านเป็น
        "ของที่หลุดออกมา" · ไฟล์อ้างอิงไม่มีหน้าห้องพัก จึงยกภาษาการออกแบบมาใช้แทนการลอก */
-    <div className='rounded-[14px] border border-[#ececf2] p-4'>
+    <div className='rounded-2xl border border-[color:var(--mui-palette-divider)] p-4'>
       <div className='flex items-center justify-between mbe-3'>
         <IconButton size='small' disabled={offset === 0} onClick={() => setOffset((o) => o - 1)} aria-label='เดือนก่อนหน้า'>
           <Icon icon='lucide:chevron-left' width={18} />
         </IconButton>
-        <Typography className='font-semibold'>
+        <Typography className='font-medium'>
           {`${MONTHS_TH[month]} ${year + 543}`}
         </Typography>
         <IconButton
@@ -101,8 +101,8 @@ export default function AvailabilityCalendar({ data }: { data: AvailabilityData 
                 isPast
                   ? 'text-[var(--mui-palette-text-disabled)] opacity-45'
                   : isFull
-                    ? 'bg-error/10 text-error font-semibold line-through'
-                    : 'bg-success/10 text-success font-semibold'
+                    ? 'bg-error/10 text-error font-medium line-through'
+                    : 'bg-success/10 text-success font-medium'
               }`}
               title={isPast ? 'ผ่านมาแล้ว' : isFull ? 'เต็ม' : 'ยังจองได้'}
             >

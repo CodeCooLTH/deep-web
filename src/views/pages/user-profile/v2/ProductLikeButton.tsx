@@ -71,7 +71,7 @@ export default function ProductLikeButton({
         alignItems: 'center',
         gap: '3px',
         border: 0,
-        borderRadius: '999px',
+        borderRadius: '9999px',
         cursor: 'pointer',
         fontFamily: 'inherit',
         fontWeight: 700,

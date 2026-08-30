@@ -127,7 +127,7 @@ const ReportForm = () => {
             โปรดรายงานตามความจริงและมีหลักฐานประกอบ — การให้ข้อมูลเท็จอาจมีความผิดตามกฎหมาย (หมิ่นประมาท / พ.ร.บ.คอมพิวเตอร์)
           </Alert>
 
-          <Card className='rounded-2xl border'>
+          <Card className='border'>
             <CardContent className='flex flex-col gap-6 p-6 md:p-8'>
               {/* ตัวระบุ */}
               <div className='flex flex-col gap-4'>

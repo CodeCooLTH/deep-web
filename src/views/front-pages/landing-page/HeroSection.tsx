@@ -98,7 +98,7 @@ const HeroSection = ({ mode }: { mode: SystemMode }) => {
       {trustCards.map((card, index) => (
         <div key={index} className={classnames('absolute z-[1] hidden lg:block', card.position)}>
           <div className={styles.heroFloatCard} style={{ animationDelay: card.delay }}>
-            <Card elevation={8} className='rounded-xl' style={{ transform: `rotate(${card.rotate}deg)` }}>
+            <Card elevation={8} className='' style={{ transform: `rotate(${card.rotate}deg)` }}>
               <div className='flex items-center gap-3 plb-3 pli-4'>
                 <CustomAvatar variant='rounded' skin='light' color={card.color} size={42}>
                   <i className={classnames(card.icon, 'text-[22px]')} />

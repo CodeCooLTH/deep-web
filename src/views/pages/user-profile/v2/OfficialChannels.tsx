@@ -103,7 +103,7 @@ function ChannelAvatar({ src, bg, icon }: { src: string | null; bg: string; icon
         alt=''
         variant='rounded'
         /* 8px = ขั้น "การ์ดและแผง" ของ shape ramp ฝั่ง buyer (DESIGN.md §Shapes 4/6/8/10/full)
-           เดิมเป็น `rounded-xl` (12px) ซึ่งไม่อยู่บน ramp เลย — ค่านี้ถูกก็อปต่อ ๆ กันมาทั้งโฟลเดอร์
+           เดิมเป็น `rounded-xl` ซึ่งในสกินนี้ = 10px ไม่อยู่บนบันได — ค่านี้ถูกก็อปต่อ ๆ กันมาทั้งโฟลเดอร์
            v2/ จน "สม่ำเสมอกันเอง" แต่ไม่ตรงระบบ ไฟล์อื่นในโฟลเดอร์แก้ไปแล้ว ตัวนี้ตกค้าง
            และผมยกมันข้ามมาตอนเปลี่ยนเป็น CustomAvatar โดยไม่ได้เอะใจ (impeccable hook จับได้) */
         sx={{ inlineSize: 38, blockSize: 38, borderRadius: '8px', background: bg, color: 'common.white' }}
@@ -137,7 +137,7 @@ export default function OfficialChannels({ channels }: { channels: OfficialChann
           <>
             <ChannelAvatar src={c.avatarUrl} bg={meta.bg} icon={meta.icon} />
             <span className='min-is-0 flex-1'>
-              <span className='block text-sm font-semibold truncate'>{c.name}</span>
+              <span className='block text-[13px] font-medium truncate'>{c.name}</span>
               {/* text.secondary ไม่ใช่ text.disabled — ชนิดของช่องทาง (Facebook Page/Instagram)
                   คือส่วนหนึ่งของหลักฐาน ไม่ใช่ของประดับ ink 0.4 ตก AA (~2.3:1) */}
               <Typography component='span' variant='caption' color='text.secondary' className='block'>
@@ -147,7 +147,7 @@ export default function OfficialChannels({ channels }: { channels: OfficialChann
             {/* "เปิด" เฉย ๆ ไม่บอกว่าเปิดอะไรและจะพาออกนอกเว็บ — link text ต้องเข้าใจได้นอกบริบท
                 (screen reader อ่านรายการลิงก์แยกจากแถว จะได้ "เปิด เปิด เปิด" เรียงกัน) */}
             {href && (
-              <span className='text-[13px] font-semibold text-primary shrink-0 flex items-center gap-1'>
+              <span className='text-[13px] font-medium text-primary shrink-0 flex items-center gap-1'>
                 {`เปิดใน ${meta.label}`}
                 <Icon icon='lucide:external-link' width={13} />
               </span>
@@ -360,13 +360,13 @@ export function ChannelStrip({
                 />
               </span>
               <span className='min-is-0 flex-1'>
-                <span className='block text-sm font-semibold truncate'>{c.name}</span>
+                <span className='block text-[13px] font-medium truncate'>{c.name}</span>
                 <span className='block text-[13px] text-[var(--mui-palette-text-secondary)]'>
                   {meta.label}
                   {typeof c.followerCount === 'number' && (
                     <>
                       {' · '}
-                      <span className='font-semibold tabular-nums text-[var(--mui-palette-text-primary)]'>
+                      <span className='font-medium tabular-nums text-[var(--mui-palette-text-primary)]'>
                         {compactCount(c.followerCount)}
                       </span>
                       {` ${label}`}
@@ -376,7 +376,7 @@ export function ChannelStrip({
               </span>
               {isOrigin && (
                 <span
-                  className='shrink-0 inline-flex items-center gap-1 rounded-full plb-[2px] pli-1.5 text-[11px] font-semibold'
+                  className='shrink-0 inline-flex items-center gap-1 rounded-full plb-[2px] pli-1.5 text-[11px] font-medium'
                   style={{
                     background: 'var(--mui-palette-primary-lightOpacity)',
                     color: 'var(--mui-palette-primary-main)',
@@ -400,7 +400,7 @@ export function ChannelStrip({
           /* 56px = ความสูงเดียวกับแถวการกระทำในการ์ดเดียวกัน (ชื่อ + คำอธิบาย สองบรรทัด)
              ⇒ ทั้งการ์ดอ่านเป็นรายการเดียวกัน ไม่ใช่ของสองชนิดต่อกัน */
           const rowCls =
-            'flex items-center gap-1.5 min-bs-[56px] plb-2 pli-[5px] rounded-xl no-underline text-[color:inherit] hover:bg-[var(--mui-palette-action-hover)] transition-colors'
+            'flex items-center gap-1.5 min-bs-[56px] plb-2 pli-[5px] rounded-2xl no-underline text-[color:inherit] hover:bg-[var(--mui-palette-action-hover)] transition-colors'
 
           return href ? (
             <a
@@ -461,7 +461,7 @@ export function ChannelStrip({
                    การ์ดกว้าง ~1160px แต่ชื่อยังถูกบีบให้หักเป็น 2 บรรทัดโดยไม่จำเป็น
                    (หัวหน้าเห็นบนจอจริง 2026-08-29) · ขยายเพดานเมื่อมีที่ **แต่คง clamp 2 บรรทัดไว้**
                    เพราะเหตุผลเดิมยังจริง: หางชื่อคือตัวที่แยกสาขาออกจากกัน ตัดทิ้งไม่ได้ */
-                className='text-[13px] font-semibold max-is-[150px] min-[861px]:max-is-[420px]'
+                className='text-[13px] font-medium max-is-[150px] min-[861px]:max-is-[420px]'
                 style={{
                   display: '-webkit-box',
                   WebkitBoxOrient: 'vertical',
@@ -479,7 +479,7 @@ export function ChannelStrip({
                 {typeof c.followerCount === 'number' && (
                   <>
                     {' · '}
-                    <span className='font-semibold tabular-nums text-[var(--mui-palette-text-primary)]'>
+                    <span className='font-medium tabular-nums text-[var(--mui-palette-text-primary)]'>
                       {compactCount(c.followerCount)}
                     </span>
                     {` ${label}`}
@@ -495,7 +495,7 @@ export function ChannelStrip({
                */}
               {isOrigin && (
                 <span
-                  className='self-start inline-flex items-center gap-1 rounded-full mbs-1 plb-[2px] pli-1.5 text-[11px] font-semibold'
+                  className='self-start inline-flex items-center gap-1 rounded-full mbs-1 plb-[2px] pli-1.5 text-[11px] font-medium'
                   style={{
                     /* ม่วงคือสีของ "การกระทำ" บนหน้านี้ (One Voice ≤10%) — ป้ายนี้เป็น
                        *ข้อเท็จจริงของออเดอร์* ไม่ใช่ปุ่ม ⇒ ผิวจาง + หมึกเข้ม ไม่ใช่พื้นทึบ */

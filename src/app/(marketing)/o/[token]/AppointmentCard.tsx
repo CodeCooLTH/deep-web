@@ -58,12 +58,12 @@ function MiniFact({ label, value }: { label: string; value: string }) {
     /* 🛑 ระยะ/รัศมีต้องตรงกับ "ช่อง" ใบอื่นทั้งหน้า — วัดจากเบราว์เซอร์ 2026-08-30 เจอกล่อง
        ข้างในการ์ด **5 แบบไม่ซ้ำกันเลย** (6/8 · 10/12 · 8/12 · 6/7 · 6/6) และใบนี้เป็น
        ใบเดียวที่รัศมี 8 ขณะที่ใบอื่น 12 (หัวหน้าเห็นเอง: "ช่องมันไม่เท่ากัน ดูไม่สวย")
-       ⇒ ใช้ `infoBoxSx` (12/10) + `rounded-xl` (12px) เหมือนทุกใบ */
+       ⇒ ใช้ `infoBoxSx` (12/10) + `rounded-2xl` (12px) เหมือนทุกใบ */
     <Box sx={{ ...infoBoxSx, borderRadius: 2, bgcolor: 'action.hover' }}>
       <Typography variant='caption' color='text.secondary' sx={{ display: 'block', lineHeight: 1.4 }}>
         {label}
       </Typography>
-      <Typography variant='body2' sx={{ fontWeight: 600, lineHeight: 1.4, mt: 0.25 }}>
+      <Typography variant='body2' sx={{ fontWeight: 700, lineHeight: 1.4, mt: 0.25 }}>
         {value}
       </Typography>
     </Box>
@@ -369,14 +369,14 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
                     aria-hidden="true"
                   />
                   <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.6, minWidth: 0 }}>
-                    <Box component="strong" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    <Box component="strong" sx={{ fontWeight: 700, color: 'text.primary' }}>
                       เลยเวลานัดนี้มาแล้ว
                     </Box>{' '}
                     {/* 🛑 ต้องอ้างเวลาจริงของนัด ไม่ใช่เขียนลอย ๆ ว่า "สายแล้ว" —
                         ลูกค้าที่จำวันผิดต้องเห็นเลขที่ทำให้รู้ตัว · ใช้ SSOT ตัวเดียวกับ
                         แถววันที่ด้านบน จึงไม่มีทางเป็นคนละรูปแบบกัน */}
                     ({formatDateTimeTH(appointment.startIso)}) หากยังต้องการใช้บริการ{' '}
-                    <Box component="strong" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    <Box component="strong" sx={{ fontWeight: 700, color: 'text.primary' }}>
                       ติดต่อร้านเพื่อนัดใหม่
                     </Box>
                   </Typography>

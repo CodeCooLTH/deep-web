@@ -53,7 +53,7 @@ export default async function MobileNotificationsPage() {
                 }`}
               >
                 <div
-                  className='size-9 rounded-xl flex items-center justify-center shrink-0'
+                  className='size-9 rounded-lg flex items-center justify-center shrink-0'
                   style={{ background: 'var(--mui-palette-action-hover)' }}
                 >
                   <i className={`${meta.icon} text-[20px]`} style={{ color: meta.color }} />

@@ -132,7 +132,7 @@ export default function ProfileTabs({
               onClick={() => go(i)}
               /* `.tab`: pli 15 (มือถือ 12) · font-weight 800 · gap 7 · สีเทา #8e8d99 → ม่วงตอน active
                  ขีดใต้หนา 3px เว้นขอบข้างละ 12px (ไม่เต็มความกว้างปุ่ม) ตามไฟล์อ้างอิง */
-              className={`relative inline-flex items-center gap-[7px] whitespace-nowrap bg-transparent border-0 cursor-pointer font-[inherit] pli-3 sm:pli-[15px] text-[12px] sm:text-[15px] font-extrabold ${
+              className={`relative inline-flex items-center gap-[7px] whitespace-nowrap bg-transparent border-0 cursor-pointer font-[inherit] pli-3 sm:pli-[15px] text-[12px] sm:text-[15px] font-bold ${
                 selected ? 'text-primary' : 'text-[#8e8d99]'
               }`}
             >
@@ -141,7 +141,7 @@ export default function ProfileTabs({
               {TAB_ICON[t.key] && <Icon icon={TAB_ICON[t.key]} width={17} />}
               {t.label}
               {t.count != null && (
-                <span className='text-[10px] font-extrabold rounded-full plb-0.5 pli-1.5 bg-[var(--mui-palette-primary-lightOpacity)] text-primary tabular-nums'>
+                <span className='text-[12px] font-bold rounded-full plb-0.5 pli-1.5 bg-[var(--mui-palette-primary-lightOpacity)] text-primary tabular-nums'>
                   {t.count}
                 </span>
               )}

@@ -172,13 +172,13 @@ const LAYOUT_SX = {
 /** `.tabs-card` ของไฟล์อ้างอิง */
 const TABS_CARD_SX = {
   background: 'var(--mui-palette-background-paper)',
-  border: '1px solid #ececf2',
+  border: '1px solid var(--mui-palette-divider)',
   /* 14px = มุมมนของ "การ์ด" ทุกใบบนหน้านี้ (สินค้า/ห้องพัก/บริการ/ไทล์คลิป) — user เคาะ
      2026-08-23 ให้เท่ากันทั้งหน้า · เดิมเป็น 18px ตามไฟล์อ้างอิง แต่การ์ดในเนื้อหาถูกปรับเป็น
      14px ไปแล้วเมื่อ 2026-08-21/23 ("ยกทุกแท็บให้พูดภาษาเดียวกัน") เหลือกรอบนอกกับคอลัมน์ซ้าย
      ค้างที่ 18 อยู่สองใบ ⇒ มุมของกรอบนอกกับการ์ดข้างในไม่ตรงกันเวลาวางซ้อนกัน */
-  borderRadius: '14px',
-  boxShadow: '0 4px 18px rgba(40,34,76,.08)',
+  borderRadius: '12px',
+  boxShadow: '0 4px 18px rgb(47 43 61 / .08)',
   overflow: 'hidden',
   /* 🛑 ≤650px การ์ดนี้ต้อง **ชนขอบจอจริง** — เดิมถอดแค่มุมมนกับขอบข้าง แต่ตัวการ์ดยังอยู่ใน
      `CONTAINER_SX` ที่เว้นข้างละ 12px ⇒ ยังมีพื้นเพจโผล่ 2 แถบ และมุมมน 0 ที่ตั้งไว้ก็ไม่มีเหตุผล
@@ -206,10 +206,10 @@ const TAB_COUNTS: Record<string, ((d: ShopProfileData) => number | undefined) | 
 
 const SIDE_CARD_SX = {
   background: 'var(--mui-palette-background-paper)',
-  border: '1px solid #ececf2',
+  border: '1px solid var(--mui-palette-divider)',
   /* 14px — ชุดเดียวกับ TABS_CARD_SX ด้านบน (token `rounded.card` ใน DESIGN.md) */
-  borderRadius: '14px',
-  boxShadow: '0 4px 18px rgba(40,34,76,.08)',
+  borderRadius: '12px',
+  boxShadow: '0 4px 18px rgb(47 43 61 / .08)',
   padding: '20px',
 
 } as const

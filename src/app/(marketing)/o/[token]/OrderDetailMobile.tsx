@@ -432,7 +432,7 @@ function TimelineDot({
     >
       {stepNo != null && (
         <Typography
-          sx={{ fontSize: '0.6875rem', [ORDER_TWO_COL_MQ]: { fontSize: '1rem' }, fontWeight: 600, color: 'text.secondary', lineHeight: 1 }}
+          sx={{ fontSize: '0.6875rem', [ORDER_TWO_COL_MQ]: { fontSize: '1rem' }, fontWeight: 500, color: 'text.secondary', lineHeight: 1 }}
         >
           {stepNo}
         </Typography>
@@ -559,7 +559,7 @@ function HelpActionRow({
         <Icon icon={icon} fontSize={22} />
       </CustomAvatar>
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Typography variant='body2' sx={{ fontWeight: 600, color: 'text.primary' }}>
+        <Typography variant='body2' sx={{ fontWeight: 500, color: 'text.primary' }}>
           {title}
         </Typography>
         <Typography variant='caption' sx={{ display: 'block', color: 'text.secondary', lineHeight: 1.5 }}>
@@ -761,7 +761,10 @@ function ItemThumbnail({
       sx={{
         width: 44,
         height: 44,
-        borderRadius: 2.25,
+        /* DESIGN.md §Shapes — ภาชนะ 8px · เดิม 2.25 (13.5px) เป็นค่าที่ไม่มีบนบันได
+           ของเอกสาร (4/6/8/10 + full) เคยขึ้นทะเบียนไว้ในด่านว่า "media คนละคลาส"
+           user เคาะ 2026-08-30 ให้ยึด DESIGN.md ทั้งหน้า จึงลงบันไดตามเอกสาร */
+        borderRadius: '8px',
         flexShrink: 0,
         bgcolor: 'action.hover',
         color: 'text.secondary',
@@ -1329,13 +1332,14 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                     color: 'success.contrastText',
                     display: 'grid',
                     placeItems: 'center',
-                    fontSize: '11px',
-                    fontWeight: 900,
                     border: '3px solid',
                     borderColor: 'background.paper',
                   }}
                 >
-                  ✓
+                  {/* DESIGN.md §Do's — "ใช้ icon จริงจาก @iconify/react ทุกจุดที่อยากได้สัญลักษณ์"
+                      เดิมเป็นตัวอักษร ✓ ที่ต้องดัน fontWeight 900 (น้ำหนักที่ไม่มีใน vocab เลย)
+                      ให้พอดูหนา — ไอคอนจริงได้รูปทรงที่ตั้งใจโดยไม่ต้องยืมน้ำหนักฟอนต์ */}
+                  <Icon icon='tabler-check' fontSize={13} />
                 </Box>
               )}
             </Box>
@@ -1409,7 +1413,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               variant='text'
               color='primary'
               endIcon={<Icon icon='tabler-chevron-right' fontSize={16} />}
-              sx={{ minHeight: 44, mt: 0.5, fontSize: '0.8125rem', fontWeight: 600, px: 1.5 }}
+              sx={{ minHeight: 44, mt: 0.5, fontSize: '0.8125rem', fontWeight: 500, px: 1.5 }}
             >
               ดูโปรไฟล์ร้าน
             </Button>
@@ -1603,7 +1607,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               sx={{
                 display: 'none',
                 minHeight: 44,
-                fontWeight: 600,
+                fontWeight: 500,
                 fontSize: '0.8125rem',
                 flexShrink: 0,
                 [ORDER_TWO_COL_MQ]: { display: 'inline-flex' },
@@ -1729,11 +1733,11 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 aria-hidden='true'
               />
               <Typography variant='caption' sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
-                <Box component='strong' sx={{ fontWeight: 600, color: 'text.primary' }}>
+                <Box component='strong' sx={{ fontWeight: 700, color: 'text.primary' }}>
                   ยืนยันนัดหมาย
                 </Box>{' '}
                 คือยืนยันว่าคุณจะมาตามนัด ส่วน{' '}
-                <Box component='strong' sx={{ fontWeight: 600, color: 'text.primary' }}>
+                <Box component='strong' sx={{ fontWeight: 700, color: 'text.primary' }}>
                   {ctaLabel}
                 </Box>{' '}
                 คือปิดงานหลังได้รับบริการจริง และย้อนกลับไม่ได้
@@ -1821,7 +1825,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mb: 0.25 }}>
                 เหตุผล
               </Typography>
-              <Typography variant='body2' sx={{ fontWeight: 600, color: 'text.secondary' }}>
+              <Typography variant='body2' sx={{ fontWeight: 500, color: 'text.secondary' }}>
                 {cancelCopy}
               </Typography>
             </Box>
@@ -1882,7 +1886,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 <Box sx={{ ...cardBodySx, display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
                   <ItemThumbnail imageUrl={item.imageUrl} name={item.name} grayscale={isCancelled} />
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant='body2' sx={{ fontWeight: 600 }}>
+                    <Typography variant='body2' sx={{ fontWeight: 500 }}>
                       {item.name}
                     </Typography>
                     {/* คำอธิบายรายการ — ร้านบริการกรอกจริง (prod: 150 แถวจากทั้งหมด) และเป็น
@@ -1945,7 +1949,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 <Typography variant='body2' color='text.secondary'>
                   {totalLabel}
                 </Typography>
-                <Typography sx={{ fontSize: '1.1875rem', fontWeight: 700, color: 'primary.main' }}>
+                <Typography sx={{ fontSize: '1.125rem', fontWeight: 700, color: 'primary.main' }}>
                   {formatBaht(order.totalAmount)}
                 </Typography>
               </Box>
@@ -2019,7 +2023,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                   }}
                 >
                   <Icon icon='tabler-flag-3' style={{ fontSize: 17, color: 'var(--mui-palette-warning-main)' }} />
-                  <Typography variant='body2' sx={{ fontWeight: 600, color: 'warning.main' }}>
+                  <Typography variant='body2' sx={{ fontWeight: 500, color: 'warning.main' }}>
                     แจ้งปัญหาแล้ว
                     {disputeOpenedAt ? ` เมื่อ ${formatDateTimeTH(disputeOpenedAt)}` : ''}
                   </Typography>
@@ -2089,7 +2093,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                   variant='tonal'
                   color='primary'
                   startIcon={<Icon icon='tabler-headset' fontSize={18} />}
-                  sx={{ minHeight: 44, fontWeight: 600 }}
+                  sx={{ minHeight: 44, fontWeight: 500 }}
                 >
                   ติดต่อร้านค้า
                 </Button>
@@ -2183,7 +2187,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                     )}
 
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant='body2' sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <Typography variant='body2' sx={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {slipName ?? 'สลิปที่แนบ'}
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
@@ -2420,7 +2424,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 icon='tabler-mood-sad'
                 style={{ fontSize: 30, color: 'var(--mui-palette-text-disabled)' }}
               />
-              <Typography variant='body2' sx={{ fontWeight: 600, color: 'text.secondary', mt: 1 }}>
+              <Typography variant='body2' sx={{ fontWeight: 500, color: 'text.secondary', mt: 1 }}>
                 คุณลบรีวิวนี้ไปแล้ว
               </Typography>
               <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.5, lineHeight: 1.6 }}>
@@ -2516,7 +2520,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                   >
                     <Icon icon='tabler-shield-check' fontSize={22} />
                   </Box>
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>ซื้อผ่าน Deep มั่นใจได้</Typography>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.9375rem' }}>ซื้อผ่าน Deep มั่นใจได้</Typography>
                 </Box>
 
                 <Box sx={{ display: 'grid', gap: 0.75 }}>

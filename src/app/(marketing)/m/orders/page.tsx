@@ -118,7 +118,7 @@ export default async function MobileOrdersPage({
                 </div>
                 <div className='flex items-center gap-3'>
                   <span
-                    className='size-10 rounded-xl flex items-center justify-center shrink-0'
+                    className='size-10 rounded-lg flex items-center justify-center shrink-0'
                     style={{ background: `var(--mui-palette-${st.color}-lightOpacity)` }}
                   >
                     <i className={`${st.icon} text-[21px]`} style={{ color: `var(--mui-palette-${st.color}-main)` }} />

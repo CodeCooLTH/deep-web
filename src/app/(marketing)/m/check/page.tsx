@@ -16,7 +16,7 @@ import { MPageTitle } from '../_components/ui'
 export const metadata: Metadata = { title: 'เช็กมิจฉาชีพ' }
 
 const Stat = ({ label, value }: { label: string; value: string }) => (
-  <div className='rounded-xl border border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-default)] plb-3 pli-3 text-center'>
+  <div className='rounded-2xl border border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-default)] plb-3 pli-3 text-center'>
     <p className='text-[16px] font-extrabold m-0 text-[var(--mui-palette-text-primary)]'>{value}</p>
     <p className='text-[11px] m-0 mbs-0.5 text-[var(--mui-palette-text-disabled)]'>{label}</p>
   </div>
@@ -81,7 +81,7 @@ export default async function MobileCheckPage({
                 ยังไม่มีรายงานที่ตรวจสอบแล้วสำหรับข้อมูลนี้
               </p>
               <div
-                className='mbs-4 inline-flex items-center gap-2 rounded-xl plb-2 pli-3'
+                className='mbs-4 inline-flex items-center gap-2 rounded-2xl plb-2 pli-3'
                 style={{ background: 'var(--mui-palette-warning-lightOpacity)' }}
               >
                 <i className='tabler-alert-triangle text-[16px] text-[var(--mui-palette-warning-main)]' />
@@ -127,7 +127,7 @@ export default async function MobileCheckPage({
               </div>
 
               <div
-                className='mbs-4 flex items-start gap-2 rounded-xl p-3'
+                className='mbs-4 flex items-start gap-2 rounded-2xl p-3'
                 style={{ background: 'var(--mui-palette-info-lightOpacity)' }}
               >
                 <i className='tabler-info-circle text-[16px] text-[var(--mui-palette-info-main)] shrink-0 mbs-0.5' />
@@ -140,7 +140,7 @@ export default async function MobileCheckPage({
 
           <Link
             href='/report'
-            className='h-11 rounded-xl flex items-center justify-center gap-1.5 no-underline text-[14px] font-medium text-white bg-[var(--mui-palette-primary-main)] active:opacity-80 transition-opacity'
+            className='h-11 rounded flex items-center justify-center gap-1.5 no-underline text-[14px] font-medium text-white bg-[var(--mui-palette-primary-main)] active:opacity-80 transition-opacity'
           >
             <i className='tabler-flag text-[18px]' />
             แจ้งรายงานมิจฉาชีพ

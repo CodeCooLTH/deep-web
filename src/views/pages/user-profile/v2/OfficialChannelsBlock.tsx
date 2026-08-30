@@ -203,7 +203,7 @@ export default function OfficialChannelsBlock({
                       ("… สายซิ่ง" vs "… สาขาสอง") — ตัดหางทิ้งทำให้สองเพจเหลือข้อความเหมือนกันเป๊ะ
                       ซึ่งทำลายเหตุผลทั้งหมดที่บล็อกนี้มีอยู่ (ใช้เทียบกับเพจที่เจอที่อื่น) */}
                   <span
-                    className='text-[13px] font-semibold max-is-[150px]'
+                    className='text-[13px] font-medium max-is-[150px]'
                     style={{
                       display: '-webkit-box',
                       WebkitBoxOrient: 'vertical',
@@ -219,7 +219,7 @@ export default function OfficialChannelsBlock({
                     {typeof c.followerCount === 'number' && (
                       <>
                         {' · '}
-                        <span className='font-semibold tabular-nums text-[var(--mui-palette-text-primary)]'>
+                        <span className='font-medium tabular-nums text-[var(--mui-palette-text-primary)]'>
                           {compactCount(c.followerCount)}
                         </span>
                         {` ${CHANNEL_FOLLOWER_LABEL[c.provider] ?? 'ผู้ติดตาม'}`}
@@ -263,7 +263,7 @@ export default function OfficialChannelsBlock({
             onClick={onOpenPage}
             aria-haspopup='dialog'
             aria-label={`ดูเพจทางการทั้งหมด ${channels.length} เพจ และวิธีตรวจสอบเพจปลอม`}
-            className='is-full flex items-center justify-center gap-1 min-bs-11 mbs-4 plb-2 pli-3 border-0 rounded-[10px] bg-[var(--mui-palette-primary-lightOpacity)] cursor-pointer font-[inherit] text-[13px] font-semibold text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
+            className='is-full flex items-center justify-center gap-1 min-bs-11 mbs-4 plb-2 pli-3 border-0 rounded bg-[var(--mui-palette-primary-lightOpacity)] cursor-pointer font-[inherit] text-[13px] font-medium text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
           >
             {`ทั้งหมด ${channels.length} เพจ`}
             <Icon icon='tabler:chevron-right' width={14} />

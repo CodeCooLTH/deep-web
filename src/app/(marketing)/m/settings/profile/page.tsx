@@ -214,7 +214,7 @@ export default async function MobileAccountPage() {
       {verifyLevel < 3 && (
         <Link href='/settings/verification' className='no-underline block'>
           <div className='flex items-center gap-3 rounded-2xl bg-[var(--mui-palette-success-lightOpacity)] border border-[var(--mui-palette-success-main)]/30 p-3'>
-            <span className='size-9 rounded-xl bg-[var(--mui-palette-success-main)] flex items-center justify-center shrink-0'>
+            <span className='size-9 rounded-lg bg-[var(--mui-palette-success-main)] flex items-center justify-center shrink-0'>
               <i className='tabler-shield-check text-[20px] text-white' />
             </span>
             <div className='flex-1 min-w-0'>

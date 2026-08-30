@@ -17,7 +17,10 @@ const accordion = (skin: Skin): Theme['components'] => ({
         '&:not(:last-child)': {
           marginBlockEnd: theme.spacing(2)
         },
-        borderRadius: 'var(--mui-shape-borderRadius)',
+        /* แผง Accordion เป็น "ภาชนะ" ชนิดเดียวกับการ์ด ⇒ 12px (DESIGN.md §Shapes ฝั่ง buyer)
+           เดิมรับ `--mui-shape-borderRadius` (6px) มาตรง ๆ ⇒ คำถามที่พบบ่อยบนหน้าแรก
+           กับการ์ดที่อยู่เหนือมันในหน้าเดียวกันกลมไม่เท่ากัน */
+        borderRadius: 12,
         ...(skin !== 'bordered' && {
           boxShadow: 'var(--mui-customShadows-xs)'
         }),

@@ -104,6 +104,59 @@ $m"
 fi
 
 # ---------------------------------------------------------------------------
+# Marketing — รัศมีตามบทบาท (DESIGN.md §Shapes · The Container-Is-12 Rule)
+# ---------------------------------------------------------------------------
+#
+# ฝั่ง buyer: ของที่กดได้ 6px · รูป/อวตาร 8px · **การ์ด/แผง 12px** · chip = pill
+# นิยามอยู่ที่ธีมจุดเดียว (`@core/theme/overrides/card.ts|accordion.tsx|avatar.ts`)
+#
+# ด่านนี้จับ 2 ท่าที่ทำให้ค่ากลางหลุดมือ — ทั้งคู่เคยเกิดจริงและไม่มี tsc/eslint ตัวไหนฟ้อง:
+#   1. `<Card className='... rounded-* ...'>` — ทับรัศมีของธีมเฉพาะจุด ⇒ การ์ดในหน้าเดียวกัน
+#      กลมไม่เท่ากัน (เจอ 5 จุดตอนกวาด 2026-08-30: HeroSection · Pricing · ReportForm ·
+#      ScamSearchBar · HowItWorks)
+#   2. `shape.borderRadius` ถูกขยับเพื่อ "ทำให้การ์ดกลมขึ้น" — มันเป็น **ตัวคูณ** ของ
+#      `borderRadius: N` ทุกตัวใน sx ทั้งระบบ แก้จุดเดียวพังทุกหน้าเงียบ ๆ
+# 🛑 ตรวจ **ทุกไฟล์** ไม่ผูกกับ `is_marketing` — `<Card>` ของ MUI ถูกใช้จาก `src/views/**`
+#    ด้วย ซึ่งไม่ได้อยู่ใต้ `src/app/(marketing)/` (5 จุดที่เจอตอนกวาดอยู่ใน views ทั้งหมด)
+#    ฝั่ง Paces ไม่ได้ใช้ MUI Card อยู่แล้ว ⇒ ตรวจกว้างไม่มีผลข้างเคียง
+# ── บันไดรัศมีฝั่ง buyer — จับทุกค่าที่หลุดบันได ไม่ใช่แค่ <Card> ──────────
+#
+# บันได (marketing.css remap Tailwind ให้ตรง MUI ramp):
+#   rounded / -md = 6px  (ปุ่ม อินพุต)
+#   rounded-lg    = 8px  (แผ่นไอคอน อวตาร รูปย่อ)
+#   rounded-2xl   = 12px (การ์ด แผง กล่อง แถว — ภาชนะ)
+#   rounded-full  = pill (chip)
+#   + directional: rounded-t/b/s/e-* ตามชุดเดียวกัน
+#
+# 🛑 ที่ห้าม: `rounded-xl` (10px) · `rounded-3xl` (16) · `rounded-4xl` (24) · `rounded-xs` (2)
+#    · `rounded-sm` (4 — สงวนให้ปุ่ม size small ที่ธีมตั้งเอง ไม่ใช่ให้เขียนมือ)
+#    · `rounded-[Npx]` ทุกค่า
+#
+# ทำไมต้องมีด่านนี้ทั้งที่มีด่าน <Card> แล้ว: หน้าที่พังจริง (`/b`, `/u`) **ไม่เคยใช้ `<Card>`**
+# มันประกอบการ์ดเองด้วย `div` ทุกใบ ⇒ ด่านที่ผูกกับชื่อคอมโพเนนต์มองไม่เห็นเลยสักใบ
+# (ยิงทดสอบ 2026-08-30: `<div className='rounded-2xl bg-white p-6 shadow-sm'>` ผ่านฉลุย)
+#
+# carve-out: เขียนคอมเมนต์กำกับบรรทัดนั้น (ท่าเดียวกับ HR7) — ตัวตัดคอมเมนต์ด้านล่างจัดการให้
+if [ "$is_paces" = false ]; then
+  m=$(scan_nocomment "rounded-(xs|sm|xl|3xl|4xl)\b|rounded(-[tbse])?-\[[0-9]+px\]")
+  [ -n "$m" ] && add "[SHAPE] รัศมีหลุดบันได buyer — 6px ปุ่ม/อินพุต · 8px แผ่นไอคอน · 12px ภาชนะ · full chip (DESIGN.md §Shapes · The Container-Is-12 Rule). ใช้ rounded / rounded-lg / rounded-2xl / rounded-full · ถ้าเป็นรูปทรงตกแต่งของ section จริง ๆ ให้เขียนคอมเมนต์กำกับบรรทัดนั้น:
+$m"
+fi
+
+m=$(scan "<Card[^>]*className=['\"][^'\"]*rounded-")
+[ -n "$m" ] && add "[SHAPE] <Card> ห้ามใส่คลาสรัศมีทับธีม — การ์ด buyer = 12px นิยามเดียวที่ @core/theme/overrides/card.ts (DESIGN.md §Shapes · The Container-Is-12 Rule):
+$m"
+
+# grep -E ไม่มี negative lookahead ⇒ จับ "บรรทัดที่ประกาศค่า" แล้วคัดตัวที่ไม่ใช่ 6 ด้วย shell
+case "$file" in
+  *"@core/theme/index.ts")
+    m=$(grep -nE "borderRadius: [0-9]+" "$file" 2>/dev/null | grep -vE "borderRadius: 6([^0-9]|$)" || true)
+    [ -n "$m" ] && add "[SHAPE] 🛑 shape.borderRadius ต้องเป็น 6 เสมอ — มันคือ **ตัวคูณ** ของ borderRadius: N ทุกตัวใน sx ทั้งระบบ (borderRadius: 2 = 12px วันนี้ จะกลายเป็น 24px ทันที). อยากเปลี่ยนรัศมีการ์ดให้ override ที่ overrides/card.ts:
+$m"
+    ;;
+esac
+
+# ---------------------------------------------------------------------------
 # ทุก UI file — emoji (Hard Rule 12) ใช้ perl (unicode, /usr/bin/perl เสถียร)
 # ---------------------------------------------------------------------------
 #

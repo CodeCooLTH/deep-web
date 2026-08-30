@@ -221,7 +221,7 @@ const LOGO_SX = {
   borderRadius: '50%',
   border: '5px solid #fff',
   background: '#050507',
-  boxShadow: '0 12px 34px rgba(0,0,0,.35)',
+  boxShadow: '0 12px 34px rgb(47 43 61 / .35)',
   overflow: 'hidden',
   display: 'flex',
   alignItems: 'center',
@@ -266,7 +266,7 @@ const TITLE_SX = {
      (4 บรรทัดถึงจะดันปกโต ซึ่งยังไม่เคยเจอบน prod) */
   fontSize: { xs: 24, md: 30 },
   lineHeight: 1.2,
-  fontWeight: 900,
+  fontWeight: 700,
   letterSpacing: '-.4px',
   color: '#fff',
   margin: '13px 0 7px',
@@ -279,8 +279,8 @@ const STATS_SX = {
   display: 'grid',
   maxInlineSize: { md: 545 },
   border: '1px solid rgba(255,255,255,.14)',
-  borderRadius: '14px',
-  background: 'rgba(0,0,0,.28)',
+  borderRadius: '12px',
+  background: 'rgb(47 43 61 / .28)',
   backdropFilter: 'blur(8px)',
   overflow: 'hidden',
 } as const
@@ -324,23 +324,30 @@ const HERO_ACTIONS_SX = {
 
 const BTN_PRIMARY_SX = {
   border: 0,
-  borderRadius: '11px',
+  /* DESIGN.md §Shapes — ปุ่ม/อินพุต 6px (การ์ด/แผง 8px) ความต่างนี้คือสิ่งที่แยก
+     "ของที่กดได้" ออกจาก "ภาชนะ" · เดิม 10px ⇒ ปุ่มอ่านเป็นภาชนะไปด้วย */
+  borderRadius: '6px',
   padding: '11px 16px',
-  fontWeight: 800,
+  /* DESIGN.md §Buttons — ปุ่ม primary น้ำหนัก 500 (800 สงวนให้ Metric) */
+  fontWeight: 500,
   fontSize: 15,
   color: '#fff',
-  /* ไล่สีจากม่วงแบรนด์ #7367F0 — ไฟล์อ้างอิงใช้ #7657ff→#5739ef ซึ่งไม่ใช่สีเรา
-     (CLAUDE.md HR8: Impeccable ชนะเรื่องสี) จึงยกเฉพาะ "รูปแบบ" มา ไม่ยกค่าสี */
-  background: 'linear-gradient(135deg, #7367F0, #5a4ee0)',
-  boxShadow: '0 9px 22px rgba(115,103,240,.35)',
-  '&:hover': { background: 'linear-gradient(135deg, #7367F0, #5a4ee0)', transform: 'translateY(-1px)' },
+  /* 🛑 เดิมเป็น `linear-gradient(135deg, #7367F0, #5a4ee0)` + เงา 22px
+     DESIGN.md §Don't สั่งไว้ตรง ๆ 2 ข้อ: ห้าม "ไล่สีม่วง gradient ตกแต่ง" และ
+     §Overview เขียนว่า "ม่วงคือ accent ทึบ ไม่ใช่ gradient ตกแต่ง"
+     ⇒ พื้นทึบ #7367F0 · hover เป็น Violet Dark #675DD8 · เงาชุด primary-sm ของระบบ */
+  background: 'var(--mui-palette-primary-main)',
+  boxShadow: '0 2px 6px rgb(115 103 240 / 0.30)',
+  '&:hover': { background: 'var(--mui-palette-primary-dark)', transform: 'translateY(-1px)' },
 } as const
 
 const BTN_GHOST_SX = {
-  borderRadius: '11px',
+  /* DESIGN.md §Shapes — ปุ่ม/อินพุต 6px (การ์ด/แผง 8px) ความต่างนี้คือสิ่งที่แยก
+     "ของที่กดได้" ออกจาก "ภาชนะ" · เดิม 10px ⇒ ปุ่มอ่านเป็นภาชนะไปด้วย */
+  borderRadius: '6px',
   padding: '11px 16px',
   minInlineSize: 0,
-  fontWeight: 800,
+  fontWeight: 500,
   fontSize: 15,
   color: '#fff',
   border: '1px solid rgba(255,255,255,.25)',
@@ -368,7 +375,7 @@ const SCORE_CARD_SX = {
   padding: { xs: '13px', md: '19px' },
   /* 14px เท่าการ์ดอื่นทั้งหน้า (user เคาะ 2026-08-23) — ใบนี้เป็นการ์ดกระจกบนภาพปก แต่ผู้ชม
      เห็นมันเรียงต่อกับการ์ดในเนื้อหาโดยไม่มีอะไรคั่น มุมที่ต่างกัน 4px จึงอ่านเป็นความไม่ตั้งใจ */
-  borderRadius: '14px',
+  borderRadius: '12px',
   border: '1px solid rgba(255,255,255,.17)',
   background: 'rgba(20,12,4,.7)',
   backdropFilter: 'blur(8px)',
@@ -437,7 +444,7 @@ function MobileCta({
           padding: '9px 12px calc(9px + env(safe-area-inset-bottom))',
           background: 'rgba(255,255,255,.95)',
           backdropFilter: 'blur(14px)',
-          borderBlockStart: '1px solid #ececf2',
+          borderBlockStart: '1px solid var(--mui-palette-divider)',
         }}
       >
         <Button variant='outlined' color='secondary' onClick={onShare} sx={MOBILE_BTN_SX} aria-label='แชร์โปรไฟล์นี้'>
@@ -465,9 +472,13 @@ function MobileCta({
 /** `.mobile-cta .btn { height:43px }` */
 const MOBILE_BTN_SX = {
   blockSize: 43,
-  borderRadius: '11px',
-  fontWeight: 800,
-  fontSize: 14,
+  /* DESIGN.md §Shapes — ปุ่ม/อินพุต 6px (การ์ด/แผง 8px) ความต่างนี้คือสิ่งที่แยก
+     "ของที่กดได้" ออกจาก "ภาชนะ" · เดิม 10px ⇒ ปุ่มอ่านเป็นภาชนะไปด้วย */
+  borderRadius: '6px',
+  /* DESIGN.md §Buttons — ปุ่มน้ำหนัก 500 · เดิม 800 ซึ่งเอกสารสงวนให้ Metric เท่านั้น
+     และ 14px ไม่มีบน ramp (ขั้นถัดไปคือ 13 กับ 15) */
+  fontWeight: 500,
+  fontSize: 15,
   gap: '8px',
 } as const
 
@@ -649,6 +660,9 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
                 alt=''
                 className='is-full bs-full object-cover'
                 fallback={
+                  /* 800 ที่นี่ไม่ขัด "ห้าม 800 กับข้อความ" (DESIGN.md §Strong step) —
+                     ตัวอักษรแทนโลโก้ร้านทำหน้าที่เป็น **ภาพ** ไม่ใช่ข้อความ คลาสเดียวกับ Metric
+                     (เหตุผลเดียวกับที่เขียนไว้แล้วบนโลโก้ของหน้า `/o/[token]`) */
                   <span className='text-[40px] font-extrabold text-white'>
                     {data.shopName.trim().charAt(0)}
                   </span>
@@ -796,7 +810,7 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
                       aria-hidden
                       /* บนปกเข้มใช้ขาวล้วน (คอนทราสต์ >12:1) ไม่ใช้ primary.dark ซึ่งคำนวณไว้สำหรับพื้นขาว
                          แผ่นบังเป็นไล่สีโปร่ง→เข้ม เพราะพื้นหลังเป็นรูป ไม่ใช่สีทึบที่ทาบทับตรง ๆ ได้ */
-                      className='absolute inset-be-0 inline-end-0 pis-6 text-[13px] font-semibold'
+                      className='absolute inset-be-0 inline-end-0 pis-6 text-[13px] font-medium'
                       style={{ color: '#fff', background: 'linear-gradient(90deg, transparent, rgba(18,13,7,.92) 42%, rgba(18,13,7,.98))' }}
                     >
                       เพิ่มเติม
@@ -819,10 +833,10 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
               <Box sx={{ ...STATS_SX, gridTemplateColumns: `repeat(${data.stats.length}, 1fr)` }}>
                 {data.stats.map((s, i) => (
                   <Box key={s.label} sx={{ ...STAT_SX, ...(i < data.stats.length - 1 ? STAT_DIVIDER_SX : null) }}>
-                    <Box component='b' sx={{ fontSize: { xs: 20, md: 24 }, display: 'block', fontWeight: 800 }} className='tabular-nums'>
+                    <Box component='b' sx={{ fontSize: { xs: 20, md: 22 }, display: 'block', fontWeight: 800 }} className='tabular-nums'>
                       {s.value != null ? compactCount(s.value) : '—'}
                     </Box>
-                    <Box component='span' sx={{ fontSize: { xs: 10, md: 11 }, color: 'rgba(255,255,255,.68)' }}>
+                    <Box component='span' sx={{ fontSize: { xs: 11, md: 11 }, color: 'rgba(255,255,255,.68)' }}>
                       {s.label}
                     </Box>
                   </Box>
@@ -909,9 +923,9 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
                         เดียวกัน แยกโผล่ทีละชิ้นเมื่อไหร่ก็อ่านเป็นคะแนนที่ผิดเมื่อนั้น */}
                     {hasRating && (
                       <>
-                        <Box component='strong' sx={{ fontSize: { xs: 22, md: 27 }, fontWeight: 800 }} className='tabular-nums'>
+                        <Box component='strong' sx={{ fontSize: { xs: 22, md: 32 }, fontWeight: 800 }} className='tabular-nums'>
                           {data.avgRating!.toFixed(1)}
-                          <Box component='small' sx={{ fontSize: 13, opacity: 0.7 }}>/5</Box>
+                          <Box component='small' sx={{ fontSize: 13, fontWeight: 500, opacity: 0.7 }}>/5</Box>
                         </Box>
                         <Box aria-hidden sx={{ color: '#ffac22', fontSize: 13, lineHeight: 1 }}>
                           {'★'.repeat(Math.round(data.avgRating!)).padEnd(5, '☆')}
@@ -972,7 +986,7 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
       >
         <div className='pli-5 pbs-3 pbe-6'>
           <div className='flex items-center justify-between mbe-3'>
-            <Typography id='trust-score-panel-title' className='font-semibold' color='text.primary'>
+            <Typography id='trust-score-panel-title' className='font-medium' color='text.primary'>
               คะแนนความน่าเชื่อถือ
             </Typography>
             <IconButton size='small' onClick={() => setScorePanelOpen(false)} aria-label='ปิด'>
@@ -985,7 +999,7 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
             <span className='text-[32px] font-extrabold tabular-nums leading-none' style={{ letterSpacing: '-0.03em' }}>
               {`${data.trustScore}/100`}
             </span>
-            <span className='rounded-lg plb-1 pli-2.5 text-[13px] font-semibold bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-secondary)]'>
+            <span className='rounded-lg plb-1 pli-2.5 text-[13px] font-medium bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-secondary)]'>
               {data.tierLabel}
             </span>
           </div>
@@ -999,7 +1013,7 @@ export default function ProfileIdentity({ data }: { data: ProfileIdentityData })
               : 'อยู่ในระดับสูงสุดแล้ว'}
           </Typography>
 
-          <Typography variant='body2' className='font-semibold mbs-4 mbe-2' color='text.primary'>
+          <Typography variant='body2' className='font-medium mbs-4 mbe-2' color='text.primary'>
             คะแนนนี้คำนวณจากอะไร
           </Typography>
           <ul className='m-0 p-0 list-none flex flex-col gap-2'>

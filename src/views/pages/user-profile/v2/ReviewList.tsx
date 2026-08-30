@@ -84,7 +84,7 @@ function CompactReviewRow({ r }: { r: ReviewListItem }) {
       >
         <Icon icon='tabler:user-filled' width={13} />
       </span>
-      <Typography className='text-[12px] font-extrabold shrink-0' color='text.primary'>
+      <Typography className='text-[12px] font-bold shrink-0' color='text.primary'>
         {r.reviewerName}
       </Typography>
       <Stars rating={r.rating} size={12} />
@@ -94,7 +94,7 @@ function CompactReviewRow({ r }: { r: ReviewListItem }) {
           // eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ใน public/
           <img src={SALES_CHANNEL_LOGO[r.source.channel]} alt='' className='is-[11px] bs-[11px] shrink-0' />
         )}
-        <Typography className='text-[10px] tabular-nums text-[#aaa8b2] truncate'>{r.orderNo}</Typography>
+        <Typography className='text-[12px] tabular-nums text-[#aaa8b2] truncate'>{r.orderNo}</Typography>
       </span>
       <Typography className='ml-auto shrink-0 text-[11px] text-[#aaa8b2] whitespace-nowrap'>
         {formatDateTH(r.createdAtIso)}
@@ -194,7 +194,7 @@ export default function ReviewList({
                 aria-pressed={on}
                 className={`rounded-full plb-2 pli-3 text-[12px] cursor-pointer min-bs-9 border ${
                   on
-                    ? 'font-extrabold text-primary bg-[var(--mui-palette-primary-lightOpacity)] border-[color:var(--mui-palette-primary-main)]/30'
+                    ? 'font-bold text-primary bg-[var(--mui-palette-primary-lightOpacity)] border-[color:var(--mui-palette-primary-main)]/30'
                     : 'text-[#6f6d79] bg-[var(--mui-palette-background-paper)] border-[#e4e4eb]'
                 }`}
               >
@@ -236,7 +236,7 @@ export default function ReviewList({
               </span>
           {/* คอลัมน์ 2 — เนื้อหาทั้งหมดอยู่ในนี้ จะได้ตรงแนวกับชื่อทุกบรรทัด */}
           <div className='min-is-0'>
-              <Typography className='text-[12px] font-extrabold' color='text.primary'>
+              <Typography className='text-[12px] font-bold' color='text.primary'>
                 {r.reviewerName}
               </Typography>
               <span className='flex mbs-0.5'>
@@ -275,7 +275,7 @@ export default function ReviewList({
               // eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ใน public/
               <img src={SALES_CHANNEL_LOGO[r.source.channel]} alt='' className='is-[14px] bs-[14px] shrink-0' />
             ) : null}
-            <Typography className='text-[10px] tabular-nums text-[#aaa8b2]'>
+            <Typography className='text-[12px] tabular-nums text-[#aaa8b2]'>
               {`คำสั่งซื้อ ${r.orderNo}`}
             </Typography>
           </div>
@@ -314,7 +314,7 @@ export default function ReviewList({
             <div className='mbs-2 pli-3 plb-2 rounded-lg bg-[var(--mui-palette-action-hover)]'>
               <div className='flex items-center gap-1.5 mbe-0.5'>
                 <Icon icon='tabler:message-reply' width={13} className='text-[var(--mui-palette-text-secondary)]' />
-                <Typography variant='caption' color='text.secondary' className='font-semibold'>
+                <Typography variant='caption' color='text.secondary' className='font-medium'>
                   ร้านตอบกลับ
                 </Typography>
                 {r.shopRepliedAtIso && (
@@ -353,7 +353,7 @@ export default function ReviewList({
             <button
               type='button'
               onClick={() => setRatingOnlyShown((n) => n + RATING_ONLY_PAGE)}
-              className='mbs-3 is-full min-bs-10 rounded-full border border-[#ececf2] bg-[var(--mui-palette-background-paper)] text-[13px] font-bold text-[#5a5766] cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
+              className='mbs-3 is-full min-bs-10 rounded-full border border-[color:var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)] text-[13px] font-bold text-[#5a5766] cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
             >
               {`ดูรีวิวเพิ่ม (อีก ${ratingOnly.length - ratingOnlyShown})`}
             </button>

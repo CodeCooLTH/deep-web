@@ -62,8 +62,8 @@ export default function PublicServiceList({
         return (
           <article
             key={s.id}
-            className='rounded-[14px] overflow-hidden bg-[var(--mui-palette-background-paper)] border border-[#ececf2]'
-            style={{ boxShadow: '0 6px 18px rgba(30,27,56,.05)' }}
+            className='rounded-2xl overflow-hidden bg-[var(--mui-palette-background-paper)] border border-[color:var(--mui-palette-divider)]'
+            style={{ boxShadow: '0 6px 18px rgb(47 43 61 / .05)' }}
           >
             {/* `.service-image` — ไม่มีรูปในข้อมูล จึงเป็นแผ่นทึบ + ไอคอนแทน (สูงเท่าต้นแบบ
                 เพื่อให้การ์ดสูงเท่ากันทุกใบ ไม่งั้นกริดจะฟันหลอ) */}
@@ -83,11 +83,11 @@ export default function PublicServiceList({
                 </Typography>
                 {deposit && (
                   <div className='text-end shrink-0'>
-                    <div className='text-[10px] font-semibold text-[var(--mui-palette-text-secondary)]'>
+                    <div className='text-[12px] font-medium text-[var(--mui-palette-text-secondary)]'>
                       {deposit.caption}
                     </div>
                     {/* `.price` 24px/900 สีม่วง — ใช้ `text-primary` ของธีม ไม่ใช่ `--purple` ของไฟล์อ้างอิง */}
-                    <div className='text-[24px] font-black text-primary whitespace-nowrap tabular-nums leading-none'>
+                    <div className='text-[22px] font-extrabold text-primary whitespace-nowrap tabular-nums leading-none'>
                       {deposit.amount}
                     </div>
                   </div>
@@ -97,7 +97,7 @@ export default function PublicServiceList({
               {/* `.meta-row` — เส้นคั่นบน + ข้อมูลย่อย · แสดงเฉพาะเมื่อมีอะไรจะบอกจริง ๆ
                   ถ้าร้านไม่ได้ตั้งระยะเวลา การโชว์เส้นคั่นเปล่า ๆ จะอ่านเป็น "ข้อมูลหาย" */}
               {s.durationMinutes != null && (
-                <div className='flex items-center gap-3 border-bs border-[#ececf2] pbs-2.5 mbs-2.5 text-[11px] text-[#777582]'>
+                <div className='flex items-center gap-3 border-bs border-[color:var(--mui-palette-divider)] pbs-2.5 mbs-2.5 text-[11px] text-[#777582]'>
                   <span className='inline-flex items-center gap-1'>
                     <Icon icon='tabler:clock' width={13} aria-hidden />
                     {formatDurationTH(s.durationMinutes)}

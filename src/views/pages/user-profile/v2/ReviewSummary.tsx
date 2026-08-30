@@ -40,7 +40,7 @@ export default function ReviewSummary({
        ≤650px ยุบเป็น 110px + 1fr · gap 12 (ตัวเลขจากไฟล์ตรง ๆ) */
     <div className='grid items-center border-be [grid-template-columns:170px_1fr] gap-[30px] plb-[6px] pbe-[22px] max-[650px]:[grid-template-columns:110px_1fr] max-[650px]:gap-3'>
       <div className='text-center'>
-        <div className='text-[50px] max-[650px]:text-[42px] font-black tabular-nums leading-none' style={{ letterSpacing: '-0.035em' }}>
+        <div className='text-[32px] font-extrabold tabular-nums leading-none' style={{ letterSpacing: '-0.035em' }}>
           {/* ทศนิยม 1 ตำแหน่งเสมอ (user 2026-08-11) — "5" กับ "4.9" สลับกันแล้วเลขกระโดดกว้าง */}
           {avgRating.toFixed(1)}
         </div>

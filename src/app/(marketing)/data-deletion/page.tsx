@@ -63,7 +63,7 @@ const DataDeletionPage = () => {
                 1. ลบบัญชีด้วยตัวเอง (แนะนำ)
               </Typography>
               {/* callout pattern จาก Questions.tsx บรรทัด 83 (bg-actionHover rounded), ขยาย plb เพื่อเน้น */}
-              <div className='pli-5 plb-5 bg-actionHover rounded'>
+              <div className='pli-5 plb-5 bg-actionHover rounded-2xl'>
                 <Typography variant='body2' className='mbe-3'>
                   เข้าสู่ระบบแล้วกดลบได้ทันที ข้อมูลส่วนตัวจะถูกล้างออกจากระบบภายใน 30 วัน
                 </Typography>
@@ -99,7 +99,7 @@ const DataDeletionPage = () => {
               <Typography variant='h6' className='mbe-3'>
                 2. เข้าสู่ระบบไม่ได้แล้ว?
               </Typography>
-              <div className='pli-5 plb-5 bg-actionHover rounded'>
+              <div className='pli-5 plb-5 bg-actionHover rounded-2xl'>
                 <Typography variant='body2' className='mbe-2'>
                   ส่งอีเมลมาที่:
                 </Typography>

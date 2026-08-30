@@ -48,8 +48,8 @@ export default function PublicRoomList({
         return (
           <article
             key={r.id}
-            className='rounded-[14px] overflow-hidden bg-[var(--mui-palette-background-paper)] border border-[#ececf2]'
-            style={{ boxShadow: '0 6px 18px rgba(30,27,56,.05)' }}
+            className='rounded-2xl overflow-hidden bg-[var(--mui-palette-background-paper)] border border-[color:var(--mui-palette-divider)]'
+            style={{ boxShadow: '0 6px 18px rgb(47 43 61 / .05)' }}
           >
             {/* สูงเท่า `.service-image` เป๊ะ เพื่อให้การ์ดของทั้งสองประเภทกิจการสูงเท่ากัน
                 (ผู้ใช้คนเดียวกันอาจเปิดดูร้านทั้งสองแบบในวันเดียว — ความสูงที่ไม่ตรงกันอ่านเป็นความพลาด) */}
@@ -87,20 +87,20 @@ export default function PublicRoomList({
                     ชื่อห้องเป็น flex item เดียวที่เหลือ จึงกินความกว้างเต็มแถวเองโดยไม่ต้องแก้คลาส */}
                 {showPrices && (
                   <div className='text-end shrink-0'>
-                    <div className='text-[10px] font-semibold text-[var(--mui-palette-text-secondary)]'>
+                    <div className='text-[12px] font-medium text-[var(--mui-palette-text-secondary)]'>
                       เริ่มต้นที่
                     </div>
-                    <div className='text-[24px] font-black text-primary whitespace-nowrap tabular-nums leading-none'>
+                    <div className='text-[22px] font-extrabold text-primary whitespace-nowrap tabular-nums leading-none'>
                       {`฿${r.basePrice.toLocaleString('th-TH')}`}
                     </div>
-                    <div className='text-[10px] text-[var(--mui-palette-text-secondary)]'>ต่อคืน</div>
+                    <div className='text-[12px] text-[var(--mui-palette-text-secondary)]'>ต่อคืน</div>
                   </div>
                 )}
               </div>
 
               {/* `.meta-row` — โผล่เฉพาะเมื่อมีอะไรจะบอกจริง ๆ เส้นคั่นเปล่า ๆ อ่านเป็น "ข้อมูลหาย" */}
               {r.capacity != null && (
-                <div className='flex items-center gap-3 border-bs border-[#ececf2] pbs-2.5 mbs-2.5 text-[11px] text-[#777582]'>
+                <div className='flex items-center gap-3 border-bs border-[color:var(--mui-palette-divider)] pbs-2.5 mbs-2.5 text-[11px] text-[#777582]'>
                   <span className='inline-flex items-center gap-1'>
                     <Icon icon='tabler:users' width={13} aria-hidden />
                     {`พักได้ ${r.capacity} คน`}
