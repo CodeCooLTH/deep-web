@@ -241,9 +241,15 @@ const LOGO_SX = {
  */
 const VERIFY_MARK_SX = {
   border: 0,
-  padding: '6px',
+  /**
+   * `padding: 11px` (ไม่ใช่ 6) — ตราติ๊กถูกเป็น **ปุ่มจริง** (เปิดแผงคะแนน) ⇒ ต้องได้
+   * tap target 44px ตาม DESIGN.md §Do's · ไอคอนยังกว้าง 22px เท่าเดิม
+   * 22 + 11×2 = 44 · `marginBlock` ติดลบตามไปด้วยเพื่อไม่ให้บรรทัดชื่อร้านสูงขึ้น
+   * (วัดได้ 34×34 บน `/b` และ `/u` มือถือ 2026-08-31)
+   */
+  padding: '11px',
   margin: '0 0 0 2px',
-  marginBlock: '-6px',
+  marginBlock: '-11px',
   background: 'transparent',
   cursor: 'pointer',
   display: 'inline-flex',

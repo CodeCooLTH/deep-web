@@ -232,7 +232,8 @@ const AboutOverview = ({ data }: { data: AboutData }) => {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '5px',
-                  minBlockSize: 24,
+                  /* ลิงก์ออกนอกเว็บ = เป้าให้นิ้ว ⇒ 44px (DESIGN.md §Do's) */
+                  minBlockSize: 44,
                   color: 'primary.main',
                   fontWeight: 700,
                   textDecoration: 'none',

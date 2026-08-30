@@ -57,10 +57,16 @@ const Header = ({ mode, solidHeader = false }: { mode: Mode; solidHeader?: boole
         <div className={classnames(frontLayoutClasses.navbarContent, styles.navbarContent)}>
           {isBelowLgScreen ? (
             <div className='flex items-center gap-2 sm:gap-4'>
-              <IconButton onClick={() => setIsDrawerOpen(true)} className='-mis-2'>
+              {/* 44×44 — `IconButton` sizeMedium ของธีมให้ 38px ซึ่งต่ำกว่า tap target
+                  ที่ DESIGN.md §Do's บังคับ · นี่คือทางเข้าเมนูหลักบนมือถือ ปุ่มที่พลาดบ่อยที่สุด */}
+              <IconButton
+                onClick={() => setIsDrawerOpen(true)}
+                className='-mis-2'
+                sx={{ inlineSize: 44, blockSize: 44 }}
+              >
                 <i className='tabler-menu-2 text-textPrimary' />
               </IconButton>
-              <Link href='/'>
+              <Link href='/' className='inline-flex items-center min-bs-11'>
                 <Logo />
               </Link>
               <FrontMenu mode={mode} isDrawerOpen={isDrawerOpen} setIsDrawerOpen={setIsDrawerOpen} />
@@ -68,7 +74,7 @@ const Header = ({ mode, solidHeader = false }: { mode: Mode; solidHeader?: boole
           ) : (
             <>
               {/* logo ซ้าย */}
-              <Link href='/'>
+              <Link href='/' className='inline-flex items-center min-bs-11'>
                 <Logo />
               </Link>
               {/* เมนูกลาง — flex-1 เพื่อดันให้อยู่กึ่งกลางระหว่าง logo กับ actions */}
@@ -77,6 +83,9 @@ const Header = ({ mode, solidHeader = false }: { mode: Mode; solidHeader?: boole
               </div>
             </>
           )}
+          {/* `pie-1` — จุดสถานะ (`MuiBadge`) ของอวตารถูกยึดมุมขวาล่างและยื่นออกนอกกรอบ
+              ตัวอวตารเอง ⇒ ตอนอวตารชิดขอบในของการ์ด จุดเขียวล้นออกไป 2px (วัดได้บนจอ 390px
+              2026-08-31: การ์ดจบที่ x=366 แต่จุดจบที่ 368) · เว้นให้จุดมีที่ยืนในกรอบ */}
           <div className='flex items-center gap-2 sm:gap-4'>
             <ModeDropdown />
             {isAuthed ? (

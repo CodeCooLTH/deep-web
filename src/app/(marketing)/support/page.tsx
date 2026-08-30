@@ -101,7 +101,8 @@ const SupportPage = () => {
                 <Typography variant='body2' className='mbe-2'>
                   ส่งอีเมลมาที่:
                 </Typography>
-                <a href={`mailto:${SUPPORT_EMAIL}`}>
+                {/* พื้นที่แตะ 44px — ลิงก์ในประโยคเดิมสูงตามตัวหนังสือ (17–22px) ต่ำกว่าเกณฑ์ที่บังคับไว้ */}
+                <a href={`mailto:${SUPPORT_EMAIL}`} className='inline-flex items-center min-bs-11'>
                   <Typography variant='h6' color='primary'>
                     {SUPPORT_EMAIL}
                   </Typography>

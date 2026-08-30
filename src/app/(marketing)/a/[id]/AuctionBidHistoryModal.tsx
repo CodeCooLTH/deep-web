@@ -329,7 +329,7 @@ export default function AuctionBidHistoryModal({ open, onClose, auctionId, bidCo
                       <Icon icon={reactions[bid.id]?.reacted ? 'tabler-heart-filled' : 'tabler-heart'} fontSize={13} />
                       ถูกใจ
                       {(reactions[bid.id]?.count ?? 0) > 0 && (
-                        <Box component="span" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                        <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500 }}>
                           {reactions[bid.id]?.count}
                         </Box>
                       )}

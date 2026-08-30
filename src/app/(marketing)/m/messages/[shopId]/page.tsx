@@ -44,7 +44,7 @@ export default async function MobileChatThreadPage({ params }: Props) {
           <CustomAvatar src={shop.logo ? `/api/files/${shop.logo}` : undefined} skin='light' size={38}>
             {shop.shopName.slice(0, 1)}
           </CustomAvatar>
-          <p className='text-[15px] font-semibold truncate m-0 text-[var(--mui-palette-text-primary)]'>{shop.shopName}</p>
+          <p className='text-[15px] font-medium truncate m-0 text-[var(--mui-palette-text-primary)]'>{shop.shopName}</p>
         </Link>
       </header>
 

@@ -173,7 +173,7 @@ export default function PayoutAccountCard({
                 icon='tabler-alert-triangle'
                 style={{ fontSize: 17, marginTop: 2, color: 'var(--mui-palette-error-main)', flexShrink: 0 }}
               />
-              <Typography variant='body2' sx={{ fontWeight: 600, color: 'error.main' }}>
+              <Typography variant='body2' sx={{ fontWeight: 500, color: 'error.main' }}>
                 ออเดอร์นี้ถูกยกเลิกแล้ว — ห้ามโอนเงิน
               </Typography>
             </Box>
@@ -189,7 +189,7 @@ export default function PayoutAccountCard({
                 style={{ fontSize: 17, marginTop: 2, color: 'var(--mui-palette-warning-main)', flexShrink: 0 }}
               />
               <Box sx={{ minWidth: 0 }}>
-                <Typography variant='body2' sx={{ fontWeight: 600, color: 'warning.main' }}>
+                <Typography variant='body2' sx={{ fontWeight: 500, color: 'warning.main' }}>
                   ร้านยังไม่ได้แจ้งเลขบัญชี
                 </Typography>
                 <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.25 }}>
@@ -246,7 +246,7 @@ export default function PayoutAccountCard({
                 <Typography variant='caption' color='text.secondary'>
                   ชื่อบัญชี
                 </Typography>
-                <Typography variant='body2' sx={{ fontWeight: 600, maxWidth: '100%' }} noWrap>
+                <Typography variant='body2' sx={{ fontWeight: 500, maxWidth: '100%' }} noWrap>
                   {payoutSnapshot.accountName}
                 </Typography>
               </Box>

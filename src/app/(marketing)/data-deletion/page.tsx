@@ -103,7 +103,8 @@ const DataDeletionPage = () => {
                 <Typography variant='body2' className='mbe-2'>
                   ส่งอีเมลมาที่:
                 </Typography>
-                <a href='mailto:shinobu22@outlook.com'>
+                {/* พื้นที่แตะ 44px — ลิงก์อีเมลสูงตามตัวหนังสือ (17–22px) ต่ำกว่าเกณฑ์ */}
+                <a href='mailto:shinobu22@outlook.com' className='inline-flex items-center min-bs-11'>
                   <Typography variant='h6' color='primary'>
                     shinobu22@outlook.com
                   </Typography>
@@ -202,7 +203,8 @@ const DataDeletionPage = () => {
               </Typography>
               <Typography variant='body2' className='mbs-2'>
                 หากมีคำถามเพิ่มเติม สามารถติดต่อเราได้ที่:{' '}
-                <a href='mailto:shinobu22@outlook.com' className='text-primary'>
+                {/* พื้นที่แตะ 44px — ลิงก์อีเมลสูงตามตัวหนังสือ (17–22px) ต่ำกว่าเกณฑ์ */}
+                <a href='mailto:shinobu22@outlook.com' className='text-primary inline-flex items-center min-bs-11'>
                   shinobu22@outlook.com
                 </a>
               </Typography>

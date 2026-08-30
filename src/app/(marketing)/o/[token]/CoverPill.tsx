@@ -57,7 +57,7 @@ const hitAreaSx = {
 /** ทรงพิลบนปก — จุดเดียวทั้งซ้ายและขวา ห้ามก็อปค่าไปเขียนซ้ำที่อื่น */
 export const coverPillSx = {
   /* 34 = ความสูงที่พอดีกับตัวอักษร 13px — พื้นที่แตะ 44px มาจาก `hitAreaSx` ที่ครอบอยู่ */
-  minHeight: 34,
+  minHeight: 34, /* carve-out tap: พิลที่ตาเห็น 34px ถูกครอบด้วย `hitAreaSx` 44px อยู่แล้ว */
   px: 2.5,
   borderRadius: '9999px',
   display: 'inline-flex',

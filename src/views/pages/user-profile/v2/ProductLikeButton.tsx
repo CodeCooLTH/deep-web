@@ -97,7 +97,7 @@ export default function ProductLikeButton({
               color: 'text.secondary',
               fontSize: '0.8125rem',
               p: '7px 12px',
-              minBlockSize: 34,
+              minBlockSize: 44,
             }),
       }}
     >

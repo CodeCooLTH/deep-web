@@ -75,7 +75,7 @@ const MenuRow = ({ href, icon, label, count, external }: Row) => (
 
 const MenuSection = ({ title, rows }: { title: string; rows: Row[] }) => (
   <div className='flex flex-col gap-2'>
-    <h2 className='text-[13px] font-semibold m-0 pli-1 text-[var(--mui-palette-text-secondary)]'>{title}</h2>
+    <h2 className='text-[13px] font-medium m-0 pli-1 text-[var(--mui-palette-text-secondary)]'>{title}</h2>
     <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] overflow-hidden'>
       {rows.map(r => (
         <MenuRow key={r.href + r.label} {...r} />
@@ -143,7 +143,7 @@ export default async function MobileAccountPage() {
               <i className='tabler-rosette-discount-check-filled text-[17px] text-[var(--mui-palette-primary-main)] shrink-0' />
             )}
             <span
-              className='text-[10px] font-semibold pli-2 plb-0.5 rounded-full shrink-0'
+              className='text-[10px] font-medium pli-2 plb-0.5 rounded-full shrink-0'
               style={{ background: tierBg(tierColor), color: tierFg(tierColor) }}
             >
               {tier}
@@ -187,7 +187,7 @@ export default async function MobileAccountPage() {
       {/* ── คำสั่งซื้อของฉัน ── */}
       <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-5'>
         <div className='flex items-center justify-between mbe-3'>
-          <h2 className='text-[15px] font-semibold m-0 text-[var(--mui-palette-text-primary)]'>คำสั่งซื้อของฉัน</h2>
+          <h2 className='text-[15px] font-medium m-0 text-[var(--mui-palette-text-primary)]'>คำสั่งซื้อของฉัน</h2>
           <Link href='/orders' className='text-[13px] font-medium text-[var(--mui-palette-primary-main)] no-underline flex items-center gap-0.5'>
             ดูทั้งหมด
             <i className='tabler-chevron-right text-[15px]' />
@@ -218,7 +218,7 @@ export default async function MobileAccountPage() {
               <i className='tabler-shield-check text-[20px] text-white' />
             </span>
             <div className='flex-1 min-w-0'>
-              <p className='text-[14px] font-semibold m-0 text-[var(--mui-palette-text-primary)]'>
+              <p className='text-[14px] font-medium m-0 text-[var(--mui-palette-text-primary)]'>
                 {verifyLevel === 0 ? 'ยืนยันตัวตน เพิ่มความน่าเชื่อถือ' : `เลื่อนขั้นถัดไป — ${VERIFY_LABEL[verifyLevel + 1] ?? ''}`}
               </p>
               <p className='text-[12px] m-0 text-[var(--mui-palette-text-secondary)] truncate'>
@@ -260,7 +260,7 @@ export default async function MobileAccountPage() {
       </div>
 
       <div className='flex flex-col gap-2'>
-        <h2 className='text-[13px] font-semibold m-0 pli-1 text-[var(--mui-palette-text-secondary)]'>บัญชี</h2>
+        <h2 className='text-[13px] font-medium m-0 pli-1 text-[var(--mui-palette-text-secondary)]'>บัญชี</h2>
         <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] overflow-hidden'>
           <DeleteAccountSection variant='row' />
         </div>

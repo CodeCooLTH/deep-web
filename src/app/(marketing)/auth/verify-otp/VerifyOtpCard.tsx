@@ -150,7 +150,7 @@ export default function VerifyOtpCard() {
               </div>
 
               {errorMsg && (
-                <Typography color='error.main' className='text-center text-sm'>
+                <Typography color='error.main' className='text-center text-[13px]'>
                   {errorMsg}
                 </Typography>
               )}
@@ -180,7 +180,7 @@ export default function VerifyOtpCard() {
               </div>
             </form>
 
-            <Typography className='mt-7 text-center text-sm' color='text.disabled'>
+            <Typography className='mt-7 text-center text-[13px]' color='text.disabled'>
               &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
             </Typography>
           </CardContent>

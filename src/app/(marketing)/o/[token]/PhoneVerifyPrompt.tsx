@@ -218,7 +218,7 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
                 </Alert>
 
                 {error && (
-                  <Typography color='error.main' className='text-center text-sm'>
+                  <Typography color='error.main' className='text-center text-[13px]'>
                     {error}
                   </Typography>
                 )}
@@ -235,7 +235,7 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
                     setStage('phone')
                   }}
                   color='text.secondary'
-                  className='text-center text-sm'
+                  className='text-center text-[13px]'
                   sx={{ background: 'none', border: 0, cursor: 'pointer' }}
                 >
                   ใช้เบอร์อื่นแทน
@@ -297,7 +297,7 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
                 </div>
 
                 {error && (
-                  <Typography color='error.main' className='text-center text-sm'>
+                  <Typography color='error.main' className='text-center text-[13px]'>
                     {error}
                   </Typography>
                 )}
@@ -341,7 +341,7 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
             )}
 
             {/* text.secondary ไม่ใช่ text.disabled — 0.4 ได้ 2.30:1 ตก AA (audit 2026-08-11) */}
-            <Typography className='mt-7 text-center text-sm' color='text.secondary'>
+            <Typography className='mt-7 text-center text-[13px]' color='text.secondary'>
               &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
             </Typography>
           </CardContent>

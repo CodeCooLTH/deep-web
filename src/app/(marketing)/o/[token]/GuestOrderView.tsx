@@ -436,14 +436,14 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                     )}
                   </Box>
                   <Box sx={{ minWidth: 0 }}>
-                    <Typography variant='body2' sx={{ fontWeight: 600 }} noWrap>
+                    <Typography variant='body2' sx={{ fontWeight: 500 }} noWrap>
                       {it.name}
                     </Typography>
                     <Typography variant='caption' color='text.secondary'>
                       x{it.qty}
                     </Typography>
                   </Box>
-                  <Typography variant='body2' sx={{ fontWeight: 600, ml: 'auto', whiteSpace: 'nowrap' }}>
+                  <Typography variant='body2' sx={{ fontWeight: 500, ml: 'auto', whiteSpace: 'nowrap' }}>
                     {baht.format(it.price * it.qty)}
                   </Typography>
                 </Box>
@@ -481,7 +481,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                     <Typography variant='body2' color='text.secondary'>
                       เบอร์ผู้รับ
                     </Typography>
-                    <Typography variant='body2' sx={{ fontWeight: 600, letterSpacing: '.05em' }}>
+                    <Typography variant='body2' sx={{ fontWeight: 500, letterSpacing: '.05em' }}>
                       {order.maskedPhone}
                     </Typography>
                   </Box>
@@ -492,7 +492,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                       ที่อยู่จัดส่ง
                     </Typography>
                     <Box sx={{ textAlign: 'right' }}>
-                      <Typography variant='body2' sx={{ fontWeight: 600 }}>
+                      <Typography variant='body2' sx={{ fontWeight: 500 }}>
                         จ.{order.maskedShippingAddress.province}
                       </Typography>
                       {/* 🛑 4 ท่อนที่ mask แยกกันถูกต่อด้วยช่องว่างเฉย ๆ ⇒ `••••ม่ 3 •งจิก ••••••••ช้าง`

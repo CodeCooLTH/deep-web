@@ -162,7 +162,7 @@ export default function ShopCover({
                (ต้นฉบับใน ProfileBanner ยังเป็น 12px อยู่ = หนี้เดิม ไม่ได้แก้ในรอบนี้) */
             fontSize: '0.8125rem',
             letterSpacing: '0.4px',
-            fontWeight: 600,
+            fontWeight: 500,
             color: '#2F2B3D',
           }}
         >

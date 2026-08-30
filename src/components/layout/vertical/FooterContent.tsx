@@ -25,7 +25,7 @@ const FooterContent = () => {
         <span className='text-primary font-medium'>{META_DATA.author}</span>
       </p>
       {!isBreakpointReached && (
-        <div className='text-textSecondary text-sm'>
+        <div className='text-textSecondary text-[13px]'>
           <span>ทุกการยืนยันตัวตน คือก้าวแรกของการค้าที่น่าเชื่อถือ</span>
         </div>
       )}

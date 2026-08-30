@@ -143,6 +143,51 @@ if [ "$is_paces" = false ]; then
 $m"
 fi
 
+# ── คีย์ที่ไม่มีอยู่จริงใน `sx` (utility ของ Tailwind หลุดเข้ามา) ──────────
+#
+# 🛑 คลาสอย่าง `pli` `pbs` `pbe` `mbs` `mie` `bs` `is` เป็น **utility ของ Tailwind**
+# ไม่ใช่คีย์ของ MUI `sx` และไม่ใช่ชื่อ CSS property ด้วย ⇒ MUI ทิ้งเงียบ ไม่มี error
+# ไม่มี warning · tsc ก็ปล่อยผ่านเพราะ `sx` รับคีย์อะไรก็ได้
+#
+# ที่มา (2026-08-31): `PublicProfileFooter` เขียน `sx={{ pli: 4, pbs: 3, pbe: 4 }}`
+# ⇒ วัดบนจอจริงแล้ว footer ได้ **padding 0 ทุกด้าน** มาตลอด และเส้นคั่นห่างการ์ดแค่ 8px
+# หัวหน้าทัก 2 รอบว่า "เส้นมันชิด" — ไม่มีเครื่องมือไหนในระบบจับได้เลย
+#
+# นี่คือคลาสบั๊กที่อันตรายที่สุด: **เขียนแล้วดูเหมือนทำงาน แต่เงียบ**
+# ที่ถูกคือใช้คีย์ MUI (`px` `py` `pt` `pb` `mt` `mb` …) หรือชื่อ CSS เต็ม
+# (`paddingInline` `marginBlockStart` …)
+DEAD_SX='(pli|pis|pie|plb|pbs|pbe|mli|mis|mie|mlb|mbs|mbe|bs|is|bls|ble)[[:space:]]*:'
+if grep -qE "sx=\{\{" "$file" 2>/dev/null; then
+  m=$(scan_nocomment "^[[:space:]]*$DEAD_SX")
+  [ -n "$m" ] && add "[SX] คีย์นี้ไม่มีอยู่ใน MUI \`sx\` — เป็น utility ของ Tailwind ⇒ ถูกทิ้งเงียบ ไม่มี error/warning. ใช้คีย์ MUI (px/py/pt/pb/mt/mb) หรือชื่อ CSS เต็ม (paddingInline/marginBlockStart) แทน:
+$m"
+fi
+
+# ── tap target ≥ 44px (DESIGN.md §Do's) ────────────────────────────────────
+#
+# ธีมตั้งพื้นให้แล้วที่ `@core/theme/overrides/{button,icon-button,input}.ts`
+# (`minBlockSize: 44`) ⇒ ปกติไม่ต้องเขียนอะไรเพิ่ม · ด่านนี้จับ **การเขียนทับให้เตี้ยลง**
+#
+# ที่มา (วัดจอจริง 390px 2026-08-31): ก่อนแก้ ฝั่ง buyer มีเป้าที่กดได้ต่ำกว่า 44px
+# **48 จุด** — `/dashboard` หน้าเดียว 20 จุด · ปุ่มสูง 30/38/43px ปนกันทั้งระบบ
+# กลุ่มผู้ใช้ที่ PRODUCT.md ผูกไว้คือผู้สูงวัย/digital-literacy ต่ำ = กลุ่มที่พลาดมากที่สุด
+#
+# carve-out: ของที่ "ตาเห็นเล็กแต่พื้นที่แตะใหญ่" (เช่น `&::after{inset:-11px}`)
+# ให้เขียนคอมเมนต์กำกับบรรทัดนั้น
+# 🛑 จับเฉพาะ `minHeight`/`minBlockSize`/`min-bs-*` — **ไม่จับ `height`/`blockSize`**
+# เพราะสองตัวหลังใช้กำหนดขนาดของ *สิ่งที่กดไม่ได้* เต็มไปหมด (badge · จุดไทม์ไลน์ · ราง slider
+# · หัว switch · chip) ⇒ ลองจับแล้วได้ 25 ไฟล์ที่ไม่มีอันไหนเป็นเป้าให้นิ้วเลย
+# ด่านที่ร้องผิดบ่อยกว่าถูก คือด่านที่คนจะเรียนรู้ที่จะเพิกเฉย
+#
+# ข้าม `src/@core/**` — ที่นั่นคือธีมที่ *ตั้งขนาดคอมโพเนนต์* เป็นหน้าที่โดยตรง
+case "$file" in src/@core/*) : ;; *)
+if [ "$is_paces" = false ]; then
+  m=$(scan_nocomment "(minHeight|minBlockSize): *(1[0-9]|2[0-9]|3[0-9]|4[0-3]) *[,}]|min-bs-(1|2|3|4|5|6|7|8|9|10)\b")
+  [ -n "$m" ] && add "[TAP] เป้าที่กดได้ต้องสูง ≥44px (DESIGN.md §Do's) — ธีมตั้งพื้นให้แล้ว อย่าเขียนทับให้เตี้ยลง · ถ้าเป็นของที่ตาเห็นเล็กแต่พื้นที่แตะใหญ่ (::after inset ติดลบ) ให้เขียนคอมเมนต์กำกับบรรทัด:
+$m"
+fi
+;; esac
+
 # ── padding การ์ด = 20px (DESIGN.md §Cards · The Card-Padding-Is-20 Rule) ──
 #
 # การ์ด = กล่อง `rounded-2xl` (12px) · ระยะขอบใน **20px = `p-5`** ค่าเดียวทั้งระบบ

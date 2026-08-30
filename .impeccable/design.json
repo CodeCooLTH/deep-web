@@ -636,6 +636,11 @@
         "name": "The Card-Padding-Is-20 Rule",
         "body": "ระยะขอบในของการ์ด = **20px ค่าเดียวทั้งสองสกิน** (buyer `theme.spacing(5)` · Paces `.card-body p-5`). นิยามอยู่ที่ธีมจุดเดียว — `<CardContent>` ห้ามเขียนคลาส padding ทับ. ที่มา: ก่อนแก้ฝั่ง buyer มี 14 · 20 · 24 · 32px ปนกัน โดยการ์ดสองใบที่วางติดกันบนจอเดียว ต่างกัน 10px ซึ่งมองเห็นด้วยตา.",
         "section": "components"
+      },
+      {
+        "name": "The Forty-Four Rule",
+        "body": "เป้าที่กดได้ทุกชิ้นฝั่ง buyer สูงอย่างน้อย **44px** — นิยามเดียวอยู่ที่ธีม (`overrides/button.ts` · `icon-button.ts` · `input.ts` ตั้ง `minBlockSize: 44`) ลิงก์ข้อความใช้ `inline-flex items-center min-bs-11`. ของที่ตาเห็นเล็กแต่พื้นที่แตะใหญ่ (`::after` inset ติดลบ) ทำได้ ต้องเขียนคอมเมนต์กำกับ. ที่มา: วัดจอจริง 390px ก่อนแก้มีเป้าต่ำกว่าเกณฑ์ 48 จุด และปุ่มสูง 30/38/43px ปนกัน — กลุ่มผู้ใช้ที่ PRODUCT.md ผูกไว้ (ผู้สูงวัย/digital-literacy ต่ำ) คือกลุ่มที่พลาดมากที่สุด.",
+        "section": "components"
       }
     ],
     "dos": [

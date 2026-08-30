@@ -172,7 +172,7 @@ export default function BidPhoneVerifyDialog({ open, onClose, onVerified }: Prop
               helperText={phoneError}
             />
             {errorMsg && (
-              <Typography color="error.main" className="text-center text-sm mt-3">
+              <Typography color="error.main" className="text-center text-[13px] mt-3">
                 {errorMsg}
               </Typography>
             )}
@@ -192,7 +192,7 @@ export default function BidPhoneVerifyDialog({ open, onClose, onVerified }: Prop
             <Typography>กรอกรหัสความปลอดภัย 6 หลักที่ส่งไปยังเบอร์ของคุณ</Typography>
             <OtpSlots value={otp} onChange={setOtp} />
             {errorMsg && (
-              <Typography color="error.main" className="text-center text-sm">
+              <Typography color="error.main" className="text-center text-[13px]">
                 {errorMsg}
               </Typography>
             )}

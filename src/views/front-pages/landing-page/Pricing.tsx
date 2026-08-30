@@ -200,7 +200,7 @@ const PricingPlan = () => {
                     {plan.features.map((feature, index) => (
                       <div key={index} className='flex items-center gap-[12px]'>
                         <CustomAvatar color={plan.color} skin='light' size={22}>
-                          <i className='tabler-check text-sm' />
+                          <i className='tabler-check text-[13px]' />
                         </CustomAvatar>
                         <Typography>{feature}</Typography>
                       </div>

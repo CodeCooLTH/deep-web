@@ -59,11 +59,11 @@ export default async function MobileCheckPage({
         <div className='flex flex-col gap-3'>
           {/* ป้ายผล + ค่าที่ค้น (mask) */}
           <div className='flex items-center justify-between gap-2'>
-            <span className='text-[14px] font-semibold text-[var(--mui-palette-text-primary)]'>ผลการค้นหา</span>
+            <span className='text-[14px] font-medium text-[var(--mui-palette-text-primary)]'>ผลการค้นหา</span>
             <span className='inline-flex items-center gap-1.5 rounded-full border border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-default)] plb-1 pli-2.5'>
               <span className='text-[12px] text-[var(--mui-palette-text-secondary)]'>{IDENTIFIER_LABELS[type]}</span>
               <span className='size-1 rounded-full bg-[var(--mui-palette-text-disabled)]' />
-              <span className='text-[12px] font-semibold text-[var(--mui-palette-text-primary)]'>{displayValue}</span>
+              <span className='text-[12px] font-medium text-[var(--mui-palette-text-primary)]'>{displayValue}</span>
             </span>
           </div>
 

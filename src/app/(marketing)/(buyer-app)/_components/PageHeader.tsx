@@ -17,7 +17,7 @@ type Props = {
 const PageHeader = ({ title, subtitle, action }: Props) => (
   <div className='flex items-start justify-between gap-4 flex-wrap'>
     <div className='min-w-0'>
-      <Typography variant='h5' className='font-semibold'>
+      <Typography variant='h5' className='font-medium'>
         {title}
       </Typography>
       {subtitle && (

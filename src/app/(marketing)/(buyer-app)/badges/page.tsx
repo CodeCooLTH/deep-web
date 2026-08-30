@@ -167,7 +167,7 @@ export default async function BadgesPage() {
                         value={pct}
                         variant='determinate'
                         color='primary'
-                        className='min-bs-2 flex-1'
+                        className='min-bs-2 flex-1' /* carve-out tap: รางความคืบหน้า กดไม่ได้ ไม่ใช่เป้าให้นิ้ว */
                       />
                       <Typography color='text.disabled' className='text-xs whitespace-nowrap'>
                         {`${pct}%`}

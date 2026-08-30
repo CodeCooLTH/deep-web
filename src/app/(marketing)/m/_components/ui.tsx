@@ -10,7 +10,7 @@ import MBackButton from './MBackButton'
 export const MPageTitle = ({ title, action, back }: { title: string; action?: ReactNode; back?: string }) => (
   <div className='flex items-center gap-1.5'>
     {back && <MBackButton fallback={back} />}
-    <h1 className='flex-1 text-[17px] font-semibold m-0 text-[var(--mui-palette-text-primary)]'>{title}</h1>
+    <h1 className='flex-1 text-[17px] font-medium m-0 text-[var(--mui-palette-text-primary)]'>{title}</h1>
     {action}
   </div>
 )

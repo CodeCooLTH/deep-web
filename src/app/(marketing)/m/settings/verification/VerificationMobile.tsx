@@ -64,7 +64,7 @@ const Card = ({
           L{level}
         </span>
         <div className='min-w-0'>
-          <p className='text-[14px] font-semibold m-0 text-[var(--mui-palette-text-primary)]'>{title}</p>
+          <p className='text-[14px] font-medium m-0 text-[var(--mui-palette-text-primary)]'>{title}</p>
           <p className='text-[12px] m-0 text-[var(--mui-palette-text-secondary)] truncate'>{subtitle}</p>
         </div>
       </div>

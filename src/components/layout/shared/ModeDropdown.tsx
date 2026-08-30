@@ -66,7 +66,13 @@ const ModeDropdown = () => {
         open={open ? false : tooltipOpen ? true : false}
         slotProps={{ popper: { className: 'capitalize' } }}
       >
-        <IconButton ref={anchorRef} onClick={handleToggle} className='text-textPrimary'>
+        {/* 44×44 — sizeMedium ของธีม = 38px ต่ำกว่า tap target (DESIGN.md §Do's) */}
+        <IconButton
+          ref={anchorRef}
+          onClick={handleToggle}
+          className='text-textPrimary'
+          sx={{ inlineSize: 44, blockSize: 44 }}
+        >
           <i className={getModeIcon()} />
         </IconButton>
       </Tooltip>

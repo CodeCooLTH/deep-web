@@ -85,7 +85,10 @@ const Orders = ({ orders }: Props) => {
           <LinkButton
             href='/orders'
             variant='text'
-            size='small'
+            /* 🛑 เลิก `size='small'` — ธีมไล่รัศมีตามขนาดปุ่ม (small = 4px) ⇒ หน้าเดียวมีปุ่ม
+               สองทรง (4px กับ 6px) และสูงแค่ 30px ซึ่งต่ำกว่า tap target 44px ที่
+               DESIGN.md §Do's บังคับ · กลุ่มผู้ใช้ที่ PRODUCT.md ผูกไว้คือผู้สูงวัย */
+            sx={{ minHeight: 44 }}
             endIcon={<i className='tabler-chevron-right' />}
           >
             ทั้งหมด

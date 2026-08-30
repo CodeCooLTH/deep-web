@@ -218,7 +218,13 @@ const NotificationsDropdown = () => {
 
   return (
     <>
-      <IconButton ref={anchorRef} onClick={handleToggle} className='text-textPrimary'>
+      {/* 44×44 — sizeMedium ของธีม = 38px ต่ำกว่า tap target (DESIGN.md §Do's) */}
+      <IconButton
+        ref={anchorRef}
+        onClick={handleToggle}
+        className='text-textPrimary'
+        sx={{ inlineSize: 44, blockSize: 44 }}
+      >
         <Badge
           color='error'
           className='cursor-pointer'
@@ -293,7 +299,7 @@ const NotificationsDropdown = () => {
                       </Typography>
                       <button
                         type='button'
-                        className='text-primary text-sm font-medium'
+                        className='text-primary text-[13px] font-medium'
                         onClick={() => fetchNotifications()}
                       >
                         ลองใหม่

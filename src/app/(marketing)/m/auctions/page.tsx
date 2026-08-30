@@ -79,7 +79,7 @@ export default async function MobileAuctionsPage({
                       loading='lazy'
                       className='absolute inset-0 is-full bs-full object-cover'
                     />
-                    <span className='absolute top-2 inline-start-2 text-[11px] font-semibold text-white pli-2 plb-0.5 rounded-full bg-[var(--mui-palette-primary-main)]'>
+                    <span className='absolute top-2 inline-start-2 text-[11px] font-medium text-white pli-2 plb-0.5 rounded-full bg-[var(--mui-palette-primary-main)]'>
                       {a.bidCount} บิด
                     </span>
                   </div>
@@ -89,7 +89,7 @@ export default async function MobileAuctionsPage({
                     {t && tierColor && (
                       <div className='flex items-center gap-1'>
                         <span
-                          className='inline-flex items-center gap-0.5 text-[9px] font-semibold leading-none pli-1.5 plb-0.5 rounded-full'
+                          className='inline-flex items-center gap-0.5 text-[9px] font-medium leading-none pli-1.5 plb-0.5 rounded-full'
                           style={{ background: tierBg(tierColor), color: tierFg(tierColor) }}
                         >
                           <i className='tabler-shield-check-filled text-[10px]' />

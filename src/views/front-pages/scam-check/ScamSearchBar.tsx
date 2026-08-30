@@ -78,7 +78,13 @@ const ScamSearchBar = ({
         </div>
         <Typography variant='body2' color='text.disabled' className='mbs-4 text-center sm:text-start'>
           เจอมิจฉาชีพ? ช่วยกัน{' '}
-          <Typography component='a' href='/report' color='primary.main' className='font-medium'>
+          {/* พื้นที่แตะ 44px — ลิงก์ในประโยคสูงตามตัวหนังสือ (19px) ต่ำกว่าเกณฑ์ */}
+          <Typography
+            component='a'
+            href='/report'
+            color='primary.main'
+            className='font-medium inline-flex items-center min-bs-11'
+          >
             แจ้งรายงาน
           </Typography>{' '}
           (ต้องเข้าสู่ระบบ + แนบหลักฐาน)

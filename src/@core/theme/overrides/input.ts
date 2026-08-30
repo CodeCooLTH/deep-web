@@ -33,6 +33,9 @@ const input: Theme['components'] = {
   MuiFilledInput: {
     styleOverrides: {
       root: {
+        /* tap target ≥44px — เหตุผลเดียวกับ `MuiOutlinedInput` ด้านล่าง
+           ธีมนี้ใช้ filled เป็นค่าเริ่มต้นของ `CustomTextField` ⇒ ช่องกรอกส่วนใหญ่มาทางนี้ */
+        minBlockSize: 44,
         borderStartStartRadius: 4,
         borderStartEndRadius: 4,
         '&:before': {
@@ -66,6 +69,10 @@ const input: Theme['components'] = {
   MuiOutlinedInput: {
     styleOverrides: {
       root: {
+        /* tap target ≥44px — เหตุผลเดียวกับ `MuiButton` (ดู `button.ts`)
+           ช่องกรอกที่เตี้ยกว่านี้แตะแล้วโฟกัสยากพอ ๆ กับปุ่มเล็ก (วัดได้ 38 และ 43px
+           บนหน้า buyer หลายหน้า 2026-08-31 — 43 คือขาดไปแค่ 1px ซึ่งตาไม่เห็นแต่นิ้วเจอ) */
+        minBlockSize: 44,
         '&:not(.Mui-focused):not(.Mui-error):not(.Mui-disabled):hover .MuiOutlinedInput-notchedOutline': {
           borderColor: 'var(--mui-palette-action-active)'
         },

@@ -27,7 +27,14 @@ import { frontLayoutClasses } from '@layouts/utils/layoutClasses'
 import frontCommonStyles from '@views/front-pages/styles.module.css'
 
 // คลาสลิงก์ footer — ขาวจางแล้วสว่างเต็มเมื่อ hover (text-white ชัวร์กว่า color='white' ที่ palette ไม่มี)
-const footerLink = 'text-white/70 hover:text-white transition-colors duration-200'
+/**
+ * 🛑 `min-bs-11` (44px) + `flex items-center` — ลิงก์ท้ายหน้าเดิมสูงแค่ 20–22px
+ * ซึ่งต่ำกว่า tap target 44px ที่ DESIGN.md §Do's บังคับ (วัดได้ 12 ลิงก์บน `/dashboard`
+ * มือถือ 2026-08-31) · ตัวหนังสือขนาดเดิม แค่พื้นที่แตะโปร่งรอบ ๆ โตขึ้น
+ * ⇒ หน้าตาไม่เปลี่ยน แต่กดติดจริง (ท่าเดียวกับที่ใช้บนหน้า `/o/[token]`)
+ */
+const footerLink =
+  'text-white/70 hover:text-white transition-colors duration-200 inline-flex items-center min-bs-11'
 
 const platformLinks = [
   { label: 'ราคา', href: '#pricing-plans', isNew: false },
@@ -61,7 +68,9 @@ const Footer = ({ mode }: { mode: Mode }) => {
           <Grid container rowSpacing={10} columnSpacing={12}>
             <Grid size={{ xs: 12, md: 5 }}>
               <div className='flex flex-col items-start gap-6'>
-                <Link href='/'>
+                {/* พื้นที่แตะ 44px — โลโก้เดิมสูงตามรูป 24px ซึ่งต่ำกว่าเกณฑ์
+                    ตัวโลโก้ขนาดเท่าเดิม แค่กล่องที่กดได้โตขึ้น */}
+                <Link href='/' className='inline-flex items-center min-bs-11'>
                   <Logo color='var(--mui-palette-common-white)' />
                 </Link>
                 <Typography className='sm:max-is-[390px] text-white/70'>
@@ -73,9 +82,13 @@ const Footer = ({ mode }: { mode: Mode }) => {
                     <input
                       type='email'
                       placeholder='อีเมลของคุณ'
-                      className='flex-1 min-w-0 bg-transparent border-0 outline-none text-white placeholder:text-white/50'
+                      /* `min-bs-11` — ตัว `<input>` เองสูง 15px แม้กรอบรอบนอกจะสูงกว่า
+                         ⇒ พื้นที่ที่แตะแล้วโฟกัสจริงเล็กกว่าที่ตาเห็น */
+                      className='flex-1 min-w-0 min-bs-11 bg-transparent border-0 outline-none text-white placeholder:text-white/50'
                     />
-                    <Button variant='contained' color='primary' size='small' className='shrink-0'>
+                    {/* เลิก `size='small'` — ธีมให้ small = รัศมี 4px + สูง 30px
+                        ⇒ ทั้งทรงและ tap target ไม่ตรงกับปุ่มอื่นบนหน้าเดียวกัน */}
+                    <Button variant='contained' color='primary' className='shrink-0' sx={{ minHeight: 44 }}>
                       สมัคร
                     </Button>
                   </div>
@@ -83,7 +96,7 @@ const Footer = ({ mode }: { mode: Mode }) => {
               </div>
             </Grid>
             <Grid size={{ xs: 12, sm: 4, md: 2 }}>
-              <Typography className='font-semibold mbe-6 text-white'>แพลตฟอร์ม</Typography>
+              <Typography className='font-medium mbe-6 text-white'>แพลตฟอร์ม</Typography>
               <div className='flex flex-col gap-4'>
                 {platformLinks.map((item, index) =>
                   item.isNew ? (
@@ -100,7 +113,7 @@ const Footer = ({ mode }: { mode: Mode }) => {
               </div>
             </Grid>
             <Grid size={{ xs: 12, sm: 4, md: 2 }}>
-              <Typography className='font-semibold mbe-6 text-white'>บริการ</Typography>
+              <Typography className='font-medium mbe-6 text-white'>บริการ</Typography>
               <div className='flex flex-col gap-4'>
                 {serviceLinks.map((item, index) => (
                   <Typography key={index} component={Link} href={item.href} className={classnames('w-fit', footerLink)}>
@@ -110,7 +123,7 @@ const Footer = ({ mode }: { mode: Mode }) => {
               </div>
             </Grid>
             <Grid size={{ xs: 12, sm: 4, md: 3 }}>
-              <Typography className='font-semibold mbe-6 text-white'>ดาวน์โหลดแอป</Typography>
+              <Typography className='font-medium mbe-6 text-white'>ดาวน์โหลดแอป</Typography>
               <div className='flex flex-col gap-4'>
                 <Link className='bg-[#282C3E] hover:bg-[#33384e] transition-colors duration-200 bs-[56px] w-full max-w-[211px] rounded-lg'>
                   <div className='flex items-center pli-5 plb-[7px] gap-6'>
@@ -159,16 +172,16 @@ const Footer = ({ mode }: { mode: Mode }) => {
             </Typography>
           </div>
           <div className='flex gap-1.5 items-center'>
-            <IconButton component={Link} size='small' href='#' target='_blank'>
+            <IconButton component={Link} href='#' target='_blank' sx={{ inlineSize: 44, blockSize: 44 }}>
               <i className='tabler-brand-facebook-filled text-white/80 hover:text-white transition-colors text-lg' />
             </IconButton>
-            <IconButton component={Link} size='small' href='#' target='_blank'>
+            <IconButton component={Link} href='#' target='_blank' sx={{ inlineSize: 44, blockSize: 44 }}>
               <i className='tabler-brand-line text-white/80 hover:text-white transition-colors text-lg' />
             </IconButton>
-            <IconButton component={Link} size='small' href='#' target='_blank'>
+            <IconButton component={Link} href='#' target='_blank' sx={{ inlineSize: 44, blockSize: 44 }}>
               <i className='tabler-brand-twitter-filled text-white/80 hover:text-white transition-colors text-lg' />
             </IconButton>
-            <IconButton component={Link} size='small' href='#' target='_blank'>
+            <IconButton component={Link} href='#' target='_blank' sx={{ inlineSize: 44, blockSize: 44 }}>
               <i className='tabler-brand-youtube-filled text-white/80 hover:text-white transition-colors text-lg' />
             </IconButton>
           </div>

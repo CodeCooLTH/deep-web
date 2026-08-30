@@ -96,7 +96,15 @@ const Congratulations = ({
             />
           </div>
 
-          <LinkButton href='/settings/verification' variant='contained' color='primary' className='mbs-1 self-center'>
+          <LinkButton
+            href='/settings/verification'
+            variant='contained'
+            color='primary'
+            className='mbs-1 self-center'
+            /* 38px → 44px (DESIGN.md §Do's tap target ≥44) — ปุ่มหลักของการ์ดบนสุด
+               ของหน้าแรกหลังล็อกอิน เป็นตัวที่ต้องกดง่ายที่สุดบนจอ */
+            sx={{ minHeight: 44 }}
+          >
             ยกระดับความน่าเชื่อถือ
           </LinkButton>
         </div>
@@ -106,7 +114,7 @@ const Congratulations = ({
 
         {/* ฝั่งขวา — สัญญาณความน่าเชื่อถือ (สถานะยืนยันตัวตนจริง) */}
         <div className='flex-1 min-w-0 flex flex-col justify-center gap-3'>
-          <Typography variant='subtitle2' color='text.primary' className='font-semibold'>
+          <Typography variant='subtitle2' color='text.primary' className='font-medium'>
             สถานะการยืนยันตัวตน
           </Typography>
           <div className='flex flex-col gap-3'>

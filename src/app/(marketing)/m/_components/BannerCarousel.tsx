@@ -82,7 +82,7 @@ export default function BannerCarousel() {
                   <div className='relative flex flex-col gap-1.5 max-w-[74%]'>
                     <p className='text-[18px] font-extrabold text-white m-0 leading-tight line-clamp-2'>{s.title}</p>
                     <p className='text-[12.5px] text-white/90 m-0 leading-snug line-clamp-2'>{s.subtitle}</p>
-                    <span className='inline-flex items-center gap-1 self-start mbs-1 bg-white text-[#2F2B3D] text-[12px] font-semibold pli-3 plb-1.5 rounded-full'>
+                    <span className='inline-flex items-center gap-1 self-start mbs-1 bg-white text-[#2F2B3D] text-[12px] font-medium pli-3 plb-1.5 rounded-full'>
                       {s.cta}
                       <i className='tabler-arrow-right text-[14px]' />
                     </span>

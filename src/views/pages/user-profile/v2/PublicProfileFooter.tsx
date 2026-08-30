@@ -39,7 +39,24 @@ export default function PublicProfileFooter() {
   return (
     <Box
       component='footer'
-      sx={{ textAlign: 'center', pli: 4, pbs: 3, pbe: 4, borderBlockStart: '1px solid', borderColor: 'divider' }}
+      sx={{
+        textAlign: 'center',
+        /**
+         * 🛑 ต้องเป็นคีย์ของ MUI (`px`/`pt`/`pb`/`mt`) — เดิมเขียน `pli: 4, pbs: 3, pbe: 4`
+         * ซึ่งเป็น **utility ของ Tailwind ไม่ใช่คีย์ของ `sx`** ⇒ เงียบไปทั้งชุด
+         * วัดบนจอจริง 2026-08-31: footer ได้ padding **0 ทุกด้าน** และเส้นคั่นห่างจาก
+         * การ์ดใบสุดท้ายแค่ 8px จนอ่านเหมือนขอบล่างของการ์ด (หัวหน้าทัก 2 รอบ)
+         *
+         * `mt: 10` (40px) = ขั้นใหญ่สุดของจังหวะระบบ (DESIGN.md §Rhythm 4→8→16→24→40)
+         * ซึ่งเป็นขั้นที่สงวนไว้ให้ขอบเขตของ section พอดี
+         */
+        px: 4,
+        mt: 10,
+        pt: 3,
+        pb: 4,
+        borderBlockStart: '1px solid',
+        borderColor: 'divider',
+      }}
     >
       {/* RSC + MUI: ห้าม `component={Link}` — ห่อด้วย NextLink แทน (Hard Rule 2) */}
       <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', columnGap: 4, rowGap: 1 }}>
@@ -72,7 +89,7 @@ export default function PublicProfileFooter() {
         ))}
       </Box>
 
-      <Typography variant='caption' color='text.disabled' sx={{ display: 'block', mbs: 2 }}>
+      <Typography variant='caption' color='text.disabled' sx={{ display: 'block', mt: 2 }} /* `mbs` ไม่ใช่คีย์ `sx` — no-op */>
         {`© ${yearBE} ${themeConfig.templateName}`}
       </Typography>
     </Box>

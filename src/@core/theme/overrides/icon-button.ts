@@ -8,6 +8,10 @@ const iconButton: Theme['components'] = {
   MuiIconButton: {
     styleOverrides: {
       root: {
+        /* tap target 44×44 — เหตุผลเดียวกับ `MuiButton` (ดู `button.ts`)
+           ตัวไอคอนขนาดเท่าเดิม โตเฉพาะพื้นที่แตะ */
+        minInlineSize: 44,
+        minBlockSize: 44,
         '& .MuiSvgIcon-root, & i, & svg': {
           fontSize: 'inherit'
         },

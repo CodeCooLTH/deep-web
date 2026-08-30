@@ -192,7 +192,7 @@ export default function ReviewList({
                 type='button'
                 onClick={() => setFilter(c.key)}
                 aria-pressed={on}
-                className={`rounded-full plb-2 pli-3 text-[12px] cursor-pointer min-bs-9 border ${
+                className={`rounded-full plb-2 pli-3 text-[12px] cursor-pointer min-bs-11 border ${
                   on
                     ? 'font-bold text-primary bg-[var(--mui-palette-primary-lightOpacity)] border-[color:var(--mui-palette-primary-main)]/30'
                     : 'text-[#6f6d79] bg-[var(--mui-palette-background-paper)] border-[#e4e4eb]'
@@ -353,7 +353,7 @@ export default function ReviewList({
             <button
               type='button'
               onClick={() => setRatingOnlyShown((n) => n + RATING_ONLY_PAGE)}
-              className='mbs-3 is-full min-bs-10 rounded-full border border-[color:var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)] text-[13px] font-bold text-[#5a5766] cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
+              className='mbs-3 is-full min-bs-11 rounded-full border border-[color:var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)] text-[13px] font-bold text-[#5a5766] cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
             >
               {`ดูรีวิวเพิ่ม (อีก ${ratingOnly.length - ratingOnlyShown})`}
             </button>

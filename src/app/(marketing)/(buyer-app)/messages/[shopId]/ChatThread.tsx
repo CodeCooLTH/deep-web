@@ -528,7 +528,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
         <CustomAvatar variant='circular' size={72} color='error' skin='light'>
           <Icon icon='tabler-message-off' fontSize={36} />
         </CustomAvatar>
-        <Typography className='font-semibold'>
+        <Typography className='font-medium'>
           {convError === 'not-found' ? 'ไม่พบร้านค้านี้' : 'ไม่มีสิทธิ์เข้าถึงบทสนทนานี้'}
         </Typography>
       </Box>
@@ -572,7 +572,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
             <CustomAvatar variant='circular' size={72} color='primary' skin='light'>
               <Icon icon='tabler-message-2' fontSize={36} />
             </CustomAvatar>
-            <Typography color='text.secondary' className='text-sm'>
+            <Typography color='text.secondary' className='text-[13px]'>
               เริ่มต้นทักทาย {shopName} ได้เลย
             </Typography>
           </div>
@@ -664,7 +664,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                                 // ── optimistic: ส่งแล้วรอ refetch enrich (POST ไม่ enrich productCard) ──
                                 <div className='flex items-center gap-2 pli-4 plb-3'>
                                   <CircularProgress size={16} />
-                                  <Typography className='text-sm' color='text.secondary'>
+                                  <Typography className='text-[13px]' color='text.secondary'>
                                     กำลังส่งการ์ดสินค้า...
                                   </Typography>
                                 </div>
@@ -672,7 +672,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                                 // ── FR-CTX-08: ลบจริง — ไม่มีลิงก์/รูป ──
                                 <div className='flex items-center gap-2 pli-4 plb-3'>
                                   <Icon icon='tabler-package-off' fontSize={20} className='text-textDisabled' />
-                                  <Typography className='text-sm' color='text.disabled'>
+                                  <Typography className='text-[13px]' color='text.disabled'>
                                     ไม่พบสินค้านี้แล้ว
                                   </Typography>
                                 </div>
@@ -703,10 +703,10 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                                     )}
                                   </div>
                                   <div className='flex flex-col gap-0.5 min-is-0' style={{ maxWidth: 160 }}>
-                                    <Typography className='truncate text-sm font-semibold' color='text.primary'>
+                                    <Typography className='truncate text-[13px] font-medium' color='text.primary'>
                                       {card.name}
                                     </Typography>
-                                    <Typography className='text-sm font-bold' color='primary'>
+                                    <Typography className='text-[13px] font-bold' color='primary'>
                                       {priceLabel}
                                     </Typography>
                                     {!card.isActive && (
@@ -721,7 +721,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                                     )}
                                     <Typography
                                       component='span'
-                                      className='inline-flex items-center gap-1 text-xs font-semibold'
+                                      className='inline-flex items-center gap-1 text-xs font-medium'
                                       color='primary'
                                     >
                                       ดูสินค้า
@@ -750,7 +750,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                                 style={{ maxWidth: 260, borderRadius: 8 }}
                               >
                                 <Icon icon='tabler-receipt-off' fontSize={20} className='text-textDisabled' />
-                                <Typography className='text-sm' color='text.disabled'>
+                                <Typography className='text-[13px]' color='text.disabled'>
                                   ไม่พบ{orderVocab.noun}นี้แล้ว
                                 </Typography>
                               </div>
@@ -773,7 +773,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                               >
                                 <Icon icon='tabler-receipt-2' fontSize={26} />
                                 <div className='min-is-0'>
-                                  <Typography className='truncate text-sm font-semibold' style={{ color: 'inherit' }}>
+                                  <Typography className='truncate text-[13px] font-medium' style={{ color: 'inherit' }}>
                                     {orderTitle}
                                   </Typography>
                                   <Typography className='truncate text-xs' style={{ color: 'inherit', opacity: 0.9 }}>
@@ -801,13 +801,13 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                                           <Icon icon='tabler-photo' fontSize={16} className='text-textDisabled' />
                                         )}
                                       </div>
-                                      <Typography className='truncate text-sm min-is-0 flex-1' color='text.secondary'>
+                                      <Typography className='truncate text-[13px] min-is-0 flex-1' color='text.secondary'>
                                         {it.name}
                                       </Typography>
                                       <Typography className='text-xs shrink-0' color='text.disabled'>
                                         x{it.qty}
                                       </Typography>
-                                      <Typography className='text-sm font-medium shrink-0'>
+                                      <Typography className='text-[13px] font-medium shrink-0'>
                                         ฿{Number(it.price).toLocaleString('th-TH')}
                                       </Typography>
                                     </div>
@@ -817,16 +817,16 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                                   style={{ borderTop: '1px dashed var(--mui-palette-divider)', margin: '10px 0' }}
                                 />
                                 <div className='flex items-center justify-between'>
-                                  <Typography className='text-sm' color='text.secondary'>
+                                  <Typography className='text-[13px]' color='text.secondary'>
                                     รายการ
                                   </Typography>
-                                  <Typography className='text-sm font-semibold'>{card.items.length} รายการ</Typography>
+                                  <Typography className='text-[13px] font-medium'>{card.items.length} รายการ</Typography>
                                 </div>
                                 <div className='flex items-center justify-between' style={{ marginTop: 6 }}>
-                                  <Typography className='text-sm' color='text.secondary'>
+                                  <Typography className='text-[13px]' color='text.secondary'>
                                     ยอดสุทธิ
                                   </Typography>
-                                  <Typography className='text-sm font-bold' color='primary'>
+                                  <Typography className='text-[13px] font-bold' color='primary'>
                                     {orderPriceLabel}
                                   </Typography>
                                 </div>
@@ -838,7 +838,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                                 style={{ textDecoration: 'none', borderTop: '1px solid var(--mui-palette-divider)' }}
                               >
                                 <Icon icon='tabler-external-link' fontSize={16} className='text-primary' />
-                                <Typography className='text-sm font-semibold' color='primary'>
+                                <Typography className='text-[13px] font-medium' color='primary'>
                                   {orderVocab.viewLabel}
                                 </Typography>
                               </Link>

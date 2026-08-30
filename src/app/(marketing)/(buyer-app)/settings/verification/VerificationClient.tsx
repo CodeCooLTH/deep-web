@@ -218,7 +218,7 @@ export default function VerificationClient({ phoneVerified, records }: Props) {
           />
           <CardContent className='flex flex-col gap-4'>
             {l2.state === 'REJECTED' && l2.record?.rejectedReason && (
-              <Typography color='error.main' className='text-sm'>
+              <Typography color='error.main' className='text-[13px]'>
                 เหตุผลที่ปฏิเสธ: {l2.record.rejectedReason}
               </Typography>
             )}
@@ -280,13 +280,13 @@ export default function VerificationClient({ phoneVerified, records }: Props) {
             )}
 
             {l2.state === 'PENDING' && (
-              <Typography color='text.secondary' className='text-sm'>
+              <Typography color='text.secondary' className='text-[13px]'>
                 เอกสารของคุณอยู่ระหว่างตรวจสอบ ทีมงานจะแจ้งผลภายใน 1-2 วัน
               </Typography>
             )}
 
             {l2.state === 'APPROVED' && (
-              <Typography color='text.secondary' className='text-sm'>
+              <Typography color='text.secondary' className='text-[13px]'>
                 ยืนยันตัวตนระดับ 2 สำเร็จแล้ว
               </Typography>
             )}
@@ -309,7 +309,7 @@ export default function VerificationClient({ phoneVerified, records }: Props) {
           />
           <CardContent className='flex flex-col gap-4'>
             {l3.state === 'REJECTED' && l3.record?.rejectedReason && (
-              <Typography color='error.main' className='text-sm'>
+              <Typography color='error.main' className='text-[13px]'>
                 เหตุผลที่ปฏิเสธ: {l3.record.rejectedReason}
               </Typography>
             )}
@@ -346,13 +346,13 @@ export default function VerificationClient({ phoneVerified, records }: Props) {
             )}
 
             {l3.state === 'PENDING' && (
-              <Typography color='text.secondary' className='text-sm'>
+              <Typography color='text.secondary' className='text-[13px]'>
                 เอกสารของคุณอยู่ระหว่างตรวจสอบ ทีมงานจะแจ้งผลภายใน 1-2 วัน
               </Typography>
             )}
 
             {l3.state === 'APPROVED' && (
-              <Typography color='text.secondary' className='text-sm'>
+              <Typography color='text.secondary' className='text-[13px]'>
                 ยืนยันตัวตนระดับ 3 สำเร็จแล้ว
               </Typography>
             )}
