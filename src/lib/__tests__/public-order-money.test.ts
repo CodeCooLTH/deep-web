@@ -101,8 +101,12 @@ describe('ต้องไม่กระทบออเดอร์ของ ver
     /* 🛑 ตรวจ **ชื่อเกณฑ์** ไม่ใช่นิพจน์ดิบ — เดิมเขียน `m.totalReceived === 0 && !m.hasDeposit`
        ไว้ตรง ๆ แล้วแดงทันทีที่เกณฑ์ถูกยกเป็น `hasMoneyStory()` ที่ใช้ร่วม 3 จอ ทั้งที่ของยังครบ
        ด่านที่ผูกกับ *วิธีเขียน* พังเมื่อ refactor (พลาดคลาสนี้มาหลายครั้งแล้ว) */
+    /* 🛑 ไม่ผูกกับ `if (` นำหน้า — หน้านี้แยก `serviceMoney` (กั้นด้วย vertical อย่างเดียว
+       ป้อน *ป้าย* และใช้ร่วมทั้งสาขา guest/ล็อกอิน) ออกจากชุดที่ป้อน *การ์ด* แล้ว
+       ตัวหลังจึงเขียนเป็น `!m || !hasMoneyStory(m)` — **เกณฑ์เดิมเป๊ะ** เปลี่ยนแค่รูปประโยค
+       ซึ่งคือคลาสที่คอมเมนต์บรรทัด 101 ของไฟล์นี้เตือนไว้เอง */
     expect(page, 'ต้องคืน null เมื่อไม่มีเรื่องเงินให้พูดถึง').toMatch(
-      /if\s*\(!hasMoneyStory\(m\)\) return null/,
+      /!hasMoneyStory\(m\)\) return null/,
     )
     const view = stripComments(read('src/app/(marketing)/o/[token]/OrderDetailMobile.tsx'))
     expect(view, 'ต้อง render แบบมีเงื่อนไข').toMatch(

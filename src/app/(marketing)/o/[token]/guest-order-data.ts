@@ -119,6 +119,22 @@ export type GuestOrderData = {
   paymentConfirmedAt: string | null
   /** feature 00062 — เวลาที่ร้านกด "มอบสินค้าแล้ว" (ISO) · `null` = ยังไม่ได้มอบ */
   handedOverAt: string | null
+  /**
+   * เงินที่ร้าน **รับจริง** ของบิลนี้ (feature 00050) · `null` = ร้านที่ไม่มีบัญชีเงิน
+   *
+   * 🛑 **เพิ่มเข้า allow-list อย่างตั้งใจ (user เคาะ 2026-08-31 · ทางเลือก ก)** — ไม่ใช่ PII
+   * ของผู้ซื้อ เป็นข้อมูลของ *บิลใบนี้* ที่ร้านเป็นคนส่งลิงก์ให้ลูกค้าเอง และลูกค้าคือคนที่ต้อง
+   * รู้ว่ายังค้างเท่าไร (เหตุผลเดียวกับ `payoutSnapshot` ที่อยู่ในลิสต์นี้แล้ว)
+   *
+   * ทำไมต้องมี: ป้ายสถานะการชำระเงินบนจอนี้ derive จาก `Order.status` ซึ่ง `CONFIRMED`
+   * แปลว่า *ผู้ซื้อยืนยันว่าได้รับบริการแล้ว* ไม่ได้แปลว่าจ่ายเงินแล้ว ⇒ บิลบริการที่ปิดงานแล้ว
+   * แต่ยังค้างเงิน ขึ้นป้ายเขียว "ชำระแล้ว" มาตลอด · จอที่ล็อกอินแล้วมีตัวเลขนี้อยู่ก่อนแล้ว
+   * ถ้าแก้เฉพาะจอนั้น **บิลใบเดียวกันจะขึ้นป้ายคนละอย่างในสองจอ** = สร้างความไม่ตรงใหม่
+   *
+   * 🛑 **ไม่มี `entries`** — รายการรับเงินทีละก้อน (วิธีชำระ/เวลา/บันทึกภายใน) เป็นของฝั่งร้าน
+   * ผู้ถือลิงก์ต้องรู้แค่ "รับแล้วเท่าไร ค้างเท่าไร" ไม่ใช่ประวัติการเงินของร้าน
+   */
+  money: { totalAmount: number; totalReceived: number; outstanding: number; fullyPaid: boolean } | null
 }
 
 /**
@@ -186,6 +202,14 @@ export type GuestShopStats = {
   reviewCount: number
   channels: { provider: string; name: string; avatarUrl: string | null; externalId: string; followerCount: number | null }[]
   latestReview: { rating: number; comment: string } | null
+  /**
+   * เงินที่รับจริง — **คำนวณที่ `page.tsx` ที่เดียวแล้วส่งเข้ามา** ไม่ให้ไฟล์นี้คำนวณเอง
+   *
+   * 🛑 ตัวเลขต้องมาจาก `computeOrderMoney` ตัวเดียวกับทุกจอ (HR16) และต้องเป็น **ชุดเดียวกับ
+   * ที่จอล็อกอินได้รับ** — จอเดียวกัน บิลใบเดียวกัน ต้องไม่ตอบคำถาม "จ่ายครบยัง" ต่างกัน
+   * เพราะล็อกอินหรือยังไม่ได้
+   */
+  money?: { totalAmount: number; totalReceived: number; outstanding: number; fullyPaid: boolean } | null
 }
 
 /** ค่าตั้งต้นเมื่อ query สถิติล้ม — หน้ายังแสดงได้ครบ แค่ไม่มีบล็อกหลักฐาน (graceful degrade) */
@@ -195,6 +219,7 @@ export const EMPTY_SHOP_STATS: GuestShopStats = {
   reviewCount: 0,
   channels: [],
   latestReview: null,
+  money: null,
 }
 
 export function buildGuestOrderData(
@@ -206,6 +231,7 @@ export function buildGuestOrderData(
   const isServiceShop = order.shop.vertical === 'SERVICE_QUEUE'
 
   return {
+    money: stats.money ?? null,
     publicToken: order.publicToken,
     status: order.status as GuestOrderData['status'],
     fulfillmentMode: order.fulfillmentMode,

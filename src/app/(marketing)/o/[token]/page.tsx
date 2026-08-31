@@ -76,6 +76,31 @@ export default async function PublicOrderPage({ params }: Props) {
     const order = await getOrderByToken(token)
     if (!order) notFound()
 
+    /**
+     * เงินที่ **รับจริง** ของบิลนี้ — คำนวณครั้งเดียวตรงนี้ แล้วใช้ทั้ง **2 สาขา** ข้างล่าง
+     * (guest / ล็อกอินแล้ว)
+     *
+     * 🛑 ต้องเป็นตัวเดียวกันทั้งสองสาขา — จอเดียวกัน บิลใบเดียวกัน ผู้ซื้อคนเดียวกัน
+     * จะตอบคำถาม "จ่ายครบยัง" ต่างกันเพราะล็อกอินหรือยังไม่ได้ ไม่ได้
+     * (เหตุผลเดียวกับ `verifyScope` ข้างบนที่เคยเขียนแยกกันคนละบรรทัดแล้วให้ผลไม่ตรงกัน)
+     *
+     * กั้นด้วย **vertical อย่างเดียว** ไม่ผ่าน `hasMoneyStory()` — ตัวนี้ป้อน *ป้าย* ซึ่งต้องพูด
+     * ความจริงเสมอ ส่วนการ์ด "เงินที่รับแล้ว" กั้นเพิ่มด้านล่าง (AC-SQ-07 — ออเดอร์ขายออนไลน์
+     * ต้องไม่เห็นบล็อกใหม่ที่ไม่ได้ขอ)
+     */
+    const serviceMoney =
+      order.shop.vertical === 'SERVICE_QUEUE'
+        ? computeOrderMoneyFromSerialized({
+            totalAmount: order.totalAmount.toFixed(2),
+            depositAmount: order.depositAmount ? order.depositAmount.toFixed(2) : null,
+            payments: order.payments.map((pm) => ({
+              kind: pm.kind,
+              amount: pm.amount.toFixed(2),
+              voidedAt: pm.voidedAt ? pm.voidedAt.toISOString() : null,
+            })),
+          })
+        : null
+
     /* 🛑 "ระดับยืนยันของร้านนี้" มีนิยามเดียวทั้งระบบที่ src/lib/verification-scope.ts (FR-2.7)
        ประกาศไว้ตรงนี้ครั้งเดียวแล้วใช้ทั้ง 2 สาขาข้างล่าง (guest / ล็อกอินแล้ว) เพราะสองสาขานั้น
        เคยเขียน where ของตัวเองแยกกันคนละบรรทัด — จอเดียวกัน ผู้ซื้อคนเดียวกัน ต้องไม่มีทางตอบต่างกัน
@@ -175,6 +200,15 @@ export default async function PublicOrderPage({ params }: Props) {
             channels,
             latestReview: latestReview?.comment
               ? { rating: latestReview.rating, comment: latestReview.comment }
+              : null,
+            /* ชุดเดียวกับที่จอล็อกอินได้รับ — ไม่คำนวณซ้ำ ไม่มีทางตอบต่างกัน (HR16) */
+            money: serviceMoney
+              ? {
+                  totalAmount: serviceMoney.totalAmount,
+                  totalReceived: serviceMoney.totalReceived,
+                  outstanding: serviceMoney.outstanding,
+                  fullyPaid: serviceMoney.fullyPaid,
+                }
               : null,
           })}
         />
@@ -427,26 +461,10 @@ export default async function PublicOrderPage({ params }: Props) {
        * ตัวเลขทุกตัวมาจาก `computeOrderMoney` ตัวเดียวกับฝั่งร้าน — ห้ามบวกเองที่นี่ (HR16)
        */
       money: (() => {
-    /**
-     * 🛑 กั้นด้วย **vertical** ไม่ใช่แค่ "มีมัดจำไหม" (AC-SQ-07)
-     *
-     * เกณฑ์เดิม (`hasDeposit || totalReceived > 0`) ปลอดภัยวันนี้เพราะ **ข้อมูลบังเอิญเป็นแบบนั้น**
-     * — ONLINE_SALES 269 ใบบน prod ไม่มีมัดจำเลยสักใบ และยังไม่มีร้านบ้านพัก
-     * แต่บ้านพัก **เก็บมัดจำเป็นปกติ** (`booking.service.ts` เขียน `depositAmount` ทุกใบ)
-     * ⇒ วันแรกที่มีร้านบ้านพักเปิดใช้ การ์ดนี้จะโผล่บนจอที่ไม่ได้ขอ โดยไม่มีอะไรฟ้อง
-     * "ปลอดภัยเพราะยังไม่มีใครเดินผ่านเส้นทางนั้น" ไม่ใช่ด่าน
-     */
-    if (order.shop.vertical !== 'SERVICE_QUEUE') return null
-        const m = computeOrderMoneyFromSerialized({
-          totalAmount: order.totalAmount.toFixed(2),
-          depositAmount: order.depositAmount ? order.depositAmount.toFixed(2) : null,
-          payments: order.payments.map((p) => ({
-            kind: p.kind,
-            amount: p.amount.toFixed(2),
-            voidedAt: p.voidedAt ? p.voidedAt.toISOString() : null,
-          })),
-        })
-        if (!hasMoneyStory(m)) return null
+        /* กั้นเพิ่มด้วย `hasMoneyStory()` — ชุดดิบกั้นด้วย vertical มาแล้วที่ `serviceMoney` ข้างบน
+           (ยังไม่ตกลงมัดจำและยังไม่รับเงินเลย = ไม่มีอะไรให้เล่า ⇒ ไม่ขึ้นการ์ด · AC-SQ-07) */
+        const m = serviceMoney
+        if (!m || !hasMoneyStory(m)) return null
         return {
           totalAmount: m.totalAmount,
           depositAgreed: m.depositAgreed,
@@ -464,6 +482,14 @@ export default async function PublicOrderPage({ params }: Props) {
       })(),
       /* feature 00050 (AC-SQ-06) — เพจต้นทาง · relation select ไว้แล้วเป็น allow-list 3 คีย์
          (แถว ShopChannel มี accessTokenEnc อยู่ด้วย ห้าม include) */
+      /* ชุดเต็ม (ไม่ผ่าน hasMoneyStory) — ป้อน **ป้าย** เท่านั้น ส่วน `money` ข้างบนป้อน *การ์ด* */
+      serviceMoney: serviceMoney
+        ? {
+            totalAmount: serviceMoney.totalAmount,
+            totalReceived: serviceMoney.totalReceived,
+            outstanding: serviceMoney.outstanding,
+          }
+        : null,
       // คำบนจอผันตามประเภทร้าน — แยกจากด่าน `money` ที่ตอบคนละคำถาม
       isServiceShop: order.shop.vertical === 'SERVICE_QUEUE',
       originPage: order.shopChannel

@@ -31,7 +31,7 @@ import AuthPingLink from './AuthPingLink'
 import SectionTitle from './SectionTitle'
 import { formatOrderNo } from '@/lib/order-no'
 import { formatDateTimeTH, formatTimeHM, formatTimeRangeHM, formatWeekdayDateTH } from '@/lib/format-date'
-import { ORDER_STATUS_TONE_TO_MUI, getPaymentBadge } from '@/lib/order-display'
+import { ORDER_STATUS_TONE_TO_MUI, getPaymentBadge, PAYMENT_STATE_LABEL } from '@/lib/order-display'
 import { ORDER_VOCAB } from '@/lib/seller-menu'
 import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
 import { resolveOrderStatusHeadline } from '@/lib/order-status-headline'
@@ -108,7 +108,16 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
    * เป็น false ซึ่งจะเบี่ยง badge จาก "รอตรวจสอบสลิป" ไปเป็น "รอชำระ" ถ้าลูกค้าคนอื่นที่ล็อกอิน
    * แล้วเคยแนบสลิปไว้ก่อนหน้า — คนละบั๊กกับ payoutSnapshot
    */
-  const paymentBadge = getPaymentBadge(order.status, order.paymentMethod, undefined, order.paymentConfirmedAt)
+  /* 🛑 บัญชีเงินชนะ `Order.status` เสมอเมื่อร้านมีบัญชี — `CONFIRMED` แปลว่า *ผู้ซื้อยืนยันว่า
+     ได้รับบริการแล้ว* ไม่ได้แปลว่าจ่ายเงินแล้ว · ต้องส่งชุดเดียวกับจอที่ล็อกอินแล้วเสมอ
+     ไม่งั้นบิลใบเดียวกันขึ้นป้ายคนละอย่างก่อน/หลังล็อกอิน */
+  const paymentBadge = getPaymentBadge(
+    order.status,
+    order.paymentMethod,
+    undefined,
+    order.paymentConfirmedAt,
+    order.money ?? undefined,
+  )
 
   /* คำทั้งหน้าผันตามประเภทกิจการ — ร้านบริการ/บ้านพักต้องไม่เห็นคำว่า "สินค้า" ที่ไหนเลย
      ค่าที่ไม่รู้จักตกไป ONLINE_SALES (fail-safe เดียวกับ VERTICAL_VISIBLE_SLUGS ของ seller-menu) */
@@ -457,6 +466,42 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                   {baht.format(order.totalAmount)}
                 </Typography>
               </Box>
+              {/**
+                * เงินที่จ่ายมาแล้ว/ยังค้าง (feature 00050 · user เคาะ 2026-08-31 ทางเลือก ก)
+                *
+                * 🛑 แสดงเฉพาะร้านที่มีบัญชีเงิน (`money !== null` = SERVICE_QUEUE เท่านั้น)
+                * ออเดอร์ขายออนไลน์ได้ `null` ⇒ **หน้าเดิมไม่เปลี่ยนแม้แต่ node เดียว** (AC-SQ-07)
+                *
+                * ทำไมต้องมีบนจอก่อนล็อกอินด้วย: จอที่ล็อกอินแล้วมีตัวเลขนี้อยู่ก่อนแล้ว
+                * ถ้ามีข้างเดียว **บิลใบเดียวกันจะตอบ "จ่ายครบยัง" ต่างกันตามว่าล็อกอินหรือยัง**
+                *
+                * คำต้องมาจาก `PAYMENT_STATE_LABEL` (SSOT) ไม่ใช่พิมพ์เอง — ตัวเดียวกับที่
+                * `PaymentSummaryCard` ของจอล็อกอินและป้ายฝั่งร้านใช้ (HR16)
+                */}
+              {order.money && (
+                <>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                    <Typography variant='body2' color='text.secondary'>
+                      จ่ายมาแล้ว
+                    </Typography>
+                    <Typography variant='body2' sx={{ fontWeight: 600 }}>
+                      {baht.format(order.money.totalReceived)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
+                    <Typography variant='body2' color='text.secondary'>
+                      {order.money.fullyPaid ? PAYMENT_STATE_LABEL.paid : 'ยอดค้างชำระ'}
+                    </Typography>
+                    <Typography
+                      variant='body2'
+                      sx={{ fontWeight: 700 }}
+                      color={order.money.fullyPaid ? 'success.main' : 'warning.main'}
+                    >
+                      {order.money.fullyPaid ? '—' : baht.format(order.money.outstanding)}
+                    </Typography>
+                  </Box>
+                </>
+              )}
             </CardContent>
           </Card>
 

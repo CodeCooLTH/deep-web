@@ -977,6 +977,15 @@ InspectionResult (0..1) ─ (N) InspectionEvidence     [feature 00060 — Draft,
 ด่านอยู่ที่ `OrderDetailClient.tsx` (`!isServiceQueue` หน้า `<PaymentReceivedCard>`) +
 เทส `[blocker]` `src/lib/__tests__/payment-truth-per-vertical.test.ts`
 
+**กติกานี้ครอบ 3 จอ ไม่ใช่แค่จอร้าน** (2026-08-31) — `/orders/{token}` (ร้าน) ·
+`/o/{token}` ทั้งแบบล็อกอินและแบบผู้ถือลิงก์
+
+🛑 **จอผู้ซื้อสองแบบต้องกินตัวเลขชุดเดียวกัน** — `o/[token]/page.tsx` คำนวณ `serviceMoney`
+**ครั้งเดียวเหนือจุดแยกสาขา** `if (!session || !viewerUserId)` แล้วส่งให้ทั้งสองทาง
+แก้ข้างเดียว = บิลใบเดียวกันขึ้นป้ายคนละอย่างก่อน/หลังล็อกอิน · จอ guest ได้ยอด
+"จ่ายมาแล้ว/ยอดค้างชำระ" ด้วย (allow-list — ดู `00041/SRS.md`) แต่ **ไม่มี `entries`**
+ด่าน: `buyer-seller-payment-parity.test.ts`
+
 #### 6.x.1 ตัวคำนวณและเกณฑ์ที่ผูกกับตารางนี้ — `src/lib/order-payment.ts` (SSOT · HR16)
 
 | ฟังก์ชัน | ตอบคำถาม | ห้าม |

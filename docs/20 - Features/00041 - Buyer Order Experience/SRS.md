@@ -118,6 +118,28 @@ Next.js 16 App Router บน Vercel (เดิม) — ไม่มี service �
   ปัจจุบัน `page.tsx:71-73` บังคับ `redirect('/auth/sign-in?...')` ทันทีที่ `!session` สำหรับ token รูปแบบ UUID v4 — ต้องแทรก branch ใหม่ **ก่อน** บรรทัดนี้: ถ้า `!session` และ `order.type !== 'BOOKING'` → render `<GuestOrderView data={buildGuestOrderData(order)} />` แทนการ redirect โดยไม่แตะ logic ของ `resolveOrderAccess`/`guaranteeOrderLink` เลย (ยังอยู่หลัง `if (!session)` เดิม เพราะสองส่วนนี้ทำงานเฉพาะเมื่อมี session)
   `buildGuestOrderData()` (ฟังก์ชันใหม่ pure, รับ `order` ที่ query มาแล้วจาก `getOrderByToken`) คืนเฉพาะฟิลด์ที่ BR-BOE-01 อนุญาต: status, shipping stage badge (TFR-005), items (name/qty/price/imageUrl), totalAmount, shop.shopName/user.{displayName,username,avatar,trustScore}, orderNo (`formatOrderNo`, ไม่ใช่ PII), appointment (ถ้ามี, ไม่ mask), maskedPhone, maskedShippingAddress (TFR-002) — **ไม่ส่ง** `buyerContact` ดิบ, `shippingAddress.note`, `slipFileId`
 - **Precondition:** `order` ถูก query จาก `getOrderByToken(token)` แล้ว (ไม่ null, ผ่าน `notFound()` guard เดิม), token เป็นรูปแบบ UUID v4 (ผ่าน discriminator เดิม), `order.type !== 'BOOKING'`
+#### ส่วนขยาย 2026-08-31 — เงินที่รับจริงเข้า allow-list (user เคาะ · ทางเลือก ก)
+
+เพิ่มคีย์ **`money`** ลง `GuestOrderData` · รูปร่างจำกัด **4 คีย์** เท่านั้น:
+`{ totalAmount, totalReceived, outstanding, fullyPaid }`
+
+**ทำไมถึงอนุญาต** — ไม่ใช่ PII ของผู้ซื้อ และไม่ใช่ตัวเลขระดับร้าน เป็นยอดของ *บิลใบที่ผู้ถือลิงก์
+ถืออยู่* ซึ่งร้านเป็นคนส่งลิงก์นี้ให้ลูกค้าเอง และลูกค้าคือคนที่ต้องรู้ว่ายังค้างเท่าไร
+(เกณฑ์เดียวกับ `payoutSnapshot` ที่อยู่ใน allow-list แล้ว — เลขบัญชีร้านยังส่งได้)
+
+**ทำไมถึงต้องมี** — ป้ายสถานะการชำระเงินบนจอนี้ derive จาก `Order.status` ซึ่ง `CONFIRMED`
+แปลว่า *ผู้ซื้อยืนยันว่าได้รับบริการแล้ว* **ไม่ได้แปลว่าจ่ายเงินแล้ว** ⇒ บิลร้านบริการที่ปิดงานแล้ว
+แต่ยังค้างเงิน ขึ้นเขียว "ชำระแล้ว" มาตลอด · จอที่ล็อกอินแล้วมีตัวเลขนี้อยู่ก่อนแล้ว
+🛑 **แก้ข้างเดียวไม่ได้** — บิลใบเดียวกันจะขึ้นป้ายคนละอย่างก่อน/หลังล็อกอิน = ความไม่ตรงชุดใหม่
+
+🛑 **ไม่มี `entries`** — รายการรับเงินทีละก้อน (วิธีชำระ · เวลา · บันทึกภายในของร้าน) เป็นของ
+ฝั่งร้านอย่างเดียว ผู้ถือลิงก์ต้องรู้แค่ "รับแล้วเท่าไร ค้างเท่าไร"
+
+**ร้านที่ไม่ใช่ `SERVICE_QUEUE` ได้ `null`** ⇒ จอเดิมไม่เปลี่ยนแม้แต่ node เดียว (AC-SQ-07)
+
+ด่าน: `guest-order-data.test.ts` (snapshot รายชื่อคีย์) + `buyer-seller-payment-parity.test.ts`
+(`[blocker]` — คำนวณครั้งเดียวเหนือจุดแยกสาขา · ห้ามปล่อย `entries`/`note`)
+
 - **Postcondition:** guest เห็นหน้าจอโดยไม่ redirect, ไม่มี field ที่ไม่อยู่ใน allow-list หลุดไปใน RSC flight payload (ตรวจด้วย `grep` หา field ต้องห้ามในไฟล์ `GuestOrderView.tsx`/props type เป็นส่วนหนึ่งของ Reviewer gate)
 - **Error / Edge cases:**
   - token ไม่มีอยู่จริง → `notFound()` เหมือนเดิม (ไม่เปลี่ยน)
