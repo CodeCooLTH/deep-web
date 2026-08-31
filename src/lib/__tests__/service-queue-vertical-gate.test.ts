@@ -54,14 +54,22 @@ const GATED: { name: string; path: string; must: RegExp }[] = [
     must: /vertical === 'SERVICE_QUEUE'/,
   },
   {
+    /**
+     * 🛑 รับได้ทั้ง `!==` (early return) และ `===` (เทอร์นารี) — ตรวจ **เกณฑ์** ไม่ใช่ *รูปประโยค*
+     *
+     * ร่างเดิมปักหมุด `if (shop.vertical !== 'SERVICE_QUEUE') return null` ตรงตัว แล้วแดงทันที
+     * ที่หน้าออเดอร์ฝั่งลูกค้าถูก refactor ให้คำนวณเงินครั้งเดียวเหนือจุดแยกสาขา guest/ล็อกอิน
+     * (จำเป็น เพราะสองสาขาต้องได้ตัวเลขชุดเดียวกัน) ทั้งที่ด่าน vertical ยังอยู่ครบทุกตัวอักษร
+     * — เป็นรอยเดิมที่ไฟล์นี้เตือนตัวเองไว้แล้ว 3 ที่ (บรรทัด 42 · 105 · 144)
+     */
     name: 'หน้าออเดอร์ฝั่งร้าน',
     path: 'src/app/(paces)/seller/(dashboard)/orders/[token]/page.tsx',
-    must: /if \(shop\.vertical !== 'SERVICE_QUEUE'\) return null/,
+    must: /shop\.vertical (!==|===) 'SERVICE_QUEUE'/,
   },
   {
     name: 'หน้าออเดอร์ฝั่งลูกค้า',
     path: 'src/app/(marketing)/o/[token]/page.tsx',
-    must: /if \(order\.shop\.vertical !== 'SERVICE_QUEUE'\) return null/,
+    must: /order\.shop\.vertical (!==|===) 'SERVICE_QUEUE'/,
   },
 ]
 
@@ -150,7 +158,7 @@ describe('AC-SQ-07 — ทุกจอของฟีเจอร์ร้าน
       'src/app/(marketing)/o/[token]/page.tsx',
     ]) {
       const code = stripComments(read(rel))
-      const vAt = code.search(/vertical !== 'SERVICE_QUEUE'/)
+      const vAt = code.search(/vertical (!==|===) 'SERVICE_QUEUE'/)
       const dAt = code.search(/hasMoneyStory\(/)
       expect(vAt, `${rel}: ต้องมีด่าน vertical`).toBeGreaterThan(-1)
       expect(dAt, `${rel}: ต้องมีเกณฑ์ "ไม่มีเรื่องเงิน"`).toBeGreaterThan(-1)

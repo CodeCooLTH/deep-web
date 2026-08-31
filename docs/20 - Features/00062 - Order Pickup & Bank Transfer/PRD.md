@@ -216,6 +216,10 @@ related: ["[[Feature-Docs-Ownership]]", "[[00050 - Service Queue End-to-End]]", 
    "การชำระเงิน" ตาม UX §A3 (1) เหมือนเดิม
 5. เทส `[blocker]` `src/lib/__tests__/payment-truth-per-vertical.test.ts` (19 เคส · mutation 5 แบบแดงครบ)
    — รวมตารางถอยหลัง 9 เคสที่ยืนยันว่า **ร้านที่ไม่มีบัญชีเงินได้ป้ายเดิมทุกกรณี**
+6. **จอผู้ซื้อทั้งสองแบบก็เดินตามกติกาเดียวกัน** (2026-08-31) — `OrderDetailMobile` (ล็อกอิน)
+   และ `GuestOrderView` (ผู้ถือลิงก์) ส่งชุดเงินเข้า `getPaymentBadge()` เหมือนกัน โดยตัวเลข
+   ถูกคำนวณ **ครั้งเดียวเหนือจุดแยกสาขา** ⇒ ไม่มีทางตอบต่างกันก่อน/หลังล็อกอิน
+   ด่าน: `buyer-seller-payment-parity.test.ts`
 
 ---
 

@@ -208,6 +208,14 @@ export type PublicOrderData = {
     entries: { kind: string; amount: number; method: string; receivedAtIso: string }[]
   } | null
   /**
+   * ชุดเต็มของร้านบริการ — **ป้อน *ป้าย* เท่านั้น** ส่วน `money` ข้างบนป้อน *การ์ด*
+   *
+   * 🛑 สองตัวนี้ไม่เท่ากันโดยตั้งใจ: `money` กั้นเพิ่มด้วย `hasMoneyStory()` (ยังไม่ตกลงมัดจำและ
+   * ยังไม่รับเงินเลย ⇒ ไม่ขึ้นการ์ด · AC-SQ-07) แต่ป้ายต้องพูดความจริงเสมอ แม้ในใบที่ยังไม่มี
+   * เรื่องเงินให้เล่า — ซึ่งคือใบที่ป้ายเดิมโกหกว่า "ชำระแล้ว" พอดี
+   */
+  serviceMoney: { totalAmount: number; totalReceived: number; outstanding: number } | null
+  /**
    * feature 00050 (AC-SQ-06) — เพจ/ช่องทางที่ออเดอร์ใบนี้เกิดขึ้น · null = สร้างในระบบตรง ๆ
    *
    * ลูกค้าที่ทักมาจากเพจหนึ่งแล้วได้ลิงก์นี้ ต้องเห็นว่า "ใบนี้คือของที่คุยไว้กับเพจนั้น"
@@ -923,7 +931,18 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
    * ข้างบนซึ่งเป็นสถานะ "ออเดอร์" (PENDING/SHIPPED/CONFIRMED/…) — ใช้เฉพาะในหัวการ์ด
    * PayoutAccountCard เดียวกับที่จอ guest เรียก ตัวเดียวกันทั้งสองจอ (HR16)
    */
-  const paymentBadge = getPaymentBadge(order.status, order.paymentMethod, order.slipFileId, order.paymentConfirmedAt)
+  /* 🛑 ส่ง `serviceMoney` เข้าไปด้วย — **บัญชีเงินชนะ `Order.status` เสมอเมื่อร้านมีบัญชี**
+     `status === 'CONFIRMED'` แปลว่า *ผู้ซื้อยืนยันว่าได้รับบริการแล้ว* ไม่ได้แปลว่าจ่ายเงินแล้ว
+     ⇒ บิลบริการที่ปิดงานแล้วแต่ยังค้างเงิน เคยขึ้นป้ายเขียว "ชำระแล้ว" คู่กับการ์ดที่เขียน
+     "ค้าง ฿900" ในหน้าเดียวกัน (สองบรรทัดขัดกันเองบนจอลูกค้า)
+     ร้านที่ไม่มีบัญชีเงินส่ง undefined ⇒ ป้ายเดิมไม่ขยับสักพิกเซล */
+  const paymentBadge = getPaymentBadge(
+    order.status,
+    order.paymentMethod,
+    order.slipFileId,
+    order.paymentConfirmedAt,
+    order.serviceMoney ?? undefined,
+  )
 
   const isCancelled = order.status === 'CANCELLED'
 
