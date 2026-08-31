@@ -38,6 +38,7 @@ import ShipmentStepper from '../../../_components/ShipmentStepper'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import type { CustomerPanelOrder } from './CustomerPanel'
 import type { ShopVertical } from '@/lib/lodging'
+import { canEditOrder } from '@/lib/order-display'
 
 /**
  * 🛑 สูตร "ช่วงเวลานัดเป็นข้อความ" ย้ายไป `@/lib/appointment-summary::appointmentRangeText`
@@ -501,6 +502,18 @@ export default function OrderProgressBar({
                             * แล้วยอดค้างคำนวณใหม่เองเพราะทุกจออ่านจาก `computeOrderMoney`
                             * ตัวเดียว (BR-SQ-31)
                             */}
+                          {/**
+                            * 🛑 ด่าน `canEditOrder` — ปุ่มนี้เคย **ไม่มีด่านสถานะเลย**
+                            *
+                            * แถวนี้แสดงทุกใบที่ `filterActiveServiceOrders` ถือว่ายังเป็นงานค้าง
+                            * ซึ่งตัดสินจาก *แกนนัด* ไม่ใช่ `Order.status` ⇒ ใบที่ผู้ซื้อกดยืนยันแล้ว
+                            * (`CONFIRMED`) แต่ร้านยังไม่ปิดผลนัด ยังอยู่ในแถวนี้และเห็นปุ่มนี้
+                            * กดแล้วฟอร์มเปิดให้กรอกครบ จนกดบันทึกถึงเจอ 400 จาก `updateOrder`
+                            *
+                            * การ์ดบิลทั้งในฟองแชทและแผงขวากันไว้ถูกต้องมาตลอด (`OrderCardView`)
+                            * — ที่นี่คือที่ที่ 4 ที่ลืม จึงยกเกณฑ์ขึ้นเป็น SSOT แล้วเรียกใช้ทุกที่
+                            */}
+                          {canEditOrder(o.status) && (
                           <button
                             type="button"
                             onClick={() =>
@@ -519,6 +532,7 @@ export default function OrderProgressBar({
                             <Icon icon="edit" className="text-sm" aria-hidden="true" />
                             แก้ไขรายการ
                           </button>
+                          )}
                           {/* ส่งสรุปนัด — คงไว้ตามเดิมเมื่อไม่มีปุ่ม "แจ้งมัดจำ" มาแทน
                               (ปุ่มเดียวกัน คำเดียวกัน ไม่ใช่สองใบบนการ์ดเดียว) */}
                           {o.serviceStart && !payActions.some((a) => a.key === 'REQUEST_DEPOSIT') && (

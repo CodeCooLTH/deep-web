@@ -24,6 +24,7 @@ import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import type { OrderRow } from './data'
 import OrderCardMenu from './OrderCardMenu'
 import QrCodeButton from './QrCodeButton'
+import { canEditOrder } from '@/lib/order-display'
 
 export type OrderActionsVariant = 'card' | 'table' | 'table-grid'
 
@@ -40,7 +41,7 @@ const ICON_BTN = 'btn btn-icon border-default-300 text-default-700 hover:bg-defa
 
 export default function OrderActions({ order, onCancelRequest, variant, orderNoun }: OrderActionsProps) {
   const isTerminal = order.status === 'CONFIRMED' || order.status === 'CANCELLED'
-  const canEdit = order.status === 'PENDING'
+  const canEdit = canEditOrder(order.status)
 
   // copy link: ใช้ shortCode (สั้น) fallback publicToken; ลิงก์ภายใน /orders/ คงใช้ publicToken
   const copyCode = order.shortCode || order.publicToken

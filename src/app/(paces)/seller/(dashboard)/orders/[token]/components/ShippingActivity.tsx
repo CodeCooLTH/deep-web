@@ -21,7 +21,7 @@
 import Image from 'next/image'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
-import { formatDateTH, formatTimeHM } from '@/lib/format-date'
+import { formatDateTH, formatDayMonthShortYearTH, formatTimeHM } from '@/lib/format-date'
 import { ORDER_EVENT_META, describeOrderEvent, resolveOrderEventLabel, type OrderEventView } from '@/lib/order-event'
 
 export default function ShippingActivity({
@@ -59,11 +59,28 @@ export default function ShippingActivity({
               return (
                 <div className="flex gap-x-3 md:gap-x-base" key={ev.id}>
                   {/* วันที่/เวลาแยก 2 บรรทัดเสมอ — คอลัมน์นี้แคบและวันที่ไทยยาวกว่าเวลาแบบ
-                      "10:20 AM" ของธีมมาก ปล่อยบรรทัดเดียวแล้วตัดเป็น 3 บรรทัดบนมือถือ
-                      (ปีตัดออกที่จอเล็ก — ประวัติออเดอร์แทบไม่ข้ามปี) */}
-                  <div className="w-14 shrink-0 md:w-25">
+                      "10:20 AM" ของธีมมาก
+                      🛑 คอมเมนต์เดิมเขียนว่า "ปีตัดออกที่จอเล็ก" แต่ **ไม่เคยมีโค้ดตัดปีเลย** —
+                      `formatDateTH` คืนปีเต็มเสมอ เจตนาที่เขียนไว้จึงไม่เคยถูกบังคับ
+                      วัดด้วยฟอนต์ Anuphan ครบ 12 เดือน (2026-08-31): ปีเต็มกว้างสุด **80px**
+                      แต่คอลัมน์เป็น `w-14` = **56px** ⇒ วันที่ **ตกบรรทัดทุกใบ** บนมือถือ
+                      กล่องสูง 59px ขณะที่วงกลมสูง 36px ⇒ เวลาห้อยต่ำกว่ารูปโปรไฟล์ ~23px
+                      และ "วันที่/รูป/ชื่อ" ในแถวเดียวกันไม่ตรงกันสักอัน (หัวหน้าเจอเอง 2026-08-31)
+
+                      แก้ 2 ชั้นให้ครบทั้งข้อความและกล่อง:
+                        มือถือ = ปี พ.ศ. 2 หลัก (`formatDayMonthShortYearTH` มีอยู่แล้วเพื่อเคสนี้
+                          โดยเฉพาะ) กว้างสุด 64px + คอลัมน์ `w-18` = 72px เหลือช่องไฟ 8px
+                        เดสก์ท็อป = ปีเต็มตามเดิม (`md:w-25` = 100px รับ 80px ได้สบาย)
+                      ห้ามย่อคอลัมน์กลับเป็น `w-16` (64px) — เท่าความกว้างที่ต้องการพอดีเป๊ะ
+                      ไม่เหลือที่ให้การปัดเศษ */}
+                  <div className="w-18 shrink-0 md:w-25">
                     <span className="flex min-h-9 flex-col items-end justify-center">
-                      <span className="text-default-800 text-xs">{formatDateTH(ev.occurredAtISO)}</span>
+                      <span className="text-default-800 text-xs md:hidden">
+                        {formatDayMonthShortYearTH(ev.occurredAtISO)}
+                      </span>
+                      <span className="text-default-800 hidden text-xs md:inline">
+                        {formatDateTH(ev.occurredAtISO)}
+                      </span>
                       <span className="text-default-700 text-xs">{formatTimeHM(ev.occurredAtISO)}</span>
                     </span>
                   </div>
