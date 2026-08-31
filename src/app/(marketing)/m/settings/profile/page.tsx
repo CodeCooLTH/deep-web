@@ -126,10 +126,10 @@ export default async function MobileAccountPage() {
           {/* stats */}
           <div className='flex-1 flex items-center'>
             <Stat value={user.trustScore} label='Trust' accent />
-            <Link href='/reviews' className='flex-1 no-underline'>
+            <Link href='/reviews' className='flex-1 no-underline min-bs-11 flex items-center'>
               <Stat value={reviewCount} label='รีวิว' />
             </Link>
-            <Link href='/badges' className='flex-1 no-underline'>
+            <Link href='/badges' className='flex-1 no-underline min-bs-11 flex items-center'>
               <Stat value={badgeCount} label='Badge' />
             </Link>
           </div>
@@ -169,14 +169,14 @@ export default async function MobileAccountPage() {
         <div className='flex gap-2'>
           <Link
             href='/m/settings/profile/edit'
-            className='flex-1 flex items-center justify-center gap-1 h-9 rounded-lg no-underline text-[13px] font-medium bg-[var(--mui-palette-action-hover)] border border-[var(--mui-palette-divider)] text-[var(--mui-palette-text-primary)] active:opacity-80 transition-opacity'
+            className='flex-1 flex items-center justify-center gap-1 h-11 rounded no-underline text-[13px] font-medium bg-[var(--mui-palette-action-hover)] border border-[var(--mui-palette-divider)] text-[var(--mui-palette-text-primary)] active:opacity-80 transition-opacity'
           >
             <i className='tabler-edit text-[16px]' />
             แก้ไขโปรไฟล์
           </Link>
           <Link
             href={`/u/${user.username}`}
-            className='flex-1 flex items-center justify-center gap-1 h-9 rounded-lg no-underline text-[13px] font-medium bg-[var(--mui-palette-action-hover)] border border-[var(--mui-palette-divider)] text-[var(--mui-palette-text-primary)] active:opacity-80 transition-opacity'
+            className='flex-1 flex items-center justify-center gap-1 h-11 rounded no-underline text-[13px] font-medium bg-[var(--mui-palette-action-hover)] border border-[var(--mui-palette-divider)] text-[var(--mui-palette-text-primary)] active:opacity-80 transition-opacity'
           >
             <i className='tabler-user-star text-[16px]' />
             โปรไฟล์สาธารณะ
@@ -188,7 +188,7 @@ export default async function MobileAccountPage() {
       <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-5'>
         <div className='flex items-center justify-between mbe-3'>
           <h2 className='text-[15px] font-medium m-0 text-[var(--mui-palette-text-primary)]'>คำสั่งซื้อของฉัน</h2>
-          <Link href='/orders' className='text-[13px] font-medium text-[var(--mui-palette-primary-main)] no-underline flex items-center gap-0.5'>
+          <Link href='/orders' className='text-[13px] font-medium text-[var(--mui-palette-primary-main)] no-underline flex items-center gap-0.5 min-bs-11'>
             ดูทั้งหมด
             <i className='tabler-chevron-right text-[15px]' />
           </Link>

@@ -140,7 +140,7 @@ export default function AccountSidebar() {
             href='/settings/profile'
             /* `min-bs-11` (44px) — เดิมสูง 16px ตามตัวหนังสือ ซึ่งต่ำกว่า tap target ที่บังคับไว้
                ตัวหนังสือยังเท่าเดิม พื้นที่แตะโปร่งรอบ ๆ โตขึ้นอย่างเดียว */
-            className='text-xs text-[var(--mui-palette-text-secondary)] hover:text-[var(--mui-palette-primary-main)] inline-flex items-center gap-1 min-bs-11'
+            className='text-[13px] text-[var(--mui-palette-text-secondary)] hover:text-[var(--mui-palette-primary-main)] inline-flex items-center gap-1 min-bs-11'
           >
             <i className='tabler-pencil text-[13px]' />
             แก้ไขข้อมูลส่วนตัว

@@ -102,9 +102,17 @@ export default function BannerCarousel() {
             type='button'
             aria-label={`ไปแบนเนอร์ ${i + 1}`}
             onClick={() => instanceRef.current?.moveToIdx(i)}
-            className={`h-1.5 rounded-full transition-all ${i === current ? 'bg-white' : 'bg-white/50'}`}
+            className={`relative h-1.5 rounded-full transition-all ${i === current ? 'bg-white' : 'bg-white/50'}`}
             style={{ inlineSize: i === current ? '14px' : '6px' }}
-          />
+          >
+            {/* 🛑 จุดนี้สูงจริง 6px ซึ่งต่ำกว่า The Forty-Four Rule มาก แต่ *ขยายตัวจุดไม่ได้*
+                — จุดบอกตำแหน่งต้องเล็กถึงจะอ่านออกว่าเป็นตัวบอกตำแหน่ง ไม่ใช่ปุ่ม
+                จึงขยาย **พื้นที่รับนิ้ว** แทน ด้วยลูกที่วางทับแบบ absolute (ไม่กินผัง ไม่ดันพิลล์)
+                สูง 44 เต็มกฎ · กว้าง 18 = จุด 6 + ครึ่งช่องไฟข้างละ 6 ซึ่งเป็นเพดานจริง
+                (กว้างกว่านี้จะไปทับพื้นที่ของจุดข้าง ๆ แล้วแย่งนิ้วกันเอง)
+                ทางหลักของแบนเนอร์คือ "ปัด" อยู่แล้ว จุดเป็นทางเสริม */}
+            <span aria-hidden className='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bs-11 is-[18px]' />
+          </button>
         ))}
       </div>
     </div>

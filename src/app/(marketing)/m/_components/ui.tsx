@@ -43,7 +43,7 @@ export const MEmpty = ({
     {cta && (
       <Link
         href={cta.href}
-        className='mbs-2 inline-flex items-center gap-1 h-9 pli-4 rounded-lg no-underline text-[13px] font-medium bg-[var(--mui-palette-primary-main)] text-white active:opacity-80 transition-opacity'
+        className='mbs-2 inline-flex items-center gap-1 h-11 pli-4 rounded no-underline text-[13px] font-medium bg-[var(--mui-palette-primary-main)] text-white active:opacity-80 transition-opacity'
       >
         {cta.label}
       </Link>

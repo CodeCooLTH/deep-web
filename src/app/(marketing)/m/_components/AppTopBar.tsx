@@ -18,7 +18,7 @@ export default async function AppTopBar() {
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <div className='flex items-center gap-2.5 pli-4 pbs-2 pbe-2.5'>
-        <Link href='/dashboard' aria-label='หน้าแรก' className='shrink-0 no-underline flex items-center'>
+        <Link href='/dashboard' aria-label='หน้าแรก' className='shrink-0 no-underline flex items-center min-bs-11'>
           {/* โลโก้ Deep ของจริง — ยืนเดี่ยวไม่มีคำกำกับข้าง ๆ จึงใช้ **เวิร์ดมาร์กเต็ม**
               (แถบนี้พื้นขาว เวิร์ดมาร์กตัวหนังสือกรมท่าจึงอ่านออก ไม่ต้องใช้เวอร์ชันสว่าง) */}
           {/* eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ที่ import มาแล้ว */}
@@ -27,7 +27,7 @@ export default async function AppTopBar() {
 
         <Link
           href='/check'
-          className='flex-1 flex items-center gap-2 h-10 pli-4 rounded-full bg-[var(--mui-palette-action-hover)] border border-[var(--mui-palette-divider)] no-underline min-w-0 transition-colors hover:border-[var(--mui-palette-primary-main)]'
+          className='flex-1 flex items-center gap-2 h-11 pli-4 rounded-full bg-[var(--mui-palette-action-hover)] border border-[var(--mui-palette-divider)] no-underline min-w-0 transition-colors hover:border-[var(--mui-palette-primary-main)]'
         >
           <i className='tabler-search text-[1.25rem] text-[var(--mui-palette-primary-main)] shrink-0' />
           <span className='text-[13px] text-[var(--mui-palette-text-secondary)] truncate'>เช็กก่อนโอน — เบอร์ / บัญชี / ร้าน</span>
@@ -36,7 +36,7 @@ export default async function AppTopBar() {
         <Link
           href='/m/notifications'
           aria-label={unread > 0 ? `แจ้งเตือน ${unread} รายการ` : 'แจ้งเตือน'}
-          className='relative shrink-0 size-10 rounded-full flex items-center justify-center no-underline bg-[var(--mui-palette-action-hover)] border border-[var(--mui-palette-divider)] transition-colors hover:border-[var(--mui-palette-primary-main)]'
+          className='relative shrink-0 size-11 rounded-full flex items-center justify-center no-underline bg-[var(--mui-palette-action-hover)] border border-[var(--mui-palette-divider)] transition-colors hover:border-[var(--mui-palette-primary-main)]'
         >
           <i className='tabler-bell text-[1.35rem] text-[var(--mui-palette-text-primary)]' />
           {unread > 0 && (
