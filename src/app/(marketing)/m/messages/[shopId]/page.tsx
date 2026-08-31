@@ -36,7 +36,7 @@ export default async function MobileChatThreadPage({ params }: Props) {
         <Link
           href='/messages'
           aria-label='กลับไปหน้าข้อความ'
-          className='size-9 rounded-full flex items-center justify-center no-underline active:bg-[var(--mui-palette-action-hover)] transition-colors shrink-0'
+          className='size-11 rounded-full flex items-center justify-center no-underline active:bg-[var(--mui-palette-action-hover)] transition-colors shrink-0'
         >
           <i className='tabler-arrow-left text-[22px] text-[var(--mui-palette-text-primary)]' />
         </Link>

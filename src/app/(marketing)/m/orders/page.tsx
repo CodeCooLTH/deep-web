@@ -79,7 +79,7 @@ export default async function MobileOrdersPage({
             <Link
               key={f.key}
               href={chipHref(f.key, q)}
-              className={`shrink-0 h-8 flex items-center pli-3.5 rounded-full text-[13px] no-underline border transition-colors ${
+              className={`shrink-0 h-11 flex items-center pli-3.5 rounded-full text-[13px] no-underline border transition-colors ${
                 active
                   ? 'bg-[var(--mui-palette-primary-main)] text-white border-[var(--mui-palette-primary-main)]'
                   : 'bg-[var(--mui-palette-background-paper)] text-[var(--mui-palette-text-secondary)] border-[var(--mui-palette-divider)]'

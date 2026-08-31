@@ -128,7 +128,7 @@ export default function ShopsBrowse({ initialCategory }: { initialCategory?: str
               key={t}
               type='button'
               onClick={() => setTier(t)}
-              className={`shrink-0 h-8 flex items-center pli-3.5 rounded-full text-[13px] border transition-colors cursor-pointer ${
+              className={`shrink-0 h-11 flex items-center pli-3.5 rounded-full text-[13px] border transition-colors cursor-pointer ${
                 active
                   ? 'bg-[var(--mui-palette-primary-main)] text-white border-[var(--mui-palette-primary-main)]'
                   : 'bg-[var(--mui-palette-background-paper)] text-[var(--mui-palette-text-secondary)] border-[var(--mui-palette-divider)]'

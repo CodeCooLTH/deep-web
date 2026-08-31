@@ -130,9 +130,13 @@ export default function ProfileTabs({
               aria-controls={`${baseId}-panel-${i}`}
               tabIndex={selected ? 0 : -1}
               onClick={() => go(i)}
-              /* `.tab`: pli 15 (มือถือ 12) · font-weight 800 · gap 7 · สีเทา #8e8d99 → ม่วงตอน active
-                 ขีดใต้หนา 3px เว้นขอบข้างละ 12px (ไม่เต็มความกว้างปุ่ม) ตามไฟล์อ้างอิง */
-              className={`relative inline-flex items-center gap-[7px] whitespace-nowrap bg-transparent border-0 cursor-pointer font-[inherit] pli-3 sm:pli-[15px] text-[12px] sm:text-[15px] font-bold ${
+              /* `.tab`: pli 15 (มือถือ 12) · gap 7 · สีเทา #8e8d99 → ม่วงตอน active
+                 ขีดใต้หนา 3px เว้นขอบข้างละ 12px (ไม่เต็มความกว้างปุ่ม) ตามไฟล์อ้างอิง
+
+                 🛑 ตัวหนังสือ **ไม่** เอา 12px/800 ตามไฟล์อ้างอิง — ระบบเรามีแรมป์ 13/15 และ
+                 คำศัพท์น้ำหนักแค่ 400/500 (DESIGN.md §Type) แท็บที่ถูกเลือกแยกด้วย *สี + ขีดใต้ 3px*
+                 อยู่แล้ว ทั้งสองสถานะเคยหนา 700 เท่ากัน น้ำหนักจึงไม่ได้สื่ออะไร ลดเป็น 500 ไม่เสียข้อมูล */
+              className={`relative inline-flex items-center gap-[7px] whitespace-nowrap bg-transparent border-0 cursor-pointer font-[inherit] pli-3 sm:pli-[15px] text-[13px] sm:text-[15px] font-medium ${
                 selected ? 'text-primary' : 'text-[#8e8d99]'
               }`}
             >
@@ -141,7 +145,7 @@ export default function ProfileTabs({
               {TAB_ICON[t.key] && <Icon icon={TAB_ICON[t.key]} width={17} />}
               {t.label}
               {t.count != null && (
-                <span className='text-[12px] font-bold rounded-full plb-0.5 pli-1.5 bg-[var(--mui-palette-primary-lightOpacity)] text-primary tabular-nums'>
+                <span className='text-[13px] font-medium rounded-full plb-0.5 pli-1.5 bg-[var(--mui-palette-primary-lightOpacity)] text-primary tabular-nums'>
                   {t.count}
                 </span>
               )}

@@ -72,7 +72,7 @@ export default function ResetPassCard() {
       <AuthIllustrationWrapper>
         <Card className='flex flex-col sm:is-[450px]'>
           <CardContent className='sm:!p-12'>
-            <Link href='/' className='flex justify-center mbe-6'>
+            <Link href='/' className='flex justify-center items-center min-bs-11 mbe-6'>
               <Logo />
             </Link>
             <div className='flex flex-col gap-1 mbe-6'>
@@ -97,7 +97,7 @@ export default function ResetPassCard() {
                 {isSubmitting ? 'กำลังส่ง…' : 'ส่งรหัส OTP'}
               </Button>
               <Typography
-                className='flex justify-center items-center gap-1.5'
+                className='flex justify-center items-center gap-1.5 min-bs-11'
                 color='primary.main'
                 component={Link}
                 href='/auth/sign-in'

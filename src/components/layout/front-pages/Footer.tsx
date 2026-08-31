@@ -78,7 +78,7 @@ const Footer = ({ mode }: { mode: Mode }) => {
                 </Typography>
                 <div className='flex flex-col gap-2 is-full sm:max-is-[390px]'>
                   <Typography className='text-white font-medium'>ติดตามข่าวสาร</Typography>
-                  <div className='flex items-center gap-2 pis-4 pie-1 plb-1 rounded-lg bg-white/[0.06] border border-white/30 hover:border-white/50 focus-within:border-[var(--mui-palette-primary-main)] transition-colors duration-200'>
+                  <div className='flex items-center gap-2 pis-4 pie-1 plb-1 rounded bg-white/[0.06] border border-white/30 hover:border-white/50 focus-within:border-[var(--mui-palette-primary-main)] transition-colors duration-200'>
                     <input
                       type='email'
                       placeholder='อีเมลของคุณ'

@@ -191,11 +191,11 @@ export default function VerificationMobile({ phoneVerified, records }: Props) {
         <p className='text-[12px] m-0 text-[var(--mui-palette-text-disabled)] truncate'>{file?.name ?? 'ยังไม่ได้เลือกไฟล์'}</p>
       </div>
       {file ? (
-        <button type='button' onClick={onClear} className='text-[12px] text-[var(--mui-palette-error-main)] border-0 bg-transparent cursor-pointer shrink-0'>
+        <button type='button' onClick={onClear} className='min-bs-11 inline-flex items-center text-[13px] text-[var(--mui-palette-error-main)] border-0 bg-transparent cursor-pointer shrink-0'>
           ล้าง
         </button>
       ) : (
-        <button type='button' onClick={onPick} className='text-[12px] font-medium text-[var(--mui-palette-primary-main)] border-0 bg-transparent cursor-pointer shrink-0'>
+        <button type='button' onClick={onPick} className='min-bs-11 inline-flex items-center text-[13px] font-medium text-[var(--mui-palette-primary-main)] border-0 bg-transparent cursor-pointer shrink-0'>
           เลือกไฟล์
         </button>
       )}
@@ -207,7 +207,7 @@ export default function VerificationMobile({ phoneVerified, records }: Props) {
       type='button'
       onClick={onClick}
       disabled={disabled}
-      className='h-10 rounded-lg text-[14px] font-medium text-white bg-[var(--mui-palette-primary-main)] border-0 cursor-pointer active:opacity-80 transition-opacity disabled:opacity-50'
+      className='min-bs-11 rounded text-[15px] font-medium text-white bg-[var(--mui-palette-primary-main)] border-0 cursor-pointer active:opacity-80 transition-opacity disabled:opacity-50'
     >
       {busy ? 'กำลังส่ง…' : 'ส่งเอกสารตรวจสอบ'}
     </button>

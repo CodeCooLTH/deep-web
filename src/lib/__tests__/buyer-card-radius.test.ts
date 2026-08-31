@@ -88,6 +88,44 @@ describe('[blocker] การ์ด buyer = 12px', () => {
     expect(bad, `รัศมีนอกบันได:\n${bad.join('\n')}`).toEqual([])
   })
 
+  it('🛑 เป้าที่กดได้ที่เขียนด้วย Tailwind ต้อง ≥44px ด้วย — ไม่ใช่เฉพาะที่ผ่านธีม', () => {
+    /* 🛑 รูที่ทำให้เชลล์ `/m` ทั้งเชลล์หลุดรอบ 2026-08-30 ไปได้
+       เคสข้างบนเฝ้า `minBlockSize` ในธีม ซึ่งครอบเฉพาะของที่ *เดินผ่าน MUI*
+       แต่ `/m` เขียน Tailwind ล้วน — ปุ่มคือ `<button className='size-9'>` ลิงก์คือ
+       `<Link className='h-8'>` ไม่มีคำว่า minBlockSize สักตัว ด่านจึงมองไม่เห็น
+       ผลคือรายงานรอบนั้นสรุปว่า "ต่ำกว่า 44px = 0" ทั้งที่วัดจอจริงยังเหลืออีก 74 จุด
+
+       บทเรียน: ด่านที่เขียนจากคำศัพท์ของหน้าที่เพิ่งตรวจ จะตาบอดกับหน้าที่เขียนด้วยคำศัพท์อื่น
+
+       จับ h-N / size-N (N ≤ 10 = ต่ำกว่า 44px) เฉพาะที่มีร่องรอยว่ากดได้จริง
+       — carve-out = คอมเมนต์บรรทัดเดียวกัน (ของที่ตาเห็นเล็กแต่พื้นที่แตะใหญ่) */
+    const SMALL = /\b(h|size)-([1-9]|10)\b/
+    const PRESSABLE = /cursor-pointer|no-underline|active:/
+    const bad: string[] = []
+    const walk = (d: string) => {
+      for (const e of readdirSync(join(ROOT, d), { withFileTypes: true })) {
+        const rel = `${d}/${e.name}`
+        if (e.isDirectory()) walk(rel)
+        else if (/\.tsx?$/.test(e.name)) {
+          let inBlock = false
+          readFileSync(join(ROOT, rel), 'utf8')
+            .split('\n')
+            .forEach((line, i) => {
+              const wasInBlock = inBlock
+              if (inBlock) inBlock = !line.includes('*/')
+              else if (line.includes('/*') && !line.includes('*/')) inBlock = true
+              if (wasInBlock) return
+              if (!SMALL.test(line) || !PRESSABLE.test(line)) return
+              if (line.includes('//') || line.includes('/*')) return
+              bad.push(`${rel}:${i + 1}  ${line.trim().slice(0, 70)}`)
+            })
+        }
+      }
+    }
+    ;['src/app/(marketing)', 'src/views'].forEach(walk)
+    expect(bad, `เป้าที่กดได้เตี้ยกว่า 44px:\n${bad.join('\n')}`).toEqual([])
+  })
+
   it('🛑 <CardContent> ห้ามเขียนคลาส padding ทับธีม — การ์ด = 20px นิยามเดียว', () => {
     /* วัดได้ก่อนแก้ 2026-08-30: ฝั่ง buyer มี 14 · 20 · 24 · 32px ปนกัน
        และการ์ด "การชำระเงิน" (14px) วางติดกับ "ช่องทางการชำระเงิน" (24px) บนจอเดียว
