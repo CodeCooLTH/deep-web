@@ -15,6 +15,7 @@ import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import type { OrderStatus } from './data'
+import { canEditOrder } from '@/lib/order-display'
 
 interface OrderCardMenuProps {
   /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ต้องตรงกับเมนู ⋮ ของหน้ารายละเอียด */
@@ -37,7 +38,7 @@ export default function OrderCardMenu({ token, status, onCancelRequest, orderNou
   }, [open])
 
   const isTerminal = status === 'CONFIRMED' || status === 'CANCELLED'
-  const canEdit = status === 'PENDING'
+  const canEdit = canEditOrder(status)
   const canCancel = status === 'PENDING' || status === 'SHIPPED'
 
   return (

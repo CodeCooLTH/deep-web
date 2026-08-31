@@ -67,6 +67,17 @@ export type OrderSummaryProps = {
    * ว่าใบไหนเป็นร้านบริการ จะกลายเป็นด่าน vertical ตัวที่สองที่ต้องดูแลคู่กันไปตลอด
    */
   serviceBadge?: { label: string; cls: string; icon: string; tone: OrderStatusTone } | null
+  /**
+   * เงินที่รับจริงของร้านบริการ — **ใช้ตัดสินป้าย "การชำระเงิน" เท่านั้น**
+   *
+   * 🛑 ต่างจาก `serviceBadge` ซึ่งเป็น *ป้ายสถานะงาน* และเป็น null เมื่อยังไม่มีเรื่องเงินให้เล่า
+   * ช่องว่างที่ตัวนี้ปิดคือ **ใบที่ยังไม่มีเรื่องเงินให้เล่า** (ไม่มีมัดจำ + ยังไม่รับเงิน):
+   * `serviceBadge` เป็น null ⇒ ป้ายการชำระเงินโผล่ ⇒ `status === 'CONFIRMED'` ทำให้ขึ้นเขียว
+   * "ชำระแล้ว" ทั้งที่บัญชีเงินเป็น 0 (หัวหน้าเจอเองบนจอ 2026-08-31)
+   *
+   * ไม่ส่ง = ร้านที่ไม่มีบัญชีเงิน ⇒ ป้ายเดิมทุกประการ
+   */
+  serviceMoney?: { totalAmount: number; totalReceived: number; outstanding: number } | null
   isFromAuction: boolean
   items: OrderFactsItem[]
   discount: unknown
@@ -102,11 +113,12 @@ export default function OrderSummary({
   onAction,
   orderNoun = 'คำสั่งซื้อ',
   serviceBadge = null,
+  serviceMoney = null,
 }: OrderSummaryProps) {
   // ป้ายหัวต้องรวมสถานะพัสดุด้วย ไม่ใช่อ่าน status ดิบ — ใบ COD ที่ส่งถึงแล้วแต่ร้านยังไม่ได้
   // กดรับเงิน เดิมขึ้น "กำลังจัดส่ง" ขัดกับการ์ด "เก็บเงินปลายทาง" ที่อยู่ขวามือในหน้าเดียวกัน
   const meta = serviceBadge ?? resolveOrderStatusBadge(status, shippingStage)
-  const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId, paymentConfirmedAt)
+  const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId, paymentConfirmedAt, serviceMoney ?? undefined)
   const channelLabel = getSalesChannelDisplay(salesChannel || 'OTHER').label
 
   const subtotal = items.reduce((sum, it) => sum + toNum(it.price) * it.qty, 0)

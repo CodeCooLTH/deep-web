@@ -190,9 +190,45 @@ export function getPaymentBadge(
   paymentMethod: string | null | undefined,
   slipFileId: string | null | undefined,
   paymentConfirmedAt: Date | string | null | undefined,
+  /**
+   * เงินที่ **รับจริง** ของใบนี้ (feature 00050) — ส่งมาเฉพาะร้านที่มีบัญชีเงิน (`SERVICE_QUEUE`)
+   * ไม่ส่ง (`undefined`) = ร้านที่ไม่มีบัญชีเงิน ⇒ เดินตรรกะเดิมทุกบรรทัด ไม่มีอะไรเปลี่ยน
+   *
+   * 🛑 **ทำไมต้องเป็นพารามิเตอร์ของฟังก์ชันเดิม ไม่ใช่ฟังก์ชันใหม่** — Hard Rule 16:
+   * "ได้เงินหรือยัง" ต้องมีนิยามเดียวทั้งระบบ การเขียนตัวที่สองคือที่ที่สองจอจะตอบไม่ตรงกัน
+   * (เกิดมาแล้วจริง 2026-08-23: ใบเดียวกันขึ้น "ชำระเงินแล้ว" เขียว กับ "ยังไม่ยืนยันการชำระ"
+   * เหลืองติดกัน เพราะป้ายสองใบอ่านคนละแหล่ง — แก้ครั้งนั้นด้วยการ *ซ่อน* ใบหนึ่ง
+   * ซึ่งแก้อาการแต่ไม่ได้แก้เหตุ)
+   */
+  money?: { totalAmount: number; totalReceived: number; outstanding: number },
 ): PaymentBadge {
   // T14 P1: text-{semantic} บน bg-{semantic}/15 ตกคอนทราสต์ AA (วัดจริง: warning 1.54:1 ฯลฯ)
   // → ใช้ token "หมึก" คู่กัน (text-{semantic}-ink, src/assets/css/config/_root.css) ผ่าน ≥4.5:1
+
+  /**
+   * 🛑 บัญชีเงินชนะ `Order.status` เสมอเมื่อมีบัญชี — และต้องมาก่อนทุกกิ่ง
+   *
+   * `status === 'CONFIRMED'` แปลว่า **ผู้ซื้อยืนยันว่าได้รับของ/บริการแล้ว** ไม่ได้แปลว่าได้เงิน
+   * สองแกนนี้แยกกันโดยตั้งใจ (ดูคอมเมนต์หัวฟังก์ชัน) — สำหรับร้านขายของมันเป็นตัวแทนที่ใช้ได้
+   * เพราะจ่ายก้อนเดียวก่อนรับของ แต่ **ร้านบริการจ่ายมัดจำก่อน เข้ารับบริการ แล้วค่อยเก็บส่วนที่เหลือ**
+   * ⇒ ใบที่ปิดงานแล้วแต่ยังไม่ได้เก็บเงินเป็นเรื่องปกติ ไม่ใช่ข้อยกเว้น
+   *
+   * หัวหน้าเจอเองบนจอ 2026-08-31: บิลบริการ ฿2,500 บัญชีเงิน **0 บาท** แต่ป้ายขึ้นเขียว
+   * "ชำระแล้ว" — เป็นคำโกหกบนจอที่ร้านใช้ตัดสินว่าจะทวงเงินไหม
+   *
+   * `totalAmount <= 0` ตกไปตรรกะเดิม: บิลยอด 0 ไม่มีเรื่องเงินให้ตัดสิน (เกณฑ์เดียวกับ
+   * `resolveServiceOrderBadge` ในไฟล์นี้ — ห้ามให้สองที่ตอบไม่ตรงกัน)
+   */
+  if (money && money.totalAmount > 0 && status !== 'CANCELLED') {
+    if (money.outstanding <= 0) {
+      return { label: PAYMENT_STATE_LABEL.paid, cls: 'badge bg-success/15 text-success-ink', tone: 'success' }
+    }
+    if (money.totalReceived > 0) {
+      return { label: PAYMENT_STATE_LABEL.partial, cls: 'badge bg-warning/15 text-warning-ink', tone: 'warning' }
+    }
+    return { label: PAYMENT_STATE_LABEL.outstanding, cls: 'badge bg-warning/15 text-warning-ink', tone: 'warning' }
+  }
+
   if (status === 'CONFIRMED') {
     return { label: 'ชำระแล้ว', cls: 'badge bg-success/15 text-success-ink', tone: 'success' }
   }
@@ -244,6 +280,27 @@ export function getPaymentBadge(
  * มันแค่ปิดตา `tsc` ไม่ให้เห็นเคสที่ขาด
  */
 export type OrderStatus = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED' | 'RETURNED'
+
+/**
+ * แก้ไขรายการในบิลได้ไหม — **นิยามเดียวของทั้งระบบ**
+ *
+ * เกณฑ์: `PENDING` เท่านั้น · ที่มาของกฎอยู่ที่ `order.service.ts::updateOrder` ซึ่ง throw
+ * `OrderNotEditableError` กับทุกสถานะอื่น เพราะการแก้บิลคือ **รื้อ `OrderItem` ทิ้งแล้วสร้างใหม่**
+ * พร้อม reverse/deduct สต็อก — ทำกับใบที่ผู้ซื้อรับของและรีวิวไปแล้ว = ประวัติไม่ตรงกับของที่ส่งจริง
+ * และ Trust Score อ้างอิงข้อมูลที่ถูกเปลี่ยนย้อนหลัง
+ *
+ * 🛑 ทำไมต้องเป็นฟังก์ชัน ไม่ใช่ปล่อยให้แต่ละจอเขียน `status === 'PENDING'` เอง:
+ * เคยเขียนกระจาย 3 ที่ (`OrderActions` · `OrderCardMenu` · `OrderCardView`) แล้ว **ที่ที่ 4 ลืม** —
+ * ปุ่ม "แก้ไขรายการ" บนแถบสถานะในแชท (`OrderProgressBar`) ไม่มีด่านนี้ จึงโผล่กับใบที่
+ * `status = CONFIRMED` แต่ยังไม่ปิดผลนัด ⇒ ผู้ขายกรอกฟอร์มจนเสร็จแล้วเจอ 400 ตอนกดบันทึก
+ * (คลาสเดียวกับปุ่ม "ลองใหม่" ของ iShip ที่เชิญให้กดสิ่งที่ไม่มีวันสำเร็จ)
+ *
+ * รับ `string` ไม่ใช่ `OrderStatus` โดยตั้งใจ — `Order.status` ในฐานเป็น String ไม่ใช่ enum
+ * ผู้เรียกส่วนใหญ่ถือค่าดิบมา การบังคับ cast ที่ผู้เรียกคือที่ที่ `as OrderStatus` จะงอกขึ้น
+ */
+export function canEditOrder(status: string): boolean {
+  return status === 'PENDING'
+}
 export type TimelineState = 'done' | 'cur' | 'fin' | 'up' | 'cx' | 'mute'
 export type TimelineStep = {
   label: string
@@ -467,6 +524,13 @@ export const PAYMENT_STATE_LABEL = {
   paid: "ชำระเงินแล้ว",
   /** ยังมียอดค้าง */
   outstanding: "รอชำระ",
+  /**
+   * รับมาแล้วบางส่วน (มัดจำ) แต่ยังไม่ครบ — ขั้นกลางที่ร้านบริการมีจริงทุกวัน
+   *
+   * 🛑 ต้องแยกจาก `outstanding` เพราะสองอันนี้สั่งให้ร้านทำคนละอย่าง: "รอชำระ" = ยังไม่ได้
+   * สักบาท ต้องทวงทั้งก้อน · "รับบางส่วน" = ได้มัดจำแล้ว เหลือเก็บตอนจบงาน
+   */
+  partial: "รับบางส่วน",
 } as const;
 
 /**

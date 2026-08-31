@@ -37,7 +37,7 @@ export type BillingDetailsProps = {
   /**
    * เงินที่ **ได้รับจริง** ของใบนี้ (feature 00050) · null = ไม่มีเรื่องเงินให้พูดถึง
    *
-   * 🛑 ทำไมต้องมีที่นี่ด้วย ทั้งที่ปุ่มรับเงินอยู่ในแชท: ก่อนหน้านี้จอนี้บอกได้แค่ "มีสลิปไหม"
+   * 🛑 ทำไมต้องมีที่นี่ (ปุ่มรับเงินย้ายมาอยู่บนจอนี้ด้วยแล้ว 2026-08-31): ก่อนหน้านี้จอนี้บอกได้แค่ "มีสลิปไหม"
    * ขณะที่ **หน้า `/o/[token]` ของลูกค้าบอกยอดที่รับแล้วและยอดค้าง** ⇒ ร้านรู้น้อยกว่าลูกค้า
    * บนจอของตัวเอง ซึ่งเป็นสภาพที่ผู้ขายต้องเปิดแชทหาทุกครั้งที่ลูกค้าถาม
    */
@@ -50,6 +50,16 @@ export type BillingDetailsProps = {
     hasDeposit: boolean
     entries: { kind: string; amount: number; method: string; note: string | null; receivedAtIso: string; voided: boolean }[]
   } | null
+  /**
+   * ชุดเต็มของร้านบริการ — **ใช้ตัดสิน *ป้าย* เท่านั้น** ส่วน `money` ข้างบนใช้แสดง *บล็อกเงิน*
+   *
+   * 🛑 สองตัวนี้ไม่เท่ากันโดยตั้งใจ: `money` กั้นเพิ่มด้วย `hasMoneyStory()` (ยังไม่ตกลงมัดจำและ
+   * ยังไม่รับเงินเลย = ไม่มีอะไรให้เล่า ⇒ ไม่ขึ้นบล็อก AC-SQ-07) แต่ **ป้ายต้องพูดความจริงเสมอ**
+   * แม้ในใบที่ยังไม่มีเรื่องเงินให้เล่า — ซึ่งคือใบที่ป้ายเดิมโกหกว่า "ชำระแล้ว" พอดี
+   *
+   * `null`/ไม่ส่ง = ร้านที่ไม่มีบัญชีเงิน (ONLINE_SALES / LODGING) ⇒ ป้ายเดิมทุกประการ
+   */
+  serviceMoney?: { totalAmount: number; totalReceived: number; outstanding: number } | null
 }
 
 const baht = (n: number) =>
@@ -62,17 +72,26 @@ export default function BillingDetails({
   slipFileId,
   paymentConfirmedAt,
   money,
+  serviceMoney = null,
 }: BillingDetailsProps) {
   // มีเรื่องเงินให้พูดถึง = ถือว่ามีข้อมูลการชำระ แม้ยังไม่ได้ระบุวิธีชำระ/ช่องทาง
   const hasPaymentInfo = paymentMethod !== null || salesChannel !== null || money !== null
-  const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId, paymentConfirmedAt)
+  /* 🛑 ส่ง `serviceMoney` เข้าไปด้วย — บัญชีเงินชนะ `Order.status` เมื่อร้านมีบัญชี
+     (ดูเหตุผลเต็มที่พารามิเตอร์ `money` ของ getPaymentBadge) ร้านที่ไม่มีบัญชีส่ง undefined
+     ⇒ ป้ายเดิมไม่ขยับสักพิกเซล */
+  const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId, paymentConfirmedAt, serviceMoney ?? undefined)
   const paymentIcon = paymentMethod ? (PAYMENT_ICONS[paymentMethod] ?? 'wallet') : 'credit-card-off'
   const paymentLabel = paymentMethod ? (PAYMENT_LABELS[paymentMethod] ?? paymentMethod) : 'ยังไม่ระบุวิธีชำระ'
 
   return (
     <div className="card">
       <div className="card-header">
-        <h4 className="card-title">การชำระเงิน</h4>
+        {/* 🛑 ชื่อการ์ดต้องไม่ชนกับ `PaymentReceivedCard` ซึ่งใช้ชื่อ "การชำระเงิน" ตาม
+            00062 UX §A3 (1) — วัดจอจริง 2026-08-31: ออเดอร์ขายออนไลน์ที่ไม่ใช่ COD ขึ้น
+            การ์ดชื่อ **"การชำระเงิน" ซ้ำกัน 2 ใบ** ในหน้าเดียวมาตลอด (ของเดิม ไม่ใช่ของใหม่)
+            ใบนั้นเป็นการ์ด *การกระทำ* (กดยืนยันรับเงิน/ยกเลิก) ส่วนใบนี้เป็น *รายละเอียด*
+            (วิธีชำระ · ช่องทาง · สลิป · เงินที่รับแล้ว) ชื่อจึงต้องบอกความต่างนั้น */}
+        <h4 className="card-title">รายละเอียดการชำระเงิน</h4>
       </div>
       <div className="card-body">
         {!hasPaymentInfo ? (
@@ -133,7 +152,7 @@ export default function BillingDetails({
                   {money.entries.length === 0 ? (
                     /* ห้ามเขียนว่า "ยังไม่ได้จ่าย" — ระบบรู้แค่ว่ายังไม่มีใครกดยืนยัน */
                     <p className="text-default-600 mb-0 mt-1.5 text-2xs">
-                      ยังไม่มีใครกดยืนยันรับเงิน — กดได้ที่การ์ดงานในแชท
+                      ยังไม่มีใครกดยืนยันรับเงิน — กดปุ่ม &ldquo;รับเงินแล้ว&rdquo; ได้ที่แถบด้านล่าง
                     </p>
                   ) : (
                     <ul className="mt-1.5 space-y-1">

@@ -128,7 +128,15 @@ export default async function OrderDetailPage({ params }: PageProps) {
    * ⇒ ไม่แสดงบล็อกเลย (ออเดอร์ขายออนไลน์ทั่วไปไม่ได้บล็อกใหม่ที่ไม่ได้ขอ — AC-SQ-07)
    * ตัวเลขทุกตัวมาจาก `computeOrderMoney` ตัวเดียวกับทุกจอ ห้ามบวกเองที่นี่ (HR16)
    */
-  const orderMoney = (() => {
+  /**
+   * เงินของบิลนี้ **แบบเต็มรูป** — กั้นด้วย vertical อย่างเดียว
+   *
+   * 🛑 แยกจาก `orderMoney` ข้างล่างโดยตั้งใจ: ตัวนั้นเป็น "ข้อมูลที่จะ *แสดง*" ซึ่งกั้นเพิ่มด้วย
+   * `hasMoneyStory()` (ยังไม่ตกลงมัดจำและยังไม่รับเงินเลย = ไม่มีอะไรให้เล่า ⇒ ไม่ขึ้นการ์ด)
+   * แต่ **ปุ่ม "รับเงินแล้ว" ต้องใช้ตัวนี้** — บิลที่ยังไม่ตั้งมัดจำและยังไม่เคยรับเงิน คือบิลที่
+   * *ต้องการปุ่มมากที่สุด* ถ้าผูกปุ่มกับด่านของการแสดงผล ปุ่มจะหายไปในกรณีที่มันมีประโยชน์ที่สุดพอดี
+   */
+  const serviceMoney = (() => {
     /**
      * 🛑 กั้นด้วย **vertical** ไม่ใช่แค่ "มีมัดจำไหม" (AC-SQ-07)
      *
@@ -139,7 +147,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
      * "ปลอดภัยเพราะยังไม่มีใครเดินผ่านเส้นทางนั้น" ไม่ใช่ด่าน
      */
     if (shop.vertical !== 'SERVICE_QUEUE') return null
-    const m = computeOrderMoneyFromSerialized({
+    return computeOrderMoneyFromSerialized({
       totalAmount: orderRaw.totalAmount.toFixed(2),
       depositAmount: orderRaw.depositAmount ? orderRaw.depositAmount.toFixed(2) : null,
       payments: orderRaw.payments.map((p) => ({
@@ -148,7 +156,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
         voidedAt: p.voidedAt ? p.voidedAt.toISOString() : null,
       })),
     })
-    if (!hasMoneyStory(m)) return null
+  })()
+
+  /** ชุดที่การ์ด "เงินที่รับแล้ว" ใช้แสดง — null เมื่อยังไม่มีเรื่องเงินให้เล่า (พฤติกรรมเดิมทุกประการ) */
+  const orderMoney = (() => {
+    const m = serviceMoney
+    if (!m || !hasMoneyStory(m)) return null
     return {
       totalAmount: m.totalAmount,
       depositAgreed: m.depositAgreed,
@@ -398,6 +411,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
             : null
         }
         vertical={resolveShopVertical(shop.vertical)}
+        /* feature 00050 — ปุ่ม "รับเงินแล้ว" บนหน้านี้ (เดิมมีที่แชทที่เดียว)
+           `serviceMoney` ไม่ผ่าน `hasMoneyStory()` โดยตั้งใจ — ดูคอมเมนต์ที่จุดคำนวณด้านบน */
+        serviceMoney={serviceMoney}
+        appointmentStatus={order.appointmentStatus ?? null}
+        hasAppointment={Boolean(order.serviceStart)}
+        orderLabel={order.orderNo ?? order.publicToken.slice(0, 8).toUpperCase()}
         hasDeductedStock={hasDeductedStock}
         publicToken={order.publicToken}
         shortCode={order.shortCode ?? null}
@@ -598,6 +617,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 paymentConfirmedAt={order.paymentConfirmedAt ? (order.paymentConfirmedAt as Date).toISOString() : null}
                 status={order.status}
                 money={orderMoney}
+                /* ป้ายอ่านจากชุดเต็ม (ไม่ผ่าน hasMoneyStory) · บล็อกเงินอ่านจาก `money` — ดู prop doc */
+                serviceMoney={serviceMoney}
               />
             )}
             {showReviewCard && <OrderReviewCard orderNoun={vocab.noun} review={reviewData} />}

@@ -46,6 +46,11 @@ import dynamic from 'next/dynamic'
 import OrderSummary, { type OrderSummaryProps } from './OrderSummary'
 import type { OrderFactsItem } from './order-detail-shared'
 import { getOrderActionSet } from './order-action-set'
+// feature 00050 — ปุ่มเรื่องเงินของร้านคิวงาน: **ตัวตัดสินว่าเห็นปุ่มอะไร** อยู่ที่ไลบรารีเดียวกับแชท
+// ห้ามเขียนเงื่อนไข `outstanding > 0` ของตัวเองที่นี่ (เหตุผลเต็มอยู่หัวไฟล์ chat-order-actions.ts)
+import { chatOrderActions } from '@/lib/chat-order-actions'
+import type { OrderMoney } from '@/lib/order-payment'
+import RecordPaymentSheet from '@/app/(paces)/seller/(chat)/_components/RecordPaymentSheet'
 import ReturnPanel from './ReturnPanel'
 import type { ShipmentSource } from './order-action-set'
 
@@ -148,6 +153,19 @@ export interface OrderDetailClientProps {
   /** ป้ายสถานะของร้านบริการ (คำนวณที่ server) — null = ใช้ป้ายเดิม */
   serviceBadge?: OrderSummaryProps['serviceBadge']
 
+  /**
+   * feature 00050 — เงินของบิลนี้แบบเต็มรูป · null = ไม่ใช่ร้านคิวงาน (ปุ่มเรื่องเงินหายทั้งชุด)
+   *
+   * 🛑 ต้องเป็นชุดที่ **ไม่ผ่าน `hasMoneyStory()`** — ดูเหตุผลที่ page.tsx (`serviceMoney`)
+   */
+  serviceMoney?: OrderMoney | null
+  /** สถานะนัด — ป้อน `chatOrderActions()` (จบงานแล้วไม่ต้องมีปุ่มอะไร) */
+  appointmentStatus?: string | null
+  /** ใบนี้มีนัดผูกอยู่ไหม (`serviceStart != null`) — false = walk-in */
+  hasAppointment?: boolean
+  /** ป้ายที่ผู้ใช้เห็นบนชีตรับเงิน — กันกดผิดใบ */
+  orderLabel?: string
+
   /** การ์ดที่ยัง server-render ได้ — ส่งมาจาก page.tsx เป็น ReactNode ไม่ลากเข้า client bundle */
   shippingActivity: React.ReactNode
   /** การ์ดผู้ซื้อ — แยกจาก sideCards เพราะการ์ด COD ต้องแทรก "หลังผู้ซื้อ ก่อนที่อยู่" */
@@ -206,6 +224,10 @@ export default function OrderDetailClient({
   vatAmount,
   orderNoun,
   serviceBadge,
+  serviceMoney = null,
+  appointmentStatus = null,
+  hasAppointment = false,
+  orderLabel,
   shippingActivity,
   customerCard,
   profitCard,
@@ -224,6 +246,8 @@ export default function OrderDetailClient({
   // ชีตคืนของ (feature 00056) — เปิดจากเมนู ⋮ ไม่ใช่การ์ดเดี่ยวในหน้า
   const [returnOpen, setReturnOpen] = useState(false)
   const isOnlineSales = vertical === 'ONLINE_SALES'
+  /** ร้านคิวงาน — เจ้าของคำถาม "ได้เงินยัง" คือบัญชี `OrderPayment` ไม่ใช่ธงใบเดียวของ 00062 */
+  const isServiceQueue = vertical === 'SERVICE_QUEUE'
 
   // feature 00062 — flag ที่ order-action-set.ts ห้ามคำนวณเอง (pure module ห้ามรู้จักรูปแบบ
   // ข้อความวิธีชำระ) มีผลเฉพาะ fulfillmentMode==='PICKUP' + status==='PENDING' เท่านั้น
@@ -244,6 +268,31 @@ export default function OrderDetailClient({
   })
 
   /**
+   * feature 00050 — **ปุ่ม "รับเงินแล้ว" บนหน้านี้** (เดิมมีที่แชทที่เดียว)
+   *
+   * 🛑 ทำไมต้องมีที่นี่ด้วย — ปุ่มเดิมอยู่บนการ์ดงานในแชท ซึ่งหาบิลด้วย `Order.customerId`
+   * ที่ระบบ derive จาก **เบอร์โทร** ตอน `createOrder` ⇒ บิลที่เปิดจากปฏิทิน/ตารางงานโดยไม่กรอกเบอร์
+   * ไม่ผูก `Customer` ⇒ **ไม่โผล่ในเธรดไหนเลย ⇒ บันทึกรับเงินไม่ได้ตลอดกาล** และไม่มีหน้าจอ
+   * ให้แก้ `conversationId` ทีหลัง (schema เขียนห้ามไว้เอง — backfill = เดาจากเบอร์)
+   * การ์ด "เงินที่รับแล้ว" บนจอนี้ถึงกับต้องเขียนบอกผู้ใช้ว่า "กดได้ที่การ์ดงานในแชท"
+   *
+   * 🛑 เอาเฉพาะ `RECORD_PAYMENT` — อีก 3 ตัวที่ `chatOrderActions()` คืนมาไม่เอา และไม่ใช่เพราะลืม:
+   *   - `REQUEST_DEPOSIT` / `MARK_SERVED` — `AppointmentCard` บนหน้านี้มีปุ่มเดียวกันอยู่แล้ว
+   *     (ส่งการ์ดสรุปนัด / เข้ารับบริการ-ไม่มาตามนัด) ใส่อีกชุด = ปุ่มคำเดียวกัน 2 ใบในจอเดียว
+   *   - `START_WALK_IN` — **หัวหน้าสั่งให้คงไว้ในแชทเท่านั้น** (2026-08-31)
+   * ตัวตัดสิน *ว่าเห็นปุ่มไหม* ยังมาจากไลบรารีตัวเดียวกับแชทเสมอ ไม่ได้เขียนเงื่อนไขใหม่ที่นี่
+   */
+  const recordPaymentAction = serviceMoney
+    ? chatOrderActions({
+        orderStatus: status,
+        appointmentStatus,
+        hasAppointment,
+        money: serviceMoney,
+      }).find((a) => a.key === 'RECORD_PAYMENT')
+    : undefined
+  const [payOpen, setPayOpen] = useState(false)
+
+  /**
    * "คืนของ" (feature 00056) เข้าเมนู `⋮` ของออเดอร์ — **ไม่ใช่การ์ดเดี่ยวในหน้า**
    *
    * 🛑 เดิมเป็นการ์ดของตัวเองต่อท้ายการ์ดการจัดส่ง/หลักฐาน ⇒ หน้ารายละเอียดกลายเป็นกอง
@@ -254,7 +303,7 @@ export default function OrderDetailClient({
    * ไม่ซ่อนตามเกณฑ์ที่จอเดาเอง — แสดงเสมอ (ยกเว้นใบยกเลิก/ร้านที่ไม่ขายของ) แล้วให้ชีต
    * บอกเหตุผลจาก `canCreateReturn()` ตัวเดียว ไม่งั้นสองที่ตัดสินไม่ตรงกันวันที่เกณฑ์เปลี่ยน
    */
-  const actionSet =
+  const withReturn =
     isOnlineSales && status !== 'CANCELLED'
       ? {
           ...baseActionSet,
@@ -264,6 +313,24 @@ export default function OrderDetailClient({
           ],
         }
       : baseActionSet
+
+  /**
+   * "รับเงินแล้ว" ขึ้นเป็น **ปุ่มหลัก** และดันตัวเดิมลงไปเป็นปุ่มรอง (ไม่ทิ้ง)
+   *
+   * ท่าเดียวกับที่ `codReceived` ทำอยู่แล้วในสถานะ SHIPPED/CONFIRMED (`order-action-set.ts`)
+   * เหตุผลเดียวกันด้วย: ในบิลที่ยังค้างเงิน มันเป็น action เดียวบนจอนี้ที่ทำให้บิลเดินหน้าจริง
+   * ส่วนปุ่มหลักเดิมของร้านคิวงานคือ "ส่งลิงก์ทาง SMS (฿1)" ซึ่งเสียเงินและไม่ได้ใช้ทุกใบ
+   *
+   * key เป็น kebab-case ตามธรรมเนียมของหน้านี้ (`cod-received`, `copy-link`) ไม่ใช่
+   * `RECORD_PAYMENT` ของไลบรารีแชท — แปลงที่จุดเดียวตรงนี้ แล้ว `handleAction` รับคีย์เดียว
+   */
+  const actionSet = recordPaymentAction
+    ? {
+        primary: { key: 'record-payment', label: recordPaymentAction.label, icon: recordPaymentAction.icon },
+        ghosts: withReturn.primary ? [withReturn.primary, ...withReturn.ghosts] : withReturn.ghosts,
+        menu: withReturn.menu,
+      }
+    : withReturn
 
   // คัดลอกข้อความ/ลิงก์ — Base: CopyLinkButton.tsx handleCopy (fallback execCommand สำหรับ HTTP context)
   const copyText = async (text: string, successMessage: string) => {
@@ -533,6 +600,9 @@ export default function OrderDetailClient({
       case 'return-order':
         setReturnOpen(true)
         return
+      case 'record-payment':
+        setPayOpen(true)
+        return
       case 'send-sms':
         void handleSendSms()
         return
@@ -628,6 +698,8 @@ export default function OrderDetailClient({
             /* ร้านบริการได้ป้ายจากเงินที่รับจริง (จอง/รอชำระ/ชำระเงินแล้ว) —
                `serviceBadge` เป็น null สำหรับ vertical อื่นเสมอ ⇒ ป้ายเดิมไม่ขยับ (AC-SQ-07) */
             serviceBadge={serviceBadge}
+            /* ป้ายการชำระเงินต้องอ่านบัญชีเงินก่อน `Order.status` เสมอเมื่อร้านมีบัญชี */
+            serviceMoney={serviceMoney}
             actionSet={actionSet}
             createdAtISO={createdAtISO}
             internalNote={internalNote}
@@ -666,6 +738,22 @@ export default function OrderDetailClient({
             // feature 00062 (U17) — mutually exclusive กับ CodCard (paymentMethod มีค่าเดียว)
             // แสดงทุกสถานะที่ไม่ใช่ CANCELLED โดยไม่สนใจ order.status (UX §A3 — ต่างจาก COD ที่
             // ผูก SHIPPED/CONFIRMED เพราะเงินโอน/พร้อมเพย์/เงินสดรับได้ตั้งแต่ PENDING)
+            //
+            // 🛑 `!isServiceQueue` — ร้านบริการมีเจ้าของคำถาม "ได้เงินยัง" อยู่แล้วคือ **บัญชีเงิน**
+            // (`OrderPayment`, feature 00050) การ์ดนี้เป็นของ **ธงใบเดียว** (`paymentConfirmedAt`)
+            // ซึ่ง `00062/PRD.md` D-2 เขียนเองว่าไม่เอา concept มัดจำของ 00050 มาปน — แต่ **ไม่เคยมี
+            // ด่าน vertical จริง** มีแต่ `canSellerConfirmPayment()` ที่ตัดสินจาก *วิธีชำระ*
+            // ⇒ การ์ดไหลเข้าร้านบริการทั้งที่ PRD ของตัวเองบอกว่าอยู่นอกขอบเขต
+            //
+            // วัดจอจริง 2026-08-31 (บิลบริการ PENDING ฿900 มัดจำ 900): ปุ่ม "รับเงินแล้ว" (บัญชี)
+            // กับ "ได้รับเงินแล้ว" (ธง) โผล่พร้อมกัน และการ์ดชื่อ **"การชำระเงิน" ซ้ำกัน 2 ใบ**
+            // ในหน้าเดียว — สองระบบไม่รู้จักกันเลย (`recordPayment` ไม่แตะธง · `setPaymentConfirmed`
+            // ไม่สร้างแถวบัญชี) กดคนละปุ่มได้ผลคนละอย่างโดยไม่มีอะไรฟ้อง
+            //
+            // 🛑 กันเฉพาะ SERVICE_QUEUE ไม่ใช่ allow-list — `LODGING` ยังไม่มีร้านจริงสักร้าน
+            // (ตรวจฐาน 2026-08-31: 0 ร้าน 0 ออเดอร์) และธงใบเดียวคือกลไกเงินเดียวที่มันมี
+            // ค่า vertical ใหม่ในอนาคตต้องได้พฤติกรรมเดิมไว้ก่อน ไม่ใช่ถูกตัดเงียบ ๆ
+            !isServiceQueue &&
             canSellerConfirmPayment(paymentMethod) &&
             status !== 'CANCELLED' && (
               <PaymentReceivedCard
@@ -698,6 +786,22 @@ export default function OrderDetailClient({
           orderToken={publicToken}
           sheetOpen={returnOpen}
           onCloseSheet={() => setReturnOpen(false)}
+        />
+      )}
+
+      {/* ชีตรับเงิน (feature 00050) — **component ตัวเดียวกับที่แชทใช้** ไม่ได้เขียนตัวที่สอง
+          `shopId={null}` ถูกต้องที่นี่: หน้านี้สโคปอยู่ที่ร้านที่ active อยู่แล้ว ต่างจากกล่องแชท
+          ที่เปิดเธรดของร้าน B ได้ขณะ active ร้าน A (BR-UNI-07) จึงต้องระบุร้านชัด ๆ ที่นั่น
+          onChanged → refresh: ตัวเลขบนการ์ด "เงินที่รับแล้ว" กับป้ายสถานะ render ที่ server */}
+      {serviceMoney && payOpen && (
+        <RecordPaymentSheet
+          open={payOpen}
+          onClose={() => setPayOpen(false)}
+          orderToken={publicToken}
+          orderLabel={orderLabel ?? publicToken.slice(0, 8).toUpperCase()}
+          shopId={null}
+          money={serviceMoney}
+          onChanged={() => router.refresh()}
         />
       )}
 

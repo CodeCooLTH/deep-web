@@ -19,6 +19,7 @@ import { isAllDayAppointment } from '@/lib/appointments'
 import { formatDateTH, formatTimeHM } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
 import { resolveOrderVocab } from '@/lib/seller-menu'
+import { canEditOrder } from '@/lib/order-display'
 
 export type OrderCardViewData = {
   token: string
@@ -337,7 +338,7 @@ export default function OrderCardView({
     <div className={`border-default-200 overflow-hidden rounded-lg border ${className}`}>
       {/* แตะเพื่อแก้ไขได้เฉพาะออเดอร์ที่ยังรอดำเนินการ — ตรงกับกฎเดียวกับปุ่มแก้ไขในหน้ารายการ/รายละเอียด
           และกับ guard ใน updateOrder. เดิมเปิดโมดัลได้ทุกสถานะ แล้วไปเด้ง error ตอนกดบันทึก */}
-      {onEdit && data.status === 'PENDING' ? (
+      {onEdit && canEditOrder(data.status) ? (
         <button
           type="button"
           onClick={onEdit}

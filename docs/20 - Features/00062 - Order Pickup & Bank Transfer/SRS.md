@@ -38,6 +38,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[API]]", "[[DATABASE]]", "[[UX-Design-Spec]]",
 - `src/lib/shipping-address-status.ts` (`orderNeedsShippingAddress()`) — เพิ่ม override สำหรับนัดรับ
 - `src/app/(paces)/seller/(dashboard)/orders/[token]/components/order-action-set.ts` — ขยาย state matrix (flag ใหม่คู่กับ `isCodUnpaid`)
 - `src/lib/order-display.ts` (`getPaymentBadge()`) — เพิ่มพารามิเตอร์ `paymentConfirmedAt` + คืน `tone` เพิ่ม (ดู UX-Design-Spec B8)
+  - **แก้ 2026-08-31:** เพิ่มพารามิเตอร์ที่ 5 `money?` — บัญชีเงินของร้านบริการชนะ `Order.status` เสมอเมื่อมี (ดู PRD §D-2a) · ไม่ส่ง = ตรรกะเดิมทุกบรรทัด
 - `src/app/(marketing)/o/[token]/guest-order-data.ts` — เพิ่ม field เข้า allow-list (`payoutSnapshot`, สถานะยืนยันรับเงิน)
 - `src/lib/promptpay-qr.ts` (**ใหม่**) — encode payload EMVCo พร้อมเพย์
 - `src/lib/thai-banks.ts` (**ใหม่** — ชื่อไฟล์ตาม DATABASE.md Open Question #3, เจ้าของงานคือ SDS แต่ SRS ระบุ contract ที่ต้องมี)
