@@ -70,7 +70,7 @@ type Props = {
 const ActivityTimeline = async ({ items }: Props) => {
   const t = await getT()
   return (
-    <div className="card">
+    <div className="card min-h-11 lg:min-h-0">
       {/* card-header: title ซ้าย + "ดูทั้งหมด ›" + icon ขวา */}
       <div className="card-header flex items-center justify-between">
         <h4 className="card-title">{t.dashboard.activityTitle}</h4>

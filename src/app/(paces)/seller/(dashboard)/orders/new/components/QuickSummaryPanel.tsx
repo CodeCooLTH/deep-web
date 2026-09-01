@@ -90,7 +90,7 @@ export default function QuickSummaryPanel({ control, subtotal, total, formId, co
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
         aria-label={expanded ? 'ซ่อนรายละเอียดยอด' : 'ดูรายละเอียดยอด'}
-        className="mb-2 flex w-full items-center justify-between"
+        className="mb-2 flex w-full items-center justify-between min-h-11 lg:min-h-0"
       >
         <span className="text-sm text-default-500">รวมทั้งสิ้น</span>
         <span className="inline-flex items-center gap-1.5 text-base font-bold text-default-900 tabular-nums">

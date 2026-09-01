@@ -630,3 +630,136 @@ html[data-theme='dark'] .chat-nav-rail {
 .chat-nav-rail .simplebar-track {
   display: none;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   เป้าที่กดได้ = 44px บนมือถือ (The Forty-Four Rule) — สกิน Paces
+   ══════════════════════════════════════════════════════════════════════════════
+
+   ## ทำไม
+
+   `DESIGN.md` §Do's ประกาศ "tap target ≥44px" ไว้เป็นเกณฑ์ **WCAG ของทั้งระบบ** ไม่ได้จำกัด
+   สกิน แต่ตัวบังคับที่มีอยู่ผูกกับธีม MUI ฝั่ง buyer อย่างเดียว (`overrides/{button,icon-button,
+   input}.ts`) และด่าน `[TAP]` ใน `theme-guard.sh` เขียน `if [ "$is_paces" = false ]` ⇒
+   **ฝั่งผู้ขายไม่เคยถูกวัดเลยสักครั้ง**
+
+   วัดจอจริง 390px (2026-09-01 · 40 หน้า · 2 ประเภทร้าน): เป้าที่กดได้ต่ำกว่า 44px
+   **223 จุด · 61 แบบ · 30 จาก 32 หน้า** — เยอะกว่าฝั่ง buyer (122 จุด) เกือบเท่าตัว
+
+   🛑 **ไม่ใช่ของหลุด — เป็นค่าของธีมเอง**: `.btn { py-1.75 }` = 37px ·
+   `.btn-icon { size-9.25 }` = 37px · `.btn-sm.btn-icon { size-7.5 }` = 30px ·
+   `.page-link { size-7.5 }` = 30px ⇒ แก้รายจุดไม่มีวันจบ ต้องยกพื้นที่ธีม
+
+   และโค้ดในระบบเขียนไว้เองว่า **"seller ใช้งาน mobile เป็นหลัก"**
+   (หัวไฟล์ `SellerBottomNav.tsx`) ⇒ จอที่พังคือจอที่ใช้จริงมากที่สุด
+
+   ## รูปแบบเดียวกันทั้งระบบ
+
+   ยืมท่าที่ `.form-input` ใช้อยู่แล้วตั้งแต่ impeccable audit P2-3 มาใช้ซ้ำทุกตัว:
+
+       มือถือ (<1024px) = 44px   ·   เดสก์ท็อป (≥1024px) = ค่าเดิมของธีม
+
+   🛑 **ไม่ดัน 44px บนเดสก์ท็อป** — คอนโซลผู้ขายเป็น Operate surface ที่ความหนาแน่นมีค่า
+   และเกณฑ์ 44px มีเหตุผลจาก "นิ้วโป้ง" ซึ่งไม่ใช่บริบทของเมาส์ (WCAG 2.5.8 สำหรับเมาส์ = 24px
+   ซึ่ง 37px ผ่านสบาย) — เหตุผลชุดเดียวกับที่เขียนไว้ที่ `_forms.css` บรรทัดแรก ห้ามแยกกัน
+
+   `1024px` = เส้นเดียวกับ seller mobile shell (sidebar ซ่อน + bottom nav) ไม่ใช่เลขใหม่
+
+   ## ทำไมต้องเจาะจงชนิด element
+
+   🛑 `.btn.btn-icon` ถูกใช้เป็น **ป้ายไอคอนที่กดไม่ได้** ด้วย — `<span class="btn btn-icon
+   bg-light size-6!">` เป็นแพตเทิร์นของแถวข้อมูลในการ์ด (`CustomerDetails` · `AppointmentCard` ·
+   `AuctionInfoCard` · `ShippingAddress` · `OrderReviewCard` รวม 7 จุด)
+   ถ้าเขียนกฎเป็น `.btn { min-height }` เฉย ๆ ป้ายพวกนั้นจะสูง 44px แล้วการ์ดพัง
+
+   ⇒ ทุกกฎในบล็อกนี้เจาะจง `button` / `a` / `label` / `summary` เท่านั้น — `span`/`div` ไม่โดน
+   นี่คือเส้นแบ่งที่ตรงกับความหมายจริง: **"กดได้" ไม่ใช่ "หน้าตาเหมือนปุ่ม"**
+
+   ## ทำไมใช้ min-* ไม่ใช่ width/height
+
+   ปุ่มจริงบางใบระบุขนาดเองด้วย `size-8!` (`ShippingCard` ×2 · `ShippingAddress` ×1 = 32px)
+   `min-height`/`min-width` **ชนะ** `height`/`width` แม้ตัวหลังจะมี `!important` (คนละ property)
+   ⇒ ปุ่มพวกนั้นถูกยกเป็น 44px ให้เองโดยไม่ต้องไล่แก้ทีละไฟล์
+
+   ## Performance
+
+   CSS ล้วน ไม่มี JS ไม่มี class เพิ่มในไฟล์ไหนเลย ⇒ bundle ไม่โต · ไม่มี re-render
+   · media query ตัวเดียวครอบทุกกฎ (เบราว์เซอร์ประเมินครั้งเดียว)
+   ────────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 1023.98px) {
+    /* ปุ่มทั่วไป — สูงขึ้นอย่างเดียว padding/ตัวหนังสือเท่าเดิม */
+    button.btn,
+    a.btn,
+    label.btn,
+    summary.btn {
+        min-height: 2.75rem; /* 44px */
+    }
+
+    /* ปุ่มไอคอน — ต้องกว้างด้วย ไม่งั้นได้กล่องสูงแต่แคบ นิ้วยังพลาดแนวนอน */
+    button.btn.btn-icon,
+    a.btn.btn-icon,
+    label.btn.btn-icon {
+        min-width: 2.75rem;
+        min-height: 2.75rem;
+    }
+
+    /* เปลี่ยนหน้าในตาราง (`1 2 3 ›`) — 33 จุด มากที่สุดในระบบ
+       ผู้ขายไล่ดูออเดอร์ทีละหน้าทุกวัน เป็นปุ่มที่กดถี่ที่สุดและเตี้ยที่สุดพร้อมกัน */
+    .page-item .page-link,
+    .pagination > button.btn,
+    .pagination > a.btn {
+        min-width: 2.75rem;
+        min-height: 2.75rem;
+    }
+
+    /* ชิปกรองสถานะ ("รอเลขพัสดุ 4") — `badge` ที่เป็นปุ่มจริง ไม่ใช่ป้ายอ่านอย่างเดียว */
+    button.badge,
+    a.badge {
+        min-height: 2.75rem;
+    }
+
+    /* สวิตช์เปิด/ปิด — 🛑 **ห้ามยืดตัวสวิตช์**
+       สวิตช์ที่สูง 44px อ่านไม่ออกว่าเป็นสวิตช์ (มันคือรางกับหัวกลม สัดส่วนคือความหมาย)
+       จึงขยาย **พื้นที่รับนิ้ว** ด้วย ::after ที่วางทับแบบ absolute — ไม่กินผัง ไม่ดันแถว
+       (`::before` ถูกใช้เป็นหัวสวิตช์แล้ว · `::after` ว่าง)
+       แพตเทิร์นเดียวกับที่ `DESIGN.md` อนุญาตไว้: "ของที่ตาเห็นเล็กแต่พื้นที่แตะใหญ่"
+
+       .form-switch    = 20×30px → inset -12px แนวตั้ง / -7px แนวนอน ⇒ 44×44
+       .form-switch-sm = 18×26px → inset -13px / -9px                ⇒ 44×44
+       .form-switch-lg = 22×34px → inset -11px / -5px                ⇒ 44×44 */
+    input.form-switch {
+        position: relative;
+    }
+    input.form-switch::after {
+        content: "";
+        position: absolute;
+        inset: -12px -7px;
+    }
+    input.form-switch-sm::after {
+        inset: -13px -9px;
+    }
+    input.form-switch-lg::after {
+        inset: -11px -5px;
+    }
+
+    /* ติ๊กถูก / ตัวเลือกวงกลม — `size-4.5` = 18px · ขยายพื้นที่รับนิ้วด้วยท่าเดียวกับสวิตช์
+       🛑 ห้ามยืดตัวกล่อง: ติ๊กถูก 44px อ่านเป็นปุ่มไม่ใช่ช่องติ๊ก และจะดันความสูงของทุกแถว
+       ในตาราง/ลิสต์ที่มันอยู่ (ซึ่งคือเกือบทุกที่ที่มันถูกใช้) */
+    input.form-radio::after,
+    input.form-checkbox::after {
+        content: "";
+        position: absolute;
+        inset: -13px;
+    }
+    input.form-radio,
+    input.form-checkbox {
+        position: relative;
+    }
+
+    /* คำอธิบายชุดข้อมูลใต้กราฟ — กดเพื่อเปิด/ปิดเส้น (ApexCharts สร้าง DOM เอง แก้ที่ CSS ทางเดียว)
+       ตัวจริงสูง 17px · ให้ 44px ทั้งแถวเลย ไม่ต้องซ้อน overlay เพราะมันเรียงเป็นแถวอยู่แล้ว */
+    .apexcharts-legend-series {
+        min-height: 2.75rem;
+        display: flex !important;
+        align-items: center;
+    }
+}

@@ -246,7 +246,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose, hidePa
                 type="button"
                 onClick={fetchSuggestions}
                 disabled={phase === 'loading'}
-                className="text-default-700 hover:text-success flex size-7 items-center justify-center rounded"
+                className="text-default-700 hover:text-success flex size-11 lg:size-7 items-center justify-center rounded"
                 aria-label="ขอคำแนะนำใหม่"
                 title="ขอคำแนะนำใหม่"
               >
@@ -256,7 +256,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose, hidePa
             <button
               type="button"
               onClick={onClose}
-              className="text-default-700 hover:text-default-800 flex size-7 items-center justify-center rounded"
+              className="text-default-700 hover:text-default-800 flex size-11 lg:size-7 items-center justify-center rounded"
               aria-label="ปิด"
             >
               <Icon icon="x" className="text-base" />

@@ -273,7 +273,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
               <Link
                 href="/dashboard"
                 aria-label="ย้อนกลับ"
-                className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-default-700"
+                className="inline-flex size-11 shrink-0 lg:size-10 items-center justify-center rounded-lg text-default-700"
               >
                 <Icon icon="arrow-left" className="text-xl" />
               </Link>
@@ -298,7 +298,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
                 type="button"
                 onClick={() => setFilterOpen(true)}
                 aria-label="ตัวกรอง"
-                className="relative inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-default-300 text-default-700"
+                className="relative inline-flex size-11 shrink-0 lg:size-10 items-center justify-center rounded-lg border border-default-300 text-default-700"
               >
                 <Icon icon="adjustments-horizontal" className="text-lg" />
                 {activeFilterCount > 0 && (
@@ -310,7 +310,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
               <Link
                 href="/notifications"
                 aria-label="การแจ้งเตือน"
-                className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-default-700"
+                className="inline-flex size-11 shrink-0 lg:size-10 items-center justify-center rounded-lg text-default-700"
               >
                 <Icon icon="bell" className="text-xl" />
               </Link>
@@ -435,7 +435,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
               type="button"
               onClick={() => setFilterOpen(false)}
               aria-label="ปิด"
-              className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-default-700"
+              className="inline-flex size-11 shrink-0 lg:size-10 items-center justify-center rounded-lg text-default-700"
             >
               <Icon icon="x" className="text-xl" />
             </button>

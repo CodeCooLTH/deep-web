@@ -277,7 +277,7 @@ export default function CustomerQuickBlock({
         <button
           type="button"
           onClick={() => setPasteOpen(true)}
-          className="ms-auto inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary"
+          className="ms-auto inline-flex items-center gap-1.5 rounded-lg min-h-11 lg:min-h-0 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary"
         >
           <Icon icon="clipboard" className="size-4" />
           กระจายที่อยู่

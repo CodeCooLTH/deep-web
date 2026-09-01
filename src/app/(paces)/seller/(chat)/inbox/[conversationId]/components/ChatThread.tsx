@@ -579,7 +579,7 @@ function ReactMessageButton({ onOpen }: { onOpen: (rect: DOMRect) => void }) {
       onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect())}
       aria-label="กดรีแอ็กชันข้อความนี้"
       title="รีแอ็กชัน"
-      className="text-default-700 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex"
+      className={'text-default-700 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex' /* carve-out [TAP]: `hidden` + `lg:group-hover:flex` = โผล่เฉพาะตอนเอาเมาส์ชี้บนจอ ≥1024px ⇒ ไม่ใช่เป้าให้นิ้ว กฎ 44px ครอบเฉพาะมือถือ */}
     >
       <Icon icon="mood-smile" className="size-4" />
     </button>
@@ -602,7 +602,7 @@ function CreateOrderFromMessageButton({ onCreate }: { onCreate: () => void }) {
       onClick={onCreate}
       aria-label={`${vocab.createLabel}จากข้อความนี้`}
       title={`${vocab.createLabel}จากข้อความนี้`}
-      className="text-default-700 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex"
+      className={'text-default-700 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex' /* carve-out [TAP]: `hidden` + `lg:group-hover:flex` = โผล่เฉพาะตอนเอาเมาส์ชี้บนจอ ≥1024px ⇒ ไม่ใช่เป้าให้นิ้ว กฎ 44px ครอบเฉพาะมือถือ */}
     >
       <Icon icon="receipt" className="size-4" />
     </button>
@@ -692,7 +692,7 @@ function ReplyMessageButton({ onReply }: { onReply: () => void }) {
       onClick={onReply}
       aria-label="ตอบกลับข้อความนี้"
       title="ตอบกลับ"
-      className="text-default-700 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex"
+      className={'text-default-700 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex' /* carve-out [TAP]: `hidden` + `lg:group-hover:flex` = โผล่เฉพาะตอนเอาเมาส์ชี้บนจอ ≥1024px ⇒ ไม่ใช่เป้าให้นิ้ว กฎ 44px ครอบเฉพาะมือถือ */}
     >
       <Icon icon="arrow-back-up" className="size-4" />
     </button>
@@ -4341,7 +4341,7 @@ export default function ChatThread({
               type="button"
               onClick={() => setReplyingTo(null)}
               aria-label="ยกเลิกการตอบกลับ"
-              className="text-default-700 hover:bg-default-100 hover:text-default-700 flex size-6 shrink-0 items-center justify-center rounded-full"
+              className="text-default-700 hover:bg-default-100 hover:text-default-700 flex size-11 shrink-0 items-center justify-center rounded-full lg:size-6"
             >
               <Icon icon="x" className="text-sm" />
             </button>
@@ -4413,7 +4413,7 @@ export default function ChatThread({
                         aria-label={fmt(t.inbox.attachRemove, { name: label })}
                         // bg-dark/60 ไม่ใช่ bg-black/50 — overlay ผสมหมึกตาม Impeccable และให้ตรงกับ
                         // CustomerFileTile/PhotoAlbum ในโฟลเดอร์เดียวกันที่ใช้ token นี้อยู่แล้ว
-                        className="bg-dark/60 hover:bg-dark/80 absolute end-1 top-1 flex size-6 items-center justify-center rounded-full text-white"
+                        className="bg-dark/60 hover:bg-dark/80 absolute end-1 top-1 flex size-11 items-center justify-center rounded-full text-white lg:size-6"
                       >
                         <Icon icon="x" className="text-sm" />
                       </button>

@@ -316,7 +316,7 @@ export default function OrderCard({
               type="button"
               onClick={() => setExpanded((v) => !v)}
               /* relative z-10: ต้องอยู่เหนือแผ่นลิงก์ที่ทับการ์ด ไม่งั้นกด "ดูเพิ่มเติม" แล้วเด้งไปหน้า detail */
-              className="relative z-10 mt-1 flex w-full items-center justify-center gap-1 border-t border-dashed border-default-300 pt-2 text-xs font-medium text-primary"
+              className="relative z-10 mt-1 flex w-full items-center ju min-h-11 lg:min-h-0stify-center gap-1 border-t border-dashed border-default-300 pt-2 text-xs font-medium text-primary"
             >
               {expanded ? 'ย่อ' : `ดูเพิ่มเติม (อีก ${itemCount - 1} รายการ)`}
               <Icon

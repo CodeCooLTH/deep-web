@@ -1416,7 +1416,7 @@ export default function CommentsClient({
             type="button"
             onClick={() => setReplyTo(null)}
             aria-label={t.comments.cancelReply}
-            className="hover:bg-default-100 text-default-700 flex size-6 shrink-0 items-center justify-center rounded"
+            className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded lg:size-6"
           >
             <Icon icon="x" width={12} height={12} />
           </button>
@@ -1498,7 +1498,7 @@ export default function CommentsClient({
               // aria-expanded ที่ไม่บอกว่า "ขยายอะไร" ทำให้ AT ประกาศสถานะลอย ๆ โดยผู้ใช้หา
               // แผงที่เปิดขึ้นมาไม่เจอ — ต้องชี้ไปที่กล่องของแผงเสมอ
               aria-controls="commentEmojiPicker"
-              className="hover:bg-default-200 text-default-700 flex size-9 items-center justify-center rounded-full"
+              className="hover:bg-default-200 text-default-700 flex size-11 items-center justify-center rounded-full lg:size-9"
             >
               <Icon icon="mood-smile" className="text-lg" />
             </button>
@@ -1517,7 +1517,7 @@ export default function CommentsClient({
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading || sending}
             aria-label={t.comments.attachImage}
-            className="hover:bg-default-200 text-default-700 flex size-9 shrink-0 items-center justify-center rounded-full"
+            className="hover:bg-default-200 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-full lg:size-9"
           >
             <Icon icon={uploading ? 'loader-2' : 'camera'} className={`text-lg ${uploading ? 'animate-spin' : ''}`} />
           </button>
@@ -1527,7 +1527,7 @@ export default function CommentsClient({
               onClick={submitReply}
               disabled={sending}
               aria-label={replyTo ? t.comments.sendReply : t.comments.sendComment}
-              className="bg-primary hover:bg-primary-hover flex size-9 shrink-0 items-center justify-center rounded-full text-white"
+              className="bg-primary hover:bg-primary-hover flex size-11 shrink-0 items-center justify-center rounded-full lg:size-9 text-white"
             >
               <Icon icon={sending ? 'loader-2' : 'send-2'} className={`text-lg ${sending ? 'animate-spin' : ''}`} />
             </button>
@@ -1604,7 +1604,7 @@ export default function CommentsClient({
                     title={label}
                     aria-label={tab === 'ALL' ? t.comments.all : fmt(t.comments.filterChannelAria, { name: label })}
                     onClick={() => setChannelTab(tab)}
-                    className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-nowrap ${
+                    className={`flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-nowrap lg:min-h-0 ${
                       active ? 'bg-card text-dark font-semibold shadow-sm' : 'text-default-600'
                     }`}
                   >
@@ -1774,7 +1774,7 @@ export default function CommentsClient({
                 // 🛑 title ไม่ใช่ตัวแทนของข้อความบนจอ (มือถือไม่มี hover) — ที่นี่ใช้ได้เพราะเป็น
                 // "คำอธิบายเสริม" ล้วน ๆ ไม่ใช่ข้อมูลที่ต้องมีเพื่อใช้งาน ชื่อแท็บบอกครบอยู่แล้ว
                 title={t.hint}
-                className={`-mb-px flex shrink-0 items-center gap-1 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
+                className={`-mb-px flex min-h-11 lg:min-h-0 shrink-0 items-center gap-1 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
                   on ? 'border-primary text-primary font-semibold' : 'text-default-600 border-transparent font-medium'
                 }`}
               >

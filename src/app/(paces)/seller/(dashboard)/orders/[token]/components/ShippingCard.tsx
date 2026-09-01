@@ -205,7 +205,7 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
           {iship && (
             <button
               aria-label="ดึงสถานะจาก iShip เดี๋ยวนี้"
-              className="btn btn-icon border-default-300 text-default-700 hover:text-primary size-8! rounded-full border disabled:opacity-60"
+              className="btn btn-icon border-default-300 text-default-700 hover:text-primary size-11! lg:size-8! rounded-full border disabled:opacity-60"
               disabled={loading}
               onClick={() => void fetchTraces(true)}
               title="ดึงสถานะจาก iShip เดี๋ยวนี้"
@@ -244,7 +244,7 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
               {trackingNo && (
                 <button
                   aria-label="คัดลอกเลขพัสดุ"
-                  className="btn btn-icon border-default-300 text-default-700 hover:text-primary size-8! shrink-0 rounded-full border"
+                  className="btn btn-icon border-default-300 text-default-700 hover:text-primary size-11! lg:size-8! shrink-0 rounded-full border"
                   onClick={handleCopy}
                   title="คัดลอกเลขพัสดุ"
                   type="button"

@@ -120,7 +120,7 @@ export default function ChannelPaymentSelect({ control, compact = false, channel
             className="flex w-full items-center gap-3 py-2.5 text-left"
           >
             <span className="w-28 shrink-0 text-sm font-semibold text-default-700">ช่องทางการขาย</span>
-            <span className="ms-auto inline-flex items-center gap-1.5 rounded-lg border border-default-300 px-2.5 py-1.5 text-sm font-semibold text-default-800">
+            <span className="ms-auto inline-flex items-center gap-1.5 rounded-lg min-h-11 lg:min-h-0 border border-default-300 px-2.5 py-1.5 text-sm font-semibold text-default-800">
               <ChannelMark value={channelField.value} />
               {labelOf(CHANNEL_OPTIONS, channelField.value) || '—'}
               <Icon icon="chevron-down" className="size-4 text-default-400" />
@@ -134,7 +134,7 @@ export default function ChannelPaymentSelect({ control, compact = false, channel
           className="flex w-full items-center gap-3 py-2.5 text-left"
         >
           <span className="w-28 shrink-0 text-sm font-semibold text-default-700">การชำระเงิน</span>
-          <span className="ms-auto inline-flex items-center gap-1.5 rounded-lg border border-default-300 px-2.5 py-1.5 text-sm font-semibold text-default-800">
+          <span className="ms-auto inline-flex items-center gap-1.5 rounded-lg min-h-11 lg:min-h-0 border border-default-300 px-2.5 py-1.5 text-sm font-semibold text-default-800">
             {pmOpt && <Icon icon={pmOpt.icon} className="size-4 text-primary" />}
             {labelOf(PAYMENT_OPTIONS, paymentField.value) || '—'}
             <Icon icon="chevron-down" className="size-4 text-default-400" />

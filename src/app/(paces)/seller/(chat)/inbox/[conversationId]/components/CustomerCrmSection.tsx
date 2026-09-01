@@ -300,7 +300,7 @@ export default function CustomerCrmSection({
                       type="button"
                       onClick={() => setTags((prev) => prev.filter((x) => x !== t))}
                       aria-label={`ลบแท็ก ${t}`}
-                      className="hover:bg-primary/15 flex size-9 items-center justify-center rounded-full"
+                      className="hover:bg-primary/15 flex size-11 lg:size-9 items-center justify-center rounded-full"
                     >
                       <Icon icon="x" width={12} height={12} />
                     </button>

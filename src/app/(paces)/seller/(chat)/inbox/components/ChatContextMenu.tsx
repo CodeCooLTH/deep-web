@@ -309,7 +309,7 @@ export default function ChatContextMenu({
                 disabled={busy}
                 onClick={() => patch({ tags: tags.filter((x) => x !== t) }, 'ลบแท็กแล้ว')}
                 aria-label={`ลบแท็ก ${t}`}
-                className="hover:bg-primary/20 flex size-5 items-center justify-center rounded-full disabled:opacity-50"
+                className="hover:bg-primary/20 flex size-11 lg:size-5 items-center justify-center rounded-full disabled:opacity-50"
               >
                 <Icon icon="x" width={12} height={12} />
               </button>

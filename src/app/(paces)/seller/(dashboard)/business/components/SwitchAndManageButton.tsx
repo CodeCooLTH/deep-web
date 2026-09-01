@@ -53,7 +53,7 @@ export default function SwitchAndManageButton({ shopId, shopName }: { shopId: st
       onClick={go}
       disabled={busy}
       aria-label={`จัดการ ${shopName}`}
-      className="text-primary inline-flex items-center gap-1 text-sm font-medium hover:underline disabled:opacity-50"
+      className="text-primary inline-flex min-h-11 items-center gap-1 text-sm font-medium hover:underline disabled:opacity-50 lg:min-h-0"
     >
       {busy && <Icon icon="loader-2" className="size-3.5 animate-spin" aria-hidden="true" />}
       จัดการ

@@ -115,7 +115,7 @@ export default function QuickLineItem({
               aria-label={item.name ? `แก้ไข${productNoun} ${item.name}` : `เลือก${productNoun}`}
               aria-invalid={itemsRootError || undefined}
               aria-describedby={itemsRootError ? 'order-items-error' : undefined}
-              className={`w-full truncate rounded-md px-1.5 py-1 text-start text-sm font-semibold hover:bg-default-100 ${
+              className={`flex w-full items-center truncate rounded-md px-1.5 py-1 text-start min-h-11 lg:min-h-0 text-sm font-semibold hover:bg-default-100 ${
                 hasProduct ? 'text-dark' : itemsRootError ? 'text-danger' : 'text-default-400'
               }`}
             >
@@ -194,7 +194,7 @@ export default function QuickLineItem({
           </div>
           {/* stepper qty ±1 */}
           <div className="flex shrink-0 items-center overflow-hidden rounded-lg border border-default-300">
-            <button type="button" onClick={() => setQty(qty - 1)} aria-label={item.name ? `ลดจำนวน ${item.name}` : 'ลดจำนวน'} className="inline-flex size-9 items-center justify-center text-primary">
+            <button type="button" onClick={() => setQty(qty - 1)} aria-label={item.name ? `ลดจำนวน ${item.name}` : 'ลดจำนวน'} className="inline-flex size-11 items-center lg:size-9 justify-center text-primary">
               <Icon icon="minus" className="size-4" />
             </button>
             <input
@@ -207,7 +207,7 @@ export default function QuickLineItem({
               onChange={(e) => qtyField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
               onBlur={qtyField.onBlur}
             />
-            <button type="button" onClick={() => setQty(qty + 1)} aria-label={item.name ? `เพิ่มจำนวน ${item.name}` : 'เพิ่มจำนวน'} className="inline-flex size-9 items-center justify-center text-primary">
+            <button type="button" onClick={() => setQty(qty + 1)} aria-label={item.name ? `เพิ่มจำนวน ${item.name}` : 'เพิ่มจำนวน'} className="inline-flex size-11 items-center lg:size-9 justify-center text-primary">
               <Icon icon="plus" className="size-4" />
             </button>
           </div>

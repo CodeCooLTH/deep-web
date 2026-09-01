@@ -51,7 +51,7 @@ export default function ProductCapabilityCardV2({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="text-default-700 hover:text-dark inline-flex items-center gap-1.5 text-xs font-medium"
+        className="text-default-700 hover:text-dark inline-flex items-c min-h-11 lg:min-h-0enter gap-1.5 text-xs font-medium"
         aria-expanded={open}
         aria-controls="v2-capability-panel"
       >

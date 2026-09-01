@@ -394,7 +394,7 @@ export default function QuickMessageManager({
             <button
               type="button"
               onClick={backToList}
-              className="text-default-700 hover:text-primary flex size-9 shrink-0 items-center justify-center rounded"
+              className="text-default-700 hover:text-primary flex size-11 lg:size-9 shrink-0 items-center justify-center rounded"
               aria-label="ย้อนกลับไปรายการ"
             >
               <Icon icon="arrow-left" className="text-lg" />

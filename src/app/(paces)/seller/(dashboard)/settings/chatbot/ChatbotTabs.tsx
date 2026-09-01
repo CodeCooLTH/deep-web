@@ -37,7 +37,7 @@ export default function ChatbotTabs() {
             role="tab"
             aria-selected={active}
             className={cn(
-              'flex min-w-0 flex-1 items-center justify-center rounded-md px-2 py-2 text-sm font-medium text-nowrap',
+              'flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-md px-2 py-2 text-sm font-medium text-nowrap lg:min-h-0',
               active ? 'bg-card text-dark font-semibold shadow-sm' : 'text-default-600',
             )}
           >

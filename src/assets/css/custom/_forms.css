@@ -7,7 +7,12 @@
  * และเกณฑ์ 44px มีเหตุผลจาก "นิ้วโป้ง" ซึ่งไม่ใช่บริบทของเมาส์
  * 1024px = เส้นเดียวกับ seller mobile shell ที่ระบบใช้อยู่แล้ว ไม่ใช่เลขใหม่
  * [สำคัญ] .form-select ต้องเปลี่ยนคู่กันเสมอ ไม่งั้น select เตี้ยกว่า input ในฟอร์มเดียวกัน
- * และ .choices__inner (safepay-overrides.css) ที่ hardcode ค่านี้ไว้ให้ match ก็ต้องตามด้วย */
+ * และ .choices__inner (safepay-overrides.css) ที่ hardcode ค่านี้ไว้ให้ match ก็ต้องตามด้วย
+ *
+ * 🛑 กฎเดียวกันนี้ถูกขยายไปครอบ **ปุ่ม/ชิป/เปลี่ยนหน้า/สวิตช์** แล้ว (2026-09-01) —
+ * อยู่ที่ `safepay-overrides.css` ท้ายไฟล์ ใต้หัวข้อ "เป้าที่กดได้ = 44px บนมือถือ"
+ * เหตุผลและตัวเลข breakpoint เป็นชุดเดียวกับที่เขียนไว้ข้างบนนี้ — **ห้ามแก้ที่เดียว**
+ * เปลี่ยนเส้น 1024px หรือค่าตั้งต้นเมื่อไร ต้องไปแก้บล็อกนั้นด้วยเสมอ */
 .form-input {
     @apply text-body-color placeholder:text-default-400 block h-11 lg:h-9.25 w-full rounded border py-0 text-sm outline-0 transition-all;
     @apply hover:border-default-500! focus:border-default-500! focus-visible:border-default-500 focus:outline-0 focus-visible:ring-0 focus-visible:outline-none;

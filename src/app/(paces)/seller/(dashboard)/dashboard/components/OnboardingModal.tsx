@@ -624,7 +624,7 @@ export default function OnboardingModal({
                 type="button"
                 aria-label="ปิด"
                 onClick={onClose}
-                className="btn size-9 flex items-center justify-center text-default-500 hover:text-primary"
+                className="btn size-11 lg:size-9 flex items-center justify-center text-default-500 hover:text-primary"
               >
                 <span className="sr-only">ปิด</span>
                 <Icon icon="x" className="size-5" />

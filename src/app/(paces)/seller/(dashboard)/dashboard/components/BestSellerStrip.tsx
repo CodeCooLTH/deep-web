@@ -76,7 +76,7 @@ export default function BestSellerStrip({ products, vertical }: Props) {
           {vocab.bestSellerTitle}
         </h4>
         {/* label เดียวกับปุ่มบน TopSellingProducts (เดสก์ท็อป) — ปลายทางเดียวกัน /products */}
-        <Link href="/products" className="text-primary text-sm font-medium inline-flex items-center gap-0.5">
+        <Link href="/products" className="text-primary text-sm font-medium inline-flex items-c min-h-11 lg:min-h-0enter gap-0.5">
           {vocab.viewAllLabel}
           <Icon icon="chevron-right" className="size-4" />
         </Link>

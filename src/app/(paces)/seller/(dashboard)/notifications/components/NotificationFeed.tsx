@@ -150,7 +150,7 @@ export default function NotificationFeed({ items }: Props) {
         <button
           type="button"
           onClick={() => setAllRead(true)}
-          className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+          className="flex min-h-11 items-center gap-1 text-xs text-primary transition-colors hover:text-primary/80 lg:min-h-0"
           /* UI-only: persist = Phase 2 OOS-2 */
         >
           <Icon icon="solar:check-read-line-duotone" className="text-base" />

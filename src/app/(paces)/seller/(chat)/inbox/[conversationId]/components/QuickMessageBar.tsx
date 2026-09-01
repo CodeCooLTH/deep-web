@@ -319,7 +319,7 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
             <button
               type="button"
               onClick={() => setManagerOpen(true)}
-              className="text-default-700 hover:text-primary flex size-9 items-center justify-center rounded"
+              className="text-default-700 hover:text-primary flex size-11 lg:size-9 items-center justify-center rounded"
               aria-label="จัดการข้อความสำเร็จรูป"
               title="จัดการข้อความสำเร็จรูป"
             >
@@ -328,7 +328,7 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="text-default-700 hover:text-default-800 flex size-9 items-center justify-center rounded"
+              className="text-default-700 hover:text-default-800 flex size-11 lg:size-9 items-center justify-center rounded"
               aria-label="ปิด"
             >
               <Icon icon="x" className="text-base" />

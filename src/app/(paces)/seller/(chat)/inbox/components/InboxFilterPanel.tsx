@@ -224,7 +224,7 @@ export default function InboxFilterPanel({
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="text-default-700 hover:text-default-800 flex size-6 items-center justify-center rounded"
+              className="text-default-700 hover:text-default-800 flex size-11 lg:size-6 items-center justify-center rounded"
               aria-label={t.common.close}
             >
               <Icon icon="x" className="size-4" />
