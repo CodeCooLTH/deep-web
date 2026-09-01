@@ -472,7 +472,7 @@ export default function ShopForm({
                             <input
                               type="radio"
                               value="INDIVIDUAL"
-                              className="mt-0.5 shrink-0"
+                              className="form-radio mt-0.5 shrink-0"
                               {...register('businessType')}
                             />
                             <div>
@@ -486,7 +486,7 @@ export default function ShopForm({
                             <input
                               type="radio"
                               value="COMPANY"
-                              className="mt-0.5 shrink-0"
+                              className="form-radio mt-0.5 shrink-0"
                               {...register('businessType')}
                             />
                             <div>

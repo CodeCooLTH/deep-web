@@ -285,7 +285,7 @@ export default function ShippingAddress({
           {/* ธีมมีปุ่มดินสอที่ไม่ทำอะไร — แทนด้วยปุ่มที่ทำงานจริงและร้านใช้ทุกวันตอนแปะหน้ากล่อง */}
           {((hasShipping && addrLines.length > 0) || (showPickup && shopAddress)) && (
             <button
-              className="btn btn-icon border-default-300 text-default-700 hover:text-primary size-8! rounded-full border"
+              className="btn btn-icon border-default-300 text-default-700 hover:text-primary size-11! lg:size-8! rounded-full border"
               onClick={showPickup ? handleCopyShopAddress : handleCopyAddress}
               title="คัดลอกที่อยู่"
               aria-label="คัดลอกที่อยู่"

@@ -613,7 +613,7 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                            (CustomerCrmSection.tsx:288-295) — ไอคอนคงขนาดเดิมเพื่อไม่ให้ชิปบวม */
                         <button type="button" onClick={() => removePhrase(p.id)} disabled={busy}
                           aria-label={`ลบคำ ${p.phrase}`}
-                          className="text-primary/60 hover:text-danger hover:bg-primary/15 flex size-9 flex-none items-center justify-center rounded-full sm:size-4">
+                          className="text-primary/60 hover:text-danger hover:bg-primary/15 flex size-11 lg:size-9 flex-none items-center justify-center rounded-full sm:size-4">
                           <Icon icon="x" className="text-xs" aria-hidden="true" />
                         </button>
                       )}

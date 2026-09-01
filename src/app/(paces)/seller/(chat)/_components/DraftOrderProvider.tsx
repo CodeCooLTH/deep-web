@@ -721,7 +721,7 @@ export default function DraftOrderProvider({
               type="button"
               onClick={() => minimize(d.id)}
               aria-label="ย่อหน้าต่าง"
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg hover:bg-white/15"
+              className="flex size-11 lg:size-8 shrink-0 items-center justify-center rounded-lg hover:bg-white/15"
             >
               <Icon icon="minus" className="size-5" />
             </button>
@@ -729,7 +729,7 @@ export default function DraftOrderProvider({
               type="button"
               onClick={() => requestClose(d.id)}
               aria-label="ปิด"
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg hover:bg-white/15"
+              className="flex size-11 lg:size-8 shrink-0 items-center justify-center rounded-lg hover:bg-white/15"
             >
               <Icon icon="x" className="size-5" />
             </button>
@@ -863,7 +863,7 @@ export default function DraftOrderProvider({
                 type="button"
                 onClick={() => requestClose(d.id)}
                 aria-label={`ปิดร่าง${vocab.noun}`}
-                className="text-default-700 hover:text-default-700 flex size-6 shrink-0 items-center justify-center rounded-full"
+                className="text-default-700 hover:text-default-700 flex size-11 lg:size-6 shrink-0 items-center justify-center rounded-full"
               >
                 <Icon icon="x" className="size-4" />
               </button>

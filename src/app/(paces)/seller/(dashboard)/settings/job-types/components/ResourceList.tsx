@@ -322,7 +322,7 @@ export default function ResourceList({ resources, footer }: Props) {
           <div key={resource.id} className="p-4">
             <Link
               href={`/settings/job-types/${resource.id}`}
-              className="text-default-800 block truncate font-medium"
+              className="text-default-800 block truncate font-medium min-h-11 lg:min-h-0"
             >
               {resource.name}
             </Link>

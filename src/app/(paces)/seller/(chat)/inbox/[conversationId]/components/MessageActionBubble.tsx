@@ -283,7 +283,7 @@ export default function MessageActionBubble({
               type="button"
               onClick={() => setShowAll(false)}
               aria-label="กลับไปรีแอ็กชันที่ใช้บ่อย"
-              className="hover:bg-default-100 text-default-700 flex size-8 items-center justify-center rounded-lg"
+              className="hover:bg-default-100 text-default-700 flex size-11 lg:size-8 items-center justify-center rounded-lg"
             >
               <Icon icon="arrow-left" className="text-base" />
             </button>
@@ -305,7 +305,7 @@ export default function MessageActionBubble({
                           onPickCustomEmoji(glyph)
                           onClose()
                         }}
-                        className="hover:bg-default-100 flex size-8 items-center justify-center rounded text-xl leading-none"
+                        className="hover:bg-default-100 flex size-11 lg:size-8 items-center justify-center rounded text-xl leading-none"
                       >
                         {glyph}
                       </button>

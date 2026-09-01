@@ -439,7 +439,7 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
               <div className="min-w-0 flex-1">
                 <Link
                   href={`/settings/auto-reply/${k.id}`}
-                  className="text-default-800 hover:text-primary block truncate text-sm font-medium"
+                  className="text-default-800 hover:text-primary block truncate t min-h-11 lg:min-h-0ext-sm font-medium"
                 >
                   {k.name}
                 </Link>

@@ -562,7 +562,7 @@ export default function ReturnPanel({
               onClick={closeSheet}
               aria-label="ปิด"
             >
-              <span className="bg-light text-default-700 hover:bg-light-hover flex size-8 items-center justify-center rounded-md">
+              <span className="bg-light text-default-700 hover:bg-light-hover flex size-11 lg:size-8 items-center justify-center rounded-md">
                 <Icon icon="x" className="size-4" aria-hidden="true" />
               </span>
             </button>

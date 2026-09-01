@@ -6,7 +6,7 @@
  * user 2026-07-29: "แล้วไหนเลือกช่องทางทดสอบ ... มันควรมี table สำหรับ lists รายการแชท"
  * และ "ให้ตั้งค่าทดสอบได้ทีละอัน" — รายการนี้จึงเป็นของกลุ่มคำนี้ตัวเดียว ไม่ใช่ของทั้งร้าน
  *
- * Base (การ์ด + `table` ใน `table-responsive` + แถวเลือกแบบ dropdown-item avatar+ชื่อ+ช่องทาง):
+ * Base (การ์ด + `table` ใน `table-wrapper` + แถวเลือกแบบ dropdown-item avatar+ชื่อ+ช่องทาง):
  *   src/app/(paces)/seller/(chat)/inbox/components/PageFilterDropdown.tsx (แถวเลือก)
  *   theme/paces/Admin/TS/src/app/(admin)/tables/static/page.tsx (โครงตาราง)
  *
@@ -329,7 +329,7 @@ export default function TestThreadsCard({
         // skeleton แทนตัวอักษรบอกสถานะ — เลียนคอลัมน์จริงของตาราง (avatar กลม / ชื่อ+ช่องทาง /
         // ข้อความล่าสุด / วันที่ / ปุ่ม) เพื่อไม่ให้เนื้อหากระโดดตอนโหลดเสร็จ (operate.md: skeleton ไม่ใช่ spinner)
         // Base: theme/paces/Admin/TS/src/app/(admin)/ui/placeholders/page.tsx:75-82
-        <div className="table-responsive" role="status" aria-label="โหลดรายการแชทอยู่">
+        <div className="table-wrapper" role="status" aria-label="โหลดรายการแชทอยู่">
           <table className="table table-hover">
             <ThreadTableHead canEdit={canEdit} />
             <tbody>
@@ -369,7 +369,13 @@ export default function TestThreadsCard({
           </p>
         </div>
       ) : (
-        <div className="table-responsive">
+        <div className="table-wrapper">
+        {/* 🛑 `table-wrapper` ไม่ใช่ `table-responsive` — `.table-responsive` ในรีโปนี้อยู่ใน
+            `_datatables.css` และจัดสไตล์ให้ `> .dt-container` เท่านั้น **ไม่มี overflow เลย**
+            ตารางนี้เป็น table ธรรมดาไม่ใช่ DataTables จึงไม่เคยเลื่อนข้างในกล่อง แต่ดัน
+            ทั้งหน้าให้เลื่อนข้างแทน (วัดที่ 390px: หน้ากว้างเกิน 23px มาตั้งแต่ก่อนงาน tap target)
+            `.table-wrapper` (`custom/_table.css`) คือตัวที่ `DataTable.tsx`/`OrderSummary`/
+            `HoverPanel`/`QuickMessageManager` ใช้อยู่แล้ว = overflow-x-auto จริง */}
           <table className="table table-hover">
             <ThreadTableHead canEdit={canEdit} />
             <tbody>

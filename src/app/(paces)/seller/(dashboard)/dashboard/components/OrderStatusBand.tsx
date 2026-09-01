@@ -264,7 +264,7 @@ export default async function OrderStatusBand({
       )
 
   return (
-    <div className="card">
+    <div className="card min-h-11 lg:min-h-0">
       {/* header: ชื่อ band + ลิงก์ "ดูทั้งหมด ›" (RSC-safe: Link ธรรมดา ไม่ใช้ component={Link} — Hard Rule 2) */}
       {/* !py-3: ลดจาก py-3.75 ตาม feedback "section ห่างกันเกินไป" (2026-08-04) — per-instance
           override ตาม pattern เดิมของโปรเจกต์ (AuctionStatStrip/OrderCard) ไม่แตะ _card.css กลาง
@@ -274,7 +274,7 @@ export default async function OrderStatusBand({
           <Icon icon="tabler:clipboard-list" className="size-4 text-primary" />
           {shipping ? fmt(t.dashboard.statusBandTitle, { noun }) : nounTitle}
         </h4>
-        <Link href="/orders" className="text-primary text-sm font-medium inline-flex items-center gap-0.5">
+        <Link href="/orders" className="text-primary text-sm font-medium inline-flex items-c min-h-11 lg:min-h-0enter gap-0.5">
           {t.dashboard.viewAll}
           <Icon icon="tabler:chevron-right" className="size-4" />
         </Link>

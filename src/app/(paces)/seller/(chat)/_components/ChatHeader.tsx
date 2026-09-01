@@ -114,9 +114,12 @@ export default function ChatHeader({
           size-11 (44px) เรียงข้าง ๆ โลโก้ 56px จะดันแถวสูงกว่าปุ่มทั้งแถว
           ตรวจแล้วว่าไม่มีกฎ CSS ตัวไหนจับ `.chat-header img` ⇒ utility ตัวนี้มีผลจริง
           (ต่างจากหน้า login ที่ `.auth-logo img` เป็น CSS นอก layer และชนะ utility เสมอ) */}
+      {/* 🛑 `min-h-11` ที่ *ลิงก์* ไม่ใช่ที่ *รูป* — รูปต้องคง `h-8` ตามเหตุผลด้านบน (56px จะดันแถว)
+          แต่ตัวลิงก์เป็นเป้าให้นิ้วจริง ต้อง ≥44px ตาม DESIGN.md §Do's
+          `items-center` ให้รูปอยู่กลางกล่องที่สูงขึ้น ไม่ลอยชิดบน · `lg:min-h-0` คืนค่าเดิมบนจอใหญ่ */}
       <Link
         href="/dashboard"
-        className="shrink-0"
+        className="inline-flex min-h-11 shrink-0 items-center lg:min-h-0"
         aria-label={t.inbox.backToDashboard}
       >
         <img src={logoWordmark.src} alt="Deep" className="h-8 w-auto" />

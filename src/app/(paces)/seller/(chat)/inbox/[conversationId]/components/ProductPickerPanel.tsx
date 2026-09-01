@@ -232,7 +232,7 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
                 type="button"
                 onClick={() => setSelected(null)}
                 aria-label="กลับไปเลือกสินค้า"
-                className="text-default-700 hover:text-info flex size-7 items-center justify-center rounded"
+                className="text-default-700 hover:text-info flex size-11 lg:size-7 items-center justify-center rounded"
               >
                 <Icon icon="arrow-left" className="text-base" />
               </button>
@@ -276,7 +276,7 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
             onClick={onClose}
             aria-label="ปิด"
             disabled={sending}
-            className={`text-default-700 hover:text-default-800 flex size-7 items-center justify-center rounded ${
+            className={`text-default-700 hover:text-default-800 flex size-11 lg:size-7 items-center justify-center rounded ${
               sending ? 'pointer-events-none opacity-50' : ''
             }`}
           >

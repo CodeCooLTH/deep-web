@@ -112,7 +112,7 @@ export default function ProductPriceCardV2({
                 />
                 <label
                   htmlFor={id}
-                  className="btn btn-xs border-default-300 text-default-700 peer-checked:bg-primary peer-checked:border-primary cursor-pointer min-h-8 rounded-full px-2.5 text-xs peer-checked:text-white"
+                  className="btn btn-xs border-default-300 text-default-700 peer-checked:bg-primary peer-checked:border-primary cursor-pointer min-h-11 lg:min-h-8 rounded-full px-2.5 text-xs peer-checked:text-white"
                 >
                   ฿{price}
                 </label>

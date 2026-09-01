@@ -183,7 +183,7 @@ export default function PacesToastItem({ id, type, message, duration, onClose, c
             dismiss()
           }}
           aria-label="ปิด"
-          className="absolute end-1 top-1 flex items-center justify-center opacity-50 hover:opacity-100 focus:opacity-100 focus:outline-hidden">
+          className="absolute end-1 top-1 flex min-h-11 min-w-11 items-center justify-center opacity-50 hover:opacity-100 focus:opacity-100 focus:outline-hidden lg:min-h-0 lg:min-w-0">
           <Icon icon="tabler:x" className="text-default-800 size-4" />
         </button>
       </div>
@@ -211,7 +211,7 @@ export default function PacesToastItem({ id, type, message, duration, onClose, c
             type="button"
             onClick={dismiss}
             aria-label="ปิด"
-            className="flex items-center justify-center opacity-50 hover:opacity-100 focus:opacity-100 focus:outline-hidden">
+            className="flex min-h-11 min-w-11 items-center justify-center opacity-50 hover:opacity-100 focus:opacity-100 focus:outline-hidden lg:min-h-0 lg:min-w-0">
             <Icon icon="tabler:x" className="text-default-800 size-6" />
           </button>
         </div>

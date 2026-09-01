@@ -30,7 +30,7 @@ export default function ProductDescriptionCardV2({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="text-primary hover:bg-primary/5 inline-flex min-h-10 items-center gap-1 rounded-lg px-2 text-sm font-semibold"
+          className="text-primary hover:bg-primary/5 inline-flex min-h-11 lg:min-h-10 items-center gap-1 rounded-lg px-2 text-sm font-semibold"
         >
           + คำอธิบายเพิ่มเติม
         </button>

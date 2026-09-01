@@ -1188,7 +1188,7 @@ export default function AppointmentDateSheet({
             <button
               type="button"
               onClick={() => setShowDayList(true)}
-              className="btn border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50 min-h-9 shrink-0 gap-1.5 rounded-full border px-3 text-xs"
+              className="btn border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50 min-h-11 lg:min-h-9 shrink-0 gap-1.5 rounded-full border px-3 text-xs"
             >
               ดูรายการ
               <Icon icon="chevron-down" className="size-3.5" aria-hidden="true" />
@@ -1240,7 +1240,7 @@ export default function AppointmentDateSheet({
               /* ไม่ใส่ ms-auto: ตัวนับ "ทั้งวันมี n คิว" ข้าง ๆ ถือ ms-auto อยู่แล้วและมันมีเสมอ
                  เมื่อปุ่มนี้โผล่ (ปุ่มนี้ขึ้นได้ต่อเมื่อกด "ดูรายการ" ซึ่งขึ้นเฉพาะวันที่มีคิว)
                  — auto สองตัวในแถวเดียวจะแบ่งที่ว่างกันแล้วดันตัวนับไปลอยกลางแถว */
-              className="btn text-default-700 hover:bg-default-200 min-h-9 shrink-0 gap-1.5 rounded-full px-3 text-xs @5xl:hidden"
+              className="btn text-default-700 hover:bg-default-200 min-h-11 lg:min-h-9 shrink-0 gap-1.5 rounded-full px-3 text-xs @5xl:hidden"
             >
               ซ่อนรายการ
               <Icon icon="chevron-up" className="size-3.5" aria-hidden="true" />

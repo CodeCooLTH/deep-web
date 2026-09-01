@@ -220,7 +220,7 @@ function LbButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-white/15 px-3 text-xs text-white hover:bg-white/25 disabled:opacity-50"
+      className="inline-flex min-h-11 lg:min-h-9 items-center gap-1.5 rounded-lg bg-white/15 px-3 text-xs text-white hover:bg-white/25 disabled:opacity-50"
     >
       <Icon icon={icon} className="text-sm" aria-hidden="true" />
       {label}

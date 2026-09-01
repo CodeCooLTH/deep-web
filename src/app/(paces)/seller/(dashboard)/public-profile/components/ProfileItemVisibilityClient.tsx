@@ -255,8 +255,8 @@ export default function ProfileItemVisibilityClient({
                 onClick={() => setFilter(c.key)}
                 className={
                   on
-                    ? 'bg-primary/10 text-primary-ink inline-flex min-h-9 items-center rounded-full px-3 text-xs font-semibold'
-                    : 'bg-default-100 text-default-600 hover:bg-default-200 inline-flex min-h-9 items-center rounded-full px-3 text-xs'
+                    ? 'bg-primary/10 text-primary-ink inline-flex min-h-11 lg:min-h-9 items-center rounded-full px-3 text-xs font-semibold'
+                    : 'bg-default-100 text-default-600 hover:bg-default-200 min-h-11 lg:min-h-0 inline-flex min-h-11 lg:min-h-9 items-center rounded-full px-3 text-xs'
                 }
               >
                 {c.label}
@@ -295,7 +295,7 @@ export default function ProfileItemVisibilityClient({
                         type="button"
                         disabled={busy}
                         onClick={() => bulk(group.kind, true, allIds)}
-                        className="btn bg-default-100 text-default-900 hover:bg-default-200 min-h-9 px-3 text-xs"
+                        className="btn bg-default-100 text-default-900 hover:bg-default-200 min-h-11 px-3 text-xs lg:min-h-9"
                       >
                         {t.publicProfile.itemVisibility.showAll}
                       </button>
@@ -303,7 +303,7 @@ export default function ProfileItemVisibilityClient({
                         type="button"
                         disabled={busy}
                         onClick={() => bulk(group.kind, false, allIds)}
-                        className="btn bg-default-100 text-default-900 hover:bg-default-200 min-h-9 px-3 text-xs"
+                        className="btn bg-default-100 text-default-900 hover:bg-default-200 min-h-11 px-3 text-xs lg:min-h-9"
                       >
                         {t.publicProfile.itemVisibility.hideAll}
                       </button>
@@ -374,7 +374,7 @@ export default function ProfileItemVisibilityClient({
                   <button
                     type="button"
                     onClick={() => setExpanded((m) => ({ ...m, [group.kind]: true }))}
-                    className="border-default-200 text-default-600 hover:bg-default-100 mt-2 min-h-10 w-full rounded-lg border border-dashed text-xs"
+                    className="border-default-200 text-default-600 hover:bg-default-100 mt-2 min-h-11 w-full rounded-lg border border-dashed text-xs lg:min-h-10"
                   >
                     {fmt(t.publicProfile.itemVisibility.showMore, { n: group.items.length })}
                   </button>

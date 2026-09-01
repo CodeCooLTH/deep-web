@@ -1032,7 +1032,7 @@ export default function InboxList({
                 title={label}
                 aria-label={tab === 'ALL' ? label : `กรองเฉพาะช่องทาง ${label}`}
                 onClick={() => handleChannelTabChange(tab)}
-                className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-nowrap ${
+                className={`flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-nowrap lg:min-h-0 ${
                   active ? 'bg-card text-dark shadow-sm font-semibold' : 'text-default-600'
                 }`}
               >
@@ -1157,7 +1157,7 @@ export default function InboxList({
                   role="tab"
                   aria-selected={on}
                   onClick={() => selectViewTab(t.key)}
-                  className={`-mb-px flex shrink-0 items-center gap-1 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
+                  className={`-mb-px flex min-h-11 lg:min-h-0 shrink-0 items-center gap-1 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
                     t.danger
                       ? on
                         ? 'border-danger text-danger font-semibold'
@@ -1209,7 +1209,7 @@ export default function InboxList({
                 aria-haspopup="menu"
                 aria-expanded={openPanel === 'group'}
                 onClick={() => setOpenPanel(openPanel === 'group' ? null : 'group')}
-                className={`-mb-px flex items-center gap-1 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
+                className={`-mb-px flex min-h-11 lg:min-h-0 items-center gap-1 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
                   activeGroupId
                     ? 'border-primary text-primary font-semibold'
                     : 'border-transparent text-default-600 font-medium'
@@ -1276,7 +1276,7 @@ export default function InboxList({
                         onClick={() => handleDeleteGroup(g)}
                         aria-label={`ลบกลุ่ม ${g.name}`}
                         title="ลบกลุ่ม"
-                        className="text-default-700 hover:text-danger flex size-8 shrink-0 items-center justify-center"
+                        className="text-default-700 hover:text-danger flex size-11 shrink-0 items-center justify-center lg:size-8"
                       >
                         <Icon icon="trash" width={14} height={14} />
                       </button>

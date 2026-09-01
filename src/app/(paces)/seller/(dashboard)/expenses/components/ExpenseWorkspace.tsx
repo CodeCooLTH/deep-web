@@ -193,7 +193,7 @@ export default function ExpenseWorkspace({
             <Icon icon="alert-triangle" className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
             กำไรที่แสดงสูงกว่าความจริง — มีสินค้าที่ยังไม่ได้ใส่ต้นทุนในช่วงนี้
           </span>
-          <Link href="/products" className="font-semibold underline">
+          <Link href="/products" className="font-semibold underline min-h-11 lg:min-h-0">
             ใส่ต้นทุนตอนนี้ →
           </Link>
         </div>

@@ -971,7 +971,7 @@ export default function OrdersTable({
                 type="button"
                 onClick={apptDayFilter.onClear}
                 aria-label={`ล้างตัวกรอง${apptDayFilter.label}`}
-                className="ms-0.5 inline-flex size-5 items-center justify-center rounded-full bg-white/20 hover:bg-white/30"
+                className="ms-0.5 inline-flex size-11 lg:size-5 items-center justify-center rounded-full bg-white/20 hover:bg-white/30"
               >
                 <Icon icon="x" className="text-xs" />
               </button>
