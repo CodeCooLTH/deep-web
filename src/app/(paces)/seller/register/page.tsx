@@ -1,26 +1,39 @@
 /**
- * /register — ลงทะเบียนผู้ขาย (เฟส 1) — เปลือก server ที่กั้น "ฟอร์มลงทะเบียน" ไม่ให้โผล่ในแอป iOS
+ * /register — ลงทะเบียนผู้ขาย (เฟส 1: กรอกเบอร์โทร)
  *
- * ที่มา: Apple Guideline 3.1.1 (2026-08-23) *"Remove the account registration features for
- * business and organizations"* — ดูเหตุผลเต็มที่ `AppSetupBlockedNotice`
+ * 🛑 **หน้านี้ต้องทำงานได้ในทุกเปลือก รวมแอป iOS** — `proxy.ts:202` **บังคับ** ให้ผู้ใช้ที่
+ * `needsRegistration` มาที่นี่ และคอมเมนต์ตรงนั้นเขียนไว้เองว่า "ปิด/หนีไม่ได้จนเสร็จ"
+ * ⇒ หน้าที่ถูกบังคับให้มา **ห้ามเป็นทางตัน** ไม่ว่ากรณีใด
  *
- * 🛑 **ห้าม `redirect()` ออกจากหน้านี้** — `proxy.ts` เป็นคนบังคับให้ผู้ใช้มาที่นี่
- * (token.needsRegistration = ยังไม่มีเบอร์) ⇒ redirect ออกแล้ว proxy จะเด้งกลับมาทันที = **ลูปไม่รู้จบ**
- * (ต่างจาก `/auth/sign-up` ที่ไม่มีใครบังคับ จึง redirect ได้)
+ * ## ประวัติ: 2026-08-25 หน้านี้เคยถูกปิดในแอป แล้วผู้ขายเข้าแอปไม่ได้เลย
  *
- * เปลือกนี้เป็น server component เพราะ `shouldHideSignUp()` อ่าน cookie/UA ซึ่งทำใน
- * `'use client'` ไม่ได้ · ตัวฟอร์มเดิมย้ายไป `RegisterClient.tsx` ไม่ได้แก้ตรรกะข้างในเลย
+ * PR #43 ปิดหน้านี้ด้วย `AppSetupBlockedNotice` เพื่อตอบ Apple Guideline 3.1.1
+ * (*"Remove the account registration features for business and organizations"*)
+ * แต่ **ไม่ได้ปลดการบังคับใน `proxy.ts`** ⇒ กลายเป็นวงปิด:
+ *
+ *   proxy บังคับมา /register → ในแอปไม่มีฟอร์ม มีแต่ปุ่ม "ออกจากระบบ"
+ *   → ล็อกอินใหม่ → proxy บังคับมาอีก → ตลอดไป
+ *
+ * วัดจาก prod 2026-09-04: **ติดอยู่จริง 4 บัญชี** (2 ในนั้นล็อกอินด้วย Apple ในแอป)
+ * และเกิดซ้ำ 100% กับผู้ขายใหม่ทุกคนที่กด "เปิดร้านของฉัน" ในแอป
+ *
+ * ## แล้วข้อ 3.1.1 ปิดที่ไหนแทน
+ *
+ * ปิดที่ **ต้นทาง** ไม่ใช่ปลายทาง — จุดที่ผู้ใช้ *เลือกเอง* ว่าจะเป็นผู้ขาย:
+ *   1. `/auth/sign-up` + ลิงก์ "สมัครสมาชิก" (ยังปิดเหมือนเดิม)
+ *   2. ปุ่ม "เปิดร้านของฉัน" ที่ `/choose-shop` (ปิดเพิ่ม 2026-09-04)
+ *
+ * เมื่อไม่มีทางเข้าไหนพาคนใหม่มาที่นี่ได้ในแอป หน้านี้จะเหลือผู้ใช้กลุ่มเดียวคือ
+ * **คนที่มีร้านค้างอยู่แล้วและต้องกรอกให้จบ** ซึ่งไม่ใช่ "การสมัครธุรกิจ" ที่ Apple ห้าม
+ *
+ * 🛑 **ห้าม `redirect()` ออกจากหน้านี้** — proxy จะเด้งกลับมาทันที = ลูปไม่รู้จบ
  */
 import type { Metadata } from 'next'
-
-import AppSetupBlockedNotice from '@/components/paces/AppSetupBlockedNotice'
-import { shouldHideSignUp } from '@/lib/app-shell-server'
 
 import RegisterClient from './RegisterClient'
 
 export const metadata: Metadata = { title: 'ลงทะเบียนผู้ขาย' }
 
-export default async function RegisterPage() {
-  if (await shouldHideSignUp()) return <AppSetupBlockedNotice />
+export default function RegisterPage() {
   return <RegisterClient />
 }

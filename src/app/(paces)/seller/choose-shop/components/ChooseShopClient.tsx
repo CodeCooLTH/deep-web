@@ -57,7 +57,26 @@ function ShopAvatar({ logo, name }: { logo: string | null; name: string }) {
   )
 }
 
-export default function ChooseShopClient({ shops }: { shops: ShopOption[] }) {
+export default function ChooseShopClient({
+  shops,
+  hideOpenShop = false,
+}: {
+  shops: ShopOption[]
+  /**
+   * ซ่อนปุ่ม "เปิดร้านของฉัน" — เปิดจากในแอป iOS (Apple Guideline 3.1.1)
+   *
+   * 🛑 นี่คือ **ต้นทาง** ของการเป็นผู้ขาย: กดปุ่มนี้ = สร้างร้าน → proxy บังคับไป
+   * `/register` → `/onboarding` ซึ่งคือ "ฟอร์มลงทะเบียนกิจการ" ที่ Apple สั่งให้เอาออก
+   *
+   * เลือกปิดที่นี่แทนการปิดปลายทาง เพราะปิดปลายทาง (`/register`, `/onboarding`)
+   * ทำให้คนที่ค้างกลางทาง **ติดตายเข้าแอปไม่ได้เลย** — เกิดขึ้นจริงกับ 4 บัญชีบน prod
+   * ระหว่าง 2026-08-25 ถึง 09-04 (ดูหัวไฟล์ `seller/register/page.tsx`)
+   *
+   * 🛑 นี่คือ UX ไม่ใช่การควบคุมสิทธิ์ — `POST /api/shops/open-personal` ยังเรียกตรงได้
+   * ซึ่งยอมรับได้ เพราะกฎของ Apple ครอบ "สิ่งที่ผู้ใช้เห็นและกดได้ในแอป" ไม่ใช่ API
+   */
+  hideOpenShop?: boolean
+}) {
   const router = useRouter()
   const { update } = useSession()
   const [switching, setSwitching] = useState(false)
@@ -139,14 +158,16 @@ export default function ChooseShopClient({ shops }: { shops: ShopOption[] }) {
         <h3 className="mb-1.25 text-xl font-bold">ยังไม่มีร้านค้าของคุณ</h3>
         <p className="text-default-400 mb-5">เริ่มขายของออนไลน์ได้ทันที หรือวางลิงก์เชิญถ้ามีคนแชร์มาให้</p>
 
-        <button
-          type="button"
-          onClick={handleOpenPersonal}
-          disabled={opening}
-          className="btn bg-primary text-white hover:bg-primary-hover w-full disabled:opacity-50"
-        >
-          {opening ? 'กำลังเปิดร้าน...' : 'เปิดร้านของฉัน'}
-        </button>
+        {!hideOpenShop && (
+          <button
+            type="button"
+            onClick={handleOpenPersonal}
+            disabled={opening}
+            className="btn bg-primary text-white hover:bg-primary-hover w-full disabled:opacity-50"
+          >
+            {opening ? 'กำลังเปิดร้าน...' : 'เปิดร้านของฉัน'}
+          </button>
+        )}
 
         <div className="mt-5 text-start">
           <label className="form-label">มีลิงก์เชิญ? วางที่นี่</label>
@@ -199,19 +220,23 @@ export default function ChooseShopClient({ shops }: { shops: ShopOption[] }) {
         ))}
       </div>
 
-      <button
-        type="button"
-        onClick={handleOpenPersonal}
-        disabled={opening}
-        className="btn border border-dashed border-default-300 text-primary hover:bg-primary/5 mt-4 inline-flex w-full items-center justify-center gap-1.5 disabled:opacity-50"
-      >
-        <Icon icon="plus" aria-hidden="true" />
-        {opening ? 'กำลังเปิดร้าน...' : 'เปิดร้านของฉันเอง (เป็นผู้ขาย)'}
-      </button>
+      {!hideOpenShop && (
+        <>
+          <button
+            type="button"
+            onClick={handleOpenPersonal}
+            disabled={opening}
+            className="btn border border-dashed border-default-300 text-primary hover:bg-primary/5 mt-4 inline-flex w-full items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            <Icon icon="plus" aria-hidden="true" />
+            {opening ? 'กำลังเปิดร้าน...' : 'เปิดร้านของฉันเอง (เป็นผู้ขาย)'}
+          </button>
 
-      <p className="text-2xs text-default-400 mt-3 text-center">
-        ถูกเชิญเป็นผู้ดูแล = ยังไม่ถือเป็นผู้ขาย และไม่มีร้านของตัวเอง — เปิดร้านเองได้ทุกเมื่อ
-      </p>
+          <p className="text-2xs text-default-400 mt-3 text-center">
+            ถูกเชิญเป็นผู้ดูแล = ยังไม่ถือเป็นผู้ขาย และไม่มีร้านของตัวเอง — เปิดร้านเองได้ทุกเมื่อ
+          </p>
+        </>
+      )}
     </div>
   )
 }
