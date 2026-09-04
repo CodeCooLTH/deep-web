@@ -1,26 +1,23 @@
 /**
- * /onboarding — ตั้งค่าร้านครั้งแรก (เฟส 2) — เปลือก server ที่กั้น "ฟอร์มลงทะเบียน" ไม่ให้โผล่ในแอป iOS
+ * /onboarding — ตั้งค่าร้านครั้งแรก (เฟส 2: ชื่อร้าน/slug/ประเภท)
  *
- * ที่มา: Apple Guideline 3.1.1 (2026-08-23) *"Remove the account registration features for
- * business and organizations"* — ดูเหตุผลเต็มที่ `AppSetupBlockedNotice`
+ * 🛑 **หน้านี้ต้องทำงานได้ในทุกเปลือก รวมแอป iOS** — `proxy.ts:210` **บังคับ** ให้ผู้ใช้ที่
+ * `needsOnboarding` มาที่นี่ และหนีไม่ได้จนกว่าจะเสร็จ ⇒ ห้ามเป็นทางตัน
  *
- * 🛑 **ห้าม `redirect()` ออกจากหน้านี้** — `proxy.ts` เป็นคนบังคับให้ผู้ใช้มาที่นี่
- * (token.needsOnboarding = ร้านยังไม่มี slug) ⇒ redirect ออกแล้ว proxy จะเด้งกลับมาทันที = **ลูปไม่รู้จบ**
- * (ต่างจาก `/auth/sign-up` ที่ไม่มีใครบังคับ จึง redirect ได้)
+ * เหตุผลเต็ม + ประวัติที่หน้านี้เคยถูกปิดแล้วผู้ขายเข้าแอปไม่ได้ (2026-08-25 → 09-04):
+ * ดูหัวไฟล์ `src/app/(paces)/seller/register/page.tsx`
  *
- * เปลือกนี้เป็น server component เพราะ `shouldHideSignUp()` อ่าน cookie/UA ซึ่งทำใน
- * `'use client'` ไม่ได้ · ตัวฟอร์มเดิมย้ายไป `OnboardingClient.tsx` ไม่ได้แก้ตรรกะข้างในเลย
+ * ข้อ 3.1.1 ถูกปิดที่ **ต้นทาง** แทน — `/auth/sign-up` · ลิงก์ "สมัครสมาชิก" ·
+ * ปุ่ม "เปิดร้านของฉัน" ที่ `/choose-shop`
+ *
+ * 🛑 **ห้าม `redirect()` ออกจากหน้านี้** — proxy จะเด้งกลับมาทันที = ลูปไม่รู้จบ
  */
 import type { Metadata } from 'next'
-
-import AppSetupBlockedNotice from '@/components/paces/AppSetupBlockedNotice'
-import { shouldHideSignUp } from '@/lib/app-shell-server'
 
 import OnboardingClient from './OnboardingClient'
 
 export const metadata: Metadata = { title: 'ตั้งค่าร้านค้า' }
 
-export default async function OnboardingPage() {
-  if (await shouldHideSignUp()) return <AppSetupBlockedNotice />
+export default function OnboardingPage() {
   return <OnboardingClient />
 }

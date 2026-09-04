@@ -24,6 +24,7 @@ import { prisma } from '@/lib/prisma'
 import { getPersonalShop } from '@/lib/shop-context'
 import AuthCardShell from '../auth/components/AuthCardShell'
 import ChooseShopClient, { type ShopOption } from './components/ChooseShopClient'
+import { shouldHideSignUp } from '@/lib/app-shell-server'
 
 export const metadata: Metadata = { title: 'เลือกร้านค้า' }
 
@@ -60,7 +61,7 @@ export default async function ChooseShopPage() {
       <div className="mb-7.5 flex flex-col items-center justify-center text-center">
         <AuthLogo />
       </div>
-      <ChooseShopClient shops={shops} />
+      <ChooseShopClient shops={shops} hideOpenShop={await shouldHideSignUp()} />
     </AuthCardShell>
   )
 }

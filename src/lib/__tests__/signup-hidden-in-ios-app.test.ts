@@ -1,5 +1,5 @@
 /**
- * ด่าน — **การลงทะเบียนต้องไม่มีอยู่ในแอป iOS** (Apple Guideline 3.1.1, 2026-08-23)
+ * ด่าน — **การสมัครเป็นผู้ขายต้องไม่มีอยู่ในแอป iOS** (Apple Guideline 3.1.1, 2026-08-23)
  *
  * Apple เขียนมาว่า:
  *   *"The app includes an account registration feature for businesses and organizations,
@@ -7,27 +7,32 @@
  *   used in the app. Next Steps: **Remove the account registration features for business
  *   and organizations**"*
  *
- * ## ระบบเรามี 3 ทางที่พาไปกรอกฟอร์มลงทะเบียนกิจการ — ปิดครึ่งเดียวไม่นับ
+ * ## 🛑 บทเรียน 2026-08-25 → 09-04: ปิด "ปลายทาง" แล้วผู้ขายติดตายเข้าแอปไม่ได้
  *
- * | # | เส้นทาง | ใครพามา | ปิดยังไง |
- * |---|---|---|---|
- * | 1 | `/auth/sign-up` | ลิงก์ "สมัครสมาชิก" | `redirect()` ได้ |
- * | 2 | `/register` | **`proxy.ts` บังคับ** (`needsRegistration`) | ต้องแสดงจอแทน |
- * | 3 | `/onboarding` | **`proxy.ts` บังคับ** (`needsOnboarding`) | ต้องแสดงจอแทน |
+ * รอบแรกปิดที่ปลายทาง — `/register` กับ `/onboarding` แสดงจอแจ้งแทนฟอร์ม
+ * แต่ **`proxy.ts` เป็นคนบังคับให้ผู้ใช้มาสองหน้านั้น** และคอมเมนต์ตรงนั้นเขียนไว้เองว่า
+ * *"ปิด/หนีไม่ได้จนเสร็จ"* ⇒ กลายเป็นวงปิด:
  *
- * ข้อ 2–3 เข้าถึงได้โดย **ไม่ต้องผ่านข้อ 1 เลย** — ล็อกอินด้วย Apple/Facebook/LINE สร้างบัญชี
- * ใหม่ให้ทันที แล้ว proxy พาไปกรอกฟอร์มต่อ ⇒ ปิดแค่ข้อ 1 = ฟอร์มยังอยู่ในแอปครบ
- * และคนตรวจของ Apple จะเดินเข้าเส้นทางนี้แน่นอน เพราะ 4.8 บังคับให้มีปุ่ม Sign in with Apple
+ *     proxy บังคับมา /register → ในแอปไม่มีฟอร์ม → ล็อกอินใหม่ → proxy บังคับมาอีก → …
  *
- * ## 🛑 ข้อ 2–3 ห้าม redirect
+ * วัดจาก prod 2026-09-04: **ติดอยู่จริง 4 บัญชี** (2 ในนั้นล็อกอินด้วย Apple ในแอป)
+ * และเกิดซ้ำ 100% กับผู้ขายใหม่ทุกคนที่กด "เปิดร้านของฉัน" ในแอป
  *
- * `proxy.ts` เป็นคนบังคับให้มาที่หน้านั้น ⇒ redirect ออกแล้วมันเด้งกลับมาทันที = **ลูปไม่รู้จบ**
- * (คลาสเดียวกับลูปปุ่มย้อนกลับเมื่อ 2026-08-23 — ฝั่งหนึ่งดันเข้า อีกฝั่งดึงออก)
+ * 🛑 **ด่านรุ่นก่อนทำนายบั๊กนี้ไว้แล้วแต่ตรวจผิดตัว** — มันเขียนว่า *"ต้องมีทางออก ไม่งั้น
+ * ผู้ใช้ติดจอนี้ถาวร = แลกความผิดข้อ 3.1.1 ด้วยบั๊กข้อ 2.1"* แล้วไปตรวจว่า **มีปุ่มออกจากระบบไหม**
+ * ซึ่งไม่ใช่ทางออก — กดแล้วล็อกอินกลับมาก็เจอจอเดิม
+ * ⇒ *"มีปุ่มให้กด" ไม่เท่ากับ "ไปไหนได้"* · ด่านต้องตรวจ **ผลลัพธ์** ไม่ใช่การมีอยู่ของปุ่ม
  *
- * ## ทำไมต้องมีด่าน ทั้งที่เขียนคอมเมนต์ไว้แล้ว
+ * ## กฎที่ถูกต้อง: ปิดที่ **ต้นทาง** ไม่ใช่ปลายทาง
  *
- * `tsc`/build/eslint ผ่านหมดทุกกรณีข้างบน — โค้ดถูกทุกตัวอักษร สิ่งที่ผิดคือ **หน้านี้โผล่
- * ให้ใครเห็น** ซึ่งไม่มีเครื่องมือไหนอ่านออก · และราคาของการพลาดคือรีวิวรอบใหม่ (รอบละหลายวัน)
+ * | จุด | ใครไปถึง | ทำยังไง |
+ * |---|---|---|
+ * | `/auth/sign-up` + ลิงก์ "สมัครสมาชิก" | คนที่ **ยังไม่ล็อกอิน** เลือกเอง | ปิด — redirect ออก |
+ * | ปุ่ม "เปิดร้านของฉัน" (`/choose-shop`) | คนล็อกอินแล้วที่ **เลือกเอง** ว่าจะเป็นผู้ขาย | ปิด — ซ่อนปุ่ม |
+ * | `/register` · `/onboarding` | **`proxy.ts` บังคับมา** หนีไม่ได้ | **ต้องเปิด** — ไม่งั้นติดตาย |
+ *
+ * เมื่อไม่มีทางเข้าไหนพาคนใหม่มาถึง 2 หน้าสุดท้ายได้ในแอป หน้าเหล่านั้นจะเหลือผู้ใช้กลุ่มเดียว
+ * คือ **คนที่มีร้านค้างอยู่แล้วและต้องกรอกให้จบ** ซึ่งไม่ใช่ "การสมัครธุรกิจ" ที่ Apple ห้าม
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -46,6 +51,9 @@ const SIGN_IN = 'src/app/(paces)/seller/auth/sign-in/page.tsx'
 const SIGN_IN_FORM = 'src/app/(paces)/seller/auth/sign-in/components/SignInForm.tsx'
 const REGISTER = 'src/app/(paces)/seller/register/page.tsx'
 const ONBOARDING = 'src/app/(paces)/seller/onboarding/page.tsx'
+const CHOOSE_SHOP_PAGE = 'src/app/(paces)/seller/choose-shop/page.tsx'
+const CHOOSE_SHOP_CLIENT = 'src/app/(paces)/seller/choose-shop/components/ChooseShopClient.tsx'
+const PROXY = 'src/proxy.ts'
 
 describe('เกณฑ์ "อยู่ในแอป iOS ไหม"', () => {
   it('[blocker] ต้องซ่อนเฉพาะในแอป iOS — เว็บ/Android ห้ามกระทบ', () => {
@@ -65,89 +73,96 @@ describe('เกณฑ์ "อยู่ในแอป iOS ไหม"', () => {
   })
 
   it('[blocker] ต้องเป็นฟังก์ชันคนละตัวกับ isPaymentRestricted', () => {
-    /**
-     * 🛑 วันนี้สองอันคืนค่าเท่ากันทุกกรณี แต่ตอบ **คนละคำถาม** และ Apple ยกมาคนละข้อคนละรอบ
-     * ถ้ายุบเป็นตัวเดียว วันที่ข้อจ่ายเงินถูกผ่อน (เช่นเราไปทาง IAP) การสมัครจะกลับมาโผล่ในแอป
-     * ด้วย **โดยไม่มีใครตั้งใจและไม่มีอะไรฟ้อง**
-     */
+    /* วันนี้คืนค่าเท่ากันทุกกรณี แต่ตอบคนละคำถามและ Apple ยกมาคนละข้อคนละรอบ
+       ยุบเป็นตัวเดียว = วันที่ผ่อนข้อจ่ายเงิน การสมัครจะกลับมาโผล่ด้วยโดยไม่มีใครตั้งใจ */
     const src = stripComments(read('src/lib/app-shell.ts'))
-    expect(src, 'ต้องมี isSignUpRestricted แยกต่างหาก').toMatch(
-      /export function isSignUpRestricted/,
-    )
-    expect(src, 'ต้องมีรายการ shell ของตัวเอง ไม่ใช้ร่วมกับฝั่งจ่ายเงิน').toMatch(
-      /SIGNUP_RESTRICTED_SHELLS/,
-    )
-    /* ยังต้องมีตัวเดิมอยู่ครบ — ด่านนี้ไม่ได้มาแทนที่ */
+    expect(src).toMatch(/export function isSignUpRestricted/)
+    expect(src).toMatch(/SIGNUP_RESTRICTED_SHELLS/)
     expect(typeof isPaymentRestricted).toBe('function')
   })
 })
 
-describe('ทั้ง 3 ทางเข้าต้องถูกปิด', () => {
+describe('ปิดที่ต้นทาง — จุดที่ผู้ใช้ "เลือกเอง" ว่าจะเป็นผู้ขาย', () => {
   it('[blocker] /auth/sign-up — redirect ออกที่ตัวหน้า ไม่ใช่แค่ซ่อนลิงก์', () => {
-    /* ลิงก์ที่ซ่อนกันได้แค่คนที่เดินตามปุ่ม · คนตรวจของ Apple พิมพ์ URL ตรงเข้ามาได้
-       ⇒ ด่านต้องอยู่ที่ปลายทาง ไม่ใช่ที่ทางเดิน (`rule-must-be-enforced-not-described.md`) */
+    /* ลิงก์ที่ซ่อนกันได้แค่คนที่เดินตามปุ่ม · คนตรวจของ Apple พิมพ์ URL ตรงเข้ามาได้ */
     const src = stripComments(read(SIGN_UP))
-    expect(src, 'ต้องเช็ค shouldHideSignUp').toMatch(/await shouldHideSignUp\(\)/)
-    expect(src, 'ต้อง redirect ไปหน้าล็อกอิน').toMatch(/redirect\('\/auth\/sign-in'\)/)
+    expect(src).toMatch(/await shouldHideSignUp\(\)/)
+    expect(src).toMatch(/redirect\('\/auth\/sign-in'\)/)
   })
 
-  it('[blocker] /register และ /onboarding — ต้องแสดงจอแทน ห้าม redirect (proxy บังคับมา)', () => {
+  it('[blocker] ปุ่ม "เปิดร้านของฉัน" ต้องหายในแอป — นี่คือประตูบานจริง', () => {
     /**
-     * 🛑 หัวใจของด่านนี้ · `proxy.ts` เด้งผู้ใช้มาที่สองหน้านี้เอง
-     * redirect ออก = proxy เด้งกลับ = **ลูปไม่รู้จบ** ซึ่งแย่กว่าปล่อยฟอร์มไว้เสียอีก
+     * 🛑 กดปุ่มนี้ = สร้างร้านส่วนตัว → proxy บังคับไป `/register` → `/onboarding`
+     * นั่นคือ "ฟอร์มลงทะเบียนกิจการ" ที่ Apple สั่งให้เอาออก และเป็นทางที่ **คนตรวจของ Apple
+     * เดินได้จริง** เพราะข้อ 4.8 บังคับให้มีปุ่ม Sign in with Apple ⇒ เขาล็อกอินแล้วมาถึงที่นี่ได้
+     *
+     * ปิดที่นี่แทนการปิดปลายทาง เพราะปิดปลายทางทำให้คนที่ค้างกลางทางติดตาย (ดูหัวไฟล์)
      */
-    for (const rel of [REGISTER, ONBOARDING]) {
-      const src = stripComments(read(rel))
-      expect(src, `${rel}: ต้องเช็ค shouldHideSignUp`).toMatch(/await shouldHideSignUp\(\)/)
-      expect(src, `${rel}: ต้องคืนจอแจ้งแทนฟอร์ม`).toMatch(/return <AppSetupBlockedNotice \/>/)
-      expect(src, `${rel}: ห้าม redirect — proxy บังคับมาที่นี่ จะวนลูป`).not.toMatch(/redirect\(/)
-    }
+    const page = stripComments(read(CHOOSE_SHOP_PAGE))
+    expect(page, 'หน้า choose-shop ต้องอ่านค่าจาก server').toMatch(/shouldHideSignUp\(\)/)
+    expect(page, 'ต้องส่งค่าลงไปให้ client').toMatch(/hideOpenShop=\{await shouldHideSignUp\(\)\}/)
+
+    const client = stripComments(read(CHOOSE_SHOP_CLIENT))
+    expect(client, 'client ต้องรับ prop').toMatch(/hideOpenShop/)
+    /* ต้องไม่มีปุ่มไหนที่เรียก handleOpenPersonal โดยอยู่นอกเงื่อนไข !hideOpenShop
+       — นับจำนวนการเรียกเทียบกับจำนวนบล็อกที่กั้นไว้ */
+    const calls = client.split('onClick={handleOpenPersonal}').length - 1
+    const guards = client.split('!hideOpenShop &&').length - 1
+    expect(calls, 'ไม่เจอปุ่มเปิดร้านเลย — ไฟล์เปลี่ยนโครง ด่านนี้ต้องเขียนใหม่').toBeGreaterThan(0)
+    expect(guards, `มีปุ่มเปิดร้าน ${calls} จุด แต่กั้นไว้ ${guards} บล็อก`).toBe(calls)
   })
 
-  it('[blocker] proxy ต้องยังบังคับสองหน้านั้นอยู่ — ถ้าเลิกบังคับ กฎ "ห้าม redirect" ก็เปลี่ยน', () => {
-    /* ปักหมุดข้อเท็จจริงที่ทำให้กฎข้างบนจำเป็น — วันที่ proxy เลิกบังคับ ค่อยมาผ่อนกฎได้
-       แต่ต้องเป็นการตัดสินใจของคน ไม่ใช่หลุดไปเอง */
-    const proxy = stripComments(read('src/proxy.ts'))
-    expect(proxy, 'proxy ต้องยังเด้งไป /register').toMatch(/redirect\(new URL\('\/register'/)
-    expect(proxy, 'proxy ต้องยังเด้งไป /onboarding').toMatch(/redirect\(new URL\('\/onboarding'/)
-  })
-})
-
-describe('ลิงก์ที่พาไปสมัคร ต้องหายไปด้วย', () => {
   it('[blocker] หน้าล็อกอิน — ลิงก์ "สมัครสมาชิก" ต้องอยู่ใต้เงื่อนไข', () => {
-    /* ปลายทาง redirect อยู่แล้ว แต่ปล่อยลิงก์ไว้ = ปุ่มที่กดแล้วเด้งกลับที่เดิม
-       ซึ่งผู้ใช้อ่านเป็น "แอปพัง" มากกว่า "ทางนี้ปิด" */
     const src = stripComments(read(SIGN_IN))
-    expect(src, 'ต้องอ่านค่าจาก server').toMatch(/const hideSignUp = await shouldHideSignUp\(\)/)
-    expect(src, 'ลิงก์ต้องอยู่ใต้ !hideSignUp').toMatch(/\{!hideSignUp && \(/)
-    expect(src, 'ต้องส่งค่าต่อให้ฟอร์ม').toMatch(/<SignInForm hideSignUp=\{hideSignUp\} \/>/)
+    expect(src).toMatch(/const hideSignUp = await shouldHideSignUp\(\)/)
+    expect(src).toMatch(/\{!hideSignUp && \(/)
+    expect(src).toMatch(/<SignInForm hideSignUp=\{hideSignUp\} \/>/)
   })
 
   it('[blocker] ผล OTP "ยังไม่มีบัญชี" — ลิงก์ต้องหายไปด้วย', () => {
-    /* จุดนี้ลืมง่ายที่สุดเพราะโผล่เฉพาะตอนกรอกเบอร์ที่ไม่มีในระบบ — เห็นได้ยากตอนกดทดสอบเอง
-       แต่คนตรวจของ Apple กรอกเบอร์มั่ว ๆ แล้วเจอได้ทันที */
+    /* จุดนี้ลืมง่ายที่สุดเพราะโผล่เฉพาะตอนกรอกเบอร์ที่ไม่มีในระบบ */
     const src = stripComments(read(SIGN_IN_FORM))
-    expect(src, "ลิงก์ต้องผูกกับ !hideSignUp").toMatch(
-      /otpError === 'NO_ACCOUNT' && !hideSignUp/,
-    )
+    expect(src).toMatch(/otpError === 'NO_ACCOUNT' && !hideSignUp/)
+  })
+})
+
+describe('🛑 หน้าที่ proxy บังคับให้มา ต้องทำให้เสร็จได้ในทุกเปลือก', () => {
+  it('[blocker] /register และ /onboarding ห้ามมีด่านของเปลือกแอป', () => {
+    /**
+     * 🛑 นี่คือด่านที่ป้องกันบั๊ก "ผู้ขายเข้าแอปไม่ได้" ไม่ให้กลับมาอีก
+     *
+     * `proxy.ts` บังคับให้ผู้ใช้มาสองหน้านี้และหนีไม่ได้จนกว่าจะกรอกเสร็จ ⇒ ถ้าหน้าเหล่านี้
+     * ตัดสินใจอะไรตาม "เปิดจากที่ไหน" แล้วไม่แสดงฟอร์ม ผู้ใช้จะติดตายทันที
+     *
+     * ห้ามทั้ง `shouldHideSignUp` · `shouldHidePayments` · `shouldHidePaidFeatures`
+     * — ไม่ใช่แค่ตัวใดตัวหนึ่ง เพราะทั้งสามตัวให้ผลเดียวกันคือ "หน้านี้ไม่แสดงของจริงในแอป"
+     */
+    for (const rel of [REGISTER, ONBOARDING]) {
+      const src = stripComments(read(rel))
+      expect(src, `${rel}: ห้ามกั้นตามเปลือกแอป — proxy บังคับมาที่นี่ จะติดตาย`).not.toMatch(
+        /shouldHide(SignUp|Payments|PaidFeatures)\s*\(/,
+      )
+      expect(src, `${rel}: ห้าม redirect — proxy จะเด้งกลับมา = ลูปไม่รู้จบ`).not.toMatch(
+        /redirect\(/,
+      )
+    }
   })
 
-  it('[blocker] จอแจ้งต้องไม่มีลิงก์/ปุ่มไปเว็บ และต้องออกจากระบบได้', () => {
-    /**
-     * 🛑 Apple เขียนเองว่าการลงทะเบียนคือ *"access to external mechanisms"* ⇒ ปุ่มที่พาไป
-     * ลงทะเบียนบนเว็บก็คือทางเข้าไปกลไกภายนอกอีกแบบ · กติกาเดียวกับฝั่งจ่ายเงินที่เรายึดอยู่แล้ว
-     *
-     * และต้องมีทางออก — ไม่งั้นผู้ใช้ติดจอนี้ถาวร (proxy บังคับกลับมาทุกเส้นทาง)
-     * = แลกความผิดข้อ 3.1.1 ด้วยบั๊กข้อ 2.1 ซึ่งไม่ได้กำไรอะไรเลย
-     */
-    const src = stripComments(read('src/components/paces/AppSetupBlockedNotice.tsx'))
-    expect(src, 'ห้ามมี <a>/Link ไปที่ไหน').not.toMatch(/<Link|<a\s|href=/)
-    expect(src, 'ห้ามฝัง URL ของเว็บเรา').not.toMatch(/https?:\/\//)
-    expect(src, 'ต้องมีปุ่มออกจากระบบ').toMatch(/signOut\(/)
-    /* ข้อความต้องมาจาก dictionary — จอนี้คนตรวจของ Apple เห็นแน่ ถ้าฝังไทยเขาอ่านไม่ออก */
-    expect(src, 'ต้องใช้ useT() ไม่ฝังข้อความตายตัว').toMatch(/t\.appSetupBlocked\./)
-    for (const rel of ['src/i18n/dictionaries/th.ts', 'src/i18n/dictionaries/en.ts']) {
-      expect(read(rel), `${rel} ต้องมีคำแปล`).toMatch(/appSetupBlocked:/)
+  it('[blocker] ปักหมุดว่า proxy ยังบังคับสองหน้านั้นอยู่จริง', () => {
+    /* ข้อเท็จจริงที่ทำให้กฎข้างบนจำเป็น — วันที่ proxy เลิกบังคับ ค่อยมาทบทวนกฎได้
+       แต่ต้องเป็นการตัดสินใจของคน ไม่ใช่หลุดไปเอง */
+    const proxy = stripComments(read(PROXY))
+    expect(proxy, 'proxy ต้องยังเด้งไป /register').toMatch(/redirect\(new URL\('\/register'/)
+    expect(proxy, 'proxy ต้องยังเด้งไป /onboarding').toMatch(/redirect\(new URL\('\/onboarding'/)
+  })
+
+  it('[blocker] จอทางตันต้องไม่กลับมา', () => {
+    /* `AppSetupBlockedNotice` ถูกลบทิ้ง 2026-09-04 พร้อมคำแปลทั้ง 2 ภาษา
+       ถ้ามีใครสร้างกลับมาแล้วเอาไปแปะที่หน้าที่ proxy บังคับ บั๊กเดิมจะกลับมาทันที */
+    for (const rel of [REGISTER, ONBOARDING]) {
+      expect(stripComments(read(rel)), `${rel}: ห้ามแสดงจอทางตัน`).not.toMatch(
+        /AppSetupBlockedNotice/,
+      )
     }
   })
 })
