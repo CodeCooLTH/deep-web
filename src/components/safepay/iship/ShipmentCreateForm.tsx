@@ -237,7 +237,6 @@ export default function ShipmentCreateForm({
   // เพิ่มเติม — เปิดอัตโนมัติเมื่อร้านตั้งค่าอะไรไว้ที่หน้าตั้งค่า ไม่งั้นร้านจะไม่รู้ว่ามี
   // COD/ประกันติดมากับพัสดุใบนี้ด้วย (ซ่อนไว้เงียบ ๆ = สร้างไปโดยไม่รู้ว่ามีค่าเหล่านี้)
   const hasPresetExtras =
-    defaults.codEnabled ||
     !!defaults.remark ||
     defaults.optOnTime ||
     defaults.optBoxShield ||
@@ -445,7 +444,10 @@ export default function ShipmentCreateForm({
             ...(numOrUndefined(length) != null ? { length: numOrUndefined(length) } : {}),
             ...(numOrUndefined(height) != null ? { height: numOrUndefined(height) } : {}),
             ...(categoryId !== '' ? { categoryId: Number(categoryId) } : {}),
-            ...(numOrUndefined(codAmount) != null ? { codAmount: numOrUndefined(codAmount) } : {}),
+            // 🛑 ส่งเสมอ แม้ช่องว่าง (= 0) — ห้ามละคีย์นี้ทิ้ง: คีย์ที่ไม่ส่งแปลว่า "ให้เซิร์ฟเวอร์
+            // ตัดสินเอง" ซึ่งเคยทำให้ออเดอร์โอนเงินถูกเปิดพัสดุเป็นเก็บปลายทางเท่ายอดบิล
+            // (บั๊กเงิน prod 2026-09-04) ช่องว่างต้องแปลว่า "ไม่เก็บเงินปลายทาง" อย่างเดียวเสมอ
+            codAmount: numOrUndefined(codAmount) ?? 0,
             ...(remark.trim() !== '' ? { remark } : {}),
             options: {
               onTime,
@@ -862,11 +864,13 @@ export default function ShipmentCreateForm({
                 type="number"
                 min="0"
                 className="form-input"
-                placeholder={defaults.codEnabled ? 'ร้านเปิด COD ไว้เป็นค่าเริ่มต้น' : 'ไม่เก็บเงินปลายทาง'}
+                placeholder="0"
                 value={codAmount}
                 onChange={(e) => setCodAmount(e.target.value)}
               />
-              <p className="mb-0 mt-1 text-xs text-default-700">เว้นว่างหรือ 0 = ไม่เก็บเงินปลายทาง</p>
+              <p className="mb-0 mt-1 text-xs text-default-700">
+                ยอดนี้อ้างอิงวิธีชำระเงินของคำสั่งซื้อ — เว้นว่างหรือ 0 = ไม่เก็บเงินปลายทาง
+              </p>
               {/* คำเตือนประวัติพัสดุตีกลับ (feature 00055 · D-3) — **เตือน ไม่ใช่บล็อก** (BR-BR-08)
                   ไม่มีปุ่มไหนถูก disable จากตรงนี้ เราไม่รู้บริบท (อาจเป็นลูกค้าประจำที่บ้านเลขที่
                   ผิดครั้งเดียว) · ถ้อยคำเป็นกลางตาม BR-BR-09: "พัสดุตีกลับ" ไม่ใช่ "ปฏิเสธรับของ"

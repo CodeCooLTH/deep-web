@@ -18,6 +18,7 @@ import {
   syncOrderPaymentToParcel,
 } from "@/services/order.service";
 import { recordOrderEvent } from "@/services/order-event.service";
+import { resolveDefaultCodAmount } from "@/lib/iship/payment-sync";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import * as iship from "@/lib/iship/client";
 import { IShipError } from "@/lib/iship/errors";
@@ -350,7 +351,6 @@ export interface SettingsInput {
   defaultLength?: number | null;
   defaultHeight?: number | null;
   defaultCategoryId?: number | null;
-  defaultCodEnabled?: boolean;
   optOnTime?: boolean;
   optBoxShield?: boolean;
   optIsInsured?: boolean;
@@ -380,7 +380,6 @@ export async function getSettings(shopId: string) {
     defaultLength: a.defaultLength,
     defaultHeight: a.defaultHeight,
     defaultCategoryId: a.defaultCategoryId,
-    defaultCodEnabled: a.defaultCodEnabled,
     optOnTime: a.optOnTime,
     optBoxShield: a.optBoxShield,
     optIsInsured: a.optIsInsured,
@@ -650,8 +649,12 @@ export async function getShipmentPanelOrReason(
     },
     sender: senderOf(account),
     // เติมยอดให้เฉพาะใบที่จ่ายปลายทางจริง — ใบที่ชำระแล้วต้องเป็น 0 ไม่ใช่ยอดคำสั่งซื้อ
-    codSuggested:
-      order.paymentMethod === "COD" ? Number(order.totalAmount) : 0,
+    // 🛑 ต้องเป็นฟังก์ชันตัวเดียวกับที่ createShipment ใช้ตอนผู้ขายไม่กรอกยอด ไม่งั้นเลขที่
+    // ร้านเห็นบนฟอร์มกับเลขที่ยิงออกไปจริงจะไม่ใช่ตัวเดียวกัน (บั๊กเงิน prod 2026-09-04)
+    codSuggested: resolveDefaultCodAmount({
+      orderPaymentMethod: order.paymentMethod,
+      orderTotal: Number(order.totalAmount),
+    }),
     items: order.items.map((it) => ({
       id: it.id,
       name: it.name,
@@ -666,7 +669,6 @@ export async function getShipmentPanelOrReason(
       length: account.defaultLength,
       height: account.defaultHeight,
       categoryId: account.defaultCategoryId,
-      codEnabled: account.defaultCodEnabled,
       remark: account.defaultRemark,
       optOnTime: account.optOnTime,
       optBoxShield: account.optBoxShield,
@@ -795,6 +797,8 @@ export async function createShipment(
       buyerContact: true,
       shippingAddress: true,
       totalAmount: true,
+      // ตัวตัดสินยอดเก็บปลายทางเมื่อผู้ขายไม่ได้กรอกยอดมาเอง (resolveDefaultCodAmount)
+      paymentMethod: true,
       items: { select: { name: true, qty: true, price: true } },
     },
   });
@@ -877,7 +881,14 @@ export async function createShipment(
     );
   }
 
-  const codAmount = override?.codAmount ?? (account.defaultCodEnabled ? Number(order.totalAmount) : 0);
+  // 🛑 ห้ามให้ค่าตั้งต้น "ระดับร้าน" มาตัดสินเงินของ "ใบนี้" — ดู resolveDefaultCodAmount
+  // (บั๊ก prod 2026-09-04: ออเดอร์โอนเงินถูกเปิดพัสดุเป็นเก็บปลายทางเท่ายอดบิลโดยไม่มีใครสั่ง)
+  const codAmount =
+    override?.codAmount ??
+    resolveDefaultCodAmount({
+      orderPaymentMethod: order.paymentMethod,
+      orderTotal: Number(order.totalAmount),
+    });
   const receiverAddress = order.shippingAddress as DeepAddress;
 
   const shipment = await prisma.orderShipment.create({

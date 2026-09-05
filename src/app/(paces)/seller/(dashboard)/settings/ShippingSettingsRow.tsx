@@ -59,7 +59,6 @@ interface SettingsState {
   defaultLength: number | null
   defaultHeight: number | null
   defaultCategoryId: number | null
-  defaultCodEnabled: boolean
   optOnTime: boolean
   optBoxShield: boolean
   optIsInsured: boolean
@@ -987,11 +986,14 @@ export default function ShippingSettingsRow({
 
             {/* บริการเสริม */}
             <div className="mt-4 flex flex-col gap-3 border-t border-default-200 pt-4">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="form-checkbox" checked={settings.defaultCodEnabled}
-                  onChange={(e) => patch({ defaultCodEnabled: e.target.checked })} />
-                เก็บเงินปลายทาง (COD) เป็นค่าเริ่มต้น
-              </label>
+              {/* 🛑 เคยมีสวิตช์ "เก็บเงินปลายทาง (COD) เป็นค่าเริ่มต้น" ตรงนี้ — ถอดออก 2026-09-05
+                  ค่าตั้งต้นระดับร้านชนะข้อมูลระดับใบจนออเดอร์ที่ลูกค้าโอนมาแล้วถูกเปิดพัสดุเป็น
+                  เก็บเงินปลายทางเท่ายอดบิล (บั๊กเงิน prod) ตอนนี้ตัดสินจากวิธีชำระเงินของ
+                  คำสั่งซื้อใบนั้นที่เดียว — ดู resolveDefaultCodAmount ใน lib/iship/payment-sync.ts */}
+              <p className="mb-0 flex items-start gap-2 rounded-lg bg-info/15 px-3 py-2.5 text-sm text-info">
+                <Icon icon="info-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+                ยอดเก็บเงินปลายทางกำหนดจากวิธีชำระเงินของแต่ละคำสั่งซื้อตอนสร้างพัสดุ ไม่ต้องตั้งเป็นค่าเริ่มต้นที่นี่
+              </p>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" className="form-checkbox" checked={settings.optOnTime}
                   onChange={(e) => patch({ optOnTime: e.target.checked })} />

@@ -43,7 +43,6 @@ export interface ParcelDefaults {
   length: number | null;
   height: number | null;
   categoryId: number | null;
-  codEnabled: boolean;
   remark: string | null;
   optOnTime: boolean;
   optBoxShield: boolean;
@@ -71,8 +70,12 @@ interface ShipmentContextBase {
   /**
    * ยอดที่ต้องเก็บปลายทาง — มีค่าเมื่อคำสั่งซื้อนี้จ่ายแบบ COD เท่านั้น
    *
-   * แยกจาก defaults.codEnabled (ค่าตั้งต้นของร้านว่า "เปิดใช้ COD ไหม") เพราะคนละเรื่องกัน:
-   * ร้านอาจเปิด COD ไว้ แต่ใบนี้ลูกค้าโอนมาแล้ว — ถ้าเติมยอดให้จะกลายเป็นเก็บเงินซ้ำ
+   * 🛑 มาจาก `resolveDefaultCodAmount()` ตัวเดียวกับที่ `createShipment()` ใช้ตอนผู้ขาย
+   * ไม่ได้กรอกยอดเอง — เลขที่ร้านเห็นบนฟอร์มกับเลขที่ยิงออกไปจริงต้องเป็นตัวเดียวกันเสมอ
+   *
+   * เดิมมีค่าตั้งต้นระดับร้าน (`defaultCodEnabled`) เป็นตัวตัดสินอีกทางหนึ่ง แล้วสองทางนั้น
+   * ให้ผลไม่ตรงกัน: ร้านเปิด COD ไว้ แต่ใบนี้ลูกค้าโอนมาแล้ว → พัสดุถูกเปิดเป็นเก็บเงินซ้ำ
+   * (บั๊กเงิน prod 2026-09-04) ค่าตั้งต้นระดับร้านจึงถูกถอดออกทั้งชุด
    */
   codSuggested: number;
   defaults: ParcelDefaults;

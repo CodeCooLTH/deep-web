@@ -62,3 +62,26 @@ export function resolvePaymentSync(input: {
   }
   return { action: "NONE" };
 }
+
+/**
+ * resolveDefaultCodAmount — ยอดเก็บปลายทางของพัสดุ **เมื่อผู้ขายไม่ได้ระบุยอดมาเอง**
+ *
+ * 🛑 บั๊กเงินบน prod 2026-09-04 (ออเดอร์ DP2569091C7BA99F ฿590): ก่อนหน้านี้ผู้เรียกตกไปใช้
+ * `ShopShippingAccount.defaultCodEnabled ? ยอดบิล : 0` — ค่าตั้งต้น "ระดับร้าน" จึงชนะข้อมูล
+ * "ระดับใบ" ที่เจาะจงกว่า ผลคือออเดอร์ที่ลูกค้าโอนมาแล้วถูกเปิดพัสดุเป็นเก็บเงินปลายทางเท่า
+ * ยอดบิล แล้ว `resolvePaymentSync` ก็เขียน `paymentMethod = "COD"` ทับตามกติกา "พัสดุชนะ"
+ * (ถูกต้องตามกติกา — ของที่ผิดคือยอดบนพัสดุที่ไม่มีใครสั่งให้เกิด)
+ *
+ * กติกาเดียวทั้งระบบ: **วิธีชำระเงินของคำสั่งซื้อเป็นตัวตัดสิน ไม่ใช่ค่าตั้งต้นของร้าน**
+ * — ผู้ขายที่อยากเก็บปลายทางสวนกับที่บันทึกไว้ ยังพิมพ์ยอดเองได้ (นั่นคือ `override.codAmount`)
+ *
+ * ตัวนี้คือ SSOT ตัวเดียวกับที่ฟอร์มใช้ prefill (`ShipmentContext.codSuggested`) — สองค่านั้น
+ * ต้องมาจากฟังก์ชันนี้ทั้งคู่ ไม่งั้นเลขที่ร้านเห็นบนจอกับเลขที่ยิงออกไปจะไม่ใช่ตัวเดียวกัน
+ */
+export function resolveDefaultCodAmount(input: {
+  orderPaymentMethod: string | null | undefined;
+  orderTotal: number;
+}): number {
+  if (!isCODPayment(input.orderPaymentMethod)) return 0;
+  return Number.isFinite(input.orderTotal) && input.orderTotal > 0 ? input.orderTotal : 0;
+}

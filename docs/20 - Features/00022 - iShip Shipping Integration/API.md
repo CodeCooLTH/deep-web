@@ -113,7 +113,6 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
   "defaultWeight": 1,
   "defaultWidth": 17, "defaultLength": 25, "defaultHeight": 9,
   "defaultCategoryId": 4,
-  "defaultCodEnabled": false,
   "optOnTime": false, "optBoxShield": false,
   "optIsInsured": false, "optProductValue": null,
   "optServiceType": 1,
@@ -316,7 +315,7 @@ payload สถานะรถเข้ารับ: `ticketPickupId`, `staffInfo
 | Endpoint ฝั่ง A | รองรับ |
 |-----------------|--------|
 | `connection` (GET/POST/DELETE/verify) | FR-ISHIP-001, FR-ISHIP-002, BR-ISHIP-10/11/12/13/14/15 |
-| `settings` (GET/PUT) | FR-ISHIP-010/011/012, BR-ISHIP-27/30/31 |
+| `settings` (GET/PUT) | FR-ISHIP-010/011/012, BR-ISHIP-30/31/90 — 🛑 ไม่มี `defaultCodEnabled` แล้วตั้งแต่ 2026-09-05 (BR-ISHIP-90) |
 | `couriers` / `boxes` / `quote` | FR-ISHIP-011, BR-ISHIP-34 |
 | `shipments` (POST/retry/cancel) | FR-ISHIP-020–024, FR-ISHIP-050, BR-ISHIP-21/22/25/26/28 |
 | `label` / `labels/bulk` | FR-ISHIP-030/031 |

@@ -1265,7 +1265,10 @@ export const IShipSettingsSchema = v.object({
   defaultHeight: v.nullish(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
   // หมวดพัสดุตามที่ iShip กำหนด (0-11 และ 99) — ไม่ใช่ช่วงต่อเนื่อง จึงใช้ picklist
   defaultCategoryId: v.nullish(v.picklist([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99])),
-  defaultCodEnabled: v.optional(v.boolean()),
+  // 🛑 ไม่มี `defaultCodEnabled` แล้วโดยเจตนา (2026-09-05) — ยอดเก็บปลายทางของพัสดุตัดสิน
+  // จาก "วิธีชำระเงินของคำสั่งซื้อใบนั้น" ที่เดียว (`resolveDefaultCodAmount`) ค่าตั้งต้นระดับ
+  // ร้านเคยชนะข้อมูลระดับใบจนออเดอร์โอนเงินถูกเปิดพัสดุเป็นเก็บปลายทาง (บั๊กเงิน prod)
+  // คอลัมน์ยังอยู่ในฐานข้อมูลแต่ไม่มีใครอ่าน/เขียนอีกแล้ว
   optOnTime: v.optional(v.boolean()),
   optBoxShield: v.optional(v.boolean()),
   optIsInsured: v.optional(v.boolean()),

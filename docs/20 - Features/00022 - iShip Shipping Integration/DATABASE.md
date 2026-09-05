@@ -189,7 +189,7 @@ erDiagram
 | `defaultLength` | Int | ✓ | null | เซนติเมตร |
 | `defaultHeight` | Int | ✓ | null | เซนติเมตร |
 | `defaultCategoryId` | Int | ✓ | null | 0-11, 99 ตามที่ iShip กำหนด |
-| `defaultCodEnabled` | Boolean | ✗ | `false` | **ต้อง false ตาม BR-ISHIP-27** |
+| `defaultCodEnabled` | Boolean | ✗ | `false` | 🛑 **เลิกใช้ 2026-09-05 (BR-ISHIP-90)** — คอลัมน์ยังอยู่แต่ไม่มีโค้ดอ่าน/เขียนอีกแล้ว ยอด COD ตัดสินจากวิธีชำระเงินของคำสั่งซื้อ (`resolveDefaultCodAmount`) การลบคอลัมน์ต้องเป็น migration รอบของตัวเอง |
 | `optOnTime` | Boolean | ✗ | `false` | ส่งตรงเวลา |
 | `optBoxShield` | Boolean | ✗ | `false` | ประกันกล่อง |
 | `optIsInsured` | Boolean | ✗ | `false` | ประกันสินค้า |
@@ -468,7 +468,7 @@ DROP TABLE IF EXISTS "ShopShippingAccount";
 | `ShopShippingAccount.status` | BR-ISHIP-14, FR-ISHIP-002 |
 | `ShopShippingAccount.createMode` default `ASK` | BR-ISHIP-20, FR-ISHIP-012 |
 | `ShopShippingAccount.sender*` | BR-ISHIP-30, BR-ISHIP-31, FR-ISHIP-010 |
-| `ShopShippingAccount.defaultCodEnabled` default `false` | BR-ISHIP-27 |
+| `ShopShippingAccount.defaultCodEnabled` (เลิกใช้ — ไม่มีผู้อ่าน) | BR-ISHIP-90 |
 | `OrderShipment.idempotencyKey` UNIQUE | BR-ISHIP-22, BR-ISHIP-25, BR-ISHIP-26, FR-ISHIP-024 |
 | partial unique `orderId WHERE status <> 'CANCELLED'` | BR-ISHIP-22, FR-ISHIP-050 |
 | `OrderShipment.*Snapshot` | หลักการ freeze snapshot §1 |
