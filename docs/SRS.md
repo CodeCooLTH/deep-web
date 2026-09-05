@@ -226,6 +226,11 @@
 ยกเลิก (เฉพาะก่อน CONFIRMED):
   PENDING / SHIPPED ──seller ยกเลิก──▶ CANCELLED
   PENDING ──buyer ยกเลิก──▶ CANCELLED   ← buyer ยกเลิกได้เฉพาะ PENDING เท่านั้น
+
+ร่างจากแชท (feature 00061 — ยังไม่ใช่ออเดอร์):
+  DRAFTED ──ข้อมูลครบแล้ว/ผู้ขายกรอกต่อ──▶ PENDING
+  DRAFTED ──ผู้ขายกด "ทิ้งร่าง" / ค้างเกิน 7 วัน──▶ CANCELLED
+  🛑 DRAFTED ──▶ CONFIRMED **ถูกปฏิเสธ** · ไม่มีสถานะไหน transition **เข้า** DRAFTED ได้
 ```
 
 | สถานะ | คำอธิบาย | ใครเปลี่ยน |
@@ -518,6 +523,41 @@ InspectionResult (0..1) ─ (N) InspectionEvidence     [feature 00060 — option
 | การแก้ | ลบทั้งชุดแล้วเขียนใหม่เสมอ — Meta ไม่มี partial update (D-IB-3) |
 | Cascade | ช่องทางถูกถอด → คำถามหายตาม (`onDelete: Cascade`) — ค่าที่ค้างอยู่จะชี้ไปยังเพจที่เราไม่มี token แล้ว |
 | ความยาว | คำถาม ≤80 (ความกว้างปุ่มของ Meta) · คำตอบ ≤**1,000** (เพดานข้อความของ Instagram — ไม่ใช่ 2,000 ของ `QuickMessage` เพราะคำตอบเดินทางออกเป็นข้อความแชทจริง) · นับด้วย **code point** ไม่ใช่ `.length` |
+
+### 6.1c ตาราง feature 00061 — สร้างออเดอร์อัตโนมัติจากคำสั่งในแชท (2026-09-05)
+
+| ตาราง | หน้าที่ | Key |
+|---|---|---|
+| `AutoOrderAgentConfig` | ชุดตั้งค่า **1 แถวต่อ 1 ร้าน** · `status` = `OFFLINE`/`TEST`/`LIVE` (CHECK ที่ DB) | `shopId @unique` |
+| `AutoOrderAgentPhrase` | วลีจุดชนวนหลายวลีต่อชุด · `normalizedPhrase` มาจาก **`normalizeTriggerPhrase()` ตัวใหม่** | `@@unique([configId, normalizedPhrase])` |
+| `AutoOrderAgentChannel` | เพจที่เปิดใช้ (join table ไม่ใช่ `String[]` — array ทำ FK cascade ไม่ได้) | `@@unique([configId, shopChannelId])` |
+| `AutoOrderAgentTestThread` | ห้องแชทสำหรับทดสอบ (มีผลเฉพาะ `status='TEST'`) | `@@unique([configId, conversationId])` |
+
+🛑 **`normalizedPhrase` ต้องมาจากฟังก์ชันคนละตัวกับ `AutoReplyPhrase.normalizedPhrase`** —
+ตัวของ Auto-Reply ลบเครื่องหมายวรรคตอนก่อนเทียบ ⇒ `/go` กลายเป็น `go` แล้วชนคำทั่วไป
+
+**คอลัมน์ที่เพิ่มบน `Order` (11 ตัว · additive · nullable/default ทั้งหมด):**
+`isDryRun` · `sourceChatMessageId` (**UNIQUE** = ด่าน dedup เดียวที่มีจริงเมื่อ 2 จุดดักจับ
+ยิงพร้อมกัน · FK → `ChatMessage` **Restrict**) · `matchedTriggerPhrase` · `draftReasons` (text[]) ·
+`contentHash` · `supersedesOrderId` (self-FK · SetNull) · `createdVia` · `expiresAt` ·
+`detectionResolvedAt` · `draftRawItems` (jsonb) · `draftStatedTotalAmount`
+
+🛑 `expiresAt` = **เวลาที่แถวถูก insert จริง + 7 วัน** — **อิสระจาก `createdAt`** เพราะตั้งแต่
+00033 `createdAt` แปลว่า "วันที่ลูกค้าสั่ง" ซึ่งย้อนหลังได้ 90 วัน ผูกกันแล้วร่างจะหมดอายุ
+ตั้งแต่วินาทีแรก
+
+**คอลัมน์ที่เพิ่มบน `ChatMessage`:** `autoOrderId` (FK → `Order` Cascade · **ไม่ unique**
+เพราะออเดอร์ใบเดียวมีการ์ดได้หลายใบตามเวลา) · `autoOrderKind` (`RESULT`/`SOURCE_EDITED`/`SOURCE_UNSENT`)
+· index ใหม่ `@@index([senderRole, createdAt])` (watchdog กวาดข้ามทุกห้อง ⇒ index เดิมที่นำหน้า
+ด้วย `conversationId` ใช้เร่งไม่ได้เลย)
+
+**คอลัมน์ที่เพิ่มบน `ShopChannel`:** `messageEchoesStatus` (default **`'UNKNOWN'`** ห้ามเป็น
+`'GRANTED'` — เพจเก่าทุกแถวยังไม่เคยถูกตรวจจริง ตั้ง GRANTED = ข้ามด่านทั้งข้อ) ·
+`messageEchoesCheckedAt` (`NULL` = ไม่เคยตรวจ · มีค่า+`UNKNOWN` = ตรวจแล้วแต่ Graph ตอบไม่ชัด)
+
+**ชนิดข้อความใหม่:** `ChatMessage.type = 'AUTO_ORDER_RESULT'` — 🛑 **ส่งผ่าน `sendMessage()`
+ไม่ได้** บังคับด้วยระบบชนิด: `SendableMessageType` (แคบ) vs `StoredMessageType` (กว้าง)
+ใน `chat.service.ts` ⇒ `tsc` ล้มตั้งแต่ compile ถ้ามีใครพยายาม
 
 ### 6.2 Models
 
@@ -1284,6 +1324,39 @@ enum** — ระหว่างนี้ป้ายบนโปรไฟล์
 | GET | `/api/orders/[token]/buyer-phone` | Buyer (SMS cookie) | คืน phone+masked phone สำหรับ OTP pre-fill | — |
 | GET | `/api/orders/[token]/conversations` | Seller (เข้าถึงร้านของออเดอร์ได้) | **ส่วนขยาย 00024 (2026-08-11)** — คืนห้องแชทของลูกค้ารายนี้ **ในร้านของออเดอร์ใบนี้** เรียงตาม `lastMessageAt` desc สำหรับปุ่ม "ส่งสรุปนัด" ที่อยู่นอกห้องแชท (`/orders/[token]`, `/queues`) · 🛑 `shopId` ต้องอยู่ใน `WHERE` เสมอ — `Customer` เป็นตารางระดับทั้งระบบ query ด้วย `customerId` เปล่าจะคืนห้องแชทของร้านอื่น · `order.customerId = null` → คืนรายการว่าง (ไม่ใช่ error) | — |
 
+### 7.5a สร้างออเดอร์อัตโนมัติจากแชท (`/api/seller/auto-order/**`) — feature 00061
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| GET | `/api/seller/auto-order` | Seller (ONLINE_SALES) | ชุดตั้งค่าเต็ม + จำนวนเพจที่มีผลจริง + จำนวนร่างค้าง |
+| PATCH | `/api/seller/auto-order/status` | Seller (OWNER/ADMIN) | `OFFLINE` \| `TEST` \| `LIVE` — ด่าน 3 ชั้นที่ service |
+| PUT | `/api/seller/auto-order/phrases` | Seller | แทนที่ชุดวลีจุดชนวนทั้งชุด (≥1 วลีเสมอ · ≤20 · ≤100 ตัวอักษร) |
+| PUT | `/api/seller/auto-order/channels` | Seller | แทนที่ชุดเพจทั้งชุด (id ที่ไม่ใช่ของร้านถูกกรองทิ้งใน WHERE) |
+| GET/POST | `/api/seller/auto-order/test-threads` | Seller | ห้องแชทสำหรับทดสอบ (สัญญาตรงกับ `TestThreadsCard`) |
+| DELETE | `/api/seller/auto-order/test-threads/[conversationId]` | Seller | เอาห้องออก — คืน `remainingCount`+`status` |
+| POST | `/api/seller/auto-order/health` | Seller | ตรวจ/ซ่อมสิทธิ์ `message_echoes` ของเพจ — **ยิง Graph จริง** |
+| POST | `/api/seller/auto-order/dry-run` | Seller | "ลองพิมพ์ดู" — **อ่านอย่างเดียว ไม่เขียนอะไรลงฐานเลย** |
+| POST | `/api/orders/[token]/auto-order/retry` | Seller-owner | ปุ่ม "อ่านใหม่" บนการ์ดร่าง — เส้นทาง **อัตโนมัติ** (ห้าม Quick-Create) |
+| POST | `/api/orders/[token]/auto-order/discard` | Seller-owner | ปุ่ม "ทิ้งร่างนี้" — **ไม่เรียก `cancelOrder()`** (ร่างไม่เคยตัดสต๊อก/มีพัสดุ) |
+
+🛑 **ทุกเส้นใต้ `/api/seller/auto-order/**` ผ่านด่านร่วม `requireAutoOrderShop()` ตัวเดียว**
+(ล็อกอิน → มีร้าน → `vertical === 'ONLINE_SALES'`) — ด่าน vertical อยู่ที่ **ทุก route**
+ไม่ใช่แค่จุดเปิดใช้งาน (AC-ACO-09 พูดถึง "route" ไม่ใช่ "ปุ่ม") · `shopId` มาจาก active shop
+เท่านั้น ห้ามรับจาก body/query · มีเทส `[blocker]` สแกนทุกไฟล์ `route.ts` ในโฟลเดอร์นั้น
+
+🛑 **ปุ่มบนการ์ดร่างเป็นของฝั่งร้านเท่านั้น** — ไม่มีสาขา `buyerUserId` เลย (ร่างเป็นของภายใน
+ที่ลูกค้าไม่เคยเห็น) และตอบ **404 แทน 403** เพื่อกัน enumeration
+
+### 7.5b Cron
+
+| Path | Schedule | Purpose |
+|------|----------|---------|
+| `/api/cron/auto-order-sweeper` | `*/2 * * * *` | **Watchdog** (จับข้อความที่เข้าตัวดักจับแล้วค้าง/ไม่เคยเริ่ม) + **Reaper** (ร่างค้างเกิน 7 วัน → `CANCELLED`) |
+
+🛑 watchdog เว้น **2 นาทีสุดท้าย** ไว้เสมอ — ข้อความที่เพิ่งเข้ามาอาจกำลังถูกแกะอยู่ใน `after()`
+ณ วินาทีนั้นพอดี ไม่เว้นแล้วจะเขียนร่างแข่งกับตัวดักจับที่กำลังจะสำเร็จ แล้วชน UNIQUE ของ
+`Order.sourceChatMessageId`
+
 🛑 **`shopId` ของ 3 เส้นข้างบน = "ร้านที่คำขอนี้ทำงานด้วย" ไม่ใช่ร้านที่ active** (feature 00037 AC-06-6 — ปิดบั๊ก prod 2026-08-11)
 
 ก่อนหน้านี้ทั้งสามเส้น resolve ร้านด้วย `requireActiveShop()` ล้วน ๆ ซึ่งถูกต้องตราบใดที่ "ร้านที่ active" = "ร้านที่ผู้ใช้กำลังมองอยู่" — **กล่องแชทรวมหลายร้านตัดความเท่ากันนั้นทิ้งตั้งแต่ 2026-08-08** (BR-UNI-07: เปิดเธรดของร้าน B โดยไม่เปลี่ยนร้านที่ active โดยตั้งใจ) ผลคือฟอร์มโหลดคิวงาน/แคตตาล็อกของร้าน B มาแสดงแล้วบันทึกลงร้าน A:
@@ -1644,10 +1717,59 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 
 | ค่า | ความหมาย | Terminal? |
 |-----|---------|---------|
+| `DRAFTED` | **ร่างจากแชท** (feature 00061) — ระบบแกะข้อความที่ร้านพิมพ์เองแล้วข้อมูลไม่ครบพอสร้างจริง | ไม่ |
 | `PENDING` | สร้าง order แล้ว รอ buyer | ไม่ |
 | `SHIPPED` | seller ใส่ tracking แล้ว (SHIPPED เท่านั้น) | ไม่ |
 | `CONFIRMED` | buyer ยืนยัน — นับ trust/badge | ✅ |
 | `CANCELLED` | ยกเลิกก่อน CONFIRMED | ✅ |
+
+🛑 **`DRAFTED` = "ยังไม่ใช่ออเดอร์" ไม่ใช่ "ออเดอร์สถานะหนึ่ง"** (feature 00061 · BR-ACO-20e)
+- `totalAmount = 0` เสมอ · `orderNo = NULL` เสมอ · **`OrderItem` = 0 แถวเสมอ** (รายการดิบอยู่ที่
+  `Order.draftRawItems`) · ไม่ตัดสต๊อก · ลูกค้าไม่เคยเห็น
+- ⇒ **ทุก query ที่นับเงิน/นับจำนวนต้องตัดมันออกเอง 100%** ผ่าน `src/lib/order-visibility.ts`
+  (`withoutDrafted()` / `excludeDraftedWhere`) — ไม่มีชนิดข้อมูล ไม่มี FK ไม่มี CHECK ตัวไหน
+  แยกมันออกให้ และการลืมกรอง **ไม่ทำให้อะไรพัง** มันแค่ทำให้ตัวเลขบนจอโตอย่างสมเหตุสมผล
+  ⇒ ด่านคือเทส `[blocker]` `src/lib/__tests__/order-drafted-visibility.test.ts`
+- ทางเข้าเดียวคือ INSERT ตอนสร้างร่างครั้งแรก (ไม่มี transition ไหนเข้า `DRAFTED` ได้)
+- ทางออก 2 ทาง: `PENDING` (เลื่อนขั้นเมื่อข้อมูลครบ) · `CANCELLED` (ทิ้ง/หมดอายุ 7 วัน)
+  🛑 `DRAFTED → CONFIRMED` ตรง ๆ ถูกปฏิเสธ — ลูกค้ายืนยันออเดอร์ที่ยังไม่ครบไม่ได้
+- 🛑 พอถูกทิ้ง/หมดอายุแล้วมันกลายเป็น `CANCELLED` ⇒ **หลุดจาก `excludeDraftedWhere` ทันที**
+  และไปเพิ่มตัวหารของอัตราความสำเร็จ — กันด้วย `isDraftLifecycleCancelReason()` ที่
+  `getShopProfileStats()` (ไม่งั้นร้านที่เปิดฟีเจอร์นี้จะมี % ต่ำกว่าร้านที่ไม่เปิด ทั้งที่ขายได้เท่ากัน)
+
+### 8.1a Order Created Via (`Order.createdVia` — feature 00061)
+
+| ค่า | ความหมาย |
+|-----|---------|
+| `NULL` | **แถวที่มีอยู่ก่อนคอลัมน์นี้** — ไม่ใช่ `MANUAL` (จงใจไม่ backfill: เดาแล้วเขียนลงฐานถาวรจะแยกไม่ออกอีกต่อไปว่าแถวไหนเป็นข้อเท็จจริง แถวไหนเป็นการเดา) |
+| `MANUAL` | ผู้ขายกรอกฟอร์มเอง |
+| `CHAT_AUTO_ORDER` | ระบบแกะจากข้อความที่ร้านพิมพ์ในแชท (feature 00061) |
+| `ISHIP_LINKED` | ผูกมาจากพัสดุที่เปิดไว้แล้วบน iShip |
+
+มี CHECK `Order_created_via_check` บังคับที่ระดับ DB
+
+### 8.1b Cancel Reason ที่ระบบเป็นผู้ตั้ง (`src/lib/cancel-reasons.ts::SYSTEM_CANCEL_REASONS`)
+
+| ค่า | ใครตั้ง | หมายเหตุ |
+|-----|--------|---------|
+| `DUPLICATE_ORDER` | ผู้ขาย (ดรอปดาวน์ ONLINE_SALES) | กดยกเลิกใบเก่าจากการ์ด "มาแทนใบก่อนหน้า" |
+| `DRAFT_DISCARDED` | **ระบบ** | ผู้ขายกดปุ่ม "ทิ้งร่างนี้" |
+| `DRAFT_EXPIRED` | **ระบบ** | ร่างค้างเกิน 7 วัน ถูก cron เก็บกวาด |
+
+🛑 2 ค่าหลัง **ไม่อยู่ในดรอปดาวน์ของ vertical ใดเลย** และ `isValidCancelReason()` ปฏิเสธทั้งคู่
+⇒ ไม่มี API เส้นไหนรับค่านี้จาก client ได้ · ทั้งสามค่า **ไม่อยู่ใน `BUYER_FAULT_CANCEL_REASONS`**
+(ระบบสร้างซ้ำ/ร่างหมดอายุไม่ใช่ความผิดลูกค้า) — มีเทส `[blocker]` ยืนยัน
+
+### 8.1c Draft Reason (`src/lib/auto-order-reasons.ts::DraftReasonCode` — feature 00061)
+
+`NO_PHONE` · `INVALID_PHONE` · `ADDRESS_INCOMPLETE` · `DATE_OUT_OF_WINDOW` · `NO_ITEMS` ·
+`ITEM_PRICE_MISSING` · `ITEM_NOT_MATCHED` · `TOTAL_MISMATCH` · `PROCESSING_FAILED`
+
+🛑 `PROCESSING_FAILED` เป็น **เหตุผลระดับระบบ** ที่ต้องอยู่เดี่ยวเสมอ (CHECK
+`Order_draft_reasons_system_exclusive`) — 8 ข้อแรกแปลว่า *"ระบบอ่านสำเร็จแต่ข้อมูลไม่ครบ"*
+ส่วนข้อนี้แปลว่า *"ระบบไม่ได้อ่านจบเลย"* ปนกันแล้วผู้ขายจะไปแก้ข้อมูลที่ถูกอยู่แล้ววนไปเรื่อย ๆ
+· กันด้วยสถาปัตยกรรม: มี **2 ฟังก์ชันในระบบ** ที่เขียนคอลัมน์นี้ และตัวที่เขียน `PROCESSING_FAILED`
+**ไม่มีช่องรับ `reasons` จากใครเลย**
 
 ### 8.0b Account Delete Reason (`src/lib/account-deletion.ts::ACCOUNT_DELETE_REASON`)
 
