@@ -109,6 +109,7 @@ export const th = {
     expenses: 'ค่าใช้จ่าย',
     inbox: 'ข้อความ',
     settingsAutoReply: 'ตอบกลับอัตโนมัติ',
+    settingsOrderAgent: 'สร้างออเดอร์จากแชท',
     settingsCommentReply: 'ตอบกลับคอมเมนต์',
     settingsChatbot: 'ผู้ช่วยอัตโนมัติ',
     reviews: 'รีวิว',

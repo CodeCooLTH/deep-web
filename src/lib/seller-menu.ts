@@ -159,6 +159,14 @@ export const sellerMenuItems: MenuItemType[] = [
       // ยืนยันแบบเดียวกับ seller:inbox ที่ไม่ปรากฏใน array พวกนี้เลย)
       { url: '/settings/comment-reply', slug: 'seller:settings-comment-reply', label: 'ตอบกลับคอมเมนต์', icon: 'message-reply' },
       { url: '/settings/chatbot', slug: 'seller:settings-chatbot', label: 'ผู้ช่วยอัตโนมัติ', icon: 'robot' },
+      /**
+       * feature 00061 — อยู่ในกลุ่ม CHAT เพราะมันคือ "สิ่งที่เกิดขึ้นเมื่อร้านพิมพ์ในแชท"
+       * ไม่ใช่การตั้งค่าออเดอร์ (ผู้ขายไปหามันจากที่ที่เขาทำงานอยู่ ไม่ใช่จากหน้าตั้งค่าออเดอร์
+       * ซึ่งเขาแทบไม่เคยเปิด) — เมนูนี้ถูกซ่อนสำหรับร้านที่ไม่ใช่ ONLINE_SALES ผ่าน
+       * `ONLINE_SALES_ONLY_SLUGS` แต่ **ด่านจริงอยู่ที่ route/service** (BR-ACO-06)
+       * การซ่อนเมนูทำหน้าที่แค่ "ไม่รกตา" เท่านั้น
+       */
+      { url: '/settings/auto-reply/order-agent', slug: 'seller:settings-order-agent', label: 'สร้างออเดอร์จากแชท', icon: 'file-invoice' },
     ],
   },
   /**
@@ -365,7 +373,16 @@ const LODGING_ONLY_SLUGS = [
 // feature 00063: รายงานยอดขายรายสินค้าให้ความหมายถูกเฉพาะร้านที่ขายของเป็นชิ้น —
 // LODGING ขายเป็น "คืน/ห้อง" ที่คร่อมหลายวัน พล็อตลงแกน "วันที่สั่ง" แล้วผิดความหมาย
 // 🛑 การซ่อนเมนูไม่ใช่ด่าน — หน้ามี guard ของตัวเองที่ product-report-access.service.ts
-const ONLINE_SALES_ONLY_SLUGS = ['seller:inventory', 'seller:auctions', 'seller:reports-products']
+//
+// feature 00061 (`settings-order-agent`): ตัวแกะข้อความอ่าน "จำนวน × สินค้า + ที่อยู่ + ยอดรวม"
+// ซึ่งเป็นรูปประโยคของการขายเป็นชิ้น — คิวงาน/ห้องพักไม่ได้พิมพ์แบบนี้ในแชท
+// 🛑 ด่านจริงอยู่ที่ `auto-order-config.service.ts` (โยน VERTICAL_NOT_SUPPORTED) ไม่ใช่บรรทัดนี้
+const ONLINE_SALES_ONLY_SLUGS = [
+  'seller:inventory',
+  'seller:auctions',
+  'seller:reports-products',
+  'seller:settings-order-agent',
+]
 const SERVICE_QUEUE_ONLY_SLUGS = ['seller:queues', 'seller:settings-job-types']
 // seller:products ใช้ร่วมกันของ ONLINE_SALES และ SERVICE_QUEUE (matrix §8.1 แถว "สินค้า")
 const SHARED_PRODUCT_SLUGS = ['seller:products']
@@ -814,6 +831,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:expenses': m.expenses,
     'seller:inbox': m.inbox,
     'seller:settings-auto-reply': m.settingsAutoReply,
+    'seller:settings-order-agent': m.settingsOrderAgent,
     'seller:settings-comment-reply': m.settingsCommentReply,
     'seller:settings-chatbot': m.settingsChatbot,
     'seller:reviews': m.reviews,

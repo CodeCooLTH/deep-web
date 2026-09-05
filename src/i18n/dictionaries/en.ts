@@ -78,6 +78,7 @@ export const en: Dictionary = {
     expenses: 'Expenses',
     inbox: 'Messages',
     settingsAutoReply: 'Auto-reply',
+    settingsOrderAgent: 'Order from chat',
     settingsCommentReply: 'Comment replies',
     settingsChatbot: 'AI assistant',
     reviews: 'Reviews',

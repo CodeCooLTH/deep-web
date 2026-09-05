@@ -75,6 +75,7 @@ describe('sellerMenuItems — slug contract', () => {
         // SellerShortcutPreference.slugs ก่อน ไม่งั้นทางลัดของร้านจะชี้ไปเมนูที่ไม่มีอยู่จริง
         'seller:settings-job-types',
         'seller:settings-chatbot',
+        'seller:settings-order-agent',
         // เมนู "ตอบกลับคอมเมนต์" (feature 00038) — เพิ่มใน seller-menu.ts แล้วแต่ลืมเติมที่นี่
         // เทสข้อนี้จึงแดงอยู่บน main (พบตอน merge 2026-08-09) ไม่ใช่ของใหม่ที่เพิ่งพัง
         'seller:settings-comment-reply',
