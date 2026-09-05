@@ -3,6 +3,7 @@
  * SSOT: docs/20 - Features/00016 - Expense & Cost Tracking/SDS.md §4.2 (copy เป๊ะ); SRS.md TFR-006/007/008
  */
 import { prisma } from '@/lib/prisma'
+import { round2 } from '@/lib/round2'
 import { revenueOrderWhere } from '@/lib/order-revenue'
 import { RETURN_STATUS, sumReturnShippingCost } from '@/lib/order-return'
 import type { ResolvedDateRange } from '@/lib/date-range'
@@ -45,8 +46,6 @@ export interface PnlReport {
    */
   returnShippingUnknownCount: number
 }
-
-const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100 // เหมือน order.service.ts::round2
 
 /** โครง select เดียวกันทั้งช่วงปัจจุบันและช่วงก่อนหน้า — กันสูตรสองชุดหลุดจากกัน */
 const ORDER_SELECT = { totalAmount: true, items: { select: { cost: true, qty: true } } } as const

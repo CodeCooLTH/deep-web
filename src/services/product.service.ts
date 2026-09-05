@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { withoutDrafted } from "@/lib/order-visibility";
 import { COUNTABLE_CARRIER_STATUSES } from "@/lib/public-order-count";
 import { Prisma } from "@prisma/client";
 import type { FulfillmentMode, BillingMode, BillingPeriod, ProductTypeId } from "@/lib/product-types/registry";
@@ -483,7 +484,7 @@ export async function getProductsByShop(
 export async function getBestSellerProducts(shopId: string, take = 8) {
   const grouped = await prisma.orderItem.groupBy({
     by: ["productId"],
-    where: { productId: { not: null }, order: { shopId, status: { not: "CANCELLED" } } },
+    where: { productId: { not: null }, order: { shopId, ...withoutDrafted("CANCELLED") } },
     _sum: { qty: true },
     orderBy: { _sum: { qty: "desc" } },
     take,
@@ -536,7 +537,7 @@ export async function getConfirmedOrderCountByProduct(
     by: ["productId"],
     where: {
       productId: { in: productIds },
-      order: { status: { not: "CANCELLED" } },
+      order: { ...withoutDrafted("CANCELLED") },
     },
     _sum: { qty: true },
   });

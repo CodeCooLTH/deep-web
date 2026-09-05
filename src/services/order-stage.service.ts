@@ -126,7 +126,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
       ) ps ON true
       WHERE po."shopId" IN (${Prisma.join(shopIds)})
         AND po."customerId" IN (${Prisma.join(customerIds)})
-        AND po."status" <> 'CANCELLED'
+        AND po."status" NOT IN ('CANCELLED', 'DRAFTED') -- 00061: ร่างไม่ใช่งานค้าง
         AND ps."carrierStatus" = ANY(${[...PROBLEM_CARRIER_STATUSES]}::text[])
       GROUP BY po."shopId", po."customerId"
     )
@@ -165,8 +165,12 @@ export async function enrichWithOrderStage<T extends Linkable>(
       LIMIT 1
     ) s ON true
     LEFT JOIN prob pr ON pr."shopId" = o."shopId" AND pr."customerId" = o."customerId"
+      -- 00061: ร่างจากแชท (status='DRAFTED') ไม่ใช่ "ออเดอร์ล่าสุดของลูกค้า" — ถ้าปล่อยผ่าน
+      -- ชิปขั้นตอนในรายการแชทจะเปลี่ยนเป็น "สั่งซื้อแล้ว" ทันทีที่ตัวดักจับเขียนร่าง ทั้งที่ยัง
+      -- ไม่มีออเดอร์จริง (ร่างมีป้ายของตัวเองแยกต่างหาก ดู B11)
     WHERE o."shopId" IN (${Prisma.join(shopIds)})
       AND o."customerId" IN (${Prisma.join(customerIds)})
+      AND o."status" <> 'DRAFTED'
     ORDER BY o."shopId", o."customerId", o."createdAt" DESC
   `
 

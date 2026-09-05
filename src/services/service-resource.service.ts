@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { withoutDrafted } from "@/lib/order-visibility";
 import { isForeignKeyRestrictViolation } from "@/lib/prisma-errors";
 import {
   CapacityReductionBlockedError,
@@ -151,7 +152,7 @@ export async function updateServiceResource(
       where: {
         serviceResourceId: resourceId,
         shopId,
-        status: { not: "CANCELLED" },
+        ...withoutDrafted("CANCELLED"),
         serviceSeat: { gt: input.capacity },
         serviceEnd: { gt: new Date() }, // นัดที่ผ่านไปแล้วไม่บล็อก
       },
@@ -214,6 +215,6 @@ export async function deleteServiceResource(shopId: string, resourceId: string) 
 /** จำนวนนัดที่ผูกกับทรัพยากรนี้ — ใช้ประกอบข้อความตอนลบไม่ได้ */
 export async function countAppointmentsForResource(shopId: string, resourceId: string) {
   return prisma.order.count({
-    where: { serviceResourceId: resourceId, shopId, status: { not: "CANCELLED" } },
+    where: { serviceResourceId: resourceId, shopId, ...withoutDrafted("CANCELLED") },
   });
 }

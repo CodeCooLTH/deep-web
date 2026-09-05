@@ -17,6 +17,8 @@
  * (`docs/conventions/ui-boolean-needs-a-testable-home.md`)
  */
 
+import { round2 } from '@/lib/round2'
+
 /** ชนิดของเงินที่รับ — ตรงกับ `OrderPayment.kind` */
 export type OrderPaymentKind = 'DEPOSIT' | 'BALANCE'
 
@@ -76,7 +78,6 @@ const sum = (rows: readonly PaymentRow[], kind: OrderPaymentKind): number =>
   rows.reduce((n, r) => (r.voidedAt === null && r.kind === kind ? n + r.amount : n), 0)
 
 /** ปัดทศนิยม 2 ตำแหน่ง — กันเศษลอยจากการบวกเลขทศนิยมทำให้ "ค้าง 0.0000001 บาท" */
-const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100
 
 /**
  * รวมสถานะการเงินของออเดอร์หนึ่งใบ

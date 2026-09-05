@@ -3,6 +3,7 @@ import 'server-only'
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
+import { excludeDraftedWhere } from '@/lib/order-visibility'
 import { thaiDayKey } from '@/lib/format-date'
 import {
   buildResponsePairsSql,
@@ -429,6 +430,9 @@ export async function getAgentPerformanceOverview(
       where: {
         shopId,
         conversationId: null,
+        // 00061: ร่างมี `conversationId` เสมอจึงตกจาก query นี้ "โดยบังเอิญ" อยู่แล้ว —
+        // กรองให้ชัดเพราะความปลอดภัยที่มาจากความบังเอิญพังทันทีที่ดีไซน์ขยับเล็กน้อย
+        ...excludeDraftedWhere,
         createdAt: { gte: filters.from, lt: filters.to },
       },
     }),

@@ -7,6 +7,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { withoutDrafted } from '@/lib/order-visibility'
 import { TZ_OFFSET_MS } from '@/lib/date-range'
 import { countsAsRevenue } from '@/lib/order-revenue'
 import { deriveShippingStage } from '@/lib/order-stage'
@@ -266,7 +267,8 @@ export async function getSalesSeries(
   // query ช่วงปัจจุบัน + ช่วงก่อนหน้ารวมทีเดียว (prevGte..lt) แล้วแยกบัคเก็ต — ช่วงเล็ก (≤2 เดือน / 2 ปี)
   const [rows, jobStatusRows] = await Promise.all([
     prisma.order.findMany({
-      where: { shopId, status: { not: 'CANCELLED' }, createdAt: { gte: prevGte, lt } },
+      // 00061: `notIn` ตัวเดียว — เขียนแยก 2 key `status` ไม่ได้ (ตัวหลังทับตัวหน้าเงียบ ๆ)
+      where: { shopId, ...withoutDrafted('CANCELLED'), createdAt: { gte: prevGte, lt } },
       select: {
         totalAmount: true,
         createdAt: true,
@@ -596,7 +598,7 @@ export async function getSalesChannelBreakdown(
   const { gte, lt } = thaiMonthRange(period)
   const rows = await prisma.order.groupBy({
     by: ['salesChannel'],
-    where: { shopId, status: { not: 'CANCELLED' }, createdAt: { gte, lt } },
+    where: { shopId, ...withoutDrafted('CANCELLED'), createdAt: { gte, lt } },
     _count: { _all: true },
   })
 
@@ -650,7 +652,7 @@ export async function getProvinceSales(
   const rows = await prisma.order.findMany({
     where: {
       shopId,
-      status: { not: 'CANCELLED' },
+      ...withoutDrafted('CANCELLED'),
       createdAt: { gte, lt },
       // ขายหน้าร้านไม่เข้าแผนที่ (ดู doc ด้านบน) — ครอบ null ด้วย เพราะ `not` ใน Prisma
       // ไม่ match แถวที่เป็น null เอง ต้องเขียน OR ให้ชัด

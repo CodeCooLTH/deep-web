@@ -47,6 +47,7 @@ import { LATEST_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { redirect } from 'next/navigation'
 import { getCachedSession } from '@/lib/session-cache'
 import { prisma } from '@/lib/prisma'
+import { excludeDraftedWhere, withoutDrafted } from '@/lib/order-visibility'
 import { shouldHidePayments } from '@/lib/app-shell-server'
 import { resolveChatScope } from '@/lib/chat-scope'
 import { ThreadShopProvider } from '../../_components/DraftOrderProvider'
@@ -575,9 +576,18 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     // จึงถอดคิวรีตามไปด้วย (คิวรีที่ไม่มีใครอ่านผลคือค่าที่จ่ายทุกครั้งที่เปิดเธรด)
     // ตัวป้าย/สถิติเองยังอยู่ครบที่ /customers และหน้าโปรไฟล์ลูกค้า — ที่นั่นมีคิวรีของตัวเอง
     const [orderCount, spentAgg] = await Promise.all([
-      prisma.order.count({ where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter } }),
+      // 00061: ตัดร่างจากแชทออกทั้งคู่ — "เคยสั่ง N ครั้ง" กับ "ยอดซื้อรวม" เป็นตัวเลขที่ผู้ขาย
+      // ใช้ตัดสินว่าลูกค้ารายนี้ซื้อซ้ำจริงไหม ร่างที่ยังไม่ได้เป็นออเดอร์ไม่ควรถูกนับ
+      prisma.order.count({
+        where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter, ...excludeDraftedWhere },
+      }),
       prisma.order.aggregate({
-        where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter, status: { not: 'CANCELLED' } },
+        where: {
+          shopId: shop.id,
+          customerId: linkedCustomer.id,
+          ...orderTypeFilter,
+          ...withoutDrafted('CANCELLED'),
+        },
         _sum: { totalAmount: true },
       }),
     ])

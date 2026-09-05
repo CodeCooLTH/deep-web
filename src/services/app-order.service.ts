@@ -7,6 +7,7 @@
  *   PENDING/SHIPPED → awaiting_payment · CONFIRMED → completed · CANCELLED → cancelled
  */
 import { prisma } from '@/lib/prisma'
+import { excludeDraftedWhere } from '@/lib/order-visibility'
 import type { Prisma } from '@prisma/client'
 import { settleEndedAuctions } from '@/services/auction.service'
 
@@ -55,7 +56,9 @@ const INCLUDE = { items: true, shop: true, review: true } as const
 export async function listBuyerOrders(userId: string): Promise<AppOrder[]> {
   await settleEndedAuctions() // ปิดประมูลที่จบ + ออก order ให้ผู้ชนะ ก่อน list
   const rows = await prisma.order.findMany({
-    where: { buyerUserId: userId },
+    // 00061: 🛑 buyer-facing — `toOrder()` อ่าน `o.items[0]` โดยไม่มี `?.` และแถว DRAFTED
+    // มี `OrderItem` = 0 แถวเสมอ ⇒ ร่างที่หลุดมาถึงนี่ = ข้อมูลลูกค้าโผล่ในแอปผู้ซื้อ
+    where: { buyerUserId: userId, ...excludeDraftedWhere },
     include: INCLUDE,
     orderBy: { createdAt: 'desc' },
   })
@@ -89,7 +92,7 @@ export async function getBuyerOrderDetail(
   orderId: string,
 ): Promise<(AppOrder & { invoice: AppInvoice | null; hasSlip: boolean }) | null> {
   const o = await prisma.order.findFirst({
-    where: { id: orderId, buyerUserId: userId },
+    where: { id: orderId, buyerUserId: userId, ...excludeDraftedWhere },
     include: { ...INCLUDE, shop: { include: { user: { select: { displayName: true } } } } },
   })
   if (!o) return null
@@ -117,7 +120,7 @@ export async function getOrderTokenForBuyer(
   orderId: string,
 ): Promise<string | null> {
   const o = await prisma.order.findFirst({
-    where: { id: orderId, buyerUserId: userId },
+    where: { id: orderId, buyerUserId: userId, ...excludeDraftedWhere },
     select: { publicToken: true },
   })
   return o?.publicToken ?? null

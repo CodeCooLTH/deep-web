@@ -6,10 +6,19 @@ import { getProductById } from '@/services/product.service'
 import { APPOINTMENT_CARD_PREVIEW } from '@/lib/appointment-summary'
 import { detectScamLink } from '@/lib/scam-link-detector'
 import { pauseForHumanTakeover, clearTakeoverOnResolve } from '@/services/auto-reply-takeover.service'
+import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
 
 export type SenderRole = 'BUYER' | 'SHOP'
 // CALL = เหตุการณ์การโทรที่ Meta แจ้งมา (icon-template) — ไม่ใช่ข้อความที่ใครพิมพ์ ไม่มีใครส่งได้เอง
-export type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL'
+// 🛑 ชนิดข้อความมี 2 ชุดที่ตอบคนละคำถาม ห้ามยุบรวมกลับเป็นตัวเดียว (00061 B16):
+//   - Sendable = "สิ่งที่ใครสักคนส่งได้" → พารามิเตอร์ของ `sendMessage()`
+//   - Stored   = "สิ่งที่เก็บอยู่ในตารางได้" → รูปร่างของข้อความที่อ่านออกมา
+// การ์ดผลลัพธ์ของ 00061 (`AUTO_ORDER_RESULT`) เป็นข้อความที่ **ระบบเขียนลงตารางตรง ๆ**
+// ห้ามส่งผ่าน `sendMessage()` (TFR-020/AC-58) ⇒ ถ้าเติมค่านั้นเข้า union ตัวเดียวแบบเดิม
+// `sendMessage()` จะยอมรับมันทันที = ระบบชนิดพลิกจาก "ห้าม" เป็น "อนุญาต" เงียบ ๆ
+// การแยกไว้แบบนี้ทำให้ `tsc` เป็นด่านที่ล้มตั้งแต่ compile ไม่ใช่รอเทสตอนรัน
+export type SendableMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL'
+export type StoredMessageType = SendableMessageType | typeof AUTO_ORDER_RESULT_TYPE
 
 export interface ConversationSummary {
   id: string
@@ -91,7 +100,7 @@ export interface ChatMessageView {
   conversationId: string
   senderUserId: string | null
   senderRole: SenderRole
-  type: ChatMessageType
+  type: StoredMessageType
   body: string | null
   imageUrl: string | null
   // ไฟล์แนบ (2026-08-02 multi-attachment) — ชื่อเดิม/ขนาด ณ ตอนส่ง; null = ข้อความเก่าหรือไฟล์ที่
@@ -241,7 +250,7 @@ export async function conversationIdsByShipmentState(
           -- ใบที่ยกเลิกแล้วไม่ใช่งานค้าง (deriveShippingStage คืน 'DONE' ให้ใบยกเลิกเสมอ)
           WHERE o."shopId" = c."shopId"
             AND o."customerId" = COALESCE(ec."customerId", cu."id")
-            AND o."status" <> 'CANCELLED'
+            AND o."status" NOT IN ('CANCELLED', 'DRAFTED') -- 00061: ร่างไม่มีพัสดุ จึงไม่ใช่งานค้าง
             AND s."carrierStatus" = ANY(${[...PROBLEM_CARRIER_STATUSES]}::text[])
         )
     `
@@ -270,7 +279,11 @@ export async function conversationIdsByShipmentState(
         ORDER BY sh."createdAt" DESC
         LIMIT 1
       ) s ON true
+      -- 00061: ร่างจากแชท (status='DRAFTED') ไม่ใช่ "ออเดอร์ล่าสุดของลูกค้า" — ถ้าปล่อยผ่าน
+      -- ชิปขั้นตอนในรายการแชทจะเปลี่ยนเป็น "สั่งซื้อแล้ว" ทันทีที่ตัวดักจับเขียนร่าง ทั้งที่ยัง
+      -- ไม่มีออเดอร์จริง (ร่างมีป้ายของตัวเองแยกต่างหาก ดู B11)
       WHERE o."shopId" IN (${Prisma.join(shopIds)}) AND o."customerId" IS NOT NULL
+        AND o."status" <> 'DRAFTED'
       ORDER BY o."shopId", o."customerId", o."createdAt" DESC
     )
     SELECT c."id" AS id
@@ -710,7 +723,7 @@ export async function sendMessage(params: {
   conversationId: string
   senderUserId: string
   senderRole: SenderRole // caller (route) รู้อยู่แล้วว่าเป็นฝั่งไหน — ฟังก์ชันนี้ verify ซ้ำ ไม่ trust เฉย ๆ
-  type: ChatMessageType
+  type: SendableMessageType
   body?: string | null
   imageUrl?: string | null
   // ไฟล์แนบ (2026-08-02) — route ตรวจ/sanitize มาแล้ว service เก็บตรง ๆ

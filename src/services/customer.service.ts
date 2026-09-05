@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 // ไฟล์นี้เดิมรับแต่ TransactionClient (findOrCreateCustomer ถูกเรียกในธุรกรรมเสมอ)
 // getCancellationSummary เป็น read นอกธุรกรรม จึงต้องใช้ client ปกติ
 import { prisma } from '@/lib/prisma'
+import { withoutDrafted } from '@/lib/order-visibility'
 import { CANCEL_REASON_KEYS, cancelReasonCountsAgainstGuest } from '@/lib/lodging'
 
 // derive จาก SSOT ไม่ hardcode รายการซ้ำ — ถ้าเพิ่ม/แก้เหตุผลใน lodging.ts ที่นี่ตามอัตโนมัติ
@@ -83,7 +84,7 @@ export async function getCustomerSummary(
   if (!customerId) return null;
   const [customer, orderCount] = await Promise.all([
     prisma.customer.findUnique({ where: { id: customerId }, select: { createdAt: true } }),
-    prisma.order.count({ where: { customerId, shopId, status: { not: "CANCELLED" } } }),
+    prisma.order.count({ where: { customerId, shopId, ...withoutDrafted("CANCELLED") } }),
   ]);
   if (!customer) return null;
   return { orderCount, sinceISO: customer.createdAt.toISOString() };

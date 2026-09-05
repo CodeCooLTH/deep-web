@@ -102,8 +102,8 @@ describe('ตัวกรอง "พัสดุมีปัญหา" ต้อ
     expect(problemBranch).toContain('EXISTS')
   })
 
-  it('[blocker] ใบที่ยกเลิกแล้วไม่ใช่งานค้าง — ต้องถูกตัดออกเหมือนฝั่ง /orders', () => {
-    expect(problemBranch).toContain(`o."status" <> 'CANCELLED'`)
+  it('[blocker] ใบที่ยกเลิก/ร่างไม่ใช่งานค้าง — ต้องถูกตัดออกเหมือนฝั่ง /orders', () => {
+    expect(problemBranch).toContain(`o."status" NOT IN ('CANCELLED', 'DRAFTED')`)
   })
 
   it('[blocker] นิยาม "มีพัสดุจริง" ต้องเป็น CREATED + ไม่ใช่ dry-run (ไม่ใช่ <> CANCELLED)', () => {
@@ -119,7 +119,7 @@ describe('ตัวนับบนป้ายในแถวแชท (enrichWi
 
   it('[blocker] ต้องนับใบที่ติดปัญหาแยกจากใบล่าสุด แล้วส่งเข้า deriveOrderStage', () => {
     expect(enrichSrc).toContain('PROBLEM_CARRIER_STATUSES')
-    expect(enrichSrc).toContain(`po."status" <> 'CANCELLED'`)
+    expect(enrichSrc).toContain(`po."status" NOT IN ('CANCELLED', 'DRAFTED')`)
     // ค่าที่นับได้ต้องถูก "ใช้" จริง ไม่ใช่แค่ดึงมาแล้ววางทิ้งไว้ในแถว
     expect(enrichSrc).toContain('problemOrderCount: r.problemOrderCount')
   })

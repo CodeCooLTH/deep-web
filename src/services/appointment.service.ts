@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { withoutDrafted } from "@/lib/order-visibility";
 import { isExclusionViolation } from "@/lib/prisma-errors";
 import { appointmentDayWhere } from "@/lib/appointment-day";
 import {
@@ -481,7 +482,7 @@ export async function getResourceAvailability(args: {
     where: {
       serviceResourceId: resourceId,
       shopId,
-      status: { not: "CANCELLED" },
+      ...withoutDrafted("CANCELLED"),
       // ช่วงที่ทับกับหน้าต่างที่ขอ: start < to AND end > from
       serviceStart: { lt: to },
       serviceEnd: { gt: from },
@@ -517,7 +518,7 @@ export async function listAppointments(args: {
     where: {
       shopId,
       serviceResourceId: resourceId ? resourceId : { not: null },
-      status: { not: "CANCELLED" },
+      ...withoutDrafted("CANCELLED"),
       serviceStart: { lt: to },
       serviceEnd: { gt: from },
     },
@@ -627,7 +628,7 @@ export async function listAppointmentsForDay(args: {
     where: {
       shopId,
       serviceResourceId: resourceId ? resourceId : { not: null },
-      status: { not: "CANCELLED" },
+      ...withoutDrafted("CANCELLED"),
       serviceStart: { lt: to },
       serviceEnd: { gt: from },
     },

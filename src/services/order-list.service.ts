@@ -96,6 +96,18 @@ const ACTIVE_SHIPMENT_LATERAL = `
     LIMIT 1
   ) s ON true`
 
+/**
+ * 🛑 00061 — ไฟล์นี้ **จงใจไม่ตัด `status='DRAFTED'`** ต่างจากทุกจุดใน DATABASE.md §C
+ *
+ * เหตุผล: `/orders` คือ *หน้าที่ร่างต้องไปโผล่* (BR-ACO-22 · AC-ACO-66) — ผู้ขายต้องเห็นและ
+ * จัดการร่างจากที่เดียวกับออเดอร์จริง ไม่ใช่หน้ารวมศูนย์แยก ⇒ ตัวกรอง `?status=DRAFTED`
+ * (ชิป "ร่าง") ทำงานผ่าน `f.status` ตัวเดิมได้เลย ไม่ต้องมีเส้นทางที่สอง
+ *
+ * ⚠️ ตามมาด้วยข้อควรระวังที่ต้องรู้: ตัวนับ `countShopOrdersByStage()` ข้างล่างจึง **นับร่างรวม
+ * อยู่ในกองพัสดุด้วย** — ร่างไม่มีพัสดุ จึงตกเข้ากอง "รอเลขพัสดุ" ทุกใบ. เป็นพฤติกรรมที่ตั้งใจ
+ * เฉพาะเมื่อผู้ใช้เลือกดูร่างอยู่แล้วเท่านั้น — ตัวเรียกที่ไม่ได้ตั้งใจนับร่างต้องส่ง
+ * `status` มาเองหรือใช้ `countDraftedOrders()` (TFR-023) ไม่ใช่หยิบตัวเลขจากที่นี่ไปใช้ต่อ
+ */
 function whereFragments(shopId: string, f: OrderListFilters): Prisma.Sql[] {
   const parts: Prisma.Sql[] = [Prisma.sql`o."shopId" = ${shopId}`]
   if (f.status) parts.push(Prisma.sql`o."status" = ${f.status}`)

@@ -17,6 +17,8 @@
  * "รอบการรอ"      = ช่วงตั้งแต่ข้อความลูกค้าใบแรกที่ยังไม่ถูกตอบ จนถึงคำตอบของคนใบถัดไป
  */
 
+import { round2 } from '@/lib/round2'
+
 /** ค่าที่ `ChatMessage.autoReplyKind` เป็นได้เมื่อ "ระบบเป็นผู้ส่ง" — null = คนส่ง */
 export const AUTO_REPLY_KINDS = ['AUTO', 'AUTO_TEST'] as const
 
@@ -673,11 +675,6 @@ export function summarizeByAgent(
   }
 
   return rows.sort((a, b) => b.revenue - a.revenue || b.conversations - a.conversations)
-}
-
-/** ปัดทศนิยม 2 ตำแหน่ง — เหมือน `round2` ของ `order.service.ts`/`pnl.service.ts` */
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

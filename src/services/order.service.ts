@@ -22,6 +22,8 @@ import { orderDateRejectReason } from "@/lib/order-date-window";
 import { canSellerConfirmPayment, isCODPayment } from "@/lib/order-display";
 // feature 00062 (U11) — override fulfillmentMode='PICKUP' + freeze payoutSnapshot (TD-001/TFR-009)
 import { buildPayoutSnapshot, needsPayoutAccount, type ShopPayoutFields } from "@/lib/shop-payout";
+import { round2 } from "@/lib/round2";
+import { withoutDrafted } from "@/lib/order-visibility";
 import {
   attachAppointmentInTx,
   computeAppointmentDeposit,
@@ -349,8 +351,7 @@ export async function createOrder(shopId: string, data: {
   }
 
   // ปัดเศษ 2 ตำแหน่งเพื่อไม่ให้เกิด float tail ก่อนส่งเข้า Decimal(12,2) column
-  // (เช่น 0.1+0.2 = 0.30000000000000004 → ปัด → 0.30)
-  const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+  // (เช่น 0.1+0.2 = 0.30000000000000004 → ปัด → 0.30) — `round2` = SSOT เดียว (@/lib/round2)
   // subtotal = ราคารวมก่อนหัก discount + บวก vat
   const subtotal = round2(data.items.reduce((sum, item) => sum + item.qty * item.price, 0));
   // totalAmount = subtotal - discount + vatAmount (ตาม spec B1)
@@ -754,7 +755,6 @@ export async function updateOrder(
     }
   }
 
-  const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
   const subtotal = round2(data.items.reduce((sum, item) => sum + item.qty * item.price, 0));
   const totalAmount = round2(subtotal - (data.discount ?? 0) + (data.vatAmount ?? 0));
 
@@ -2191,7 +2191,7 @@ export async function getShippingStageCounts(
   shopId: string,
 ): Promise<Record<Exclude<ShippingStageKey, "DONE" | "NOT_SHIPPING">, number>> {
   const rows = await prisma.order.findMany({
-    where: { shopId, status: { not: "CANCELLED" } },
+    where: { shopId, ...withoutDrafted("CANCELLED") },
     select: {
       status: true,
       // ไทล์ "รอเงิน COD" ต้องรู้ว่าใบนี้เก็บเงินปลายทางไหม และร้านกดว่าได้เงินแล้วหรือยัง

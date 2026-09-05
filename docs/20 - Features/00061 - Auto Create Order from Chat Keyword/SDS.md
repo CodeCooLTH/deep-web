@@ -102,7 +102,7 @@ related: ["[[SRS]]", "[[BRD]]", "[[PRD]]", "[[DATABASE]]", "[[API]]"]
 | B13 | `auto-reply.service.ts:846-850` | `type:{not:'AUTO_ORDER_RESULT'}` ที่ `lastShop` | 022 *(เจอตอน SDS)* | ขอบเขตข้อความที่ป้อน auto-reply |
 | B14 | `ai-suggest/route.ts:235-238` | `type:{not:'AUTO_ORDER_RESULT'}` | 022 *(เจอตอน SDS)* | AI suggestion ของแอดมิน |
 | B16 | `chat.service.ts:12` (+ `:94`, `:713`) | 🛑 **แยก `ChatMessageType` เป็น `SendableMessageType` (แคบ) กับ `StoredMessageType` (กว้าง)** — ถ้าเติมค่าใหม่เข้า union เดิมตรง ๆ **`sendMessage()` จะยอมรับมันทันที = พลิกจากห้ามเป็นอนุญาต** (§3.9) | 020 | `sendMessage` + ทุกจุดที่อ่านรูปร่างข้อความ |
-| B15 | `src/lib/money-round.ts` (+ **5** จุดที่ก็อป) | 🛑 **สกัด `round2` เป็น export ที่เดียว** — ปัจจุบันมีสำเนา **5 ชุด** (`order.service.ts:330` + **`:705`** local const · `order-payment.ts:79` · `CartPanel.tsx:39` · `OrderCreateForm.tsx:298`) · `promoteDraftToOrder` ต้องใช้สูตรเดียวกับ `createOrder` **การก็อปชุดที่ 5 = ทำให้ปัญหาแย่ลง (HR16)** | §3.9 | ทุกจุดที่คำนวณเงิน |
+| B15 | `src/lib/round2.ts` (มีอยู่แล้ว) + **8** จุดที่ก็อป | 🛑 **สกัด `round2` เป็น export ที่เดียว** — ปัจจุบันมีสำเนา **5 ชุด** (`order.service.ts:330` + **`:705`** local const · `order-payment.ts:79` · `CartPanel.tsx:39` · `OrderCreateForm.tsx:298`) · `promoteDraftToOrder` ต้องใช้สูตรเดียวกับ `createOrder` **การก็อปชุดที่ 5 = ทำให้ปัญหาแย่ลง (HR16)** | §3.9 | ทุกจุดที่คำนวณเงิน |
 
 ### กลุ่ม C — เรียกเฉย ๆ ไม่แตะ
 
@@ -366,12 +366,23 @@ export const AUTO_ORDER_RESULT_TYPE = 'AUTO_ORDER_RESULT' as const
 > **⇒ เพิ่มเป็นจุดแก้ B16** · หมายเหตุ: `ChatThread.tsx:62` (ฝั่งผู้ซื้อ) **ประกาศ union ของตัวเองแคบกว่า** (`TEXT|IMAGE|PRODUCT|ORDER`) ไม่ได้ import จาก service — ซ้ำซ้อนอยู่ก่อนแล้ว **แต่บังเอิญเป็นผลดีกับฟีเจอร์นี้** (ฝั่งผู้ซื้อไม่รู้จักค่าใหม่เลยแม้แต่ในระดับชนิด)
 
 ### 3.10 B15 — สกัด `round2()` เป็น SSOT เดียว
-```ts
-// src/lib/money-round.ts
-export function round2(n: number): number { return Math.round((n + Number.EPSILON) * 100) / 100 }
-```
-**จุดเดิมที่ต้องแก้ให้ import แทน local `const`: 5 จุด ไม่ใช่ 4** — `order.service.ts:330` (`createOrder`) · **`order.service.ts:705` (`updateOrder` — สำเนาที่ 5 ที่เพิ่งเจอ)** · `order-payment.ts:79` · `CartPanel.tsx:39` · `OrderCreateForm.tsx:298`
-⇒ **A6/A7 ของฟีเจอร์นี้ import จากไฟล์นี้ตั้งแต่วันแรก ไม่มีสำเนาที่ 6 เกิดขึ้นเลย** — เป็นการแก้เชิงกล ไม่มีจุดตัดสินเพิ่ม
+
+🛑 **แก้สเปกตอนลงมือ (2026-09-05): ห้ามสร้าง `src/lib/money-round.ts`** — `src/lib/round2.ts` **มีอยู่แล้ว**
+ในรีโป (สร้างไว้ตอน 00016 พร้อมคอมเมนต์ที่ประกาศตัวเองว่าเป็นที่ที่ของใหม่ต้องอ้าง) และมีผู้เรียกจริงแล้ว 1 ราย
+(`order-profit.ts`) ⇒ **การสร้างไฟล์ตามชื่อที่ SDS เขียนไว้ = ผลิตนิยามที่ 9 เพื่อแก้ปัญหาเรื่องนิยามซ้ำ**
+ซึ่งเป็นความผิดพลาดแบบเดียวกับที่ HR16 มีไว้กัน
+
+**จำนวนสำเนาจริงคือ 8 ไม่ใช่ 5** (เปิด grep สูตร ไม่ใช่ grep ชื่อ `round2`) — 3 ตัวที่ SDS มองไม่เห็น:
+`pnl.service.ts:49` · `agent-performance.ts:679` · **`auto-order-reasons.ts:76` ซึ่งเป็นสำเนาที่ A3 ของ
+ฟีเจอร์นี้เองเพิ่งสร้างขึ้นเมื่อคอมมิตก่อนหน้า** (ตรงข้ามกับที่ SDS อ้างว่า "ไม่มีสำเนาที่ 6 เกิดขึ้นเลย")
+
+**ย้ายแล้ว 6 จุด** (`order.service.ts` ×2 · `order-payment.ts` · `pnl.service.ts` · `agent-performance.ts` ·
+`auto-order-reasons.ts`) · **เหลือ 2 จุดที่ยังไม่ย้าย:** `CartPanel.tsx:39` · `OrderCreateForm.tsx:298`
+— ทั้งคู่เป็น *ตัวคำนวณพรีวิวบนหน้าจอ* ที่ค่าไม่ถูกบันทึก และการแตะไฟล์ frontend ต้องผ่าน ux gate (HR8)
+⇒ ขึ้น allow-list ที่มีเหตุผลกำกับใน `round2-single-definition.test.ts` **ไม่ใช่ซ่อนไว้เฉย ๆ**
+
+**ด่าน:** `src/lib/__tests__/round2-single-definition.test.ts` `[blocker]` — สแกน `src/` ทั้งหมดหา *ตัวสูตร*
+(ไม่ใช่ชื่อฟังก์ชัน ⇒ เปลี่ยนชื่อตัวแปรแล้วยังจับได้) · พิสูจน์ด้วย mutation: คืนสำเนาเข้า `pnl.service` → แดง
 
 ---
 

@@ -7,6 +7,7 @@
  */
 import { MOBILE_PHONE_RE } from "@/lib/phone";
 import { isOrderDateInWindow } from "@/lib/order-date-window";
+import { round2 } from "@/lib/round2";
 
 export type DraftReasonCode =
   | "NO_PHONE"
@@ -70,11 +71,6 @@ export function sortDraftReasons(reasons: DraftReasonCode[]): DraftReasonCode[] 
   return [...reasons].sort(
     (a, b) => DISPLAY_ORDER.indexOf(a) - DISPLAY_ORDER.indexOf(b),
   );
-}
-
-/** ปัดทศนิยม 2 ตำแหน่ง — สูตรเดียวกับที่ `createOrder()` ใช้ (`order.service.ts:330`) */
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
 /**

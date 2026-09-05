@@ -12,6 +12,7 @@
  * (`docs/conventions/distinct-on-needs-shop-key.md`)
  */
 import { prisma } from '@/lib/prisma'
+import { excludeDraftedWhere } from '@/lib/order-visibility'
 import { summarizeCustomerBehavior, type CustomerBehavior } from '@/lib/customer-behavior'
 import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { resolveCustomerIds, type Linkable } from './order-stage.service'
@@ -48,7 +49,8 @@ export async function enrichWithCustomerBehavior<T extends Linkable>(
   //
   // ทั้งสองรอยหน้าตาเหมือนกันเป๊ะจากภายนอก: ตัวเลขบนจอผิด โดย tsc/build/เทส/grep ผ่านหมด
   const rows = await prisma.order.findMany({
-    where: { shopId: { in: shopIds }, customerId: { in: customerIds } },
+    // 00061: ร่างจากแชทไม่ใช่ "ออเดอร์ที่เคยเกิดขึ้น" ⇒ ห้ามเข้าตัวตัดสินป้ายพฤติกรรม
+    where: { shopId: { in: shopIds }, customerId: { in: customerIds }, ...excludeDraftedWhere },
     select: {
       shopId: true,
       customerId: true,

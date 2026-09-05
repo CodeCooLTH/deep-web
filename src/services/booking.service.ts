@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { withoutDrafted } from "@/lib/order-visibility";
 import { isExclusionViolation } from "@/lib/prisma-errors";
 import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
@@ -269,7 +270,7 @@ export async function getAvailability(
     where: {
       shopId,
       type: BOOKING_ORDER_TYPE,
-      status: { not: "CANCELLED" },
+      ...withoutDrafted("CANCELLED"),
       roomId: roomId ? roomId : { in: rooms.map((r) => r.id) },
       // ทับช่วงที่ขอ: checkIn < to AND checkOut > from
       checkIn: { lt: toDate },

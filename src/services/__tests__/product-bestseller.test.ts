@@ -42,7 +42,10 @@ describe('getBestSellerProducts', () => {
     expect(prisma.orderItem.groupBy).toHaveBeenCalledWith(
       expect.objectContaining({
         by: ['productId'],
-        where: { productId: { not: null }, order: { shopId: 'shopX', status: { not: 'CANCELLED' } } },
+        where: {
+          productId: { not: null },
+          order: { shopId: 'shopX', status: { notIn: ['DRAFTED', 'CANCELLED'] } },
+        },
         _sum: { qty: true },
         orderBy: { _sum: { qty: 'desc' } },
         take: 5,
@@ -61,7 +64,10 @@ describe('getBestSellerProducts', () => {
    * 3. 2026-08-06 (commit 9687fde3) เกณฑ์ปัจจุบัน = `status: { not: 'CANCELLED' }` — "ขายดี"
    *    ของหลังร้านนับตั้งแต่ *สร้างออเดอร์* เพราะคนขายใช้ตัวเลขนี้ตัดสินใจสต็อก ซึ่งต้องรู้ตั้งแต่
    *    ของออกจากร้าน ไม่ใช่รอปลายทางกดยืนยัน
-   * เทสนี้ล็อกข้อ 3 ไว้ ไม่ให้ใครเปลี่ยนตัวกรองโดยไม่รู้ว่าเคยแกว่งมาแล้ว 2 รอบ
+   * 4. 2026-09-05 (00061) เพิ่ม `DRAFTED` เข้าชุดที่ตัดออก — ร่างจากแชทไม่มี `OrderItem`
+   *    เลยสักแถว จึงเคย "ปลอดภัยโดยบังเอิญ" อยู่แล้ว แต่ความปลอดภัยแบบนั้นพังทันทีที่มีใคร
+   *    เปลี่ยนดีไซน์ให้ร่างมีรายการ ⇒ กรองให้ชัด (DATABASE.md §C แถว 7)
+   * เทสนี้ล็อกข้อ 3+4 ไว้ ไม่ให้ใครเปลี่ยนตัวกรองโดยไม่รู้ว่าเคยแกว่งมาแล้ว 2 รอบ
    */
   it('ไม่นับออเดอร์ที่ยกเลิก — PENDING/SHIPPED/CONFIRMED นับหมด (เกณฑ์หลังร้าน)', async () => {
     vi.mocked(prisma.orderItem.groupBy).mockResolvedValue([{ productId: 'p1', _sum: { qty: 2 } }] as never)
@@ -70,9 +76,10 @@ describe('getBestSellerProducts', () => {
     await getBestSellerProducts('shopX')
 
     const where = vi.mocked(prisma.orderItem.groupBy).mock.calls[0][0].where as {
-      order: { status?: { not?: string } }
+      order: { status?: { notIn?: string[] } }
     }
-    expect(where.order.status).toEqual({ not: 'CANCELLED' })
+    // เทียบเป็นเซ็ต ไม่ใช่ลำดับ — สิ่งที่ต้องล็อกคือ "ตัดสองค่านี้ออก" ไม่ใช่วิธีเขียน
+    expect(new Set(where.order.status?.notIn)).toEqual(new Set(['CANCELLED', 'DRAFTED']))
   })
 
   it('product ที่ถูกปิด (isActive=false) หลุดจาก findMany → ไม่อยู่ในผลลัพธ์ (คงลำดับที่เหลือ)', async () => {

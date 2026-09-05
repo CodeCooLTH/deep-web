@@ -14,6 +14,7 @@
 import { authOptions } from '@/lib/auth'
 import { resolveShopVertical } from '@/lib/lodging'
 import { prisma } from '@/lib/prisma'
+import { excludeDraftedWhere } from '@/lib/order-visibility'
 import { getOrdersByShop } from '@/services/order.service'
 import { deriveShippingStage } from '@/lib/order-stage'
 import { derivePickupStage, isPickupOrder } from '@/lib/order-pickup'
@@ -190,13 +191,15 @@ export default async function OrdersPage({ searchParams }: PageProps) {
           // ต้องมี cancelReason ด้วย — บน prod ไม่มีใบไหนเลยที่ cancelInitiator='buyer'
           // (ลูกค้าแจ้งในแชท ร้านกดให้) ต้นเรื่องจริงอยู่ที่เหตุผลที่ร้านบันทึก ดู customer-behavior.ts
           by: ['customerId', 'status', 'cancelInitiator', 'cancelReason'],
-          where: { shopId: shop.id, customerId: { in: customerIds } },
+          // 00061: ร่างจากแชทไม่ใช่ประวัติการสั่งของลูกค้า ⇒ ห้ามเข้าตัวนับป้ายพฤติกรรม
+          where: { shopId: shop.id, customerId: { in: customerIds }, ...excludeDraftedWhere },
           _count: { _all: true },
         }),
         prisma.order.findMany({
           where: {
             shopId: shop.id,
             customerId: { in: customerIds },
+            ...excludeDraftedWhere, // 00061 — `status` ข้างล่างเป็นของ OrderShipment คนละตาราง
             shipments: {
               some: { status: { not: 'CANCELLED' }, carrierStatus: { in: [...RETURNED_CARRIER_STATUSES] } },
             },

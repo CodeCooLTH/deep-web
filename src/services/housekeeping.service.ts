@@ -1,5 +1,6 @@
 import type { Housekeeper } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { withoutDrafted } from "@/lib/order-visibility";
 import { normalizePhone } from "@/lib/phone";
 import { isHousekeepingStatus } from "@/lib/lodging";
 import { BOOKING_ORDER_TYPE, BookingNotFoundError, toDateOnlyString } from "@/services/booking.service";
@@ -103,7 +104,7 @@ export async function listHousekeepingTasks(shopId: string) {
     where: {
       shopId,
       type: BOOKING_ORDER_TYPE,
-      status: { not: "CANCELLED" },
+      ...withoutDrafted("CANCELLED"),
       housekeeperId: { not: null },
     },
     include: {

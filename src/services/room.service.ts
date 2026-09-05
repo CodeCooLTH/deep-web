@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { roomListingImagesChanged } from "@/lib/inspection/room-images";
 import type { InspectionStep } from "@/lib/inspection/checks";
 import { invalidatePhotosMatchForRoom } from "@/services/inspection-result.service";
+import { withoutDrafted } from "@/lib/order-visibility";
 import { MAX_ROOM_IMAGES } from "@/lib/lodging";
 
 // Lodging Vertical (feature 00017 Phase 1) — business logic ของห้องพัก
@@ -268,7 +269,7 @@ export async function getShopAvailability(shopId: string, months = 3) {
       where: {
         shopId,
         roomId: { not: null },
-        status: { not: "CANCELLED" },
+        ...withoutDrafted("CANCELLED"),
         checkIn: { lt: end },
         checkOut: { gt: start },
       },
