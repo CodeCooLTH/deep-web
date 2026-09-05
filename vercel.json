@@ -20,6 +20,7 @@
     { "path": "/api/cron/iship-status-sync", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/comment-attachment-repair", "schedule": "0 17 * * *" },
     { "path": "/api/cron/chat-outbox", "schedule": "* * * * *" },
-    { "path": "/api/cron/auto-confirm-pickup", "schedule": "0 */6 * * *" }
+    { "path": "/api/cron/auto-confirm-pickup", "schedule": "0 */6 * * *" },
+    { "path": "/api/cron/inspection-lifecycle", "schedule": "0 16 * * *" }
   ]
 }
