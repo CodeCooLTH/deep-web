@@ -52,6 +52,7 @@ import { listConversationsForShops, countUnreadByConversation } from '@/services
 import { listChannelsForShops } from '@/services/shop-channel.service'
 import { listChatGroups } from '@/services/chat-group.service'
 import { enrichWithOrderStage } from '@/services/order-stage.service'
+import { countDraftedOrdersByConversation } from '@/services/auto-order-detect.service'
 import { enrichWithCustomerBehavior } from '@/services/customer-behavior.service'
 import { enrichWithAutoReplyBadge } from '@/services/auto-reply.service'
 import { isShopChatMuted } from '@/services/notification-pref.service'
@@ -222,6 +223,17 @@ export default async function SellerInboxPage() {
     const stageMap = new Map(
       (await enrichWithOrderStage(result.items, shopIds)).map((r) => [r.id, r.orderStage]),
     )
+    /**
+     * feature 00061 — badge "ร่างค้าง" ต่อแถว
+     *
+     * 🛑 enrich ทั้ง 2 ทาง (RSC ที่นี่ + route ที่ client refetch) ด้วยฟังก์ชันเดียวกัน —
+     * ทำทางเดียว badge จะไม่ขึ้นตอนโหลดหน้าแรกแล้วค่อยโผล่หลัง refetch ซึ่งดูเหมือนบั๊ก
+     * (บทเรียนเดียวกับ stageMap/behaviorMap ที่เขียนกำกับไว้แล้วข้างบน)
+     */
+    const draftMap = await countDraftedOrdersByConversation(
+      shopIds,
+      result.items.map((c) => c.id),
+    )
     // ป้ายพฤติกรรมลูกค้าในแถว (user สั่ง 2026-08-11) — เหตุผลที่ต้อง enrich ทั้ง 2 ทางเหมือน stageMap
     const behaviorMap = new Map(
       (await enrichWithCustomerBehavior(result.items, shopIds)).map((r) => [r.id, r.customerBehavior]),
@@ -278,6 +290,8 @@ export default async function SellerInboxPage() {
         shop: shopNameById.has(c.shopId) ? { id: c.shopId, name: shopNameById.get(c.shopId)! } : null,
         orderStage: stageMap.get(c.id) ?? null,
         customerBehavior: behaviorMap.get(c.id) ?? null,
+        // feature 00061 — 0 = ไม่มีร่างค้าง (UI ไม่โชว์ badge)
+        draftOrderCount: draftMap.get(c.id) ?? 0,
         // S-20 — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
         lastMessageAutoReplyKind: autoReplyBadgeMap.get(c.id)?.kind ?? null,
         lastMessageIsAiEnhanced: autoReplyBadgeMap.get(c.id)?.isAi ?? false,

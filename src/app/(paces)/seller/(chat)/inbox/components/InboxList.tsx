@@ -135,6 +135,11 @@ export type ConversationListItem = {
   /** จำนวนข้อความจากลูกค้าที่ร้านยังไม่ได้อ่าน (enrich ที่ route/page ด้วย countUnreadByConversation)
    *  optional เผื่อ payload เก่าที่ยังไม่มี field นี้ → fallback เป็น read-mark เดิม */
   unreadCount?: number
+  /**
+   * feature 00061 — จำนวน "ร่างคำสั่งซื้อ" ที่ยังค้างในห้องนี้ (ไม่นับใบทดสอบ)
+   * optional เผื่อ payload เก่าที่ยัง cache อยู่ฝั่ง client
+   */
+  draftOrderCount?: number
   // feature 00018 CRM — ชื่อในแชท (alias) + tag/สถานะขาย (badge ในแถว) — optional เผื่อ payload เก่า
   alias?: string | null
   contactTags?: string[]
@@ -1796,6 +1801,22 @@ export default function InboxList({
                       {unread && (
                         <span className="bg-danger flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-2xs font-semibold text-white">
                           {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
+                      {/* feature 00061 — ร่างคำสั่งซื้อที่ยังค้างในห้องนี้
+                          🛑 **วางถัดจาก** badge ยังไม่อ่าน ไม่ใช่แทนที่ — สองอย่างตอบคำถามคนละอัน
+                          ("มีข้อความยังไม่อ่าน" vs "มีร่างรอจัดการ") และห้องหนึ่งมีได้ทั้งคู่พร้อมกัน
+                          (อ่านข้อความแล้วแต่ยังไม่จัดการร่าง)
+                          🛑 ต้องมี aria-label — ตัวเลขเปล่าไม่บอกว่าหมายถึงอะไร ต่างจาก badge
+                          ยังไม่อ่านที่บริบทข้างเคียงบอกอยู่แล้ว */}
+                      {(c.draftOrderCount ?? 0) > 0 && (
+                        <span
+                          className="badge bg-warning/15 text-warning-ink text-2xs inline-flex items-center gap-0.5"
+                          aria-label={`มี ${c.draftOrderCount} ร่างคำสั่งซื้อรอจัดการ`}
+                          title={`มี ${c.draftOrderCount} ร่างคำสั่งซื้อรอจัดการ`}
+                        >
+                          <Icon icon="file-alert" width={11} height={11} className="shrink-0" aria-hidden="true" />
+                          {c.draftOrderCount}
                         </span>
                       )}
                     </span>

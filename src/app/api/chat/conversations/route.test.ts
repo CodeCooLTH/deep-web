@@ -33,6 +33,9 @@ const prismaMock = vi.hoisted(() => ({
   // enrichWithAutoReplyBadge / enrichWithCustomerBehavior ฯลฯ ยิง raw SQL ต่อจากรายการ —
   // คืน [] = "ไม่มีป้ายอะไรต้องติด" ซึ่งไม่กระทบสิ่งที่เทสชุดนี้ตรวจ (ขอบเขตร้าน)
   $queryRaw: vi.fn(async () => []),
+  // feature 00061 — badge "ร่างค้าง" ต่อแถว (countDraftedOrdersByConversation)
+  // คืน [] = ไม่มีร่างในห้องไหนเลย ซึ่งไม่กระทบสิ่งที่เทสชุดนี้ตรวจเช่นกัน
+  order: { groupBy: vi.fn(async () => []) },
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 

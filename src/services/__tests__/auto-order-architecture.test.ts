@@ -161,3 +161,37 @@ describe('เส้นทางอัตโนมัติห้าม Quick-Cre
     expect(auto.slice(0, 600)).toContain('allowQuickCreate: false')
   })
 })
+
+describe('ตัวนับร่างต่อห้อง (หน้า D) ต้องใช้เกณฑ์เดียวกับตัวนับต่อร้าน', () => {
+  const CODE = stripComments(readFileSync('src/services/auto-order-detect.service.ts', 'utf8'))
+
+  it('[blocker] ทั้ง 2 ฟังก์ชันอ่าน `DRAFT_COUNT_WHERE` symbol เดียวกัน ไม่ใช่เขียนเงื่อนไขซ้ำ', () => {
+    // 🛑 คลาสที่กัน: "ตัวเลขเดียวกันโผล่ 2 จอแล้วไม่ตรงกัน" — เกิดจริงกับ 00029 (จอเดียวโชว์
+    // "ยังไม่ตอบ" 7 กับ 8) เงื่อนไขที่ *ตั้งใจให้เหมือนกัน* แต่เขียนแยกกันจะ drift เสมอ
+    expect(CODE).toMatch(/const DRAFT_COUNT_WHERE = \{[\s\S]*?isDryRun: false/)
+    const uses = CODE.match(/\.\.\.DRAFT_COUNT_WHERE/g) ?? []
+    expect(uses.length, 'ต้องมีผู้ใช้ 2 ราย (นับต่อร้าน + นับต่อห้อง)').toBe(2)
+  })
+
+  it('[blocker] ตัวนับต่อห้องต้อง scope ด้วย shopId — ห้ามนับข้ามร้าน', () => {
+    const at = CODE.indexOf('export async function countDraftedOrdersByConversation(')
+    expect(at).toBeGreaterThan(-1)
+    const body = CODE.slice(at, at + 1200)
+    expect(body).toContain('shopId: { in: shopIds }')
+    expect(body).toContain('conversationId: { in: conversationIds }')
+  })
+
+  it('[blocker] badge ในรายการห้องแชท enrich ทั้ง RSC และ route ด้วยฟังก์ชันเดียวกัน', () => {
+    // ทำทางเดียว = badge ไม่ขึ้นตอนโหลดหน้าแรกแล้วค่อยโผล่หลัง refetch ซึ่งดูเหมือนบั๊ก
+    for (const f of [
+      'src/app/(paces)/seller/(chat)/inbox/page.tsx',
+      'src/app/api/chat/conversations/route.ts',
+    ]) {
+      const code = stripComments(readFileSync(f, 'utf8'))
+      expect(code, `${f} ต้องเรียก countDraftedOrdersByConversation`).toContain(
+        'countDraftedOrdersByConversation(',
+      )
+      expect(code, `${f} ต้องส่งค่าออกไปกับแถว`).toContain('draftOrderCount')
+    }
+  })
+})

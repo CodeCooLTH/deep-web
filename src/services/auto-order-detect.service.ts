@@ -437,6 +437,12 @@ export async function discardAutoOrderDraft(shopId: string, publicToken: string)
  * 🛑 ทุกจุดที่แสดงตัวเลขนี้ (ชิปใน /orders · badge แถวห้องแชท · หน้าตั้งค่า) ต้องเรียกตัวนี้
  * ห้ามประกอบ query เอง — คลาส "ตัวเลขเดียวกันโผล่ >1 ที่แล้วไม่ตรงกัน" เกิดจริงกับ 00029 มาแล้ว
  */
+const DRAFT_COUNT_WHERE = {
+  status: 'DRAFTED',
+  // ใบทดสอบไม่ใช่งานค้างที่ร้านต้องจัดการ — ไม่นับเข้า badge ทุกจุด
+  isDryRun: false,
+} as const
+
 export async function countDraftedOrders(
   shopId: string,
   opts: { conversationId?: string } = {},
@@ -444,12 +450,40 @@ export async function countDraftedOrders(
   return prisma.order.count({
     where: {
       shopId,
-      status: 'DRAFTED',
-      // ใบทดสอบไม่ใช่งานค้างที่ร้านต้องจัดการ — ไม่นับเข้า badge
-      isDryRun: false,
+      ...DRAFT_COUNT_WHERE,
       ...(opts.conversationId ? { conversationId: opts.conversationId } : {}),
     },
   })
+}
+
+/**
+ * ตัวนับร่างแบบ batch สำหรับ **รายการห้องแชท** — ตัวเดียวกับ `countDraftedOrders` ทุกเงื่อนไข
+ *
+ * 🛑 `DRAFT_COUNT_WHERE` เป็น symbol ที่ทั้งสองฟังก์ชันอ่านร่วมกัน **ไม่ใช่เงื่อนไขที่เขียนซ้ำ
+ * ให้เหมือนกัน** — คลาสบั๊กที่กันอยู่คือ "ตัวเลขเดียวกันโผล่ 2 จอแล้วไม่ตรงกัน" (จอเดียวเคยโชว์
+ * "ยังไม่ตอบ" 7 กับ 8 ใน 00029) ซึ่งเกิดจากการนับด้วยเกณฑ์ที่ *ตั้งใจให้เหมือนกัน* แต่ drift
+ *
+ * คืน Map เฉพาะห้องที่มีร่าง — ห้องที่ไม่มีไม่อยู่ใน Map (ผู้เรียกใช้ `?? 0`)
+ */
+export async function countDraftedOrdersByConversation(
+  shopIds: string[],
+  conversationIds: string[],
+): Promise<Map<string, number>> {
+  if (shopIds.length === 0 || conversationIds.length === 0) return new Map()
+  const rows = await prisma.order.groupBy({
+    by: ['conversationId'],
+    where: {
+      shopId: { in: shopIds },
+      conversationId: { in: conversationIds },
+      ...DRAFT_COUNT_WHERE,
+    },
+    _count: { _all: true },
+  })
+  return new Map(
+    rows
+      .filter((r): r is typeof r & { conversationId: string } => r.conversationId !== null)
+      .map((r) => [r.conversationId, r._count._all]),
+  )
 }
 
 /**
