@@ -35,6 +35,8 @@ import ProfileIdentity from './ProfileIdentity'
 import EvidencePanel from './EvidencePanel'
 import OfficialChannelsBlock from './OfficialChannelsBlock'
 import ShopExtraPages, { type ExtraPageTab } from './ShopExtraPages'
+import InspectionBlock from './InspectionBlock'
+import type { InspectionViewVM } from './inspection-view-vm'
 import type { HeroBadge } from './BadgeShowcase'
 import PageBlocksSection, { type PageBlockItem } from './PageBlocksSection'
 import ProfileTabs from './ProfileTabs'
@@ -130,6 +132,12 @@ export type ShopProfileData = {
    * ต้องมีป้ายบอกใต้กริด ไม่ใช่เงียบ (partial-data-must-be-labeled-or-filled.md)
    */
   productsTruncated?: boolean
+  /**
+   * feature 00060 (T14) — ผลการตรวจสอบร้านต่อเนื่อง (เฉพาะร้าน LODGING ที่เคยสมัครแผน)
+   * null/ไม่ส่งมา = ไม่ render `InspectionBlock` เลย (ร้านไม่ใช่ LODGING หรือไม่เคยสมัครแผน —
+   * UX-Design-Spec §Edge states "ไม่ render บล็อกทั้งก้อน" ไม่ใช่กล่องเปล่า)
+   */
+  inspection?: InspectionViewVM | null
 }
 
 /**
@@ -512,6 +520,11 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
         <Box component='main' sx={{ minInlineSize: 0, order: { xs: 1, md: 2 } }}>
           <PageBlocksSection blocks={effectiveBlocks} />
 
+          {/* feature 00060 (T14) — เหนือ tabs-card ใต้ PageBlocksSection ตาม UX-Design-Spec §Layout
+              (mobile: "แทรกในคอลัมน์ main เหนือ tabs-card ใต้ PageBlocksSection") — component เอง
+              คืน null ถ้า data เป็น null (ร้านไม่ใช่ LODGING/ไม่เคยสมัครแผน) */}
+          <InspectionBlock data={data.inspection ?? null} onOpenFull={() => setExtraPage('inspection')} />
+
           {/* `.tabs-card` — การ์ดขาวครอบทั้งแถบแท็บและเนื้อหา · `overflow:hidden` ให้แถบแท็บ
               ที่มีเส้นคั่นล่างจบพอดีกับมุมมนของการ์ด (ไฟล์อ้างอิงตั้ง overflow:hidden ด้วยเหตุผลนี้)
               มือถือ (≤650) ไฟล์อ้างอิงถอดมุมมน/ขอบข้างออกให้ชนขอบจอ — ทำตาม */}
@@ -552,6 +565,7 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
         channels={data.channels}
         badges={data.hero.badges}
         totalBadges={data.hero.totalBadgeCount}
+        inspection={data.inspection ?? null}
       />
     </>
   )

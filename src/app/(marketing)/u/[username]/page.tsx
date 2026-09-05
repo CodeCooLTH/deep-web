@@ -27,6 +27,8 @@ import { getReviewsByUsername } from '@/services/review.service'
 import { getPublicRooms, getShopAvailability } from '@/services/room.service'
 import { listServiceResources, serializeServiceResource } from '@/services/service-resource.service'
 import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layout.service'
+import { getInspectionForPublicProfile } from '@/services/inspection-public.service'
+import { toInspectionViewVM } from '@views/pages/user-profile/v2/inspection-view-vm'
 import { MAX_PROFILE_PRODUCTS, MAX_PROFILE_REVIEWS, isProfileListTruncated } from '@/lib/profile-sort'
 import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
 import PublicProfileFooter from '@views/pages/user-profile/v2/PublicProfileFooter'
@@ -114,6 +116,10 @@ export default async function PublicProfilePage({ params }: Props) {
   const rawRooms = isLodging && user.shop ? await getPublicRooms(user.shop.id, { publicOnly: true }) : []
   // ปฏิทินวันว่าง — เฉพาะร้านที่พัก ร้านทั่วไปไม่ต้องคิวรี
   const availability = isLodging && user.shop ? await getShopAvailability(user.shop.id, 3) : null
+  // feature 00060 (T14) — ผลตรวจสอบร้านต่อเนื่อง เฉพาะร้านที่พักที่เคยสมัครแผน (service คืน null เอง
+  // ถ้าไม่เคยสมัคร) — แปลงเป็น VM (ISO string + resolve fileId→URL) ก่อนข้าม RSC boundary
+  const inspectionView =
+    isLodging && user.shop ? toInspectionViewVM(await getInspectionForPublicProfile(user.shop.id, new Date())) : null
   // คิวงานที่เปิดใช้งานอยู่ — เฉพาะร้านสินค้าและบริการ (feature 00028 U11, reuse service เดิม feat 00024)
   const rawServices =
     isServiceQueue && user.shop ? await listServiceResources(user.shop.id, { activeOnly: true, publicOnly: true }) : []
@@ -398,6 +404,7 @@ export default async function PublicProfilePage({ params }: Props) {
             itemKind: profileTab.itemKind,
             tabOrder: pageLayout.tabOrder,
             blocks: pageBlocks,
+            inspection: inspectionView,
           }}
         />
 

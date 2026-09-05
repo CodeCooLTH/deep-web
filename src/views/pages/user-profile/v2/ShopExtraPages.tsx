@@ -38,6 +38,7 @@ import { useState } from 'react'
 import Dialog from '@mui/material/Dialog'
 import IconButton from '@mui/material/IconButton'
 import Typography from '@mui/material/Typography'
+import Chip from '@mui/material/Chip'
 
 import { Icon } from '@iconify/react'
 
@@ -50,8 +51,10 @@ import { formatDateTH } from '@/lib/format-date'
 import { Artwork, type HeroBadge } from './BadgeShowcase'
 import type { OfficialChannel } from './OfficialChannels'
 import { ChannelMark } from './OfficialChannelsBlock'
+import InspectionChecklist from './InspectionChecklist'
+import { groupChecksForFullSheet, type InspectionRoundVM, type InspectionViewVM } from './inspection-view-vm'
 
-export type ExtraPageTab = 'pages' | 'badges'
+export type ExtraPageTab = 'pages' | 'badges' | 'inspection'
 
 /**
  * Verified Ink — 🛑 ตัวหนังสือ/ไอคอนสีเขียว **บนพื้นขาว** ต้องใช้ค่านี้ ห้ามใช้ `text-success`
@@ -71,6 +74,10 @@ const CONTAINER = 'is-[min(900px,calc(100%-32px))] mli-auto'
 const TAB_TITLE: Record<ExtraPageTab, string> = {
   pages: 'เพจทางการ',
   badges: 'เหรียญของร้าน',
+  // feature 00060 — หัวข้อสั้น ไม่ต่อ "- {ชื่อร้าน}" ตามม็อกอัพ เพราะชื่อร้านแสดงอยู่แล้วใน
+  // `.store-head` ด้านล่างของทุกแท็บในไฟล์นี้ (สถาปัตยกรรมเดิม) การเติมซ้ำในหัวข้อจะได้ชื่อร้าน
+  // สองบรรทัดติดกัน (คลาสเดียวกับที่ comment บรรทัด 157 ด้านล่างเตือนไว้เรื่อง "แบรนด์สั้น")
+  inspection: 'ผลตรวจสอบร้าน',
 }
 
 export default function ShopExtraPages({
@@ -81,6 +88,7 @@ export default function ShopExtraPages({
   channels,
   badges,
   totalBadges,
+  inspection,
 }: {
   open: boolean
   /** หน้าไหน — 🛑 **ไม่มีแถบแท็บให้สลับในหน้านี้** (user เคาะ 2026-08-21: "เอา tab เปลี่ยนออก
@@ -98,6 +106,10 @@ export default function ShopExtraPages({
   channels: OfficialChannel[]
   badges: HeroBadge[]
   totalBadges: number
+  /** feature 00060 (T14) — null เมื่อร้านไม่ใช่ LODGING/ไม่เคยสมัครแผน — tab 'inspection' จะไม่ถูก
+   *  เปิดในเคสนั้นอยู่แล้ว (InspectionBlock ไม่ render ปุ่ม CTA ถ้า data เป็น null) แต่ type ยัง
+   *  ต้องรับ null เพื่อไม่ให้ผู้เรียกต้อง cast */
+  inspection?: InspectionViewVM | null
 }) {
   const [picked, setPicked] = useState(0)
 
@@ -177,7 +189,7 @@ export default function ShopExtraPages({
 
             {tab === 'pages' ? (
               <PagesPanel channels={channels} shopName={shop.shopName} />
-            ) : (
+            ) : tab === 'badges' ? (
               <BadgesPanel
                 badges={badges}
                 totalBadges={totalBadges}
@@ -185,6 +197,8 @@ export default function ShopExtraPages({
                 onPick={setPicked}
                 current={current}
               />
+            ) : (
+              <InspectionPanel data={inspection ?? null} />
             )}
           </div>
         </div>
@@ -524,6 +538,141 @@ function BadgesPanel({
           )}
         </section>
       </div>
+    </section>
+  )
+}
+
+// ─────────────────────────────── หน้าผลตรวจสอบร้าน (feature 00060 · T14) ───────────────────────────────
+
+function InspectionPanel({ data }: { data: InspectionViewVM | null }) {
+  const [roomIdx, setRoomIdx] = useState(0)
+  const [viewer, setViewer] = useState<{ round: InspectionRoundVM; photoIdx: number } | null>(null)
+
+  // ทางเข้าเดียวของแท็บนี้คือปุ่ม CTA บน `InspectionBlock` ซึ่งไม่ render เมื่อ data เป็น null อยู่แล้ว
+  // กันไว้อีกชั้นเผื่อ tab ถูกเปลี่ยนตรง ๆ (เช่น สลับร้านใน SPA แล้ว extraPage state ค้าง 'inspection')
+  if (data === null) return null
+
+  return (
+    <section>
+      <PanelHead
+        title='ผลตรวจสอบร้าน'
+        sub='รายการข้อตรวจทั้งหมดและรอบตรวจย้อนหลังของร้านนี้ — Deep ยืนยันเฉพาะสิ่งที่ตรวจพบ ณ วันที่ตรวจเท่านั้น'
+      />
+
+      {/* room switcher — เฉพาะร้านหลายหลัง (UX spec Section breakdown "Full sheet") */}
+      {data.rooms.length > 1 && (
+        <div role='tablist' aria-label='เลือกที่พัก' className='flex flex-wrap gap-2 mbs-5'>
+          {data.rooms.map((r, i) => (
+            <Chip
+              key={r.roomId}
+              role='tab'
+              aria-selected={i === roomIdx}
+              label={r.roomName}
+              size='small'
+              variant={i === roomIdx ? 'filled' : 'outlined'}
+              color={i === roomIdx ? 'primary' : 'default'}
+              onClick={() => setRoomIdx(i)}
+              className='cursor-pointer'
+            />
+          ))}
+        </div>
+      )}
+
+      <div className='mbs-6'>
+        <InspectionChecklist groups={groupChecksForFullSheet(data, roomIdx)} />
+      </div>
+
+      {data.timeline.length > 0 ? (
+        <div className='mbs-7 pbs-6 border-bs' style={{ borderColor: '#ececf2' }}>
+          <Typography component='h4' className='text-[13px] font-extrabold mbe-4' color='text.secondary'>
+            รอบตรวจย้อนหลัง
+          </Typography>
+          <ul className='flex flex-col gap-4 m-0 p-0 list-none'>
+            {data.timeline.map((round) => (
+              <li key={round.id}>
+                <Typography className='text-[13px] font-semibold'>
+                  {`${formatDateTH(round.completedAt)} · ${round.stepLabelTh}`}
+                </Typography>
+                {round.photoUrls.length > 0 && (
+                  <div className='flex gap-1.5 mbs-2'>
+                    {round.photoUrls.map((url, i) => (
+                      <button
+                        key={url}
+                        type='button'
+                        onClick={() => setViewer({ round, photoIdx: i })}
+                        className='is-14 bs-14 rounded-lg overflow-hidden border-0 p-0 cursor-pointer shrink-0'
+                        aria-label={`ดูภาพรอบตรวจ ${i + 1} จาก ${round.photoUrls.length}`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- URL จาก storage (toFileUrl) */}
+                        <img src={url} alt='' className='is-full bs-full object-cover' />
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <Typography className='text-[13px] mbs-1' color='text.secondary'>
+                  {`ตรวจโดย ${round.inspectorDisplayName}`}
+                </Typography>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        // ยังไม่มีรอบตรวจที่เสร็จสิ้นเลย — คำนี้สงวนไว้ ต่างจากฝั่งร้านที่ใช้ "รอผู้ตรวจเข้าตรวจ"
+        // (UX spec Edge states — ห้ามสลับคำ เพราะเป็นคำที่ฝั่งร้านใช้บอกงานของตัวเอง)
+        <div className='mbs-7 pbs-6 border-bs plb-8 text-center' style={{ borderColor: '#ececf2' }}>
+          <Icon icon='tabler:calendar-time' width={40} className='text-[var(--mui-palette-text-disabled)] mli-auto' aria-hidden />
+          <Typography variant='body2' color='text.secondary' className='mbs-2'>
+            ยังไม่มีรอบตรวจที่เสร็จสิ้น · Deep กำลังจัดคิวผู้ตรวจ
+          </Typography>
+        </div>
+      )}
+
+      <NoteLine>
+        Deep ยืนยันเฉพาะสิ่งที่ตรวจพบ ณ วันที่ตรวจเท่านั้น ไม่ได้รับประกันพฤติกรรมของร้านในอนาคตหรือคุณภาพการให้บริการ
+      </NoteLine>
+
+      {/* ภาพรอบตรวจ — 🛑 ห้ามใช้ `ProfileLightbox` ที่นี่: มันเรียก `useLockBodyScroll` เอง ซึ่งจะ
+          ซ้อนกับ `<Dialog>` ของไฟล์นี้ที่ล็อก scroll อยู่แล้ว (docs/conventions/overlay-scroll-lock.md
+          "ห้ามเรียกคู่กับ overlay ที่ล็อก scroll เองอยู่แล้ว") — overlay นี้จึงประกอบเอง ไม่ล็อก scroll
+          ซ้ำ (Dialog ด้านนอกล็อกให้ครบแล้วทั้ง body/html/overscroll) */}
+      {viewer && (
+        <div
+          role='dialog'
+          aria-modal='true'
+          aria-label={`ภาพรอบตรวจ ${formatDateTH(viewer.round.completedAt)}`}
+          onClick={() => setViewer(null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setViewer(null)
+            if (e.key === 'ArrowLeft' && viewer.photoIdx > 0) setViewer({ ...viewer, photoIdx: viewer.photoIdx - 1 })
+            if (e.key === 'ArrowRight' && viewer.photoIdx < viewer.round.photoUrls.length - 1) {
+              setViewer({ ...viewer, photoIdx: viewer.photoIdx + 1 })
+            }
+          }}
+          tabIndex={-1}
+          className='fixed inset-0 flex items-center justify-center'
+          style={{ zIndex: 1400, background: 'rgba(47,43,61,.94)' }}
+        >
+          <button
+            type='button'
+            onClick={(e) => {
+              e.stopPropagation()
+              setViewer(null)
+            }}
+            aria-label='ปิด'
+            className='fixed border-0 rounded-full cursor-pointer p-0 inline-flex items-center justify-center'
+            style={{ top: 8, insetInlineEnd: 8, inlineSize: 44, blockSize: 44, background: 'rgb(255 255 255 / .14)', color: '#fff' }}
+          >
+            <Icon icon='tabler:x' width={22} aria-hidden />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element -- URL จาก storage (toFileUrl) */}
+          <img
+            src={viewer.round.photoUrls[viewer.photoIdx]}
+            alt=''
+            onClick={(e) => e.stopPropagation()}
+            className='max-is-[92vw] max-bs-[88vh] object-contain'
+          />
+        </div>
+      )}
     </section>
   )
 }

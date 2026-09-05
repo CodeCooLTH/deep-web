@@ -92,6 +92,12 @@
         "value": "4px",
         "createdAt": "2026-08-29T11:40:06.019Z",
         "reason": "4px คือ rounded.sm ที่ประกาศใน DESIGN.md:72 และเป็นฐาน --radius ของฝั่ง Paces (DESIGN.md:309) — ค่าที่อยู่ในบันไดอยู่แล้ว ตัวตรวจแมปกลับเป็นโทเคนไม่ได้เพราะอยู่ใน HTML string ของ tooltip.custom ซึ่งเรนเดอร์นอก React tree จึงใช้คลาส Tailwind ไม่ได้ (ProductSalesChart.tsx)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(40,34,76,.08)",
+        "createdAt": "2026-09-05T07:15:41.333Z",
+        "reason": "ค่าเดิมของการ์ดตระกูลนี้ทั้งหน้า (SIDE_CARD_SX/TABS_CARD_SX ใน ShopProfile.tsx, ShopExtraPages.tsx) — InspectionBlock ใช้กรอบการ์ดชุดเดียวกันตาม UX-Design-Spec ไม่ใช่สีใหม่"
       }
     ]
   }

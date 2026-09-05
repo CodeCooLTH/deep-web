@@ -20,6 +20,8 @@ import { getPinnedProducts } from '@/services/pin.service'
 import { getPublicRooms, getConfirmedBookingCountByRoom } from '@/services/room.service'
 import { listServiceResources, serializeServiceResource } from '@/services/service-resource.service'
 import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layout.service'
+import { getInspectionForPublicProfile } from '@/services/inspection-public.service'
+import { toInspectionViewVM } from '@views/pages/user-profile/v2/inspection-view-vm'
 import { MAX_PROFILE_PRODUCTS, MAX_PROFILE_REVIEWS, isProfileListTruncated } from '@/lib/profile-sort'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
 import { approvedVerificationWhere, businessScope } from '@/lib/verification-scope'
@@ -132,7 +134,7 @@ export default async function BusinessShopProfilePage({ params }: Props) {
   // profileStats = แหล่งเดียวกับ /u/[username] — completedOrders/completionRate อ่านจากชุดนี้
   // ไม่คำนวณสูตรซ้ำเอง (เดิมเรียก computeCompletionRate() ที่หน้า แล้วผลตกที่ field ที่ไม่มีใคร
   // render ทำให้เกณฑ์ขั้นต่ำใน order-stats.ts ไม่เคยมีผลกับหน้าจอจริง — feature 00039 BR-OSM-10)
-  const [profileStats, soldByProduct, rooms, rawServices, shopVideos, pageBlocks, availability, shopReviews] =
+  const [profileStats, soldByProduct, rooms, rawServices, shopVideos, pageBlocks, availability, shopReviews, inspectionRaw] =
     await Promise.all([
       getShopProfileStats(shop.id),
       // ยอด "ขายแล้ว" ต่อสินค้า — ดึงครั้งเดียวสำหรับทั้งชุดปักหมุดและชุดที่เหลือ (query เดียว ไม่ใช่ต่อใบ)
@@ -185,7 +187,12 @@ export default async function BusinessShopProfilePage({ params }: Props) {
           },
         },
       }),
+      // feature 00060 (T14) — ผลตรวจสอบร้านต่อเนื่อง เฉพาะร้านที่พักที่เคยสมัครแผน (service คืน
+      // null เอง ถ้าไม่เคยสมัคร) — VM transform (ISO string + resolve fileId→URL) ทำหลัง Promise.all
+      isLodging ? getInspectionForPublicProfile(shop.id, new Date()) : Promise.resolve(null),
     ])
+
+  const inspectionView = toInspectionViewVM(inspectionRaw)
 
   // ── ถูกใจสินค้า (CR 2026-08-11) ──
   // อ่านคุกกี้อุปกรณ์เพื่อให้หัวใจขึ้นทึบตั้งแต่ render แรก — ไม่ต้องล็อกอิน (D-1)
@@ -424,6 +431,7 @@ export default async function BusinessShopProfilePage({ params }: Props) {
             itemKind: profileTab.itemKind,
             tabOrder: pageLayout.tabOrder,
             blocks: pageBlocks,
+            inspection: inspectionView,
           }}
         />
       <PublicProfileFooter />
