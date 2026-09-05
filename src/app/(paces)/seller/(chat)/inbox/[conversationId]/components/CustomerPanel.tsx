@@ -70,7 +70,8 @@ import OrderCardView from '../../../_components/OrderCardView'
 import ReturnPanel from '../../../../(dashboard)/orders/[token]/components/ReturnPanel'
 import AppointmentSummarySheet from '../../../_components/AppointmentSummarySheet'
 import { pacesToast } from '@/lib/paces-toast'
-import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
+import { sendOrderToChat } from '@/app/(paces)/seller/(chat)/_components/sendOrderToChat'
+import { pacesConfirmWithReason } from '@/lib/paces-swal'
 import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
 import { toFileUrl } from '@/lib/file-url'
 
@@ -451,27 +452,11 @@ function OrderCard({
     if (sending) return
     // ใช้ noun เดียวกับที่การ์ดนี้ใช้อยู่แล้ว (บรรทัดบน) — ร้านบริการ/บ้านพักไม่เรียกรายการของ
     // ตัวเองว่า "คำสั่งซื้อ" และกล่องยืนยันนี้เด้งทับหน้าจอที่ใช้คำอีกแบบอยู่
-    const ok = await pacesConfirm.question(`ส่ง${noun}นี้เข้าแชท?`, `ลูกค้าจะได้รับข้อมูล${noun}นี้ในแชท`, {
-      confirmButtonText: 'ส่งเลย',
-    })
-    if (!ok) return
+    // 🛑 คำ Swal + endpoint อยู่ที่ `sendOrderToChat` ที่เดียว (00061) — การ์ดผลลัพธ์ในเธรด
+    // เรียกฟังก์ชันตัวเดียวกันนี้ ห้ามก็อป fetch+confirm ไปไว้อีกที่ (HR16)
     setSending(true)
     try {
-      // ส่ง type=ORDER เสมอ — route ตัดสินตามช่องทาง: DEEP ลูกค้าเห็นการ์ด; Messenger/IG ลูกค้าได้ลิงก์
-      // แต่ "ร้าน" เห็นเป็นการ์ดทั้งสองกรณี (user 2026-07-25: ร้านอยู่ในระบบเรา = การ์ด)
-      const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'ORDER', orderRefToken: o.token }),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        pacesToast.error(d?.error ?? 'ส่งไม่สำเร็จ ลองใหม่อีกครั้ง')
-        return
-      }
-      pacesToast.success('ส่งเข้าแชทแล้ว')
-    } catch {
-      pacesToast.error('ส่งไม่สำเร็จ ลองใหม่อีกครั้ง')
+      await sendOrderToChat({ conversationId, orderToken: o.token, noun })
     } finally {
       setSending(false)
     }

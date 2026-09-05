@@ -151,7 +151,11 @@ export type ChatMessageView = {
   // VIDEO/AUDIO/FILE = ไฟล์แนบช่องทางนอก (feature 00018) — fileId เก็บใน imageUrl เหมือน IMAGE
   // ORDER = การ์ดออเดอร์/ใบเสนอราคา (user 2026-07-24) — enrich orderCard จาก GET
   // CALL = เหตุการณ์การโทร (Meta icon-template) — render เป็นการ์ดกลางจอ ไม่ใช่บับเบิล
-  type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL'
+  // AUTO_ORDER_RESULT = การ์ดผลลัพธ์ของตัวสร้างออเดอร์อัตโนมัติ (00061)
+  // 🛑 ชนิดนี้ **ส่งไม่ได้** — ระบบเขียนลงตารางตรง ๆ เท่านั้น (ฝั่ง server บังคับด้วย
+  // `SendableMessageType` ที่แคบกว่า `StoredMessageType`) ชนิดตรงนี้คือ "สิ่งที่เก็บได้"
+  // จึงต้องมีค่านี้ ไม่งั้น UI จะวาดมันเป็นบับเบิลเปล่าเพราะไม่รู้จัก
+  type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL' | 'AUTO_ORDER_RESULT'
   /**
    * mid ของ Meta — รูปหลายใบในข้อความเดียวได้ `mid`, `mid#1`, `mid#2`… (convention ของ ingest)
    * ใช้เป็นเส้นแบ่ง "ก้อนอัลบั้ม" ในเธรด (user report 2026-08-04: 2 รูป + 6 รูป กลายเป็นกอง 8)

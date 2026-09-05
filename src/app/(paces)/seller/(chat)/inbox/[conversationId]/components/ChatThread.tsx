@@ -69,6 +69,8 @@
  * "กลับหน้าหลัก" ที่ ChatHeader.tsx — คนละปลายทาง: ปุ่มนี้ไป /inbox ไม่ใช่ /dashboard)
  */
 import Icon from '@/components/wrappers/Icon'
+import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
+import AutoOrderResultCard, { type AutoOrderCardData } from './AutoOrderResultCard'
 import AutoReplyTag from './AutoReplyTag'
 import ThreadChipStrip, {
   type ThreadChipItem,
@@ -866,6 +868,9 @@ type Props = {
 // (ตัดสินก่อนกดส่งผ่าน replyingTo.quotable) และ snapshot replyTo (ตัดสินหลังส่งว่า quote ติดจริงไหม)
 // — ChatMessageView (hook) ไม่ประกาศฟิลด์นี้ในชนิดข้อมูล (นอกขอบเขต T4/แก้ไม่ได้รอบนี้ — งานอื่นค้าง
 // อยู่ในไฟล์นั้น) จึง extend ชนิดข้อมูลในนี้เองแบบเดียวกับ deliveryStatus/failureReason ข้างบน
+/** feature 00061 — ข้อมูลการ์ดผลลัพธ์ที่ route enrich มาให้ (null = ยังอยู่สถานะ "กำลังอ่าน") */
+type ChatMessageWithAutoOrder = ChatMessageView & { autoOrderCard?: AutoOrderCardData | null }
+
 type ChatMessageWithDelivery = ChatMessageView & {
   /** (CR 2026-08-23) เดิมเป็น `string | null` — ขยายเป็น union เพื่อให้ `tsc` เป็นคนบังคับว่าค่า
    *  'QUEUED' ที่เพิ่งเพิ่มถูกไล่ครบทุกจุดที่อ่านคอลัมน์นี้ (grep จับ object key ไม่ได้ —
@@ -3172,6 +3177,39 @@ export default function ChatThread({
                 // อ่านเป็นข้อความที่ร้านพิมพ์เอง ย้ายแค่ตำแหน่ง ไม่เปลี่ยนความหมาย
                 // ยังไม่มีปุ่ม "โทรกลับ" เพราะเรายังโทรกลับไม่ได้จริง (Calling API ต้อง subscribe
                 // webhook `calls` + รัน WebRTC เอง) ปุ่มที่กดไม่ได้ = UI โกหก
+                /**
+                 * feature 00061 — การ์ดผลลัพธ์ของตัวสร้างออเดอร์อัตโนมัติ
+                 *
+                 * 🛑 ต้องอยู่ **เหนือ** สาขา `mine`/บับเบิลปกติ — ข้อความชนิดนี้มี
+                 * `senderRole='SHOP'` เหมือนที่ร้านพิมพ์เอง ถ้าตกลงไปข้างล่างมันจะถูกวาดเป็น
+                 * บับเบิลสีน้ำเงินชิดขวาที่มี body เป็น `null` = ฟองว่างเปล่า
+                 *
+                 * 🛑 และต้องไม่ชิดข้าง — "เต็มความกว้าง" คือสิ่งเดียวที่แยกการ์ดระบบออกจาก
+                 * ข้อความที่ร้านพิมพ์ได้จากระยะไกลบนมือถือโดยไม่ต้องอ่านตัวหนังสือ
+                 */
+                if (m.type === AUTO_ORDER_RESULT_TYPE) {
+                  const mAuto = m as ChatMessageWithAutoOrder
+                  const token = mAuto.autoOrderCard?.token
+                  // ลูกค้าได้รับสรุปใบนี้ไปแล้วหรือยัง — derive จากบับเบิล `type=ORDER` ที่มีอยู่
+                  // ในเธรดอยู่แล้ว **ไม่เพิ่มคอลัมน์ใหม่** (การส่งจริงทิ้งหลักฐานไว้เองแล้ว)
+                  const sentBubble = token
+                    ? messages.find(
+                        (x) =>
+                          x.type === 'ORDER' &&
+                          (x as { orderRefToken?: string | null }).orderRefToken === token,
+                      )
+                    : undefined
+                  return (
+                    <div key={m.id} data-message-id={m.id}>
+                      <AutoOrderResultCard
+                        conversationId={conversationId}
+                        createdAt={m.createdAt}
+                        card={mAuto.autoOrderCard ?? null}
+                        alreadySentAt={sentBubble ? String(sentBubble.createdAt) : null}
+                      />
+                    </div>
+                  )
+                }
                 if (m.type === 'CALL') {
                   const missed = m.body === 'Missed call'
                   return (

@@ -9,6 +9,7 @@ import { fileIdExt } from "@/lib/storage";
 import { isStickerRawMessage } from "@/lib/chat-sticker";
 import { isDuplicateProductSend } from "@/lib/chat-product-resend";
 import { prisma } from "@/lib/prisma";
+import { AUTO_ORDER_RESULT_TYPE } from "@/lib/auto-order-message-type";
 import { getMessages, sendMessage, type SenderRole } from "@/services/chat.service";
 import { syncMissingMessagesFromMeta, type SendFailedError } from "@/services/channel-chat.service";
 // (CR 2026-08-23) เส้นทางช่องทางนอกของช่องพิมพ์ผู้ขายเขียนแถว QUEUED ก่อนตอบ client แล้วยิงทีหลัง
@@ -478,6 +479,70 @@ export async function GET(
       repliedMap.set(r.id, entry);
     }
 
+    /**
+     * feature 00061 — enrich การ์ดผลลัพธ์ของตัวสร้างออเดอร์อัตโนมัติ
+     *
+     * 🛑 อ่านสถานะ/เหตุผลจากแถว `Order` **สด** ทุกครั้ง ไม่ snapshot ลง `ChatMessage` —
+     * การ์ดใบเดียวต้องเปลี่ยนหน้าตาเองจาก "กำลังอ่าน" → "สร้างแล้ว/ตกร่าง" → "ถูกทิ้งแล้ว"
+     * ตามที่ผู้ขายกดปุ่ม โดยไม่ต้องเขียนแถวใหม่ (stored-flag-vs-owner-truth.md)
+     *
+     * `autoOrderId = null` = การ์ดที่เขียนไว้ก่อนรู้ผล (สถานะ READING) — ยังไม่มีอะไรให้ join
+     */
+    const autoOrderIds = Array.from(
+      new Set(
+        result.items
+          .filter((m) => m.type === AUTO_ORDER_RESULT_TYPE)
+          .map((m) => (m as { autoOrderId?: string | null }).autoOrderId)
+          .filter((x): x is string => !!x),
+      ),
+    );
+    const autoOrderRows =
+      autoOrderIds.length > 0
+        ? await prisma.order.findMany({
+            where: { id: { in: autoOrderIds } },
+            select: {
+              id: true,
+              publicToken: true,
+              orderNo: true,
+              status: true,
+              totalAmount: true,
+              draftReasons: true,
+              draftRawItems: true,
+              draftStatedTotalAmount: true,
+              discount: true,
+              isDryRun: true,
+              supersedesOrderId: true,
+              buyerContact: true,
+              shippingAddress: true,
+              createdAt: true,
+              items: { select: { name: true, qty: true } },
+              shop: { select: { vertical: true } },
+            },
+          })
+        : [];
+    const autoOrderMap = new Map(
+      autoOrderRows.map((o) => [
+        o.id,
+        {
+          token: o.publicToken,
+          orderNo: o.orderNo,
+          status: o.status,
+          totalAmount: o.totalAmount.toFixed(2),
+          draftReasons: o.draftReasons,
+          /** รายการดิบของร่าง — แถว DRAFTED มี `OrderItem` = 0 แถวเสมอ (ข้อมูลอยู่คอลัมน์นี้) */
+          draftRawItems: o.draftRawItems,
+          draftStatedTotal: o.draftStatedTotalAmount ? o.draftStatedTotalAmount.toFixed(2) : null,
+          discount: o.discount ? o.discount.toFixed(2) : null,
+          isDryRun: o.isDryRun,
+          supersedesOrderId: o.supersedesOrderId,
+          buyerContact: o.buyerContact,
+          shippingAddress: o.shippingAddress,
+          vertical: o.shop.vertical,
+          items: o.items.map((it) => ({ name: it.name, qty: it.qty })),
+        },
+      ]),
+    );
+
     // ผู้ส่งฝั่งร้าน (user 2026-08-02) — avatar ท้ายบับเบิลต้องบอกว่า "ใครในทีมเป็นคนตอบ"
     // ไม่ใช่โลโก้เพจเหมือนกันหมด. ร้านที่มีพนักงานหลายคนย้อนดูไม่ได้เลยว่าใครตอบข้อความไหน
     //
@@ -561,6 +626,16 @@ export async function GET(
             })
           : null,
       orderCard: m.type === "ORDER" && m.orderRefToken ? orderMap.get(m.orderRefToken) ?? null : null,
+      /**
+       * feature 00061 — ข้อมูลของการ์ดผลลัพธ์ · `null` = ยังอยู่สถานะ "กำลังอ่าน"
+       *
+       * 🛑 ข้อความชนิดนี้ถูกกรองออกจาก response แล้วสำหรับผู้เรียกฝั่งผู้ซื้อ (`getMessages`
+       * ชั้นอ่าน) ⇒ ค่าตรงนี้จะไม่มีวันไปถึง client ของลูกค้า แม้จะ enrich ที่นี่ก็ตาม
+       */
+      autoOrderCard:
+        m.type === AUTO_ORDER_RESULT_TYPE
+          ? autoOrderMap.get((m as { autoOrderId?: string | null }).autoOrderId ?? "") ?? null
+          : null,
     }));
 
     // externalReadAt — watermark "ลูกค้าอ่านถึงเวลานี้" (feature 00018 read receipt)

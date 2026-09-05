@@ -124,12 +124,22 @@ describe('ตัวนับร่างมี SSOT เดียว (TFR-023 · 
   it('[blocker] ห้ามประกอบ query `status: DRAFTED` เองนอกไฟล์ที่กำหนด', () => {
     // คลาสที่กัน: "ตัวเลขเดียวกันโผล่ >1 ที่แล้วไม่ตรงกัน" — เกิดจริงกับ 00029 มาแล้ว
     // (จอเดียวโชว์ "ยังไม่ตอบ" 7 กับ 8)
+    //
+    // 🛑 ตัดสินเฉพาะที่อยู่ใน **บล็อก `where`** ไม่ใช่ทุกที่ที่มีสตริงนี้ — กฎนี้ห้าม
+    // "ประกอบคิวรีเอง" ไม่ได้ห้ามพูดถึงค่าสถานะ (UI ที่ทับสถานะใน state ของตัวเองหลังกดปุ่ม
+    // ก็เขียน `status: 'DRAFTED'` เหมือนกันทุกตัวอักษร แต่ไม่ได้แตะฐานเลย)
+    // ⇒ ด่านที่กว้างเกินจะถูกปิดด้วย allow-list จนไม่เหลือความหมาย ซึ่งแย่กว่าไม่มีด่าน
     const offenders: string[] = []
     for (const f of ALL_FILES) {
       if (/\.(test|spec)\.tsx?$/.test(f)) continue
       if (ALLOWED_DRAFTED_QUERY.has(f)) continue
-      const code = stripComments(readFileSync(f, 'utf8'))
-      if (/status:\s*['"]DRAFTED['"]/.test(code)) offenders.push(f)
+      const lines = stripComments(readFileSync(f, 'utf8')).split('\n')
+      lines.forEach((line, i) => {
+        if (!/status:\s*['"]DRAFTED['"]/.test(line)) return
+        const ctx = lines.slice(Math.max(0, i - 6), i + 1).join('\n')
+        if (!/\bwhere\b/.test(ctx)) return
+        offenders.push(`${f}:${i + 1}`)
+      })
     }
     expect(offenders, `ไฟล์ที่ประกอบ query ร่างเอง:\n${offenders.join('\n')}`).toEqual([])
   })
