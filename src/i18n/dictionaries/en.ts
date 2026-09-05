@@ -606,6 +606,7 @@ export const en: Dictionary = {
       listHeading: '{noun} history',
       createCta: 'New {noun}',
       noHistory: 'No {noun} history yet',
+      listScopeNote: 'Includes every {noun} started from this chat — may exceed the count on the Customer tab',
       notLinkedNoHistory:
         "Not linked to a customer record yet, so there's no history to show — create a {noun} with this customer's phone number and we'll link them automatically",
 

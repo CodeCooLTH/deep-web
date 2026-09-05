@@ -66,6 +66,7 @@ import RscTiming from './components/RscTiming'
 import { createRscTimer } from '@/lib/rsc-timer'
 import ChatThread from './components/ChatThread'
 import CustomerPanel, { type CustomerPanelData, type CustomerPanelOrder } from './components/CustomerPanel'
+import { resolveThreadOrderFilter } from '@/lib/chat-thread-orders'
 import { resolveLibraryOwner } from '@/lib/customer-file-library'
 import { listSavedFileIds } from '@/services/customer-file-library.service'
 import { sellerContactDisplay } from '@/lib/seller-contact-display'
@@ -459,13 +460,22 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     })
   }
 
-  // T5 — ประวัติออเดอร์/การจอง เฉพาะเมื่อผูก Customer แล้ว (Booking = Order type='BOOKING' ตาม
-  // BR-LODG-08 ไม่ใช่ตารางแยก — filter เพิ่มเมื่อ vertical=LODGING เท่านั้น)
-  const orderRows = linkedCustomer
+  // T5 — ประวัติออเดอร์/การจอง (Booking = Order type='BOOKING' ตาม BR-LODG-08 ไม่ใช่ตารางแยก
+  // — filter เพิ่มเมื่อ vertical=LODGING เท่านั้น)
+  //
+  // 🛑 เกณฑ์ "ใบไหนเป็นของห้องนี้" มาจาก `resolveThreadOrderFilter` ที่เดียว (2026-09-05) —
+  // เดิมกรองด้วย `customerId` ของเธรดล้วน ๆ ซึ่งพังทันทีที่มีคนคีย์เบอร์ใหม่: เธรดถูกย้ายไป
+  // ลูกค้าคนใหม่ แล้วออเดอร์ใบเก่าหลุดจากแผงโดยไม่มี error (user report — ดู lib/chat-thread-orders.ts)
+  // ต้องตรงกับ /api/chat/conversations/[id]/orders (ใบที่ 21+) เป๊ะ ไม่งั้นรายการกระโดดตอนเลื่อน
+  const threadOrderFilter = resolveThreadOrderFilter({
+    customerId: linkedCustomer?.id ?? null,
+    conversationId: conversation.id,
+  })
+  const orderRows = threadOrderFilter
     ? await prisma.order.findMany({
         where: {
           shopId: shop.id,
-          customerId: linkedCustomer.id,
+          ...threadOrderFilter,
           ...(vertical === 'LODGING' ? { type: BOOKING_ORDER_TYPE } : {}),
         },
         orderBy: { createdAt: 'desc' },

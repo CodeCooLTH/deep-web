@@ -13,6 +13,7 @@ import { isValidCancelReason, BUYER_SELF_CANCEL_REASON } from "@/lib/cancel-reas
 import { deriveShippingStage, type ShippingStageKey } from "@/lib/order-stage";
 import { shopShipsGoods } from "@/lib/shipping-address-status";
 import { shouldRelinkThreadCustomer } from "@/lib/thread-customer-link";
+import type { ThreadOrderFilter } from "@/lib/chat-thread-orders";
 import { canRenameCustomerPhone } from "@/lib/customer-phone-edit";
 import { resolvePaymentSync } from "@/lib/iship/payment-sync";
 import { formatOrderNo } from "@/lib/order-no";
@@ -831,6 +832,9 @@ export async function updateOrder(
         id: true, status: true, type: true, totalAmount: true, buyerContact: true,
         // customerId: ตัวตัดสินว่า "แก้เบอร์" = แก้แถวเดิม หรือ ย้ายไปลูกค้าคนใหม่ (2026-08-10)
         customerId: true,
+        // 🛑 เธรดที่ออเดอร์ใบนี้ถือกำเนิด — ต้องอ่านจากแถว ไม่ใช่รอ client ส่ง `conversationId` มา
+        // (2026-09-05: หน้า /orders/[token]/edit ไม่เคยส่งมาเลย ⇒ เธรดไม่ย้ายตามเบอร์ที่แก้)
+        conversationId: true,
         buyerName: true, paymentMethod: true, salesChannel: true, internalNote: true,
         discount: true, vatRate: true, vatAmount: true, shippingAddress: true,
         createdAt: true, publicToken: true,
@@ -891,7 +895,21 @@ export async function updateOrder(
     //
     // 2026-08-10 (user): "2 เบอร์นี้ต้องเป็นลูกค้าคนเดียวกัน" — แก้เบอร์ที่คีย์ผิดต้องไม่ผลิตลูกค้า
     // คนใหม่ทิ้งไว้ ตัวตัดสินอยู่ที่ resolveCustomerForEditedOrder (แก้แถวเดิม vs ย้ายไปแถวใหม่)
-    const threadContact = await findThreadContact(tx, shopId, data.conversationId);
+    // 🛑 เธรดต้องหาจาก **ตัวออเดอร์** ก่อนเสมอ แล้วค่อยถอยไปใช้ค่าที่ผู้เรียกส่งมา
+    //
+    // เดิมเชื่อ `data.conversationId` อย่างเดียว ⇒ ทางเข้าที่ไม่ได้ส่งค่านี้มาจะไม่ relink เลย
+    // สักกรณี — หน้าเต็มจอ `/orders/[token]/edit` เป็นแบบนั้นมาตลอด (มันไม่รู้จักแชท) ผลคือ
+    // ออเดอร์ย้ายไปลูกค้าคนใหม่ตามเบอร์ที่แก้ แต่เธรดค้างอยู่กับคนเก่า ⇒ **ใบที่เพิ่งแก้หายจาก
+    // ห้องแชททันที** โดยไม่มี error (user report 2026-09-05)
+    //
+    // `Order.conversationId` ถูกเขียนตอน createOrder จากเธรดที่ผ่าน WHERE shopId มาแล้ว จึงเป็น
+    // ค่าที่เชื่อได้กว่าและไม่ขึ้นกับว่าหน้าจอไหนเป็นคนกดบันทึก (ออเดอร์ที่ไม่ได้เกิดจากแชทเป็น null
+    // → ถอยไปใช้ค่าจากผู้เรียกตามเดิม เช่นแก้ใบที่คีย์จาก /orders/new ผ่านโมดัลในแชท)
+    const threadContact = await findThreadContact(
+      tx,
+      shopId,
+      existing.conversationId ?? data.conversationId,
+    );
     const custPhone = data.buyerContact ? normalizePhone(data.buyerContact) : null;
     const customerId = custPhone
       ? await resolveCustomerForEditedOrder(tx, {
@@ -1944,13 +1962,23 @@ export async function getOrdersByShop(
 }
 
 /**
- * getOrdersByCustomer — ออเดอร์ของลูกค้าคนหนึ่งในร้าน แบบแบ่งหน้า (feature 00018 orders tab + lazy load)
- * cursor = createdAt ISO ของแถวสุดท้ายที่เห็น (keyset createdAt desc — ออเดอร์ต่อลูกค้ามีไม่มาก).
+ * getThreadPanelOrders — ออเดอร์ที่ควรอยู่ในแผงของห้องแชทหนึ่ง แบบแบ่งหน้า (feature 00018 orders tab)
+ *
+ * 🛑 เดิมชื่อ `getOrdersByCustomer` และรับ `customerId` ตัวเดียว — ชื่อนั้นตรงกับสิ่งที่มันทำ
+ * แต่ **ไม่ตรงกับคำถามที่หน้าจอกำลังถาม** ("ห้องนี้มีออเดอร์อะไรบ้าง") สองอย่างนี้ตรงกันเฉพาะ
+ * ตอนไม่มีใครคีย์เบอร์ผิดเท่านั้น (user report 2026-09-05 — ดู `src/lib/chat-thread-orders.ts`)
+ *
+ * เกณฑ์คัดใบอยู่ที่ `resolveThreadOrderFilter()` ที่เดียว ห้ามเขียนเงื่อนไขซ้ำที่ผู้เรียก —
+ * ชุด 20 ใบแรกถูกยิงจาก `inbox/[conversationId]/page.tsx` (SSR) ส่วนใบที่ 21 ขึ้นไปมาทางนี้
+ * ถ้าสองที่ใช้เกณฑ์ไม่ตรงกัน รายการจะกระโดดตอนเลื่อน โดยไม่มีอะไรฟ้อง
+ *
+ * cursor = createdAt ISO ของแถวสุดท้ายที่เห็น (keyset createdAt desc — ออเดอร์ต่อห้องมีไม่มาก).
  * serialize Decimal/Date ก่อนคืน (ข้าม RSC/JSON boundary) — ตรง shape CustomerPanelOrder เป๊ะ
  */
-export async function getOrdersByCustomer(
+export async function getThreadPanelOrders(
   shopId: string,
-  customerId: string,
+  /** ตัวตัดสินว่าใบไหนเป็นของห้องนี้ — ต้องผ่าน `resolveThreadOrderFilter` มาแล้ว (null ไม่ได้) */
+  scope: ThreadOrderFilter,
   opts: { cursor?: string; take?: number; bookingOnly?: boolean } = {},
 ): Promise<{
   items: {
@@ -1981,7 +2009,7 @@ export async function getOrdersByCustomer(
   const rows = await prisma.order.findMany({
     where: {
       shopId,
-      customerId,
+      ...scope,
       ...(opts.bookingOnly ? { type: "BOOKING" } : {}),
       ...(opts.cursor ? { createdAt: { lt: new Date(opts.cursor) } } : {}),
     },

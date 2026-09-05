@@ -4,7 +4,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveConversationShopId } from "@/lib/chat-scope";
 import { prisma } from "@/lib/prisma";
-import { getOrdersByCustomer } from "@/services/order.service";
+import { getThreadPanelOrders } from "@/services/order.service";
+import { resolveThreadOrderFilter } from "@/lib/chat-thread-orders";
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from "@/lib/lodging";
 import { sessionUserId } from "@/lib/session-user";
 
@@ -49,12 +50,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const c = await prisma.customer.findUnique({ where: { userId: conv.buyerUserId }, select: { id: true } });
     customerId = c?.id ?? null;
   }
-  // ยังไม่ผูก Customer → ไม่มีประวัติออเดอร์ (ไม่ใช่ error)
-  if (!customerId) return NextResponse.json({ items: [], nextCursor: null }, { headers: NO_STORE });
+  // เกณฑ์ "ใบไหนเป็นของห้องนี้" — ลูกค้าที่ผูกอยู่ **หรือ** ใบที่ถูกเปิดจากห้องนี้ (2026-09-05)
+  // ต้องตรงกับ SSR ใน inbox/[conversationId]/page.tsx เป๊ะ ไม่งั้นใบที่ 21 ขึ้นไปจะคนละชุดกับ 20 ใบแรก
+  const scope = resolveThreadOrderFilter({ customerId, conversationId: idc.output });
+  // ไม่มีทั้งลูกค้าและห้อง → ไม่มีประวัติออเดอร์ (ไม่ใช่ error) — 🛑 ห้ามยิงคิวรีต่อโดยไม่มีเงื่อนไข
+  if (!scope) return NextResponse.json({ items: [], nextCursor: null }, { headers: NO_STORE });
 
   const vertical = isShopVertical(conv.shop.vertical) ? conv.shop.vertical : DEFAULT_SHOP_VERTICAL;
   const cursor = request.nextUrl.searchParams.get("cursor") ?? undefined;
-  const result = await getOrdersByCustomer(activeCtx.shopId, customerId, {
+  const result = await getThreadPanelOrders(activeCtx.shopId, scope, {
     cursor,
     take: 20,
     bookingOnly: vertical === "LODGING",

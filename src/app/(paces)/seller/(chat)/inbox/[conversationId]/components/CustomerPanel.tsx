@@ -1077,15 +1077,27 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
           </button>
         </div>
 
-        {data.customer ? (
-          data.orders.length === 0 ? (
-            <p className="text-default-700 mb-0 text-sm">{fmt(t.inbox.customerPanel.noHistory, { noun: tabNoun })}</p>
-          ) : (
+        {/* 🛑 ตัวตัดสิน "มีรายการให้ดูไหม" ต้องเป็น `data.orders.length` ไม่ใช่ `data.customer`
+            (2026-09-05): ออเดอร์ที่ถูกดึงมาด้วย `Order.conversationId` มีอยู่ได้แม้เธรดยังไม่เคย
+            ผูกลูกค้าเลย — เงื่อนไขเดิมจะซ่อนมันทิ้งซ้ำอีกชั้นหนึ่ง ซึ่งเป็นบั๊กตัวเดียวกับที่
+            รอบนี้กำลังแก้ ส่วน "ผูกลูกค้าแล้วหรือยัง" ยังใช้เลือก *ข้อความตอนว่าง* ตามเดิม */}
+        {data.orders.length > 0 ? (
+          <>
+            {/* ขอบเขตของรายการ — รายการนับรวมใบที่เปิดจากห้องนี้ด้วย ส่วนเลขบนแท็บนับตามลูกค้า
+                สองอันต่างกันได้โดยไม่มีอะไรผิด (ux gate 2026-09-05 · partial-data-must-be-labeled) */}
+            <p className="text-default-700 mb-3 text-xs">
+              {fmt(t.inbox.customerPanel.listScopeNote, { noun: tabNoun })}
+            </p>
             <OrdersList conversationId={data.conversationId} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} pageAvatarUrl={data.channelAvatarUrl} vertical={data.vertical} shopId={data.shopId} />
-          )
+          </>
         ) : (
           <p className="text-default-700 mb-0 text-sm">
-            {fmt(t.inbox.customerPanel.notLinkedNoHistory, { noun: tabNoun })}
+            {fmt(
+              data.customer
+                ? t.inbox.customerPanel.noHistory
+                : t.inbox.customerPanel.notLinkedNoHistory,
+              { noun: tabNoun },
+            )}
           </p>
         )}
         </div>
