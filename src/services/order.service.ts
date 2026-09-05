@@ -767,6 +767,235 @@ export class OrderNotEditableError extends Error {
 }
 
 /**
+ * ร่างใบนี้เลื่อนขั้นไม่ได้ (ไม่ใช่ร่าง / ถูกเลื่อนขั้นไปแล้ว / ถูกทิ้งไปแล้ว) — feature 00061
+ *
+ * 🛑 คนละ error กับ `OrderNotEditableError` โดยตั้งใจ **เพราะความหมายกลับด้าน**:
+ * ตัวนั้นบล็อกการแก้ของที่ "เสร็จแล้ว" · ตัวนี้บล็อกการโปรโมตของที่ "ไม่ใช่ร่าง"
+ * ข้อความที่ผู้ใช้เห็นจึงต้องต่างกัน ("ใบนี้แก้ไม่ได้แล้ว" vs "ร่างนี้ถูกจัดการไปแล้ว")
+ */
+export class DraftNotPromotableError extends Error {
+  constructor() { super("DraftNotPromotableError"); this.name = "DraftNotPromotableError"; }
+}
+
+/**
+ * promoteDraftCore — เลื่อนขั้นร่าง (`DRAFTED`) เป็นออเดอร์จริง (`PENDING`) — feature 00061
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 🛑 ทำไมอยู่ไฟล์นี้ ไม่ใช่ `auto-order-detect.service.ts` ตามที่ SDS §2 วางไว้
+ *
+ * ฟังก์ชันนี้ต้องใช้ของภายในของไฟล์นี้ **4 ตัว** (`resolveLineCosts` · `findThreadContact` ·
+ * `relinkThreadCustomer` · `genShortCode`) ถ้าย้ายออกไปต้อง export ทั้งสี่ตัวออกไปเป็น
+ * API สาธารณะเพื่อใช้ที่เดียว — และที่สำคัญกว่า: **ความเสี่ยงหลักของฟังก์ชันนี้คือ
+ * "ทำน้อยกว่า `createOrder`"** (`tsc`/build/เทสจะเขียวหมดเพราะโค้ดถูกทุกบรรทัด มันแค่ทำไม่ครบ)
+ * ⇒ วางไว้ข้าง `createOrder`/`updateOrder` เพื่อให้ drift ระหว่างสามเส้นทางมองเห็นได้ในไฟล์เดียว
+ * แทนที่จะต้องเปิดสองไฟล์เทียบกัน
+ * ═══════════════════════════════════════════════════════════════════════════════
+ *
+ * @param allowQuickCreate 🛑 **ตัวแยกเส้นทางมนุษย์กับเส้นทางอัตโนมัติ**
+ *   `true`  = ผู้ขายกดฟอร์มเอง ⇒ พิมพ์สินค้าที่ยังไม่มีในแคตตาล็อกได้ (เหมือน `createOrder`)
+ *   `false` = ระบบกดเอง (ปุ่ม "อ่านใหม่") ⇒ **ห้าม Quick-Create เด็ดขาด** (BR-ACO-13/TFR-008)
+ *   ข้อห้ามนี้ผูกกับ *เส้นทางอัตโนมัติ* ไม่ใช่กับ *ตัวร่าง* — ร่างใบเดียวกันเลื่อนขั้นด้วยมือได้
+ *   โดยพิมพ์สินค้าเพิ่ม แต่เลื่อนขั้นอัตโนมัติไม่ได้ถ้าสินค้ายังไม่ตรง
+ */
+async function promoteDraftCore(
+  shopId: string,
+  publicToken: string,
+  data: Parameters<typeof createOrder>[1],
+  opts: { actorUserId: string | null; allowQuickCreate: boolean },
+) {
+  // ── ก่อนเปิด tx: ก็อปลำดับเดียวกับ createOrder ทุกขั้น (read-only ทั้งหมด) ──────────
+
+  const keyedInAt = new Date();
+
+  const subtotal = round2(data.items.reduce((sum, item) => sum + item.qty * item.price, 0));
+  const totalAmount = round2(subtotal - (data.discount ?? 0) + (data.vatAmount ?? 0));
+
+  const productIds = data.items.map((i) => i.productId).filter((id): id is string => !!id);
+
+  // 🛑 เส้นทางอัตโนมัติ: ทุกรายการต้องจับคู่กับสินค้าจริงได้ครบ **ก่อน** ถึงจุดนี้
+  // (`validateAutoOrderCompleteness` เป็นคนกัน) — ด่านนี้คือชั้นสองที่ทำให้ "ลืมกัน" กลายเป็น
+  // error ที่เห็นได้ แทนที่จะเป็นสินค้าใหม่โผล่ในแคตตาล็อกร้านเงียบ ๆ
+  if (!opts.allowQuickCreate && data.items.some((i) => !i.productId)) {
+    throw new ProductNotInShopError();
+  }
+
+  let fulfillmentMode = "NO_SHIPPING";
+  const shopRow = await prisma.shop.findUnique({ where: { id: shopId }, select: { vertical: true } });
+  const shipsGoods = shopShipsGoods(shopRow?.vertical);
+
+  const hasManualPhysicalItem = data.items.some((i) => !i.productId && data.type === "PHYSICAL");
+  if (hasManualPhysicalItem && shipsGoods) fulfillmentMode = "SHIPPED";
+
+  if (productIds.length > 0) {
+    const ownedProducts = await prisma.product.findMany({
+      where: { id: { in: productIds }, shopId },
+      select: { id: true },
+    });
+    const ownedIds = new Set(ownedProducts.map((p) => p.id));
+    if (productIds.some((id) => !ownedIds.has(id))) throw new ProductNotInShopError();
+  }
+
+  if (shipsGoods && fulfillmentMode !== "SHIPPED" && productIds.length > 0) {
+    const shippedProduct = await prisma.product.findFirst({
+      where: { id: { in: productIds }, shopId, fulfillmentMode: "SHIPPED" },
+      select: { id: true },
+    });
+    if (shippedProduct) fulfillmentMode = "SHIPPED";
+  }
+
+  if (fulfillmentMode === "SHIPPED" && data.salesChannel !== "STOREFRONT") {
+    const a = data.shippingAddress;
+    const hasEssentials = !!(a?.line1?.trim() && a?.province?.trim() && a?.postcode?.trim());
+    if (!hasEssentials) throw new ShippingAddressRequiredError();
+  }
+
+  // ── ในทรานแซกชัน ────────────────────────────────────────────────────────────────
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.order.findFirst({
+      where: { publicToken, shopId },
+      select: { id: true, status: true, publicToken: true, createdAt: true, conversationId: true, isDryRun: true },
+    });
+    if (!existing) throw new OrderNotFoundError();
+
+    // 🛑 ผ่าน assertTransition เสมอ ไม่เขียน `if (status !== 'DRAFTED')` เอง — ตารางสถานะ
+    // คือด่านเดียวที่มีจริงของคอลัมน์นี้ (ไม่มี CHECK ในฐาน) การเขียนเงื่อนไขซ้ำที่นี่ =
+    // นิยามที่สองที่จะ drift จากตารางได้
+    if (existing.status !== "DRAFTED") throw new DraftNotPromotableError();
+    assertTransition(existing.status, "PENDING");
+
+    // Quick-Create (เฉพาะเส้นทางมนุษย์) — ก็อปจาก createOrder ตรง ๆ
+    const resolvedItems: typeof data.items = [];
+    for (const item of data.items) {
+      const name = item.name.trim();
+      if (item.productId || !name) {
+        resolvedItems.push(item);
+        continue;
+      }
+      const existingProduct = await tx.product.findFirst({ where: { shopId, name }, select: { id: true } });
+      const productId =
+        existingProduct?.id ??
+        (
+          await tx.product.create({
+            data: {
+              shopId,
+              name,
+              price: item.price,
+              type: data.type,
+              fulfillmentMode: shipsGoods && data.type === "PHYSICAL" ? "SHIPPED" : "NO_SHIPPING",
+              ...(item.cost != null ? { cost: item.cost } : {}),
+              ...(item.description ? { description: item.description } : {}),
+            },
+            select: { id: true },
+          })
+        ).id;
+      resolvedItems.push({ ...item, productId });
+    }
+
+    const entitlement = await tx.inventoryEntitlement.findUnique({
+      where: { shopId },
+      select: { status: true },
+    });
+    const deductions =
+      entitlement?.status === "ACTIVE"
+        ? await deductStockForOrderItems(tx, resolvedItems)
+        : new Map<string, { qty: number; resultingQty: number; name: string }>();
+
+    const costMap = await resolveLineCosts(tx, shopId, resolvedItems);
+    const itemsCreateData = resolvedItems.map(({ cost: typedCost, ...item }) => ({
+      ...item,
+      stockDeducted: item.productId && deductions.has(item.productId) ? item.qty : null,
+      cost: typedCost ?? (item.productId ? (costMap.get(item.productId) ?? null) : null),
+    }));
+
+    // แถว DRAFTED ยังไม่เคยผ่านจุดผูก Customer มาก่อน (`customerId` เป็น NULL เสมอ) ⇒ ใช้
+    // `findOrCreateCustomer` แบบเดียวกับ createOrder ไม่ใช่ `resolveCustomerForEditedOrder`
+    // ของ updateOrder (ตัวนั้นแก้ปัญหา "ย้ายลูกค้าเมื่อแก้เบอร์" ซึ่งไม่มีอยู่ตรงนี้)
+    const threadContact = await findThreadContact(tx, shopId, existing.conversationId ?? undefined);
+    const custPhone = data.buyerContact ? normalizePhone(data.buyerContact) : null;
+    const customerId = custPhone ? await findOrCreateCustomer(tx, custPhone) : null;
+    await relinkThreadCustomer(tx, threadContact, customerId);
+
+    // ✅ คำนวณ orderNo ได้ในคำสั่งเดียว ต่างจาก createOrder ที่ต้อง update รอบสอง —
+    // เพราะร่างมี publicToken/createdAt อยู่แล้วตั้งแต่ insert แรก
+    const orderNo = formatOrderNo(existing.publicToken, existing.createdAt);
+
+    const order = await tx.order.update({
+      where: { id: existing.id },
+      data: {
+        status: "PENDING",
+        orderNo,
+        type: data.type,
+        totalAmount,
+        fulfillmentMode,
+        buyerContact: data.buyerContact ?? null,
+        buyerName: data.buyerName ?? null,
+        paymentMethod: data.paymentMethod ?? null,
+        salesChannel: data.salesChannel ?? null,
+        internalNote: data.internalNote ?? null,
+        discount: data.discount ?? null,
+        vatRate: data.vatRate ?? null,
+        vatAmount: data.vatAmount ?? null,
+        shippingAddress: data.shippingAddress ?? Prisma.DbNull,
+        ...(custPhone ? { customerId } : {}),
+        // 🛑 ต้องล้างทั้ง 3 ตัวพร้อมกัน — CHECK `Order_draft_reasons_only_when_drafted` บังคับ
+        // ว่าแถวที่ไม่ใช่ DRAFTED ต้องมี draftReasons ว่าง และถ้าไม่ล้าง `draftRawItems`
+        // หน้าจอจะมีรายการสินค้า 2 แหล่ง (คอลัมน์ดิบ + OrderItem จริง) ที่ไม่ตรงกัน
+        draftReasons: [],
+        draftRawItems: Prisma.DbNull,
+        draftStatedTotalAmount: null,
+        expiresAt: null,
+        items: { create: itemsCreateData },
+      },
+      include: { items: true },
+    });
+
+    // 🛑 เขียน ORDER_CREATED **ตอนนี้ ไม่ใช่ตอนสร้างร่าง** — ร่างไม่นับเป็นออเดอร์จริง
+    // (BR-ACO-20e) ประวัติจึงต้องเริ่มนับที่จุดที่มันกลายเป็นออเดอร์
+    //
+    // 🛑 `actorUserId` = คนกดปุ่ม แต่ **`createdByUserId` ของแถวไม่ถูกแตะ** (ยัง null) —
+    // "คนที่มาเติมข้อมูลให้ครบทีหลัง" ไม่ใช่ "คนที่สร้างออเดอร์" คนละความหมายกัน
+    await recordOrderEvent(tx, {
+      orderId: order.id,
+      type: "ORDER_CREATED",
+      actorUserId: opts.actorUserId,
+      occurredAt: keyedInAt,
+    });
+
+    for (const [productId, d] of deductions) {
+      await tx.stockMovement.create({
+        data: {
+          shopId, productId, productName: d.name, delta: -d.qty, resultingQty: d.resultingQty,
+          source: "ORDER_DEDUCT", refId: order.id, note: null, actorUserId: null,
+        },
+      });
+    }
+
+    // 🛑 ไม่มีบล็อก appointment — ฟีเจอร์ 00061 จำกัด ONLINE_SALES ซึ่งไม่มีแนวคิดนัด
+    //    **ตัดทิ้งโดยตั้งใจ ไม่ใช่ลืม** (ถ้าวันหนึ่งขยายไป SERVICE_QUEUE ต้องมาเติมที่นี่)
+    return order;
+  });
+}
+
+/** เลื่อนขั้นร่างด้วยมือจากฟอร์มแก้ไข — อนุญาต Quick-Create (มนุษย์กรอกเอง) */
+export async function promoteDraftToOrder(
+  shopId: string,
+  publicToken: string,
+  data: Parameters<typeof createOrder>[1],
+  actorUserId: string | null,
+) {
+  return promoteDraftCore(shopId, publicToken, data, { actorUserId, allowQuickCreate: true });
+}
+
+/** เลื่อนขั้นร่างจากปุ่ม "อ่านใหม่" — เส้นทางอัตโนมัติ **ห้าม Quick-Create** (TFR-008) */
+export async function promoteAutoOrderDraft(
+  shopId: string,
+  publicToken: string,
+  data: Parameters<typeof createOrder>[1],
+) {
+  return promoteDraftCore(shopId, publicToken, data, { actorUserId: null, allowQuickCreate: false });
+}
+
+/**
  * updateOrder — แก้ไขคำสั่งซื้อเต็มรูป (user request 2026-07-25: แก้ใน modal ไม่ต้องสลับจอ)
  *
  * mirror createOrder ทั้งการคำนวณ (subtotal/total/fulfillmentMode), validation (ownership productId,

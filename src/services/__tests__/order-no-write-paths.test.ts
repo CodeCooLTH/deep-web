@@ -24,6 +24,18 @@ const CREATE_SITES = [
   'src/services/booking.service.ts',
 ]
 
+/**
+ * ข้อยกเว้นเดียวที่ **ต้องไม่เขียน `orderNo`** — ตัวเขียน "ร่าง" ของ 00061
+ *
+ * 🛑 นี่ไม่ใช่การผ่อนกฎ แต่เป็นกฎที่เข้มกว่า: ร่างยังไม่ใช่ออเดอร์ ⇒ ต้องไม่มีเลขคำสั่งซื้อ
+ * (`orderNo = NULL` เสมอ · `totalAmount = 0` เสมอ) แล้วเลขจะถูกคำนวณตอนเลื่อนขั้นเป็น
+ * `PENDING` ที่ `promoteDraftCore` ใน `order.service.ts` ซึ่งอยู่ในลิสต์ข้างบนอยู่แล้ว
+ *
+ * ⇒ ไฟล์นี้จึงถูกตรวจด้วยเงื่อนไข **กลับด้าน**: ห้ามมี `formatOrderNo` และทุก create
+ * ต้องเป็น `status: 'DRAFTED'` — ถ้าวันหนึ่งมีคนทำให้มันสร้างออเดอร์จริงได้ เทสจะแดงทันที
+ */
+const DRAFT_ONLY_SITES = ['src/services/auto-order-detect.service.ts']
+
 const read = (f: string) => readFileSync(f, 'utf8')
 /** ตัดคอมเมนต์ออกก่อนสแกน — ไฟล์ที่ทำถูกคือไฟล์ที่เขียนคำอธิบายกฎนี้ไว้ด้วย */
 const stripComments = (src: string) =>
@@ -37,6 +49,23 @@ describe('ทุกเส้นทางที่สร้างออเดอ�
     // และต้องเอาผลไปเขียนลงคอลัมน์ ไม่ใช่คำนวณทิ้ง
     // รับทั้ง `data: { orderNo }` (shorthand) และ `orderNo: <expr>`
     expect(src).toMatch(/orderNo\s*[:,}]/)
+  })
+
+  it.each(DRAFT_ONLY_SITES)('[blocker] %s สร้างได้เฉพาะแถวร่าง และห้ามมีเลขคำสั่งซื้อ', (file) => {
+    const src = stripComments(read(file))
+    // ห้ามคำนวณเลขคำสั่งซื้อเลย — ร่างยังไม่ใช่ออเดอร์
+    expect(src).not.toMatch(/formatOrderNo/)
+    // ทุกจุดที่สร้างแถวต้องประกาศ status เป็น DRAFTED และปักหมุด orderNo เป็น null ตรง ๆ
+    //
+    // นับ "ต่อ create" ไม่ใช่ "ต่อไฟล์" — สตริง `status: 'DRAFTED'` ยังปรากฏใน where ของ
+    // คิวรีอ่านได้อีกหลายที่ นับรวมทั้งไฟล์แล้วจะผ่านแม้ create ตัวใดตัวหนึ่งลืมใส่
+    const parts = src.split(/(?:tx|prisma)\.order\.create\(/).slice(1)
+    expect(parts.length).toBeGreaterThan(0)
+    for (const [i, part] of parts.entries()) {
+      const body = part.slice(0, 2000)
+      expect(body, `order.create ตัวที่ ${i + 1} ต้องเป็นร่าง`).toMatch(/status:\s*'DRAFTED'/)
+      expect(body, `order.create ตัวที่ ${i + 1} ต้องปักหมุด orderNo: null`).toMatch(/orderNo:\s*null/)
+    }
   })
 
   it('[blocker] ไม่มีไฟล์อื่นนอกลิสต์ที่สร้างแถว Order', () => {
@@ -60,6 +89,6 @@ describe('ทุกเส้นทางที่สร้างออเดอ�
       .filter(Boolean)
       .filter((f) => /(tx|prisma)\.order\.create\(/.test(stripComments(read(f))))
       .sort()
-    expect(found).toEqual([...CREATE_SITES].sort())
+    expect(found).toEqual([...CREATE_SITES, ...DRAFT_ONLY_SITES].sort())
   })
 })
