@@ -37,6 +37,23 @@ export function nextIntakePeriodKey(at: Date): string {
   return `${ny}-${String(nm).padStart(2, '0')}`
 }
 
+/**
+ * เวลาที่โควตารอบถัดไปจะเปิด = **เที่ยงคืนวันที่ 1 ของเดือนถัดไป ตามเวลาไทย**
+ *
+ * 🛑 ต้องคืนค่านี้คู่กับข้อความ "เต็มแล้ว" เสมอ (AC-INS-09-2) — การบอกว่าเต็มเฉย ๆ คือการ
+ *    ปล่อยให้คนรอโดยไม่มีกำหนด · ครอบกรณี "ยังไม่มีแถวโควตา" ด้วย เพราะ cron เป็นคนสร้าง
+ *    แถวของเดือนถัดไปให้เอง
+ *
+ * 🛑 ตัดเดือนด้วยเวลาไทย (UTC+7) ไม่ใช่ UTC — ไม่งั้นวันที่ 1 ช่วง 00:00-07:00 น. จะคำนวณ
+ *    เป็นเดือนก่อนหน้า แล้วบอกวันเปิดรับที่ผ่านไปแล้ว
+ */
+const THAI_UTC_OFFSET_MS = 7 * 60 * 60 * 1000
+
+export function nextIntakeOpensAt(at: Date): Date {
+  const [y, m] = nextIntakePeriodKey(at).split('-').map(Number)
+  return new Date(Date.UTC(y!, m! - 1, 1) - THAI_UTC_OFFSET_MS)
+}
+
 export type PlanRenewalDecision =
   | { kind: 'NOOP' }
   /** ครบรอบแล้วและเครดิตพอ → ต่ออายุ */

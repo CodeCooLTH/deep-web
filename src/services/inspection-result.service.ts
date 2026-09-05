@@ -3,12 +3,15 @@ import 'server-only'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import {
+  INSPECTION_CHECKS,
   computeExpiresAt,
   isInspectionCheckKey,
+  isSellerSuppliable,
   checkScope,
   type InspectionCheckKey,
   type InspectionStep,
 } from '@/lib/inspection/checks'
+import { getFileMeta } from '@/lib/storage'
 import { decideResultWrite } from '@/lib/inspection/record-decision'
 import {
   latestResultPerCheck,
@@ -252,4 +255,90 @@ export async function recomputeExpiryForPlanStep(
     changed += 1
   }
   return changed
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// หลักฐานที่ "ร้าน" เป็นคนส่งเอง (feature 00060 · T9 · API §4.5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type InspectionEvidenceErrorCode =
+  | 'UNKNOWN_CHECK_KEY'
+  | 'CHECK_NOT_SELLER_SUPPLIED'
+  | 'CHECK_SCOPE_MISMATCH'
+  | 'ROOM_NOT_IN_SHOP'
+  | 'CHECK_NOT_IN_ROUND'
+  | 'FILE_NOT_COMMITTED'
+
+export class InspectionEvidenceError extends Error {
+  readonly code: InspectionEvidenceErrorCode
+  constructor(code: InspectionEvidenceErrorCode) {
+    super(code)
+    this.name = 'InspectionEvidenceError'
+    this.code = code
+  }
+}
+
+/**
+ * ผูกไฟล์ที่ commit แล้วเข้ากับข้อตรวจหนึ่งข้อ
+ *
+ * 🛑 **`visibility` เป็น `PRIVATE` ตายตัว ไม่รับจาก client** — ของที่ร้านส่งเองในกลุ่มนี้คือ
+ *    บัตรประชาชน เซลฟี่ โฉนด สัญญาเช่า ใบอนุญาต ⇒ ทางที่ข้อมูลจะหลุดคือคำขอเดียวที่พิมพ์
+ *    `"PUBLIC"` ไม่ใช่ช่องโหว่ที่ต้องหาให้เจอ (FR-INS-017)
+ *
+ * 🛑 **ผูกกับ "รอบที่เปิดอยู่" ของกลุ่ม `(roomId, step, method)` นั้น** — `InspectionEvidence.roundId`
+ *    เป็น NOT NULL ตามสคีมา และนั่นถูกแล้วในเชิงความหมาย: หลักฐานที่ไม่ผูกรอบคือหลักฐานที่
+ *    **ไม่มีผู้ตรวจคนไหนเห็น** ร้านจะอัปโหลดแล้วรอเก้อโดยไม่มีอะไรฟ้อง
+ *    ⇒ ยังไม่มีรอบเปิด = `CHECK_NOT_IN_ROUND` (บอกตรง ๆ ว่ายังไม่ถึงรอบตรวจของข้อนี้)
+ *    หมายเหตุ: สัญญาใน API.md §4.5 ไม่ได้พูดถึงรอบเลย — ข้อจำกัดนี้มาจากสคีมา T3 ต้องบันทึก
+ *    กลับเข้าเอกสาร
+ */
+export async function attachSellerDocument(input: {
+  shopId: string
+  checkKey: string
+  roomId: string | null
+  fileId: string
+  kind: 'DOCUMENT' | 'PHOTO'
+}): Promise<{ evidenceId: string; checkKey: InspectionCheckKey; roomId: string | null; visibility: 'PRIVATE' }> {
+  const { shopId, fileId, kind } = input
+  const roomId = input.roomId ?? null
+
+  // 1) allow-list 18 คีย์
+  if (!isInspectionCheckKey(input.checkKey)) throw new InspectionEvidenceError('UNKNOWN_CHECK_KEY')
+  const checkKey = input.checkKey
+
+  // 2) ข้อนี้ร้านส่งเองได้ไหม — ข้อที่ผู้ตรวจเป็นคนเก็บหลักฐาน ร้านแนบเองแปลว่าร้านผลิต
+  //    หลักฐานที่ตัวเองถูกตรวจ
+  if (!isSellerSuppliable(checkKey)) throw new InspectionEvidenceError('CHECK_NOT_SELLER_SUPPLIED')
+
+  // 3) scope ตรงกับการมี/ไม่มี roomId — ตรวจ **สองทิศ** (assertScopeMatches ทำให้แล้ว)
+  try {
+    assertScopeMatches(checkKey, roomId)
+  } catch {
+    throw new InspectionEvidenceError('CHECK_SCOPE_MISMATCH')
+  }
+
+  // 4) roomId ต้องเป็นห้องของร้านนี้ — scope ใน WHERE ไม่ใช่ดึงมาเทียบทีหลัง
+  if (roomId !== null) {
+    const room = await prisma.room.findFirst({ where: { id: roomId, shopId }, select: { id: true } })
+    if (room === null) throw new InspectionEvidenceError('ROOM_NOT_IN_SHOP')
+  }
+
+  // 5) ไฟล์ต้อง commit จริงแล้ว — ตัวเลขที่ client แจ้งไม่ใช่หลักฐาน
+  const meta = await getFileMeta(fileId)
+  if (meta === null) throw new InspectionEvidenceError('FILE_NOT_COMMITTED')
+
+  // 6) รอบที่เปิดอยู่ของข้อนี้
+  const def = INSPECTION_CHECKS[checkKey]
+  const round = await prisma.inspectionRound.findFirst({
+    where: { shopId, roomId, step: def.step, method: def.method, completedAt: null },
+    select: { id: true },
+    orderBy: { assignedAt: 'asc' },
+  })
+  if (round === null) throw new InspectionEvidenceError('CHECK_NOT_IN_ROUND')
+
+  const evidence = await prisma.inspectionEvidence.create({
+    data: { roundId: round.id, kind, fileId, visibility: 'PRIVATE' },
+    select: { id: true },
+  })
+  return { evidenceId: evidence.id, checkKey, roomId, visibility: 'PRIVATE' }
 }

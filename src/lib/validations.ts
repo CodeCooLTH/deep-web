@@ -2077,3 +2077,44 @@ export const LibraryPatchSchema = v.pipe(
     "ต้องระบุอย่างน้อยหนึ่งอย่างที่จะแก้ไข",
   ),
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// feature 00060 — แผนการตรวจสอบร้าน (ชื่อ schema เป็นสัญญาใน API.md §3.2 ก ห้ามตั้งชื่ออื่น)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 🛑 `termsAccepted` เป็น `v.literal(true)` ไม่ใช่ `v.boolean()` โดยตั้งใจ — `false` ที่ผ่าน schema
+ *    แล้วไปตกที่ `if` ในโค้ด คือด่านที่ลบทิ้งได้โดยไม่มีอะไรแดง ส่วน literal ให้ Valibot กับ tsc
+ *    บังคับแทนเรา
+ * 🛑 ไม่รับ `shopId` และไม่รับ `price` จาก client — ราคาอ่านฝั่ง server เท่านั้น
+ *    (รับราคาจาก client = ร้านตั้งราคาค่าตรวจของตัวเองได้)
+ */
+export const SubscribeInspectionSchema = v.object({
+  step: v.picklist([1, 2, 3, 4], "เลือกขั้นการตรวจสอบไม่ถูกต้อง"),
+  termsAccepted: v.literal(true, "ต้องรับทราบเงื่อนไขก่อน"),
+});
+
+/** อัปเกรดขั้น — ขั้น 1 ไม่ใช่ปลายทางที่อัปเกรดไปได้ (มันคือขั้นต่ำสุดอยู่แล้ว) */
+export const UpgradeInspectionSchema = v.object({
+  step: v.picklist([2, 3, 4], "เลือกขั้นการตรวจสอบไม่ถูกต้อง"),
+  termsAccepted: v.literal(true, "ต้องรับทราบเงื่อนไขก่อน"),
+});
+
+/** ยกเลิก — `acknowledged` คือหลักฐานว่า OWNER อ่านผลลัพธ์ที่จะเกิดขึ้นแล้ว (AC-INS-26-2) */
+export const CancelInspectionSchema = v.object({
+  acknowledged: v.literal(true, "ต้องยืนยันว่ารับทราบผลของการยกเลิกก่อน"),
+});
+
+/**
+ * ผูกไฟล์ที่ commit แล้วเข้ากับข้อตรวจ
+ * 🛑 ไม่มี `visibility` ในสัญญานี้เด็ดขาด — ทุกอย่างที่ร้านส่งเองในกลุ่มนี้คือบัตรประชาชน เซลฟี่
+ *    โฉนด สัญญาเช่า ใบอนุญาต ⇒ ถ้าเปิดให้ส่ง `visibility` มาได้ ทางที่ข้อมูลจะหลุดคือ
+ *    **คำขอเดียวที่พิมพ์ `"PUBLIC"`** ไม่ใช่ช่องโหว่ที่ต้องหาให้เจอ
+ * 🛑 `kind` รับแค่ DOCUMENT/PHOTO — `VIDEO_STILL`/`GEO` ผลิตโดยผู้ตรวจเท่านั้น
+ */
+export const SubmitInspectionDocumentSchema = v.object({
+  checkKey: v.pipe(v.string(), v.minLength(1, "ต้องระบุข้อตรวจ")),
+  roomId: v.optional(v.nullable(v.pipe(v.string(), v.uuid("รหัสที่พักไม่ถูกต้อง")))),
+  fileId: v.pipe(v.string(), v.minLength(1, "ต้องระบุไฟล์แนบ")),
+  kind: v.picklist(["DOCUMENT", "PHOTO"], "ชนิดหลักฐานไม่ถูกต้อง"),
+});

@@ -226,12 +226,82 @@ describe('changeInspectionPlanStep', () => {
 })
 
 describe('cancelInspectionPlan', () => {
+  const RENEWAL = new Date('2026-09-19T17:00:00.000Z')
+
   it('🛑 mutation: ให้ cancel เขียน status=LAPSED ทันที → เคสนี้ต้องแดง', async () => {
     // ร้านจ่ายค่ารอบนี้ไปแล้ว การตัดป้ายทันทีคือการยึดบริการที่เขาซื้อไปแล้วคืน (AC-INS-26-3)
-    planFindUnique.mockResolvedValue({ status: 'ACTIVE' })
+    planFindUnique.mockResolvedValue({ status: 'ACTIVE', canceledAt: null, nextRenewalAt: RENEWAL })
+    const res = await cancelInspectionPlan({ shopId: SHOP, userId: OWNER, now: NOW })
+    const data = (planUpdate.mock.calls[0]?.[0]?.data ?? {}) as Record<string, unknown>
+    expect(data).not.toHaveProperty('status')
+    expect(res.effectiveAt).toEqual(RENEWAL)
+  })
+
+  it('🛑 mutation: ไม่เขียน lapsedReason ตอนแจ้งยกเลิก → เคสนี้ต้องแดง', async () => {
+    // ถ้าไม่บันทึกเจตนาตรงนี้ ตัวตัดรอบบิลจะเห็นแค่ "แผนนี้ไม่ต่ออายุ" แล้วเขียน RENEWAL_FAILED
+    // ให้คนที่ตั้งใจเลิก = บอกร้านว่าเขาค้างชำระทั้งที่เขาไม่ได้ค้าง
+    planFindUnique.mockResolvedValue({ status: 'ACTIVE', canceledAt: null, nextRenewalAt: RENEWAL })
     await cancelInspectionPlan({ shopId: SHOP, userId: OWNER, now: NOW })
-    const data = planUpdate.mock.calls[0]?.[0]?.data ?? {}
-    expect(data).toEqual({ canceledAt: NOW })
+    expect(planUpdate.mock.calls[0]?.[0]?.data).toMatchObject({
+      canceledAt: NOW,
+      lapsedReason: 'OWNER_CANCELLED',
+    })
+  })
+
+  it('🛑 กดยกเลิกซ้ำ → PLAN_ALREADY_CANCELED และต้องไม่เขียนทับวันที่เดิม', async () => {
+    // เขียนทับได้เมื่อไร วันสิ้นสุดที่ร้านเห็นจะเลื่อนออกไปทุกครั้งที่กด
+    planFindUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      canceledAt: new Date('2026-08-20T00:00:00.000Z'),
+      nextRenewalAt: RENEWAL,
+    })
+    await expect(cancelInspectionPlan({ shopId: SHOP, userId: OWNER, now: NOW })).rejects.toMatchObject({
+      code: 'PLAN_ALREADY_CANCELED',
+    })
+    expect(planUpdate).not.toHaveBeenCalled()
+  })
+})
+
+describe('ด่านสิทธิ์ + ด่านประเภทร้าน', () => {
+  it('🛑 mutation: สลับให้เช็คเจ้าของก่อนประเภทร้าน → เคสนี้ต้องแดง (API §4.2)', async () => {
+    // ร้านประเภทอื่นที่ยิงตรงเข้ามาต้องได้คำตอบที่ตรงกับความจริงเสมอ ไม่ใช่ถูกไล่ไปหาสาเหตุผิดทาง
+    shopFindFirst.mockResolvedValue({ userId: 'someone-else', vertical: 'ONLINE_SALES' })
+    await expect(
+      subscribeInspectionPlan({ shopId: SHOP, userId: OWNER, step: 2, termsAccepted: true, now: NOW }),
+    ).rejects.toMatchObject({ code: 'NOT_LODGING_SHOP' })
+  })
+
+  it('ร้านบ้านพักแต่ไม่ใช่เจ้าของ → NOT_SHOP_OWNER', async () => {
+    shopFindFirst.mockResolvedValue({ userId: 'someone-else', vertical: 'LODGING' })
+    await expect(
+      subscribeInspectionPlan({ shopId: SHOP, userId: OWNER, step: 2, termsAccepted: true, now: NOW }),
+    ).rejects.toMatchObject({ code: 'NOT_SHOP_OWNER' })
+  })
+
+  it('🛑 mutation: ปล่อยให้สมัครทับแผนที่ยัง ACTIVE → เคสนี้ต้องแดง', async () => {
+    // upsert จะรีเซ็ตรอบบิลแล้วเก็บเงินรอบใหม่ทับของที่ร้านจ่ายไปแล้ว โดยหน้าจอขึ้นว่าสำเร็จ
+    planFindUnique.mockResolvedValue({ status: 'ACTIVE' })
+    await expect(
+      subscribeInspectionPlan({ shopId: SHOP, userId: OWNER, step: 2, termsAccepted: true, now: NOW }),
+    ).rejects.toMatchObject({ code: 'PLAN_ALREADY_EXISTS' })
+    expect(calls).toEqual([])
+  })
+
+  it('ร้านที่ LAPSED แล้วกลับมาสมัครใหม่ ยังทำได้ตามเดิม (เป็นการเริ่มรอบใหม่จริง)', async () => {
+    planFindUnique.mockResolvedValue({ status: 'LAPSED' })
+    await expect(
+      subscribeInspectionPlan({ shopId: SHOP, userId: OWNER, step: 2, termsAccepted: true, now: NOW }),
+    ).resolves.toMatchObject({ planId: 'plan-1' })
+  })
+
+  it('🛑 mutation: ถอด upgradeOnly ให้ /upgrade ลดขั้นได้เงียบ ๆ → เคสนี้ต้องแดง', async () => {
+    planFindUnique.mockResolvedValue({ step: 4, status: 'ACTIVE' })
+    await expect(
+      changeInspectionPlanStep({
+        shopId: SHOP, userId: OWNER, toStep: 2, termsAccepted: true, upgradeOnly: true, now: NOW,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_STEP_TRANSITION' })
+    expect(calls).not.toContain('plan.update')
   })
 })
 

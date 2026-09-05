@@ -34,12 +34,16 @@ export type InspectionPlanErrorCode =
   | 'SHOP_NOT_FOUND'
   | 'NOT_LODGING_SHOP'
   | 'NOT_SHOP_OWNER'
+  | 'NOT_SHOP_MEMBER'
   | 'TERMS_NOT_ACCEPTED'
   | 'INTAKE_QUOTA_FULL'
   | 'INTAKE_NOT_OPEN'
   | 'PLAN_NOT_FOUND'
   | 'PLAN_NOT_ACTIVE'
+  | 'PLAN_ALREADY_EXISTS'
+  | 'PLAN_ALREADY_CANCELED'
   | 'STEP_UNCHANGED'
+  | 'INVALID_STEP_TRANSITION'
 
 export class InspectionPlanError extends Error {
   readonly code: InspectionPlanErrorCode
@@ -66,8 +70,11 @@ async function assertOwnerOfLodgingShop(client: Tx, shopId: string, userId: stri
     select: { userId: true, vertical: true },
   })
   if (shop === null) throw new InspectionPlanError('SHOP_NOT_FOUND')
-  if (shop.userId !== userId) throw new InspectionPlanError('NOT_SHOP_OWNER')
+  // 🛑 ลำดับนี้ผูกกับสัญญาใน API.md §4.2 — `NOT_LODGING` ต้องมาก่อน `NOT_OWNER` เพื่อให้ร้าน
+  //    ประเภทอื่นที่ยิงตรงเข้ามาได้คำตอบที่ตรงกับความจริงเสมอ (ประเภทร้านเป็นข้อมูลสาธารณะอยู่แล้ว
+  //    การตอบ NOT_OWNER ก่อนจะทำให้เจ้าของร้านประเภทอื่นไล่หาสาเหตุผิดทาง)
   if (shop.vertical !== 'LODGING') throw new InspectionPlanError('NOT_LODGING_SHOP')
+  if (shop.userId !== userId) throw new InspectionPlanError('NOT_SHOP_OWNER')
 }
 
 /**
@@ -169,7 +176,23 @@ export type SubscribeInspectionPlanInput = {
  * 🛑 ร้านที่ `LAPSED` แล้วสมัครใหม่ = **อัปเดตแถวเดิม ห้ามแตะ `InspectionRound`/`InspectionResult`
  *    เดิม** (AC-INS-27-3) ประวัติคือสิ่งที่เขาจ่ายเงินซื้อมา
  */
-export async function subscribeInspectionPlan(input: SubscribeInspectionPlanInput): Promise<{ planId: string }> {
+export type InspectionAcceptance = {
+  acceptedAt: Date
+  termsVersion: string
+  priceSnapshotBaht: number
+}
+
+export type SubscribeInspectionPlanResult = {
+  planId: string
+  step: InspectionStep
+  termsAcceptedAt: Date
+  acceptance: InspectionAcceptance
+  roundsCreated: number
+}
+
+export async function subscribeInspectionPlan(
+  input: SubscribeInspectionPlanInput,
+): Promise<SubscribeInspectionPlanResult> {
   const { shopId, userId, step, termsAccepted, now } = input
   if (!termsAccepted) throw new InspectionPlanError('TERMS_NOT_ACCEPTED')
   assertInspectionPricingDecided()
@@ -178,6 +201,14 @@ export async function subscribeInspectionPlan(input: SubscribeInspectionPlanInpu
 
   return prisma.$transaction(async (tx) => {
     await assertOwnerOfLodgingShop(tx, shopId, userId)
+
+    // 🛑 มีแผนที่ยัง ACTIVE อยู่แล้ว = สมัครซ้ำไม่ได้ (409) — ถ้าปล่อยผ่าน `upsert` ข้างล่างจะ
+    //    รีเซ็ตรอบบิลแล้วเก็บเงินรอบใหม่ทับของที่ร้านจ่ายไปแล้ว โดยหน้าจอขึ้นว่าสำเร็จทุกประการ
+    //    ร้านที่ LAPSED แล้วกลับมาสมัครใหม่ยังผ่านได้ตามเดิม (เป็นการเริ่มรอบใหม่จริง)
+    const existing = await tx.inspectionPlan.findUnique({ where: { shopId }, select: { status: true } })
+    if (existing?.status === 'ACTIVE') {
+      throw new InspectionPlanError('PLAN_ALREADY_EXISTS')
+    }
 
     // 1) โควตาก่อนเสมอ
     await claimIntakeSlot(tx, intakePeriodKey(now), step)
@@ -219,9 +250,17 @@ export async function subscribeInspectionPlan(input: SubscribeInspectionPlanInpu
     })
 
     // 5) เปิดรอบตรวจให้ทันที ไม่ต้องรอ cron รอบถัดไป (ร้านเพิ่งจ่ายเงิน)
-    await createDueRoundsForShop(tx, { shopId, planStep: step, now })
+    const roundsCreated = await createDueRoundsForShop(tx, { shopId, planStep: step, now })
 
-    return { planId: plan.id }
+    // คืนหลักฐานการรับทราบกลับไปด้วย — เป็นสิ่งเดียวที่แยก "บันทึกหลักฐานสำเร็จ" ออกจาก
+    // "หักเงินสำเร็จแต่หลักฐานหาย" ได้จากฝั่ง client (API §4.2)
+    return {
+      planId: plan.id,
+      step,
+      termsAcceptedAt: now,
+      acceptance: { acceptedAt: now, termsVersion: INSPECTION_TERMS_VERSION, priceSnapshotBaht: amount },
+      roundsCreated,
+    }
   })
 }
 
@@ -231,6 +270,22 @@ export type ChangeInspectionPlanStepInput = {
   toStep: InspectionStep
   termsAccepted: boolean
   now: Date
+  /**
+   * 🛑 `true` = ปฏิเสธการลดขั้นด้วย `INVALID_STEP_TRANSITION` — endpoint `/upgrade` ส่งค่านี้เสมอ
+   *    (API §4.3: ห้าม implement การลดขั้นแบบเงียบผ่าน endpoint อัปเกรด เพราะการลดขั้นมีผล
+   *     ต่อสิ่งที่ผู้ซื้อเห็นบนโปรไฟล์ทันที และยังไม่มีมติเรื่องส่วนต่าง)
+   *    ตรวจ **ในทรานแซกชัน** ไม่ใช่ให้ route อ่านขั้นปัจจุบันมาเทียบก่อนเรียก — อ่านก่อนเรียก
+   *    คือ TOCTOU ที่ผลลัพธ์คือเก็บเงินผิดจำนวน
+   */
+  upgradeOnly?: boolean
+}
+
+export type ChangeInspectionPlanStepResult = {
+  previousStep: InspectionStep
+  step: InspectionStep
+  termsAcceptedAt: Date | null
+  acceptance: InspectionAcceptance | null
+  roundsCreated: number
 }
 
 /**
@@ -246,10 +301,12 @@ export type ChangeInspectionPlanStepInput = {
  * 🛑 **รอบบิลไม่ถูกรีเซ็ตทั้งสองทิศ** (`nextRenewalAt` เดิมคงอยู่) — รีเซ็ตเมื่อไหร่
  *    การอัปเกรดกลางรอบจะกลายเป็นการเก็บค่าเดือนสองครั้งในเดือนเดียว
  */
-export async function changeInspectionPlanStep(input: ChangeInspectionPlanStepInput): Promise<void> {
-  const { shopId, userId, toStep, termsAccepted, now } = input
+export async function changeInspectionPlanStep(
+  input: ChangeInspectionPlanStepInput,
+): Promise<ChangeInspectionPlanStepResult> {
+  const { shopId, userId, toStep, termsAccepted, now, upgradeOnly = false } = input
 
-  await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     await assertOwnerOfLodgingShop(tx, shopId, userId)
 
     const plan = await tx.inspectionPlan.findUnique({
@@ -261,7 +318,9 @@ export async function changeInspectionPlanStep(input: ChangeInspectionPlanStepIn
 
     const fromStep = plan.step as InspectionStep
     if (fromStep === toStep) throw new InspectionPlanError('STEP_UNCHANGED')
+    if (upgradeOnly && toStep < fromStep) throw new InspectionPlanError('INVALID_STEP_TRANSITION')
 
+    let acceptance: InspectionAcceptance | null = null
     if (toStep > fromStep) {
       if (!termsAccepted) throw new InspectionPlanError('TERMS_NOT_ACCEPTED')
       assertInspectionPricingDecided()
@@ -269,6 +328,7 @@ export async function changeInspectionPlanStep(input: ChangeInspectionPlanStepIn
 
       await claimIntakeSlot(tx, intakePeriodKey(now), toStep)
       await recordTermsAcceptance(tx, { shopId, step: toStep, priceSnapshotBaht: amount, now })
+      acceptance = { acceptedAt: now, termsVersion: INSPECTION_TERMS_VERSION, priceSnapshotBaht: amount }
       // ส่วนต่างเป็น 0 ได้ตามสูตร (ยังไม่มีมติ) — deductCredit ปฏิเสธ amount<=0 ⇒ ข้ามการหักเงิน
       if (amount > 0) {
         await deductCredit(shopId, amount, shopId, `ปรับขั้นแผนการตรวจสอบเป็นขั้นที่ ${toStep}`, 'INSPECTION_PLAN', tx)
@@ -283,7 +343,17 @@ export async function changeInspectionPlanStep(input: ChangeInspectionPlanStepIn
     // อายุผลตรวจบางข้อผูกกับขั้นของแผน (ขั้น 4 ตรวจซ้ำถี่ขึ้น) ⇒ ผลที่มีอยู่ต้องคิดวันหมดอายุใหม่
     await recomputeExpiryForPlanStep(tx, shopId, toStep)
 
-    if (toStep > fromStep) await createDueRoundsForShop(tx, { shopId, planStep: toStep, now })
+    const roundsCreated = toStep > fromStep
+      ? await createDueRoundsForShop(tx, { shopId, planStep: toStep, now })
+      : 0
+
+    return {
+      previousStep: fromStep,
+      step: toStep,
+      termsAcceptedAt: acceptance === null ? null : now,
+      acceptance,
+      roundsCreated,
+    }
   })
 }
 
@@ -294,14 +364,38 @@ export async function changeInspectionPlanStep(input: ChangeInspectionPlanStepIn
  *    คือการยึดบริการที่เขาซื้อไปแล้วคืน การเปลี่ยนเป็น LAPSED เกิดที่ cron เมื่อถึง
  *    `nextRenewalAt` พร้อม `lapsedReason='OWNER_CANCELLED'`
  */
-export async function cancelInspectionPlan(input: { shopId: string; userId: string; now: Date }): Promise<void> {
+export type CancelInspectionPlanResult = {
+  /** เวลาที่แผนจะกลายเป็น LAPSED = สิ้นรอบบิลปัจจุบัน */
+  effectiveAt: Date
+  lapsedReason: 'OWNER_CANCELLED'
+}
+
+export async function cancelInspectionPlan(input: {
+  shopId: string
+  userId: string
+  now: Date
+}): Promise<CancelInspectionPlanResult> {
   const { shopId, userId, now } = input
-  await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     await assertOwnerOfLodgingShop(tx, shopId, userId)
-    const plan = await tx.inspectionPlan.findUnique({ where: { shopId }, select: { status: true } })
+    const plan = await tx.inspectionPlan.findUnique({
+      where: { shopId },
+      select: { status: true, canceledAt: true, nextRenewalAt: true },
+    })
     if (plan === null) throw new InspectionPlanError('PLAN_NOT_FOUND')
     if (plan.status !== 'ACTIVE') throw new InspectionPlanError('PLAN_NOT_ACTIVE')
-    await tx.inspectionPlan.update({ where: { shopId }, data: { canceledAt: now } })
+    if (plan.canceledAt !== null) throw new InspectionPlanError('PLAN_ALREADY_CANCELED')
+
+    await tx.inspectionPlan.update({
+      where: { shopId },
+      // 🛑 เขียน `lapsedReason` ตั้งแต่ตอนแจ้งยกเลิก ไม่ใช่ปล่อยให้ตัวตัดรอบบิลเดาเอาตอนสิ้นรอบ
+      //    (API §4.4) — สองค่านี้แยกกันด้วย *เจตนา* ไม่ใช่ *อาการ*: ถ้าไม่บันทึกตอนนี้ cron
+      //    จะเห็นแค่ "แผนนี้ไม่ต่ออายุ" แล้วเขียน RENEWAL_FAILED ให้คนที่ตั้งใจเลิก =
+      //    บอกร้านว่าเขาค้างชำระทั้งที่เขาไม่ได้ค้าง
+      //    🛑 ค่านี้ยัง **ไม่ถูกเปิดเผยฝั่งอ่าน** จนกว่า status จะเป็น LAPSED จริง (API §4.1)
+      data: { canceledAt: now, lapsedReason: 'OWNER_CANCELLED' },
+    })
+    return { effectiveAt: plan.nextRenewalAt, lapsedReason: 'OWNER_CANCELLED' }
   })
 }
 
