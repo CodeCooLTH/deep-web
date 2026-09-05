@@ -2,7 +2,13 @@ import 'server-only'
 
 import { prisma } from '@/lib/prisma'
 import { InspectionPlanError } from '@/services/inspection-plan.service'
-import { graceDaysRemaining, intakePeriodKey, nextIntakeOpensAt } from '@/lib/inspection/plan-lifecycle'
+import {
+  graceDaysRemaining,
+  intakeAvailability,
+  intakePeriodKey,
+  nextIntakeOpensAt,
+  type IntakeAvailability,
+} from '@/lib/inspection/plan-lifecycle'
 import {
   availableIntakeSteps,
   buildOwnerInspectionSections,
@@ -43,7 +49,17 @@ export type OwnerInspectionView = OwnerInspectionSections & {
     graceDaysLeft: number | null
   } | null
   canManage: boolean
-  intake: { stepAvailable: InspectionStep[]; nextOpenAt: Date | null }
+  intake: {
+    stepAvailable: InspectionStep[]
+    /**
+     * 🛑 เหตุผล **รายขั้น** — "เต็มแล้ว" กับ "ยังไม่เปิดรับ" ต้องพูดคนละอย่าง (TFR-007)
+     *    ก่อนหน้านี้ payload บอกแค่ว่าขั้นไหน "เปิด" ⇒ หน้าจอเขียนเหตุผลเดียวให้ทั้งสองกรณี
+     *    วันที่ทีมลืมตั้งโควตา ทุกขั้นจะขึ้นว่า "เต็ม" ทั้งที่ยังไม่มีใครสมัครสักคน แล้วไม่มีใคร
+     *    เอะใจไปสืบ เพราะคำว่าเต็มเป็นคำอธิบายที่ฟังขึ้นสมบูรณ์
+     */
+    stepStatus: Record<InspectionStep, IntakeAvailability>
+    nextOpenAt: Date | null
+  }
 }
 
 /**
@@ -70,13 +86,19 @@ async function resolveShopAccess(shopId: string, userId: string): Promise<{ isOw
 /** ขั้นที่เปิดรับสมัครเดือนนี้ + วันที่รอบถัดไปจะเปิด (AC-INS-09-2 ต้องรู้ตั้งแต่เปิดหน้า) */
 export async function getIntakeAvailability(now: Date): Promise<{
   stepAvailable: InspectionStep[]
+  stepStatus: Record<InspectionStep, IntakeAvailability>
   nextOpenAt: Date | null
 }> {
   const quotas = await prisma.inspectionIntakeQuota.findMany({
     where: { periodYearMonth: intakePeriodKey(now) },
     select: { step: true, capacity: true, usedCount: true },
   })
-  return { stepAvailable: availableIntakeSteps(quotas), nextOpenAt: nextIntakeOpensAt(now) }
+  const byStep = new Map(quotas.map((q) => [q.step, q]))
+  const stepStatus = Object.fromEntries(
+    ([1, 2, 3, 4] as InspectionStep[]).map((step) => [step, intakeAvailability(byStep.get(step) ?? null)]),
+  ) as Record<InspectionStep, IntakeAvailability>
+
+  return { stepAvailable: availableIntakeSteps(quotas), stepStatus, nextOpenAt: nextIntakeOpensAt(now) }
 }
 
 export async function getInspectionForOwner(input: {

@@ -66,7 +66,12 @@ export type InspectionPlanJSON = {
   graceDaysLeft: number | null
 } | null
 
-export type IntakeJSON = { stepAvailable: InspectionStep[]; nextOpenAt: string | null }
+export type IntakeJSON = {
+  stepAvailable: InspectionStep[]
+  /** เหตุผลรายขั้น — 'FULL' (เต็มแล้ว) กับ 'NOT_OPEN' (ยังไม่เปิดรับ) ต้องพูดคนละอย่าง */
+  stepStatus: Record<InspectionStep, 'OPEN' | 'FULL' | 'NOT_OPEN'>
+  nextOpenAt: string | null
+}
 
 /** รูปร่างเต็มของ `GET /api/seller/inspection` — ใช้ hydrate ทั้งหน้าครั้งแรกจาก RSC */
 export type OwnerInspectionViewJSON = {

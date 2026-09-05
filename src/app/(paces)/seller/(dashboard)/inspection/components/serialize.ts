@@ -93,6 +93,7 @@ export function serializeOwnerInspectionView(view: OwnerInspectionView): OwnerIn
     pendingRounds,
     intake: {
       stepAvailable: view.intake.stepAvailable,
+      stepStatus: view.intake.stepStatus,
       nextOpenAt: iso(view.intake.nextOpenAt),
     },
   }

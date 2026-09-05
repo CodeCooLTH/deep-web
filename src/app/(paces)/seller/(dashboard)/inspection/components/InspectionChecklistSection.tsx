@@ -115,6 +115,22 @@ function CheckRow({ result, inProgress }: { result: CheckResultJSON; inProgress:
           <p className="text-default-400 text-xs mt-0.5">
             {metaLabel} {formatDateTH(result.lastCheckedAt)}
             {result.inspectorDisplayName ? ` · ตรวจโดย ${result.inspectorDisplayName}` : ''}
+            {/* 🛑 วันหมดอายุถูกส่งมาถึงหน้าจอตั้งแต่แรกแต่ไม่เคยถูกแสดง (พบตอน critique) —
+                ร้านจึงรู้ตัวว่าป้ายกำลังจะร่วง **ก็ต่อเมื่อมันร่วงไปแล้ว** ทั้งที่ข้อมูลอยู่ในมือ
+                ⇒ แสดงเฉพาะข้อที่ยังผ่านอยู่ (ข้อที่ตกไปแล้ววันหมดอายุไม่มีความหมาย) */}
+            {result.displayStatus === 'PASS' && result.expiresAt
+              ? ` · ตรวจซ้ำก่อน ${formatDateTH(result.expiresAt)}`
+              : ''}
+          </p>
+        )}
+        {/* "รอตรวจซ้ำ" มีได้ 2 สาเหตุและร้านต้องแยกออก: ผลเก่าเกินกำหนด (รอคิวผู้ตรวจ) กับ
+            ร้านเปลี่ยนภาพประกาศเอง (FR-INS-028) — อย่างหลังร้านเป็นคนทำ จึงต้องบอกตรง ๆ
+            ไม่งั้นร้านจะอ่านว่าระบบตัดป้ายเขาโดยไม่มีเหตุผล */}
+        {!inProgress && result.displayStatus === 'RECHECK_DUE' && (
+          <p className="text-default-400 text-xs mt-0.5">
+            {result.checkKey === 'photos_match'
+              ? 'ภาพประกาศถูกแก้ไขหลังการตรวจครั้งล่าสุด — รอผู้ตรวจยืนยันภาพชุดใหม่'
+              : 'ผลตรวจครบกำหนดต้องยืนยันซ้ำ — ระบบจัดคิวผู้ตรวจให้อัตโนมัติ'}
           </p>
         )}
       </div>
