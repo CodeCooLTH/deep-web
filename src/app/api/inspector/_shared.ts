@@ -32,6 +32,7 @@ type InspectorErrorCode =
   | 'UNAUTHORIZED'
   | 'VALIDATION_ERROR'
   | 'NOT_INSPECTOR'
+  | 'INSPECTOR_NAME_UNUSABLE'
   | 'ROUND_NOT_ASSIGNED'
   | 'ROUND_ALREADY_COMPLETED'
   | 'RESULTS_INCOMPLETE'
@@ -45,6 +46,12 @@ const SPEC: Record<InspectorErrorCode, { status: number; message: string }> = {
   UNAUTHORIZED: { status: 401, message: 'กรุณาเข้าสู่ระบบก่อน' },
   VALIDATION_ERROR: { status: 400, message: 'ข้อมูลไม่ถูกต้องหรือไม่ครบถ้วน' },
   NOT_INSPECTOR: { status: 403, message: 'บัญชีนี้ไม่ใช่ผู้ตรวจ' },
+  // 🛑 คนละสาเหตุกับ NOT_INSPECTOR — คนนี้ **เป็นผู้ตรวจจริง** แต่ชื่อที่จะแสดงคู่ผลตรวจยังตั้งไม่ครบ
+  //    บอกว่า "ไม่ใช่ผู้ตรวจ" กับคนที่ยืนอยู่หน้างานแล้ว = ทางตันที่เขาแก้เองไม่ได้และไม่รู้จะถามใคร
+  INSPECTOR_NAME_UNUSABLE: {
+    status: 403,
+    message: 'บัญชีนี้ยังบันทึกผลไม่ได้ เพราะชื่อที่ใช้แสดงคู่ผลตรวจยังตั้งไม่ครบ — ติดต่อทีมงาน Deep เพื่อเปิดสิทธิ์',
+  },
   // 🛑 รวม "ไม่ใช่ของคุณ" กับ "ไม่มีอยู่จริง" เป็นคำตอบเดียวโดยตั้งใจ — แยกเมื่อไร ผู้ที่มี
   //    isInspector จะเดา id ไล่ไปเรื่อย ๆ แล้วรู้ว่ารอบไหนมีอยู่จริงบ้าง
   ROUND_NOT_ASSIGNED: { status: 403, message: 'ไม่พบรอบตรวจที่คุณได้รับมอบหมาย' },
@@ -75,7 +82,7 @@ const ROUND_ERROR_TO_CODE: Record<string, InspectorErrorCode> = {
   ROUND_NOT_ASSIGNED_TO_YOU: 'ROUND_NOT_ASSIGNED',
   ROUND_NOT_FOUND: 'ROUND_NOT_ASSIGNED',
   INSPECTOR_NOT_ELIGIBLE: 'NOT_INSPECTOR',
-  INSPECTOR_NAME_UNUSABLE: 'NOT_INSPECTOR',
+  INSPECTOR_NAME_UNUSABLE: 'INSPECTOR_NAME_UNUSABLE',
   ROUND_ALREADY_COMPLETED: 'ROUND_ALREADY_COMPLETED',
   ROUND_NOT_COMPLETABLE: 'RESULTS_INCOMPLETE',
   CHECK_NOT_IN_ROUND: 'CHECK_NOT_IN_ROUND',

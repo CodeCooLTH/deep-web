@@ -129,9 +129,13 @@ export default function QuotaFormClient({ initialYear, initialMonth, initialQuot
           <div key={q.step} className="flex flex-col gap-2 border-b border-dashed border-default-200 pb-4 last:border-0 last:pb-0 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-default-900">{INSPECTION_STEP_LABEL_TH[q.step]}</p>
+              {/* 🛑 "เหลือรับ 0" ที่แปลว่า **ยังไม่ได้ตั้งโควตา** ต้องไม่แสดงเหมือน 0 ที่แปลว่า **เต็ม**
+                  — ฝั่งร้านแยกสองอย่างนี้ไว้แล้ว แต่จอที่ใช้ *แก้* ปัญหากลับยุบเป็นเลขเดียวกัน
+                  ซึ่งเป็นเคสที่คอมเมนต์ใน `api/seller/inspection/_shared.ts` เตือนไว้เองตรง ๆ */}
               <p className="mt-0.5 text-xs text-default-500">
-                รับไปแล้ว {q.used} ราย · เหลือรับ {q.remaining} ราย
-                {!q.seeded && ' · ยังไม่ถูกตั้งค่าเดือนนี้'}
+                {q.seeded
+                  ? `รับไปแล้ว ${q.used} ราย · เหลือรับ ${q.remaining} ราย`
+                  : 'ยังไม่เปิดรับสมัครเดือนนี้ (ยังไม่ได้ตั้งโควตา)'}
               </p>
               {notes[q.step] && <p className="mt-1 text-2xs text-warning-ink">{notes[q.step]}</p>}
             </div>

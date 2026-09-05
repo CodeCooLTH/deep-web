@@ -102,9 +102,18 @@ export default function InspectionBlock({
         </div>
       )}
 
-      {/* หลักฐานย่อ — สูงสุด 3 ข้อเด่น ไม่ใช่ตัวหาร N/18 (UX spec) */}
+      {/* หลักฐานย่อ — สูงสุด 3 ข้อเด่น ไม่ใช่ตัวหาร N/18 (UX spec)
+          🛑 ต้องมีหัวข้อกำกับว่านี่คือ "ข้อที่ผ่าน" ไม่ใช่ "สรุปทั้งหมด" — `pickNotableLines()`
+             คัดเฉพาะแถวที่ผ่าน ⇒ ถ้าไม่มีคำกำกับ มันคือรายการข่าวดีล้วนที่หน้าตาเหมือนสรุปครบทุกข้อ
+             คนที่ไม่กดเข้าไปดูต่อจะเข้าใจว่าร้านนี้ตรวจครบแล้วทุกข้อ ทั้งที่อาจมีข้อที่ยังไม่มีข้อมูล
+             อีกหลายข้อซ่อนอยู่ (และข้อที่ "ไม่ผ่าน" ถูกยุบเป็น "ยังไม่มีข้อมูล" ตั้งแต่ server) */}
       {notable.length > 0 && (
-        <ul className='flex flex-col gap-2.5 m-0 p-0 list-none mbs-4'>
+        <Typography component='h3' className='text-[13px] font-semibold mbs-4' color='text.secondary'>
+          ข้อที่ผ่านการตรวจล่าสุด
+        </Typography>
+      )}
+      {notable.length > 0 && (
+        <ul className='flex flex-col gap-2.5 m-0 p-0 list-none mbs-2'>
           {notable.map(({ line, roomName }) => (
             <InspectionCheckRow key={line.checkKey} line={line} roomName={roomName} dense />
           ))}
@@ -142,7 +151,7 @@ export default function InspectionBlock({
         onClick={onOpenFull}
         className='mbs-4 text-[13px] font-semibold text-primary bg-transparent border-0 p-0 cursor-pointer flex items-center gap-1'
       >
-        {`ดูข้อตรวจทั้งหมด (${totalCount} ข้อ) และรอบตรวจย้อนหลัง`}
+        {`ดูผลครบทุกข้อ (${totalCount} ข้อ) รวมข้อที่ยังไม่มีข้อมูล`}
         <Icon icon='tabler:chevron-right' width={15} aria-hidden />
       </button>
 

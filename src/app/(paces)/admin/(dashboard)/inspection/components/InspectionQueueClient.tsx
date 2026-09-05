@@ -86,6 +86,14 @@ export default function InspectionQueueClient({ initialRounds, initialBacklog, i
   const [methodFilter, setMethodFilter] = useState<'All' | InspectionMethod>('All')
   const [fraudOnly, setFraudOnly] = useState<'false' | 'true'>('false')
 
+  // มีตัวกรองไหนถูกเปิดอยู่ไหม — ใช้แยกข้อความว่างสองแบบ (ยังไม่มีอะไร vs กรองจนหมด)
+  const hasActiveFilter =
+    assignment !== 'ALL' ||
+    overdueOnly === 'true' ||
+    stepFilter !== 'All' ||
+    methodFilter !== 'All' ||
+    fraudOnly === 'true'
+
   // ── มอบหมายผู้ตรวจ (inline panel ต่อแถว — form-select ผูกค่าเข้าฟอร์มจริง) ──────────
   const [assigningId, setAssigningId] = useState<string | null>(null)
   const [inspectorQuery, setInspectorQuery] = useState('')
@@ -483,7 +491,14 @@ export default function InspectionQueueClient({ initialRounds, initialBacklog, i
           emptyMessage={
             <div className="flex flex-col items-center gap-2 py-8">
               <Icon icon="clipboard-off" className="text-4xl text-default-300" aria-hidden="true" />
-              <p className="font-semibold text-default-500">ไม่มีรอบตรวจตรงกับตัวกรองนี้</p>
+              {/* 🛑 แยก "ยังไม่มีอะไรในระบบ" ออกจาก "ตัวกรองกรองหมด" — วันแรกที่เปิดใช้ คิวยังว่างจริง
+                  ถ้าบอกว่าไม่ตรงกับตัวกรอง แอดมินจะไปไล่แก้ตัวกรองที่ไม่ได้ผิดอยู่นาน */}
+              <p className="font-semibold text-default-500">
+                {hasActiveFilter ? 'ไม่มีรอบตรวจตรงกับตัวกรองนี้' : 'ยังไม่มีรอบตรวจในระบบ'}
+              </p>
+              {hasActiveFilter && (
+                <p className="text-default-400 text-xs">ลองล้างตัวกรองเพื่อดูรอบตรวจทั้งหมด</p>
+              )}
             </div>
           }
         />

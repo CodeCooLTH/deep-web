@@ -32,6 +32,7 @@ type AdminErrorCode =
   | 'UNKNOWN_CHECK_KEY'
   | 'CHECK_SCOPE_MISMATCH'
   | 'INSPECTOR_NOT_FOUND'
+  | 'INSPECTOR_NAME_UNUSABLE'
   | 'ROUND_NOT_FOUND'
   | 'ROUND_ALREADY_ASSIGNED'
   | 'ROUND_ALREADY_COMPLETED'
@@ -55,6 +56,11 @@ const SPEC: Record<AdminErrorCode, { status: number; message: string }> = {
     message: 'ข้อตรวจในรอบเดียวกันต้องเป็นขอบเขตเดียวกันทั้งหมด (ของร้าน หรือของที่พักรายหลัง)',
   },
   INSPECTOR_NOT_FOUND: { status: 400, message: 'ไม่พบผู้ตรวจที่ระบุ' },
+  // 🛑 บัญชีมีอยู่จริง — ถ้าบอกว่า "ไม่พบ" แอดมินจะไปไล่หาบัญชีที่เห็นอยู่ตรงหน้าแล้วสรุปว่าระบบค้นพัง
+  INSPECTOR_NAME_UNUSABLE: {
+    status: 400,
+    message: 'ผู้ตรวจคนนี้ยังไม่มีชื่อที่ใช้แสดงต่อร้าน มอบหมายไม่ได้จนกว่าจะตั้งชื่อให้เรียบร้อย',
+  },
   // 🛑 ฝั่งแอดมินใช้ 404 ได้ (ต่างจาก 403 ของฝั่งผู้ตรวจ) เพราะแอดมินเห็นรอบทุกรอบอยู่แล้ว
   //    การบอกว่า "ไม่มีรอบนี้" จึงไม่เปิดเผยอะไรที่เขาไม่มีสิทธิ์รู้
   ROUND_NOT_FOUND: { status: 404, message: 'ไม่พบรอบตรวจที่ระบุ' },
@@ -90,7 +96,7 @@ const ROUND_ERROR_TO_CODE: Record<string, AdminErrorCode> = {
   // รอบ AUTO ไม่มีคนตรวจ — เป็นคำขอที่ผิดรูป ไม่ใช่สถานะที่ขัดกัน
   ROUND_NOT_ASSIGNABLE: 'VALIDATION_ERROR',
   INSPECTOR_NOT_ELIGIBLE: 'INSPECTOR_NOT_FOUND',
-  INSPECTOR_NAME_UNUSABLE: 'INSPECTOR_NOT_FOUND',
+  INSPECTOR_NAME_UNUSABLE: 'INSPECTOR_NAME_UNUSABLE',
 }
 
 /** 🛑 ห้าม log `fileId` · เนื้อหา description ของรายงานฉ้อโกง · `identifiers[].value` · ยอดเงิน */

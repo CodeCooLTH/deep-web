@@ -43,6 +43,7 @@ type ErrorCode =
   | 'NOT_OWNER'
   | 'SHOP_NOT_FOUND'
   | 'PLAN_NOT_FOUND'
+  | 'PLAN_NOT_ACTIVE'
   | 'PLAN_ALREADY_EXISTS'
   | 'PLAN_ALREADY_CANCELED'
   | 'INVALID_STEP_TRANSITION'
@@ -71,6 +72,10 @@ const ERROR_SPEC: Record<ErrorCode, { status: number; message: string }> = {
   NOT_OWNER: { status: 403, message: 'เฉพาะเจ้าของร้านเท่านั้นที่จัดการแผนการตรวจสอบได้' },
   SHOP_NOT_FOUND: { status: 404, message: 'ไม่พบร้านค้า' },
   PLAN_NOT_FOUND: { status: 404, message: 'ร้านนี้ยังไม่ได้อยู่ในแผนการตรวจสอบ กรุณาสมัครก่อน' },
+  PLAN_NOT_ACTIVE: {
+    status: 404,
+    message: 'แผนการตรวจสอบของร้านสิ้นสุดแล้ว สมัครใหม่ได้จากหน้าแผนการตรวจสอบ',
+  },
   PLAN_ALREADY_EXISTS: {
     status: 409,
     message: 'ร้านนี้อยู่ในแผนการตรวจสอบอยู่แล้ว หากต้องการขั้นที่สูงขึ้นให้ใช้การอัปเกรด',
@@ -125,7 +130,9 @@ export const PLAN_ERROR_TO_CODE: Record<string, ErrorCode> = {
   //    เอะใจไปสืบ เพราะคำว่าเต็มเป็นคำอธิบายที่ฟังขึ้นสมบูรณ์
   INTAKE_NOT_OPEN: 'QUOTA_FULL',
   PLAN_NOT_FOUND: 'PLAN_NOT_FOUND',
-  PLAN_NOT_ACTIVE: 'PLAN_NOT_FOUND',
+  // 🛑 แยกจาก PLAN_NOT_FOUND — ร้านที่เคยจ่ายแล้วแผนหมดอายุ ถูกบอกว่า "ยังไม่ได้สมัคร"
+  //    คือการอ้างสาเหตุที่ระบบรู้อยู่แล้วว่าไม่จริง และร้านกำลังเครียดตอนป้ายร่วงพอดี
+  PLAN_NOT_ACTIVE: 'PLAN_NOT_ACTIVE',
   PLAN_ALREADY_EXISTS: 'PLAN_ALREADY_EXISTS',
   PLAN_ALREADY_CANCELED: 'PLAN_ALREADY_CANCELED',
   STEP_UNCHANGED: 'INVALID_STEP_TRANSITION',

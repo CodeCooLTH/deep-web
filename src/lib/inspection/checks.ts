@@ -67,23 +67,32 @@ export type InspectionCheckDef = {
    *    มูลค่าทั้งหมดของข้อนั้น
    */
   sellerSuppliable: boolean
+  /**
+   * ชื่อข้อตรวจ — 🛑 **ต้องบอก "สิ่งที่ตรวจ" ไม่ใช่ "ผลของการตรวจ"** คำตัดสินอยู่ที่บรรทัดสถานะเสมอ
+   *
+   * เดิม 7 ใน 18 ข้อเขียนเป็นประโยคยืนยัน ("ไม่พบในฐานข้อมูลมิจฉาชีพ") ⇒ บนโปรไฟล์สาธารณะที่
+   * **ยุบ FAIL เข้า "ยังไม่มีข้อมูล"** (`public-view.ts::toPublicStatus`) ร้านที่ *เจอในฐานมิจฉาชีพ*
+   * จะแสดงบรรทัดตัวหนาว่า "ไม่พบในฐานข้อมูลมิจฉาชีพ" โดยมีคำว่า "ยังไม่มีข้อมูล" เป็นตัวเทาเล็ก
+   * ⇒ คนที่กำลังจะโอนเงินอ่านบรรทัดเดียวแล้วสรุปว่าปลอดภัย — เป็นการกลับความหมายที่อันตราย
+   * ที่สุดเท่าที่ฟีเจอร์นี้ทำได้ · และ 2 สไตล์ปนกันทำให้ผู้ซื้อไม่มีกฎอ่านที่คงเส้นคงวา
+   */
   labelTh: string
 }
 
 export const INSPECTION_CHECKS: Record<InspectionCheckKey, InspectionCheckDef> = {
   // ── ขั้น 1: ตรวจต่อเนื่องอัตโนมัติ (6 ข้อ ตาม AC-INS-03-1) ────────────────
-  scam_db: { step: 1, scope: 'SHOP', method: 'AUTO', ttlDays: 1, publicEvidence: false, sellerSuppliable: false, labelTh: 'ไม่พบในฐานข้อมูลมิจฉาชีพ' },
+  scam_db: { step: 1, scope: 'SHOP', method: 'AUTO', ttlDays: 1, publicEvidence: false, sellerSuppliable: false, labelTh: 'ฐานข้อมูลมิจฉาชีพ' },
   phone_identity: { step: 1, scope: 'SHOP', method: 'AUTO', ttlDays: 1, publicEvidence: false, sellerSuppliable: false, labelTh: 'ยืนยันเบอร์โทรและตัวตนขั้นต้น' },
   account_age: { step: 1, scope: 'SHOP', method: 'AUTO', ttlDays: 1, publicEvidence: false, sellerSuppliable: false, labelTh: 'อายุบัญชีร้าน' },
   chat_response_speed: { step: 1, scope: 'SHOP', method: 'AUTO', ttlDays: 1, publicEvidence: false, sellerSuppliable: false, labelTh: 'ความเร็วในการตอบแชท' },
   complaints: { step: 1, scope: 'SHOP', method: 'AUTO', ttlDays: 1, publicEvidence: false, sellerSuppliable: false, labelTh: 'ข้อร้องเรียน' },
   // 🛑 ข้อเดียวในขั้น 1 ที่ scope เป็น ROOM — cron ต้องวนต่อ Room ไม่ใช่ต่อร้าน
   //    และร้านที่ยังไม่มีแถว Room เลยจะไม่มีแถวผลของข้อนี้ (= "ยังไม่มีข้อมูล" ไปตลอด ซึ่งถูกแล้ว)
-  duplicate_listing: { step: 1, scope: 'ROOM', method: 'AUTO', ttlDays: 1, publicEvidence: false, sellerSuppliable: false, labelTh: 'ไม่พบการประกาศที่พักนี้ซ้ำโดยบัญชีอื่น' },
+  duplicate_listing: { step: 1, scope: 'ROOM', method: 'AUTO', ttlDays: 1, publicEvidence: false, sellerSuppliable: false, labelTh: 'การประกาศที่พักซ้ำข้ามบัญชี' },
 
   // ── ขั้น 2: ตรวจเอกสาร ────────────────────────────────────────────────
   id_card_selfie: { step: 2, scope: 'SHOP', method: 'DOCUMENT', ttlDays: 365, publicEvidence: false, sellerSuppliable: true, labelTh: 'ยืนยันตัวตนด้วยบัตรประชาชนคู่เซลฟี่' },
-  bank_account_name: { step: 2, scope: 'SHOP', method: 'DOCUMENT', ttlDays: 365, publicEvidence: false, sellerSuppliable: true, labelTh: 'ชื่อบัญชีรับเงินตรงกับเจ้าของร้าน' },
+  bank_account_name: { step: 2, scope: 'SHOP', method: 'DOCUMENT', ttlDays: 365, publicEvidence: false, sellerSuppliable: true, labelTh: 'ชื่อบัญชีรับเงินกับเจ้าของร้าน' },
   // เอกสารสิทธิ์/ใบอนุญาตผูกกับ "ทรัพย์สินแต่ละหลัง" ไม่ใช่กับร้าน — จึงเป็น ROOM แม้อยู่ขั้น 2
   lease_right_document: { step: 2, scope: 'ROOM', method: 'DOCUMENT', ttlDays: 365, publicEvidence: false, sellerSuppliable: true, labelTh: 'เอกสารสิทธิ์ในการปล่อยเช่า' },
   hotel_license: { step: 2, scope: 'ROOM', method: 'DOCUMENT', ttlDays: 365, publicEvidence: false, sellerSuppliable: true, labelTh: 'ใบอนุญาตประกอบกิจการโรงแรม' },
@@ -97,11 +106,11 @@ export const INSPECTION_CHECKS: Record<InspectionCheckKey, InspectionCheckDef> =
   operating_evidence: { step: 3, scope: 'ROOM', method: 'DOCUMENT', ttlDays: 90, publicEvidence: false, sellerSuppliable: true, labelTh: 'หลักฐานการเปิดให้บริการจริง' },
 
   // ── ขั้น 4: ตรวจถึงที่ ────────────────────────────────────────────────
-  location_exists: { step: 4, scope: 'ROOM', method: 'ONSITE', ttlDays: 365, publicEvidence: true, sellerSuppliable: false, labelTh: 'ที่พักมีอยู่จริงตามพิกัด' },
-  photos_match: { step: 4, scope: 'ROOM', method: 'ONSITE', ttlDays: 365, publicEvidence: true, sellerSuppliable: false, labelTh: 'ภาพประกาศตรงกับสภาพจริง' },
-  room_count: { step: 4, scope: 'ROOM', method: 'ONSITE', ttlDays: 365, publicEvidence: true, sellerSuppliable: false, labelTh: 'จำนวนและประเภทห้องตรงตามประกาศ' },
-  facilities: { step: 4, scope: 'ROOM', method: 'ONSITE', ttlDays: 365, publicEvidence: true, sellerSuppliable: false, labelTh: 'สิ่งอำนวยความสะดวกที่ประกาศไว้มีอยู่จริง' },
-  accessibility: { step: 4, scope: 'ROOM', method: 'ONSITE', ttlDays: 365, publicEvidence: true, sellerSuppliable: false, labelTh: 'ที่พักเข้าถึงได้จริงตามที่ประกาศ' },
+  location_exists: { step: 4, scope: 'ROOM', method: 'ONSITE', ttlDays: 365, publicEvidence: true, sellerSuppliable: false, labelTh: 'ที่พักตามพิกัดที่แจ้ง' },
+  photos_match: { step: 4, scope: 'ROOM', method: 'ONSITE', ttlDays: 365, publicEvidence: true, sellerSuppliable: false, labelTh: 'ภาพประกาศกับสภาพจริง' },
+  room_count: { step: 4, scope: 'ROOM', method: 'ONSITE', ttlDays: 365, publicEvidence: true, sellerSuppliable: false, labelTh: 'จำนวนและประเภทห้องกับประกาศ' },
+  facilities: { step: 4, scope: 'ROOM', method: 'ONSITE', ttlDays: 365, publicEvidence: true, sellerSuppliable: false, labelTh: 'สิ่งอำนวยความสะดวกที่ประกาศไว้' },
+  accessibility: { step: 4, scope: 'ROOM', method: 'ONSITE', ttlDays: 365, publicEvidence: true, sellerSuppliable: false, labelTh: 'การเข้าถึงที่พักตามที่ประกาศ' },
   deep_photo_album: { step: 4, scope: 'ROOM', method: 'ONSITE', ttlDays: 365, publicEvidence: true, sellerSuppliable: false, labelTh: 'อัลบั้มภาพที่ผู้ตรวจของ Deep ถ่ายเอง' },
 }
 
