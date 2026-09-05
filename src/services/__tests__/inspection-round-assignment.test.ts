@@ -117,9 +117,14 @@ describe('completeRound', () => {
 
   it('รอบวิดีโอคอลที่ยืนยันครบ → ปิดได้ แม้ไม่มีแถวใหม่ถูกสร้างเลยสักแถว', async () => {
     resultFindMany.mockResolvedValue([confirmedRow('video_tour', new Date('2026-09-04T00:00:00.000Z'))])
-    expect(await completeRound({ roundId: 'round-1', now: NOW })).toEqual({
+    // 🛑 `checksChanged: 0` เป็นผลลัพธ์ **ปกติและดี** ของรอบที่ทุกอย่างยังเหมือนเดิม
+    //    ไม่ใช่สัญญาณว่าอะไรพลาด — ตัวนับรวมตัวเดียวจะแยกสองความหมายนี้ไม่ออก
+    expect(await completeRound({ roundId: 'round-1', now: NOW })).toMatchObject({
       completed: true,
       alreadyCompleted: false,
+      checksConfirmed: 1,
+      checksChanged: 0,
+      hasFraudSignal: false,
     })
     expect(roundUpdateMany.mock.calls[0]?.[0]).toMatchObject({
       where: { id: 'round-1', completedAt: null },
@@ -150,11 +155,32 @@ describe('completeRound', () => {
 
   it('กดปิดซ้ำรอบที่ปิดไปแล้ว → ไม่ throw (ผู้ตรวจกดรัวเป็นเรื่องปกติ)', async () => {
     roundFindUnique.mockResolvedValue({ ...ROUND, completedAt: NOW })
-    expect(await completeRound({ roundId: 'round-1', now: NOW })).toEqual({
+    expect(await completeRound({ roundId: 'round-1', now: NOW })).toMatchObject({
       completed: false,
       alreadyCompleted: true,
     })
     expect(roundUpdateMany).not.toHaveBeenCalled()
+  })
+
+  it('ข้อที่รอบนี้ทำให้ผลเปลี่ยน ถูกนับเป็น checksChanged ไม่ใช่ checksConfirmed', async () => {
+    resultFindMany.mockResolvedValue([
+      { ...confirmedRow('video_tour', new Date('2026-09-04T00:00:00.000Z')), roundId: 'round-1' },
+    ])
+    expect(await completeRound({ roundId: 'round-1', now: NOW })).toMatchObject({
+      checksConfirmed: 0,
+      checksChanged: 1,
+    })
+  })
+
+  it('🛑 mutation: ไม่ส่ง suspectedFraudNote แล้วเขียนทับค่าเดิม → เคสนี้ต้องแดง', async () => {
+    // endpoint นี้ถูกยิงได้หลายครั้งต่อรอบ ถ้าคำขอที่สองล้างค่า บันทึกที่ผู้ตรวจพิมพ์ไว้จะหาย
+    // โดยไม่มีใครรู้ (ค่าที่หายจาก payload แปลว่า "ไม่รู้" ไม่ใช่ "ถูกลบ")
+    roundFindUnique.mockResolvedValue({ ...ROUND, suspectedFraudNote: 'เพื่อนบ้านบอกว่าบ้านร้าง' })
+    resultFindMany.mockResolvedValue([confirmedRow('video_tour', new Date('2026-09-04T00:00:00.000Z'))])
+    const res = await completeRound({ roundId: 'round-1', now: NOW })
+    const data = roundUpdateMany.mock.calls[0]?.[0]?.data as Record<string, unknown>
+    expect(Object.keys(data)).not.toContain('suspectedFraudNote')
+    expect(res.hasFraudSignal).toBe(true)
   })
 
   it('🛑 mutation: อ่านผลของที่พักหลังอื่นมาปิดรอบ (ถอด roomId ออกจาก WHERE) → เคสนี้ต้องแดง', async () => {

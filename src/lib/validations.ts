@@ -2118,3 +2118,64 @@ export const SubmitInspectionDocumentSchema = v.object({
   fileId: v.pipe(v.string(), v.minLength(1, "ต้องระบุไฟล์แนบ")),
   kind: v.picklist(["DOCUMENT", "PHOTO"], "ชนิดหลักฐานไม่ถูกต้อง"),
 });
+
+/**
+ * ผู้ตรวจบันทึกผลทั้งชุดของรอบเดียว (API §4.8)
+ * 🛑 `outcome` มีสามค่าเท่านั้น — `RECHECK_DUE`/`NO_DATA` เป็นสถานะที่ derive ตอนอ่าน
+ *    ไม่ใช่ค่าที่เขียนได้ (ธงที่ต้องมีคนไปอัปเดตจะเน่าเงียบทันทีที่เวลาเดินผ่าน expiresAt)
+ * 🛑 ไม่มี `roomId` ในสัญญา — อ่านจาก `InspectionRound.roomId` เท่านั้น ไม่งั้นผู้ตรวจที่ได้รับ
+ *    มอบหมายให้ตรวจหลัง A เขียนผลลงหลัง B ที่ตัวเองไม่เคยไปเห็นได้
+ * 🛑 ไม่มี `visibility` — server ตัดสินจาก (kind, checkKey) แบบ allow-list เท่านั้น
+ */
+export const RecordInspectionResultsSchema = v.object({
+  results: v.pipe(
+    v.array(
+      v.object({
+        checkKey: v.pipe(v.string(), v.minLength(1, "ต้องระบุข้อตรวจ")),
+        outcome: v.picklist(["PASS", "FAIL", "NOT_APPLICABLE"], "ผลตรวจไม่ถูกต้อง"),
+        note: v.optional(v.pipe(v.string(), v.maxLength(2000, "บันทึกยาวได้ไม่เกิน 2000 ตัวอักษร"))),
+        evidence: v.optional(
+          v.array(
+            v.pipe(
+              v.object({
+                kind: v.picklist(["PHOTO", "VIDEO_STILL", "DOCUMENT", "GEO"], "ชนิดหลักฐานไม่ถูกต้อง"),
+                fileId: v.optional(v.pipe(v.string(), v.minLength(1, "ต้องระบุไฟล์แนบ"))),
+                lat: v.optional(v.number()),
+                lng: v.optional(v.number()),
+              }),
+              // GEO ต้องมีพิกัด · ชนิดอื่นต้องมีไฟล์ — แถวที่ไม่มีทั้งคู่คือแถวเปล่าที่ผ่าน CHECK
+              // ระดับฐานไม่ได้อยู่แล้ว จับที่นี่เพื่อให้ผู้ใช้เห็นสาเหตุแทน 500
+              v.check(
+                (e) => (e.kind === "GEO" ? e.lat !== undefined && e.lng !== undefined : (e.fileId ?? "") !== ""),
+                "หลักฐานต้องมีไฟล์แนบ หรือพิกัดเมื่อเป็นการปักหมุด",
+              ),
+            ),
+          ),
+        ),
+      }),
+    ),
+    v.minLength(1, "ต้องบันทึกผลอย่างน้อยหนึ่งข้อ"),
+    v.maxLength(18, "บันทึกได้ครั้งละไม่เกิน 18 ข้อ"),
+  ),
+  /**
+   * 🛑 ไม่ส่ง = ไม่แตะค่าเดิม · ส่งสตริงว่าง = 400 โดยตั้งใจ — การล้างบันทึกความสงสัยต้องไม่ใช่
+   *    ผลข้างเคียงของการกดบันทึกผลข้ออื่น
+   */
+  suspectedFraudNote: v.optional(
+    v.pipe(
+      v.string(),
+      v.minLength(1, "บันทึกความสงสัยต้องไม่เป็นค่าว่าง"),
+      v.maxLength(2000, "บันทึกยาวได้ไม่เกิน 2000 ตัวอักษร"),
+    ),
+  ),
+});
+
+/** ปิดรอบตรวจ (API §4.9) — กติกา "ไม่ส่ง = ไม่แตะ" เดียวกับข้างบนทุกข้อ */
+export const CompleteInspectionRoundSchema = v.object({
+  summary: v.optional(
+    v.pipe(v.string(), v.minLength(1, "บันทึกสรุปต้องไม่เป็นค่าว่าง"), v.maxLength(2000, "บันทึกยาวได้ไม่เกิน 2000 ตัวอักษร")),
+  ),
+  suspectedFraudNote: v.optional(
+    v.pipe(v.string(), v.minLength(1, "บันทึกความสงสัยต้องไม่เป็นค่าว่าง"), v.maxLength(2000, "บันทึกยาวได้ไม่เกิน 2000 ตัวอักษร")),
+  ),
+});

@@ -63,22 +63,39 @@ async function guardApi(request: NextRequest): Promise<NextResponse> {
   //    ขึ้นไปแล้วบางใบไม่ขึ้น (ครึ่ง ๆ กลาง ๆ แบบที่ debug ยากที่สุด)
   //    ทั้งสอง route มี auth + HMAC claim ผูก fileId กับ user ของตัวเองครบ การยกเพดานจึงไม่เปิด
   //    ช่องอะไรใหม่ — แค่ยอมให้แนบไฟล์ชุดใหญ่ได้จบในครั้งเดียว
+  //  - /api/inspector/* (mutation): bucket แยก เพดาน 120 (feature 00060 · API §3.2 ง) —
+  //    ผู้ตรวจ onsite ตรวจร้านที่มีที่พัก 5 หลัง = 5 รอบ บวกการเปิดอ่านรอบสลับไปมา และงาน
+  //    หน้างานทำในพื้นที่สัญญาณอ่อน request ล้มกลางทางแล้วกดใหม่เป็นพฤติกรรมปกติ ไม่ใช่การใช้ผิด
+  //    การโดน 429 ตรงนี้แพงกว่าปกติมากเพราะผู้ตรวจ **ยืนอยู่หน้างานจริง** และงานที่ทำไปแล้ว
+  //    อาจหายครึ่ง ๆ กลาง ๆ · ทุก route ในกลุ่มนี้มีด่าน isInspector + inspectorUserId ของตัวเอง
+  //    ครบก่อนแตะข้อมูล การยกเพดานจึงไม่เปิดช่องอะไรใหม่
   const token = await getToken({ req: request })
   const isMutation = MUTATION_METHODS.has(request.method)
   const isFileAsset = !isMutation && pathname.startsWith('/api/files/')
   const isUploadAsset = isMutation && pathname.startsWith('/api/uploads/')
+  const isInspectorApi = isMutation && pathname.startsWith('/api/inspector/')
   const limit = isFileAsset
     ? 600
     : isUploadAsset
       ? 300
-      : isMutation
-        ? token
-          ? 30
-          : 100
-        : token
-          ? 120
-          : 200
-  const bucket = isFileAsset ? 'files' : isUploadAsset ? 'upload' : isMutation ? 'mut' : 'get'
+      : isInspectorApi
+        ? 120
+        : isMutation
+          ? token
+            ? 30
+            : 100
+          : token
+            ? 120
+            : 200
+  const bucket = isFileAsset
+    ? 'files'
+    : isUploadAsset
+      ? 'upload'
+      : isInspectorApi
+        ? 'inspector'
+        : isMutation
+          ? 'mut'
+          : 'get'
   const key = `${clientIp(request)}:${token ? 'auth' : 'pub'}:${bucket}`
   if (!checkApiRateLimit(key, limit, 60_000)) {
     return NextResponse.json(

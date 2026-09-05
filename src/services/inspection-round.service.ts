@@ -10,6 +10,9 @@ import {
   type InspectionStep,
 } from '@/lib/inspection/checks'
 import { decideRoundCompletion } from '@/lib/inspection/round-completion'
+import { resolveEvidenceVisibility, type EvidenceKind } from '@/lib/inspection/evidence-visibility'
+import { getFileMeta } from '@/lib/storage'
+import { recordCheckOutcome } from '@/services/inspection-result.service'
 import {
   UNASSIGNED_INSPECTOR_NAME,
   planDueRounds,
@@ -131,6 +134,9 @@ export function checkKeysOfRound(round: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type InspectionRoundErrorCode =
+  | 'CHECK_NOT_IN_ROUND'
+  | 'EVIDENCE_VISIBILITY_FORBIDDEN'
+  | 'FILE_NOT_COMMITTED'
   | 'ROUND_NOT_FOUND'
   | 'ROUND_ALREADY_COMPLETED'
   | 'ROUND_NOT_COMPLETABLE'
@@ -140,7 +146,7 @@ export type InspectionRoundErrorCode =
 
 export class InspectionRoundError extends Error {
   readonly code: InspectionRoundErrorCode
-  /** ข้อที่ยังไม่ถูกยืนยันในรอบนี้ — มีค่าเฉพาะ ROUND_NOT_COMPLETABLE */
+  /** ข้อที่เกี่ยวข้องกับ error นี้ (ยังไม่ถูกยืนยัน / ไม่อยู่ในรอบ / หลักฐานผิดชนิด) */
   readonly missing: InspectionCheckKey[]
   constructor(code: InspectionRoundErrorCode, missing: InspectionCheckKey[] = []) {
     super(code)
@@ -256,13 +262,39 @@ export async function countOverdueRounds(now: Date): Promise<{
 export async function completeRound(input: {
   roundId: string
   now: Date
-}): Promise<{ completed: boolean; alreadyCompleted: boolean }> {
+  /** บันทึกสรุปงาน — ไม่ส่ง = ไม่แตะค่าเดิม */
+  summary?: string
+  /**
+   * 🛑 **ไม่ส่ง = ไม่แตะค่าเดิม ห้ามเขียน null ทับ** — endpoint นี้ถูกยิงได้หลายครั้งต่อรอบ
+   *    ถ้าคำขอที่สองซึ่งไม่ได้ตั้งใจแตะเรื่องนี้ล้างค่า บันทึกที่ผู้ตรวจพิมพ์ไว้ตอนแรกจะหาย
+   *    โดยไม่มีใครรู้ (คลาสเดียวกับคอลัมน์ที่มีผู้เขียนสองราย: ค่าที่หายจาก payload
+   *    แปลว่า "ไม่รู้" ไม่ใช่ "ถูกลบ")
+   */
+  suspectedFraudNote?: string
+}): Promise<{
+  completed: boolean
+  alreadyCompleted: boolean
+  checksConfirmed: number
+  checksChanged: number
+  hasFraudSignal: boolean
+}> {
   const round = await prisma.inspectionRound.findUnique({
     where: { id: input.roundId },
-    select: { id: true, shopId: true, roomId: true, step: true, method: true, assignedAt: true, completedAt: true },
+    select: {
+      id: true, shopId: true, roomId: true, step: true, method: true,
+      assignedAt: true, completedAt: true, suspectedFraudNote: true,
+    },
   })
   if (round === null) throw new InspectionRoundError('ROUND_NOT_FOUND')
-  if (round.completedAt !== null) return { completed: false, alreadyCompleted: true }
+  if (round.completedAt !== null) {
+    return {
+      completed: false,
+      alreadyCompleted: true,
+      checksConfirmed: 0,
+      checksChanged: 0,
+      hasFraudSignal: (round.suspectedFraudNote ?? '') !== '',
+    }
+  }
 
   const requiredChecks = checkKeysOfRound(round)
   const rows = await prisma.inspectionResult.findMany({
@@ -276,6 +308,7 @@ export async function completeRound(input: {
       lastConfirmedAt: true,
       expiresAt: true,
       invalidatedAt: true,
+      roundId: true,
     },
     orderBy: [{ checkedAt: 'desc' }, { id: 'desc' }],
   })
@@ -289,12 +322,33 @@ export async function completeRound(input: {
   const decision = decideRoundCompletion({ requiredChecks, latestByCheck, assignedAt: round.assignedAt })
   if (!decision.ok) throw new InspectionRoundError('ROUND_NOT_COMPLETABLE', decision.missing)
 
+  // 🛑 แยกสองตัวนับด้วยเหตุผลเดียวกับ `changed` ของการบันทึกผล — `checksChanged: 0` เป็น
+  //    ผลลัพธ์ **ปกติและดี** ของรอบที่ทุกอย่างยังเหมือนเดิม ไม่ใช่สัญญาณว่าอะไรพลาด
+  //    ตัวนับรวมตัวเดียวจะทำให้แยกสองความหมายนี้ไม่ออก
+  const changedKeys = requiredChecks.filter((k) => {
+    const row = latestByCheck.get(k) as (InspectionResultRow & { roundId?: string | null }) | null
+    return row != null && row.roundId === round.id
+  })
+
+  const fraudNote = input.suspectedFraudNote ?? round.suspectedFraudNote
+
   // completedAt: null ใน WHERE อีกชั้น — กันสองคำขอปิดรอบพร้อมกัน
   const updated = await prisma.inspectionRound.updateMany({
     where: { id: round.id, completedAt: null },
-    data: { completedAt: input.now },
+    data: {
+      completedAt: input.now,
+      // undefined = ไม่แตะ (Prisma ข้าม field นี้) — ต่างจาก null ที่แปลว่าล้างค่า
+      ...(input.summary === undefined ? {} : { summary: input.summary }),
+      ...(input.suspectedFraudNote === undefined ? {} : { suspectedFraudNote: input.suspectedFraudNote }),
+    },
   })
-  return { completed: updated.count > 0, alreadyCompleted: updated.count === 0 }
+  return {
+    completed: updated.count > 0,
+    alreadyCompleted: updated.count === 0,
+    checksConfirmed: requiredChecks.length - changedKeys.length,
+    checksChanged: changedKeys.length,
+    hasFraudSignal: (fraudNote ?? '') !== '',
+  }
 }
 
 /**
@@ -327,8 +381,204 @@ export async function assertRoundAssignedTo(roundId: string, inspectorUserId: st
   await resolveInspectorDisplayName(inspectorUserId)
   const round = await prisma.inspectionRound.findFirst({
     where: { id: roundId, inspectorUserId },
-    select: { id: true, shopId: true, roomId: true, step: true, method: true, assignedAt: true, completedAt: true },
+    select: {
+      id: true, shopId: true, roomId: true, step: true, method: true,
+      assignedAt: true, completedAt: true, suspectedFraudNote: true,
+    },
   })
   if (round === null) throw new InspectionRoundError('ROUND_NOT_ASSIGNED_TO_YOU')
   return round
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ฝั่งผู้ตรวจ — อ่านรายละเอียดรอบ + บันทึกผลทั้งชุด (feature 00060 · T10 · API §4.7-4.8)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * รายละเอียดรอบสำหรับผู้ตรวจเจ้าของรอบ
+ *
+ * 🛑 **ไม่มีฟิลด์การเงินสักตัว** — ยอดเครดิต ประวัติชำระเงิน สลิป ราคาแผน ห้ามอยู่ใน payload นี้
+ *    ไม่ว่าร้านนั้นจะเป็นร้านที่ผู้ตรวจได้รับมอบหมายหรือไม่ (AC-INS-24-3) · ผู้ตรวจเป็นบุคคล
+ *    ภายนอกที่จ้างรายครั้ง ไม่ใช่พนักงาน
+ *
+ * 🛑 `room.images` ต้องส่งไปด้วยเพราะข้อ `photos_match` ต้องเทียบภาพประกาศ **ปัจจุบัน** กับของจริง
+ *    ขณะผู้ตรวจยืนอยู่หน้างาน ไม่ใช่ให้สลับแอปไปเปิดโปรไฟล์เอง
+ */
+export async function getRoundDetailForInspector(roundId: string, inspectorUserId: string) {
+  const round = await assertRoundAssignedTo(roundId, inspectorUserId)
+
+  const [shop, room, results, evidence] = await Promise.all([
+    prisma.shop.findUnique({ where: { id: round.shopId }, select: { shopName: true, vertical: true } }),
+    round.roomId === null
+      ? Promise.resolve(null)
+      : prisma.room.findFirst({
+          where: { id: round.roomId, shopId: round.shopId },
+          select: { id: true, name: true, images: true, maxGuests: true, facilities: true },
+        }),
+    prisma.inspectionResult.findMany({
+      where: { shopId: round.shopId, roomId: round.roomId },
+      select: {
+        id: true, checkKey: true, roomId: true, outcome: true,
+        checkedAt: true, lastConfirmedAt: true, expiresAt: true, invalidatedAt: true,
+      },
+      orderBy: [{ checkedAt: 'desc' }, { id: 'desc' }],
+    }),
+    prisma.inspectionEvidence.findMany({
+      where: { roundId },
+      select: { id: true, kind: true, visibility: true, fileId: true, resultId: true },
+    }),
+  ])
+
+  const latest = latestResultPerCheck(results as InspectionResultRow[])
+  const now = new Date()
+  const checkKeys = checkKeysOfRound(round)
+
+  return {
+    round: {
+      id: round.id,
+      step: round.step,
+      method: round.method,
+      shopName: shop?.shopName ?? '',
+      roomName: room?.name ?? null,
+      assignedAt: round.assignedAt,
+      checkKeys,
+    },
+    shop: { shopName: shop?.shopName ?? '', vertical: shop?.vertical ?? null },
+    room:
+      room === null
+        ? null
+        : {
+            id: room.id,
+            name: room.name,
+            listingImages: room.images,
+            declaredMaxGuests: room.maxGuests,
+            declaredFacilities: room.facilities,
+          },
+    checks: checkKeys.map((k) => ({
+      checkKey: k,
+      label: INSPECTION_CHECKS[k].labelTh,
+      scope: INSPECTION_CHECKS[k].scope,
+      currentDisplayStatus: resolveResultStatus(latest.get(resultScopeKey(k, round.roomId)) ?? null, now),
+      // หลักฐานของรอบนี้ทั้งหมด — ยังไม่แยกรายข้อเพราะ InspectionEvidence.resultId ผูกกับ
+      // "แถวผล" ไม่ใช่ "คีย์ข้อตรวจ" และแถวผลของข้อที่ยังไม่เคยตรวจยังไม่มีอยู่
+      evidence: evidence.map((e) => ({
+        evidenceId: e.id,
+        kind: e.kind,
+        visibility: e.visibility,
+        fileId: e.fileId,
+      })),
+    })),
+    suspectedFraudNote: round.suspectedFraudNote ?? null,
+  }
+}
+
+export type RecordRoundResultInput = {
+  checkKey: InspectionCheckKey
+  outcome: 'PASS' | 'FAIL' | 'NOT_APPLICABLE'
+  note?: string
+  evidence?: { kind: EvidenceKind; fileId?: string; lat?: number; lng?: number }[]
+}
+
+/**
+ * บันทึกผลทั้งชุดของรอบหนึ่ง — **ทรานแซกชันเดียว** (API §4.8)
+ *
+ * 🛑 สำเร็จบางส่วนคือสถานะที่ผู้ตรวจ **มองไม่ออกว่าต้องยิงซ้ำข้อไหน** ขณะยืนอยู่หน้างาน
+ *    (อาการเดียวกับที่เคยเกิดตอนแนบรูปกริดแล้วบางใบขึ้นบางใบไม่ขึ้น)
+ *
+ * 🛑 **`roomId` อ่านจากตัวรอบ ไม่รับจาก body** — รับจาก client เมื่อไรก็แปลว่าผู้ตรวจที่ได้รับ
+ *    มอบหมายให้ตรวจหลัง A เขียนผลลงหลัง B ที่ตัวเองไม่เคยไปเห็นได้
+ *
+ * 🛑 การตัดสิน UPDATE/INSERT อยู่ที่ `recordCheckOutcome()` ตัวเดียว — ที่นี่ห้ามเขียนเงื่อนไข
+ *    "ผลเปลี่ยนไหม" ซ้ำ (ตรรกะนี้ถูกเรียกจาก 3 ทาง: endpoint นี้ · cron ขั้น 1 · เส้นทางฉ้อโกง)
+ */
+export async function recordRoundResults(input: {
+  roundId: string
+  inspectorUserId: string
+  results: RecordRoundResultInput[]
+  suspectedFraudNote?: string
+  now: Date
+}) {
+  const round = await assertRoundAssignedTo(input.roundId, input.inspectorUserId)
+  if (round.completedAt !== null) throw new InspectionRoundError('ROUND_ALREADY_COMPLETED')
+
+  // 🛑 อายุผลตรวจของบางข้อผูกกับ **ขั้นของแผน** ไม่ใช่ขั้นของรอบ (ร้านขั้น 4 ทวนข้อของขั้น 3
+  //    ทุก 90 วันแทน 180) ⇒ ต้องอ่านขั้นปัจจุบันของแผน ไม่ใช่ใช้ round.step
+  //    แผนที่ LAPSED ไปแล้วระหว่างรอบยังต้องบันทึกผลได้ — ถอยไปใช้ขั้นของรอบ
+  const plan = await prisma.inspectionPlan.findUnique({
+    where: { shopId: round.shopId },
+    select: { step: true },
+  })
+  const planStep = (plan?.step ?? round.step) as InspectionStep
+
+  const allowed = new Set(checkKeysOfRound(round))
+  for (const r of input.results) {
+    if (!allowed.has(r.checkKey)) throw new InspectionRoundError('CHECK_NOT_IN_ROUND', [r.checkKey])
+    for (const ev of r.evidence ?? []) {
+      const decision = resolveEvidenceVisibility(ev.kind, r.checkKey)
+      if (!decision.ok) throw new InspectionRoundError('EVIDENCE_VISIBILITY_FORBIDDEN', [r.checkKey])
+      if (ev.kind !== 'GEO') {
+        // ตัวเลขที่ client แจ้งไม่ใช่หลักฐานว่าไฟล์ถึงที่เก็บแล้ว
+        if (ev.fileId === undefined || (await getFileMeta(ev.fileId)) === null) {
+          throw new InspectionRoundError('FILE_NOT_COMMITTED', [r.checkKey])
+        }
+      }
+    }
+  }
+
+  const saved: {
+    checkKey: InspectionCheckKey
+    outcome: 'PASS' | 'FAIL' | 'NOT_APPLICABLE'
+    changed: boolean
+    resultId: string
+    evidenceIds: string[]
+  }[] = []
+
+  await prisma.$transaction(async (tx) => {
+    for (const r of input.results) {
+      const outcome = await recordCheckOutcome(
+        {
+          shopId: round.shopId,
+          // 🛑 มาจากตัวรอบเสมอ
+          roomId: round.roomId,
+          checkKey: r.checkKey,
+          outcome: r.outcome,
+          planStep,
+          now: input.now,
+          roundId: round.id,
+          note: r.note ?? null,
+        },
+        tx,
+      )
+
+      const evidenceIds: string[] = []
+      for (const ev of r.evidence ?? []) {
+        const decision = resolveEvidenceVisibility(ev.kind, r.checkKey)
+        if (!decision.ok) continue // ถูกปฏิเสธไปแล้วตั้งแต่ด่านข้างบน
+        const row = await tx.inspectionEvidence.create({
+          data: {
+            roundId: round.id,
+            resultId: outcome.resultId,
+            kind: ev.kind,
+            visibility: decision.visibility,
+            fileId: ev.fileId ?? null,
+            lat: ev.lat ?? null,
+            lng: ev.lng ?? null,
+          },
+          select: { id: true },
+        })
+        evidenceIds.push(row.id)
+      }
+
+      saved.push({ checkKey: r.checkKey, outcome: r.outcome, changed: outcome.changed, resultId: outcome.resultId, evidenceIds })
+    }
+
+    if (input.suspectedFraudNote !== undefined) {
+      await tx.inspectionRound.update({
+        where: { id: round.id },
+        data: { suspectedFraudNote: input.suspectedFraudNote },
+      })
+    }
+  })
+
+  return { saved, roomId: round.roomId, shopId: round.shopId }
 }
