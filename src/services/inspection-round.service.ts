@@ -15,6 +15,7 @@ import { getFileMeta } from '@/lib/storage'
 import { recordCheckOutcome } from '@/services/inspection-result.service'
 import {
   UNASSIGNED_INSPECTOR_NAME,
+  isRoundOverdue,
   planDueRounds,
   roundGroupKey,
   type DueCheck,
@@ -376,9 +377,12 @@ export async function completeRound(input: {
  * งานของผู้ตรวจคนหนึ่ง — 🛑 ขอบเขตอยู่ใน `WHERE` ของคิวรีแรก ห้ามดึงมาแล้วกรองใน TypeScript
  * (TFR-012) การกรองหลังดึงยังทำให้ข้อมูลร้านอื่นถูกอ่านออกมาจากฐานและหลุดผ่าน log/error ได้
  */
-export async function listAssignmentsForInspector(inspectorUserId: string, opts?: { includeCompleted?: boolean }) {
+export async function listAssignmentsForInspector(
+  inspectorUserId: string,
+  opts?: { includeCompleted?: boolean; now?: Date },
+) {
   await resolveInspectorDisplayName(inspectorUserId)
-  return prisma.inspectionRound.findMany({
+  const rounds = await prisma.inspectionRound.findMany({
     where: {
       inspectorUserId,
       ...(opts?.includeCompleted === true ? {} : { completedAt: null }),
@@ -390,11 +394,34 @@ export async function listAssignmentsForInspector(inspectorUserId: string, opts?
       roomId: true,
       step: true,
       method: true,
+      assignedAt: true,
       dueAt: true,
       completedAt: true,
       shop: { select: { shopName: true } },
+      // 🛑 ชื่อที่พักต้องมากับคิว ไม่ใช่ให้หน้าจอไปหาเอง — ผู้ตรวจที่ได้งานของร้านเดียวกัน
+      //    หลายหลังในวันเดียว ต้องแยกออกตั้งแต่หน้ารายการว่าใบไหนของหลังไหน
+      //    (สัญญา API.md §4.6 บังคับ `roomName` · รอบแรกที่ implement ลืมไปทั้งฟิลด์)
+      room: { select: { name: true } },
     },
   })
+  // 🛑 "เลยกำหนดหรือยัง" ตัดสินที่นี่ด้วย `isRoundOverdue()` ซึ่งเป็น SSOT เดิม — ห้ามให้หน้าจอ
+  //    เรียก `Date.now()` เองในตัว render (ผลไม่เสถียรเมื่อ re-render และเป็นนิยามที่สองของคำเดียวกัน)
+  const now = opts?.now ?? new Date()
+  return rounds.map((r) => ({
+    id: r.id,
+    shopId: r.shopId,
+    shopName: r.shop.shopName,
+    roomId: r.roomId,
+    roomName: r.room?.name ?? null,
+    step: r.step,
+    method: r.method,
+    assignedAt: r.assignedAt,
+    dueAt: r.dueAt,
+    completedAt: r.completedAt,
+    isOverdue: isRoundOverdue(r, now),
+    // ข้อตรวจที่รอบนี้ต้องบันทึก — คำนวณจาก SSOT เดียวกับตอนปิดรอบ ห้ามให้หน้าจอเดาจาก step
+    checkKeys: checkKeysOfRound(r),
+  }))
 }
 
 /** ด่านของทุก endpoint ใต้ `/api/inspector/**` — ขอบเขตผูกใน WHERE ไม่ใช่เทียบทีหลัง */
@@ -462,6 +489,8 @@ export async function getRoundDetailForInspector(roundId: string, inspectorUserI
       shopName: shop?.shopName ?? '',
       roomName: room?.name ?? null,
       assignedAt: round.assignedAt,
+      // รอบที่ปิดแล้วต้องอ่านได้จากตัว payload — ไม่งั้นหน้าจอต้องยิงซ้ำอีกรอบเพื่อรู้ว่ากดบันทึกได้ไหม
+      completedAt: round.completedAt,
       checkKeys,
     },
     shop: { shopName: shop?.shopName ?? '', vertical: shop?.vertical ?? null },

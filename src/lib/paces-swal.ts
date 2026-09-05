@@ -377,7 +377,7 @@ export const pacesConfirmTerms = async (options: {
     didOpen: () => {
       const confirmBtn = Swal.getConfirmButton()
       const checkbox = document.getElementById(CHECKBOX_ID) as HTMLInputElement | null
-      if (confirmBtn) confirmBtn.disabled = true // 🛑 ปิดจริงตั้งแต่เปิดโมดัล ไม่ใช่แค่ validate ตอนกด
+      if (confirmBtn) confirmBtn.disabled = true // ปิดจริงตั้งแต่เปิดโมดัล ไม่ใช่แค่ validate ตอนกด
       checkbox?.addEventListener('change', () => {
         if (confirmBtn) confirmBtn.disabled = !checkbox.checked
       })

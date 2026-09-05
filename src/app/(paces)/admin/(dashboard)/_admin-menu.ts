@@ -42,6 +42,8 @@ export const adminMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/command-center', slug: 'admin:command-center', label: 'สายพานงาน AI', icon: 'robot' },
+      // feature 00060 (T13) — คิวงานตรวจสอบร้าน (บ้านพัก); หน้าโควตารายเดือนเข้าจากปุ่มในหน้านี้
+      { url: '/inspection', slug: 'admin:inspection', label: 'ตรวจสอบร้าน', icon: 'clipboard-check' },
     ],
   },
 ]
