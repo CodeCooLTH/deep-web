@@ -30,7 +30,7 @@ import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { pacesToast } from '@/lib/paces-toast'
-import { pacesConfirm } from '@/lib/paces-swal'
+import { pacesAlert, pacesConfirm } from '@/lib/paces-swal'
 import { formatDateTH } from '@/lib/format-date'
 import { INSPECTION_STEP_LABEL_TH, type InspectionMethod, type InspectionStep } from '@/lib/inspection/checks'
 import StatisticCard, { type AdminStat } from '@/views/dashboards/ecommerce/StatisticCard'
@@ -152,7 +152,10 @@ export default function InspectionQueueClient({ initialRounds, initialBacklog, i
     { title: 'รอมอบหมาย (เลยกำหนด)', value: totals.overdueUnassigned, icon: 'user-exclamation', tone: 'warning' },
     { title: 'มอบหมายแล้ว รอผล (เลยกำหนด)', value: totals.overdueAssigned, icon: 'clock-exclamation', tone: 'primary' },
     { title: 'ใกล้ครบกำหนด (≤7 วัน)', value: totals.dueSoon, icon: 'calendar-time', tone: 'info' },
-    { title: 'สัญญาณฉ้อโกงที่ยังไม่จัดการ', value: fraudSignalCount, icon: 'alert-triangle', tone: 'secondary' },
+    // 🛑 โทนต้องหนักกว่า "เลยกำหนด" ไม่ใช่เบากว่า — งานค้างคือคิวที่ช้า ส่วนสัญญาณฉ้อโกงคือ
+    //    เรื่องที่ผู้ตรวจไปเห็นมากับตาแล้วบันทึกไว้ และเป็นสิ่งเดียวในจอนี้ที่ความเร่งด่วน
+    //    **ไม่ผูกกับ dueAt** ⇒ ใช้ secondary (เทา) เท่ากับบอกว่ามันสำคัญน้อยกว่าคิวที่ช้า
+    { title: 'สัญญาณฉ้อโกงที่ยังไม่จัดการ', value: fraudSignalCount, icon: 'alert-triangle', tone: 'danger' },
   ]
 
   // ── ค้นหาผู้ตรวจ ──────────────────────────────────────────────────────────────
@@ -264,10 +267,23 @@ export default function InspectionQueueClient({ initialRounds, initialBacklog, i
         header: 'ฉ้อโกง',
         cell: ({ row }) =>
           row.original.suspectedFraudNote ? (
-            <span className="badge bg-secondary/15 text-secondary-ink" title={row.original.suspectedFraudNote}>
+            /* 🛑 เนื้อความเคยอยู่ใน `title=` อย่างเดียว — **มือถือไม่มี hover** แอดมินจึงต้อง
+               ตัดสินใจเรื่องหนักที่สุดในจอนี้จากคำว่า "มีบันทึก" สองคำ · ทำเป็นปุ่มที่กดอ่านได้จริง
+               (docs/conventions/aria-name-requires-supporting-role.md — title ไม่ใช่ตัวแทนของข้อความ) */
+            <button
+              type="button"
+              onClick={() =>
+                void pacesAlert({
+                  title: 'บันทึกความสงสัยจากผู้ตรวจ',
+                  text: row.original.suspectedFraudNote ?? '',
+                  icon: 'warning',
+                })
+              }
+              className="badge bg-danger/15 text-danger-ink hover:bg-danger/25"
+            >
               <Icon icon="alert-triangle" className="size-3" aria-hidden="true" />
-              มีบันทึก
-            </span>
+              อ่านบันทึก
+            </button>
           ) : (
             <span className="text-xs text-default-400">—</span>
           ),

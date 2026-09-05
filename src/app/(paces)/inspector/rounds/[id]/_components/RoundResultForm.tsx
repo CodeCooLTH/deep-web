@@ -18,7 +18,7 @@
  * บันทึกผล "ผ่าน" ได้ — ค่าที่ Deep ยืนยันต่อสาธารณะต้องมีหลักฐานรองรับเสมอ
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
@@ -84,17 +84,58 @@ function evidenceKindFor(checkKey: string, method: string): UploadKind | 'GEO' {
   return 'PHOTO'
 }
 
+/**
+ * ร่างที่ยังไม่ได้ส่ง — เก็บใน `localStorage` ต่อ `roundId` (feature 00060 · จาก critique P1)
+ *
+ * 🛑 งานตรวจทำบนมือถือหน้างานจริง ซึ่ง **เน็ตหลุดและแท็บถูกเด้งกลางทางเป็นเรื่องปกติ**
+ *    (โดยเฉพาะ iOS หลังเปิดกล้องแล้วกลับมา) — เดิมทั้งหน้าถือ state ไว้ในหน่วยความจำอย่างเดียว
+ *    ⇒ ผล 6 ข้อ + โน้ต + หลักฐานที่อัปโหลดไปแล้ว หายทั้งรอบโดยไม่มีอะไรเตือน แล้วผู้ตรวจ
+ *    ที่เดินทางไปถึงที่ต้องทำใหม่ทั้งหมด (หรือกรอกจากความจำ ซึ่งแย่กว่า)
+ *
+ * เก็บเฉพาะสิ่งที่ผู้ตรวจกรอก — `fileId` ที่อยู่ในนี้ commit ขึ้น storage ไปแล้วจึงยังใช้ได้จริง
+ * หลังรีเฟรช · ล้างทิ้งเมื่อปิดรอบสำเร็จเท่านั้น (ล้างตอนอื่นแปลว่าเรากลืนงานเขาเอง)
+ */
+const draftKey = (roundId: string) => `deep:inspection-draft:${roundId}`
+
+function readDraft(roundId: string): Record<string, CheckState> | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(draftKey(roundId))
+    return raw === null ? null : (JSON.parse(raw) as Record<string, CheckState>)
+  } catch {
+    // ร่างที่อ่านไม่ออก = เริ่มใหม่ ดีกว่าทำให้ทั้งหน้าพัง
+    return null
+  }
+}
+
 export default function RoundResultForm({ roundId, shopName, room, method, stepLabel, checks, initialFraudNote }: Props) {
   const router = useRouter()
 
-  const [state, setState] = useState<Record<string, CheckState>>(() =>
-    Object.fromEntries(checks.map((c) => [c.checkKey, { outcome: null, note: '', evidence: [] }])),
-  )
+  const [state, setState] = useState<Record<string, CheckState>>(() => {
+    const blank = Object.fromEntries(
+      checks.map((c) => [c.checkKey, { outcome: null, note: '', evidence: [] } as CheckState]),
+    )
+    const draft = readDraft(roundId)
+    if (draft === null) return blank
+    // 🛑 ยึดคีย์จากรอบจริงเสมอ — ร่างเก่าที่ชุดข้อตรวจเปลี่ยนไปแล้วต้องไม่พาคีย์ที่ไม่มีในรอบนี้เข้ามา
+    return Object.fromEntries(
+      checks.map((c) => [c.checkKey, draft[c.checkKey] ?? blank[c.checkKey]]),
+    ) as Record<string, CheckState>
+  })
   const [fraudNote, setFraudNote] = useState<string | null>(initialFraudNote)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   // เคยกดบันทึกแล้วหรือยัง — ใช้ตัดสินว่าจะไฮไลต์ข้อที่ยังไม่ได้ตอบไหม
   const [submitAttempted, setSubmitAttempted] = useState(false)
+
+  // เขียนร่างทุกครั้งที่ผู้ตรวจกรอกอะไรก็ตาม — ถูกกว่าการถามให้เขากด "บันทึกร่าง" เอง
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(draftKey(roundId), JSON.stringify(state))
+    } catch {
+      // โควตาเต็ม/โหมดส่วนตัว — ไม่ควรทำให้กรอกงานต่อไม่ได้
+    }
+  }, [roundId, state])
 
   const setOutcome = (checkKey: string, outcome: Outcome) =>
     setState((s) => ({ ...s, [checkKey]: { ...s[checkKey], outcome } }))
@@ -192,6 +233,12 @@ export default function RoundResultForm({ roundId, shopName, room, method, stepL
         throw new Error(completeData?.message ?? 'บันทึกผลสำเร็จแล้ว แต่ปิดรอบไม่สำเร็จ กรุณาลองกดบันทึกอีกครั้ง')
       }
 
+      // ล้างร่างหลังปิดรอบสำเร็จเท่านั้น — ล้างก่อนหน้านั้นแปลว่าเรากลืนงานของเขาเอง
+      try {
+        window.localStorage.removeItem(draftKey(roundId))
+      } catch {
+        /* ไม่เป็นไร — ร่างที่ค้างจะถูกทับด้วยรอบถัดไปที่คีย์เดียวกัน */
+      }
       pacesToast.success('บันทึกผลตรวจสำเร็จ')
       router.push('/inspector')
       router.refresh()

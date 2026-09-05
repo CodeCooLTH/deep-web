@@ -16,7 +16,7 @@ export type AdminStat = {
   value: number
   suffix?: string
   icon: string
-  tone?: 'primary' | 'success' | 'warning' | 'info' | 'secondary'
+  tone?: 'primary' | 'success' | 'warning' | 'info' | 'secondary' | 'danger'
 }
 
 const toneClass: Record<NonNullable<AdminStat['tone']>, string> = {
@@ -25,6 +25,9 @@ const toneClass: Record<NonNullable<AdminStat['tone']>, string> = {
   warning: 'bg-warning/15 text-warning',
   info: 'bg-info/15 text-info',
   secondary: 'bg-secondary/15 text-secondary',
+  // เพิ่ม 2026-09-05 (feature 00060) — การ์ดที่ต้องอ่านว่า "เรื่องนี้หนักกว่าคิวที่ช้า"
+  // ไม่มีโทนไหนเดิมสื่อได้: warning ถูกใช้กับงานเลยกำหนดอยู่แล้ว ส่วน secondary อ่านว่าไม่สำคัญ
+  danger: 'bg-danger/15 text-danger',
 }
 
 const StatisticCard = ({ stat }: { stat: AdminStat }) => {
