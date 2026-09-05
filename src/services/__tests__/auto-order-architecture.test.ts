@@ -116,6 +116,9 @@ describe('ตัวนับร่างมี SSOT เดียว (TFR-023 · 
   const ALLOWED_DRAFTED_QUERY = new Set([
     'src/services/auto-order-detect.service.ts',
     'src/lib/order-visibility.ts',
+    // reaper กวาดร่างหมดอายุข้ามทุกร้าน — เป็น `updateMany` ที่เปลี่ยนสถานะ ไม่ใช่ตัวนับ
+    // ที่จะไปโผล่บนหน้าจอ ⇒ ไม่อยู่ในคลาสที่กฎ "ตัวเลขต้องมาจาก symbol เดียว" กันอยู่
+    'src/app/api/cron/auto-order-sweeper/route.ts',
   ])
 
   it('[blocker] ห้ามประกอบ query `status: DRAFTED` เองนอกไฟล์ที่กำหนด', () => {

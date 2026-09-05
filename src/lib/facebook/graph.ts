@@ -183,6 +183,34 @@ export async function subscribePageToApp(pageId: string, pageToken: string): Pro
 }
 
 /**
+ * อ่าน `subscribed_fields` ของแอปเราบนเพจนี้ (feature 00061 · TFR-004)
+ *
+ * 🛑 อ่านของจริงจาก Meta **ไม่ derive จากวันที่เชื่อมเพจ** — `subscribed_fields` ถูกล็อกไว้
+ * ตั้งแต่ตอนกดเชื่อมครั้งแรก เพจที่เชื่อมก่อนที่เราจะเพิ่ม field ใหม่จะไม่มีมันติดมาเอง
+ * (เกิดจริงมาแล้วกับ `message_deliveries` และ `message_edits` — โค้ดฝั่งรับถูกทุกบรรทัด
+ * มันแค่ไม่เคยถูกเรียก และ **เงียบสนิทเหมือนไม่มีอะไรเกิดขึ้น**)
+ *
+ * คืน `null` เมื่อคุยกับ Graph ไม่ได้ — **คนละความหมายกับอาร์เรย์ว่าง** (ตัวหลังแปลว่า
+ * "ถามแล้วและแอปเราไม่ได้ subscribe อะไรเลย" ซึ่งเป็นข้อเท็จจริงที่ตัดสินได้)
+ */
+export async function fetchSubscribedFields(
+  pageId: string,
+  pageToken: string,
+): Promise<string[] | null> {
+  try {
+    const json = await graphFetch(`/${pageId}/subscribed_apps`, pageToken, {
+      query: { fields: 'subscribed_fields' },
+    })
+    const data = (json as { data?: { subscribed_fields?: string[] }[] }).data
+    if (!Array.isArray(data)) return null
+    // Meta คืนหนึ่งแถวต่อแอปที่ subscribe เพจนี้ — token ของเราเห็นเฉพาะแถวของแอปเรา
+    return data.flatMap((row) => row.subscribed_fields ?? [])
+  } catch {
+    return null
+  }
+}
+
+/**
  * ไฟล์แนบ/การ์ดของข้อความที่ดึงย้อนหลังจาก Graph
  *
  * ข้อควรระวัง: message attachment **ไม่มีฟิลด์ `type`** (ต่างจาก webhook payload ที่มี) — ชนิดของมันดูจาก
