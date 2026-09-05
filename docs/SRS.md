@@ -284,7 +284,14 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 
 > **feature 00035 (ตัวจัดหน้าร้าน) — โหมด draft preview:** `/u/{username}?builderDraft=1` และ `/b/{slug}?builderDraft=1` mount `BuilderPreviewBridge` (ฟัง `postMessage` จาก builder iframe) **เฉพาะเมื่อผู้เปิดเป็นเจ้าของ/ทีมงานร้าน** (`canAccessShop`) — query param เองไม่มีผลด้าน authorization ใด ๆ ผู้เยี่ยมชมทั่วไปเดา URL เดียวกันเห็นหน้าปกติเป๊ะ (ไม่มี Bridge ห่อ). `generateMetadata` ใส่ `robots:{index:false,follow:false}` เฉพาะ URL รูปแบบนี้ (ไม่ผูกกับสิทธิ์ — กัน search engine เก็บ URL พรีวิวไว้เฉย ๆ)
 
-> **feature 00060 (แผนการตรวจสอบร้านค้า) — Draft, ยังไม่ implement:** เมื่อ implement แล้ว `/u/{username}`
+> 🛑 **สถานะจริง ณ 2026-09-05:** ชั้นกฎ + สคีมา + service + **API ครบ 16 endpoint** + cron
+> `inspection-lifecycle` ขึ้นแล้ว (T1-T10, T15) · เหลือหน้าจอ 4 surface และการรัน Impeccable
+> · 🛑 **ยังเปิดขายจริงไม่ได้** — ราคายังไม่มีมติ (`INSPECTION_PRICING_IS_DRAFT=true` และ
+> `assertInspectionPricingDecided()` โยน `PRICING_NOT_DECIDED` บน production) และข้อตรวจอัตโนมัติ
+> ของขั้นที่ 1 บันทึกผลได้จริง **3 จาก 6 ข้อ** (`account_age`/`chat_response_speed` ยังไม่มีมติ
+> เรื่องเกณฑ์ · `duplicate_listing` ยังไม่มีตัวตรวจจับ — ดู SDS OQ-12/OQ-13)
+> · คอลัมน์ที่เพิ่มหลังจาก T3: `InspectionRound.summary` (migration `20260905120000`)
+> **feature 00060 (แผนการตรวจสอบร้านค้า) — backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ:** เมื่อ implement แล้ว `/u/{username}`
 > และ `/b/{slug}` จะมีบล็อกผลตรวจ + ไทม์ไลน์เพิ่ม (อ่านผ่าน RSC/service call ตรง **ไม่มี public API
 > endpoint** — ดู §7.19) แสดงเฉพาะร้าน `vertical='LODGING'` ที่เคยสมัครแผน (มีแถว `InspectionPlan`)
 > เป็นบล็อกคนละคำจาก Trust Tier เสมอ (ห้ามยืมคำ/ผสมคะแนน — ดู `CONTEXT.md` หัวข้อ "ความน่าเชื่อถือ:
@@ -323,12 +330,12 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | Shop Settings | `/shop` |
 | Verification | `/verification` |
 | Auth (sign-in/sign-up/verify-otp/reset-pass/new-pass) | `/auth/*` |
-| **แผนการตรวจสอบ (feature 00060 — Draft, ยังไม่ implement)** | **`/inspection`** — เฉพาะร้าน `vertical='LODGING'`; OWNER จัดการเต็ม ADMIN ดูอย่างเดียว |
+| **แผนการตรวจสอบ (feature 00060 — backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ)** | **`/inspection`** — เฉพาะร้าน `vertical='LODGING'`; OWNER จัดการเต็ม ADMIN ดูอย่างเดียว |
 
 > path ฝั่ง seller **ไม่มี** `/settings/` prefix (sync ตามโค้ดจริง)
 > **force-redirect:** seller authed + `needsOnboarding` → proxy redirect ทุก route → `/onboarding` (ยกเว้น `/auth/*`, `/api/*`)
 
-### 3.4a ผู้ตรวจ (feature 00060 — Draft, ยังไม่ implement)
+### 3.4a ผู้ตรวจ (feature 00060 — backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ)
 
 > **หมายเหตุความไม่ตรงกัน:** เอกสารต้นทางของ feature 00060 (`DATABASE.md`/`API.md`) ไม่ได้ระบุ
 > subdomain ที่แน่ชัดของบทบาทนี้ — component อยู่ใต้ `(paces)/inspector/**` (Paces เหมือน seller/admin)
@@ -350,7 +357,7 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | Orders | `/orders` |
 | **เติมเครดิต SMS (topup queue)** | **`/topups`** |
 | Badges | `/badges` |
-| **โควตารับสมัคร + คิวรอบตรวจ (feature 00060 — Draft, ยังไม่ implement)** | **`/inspection/quota`**, **`/inspection/rounds`** |
+| **โควตารับสมัคร + คิวรอบตรวจ (feature 00060 — backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ)** | **`/inspection/quota`**, **`/inspection/rounds`** |
 
 ### 3.6 Route Auth
 
@@ -368,7 +375,7 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 | NFR-1.1 | API response < 500ms (p95) |
 | NFR-1.2 | Public Profile โหลด < 2s |
 | NFR-1.3 | File upload: แชท ≤ 25MB · รูป/เอกสาร ≤ 10MB (ต่อไฟล์), ภาพสินค้า ≤ 10 รูป — เพดานต่อ purpose อยู่ที่ `src/lib/upload-policy.ts` (SSOT) และถูกบังคับ 2 ชั้น: `file_size_limit` ของ bucket (25MB, Supabase ตอบ 413 เอง) + `POST /api/uploads/commit` ที่อ่านขนาดจริงด้วย HEAD. 🛑 เดิมระบุ 5MB แต่ **ไม่มีผลจริง** เพราะทุก upload วิ่งผ่าน body ของ Vercel Function ที่จำกัด 4.5MB → ตกตั้งแต่ 4.5MB (แก้ 2026-08-10 ด้วย direct upload; ดู `docs/conventions/upload-body-size-limit.md`) |
-| NFR-1.4 | **feature 00060 (Draft, ยังไม่ implement)** — โปรไฟล์สาธารณะของร้านที่มีที่พักหลายหลัง (`Room`) ต้องอ่านผลตรวจแบบไม่ N+1 (query รวมทุกหลังครั้งเดียวด้วย `DISTINCT ON`, ไม่ query ต่อหลัง) |
+| NFR-1.4 | **feature 00060 (backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ)** — โปรไฟล์สาธารณะของร้านที่มีที่พักหลายหลัง (`Room`) ต้องอ่านผลตรวจแบบไม่ N+1 (query รวมทุกหลังครั้งเดียวด้วย `DISTINCT ON`, ไม่ query ต่อหลัง) |
 
 ### NFR-2: Security
 
@@ -382,7 +389,7 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 | NFR-2.6 | OTP rate limit 3 ครั้ง/10 นาที/เบอร์ |
 | NFR-2.7 | Admin self-review block (verification) — FR-2.6 |
 | NFR-2.8 | **feature 00035** — `BuilderPreviewBridge` (postMessage ระหว่าง builder iframe กับ `/u`,`/b` โหมด draft) ต้องตรวจ `event.origin` ผ่าน `isAllowedOrigin()` (reuse `lib/csrf-origin.ts`) ก่อนรับ/ตอบข้อความทุกครั้ง — ห้าม `targetOrigin: '*'` ทั้งสองทาง |
-| NFR-2.9 | **feature 00060 (Draft, ยังไม่ implement)** — `InspectionEvidence.visibility='PRIVATE'` (บัตรประชาชน/โฉนด/สเตทเมนต์/บัญชีธนาคาร) ห้ามหลุดเข้า RSC flight payload ของหน้าโปรไฟล์สาธารณะไม่ว่ากรณีใด — mask/neutralize ที่ server boundary (แพตเทิร์นเดียวกับ S-C1) และ query ฝั่งสาธารณะต้องกรอง `visibility='PUBLIC'` ที่ระดับ SQL ไม่ใช่กรองหลังดึง |
+| NFR-2.9 | **feature 00060 (backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ)** — `InspectionEvidence.visibility='PRIVATE'` (บัตรประชาชน/โฉนด/สเตทเมนต์/บัญชีธนาคาร) ห้ามหลุดเข้า RSC flight payload ของหน้าโปรไฟล์สาธารณะไม่ว่ากรณีใด — mask/neutralize ที่ server boundary (แพตเทิร์นเดียวกับ S-C1) และ query ฝั่งสาธารณะต้องกรอง `visibility='PUBLIC'` ที่ระดับ SQL ไม่ใช่กรองหลังดึง |
 
 ### NFR-3: Usability
 
@@ -399,7 +406,7 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 |----|---------|
 | NFR-4.1 | Uptime > 99% |
 | NFR-4.2 | Database backup รายวัน (Supabase) |
-| NFR-4.3 | **feature 00060 (Draft, ยังไม่ implement)** — ต้องเฝ้าที่ **ตัวชี้วัดงานค้าง** ของคิวรอบตรวจ ไม่ใช่ที่ error rate เพราะ error rate เป็น 0 ตลอดเวลาที่ฟีเจอร์กำลังเสื่อมเงียบ ๆ (ป้ายผลตรวจตกเป็น "รอตรวจซ้ำ" ทีละข้อโดยไม่มีใครมาตรวจซ้ำเลย ทั้งที่โค้ดถูกทุกบรรทัด) — เกณฑ์ "ค้างเท่าไรถือว่าผิดปกติ" และเจ้าของตัวชี้วัดยัง **รอเคาะ** (open question ของเอกสารต้นทาง) |
+| NFR-4.3 | **feature 00060 (backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ)** — ต้องเฝ้าที่ **ตัวชี้วัดงานค้าง** ของคิวรอบตรวจ ไม่ใช่ที่ error rate เพราะ error rate เป็น 0 ตลอดเวลาที่ฟีเจอร์กำลังเสื่อมเงียบ ๆ (ป้ายผลตรวจตกเป็น "รอตรวจซ้ำ" ทีละข้อโดยไม่มีใครมาตรวจซ้ำเลย ทั้งที่โค้ดถูกทุกบรรทัด) — เกณฑ์ "ค้างเท่าไรถือว่าผิดปกติ" และเจ้าของตัวชี้วัดยัง **รอเคาะ** (open question ของเอกสารต้นทาง) |
 
 ### NFR-5: Maintainability
 
@@ -466,15 +473,15 @@ Order (1) ──────── (N) OrderEvent [Activity Log — insert-only]
 
 SellerWallet (1) ── (N) WalletTransaction
 
-Shop (1) ──────── (0..1) InspectionPlan             [feature 00060 — Draft, ยังไม่ implement]
-Shop (1) ──────── (N) InspectionRound                [feature 00060 — Draft]
-Shop (1) ──────── (N) InspectionResult               [feature 00060 — Draft]
-Shop (1) ──────── (N) InspectionTermsAcceptance      [feature 00060 — Draft, append-only]
-Room (1) ──────── (N) InspectionRound                [feature 00060 — Draft, roomId nullable = รอบระดับร้าน]
-Room (1) ──────── (N) InspectionResult               [feature 00060 — Draft, roomId nullable = ข้อผูกร้าน]
-User (1) ──────── (N) InspectionRound [as inspector, optional]  [feature 00060 — Draft]
-InspectionRound (1) ─ (N) InspectionEvidence         [feature 00060 — Draft]
-InspectionResult (0..1) ─ (N) InspectionEvidence     [feature 00060 — Draft, optional]
+Shop (1) ──────── (0..1) InspectionPlan             [feature 00060]
+Shop (1) ──────── (N) InspectionRound                [feature 00060]
+Shop (1) ──────── (N) InspectionResult               [feature 00060]
+Shop (1) ──────── (N) InspectionTermsAcceptance      [feature 00060 — append-only]
+Room (1) ──────── (N) InspectionRound                [feature 00060 — roomId nullable = รอบระดับร้าน]
+Room (1) ──────── (N) InspectionResult               [feature 00060 — roomId nullable = ข้อผูกร้าน]
+User (1) ──────── (N) InspectionRound [as inspector, optional]  [feature 00060]
+InspectionRound (1) ─ (N) InspectionEvidence         [feature 00060]
+InspectionResult (0..1) ─ (N) InspectionEvidence     [feature 00060 — optional]
 ```
 
 ### 6.1a `CustomerFile` (feature 00048 — คลังไฟล์ต่อลูกค้า)
@@ -1006,13 +1013,15 @@ InspectionResult (0..1) ─ (N) InspectionEvidence     [feature 00060 — Draft,
 เคส "คำนวณเงินโดยไม่มีแถวเงินอยู่ในมือ" ซึ่งอ่านไม่ต่างจาก "ยังไม่จ่ายสักบาท" เลย
 (ด่าน: `src/lib/__tests__/service-queue-vertical-gate.test.ts`)
 
-### 6.z แผนการตรวจสอบร้านค้า — Shop Inspection Plan (feature 00060 — Draft, ยังไม่ implement)
+### 6.z แผนการตรวจสอบร้านค้า — Shop Inspection Plan (feature 00060 — backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ)
 
-> **สถานะ: Draft** — เอกสาร PRD/BRD/DATABASE/API ของ feature 00060 ผ่าน draft รอบสุดท้ายแล้ว
-> (2026-08-29) แต่ **ยังไม่มี migration/โค้ดจริงบนดิสก์** ตาม Hard Rule 11 (Doc-First) ต้องรอ user
-> review ผ่านก่อนจึง implement — section นี้ sync ล่วงหน้าเพื่อไม่ให้เป็นหนี้เอกสารซ้ำ (บทเรียน 00033)
-> เมื่อ implement จริงแล้วให้ตัดป้าย "Draft, ยังไม่ implement" ออกและยืนยันเลขคอลัมน์/enum กับ
-> `prisma/schema.prisma` อีกครั้ง
+> **สถานะ (อัปเดต 2026-09-05):** สคีมาและโค้ดฝั่ง backend **อยู่บนดิสก์จริงแล้ว** —
+> migration `20260829120000_shop_inspection_plan` (7 ตาราง + 5 enum + `User.isInspector`)
+> และ `20260905120000_inspector_role_audit` (`InspectionRound.summary`) · service + API ครบ
+> 16 endpoint + cron `inspection-lifecycle` · เหลือหน้าจอ 4 surface
+> 🛑 เลขคอลัมน์/enum ในหัวข้อนี้ต้องยืนยันกับ `prisma/schema.prisma` ทุกครั้งที่แก้ ไม่ใช่เชื่อ
+> ตัวเลขในเอกสารต้นทาง (เอกสารต้นทางเขียนก่อน implement และมีจุดที่ implement เบี่ยงไปจริง —
+> เช่น `InspectorRoleChange` ใช้ `actorUserId` ไม่ใช่ `changedByUserId` ตามที่ API.md ร่างไว้)
 >
 > โมดูลนี้เป็นแกนความน่าเชื่อถือที่ **แยกขาดจาก Trust Score/Trust Tier โดยสมบูรณ์** — ห้ามมีคอลัมน์/
 > query ใดในกลุ่มนี้แตะ `trust-score.service` เลยแม้แต่บรรทัดเดียว (ดู `CONTEXT.md` หัวข้อ
@@ -1532,10 +1541,12 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 นิยามของทุกตัวชี้วัดอยู่ที่ `src/lib/agent-performance.ts` (SSOT) — ดู
 `docs/20 - Features/00059 - Agent Performance Report/SRS.md` §3
 
-### 7.19 แผนการตรวจสอบร้านค้า (`/api/seller/inspection/**`, `/api/inspector/**`, `/api/admin/inspection/**`) — feature 00060, Draft ยังไม่ implement
+### 7.19 แผนการตรวจสอบร้านค้า (`/api/seller/inspection/**`, `/api/inspector/**`, `/api/admin/inspection/**`) — feature 00060
 
-> **สถานะ: Draft** — สัญญานี้ล็อกแล้วใน `API.md` ของ feature 00060 (เวอร์ชัน 1.0, 15 endpoint) แต่
-> **ยังไม่มี route ใดในโมดูลนี้อยู่บนดิสก์จริง** รอ user review ผ่าน PRD/BRD ก่อนตาม Hard Rule 11
+> **สถานะ (อัปเดต 2026-09-05): route อยู่บนดิสก์จริงครบแล้ว 16 endpoint** (ร้าน 5 · ผู้ตรวจ 4 ·
+> แอดมิน 7 — เอกสารต้นทางนับไว้ 15 เพราะรวม `/quota` ที่มีทั้ง GET และ PATCH เป็นรายการเดียว)
+> · `src/proxy.ts` มี bucket rate-limit `inspector` เพดาน 120/นาที สำหรับ mutation ของ
+> `/api/inspector/**` แล้ว
 >
 > **ไม่มี public endpoint โดยเจตนา** — หน้าโปรไฟล์สาธารณะ (`/u/[username]`, `/b/[slug]`) อ่านผ่าน
 > RSC/service call ตรง ไม่ผ่าน HTTP endpoint (ลด attack surface + กัน scrape ทั้งไดเรกทอรี)
@@ -1591,7 +1602,7 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 | `/api/cron/iship-status-sync` | `*/5 * * * *` | ทุก 5 นาที |
 | `/api/cron/comment-attachment-repair` | `0 17 * * *` | 00:00 |
 | `/api/cron/chat-outbox` | `* * * * *` | ทุกนาที |
-| **`/api/cron/inspection-lifecycle`** (feature 00060 — **Draft, ยังไม่ implement**) | **`0 16 * * *`** | **23:00** |
+| **`/api/cron/inspection-lifecycle`** (feature 00060 — **backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ**) | **`0 16 * * *`** | **23:00** |
 
 **`/api/cron/inspection-lifecycle` (เมื่อ implement แล้ว) ทำ 4 งานในครั้งเดียว:** (1) ตัดเครดิตรอบ
 30 วัน + จัดการ `canceledAt`/`graceUntil`/`status`/`lapsedReason` (2) รันข้อตรวจอัตโนมัติของขั้น 1
@@ -1804,7 +1815,7 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 
 ---
 
-### 8.8 แผนการตรวจสอบร้านค้า (feature 00060 — Draft, ยังไม่ implement)
+### 8.8 แผนการตรวจสอบร้านค้า (feature 00060 — backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ)
 
 > **ห้ามใช้คำว่า "ระดับ/Level/Tier" กับสินค้านี้** — สงวนให้ Trust Tier ซึ่งเป็นคนละแกน (`CONTEXT.md`)
 > คำที่ใช้คือ **ขั้นการตรวจสอบ (step)**
@@ -1984,7 +1995,7 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 
 ---
 
-### 9.8 แผนการตรวจสอบร้านค้า (feature 00060 — Draft, ยังไม่ implement)
+### 9.8 แผนการตรวจสอบร้านค้า (feature 00060 — backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ)
 
 | ผู้เรียก | เงื่อนไข | เข้าถึงได้ |
 |---|---|---|
@@ -2367,7 +2378,7 @@ SSOT: **`src/lib/order-return.ts`** (กฎ) + **`src/lib/iship/courier.ts`** (�
 
 ที่มา: `docs/20 - Features/00056 - Order Return/BRD.md` §8
 
-### §10.16 แผนการตรวจสอบร้านค้า (feature 00060 — Draft, ยังไม่ implement)
+### §10.16 แผนการตรวจสอบร้านค้า (feature 00060 — backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ)
 
 SSOT: **`src/lib/inspection/checks.ts`** (checkKey allow-list 18 ค่า + `ttlDays()`) — ยังไม่มีไฟล์นี้
 อยู่บนดิสก์จริง ณ วันที่ sync เอกสารนี้

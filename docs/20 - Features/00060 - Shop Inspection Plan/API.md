@@ -121,7 +121,9 @@ Schema ที่ต้องเพิ่มใน `src/lib/validations.ts` (ช�
 | `RecordInspectionResultsSchema` | 4.8 |
 | `CompleteInspectionRoundSchema` | 4.9 |
 | `UpdateInspectionQuotaSchema` | 4.11 |
-| `AssignInspectionRoundSchema` | 4.12 |
+| `CreateInspectionRoundSchema` | 4.12 (สร้างรอบ) — เดิมตารางนี้เขียนชื่อ `AssignInspectionRoundSchema` ไว้กับ 4.12 ซึ่งเป็นการพิมพ์คลาด: 4.12 คือ "สร้าง" ส่วน "มอบหมาย" คือ 4.15 |
+| `AssignInspectionRoundSchema` | 4.15 (มอบหมายผู้ตรวจ) |
+| `UpdateInspectorRoleSchema` | 4.16 (ตั้ง/ถอนบทบาทผู้ตรวจ — เดิมไม่มีในตาราง) |
 | `ReportInspectionFraudSchema` | 4.13 |
 
 **ข. `checkKey` allow-list 18 ค่า และ `scope` ต้องตรงกับการมี/ไม่มี `roomId` (fail-closed)**
@@ -647,6 +649,12 @@ OWNER ผูก **ไฟล์ที่อัปโหลดและ commit เ
 
 **ด่านตามลำดับ:** auth → LODGING → OWNER → มีแผนอยู่ → `checkKey` อยู่ใน allow-list → คีย์นี้ร้านส่งเองได้ไหม (`CHECK_NOT_SELLER_SUPPLIED`) → scope ตรงกับ `roomId` ทั้งสองทิศ → `roomId` เป็นห้องของร้านนี้จริง (scope ใน `WHERE`) → `fileId` commit แล้วจริง
 
+**หมายเหตุจากตอน implement (2026-09-05) — ข้อจำกัดที่มาจากสคีมา ไม่ใช่จากสัญญานี้:**
+`InspectionEvidence.roundId` เป็น **NOT NULL** (สคีมา T3) ⇒ หลักฐานที่ร้านส่งต้องผูกกับ **รอบที่เปิดอยู่**
+ของกลุ่ม `(roomId, step, method)` ของข้อนั้น · ยังไม่มีรอบเปิด = `400 CHECK_NOT_IN_ROUND`
+เหตุผลที่ไม่ทำ `roundId` ให้ nullable แทน: หลักฐานที่ไม่ผูกรอบคือหลักฐานที่ **ไม่มีผู้ตรวจคนไหนเห็น**
+(ทุก query ฝั่งผู้ตรวจอ่านหลักฐานผ่าน `roundId`) ⇒ ร้านจะอัปโหลดแล้วรอเก้อโดยไม่มีอะไรฟ้อง
+
 **Response — Success (201)**
 
 | ฟิลด์ | ชนิด | คำอธิบาย |
@@ -970,7 +978,7 @@ route ทำได้แค่ผ่านด่านสิทธิ์/สโ�
 | `year` / `month` | `number` | |
 | `quotas[].step` | `1..4` | |
 | `quotas[].capacity` | `number` | เพดานของขั้นนั้นในเดือนนั้น — **ไม่มีแถว = คืน `0` ไม่ใช่ `null`** |
-| `quotas[].used` | `number` | นับจาก `InspectionPlan` ที่เข้าขั้นนั้นในเดือนนี้ |
+| `quotas[].used` | `number` | **implement จริงอ่านจาก `InspectionIntakeQuota.usedCount`** ซึ่งเป็นตัวนับที่ `claimIntakeSlot()` เพิ่มแบบ atomic — ไม่ใช่ count จาก `InspectionPlan` ตามที่ร่างไว้เดิม เพราะสองแหล่งจะ drift กันได้ (ทรานแซกชันที่ rollback หลังจองโควตา) และ HR16 ห้ามมีนิยามเดียวกันสองที่ |
 | `quotas[].remaining` | `number` | `max(0, capacity - used)` |
 | `quotas[].seeded` | `boolean` | `false` = ยังไม่มีแถวของเดือนนี้ (cron ยังไม่ทำงาน หรือแอดมินยังไม่ตั้ง) |
 
@@ -1106,7 +1114,7 @@ endpoint นี้เป็น upsert ของแถว `InspectionIntakeQuota`
 | ฟิลด์ | ชนิด | คำอธิบาย |
 |-------|------|----------|
 | `rounds[]` | `array` | `{ roundId, shopId, shopName, roomId, roomName, step, method, checkKeys[], dueAt, assignedAt, completedAt, inspectorUserId, inspectorDisplayName, isOverdue, suspectedFraudNote }` |
-| `fraudSignalCount` | `number` | จำนวนรอบที่มี `suspectedFraudNote` และยังไม่ถูกยกเป็นรายงานที่ 4.13 |
+| `fraudSignalCount` | `number` | จำนวนรอบที่มี `suspectedFraudNote` และยังไม่ถูกยกเป็นรายงานที่ 4.13 — 🛑 **implement จริง (2026-09-05) ยังนับ *ทุกรอบที่มีบันทึก*** เพราะไม่มีคอลัมน์เชื่อมว่ารอบไหนถูกยกเป็นรายงานไปแล้ว ⇒ ตัวเลขไม่ลดหลังแอดมินยื่นรายงาน ต้องเพิ่มคอลัมน์ในรอบถัดไป (หนี้ที่บันทึกไว้แล้ว) |
 | `nextCursor` | `string \| null` | |
 | `backlog[]` | `array` | **ตัวชี้วัดงานค้าง แยกตามขั้นและวิธีตรวจ** |
 | `backlog[].step` | `1..4` | |
