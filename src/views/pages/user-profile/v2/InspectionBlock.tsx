@@ -32,7 +32,11 @@ const SIGNAL_CYAN = '#00BAD1'
 
 /** กรอบการ์ด — ชุดเดียวกับ `SIDE_CARD_SX`/`TABS_CARD_SX` ของ `ShopProfile.tsx` (14px/#ececf2/เงา) */
 const CARD_CLASS =
-  'rounded-[14px] border border-solid p-5 mbe-[18px]'
+  // 🛑 บันไดรัศมีฝั่ง buyer: rounded(6) · rounded-lg(8) · rounded-2xl(12) · rounded-full
+  //    การ์ด = 12px นิยามเดียวทั้งธีม (main #46 ยึดไว้ พร้อมด่าน buyer-card-radius.test.ts)
+  //    เดิมไฟล์นี้เขียน rounded-[14px] เพราะก็อปค่าจาก ShopProfile **ตอนที่ main กำลังแก้ค่านั้น
+  //    อยู่พอดี** — rebase ผ่านสะอาดไม่มี conflict แต่การ์ดใบนี้จะเป็นใบเดียวในหน้าที่รัศมีไม่ตรงชาวบ้าน
+  'rounded-2xl border border-solid p-5 mbe-[18px]'
 
 function StepDots({ step }: { step: 1 | 2 | 3 | 4 }) {
   return (
