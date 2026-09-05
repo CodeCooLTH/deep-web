@@ -1,5 +1,8 @@
 import { Prisma, type Room } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { roomListingImagesChanged } from "@/lib/inspection/room-images";
+import type { InspectionStep } from "@/lib/inspection/checks";
+import { invalidatePhotosMatchForRoom } from "@/services/inspection-result.service";
 import { MAX_ROOM_IMAGES } from "@/lib/lodging";
 
 // Lodging Vertical (feature 00017 Phase 1) — business logic ของห้องพัก
@@ -128,11 +131,42 @@ export async function updateRoom(
   roomId: string,
   input: RoomUpdateInput,
 ): Promise<Room> {
-  await getRoom(shopId, roomId); // ยืนยันว่าเป็นห้องของร้านนี้จริงก่อนเขียน
+  const current = await getRoom(shopId, roomId); // ยืนยันว่าเป็นห้องของร้านนี้จริงก่อนเขียน
   assertImageLimit(input.images);
   const data = toRoomData(input);
   if (Object.keys(data).length === 0) return getRoom(shopId, roomId);
-  return prisma.room.update({ where: { id: roomId }, data });
+
+  // feature 00060 · FR-INS-028 — ร้านเปลี่ยนภาพประกาศ ⇒ ข้อ "ภาพตรงกับสภาพจริง" ตกเป็น
+  // "รอตรวจซ้ำ" ทันที
+  //
+  // 🛑 **ต้องอยู่ทรานแซกชันเดียวกับการเขียน `Room.images`** — แยกเมื่อไรจะมีช่วงที่ภาพใหม่
+  //    ขึ้นหน้าโปรไฟล์แล้วแต่ป้ายยังรับรองภาพชุดเก่าอยู่ ซึ่งเป็นช่วงที่ป้ายโกหกพอดี
+  //    และถ้าคำสั่งที่สองล้มก็จะค้างอย่างนั้นถาวรโดยไม่มีอะไรฟ้อง
+  //
+  // 🛑 ตัดสินจาก **เนื้อหา** ไม่ใช่จาก "มีคีย์ images ส่งมาไหม" (RoomForm ส่งกลับมาทุกครั้ง
+  //    ที่กดบันทึกแม้แก้แค่ราคา) — เกณฑ์อยู่ที่ `roomListingImagesChanged()` ที่เดียว
+  const imagesChanged =
+    input.images !== undefined && roomListingImagesChanged(parseImages(current.images), input.images);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.room.update({ where: { id: roomId }, data });
+    if (imagesChanged) {
+      const plan = await tx.inspectionPlan.findUnique({
+        where: { shopId },
+        select: { step: true },
+      });
+      // ไม่เคยอยู่ในแผนตรวจสอบ = ไม่มีผลตรวจให้ทำเป็นโมฆะ (ตัวรับก็คืน null อยู่แล้ว
+      // แต่ข้ามตั้งแต่ตรงนี้เพื่อไม่ยิงคิวรีเปล่าให้ร้านทุกร้านที่แก้รูปห้อง)
+      if (plan !== null) {
+        await invalidatePhotosMatchForRoom(
+          { shopId, roomId, planStep: plan.step as InspectionStep, now: new Date() },
+          tx,
+        );
+      }
+    }
+    return row;
+  });
+  return updated;
 }
 
 /** ห้องที่แสดงบนโปรไฟล์สาธารณะ — เฉพาะที่เปิดใช้งาน และคืนเฉพาะ field ที่เปิดเผยได้ (FR-LODG-07) */
