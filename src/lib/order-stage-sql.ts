@@ -66,12 +66,17 @@ function inList(column: string, values: readonly string[]): string {
  * คืน SQL expression ที่ให้ค่าเดียวกับ `deriveShippingStage()`
  *
  * ผลลัพธ์เป็นสตริงของ `CASE … END` ที่เอาไปวางใน `SELECT`, `WHERE` หรือ `GROUP BY` ได้
- * ค่าที่คืน: `AWAITING_PARCEL` | `AWAITING_PICKUP` | `SHIPPING` | `AWAITING_COD`
- *          | `PROBLEM` | `RETURNED` | `DONE` | `NOT_SHIPPING`
+ * ค่าที่คืน: `DRAFT` | `NOT_SHIPPING` | `AWAITING_PARCEL` | `AWAITING_PICKUP` | `SHIPPING`
+ *          | `AWAITING_COD` | `PROBLEM` | `RETURNED` | `DONE`
  */
 export function buildShippingStageSql(c: StageSqlColumns): string {
   const isCod = `${c.paymentMethod} ~* ${lit(COD_PAYMENT_PATTERN)}`
   return `CASE
+    -- 🛑 -1) ร่างจากแชท (00061) — ต้องอยู่ **เหนือสาขา fulfillmentMode** ไม่ใช่แค่เหนือสาขาพัสดุ
+    --       ร่างไม่เคยผ่านการคำนวณ fulfillmentMode เลย (คอลัมน์เป็น default 'SHIPPED' ของสคีมา)
+    --       วันที่ตัวเขียนร่างคำนวณค่านั้นจริง ร่างของสินค้าที่ไม่ต้องส่งจะกลายเป็น NOT_SHIPPING
+    --       แล้วหายจากชิป "ร่าง" ทั้งกองเงียบ ๆ — ดูคอมเมนต์เต็มที่ deriveShippingStage()
+    WHEN ${c.orderStatus} = 'DRAFTED' THEN 'DRAFT'
     -- 0) ไม่มีการจัดส่งเลย (feature 00062) — เช็คก่อนทุกอย่างรวมทั้งยกเลิก/คืนของ ตรงกับ
     -- deriveShippingStage() เป๊ะ (ดูคอมเมนต์ที่นั่นว่าทำไม 'NOT_SHIPPING' ไม่ใช่ 'DONE')
     WHEN ${c.fulfillmentMode} <> 'SHIPPED' THEN 'NOT_SHIPPING'

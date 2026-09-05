@@ -50,6 +50,8 @@ export function filterActiveOrders<T extends ProgressOrderInput>(orders: T[]): T
  * ปัญหา = danger, กำลังเดินทาง = info, รอเงิน = warning, ที่เหลือ = primary (งานปกติ)
  */
 export const STAGE_CHIP_CLS: Record<Exclude<ShippingStageKey, 'DONE' | 'NOT_SHIPPING'>, string> = {
+  // feature 00061 — warning ตรงกับ `ORDER_STATUS_META.DRAFTED` (ใบเดียวกันสามจอต้องโทนเดียวกัน)
+  DRAFT: 'bg-warning/15 text-warning-ink',
   AWAITING_PARCEL: 'bg-primary/15 text-primary-ink',
   AWAITING_PICKUP: 'bg-primary/15 text-primary-ink',
   SHIPPING: 'bg-info/15 text-info-ink',

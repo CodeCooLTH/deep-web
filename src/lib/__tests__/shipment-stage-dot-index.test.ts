@@ -23,6 +23,8 @@ import { describeReturnLeg } from '../iship/return-timeline'
 import { SHIPMENT_STAGE_DOT_INDEX, type ShippingStageKey } from '../order-stage'
 
 const ALL_STAGES: ShippingStageKey[] = [
+  // feature 00061 — ร่างจากแชท (ไม่มีพัสดุเลย จึงเป็น null เหมือน AWAITING_PARCEL)
+  'DRAFT',
   'AWAITING_PARCEL',
   'AWAITING_PICKUP',
   'SHIPPING',
@@ -52,6 +54,8 @@ describe('SHIPMENT_STAGE_DOT_INDEX', () => {
 
   it('ยังไม่มีพัสดุ = null (ไม่ใช่ 0 — 0 แปลว่า "สร้างพัสดุแล้ว")', () => {
     expect(SHIPMENT_STAGE_DOT_INDEX.AWAITING_PARCEL).toBeNull()
+    // ร่างยิ่งไม่มีพัสดุกว่านั้นอีก — ยังไม่ได้เป็นออเดอร์ด้วยซ้ำ
+    expect(SHIPMENT_STAGE_DOT_INDEX.DRAFT).toBeNull()
   })
 
   it('PROBLEM ปักจุดเดียวกับ SHIPPING (ไม่มีจุดแยกของ "มีปัญหา" ในแถบ 4 จุด)', () => {

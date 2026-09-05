@@ -90,6 +90,14 @@ export const CANCELLED_VISIBLE_MS = 1 * DAY_MS
  * โดยไม่มีอะไรเตือน — บั๊กแบบนั้นหาสาเหตุยากมากและทำให้ทั้งหน้าจอเชื่อไม่ได้
  */
 export type ShippingStageKey =
+  /**
+   * feature 00061 — ร่างจากแชทที่ข้อมูลยังไม่ครบพอสร้างออเดอร์จริง
+   *
+   * เป็นกองที่ **ไม่เกี่ยวกับพัสดุเลย** ต่างจากอีก 6 กองที่เหลือ — วางไว้ในชุดเดียวกันเพราะ
+   * ผู้ขายใช้แถบชิปเดียวกันคัดงานที่ต้องทำ และ `?stage=` เป็นแกนเดียวที่หน้านั้นมีอยู่แล้ว
+   * (การเพิ่มแกนที่สองจะทำให้ต้องมีกติกาว่าสองแกนรวมกันยังไง ซึ่งไม่มีใครขอ)
+   */
+  | 'DRAFT'
   | 'AWAITING_PARCEL'
   | 'AWAITING_PICKUP'
   | 'SHIPPING'
@@ -144,6 +152,8 @@ export type ShippingStageKey =
  * ทั้งสองจอต้องอ่านจากตารางนี้เท่านั้น และ prop ต้องพิมพ์เป็น `ShippingStageKey`
  */
 export const SHIPMENT_STAGE_DOT_INDEX: Record<ShippingStageKey, number | null> = {
+  // feature 00061 — ร่างไม่มีพัสดุให้วาดแถบเลย (null = ไม่วาด ไม่ใช่ "อยู่จุดที่ 0")
+  DRAFT: null,
   AWAITING_PARCEL: null,
   AWAITING_PICKUP: 0,
   SHIPPING: 2,
@@ -189,6 +199,22 @@ export interface ShippingStageInput {
  */
 
 export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
+  /**
+   * feature 00061 — ร่างจากแชท: **กองของตัวเอง** ไม่ใช่ `DONE` ไม่ใช่ `AWAITING_PARCEL`
+   * และไม่ใช่ `NOT_SHIPPING`
+   *
+   * 🛑 **ต้องอยู่บนสุด เหนือสาขา `fulfillmentMode` ด้วย** (ตัดสินตอน rebase 2026-09-08 —
+   * git รวมสองฟีเจอร์นี้ผ่านสะอาดโดยวางสาขานี้ไว้ *ล่าง* ซึ่งถูกโดยบังเอิญเท่านั้น):
+   * ร่างยังไม่เคยผ่านการคำนวณ `fulfillmentMode` เลยสักครั้ง — `writeAutoOrderDraft()` ไม่เขียน
+   * คอลัมน์นั้น มันจึงเป็นค่า default `'SHIPPED'` ของสคีมาล้วน ๆ ⇒ วันที่มีคนทำให้ตัวเขียนร่าง
+   * คำนวณ `fulfillmentMode` จริง (ซึ่งเป็นก้าวถัดไปตามธรรมชาติ เพราะ `promoteDraftCore` ทำอยู่แล้ว)
+   * ร่างของสินค้าที่ไม่ต้องส่งจะกลายเป็น `NOT_SHIPPING` แล้ว **หายจากชิป "ร่าง" เงียบ ๆ ทั้งกอง**
+   *
+   * "ใบนี้เป็นร่างหรือยัง" เป็นคำถามว่า *มันเป็นออเดอร์แล้วหรือยัง* ซึ่งอยู่เหนือคำถามว่า
+   * *ออเดอร์ใบนี้ส่งของแบบไหน* — ลำดับจึงต้องสะท้อนลำดับของคำถาม ไม่ใช่ลำดับที่ merge ออกมา
+   */
+  if (o.status === 'DRAFTED') return 'DRAFT'
+
   /**
    * ออเดอร์ที่ไม่มีการจัดส่งเลย (นัดรับ/ดิจิทัล/ขายหน้าร้าน) — เช็คก่อนทุกอย่างรวมทั้ง
    * CANCELLED/RETURNED เพราะคำถาม "ของอยู่ไหนในเส้นทางขนส่ง" ไม่มีความหมายกับใบพวกนี้เลย
@@ -248,6 +274,7 @@ export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
  * กติกาเดียวกับที่ `docs/conventions/enum-value-removal.md` แนะนำไว้
  */
 const ALL_SHIPPING_STAGES: Record<ShippingStageKey, true> = {
+  DRAFT: true,
   AWAITING_PARCEL: true,
   AWAITING_PICKUP: true,
   SHIPPING: true,
@@ -267,8 +294,13 @@ export const SHIPPING_STAGE_KEYS_ALL = Object.keys(ALL_SHIPPING_STAGES) as Shipp
  * 🛑 `NOT_SHIPPING` ต้องอยู่นอก record นี้เสมอ (คู่กับ `'DONE'`) — ตาม Controller review
  * ที่แก้ TD-007: ถ้าไม่มีคำในนี้ ก็ไม่มีทางมีตัวกรอง `?stage=NOT_SHIPPING` ที่ใช้ได้จริงแต่
  * ไม่มีชิปไหนพาไป (ดูคำอธิบายเต็มที่ประกาศ type ของค่านี้ใน `ShippingStageKey`)
+ *
+ * 🛑 `DRAFT` **อยู่ในนี้** ต่างจาก `NOT_SHIPPING` โดยตั้งใจ (feature 00061) — ร่างมีชิปพาไปดูจริง
+ * ที่ `/orders?stage=DRAFT` และเป็นกองเดียวที่มีเส้นตาย (หายเองใน 7 วัน) ⇒ ต้องมีคำ
  */
 export const SHIPPING_STAGE_LABEL: Record<Exclude<ShippingStageKey, 'DONE' | 'NOT_SHIPPING'>, string> = {
+  // feature 00061 — คำเดียวกับ `ORDER_STATUS_META.DRAFTED.label` (HR16: ป้ายเดียวกันต้องพูดคำเดียวกัน)
+  DRAFT: 'ร่าง',
   AWAITING_PARCEL: 'รอเลขพัสดุ',
   AWAITING_PICKUP: 'รอรับเข้า',
   SHIPPING: 'กำลังจัดส่ง',

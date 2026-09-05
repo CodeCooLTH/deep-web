@@ -48,7 +48,7 @@ const CARRIER_CODES: (string | null)[] = [
   null,
 ]
 
-const ORDER_STATUSES = ['PENDING', 'SHIPPED', 'CONFIRMED', 'CANCELLED', 'RETURNED']
+const ORDER_STATUSES = ['DRAFTED', 'PENDING', 'SHIPPED', 'CONFIRMED', 'CANCELLED', 'RETURNED']
 /**
  * feature 00062 (U6) — ค่าที่ไม่ใช่ `'SHIPPED'` ของ `Order.fulfillmentMode` ที่ต้องตกกิ่ง
  * `NOT_SHIPPING` เสมอ ไม่ว่าแกนอื่นจะเป็นอะไร (`PICKUP`/`NO_SHIPPING` ของจริง +
@@ -98,8 +98,9 @@ function buildCorpus(): Row[] {
             })
 
   /**
-   * ไม่มีการจัดส่งเลย (feature 00062) — ตาม `deriveShippingStage()` เงื่อนไขนี้เป็นเงื่อนไข
-   * *แรกสุด* ⇒ แกน payment/cod ไม่มีทางมีผล ไม่ต้อง cross ทุกคอมบิเนชัน (จะทำให้คอร์ปัสโต 4
+   * ไม่มีการจัดส่งเลย (feature 00062) — ตาม `deriveShippingStage()` เงื่อนไขนี้อยู่เกือบบนสุด
+   * (เหนือมันมีแค่ `DRAFTED` ของ 00061 ซึ่งคอร์ปัสชุดนี้ก็ครอบด้วยเพราะ cross กับ
+   * `ORDER_STATUSES` ทุกค่า) ⇒ แกน payment/cod ไม่มีทางมีผล ไม่ต้อง cross ทุกคอมบิเนชัน (จะทำให้คอร์ปัสโต 4
    * เท่าโดยไม่ได้พิสูจน์อะไรเพิ่ม) แค่ยืนยันว่า status/hasShipment/carrierStatus ทุกค่า
    * ไม่ทำให้หลุดออกจากกิ่งนี้ไปได้
    */

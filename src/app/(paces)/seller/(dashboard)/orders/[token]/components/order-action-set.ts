@@ -76,6 +76,12 @@ const buildActions = (orderNoun: string) =>
     copyLink: { key: 'copy-link', label: 'คัดลอกลิงก์', icon: 'copy' },
     copyAddress: { key: 'copy-address', label: 'คัดลอกที่อยู่จัดส่ง', icon: 'map-pin' },
     editOrder: { key: 'edit-order', label: `แก้ไข${orderNoun}`, icon: 'edit' },
+    // feature 00061 — ปุ่มของ "ร่าง" เท่านั้น
+    // 🛑 คำว่า "ทิ้ง" ไม่ใช่ "ยกเลิก" โดยตั้งใจ: ร่างไม่เคยเป็นออเดอร์ จึงไม่มีอะไรให้ยกเลิก
+    // และผู้ขายต้องแยกออกทันทีว่าการกดปุ่มนี้ไม่ได้ยกเลิกอะไรที่ลูกค้ารับรู้
+    discardDraft: { key: 'discard-draft', label: 'ทิ้งร่างนี้', icon: 'trash' },
+    retryDraft: { key: 'retry-draft', label: 'อ่านใหม่', icon: 'refresh' },
+    fillDraft: { key: 'fill-draft', label: 'เปิดฟอร์มกรอกต่อ', icon: 'forms' },
     cancelOrder: { key: 'cancel-order', label: `ยกเลิก${orderNoun}`, icon: 'ban' },
     editTracking: { key: 'edit-tracking', label: 'แก้ไขเลขพัสดุ', icon: 'pencil' },
     copyTracking: { key: 'copy-tracking', label: 'คัดลอกเลขพัสดุ', icon: 'copy' },
@@ -106,6 +112,8 @@ const buildActions = (orderNoun: string) =>
  *   SHIPPED:   primary=null    · ghost=[copyLink,editTracking(MANUAL only)] · menu=[copyTracking,copyAddress,cancelOrder]
  *   CONFIRMED: primary=null    · ghost=[copyLink]  · menu=[copyTracking,copyAddress]
  *   CANCELLED: primary=null    · ghost=[]           · menu=[]  (ไม่มีแถบเลย)
+ *   DRAFTED:   primary=fillDraft · ghost=[retryDraft] · menu=[discardDraft]  (feature 00061 —
+ *              ชุดนี้ไม่ทับกับสถานะอื่นเลยสักปุ่ม เพราะร่างยังไม่ใช่ออเดอร์)
  *
  * fulfillmentMode !== 'SHIPPED' → ตัด action ที่เกี่ยวกับพัสดุ/ที่อยู่จัดส่งออกทั้งหมด
  * (reportTracking, editTracking, copyTracking, copyAddress) — คงเหลือ action อื่นตามปกติ
@@ -123,6 +131,25 @@ export function getOrderActionSet(input: GetOrderActionSetInput): OrderActionSet
   if (status === 'CANCELLED') {
     // "ไม่มีแถบเลย" ตาม design §3 — ครอบทั้ง primary/ghost/menu
     return { primary: null, ghosts: [], menu: [] }
+  }
+
+  /**
+   * feature 00061 — ร่างมีชุดปุ่มของตัวเองที่ **ไม่ทับกับออเดอร์จริงเลยสักปุ่ม**
+   *
+   * 🛑 ร่างทำสิ่งเหล่านี้ไม่ได้ทั้งหมด: เปิดพัสดุ · แจ้งเลขพัสดุ · ส่งลิงก์ SMS · คัดลอกลิงก์
+   * ให้ลูกค้า · ยืนยันรับของ — เพราะยังไม่มีออเดอร์ให้ทำ (ไม่มีเลข ไม่มียอด ไม่มีรายการสินค้า)
+   * ถ้าปล่อยชุดของ PENDING มา ผู้ขายจะกดแล้วเจอทางตันทุกปุ่ม
+   *
+   * ลำดับความสำคัญ: **เปิดฟอร์มกรอกต่อ** เป็น primary เพราะเป็นทางที่จบงานได้แน่นอน
+   * (มนุษย์เติมสิ่งที่ระบบอ่านไม่ออก) ส่วน "อ่านใหม่" เป็น ghost — มันช่วยได้เฉพาะเมื่อสิ่งที่
+   * ขาดถูกแก้ไปแล้วที่อื่น (เช่นเพิ่งเพิ่มสินค้าเข้าแคตตาล็อก) ซึ่งไม่ใช่เคสส่วนใหญ่
+   */
+  if (status === 'DRAFTED') {
+    return {
+      primary: ACTIONS.fillDraft,
+      ghosts: [ACTIONS.retryDraft],
+      menu: [ACTIONS.discardDraft],
+    }
   }
 
   if (status === 'PENDING') {

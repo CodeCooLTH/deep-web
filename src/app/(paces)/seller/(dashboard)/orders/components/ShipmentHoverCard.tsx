@@ -42,6 +42,8 @@ type TraceEvent = {
 
 /** จุดปัจจุบันต่อ stage — ต้องตรงกับ MiniShipmentTimeline เป๊ะ (จอเดียวกันห้ามพูดคนละขั้น) */
 const CURRENT_INDEX: Record<ShippingStageKey, number | null> = {
+  // feature 00061 — ร่างไม่มีพัสดุให้วาดแถบเลย (null = ไม่วาด ไม่ใช่ "อยู่จุดที่ 0")
+  DRAFT: null,
   // ไม่มีพัสดุให้วาดแถบเลยโดยนิยาม (feature 00062 — นัดรับ/ดิจิทัล) เหมือน AWAITING_PARCEL
   NOT_SHIPPING: null,
   AWAITING_PARCEL: null,

@@ -2481,7 +2481,10 @@ export async function getShippingStageCounts(
     },
   });
 
-  const counts = {
+  const counts: Record<Exclude<ShippingStageKey, "DONE">, number> = {
+    // feature 00061 — ร่างเป็นกองของตัวเอง ไม่ปนกับกองพัสดุ (BR-ACO-20e)
+    // 🛑 ประกาศชนิดให้ `tsc` บังคับความครบ แทน object literal เปล่า ๆ ที่เงียบเมื่อมีกองใหม่
+    DRAFT: 0,
     AWAITING_PARCEL: 0,
     AWAITING_PICKUP: 0,
     SHIPPING: 0,

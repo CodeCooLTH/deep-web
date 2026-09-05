@@ -95,6 +95,9 @@ const STATUS_FILTER_OPTIONS = [
 
 // ─── ตัวกรองพัสดุ (?stage=) — ลำดับ/ค่าเดียวกับ STAGE_CHIPS ใน OrdersList ────────
 const STAGE_FILTER_KEYS = [
+  // 🛑 feature 00061 — "ร่าง" อยู่ **หัวแถว** ไม่ใช่ท้ายแถว: มันคืองานที่มีเส้นตายจริง
+  // (หายไปเองใน 7 วัน) ต่างจากกองพัสดุที่รออยู่ได้เรื่อย ๆ — ของที่หายได้ต้องอยู่ในสายตาก่อน
+  'DRAFT',
   'AWAITING_PARCEL',
   'AWAITING_PICKUP',
   'SHIPPING',
@@ -105,6 +108,8 @@ const STAGE_FILTER_KEYS = [
 
 /** สี badge จำนวนต่อกองงาน — token ตามความหมายของกอง (mockup 2026-08-06) */
 const STAGE_BADGE_CLS: Record<(typeof STAGE_FILTER_KEYS)[number], string> = {
+  // warning ตรงกับ `ORDER_STATUS_META.DRAFTED` และ `STAGE_CHIP_CLS.DRAFT` — ใบเดียวกันสามจอ
+  DRAFT: 'bg-warning/15 text-warning-ink',
   AWAITING_PARCEL: 'bg-warning/15 text-warning-ink',
   AWAITING_PICKUP: 'bg-default-100 text-default-700',
   SHIPPING: 'bg-default-100 text-default-700',

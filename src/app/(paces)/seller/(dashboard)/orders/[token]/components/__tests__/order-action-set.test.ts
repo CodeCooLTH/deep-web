@@ -354,3 +354,47 @@ describe('combinatorial sweep — invariants ทุกสถานะ × shipmen
     }
   }
 })
+
+describe('DRAFTED — ร่างจากแชท (feature 00061)', () => {
+  const draft = () =>
+    getOrderActionSet({ status: 'DRAFTED', fulfillmentMode: 'SHIPPED', shipmentSource: null })
+
+  it('[blocker] ไม่มีปุ่มของออเดอร์จริงหลุดมาเลยสักปุ่ม', () => {
+    // ร่างยังไม่มีเลขคำสั่งซื้อ ไม่มียอด ไม่มีรายการสินค้า ⇒ ปุ่มพวกนี้กดแล้วเจอทางตันทุกตัว
+    const set = draft()
+    const keys = [set.primary?.key, ...set.ghosts.map((g) => g.key), ...set.menu.map((m) => m.key)]
+    for (const forbidden of [
+      'report-tracking',
+      'send-sms',
+      'copy-link',
+      'copy-tracking',
+      'edit-tracking',
+      'copy-address',
+      'cod-received',
+      'cancel-order',
+    ]) {
+      expect(keys, `${forbidden} ต้องไม่อยู่ในชุดปุ่มของร่าง`).not.toContain(forbidden)
+    }
+  })
+
+  it('[blocker] ชุดปุ่มของร่าง = เปิดฟอร์ม (primary) · อ่านใหม่ (ghost) · ทิ้งร่าง (เมนู)', () => {
+    const set = draft()
+    expect(set.primary?.key).toBe('fill-draft')
+    expect(set.ghosts.map((g) => g.key)).toEqual(['retry-draft'])
+    expect(set.menu.map((m) => m.key)).toEqual(['discard-draft'])
+  })
+
+  it('[blocker] "ทิ้งร่าง" อยู่ในเมนู ⋯ ไม่ใช่ปุ่มลอย (destructive ต้องมีขั้นยืนยัน)', () => {
+    const set = draft()
+    expect(set.ghosts.map((g) => g.key)).not.toContain('discard-draft')
+    expect(set.primary?.key).not.toBe('discard-draft')
+  })
+
+  it('ชุดปุ่มไม่ขึ้นกับ fulfillmentMode — ร่างไม่มีพัสดุไม่ว่ากรณีใด', () => {
+    for (const mode of ['SHIPPED', 'NO_SHIPPING', 'PICKUP']) {
+      const set = getOrderActionSet({ status: 'DRAFTED', fulfillmentMode: mode, shipmentSource: null })
+      expect(set.primary?.key).toBe('fill-draft')
+      expect(set.menu.map((m) => m.key)).toEqual(['discard-draft'])
+    }
+  })
+})
