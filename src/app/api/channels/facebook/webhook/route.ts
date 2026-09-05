@@ -5,6 +5,7 @@ import { timingSafeEqual } from 'crypto'
 import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEventsWithRaw, extractFeedChanges } from '@/lib/facebook/webhook-types'
 import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestDeliveryEvent, ingestReactionEvent, ingestMessageEdit, ingestHandoverEvent, ingestPostbackEvent, answerIceBreaker } from '@/services/channel-chat.service'
+import { detectAutoOrderTrigger } from '@/services/auto-order-detect.service'
 import { parseIceBreakerPayload } from '@/lib/ice-breaker'
 import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
 import { pushNewChatMessage } from '@/services/seller-push.service'
@@ -374,6 +375,38 @@ export async function POST(request: NextRequest) {
         if (ingested.status === 'STORED' && ingested.shopId && ingested.conversationId && ingested.senderRole === 'BUYER') {
           const { shopId, conversationId } = ingested
           after(() => pushNewChatMessage({ shopId, conversationId }))
+        }
+
+        /**
+         * feature 00061 — จุดเข้าที่ 2 ของตัวสร้างออเดอร์อัตโนมัติ
+         *
+         * เคสที่จุดเข้าที่ 1 (`chat.service::sendMessage`) มองไม่เห็นเลย: **ร้านพิมพ์สรุป
+         * คำสั่งซื้อจากในแอป Messenger/Business Suite ของ Meta เอง** ไม่ได้พิมพ์จากกล่องแชท
+         * ของเรา — ข้อความนั้นกลับเข้ามาเป็น `echo` ทาง webhook เส้นนี้เท่านั้น
+         *
+         * 🛑 `senderRole === 'SHOP'` คือตัวคัดของฟีเจอร์นี้ ตรงข้ามกับ push/auto-reply ข้างบน
+         * ที่คัด `'BUYER'` — สองบล็อกนี้ทำงานคนละทิศบน event ชุดเดียวกันโดยตั้งใจ
+         *
+         * 🛑 ส่งแค่ `chatMessageId` ไม่ส่ง payload ดิบ — ตัวแกะโหลดข้อมูลเองจาก DB เสมอ
+         * เพื่อกัน parity พังจากการที่ 2 จุดเข้าเตรียม input ต่างกัน (TFR-005)
+         *
+         * standby: ข้ามเช่นกัน — ตอนที่ AI ของ Meta ถือห้อง ข้อความที่ไหลผ่าน standby ไม่ใช่
+         * การกระทำของร้านในกล่องงานของเรา และเราไม่มีสิทธิ์ตอบกลับอยู่แล้ว
+         */
+        if (
+          !standby &&
+          ingested.status === 'STORED' &&
+          ingested.headMessageId &&
+          ingested.senderRole === 'SHOP'
+        ) {
+          const { headMessageId } = ingested
+          after(() =>
+            detectAutoOrderTrigger(headMessageId).catch((e) =>
+              // กลืน error: การแกะข้อความล้มต้องไม่ทำให้ Meta retry ทั้ง batch จนข้อความค้าง
+              // (watchdog เก็บกวาดใน 2 นาทีถัดไปแทน — ดู cron/auto-order-sweeper)
+              console.error('[fb-webhook] auto-order detect ล้มเหลว', e instanceof Error ? e.message : e),
+            ),
+          )
         }
 
         // ตอบอัตโนมัติ (feature 00023) — ต้องอยู่ "หลัง" ingestAdReferral เสมอ

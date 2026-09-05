@@ -6,6 +6,8 @@ import { getProductById } from '@/services/product.service'
 import { APPOINTMENT_CARD_PREVIEW } from '@/lib/appointment-summary'
 import { detectScamLink } from '@/lib/scam-link-detector'
 import { pauseForHumanTakeover, clearTakeoverOnResolve } from '@/services/auto-reply-takeover.service'
+import { detectAutoOrderTrigger } from '@/services/auto-order-detect.service'
+import { runAfterResponse } from '@/lib/run-after-response'
 import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
 
 export type SenderRole = 'BUYER' | 'SHOP'
@@ -614,13 +616,28 @@ export async function getMessages(
   actorUserId: string,
   opts: { cursor?: string; take?: number } = {},
 ): Promise<{ items: ChatMessageView[]; nextCursor: string | null }> {
-  await assertParticipant(conversationId, actorUserId)
+  const conversation = await assertParticipant(conversationId, actorUserId)
+
+  /**
+   * feature 00061 — ชั้นอ่าน: การ์ดผลลัพธ์เป็น "ข้อความภายใน" ที่ลูกค้าต้องไม่เห็นเด็ดขาด
+   *
+   * 🛑 derive บทบาทจาก **แถวที่ `assertParticipant` เพิ่งยืนยันสิทธิ์มา** ไม่ใช่รับเป็น
+   * พารามิเตอร์จากผู้เรียก — พารามิเตอร์คือสิ่งที่ผู้เรียกส่งผิดได้ และ endpoint ฝั่งผู้ซื้อ
+   * กับฝั่งร้านใช้ฟังก์ชันนี้ตัวเดียวกัน ถ้าที่ไหนสักแห่งส่ง `'SHOP'` มาผิด ข้อมูลภายในจะ
+   * หลุดไปหาลูกค้าโดยไม่มีอะไรฟ้อง (คลาสเดียวกับ session-exists-is-not-identity)
+   *
+   * 🛑 ชั้นนี้เป็นคนละข้อกับ "ชั้นเขียน" — trigger realtime ของ Postgres ยังยิงสัญญาณตามปกติ
+   * และเราไม่ได้พยายามปิดมัน ⇒ client ฝั่งลูกค้าที่ได้สัญญาณแล้ว refetch จะมาเจอด่านนี้
+   */
+  const viewerIsBuyer = conversation.buyerUserId === actorUserId
+  const internalMessageFilter = viewerIsBuyer ? { type: { not: AUTO_ORDER_RESULT_TYPE } } : {}
 
   const take = opts.take ?? 30
   const cursor = parseMessageCursor(opts.cursor)
   const rows = await prisma.chatMessage.findMany({
     where: {
       conversationId,
+      ...internalMessageFilter,
       ...(cursor
         ? cursor.seq === null
           ? // cursor รูปเก่า (ISO ล้วน) ที่ client เดิมยังถืออยู่ — คงพฤติกรรมเดิมไว้
@@ -883,6 +900,17 @@ export async function sendMessage(params: {
   // ถ้าล้มก็ไม่ควรพา rollback ข้อความที่ส่งถึงลูกค้าไปแล้ว (ตัวฟังก์ชันเองก็กลืน error อยู่แล้ว)
   if (params.senderRole === 'SHOP') {
     await pauseForHumanTakeover(params.conversationId)
+
+    // feature 00061 — จุดเข้าที่ 1 ของตัวสร้างออเดอร์อัตโนมัติ (ร้านพิมพ์จากกล่องแชทของเรา)
+    //
+    // 🛑 อยู่ **นอก** ทรานแซกชันและ **ไม่ await** โดยตั้งใจ: การแกะข้อความไม่ใช่เงื่อนไข
+    // ความถูกต้องของการส่งข้อความ ถ้ามันล้มต้องไม่พา rollback ข้อความที่ถึงลูกค้าไปแล้ว
+    // และต้องไม่ทำให้ผู้ขายรอ (ตัวแกะยิง 2 query + createOrder ซึ่งอาจกินเวลาหลักวินาที)
+    //
+    // 🛑 ตัวดักจับกันตัวเองไม่ให้ดักการ์ดของตัวเอง 2 ชั้น: (1) การ์ดเขียนผ่าน
+    // `auto-order-internal-message.service` ที่ไม่ผ่านฟังก์ชันนี้เลย (2) ตัวดักจับปฏิเสธ
+    // ข้อความที่ `type !== 'TEXT'` — ชั้นแรกคือของจริง ชั้นสองคือกันคนเพิ่มทางลัดทีหลัง
+    runAfterResponse(() => detectAutoOrderTrigger(sent.id))
   }
   return sent
 }

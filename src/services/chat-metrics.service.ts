@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
 import type { SenderRole } from '@/services/chat.service'
 
 // Response-rate / Response-time trust metric (feature 00011 ext #2 — response-rate-metric.md)
@@ -62,7 +63,15 @@ export async function computeShopChatMetrics(
   // Step 2: ดึงประวัติข้อความ "ทั้งหมด" ของ conversation ที่เข้าเงื่อนไข (ไม่จำกัดช่วงเวลา — ต้องการ
   // ข้อความแรกจริงของ conv เพื่อวัด response time แม้ conv จะเก่ากว่า window)
   const allMessages = await prisma.chatMessage.findMany({
-    where: { conversationId: { in: qualifyingConversationIds } },
+      // feature 00061 — การ์ดผลลัพธ์ของตัวสร้างออเดอร์อัตโนมัติเป็น `senderRole='SHOP'`
+      // เหมือนข้อความที่แอดมินพิมพ์เอง ⇒ ถ้าไม่กรอง ระบบจะนับมันเป็น "การตอบของแอดมิน"
+      //
+      // 🛑 ชั้นนี้เป็นด่านอิสระ ไม่ใช่ผลพลอยได้จากการที่ตัวเขียนการ์ดไม่เรียก `sendMessage()` —
+      // ไฟล์นี้ query ตาราง `ChatMessage` ตรง ๆ ไม่ได้อยู่บนเส้นทางเขียนเลย
+    where: {
+      conversationId: { in: qualifyingConversationIds },
+      type: { not: AUTO_ORDER_RESULT_TYPE },
+    },
     select: { conversationId: true, senderRole: true, createdAt: true },
     orderBy: { createdAt: 'asc' },
   })

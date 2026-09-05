@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
 import { isWithinSchedule } from '@/lib/auto-reply-schedule'
 import { normalizeMessage } from '@/lib/auto-reply-normalize'
 import { getRuleSetCache, setRuleSetCache } from '@/lib/auto-reply-cache'
@@ -844,7 +845,14 @@ async function collectPendingCustomerText(
   fallback: string
 ): Promise<string> {
   const lastShop = await prisma.chatMessage.findFirst({
-    where: { conversationId, senderRole: 'SHOP', createdAt: { lte: upTo } },
+    // feature 00061 — การ์ดผลลัพธ์ไม่ใช่ "ร้านตอบลูกค้า" ⇒ ห้ามใช้เป็นเส้นแบ่งขอบเขตข้อความ
+    // ที่จะป้อนให้บอท ไม่งั้นการ์ดที่ระบบเขียนเองจะไปตัดคำถามของลูกค้าที่ยังไม่ถูกตอบทิ้ง
+    where: {
+      conversationId,
+      senderRole: 'SHOP',
+      type: { not: AUTO_ORDER_RESULT_TYPE },
+      createdAt: { lte: upTo },
+    },
     orderBy: { createdAt: 'desc' },
     select: { createdAt: true },
   })
