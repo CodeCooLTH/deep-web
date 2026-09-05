@@ -21,6 +21,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+import { cn } from '@/utils/helpers'
 import type { ApiDisplayStatus } from '@/lib/inspection/result-status'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm, pacesConfirmWithText } from '@/lib/paces-swal'
@@ -92,6 +93,8 @@ export default function RoundResultForm({ roundId, shopName, room, method, stepL
   const [fraudNote, setFraudNote] = useState<string | null>(initialFraudNote)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  // เคยกดบันทึกแล้วหรือยัง — ใช้ตัดสินว่าจะไฮไลต์ข้อที่ยังไม่ได้ตอบไหม
+  const [submitAttempted, setSubmitAttempted] = useState(false)
 
   const setOutcome = (checkKey: string, outcome: Outcome) =>
     setState((s) => ({ ...s, [checkKey]: { ...s[checkKey], outcome } }))
@@ -142,9 +145,9 @@ export default function RoundResultForm({ roundId, shopName, room, method, stepL
       state[c.checkKey]?.outcome === 'PASS' &&
       state[c.checkKey]?.evidence.length === 0,
   )
-  const canSubmit = allAnswered && missingEvidenceKeys.length === 0 && !submitting
 
   const handleSubmit = async () => {
+    setSubmitAttempted(true)
     setFormError(null)
     if (!allAnswered) {
       setFormError('เลือกผลของทุกข้อก่อนบันทึก')
@@ -240,8 +243,14 @@ export default function RoundResultForm({ roundId, shopName, room, method, stepL
         const s = state[c.checkKey]
         const kind = evidenceKindFor(c.checkKey, method)
         const missing = missingEvidenceKeys.some((m) => m.checkKey === c.checkKey)
+        // ข้อที่ยังไม่ได้เลือกผล ต้อง **มองเห็นได้** หลังกดบันทึกแล้วไม่ผ่าน — ไม่ใช่ให้ผู้ตรวจ
+        // เลื่อนหาเองว่าลืมข้อไหนในรอบที่มีได้ถึง 6 ข้อ
+        const unanswered = submitAttempted && s.outcome === null
         return (
-          <div key={c.checkKey} className="card">
+          <div
+            key={c.checkKey}
+            className={cn('card', unanswered && 'border border-danger')}
+          >
             <div className="card-body space-y-2.5">
               <div className="flex items-start justify-between gap-2">
                 <p className="min-w-0 text-sm font-semibold text-default-900">{c.label}</p>
@@ -347,9 +356,13 @@ export default function RoundResultForm({ roundId, shopName, room, method, stepL
           <Icon icon="alert-triangle" className="size-4" aria-hidden="true" />
           รายงานหลักฐานฉ้อโกง
         </button>
+        {/* 🛑 ปุ่มต้องกดได้เสมอ (ยกเว้นระหว่างส่ง) — เดิม `disabled={!canSubmit}` ทำให้ผู้ตรวจที่ยืน
+            อยู่หน้างานแล้วลืมข้อเดียวใน 6 ข้อ เจอปุ่มดับสนิท **ไม่มีข้อความบอกว่าทำไม** และบรรทัด
+            ที่ควรบอก (`handleSubmit` ต้นฟังก์ชัน) กลายเป็นโค้ดที่ไม่มีวันทำงาน ⇒ บันทึกงานทั้งรอบ
+            ไม่ได้และไม่รู้สาเหตุ · ให้กดได้แล้วให้ตัว handler เป็นคนบอกว่าขาดอะไร */}
         <button
           type="button"
-          disabled={!canSubmit}
+          disabled={submitting}
           onClick={() => void handleSubmit()}
           className="btn w-full bg-primary text-white hover:bg-primary-hover disabled:opacity-50"
         >

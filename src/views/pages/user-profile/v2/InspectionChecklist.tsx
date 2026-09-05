@@ -64,10 +64,16 @@ export function InspectionCheckRow({
   dense?: boolean
 }) {
   const state = resolveCheckLineState(line.status)
+  // 🛑 ทุกแถวต้องมี **คำ** บอกสถานะ ไม่ใช่ไอคอนอย่างเดียว — ไอคอนเป็น `aria-hidden` (ถูกแล้ว
+  //    เพราะรูปทรงซ้ำกับข้อความ) แต่เดิมแถว PASS ไม่มีคำว่า "ผ่าน" อยู่เลยสักที่ ⇒ ผู้ซื้อเห็น
+  //    "✓ ข้อร้องเรียน · ตรวจล่าสุด 28 ส.ค." ซึ่ง **อ่านกลับด้านได้ว่า "ยืนยันแล้วว่ามีข้อร้องเรียน"**
+  //    บนจอที่คนกำลังตัดสินใจโอนเงิน · และ screen reader ไม่ได้ยินสถานะเลยแม้แต่คำเดียว
   const dateTail =
     (line.status === 'PASS' || line.status === 'RECHECK') && line.lastVerifiedAt
-      ? `ตรวจล่าสุด ${formatDateTH(line.lastVerifiedAt)}`
-      : null
+      ? `${line.statusLabelTh} · ตรวจล่าสุด ${formatDateTH(line.lastVerifiedAt)}`
+      : line.status === 'PASS'
+        ? line.statusLabelTh
+        : null
 
   return (
     <li className='flex items-start gap-2'>

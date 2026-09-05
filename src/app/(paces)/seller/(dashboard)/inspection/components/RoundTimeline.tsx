@@ -55,10 +55,18 @@ function CompletedRow({ entry }: { entry: TimelineEntryJSON }) {
     .map((c) => `${INSPECTION_CHECKS[c.checkKey].labelTh} (${OUTCOME_LABEL[c.outcome] ?? c.outcome})`)
     .join(', ')
 
+  // 🛑 สีของแถวต้องผูกกับ **ผลของรอบนั้น** ไม่ใช่กับ "รอบปิดแล้ว" — เดิมทุกรอบที่ปิดได้เส้นเขียว
+  //    + ติ๊กถูก รวมรอบที่ผลออกมา "ไม่ผ่าน" (ซุกอยู่ในบรรทัดผลเปลี่ยนเป็นตัวเทา) ⇒ ร้านกวาดตา
+  //    ดูไทม์ไลน์แล้วเห็นเขียวเรียงลงมาทั้งแถบ ทั้งที่บางรอบบอกตรงข้าม — สีโกหกก่อนตัวหนังสือถูกอ่าน
+  const hasFail = entry.changedResults.some((c) => c.outcome === 'FAIL')
+
   return (
-    <li className="border-success card border-s-3 px-4 py-3">
+    <li className={cn('card border-s-3 px-4 py-3', hasFail ? 'border-default-300' : 'border-success')}>
       <div className="flex flex-wrap items-center gap-2">
-        <Icon icon="circle-check" className="text-success size-4 shrink-0" />
+        <Icon
+          icon={hasFail ? 'circle-x' : 'circle-check'}
+          className={cn('size-4 shrink-0', hasFail ? 'text-default-500' : 'text-success')}
+        />
         <p className="text-default-800 text-sm font-medium">
           {formatDateTH(entry.completedAt)} · {INSPECTION_STEP_LABEL_TH[entry.step]} ·{' '}
           {METHOD_LABEL[entry.method] ?? entry.method}
