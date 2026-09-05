@@ -34,6 +34,17 @@ import {
 // PENDING = สถานะเริ่มต้นทุก order; CONFIRMED = terminal สำเร็จ (ไม่มี COMPLETED)
 // CANCELLED = terminal ยกเลิก
 export const VALID_TRANSITIONS: Record<string, string[]> = {
+  // feature 00061 — "ร่าง" ที่ตัวสร้างออเดอร์อัตโนมัติเขียนไว้เมื่อข้อมูลไม่ครบ
+  //
+  // 🛑 ไม่มี status เดิมตัวไหนมี "DRAFTED" เป็นปลายทาง — ไม่มีอะไร transition **เข้า** DRAFTED
+  //    ได้เลย นอกจาก INSERT ตอนสร้างร่างครั้งแรก (ออเดอร์จริงถอยกลับเป็นร่างไม่ได้)
+  // 🛑 "DRAFTED → CONFIRMED" ตรง ๆ ต้องถูกปฏิเสธ — ลูกค้ายืนยันออเดอร์ที่ยังไม่ครบไม่ได้
+  //    ต้องผ่าน PENDING (เลื่อนขั้น) ก่อนเสมอ
+  // 🛑 นี่คือ **ด่านเดียวที่มีจริง** สำหรับค่า status — ไม่มี CHECK ครอบคอลัมน์นี้ในฐาน
+  //    (Order เป็นตารางที่เขียนถี่ที่สุดและไม่เคยมี CHECK บน status มาก่อน การเพิ่มตอนนี้
+  //     ต้องแจกแจงค่าที่เคยใช้จริงข้าม 3 vertical ให้ครบ 100% ก่อน ไม่งั้น INSERT ของ flow
+  //     ที่เราไม่รู้จักจะพังทันที) — บันทึกเป็นความเสี่ยงที่ยอมรับ ไม่ใช่เงียบไว้
+  DRAFTED: ["PENDING", "CANCELLED"],
   PENDING: ["SHIPPED", "CONFIRMED", "CANCELLED"],
   SHIPPED: ["CONFIRMED", "CANCELLED"],
   CONFIRMED: [],
@@ -327,6 +338,28 @@ export async function createOrder(shopId: string, data: {
    * เดินสายจริงเป็นงาน Task 8 — ที่นี่กันพังไว้ก่อนด้วยการ normalize เป็น Date ตัวเดียวข้างล่าง)
    */
   createdAt?: Date | string;
+
+  // ── feature 00061 — ที่มาของออเดอร์ใบนี้ (additive ทั้งชุด ไม่ส่งมา = เส้นทางเดิมเป๊ะ) ──
+  //
+  // 🛑 7 ตัว ไม่ใช่ตัวเดียว — `createdVia` อย่างเดียวตอบได้แค่ "มาจากไหน" แต่ตอบไม่ได้ว่า
+  //    "ข้อความไหน" (ซึ่งเป็นด่าน dedup) · "แทนใบไหน" · "อ่านเสร็จเมื่อไร" (KPI latency)
+  //    ⇒ ยัดเป็น optional บนฟังก์ชันเดิมแทนสร้าง wrapper ตัวที่สอง เพราะ wrapper จะกลายเป็น
+  //    เส้นทางสร้างออเดอร์เส้นที่สองที่ต้องตามแก้คู่กันตลอดไป (คลาสเดียวกับที่ HR16 กัน)
+
+  /** MANUAL | CHAT_AUTO_ORDER | ISHIP_LINKED — ไม่ส่งมา = NULL (ไม่ใช่ MANUAL) */
+  createdVia?: string;
+  /** ข้อความต้นทาง — UNIQUE ที่ระดับ DB คือด่านกันสร้างซ้ำเมื่อ 2 จุดดักจับยิงพร้อมกัน */
+  sourceChatMessageId?: string;
+  /** ใบก่อนหน้าที่ใบนี้มาแทน — ป้ายเท่านั้น ไม่มีผลบังคับ ไม่ยกเลิกใบเก่าให้ (TFR-017) */
+  supersedesOrderId?: string;
+  /** วลีจุดชนวนที่ match ณ ตอนนั้น (snapshot ไม่ใช่ FK) */
+  matchedTriggerPhrase?: string;
+  /** sha256 ของข้อความดิบ — กันร้านกดส่งซ้ำในห้องเดียวกันภายใน 2 นาที */
+  contentHash?: string;
+  /** เวลาที่ประมวลผลเสร็จจริง (write-once) */
+  detectionResolvedAt?: Date;
+  /** ใบที่เกิดจากโหมด "ห้องทดสอบ" — มิติตั้งฉากกับ status */
+  isDryRun?: boolean;
 }) {
   // feature 00024 — ตรวจตัวกั้นฟีเจอร์ + โหลดทรัพยากร "ก่อน" เปิด transaction
   // ทำนอก tx เพราะเป็นการอ่านล้วนและอาจโยน 403/404 ซึ่งไม่ควรกินรอบ retry ของ shortCode
@@ -547,6 +580,16 @@ export async function createOrder(shopId: string, data: {
     createdByUserId: data.createdByUserId ?? undefined,
     // ไม่ส่งมา = undefined → Prisma ไม่ใส่คอลัมน์นี้ใน INSERT → @default(now()) ทำงานตามเดิม
     createdAt: orderCreatedAt ?? undefined,
+
+    // feature 00061 — ทั้งชุดเป็น `?? undefined` ⇒ caller เดิมทุกรายไม่มีคอลัมน์เหล่านี้ใน
+    // INSERT เลย (ไม่ใช่เขียน NULL ทับ) พฤติกรรมเดิมไม่ขยับแม้แต่คอลัมน์เดียว
+    createdVia: data.createdVia ?? undefined,
+    sourceChatMessageId: data.sourceChatMessageId ?? undefined,
+    supersedesOrderId: data.supersedesOrderId ?? undefined,
+    matchedTriggerPhrase: data.matchedTriggerPhrase ?? undefined,
+    contentHash: data.contentHash ?? undefined,
+    detectionResolvedAt: data.detectionResolvedAt ?? undefined,
+    isDryRun: data.isDryRun ?? undefined,
   };
 
   // [!] TD-001 (SDS §3.5): retry loop ต้องครอบ $transaction ทั้งก้อน ไม่ใช่อยู่ข้างในเดียว

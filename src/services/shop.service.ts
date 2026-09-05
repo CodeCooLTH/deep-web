@@ -5,6 +5,7 @@ import { countableOrderWhere } from "@/lib/public-order-count";
 import { normalizeSlug, isValidSlugFormat, isReservedSlug } from "@/lib/shop-slug";
 import { getTierScoreRange } from "@/lib/trust-tier";
 import { computeCompletionRate, isRateExcludedCancellation } from "@/lib/order-stats";
+import { isDraftLifecycleCancelReason } from "@/lib/cancel-reasons";
 import { isThaiCoordinate } from "@/lib/geo-thailand";
 import { verifyPassword } from "@/lib/password";
 import { verifyOtp } from "@/lib/otp";
@@ -319,9 +320,23 @@ export async function getShopProfileStats(shopId: string) {
     // feature 00039 — ใบที่ยกเลิกพร้อมหลักฐานที่ใช้ตัดสินว่าเป็นความผิดร้านหรือไม่
     // อยู่ใน Promise.all เดิม ไม่ยิงรอบใหม่ (NFR ประสิทธิภาพ)
     //
-    // 🛑 select เฉพาะที่ใช้ตัดสิน — ไม่ดึง cancelReason มาด้วยโดยตั้งใจ เพื่อให้อ่านโค้ดแล้ว
-    // เห็นทันทีว่าเหตุผลที่ร้านเลือกไม่มีทางมีอิทธิพลต่อตัวเลข (BR-OSM-05) ถ้าวันหนึ่งมีคน
-    // เพิ่ม cancelReason เข้ามาใน select นี้ ให้ถือเป็นสัญญาณว่ากำลังจะละเมิดกฎ
+    // 🛑 เดิม select นี้ **จงใจไม่ดึง `cancelReason`** พร้อมคอมเมนต์ว่า "ถ้าวันหนึ่งมีคนเพิ่ม
+    // เข้ามา ให้ถือเป็นสัญญาณว่ากำลังจะละเมิด BR-OSM-05" — 2026-09-05 (feature 00061)
+    // ดึงมาแล้วจริง และนี่คือคำอธิบายว่าทำไมมันไม่ใช่การละเมิด:
+    //
+    // BR-OSM-05 ห้าม *เหตุผลที่ร้านเลือกเอง* มีอิทธิพลต่อตัวเลข. ค่าที่ใช้ตรงนี้มีเพียง 2 ตัว
+    // (`DRAFT_DISCARDED` · `DRAFT_EXPIRED`) ซึ่ง **ร้านเลือกไม่ได้เลย** — ไม่อยู่ใน
+    // `CANCEL_REASONS_BY_VERTICAL` (ดรอปดาวน์) และ `isValidCancelReason()` ปฏิเสธทั้งคู่
+    // ⇒ ไม่มี API เส้นไหนรับค่านี้จาก client ได้
+    //
+    // สิ่งที่กำลังกรองออกไม่ใช่ "ใบที่ยกเลิกโดยไม่ใช่ความผิดร้าน" แต่คือ **แถวที่ไม่เคยเป็น
+    // ออเดอร์เลย** (ร่างจากแชทที่ถูกทิ้ง/หมดอายุ) ซึ่งพอปิดแล้ว status กลายเป็น CANCELLED
+    // มันจะหลุดจาก `excludeDraftedWhere` แล้วไปเพิ่มตัวหารของทุกร้านที่เปิดฟีเจอร์นี้ทันที
+    // ⇒ ร้านที่ใช้ตัวสร้างออเดอร์อัตโนมัติจะมี % ต่ำกว่าร้านที่ไม่ใช้ ทั้งที่ขายได้เท่ากัน
+    //
+    // 🛑 ด่านกันคลาสนี้กลับมา: เทส [blocker] `shop-stats-draft-exclusion.test.ts` ยืนยันว่า
+    // รายการที่กรองมีได้เฉพาะค่าที่ **ไม่อยู่ในดรอปดาวน์ของ vertical ใดเลย** — วันที่มีคน
+    // เผลอเติมเหตุผลที่ร้านเลือกได้เข้าไป เทสจะแดงทันที
     //
     // shipments กรองด้วย status CREATED + isDryRun=false = นิยาม "พัสดุที่มีอยู่จริง"
     // ตัวเดียวกับที่ระบบใช้ (ห้ามใช้ status <> 'CANCELLED' ซึ่งนับใบ FAILED ด้วย —
@@ -330,6 +345,7 @@ export async function getShopProfileStats(shopId: string) {
       where: { shopId, status: "CANCELLED" },
       select: {
         cancelInitiator: true,
+        cancelReason: true, // feature 00061 — ใช้คัดร่างที่ไม่เคยเป็นออเดอร์ออกเท่านั้น (ดูบน)
         shipments: {
           where: ACTIVE_FORWARD_SHIPMENT,
           select: { carrierStatus: true },
@@ -379,10 +395,22 @@ export async function getShopProfileStats(shopId: string) {
   ]);
 
   const confirmed = statusGroups.find((s) => s.status === "CONFIRMED")?._count._all ?? 0;
-  const cancelled = statusGroups.find((s) => s.status === "CANCELLED")?._count._all ?? 0;
+
+  // feature 00061 — ร่างที่ถูกทิ้ง/หมดอายุ **ไม่ใช่ออเดอร์ที่ยกเลิก** ต้องออกจากทั้งตัวหาร
+  // และตัวหักก่อนคำนวณ
+  //
+  // 🛑 กรองใน TS ไม่ใช่ใน `where` โดยตั้งใจ — `notIn`/`NOT { in }` ของ Prisma แปลเป็น
+  // `NOT IN (...)` ซึ่ง NULL-unsafe: ออเดอร์เก่าที่ `cancelReason` เป็น NULL (ส่วนใหญ่ของฐาน)
+  // จะได้ผลลัพธ์ UNKNOWN แล้ว **หายไปจากตัวหารทั้งหมด** โดยไม่มีอะไรฟ้อง
+  const realCancellations = cancelledRows.filter((o) => !isDraftLifecycleCancelReason(o.cancelReason));
+
+  // 🛑 นับจากอาร์เรย์ตัวเดียวกับที่คำนวณ `excluded` ไม่ใช่จาก `statusGroups` — ถ้าตัวตั้งกับ
+  // ตัวหักมาจากคนละแหล่ง ร่างที่ถูกทิ้งจะโผล่ในตัวหารแต่ไม่โผล่ในตัวหัก แล้ว % จะต่ำลงเงียบ ๆ
+  // (คลาสเดียวกับ "นับด้วย SQL แล้วกรองด้วย TS" ที่ CLAUDE.md เตือนไว้)
+  const cancelled = realCancellations.length;
 
   // feature 00039 — ใบที่หลุดจากตัวหารเพราะไม่ใช่ความผิดร้าน (BR-OSM-04)
-  const excluded = cancelledRows.filter((o) =>
+  const excluded = realCancellations.filter((o) =>
     isRateExcludedCancellation({
       cancelInitiator: o.cancelInitiator,
       activeShipmentCarrierStatus: o.shipments[0]?.carrierStatus ?? null,

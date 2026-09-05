@@ -129,6 +129,10 @@ model User {
   // String ดิบไม่มี FK ตาม DATABASE.md §3 (audit เบา ไม่ผูก relation)
   autoReplyConfigUpdates AutoReplyConfig[] @relation("AutoReplyConfigUpdatedBy")
 
+  // feature 00061 — ใครสร้าง/ใครเปิด LIVE ชุดตั้งค่าตัวสร้างออเดอร์อัตโนมัติ
+  autoOrderConfigsCreated AutoOrderAgentConfig[] @relation("AutoOrderConfigsCreated")
+  autoOrderConfigsUpdated AutoOrderAgentConfig[] @relation("AutoOrderConfigsUpdated")
+
   // cron account-purge สแกน "ถูกลบแล้วแต่ยังไม่ล้าง" ทุกคืน — index คู่นี้ทำให้ scan ไม่ full-table
   // (มิเรอร์ Shop_deletedAt_purgedAt_idx)
 
@@ -371,6 +375,8 @@ model Shop {
 
   // --- Customer File Library (feature 00048, additive) ---
   customerFiles CustomerFile[] // ไฟล์ที่ทีมร้านคัดเข้าคลังของลูกค้าแต่ละราย
+
+  autoOrderAgentConfig AutoOrderAgentConfig? // feature 00061 — ชุดตั้งค่าตัวสร้างออเดอร์อัตโนมัติ (1 ร้าน 1 ชุด)
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -943,6 +949,72 @@ model Order {
   /// Restrict/Cascade เด็ดขาด)
   conversationId String?
 
+  // ─── feature 00061: สร้างออเดอร์อัตโนมัติจากคำสั่งในแชท (additive · nullable/default ทั้งหมด) ───
+  //
+  // 🛑 "ร่าง" = `status = 'DRAFTED'` ในตารางนี้ **ไม่ใช่ตารางแยก** (DATABASE.md §1) ⇒ ทุก query
+  // ที่นับเงิน/นับจำนวนต้องกรองเอง 100% ผ่าน `src/lib/order-visibility.ts` — ไม่มีชนิดข้อมูล
+  // ไม่มี FK ไม่มี CHECK ตัวไหนแยกร่างออกให้ และการลืมกรอง "ไม่ทำให้อะไรพัง" มันแค่ทำให้
+  // ตัวเลขบนหน้าจอโตขึ้นอย่างสมเหตุสมผล
+  //
+  // 🛑 แถว DRAFTED: `totalAmount = 0` เสมอ · `orderNo = NULL` เสมอ · `OrderItem` = 0 แถวเสมอ
+  //    (ออเดอร์กลุ่มแรกในระบบที่ไม่มีรายการสินค้าได้ตามปกติ ไม่ใช่ edge case)
+  //    เลือก `0` แทนยอดจริงเพราะ **ค่าที่ทำให้ความผิดพลาดส่งเสียง** ดีกว่าค่าที่ทำให้มันเงียบ —
+  //    ใส่ยอดจริงแล้วหลุดตัวกรอง = ยอดขายเพี้ยนเป็นเงินที่ดูสมเหตุสมผล ไม่มีใครสะดุดตา
+
+  /// มิติตั้งฉากกับ `status` — ใบที่เกิดจากโหมด "ห้องทดสอบ" (BR-ACO-04)
+  /// ห้ามยุบรวมเข้า status: ใบทดสอบมีได้ทั้ง DRAFTED และ PENDING เหมือนใบจริงทุกประการ
+  isDryRun Boolean @default(false)
+
+  /// ข้อความในแชทที่ทำให้เกิดแถวนี้ — **UNIQUE คือด่าน dedup เดียวที่มีจริง** เมื่อจุดเข้าที่ 1
+  /// (chat.service) กับที่ 2 (webhook ของ Meta) ยิงพร้อมกันสำหรับข้อความเดียวกัน ต่อรองไม่ได้
+  ///
+  /// onDelete: Restrict — ห้ามลบข้อความต้นทางทิ้งจนผลลัพธ์กลายเป็นของกำพร้าเงียบ ๆ
+  /// (ต่างจาก shopChannelId/conversationId ที่เป็น SetNull เพราะสองอันนั้นเป็น *บริบท*
+  ///  ส่วนอันนี้เป็น *หลักฐานว่าทำไมแถวนี้ถึงมีอยู่*)
+  sourceChatMessageId String?
+
+  /// วลีจุดชนวนที่ match ณ ตอนนั้น — snapshot ไม่ใช่ FK: ร้านแก้/ลบวลีทีหลังได้ตลอด
+  /// แล้วการ์ดผลลัพธ์ของใบเก่าต้องยังบอกได้ว่า "ตอนนั้นมันตรงกับคำว่าอะไร"
+  matchedTriggerPhrase String?
+
+  /// เหตุผลที่ตกร่าง — **สะสมทุกข้อ ไม่ short-circuit** (ร้านต้องแก้ทีเดียวจบ ไม่ใช่แก้ทีละรอบ)
+  /// มี CHECK 3 ตัวคุม: allow-list 9 ค่า · PROCESSING_FAILED ต้องอยู่เดี่ยว ๆ · ว่างเสมอเมื่อไม่ใช่ DRAFTED
+  draftReasons String[] @default([])
+
+  /// sha256 ของ *ข้อความดิบ* — กัน "ร้านกดส่งซ้ำเพราะเน็ตค้าง" ในห้องเดียวกันภายใน 2 นาที
+  /// 🛑 เวลาไม่อยู่ในคีย์: ถ้ารวม timestamp เข้าไป กลไกกันซ้ำจะเป็น no-op ทันที
+  /// 🛑 หน้าต่างเวลาบังคับที่ query ไม่ใช่ constraint — ร้านขายของชุดเดิมให้ลูกค้าคนเดิมเดือนหน้า
+  ///    ด้วยข้อความเหมือนเดิมทุกตัวอักษรเป็นเรื่องปกติมาก constraint ถาวรจะบล็อกถาวร
+  contentHash String? @db.VarChar(64)
+
+  /// ใบก่อนหน้าที่ใบนี้ "มาแทน" — self-FK · NULL เมื่อใบก่อนหน้าเป็นร่าง (ร่างไม่มีอะไรให้ยกเลิก)
+  /// 🛑 ป้ายเท่านั้น ไม่มีผลบังคับ — `detectAutoOrderTrigger()`/`promoteDraftToOrder()`
+  ///    **ห้ามเรียก `cancelOrder()` เอง** ผู้ขายต้องกดปุ่มเองเสมอ (TFR-017)
+  supersedesOrderId String?
+
+  /// MANUAL | CHAT_AUTO_ORDER | ISHIP_LINKED — 🛑 `NULL` = แถวที่มีอยู่ก่อนคอลัมน์นี้
+  /// **ไม่ใช่ `MANUAL`** (จงใจไม่ backfill: เดาแล้วเขียนลงฐานถาวรจะแยกไม่ออกอีกต่อไป
+  ///  ว่าแถวไหนเป็นข้อเท็จจริง แถวไหนเป็นการเดา)
+  createdVia String?
+
+  /// ร่างหมดอายุเมื่อไร = **เวลาที่แถวถูก insert จริง + 7 วัน**
+  /// 🛑 อิสระจาก `createdAt` โดยตั้งใจ — ตั้งแต่ 00033 `createdAt` แปลว่า "วันที่ลูกค้าสั่ง"
+  ///    ซึ่งผู้ขายระบุย้อนหลังได้ 90 วัน ⇒ ผูกอายุร่างกับมันแล้วร่างจะหมดอายุตั้งแต่วินาทีแรก
+  expiresAt DateTime?
+
+  /// เวลาที่ประมวลผลเสร็จจริง (write-once) — ปลายทางของ KPI latency
+  detectionResolvedAt DateTime?
+
+  /// รายการสินค้าดิบ **ทุกบรรทัด** ที่แกะได้จากข้อความ
+  /// 🛑 ทำไมไม่ใช้ `OrderItem`: `OrderItem.price` เป็น Decimal NOT NULL ⇒ บรรทัดที่ร้านไม่ระบุ
+  ///    ราคาเก็บไม่ได้เลย และการเดาเป็น ฿0 ถูกห้ามไว้ (BR-ACO-12) · เก็บครึ่งเดียวไม่ได้เช่นกัน
+  ///    เพราะร่างจะมีข้อมูล 2 ที่คนละรูปแบบแล้วหน้าจอต้องรวมสองแหล่ง
+  /// shape: { rawName, productId, name, qty, price }[]  — แปลงเป็น OrderItem ตอนเลื่อนขั้นเท่านั้น
+  draftRawItems Json?
+
+  /// ยอดรวมที่ร้าน "พิมพ์" มาในข้อความ (ถ้ามี) — 🛑 ไม่ใช่ `totalAmount` และห้ามใช้แทนกัน
+  /// มีไว้เทียบกับยอดที่ระบบคำนวณได้ เพื่อบอกว่า TOTAL_MISMATCH
+  draftStatedTotalAmount Decimal? @db.Decimal(12, 2)
   shop               Shop                    @relation(fields: [shopId], references: [id])
   buyer              User?                   @relation("BuyerOrders", fields: [buyerUserId], references: [id])
   createdBy          User?                   @relation("CreatedOrders", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -956,6 +1028,12 @@ model Order {
   shopChannel        ShopChannel?            @relation(fields: [shopChannelId], references: [id], onDelete: SetNull)
   // เธรดแชทที่สร้างออเดอร์นี้จริง (2026-08-12) — ดูคอมเมนต์ที่ field conversationId ด้านบน
   conversation       Conversation?           @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  // feature 00061 — ดูคอมเมนต์ที่ field sourceChatMessageId / supersedesOrderId ด้านบน
+  sourceChatMessage  ChatMessage?            @relation("OrderSourceChatMessage", fields: [sourceChatMessageId], references: [id], onDelete: Restrict)
+  supersedesOrder    Order?                  @relation("OrderSupersedes", fields: [supersedesOrderId], references: [id], onDelete: SetNull)
+  supersededByOrders Order[]                 @relation("OrderSupersedes")
+  /// การ์ดผลลัพธ์ในเธรดที่อ้างถึงออเดอร์ใบนี้ (feature 00061) — append-only ได้หลายใบต่อออเดอร์
+  autoOrderCards     ChatMessage[]           @relation("ChatMessageAutoOrder")
   serviceResource    ServiceResource?        @relation(fields: [serviceResourceId], references: [id], onDelete: Restrict) // feature 00024
   reschedules        AppointmentReschedule[] // feature 00024 — ประวัติการเลื่อนนัด (สะสม BR-RSV-30)
   items              OrderItem[]
@@ -990,6 +1068,10 @@ model Order {
   // ตามความจุที่ร้านตั้ง — เพดานความจุบังคับที่ service layer ด้วยการวนลอง seat 1..capacity
   // ข้อห้าม db pull / migrate dev ข้างบนครอบ constraint นี้ด้วย
 
+  // feature 00061 — ทั้งหมดเป็น partial index (unmanaged SQL ใน migration) ยกเว้น unique ตัวแรก
+  // Prisma DSL ประกาศ partial ไม่ได้ ⇒ ประกาศเฉพาะ unique ที่นี่ ที่เหลืออยู่ใน migration
+  // 🛑 ห้าม `prisma db pull` — introspection มองไม่เห็น partial แล้วจะสร้าง migration ที่ DROP ทิ้ง
+  @@unique([sourceChatMessageId], map: "Order_sourceChatMessageId_key")
   // index รองรับ /api/files order-slip gate: findFirst({ where: { slipFileId } }) (S-7)
   @@index([slipFileId])
   @@index([customerId]) // feat 00014 — lookup order ต่อ customer
@@ -1645,15 +1727,34 @@ model ShopChannel {
   // 🛑 ใช้ "เตือนล่วงหน้า" เท่านั้น ห้ามอ่านในเส้นทางส่งข้อความ: มันเป็นภาพนิ่ง ณ เวลาที่เขียน
   //   ร้าน revoke token จากคอนโซลเมื่อไหร่ก็ได้ ตัวตัดสินจริงยังเป็นผลตอบจาก LINE ตอนยิงเสมอ
   //   (docs/conventions/stored-flag-vs-owner-truth.md)
-  lineTokenExpiresAt        DateTime?
-  lineTokenCheckedAt        DateTime?
+  lineTokenExpiresAt DateTime?
+  lineTokenCheckedAt DateTime?
+
+  // --- feature 00061: สิทธิ์รับ "ข้อความสะท้อนกลับ" (message_echoes) ของเพจ (BR-ACO-07/26) ---
+  //
+  // cache แบบเดียวกับ lineToken* ข้างบน — **advisory เท่านั้น ไม่ใช่ตัวตัดสินตอนรับ webhook จริง**
+  //
+  // 🛑 default ต้องเป็น 'UNKNOWN' ห้ามเป็น 'GRANTED' — เพจทุกแถวที่มีอยู่ก่อน migration นี้
+  // ยังไม่เคยถูกตรวจจริงสักครั้ง ตั้ง GRANTED = เปิด "สร้างออเดอร์จริง" ให้ทุกเพจทันทีโดยข้าม
+  // ด่านทั้งข้อ ⇒ ตรงกับ Scenario 5 ของ BRD เป๊ะ ("ไม่มีอะไรเกิดขึ้นเลย ไม่มี error ให้ร้านเห็น")
+  //
+  // สองสถานะที่ต่างกันและห้ามยุบรวม:
+  //   checkedAt IS NULL              = ไม่เคยตรวจเลย
+  //   checkedAt มีค่า + status UNKNOWN = ตรวจแล้วแต่ Graph ตอบไม่ชัด (network/API error)
+  //
+  // provider='LINE' ไม่มีแนวคิดนี้ ⇒ เป็น 'UNKNOWN'/NULL ตลอดกาลโดยไม่ต้องมี CHECK แยก provider
+  messageEchoesStatus    String    @default("UNKNOWN")
+  messageEchoesCheckedAt DateTime?
+
+  /// feature 00061 — ชุดตั้งค่าที่เลือกใช้เพจนี้ (reverse lookup ตอนสถานะสิทธิ์เปลี่ยน)
+  autoOrderAgentChannels    AutoOrderAgentChannel[]
   // lineLastInboundFail*: มีอยู่เพราะ webhook **ต้องตอบ 200 ทุกกรณี** (BR-LINE-05/06) รวมตอน
   //   ลายเซ็นไม่ผ่าน ⇒ ขาเข้าตายได้เงียบสนิทโดยไม่มีสถานะ ไม่มี error และ Vercel plan นี้
   //   query runtime log ย้อนหลังไม่ได้ ⇒ console.warn ที่อ่านย้อนหลังไม่ได้ = ไม่มีค่า
   //   reason: 'SIGNATURE_MISMATCH' | 'DESTINATION_NOT_FOUND'
   lineLastInboundFailAt     DateTime?
   lineLastInboundFailReason String?
-  lineInboundFailCount      Int       @default(0)
+  lineInboundFailCount      Int                     @default(0)
 
   shop              Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
   contacts          ExternalContact[]
@@ -1815,6 +1916,8 @@ model Conversation {
   buyer                User?                        @relation("BuyerConversations", fields: [buyerUserId], references: [id], onDelete: Cascade)
   shop                 Shop                         @relation(fields: [shopId], references: [id], onDelete: Cascade)
   messages             ChatMessage[]
+  /// feature 00061 — ห้องนี้ถูกเลือกเป็นห้องทดสอบของชุดตั้งค่าไหนบ้าง
+  autoOrderTestThreads AutoOrderAgentTestThread[]
   shopChannel          ShopChannel?                 @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
   externalContact      ExternalContact?             @relation(fields: [externalContactId], references: [id], onDelete: Cascade)
   chatGroup            ChatGroup?                   @relation(fields: [chatGroupId], references: [id], onDelete: SetNull)
@@ -2036,11 +2139,31 @@ model ChatMessage {
   // โยน error ทันทีเมื่อถูกส่งออกทาง API; Int รองรับ 2.1 พันล้านแถว เกินพอ
   seq Int @unique @default(autoincrement())
 
-  conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User?         @relation("SentChatMessages", fields: [senderUserId], references: [id], onDelete: Cascade)
-  product      Product?      @relation(fields: [productRefId], references: [id], onDelete: SetNull)
+  // --- feature 00061: การ์ดผลลัพธ์ของตัวสร้างออเดอร์อัตโนมัติ (additive) ---
+  //
+  // `type = 'AUTO_ORDER_RESULT'` = ข้อความภายในที่ **ลูกค้าต้องไม่เห็นเด็ดขาด** (BR-ACO-21)
+  // ค่าคงที่อยู่ที่ `src/lib/auto-order-message-type.ts` ที่เดียว — ทั้งฝั่งเขียนและฝั่งกรองอ่าน
+  // import ตัวเดียวกัน กัน typo-drift ที่ไม่มี gate ไหนจับได้
+  //
+  // 🛑 **จงใจไม่ใส่ UNIQUE บน autoOrderId** (ต่างจากที่ DATABASE.md §5 ขั้น 2 เขียนไว้) —
+  // ออเดอร์ใบเดียวมีการ์ดได้หลายใบตามเวลา: ผลลัพธ์ครั้งแรก · แจ้งว่าข้อความต้นทางถูกแก้ ·
+  // แจ้งว่าถูกถอน (TFR-018) ⇒ unique จะบล็อกการ์ดที่สองทั้งที่มันคือสิ่งที่สเปกสั่งให้เขียน
+  // ผลพลอยได้: ไม่ต้องสร้าง unique index บน `ChatMessage` ซึ่งเป็นตารางที่ใหญ่ที่สุดในระบบ
+  autoOrderId   String?
+  /// RESULT | SOURCE_EDITED | SOURCE_UNSENT — บอกว่าการ์ดใบนี้กำลังพูดเรื่องอะไร
+  /// (สถานะของตัวออเดอร์เองอ่านสดจากแถว `Order` เสมอ ไม่ snapshot ลงที่นี่)
+  autoOrderKind String?
+
+  conversation  Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender        User?         @relation("SentChatMessages", fields: [senderUserId], references: [id], onDelete: Cascade)
+  product       Product?      @relation(fields: [productRefId], references: [id], onDelete: SetNull)
+  // feature 00061 — ออเดอร์/ร่างที่การ์ดใบนี้พูดถึง · Cascade: ออเดอร์หายไป การ์ดก็ไม่มีความหมาย
+  autoOrder     Order?        @relation("ChatMessageAutoOrder", fields: [autoOrderId], references: [id], onDelete: Cascade)
+  /// ออเดอร์ที่เกิดจากข้อความใบนี้ (feature 00061) — ฝั่งตรงข้ามของ Order.sourceChatMessageId
+  /// เป็น list ในระดับ Prisma แต่ถูกบังคับให้มีได้อย่างมาก 1 ใบด้วย UNIQUE ที่ฝั่ง Order
+  sourcedOrders Order[]       @relation("OrderSourceChatMessage")
   // feature 00023 Chat Auto-Reply — back-relation ของ AutoReplyJob.chatMessageId (@unique — 1:1)
-  autoReplyJob AutoReplyJob?
+  autoReplyJob  AutoReplyJob?
 
   @@index([conversationId, createdAt]) // thread pagination cursor-based เรียงเก่า→ใหม่ (FR-CHAT-08-AC-01/FR-CHAT-10-AC-01)
   @@index([conversationId, autoReplyKind, createdAt]) // หา "ข้อความคนล่าสุด" ของเธรด (feature 00023)
@@ -2061,6 +2184,10 @@ model ChatMessage {
   // วัดบน prod 2026-08-20: SHOP 28,093 : BUYER 12,593 ⇒ ตัวกรองนี้ทิ้งงาน 69% ของตาราง
   // ก่อน cost 1,492.49 (senderRole เป็น Filter) → หลัง 583.76 เป็น Index Only Scan (ลด 61%)
   @@index([conversationId, senderRole, createdAt])
+  // feature 00061 — watchdog กวาดข้ามทุกห้อง (ไม่รู้ conversationId ล่วงหน้า) ⇒ index เดิมที่
+  // นำหน้าด้วย conversationId ใช้เร่งไม่ได้เลย ต้องมีตัวที่นำหน้าด้วย senderRole
+  @@index([senderRole, createdAt])
+  @@index([autoOrderId])
 }
 
 // QuickMessage — ข้อความสำเร็จรูป (canned reply) ระดับร้าน (feature 00018 composer improvement #2)
@@ -4405,4 +4532,101 @@ model RoomImageFingerprint {
   @@index([sha256, firstListedAt])
   @@index([roomId])
   @@index([shopId])
+}
+
+/// ─────────────────────────────────────────────────────────────────────────────
+/// feature 00061 — สร้างออเดอร์อัตโนมัติจากคำสั่งในแชท
+///
+/// 🛑 ระบบนี้ดักข้อความที่ **ร้านพิมพ์เอง** (senderRole='SHOP') ไม่ใช่ข้อความของลูกค้า —
+/// ทิศทางตรงข้ามกับ Auto-Reply (00023) ทั้งที่โครงตารางหน้าตาเหมือนกันมาก **อย่าลอกถ้อยคำ
+/// ของ 00023 มาใช้ต่อ** (ทีมออกแบบเข้าใจผิดรอบแรกด้วยเหตุนี้)
+/// ─────────────────────────────────────────────────────────────────────────────
+
+/// ชุดตั้งค่า 1 แถวต่อ 1 ร้าน (BR-ACO-01) — โครงยกจาก AutoReplyConfig แต่ตัดฟิลด์ของ
+/// Auto-Reply/ChatBot ออกหมด
+///
+/// 🛑 ไม่มีคอลัมน์เก็บ "แม่แบบข้อความ" — เทมเพลตที่หน้าตั้งค่าแสดงเป็น **ค่าคงที่ระดับระบบ**
+/// (BR-ACO-11) ไม่ใช่สิ่งที่ร้านแก้ได้ ⇒ อยู่ในโค้ด ไม่ใช่ในฐาน
+model AutoOrderAgentConfig {
+  id     String @id @default(uuid())
+  shopId String @unique
+  /// OFFLINE | TEST | LIVE (BR-ACO-04)
+  ///
+  /// 🛑 "LIVE แต่ไม่มีเพจเหลือเลย" **ไม่ auto-flip กลับเป็น OFFLINE** — ผลที่มองเห็นได้
+  /// (effective) เป็นศูนย์เอง โดยค่าใน DB ไม่เปลี่ยน (แพตเทิร์นเดียวกับที่ AutoReplyKeyword
+  /// เลือกไว้แล้วกับปัญหารูปร่างเดียวกัน) เหตุผล: ร้านถอดเพจ 5 นาทีเพื่อ re-auth แล้วต้อง
+  /// กลับมาเปิดเองใหม่ = magic write ที่ผู้ใช้ไม่ได้สั่ง
+  status String @default("OFFLINE")
+
+  createdByUserId String?
+  /// ใครเปิด LIVE ล่าสุด — audit ที่ต้องตอบได้เมื่อร้านถามว่า "ใครเปิดให้มันสร้างออเดอร์เอง"
+  updatedByUserId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop      Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("AutoOrderConfigsCreated", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy User? @relation("AutoOrderConfigsUpdated", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  phrases     AutoOrderAgentPhrase[]
+  channels    AutoOrderAgentChannel[]
+  testThreads AutoOrderAgentTestThread[]
+}
+
+/// วลีจุดชนวนหลายวลีต่อชุดตั้งค่า (BR-ACO-01/02)
+///
+/// 🛑 `normalizedPhrase` มาจาก `normalizeTriggerPhrase()` ตัวใหม่ **คนละตัวกับของ Auto-Reply** —
+/// ตัวเดิมลบเครื่องหมายวรรคตอนก่อนเทียบ ⇒ `/go` กลายเป็น `go` แล้วชนกับคำทั่วไปโดยไม่ตั้งใจ
+model AutoOrderAgentPhrase {
+  id               String @id @default(uuid())
+  configId         String
+  /// ค่าที่ร้านพิมพ์จริง — แสดงกลับใน UI ให้แก้ไข
+  phrase           String
+  /// ผ่าน normalizeTriggerPhrase() เท่านั้น (lowercase + ยุบช่องว่าง · ไม่ตัดสัญลักษณ์ใด ๆ)
+  normalizedPhrase String
+
+  createdAt DateTime @default(now())
+
+  config AutoOrderAgentConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@unique([configId, normalizedPhrase])
+  @@index([configId])
+}
+
+/// เพจ/ช่องทางที่เปิดใช้กับชุดตั้งค่านี้ (BR-ACO-03) — join table แทน String[]
+/// เพราะ array ทำ FK cascade ไม่ได้ และต้อง join เอาชื่อเพจมาแสดง
+///
+/// 🛑 **จุดดักจับทั้ง 2 จุดต้องพึ่งตารางนี้เป็นแหล่งความจริงเดียวกัน** — จุดเข้าที่ 1
+/// (พิมพ์จากกล่องแชท Deep) ก็ยังต้องกรองว่าห้องนั้นอยู่บน shopChannelId ที่อยู่ในชุด effective
+/// ไม่มีเคสยกเว้น (ห้องที่ channel='DEEP' ไม่มี ShopChannel เลย และอยู่นอกขอบเขต v1)
+///
+/// ถอดเพจเป็น soft delete (status→DISCONNECTED) ⇒ แถวนี้ยังอยู่ครบ · เชื่อมกลับ = effective ทันที
+model AutoOrderAgentChannel {
+  id            String @id @default(uuid())
+  configId      String
+  shopChannelId String
+
+  createdAt DateTime @default(now())
+
+  config  AutoOrderAgentConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  channel ShopChannel          @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+
+  @@unique([configId, shopChannelId])
+  @@index([shopChannelId])
+}
+
+/// ห้องแชทที่ใช้ทดสอบ — มีผลเฉพาะตอน status='TEST' (BR-ACO-04/05)
+model AutoOrderAgentTestThread {
+  id             String @id @default(uuid())
+  configId       String
+  conversationId String
+
+  createdAt DateTime @default(now())
+
+  config       AutoOrderAgentConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  conversation Conversation         @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([configId, conversationId])
+  @@index([conversationId])
 }
