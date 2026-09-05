@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   decidePlanRenewal, intakePeriodKey, nextIntakePeriodKey, intakeAvailability,
-  addDays, INSPECTION_RENEWAL_PERIOD_DAYS, INSPECTION_GRACE_DAYS,
+  addDays, INSPECTION_RENEWAL_PERIOD_DAYS, INSPECTION_GRACE_DAYS, graceDaysRemaining,
 } from './plan-lifecycle'
 
 const T = (iso: string) => new Date(iso)
@@ -102,5 +102,24 @@ describe('[blocker] intakeAvailability — "เต็ม" กับ "ยัง�
     expect(intakeAvailability({ capacity: 10, usedCount: 9 })).toBe('OPEN')
     expect(intakeAvailability({ capacity: 10, usedCount: 10 })).toBe('FULL')
     expect(intakeAvailability({ capacity: 0, usedCount: 0 })).toBe('FULL') // ตั้งโควตาเป็น 0 = ปิดรับโดยตั้งใจ
+  })
+})
+
+describe('graceDaysRemaining — การนับถอยหลังที่ร้านต้องเห็น (AC-INS-08-3)', () => {
+  const now = new Date('2026-09-05T00:00:00.000Z')
+
+  it('🛑 mutation: ปัดลง (floor) แทนปัดขึ้น → เคสนี้ต้องแดง', () => {
+    // เหลือ 6 ชั่วโมงต้องอ่านว่า "เหลือ 1 วัน" ไม่ใช่ "0 วัน" — ศูนย์อ่านได้ว่าหมดแล้ว
+    // ทั้งที่ร้านยังจ่ายทัน แล้วร้านจะเลิกพยายามทั้งที่ยังแก้ได้
+    expect(graceDaysRemaining(new Date('2026-09-05T06:00:00.000Z'), now)).toBe(1)
+  })
+
+  it('🛑 mutation: คืนเลขติดลบเมื่อเลยเส้นตาย → เคสนี้ต้องแดง', () => {
+    expect(graceDaysRemaining(new Date('2026-09-01T00:00:00.000Z'), now)).toBe(0)
+    expect(graceDaysRemaining(now, now)).toBe(0)
+  })
+
+  it('เหลือเต็มวันนับตรง ๆ', () => {
+    expect(graceDaysRemaining(new Date('2026-09-12T00:00:00.000Z'), now)).toBe(7)
   })
 })

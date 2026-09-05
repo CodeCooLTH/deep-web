@@ -101,6 +101,7 @@ export const th = {
     inventory: 'จัดการสต็อก',
     queues: 'ตารางงาน',
     rooms: 'ห้องพัก',
+    inspection: 'แผนการตรวจสอบ',
     calendar: 'ปฏิทินการจอง',
     bookings: 'การจอง',
     housekeepers: 'แม่บ้าน',

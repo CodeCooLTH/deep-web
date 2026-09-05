@@ -2,7 +2,7 @@ import 'server-only'
 
 import { prisma } from '@/lib/prisma'
 import { InspectionPlanError } from '@/services/inspection-plan.service'
-import { intakePeriodKey, nextIntakeOpensAt } from '@/lib/inspection/plan-lifecycle'
+import { graceDaysRemaining, intakePeriodKey, nextIntakeOpensAt } from '@/lib/inspection/plan-lifecycle'
 import {
   availableIntakeSteps,
   buildOwnerInspectionSections,
@@ -31,6 +31,16 @@ export type OwnerInspectionView = OwnerInspectionSections & {
     termsAcceptedAt: Date | null
     lapsedReason: string | null
     effectiveAt: Date | null
+    /** สิ้นรอบบิลปัจจุบัน = วันต่ออายุถัดไป — ร้านต้องรู้ว่าจะถูกตัดเงินเมื่อไร */
+    nextRenewalAt: Date
+    /**
+     * เส้นตายผ่อนผันเมื่อหักเครดิตไม่ผ่าน · null = ไม่ได้ค้างชำระ
+     * 🛑 AC-INS-08-3 บังคับให้ร้าน **เห็นการนับถอยหลัง** — ไม่ส่งค่านี้ออกมา หน้าจอจะบอกได้แค่
+     *    "ค้างชำระ" ลอย ๆ ซึ่งไม่บอกว่าเหลือเวลาแก้อีกเท่าไร (ช่องว่างที่พบตอนต่อหน้าจอ T12)
+     */
+    graceUntil: Date | null
+    /** วันคงเหลือของช่วงผ่อนผัน (0 = หมดแล้ว) — คำนวณที่ server ที่เดียว ไม่ให้หน้าจอคิดเอง */
+    graceDaysLeft: number | null
   } | null
   canManage: boolean
   intake: { stepAvailable: InspectionStep[]; nextOpenAt: Date | null }
@@ -81,7 +91,10 @@ export async function getInspectionForOwner(input: {
   const [plan, rooms, results, rounds, intake] = await Promise.all([
     prisma.inspectionPlan.findUnique({
       where: { shopId },
-      select: { step: true, status: true, termsAcceptedAt: true, lapsedReason: true, canceledAt: true, nextRenewalAt: true },
+      select: {
+        step: true, status: true, termsAcceptedAt: true, lapsedReason: true,
+        canceledAt: true, nextRenewalAt: true, graceUntil: true,
+      },
     }),
     prisma.room.findMany({
       where: { shopId, ...(roomId === null ? {} : { id: roomId }) },
@@ -142,6 +155,10 @@ export async function getInspectionForOwner(input: {
             //    ร้านต้องรู้คือ "จะสิ้นสุดเมื่อไร" ซึ่งอยู่ที่ effectiveAt ไม่ใช่เหตุผล
             lapsedReason: plan.status === 'LAPSED' ? plan.lapsedReason : null,
             effectiveAt: plan.canceledAt === null ? null : plan.nextRenewalAt,
+            nextRenewalAt: plan.nextRenewalAt,
+            graceUntil: plan.graceUntil,
+            graceDaysLeft:
+              plan.graceUntil === null ? null : graceDaysRemaining(plan.graceUntil, now),
           },
     canManage: isOwner,
     intake,

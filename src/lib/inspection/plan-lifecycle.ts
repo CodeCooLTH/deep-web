@@ -54,6 +54,17 @@ export function nextIntakeOpensAt(at: Date): Date {
   return new Date(Date.UTC(y!, m! - 1, 1) - THAI_UTC_OFFSET_MS)
 }
 
+/**
+ * วันที่เหลือของช่วงผ่อนผัน — AC-INS-08-3 บังคับว่าร้านต้อง **เห็นการนับถอยหลัง** ไม่ใช่แค่รู้ว่าค้าง
+ *
+ * 🛑 ปัดขึ้น (`ceil`) โดยตั้งใจ — เหลือ 6 ชั่วโมงต้องอ่านว่า "เหลือ 1 วัน" ไม่ใช่ "0 วัน"
+ *    (ศูนย์อ่านได้ว่า "หมดแล้ว" ทั้งที่ยังจ่ายทัน) · เลยเส้นตายแล้วคืน 0 ไม่ใช่เลขติดลบ
+ */
+export function graceDaysRemaining(graceUntil: Date, now: Date): number {
+  const ms = graceUntil.getTime() - now.getTime()
+  return ms <= 0 ? 0 : Math.ceil(ms / MS_PER_DAY)
+}
+
 export type PlanRenewalDecision =
   | { kind: 'NOOP' }
   /** ครบรอบแล้วและเครดิตพอ → ต่ออายุ */

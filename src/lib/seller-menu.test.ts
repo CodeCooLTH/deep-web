@@ -49,6 +49,8 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:expenses',
         'seller:housekeepers',
         'seller:inbox',
+        // เพิ่ม 2026-09-05 — เมนู "แผนการตรวจสอบ" (feature 00060) เห็นเฉพาะ LODGING
+        'seller:inspection',
         'seller:inventory',
         'seller:orders',
         'seller:products',
@@ -207,6 +209,8 @@ describe('resolveVisibleSellerMenu — ตัวกรองยังทำง�
     expect(visible).toEqual(expect.arrayContaining(['seller:products', 'seller:inventory', 'seller:auctions']))
     expect(visible).not.toContain('seller:queues')
     expect(visible).not.toContain('seller:rooms')
+    // 🛑 00060 เปิดเฉพาะ LODGING ในรอบแรก — ร้านประเภทอื่นต้องไม่เห็นเมนูที่กดเข้าไปแล้วเจอ 403
+    expect(visible).not.toContain('seller:inspection')
   })
 
   it('SERVICE_QUEUE เห็นสินค้า/คิวงาน ไม่เห็นสต็อก/ประมูล/ห้องพัก', () => {
@@ -220,7 +224,13 @@ describe('resolveVisibleSellerMenu — ตัวกรองยังทำง�
   it('LODGING เห็นห้องพัก/ปฏิทิน/การจอง/แม่บ้าน ไม่เห็นสินค้า/สต็อก/ประมูล/คิวงาน', () => {
     const visible = slugsOf(flattenSellerMenu(resolveVisibleSellerMenu(sellerMenuItems, ctx('LODGING'))))
     expect(visible).toEqual(
-      expect.arrayContaining(['seller:rooms', 'seller:calendar', 'seller:bookings', 'seller:housekeepers']),
+      expect.arrayContaining([
+        'seller:rooms',
+        'seller:calendar',
+        'seller:bookings',
+        'seller:housekeepers',
+        'seller:inspection',
+      ]),
     )
     for (const hidden of ['seller:products', 'seller:inventory', 'seller:auctions', 'seller:queues']) {
       expect(visible).not.toContain(hidden)

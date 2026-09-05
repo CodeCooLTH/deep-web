@@ -333,6 +333,69 @@ export const pacesConfirmWithPassword = async <T>(options: {
   return result.value as T
 }
 
+/**
+ * pacesConfirmTerms — โมดัลรับทราบเงื่อนไขที่ต้องติ๊กก่อนกดยืนยันได้ (feature 00060 — TermsConsentModal)
+ *
+ * ทำไมต้องมีตัวใหม่แทน `pacesConfirm` ธรรมดา: AC-INS-10-2 บังคับว่า "กดยืนยันไม่ได้จนกว่าจะติ๊ก
+ * รับทราบ" — ต้อง disable ปุ่มยืนยัน**จริง** (ผ่าน `Swal.getConfirmButton()!.disabled`) ไม่ใช่แค่
+ * validate ตอนกด (validate-on-click ยังกดได้ แค่โดนเด้ง error กลับ ซึ่งไม่ตรงกับ "กดไม่ได้")
+ *
+ * `didOpen` ผูก listener ให้ toggle ตาม `change` ของ checkbox — ใช้ pattern เดียวกับ `pacesEditTextFields`
+ * (อ่าน DOM ตรงผ่าน `document.getElementById` เพราะ Swal render เป็น HTML ดิบ ไม่ใช่ React tree)
+ *
+ * คืน `true` = ติ๊กรับทราบแล้วกดยืนยัน · `false` = ยกเลิก/Esc/ปิด
+ */
+export const pacesConfirmTerms = async (options: {
+  title: string
+  /** rich HTML ของเนื้อหาเงื่อนไข (เช่น "ค่าตรวจไม่คืนเงิน" + "เงื่อนไขกรณีพบหลักฐานฉ้อโกง") */
+  termsHtml: string
+  checkboxLabel: string
+  confirmButtonText: string
+  cancelButtonText?: string
+}): Promise<boolean> => {
+  const Swal = await loadSwal()
+  const CHECKBOX_ID = 'paces-terms-ack'
+
+  const result = await Swal.fire({
+    buttonsStyling: false,
+    allowOutsideClick: false,
+    icon: 'info',
+    title: options.title,
+    html: `
+      <div class="text-start">
+        <div class="text-default-700 text-sm mb-4">${options.termsHtml}</div>
+        <label for="${CHECKBOX_ID}" class="flex items-start gap-2 text-start text-sm text-default-800">
+          <input id="${CHECKBOX_ID}" type="checkbox" class="form-checkbox mt-0.5 shrink-0" />
+          <span>${options.checkboxLabel}</span>
+        </label>
+      </div>`,
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: options.confirmButtonText,
+    cancelButtonText: options.cancelButtonText ?? 'ยกเลิก',
+    customClass: { confirmButton: CONFIRM_BTN.primary, cancelButton: CANCEL_BTN },
+    didOpen: () => {
+      const confirmBtn = Swal.getConfirmButton()
+      const checkbox = document.getElementById(CHECKBOX_ID) as HTMLInputElement | null
+      if (confirmBtn) confirmBtn.disabled = true // 🛑 ปิดจริงตั้งแต่เปิดโมดัล ไม่ใช่แค่ validate ตอนกด
+      checkbox?.addEventListener('change', () => {
+        if (confirmBtn) confirmBtn.disabled = !checkbox.checked
+      })
+    },
+    preConfirm: () => {
+      // ด่านสุดท้ายกันกรณี disabled หลุด (เช่น browser extension) — ไม่ติ๊ก = ไม่ปิดโมดัล
+      const checkbox = document.getElementById(CHECKBOX_ID) as HTMLInputElement | null
+      if (checkbox?.checked !== true) {
+        Swal.showValidationMessage('ต้องติ๊กรับทราบเงื่อนไขก่อน')
+        return false
+      }
+      return true
+    },
+  })
+
+  return result.isConfirmed && result.value === true
+}
+
 export const pacesConfirm: PacesConfirmFn = Object.assign(base, {
   danger: (title: string, text?: string, opts?: Partial<PacesConfirmOptions>) =>
     base({ confirmSemantic: 'danger', icon: 'warning', ...opts, title, text }),

@@ -117,6 +117,10 @@ export const sellerMenuItems: MenuItemType[] = [
       { url: '/calendar', slug: 'seller:calendar', label: 'ปฏิทินการจอง', icon: 'calendar-event' },
       // feature 00017 P2 — รายการจอง (icon 'calendar-check' verified มีจริงใน tabler)
       { url: '/bookings', slug: 'seller:bookings', label: 'การจอง', icon: 'calendar-check' },
+      // feature 00060 — แผนการตรวจสอบร้าน (เห็นเฉพาะ vertical=LODGING ในรอบแรก)
+      // icon 'shield-check' verified มีจริงใน tabler — เลือกแทน 'certificate' เพราะสิ่งที่ขาย
+      // คือ **การตรวจ** ไม่ใช่ใบรับรอง (ป้ายมาจากผลตรวจ ไม่ได้มาจากการจ่ายเงิน)
+      { url: '/inspection', slug: 'seller:inspection', label: 'แผนการตรวจสอบ', icon: 'shield-check' },
       // feature 00017 P3 — icon 'users' verified มีจริงใน tabler
       { url: '/housekeepers', slug: 'seller:housekeepers', label: 'แม่บ้าน', icon: 'users' },
       { url: '/customers', slug: 'seller:customers', label: 'ลูกค้า', icon: 'user-circle' },
@@ -350,7 +354,14 @@ export function applyExpenseMenu(
  *
  * pattern เดียวกับ applyStaffMenu (กรอง child ออกจาก group) — ไม่ disable แต่ซ่อน
  */
-const LODGING_ONLY_SLUGS = ['seller:rooms', 'seller:calendar', 'seller:bookings', 'seller:housekeepers']
+const LODGING_ONLY_SLUGS = [
+  'seller:rooms',
+  'seller:calendar',
+  'seller:bookings',
+  'seller:housekeepers',
+  // feature 00060 — รอบแรกเปิดเฉพาะร้านบ้านพัก (PRD §1) · ขยาย vertical อื่นต้องแก้ที่นี่ที่เดียว
+  'seller:inspection',
+]
 // feature 00063: รายงานยอดขายรายสินค้าให้ความหมายถูกเฉพาะร้านที่ขายของเป็นชิ้น —
 // LODGING ขายเป็น "คืน/ห้อง" ที่คร่อมหลายวัน พล็อตลงแกน "วันที่สั่ง" แล้วผิดความหมาย
 // 🛑 การซ่อนเมนูไม่ใช่ด่าน — หน้ามี guard ของตัวเองที่ product-report-access.service.ts
@@ -797,6 +808,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:rooms': m.rooms,
     'seller:calendar': m.calendar,
     'seller:bookings': m.bookings,
+    'seller:inspection': m.inspection,
     'seller:housekeepers': m.housekeepers,
     'seller:customers': m.customers,
     'seller:expenses': m.expenses,

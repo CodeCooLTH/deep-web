@@ -70,6 +70,7 @@ export const en: Dictionary = {
     inventory: 'Stock',
     queues: 'Schedule',
     rooms: 'Rooms',
+    inspection: 'Inspection Plan',
     calendar: 'Booking calendar',
     bookings: 'Bookings',
     housekeepers: 'Housekeepers',
