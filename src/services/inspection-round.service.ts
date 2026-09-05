@@ -139,6 +139,8 @@ export type InspectionRoundErrorCode =
   | 'FILE_NOT_COMMITTED'
   | 'ROUND_NOT_FOUND'
   | 'ROUND_ALREADY_COMPLETED'
+  | 'ROUND_ALREADY_ASSIGNED'
+  | 'ROUND_NOT_ASSIGNABLE'
   | 'ROUND_NOT_COMPLETABLE'
   | 'INSPECTOR_NOT_ELIGIBLE'
   | 'INSPECTOR_NAME_UNUSABLE'
@@ -171,7 +173,25 @@ export async function assignRound(input: {
   roundId: string
   inspectorUserId: string
   now: Date
-}): Promise<{ inspectorDisplayName: string }> {
+  /**
+   * 🛑 ต้องส่ง `true` มาโดยตั้งใจถึงจะเปลี่ยนตัวผู้ตรวจของรอบที่มอบหมายไปแล้วได้ — การทับเงียบ ๆ
+   *    คือการดึงงานออกจากมือผู้ตรวจที่อาจนัดหมายเดินทางไปแล้วจริง (ONSITE มี lead time 30 วัน)
+   *    เขาจะพบว่ารอบหายจากคิวตัวเองโดยไม่มีคำอธิบาย
+   */
+  reassign?: boolean
+}): Promise<{ inspectorDisplayName: string; reassignedFrom: string | null; assignedAt: Date; dueAt: Date | null }> {
+  const existing = await prisma.inspectionRound.findUnique({
+    where: { id: input.roundId },
+    select: { completedAt: true, method: true, inspectorUserId: true, inspectorDisplayName: true, assignedAt: true, dueAt: true },
+  })
+  if (existing === null) throw new InspectionRoundError('ROUND_NOT_FOUND')
+  if (existing.completedAt !== null) throw new InspectionRoundError('ROUND_ALREADY_COMPLETED')
+  // รอบอัตโนมัติไม่มีคนตรวจ — cron เป็นคนปิดเอง
+  if (existing.method === 'AUTO') throw new InspectionRoundError('ROUND_NOT_ASSIGNABLE')
+  if (existing.inspectorUserId !== null && input.reassign !== true) {
+    throw new InspectionRoundError('ROUND_ALREADY_ASSIGNED')
+  }
+
   const displayName = await resolveInspectorDisplayName(input.inspectorUserId)
 
   // 🛑 completedAt: null อยู่ใน WHERE ไม่ใช่ if หลังอ่าน — รอบที่เพิ่งถูกปิดระหว่างที่แอดมิน
@@ -180,14 +200,15 @@ export async function assignRound(input: {
     where: { id: input.roundId, completedAt: null },
     data: { inspectorUserId: input.inspectorUserId, inspectorDisplayName: displayName },
   })
-  if (updated.count === 0) {
-    const exists = await prisma.inspectionRound.findUnique({
-      where: { id: input.roundId },
-      select: { completedAt: true },
-    })
-    throw new InspectionRoundError(exists === null ? 'ROUND_NOT_FOUND' : 'ROUND_ALREADY_COMPLETED')
+  if (updated.count === 0) throw new InspectionRoundError('ROUND_ALREADY_COMPLETED')
+
+  return {
+    inspectorDisplayName: displayName,
+    // คืนชื่อเดิมกลับไปให้หน้าจอยืนยันกับแอดมินว่าเพิ่งดึงงานออกจากมือใคร
+    reassignedFrom: existing.inspectorUserId === null ? null : existing.inspectorDisplayName,
+    assignedAt: existing.assignedAt,
+    dueAt: existing.dueAt,
   }
-  return { inspectorDisplayName: displayName }
 }
 
 /**

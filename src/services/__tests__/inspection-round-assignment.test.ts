@@ -47,6 +47,9 @@ const ROUND = {
   method: 'VIDEO_CALL',
   assignedAt: ASSIGNED,
   completedAt: null as Date | null,
+  inspectorUserId: null as string | null,
+  inspectorDisplayName: 'ยังไม่ได้มอบหมาย',
+  dueAt: new Date('2026-09-15T00:00:00.000Z'),
 }
 
 beforeEach(() => {
@@ -92,13 +95,34 @@ describe('assignRound', () => {
     })
   })
 
-  it('รอบที่ปิดไปแล้ว มอบหมายไม่ได้ (completedAt: null อยู่ใน WHERE)', async () => {
-    roundUpdateMany.mockResolvedValue({ count: 0 })
-    roundFindUnique.mockResolvedValue({ completedAt: NOW })
+  it('รอบที่ปิดไปแล้ว มอบหมายไม่ได้', async () => {
+    roundFindUnique.mockResolvedValue({ ...ROUND, completedAt: NOW })
     await expect(assignRound({ roundId: 'round-1', inspectorUserId: 'u-1', now: NOW })).rejects.toMatchObject({
       code: 'ROUND_ALREADY_COMPLETED',
     })
-    expect(roundUpdateMany.mock.calls[0]?.[0]?.where).toMatchObject({ completedAt: null })
+    expect(roundUpdateMany).not.toHaveBeenCalled()
+  })
+
+  it('🛑 mutation: มอบหมายทับรอบที่มีผู้ตรวจแล้วโดยไม่ต้องยืนยัน → เคสนี้ต้องแดง', async () => {
+    // การทับเงียบ ๆ คือการดึงงานออกจากมือผู้ตรวจที่อาจนัดเดินทางไปแล้วจริง (ONSITE lead 30 วัน)
+    roundFindUnique.mockResolvedValue({ ...ROUND, inspectorUserId: 'u-เดิม', inspectorDisplayName: 'สมหญิง ข.' })
+    await expect(assignRound({ roundId: 'round-1', inspectorUserId: 'u-1', now: NOW })).rejects.toMatchObject({
+      code: 'ROUND_ALREADY_ASSIGNED',
+    })
+    expect(roundUpdateMany).not.toHaveBeenCalled()
+  })
+
+  it('ส่ง reassign: true → เปลี่ยนตัวได้ และบอกว่าเพิ่งดึงงานออกจากมือใคร', async () => {
+    roundFindUnique.mockResolvedValue({ ...ROUND, inspectorUserId: 'u-เดิม', inspectorDisplayName: 'สมหญิง ข.' })
+    const res = await assignRound({ roundId: 'round-1', inspectorUserId: 'u-1', now: NOW, reassign: true })
+    expect(res.reassignedFrom).toBe('สมหญิง ข.')
+  })
+
+  it('🛑 รอบอัตโนมัติมอบหมายให้คนไม่ได้ — cron เป็นคนปิดเอง', async () => {
+    roundFindUnique.mockResolvedValue({ ...ROUND, method: 'AUTO' })
+    await expect(assignRound({ roundId: 'round-1', inspectorUserId: 'u-1', now: NOW })).rejects.toMatchObject({
+      code: 'ROUND_NOT_ASSIGNABLE',
+    })
   })
 })
 

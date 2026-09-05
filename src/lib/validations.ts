@@ -2179,3 +2179,70 @@ export const CompleteInspectionRoundSchema = v.object({
     v.pipe(v.string(), v.minLength(1, "บันทึกความสงสัยต้องไม่เป็นค่าว่าง"), v.maxLength(2000, "บันทึกยาวได้ไม่เกิน 2000 ตัวอักษร")),
   ),
 });
+
+/** โควตารับสมัคร (API §4.11) — 🛑 ไม่มีค่าที่แปลว่า "ไม่จำกัด" โดยตั้งใจ `0` = ปิดรับทั้งเดือน */
+export const UpdateInspectionQuotaSchema = v.object({
+  year: v.pipe(v.number(), v.integer(), v.minValue(2020), v.maxValue(2100)),
+  month: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(12)),
+  step: v.picklist([1, 2, 3, 4], "ขั้นการตรวจสอบไม่ถูกต้อง"),
+  capacity: v.pipe(v.number(), v.integer("โควตาต้องเป็นจำนวนเต็ม"), v.minValue(0, "โควตาติดลบไม่ได้")),
+});
+
+/**
+ * แอดมินสร้างรอบนอกกำหนด (API §4.12)
+ * 🛑 `method` ห้ามรับ `AUTO` — รอบอัตโนมัติสร้างโดย cron เท่านั้น
+ * (หมายเหตุ: ตาราง §3.2 ก ของ API.md แมปชื่อ `AssignInspectionRoundSchema` ไว้กับ 4.12 ซึ่งดู
+ *  เป็นการพิมพ์คลาด — 4.12 คือ "สร้าง" ส่วน "มอบหมาย" คือ 4.15 จึงแยกเป็นสองชื่อที่นี่)
+ */
+export const CreateInspectionRoundSchema = v.object({
+  shopId: v.pipe(v.string(), v.uuid("รหัสร้านไม่ถูกต้อง")),
+  roomId: v.optional(v.nullable(v.pipe(v.string(), v.uuid("รหัสที่พักไม่ถูกต้อง")))),
+  step: v.picklist([1, 2, 3, 4], "ขั้นการตรวจสอบไม่ถูกต้อง"),
+  method: v.picklist(["DOCUMENT", "VIDEO_CALL", "ONSITE"], "วิธีตรวจไม่ถูกต้อง"),
+  inspectorUserId: v.optional(v.nullable(v.pipe(v.string(), v.uuid("รหัสผู้ตรวจไม่ถูกต้อง")))),
+  checkKeys: v.pipe(
+    v.array(v.pipe(v.string(), v.minLength(1))),
+    v.minLength(1, "ต้องระบุข้อตรวจอย่างน้อยหนึ่งข้อ"),
+    v.maxLength(18, "ระบุได้ไม่เกิน 18 ข้อ"),
+  ),
+  dueAt: v.optional(v.nullable(v.pipe(v.string(), v.isoTimestamp("รูปแบบวันที่ไม่ถูกต้อง")))),
+});
+
+/** มอบหมายผู้ตรวจ (API §4.15) — `reassign` ต้องส่งมาโดยตั้งใจถึงจะเปลี่ยนตัวได้ */
+export const AssignInspectionRoundSchema = v.object({
+  inspectorUserId: v.pipe(v.string(), v.uuid("รหัสผู้ตรวจไม่ถูกต้อง")),
+  reassign: v.optional(v.boolean()),
+});
+
+/** เส้นทางฉ้อโกง (API §4.13) — ค่า `scamType` ต้องเป็นชุดเดียวกับโดเมน /check ห้ามตั้งใหม่ */
+export const ReportInspectionFraudSchema = v.object({
+  shopId: v.pipe(v.string(), v.uuid("รหัสร้านไม่ถูกต้อง")),
+  roundId: v.optional(v.nullable(v.pipe(v.string(), v.uuid()))),
+  checkKey: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1)))),
+  roomId: v.optional(v.nullable(v.pipe(v.string(), v.uuid()))),
+  scamType: v.picklist(
+    ["TRANSFER_NO_DELIVERY", "ITEM_NOT_AS_DESCRIBED", "FAKE_INVESTMENT", "OTHER"],
+    "ประเภทการฉ้อโกงไม่ถูกต้อง",
+  ),
+  description: v.pipe(v.string(), v.minLength(20, "อธิบายรายละเอียดอย่างน้อย 20 ตัวอักษร")),
+  evidenceFileIds: v.pipe(v.array(v.pipe(v.string(), v.minLength(1))), v.minLength(1, "ต้องแนบหลักฐานอย่างน้อย 1 ไฟล์")),
+  identifiers: v.optional(
+    v.array(
+      v.object({
+        type: v.picklist(["PHONE", "NAME", "NATIONAL_ID", "BANK_ACCOUNT"], "ชนิดตัวระบุไม่ถูกต้อง"),
+        value: v.pipe(v.string(), v.minLength(1)),
+        bankName: v.optional(v.string()),
+      }),
+    ),
+  ),
+});
+
+/**
+ * ตั้ง/ถอนบทบาทผู้ตรวจ (API §4.16)
+ * 🛑 `reason` บังคับทั้งตอนตั้งและตอนถอน — audit ที่บอกแค่ "ใครตั้งให้ใครเมื่อไร" ตอบไม่ได้ว่า
+ *    *ทำไม* ซึ่งเป็นคำถามเดียวที่มีค่าเมื่อมีคนย้อนมาดูหลังเกิดเรื่อง และช่องที่ไม่บังคับจะว่างเสมอ
+ */
+export const UpdateInspectorRoleSchema = v.object({
+  isInspector: v.boolean(),
+  reason: v.pipe(v.string(), v.minLength(1, "ต้องระบุเหตุผล"), v.maxLength(500, "เหตุผลยาวได้ไม่เกิน 500 ตัวอักษร")),
+});
