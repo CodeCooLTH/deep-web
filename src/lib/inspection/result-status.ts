@@ -54,6 +54,29 @@ export type InspectionResultRow = {
 }
 
 /** คีย์ประจำขอบเขตของผลตรวจหนึ่งข้อ — `(checkKey, roomId ?? null)` */
+/**
+ * ชื่อสถานะที่ **สัญญา HTTP** ใช้ (API.md §3.2 ค) — ต่างจากชื่อภายในหนึ่งค่า: `RECHECK` → `RECHECK_DUE`
+ *
+ * 🛑 อยู่ติดกับ enum ต้นทางโดยตั้งใจ (HR16) — เดิมตัวแปลนี้อยู่ใน `owner-view.ts` ซึ่งเป็นไลบรารี
+ *    ของ "หน้าร้าน" ⇒ endpoint ฝั่งผู้ตรวจไม่ได้เรียก แล้วปล่อยค่า `RECHECK` ดิบออก HTTP ทั้งที่
+ *    สัญญาเขียนว่า `RECHECK_DUE` · หน้าจอที่ก็อป type ตาม API.md จะ lookup ไม่เจอแล้วป้ายหาย
+ *    ทั้งสถานะโดยไม่มี error สักตัว (พบตอนต่อหน้าจอ T13)
+ */
+export type ApiDisplayStatus = 'PASS' | 'FAIL' | 'RECHECK_DUE' | 'NO_DATA' | 'NOT_APPLICABLE'
+
+const DISPLAY_STATUS_TO_API: Record<InspectionDisplayStatus, ApiDisplayStatus> = {
+  PASS: 'PASS',
+  FAIL: 'FAIL',
+  RECHECK: 'RECHECK_DUE',
+  NO_DATA: 'NO_DATA',
+  NOT_APPLICABLE: 'NOT_APPLICABLE',
+}
+
+/** แปลงชื่อภายใน → ชื่อในสัญญา · ทุก endpoint ที่คืน displayStatus ต้องผ่านตัวนี้เท่านั้น */
+export function toApiDisplayStatus(status: InspectionDisplayStatus): ApiDisplayStatus {
+  return DISPLAY_STATUS_TO_API[status]
+}
+
 export type ResultScopeKey = string
 
 export function resultScopeKey(checkKey: InspectionCheckKey, roomId: string | null): ResultScopeKey {

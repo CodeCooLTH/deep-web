@@ -21,18 +21,16 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+import type { ApiDisplayStatus } from '@/lib/inspection/result-status'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm, pacesConfirmWithText } from '@/lib/paces-swal'
 import OutcomeButtons, { type Outcome } from './OutcomeButtons'
 import EvidenceUploadButton, { type UploadKind } from './EvidenceUploadButton'
 
 /**
- * 🛑 ค่าจริงจาก `resolveResultStatus()` (`src/lib/inspection/result-status.ts`) คือ `'RECHECK'`
- * ไม่ใช่ `'RECHECK_DUE'` ตามที่ API.md §3.2 ค เขียนไว้ — `getRoundDetailForInspector()` คืนค่านี้
- * ตรง ๆ ไม่มีการแปลงชื่อระหว่างทาง จึงต้องยึดค่าจริงของโค้ด ไม่ใช่ของเอกสาร (มิฉะนั้น lookup
- * ใน `STATUS_META` จะได้ `undefined` แล้ว render พังตอนเจอสถานะนี้จริง)
+ * สถานะที่รับเข้ามาใช้ชื่อตามสัญญา HTTP (`ApiDisplayStatus`) — service แปลงจากชื่อภายในให้แล้ว
  */
-type DisplayStatus = 'PASS' | 'FAIL' | 'RECHECK' | 'NO_DATA' | 'NOT_APPLICABLE'
+type DisplayStatus = ApiDisplayStatus
 
 type CheckRow = {
   checkKey: string
@@ -69,7 +67,7 @@ type Props = {
 const STATUS_META: Record<DisplayStatus, { label: string; cls: string }> = {
   PASS: { label: 'สถานะปัจจุบัน: ผ่าน', cls: 'bg-success/15 text-success-ink' },
   FAIL: { label: 'สถานะปัจจุบัน: ไม่ผ่าน', cls: 'bg-danger/15 text-danger-ink' },
-  RECHECK: { label: 'สถานะปัจจุบัน: รอตรวจซ้ำ', cls: 'bg-warning/15 text-warning-ink' },
+  RECHECK_DUE: { label: 'สถานะปัจจุบัน: รอตรวจซ้ำ', cls: 'bg-warning/15 text-warning-ink' },
   NO_DATA: { label: 'ยังไม่มีข้อมูล', cls: 'bg-default-100 text-default-700' },
   NOT_APPLICABLE: { label: 'ไม่เกี่ยวข้อง', cls: 'bg-default-100 text-default-700' },
 }

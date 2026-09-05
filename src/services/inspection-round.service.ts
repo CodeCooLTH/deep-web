@@ -24,6 +24,8 @@ import {
   latestResultPerCheck,
   resolveResultStatus,
   resultScopeKey,
+  toApiDisplayStatus,
+  type ApiDisplayStatus,
   type InspectionResultRow,
 } from '@/lib/inspection/result-status'
 
@@ -508,7 +510,11 @@ export async function getRoundDetailForInspector(roundId: string, inspectorUserI
       checkKey: k,
       label: INSPECTION_CHECKS[k].labelTh,
       scope: INSPECTION_CHECKS[k].scope,
-      currentDisplayStatus: resolveResultStatus(latest.get(resultScopeKey(k, round.roomId)) ?? null, now),
+      // 🛑 ต้องผ่านตัวแปลเสมอ — ปล่อยชื่อภายใน (`RECHECK`) ออก HTTP แล้วหน้าจอที่ยึดตามสัญญา
+      //    (`RECHECK_DUE`) จะ lookup ไม่เจอ แล้วป้ายหายทั้งสถานะโดยไม่มี error สักตัว
+      currentDisplayStatus: toApiDisplayStatus(
+        resolveResultStatus(latest.get(resultScopeKey(k, round.roomId)) ?? null, now),
+      ) satisfies ApiDisplayStatus,
       // หลักฐานของรอบนี้ทั้งหมด — ยังไม่แยกรายข้อเพราะ InspectionEvidence.resultId ผูกกับ
       // "แถวผล" ไม่ใช่ "คีย์ข้อตรวจ" และแถวผลของข้อที่ยังไม่เคยตรวจยังไม่มีอยู่
       evidence: evidence.map((e) => ({

@@ -17,29 +17,14 @@ import {
   latestResultPerCheck,
   resolveResultStatus,
   resultScopeKey,
-  type InspectionDisplayStatus,
+  toApiDisplayStatus,
+  type ApiDisplayStatus,
   type InspectionOutcome,
   type InspectionResultRow,
 } from './result-status'
 
-/**
- * ชื่อสถานะที่ใช้ใน payload ของ API
- * 🛑 `RECHECK` ภายใน = `RECHECK_DUE` ใน API (สัญญาที่ประกาศไว้ใน API.md §3.2 ค) — แปลที่นี่
- *    ที่เดียว ห้ามให้แต่ละ route แปลเอง
- */
-export type ApiDisplayStatus = 'PASS' | 'FAIL' | 'RECHECK_DUE' | 'NO_DATA' | 'NOT_APPLICABLE'
-
-const DISPLAY_STATUS_TO_API: Record<InspectionDisplayStatus, ApiDisplayStatus> = {
-  PASS: 'PASS',
-  FAIL: 'FAIL',
-  RECHECK: 'RECHECK_DUE',
-  NO_DATA: 'NO_DATA',
-  NOT_APPLICABLE: 'NOT_APPLICABLE',
-}
-
-export function toApiDisplayStatus(status: InspectionDisplayStatus): ApiDisplayStatus {
-  return DISPLAY_STATUS_TO_API[status]
-}
+// ชื่อสถานะฝั่งสัญญา + ตัวแปล ย้ายไปอยู่ติดกับ enum ต้นทางที่ `result-status.ts` แล้ว (HR16)
+export { toApiDisplayStatus, type ApiDisplayStatus }
 
 export type OwnerResultRow = InspectionResultRow & { roundId: string | null }
 

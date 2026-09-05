@@ -9,20 +9,21 @@
  * ไม่ใช่ "ผลของรอบนี้โดยเฉพาะ" — service ยังไม่มีช่องแยกรายรอบให้อ่าน (ดูคอมเมนต์หัวไฟล์ page.tsx)
  */
 import Icon from '@/components/wrappers/Icon'
+import type { ApiDisplayStatus } from '@/lib/inspection/result-status'
 
-// 🛑 ค่าจริงจาก `resolveResultStatus()` คือ `'RECHECK'` ไม่ใช่ `'RECHECK_DUE'` ตามที่ API.md §3.2 ค
+// สถานะใช้ชื่อตามสัญญา HTTP (`ApiDisplayStatus` ใน result-status.ts) — service แปลงให้แล้ว
 // เขียนไว้ — ยึดค่าจริงของโค้ด (`src/lib/inspection/result-status.ts`) ไม่ใช่ของเอกสาร
 type CheckRow = {
   checkKey: string
   label: string
   scope: 'SHOP' | 'ROOM'
-  currentDisplayStatus: 'PASS' | 'FAIL' | 'RECHECK' | 'NO_DATA' | 'NOT_APPLICABLE'
+  currentDisplayStatus: ApiDisplayStatus
 }
 
 const STATUS_META: Record<CheckRow['currentDisplayStatus'], { label: string; cls: string; icon: string }> = {
   PASS: { label: 'ผ่าน', cls: 'bg-success/15 text-success-ink', icon: 'circle-check' },
   FAIL: { label: 'ไม่ผ่าน', cls: 'bg-danger/15 text-danger-ink', icon: 'circle-x' },
-  RECHECK: { label: 'รอตรวจซ้ำ', cls: 'bg-warning/15 text-warning-ink', icon: 'clock-exclamation' },
+  RECHECK_DUE: { label: 'รอตรวจซ้ำ', cls: 'bg-warning/15 text-warning-ink', icon: 'clock-exclamation' },
   NO_DATA: { label: 'ยังไม่มีข้อมูล', cls: 'bg-default-100 text-default-700', icon: 'circle-dashed' },
   NOT_APPLICABLE: { label: 'ไม่เกี่ยวข้อง', cls: 'bg-default-100 text-default-700', icon: 'minus' },
 }
