@@ -20,6 +20,7 @@ import { sessionUserId } from '@/lib/session-user'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getInspectionForOwner } from '@/services/inspection-owner.service'
 import { InspectionPlanError } from '@/services/inspection-plan.service'
+import { shouldHidePayments } from '@/lib/app-shell-server'
 import SellerErrorState from '../_shared/SellerErrorState'
 import { serializeOwnerInspectionView } from './components/serialize'
 import PlanStatusCard from './components/PlanStatusCard'
@@ -75,6 +76,12 @@ export default async function InspectionPage() {
   }
 
   const data = serializeOwnerInspectionView(view)
+  /* 🛑 App Store 3.1.1 — ในแอปผู้ขาย (WebView) ห้ามมีคำเชิญให้จ่ายเงินนอกระบบของ Apple
+     หน้านี้ขาย "แผนการตรวจสอบ" จึงต้องซ่อนทั้งปุ่มสมัคร/อัปเกรดและคำแนะนำให้เติมเงิน
+     — สถานะและผลตรวจยังแสดงครบ (เป็นข้อมูล ไม่ใช่การขาย) แพตเทิร์นเดียวกับหน้า /wallet
+     ที่ยังโชว์ยอดคงเหลือแต่ซ่อนปุ่มเติมเงิน · ด่านนี้ถูกบังคับด้วยเทส [blocker]
+     `no-payment-entry-in-app.test.ts` ซึ่งจับหน้านี้ได้ทันทีหลัง rebase */
+  const hidePayments = await shouldHidePayments()
 
   return (
     <>
@@ -84,9 +91,9 @@ export default async function InspectionPage() {
       </p>
 
       <div className="space-y-base">
-        <PlanStatusCard plan={data.plan} canManage={data.canManage} />
+        <PlanStatusCard plan={data.plan} canManage={data.canManage} hidePayments={hidePayments} />
 
-        <StepLadder plan={data.plan} canManage={data.canManage} intake={data.intake} />
+        <StepLadder plan={data.plan} canManage={data.canManage} intake={data.intake} hidePayments={hidePayments} />
 
         <InspectionChecklistSection
           plan={data.plan}

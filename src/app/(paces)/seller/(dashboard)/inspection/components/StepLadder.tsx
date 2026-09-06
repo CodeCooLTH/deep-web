@@ -61,9 +61,11 @@ type Props = {
   plan: InspectionPlanJSON
   canManage: boolean
   intake: IntakeJSON
+  /** 🛑 ในแอปผู้ขาย (App Store 3.1.1) ห้ามมีปุ่มสมัคร/อัปเกรดที่พาไปจ่ายเงินนอกระบบของ Apple */
+  hidePayments?: boolean
 }
 
-export default function StepLadder({ plan, canManage, intake }: Props) {
+export default function StepLadder({ plan, canManage, intake, hidePayments = false }: Props) {
   const router = useRouter()
   const [pendingStep, setPendingStep] = useState<InspectionStep | null>(null)
   const [errorByStep, setErrorByStep] = useState<Record<number, string>>({})
@@ -174,7 +176,7 @@ export default function StepLadder({ plan, canManage, intake }: Props) {
 
                   {(relation === 'select' || relation === 'above') && (
                     <>
-                      {quotaOpen && !PRICING_BLOCKED ? (
+                      {quotaOpen && !PRICING_BLOCKED && !hidePayments ? (
                         <button
                           type="button"
                           disabled={!canManage || busy}
@@ -194,7 +196,9 @@ export default function StepLadder({ plan, canManage, intake }: Props) {
                         // ลืมตั้งโควตา ทุกขั้นจะขึ้นว่าเต็มทั้งที่ยังไม่มีใครสมัครสักคน แล้วจะไม่มีใคร
                         // เอะใจไปสืบ เพราะ "เต็ม" เป็นคำอธิบายที่ฟังขึ้นสมบูรณ์ · เหตุผลมาจาก server
                         <p className="text-default-400 text-xs">
-                          {PRICING_BLOCKED
+                          {hidePayments
+                            ? 'สมัครและจัดการแผนได้จากเว็บไซต์ Deep'
+                            : PRICING_BLOCKED
                             ? 'ยังไม่เปิดให้สมัคร'
                             : `${
                                 intake.stepStatus[step] === 'FULL'

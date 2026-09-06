@@ -28,17 +28,28 @@ import type { InspectionPlanJSON } from './types'
 // ต้องไม่โผล่ตัวเลขว่างเปล่า (UX edge state: "ราคาจะประกาศเร็ว ๆ นี้")
 const PRICING_BLOCKED = INSPECTION_PRICING_IS_DRAFT && process.env.NODE_ENV === 'production'
 
-const REASON_LABEL: Record<string, string> = {
-  OWNER_CANCELLED: 'ยกเลิกโดยเจ้าของร้าน',
-  RENEWAL_FAILED: 'ต่ออายุไม่สำเร็จ (เครดิตไม่พอ) — เติมเครดิตแล้วสมัครใหม่ได้',
-}
+/**
+ * 🛑 เหตุผลของ `RENEWAL_FAILED` มีคำเชิญให้เติมเครดิตอยู่ในตัว ⇒ ต้องผันตาม `hidePayments`
+ *    เหมือนคำเชิญอื่น (App Store 3.1.1) — จุดนี้หลุดด่านของเทส [blocker] ได้เพราะเทสตรวจแค่ว่า
+ *    "ไฟล์นี้มีคำว่า hidePayments ไหม" ไม่ได้ตรวจว่ากั้นครบทุกจุดในไฟล์
+ */
+const reasonLabel = (reason: string, hidePayments: boolean): string | undefined =>
+  reason === 'OWNER_CANCELLED'
+    ? 'ยกเลิกโดยเจ้าของร้าน'
+    : reason === 'RENEWAL_FAILED'
+      ? hidePayments
+        ? 'ต่ออายุไม่สำเร็จ (เครดิตไม่พอ) — จัดการการชำระเงินได้จากเว็บไซต์ Deep'
+        : 'ต่ออายุไม่สำเร็จ (เครดิตไม่พอ) — เติมเครดิตแล้วสมัครใหม่ได้'
+      : undefined
 
 type Props = {
   plan: InspectionPlanJSON
   canManage: boolean
+  /** 🛑 ในแอปผู้ขาย (App Store 3.1.1) ห้ามมีคำเชิญให้จ่ายเงิน — ข้อมูล/สถานะยังแสดงครบ */
+  hidePayments?: boolean
 }
 
-export default function PlanStatusCard({ plan, canManage }: Props) {
+export default function PlanStatusCard({ plan, canManage, hidePayments = false }: Props) {
   const router = useRouter()
   const [cancelError, setCancelError] = useState<string | null>(null)
 
@@ -134,8 +145,11 @@ export default function PlanStatusCard({ plan, canManage }: Props) {
             <Icon icon="alert-triangle" className="text-warning-ink mt-0.5 size-4 shrink-0" />
             <p className="text-warning-ink text-sm">
               ค้างชำระค่าตรวจ — เหลือเวลาอีก {plan.graceDaysLeft} วัน
-              (ถึง {formatDate(plan.graceUntil)}) เติมเงินในกระเป๋าร้านแล้วระบบจะตัดให้อัตโนมัติ
-              ระหว่างนี้ป้ายบนโปรไฟล์ยังแสดงตามปกติ
+              (ถึง {formatDate(plan.graceUntil)})
+              {hidePayments
+                ? ' จัดการการชำระเงินได้จากเว็บไซต์ Deep'
+                : ' เติมเงินในกระเป๋าร้านแล้วระบบจะตัดให้อัตโนมัติ'}
+              {' '}ระหว่างนี้ป้ายบนโปรไฟล์ยังแสดงตามปกติ
             </p>
           </div>
         )}
@@ -163,7 +177,7 @@ export default function PlanStatusCard({ plan, canManage }: Props) {
             ไม่ได้อยู่ในแผนการตรวจสอบต่อเนื่องแล้ว — โปรไฟล์สาธารณะแสดงเป็นแถบสีเทากลาง
             ประวัติรอบตรวจเดิมยังแสดงอยู่ครบ
             {plan.lapsedReason && (
-              <p className="mt-1 text-default-500">{REASON_LABEL[plan.lapsedReason]}</p>
+              <p className="mt-1 text-default-500">{reasonLabel(plan.lapsedReason, hidePayments)}</p>
             )}
           </div>
         )}
