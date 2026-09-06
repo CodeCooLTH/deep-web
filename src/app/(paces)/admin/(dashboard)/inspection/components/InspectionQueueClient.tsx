@@ -156,9 +156,38 @@ export default function InspectionQueueClient({ initialRounds, initialBacklog, i
     { overdueUnassigned: 0, overdueAssigned: 0, dueSoon: 0 },
   )
 
+  /**
+   * กดการ์ด "เลยกำหนด" แล้วไปที่ตารางที่กรองไว้แล้ว
+   *
+   * 🛑 ตัวเลขที่กดไม่ได้ทำให้แอดมินต้องไปตั้งฟิลเตอร์เองซ้ำทุกครั้ง แล้วชุดฟิลเตอร์ที่ตั้งเอง
+   *    อาจไม่ตรงกับที่ตัวเลขนับมา = เห็นเลข 5 แล้วกรองเจอ 4 (คลาสเดียวกับที่ `/orders?stage=`
+   *    เคยเจอ — ตัวนับกับตัวกรองต้องมาจากเกณฑ์เดียวกัน)
+   */
+  const focusOverdue = (assignmentValue: 'UNASSIGNED' | 'ASSIGNED') => {
+    applyFilter({ assignment: assignmentValue, overdueOnly: 'true' })
+    const target = document.getElementById('inspection-queue-table')
+    if (target === null) return
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+  }
+
   const stats: AdminStat[] = [
-    { title: 'รอมอบหมาย (เลยกำหนด)', value: totals.overdueUnassigned, icon: 'user-exclamation', tone: 'warning' },
-    { title: 'มอบหมายแล้ว รอผล (เลยกำหนด)', value: totals.overdueAssigned, icon: 'clock-exclamation', tone: 'primary' },
+    {
+      title: 'รอมอบหมาย (เลยกำหนด)',
+      value: totals.overdueUnassigned,
+      icon: 'user-exclamation',
+      tone: 'warning',
+      onClick: () => focusOverdue('UNASSIGNED'),
+      actionHint: 'กดเพื่อดูรายการที่กรองไว้',
+    },
+    {
+      title: 'มอบหมายแล้ว รอผล (เลยกำหนด)',
+      value: totals.overdueAssigned,
+      icon: 'clock-exclamation',
+      tone: 'primary',
+      onClick: () => focusOverdue('ASSIGNED'),
+      actionHint: 'กดเพื่อดูรายการที่กรองไว้',
+    },
     { title: 'ใกล้ครบกำหนด (≤7 วัน)', value: totals.dueSoon, icon: 'calendar-time', tone: 'info' },
     // 🛑 โทนต้องหนักกว่า "เลยกำหนด" ไม่ใช่เบากว่า — งานค้างคือคิวที่ช้า ส่วนสัญญาณฉ้อโกงคือ
     //    เรื่องที่ผู้ตรวจไปเห็นมากับตาแล้วบันทึกไว้ และเป็นสิ่งเดียวในจอนี้ที่ความเร่งด่วน
@@ -420,7 +449,8 @@ export default function InspectionQueueClient({ initialRounds, initialBacklog, i
         </div>
       )}
 
-      <div className="card">
+      {/* scroll-mt-20 กันหัวสติกกี้บังหัวตารางตอนถูกเลื่อนมาจากการ์ดตัวเลข */}
+      <div className="card scroll-mt-20" id="inspection-queue-table">
         <div className="card-header flex flex-wrap items-center gap-2.5">
           <span className="me-1 shrink-0 text-sm font-semibold text-default-700">กรอง:</span>
           <FilterDropdown

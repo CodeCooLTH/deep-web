@@ -16,8 +16,10 @@ import Link from 'next/link'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Icon from '@/components/wrappers/Icon'
 import { requireAdmin } from '@/lib/auth'
-import { listRoundsForAdmin } from '@/services/inspection-admin.service'
+import { getIntakeQuotaOverview, listRoundsForAdmin } from '@/services/inspection-admin.service'
+import { intakePeriodKey } from '@/lib/inspection/plan-lifecycle'
 import InspectionQueueClient from './components/InspectionQueueClient'
+import QuotaStatusBanner from './components/QuotaStatusBanner'
 
 export const metadata: Metadata = { title: 'คิวตรวจสอบร้าน' }
 
@@ -25,7 +27,17 @@ export default async function AdminInspectionPage() {
   const admin = await requireAdmin()
   if (!admin) redirect('/admin/auth/sign-in')
 
-  const initial = await listRoundsForAdmin({ assignment: 'ALL', now: new Date() })
+  const now = new Date()
+  // 🛑 คำนวณสดตอนโหลดหน้า ไม่ใช่ดึง snapshot จาก response ของ cron — ค่าที่คำนวณสดไม่มี lag
+  //    และไม่ผูกชะตากับการที่ cron รอบล่าสุดทำงานสำเร็จหรือเปล่า
+  // 🛑 เดือนต้องมาจาก `intakePeriodKey()` (เวลาไทย) ไม่ใช่ `now.getMonth()` (เวลาเครื่อง = UTC
+  //    บน Vercel) — ทุกสิ้นเดือนจะมีช่วง 7 ชั่วโมงที่สองค่านี้ชี้คนละเดือน แล้วแถบนี้จะอ่านโควตา
+  //    ผิดเดือน: ขึ้น "ยังไม่ตั้งโควตา" ทั้งที่ตั้งแล้ว หรือแย่กว่านั้นคือปิดปากตอนที่ยังไม่ได้ตั้งจริง
+  const [periodYear, periodMonth] = intakePeriodKey(now).split('-').map(Number)
+  const [initial, quotas] = await Promise.all([
+    listRoundsForAdmin({ assignment: 'ALL', now }),
+    getIntakeQuotaOverview(periodYear!, periodMonth!),
+  ])
 
   return (
     <>
@@ -39,6 +51,8 @@ export default async function AdminInspectionPage() {
           </Link>
         }
       />
+
+      <QuotaStatusBanner quotas={quotas} />
 
       <InspectionQueueClient
         initialRounds={initial.rounds.map((r) => ({

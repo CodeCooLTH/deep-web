@@ -17,6 +17,11 @@ export type AdminStat = {
   suffix?: string
   icon: string
   tone?: 'primary' | 'success' | 'warning' | 'info' | 'secondary' | 'danger'
+  /** มีค่า = การ์ดทั้งใบกดได้ (เพิ่ม 2026-09-06 · feature 00060) — ไม่ใส่ = การ์ดอ่านอย่างเดียว
+   *  เหมือนเดิมทุกประการ ⇒ หน้าอื่นที่ใช้คอมโพเนนต์นี้อยู่แล้วไม่ต้องแก้อะไร */
+  onClick?: () => void
+  /** คำอธิบายเพิ่มสำหรับ screen reader เมื่อการ์ดกดได้ — ตัวเลขเปล่าไม่บอกว่ากดแล้วได้อะไร */
+  actionHint?: string
 }
 
 const toneClass: Record<NonNullable<AdminStat['tone']>, string> = {
@@ -31,9 +36,9 @@ const toneClass: Record<NonNullable<AdminStat['tone']>, string> = {
 }
 
 const StatisticCard = ({ stat }: { stat: AdminStat }) => {
-  const { title, value, suffix, icon, tone = 'primary' } = stat
-  return (
-    <div className="card h-full">
+  const { title, value, suffix, icon, tone = 'primary', onClick, actionHint } = stat
+  const body = (
+    <>
       <div className="card-body">
         <div className="flex justify-between items-start">
           <div>
@@ -57,8 +62,25 @@ const StatisticCard = ({ stat }: { stat: AdminStat }) => {
           </div>
         </div>
       </div>
-    </div>
+    </>
   )
+
+  // การ์ดที่กดได้ต้องเป็น <button> จริง ไม่ใช่ <div onClick> — ไม่งั้นคีย์บอร์ดโฟกัสไม่ถึง
+  // และ screen reader ไม่มีทางรู้ว่ามันกดได้ (docs/conventions/aria-name-requires-supporting-role.md)
+  if (onClick !== undefined) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={actionHint === undefined ? undefined : `${title} — ${actionHint}`}
+        className="card h-full w-full text-start transition-shadow hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+      >
+        {body}
+      </button>
+    )
+  }
+
+  return <div className="card h-full">{body}</div>
 }
 
 export default StatisticCard
