@@ -30,7 +30,26 @@ export const DISPLAY_STATUS_LABEL_TH: Record<InspectionDisplayStatus, string> = 
   FAIL: 'ไม่ผ่าน',
   RECHECK: 'รอตรวจซ้ำ',
   NO_DATA: 'ยังไม่มีข้อมูล',
-  NOT_APPLICABLE: 'ไม่เกี่ยวข้องกับที่พักประเภทนี้',
+  // 🛑 "ไม่เกี่ยวข้องกับร้านนี้" ไม่ใช่ "...กับที่พักประเภทนี้" — ค่านี้ใช้กับข้อที่ผูก **ร้าน** ด้วย
+  //    (เช่น `bank_account_name`) การพูดถึง "ที่พัก" จึงผิดกับครึ่งหนึ่งของข้อที่ใช้ค่านี้ได้จริง
+  //    · และสั้นพอสำหรับ badge ที่ 320px ซึ่งของเดิมล้น
+  NOT_APPLICABLE: 'ไม่เกี่ยวข้องกับร้านนี้',
+}
+
+/**
+ * คำแปลของชื่อสถานะฝั่ง **สัญญา HTTP** (`ApiDisplayStatus`) — คนละคีย์กับข้างบนหนึ่งค่า
+ *
+ * 🛑 มีอยู่เพราะหน้าจอฝั่ง `(paces)` รับค่าจาก API ไม่ใช่จาก `resolveResultStatus()` ตรง ๆ
+ *    ⇒ ก่อนหน้านี้ 4 ไฟล์ประกาศคำแปลของตัวเองซ้ำ แล้วคำก็เริ่มไม่ตรงกันจริง ๆ ("ไม่เกี่ยวข้อง"
+ *    ในสามจอ vs "ไม่เกี่ยวข้องกับที่พักประเภทนี้" ในอีกสองจอ) ซึ่งเป็นรูปแบบที่ HR16 ห้ามตรงตัว
+ *    — เพิ่มคำใหม่ต้องเพิ่มที่นี่ที่เดียว ห้ามพิมพ์ที่ component
+ */
+export const API_DISPLAY_STATUS_LABEL_TH: Record<ApiDisplayStatus, string> = {
+  PASS: DISPLAY_STATUS_LABEL_TH.PASS,
+  FAIL: DISPLAY_STATUS_LABEL_TH.FAIL,
+  RECHECK_DUE: DISPLAY_STATUS_LABEL_TH.RECHECK,
+  NO_DATA: DISPLAY_STATUS_LABEL_TH.NO_DATA,
+  NOT_APPLICABLE: DISPLAY_STATUS_LABEL_TH.NOT_APPLICABLE,
 }
 
 /**

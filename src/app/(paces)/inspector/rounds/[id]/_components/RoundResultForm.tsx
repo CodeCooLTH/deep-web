@@ -19,6 +19,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { API_DISPLAY_STATUS_LABEL_TH } from '@/lib/inspection/result-status'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
@@ -66,11 +67,23 @@ type Props = {
 }
 
 const STATUS_META: Record<DisplayStatus, { label: string; cls: string }> = {
-  PASS: { label: 'สถานะปัจจุบัน: ผ่าน', cls: 'bg-success/15 text-success-ink' },
-  FAIL: { label: 'สถานะปัจจุบัน: ไม่ผ่าน', cls: 'bg-danger/15 text-danger-ink' },
-  RECHECK_DUE: { label: 'สถานะปัจจุบัน: รอตรวจซ้ำ', cls: 'bg-warning/15 text-warning-ink' },
-  NO_DATA: { label: 'ยังไม่มีข้อมูล', cls: 'bg-default-100 text-default-700' },
-  NOT_APPLICABLE: { label: 'ไม่เกี่ยวข้อง', cls: 'bg-default-100 text-default-700' },
+  // 🛑 คำนำหน้า "สถานะปัจจุบัน:" ต้องมีครบทั้ง 5 ค่า — เดิมมี 3 ขาด 2 ⇒ ชิปที่ไม่มีคำนำหน้า
+  //    ถูกอ่านเป็น "ผลที่ผู้ตรวจเพิ่งเลือก" เพราะในจอเดียวกันมีปุ่มเลือกผลอยู่ข้าง ๆ กันพอดี
+  //    · ตัวคำมาจาก SSOT ห้ามพิมพ์เอง (HR16)
+  PASS: { label: `สถานะปัจจุบัน: ${API_DISPLAY_STATUS_LABEL_TH.PASS}`, cls: 'bg-success/15 text-success-ink' },
+  FAIL: { label: `สถานะปัจจุบัน: ${API_DISPLAY_STATUS_LABEL_TH.FAIL}`, cls: 'bg-danger/15 text-danger-ink' },
+  RECHECK_DUE: {
+    label: `สถานะปัจจุบัน: ${API_DISPLAY_STATUS_LABEL_TH.RECHECK_DUE}`,
+    cls: 'bg-warning/15 text-warning-ink',
+  },
+  NO_DATA: {
+    label: `สถานะปัจจุบัน: ${API_DISPLAY_STATUS_LABEL_TH.NO_DATA}`,
+    cls: 'bg-default-100 text-default-700',
+  },
+  NOT_APPLICABLE: {
+    label: `สถานะปัจจุบัน: ${API_DISPLAY_STATUS_LABEL_TH.NOT_APPLICABLE}`,
+    cls: 'bg-default-100 text-default-700',
+  },
 }
 
 /** มิเรอร์ `PUBLIC_PAIRS` ของ `src/lib/inspection/evidence-visibility.ts` (อ่านอย่างเดียว ห้ามแก้

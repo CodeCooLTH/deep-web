@@ -95,7 +95,10 @@ export function toInspectionViewVM(view: PublicInspectionView | null): Inspectio
 
 /** จำนวนข้อตรวจทั้งหมดที่ร้านนี้ต้องผ่าน ณ ขั้นปัจจุบัน — ใช้ในข้อความ CTA "({N} ข้อ)" */
 export function totalCheckCount(vm: InspectionViewVM): number {
-  return vm.shopChecks.length + (vm.rooms[0]?.checks.length ?? 0)
+  // 🛑 นับ **ทุกหลัง** ไม่ใช่หลังแรกหลังเดียว — CTA เขียนว่า "ผลครบทุกข้อ (N ข้อ)" แล้วพาไปหน้า
+  //    ที่แสดงข้อของทุกหลังจริง ⇒ ร้านที่มีที่พัก 3 หลังเคยได้ตัวเลขต่ำกว่าความจริงราวหนึ่งในสาม
+  //    โดยไม่มีอะไรบอก · ตัวเลขที่ต่ำกว่าจริงบนป้ายความน่าเชื่อถือ = การรายงานต่ำกว่าที่ตรวจไปแล้ว
+  return vm.shopChecks.length + vm.rooms.reduce((sum, r) => sum + r.checks.length, 0)
 }
 
 /**

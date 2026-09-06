@@ -11,6 +11,7 @@
  *    (UNASSIGNED_INSPECTOR_NAME) หรือมีชื่อผู้ตรวจจริงแล้ว
  */
 import Icon from '@/components/wrappers/Icon'
+import { DISPLAY_STATUS_LABEL_TH } from '@/lib/inspection/result-status'
 import { cn } from '@/utils/helpers'
 import { formatDateTH } from '@/lib/format-date'
 import { INSPECTION_CHECKS, INSPECTION_STEP_LABEL_TH } from '@/lib/inspection/checks'
@@ -27,7 +28,12 @@ const METHOD_LABEL: Record<string, string> = {
 
 // ค่าดิบ 3 ค่าของ outcome — ใช้แค่บอกความจริง ณ วันนั้นในไทม์ไลน์ ไม่ใช่ displayStatus (API.md §4.1
 // "changedResults[].outcome เป็นค่าดิบ 3 ค่าไม่ใช่ displayStatus โดยตั้งใจ")
-const OUTCOME_LABEL: Record<string, string> = { PASS: 'ผ่าน', FAIL: 'ไม่ผ่าน', NOT_APPLICABLE: 'ไม่เกี่ยวข้อง' }
+// คำแปลมาจาก SSOT เดียว — ห้ามพิมพ์ซ้ำที่ component (HR16)
+const OUTCOME_LABEL: Record<string, string> = {
+  PASS: DISPLAY_STATUS_LABEL_TH.PASS,
+  FAIL: DISPLAY_STATUS_LABEL_TH.FAIL,
+  NOT_APPLICABLE: DISPLAY_STATUS_LABEL_TH.NOT_APPLICABLE,
+}
 
 function PendingRow({ round }: { round: PendingRoundJSON }) {
   const assigned = round.inspectorDisplayName !== UNASSIGNED_INSPECTOR_NAME

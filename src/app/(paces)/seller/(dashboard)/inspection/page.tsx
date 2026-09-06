@@ -19,6 +19,7 @@ import { authOptions } from '@/lib/auth'
 import { sessionUserId } from '@/lib/session-user'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getInspectionForOwner } from '@/services/inspection-owner.service'
+import { InspectionPlanError } from '@/services/inspection-plan.service'
 import SellerErrorState from '../_shared/SellerErrorState'
 import { serializeOwnerInspectionView } from './components/serialize'
 import PlanStatusCard from './components/PlanStatusCard'
@@ -53,7 +54,14 @@ export default async function InspectionPage() {
       roomId: null,
       now: new Date(),
     })
-  } catch {
+  } catch (e) {
+    // 🛑 "ไม่มีสิทธิ์" ไม่ใช่ "ผิดพลาดชั่วคราว" — เดิม catch เดียวกลืนทุกอย่างแล้วบอกให้ "ลองโหลด
+    //    ใหม่อีกครั้ง" ⇒ เชิญให้ผู้ใช้กดวนสิ่งที่ไม่มีวันสำเร็จ (คลาสเดียวกับบทเรียน iShip
+    //    2026-08-06 ที่จัด "เครดิตไม่พอ" เป็น error ที่ retry ได้)
+    const code = e instanceof InspectionPlanError ? e.code : null
+    if (code === 'NOT_SHOP_MEMBER' || code === 'NOT_SHOP_OWNER' || code === 'SHOP_NOT_FOUND') {
+      notFound()
+    }
     return (
       <>
         <PageBreadcrumb title="แผนการตรวจสอบ" />

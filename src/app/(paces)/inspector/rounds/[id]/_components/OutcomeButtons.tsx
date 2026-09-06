@@ -11,14 +11,15 @@
  */
 
 import Icon from '@/components/wrappers/Icon'
+import { DISPLAY_STATUS_LABEL_TH } from '@/lib/inspection/result-status'
 import { cn } from '@/utils/helpers'
 
 export type Outcome = 'PASS' | 'FAIL' | 'NOT_APPLICABLE'
 
 const OPTIONS: { value: Outcome; label: string; icon: string; selectedCls: string; idleCls: string }[] = [
-  { value: 'PASS', label: 'ผ่าน', icon: 'check', selectedCls: 'bg-success text-white', idleCls: 'bg-success/15 text-success-ink' },
-  { value: 'FAIL', label: 'ไม่ผ่าน', icon: 'x', selectedCls: 'bg-danger text-white', idleCls: 'bg-danger/15 text-danger-ink' },
-  { value: 'NOT_APPLICABLE', label: 'ไม่เกี่ยวข้อง', icon: 'minus', selectedCls: 'bg-dark text-white', idleCls: 'bg-light text-dark' },
+  { value: 'PASS', label: DISPLAY_STATUS_LABEL_TH.PASS, icon: 'check', selectedCls: 'bg-success text-white', idleCls: 'bg-success/15 text-success-ink' },
+  { value: 'FAIL', label: DISPLAY_STATUS_LABEL_TH.FAIL, icon: 'x', selectedCls: 'bg-danger text-white', idleCls: 'bg-danger/15 text-danger-ink' },
+  { value: 'NOT_APPLICABLE', label: DISPLAY_STATUS_LABEL_TH.NOT_APPLICABLE, icon: 'minus', selectedCls: 'bg-dark text-white', idleCls: 'bg-light text-dark' },
 ]
 
 export default function OutcomeButtons({ value, onChange }: { value: Outcome | null; onChange: (v: Outcome) => void }) {

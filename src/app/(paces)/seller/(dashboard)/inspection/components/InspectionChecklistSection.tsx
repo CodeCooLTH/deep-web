@@ -19,6 +19,7 @@
 'use client'
 
 import { useState } from 'react'
+import { API_DISPLAY_STATUS_LABEL_TH } from '@/lib/inspection/result-status'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
@@ -41,13 +42,13 @@ type StatusConfig = { label: string; icon: string; cls: string }
 
 // soft badge — bg-{color}/15 + text-{color}-ink ตาม §6 ของ component reference (ห้าม text-{color} เปล่า)
 const STATUS_CONFIG: Record<ApiDisplayStatus, StatusConfig> = {
-  PASS: { label: 'ผ่าน', icon: 'circle-check', cls: 'bg-success/15 text-success-ink' },
+  PASS: { label: API_DISPLAY_STATUS_LABEL_TH.PASS, icon: 'circle-check', cls: 'bg-success/15 text-success-ink' },
   // ไม่ใช้แดง — ดูคอมเมนต์หัวไฟล์ (การตัดสินใจของ dev เพราะสเปกไม่ได้ระบุสีตรง ๆ)
-  FAIL: { label: 'ไม่ผ่าน', icon: 'circle-x', cls: 'bg-default-200 text-default-700' },
-  RECHECK_DUE: { label: 'รอตรวจซ้ำ', icon: 'refresh', cls: 'bg-warning/15 text-warning-ink' },
-  NO_DATA: { label: 'ยังไม่มีข้อมูล', icon: 'circle-dashed', cls: 'bg-default-100 text-default-500' },
+  FAIL: { label: API_DISPLAY_STATUS_LABEL_TH.FAIL, icon: 'circle-x', cls: 'bg-default-200 text-default-700' },
+  RECHECK_DUE: { label: API_DISPLAY_STATUS_LABEL_TH.RECHECK_DUE, icon: 'refresh', cls: 'bg-warning/15 text-warning-ink' },
+  NO_DATA: { label: API_DISPLAY_STATUS_LABEL_TH.NO_DATA, icon: 'circle-dashed', cls: 'bg-default-100 text-default-500' },
   NOT_APPLICABLE: {
-    label: 'ไม่เกี่ยวข้องกับที่พักประเภทนี้',
+    label: API_DISPLAY_STATUS_LABEL_TH.NOT_APPLICABLE,
     icon: 'minus',
     // เฉดเดียวกับ NO_DATA โดยตั้งใจ — ตัวแบกความหมายคือไอคอน (minus vs circle-dashed) ไม่ใช่เฉดสี
     cls: 'bg-default-100 text-default-500',
