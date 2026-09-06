@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { hashPendingRoomImages } from '@/services/room-image-fingerprint.service'
 import { intakePeriodKey, nextIntakePeriodKey } from '@/lib/inspection/plan-lifecycle'
 import type { InspectionStep } from '@/lib/inspection/checks'
 import { renewOrLapseInspectionPlan, seedIntakeQuota } from '@/services/inspection-plan.service'
@@ -37,6 +38,11 @@ export async function GET(request: Request) {
 
   // เวลาเดียวทั้งรอบ — ร้านที่รันตอนต้นรอบกับท้ายรอบต้องถูกตัดสินด้วยเส้นเวลาเดียวกัน
   const now = new Date()
+
+  // 🛑 งานแฮชรูปต้องมา **ก่อน** ข้อตรวจอัตโนมัติในรอบเดียวกัน — ไม่งั้นรูปที่เพิ่งอัปวันนี้จะยัง
+  //    ไม่มีลายนิ้วมือตอนถูกตรวจ แล้วห้องนั้นได้ "ยังไม่มีข้อมูล" ไปอีกหนึ่งวันโดยไม่จำเป็น
+  //    · ครอบทุกร้านที่มีที่พัก ไม่ใช่เฉพาะร้านที่ซื้อแผน (เหตุผลเต็มอยู่ในหัว service)
+  const fingerprints = await hashPendingRoomImages({ now })
 
   const plans = await prisma.inspectionPlan.findMany({
     where: { status: 'ACTIVE' },
@@ -94,6 +100,7 @@ export async function GET(request: Request) {
     resultRowsChanged,
     roundsScheduled,
     quota,
+    fingerprints,
     overdueRounds,
     errors,
   })

@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { getMaxVerificationLevel } from '@/services/verification.service'
 import { searchScamByIdentifier } from '@/services/scam-report.service'
 import { recordCheckOutcome } from '@/services/inspection-result.service'
+import { collectRoomDuplicateFacts } from '@/services/room-image-fingerprint.service'
+import { resolveChatResponse } from '@/lib/chat-response-display'
 import {
   STEP1_AUTO_CHECKS,
   STEP1_AUTO_CHECK_KEYS,
@@ -51,7 +53,13 @@ const emptySkipped = (): Record<AutoCheckSkipReason, number> => ({
 export async function collectAutoCheckFacts(shopId: string, now: Date): Promise<AutoCheckFacts | null> {
   const shop = await prisma.shop.findUnique({
     where: { id: shopId },
-    select: { userId: true, createdAt: true, chatResponseRate: true },
+    select: {
+      userId: true,
+      createdAt: true,
+      chatResponseRate: true,
+      chatMedianResponseSec: true,
+      chatResponseSampleSize: true,
+    },
   })
   if (shop === null) return null
 
@@ -68,7 +76,11 @@ export async function collectAutoCheckFacts(shopId: string, now: Date): Promise<
     scamFound,
     verificationLevel,
     accountAgeDays: Math.floor((now.getTime() - shop.createdAt.getTime()) / MS_PER_DAY),
-    chatResponseRate: shop.chatResponseRate,
+    // 🛑 ต้องผ่าน `resolveChatResponse()` เสมอ ห้ามอ่าน `Shop.chatResponseRate` ดิบ ๆ —
+    //    ที่นั่นคือที่ที่เกณฑ์ "ตัวอย่างพอไหม" ถูกบังคับ (CHAT_RESPONSE_MIN_SAMPLE)
+    //    อ่านดิบแปลว่าป้ายบอก "ตอบแชทผ่าน" จากบทสนทนาเดียว ขณะที่หน้าร้านสาธารณะของร้าน
+    //    เดียวกันเลือกจะไม่พูดอะไรเลยเพราะข้อมูลไม่พอ — คำเดียวกันสองนิยาม (Hard Rule 16)
+    chatResponseRate: resolveChatResponse(shop)?.ratePercent ?? null,
     openComplaintCount,
   }
 }
@@ -103,36 +115,67 @@ export async function runAutomaticStep1Checks(input: {
   const facts = await collectAutoCheckFacts(shopId, now)
   if (facts === null) return summary
 
-  const verdicts = STEP1_AUTO_CHECK_KEYS.map((key) => ({ key, verdict: STEP1_AUTO_CHECKS[key].evaluate(facts) }))
-
-  // ดึงรายชื่อที่พักเฉพาะเมื่อมีข้อผูกรายหลังที่ต้องบันทึกจริง — ไม่งั้นเป็นคิวรีที่เสียเปล่า
-  // ทุกร้านทุกวัน (ตอนนี้ duplicate_listing ยังไม่มีตัวตรวจจับ จึงไม่มีการดึงเลย)
-  const needsRooms = verdicts.some((v) => v.verdict.kind === 'RECORD' && isRoomScopedAutoCheck(v.key))
-  const rooms = needsRooms
-    ? await prisma.room.findMany({ where: { shopId, isActive: true }, select: { id: true } })
-    : []
-
-  for (const { key, verdict } of verdicts) {
+  // ── ข้อระดับร้าน ───────────────────────────────────────────────────────────
+  for (const key of STEP1_AUTO_CHECK_KEYS) {
+    const def = STEP1_AUTO_CHECKS[key]
+    if (def.kind !== 'SHOP') continue
+    const verdict = def.evaluate(facts)
     if (verdict.kind === 'SKIP') {
       summary.skipped[verdict.reason] += 1
       continue
     }
-    // 🛑 ข้อที่ผูกรายหลังต้องวนต่อ Room — ห้ามเขียนแถวเดียวโดยตั้ง roomId = null แทน
-    //    (จะกลายเป็นผลระดับร้านที่สืบทอดข้ามทุกหลัง ผิด FR-INS-029 ตรง ๆ)
-    const targets: (string | null)[] = isRoomScopedAutoCheck(key) ? rooms.map((r) => r.id) : [null]
-    for (const roomId of targets) {
-      const result = await recordCheckOutcome({
-        shopId,
-        roomId,
-        checkKey: key as Step1AutoCheckKey as InspectionCheckKey,
-        outcome: verdict.outcome,
-        planStep,
-        now,
-        roundId: null,
-      })
-      summary.recorded += 1
-      if (result.changed) summary.changed += 1
+    const result = await recordCheckOutcome({
+      shopId,
+      roomId: null,
+      checkKey: key as Step1AutoCheckKey as InspectionCheckKey,
+      outcome: verdict.outcome,
+      planStep,
+      now,
+      roundId: null,
+    })
+    summary.recorded += 1
+    if (result.changed) summary.changed += 1
+  }
+
+  // ── ข้อที่ผูกรายหลัง ───────────────────────────────────────────────────────
+  //
+  // 🛑 ต้องตัดสิน **ต่อหลัง** ด้วยข้อเท็จจริงของหลังนั้น ห้ามตัดสินครั้งเดียวแล้วเขียนผลเดียวกัน
+  //    ลงทุกหลัง — ห้องที่ก็อปรูปมาหนึ่งหลังจะทำให้ทั้งร้านตกทั้งที่หลังอื่นสะอาด และในทางกลับกัน
+  //    หลังที่ก็อปมาจะได้ "ผ่าน" ฟรีเพราะหลังอื่นสะอาด (ผิด FR-INS-029 ทั้งสองทาง)
+  const roomScopedKeys = STEP1_AUTO_CHECK_KEYS.filter(isRoomScopedAutoCheck)
+  if (roomScopedKeys.length > 0) {
+    const rooms = await prisma.room.findMany({
+      where: { shopId, isActive: true },
+      select: { id: true, images: true },
+    })
+    if (rooms.length > 0) {
+      const roomFacts = await collectRoomDuplicateFacts({ shopId, rooms })
+      for (const key of roomScopedKeys) {
+        const def = STEP1_AUTO_CHECKS[key]
+        if (def.kind !== 'ROOM') continue
+        for (const room of rooms) {
+          const f = roomFacts.get(room.id)
+          if (f === undefined) continue
+          const verdict = def.evaluateRoom(f)
+          if (verdict.kind === 'SKIP') {
+            summary.skipped[verdict.reason] += 1
+            continue
+          }
+          const result = await recordCheckOutcome({
+            shopId,
+            roomId: room.id,
+            checkKey: key as Step1AutoCheckKey as InspectionCheckKey,
+            outcome: verdict.outcome,
+            planStep,
+            now,
+            roundId: null,
+          })
+          summary.recorded += 1
+          if (result.changed) summary.changed += 1
+        }
+      }
     }
   }
+
   return summary
 }

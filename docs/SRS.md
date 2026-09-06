@@ -288,9 +288,15 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 > `inspection-lifecycle` ขึ้นแล้ว (T1-T10, T15) · เหลือหน้าจอ 4 surface และการรัน Impeccable
 > · 🛑 **ยังเปิดขายจริงไม่ได้** — ราคายังไม่มีมติ (`INSPECTION_PRICING_IS_DRAFT=true` และ
 > `assertInspectionPricingDecided()` โยน `PRICING_NOT_DECIDED` บน production) และข้อตรวจอัตโนมัติ
-> ของขั้นที่ 1 บันทึกผลได้จริง **3 จาก 6 ข้อ** (`account_age`/`chat_response_speed` ยังไม่มีมติ
-> เรื่องเกณฑ์ · `duplicate_listing` ยังไม่มีตัวตรวจจับ — ดู SDS OQ-12/OQ-13)
-> · คอลัมน์ที่เพิ่มหลังจาก T3: `InspectionRound.summary` (migration `20260905120000`)
+> ของขั้นที่ 1 **บันทึกผลได้ครบทั้ง 6 ข้อแล้ว** ตั้งแต่ 2026-09-06 (ปิด OQ-12/OQ-13: อายุบัญชี
+> ≥ 30 วัน · อัตราตอบแชท ≥ 80% ที่ผ่านเกณฑ์ตัวอย่างขั้นต่ำของ `resolveChatResponse()` มาก่อน ·
+> ประกาศซ้ำ = เทียบ sha256 ของรูปข้ามร้าน ตัดสินรายหลัง)
+> · คอลัมน์/ตารางที่เพิ่มหลังจาก T3: `InspectionRound.summary` (migration `20260905120000`) และ
+> **ตาราง `RoomImageFingerprint`** (migration `20260906120000`) — `fileId @unique` · `sha256` (null =
+> แฮชไม่สำเร็จ ไม่ใช่ยังไม่เคยลอง) · `firstListedAt` = `Room.createdAt` ที่ใช้ตัดสินว่า **ใครประกาศก่อน**
+> (ถ้าไม่มีคอลัมน์นี้ เหยื่อที่ถูกก็อปรูปจะตกเป็น "ไม่ผ่าน" พร้อมกับคนก็อป) · เขียนโดย
+> `hashPendingRoomImages()` ซึ่ง cron `inspection-lifecycle` เรียกเป็น **งานแรกของรอบ** และครอบ
+> **ทุกร้านที่มีที่พัก ไม่ใช่เฉพาะร้านที่ซื้อแผน** (คลังเทียบที่มีแต่ร้านที่จ่ายเงิน = ไม่มีวันเจออะไร)
 > **feature 00060 (แผนการตรวจสอบร้านค้า) — backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ:** เมื่อ implement แล้ว `/u/{username}`
 > และ `/b/{slug}` จะมีบล็อกผลตรวจ + ไทม์ไลน์เพิ่ม (อ่านผ่าน RSC/service call ตรง **ไม่มี public API
 > endpoint** — ดู §7.19) แสดงเฉพาะร้าน `vertical='LODGING'` ที่เคยสมัครแผน (มีแถว `InspectionPlan`)
@@ -479,6 +485,7 @@ Shop (1) ──────── (N) InspectionResult               [feature 00
 Shop (1) ──────── (N) InspectionTermsAcceptance      [feature 00060 — append-only]
 Room (1) ──────── (N) InspectionRound                [feature 00060 — roomId nullable = รอบระดับร้าน]
 Room (1) ──────── (N) InspectionResult               [feature 00060 — roomId nullable = ข้อผูกร้าน]
+Room (1) ──────── (N) RoomImageFingerprint            [feature 00060 — sha256 รูปประกาศ, onDelete Cascade]
 User (1) ──────── (N) InspectionRound [as inspector, optional]  [feature 00060]
 InspectionRound (1) ─ (N) InspectionEvidence         [feature 00060]
 InspectionResult (0..1) ─ (N) InspectionEvidence     [feature 00060 — optional]

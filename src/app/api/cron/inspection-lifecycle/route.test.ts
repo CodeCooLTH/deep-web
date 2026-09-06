@@ -8,6 +8,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const calls: string[] = []
+/** งานแฮชรูปเป็นงานระดับระบบ (ไม่ผูกกับร้านใดร้านหนึ่ง) — เทสลำดับ "ต่อร้าน" จึงตัดออกก่อนเทียบ
+ *  ลำดับของมันเทียบกับข้อตรวจอัตโนมัติมีเทสแยกของตัวเองด้านล่าง */
+const perShopCalls = () => calls.filter((c) => c !== 'hashImages')
 const planFindMany = vi.fn()
 const quotaFindMany = vi.fn()
 const renewOrLapse = vi.fn()
@@ -15,6 +18,7 @@ const runAutoChecks = vi.fn()
 const createDueRounds = vi.fn()
 const seedQuota = vi.fn()
 const overdue = vi.fn()
+const hashImages = vi.fn()
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -29,6 +33,12 @@ vi.mock('@/services/inspection-plan.service', () => ({
     return renewOrLapse(...a)
   },
   seedIntakeQuota: (...a: unknown[]) => seedQuota(...a),
+}))
+vi.mock('@/services/room-image-fingerprint.service', () => ({
+  hashPendingRoomImages: (...a: unknown[]) => {
+    calls.push('hashImages')
+    return hashImages(...a)
+  },
 }))
 vi.mock('@/services/inspection-auto-check.service', () => ({
   runAutomaticStep1Checks: (...a: unknown[]) => {
@@ -56,6 +66,7 @@ beforeEach(() => {
   calls.length = 0
   process.env.CRON_SECRET = 's3cret'
   planFindMany.mockResolvedValue([{ shopId: 'shop-1', step: 4 }])
+  hashImages.mockResolvedValue({ hashed: 0, failed: 0, remaining: 0 })
   quotaFindMany.mockResolvedValue([{ step: 1, capacity: 10 }])
   renewOrLapse.mockResolvedValue({ action: 'RENEWED' })
   runAutoChecks.mockResolvedValue({ recorded: 5, changed: 1, skipped: {} })
@@ -79,15 +90,23 @@ describe('auth', () => {
 })
 
 describe('ลำดับงาน', () => {
+  it('🛑 mutation: ย้ายงานแฮชรูปไปหลังข้อตรวจอัตโนมัติ → เคสนี้ต้องแดง', async () => {
+    // รูปที่เพิ่งอัปวันนี้ต้องมีลายนิ้วมือ **ก่อน** ถูกตรวจ ไม่งั้นห้องนั้นได้ "ยังไม่มีข้อมูล"
+    // ไปอีกหนึ่งวันเต็มโดยไม่จำเป็น — และไม่มีอะไรฟ้องเลยเพราะทั้งสองงานสำเร็จตามปกติทั้งคู่
+    await GET(req('Bearer s3cret'))
+    expect(calls.indexOf('hashImages')).toBeGreaterThanOrEqual(0)
+    expect(calls.indexOf('hashImages')).toBeLessThan(calls.indexOf('autoChecks'))
+  })
+
   it('🛑 mutation: สลับให้เปิดรอบก่อนรันข้อตรวจอัตโนมัติ → เคสนี้ต้องแดง', async () => {
     await GET(req('Bearer s3cret'))
-    expect(calls).toEqual(['renew', 'autoChecks', 'createDueRounds'])
+    expect(perShopCalls()).toEqual(['renew', 'autoChecks', 'createDueRounds'])
   })
 
   it('🛑 mutation: ตรวจ/เปิดรอบให้ร้านที่เพิ่งพ้นสถานะในรอบนี้ → เคสนี้ต้องแดง', async () => {
     renewOrLapse.mockResolvedValue({ action: 'LAPSED', reason: 'RENEWAL_FAILED' })
     const res = await GET(req('Bearer s3cret'))
-    expect(calls).toEqual(['renew'])
+    expect(perShopCalls()).toEqual(['renew'])
     expect(runAutoChecks).not.toHaveBeenCalled()
     expect(createDueRounds).not.toHaveBeenCalled()
     expect(await res.json()).toMatchObject({ lapsed: 1, autoCheckedShops: 0, roundsScheduled: 0 })

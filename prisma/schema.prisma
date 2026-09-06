@@ -134,10 +134,11 @@ model User {
 
   // feature 00060 — บทบาท "ผู้ตรวจ" แยกจาก isAdmin โดยเจตนา (AC-INS-24-1)
   // ผู้ตรวจท้องถิ่นเป็นบุคคลภายนอกที่จ้างรายครั้ง ให้สิทธิ์แอดมินเต็มไม่ได้เด็ดขาด
-  isInspector                Boolean              @default(false)
-  inspectionRounds           InspectionRound[]    @relation("InspectionRoundInspector")
-  inspectorRoleChangesOnMe   InspectorRoleChange[] @relation("InspectorRoleChangeTarget")
-  inspectorRoleChangesByMe   InspectorRoleChange[] @relation("InspectorRoleChangeActor")
+  isInspector              Boolean               @default(false)
+  inspectionRounds         InspectionRound[]     @relation("InspectionRoundInspector")
+  inspectorRoleChangesOnMe InspectorRoleChange[] @relation("InspectorRoleChangeTarget")
+  inspectorRoleChangesByMe InspectorRoleChange[] @relation("InspectorRoleChangeActor")
+
   @@index([deletedAt, purgedAt], map: "User_deletedAt_purgedAt_idx")
 }
 
@@ -307,15 +308,15 @@ model Shop {
   /// ที่นั่นเป็นเลขบัญชี "ของบุคคลที่สามที่ถูกรายงาน" (ไม่ยินยอม) ส่วนที่นี่คือเลขบัญชีของร้านเอง
   /// ที่ร้านตั้งใจเผยแพร่ให้ลูกค้าโอนเข้า — แสดงเลขเต็มคือทั้งหมดที่ฟิลด์นี้มีไว้ทำ
   /// ขอบเขตที่ยังต้องระวัง: ห้ามหลุดเข้า log/flight payload ของหน้าที่ไม่เกี่ยว (ดู DATABASE.md §6.2)
-  payoutBankCode         String?
-  payoutAccountNo        String?
-  payoutAccountName      String?
+  payoutBankCode    String?
+  payoutAccountNo   String?
+  payoutAccountName String?
   /// เบอร์มือถือ 10 หลัก หรือเลขบัตรประชาชน 13 หลัก — ว่าง = ไม่แสดง QR ให้ผู้ซื้อเลย
   /// (ห้ามแสดง QR ว่าง/QR ที่สแกนไม่ได้ — ดู FR-BANK-05)
-  payoutPromptPayId      String?
+  payoutPromptPayId String?
   /// NULL = ยังไม่เคยตั้งบัญชี ⇒ การบันทึกครั้งนี้คือ "ครั้งแรก" ไม่ต้อง reauth
   /// ไม่ใช่ audit log — เป็นตัวแยก "ตั้งครั้งแรก" ออกจาก "เปลี่ยน" ซึ่งเป็นกฎคนละข้อ (BR-BANK-02)
-  payoutUpdatedAt        DateTime?
+  payoutUpdatedAt   DateTime?
 
   user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   rooms                Room[] // NEW (feature 00017 P1) — ห้องพัก; ว่างเสมอสำหรับ shop ที่ vertical ไม่ใช่ LODGING
@@ -379,6 +380,7 @@ model Shop {
   inspectionRounds           InspectionRound[]
   inspectionResults          InspectionResult[]
   inspectionTermsAcceptances InspectionTermsAcceptance[] // หลักฐานการรับทราบเงื่อนไขทุกครั้งที่จ่ายเงิน
+
   @@index([categories], type: Gin, map: "Shop_categories_gin_idx")
   @@index([salesChannels], type: Gin, map: "Shop_salesChannels_gin_idx")
   @@index([userId, kind], map: "Shop_userId_kind_idx") // NEW — switcher/owner lookup ครอบคลุมทั้ง 2 kind
@@ -432,11 +434,12 @@ model Room {
   shop   Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
   orders Order[] // การจองของห้องนี้ (Phase 2) — FK ฝั่ง Order เป็น Restrict ห้ามลบห้องที่มีการจอง
 
-
   // feature 00060 — ข้อตรวจที่ผูกกับที่พักรายหลัง (D-16/FR-INS-029)
   // FK ฝั่งตรงข้ามเป็น Restrict: ห้ามลบที่พักที่เคยถูกตรวจ ไม่งั้นประวัติหายขัด AC-INS-27-1
   inspectionRounds  InspectionRound[]
   inspectionResults InspectionResult[]
+  imageFingerprints RoomImageFingerprint[]
+
   @@index([shopId, isActive], map: "Room_shopId_isActive_idx") // list ห้องของร้าน + กรองเฉพาะที่เปิดใช้งาน
 }
 
@@ -500,13 +503,13 @@ model ServiceResource {
   depositValue Decimal @default(0) @db.Decimal(12, 2)
 
   // isActive: ปิดการใช้งาน = ไม่รับนัดใหม่ แต่นัดเดิมยังอยู่ครบ (BR-RSV-07)
-  isActive  Boolean  @default(true)
+  isActive      Boolean  @default(true)
   // showOnProfile: โชว์บริการนี้ในแท็บ "บริการ" ของหน้าร้านสาธารณะหรือไม่ (feature 00053 TFR-002)
   // 🛑 คนละเรื่องกับ isActive — isActive=false คือ "ไม่รับนัดใหม่" ส่วนอันนี้คือ "ยังรับนัดอยู่
   // แต่ไม่ต้องประกาศบนหน้าร้าน" (เช่น บริการที่ให้เฉพาะลูกค้าประจำ) default true = ร้านเดิมไม่เปลี่ยน
-  showOnProfile Boolean @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  showOnProfile Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   shop   Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
   orders Order[] // นัดของทรัพยากรนี้ — FK ฝั่ง Order เป็น Restrict ห้ามลบทรัพยากรที่มีนัด (BR-RSV-08)
@@ -684,7 +687,7 @@ model Product {
   // default true = ร้านเดิมไม่มีอะไรเปลี่ยน (ถ้าตั้งต้นเป็น false หน้าร้านทุกร้านจะว่างทันที)
   // ตัวกรองฝั่งอ่านเป็น opt-in เสมอ (getProductsByShop opts.publicOnly) เพราะฟังก์ชันนั้นมีผู้เรียก
   // 10+ จุดที่เป็นหลังร้านทั้งหมด
-  showOnProfile     Boolean   @default(true)
+  showOnProfile Boolean @default(true)
 
   /// ยอดถูกใจ — denormalize ไว้อ่านตรง ๆ (BR-LIKE-03) ห้ามนับสดด้วย count() ตอนเปิดหน้าร้าน
   /// เพราะการ์ดสินค้ามีได้ 12+ ใบต่อหน้า บนจุดสัมผัสแรกของผู้ซื้อ
@@ -869,9 +872,9 @@ model Order {
   ///
   /// มีค่าได้เฉพาะ fulfillmentMode='PICKUP' — บังคับด้วย CHECK `Order_handedOver_requires_pickup_check`
   /// ⇒ ถ้าจะเปลี่ยนวิธีส่งมอบออกจาก PICKUP ต้อง SET NULL ในทรานแซกชันเดียวกัน ไม่งั้นได้ 23514 ดิบขึ้นจอ
-  handedOverAt        DateTime?
+  handedOverAt       DateTime?
   /// คนที่กด — NULL = บัญชีถูกลบ (SetNull) ไม่ใช่ "ระบบ" เพราะระบบไม่มีทางกดปุ่มนี้แทนร้านได้
-  handedOverByUserId  String?
+  handedOverByUserId String?
 
   /// feature 00062 — ร้านกด "ได้รับเงินแล้ว" สำหรับ TRANSFER/PROMPTPAY/CASH (FR-PAY-01)
   ///
@@ -882,7 +885,7 @@ model Order {
   /// ไม่เปลี่ยน Order.status — "ได้เงินแล้ว" กับ "ลูกค้าได้ของแล้ว" เป็นคนละแกน (BR-PAY-02)
   /// ต่างจาก codReceivedAt ตรงที่ **ไม่มีผู้เขียนที่เป็นระบบ** — ไม่มีธนาคาร/เกตเวย์ยืนยันเงินเข้าให้
   /// เป็น self-report ของร้านล้วน (PRD §4.2) นั่นคือเหตุผลที่ป้ายบนจอห้ามใช้สีเขียว
-  paymentConfirmedAt  DateTime?
+  paymentConfirmedAt       DateTime?
   paymentConfirmedByUserId String?
 
   /// feature 00062 — สำเนาบัญชีรับเงินของร้าน ณ เวลาสร้างออเดอร์ (FR-BANK-02)
@@ -895,7 +898,7 @@ model Order {
   /// (บิลถูกแก้ยอดทีหลังได้ ยอดใน QR ต้องตามเสมอ ไม่งั้นลูกค้าโอนผิดยอด)
   /// รูปร่าง: { bankCode?, accountNo?, accountName?, promptPayId? } — คีย์ที่ไม่มีค่า **ไม่ใส่**
   /// ไม่ใช่ใส่ null (ดู src/lib/shop-payout.ts::buildPayoutSnapshot)
-  payoutSnapshot      Json?
+  payoutSnapshot Json?
 
   /// ช่องทางที่ลูกค้า "ทักเข้ามา" ตอนสร้างออเดอร์นี้ (2026-08-10) — FK → ShopChannel
   /// (เพจ Messenger/Instagram หรือ LINE OA ที่เชื่อมกับร้าน) NULL = สร้างออกนอกแชท
@@ -940,33 +943,33 @@ model Order {
   /// Restrict/Cascade เด็ดขาด)
   conversationId String?
 
-  shop             Shop                    @relation(fields: [shopId], references: [id])
-  buyer            User?                   @relation("BuyerOrders", fields: [buyerUserId], references: [id])
-  createdBy        User?                   @relation("CreatedOrders", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  codReceivedBy    User?                   @relation("CodReceivedOrders", fields: [codReceivedByUserId], references: [id], onDelete: SetNull)
-  handedOverBy     User?                   @relation("HandedOverOrders", fields: [handedOverByUserId], references: [id], onDelete: SetNull) // feature 00062
-  paymentConfirmedBy User?                 @relation("PaymentConfirmedOrders", fields: [paymentConfirmedByUserId], references: [id], onDelete: SetNull) // feature 00062
-  customer         Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  room             Room?                   @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  housekeeper      Housekeeper?            @relation(fields: [housekeeperId], references: [id], onDelete: SetNull)
+  shop               Shop                    @relation(fields: [shopId], references: [id])
+  buyer              User?                   @relation("BuyerOrders", fields: [buyerUserId], references: [id])
+  createdBy          User?                   @relation("CreatedOrders", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  codReceivedBy      User?                   @relation("CodReceivedOrders", fields: [codReceivedByUserId], references: [id], onDelete: SetNull)
+  handedOverBy       User?                   @relation("HandedOverOrders", fields: [handedOverByUserId], references: [id], onDelete: SetNull) // feature 00062
+  paymentConfirmedBy User?                   @relation("PaymentConfirmedOrders", fields: [paymentConfirmedByUserId], references: [id], onDelete: SetNull) // feature 00062
+  customer           Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  room               Room?                   @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  housekeeper        Housekeeper?            @relation(fields: [housekeeperId], references: [id], onDelete: SetNull)
   // ช่องทางที่ลูกค้าทักเข้ามา (2026-08-10) — ดูคอมเมนต์ที่ field shopChannelId ด้านบน
-  shopChannel      ShopChannel?            @relation(fields: [shopChannelId], references: [id], onDelete: SetNull)
+  shopChannel        ShopChannel?            @relation(fields: [shopChannelId], references: [id], onDelete: SetNull)
   // เธรดแชทที่สร้างออเดอร์นี้จริง (2026-08-12) — ดูคอมเมนต์ที่ field conversationId ด้านบน
-  conversation     Conversation?           @relation(fields: [conversationId], references: [id], onDelete: SetNull)
-  serviceResource  ServiceResource?        @relation(fields: [serviceResourceId], references: [id], onDelete: Restrict) // feature 00024
-  reschedules      AppointmentReschedule[] // feature 00024 — ประวัติการเลื่อนนัด (สะสม BR-RSV-30)
-  items            OrderItem[]
-  shipmentTracking ShipmentTracking?
-  review           Review?
-  smsCodes         SmsCode[]
+  conversation       Conversation?           @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  serviceResource    ServiceResource?        @relation(fields: [serviceResourceId], references: [id], onDelete: Restrict) // feature 00024
+  reschedules        AppointmentReschedule[] // feature 00024 — ประวัติการเลื่อนนัด (สะสม BR-RSV-30)
+  items              OrderItem[]
+  shipmentTracking   ShipmentTracking?
+  review             Review?
+  smsCodes           SmsCode[]
   // NEW (feature 00022) — พัสดุที่เปิดกับขนส่งสำหรับออเดอร์นี้ (active ได้ **ขาไป 1 + ขากลับ 1**
   // บังคับด้วย partial unique index `OrderShipment_active_order_key` บน ("orderId","direction")
   // — unmanaged SQL ดู DATABASE.md §4 · เดิมเป็น ("orderId") ล้วน ซึ่งทำให้ระบบคืนของ 00056
   // เปิดพัสดุขากลับไม่ได้เลยสักใบ แก้ 2026-08-25)
-  shipments        OrderShipment[]
+  shipments          OrderShipment[]
   /// ใบคืนของ (feature 00056) — ไม่ใช่ออเดอร์ใบใหม่
-  returns   OrderReturn[]
-  events           OrderEvent[] // feature 00031 — ประวัติกิจกรรมของออเดอร์นี้ (audit log, insert-only)
+  returns            OrderReturn[]
+  events             OrderEvent[] // feature 00031 — ประวัติกิจกรรมของออเดอร์นี้ (audit log, insert-only)
 
   // 🛑 EXCLUDE constraint `Order_room_no_overlap` มีอยู่จริงในฐานข้อมูล แต่ Prisma DSL
   // ประกาศไม่ได้ (unmanaged SQL — migration 20260722000100):
@@ -1052,16 +1055,16 @@ model OrderItem {
   // OrderItem มี row จริงบน prod แล้ว — pattern เดียวกับ stockDeducted feature 00003)
   cost Decimal? @db.Decimal(12, 2)
 
-  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  order       Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  /// รายการนี้ถูกคืนในใบไหนบ้าง (feature 00056)
+  returnItems OrderReturnItem[]
 
   // NEW (feature 00016) — orderId ไม่เคยมี index เลยตั้งแต่ init migration (Postgres ไม่ auto-index
   // scalar FK เหมือน MySQL) ทำให้ทุก query "OrderItem WHERE orderId IN (...)" เป็น sequential scan
   // มาตลอด. COGS calculation (FR-EXP-06-AC-02) ต้อง join OrderItem ของทุก order ที่เข้าเงื่อนไข Revenue
   // ในช่วงเวลาที่เลือก — เป็น query pattern ใหม่ที่ hot กว่าที่เคยมี จึงต้องเพิ่ม index นี้พร้อมฟีเจอร์นี้
   @@index([orderId])
-  /// รายการนี้ถูกคืนในใบไหนบ้าง (feature 00056)
-  returnItems OrderReturnItem[]
 }
 
 model ShipmentTracking {
@@ -1652,7 +1655,7 @@ model ShopChannel {
   lineLastInboundFailReason String?
   lineInboundFailCount      Int       @default(0)
 
-  shop              Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shop              Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
   contacts          ExternalContact[]
   posts             FacebookPost[]
   // back-relation ของ Conversation.shopChannel — Prisma บังคับต้องประกาศทั้งสองฝั่งของ relation
@@ -2302,21 +2305,16 @@ model ShopShippingAccount {
 // OrderShipment — พัสดุ 1 ใบที่เปิดกับขนส่ง ผูกกับคำสั่งซื้อ 1 รายการ
 /**
  * OrderPayment — เงินที่ "ได้รับจริง" ของออเดอร์หนึ่งใบ (feature 00050)
- *
  * 🛑 ทำไมต้องเป็นตารางแยก ไม่ใช่คอลัมน์บน Order
- *
  * งานบริการเก็บเงิน **2 ก้อน** (มัดจำ + ส่วนที่เหลือ — มติ D-1) และแต่ละก้อนมีสลิปของตัวเอง
  * `Order.slipFileId` เดิมเก็บได้ใบเดียว · การเพิ่มคอลัมน์คู่ที่สอง (`slipFileId2`…) คือทางที่
  * พังตอนวันที่ต้องการก้อนที่สาม และตอบไม่ได้ว่า "ใครกดรับ เมื่อไหร่"
- *
  * 🛑 **ยอดที่ตกลง ≠ ยอดที่ได้รับ** (BR-SQ-02) — `Order.depositAmount` คือ *ข้อตกลง*
  * ตารางนี้คือ *ข้อเท็จจริง* ก่อนหน้านี้ระบบมีแต่ตัวแรก จึงต้องเลี่ยงไปใช้คำว่า
  * "มัดจำที่ตกลงไว้" บนการ์ดที่ส่งให้ลูกค้ามาตลอด (ดู `appointment-summary.ts:34-40`)
- *
  * 🛑 **แถวนี้แก้ไม่ได้** (หัวหน้า 2026-08-15: "จ่ายมาแล้ว แก้ไม่ได้") — กรอกผิดให้ `voidedAt`
  * แล้วบันทึกใหม่ ไม่ใช่ UPDATE ทับ (แบบเดียวกับการกลับรายการทางบัญชี) ประวัติเงินที่แก้ทับได้
  * ไม่ใช่ประวัติ
- *
  * `Order.slipFileId` เดิม **ไม่ถูกแตะ** — `ONLINE_SALES` ยังใช้ช่องนั้นตามเดิมทุกประการ
  */
 model OrderPayment {
@@ -2334,15 +2332,15 @@ model OrderPayment {
   /// สลิปของก้อนนี้ (storage fileId) — null ได้ เช่นจ่ายเงินสด
   slipFileId String?
 
-  receivedAt     DateTime @default(now())
+  receivedAt       DateTime @default(now())
   /// ใครกดรับ — ทีมมีหลายคน (ร้านอ้างอิงมี 7) เรื่องเงินต้องรู้ว่าใครยืนยัน (BR-SQ-04)
   receivedByUserId String
   note             String?
 
   /// ยกเลิกรายการ (กรอกผิด) — ไม่ใช่ลบทิ้ง ประวัติต้องเหลือไว้
-  voidedAt         DateTime?
-  voidedByUserId   String?
-  voidedReason     String?
+  voidedAt       DateTime?
+  voidedByUserId String?
+  voidedReason   String?
 
   createdAt DateTime @default(now())
 
@@ -2499,12 +2497,11 @@ model OrderShipment {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  order  Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  shop   Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shop      Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
   /**
    * ทิศทางของพัสดุใบนี้ (feature 00056) — `FORWARD` = ร้านส่งให้ลูกค้า · `RETURN` = ลูกค้า
    * ส่งคืนร้าน (ผู้ส่ง/ผู้รับสลับกับขาไป)
-   *
    * 🛑 **ทุก query ที่หา "พัสดุของออเดอร์นี้" ต้องระบุ direction เสมอ** — มี 14 จุดในระบบที่
    * กรองด้วย `{ status: 'CREATED', isDryRun: false }` (10 Prisma + 4 raw SQL) ถ้าจุดไหน
    * ไม่ระบุ พัสดุขากลับจะถูกอ่านเป็นพัสดุขาไป ⇒ ออเดอร์ที่คืนของแล้วกลับไปขึ้น "กำลังจัดส่ง" ·
@@ -2513,11 +2510,11 @@ model OrderShipment {
    */
   direction String @default("FORWARD")
 
-  events   ShipmentEvent[]
+  events      ShipmentEvent[]
   /// ใบคืนที่ใช้พัสดุใบนี้เป็นขากลับ (feature 00056) — มีได้ใบเดียว
   orderReturn OrderReturn?
   /// หลักฐานสำหรับข้อพิพาท — มีเฉพาะใบที่เคยมีปัญหา/ตีกลับ (feature 00055)
-  evidence ShipmentEvidence[]
+  evidence    ShipmentEvidence[]
 
   // 🛑 partial unique index ที่ Prisma DSL ประกาศไม่ได้ — สร้างด้วย SQL มือใน migration
   //    (unmanaged SQL: `prisma db pull` จะมองไม่เห็นแล้ว DROP ทิ้ง — ห้ามรันเด็ดขาด):
@@ -2567,17 +2564,16 @@ model ShipmentEvent {
 /// ตีกลับ = ผู้ซื้อ **ไม่เคยได้รับของ** · คืนของ = ผู้ซื้อ **ได้รับแล้วส่งคืน**
 /// ต่างกันที่ความรับผิด ค่าส่ง และการตีความสถิติผู้ซื้อ · ใบเดียวเป็นทั้งสองอย่างพร้อมกันไม่ได้
 model OrderReturn {
-  id      String @id @default(uuid())
+  id      String  @id @default(uuid())
   orderId String
   shopId  String
   /// REQUESTED | SHIPPING | RECEIVED | CANCELLED — ผลทางบัญชีเกิดที่ RECEIVED เท่านั้น
-  status  String @default("REQUESTED")
+  status  String  @default("REQUESTED")
   /// เหตุผลที่ลูกค้าขอคืน (ข้อความอิสระจากร้าน) — ไม่ใช่ enum เพราะยังไม่มีชุดคำที่พิสูจน์แล้ว
   reason  String?
 
   /**
    * ใครออกค่าส่งขากลับ (หัวหน้าสั่ง 2026-08-24) — `SHOP` | `BUYER`
-   *
    * ตัวนี้ตัดสิน **ค่าตั้งต้น** ของ `countAsCost` ไม่ได้ตัดสินแทนมัน: ลูกค้าออกเองก็จริง
    * แต่บางเคสมาเรียกเก็บร้านทีหลัง ⇒ ร้านต้องเลือกได้เอง (ดู countAsCost)
    */
@@ -2585,9 +2581,9 @@ model OrderReturn {
 
   /**
    * ที่มาของเลขพัสดุขากลับ — `ISHIP` | `MANUAL` | `NONE`
-   *   ISHIP  = ระบบออกให้ (ผู้ส่ง=ลูกค้า ผู้รับ=ร้าน) → มี `shipmentId`
-   *   MANUAL = ใช้ขนส่งเจ้าอื่น/ลูกค้าส่งเลขมาให้ → กรอก `manualTrackingNo` + `manualCourier`
-   *   NONE   = ไม่มีเลขพัสดุเลย (ลูกค้าส่งมาเองโดยไม่แจ้ง) — ยังปิดงานได้ ไม่ใช่ข้อผิดพลาด
+   * ISHIP  = ระบบออกให้ (ผู้ส่ง=ลูกค้า ผู้รับ=ร้าน) → มี `shipmentId`
+   * MANUAL = ใช้ขนส่งเจ้าอื่น/ลูกค้าส่งเลขมาให้ → กรอก `manualTrackingNo` + `manualCourier`
+   * NONE   = ไม่มีเลขพัสดุเลย (ลูกค้าส่งมาเองโดยไม่แจ้ง) — ยังปิดงานได้ ไม่ใช่ข้อผิดพลาด
    */
   trackingSource String @default("NONE")
 
@@ -2596,7 +2592,6 @@ model OrderReturn {
 
   /**
    * 🛑 **เลิกใช้แล้ว (2026-08-25) — เขียนไม่ได้อีก อ่านได้อย่างเดียว** ใช้ `returnCourierCode` แทน
-   *
    * เดิมเป็น **ข้อความอิสระ** ที่ร้านพิมพ์เอง ("เคอรี่" / "Kerry" / "KEX") ซึ่งเป็นแบรนด์เดียวกัน
    * ทั้งหมดแต่จับคู่โลโก้/สรุปยอดไม่ตรงกันสักครั้ง (D-2 · หัวหน้าสั่งให้เป็น dropdown)
    * คงคอลัมน์ไว้เพราะการ DROP ทำให้ deployment เก่าที่ยังเสิร์ฟอยู่ระหว่าง build พังทันที —
@@ -2606,12 +2601,11 @@ model OrderReturn {
 
   /**
    * ขนส่ง **ขากลับ** ที่ร้านเลือก (D-2/D-3) — เก็บเป็น *รหัส* ไม่ใช่ข้อความอิสระ
-   *
    * 🛑 ขากลับเป็นพัสดุคนละใบกับขาไป มีขนส่งของตัวเอง — คอลัมน์นี้ไม่แตะ `OrderShipment` ของขาไป
    * ค่าที่เก็บมี 2 ชนิดตามวิธีคืนที่เลือก และทั้งคู่เป็น "รหัสที่หาโลโก้ได้":
-   *   ISHIP                  → รหัสแพ็กเกจจริงของ iShip ('FlashExpressA') ⇒ ส่งเข้า
-   *                            `createReturnShipment(override.courierCode)` ตอนกดออกเลข
-   *   SHOP_SELF / BUYER_SELF → รหัสแบรนด์ของเรา ('KERRY' / 'OTHER') จาก `COURIER_OPTIONS`
+   * ISHIP                  → รหัสแพ็กเกจจริงของ iShip ('FlashExpressA') ⇒ ส่งเข้า
+   * `createReturnShipment(override.courierCode)` ตอนกดออกเลข
+   * SHOP_SELF / BUYER_SELF → รหัสแบรนด์ของเรา ('KERRY' / 'OTHER') จาก `COURIER_OPTIONS`
    * null = ยังไม่ระบุ (ใบเก่า/ร้านไม่ได้เลือก) ⇒ ตกไปใช้เจ้าเดียวกับขาไปตามพฤติกรรมเดิม
    */
   returnCourierCode String?
@@ -2622,7 +2616,6 @@ model OrderReturn {
 
   /**
    * ขนาดกล่องของ **ขากลับ** เมื่อร้านกดแก้เอง (D-5) — `{ weight, width, length, height }`
-   *
    * null = ใช้กล่องของขาไป ซึ่งเป็นค่าตั้งต้นและเป็นพฤติกรรมเดิมของ `createReturnShipment()`
    * เก็บเป็น Json เพราะเป็น *override ทั้งชุดหรือไม่มีเลย* ไม่มีเคสที่แก้แค่บางช่อง — แตกเป็น
    * 4 คอลัมน์จะเปิดช่องให้เกิดสถานะ "น้ำหนักใหม่ + ขนาดเก่า" ที่ไม่มีใครตั้งใจสร้าง
@@ -2631,7 +2624,6 @@ model OrderReturn {
 
   /**
    * บันทึกค่าส่งขากลับเป็น **ต้นทุน** ของร้านไหม
-   *
    * 🛑 บังคับ `true` เมื่อ `payer='SHOP'` (ร้านจ่ายเองอยู่แล้ว) · เลือกได้เมื่อ `payer='BUYER'`
    * เพราะลูกค้าออกเลขเองแล้วมาเรียกเก็บร้านทีหลังเป็นเคสจริง
    */
@@ -2672,7 +2664,7 @@ model OrderReturnItem {
 
   /// ราคาต่อหน่วย ณ เวลาที่ขาย — คัดลอกมาแช่แข็งไว้ ไม่ join กลับไปอ่านสด
   /// (ราคาสินค้าเปลี่ยนทีหลังได้ แต่ยอดที่หักต้องเป็นราคาที่ขายไปจริง)
-  unitPrice   Decimal @db.Decimal(12, 2)
+  unitPrice Decimal @db.Decimal(12, 2)
 
   orderReturn OrderReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
   orderItem   OrderItem   @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
@@ -4053,27 +4045,27 @@ model CustomerFile {
 // DEEP ที่ไม่ผ่าน mirror เลย และ avatarUrl ที่ยังเป็น URL ดิบรอ mirror) ดู DATABASE.md §2 สำหรับเหตุผล
 // เต็ม — id ใช้ cuid() ตาม contract ที่ล็อก (มี precedent อยู่แล้วที่ ShopInviteLink.id)
 model MediaAsset {
-  id     String @id @default(cuid())
+  id          String   @id @default(cuid())
   // ขอบเขต dedup ต่อร้าน (BR-CMD-01) — ไม่ผูก FK จริงกับ Shop.id ตาม convention เดิมของ repo ที่ปล่อย
   // shopId เป็น string เปล่าในตาราง denormalized หลายตาราง (เช่น OrderPayment.shopId)
-  shopId String
+  shopId      String
   // sha256 hex ของเนื้อไฟล์ทั้งก้อน — ต้องเหมือนกันทุกบิตถึงจะถือว่าซ้ำ (BR-CMD-02, มติ user
   // "ต่างกันแม้เล็กน้อย = คนละรูป")
-  hash String
+  hash        String
   // path เต็มใน storage bucket (รูปแบบเดียวกับที่ newFileId() สร้าง) — ใช้แทนกันได้ 100% กับค่าที่
   // เก็บใน ChatMessage.imageUrl / ConversationAdReferral.photoFileId / ExternalContact.avatarUrl
-  fileId String @unique
+  fileId      String   @unique
   // MIME ที่ตรวจได้ตอนบันทึกไฟล์นี้ครั้งแรก (จาก response header ของ mirror fetch หรือ content-type
   // ที่ต้นทางส่งมา)
   contentType String
   // ขนาดไฟล์ (byte) — เพดาน MIRROR_MAX_BYTES 25MB อยู่ในช่วง Int สบาย ๆ ไม่ต้อง BigInt
-  size Int
+  size        Int
   // ชั้น 2 cache: "ad:{adId}" สำหรับรูปโฆษณาที่ทราบที่มาแน่นอน — NULL สำหรับสื่อทุกชนิดที่ไม่มี
   // ตัวระบุแหล่งที่มาแบบนี้ (แชทรูป/วิดีโอ/เสียง/ไฟล์/สติกเกอร์/avatar) ซึ่งเป็นกรณีส่วนใหญ่
-  sourceKey String?
+  sourceKey   String?
   // เวลาที่ไฟล์นี้ถูกเขียนจริงครั้งแรก — ไม่อัปเดตเมื่อเกิด dedup hit ซ้ำ (แถวนี้แทน "ต้นตอ" ของ
   // กลุ่มเนื้อหา)
-  createdAt DateTime @default(now())
+  createdAt   DateTime @default(now())
 
   // ทำไม (shopId, hash) ไม่ใช่ hash เดี่ยว: BR-CMD-01 บังคับขอบเขต per-shop โดยเจตนา (มติธุรกิจ ไม่ใช่
   // ข้อจำกัดทางเทคนิค) — compound unique คือกลไกเดียวที่ทำให้ DB บังคับ race condition ที่ชั้นนี้ได้จริง
@@ -4099,7 +4091,7 @@ model MediaAsset {
 /// เพดาน 4 ข้อเป็นของ Meta ("A maximum of 4 questions can be set via the Ice Breaker API")
 /// บังคับที่ service ไม่ใช่ที่ DB — DB ไม่มี constraint แบบ "นับแถวต่อกลุ่ม" ที่เชื่อถือได้ภายใต้ race
 model ChannelIceBreaker {
-  id            String @id @default(uuid())
+  id            String   @id @default(uuid())
   /// ลำดับที่ลูกค้าเห็น (0 = บนสุด) — Meta เรียงตามที่เราส่งไป
   order         Int
   /// คำถามที่ลูกค้าเห็นเป็นปุ่ม
@@ -4179,10 +4171,10 @@ model InspectionPlan {
   lapsedReason String?
   /// OWNER กดยกเลิกเมื่อไร — 🛑 มีค่าแล้ว status ยัง ACTIVE จนถึง nextRenewalAt (AC-INS-26-3
   /// "ยกเลิกมีผลตั้งแต่สิ้นรอบบิล ไม่ใช่ตัดสิทธิ์ทันทีกลางรอบที่จ่ายเงินไปแล้ว")
-  canceledAt DateTime? @db.Timestamptz(3)
+  canceledAt   DateTime? @db.Timestamptz(3)
   /// เส้นตายผ่อนผันเมื่อเครดิตไม่พอ — เก็บวันที่จริงไม่คำนวณจาก lapsedAt เพื่อให้ร้านที่
   /// ค้างไปแล้วไม่ถูกตัดป้ายเร็วขึ้นเมื่อเราแก้ค่าคงที่ (AC-INS-08-3 ต้องนับถอยหลังให้ร้านเห็น)
-  graceUntil DateTime? @db.Timestamptz(3)
+  graceUntil   DateTime? @db.Timestamptz(3)
 
   activatedAt        DateTime  @db.Timestamptz(3)
   currentPeriodStart DateTime  @db.Timestamptz(3)
@@ -4204,7 +4196,7 @@ model InspectionPlan {
 /// การตรวจหนึ่งครั้ง — เป็นทั้งตัวมอบหมายงาน (completedAt IS NULL = คิวรอผู้ตรวจ)
 /// และภาชนะของหลักฐานต่อรอบ
 model InspectionRound {
-  id     String @id @default(uuid())
+  id     String           @id @default(uuid())
   shopId String
   /// null = รอบระดับร้าน · มีค่า = รอบของที่พักหลังนั้น (D-16/FR-INS-029)
   roomId String?
@@ -4212,7 +4204,7 @@ model InspectionRound {
   method InspectionMethod
 
   /// nullable เพราะ (1) method=AUTO ไม่มีคน (2) รอบที่ cron สร้างล่วงหน้ายังไม่มอบหมาย
-  inspectorUserId String?
+  inspectorUserId      String?
   /// 🛑 snapshot ชื่อ ณ รอบนั้น ไม่ใช่ live join — AC-INS-25-2 บังคับว่ารอบเก่าต้องคงชื่อ
   /// ผู้ตรวจเดิมไว้แม้เปลี่ยนตัวผู้ตรวจภายหลัง (method=AUTO ใช้ "ระบบตรวจอัตโนมัติ")
   inspectorDisplayName String
@@ -4238,9 +4230,9 @@ model InspectionRound {
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
 
-  shop          Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  room          Room?              @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  inspectorUser User?              @relation("InspectionRoundInspector", fields: [inspectorUserId], references: [id], onDelete: SetNull)
+  shop          Shop                 @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  room          Room?                @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  inspectorUser User?                @relation("InspectionRoundInspector", fields: [inspectorUserId], references: [id], onDelete: SetNull)
   results       InspectionResult[]
   evidence      InspectionEvidence[]
 
@@ -4260,13 +4252,13 @@ model InspectionRound {
 /// 🛑 ห้ามมี unique บน (shopId, checkKey) หรือ (roomId, checkKey) — จะเขียนทับประวัติ
 ///    ขัด AC-INS-16-3 และ AC-INS-27-1 ตรง ๆ
 model InspectionResult {
-  id      String  @id @default(uuid())
-  shopId  String
-  roomId  String?
+  id       String  @id @default(uuid())
+  shopId   String
+  roomId   String?
   /// ค่าคงที่ 18 ค่าจาก src/lib/inspection/checks.ts — ไม่ทำตาราง lookup เพราะเป็นค่าที่แอปกำหนด
   checkKey String
   /// รอบที่ยืนยัน/สร้างแถวนี้ล่าสุด (UPDATE เปลี่ยนได้ทุกครั้งที่มีรอบใหม่มายืนยันผลเดิม)
-  roundId String?
+  roundId  String?
 
   outcome InspectionOutcome
 
@@ -4350,8 +4342,8 @@ model InspectionTermsAcceptance {
   id     String @id @default(uuid())
   shopId String
 
-  acceptedAt DateTime @db.Timestamptz(3)
-  step       Int
+  acceptedAt        DateTime @db.Timestamptz(3)
+  step              Int
   /// ราคาที่ผู้ใช้เห็นจริง ณ เวลานั้น — ราคาจะเปลี่ยนในอนาคต ตอนพิพาทต้องตอบให้ได้ว่าวันนั้นเท่าไร
   priceSnapshotBaht Int
   /// คีย์ที่ชี้ไฟล์ข้อความเงื่อนไขในรีโป — เวอร์ชันที่ย้อนกลับไปอ่านข้อความไม่ได้ = ไม่มีเวอร์ชัน
@@ -4368,7 +4360,7 @@ model InspectionTermsAcceptance {
 /// FK เป็น Restrict ทั้งคู่ (ต่างจาก convention Cascade ทั่วไปโดยเจตนา) เพื่อกัน audit
 /// หายถ้ามีคน hard-delete user
 model InspectorRoleChange {
-  id           String @id @default(uuid())
+  id           String  @id @default(uuid())
   targetUserId String
   actorUserId  String
   /// ค่า **ใหม่** หลังเปลี่ยน ไม่ใช่ค่าก่อนเปลี่ยน
@@ -4383,4 +4375,34 @@ model InspectorRoleChange {
   actorUser  User @relation("InspectorRoleChangeActor", fields: [actorUserId], references: [id], onDelete: Restrict)
 
   @@index([targetUserId, createdAt])
+}
+
+/// ลายนิ้วมือของรูปประกาศที่พัก (feature 00060 · ปิด OQ-13)
+///
+/// 🛑 ต้องเก็บของ **ทุกร้านที่มีที่พัก** ไม่ใช่เฉพาะร้านที่ซื้อแผนตรวจ — ตัวตรวจจับนี้ทำงานด้วย
+///    การเทียบข้ามร้าน ถ้าเก็บเฉพาะร้านที่จ่ายเงิน คลังเทียบจะมีแต่ร้านที่สุจริตอยู่แล้ว
+///    แล้วผลจะเป็น "ไม่พบว่าซ้ำ" ทุกครั้งชั่วนิรันดร์ = ตัวตรวจที่ดูเหมือนทำงานแต่ไม่เคยเจออะไรเลย
+model RoomImageFingerprint {
+  id            String    @id @default(uuid())
+  /// คีย์ไฟล์ใน storage (ค่าเดียวกับที่อยู่ใน Room.images) — หนึ่งไฟล์มีลายนิ้วมือใบเดียว
+  fileId        String    @unique
+  shopId        String
+  roomId        String
+  /// sha256 ของเนื้อไฟล์ทั้งก้อน · null = พยายามแล้วแฮชไม่สำเร็จ (ไม่ใช่ "ยังไม่เคยลอง")
+  /// 🛑 นิยามเดียวกับ MediaAsset.hash: ต่างกันแม้บิตเดียว = คนละรูป (ไม่ใช่ perceptual hash)
+  sha256        String?
+  bytes         Int?
+  /// = Room.createdAt ของห้องที่ถือรูปนี้ ณ ตอนแฮช — ใช้ตัดสินว่า "ใครประกาศก่อน"
+  /// 🛑 ต้องมี ไม่งั้นเหยื่อที่ถูกก็อปรูปจะตกเป็น "ไม่ผ่าน" พร้อมกับคนก็อป
+  firstListedAt DateTime  @db.Timestamptz(3)
+  attempts      Int       @default(0)
+  lastAttemptAt DateTime  @db.Timestamptz(3)
+  computedAt    DateTime? @db.Timestamptz(3)
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  /// คิวรีหลัก: หาว่ามีร้านอื่นถือเนื้อไฟล์เดียวกันและประกาศก่อนเราไหม
+  @@index([sha256, firstListedAt])
+  @@index([roomId])
+  @@index([shopId])
 }
