@@ -33,6 +33,8 @@ import {
   type SendOutboundParams,
 } from '@/services/channel-chat.service'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
+import { detectAutoOrderTrigger } from '@/services/auto-order-detect.service'
+import { runAfterResponse } from '@/lib/run-after-response'
 import { pushChatSendFailed } from '@/services/seller-push.service'
 
 /** แถวที่คืนออกไปให้ผู้เรียก — `rawMessage` ถูก global omit ที่ `src/lib/prisma.ts` */
@@ -280,7 +282,7 @@ export async function enqueueOutbound(params: SendOutboundParams): Promise<Outbo
   //
   // ไม่มี catch P2002 บน externalMessageId เหมือนเส้นทางเดิม เพราะแถวคิวเขียน `externalMessageId`
   // เป็น null ตั้งแต่ต้น จึงไม่มีทางชนกับ echo ที่ตอนนี้ยังไม่เกิด (mid เขียนตอน deliver แทน)
-  return await prisma.$transaction(async (tx) => {
+  const row = await prisma.$transaction(async (tx) => {
     const created = await tx.chatMessage.create({
       data: {
         conversationId: conversation.id,
@@ -322,6 +324,42 @@ export async function enqueueOutbound(params: SendOutboundParams): Promise<Outbo
 
     return created
   })
+
+  /**
+   * feature 00061 — **จุดเข้าที่ 1b** ของตัวสร้างออเดอร์อัตโนมัติ
+   *
+   * ═══════════════════════════════════════════════════════════════════════════
+   * 🛑 ทำไมต้องมีจุดนี้ ทั้งที่ `chat.service::sendMessage()` มีตัวดักจับอยู่แล้ว
+   *
+   * เพราะ **ข้อความของร้านมี 2 เส้นทางที่ไม่เรียกหากันเลย** และเส้นที่ผู้ขายใช้จริงคือเส้นนี้:
+   *   - `chat.service.sendMessage()` → เธรด **DEEP เท่านั้น** (ลูกค้าเป็นบัญชี buyer ในแอปเรา)
+   *   - `enqueueOutbound()` (ตัวนี้) → **Messenger / Instagram / LINE ทั้งหมด**
+   *     (`messages/route.ts:962` แตกสาขา `conv.channel !== 'DEEP'` แล้ว **return ก่อนถึง
+   *      `sendMessage()` เสมอ**)
+   *
+   * ⇒ จุดเข้าที่ 1 เดิม **ไม่มีทางทำงานได้เลยสักเคส**: เธรด DEEP ไม่มี `shopChannelId`
+   * จึงตกด่าน `CHANNEL_NOT_ENABLED` ของตัวดักจับ ส่วนเธรดที่มี `shopChannelId` ไม่เคยเดินผ่าน
+   * `sendMessage()`
+   *
+   * และจุดเข้าที่ 2 (echo จาก Meta) ก็ไม่ช่วย: `deliverRoom` เขียน `externalMessageId` ลงแถวนี้
+   * หลังยิงสำเร็จ ⇒ echo ที่ถือ mid เดียวกันชน `ChatMessage_externalMessageId_key` แล้วได้
+   * `DUPLICATE` ไม่ใช่ `STORED` ⇒ ด่านของ webhook ข้ามมันไป · และ **LINE ไม่มี echo เลย**
+   *
+   * ⇒ ก่อนแก้จุดนี้ ฟีเจอร์ทำงานได้ทางเดียวคือผู้ขายพิมพ์ **นอกแอปเรา** (Business Suite /
+   * แอป Messenger) ซึ่งตรงข้ามกับเคสหลักที่ทั้งฟีเจอร์ถูกสร้างมาเพื่อรองรับ
+   *
+   * นี่คือคลาส `value-fate-decided-at-write-site.md` ตรงตัว — ตรวจเส้นเดียวแล้วสรุปทั้งระบบ
+   * ═══════════════════════════════════════════════════════════════════════════
+   *
+   * 🛑 hook ที่ **ตอนเข้าคิว** ไม่ใช่ตอนส่งสำเร็จ: สิ่งที่ฟีเจอร์สนใจคือ "ร้านพิมพ์อะไร"
+   * ไม่ใช่ "ส่งถึงลูกค้าหรือยัง" — ข้อความที่ยิงไม่ออก (เน็ตหลุด/โควตาหมด) ก็ยังเป็นคำสั่ง
+   * สร้างออเดอร์ที่ร้านตั้งใจพิมพ์ และการ์ด "กำลังอ่าน" ต้องขึ้นทันทีไม่ใช่รอคิวระบาย
+   *
+   * ตัวกรอง "บอทเป็นผู้ส่ง" ไม่ได้อยู่ตรงนี้ แต่อยู่ใน `detectAutoOrderTrigger` เอง
+   * (อ่าน `autoReplyKind` จากแถว) — ด่านต้องอยู่ที่จุดตัดสิน ไม่ใช่ไล่แปะทุกผู้เรียก
+   */
+  runAfterResponse(() => detectAutoOrderTrigger(row.id))
+  return row
 }
 
 // ══════════════════════════════════════════════════════════════════════════

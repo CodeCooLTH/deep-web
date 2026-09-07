@@ -45,7 +45,16 @@ describe('วงจรป้อนกลับ: ตัวดักจับม�
    * ชั้นแรกคือ "ไม่มีสายให้ตัด" (ตัวเขียนการ์ดไม่ import ตัวดักจับเลย) — เทสนี้คือชั้นสอง
    */
   const ALLOWED_CALLERS = new Set([
+    /** เธรด DEEP เท่านั้น (ลูกค้าเป็นบัญชี buyer ในแอปเรา) */
     'src/services/chat.service.ts',
+    /**
+     * 🛑 จุดเข้าที่ 1b (เพิ่ม 2026-09-07) — **Messenger / Instagram / LINE ทั้งหมด**
+     *
+     * `messages/route.ts` แตกสาขา `conv.channel !== 'DEEP'` แล้ว return ก่อนถึง `sendMessage()`
+     * เสมอ ⇒ ถ้าไม่มีจุดนี้ ฟีเจอร์ทำงานได้ทางเดียวคือผู้ขายพิมพ์ **นอกแอปเรา** ซึ่งตรงข้ามกับ
+     * เคสหลักที่ทั้งฟีเจอร์ถูกสร้างมาเพื่อรองรับ (`value-fate-decided-at-write-site.md`)
+     */
+    'src/services/chat-outbox.service.ts',
     'src/app/api/channels/facebook/webhook/route.ts',
     // ตัวมันเอง + cron ที่เก็บกวาด (watchdog เรียก writeProcessingFailedDraft ไม่ใช่ตัวดักจับ)
     'src/services/auto-order-detect.service.ts',
@@ -193,5 +202,84 @@ describe('ตัวนับร่างต่อห้อง (หน้า D) �
       )
       expect(code, `${f} ต้องส่งค่าออกไปกับแถว`).toContain('draftOrderCount')
     }
+  })
+})
+
+describe('ครบทุกเส้นทางที่ร้านพิมพ์ข้อความ (2026-09-07)', () => {
+  /**
+   * 🛑 บั๊กที่เทสชุดนี้ปิด: จุดเข้าที่ 1 เดิม (`chat.service::sendMessage`) **ไม่มีทางทำงาน
+   * ได้เลยสักเคส** — เธรด DEEP ไม่มี `shopChannelId` จึงตกด่านของตัวดักจับ ส่วนเธรด
+   * Messenger/IG/LINE ไม่เคยเดินผ่าน `sendMessage()` เลย (route แตกสาขาแล้ว return ก่อน)
+   */
+  it('[blocker] ทั้ง 2 ตัวเขียนแถวข้อความของร้านต้องเรียกตัวดักจับ', () => {
+    // ถ้ามีเส้นทางเขียนที่สามเกิดขึ้นแล้วลืม hook ฟีเจอร์จะเงียบเฉพาะช่องทางนั้น
+    // โดยที่ tsc/build/เทสอื่นเขียวหมด
+    for (const f of ['src/services/chat.service.ts', 'src/services/chat-outbox.service.ts']) {
+      const code = stripComments(readFileSync(f, 'utf8'))
+      expect(code, `${f} ต้องเรียก detectAutoOrderTrigger`).toMatch(
+        /detectAutoOrderTrigger\([^)]+\)/,
+      )
+      // ต้องไม่ await — ผู้ขายต้องไม่รอตัวแกะก่อนเห็นข้อความตัวเองขึ้นจอ
+      expect(code).not.toMatch(/await\s+detectAutoOrderTrigger/)
+    }
+  })
+
+  /**
+   * 🛑 ทะเบียน "ใครเขียนแถวข้อความฝั่งร้านได้บ้าง" — **ไม่ใช่ allow-list ว่าปลอดภัย**
+   * แต่คือ "จุดที่ผ่านการตัดสินใจแล้วพร้อมเหตุผลกำกับ" (SDS §3.5)
+   *
+   * ต่างจาก allow-list ธรรมดาตรงที่ **ไฟล์ที่ 6 ที่ยังไม่เกิดจะทำให้เทสแดงทันทีที่มันถูกเขียน**
+   * ไม่ว่าจะปลอดภัยหรือไม่ ⇒ บังคับให้คนเขียนต้องมาเพิ่มแถวพร้อมเหตุผล (ผ่าน code review เห็นแน่)
+   * แทนที่จะหลุดเงียบแบบที่จุดเข้าที่ 1 เคยหลุดมาแล้ว
+   */
+  const SHOP_MESSAGE_WRITERS: Record<string, 'HOOKED' | { skip: string }> = {
+    'src/services/chat.service.ts': 'HOOKED',
+    'src/services/chat-outbox.service.ts': 'HOOKED',
+    'src/services/auto-order-internal-message.service.ts': {
+      skip: 'การ์ดผลลัพธ์ของฟีเจอร์นี้เอง — เป็น *ผลลัพธ์* ไม่ใช่ *คำสั่ง* · hook = วนดักตัวเอง',
+    },
+    'src/services/channel-chat.service.ts': {
+      skip:
+        'sendOutboundMessage — ผู้เรียกทั้งหมดเป็น **บอท** (auto-reply-send · line-rich-menu-reply) ' +
+        'ไม่ใช่คนพิมพ์ · ถึง hook ก็ถูกด่าน autoReplyKind ตัดอยู่ดี',
+    },
+    'src/services/comment-private-reply.service.ts': {
+      skip: 'บอททักแชทจากคอมเมนต์ (00038) — ข้อความสำเร็จรูป ไม่ใช่คำสั่งที่คนพิมพ์',
+    },
+  }
+
+  it('[blocker] ทุกไฟล์ที่เขียนแถวข้อความฝั่งร้านต้องอยู่ในทะเบียนพร้อมเหตุผล', () => {
+    const writers = ALL_FILES.filter((f) => {
+      if (/\.(test|spec)\.tsx?$/.test(f)) return false
+      const code = stripComments(readFileSync(f, 'utf8'))
+      if (!/(tx|prisma)\.chatMessage\.create\(/.test(code)) return false
+      return /senderRole:\s*'SHOP'/.test(code)
+    })
+    const unregistered = writers.filter((f) => !(f in SHOP_MESSAGE_WRITERS))
+    expect(
+      unregistered,
+      `เส้นทางเขียนข้อความฝั่งร้านตัวใหม่ที่ยังไม่มีใครตัดสิน:\n${unregistered.join('\n')}`,
+    ).toEqual([])
+  })
+
+  it('[blocker] ทุกไฟล์ที่ทะเบียนบอกว่า HOOKED ต้องเรียกตัวดักจับจริง', () => {
+    // ทะเบียนที่บอกว่า hook แล้วแต่ไม่ได้ hook = คำอ้างที่ไม่มีอะไรบังคับ (AC ที่เขียนไว้ ≠ AC ที่บังคับได้)
+    for (const [f, verdict] of Object.entries(SHOP_MESSAGE_WRITERS)) {
+      if (verdict !== 'HOOKED') continue
+      const code = stripComments(readFileSync(f, 'utf8'))
+      expect(code, `${f} ประกาศว่า HOOKED`).toMatch(/detectAutoOrderTrigger\([^)]+\)/)
+      expect(code, `${f} ห้าม await`).not.toMatch(/await\s+detectAutoOrderTrigger/)
+    }
+  })
+
+  it('[blocker] ด่าน "บอทเป็นผู้ส่ง" อยู่ในตัวดักจับ ไม่ใช่ไล่แปะทุกจุดเข้า', () => {
+    // จุดเข้ามี 3 จุดแล้ว — ด่านที่อยู่ที่จุดตัดสินจะครอบจุดที่ 4 ในอนาคตให้ฟรี
+    const code = stripComments(readFileSync('src/services/auto-order-detect.service.ts', 'utf8'))
+    expect(code).toMatch(/if \(message\.autoReplyKind\) return/)
+    // watchdog ไม่ได้เรียกตัวดักจับ (มันเขียนร่างเอง) จึงต้องกันซ้ำที่คิวรีของมันเอง
+    const cron = stripComments(
+      readFileSync('src/app/api/cron/auto-order-sweeper/route.ts', 'utf8'),
+    )
+    expect(cron).toMatch(/autoReplyKind: null/)
   })
 })

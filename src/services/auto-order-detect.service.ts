@@ -68,6 +68,7 @@ export async function detectAutoOrderTrigger(chatMessageId: string): Promise<Det
       senderRole: true,
       type: true,
       body: true,
+      autoReplyKind: true,
       createdAt: true,
       conversationId: true,
       conversation: { select: { shopId: true, shopChannelId: true } },
@@ -80,6 +81,14 @@ export async function detectAutoOrderTrigger(chatMessageId: string): Promise<Det
   // การ์ดภายในของฟีเจอร์นี้เองก็เป็น senderRole='SHOP' ⇒ ต้องกันวงจรป้อนกลับที่นี่ด้วย
   // (ชั้นแรกคือ "ไม่มีสายให้ตัด" — ตัวเขียนการ์ดไม่ import ไฟล์นี้เลย ชั้นนี้คือชั้นสอง)
   if (message.type !== 'TEXT') return { outcome: 'SKIPPED', reason: 'NOT_TEXT' }
+  /**
+   * 🛑 บอทตอบอัตโนมัติก็เขียนแถว `senderRole='SHOP'` เหมือนกัน — ถ้าไม่กัน คำตอบสำเร็จรูปที่
+   * บังเอิญมีวลีจุดชนวนอยู่ในนั้นจะสร้างออเดอร์ให้เอง โดยที่ไม่มีคนตั้งใจสั่งอะไรเลย
+   *
+   * ด่านอยู่ **ที่นี่ที่เดียว** ไม่ใช่ไล่แปะทุกจุดเข้า — จุดเข้ามี 3 จุดแล้ว (sendMessage ·
+   * enqueueOutbound · webhook) และจุดที่ 4 ในอนาคตจะได้ด่านนี้ฟรีโดยไม่ต้องมีใครจำ
+   */
+  if (message.autoReplyKind) return { outcome: 'SKIPPED', reason: 'BOT_MESSAGE' }
   const rawBody = message.body?.trim()
   if (!rawBody) return { outcome: 'SKIPPED', reason: 'EMPTY_BODY' }
 

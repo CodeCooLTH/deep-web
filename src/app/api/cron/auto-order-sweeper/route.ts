@@ -96,6 +96,9 @@ async function runWatchdog() {
     where: {
       senderRole: 'SHOP',
       type: { not: AUTO_ORDER_RESULT_TYPE },
+      // 🛑 บอทตอบอัตโนมัติเขียนแถว senderRole='SHOP' เหมือนกัน — watchdog ไม่ได้เรียก
+      // `detectAutoOrderTrigger` (มันเขียนร่างเอง) จึงไม่ได้ด่านนั้นมาฟรี ต้องกันซ้ำที่นี่
+      autoReplyKind: null,
       createdAt: { gte: new Date(now - LOOKBACK_MS), lte: new Date(now - SETTLE_MS) },
       conversation: { shopChannelId: { in: channelIds } },
     },

@@ -1339,6 +1339,13 @@ enum** — ระหว่างนี้ป้ายบนโปรไฟล์
 | POST | `/api/orders/[token]/auto-order/retry` | Seller-owner | ปุ่ม "อ่านใหม่" บนการ์ดร่าง — เส้นทาง **อัตโนมัติ** (ห้าม Quick-Create) |
 | POST | `/api/orders/[token]/auto-order/discard` | Seller-owner | ปุ่ม "ทิ้งร่างนี้" — **ไม่เรียก `cancelOrder()`** (ร่างไม่เคยตัดสต๊อก/มีพัสดุ) |
 
+🛑 **จุดเข้าของตัวดักจับมี 3 จุด ไม่ใช่ 2** (แก้ 2026-09-07 — SRS/SDS/PRD เดิมเขียนว่า 2 ซึ่งผิด)
+`chat.service::sendMessage` (เธรด DEEP เท่านั้น) · **`chat-outbox.service::enqueueOutbound`
+(Messenger/IG/LINE ทั้งหมด)** · webhook ของ Meta (echo จากที่ร้านพิมพ์นอกแอปเรา)
+— `messages/route.ts` แตกสาขา `conv.channel !== 'DEEP'` แล้ว **return ก่อนถึง `sendMessage()`
+เสมอ** ⇒ ถ้าไม่มีจุดที่ 2 ฟีเจอร์ทำงานไม่ได้เลยสำหรับข้อความที่พิมพ์จากกล่องแชทของเราเอง
+· ด่าน "บอทเป็นผู้ส่ง" (`autoReplyKind`) อยู่ใน `detectAutoOrderTrigger` ที่เดียว
+
 🛑 **ทุกเส้นใต้ `/api/seller/auto-order/**` ผ่านด่านร่วม `requireAutoOrderShop()` ตัวเดียว**
 (ล็อกอิน → มีร้าน → `vertical === 'ONLINE_SALES'`) — ด่าน vertical อยู่ที่ **ทุก route**
 ไม่ใช่แค่จุดเปิดใช้งาน (AC-ACO-09 พูดถึง "route" ไม่ใช่ "ปุ่ม") · `shopId` มาจาก active shop
