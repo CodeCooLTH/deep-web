@@ -1578,10 +1578,24 @@ export async function ingestInboundMessage(params: {
         // preview/senderRole อัปเดตเสมอ — seller ต้องเห็นข้อความล่าสุดจริงในรายการ
         lastMessagePreview: preview,
         lastSenderRole: senderRole,
-        // lastMessageAt = ลำดับในรายการแชท — echo ไม่ขยับ (ผลตัดสิน user 2026-07-22)
-        // echo คือ seller ตอบจากแอป Messenger ในมือถือ = จัดการไปแล้ว ไม่ต้องเด้งขึ้นบนสุด
-        // ให้รก; เธรดจะเด้งขึ้นเฉพาะตอนลูกค้าทักมาใหม่ หรือ seller ตอบผ่าน Deep เอง
-        // (sendOutboundMessage อัปเดต lastMessageAt แยกอยู่แล้ว)
+        // lastMessageAt = ลำดับในรายการแชท — echo ก็ขยับ (กลับมติ 2026-07-22 · user เคาะ 2026-09-08)
+        //
+        // มติเดิมคือ "echo = seller ตอบจากแอป Messenger ไปแล้ว = จัดการเสร็จ ไม่ต้องเด้งขึ้นบนสุด
+        // ให้รก" ซึ่งถูกเฉพาะกรณีที่ echo เป็น "การปิดจ๊อบ" ต่อท้ายข้อความลูกค้าที่เพิ่งเข้ามา —
+        // ตำแหน่งเธรดแทบไม่ขยับอยู่แล้วเพราะลูกค้าเพิ่งดันขึ้นมาเมื่อกี้. ที่มติเดิมมองไม่เห็นคือ
+        // กรณีกลับกัน: **ร้านเป็นฝ่ายเปิดเรื่องใหม่จากแอป Messenger** (ตามงานส่งของ/ทวงยอด)
+        // หลังลูกค้าเงียบไปหลายวัน — เธรดค้างอยู่ตำแหน่งของวันที่ลูกค้าพิมพ์ครั้งสุดท้าย
+        //
+        // เคสจริงบน prod 2026-09-08 (เธรด 8a9da1b7 เพจ "ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง"):
+        // ลูกค้าเงียบตั้งแต่ 31 ส.ค. ร้านพิมพ์ตามงานจากแอป Messenger 20:33 → ข้อความเข้าฐานครบ
+        // ทุกใบ (source=webhook) แต่ lastMessageAt ยังเป็น 31 ส.ค. ⇒ เธรดอยู่ลำดับ ~547 ของร้าน
+        // และ shopLastReadAt ที่ถูกขยับด้านล่างทำให้ไม่มี badge ยังไม่อ่านให้สังเกตด้วย ⇒ ร้าน
+        // รายงานว่า "แชทนี้ไม่เข้า" ทั้งที่เข้าครบ. ความเสี่ยง "รก" ที่มติเดิมกลัว วัดจากข้อมูลจริง
+        // แล้วกระทบแค่ ~3% ของเธรดที่เคลื่อนไหว (145 เธรด/2 วันของเพจนั้น มีแค่ 5 เธรดที่ echo
+        // ห่างจาก lastMessageAt เกิน 1 ชม.) — ซึ่งคือกลุ่มเดียวกับที่เป็นปัญหาพอดี
+        //
+        // echo ของข้อความที่ส่งจาก Deep เองไม่เข้ามาถึงบรรทัดนี้ (ชน mid → DUPLICATE ตั้งแต่ต้น
+        // ฟังก์ชัน) จึงไม่มีการอัปเดตซ้ำกับ sendOutboundMessage
         //
         // lastInboundAt ก็ไม่ขยับตอน echo ด้วยเหตุผลคนละข้อ — ถ้าขยับจะทำให้หน้าต่าง
         // 24 ชม. ยืดออกเองอย่างผิด ๆ ทุกครั้งที่ร้านตอบ
@@ -1595,9 +1609,10 @@ export async function ingestInboundMessage(params: {
         // ฝั่งเราตอบ (echo = ร้านตอบจากแอป Messenger / admin / FB auto-reply) = ถือว่า "อ่านแล้ว" →
         // ขยับ shopLastReadAt เพื่อ reset unread เทิร์นถัดไป (user report 2026-07-26: FB auto-reply
         // ทำ unread→read แต่ไม่ขยับ shopLastReadAt → ลูกค้าทักใหม่ นับซ้ำข้อความเทิร์นก่อนกลายเป็น 2)
-        // ไม่ขยับ lastMessageAt/lastInboundAt ตามเดิม (echo ไม่เด้งลำดับ/ไม่ยืด 24h window)
+        // ขยับ lastMessageAt ด้วย (ดูเหตุผลด้านบน) แต่ไม่แตะ lastInboundAt (ไม่ยืด 24h window)
+        // และไม่รีเซ็ต isHidden/resolvedAt (ร้านตอบเองไม่ใช่เหตุให้เธรดที่ปิดงานไว้เด้งกลับ)
         ...(isEcho
-          ? { shopLastReadAt: new Date() }
+          ? { shopLastReadAt: new Date(), lastMessageAt: occurredAt }
           : conversation.isSpam
             ? { lastMessageAt: occurredAt, lastInboundAt: occurredAt }
             : { lastMessageAt: occurredAt, lastInboundAt: occurredAt, isHidden: false, resolvedAt: null }),

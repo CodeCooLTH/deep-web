@@ -84,7 +84,7 @@ describe('ingestInboundMessage', () => {
     expect(db.conversation.update.mock.calls[0]![0].data.lastInboundAt).toBeInstanceOf(Date)
   })
 
-  it('is_echo → sender=PAGE/recipient=PSID (ฝั่งเพจตอบ) บันทึกเป็น senderRole=SHOP, contact ใช้ PSID ไม่ใช่ PAGE, ไม่ขยับ lastInboundAt (M-1)', async () => {
+  it('is_echo → sender=PAGE/recipient=PSID (ฝั่งเพจตอบ) บันทึกเป็น senderRole=SHOP, contact ใช้ PSID ไม่ใช่ PAGE, ดัน lastMessageAt แต่ไม่ขยับ lastInboundAt (M-1)', async () => {
     // fixture เดิมสลับข้างผิด (sender=PSID/recipient=PAGE เหมือน textEvent ปกติ) ทำให้เทสผ่านได้
     // แม้โค้ดอ่านข้างผิด — echo จริงจาก Meta: sender = เพจที่ตอบ, recipient = ลูกค้า (PSID)
     const echo = {
@@ -99,9 +99,11 @@ describe('ingestInboundMessage', () => {
     const updated = db.conversation.update.mock.calls[0]![0].data
     // lastInboundAt ไม่ขยับ — ไม่งั้นหน้าต่าง 24 ชม. ยืดเองทุกครั้งที่ร้านตอบ
     expect(updated.lastInboundAt).toBeUndefined()
-    // lastMessageAt ไม่ขยับ — echo = ตอบจากแอป Messenger ไปแล้ว ไม่ต้องเด้งเธรดขึ้นบนสุดให้รก
-    // (ผลตัดสิน user 2026-07-22) แต่ preview/senderRole ต้องอัปเดตให้เห็นข้อความล่าสุดจริง
-    expect(updated.lastMessageAt).toBeUndefined()
+    // [blocker] lastMessageAt ต้องขยับ — กลับมติ 2026-07-22 (user เคาะ 2026-09-08 จากเคสจริงบน prod:
+    // เธรด 8a9da1b7 ร้านตามงานส่งของจากแอป Messenger หลังลูกค้าเงียบ 8 วัน ข้อความเข้าฐานครบทุกใบ
+    // แต่เธรดค้างอยู่ลำดับ ~547 เพราะ lastMessageAt ยังเป็นวันที่ลูกค้าพิมพ์ครั้งสุดท้าย ⇒ ร้านหาไม่เจอ
+    // แล้วรายงานว่า "แชทนี้ไม่เข้า" ทั้งที่เข้าครบ) — ลำดับในกล่องต้องสะท้อน "ความเคลื่อนไหวล่าสุด"
+    expect(updated.lastMessageAt).toEqual(new Date(1750000000000))
     expect(updated.lastMessagePreview).toBe('ตอบจากมือถือ')
     expect(updated.lastSenderRole).toBe('SHOP')
     // ต้อง upsert/lookup contact ด้วย externalUserId ของ "ลูกค้า" (recipient=PSID_1) ไม่ใช่ของเพจ
