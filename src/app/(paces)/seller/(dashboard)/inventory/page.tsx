@@ -27,7 +27,7 @@ import Link from 'next/link'
 import { Icon as IconifyIcon } from '@iconify/react'
 import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
-import { shouldHidePayments } from '@/lib/app-shell-server'
+import { shouldHidePaidFeatures, shouldHidePayments } from '@/lib/app-shell-server'
 import { requireActiveShop } from '@/lib/shop-context'
 import { prisma } from '@/lib/prisma'
 import { getBalance } from '@/services/wallet.service'
@@ -107,11 +107,20 @@ export default async function InventoryPage() {
    * สาขา `status !== 'ACTIVE'` ด้านล่างเรนเดอร์ PackageSelector ซึ่งเป็นหน้าเลือก/สมัครแพ็กเกจ
    * พร้อมราคา = ช่องทางจ่ายเงินเต็มตัว จึงต้องตัดก่อนถึงตรงนั้น
    *
-   * ร้านที่สมัครแล้ว (ACTIVE) ยังใช้หน้านี้ได้ครบ — Apple ห้าม "ขายในแอป" ไม่ได้ห้าม
-   * "ใช้ของที่ซื้อไปแล้ว" (เงื่อนไขเดียวกับที่ applyPaymentRestriction ซ่อนเมนูให้)
+   * 🛑 **แก้ 2026-09-01 (feature 00064)** — เดิมบรรทัดล่างเขียนว่า ร้านที่สมัครแล้ว (ACTIVE)
+   * ยังใช้หน้านี้ได้ครบ โดยให้เหตุผลว่า Apple ห้าม "ขายในแอป" ไม่ได้ห้าม "ใช้ของที่ซื้อไปแล้ว"
+   * — ถูกตามข้อ 3.1.1 แต่ **ขัดข้อ 3.1.3(b)** ซึ่งยอมให้ใช้ของที่ซื้อจากที่อื่นได้
+   * *ก็ต่อเมื่อของชิ้นนั้นมีขายเป็น IAP ในแอปด้วย*
+   *
+   * user เคาะ 2026-09-01: ขาย IAP เฉพาะ Business Package · **ไม่ขาย Deep Stock**
+   * (สิทธิ์เป็น "ต่อร้าน" แต่ Apple ขาย auto-renewable ได้ใบเดียวต่อ Apple ID)
+   * ⇒ เมื่อไม่ขาย ก็เปิดให้ใช้ในแอปไม่ได้ ต้องปิดทั้งหน้าไม่ว่าสถานะไหน
+   *
+   * คนกลุ่มนี้ยังใช้ได้เต็มบนเว็บ — นับบน prod 2026-09-01 **ยังไม่มีใครสมัครเลยสักราย**
    */
   const hidePayments = await shouldHidePayments()
   if (status !== 'ACTIVE' && hidePayments) redirect('/dashboard')
+  if (await shouldHidePaidFeatures()) redirect('/dashboard')
 
   if (status !== 'ACTIVE') {
     // ⚠️ TFR-007 — ห้าม query stock/product เพิ่มเติมในสาขานี้ (gate ไม่ leak data)

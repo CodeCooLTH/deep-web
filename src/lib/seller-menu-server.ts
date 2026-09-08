@@ -44,6 +44,8 @@ export type SellerMenuContext = {
   unreadChatCount: number
   /** เปิดจากในแอป iOS (App Store Guideline 3.1.1) — ดู `src/lib/app-shell.ts` */
   hidePayments: boolean
+  /** เปิดจากในแอป iOS ที่ห้ามใช้ฟีเจอร์ซึ่งไม่มีขายเป็น IAP (3.1.3(b) · feature 00064) */
+  hidePaidFeatures: boolean
 }
 
 export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<MenuItemType[]> {
@@ -83,6 +85,7 @@ export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<Me
         expense,
         shop: { kind: ctx.kind, vertical: ctx.vertical },
         hidePayments: ctx.hidePayments,
+        hidePaidFeatures: ctx.hidePaidFeatures,
       }),
       ctx.unreadChatCount,
     ),

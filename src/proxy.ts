@@ -3,6 +3,19 @@ import { getToken } from 'next-auth/jwt'
 import { getSubdomain } from '@/lib/subdomain'
 import { isAllowedOrigin } from '@/lib/csrf-origin'
 import { checkApiRateLimit, clientIp } from '@/lib/api-rate-limit'
+import { SHELL_COOKIE_NAME, resolveAppShell, shouldBlockAppRegistration } from '@/lib/app-shell'
+
+/**
+ * ชื่อคุกกี้ session ของ NextAuth — **ต้องลบทั้งสองชื่อ**
+ *
+ * dev = `next-auth.session-token` · prod (HTTPS) = `__Secure-next-auth.session-token`
+ * `auth.ts` override เฉพาะคุกกี้ "ระหว่างเดินทาง" (pkce/state/nonce/callbackUrl) ไม่ได้แตะ
+ * ตัว session ⇒ ชื่อเป็นค่า default ของ NextAuth ตามนี้
+ *
+ * 🛑 ลบชื่อเดียวไม่พอ: ลบผิดชื่อบน prod = session ยังอยู่ ⇒ ผู้ใช้ถูกเด้งกลับมาที่ด่านนี้ทุกครั้ง
+ * = ติดตายแบบเดียวกับบั๊ก 4 บัญชี (2026-09-04) แค่ย้ายที่
+ */
+const SESSION_COOKIES = ['next-auth.session-token', '__Secure-next-auth.session-token'] as const
 
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
@@ -209,6 +222,33 @@ export async function proxy(request: NextRequest) {
     const t = token as { needsRegistration?: boolean; needsOnboarding?: boolean } | null
     // feature 00012: /choose-shop (เลือกร้าน/เปิดร้าน) + /i (landing รับคำเชิญ) ต้องเข้าถึงได้เสมอ —
     // ยกเว้นจาก force-redirect gate (ผู้ถูกเชิญ/nobody flags เป็น false อยู่แล้ว แต่กันเหนียวไว้)
+    /**
+     * 🛑 ด่าน 3.1.1 — ล็อกอิน OAuth ในแอป iOS ห้ามกลายเป็นการสมัคร
+     *
+     * ต้องอยู่ **ก่อน** force-redirect ข้างล่าง ไม่งั้นผู้ใช้ถูกเด้งเข้าฟอร์มสมัครไปแล้ว
+     * ยกเว้น `/api` เพื่อให้ NextAuth (signout ฯลฯ) ทำงานได้ และยกเว้น `/auth` กันลูป
+     * redirect กลับมาที่หน้าล็อกอินซ้ำ ๆ ระหว่างที่คุกกี้ยังไม่ถูกล้าง
+     *
+     * ล้าง session ด้วย ไม่ใช่แค่ redirect — "เห็นข้อความ" ไม่เท่ากับ "ไปไหนได้"
+     * (บทเรียนเดียวกับด่านรุ่นก่อนที่ตรวจว่ามีปุ่มออกจากระบบไหม แล้วยังติดตายอยู่ดี)
+     */
+    if (
+      isAuthed &&
+      !pathname.startsWith('/api') &&
+      !pathname.startsWith('/auth') &&
+      shouldBlockAppRegistration(
+        resolveAppShell(
+          request.cookies.get(SHELL_COOKIE_NAME)?.value,
+          request.headers.get('user-agent') ?? '',
+        ),
+        t,
+      )
+    ) {
+      const res = NextResponse.redirect(new URL('/auth/sign-in?app_no_account=1', request.url))
+      for (const name of SESSION_COOKIES) res.cookies.delete(name)
+      return res
+    }
+
     const isExempt =
       pathname.startsWith('/auth') ||
       pathname.startsWith('/api') ||

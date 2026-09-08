@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { renewOrLockBusinessPackage } from "@/services/business-package.service";
+import { SUBSCRIPTION_SOURCE } from "@/lib/subscription-source";
 import { autoSoftDeleteLapsedShops, purgeExpiredShops } from "@/services/business-shop.service";
 
 // กัน Vercel Hobby default timeout (10s) — batch renewal/lifecycle อาจใช้เวลานานกว่านั้นถ้า owner/shop เยอะ
@@ -31,8 +32,18 @@ export async function GET(request: Request) {
   }
 
   // Phase 1: renewal — query subscription ที่ครบกำหนด (ACTIVE + nextRenewalAt <= now)
+  // 🛑 `source: WALLET` — ใบที่จ่ายผ่าน Apple (In-App Purchase) Apple ต่ออายุให้เอง
+  // หยิบมาต่อ = หักกระเป๋าซ้ำกับที่ Apple ตัดบัตรไปแล้ว หรือถ้ากระเป๋าว่างก็จะ LOCKED
+  // แล้วล็อกร้าน business ทุกร้านของเขาทั้งที่จ่ายเงินครบ (feature 00064 · BR-IAP-02)
+  //
+  // ตัวกรองนี้เป็น **ชั้นนอก** เพื่อไม่ให้ query ลากแถวที่ไม่เกี่ยวมาตั้งแต่แรก
+  // ด่านจริงอยู่ใน `renewOrLockBusinessPackage` เพราะฟังก์ชันนั้นถูกเรียกจากที่อื่นได้ด้วย
   const due = await prisma.businessPackageSubscription.findMany({
-    where: { status: "ACTIVE", nextRenewalAt: { lte: new Date() } },
+    where: {
+      source: SUBSCRIPTION_SOURCE.WALLET,
+      status: "ACTIVE",
+      nextRenewalAt: { lte: new Date() },
+    },
     select: { ownerId: true },
   });
 

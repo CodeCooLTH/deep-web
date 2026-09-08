@@ -16,7 +16,7 @@ import { getUnreadCountForShop } from '@/services/chat.service'
 import OnboardingGate from './dashboard/components/OnboardingGate'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
-import { shouldHidePayments } from '@/lib/app-shell-server'
+import { shouldHidePaidFeatures, shouldHidePayments } from '@/lib/app-shell-server'
 import ShopPackageSidenavCard from './_shared/ShopPackageSidenavCard'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -135,6 +135,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     vertical: shop.vertical,
     unreadChatCount,
     hidePayments,
+    hidePaidFeatures: await shouldHidePaidFeatures(),
   })
 
   // ป้ายเมนู/แท็บของ /orders ต้องเป็นคำเดียวกันทั้ง sidebar, แถบล่างมือถือ และชื่อหน้าบนมือถือ

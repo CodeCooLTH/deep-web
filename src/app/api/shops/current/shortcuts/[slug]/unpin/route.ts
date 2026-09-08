@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server'
 import { unpinShortcut } from '@/services/shortcut.service'
 import { getSessionOr401, validateSlug, respond, handleShortcutError } from '../../_shared'
+import { shouldHidePaidFeatures, shouldHidePayments } from '@/lib/app-shell-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +22,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ slug: 
   }
 
   try {
-    return respond(await unpinShortcut(session, slug))
+    return respond(await unpinShortcut(session, slug, {
+        hidePayments: await shouldHidePayments(),
+        hidePaidFeatures: await shouldHidePaidFeatures(),
+      }))
   } catch (e) {
     return handleShortcutError(e, 'POST /api/shops/current/shortcuts/[slug]/unpin')
   }

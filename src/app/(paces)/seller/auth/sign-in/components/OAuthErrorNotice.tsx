@@ -57,14 +57,27 @@ function messageFor(code: string, t: Dictionary): string {
 
 export default function OAuthErrorNotice() {
   const t = useT()
+  /* 🛑 คงรูปแบบเรียกต่อกันไว้ — `oauth-error-surfaced.test.ts` ปักหมุด
+     `useSearchParams().get('error')` ไว้เป็น [blocker] แยกตัวแปรออกมาแล้วด่านนั้นแดง */
   const code = useSearchParams().get('error')
+  /**
+   * ด่าน 3.1.1 — `proxy.ts` ล้าง session แล้วส่งกลับมาพร้อมพารามิเตอร์นี้
+   *
+   * ไม่ใช่ error ของ NextAuth จึงไม่มีรหัสต่อท้าย และ **ห้ามบอกทางไปสมัครที่เว็บ**
+   * (Apple ถือว่าเป็นความผิดข้อเดียวกับการมีปุ่มจ่ายเงิน — ดู `isPaymentRestricted`)
+   */
+  const blockedInApp = useSearchParams().get('app_no_account') === '1'
 
   useEffect(() => {
+    if (blockedInApp) {
+      pacesToast.error(t.auth.signIn.oauthError.noSellerAccountInApp)
+      return
+    }
     if (!code) return
     pacesToast.error(messageFor(code, t))
     // t เปลี่ยนตอนสลับภาษาเท่านั้น — ไม่ใส่ใน deps เพราะจะยิง toast ซ้ำทุกครั้งที่สลับ
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code])
+  }, [code, blockedInApp])
 
   return null
 }
