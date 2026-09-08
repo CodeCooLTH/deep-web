@@ -72,7 +72,7 @@ function inList(column: string, values: readonly string[]): string {
 export function buildShippingStageSql(c: StageSqlColumns): string {
   const isCod = `${c.paymentMethod} ~* ${lit(COD_PAYMENT_PATTERN)}`
   return `CASE
-    -- 🛑 -1) ร่างจากแชท (00061) — ต้องอยู่ **เหนือสาขา fulfillmentMode** ไม่ใช่แค่เหนือสาขาพัสดุ
+    -- [สำคัญ] -1) ร่างจากแชท (00061) — ต้องอยู่ **เหนือสาขา fulfillmentMode** ไม่ใช่แค่เหนือสาขาพัสดุ
     --       ร่างไม่เคยผ่านการคำนวณ fulfillmentMode เลย (คอลัมน์เป็น default 'SHIPPED' ของสคีมา)
     --       วันที่ตัวเขียนร่างคำนวณค่านั้นจริง ร่างของสินค้าที่ไม่ต้องส่งจะกลายเป็น NOT_SHIPPING
     --       แล้วหายจากชิป "ร่าง" ทั้งกองเงียบ ๆ — ดูคอมเมนต์เต็มที่ deriveShippingStage()

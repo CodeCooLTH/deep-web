@@ -22,6 +22,7 @@ import { prisma } from '@/lib/prisma'
 import { thaiDayKey } from '@/lib/format-date'
 import { thaiMidnightUtc } from '@/lib/date-range'
 import { fileUrlOf } from '@/lib/file-url'
+import { withoutDrafted } from '@/lib/order-visibility'
 import {
   CUSTOM_ITEM_KEY,
   CUSTOM_ITEM_LABEL,
@@ -102,7 +103,11 @@ export async function getProductSalesMonth(
   const [items, products] = await Promise.all([
     prisma.orderItem.findMany({
       where: {
-        order: { shopId, status: { not: 'CANCELLED' }, createdAt: { gte, lt } },
+        // feature 00061 — ร่างจากแชทไม่ใช่ยอดขาย: ตัดออกพร้อมใบที่ยกเลิกด้วย `notIn` ตัวเดียว
+        // (เขียน `status: { not: 'CANCELLED' }` คู่กับตัวตัดร่างไม่ได้ — Prisma รับคีย์ `status`
+        // ครั้งเดียว ตัวหลังทับตัวหน้าเงียบ ๆ) วันนี้ร่างยังไม่มี `OrderItem` สักแถวจึงไม่โผล่อยู่แล้ว
+        // แต่ตัวกรองต้องพูดจากกฎ ไม่ใช่จากสภาพข้อมูลชั่วคราวของวันนี้
+        order: { shopId, ...withoutDrafted('CANCELLED'), createdAt: { gte, lt } },
       },
       select: {
         productId: true,

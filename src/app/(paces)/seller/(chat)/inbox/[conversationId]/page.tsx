@@ -478,6 +478,13 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           shopId: shop.id,
           ...threadOrderFilter,
           ...(vertical === 'LODGING' ? { type: BOOKING_ORDER_TYPE } : {}),
+          // 🛑 feature 00061 — ร่างต้องไม่โผล่ในแผงนี้ (ยืนยันตอน rebase 2026-09-08):
+          // ร่างทุกใบมี `conversationId` ของห้องที่มันเกิด ⇒ ตั้งแต่ `resolveThreadOrderFilter`
+          // เปลี่ยนเกณฑ์เป็น `customerId OR conversationId` (2026-09-05) ร่างจะเข้าเกณฑ์
+          // **ทุกใบแน่นอน** ไม่ใช่เฉพาะใบที่บังเอิญผูกลูกค้าไว้แล้ว
+          // การ์ดในแผงนี้อ่าน orderNo/ยอดรวม/รายการสินค้า ซึ่งร่างไม่มีสักอย่าง (null/฿0/ว่าง)
+          // ⇒ ผู้ขายจะเห็น "ออเดอร์พัง" แทนที่จะเห็น "ร่าง". ที่ของร่างคือการ์ดผลลัพธ์ในสตรีมแชท
+          ...excludeDraftedWhere,
         },
         orderBy: { createdAt: 'desc' },
         take: 20,

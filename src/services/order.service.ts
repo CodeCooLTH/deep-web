@@ -23,7 +23,7 @@ import { canSellerConfirmPayment, isCODPayment } from "@/lib/order-display";
 // feature 00062 (U11) — override fulfillmentMode='PICKUP' + freeze payoutSnapshot (TD-001/TFR-009)
 import { buildPayoutSnapshot, needsPayoutAccount, type ShopPayoutFields } from "@/lib/shop-payout";
 import { round2 } from "@/lib/round2";
-import { withoutDrafted } from "@/lib/order-visibility";
+import { excludeDraftedWhere, withoutDrafted } from "@/lib/order-visibility";
 import {
   attachAppointmentInTx,
   computeAppointmentDeposit,
@@ -2284,6 +2284,9 @@ export async function getThreadPanelOrders(
       ...scope,
       ...(opts.bookingOnly ? { type: "BOOKING" } : {}),
       ...(opts.cursor ? { createdAt: { lt: new Date(opts.cursor) } } : {}),
+      // 🛑 feature 00061 — ต้องตรงกับ SSR ใน inbox/[conversationId]/page.tsx เป๊ะ
+      // (เหตุผลเต็มอยู่ที่นั่น): ร่างมี conversationId ทุกใบ จึงเข้าเกณฑ์ scope เสมอ
+      ...excludeDraftedWhere,
     },
     orderBy: { createdAt: "desc" },
     take: take + 1, // +1 เพื่อรู้ว่ามีหน้าถัดไปไหม
@@ -2481,7 +2484,7 @@ export async function getShippingStageCounts(
     },
   });
 
-  const counts: Record<Exclude<ShippingStageKey, "DONE">, number> = {
+  const counts: Record<Exclude<ShippingStageKey, "DONE" | "NOT_SHIPPING">, number> = {
     // feature 00061 — ร่างเป็นกองของตัวเอง ไม่ปนกับกองพัสดุ (BR-ACO-20e)
     // 🛑 ประกาศชนิดให้ `tsc` บังคับความครบ แทน object literal เปล่า ๆ ที่เงียบเมื่อมีกองใหม่
     DRAFT: 0,
