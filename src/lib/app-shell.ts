@@ -109,3 +109,62 @@ const SIGNUP_RESTRICTED_SHELLS: readonly AppShell[] = ['ios']
 export function isSignUpRestricted(shell: AppShell): boolean {
   return SIGNUP_RESTRICTED_SHELLS.includes(shell)
 }
+
+/**
+ * shell นี้ต้องซ่อน **ฟีเจอร์ที่ปลดล็อกด้วยแพ็กเกจซึ่งไม่มีขายเป็น IAP ในแอป** ไหม
+ * (Guideline 3.1.3(b) — feature 00064)
+ *
+ * ที่มา: รอบ 2026-08-23 Apple สั่งให้เลือกทางเดียวระหว่าง "ขายเฉพาะองค์กร" กับ "ใส่ IAP"
+ * user เคาะทาง IAP (2026-09-01) แต่ **ขายเฉพาะ Business Package** ส่วน Deep Stock ไม่ขาย
+ * เพราะสิทธิ์ของมันเป็น "ต่อร้าน" ขณะที่ Apple ขาย auto-renewable ได้ใบเดียวต่อ Apple ID
+ *
+ * ⇒ เมื่อไม่ขาย Deep Stock เป็น IAP ก็ **เปิดให้ใช้ในแอปไม่ได้ด้วย** เพราะ 3.1.3(b) ยอมให้
+ * ใช้ของที่ซื้อจากที่อื่นได้ *ก็ต่อเมื่อของชิ้นนั้นมีขายเป็น IAP ในแอปด้วย*
+ *
+ * ── 🛑 ทำไมเป็นฟังก์ชันที่สาม ไม่ใช้ `isPaymentRestricted` ────────────────────────
+ *
+ * ตอนนี้ทั้งสามตัวคืนค่าเท่ากัน (`ios`) แต่ตอบคนละคำถาม และมาจากจดหมายคนละรอบ:
+ *
+ *   isPaymentRestricted     "ห้ามมีช่องทางจ่ายเงินในแอปไหม"        (3.1.1 · รอบ 08-04)
+ *   isSignUpRestricted      "ห้ามให้สมัครบัญชีธุรกิจในแอปไหม"       (3.1.1 · รอบ 08-23)
+ *   isPaidFeatureRestricted "ห้ามให้ใช้ฟีเจอร์ที่จ่ายเงินมาแล้วไหม"  (3.1.3(b) · รอบ 09-01)
+ *
+ * วันที่เราขาย Deep Stock เป็น IAP ได้ ตัวที่สามจะถูกผ่อนก่อนเพื่อน — ถ้ายุบรวมกันไว้
+ * คนแก้จะผ่อนทีเดียวแล้วปุ่มจ่ายเงินกับการสมัครกลับมาโผล่ด้วย **โดยไม่มีใครตั้งใจ**
+ * (docs/conventions/domain-term-single-definition.md — ของคนละอย่างที่ค่าเท่ากันชั่วคราว ห้ามยุบ)
+ */
+const PAID_FEATURE_RESTRICTED_SHELLS: readonly AppShell[] = ['ios']
+
+export function isPaidFeatureRestricted(shell: AppShell): boolean {
+  return PAID_FEATURE_RESTRICTED_SHELLS.includes(shell)
+}
+
+/**
+ * request นี้กำลังจะกลายเป็น "การสมัครบัญชีในแอป" หรือเปล่า (Guideline 3.1.1 — รอบ 2026-08-23)
+ *
+ * ## รูที่ฟังก์ชันนี้ปิด
+ *
+ * `isSignUpRestricted` ปิดทางสมัครที่ผู้ใช้ **เลือกเดินเอง** (ลิงก์สมัคร ปุ่มเปิดร้าน) ครบแล้ว
+ * แต่ยังมีทางที่ผู้ใช้ไม่ได้ตั้งใจเดิน: **ปุ่ม OAuth บนหน้าล็อกอิน** — Apple ID ที่ไม่เคยผูก
+ * ไม่ได้ถูกปฏิเสธ มันสร้างบัญชีใหม่ให้เลย แล้ว `proxy.ts` บังคับเจ้าของบัญชีนั้นไป
+ * `/register` → `/onboarding` ซึ่งคือ **ฟอร์มสมัคร** ที่ Apple สั่งให้เอาออกพอดี
+ *
+ * (ทีมรีวิวของ Apple ไม่มีบัญชี Deep ⇒ นี่คือเส้นทางเดียวที่เขาจะเดิน และเขาไปต่อไม่ได้
+ * เพราะยืนยันเบอร์ไทยด้วย SMS ไม่ได้ ⇒ ได้ทั้ง 3.1.1 และ 2.1(a) ในการกดครั้งเดียว)
+ *
+ * ## ทำไมบล็อกทั้งสองเฟส
+ *
+ * เฟส 1 (`needsRegistration` — ยังไม่มีเบอร์) เป็นการสมัครชัดเจนอยู่แล้ว
+ * เฟส 2 (`needsOnboarding` — มีเบอร์แล้วแต่ยังไม่มีร้าน) คือ **การเปิดร้านแรก** ซึ่งก็คือ
+ * "การลงทะเบียนธุรกิจ" ตามภาษาของ Apple เหมือนกัน ⇒ ปิดทั้งคู่ ไม่เลือกปิดครึ่งเดียว
+ *
+ * 🛑 ผู้ขายที่ลงทะเบียนครบแล้วต้องไม่ถูกแตะเลย — ฟังก์ชันนี้ตอบ true เฉพาะคนที่ยัง "ค้าง
+ * ระหว่างสมัคร" เท่านั้น ไม่ใช่ทุกคนในแอป
+ */
+export function shouldBlockAppRegistration(
+  shell: AppShell,
+  gate: { needsRegistration?: boolean; needsOnboarding?: boolean } | null | undefined,
+): boolean {
+  if (!isSignUpRestricted(shell)) return false
+  return Boolean(gate?.needsRegistration || gate?.needsOnboarding)
+}

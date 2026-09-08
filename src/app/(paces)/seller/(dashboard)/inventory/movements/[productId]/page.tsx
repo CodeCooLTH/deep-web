@@ -33,6 +33,7 @@ import { isProActive } from '@/services/inventory-entitlement.service'
 import { getStockMovementHistory } from '@/services/inventory-stock.service'
 import { prisma } from '@/lib/prisma'
 import MovementHistoryTable, { type MovementRow } from './MovementHistoryTable'
+import { shouldHidePaidFeatures } from '@/lib/app-shell-server'
 
 export const metadata: Metadata = { title: 'ประวัติการเคลื่อนไหว' }
 
@@ -46,6 +47,13 @@ export default async function MovementHistoryPage({ params }: PageProps) {
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
+
+  /* 🛑 หน้านี้เป็นฟีเจอร์ของ Deep Stock ซึ่งไม่มีขายเป็น IAP ⇒ ห้ามเข้าจากในแอป iOS
+     (Guideline 3.1.3(b) · feature 00064)
+     เดิมหน้านี้ **ไม่มีด่านเปลือกแอปเลย** — กันด้วยการซ่อนเมนูอย่างเดียว ซึ่งกันคนที่
+     พิมพ์ URL ตรงหรือกดจากลิงก์ในหน้าอื่นไม่ได้ (แพตเทิร์นเดิมของโปรเจกต์เขียนไว้เองว่า
+     "การซ่อนเมนูคือ UX ไม่ใช่การควบคุมสิทธิ์ ต้องกันที่หน้านั้นเองด้วย") */
+  if (await shouldHidePaidFeatures()) redirect('/dashboard')
 
   let shop: { id: string } | null = null
   try {

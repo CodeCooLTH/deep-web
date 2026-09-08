@@ -704,6 +704,8 @@ export function resolveVisibleSellerMenu(
     shop: { kind: string; vertical: string }
     /** เปิดจากในแอปที่ห้ามมีช่องทางจ่ายเงิน (iOS) — ดู src/lib/app-shell.ts */
     hidePayments?: boolean
+    /** เปิดจากในแอปที่ห้ามใช้ฟีเจอร์ซึ่งไม่มีขายเป็น IAP (iOS) — feature 00064 */
+    hidePaidFeatures?: boolean
   },
 ): MenuItemType[] {
   // applyOrderLabel อยู่นอกสุด — แค่เปลี่ยนป้าย ไม่กรองอะไร วางหลังตัวกรองทุกตัวจึงไม่ต่างกัน
@@ -719,6 +721,7 @@ export function resolveVisibleSellerMenu(
           applyPaymentRestriction(applyInventoryGate(items, ctx.entitlement), {
             hidePayments: ctx.hidePayments ?? false,
             entitlementStatus: ctx.entitlement.status,
+            hidePaidFeatures: ctx.hidePaidFeatures ?? false,
           }),
           ctx.staff,
         ),
@@ -749,13 +752,28 @@ export function resolveVisibleSellerMenu(
  */
 export function applyPaymentRestriction(
   items: MenuItemType[],
-  ctx: { hidePayments: boolean; entitlementStatus: EntitlementStatus },
+  ctx: {
+    hidePayments: boolean
+    entitlementStatus: EntitlementStatus
+    /** ซ่อนฟีเจอร์ที่จ่ายเงินแล้วแต่ไม่มีขายเป็น IAP ในแอป — ดู `isPaidFeatureRestricted` */
+    hidePaidFeatures: boolean
+  },
 ): MenuItemType[] {
-  if (!ctx.hidePayments) return items
+  if (!ctx.hidePayments && !ctx.hidePaidFeatures) return items
 
-  const removed = new Set<string>(['seller:subscriptions'])
-  // ยังไม่ได้สมัคร = เข้าไปก็มีแต่หน้าให้เลือกแพ็กเกจ ซึ่งห้ามแสดง → ซ่อนเมนูไปเลย
-  if (ctx.entitlementStatus !== 'ACTIVE') removed.add('seller:inventory')
+  const removed = new Set<string>()
+  if (ctx.hidePayments) {
+    removed.add('seller:subscriptions')
+    // ยังไม่ได้สมัคร = เข้าไปก็มีแต่หน้าให้เลือกแพ็กเกจ ซึ่งห้ามแสดง → ซ่อนเมนูไปเลย
+    if (ctx.entitlementStatus !== 'ACTIVE') removed.add('seller:inventory')
+  }
+  /* 🛑 feature 00064 — ซ่อน Deep Stock **แม้คนที่สมัครแล้ว** (status ACTIVE)
+     เดิมตรงนี้จงใจปล่อยให้คนที่จ่ายเงินแล้วเห็นเมนูต่อ โดยให้เหตุผลว่า badge 'Pro'
+     ไม่ใช่คำเชิญให้ซื้อ ซึ่งถูกตามข้อ 3.1.1 — แต่ **ขัดข้อ 3.1.3(b)**:
+     Apple ยอมให้ใช้ของที่ซื้อจากที่อื่นได้ *ก็ต่อเมื่อของนั้นมีขายเป็น IAP ในแอปด้วย*
+     เราเลือกไม่ขาย Deep Stock เป็น IAP (สิทธิ์ต่อร้าน vs Apple ID) ⇒ เปิดให้ใช้ไม่ได้
+     คนกลุ่มนี้ยังใช้ได้เต็มบนเว็บ (นับบน prod 2026-09-01: ยังไม่มีใครสมัครเลยสักราย) */
+  if (ctx.hidePaidFeatures) removed.add('seller:inventory')
 
   return items.map((group) =>
     !group.children

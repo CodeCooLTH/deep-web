@@ -1383,6 +1383,28 @@ model BusinessPackageSubscription {
   // (คนละแกนความหมาย ชื่อชนกันโดยตั้งใจตามชื่อ tier สูงสุดของธุรกิจ)
   tier               String
   status             BusinessPackageStatus @default(ACTIVE)
+
+  /// source: "WALLET" | "APPLE_IAP" — **ใครเป็นคนเก็บเงินและต่ออายุใบนี้** (feature 00064)
+  ///
+  /// 🛑 `WALLET` = cron ของเราหักกระเป๋าเงินทุก 30 วัน · `APPLE_IAP` = Apple ตัดบัตรและ
+  /// ต่ออายุให้เอง เราแค่รับแจ้งผ่าน App Store Server Notifications
+  /// ใบที่เป็น `APPLE_IAP` **ห้ามถูก `deductCredit` ไม่ว่ากรณีใด** — หักซ้ำ = เก็บเงินลูกค้าสองต่อ
+  /// และเงินไม่พอจะไปล็อกร้าน business ทุกร้านของเขา (ดู src/lib/subscription-source.ts)
+  ///
+  /// default `WALLET` ⇒ แถวเดิมทั้งหมดบน prod (นับ 2026-09-01: 1 แถว) พฤติกรรมไม่เปลี่ยน
+  source             String                @default("WALLET")
+
+  /// รหัสธุรกรรมแรกของสายการสมัครฝั่ง Apple — **คงที่ตลอดอายุ subscription** แม้ต่ออายุกี่รอบ
+  /// ใช้เป็นกุญแจจับคู่ webhook กับแถวนี้ · `@unique` บังคับกติกา 1 การสมัครของ Apple ผูกได้
+  /// กับบัญชีเดียว (BR-IAP-04) — กัน Apple ID เดียวไปเปิดสิทธิ์ให้หลายบัญชี Deep
+  appleOriginalTransactionId String?         @unique
+
+  /// product id ที่ตั้งไว้ใน App Store Connect — เก็บไว้ตรวจย้อนหลังว่า tier มาจากสินค้าตัวไหน
+  appleProductId     String?
+
+  /// "Production" | "Sandbox" — ต้องแยก เพราะธุรกรรม Sandbox ห้ามให้สิทธิ์จริงบน prod
+  appleEnvironment   String?
+
   activatedAt        DateTime // subscribe ครั้งแรกเท่านั้น ห้ามแตะตอน renew/upgrade/downgrade/reactivate (cohort marker)
   currentPeriodStart DateTime
   nextRenewalAt      DateTime
@@ -1394,6 +1416,52 @@ model BusinessPackageSubscription {
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([status, nextRenewalAt]) // renewal cron: status='ACTIVE' AND nextRenewalAt<=now() + advance-warning 3 วัน
+  /// renewal cron หลัง feature 00064: source='WALLET' AND status='ACTIVE' AND nextRenewalAt<=now()
+  /// `source` มาเป็นคอลัมน์แรกเพราะเป็น equality ที่ตัดแถวทิ้งได้มากที่สุด
+  @@index([source, status, nextRenewalAt])
+}
+
+// AppleIapNotification: บันทึกดิบของ App Store Server Notifications v2 — feature 00064
+//
+// 🛑 ทำไมต้องมีตาราง ไม่ใช้แค่ console.log: Vercel plan ที่ใช้อยู่ **query runtime log ย้อนหลังไม่ได้**
+// (`/v1/deployments/{id}/runtime-logs` คืน 404 — ยืนยันแล้ว 2026-08-08) log ที่อ่านย้อนหลังไม่ได้
+// มีค่าเท่ากับไม่มี. เรื่องเงินของลูกค้าต้องตรวจสอบย้อนหลังได้เสมอ — แพตเทิร์นเดียวกับ ChatHandoverEvent
+//
+// ทำหน้าที่ 2 อย่างพร้อมกัน:
+//   1. **กันประมวลผลซ้ำ** — Apple ยิงซ้ำเมื่อเราตอบช้า/ตอบไม่ 200 (`notificationUUID` unique)
+//   2. **หลักฐาน** — เก็บ JWS ดิบไว้ ตรวจย้อนหลังได้ตอนมีข้อโต้แย้งเรื่องเงิน
+model AppleIapNotification {
+  id String @id @default(uuid())
+
+  /// UUID ที่ Apple ออกให้ต่อการแจ้งเตือนหนึ่งครั้ง — กุญแจกันประมวลผลซ้ำ
+  /// 🛑 ต้อง insert **ก่อน** ลงมือให้/ถอนสิทธิ์เสมอ ไม่ใช่หลัง — insert ทีหลังแปลว่าการยิงซ้ำ
+  /// ที่มาถึงระหว่างที่รอบแรกยังทำงานอยู่จะลอดเข้าไปทำซ้ำได้ (บทเรียน 00038 Critical #3)
+  notificationUUID String @unique
+
+  /// เช่น DID_RENEW · EXPIRED · DID_FAIL_TO_RENEW · REFUND · DID_CHANGE_RENEWAL_STATUS
+  notificationType String
+  /// subtype ของ Apple เช่น BILLING_RETRY · VOLUNTARY · GRACE_PERIOD — NULL ได้ตามสเปกของ Apple
+  subtype          String?
+
+  /// จับคู่กับ BusinessPackageSubscription.appleOriginalTransactionId
+  /// NULL ได้ — การแจ้งเตือนบางชนิด (เช่น TEST) ไม่มีธุรกรรมผูก
+  originalTransactionId String?
+
+  /// "Production" | "Sandbox" — Sandbox ยิงมาคนละ URL แต่เก็บตารางเดียวกัน
+  environment String?
+
+  /// payload ดิบ (JWS) ตามที่ Apple ส่งมา — หลักฐานตั้งต้นเวลามีข้อโต้แย้งเรื่องเงิน
+  signedPayload String @db.Text
+
+  /// NULL = รับไว้แล้วแต่ยังทำไม่สำเร็จ (จะถูกลองใหม่โดยตัวเดินตรวจซ้ำ BR-IAP-15)
+  processedAt DateTime?
+  /// เหตุผลที่ทำไม่สำเร็จ — เก็บไว้ให้คนตามแก้ ไม่ใช่กลืนเงียบ
+  error       String?
+
+  createdAt DateTime @default(now())
+
+  @@index([originalTransactionId])
+  @@index([processedAt]) // ตัวเดินตรวจซ้ำ: หาใบที่ยังไม่สำเร็จ
 }
 
 // ShopInvite: คำเชิญ admin เข้า Business ผ่านเบอร์โทร/อีเมล — feature 00008

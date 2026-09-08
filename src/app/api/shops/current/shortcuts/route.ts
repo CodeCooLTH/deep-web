@@ -6,6 +6,7 @@
  */
 import { resolveShortcutState } from '@/services/shortcut.service'
 import { getSessionOr401, respond, handleShortcutError } from './_shared'
+import { shouldHidePaidFeatures, shouldHidePayments } from '@/lib/app-shell-server'
 
 // per-user data — ห้ามให้ CDN/proxy แคชข้ามคน (memory feedback_auth_api_cache_control)
 export const dynamic = 'force-dynamic'
@@ -15,7 +16,10 @@ export async function GET() {
   if (!session) return response
 
   try {
-    const res = respond(await resolveShortcutState(session))
+    const res = respond(await resolveShortcutState(session, {
+        hidePayments: await shouldHidePayments(),
+        hidePaidFeatures: await shouldHidePaidFeatures(),
+      }))
     res.headers.set('Cache-Control', 'private, no-store')
     return res
   } catch (e) {

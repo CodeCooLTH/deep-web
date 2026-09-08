@@ -5,6 +5,7 @@ import { cookies, headers } from 'next/headers'
 
 import {
   SHELL_COOKIE_NAME,
+  isPaidFeatureRestricted,
   isPaymentRestricted,
   isSignUpRestricted,
   resolveAppShell,
@@ -40,4 +41,14 @@ export async function shouldHidePayments(): Promise<boolean> {
 /** ต้องซ่อนการสมัครบัญชีไหม — ดูเหตุผลที่ `isSignUpRestricted` (Apple สั่ง 2026-08-23) */
 export async function shouldHideSignUp(): Promise<boolean> {
   return isSignUpRestricted(await getAppShell())
+}
+
+/**
+ * ต้องซ่อน **ฟีเจอร์ที่จ่ายเงินมาแล้วแต่ไม่มีขายเป็น IAP ในแอป** ไหม
+ * — ดูเหตุผลที่ `isPaidFeatureRestricted` (Guideline 3.1.3(b) · feature 00064)
+ *
+ * ตอนนี้มีตัวเดียวคือ **Deep Stock** — Business Package ไม่เข้าข้อนี้เพราะขายเป็น IAP
+ */
+export async function shouldHidePaidFeatures(): Promise<boolean> {
+  return isPaidFeatureRestricted(await getAppShell())
 }

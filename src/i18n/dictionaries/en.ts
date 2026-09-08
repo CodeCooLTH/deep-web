@@ -888,6 +888,7 @@ export const en: Dictionary = {
         credentials: 'Sign-in failed. Check your details and try again.',
         sessionRequired: 'Please sign in first.',
         unknown: 'Sign-in failed. Please try again.',
+        noSellerAccountInApp: 'No seller account was found for these sign-in details.',
       },
     },
   },

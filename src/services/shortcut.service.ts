@@ -90,7 +90,27 @@ type ActiveShop = NonNullable<Awaited<ReturnType<typeof requireActiveShop>>>
  * "ไม่มีสิทธิ์" ไม่ใช่ throw ทำหน้าพัง — ผลคือเมนูบางตัวหายไปชั่วคราว ซึ่งดีกว่าเปิดให้ปักหมุด
  * เมนูที่อาจไม่มีสิทธิ์จริง
  */
-async function buildEligibleCatalog(active: ActiveShop): Promise<ShortcutCatalogItem[]> {
+/**
+ * ข้อจำกัดของเปลือกแอป (iOS) ที่ต้องมีผลกับ "แคตตาล็อกทางลัด" ด้วย
+ *
+ * 🛑 แคตตาล็อกนี้สร้างจาก `resolveVisibleSellerMenu` ตัวเดียวกับ sidebar — แต่เดิม
+ * **ไม่เคยส่งข้อจำกัดของแอปเข้ามาเลย** ⇒ ใน iOS ผู้ใช้จะเห็น "แพ็กเกจ" เป็นทางลัดให้ปักหมุดได้
+ * ทั้งที่ sidebar ซ่อนไปแล้ว ซึ่งเป็น **ช่องทางเข้าหน้าจ่ายเงิน** ที่ Apple ห้ามตรง ๆ
+ * (คลาสเดียวกับบั๊ก `ShopQuickLinks.tsx` ที่เคยเจอ — ตัวกรองอยู่ที่ sidebar ที่เดียว
+ * แล้วจอที่สร้างรายการเมนูเองด้วยวิธีอื่นหลุดตามไปด้วย)
+ *
+ * ส่งเป็น parameter ไม่ถามเองข้างใน เพราะ service นี้ต้อง test ได้โดยไม่ผูกกับ request
+ * — และมีเทส `[blocker]` สแกนซอร์สบังคับว่าทุกผู้เรียกต้องส่งจริง (ลืมไม่ได้)
+ */
+export type ShellRestrictions = {
+  hidePayments: boolean
+  hidePaidFeatures: boolean
+}
+
+async function buildEligibleCatalog(
+  active: ActiveShop,
+  shell: ShellRestrictions,
+): Promise<ShortcutCatalogItem[]> {
   const shop = active.shop
 
   let entitlement: { status: EntitlementStatus; package: InventoryPackage | null } = {
@@ -117,6 +137,8 @@ async function buildEligibleCatalog(active: ActiveShop): Promise<ShortcutCatalog
     staff: { kind: active.kind, role: active.role },
     expense,
     shop: { kind: active.kind, vertical: shop.vertical },
+    hidePayments: shell.hidePayments,
+    hidePaidFeatures: shell.hidePaidFeatures,
   })
 
   return flattenSellerMenu(visible)
@@ -167,13 +189,16 @@ function buildState(
 
 // ─── read ────────────────────────────────────────────────────────────────────
 
-export async function resolveShortcutState(session: SessionLike): Promise<ShortcutAccessResult> {
+export async function resolveShortcutState(
+  session: SessionLike,
+  shell: ShellRestrictions,
+): Promise<ShortcutAccessResult> {
   const active = await requireActiveShop(session)
   if (!active) return { kind: 'NO_SHOP' }
   const userId = session!.user!.id!
 
   const [catalog, pref] = await Promise.all([
-    buildEligibleCatalog(active),
+    buildEligibleCatalog(active, shell),
     prisma.sellerShortcutPreference.findUnique({
       where: { userId_shopId: { userId, shopId: active.shop.id } },
     }),
@@ -188,13 +213,13 @@ export async function resolveShortcutState(session: SessionLike): Promise<Shortc
  * โหลดสถานะปัจจุบันเพื่อเตรียมเขียน — เซ็ตที่ใช้เป็นฐานคือ "ค่าที่ผู้ใช้เห็นอยู่จริง"
  * ซึ่งอาจเป็นค่าเริ่มต้นที่ยังไม่ได้ persist การกดครั้งแรกจึงบันทึกค่าเริ่มต้น + การแก้ไขไปพร้อมกัน
  */
-async function loadForWrite(session: SessionLike) {
+async function loadForWrite(session: SessionLike, shell: ShellRestrictions) {
   const active = await requireActiveShop(session)
   if (!active) return null
   const userId = session!.user!.id!
 
   const [catalog, pref] = await Promise.all([
-    buildEligibleCatalog(active),
+    buildEligibleCatalog(active, shell),
     prisma.sellerShortcutPreference.findUnique({
       where: { userId_shopId: { userId, shopId: active.shop.id } },
     }),
@@ -217,8 +242,12 @@ async function persist(userId: string, shopId: string, slugs: string[], catalog:
   return buildState(catalog, slugs, false)
 }
 
-export async function pinShortcut(session: SessionLike, slug: string): Promise<ShortcutAccessResult> {
-  const ctx = await loadForWrite(session)
+export async function pinShortcut(
+  session: SessionLike,
+  slug: string,
+  shell: ShellRestrictions,
+): Promise<ShortcutAccessResult> {
+  const ctx = await loadForWrite(session, shell)
   if (!ctx) return { kind: 'NO_SHOP' }
 
   // validate จาก catalog สดเสมอ ไม่ใช่จากรายการที่ client ส่งมา — client อาจถือ catalog เก่า
@@ -234,8 +263,12 @@ export async function pinShortcut(session: SessionLike, slug: string): Promise<S
   return persist(ctx.userId, ctx.shopId, [...ctx.current, slug], ctx.catalog)
 }
 
-export async function unpinShortcut(session: SessionLike, slug: string): Promise<ShortcutAccessResult> {
-  const ctx = await loadForWrite(session)
+export async function unpinShortcut(
+  session: SessionLike,
+  slug: string,
+  shell: ShellRestrictions,
+): Promise<ShortcutAccessResult> {
+  const ctx = await loadForWrite(session, shell)
   if (!ctx) return { kind: 'NO_SHOP' }
 
   if (!ctx.current.includes(slug)) return buildState(ctx.catalog, ctx.current, false)
@@ -260,8 +293,11 @@ export async function unpinShortcut(session: SessionLike, slug: string): Promise
  * รีเซ็ต — คำนวณค่าเริ่มต้นจาก catalog "สด ณ ขณะกด" ไม่ใช่ค่าที่คำนวณตอนเปิดหน้า
  * (ผู้ใช้อาจเปิดชีตแก้ไขค้างไว้ข้ามวันจนสิทธิ์เปลี่ยนไปแล้ว)
  */
-export async function resetShortcuts(session: SessionLike): Promise<ShortcutAccessResult> {
-  const ctx = await loadForWrite(session)
+export async function resetShortcuts(
+  session: SessionLike,
+  shell: ShellRestrictions,
+): Promise<ShortcutAccessResult> {
+  const ctx = await loadForWrite(session, shell)
   if (!ctx) return { kind: 'NO_SHOP' }
   return persist(ctx.userId, ctx.shopId, computeDefaultSlugs(ctx.catalog), ctx.catalog)
 }

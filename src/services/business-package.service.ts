@@ -7,7 +7,25 @@ import {
   WALLET_REASON_BUSINESS, WALLET_DESC_BUSINESS, SHOP_LOCK_REASON, GRACE_ELIGIBLE_LOCK_REASONS,
   type BusinessPackageTier,
 } from '@/lib/business-package'
+import { isWalletBilled, MANAGED_BY_APPLE, SUBSCRIPTION_SOURCE } from '@/lib/subscription-source'
 import type { Prisma } from '@prisma/client'
+
+/**
+ * 🛑 ด่านกลางของ feature 00064 — "ใบนี้ให้เราหักเงิน/ขยับรอบบิลเองได้ไหม"
+ *
+ * ทุกฟังก์ชันในไฟล์นี้ที่ **หัก `deductCredit`** หรือ **ขยับ `nextRenewalAt`/`tier`/ลบแถว**
+ * ต้องผ่านด่านนี้ก่อนเสมอ ใบที่ Apple ดูแลอยู่ต้องจัดการผ่าน Apple ทางเดียว:
+ *
+ *   - หักเงินซ้ำ  = ลูกค้าจ่ายสองต่อ (Apple ตัดบัตร + เราหักกระเป๋า)
+ *   - ขยับรอบบิล = ตัวเลขของเราเพี้ยนจากของ Apple แล้วสิทธิ์หมด/ค้างผิดจังหวะ
+ *   - ลบแถว      = Apple ยังเก็บเงินต่อ แต่เราลืมเขาไปแล้ว = เก็บเงินโดยไม่ให้ของ
+ *
+ * ตั้งใจให้ throw ไม่ใช่คืน boolean — ผู้เรียกที่ลืมเช็คผลลัพธ์จะเงียบ แต่ throw ไม่เงียบ
+ * (เส้นทาง cron ที่ต้องการ 'SKIPPED' แทน error เช็ค `isWalletBilled` เองก่อนเรียก)
+ */
+function assertWalletBilled(sub: { source: string }) {
+  if (!isWalletBilled(sub.source)) throw new Error(MANAGED_BY_APPLE)
+}
 
 function addDays(d: Date, n: number) { return new Date(d.getTime() + n * 86_400_000) }
 
@@ -41,6 +59,14 @@ export async function subscribeBusinessPackage(ownerId: string, tier: BusinessPa
     await tx.businessPackageSubscription.create({
       data: {
         id: subId, ownerId, tier, status: 'ACTIVE',
+        /* 🛑 เขียน `source` ตรง ๆ ไม่พึ่ง default ของฐาน — เส้นทางนี้คือ "จ่ายด้วยกระเป๋าเงิน"
+           (มี `deductCredit` อยู่เหนือขึ้นไป) ⇒ ต้องอ่านออกจากโค้ดได้ทันทีว่าใบที่สร้างจาก
+           ที่นี่เป็นของกระเป๋าเงินเสมอ ไม่ใช่ไปสืบจาก schema อีกไฟล์
+           ความปลอดภัยของฟังก์ชันนี้ต่อ feature 00064 มาจาก 2 อย่างประกอบกัน:
+             1. `SUBSCRIPTION_ALREADY_EXISTS` ข้างบน — มีใบของ Apple อยู่ก็เข้ามาถึงตรงนี้ไม่ได้
+             2. บรรทัดนี้ — ใบที่เกิดจากเส้นทางนี้เป็น WALLET เสมอ
+           ไม่ใช่ `assertWalletBilled` เพราะยังไม่มีแถวให้ตรวจ (กำลังจะสร้าง) */
+        source: SUBSCRIPTION_SOURCE.WALLET,
         activatedAt: now, currentPeriodStart: now,
         nextRenewalAt: addDays(now, BUSINESS_PACKAGE_RENEWAL_PERIOD_DAYS),
       },
@@ -59,6 +85,7 @@ export async function upgradeBusinessPackage(ownerId: string, newTier: BusinessP
   return prisma.$transaction(async (tx) => {
     const sub = await tx.businessPackageSubscription.findUnique({ where: { ownerId } })
     if (!sub || sub.status !== 'ACTIVE') throw new Error('SUBSCRIPTION_NOT_ACTIVE')
+    assertWalletBilled(sub) // ใบของ Apple: เปลี่ยน tier ต้องทำผ่าน Apple (ดูหัวไฟล์)
     if (TIER_ORDER[newTier] <= TIER_ORDER[sub.tier as BusinessPackageTier]) {
       throw new Error('NOT_AN_UPGRADE')
     }
@@ -89,6 +116,7 @@ export async function downgradeBusinessPackage(
   return prisma.$transaction(async (tx) => {
     const sub = await tx.businessPackageSubscription.findUnique({ where: { ownerId } })
     if (!sub || sub.status !== 'ACTIVE') throw new Error('SUBSCRIPTION_NOT_ACTIVE')
+    assertWalletBilled(sub) // ใบของ Apple: เปลี่ยน tier ต้องทำผ่าน Apple (ดูหัวไฟล์)
     if (TIER_ORDER[newTier] >= TIER_ORDER[sub.tier as BusinessPackageTier]) {
       throw new Error('NOT_A_DOWNGRADE')
     }
@@ -123,6 +151,10 @@ export async function cancelBusinessPackage(ownerId: string) {
   return prisma.$transaction(async (tx) => {
     const sub = await tx.businessPackageSubscription.findUnique({ where: { ownerId } })
     if (!sub || sub.status !== 'ACTIVE') throw new Error('SUBSCRIPTION_NOT_ACTIVE')
+    /* 🛑 ใบของ Apple ห้ามลบจากปุ่มของเรา — Apple จะเก็บเงินรอบถัดไปต่อไปโดยที่เราลืมเขาแล้ว
+       = เก็บเงินลูกค้าโดยไม่ให้ของ · การยกเลิกต้องทำใน Settings ของ iPhone เท่านั้น
+       แล้วเราจะรู้ผ่าน webhook (DID_CHANGE_RENEWAL_STATUS → EXPIRED) */
+    assertWalletBilled(sub)
     await lockAllBusinessShops(ownerId, SHOP_LOCK_REASON.OWNER_CANCELLED_PACKAGE, tx)
     await tx.businessPackageSubscription.delete({ where: { ownerId } })
     return { status: 'NOT_SUBSCRIBED' as const }
@@ -137,6 +169,7 @@ export async function reactivateBusinessPackage(ownerId: string) {
   return prisma.$transaction(async (tx) => {
     const sub = await tx.businessPackageSubscription.findUnique({ where: { ownerId } })
     if (!sub || sub.status !== 'LOCKED_RENEWAL_FAILED') throw new Error('SUBSCRIPTION_NOT_LOCKED')
+    assertWalletBilled(sub) // ใบของ Apple: กลับมาใช้งานได้เมื่อ Apple เก็บเงินสำเร็จ ไม่ใช่จากปุ่มนี้
     const personal = await getPersonalShop(ownerId)
     if (!personal) throw new Error('PERSONAL_SHOP_REQUIRED')
     await deductCredit(
@@ -159,6 +192,12 @@ export async function renewOrLockBusinessPackage(ownerId: string): Promise<'RENE
     const now = new Date()
     const before = await tx.businessPackageSubscription.findUnique({ where: { ownerId } })
     if (!before || before.status !== 'ACTIVE' || before.nextRenewalAt > now) return 'SKIPPED'
+    /* 🛑 ด่านสุดท้ายก่อนหักเงิน — ใบที่ Apple ดูแล cron ต้องไม่แตะเลย (BR-IAP-02)
+       ที่นี่คืน 'SKIPPED' ไม่ throw เพราะ cron เดินทีละใบและ error หนึ่งใบต้องไม่ล้มทั้งรอบ
+       🛑 ด่านนี้ต้องอยู่ **ที่นี่ด้วย** ไม่ใช่แค่ที่ตัวกรองของ query ใน route:
+       ฟังก์ชันนี้ export ออกไปและถูกเรียกจากที่อื่นได้ · ด่านที่อยู่แต่ในผู้เรียก
+       คือด่านที่หายไปทันทีที่มีผู้เรียกรายที่สอง */
+    if (!isWalletBilled(before.source)) return 'SKIPPED'
 
     const claimed = await tx.businessPackageSubscription.updateMany({
       where: { ownerId, status: 'ACTIVE', nextRenewalAt: before.nextRenewalAt },

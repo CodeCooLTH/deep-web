@@ -28,7 +28,7 @@ import {
   type DashboardRange,
 } from './components/DashboardRangeControl'
 import { authOptions } from '@/lib/auth'
-import { shouldHidePayments } from '@/lib/app-shell-server'
+import { shouldHidePaidFeatures, shouldHidePayments } from '@/lib/app-shell-server'
 import { prisma } from '@/lib/prisma'
 import { requireActiveShop } from '@/lib/shop-context'
 import { toFileUrl } from '@/lib/file-url'
@@ -327,7 +327,12 @@ export default async function SellerDashboardPage() {
             // Sales Chart mini card — ยอดขายรายวันเดือนปัจจุบัน
             getSalesSeries(shop.id, 'daily', { year: currentYear, month: currentMonth }, expenseGranted, shop.vertical),
             // เมนูลัดที่ผู้ใช้เลือกไว้ (feature 00027) — เรียก service ตรง ไม่ผ่าน HTTP เพราะอยู่ฝั่ง server แล้ว
-            resolveShortcutState(session as unknown as { user: { id: string; activeShopId?: string | null } }),
+            resolveShortcutState(
+              session as unknown as { user: { id: string; activeShopId?: string | null } },
+              /* ข้อจำกัดของเปลือกแอปต้องมีผลกับแคตตาล็อกทางลัดด้วย ไม่ใช่แค่ sidebar
+                 — ไม่งั้นใน iOS จะมี "แพ็กเกจ" ให้ปักหมุด = ช่องทางเข้าหน้าจ่ายเงิน */
+              { hidePayments: await shouldHidePayments(), hidePaidFeatures: await shouldHidePaidFeatures() },
+            ),
             // ─── 3 การ์ดเดสก์ท็อปที่ดึงกลับ 2026-08-05 — ทั้งหมดผูกกับ "เดือนปฏิทินไทยเดือนนี้" ───
             // ชุดเดียวกับที่ Sales Chart ใช้ (currentYear/currentMonth ด้านบน) เพื่อไม่ให้หน้าเดียว
             // มีสองนิยามของคำว่า "เดือนนี้"

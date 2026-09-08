@@ -980,6 +980,58 @@ InspectionResult (0..1) ─ (N) InspectionEvidence     [feature 00060 — option
 
 ---
 
+#### BusinessPackageSubscription (`prisma/schema.prisma:1293`) — feature 00008 · ขยาย feature 00064
+
+> 🛑 โมเดลนี้ **ไม่เคยอยู่ใน SRS เลยตั้งแต่ feature 00008** — เติมเข้ามาพร้อมกับ 00064 (2026-09-01)
+
+| Field | Type | หมายเหตุ |
+|-------|------|---------|
+| `id` | String UUID PK | |
+| `ownerId` | String `@unique` | **1 เจ้าของบัญชี = 1 subscription** ไม่ว่าจ่ายทางไหน |
+| `tier` | String | `GROWTH` \| `PRO` \| `BUSINESS` — ราคา/โควตา hardcode ที่ `src/lib/business-package.ts` |
+| `status` | BusinessPackageStatus | `ACTIVE` \| `LOCKED_RENEWAL_FAILED` (`NOT_SUBSCRIBED` = ไม่มีแถว) |
+| **`source`** | String default `'WALLET'` | 🆕 **ใครเก็บเงินและต่ออายุใบนี้** — `WALLET` \| `APPLE_IAP` |
+| **`appleOriginalTransactionId`** | String? `@unique` | 🆕 รหัสธุรกรรมแรกฝั่ง Apple · UNIQUE บังคับ BR-IAP-04 |
+| **`appleProductId`** | String? | 🆕 product id ใน App Store Connect |
+| **`appleEnvironment`** | String? | 🆕 `Production` \| `Sandbox` |
+| `activatedAt` | DateTime | subscribe ครั้งแรกเท่านั้น — ห้ามแตะตอน renew/upgrade/downgrade (cohort marker) |
+| `currentPeriodStart` | DateTime | |
+| `nextRenewalAt` | DateTime | 🛑 ใบ `APPLE_IAP` ค่านี้มาจาก `expiresDate` ของ Apple **ห้ามคำนวณ +30 วันเอง** |
+| `lastRenewalAt` | DateTime? | |
+| `lockedAt` | DateTime? | reset NULL ทันทีที่ reactivate สำเร็จ |
+
+**index:** `(status, nextRenewalAt)` *(เดิม)* · `(source, status, nextRenewalAt)` *(ใหม่ — cron ต่ออายุ)*
+
+🛑 **นิยาม "ใครต่ออายุ" เปลี่ยนไปแล้ว** — เดิมคือ "cron ของเราเสมอ" ตอนนี้ขึ้นกับ `source`:
+
+| `source` | ใครเก็บเงิน | cron ของเราแตะไหม |
+|---|---|---|
+| `WALLET` | เรา (`deductCredit` จากกระเป๋าร้าน personal) | ✅ ใช่ |
+| `APPLE_IAP` | **Apple** (ตัดบัตรผู้ใช้) | ❌ **ห้ามแตะเด็ดขาด** |
+
+หักซ้ำ = เก็บเงินลูกค้าสองต่อ และถ้ากระเป๋าว่างจะกลายเป็น `LOCKED_RENEWAL_FAILED`
+แล้ว `lockAllBusinessShops()` จะล็อกร้าน business **ทุกร้าน** ของเขาทั้งที่จ่ายเงินครบ
+⇒ เกณฑ์อยู่ที่ `src/lib/subscription-source.ts` (fail-closed) มีเทส `[blocker]` + mutation 9 แบบคุม
+
+#### AppleIapNotification (`prisma/schema.prisma`) — feature 00064 (ใหม่)
+
+บันทึกดิบของ App Store Server Notifications v2
+
+| Field | Type | หมายเหตุ |
+|-------|------|---------|
+| `id` | String UUID PK | |
+| `notificationUUID` | String `@unique` | กุญแจกันประมวลผลซ้ำ — **insert ก่อนลงมือเสมอ** |
+| `notificationType` | String | `DID_RENEW` · `EXPIRED` · `REFUND` · `DID_FAIL_TO_RENEW` · … |
+| `subtype` | String? | `BILLING_RETRY` · `GRACE_PERIOD` · `VOLUNTARY` |
+| `originalTransactionId` | String? | จับคู่กับ `BusinessPackageSubscription` |
+| `environment` | String? | `Production` \| `Sandbox` |
+| `signedPayload` | String `@db.Text` | JWS ดิบ — หลักฐานเวลามีข้อโต้แย้งเรื่องเงิน |
+| `processedAt` | DateTime? | NULL = รับไว้แล้วแต่ยังทำไม่สำเร็จ |
+| `error` | String? | เหตุผลที่ล้มเหลว — ไม่กลืนเงียบ |
+
+**เหตุผลที่ต้องเป็นตาราง:** Vercel plan นี้ query runtime log ย้อนหลังไม่ได้ (404 · ยืนยัน 2026-08-08)
+เรื่องเงินของลูกค้าต้องตรวจย้อนหลังได้เสมอ — แพตเทิร์นเดียวกับ `ChatHandoverEvent`
+
 ### 6.x OrderPayment — เงินที่ "ได้รับจริง" (feature 00050, 2026-08-15)
 
 > migration `20260815190000_service_queue_order_payment` — **additive ล้วน ไม่แตะคอลัมน์เดิม**
