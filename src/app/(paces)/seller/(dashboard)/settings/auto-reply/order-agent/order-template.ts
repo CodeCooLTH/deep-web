@@ -1,4 +1,17 @@
 /**
+ * 🛑 ห้ามเปลี่ยนชื่อไฟล์นี้กลับเป็น `template.ts` เด็ดขาด
+ *
+ * `template` เป็น **ชื่อไฟล์สงวนของ App Router** (อยู่ใน `FILE_TYPES` ของ `next-app-loader`
+ * ร่วมกับ layout/error/loading/not-found) ⇒ Next หยิบไฟล์นี้ไปเป็น *segment template* แล้ว
+ * เรนเดอร์ `export default` ของมันเป็นคอมโพเนนต์ ไฟล์นี้ไม่มี default export มันจึงได้
+ * module namespace object แล้วพังทั้งหน้าเป็น
+ *   "Element type is invalid: expected a string ... but got: object"
+ *
+ * 🛑 **`tsc`/`eslint`/`next build` ผ่านหมด** — ไฟล์นี้ถูกทุกตัวอักษรในตัวมันเอง สิ่งที่ผิดคือ
+ * *ชื่อ* ซึ่งไม่มีเครื่องมือไหนในโปรเจกต์ตรวจ และ build ก็ไม่เรนเดอร์เพจ ⇒ เจอบน prod เท่านั้น
+ * (user เจอเอง 2026-09-08 ทันทีที่เปิดหน้าครั้งแรก) ตอนนี้มีด่านแล้วที่
+ * `src/app/__tests__/app-router-reserved-filenames.test.ts`
+ *
  * แม่แบบสรุปคำสั่งซื้อ — **ค่าคงที่ระดับระบบ ไม่ใช่ข้อมูลใน DB** (BR-ACO-11)
  *
  * 🛑 ทำไมไม่ให้ร้านแก้ได้: ตัวแกะ (`parseAutoOrderMessage`) รู้จักหัวข้อชุดหนึ่งตายตัว —

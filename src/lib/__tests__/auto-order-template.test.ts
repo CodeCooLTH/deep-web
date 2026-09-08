@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest'
 import {
   AUTO_ORDER_TEMPLATE,
   DEFAULT_TRIGGER_PHRASE,
-} from '@/app/(paces)/seller/(dashboard)/settings/auto-reply/order-agent/template'
+} from '@/app/(paces)/seller/(dashboard)/settings/auto-reply/order-agent/order-template'
 import { parseAutoOrderMessage, matchesTriggerPhrase } from '@/lib/auto-order-parser'
 import { computeItemsTotal, deriveDraftReasons } from '@/lib/auto-order-reasons'
 

@@ -21,7 +21,7 @@ import { DRAFT_REASON_LABEL } from '@/lib/auto-order-reason-label'
 
 import TestThreadsCard from '../[id]/TestThreadsCard'
 
-import { AUTO_ORDER_TEMPLATE, TEMPLATE_HINTS } from './template'
+import { AUTO_ORDER_TEMPLATE, TEMPLATE_HINTS } from './order-template'
 
 type Status = 'OFFLINE' | 'TEST' | 'LIVE'
 
