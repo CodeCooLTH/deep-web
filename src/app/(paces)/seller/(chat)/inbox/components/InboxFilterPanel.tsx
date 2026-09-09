@@ -114,72 +114,15 @@ function Chip({
   )
 }
 
-function Section({
-  title,
-  hint,
-  children,
-  // 00018 ext รอบสอง 2026-09-09 — หัวข้อ "เรียงลำดับ" ใช้แถว 2 บรรทัด (label + คำอธิบาย)
-  // ไม่ใช่ชิป เพราะสองโหมดชื่อคล้ายกันมากจนแยกไม่ออกถ้าไม่มีคำอธิบายกำกับ และชิปทรง pill
-  // ไม่มีที่ให้บรรทัดที่สอง — หัวข้อ (typography/ระยะ) ยังใช้ตัวเดียวกันทุกหัวข้อ
-  layout = 'chips',
-}: {
-  title: string
-  hint?: string
-  children: React.ReactNode
-  layout?: 'chips' | 'rows'
-}) {
+function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="mb-4 last:mb-0">
       <p className="text-default-700 mb-2 text-xs font-medium">
         {title}
         {hint && <span className="font-normal"> — {hint}</span>}
       </p>
-      <div className={layout === 'rows' ? 'flex flex-col gap-1' : 'flex flex-wrap gap-1.5'}>{children}</div>
+      <div className="flex flex-wrap gap-1.5">{children}</div>
     </div>
-  )
-}
-
-/**
- * แถวเลือกโหมดเรียง
- * Base: PageFilterDropdown.tsx แถว "ทุกเพจ" (icon กลม + label + คำอธิบายบรรทัดสอง)
- * ซึ่งมาจาก theme/paces/Admin/TS/src/app/(admin)/ui/dropdowns/page.tsx อีกที
- * เคยอยู่ในไฟล์ InboxSortDropdown.tsx (ลบแล้ว 2026-09-09 ตอนยุบปุ่มเรียงเข้าแผงนี้)
- * คำอธิบายห้าม truncate — ประโยคที่ถูกตัดครึ่งคือประโยคที่อ่านไม่รู้เรื่อง
- */
-function SortRow({
-  selected,
-  icon,
-  label,
-  description,
-  onSelect,
-}: {
-  selected: boolean
-  icon: string
-  label: string
-  description: string
-  onSelect: () => void
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitemradio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={`dropdown-item w-full items-start text-start ${selected ? 'active' : ''}`}
-    >
-      {selected ? (
-        <Icon icon="check" className="text-primary mt-0.5 size-4 shrink-0" />
-      ) : (
-        <span className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      )}
-      <span className="bg-default-100 text-default-700 flex size-8 shrink-0 items-center justify-center rounded-full">
-        <Icon icon={icon} width={16} height={16} />
-      </span>
-      <span className="min-w-0 flex-1 text-start">
-        <span className="text-default-900 block truncate text-sm font-medium">{label}</span>
-        <span className="text-default-700 block text-xs">{description}</span>
-      </span>
-    </button>
   )
 }
 
@@ -307,20 +250,24 @@ export default function InboxFilterPanel({
           <div className="max-h-96 overflow-y-auto p-3">
             {/* เรียงลำดับอยู่บนสุด — ตอบคนละแกนกับตัวกรองที่เหลือ (filter = "เห็นห้องไหน",
                 sort = "เห็นแล้วเรียงยังไง") วางแยกไว้หัวแผงกันผู้ใช้ปนสองแกนเข้าด้วยกัน
-                และเป็นตำแหน่งเดียวกับที่ปุ่มเรียงเคยอยู่ก่อนถูกยุบเข้ามา */}
-            <Section title={t.inbox.filterPanel.sectionSort} hint={t.inbox.filterPanel.sortNotCleared} layout="rows">
+
+                🛑 ใช้ "ชิป" เหมือนทุกหัวข้อในแผงนี้ ไม่ใช่แถว 2 บรรทัดพร้อมคำอธิบาย —
+                รอบแรกทำเป็นแถวมีคำอธิบายเพราะกลัวสองโหมดชื่อคล้ายกันจนแยกไม่ออก ผลคือหัวข้อเดียว
+                กินความสูงเกือบทั้งแผง ดันตัวกรองจริงตกใต้เส้น scroll ทั้งหมด (user รายงานเอง
+                2026-09-09: "ใช้งานยาก ... description เยอะเกิน รกด้วย")
+                ทางแก้ที่ถูกคือ **ทำให้ชื่อโหมดอธิบายตัวเองได้** แล้วตัดคำอธิบายทิ้ง
+                ไม่ใช่คงคำอธิบายไว้แล้วไปหาที่ว่างเพิ่ม */}
+            <Section title={t.inbox.filterPanel.sectionSort}>
               {INBOX_SORT_MODES.map((mode) => (
-                <SortRow
+                <Chip
                   key={mode}
-                  selected={draftSort === mode}
-                  icon={mode === 'LAST_MESSAGE' ? 'messages' : 'user-question'}
-                  label={mode === 'LAST_MESSAGE' ? t.inbox.sort.optionAllLabel : t.inbox.sort.optionCustomerLatestLabel}
-                  description={
+                  on={draftSort === mode}
+                  label={
                     mode === 'LAST_MESSAGE'
-                      ? t.inbox.sort.optionAllDescription
-                      : t.inbox.sort.optionCustomerLatestDescription
+                      ? t.inbox.sort.optionAllLabel
+                      : t.inbox.sort.optionCustomerLatestLabel
                   }
-                  onSelect={() => setDraftSort(mode)}
+                  onClick={() => setDraftSort(mode)}
                 />
               ))}
             </Section>
