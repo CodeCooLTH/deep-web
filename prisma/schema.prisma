@@ -122,6 +122,7 @@ model User {
 
   // --- Customizable Shortcuts (feature 00027, additive) ---
   shortcutPreferences SellerShortcutPreference[] // เมนูลัดที่ผู้ใช้นี้ตั้งไว้ แยกตามร้าน
+  chatPreferences     SellerChatPreference[] // ค่าตั้งกล่องแชทของผู้ใช้นี้ แยกตามร้าน (00018 ext 2026-09-09)
 
   // --- feature 00023 Chat Auto-Reply (additive) ---
   // back-relation ของ AutoReplyConfig.updatedByUserId เท่านั้น — createdByUserId/updatedByUserId
@@ -368,6 +369,7 @@ model Shop {
 
   // --- Customizable Shortcuts (feature 00027, additive) ---
   shortcutPreferences SellerShortcutPreference[] // เมนูลัดที่สมาชิกแต่ละคนตั้งไว้สำหรับร้านนี้
+  chatPreferences     SellerChatPreference[] // ค่าตั้งกล่องแชทที่สมาชิกแต่ละคนตั้งไว้สำหรับร้านนี้
 
   // --- Shop Page Builder (feature 00035, additive) ---
   pageLayout ShopPageLayout? // สวิตช์เผยแพร่ + ลำดับแท็บของหน้าร้านสาธารณะ (1:1, lazily created ตอนกดบันทึกครั้งแรก)
@@ -1014,40 +1016,40 @@ model Order {
 
   /// ยอดรวมที่ร้าน "พิมพ์" มาในข้อความ (ถ้ามี) — 🛑 ไม่ใช่ `totalAmount` และห้ามใช้แทนกัน
   /// มีไว้เทียบกับยอดที่ระบบคำนวณได้ เพื่อบอกว่า TOTAL_MISMATCH
-  draftStatedTotalAmount Decimal? @db.Decimal(12, 2)
-  shop               Shop                    @relation(fields: [shopId], references: [id])
-  buyer              User?                   @relation("BuyerOrders", fields: [buyerUserId], references: [id])
-  createdBy          User?                   @relation("CreatedOrders", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  codReceivedBy      User?                   @relation("CodReceivedOrders", fields: [codReceivedByUserId], references: [id], onDelete: SetNull)
-  handedOverBy       User?                   @relation("HandedOverOrders", fields: [handedOverByUserId], references: [id], onDelete: SetNull) // feature 00062
-  paymentConfirmedBy User?                   @relation("PaymentConfirmedOrders", fields: [paymentConfirmedByUserId], references: [id], onDelete: SetNull) // feature 00062
-  customer           Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  room               Room?                   @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  housekeeper        Housekeeper?            @relation(fields: [housekeeperId], references: [id], onDelete: SetNull)
+  draftStatedTotalAmount Decimal?                @db.Decimal(12, 2)
+  shop                   Shop                    @relation(fields: [shopId], references: [id])
+  buyer                  User?                   @relation("BuyerOrders", fields: [buyerUserId], references: [id])
+  createdBy              User?                   @relation("CreatedOrders", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  codReceivedBy          User?                   @relation("CodReceivedOrders", fields: [codReceivedByUserId], references: [id], onDelete: SetNull)
+  handedOverBy           User?                   @relation("HandedOverOrders", fields: [handedOverByUserId], references: [id], onDelete: SetNull) // feature 00062
+  paymentConfirmedBy     User?                   @relation("PaymentConfirmedOrders", fields: [paymentConfirmedByUserId], references: [id], onDelete: SetNull) // feature 00062
+  customer               Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  room                   Room?                   @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  housekeeper            Housekeeper?            @relation(fields: [housekeeperId], references: [id], onDelete: SetNull)
   // ช่องทางที่ลูกค้าทักเข้ามา (2026-08-10) — ดูคอมเมนต์ที่ field shopChannelId ด้านบน
-  shopChannel        ShopChannel?            @relation(fields: [shopChannelId], references: [id], onDelete: SetNull)
+  shopChannel            ShopChannel?            @relation(fields: [shopChannelId], references: [id], onDelete: SetNull)
   // เธรดแชทที่สร้างออเดอร์นี้จริง (2026-08-12) — ดูคอมเมนต์ที่ field conversationId ด้านบน
-  conversation       Conversation?           @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  conversation           Conversation?           @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   // feature 00061 — ดูคอมเมนต์ที่ field sourceChatMessageId / supersedesOrderId ด้านบน
-  sourceChatMessage  ChatMessage?            @relation("OrderSourceChatMessage", fields: [sourceChatMessageId], references: [id], onDelete: Restrict)
-  supersedesOrder    Order?                  @relation("OrderSupersedes", fields: [supersedesOrderId], references: [id], onDelete: SetNull)
-  supersededByOrders Order[]                 @relation("OrderSupersedes")
+  sourceChatMessage      ChatMessage?            @relation("OrderSourceChatMessage", fields: [sourceChatMessageId], references: [id], onDelete: Restrict)
+  supersedesOrder        Order?                  @relation("OrderSupersedes", fields: [supersedesOrderId], references: [id], onDelete: SetNull)
+  supersededByOrders     Order[]                 @relation("OrderSupersedes")
   /// การ์ดผลลัพธ์ในเธรดที่อ้างถึงออเดอร์ใบนี้ (feature 00061) — append-only ได้หลายใบต่อออเดอร์
-  autoOrderCards     ChatMessage[]           @relation("ChatMessageAutoOrder")
-  serviceResource    ServiceResource?        @relation(fields: [serviceResourceId], references: [id], onDelete: Restrict) // feature 00024
-  reschedules        AppointmentReschedule[] // feature 00024 — ประวัติการเลื่อนนัด (สะสม BR-RSV-30)
-  items              OrderItem[]
-  shipmentTracking   ShipmentTracking?
-  review             Review?
-  smsCodes           SmsCode[]
+  autoOrderCards         ChatMessage[]           @relation("ChatMessageAutoOrder")
+  serviceResource        ServiceResource?        @relation(fields: [serviceResourceId], references: [id], onDelete: Restrict) // feature 00024
+  reschedules            AppointmentReschedule[] // feature 00024 — ประวัติการเลื่อนนัด (สะสม BR-RSV-30)
+  items                  OrderItem[]
+  shipmentTracking       ShipmentTracking?
+  review                 Review?
+  smsCodes               SmsCode[]
   // NEW (feature 00022) — พัสดุที่เปิดกับขนส่งสำหรับออเดอร์นี้ (active ได้ **ขาไป 1 + ขากลับ 1**
   // บังคับด้วย partial unique index `OrderShipment_active_order_key` บน ("orderId","direction")
   // — unmanaged SQL ดู DATABASE.md §4 · เดิมเป็น ("orderId") ล้วน ซึ่งทำให้ระบบคืนของ 00056
   // เปิดพัสดุขากลับไม่ได้เลยสักใบ แก้ 2026-08-25)
-  shipments          OrderShipment[]
+  shipments              OrderShipment[]
   /// ใบคืนของ (feature 00056) — ไม่ใช่ออเดอร์ใบใหม่
-  returns            OrderReturn[]
-  events             OrderEvent[] // feature 00031 — ประวัติกิจกรรมของออเดอร์นี้ (audit log, insert-only)
+  returns                OrderReturn[]
+  events                 OrderEvent[] // feature 00031 — ประวัติกิจกรรมของออเดอร์นี้ (audit log, insert-only)
 
   // 🛑 EXCLUDE constraint `Order_room_no_overlap` มีอยู่จริงในฐานข้อมูล แต่ Prisma DSL
   // ประกาศไม่ได้ (unmanaged SQL — migration 20260722000100):
@@ -1376,13 +1378,13 @@ enum BusinessPackageStatus {
 // ตั้งชื่อแยกจาก Shop.businessType เดิม (label นิติบุคคล L3 — คนละเรื่อง)
 // cancel = DELETE row ทันที (grace timer อยู่ที่ Shop.packageLockedAt ต่อ shop ไม่ใช่ที่ row นี้)
 model BusinessPackageSubscription {
-  id                 String                @id @default(uuid())
-  ownerId            String                @unique
+  id      String                @id @default(uuid())
+  ownerId String                @unique
   // tier: "GROWTH" | "PRO" | "BUSINESS" — String (ราคา/โควตาต่อ tier hardcode app-layer เหมือน
   // Inventory Add-on ฿199 — กัน ALTER TYPE ทุกครั้งที่ปรับราคา) ⚠️ ระวังสับสนกับ Shop.kind="BUSINESS"
   // (คนละแกนความหมาย ชื่อชนกันโดยตั้งใจตามชื่อ tier สูงสุดของธุรกิจ)
-  tier               String
-  status             BusinessPackageStatus @default(ACTIVE)
+  tier    String
+  status  BusinessPackageStatus @default(ACTIVE)
 
   /// source: "WALLET" | "APPLE_IAP" — **ใครเป็นคนเก็บเงินและต่ออายุใบนี้** (feature 00064)
   ///
@@ -1392,26 +1394,26 @@ model BusinessPackageSubscription {
   /// และเงินไม่พอจะไปล็อกร้าน business ทุกร้านของเขา (ดู src/lib/subscription-source.ts)
   ///
   /// default `WALLET` ⇒ แถวเดิมทั้งหมดบน prod (นับ 2026-09-01: 1 แถว) พฤติกรรมไม่เปลี่ยน
-  source             String                @default("WALLET")
+  source String @default("WALLET")
 
   /// รหัสธุรกรรมแรกของสายการสมัครฝั่ง Apple — **คงที่ตลอดอายุ subscription** แม้ต่ออายุกี่รอบ
   /// ใช้เป็นกุญแจจับคู่ webhook กับแถวนี้ · `@unique` บังคับกติกา 1 การสมัครของ Apple ผูกได้
   /// กับบัญชีเดียว (BR-IAP-04) — กัน Apple ID เดียวไปเปิดสิทธิ์ให้หลายบัญชี Deep
-  appleOriginalTransactionId String?         @unique
+  appleOriginalTransactionId String? @unique
 
   /// product id ที่ตั้งไว้ใน App Store Connect — เก็บไว้ตรวจย้อนหลังว่า tier มาจากสินค้าตัวไหน
-  appleProductId     String?
+  appleProductId String?
 
   /// "Production" | "Sandbox" — ต้องแยก เพราะธุรกรรม Sandbox ห้ามให้สิทธิ์จริงบน prod
-  appleEnvironment   String?
+  appleEnvironment String?
 
   activatedAt        DateTime // subscribe ครั้งแรกเท่านั้น ห้ามแตะตอน renew/upgrade/downgrade/reactivate (cohort marker)
   currentPeriodStart DateTime
   nextRenewalAt      DateTime
   lastRenewalAt      DateTime?
   lockedAt           DateTime? // reset NULL ทันทีที่ reactivate สำเร็จ
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
@@ -2014,6 +2016,10 @@ model Conversation {
   // ถ้าไม่มี index เหตุผลนั้นไม่มีของจริงรองรับ. เพิ่มตอนนี้ฟรีเพราะยังไม่ migrate; เพิ่มทีหลัง
   // ต้อง ALTER ตารางใหญ่บน DB ที่ dev/prod แชร์กัน
   @@index([shopId, lastInboundAt])
+  /// 00018 ext 2026-09-09 — โหมดเรียง "ข้อความล่าสุดจากลูกค้า" (`LAST_CUSTOMER_MESSAGE`):
+  /// [isPinned desc, lastInboundAt desc nulls last, lastMessageAt desc] ภายใต้ filter shopId+isHidden
+  /// คู่ขนานกับ index ของโหมดเดิมที่ลงท้ายด้วย lastMessageAt
+  @@index([shopId, isHidden, isPinned, lastInboundAt], map: "Conversation_shopId_isHidden_isPinned_lastInboundAt_idx")
   // feature 00059 — รายงานผลงานแอดมินเลือกเธรดด้วย "เปิดในช่วง [from, to)" เป็นขั้นแรกเสมอ
   // แล้ว query ที่เหลือ JOIN ต่อจากชุดนั้น. ห้ามเปลี่ยนไปใช้ lastMessageAt แทน — ค่านั้นขยับ
   // ทุกครั้งที่มีคนพิมพ์ เธรดเก่าจึงกระโดดเข้ามาในช่วงของวันนี้พร้อมเวลาตอบครั้งแรกของเดือนก่อน
@@ -3623,6 +3629,33 @@ model SellerShortcutPreference {
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   @@unique([userId, shopId], map: "SellerShortcutPreference_userId_shopId_key")
+}
+
+/// SellerChatPreference — ค่าตั้งของกล่องแชท ต่อ (ผู้ใช้ × ร้าน) — 00018 ส่วนขยาย 2026-09-09
+///
+/// 🛑 ห้ามย้ายไปเป็นคอลัมน์บน `ShopMember` — แถว ShopMember ถูกสร้างเฉพาะร้าน BUSINESS
+/// (business-shop.service.ts) เจ้าของร้าน PERSONAL ไม่มีแถวเลย จะตั้งค่าไม่ได้ทั้งกลุ่มโดยไม่มี
+/// อะไรฟ้อง (บทเรียนเดียวกับ ShopNotificationPref 2026-08-08) — D-SORT-4
+///
+/// "ไม่มีแถว" = ค่าตั้งต้นทั้งชุด ไม่ใช่สถานะพิเศษ ⇒ ไม่ต้อง backfill ผู้ใช้เดิม (AC-SORT-04)
+model SellerChatPreference {
+  id     String @id @default(uuid())
+  userId String
+  shopId String
+
+  /// ลำดับเธรดในกล่องแชท: `LAST_MESSAGE` (ทุกข้อความ — ค่าตั้งต้น) | `LAST_CUSTOMER_MESSAGE`
+  /// (เฉพาะข้อความจากลูกค้า = `Conversation.lastInboundAt`)
+  /// CHECK constraint `SellerChatPreference_inboxSort_check` บังคับค่าที่ระดับฐาน — คอลัมน์เป็น
+  /// TEXT ไม่ใช่ enum ของ Postgres จึงไม่มีชนิดมากั้นให้ (SSOT ฝั่งโค้ด: src/lib/inbox-sort.ts)
+  inboxSort String @default("LAST_MESSAGE")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, shopId], map: "SellerChatPreference_userId_shopId_key")
 }
 
 /// โพสต์บนเพจ Facebook ที่มีคอมเมนต์เข้ามา (feature 00029) — cache ฝั่งเรา ไม่ใช่แหล่งความจริง

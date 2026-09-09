@@ -1,4 +1,12 @@
 import { prisma } from '@/lib/prisma'
+import {
+  DEFAULT_INBOX_SORT,
+  buildCustomerSortCursorWhere,
+  buildInboxOrderBy,
+  decodeInboxCursor,
+  encodeInboxCursor,
+  type InboxSortMode,
+} from '@/lib/inbox-sort'
 import { PROBLEM_CARRIER_STATUSES } from '@/lib/iship/status'
 import { canAccessShop, listAccessibleShopIds } from '@/lib/shop-context'
 import { Prisma } from '@prisma/client'
@@ -336,6 +344,11 @@ export async function listConversationsForShops(
     tags?: string[]
     // shipment (user สั่ง 2026-07-31): สถานะพัสดุของออเดอร์ล่าสุด — เฉพาะร้านที่เชื่อม iShip
     shipment?: ShipmentFilter
+    /**
+     * sort (00018 ext 2026-09-09): ลำดับเธรด — มาจากค่าตั้งรายคน × ร้าน (SellerChatPreference)
+     * ไม่ระบุ = โหมดเดิม ⇒ ผู้เรียกที่ยังไม่รู้จักฟีเจอร์นี้ได้ผลลัพธ์เท่าเดิมทุกประการ
+     */
+    sort?: InboxSortMode
   } = {},
 ): Promise<{ items: ConversationSummary[]; nextCursor: string | null }> {
   const status = opts.status ?? 'open'
@@ -538,10 +551,12 @@ export async function listConversationsForBuyer(
 
 async function listConversations(
   where: Prisma.ConversationWhereInput,
-  opts: { cursor?: string; take?: number; pinnedFirst?: boolean },
+  opts: { cursor?: string; take?: number; pinnedFirst?: boolean; sort?: InboxSortMode },
 ): Promise<{ items: ConversationSummary[]; nextCursor: string | null }> {
   const take = opts.take ?? 20
   const pinnedFirst = opts.pinnedFirst ?? false
+  // 00018 ext 2026-09-09 — ไม่ระบุ = โหมดเดิม (ฝั่งผู้ซื้อไม่เคยส่งค่านี้มาเลย D-SORT-7)
+  const sort = opts.sort ?? DEFAULT_INBOX_SORT
 
   // cursorCond spread ตรงกับ where ของ caller ได้อย่างปลอดภัย เพราะ caller (listConversationsForShop)
   // ไม่เคยเซ็ต top-level `OR` เอง (OR ของ q/customerLinked ถูกห่อใน `AND` ของ caller ไปแล้ว) — ที่นี่
@@ -549,7 +564,17 @@ async function listConversations(
   // field ธรรมดาหรือ AND/OR พิเศษ)
   let cursorCond: Prisma.ConversationWhereInput = {}
   if (opts.cursor) {
-    if (pinnedFirst) {
+    if (sort === 'LAST_CUSTOMER_MESSAGE') {
+      // cursor v2 เท่านั้น (ฝัง mode ไว้ในตัว) — ถอดไม่ได้/ข้ามโหมด = ถือว่าไม่มี cursor
+      // ผู้ใช้ที่สลับโหมดกลางการเลื่อนจะได้หน้าแรกของโหมดใหม่ ซึ่งถูกกว่าได้หน้ากลางที่คำนวณ
+      // ด้วยกติกาของอีกโหมด (ข้ามแถวเงียบ ๆ) — ดู src/lib/inbox-sort.ts
+      const decoded = decodeInboxCursor(opts.cursor, sort)
+      if (decoded) cursorCond = buildCustomerSortCursorWhere(decoded, pinnedFirst) as Prisma.ConversationWhereInput
+    } else if (opts.cursor.startsWith('v2|')) {
+      // cursor ของอีกโหมดค้างมาจากตอนที่ผู้ใช้ยังไม่สลับ — ต้องทิ้ง ไม่ใช่โยนเข้า new Date()
+      // (จะได้ Invalid Date แล้วเงื่อนไข `lt` เป็นเท็จทั้งหมด = รายการว่างเปล่าโดยไม่มี error)
+      cursorCond = {}
+    } else if (pinnedFirst) {
       // S-7: orderBy หลักคือ [isPinned desc, lastMessageAt desc] — cursor แบบเดิม (แค่ lastMessageAt)
       // จะพัง: ถ้าเธรดปักหมุดมีมากกว่า 1 หน้า หน้าแรกอาจโชว์แต่ปักหมุด แล้ว cursor = lastMessageAt
       // ของปักหมุดตัวสุดท้าย (อาจเก่ามาก) → เธรดไม่ปักหมุดที่ใหม่กว่า cursor นั้นจะหายไปถาวร (ไม่มี
@@ -574,16 +599,18 @@ async function listConversations(
 
   const rows = await prisma.conversation.findMany({
     where: { ...where, ...cursorCond },
-    orderBy: pinnedFirst ? [{ isPinned: 'desc' }, { lastMessageAt: 'desc' }] : { lastMessageAt: 'desc' },
+    orderBy: buildInboxOrderBy(sort, pinnedFirst),
     take: take + 1, // +1 trick หา hasMore — ต้นแบบ getStockMovementHistory
   })
   const hasMore = rows.length > take
   const page = hasMore ? rows.slice(0, take) : rows
   const last = page[page.length - 1] as (ConversationSummary & { isPinned?: boolean }) | undefined
   const nextCursor = hasMore
-    ? pinnedFirst
-      ? `${last!.isPinned ? '1' : '0'}|${last!.lastMessageAt.toISOString()}`
-      : last!.lastMessageAt.toISOString()
+    ? sort === 'LAST_CUSTOMER_MESSAGE'
+      ? encodeInboxCursor(last as { isPinned?: boolean; lastMessageAt: Date; lastInboundAt?: Date | null }, sort, pinnedFirst)
+      : pinnedFirst
+        ? `${last!.isPinned ? '1' : '0'}|${last!.lastMessageAt.toISOString()}`
+        : last!.lastMessageAt.toISOString()
     : null
   return {
     items: page as ConversationSummary[],

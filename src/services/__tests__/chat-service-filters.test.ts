@@ -248,7 +248,92 @@ describe('listConversationsForBuyer — ไม่มี filter ใหม่ (reg
 
     const call = db.conversation.findMany.mock.calls[0]![0]
     expect(call.where).toEqual({ buyerUserId: 'buyer1' })
-    // buyer listing ไม่ pin-sort — orderBy ยังเป็น object เดี่ยวเหมือนเดิม ไม่ใช่ array
-    expect(call.orderBy).toEqual({ lastMessageAt: 'desc' })
+    // buyer listing ไม่ pin-sort — เรียงด้วย lastMessageAt อย่างเดียวเหมือนเดิม
+    // (00018 ext 2026-09-09: รูปแบบเปลี่ยนจาก object เดี่ยวเป็น array 1 ตัวเมื่อ orderBy ย้ายไป
+    //  buildInboxOrderBy — Prisma ตีความเท่ากันทุกประการ ที่เปลี่ยนคือรูปร่างไม่ใช่ลำดับ)
+    expect(call.orderBy).toEqual([{ lastMessageAt: 'desc' }])
+  })
+})
+
+/**
+ * 00018 ส่วนขยาย 2026-09-09 — โหมดเรียง (SellerChatPreference.inboxSort)
+ *
+ * [blocker] เทสชุดนี้กัน 2 อย่างที่ tsc มองไม่เห็น: (1) โหมดเดิมต้องได้ orderBy/cursor
+ * เหมือนเดิมเป๊ะเมื่อไม่ส่ง sort มา (ผู้เรียกเก่าทุกราย รวมฝั่งผู้ซื้อ) (2) cursor ต้องไม่ข้ามโหมด
+ */
+describe('listConversationsForShop — โหมดเรียงกล่องแชท', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    db.conversation.findMany.mockResolvedValue([])
+  })
+
+  it('[blocker] ไม่ส่ง sort → orderBy เดิมเป๊ะ (ผู้เรียกเก่าต้องไม่รู้สึกอะไรเลย)', async () => {
+    await listConversationsForShop('shop1')
+    expect(db.conversation.findMany.mock.calls[0]![0].orderBy).toEqual([
+      { isPinned: 'desc' },
+      { lastMessageAt: 'desc' },
+    ])
+  })
+
+  it('[blocker] ฝั่งผู้ซื้อไม่มีโหมดให้เลือก — ต้องได้ lastMessageAt เสมอ (D-SORT-7)', async () => {
+    await listConversationsForBuyer('buyer1')
+    expect(db.conversation.findMany.mock.calls[0]![0].orderBy).toEqual([{ lastMessageAt: 'desc' }])
+  })
+
+  it('sort=LAST_CUSTOMER_MESSAGE → orderBy มี lastInboundAt nulls:last และ lastMessageAt เป็นตัวตัด', async () => {
+    await listConversationsForShop('shop1', { sort: 'LAST_CUSTOMER_MESSAGE' })
+    expect(db.conversation.findMany.mock.calls[0]![0].orderBy).toEqual([
+      { isPinned: 'desc' },
+      { lastInboundAt: { sort: 'desc', nulls: 'last' } },
+      { lastMessageAt: 'desc' },
+    ])
+  })
+
+  it('sort=LAST_CUSTOMER_MESSAGE + cursor v2 → where มีเงื่อนไขข้ามพรมแดน null', async () => {
+    const cursor = 'v2|LAST_CUSTOMER_MESSAGE|0|2026-09-05T10:00:00.000Z|2026-09-05T11:00:00.000Z'
+    await listConversationsForShop('shop1', { sort: 'LAST_CUSTOMER_MESSAGE', cursor })
+
+    const where = db.conversation.findMany.mock.calls[0]![0].where
+    expect(where.isPinned).toBe(false)
+    expect(where.OR).toEqual([
+      { lastInboundAt: { lt: new Date('2026-09-05T10:00:00.000Z') } },
+      {
+        lastInboundAt: new Date('2026-09-05T10:00:00.000Z'),
+        lastMessageAt: { lt: new Date('2026-09-05T11:00:00.000Z') },
+      },
+      { lastInboundAt: null },
+    ])
+  })
+
+  it('[blocker] cursor v2 ของอีกโหมด → ทิ้ง cursor ไม่ใช่โยนเข้า new Date() จนได้ Invalid Date', async () => {
+    const cursor = 'v2|LAST_CUSTOMER_MESSAGE|0|-|2026-09-05T11:00:00.000Z'
+    await listConversationsForShop('shop1', { sort: 'LAST_MESSAGE', cursor })
+
+    const where = db.conversation.findMany.mock.calls[0]![0].where
+    // ไม่มีเงื่อนไข cursor เลย = หน้าแรกของโหมดใหม่ (ยอมให้เห็นซ้ำ ดีกว่าได้รายการว่างเปล่าเงียบ ๆ)
+    expect(where.lastMessageAt).toBeUndefined()
+    expect(where.OR).toBeUndefined()
+  })
+
+  it('[blocker] cursor รูปแบบเก่ายังใช้ได้กับโหมดเดิม (client ที่เปิดค้างไว้ระหว่าง deploy)', async () => {
+    await listConversationsForShop('shop1', { cursor: '0|2026-09-05T11:00:00.000Z' })
+    const where = db.conversation.findMany.mock.calls[0]![0].where
+    expect(where.isPinned).toBe(false)
+    expect(where.lastMessageAt).toEqual({ lt: new Date('2026-09-05T11:00:00.000Z') })
+  })
+
+  it('nextCursor ของโหมดลูกค้าเป็นรูปแบบ v2 ที่ฝังโหมดไว้', async () => {
+    const row = (id: string, inbound: string | null, msg: string) => ({
+      id,
+      isPinned: false,
+      lastInboundAt: inbound ? new Date(inbound) : null,
+      lastMessageAt: new Date(msg),
+    })
+    db.conversation.findMany.mockResolvedValue([
+      row('c1', '2026-09-05T10:00:00.000Z', '2026-09-05T11:00:00.000Z'),
+      row('c2', null, '2026-09-04T11:00:00.000Z'),
+    ])
+    const res = await listConversationsForShop('shop1', { sort: 'LAST_CUSTOMER_MESSAGE', take: 1 })
+    expect(res.nextCursor).toBe('v2|LAST_CUSTOMER_MESSAGE|0|2026-09-05T10:00:00.000Z|2026-09-05T11:00:00.000Z')
   })
 })

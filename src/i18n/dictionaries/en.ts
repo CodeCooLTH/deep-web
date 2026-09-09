@@ -529,6 +529,20 @@ export const en: Dictionary = {
     channelAll: 'All',
 
     filters: 'Filters',
+    // 00018 ext 2026-09-09 — inbox sort mode
+    sort: {
+      triggerAriaLabel: 'Sort conversations',
+      optionAllLabel: 'All messages',
+      optionAllDescription: "Sort by the room's latest message, whether the shop or the customer sent it",
+      optionCustomerLatestLabel: 'Latest customer message',
+      // See th.ts: the code sorts lastInboundAt DESC, so "longest-waiting first" is the opposite
+      optionCustomerLatestDescription:
+        "Sorted by the customer's latest message — a shop reply alone won't move a thread up until the customer writes again",
+      // Short on purpose — this cell lives in a shrink-0 column; longer text squeezes the name.
+      // Names the subject: bare "No message" reads as "this room has no messages at all", which is false
+      neverInbound: 'No reply',
+      saveFailed: 'Sort order changed, but saving it for next time failed',
+    },
     statusResolved: 'Resolved',
     statusSpam: 'Spam',
     groups: 'Groups',

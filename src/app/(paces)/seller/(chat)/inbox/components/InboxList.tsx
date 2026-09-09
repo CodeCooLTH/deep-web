@@ -96,6 +96,8 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import PageFilterDropdown from './PageFilterDropdown'
 import InboxFilterPanel from './InboxFilterPanel'
+import InboxSortDropdown from './InboxSortDropdown'
+import { DEFAULT_INBOX_SORT, type InboxSortMode } from '@/lib/inbox-sort'
 import { buildChatListParams, DEFAULT_CHAT_FILTER, isChatListFiltering, type ChatFilterState } from './chat-list-query'
 import { type RowAction } from './ConversationRowMenu'
 import ChatContextMenu, { type ChatRowAnchor } from './ChatContextMenu'
@@ -123,6 +125,9 @@ export type ConversationListItem = {
    *  (ไม่ต้อง query เพิ่ม); null = เธรด Deep */
   shopChannelId?: string | null
   lastMessageAt: string
+  /** 00018 ext 2026-09-09 — เวลาที่ลูกค้าพิมพ์ล่าสุด (null = ลูกค้าไม่เคยพิมพ์ในห้องนี้เลย)
+   *  optional เผื่อ payload เก่าที่ client ยัง cache อยู่ */
+  lastInboundAt?: string | null
   lastMessagePreview: string | null
   lastSenderRole: 'BUYER' | 'SHOP' | null
   buyerLastReadAt: string | null
@@ -266,6 +271,9 @@ export type ChatGroupTab = { id: string; name: string; sortOrder: number }
 type Props = {
   initialItems: ConversationListItem[]
   initialNextCursor: string | null
+  /** โหมดเรียงที่บันทึกไว้ของ (ผู้ใช้ × ร้าน active) — 00018 ext 2026-09-09
+   *  optional: ผู้เรียกที่ยังไม่ส่งมาได้โหมดเดิมเหมือนก่อนมีฟีเจอร์นี้ */
+  initialSort?: InboxSortMode
   channels: ChannelFilterOption[]
   /** ร้านเชื่อม iShip แล้วหรือยัง (ShopShippingAccount status=ACTIVE) — ใช้ซ่อนหัวข้อ "พัสดุ"
    *  ในตัวกรองสำหรับร้านที่ไม่ได้ใช้ ตัดสินฝั่ง server ไม่ต้องให้ client ยิงถามเพิ่ม */
@@ -305,6 +313,7 @@ type Props = {
 export default function InboxList({
   initialItems,
   initialNextCursor,
+  initialSort,
   channels,
   initialGroups = [],
   hasShipping = false,
@@ -382,7 +391,35 @@ export default function InboxList({
   // S-7 (ตัวกรองแชท): สถานะ/ผูกลูกค้า/ที่ซ่อน — init = default เดียวกับ SSR (status=open, hidden=false)
   const [filter, setFilter] = useState<ChatFilterState>(DEFAULT_CHAT_FILTER)
   // popover ตัวกรองเปิดได้ทีละตัว — state อยู่ที่นี่ (bug: เดิมสองตัวถือ state เอง เปิดพร้อมกันแล้วทับกัน)
-  const [openPanel, setOpenPanel] = useState<'filter' | 'page' | 'group' | null>(null)
+  const [openPanel, setOpenPanel] = useState<'filter' | 'page' | 'group' | 'sort' | null>(null)
+  // 00018 ext 2026-09-09 — โหมดเรียง; อยู่ใน listSignature ด้วย ⇒ เปลี่ยนแล้ว refetch เองตามกลไกเดิม
+  const [sortMode, setSortMode] = useState<InboxSortMode>(initialSort ?? DEFAULT_INBOX_SORT)
+
+  /**
+   * สลับโหมดเรียง — เปลี่ยนหน้าจอก่อน แล้วค่อยบันทึก (00018 ext 2026-09-09)
+   *
+   * ลำดับนี้จงใจ: `setSortMode` เปลี่ยน `listSignature` ⇒ effect เดิม refetch ให้เองทันที
+   * โดยส่ง `sort` ไปกับ query ด้วย ⇒ ผู้ใช้เห็นผลโดยไม่ต้องรอ PATCH สำเร็จ
+   *
+   * 🛑 ถ้ารอ PATCH ก่อนแล้วค่อย refetch จะได้ช่วงที่ "ปุ่มบอกอย่าง รายการเรียงอีกอย่าง" และถ้า
+   * เน็ตหลุด PATCH ล้ม หน้าจอจะโกหกว่าเปลี่ยนแล้วทั้งที่ server ยังเรียงแบบเดิม — จึงแยก
+   * "ผลบนจอ" (ทำทันที) ออกจาก "จำไว้ใช้ครั้งหน้า" (อาจล้มได้) แล้วบอกผู้ใช้เฉพาะส่วนที่ล้มจริง
+   * ด้วยโทน warning ไม่ใช่ error แดง — เพราะสิ่งที่เขาเพิ่งสั่งสำเร็จไปแล้ว
+   */
+  const handleSortChange = async (next: InboxSortMode) => {
+    if (next === sortMode) return
+    setSortMode(next)
+    try {
+      const res = await fetch('/api/chat/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inboxSort: next }),
+      })
+      if (!res.ok) throw new Error(String(res.status))
+    } catch {
+      pacesToast.warning(t.inbox.sort.saveFailed)
+    }
+  }
   const groupMenuRef = useRef<HTMLDivElement | null>(null)
   const [actioningId, setActioningId] = useState<string | null>(null) // แถวที่มี PATCH ค้าง (กันดับเบิล)
   // feature 00018 CRM — แผงลัดประจำแถว (ปักหมุด/ปิดงาน/ซ่อน/สแปม + สถานะขาย/แท็ก/กลุ่ม/เสียง)
@@ -462,6 +499,9 @@ export default function InboxList({
     pageFilter,
     q: debouncedQuery,
     chatGroupId: activeGroupId,
+    // โหมดเรียงต้องอยู่ในลายเซ็นด้วย ไม่งั้นผลของโหมดเก่าที่ค้างอยู่ในสายจะถูก merge ทับชุดใหม่
+    // = รายการเรียงปนสองแบบโดยไม่มีอะไรฟ้อง (เหตุผลเดียวกับตัวกรองอื่นทุกตัว)
+    sort: sortMode,
   }).toString()
   const listSignatureRef = useRef(listSignature)
   /** ลายเซ็นของ "แถวที่อยู่ใน state ตอนนี้" — ต่างจาก listSignatureRef ที่เป็นของ "ที่ควรแสดง"
@@ -483,6 +523,7 @@ export default function InboxList({
         pageFilter,
         q: debouncedQuery,
         chatGroupId: activeGroupId,
+        sort: sortMode,
       })
       const res = await fetch(`/api/chat/conversations?${params.toString()}`)
       if (!res.ok) throw new Error('load failed')
@@ -759,6 +800,7 @@ export default function InboxList({
         pageFilter,
         q: debouncedQuery,
         chatGroupId: activeGroupId,
+        sort: sortMode,
       })
       const res = await fetch(`/api/chat/conversations?${params.toString()}`, { cache: 'no-store' })
       if (!res.ok) return
@@ -1070,6 +1112,15 @@ export default function InboxList({
             pageOptions={channels}
             allTags={allTags}
             hasShipping={hasShipping}
+          />
+          {/* ตัวเลือกการเรียง — ต่อจากปุ่มตัวกรองในแถวเดียวกัน (ทั้งคู่เป็น "ปุ่มเครื่องมือถาวร"
+              ส่วนชิปด้านล่างเป็น "ผลลัพธ์ของตัวกรอง") แถวนี้ flex-wrap อยู่แล้ว → ที่ 320px
+              โหมดที่ชื่อยาวจะตกบรรทัดใหม่เอง ซึ่งเป็นพฤติกรรมเดิมของแถวนี้ ไม่ใช่ของใหม่ */}
+          <InboxSortDropdown
+            value={sortMode}
+            onChange={handleSortChange}
+            open={openPanel === 'sort'}
+            onOpenChange={(o) => setOpenPanel(o ? 'sort' : null)}
           />
 
           {/* ชิป "พัสดุมีปัญหา" (feature 00022) — ตัวเลขมีความหมายแม้ยังไม่ได้กรอง
@@ -1767,7 +1818,20 @@ export default function InboxList({
                       <span
                         className={`text-2xs ${unread ? 'text-default-700 font-semibold' : 'text-default-700'}`}
                       >
-                        {formatChatListTime(c.lastMessageAt)}
+                        {/* 00018 ext 2026-09-09 — เวลาที่โชว์ต้องเป็นคีย์เดียวกับที่ใช้เรียง ไม่งั้น
+                            รายการดูเหมือนเรียงมั่ว (เรียงด้วยเลขหนึ่ง โชว์อีกเลขหนึ่ง)
+                            lastInboundAt = null (ลูกค้าไม่เคยพิมพ์) → บอกตรง ๆ ห้ามเอา lastMessageAt
+                            มาแปะแทน (docs/conventions/partial-data-must-be-labeled-or-filled.md) */}
+                        {sortMode === 'LAST_CUSTOMER_MESSAGE'
+                          ? c.lastInboundAt
+                            ? formatChatListTime(c.lastInboundAt)
+                            : // 🛑 คอลัมน์ขวาเป็น `shrink-0` ⇒ มันไม่หด แต่ไป "บีบคอลัมน์ซ้าย"
+                              // (ชื่อลูกค้า+ข้อความล่าสุด ซึ่งเป็น min-w-0 flex-1) แทน ⇒ ป้ายนี้ต้องสั้น
+                              // ใกล้เคียงสตริงเวลาปกติ ("5 น." ~6 ตัวอักษร) ไม่ใช่ประโยคเต็ม และต้อง
+                              // nowrap ไม่งั้นตกบรรทัดแล้วความสูงแถวเพี้ยนเฉพาะกลุ่มนี้
+                              // (prod: 475/8,958 เธรด = 5.3% ไม่ใช่ edge case)
+                              <span className="whitespace-nowrap">{t.inbox.sort.neverInbound}</span>
+                          : formatChatListTime(c.lastMessageAt)}
                       </span>
                       {/**
                         * ป้ายชื่อร้าน (feature 00037) — เฉพาะโหมดรวม

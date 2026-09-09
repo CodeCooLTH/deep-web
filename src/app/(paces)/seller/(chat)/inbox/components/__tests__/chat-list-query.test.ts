@@ -66,3 +66,30 @@ describe('buildChatListParams', () => {
     expect(params.get('channel')).toBeNull()
   })
 })
+
+/**
+ * 00018 ส่วนขยาย 2026-09-09 — โหมดเรียงต้องเดินผ่าน builder ตัวเดียวกับตัวกรองอื่น
+ * [blocker] ถ้าใครประกอบ query เองแล้วลืม sort รายการจะเรียงคนละแบบกับปุ่มที่ผู้ใช้เพิ่งกด
+ */
+describe('buildChatListParams — โหมดเรียง (00018 ext 2026-09-09)', () => {
+  it('ไม่ส่ง sort → ไม่มี param (backend ตกไปอ่านค่าตั้งของผู้ใช้ ซึ่งเป็นค่าเดียวกัน)', () => {
+    const p = buildChatListParams(DEFAULT_CHAT_FILTER, {})
+    expect(p.get('sort')).toBeNull()
+  })
+
+  it('sort = ค่าตั้งต้น → ยังไม่ส่ง param (query string ไม่รกโดยเปล่าประโยชน์)', () => {
+    const p = buildChatListParams(DEFAULT_CHAT_FILTER, { sort: 'LAST_MESSAGE' })
+    expect(p.get('sort')).toBeNull()
+  })
+
+  it('[blocker] sort = LAST_CUSTOMER_MESSAGE → ส่ง param ออกไปจริง', () => {
+    const p = buildChatListParams(DEFAULT_CHAT_FILTER, { sort: 'LAST_CUSTOMER_MESSAGE' })
+    expect(p.get('sort')).toBe('LAST_CUSTOMER_MESSAGE')
+  })
+
+  it('[blocker] sort อยู่ในลายเซ็นของชุดข้อมูล — สองโหมดต้องได้ query string คนละตัว', () => {
+    const a = buildChatListParams(DEFAULT_CHAT_FILTER, { sort: 'LAST_MESSAGE' }).toString()
+    const b = buildChatListParams(DEFAULT_CHAT_FILTER, { sort: 'LAST_CUSTOMER_MESSAGE' }).toString()
+    expect(a).not.toBe(b)
+  })
+})

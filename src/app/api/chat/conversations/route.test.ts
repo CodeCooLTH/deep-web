@@ -36,6 +36,9 @@ const prismaMock = vi.hoisted(() => ({
   // feature 00061 — badge "ร่างค้าง" ต่อแถว (countDraftedOrdersByConversation)
   // คืน [] = ไม่มีร่างในห้องไหนเลย ซึ่งไม่กระทบสิ่งที่เทสชุดนี้ตรวจเช่นกัน
   order: { groupBy: vi.fn(async () => []) },
+  // 00018 ext 2026-09-09 — route อ่านโหมดเรียงของ (ผู้ใช้ × ร้าน active) ก่อนเรียก service
+  // null = ไม่มีแถว = โหมดเดิม (lazy default) ⇒ ทุกเคสในไฟล์นี้ยังพิสูจน์พฤติกรรมเดิมตามเจตนา
+  sellerChatPreference: { findUnique: vi.fn(async () => null) },
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 

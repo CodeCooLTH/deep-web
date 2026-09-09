@@ -354,13 +354,35 @@ export async function syncMissingMessagesFromMeta(
     // ต้องไม่ไปเปลี่ยน preview/เวลาในรายการแชทให้ดูเหมือนมีความเคลื่อนไหวใหม่
     const newestIdx = missing.reduce((best, m, i) => (m.createdTime > missing[best]!.createdTime ? i : best), 0)
     const newest = missing[newestIdx]!
-    if (!conv.lastMessageAt || newest.createdTime > conv.lastMessageAt) {
+    const bumpMessage = !conv.lastMessageAt || newest.createdTime > conv.lastMessageAt
+
+    // BUG-SORT-1 (00018 ext 2026-09-09): เดิมที่นี่อัปเดตแต่ `lastMessageAt` ⇒ ข้อความของ
+    // **ลูกค้า** ที่กู้คืนมาทีหลัง (webhook พลาด) ไม่ขยับ "เวลาที่ลูกค้าพิมพ์ล่าสุด" เลย ผลคือ
+    //   1. หน้าต่าง 24 ชม. ของ Meta ไม่เปิดกลับ → ร้านกดส่งแล้วโดน (#10) โดยไม่มีเหตุผลบนจอ
+    //   2. (หลังมีโหมดเรียง LAST_CUSTOMER_MESSAGE) เธรดจมทั้งที่ลูกค้าเพิ่งทักมา
+    // บน prod พบ 8 เธรด คลาดเคลื่อนสูงสุด 1 ชม. 40 นาที
+    //
+    // 🛑 ต้องคิดแยกจาก bumpMessage ไม่ใช่ซ้อนอยู่ในนั้น — ชุดที่ดึงมาอาจมีข้อความของร้าน
+    // (echo ที่พลาด) เป็นใบใหม่สุด ขณะที่ใบของลูกค้าซึ่งใหม่กว่าค่าที่เก็บไว้ก็อยู่ในชุดเดียวกัน
+    // ถ้าผูกไว้ด้วยกันจะพลาดเคสนั้นทั้งเคส
+    const newestInbound = missing.reduce<(typeof missing)[number] | null>(
+      (best, m) => (m.fromId !== pageId && (!best || m.createdTime > best.createdTime) ? m : best),
+      null,
+    )
+    const bumpInbound = newestInbound !== null && (!conv.lastInboundAt || newestInbound.createdTime > conv.lastInboundAt)
+
+    if (bumpMessage || bumpInbound) {
       await prisma.conversation.update({
         where: { id: conversationId },
         data: {
-          lastMessageAt: newest.createdTime,
-          lastMessagePreview: backfillPreview(contents[newestIdx]!),
-          lastSenderRole: newest.fromId === pageId ? 'SHOP' : 'BUYER',
+          ...(bumpMessage
+            ? {
+                lastMessageAt: newest.createdTime,
+                lastMessagePreview: backfillPreview(contents[newestIdx]!),
+                lastSenderRole: newest.fromId === pageId ? 'SHOP' : 'BUYER',
+              }
+            : {}),
+          ...(bumpInbound ? { lastInboundAt: newestInbound!.createdTime } : {}),
         },
       })
     }

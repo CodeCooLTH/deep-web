@@ -34,6 +34,7 @@
  * โดยไม่จำเป็น (เดิมมีเพราะตอนนั้นยังไม่มี header ของตัวเอง จึงต้องมีทางออกฝังอยู่ใน rail เอง)
  */
 import { useEffect, useState } from 'react'
+import { DEFAULT_INBOX_SORT, type InboxSortMode } from '@/lib/inbox-sort'
 import { SimpleBar } from '@/components/wrappers/SimpleBar'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import { SellerInboxSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
@@ -46,7 +47,13 @@ import { buildChatListParams, DEFAULT_CHAT_FILTER } from '../inbox/components/ch
 
 // feat 00018 งาน 2: เก็บ field ดิบ (provider/name/avatarUrl) แทน label สำเร็จรูป — ตรงกับ
 // ChannelView ที่ GET /api/channels คืนมาอยู่แล้ว (allow-list ที่ shop-channel.service.ts)
-type ConversationsApiResponse = { items: ConversationListItem[]; nextCursor: string | null }
+type ConversationsApiResponse = {
+  items: ConversationListItem[]
+  nextCursor: string | null
+  /** 00018 ext 2026-09-09 — โหมดเรียงที่ server ใช้จริงกับชุดนี้ (rail ไม่ได้ผ่าน SSR จึงรู้จากตรงนี้)
+   *  optional เผื่อ response เก่าที่ยังค้างใน cache ระหว่าง deploy */
+  inboxSort?: InboxSortMode
+}
 
 type Props = {
   /** ร้านที่กล่องข้อความครอบคลุม (feature 00037, resolve ที่ (chat)/layout.tsx) — ส่งต่อให้
@@ -76,6 +83,8 @@ export default function ChatRail({
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [items, setItems] = useState<ConversationListItem[]>([])
+  // ค่าเริ่มต้นคือโหมดเดิม แล้วปรับตาม response ชุดแรก — ห้ามเดาจาก localStorage/ค่าอื่น
+  const [inboxSort, setInboxSort] = useState<InboxSortMode>(DEFAULT_INBOX_SORT)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [groups, setGroups] = useState<ChatGroupTab[]>([])
 
@@ -117,6 +126,7 @@ export default function ChatRail({
         if (cancelled) return
         setGroups(groupOptions)
         setItems(conversationsData.items)
+        if (conversationsData.inboxSort) setInboxSort(conversationsData.inboxSort)
         setNextCursor(conversationsData.nextCursor)
       } catch (e) {
         if (cancelled) return
@@ -189,6 +199,7 @@ export default function ChatRail({
         <InboxList
           initialItems={items}
           initialNextCursor={nextCursor}
+          initialSort={inboxSort}
           channels={channels}
           initialGroups={groups}
           shopIds={shopIds}

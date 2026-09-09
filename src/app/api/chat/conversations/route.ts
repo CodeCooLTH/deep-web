@@ -18,6 +18,7 @@ import { countDraftedOrdersByConversation } from '@/services/auto-order-detect.s
 // (enrich ทางเดียว = ป้ายไม่ขึ้นตอนโหลดหน้าแรกแล้วค่อยโผล่หลัง refetch ซึ่งดูเหมือนบั๊ก)
 import { enrichWithCustomerBehavior } from "@/services/customer-behavior.service";
 import { StartConversationSchema, ChatConversationsQuerySchema } from "@/lib/validations";
+import { getInboxSortMode } from "@/services/chat-preference.service";
 import { sweepStuckJobs, enrichWithAutoReplyBadge } from "@/services/auto-reply.service";
 import { syncShipmentStatuses } from "@/services/iship.service";
 
@@ -219,6 +220,8 @@ export async function GET(request: NextRequest) {
     shipment: searchParams.get("shipment") ?? undefined,
     // feature 00037 — ตัวกรอง "ร้าน" ในกล่องแชทรวม (ไม่ใช่ขอบเขต ดู comment ที่ schema)
     shopId: searchParams.get("shopId") ?? undefined,
+    // 00018 ext 2026-09-09 — โหมดเรียงที่หน้าจอใช้อยู่ (ดู chat-list-query.ts ว่าทำไมมาจาก client)
+    sort: searchParams.get("sort") ?? undefined,
   };
   const parsed = v.safeParse(ChatConversationsQuerySchema, input);
   if (!parsed.success) {
@@ -242,7 +245,13 @@ export async function GET(request: NextRequest) {
     // ตัวกรองร้านที่ client ส่งมาต้องถูกตัดให้อยู่ในขอบเขตเสมอ — ยิงรหัสร้านที่ไม่มีสิทธิ์
     // จะได้ [] แล้ว service คืนรายการว่าง (ไม่ใช่ 403 ที่ยืนยันว่าร้านนั้นมีจริง — BR-UNI-02)
     const scopedShopIds = intersectScopedShopIds(scope.shopIds, parsed.output.shopId);
+    // 00018 ext 2026-09-09 — ลำดับเธรดมาจากค่าตั้งของ "คนนี้ ในร้าน active นี้" เสมอ
+    // (แม้ในโหมดกล่องรวมหลายร้าน ค่าตั้งก็ต้องมีเจ้าของตัวเดียว — ดู chat-preference.service)
+    // client ที่รู้โหมดอยู่แล้วส่งมาเอง = ไม่ต้องอ่านฐานซ้ำทุกครั้งที่เลื่อนรายการ/รีเฟรช 20 วิ
+    // ไม่ส่งมา (โหลดครั้งแรกของ Chat Rail, ผู้เรียกเก่า) = อ่านค่าตั้งที่บันทึกไว้
+    const sort = parsed.output.sort ?? (await getInboxSortMode(userId, scope.activeShopId));
     const result = await listConversationsForShops(scopedShopIds, {
+      sort,
       cursor: parsed.output.cursor,
       take: parsed.output.take,
       channel: parsed.output.channel,
@@ -332,7 +341,10 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    return NextResponse.json({ items, nextCursor: result.nextCursor }, { headers: NO_STORE_HEADERS });
+    // inboxSort ไปกับ response ด้วย (00018 ext 2026-09-09) — Chat Rail บนเดสก์ท็อปโหลดรายการ
+    // ผ่าน endpoint นี้ ไม่ได้ผ่าน SSR จึงต้องรู้จากที่นี่ว่าตอนนี้เรียงด้วยโหมดไหน มิฉะนั้นปุ่ม
+    // จะโชว์ค่าตั้งต้นค้างไว้ทั้งที่รายการเรียงอีกแบบ (คนละคำตอบบนจอเดียวกัน)
+    return NextResponse.json({ items, nextCursor: result.nextCursor, inboxSort: sort }, { headers: NO_STORE_HEADERS });
   }
 
   const result = await listConversationsForBuyer(userId, {

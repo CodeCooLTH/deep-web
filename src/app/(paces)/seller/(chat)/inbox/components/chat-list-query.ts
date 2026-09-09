@@ -54,6 +54,15 @@ type ChatListQueryOptions = {
   /** คำค้น (debounce มาแล้วจากผู้เรียก) */
   q?: string
   chatGroupId?: string | null
+  /**
+   * โหมดเรียง (00018 ext 2026-09-09) — ส่งเป็น param เมื่อไม่ใช่ค่าตั้งต้นเท่านั้น
+   *
+   * ทำไมส่งจาก client ทั้งที่ค่าจริงอยู่ในฐาน: ผู้ใช้กดสลับแล้วต้องเห็นผลทันที ถ้ารอให้ PATCH
+   * ค่าตั้งสำเร็จก่อนค่อย refetch จะมีช่วงที่รายการเรียงคนละแบบกับปุ่ม และถ้า PATCH ล้ม
+   * (เน็ตหลุด) หน้าจอจะโกหกว่าเปลี่ยนแล้วทั้งที่ server ยังเรียงแบบเดิม
+   * — ค่านี้กระทบแค่ "ลำดับที่ผู้ใช้เห็นในรายการของตัวเอง" ไม่ใช่ขอบเขตสิทธิ์ จึงรับจาก client ได้
+   */
+  sort?: 'LAST_MESSAGE' | 'LAST_CUSTOMER_MESSAGE'
 }
 
 /**
@@ -74,6 +83,8 @@ export function buildChatListParams(
   if (opts.channelTab && opts.channelTab !== 'ALL') params.set('channel', opts.channelTab)
   if (opts.pageFilter) params.set('shopChannelId', opts.pageFilter)
   if (opts.q) params.set('q', opts.q)
+  // ค่าตั้งต้นไม่ต้องส่ง (backend ตกไปอ่านค่าตั้งของผู้ใช้เอง ซึ่งก็คือค่าเดียวกัน)
+  if (opts.sort && opts.sort !== 'LAST_MESSAGE') params.set('sort', opts.sort)
   if (filter.status !== 'open') params.set('status', filter.status)
   if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
   if (filter.hidden) params.set('hidden', 'true')

@@ -48,6 +48,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveChatScope } from '@/lib/chat-scope'
+import { getInboxSortMode } from '@/services/chat-preference.service'
+import { DEFAULT_INBOX_SORT, type InboxSortMode } from '@/lib/inbox-sort'
 import { listConversationsForShops, countUnreadByConversation } from '@/services/chat.service'
 import { listChannelsForShops } from '@/services/shop-channel.service'
 import { listChatGroups } from '@/services/chat-group.service'
@@ -147,12 +149,18 @@ export default async function SellerInboxPage() {
 
   let nextCursor: string | null = null
   let loadFailed = false
+  // 00018 ext 2026-09-09 — ต้องประกาศนอก try เพื่อให้ส่งเป็น prop ตอน render ได้
+  // โหลดรายการล้ม (loadFailed) ก็ยังต้องรู้โหมด ไม่งั้นปุ่มโชว์ค่าตั้งต้นค้างทั้งที่ผู้ใช้ตั้งไว้อีกแบบ
+  let inboxSort: InboxSortMode = DEFAULT_INBOX_SORT
 
   try {
     // status ต้องตรงกับ DEFAULT_CHAT_FILTER ของ InboxList เสมอ — รายการที่เห็นตอนเข้าหน้า
     // ครั้งแรกคือชุดนี้ (client ยังไม่ refetch จนกว่าตัวกรองจะเปลี่ยน) ถ้าไม่ตรงกันจะเกิดอาการ
     // "เธรดที่ปิดงานแล้วหายไปตอนเข้าครั้งแรก แต่กดสลับแท็บไปกลับแล้วโผล่" (user report 2026-07-31)
-    const result = await listConversationsForShops(shopIds, { take: 20, status: 'all' })
+    // 00018 ext 2026-09-09 — ลำดับเริ่มต้นต้องเป็นโหมดเดียวกับที่ client จะ refetch ทีหลัง
+    // ไม่งั้นรายการจะสลับลำดับให้เห็นตอนโหลดเสร็จ (เหตุผลเดียวกับ status:'all' ด้านบน)
+    inboxSort = await getInboxSortMode(user.id as string, scope.activeShopId)
+    const result = await listConversationsForShops(shopIds, { take: 20, status: 'all', sort: inboxSort })
 
     // B1 enrich — batch query identity คู่สนทนา (ดู comment หัวไฟล์)
     // เธรดช่องทางนอก (feature 00018) buyerUserId เป็น null → กรองออกก่อน query
@@ -269,6 +277,9 @@ export default async function SellerInboxPage() {
         // shopChannelId: ใช้หา "รูปเพจ" ฝั่ง client จาก channels ที่ส่งไปด้วยกัน (ไม่ query เพิ่ม)
         shopChannelId: c.shopChannelId,
         lastMessageAt: c.lastMessageAt.toISOString(),
+        // 00018 ext 2026-09-09 — เวลาในแถวต้องผันตามโหมดเรียง ไม่งั้นรายการจะดูเหมือนเรียงมั่ว
+        // (โหมด "ข้อความล่าสุดจากลูกค้า" เรียงด้วยค่านี้ แต่โชว์ lastMessageAt = คนละตัวเลข)
+        lastInboundAt: c.lastInboundAt ? c.lastInboundAt.toISOString() : null,
         lastMessagePreview: c.lastMessagePreview,
         lastSenderRole: c.lastSenderRole,
         buyerLastReadAt: c.buyerLastReadAt ? c.buyerLastReadAt.toISOString() : null,
@@ -337,6 +348,7 @@ export default async function SellerInboxPage() {
         <InboxList
           initialItems={items}
           initialNextCursor={nextCursor}
+          initialSort={inboxSort}
           channels={channels}
           initialGroups={groups}
           hasShipping={hasShipping}

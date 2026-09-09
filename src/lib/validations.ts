@@ -969,6 +969,10 @@ export const ChatConversationsQuerySchema = v.object({
   // 🛑 ค่านี้ไม่ใช่ "ขอบเขต" แต่เป็น "ตัวกรองภายในขอบเขต" — route ต้องเอาไปผ่าน
   //    intersectScopedShopIds() กับ scope ที่ระบบคำนวณเองเสมอ ห้ามส่งเข้า service ตรง ๆ (BR-UNI-01/02)
   shopId: v.optional(v.pipe(v.string(), v.uuid())),
+  // 00018 ext 2026-09-09 — โหมดเรียงที่หน้าจอกำลังใช้อยู่ (ไม่ส่ง = ให้ route อ่านค่าตั้งของผู้ใช้เอง)
+  // ค่านี้กระทบแค่ลำดับที่ผู้ใช้เห็นในรายการของตัวเอง ไม่ใช่ขอบเขตสิทธิ์ จึงรับจาก client ได้
+  // ต่างจาก shopId ด้านบนที่ต้องผ่าน intersectScopedShopIds เสมอ
+  sort: v.optional(v.picklist(['LAST_MESSAGE', 'LAST_CUSTOMER_MESSAGE'])),
 });
 
 export const MarkChatReadSchema = v.object({}); // empty body — conversationId มาจาก path param, role derive จาก subdomain/ownership
