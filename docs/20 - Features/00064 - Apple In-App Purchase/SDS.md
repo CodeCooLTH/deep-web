@@ -72,7 +72,11 @@ sequenceDiagram
 | `src/services/apple-iap.service.ts` | ✅ **เสร็จ** | เปิด/ถอนสิทธิ์จากธุรกรรมที่ตรวจแล้ว · ช่วงผ่อนผันผ่าน `isEntitlementActive` |
 | `src/app/api/iap/apple/verify/route.ts` | ✅ **เสร็จ** | รับ JWS จากหน้าเว็บ (มี session) |
 | `src/app/api/webhooks/apple-iap/route.ts` | ✅ **เสร็จ** | webhook v2 — วางใต้ `/api/webhooks/` เพื่อใช้การยกเว้น CSRF ที่มีอยู่ · verify `signedRenewalInfo` แยกอีกก้อน |
-| `src/app/api/cron/apple-iap-reconcile/route.ts` | ⏳ รอ .p8 | ตัวเดินตรวจซ้ำ (BR-IAP-15) |
+| `src/app/api/cron/apple-iap-reconcile/route.ts` | ✅ **เสร็จ** | ตัวเดินตรวจซ้ำ (BR-IAP-15) — ถาม Apple เป็นความจริง ไม่เล่นข่าวเก่าซ้ำ |
+| `src/lib/apple/server-api.ts` | ✅ **เสร็จ** | ตั๋ว ES256 (P-1363) + เลือกบ้าน Sandbox/Production + อ่านคำตอบ |
+| `src/lib/iap-bridge-protocol.ts` · `iap-client.ts` · `iap-transport.ts` | ✅ **เสร็จ** | สะพานคุยกับแอป |
+| `src/lib/iap-purchase-view.ts` | ✅ **เสร็จ** | ตัดสินว่าหน้าซื้อแสดงอะไร (กัน TC-IAP-45) |
+| `src/app/(paces)/seller/(dashboard)/business/subscribe/**` | ✅ **เสร็จ** | หน้าซื้อสำหรับแอป (ไม่มีโค้ดกระเป๋าเงินอยู่เลย) |
 
 ---
 
