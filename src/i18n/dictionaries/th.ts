@@ -828,7 +828,6 @@ export const th = {
       commentImageOnly: 'ส่งรูปมาในคอมเมนต์',
       viewComment: 'ดูคอมเมนต์',
 
-      adLabel: 'จากโฆษณา',
       adIdFallback: 'รหัสโฆษณา {adId}',
       adBannerTitle: 'แชทนี้ตอบกลับจากโฆษณาของคุณ',
       viewAd: 'ดูโฆษณา',

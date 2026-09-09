@@ -2456,6 +2456,16 @@ export default function ChatThread({
     : null
 
   const contextItems: ThreadContextItem[] = []
+  /**
+   * แบนเนอร์ "แชทนี้ตอบกลับจากโฆษณาของคุณ" — แสดงเต็มแถบเหมือนเดิม ไม่ยุบเป็นชิปในแถบ
+   *
+   * user สั่งกลับ 2026-09-09: "อยากให้แสดงแบบเดิม ... ไม่ชอบ pill แบบปัจจุบัน"
+   * เหตุผลที่มันต่างจากที่มาอื่น ๆ ในแถบชิป: ที่มาอื่นตอบว่า "ห้องนี้มาจากไหน" ซึ่งดูครั้งเดียวก็พอ
+   * ส่วนโฆษณาผู้ขายต้องอ่าน *เนื้อโฆษณา* เพื่อรู้ว่าลูกค้าเห็นข้อเสนออะไรมาก่อนทัก — ยุบเป็นชิป
+   * แล้วต้องกดกางทุกครั้งจึงเป็นการซ่อนสิ่งที่ต้องใช้ตอบลูกค้า
+   * ปุ่ม ✕ ยังปิดถาวรต่อเธรดได้เหมือนเดิม (localStorage) สำหรับคนที่อ่านแล้ว
+   */
+  let adBanner: React.ReactNode = null
   if (shopName) {
     contextItems.push({
       key: 'shop',
@@ -2589,14 +2599,7 @@ export default function ChatThread({
       (adReferral.adId
         ? fmt(t.inbox.contextBar.adIdFallback, { adId: adReferral.adId })
         : t.inbox.contextBar.adBannerTitle)
-    contextItems.push({
-      key: 'ad',
-      // mirror เข้า storage เราแล้วตอนรับ webhook — ไม่ hotlink CDN Meta ที่ URL หมดอายุ
-      thumbUrl: adReferral.photoFileId ? `/api/files/${adReferral.photoFileId}` : null,
-      icon: 'speakerphone',
-      label: t.inbox.contextBar.adLabel,
-      short: adText,
-      detail: (
+    adBanner = (
         /* feature 00018 E5 — ที่มาจากโฆษณา: รูปโฆษณา + "ตอบกลับจากโฆษณา" + ชื่อโฆษณา (เลิกใช้ badge
            เล็กบนหัวเธรดแบบเดิม ซึ่งชื่อโฆษณายาว ๆ ถูกตัดจนอ่านไม่ออกและไม่เห็นว่าเป็นโฆษณาชิ้นไหน)
            เป็น *ข้อมูลบริบท* ไม่ใช่คำเตือน → โทน default-100 กลาง ๆ ไม่ใช่ warning/danger ของแบนเนอร์
@@ -2652,8 +2655,7 @@ export default function ChatThread({
             <Icon icon="x" className="text-lg" />
           </button>
         </div>
-      ),
-    })
+    )
   }
 
   return (
@@ -2921,6 +2923,7 @@ export default function ChatThread({
           })),
         ]}
       />
+      {adBanner}
 
       {/* scroll body — plain div + ref (ไม่ SimpleBar ตาม spec, ต้อง programmatic scroll) */}
       {/* overscroll-contain (user report prod 2026-07-23: "เวลา scroll มันไปถึง fixed ด้านบนเลย

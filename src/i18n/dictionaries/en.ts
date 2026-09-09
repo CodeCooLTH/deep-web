@@ -655,7 +655,6 @@ export const en: Dictionary = {
       commentImageOnly: 'Sent a photo in the comment',
       viewComment: 'View comment',
 
-      adLabel: 'From ad',
       // "Ad ID" เป็นศัพท์ที่ Meta ใช้เองใน Ads Manager — reviewer จับคู่กับ ad_id ในใบยื่นได้ทันที
       adIdFallback: 'Ad ID {adId}',
       adBannerTitle: 'This chat replied to your ad',
