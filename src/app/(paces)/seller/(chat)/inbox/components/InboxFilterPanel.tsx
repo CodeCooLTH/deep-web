@@ -385,7 +385,8 @@ export default function InboxFilterPanel({
                 setDraftPage('')
                 onApply(cleared, '', draftSort)
               }}
-              className="text-default-600 hover:text-default-800 shrink-0 text-sm underline underline-offset-4"
+              // ลิงก์ไม่มีกรอบ แต่พื้นที่กดต้องสูงเท่าปุ่มอีกสองตัว — มองไม่เห็นแต่นิ้วรู้สึก
+              className="text-default-600 hover:text-default-800 flex min-h-11 shrink-0 items-center text-sm underline underline-offset-4"
             >
               {t.inbox.filterPanel.clear}
             </button>
@@ -408,7 +409,11 @@ export default function InboxFilterPanel({
                 }}
                 aria-label={t.inbox.sort.saveDefault}
                 title={t.inbox.sort.saveDefault}
-                className="btn btn-icon bg-card border-default-300 text-default-800 hover:bg-light size-11 border"
+                // 🛑 ความสูงต้องเท่าปุ่ม "ใช้ตัวกรอง" ที่อยู่ติดกัน — ตั้งขนาดของตัวเองลอย ๆ
+                // (size-11 คู่กับ btn-sm ที่สูง ~30px) ได้ปุ่มสองตัวสูงต่างกันเกือบเท่าตัวในแถวเดียว
+                // user รายงานเอง 2026-09-09: "ขนาดปุ่มแปลกมาก" — ทั้งคู่ใช้ min-h-11 (44px) เท่ากัน
+                // ซึ่งเป็นเกณฑ์ที่ PRODUCT.md ประกาศไว้อยู่แล้ว จึงปิดหนี้ tap target ของปุ่มหลักไปด้วย
+                className="btn btn-icon bg-card border-default-300 text-default-800 hover:bg-light min-h-11 w-11 border"
               >
                 <Icon icon="star" className="size-4" />
               </button>
@@ -418,7 +423,7 @@ export default function InboxFilterPanel({
                   onApply(draft, draftPage, draftSort)
                   onOpenChange(false)
                 }}
-                className="btn btn-sm bg-primary hover:bg-primary-hover text-white"
+                className="btn bg-primary hover:bg-primary-hover min-h-11 text-white"
               >
                 {t.inbox.filterPanel.apply}
               </button>
