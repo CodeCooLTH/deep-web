@@ -364,56 +364,53 @@ export default function InboxFilterPanel({
             </Section>
           </div>
 
-          {/* footer 2 แถว ไม่ใช่ 3 ปุ่มเรียงกัน — งบพื้นที่จริงที่ 320px: แผงกว้าง 296px หลังหัก
-              padding ส่วนปุ่มสามตัว ("ล้างตัวกรอง" ~70 + "บันทึกเป็นค่าเริ่มต้น" ~150 +
-              "ใช้ตัวกรอง" ~80) = ~300px เกินพอดี ⇒ ต้องยุบแถว ไม่ใช่ย่อคำ
-              (docs/conventions/flex-header-truncation.md: ห้ามเดาว่าย่อคำพอ ต้องกางเลขก่อน) */}
-          <div className="border-default-200 bg-default-100 border-t px-3 py-2.5">
+          {/* footer แถวเดียว: ล้าง (ซ้าย) · ดาว + ใช้ตัวกรอง (ขวา)
+              user สั่ง 2026-09-09: "ไว้ข้างๆ ใช้ตัวกรองไหม เป็น icon star ไรงี้"
+
+              ที่ต้องเป็นไอคอนล้วนไม่ใช่ปุ่มมีข้อความ: งบพื้นที่จริงที่ 320px คือ 296px —
+              "ล้างตัวกรอง" ~70 + "บันทึกเป็นค่าเริ่มต้น" ~150 + "ใช้ตัวกรอง" ~80 = ~300px
+              เกินพอดี (นั่นคือเหตุผลที่รอบก่อนต้องแยกเป็น 2 แถว) พอเป็นไอคอน 44px เหลือ ~210px
+              จึงอยู่แถวเดียวได้สบาย */}
+          <div className="border-default-200 bg-default-100 flex items-center justify-between gap-2 border-t px-3 py-2.5">
             <button
               type="button"
-              /**
-               * บันทึกเป็นค่าเริ่มต้น = apply ร่างนี้ทันที + ปิดแผง + บันทึกทั้งชุดลง DB
-               *
-               * 🛑 ต้อง apply ให้ด้วยเสมอ ห้ามบันทึกเฉย ๆ — ไม่งั้นผู้ใช้กด "บันทึก" แล้วรายการ
-               * ไม่ขยับ จะอ่านว่าปุ่มเสีย แล้วกดซ้ำ หรือไปกด "ใช้ตัวกรอง" ต่อโดยไม่รู้ว่าต่างกันยังไง
-               *
-               * ghost ไม่ใช่ปุ่มทึบ — เป็น action ที่ทำครั้งเดียวแล้วลืม ไม่ควรแย่งตาจาก
-               * "ใช้ตัวกรอง" ที่กดถี่กว่ามาก (One Voice ระดับ component)
-               */
-              onClick={() => {
-                onSaveDefault(draft, draftPage, draftSort)
-                onOpenChange(false)
-              }}
-              // ต้องมีพื้น + ขอบ: ฟุตเตอร์เป็น bg-default-100 อยู่แล้ว ปุ่มที่ไม่มีพื้นจะกลืนหาย
-              // ไปกับฟุตเตอร์สนิทตอนพัก มองไม่ออกว่ากดได้จนกว่าจะ hover ซึ่งมือถือไม่มี
-              // ยกสูตรมาจากปุ่ม trigger "ตัวกรอง" ในไฟล์นี้เอง (bg-card + border-default-300)
-              // สองปุ่มของฟีเจอร์เดียวกันจึงเป็นของชนิดเดียวกัน
+              // ล้างแล้วมีผลทันที — คนที่กด "ล้าง" ต้องการเห็นรายการเต็มเดี๋ยวนั้น ไม่ใช่ล้างร่าง
+              // แล้วต้องกด "ใช้" ซ้ำอีกที. คง status/spam ไว้เพราะเป็นของแท็บ ไม่ใช่ของแผงนี้
               //
-              // btn ไม่ใช่ btn-sm + min-h-11: btn-sm = py-1.25 text-xs สูงจริงราว 26px
-              // ต่ำกว่าเกณฑ์ 44px ที่ PRODUCT.md ประกาศไว้ (ปุ่มเดิมอีก 2 ตัวเป็นหนี้เก่าคนละเรื่อง
-              // แต่ปุ่มใหม่ไม่ควรไปเพิ่มจุดเตี้ยเป็นจุดที่สาม)
-              className="btn bg-card border-default-300 text-default-800 hover:bg-default-100 mb-2 flex min-h-11 w-full items-center justify-center gap-2 border"
+              // ไม่แตะโหมดเรียงและไม่ลบค่าที่บันทึกไว้ในฐาน — "ล้างตัวกรอง" พูดถึงตัวกรอง
+              // ไม่ใช่ทั้งแผง; คนกดล้างเพื่อดูรายการเต็ม ไม่ได้ขอให้ลืมค่าที่ตั้งไว้
+              onClick={() => {
+                const cleared = { ...DEFAULT_CHAT_FILTER, status: value.status, spam: value.spam }
+                setDraft(cleared)
+                setDraftPage('')
+                onApply(cleared, '', draftSort)
+              }}
+              className="text-default-600 hover:text-default-800 shrink-0 text-sm underline underline-offset-4"
             >
-              <Icon icon="device-floppy" className="size-4" />
-              {t.inbox.sort.saveDefault}
+              {t.inbox.filterPanel.clear}
             </button>
-            <div className="flex items-center justify-between">
+            <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                // ล้างแล้วมีผลทันที — คนที่กด "ล้าง" ต้องการเห็นรายการเต็มเดี๋ยวนั้น ไม่ใช่ล้างร่าง
-                // แล้วต้องกด "ใช้" ซ้ำอีกที. คง status/spam ไว้เพราะเป็นของแท็บ ไม่ใช่ของแผงนี้
-                //
-                // 🛑 ไม่แตะโหมดเรียงและไม่แตะค่าเริ่มต้นที่บันทึกไว้ใน DB — "ล้างตัวกรอง" พูดถึง
-                // ตัวกรอง ไม่ใช่ทั้งแผง; คนกดล้างเพื่อดูรายการเต็ม ไม่ได้ขอให้ลืมค่าที่ตั้งไว้
+                /**
+                 * บันทึกเป็นค่าเริ่มต้น = apply ร่างนี้ทันที + ปิดแผง + บันทึกทั้งชุดลง DB
+                 *
+                 * ต้อง apply ให้ด้วยเสมอ ห้ามบันทึกเฉย ๆ — ไม่งั้นผู้ใช้กด "บันทึก" แล้วรายการ
+                 * ไม่ขยับ จะอ่านว่าปุ่มเสีย แล้วกดซ้ำ หรือไปกด "ใช้ตัวกรอง" ต่อโดยไม่รู้ว่าต่างกันยังไง
+                 *
+                 * ไอคอนล้วน ⇒ ชื่อของปุ่มมาจาก aria-label เท่านั้น ห้ามตกหล่น (ปุ่มที่ไม่มีชื่อ
+                 * = ผู้ใช้ screen reader ได้ยินแค่ "button") · title ไว้ให้เมาส์ hover เห็น
+                 * แต่ไม่ใช่ตัวแทน aria-label เพราะมือถือไม่มี hover
+                 */
                 onClick={() => {
-                  const cleared = { ...DEFAULT_CHAT_FILTER, status: value.status, spam: value.spam }
-                  setDraft(cleared)
-                  setDraftPage('')
-                  onApply(cleared, '', draftSort)
+                  onSaveDefault(draft, draftPage, draftSort)
+                  onOpenChange(false)
                 }}
-                className="text-default-600 hover:text-default-800 text-sm underline underline-offset-4"
+                aria-label={t.inbox.sort.saveDefault}
+                title={t.inbox.sort.saveDefault}
+                className="btn btn-icon bg-card border-default-300 text-default-800 hover:bg-light size-11 border"
               >
-                {t.inbox.filterPanel.clear}
+                <Icon icon="star" className="size-4" />
               </button>
               <button
                 type="button"
