@@ -29,6 +29,7 @@ import { PageAvatar } from './PageFilterDropdown'
 export { DEFAULT_CHAT_FILTER } from './chat-list-query'
 export type { ChatFilterState, ShipmentFilterValue } from './chat-list-query'
 import type { ChatFilterState, ShipmentFilterValue } from './chat-list-query'
+import { INBOX_SORT_MODES, type InboxSortMode } from '@/lib/inbox-sort'
 import { DEFAULT_CHAT_FILTER } from './chat-list-query'
 import { useT } from '@/i18n/LocaleProvider'
 import type { Dictionary } from '@/i18n/dictionaries/th'
@@ -113,22 +114,86 @@ function Chip({
   )
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  hint,
+  children,
+  // 00018 ext รอบสอง 2026-09-09 — หัวข้อ "เรียงลำดับ" ใช้แถว 2 บรรทัด (label + คำอธิบาย)
+  // ไม่ใช่ชิป เพราะสองโหมดชื่อคล้ายกันมากจนแยกไม่ออกถ้าไม่มีคำอธิบายกำกับ และชิปทรง pill
+  // ไม่มีที่ให้บรรทัดที่สอง — หัวข้อ (typography/ระยะ) ยังใช้ตัวเดียวกันทุกหัวข้อ
+  layout = 'chips',
+}: {
+  title: string
+  hint?: string
+  children: React.ReactNode
+  layout?: 'chips' | 'rows'
+}) {
   return (
     <div className="mb-4 last:mb-0">
       <p className="text-default-700 mb-2 text-xs font-medium">
         {title}
         {hint && <span className="font-normal"> — {hint}</span>}
       </p>
-      <div className="flex flex-wrap gap-1.5">{children}</div>
+      <div className={layout === 'rows' ? 'flex flex-col gap-1' : 'flex flex-wrap gap-1.5'}>{children}</div>
     </div>
+  )
+}
+
+/**
+ * แถวเลือกโหมดเรียง
+ * Base: PageFilterDropdown.tsx แถว "ทุกเพจ" (icon กลม + label + คำอธิบายบรรทัดสอง)
+ * ซึ่งมาจาก theme/paces/Admin/TS/src/app/(admin)/ui/dropdowns/page.tsx อีกที
+ * เคยอยู่ในไฟล์ InboxSortDropdown.tsx (ลบแล้ว 2026-09-09 ตอนยุบปุ่มเรียงเข้าแผงนี้)
+ * คำอธิบายห้าม truncate — ประโยคที่ถูกตัดครึ่งคือประโยคที่อ่านไม่รู้เรื่อง
+ */
+function SortRow({
+  selected,
+  icon,
+  label,
+  description,
+  onSelect,
+}: {
+  selected: boolean
+  icon: string
+  label: string
+  description: string
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={`dropdown-item w-full items-start text-start ${selected ? 'active' : ''}`}
+    >
+      {selected ? (
+        <Icon icon="check" className="text-primary mt-0.5 size-4 shrink-0" />
+      ) : (
+        <span className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+      )}
+      <span className="bg-default-100 text-default-700 flex size-8 shrink-0 items-center justify-center rounded-full">
+        <Icon icon={icon} width={16} height={16} />
+      </span>
+      <span className="min-w-0 flex-1 text-start">
+        <span className="text-default-900 block truncate text-sm font-medium">{label}</span>
+        <span className="text-default-700 block text-xs">{description}</span>
+      </span>
+    </button>
   )
 }
 
 type Props = {
   value: ChatFilterState
+  /** โหมดเรียงที่ใช้อยู่ — 00018 ext รอบสอง: ย้ายเข้ามาเป็นหัวข้อหนึ่งของแผงนี้ */
+  sortValue: InboxSortMode
   /** ยิงเมื่อกด "ใช้ตัวกรอง"/"ล้างตัวกรอง" เท่านั้น — ไม่ยิงระหว่างเลือก (ดูข้อ 2 หัวไฟล์) */
-  onApply: (next: ChatFilterState, pageFilter: string) => void
+  onApply: (next: ChatFilterState, pageFilter: string, sort: InboxSortMode) => void
+  /**
+   * ยิงเมื่อกด "บันทึกเป็นค่าเริ่มต้น" — ผู้เรียกต้อง apply ให้ด้วยเสมอ (ดูกฎในคอมเมนต์ footer)
+   * 🛑 นี่คือ *จุดเดียว* ที่ค่าตั้งลง DB — การเลือกโหมดเรียงเฉย ๆ ไม่บันทึกอะไรอีกต่อไป
+   */
+  onSaveDefault: (next: ChatFilterState, pageFilter: string, sort: InboxSortMode) => void
   open: boolean
   onOpenChange: (open: boolean) => void
   /** 'ALL' | 'DEEP' | 'MESSENGER' | 'INSTAGRAM' | 'LINE' — ใช้ตัดสินว่าจะโชว์หัวข้อ "ช่องทาง" ไหม
@@ -145,6 +210,8 @@ type Props = {
 export default function InboxFilterPanel({
   value,
   onApply,
+  onSaveDefault,
+  sortValue,
   open,
   onOpenChange,
   channelTab,
@@ -158,12 +225,16 @@ export default function InboxFilterPanel({
   // ร่าง — sync จากค่าจริงทุกครั้งที่เปิด ไม่ให้ค้างค่าที่เคยเลือกแล้วไม่ได้กดใช้จากรอบก่อน
   const [draft, setDraft] = useState<ChatFilterState>(value)
   const [draftPage, setDraftPage] = useState(pageFilter)
+  // 00018 ext รอบสอง — โหมดเรียงเป็น "ร่าง" เหมือนตัวกรองอื่นแล้ว (เดิมกดปุ่มแยกแล้วมีผลทันที)
+  // นี่คือสิ่งที่แก้ปัญหา critique P2: สองปุ่มติดกันหน้าตาเหมือนกันแต่พฤติกรรมตรงข้าม
+  const [draftSort, setDraftSort] = useState<InboxSortMode>(sortValue)
   useEffect(() => {
     if (open) {
       setDraft(value)
+      setDraftSort(sortValue)
       setDraftPage(pageFilter)
     }
-  }, [open, value, pageFilter])
+  }, [open, value, pageFilter, sortValue])
 
   const activeCount = countActiveFilters(value, pageFilter)
   const showPages = channelTab !== 'DEEP' && pageOptions.length > 1
@@ -234,6 +305,25 @@ export default function InboxFilterPanel({
           {/* max-h + scroll: กันเนื้อหายาวทะลุจอจนกดปุ่มท้ายไม่ได้ (บั๊กที่ user เจอจริง 2026-07-31)
               หัวข้อด้านบนกับปุ่มด้านล่างอยู่กับที่ เลื่อนเฉพาะตัวเลือกตรงกลาง */}
           <div className="max-h-96 overflow-y-auto p-3">
+            {/* เรียงลำดับอยู่บนสุด — ตอบคนละแกนกับตัวกรองที่เหลือ (filter = "เห็นห้องไหน",
+                sort = "เห็นแล้วเรียงยังไง") วางแยกไว้หัวแผงกันผู้ใช้ปนสองแกนเข้าด้วยกัน
+                และเป็นตำแหน่งเดียวกับที่ปุ่มเรียงเคยอยู่ก่อนถูกยุบเข้ามา */}
+            <Section title={t.inbox.filterPanel.sectionSort} hint={t.inbox.filterPanel.sortNotCleared} layout="rows">
+              {INBOX_SORT_MODES.map((mode) => (
+                <SortRow
+                  key={mode}
+                  selected={draftSort === mode}
+                  icon={mode === 'LAST_MESSAGE' ? 'messages' : 'user-question'}
+                  label={mode === 'LAST_MESSAGE' ? t.inbox.sort.optionAllLabel : t.inbox.sort.optionCustomerLatestLabel}
+                  description={
+                    mode === 'LAST_MESSAGE'
+                      ? t.inbox.sort.optionAllDescription
+                      : t.inbox.sort.optionCustomerLatestDescription
+                  }
+                  onSelect={() => setDraftSort(mode)}
+                />
+              ))}
+            </Section>
             {showPages && (
               // feature 00025 S-14a — หัวข้อ "เพจ" → "ช่องทาง" เพราะรายการนี้ตอนนี้มีทั้งเพจ
               // Facebook และ LINE OA ปนกัน (LINE ไม่ใช่ "เพจ") คำเดิมไม่ครอบทุกตัวเลือกอีกต่อไป
@@ -327,31 +417,68 @@ export default function InboxFilterPanel({
             </Section>
           </div>
 
-          <div className="border-default-200 bg-default-100 flex items-center justify-between border-t px-3 py-2.5">
+          {/* footer 2 แถว ไม่ใช่ 3 ปุ่มเรียงกัน — งบพื้นที่จริงที่ 320px: แผงกว้าง 296px หลังหัก
+              padding ส่วนปุ่มสามตัว ("ล้างตัวกรอง" ~70 + "บันทึกเป็นค่าเริ่มต้น" ~150 +
+              "ใช้ตัวกรอง" ~80) = ~300px เกินพอดี ⇒ ต้องยุบแถว ไม่ใช่ย่อคำ
+              (docs/conventions/flex-header-truncation.md: ห้ามเดาว่าย่อคำพอ ต้องกางเลขก่อน) */}
+          <div className="border-default-200 bg-default-100 border-t px-3 py-2.5">
             <button
               type="button"
-              // ล้างแล้วมีผลทันที — คนที่กด "ล้าง" ต้องการเห็นรายการเต็มเดี๋ยวนั้น ไม่ใช่ล้างร่าง
-              // แล้วต้องกด "ใช้" ซ้ำอีกที. คง status/spam ไว้เพราะเป็นของแท็บ ไม่ใช่ของแผงนี้
+              /**
+               * บันทึกเป็นค่าเริ่มต้น = apply ร่างนี้ทันที + ปิดแผง + บันทึกทั้งชุดลง DB
+               *
+               * 🛑 ต้อง apply ให้ด้วยเสมอ ห้ามบันทึกเฉย ๆ — ไม่งั้นผู้ใช้กด "บันทึก" แล้วรายการ
+               * ไม่ขยับ จะอ่านว่าปุ่มเสีย แล้วกดซ้ำ หรือไปกด "ใช้ตัวกรอง" ต่อโดยไม่รู้ว่าต่างกันยังไง
+               *
+               * ghost ไม่ใช่ปุ่มทึบ — เป็น action ที่ทำครั้งเดียวแล้วลืม ไม่ควรแย่งตาจาก
+               * "ใช้ตัวกรอง" ที่กดถี่กว่ามาก (One Voice ระดับ component)
+               */
               onClick={() => {
-                const cleared = { ...DEFAULT_CHAT_FILTER, status: value.status, spam: value.spam }
-                setDraft(cleared)
-                setDraftPage('')
-                onApply(cleared, '')
-              }}
-              className="text-default-600 hover:text-default-800 text-sm underline underline-offset-4"
-            >
-              {t.inbox.filterPanel.clear}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onApply(draft, draftPage)
+                onSaveDefault(draft, draftPage, draftSort)
                 onOpenChange(false)
               }}
-              className="btn btn-sm bg-primary hover:bg-primary-hover text-white"
+              // ต้องมีพื้น + ขอบ: ฟุตเตอร์เป็น bg-default-100 อยู่แล้ว ปุ่มที่ไม่มีพื้นจะกลืนหาย
+              // ไปกับฟุตเตอร์สนิทตอนพัก มองไม่ออกว่ากดได้จนกว่าจะ hover ซึ่งมือถือไม่มี
+              // ยกสูตรมาจากปุ่ม trigger "ตัวกรอง" ในไฟล์นี้เอง (bg-card + border-default-300)
+              // สองปุ่มของฟีเจอร์เดียวกันจึงเป็นของชนิดเดียวกัน
+              //
+              // btn ไม่ใช่ btn-sm + min-h-11: btn-sm = py-1.25 text-xs สูงจริงราว 26px
+              // ต่ำกว่าเกณฑ์ 44px ที่ PRODUCT.md ประกาศไว้ (ปุ่มเดิมอีก 2 ตัวเป็นหนี้เก่าคนละเรื่อง
+              // แต่ปุ่มใหม่ไม่ควรไปเพิ่มจุดเตี้ยเป็นจุดที่สาม)
+              className="btn bg-card border-default-300 text-default-800 hover:bg-default-100 mb-2 flex min-h-11 w-full items-center justify-center gap-2 border"
             >
-              {t.inbox.filterPanel.apply}
+              <Icon icon="device-floppy" className="size-4" />
+              {t.inbox.sort.saveDefault}
             </button>
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                // ล้างแล้วมีผลทันที — คนที่กด "ล้าง" ต้องการเห็นรายการเต็มเดี๋ยวนั้น ไม่ใช่ล้างร่าง
+                // แล้วต้องกด "ใช้" ซ้ำอีกที. คง status/spam ไว้เพราะเป็นของแท็บ ไม่ใช่ของแผงนี้
+                //
+                // 🛑 ไม่แตะโหมดเรียงและไม่แตะค่าเริ่มต้นที่บันทึกไว้ใน DB — "ล้างตัวกรอง" พูดถึง
+                // ตัวกรอง ไม่ใช่ทั้งแผง; คนกดล้างเพื่อดูรายการเต็ม ไม่ได้ขอให้ลืมค่าที่ตั้งไว้
+                onClick={() => {
+                  const cleared = { ...DEFAULT_CHAT_FILTER, status: value.status, spam: value.spam }
+                  setDraft(cleared)
+                  setDraftPage('')
+                  onApply(cleared, '', draftSort)
+                }}
+                className="text-default-600 hover:text-default-800 text-sm underline underline-offset-4"
+              >
+                {t.inbox.filterPanel.clear}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onApply(draft, draftPage, draftSort)
+                  onOpenChange(false)
+                }}
+                className="btn btn-sm bg-primary hover:bg-primary-hover text-white"
+              >
+                {t.inbox.filterPanel.apply}
+              </button>
+            </div>
           </div>
         </div>
       )}

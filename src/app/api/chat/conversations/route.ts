@@ -18,7 +18,8 @@ import { countDraftedOrdersByConversation } from '@/services/auto-order-detect.s
 // (enrich ทางเดียว = ป้ายไม่ขึ้นตอนโหลดหน้าแรกแล้วค่อยโผล่หลัง refetch ซึ่งดูเหมือนบั๊ก)
 import { enrichWithCustomerBehavior } from "@/services/customer-behavior.service";
 import { StartConversationSchema, ChatConversationsQuerySchema } from "@/lib/validations";
-import { getInboxSortMode } from "@/services/chat-preference.service";
+import { getInboxPreference, getInboxSortMode } from "@/services/chat-preference.service";
+import { inboxPreferenceToListOptions } from "@/lib/inbox-filter-pref";
 import { sweepStuckJobs, enrichWithAutoReplyBadge } from "@/services/auto-reply.service";
 import { syncShipmentStatuses } from "@/services/iship.service";
 
@@ -222,6 +223,7 @@ export async function GET(request: NextRequest) {
     shopId: searchParams.get("shopId") ?? undefined,
     // 00018 ext 2026-09-09 — โหมดเรียงที่หน้าจอใช้อยู่ (ดู chat-list-query.ts ว่าทำไมมาจาก client)
     sort: searchParams.get("sort") ?? undefined,
+    usePref: searchParams.get("usePref") === "1" ? true : undefined,
   };
   const parsed = v.safeParse(ChatConversationsQuerySchema, input);
   if (!parsed.success) {
@@ -245,12 +247,21 @@ export async function GET(request: NextRequest) {
     // ตัวกรองร้านที่ client ส่งมาต้องถูกตัดให้อยู่ในขอบเขตเสมอ — ยิงรหัสร้านที่ไม่มีสิทธิ์
     // จะได้ [] แล้ว service คืนรายการว่าง (ไม่ใช่ 403 ที่ยืนยันว่าร้านนั้นมีจริง — BR-UNI-02)
     const scopedShopIds = intersectScopedShopIds(scope.shopIds, parsed.output.shopId);
-    // 00018 ext 2026-09-09 — ลำดับเธรดมาจากค่าตั้งของ "คนนี้ ในร้าน active นี้" เสมอ
+    // 00018 ext 2026-09-09 — ลำดับ/ตัวกรองมาจากค่าตั้งของ "คนนี้ ในร้าน active นี้"
     // (แม้ในโหมดกล่องรวมหลายร้าน ค่าตั้งก็ต้องมีเจ้าของตัวเดียว — ดู chat-preference.service)
+    //
+    // usePref=1 (ชุดแรกของ Chat Rail) = ผู้เรียกยังไม่รู้ค่าที่บันทึกไว้ ⇒ server ตัดสินให้ทั้งชุด
+    // แล้วส่ง preference กลับไปให้ client ตั้ง state ตาม — ห้ามให้ client เดาเองแล้วยิงซ้ำ
+    // เพราะช่วงระหว่างนั้นคือช่วงที่ "รายการกับตัวกรองที่ไฮไลต์ไม่ตรงกัน" ซึ่งพังมาแล้ว 2 รอบ
+    const savedPreference = parsed.output.usePref
+      ? await getInboxPreference(userId, scope.activeShopId)
+      : null;
+    const prefOptions = savedPreference ? inboxPreferenceToListOptions(savedPreference) : null;
     // client ที่รู้โหมดอยู่แล้วส่งมาเอง = ไม่ต้องอ่านฐานซ้ำทุกครั้งที่เลื่อนรายการ/รีเฟรช 20 วิ
-    // ไม่ส่งมา (โหลดครั้งแรกของ Chat Rail, ผู้เรียกเก่า) = อ่านค่าตั้งที่บันทึกไว้
-    const sort = parsed.output.sort ?? (await getInboxSortMode(userId, scope.activeShopId));
+    const sort =
+      prefOptions?.sort ?? parsed.output.sort ?? (await getInboxSortMode(userId, scope.activeShopId));
     const result = await listConversationsForShops(scopedShopIds, {
+      ...(prefOptions ?? {}),
       sort,
       cursor: parsed.output.cursor,
       take: parsed.output.take,
@@ -344,7 +355,10 @@ export async function GET(request: NextRequest) {
     // inboxSort ไปกับ response ด้วย (00018 ext 2026-09-09) — Chat Rail บนเดสก์ท็อปโหลดรายการ
     // ผ่าน endpoint นี้ ไม่ได้ผ่าน SSR จึงต้องรู้จากที่นี่ว่าตอนนี้เรียงด้วยโหมดไหน มิฉะนั้นปุ่ม
     // จะโชว์ค่าตั้งต้นค้างไว้ทั้งที่รายการเรียงอีกแบบ (คนละคำตอบบนจอเดียวกัน)
-    return NextResponse.json({ items, nextCursor: result.nextCursor, inboxSort: sort }, { headers: NO_STORE_HEADERS });
+    return NextResponse.json(
+      { items, nextCursor: result.nextCursor, inboxSort: sort, preference: savedPreference ?? undefined },
+      { headers: NO_STORE_HEADERS },
+    );
   }
 
   const result = await listConversationsForBuyer(userId, {

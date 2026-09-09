@@ -531,7 +531,6 @@ export const en: Dictionary = {
     filters: 'Filters',
     // 00018 ext 2026-09-09 — inbox sort mode
     sort: {
-      triggerAriaLabel: 'Sort conversations',
       optionAllLabel: 'All messages',
       optionAllDescription: "Sort by the room's latest message, whether the shop or the customer sent it",
       optionCustomerLatestLabel: 'Latest customer message',
@@ -541,7 +540,10 @@ export const en: Dictionary = {
       // Short on purpose — this cell lives in a shrink-0 column; longer text squeezes the name.
       // Names the subject: bare "No message" reads as "this room has no messages at all", which is false
       neverInbound: 'No reply',
-      saveFailed: 'Sort order changed, but saving it for next time failed',
+      // 00018 ext round two 2026-09-09 — button inside the filter panel
+      saveDefault: 'Save as default',
+      saveDefaultSuccess: "Saved as default — you'll see this setup next time you open the inbox",
+      saveDefaultWarning: "Applied, but couldn't save as default — try saving again",
     },
     statusResolved: 'Resolved',
     statusSpam: 'Spam',
@@ -593,6 +595,8 @@ export const en: Dictionary = {
       shipmentPrinted: 'Printed',
       shipmentProblem: 'Shipment issue',
       sectionChannel: 'Channel',
+      sectionSort: 'Sort order',
+      sortNotCleared: "not reset by 'Clear filters'",
       allChannels: 'All channels',
       tagsHint: 'Pick several — matches any of them',
       // "iShip" เป็นชื่อผู้ให้บริการ ห้ามแปล

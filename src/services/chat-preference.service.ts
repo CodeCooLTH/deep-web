@@ -12,6 +12,13 @@
  */
 import { prisma } from '@/lib/prisma'
 import { DEFAULT_INBOX_SORT, parseInboxSortMode, type InboxSortMode } from '@/lib/inbox-sort'
+import {
+  DEFAULT_INBOX_PREFERENCE,
+  parseInboxFilterPreference,
+  serializeInboxFilterPreference,
+  type InboxPreference,
+} from '@/lib/inbox-filter-pref'
+import type { Prisma } from '@prisma/client'
 
 /**
  * อ่านโหมดเรียงของ (ผู้ใช้ × ร้าน)
@@ -42,4 +49,49 @@ export async function setInboxSortMode(
     update: { inboxSort },
   })
   return inboxSort
+}
+
+/**
+ * อ่านค่าเริ่มต้นของกล่องแชททั้งชุด (การเรียง + ตัวกรอง + ช่องทาง + เพจ)
+ * — 00018 ext รอบสอง 2026-09-09
+ *
+ * 🛑 นี่คือค่าที่ "หน้าจอต้องเริ่มด้วย" ⇒ **ทั้ง SSR และชุดแรกของ Chat Rail ต้องใช้ตัวเดียวกัน**
+ * invariant เดิมที่เขียนไว้ใน chat-list-query.ts ("ชุดแรกต้องตรงกับ DEFAULT_CHAT_FILTER")
+ * เปลี่ยนความหมายไปแล้ว: ค่าตั้งต้นไม่ใช่ค่าคงที่อีกต่อไป แต่เป็นค่าของผู้ใช้คนนั้น ⇒ กติกาใหม่คือ
+ * **"ชุดแรกต้องตรงกับค่าที่ resolveInboxPreference() คืน"** — เคยพังเพราะเรื่องนี้มาแล้ว 2 รอบ
+ * (2026-07-31 SSR, 2026-08-01 ChatRail) ทั้งสองครั้งอาการเหมือนกัน: เธรดหายตอนเข้าครั้งแรก
+ * แล้วโผล่หลังกดสลับแท็บ
+ */
+export async function getInboxPreference(userId: string, shopId: string): Promise<InboxPreference> {
+  const row = await prisma.sellerChatPreference.findUnique({
+    where: { userId_shopId: { userId, shopId } },
+    select: { inboxSort: true, inboxFilter: true },
+  })
+  if (!row) return DEFAULT_INBOX_PREFERENCE
+  return parseInboxFilterPreference(row.inboxFilter, row.inboxSort)
+}
+
+/** บันทึกทั้งชุด (ปุ่ม "บันทึกเป็นค่าเริ่มต้น") — คืนค่าที่บันทึกจริงหลังผ่านด่าน parse */
+export async function setInboxPreference(
+  userId: string,
+  shopId: string,
+  pref: InboxPreference,
+): Promise<InboxPreference> {
+  // ผ่าน parse ก่อนเขียนเสมอ ไม่ใช่เชื่อสิ่งที่ client ส่งมา — คอลัมน์เป็น JSONB ที่ฐานบังคับ
+  // รูปร่างไม่ได้ ถ้าปล่อยของแปลกลงไปได้ ทุกครั้งที่อ่านกลับมาจะต้องมาแก้ที่ขาอ่านแทน
+  const clean = parseInboxFilterPreference(serializeInboxFilterPreference(pref), pref.sort)
+  await prisma.sellerChatPreference.upsert({
+    where: { userId_shopId: { userId, shopId } },
+    create: {
+      userId,
+      shopId,
+      inboxSort: clean.sort,
+      inboxFilter: serializeInboxFilterPreference(clean) as Prisma.InputJsonValue,
+    },
+    update: {
+      inboxSort: clean.sort,
+      inboxFilter: serializeInboxFilterPreference(clean) as Prisma.InputJsonValue,
+    },
+  })
+  return clean
 }

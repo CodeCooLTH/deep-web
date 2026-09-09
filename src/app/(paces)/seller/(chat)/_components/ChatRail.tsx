@@ -35,6 +35,7 @@
  */
 import { useEffect, useState } from 'react'
 import { DEFAULT_INBOX_SORT, type InboxSortMode } from '@/lib/inbox-sort'
+import { type InboxPreference } from '@/lib/inbox-filter-pref'
 import { SimpleBar } from '@/components/wrappers/SimpleBar'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import { SellerInboxSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
@@ -53,6 +54,8 @@ type ConversationsApiResponse = {
   /** 00018 ext 2026-09-09 — โหมดเรียงที่ server ใช้จริงกับชุดนี้ (rail ไม่ได้ผ่าน SSR จึงรู้จากตรงนี้)
    *  optional เผื่อ response เก่าที่ยังค้างใน cache ระหว่าง deploy */
   inboxSort?: InboxSortMode
+  /** ค่าเริ่มต้นทั้งชุดที่ server ใช้กับชุดนี้ — มาเฉพาะคำขอที่ส่ง usePref=1 (ชุดแรก) */
+  preference?: InboxPreference
 }
 
 type Props = {
@@ -85,6 +88,9 @@ export default function ChatRail({
   const [items, setItems] = useState<ConversationListItem[]>([])
   // ค่าเริ่มต้นคือโหมดเดิม แล้วปรับตาม response ชุดแรก — ห้ามเดาจาก localStorage/ค่าอื่น
   const [inboxSort, setInboxSort] = useState<InboxSortMode>(DEFAULT_INBOX_SORT)
+  // ค่าเริ่มต้นทั้งชุดที่ผู้ใช้บันทึกไว้ — undefined จนกว่า response ชุดแรกจะกลับมา
+  // (InboxList ยังไม่ถูก render ระหว่างนั้นเพราะ loading = true อยู่ ⇒ ไม่มีช่วงที่ state ผิด)
+  const [preference, setPreference] = useState<InboxPreference | undefined>(undefined)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [groups, setGroups] = useState<ChatGroupTab[]>([])
 
@@ -118,7 +124,11 @@ export default function ChatRail({
         // หายไปตอนเข้าหน้าครั้งแรก แล้วโผล่หลังกดสลับแท็บไป-กลับ (การสลับ = refetch ด้วย
         // status=all). ต้องประกอบจาก DEFAULT_CHAT_FILTER เสมอ ห้ามเขียน query string เอง —
         // เป็นบั๊กเดียวกับที่ inbox/page.tsx (ฝั่ง SSR <1024px) เจอเมื่อ 2026-07-31
-        const initialParams = buildChatListParams(DEFAULT_CHAT_FILTER, { take: 20 })
+        // 00018 ext รอบสอง 2026-09-09 — usePref=1: ให้ server ใช้ "ค่าเริ่มต้นที่ผู้ใช้บันทึกไว้"
+        // ตัดสินตัวกรองชุดแรกทั้งชุด แล้วส่งค่ากลับมาให้ตั้ง state ตาม
+        // 🛑 ห้ามกลับไปประกอบจาก DEFAULT_CHAT_FILTER เอง — นั่นคือค่าคงที่ ไม่ใช่ค่าของผู้ใช้คนนี้
+        // (ยังส่ง DEFAULT_CHAT_FILTER เป็นฐานอยู่เพื่อให้ผู้ใช้ที่ไม่เคยบันทึกได้ผลเท่าเดิมเป๊ะ)
+        const initialParams = buildChatListParams(DEFAULT_CHAT_FILTER, { take: 20, usePref: true })
         const conversationsRes = await fetch(`/api/chat/conversations?${initialParams.toString()}`)
         if (!conversationsRes.ok) throw new Error('load conversations failed')
         const conversationsData: ConversationsApiResponse = await conversationsRes.json()
@@ -127,6 +137,7 @@ export default function ChatRail({
         setGroups(groupOptions)
         setItems(conversationsData.items)
         if (conversationsData.inboxSort) setInboxSort(conversationsData.inboxSort)
+        if (conversationsData.preference) setPreference(conversationsData.preference)
         setNextCursor(conversationsData.nextCursor)
       } catch (e) {
         if (cancelled) return
@@ -200,6 +211,7 @@ export default function ChatRail({
           initialItems={items}
           initialNextCursor={nextCursor}
           initialSort={inboxSort}
+          initialPreference={preference}
           channels={channels}
           initialGroups={groups}
           shopIds={shopIds}

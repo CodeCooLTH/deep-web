@@ -3649,6 +3649,15 @@ model SellerChatPreference {
   /// TEXT ไม่ใช่ enum ของ Postgres จึงไม่มีชนิดมากั้นให้ (SSOT ฝั่งโค้ด: src/lib/inbox-sort.ts)
   inboxSort String @default("LAST_MESSAGE")
 
+  /// ตัวกรองกล่องแชทที่ผู้ใช้กด "บันทึกเป็นค่าเริ่มต้น" ไว้ (00018 ext รอบสอง 2026-09-09)
+  /// รูปร่าง: { filter: ChatFilterState, channelTab: string, pageFilter: string }
+  /// NULL = ยังไม่เคยบันทึก ⇒ ใช้ DEFAULT_CHAT_FILTER เหมือนเดิมทุกประการ
+  ///
+  /// 🛑 อ่านผ่าน parseInboxFilterPreference() เท่านั้น (src/lib/inbox-filter-pref.ts)
+  /// JSONB ไม่มี CHECK รายคีย์ ⇒ ค่าที่อ่านไม่ออก/ตัวกรองที่ถูกถอดออกไปแล้ว ต้องตกไปค่าตั้งต้น
+  /// รายฟิลด์ ห้าม throw — ค่าตั้งค้างจากเวอร์ชันเก่าห้ามทำให้กล่องแชทเปิดไม่ได้
+  inboxFilter Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

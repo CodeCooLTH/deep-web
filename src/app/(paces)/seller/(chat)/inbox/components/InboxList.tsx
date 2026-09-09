@@ -96,8 +96,8 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import PageFilterDropdown from './PageFilterDropdown'
 import InboxFilterPanel from './InboxFilterPanel'
-import InboxSortDropdown from './InboxSortDropdown'
 import { DEFAULT_INBOX_SORT, type InboxSortMode } from '@/lib/inbox-sort'
+import { type InboxPreference } from '@/lib/inbox-filter-pref'
 import { buildChatListParams, DEFAULT_CHAT_FILTER, isChatListFiltering, type ChatFilterState } from './chat-list-query'
 import { type RowAction } from './ConversationRowMenu'
 import ChatContextMenu, { type ChatRowAnchor } from './ChatContextMenu'
@@ -274,6 +274,14 @@ type Props = {
   /** โหมดเรียงที่บันทึกไว้ของ (ผู้ใช้ × ร้าน active) — 00018 ext 2026-09-09
    *  optional: ผู้เรียกที่ยังไม่ส่งมาได้โหมดเดิมเหมือนก่อนมีฟีเจอร์นี้ */
   initialSort?: InboxSortMode
+  /**
+   * ค่าเริ่มต้นทั้งชุดที่ผู้ใช้กด "บันทึกเป็นค่าเริ่มต้น" ไว้ (00018 ext รอบสอง)
+   *
+   * 🛑 ผู้เรียกต้องใช้ค่าเดียวกันนี้ประกอบคำขอชุดแรกด้วยเสมอ — ถ้า state ตั้งต้นของหน้าจอ
+   * กับชุดข้อมูลชุดแรกมาจากคนละค่า จะเกิดอาการ "เธรดหายตอนเข้าครั้งแรก แล้วโผล่ตอนสลับแท็บ"
+   * ซึ่งเคยเกิดจริงมาแล้ว 2 รอบ (2026-07-31 SSR · 2026-08-01 ChatRail)
+   */
+  initialPreference?: InboxPreference
   channels: ChannelFilterOption[]
   /** ร้านเชื่อม iShip แล้วหรือยัง (ShopShippingAccount status=ACTIVE) — ใช้ซ่อนหัวข้อ "พัสดุ"
    *  ในตัวกรองสำหรับร้านที่ไม่ได้ใช้ ตัดสินฝั่ง server ไม่ต้องให้ client ยิงถามเพิ่ม */
@@ -314,6 +322,7 @@ export default function InboxList({
   initialItems,
   initialNextCursor,
   initialSort,
+  initialPreference,
   channels,
   initialGroups = [],
   hasShipping = false,
@@ -371,8 +380,12 @@ export default function InboxList({
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   // ── T3: filter/search state — ขับ tab ด้วย React state เอง (ไม่ใช้ data-hs-tab) ──
-  const [channelTab, setChannelTab] = useState<ChannelTab>('ALL')
-  const [pageFilter, setPageFilter] = useState('') // shopChannelId, '' = ทุกเพจ
+  // 00018 ext รอบสอง — ค่าเริ่มต้นทั้ง 3 ตัวมาจากค่าที่ผู้ใช้บันทึกไว้ (ไม่ใช่ค่าคงที่อีกต่อไป)
+  // ต้องเป็นชุดเดียวกับที่ผู้เรียกใช้ดึงข้อมูลชุดแรก ไม่งั้นรายการกับตัวกรองที่ไฮไลต์จะไม่ตรงกัน
+  const [channelTab, setChannelTab] = useState<ChannelTab>(
+    (initialPreference?.channelTab as ChannelTab) ?? 'ALL',
+  )
+  const [pageFilter, setPageFilter] = useState(initialPreference?.pageFilter ?? '') // shopChannelId, '' = ทุกเพจ
   // feature 00018 กลุ่ม/แท็บจัดหมวดแชท (ตัวกรองอ่านแล้ว/ยังไม่อ่าน ย้ายเข้า filter.readState แล้ว)
   const [groups, setGroups] = useState<ChatGroupTab[]>(initialGroups)
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null) // null = แท็บ "ทั้งหมด"
@@ -389,35 +402,33 @@ export default function InboxList({
   const [addingGroup, setAddingGroup] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   // S-7 (ตัวกรองแชท): สถานะ/ผูกลูกค้า/ที่ซ่อน — init = default เดียวกับ SSR (status=open, hidden=false)
-  const [filter, setFilter] = useState<ChatFilterState>(DEFAULT_CHAT_FILTER)
+  const [filter, setFilter] = useState<ChatFilterState>(initialPreference?.filter ?? DEFAULT_CHAT_FILTER)
   // popover ตัวกรองเปิดได้ทีละตัว — state อยู่ที่นี่ (bug: เดิมสองตัวถือ state เอง เปิดพร้อมกันแล้วทับกัน)
-  const [openPanel, setOpenPanel] = useState<'filter' | 'page' | 'group' | 'sort' | null>(null)
+  const [openPanel, setOpenPanel] = useState<'filter' | 'page' | 'group' | null>(null)
   // 00018 ext 2026-09-09 — โหมดเรียง; อยู่ใน listSignature ด้วย ⇒ เปลี่ยนแล้ว refetch เองตามกลไกเดิม
-  const [sortMode, setSortMode] = useState<InboxSortMode>(initialSort ?? DEFAULT_INBOX_SORT)
+  const [sortMode, setSortMode] = useState<InboxSortMode>(initialSort ?? initialPreference?.sort ?? DEFAULT_INBOX_SORT)
 
   /**
-   * สลับโหมดเรียง — เปลี่ยนหน้าจอก่อน แล้วค่อยบันทึก (00018 ext 2026-09-09)
+   * บันทึกค่าเริ่มต้นทั้งชุด (ปุ่ม "บันทึกเป็นค่าเริ่มต้น" ในแผงตัวกรอง) — 00018 ext รอบสอง
    *
-   * ลำดับนี้จงใจ: `setSortMode` เปลี่ยน `listSignature` ⇒ effect เดิม refetch ให้เองทันที
-   * โดยส่ง `sort` ไปกับ query ด้วย ⇒ ผู้ใช้เห็นผลโดยไม่ต้องรอ PATCH สำเร็จ
+   * 🛑 นี่คือ *จุดเดียว* ที่ค่าตั้งลง DB แล้ว — เดิมการสลับโหมดเรียงบันทึกเองทุกครั้งที่กด
+   * (D-SORT-14) พอย้ายเข้ามาอยู่ในแผงที่เป็นระบบร่าง การบันทึกเงียบ ๆ ทุกคลิกจะขัดกับ
+   * ปุ่มบันทึกที่อยู่ข้างล่างในแผงเดียวกัน — ผู้ใช้จะไม่มีทางรู้ว่าปุ่มนั้นทำอะไรเพิ่ม
    *
-   * 🛑 ถ้ารอ PATCH ก่อนแล้วค่อย refetch จะได้ช่วงที่ "ปุ่มบอกอย่าง รายการเรียงอีกอย่าง" และถ้า
-   * เน็ตหลุด PATCH ล้ม หน้าจอจะโกหกว่าเปลี่ยนแล้วทั้งที่ server ยังเรียงแบบเดิม — จึงแยก
-   * "ผลบนจอ" (ทำทันที) ออกจาก "จำไว้ใช้ครั้งหน้า" (อาจล้มได้) แล้วบอกผู้ใช้เฉพาะส่วนที่ล้มจริง
-   * ด้วยโทน warning ไม่ใช่ error แดง — เพราะสิ่งที่เขาเพิ่งสั่งสำเร็จไปแล้ว
+   * ลำดับ: ผู้เรียก (แผง) apply ร่างไปแล้วก่อนเรียกตัวนี้ ⇒ ที่นี่ทำแค่ยิงบันทึกหลังฉาก
+   * ล้มก็ไม่ย้อนหน้าจอ (สิ่งที่ผู้ใช้เพิ่งสั่งสำเร็จแล้ว) แค่บอกว่าส่วน "จำไว้ครั้งหน้า" พลาด
    */
-  const handleSortChange = async (next: InboxSortMode) => {
-    if (next === sortMode) return
-    setSortMode(next)
+  const saveInboxDefault = async (next: ChatFilterState, page: string, sort: InboxSortMode) => {
     try {
       const res = await fetch('/api/chat/preferences', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inboxSort: next }),
+        body: JSON.stringify({ inboxSort: sort, filter: next, channelTab, pageFilter: page }),
       })
       if (!res.ok) throw new Error(String(res.status))
+      pacesToast.success(t.inbox.sort.saveDefaultSuccess)
     } catch {
-      pacesToast.warning(t.inbox.sort.saveFailed)
+      pacesToast.warning(t.inbox.sort.saveDefaultWarning)
     }
   }
   const groupMenuRef = useRef<HTMLDivElement | null>(null)
@@ -1101,9 +1112,18 @@ export default function InboxList({
               (mockup V1 ที่ user อนุมัติ 2026-07-31) */}
           <InboxFilterPanel
             value={filter}
-            onApply={(next, page) => {
+            sortValue={sortMode}
+            onApply={(next, page, sort) => {
               setFilter(next)
               setPageFilter(page)
+              setSortMode(sort)
+            }}
+            onSaveDefault={(next, page, sort) => {
+              // apply ให้ก่อนเสมอ แล้วค่อยบันทึก — ผู้ใช้ต้องเห็นผลบนจอทันทีที่กด ไม่ใช่รอ network
+              setFilter(next)
+              setPageFilter(page)
+              setSortMode(sort)
+              void saveInboxDefault(next, page, sort)
             }}
             open={openPanel === 'filter'}
             onOpenChange={(o) => setOpenPanel(o ? 'filter' : null)}
@@ -1113,15 +1133,7 @@ export default function InboxList({
             allTags={allTags}
             hasShipping={hasShipping}
           />
-          {/* ตัวเลือกการเรียง — ต่อจากปุ่มตัวกรองในแถวเดียวกัน (ทั้งคู่เป็น "ปุ่มเครื่องมือถาวร"
-              ส่วนชิปด้านล่างเป็น "ผลลัพธ์ของตัวกรอง") แถวนี้ flex-wrap อยู่แล้ว → ที่ 320px
-              โหมดที่ชื่อยาวจะตกบรรทัดใหม่เอง ซึ่งเป็นพฤติกรรมเดิมของแถวนี้ ไม่ใช่ของใหม่ */}
-          <InboxSortDropdown
-            value={sortMode}
-            onChange={handleSortChange}
-            open={openPanel === 'sort'}
-            onOpenChange={(o) => setOpenPanel(o ? 'sort' : null)}
-          />
+
 
           {/* ชิป "พัสดุมีปัญหา" (feature 00022) — ตัวเลขมีความหมายแม้ยังไม่ได้กรอง
               (บอกว่ามีกี่เคสรอจัดการ) ต่างจากตัวกรองอื่นที่ซ่อนในดรอปดาวน์ได้

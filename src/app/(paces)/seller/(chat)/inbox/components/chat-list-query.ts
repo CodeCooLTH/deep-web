@@ -63,6 +63,15 @@ type ChatListQueryOptions = {
    * — ค่านี้กระทบแค่ "ลำดับที่ผู้ใช้เห็นในรายการของตัวเอง" ไม่ใช่ขอบเขตสิทธิ์ จึงรับจาก client ได้
    */
   sort?: 'LAST_MESSAGE' | 'LAST_CUSTOMER_MESSAGE'
+  /**
+   * usePref (00018 ext รอบสอง 2026-09-09) — "ชุดแรก: ใช้ค่าเริ่มต้นที่ผู้ใช้บันทึกไว้"
+   *
+   * มีไว้สำหรับผู้เรียกที่ยังไม่รู้ค่านั้น (Chat Rail เดสก์ท็อป โหลดผ่าน API ไม่ผ่าน SSR)
+   * ⇒ server เป็นคนตอบว่าตัวกรองชุดไหน แล้วส่งค่ากลับมาให้ client sync state ตาม
+   * 🛑 ต้องเป็นพารามิเตอร์ที่ระบุชัด ห้ามเดาจาก "ไม่มี param อื่นเลย" — buildChatListParams
+   * ตัดค่าที่เท่ากับ default ของ backend ทิ้งอยู่แล้ว "ไม่มี param" จึงแปลว่าอะไรก็ได้
+   */
+  usePref?: boolean
 }
 
 /**
@@ -85,6 +94,7 @@ export function buildChatListParams(
   if (opts.q) params.set('q', opts.q)
   // ค่าตั้งต้นไม่ต้องส่ง (backend ตกไปอ่านค่าตั้งของผู้ใช้เอง ซึ่งก็คือค่าเดียวกัน)
   if (opts.sort && opts.sort !== 'LAST_MESSAGE') params.set('sort', opts.sort)
+  if (opts.usePref) params.set('usePref', '1')
   if (filter.status !== 'open') params.set('status', filter.status)
   if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
   if (filter.hidden) params.set('hidden', 'true')

@@ -48,8 +48,13 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveChatScope } from '@/lib/chat-scope'
-import { getInboxSortMode } from '@/services/chat-preference.service'
+import { getInboxPreference } from '@/services/chat-preference.service'
 import { DEFAULT_INBOX_SORT, type InboxSortMode } from '@/lib/inbox-sort'
+import {
+  DEFAULT_INBOX_PREFERENCE,
+  inboxPreferenceToListOptions,
+  type InboxPreference,
+} from '@/lib/inbox-filter-pref'
 import { listConversationsForShops, countUnreadByConversation } from '@/services/chat.service'
 import { listChannelsForShops } from '@/services/shop-channel.service'
 import { listChatGroups } from '@/services/chat-group.service'
@@ -150,17 +155,23 @@ export default async function SellerInboxPage() {
   let nextCursor: string | null = null
   let loadFailed = false
   // 00018 ext 2026-09-09 — ต้องประกาศนอก try เพื่อให้ส่งเป็น prop ตอน render ได้
-  // โหลดรายการล้ม (loadFailed) ก็ยังต้องรู้โหมด ไม่งั้นปุ่มโชว์ค่าตั้งต้นค้างทั้งที่ผู้ใช้ตั้งไว้อีกแบบ
+  // โหลดรายการล้ม (loadFailed) ก็ยังต้องรู้ค่าที่ผู้ใช้ตั้งไว้ ไม่งั้นแผงตัวกรองโชว์ค่าตั้งต้นค้าง
   let inboxSort: InboxSortMode = DEFAULT_INBOX_SORT
+  let inboxPreference: InboxPreference = DEFAULT_INBOX_PREFERENCE
 
   try {
     // status ต้องตรงกับ DEFAULT_CHAT_FILTER ของ InboxList เสมอ — รายการที่เห็นตอนเข้าหน้า
     // ครั้งแรกคือชุดนี้ (client ยังไม่ refetch จนกว่าตัวกรองจะเปลี่ยน) ถ้าไม่ตรงกันจะเกิดอาการ
     // "เธรดที่ปิดงานแล้วหายไปตอนเข้าครั้งแรก แต่กดสลับแท็บไปกลับแล้วโผล่" (user report 2026-07-31)
-    // 00018 ext 2026-09-09 — ลำดับเริ่มต้นต้องเป็นโหมดเดียวกับที่ client จะ refetch ทีหลัง
-    // ไม่งั้นรายการจะสลับลำดับให้เห็นตอนโหลดเสร็จ (เหตุผลเดียวกับ status:'all' ด้านบน)
-    inboxSort = await getInboxSortMode(user.id as string, scope.activeShopId)
-    const result = await listConversationsForShops(shopIds, { take: 20, status: 'all', sort: inboxSort })
+    // 00018 ext 2026-09-09 (รอบสอง) — ชุดแรกต้องตรงกับ "ค่าเริ่มต้นที่ผู้ใช้บันทึกไว้" ไม่ใช่
+    // DEFAULT_CHAT_FILTER คงที่อีกต่อไป · ค่าเดียวกันนี้ถูกส่งลง InboxList เป็น state เริ่มต้นด้วย
+    // ⇒ ทั้งสองฝั่งอ่านจากตัวแปรเดียวกัน ไม่มีทางหลุด sync (invariant ที่เคยพัง 2 รอบ)
+    inboxPreference = await getInboxPreference(user.id as string, scope.activeShopId)
+    inboxSort = inboxPreference.sort
+    const result = await listConversationsForShops(shopIds, {
+      take: 20,
+      ...inboxPreferenceToListOptions(inboxPreference),
+    })
 
     // B1 enrich — batch query identity คู่สนทนา (ดู comment หัวไฟล์)
     // เธรดช่องทางนอก (feature 00018) buyerUserId เป็น null → กรองออกก่อน query
@@ -349,6 +360,7 @@ export default async function SellerInboxPage() {
           initialItems={items}
           initialNextCursor={nextCursor}
           initialSort={inboxSort}
+          initialPreference={inboxPreference}
           channels={channels}
           initialGroups={groups}
           hasShipping={hasShipping}

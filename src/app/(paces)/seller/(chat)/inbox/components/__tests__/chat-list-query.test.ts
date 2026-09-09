@@ -93,3 +93,46 @@ describe('buildChatListParams — โหมดเรียง (00018 ext 2026-09
     expect(a).not.toBe(b)
   })
 })
+
+/**
+ * 00018 ส่วนขยาย 2026-09-09 (รอบสอง) — ค่าเริ่มต้นที่ผู้ใช้บันทึกไว้
+ *
+ * [blocker] invariant ของไฟล์นี้เปลี่ยนความหมายไปแล้ว: "ชุดแรกต้องตรงกับ DEFAULT_CHAT_FILTER"
+ * กลายเป็น "ชุดแรกต้องตรงกับค่าที่ผู้ใช้บันทึกไว้" — ผู้เรียกที่ไม่รู้ค่านั้น (Chat Rail) ต้องขอ
+ * ให้ server ตัดสินด้วย usePref=1 ห้ามเดาเอง อาการเวลาพลาดคือ "เธรดหายตอนเข้าครั้งแรก
+ * แล้วโผล่ตอนสลับแท็บ" ซึ่งเกิดมาแล้ว 2 รอบ (2026-07-31 SSR · 2026-08-01 ChatRail)
+ */
+describe('buildChatListParams — usePref (00018 ext รอบสอง)', () => {
+  it('ไม่ระบุ → ไม่มี param (พฤติกรรมเดิมของผู้เรียกทุกราย)', () => {
+    expect(buildChatListParams(DEFAULT_CHAT_FILTER, {}).get('usePref')).toBeNull()
+  })
+
+  it('[blocker] usePref=true → ส่ง param ออกไปจริง', () => {
+    expect(buildChatListParams(DEFAULT_CHAT_FILTER, { usePref: true }).get('usePref')).toBe('1')
+  })
+})
+
+describe('[blocker] ผู้เรียก InboxList ต้องส่ง initialPreference เสมอ', () => {
+  /**
+   * สแกนซอร์สจริง ไม่ hardcode รายชื่อไฟล์ — ผู้เรียกรายใหม่ในอนาคตต้องถูกจับด้วย
+   * เหตุผลที่ต้องมีด่านนี้: state ตั้งต้นของหน้าจอกับชุดข้อมูลชุดแรกต้องมาจากค่าเดียวกัน
+   * ถ้าใครเพิ่มที่เรียกใหม่แล้วลืม prop นี้ หน้าจอจะไฮไลต์ตัวกรองชุดหนึ่งแต่แสดงรายการของอีกชุด
+   * โดยไม่มี error ใด ๆ (prop เป็น optional โดยเจตนา เพื่อให้ payload เก่าระหว่าง deploy ไม่พัง)
+   */
+  it('ทุกไฟล์ที่ render <InboxList ต้องมี initialPreference ในบล็อกเดียวกัน', async () => {
+    const { execSync } = await import('node:child_process')
+    const files = execSync("grep -rl '<InboxList' src --include=*.tsx || true", { encoding: 'utf8' })
+      .split('\n')
+      .filter(Boolean)
+    expect(files.length).toBeGreaterThan(0)
+    const fs = await import('node:fs')
+    for (const file of files) {
+      const src = fs.readFileSync(file, 'utf8')
+      const start = src.indexOf('<InboxList')
+      const end = src.indexOf('/>', start)
+      expect(src.slice(start, end), `${file} เรียก InboxList โดยไม่ส่ง initialPreference`).toContain(
+        'initialPreference',
+      )
+    }
+  })
+})

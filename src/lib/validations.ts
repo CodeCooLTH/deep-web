@@ -973,6 +973,8 @@ export const ChatConversationsQuerySchema = v.object({
   // ค่านี้กระทบแค่ลำดับที่ผู้ใช้เห็นในรายการของตัวเอง ไม่ใช่ขอบเขตสิทธิ์ จึงรับจาก client ได้
   // ต่างจาก shopId ด้านบนที่ต้องผ่าน intersectScopedShopIds เสมอ
   sort: v.optional(v.picklist(['LAST_MESSAGE', 'LAST_CUSTOMER_MESSAGE'])),
+  // usePref: "ชุดแรก ใช้ค่าเริ่มต้นที่ผู้ใช้บันทึกไว้" (Chat Rail ที่ไม่ผ่าน SSR)
+  usePref: v.optional(v.boolean()),
 });
 
 export const MarkChatReadSchema = v.object({}); // empty body — conversationId มาจาก path param, role derive จาก subdomain/ownership
