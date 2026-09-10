@@ -69,9 +69,45 @@ grep -rln "hidePayments\|shouldHidePayments\|isPaymentRestricted\|isPaidFeatureR
 
 ## หลังแก้เสร็จ
 
-- **เทสแดงเป็นร้อยพร้อมกัน = ฐานข้อมูลล่ม ไม่ใช่โค้ดพัง** — Docker Desktop ปิดตัวเองบ่อย
-  ดูที่ข้อความ `PrismaClientInitializationError` ⇒ `docker start deepweb-pg17` แล้วรันใหม่
-  (ชื่อ container คือ `deepweb-pg17` ไม่ใช่ `deepweb-db` ที่ exited ค้างไว้)
+### 🛑 เทสแดงเป็นร้อยพร้อมกัน = ต่อฐานข้อมูลไม่ติด ไม่ใช่โค้ดพัง
+
+**อย่าเพิ่งอ่านชื่อเทสที่แดง** — ไปดูสาเหตุที่ต้นทางก่อนเสมอ:
+
+```bash
+# เก็บ log เต็มลงไฟล์ (ห้าม tail ทิ้ง — ดูข้อถัดไปว่าทำไม)
+... npx vitest run src/ tests/ > /tmp/vitest.log 2>&1
+grep -ciE "PrismaClientInitializationError" /tmp/vitest.log     # ต่อฐานไม่ติด?
+grep -iE "Authentication failed|Can't reach" /tmp/vitest.log | head -3   # ไม่ติดเพราะอะไร
+```
+
+มี **2 อาการที่หน้าตาเหมือนกันเป๊ะ** แต่คนละเหตุ:
+
+| อาการ | เหตุ | แก้ |
+|---|---|---|
+| `Can't reach database server` | Docker Desktop ปิดตัวเอง | `docker start deepweb-pg17` (ชื่อนี้ ไม่ใช่ `deepweb-db` ที่ exited ค้างไว้) |
+| `Authentication failed ... for` **`postgres`** | **ใส่ user/password ผิด** container ขึ้นอยู่ปกติ | user/pass/db = **`safepay`** ทั้งสามค่า พอร์ต 5434 |
+
+🛑 **`postgres:postgres` เป็นค่าที่คนเดาแล้วผิด** (เกิดจริง 2026-09-10 — เสียเวลาไล่ 141 เทส
+ที่ไม่ได้พังสักตัว) เอาค่าจริงจาก container เสมอ ห้ามเดา:
+
+```bash
+docker inspect deepweb-pg17 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep ^POSTGRES
+```
+
+⚠️ `.env` ชี้ **Supabase (prod)** ⇒ ต้อง override `DATABASE_URL`/`DIRECT_URL` เป็น localhost ทุกครั้ง
+ไม่งั้น `tests/setup.ts` fail-closed จะ **ข้ามเทสที่แตะฐานทั้งหมดเงียบ ๆ** แล้วขึ้นเขียวหลอก
+(ดู memory `deep-web-local-test-run` · Hard Rule 14 บังคับว่าต้องพิมพ์ localhost ตรง ๆ ห้าม `$(...)`)
+
+### 🛑 อย่าตัดผลลัพธ์ทิ้งก่อนอ่าน
+
+`| tail -8` ให้แค่บรรทัดสรุป — สาเหตุจริงอยู่ต้น log **ผมเคย grep ไฟล์ที่ตัดแล้วได้ 0
+แล้วสรุปผิดว่า "ไม่ใช่ปัญหาฐานข้อมูล"** ทั้งที่ในไฟล์เต็มมี 110 บรรทัด · เขียนลงไฟล์แล้วค่อย grep
+
+### อื่น ๆ
+
 - `npx prisma generate` ก่อน `tsc` เสมอถ้าเพิ่ง pull main (client เก่าทำให้เห็น error ที่ไม่มีจริง)
-- รันชุดเทสเต็มด้วยคำสั่งที่ override DB + storage (ดู memory `deep-web-local-test-run`)
+- 🛑 **`.claude/` อยู่ใน `.gitignore`** — สกิล/เอเจนต์ใหม่ต้อง `git add -f` ไม่งั้น commit ผ่านไป
+  โดยไม่มีไฟล์นั้น (`git show --stat` ยืนยันจำนวนไฟล์ทุกครั้งที่คอมมิตเมสเสจอ้างถึงไฟล์ใน `.claude/`)
+- ก่อน push: `node` อาจไม่อยู่ใน PATH ของ shell ที่รันเบื้องหลัง ⇒
+  `export PATH="$HOME/.nvm/versions/node/v22.22.3/bin:$PATH"`
 - แตะเทส `[blocker]` เมื่อไร PR ต้องติดป้าย **แตะด่าน** ไม่งั้นด่าน 0 แดง
