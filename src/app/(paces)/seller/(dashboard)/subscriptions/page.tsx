@@ -179,7 +179,10 @@ export default async function SubscriptionsPage() {
    *
    * redirect ไป /dashboard ไม่ใช่ 404 — ผู้ใช้ที่กดลิงก์เก่าค้างมาจะได้ไปที่ที่ใช้งานต่อได้
    */
-  if (await shouldHidePayments()) redirect('/dashboard')
+  /* 🛑 feature 00064 — เด้งไปหน้าซื้อผ่าน Apple ไม่ใช่ `/dashboard`
+     เด้งกลับหน้าแรกคือบั๊กที่หัวหน้าเจอบน TestFlight (2026-08-19): กดเมนูแล้วเงียบ
+     ไม่มีคำอธิบาย ซึ่ง "แย่กว่าไม่มีเมนู" · ตอนนี้มีปลายทางที่ถูกกฎแล้วจึงพาไปที่นั่น */
+  if (await shouldHidePayments()) redirect('/business/subscribe')
 
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
