@@ -10,12 +10,15 @@
  *   เว็บ → แอป : `ReactNativeWebView.postMessage(JSON)` · แอปกรองด้วย allow-list ตาม `type`
  *   แอป → เว็บ : ตั้งค่าลง `window` แล้วยิง event
  */
-import { IAP_RESULT_EVENT } from '@/lib/iap-bridge-protocol'
+import { IAP_RECOVERED_EVENT, IAP_RESULT_EVENT, parseIapRecovered } from '@/lib/iap-bridge-protocol'
+import type { IapPurchase } from '@/lib/iap-bridge-protocol'
 import type { IapTransport } from '@/lib/iap-client'
 
 type IapWindow = Window & {
   /** native ฝากคำตอบล่าสุดไว้ที่นี่ก่อนยิง event */
   __DEEP_IAP_RESULT__?: unknown
+  /** ธุรกรรมที่ไม่มีใครขอ — **ช่องแยก** ดูเหตุผลใน iap-bridge-protocol */
+  __DEEP_IAP_RECOVERED__?: unknown
   ReactNativeWebView?: { postMessage: (msg: string) => void }
 }
 
@@ -46,4 +49,28 @@ export function createWindowIapTransport(win: Window | undefined): IapTransport 
       return () => w.removeEventListener(IAP_RESULT_EVENT, handler)
     },
   }
+}
+
+/**
+ * ฟังธุรกรรมที่ native ส่งมาเองโดยไม่มีใครขอ — คืนฟังก์ชันเลิกฟัง
+ *
+ * คืน `null` เมื่อไม่ได้อยู่ในแอป ⇒ ตัวเรียกไม่ต้องแขวนอะไรเลยบนเบราว์เซอร์ปกติ
+ *
+ * 🛑 อ่านค่าตอน event ยิง ไม่ใช่ตอน subscribe — เหตุผลเดียวกับช่องคำตอบด้านบน
+ * 🛑 ของที่รูปร่างไม่ผ่านถูกทิ้งเงียบ ๆ ที่นี่ ไม่ส่งต่อ — ตัวเรียกจะได้ไม่ต้องรู้จัก `null`
+ */
+export function subscribeIapRecovered(
+  win: Window | undefined,
+  onItems: (items: IapPurchase[]) => void,
+): (() => void) | null {
+  const w = win as IapWindow | undefined
+  if (!w?.ReactNativeWebView) return null
+
+  const handler = () => {
+    const items = parseIapRecovered(w.__DEEP_IAP_RECOVERED__)
+    /* `[]` = ไม่มีของค้าง (ปกติมาก) · `null` = รูปร่างพัง ⇒ ทั้งสองกรณีไม่ต้องปลุกใคร */
+    if (items && items.length > 0) onItems(items)
+  }
+  w.addEventListener(IAP_RECOVERED_EVENT, handler)
+  return () => w.removeEventListener(IAP_RECOVERED_EVENT, handler)
 }

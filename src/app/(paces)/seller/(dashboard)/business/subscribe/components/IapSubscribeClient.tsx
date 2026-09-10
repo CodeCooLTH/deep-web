@@ -33,6 +33,7 @@ import { TIER_ORDER, type BusinessPackageTier } from '@/lib/business-package'
 import { tierFromAppleProductId } from '@/lib/apple/product-ids'
 import { createIapClient } from '@/lib/iap-client'
 import { iapFailureMessage, IAP_VERIFY_PENDING_MESSAGE } from '@/lib/iap-failure-message'
+import { decideVerifyOutcome } from '@/lib/iap-verify-outcome'
 import { createWindowIapTransport } from '@/lib/iap-transport'
 import { resolveAppPurchaseView, type IapProductsState } from '@/lib/iap-purchase-view'
 import type { IapFailure, IapProduct, IapPurchase } from '@/lib/iap-bridge-protocol'
@@ -90,18 +91,10 @@ export default function IapSubscribeClient({ subscription, mainSiteOrigin }: Pro
         return false
       }
 
-      if (!res.ok) {
-        /* 5xx = ฝั่งเราเพี้ยน ลองใหม่ได้ → ไม่ปิด
-           4xx = ใบนี้ใช้ไม่ได้จริง ลองกี่ครั้งก็เท่าเดิม → ปิดทิ้ง ไม่งั้นจะเด้ง error
-                 ใส่หน้าผู้ใช้ทุกครั้งที่เปิดแอปตลอดไป */
-        if (res.status < 500) {
-          client.finish(item.transactionId)
-        }
-        return false
-      }
-
-      client.finish(item.transactionId)
-      return true
+      /* กติกา "ปิดหรือไม่ปิด" อยู่ที่เดียวทั้งระบบ — ตัวกู้คืนอัตโนมัติใช้ตัวเดียวกันนี้ */
+      const outcome = decideVerifyOutcome({ status: res.status })
+      if (outcome.shouldFinish) client.finish(item.transactionId)
+      return outcome.granted
     },
     [client],
   )
