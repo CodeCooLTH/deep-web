@@ -53,6 +53,7 @@ import { resolveChatScope } from '@/lib/chat-scope'
 import { ThreadShopProvider } from '../../_components/DraftOrderProvider'
 import { getWindowState, syncInboundWindowFromMeta, canUseHumanAgent } from '@/services/channel-chat.service'
 // เกณฑ์ "ต้องถาม Meta ไหม" = ฟังก์ชันบริสุทธิ์ที่มีเทส [blocker] คุม — ห้ามเขียน if เองที่นี่
+import { after } from 'next/server'
 import { shouldAskMetaForInboundWindow } from '@/lib/inbound-window-sync'
 // (S-14b, feature 00025) หน้าต่างตอบฟรี + โควตาของ LINE — คำนวณฝั่ง server แล้วส่งเป็นตัวเลข/boolean
 // ล้วนลง prop (เหมือน windowState/tokenInvalid เดิม) ไม่ให้ service หลุดเข้า client bundle
@@ -340,7 +341,21 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
    * ที่จ่ายทุกครั้งของ 91% ของการเปิดห้อง
    */
   if (shouldAskMetaForInboundWindow({ channel: conversation.channel, lastInboundAt: effectiveLastInbound })) {
-    effectiveLastInbound = await syncInboundWindowFromMeta(conversation.id)
+    /**
+     * 🛑 ยิงแต่ **ไม่ await** (user เสนอเอง 2026-09-10: "เข้าไปเปิดก่อนแล้วค่อยยิง")
+     *
+     * แพตเทิร์นเดียวกับ `after(syncMissingMessagesFromMeta(id))` ที่
+     * `api/chat/conversations/[id]/messages/route.ts:291` ใช้อยู่แล้วในโดเมนเดียวกัน —
+     * `after()` รันหลังส่ง response แล้ว ⇒ **การเปิดห้องไม่ต้องรอ Meta อีกต่อไปเลยสักกรณีเดียว**
+     *
+     * แลกไปข้อเดียว: ครั้งแรกที่เปิดเธรดกลุ่มนี้ (487 เธรด · 5.2%) แถบสถานะยังบอกตามข้อมูลที่เรามี
+     * คือ "ลูกค้ายังไม่เคยทักเข้ามา" ซึ่ง **เป็นความจริงของข้อมูลเราจริง ๆ ไม่ใช่คำโกหก** แล้ว
+     * `syncInboundWindowFromMeta` จะ persist ค่าที่ถูกลง DB ให้ ⇒ เปิดครั้งถัดไปถูกต้อง
+     * และไม่มีอะไรถูกบล็อกระหว่างนั้น (ช่องพิมพ์เลิกล็อกตามหน้าต่างเวลาตั้งแต่ 2026-08-03)
+     *
+     * ห้ามใส่ `await` กลับเข้าไป — 680ms ที่หายไปคือทั้งหมดของปัญหา "เข้าห้องต้องโหลดตลอด"
+     */
+    after(syncInboundWindowFromMeta(conversation.id))
   }
   // 🛑 เฟสนี้ยิง Graph ของ Meta เมื่อหน้าต่าง 24 ชม. ปิด — บน prod **92.1% ของเธรด Messenger
   // (2,438/2,647) หน้าต่างปิดแล้ว** จึงเป็นเฟสที่คาดว่าจะแพงที่สุดสำหรับเธรดส่วนใหญ่

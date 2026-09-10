@@ -37,5 +37,11 @@ describe('[blocker] ถาม Meta หาเวลาที่ลูกค้า
     expect(code).toMatch(/shouldAskMetaForInboundWindow\(\{/)
     // ห้ามกลับไปใช้ "หน้าต่างดูปิด" เป็นเกณฑ์ยิง Meta อีก
     expect(code).not.toMatch(/!getWindowState\([^)]*\)\.open[\s\S]{0,80}syncInboundWindowFromMeta/)
+    /**
+     * 🛑 ห้าม await — Graph call นี้ median 680ms และเคยเป็นทั้งหมดของอาการ "เข้าห้องต้องโหลดตลอด"
+     * ต้องยิงผ่าน `after()` ให้รันหลังส่ง response (แพตเทิร์นเดียวกับ messages/route.ts:291)
+     */
+    expect(code).toMatch(/after\(syncInboundWindowFromMeta\(/)
+    expect(code).not.toMatch(/await syncInboundWindowFromMeta\(/)
   })
 })
