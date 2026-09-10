@@ -27,6 +27,8 @@ import {
   oversizeMessage,
   type AttachmentKind,
 } from '@/lib/chat-attachment'
+// type-only — ถูกลบตอน compile จึงไม่ลาก prisma เข้ามาใน client bundle
+import type { AiAnswerContext } from '@/services/chat.service'
 import { uploadToStorage } from '@/lib/upload-client'
 
 // chat-attachment.ts เป็น pure module จึง import ฝั่ง client ได้ (ต่างจาก '@/lib/storage' ที่ barrel
@@ -196,7 +198,14 @@ export type ChatMessageView = {
   autoReply?: {
     // "CHATBOT" = AI แต่งจากคลังความรู้ (ป้าย DeepAI) · อื่น ๆ/null = คำตอบสำเร็จรูป (DeepBot)
     matchedVia: string | null
-    aiContext?: Record<string, unknown> | null
+    /**
+     * ใช้ `AiAnswerContext` ตัวเดียวกับฝั่งเซิร์ฟเวอร์ (2026-09-10) — เดิมประกาศเป็น
+     * `Record<string, unknown>` ซึ่งดู "กว้างกว่า" แต่ **interface ที่ไม่มี index signature
+     * assign เข้า Record ไม่ได้** ⇒ พอหน้าเธรด (RSC) เริ่มส่งข้อความชุดแรกมาให้ตรง ๆ ชนิดจึงชนกัน
+     * ผูกกับนิยามเดียวดีกว่าปิดตาด้วย cast (HR16 + docs/conventions/session-exists-is-not-identity.md
+     * ว่าด้วย "cast คือสิ่งที่ปิดตา ไม่ใช่ตัวช่วย")
+     */
+    aiContext?: AiAnswerContext | null
     keywordName: string | null
     matchedPhrase: string | null
     matchType: string | null
@@ -338,8 +347,31 @@ export function groupByDate(messages: ChatMessageView[]) {
 // throttle 1.2s ไม่พอเมื่อ fetch latency ต่างกัน. deterministic fix: ให้ InboxList เป็นเจ้าของ beep
 // หน้า inbox (mount อยู่เสมอ) แล้ว ChatThread ปิด beep (beepEnabled=false); SellerChatWidget บนหน้า
 // dashboard ไม่มี list → คงเปิด beep (default true)
-export function useSellerChatThread(conversationId: string, shopId?: string | null, beepEnabled = true) {
-  const [messages, setMessages] = useState<ChatMessageView[]>([])
+/**
+ * ข้อความชุดแรกที่เซิร์ฟเวอร์ส่งมาให้พร้อมหน้า (2026-09-10)
+ *
+ * 🛑 มีเพื่อ **ตัดการไป-กลับเซิร์ฟเวอร์รอบที่สองตอนเปิดห้อง** — เดิม hook เริ่มด้วยรายการว่าง
+ * + `loadingInitial=true` แล้วยิง `GET …?take=30` เองตอน mount ⇒ ผู้ใช้เห็นสเกเลตัน 2 ช่วงซ้อน
+ * (ช่วงแรกของ route, ช่วงที่สองของ hook นี้) แม้ RSC จะเร็วแค่ไหนก็ตาม
+ *
+ * รูปร่างต้องตรงกับ response ของ `GET /api/chat/conversations/[id]/messages` เป๊ะ เพราะหน้า RSC
+ * เรียก `getThreadMessagesPage()` ตัวเดียวกับที่ route เรียก (HR16 — ห้ามมีสองทางประกอบข้อความ)
+ */
+export type InitialThreadMessages = {
+  /** เรียงใหม่→เก่า เหมือน API (hook กลับด้านให้เองตอน seed) */
+  items: ChatMessageView[]
+  nextCursor: string | null
+  externalReadAt: string | null
+  externalDeliveredAt: string | null
+}
+
+export function useSellerChatThread(
+  conversationId: string,
+  shopId?: string | null,
+  beepEnabled = true,
+  initial?: InitialThreadMessages | null,
+) {
+  const [messages, setMessages] = useState<ChatMessageView[]>(initial ? [...initial.items].reverse() : [])
   /**
    * กระจกของ `messages` ที่อ่านได้ทันทีใน event handler — ไม่ใช่ของประดับ
    *
@@ -359,10 +391,18 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
   const me = _session?.user as { displayName?: string; avatar?: string | null } | undefined
   const optimisticSender = me?.displayName ? { name: me.displayName, avatar: me.avatar ?? null } : null
 
-  const [oldestCursor, setOldestCursor] = useState<string | null>(null)
-  const [loadingInitial, setLoadingInitial] = useState(true)
-  const [externalReadAt, setExternalReadAt] = useState<string | null>(null)
-  const [externalDeliveredAt, setExternalDeliveredAt] = useState<string | null>(null)
+  const [oldestCursor, setOldestCursor] = useState<string | null>(initial?.nextCursor ?? null)
+  // มีข้อความมาพร้อมหน้าแล้ว = ไม่มีอะไรต้อง "โหลด" ⇒ สเกเลตันของ ChatThread ไม่ต้องโผล่เลย
+  const [loadingInitial, setLoadingInitial] = useState(!initial)
+  const [externalReadAt, setExternalReadAt] = useState<string | null>(initial?.externalReadAt ?? null)
+  const [externalDeliveredAt, setExternalDeliveredAt] = useState<string | null>(initial?.externalDeliveredAt ?? null)
+  /**
+   * เธรดที่ถูก seed ด้วยข้อมูลจากเซิร์ฟเวอร์ไปแล้ว — **ใช้ได้ครั้งเดียว**
+   *
+   * 🛑 ต้องผูกกับ `conversationId` ไม่ใช่ boolean เปล่า: ถ้า React reuse instance เดิมตอนสลับห้อง
+   * (prop เปลี่ยนแต่ไม่ remount) ข้อมูลที่ seed ไว้เป็นของห้องเก่า ⇒ ต้องยอมให้ effect ยิงโหลดจริง
+   */
+  const seededForRef = useRef<string | null>(initial ? conversationId : null)
   /**
    * บับเบิลคลุมเครือที่รอเทียบกับแถวจริง (2026-08-05) — เน็ตหลุดหลังกดส่งกริด ไม่รู้ว่า server
    * ส่งออกไปแล้วแค่ไหน. refetch รอบถัดไปจะจับคู่บับเบิลในชุดนี้กับแถวจริงด้วย fileId (unique ต่อ
@@ -452,6 +492,16 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
   useEffect(() => {
     let cancelled = false
     didInitialScrollRef.current = false // เปลี่ยนเธรด → ให้เลื่อนลงล่างสุดใหม่อีกรอบ
+    // เซิร์ฟเวอร์ส่งข้อความชุดแรกมาพร้อมหน้าแล้ว → ข้ามการยิงซ้ำ แต่ยัง mark-read + เลื่อนลงล่างสุด
+    // เหมือนเดิมทุกประการ (สองอย่างนั้นไม่ใช่ผลพลอยได้ของการ fetch — มันคือพฤติกรรมของ "เปิดห้อง")
+    if (seededForRef.current === conversationId) {
+      seededForRef.current = null
+      scrollToBottom()
+      fetch(`/api/chat/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {})
+      return () => {
+        cancelled = true
+      }
+    }
     async function loadInitial() {
       setLoadingInitial(true)
       try {

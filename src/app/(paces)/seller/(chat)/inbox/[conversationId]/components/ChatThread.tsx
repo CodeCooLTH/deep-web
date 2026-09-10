@@ -117,13 +117,13 @@ import Swal from 'sweetalert2'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import {
-  useSellerChatThread,
+import { useSellerChatThread,
   groupByDate,
   pendingKind,
   type ChatProductCard,
   type ChatOrderCard,
   type ChatMessageView,
+  type InitialThreadMessages,
 } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
 import { attachmentDisplayName, formatAttachmentSize } from '@/lib/chat-attachment'
 import { resolveOrderVocab } from '@/lib/seller-menu'
@@ -860,6 +860,11 @@ type Props = {
   /** feature 00048 — fileId ที่อยู่ในคลังของลูกค้ารายนี้แล้ว (server query ครั้งเดียวตอน render หน้า)
    *  ใช้สลับ label/ไอคอนของ action "เก็บเข้าคลัง" ทั้ง 3 ทางเข้าให้ตรงกัน */
   savedFileIds: string[]
+  /**
+   * ข้อความ 30 ใบแรกที่ RSC ดึงมาให้พร้อมหน้า (2026-09-10) — ตัดการไป-กลับเซิร์ฟเวอร์รอบที่สอง
+   * ตอนเปิดห้อง ⇒ สเกเลตันของเธรดไม่ต้องโผล่เลย. null = ผู้เรียกที่ยังไม่ส่งมา (ได้พฤติกรรมเดิม)
+   */
+  initialMessages?: InitialThreadMessages | null
 }
 
 // feature 00018 — ดู comment หัวไฟล์ (badge "ส่งไม่สำเร็จ")
@@ -1228,6 +1233,7 @@ export default function ChatThread({
   humanAgentExpiresAt = null,
   customerPanelData,
   savedFileIds,
+  initialMessages,
 }: Props) {
   const t = useT()
   const { data: session } = useSession()
@@ -1567,7 +1573,7 @@ export default function ChatThread({
     // LINE โควตาข้อความรายเดือนหมด (2026-08-10) — session-scoped, ดู comment ที่ useSellerChatThread
     quotaExceeded,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
-  } = useSellerChatThread(conversationId, shopId, false)
+  } = useSellerChatThread(conversationId, shopId, false, initialMessages)
 
   // ── แตะกล่อง quote แล้วเลื่อนไปหาข้อความต้นทาง (user report 2026-08-11) ──────────────
   //

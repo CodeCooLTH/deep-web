@@ -380,6 +380,10 @@ export default async function SellerInboxPage() {
           chatMuted={chatMuted}
           hasAnyChannel={hasAnyChannel}
           railMode
+          // persistScroll: รายการเต็มจอบนมือถือ = ตัวเดียวที่ **unmount จริง** ตอนเปิดห้องแชท
+          // ⇒ ต้องจำตำแหน่ง/แถวที่โหลดไว้เอง (ดู prop นี้ใน InboxList) — rail เดสก์ท็อปอยู่ระดับ
+          // layout ไม่เคย unmount จึงไม่ต้อง และถ้าเปิดด้วยจะเขียนทับ snapshot ของอีกตัว
+          persistScroll
         />
       </div>
       {/* bug fix: ≥1024px ต้องเป็น 3 คอลัมน์ตั้งแต่หน้าแรก [rail][กลาง][ขวา] — เดิมมีแค่ 2

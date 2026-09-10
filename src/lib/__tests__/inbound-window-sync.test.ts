@@ -45,3 +45,34 @@ describe('[blocker] ถาม Meta หาเวลาที่ลูกค้า
     expect(code).not.toMatch(/await syncInboundWindowFromMeta\(/)
   })
 })
+
+/**
+ * [blocker] — ตัวจำตำแหน่งรายการแชทต้องผูกกับ prop ของตัวเอง ห้ามเดาจาก `railMode`
+ *
+ * 🛑 รอบแรก (2026-09-10) กันด้วย `!railMode` โดยเข้าใจว่ามันแปลว่า "รายการฝั่ง rail" — ผิด:
+ * คอมเมนต์ที่ inbox/page.tsx เขียนไว้เองว่าความหมายเปลี่ยนเป็น "ค้นหาอยู่ที่ header" แล้ว
+ * และหน้า /inbox ก็ส่ง `railMode` มาด้วย ⇒ **ตัวจำตำแหน่งไม่เคยทำงานเลยสักครั้ง** โดยไม่มี
+ * อะไรฟ้อง (tsc/build/เทสผ่านหมด — มันแค่เงียบ) user ต้องเป็นคนบอกว่ายังเด้งกลับบนสุดเหมือนเดิม
+ */
+describe('[blocker] เงื่อนไขเปิดตัวจำตำแหน่งรายการแชท', () => {
+  const strip = (src: string) =>
+    src
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
+      .join('\n')
+
+  it('ใช้ persistScroll ไม่ใช่ railMode', async () => {
+    const fs = await import('fs')
+    const code = strip(
+      fs.readFileSync('src/app/(paces)/seller/(chat)/inbox/components/InboxList.tsx', 'utf8'),
+    )
+    expect(code).toMatch(/const restoreEnabled = persistScroll/)
+    expect(code).not.toMatch(/const restoreEnabled = !railMode/)
+  })
+
+  it('หน้ารายการเต็มจอ (มือถือ) ส่ง persistScroll มาจริง', async () => {
+    const fs = await import('fs')
+    const code = strip(fs.readFileSync('src/app/(paces)/seller/(chat)/inbox/page.tsx', 'utf8'))
+    expect(code).toMatch(/persistScroll/)
+  })
+})

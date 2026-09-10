@@ -55,6 +55,7 @@ import { getWindowState, syncInboundWindowFromMeta, canUseHumanAgent } from '@/s
 // เกณฑ์ "ต้องถาม Meta ไหม" = ฟังก์ชันบริสุทธิ์ที่มีเทส [blocker] คุม — ห้ามเขียน if เองที่นี่
 import { after } from 'next/server'
 import { shouldAskMetaForInboundWindow } from '@/lib/inbound-window-sync'
+import { getThreadMessagesPage } from '@/services/chat-thread-messages.service'
 // (S-14b, feature 00025) หน้าต่างตอบฟรี + โควตาของ LINE — คำนวณฝั่ง server แล้วส่งเป็นตัวเลข/boolean
 // ล้วนลง prop (เหมือน windowState/tokenInvalid เดิม) ไม่ให้ service หลุดเข้า client bundle
 import { getLineReplyWindowState } from '@/lib/line/reply-window'
@@ -671,6 +672,26 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     orders: panelOrders,
   }
 
+  /**
+   * ข้อความ 30 ใบแรก — ดึงที่ server แล้วส่งไปกับหน้า (2026-09-10)
+   *
+   * 🛑 นี่คือขั้นที่ทำให้ "เปิดห้องแล้วไม่เห็น loading" เป็นจริง: เดิม `ChatThread` เริ่มด้วย
+   * รายการว่างแล้วยิง `GET …?take=30` เองตอน mount ⇒ เปิดห้อง 1 ครั้ง = ไป-กลับเซิร์ฟเวอร์
+   * **2 รอบเรียงกัน** และเห็นสเกเลตัน 2 ช่วงซ้อน. พอส่งมากับหน้า ข้อความจะถูก `prefetch`
+   * มาพร้อม RSC payload ตั้งแต่ก่อนผู้ใช้กด ⇒ กดแล้วขึ้นทันที
+   *
+   * เรียก `getThreadMessagesPage()` **ตัวเดียวกับที่ GET route เรียก** — ห้ามประกอบข้อความเองที่นี่
+   * (HR16) ไม่งั้นชุดแรกกับชุดที่ poll มาทีหลังจะหน้าตาไม่ตรงกัน
+   *
+   * ล้มแล้วต้องไม่ทำให้เปิดห้องไม่ได้ — คืน null แล้วปล่อยให้ ChatThread ยิงเองเหมือนเดิม
+   */
+  const initialMessages = await getThreadMessagesPage({
+    conversationId: conversation.id,
+    userId: user.id as string,
+    take: 30,
+  }).catch(() => null)
+  mark('initialMessages')
+
   mark('savedFileIds')
 
   return (
@@ -752,6 +773,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         commentOrigin={commentOrigin}
         customerPanelData={customerPanelData}
         savedFileIds={savedFileIds}
+        initialMessages={initialMessages}
       />
       {/* bug fix 2026-08-01 (user report: iPad Pro เพี้ยน): เดิม `lg:block` = โผล่ที่ 1024px พร้อมกับ
           rail (384px) ทำให้สองข้างกิน 768px เหลือคอลัมน์แชทแค่ 256px — ข้อความตัดบรรทัดทุก 3-4 คำ

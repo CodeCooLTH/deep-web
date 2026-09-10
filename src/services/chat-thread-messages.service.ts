@@ -327,6 +327,16 @@ export async function getThreadMessagesPage(params: {
 
     const items = result.items.map((m) => ({
       ...m,
+      /**
+       * 🛑 แปลง Date → ISO string ที่นี่ ไม่ใช่ปล่อยให้ `NextResponse.json` แปลงให้
+       *
+       * ตั้งแต่หน้าเธรด (RSC) เรียกฟังก์ชันนี้ตรง ๆ (2026-09-10) ผลลัพธ์ต้อง **serializable
+       * ข้ามเส้น RSC ได้เอง** ไม่งั้น Date จะไหลไปถึง client component ซึ่งชนิดไม่ตรงกับ
+       * `ChatMessageView.createdAt` ที่ฝั่ง client ประกาศเป็น string
+       *
+       * ฝั่ง API ไม่เปลี่ยนพฤติกรรมเลย — `JSON.stringify(new Date())` ให้สตริงชุดเดียวกันเป๊ะ
+       */
+      createdAt: m.createdAt.toISOString(),
       // ลูกค้าแก้ข้อความนี้ทีหลังหรือเปล่า (message_edits, 2026-08-03) — ร่องรอยเก็บใน rawMessage.edit
       // ไม่ได้เพิ่มคอลัมน์ (ดู ingestMessageEdit); UI ใช้ขึ้นป้าย "แก้ไขแล้ว" ท้ายบับเบิล
       edited: !!(m as { rawMessage?: { edit?: unknown } | null }).rawMessage?.edit,

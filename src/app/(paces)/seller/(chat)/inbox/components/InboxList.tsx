@@ -306,6 +306,18 @@ type Props = {
   /** true = เรียกจาก Chat Rail (desktop, feat 00018) — ช่องค้นหาอยู่ topbar แล้ว ไม่ render ในตัว
    *  ไม่ระบุ/false = มือถือ/แท็บเล็ต drill-down list (inbox/page.tsx) — พฤติกรรมเดิมทุกประการ */
   railMode?: boolean
+  /**
+   * จำตำแหน่ง/แถวที่โหลดไว้ ข้ามการเปิด-ปิดห้องแชทไหม (2026-09-10)
+   *
+   * 🛑 ต้องเป็น prop ของตัวเอง **ห้ามเดาจาก `railMode`** — ชื่อนั้นไม่ได้แปลว่า "รายการฝั่ง rail"
+   * อีกต่อไปแล้ว คอมเมนต์ที่ `inbox/page.tsx` เขียนไว้เองว่าความหมายเปลี่ยนเป็น "ค้นหาอยู่ที่
+   * header" และ **หน้า /inbox ก็ส่ง `railMode` มาด้วย** ⇒ รอบแรกที่กันด้วย `!railMode`
+   * ตัวจำตำแหน่งจึงไม่เคยทำงานเลยสักครั้ง (user รายงาน 2026-09-10 ว่ายังเด้งกลับบนสุดเหมือนเดิม)
+   *
+   * เปิดเฉพาะรายการเต็มจอที่ **unmount จริงตอนเปิดห้อง** (มือถือ) — rail เดสก์ท็อปอยู่ระดับ layout
+   * ไม่เคย unmount จึงไม่ต้องจำ และถ้าเปิดด้วยจะเขียนทับ snapshot ของอีกตัว (คนละกล่อง scroll)
+   */
+  persistScroll?: boolean
   /** true = มีแท็บ ข้อความ|ความคิดเห็น เป็น sticky อยู่เหนือขึ้นไปในกล่อง scroll เดียวกัน (มือถือ)
    *  → หัวรายการต้องเกาะใต้แท็บแทนที่จะเกาะขอบบน ไม่งั้นทับกัน. Chat Rail ไม่ต้องใช้ เพราะที่นั่น
    *  แท็บอยู่นอกกล่อง scroll ไปแล้ว (ChatRail.tsx) */
@@ -342,6 +354,7 @@ export default function InboxList({
   initialGroups = [],
   hasShipping = false,
   railMode = false,
+  persistScroll = false,
   tabsAbove = false,
   shopIds = [],
   unified = false,
@@ -526,7 +539,7 @@ export default function InboxList({
    * และถ้าเปิดด้วยจะเขียนทับ snapshot ของมือถือมั่วไปหมด (คนละกล่อง scroll กัน)
    * เหตุผลว่าทำไมต้องจำ items ด้วย ไม่ใช่แค่ scrollTop → ดูหัวไฟล์ inbox-scroll-restore.ts
    */
-  const restoreEnabled = !railMode
+  const restoreEnabled = persistScroll
   const scrollTopRef = useRef(0)
   /** ตำแหน่งที่รอคืน — null = ไม่มีอะไรค้าง (ตั้งครั้งเดียวตอน mount) */
   const pendingRestoreRef = useRef<number | null>(null)
