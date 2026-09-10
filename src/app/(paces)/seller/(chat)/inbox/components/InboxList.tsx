@@ -2037,7 +2037,18 @@ export default function InboxList({
                           <span
                             role="img"
                             aria-label={`${t.inbox.agentsLabel}: ${c.threadAgents.map((a) => a.name).join(', ')}`}
-                            className="group/agents relative flex items-center -space-x-1.5"
+                            /**
+                             * me-0.5 = ชดเชยความหนา `ring-2` ที่ **วาดนอกกล่อง**
+                             *
+                             * คอลัมน์นี้เป็น `items-end` ซึ่งจัด "ขอบกล่อง" ให้ตรงกัน แต่วงแหวน
+                             * ไม่ได้อยู่ในกล่อง ⇒ ขอบที่ตาเห็นล้ำไปขวากว่าเวลา/ตัวนับ 2px เสมอ
+                             * ไม่ว่าจะจัดวางยังไง (user ทักเรื่องนี้ 3 รอบ — 2 รอบแรกผมไล่แก้
+                             * ด้วย absolute + คำนวณ end ซึ่งผิดวิธีตั้งแต่ต้น)
+                             *
+                             * 🛑 ห้ามถอด `items-end` ของคอลัมน์เพื่อแก้เรื่องนี้ — นั่นคือตัวที่
+                             * ทำให้เวลา/ตัวนับ/ชิปชิดขวาพร้อมกัน ถอดแล้วทุกตัวเลื่อนไปชิดซ้าย
+                             */
+                            className="group/agents relative me-0.5 flex items-center -space-x-1.5"
                           >
                             {c.threadAgents.slice(0, THREAD_AGENT_STACK_MAX).map((a) => (
                               <span
