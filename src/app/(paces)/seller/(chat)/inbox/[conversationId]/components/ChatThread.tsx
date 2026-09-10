@@ -3826,7 +3826,24 @@ export default function ChatThread({
                                       },
                                     })
                                   }
-                                  className="hover:bg-danger/10 -my-3.5 flex min-h-11 min-w-11 items-center justify-center rounded lg:-m-1 lg:min-h-0 lg:min-w-0 lg:p-1"
+                                  /**
+                                   * พื้นที่นิ้วเป็น pseudo-element ไม่ใช่ความกว้างจริงของปุ่ม
+                                   * (user รายงาน 2026-09-10: "ทำไมตรงนี้มันห่างกัน มันควรติดกันป่ะ")
+                                   *
+                                   * เดิม `min-w-11` = กล่อง 44px รอบไอคอนที่กว้างแค่ ~13px ⇒ **กิน
+                                   * ความกว้างจริงในการจัดวางข้างละ ~15px** แล้วบวก `gap-2` อีก 8px
+                                   * ⇒ ห่างจากขีดคั่นราว 23px ดูโดดออกจากปุ่มข้าง ๆ ที่ใช้ท่า
+                                   * `-mx-1 px-1` (ขยายพื้นที่กดแล้วดึง layout กลับด้วย margin ติดลบ)
+                                   *
+                                   * `after:-inset-y-3` → สูง ~45px ครบเกณฑ์ 44px ของ PRODUCT.md
+                                   * `after:-inset-x-1` → ขยายข้างละ 4px = **ครึ่งหนึ่งของ `gap-2`
+                                   * (8px) พอดี** ⇒ hit box ของปุ่มติดกันมาจรดกันตรงกลางโดยไม่ทับ
+                                   * ข้อนี้สำคัญ: คอมเมนต์ด้านบนบันทึกไว้ว่าเคยขยายข้างละ 12px แล้ว
+                                   * **แตะ "ลองใหม่" ไปโดน ⓘ** (2026-08-03) ⇒ ห้ามเกินครึ่งของ gap
+                                   *
+                                   * เดสก์ท็อปไม่ต้องมี (ใช้เมาส์ ชี้ตรงไอคอนได้อยู่แล้ว)
+                                   */
+                                  className="hover:bg-danger/10 relative flex items-center justify-center rounded p-1 after:absolute after:-inset-x-1 after:-inset-y-3 lg:-m-1 lg:after:hidden"
                                 >
                                   <Icon icon="info-circle" className="text-sm" />
                                 </button>

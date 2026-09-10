@@ -357,6 +357,33 @@ describe('[blocker] P4 — ปุ่มกู้คืนของข้อค�
     }
     return 0
   }
+  /**
+   * พื้นที่กดที่ทำด้วย pseudo-element (`after:absolute after:-inset-y-N`)
+   *
+   * 🛑 ไม่ใช่การผ่อนเกณฑ์ — เป็นการ **วัดให้ตรงความจริง**: `::after` ที่ absolute แล้วกาง
+   * ออกนอกกล่องรับ pointer event จริง จึงเป็นพื้นที่นิ้วเท่ากับ padding ทุกประการ ต่างกันแค่
+   * มันไม่กินความกว้างในการจัดวาง (นั่นคือเหตุผลที่ปุ่ม (i) ใช้ท่านี้ — user รายงาน 2026-09-10
+   * ว่ามันห่างจากขีดคั่นเกินไปเพราะ `min-w-11` กินที่ 44px ทั้งที่ไอคอนกว้าง 13px)
+   *
+   * ต้องมี `after:absolute` ด้วยเสมอ — `-inset-*` เฉย ๆ ไม่ได้สร้างพื้นที่กดอะไรเลย
+   */
+  function pseudoInsetY(raw: string): number {
+    // 🛑 อ่านจาก className ดิบ ไม่ใช่ผลของ mobileClasses() — ตัวนั้นกรอง token ที่มี `:` ทิ้งหมด
+    // เพื่อตัด `lg:`/`md:` ⇒ `after:absolute` โดนกรองไปด้วย (เจอตอนเขียนเทสนี้เอง 2026-09-10)
+    const cn = raw.match(/className="([^"]*)"/)
+    if (!cn) return 0
+    // เอาเฉพาะ variant ของมือถือ: `after:*` ล้วน ไม่ใช่ `lg:after:*`
+    const tokens = cn[1].split(/\s+/).filter((c) => c.startsWith('after:'))
+    if (!tokens.includes('after:absolute')) return 0
+    for (const c of tokens) {
+      const m = c.match(/^after:-inset-y-(.+)$/)
+      if (m && SPACING[m[1]] !== undefined) return SPACING[m[1]]
+      const mi = c.match(/^after:-inset-(.+)$/)
+      if (mi && SPACING[mi[1]] !== undefined) return SPACING[mi[1]]
+    }
+    return 0
+  }
+
   function minPx(classes: string[], axis: 'h' | 'w'): number {
     for (const c of classes) {
       const m = c.match(new RegExp(`^min-${axis}-(.+)$`))
@@ -400,7 +427,10 @@ describe('[blocker] P4 — ปุ่มกู้คืนของข้อค�
       .map((b) => {
         // ไอคอน text-sm = 14px · ข้อความ text-xs = 13 * 1.5 = 19.5px (คลัสเตอร์อยู่ในแถว text-xs)
         const content = b.iconOnly ? 14 : TEXT_XS_PX * LINE_HEIGHT
-        const height = Math.max(minPx(b.classes, 'h'), content + pad(b.classes, 'y') * 2)
+        const height = Math.max(
+          minPx(b.classes, 'h'),
+          content + pad(b.classes, 'y') * 2 + pseudoInsetY(b.raw) * 2,
+        )
         return height >= MIN_TAP_PX ? null : `${Math.round(height * 10) / 10}px — ${b.classes.join(' ')}`
       })
       .filter(Boolean)
