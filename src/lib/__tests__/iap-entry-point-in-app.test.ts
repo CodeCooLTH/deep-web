@@ -92,3 +92,39 @@ describe('[blocker] ปลายทางของเมนูนั้นต้
     ).toMatch(/redirect\('\/business\/subscribe'\)/)
   })
 })
+
+/**
+ * ── มือถือใช้คนละเมนูกับเดสก์ท็อป ────────────────────────────────────────
+ *
+ * 🛑 **แอป iOS คือมือถือ** ⇒ ไม่มี sidebar · เมนูฝั่งร้านบนมือถือมาจากการ์ด "จัดการร้าน"
+ * ใน `/shop` (`ShopQuickLinks.tsx`) ซึ่งเป็น **สำเนาของรายการเมนู** ที่กรองด้วยกฎของตัวเอง
+ *
+ * ⇒ แก้ `applyPaymentRestriction()` (sidebar) อย่างเดียว **ไม่มีผลกับแอปเลยแม้แต่น้อย**
+ * — นี่คือ Hard Rule 16 ตรงตัว (ของสิ่งเดียวกัน สองนิยาม) และเป็นบั๊กคลาสเดียวกับที่
+ * ไฟล์นั้นเขียนเตือนไว้เองตอนโดนตีกลับ 2026-08-19 แค่กลับทิศ
+ */
+describe('[blocker] ทางเข้าบนมือถือ — ที่แอปใช้จริง', () => {
+  const read = (rel: string) =>
+    require('node:fs')
+      .readFileSync(require('node:path').join(process.cwd(), rel), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+  const QUICK_LINKS = 'src/app/(paces)/seller/(dashboard)/shop/components/ShopQuickLinks.tsx'
+
+  it('🛑 การ์ด "จัดการร้าน" ต้องมี "แพ็กเกจของฉัน" อยู่', () => {
+    expect(read(QUICK_LINKS)).toMatch(/'\/subscriptions'[\s\S]{0,40}แพ็กเกจของฉัน/)
+  })
+
+  it('🛑 ห้ามกรอง `/subscriptions` ทิ้งในแอป — ไม่งั้นมือถือไม่มีทางเข้าเลย', () => {
+    const code = read(QUICK_LINKS)
+    /* ยังต้องมีกลไกกรองไว้สำหรับลิงก์จ่ายเงินที่ **ไม่ผ่าน Apple** ในอนาคต */
+    expect(code, 'กลไกกรองต้องยังอยู่').toMatch(/PAYMENT_LINK_URLS/)
+    expect(code, 'ต้องยังเอาไปกรองจริง').toMatch(/\.filter\([\s\S]{0,80}?PAYMENT_LINK_URLS/)
+    /* แต่ `/subscriptions` ต้องไม่อยู่ในชุดนั้นแล้ว — มันพาไปหน้าซื้อผ่าน Apple */
+    expect(
+      code,
+      'อยู่ในชุดกรอง = เมนูหายบนมือถือ = ทีมรีวิวของ Apple หาหน้าซื้อไม่เจอ',
+    ).not.toMatch(/PAYMENT_LINK_URLS\s*=\s*new Set<string>\(\[[^\]]*\/subscriptions/)
+  })
+})
