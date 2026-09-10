@@ -78,24 +78,42 @@ describe('[blocker] เงื่อนไขเปิดตัวจำตำแ
 })
 
 /**
- * [blocker] — คืนตำแหน่งรายการแล้วต้องรีเฟรชหน้าแรกทันที
+ * [blocker] — snapshot ของรายการแชทต้องเก็บ "ตำแหน่ง" เท่านั้น ห้ามเก็บ "ข้อมูล"
  *
- * 🛑 snapshot เก็บ `lastMessagePreview` ติดมาด้วย ⇒ ถ้าคืนค่าแล้วปล่อยไว้ ผู้ใช้จะเห็น
- * "ข้อความล่าสุด" ที่ไม่ล่าสุดจริงจนกว่า poll 20 วิรอบถัดไปจะมาถึง — user ถามเองว่า
- * "กล่องแชท last message มี cache ป่าว ทำไมมันไม่ล่าสุด" (2026-09-10)
+ * 🛑 v1 เก็บ `items` ทั้งชุดเพื่อคืนความสูงให้เลื่อนกลับได้ แต่ `items` มี `lastMessagePreview`
+ * ติดไปด้วย ⇒ ตอนคืนค่ามันเขียนทับข้อมูลสดที่ RSC เพิ่งส่งมา ด้วยของเก่าถึง 15 นาที
+ * user ทักเอง ("ทำไม last message ไม่ล่าสุด") แล้วสั่งว่า **"ข้อมูลต้อง realtime"** (2026-09-10)
+ *
+ * บทเรียน: ตำแหน่งเก่าไม่เป็นไร แต่ข้อมูลเก่าคือการโกหกผู้ใช้ — ห้ามเอาความสะดวกของการคืน
+ * ตำแหน่งไปแลกกับความถูกต้องของสิ่งที่แสดง
  */
-describe('[blocker] คืนตำแหน่งรายการแชทแล้วต้องรีเฟรชข้อมูลทันที', () => {
-  it('เรียก refreshRef หลัง setItems(snap.items)', async () => {
+describe('[blocker] snapshot รายการแชทเก็บได้แค่ตำแหน่ง', () => {
+  it('ไฟล์ snapshot ไม่มีคำว่า items ในรูปข้อมูลที่เก็บ', async () => {
+    const fs = await import('fs')
+    const src = fs.readFileSync(
+      'src/app/(paces)/seller/(chat)/inbox/components/inbox-scroll-restore.ts',
+      'utf8',
+    )
+    const code = src
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*') && !l.trim().startsWith('/*'))
+      .join('\n')
+    // type Snapshot ต้องไม่มีฟิลด์ items/nextCursor (สองตัวนี้คือ "ข้อมูล" ไม่ใช่ "ตำแหน่ง")
+    expect(code).not.toMatch(/items\s*:/)
+    expect(code).not.toMatch(/nextCursor/)
+    expect(code).toMatch(/loadedCount/)
+  })
+
+  it('InboxList ไม่เอา snapshot ไป setItems', async () => {
     const fs = await import('fs')
     const code = fs
       .readFileSync('src/app/(paces)/seller/(chat)/inbox/components/InboxList.tsx', 'utf8')
       .split('\n')
       .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
       .join('\n')
-    const at = code.indexOf('setItems(snap.items)')
-    expect(at, 'หาจุดคืนค่า snapshot ไม่เจอ').toBeGreaterThan(-1)
-    // ต้องมีการรีเฟรชอยู่ในบล็อกเดียวกัน (ไม่เกิน ~900 ตัวอักษรถัดไป)
-    expect(code.slice(at, at + 900)).toMatch(/refreshRef\.current\?\.\(\)/)
+    expect(code).not.toMatch(/setItems\(snap\./)
+    // ต้องไล่โหลดสดกลับมาแทน
+    expect(code).toMatch(/restoreTargetRef/)
   })
 
   it('TTL ของ snapshot ต้องไม่ยาวเกิน 5 นาที', async () => {

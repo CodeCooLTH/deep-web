@@ -1,57 +1,49 @@
 /**
- * จำตำแหน่งรายการแชทข้ามการเปิด/ปิดห้อง (user สั่ง 2026-09-10)
+ * จำ **ตำแหน่ง** ของรายการแชทข้ามการเปิด/ปิดห้อง — ไม่ใช่จำ "ข้อมูล"
  *
- * 🛑 ทำไมจำแค่ `scrollTop` ไม่พอ — `/inbox/[conversationId]` เป็น **route จริง ไม่ใช่ modal**
- * บนมือถือ `{children}` ของ `(chat)/layout.tsx` ถูกสลับ ⇒ `InboxList` unmount ทั้งตัว ⇒
- * `useState(initialItems)` กลับไปเป็น "หน้าแรก 20 แถว" ⇒ แถวที่ผู้ใช้เลื่อนโหลดมาหายหมด
- * ต่อให้จำตัวเลข scroll ได้ก็เลื่อนกลับไปไม่ได้เพราะ **เนื้อหายังไม่มีให้เลื่อน**
- * ⇒ ต้องจำ `items` + `nextCursor` คู่กันเสมอ ห้ามแยกจำอย่างใดอย่างหนึ่ง
+ * 🛑 v2 (2026-09-10): เลิกเก็บ `items` ลง sessionStorage เด็ดขาด
  *
- * เดสก์ท็อปไม่มีอาการนี้เพราะรายการอยู่ใน `ChatRailColumn` ระดับ layout ซึ่งไม่ unmount —
- * ตัวจำนี้จึงเปิดเฉพาะ `railMode === false` (ดูผู้เรียกใน InboxList)
+ * v1 เก็บทั้งชุดเพื่อคืนความสูงให้เลื่อนกลับได้ แต่ `items` มี `lastMessagePreview` /
+ * `unreadCount` / เวลาติดไปด้วย ⇒ ตอนคืนค่ามัน **เขียนทับข้อมูลสดที่ RSC เพิ่งส่งมา ด้วยของเก่า**
+ * ผู้ใช้เห็น "ข้อความล่าสุด" ที่ไม่ล่าสุด (user ทัก 2026-09-10 แล้วสั่งว่า "ข้อมูลต้อง realtime")
  *
- * ตัวกล่องที่เลื่อนจริงคือ `div` ใน `(chat)/layout.tsx` ซึ่ง **อยู่ระดับ layout จึงไม่ unmount**
- * (สลับแค่เนื้อข้างใน) — หมายเหตุนี้สำคัญ: ที่ scroll หายไม่ใช่เพราะกล่องถูกสร้างใหม่ แต่เพราะ
- * เนื้อในหดลงจนเบราว์เซอร์บีบ scrollTop ลงมาเอง
+ * บทเรียน: **ตำแหน่งเก่าไม่เป็นไร แต่ข้อมูลเก่าคือการโกหกผู้ใช้** — สองอย่างนี้ต้องแยกกัน
+ * ห้ามเอา "ความสะดวกของการคืนตำแหน่ง" ไปแลกกับความถูกต้องของสิ่งที่แสดง
+ *
+ * v2 จึงเก็บแค่ 2 ตัวเลข: เคยโหลดมากี่แถว และเลื่อนไปถึงไหน — ตอนกลับมาให้ **โหลดสดใหม่**
+ * จนได้จำนวนแถวเท่าเดิมแล้วค่อยเลื่อนกลับ ⇒ ทุกแถวที่ผู้ใช้เห็นมาจากเซิร์ฟเวอร์เสมอ
+ * (แถวเก่าที่เกินหน้าแรกโหลดเพิ่มเองอัตโนมัติ ไม่ต้องให้ผู้ใช้เลื่อนซ้ำ)
  */
 
 /** ผู้เลือกกล่องที่เลื่อนของโซนแชท — ประกาศที่เดียว ห้าม querySelector ด้วยคลาสดิบที่อื่น */
 export const CHAT_SCROLLER_SELECTOR = '[data-chat-scroller]'
 
 const KEY = 'deep:inbox-restore'
-/**
- * เกินนี้ถือว่าเป็นการกลับมาใหม่ ไม่ใช่การสลับไป-กลับ — โหลดสดดีกว่าคืนของเก่า
- *
- * 🛑 ลดจาก 15 นาที → 3 นาที (2026-09-10 หลัง user ถามว่า "ทำไม last message ไม่ล่าสุด")
- * snapshot เก็บ `lastMessagePreview` ติดมาด้วย ⇒ ยิ่งเก็บนานยิ่งมีโอกาสคืน "ข้อความล่าสุด"
- * ที่ไม่ล่าสุดจริง. ตัวนี้เป็นแค่เพดานความเสียหาย — ตัวที่แก้จริงคือการรีเฟรชหน้าแรกทันที
- * หลังคืนค่า (ดู InboxList: `restoreEnabled` → `refreshRef.current?.()`)
- */
+/** เกินนี้ถือว่าเป็นการกลับมาใหม่ ไม่ใช่การสลับไป-กลับ — ไม่ต้องไล่โหลดแถวเก่าให้เสียเที่ยว */
 const TTL_MS = 3 * 60 * 1000
-/** กันไม่ให้ sessionStorage บวม — ผู้ใช้ที่เลื่อนไป 300 แถวแล้วยังต้องการตำแหน่งเป๊ะมีน้อยมาก */
-const MAX_ITEMS = 300
+/** เพดานการไล่โหลดย้อน — กันกรณีผู้ใช้เคยเลื่อนไปไกลมากแล้วกลับมาเจอการยิง API รัว */
+export const MAX_RESTORE_ROWS = 200
 
-type Snapshot<T> = {
-  v: 1
+type Snapshot = {
+  v: 2
   /** ลายเซ็นตัวกรอง (`listSignature` ตัวเดียวกับที่ InboxList ใช้กัน merge ข้ามตัวกรอง — HR16) */
   fp: string
   at: number
   scrollTop: number
-  nextCursor: string | null
-  items: T[]
+  /** จำนวนแถวที่โหลดไว้ตอนออกจากหน้า — ใช้เป็น "เป้า" ให้โหลดสดกลับมาให้ครบ */
+  loadedCount: number
 }
 
-export function saveInboxSnapshot<T>(fp: string, data: { scrollTop: number; nextCursor: string | null; items: T[] }) {
-  // ไม่มีอะไรให้คืน (ยังไม่เคยเลื่อน + ยังไม่เคยโหลดเพิ่ม) = อย่าเขียนทับของเดิมด้วยค่าเปล่า
-  if (data.scrollTop <= 0 && data.items.length <= 20) return
+export function saveInboxSnapshot(fp: string, data: { scrollTop: number; loadedCount: number }) {
+  // ยังไม่เคยเลื่อนและยังไม่เคยโหลดเพิ่ม = ไม่มีอะไรต้องคืน อย่าเขียนทับของเดิมด้วยค่าเปล่า
+  if (data.scrollTop <= 0 && data.loadedCount <= 20) return
   try {
-    const snap: Snapshot<T> = {
-      v: 1,
+    const snap: Snapshot = {
+      v: 2,
       fp,
       at: Date.now(),
       scrollTop: data.scrollTop,
-      nextCursor: data.nextCursor,
-      items: data.items.slice(0, MAX_ITEMS),
+      loadedCount: Math.min(data.loadedCount, MAX_RESTORE_ROWS),
     }
     sessionStorage.setItem(KEY, JSON.stringify(snap))
   } catch {
@@ -60,18 +52,18 @@ export function saveInboxSnapshot<T>(fp: string, data: { scrollTop: number; next
 }
 
 /**
- * คืนของที่จำไว้ถ้ายังใช้ได้จริง — **ไม่ตรงลายเซ็น = ทิ้ง** เพราะคืนแถวของตัวกรองอื่นมาแสดง
- * แย่กว่าเลื่อนใหม่เยอะ (คลาสเดียวกับเหตุผลที่ `refreshFirstPage` ต้องเช็คลายเซ็นก่อน merge)
+ * คืนเป้าหมายที่ต้องโหลด/เลื่อนกลับ — **ไม่ตรงลายเซ็น = ทิ้ง** เพราะตัวกรองคนละชุดมีจำนวนแถว
+ * และลำดับคนละอย่าง การไล่โหลดตามเป้าเก่าจะได้ตำแหน่งที่ไม่มีความหมาย
  */
-export function readInboxSnapshot<T>(fp: string): { scrollTop: number; nextCursor: string | null; items: T[] } | null {
+export function readInboxSnapshot(fp: string): { scrollTop: number; loadedCount: number } | null {
   try {
     const raw = sessionStorage.getItem(KEY)
     if (!raw) return null
-    const snap = JSON.parse(raw) as Snapshot<T>
-    if (snap?.v !== 1 || snap.fp !== fp) return null
+    const snap = JSON.parse(raw) as Snapshot
+    if (snap?.v !== 2 || snap.fp !== fp) return null
     if (Date.now() - snap.at > TTL_MS) return null
-    if (!Array.isArray(snap.items) || snap.items.length === 0) return null
-    return { scrollTop: snap.scrollTop, nextCursor: snap.nextCursor, items: snap.items }
+    if (!(snap.loadedCount > 0)) return null
+    return { scrollTop: snap.scrollTop, loadedCount: snap.loadedCount }
   } catch {
     return null
   }

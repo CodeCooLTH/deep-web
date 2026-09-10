@@ -84,6 +84,7 @@ import { fileUrlOf, toFileUrl } from '@/lib/file-url'
 import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect'
 import {
   CHAT_SCROLLER_SELECTOR,
+  MAX_RESTORE_ROWS,
   readInboxSnapshot,
   saveInboxSnapshot,
 } from './inbox-scroll-restore'
@@ -545,41 +546,43 @@ export default function InboxList({
   const pendingRestoreRef = useRef<number | null>(null)
   const restoreTriesRef = useRef(0)
 
-  // อ่านของที่จำไว้ "ก่อนวาดครั้งแรก" — ใช้ useLayoutEffect ไม่ใช่ useEffect เพื่อไม่ให้ผู้ใช้
-  // เห็นรายการหน้าแรกวาบขึ้นมาก่อนแล้วค่อยกระโดด
+  /** จำนวนแถวที่ต้องมีก่อนถึงจะเลื่อนกลับได้ — null = ไม่มีอะไรค้าง */
+  const restoreTargetRef = useRef<number | null>(null)
+
+  /**
+   * อ่าน "เป้าหมาย" ที่จำไว้ตอน mount — **ไม่ใช่ข้อมูล**
+   *
+   * 🛑 v2: ไม่มี `setItems` จาก snapshot อีกแล้ว (user สั่ง 2026-09-10: "ข้อมูลต้อง realtime")
+   * แถวทุกแถวที่ผู้ใช้เห็นมาจากเซิร์ฟเวอร์เสมอ — snapshot บอกได้แค่ว่า "เคยโหลดมากี่แถว
+   * และเลื่อนไปถึงไหน" แล้วเราโหลดสดกลับมาให้ครบเอง
+   */
   useIsomorphicLayoutEffect(() => {
     if (!restoreEnabled) return
-    const snap = readInboxSnapshot<ConversationListItem>(listSignatureRef.current)
+    const snap = readInboxSnapshot(listSignatureRef.current)
     if (!snap) return
-    setItems(snap.items)
-    setNextCursor(snap.nextCursor)
+    restoreTargetRef.current = snap.loadedCount
     pendingRestoreRef.current = snap.scrollTop
-    /**
-     * 🛑 คืนค่าแล้วต้อง **รีเฟรชหน้าแรกทันที** — snapshot เก็บ `lastMessagePreview` ติดมาด้วย
-     * ⇒ ถ้าไม่รีเฟรช ผู้ใช้จะเห็น "ข้อความล่าสุด" ที่เก่าถึง 3 นาที จนกว่า poll 20 วิรอบถัดไป
-     * จะมาถึง (user ถาม 2026-09-10: "กล่องแชท last message มี cache ป่าว ทำไมมันไม่ล่าสุด")
-     *
-     * `refreshFirstPage` merge ทับของเดิม **ไม่ replace** ⇒ แถวจาก loadMore ที่คืนมาไม่หาย
-     * ตำแหน่ง scroll จึงยังกลับไปจุดเดิมได้
-     *
-     * ต้องผ่าน setTimeout(0): `refreshRef.current` ถูกเซ็ตใน passive effect ซึ่งรัน **หลัง**
-     * layout effect ตัวนี้ ⇒ อ่านตรง ๆ ตอนนี้ยังเป็น undefined
-     */
-    setTimeout(() => {
-      void refreshRef.current?.()
-    }, 0)
-    // deps ว่างโดยตั้งใจ — คืนของครั้งเดียวตอน mount เท่านั้น (ตัวกรองเปลี่ยนทีหลังต้องโหลดสด
-    // ไม่ใช่คืนของเก่า) · eslint ไม่ทักเพราะทุกค่าที่อ้างอิงเป็น ref/setState ที่ identity คงที่
   }, [])
 
   /**
-   * คืน scrollTop เมื่อ "แถวสูงพอให้เลื่อนไปถึงแล้ว" — เช็คทุกครั้งที่ items เปลี่ยน
+   * ไล่โหลดแถวเก่ากลับมาให้ครบตามเป้า แล้วค่อยเลื่อนกลับ
    *
-   * 🛑 ห้ามตั้ง scrollTop ทันทีหลัง setItems โดยไม่เช็คความสูง: React วาดแถวเสร็จแล้วก็จริง
-   * แต่รูป/ฟอนต์ยังทำให้ความสูงขยับต่อได้ ⇒ ตั้งเร็วไปจะโดนบีบกลับมาเป็นค่าที่เตี้ยกว่า
-   * มีเพดานลองใหม่เพื่อไม่ให้ค้างตลอดกาลเมื่อรายการหดจริง (เช่นตัวกรองคืนแถวน้อยลง)
+   * ยิงทีละหน้าเหมือนผู้ใช้เลื่อนเอง (ใช้ `loadMore` ตัวเดิม ไม่มีเส้นทางพิเศษ) — แถวที่ได้จึง
+   * สดเสมอและผ่านตัวกรองชุดปัจจุบันจริง ๆ · หยุดเมื่อครบเป้า / ไม่มีหน้าถัดไป / ชนเพดาน
+   *
+   * 🛑 ห้ามตั้ง scrollTop ก่อนความสูงพอ: React วาดแถวเสร็จแล้วก็จริง แต่รูป/ฟอนต์ยังทำให้
+   * ความสูงขยับต่อได้ ⇒ ตั้งเร็วไปจะโดนบีบกลับมาเป็นค่าที่เตี้ยกว่า
    */
   useIsomorphicLayoutEffect(() => {
+    const target = restoreTargetRef.current
+    if (target !== null) {
+      if (items.length < Math.min(target, MAX_RESTORE_ROWS) && nextCursor && !loading) {
+        void loadMore()
+        return
+      }
+      // ครบเป้าแล้ว หรือไม่มีอะไรให้โหลดต่อ — เลิกไล่
+      restoreTargetRef.current = null
+    }
     const top = pendingRestoreRef.current
     if (top === null) return
     const el = document.querySelector<HTMLElement>(CHAT_SCROLLER_SELECTOR)
@@ -589,7 +592,7 @@ export default function InboxList({
     if (max < top && restoreTriesRef.current < 6) return
     el.scrollTop = Math.min(top, Math.max(max, 0))
     pendingRestoreRef.current = null
-  }, [items])
+  }, [items, nextCursor, loading])
 
   // ตามรอย scrollTop ไว้ล่วงหน้า — อ่านตอน unmount อย่างเดียวไม่ปลอดภัย เพราะเบราว์เซอร์อาจ
   // บีบค่าลงแล้วตั้งแต่ตอนที่เนื้อหาเริ่มถูกสลับ
@@ -607,15 +610,12 @@ export default function InboxList({
   // เก็บ snapshot ตอนออกจากรายการ (กดเข้าห้องแชท = component นี้ unmount)
   const itemsRef = useRef(items)
   itemsRef.current = items
-  const nextCursorRef = useRef(nextCursor)
-  nextCursorRef.current = nextCursor
   useEffect(() => {
     if (!restoreEnabled) return
     return () => {
       saveInboxSnapshot(listSignatureRef.current, {
         scrollTop: scrollTopRef.current,
-        nextCursor: nextCursorRef.current,
-        items: itemsRef.current,
+        loadedCount: itemsRef.current.length,
       })
     }
   }, [restoreEnabled])
