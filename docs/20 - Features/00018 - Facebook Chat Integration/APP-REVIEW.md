@@ -281,10 +281,16 @@ screencast รายข้อที่อัปไม่ผ่าน) ใช้�
 
 ## 4. ของที่ยังขอไม่ได้ / อย่าเพิ่งใส่
 
-- `instagram_manage_insights` — ใส่ใน scope แล้ว Meta ตีกลับที่หน้า login ว่า
+> 🛑 **ปรับปรุง 2026-09-08 — 2 ข้อแรกของหัวข้อนี้หมดอายุแล้ว ดู §11**
+> `instagram_manage_insights` และ `human_agent` ถูกเพิ่มเข้าใบร่าง `1739136693971389`
+> เรียบร้อยแล้ว **ไม่ใช่ "ขอไม่ได้" อีกต่อไป** — เก็บข้อความเดิมไว้เป็นบันทึกว่าทำไม
+> ตอนนั้นถึงถอดออก ห้ามอ่านสองข้อนี้เป็นข้อจำกัดปัจจุบัน
+> (`pages_utility_messaging` ข้อที่ 3 **ยังจริงอยู่** — ยังไม่มีโค้ดเรียก อย่าใส่)
+
+- ~~`instagram_manage_insights`~~ **(ยกเลิกข้อห้าม 2026-09-08 — อยู่ในใบร่างแล้ว ดู §11.6)** — ใส่ใน scope แล้ว Meta ตีกลับที่หน้า login ว่า
   "Invalid Scopes" ทำให้ **เชื่อมเพจไม่ได้ทั้งกระบวนการ** ต้องเปิดใน App Dashboard
   + ผ่าน App Review ก่อนเท่านั้น (ดู comment ใน `src/lib/facebook/constants.ts`)
-- `human_agent` — คนละเรื่องกับชุดนี้ ใช้ตอบลูกค้าเกิน 24 ชม. (ถึง 7 วัน)
+- ~~`human_agent`~~ **(ยกเลิกข้อห้าม 2026-09-08 — อยู่ในใบร่างแล้ว ดู §11.2.4)** คนละเรื่องกับชุดนี้ ใช้ตอบลูกค้าเกิน 24 ชม. (ถึง 7 วัน)
   โค้ดรออยู่แล้วหลัง env `META_HUMAN_AGENT_ENABLED` ขอเพิ่มได้เมื่อ Business
   Verification ผ่าน — ดูรายละเอียดใน SRS/หัวข้อหน้าต่างตอบกลับ
 - `pages_utility_messaging` — **ถอดออกจากใบยื่นแล้ว 2026-08-01 (ตัดสินใจโดย user)**
@@ -835,6 +841,219 @@ Meta แจ้งว่าส่วนใหญ่ตรวจภายใน **
   (Sales channels · Connect Facebook Page · Choose pages to connect · Sync notifications ·
   Messages · Storefront · Videos shown on your storefront · View my storefront · Remove/Disconnect)
 
-### 10.7 ยังไม่ได้ยื่น
+### 10.7 ยังไม่ได้ยื่น — **ปิดแล้ว 2026-09-08 ดู §11**
 
 `human_agent` — โค้ดพร้อมทั้งเส้น รอ env `META_HUMAN_AGENT_ENABLED` ยื่นรอบถัดไปตามมติ 2026-08-13
+
+⇒ เพิ่มเข้าใบร่าง `1739136693971389` แล้วเมื่อ 2026-09-08 พร้อมกับ `pages_read_user_content` ·
+`pages_manage_engagement` · `Business Asset User Profile Access` · `instagram_manage_insights`
+
+---
+
+## 11. รอบยื่นที่ 3 — คอมเมนต์ · โปรไฟล์ลูกค้า · ตอบเกิน 24 ชม. · ยอดวิว IG (2026-09-08)
+
+ใบร่าง **`1739136693971389`** (`submission_status: UNSUBMITTED`) — user เพิ่ม 5 ตัวเข้าใบเดิมแล้ว
+เมื่อ 2026-09-08 ⇒ เอกสารส่วนนี้คือของที่ต้องเติมให้ครบก่อนกดส่ง
+
+### 11.0 สถานะจาก API (`devtools_app_review action=requirements`, 2026-09-08)
+
+| Privilege | use_case | screencast | api_precheck | data_use_checkup | dependent |
+|---|---|---|---|---|---|
+| `pages_read_user_content` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `pages_manage_engagement` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `instagram_manage_insights` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `Human Agent` | ❌ | ❌ | — | ❌ | ✅ |
+| `Business Asset User Profile Access` | ❌ | ❌ | — | ❌ | — |
+
+🛑 **`can_submit: false` คือสัญญาณหลอกตัวเดิม อย่าไปไล่แก้** — มันอ้างว่า "ใบก่อนหน้ายังตรวจอยู่"
+แต่ `action=status` ตอบ `submission_status: UNSUBMITTED` · `is_pending: false` และใบเก่า
+`1717697219448670` อนุมัติจบไปแล้วตั้งแต่ 2026-08-26 ตรงกับที่ §10.5 บันทึกไว้ว่าค่านี้เชื่อไม่ได้
+
+**`dependent_permission` ✅ ครบทุกตัวแล้ว** — รวม `Human Agent` ที่ prerequisite คือ
+`pages_messaging` + `instagram_manage_messages` (+`instagram_business_manage_messages` ที่เราไม่มี
+แต่ Meta นับว่าผ่านเพราะมีอีก 2 ตัวเป็น advanced แล้ว) ⇒ ข้อนี้ไม่ต้องทำอะไร
+
+### 11.1 ทำไมถึงต้องขอ 2 ตัวแรก — มันถูกใช้อยู่บน prod แล้วโดยไม่มีสิทธิ์รองรับ
+
+`pages_read_user_content` + `pages_manage_engagement` อยู่ใน `CONNECT_SCOPES`
+(`src/lib/facebook/constants.ts:107-108`) ตั้งแต่ 2026-08-03 (feature 00029) แต่ **ไม่เคยอยู่ใน
+ใบยื่นรอบไหนเลย** ⇒ `access_level: none` ทั้งคู่. ที่แท็บ "ความคิดเห็น" ดูเหมือนทำงานได้ทุกวันนี้
+น่าจะเพราะเพจที่ทดสอบเป็นของคนที่ **มี role บนแอป** — เอกสาร Meta ระบุว่า feature/permission
+ที่ยังไม่ผ่านรีวิว *"is only active for app users who have a role on the app"* คลาสเดียวกับเคส
+รูปโปรไฟล์ 2026-08-09 (`docs/conventions/graph-access-depends-on-subject.md`) เป๊ะ
+
+🛑 **ยังไม่ได้พิสูจน์กับร้านนอกทีม** — วิธีพิสูจน์ที่ถูกที่สุดคือ
+`GET /api/cron/comment-attachment-repair?take=5` (กด Run ใน Vercel Dashboard) แล้วอ่าน `errors[]`
+ซึ่ง route นั้นถูกเขียนมาเพื่อตอบคำถามนี้โดยเฉพาะ — ได้ 2 อย่างในครั้งเดียว: ตอบคำถามสิทธิ์
+**และ** ปั๊ม `api_precheck` ของทั้ง 2 ตัวไปพร้อมกัน
+
+### 11.2 คำอธิบายรายตัว (คัดลอกลงช่อง "Describe how your app uses this permission")
+
+หลักการเดียวกับ §2 — reviewer รอบแรกเขียนเองว่า *"we have determined that your apps' use case
+is allowed"* ⇒ รูปแบบนี้ผ่านแล้ว ห้ามเปลี่ยนโครง
+
+#### 11.2.1 `pages_read_user_content`
+
+> Deep is a customer-service inbox for Thai online sellers. Many customers do not send a direct message first — they ask about price, stock, or delivery in the comments under the seller's own Page post. Deep gives the seller one place to see those questions next to their Messenger and Instagram threads, so nothing is missed.
+>
+> The calls we make, all on Pages the seller connected and owns: `GET /{page-id}/posts` to list the seller's own posts, `GET /{post-id}/comments` and `GET /{comment-id}/comments` to read the comments and replies left on those posts, and `GET /{comment-id}?fields=attachment` to re-fetch a photo attached to a comment after Meta's original CDN URL has expired, so the seller can still see the picture a customer sent.
+>
+> Value for the person using the app: a seller running one Page from a phone sees "3 comments waiting for an answer" in the same inbox as their chats, instead of scrolling every post by hand. Without this permission the comments tab is permanently empty and the seller has to go back to the Facebook app.
+>
+> Limits we hold ourselves to: we read comments only on Pages the seller explicitly connected; we never read another business's Page, never search public content, and never read a person's own timeline. Comment content is shown only to that seller and their own staff, and is never used for advertising, cross-app profiling, analytics, or resale.
+
+#### 11.2.2 `pages_manage_engagement`
+
+> This permission is what lets the seller answer the comments that `pages_read_user_content` shows them. From Deep's comments inbox the seller writes a public reply, which we send with `POST /{comment-id}/comments` using the Page access token, so the reply appears under the customer's comment exactly as if it had been written in the Facebook app.
+>
+> Sellers can also switch on an auto-reply for their own Page: when a new comment arrives on one of their posts, Deep posts the reply text that the seller themselves wrote and saved beforehand. This is configured per Page by the Page's own admin, is off by default, and can be turned off at any time. It is never used to comment on Pages the seller does not own.
+>
+> Value for the person using the app: a small seller who is packing orders can still answer a buyer's public question within minutes, which is what Meta's own responsiveness guidance asks of businesses. Without this permission the comments tab is read-only, and the seller has to leave Deep to answer, which defeats the reason the inbox exists.
+>
+> Limits we hold ourselves to: we only publish replies on comments left on the connected Page's own posts; we do not delete, hide, or moderate other people's content; we do not send promotional blasts; and we never act on a Page that has not been connected by its own admin.
+
+#### 11.2.3 `Business Asset User Profile Access`
+
+> Deep shows a seller a list of the conversations waiting for them. To make that list usable we read the public profile fields of the person on the other side of a conversation the seller already has: `GET /{PSID}?fields=name,first_name,last_name,profile_pic` for Messenger, and the equivalent for the linked Instagram account.
+>
+> The name and profile picture are used for exactly one thing: to label the conversation. Without them the inbox is a list of opaque numeric IDs, so a seller with twenty open chats cannot tell which row is the customer who is waiting for a shipping answer. It also means the seller cannot recognise a returning customer they have already helped.
+>
+> We read these fields only for people who have themselves started a conversation with a Page the seller connected — never for anyone else, and never in bulk. We mirror the profile picture into our own storage only because Meta's CDN URLs expire, and we delete it when the seller disconnects the Page. Names and pictures are shown only to that seller and their own staff, and are never used for advertising, audience building, cross-app profiling, analytics, or resale.
+
+#### 11.2.4 `Human Agent`
+
+> Deep's users are small Thai online sellers — often one person who packs and ships the orders themselves. Two situations regularly put a genuine customer reply outside Meta's 24-hour standard messaging window, which is the allowed usage for this feature:
+>
+> First, the shop is closed. A customer asks a question late on Friday night; the seller is a single person, not a call centre, and answers when the shop reopens on Monday.
+>
+> Second, the answer depends on something that takes longer than a day. A customer asks "where is my parcel?" or "can I exchange this?"; the seller has to wait for the courier to update the tracking status or for the returned item to physically arrive before they can give a truthful answer. Deep records shipment and return status per order, so the seller answers when the fact actually exists rather than guessing inside 24 hours.
+>
+> How we use the tag: the `HUMAN_AGENT` tag is attached only to a message a human seller typed by hand in Deep's inbox, within 7 days of the customer's last message. Our code refuses to attach it to anything produced by an automation — auto-replies, the AI reply assistant, and every system-generated message are blocked from the tag at the point where the message is sent, not by convention. We never use it for promotions, offers, coupons, or any content unrelated to the customer's own question, and the seller sees an on-screen notice stating that rule before they send.
+
+#### 11.2.5 `instagram_manage_insights`
+
+> Deep lets a seller feature their own Instagram videos on their public Deep shop profile, so the profile they send to a customer shows real product footage instead of an empty page. We already read the seller's own media list with `instagram_basic`.
+>
+> This permission adds one thing to that picker: the view count. We call `GET /{media-id}/insights?metric=views` on the seller's **own** media, on the Instagram professional account linked to the Page they connected, so the picker can show "how many people watched this" next to each video. That is the one number a seller uses to decide which clip is worth putting on their storefront; `instagram_basic` returns likes and comments but not views.
+>
+> Limits we hold ourselves to: we request insights only for media owned by the connected account, one metric, and only to render that picker. We do not read audience demographics, follower insights, hashtag data, or any other account's media, and none of it is used for advertising, cross-app profiling, or resale. Without this permission the picker shows a blank where the view count should be, and the seller has to open the Instagram app to compare their own clips.
+
+### 11.3 🛑 บล็อกเกอร์ที่ต้องแก้ก่อนอัดคลิป — UI ของเส้นทางใหม่ยังเป็นภาษาไทยทั้งหมด
+
+รอบแรกถูกตีกลับเพราะ *"UI ยังไม่เป็นอังกฤษทั้งเส้นทาง"* (§9.2) และรอบ 2 ต้องมีรอบแปลภาษาตามมา
+(§9.4) — **เส้นทางของคลิป D และ E ยังไม่ผ่านรอบนั้นเลยสักบรรทัด** ตรวจ 2026-09-08:
+
+| เส้นทาง | สถานะ i18n | ผล |
+|---|---|---|
+| `seller/(chat)/inbox/comments/` | 4,469 บรรทัด · `useT` **11 จุด** = แทบไม่มีเลย (`'เกี่ยวข้องที่สุด'` `'ใหม่สุด'` `'ซ่อนโดยเพจนี้'` ฯลฯ hardcode) | คลิป D เป็นไทยทั้งม้วน |
+| แถบสถานะหน้าต่างเวลาใน `ChatThread.tsx:2360-2380` | hardcode ไทยล้วน (`'เกิน 24 ชั่วโมงแล้ว แต่ยังตอบเองได้ถึง…'`) | **ฉากที่พิสูจน์ Human Agent โดยตรง** เป็นไทย |
+
+**ทางเลือก 3 ทาง — ข้อ 3 คือที่แนะนำ**
+
+1. แปลทั้งโฟลเดอร์ `comments/` — ตรงเป้าที่สุดแต่เป็นงานระดับ 2,000+ บรรทัด
+2. ใช้ caption อังกฤษกำกับอย่างเดียว — carve-out นี้ใช้ได้กับ **1 ฉาก** ที่มีเหตุผลเชิงโครงสร้าง
+   รองรับ (หน้าร้านสาธารณะ คนละ route group คนละโดเมนกับ cookie ภาษา — ฉาก 4 คลิป C)
+   **ทั้งม้วนเป็นไทยแล้วอ้าง carve-out เดียวกันไม่ได้** = ความเสี่ยงเดียวกับที่ทำให้ตกรอบแรก
+3. 🎯 **แปลเฉพาะ subset ที่คลิปเดิน** — วิธีเดียวกับรอบ 2 (§9.4) คือแปลชื่อปุ่ม/ป้าย/สถานะ
+   ที่จะโผล่บนจอตามสคริปต์ §11.4 เท่านั้น แล้วค่อยแปลที่เหลือทีหลัง **ห้ามอัดคลิปก่อนขั้นนี้จบ**
+
+### 11.4 สคริปต์คลิป D และ E
+
+ชื่อปุ่มในตารางคือ **คำอังกฤษที่ต้องมีอยู่จริงบนจอหลังทำ §11.3 ข้อ 3 เสร็จ** — ถ้ายังเป็นไทย
+ห้ามกดอัด (บทเรียน §9.2) · เพจ = **Code CooL** เหมือนคลิป A/B/C ทุกม้วน ห้ามสลับเพจกลางคลิป
+
+#### คลิป D — คอมเมนต์ end-to-end
+`pages_read_user_content` · `pages_manage_engagement`
+
+| ฉาก | สิ่งที่ทำบนจอ | caption อังกฤษที่ต้องขึ้น |
+|---|---|---|
+| 1 | เข้าสู่ระบบด้วย `metareview` → กด **`EN`** → เมนูซ้าย **`Messages`** → แท็บ **`Comments`** | Deep's unified inbox. The Comments tab sits next to Messenger and Instagram threads. |
+| 2 | รายการโพสต์ของเพจโผล่ในคอลัมน์ซ้าย พร้อมตัวนับ **`Unanswered`** | Deep calls `GET /{page-id}/posts` to list the seller's own posts and how many comments still need an answer. |
+| 3 | สลับไปอีกบัญชี → คอมเมนต์ใต้โพสต์ของเพจ (ถามราคา/ค่าส่ง) | A customer asks a question in the comments instead of sending a message. |
+| 4 | 🎯 กลับมาที่แท็บ `Comments` **โดยไม่รีเฟรช** → คอมเมนต์ใหม่เด้งเข้ามาเอง พร้อมชื่อ+รูปคนคอมเมนต์ | The `feed` webhook arrives for the same Page connected earlier; Deep calls `GET /{post-id}/comments` and shows it in real time. |
+| 5 | 🎯 พิมพ์ตอบในช่อง **`Write a public reply…`** → กด **`Reply`** → สลับไปหน้า Facebook จริงให้เห็นคำตอบอยู่ใต้คอมเมนต์ | The seller replies by hand; Deep publishes it with `POST /{comment-id}/comments` using the Page access token. |
+| 6 | เปิด **`Private reply`** → ส่งข้อความส่วนตัว → เธรดใหม่โผล่ในแท็บ `Messages` พร้อมแถบ **`From comment`** | Deep can also move the conversation into a private thread when the answer contains personal details such as an address. |
+| 7 | ให้เห็นสถานะคอมเมนต์เปลี่ยนจาก `Unanswered` → **`Answered`** และตัวนับลดลง | The seller can see at a glance which questions still need attention. |
+
+**ฉาก 4 = หลักฐานว่าเราอ่าน (`pages_read_user_content`) · ฉาก 5 = หลักฐานว่าเราตอบ
+(`pages_manage_engagement`)** ต้องอยู่ในม้วนเดียวกันและเป็นเพจเดียวกันตลอด
+
+#### คลิป E — ตอบเองหลังพ้น 24 ชั่วโมง
+`Human Agent`
+
+🛑 **ต้องเตรียมล่วงหน้า ≥ 1 วัน** — ต้องมีเธรดจริงที่ลูกค้าทักไว้ **เกิน 24 ชม. แต่ไม่เกิน 7 วัน**
+สร้างสดตอนอัดไม่ได้ ⇒ ให้บัญชีทดสอบทักเข้าเพจ Code CooL **ก่อนวันอัดอย่างน้อย 1 วัน**
+
+| ฉาก | สิ่งที่ทำบนจอ | caption |
+|---|---|---|
+| 1 | เปิดเธรดนั้น → ให้เห็น **เวลาของข้อความล่าสุดของลูกค้า** ชัด ๆ ว่าเกิน 24 ชม. | The customer's last message arrived more than 24 hours ago — outside Meta's standard messaging window. |
+| 2 | 🎯 แถบเหนือช่องพิมพ์ขึ้นว่า **`More than 24 hours have passed — you can still reply yourself until {วันเวลา}. It must be a message you type yourself; promotional content is not allowed.`** | Deep tells the seller the rule before they type: hand-written replies only, no promotional content. |
+| 3 | 🎯 พิมพ์คำตอบด้วยมือ (เช่น สถานะพัสดุที่เพิ่งอัปเดต) → กด **`Send`** | A human agent answers the customer's original question, sent with the `HUMAN_AGENT` tag. |
+| 4 | สลับไปจอ Messenger ของลูกค้าให้เห็นว่าได้รับจริง | Delivered. |
+| 5 | เปิดเมนู auto-reply/AI ให้เห็นว่ามันไม่ทำงานในเธรดนี้ (หรือโชว์หน้าตั้งค่าที่ระบุว่า automation ไม่ใช้ tag นี้) | Automated replies never use this tag — only messages typed by a person. |
+
+**ฉาก 2 + 5 คือสิ่งที่ทำให้ Meta มั่นใจว่าเราไม่เอา tag ไปใช้ส่งโปรโมชัน** ซึ่งเป็น disallowed
+usage ข้อเดียวที่เขาระบุไว้ตรงตัว — ห้ามตัดทิ้งเพราะ "ไม่ใช่ฟีเจอร์หลัก"
+
+#### `instagram_manage_insights` — ต่อท้ายคลิป B ไม่ต้องอัดม้วนใหม่
+
+เพิ่ม 1 ฉากท้ายคลิป B: `Storefront` → การ์ดเลือกคลิป → **ให้เห็นตัวเลขยอดวิวใต้คลิป IG แต่ละอัน**
+caption: *"Deep calls `GET /{media-id}/insights` on the seller's own media so they can pick which
+clip to feature by how many people watched it."*
+
+🛑 §7.2 คลิป B ข้อเตือนเดิมเขียนว่า **"ห้ามโชว์ยอดวิว/insights ของ IG"** — ข้อนั้น**ยกเลิกแล้ว
+สำหรับรอบนี้** เพราะตอนนี้เราขอ `instagram_manage_insights` อยู่ในใบเดียวกัน (เหตุผลเดิมคือ
+"โชว์แล้วขัดกับใบยื่นเอง" ซึ่งไม่จริงอีกต่อไป)
+
+### 11.5 `api_precheck` — ต้องมี API call จริง ไม่ใช่แค่เขียนคำอธิบาย
+
+3 ตัวมีขั้นนี้ และทั้ง 3 ยังเป็น `false`
+
+| Privilege | ยิงยังไง | ติดอะไร |
+|---|---|---|
+| `pages_read_user_content` | `GET /api/cron/comment-attachment-repair?take=5` (Run จาก Vercel Dashboard) | scope อยู่ใน `CONNECT_SCOPES` แล้ว — ยิงได้เลย |
+| `pages_manage_engagement` | ตอบคอมเมนต์ 1 ใบจากแท็บ `Comments` บน prod | เหมือนกัน — ยิงได้เลย |
+| `instagram_manage_insights` | เลือกคลิป IG ในหน้า `Storefront` | 🛑 **ต้องแก้โค้ดก่อน** ดู §11.6 |
+
+### 11.6 🛑 `instagram_manage_insights` — ลำดับที่เคยเขียนไว้ในโค้ดใช้ไม่ได้ ต้องกลับด้าน
+
+`src/lib/facebook/constants.ts` เขียนคอมเมนต์ไว้ว่า *"เปิดใน App Dashboard → App Review ผ่าน →
+ค่อยใส่บรรทัดนี้กลับ"* — **ลำดับนี้เป็นไปไม่ได้** เพราะ `api_precheck` ต้องมี call จริง**ก่อน**ยื่น
+แต่ call เกิดไม่ได้ถ้า scope ไม่อยู่ใน `CONNECT_SCOPES` ลำดับที่ถูกคือ:
+
+เปิดใน App Dashboard ✅ (2026-09-08) → **ใส่ scope กลับ** → deploy → เชื่อมเพจใหม่ 1 เพจ →
+เลือกคลิป IG → `api_precheck` ผ่าน → ยื่น
+
+**ความเสี่ยงที่กันแล้ว:** เดิมการใส่ scope นี้ทำให้หน้า login ตีกลับ `Invalid Scopes` แล้ว
+**ร้านทุกร้านเชื่อมเพจไม่ได้ทั้งกระบวนการ** (พังบน prod 2026-07-26) — ทดสอบ `dialog/oauth`
+ตรง ๆ เมื่อ 2026-09-08 พร้อมตัวควบคุมแล้ว:
+
+| scope ที่ส่งเข้า dialog | ผลลัพธ์ |
+|---|---|
+| ชุดปัจจุบัน (baseline) | หน้า login ปกติ **455 KB** |
+| ชุดปัจจุบัน + `instagram_manage_insights` | หน้า login ปกติ **455 KB** ✅ |
+| ชุดปัจจุบัน + `deep_totally_bogus_scope` (ตัวควบคุม) | หน้า error **1.5 KB** *"Sorry, something went wrong"* |
+
+⇒ dialog รับ scope นี้แล้ว **หลักฐานสุดท้ายยังต้องเป็นการกดเชื่อมเพจจริง 1 เพจ** (ตัวทดสอบนี้
+ไม่ได้ล็อกอิน จึงพิสูจน์ได้แค่ว่า dialog ไม่ปฏิเสธ scope ทิ้งตั้งแต่ต้นทาง)
+
+หมายเหตุ: ร้านที่เชื่อมไว้แล้ว **ไม่ได้ scope นี้อัตโนมัติ** (scope ผูกกับ token ตอนกดอนุญาต)
+ต้องกดเชื่อมเพจใหม่ครั้งเดียว — `shop-video.service` ทนกับ token ที่ไม่มี scope อยู่แล้ว
+(คืนยอดวิวเป็น `null`) จึงไม่มีร้านไหนพัง
+
+### 11.7 เช็คลิสต์ก่อนกดส่ง
+
+- [ ] §11.3 แปล UI ของเส้นทางคลิป D + แถบหน้าต่างเวลาของคลิป E เป็นอังกฤษ (**ทำก่อนอย่างอื่น**)
+- [ ] ใส่ `instagram_manage_insights` กลับใน `CONNECT_SCOPES` + deploy + เชื่อมเพจใหม่ 1 เพจ
+- [ ] ยิง `api_precheck` ครบ 3 ตัว (§11.5)
+- [ ] ให้บัญชีทดสอบทักเข้าเพจ Code CooL **≥1 วันก่อนอัดคลิป E**
+- [ ] ตั้ง `META_HUMAN_AGENT_TEST_PSIDS` บน prod (🛑 **ห้ามตั้ง `META_HUMAN_AGENT_ENABLED=true`**
+      = เปิดให้ทุกเธรดลูกค้าจริงทั้งที่ยังไม่มีสิทธิ์) แล้วยืนยันว่า tag ยิงผ่านจริงก่อนอัดคลิป
+- [ ] อัดคลิป D + E + ต่อท้ายคลิป B
+- [ ] กรอกคำอธิบาย §11.2 ครบ 5 ช่อง
+- [ ] `data_use_checkup` ครบ 5 ช่อง
+- [ ] เช็คปุ่ม **"Get Advanced Access"** ของ `pages_show_list` · `business_management` ·
+      `pages_read_engagement` · `instagram_basic` (ผ่านรีวิวแล้วแต่ค้าง `standard` — Meta ระบุว่า
+      การคืน Advanced Access ให้ของที่เคยอนุมัติแล้วไม่ต้องรีวิวใหม่ ถ้ากดเองได้ = ไม่ต้องรอ 11 วัน)
+- [ ] ห้ามแตะเพจ Code CooL / บัญชี `metareview` / URL privacy-terms / ชื่อปุ่มบนเส้นทางทดสอบ
+      ตลอดช่วงรอผล (เช็คลิสต์เดิม §10.6)
