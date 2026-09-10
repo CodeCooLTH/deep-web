@@ -2020,10 +2020,18 @@ export default function InboxList({
                   <span
                     role="img"
                     aria-label={`${t.inbox.agentsLabel}: ${c.threadAgents.map((a) => a.name).join(', ')}`}
-                    // end-3.75 = ค่าเดียวกับ `pe-3.75` ของ <Link> ⇒ ขอบขวาของกองรูปตรงกับเวลาและชิปพอดี
-                    // (user รายงาน 2026-09-10: end-2.5 ทำให้รูปล้ำออกไปขวากว่าเนื้อหาอื่น ~5px
-                    // ดูหลุดกริด — ตรงนี้ต้องผูกกับ padding ของแถว ห้ามตั้งตัวเลขลอย ๆ)
-                    className="group/agents absolute bottom-2 end-3.75 z-10 flex items-center -space-x-1.5"
+                    /**
+                     * end-4.25 = `pe-3.75` ของ <Link> (15px) **บวก 2px ของวงแหวน**
+                     *
+                     * 🛑 `ring-2` วาด **นอกกล่อง** ของ element (เหมือน outline ไม่กินพื้นที่ layout)
+                     * ⇒ ขอบที่ตาเห็นล้ำออกไปขวากว่าขอบกล่องจริง 2px ⇒ ตั้ง end เท่ากับ padding
+                     * ของแถวเฉย ๆ จะยังดูไม่ตรงกับเวลา/ตัวนับที่ยังไม่อ่าน (user รายงานพร้อมภาพซูม
+                     * 2026-09-10 หลังรอบแรกที่แก้จาก end-2.5 → end-3.75 แล้วยังไม่ตรง)
+                     *
+                     * ผูกกับ `pe-3.75` + ความหนาวงแหวนเสมอ ห้ามตั้งตัวเลขลอย ๆ — ถ้าวันไหนเปลี่ยน
+                     * padding ของแถวหรือความหนาวงแหวน ต้องขยับค่านี้ตามด้วย
+                     */
+                    className="group/agents absolute bottom-2 end-4.25 z-10 flex items-center -space-x-1.5"
                   >
                     {c.threadAgents.slice(0, THREAD_AGENT_STACK_MAX).map((a) => (
                       <span
