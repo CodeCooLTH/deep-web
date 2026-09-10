@@ -20,6 +20,7 @@ import { en } from '@/i18n/dictionaries/en'
 
 const ROOT = process.cwd()
 const NOTICE = 'src/app/(paces)/seller/auth/sign-in/components/OAuthErrorNotice.tsx'
+const PROXY = 'src/proxy.ts'
 const code = (rel: string) =>
   readFileSync(join(ROOT, rel), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -49,6 +50,65 @@ describe('[blocker] แจ้งเหตุผลเมื่อถูกด่
       expect(msg, `ห้ามชวนไปสมัครที่เว็บ: ${msg}`).not.toMatch(
         /เว็บไซต์|website|sign ?up|register|สมัครที่/i,
       )
+    }
+  })
+})
+
+/**
+ * [blocker] สองเคสที่ถูกด่าน 3.1.1 ตัดจบ **พูดแทนกันไม่ได้**
+ *
+ * เดิมส่ง `app_no_account=1` ให้ทั้งคู่ แล้วขึ้น "ไม่พบบัญชีผู้ขายสำหรับข้อมูลที่ใช้เข้าสู่ระบบนี้"
+ * ซึ่ง **โกหกครึ่งหนึ่งของคนที่เห็น**:
+ *
+ * · `needsRegistration` = ยังไม่มีเบอร์ ⇒ ยังไม่มีบัญชีผู้ขายที่ใช้ได้ · ข้อความเดิมถูก
+ * · `needsOnboarding` = **มีบัญชีแล้ว ยืนยันเบอร์แล้ว** แค่ยังตั้งค่าร้านไม่เสร็จ
+ *
+ * เคสจริง 2026-09-10: แอดมินร้านธุรกิจถูกวางไว้ในร้านส่วนตัวที่ยังไม่ตั้งค่า แล้วเห็นข้อความ
+ * ว่าไม่พบบัญชี ⇒ ไปไล่หาว่าตัวเองสมัครผิดช่องทางไหน ทั้งที่ปัญหาคนละเรื่องกันเลย
+ *
+ * 🛑 ที่แก้คือ **คำ** ไม่ใช่ *สิทธิ์* — ทั้งสองเคสยังถูกบล็อกเหมือนเดิม
+ */
+describe('[blocker] แยกคำตามเหตุผลจริง ไม่ใช่ใช้คำเดียวกับทุกคน', () => {
+  it('🛑 proxy ต้องเลือกพารามิเตอร์ตามธงที่ทำให้ถูกบล็อก', () => {
+    const proxy = code(PROXY)
+    expect(proxy, 'ไม่มีการแยกเคส = กลับไปพูดคำเดียวกับทุกคน').toContain('app_setup_required')
+    expect(
+      /needsRegistration\s*\?\s*'app_no_account'\s*:\s*'app_setup_required'/.test(proxy),
+      'ต้องตัดสินจาก needsRegistration — ไม่ใช่เดาจากอย่างอื่น',
+    ).toBe(true)
+  })
+
+  it('🛑 component ต้องอ่านพารามิเตอร์ใหม่ด้วย ไม่งั้นเงียบสนิท', () => {
+    expect(code(NOTICE)).toContain('app_setup_required')
+    expect(code(NOTICE)).toContain('sellerSetupIncompleteInApp')
+  })
+
+  it('🛑 ข้อความเคสนี้ต้อง **ไม่** บอกว่าไม่พบบัญชี — เขามีบัญชีอยู่จริง', () => {
+    for (const msg of [
+      th.auth.signIn.oauthError.sellerSetupIncompleteInApp,
+      en.auth.signIn.oauthError.sellerSetupIncompleteInApp,
+    ]) {
+      expect(msg, `ยังบอกว่าไม่พบบัญชี: ${msg}`).not.toMatch(/ไม่พบบัญชี|no .*account was found/i)
+      expect(msg.trim().length).toBeGreaterThan(0)
+    }
+  })
+
+  it('🛑 ต้องเป็นคนละข้อความกับเคส "ไม่มีบัญชี" จริง ๆ', () => {
+    expect(th.auth.signIn.oauthError.sellerSetupIncompleteInApp).not.toBe(
+      th.auth.signIn.oauthError.noSellerAccountInApp,
+    )
+    expect(en.auth.signIn.oauthError.sellerSetupIncompleteInApp).not.toBe(
+      en.auth.signIn.oauthError.noSellerAccountInApp,
+    )
+  })
+
+  it('🛑 ข้อความใหม่ก็ห้ามชี้ทางไปสมัคร/จ่ายเงินข้างนอกเหมือนกัน (3.1.1)', () => {
+    for (const msg of [
+      th.auth.signIn.oauthError.sellerSetupIncompleteInApp,
+      en.auth.signIn.oauthError.sellerSetupIncompleteInApp,
+    ]) {
+      expect(msg).not.toMatch(/https?:\/\/|deepthailand|www\.|\.app\b|\.com\b/i)
+      expect(msg).not.toMatch(/เว็บไซต์|website|sign ?up|register|สมัครที่/i)
     }
   })
 })

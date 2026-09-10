@@ -67,17 +67,26 @@ export default function OAuthErrorNotice() {
    * (Apple ถือว่าเป็นความผิดข้อเดียวกับการมีปุ่มจ่ายเงิน — ดู `isPaymentRestricted`)
    */
   const blockedInApp = useSearchParams().get('app_no_account') === '1'
+  /**
+   * คนละเคสกับ `app_no_account` — คนนี้ **มีบัญชีอยู่แล้ว** ยืนยันเบอร์แล้ว
+   * แค่ยังตั้งค่าร้านไม่เสร็จ ⇒ บอกว่า "ไม่พบบัญชี" คือบอกข้อเท็จจริงผิด (ดู proxy.ts)
+   */
+  const setupIncompleteInApp = useSearchParams().get('app_setup_required') === '1'
 
   useEffect(() => {
     if (blockedInApp) {
       pacesToast.error(t.auth.signIn.oauthError.noSellerAccountInApp)
       return
     }
+    if (setupIncompleteInApp) {
+      pacesToast.error(t.auth.signIn.oauthError.sellerSetupIncompleteInApp)
+      return
+    }
     if (!code) return
     pacesToast.error(messageFor(code, t))
     // t เปลี่ยนตอนสลับภาษาเท่านั้น — ไม่ใส่ใน deps เพราะจะยิง toast ซ้ำทุกครั้งที่สลับ
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, blockedInApp])
+  }, [code, blockedInApp, setupIncompleteInApp])
 
   return null
 }

@@ -244,7 +244,20 @@ export async function proxy(request: NextRequest) {
         t,
       )
     ) {
-      const res = NextResponse.redirect(new URL('/auth/sign-in?app_no_account=1', request.url))
+      /**
+       * 🛑 สองเคสนี้พูดแทนกันไม่ได้ — เดิมส่ง `app_no_account=1` ให้ทั้งคู่ แล้วขึ้นข้อความ
+       * "ไม่พบบัญชีผู้ขายสำหรับข้อมูลที่ใช้เข้าสู่ระบบนี้" ซึ่ง **โกหกครึ่งหนึ่งของคนที่เห็น**
+       *
+       * · `needsRegistration` = ยังไม่มีเบอร์ ⇒ ยังไม่มีบัญชีผู้ขายที่ใช้ได้จริง ข้อความเดิมถูก
+       * · `needsOnboarding` = **มีบัญชีอยู่แล้ว** ยืนยันเบอร์แล้ว แค่ยังตั้งค่าร้านไม่เสร็จ
+       *   ⇒ บอกเขาว่า "ไม่พบบัญชี" คือบอกข้อเท็จจริงผิด · เจ้าตัวจะไปหาว่าตัวเองสมัคร
+       *   ด้วยช่องทางไหนผิด ทั้งที่ปัญหาอยู่คนละเรื่องกันเลย (เคสจริง 2026-09-10:
+       *   แอดมินร้านธุรกิจถูกวางไว้ในร้านส่วนตัวที่ยังไม่ตั้งค่า แล้วเห็นข้อความนี้)
+       *
+       * ทั้งสองเคสยังถูกบล็อกเหมือนเดิม — ที่แก้คือ **คำ** ไม่ใช่ *สิทธิ์*
+       */
+      const reason = t?.needsRegistration ? 'app_no_account' : 'app_setup_required'
+      const res = NextResponse.redirect(new URL(`/auth/sign-in?${reason}=1`, request.url))
       for (const name of SESSION_COOKIES) res.cookies.delete(name)
       return res
     }

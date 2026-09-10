@@ -904,6 +904,8 @@ export const en: Dictionary = {
         sessionRequired: 'Please sign in first.',
         unknown: 'Sign-in failed. Please try again.',
         noSellerAccountInApp: 'No seller account was found for these sign-in details.',
+        /* Different case: this person already has an account — only the shop setup is unfinished */
+        sellerSetupIncompleteInApp: 'This account has not finished its shop setup, so it cannot be used in the app yet.',
       },
     },
   },

@@ -119,5 +119,33 @@ describe('[blocker] แอดมินร้านธุรกิจต้อง
         'token.activeShopId = resolveDefaultActiveShopId({',
       )
     }
+
+    /**
+     * 🛑 ด่านเดิมกรองเฉพาะบรรทัดที่ **มีคำว่า** `resolveDefaultActiveShopId` อยู่แล้ว
+     * ⇒ จุด assign อีกจุด (สาขา `trigger === 'update'`) **ไม่เคยถูกตรวจเลย** และในนั้น
+     * ยังเขียน `?? personal?.id ?? null` ซึ่งคือท่าที่บั๊กนี้เกิดมาจากมันเป๊ะ
+     * (ตรวจเจอ 2026-09-10 · ยังไปไม่ถึงจุดอันตรายในทางปฏิบัติ แต่เป็นแพตเทิร์นต้นแบบที่รอ
+     * ให้คนถัดไปก็อป) ⇒ กฎที่ถูกคือ **ห้ามบรรทัด assign ไหนก็ตามถอยไปร้านส่วนตัว**
+     */
+    /**
+     * 🛑 ต้องจับ **ทั้งคำสั่ง** ไม่ใช่บรรทัดเดียว — ร่างแรกใช้ `[^\n]*` แล้ว mutation รอด
+     * เพราะคำสั่งในสาขา `trigger === 'update'` ยาว 3 บรรทัด (`= ok` / `? a` / `: b`)
+     * ตัว `personal?.id` อยู่บรรทัดที่ 3 จึงหลุดนอกสิ่งที่ตรวจ
+     * (`mutation-silence-means-weak-corpus.md` — เขียวเพราะชุดข้อมูลไม่ครอบ ไม่ใช่เพราะถูก)
+     */
+    const statements = code.match(/token\.activeShopId\s*=\s*[\s\S]*?;/g) ?? []
+    expect(statements.length, 'ไม่พบคำสั่ง assign เลย').toBeGreaterThan(0)
+
+    /**
+     * 🛑 **ส่ง `personal?.id` เข้า SSOT คือสิ่งที่ถูกต้อง** — SSOT ต้องรู้ว่ามีร้านส่วนตัวไหม
+     * ถึงจะตัดสินได้ · สิ่งที่ห้ามคือ assign ที่ **ถอยไปใช้ร้านส่วนตัวเอง** โดยไม่ผ่านกติกา
+     * (ร่างก่อนหน้าไม่แยกสองอย่างนี้ แล้วไปแดงใส่โค้ดที่ถูก — ตัวด่านเองก็ต้องถูกตรวจ)
+     */
+    const fallbacks = statements.filter((st) => !st.includes('resolveDefaultActiveShopId'))
+    for (const stmt of fallbacks) {
+      expect(stmt, `ห้าม assign ที่ถอยไปร้านส่วนตัวโดยไม่ผ่าน SSOT:\n${stmt}`).not.toMatch(
+        /personal\?\.id/,
+      )
+    }
   })
 })
