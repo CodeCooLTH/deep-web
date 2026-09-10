@@ -2004,89 +2004,73 @@ export default function InboxList({
                         </span>
                       )}
                     </span>
-                    {/* ชิปโฟลเดอร์ = กลุ่มที่เธรดนี้อยู่ (แท็บ "ทั้งหมด" เท่านั้น; ในแท็บกลุ่มเองไม่ย้ำ) */}
-                    {groupChip && (
-                      <span className="badge bg-default-100 text-default-600 text-2xs inline-flex max-w-28 items-center gap-1">
-                        <Icon icon="folder" width={11} height={11} className="shrink-0" />
-                        <span className="truncate">{groupChip}</span>
+                    {/* แถวล่างสุดของคอลัมน์ขวา — ชิปโฟลเดอร์ + กองรูปแอดมินที่ตอบ
+                        🛑 กองรูป **อยู่ในสายการวางปกติ ห้ามใช้ absolute** (แก้ 2026-09-10 รอบ 3):
+                        สองรอบแรกวางแบบ absolute แล้วไล่คำนวณ end ให้เท่ากับ padding ของแถว
+                        (end-2.5 → end-3.75 → end-4.25 ชดเชยความหนา ring) — user ส่งภาพ DevTools
+                        มายืนยันว่ายังหลุดออกไปนอกกล่องของ <Link> อยู่ดี. อยู่ในคอลัมน์เดียวกับ
+                        เวลา/ตัวนับที่ยังไม่อ่านซึ่งเป็น `items-end` อยู่แล้ว ⇒ **ขอบขวาตรงกันเอง
+                        ตลอดไปโดยไม่ต้องคำนวณ** และขยับตามทุกครั้งที่ padding ของแถวเปลี่ยน */}
+                    {(groupChip || (c.threadAgents && c.threadAgents.length > 0)) && (
+                      <span className="flex items-center gap-1.5">
+                        {groupChip && (
+                          <span className="badge bg-default-100 text-default-600 text-2xs inline-flex max-w-28 items-center gap-1">
+                            <Icon icon="folder" width={11} height={11} className="shrink-0" />
+                            <span className="truncate">{groupChip}</span>
+                          </span>
+                        )}
+                        {c.threadAgents && c.threadAgents.length > 0 && (
+                          <span
+                            role="img"
+                            aria-label={`${t.inbox.agentsLabel}: ${c.threadAgents.map((a) => a.name).join(', ')}`}
+                            className="group/agents relative flex items-center -space-x-1.5"
+                          >
+                            {c.threadAgents.slice(0, THREAD_AGENT_STACK_MAX).map((a) => (
+                              <span
+                                key={a.userId}
+                                aria-hidden="true"
+                                className="ring-card bg-default-200 text-default-700 flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full text-2xs font-bold ring-2"
+                              >
+                                {a.avatar ? (
+                                  // fileUrlOf — `User.avatar` เก็บได้ทั้ง URL ดิบและ fileId ของ storage เรา
+                                  // ตัวเดียวกับที่ BuyerAvatar ใช้ ห้าม interpolate เอง
+                                  // eslint-disable-next-line @next/next/no-img-element -- 20px ไม่คุ้มค่า next/image
+                                  <img src={fileUrlOf(a.avatar)} alt="" loading="lazy" className="size-full object-cover" />
+                                ) : (
+                                  generateInitials(a.name).slice(0, 2) || '?'
+                                )}
+                              </span>
+                            ))}
+                            {c.threadAgents.length > THREAD_AGENT_STACK_MAX && (
+                              <span
+                                aria-hidden="true"
+                                className="ring-card bg-primary flex size-5 shrink-0 items-center justify-center rounded-full text-2xs font-bold text-white ring-2"
+                              >
+                                {c.threadAgents.length - THREAD_AGENT_STACK_MAX}+
+                              </span>
+                            )}
+                            {/* กล่องชื่อ — เดสก์ท็อปเท่านั้น (มือถือไม่มี hover; screen reader อ่านจาก
+                                aria-label ข้างบนได้ทุกจอ). ยึด `group/agents` ไม่ใช่ `group` ของแถว
+                                ไม่งั้นชี้ตรงไหนของแถวก็เด้ง */}
+                            <span className="bg-default-900 pointer-events-none absolute bottom-full end-0 z-30 mb-1.5 hidden whitespace-nowrap rounded-lg px-2.5 py-1.5 text-2xs leading-relaxed text-white opacity-0 shadow-lg transition-opacity lg:block lg:group-hover/agents:opacity-100">
+                              {c.threadAgents.slice(0, THREAD_AGENT_STACK_MAX).map((a) => (
+                                <span key={a.userId} className="block font-medium">
+                                  {a.name}
+                                </span>
+                              ))}
+                              {c.threadAgents.length > THREAD_AGENT_STACK_MAX && (
+                                <span className="text-default-300 block">
+                                  {t.inbox.agentsMore.replace('{n}', String(c.threadAgents.length - THREAD_AGENT_STACK_MAX))}
+                                </span>
+                              )}
+                            </span>
+                          </span>
+                        )}
                       </span>
                     )}
                   </span>
                 </Link>
 
-                {/* ── กองรูปแอดมินที่เข้าไปตอบในห้องนี้ (user สั่ง 2026-09-10) ──────────────────
-                    "ถ้ารายการไหนไม่มี admin ตอบเลย (เค้าตอบจากฝั่ง platform มา) ก็ไม่ต้องขึ้นเลย"
-
-                    ใครนับ = `HUMAN_AGENT_REPLY_WHERE` (SSOT ของ 00059) เท่านั้น — ตอบจาก
-                    Business Suite/แอปของแพลตฟอร์ม และคำตอบของบอท ไม่มี `senderUserId` ติดมา
-                    จึงหายไปเองโดยไม่ต้องมีเงื่อนไขพิเศษที่นี่ ห้ามเติมกฎซ้อนตรงนี้ (HR16)
-
-                    อยู่ใน <Link> โดยตั้งใจ: มันเป็น "ข้อมูล" ไม่ใช่ปุ่ม — กดโดนแล้วต้องเข้าห้อง
-                    เหมือนกดที่อื่นของแถว ไม่ใช่กลืนคลิกทิ้ง (span sibling นอก Link จะกลืน)
-
-                    role="img" + aria-label ที่ตัวมันเอง — `aria-label` บน <span> เปล่าไม่มีผล
-                    ต้องมี role รองรับก่อน (docs/conventions/aria-name-requires-supporting-role.md)
-
-                    ชื่อโผล่เฉพาะ ≥1024px (user เลือกเอง: มือถือเห็นแค่รูป) — `title=` ใช้แทนไม่ได้
-                    เพราะมือถือไม่มี hover อยู่แล้ว และ screen reader อ่านจาก aria-label ได้ทุกจอ */}
-                {c.threadAgents && c.threadAgents.length > 0 && (
-                  <span
-                    role="img"
-                    aria-label={`${t.inbox.agentsLabel}: ${c.threadAgents.map((a) => a.name).join(', ')}`}
-                    /**
-                     * end-4.25 = `pe-3.75` ของ <Link> (15px) **บวก 2px ของวงแหวน**
-                     *
-                     * 🛑 `ring-2` วาด **นอกกล่อง** ของ element (เหมือน outline ไม่กินพื้นที่ layout)
-                     * ⇒ ขอบที่ตาเห็นล้ำออกไปขวากว่าขอบกล่องจริง 2px ⇒ ตั้ง end เท่ากับ padding
-                     * ของแถวเฉย ๆ จะยังดูไม่ตรงกับเวลา/ตัวนับที่ยังไม่อ่าน (user รายงานพร้อมภาพซูม
-                     * 2026-09-10 หลังรอบแรกที่แก้จาก end-2.5 → end-3.75 แล้วยังไม่ตรง)
-                     *
-                     * ผูกกับ `pe-3.75` + ความหนาวงแหวนเสมอ ห้ามตั้งตัวเลขลอย ๆ — ถ้าวันไหนเปลี่ยน
-                     * padding ของแถวหรือความหนาวงแหวน ต้องขยับค่านี้ตามด้วย
-                     */
-                    className="group/agents absolute bottom-2 end-4.25 z-10 flex items-center -space-x-1.5"
-                  >
-                    {c.threadAgents.slice(0, THREAD_AGENT_STACK_MAX).map((a) => (
-                      <span
-                        key={a.userId}
-                        aria-hidden="true"
-                        className="ring-card bg-default-200 text-default-700 flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full text-2xs font-bold ring-2"
-                      >
-                        {a.avatar ? (
-                          // fileUrlOf — `User.avatar` เก็บได้ทั้ง URL ดิบและ fileId ของ storage เรา
-                          // ตัวเดียวกับที่ BuyerAvatar ใช้ ห้าม interpolate เอง (ใช้ตัวที่คืน string
-                          // เสมอ เพราะอยู่หลัง `a.avatar ?` แล้ว)
-                          // eslint-disable-next-line @next/next/no-img-element -- 20px ไม่คุ้มค่า next/image
-                          <img src={fileUrlOf(a.avatar)} alt="" loading="lazy" className="size-full object-cover" />
-                        ) : (
-                          generateInitials(a.name).slice(0, 2) || '?'
-                        )}
-                      </span>
-                    ))}
-                    {c.threadAgents.length > THREAD_AGENT_STACK_MAX && (
-                      <span
-                        aria-hidden="true"
-                        className="ring-card bg-primary flex size-5 shrink-0 items-center justify-center rounded-full text-2xs font-bold text-white ring-2"
-                      >
-                        {c.threadAgents.length - THREAD_AGENT_STACK_MAX}+
-                      </span>
-                    )}
-                    {/* กล่องชื่อ — เดสก์ท็อปเท่านั้น. ยึด `group/agents` ไม่ใช่ `group` ของแถว
-                        ไม่งั้นชี้ตรงไหนของแถวก็เด้ง */}
-                    <span className="bg-default-900 pointer-events-none absolute bottom-full end-0 z-30 mb-1.5 hidden whitespace-nowrap rounded-lg px-2.5 py-1.5 text-2xs leading-relaxed text-white opacity-0 shadow-lg transition-opacity lg:block lg:group-hover/agents:opacity-100">
-                      {c.threadAgents.slice(0, THREAD_AGENT_STACK_MAX).map((a) => (
-                        <span key={a.userId} className="block font-medium">
-                          {a.name}
-                        </span>
-                      ))}
-                      {c.threadAgents.length > THREAD_AGENT_STACK_MAX && (
-                        <span className="text-default-300 block">
-                          {t.inbox.agentsMore.replace('{n}', String(c.threadAgents.length - THREAD_AGENT_STACK_MAX))}
-                        </span>
-                      )}
-                    </span>
-                  </span>
-                )}
                 {/* ชุดปุ่มลอยตอน hover (ปักหมุด/ปิดงาน/⋯) ถูกถอดออก 2026-09-10 ตามคำสั่ง user
                     ("ให้เอาออกดีไหม ให้เค้าไป คลิกขวาเอา")
 

@@ -12,6 +12,7 @@
  * ต่างจาก widget panel ที่ h-full ไม่มี .card ซ้ำ)
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect'
 import { useSession } from 'next-auth/react'
 import { formatDate } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
@@ -488,15 +489,31 @@ export function useSellerChatThread(
     }, 500)
   }, [conversationId])
 
+  /**
+   * เลื่อนลงล่างสุด **ก่อนเบราว์เซอร์วาดเฟรมแรก** เมื่อข้อความมาพร้อมหน้าแล้ว
+   *
+   * 🛑 ต้องเป็น layout effect ไม่ใช่ `useEffect` — พอ seed ข้อความจากเซิร์ฟเวอร์ เธรดมีเนื้อหา
+   * ตั้งแต่เฟรมแรก ⇒ ถ้าเลื่อนหลังวาด ผู้ใช้จะเห็นเธรด**โผล่ที่หัวข้อความเก่าสุดแล้วกระตุกลงล่าง**
+   * ซึ่งคือ "กระพริบเล็ก ๆ" ที่เหลืออยู่หลังตัด loading ออกไปแล้ว (user รายงาน 2026-09-10)
+   *
+   * รูป/ฟอนต์ที่โหลดทีหลังยังทำให้ความสูงขยับต่อได้ — ตัวปักหมุดล่างสุดด้วย ResizeObserver
+   * ข้างล่างรับช่วงต่อเองอยู่แล้ว ตัวนี้แค่กันเฟรมแรกไม่ให้กระตุก
+   */
+  useIsomorphicLayoutEffect(() => {
+    if (!initial) return
+    scrollToBottom()
+    // deps ว่างโดยตั้งใจ — เฟรมแรกครั้งเดียวเท่านั้น (การเลื่อนรอบหลังเป็นหน้าที่ของตัวปักหมุด
+    // ล่างสุดด้วย ResizeObserver ข้างล่าง) · eslint ไม่ทักเพราะทุกค่าที่อ้างมี identity คงที่
+  }, [])
+
   // ── initial load + mark-read on mount ──────────────────────────────────
   useEffect(() => {
     let cancelled = false
     didInitialScrollRef.current = false // เปลี่ยนเธรด → ให้เลื่อนลงล่างสุดใหม่อีกรอบ
-    // เซิร์ฟเวอร์ส่งข้อความชุดแรกมาพร้อมหน้าแล้ว → ข้ามการยิงซ้ำ แต่ยัง mark-read + เลื่อนลงล่างสุด
-    // เหมือนเดิมทุกประการ (สองอย่างนั้นไม่ใช่ผลพลอยได้ของการ fetch — มันคือพฤติกรรมของ "เปิดห้อง")
+    // เซิร์ฟเวอร์ส่งข้อความชุดแรกมาพร้อมหน้าแล้ว → ข้ามการยิงซ้ำ แต่ยัง mark-read เหมือนเดิม
+    // (การเลื่อนลงล่างสุดย้ายไป layout effect ข้างล่าง เพื่อให้เกิด **ก่อนเบราว์เซอร์วาด**)
     if (seededForRef.current === conversationId) {
       seededForRef.current = null
-      scrollToBottom()
       fetch(`/api/chat/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {})
       return () => {
         cancelled = true
