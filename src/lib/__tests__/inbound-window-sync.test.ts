@@ -127,3 +127,24 @@ describe('[blocker] snapshot รายการแชทเก็บได้แ
     expect(Number(m![1])).toBeLessThanOrEqual(5)
   })
 })
+
+/**
+ * [blocker] — ข้อความที่ติดมากับหน้า (prefetch) ต้องถูกเช็คซ้ำทันทีที่เปิดห้อง
+ *
+ * 🛑 user รายงาน 2026-09-10: "เห็นคำว่า เวฟ 110 ในรายการแล้ว พอกดเข้าไปไม่เห็นทันที มัน delay"
+ * รายการแชทได้ข้อความใหม่ทาง realtime (ทันที) แต่หน้าเธรดถูก prefetch ไว้ล่วงหน้าและ router
+ * cache เก็บได้ถึง 30 วินาที ⇒ ข้อความชุดแรกเป็นภาพ ณ ตอน prefetch ไม่ใช่ตอนกด
+ * ถ้าไม่ยิงซ้ำตอน mount ต้องรอ poll รอบถัดไป (สูงสุด 6 วินาที)
+ */
+describe('[blocker] เปิดห้องแล้วต้อง reconcile ข้อความทันที', () => {
+  it('hook ยิง refetchNewer ตอน mount เมื่อถูก seed มาจากเซิร์ฟเวอร์', async () => {
+    const fs = await import('fs')
+    const code = fs
+      .readFileSync('src/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread.ts', 'utf8')
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
+      .join('\n')
+    // ต้องมี effect ที่ "ถ้ามี initial ให้ refetchNewer" — ไม่ใช่แค่มีฟังก์ชันลอย ๆ
+    expect(code).toMatch(/if \(!initial\) return\s*\n\s*void refetchNewer\(\)/)
+  })
+})

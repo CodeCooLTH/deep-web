@@ -667,6 +667,28 @@ export function useSellerChatThread(
     }
   }, [conversationId, shopId, beepEnabled])
 
+  /**
+   * ข้อความที่เซิร์ฟเวอร์ส่งมากับหน้า **อาจไม่ใช่ล่าสุด** — เช็คซ้ำทันทีที่เปิดห้อง
+   *
+   * 🛑 บั๊กที่บล็อกนี้แก้ (user รายงาน 2026-09-10): "เห็นคำว่า เวฟ 110 ในรายการแล้ว พอกดเข้าไป
+   * ไม่เห็นทันที มันดัน delay" — รายการแชทได้ข้อความใหม่ทาง realtime broadcast (ทันที) แต่
+   * ตัวหน้าเธรดถูก **prefetch ไว้ล่วงหน้า** และ router cache เก็บไว้ได้ถึง 30 วินาที
+   * (`staleTimes.dynamic`) ⇒ ข้อความชุดแรกที่ติดมากับหน้าเป็นภาพ ณ ตอน prefetch ไม่ใช่ตอนกด
+   * ⇒ เดิมต้องรอ poll รอบถัดไป (สูงสุด 6 วินาที) ข้อความล่าสุดถึงจะโผล่
+   *
+   * ยิงทันทีตอน mount ⇒ ช่องว่างเหลือแค่ **1 round trip** แทนที่จะเป็น 6 วินาที และผู้ใช้ยังเห็น
+   * เนื้อหาตั้งแต่เฟรมแรก (ไม่กลับไปเป็นจอเปล่าเหมือนก่อนมี initialMessages)
+   *
+   * ทำเฉพาะตอน seed — ทางที่ไม่ได้ seed ยิง `loadInitial()` สดอยู่แล้ว ไม่ต้องยิงซ้ำ
+   */
+  useEffect(() => {
+    if (!initial) return
+    void refetchNewer()
+    // deps ว่างโดยตั้งใจ — ครั้งเดียวตอนเปิดห้อง (รอบถัดไปเป็นหน้าที่ของ poll/realtime)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+
   // ── realtime subscribe: chat:{conversationId} ──────────────────────────
   // (user report 2026-07-26: บางเครื่อง "ไม่ realtime") — backend/trigger/broadcast พิสูจน์แล้วว่าทำงาน
   // (anon client รับ broadcast ได้จริงบน conversation จริง) ปัญหาจึงอยู่ที่ subscribe ฝั่ง browser
