@@ -912,9 +912,22 @@ export const authOptions: NextAuthOptions = {
           const ok =
             (await isShopMember(requestedShopId, token.userId as string)) ||
             requestedShopId === personal?.id;
+          /**
+           * 🛑 ห้ามถอยไป `personal?.id` ตรงนี้ — เป็นท่าเดียวกับที่ทำให้เกิดบั๊ก prod
+           * 2026-09-10 (วางคนไว้ในร้านส่วนตัวที่ยังไม่ตั้งค่า ⇒ `needsOnboarding`
+           * ⇒ ถูกล้าง session ออกจากแอป iOS) แค่คนละสาขาของ if เดียวกัน
+           *
+           * ตอนตรวจ 2026-09-10 พิสูจน์แล้วว่าเส้นนี้ยังไปไม่ถึงจุดที่เป็นอันตราย เพราะ
+           * `resolveDefaultActiveShopId` คืน `null` ก็ต่อเมื่อไม่มีร้านส่วนตัวเลย
+           * ⇒ ตอนที่ `token.activeShopId` ว่าง `personal?.id` ก็ว่างอยู่ดี
+           *
+           * แต่ **ปล่อยไว้ไม่ได้**: มันคือแพตเทิร์นต้นแบบที่รอให้คนถัดไปก็อป และเงื่อนไข
+           * ที่ทำให้มันปลอดภัยอยู่คนละไฟล์กับตัวมันเอง (บทเรียน `rebase-clean-is-not-safe`)
+           * ⇒ ถอยไป `null` ให้ผู้เรียกไปเดินด่านปกติแทน
+           */
           token.activeShopId = ok
             ? requestedShopId
-            : ((token.activeShopId as string | undefined) ?? personal?.id ?? null);
+            : ((token.activeShopId as string | undefined) ?? null);
         } else if (!token.activeShopId) {
           /**
            * sign-in แรก, ยังไม่เคยตั้ง → กฎอยู่ที่ `resolveDefaultActiveShopId` (SSOT + เทส)
