@@ -315,7 +315,15 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
               ที่รับ scroll ต่อจากรายการข้อความ (chaining) แล้วดันเนื้อหาทั้งคอลัมน์ขยับ →
               lg:overflow-hidden. ต่ำกว่านั้น (มือถือ/แท็บเล็ต) ยังต้องเลื่อนได้เพราะรายการแชทยาว
               จริง แต่ใส่ overscroll-contain กันไม่ให้ scroll ทะลุไปถึงหน้าเว็บ/หัวแชท */}
-            <div className='min-w-0 flex-1 overflow-y-auto overscroll-contain lg:overflow-hidden'>{children}</div>
+            <div
+              // data-chat-scroller: จุดยึดของตัวจำตำแหน่งรายการแชท (inbox-scroll-restore.ts)
+              // กล่องนี้อยู่ระดับ layout จึงไม่ unmount ตอนเปิด/ปิดห้อง — ที่ scroll หายคือเพราะ
+              // เนื้อข้างในหดลงเหลือหน้าแรก ไม่ใช่เพราะกล่องถูกสร้างใหม่
+              data-chat-scroller=''
+              className='min-w-0 flex-1 overflow-y-auto overscroll-contain lg:overflow-hidden'
+            >
+              {children}
+            </div>
           </div>
         </div>
       </div>

@@ -3825,6 +3825,29 @@ export default function ChatThread({
                                   <Icon icon="info-circle" className="text-sm" />
                                 </button>
                               )}
+                              {/* ทางออกที่กดได้จริงของสาเหตุนี้ (user รายงาน 2026-09-10)
+                                  — เธรดที่ Meta ปฏิเสธเพราะ "อีกแอปถือสิทธิ์คุมอยู่" เดิมเหลือแค่
+                                  "ยกเลิก" ซึ่งไม่ได้พาไปไหน และแถบ manual-override ก็ไม่โผล่เพราะ
+                                  เธรดนั้นไม่มี marker ของ Meta AI ให้ตรวจเจอ ⇒ ร้านตัน
+                                  🛑 เงื่อนไขมาจาก `failDetail.action` ไม่ใช่การ match ถ้อยคำซ้ำที่นี่
+                                  (ถ้อยคำเป็นของ chat-send-failure.ts — HR16) */}
+                              {failDetail?.action === 'BUSINESS_SUITE' && (
+                                <>
+                                  <span className="text-default-300" aria-hidden="true">
+                                    |
+                                  </span>
+                                  <a
+                                    href={META_BUSINESS_SUITE_INBOX_URL}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label="เปิด Business Suite เพื่อเข้าไปดูแลแชทนี้เอง"
+                                    className="-mx-1 -my-3.5 flex items-center gap-1 rounded px-1 py-3.5 underline decoration-dotted underline-offset-2 hover:decoration-solid lg:-m-1 lg:p-1"
+                                  >
+                                    Business Suite
+                                    <Icon icon="external-link" className="text-sm" />
+                                  </a>
+                                </>
+                              )}
                               <span className="text-default-300" aria-hidden="true">
                                 |
                               </span>

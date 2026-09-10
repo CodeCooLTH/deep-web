@@ -81,6 +81,12 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { fileUrlOf, toFileUrl } from '@/lib/file-url'
+import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect'
+import {
+  CHAT_SCROLLER_SELECTOR,
+  readInboxSnapshot,
+  saveInboxSnapshot,
+} from './inbox-scroll-restore'
 // ป้ายพฤติกรรมลูกค้า — SSOT เดียวกับหัวแผงลูกค้าในเธรด และป้ายท้ายชื่อในตาราง /orders (HR16)
 import { customerBadges, type CustomerBehavior } from '@/lib/customer-behavior'
 import { orderStageChipLabel } from '@/lib/order-stage'
@@ -511,6 +517,81 @@ export default function InboxList({
   /** ลายเซ็นของ "แถวที่อยู่ใน state ตอนนี้" — ต่างจาก listSignatureRef ที่เป็นของ "ที่ควรแสดง"
    *  ทั้งคู่ต่างกันได้จริงในช่วงที่ยังรอผลของตัวกรองใหม่ ซึ่งเป็นช่วงที่ poll 20 วิยิงแทรกได้พอดี */
   const itemsSignatureRef = useRef(listSignature)
+
+  /* ── จำตำแหน่งรายการข้ามการเปิด/ปิดห้องแชท (user สั่ง 2026-09-10) ────────────────────
+   * "เวลาที่เราอยู่ตรง chat ไหน เวลาปิด modal ห้องแชท ก็ให้อยู่ตำแหน่งเดิม แค่แชทนั้น ๆ
+   *  ถูก re-arrange ใหม่"
+   *
+   * เฉพาะรายการเต็มจอ (มือถือ) — rail เดสก์ท็อปอยู่ระดับ layout ไม่เคย unmount จึงไม่มีอาการ
+   * และถ้าเปิดด้วยจะเขียนทับ snapshot ของมือถือมั่วไปหมด (คนละกล่อง scroll กัน)
+   * เหตุผลว่าทำไมต้องจำ items ด้วย ไม่ใช่แค่ scrollTop → ดูหัวไฟล์ inbox-scroll-restore.ts
+   */
+  const restoreEnabled = !railMode
+  const scrollTopRef = useRef(0)
+  /** ตำแหน่งที่รอคืน — null = ไม่มีอะไรค้าง (ตั้งครั้งเดียวตอน mount) */
+  const pendingRestoreRef = useRef<number | null>(null)
+  const restoreTriesRef = useRef(0)
+
+  // อ่านของที่จำไว้ "ก่อนวาดครั้งแรก" — ใช้ useLayoutEffect ไม่ใช่ useEffect เพื่อไม่ให้ผู้ใช้
+  // เห็นรายการหน้าแรกวาบขึ้นมาก่อนแล้วค่อยกระโดด
+  useIsomorphicLayoutEffect(() => {
+    if (!restoreEnabled) return
+    const snap = readInboxSnapshot<ConversationListItem>(listSignatureRef.current)
+    if (!snap) return
+    setItems(snap.items)
+    setNextCursor(snap.nextCursor)
+    pendingRestoreRef.current = snap.scrollTop
+    // deps ว่างโดยตั้งใจ — คืนของครั้งเดียวตอน mount เท่านั้น (ตัวกรองเปลี่ยนทีหลังต้องโหลดสด
+    // ไม่ใช่คืนของเก่า) · eslint ไม่ทักเพราะทุกค่าที่อ้างอิงเป็น ref/setState ที่ identity คงที่
+  }, [])
+
+  /**
+   * คืน scrollTop เมื่อ "แถวสูงพอให้เลื่อนไปถึงแล้ว" — เช็คทุกครั้งที่ items เปลี่ยน
+   *
+   * 🛑 ห้ามตั้ง scrollTop ทันทีหลัง setItems โดยไม่เช็คความสูง: React วาดแถวเสร็จแล้วก็จริง
+   * แต่รูป/ฟอนต์ยังทำให้ความสูงขยับต่อได้ ⇒ ตั้งเร็วไปจะโดนบีบกลับมาเป็นค่าที่เตี้ยกว่า
+   * มีเพดานลองใหม่เพื่อไม่ให้ค้างตลอดกาลเมื่อรายการหดจริง (เช่นตัวกรองคืนแถวน้อยลง)
+   */
+  useIsomorphicLayoutEffect(() => {
+    const top = pendingRestoreRef.current
+    if (top === null) return
+    const el = document.querySelector<HTMLElement>(CHAT_SCROLLER_SELECTOR)
+    if (!el) return
+    const max = el.scrollHeight - el.clientHeight
+    restoreTriesRef.current += 1
+    if (max < top && restoreTriesRef.current < 6) return
+    el.scrollTop = Math.min(top, Math.max(max, 0))
+    pendingRestoreRef.current = null
+  }, [items])
+
+  // ตามรอย scrollTop ไว้ล่วงหน้า — อ่านตอน unmount อย่างเดียวไม่ปลอดภัย เพราะเบราว์เซอร์อาจ
+  // บีบค่าลงแล้วตั้งแต่ตอนที่เนื้อหาเริ่มถูกสลับ
+  useEffect(() => {
+    if (!restoreEnabled) return
+    const el = document.querySelector<HTMLElement>(CHAT_SCROLLER_SELECTOR)
+    if (!el) return
+    const onScroll = () => {
+      scrollTopRef.current = el.scrollTop
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [restoreEnabled])
+
+  // เก็บ snapshot ตอนออกจากรายการ (กดเข้าห้องแชท = component นี้ unmount)
+  const itemsRef = useRef(items)
+  itemsRef.current = items
+  const nextCursorRef = useRef(nextCursor)
+  nextCursorRef.current = nextCursor
+  useEffect(() => {
+    if (!restoreEnabled) return
+    return () => {
+      saveInboxSnapshot(listSignatureRef.current, {
+        scrollTop: scrollTopRef.current,
+        nextCursor: nextCursorRef.current,
+        items: itemsRef.current,
+      })
+    }
+  }, [restoreEnabled])
 
   // fetch เดียวใช้ทั้ง loadMore (append) และ refetch เมื่อ filter เปลี่ยน (replace)
   const fetchList = async (opts: { cursor?: string; append: boolean }) => {
