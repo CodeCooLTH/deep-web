@@ -52,6 +52,8 @@ import { shouldHidePayments } from '@/lib/app-shell-server'
 import { resolveChatScope } from '@/lib/chat-scope'
 import { ThreadShopProvider } from '../../_components/DraftOrderProvider'
 import { getWindowState, syncInboundWindowFromMeta, canUseHumanAgent } from '@/services/channel-chat.service'
+// เกณฑ์ "ต้องถาม Meta ไหม" = ฟังก์ชันบริสุทธิ์ที่มีเทส [blocker] คุม — ห้ามเขียน if เองที่นี่
+import { shouldAskMetaForInboundWindow } from '@/lib/inbound-window-sync'
 // (S-14b, feature 00025) หน้าต่างตอบฟรี + โควตาของ LINE — คำนวณฝั่ง server แล้วส่งเป็นตัวเลข/boolean
 // ล้วนลง prop (เหมือน windowState/tokenInvalid เดิม) ไม่ให้ service หลุดเข้า client bundle
 import { getLineReplyWindowState } from '@/lib/line/reply-window'
@@ -318,7 +320,26 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   // กลืน error คืน null) จึงไม่เคยมีใครเห็น เหลือไว้แค่ latency ที่จ่ายฟรีทุกครั้ง
   const isLineThread = conversation.channel === 'LINE'
   let effectiveLastInbound = conversation.lastInboundAt
-  if (!isLineThread && conversation.channel !== 'DEEP' && !getWindowState(effectiveLastInbound).open) {
+  /**
+   * 🛑 ยิง Meta เฉพาะตอน `lastInboundAt IS NULL` เท่านั้น (แคบลง 2026-09-10)
+   *
+   * เดิมยิงทุกครั้งที่ "หน้าต่างดูปิด" ซึ่งวัดบน prod แล้วคือ **96% ของเธรดช่องทางนอก** และ
+   * Graph call นี้ **median 680ms** (วัด 5 รอบ: 608/624/680/764/935) — บล็อกการวาดหน้าอยู่
+   * ⇒ นี่คือเหตุผลหลักที่ "เข้าห้องต้องโหลดตลอด" (user รายงาน 2026-09-10) ไม่ใช่ prisma ซึ่ง
+   * คอมเมนต์ข้างล่างวัดไว้แล้วว่า execute 0.07–0.10ms ต่อ query
+   *
+   * แยกสองกรณีที่เดิมถูกเหมารวมเป็นกรณีเดียว:
+   *   · `NULL` (487 เธรด · 5.2%) = **เราไม่มีข้อมูลเลย** — คือเคสที่ฟีเจอร์นี้ถูกสร้างมาแก้จริง ๆ
+   *     (ร้านเชื่อมเพจช้ากว่าที่ลูกค้าทัก → ไม่เคยได้ webhook ของข้อความก่อนหน้า) ⇒ ต้องถาม Meta
+   *   · มีค่าอยู่แล้วแต่เก่ากว่า 24 ชม. (8,483 เธรด · **90.9%**) = ลูกค้าเงียบไปจริง ๆ
+   *     **ค่าที่ webhook ให้มาถูกต้องอยู่แล้ว** การถาม Meta ซ้ำได้คำตอบเดิมเสมอ ⇒ เสียเปล่าล้วน
+   *
+   * ความเสี่ยงที่รับไว้: ถ้า webhook ตกหล่นจนค่าที่เก็บเก่ากว่าความจริง แถบสถานะจะเตือนผิดว่า
+   * "เกิน 24 ชม." — **ไม่ได้บล็อกอะไร** เพราะช่องพิมพ์เลิกล็อกตามหน้าต่างเวลาไปแล้วตั้งแต่ 2026-08-03
+   * ร้านยังกดส่งได้ และถ้าหน้าต่างเปิดจริง Meta ก็รับ ⇒ แลกคำเตือนที่อาจเกินจริงกับ 680ms
+   * ที่จ่ายทุกครั้งของ 91% ของการเปิดห้อง
+   */
+  if (shouldAskMetaForInboundWindow({ channel: conversation.channel, lastInboundAt: effectiveLastInbound })) {
     effectiveLastInbound = await syncInboundWindowFromMeta(conversation.id)
   }
   // 🛑 เฟสนี้ยิง Graph ของ Meta เมื่อหน้าต่าง 24 ชม. ปิด — บน prod **92.1% ของเธรด Messenger
