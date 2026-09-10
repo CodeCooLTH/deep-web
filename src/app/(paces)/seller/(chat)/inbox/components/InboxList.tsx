@@ -1663,7 +1663,28 @@ export default function InboxList({
                     (user: "เอาจริง ๆ ทำมามันก็ใหญ่ไปอ่ะ") เพราะแถวนี้มีชิปหลายชั้นอยู่แล้ว
                     (ad_id / สถานะขาย / โฟลเดอร์) ความสูงจึงมาจากเนื้อหา ไม่ใช่ padding —
                     เพิ่ม padding ทับเข้าไปยิ่งทำให้เห็นเธรดต่อจอน้อยลงโดยไม่ได้อ่านง่ายขึ้น */}
-                <Link href={`/inbox/${c.id}`} className="flex min-w-0 flex-1 justify-between gap-3 py-3 pe-3.75 ps-3.75">
+                <Link
+                  href={`/inbox/${c.id}`}
+                  /**
+                   * 🛑 `prefetch` ต้องระบุเอง — ค่า default ของ Next ไม่พอสำหรับหน้านี้
+                   *
+                   * เอกสารของ Next 16 (`client/app-dir/link.d.ts:103-105`) เขียนตรงตัว:
+                   *   · default 'auto' → **dynamic route ได้แค่ partial prefetch ถึง `loading.js`**
+                   *   · `true`         → prefetch เต็มทั้ง route และ **ข้อมูล**
+                   * `/inbox/[conversationId]` เป็น dynamic ⇒ ที่ผ่านมา Next ดึงมาแค่สเกเลตัน
+                   * ⇒ กดแล้ว **เห็น loading เสมอโดยการออกแบบ** ไม่ว่าจะทำ RSC ให้เร็วแค่ไหน
+                   * (user 2026-09-10: "มันเหมือนจะไว แต่มันก็มี loading อยู่ดี ทำให้รู้สึกว่าช้า")
+                   *
+                   * เปิดเต็มได้เพราะเพิ่งถอด Graph call 680ms ออกจากการเรนเดอร์เธรดไปในรอบเดียวกัน
+                   * — ก่อนหน้านั้น prefetch เต็มคือการยิง Meta ให้ทุกแถวที่เลื่อนผ่านตา ซึ่งรับไม่ไหว
+                   *
+                   * ต้นทุน: Next prefetch เฉพาะลิงก์ที่ **อยู่ในจอ** และ dedupe ให้ แต่ก็ยังแปลว่า
+                   * แถวที่เลื่อนผ่าน = เรนเดอร์เธรดจริงฝั่งเซิร์ฟเวอร์ 1 ครั้ง ⇒ ถ้าค่า invocation
+                   * บน Vercel พุ่ง ให้ลดเป็น `prefetch={undefined}` (กลับค่าเดิม) หรือจำกัดตาม index
+                   */
+                  prefetch
+                  className="flex min-w-0 flex-1 justify-between gap-3 py-3 pe-3.75 ps-3.75"
+                >
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="relative shrink-0">
                       <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} />
