@@ -1,4 +1,5 @@
 import { GRAPH_BASE, MESSENGER_SUBSCRIBED_FIELDS } from './constants'
+import { normalizeMetaContactName } from '@/lib/meta-contact-name'
 
 // Client บาง ๆ ของ Meta Graph API (feature 00018)
 // หลักการ: ส่ง access token ผ่าน header Authorization เสมอ ไม่ใส่ใน query string
@@ -395,7 +396,11 @@ export async function getContactProfile(
       })
       return {
         // บาง account ตั้งชื่อเป็นอักขระพิเศษจนอ่านไม่ออก — fallback เป็น @username ที่อ่านได้เสมอ
-        name: (json.name as string | undefined) || (json.username as string | undefined) || null,
+        // normalize ทิ้งชื่อสำรองของ Meta ("Instagram User") ก่อนเสมอ ไม่งั้นมันจะถูกเก็บเป็น
+        // "ชื่อที่มีค่า" แล้วไม่มีใครถามใหม่อีกเลย (ดู lib/meta-contact-name.ts)
+        name:
+          normalizeMetaContactName(json.name as string | undefined) ??
+          normalizeMetaContactName(json.username as string | undefined),
         avatarUrl: (json.profile_pic as string | undefined) ?? null,
       }
     }
@@ -407,13 +412,14 @@ export async function getContactProfile(
       const direct = await graphFetch(`/${externalUserId}`, pageToken, {
         query: { fields: 'name,first_name,last_name,profile_pic' },
       })
-      const full =
+      const full = normalizeMetaContactName(
         (direct.name as string | undefined) ||
-        [direct.first_name, direct.last_name].filter(Boolean).join(' ').trim()
+          [direct.first_name, direct.last_name].filter(Boolean).join(' ').trim(),
+      )
       const pic = (direct.profile_pic as string | undefined) ?? null
       // ยอมรับผลชั้น 1 เฉพาะตอนได้ของที่ชั้น 2 ให้ไม่ได้ (รูป) หรือได้ชื่อมาด้วย — ตอบ 200 เปล่า ๆ
       // ให้ตกไปชั้น 2 ต่อ ไม่ใช่คืน null ทั้งคู่
-      if (full || pic) return { name: full || null, avatarUrl: pic }
+      if (full || pic) return { name: full, avatarUrl: pic }
     } catch {
       // ลูกค้าทั่วไปมาทางนี้เสมอ (400 code=100 subcode=33) — ไม่ log ไม่ throw ตกไปชั้น 2
     }
@@ -428,7 +434,11 @@ export async function getContactProfile(
     for (const thread of threads) {
       // participants มีทั้งลูกค้าและตัวเพจเอง — เลือกเฉพาะแถวที่ id ตรงกับ PSID ที่ถาม
       const me = thread.participants?.data?.find((p) => p.id === externalUserId)
-      if (me?.name) return { name: me.name, avatarUrl: null }
+      // 🛑 ห้ามคืน me.name ดิบ — ห้องที่ "ร้านเริ่มก่อน" (private reply / โฆษณา) จะได้
+      // "Facebook user" มาแทนชื่อจริงจนกว่าลูกค้าจะตอบกลับ ซึ่งเป็นค่าที่ผ่านด่าน `if (name)`
+      // ทุกด่านแล้วค้างถาวร (เกิดจริง prod 2026-09-08) — คืน null ให้ถูกถามใหม่รอบหน้าแทน
+      const resolved = normalizeMetaContactName(me?.name)
+      if (resolved) return { name: resolved, avatarUrl: null }
     }
     return { name: null, avatarUrl: null }
   } catch {

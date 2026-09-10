@@ -47,6 +47,8 @@ import { writeDedupedFile, findMediaAssetBySourceKey } from '@/services/media-as
 import { parseMetaOrderCard } from '@/lib/meta-order-card'
 // SSOT ของ "ชื่อช่องทางที่ผู้ใช้เห็น" (HR16) — ใช้ในข้อความแทนสติกเกอร์ที่ mirror ไม่ผ่าน
 import { getChannelLabel } from '@/lib/chat-channel'
+// SSOT ของ "ชื่อที่ Meta ส่งมาแทนการปฏิเสธ" — ห้ามเทียบสตริงเองที่นี่ (HR16)
+import { isMetaPlaceholderName } from '@/lib/meta-contact-name'
 import { APPOINTMENT_CARD_PREVIEW } from '@/lib/appointment-summary'
 import type { MessagingEvent, Referral } from '@/lib/facebook/webhook-types'
 
@@ -1207,7 +1209,17 @@ export async function ingestInboundMessage(params: {
   // getContactProfile) — คนที่ได้ชื่อครบแล้วแต่ยังไม่มีรูปต้องมีสิทธิ์ถูกลองใหม่ ไม่งั้นวันที่
   // Advanced Access ผ่าน จะไม่มีใครได้รูปเลยเพราะทุกคน "มีชื่อแล้ว" ไปหมด
   const needsAvatarRetry = shouldRetryAvatar(existingContact)
-  const needsProfile = !existingContact || !existingContact.name || needsAvatarRetry
+  /**
+   * 🛑 ชื่อสำรองของ Meta ต้องนับเป็น "ยังไม่มีชื่อ" ไม่ใช่ "มีชื่อแล้ว"
+   *
+   * ด่านนี้เป็นตัวที่ทำให้แถวที่ **เก็บค่าผิดไปแล้ว** ซ่อมตัวเองได้ — ตัว normalize ใน
+   * `getContactProfile` กันได้แค่ของใหม่ ส่วนแถวเก่าที่มี `name = 'Facebook user'` อยู่แล้ว
+   * จะผ่าน `!existingContact.name` ทุกครั้ง แล้วค้างจนถึงรอบ retry รูป 7 วัน
+   * (เกิดจริงบน prod 2026-09-08 — ห้องที่เปิดจาก private reply ใต้คอมเมนต์)
+   */
+  const hasPlaceholderName = isMetaPlaceholderName(existingContact?.name)
+  const needsProfile =
+    !existingContact || !existingContact.name || hasPlaceholderName || needsAvatarRetry
   const profile = needsProfile
     ? await getAdapter(provider).fetchContactProfile(
         { provider, accessToken: channel.accessToken },
