@@ -10,7 +10,7 @@ import bcrypt from "bcryptjs";
 import { verifyLinkIntent, signReclaimTicket, LINK_INTENT_COOKIE } from "@/lib/link-intent";
 import { classifyLinkConflict } from "@/lib/link-conflict";
 import { getPersonalShop, isShopMember } from "@/lib/shop-context";
-import { resolveOnboardingGate } from "@/lib/onboarding-gate";
+import { resolveOnboardingGate, resolveDefaultActiveShopId } from "@/lib/onboarding-gate";
 // ลบบัญชี (App Store 5.1.1(v)) — ทุก provider ต้องปฏิเสธบัญชีที่ deletedAt มีค่า
 // 🛑 ใช้ helper ตัวนี้ที่เดียว ห้ามเขียนเงื่อนไข deletedAt เองซ้ำ: มีทางเข้า 6 ทาง
 // (phone-otp / seller / buyer / admin credentials / mobile-ticket / OAuth) พลาดทางเดียว
@@ -916,21 +916,29 @@ export const authOptions: NextAuthOptions = {
             ? requestedShopId
             : ((token.activeShopId as string | undefined) ?? personal?.id ?? null);
         } else if (!token.activeShopId) {
-          // sign-in แรก, ยังไม่เคยตั้ง → default = Personal; ถ้าไม่มี Personal (ผู้ถูกเชิญ 00012) →
-          // business shop แรกที่เป็นสมาชิก; ไม่มีเลย (nobody) → null → layout พาไป /choose-shop
-          let defaultActive: string | null = personal?.id ?? null;
-          if (!defaultActive) {
-            const firstBiz = await prisma.shopMember.findFirst({
-              where: {
-                userId: token.userId as string,
-                shop: { kind: "BUSINESS", deletedAt: null, purgedAt: null },
-              },
-              select: { shopId: true },
-              orderBy: { createdAt: "asc" },
-            });
-            defaultActive = firstBiz?.shopId ?? null;
-          }
-          token.activeShopId = defaultActive;
+          /**
+           * sign-in แรก, ยังไม่เคยตั้ง → กฎอยู่ที่ `resolveDefaultActiveShopId` (SSOT + เทส)
+           *
+           * 🛑 ห้ามกลับไปเขียน `personal?.id ?? firstBiz` ตรง ๆ อีก — ท่านั้นทำให้แอดมินของ
+           * ร้านธุรกิจที่มีร้านส่วนตัว "ยังไม่ตั้งค่า" ถูกวางไว้ในร้านส่วนตัว ⇒ needsOnboarding
+           * ⇒ **ล็อกออกจากแอป iOS ทั้งคน** (บั๊ก prod 2026-09-10 — ดูเหตุผลเต็มที่ SSOT)
+           *
+           * ต้องหาร้านธุรกิจ **เสมอ** ไม่ใช่เฉพาะตอนไม่มีร้านส่วนตัว — query เพิ่ม 1 ครั้ง
+           * เฉพาะรอบ sign-in แรกเท่านั้น (รอบถัดไป token.activeShopId มีค่าแล้ว)
+           */
+          const firstBiz = await prisma.shopMember.findFirst({
+            where: {
+              userId: token.userId as string,
+              shop: { kind: "BUSINESS", deletedAt: null, purgedAt: null },
+            },
+            select: { shopId: true },
+            orderBy: { createdAt: "asc" },
+          });
+          token.activeShopId = resolveDefaultActiveShopId({
+            personalShopId: personal?.id ?? null,
+            personalShopSlug: personal?.slug ?? null,
+            firstBusinessShopId: firstBiz?.shopId ?? null,
+          });
         }
 
         // กฎเต็ม + เหตุผลอยู่ที่ lib/onboarding-gate.ts (SSOT ร่วมกับ session callback ด้านล่าง)
