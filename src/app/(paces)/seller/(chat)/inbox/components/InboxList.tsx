@@ -590,8 +590,27 @@ export default function InboxList({
     const max = el.scrollHeight - el.clientHeight
     restoreTriesRef.current += 1
     if (max < top && restoreTriesRef.current < 6) return
-    el.scrollTop = Math.min(top, Math.max(max, 0))
+
+    /**
+     * 🛑 ตั้ง `scrollTop` ครั้งเดียวไม่พอ — **Next พาขึ้นบนสุดเองหลัง navigate**
+     *
+     * App Router หา scroll container ของหน้าใหม่แล้วตั้งเป็น 0 ซึ่งเกิด **หลัง** layout effect
+     * ตัวนี้ ⇒ เราคืนตำแหน่งไปแล้วก็จริง แต่โดนเขียนทับทันที และเวอร์ชันก่อนหน้าเคลียร์ธงทิ้ง
+     * ไปแล้วจึงไม่มีใครทวงคืน = อาการ "กดกลับมาแล้วเด้งขึ้นบนสุด" ที่ user เจอซ้ำ 3 รอบ
+     *
+     * ทวงคืนไม่กี่เฟรมจนกว่าจะติด (~6 เฟรม ≈ 100ms) แล้วหยุด — สั้นพอที่จะไม่ไปสู้กับนิ้วผู้ใช้
+     * ถ้าเขาเลื่อนเองทันที และยาวพอให้ชนะการรีเซ็ตของ Next ที่เกิดในเฟรมถัด ๆ ไป
+     */
+    const pinTo = Math.min(top, Math.max(max, 0))
     pendingRestoreRef.current = null
+    let frames = 0
+    const pin = () => {
+      const node = document.querySelector<HTMLElement>(CHAT_SCROLLER_SELECTOR)
+      if (!node) return
+      if (Math.abs(node.scrollTop - pinTo) > 4) node.scrollTop = pinTo
+      if (frames++ < 6) requestAnimationFrame(pin)
+    }
+    pin()
   }, [items, nextCursor, loading])
 
   // ตามรอย scrollTop ไว้ล่วงหน้า — อ่านตอน unmount อย่างเดียวไม่ปลอดภัย เพราะเบราว์เซอร์อาจ

@@ -148,3 +148,24 @@ describe('[blocker] เปิดห้องแล้วต้อง reconcile �
     expect(code).toMatch(/if \(!initial\) return\s*\n\s*void refetchNewer\(\)/)
   })
 })
+
+/**
+ * [blocker] — คืนตำแหน่งต้อง "ทวงคืน" ไม่ใช่ตั้งครั้งเดียว
+ *
+ * 🛑 Next App Router พา scroll container ของหน้าใหม่ขึ้นบนสุดเองหลัง navigate ซึ่งเกิด **หลัง**
+ * layout effect ที่คืนตำแหน่ง ⇒ ตั้งครั้งเดียวจะโดนเขียนทับทันที = อาการ "กดกลับมาแล้วเด้ง
+ * ขึ้นบนสุด" ที่ user เจอซ้ำ 3 รอบ (2026-09-10)
+ */
+describe('[blocker] คืนตำแหน่งรายการต้องทวงคืนหลาย ๆ เฟรม', () => {
+  it('ใช้ requestAnimationFrame ทวงคืน ไม่ใช่ตั้ง scrollTop ครั้งเดียวจบ', async () => {
+    const fs = await import('fs')
+    const code = fs
+      .readFileSync('src/app/(paces)/seller/(chat)/inbox/components/InboxList.tsx', 'utf8')
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
+      .join('\n')
+    expect(code).toMatch(/requestAnimationFrame\(pin\)/)
+    // ต้องเทียบกับค่าเป้าก่อนเขียนทับ (ไม่ใช่ยัด scrollTop รัวทุกเฟรมจนสู้กับนิ้วผู้ใช้)
+    expect(code).toMatch(/Math\.abs\(node\.scrollTop - pinTo\)/)
+  })
+})
