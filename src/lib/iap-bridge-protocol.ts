@@ -20,6 +20,27 @@
 /** ชื่อ event ที่ native ยิงหลังตั้ง `window.__DEEP_IAP_RESULT__` — **ต้องตรงกับฝั่งแอปเป๊ะ** */
 export const IAP_RESULT_EVENT = 'deep:iap-result'
 
+/**
+ * ธุรกรรมที่ **ไม่มีใครขอ** — StoreKit ส่งกลับมาเองเพราะยังไม่ถูกปิด (feature 00064)
+ *
+ * ## ทำไมต้องมีช่องนี้
+ *
+ * StoreKit ส่งธุรกรรมที่ยังไม่ถูก `finish` กลับมาทุกครั้งที่แอปเปิด — นั่นคือกลไกกู้คืนในตัว
+ * ของ Apple เกิดได้ 3 ทาง: ผู้ใช้ยืนยันช้ากว่าที่เว็บรอ · เน็ตหลุด/เราตอบ 5xx ตอนยืนยัน ·
+ * Apple ต่ออายุให้ตอนแอปปิดอยู่ ⇒ ถ้าไม่รับ ลูกค้าจ่ายเงินแล้วสิทธิ์ไม่เปิด
+ * และเขา **จะไม่คิดว่าตัวเองต้องกดปุ่มกู้คืน — เขาจะคิดว่าโดนโกง**
+ *
+ * ## 🛑 ทำไมต้องเป็นช่องแยก ไม่ใช่ยัดลง `__DEEP_IAP_RESULT__` ช่องเดิม
+ *
+ * ช่องเดิมเป็น **ช่องเดียวร่วมกันทั้งหน้า** ที่ตัวรับอ่านตอน event ยิง ⇒ ธุรกรรมกู้คืนที่มาถึง
+ * ระหว่างที่ผู้ใช้กำลังรอผล "กดซื้อ" จะเขียนทับคำตอบนั้นก่อนเจ้าของจะอ่านทัน
+ * (ตัวจับคู่ `requestId` กันไม่ให้ *ตีความผิด* ได้ แต่กันของ *หายไป* ไม่ได้)
+ *
+ * แยกช่องแล้วสองเส้นทางไม่แตะกันเลย — และ **ห้ามมี `requestId`** ในรูปร่างนี้โดยตั้งใจ
+ * เพราะการมี id ปลอมจะเชิญให้คนถัดไปเอาไปป้อนตัวจับคู่คำขอ ซึ่งเป็นสิ่งที่แยกช่องมาเพื่อกัน
+ */
+export const IAP_RECOVERED_EVENT = 'deep:iap-recovered'
+
 /** สินค้าหนึ่งตัวตามที่ StoreKit รายงานมา */
 export interface IapProduct {
   productId: string
@@ -146,4 +167,28 @@ export function parseIapResult(raw: unknown): IapResult | null {
 
   /* ชนิดที่ไม่รู้จัก = ฝั่งหนึ่งเพิ่มของใหม่ฝ่ายเดียว ⇒ fail-closed ดังกว่าเงียบ */
   return null
+}
+
+/**
+ * แปลธุรกรรมกู้คืนที่ native ส่งมาเอง — คืน `[]` ได้ (ไม่มีของค้าง) แต่ `null` = ทิ้งทั้งใบ
+ *
+ * 🛑 ต่างจาก `parseIapResult` ตรงที่ **ไม่มี `requestId`** — ของนี้ไม่มีใครขอ
+ *
+ * 🛑 ใบไหนพังตกทั้งใบเหมือนเดิม: ธุรกรรมที่ไม่มี `jws` พิสูจน์กับเซิร์ฟเวอร์ไม่ได้ และที่ไม่มี
+ * `transactionId` สั่งปิดไม่ได้ ⇒ ปล่อยผ่านไปครึ่ง ๆ = ธุรกรรมค้างวนกลับมาทุกครั้งที่เปิดแอป
+ * ตลอดกาล พร้อมยิงคำขอไปหาเซิร์ฟเวอร์ซ้ำทุกรอบ
+ */
+export function parseIapRecovered(raw: unknown): IapPurchase[] | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  if (!Array.isArray(r.items)) return null
+
+  const items: IapPurchase[] = []
+  for (const entry of r.items) {
+    if (typeof entry !== 'object' || entry === null) return null
+    const it = entry as Record<string, unknown>
+    if (!str(it.jws) || !str(it.transactionId)) return null
+    items.push({ jws: it.jws, transactionId: it.transactionId })
+  }
+  return items
 }

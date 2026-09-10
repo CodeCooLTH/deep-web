@@ -32,6 +32,8 @@ import { pacesToast } from '@/lib/paces-toast'
 import { TIER_ORDER, type BusinessPackageTier } from '@/lib/business-package'
 import { tierFromAppleProductId } from '@/lib/apple/product-ids'
 import { createIapClient } from '@/lib/iap-client'
+import { iapFailureMessage, IAP_VERIFY_PENDING_MESSAGE } from '@/lib/iap-failure-message'
+import { decideVerifyOutcome } from '@/lib/iap-verify-outcome'
 import { createWindowIapTransport } from '@/lib/iap-transport'
 import { resolveAppPurchaseView, type IapProductsState } from '@/lib/iap-purchase-view'
 import type { IapFailure, IapProduct, IapPurchase } from '@/lib/iap-bridge-protocol'
@@ -42,20 +44,6 @@ const APPLE_MANAGE_URL = 'https://apps.apple.com/account/subscriptions'
 interface Props {
   subscription: { source: string; status: string; tier: BusinessPackageTier } | null
   mainSiteOrigin: string
-}
-
-/** ข้อความต่อเหตุผล — แยกจาก UI เพื่อให้เพิ่มเหตุผลใหม่แล้วไม่ลืมเขียนข้อความ */
-function failureMessage(reason: IapFailure): string {
-  switch (reason) {
-    case 'CANCELLED':
-      return 'ยกเลิกการซื้อแล้ว'
-    case 'TIMEOUT':
-      return 'แอปไม่ตอบสนอง กรุณาลองใหม่อีกครั้ง'
-    case 'UNAVAILABLE':
-      return 'ตอนนี้ซื้อในแอปไม่ได้ กรุณาลองใหม่ภายหลัง'
-    case 'FAILED':
-      return 'ทำรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
-  }
 }
 
 export default function IapSubscribeClient({ subscription, mainSiteOrigin }: Props) {
@@ -103,18 +91,10 @@ export default function IapSubscribeClient({ subscription, mainSiteOrigin }: Pro
         return false
       }
 
-      if (!res.ok) {
-        /* 5xx = ฝั่งเราเพี้ยน ลองใหม่ได้ → ไม่ปิด
-           4xx = ใบนี้ใช้ไม่ได้จริง ลองกี่ครั้งก็เท่าเดิม → ปิดทิ้ง ไม่งั้นจะเด้ง error
-                 ใส่หน้าผู้ใช้ทุกครั้งที่เปิดแอปตลอดไป */
-        if (res.status < 500) {
-          client.finish(item.transactionId)
-        }
-        return false
-      }
-
-      client.finish(item.transactionId)
-      return true
+      /* กติกา "ปิดหรือไม่ปิด" อยู่ที่เดียวทั้งระบบ — ตัวกู้คืนอัตโนมัติใช้ตัวเดียวกันนี้ */
+      const outcome = decideVerifyOutcome({ status: res.status })
+      if (outcome.shouldFinish) client.finish(item.transactionId)
+      return outcome.granted
     },
     [client],
   )
@@ -126,7 +106,7 @@ export default function IapSubscribeClient({ subscription, mainSiteOrigin }: Pro
         const res = await client.request({ kind: 'purchase', productId })
         if (!res.ok) {
           /* ผู้ใช้กดยกเลิกเองไม่ใช่ความผิดพลาด — ไม่ต้องเด้งข้อความให้รำคาญ */
-          if (res.reason !== 'CANCELLED') pacesToast.error(failureMessage(res.reason))
+          if (res.reason !== 'CANCELLED') pacesToast.error(iapFailureMessage(res.reason, 'purchase'))
           return
         }
         if (res.kind !== 'purchase') return
@@ -134,7 +114,7 @@ export default function IapSubscribeClient({ subscription, mainSiteOrigin }: Pro
           pacesToast.success('เปิดใช้งานแพ็กเกจแล้ว')
           router.refresh()
         } else {
-          pacesToast.error('ชำระเงินสำเร็จ แต่เปิดสิทธิ์ยังไม่สำเร็จ — เปิดแอปอีกครั้งระบบจะลองให้เอง')
+          pacesToast.error(IAP_VERIFY_PENDING_MESSAGE)
         }
       } finally {
         setBusy(null)
@@ -148,7 +128,7 @@ export default function IapSubscribeClient({ subscription, mainSiteOrigin }: Pro
     try {
       const res = await client.request({ kind: 'restore' })
       if (!res.ok) {
-        if (res.reason !== 'CANCELLED') pacesToast.error(failureMessage(res.reason))
+        if (res.reason !== 'CANCELLED') pacesToast.error(iapFailureMessage(res.reason, 'restore'))
         return
       }
       if (res.kind !== 'restore') return
@@ -280,7 +260,7 @@ function Unavailable({ reason, onRetry }: { reason: IapFailure; onRetry: () => v
   return (
     <div className="card mt-5 rounded-md">
       <div className="card-body p-7.5 text-center">
-        <p className="font-medium">{failureMessage(reason)}</p>
+        <p className="font-medium">{iapFailureMessage(reason, 'products')}</p>
         <button type="button" onClick={onRetry} className="btn bg-primary mt-4 text-white hover:bg-primary-hover">
           ลองใหม่
         </button>

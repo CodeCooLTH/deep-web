@@ -11,6 +11,7 @@ import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
 import ChatToastListener from './_shared/ChatToastListener'
+import IapRecoveryListener from './_shared/IapRecoveryListener'
 import { getOrderStatusCounts } from '@/services/order.service'
 import { getUnreadCountForShop } from '@/services/chat.service'
 import OnboardingGate from './dashboard/components/OnboardingGate'
@@ -194,6 +195,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* ChatToastListener (S-7): subscribe chat:shop:{shopId} ทุก page — mount ที่ layout
           เหมือน TopUpCelebrationPoller เพื่อให้ toast เด้งได้ไม่ว่า seller อยู่หน้าไหน */}
       <ChatToastListener shopId={shop?.id ?? null} />
+      {/* IapRecoveryListener (00064): รับธุรกรรม Apple ที่ค้างจากรอบก่อนแล้วเปิดสิทธิ์ให้เอง
+          — mount ที่ layout เพราะคนที่จ่ายเงินแล้วสิทธิ์ไม่เปิดจะไม่เดินกลับไปหน้าแพ็กเกจเอง
+          บนเบราว์เซอร์ปกติตัวนี้ไม่แขวน listener ใด ๆ (ไม่มี ReactNativeWebView) */}
+      <IapRecoveryListener />
       {/* SellerChatWidget (floating bubble มุมขวาล่าง) ถอด mount ออกตามที่ user สั่ง 2026-07-29 —
           ทับพื้นที่เดียวกับ toast แจ้งข้อความใหม่ และซ้ำกับเมนู "แชท" ที่มีอยู่แล้วทั้ง sidenav
           (desktop) และ SellerBottomNav (mobile). ไฟล์ widget ยังอยู่ในโปรเจกต์ (SellerChatWidget /
