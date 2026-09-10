@@ -55,9 +55,13 @@ export default async function BusinessPackagePage() {
    * เป็น WebView ที่โหลดเว็บจริง ทุก path จึงเข้าถึงได้หมด (pattern เดียวกับที่ applyVerticalMenu
    * ประกาศไว้ว่า "ซ่อนเมนู ≠ ควบคุมสิทธิ์")
    *
-   * redirect ไป /dashboard ไม่ใช่ 404 — ผู้ใช้ที่กดลิงก์เก่าค้างมาจะได้ไปที่ที่ใช้งานต่อได้
+   * redirect ไป /business/subscribe ไม่ใช่ 404 และไม่ใช่ /dashboard — ตั้งแต่ feature 00064
+   * ในแอปมีทางซื้อที่ถูกกฎแล้ว (ผ่าน Apple) ⇒ คนที่ตั้งใจมาหน้าแพ็กเกจควรได้ไปหน้าที่ซื้อได้จริง
+   * ไม่ใช่ถูกโยนกลับ dashboard โดยไม่มีคำอธิบาย
+   *
+   * 🛑 หน้าปลายทางต้องไม่มีโค้ดฝั่งกระเป๋าเงินอยู่เลย — ดูเหตุผลที่หัวไฟล์ subscribe/page.tsx
    */
-  if (await shouldHidePayments()) redirect('/dashboard')
+  if (await shouldHidePayments()) redirect('/business/subscribe')
 
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
