@@ -39,6 +39,10 @@ const prismaMock = vi.hoisted(() => ({
   // 00018 ext 2026-09-09 — route อ่านโหมดเรียงของ (ผู้ใช้ × ร้าน active) ก่อนเรียก service
   // null = ไม่มีแถว = โหมดเดิม (lazy default) ⇒ ทุกเคสในไฟล์นี้ยังพิสูจน์พฤติกรรมเดิมตามเจตนา
   sellerChatPreference: { findUnique: vi.fn(async () => null) },
+  // 2026-09-10 — กองรูปแอดมินที่ตอบ (enrichWithThreadAgents) groupBy ต่อจากรายการ
+  // คืน [] = "ไม่มีแอดมินคนไหนตอบในห้องพวกนี้" ⇒ ทุกแถวได้ threadAgents: [] ซึ่งไม่กระทบ
+  // สิ่งที่เทสชุดนี้ตรวจ (ขอบเขตร้าน) — เหตุผลเดียวกับ order.groupBy ข้างบน
+  chatMessage: { groupBy: vi.fn(async () => []) },
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 

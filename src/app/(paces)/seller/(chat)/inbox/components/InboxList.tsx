@@ -80,7 +80,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
-import { toFileUrl } from '@/lib/file-url'
+import { fileUrlOf, toFileUrl } from '@/lib/file-url'
 // ป้ายพฤติกรรมลูกค้า — SSOT เดียวกับหัวแผงลูกค้าในเธรด และป้ายท้ายชื่อในตาราง /orders (HR16)
 import { customerBadges, type CustomerBehavior } from '@/lib/customer-behavior'
 import { orderStageChipLabel } from '@/lib/order-stage'
@@ -99,7 +99,10 @@ import InboxFilterPanel from './InboxFilterPanel'
 import { DEFAULT_INBOX_SORT, type InboxSortMode } from '@/lib/inbox-sort'
 import { type InboxPreference } from '@/lib/inbox-filter-pref'
 import { buildChatListParams, DEFAULT_CHAT_FILTER, isChatListFiltering, type ChatFilterState } from './chat-list-query'
-import { type RowAction } from './ConversationRowMenu'
+import { type RowAction } from './ChatContextMenu'
+// เพดานรูปที่วาดจริง — ค่าคงที่ล้วน (ไฟล์ service ไม่ได้ถูกลากเข้า bundle เพราะ import แบบนี้
+// ถูก tree-shake; ถ้าวันหน้าไฟล์นั้นมี side effect ให้ย้ายค่าคงที่ออกมาเป็น lib แยก)
+import { THREAD_AGENT_STACK_MAX } from '@/services/thread-agents.service'
 import ChatContextMenu, { type ChatRowAnchor } from './ChatContextMenu'
 import SwipeableRow from './SwipeableRow'
 import { useT } from '@/i18n/LocaleProvider'
@@ -184,6 +187,12 @@ export type ConversationListItem = {
   // feature 00018 E5 (user request 2026-07-26) — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา โชว์เป็นชิป
   // `ad_id.…` ในแถวแบบ Business Suite; optional เผื่อ payload เก่า
   referralAdId?: string | null
+  /**
+   * แอดมินที่เข้าไปตอบในห้องนี้ (user สั่ง 2026-09-10) — เรียงคนตอบล่าสุดไว้หน้าสุด
+   * optional: ผู้เรียกที่ยังไม่ enrich ได้ค่า undefined แล้วแถวไม่วาดกองรูป (ไม่ใช่พัง)
+   * 🛑 แต่ผู้เรียกจริงต้อง enrich **ทั้ง RSC และ route** ไม่งั้นกองรูปจะโผล่ทีหลังเหมือนบั๊ก
+   */
+  threadAgents?: { userId: string; name: string; avatar: string | null }[]
   /**
    * feature 00037 (แก้ 2026-08-08 หลัง ux gate) — ร้านเจ้าของเธรด สำหรับป้ายข้อความในแถว
    *
@@ -453,24 +462,8 @@ export default function InboxList({
   // เมนู ⋯ ของชุดปุ่ม hover (user สั่ง 2026-08-02) — เก็บเป็น "id ของแถวที่เปิดอยู่" ที่ระดับ list
   // ไม่ใช่ state ในแต่ละแถว เพราะชุดปุ่มต้องรู้ด้วยว่าเมนูเปิดอยู่ไหม (ต้องค้างไว้แม้เมาส์ออกนอกแถว)
   // และเปิดได้ทีละแถวเดียวอยู่แล้ว ref จึงใช้ตัวเดียวร่วมกันได้
-  const [rowMenuId, setRowMenuId] = useState<string | null>(null)
-  const rowMenuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!rowMenuId) return
-    function onPointerDown(e: MouseEvent) {
-      if (rowMenuRef.current && !rowMenuRef.current.contains(e.target as Node)) setRowMenuId(null)
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setRowMenuId(null)
-    }
-    document.addEventListener('mousedown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [rowMenuId])
+  // (ถอดแล้ว 2026-09-10) state ของเมนู ⋯ ในชุดปุ่มลอย — ชุดปุ่มถูกถอดออกทั้งก้อน
+  // ทางเข้า action ประจำแถวเหลือ ChatContextMenu ตัวเดียว (คลิกขวา / กดค้าง / ปัดซ้าย)
 
   // ── ช่องค้นหา ──
   // railMode=true: query มาจาก ChatSearchContext (topbar เขียน, ที่นี่แค่อ่าน debouncedQuery —
@@ -1906,118 +1899,86 @@ export default function InboxList({
                   </span>
                 </Link>
 
-                {/* mobile (<1024px): ปุ่ม ⋮ ถูกแทนด้วย "ปัดซ้าย" (SwipeableRow) — user request 2026-07-23 */}
+                {/* ── กองรูปแอดมินที่เข้าไปตอบในห้องนี้ (user สั่ง 2026-09-10) ──────────────────
+                    "ถ้ารายการไหนไม่มี admin ตอบเลย (เค้าตอบจากฝั่ง platform มา) ก็ไม่ต้องขึ้นเลย"
 
-                {/* ชุดปุ่มลอย (≥1024px) — โผล่เมื่อ hover แถวนั้น (user สั่ง 2026-07-23: "ปุ่ม action
-                    กินพื้นที่เกินไป ให้ปิดงาน/ซ่อน โผล่ตอน hover เป็นลอย ๆ") ปุ่มถาวรกินความกว้าง
-                    ถาวรใน rail 320px ซึ่งแคบอยู่แล้ว. absolute + shadow = ลอยทับ timestamp/badge
-                    เฉพาะตอน hover ไม่เบียดความกว้างของเนื้อหาแถวเลย
-                    ปักหมุดย้ายเข้าชุดนี้ด้วย (2026-07-23) หลังจากดาวหน้าสุดถูกเปลี่ยนเป็น indicator
-                    inline หน้าชื่อ — action ต้องยังกดได้ที่เดียวกับ ปิดงาน/ซ่อน ไม่ใช่หายไป */}
-                {/* ตำแหน่งแนวตั้ง — โดนสั่งกลับไปกลับมา บันทึกไว้กันแก้วน:
-                    2026-08-02 ย้าย top-1/2 → top-2 เพราะลอยกลางแถวแล้วทับ "ข้อความล่าสุด + แท็ก"
-                      ซึ่งเป็นบรรทัดที่ต้องอ่านจริง ๆ (ต้องขยับเมาส์หนีเพื่ออ่านว่าห้องไหนเป็นห้องไหน)
-                    2026-08-03 user สั่งกลับมากลางการ์ด ("มันไม่อยู่ตรงกลาง card ของ chat lists")
-                      → กลับไป top-1/2 + -translate-y-1/2. ข้อแลกเปลี่ยนเดิมยังอยู่: ตอน hover
-                      ชุดปุ่มจะบังปลายบรรทัดข้อความล่าสุด/แท็กด้านขวา (ชุดปุ่มทึบ มีขอบ+เงา)
-                    เหลือ 2 action ที่ใช้บ่อยสุด (ปักหมุด/ปิดงาน) ส่วน ซ่อน+สแปม เข้าเมนู ⋯ */}
-                <div
-                  className={`absolute end-2 top-1/2 -translate-y-1/2 items-center gap-0.5 rounded-lg border border-default-200 bg-card p-0.5 shadow ${
-                    // เมนูเปิดอยู่ = ต้องค้างไว้แม้เมาส์ออกนอกแถว ไม่งั้นเมนูที่ล้นออกนอกขอบแถว
-                    // จะทำให้ hover หลุด → ชุดปุ่มหาย → เมนูหายตามระหว่างที่ผู้ใช้กำลังจะกดมัน
-                    rowMenuId === c.id ? 'flex' : 'hidden lg:group-hover:flex'
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleRowAction(c.id, c.isPinned ? 'unpin' : 'pin')}
-                    disabled={actioningId === c.id}
-                    aria-pressed={c.isPinned}
-                    aria-label={c.isPinned ? 'เลิกปักหมุดบทสนทนานี้' : 'ปักหมุดบทสนทนานี้'}
-                    title={c.isPinned ? 'เลิกปักหมุด' : 'ปักหมุด'}
-                    className={`btn btn-icon btn-sm hover:bg-default-100 disabled:opacity-50 ${
-                      // เหลืองเหมือนดาวหน้าชื่อ — ต้องเป็นสีเดียวกันทั้งสองที่ ไม่งั้นดูเป็นคนละสถานะ
-                      c.isPinned ? 'text-warning' : 'text-default-600'
-                    }`}
+                    ใครนับ = `HUMAN_AGENT_REPLY_WHERE` (SSOT ของ 00059) เท่านั้น — ตอบจาก
+                    Business Suite/แอปของแพลตฟอร์ม และคำตอบของบอท ไม่มี `senderUserId` ติดมา
+                    จึงหายไปเองโดยไม่ต้องมีเงื่อนไขพิเศษที่นี่ ห้ามเติมกฎซ้อนตรงนี้ (HR16)
+
+                    อยู่ใน <Link> โดยตั้งใจ: มันเป็น "ข้อมูล" ไม่ใช่ปุ่ม — กดโดนแล้วต้องเข้าห้อง
+                    เหมือนกดที่อื่นของแถว ไม่ใช่กลืนคลิกทิ้ง (span sibling นอก Link จะกลืน)
+
+                    role="img" + aria-label ที่ตัวมันเอง — `aria-label` บน <span> เปล่าไม่มีผล
+                    ต้องมี role รองรับก่อน (docs/conventions/aria-name-requires-supporting-role.md)
+
+                    ชื่อโผล่เฉพาะ ≥1024px (user เลือกเอง: มือถือเห็นแค่รูป) — `title=` ใช้แทนไม่ได้
+                    เพราะมือถือไม่มี hover อยู่แล้ว และ screen reader อ่านจาก aria-label ได้ทุกจอ */}
+                {c.threadAgents && c.threadAgents.length > 0 && (
+                  <span
+                    role="img"
+                    aria-label={`${t.inbox.agentsLabel}: ${c.threadAgents.map((a) => a.name).join(', ')}`}
+                    className="group/agents absolute bottom-2 end-2.5 z-10 flex items-center -space-x-1.5"
                   >
-                    <Icon icon={c.isPinned ? 'star-filled' : 'star'} width={16} height={16} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRowAction(c.id, isResolved ? 'reopen' : 'resolve')}
-                    disabled={actioningId === c.id}
-                    aria-label={isResolved ? 'เปิดบทสนทนานี้ใหม่' : 'ปิดงานบทสนทนานี้'}
-                    title={isResolved ? 'เปิดใหม่' : 'ปิดงาน'}
-                    className="btn btn-icon btn-sm text-default-600 hover:bg-default-100 disabled:opacity-50"
-                  >
-                    <Icon icon={isResolved ? 'arrow-back-up' : 'circle-check'} width={16} height={16} />
-                  </button>
-                  {/* เมนู ⋯ — custom React (useState + click-outside) ไม่ใช่ Preline hs-dropdown
-                      ด้วยเหตุผลเดียวกับ OrderCardMenu: รายการนี้ lazy-load + filter + realtime →
-                      re-render ตลอด ทำให้ inline-state ของ Preline หายแล้ว menu ค้าง opacity 0
-                      Base (style): theme/paces/Admin/TS/src/assets/css/custom/_dropdown.css (.dropdown-item) */}
-                  <div className="relative" ref={rowMenuId === c.id ? rowMenuRef : undefined}>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setRowMenuId((prev) => (prev === c.id ? null : c.id))
-                      }}
-                      aria-haspopup="menu"
-                      aria-expanded={rowMenuId === c.id}
-                      aria-label="การจัดการอื่น ๆ"
-                      title="เพิ่มเติม"
-                      className="btn btn-icon btn-sm text-default-600 hover:bg-default-100"
-                    >
-                      <Icon icon="dots" width={16} height={16} />
-                    </button>
-                    {rowMenuId === c.id && (
-                      <div
-                        className="border-default-300 bg-card absolute end-0 top-full z-30 mt-1 min-w-40 overflow-hidden rounded border shadow-lg"
-                        role="menu"
-                        aria-orientation="vertical"
+                    {c.threadAgents.slice(0, THREAD_AGENT_STACK_MAX).map((a) => (
+                      <span
+                        key={a.userId}
+                        aria-hidden="true"
+                        className="ring-card bg-default-200 text-default-700 flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full text-2xs font-bold ring-2"
                       >
-                        <div className="space-y-0.5 p-1">
-                          <button
-                            type="button"
-                            role="menuitem"
-                            disabled={actioningId === c.id}
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              setRowMenuId(null)
-                              handleRowAction(c.id, filter.hidden ? 'unhide' : 'hide')
-                            }}
-                            className="dropdown-item text-sm disabled:opacity-50"
-                          >
-                            <Icon icon={filter.hidden ? 'eye' : 'eye-off'} className="size-4" />
-                            {filter.hidden ? 'เลิกซ่อน' : 'ซ่อน'}
-                          </button>
-                          {/* สแปม (user สั่ง 2026-07-24) — accent แดง (danger) แยกจาก action อื่น
-                              เพราะเป็นการ "ตีตราสแปม" ไม่ใช่แค่จัดระเบียบ; ในถังสแปมกลายเป็น "ไม่ใช่สแปม" */}
-                          <button
-                            type="button"
-                            role="menuitem"
-                            disabled={actioningId === c.id}
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              setRowMenuId(null)
-                              handleRowAction(c.id, c.isSpam ? 'unspam' : 'spam')
-                            }}
-                            className={`dropdown-item text-sm disabled:opacity-50 ${
-                              c.isSpam ? '' : 'text-danger hover:bg-danger/10'
-                            }`}
-                          >
-                            <Icon icon={c.isSpam ? 'inbox' : 'alert-octagon'} className="size-4" />
-                            {c.isSpam ? 'ไม่ใช่สแปม' : 'ย้ายเข้าสแปม'}
-                          </button>
-                        </div>
-                      </div>
+                        {a.avatar ? (
+                          // fileUrlOf — `User.avatar` เก็บได้ทั้ง URL ดิบและ fileId ของ storage เรา
+                          // ตัวเดียวกับที่ BuyerAvatar ใช้ ห้าม interpolate เอง (ใช้ตัวที่คืน string
+                          // เสมอ เพราะอยู่หลัง `a.avatar ?` แล้ว)
+                          // eslint-disable-next-line @next/next/no-img-element -- 20px ไม่คุ้มค่า next/image
+                          <img src={fileUrlOf(a.avatar)} alt="" loading="lazy" className="size-full object-cover" />
+                        ) : (
+                          generateInitials(a.name).slice(0, 2) || '?'
+                        )}
+                      </span>
+                    ))}
+                    {c.threadAgents.length > THREAD_AGENT_STACK_MAX && (
+                      <span
+                        aria-hidden="true"
+                        className="ring-card bg-primary flex size-5 shrink-0 items-center justify-center rounded-full text-2xs font-bold text-white ring-2"
+                      >
+                        {c.threadAgents.length - THREAD_AGENT_STACK_MAX}+
+                      </span>
                     )}
-                  </div>
-                </div>
+                    {/* กล่องชื่อ — เดสก์ท็อปเท่านั้น. ยึด `group/agents` ไม่ใช่ `group` ของแถว
+                        ไม่งั้นชี้ตรงไหนของแถวก็เด้ง */}
+                    <span className="bg-default-900 pointer-events-none absolute bottom-full end-0 z-30 mb-1.5 hidden whitespace-nowrap rounded-lg px-2.5 py-1.5 text-2xs leading-relaxed text-white opacity-0 shadow-lg transition-opacity lg:block lg:group-hover/agents:opacity-100">
+                      {c.threadAgents.slice(0, THREAD_AGENT_STACK_MAX).map((a) => (
+                        <span key={a.userId} className="block font-medium">
+                          {a.name}
+                        </span>
+                      ))}
+                      {c.threadAgents.length > THREAD_AGENT_STACK_MAX && (
+                        <span className="text-default-300 block">
+                          {t.inbox.agentsMore.replace('{n}', String(c.threadAgents.length - THREAD_AGENT_STACK_MAX))}
+                        </span>
+                      )}
+                    </span>
+                  </span>
+                )}
+                {/* ชุดปุ่มลอยตอน hover (ปักหมุด/ปิดงาน/⋯) ถูกถอดออก 2026-09-10 ตามคำสั่ง user
+                    ("ให้เอาออกดีไหม ให้เค้าไป คลิกขวาเอา")
+
+                    🛑 ไม่ได้เสียความสามารถอะไรเลย — `ChatContextMenu` (คลิกขวาบนเดสก์ท็อป /
+                    กดค้างบนมือถือ) มี `RowAction` **ครบทั้ง 8 ค่าของ type** (pin/unpin ·
+                    resolve/reopen · hide/unhide · spam/unspam) บวกสถานะขาย/แท็ก/กลุ่ม/เสียง
+                    ⇒ ชุดปุ่มลอยเป็น subset แท้ ๆ ของมัน และเมนู ⋯ (ConversationRowMenu) ก็เป็น
+                    เมนูตัวที่สองของแถวเดียวกันที่เนื้อหาไม่เท่ากัน = คำถามเดียวมีสองคำตอบ (HR16)
+
+                    ทำไมถึงถอดตอนนี้ ไม่ใช่การกลับมติไปมา: ตอนที่ชุดปุ่มนี้ถูกสั่งให้ทำ (2026-07-23)
+                    คลิกขวายังเปิดได้เฉพาะเธรดช่องทางนอก และ **กดค้างบนมือถือยังไม่มี** (มาทีหลัง
+                    2026-08-06) มันจึงเป็นทางเข้าเดียวจริง ๆ ในตอนนั้น — เหตุผลนั้นหมดอายุไปแล้ว
+
+                    ที่เสียไปจริง ๆ มีข้อเดียวคือ "การค้นพบ" (คลิกขวามองไม่เห็น) ส่วนอีก 2 ข้อที่
+                    ดูเหมือนจะเสียนั้นไม่จริง: เมนูเบราว์เซอร์บนแถวถูก `e.preventDefault()` ปิดไป
+                    ตั้งแต่แรกอยู่แล้ว และชุดปุ่มเดิมเป็น `hidden` จนกว่าจะ hover ⇒ แท็บไปไม่ถึง
+                    เลยตั้งแต่ต้น ขณะที่ปุ่ม Menu/Shift+F10 ยิง `contextmenu` ได้จริง */}
+
               </div>
               </SwipeableRow>
             )

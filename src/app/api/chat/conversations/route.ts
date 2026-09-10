@@ -14,6 +14,7 @@ import {
 } from "@/services/chat.service";
 import { enrichWithOrderStage } from "@/services/order-stage.service";
 import { countDraftedOrdersByConversation } from '@/services/auto-order-detect.service';
+import { enrichWithThreadAgents } from "@/services/thread-agents.service";
 // ป้ายพฤติกรรมลูกค้าในแถว — ต้องเรียกทั้งที่นี่และ inbox/page.tsx ด้วยเหตุผลเดียวกับ orderStage
 // (enrich ทางเดียว = ป้ายไม่ขึ้นตอนโหลดหน้าแรกแล้วค่อยโผล่หลัง refetch ซึ่งดูเหมือนบั๊ก)
 import { enrichWithCustomerBehavior } from "@/services/customer-behavior.service";
@@ -313,7 +314,10 @@ export async function GET(request: NextRequest) {
       scopedShopIds,
       withBadge.map((c) => c.id),
     );
-    const items = withBadge.map((c) => ({ ...c, draftOrderCount: draftMap.get(c.id) ?? 0 }));
+    const withDraft = withBadge.map((c) => ({ ...c, draftOrderCount: draftMap.get(c.id) ?? 0 }));
+    // กองรูปแอดมินที่ตอบ (user สั่ง 2026-09-10) — enrich ทั้ง 2 ทางเหมือนตัวอื่นทุกตัว
+    // (RSC อยู่ที่ inbox/page.tsx) ทำทางเดียว = กองรูปไม่ขึ้นตอนโหลดหน้าแรกแล้วค่อยโผล่
+    const items = await enrichWithThreadAgents(withDraft);
 
     // ชั้นที่ 3(ข) ของการกู้คืนงานตอบอัตโนมัติ (feature 00023, SDS TD-001)
     //

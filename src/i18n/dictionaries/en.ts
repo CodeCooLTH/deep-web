@@ -525,6 +525,9 @@ export const en: Dictionary = {
     soundOff: 'Turn off new-message sound',
 
     searchPlaceholder: 'Search by name, customer, phone, or message',
+    // กองรูปแอดมินที่ตอบในห้องนั้น — ดูคำอธิบายเต็มที่ th.ts (คู่กันเสมอ)
+    agentsLabel: 'Agents who replied here',
+    agentsMore: 'and {n} more',
     channelFilterLabel: 'Filter by channel',
     channelAll: 'All',
 

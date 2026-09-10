@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ม็อกอัพ — กองรูปแอดมินที่ตอบ ในรายการแชท (00018 ext)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --color-primary:#236dc9; --color-primary-ink:#1e3a8a;
+    --color-warning:#f9bf59; --color-warning-ink:#92400e;
+    --color-success:#02bc9c; --color-success-ink:#065f46;
+    --color-card:#fff; --color-body-bg:#f6f7fb;
+    --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+    --color-default-400:#627189; --color-default-500:#58626b; --color-default-600:#4a5358;
+    --color-default-800:#343a40; --color-default-900:#212529;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--color-body-bg);font-family:'Anuphan',sans-serif;color:var(--color-default-800)}
+  .page{max-width:1400px;margin:0 auto;padding:24px 16px 64px}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--color-default-500);font-size:13px;margin:0 0 20px}
+  .grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));align-items:start}
+  .device{background:var(--color-card);border:1px solid var(--color-default-200);border-radius:12px;overflow:hidden}
+  .device-h{padding:8px 12px;border-bottom:1px solid var(--color-default-200);font-size:12px;font-weight:600;color:var(--color-default-600);display:flex;justify-content:space-between}
+  .device-h em{font-style:normal;font-weight:400;color:var(--color-default-400)}
+
+  /* ── แถวรายการแชท (โครงเดียวกับ InboxList.tsx) ── */
+  .row{position:relative;display:flex;gap:12px;padding:12px 15px;border-bottom:1px solid var(--color-default-200);background:var(--color-card);cursor:pointer}
+  .row:hover{background:#fafbfd}
+  .row.sel{background:#eef4fc;box-shadow:inset 3px 0 0 var(--color-primary)}
+  .av{position:relative;flex:0 0 40px;width:40px;height:40px;border-radius:999px;background:var(--color-default-200);
+      display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--color-default-500)}
+  .av .plat{position:absolute;right:-2px;bottom:-2px;width:15px;height:15px;border-radius:999px;background:#0866FF;border:2px solid #fff}
+  .av .plat.line{background:#06C755}
+  .body{min-width:0;flex:1}
+  .l1{display:flex;align-items:center;gap:6px}
+  .nm{font-size:14px;font-weight:600;color:var(--color-default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tm{margin-left:auto;font-size:11px;color:var(--color-default-400);white-space:nowrap;flex:none}
+  .pv{margin-top:2px;font-size:12.5px;color:var(--color-default-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chips{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+  .chip{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;line-height:1;padding:3px 6px;border-radius:6px;
+        background:var(--color-default-100);color:var(--color-default-600);max-width:104px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .chip.new{background:rgba(35,109,201,.12);color:var(--color-primary-ink)}
+
+  /* ── ★ ของใหม่: กองรูปแอดมิน ── */
+  .agents{position:absolute;right:10px;bottom:9px;display:flex;align-items:center}
+  .agents .a{width:20px;height:20px;border-radius:999px;border:2px solid var(--color-card);
+             display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;color:#fff;
+             background:var(--color-primary);margin-left:-7px;flex:none}
+  .agents .a:first-child{margin-left:0}
+  .agents .a.p2{background:#7a5cc4}.agents .a.p3{background:#0f9d8f}.agents .a.p4{background:#c2703b}
+  .agents .a.more{background:var(--color-default-200);color:var(--color-default-600);font-size:8px}
+  .agents .a img{width:100%;height:100%;border-radius:999px;object-fit:cover;display:block}
+  /* tooltip เฉพาะ ≥1024px */
+  .tip{position:absolute;right:0;bottom:calc(100% + 6px);background:#2b3138;color:#fff;font-size:11px;line-height:1.5;
+       padding:6px 9px;border-radius:8px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s;z-index:20;
+       box-shadow:0 6px 16px rgba(33,37,41,.22)}
+  .tip b{font-weight:600;display:block}
+  .tip .cap{color:#c9ced4;font-size:10px}
+  @media (min-width:1024px){ .agents:hover .tip{opacity:1} }
+
+  /* ชุดปุ่มลอยตอน hover (ของเดิม — ไว้ดูว่าชนไหม) */
+  .float{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:none;gap:2px;padding:2px;
+         background:var(--color-card);border:1px solid var(--color-default-200);border-radius:8px;box-shadow:0 4px 10px rgba(33,37,41,.14)}
+  .float b{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--color-default-500);font-size:13px;font-weight:400}
+  .desk .row:hover .float{display:flex}
+
+  .note{background:#fff;border:1px solid var(--color-default-200);border-left:3px solid var(--color-primary);
+        border-radius:10px;padding:14px 16px;margin-top:22px;font-size:13px;line-height:1.75}
+  .note h3{margin:0 0 8px;font-size:14px}
+  .note code{background:var(--color-default-100);padding:1px 5px;border-radius:4px;font-size:12px}
+  .stop{color:#7f1d1d;font-weight:600}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;margin-top:6px}
+  th,td{border:1px solid var(--color-default-200);padding:6px 8px;text-align:left}
+  th{background:var(--color-default-100);font-weight:600}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>กองรูปแอดมินที่เข้าไปตอบ — รายการแชท</h1>
+  <p class="sub">00018 ส่วนขยาย · 2026-09-10 · แถวจำลองจาก <code>InboxList.tsx</code> · สี/ตัวอักษรตาม Paces token จริง</p>
+
+  <div class="grid">
+
+    <!-- ══ มือถือ ══ -->
+    <div class="device" style="max-width:390px">
+      <div class="device-h"><span>มือถือ 390px</span><em>ไม่มี hover → เห็นแค่รูป</em></div>
+
+      <div class="row">
+        <div class="av">พร<span class="plat"></span></div>
+        <div class="body">
+          <div class="l1"><span class="nm">พีรวุฒิ ฤกษ์แพทย์</span><span class="tm">2 ชม.</span></div>
+          <div class="pv">คุณ: ได้ค่ะ ลูกค้าใช้รถรุ่นไหนคะ</div>
+          <div class="chips"><span class="chip">∞ ad_id.1202…</span></div>
+        </div>
+        <div class="agents"><span class="a">อร</span></div>
+      </div>
+
+      <div class="row">
+        <div class="av">โช<span class="plat"></span></div>
+        <div class="body">
+          <div class="l1"><span class="nm">โชติ ถักเชือกเทียน</span><span class="tm">3 ชม.</span></div>
+          <div class="pv">คุณ: รบกวนขอรูปหน้ารถหน่อยได้ไหมคะ</div>
+          <div class="chips"><span class="chip">∞ ad_id.1202…</span></div>
+        </div>
+        <div class="agents"><span class="a">อร</span><span class="a p2">กิ</span></div>
+      </div>
+
+      <div class="row">
+        <div class="av">SC<span class="plat"></span></div>
+        <div class="body">
+          <div class="l1"><span class="nm">Suwat Chanruk</span><span class="tm">3 ชม.</span></div>
+          <div class="pv">คุณ: สวัสดีค่ะ ลูกค้าสนใจติดตั้งกับรถรุ่นไหนปีไห…</div>
+          <div class="chips"><span class="chip new">ลูกค้าใหม่</span><span class="chip">∞ ad_id.1202…</span></div>
+        </div>
+        <div class="agents"><span class="a">อร</span><span class="a p2">กิ</span><span class="a p3">ณั</span></div>
+      </div>
+
+      <div class="row">
+        <div class="av">NL<span class="plat"></span></div>
+        <div class="body">
+          <div class="l1"><span class="nm">Nuttapon Lu</span><span class="tm">4 ชม.</span></div>
+          <div class="pv">คุณ: ขอบคุณที่เป็นเพื่อนกับเรานะคะ</div>
+          <div class="chips"><span class="chip">∞ ad_id.1202…</span></div>
+        </div>
+        <!-- ไม่มีกองรูป: ตอบจากฝั่งแพลตฟอร์ม -->
+      </div>
+
+      <div class="row">
+        <div class="av">ชม<span class="plat"></span></div>
+        <div class="body">
+          <div class="l1"><span class="nm">ชำนาญ มาครับ</span><span class="tm">5 ชม.</span></div>
+          <div class="pv">[รูปภาพ]</div>
+          <div class="chips"><span class="chip">DeepBot ตอบ</span></div>
+        </div>
+        <!-- ไม่มีกองรูป: บอทตอบ -->
+      </div>
+    </div>
+
+    <!-- ══ แท็บเล็ต ══ -->
+    <div class="device" style="max-width:520px">
+      <div class="device-h"><span>แท็บเล็ต 768px (คอลัมน์รายการ ~520px)</span><em>ยังไม่มี hover</em></div>
+
+      <div class="row sel">
+        <div class="av">G<span class="plat"></span></div>
+        <div class="body">
+          <div class="l1"><span class="nm">Ggate</span><span class="tm">5 ชม.</span></div>
+          <div class="pv">ได้ค่ะ</div>
+          <div class="chips"><span class="chip">∞ ad_id.1202…</span></div>
+        </div>
+        <div class="agents"><span class="a">อร</span></div>
+      </div>
+
+      <div class="row">
+        <div class="av">AT<span class="plat"></span></div>
+        <div class="body">
+          <div class="l1"><span class="nm">Auttawuth Tee</span><span class="tm">5 ชม.</span></div>
+          <div class="pv">คุณ: ยินดีค่ะ</div>
+          <div class="chips"><span class="chip">∞ ad_id.1202…</span></div>
+        </div>
+        <div class="agents"><span class="a p3">ณั</span><span class="a">อร</span></div>
+      </div>
+
+      <div class="row">
+        <div class="av">ลา<span class="plat line"></span></div>
+        <div class="body">
+          <div class="l1"><span class="nm">ลาเต้ เมืองสิ่งแคว</span><span class="tm">5 ชม.</span></div>
+          <div class="pv">คุณ: โปรโมชั่นพิเศษสุดคุ้ม โปรเจกเตอร์ B…</div>
+        </div>
+        <div class="agents">
+          <span class="a">อร</span><span class="a p2">กิ</span><span class="a more">+3</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ เดสก์ท็อป ══ -->
+    <div class="device desk" style="max-width:340px">
+      <div class="device-h"><span>เดสก์ท็อป — rail 320px</span><em>ชี้ที่กองรูป = เห็นชื่อ · ไม่มีปุ่มลอยแล้ว</em></div>
+
+      <div class="row">
+        <div class="av">พร<span class="plat"></span></div>
+        <div class="body">
+          <div class="l1"><span class="nm">พีรวุฒิ ฤกษ์แพทย์</span><span class="tm">2 ชม.</span></div>
+          <div class="pv">คุณ: ได้ค่ะ ลูกค้าใช้รถรุ่นไหนคะ</div>
+          <div class="chips"><span class="chip">∞ ad_id.1202…</span></div>
+        </div>
+        <div class="agents">
+          <span class="a">อร</span>
+          <span class="tip"><b>อรวรรณ ทองดี</b><span class="cap">ตอบล่าสุด 11:27</span></span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="av">SC<span class="plat"></span></div>
+        <div class="body">
+          <div class="l1"><span class="nm">Suwat Chanruk</span><span class="tm">3 ชม.</span></div>
+          <div class="pv">คุณ: สวัสดีค่ะ ลูกค้าสนใจติดตั้งกับรถรุ่นไหน…</div>
+          <div class="chips"><span class="chip new">ลูกค้าใหม่</span><span class="chip">∞ ad_id.1202…</span></div>
+        </div>
+        <div class="agents">
+          <span class="a">อร</span><span class="a p2">กิ</span><span class="a p3">ณั</span>
+          <span class="tip"><b>อรวรรณ ทองดี</b><b>กิตติพงษ์ ศรีนวล</b><b>ณัฐพล ใจดี</b><span class="cap">เรียงตามคนที่ตอบล่าสุด</span></span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="av">NL<span class="plat"></span></div>
+        <div class="body">
+          <div class="l1"><span class="nm">Nuttapon Lu</span><span class="tm">4 ชม.</span></div>
+          <div class="pv">คุณ: ขอบคุณที่เป็นเพื่อนกับเรานะคะ</div>
+          <div class="chips"><span class="chip">∞ ad_id.1202…</span></div>
+        </div>
+        
+      </div>
+
+      <div class="row">
+        <div class="av">ลา<span class="plat line"></span></div>
+        <div class="body">
+          <div class="l1"><span class="nm">ลาเต้ เมืองสิ่งแคว</span><span class="tm">5 ชม.</span></div>
+          <div class="pv">คุณ: โปรโมชั่นพิเศษสุดคุ้ม โปรเจกเตอร์…</div>
+          <div class="chips"><span class="chip">∞ ad_id.1202…</span></div>
+        </div>
+        <div class="agents">
+          <span class="a">อร</span><span class="a p2">กิ</span><span class="a more">+3</span>
+          <span class="tip"><b>อรวรรณ ทองดี</b><b>กิตติพงษ์ ศรีนวล</b><span class="cap">และอีก 3 คน</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <h3>สิ่งที่ต้องเคาะ</h3>
+    <table>
+      <tr><th style="width:190px">เรื่อง</th><th>ที่ทำในม็อกอัพ</th></tr>
+      <tr><td>ตำแหน่ง</td><td><code>absolute right:10px bottom:9px</code> — มุมขวาล่างของแถว ตามที่สั่ง</td></tr>
+      <tr><td>ขนาด</td><td>20px ซ้อนเหลื่อม −7px มีขอบขาว 2px (รูปคู่สนทนาหลัก = 40px จึงไม่แย่งสายตา)</td></tr>
+      <tr><td>ลำดับ</td><td><b>คนที่ตอบล่าสุดอยู่หน้าสุด</b> — ใบหน้าสุดเห็นชัดที่สุด ควรเป็นคนที่เกี่ยวกับสถานะปัจจุบันของห้อง</td></tr>
+      <tr><td>เกิน 3 คน</td><td>โชว์ 2 + <code>+N</code> (ข้อมูลจริง prod ไม่เคยเกิน 3 — เผื่อไว้ไม่ให้แตกเท่านั้น)</td></tr>
+      <tr><td>ชื่อ</td><td>≥1024px ชี้ที่กองรูป → กล่องดำเหนือกองรูป · &lt;1024px ไม่มี (ตามที่เลือก)</td></tr>
+      <tr><td>ไม่มีแอดมินตอบ</td><td>ไม่วาดอะไรเลย (แถว “Nuttapon Lu” = ตอบจาก Business Suite · “ชำนาญ” = บอทตอบ)</td></tr>
+    </table>
+
+    <h3 style="margin-top:14px">ชุดปุ่มลอย ปักหมุด/ปิดงาน — ถอดออกแล้ว (user เคาะ 2026-09-10 ทาง A)</h3>
+    <p style="margin:0">action ประจำแถวเหลือทางเข้าเดียวคือ <b>คลิกขวา</b> (เดสก์ท็อป) และ <b>กดค้าง / ปัดซ้าย</b> (มือถือ)
+    ซึ่งมี <code>RowAction</code> ครบทั้ง 8 ค่า + สถานะขาย/แท็ก/กลุ่ม/เสียง ⇒ ชุดปุ่มลอยเป็น subset แท้ ๆ ไม่เสียความสามารถอะไรเลย
+    <span class="stop">ผลพลอยได้: มุมขวาล่างว่างสนิท กองรูปไม่ชนอะไรทั้งสิ้น</span></p>
+
+    <h3 style="margin-top:14px">ยังไม่ได้ทำในม็อกอัพนี้</h3>
+    <p style="margin:0">โหมดมืด · สถานะกำลังโหลด (กองรูปมาพร้อมแถวอยู่แล้ว ไม่มีช่วงกะพริบ) · รูปจริงจาก <code>User.avatar</code>
+    (ม็อกอัพใช้อักษรย่อล้วนเพราะแอดมินส่วนใหญ่ในฐานยังไม่ตั้งรูป)</p>
+  </div>
+</div>
+</body>
+</html>

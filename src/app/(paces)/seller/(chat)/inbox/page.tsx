@@ -62,6 +62,7 @@ import { enrichWithOrderStage } from '@/services/order-stage.service'
 import { countDraftedOrdersByConversation } from '@/services/auto-order-detect.service'
 import { enrichWithCustomerBehavior } from '@/services/customer-behavior.service'
 import { enrichWithAutoReplyBadge } from '@/services/auto-reply.service'
+import { enrichWithThreadAgents } from '@/services/thread-agents.service'
 import { isShopChatMuted } from '@/services/notification-pref.service'
 import { syncShipmentStatuses } from '@/services/iship.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
@@ -270,6 +271,14 @@ export default async function SellerInboxPage() {
       ]),
     )
 
+    /**
+     * กองรูปแอดมินที่ตอบในแถว (user สั่ง 2026-09-10) — เหตุผลที่ต้อง enrich ทั้ง 2 ทาง
+     * เหมือน stageMap/behaviorMap ทุกข้อ (ทำทางเดียว = กองรูปโผล่ทีหลังเหมือนบั๊ก)
+     */
+    const agentsMap = new Map(
+      (await enrichWithThreadAgents(result.items)).map((r) => [r.id, r.threadAgents]),
+    )
+
     // serialize ก่อนข้าม RSC boundary — Date → ISO string (pattern movements/[productId]/page.tsx)
     // allow-list ทีละ field (RSC PII rule) — ห้าม spread ...c
     items = result.items.map((c) => {
@@ -296,6 +305,7 @@ export default async function SellerInboxPage() {
         buyerLastReadAt: c.buyerLastReadAt ? c.buyerLastReadAt.toISOString() : null,
         shopLastReadAt: c.shopLastReadAt ? c.shopLastReadAt.toISOString() : null,
         createdAt: c.createdAt.toISOString(),
+        threadAgents: agentsMap.get(c.id) ?? [],
         // S-7 (ตัวกรอง/จัดการเธรด) — pin indicator + badge "ปิดงานแล้ว"
         isPinned: c.isPinned,
         resolvedAt: c.resolvedAt ? c.resolvedAt.toISOString() : null,

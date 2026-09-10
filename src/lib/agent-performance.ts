@@ -69,6 +69,26 @@ export function isHumanAgentReply(e: AgentChatEvent): boolean {
   )
 }
 
+/**
+ * ฉบับ Prisma `where` ของ `isHumanAgentReply()` — วางติดกันตาม HR16 (นิยามเดียว หลายรูป)
+ *
+ * ตอนนี้กฎนี้มี **3 รูป** และต้องแก้พร้อมกันเสมอ:
+ *   1. `isHumanAgentReply()` (บน)      — ตัดสินทีละข้อความในหน่วยความจำ (รายงาน 00059)
+ *   2. `humanAgentReplySql()`          — `src/lib/agent-performance-sql.ts` (raw SQL ของรายงาน)
+ *   3. `HUMAN_AGENT_REPLY_WHERE` (นี่) — Prisma where ของ `enrichWithThreadAgents()`
+ *      ที่หากองรูปแอดมินในรายการแชท (user สั่ง 2026-09-10)
+ *
+ * 🛑 ห้ามพิมพ์เงื่อนไข 4 ข้อนี้เองที่อื่นอีก — ถ้าตกข้อใดข้อหนึ่งจะไม่มีอะไรฟ้อง แต่ความหมายเพี้ยน
+ * คนละทางกัน: ตก `autoReplyKind` = บอทกลายเป็นแอดมิน · ตก `senderUserId` = คนที่ตอบจาก
+ * Business Suite ถูกนับทั้งที่ระบุตัวไม่ได้ · ตก `isDeleted` = ข้อความที่ถูกลบยังนับเป็นการตอบ
+ */
+export const HUMAN_AGENT_REPLY_WHERE = {
+  senderRole: 'SHOP',
+  autoReplyKind: null,
+  senderUserId: { not: null },
+  isDeleted: false,
+} as const
+
 /** คำตอบฝั่งร้านที่ "ไม่รู้ว่าใครตอบ" — คนตอบจาก Business Suite/แอปของแพลตฟอร์มโดยตรง */
 export function isUnattributedShopReply(e: AgentChatEvent): boolean {
   return (

@@ -32,7 +32,11 @@ import { pacesToast } from '@/lib/paces-toast'
 import { CHAT_SOUND_EVENT, isChatSoundMuted, isConversationMuted, setConversationMuted } from '@/lib/chat-sound'
 import RowFocusSheet from '../../_components/RowFocusSheet'
 import TagInput from './TagInput'
-import type { RowAction } from './ConversationRowMenu'
+/**
+ * action ประจำแถวแชท — ย้ายมาอยู่ที่นี่ 2026-09-10 ตอนถอดชุดปุ่มลอย + ลบ `ConversationRowMenu`
+ * (เมนูตัวที่สองของแถวเดียวกันที่เนื้อหาไม่เท่ากับเมนูนี้) ⇒ เมนูของแถวเหลือตัวเดียวคือไฟล์นี้
+ */
+export type RowAction = 'pin' | 'unpin' | 'hide' | 'unhide' | 'resolve' | 'reopen' | 'spam' | 'unspam'
 
 const STATUS_OPTIONS: { value: string; label: string; cls: string }[] = [
   { value: 'UNSPECIFIED', label: 'ยังไม่ระบุ', cls: 'text-default-700' },
