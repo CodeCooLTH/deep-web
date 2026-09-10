@@ -76,3 +76,36 @@ describe('[blocker] เงื่อนไขเปิดตัวจำตำแ
     expect(code).toMatch(/persistScroll/)
   })
 })
+
+/**
+ * [blocker] — คืนตำแหน่งรายการแล้วต้องรีเฟรชหน้าแรกทันที
+ *
+ * 🛑 snapshot เก็บ `lastMessagePreview` ติดมาด้วย ⇒ ถ้าคืนค่าแล้วปล่อยไว้ ผู้ใช้จะเห็น
+ * "ข้อความล่าสุด" ที่ไม่ล่าสุดจริงจนกว่า poll 20 วิรอบถัดไปจะมาถึง — user ถามเองว่า
+ * "กล่องแชท last message มี cache ป่าว ทำไมมันไม่ล่าสุด" (2026-09-10)
+ */
+describe('[blocker] คืนตำแหน่งรายการแชทแล้วต้องรีเฟรชข้อมูลทันที', () => {
+  it('เรียก refreshRef หลัง setItems(snap.items)', async () => {
+    const fs = await import('fs')
+    const code = fs
+      .readFileSync('src/app/(paces)/seller/(chat)/inbox/components/InboxList.tsx', 'utf8')
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
+      .join('\n')
+    const at = code.indexOf('setItems(snap.items)')
+    expect(at, 'หาจุดคืนค่า snapshot ไม่เจอ').toBeGreaterThan(-1)
+    // ต้องมีการรีเฟรชอยู่ในบล็อกเดียวกัน (ไม่เกิน ~900 ตัวอักษรถัดไป)
+    expect(code.slice(at, at + 900)).toMatch(/refreshRef\.current\?\.\(\)/)
+  })
+
+  it('TTL ของ snapshot ต้องไม่ยาวเกิน 5 นาที', async () => {
+    const fs = await import('fs')
+    const src = fs.readFileSync(
+      'src/app/(paces)/seller/(chat)/inbox/components/inbox-scroll-restore.ts',
+      'utf8',
+    )
+    const m = src.match(/const TTL_MS = (\d+) \* 60 \* 1000/)
+    expect(m, 'หา TTL_MS ไม่เจอ').not.toBeNull()
+    expect(Number(m![1])).toBeLessThanOrEqual(5)
+  })
+})

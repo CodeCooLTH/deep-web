@@ -554,6 +554,20 @@ export default function InboxList({
     setItems(snap.items)
     setNextCursor(snap.nextCursor)
     pendingRestoreRef.current = snap.scrollTop
+    /**
+     * 🛑 คืนค่าแล้วต้อง **รีเฟรชหน้าแรกทันที** — snapshot เก็บ `lastMessagePreview` ติดมาด้วย
+     * ⇒ ถ้าไม่รีเฟรช ผู้ใช้จะเห็น "ข้อความล่าสุด" ที่เก่าถึง 3 นาที จนกว่า poll 20 วิรอบถัดไป
+     * จะมาถึง (user ถาม 2026-09-10: "กล่องแชท last message มี cache ป่าว ทำไมมันไม่ล่าสุด")
+     *
+     * `refreshFirstPage` merge ทับของเดิม **ไม่ replace** ⇒ แถวจาก loadMore ที่คืนมาไม่หาย
+     * ตำแหน่ง scroll จึงยังกลับไปจุดเดิมได้
+     *
+     * ต้องผ่าน setTimeout(0): `refreshRef.current` ถูกเซ็ตใน passive effect ซึ่งรัน **หลัง**
+     * layout effect ตัวนี้ ⇒ อ่านตรง ๆ ตอนนี้ยังเป็น undefined
+     */
+    setTimeout(() => {
+      void refreshRef.current?.()
+    }, 0)
     // deps ว่างโดยตั้งใจ — คืนของครั้งเดียวตอน mount เท่านั้น (ตัวกรองเปลี่ยนทีหลังต้องโหลดสด
     // ไม่ใช่คืนของเก่า) · eslint ไม่ทักเพราะทุกค่าที่อ้างอิงเป็น ref/setState ที่ identity คงที่
   }, [])
