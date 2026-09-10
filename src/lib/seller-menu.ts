@@ -763,7 +763,13 @@ export function applyPaymentRestriction(
 
   const removed = new Set<string>()
   if (ctx.hidePayments) {
-    removed.add('seller:subscriptions')
+    /* 🛑 feature 00064 — **เมนู "แพ็กเกจของฉัน" กลับมาแสดงในแอปแล้ว**
+       เดิมซ่อนเพราะทุกทางพาไปหน้าที่หักกระเป๋าเงิน ซึ่งผิด 3.1.1 · ตอนนี้ `/subscriptions`
+       ในแอปเด้งไป `/business/subscribe` ที่ซื้อผ่าน Apple ⇒ เป็นช่องทางที่ถูกกฎแล้ว
+
+       ไม่ซ่อนไม่ได้จริง ๆ: แอปเป็น WebView พิมพ์ URL เองไม่ได้ ถ้าไม่มีเมนู **จะไม่มีใคร
+       ไปถึงหน้าซื้อได้เลย รวมทั้งทีมรีวิวของ Apple** ซึ่งจะสรุปว่าเรายังไม่ได้ทำ IAP
+       แล้วตีกลับข้อเดิม — ดู `iap-entry-point-in-app.test.ts` */
     // ยังไม่ได้สมัคร = เข้าไปก็มีแต่หน้าให้เลือกแพ็กเกจ ซึ่งห้ามแสดง → ซ่อนเมนูไปเลย
     if (ctx.entitlementStatus !== 'ACTIVE') removed.add('seller:inventory')
   }
