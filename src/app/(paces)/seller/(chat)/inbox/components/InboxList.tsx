@@ -1999,7 +1999,10 @@ export default function InboxList({
                   <span
                     role="img"
                     aria-label={`${t.inbox.agentsLabel}: ${c.threadAgents.map((a) => a.name).join(', ')}`}
-                    className="group/agents absolute bottom-2 end-2.5 z-10 flex items-center -space-x-1.5"
+                    // end-3.75 = ค่าเดียวกับ `pe-3.75` ของ <Link> ⇒ ขอบขวาของกองรูปตรงกับเวลาและชิปพอดี
+                    // (user รายงาน 2026-09-10: end-2.5 ทำให้รูปล้ำออกไปขวากว่าเนื้อหาอื่น ~5px
+                    // ดูหลุดกริด — ตรงนี้ต้องผูกกับ padding ของแถว ห้ามตั้งตัวเลขลอย ๆ)
+                    className="group/agents absolute bottom-2 end-3.75 z-10 flex items-center -space-x-1.5"
                   >
                     {c.threadAgents.slice(0, THREAD_AGENT_STACK_MAX).map((a) => (
                       <span

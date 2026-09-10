@@ -73,14 +73,6 @@ export interface SendFailureDescription {
   /** true = เรารู้จักสาเหตุนี้และแปลแล้ว; false = ข้อความดิบ */
   known: boolean
   /**
-   * ทางออกที่ "กดได้จริง" ของสาเหตุนี้ — UI เอาไปเลือกปุ่มบนบับเบิลที่ล้ม
-   *
-   * 🛑 ต้องตัดสินที่นี่ ไม่ใช่ให้ UI ไป match ถ้อยคำเอง — ถ้อยคำเป็นของชั้นนี้ (HR16) และการ
-   * match ซ้ำที่ชั้น UI คือนิยามที่สองซึ่งจะเพี้ยนทันทีที่ใครแก้ประโยค
-   * null = ไม่มีปุ่มพิเศษ (เหลือ "ลองใหม่"/"ยกเลิก" ตามปกติ)
-   */
-  action: 'BUSINESS_SUITE' | null
-  /**
    * true = กดปุ่ม "ลองใหม่" มีผลจริง (มีโอกาสสำเร็จ) — false = ยิงซ้ำด้วยเงื่อนไขเดิมไม่มีทางผ่าน
    * ต้องแก้อย่างอื่นก่อน (token/โควตา/ลูกค้าบล็อก) UI ต้องแสดงเป็นข้อความนิ่ง ไม่ใช่ปุ่มกดได้
    *
@@ -162,8 +154,6 @@ interface Rule {
   whenCommentOrigin?: string
   /** ดู SendFailureDescription.retryable — ไม่ใส่ = true (พฤติกรรมเดิมของทุก rule ก่อน 2026-08-10) */
   retryable?: boolean
-  /** ดู SendFailureDescription.action */
-  action?: 'BUSINESS_SUITE'
 }
 
 const RULES: Rule[] = [
@@ -222,14 +212,6 @@ const RULES: Rule[] = [
     // คงวลี "เอเจนต์ AI ของ Meta" + "Business Suite" ไว้ครบ (HR16) ย่อเฉพาะส่วนขยาย
     short: 'เอเจนต์ AI ของ Meta ดูแลอยู่ — รับดูแลเองที่ Business Suite',
     retryable: false,
-    /**
-     * ทางออกเดียวที่ได้ผลจริงคือไปกดรับดูแลที่ Business Suite — พิสูจน์กับ Graph แล้ว 2026-08-08
-     * ว่าแอปเราสั่ง take_thread_control ไม่ผ่าน ⇒ ปุ่ม "ลองใหม่" ที่เดิมเป็นตัวเลือกเดียวคือ
-     * ทางตัน (retryable=false อยู่แล้ว) เหลือแค่ "ยกเลิก" ซึ่งไม่ได้พาไปไหน
-     * (user รายงาน 2026-09-10: เธรดที่ไม่มี marker ของ Meta AI จะไม่เข้าเงื่อนไขแถบ manual-override
-     * ⇒ ร้านเห็นแต่บับเบิลแดงกับคำว่า "ยกเลิก" โดยไม่มีทางไปต่อ)
-     */
-    action: 'BUSINESS_SUITE',
   },
   {
     // "(#100) Cannot tag messages with 'HUMAN_AGENT' without prior approval." — Meta ปฏิเสธเพราะ
@@ -487,7 +469,6 @@ export function describeSendFailure(
     known: boolean,
     retryable: boolean,
     prefix: string = PREFIX,
-    action: SendFailureDescription['action'] = null,
   ): SendFailureDescription => {
     const { text, short } = copy
     return {
@@ -500,7 +481,6 @@ export function describeSendFailure(
       metaCode,
       known,
       retryable,
-      action,
     }
   }
 
@@ -524,7 +504,7 @@ export function describeSendFailure(
      */
     const overridden = context.commentOriginNoInbound ? hit.whenCommentOrigin : undefined
     const copy: Copy = overridden ? { text: overridden } : base
-    return done(copy, metaCode, true, hit.retryable ?? true, hit.prefix, hit.action ?? null)
+    return done(copy, metaCode, true, hit.retryable ?? true, hit.prefix)
   }
 
   // รหัสภายในที่ยังไม่มีกฎรองรับ — ห้ามแสดงดิบ (ดู INTERNAL_CODE_SHAPE) ตกไปคำเดียวกับกรณี
