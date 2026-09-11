@@ -576,12 +576,22 @@ export default function InboxList({
   useIsomorphicLayoutEffect(() => {
     const target = restoreTargetRef.current
     if (target !== null) {
-      if (items.length < Math.min(target, MAX_RESTORE_ROWS) && nextCursor && !loading) {
-        void loadMore()
+      const needMore = items.length < Math.min(target, MAX_RESTORE_ROWS) && !!nextCursor
+      /**
+       * 🛑 กำลังโหลดอยู่ = **ยังไม่จบ ห้ามเคลียร์เป้า** — รอรอบถัดไปที่ `loading` กลับเป็น false
+       *
+       * เวอร์ชันแรกใส่ `&& !loading` ไว้ในเงื่อนไขเดียวกัน ⇒ พอ `loading` เป็น true เงื่อนไข
+       * เป็นเท็จแล้ว **ตกลงมาเคลียร์เป้าทิ้งทันที** ⇒ ไล่โหลดแถวเก่าได้แค่หน้าเดียวแล้วหยุด
+       * และ `restoreTriesRef` ที่ไม่เคยรีเซ็ตก็ค้างไปรบกวนการโหลดเพิ่มรอบของผู้ใช้
+       * (user รายงาน 2026-09-10: "พอโหลดเพิ่ม เหมือนเพี้ยน เลยไม่ทำงาน")
+       */
+      if (needMore) {
+        if (!loading) void loadMore()
         return
       }
-      // ครบเป้าแล้ว หรือไม่มีอะไรให้โหลดต่อ — เลิกไล่
+      // ครบเป้าแล้ว หรือไม่มีอะไรให้โหลดต่อ — เลิกไล่ และคืนตัวนับให้รอบของผู้ใช้
       restoreTargetRef.current = null
+      restoreTriesRef.current = 0
     }
     const top = pendingRestoreRef.current
     if (top === null) return
