@@ -48,12 +48,24 @@ related: ["[[SRS]]", "[[SDS]]"]
 |---|---|
 | 400 `INVALID_SIGNATURE` | ตรวจลายเซ็นไม่ผ่าน / ห่วงโซ่ใบรับรองไม่ถึง Apple Root |
 | 400 `BUNDLE_MISMATCH` | `bundleId` ไม่ใช่ของเรา |
-| 400 `ENVIRONMENT_MISMATCH` | ธุรกรรม Sandbox บน production |
+| 400 `BAD_ENVIRONMENT` | ค่า `environment` ไม่ใช่ `Production` และไม่ใช่ `Sandbox` (payload เพี้ยน) |
+| 400 `NOT_SUBSCRIPTION` · `FAMILY_SHARED` · `UNKNOWN_PRODUCT` · `MISSING_IDS` · `NO_EXPIRY` | ตามชื่อ — ดู `src/lib/apple/transaction.ts` |
 | 409 `TRANSACTION_OWNED_BY_ANOTHER_ACCOUNT` | `originalTransactionId` ผูกกับ `ownerId` อื่นแล้ว (BR-IAP-04) |
 | 409 `WALLET_SUBSCRIPTION_EXISTS` | มีใบที่จ่ายด้วยกระเป๋าเงินอยู่ (เคส Q-2 · ยังไม่ตัดสิน) |
 | 401 | ไม่มี session |
 
 🛑 **client ห้าม `finishTransaction` จนกว่าจะได้ 200** (FR-IAP-12)
+
+🛑 **แก้ 2026-09-13 — เคยเขียนว่ามี `400 ENVIRONMENT_MISMATCH` สำหรับ "ธุรกรรม Sandbox
+บน production"** ซึ่ง **ไม่มีอยู่ในโค้ดเลยสักบรรทัด** และขัดกับพฤติกรรมจริงที่ *ตั้งใจรับ*
+Sandbox (ดู FR-IAP-14 ใน `SRS.md` และหัวข้อ "เรื่อง environment" ใน `transaction.ts`)
+
+ถ้ามีคนอ่านตารางนี้แล้วไปเติมด่านให้ตรง **คนตรวจของ Apple จะซื้อไม่ผ่านทันที = ถูกตีกลับ**
+โดยที่ `tsc`/เทส/build ไม่มีอะไรฟ้อง — คลาสเดียวกับ
+`docs/conventions/docs-claimed-constraint-verify-in-code.md`
+
+(`TestCase.md` TC-IAP-24 เขียนถูกมาตลอดว่า "Sandbox ต้องผ่าน" ⇒ เอกสารชุดนี้ **ขัดกันเอง**
+อยู่หลายสัปดาห์โดยไม่มีใครสังเกต)
 
 ---
 
