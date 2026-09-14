@@ -102,6 +102,24 @@ describe('[blocker] ChatThread — เวลาบนบับเบิล / ป
     expect(live > s && live < e).toBe(false)
   })
 
+  it('(a/R25) กล่อง scroll ไม่มี tabIndex ใน JSX · ปุ่มใส่ tabindex ชั่วคราวก่อน focus', () => {
+    // iOS Safari: กล่องที่ focus ได้ถาวร รับโฟกัสตอนแตะเธรด = คีย์บอร์ดหุบกลางการพิมพ์
+    const open = code.indexOf('ref={scrollRef}')
+    const tagStart = code.lastIndexOf('<div', open)
+    const tagEnd = code.indexOf('className=', open)
+    expect(code.slice(tagStart, tagEnd)).not.toMatch(/tabIndex=/)
+    const cond = code.search(/\{unseenNewCount > 0 && !quickOpen && \(/)
+    const [s, e] = parenBlock(code, cond)
+    const block = code.slice(s, e)
+    const setAttr = block.indexOf("setAttribute('tabindex', '-1')")
+    const removeOnBlur = block.search(/addEventListener\('blur',[^\n]*removeAttribute\('tabindex'\)/)
+    const focus = block.indexOf('.focus({ preventScroll: true })')
+    expect(setAttr).toBeGreaterThan(-1)
+    expect(removeOnBlur).toBeGreaterThan(-1)
+    expect(focus).toBeGreaterThan(setAttr)
+    expect(block.indexOf('clearUnseen()')).toBeGreaterThan(focus)
+  })
+
   it('(b) R23 + P2-b: บับเบิลไม่มี title · sr-only "เวลา" อยู่หลังเนื้อหา ครบ 2 เส้นทาง', () => {
     const hits = [...code.matchAll(/<div\s+data-message-bubble\b/g)].map((h) => h.index)
     expect(hits.length).toBe(2)
