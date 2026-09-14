@@ -28,3 +28,20 @@ describe('mergeRefreshedFirstPage', () => {
     expect(out.map((i) => i.id)).toEqual(['a'])
   })
 })
+
+// [blocker] HR17 2026-09-29: รวม mergeRefreshedFirstPage (main) + patchConversationRows (branch delta)
+// ต้องได้ทั้งสองอย่าง — ทิ้งแถวที่หลุดตัวกรองเมื่อไม่มีหน้าถัดไป และคง object เดิมของแถวที่ค่าไม่เปลี่ยน
+describe('mergeRefreshedFirstPage + identity', () => {
+  it('ไม่มีหน้าถัดไป: ทิ้งแถวที่หลุด แต่แถวที่ค่าเท่าเดิมเป็น object เดิม', () => {
+    const a = { id: 'a', v: 1, o: { x: 1 } }
+    const gone = { id: 'gone', v: 1, o: { x: 1 } }
+    const out = mergeRefreshedFirstPage([a, gone], [{ id: 'a', v: 1, o: { x: 1 } }], { comparable: true, hasMore: false })
+    expect(out.map((i) => i.id)).toEqual(['a'])
+    expect(out[0]).toBe(a)
+  })
+  it('ไม่มีอะไรเปลี่ยนเลย: คืน array เดิม', () => {
+    const prev = [{ id: 'a', v: 1 }, { id: 'b', v: 2 }]
+    const out = mergeRefreshedFirstPage(prev, [{ id: 'a', v: 1 }, { id: 'b', v: 2 }], { comparable: true, hasMore: true })
+    expect(out).toBe(prev)
+  })
+})

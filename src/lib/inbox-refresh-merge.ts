@@ -12,12 +12,14 @@
  * ponytail: แถวที่อยู่หลังหน้าแรกของรายการยาวยังค้างข้อมูลเก่าได้จนกว่าจะมีข้อความใหม่ —
  * แก้เต็มต้องมี delta จาก server (ดู branch feat/chat-instant-render-delta)
  */
+import { patchConversationRows } from './inbox-row-patch'
+
 export function mergeRefreshedFirstPage<T extends { id: string }>(
   prev: T[],
   fresh: T[],
   opts: { comparable: boolean; hasMore: boolean },
 ): T[] {
-  if (!opts.comparable || !opts.hasMore) return fresh
-  const freshIds = new Set(fresh.map((i) => i.id))
-  return [...fresh, ...prev.filter((p) => !freshIds.has(p.id))]
+  // กติกาเก็บ/ทิ้งแถวอยู่ที่นี่ · การคงตัวตนของแถวที่ค่าไม่เปลี่ยน (ไม่ให้ทั้งลิสต์ re-render) อยู่ที่
+  // patchConversationRows — รวมสองงานที่เคยแก้บรรทัดเดียวกันคนละ branch (HR17, 2026-09-29)
+  return patchConversationRows(opts.comparable ? prev : [], fresh, { keepTail: opts.hasMore })
 }
