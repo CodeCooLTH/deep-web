@@ -144,8 +144,11 @@ describe('[blocker] เปิดห้องแล้วต้อง reconcile �
       .split('\n')
       .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
       .join('\n')
-    // ต้องมี effect ที่ "ถ้ามี initial ให้ refetchNewer" — ไม่ใช่แค่มีฟังก์ชันลอย ๆ
-    expect(code).toMatch(/if \(!initial\) return\s*\n\s*void refetchNewer\(\)/)
+    // ต้องมี effect ที่ "ถ้าจอมีเนื้อหาแล้ว (initial จาก RSC หรือ cache ของ store) ให้ refetchNewer"
+    // — ไม่ใช่แค่มีฟังก์ชันลอย ๆ · 2026-09-14: เพิ่มกิ่ง cache + บรรทัด seed store คั่นกลางได้หนึ่งบรรทัด
+    expect(code).toMatch(
+      /if \(!initial && !cached\) return\s*\n(?:\s*if \(!cached && initial\) saveThreadView\([^\n]*\n)?\s*void refetchNewer\(\)/,
+    )
   })
 })
 
