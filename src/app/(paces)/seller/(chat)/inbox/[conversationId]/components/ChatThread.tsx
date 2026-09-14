@@ -3003,8 +3003,6 @@ export default function ChatThread({
       )}
       <div
         ref={scrollRef}
-        // P1-c: เป้ารับโฟกัสหลังกดปุ่ม "ข้อความใหม่" (ปุ่ม unmount ทันที ไม่งั้นโฟกัสตกไป <body>)
-        tabIndex={-1}
         {...longPress.handlers}
         className="card-body min-h-0 grow overflow-y-auto overscroll-contain pt-4 pb-0 [&>*:last-child>*:last-child]:mb-3"
       >
@@ -3121,9 +3119,9 @@ export default function ChatThread({
                           </span>
                         )}
                         {(showTime || (mine && (atBurstEnd || queued || albumFailed || last.id === lastShopMsgId))) && (
-                          <div className={`text-default-700 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
+                          <div className={`text-default-700 mt-1 flex flex-wrap items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
                             {showTime && (
-                              <span className="flex items-center gap-1" title={formatDateTimeTH(last.createdAt)} aria-hidden="true">
+                              <span className="flex items-center gap-1 whitespace-nowrap" title={formatDateTimeTH(last.createdAt)} aria-hidden="true">
                                 <Icon icon="clock" />
                                 {formatChatBubbleTime(last.createdAt)}
                               </span>
@@ -3903,7 +3901,7 @@ export default function ChatThread({
                               เปลี่ยนได้ทั้งนั้น) เนื้อความที่แสดงคือของใหม่เสมอ */}
                           {m.edited && <span className="text-default-600">แก้ไขแล้ว</span>}
                           {showTime && (
-                            <span className="flex items-center gap-1" title={formatDateTimeTH(m.createdAt)} aria-hidden="true">
+                            <span className="flex items-center gap-1 whitespace-nowrap" title={formatDateTimeTH(m.createdAt)} aria-hidden="true">
                               <Icon icon="clock" />
                               {formatChatBubbleTime(m.createdAt)}
                             </span>
@@ -3997,8 +3995,16 @@ export default function ChatThread({
           <button
             type="button"
             onClick={() => {
-              // P1-c: ย้ายโฟกัสก่อนปุ่มหาย · preventScroll กันแย่งกับการเลื่อนลงล่างของ clearUnseen
-              scrollRef.current?.focus({ preventScroll: true })
+              // P1-c: ปุ่ม unmount ทันทีหลังกด ⇒ ย้ายโฟกัสไปกล่องข้อความก่อน ไม่งั้นตกไป <body>
+              // R25: tabindex ใส่ชั่วคราวแล้วถอดตอน blur — ห้ามใส่ถาวรใน JSX เพราะ iOS Safari
+              // ย้ายโฟกัสไปกล่องที่ focus ได้เมื่อแตะเธรด = คีย์บอร์ดหุบกลางการพิมพ์
+              // preventScroll กันแย่งกับการเลื่อนลงล่างของ clearUnseen
+              const el = scrollRef.current
+              if (el) {
+                el.setAttribute('tabindex', '-1')
+                el.addEventListener('blur', () => el.removeAttribute('tabindex'), { once: true })
+                el.focus({ preventScroll: true })
+              }
               clearUnseen()
             }}
             className="btn bg-primary hover:bg-primary-hover pointer-events-auto inline-flex items-center gap-1.5 rounded-full text-nowrap text-white shadow-lg"
