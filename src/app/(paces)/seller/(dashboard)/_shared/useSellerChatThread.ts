@@ -37,6 +37,7 @@ import { readThread, saveThreadView } from '@/lib/chat-message-store'
 import {
   canAutoLoadOlder,
   pickNewIncoming,
+  countUnseenIncrement,
   shouldDeferFullDeltaReplace,
   shouldFollowNewMessages,
 } from '@/lib/chat-thread-scroll'
@@ -789,8 +790,9 @@ export function useSellerChatThread(
           )
           for (const m of unseen) staleCountedIdsRef.current.add(m.id)
           if (beepEnabled && unseen.some((m) => m.senderRole === 'BUYER')) playChatBeep({ shopId, conversationId })
-          // ขั้นต่ำ 1 ครั้งแรก — ต้องมีปุ่มให้กดเสมอ เพราะปุ่มคือทางหนึ่งในสองทางที่พาไปแทนที่
-          const add = firstDefer ? Math.max(1, unseen.length) : unseen.length
+          // R24: นับเฉพาะข้อความลูกค้า ไม่มีขั้นต่ำ 1 — ไม่มีข้อความลูกค้าก็ไม่ขึ้นปุ่ม
+          // (การแทนที่ยังเกิดตอนผู้ใช้ลงมาถึงล่างสุดเอง ดู countUnseenIncrement)
+          const add = countUnseenIncrement(unseen)
           if (add > 0) setUnseenNewCount((n) => n + add)
           return
         }
@@ -840,7 +842,11 @@ export function useSellerChatThread(
         if (beepEnabled && fresh.some((m) => m.senderRole === 'BUYER')) playChatBeep({ shopId, conversationId })
         if (fresh.length > 0) {
           if (shouldFollowNewMessages({ atBottom: atBottomRef.current })) scrollToBottom()
-          else setUnseenNewCount((n) => n + fresh.length)
+          else {
+            // R24: ตามจอยังดูทุกแถวใหม่ (atBottom) แต่ตัวนับปุ่มนับเฉพาะข้อความลูกค้า
+            const add = countUnseenIncrement(fresh)
+            if (add > 0) setUnseenNewCount((n) => n + add)
+          }
         }
       } catch {
         // เงียบ — รอ broadcast ถัดไป/focus fallback

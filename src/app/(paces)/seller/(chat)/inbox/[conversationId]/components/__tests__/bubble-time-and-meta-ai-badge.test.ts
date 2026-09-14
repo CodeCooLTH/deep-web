@@ -3,9 +3,11 @@
 // 🛑 ทำไมต้องสแกนซอร์ส: vitest ตั้ง environment "node" (ไม่มี jsdom) และทั้ง 3 ข้อด้านล่าง
 // ถูกต้องตามชนิดทุกตัวอักษรไม่ว่าจะเขียนผิดหรือถูก ⇒ tsc/build/eslint ผ่านหมด
 //   (a) R20 — role="status" บน <button> เขียนทับ role ปุ่ม screen reader ไม่รู้ว่ากดได้
-//   (b) R19 — data-message-bubble เป็น <div> (role generic) aria-label ถูกทิ้งเงียบ ๆ ⇒ ต้องมี
-//       title (เมาส์) + sr-only (screen reader) ครบทั้ง 2 เส้นทางเรนเดอร์ (บับเบิลเดี่ยว + อัลบั้ม)
-//   (c) ป้าย Meta AI ต้องเป็นไอคอน brand-meta และห้ามสี primary (One Voice — ไม่ใช่ของแอปเรา)
+//       + (m2) live region ต้อง mount ค้างนอกเงื่อนไข count>0 · ปุ่มซ่อนตอน quickOpen
+//   (b) R19/R23/P2-b — data-message-bubble เป็น <div> (role generic) aria-label ถูกทิ้งเงียบ ๆ ⇒
+//       sr-only "เวลา …" หลังเนื้อหา ครบ 2 เส้นทาง (บับเบิลเดี่ยว + อัลบั้ม) · ห้าม title ที่ระดับบับเบิล
+//       (ลูกที่กดได้รับ tooltip ไปซ้อน popover) — title อยู่ที่ <p> ของเนื้อข้อความแทน
+//   (c) ป้าย Meta AI: ไอคอน brand-meta · ห้ามสี primary (One Voice) · ป้ายไทยพร้อมประโยค sr-only
 //
 // 🛑 ตัดคอมเมนต์ก่อนสแกนเสมอ — ChatThread เขียนคำเตือนของกฎเหล่านี้ไว้ในคอมเมนต์ด้วย
 
@@ -60,7 +62,26 @@ function stripComments(src: string): string {
 
 const code = stripComments(readFileSync(join(process.cwd(), CHAT_THREAD), 'utf8'))
 
-describe('[blocker] ChatThread — เวลาเต็มบนบับเบิล / ปุ่มข้อความใหม่ / ป้าย Meta AI', () => {
+/** ช่วง [เปิด, ปิด] ของวงเล็บ `(` ตัวแรกหลัง `from` — ข้ามสตริง (stripComments ตัดคอมเมนต์แล้ว) */
+function parenBlock(src: string, from: number): [number, number] {
+  const open = src.indexOf('(', from)
+  let depth = 0
+  let quote: string | null = null
+  for (let i = open; i < src.length; i++) {
+    const c = src[i]
+    if (quote) {
+      if (c === '\\') i += 1
+      else if (c === quote) quote = null
+      continue
+    }
+    if (c === "'" || c === '"' || c === '`') quote = c
+    else if (c === '(') depth += 1
+    else if (c === ')' && --depth === 0) return [open, i]
+  }
+  throw new Error('วงเล็บไม่ปิด')
+}
+
+describe('[blocker] ChatThread — เวลาบนบับเบิล / ปุ่มข้อความใหม่ / ป้าย Meta AI', () => {
   it('(a) R20: ไม่มี role="status" บน <button>', () => {
     const offenders: string[] = []
     for (const hit of code.matchAll(/role="status"/g)) {
@@ -70,26 +91,45 @@ describe('[blocker] ChatThread — เวลาเต็มบนบับเบ
     expect(offenders).toEqual([])
   })
 
-  it('(b) R19: ทั้ง 2 เส้นทาง data-message-bubble มี title + sr-only "ส่งเมื่อ" ด้วย formatDateTimeTH', () => {
-    const hits = [...code.matchAll(/<div\s+data-message-bubble\b/g)]
-    expect(hits.length).toBe(2)
-    for (const hit of hits) {
-      const rest = code.slice(hit.index)
-      // ปลายแท็กเปิด = `>` ตัวแรกที่ไม่ใช่ `=>`
-      const tagEnd = rest.search(/[^=]>/) + 1
-      const openTag = rest.slice(0, tagEnd)
-      expect(openTag).toMatch(/title=\{formatDateTimeTH\(/)
-      // sr-only ต้องเป็นลูกตัวแรก ก่อนป้าย/quote/เนื้อหา
-      // `{\n}` = ซากของ JSX comment หลังตัดคอมเมนต์ ไม่นับเป็นลูก
-      expect(rest.slice(tagEnd + 1).replace(/^(\s|\{\s*\})+/, '')).toMatch(
-        /^<span className="sr-only">ส่งเมื่อ \{formatDateTimeTH\(/,
-      )
-    }
+  it('(a/m2) live region อยู่นอกเงื่อนไข count>0 · ปุ่มอยู่ในเงื่อนไขที่ซ่อนตอน quickOpen', () => {
+    const cond = code.search(/\{unseenNewCount > 0 && !quickOpen && \(/)
+    expect(cond).toBeGreaterThan(-1)
+    const [s, e] = parenBlock(code, cond)
+    const btn = code.indexOf('clearUnseen()', s)
+    expect(btn > s && btn < e).toBe(true)
+    const live = code.indexOf('<span role="status" className="sr-only">')
+    expect(live).toBeGreaterThan(-1)
+    expect(live > s && live < e).toBe(false)
   })
 
-  it('(c) ป้าย Meta AI ใช้ brand-meta และไม่ใช้ bg-primary/text-primary', () => {
-    const badge = code.match(/<span\b(?:(?!<span\b)[\s\S])*?icon="brand-meta"[\s\S]*?Meta AI\s*<\/span>/)
+  it('(b) R23 + P2-b: บับเบิลไม่มี title · sr-only "เวลา" อยู่หลังเนื้อหา ครบ 2 เส้นทาง', () => {
+    const hits = [...code.matchAll(/<div\s+data-message-bubble\b/g)].map((h) => h.index)
+    expect(hits.length).toBe(2)
+    const end = code.indexOf('unseenNewCount > 0 &&', hits[1])
+    const regions = [
+      { anchor: '<PhotoAlbum', src: code.slice(hits[0], hits[1]) },
+      { anchor: '{m.body}', src: code.slice(hits[1], end) },
+    ]
+    for (const r of regions) {
+      // ปลายแท็กเปิด = `>` ตัวแรกที่ไม่ใช่ `=>`
+      const tagEnd = r.src.search(/[^=]>/) + 1
+      expect(r.src.slice(0, tagEnd)).not.toMatch(/\btitle=/)
+      const sr = r.src.indexOf('<span className="sr-only">เวลา {formatDateTimeTH(')
+      expect(sr).toBeGreaterThan(r.src.indexOf(r.anchor))
+      expect(r.src.indexOf(r.anchor)).toBeGreaterThan(-1)
+      expect(r.src).toContain('{formatChatBubbleTime(')
+    }
+    // title เวลาเต็มย้ายไปอยู่ที่ <p> ของเนื้อข้อความ (ไม่ใช่กล่องที่มีปุ่ม/การ์ด/รูป)
+    expect(code).toMatch(/<p\s+title=\{formatDateTimeTH\(m\.createdAt\)\}\s+className=\{`[^`]*`\}\s*>\s*\{m\.body\}/)
+  })
+
+  it('(c) ป้าย Meta AI: brand-meta · ไม่มี primary · ป้ายไทย + ประโยค sr-only', () => {
+    const badge = code.match(
+      /<span\b(?:(?!<span\b)[\s\S])*?icon="brand-meta"[\s\S]*?<span className="sr-only">เอเจนต์ AI ของ Meta ตอบข้อความนี้แทนร้าน<\/span>\s*<\/span>/,
+    )
     expect(badge).not.toBeNull()
-    expect(badge![0]).not.toMatch(/\b(bg|text)-primary\b/)
+    expect(badge![0]).not.toMatch(/\b(bg|text|border)-primary\b/)
+    expect(badge![0]).toContain('<span aria-hidden="true">AI ของ Meta</span>')
+    expect(badge![0]).toContain('title="เอเจนต์ AI ของ Meta ตอบข้อความนี้แทนร้าน"')
   })
 })

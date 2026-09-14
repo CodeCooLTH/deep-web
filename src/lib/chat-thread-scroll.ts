@@ -72,3 +72,17 @@ export function pickNewIncoming<T extends { id: string; createdAt: string; seq?:
   }
   return incoming.filter((m) => !ids.has(m.id) && (!newest || compareMessages(m, newest) > 0))
 }
+
+/**
+ * ตัวเลขบนปุ่ม "ข้อความใหม่" ต้องบวกเพิ่มเท่าไรจากชุดแถวใหม่จริง (R24, user ตัดสิน 2026-09-14)
+ *
+ * นับเฉพาะข้อความของ **ลูกค้า** (`senderRole === 'BUYER'`) — แถว SHOP ที่เข้ามาใหม่คือบอท/เพื่อนร่วมทีม/
+ * echo ของ Business Suite/Meta AI ไม่ใช่สิ่งที่ผู้ขายต้องเลื่อนลงไปตอบ · ใช้ทั้งทางปกติและทาง R16
+ * (delta ครบเพดาน) — 🛑 ทาง R16 ไม่มีขั้นต่ำ 1 แล้ว: ไม่มีข้อความลูกค้า = ไม่ขึ้นปุ่ม การแทนที่จอยังเกิด
+ * ตอนผู้ใช้เลื่อนลงถึงล่างสุดเอง · เงื่อนไขเดียวกับเสียงเตือน (BUYER) ⇒ ปุ่มกับเสียงไม่มีวันขัดกัน
+ */
+export function countUnseenIncrement(fresh: { senderRole: string }[]): number {
+  let n = 0
+  for (const m of fresh) if (m.senderRole === 'BUYER') n += 1
+  return n
+}

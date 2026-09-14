@@ -365,6 +365,27 @@ export function formatRelativeDayTime(input: Date | string | number | null | und
 }
 
 /**
+ * วันเดียวกันตามปฏิทินไทยไหม — 🛑 ต้องเทียบวัน Bangkok ไม่ใช่วัน UTC: ข้อความ 00:00–07:00 น. ไทย
+ * เป็นวัน UTC ก่อนหน้า ถ้าเทียบผิดแถวเวลาจะขึ้นแค่ "ชม.:นาที" ให้ข้อความเมื่อคืน (ดูเหมือนวันนี้)
+ */
+export function isSameBangkokDay(a: Date | string | number, b: Date | string | number = new Date()): boolean {
+  const da = toValidDate(a)
+  const db = toValidDate(b)
+  return !!da && !!db && bangkokDayIndex(da) === bangkokDayIndex(db)
+}
+
+/**
+ * แถวเวลาใต้บับเบิลแชท (ruling R22, 2026-09-14) — วันนี้ "14:03" · อื่น ๆ "เมื่อวาน 14:03" /
+ * "12 ก.ย. 14:03" / "12 ก.ย. 68 14:03" · เดิมแสดงแค่ ชม.:นาที ทุกใบ ผู้ใช้จอสัมผัสไม่มีทางเห็นวันที่
+ * (title เป็นของเมาส์ · sr-only เป็นของ screen reader)
+ */
+export function formatChatBubbleTime(input: Date | string | number | null | undefined): string {
+  const d = toValidDate(input)
+  if (!d) return '—'
+  return isSameBangkokDay(d) ? formatTimeHM(d) : formatRelativeDayTime(d)
+}
+
+/**
  * "2026-08-06" — คีย์ของ "วัน" ตามปฏิทินไทย (ค.ศ. ไม่ใช่ พ.ศ.)
  *
  * [สำคัญ] นี่คือ **คีย์สำหรับจัดกลุ่ม/เทียบ ไม่ใช่ค่าแสดงผล** — ห้ามเอาไปโชว์ผู้ใช้
