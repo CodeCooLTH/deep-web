@@ -17,7 +17,7 @@ const db = vi.hoisted(() => ({
 vi.mock('@/lib/prisma', () => ({ prisma: db }))
 vi.mock('@/lib/token-crypto', () => ({ decryptToken: vi.fn((s: string) => s) }))
 vi.mock('@/lib/facebook/graph', () => ({
-  fetchThreadMessages: vi.fn(),
+  fetchThreadMessagesPage: vi.fn(),
   getLastInboundTime: vi.fn(),
   fetchMessageText: vi.fn(),
   fetchAdPostContent: vi.fn(),
@@ -32,7 +32,7 @@ beforeAll(() => {
 })
 
 import { syncMissingMessagesFromMeta } from '@/services/channel-chat.service'
-import { fetchThreadMessages } from '@/lib/facebook/graph'
+import { fetchThreadMessagesPage } from '@/lib/facebook/graph'
 
 const REAL_SHOP_ID = 'shop-backfill-owner'
 
@@ -62,6 +62,8 @@ describe('syncMissingMessagesFromMeta — TC-SHOPID-03: shopId ต้องม�
       id: conversationId,
       channel: 'MESSENGER',
       lastMessageAt: null,
+      createdAt: new Date('2026-08-01T00:00:00Z'),
+      metaBackfilledAt: null,
       shopChannel: {
         id: 'ch-1',
         shopId: REAL_SHOP_ID,
@@ -71,7 +73,10 @@ describe('syncMissingMessagesFromMeta — TC-SHOPID-03: shopId ต้องม�
       },
       externalContact: { externalUserId: 'PSID_1' },
     })
-    vi.mocked(fetchThreadMessages).mockResolvedValue([
+    vi.mocked(fetchThreadMessagesPage).mockResolvedValue({
+      threadId: 't_1',
+      nextAfter: null,
+      items: [
       {
         id: 'mid-1',
         createdTime: new Date('2026-08-19T10:00:00Z'),
@@ -90,7 +95,8 @@ describe('syncMissingMessagesFromMeta — TC-SHOPID-03: shopId ต้องม�
           },
         ],
       },
-    ])
+      ],
+    })
 
     const result = await syncMissingMessagesFromMeta(conversationId)
 

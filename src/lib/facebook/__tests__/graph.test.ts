@@ -4,6 +4,7 @@ import {
   sendTextMessage,
   exchangeCodeForToken,
   fetchThreadMessages,
+  fetchThreadMessagesPage,
   getContactProfile,
   GraphApiError,
   claimThreadControl
@@ -248,6 +249,64 @@ describe('fetchThreadMessages', () => {
     })
   })
 })
+
+describe('[blocker] fetchThreadMessagesPage — ไล่หน้า', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+  const fetchMock = () => fetch as unknown as ReturnType<typeof vi.fn>
+  const row = { id: 'm_1', created_time: '2026-09-12T10:00:00+0000', from: { id: 'PSID_1' }, message: 'hi' }
+
+  it('หน้าแรก: ขอ id ของเธรดมาด้วย และคืน threadId + cursor เมื่อมี paging.next', async () => {
+    fetchMock().mockReturnValue(
+      okJson({
+        data: [
+          {
+            id: 't_1',
+            messages: {
+              data: [row],
+              paging: { cursors: { after: 'AFTER1' }, next: 'https://graph.facebook.com/v21.0/t_1/messages?after=AFTER1' },
+            },
+          },
+        ],
+      }),
+    )
+    const page = await fetchThreadMessagesPage('PSID_1', 'tok', { limit: 100 })
+
+    const url = decodeURIComponent(String(fetchMock().mock.calls[0]![0]))
+    expect(url).toContain('/me/conversations')
+    expect(url).toContain('fields=id,messages.limit(100){id,created_time,from,message,attachments}')
+    expect(page.threadId).toBe('t_1')
+    expect(page.nextAfter).toBe('AFTER1')
+    expect(page.items.map((m) => m.id)).toEqual(['m_1'])
+  })
+
+  // เอกสาร Graph: "next: … If not included, this is the last page of data" — cursors.after ยังมาได้
+  it('หน้าสุดท้ายที่ยังส่ง cursors.after แต่ไม่มี next = nextAfter เป็น null', async () => {
+    fetchMock().mockReturnValue(okJson({ data: [row], paging: { cursors: { after: 'AFTER_LAST' } } }))
+    const page = await fetchThreadMessagesPage('PSID_1', 'tok', { cursor: { threadId: 't_1', after: 'AFTER1' } })
+
+    expect(page.nextAfter).toBeNull()
+    expect(page.threadId).toBe('t_1')
+  })
+
+  it('หน้าถัดไป: ยิง /{threadId}/messages พร้อม after', async () => {
+    fetchMock().mockReturnValue(
+      okJson({ data: [row], paging: { cursors: { after: 'AFTER2' }, next: 'https://graph.facebook.com/x' } }),
+    )
+    const page = await fetchThreadMessagesPage('PSID_1', 'tok', { limit: 100, cursor: { threadId: 't_1', after: 'AFTER1' } })
+
+    const url = new URL(String(fetchMock().mock.calls[0]![0]))
+    expect(url.pathname.endsWith('/t_1/messages')).toBe(true)
+    expect(url.searchParams.get('after')).toBe('AFTER1')
+    expect(url.searchParams.get('limit')).toBe('100')
+    expect(page.nextAfter).toBe('AFTER2')
+  })
+})
+
 
 describe('getContactProfile — Messenger 2 ชั้น', () => {
   beforeEach(() => {
