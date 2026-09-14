@@ -219,3 +219,42 @@ export function readMetaAiControlMarker(body: string | null | undefined): MetaAi
   const hit = AI_HANDOFF_NOTICES.find((n) => n.en === body.trim())
   return hit ? hit.control : null
 }
+
+/**
+ * attributeMetaAi — บับเบิลไหนที่ "เอเจนต์ AI ของ Meta" เป็นคนตอบ (2026-09-14)
+ *
+ * ไล่จากบนลงล่าง จำ control ล่าสุดที่ marker ประกาศไว้ แล้วติดป้ายให้ข้อความฝั่งร้านที่อยู่
+ * ในช่วงที่ AI ถือสิทธิ์
+ *
+ * 🛑 **ไม่มี marker = ไม่ติดป้าย ห้ามเดา** — เคยพลาดมาแล้วกับ `viaStandby` ที่ถูกตีความว่า
+ *    "AI ถือห้อง" แล้วบล็อกช่องพิมพ์ผิด 18 เธรดพร้อมกัน (2026-08-09) ป้ายที่ผิดแย่กว่าไม่มีป้าย
+ *
+ * เงื่อนไขอีก 2 ข้อกันการติดป้ายให้ข้อความที่ไม่ใช่ของ Meta AI:
+ *   · senderUserId != null  = คนในทีมร้านกดส่งจากแอปเรา (แถว optimistic ใช้ '' ก็นับว่าไม่ใช่ null)
+ *   · autoReplyKind != null = บอทของเราเอง (DeepBot/DeepAI)
+ */
+export function attributeMetaAi(
+  messages: {
+    id: string
+    body: string | null
+    senderRole: string
+    senderUserId: string | null
+    autoReplyKind?: string | null
+  }[],
+): Set<string> {
+  const out = new Set<string>()
+  let control: MetaAiThreadControl | null = null
+  for (const m of messages) {
+    const marker = readMetaAiControlMarker(m.body)
+    if (marker) {
+      control = marker
+      continue
+    }
+    if (control !== 'AI') continue
+    if (m.senderRole !== 'SHOP') continue
+    if (m.senderUserId !== null) continue
+    if (m.autoReplyKind) continue
+    out.add(m.id)
+  }
+  return out
+}
