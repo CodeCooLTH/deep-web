@@ -116,3 +116,36 @@ export function watermarksOf(items: ChatMessageView[]): { lastSeq: number; lastU
   }
   return { lastSeq, lastUpdatedAt }
 }
+
+/**
+ * เขียนภาพของห้องจาก state ของ hook — ทางเดียวที่ `useSellerChatThread` ใช้เขียน store (Task 4)
+ *
+ * แยกจาก `writeThread` เพราะ state บนจอมีของ 2 อย่างที่ store ห้ามเก็บตรง ๆ:
+ *
+ * 1) 🛑 **ข้อความ optimistic (`local-*`)** — hook ที่ถือบับเบิลนั้นอยู่จะถูก unmount ตอนเปลี่ยนห้อง
+ *    ไม่มีใครมาเปลี่ยน `'sending'` ให้จบอีก เปิดห้องจาก cache ครั้งหน้าจะได้บับเบิลค้างคู่กับแถวจริง
+ *    และ `createdAt` ของมันคือนาฬิกาเครื่อง client — นับเข้า watermark แล้ว delta จะข้ามการแก้
+ *    ฝั่ง server ที่เวลาเก่ากว่านาฬิกาเครื่อง (ก่อนนี้ remount ก็ทิ้งบับเบิลเหล่านี้อยู่แล้ว ไม่ได้เสียอะไรเพิ่ม)
+ *
+ * 2) 🛑 **จอถือได้เกิน MAX ใบ** (ผู้ใช้เลื่อนโหลดของเก่า) แต่ store ตัดเหลือใบใหม่สุด — cursor ที่
+ *    hook ถืออยู่ชี้ก่อนใบเก่าสุดที่เคยโหลด ถ้าเก็บคู่กับรายการที่ถูกตัดแล้ว loadOlder ครั้งหน้าจะ
+ *    กระโดดข้ามช่วงที่ถูกตัดทั้งช่วง ⇒ ต้องชี้ที่ใบเก่าสุดที่ยังเก็บไว้แทน
+ *    รูปแบบ `<createdAt ISO>|<seq>` ต้องตรงกับที่ `getMessages()` ใน `src/services/chat.service.ts`
+ *    สร้าง `nextCursor` (keyset "เก่ากว่าแถวนี้") — แก้ฝั่งนั้นต้องแก้ตรงนี้ด้วย
+ */
+export function saveThreadView(
+  conversationId: string,
+  items: ChatMessageView[],
+  oldestCursor: string | null,
+): void {
+  const real = items.filter((m) => !m.id.startsWith('local-'))
+  const kept = capMessages(real, MAX_MESSAGES_PER_THREAD)
+  const oldest = kept[0]
+  const cursor =
+    kept.length < real.length && oldest
+      ? oldest.seq === undefined
+        ? oldest.createdAt
+        : `${oldest.createdAt}|${oldest.seq}`
+      : oldestCursor
+  writeThread(conversationId, { items: kept, oldestCursor: cursor, ...watermarksOf(kept) })
+}
