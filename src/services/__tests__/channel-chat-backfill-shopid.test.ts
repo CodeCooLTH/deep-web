@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
 
 const db = vi.hoisted(() => ({
-  conversation: { findUnique: vi.fn(), update: vi.fn() },
+  conversation: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   chatMessage: { findMany: vi.fn(), createMany: vi.fn() },
   mediaAsset: { findUnique: vi.fn(), create: vi.fn() },
 }))

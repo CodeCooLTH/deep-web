@@ -341,7 +341,9 @@ export type SyncMissingResult = {
  * ไม่ throw: sync ไม่ได้ = เห็นเท่าที่ webhook ให้มา (พฤติกรรมเดิม) ดีกว่าเปิดเธรดไม่ได้เลย
  *
  * ส่วนขยาย 2026-09-14: ไล่ย้อนทีละหน้าจนถึง Conversation.createdAt ครั้งเดียวแล้วปักธง metaBackfilledAt
- * (เพดาน MAX_BACKFILL_PAGES ต่อรอบ — ชนเพดาน = ไม่ปักธง ไล่ต่อรอบหน้า) ดู src/lib/meta-backfill-bound.ts
+ * (เพดาน MAX_BACKFILL_PAGES ต่อรอบ — ชนเพดาน = ไม่ปักธง) ดู src/lib/meta-backfill-bound.ts
+ * ข้อจำกัดที่รู้ตัว: ไม่เก็บ cursor ข้ามรอบ ทุกรอบเริ่มที่หน้า 1 ⇒ เธรดที่มีข้อความตั้งแต่ createdAt
+ * เกิน ~2,000 ใบ (20×100) จะไล่ 20 หน้าเดิมซ้ำทุกครั้งที่เปิดห้อง (หลัง throttle 5 นาที) และไม่มีวันได้ธง
  *
  * ข้อจำกัดที่ยังแก้ไม่ได้: Instagram — endpoint /me/conversations ฝั่ง IG ตอบ error 2207085
  * (ดู comment ที่ getContactProfile) จึง sync ได้เฉพาะ MESSENGER
@@ -353,6 +355,8 @@ export async function syncMissingMessagesFromMeta(
   // ถ้าไม่กัน จะได้ Graph call ทุกไม่กี่วินาทีต่อคนที่เปิดแชทค้างไว้ (โดนจำกัดอัตราแน่นอน)
   // in-memory + globalThis: pattern เดียวกับ lib/api-rate-limit.ts — known-gap เดียวกันคือ
   // serverless หลาย instance ต่างคนต่างนับ (ยอมรับได้: ผลเสียสูงสุดคือ sync ถี่กว่าที่ตั้งไว้เล็กน้อย)
+  // ⇒ สอง instance อาจไล่ได้คนละ 20 หน้ากับเธรดเดียวกันพร้อมกัน: ความถูกต้องยังอยู่ (createMany
+  // skipDuplicates + externalMessageId @unique) แต่ค่า Graph/mirror เป็นสองเท่า
   const now = Date.now()
   const store = (globalThis as { __fbSyncAt?: Map<string, number> }).__fbSyncAt ??
     ((globalThis as { __fbSyncAt?: Map<string, number> }).__fbSyncAt = new Map())
@@ -387,8 +391,6 @@ export async function syncMissingMessagesFromMeta(
     let cursor: { threadId: string; after: string } | undefined
     let pageNo = 0
     let added = 0
-    let newest: InsertedBatch['newest'] = null
-    let newestInboundAt: Date | null = null
 
     for (;;) {
       pageNo += 1
@@ -398,12 +400,51 @@ export async function syncMissingMessagesFromMeta(
       })
       const batch = await insertMissingPage(conversationId, conv.shopChannel.shopId, pageId, page.items)
       added += batch.added
-      if (batch.newest && (!newest || batch.newest.createdTime > newest.createdTime)) newest = batch.newest
-      if (batch.newestInboundAt && (!newestInboundAt || batch.newestInboundAt > newestInboundAt)) {
-        newestInboundAt = batch.newestInboundAt
+
+      // 🛑 ขยับสรุปเธรด "ทุกหน้าทันทีหลัง insert" แบบยกขึ้นอย่างเดียว โดยเงื่อนไขอยู่ใน WHERE ของฐาน
+      // ไม่ใช่เทียบกับ `conv` ที่อ่านไว้ตอนต้นฟังก์ชัน — เพราะค่าที่อ่านไว้ตอนต้นเก่าได้ 3 ทาง:
+      //   1. race: รอบแรกหลัง deploy ไล่หลายหน้าหลายสิบวินาที ระหว่างนั้นร้านตอบ (send/webhook เขียน
+      //      lastMessageAt/preview ทับเสมอ) ถ้าเทียบกับค่าตอนต้น backfill จะเขียนเวลาที่ "เก่ากว่า"
+      //      + preview ของข้อความ Meta AI ทับคำตอบของร้าน ⇒ เธรดจมในรายการ preview ผิดจนมีข้อความใหม่
+      //   2. ถูกตัด: after() มีเพดาน maxDuration=120 (mirror ไฟล์แนบกินเวลา) ถ้า bump รอหลังลูป แถวถูก
+      //      insert แล้วแต่ bump ไม่เคยรัน และรอบหน้าหน้า 1 เป็น "known" หมด ⇒ ไม่มีวันขยับอีก
+      //   3. throw ที่หน้า ≥2 (rate limit/cursor หมดอายุ/Prisma) ⇒ catch ข้าม bump ถาวร
+      //      (lastInboundAt ผิด = หน้าต่าง 24 ชม. + การเรียงผิด)
+      // updateMany + `lt` ใน WHERE = ฐานตัดสินเองว่าค่าที่มีอยู่ ณ ตอนเขียนใหม่กว่าหรือไม่ ⇒ หน้าที่เก่ากว่า
+      // ไม่มีทางดึงเวลาถอยหลัง ไม่ว่าจะมาก่อนหรือหลังใคร (กฎเดิม: ใบเก่าที่เติมย้อนหลังห้ามขยับรายการ)
+      //
+      // BUG-SORT-1 (00018 ext 2026-09-09): lastInboundAt ต้องขยับด้วย ไม่งั้นข้อความลูกค้าที่กู้คืนมา
+      // ไม่เปิดหน้าต่าง 24 ชม. กลับ + เธรดจมในโหมดเรียง LAST_CUSTOMER_MESSAGE (prod พบ 8 เธรด)
+      // 🛑 คิดแยกจาก lastMessageAt — ใบใหม่สุดของหน้าอาจเป็น echo ของร้าน ขณะที่ใบของลูกค้าที่ใหม่กว่า
+      // ค่าที่เก็บไว้ก็อยู่ในหน้าเดียวกัน
+      if (batch.newest) {
+        await prisma.conversation.updateMany({
+          where: {
+            id: conversationId,
+            // lastMessageAt เป็น DateTime ไม่ null (@default(now())) จึงไม่มีกิ่ง null — ต่างจาก lastInboundAt
+            lastMessageAt: { lt: batch.newest.createdTime },
+          },
+          data: {
+            lastMessageAt: batch.newest.createdTime,
+            lastMessagePreview: batch.newest.preview,
+            lastSenderRole: batch.newest.senderRole,
+          },
+        })
+      }
+      if (batch.newestInboundAt) {
+        await prisma.conversation.updateMany({
+          where: {
+            id: conversationId,
+            OR: [{ lastInboundAt: null }, { lastInboundAt: { lt: batch.newestInboundAt } }],
+          },
+          data: { lastInboundAt: batch.newestInboundAt },
+        })
       }
 
       if (alreadyComplete) break
+      // Graph ไม่คืนเธรด (glitch ชั่วคราว/ยังหาเธรดไม่เจอ) ⇒ ห้ามปักธง ไม่งั้นประวัติทั้งเธรดถูกประกาศว่า
+      // ครบตลอดไปจากคำตอบว่างครั้งเดียว
+      if (page.threadId === null) break
 
       const oldest = page.items.reduce<Date | null>(
         (min, m) => (min === null || m.createdTime < min ? m.createdTime : min),
@@ -413,47 +454,14 @@ export async function syncMissingMessagesFromMeta(
         oldestInPage: oldest,
         conversationCreatedAt: conv.createdAt,
         pageNo,
-        hasNextPage: page.nextAfter !== null && page.threadId !== null,
+        hasNextPage: page.nextAfter !== null,
         maxPages: MAX_BACKFILL_PAGES,
       })
       if (step.markComplete) {
         await prisma.conversation.update({ where: { id: conversationId }, data: { metaBackfilledAt: new Date() } })
       }
       if (step.stop) break
-      cursor = { threadId: page.threadId!, after: page.nextAfter! }
-    }
-
-    // 🛑 อัปเดตสรุปเธรด "ครั้งเดียวหลังลูป" ด้วยใบใหม่สุดข้ามทุกหน้า — ห้ามย้ายเข้าไปในลูป:
-    // `conv` ถูกอ่านครั้งเดียวตอนต้น หน้า 2 (เก่ากว่าหน้า 1) ยังชนะค่าเดิมได้แล้วเขียนทับด้วยเวลาที่
-    // เก่ากว่า = แถวในรายการถอยหลังและ preview ผิดโดยไม่มีอะไรฟ้อง (มีเทสกันไว้)
-    // กฎเดิม: ข้อความเก่าที่เพิ่งเติมย้อนหลังต้องไม่ขยับ preview/เวลาในรายการแชท
-    const bumpMessage = newest !== null && (!conv.lastMessageAt || newest.createdTime > conv.lastMessageAt)
-
-    // BUG-SORT-1 (00018 ext 2026-09-09): เดิมที่นี่อัปเดตแต่ `lastMessageAt` ⇒ ข้อความของ
-    // **ลูกค้า** ที่กู้คืนมาทีหลัง (webhook พลาด) ไม่ขยับ "เวลาที่ลูกค้าพิมพ์ล่าสุด" เลย ผลคือ
-    //   1. หน้าต่าง 24 ชม. ของ Meta ไม่เปิดกลับ → ร้านกดส่งแล้วโดน (#10) โดยไม่มีเหตุผลบนจอ
-    //   2. (หลังมีโหมดเรียง LAST_CUSTOMER_MESSAGE) เธรดจมทั้งที่ลูกค้าเพิ่งทักมา
-    // บน prod พบ 8 เธรด คลาดเคลื่อนสูงสุด 1 ชม. 40 นาที
-    //
-    // 🛑 ต้องคิดแยกจาก bumpMessage ไม่ใช่ซ้อนอยู่ในนั้น — ชุดที่ดึงมาอาจมีข้อความของร้าน
-    // (echo ที่พลาด) เป็นใบใหม่สุด ขณะที่ใบของลูกค้าซึ่งใหม่กว่าค่าที่เก็บไว้ก็อยู่ในชุดเดียวกัน
-    // ถ้าผูกไว้ด้วยกันจะพลาดเคสนั้นทั้งเคส
-    const bumpInbound = newestInboundAt !== null && (!conv.lastInboundAt || newestInboundAt > conv.lastInboundAt)
-
-    if (bumpMessage || bumpInbound) {
-      await prisma.conversation.update({
-        where: { id: conversationId },
-        data: {
-          ...(bumpMessage
-            ? {
-                lastMessageAt: newest!.createdTime,
-                lastMessagePreview: newest!.preview,
-                lastSenderRole: newest!.senderRole,
-              }
-            : {}),
-          ...(bumpInbound ? { lastInboundAt: newestInboundAt! } : {}),
-        },
-      })
+      cursor = { threadId: page.threadId, after: page.nextAfter! }
     }
 
     return { added, outcome: added > 0 ? 'added' : 'nothing-missing' }
