@@ -15,8 +15,13 @@ const deleteMany = vi.fn()
 const createMany = vi.fn()
 const mirrorRemoteImage = vi.fn()
 
+const channelFindFirst = vi.fn()
+
+vi.mock('@/lib/token-crypto', () => ({ decryptToken: () => 'tok' }))
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    shopChannel: { findFirst: (...a: unknown[]) => channelFindFirst(...a) },
     shopVideo: {
       findMany: (...a: unknown[]) => findMany(...a),
       deleteMany: (...a: unknown[]) => deleteMany(...a),
@@ -32,7 +37,7 @@ vi.mock('@/services/channel-chat.service', () => ({
   mirrorRemoteImage: (...a: unknown[]) => mirrorRemoteImage(...a),
 }))
 
-const { replaceShopVideos, getShopVideos } = await import('./shop-video.service')
+const { replaceShopVideos, getShopVideos, listInstagramVideos } = await import('./shop-video.service')
 
 const SHOP = 'shop-1'
 const clip = (videoId: string, thumbnailUrl: string | null = 'https://scontent.fbcdn.net/a.jpg') => ({
@@ -144,5 +149,51 @@ describe('getShopVideos', () => {
 
     const [row] = await getShopVideos(SHOP)
     expect(row.thumbnailUrl).toBe('https://scontent.fbcdn.net/still-alive.jpg')
+  })
+})
+
+// ยอดวิว IG = หลักฐาน api_precheck + ฉาก F3 ของคลิปยื่น Meta รอบ 3 (APP-REVIEW.md §11.5)
+// ถ้ากลับไปคืน null ทั้งชุด (แบบ 2026-08-01) จอไม่มีตัวเลขให้ถ่าย และไม่มี error ใดฟ้อง
+describe('listInstagramVideos — ยอดวิว', () => {
+  const media = (id: string, shortcode: string) => ({
+    id,
+    media_type: 'VIDEO',
+    permalink: `https://www.instagram.com/reel/${shortcode}/`,
+  })
+
+  function stubGraph(insights: (mediaId: string) => Response) {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      calls.push(url)
+      if (url.includes('/insights')) return insights(url.split('/').at(-2)!)
+      if (url.includes('/media?')) return Response.json({ data: [media('m1', 'DZEzXG8Sr_f'), media('m2', 'DZfQk2aLm9x')] })
+      return Response.json({ username: 'codecoolth' })
+    }))
+    return calls
+  }
+
+  beforeEach(() => {
+    channelFindFirst.mockResolvedValue({ externalId: 'ig-1', accessTokenEnc: 'enc' })
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  it('[blocker] คืนยอดวิวจาก insights metric=views (metric เดียวตามที่ยื่น App Review)', async () => {
+    const calls = stubGraph((id) => Response.json({ data: [{ values: [{ value: id === 'm1' ? 1200 : 45 }] }] }))
+
+    const { items } = await listInstagramVideos(SHOP)
+
+    expect(items.map((i) => i.viewCount)).toEqual([1200, 45])
+    const insightCalls = calls.filter((u) => u.includes('/insights'))
+    expect(insightCalls).toHaveLength(2)
+    expect(insightCalls.every((u) => u.includes('metric=views&'))).toBe(true)
+  })
+
+  it('[blocker] token ไม่มี scope → ยอดวิวเป็น null แต่รายการคลิปยังมาครบ', async () => {
+    stubGraph(() => Response.json({ error: { code: 10 } }, { status: 403 }))
+
+    const res = await listInstagramVideos(SHOP)
+
+    expect(res.failed).toBe(false)
+    expect(res.items.map((i) => [i.videoId, i.viewCount])).toEqual([['DZEzXG8Sr_f', null], ['DZfQk2aLm9x', null]])
   })
 })

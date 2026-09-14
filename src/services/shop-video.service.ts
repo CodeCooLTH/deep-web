@@ -69,7 +69,7 @@ export async function listInstagramVideos(
   const url =
     `${GRAPH_BASE}/${channel.externalId}/media` +
     // like_count/comments_count ใช้ได้กับ token ที่มีอยู่ (ทดสอบกับบัญชีจริงแล้ว)
-    // ส่วนยอดวิวต้องเรียก insights ซึ่งต้องการ scope instagram_manage_insights ที่ยังไม่ได้ขอ
+    // ส่วนยอดวิวต้องเรียก insights แยก (fetchIgViewCount — scope instagram_manage_insights)
     `?fields=id,media_type,media_product_type,caption,thumbnail_url,media_url,permalink,like_count,comments_count` +
     `&limit=50&access_token=${encodeURIComponent(token)}`;
 
@@ -129,20 +129,47 @@ export async function listInstagramVideos(
       .filter((x): x is IgMediaItem => x !== null)
   );
 
-  // ยอดวิวของคลิป IG: ถอดออกแล้ว (2026-08-01, เตรียมยื่น Meta App Review)
+  // ยอดวิวของคลิป IG — เอากลับมาแล้ว 2026-09-14 (ถอดไปเมื่อ 2026-08-01 `3a892e4a`)
   //
-  // เดิมเรียก GET /{media-id}/insights?metric=views|plays แบบ best-effort ต่อคลิป ซึ่งต้องการ
-  // scope `instagram_manage_insights` ที่เราขอไม่ได้ (ใส่ใน scope แล้วหน้า login ตีกลับว่า
-  // "Invalid Scopes" เชื่อมเพจไม่ได้ทั้งกระบวนการ — ดู APP-REVIEW.md §4) call นี้จึงล้มเหลว
-  // 100% ทุกครั้งมาตลอด ได้ผลเป็น null เสมอ แลกกับการยิง Graph เพิ่ม 2 ครั้งต่อคลิป และทิ้ง
-  // ประวัติ error ไว้ให้ reviewer เห็นในบันทึกของแอป ขณะที่คำอธิบาย instagram_basic ที่เรายื่น
-  // ประกาศว่าไม่อ่าน insights — เก็บไว้ก็มีแต่ทำให้เอกสารกับพฤติกรรมจริงขัดกัน
-  //
-  // จะเอากลับมาได้เมื่อได้ instagram_manage_insights จริง (ต้องผ่าน App Review ก่อน)
+  // `instagram_manage_insights` อยู่ใน CONNECT_SCOPES แล้ว (2026-09-08) และอยู่ในใบยื่น App
+  // Review รอบ 3 — ขั้น `api_precheck` ต้องมี call จริงก่อนยื่น และคลิปยื่นต้องเห็นตัวเลขบนจอ
+  // ⇒ ถอดไว้ต่อไม่ได้ (APP-REVIEW.md §11.5–§11.6). token ที่เชื่อมก่อน scope นี้จะได้ null
+  // ทุกคลิปจนกว่าร้านจะกดเชื่อมเพจใหม่ — ไม่มีร้านไหนพังเพราะ fetchIgViewCount ไม่ throw
+  const views = await Promise.all(items.map((it) => fetchIgViewCount(it.mediaId, token)));
+  const failedViews = views.filter((v) => v === null).length;
+  if (failedViews > 0) {
+    // ไม่มียอดวิวไม่ใช่เหตุให้หยุดฟีเจอร์ แต่ห้ามเงียบ — รอบก่อน call นี้ล้ม 100% โดยไม่มีใครรู้
+    console.warn("[shop-video] ดึงยอดวิว Instagram ไม่ได้บางคลิป", { shopId, failed: failedViews, total: items.length });
+  }
   return {
-    items: items.map((it) => ({ ...it, viewCount: null })),
+    items: items.map((it, i) => ({ ...it, viewCount: views[i] })),
     failed: false,
   };
+}
+
+/**
+ * ยอดวิวของคลิปบน Instagram — `GET /{media-id}/insights?metric=views` (scope `instagram_manage_insights`)
+ *
+ * แยกเป็นการเรียกต่างหาก ไม่รวมเข้าไปใน fields ของ /media โดยตั้งใจ: ถ้ารวมแล้ว token ไม่มี
+ * scope นี้ Graph จะตอบ error ทั้ง request ทำให้ "ดึงรายการคลิปไม่ได้เลย" ทั้งที่แค่ยอดวิวขาด
+ *
+ * metric เดียวคือ `views` ตรงกับคำอธิบายที่ยื่น App Review (§11.2.5 "one metric") — ไม่ไล่
+ * `plays` แบบของเดิม (Meta เลิกใช้แล้ว และจะทำให้เอกสารกับ call จริงไม่ตรงกัน)
+ * ทุก error คืน null
+ */
+async function fetchIgViewCount(mediaId: string, token: string): Promise<number | null> {
+  try {
+    const res = await fetch(
+      `${GRAPH_BASE}/${mediaId}/insights?metric=views&access_token=${encodeURIComponent(token)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const j = (await res.json()) as { data?: Array<{ values?: Array<{ value?: number }> }> };
+    const v = j.data?.[0]?.values?.[0]?.value;
+    return typeof v === "number" ? v : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
