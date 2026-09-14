@@ -175,6 +175,9 @@ export type ChatMessageView = {
   attachmentName?: string | null
   attachmentSize?: number | null
   createdAt: string
+  /** watermark แกนที่ 2 ของ delta (2026-09-14) — optional เพราะข้อความ optimistic ยังไม่มี
+   *  🛑 แถวที่มีก่อน migration มีค่า 1970-01-01 ห้ามอ่านตรง ๆ ว่าเป็น "เวลาแก้ล่าสุด" ใช้ watermarksOf() */
+  updatedAt?: string
   productCard?: ChatProductCard | null
   /** การ์ดสินค้าหลายชิ้นในข้อความเดียว (ส่วนขยาย 2026-08-11) — `null` = ใบเดียว (ใช้ productCard เดิม)
    *  สมาชิกที่เป็น `null` = สินค้าถูกลบหลังส่ง ต้องคงตำแหน่งไว้เพื่อวาด "ไม่พบสินค้านี้แล้ว" */
