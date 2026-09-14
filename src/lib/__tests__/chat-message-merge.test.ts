@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { capMessages, mergeMessages } from '@/lib/chat-message-merge'
+import { capMessages, mergeMessages, resolveOpeningMessages } from '@/lib/chat-message-merge'
 import type { ChatMessageView } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
 
 // ponytail: brief ต้นฉบับซ้ำคีย์ id/createdAt ทั้งก่อนและหลัง ...over (tsc TS2783) — ...over
@@ -90,5 +90,49 @@ describe('[blocker] capMessages', () => {
   it('ไม่เกินเพดานต้องคืน array เดิมเป๊ะ', () => {
     const items = [msg({ id: 'a', createdAt: '2026-09-14T09:00:00.000Z' })]
     expect(capMessages(items, 3)).toBe(items)
+  })
+})
+
+describe('[blocker] resolveOpeningMessages — cache กับ initial ตอนเปิดห้อง (R14)', () => {
+  const at = (h: number) => `2026-09-14T${String(h).padStart(2, '0')}:00:00.000Z`
+
+  it('คาบเกี่ยวกัน → merge (ได้ของเก่าจาก cache + ของสดจาก initial)', () => {
+    const cached = {
+      items: [msg({ id: 'a', createdAt: at(1), seq: 1 }), msg({ id: 'b', createdAt: at(2), seq: 2 })],
+      oldestCursor: 'cursor-a',
+    }
+    const initial = {
+      items: [msg({ id: 'b', createdAt: at(2), seq: 2 }), msg({ id: 'c', createdAt: at(3), seq: 3 })],
+      nextCursor: 'cursor-b',
+    }
+    const out = resolveOpeningMessages({ cached, initial })
+    expect(out.items.map((m) => m.id)).toEqual(['a', 'b', 'c'])
+    expect(out.oldestCursor).toBe('cursor-a')
+    expect(out.replaceStore).toBe(false)
+  })
+
+  it('ไม่คาบเกี่ยว (initial ใหม่กว่า cache ทั้งชุด) → initial อย่างเดียว + เขียนทับ store', () => {
+    // ต่อกันจะได้ช่องว่างระหว่าง b กับ x ที่ไม่มีใครถืออยู่ และ loadOlder ไม่มีวันเติม
+    const cached = {
+      items: [msg({ id: 'a', createdAt: at(1), seq: 1 }), msg({ id: 'b', createdAt: at(2), seq: 2 })],
+      oldestCursor: 'cursor-a',
+    }
+    const initial = {
+      items: [msg({ id: 'x', createdAt: at(5), seq: 50 }), msg({ id: 'y', createdAt: at(6), seq: 51 })],
+      nextCursor: 'cursor-x',
+    }
+    const out = resolveOpeningMessages({ cached, initial })
+    expect(out.items.map((m) => m.id)).toEqual(['x', 'y'])
+    expect(out.oldestCursor).toBe('cursor-x')
+    expect(out.replaceStore).toBe(true)
+  })
+
+  it('มีแต่ cache → cache (ไม่เขียนทับ store)', () => {
+    const out = resolveOpeningMessages({
+      cached: { items: [msg({ id: 'a', createdAt: at(1), seq: 1 })], oldestCursor: null },
+      initial: null,
+    })
+    expect(out.items.map((m) => m.id)).toEqual(['a'])
+    expect(out.replaceStore).toBe(false)
   })
 })

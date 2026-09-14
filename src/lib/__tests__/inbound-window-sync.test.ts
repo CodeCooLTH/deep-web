@@ -145,10 +145,27 @@ describe('[blocker] เปิดห้องแล้วต้อง reconcile �
       .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
       .join('\n')
     // ต้องมี effect ที่ "ถ้าจอมีเนื้อหาแล้ว (initial จาก RSC หรือ cache ของ store) ให้ refetchNewer"
-    // — ไม่ใช่แค่มีฟังก์ชันลอย ๆ · 2026-09-14: เพิ่มกิ่ง cache + บรรทัด seed store คั่นกลางได้หนึ่งบรรทัด
-    expect(code).toMatch(
-      /if \(!initial && !cached\) return\s*\n(?:\s*if \(!cached && initial\) saveThreadView\([^\n]*\n)?\s*void refetchNewer\(\)/,
-    )
+    // — ไม่ใช่แค่มีฟังก์ชันลอย ๆ · 2026-09-14: กิ่ง cache + บล็อก seed store (R14) คั่นกลางได้
+    expect(code).toMatch(/if \(!initial && !cached\) return\n[\s\S]{0,800}?void refetchNewer\(\{ sync: true \}\)/)
+  })
+
+  /**
+   * [blocker] R7 — การเปิดห้องเป็น delta แล้ว route จึง sync ก็ต่อเมื่อ hook ขอ `sync=1` เท่านั้น
+   * ⇒ ขอครั้งเดียวตอนเปิดห้อง (ข้อความที่ webhook ไม่ส่งจะโผล่) · poll/realtime/กลับมาที่แท็บห้ามขอ
+   * (ไม่งั้นยิง Graph ตามรอบ poll ทุก 12 วินาที)
+   */
+  it('[blocker] sync=1 เฉพาะ refetch ตอนเปิดห้อง ไม่ใช่ poll/realtime/visibility (R7)', async () => {
+    const fs = await import('fs')
+    const code = fs
+      .readFileSync('src/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread.ts', 'utf8')
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
+      .join('\n')
+    expect(code).toMatch(/if \(sync\) params\.set\('sync', '1'\)/)
+    // ผู้ขอ sync มีที่เดียว (effect ตอนเปิดห้อง ตรวจข้างบน)
+    expect(code.match(/refetchNewer\(\{ sync: true \}\)/g) ?? []).toHaveLength(1)
+    // poll เรียกเปล่า ๆ
+    expect(code).toMatch(/const tick = \(\) => \{\n\s*if \(document\.visibilityState === 'visible'\) refetchNewer\(\)\n\s*\}/)
   })
 })
 

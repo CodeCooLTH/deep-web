@@ -96,15 +96,16 @@ describe('[blocker] watermarksOf', () => {
 
 describe('[blocker] saveThreadView — ภาพที่ hook เขียนลง store', () => {
   beforeEach(() => resetThreadStoreForTest())
+  const at = (min: number) => new Date(Date.UTC(2026, 8, 14, 0, min)).toISOString()
 
   it('ข้อความ optimistic (local-*) ห้ามลง store และห้ามลาก watermark', () => {
     // เปิดห้องจาก cache ทีหลัง hook ที่เคยถือบับเบิลนั้นถูก unmount ไปแล้ว ไม่มีใครเปลี่ยน
     // 'sending' ให้จบ ⇒ บับเบิลค้างคู่กับแถวจริงที่ delta พามา = ข้อความเดียวขึ้นสองใบ
-    // และ createdAt ของบับเบิลเป็นนาฬิกาเครื่อง client ถ้านับเข้า watermark จะข้ามการแก้ฝั่ง server
-    saveThreadView('c1', [
+    const rows = [
       item('a', { seq: 3, createdAt: '2026-09-14T09:00:00.000Z' }),
       item('local-0-1', { seq: undefined, createdAt: '2026-09-14T23:00:00.000Z', _status: 'sending' }),
-    ], null)
+    ]
+    saveThreadView('c1', rows, null, { fetched: rows, replace: true })
     const got = readThread('c1')
     expect(got?.items.map((m) => m.id)).toEqual(['a'])
     expect(got?.lastUpdatedAt).toBe('2026-09-14T09:00:00.000Z')
@@ -113,20 +114,73 @@ describe('[blocker] saveThreadView — ภาพที่ hook เขียน�
   it('ถูกตัดเหลือ MAX ใบ ⇒ cursor ต้องชี้ที่ใบเก่าสุดที่ยังเก็บไว้ ไม่ใช่ cursor เดิม', () => {
     // cursor เดิมชี้ก่อนใบแรกสุดที่เคยโหลด — ถ้าคงไว้หลังตัดใบเก่าทิ้ง loadOlder รอบถัดไป
     // จะข้ามช่วงที่ถูกตัดไปทั้งช่วง (ข้อความหายกลางเธรดโดยไม่มีอะไรฟ้อง)
-    const items = Array.from({ length: MAX_MESSAGES_PER_THREAD + 5 }, (_, i) =>
-      item(`m${i}`, { seq: i + 1, createdAt: new Date(Date.UTC(2026, 8, 14, 0, i)).toISOString() }),
-    )
-    saveThreadView('c1', items, 'cursor-before-m0')
+    const items = Array.from({ length: MAX_MESSAGES_PER_THREAD + 5 }, (_, i) => item(`m${i}`, { seq: i + 1, createdAt: at(i) }))
+    saveThreadView('c1', items, 'cursor-before-m0', { fetched: items, replace: true })
     const got = readThread('c1')!
     expect(got.items).toHaveLength(MAX_MESSAGES_PER_THREAD)
     expect(got.items[0]!.id).toBe('m5')
     expect(got.oldestCursor).toBe(`${items[5]!.createdAt}|6`)
   })
 
+  it('cursor ประกอบจากแถวที่มี seq เท่านั้น — รูปแบบที่ไม่มี seq getMessages ไม่เคยสร้าง', () => {
+    const items = Array.from({ length: MAX_MESSAGES_PER_THREAD + 2 }, (_, i) =>
+      item(`m${i}`, { seq: i === 2 ? undefined : i + 1, createdAt: at(i) }),
+    )
+    saveThreadView('c1', items, 'x', { fetched: items, replace: true })
+    expect(readThread('c1')!.oldestCursor).toBe(`${items[3]!.createdAt}|4`)
+  })
+
   it('ไม่ถูกตัด ⇒ ใช้ cursor ที่ส่งมาตรง ๆ (null = ไม่มีของเก่ากว่าแล้ว)', () => {
-    saveThreadView('c1', [item('a')], null)
+    saveThreadView('c1', [item('a')], null, { fetched: [item('a')] })
     expect(readThread('c1')?.oldestCursor).toBeNull()
-    saveThreadView('c1', [item('a')], 'x|1')
+    saveThreadView('c1', [item('a')], 'x|1', { fetched: [item('a')] })
     expect(readThread('c1')?.oldestCursor).toBe('x|1')
+  })
+})
+
+describe('[blocker] saveThreadView — watermark ไม่ถอยหลังและมาจาก response เท่านั้น (R8)', () => {
+  beforeEach(() => resetThreadStoreForTest())
+  const t0 = '2026-09-14T09:00:00.000Z'
+  const t9 = '2026-09-14T18:00:00.000Z'
+
+  it('loadOlder / ตัดรายการ / ยกเลิกข้อความ (ไม่มี fetched) ห้ามขยับ watermark', () => {
+    const fresh = [item('n', { seq: 50, createdAt: t9 })]
+    saveThreadView('c1', fresh, 'cur', { fetched: fresh, replace: true })
+    // แถวของเก่าที่ถูกแก้ไม่นานมานี้ (updatedAt ใหม่กว่า watermark) — ต้องไม่ลาก lastUpdatedAt
+    const older = [item('o', { seq: 2, createdAt: t0, updatedAt: '2026-09-14T20:00:00.000Z' }), ...fresh]
+    saveThreadView('c1', older, 'cur-older')
+    const got = readThread('c1')!
+    expect(got.lastSeq).toBe(50)
+    expect(got.lastUpdatedAt).toBe(t9)
+  })
+
+  it('รายการที่ถือน้อยกว่าเดิม (ถูกตัด) ห้ามทำ watermark ถอยหลัง', () => {
+    const fresh = [item('n', { seq: 50, createdAt: t9 })]
+    saveThreadView('c1', fresh, null, { fetched: fresh, replace: true })
+    saveThreadView('c1', [item('a', { seq: 1, createdAt: t0 })], null)
+    expect(readThread('c1')!.lastSeq).toBe(50)
+  })
+
+  it('delta ที่มีแถวใหม่ยกขึ้น · delta ที่เก่ากว่าไม่ดึงลง', () => {
+    const first = [item('a', { seq: 5, createdAt: t0 })]
+    saveThreadView('c1', first, null, { fetched: first, replace: true })
+    const delta = [item('b', { seq: 9, createdAt: t9 })]
+    saveThreadView('c1', [...first, ...delta], null, { fetched: delta })
+    expect(readThread('c1')!.lastSeq).toBe(9)
+    saveThreadView('c1', [...first, ...delta], null, { fetched: first })
+    expect(readThread('c1')!.lastSeq).toBe(9)
+  })
+
+  it('replace เริ่ม watermark ใหม่จากหน้าที่เพิ่งโหลด', () => {
+    const big = [item('n', { seq: 500, createdAt: t9 })]
+    saveThreadView('c1', big, null, { fetched: big, replace: true })
+    const page = [item('p', { seq: 9, createdAt: t0 })]
+    saveThreadView('c1', page, null, { fetched: page, replace: true })
+    expect(readThread('c1')!.lastSeq).toBe(9)
+  })
+
+  it('ไม่มี store และไม่มี fetched = ไม่เขียน', () => {
+    saveThreadView('c1', [item('a')], null)
+    expect(readThread('c1')).toBeNull()
   })
 })

@@ -120,32 +120,46 @@ export function watermarksOf(items: ChatMessageView[]): { lastSeq: number; lastU
 /**
  * เขียนภาพของห้องจาก state ของ hook — ทางเดียวที่ `useSellerChatThread` ใช้เขียน store (Task 4)
  *
- * แยกจาก `writeThread` เพราะ state บนจอมีของ 2 อย่างที่ store ห้ามเก็บตรง ๆ:
+ * แยกจาก `writeThread` เพราะ state บนจอมีของ 2 อย่างที่ store ห้ามเก็บตรง ๆ และ watermark มีกฎของมันเอง:
  *
  * 1) 🛑 **ข้อความ optimistic (`local-*`)** — hook ที่ถือบับเบิลนั้นอยู่จะถูก unmount ตอนเปลี่ยนห้อง
  *    ไม่มีใครมาเปลี่ยน `'sending'` ให้จบอีก เปิดห้องจาก cache ครั้งหน้าจะได้บับเบิลค้างคู่กับแถวจริง
- *    และ `createdAt` ของมันคือนาฬิกาเครื่อง client — นับเข้า watermark แล้ว delta จะข้ามการแก้
- *    ฝั่ง server ที่เวลาเก่ากว่านาฬิกาเครื่อง (ก่อนนี้ remount ก็ทิ้งบับเบิลเหล่านี้อยู่แล้ว ไม่ได้เสียอะไรเพิ่ม)
+ *    (ก่อนนี้ remount ก็ทิ้งบับเบิลเหล่านี้อยู่แล้ว ไม่ได้เสียอะไรเพิ่ม)
  *
  * 2) 🛑 **จอถือได้เกิน MAX ใบ** (ผู้ใช้เลื่อนโหลดของเก่า) แต่ store ตัดเหลือใบใหม่สุด — cursor ที่
  *    hook ถืออยู่ชี้ก่อนใบเก่าสุดที่เคยโหลด ถ้าเก็บคู่กับรายการที่ถูกตัดแล้ว loadOlder ครั้งหน้าจะ
- *    กระโดดข้ามช่วงที่ถูกตัดทั้งช่วง ⇒ ต้องชี้ที่ใบเก่าสุดที่ยังเก็บไว้แทน
+ *    กระโดดข้ามช่วงที่ถูกตัดทั้งช่วง ⇒ ต้องชี้ที่ใบเก่าสุดที่ยังเก็บไว้แทน (เฉพาะแถวที่มี seq —
  *    รูปแบบ `<createdAt ISO>|<seq>` ต้องตรงกับที่ `getMessages()` ใน `src/services/chat.service.ts`
- *    สร้าง `nextCursor` (keyset "เก่ากว่าแถวนี้") — แก้ฝั่งนั้นต้องแก้ตรงนี้ด้วย
+ *    สร้าง `nextCursor` แก้ฝั่งนั้นต้องแก้ตรงนี้ด้วย)
+ *
+ * 3) 🛑 **watermark ไม่มีวันถอยหลัง และมาจาก "สิ่งที่ server เพิ่งตอบ" เท่านั้น** (R8) —
+ *    ใหม่ = max(watermark เดิมใน store, watermarksOf(`fetched`)) โดย `fetched` คือแถวจาก response
+ *    แบบ delta หรือหน้าแรกเท่านั้น. ห้ามคำนวณจากรายการบนจอ:
+ *    - แถวจาก loadOlder มี updatedAt ที่ถูกแก้ล่าสุดได้ ⇒ ลาก lastUpdatedAt ข้ามการแก้ของใบอื่นที่ยังไม่ได้ดึง
+ *    - ตัดเหลือ MAX ใบทำ watermark ถอยหลัง ⇒ delta ดึงของเดิมซ้ำทุกรอบ poll ตลอดไป
+ *    `replace: true` = response นี้คือความจริงทั้งหมดของห้อง (โหลดหน้าแรกใหม่) เริ่ม watermark ใหม่จาก `fetched`
+ *    ไม่มี `fetched` และยังไม่มี store = ไม่เขียน (ไม่มีอะไรที่ server ยืนยันให้ตั้ง watermark)
  */
 export function saveThreadView(
   conversationId: string,
   items: ChatMessageView[],
   oldestCursor: string | null,
+  opts: { fetched?: ChatMessageView[]; replace?: boolean } = {},
 ): void {
-  const real = items.filter((m) => !m.id.startsWith('local-'))
+  const prev = readThread(conversationId)
+  if (!prev && !opts.fetched) return
+  const isReal = (m: ChatMessageView) => !m.id.startsWith('local-')
+  const real = items.filter(isReal)
   const kept = capMessages(real, MAX_MESSAGES_PER_THREAD)
-  const oldest = kept[0]
-  const cursor =
-    kept.length < real.length && oldest
-      ? oldest.seq === undefined
-        ? oldest.createdAt
-        : `${oldest.createdAt}|${oldest.seq}`
-      : oldestCursor
-  writeThread(conversationId, { items: kept, oldestCursor: cursor, ...watermarksOf(kept) })
+  const oldest = kept.find((m) => typeof m.seq === 'number')
+  const cursor = kept.length < real.length && oldest ? `${oldest.createdAt}|${oldest.seq}` : oldestCursor
+  // นาฬิกาเครื่อง client ของบับเบิล optimistic ห้ามเข้า watermark (ข้ามการแก้ฝั่ง server ที่เวลาเก่ากว่า)
+  const fresh = watermarksOf((opts.fetched ?? []).filter(isReal))
+  const base = opts.replace || !prev ? null : prev
+  writeThread(conversationId, {
+    items: kept,
+    oldestCursor: cursor,
+    lastSeq: Math.max(base?.lastSeq ?? 0, fresh.lastSeq),
+    lastUpdatedAt: base && base.lastUpdatedAt > fresh.lastUpdatedAt ? base.lastUpdatedAt : fresh.lastUpdatedAt,
+  })
 }

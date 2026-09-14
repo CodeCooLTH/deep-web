@@ -1,3 +1,5 @@
+import { compareMessages } from '@/lib/chat-message-merge'
+
 /**
  * chat-thread-scroll — การตัดสินใจเรื่องจอของห้องแชท (ส่วนขยาย 00018, 2026-09-14)
  *
@@ -7,15 +9,17 @@
  * กลับด้านแล้วผ่านทุก gate (2026-08-09)
  */
 
-/** ข้อความใหม่เข้ามาแล้วควรเลื่อนจอตามไหม */
+/**
+ * ข้อความใหม่เข้ามาแล้วควรเลื่อนจอตามไหม — ตามเฉพาะตอนอยู่ล่างสุด (R9, 2026-09-14)
+ *
+ * 🛑 ไม่มีกิ่ง "ร้านส่งเองให้ตามเสมอ" โดยตั้งใจ — แถว SHOP ใหม่มาจากบอท เพื่อนร่วมทีม echo ของ
+ *    Business Suite และ Meta AI ด้วย ถ้าตามทุกใบ คนที่เลื่อนขึ้นไปอ่านของเก่าจะถูกกระชากลงล่าง
+ *    ทุกครั้งที่ใครในร้านตอบ · การกดส่งของเราเองเลื่อนลงล่างใน handleSend อยู่แล้ว
+ */
 export function shouldFollowNewMessages(input: {
   /** จออยู่ล่างสุด (หรือใกล้ล่างสุดในระยะที่ถือว่ากำลังอ่านของล่าสุดอยู่) */
   atBottom: boolean
-  /** ในชุดที่เพิ่งเข้ามา มีข้อความ **ใหม่** ที่ร้านเป็นคนส่งเองหรือไม่ (แถวเดิมที่ถูกแก้ไม่นับ) */
-  hasIncomingFromSelf: boolean
 }): boolean {
-  // ร้านกดส่งเอง = เจตนาชัดว่าอยากเห็นผลลัพธ์ ต้องเลื่อนตามแม้กำลังอ่านของเก่าอยู่
-  if (input.hasIncomingFromSelf) return true
   return input.atBottom
 }
 
@@ -34,13 +38,25 @@ export function canAutoLoadOlder(input: {
 }
 
 /**
- * จำนวนข้อความ "ใหม่จริง" ในชุดที่เพิ่งเข้ามา — ตัวนับของปุ่ม "ข้อความใหม่" (spec §5.4, R4)
+ * แถวที่ "ใหม่จริง" ในชุดที่เพิ่งเข้ามา (R10) — ที่เดียวที่ตัดสินเรื่องนี้ ใช้ทั้งตัวนับปุ่ม "ข้อความใหม่"
+ * เสียงเตือน (แถว BUYER ในนี้) และการเลื่อนตาม
  *
- * 🛑 delta คืนทั้งแถวใหม่ (seq > watermark) และแถวเก่าที่ค่าเปลี่ยน (updatedAt > watermark)
- *    แถวที่มีบนจออยู่แล้วคือการแก้ ไม่ใช่ข้อความใหม่ — นับเข้าไปปุ่มจะชวนให้เลื่อนลงไปหาของที่ไม่มี
+ * ใหม่จริง = ไม่เคยอยู่บนจอ **และ** อยู่หลังใบล่าสุดบนจอตามลำดับของเธรด (createdAt แล้ว seq)
+ * 🛑 delta คืนแถวเดิมที่ถูกแก้ (รีแอ็กชัน/สถานะส่ง) — นับเข้าไปปุ่มจะชวนเลื่อนลงไปหาของที่ไม่มี
+ * 🛑 แถวที่ไล่ดึงย้อนหลังจาก Meta ได้ seq ใหม่แต่เวลาเก่า แทรกกลางเธรด — ไม่ใช่ข้อความใหม่
+ *    (นับแล้ว widget จะดังเสียงให้ข้อความลูกค้าเมื่อหลายเดือนก่อน)
+ * บับเบิล optimistic (`local-*`) ไม่ใช้เป็นเส้นแบ่ง — เวลาของมันเป็นนาฬิกาเครื่อง client
  */
-export function countNewIncoming(prevIds: Set<string>, incoming: { id: string }[]): number {
-  let n = 0
-  for (const m of incoming) if (!prevIds.has(m.id)) n++
-  return n
+export function pickNewIncoming<T extends { id: string; createdAt: string; seq?: number }>(
+  prev: T[],
+  incoming: T[],
+): T[] {
+  const ids = new Set<string>()
+  let newest: T | undefined
+  for (const m of prev) {
+    ids.add(m.id)
+    if (m.id.startsWith('local-')) continue
+    if (!newest || compareMessages(m, newest) > 0) newest = m
+  }
+  return incoming.filter((m) => !ids.has(m.id) && (!newest || compareMessages(m, newest) > 0))
 }
