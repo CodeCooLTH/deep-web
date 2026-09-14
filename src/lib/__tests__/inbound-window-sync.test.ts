@@ -189,3 +189,32 @@ describe('[blocker] คืนตำแหน่งรายการต้อง
     expect(code).toMatch(/Math\.abs\(node\.scrollTop - pinTo\)/)
   })
 })
+
+/**
+ * [blocker] R15/R16 — การต่อสายใน hook ที่ tsc/เทสฟังก์ชันบริสุทธิ์มองไม่เห็น (รีโปไม่มี jsdom)
+ */
+describe('[blocker] ห้องแชท: watermark ตอน merge เปิดห้อง + delta ครบเพดาน', () => {
+  const read = async () => {
+    const fs = await import('fs')
+    return fs
+      .readFileSync('src/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread.ts', 'utf8')
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
+      .join('\n')
+  }
+
+  it('R15: กิ่ง merge ของ cache+initial เขียน store โดยไม่ส่ง fetched (watermark ของ cache ต้องคงอยู่)', async () => {
+    // ส่ง fetched: initial.items = ยก watermark ข้ามการแก้ของแถว cache ที่เก่ากว่า initial ทั้งช่วง
+    expect(await read()).toMatch(/saveThreadView\(conversationId, opening\.items, opening\.oldestCursor\)\n/)
+  })
+
+  it('R16: delta ครบเพดานต้องผ่าน shouldDeferFullDeltaReplace ก่อนแทนที่จอ', async () => {
+    const code = await read()
+    expect(code).toMatch(
+      /data\.items\.length >= DELTA_TAKE\) \{\n\s*if \(!shouldDeferFullDeltaReplace\(\{ atBottom: atBottomRef\.current \}\)\) \{\n\s*await reloadFirstPage\(\)/,
+    )
+    // สองทางที่ทำการแทนที่ที่ถูกเลื่อนไว้: ลงมาถึงล่างสุด (scroll listener) และปุ่ม (clearUnseen)
+    expect(code).toMatch(/setUnseenNewCount\(0\)\n\s*reloadIfStaleRef\.current\(\)/)
+    expect(code).toMatch(/const clearUnseen = useCallback\(\(\) => \{\n\s*scrollToBottom\(\)\n\s*reloadIfStale\(\)/)
+  })
+})

@@ -23,6 +23,18 @@ export function shouldFollowNewMessages(input: {
   return input.atBottom
 }
 
+/**
+ * delta คืนครบเพดาน (อาจมีแถวที่ไม่ได้มา) — ต้องโหลดหน้าแรกใหม่แทนที่จอ แต่ **ทำตอนนี้ได้ไหม** (R16)
+ *
+ * 🛑 ผู้ใช้เลื่อนขึ้นไปอ่านของเก่าอยู่ = เลื่อนการแทนที่ออกไป ห้ามทำทันที — การแทนด้วย 30 ใบใหม่สุด
+ *    ลบ DOM ที่ผู้ใช้กำลังอ่านทิ้ง scrollHeight หด scrollTop ถูกบีบ จอเด้ง (ผิด spec §5.4 "ห้ามเด้ง")
+ *    และ sentinel บนสุดอาจโผล่แล้วโหลดของเก่าเอง · ขึ้นปุ่ม "ข้อความใหม่" แทน แล้วแทนที่ตอนผู้ใช้
+ *    ลงมาถึงล่างสุดเองหรือกดปุ่ม · เคสจริง: กลับมาที่แท็บหลังพักนาน (poll หยุดตอนแท็บซ่อน)
+ */
+export function shouldDeferFullDeltaReplace(input: { atBottom: boolean }): boolean {
+  return !input.atBottom
+}
+
 /** sentinel บนสุดถูกมองเห็นแล้ว — โหลดของเก่าต่อได้ไหม */
 export function canAutoLoadOlder(input: {
   /**

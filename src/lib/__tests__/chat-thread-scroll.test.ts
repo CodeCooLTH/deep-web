@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { canAutoLoadOlder, pickNewIncoming, shouldFollowNewMessages } from '@/lib/chat-thread-scroll'
+import {
+  canAutoLoadOlder,
+  pickNewIncoming,
+  shouldDeferFullDeltaReplace,
+  shouldFollowNewMessages,
+} from '@/lib/chat-thread-scroll'
 
 describe('[blocker] กฎการเลื่อนจอในห้องแชท', () => {
   it('อยู่ล่างสุด = เลื่อนตามข้อความใหม่', () => {
@@ -52,5 +57,15 @@ describe('[blocker] pickNewIncoming — แถวใหม่จริง (R10)'
 
   it('จอยังว่าง = ทุกแถวใหม่', () => {
     expect(pickNewIncoming([], [row('a', 9, 1)]).map((m) => m.id)).toEqual(['a'])
+  })
+})
+
+describe('[blocker] shouldDeferFullDeltaReplace — delta ครบเพดานแล้วแทนที่จอตอนไหน (R16)', () => {
+  it('กำลังอ่านของเก่าอยู่ = เลื่อนการแทนที่ออกไป (แทนตอนนี้จอเด้ง)', () => {
+    expect(shouldDeferFullDeltaReplace({ atBottom: false })).toBe(true)
+  })
+
+  it('อยู่ล่างสุด = แทนที่ได้ทันที', () => {
+    expect(shouldDeferFullDeltaReplace({ atBottom: true })).toBe(false)
   })
 })
