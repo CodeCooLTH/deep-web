@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const db = vi.hoisted(() => ({
-  conversation: { findUnique: vi.fn(), update: vi.fn() },
+  conversation: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   chatMessage: { findMany: vi.fn(), createMany: vi.fn() },
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: db }))
@@ -50,9 +50,6 @@ function conv(over: Record<string, unknown> = {}) {
 
 /** call ของ conversation.update ที่ตั้ง metaBackfilledAt */
 const flagCalls = () => db.conversation.update.mock.calls.filter((c) => 'metaBackfilledAt' in c[0].data)
-/** call ของ conversation.update ที่ขยับสรุปเธรด */
-const bumpCalls = () =>
-  db.conversation.update.mock.calls.filter((c) => 'lastMessageAt' in c[0].data || 'lastInboundAt' in c[0].data)
 
 describe('[blocker] syncMissingMessagesFromMeta — ไล่ย้อนทีละหน้า', () => {
   let conversationId: string
@@ -64,12 +61,14 @@ describe('[blocker] syncMissingMessagesFromMeta — ไล่ย้อนที�
     db.chatMessage.findMany.mockResolvedValue([])
     db.chatMessage.createMany.mockImplementation(async ({ data }: { data: unknown[] }) => ({ count: data.length }))
     db.conversation.update.mockResolvedValue({})
+    db.conversation.updateMany.mockResolvedValue({ count: 1 })
   })
 
-  // 🛑 กับดักหลักของงานนี้: ถ้า bump อยู่ในลูป หน้า 2 (เก่ากว่า) ยังชนะค่าที่อ่านไว้ตอนต้น
-  // แล้วเขียนทับด้วยเวลาที่เก่ากว่า — เทสนี้ยืนยัน "ครั้งเดียว" + "ด้วยใบใหม่สุดข้ามทุกหน้า"
-  it('อัปเดตสรุปเธรดครั้งเดียวหลังลูป ด้วยใบใหม่สุดข้ามทุกหน้า (หน้าเก่ากว่าห้ามเขียนทับ)', async () => {
-    db.conversation.findUnique.mockResolvedValue(conv())
+  // 🛑 R18: สรุปเธรดขยับทุกหน้าด้วย updateMany ที่มีเงื่อนไข "ยกขึ้นอย่างเดียว" อยู่ใน WHERE —
+  // ห้ามเทียบกับค่าที่อ่านไว้ตอนต้นฟังก์ชัน (race กับ send/webhook · ถูกตัดที่ maxDuration · throw กลางลูป)
+  // fixture: lastInboundAt = null เพื่อให้กิ่ง null ของ WHERE มีผลจริง
+  it('ทุกหน้าขยับสรุปเธรดด้วย updateMany ที่มี lt/null guard ใน WHERE และค่าใหม่สุดของหน้านั้น', async () => {
+    db.conversation.findUnique.mockResolvedValue(conv({ lastInboundAt: null }))
     vi.mocked(fetchThreadMessagesPage)
       .mockResolvedValueOnce({
         threadId: 't_1',
@@ -79,28 +78,83 @@ describe('[blocker] syncMissingMessagesFromMeta — ไล่ย้อนที�
       .mockResolvedValueOnce({
         threadId: 't_1',
         nextAfter: null,
-        // ทั้งคู่ใหม่กว่า lastMessageAt/lastInboundAt ที่เก็บไว้ (09-10) แต่เก่ากว่าหน้าแรก
         items: [msg('m-old-shop', '2026-09-11T10:00:00Z', PAGE_ID, 'ร้านเก่า'), msg('m-old-in', '2026-09-11T09:00:00Z')],
       })
 
     const result = await syncMissingMessagesFromMeta(conversationId)
 
     expect(result).toEqual({ added: 4, outcome: 'added' })
-    expect(fetchThreadMessagesPage).toHaveBeenCalledTimes(2)
     expect(vi.mocked(fetchThreadMessagesPage).mock.calls[1]![2]).toEqual({
       limit: 100,
       cursor: { threadId: 't_1', after: 'c1' },
     })
-    expect(bumpCalls()).toHaveLength(1)
-    expect(bumpCalls()[0]![0]).toEqual({
-      where: { id: conversationId },
-      data: {
-        lastMessageAt: new Date('2026-09-12T10:00:00Z'),
-        lastMessagePreview: 'ร้านตอบล่าสุด',
-        lastSenderRole: 'SHOP',
-        lastInboundAt: new Date('2026-09-12T09:00:00Z'),
+    // ห้ามมี update ธรรมดาที่เขียนสรุปเธรด (ไม่มีเงื่อนไขใน WHERE = เขียนทับค่าที่ใหม่กว่าได้)
+    expect(
+      db.conversation.update.mock.calls.filter((c) => 'lastMessageAt' in c[0].data || 'lastInboundAt' in c[0].data),
+    ).toHaveLength(0)
+    expect(db.conversation.updateMany.mock.calls.map((c) => c[0])).toEqual([
+      {
+        where: { id: conversationId, lastMessageAt: { lt: new Date('2026-09-12T10:00:00Z') } },
+        data: {
+          lastMessageAt: new Date('2026-09-12T10:00:00Z'),
+          lastMessagePreview: 'ร้านตอบล่าสุด',
+          lastSenderRole: 'SHOP',
+        },
       },
-    })
+      {
+        where: {
+          id: conversationId,
+          OR: [{ lastInboundAt: null }, { lastInboundAt: { lt: new Date('2026-09-12T09:00:00Z') } }],
+        },
+        data: { lastInboundAt: new Date('2026-09-12T09:00:00Z') },
+      },
+      // หน้า 2 ยิงด้วยค่าที่เก่ากว่า — ปลอดภัยเพราะ lt ใน WHERE ทำให้ฐานไม่เขียนทับของหน้า 1
+      {
+        where: { id: conversationId, lastMessageAt: { lt: new Date('2026-09-11T10:00:00Z') } },
+        data: {
+          lastMessageAt: new Date('2026-09-11T10:00:00Z'),
+          lastMessagePreview: 'ร้านเก่า',
+          lastSenderRole: 'SHOP',
+        },
+      },
+      {
+        where: {
+          id: conversationId,
+          OR: [{ lastInboundAt: null }, { lastInboundAt: { lt: new Date('2026-09-11T09:00:00Z') } }],
+        },
+        data: { lastInboundAt: new Date('2026-09-11T09:00:00Z') },
+      },
+    ])
+  })
+
+  it('Graph ไม่คืนเธรด (threadId null) = ห้ามปักธง', async () => {
+    db.conversation.findUnique.mockResolvedValue(conv())
+    vi.mocked(fetchThreadMessagesPage).mockResolvedValue({ threadId: null, nextAfter: null, items: [] })
+
+    const result = await syncMissingMessagesFromMeta(conversationId)
+
+    expect(fetchThreadMessagesPage).toHaveBeenCalledTimes(1)
+    expect(flagCalls()).toHaveLength(0)
+    expect(result).toEqual({ added: 0, outcome: 'nothing-missing' })
+  })
+
+  it('หน้า 2 ล้ม (rate limit/cursor หมดอายุ) = ห้ามปักธง, ผลเป็น error, หน้า 1 ขยับสรุปเธรดไปแล้ว', async () => {
+    db.conversation.findUnique.mockResolvedValue(conv())
+    vi.mocked(fetchThreadMessagesPage)
+      .mockResolvedValueOnce({ threadId: 't_1', nextAfter: 'c1', items: [msg('m-1', '2026-09-12T10:00:00Z')] })
+      .mockRejectedValueOnce(new Error('(#4) rate limit'))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const result = await syncMissingMessagesFromMeta(conversationId)
+
+    spy.mockRestore()
+    expect(result).toEqual({ added: 0, outcome: 'error' })
+    expect(fetchThreadMessagesPage).toHaveBeenCalledTimes(2)
+    expect(flagCalls()).toHaveLength(0)
+    expect(db.chatMessage.createMany).toHaveBeenCalledTimes(1)
+    expect(db.conversation.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ lastMessageAt: new Date('2026-09-12T10:00:00Z') }) }),
+    )
   })
 
   it('(a) เธรดที่ปักธงแล้ว: ดึงหน้าเดียว และไม่แตะ metaBackfilledAt', async () => {
