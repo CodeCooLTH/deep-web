@@ -95,7 +95,6 @@ import { generateInitials } from '@/utils/helpers'
 import { formatChatListTime } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
 import { subscribeShopChat } from '@/lib/chat-shop-realtime'
-import { markThreadStale } from '@/lib/chat-message-store'
 import { playChatBeep } from '@/lib/chat-sound'
 import { pickBeepTarget } from '@/lib/chat-beep-target'
 import { patchConversationRows } from '@/lib/inbox-row-patch'
@@ -1059,18 +1058,13 @@ export default function InboxList({
   // ต่อ shopId อยู่แล้ว การเรียกหลายตัวจึงไม่ชน topic กันเอง) join key เป็น string เพื่อไม่ให้
   // array ที่สร้างใหม่ทุก render ทำให้ effect วิ่งซ้ำไม่จบ
   //
-  // ห้องที่เปิดอยู่อ่านจาก ref (อัปเดตหลัง activeConversationId ถูกคำนวณข้างล่าง) — ใส่ค่าลง deps
-  // จะถอด/ต่อ channel ใหม่ทุกครั้งที่เปลี่ยนห้อง
-  const activeConversationIdRef = useRef<string | null>(null)
+  // cache ข้อความรายห้อง (chat-message-store) ไม่ต้องรู้สัญญาณนี้ — เปิดห้องครั้งหน้ายิง delta reconcile
+  // เสมออยู่แล้ว (R34 ถอดธง stale ที่ไม่มีใครอ่านออก)
   useEffect(() => {
     const ids = shopIdsKey ? shopIdsKey.split(',') : []
     if (ids.length === 0) return
-    const onSignal = ({ conversationId }: { conversationId?: string }) => {
-      // ห้องที่เปิดอยู่มี realtime ของตัวเอง (chat:{id}) รับไปแล้ว — ปักธง cache เฉพาะห้องที่ไม่ได้เปิด
-      if (conversationId && conversationId !== activeConversationIdRef.current) markThreadStale(conversationId)
-      scheduleRefresh()
-    }
-    const offs = ids.map((id) => subscribeShopChat(id, onSignal))
+    // closure ใหม่ต่อการ subscribe — listener เก็บใน Set ต่อร้าน ฟังก์ชันตัวเดียวกันจะถูกนับเป็นตัวเดียว
+    const offs = ids.map((id) => subscribeShopChat(id, () => scheduleRefresh()))
     return () => offs.forEach((off) => off())
   }, [shopIdsKey, scheduleRefresh])
 
@@ -1105,9 +1099,6 @@ export default function InboxList({
   const pathname = usePathname()
   const router = useRouter()
   const activeConversationId = pathname?.startsWith('/inbox/') ? pathname.slice('/inbox/'.length).split('/')[0] : null
-  useEffect(() => {
-    activeConversationIdRef.current = activeConversationId
-  }, [activeConversationId])
   const [localReadAt, setLocalReadAt] = useState<Record<string, string>>({})
 
   useEffect(() => {

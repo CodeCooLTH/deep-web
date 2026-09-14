@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   MAX_THREADS,
-  markThreadStale,
   readThread,
   MAX_MESSAGES_PER_THREAD,
   resetThreadStoreForTest,
@@ -9,6 +8,8 @@ import {
   watermarksOf,
   writeThread,
 } from '@/lib/chat-message-store'
+import { firstPageReplacement } from '@/lib/chat-message-merge'
+import { deltaAfterUpdatedAt } from '@/lib/chat-delta-query'
 import type { ChatMessageView } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
 
 const item = (id: string, over: Partial<ChatMessageView> = {}): ChatMessageView =>
@@ -37,18 +38,6 @@ describe('[blocker] chat-message-store', () => {
     const got = readThread('c1')
     expect(got?.items.map((m) => m.id)).toEqual(['a'])
     expect(got?.lastSeq).toBe(5)
-  })
-
-  it('markThreadStale ไม่ลบข้อมูล แค่ปักธง', () => {
-    writeThread('c1', { items: [item('a')], lastSeq: 5, lastUpdatedAt: '2026-09-14T09:00:00.000Z' })
-    markThreadStale('c1')
-    expect(readThread('c1')?.stale).toBe(true)
-    expect(readThread('c1')?.items).toHaveLength(1)
-  })
-
-  it('markThreadStale กับห้องที่ไม่มี cache ต้องไม่สร้างแถวเปล่า', () => {
-    markThreadStale('ghost')
-    expect(readThread('ghost')).toBeNull()
   })
 
   it(`เก็บได้ไม่เกิน ${MAX_THREADS} ห้อง — ห้องที่ถูกแตะนานสุดหลุดก่อน`, () => {
@@ -182,5 +171,42 @@ describe('[blocker] saveThreadView — watermark ไม่ถอยหลัง�
   it('ไม่มี store และไม่มี fetched = ไม่เขียน', () => {
     saveThreadView('c1', [item('a')], null)
     expect(readThread('c1')).toBeNull()
+  })
+})
+
+describe('[blocker] แทนที่จอด้วยหน้าแรกหลัง delta เต็มเพดาน — watermark ต้องครอบแถว delta (R28)', () => {
+  beforeEach(() => resetThreadStoreForTest())
+
+  /** เงื่อนไขเดียวกับ buildDeltaWhere (ฝั่ง SQL) เขียนเป็นฟังก์ชันบนแถว — เทสเท่านั้น */
+  const matchesDelta = (row: ChatMessageView, w: { afterSeq: number; afterUpdatedAt: string }) =>
+    (row.seq ?? 0) > w.afterSeq || new Date(row.updatedAt ?? row.createdAt) > new Date(w.afterUpdatedAt)
+
+  it('แถว backfill (seq สูง · createdAt เก่า · updatedAt = ตอน insert) ต้องไม่เข้าเงื่อนไข delta อีกหลังแทนที่', () => {
+    // หน้าแรก 30 ใบ = ข้อความล่าสุดจริง — แถว backfill เก่ากว่าหน้าแรกทั้งหมด จึงไม่อยู่ในหน้านั้น
+    const page = Array.from({ length: 30 }, (_, i) =>
+      item(`p${i}`, { seq: 1000 + i, createdAt: `2026-09-14T08:${String(i).padStart(2, '0')}:00.000Z` }),
+    ).reverse()
+    const backfill = Array.from({ length: 100 }, (_, i) =>
+      item(`bf${i}`, {
+        seq: 5000 + i,
+        createdAt: '2026-06-01T00:00:00.000Z',
+        updatedAt: '2026-09-14T09:30:00.000Z',
+      }),
+    )
+    const { items, fetched } = firstPageReplacement({ screen: [], pageDesc: page, triggeredBy: backfill })
+    saveThreadView('c1', items, 'cursor', { fetched, replace: true })
+    const got = readThread('c1')!
+    const w = { afterSeq: got.lastSeq, afterUpdatedAt: got.lastUpdatedAt }
+    expect(backfill.filter((r) => matchesDelta(r, w))).toEqual([])
+    // จอยังแสดงแค่หน้าแรก — ของเก่ากว่ามาจาก loadOlder
+    expect(got.items.map((m) => m.id)).toEqual(items.map((m) => m.id))
+    expect(got.items.some((m) => m.id.startsWith('bf'))).toBe(false)
+  })
+
+  it('ระยะเผื่อ R31 ถอยเฉพาะ updatedAt 5 วิ — แถวที่ commit ช้า (updatedAt ≤ watermark) ยังถูกขอกลับมา', () => {
+    const w = '2026-09-14T09:30:00.000Z'
+    const late = item('late', { seq: 1, createdAt: '2026-09-14T09:29:58.000Z', updatedAt: '2026-09-14T09:29:58.000Z' })
+    expect(matchesDelta(late, { afterSeq: 99, afterUpdatedAt: w })).toBe(false)
+    expect(matchesDelta(late, { afterSeq: 99, afterUpdatedAt: deltaAfterUpdatedAt(w) })).toBe(true)
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { capMessages, mergeMessages, resolveOpeningMessages } from '@/lib/chat-message-merge'
+import { capMessages, firstPageReplacement, mergeMessages, resolveOpeningMessages } from '@/lib/chat-message-merge'
 import type { ChatMessageView } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
 
 // ponytail: brief ต้นฉบับซ้ำคีย์ id/createdAt ทั้งก่อนและหลัง ...over (tsc TS2783) — ...over
@@ -127,6 +127,38 @@ describe('[blocker] resolveOpeningMessages — cache กับ initial ตอน
     expect(out.replaceStore).toBe(true)
   })
 
+  it('R29: id เดียวกันทั้งสองชุด — cache ใหม่กว่า (รีแอ็กชันหลัง RSC ถ่ายภาพ) ต้องชนะ initial ที่ค้างใน router cache', () => {
+    const cachedB = msg({ id: 'b', createdAt: at(2), seq: 2, reactionEmoji: '❤', updatedAt: at(4) })
+    const cached = { items: [msg({ id: 'a', createdAt: at(1), seq: 1 }), cachedB], oldestCursor: 'cursor-a' }
+    const initial = {
+      items: [msg({ id: 'b', createdAt: at(2), seq: 2, updatedAt: at(2) }), msg({ id: 'c', createdAt: at(3), seq: 3 })],
+      nextCursor: 'cursor-b',
+    }
+    const out = resolveOpeningMessages({ cached, initial })
+    expect(out.items.map((m) => m.id)).toEqual(['a', 'b', 'c'])
+    expect(out.items[1]).toBe(cachedB)
+  })
+
+  it('R29: initial ใหม่กว่า cache → initial ชนะ', () => {
+    const cached = {
+      items: [msg({ id: 'b', createdAt: at(2), seq: 2, _status: 'sending', updatedAt: at(2) })],
+      oldestCursor: null,
+    }
+    const initialB = msg({ id: 'b', createdAt: at(2), seq: 2, reactionEmoji: '❤', updatedAt: at(5) })
+    const out = resolveOpeningMessages({ cached, initial: { items: [initialB], nextCursor: null } })
+    expect(out.items[0]).toBe(initialB)
+  })
+
+  it('R29: รุ่นเท่ากัน (ค่าต่างกันแค่ฝั่ง client) → ใช้ของ cache', () => {
+    // updatedAt=1970 ของแถวเก่า (R6) ⇒ รุ่น = createdAt ทั้งคู่ — ห้ามให้ initial ชนะเพราะเป็นตัวที่สอง
+    const cachedB = msg({ id: 'b', createdAt: at(2), seq: 2, body: 'cache', updatedAt: '1970-01-01T00:00:00.000Z' })
+    const out = resolveOpeningMessages({
+      cached: { items: [cachedB], oldestCursor: null },
+      initial: { items: [msg({ id: 'b', createdAt: at(2), seq: 2, body: 'rsc', updatedAt: '1970-01-01T00:00:00.000Z' })], nextCursor: null },
+    })
+    expect(out.items[0]).toBe(cachedB)
+  })
+
   it('มีแต่ cache → cache (ไม่เขียนทับ store)', () => {
     const out = resolveOpeningMessages({
       cached: { items: [msg({ id: 'a', createdAt: at(1), seq: 1 })], oldestCursor: null },
@@ -134,5 +166,30 @@ describe('[blocker] resolveOpeningMessages — cache กับ initial ตอน
     })
     expect(out.items.map((m) => m.id)).toEqual(['a'])
     expect(out.replaceStore).toBe(false)
+  })
+})
+
+describe('[blocker] firstPageReplacement — แทนที่จอด้วยหน้าแรก (R28)', () => {
+  const at = (h: number) => `2026-09-14T${String(h).padStart(2, '0')}:00:00.000Z`
+
+  it('ใบที่เหมือนบนจอคง object เดิม · ใบที่เปลี่ยนเป็นของใหม่ · เรียงเก่า→ใหม่', () => {
+    const keep = msg({ id: 'a', createdAt: at(1), seq: 1 })
+    const screen = [keep, msg({ id: 'b', createdAt: at(2), seq: 2 })]
+    const pageDesc = [
+      msg({ id: 'c', createdAt: at(3), seq: 3 }),
+      msg({ id: 'b', createdAt: at(2), seq: 2, reactionEmoji: '❤' }),
+      msg({ id: 'a', createdAt: at(1), seq: 1 }),
+    ]
+    const { items, fetched } = firstPageReplacement({ screen, pageDesc, triggeredBy: [] })
+    expect(items.map((m) => m.id)).toEqual(['a', 'b', 'c'])
+    expect(items[0]).toBe(keep)
+    expect(items[1]).not.toBe(screen[1])
+    expect(fetched).toHaveLength(3)
+  })
+
+  it('fetched รวมแถวของ delta ที่ทำให้แทนที่ด้วย', () => {
+    const bf = msg({ id: 'bf', createdAt: at(0), seq: 99 })
+    const { fetched } = firstPageReplacement({ screen: [], pageDesc: [msg({ id: 'a', createdAt: at(1), seq: 1 })], triggeredBy: [bf] })
+    expect(fetched).toContain(bf)
   })
 })

@@ -32,13 +32,16 @@ import {
 import type { AiAnswerContext } from '@/services/chat.service'
 import { uploadToStorage } from '@/lib/upload-client'
 // ห้องแชทเปิดแล้วเห็นทันที + delta (ส่วนขยาย 00018, 2026-09-14)
-import { mergeMessages, resolveOpeningMessages } from '@/lib/chat-message-merge'
+import { firstPageReplacement, mergeMessages, resolveOpeningMessages } from '@/lib/chat-message-merge'
 import { readThread, saveThreadView } from '@/lib/chat-message-store'
+import { deltaAfterUpdatedAt } from '@/lib/chat-delta-query'
 import {
   canAutoLoadOlder,
   pickNewIncoming,
   countUnseenIncrement,
   shouldDeferFullDeltaReplace,
+  planDeltaApply,
+  firstPageLeavesGap,
   shouldFollowNewMessages,
 } from '@/lib/chat-thread-scroll'
 
@@ -531,6 +534,8 @@ export function useSellerChatThread(
   const staleForRef = useRef<string | null>(null)
   /** id ที่นับเข้าปุ่ม "ข้อความใหม่" ไปแล้วระหว่างรอแทนที่ — poll ถัดไปคืนชุดเดิมซ้ำ (watermark ไม่ขยับ) ห้ามนับ/ดังซ้ำ */
   const staleCountedIdsRef = useRef<Set<string>>(new Set())
+  /** แถวของ delta ล่าสุดที่ทำให้ต้องแทนที่ระหว่างรอ — ส่งต่อให้ reloadFirstPage ตั้ง watermark ให้ครอบ (R28) */
+  const staleDeltaRef = useRef<ChatMessageView[]>([])
   /** ตัวแทนที่ที่ถูกเลื่อนไว้ — listener ของ scroll ประกาศก่อนฟังก์ชันจริง จึงเรียกผ่าน ref */
   const reloadIfStaleRef = useRef<() => void>(() => {})
 
@@ -714,33 +719,46 @@ export function useSellerChatThread(
 
   // ── refetch "newer" — signal-only realtime (ไม่เชื่อ payload) · delta จาก watermark ของ store ──
   /**
-   * โหลดหน้าแรกใหม่แล้ว **แทนที่** ข้อความบนจอ/cursor/store (R13) — ใช้เมื่อ delta คืนครบเพดาน
+   * แทนที่ข้อความบนจอ/cursor/store ด้วยหน้าแรก (R13) — ใช้เมื่อ delta อาจมีช่องว่างบนจอ (planDeltaApply)
+   * หรือหน้าแรกของ poll ที่ไม่มี watermark ต่อกับจอไม่ติด (R33, ส่ง `known` มาไม่ต้องยิงซ้ำ)
    * คงบับเบิล optimistic ไว้ท้ายสุด (ยังรอ POST ตอบอยู่ — ทิ้งแล้ว postMessage หาใบที่จะแทนไม่เจอ)
+   * 🛑 R28: `triggeredBy` = แถวของ delta ที่ทำให้แทนที่ ต้องเข้า watermark ด้วย (ดู firstPageReplacement)
    */
-  const reloadFirstPage = useCallback(async () => {
-    // การแทนที่ครั้งนี้ครอบการแทนที่ที่ถูกเลื่อนไว้ด้วย (ทางอยู่ล่างสุดทันที) — ไม่ล้างธง ลงมาถึงล่างสุดทีหลังจะโหลดซ้ำ
-    staleForRef.current = null
-    staleCountedIdsRef.current = new Set()
-    try {
-      const pageRes = await fetch(`/api/chat/conversations/${conversationId}/messages?take=30`)
-      if (!pageRes.ok) return
-      const page: MessagesApiResponse = await pageRes.json()
-      const loaded = [...page.items].reverse()
-      messagesRef.current = [...loaded, ...messagesRef.current.filter((m) => m.id.startsWith('local-'))]
-      setMessages((prev) => [...loaded, ...prev.filter((m) => m.id.startsWith('local-'))])
-      setOldestCursor(page.nextCursor)
-      oldestCursorRef.current = page.nextCursor
-      saveThreadView(conversationId, loaded, page.nextCursor, { fetched: page.items, replace: true })
-      if (atBottomRef.current) scrollToBottom()
-    } catch {
-      // เงียบเหมือน refetchNewer — รอบ poll ถัดไปจะเจอ delta ครบเพดานแล้วลองใหม่เอง
-    }
-  }, [conversationId, scrollToBottom])
+  const reloadFirstPage = useCallback(
+    async (triggeredBy: ChatMessageView[], known?: MessagesApiResponse) => {
+      // การแทนที่ครั้งนี้ครอบการแทนที่ที่ถูกเลื่อนไว้ด้วย (ทางอยู่ล่างสุดทันที) — ไม่ล้างธง ลงมาถึงล่างสุดทีหลังจะโหลดซ้ำ
+      staleForRef.current = null
+      staleCountedIdsRef.current = new Set()
+      staleDeltaRef.current = []
+      try {
+        let page = known
+        if (!page) {
+          const pageRes = await fetch(`/api/chat/conversations/${conversationId}/messages?take=30`)
+          if (!pageRes.ok) return
+          page = (await pageRes.json()) as MessagesApiResponse
+        }
+        const { items: loaded, fetched } = firstPageReplacement({
+          screen: messagesRef.current,
+          pageDesc: page.items,
+          triggeredBy,
+        })
+        messagesRef.current = [...loaded, ...messagesRef.current.filter((m) => m.id.startsWith('local-'))]
+        setMessages((prev) => [...loaded, ...prev.filter((m) => m.id.startsWith('local-'))])
+        setOldestCursor(page.nextCursor)
+        oldestCursorRef.current = page.nextCursor
+        saveThreadView(conversationId, loaded, page.nextCursor, { fetched, replace: true })
+        if (atBottomRef.current) scrollToBottom()
+      } catch {
+        // เงียบเหมือน refetchNewer — รอบ poll ถัดไปจะเจอ delta ครบเพดานแล้วลองใหม่เอง
+      }
+    },
+    [conversationId, scrollToBottom],
+  )
 
   /** R16: ทำการแทนที่ที่ถูกเลื่อนไว้ของห้องนี้ (ถ้ามี) */
   const reloadIfStale = useCallback(() => {
     if (staleForRef.current !== conversationId) return
-    void reloadFirstPage() // ล้างธงแบบ synchronous ก่อน await แรก — scroll event ถัดไปเห็นธงว่างแล้ว
+    void reloadFirstPage(staleDeltaRef.current) // ล้างธงแบบ synchronous ก่อน await แรก — scroll event ถัดไปเห็นธงว่างแล้ว
   }, [conversationId, reloadFirstPage])
   useEffect(() => {
     reloadIfStaleRef.current = reloadIfStale
@@ -755,7 +773,8 @@ export function useSellerChatThread(
           // delta สองแกน: แถวใหม่ (seq) + แถวเก่าที่ค่าเปลี่ยน (updatedAt) — ส่วนใหญ่คืน 0 แถว
           params.set('take', String(DELTA_TAKE))
           params.set('afterSeq', String(cache.lastSeq))
-          params.set('afterUpdatedAt', cache.lastUpdatedAt)
+          // R31: ถอยแกน updatedAt 5 วิ กันแถวที่ commit ช้ากว่าเพื่อน/นาฬิกา server เหลื่อม (ดู chat-delta-query.ts)
+          params.set('afterUpdatedAt', deltaAfterUpdatedAt(cache.lastUpdatedAt))
         } else {
           params.set('take', '30') // ยังไม่มี watermark (store หมดอายุ/ถูกไล่ออก) → ขอหน้าแรกเหมือนเดิม
         }
@@ -769,15 +788,32 @@ export function useSellerChatThread(
         if (data.items.length === 0) return // ไม่มีอะไรเปลี่ยน = ไม่แตะ state เลย (ไม่ re-render)
 
         /**
-         * R13: delta คืนครบเพดาน = อาจมีแถวที่ไม่ได้มา (ห้องที่ปิดไปนานแล้วคุยกันยาว) ⇒ merge แล้ว
-         * จะได้ช่องว่างกลางเธรดที่ไม่มีอะไรฟ้อง และ loadOlder ไม่มีวันเติม (cursor อยู่เหนือช่องนั้น)
-         * ⇒ ทิ้งผล delta แล้วโหลดหน้าแรกใหม่ (reloadFirstPage) — แต่ R16: กำลังอ่านของเก่าอยู่ = ห้าม
-         * แทนที่ตอนนี้ (จอเด้ง) ⇒ ปักธงไว้ ขึ้นปุ่มข้อความใหม่ + ดังเสียงตามปกติ ไม่แตะ messages/store/
-         * watermark แล้วแทนที่ตอนผู้ใช้ลงมาถึงล่างสุดหรือกดปุ่ม
+         * R13: delta อาจมีช่องว่างบนจอ (ตัดเต็มเพดานโดยใบเก่าสุดที่ได้มายังอยู่ในหน้าต่างของจอ — ห้องที่ปิดไป
+         * นานแล้วคุยกันยาว) ⇒ merge แล้วจะได้ช่องว่างกลางเธรดที่ไม่มีอะไรฟ้อง และ loadOlder ไม่มีวันเติม
+         * ⇒ ทิ้งผล delta แล้วโหลดหน้าแรกใหม่ (reloadFirstPage) · R33: ไม่มี watermark แล้ว poll ได้หน้าแรกที่
+         * ต่อกับจอไม่ติด = ช่องว่างแบบเดียวกัน · แต่ R16: กำลังอ่านของเก่าอยู่ = ห้ามแทนที่ตอนนี้ (จอเด้ง)
+         * ⇒ ปักธงไว้ ขึ้นปุ่มข้อความใหม่ + ดังเสียงตามปกติ ไม่แตะ messages/store/watermark แล้วแทนที่ตอน
+         * ผู้ใช้ลงมาถึงล่างสุดหรือกดปุ่ม
          */
-        if (cache && data.items.length >= DELTA_TAKE) {
+        const plan = cache
+          ? planDeltaApply({
+              screen: messagesRef.current,
+              hasOlder: oldestCursorRef.current !== null,
+              incoming: data.items,
+              take: DELTA_TAKE,
+            })
+          : {
+              replace: firstPageLeavesGap({
+                screen: messagesRef.current,
+                pageDesc: data.items,
+                nextCursor: data.nextCursor,
+              }),
+              inWindow: data.items,
+            }
+        if (plan.replace) {
           if (!shouldDeferFullDeltaReplace({ atBottom: atBottomRef.current })) {
-            await reloadFirstPage()
+            // หน้าแรกของ R33 อยู่ในมือแล้ว ไม่ต้องยิงซ้ำ · delta (R13) ต้องโหลดหน้าแรกจริง
+            await (cache ? reloadFirstPage(data.items) : reloadFirstPage([], data))
             return
           }
           const firstDefer = staleForRef.current !== conversationId
@@ -785,6 +821,7 @@ export function useSellerChatThread(
             staleForRef.current = conversationId
             staleCountedIdsRef.current = new Set()
           }
+          staleDeltaRef.current = data.items
           const unseen = pickNewIncoming(messagesRef.current, data.items).filter(
             (m) => !staleCountedIdsRef.current.has(m.id),
           )
@@ -796,18 +833,20 @@ export function useSellerChatThread(
           if (add > 0) setUnseenNewCount((n) => n + add)
           return
         }
+        // แถวที่เข้าจอได้ (แถวที่เก่ากว่าหน้าต่างของจอให้ loadOlder ดึงเอง) · watermark ยังใช้ data.items ทั้งชุด
+        const incoming = plan.inWindow
 
         // แถวใหม่จริง (R10) — ที่เดียวที่ตัดสินเสียง/การเลื่อนตาม/ตัวนับปุ่ม "ข้อความใหม่"
         // อ่านจาก messagesRef ไม่ใช่ข้างใน updater เพราะ updater รันทีหลัง (ดู reactToMessage)
-        const fresh = pickNewIncoming(messagesRef.current, data.items)
+        const fresh = pickNewIncoming(messagesRef.current, incoming)
         // R11: เขียนกระจกล่วงหน้าทันที — รอบถัดไปของ single-flight เริ่มก่อน React commit ได้
         // ถ้ารอ effect อัปเดตกระจก รอบนั้นจะเห็นแถวชุดนี้เป็น "ใหม่" ซ้ำ = นับ/ดังซ้ำ
         // (effect ของ messages เขียนทับด้วย state จริงตอน commit อยู่แล้ว)
-        messagesRef.current = mergeMessages(messagesRef.current, data.items)
+        messagesRef.current = mergeMessages(messagesRef.current, incoming)
 
         setMessages((prev) => {
           // แทรกตามเวลา + ใบที่ไม่เปลี่ยนคง object เดิม (chat-message-merge.ts)
-          const merged = mergeMessages(prev, data.items)
+          const merged = mergeMessages(prev, incoming)
           // reconcile บับเบิลคลุมเครือ (เน็ตหลุดตอนส่งกริด — ดู reconcileIdsRef): แถวจริงของรูปใบ
           // เดียวกันโผล่มา = การส่งนั้นถึง server จริง ลบบับเบิลแดงทิ้ง เหลือแถวจริงใบเดียว
           // จับคู่: รูป/ไฟล์ = fileId (unique ต่อการอัปโหลด — แม่นเสมอ); แคปชัน TEXT = body ตรงกัน
