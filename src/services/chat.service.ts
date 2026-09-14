@@ -17,6 +17,7 @@ import { pauseForHumanTakeover, clearTakeoverOnResolve } from '@/services/auto-r
 import { detectAutoOrderTrigger } from '@/services/auto-order-detect.service'
 import { runAfterResponse } from '@/lib/run-after-response'
 import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
+import { buildDeltaWhere, isDeltaRequest } from '@/lib/chat-delta-query'
 
 export type SenderRole = 'BUYER' | 'SHOP'
 // CALL = เหตุการณ์การโทรที่ Meta แจ้งมา (icon-template) — ไม่ใช่ข้อความที่ใครพิมพ์ ไม่มีใครส่งได้เอง
@@ -139,6 +140,9 @@ export interface ChatMessageView {
   // ไม่ใช่คอลัมน์ใน ChatMessage — getMessages join มาเติมให้ (null = คนพิมพ์เอง หรือหาบันทึกไม่เจอ)
   autoReply: AutoReplyTrace | null
   createdAt: Date
+  /** watermark แกนที่ 2 ของ delta (2026-09-14) — ดู src/lib/chat-delta-query.ts
+   *  🛑 แถวที่มีก่อน migration มีค่า 1970-01-01 ห้ามอ่านตรง ๆ ว่าเป็น "เวลาแก้ล่าสุด" ใช้ watermarksOf() */
+  updatedAt: Date
 }
 
 // ---- getOrCreateConversation ----
@@ -644,7 +648,7 @@ function parseMessageCursor(raw?: string): { createdAt: Date; seq: number | null
 export async function getMessages(
   conversationId: string,
   actorUserId: string,
-  opts: { cursor?: string; take?: number } = {},
+  opts: { cursor?: string; take?: number; afterSeq?: number; afterUpdatedAt?: string } = {},
 ): Promise<{ items: ChatMessageView[]; nextCursor: string | null }> {
   const conversation = await assertParticipant(conversationId, actorUserId)
 
@@ -663,6 +667,22 @@ export async function getMessages(
   const internalMessageFilter = viewerIsBuyer ? { type: { not: AUTO_ORDER_RESULT_TYPE } } : {}
 
   const take = opts.take ?? 30
+
+  /**
+   * โหมด delta (2026-09-14) — คนละคำถามกับ pagination:
+   *   pagination ถามว่า "ของเก่ากว่านี้มีอะไร" (เรียงใหม่→เก่า แล้วมี nextCursor)
+   *   delta ถามว่า "ตั้งแต่ watermark นี้มีอะไรเปลี่ยนบ้าง" (ไม่มีแนวคิดหน้าถัดไป)
+   * ⇒ คืน nextCursor = null เสมอ ห้ามให้ผู้เรียกเอาไปใช้ต่อเป็น cursor ของ loadOlder
+   */
+  if (isDeltaRequest(opts)) {
+    const deltaRows = await prisma.chatMessage.findMany({
+      where: { ...buildDeltaWhere({ conversationId, ...opts }), ...internalMessageFilter },
+      orderBy: [{ createdAt: 'desc' }, { seq: 'desc' }],
+      take: Math.min(take, 100),
+    })
+    return { items: await attachAutoReplyTrace(conversationId, deltaRows), nextCursor: null }
+  }
+
   const cursor = parseMessageCursor(opts.cursor)
   const rows = await prisma.chatMessage.findMany({
     where: {
@@ -690,6 +710,17 @@ export async function getMessages(
   const hasMore = rows.length > take
   const page = hasMore ? rows.slice(0, take) : rows
 
+  return {
+    items: await attachAutoReplyTrace(conversationId, page),
+    nextCursor: hasMore ? `${page[page.length - 1]!.createdAt.toISOString()}|${page[page.length - 1]!.seq}` : null,
+  }
+}
+
+/** ติดเหตุผล "ทำไมบอทตอบข้อความนี้" ให้ทุกแถวที่มี autoReplyKind — ใช้ร่วมระหว่าง pagination กับ delta */
+async function attachAutoReplyTrace(
+  conversationId: string,
+  page: Awaited<ReturnType<typeof prisma.chatMessage.findMany>>,
+): Promise<ChatMessageView[]> {
   // feature 00023 — "ทำไมบอทตอบข้อความนี้" สำหรับ popover ใต้ป้าย "ระบบตอบ" ในเธรด
   //
   // join ผ่าน AutoReplyLog.outboundMessageId แทนการเพิ่มคอลัมน์ใน ChatMessage เพราะความสัมพันธ์นี้
@@ -756,13 +787,7 @@ export async function getMessages(
     }
   }
 
-  return {
-    items: page.map((m) => ({
-      ...m,
-      autoReply: traceByMessageId.get(m.id) ?? null,
-    })) as ChatMessageView[],
-    nextCursor: hasMore ? `${page[page.length - 1]!.createdAt.toISOString()}|${page[page.length - 1]!.seq}` : null,
-  }
+  return page.map((m) => ({ ...m, autoReply: traceByMessageId.get(m.id) ?? null })) as ChatMessageView[]
 }
 
 // ---- sendMessage (tx: insert + denorm update + Notification) ----
