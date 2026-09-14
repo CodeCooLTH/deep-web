@@ -42,6 +42,18 @@ function sameMessage(a: ChatMessageView, b: ChatMessageView): boolean {
 }
 
 /**
+ * "รุ่น" ของแถว = max(createdAt, updatedAt) เป็น ISO string — ใช้เทียบว่าสำเนาไหนใหม่กว่า และเป็นฐานของ
+ * watermark แกน updatedAt (watermarksOf ใน chat-message-store.ts) — HR16: นิยามเดียว
+ *
+ * 🛑 ต้องเป็น max ไม่ใช่ `updatedAt ?? createdAt` — แถวที่มีก่อน migration ได้ updatedAt = 1970
+ *    (fast default, R6) และข้อความ optimistic ไม่มี updatedAt เลย
+ * เทียบสตริงได้ตรง ๆ เพราะทั้งสองทางเข้า (API/RSC) ส่ง `toISOString()` รูปแบบเดียวกัน (R2)
+ */
+export function messageVersion(m: { createdAt: string; updatedAt?: string }): string {
+  return m.updatedAt && m.updatedAt > m.createdAt ? m.updatedAt : m.createdAt
+}
+
+/**
  * ลำดับของข้อความทั้งระบบ [createdAt asc, seq asc] — seq ที่ไม่มี (optimistic) อยู่ท้ายกลุ่มเวลาเดียวกัน
  * export ให้ผู้ตัดสิน "ใบนี้อยู่หลังใบล่าสุดบนจอไหม" ใช้ตัวเดียวกัน (chat-thread-scroll.ts) — HR16
  */
@@ -79,6 +91,32 @@ export function mergeMessages(
   return Array.from(byId.values()).sort(compareMessages)
 }
 
+/**
+ * แทนที่จอด้วยหน้าแรกที่เพิ่งโหลด (R13/R28/R33) — ได้ทั้งรายการที่จะแสดงและชุดแถวที่ใช้ตั้ง watermark
+ *
+ * 🛑 R28: `fetched` ต้องรวมแถวของ delta ที่ทำให้เกิดการแทนที่ด้วย ไม่ใช่หน้าแรกอย่างเดียว — แถวที่ไล่ดึง
+ *    ย้อนหลังจาก Meta ได้ seq สูง + updatedAt = ตอน insert แต่ createdAt เก่า ⇒ ไม่อยู่ในหน้าแรก 30 ใบ
+ *    ถ้า watermark มาจากหน้าแรกอย่างเดียว แถวพวกนั้นยังเข้าเงื่อนไข delta ทุกรอบ poll ⇒ delta เต็มเพดาน
+ *    ⇒ แทนที่จออีก วนทุก 12 วินาทีไม่มีวันจบ (พร้อมยิง sync ใหม่ + re-render ทั้งลิสต์ + ของเก่าที่
+ *    โหลดไว้หาย) · จอยังแสดงแค่หน้าแรก แถวที่เก่ากว่านั้น loadOlder ดึงจาก DB ตรงอยู่แล้ว
+ * แถวที่ไม่เปลี่ยนจากบนจอคง object เดิม (กติกาเดียวกับ mergeMessages) ⇒ ไม่ re-render ใบที่เหมือนเดิม
+ */
+export function firstPageReplacement(input: {
+  /** ข้อความบนจอตอนนี้ */
+  screen: ChatMessageView[]
+  /** หน้าแรกจาก API — เรียงใหม่→เก่า */
+  pageDesc: ChatMessageView[]
+  /** แถวของ delta ที่ทำให้ต้องแทนที่ ([] ถ้าเหตุมาจากหน้าแรกเอง) */
+  triggeredBy: ChatMessageView[]
+}): { items: ChatMessageView[]; fetched: ChatMessageView[] } {
+  const onScreen = new Map(input.screen.map((m) => [m.id, m]))
+  const items = [...input.pageDesc].reverse().map((m) => {
+    const current = onScreen.get(m.id)
+    return current && sameMessage(current, m) ? current : m
+  })
+  return { items, fetched: [...input.pageDesc, ...input.triggeredBy] }
+}
+
 /** เก็บได้ไม่เกิน `max` ใบ — ตัดใบเก่าสุดทิ้ง เพราะจอเปิดที่ล่างสุดเสมอ */
 export function capMessages(items: ChatMessageView[], max: number): ChatMessageView[] {
   if (items.length <= max) return items
@@ -93,6 +131,10 @@ export function capMessages(items: ChatMessageView[], max: number): ChatMessageV
  *
  * - สองชุดคาบเกี่ยวกัน (ใบเก่าสุดของ initial ไม่ใหม่กว่าใบล่าสุดของ cache) → merge: ได้ทั้งของเก่า
  *   ใน cache และของสดจาก initial ต่อกันไม่มีช่องว่าง
+ *   🛑 R29: id ที่มีทั้งสองชุด ใช้สำเนาที่ `messageVersion` ใหม่กว่า (เท่ากันใช้ของ cache) — ห้ามให้ initial
+ *   ชนะเฉย ๆ: กดกลับมาห้องเดิมภายใน 30 วิ router cache คืน RSC payload เก่าที่ถ่ายไว้ก่อนรีแอ็กชัน/สถานะ
+ *   ส่งล่าสุด และ watermark ของ store (R15) อยู่เลยการแก้นั้นไปแล้ว ⇒ delta ไม่มีวันคืนแถวนั้นมาแก้ให้
+ *   = รีแอ็กชันหาย/ค้าง "กำลังส่ง" ถาวร
  * - ไม่คาบเกี่ยว (initial ใหม่กว่า cache ทั้งชุด) → ใช้ initial อย่างเดียว เพราะระหว่างสองชุดมี
  *   ข้อความที่ไม่มีใครถืออยู่ ต่อกันจะได้ช่องว่างกลางเธรดที่ loadOlder ไม่มีวันเติม
  *   (`replaceStore: true` = ผู้เรียกต้องเขียนทับ store จาก initial)
@@ -118,5 +160,10 @@ export function resolveOpeningMessages(input: {
   const oldestCached = cached.items[0]
   const oldestCursor =
     oldestCached && compareMessages(oldestCached, oldestInitial) <= 0 ? cached.oldestCursor : initial.nextCursor
-  return { items: mergeMessages(cached.items, initial.items), oldestCursor, replaceStore: false }
+  const cachedById = new Map(cached.items.map((m) => [m.id, m]))
+  const newerFromInitial = initial.items.filter((m) => {
+    const c = cachedById.get(m.id)
+    return !c || messageVersion(m) > messageVersion(c)
+  })
+  return { items: mergeMessages(cached.items, newerFromInitial), oldestCursor, replaceStore: false }
 }

@@ -25,3 +25,21 @@ export function buildDeltaWhere(
   if (input.afterUpdatedAt !== undefined) or.push({ updatedAt: { gt: new Date(input.afterUpdatedAt) } })
   return { conversationId: input.conversationId, OR: or }
 }
+
+/**
+ * ระยะที่ client ถอยแกน updatedAt ของ watermark ลงก่อนส่ง (R31)
+ *
+ * 🛑 watermark ไม่มีระยะเผื่อ = แถวที่ commit ช้ากว่าเพื่อนหายเงียบ ๆ ถาวร — seq/updatedAt ถูกกำหนด
+ *    ตอนรันคำสั่ง แต่มองเห็นได้ตอน commit: `$transaction` แบบ interactive ใน send/ingest commit
+ *    B ก่อน A ได้ ⇒ broadcast ของ B ยก watermark เลย A ไปแล้ว A จึงไม่เข้าเงื่อนไขทั้งสองแกน
+ *    และ `@updatedAt` ถูกประทับด้วยนาฬิกาของ app server แต่ละเครื่องซึ่งเหลื่อมกันได้
+ * ถอยเฉพาะแกน updatedAt พอ — แถวใหม่ทุกแถวได้ updatedAt = ตอน insert แกนนี้จึงครอบแถวใหม่ด้วย
+ * แถวที่ถูกคืนซ้ำเพราะระยะเผื่อไม่มีผลต่อจอ: mergeMessages คง object เดิม · pickNewIncoming ไม่นับ id
+ * ที่อยู่บนจอแล้ว · planDeltaApply ไม่นับแถวนอกหน้าต่างของจอเป็นเหตุให้แทนที่จอ
+ */
+export const DELTA_UPDATED_AT_OVERLAP_MS = 5_000
+
+/** ค่า `afterUpdatedAt` ที่ส่งจริงจาก watermark ของ store (ISO เข้า ISO ออก) */
+export function deltaAfterUpdatedAt(lastUpdatedAt: string): string {
+  return new Date(new Date(lastUpdatedAt).getTime() - DELTA_UPDATED_AT_OVERLAP_MS).toISOString()
+}

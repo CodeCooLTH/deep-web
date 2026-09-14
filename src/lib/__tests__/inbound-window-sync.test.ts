@@ -208,13 +208,26 @@ describe('[blocker] ห้องแชท: watermark ตอน merge เปิ�
     expect(await read()).toMatch(/saveThreadView\(conversationId, opening\.items, opening\.oldestCursor\)\n/)
   })
 
-  it('R16: delta ครบเพดานต้องผ่าน shouldDeferFullDeltaReplace ก่อนแทนที่จอ', async () => {
+  it('R16: การแทนที่จอ (R13/R33) ต้องผ่าน shouldDeferFullDeltaReplace ก่อน · R28 ส่งแถว delta ต่อ', async () => {
     const code = await read()
     expect(code).toMatch(
-      /data\.items\.length >= DELTA_TAKE\) \{\n\s*if \(!shouldDeferFullDeltaReplace\(\{ atBottom: atBottomRef\.current \}\)\) \{\n\s*await reloadFirstPage\(\)/,
+      /if \(plan\.replace\) \{\n\s*if \(!shouldDeferFullDeltaReplace\(\{ atBottom: atBottomRef\.current \}\)\) \{\n\s*await \(cache \? reloadFirstPage\(data\.items\)/,
     )
     // สองทางที่ทำการแทนที่ที่ถูกเลื่อนไว้: ลงมาถึงล่างสุด (scroll listener) และปุ่ม (clearUnseen)
     expect(code).toMatch(/setUnseenNewCount\(0\)\n\s*reloadIfStaleRef\.current\(\)/)
     expect(code).toMatch(/const clearUnseen = useCallback\(\(\) => \{\n\s*scrollToBottom\(\)\n\s*reloadIfStale\(\)/)
+  })
+
+  it('R28: การแทนที่ที่ถูกเลื่อนไว้ต้องส่งแถว delta ที่ค้างไว้ต่อ (ไม่งั้น watermark จากหน้าแรกอย่างเดียว = วนแทนที่ทุก poll)', async () => {
+    const code = await read()
+    expect(code).toMatch(/staleDeltaRef\.current = data\.items/)
+    expect(code).toMatch(/void reloadFirstPage\(staleDeltaRef\.current\)/)
+  })
+
+  it('แถวที่เข้าจอมาจาก planDeltaApply(...).inWindow — ห้าม merge data.items ทั้งชุด (แถวเก่ากว่าหน้าต่างวางบนสุดแบบมีช่องว่าง)', async () => {
+    const code = await read()
+    expect(code).toMatch(/const incoming = plan\.inWindow/)
+    expect(code).toMatch(/const merged = mergeMessages\(prev, incoming\)/)
+    expect(code).not.toMatch(/mergeMessages\(prev, data\.items\)\n\s*\/\/ reconcile/)
   })
 })

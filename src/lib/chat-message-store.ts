@@ -1,7 +1,7 @@
 'use client'
 
 import type { ChatMessageView } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
-import { capMessages } from '@/lib/chat-message-merge'
+import { capMessages, messageVersion } from '@/lib/chat-message-merge'
 
 /**
  * chat-message-store — cache ข้อความรายห้อง ฝั่ง browser (ส่วนขยาย 00018, 2026-09-14)
@@ -30,8 +30,6 @@ export type ThreadCache = {
   lastUpdatedAt: string
   /** cursor ของ "ข้อความเก่ากว่านี้" ไว้ต่อ loadOlder — null = ไม่มีของเก่ากว่าแล้ว */
   oldestCursor: string | null
-  /** realtime บอกว่ามีของใหม่ ตอนผู้ใช้ยังไม่ได้เปิดห้องนี้ */
-  stale: boolean
   touchedAt: number
 }
 
@@ -85,17 +83,9 @@ export function writeThread(
     lastSeq: patch.lastSeq ?? prev?.lastSeq ?? 0,
     lastUpdatedAt: patch.lastUpdatedAt ?? prev?.lastUpdatedAt ?? new Date(0).toISOString(),
     oldestCursor: patch.oldestCursor !== undefined ? patch.oldestCursor : (prev?.oldestCursor ?? null),
-    stale: patch.stale ?? false,
     touchedAt: now(),
   })
   evictIfNeeded()
-}
-
-/** realtime บอกว่ามีของใหม่ — ไม่ยิงอะไร แค่ปักธงไว้ให้ตอนเปิดห้องรู้ว่าต้อง reconcile */
-export function markThreadStale(conversationId: string): void {
-  const entry = store.get(conversationId)
-  if (!entry) return // ห้ามสร้างแถวเปล่า — ไม่มี cache ก็ไม่มีอะไรให้ทำให้เก่า
-  entry.stale = true
 }
 
 /**
@@ -111,7 +101,7 @@ export function watermarksOf(items: ChatMessageView[]): { lastSeq: number; lastU
   for (const m of items) {
     if (typeof m.seq === 'number' && m.seq > lastSeq) lastSeq = m.seq
     // updatedAt ของแถวเก่าคือ 1970 (fast default ตอน migration) ⇒ ต้องเป็น max ไม่ใช่ ??
-    const u = m.updatedAt && m.updatedAt > m.createdAt ? m.updatedAt : m.createdAt
+    const u = messageVersion(m)
     if (u > lastUpdatedAt) lastUpdatedAt = u
   }
   return { lastSeq, lastUpdatedAt }

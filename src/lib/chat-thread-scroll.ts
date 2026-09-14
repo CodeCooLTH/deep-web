@@ -86,3 +86,70 @@ export function countUnseenIncrement(fresh: { senderRole: string }[]): number {
   for (const m of fresh) if (m.senderRole === 'BUYER') n += 1
   return n
 }
+
+type Row = { id: string; createdAt: string; seq?: number }
+
+/** ใบเก่าสุดบนจอที่ไม่ใช่บับเบิล optimistic (นาฬิกาเครื่อง client ห้ามเป็นเส้นแบ่ง) */
+function oldestReal<T extends Row>(rows: T[]): T | undefined {
+  let oldest: T | undefined
+  for (const m of rows) {
+    if (m.id.startsWith('local-')) continue
+    if (!oldest || compareMessages(m, oldest) < 0) oldest = m
+  }
+  return oldest
+}
+
+/**
+ * delta ที่เพิ่งกลับมาควรทำอะไรกับจอ (R13 + R28 + R31) — แทนที่ด้วยหน้าแรก หรือ merge แถวไหนบ้าง
+ *
+ * server เรียง delta ใหม่→เก่าตาม createdAt แล้วตัดที่ `take` ⇒ แถวที่ไม่ได้มาคือแถวที่ **เก่ากว่า**
+ * ใบเก่าสุดที่ได้มาเสมอ ⇒ "อาจมีช่องว่างบนจอ" แปลว่าตัดเต็มเพดาน **และ** ใบเก่าสุดที่ได้มายังอยู่ใน
+ * หน้าต่างของจอ (ไม่เก่ากว่าใบเก่าสุดที่โหลดไว้) — ถ้าใบเก่าสุดที่ได้มาเก่ากว่าหน้าต่างแล้ว แถวที่ถูกตัด
+ * ก็เก่ากว่าหน้าต่างทั้งหมด ไม่มีอะไรหายจากจอ
+ *
+ * 🛑 ห้ามตัดสินจาก `incoming.length >= take` อย่างเดียว (แบบเดิม): หลังแทนที่จอเหลือหน้าแรก 30 ใบ
+ *    แถวที่ไล่ดึงย้อนหลังจาก Meta (createdAt เก่า · updatedAt ในช่วง 5 วิ ของ R31 เดียวกัน) ถูกคืนซ้ำ
+ *    ≥100 ใบทุกรอบ poll ⇒ แทนที่จอซ้ำทุก 12 วิไม่มีวันจบ = บั๊ก C1 กลับมาทางระยะเผื่อ
+ * 🛑 แถวที่เก่ากว่าหน้าต่างของจอห้ามเข้าจอ (`inWindow` กรองออก) เมื่อยังมีของเก่ากว่าใน DB — merge เข้าไป
+ *    จะวางไว้บนสุดของจอโดยมีช่องว่างคั่นกับใบที่โหลดไว้ · loadOlder ดึงแถวพวกนั้นจาก DB ตรงอยู่แล้ว
+ *    (ผู้เรียกยังต้องส่ง `incoming` ทั้งชุดเป็น `fetched` ให้ watermark)
+ */
+export function planDeltaApply<T extends Row>(input: {
+  /** ข้อความบนจอตอนนี้ */
+  screen: T[]
+  /** ยังมีข้อความเก่ากว่าที่ยังไม่ได้โหลด (oldestCursor !== null) */
+  hasOlder: boolean
+  /** แถวจาก delta */
+  incoming: T[]
+  /** เพดานที่ขอไป */
+  take: number
+}): { replace: boolean; inWindow: T[] } {
+  const edge = input.hasOlder ? oldestReal(input.screen) : undefined
+  const inWindow = edge ? input.incoming.filter((m) => compareMessages(m, edge) >= 0) : input.incoming
+  return { replace: input.incoming.length >= input.take && inWindow.length === input.incoming.length, inWindow }
+}
+
+/**
+ * ไม่มี watermark ใน store (TTL หมดตอนแท็บซ่อน / ถูกไล่ออก) ⇒ poll ขอหน้าแรกแทน delta — หน้านั้น merge
+ * ต่อกับจอได้ไหม หรือต้องแทนที่ (R33)
+ *
+ * 🛑 ยังมีของเก่ากว่าหน้านั้น (`nextCursor !== null`) และใบเก่าสุดของหน้านั้นใหม่กว่าใบล่าสุดบนจอ =
+ *    ระหว่างสองชุดมีข้อความที่ไม่มีใครถืออยู่ merge แล้วได้ช่องว่างกลางเธรดที่ loadOlder ไม่มีวันเติม
+ *    (cursor บนจออยู่เหนือช่องนั้น) ⇒ ต้องแทนที่ · จอไม่มีแถวจริงเลยก็แทนที่ (ได้ cursor ของหน้านั้นมาด้วย)
+ */
+export function firstPageLeavesGap<T extends Row>(input: {
+  screen: T[]
+  /** หน้าแรกจาก API — เรียงใหม่→เก่า */
+  pageDesc: T[]
+  nextCursor: string | null
+}): boolean {
+  if (input.nextCursor === null) return false
+  let newest: T | undefined
+  for (const m of input.screen) {
+    if (m.id.startsWith('local-')) continue
+    if (!newest || compareMessages(m, newest) > 0) newest = m
+  }
+  const oldestPage = oldestReal(input.pageDesc)
+  if (!newest || !oldestPage) return true
+  return compareMessages(oldestPage, newest) > 0
+}

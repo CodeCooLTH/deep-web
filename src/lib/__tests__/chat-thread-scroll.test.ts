@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   canAutoLoadOlder,
+  firstPageLeavesGap,
+  planDeltaApply,
   countUnseenIncrement,
   pickNewIncoming,
   shouldDeferFullDeltaReplace,
@@ -84,5 +86,78 @@ describe('[blocker] countUnseenIncrement — ตัวนับปุ่ม "ข
 
   it('ชุดว่าง = 0 (ทาง R16 ไม่มีขั้นต่ำ 1 แล้ว)', () => {
     expect(countUnseenIncrement([])).toBe(0)
+  })
+})
+
+describe('[blocker] planDeltaApply — delta ไหนต้องแทนที่จอ / แถวไหนเข้าจอ (R13 + R28 + R31)', () => {
+  const row = (id: string, h: number, seq?: number) => ({
+    id,
+    createdAt: `2026-09-14T${String(h).padStart(2, '0')}:00:00.000Z`,
+    seq,
+  })
+  // จอหลังแทนที่: หน้าแรก 30 ใบ ช่วง 10:00–?? (ใช้ 3 ใบแทน) และยังมีของเก่ากว่าใน DB
+  const screen = [row('p1', 10, 101), row('p2', 11, 102), row('p3', 12, 103)]
+
+  it('เต็มเพดานโดยทุกแถวอยู่ในหน้าต่างของจอ = อาจมีช่องว่าง → แทนที่', () => {
+    const incoming = [row('n1', 13, 200), row('n2', 12, 201), row('p3', 12, 103)]
+    expect(planDeltaApply({ screen, hasOlder: true, incoming, take: 3 }).replace).toBe(true)
+  })
+
+  it('C1: หลังแทนที่ แถว backfill เก่า (คืนซ้ำเพราะระยะเผื่อ) เต็มเพดาน → ห้ามแทนที่ซ้ำ + ไม่เข้าจอ', () => {
+    const backfill = [row('bf1', 3, 900), row('bf2', 2, 901), row('bf3', 1, 902)]
+    const plan = planDeltaApply({ screen, hasOlder: true, incoming: backfill, take: 3 })
+    expect(plan.replace).toBe(false)
+    expect(plan.inWindow).toEqual([])
+  })
+
+  it('ใบใหม่ปนแถวเก่ากว่าหน้าต่าง เต็มเพดาน → ไม่แทนที่ (ที่ถูกตัดเก่ากว่าหน้าต่างทั้งหมด) · เข้าจอเฉพาะใบในหน้าต่าง', () => {
+    const incoming = [row('n1', 13, 200), row('bf1', 3, 900), row('bf2', 2, 901)]
+    const plan = planDeltaApply({ screen, hasOlder: true, incoming, take: 3 })
+    expect(plan.replace).toBe(false)
+    expect(plan.inWindow.map((m) => m.id)).toEqual(['n1'])
+  })
+
+  it('ไม่มีของเก่ากว่าใน DB (ประวัติครบบนจอ) → ทุกแถวเข้าจอ และเต็มเพดาน = แทนที่', () => {
+    const incoming = [row('bf1', 3, 900), row('bf2', 2, 901), row('bf3', 1, 902)]
+    const plan = planDeltaApply({ screen, hasOlder: false, incoming, take: 3 })
+    expect(plan.inWindow).toHaveLength(3)
+    expect(plan.replace).toBe(true)
+  })
+
+  it('ไม่เต็มเพดาน = ไม่แทนที่ (ทราฟฟิกปกติ + แถวซ้ำจากระยะเผื่อ)', () => {
+    const incoming = [row('p3', 12, 103), row('n1', 13, 200)]
+    const plan = planDeltaApply({ screen, hasOlder: true, incoming, take: 100 })
+    expect(plan.replace).toBe(false)
+    expect(plan.inWindow.map((m) => m.id)).toEqual(['p3', 'n1'])
+  })
+})
+
+describe('[blocker] firstPageLeavesGap — poll ที่ไม่มี watermark ได้หน้าแรกที่ต่อกับจอไม่ติด (R33)', () => {
+  const row = (id: string, h: number, seq?: number) => ({
+    id,
+    createdAt: `2026-09-14T${String(h).padStart(2, '0')}:00:00.000Z`,
+    seq,
+  })
+  const screen = [row('a', 9, 1), row('b', 10, 2), row('local-1', 23)]
+
+  it('ใบเก่าสุดของหน้าใหม่กว่าใบล่าสุดบนจอ + ยังมีของเก่ากว่า = ช่องว่าง → แทนที่', () => {
+    const pageDesc = [row('y', 15, 51), row('x', 14, 50)]
+    expect(firstPageLeavesGap({ screen, pageDesc, nextCursor: 'x|50' })).toBe(true)
+  })
+
+  it('คาบเกี่ยวกัน = merge ได้', () => {
+    const pageDesc = [row('c', 11, 3), row('b', 10, 2)]
+    expect(firstPageLeavesGap({ screen, pageDesc, nextCursor: 'b|2' })).toBe(false)
+  })
+
+  it('ไม่มีของเก่ากว่าหน้านั้นแล้ว = ไม่มีช่องว่าง', () => {
+    const pageDesc = [row('y', 15, 51), row('x', 14, 50)]
+    expect(firstPageLeavesGap({ screen, pageDesc, nextCursor: null })).toBe(false)
+  })
+
+  it('บับเบิล optimistic ไม่ใช่เส้นแบ่ง — เวลาของมันเป็นนาฬิกาเครื่อง client', () => {
+    // local-1 เวลา 23:00 ใหม่กว่าหน้าเสมอ ถ้าใช้เป็นใบล่าสุดจะตัดสินว่าคาบเกี่ยวทั้งที่มีช่องว่าง
+    const pageDesc = [row('y', 15, 51), row('x', 14, 50)]
+    expect(firstPageLeavesGap({ screen, pageDesc, nextCursor: 'x|50' })).toBe(true)
   })
 })

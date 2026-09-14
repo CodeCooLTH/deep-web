@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { buildDeltaWhere, isDeltaRequest } from '@/lib/chat-delta-query'
+import { buildDeltaWhere, deltaAfterUpdatedAt, DELTA_UPDATED_AT_OVERLAP_MS, isDeltaRequest } from '@/lib/chat-delta-query'
 
 describe('[blocker] delta สองแกน', () => {
   it('ระบุทั้งสองแกน = OR กัน (ใบใหม่ หรือ ใบเก่าที่ค่าเปลี่ยน)', () => {
@@ -23,6 +23,21 @@ describe('[blocker] delta สองแกน', () => {
     expect(isDeltaRequest({})).toBe(false)
     expect(isDeltaRequest({ afterSeq: 0 })).toBe(true) // seq 0 คือค่าที่ถูกต้อง ห้ามตกเพราะ falsy
     expect(isDeltaRequest({ afterUpdatedAt: '2026-09-14T09:00:00.000Z' })).toBe(true)
+  })
+})
+
+describe('[blocker] ระยะเผื่อของแกน updatedAt (R31)', () => {
+  it('ถอย 5 วินาทีจาก watermark', () => {
+    expect(DELTA_UPDATED_AT_OVERLAP_MS).toBe(5_000)
+    expect(deltaAfterUpdatedAt('2026-09-14T09:00:05.000Z')).toBe('2026-09-14T09:00:00.000Z')
+  })
+
+  it('hook ต้องส่งค่าที่ถอยแล้ว ไม่ใช่ watermark ดิบ', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread.ts'),
+      'utf8',
+    )
+    expect(src).toContain("params.set('afterUpdatedAt', deltaAfterUpdatedAt(cache.lastUpdatedAt))")
   })
 })
 
