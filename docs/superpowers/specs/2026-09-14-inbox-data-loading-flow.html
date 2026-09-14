@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Flow การโหลดข้อมูลของกล่องแชท /inbox — Deep</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#2F2B3D;
+    --ink-2:#6E6B7B;
+    --ink-3:#A5A3AE;
+    --line:#E4E6E8;
+    --bg:#F5F6FA;
+    --card:#FFFFFF;
+    --primary:#236DC9;
+    --primary-soft:#EAF1FB;
+    --success:#28C76F;
+    --success-soft:#E6F8EE;
+    --warning:#FF9F43;
+    --warning-soft:#FFF3E6;
+    --danger:#EA5455;
+    --danger-soft:#FDECEC;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:'Anuphan',system-ui,-apple-system,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    font-size:15px;
+    line-height:1.72;
+    -webkit-font-smoothing:antialiased;
+  }
+  code,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em}
+
+  /* ── full-width shell ─────────────────────────────────────── */
+  .wrap{width:100%;padding:0 clamp(16px,2.5vw,40px) 96px}
+
+  header.top{
+    position:sticky;top:0;z-index:30;
+    background:rgba(255,255,255,.92);
+    backdrop-filter:saturate(180%) blur(12px);
+    border-bottom:1px solid var(--line);
+    padding:14px clamp(16px,2.5vw,40px);
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  }
+  header.top h1{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em}
+  header.top .meta{color:var(--ink-3);font-size:12.5px;margin-inline-start:auto}
+  nav.toc{display:flex;gap:6px;flex-wrap:wrap}
+  nav.toc a{
+    text-decoration:none;color:var(--ink-2);font-size:13px;font-weight:500;
+    padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:#fff;
+    white-space:nowrap;transition:.15s;
+  }
+  nav.toc a:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-soft)}
+
+  section{margin-top:34px}
+  h2{
+    font-size:20px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em;
+    display:flex;align-items:baseline;gap:10px;scroll-margin-top:90px;
+  }
+  h2 .num{
+    font-size:13px;font-weight:600;color:var(--primary);background:var(--primary-soft);
+    border-radius:8px;padding:2px 9px;line-height:1.6;
+  }
+  h3{font-size:15.5px;font-weight:600;margin:26px 0 8px}
+  p.lead{color:var(--ink-2);margin:0 0 16px;max-width:110ch}
+
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px clamp(14px,1.6vw,26px);box-shadow:0 1px 2px rgba(47,43,61,.05);
+  }
+  .diagram{overflow-x:auto;padding-block:8px}
+  .mermaid{width:100%;display:flex;justify-content:center}
+  .mermaid svg{width:100%!important;max-width:none!important;height:auto}
+
+  .note{
+    border-inline-start:3px solid var(--primary);background:var(--primary-soft);
+    border-radius:0 10px 10px 0;padding:12px 16px;margin-top:16px;
+  }
+  .note.warn{border-color:var(--warning);background:var(--warning-soft)}
+  .note.bad{border-color:var(--danger);background:var(--danger-soft)}
+  .note.ok{border-color:var(--success);background:var(--success-soft)}
+  .note b{font-weight:600}
+  .note p{margin:0}
+  .note p + p{margin-top:6px}
+
+  ul.tight{margin:10px 0 0;padding-inline-start:22px}
+  ul.tight li{margin-bottom:7px}
+  ul.tight li::marker{color:var(--ink-3)}
+
+  .ref{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.2px;
+    background:#F2F3F7;border:1px solid var(--line);border-radius:6px;padding:1px 6px;color:var(--ink-2);
+    white-space:nowrap;
+  }
+
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
+  th,td{text-align:start;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-weight:600;color:var(--ink-2);font-size:12.5px;background:#FAFAFC;white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  td.n{width:42px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+
+  .grid2{display:grid;grid-template-columns:1fr;gap:16px}
+  @media (min-width:1100px){.grid2{grid-template-columns:1fr 1fr}}
+
+  .kv{display:flex;gap:10px;align-items:baseline;padding:7px 0;border-bottom:1px dashed var(--line)}
+  .kv:last-child{border-bottom:0}
+  .kv .k{min-width:72px;font-weight:600;font-size:13px;color:var(--primary);font-variant-numeric:tabular-nums}
+  .kv .v{color:var(--ink-2);font-size:14px}
+
+  footer{margin-top:48px;color:var(--ink-3);font-size:12.5px;border-top:1px solid var(--line);padding-top:16px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Flow การโหลดข้อมูลของกล่องแชท <code>/inbox</code></h1>
+  <nav class="toc">
+    <a href="#s1">1 · เปิด /inbox</a>
+    <a href="#s2">2 · เดสก์ท็อป vs มือถือ</a>
+    <a href="#s3">3 · ลูปหลัง hydrate</a>
+    <a href="#s4">4 · เข้าห้องแชท</a>
+    <a href="#s5">5 · ลูปในห้องแชท</a>
+    <a href="#s6">6 · สรุปข้อสังเกต</a>
+  </nav>
+  <span class="meta">อ่านจากโค้ดบน main · 2026-09-14</span>
+</header>
+
+<div class="wrap">
+
+  <!-- ───────────────────────── 1 ───────────────────────── -->
+  <section id="s1">
+    <h2><span class="num">1</span> โหลดหน้า <code>/inbox</code> เข้ามาใหม่ (cold load / กด refresh)</h2>
+    <p class="lead">
+      มี 2 เฟส — เฟส server (RSC) ที่เรนเดอร์ HTML ชุดแรก แล้วเฟส client ที่ยิงต่ออีกชุดหลัง hydrate.
+      ระหว่างเฟส B ผู้ใช้เห็นสเกเลตันจาก <span class="ref">inbox/loading.tsx</span>
+    </p>
+    <div class="card diagram">
+<pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant B as Browser
+    participant PX as proxy.ts
+    participant L as chat layout.tsx RSC
+    participant P as inbox/page.tsx RSC
+    participant DB as Postgres / Prisma
+    participant AF as background after
+
+    B->>PX: GET /inbox (seller subdomain)
+    PX->>PX: gate session + onboarding/register (ไม่ยกเว้น /inbox)
+    PX->>L: render
+
+    rect rgb(234,241,251)
+    note over L,DB: เฟส A — layout RSC (เปลือกแชท) รันก่อนเสมอ
+    L->>DB: getCachedSession() — react cache
+    L->>DB: resolveChatScope(): activeShopCtx + user.chatScopeMode ผ่าน Promise.all
+    L->>DB: (+ listAccessibleShopIds ถ้าโหมด UNIFIED)
+    L->>DB: Promise.all [ shop.findMany(scope.shopIds) , listChannelsForShops(shopIds) ]
+    L->>DB: Promise.all 7 ตัว — catalog, bestSellers(8), entitlement, shopShippingAccount, shop.vertical, unreadCount, hidePayments
+    L->>DB: resolveSellerMenuItems(...) + shouldHidePaidFeatures()
+    opt vertical = SERVICE_QUEUE
+    L->>DB: listServiceResources(shopId)
+    end
+    L-->>B: เปลือก — ChatHeader + ChatNavRail + InboxTabs + ChatRailColumn + DraftOrderProvider
+    end
+
+    rect rgb(230,248,238)
+    note over P,DB: เฟส B — page RSC (รายการแชท) — โชว์ inbox/loading.tsx ระหว่างนี้
+    P->>DB: getServerSession(authOptions) — ไม่ใช่ getCachedSession จึง decode ซ้ำ
+    P->>DB: resolveChatScope() รอบที่ 2
+    P->>DB: isShopChatMuted(userId, activeShopId)
+    P->>DB: listChannelsForShops(shopIds) รอบที่ 2
+    opt โหมด SINGLE
+    P->>DB: listChatGroups(shopIds[0])
+    end
+    P->>DB: shopShippingAccount.count(status = ACTIVE)
+    P->>DB: getInboxPreference(userId, activeShopId)
+    P->>DB: listConversationsForShops(shopIds, take 20, + ตัวกรองจาก preference)
+    note right of DB: ข้างใน — readState เรียก unreadConversationIdsForShops<br/>shipment เรียก conversationIdsByShipmentState<br/>แล้วค่อย conversation.findMany(take+1) แบบ keyset
+    P->>DB: user.findMany(buyerIds)
+    P->>DB: externalContact.findMany(contactIds)
+    P->>DB: countUnreadByConversation(ids) — raw SQL GROUP BY
+    opt โหมด UNIFIED
+    P->>DB: shop.findMany(shopIds) ทำ map ชื่อร้าน
+    end
+    P->>DB: enrichWithOrderStage(items, shopIds)
+    P->>DB: countDraftedOrdersByConversation(...)
+    P->>DB: enrichWithCustomerBehavior(...)
+    P->>DB: enrichWithAutoReplyBadge(...)
+    P->>DB: enrichWithThreadAgents(...)
+    P-->>B: HTML — มือถือได้ InboxList พร้อมข้อมูล 20 แถว / เดสก์ท็อปได้การ์ดว่าง
+    end
+
+    P->>AF: after(): syncShipmentStatuses(shopId) ทุกร้านในขอบเขต
+    AF->>AF: ยิง iShip หลังส่ง response แล้ว — ไม่หน่วงการโหลดหน้า
+</pre>
+    </div>
+
+    <div class="note warn">
+      <p><b>จุดที่ควรรู้จากเฟสนี้</b></p>
+      <ul class="tight">
+        <li><span class="ref">inbox/page.tsx:170-279</span> เป็น waterfall ล้วน — <code>await</code> ต่อกันทีละบรรทัด ไม่มี <code>Promise.all</code> เลย รวม 17 คิวรีเรียงเป็นลูกโซ่</li>
+        <li><code>resolveChatScope</code> + <code>listChannelsForShops</code> ถูกเรียก <b>2 รอบต่อ 1 request</b> (layout ครั้งหนึ่ง page อีกครั้งหนึ่ง) เพราะ scope ไม่ได้ห่อ <code>react cache</code> ต่างจาก <code>getCachedSession</code></li>
+        <li><span class="ref">page.tsx:77</span> ใช้ <code>getServerSession</code> ตรง ๆ ขณะที่ layout และหน้าเธรดใช้ <code>getCachedSession</code> → session decode ซ้ำอีกใบ</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 2 ───────────────────────── -->
+  <section id="s2">
+    <h2><span class="num">2</span> เดสก์ท็อปกับมือถือโหลดรายการคนละทาง</h2>
+    <p class="lead">
+      ส่วนที่มักเข้าใจผิด — บนจอ ≥1024px รายการที่เห็น <b>ไม่ได้มาจาก HTML ของ page.tsx เลย</b>
+      แต่มาจาก <code>ChatRail</code> ซึ่งเป็น client component ที่ยิง API เองตอน mount
+    </p>
+    <div class="card diagram">
+<pre class="mermaid">
+flowchart TB
+    A["/inbox ถูกเรนเดอร์"] --> B{"ความกว้างจอ"}
+
+    B -->|"น้อยกว่า 1024px"| C["div.lg:hidden ใน page.tsx"]
+    C --> D["InboxList ได้ initialItems จาก RSC<br/>เห็นข้อมูลทันทีที่ HTML มาถึง<br/>persistScroll = true"]
+
+    B -->|"ตั้งแต่ 1024px"| E["ChatRailColumn ใน layout.tsx<br/>client component อ่าน pathname"]
+    E --> F{"pathname ขึ้นต้นด้วย /inbox/comments"}
+    F -->|ใช่| G["ไม่ render rail เลย<br/>เหลือแค่ ChatSoundListener"]
+    F -->|ไม่| H["ChatRail mount — items ว่าง loading = true"]
+    H --> I["useEffect mount ครั้งเดียว deps ว่าง"]
+    I --> J["fetch /api/chat/groups ถ้าไม่ใช่ UNIFIED"]
+    J --> K["fetch /api/chat/conversations?take=20 usePref=1"]
+    K --> L["setItems แล้วส่งเข้า InboxList เป็น initialItems"]
+
+    D --> M["จากจุดนี้ InboxList คุมทุกอย่างเหมือนกันทั้ง 2 ทาง"]
+    L --> M
+</pre>
+    </div>
+    <div class="note bad">
+      <p>
+        แปลว่า <b>บนเดสก์ท็อป รายการแชทถูกโหลด 2 ครั้งต่อการเปิดหน้า 1 ครั้ง</b> —
+        RSC ของ <code>page.tsx</code> ดึง 20 แถวเต็มพร้อม enrich ทั้งชุด แล้วซ่อนไว้ใน <code>lg:hidden</code> โดยไม่มีใครเห็น
+        ส่วน <code>ChatRail</code> ยิง <code>/api/chat/conversations</code> ซึ่งวิ่งผ่าน <code>listConversationsForShops</code> + enrich ชุดเดียวกันอีกรอบ
+        (<span class="ref">api/chat/conversations/route.ts:197-229</span>)
+      </p>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 3 ───────────────────────── -->
+  <section id="s3">
+    <h2><span class="num">3</span> สิ่งที่ยิงต่อหลัง hydrate และวนตลอดเวลาที่หน้าเปิดอยู่</h2>
+    <div class="card diagram">
+<pre class="mermaid">
+flowchart LR
+    subgraph mount["ตอน mount ครั้งเดียว"]
+        T1["InboxList: fetch /api/chat/tags"]
+        T2["InboxList: fetch /api/chat/spam-unread — force"]
+        T3["InboxList: fetch /api/chat/problem-count — force<br/>เฉพาะร้านที่เชื่อม iShip"]
+        T4["InboxTabs: fetch /api/chat/inbox-tab-counts<br/>cache ระดับโมดูล ใช้ร่วมทั้งหน้า"]
+    end
+
+    subgraph triggers["ตัวกระตุ้นให้โหลดรายการใหม่"]
+        R1["Realtime: channel chat:shop:ID<br/>event new_message — refcounted singleton"]
+        R2["visibilitychange + window focus"]
+        R3["setInterval 20 วินาที เฉพาะตอนแท็บ visible"]
+    end
+
+    R1 --> DB0["scheduleRefresh — debounce 400ms"]
+    R2 --> DB0
+    R3 --> DB0
+    DB0 --> RF["refreshFirstPage<br/>GET /api/chat/conversations หน้าแรก no-store<br/>+ refreshSpamUnread throttle 60 วิ"]
+    RF --> MERGE["merge หน้าแรกทับของเดิม แถวเก่าที่ไม่ซ้ำยังอยู่<br/>pickBeepTarget แล้ว playChatBeep ถ้ามีของใหม่"]
+
+    subgraph user["ผู้ใช้ทำเอง"]
+        U1["เปลี่ยนแท็บช่องทาง เพจ กลุ่ม ตัวกรอง เรียงลำดับ"]
+        U2["พิมพ์ค้นหา — debounce 400ms ที่ ChatSearchContext"]
+        U3["เลื่อนถึง sentinel ล่างสุด"]
+    end
+
+    U1 --> FL["fetchList append=false<br/>เช็ค listSignature กันผลลัพธ์เก่ามาทับ"]
+    U2 --> FL
+    U3 --> LM["loadMore: fetchList cursor append=true<br/>keyset cursor จาก lastMessageAt หรือ isPinned|time"]
+
+    subgraph restore["คืนตำแหน่ง scroll เฉพาะมือถือ persistScroll"]
+        S1["unmount: saveInboxSnapshot scrollTop + loadedCount"]
+        S2["mount: readInboxSnapshot แล้วไล่ loadMore จนแถวครบ<br/>แล้วค่อย pin scrollTop ผ่าน rAF สูงสุด 6 เฟรม"]
+    end
+</pre>
+    </div>
+    <div class="note">
+      <p>
+        <code>InboxTabs</code> มีลูปของตัวเองแยกต่างหาก — <code>setInterval</code> + <code>subscribeShopChat</code> +
+        <code>subscribeShopComments</code> เรียก <code>refreshCounts()</code> ที่ throttle 60 วินาที
+        (<span class="ref">InboxTabs.tsx:35,77,94</span>)
+      </p>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 4 ───────────────────────── -->
+  <section id="s4">
+    <h2><span class="num">4</span> กดเข้าห้องแชท <code>/inbox/[conversationId]</code></h2>
+    <p class="lead">
+      เป็น soft navigation — <code>(chat)/layout.tsx</code> เป็น shared layout จึง <b>ไม่รันซ้ำ</b>
+      (catalog เมนู channels ที่โหลดไว้ยังอยู่) Next ดึงเฉพาะ RSC payload ของ segment <code>[conversationId]</code>
+    </p>
+    <div class="card diagram">
+<pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant U as ผู้ใช้
+    participant IL as InboxList
+    participant TP as thread page.tsx RSC
+    participant DB as Prisma
+    participant CT as ChatThread + useSellerChatThread
+    participant AF as after background
+
+    U->>IL: คลิกแถว
+    IL->>IL: ตั้ง localReadAt ของแถวนั้นทันที + refreshSpamUnread force
+    IL->>TP: router push ไปที่ /inbox/ID
+
+    rect rgb(234,241,251)
+    note over TP,DB: RSC ของเธรด — ลูกโซ่ await ตาม createRscTimer
+    TP->>DB: getCachedSession — mark auth
+    TP->>DB: resolveChatScope — mark resolveChatScope
+    TP->>DB: conversation.findFirst(id + shopId IN scope.shopIds) — mark conversation
+    alt ไม่เจอในขอบเขต
+    TP->>DB: findConversationShopForUser(id, userId)
+    TP-->>U: ChatShopAutoSwitch สลับร้านให้ แล้วกลับมาด้วย ?switched=1
+    end
+    TP->>DB: Promise.all 5 — shop, autoReplyConfig, aiChatbotTestThread, autoReplyKeyword.count, keywordTestThread
+    opt ช่องทางนอกและหน้าต่างตอบใกล้หมด
+    TP->>AF: after(syncInboundWindowFromMeta) — ไม่รอ Meta
+    end
+    TP->>DB: commentReplyLog.findFirst — เธรดนี้มาจากคอมเมนต์ไหม
+    opt ช่องทาง LINE
+    TP->>DB: getLineQuotaByChannelId — mark lineQuota
+    end
+    TP->>DB: listSavedFileIds — ยิงไว้ก่อน ยังไม่ await
+    TP->>DB: customer.findUnique ถ้าเป็นเธรด DEEP
+    TP->>DB: order.findMany take 20 + items + payments + shipments LATEST_FORWARD
+    opt มีลูกค้าผูกแล้ว
+    TP->>DB: Promise.all [ order.count , order.aggregate sum ] — mark customerPanel
+    end
+    TP->>DB: await savedFileIdsPromise
+    TP->>DB: getThreadMessagesPage(take 30) — mark initialMessages
+    TP-->>CT: props ครบ — customerPanelData + savedFileIds + initialMessages
+    end
+</pre>
+    </div>
+    <div class="note ok">
+      <p>
+        <b>initialMessages คือกุญแจของรอบนี้</b> — ข้อความ 30 ใบมาพร้อมหน้าเลย
+        hook จึงไม่ยิง <code>GET .../messages?take=30</code> ซ้ำตอน mount
+        (<span class="ref">useSellerChatThread.ts:512-519</span> เช็ค <code>seededForRef</code> แล้ว <code>return</code> ทันที เหลือแค่ POST <code>/read</code>)
+        และสเกเลตันของ ChatThread ไม่ต้องโผล่
+      </p>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 5 ───────────────────────── -->
+  <section id="s5">
+    <h2><span class="num">5</span> สิ่งที่วิ่งต่อหลังห้องแชทเปิดแล้ว</h2>
+    <div class="card diagram">
+<pre class="mermaid">
+flowchart TB
+    M["ChatThread mount พร้อม initialMessages"] --> A1["POST /api/chat/conversations/ID/read ทันที"]
+    M --> A2["refetchNewer 1 ครั้ง — GET messages take 30<br/>กันข้อความที่เข้ามาระหว่าง RSC เดินทาง"]
+    M --> A3["CustomerPanel: fetch /crm no-store"]
+    M --> A4["CustomerFileLibrarySection: fetch /library?take=N"]
+    M --> A5["scrollToBottom + ResizeObserver pin ล่างสุด 4 วินาที"]
+
+    subgraph loops["ลูปตลอดเวลาที่เปิดห้อง"]
+        L1["Realtime channel chat:conversationId<br/>broadcast update ทำ refetchNewer + markReadDebounced<br/>re-join เองใน 3 วิ เมื่อ CHANNEL_ERROR หรือ TIMED_OUT"]
+        L2["setInterval 6 วินาที เฉพาะ visible ทำ refetchNewer<br/>เพราะ read receipt ของ Meta ไม่ทริกเกอร์ realtime"]
+        L3["visibilitychange + focus ทำ refetchNewer debounce 400ms"]
+        L4["setInterval 1 วิ นับถอยหลังหน้าต่างตอบ<br/>setInterval 15 วิ metaTick รีเฟรชป้ายเวลา"]
+    end
+
+    L1 --> RN["refetchNewer — GET messages take 30<br/>merge เข้า Map ตาม id เรียงด้วย createdAt แล้ว seq<br/>reconcile แถว local ที่ส่งไปแล้ว<br/>beep ถ้ามีใบใหม่จาก BUYER และ beepEnabled"]
+    L2 --> RN
+    L3 --> RN
+
+    subgraph older["เลื่อนขึ้นดูของเก่า"]
+        O1["IntersectionObserver ที่ topSentinel root คือกล่องข้อความ"]
+        O1 --> O2["loadOlder — GET messages cursor + take 30"]
+        O2 --> O3["prepend แล้วชดเชย scrollTop เท่ากับ scrollHeight ลบ prevHeight ใน rAF"]
+    end
+
+    subgraph panel["แผงขวา และชีตมือถือ"]
+        P1["ออเดอร์ 20 ใบแรกมาจาก RSC"]
+        P1 --> P2["IntersectionObserver sentinel ทำ GET /conversations/ID/orders?cursor="]
+    end
+</pre>
+    </div>
+    <div class="note warn">
+      <p><b>หมายเหตุสำคัญของลูปนี้</b></p>
+      <p>
+        <code>refetchNewer</code> ดึง <b>หน้าแรก 30 ใบใหม่ทั้งก้อนทุกครั้ง</b> ไม่ใช่ delta —
+        ทุก 6 วินาทีขณะเปิดห้อง บวก realtime บวกทุกครั้งที่กลับมาที่แท็บ
+      </p>
+      <p>
+        และ <code>ChatThread</code> กับ <code>InboxList</code> subscribe คนละ channel
+        (<code>chat:{conversationId}</code> กับ <code>chat:shop:{shopId}</code>)
+        ข้อความใบเดียวจึงกระตุ้น 2 เส้นพร้อมกัน — โค้ดแก้การ beep ซ้ำด้วยการปิด <code>beepEnabled</code>
+        ฝั่ง ChatThread เมื่ออยู่หน้า inbox (<span class="ref">useSellerChatThread.ts:349-351</span>)
+      </p>
+    </div>
+
+    <h3>ลูปเวลาที่วิ่งพร้อมกันตอนเปิดห้องแชท</h3>
+    <div class="card">
+      <div class="kv"><span class="k">1 วิ</span><span class="v">นับถอยหลังหน้าต่างตอบของช่องทางนอก — เฉพาะตอน window ยังเปิด</span></div>
+      <div class="kv"><span class="k">6 วิ</span><span class="v"><code>refetchNewer</code> — ข้อความใหม่ + read receipt + delivery status</span></div>
+      <div class="kv"><span class="k">15 วิ</span><span class="v"><code>metaTick</code> — รีเฟรชป้ายเวลาสัมพัทธ์บนบับเบิล</span></div>
+      <div class="kv"><span class="k">20 วิ</span><span class="v"><code>scheduleRefresh</code> ของ InboxList — รายการแชทหน้าแรก</span></div>
+      <div class="kv"><span class="k">60 วิ</span><span class="v">badge — แท็บข้อความ/ความคิดเห็น, สแปมยังไม่อ่าน, พัสดุมีปัญหา</span></div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 6 ───────────────────────── -->
+  <section id="s6">
+    <h2><span class="num">6</span> สรุปข้อสังเกตจากการไล่โค้ด</h2>
+    <p class="lead">ข้อเท็จจริงที่อ่านได้จากโค้ดตรง ๆ ยังไม่ใช่ข้อเสนอให้แก้</p>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th class="n">#</th><th>สิ่งที่พบ</th><th>ที่มา</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="n">1</td>
+            <td><code>/inbox</code> บนเดสก์ท็อปโหลดรายการ 2 รอบ — RSC ทำเต็มชุดแล้วซ่อนด้วย <code>lg:hidden</code> และ ChatRail ยิง API ซ้ำ</td>
+            <td><span class="ref">inbox/page.tsx:344</span><br/><span class="ref">ChatRail.tsx</span> useEffect deps ว่าง</td>
+          </tr>
+          <tr>
+            <td class="n">2</td>
+            <td>enrich 17 ขั้นใน <code>inbox/page.tsx</code> เป็น <code>await</code> ต่อกันหมด ไม่มี <code>Promise.all</code> เลย</td>
+            <td><span class="ref">inbox/page.tsx:170-279</span></td>
+          </tr>
+          <tr>
+            <td class="n">3</td>
+            <td><code>resolveChatScope</code> + <code>listChannelsForShops</code> รัน 2 รอบต่อ request (layout + page)</td>
+            <td><span class="ref">layout.tsx:81,98</span><br/><span class="ref">page.tsx:83,119</span></td>
+          </tr>
+          <tr>
+            <td class="n">4</td>
+            <td><code>page.tsx</code> ใช้ <code>getServerSession</code> ตรง ๆ ขณะที่ layout และหน้าเธรดใช้ <code>getCachedSession</code></td>
+            <td><span class="ref">page.tsx:77</span> เทียบ <span class="ref">layout.tsx:73</span></td>
+          </tr>
+          <tr>
+            <td class="n">5</td>
+            <td>หน้าเธรดยิง <code>GET messages</code> ทันทีหลัง mount ถึงจะมี <code>initialMessages</code> แล้วก็ตาม — ตั้งใจ เพื่อกันข้อความหล่นระหว่าง RSC เดินทาง</td>
+            <td><span class="ref">useSellerChatThread.ts</span> effect <code>if (!initial) return</code></td>
+          </tr>
+          <tr>
+            <td class="n">6</td>
+            <td>ลูปเวลา 5 ตัววิ่งพร้อมกันตอนเปิดห้องแชท (1 / 6 / 15 / 20 / 60 วินาที)</td>
+            <td>ดูตารางในหัวข้อ 5</td>
+          </tr>
+          <tr>
+            <td class="n">7</td>
+            <td>งานที่ไม่ควรหน่วงหน้า ถูกผลักเข้า <code>after()</code> ครบ — <code>syncShipmentStatuses</code>, <code>syncInboundWindowFromMeta</code>, <code>syncMissingMessagesFromMeta</code>, <code>sweepStuckJobs</code></td>
+            <td><span class="ref">page.tsx:214</span><br/><span class="ref">[id]/page.tsx:359</span><br/><span class="ref">messages/route.ts:161</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <p>
+        <b>เครื่องมือที่มีอยู่แล้ว</b> — หน้าเธรดรองรับ <code>?debug=timing</code>
+        (<span class="ref">RscTiming.tsx</span> + <span class="ref">lib/rsc-timer.ts</span>)
+        เปิด <code>/inbox/&lt;id&gt;?debug=timing</code> จะเห็น mark ทุกช่วงตรงกับไดอะแกรมหัวข้อ 4
+        ใช้วัดได้ว่าคิวรีไหนกินเวลาจริงเท่าไรก่อนตัดสินใจแก้ waterfall
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    เอกสารนี้อ่านจากซอร์สจริงบนแบรนช์ main — ไฟล์หลักที่ไล่: <code>(chat)/layout.tsx</code>,
+    <code>inbox/page.tsx</code>, <code>inbox/components/InboxList.tsx</code>,
+    <code>_components/ChatRail.tsx</code>, <code>inbox/[conversationId]/page.tsx</code>,
+    <code>_shared/useSellerChatThread.ts</code>, <code>api/chat/conversations/route.ts</code>,
+    <code>services/chat.service.ts</code>
+  </footer>
+
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: 'loose',
+    theme: 'base',
+    fontFamily: "'Anuphan', system-ui, sans-serif",
+    themeVariables: {
+      primaryColor: '#EAF1FB',
+      primaryTextColor: '#2F2B3D',
+      primaryBorderColor: '#236DC9',
+      lineColor: '#8A97A8',
+      secondaryColor: '#F5F6FA',
+      tertiaryColor: '#FFFFFF',
+      noteBkgColor: '#FFF3E6',
+      noteBorderColor: '#FF9F43',
+      noteTextColor: '#2F2B3D',
+      actorBkg: '#FFFFFF',
+      actorBorder: '#236DC9',
+      actorTextColor: '#2F2B3D',
+      signalColor: '#6E6B7B',
+      signalTextColor: '#2F2B3D',
+      labelBoxBkgColor: '#EAF1FB',
+      labelBoxBorderColor: '#236DC9',
+      clusterBkg: '#FAFAFC',
+      clusterBorder: '#E4E6E8'
+    },
+    flowchart: { useMaxWidth: false, htmlLabels: true, curve: 'basis', nodeSpacing: 46, rankSpacing: 54 },
+    sequence: { useMaxWidth: false, actorMargin: 64, boxMargin: 12, noteMargin: 12, messageMargin: 38, wrap: true, width: 200 }
+  });
+</script>
+</body>
+</html>
