@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   canAutoLoadOlder,
+  countUnseenIncrement,
   pickNewIncoming,
   shouldDeferFullDeltaReplace,
   shouldFollowNewMessages,
@@ -67,5 +68,21 @@ describe('[blocker] shouldDeferFullDeltaReplace — delta ครบเพดา�
 
   it('อยู่ล่างสุด = แทนที่ได้ทันที', () => {
     expect(shouldDeferFullDeltaReplace({ atBottom: true })).toBe(false)
+  })
+})
+
+describe('[blocker] countUnseenIncrement — ตัวนับปุ่ม "ข้อความใหม่" นับเฉพาะลูกค้า (R24)', () => {
+  it('แถวร้าน (บอท/เพื่อนร่วมทีม/Meta AI) ไม่เพิ่มตัวนับ', () => {
+    expect(countUnseenIncrement([{ senderRole: 'SHOP' }, { senderRole: 'SHOP' }])).toBe(0)
+  })
+
+  it('นับเท่าจำนวนข้อความลูกค้าในชุดผสม', () => {
+    expect(
+      countUnseenIncrement([{ senderRole: 'BUYER' }, { senderRole: 'SHOP' }, { senderRole: 'BUYER' }]),
+    ).toBe(2)
+  })
+
+  it('ชุดว่าง = 0 (ทาง R16 ไม่มีขั้นต่ำ 1 แล้ว)', () => {
+    expect(countUnseenIncrement([])).toBe(0)
   })
 })
