@@ -257,6 +257,7 @@ export async function GET(
     take: rawTake === null ? undefined : Number(rawTake),
     afterSeq: searchParams.get("afterSeq") === null ? undefined : Number(searchParams.get("afterSeq")),
     afterUpdatedAt: searchParams.get("afterUpdatedAt") ?? undefined,
+    sync: searchParams.get("sync") ?? undefined,
   };
   const parsed = v.safeParse(ChatMessagesQuerySchema, input);
   if (!parsed.success) {
@@ -290,11 +291,15 @@ export async function GET(
      */
     /**
      * ไล่เก็บข้อความที่ webhook ไม่เคยส่งมา — ผูกกับ "การเปิดห้อง" เท่านั้น
-     * 🛑 คำขอแบบ delta คือ poll ที่ยิงทุก 12 วินาที ถ้าปล่อยให้ trigger ด้วย จะกลายเป็นการ
+     * 🛑 คำขอแบบ delta ส่วนใหญ่คือ poll ที่ยิงทุก 12 วินาที ถ้าปล่อยให้ trigger ด้วย จะกลายเป็นการ
      *    ยิง Graph ตามรอบ poll (throttle 5 นาทีกันไว้ชั้นหนึ่ง แต่ไม่ควรพึ่ง throttle
      *    เป็นด่านเดียว — เจตนาของโค้ดต้องอ่านออกจากเงื่อนไขเอง)
+     * 🛑 R7: แต่การเปิดห้องเองก็เป็น delta แล้ว (hook เปิดจาก cache / seed store จาก RSC ก่อนเช็คซ้ำ)
+     *    ⇒ ถ้าไม่มี `sync=1` ข้อความที่ webhook ไม่ส่ง (คำตอบของ Meta AI · เธรด standby ·
+     *    "X replied to an ad.") จะไม่มีวันโผล่เลย · hook ส่ง `sync=1` เฉพาะครั้งแรกหลังเปิดห้อง
+     *    · ห้ามย้ายไป sync ในหน้า RSC — หน้านั้นถูก prefetch ให้ทุกแถวที่มองเห็นในรายการแชท
      */
-    if (!parsed.output.cursor && !isDeltaRequest(parsed.output)) {
+    if (!parsed.output.cursor && (!isDeltaRequest(parsed.output) || parsed.output.sync === '1')) {
       after(syncMissingMessagesFromMeta(id));
       timer.mark("sync", "deferred");
     } else {
