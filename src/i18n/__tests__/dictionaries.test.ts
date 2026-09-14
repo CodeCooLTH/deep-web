@@ -136,6 +136,13 @@ describe('applyMenuLocale — ทุกเมนูต้องมีคำแ�
     // vertical ที่ไม่รู้จักต้องถอยไปคำของร้านขายของ ไม่ใช่ undefined (fail-safe เดียวกับ applyVerticalMenu)
     expect(labelFor('SOMETHING_NEW')).toBe(labelFor('ONLINE_SALES'))
   })
+
+  it('[blocker] แถบ Human Agent ต้องมี {date} ครบ 1 ตัวทุกภาษา — ChatThread split ตรงนั้น', () => {
+    // ขาด {date} = ครึ่งหลังของประโยค ("ต้องพิมพ์เอง ห้ามโปรโมชัน") หายเงียบ ๆ ซึ่งคือฉากคลิป E ที่ยื่น Meta
+    for (const dict of [th, en]) {
+      expect(dict.inbox.windowStatusHumanAgentDetail.split('{date}')).toHaveLength(2)
+    }
+  })
 })
 
 describe('toLocale / isLocale — fail-closed (BR-I18N-05)', () => {

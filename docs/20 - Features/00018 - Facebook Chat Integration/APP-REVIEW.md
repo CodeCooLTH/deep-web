@@ -28,7 +28,7 @@
 | `GET /{page-id}/video_reels?fields=…,views,likes.summary(true),comments.summary(true)` | คลิปของเพจให้ร้านเลือกไปโชว์บนหน้าร้าน (feat 00021) | `pages_read_engagement` |
 | `GET /{ig-user-id}/media?fields=…,caption,media_url,like_count,comments_count` | คลิป IG ของร้านเอง ให้เลือกไปโชว์บนหน้าร้าน (feat 00021) | `instagram_basic` |
 | `GET /{ig-user-id}?fields=username` | ชื่อบัญชี IG ที่เป็นเจ้าของคลิป | `instagram_basic` |
-| ~~`GET /{media-id}/insights?metric=views\|plays`~~ | **ถอดออกแล้ว 2026-08-01** — ต้องใช้ `instagram_manage_insights` ที่ขอไม่ได้ ล้มเหลว 100% และขัดกับคำอธิบายที่ยื่น | — |
+| `GET /{media-id}/insights?metric=views` | ยอดวิวคลิป IG ของร้านเองในตัวเลือกคลิปหน้า Storefront — ถอดไป 2026-08-01 · **เอากลับ 2026-09-14** (metric เดียว ตาม §11.2.5) | `instagram_manage_insights` (รอบ 3) |
 | webhook fields | `messages, message_echoes, message_reads, message_reactions, messaging_postbacks, messaging_referrals` | `pages_messaging`, `pages_manage_metadata` |
 
 ---
@@ -940,6 +940,12 @@ is allowed"* ⇒ รูปแบบนี้ผ่านแล้ว ห้า�
 
 ### 11.3 🛑 บล็อกเกอร์ที่ต้องแก้ก่อนอัดคลิป — UI ของเส้นทางใหม่ยังเป็นภาษาไทยทั้งหมด
 
+> **แก้ 2026-09-14 — ตารางด้านล่างผิดครึ่งหนึ่ง:** แท็บ `comments/` **แปลแล้ว** (ข้อความไทยที่เหลือใน
+> `CommentsClient.tsx` เป็นคอมเมนต์ในโค้ดทั้งหมด · ฟุตเทจคลิป C 2026-08-15 โหมด EN เห็นเป็นอังกฤษ) —
+> ตัวชี้วัด "`useT` 11 จุด" นับผิดเพราะไฟล์ใช้ `t.inbox.*` ผ่านตัวแปรเดียว. ที่ยังเป็นไทยจริงมีแค่แถบ
+> หน้าต่างเวลาใน `ChatThread.tsx` (คลิป E) — แก้ในรอบเดียวกันนี้. ลำดับการอัดฉบับที่ใช้จริง:
+> `~/Documents/Meta Review Round 3/SHOT-LIST.md` (คลิป D/E/F — F แยกจากคลิป B ไม่ต่อท้าย)
+
 รอบแรกถูกตีกลับเพราะ *"UI ยังไม่เป็นอังกฤษทั้งเส้นทาง"* (§9.2) และรอบ 2 ต้องมีรอบแปลภาษาตามมา
 (§9.4) — **เส้นทางของคลิป D และ E ยังไม่ผ่านรอบนั้นเลยสักบรรทัด** ตรวจ 2026-09-08:
 
@@ -987,7 +993,7 @@ is allowed"* ⇒ รูปแบบนี้ผ่านแล้ว ห้า�
 | ฉาก | สิ่งที่ทำบนจอ | caption |
 |---|---|---|
 | 1 | เปิดเธรดนั้น → ให้เห็น **เวลาของข้อความล่าสุดของลูกค้า** ชัด ๆ ว่าเกิน 24 ชม. | The customer's last message arrived more than 24 hours ago — outside Meta's standard messaging window. |
-| 2 | 🎯 แถบเหนือช่องพิมพ์ขึ้นว่า **`More than 24 hours have passed — you can still reply yourself until {วันเวลา}. It must be a message you type yourself; promotional content is not allowed.`** | Deep tells the seller the rule before they type: hand-written replies only, no promotional content. |
+| 2 | 🎯 แถบเหนือช่องพิมพ์ขึ้นว่า **`More than 24 hours have passed. You can still reply until {วันเวลา}, but only with messages you type yourself — no promotional content (Meta policy).`** (คำจริงบนจอหลังแปล 2026-09-14 — `en.ts` `windowStatusHumanAgentDetail`) | Deep tells the seller the rule before they type: hand-written replies only, no promotional content. |
 | 3 | 🎯 พิมพ์คำตอบด้วยมือ (เช่น สถานะพัสดุที่เพิ่งอัปเดต) → กด **`Send`** | A human agent answers the customer's original question, sent with the `HUMAN_AGENT` tag. |
 | 4 | สลับไปจอ Messenger ของลูกค้าให้เห็นว่าได้รับจริง | Delivered. |
 | 5 | เปิดเมนู auto-reply/AI ให้เห็นว่ามันไม่ทำงานในเธรดนี้ (หรือโชว์หน้าตั้งค่าที่ระบุว่า automation ไม่ใช้ tag นี้) | Automated replies never use this tag — only messages typed by a person. |
@@ -1013,7 +1019,7 @@ clip to feature by how many people watched it."*
 |---|---|---|
 | `pages_read_user_content` | `GET /api/cron/comment-attachment-repair?take=5` (Run จาก Vercel Dashboard) | scope อยู่ใน `CONNECT_SCOPES` แล้ว — ยิงได้เลย |
 | `pages_manage_engagement` | ตอบคอมเมนต์ 1 ใบจากแท็บ `Comments` บน prod | เหมือนกัน — ยิงได้เลย |
-| `instagram_manage_insights` | เลือกคลิป IG ในหน้า `Storefront` | 🛑 **ต้องแก้โค้ดก่อน** ดู §11.6 |
+| `instagram_manage_insights` | เปิดตัวเลือกคลิปในหน้า `Storefront` (โหลดรายการ = ยิง insights ทุกคลิป IG) | scope ✅ (09-08) · 🛑 **call ถูกถอดจาก `shop-video.service.ts` ตั้งแต่ 08-01** (ใส่ scope อย่างเดียวไม่มี call เกิด) — เอากลับแล้ว 2026-09-14 ต้อง deploy + เชื่อมเพจใหม่ก่อน |
 
 ### 11.6 🛑 `instagram_manage_insights` — ลำดับที่เคยเขียนไว้ในโค้ดใช้ไม่ได้ ต้องกลับด้าน
 
@@ -1043,8 +1049,10 @@ clip to feature by how many people watched it."*
 
 ### 11.7 เช็คลิสต์ก่อนกดส่ง
 
-- [ ] §11.3 แปล UI ของเส้นทางคลิป D + แถบหน้าต่างเวลาของคลิป E เป็นอังกฤษ (**ทำก่อนอย่างอื่น**)
-- [ ] ใส่ `instagram_manage_insights` กลับใน `CONNECT_SCOPES` + deploy + เชื่อมเพจใหม่ 1 เพจ
+- [x] §11.3 แท็บ Comments (คลิป D) — แปลอยู่แล้ว (ตรวจ 2026-09-14)
+- [x] แถบหน้าต่างเวลาของคลิป E เป็นอังกฤษ (`ChatThread.tsx` → `inbox.windowStatus*` — โค้ดเสร็จ 2026-09-14 ยังไม่ deploy)
+- [x] ใส่ `instagram_manage_insights` กลับใน `CONNECT_SCOPES` (2026-09-08)
+- [ ] เอา call `GET /{media-id}/insights` กลับใน `shop-video.service.ts` (โค้ดเสร็จ 2026-09-14) + deploy + เชื่อมเพจใหม่ 1 เพจ
 - [ ] ยิง `api_precheck` ครบ 3 ตัว (§11.5)
 - [ ] ให้บัญชีทดสอบทักเข้าเพจ Code CooL **≥1 วันก่อนอัดคลิป E**
 - [ ] ตั้ง `META_HUMAN_AGENT_TEST_PSIDS` บน prod (🛑 **ห้ามตั้ง `META_HUMAN_AGENT_ENABLED=true`**

@@ -558,6 +558,21 @@ export const en: Dictionary = {
     send: 'Send',
     sendWithNote: 'Send — {note}',
     windowClosingSoon: 'Reply window closing — {remaining} left',
+    windowStatusCommentReplyShort: 'One message allowed — wait for the customer to reply',
+    windowStatusCommentReplyDetail:
+      'This chat started from your reply to a comment on your post. Meta allows one message after that reply; the next one may not go through until the customer writes back.',
+    windowStatusNeverInboundShort: "The customer hasn't messaged you yet — sending may fail",
+    windowStatusNeverInboundDetail:
+      "The customer hasn't messaged you yet. Under Messenger and Instagram policy, a message the shop sends first usually doesn't go through. You can still try; if it fails, the reason appears under the message.",
+    // "reply window" = คำเดียวกับ windowClosingSoon · ชิปย่อต้องมี "type" ด้วย (ฉากคลิป E อาจถ่ายติดชิป)
+    windowStatusHumanAgentShort: 'Over 24 hours — typed replies only, no promotions',
+    // คำตรงกับสคริปต์คลิป E ฉาก E3 ที่ยื่น Meta (APP-REVIEW.md §11.4) — แก้ต้องแก้สคริปต์ด้วย
+    windowStatusHumanAgentDetail:
+      'More than 24 hours have passed. You can still reply until {date}, but only with messages you type yourself — no promotional content (Meta policy).',
+    windowStatusHumanAgentFallbackExpiry: "7 days after the customer's last message",
+    windowStatusExpiredShort: "Outside Meta's reply window — sending may fail",
+    windowStatusExpiredDetail:
+      "Outside Meta's reply window (24 hours from the customer's last message). You can still try, but Meta usually rejects it; if it fails, the reason appears under the message.",
     countdownHms: '{h}h {m}m {s}s',
     countdownMs: '{m}m {s}s',
     quotedReplyTo: 'Replying to {name}',

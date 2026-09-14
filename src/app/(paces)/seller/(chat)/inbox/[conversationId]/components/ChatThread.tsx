@@ -2352,11 +2352,11 @@ export default function ChatThread({
       icon: soft ? 'info-circle' : 'alert-triangle',
       short: neverInbound
         ? isCommentReplyThread
-          ? 'ตอบคอมเมนต์ได้ 1 ข้อความ — รอลูกค้าตอบกลับ'
-          : 'ลูกค้ายังไม่เคยทักเข้ามา — อาจส่งไม่สำเร็จ'
+          ? t.inbox.windowStatusCommentReplyShort
+          : t.inbox.windowStatusNeverInboundShort
         : humanAgentOpen
-          ? 'เกิน 24 ชั่วโมงแล้ว — ตอบเองได้ ห้ามส่งโปรโมชัน'
-          : 'เกินเวลาที่ Meta ให้ตอบ — อาจส่งไม่สำเร็จ',
+          ? t.inbox.windowStatusHumanAgentShort
+          : t.inbox.windowStatusExpiredShort,
       detail: (
         <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${soft ? 'bg-info/15 text-info-ink' : 'bg-warning/15 text-warning-ink'}`}>
           <Icon icon={soft ? 'info-circle' : 'alert-triangle'} className="mt-0.5 shrink-0 text-lg" />
@@ -2365,17 +2365,18 @@ export default function ChatThread({
               isCommentReplyThread ? (
                 // "แชทนี้" ไม่ใช่ "เธรดนี้" — PRODUCT.md ผูกกลุ่มผู้ใช้ digital-literacy ต่ำไว้
                 // คำทับศัพท์แบบนี้คือ jargon ที่ต้องตัด (impeccable clarify 2026-08-03)
-                'แชทนี้เริ่มจากการตอบกลับความคิดเห็นบนโพสต์ — Meta ให้ส่งได้ครั้งเดียวหลังตอบกลับ ข้อความถัดไปอาจส่งไม่สำเร็จจนกว่าลูกค้าจะทักกลับมา'
+                t.inbox.windowStatusCommentReplyDetail
               ) : (
-                'ลูกค้ายังไม่เคยทักเข้ามา — ตามนโยบาย Messenger/Instagram ข้อความที่ร้านทักไปก่อนมักส่งไม่สำเร็จ ลองส่งได้ ถ้าไม่ผ่านจะขึ้นเหตุผลใต้ข้อความ'
+                t.inbox.windowStatusNeverInboundDetail
               )
             ) : humanAgentOpen ? (
               // ระดับกลาง: เกิน 24 ชม. แต่ยังตอบได้ด้วย HUMAN_AGENT — ต้องบอกข้อจำกัดให้ครบ
               // เพราะผู้ขายอาจเผลอส่งโปรโมชันซึ่งผิดนโยบายและทำให้แอปโดนระงับได้
+              // ประโยคเดียวใน dictionary มี {date} — split เพื่อทำตัวหนาเฉพาะวันที่ ลำดับคำจึงเป็นของแต่ละภาษาเอง
               <>
-                เกิน 24 ชั่วโมงแล้ว แต่ยังตอบเองได้ถึง{' '}
-                <span className="font-semibold">{humanAgentExpiresAt ? formatDateTime(humanAgentExpiresAt) : '7 วันนับจากข้อความล่าสุดของลูกค้า'}</span>{' '}
-                — ต้องเป็นข้อความที่พิมพ์เอง ห้ามส่งโปรโมชัน (นโยบาย Meta)
+                {t.inbox.windowStatusHumanAgentDetail.split('{date}')[0]}
+                <span className="font-semibold">{humanAgentExpiresAt ? formatDateTime(humanAgentExpiresAt) : t.inbox.windowStatusHumanAgentFallbackExpiry}</span>
+                {t.inbox.windowStatusHumanAgentDetail.split('{date}')[1]}
               </>
             ) : (
               // ห้ามเขียนว่า "เกิน 7 วัน" ตรงนี้ (impeccable clarify 2026-08-03) — สาขานี้เข้าเมื่อ
@@ -2385,7 +2386,7 @@ export default function ChatThread({
               // ไม่มี allow-list รายเธรด)
               // → ร้านที่ลูกค้าเพิ่งเงียบไป 25 ชม. เห็นข้อความ "เกิน 7 วัน" ที่ไม่จริง
               // เขียนเป็น 24 ชม. แทน — จริงทั้งสองเหตุ (7 วันก็เกิน 24 ชม. อยู่แล้ว)
-              'เกินเวลาที่ Meta ให้ตอบ (24 ชม. นับจากลูกค้าทักล่าสุด) — ลองส่งได้ แต่ Meta มักปฏิเสธ ถ้าไม่ผ่านจะขึ้นเหตุผลใต้ข้อความ'
+              t.inbox.windowStatusExpiredDetail
             )}
           </span>
         </div>
