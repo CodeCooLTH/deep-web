@@ -2229,6 +2229,9 @@ model ChatMessage {
    *
    * `@updatedAt` ให้ Prisma เขียนเองทุก write path — ห้ามเขียนมือ และห้าม raw SQL เขียนตาราง
    * นี้ (มีด่าน src/lib/__tests__/chat-message-no-raw-write.test.ts กันไว้)
+   *
+   * แถวที่มีอยู่ก่อน migration นี้มีค่า 1970-01-01 (fast default ไม่ rewrite ตาราง) ⇒ ห้ามอ่าน
+   * คอลัมน์นี้ตรง ๆ เป็น "เวลาแก้ล่าสุด" ต้องใช้ max(createdAt, updatedAt)
    */
   updatedAt DateTime @updatedAt @default(now())
 
