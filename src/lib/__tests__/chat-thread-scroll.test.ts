@@ -1,17 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { canAutoLoadOlder, countNewIncoming, shouldFollowNewMessages } from '@/lib/chat-thread-scroll'
+import { canAutoLoadOlder, pickNewIncoming, shouldFollowNewMessages } from '@/lib/chat-thread-scroll'
 
 describe('[blocker] กฎการเลื่อนจอในห้องแชท', () => {
   it('อยู่ล่างสุด = เลื่อนตามข้อความใหม่', () => {
-    expect(shouldFollowNewMessages({ atBottom: true, hasIncomingFromSelf: false })).toBe(true)
+    expect(shouldFollowNewMessages({ atBottom: true })).toBe(true)
   })
 
   it('เลื่อนขึ้นไปอ่านของเก่าอยู่ = ห้ามเลื่อนจอ (ขึ้นปุ่มข้อความใหม่แทน)', () => {
-    expect(shouldFollowNewMessages({ atBottom: false, hasIncomingFromSelf: false })).toBe(false)
-  })
-
-  it('ข้อความที่ร้านเพิ่งกดส่งเอง = เลื่อนตามเสมอ แม้กำลังอ่านของเก่า', () => {
-    expect(shouldFollowNewMessages({ atBottom: false, hasIncomingFromSelf: true })).toBe(true)
+    expect(shouldFollowNewMessages({ atBottom: false })).toBe(false)
   })
 
   it('ห้ามโหลดของเก่าเองก่อนที่ผู้ใช้จะเลื่อนสักครั้ง', () => {
@@ -28,15 +24,33 @@ describe('[blocker] กฎการเลื่อนจอในห้องแ
   })
 })
 
-describe('[blocker] countNewIncoming — ตัวนับของปุ่ม "ข้อความใหม่"', () => {
-  it('นับเฉพาะแถวที่ไม่เคยมีบนจอ — แถวเดิมที่ถูกแก้ (รีแอ็กชัน/สถานะส่ง) ห้ามนับ', () => {
-    // delta คืนทั้งแถวใหม่และแถวเก่าที่ updatedAt ขยับ ⇒ ถ้านับทุกแถว ลูกค้ากดรีแอ็กชันใบเก่า
-    // ปุ่มจะขึ้น "ข้อความใหม่ 1" ทั้งที่ไม่มีอะไรใหม่ให้เลื่อนลงไปดู
-    const prev = new Set(['a', 'b'])
-    expect(countNewIncoming(prev, [{ id: 'b' }, { id: 'c' }, { id: 'd' }])).toBe(2)
+describe('[blocker] pickNewIncoming — แถวใหม่จริง (R10)', () => {
+  const row = (id: string, h: number, seq?: number) => ({
+    id,
+    createdAt: `2026-09-14T${String(h).padStart(2, '0')}:00:00.000Z`,
+    seq,
+  })
+  const prev = [row('a', 9, 1), row('b', 10, 2)]
+
+  it('แถวที่ใหม่กว่าใบล่าสุดบนจอ = ใหม่', () => {
+    expect(pickNewIncoming(prev, [row('c', 11, 3)]).map((m) => m.id)).toEqual(['c'])
   })
 
-  it('ชุดที่มีแต่แถวเดิมที่ถูกแก้ = 0', () => {
-    expect(countNewIncoming(new Set(['a']), [{ id: 'a' }])).toBe(0)
+  it('แถวเดิมที่ถูกแก้ (รีแอ็กชัน/สถานะส่ง) = ไม่ใหม่', () => {
+    expect(pickNewIncoming(prev, [row('b', 10, 2)])).toEqual([])
+  })
+
+  it('แถว backfill ที่แทรกกลางเธรด (seq ใหม่ เวลาเก่า) = ไม่ใหม่', () => {
+    expect(pickNewIncoming(prev, [row('old', 9, 99)])).toEqual([])
+  })
+
+  it('บับเบิล optimistic ไม่ใช่เส้นแบ่ง — แถวที่เวลาก่อนบับเบิลแต่หลังแถวจริงล่าสุดยังนับ', () => {
+    // นาฬิกาเครื่อง client เร็วกว่า server ได้ ถ้าใช้บับเบิลเป็นเส้นแบ่ง ข้อความลูกค้าที่มาคั่นจะหาย
+    const withLocal = [...prev, row('local-0-1', 12)]
+    expect(pickNewIncoming(withLocal, [row('c', 11, 3)]).map((m) => m.id)).toEqual(['c'])
+  })
+
+  it('จอยังว่าง = ทุกแถวใหม่', () => {
+    expect(pickNewIncoming([], [row('a', 9, 1)]).map((m) => m.id)).toEqual(['a'])
   })
 })

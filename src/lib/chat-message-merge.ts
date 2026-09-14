@@ -41,7 +41,14 @@ function sameMessage(a: ChatMessageView, b: ChatMessageView): boolean {
   )
 }
 
-function compare(a: ChatMessageView, b: ChatMessageView): number {
+/**
+ * ลำดับของข้อความทั้งระบบ [createdAt asc, seq asc] — seq ที่ไม่มี (optimistic) อยู่ท้ายกลุ่มเวลาเดียวกัน
+ * export ให้ผู้ตัดสิน "ใบนี้อยู่หลังใบล่าสุดบนจอไหม" ใช้ตัวเดียวกัน (chat-thread-scroll.ts) — HR16
+ */
+export function compareMessages(
+  a: { createdAt: string; seq?: number },
+  b: { createdAt: string; seq?: number },
+): number {
   const dt = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   if (dt !== 0) return dt
   return (a.seq ?? Number.MAX_SAFE_INTEGER) - (b.seq ?? Number.MAX_SAFE_INTEGER)
@@ -69,11 +76,47 @@ export function mergeMessages(
   }
 
   if (!changed) return prev
-  return Array.from(byId.values()).sort(compare)
+  return Array.from(byId.values()).sort(compareMessages)
 }
 
 /** เก็บได้ไม่เกิน `max` ใบ — ตัดใบเก่าสุดทิ้ง เพราะจอเปิดที่ล่างสุดเสมอ */
 export function capMessages(items: ChatMessageView[], max: number): ChatMessageView[] {
   if (items.length <= max) return items
   return items.slice(items.length - max)
+}
+
+/**
+ * ข้อความชุดแรกตอนเปิดห้อง เมื่อมีได้ทั้ง cache ใน store และข้อความชุดแรกจาก RSC (R14, 2026-09-14)
+ *
+ * 🛑 ห้ามให้ cache ชนะ `initial` เฉย ๆ — cache เก่าได้ถึง 30 นาที ส่วน initial เก่าไม่เกิน ~30 วินาที
+ *    (router cache) ⇒ ข้อความล่าสุดที่รายการแชทเพิ่งโชว์จะหายจากห้องจนกว่า delta จะกลับมา
+ *
+ * - สองชุดคาบเกี่ยวกัน (ใบเก่าสุดของ initial ไม่ใหม่กว่าใบล่าสุดของ cache) → merge: ได้ทั้งของเก่า
+ *   ใน cache และของสดจาก initial ต่อกันไม่มีช่องว่าง
+ * - ไม่คาบเกี่ยว (initial ใหม่กว่า cache ทั้งชุด) → ใช้ initial อย่างเดียว เพราะระหว่างสองชุดมี
+ *   ข้อความที่ไม่มีใครถืออยู่ ต่อกันจะได้ช่องว่างกลางเธรดที่ loadOlder ไม่มีวันเติม
+ *   (`replaceStore: true` = ผู้เรียกต้องเขียนทับ store จาก initial)
+ */
+export function resolveOpeningMessages(input: {
+  cached: { items: ChatMessageView[]; oldestCursor: string | null } | null
+  /** เรียงเก่า→ใหม่แล้ว */
+  initial: { items: ChatMessageView[]; nextCursor: string | null } | null
+}): { items: ChatMessageView[]; oldestCursor: string | null; replaceStore: boolean } {
+  const { cached, initial } = input
+  if (!initial) return { items: cached?.items ?? [], oldestCursor: cached?.oldestCursor ?? null, replaceStore: false }
+  const initialOnly = { items: initial.items, oldestCursor: initial.nextCursor, replaceStore: true }
+  if (!cached) return initialOnly
+  const oldestInitial = initial.items[0]
+  if (!oldestInitial) return { items: cached.items, oldestCursor: cached.oldestCursor, replaceStore: false }
+  let newestCached: ChatMessageView | undefined
+  for (const m of cached.items) {
+    if (m.id.startsWith('local-')) continue
+    if (!newestCached || compareMessages(m, newestCached) > 0) newestCached = m
+  }
+  if (!newestCached || compareMessages(oldestInitial, newestCached) > 0) return initialOnly
+  // cursor ของชุดที่ใบเก่าสุดเก่ากว่า — merge แล้วใบบนสุดบนจอมาจากชุดนั้น
+  const oldestCached = cached.items[0]
+  const oldestCursor =
+    oldestCached && compareMessages(oldestCached, oldestInitial) <= 0 ? cached.oldestCursor : initial.nextCursor
+  return { items: mergeMessages(cached.items, initial.items), oldestCursor, replaceStore: false }
 }
