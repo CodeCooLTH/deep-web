@@ -26,7 +26,7 @@ const chatServiceSrc = stripComments(
 )
 
 const stage = (carrierStatus: string) =>
-  deriveShippingStage({
+  deriveShippingStage({ problemAt: null,
     fulfillmentMode: 'SHIPPED',
     status: 'SHIPPED',
     carrierStatus,
@@ -69,7 +69,7 @@ describe('นิยาม "พัสดุมีปัญหา" ต้องเ
    */
   it('[blocker] ใบ COD ที่ตีกลับต้องไม่กลายเป็น "รอเงิน COD"', () => {
     expect(
-      deriveShippingStage({
+      deriveShippingStage({ problemAt: null,
         fulfillmentMode: 'SHIPPED',
         status: 'SHIPPED',
         carrierStatus: 'return_success',
@@ -80,8 +80,14 @@ describe('นิยาม "พัสดุมีปัญหา" ต้องเ
     ).toBe('RETURNED')
   })
 
-  it('[blocker] ตัวกรองฝั่งแชทต้องอ้างชุดกลาง ไม่ใช่รายชื่อสถานะที่พิมพ์เอง', () => {
-    expect(chatServiceSrc).toContain('PROBLEM_CARRIER_STATUSES')
+  /**
+   * 2026-09-14 — เกณฑ์ย้ายจาก "รายชื่อสถานะ" ไปเป็น "ฟังก์ชันกลาง" `buildProblemHoldSql()`
+   * เพราะกองนี้ค้างเหนียวแล้ว (ต้องอ่าน `problemAt` ด้วย ไม่ใช่แค่ `carrierStatus`)
+   * ⇒ ด่านต้องเช็คว่า **เรียกตัวกลาง พร้อมคอลัมน์ที่ถูก** ไม่ใช่แค่ว่ามีชื่อชุดสถานะอยู่ในไฟล์
+   */
+  it('[blocker] ตัวกรองฝั่งแชทต้องอ้างเกณฑ์กลาง ไม่ใช่รายชื่อสถานะที่พิมพ์เอง', () => {
+    expect(chatServiceSrc).toContain('buildProblemHoldSql(')
+    expect(chatServiceSrc).toMatch(/buildProblemHoldSql\([^)]*carrierStatus[^)]*problemAt[^)]*\)/)
     expect(chatServiceSrc).not.toMatch(/'(issue|cannot_pickup|return_success)'/)
   })
 })
@@ -118,7 +124,10 @@ describe('ตัวนับบนป้ายในแถวแชท (enrichWi
   )
 
   it('[blocker] ต้องนับใบที่ติดปัญหาแยกจากใบล่าสุด แล้วส่งเข้า deriveOrderStage', () => {
-    expect(enrichSrc).toContain('PROBLEM_CARRIER_STATUSES')
+    // เกณฑ์ต้องมาจากตัวกลางตัวเดียวกับหน้า /orders — ดูเหตุผลที่ด่านฝั่ง chat.service ข้างบน
+    expect(enrichSrc).toMatch(/buildProblemHoldSql\([^)]*carrierStatus[^)]*problemAt[^)]*\)/)
+    // ค่า problemAt ต้องถูก join เข้ามาจริง ไม่ใช่แค่ถูกอ้างในสูตร
+    expect(enrichSrc).toContain('psh."problemAt"')
     expect(enrichSrc).toContain(`po."status" NOT IN ('CANCELLED', 'DRAFTED')`)
     // ค่าที่นับได้ต้องถูก "ใช้" จริง ไม่ใช่แค่ดึงมาแล้ววางทิ้งไว้ในแถว
     expect(enrichSrc).toContain('problemOrderCount: r.problemOrderCount')

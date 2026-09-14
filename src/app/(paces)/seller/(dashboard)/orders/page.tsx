@@ -355,6 +355,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
           paymentMethod: o.paymentMethod ?? null,
           codReceivedAt: o.codReceivedAt ?? null,
           fulfillmentMode: o.fulfillmentMode,
+          // ค้างเหนียว: ใบที่เคยมีปัญหาต้องอยู่กอง "พัสดุมีปัญหา" ต่อ แม้ขนส่งจะกลับไปเดินแล้ว
+          problemAt: o.shipments?.[0]?.problemAt ?? null,
         })
       : undefined,
     /**

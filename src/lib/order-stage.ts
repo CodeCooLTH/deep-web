@@ -20,6 +20,7 @@ import { formatDayMonthShortYearTH } from './format-date'
 import {
   isDeliveredCarrierStatus,
   isInTransitCarrierStatus,
+  holdsParcelProblem,
   isProblemCarrierStatus,
   isReturnedCarrierStatus,
   isTerminalCarrierStatus,
@@ -186,6 +187,17 @@ export interface ShippingStageInput {
    * โดย `tsc` ไม่ฟ้อง ทำให้เป็น required เพื่อให้ compiler ไล่ผู้เรียกทุกจุดให้ส่งค่ามาแทน
    */
   fulfillmentMode: string
+  /**
+   * `OrderShipment.problemAt` ของใบล่าสุดที่ยัง active — "เคยมีปัญหาครั้งแรกเมื่อไร"
+   *
+   * 🛑 บังคับ (ไม่ใช่ optional) ด้วยเหตุผลเดียวกับ `fulfillmentMode` ข้างบน: ผู้เรียกที่ลืมส่ง
+   * จะได้พฤติกรรม *ก่อนแก้* กลับมาเงียบ ๆ เฉพาะหน้าจอของตัวเอง แล้วจอสองจอจะบอกกองคนละกอง
+   * สำหรับออเดอร์ใบเดียวกัน (HR16) — ให้ `tsc` ไล่ผู้เรียกทุกจุดแทนที่จะหวังว่าใครจะจำได้
+   *
+   * `null` = ไม่เคยมีปัญหา (หรือเป็นใบเก่าที่ประวัติหายไปก่อน migration — ดูคอมเมนต์ของ
+   * คอลัมน์นี้ใน schema.prisma ว่าทำไมกู้ย้อนหลังได้ไม่ครบ)
+   */
+  problemAt: Date | string | null
 }
 
 /**
@@ -236,15 +248,30 @@ export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
   if (o.hasShipment) {
     // ลำดับเดียวกับ deriveOrderStage: ของที่ไม่ได้เดินหน้าตามปกติมาก่อน แล้วค่อยดูปลายทาง/ระหว่างทาง
     //
-    // ตีกลับกับ "มีปัญหา" เป็นคนละกองแล้ว (2026-08-24) และสองชุดไม่ทับกันเลย (เทส [blocker]
-    // ปักหมุดไว้) ลำดับระหว่างสองบรรทัดนี้จึงไม่มีผลต่อผลลัพธ์ — เรียงตีกลับไว้บนเพื่อให้อ่านโค้ด
-    // แล้วเห็นว่ามันไม่ใช่สาขาย่อยของ PROBLEM
+    // ตีกลับกับ "มีปัญหา" เป็นคนละกอง (2026-08-24) — และตั้งแต่ 2026-09-14 ที่กอง PROBLEM
+    // ค้างเหนียว ตัวกันไม่ให้พัสดุที่ *เคย* มีปัญหาไหลเข้ากอง PROBLEM ตอนกำลังตีกลับ **อยู่ใน
+    // `holdsParcelProblem()` เอง** ไม่ใช่ลำดับสองบรรทัดนี้ (พิสูจน์ด้วย mutation: สลับลำดับแล้ว
+    // ผลไม่เปลี่ยน) — วางตีกลับไว้บนเพื่อให้อ่านโค้ดแล้วเห็นว่ามันไม่ใช่สาขาย่อยของ PROBLEM
     //
     // 🛑 ต้องอยู่ **เหนือ** สาขา terminal: `return_success` เป็น terminal ตัวหนึ่ง ถ้าปล่อยให้
     // ตกลงไปข้างล่างมันจะกลายเป็น DONE (หรือ AWAITING_COD ถ้าเป็นใบ COD) = ของที่กลับมากอง
     // อยู่ที่ร้านหายจากทุกไทล์ ซึ่งคือบั๊กที่ PROBLEM_STAGE_CARRIER_STATUSES เคยถูกสร้างมาอุด
+    /**
+     * 🛑 ตีกลับมาก่อนเสมอ **แม้ใบนั้นจะเคยมีปัญหา** — มันมีกองของตัวเองแล้ว (2026-08-24 user สั่ง)
+     * และคำว่า "ตีกลับ" บอกร้านได้ตรงกว่า "มีปัญหา" ว่าตอนนี้เกิดอะไรขึ้น
+     */
     if (isReturnedCarrierStatus(o.carrierStatus)) return 'RETURNED'
-    if (isProblemCarrierStatus(o.carrierStatus)) return 'PROBLEM'
+    /**
+     * 🛑 **ค้างเหนียว** — ใบที่ *เคย* มีปัญหายังอยู่กองนี้ ถึงแม้ขนส่งจะกลับไปเดินต่อแล้ว
+     *
+     * ต้นเรื่อง (user เจอบน prod 2026-09-14): ขนส่งไปส่งแล้วไม่เจอผู้รับ → `issue` →
+     * วันถัดมาลองส่งใหม่ → `progress` ⇒ กอง "พัสดุมีปัญหา" **หายไปเองทั้งที่ยังไม่มีใครแก้อะไร**
+     * ร้านที่เห็นครั้งแรกแล้วยังไม่ได้ทำ จะไม่มีทางหาใบนั้นเจออีกเลย
+     *
+     * เกณฑ์ทั้งก้อนอยู่ที่ `holdsParcelProblem()` ที่เดียว (lib/iship/status.ts) — ห้ามเขียน
+     * เงื่อนไขซ้ำที่นี่ เพราะมีอีก 2 ระบบที่ต้องตอบเหมือนกันเป๊ะ (ป้ายในแถวแชท + สูตรฉบับ SQL)
+     */
+    if (holdsParcelProblem(o.carrierStatus, o.problemAt)) return 'PROBLEM'
     if (isTerminalCarrierStatus(o.carrierStatus)) {
       // [สำคัญ] พัสดุจบเส้นทางแล้ว ≠ งานของร้านจบแล้ว — เดิมคืน 'DONE' ตรงนี้เลย ทำให้ออเดอร์
       // ที่ขนส่งส่งถึงแล้วแต่ร้านยังไม่ได้เงินปลายทาง หายไปจากทุกไทล์ทันที (DP2569085F97153B)
@@ -377,6 +404,26 @@ const STAGE_BADGE_OVERRIDE: Partial<
 }
 
 /**
+ * ป้ายของกอง `PROBLEM` ตอนที่ **ขนส่งกลับไปเดินต่อแล้ว** (ไม่เจอผู้รับรอบแรก แล้วลองส่งใหม่)
+ *
+ * 🛑 คำต้องมีคำว่า "เคยมีปัญหา" ค้างอยู่ ห้ามกลายเป็น "กำลังจัดส่ง" เฉย ๆ — นั่นคือเหตุผล
+ * ทั้งหมดที่กองนี้ถูกทำให้ค้างเหนียว: ร้านต้องรู้ว่าใบนี้เคยส่งไม่สำเร็จ เพื่อเตรียมใจว่ารอบนี้
+ * อาจซ้ำอีก และเพื่อให้ใบนั้นยังหาเจอจากชิป/ไทล์เดิม
+ */
+const PROBLEM_RETRY_BADGE = {
+  label: 'เคยมีปัญหา · ส่งใหม่',
+  cls: 'bg-warning/15 text-warning-ink',
+  icon: 'refresh',
+  tone: 'warning' as OrderStatusTone,
+}
+
+/**
+ * คำเดียวกันแบบสั้น — ใช้ในที่ที่มีแถบไทม์ไลน์อยู่ติดกันอยู่แล้ว (การ์ดในห้องแชท)
+ * ตรงนั้นไม่ต้องพ่วง "· ส่งใหม่" เพราะบรรทัดถัดลงไปบอกอยู่แล้วว่าขนส่งกำลังทำอะไร
+ */
+export const PROBLEM_RETRY_LABEL_SHORT = 'เคยมีปัญหา'
+
+/**
  * resolveOrderStatusBadge — ป้ายที่ควรแสดงจริงบนแถว/การ์ด/หัวหน้ารายละเอียด
  *
  * รูปแบบที่คืนเหมือน ORDER_STATUS_META[status] ทุกฟิลด์ (drop-in) — จุดที่เรียกไม่ต้องรู้ว่า
@@ -388,10 +435,15 @@ const STAGE_BADGE_OVERRIDE: Partial<
  *   - CONFIRMED = ความจริงระดับสูงสุดของระบบ (ผู้ซื้อยืนยันเอง) ห้ามให้ชั้นพัสดุมาทับ
  * และไม่ override stage ต้นทาง (AWAITING_PARCEL/AWAITING_PICKUP) เพราะ "รอดำเนินการ"
  * ครอบคลุมอยู่แล้ว ส่วน "รอรับเข้า" เป็นภาษาของกองงานพัสดุ ไม่ใช่ของสถานะออเดอร์
+ *
+ * @param carrierStatus สถานะปัจจุบันจากขนส่ง — ส่งมาเมื่อไร กอง `PROBLEM` จะแยกได้ว่า
+ * "ยังติดปัญหาอยู่จริง" หรือ "เคยมีปัญหาแต่ขนส่งกลับไปเดินต่อแล้ว" (ดู `PROBLEM_RETRY_BADGE`)
+ * ไม่ส่งมา = ได้คำเดิม "พัสดุมีปัญหา" ซึ่งยังถูกอยู่ แค่หยาบกว่า
  */
 export function resolveOrderStatusBadge(
   status: string,
   shippingStage?: ShippingStageKey,
+  carrierStatus?: string | null,
 ): { label: string; cls: string; icon: string; tone: OrderStatusTone } {
   const base = ORDER_STATUS_META[status] ?? {
     label: status,
@@ -400,6 +452,18 @@ export function resolveOrderStatusBadge(
     tone: 'warning' as OrderStatusTone,
   }
   if (!shippingStage || status === 'CANCELLED' || status === 'CONFIRMED') return base
+  /**
+   * กอง PROBLEM มี 2 หน้าตา (2026-09-14) — ตัวแยกคือ "ตอนนี้ยังติดปัญหาอยู่จริงไหม"
+   *
+   * ทำไมต้องแยก: ตั้งแต่กองนี้ค้างเหนียว ป้ายสีแดง "พัสดุมีปัญหา" จะอยู่บนจอเดียวกับแถบ
+   * ไทม์ไลน์ที่บอกว่า "อยู่ระหว่างจัดส่ง" (แถบนั้นอ่าน carrierStatus สด ๆ และ **ต้อง**
+   * พูดความจริง ณ วินาทีนี้ ห้าม sticky) ⇒ ถ้าไม่แยกคำ จอเดียวจะขัดกันเองห่างกัน ~40px
+   * warning ไม่ใช่ danger ด้วยเหตุผลเดียวกับกอง RETURNED ข้างบน: ขนส่งกำลังทำงานให้อยู่
+   * ไม่มีอะไรให้ร้านรีบทำเดี๋ยวนี้ — คงแดงไว้ = เร่งเร้าปลอม
+   */
+  if (shippingStage === 'PROBLEM' && carrierStatus != null && !isProblemCarrierStatus(carrierStatus)) {
+    return PROBLEM_RETRY_BADGE
+  }
   // ไม่รู้จัก stage = คืนของเดิม ห้ามคืน undefined — ป้ายหายทั้งแถวแย่กว่าป้ายที่ไม่ละเอียด
   return STAGE_BADGE_OVERRIDE[shippingStage] ?? base
 }
@@ -412,6 +476,13 @@ export interface OrderStageInput {
   labelPrintedAt: Date | string | null
   /** OrderShipment.carrierStatus ของพัสดุใบที่ยัง active */
   carrierStatus: string | null
+  /**
+   * OrderShipment.problemAt — "เคยมีปัญหาครั้งแรกเมื่อไร" ของพัสดุใบเดียวกับ `carrierStatus`
+   *
+   * optional: ผู้เรียกที่ยังไม่ส่ง = ได้พฤติกรรมก่อน 2026-09-14 (ป้ายหายทันทีที่ขนส่งกลับไปเดินต่อ)
+   * ซึ่งเป็นทิศที่ปลอดภัยกว่าการเดาว่า "เคยมีปัญหา" ให้ใบที่ไม่เคยมี
+   */
+  problemAt?: Date | string | null
   /** OrderShipment.labelPrintCount — จำนวนครั้งที่กดพิมพ์ใบปะหน้าใบนี้ */
   labelPrintCount?: number | null
   /** มีพัสดุที่ยัง active อยู่หรือไม่ — ตัวตัดสินว่าจะอ่านสถานะจาก "พัสดุ" หรือจาก "ออเดอร์" */
@@ -538,7 +609,11 @@ export function deriveOrderStage(
        * "พิมพ์เอกสารแล้ว" ซึ่งผิดยิ่งกว่าเดิม
        */
       return null
-    } else if (isProblemCarrierStatus(order.carrierStatus)) {
+      /**
+       * ค้างเหนียว (2026-09-14) — เกณฑ์เดียวกับ `deriveShippingStage()` ผ่าน SSOT ตัวเดียว
+       * ⇒ ป้ายในแถวแชทกับกองในหน้า /orders พูดตรงกันเสมอ แม้ขนส่งจะกลับไปเดินต่อแล้ว
+       */
+    } else if (holdsParcelProblem(order.carrierStatus, order.problemAt)) {
       key = 'PARCEL_PROBLEM'
       // ถึงมือผู้รับแล้ว = delivered หรือไกลกว่านั้น (payment_success = เงิน COD เข้าแล้ว)
       // เดิมเทียบ === 'delivered' ตรง ๆ ใบ COD ที่ได้เงินแล้วจึงตกไปเป็น "สร้างพัสดุแล้ว"

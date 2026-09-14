@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { deriveOrderStage, type OrderStageInput } from '@/lib/order-stage'
-import { PROBLEM_CARRIER_STATUSES } from '@/lib/iship/status'
+import { buildProblemHoldSql } from '@/lib/order-stage-sql'
 
 /**
  * order-stage.service — หา "ออเดอร์ล่าสุดของลูกค้าแต่ละเธรด" เพื่อทำป้ายสถานะในรายการแชท
@@ -69,6 +69,7 @@ type LatestOrderRow = {
   labelPrintedAt: Date | null
   labelPrintCount: number | null
   carrierStatus: string | null
+  problemAt: Date | null
   hasShipment: boolean
   serviceStart: Date | null
   appointmentStatus: string | null
@@ -118,7 +119,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
       SELECT po."shopId" AS "shopId", po."customerId" AS "customerId", COUNT(*)::int AS n
       FROM "Order" po
       JOIN LATERAL (
-        SELECT psh."carrierStatus"
+        SELECT psh."carrierStatus", psh."problemAt"
         FROM "OrderShipment" psh
         WHERE psh."orderId" = po."id" AND psh."status" = 'CREATED' AND psh."isDryRun" = false AND psh."direction" = 'FORWARD'
         ORDER BY psh."createdAt" DESC
@@ -127,7 +128,9 @@ export async function enrichWithOrderStage<T extends Linkable>(
       WHERE po."shopId" IN (${Prisma.join(shopIds)})
         AND po."customerId" IN (${Prisma.join(customerIds)})
         AND po."status" NOT IN ('CANCELLED', 'DRAFTED') -- 00061: ร่างไม่ใช่งานค้าง
-        AND ps."carrierStatus" = ANY(${[...PROBLEM_CARRIER_STATUSES]}::text[])
+        -- [สำคัญ] เกณฑ์ "อยู่กองพัสดุมีปัญหาไหม" ต้องมาจาก SSOT ตัวเดียวกับ deriveShippingStage()
+        -- และ deriveOrderStage() (2026-09-14 ค้างเหนียว) — ห้ามเขียน = ANY(PROBLEM…) เองอีก
+        AND ${Prisma.raw(buildProblemHoldSql('ps."carrierStatus"', 'ps."problemAt"'))}
       GROUP BY po."shopId", po."customerId"
     )
     -- DISTINCT ON ต้องมี shopId เป็นคีย์แรกเสมอ (feature 00037) — "ออเดอร์ล่าสุดของลูกค้าคนนี้"
@@ -147,6 +150,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
       s."labelPrintedAt"  AS "labelPrintedAt",
       s."labelPrintCount" AS "labelPrintCount",
       s."carrierStatus"   AS "carrierStatus",
+      s."problemAt"       AS "problemAt",
       -- มีแถวพัสดุที่ยัง active อยู่จริงหรือไม่ — ต้องเช็คจาก id ไม่ใช่จาก labelPrintedAt/carrierStatus
       -- เพราะพัสดุที่เพิ่งสร้าง (ยังไม่พิมพ์ ขนส่งยังไม่แจ้ง) ทั้งสองคอลัมน์นั้นเป็น null ทั้งคู่
       (s."id" IS NOT NULL) AS "hasShipment",
@@ -154,7 +158,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
     FROM "Order" o
     JOIN "Shop" sp ON sp."id" = o."shopId"
     LEFT JOIN LATERAL (
-      SELECT sh."id", sh."labelPrintedAt", sh."labelPrintCount", sh."carrierStatus", sh."carrierStatusAt"
+      SELECT sh."id", sh."labelPrintedAt", sh."labelPrintCount", sh."carrierStatus", sh."carrierStatusAt", sh."problemAt"
       FROM "OrderShipment" sh
       -- นิยาม "มีพัสดุจริง" ต้องตรงกับ getShippingStageCounts/getOrdersByShop เป๊ะ ๆ:
       -- status='CREATED' และไม่ใช่ของทดสอบ. เดิมใช้ <> 'CANCELLED' ซึ่งนับใบที่ *สร้างไม่สำเร็จ*
@@ -184,6 +188,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
         labelPrintedAt: r.labelPrintedAt,
         labelPrintCount: r.labelPrintCount,
         carrierStatus: r.carrierStatus,
+        problemAt: r.problemAt,
         hasShipment: r.hasShipment,
         serviceStart: r.serviceStart,
         appointmentStatus: r.appointmentStatus,

@@ -5,6 +5,7 @@
 //   2. พัสดุมีปัญหาถูกกลืนเป็น "สร้างพัสดุแล้ว" → ร้านมองไม่เห็นของที่ต้องรีบจัดการ (2026-07-31)
 
 import { describe, expect, it } from "vitest";
+import { holdsParcelProblem } from "./iship/status";
 import {
   deriveOrderStage,
   deriveShippingStage,
@@ -95,13 +96,13 @@ const shipped = { status: "SHIPPED", hasShipment: true, fulfillmentMode: "SHIPPE
 describe("deriveShippingStage — พัสดุจบเส้นทางแล้ว ไม่ได้แปลว่างานของร้านจบ", () => {
   it("COD ส่งถึงแล้ว แต่ร้านยังไม่กดรับเงิน → รอเงิน COD (ห้ามหายจากทุกไทล์)", () => {
     expect(
-      deriveShippingStage({ ...shipped, carrierStatus: "delivered", paymentMethod: "COD" }),
+      deriveShippingStage({ problemAt: null, ...shipped, carrierStatus: "delivered", paymentMethod: "COD" }),
     ).toBe("AWAITING_COD");
   });
 
   it("COD ส่งถึงแล้ว + ร้านกดรับเงินแล้ว → DONE", () => {
     expect(
-      deriveShippingStage({
+      deriveShippingStage({ problemAt: null,
         ...shipped,
         carrierStatus: "delivered",
         paymentMethod: "COD",
@@ -112,7 +113,7 @@ describe("deriveShippingStage — พัสดุจบเส้นทางแ�
 
   it("ผู้ซื้อยืนยันรับของแล้วก็ยังต้องรอเงิน COD ถ้าร้านยังไม่กด (เงินคนละแกนกับสถานะออเดอร์)", () => {
     expect(
-      deriveShippingStage({
+      deriveShippingStage({ problemAt: null,
         fulfillmentMode: "SHIPPED",
         status: "CONFIRMED",
         hasShipment: true,
@@ -124,7 +125,7 @@ describe("deriveShippingStage — พัสดุจบเส้นทางแ�
 
   it("โอนเงินล่วงหน้า + ส่งถึงแล้ว → DONE (ได้เงินแล้ว ของถึงแล้ว ไม่มีงานเหลือ)", () => {
     expect(
-      deriveShippingStage({ ...shipped, carrierStatus: "delivered", paymentMethod: "TRANSFER" }),
+      deriveShippingStage({ problemAt: null, ...shipped, carrierStatus: "delivered", paymentMethod: "TRANSFER" }),
     ).toBe("DONE");
   });
 
@@ -137,27 +138,27 @@ describe("deriveShippingStage — พัสดุจบเส้นทางแ�
    */
   it("ตีกลับทั้งสองสถานะ → RETURNED (ไม่ใช่ PROBLEM และไม่ใช่ AWAITING_COD/DONE)", () => {
     expect(
-      deriveShippingStage({ ...shipped, carrierStatus: "return_success", paymentMethod: "COD" }),
+      deriveShippingStage({ problemAt: null, ...shipped, carrierStatus: "return_success", paymentMethod: "COD" }),
     ).toBe("RETURNED");
     expect(
-      deriveShippingStage({ ...shipped, carrierStatus: "return", paymentMethod: "TRANSFER" }),
+      deriveShippingStage({ problemAt: null, ...shipped, carrierStatus: "return", paymentMethod: "TRANSFER" }),
     ).toBe("RETURNED");
   });
 
   it("ยกเลิกทั้งใบ → DONE เสมอ ไม่ว่าพัสดุอยู่สถานะไหน", () => {
     expect(
-      deriveShippingStage({ status: "CANCELLED", carrierStatus: "delivered", hasShipment: true, paymentMethod: "COD", fulfillmentMode: "SHIPPED" }),
+      deriveShippingStage({ problemAt: null, status: "CANCELLED", carrierStatus: "delivered", hasShipment: true, paymentMethod: "COD", fulfillmentMode: "SHIPPED" }),
     ).toBe("DONE");
   });
 
   it("พัสดุมีปัญหาต้องชนะทุกอย่าง", () => {
-    expect(deriveShippingStage({ ...shipped, carrierStatus: "issue", paymentMethod: "COD" })).toBe("PROBLEM");
+    expect(deriveShippingStage({ problemAt: null, ...shipped, carrierStatus: "issue", paymentMethod: "COD" })).toBe("PROBLEM");
   });
 
   it("กองงานเดิม 3 กองไม่เปลี่ยนพฤติกรรม", () => {
-    expect(deriveShippingStage({ status: "PENDING", carrierStatus: null, hasShipment: false, fulfillmentMode: "SHIPPED" })).toBe("AWAITING_PARCEL");
-    expect(deriveShippingStage({ status: "PENDING", carrierStatus: null, hasShipment: true, fulfillmentMode: "SHIPPED" })).toBe("AWAITING_PICKUP");
-    expect(deriveShippingStage({ status: "PENDING", carrierStatus: "in_transit", hasShipment: true, fulfillmentMode: "SHIPPED" })).toBe("SHIPPING");
+    expect(deriveShippingStage({ problemAt: null, status: "PENDING", carrierStatus: null, hasShipment: false, fulfillmentMode: "SHIPPED" })).toBe("AWAITING_PARCEL");
+    expect(deriveShippingStage({ problemAt: null, status: "PENDING", carrierStatus: null, hasShipment: true, fulfillmentMode: "SHIPPED" })).toBe("AWAITING_PICKUP");
+    expect(deriveShippingStage({ problemAt: null, status: "PENDING", carrierStatus: "in_transit", hasShipment: true, fulfillmentMode: "SHIPPED" })).toBe("SHIPPING");
   });
 });
 
@@ -173,11 +174,11 @@ describe("payment_success = ปลายทาง ไม่ใช่ระหว
   };
 
   it("ได้เงิน COD แล้ว → DONE ไม่ใช่ AWAITING_PICKUP (ไทม์ไลน์ห้ามถอยกลับจุดแรก)", () => {
-    expect(deriveShippingStage({ ...shipped, codReceivedAt: new Date(NOW) })).toBe("DONE");
+    expect(deriveShippingStage({ problemAt: null, ...shipped, codReceivedAt: new Date(NOW) })).toBe("DONE");
   });
 
   it("ขนส่งบอกว่าเงินเข้าแล้ว แต่เรายังไม่ได้บันทึก → AWAITING_COD (ยังต้องตามเรื่องเงิน)", () => {
-    expect(deriveShippingStage({ ...shipped, codReceivedAt: null })).toBe("AWAITING_COD");
+    expect(deriveShippingStage({ problemAt: null, ...shipped, codReceivedAt: null })).toBe("AWAITING_COD");
   });
 
   it("ป้ายในรายการแชท = จัดส่งสำเร็จ ไม่ใช่ 'สร้างพัสดุแล้ว'", () => {
@@ -190,7 +191,7 @@ describe("payment_success = ปลายทาง ไม่ใช่ระหว
 
   it("close (id 99 ปิดงาน) จบเส้นทางแล้วเช่นกัน — ห้ามค้างเป็น 'รอรับเข้า'", () => {
     expect(
-      deriveShippingStage({
+      deriveShippingStage({ problemAt: null,
         fulfillmentMode: "SHIPPED",
         status: "SHIPPED",
         carrierStatus: "close",
@@ -255,7 +256,7 @@ describe('พัสดุมีปัญหา — นับทุกใบ + re
       const o = { ...shipped, labelPrintedAt: new Date(NOW), carrierStatus: code }
       expect(deriveOrderStage(o, NOW)).toBeNull()
       expect(
-        deriveShippingStage({
+        deriveShippingStage({ problemAt: null,
           fulfillmentMode: "SHIPPED",
           status: 'SHIPPED',
           carrierStatus: code,
@@ -332,7 +333,7 @@ describe("[blocker] deriveShippingStage — ออเดอร์ที่ไม
       for (const status of STATUSES) {
         for (const hasShipment of [true, false]) {
           for (const carrierStatus of [null, "in_transit", "delivered", "issue", "return_success"]) {
-            const stage = deriveShippingStage({
+            const stage = deriveShippingStage({ problemAt: null,
               status,
               hasShipment,
               carrierStatus,
@@ -349,10 +350,10 @@ describe("[blocker] deriveShippingStage — ออเดอร์ที่ไม
 
   it("ออเดอร์ที่ส่งของจริงต้องไม่ถูกกระทบ — ยังได้กองเดิมทุกประการ", () => {
     expect(
-      deriveShippingStage({ status: "PENDING", hasShipment: false, carrierStatus: null, fulfillmentMode: "SHIPPED" }),
+      deriveShippingStage({ problemAt: null, status: "PENDING", hasShipment: false, carrierStatus: null, fulfillmentMode: "SHIPPED" }),
     ).toBe("AWAITING_PARCEL");
     expect(
-      deriveShippingStage({ status: "PENDING", hasShipment: true, carrierStatus: null, fulfillmentMode: "SHIPPED" }),
+      deriveShippingStage({ problemAt: null, status: "PENDING", hasShipment: true, carrierStatus: null, fulfillmentMode: "SHIPPED" }),
     ).toBe("AWAITING_PICKUP");
   });
 
@@ -373,5 +374,155 @@ describe("[blocker] deriveShippingStage — ออเดอร์ที่ไม
     expect(pickup.cls).not.toContain("success");
     // ต้องเท่ากับป้ายของสถานะล้วน ๆ (stage ที่ไม่มี override ให้ผลเดียวกัน)
     expect(pickup).toEqual(resolveOrderStatusBadge("PENDING", "AWAITING_PARCEL"));
+  });
+});
+
+// ─── กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) ────────────────────────────────
+//
+// ต้นเรื่อง (user เจอบน prod): ขนส่งไปส่งแล้วไม่เจอผู้รับ → `issue` → วันถัดมาลองส่งใหม่ →
+// `progress` ⇒ กองหายไปเองทั้งที่ยังไม่มีใครแก้อะไร ร้านที่เห็นครั้งแรกแล้วยังไม่ได้ทำ
+// จะไม่มีทางหาใบนั้นเจออีก
+const PROBLEM_AT = new Date("2026-09-10T03:00:00.000Z");
+
+describe("deriveShippingStage — พัสดุที่ *เคย* มีปัญหา ต้องค้างกองเดิมจนกว่าของจะถึงที่ใดที่หนึ่ง", () => {
+  it("[blocker] ขนส่งกลับไปเดินต่อ (progress) แต่เคยมีปัญหา → ยังอยู่กอง PROBLEM", () => {
+    expect(
+      deriveShippingStage({ ...shipped, carrierStatus: "progress", problemAt: PROBLEM_AT }),
+    ).toBe("PROBLEM");
+  });
+
+  it("[blocker] เคยมีปัญหา + ขนส่งเข้ารับใหม่ (picked_up) → ยังอยู่กอง PROBLEM", () => {
+    expect(
+      deriveShippingStage({ ...shipped, carrierStatus: "picked_up", problemAt: PROBLEM_AT }),
+    ).toBe("PROBLEM");
+  });
+
+  it("[blocker] ส่งสำเร็จ = ปลดการค้าง (user: 'หรือส่งสำเร็จเลยครับ')", () => {
+    expect(
+      deriveShippingStage({
+        ...shipped,
+        carrierStatus: "delivered",
+        paymentMethod: "TRANSFER",
+        problemAt: PROBLEM_AT,
+      }),
+    ).toBe("DONE");
+  });
+
+  it("[blocker] COD ส่งสำเร็จแล้วแต่ยังไม่ได้เงิน → รอเงิน COD ไม่ใช่ค้างที่ปัญหา", () => {
+    expect(
+      deriveShippingStage({
+        ...shipped,
+        carrierStatus: "delivered",
+        paymentMethod: "COD",
+        problemAt: PROBLEM_AT,
+      }),
+    ).toBe("AWAITING_COD");
+  });
+
+  it("[blocker] ส่งคืนสำเร็จ = ปลดการค้าง ไปกองตีกลับ (user: 'จนกว่าของจะถึงร้านค้า')", () => {
+    expect(
+      deriveShippingStage({ ...shipped, carrierStatus: "return_success", problemAt: PROBLEM_AT }),
+    ).toBe("RETURNED");
+  });
+
+  it("[blocker] กำลังตีกลับ (return) → กองตีกลับ ไม่ใช่กองปัญหา แม้เคยมีปัญหา", () => {
+    /**
+     * 🛑 กอง `RETURNED` ถูกแยกออกมาเมื่อ 2026-08-24 ตามที่ user สั่งเอง และในแถวรายการแชท
+     * มีชิปพฤติกรรม "ตีกลับ N รายการ" พูดเรื่องนี้อยู่แล้ว — ถ้าปล่อยให้ค้างที่ "มีปัญหา"
+     * จะกลับไปเป็นอาการ "สองชิปพูดถึงพัสดุใบเดียวกัน" ที่เพิ่งแก้ไป
+     */
+    expect(
+      deriveShippingStage({ ...shipped, carrierStatus: "return", problemAt: PROBLEM_AT }),
+    ).toBe("RETURNED");
+  });
+
+  it("ไม่เคยมีปัญหา + กำลังส่ง → กำลังจัดส่งตามปกติ (ค้างเหนียวต้องไม่ลามไปใบอื่น)", () => {
+    expect(
+      deriveShippingStage({ ...shipped, carrierStatus: "progress", problemAt: null }),
+    ).toBe("SHIPPING");
+  });
+
+  it("ยกเลิกทั้งใบ = จบ ไม่ว่าเคยมีปัญหาหรือไม่", () => {
+    expect(
+      deriveShippingStage({
+        ...shipped,
+        status: "CANCELLED",
+        carrierStatus: "progress",
+        problemAt: PROBLEM_AT,
+      }),
+    ).toBe("DONE");
+  });
+});
+
+describe("resolveOrderStatusBadge — กอง PROBLEM มีสองหน้าตา", () => {
+  it("[blocker] ยังติดปัญหาอยู่จริง → คำเดิม สีแดง", () => {
+    const b = resolveOrderStatusBadge("SHIPPED", "PROBLEM", "issue");
+    expect(b.label).toBe("พัสดุมีปัญหา");
+    expect(b.tone).toBe("danger");
+  });
+
+  it("[blocker] เคยมีปัญหาแต่ขนส่งกลับไปเดินต่อ → คำบอกว่าเคยมี + สีเตือน ไม่ใช่แดง", () => {
+    /**
+     * ในจอเดียวกันมีแถบไทม์ไลน์ที่อ่าน carrierStatus สด ๆ ("อยู่ระหว่างจัดส่ง") อยู่ห่างไป
+     * ไม่กี่สิบพิกเซล — คำต้องไม่ขัดกันเอง แต่ก็ต้องไม่ลบร่องรอยว่าเคยส่งไม่สำเร็จ
+     */
+    const b = resolveOrderStatusBadge("SHIPPED", "PROBLEM", "progress");
+    expect(b.label).toContain("เคยมีปัญหา");
+    expect(b.tone).toBe("warning");
+  });
+
+  it("[blocker] ผู้เรียกที่ยังไม่ส่ง carrierStatus ต้องได้คำเดิม ไม่ใช่คำที่บอกว่าขนส่งกำลังส่งใหม่", () => {
+    /**
+     * 🛑 ทิศของ default สำคัญ: "ไม่รู้" ต้องถอยไปคำที่หยาบแต่ยังจริงเสมอ — ถ้าถอยไปทาง
+     * "เคยมีปัญหา · ส่งใหม่" จอที่ยังไม่ได้ต่อสายจะบอกลูกค้าว่าขนส่งกำลังเอาของไปส่งใหม่
+     * ทั้งที่พัสดุอาจค้างอยู่กับที่ = เป็นการกล่าวอ้างสิ่งที่เรายังไม่รู้
+     */
+    expect(resolveOrderStatusBadge("SHIPPED", "PROBLEM").label).toBe("พัสดุมีปัญหา");
+    expect(resolveOrderStatusBadge("SHIPPED", "PROBLEM", null).label).toBe("พัสดุมีปัญหา");
+  });
+});
+
+// ─── holdsParcelProblem — SSOT ที่ 3 ระบบใช้ร่วมกัน (ต้องมีเทสตรงตัว ไม่ใช่ผ่านตัวเรียก) ──
+//
+// 🛑 บทเรียน mutation 2026-09-14: การสลับลำดับ RETURNED/PROBLEM ใน deriveShippingStage()
+// **ไม่ทำให้เทสแดง** เพราะตัวกันตีกลับอยู่ในฟังก์ชันนี้ ไม่ได้อยู่ที่ลำดับสาขา ⇒ ถ้าไม่มีเทส
+// ตรงตัว การถอดบรรทัดนั้นออกจะเงียบสนิทสำหรับหน้า /orders แล้วไปโผล่ที่ป้ายในแถวแชท
+// กับตัวนับ SQL ซึ่งอ่านฟังก์ชันนี้ตรง ๆ (deriveOrderStage ไม่มีสาขา RETURNED มากั้นให้)
+describe("holdsParcelProblem — เกณฑ์กลางของ 'ใบนี้อยู่กองพัสดุมีปัญหาไหม'", () => {
+  it("[blocker] ตอนนี้ติดปัญหาอยู่จริง = ใช่ (ไม่ต้องพึ่ง problemAt)", () => {
+    expect(holdsParcelProblem("issue", null)).toBe(true);
+    expect(holdsParcelProblem("cannot_pickup", null)).toBe(true);
+  });
+
+  it("[blocker] เคยมีปัญหา + ขนส่งกลับไปเดินต่อ = ยังใช่ (นี่คือทั้งหมดของฟีเจอร์นี้)", () => {
+    expect(holdsParcelProblem("progress", PROBLEM_AT)).toBe(true);
+    expect(holdsParcelProblem("in_transit", PROBLEM_AT)).toBe(true);
+  });
+
+  it("[blocker] กำลังตีกลับ = ไม่ใช่ แม้เคยมีปัญหา — กอง RETURNED เป็นเจ้าของเรื่องนี้", () => {
+    /**
+     * ตัวกันอยู่ในฟังก์ชันนี้ ไม่ได้อยู่ที่ลำดับสาขาของผู้เรียก — `deriveOrderStage()`
+     * (ป้ายในแถวแชท) กับตัวนับ SQL เรียกตรงนี้โดยไม่มีสาขา RETURNED มากั้นให้ ถ้าถอด
+     * บรรทัดนั้นออก แถวแชทจะขึ้น "พัสดุมีปัญหา" ซ้อนกับชิป "ตีกลับ N รายการ" อีกครั้ง
+     */
+    expect(holdsParcelProblem("return", PROBLEM_AT)).toBe(false);
+    expect(holdsParcelProblem("return_success", PROBLEM_AT)).toBe(false);
+  });
+
+  it("[blocker] ของถึงมือผู้รับ / สายทางจบแล้ว = ปลดการค้าง", () => {
+    expect(holdsParcelProblem("delivered", PROBLEM_AT)).toBe(false);
+    expect(holdsParcelProblem("payment_success", PROBLEM_AT)).toBe(false);
+    expect(holdsParcelProblem("close", PROBLEM_AT)).toBe(false);
+    expect(holdsParcelProblem("cancelled", PROBLEM_AT)).toBe(false);
+  });
+
+  it("ไม่เคยมีปัญหา = ไม่ใช่ ไม่ว่าสถานะปัจจุบันจะเป็นอะไร", () => {
+    for (const code of ["progress", "in_transit", "delivered", "order_success", null]) {
+      expect(holdsParcelProblem(code, null)).toBe(false);
+    }
+  });
+
+  it("รหัสที่ไม่รู้จัก + เคยมีปัญหา = ยังค้าง (fail-closed: ไม่รู้ว่าจบ ⇒ ยังไม่จบ)", () => {
+    expect(holdsParcelProblem("a_code_we_have_never_seen", PROBLEM_AT)).toBe(true);
   });
 });

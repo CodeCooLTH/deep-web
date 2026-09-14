@@ -104,6 +104,8 @@ export type ChatOrderCard = {
     courierCode: string | null
     status: string
     carrierStatus: string | null
+    /** "เคยมีปัญหาครั้งแรกเมื่อไร" — กอง "พัสดุมีปัญหา" ค้างเหนียวจนของถึงที่ใดที่หนึ่ง */
+    problemAt?: string | null
   } | null
   paymentMethod?: string | null
   codReceivedAt?: string | null

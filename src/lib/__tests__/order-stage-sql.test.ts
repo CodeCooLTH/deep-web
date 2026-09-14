@@ -6,6 +6,7 @@ import { buildShippingStageSql } from '../order-stage-sql'
 import {
   IN_TRANSIT_CARRIER_STATUSES,
   PROBLEM_CARRIER_STATUSES,
+  PROBLEM_HOLD_RELEASE_STATUSES,
   RETURNED_CARRIER_STATUSES,
   TERMINAL_CARRIER_STATUSES,
 } from '../iship/status'
@@ -67,6 +68,13 @@ const PAYMENT_METHODS: (string | null)[] = [
   null,
 ]
 const COD_RECEIVED: (string | null)[] = [null, '2026-08-01T03:00:00.000Z']
+/**
+ * แกน "เคยมีปัญหาไหม" (2026-09-14) — สองค่าพอ เพราะสูตรอ่านแค่ null/ไม่ null
+ *
+ * 🛑 ต้อง cross กับ `carrierStatus` ทุกค่า ไม่ใช่แค่ค่ามีปัญหา — จุดที่สองสูตรเคยเพี้ยนกันได้
+ * คือ `carrierStatus = NULL` (`NOT (NULL IN (...))` ของ SQL ให้ NULL ไม่ใช่ true)
+ */
+const PROBLEM_AT: (string | null)[] = [null, '2026-09-01T03:00:00.000Z']
 
 type Row = {
   i: number
@@ -76,6 +84,8 @@ type Row = {
   paymentMethod: string | null
   codReceivedAt: string | null
   fulfillmentMode: string
+  /** "เคยมีปัญหาครั้งแรกเมื่อไร" — null = ไม่เคย (กอง PROBLEM ค้างเหนียว 2026-09-14) */
+  problemAt: string | null
 }
 
 function buildCorpus(): Row[] {
@@ -87,15 +97,17 @@ function buildCorpus(): Row[] {
       for (const carrierStatus of CARRIER_CODES)
         for (const paymentMethod of PAYMENT_METHODS)
           for (const codReceivedAt of COD_RECEIVED)
-            rows.push({
-              i: i++,
-              status,
-              hasShipment,
-              carrierStatus,
-              paymentMethod,
-              codReceivedAt,
-              fulfillmentMode: 'SHIPPED',
-            })
+            for (const problemAt of PROBLEM_AT)
+              rows.push({
+                i: i++,
+                status,
+                hasShipment,
+                carrierStatus,
+                paymentMethod,
+                codReceivedAt,
+                fulfillmentMode: 'SHIPPED',
+                problemAt,
+              })
 
   /**
    * ไม่มีการจัดส่งเลย (feature 00062) — ตาม `deriveShippingStage()` เงื่อนไขนี้อยู่เกือบบนสุด
@@ -116,6 +128,8 @@ function buildCorpus(): Row[] {
             paymentMethod: 'COD',
             codReceivedAt: null,
             fulfillmentMode,
+            // ใบที่เคยมีปัญหาต้องไม่หลุดออกจากกิ่ง NOT_SHIPPING เช่นกัน
+            problemAt: '2026-09-01T03:00:00.000Z',
           })
   return rows
 }
@@ -141,7 +155,8 @@ describe('สูตรกองงานตามสถานะพัสดุ 
         (r) =>
           `(${r.i}, ${sqlLit(r.status)}, ${r.hasShipment}, ${sqlLit(r.carrierStatus)}, ` +
           `${sqlLit(r.paymentMethod)}, ${r.codReceivedAt === null ? 'NULL' : `TIMESTAMP ${sqlLit(r.codReceivedAt.replace('T', ' ').replace('Z', ''))}`}, ` +
-          `${sqlLit(r.fulfillmentMode)})`,
+          `${sqlLit(r.fulfillmentMode)}, ` +
+          `${r.problemAt === null ? 'NULL::timestamp' : `TIMESTAMP ${sqlLit(r.problemAt.replace('T', ' ').replace('Z', ''))}`})`,
       )
       .join(',\n')
 
@@ -152,10 +167,11 @@ describe('สูตรกองงานตามสถานะพัสดุ 
       paymentMethod: 't.payment_method',
       codReceivedAt: 't.cod_received_at',
       fulfillmentMode: 't.fulfillment_mode',
+      problemAt: 't.problem_at',
     })
 
     // SELECT บนค่าคงที่ล้วน — ไม่มีชื่อตารางจริงปรากฏใน query นี้เลยแม้แต่ตัวเดียว
-    const sql = `SELECT t.i, ${stageExpr} AS stage FROM (VALUES\n${values}\n) AS t(i, order_status, has_shipment, carrier_status, payment_method, cod_received_at, fulfillment_mode) ORDER BY t.i`
+    const sql = `SELECT t.i, ${stageExpr} AS stage FROM (VALUES\n${values}\n) AS t(i, order_status, has_shipment, carrier_status, payment_method, cod_received_at, fulfillment_mode, problem_at) ORDER BY t.i`
 
     const result = await prisma!.$queryRawUnsafe<{ i: number; stage: string }[]>(sql)
     expect(result).toHaveLength(corpus.length)
@@ -170,12 +186,13 @@ describe('สูตรกองงานตามสถานะพัสดุ 
         paymentMethod: input.paymentMethod,
         codReceivedAt: input.codReceivedAt ? new Date(input.codReceivedAt) : null,
         fulfillmentMode: input.fulfillmentMode,
+        problemAt: input.problemAt ? new Date(input.problemAt) : null,
       })
       if (fromTs !== row.stage) {
         mismatches.push(
           `status=${input.status} hasShipment=${input.hasShipment} ` +
             `carrier=${input.carrierStatus} pay=${input.paymentMethod} cod=${input.codReceivedAt} ` +
-            `fulfillment=${input.fulfillmentMode} ` +
+            `fulfillment=${input.fulfillmentMode} problemAt=${input.problemAt} ` +
             `→ TS=${fromTs} SQL=${row.stage}`,
         )
       }
@@ -192,6 +209,7 @@ describe('รายชื่อสถานะใน SQL ต้องมาจ�
     paymentMethod: 'pm',
     codReceivedAt: 'cod',
     fulfillmentMode: 'fm',
+    problemAt: 'pa',
   })
 
   it('[blocker] ทุกรหัสใน 4 ชุดของ iship/status.ts ต้องโผล่ใน SQL', () => {

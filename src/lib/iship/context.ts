@@ -93,6 +93,8 @@ export interface ShipmentViewJson {
   carrierStatus: string | null;
   carrierStatusText: string | null;
   carrierStatusAt: string | null;
+  /** "เคยมีปัญหาครั้งแรกเมื่อไร" — ตัวทำให้กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) */
+  problemAt: string | null;
   /**
    * เวลาของ "ขากลับ" — แถวที่ 2 ของแถบสถานะอ่านจากสองช่องนี้ (2026-08-25)
    * `null` = ขนส่งไม่ได้แจ้งเวลา **ไม่ใช่ "ไม่เกิด"** — จุดสว่างตัดสินจาก `carrierStatus`
@@ -135,9 +137,16 @@ export interface ShipmentContextJson extends ShipmentContextBase {
 
 type ShipmentViewDates = Omit<
   ShipmentViewJson,
-  "carrierStatusAt" | "labelPrintedAt" | "createdAt" | "returnStartedAt" | "returnedAt" | "returnDispatchedAt"
+  | "carrierStatusAt"
+  | "labelPrintedAt"
+  | "createdAt"
+  | "problemAt"
+  | "returnStartedAt"
+  | "returnedAt"
+  | "returnDispatchedAt"
 > & {
   carrierStatusAt: Date | null;
+  problemAt: Date | null;
   returnStartedAt: Date | null;
   returnedAt: Date | null;
   returnDispatchedAt: Date | null;
@@ -149,6 +158,7 @@ export function toShipmentViewJson(s: ShipmentViewDates): ShipmentViewJson {
   return {
     ...s,
     carrierStatusAt: s.carrierStatusAt?.toISOString() ?? null,
+    problemAt: s.problemAt?.toISOString() ?? null,
     returnStartedAt: s.returnStartedAt?.toISOString() ?? null,
     returnedAt: s.returnedAt?.toISOString() ?? null,
     returnDispatchedAt: s.returnDispatchedAt?.toISOString() ?? null,

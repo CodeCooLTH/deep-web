@@ -6,7 +6,7 @@
  *   1. `returnLegStampOf()` แมปรหัสสถานะ → คอลัมน์เวลาที่ต้องประทับ
  *      เขียนผิดกิ่งเดียว = พัสดุตีกลับได้เวลาผิดช่อง แล้วไทม์ไลน์แถว 2 เล่าเรื่องกลับหัว
  *
- *   2. **ทุกทางที่เขียน `carrierStatus` ต้องเรียก `stampReturnLeg()`** — มี 3 ทาง
+ *   2. **ทุกทางที่เขียน `carrierStatus` ต้องเรียก `stampCarrierMilestones()`** — มี 3 ทาง
  *      (webhook · รอบ poll · รีเฟรชตอนเปิด traces) ทางไหนลืม = พัสดุที่ตีกลับผ่านทางนั้น
  *      ไม่มีวันเวลาบนไทม์ไลน์ **โดยไม่มี error ให้เห็น** (`deliveredAt` มีบั๊กนี้อยู่จริง
  *      ตอนนี้ — ทางที่ 3 ไม่เคยประทับให้เลย นี่คือหลักฐานว่าคลาสนี้เกิดซ้ำได้)
@@ -91,23 +91,27 @@ describe('[blocker] ทุกทางที่เขียน carrierStatus ต
    * นับ "ทาง" จากการเขียนคอลัมน์จริง (`carrierStatus:` ใน `data`) ไม่ใช่จากรายชื่อฟังก์ชัน
    * ที่จำมา — วิธีหลังจะไม่เห็นทางใหม่ที่ใครเพิ่มทีหลัง ซึ่งเป็นเคสที่ด่านนี้มีไว้กันพอดี
    *
+   * 2026-09-14: ฟังก์ชันเปลี่ยนชื่อเป็น `stampCarrierMilestones()` เพราะตอนนี้ประทับ
+   * "เคยมีปัญหาครั้งแรก" (`problemAt`) ไปพร้อมกันในตัวเดียว — แยกเป็นสองฟังก์ชันเมื่อไร
+   * จะมีทางเข้าที่เรียกตัวหนึ่งแต่ลืมอีกตัว ซึ่งคือคลาสบั๊กที่ด่านนี้ตั้งขึ้นมากันตั้งแต่ต้น
+   *
    * `carrierStatus: code` / `carrierStatus: status` = การเขียนจริง
    * (`carrierStatus: true` คือ select · `carrierStatus: { in: ... }` คือ where — ไม่นับ)
    */
-  it('มีทางเขียน carrierStatus อย่างน้อย 3 ทาง และทุกทางอยู่ในไฟล์เดียวกับ stampReturnLeg', () => {
+  it('มีทางเขียน carrierStatus อย่างน้อย 3 ทาง และทุกทางอยู่ในไฟล์เดียวกับตัวประทับหมุด', () => {
     const writes = SRC.match(/carrierStatus: (?!true|\{)[A-Za-z_$][\w$]*/g) ?? []
     expect(writes.length).toBeGreaterThanOrEqual(3)
-    expect(SRC).toContain('async function stampReturnLeg(')
+    expect(SRC).toContain('async function stampCarrierMilestones(')
   })
 
   /**
-   * 🛑 เช็ค **การเรียกใช้** (`stampReturnLeg(`) ไม่ใช่ชื่อเปล่า ๆ — บรรทัดประกาศฟังก์ชัน
+   * 🛑 เช็ค **การเรียกใช้** (`stampCarrierMilestones(`) ไม่ใช่ชื่อเปล่า ๆ — บรรทัดประกาศฟังก์ชัน
    * ก็ match ชื่อเปล่าได้ ด่านที่นับชื่อจะเขียวแม้ไม่มีใครเรียกมันเลยสักที่
    * (บทเรียน docs/conventions/rule-must-be-enforced-not-described.md)
    */
-  it('ต้องมีการ "เรียก" stampReturnLeg ครบทุกทาง (ไม่ใช่แค่ประกาศไว้)', () => {
+  it('ต้องมีการ "เรียก" stampCarrierMilestones ครบทุกทาง (ไม่ใช่แค่ประกาศไว้)', () => {
     // ตัดบรรทัดประกาศออกก่อน เหลือเฉพาะจุดที่เรียกใช้จริง
-    const calls = SRC.replace(/async function stampReturnLeg\(/, '').match(/stampReturnLeg\(/g) ?? []
+    const calls = SRC.replace(/async function stampCarrierMilestones\(/, '').match(/stampCarrierMilestones\(/g) ?? []
     expect(calls.length).toBeGreaterThanOrEqual(3)
   })
 

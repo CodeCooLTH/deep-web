@@ -632,6 +632,63 @@ export function isProblemCarrierStatus(code?: string | null): boolean {
 }
 
 /**
+ * สถานะที่ "ปลดล็อก" การค้างของกอง `PROBLEM` — คู่กับ `OrderShipment.problemAt`
+ *
+ * เรื่องที่แก้: กอง "พัสดุมีปัญหา" เคยตัดสินจาก `carrierStatus` ปัจจุบันล้วน ๆ แต่สถานะ
+ * ของขนส่ง **เดินถอยหลังได้** — ไปส่งแล้วไม่เจอผู้รับได้ `issue` วันถัดมาลองส่งใหม่กลับไป
+ * เป็น `progress` ⇒ กองหายไปเองทั้งที่ยังไม่มีใครแก้อะไร (user เจอบน prod 2026-09-14)
+ * ตอนนี้ใบที่เคยมีปัญหาจะค้างอยู่กองนี้ จนกว่าจะเจอสถานะในชุดนี้
+ *
+ * ชุดนี้ = "ของไปถึงที่ใดที่หนึ่งแล้ว จบเรื่อง" ประกอบจากสองชุดที่มีอยู่แล้ว **ไม่พิมพ์รหัสซ้ำ**:
+ *   - `DELIVERED_CARRIER_STATUSES` — ถึงมือผู้รับ (user: "หรือส่งสำเร็จเลยครับ")
+ *   - `FINAL_CARRIER_STATUSES`     — สายทางจบแล้ว ถามซ้ำก็ได้คำตอบเดิม ซึ่งรวม
+ *     `return_success` = ของกลับถึงร้าน (user: "ไปจนกว่าของจะถึงร้านค้า (ส่งกลับ)")
+ *
+ * 🛑 `return` (กำลังตีกลับ) **ไม่อยู่ในชุดนี้โดยตั้งใจ** — มันคือ *ระหว่างทาง* ของขากลับ
+ * ยังไม่ถึงร้าน ผู้ขายยังทำอะไรไม่ได้นอกจากรอ ⇒ ยังเป็นงานค้างที่ต้องเห็น
+ * (user สั่งตรง ๆ ว่าให้ค้าง "จนกว่าของจะถึงร้านค้า" ไม่ใช่ "จนกว่าจะเริ่มตีกลับ")
+ *
+ * 🛑 `is_expired` อยู่ในชุดนี้ผ่าน FINAL แต่มันเป็น `PROBLEM_CARRIER_STATUSES` ด้วย —
+ * ปลดล็อกแล้วมันจะตกกอง PROBLEM ต่อจากสถานะปัจจุบันของตัวเองอยู่ดี ผลลัพธ์ไม่เปลี่ยน
+ */
+export const PROBLEM_HOLD_RELEASE_STATUSES: readonly string[] = [
+  ...DELIVERED_CARRIER_STATUSES,
+  ...FINAL_CARRIER_STATUSES,
+];
+
+/** สถานะปัจจุบันนี้ปลดการค้างกอง "พัสดุมีปัญหา" ไหม — allow-list, ไม่รู้จัก = ยังค้าง */
+export function releasesProblemHold(code?: string | null): boolean {
+  if (!code) return false;
+  return PROBLEM_HOLD_RELEASE_STATUSES.includes(code);
+}
+
+/**
+ * holdsParcelProblem — **SSOT เดียวของคำถาม "ใบนี้ต้องอยู่กองพัสดุมีปัญหาไหม"**
+ *
+ * มีผู้ใช้ 3 ระบบที่ไม่เคยเรียกหากัน และเคยตัดสินเรื่องนี้เองคนละที่ (HR16):
+ *   1. `deriveShippingStage()`  — กอง/ชิป/ไทล์ ฝั่ง `/orders` + Command Center + จอผู้ซื้อ
+ *   2. `deriveOrderStage()`     — ป้ายในแถวรายการแชท (`InboxList`)
+ *   3. SQL: `buildProblemHoldSql()` (`order-stage-sql.ts`) — ตัวนับ/ตัวกรองที่ทำงานในฐานข้อมูล
+ * ทั้งสามต้องตอบเหมือนกันเสมอ ไม่งั้นกดชิปที่นับได้ 5 แล้วเข้าไปเจอ 4 (เคยเกิดจริงมาแล้ว)
+ *
+ * เกณฑ์: ตอนนี้ติดปัญหาอยู่จริง **หรือ** เคยติดปัญหาแล้วยังไม่จบเรื่อง
+ *
+ * 🛑 สายตีกลับ (`return`/`return_success`) **ไม่นับ** แม้จะเคยมีปัญหามาก่อน — มันมีกองของตัวเอง
+ * (`RETURNED`) ตั้งแต่ 2026-08-24 ซึ่ง user เป็นคนสั่งให้แยกออกมาเอง และในแถวรายการแชทมีชิป
+ * พฤติกรรม "ตีกลับ N รายการ" พูดเรื่องนี้อยู่แล้ว (ถ้านับซ้ำ = สองชิปพูดถึงพัสดุใบเดียวกัน
+ * ซึ่ง user ส่งภาพหน้าจอมาทักไปแล้วครั้งหนึ่ง)
+ */
+export function holdsParcelProblem(
+  code: string | null | undefined,
+  problemAt: Date | string | null | undefined,
+): boolean {
+  if (isProblemCarrierStatus(code)) return true;
+  if (!problemAt) return false;
+  if (isReturnedCarrierStatus(code)) return false;
+  return !releasesProblemHold(code);
+}
+
+/**
  * ─── หลักฐานสำหรับข้อพิพาท (feature 00055 · หัวหน้าสั่ง 2026-08-24) ─────────────
  *
  * สถานะที่ควร "หยุดภาพ" หลักฐานจากขนส่งไว้ทันทีที่เกิด — **เฉพาะกรณีมีปัญหา/ตีกลับ**

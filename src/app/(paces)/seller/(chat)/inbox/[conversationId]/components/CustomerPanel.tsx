@@ -110,6 +110,9 @@ export type CustomerPanelOrder = {
     courierCode: string | null
     status: string
     carrierStatus: string | null
+    /** "เคยมีปัญหาครั้งแรกเมื่อไร" — กอง "พัสดุมีปัญหา" ค้างเหนียวจนของถึงที่ใดที่หนึ่ง
+     *  บังคับ: มี 2 ตัว serialize ที่ป้อนลิสต์นี้ ต้องส่งครบทั้งคู่ ไม่งั้นการ์ดสลับกองตอนเลื่อน */
+    problemAt: string | null
     /** เวลาของ "ขากลับ" — แถวที่ 2 ของ stepper อ่านจากสองช่องนี้ (null = ขนส่งไม่ได้แจ้ง) */
     returnStartedAt?: string | null
     returnedAt?: string | null

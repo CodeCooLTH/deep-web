@@ -35,7 +35,14 @@ type StageRow = {
   fulfillmentMode: string
   paymentMethod?: string | null
   codReceivedAt?: Date | string | null
-  shipments?: { status: string; isDryRun: boolean; carrierStatus: string | null; createdAt: Date }[] | null
+  shipments?: {
+    status: string
+    isDryRun: boolean
+    carrierStatus: string | null
+    /** กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) — ต้องมาจากใบเดียวกับ carrierStatus */
+    problemAt: Date | null
+    createdAt: Date
+  }[] | null
 }
 const toShippingStageInput = (r: StageRow) => {
   const active = (r.shipments ?? [])
@@ -48,6 +55,7 @@ const toShippingStageInput = (r: StageRow) => {
     paymentMethod: r.paymentMethod ?? null,
     codReceivedAt: r.codReceivedAt ?? null,
     fulfillmentMode: r.fulfillmentMode,
+    problemAt: active[0]?.problemAt ?? null,
   }
 }
 
@@ -294,6 +302,7 @@ export async function getSalesSeries(
             // countsAsRevenue() บังคับ field นี้ (feature 00056) — พัสดุขากลับไม่ใช่ยอดขาย
             direction: true,
             carrierStatus: true,
+            problemAt: true,
             createdAt: true,
             carrierPrice: true,
             estimatedPrice: true,
@@ -663,7 +672,7 @@ export async function getProvinceSales(
       shippingAddress: true,
       status: true,
       // direction: countsAsRevenue() บังคับ (feature 00056) — พัสดุขากลับไม่ใช่ยอดขาย
-      shipments: { select: { status: true, isDryRun: true, carrierStatus: true, direction: true } },
+      shipments: { select: { status: true, isDryRun: true, carrierStatus: true, problemAt: true, direction: true } },
     },
   })
 

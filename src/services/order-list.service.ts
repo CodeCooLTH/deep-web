@@ -70,6 +70,8 @@ const STAGE_COLUMNS = {
   orderStatus: 'o."status"',
   hasShipment: 's."id" IS NOT NULL',
   carrierStatus: 's."carrierStatus"',
+  // กอง "พัสดุมีปัญหา" แบบค้างเหนียว (2026-09-14) — ต้องมาจาก LATERAL ใบเดียวกับ carrierStatus
+  problemAt: 's."problemAt"',
   paymentMethod: 'o."paymentMethod"',
   codReceivedAt: 'o."codReceivedAt"',
   // feature 00062 — ต้องมีคู่กับฝั่ง TS เสมอ (เทส parity จับถ้าฝั่งใดฝั่งหนึ่งขาด)
@@ -86,7 +88,7 @@ const STAGE_COLUMNS = {
  */
 const ACTIVE_SHIPMENT_LATERAL = `
   LEFT JOIN LATERAL (
-    SELECT sh."id", sh."carrierStatus"
+    SELECT sh."id", sh."carrierStatus", sh."problemAt"
     FROM "OrderShipment" sh
     WHERE sh."orderId" = o."id"
       AND sh."status" = 'CREATED'

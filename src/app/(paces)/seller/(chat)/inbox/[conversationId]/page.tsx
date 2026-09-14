@@ -564,7 +564,11 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
             where: LATEST_FORWARD_SHIPMENT,
             orderBy: { createdAt: 'desc' },
             take: 1,
-            select: { trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true },
+            select: {
+              trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true,
+              // กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) — carrierStatus เดินถอยหลังได้
+              problemAt: true,
+            },
           },
         },
       })
@@ -605,6 +609,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           courierCode: o.shipments[0].courierCode,
           status: o.shipments[0].status,
           carrierStatus: o.shipments[0].carrierStatus,
+          problemAt: o.shipments[0].problemAt?.toISOString() ?? null,
         }
       : null,
   }))

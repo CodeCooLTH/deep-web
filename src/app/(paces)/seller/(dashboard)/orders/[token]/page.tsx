@@ -383,6 +383,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
           paymentMethod: order.paymentMethod ?? null,
           fulfillmentMode: order.fulfillmentMode,
           codReceivedAt: order.codReceivedAt ?? null,
+          problemAt: shipmentPanel?.shipment?.problemAt ?? null,
         })
       : undefined
 
@@ -422,6 +423,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         shortCode={order.shortCode ?? null}
         status={order.status}
         shippingStage={shippingStage}
+        carrierStatus={shipmentPanel?.shipment?.carrierStatus ?? null}
         type={order.type}
         createdAtISO={createdAtISO}
         fulfillmentMode={order.fulfillmentMode}

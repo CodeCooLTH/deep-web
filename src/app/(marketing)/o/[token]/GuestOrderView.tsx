@@ -87,6 +87,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
     paymentMethod: order.paymentMethod,
     codReceivedAt: null,
     fulfillmentMode: order.fulfillmentMode,
+    problemAt: order.problemAt,
   })
 
   const verifyBadge = resolveVerifyBadge(order.maxVerifyLevel)
@@ -98,8 +99,10 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
     status: order.status,
     stage,
     hasShipment: !!order.shipmentTracking,
+    carrierStatus: order.carrierStatus,
   })
-  const statusColor = ORDER_STATUS_TONE_TO_MUI[resolveOrderStatusBadge(order.status, stage).tone]
+  const statusColor =
+    ORDER_STATUS_TONE_TO_MUI[resolveOrderStatusBadge(order.status, stage, order.carrierStatus).tone]
 
   /**
    * feature 00062 (UX-Design-Spec §B8) — badge สถานะการชำระเงิน จาก SSOT เดียวกับฝั่งร้าน

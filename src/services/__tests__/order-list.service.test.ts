@@ -35,6 +35,7 @@ const STAGE_COLUMNS = {
   orderStatus: 'o."status"',
   hasShipment: 's."id" IS NOT NULL',
   carrierStatus: 's."carrierStatus"',
+  problemAt: 's."problemAt"',
   paymentMethod: 'o."paymentMethod"',
   codReceivedAt: 'o."codReceivedAt"',
   // feature 00062 — ต้องตรงกับ STAGE_COLUMNS จริงใน order-list.service.ts (สำเนาในเทสนี้
@@ -44,7 +45,7 @@ const STAGE_COLUMNS = {
 
 const LATERAL = `
   LEFT JOIN LATERAL (
-    SELECT sh."id", sh."carrierStatus"
+    SELECT sh."id", sh."carrierStatus", sh."problemAt"
     FROM "OrderShipment" sh
     WHERE sh."orderId" = o."id"
       AND sh."status" = 'CREATED' AND sh."isDryRun" = false AND sh."direction" = 'FORWARD'
@@ -74,6 +75,7 @@ describe('order-list — กองงานที่นับด้วย SQL �
         payment_method: string | null
         cod_received_at: Date | null
         fulfillment_mode: string
+        problem_at: Date | null
         sql_stage: string
       }[]
     >(`
@@ -84,6 +86,7 @@ describe('order-list — กองงานที่นับด้วย SQL �
              o."paymentMethod"    AS payment_method,
              o."codReceivedAt"    AS cod_received_at,
              o."fulfillmentMode"  AS fulfillment_mode,
+             s."problemAt"        AS problem_at,
              (${stageExpr})       AS sql_stage
       FROM "Order" o
       ${LATERAL}
@@ -102,6 +105,7 @@ describe('order-list — กองงานที่นับด้วย SQL �
           paymentMethod: r.payment_method,
           codReceivedAt: r.cod_received_at,
           fulfillmentMode: r.fulfillment_mode,
+          problemAt: r.problem_at,
         })
         return fromTs === r.sql_stage
           ? null

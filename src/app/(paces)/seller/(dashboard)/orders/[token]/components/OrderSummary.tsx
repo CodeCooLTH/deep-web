@@ -44,6 +44,9 @@ export type OrderSummaryProps = {
   status: string
   /** กองงานตามสถานะพัสดุ — undefined = ร้านที่ไม่ใช่ ONLINE_SALES (ป้ายกลับไปใช้ status ล้วน) */
   shippingStage?: ShippingStageKey
+  /** สถานะปัจจุบันจากขนส่ง — ให้ป้ายหัวแยก "ยังติดปัญหา" กับ "เคยมีปัญหา ส่งใหม่" ได้
+   *  (การ์ดการจัดส่งใต้หัวนี้พูดความจริงสด ๆ อยู่แล้ว สองอันต้องไม่ขัดกัน) */
+  carrierStatus?: string | null
   createdAtISO: string
   salesChannel: string | null
   /** รูปเพจที่ลูกค้าทักมา — null = ใช้โลโก้แพลตฟอร์มเดิม (user 2026-08-06) */
@@ -95,6 +98,7 @@ export default function OrderSummary({
   publicToken,
   status,
   shippingStage,
+  carrierStatus = null,
   createdAtISO,
   salesChannel,
   pageLogoUrl = null,
@@ -117,7 +121,7 @@ export default function OrderSummary({
 }: OrderSummaryProps) {
   // ป้ายหัวต้องรวมสถานะพัสดุด้วย ไม่ใช่อ่าน status ดิบ — ใบ COD ที่ส่งถึงแล้วแต่ร้านยังไม่ได้
   // กดรับเงิน เดิมขึ้น "กำลังจัดส่ง" ขัดกับการ์ด "เก็บเงินปลายทาง" ที่อยู่ขวามือในหน้าเดียวกัน
-  const meta = serviceBadge ?? resolveOrderStatusBadge(status, shippingStage)
+  const meta = serviceBadge ?? resolveOrderStatusBadge(status, shippingStage, carrierStatus)
   const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId, paymentConfirmedAt, serviceMoney ?? undefined)
   const channelLabel = getSalesChannelDisplay(salesChannel || 'OTHER').label
 

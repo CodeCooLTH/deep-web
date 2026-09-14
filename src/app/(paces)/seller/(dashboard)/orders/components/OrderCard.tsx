@@ -167,7 +167,9 @@ export default function OrderCard({
         money: order.money,
         hasAppointment: Boolean(order.appointment),
       })
-    : resolveOrderStatusBadge(order.status, order.shippingStage)
+    : // ส่ง carrierStatus ด้วย เพื่อให้กอง PROBLEM แยกได้ว่า "ยังติดปัญหา" หรือ "เคยมีปัญหา ส่งใหม่"
+      // — ในการ์ดใบเดียวกันมีแถบไทม์ไลน์ที่พูดความจริงสด ๆ อยู่ข้างล่าง ต้องไม่ขัดกันเอง
+      resolveOrderStatusBadge(order.status, order.shippingStage, order.shipment?.carrierStatus ?? null)
   const strip = ORDER_STATUS_TONE_BORDER[statusCfg.tone] ?? 'border-default-300'
   // sourceChannel ผูกกับ sourceLogoUrl แหล่งเดียวกัน (ไม่ใช่ salesChannel ดิบ) — ผสมกันจะได้รูป
   // ช่องทางหนึ่งคู่กับ badge อีกช่องทางหนึ่ง (2026-08-10)

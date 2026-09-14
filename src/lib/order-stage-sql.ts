@@ -29,6 +29,7 @@ import { APPOINTMENT_STAGE_KEYS } from './appointment-stage'
 import {
   IN_TRANSIT_CARRIER_STATUSES,
   PROBLEM_CARRIER_STATUSES,
+  PROBLEM_HOLD_RELEASE_STATUSES,
   RETURNED_CARRIER_STATUSES,
   TERMINAL_CARRIER_STATUSES,
 } from './iship/status'
@@ -50,6 +51,14 @@ export type StageSqlColumns = {
    * `deriveShippingStage()` ฝั่ง TS เป๊ะ ห้ามลืมแก้ฝั่งใดฝั่งหนึ่ง (เทส parity จะจับ)
    */
   fulfillmentMode: string
+  /**
+   * `OrderShipment.problemAt` ของใบล่าสุด — "เคยมีปัญหาครั้งแรกเมื่อไร" (null ได้)
+   *
+   * 🛑 ผู้เรียกต้อง join คอลัมน์นี้เข้ามาให้ด้วย ไม่ใช่ส่ง `'NULL'` เพื่อให้คอมไพล์ผ่าน —
+   * ส่ง NULL = กองบนหน้ารายการจะกลับไปเป็นพฤติกรรมก่อนแก้ ขณะที่การ์ดในแชท (ฝั่ง TS)
+   * ค้างมีปัญหาอยู่ ⇒ จอสองจอบอกคนละกองสำหรับใบเดียวกัน
+   */
+  problemAt: string
 }
 
 /** ใส่ quote ให้ literal สตริงแบบปลอดภัย — ใช้กับค่าคงที่ในโค้ดเท่านั้น ไม่ใช่ input ผู้ใช้ */
@@ -60,6 +69,39 @@ function lit(value: string): string {
 function inList(column: string, values: readonly string[]): string {
   if (values.length === 0) return 'false'
   return `${column} IN (${values.map(lit).join(', ')})`
+}
+
+/**
+ * ตรงข้ามกับ `inList` — 🛑 **ต้องกัน NULL เอง ห้ามเขียน `NOT (x IN (...))`**
+ *
+ * ใน SQL `NULL IN (...)` ให้ `NULL` แล้ว `NOT NULL` ก็ยัง `NULL` ⇒ `WHEN` ไม่ match
+ * และตกไปสาขาถัดไปเงียบ ๆ ขณะที่ฝั่ง TypeScript (`!releasesProblemHold(null)`) ได้ `true`
+ * = สองสูตรตอบคนละกองสำหรับแถวที่ `carrierStatus` ยังว่าง (เทส parity จับได้ แต่ต้องเขียน
+ * ให้ถูกตั้งแต่แรก ไม่ใช่รอให้เทสสอน)
+ */
+function notInList(column: string, values: readonly string[]): string {
+  if (values.length === 0) return 'true'
+  return `(${column} IS NULL OR NOT (${column} IN (${values.map(lit).join(', ')})))`
+}
+
+/**
+ * buildProblemHoldSql — ฉบับ SQL ของ `holdsParcelProblem()` (`lib/iship/status.ts`)
+ *
+ * 🛑 export ออกไปให้ใช้นอกไฟล์นี้ด้วยโดยตั้งใจ — คำถาม "ใบนี้อยู่กองพัสดุมีปัญหาไหม" ถูกถาม
+ * จาก **3 ที่ที่ไม่เคยเรียกหากัน**: สูตรกองข้างล่างนี้ · ตัวนับป้ายในแถวรายการแชท
+ * (`order-stage.service.ts`) · ตัวกรอง `state=problem` ของกล่องแชท (`chat.service.ts`)
+ * ทั้งสามเคยเขียนเงื่อนไขเองคนละที่ (`carrierStatus = ANY(PROBLEM…)`) ⇒ พอเติมเรื่อง
+ * "ค้างเหนียว" เข้าไป ถ้าไม่รวมเป็นก้อนเดียว จะมีที่ใดที่หนึ่งตกหล่นโดยไม่มีอะไรฟ้อง
+ *
+ * ต้องให้ผลตรงกับ `holdsParcelProblem()` ทุกอินพุต — มีเทส parity เป็นด่าน
+ */
+export function buildProblemHoldSql(carrierStatus: string, problemAt: string): string {
+  return (
+    `(${inList(carrierStatus, PROBLEM_CARRIER_STATUSES)}` +
+    ` OR (${problemAt} IS NOT NULL` +
+    ` AND ${notInList(carrierStatus, RETURNED_CARRIER_STATUSES)}` +
+    ` AND ${notInList(carrierStatus, PROBLEM_HOLD_RELEASE_STATUSES)}))`
+  )
 }
 
 /**
@@ -82,11 +124,14 @@ export function buildShippingStageSql(c: StageSqlColumns): string {
     WHEN ${c.fulfillmentMode} <> 'SHIPPED' THEN 'NOT_SHIPPING'
     -- 1) ยกเลิก/คืนของ = ไม่ใช่งานค้าง ไม่ว่าพัสดุจะอยู่สถานะไหน
     WHEN ${c.orderStatus} IN ('CANCELLED', 'RETURNED') THEN 'DONE'
-    -- 2) มีพัสดุ — เรียงตาม deriveShippingStage เป๊ะ: ตีกลับ → มีปัญหา → ปลายทาง → ระหว่างทาง
+    -- 2) มีพัสดุ — เรียงตาม deriveShippingStage เป๊ะ:
+    --    ตีกลับ → มีปัญหา(รวม "เคยมีปัญหา" ที่ค้างเหนียว) → ปลายทาง → ระหว่างทาง
     WHEN ${c.hasShipment} THEN (
       CASE
         WHEN ${inList(c.carrierStatus, RETURNED_CARRIER_STATUSES)} THEN 'RETURNED'
-        WHEN ${inList(c.carrierStatus, PROBLEM_CARRIER_STATUSES)} THEN 'PROBLEM'
+        -- ค้างเหนียว (2026-09-14): "เคยมีปัญหา" นับเป็นกองนี้ต่อ จนกว่าของจะถึงที่ใดที่หนึ่ง
+        -- [สำคัญ] ต้องอยู่ **ใต้** กิ่งตีกลับเหมือนฝั่ง TS เป๊ะ — สองเงื่อนไขนี้เป็นจริงพร้อมกันได้
+        WHEN ${buildProblemHoldSql(c.carrierStatus, c.problemAt)} THEN 'PROBLEM'
         WHEN ${inList(c.carrierStatus, TERMINAL_CARRIER_STATUSES)} THEN (
           -- ของถึงแล้วแต่ยังไม่ได้เงินปลายทาง = ยังมีงานค้างจริง (ตามเงิน)
           CASE WHEN ${isCod} AND ${c.codReceivedAt} IS NULL THEN 'AWAITING_COD' ELSE 'DONE' END

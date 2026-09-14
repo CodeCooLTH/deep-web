@@ -102,6 +102,8 @@ export interface OrderDetailClientProps {
    * undefined = ร้านที่ไม่ใช่ ONLINE_SALES (ไม่มีพัสดุให้ไล่)
    */
   shippingStage?: ShippingStageKey
+  /** สถานะปัจจุบันจากขนส่ง — ส่งต่อให้ป้ายหัวการ์ดแยก "ยังติดปัญหา" กับ "เคยมีปัญหา ส่งใหม่" */
+  carrierStatus?: string | null
   type: string
   createdAtISO: string
   fulfillmentMode: string
@@ -199,6 +201,7 @@ export default function OrderDetailClient({
   shortCode,
   status,
   shippingStage,
+  carrierStatus = null,
   type,
   createdAtISO,
   fulfillmentMode,
@@ -717,6 +720,7 @@ export default function OrderDetailClient({
             paymentConfirmedAt={paymentConfirmedAtISO}
             status={status}
             shippingStage={shippingStage}
+            carrierStatus={carrierStatus}
             totalAmount={totalAmount}
             vatAmount={vatAmount}
             vatRate={vatRate}

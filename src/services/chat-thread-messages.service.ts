@@ -110,6 +110,8 @@ export async function getThreadMessagesPage(params: {
               take: 1,
               select: {
                 trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true,
+                // กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) — carrierStatus เดินถอยหลังได้
+                problemAt: true,
                 // แถวที่ 2 ของ stepper ในการ์ดแชท ("ขากลับ")
                 returnStartedAt: true, returnedAt: true,
               },
@@ -148,6 +150,7 @@ export async function getThreadMessagesPage(params: {
                 courierCode: o.shipments[0].courierCode,
                 status: o.shipments[0].status,
                 carrierStatus: o.shipments[0].carrierStatus,
+                problemAt: o.shipments[0].problemAt?.toISOString() ?? null,
                 // แถวที่ 2 ของ stepper ("ขากลับ") — Date ข้ามเส้นมาเป็น JSON ไม่ได้
                 returnStartedAt: o.shipments[0].returnStartedAt?.toISOString() ?? null,
                 returnedAt: o.shipments[0].returnedAt?.toISOString() ?? null,

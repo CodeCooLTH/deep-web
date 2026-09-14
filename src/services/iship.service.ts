@@ -30,6 +30,7 @@ import {
   describeCarrierStatus,
   impliesDispatched,
   isDeliveredCarrierStatus,
+  isProblemCarrierStatus,
   parseCarrierTimestamp,
   isReturnDispatchEvent,
   returnLegStampOf,
@@ -120,6 +121,8 @@ export interface ShipmentView {
   carrierStatus: string | null;
   carrierStatusText: string | null;
   carrierStatusAt: Date | null;
+  /** "เคยมีปัญหาครั้งแรกเมื่อไร" — กอง "พัสดุมีปัญหา" ค้างเหนียวจนกว่าของจะถึงที่ใดที่หนึ่ง */
+  problemAt: Date | null;
   /** เวลาของ "ขากลับ" — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" (ดู schema.prisma) */
   returnStartedAt: Date | null;
   returnedAt: Date | null;
@@ -444,6 +447,7 @@ function toShipmentView(s: {
   height: number | null;
   codAmount: unknown;
   createdAt: Date;
+  problemAt: Date | null;
   returnStartedAt: Date | null;
   returnedAt: Date | null;
   returnDispatchedAt: Date | null;
@@ -498,6 +502,7 @@ const SHIPMENT_SELECT = {
   carrierStatus: true,
   carrierStatusText: true,
   carrierStatusAt: true,
+  problemAt: true,
   returnStartedAt: true,
   returnedAt: true,
   returnDispatchedAt: true,
@@ -1727,7 +1732,7 @@ export async function getTraces(
           carrierStatusAt: parcel?.updatedAtRaw ? new Date(parcel.updatedAtRaw) : new Date(),
         },
       });
-      await stampReturnLeg(
+      await stampCarrierMilestones(
         row.id,
         code,
         parcel?.updatedAtRaw ? new Date(parcel.updatedAtRaw) : new Date(),
@@ -1831,7 +1836,11 @@ export async function requestPickup(
 }
 
 /**
- * stampReturnLeg — ประทับเวลา "ขากลับ" ลงแถวพัสดุขาไป (write-once ทั้งสองคอลัมน์)
+ * stampCarrierMilestones — ประทับหมุดเวลาที่ต้องจำ ลงแถวพัสดุ (write-once ทุกคอลัมน์)
+ *
+ * ตอนนี้ประทับ 3 อย่างในฟังก์ชันเดียว **โดยตั้งใจ**: ขากลับ 2 คอลัมน์ + "เคยมีปัญหาครั้งแรก"
+ * เพราะทั้งหมดตอบคำถามเดียวกัน ("รหัสสถานะที่เพิ่งเข้ามา แปลว่ามีหมุดอะไรต้องปัก") และ
+ * อ่านจากค่าเดียวกัน — แยกเป็นคนละฟังก์ชันเมื่อไร จะมีทางเข้าที่เรียกตัวหนึ่งแต่ลืมอีกตัว
  *
  * 🛑 ต้องเรียกจาก **ทุกทางที่เขียน `carrierStatus`** ปัจจุบันมี 3 ทาง:
  *   1. `handleStatusWebhook()`   — iShip ยิงมาบอก
@@ -1844,11 +1853,25 @@ export async function requestPickup(
  * 7–8 ครั้งต่อพัสดุใบเดียว (ขนส่งพยายามส่งใหม่หลายรอบก่อนยอมตีกลับ — ข้อมูลจริงบน prod)
  * ถ้าเขียนทับได้ "วันที่เริ่มตีกลับ" จะขยับทุกครั้งที่ขนส่งลองใหม่
  */
-async function stampReturnLeg(
+async function stampCarrierMilestones(
   shipmentId: string,
   code: string | null | undefined,
   occurredAt: Date,
 ): Promise<void> {
+  /**
+   * "เคยมีปัญหาครั้งแรกเมื่อไร" — หัวใจของกอง "พัสดุมีปัญหา" แบบค้างเหนียว
+   *
+   * 🛑 `WHERE problemAt IS NULL` ไม่ใช่การกันพลาด: ขนส่งไปส่งไม่สำเร็จได้หลายรอบต่อพัสดุ
+   * ใบเดียว (`issue` → `progress` → `issue` → …) ถ้าเขียนทับได้ "ครั้งแรก" จะขยับตามรอบ
+   * ล่าสุดทุกครั้ง แล้วคำถามที่คอลัมน์นี้ถูกสร้างมาตอบก็จะตอบไม่ได้อีกเลย
+   */
+  if (isProblemCarrierStatus(code)) {
+    await prisma.orderShipment.updateMany({
+      where: { id: shipmentId, problemAt: null },
+      data: { problemAt: occurredAt },
+    });
+  }
+
   // เขียนแยกสองกิ่งแทนการใช้ computed key เพราะ Prisma ต้องการชื่อคอลัมน์แบบ literal
   // ถึงจะตรวจชนิดให้ได้ — computed key จะกลายเป็น any แล้วสะกดผิดก็ไม่มีอะไรฟ้อง
   const col = returnLegStampOf(code);
@@ -1967,8 +1990,8 @@ export async function handleStatusWebhook(payload: unknown): Promise<void> {
     });
   }
 
-  // ฝาแฝดขากลับของบล็อกข้างบน — ไทม์ไลน์ขากลับอ่านเวลาจากคอลัมน์เหล่านี้
-  await stampReturnLeg(shipment.id, status, occurredAt);
+  // ฝาแฝดขากลับของบล็อกข้างบน + หมุด "เคยมีปัญหา" — ไทม์ไลน์/กองงานอ่านเวลาจากคอลัมน์เหล่านี้
+  await stampCarrierMilestones(shipment.id, status, occurredAt);
   await stampReturnDispatch(
     shipment.id,
     status,
@@ -2308,7 +2331,7 @@ async function applyCarrierStatus(
   });
   // ประทับเวลาขากลับก่อนงานอื่น — ทางนี้คือทางที่พัสดุตีกลับส่วนใหญ่เดินผ่านจริง
   // (6 จาก 12 ใบบน prod ได้ `return_success` มาทางรอบ poll ไม่ใช่ webhook)
-  await stampReturnLeg(s.id, code, changedAt);
+  await stampCarrierMilestones(s.id, code, changedAt);
   await advanceOrderOnCarrierMove(s.orderId, code);
 
   /**
@@ -2969,6 +2992,15 @@ export async function linkShipment(
         carrierStatus: parcel.carrierStatus,
         carrierStatusText: parcel.carrierStatusText,
         carrierStatusAt: new Date(),
+        /**
+         * ผูกพัสดุที่มีอยู่แล้วบน iShip = สถานะที่ได้มา **อาจติดปัญหาอยู่ตั้งแต่วินาทีแรก**
+         * (ร้านมักมาผูกตอนที่ของเดินไปไกลแล้ว) ⇒ ต้องประทับหมุด "เคยมีปัญหา" ตรงนี้ด้วย
+         * ไม่งั้นกองค้างเหนียวจะไม่เริ่มนับจนกว่าสถานะจะขยับอีกครั้ง — ซึ่งอาจไม่ขยับอีกเลย
+         *
+         * ใช้ `new Date()` เพราะนี่คือเวลาที่ *เรารู้* ไม่ใช่เวลาที่ปัญหาเกิด (iShip ไม่ได้บอก
+         * มาในรูปนี้) — ตรงกับ `carrierStatusAt` บรรทัดบนที่ตัดสินใจแบบเดียวกัน
+         */
+        problemAt: isProblemCarrierStatus(parcel.carrierStatus) ? new Date() : null,
         createdByUserId: userId,
         receiverSnapshot: parcel.receiver as object,
       },

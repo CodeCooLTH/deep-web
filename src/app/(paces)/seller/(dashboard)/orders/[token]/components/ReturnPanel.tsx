@@ -142,6 +142,8 @@ type ForwardParcel = {
   courierName: string | null
   trackingNo: string | null
   carrierStatus: string | null
+  /** คู่กับ carrierStatus — กอง "พัสดุมีปัญหา" ค้างเหนียวจนของถึงที่ใดที่หนึ่ง (2026-09-14) */
+  problemAt: string | Date | null
   box: ReturnParcelBox | null
 }
 
@@ -1136,12 +1138,14 @@ export default function ReturnPanel({
       deriveShippingStage({
         status: eligibility.orderStatus,
         carrierStatus: forward.carrierStatus,
+        problemAt: forward.problemAt,
         hasShipment: forward.trackingNo != null,
         /* แถบนี้เรนเดอร์ต่อเมื่อ `forward` ไม่ null = ใบนี้มีพัสดุขาไปจริง ⇒ เป็นออเดอร์ที่
            ส่งของแน่นอน ไม่ใช่นัดรับ/ดิจิทัล (ค่านี้จึงเป็นข้อเท็จจริงที่อนุมานได้จากเงื่อนไข
            การเรนเดอร์ ไม่ใช่ค่าที่เดา — feature 00062) */
         fulfillmentMode: 'SHIPPED',
       }),
+      forward.carrierStatus,
     )
     const name = courierLabel(forward.courierCode, forward.courierName)
     return (

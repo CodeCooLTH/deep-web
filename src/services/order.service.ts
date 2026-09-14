@@ -1671,6 +1671,8 @@ export async function getOrderByToken(publicToken: string) {
         // เดิมไม่ได้ select มา ⇒ ผู้ซื้อเห็นแค่ "กำลังจัดส่ง" ค้างอยู่ตลอดแม้พัสดุจะเคลื่อนไปแล้ว
         select: {
           trackingNo: true, courierName: true, courierCode: true, carrierStatus: true,
+          // กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) — ต้องมาจากใบเดียวกับ carrierStatus
+          problemAt: true,
           // แถวที่ 2 ของไทม์ไลน์ฝั่งผู้ซื้อ ("ขากลับ") — null = ขนส่งไม่ได้แจ้งเวลา
           returnStartedAt: true, returnedAt: true, returnDispatchedAt: true,
         },
@@ -2111,6 +2113,9 @@ function orderListInclude(opts?: { withPayments?: boolean }) {
           // ส่วน "การเดินทางล่าสุด" หายทั้งหมดโดยไม่มี error (user เจอ 2026-08-06)
           id: true,
           carrierStatus: true,
+          // กอง "พัสดุมีปัญหา" แบบค้างเหนียว (2026-09-14) — `carrierStatus` เดินถอยหลังได้
+          // (ไม่เจอผู้รับ → ลองส่งใหม่) ช่องนี้คือสิ่งเดียวที่จำได้ว่าเคยมีปัญหา
+          problemAt: true,
           // 2 ช่องนี้ซ้ำกับ where ด้านบนโดยตั้งใจ — countsAsRevenue() (lib/order-revenue.ts) ตรวจ
           // เงื่อนไขเองอีกชั้นเพื่อให้ผลตรงกับ revenueOrderWhere เป๊ะ ไม่ต้องเชื่อว่า caller กรองมาแล้ว
           status: true,
@@ -2325,6 +2330,9 @@ export async function getThreadPanelOrders(
         take: 1,
         select: {
           trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true,
+          // กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) — ต้องมีคู่กับ select ใน
+          // inbox/[conversationId]/page.tsx เสมอ (สองที่นี้ป้อนลิสต์เดียวกันคนละหน้า)
+          problemAt: true,
           // แถวที่ 2 ของ stepper ในแชท ("ขากลับ") — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด"
           returnStartedAt: true, returnedAt: true, returnDispatchedAt: true,
         },
@@ -2370,6 +2378,7 @@ export async function getThreadPanelOrders(
             courierCode: o.shipments[0].courierCode,
             status: o.shipments[0].status,
             carrierStatus: o.shipments[0].carrierStatus,
+            problemAt: o.shipments[0].problemAt?.toISOString() ?? null,
             // แถวที่ 2 ของ stepper ("ขากลับ") — Date ข้ามเส้น RSC/JSON ไม่ได้ ต้องเป็นสตริง
             returnStartedAt: o.shipments[0].returnStartedAt?.toISOString() ?? null,
             returnedAt: o.shipments[0].returnedAt?.toISOString() ?? null,
@@ -2479,7 +2488,7 @@ export async function getShippingStageCounts(
         where: ACTIVE_FORWARD_SHIPMENT,
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { carrierStatus: true },
+        select: { carrierStatus: true, problemAt: true },
       },
     },
   });
@@ -2503,6 +2512,7 @@ export async function getShippingStageCounts(
       paymentMethod: o.paymentMethod,
       codReceivedAt: o.codReceivedAt,
       fulfillmentMode: o.fulfillmentMode,
+      problemAt: o.shipments[0]?.problemAt ?? null,
     });
     // สองกองที่ไม่มีไทล์: DONE (จบแล้ว) และ NOT_SHIPPING (ไม่เคยมีการส่งของเลย)
     if (stage !== "DONE" && stage !== "NOT_SHIPPING") counts[stage] += 1;

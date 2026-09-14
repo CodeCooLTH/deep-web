@@ -8,13 +8,13 @@ const base = {
   fulfillmentMode: 'SHIPPED',
   paymentMethod: null as string | null,
   codReceivedAt: null as string | null,
-  shipment: null as { status: string; carrierStatus: string | null } | null,
+  shipment: null as { status: string; carrierStatus: string | null; problemAt: string | null } | null,
 }
 
 describe('orderShippingStage', () => {
   it('ยกเลิกทั้งใบ = DONE ไม่ว่าพัสดุอยู่สถานะไหน', () => {
     expect(
-      orderShippingStage({ ...base, status: 'CANCELLED', shipment: { status: 'CREATED', carrierStatus: 'in_transit' } }),
+      orderShippingStage({ ...base, status: 'CANCELLED', shipment: { status: 'CREATED', carrierStatus: 'in_transit', problemAt: null } }),
     ).toBe('DONE')
   })
 
@@ -23,11 +23,11 @@ describe('orderShippingStage', () => {
   })
 
   it('พัสดุที่สร้างไม่สำเร็จ (FAILED) ไม่นับว่ามีพัสดุ — ยังรอเลขพัสดุ', () => {
-    expect(orderShippingStage({ ...base, shipment: { status: 'FAILED', carrierStatus: null } })).toBe('AWAITING_PARCEL')
+    expect(orderShippingStage({ ...base, shipment: { status: 'FAILED', carrierStatus: null, problemAt: null } })).toBe('AWAITING_PARCEL')
   })
 
   it('พัสดุกำลังสร้าง (PENDING) นับว่ามีพัสดุแล้ว — รอรับเข้า', () => {
-    expect(orderShippingStage({ ...base, shipment: { status: 'PENDING', carrierStatus: null } })).toBe('AWAITING_PICKUP')
+    expect(orderShippingStage({ ...base, shipment: { status: 'PENDING', carrierStatus: null, problemAt: null } })).toBe('AWAITING_PICKUP')
   })
 
   it('COD ส่งถึงแล้วแต่ยังไม่กดรับเงิน = AWAITING_COD (ยังเป็นงานค้าง)', () => {
@@ -35,7 +35,7 @@ describe('orderShippingStage', () => {
       orderShippingStage({
         ...base,
         paymentMethod: 'เก็บเงินปลายทาง',
-        shipment: { status: 'CREATED', carrierStatus: 'delivered' },
+        shipment: { status: 'CREATED', carrierStatus: 'delivered', problemAt: null },
       }),
     ).toBe('AWAITING_COD')
   })
@@ -45,7 +45,7 @@ describe('orderShippingStage', () => {
       orderShippingStage({
         ...base,
         paymentMethod: 'โอนเงิน',
-        shipment: { status: 'CREATED', carrierStatus: 'delivered' },
+        shipment: { status: 'CREATED', carrierStatus: 'delivered', problemAt: null },
       }),
     ).toBe('DONE')
   })
@@ -55,7 +55,7 @@ describe('filterActiveOrders', () => {
   it('กรองใบที่จบงานออก เหลือเฉพาะงานค้าง เรียงลำดับเดิม', () => {
     const orders = [
       { ...base, id: 'a', status: 'CANCELLED' }, // DONE → หลุด
-      { ...base, id: 'b', shipment: { status: 'CREATED', carrierStatus: 'in_transit' } }, // SHIPPING → อยู่
+      { ...base, id: 'b', shipment: { status: 'CREATED', carrierStatus: 'in_transit', problemAt: null } }, // SHIPPING → อยู่
       { ...base, id: 'c', status: 'CONFIRMED' }, // DONE (ปิดการขาย ไม่มีพัสดุ) → หลุด
       { ...base, id: 'd' }, // AWAITING_PARCEL → อยู่
     ]

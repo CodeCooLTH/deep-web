@@ -54,6 +54,9 @@ const forwardShipmentQuery = {
   take: 1,
   select: {
     carrierStatus: true,
+    // "เคยมีปัญหาครั้งแรกเมื่อไร" — ชิปบนแถบ "ขาไป" ใช้ SSOT เดียวกับหน้าอื่น จึงต้องรู้ด้วย
+    // ไม่งั้นชิปในชีตคืนของจะบอก "กำลังจัดส่ง" ขณะที่การ์ดข้างนอกบอก "พัสดุมีปัญหา"
+    problemAt: true,
     courierCode: true,
     courierName: true,
     trackingNo: true,
@@ -149,6 +152,8 @@ export type ForwardParcelFacts = {
   trackingNo: string | null
   /** สถานะดิบจากขนส่ง — จอแปลเป็นชิปเองด้วย SSOT เดียวกับหน้าอื่น (`deriveShippingStage`) */
   carrierStatus: string | null
+  /** คู่กับ `carrierStatus` เสมอ — `deriveShippingStage` ต้องใช้ทั้งคู่ถึงจะตอบกองได้ถูก */
+  problemAt: Date | null
   /** กล่องของขาไป = ค่าตั้งต้นของขากลับ (D-5) · null ทั้งก้อนเมื่อไม่ครบ 4 ช่อง */
   box: ReturnParcelBox | null
 }
@@ -254,6 +259,7 @@ export async function getReturnEligibility(shopId: string, orderId: string) {
     courierName: fwd?.courierName ?? order.shipmentTracking?.provider ?? null,
     trackingNo: fwd?.trackingNo ?? order.shipmentTracking?.trackingNo ?? null,
     carrierStatus: fwd?.carrierStatus ?? null,
+    problemAt: fwd?.problemAt ?? null,
     box: parseReturnParcel({
       weight: dec(fwd?.weight),
       width: fwd?.width,

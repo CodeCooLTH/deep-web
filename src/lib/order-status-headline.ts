@@ -29,13 +29,16 @@ export function resolveOrderStatusHeadline(args: {
   status: string
   stage: ShippingStageKey
   hasShipment: boolean
+  /** สถานะปัจจุบันจากขนส่ง — แยก "ยังติดปัญหา" ออกจาก "เคยมีปัญหา ขนส่งกำลังส่งใหม่"
+   *  ผู้ซื้อควรเห็นทั้งสองอย่าง แต่คนละน้ำเสียง (ไม่ส่งมา = ได้คำเดิม "พัสดุมีปัญหา") */
+  carrierStatus?: string | null
 }): OrderStatusHeadline {
   const statusLabel = resolveOrderStatusBadge(args.status).label
 
   // ไม่มีพัสดุ → ยังไม่มีเรื่องของกล่องให้เล่า หัวเรื่องคือสถานะออเดอร์ล้วน
   if (!args.hasShipment) return { headline: statusLabel, statusPill: null }
 
-  const stageLabel = resolveOrderStatusBadge(args.status, args.stage).label
+  const stageLabel = resolveOrderStatusBadge(args.status, args.stage, args.carrierStatus).label
 
   // ออเดอร์ที่ปิดจบแล้ว (ยืนยัน/ยกเลิก) `resolveOrderStatusBadge` คืนค่าเดิมทั้งสองครั้งโดยตั้งใจ
   // → เข้าเงื่อนไขนี้ แล้วเราซ่อนป้ายที่ซ้ำแทนที่จะโชว์คำเดียวกันสองที่

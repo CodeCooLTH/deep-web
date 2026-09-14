@@ -7,7 +7,7 @@ import {
   encodeInboxCursor,
   type InboxSortMode,
 } from '@/lib/inbox-sort'
-import { PROBLEM_CARRIER_STATUSES } from '@/lib/iship/status'
+import { buildProblemHoldSql } from '@/lib/order-stage-sql'
 import { canAccessShop, listAccessibleShopIds } from '@/lib/shop-context'
 import { Prisma } from '@prisma/client'
 import { getProductById } from '@/services/product.service'
@@ -232,10 +232,11 @@ export async function conversationIdsByShipmentState(
    * เดิมใช้ใบล่าสุดใบเดียว ⇒ ชิปในกล่องแชทขึ้น 3 ขณะที่หน้า /orders ขึ้น 10 ใบ
    * (user เจอบน prod 2026-08-20)
    *
-   * 🛑 ชุดที่เทียบต้องเป็น `PROBLEM_CARRIER_STATUSES` **ตัวเดียวกับที่ `deriveShippingStage`
-   * ใช้ตัดสินกอง PROBLEM** เสมอ — ตั้งแต่ 2026-08-24 ชุดนั้นไม่รวมสายตีกลับแล้ว (ตีกลับเป็น
-   * กอง `RETURNED` ของตัวเอง) ถ้าที่นี่ยังนับตีกลับอยู่ ชิปในแชทจะมากกว่าไทล์หน้า /orders
-   * ด้วยอาการกลับด้านกับบั๊กเดิมเป๊ะ ๆ
+   * 🛑 เกณฑ์ที่เทียบต้องเป็น `buildProblemHoldSql()` **ตัวเดียวกับที่ `deriveShippingStage`
+   * และ `deriveOrderStage` ใช้ตัดสินกอง PROBLEM** เสมอ (2026-09-14 รวมเรื่อง "ค้างเหนียว"
+   * เข้าไปด้วยแล้ว) — เดิมที่นี่เขียน `= ANY(PROBLEM_CARRIER_STATUSES)` เอง ซึ่งแปลว่า
+   * ทุกครั้งที่เกณฑ์เปลี่ยน จะมีที่ใดที่หนึ่งตกหล่นโดยไม่มีอะไรฟ้อง — เกิดมาแล้ว 2 รอบ
+   * (2026-08-20 นับใบล่าสุดใบเดียว · 2026-08-24 ตีกลับย้ายออกจากชุด)
    * ตัวเลขยังไม่เท่ากันเป๊ะโดยเจตนา — ที่นี่นับ *เธรด* หน้านั้นนับ *ออเดอร์* ลูกค้าที่มีหลายใบ
    * จึงเป็น 1 เธรด แล้วบอกจำนวนบนป้ายแทน ("พัสดุมีปัญหา ×2" — ดู orderStageChipLabel)
    */
@@ -250,7 +251,7 @@ export async function conversationIdsByShipmentState(
           SELECT 1
           FROM "Order" o
           JOIN LATERAL (
-            SELECT sh."carrierStatus"
+            SELECT sh."carrierStatus", sh."problemAt"
             FROM "OrderShipment" sh
             -- นิยาม "มีพัสดุจริง" ชุดเดียวกับ enrichWithOrderStage/getOrdersByShop เป๊ะ ๆ
             WHERE sh."orderId" = o."id" AND sh."status" = 'CREATED' AND sh."isDryRun" = false AND sh."direction" = 'FORWARD'
@@ -261,7 +262,9 @@ export async function conversationIdsByShipmentState(
           WHERE o."shopId" = c."shopId"
             AND o."customerId" = COALESCE(ec."customerId", cu."id")
             AND o."status" NOT IN ('CANCELLED', 'DRAFTED') -- 00061: ร่างไม่มีพัสดุ จึงไม่ใช่งานค้าง
-            AND s."carrierStatus" = ANY(${[...PROBLEM_CARRIER_STATUSES]}::text[])
+            -- [สำคัญ] SSOT เดียวกับป้ายในแถว (enrichWithOrderStage) และกองในหน้า /orders —
+            -- ตัวกรองกับป้ายต้องนับชุดเดียวกัน ไม่งั้นกดกรองแล้วเจอแถวที่ไม่มีป้าย (2026-09-14)
+            AND ${Prisma.raw(buildProblemHoldSql('s."carrierStatus"', 's."problemAt"'))}
         )
     `
     return problemRows.map((r) => r.id)

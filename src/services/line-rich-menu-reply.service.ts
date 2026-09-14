@@ -89,7 +89,7 @@ export async function replyOrderStatus(params: {
           where: ACTIVE_FORWARD_SHIPMENT,
           orderBy: { createdAt: 'desc' },
           take: 1,
-          select: { carrierStatus: true },
+          select: { carrierStatus: true, problemAt: true },
         },
       },
     })
@@ -102,6 +102,7 @@ export async function replyOrderStatus(params: {
       paymentMethod: o.paymentMethod,
       codReceivedAt: o.codReceivedAt,
       fulfillmentMode: o.fulfillmentMode,
+      problemAt: o.shipments[0]?.problemAt ?? null,
     }))
 
     const picked = pickOrderForStatusReply(candidates)

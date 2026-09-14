@@ -16,7 +16,7 @@ describe('resolveOrderStatusBadge', () => {
   it('เคสจริง DP25690853C0FA9B — COD ส่งถึงแล้วแต่ยังไม่ได้เงิน = "รอเงิน COD" ไม่ใช่ "กำลังจัดส่ง"', () => {
     // stage มาจาก deriveShippingStage ตัวจริง ไม่ใช่ค่าที่เดาใส่มือ — ถ้าวันหลังนิยาม
     // AWAITING_COD เปลี่ยน เทสนี้ต้องแดงด้วย ไม่ใช่ผ่านไปเงียบ ๆ
-    const stage = deriveShippingStage({
+    const stage = deriveShippingStage({ problemAt: null,
       fulfillmentMode: 'SHIPPED',
       status: 'SHIPPED',
       carrierStatus: 'delivered',
@@ -34,7 +34,7 @@ describe('resolveOrderStatusBadge', () => {
   })
 
   it('COD ที่ร้านกดรับเงินแล้ว → "ส่งถึงแล้ว" เขียว', () => {
-    const stage = deriveShippingStage({
+    const stage = deriveShippingStage({ problemAt: null,
       fulfillmentMode: 'SHIPPED',
       status: 'SHIPPED',
       carrierStatus: 'delivered',

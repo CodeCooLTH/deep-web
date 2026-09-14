@@ -7,7 +7,13 @@
  * ห้ามเขียนเงื่อนไขซ้ำที่นี่ ไม่งั้นแถบในแชทกับไทล์หน้าแรกจะตอบไม่ตรงกัน
  */
 
-import { deriveShippingStage, SHIPPING_STAGE_LABEL, type ShippingStageKey } from './order-stage'
+import { isProblemCarrierStatus } from './iship/status'
+import {
+  deriveShippingStage,
+  PROBLEM_RETRY_LABEL_SHORT,
+  SHIPPING_STAGE_LABEL,
+  type ShippingStageKey,
+} from './order-stage'
 
 export interface ProgressOrderInput {
   status: string
@@ -21,7 +27,18 @@ export interface ProgressOrderInput {
   fulfillmentMode: string
   /** พัสดุใบล่าสุดที่ไม่ถูกยกเลิก (null/ไม่ส่งมา = ยังไม่เปิดพัสดุ) — optional เพื่อรับ
    *  CustomerPanelOrder ตรง ๆ ได้โดยไม่ต้อง remap (field เกินผ่าน structural typing) */
-  shipment?: { status: string; carrierStatus: string | null } | null
+  shipment?: {
+    status: string
+    carrierStatus: string | null
+    /**
+     * "เคยมีปัญหาครั้งแรกเมื่อไร" — ตัวทำให้กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14)
+     *
+     * 🛑 **บังคับ ไม่ใช่ optional** เพราะการ์ดในแชทมี *สอง* ตัว serialize ที่ต้องตรงกัน
+     * (20 ใบแรกที่ `inbox/[conversationId]/page.tsx` · ใบที่ 21+ ที่ `order.service.ts`)
+     * ถ้าเป็น optional แล้วมีที่ไหนลืมส่ง การ์ดจะสลับกองระหว่างเลื่อนดูรายการเดียวกัน
+     */
+    problemAt: string | Date | null
+  } | null
 }
 
 /** แปลง shape ของการ์ดในแชท → input ของ deriveShippingStage */
@@ -36,6 +53,7 @@ export function orderShippingStage(o: ProgressOrderInput): ShippingStageKey {
     paymentMethod: o.paymentMethod,
     codReceivedAt: o.codReceivedAt,
     fulfillmentMode: o.fulfillmentMode,
+    problemAt: hasShipment ? (sh.problemAt ?? null) : null,
   })
 }
 
@@ -73,7 +91,20 @@ export const STAGE_CHIP_CLS: Record<Exclude<ShippingStageKey, 'DONE' | 'NOT_SHIP
  * แต่ผลลัพธ์บนจอเหมือนกันคือ **ไม่แสดงชิปพัสดุ** เพราะทั้งคู่ไม่มีคำใน `SHIPPING_STAGE_LABEL`
  * โดยตั้งใจ (ดูคอมเมนต์ที่ `ShippingStageKey` ใน src/lib/order-stage.ts)
  */
-export function shippingChipFor(stage: ShippingStageKey): { cls: string; label: string } | null {
+export function shippingChipFor(
+  stage: ShippingStageKey,
+  carrierStatus?: string | null,
+): { cls: string; label: string } | null {
   if (stage === 'DONE' || stage === 'NOT_SHIPPING') return null
+  /**
+   * กอง PROBLEM ที่ค้างเหนียว (2026-09-14) — ชิปนี้ถูกวางไว้ **เหนือ `ShipmentStepper` ในการ์ด
+   * ใบเดียวกัน ห่างกันไม่กี่สิบพิกเซล** และ stepper อ่าน `carrierStatus` สด ๆ ⇒ ถ้าไม่แยกคำ
+   * ชิปแดง "พัสดุมีปัญหา" จะอยู่เหนือแถบฟ้า "อยู่ระหว่างจัดส่ง" ในการ์ดเดียวกัน
+   *
+   * ใช้คำสั้น (ไม่พ่วง "· ส่งใหม่") เพราะ stepper ข้างล่างบอกอยู่แล้วว่าขนส่งกำลังทำอะไร
+   */
+  if (stage === 'PROBLEM' && carrierStatus != null && !isProblemCarrierStatus(carrierStatus)) {
+    return { cls: 'bg-warning/15 text-warning-ink', label: PROBLEM_RETRY_LABEL_SHORT }
+  }
   return { cls: STAGE_CHIP_CLS[stage], label: SHIPPING_STAGE_LABEL[stage] }
 }

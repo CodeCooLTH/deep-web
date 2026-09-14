@@ -7,6 +7,7 @@
  */
 
 import { deriveShippingStage, SHIPPING_STAGE_LABEL, type ShippingStageInput } from '@/lib/order-stage'
+import { isProblemCarrierStatus } from '@/lib/iship/status'
 import { isPickupOrder } from '@/lib/order-pickup'
 
 export type OrderStatusCandidate = ShippingStageInput & {
@@ -55,6 +56,16 @@ export function buildOrderStatusText(order: OrderStatusCandidate): string {
     return isPickupOrder(order.fulfillmentMode)
       ? `คำสั่งซื้อ ${order.orderNo}: นัดรับที่ร้าน — ทักแชทกับร้านเพื่อนัดวันเวลารับสินค้าได้เลยครับ/ค่ะ`
       : `คำสั่งซื้อ ${order.orderNo}: รายการนี้ไม่มีการจัดส่ง — ทักแชทกับร้านเพื่อสอบถามรายละเอียดได้เลยครับ/ค่ะ`
+  }
+  /**
+   * 🛑 กอง PROBLEM ที่ "ค้างเหนียว" (2026-09-14) ต้องพูดต่างจาก "ยังติดปัญหาอยู่จริง"
+   *
+   * ข้อความนี้ส่งถึงลูกค้าทาง LINE แบบ **ตัวหนังสือล้วน ไม่มีไทม์ไลน์ประกอบ** ⇒ ตอบว่า
+   * "พัสดุมีปัญหา" ทั้งที่ตอนนี้ขนส่งกำลังเอาของไปส่งใหม่อยู่ คือการทำให้ลูกค้าตกใจเปล่า ๆ
+   * และเป็นข้อความที่เขาจะได้รับซ้ำทุกครั้งที่ถามจนกว่าของจะถึง
+   */
+  if (stage === 'PROBLEM' && order.carrierStatus != null && !isProblemCarrierStatus(order.carrierStatus)) {
+    return `คำสั่งซื้อ ${order.orderNo}: เคยมีปัญหาระหว่างทาง ตอนนี้ขนส่งกำลังพยายามส่งใหม่ให้อยู่ครับ/ค่ะ`
   }
   return `คำสั่งซื้อ ${order.orderNo}: ${SHIPPING_STAGE_LABEL[stage]}`
 }

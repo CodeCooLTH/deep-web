@@ -75,7 +75,7 @@ export function orderProgressChip({
   const headStage = orderShippingStage(head)
   const label = isService
     ? (headMeta?.label ?? '')
-    : (shippingChipFor(headStage)?.label ?? '')
+    : (shippingChipFor(headStage, head.shipment?.carrierStatus)?.label ?? '')
 
   return {
     // ไอคอนต้องบอกแกนของร้าน — รถบรรทุกกับร้านที่ไม่เคยส่งของคือสัญลักษณ์ที่พูดผิดเรื่อง
@@ -171,7 +171,7 @@ export default function OrderProgressBar({
   const headMeta = headServiceStage === 'DONE' ? null : SERVICE_STAGE_CHIP_META[headServiceStage]
   const headLabel = isService
     ? (headMeta?.label ?? '')
-    : (shippingChipFor(headStage)?.label ?? '')
+    : (shippingChipFor(headStage, head?.shipment?.carrierStatus)?.label ?? '')
 
   /**
    * ใบที่กำลังเปิดชีตรับเงิน — derive จาก `payToken` ไม่เก็บ money ซ้อนไว้ใน state
@@ -344,7 +344,7 @@ export default function OrderProgressBar({
                       : (() => {
                           /* null = ใบนี้ไม่มีเรื่องพัสดุให้พูดถึง (จบแล้ว หรือไม่เคยมีการส่งของเลย
                              — feature 00062) ⇒ ไม่แสดงชิป ไม่ใช่แสดงชิปเปล่า */
-                          const chip = shippingChipFor(stage)
+                          const chip = shippingChipFor(stage, o.shipment?.carrierStatus)
                           return (
                             chip && (
                               <span className={`${chip.cls} rounded px-1.5 py-0.5 text-2xs font-medium`}>

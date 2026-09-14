@@ -35,6 +35,10 @@ export type OrderCardViewData = {
     courierCode?: string | null
     status?: string
     carrierStatus?: string | null
+    /** "เคยมีปัญหาครั้งแรกเมื่อไร" — กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14)
+     *  optional เหมือนพี่น้องในบล็อกนี้: ผู้เรียกเก่าที่ไม่ส่ง = ถอยไปพฤติกรรมก่อนแก้ (ไม่ค้าง)
+     *  ซึ่งเป็นทิศที่ปลอดภัยกว่าการเดาว่า "เคยมีปัญหา" ให้ใบที่ไม่เคยมี */
+    problemAt?: string | null
     /** เวลาของ "ขากลับ" — แถวที่ 2 ของ stepper อ่านจากสองช่องนี้ (null = ขนส่งไม่ได้แจ้ง) */
     returnStartedAt?: string | null
     returnedAt?: string | null
@@ -209,7 +213,11 @@ function ShipmentSection({ data }: { data: OrderCardViewData }) {
       status: data.status,
       paymentMethod: data.paymentMethod,
       codReceivedAt: data.codReceivedAt,
-      shipment: { status: sh.status ?? 'CREATED', carrierStatus: sh.carrierStatus ?? null },
+      shipment: {
+        status: sh.status ?? 'CREATED',
+        carrierStatus: sh.carrierStatus ?? null,
+        problemAt: sh.problemAt ?? null,
+      },
     }) === 'AWAITING_COD'
 
   async function handleCopy() {
