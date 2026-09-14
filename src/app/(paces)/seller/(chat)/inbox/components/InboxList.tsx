@@ -98,6 +98,7 @@ import { subscribeShopChat } from '@/lib/chat-shop-realtime'
 import { markThreadStale } from '@/lib/chat-message-store'
 import { playChatBeep } from '@/lib/chat-sound'
 import { pickBeepTarget } from '@/lib/chat-beep-target'
+import { patchConversationRows } from '@/lib/inbox-row-patch'
 import { useChatSearchQuery } from '@/context/useChatSearchContext'
 import { useLongPress } from '@/hooks/useLongPress'
 import { pacesConfirm } from '@/lib/paces-swal'
@@ -950,7 +951,6 @@ export default function InboxList({
       // ตัวกรองเปลี่ยนระหว่างรอ → ทิ้ง ห้าม merge (merge คือทางที่แถวข้ามตัวกรองเข้ามาได้)
       if (sig !== listSignatureRef.current) return
       setItems((prev) => {
-        const freshIds = new Set(data.items.map((i) => i.id))
         // เสียงเตือนข้อความใหม่จากลูกค้า (user สั่ง 2026-07-23) — เทียบกับ state เดิม: เธรดใหม่ทั้งห้อง
         // หรือเธรดเดิมที่ lastMessageAt ขยับ **และ** ข้อความล่าสุดมาจากลูกค้า (ไม่ใช่ที่ร้านเพิ่งส่งเอง)
         // playChatBeep throttle ให้เองแล้วเมื่อหน้าเธรดดังพร้อมกัน (ดู comment ใน chat-sound.ts)
@@ -958,7 +958,7 @@ export default function InboxList({
          * เสียงเตือนข้อความใหม่จากลูกค้า (user สั่ง 2026-07-23) — เกณฑ์อยู่ที่ `pickBeepTarget`
          * (`src/lib/chat-beep-target.ts`) ที่เดียว พร้อมเทส [blocker] ที่พิสูจน์ด้วย mutation แล้ว
          *
-         * `comparable` = `prev` เป็นแถวของตัวกรองชุดเดียวกันหรือไม่ — ตัวแปรเดียวกับที่ `base`
+         * `comparable` = `prev` เป็นแถวของตัวกรองชุดเดียวกันหรือไม่ — ตัวแปรเดียวกับที่ `patchConversationRows`
          * ข้างล่างใช้ (คำถามเดียวกัน: "prev ชุดนี้เอามาเทียบได้ไหม") เดิมเสียงไม่ได้เช็คข้อนี้เลย
          * จึงดังทุกครั้งที่สลับแท็บ/ตัวกรอง/ค้นหา ทั้งที่ไม่มีข้อความใหม่ (user report 2026-08-10)
          */
@@ -967,13 +967,9 @@ export default function InboxList({
         // throttle key เป็นร้านของเธรดนั้นเอง (ไม่ใช่ร้าน active) — ในโหมดรวม ถ้าใช้ key เดียว
         // ข้อความของ 3 ร้านที่มาพร้อมกันจะได้ยินเสียงเดียว ทั้งที่เป็นคนละร้านคนละเรื่อง
         if (beepFor) playChatBeep({ shopId: beepFor.shopId, conversationId: beepFor.id })
-        // หน้าแรกเรียงล่าสุดก่อนอยู่แล้ว (lastMessageAt desc) — วางไว้บนสุดแล้วต่อด้วยของเก่าที่ไม่ซ้ำ
-        //
-        // `base`: ต่อท้ายด้วยของเดิมได้ **เฉพาะเมื่อของเดิมเป็นชุดของตัวกรองเดียวกัน** — ถ้าผลของ
-        // ตัวกรองใหม่มาถึงก่อนที่ fetchList(replace) จะตอบ (poll ยิงทุก 20 วิ ชนได้ง่าย) prev ยัง
-        // เป็นแถวของแท็บก่อนหน้าอยู่ การ merge จะพาแถวเหล่านั้นเข้ามาอยู่ในแท็บใหม่
+        // ตัวกรองเปลี่ยนไปแล้ว = เทียบกับของเดิมไม่ได้ ต้องเริ่มจากศูนย์
         const base = comparable ? prev : []
-        return [...data.items, ...base.filter((p) => !freshIds.has(p.id))]
+        return patchConversationRows(base, data.items)
       })
       itemsSignatureRef.current = sig
     } catch {
