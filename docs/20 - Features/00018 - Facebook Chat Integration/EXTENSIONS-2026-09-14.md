@@ -37,7 +37,12 @@
 | **R10** | "ใบใหม่จริง" นิยามเดียว: ไม่อยู่ใน prev **และ** ใหม่กว่าใบล่าสุดที่ไม่ใช่ `local-*` บนจอ | `pickNewIncoming()` (`chat-thread-scroll.ts:62-74`) ใช้ทั้งตัวนับ/เสียง/การเลื่อนตาม | ใบที่ delta คืนกลับมาเพราะถูกแก้ (รีแอ็กชัน/ลบ) ไม่ใช่ "ใหม่" · ใบ backfill กลางเธรดก็ไม่ใช่ |
 | **R11** | `refetchNewer` เป็น single-flight + รันตามหลังอีกหนึ่งรอบถ้ามีคำขอมาซ้อน | `flightRef`/`pendingRef` (`useSellerChatThread.ts:865-890`) | realtime ยิง broadcast 1 ครั้ง/แถว — อัลบั้ม 8 รูปเรียก 8 ครั้งติดกัน ปล่อยขนานจะนับ/ดังซ้ำ |
 | **R12** | `userHasScrolled` ติดจาก **`wheel`/`touchmove`** เท่านั้น ไม่ใช่ `scroll` | `mark()` ผูกกับ `wheel`/`touchmove` (`useSellerChatThread.ts:1058-1075`) แยกจาก `onScroll` ที่ผูก `atBottomRef` (บรรทัด 679-702) | การ scroll ที่โปรแกรมสั่งเอง (`scrollToBottom`) ก็ยิง event `scroll` — ถ้าใช้ตัวนั้นตัดสิน "ผู้ใช้เลื่อนเอง" จะติดธงผิดจากการเลื่อนอัตโนมัติ; คีย์บอร์ด/ลากแถบเลื่อน/screen reader ไม่ยิง wheel/touchmove เลย (WCAG 2.1.1) — ครอบด้วยเงื่อนไข `!atBottomRef.current` ใน `onScroll` แทน |
-| **R13/R16** | delta คืน **ครบเพดาน** (`data.items.length >= DELTA_TAKE=100`) = ต้องโหลดหน้าแรกใหม่แทนที่จอ — **แต่ถ้าไม่ได้อยู่ล่างสุดให้เลื่อนออกไป** (ตั้งธง `staleForRef`) ไม่ทำทันที | `fetchNewerOnce()` บรรทัด 778-798 · แทนที่จริงเกิดตอนผู้ใช้ถึงล่างสุด (`onScroll` เรียก `reloadIfStaleRef.current()`) หรือกดปุ่ม "ข้อความใหม่" (`clearUnseen()`) | แทนที่ด้วย 30 ใบใหม่สุดทันทีจะลบ DOM ที่ผู้ใช้กำลังอ่านทิ้ง = จอเด้ง (ผิดเป้าหมายข้อ 3 ตรง ๆ) |
+| **R13/R16** | delta อาจมีช่องว่างบนจอ (`planDeltaApply(...).replace` — ดู R28) = ต้องโหลดหน้าแรกใหม่แทนที่จอ — **แต่ถ้าไม่ได้อยู่ล่างสุดให้เลื่อนออกไป** (ตั้งธง `staleForRef`) ไม่ทำทันที | `fetchNewerOnce()` บรรทัด 778-798 · แทนที่จริงเกิดตอนผู้ใช้ถึงล่างสุด (`onScroll` เรียก `reloadIfStaleRef.current()`) หรือกดปุ่ม "ข้อความใหม่" (`clearUnseen()`) | แทนที่ด้วย 30 ใบใหม่สุดทันทีจะลบ DOM ที่ผู้ใช้กำลังอ่านทิ้ง = จอเด้ง (ผิดเป้าหมายข้อ 3 ตรง ๆ) |
+| **R28 + planDeltaApply** (final fix wave) | แทนที่จอด้วยหน้าแรก: watermark ตั้งจาก **หน้าแรก + แถว delta ที่ trigger** (`firstPageReplacement()`) · ใบที่ไม่เปลี่ยนคง object เดิม · เกณฑ์แทนที่ = delta เต็มเพดาน **และทุกแถวอยู่ในหน้าต่างของจอ** (ไม่เก่ากว่าใบเก่าสุดที่โหลดไว้) · แถวที่เก่ากว่าหน้าต่างไม่เข้าจอเมื่อยังมีของเก่าใน DB (loadOlder ดึงเอง) แต่ยังเข้า watermark | `chat-message-merge.ts` `firstPageReplacement` · `chat-thread-scroll.ts` `planDeltaApply` · hook `reloadFirstPage(triggeredBy, known?)` + `staleDeltaRef` | watermark จากหน้าแรกอย่างเดียว: แถว backfill (seq สูง · createdAt เก่า · updatedAt=ตอน insert) ไม่อยู่ในหน้าแรก ⇒ delta เต็มทุก poll ⇒ แทนที่จอซ้ำทุก 12 วิไม่จบ · และเกณฑ์ "คืนครบ take" อย่างเดียววนกลับได้ผ่านระยะเผื่อ R31 (แถว backfill ชุดเดียวกันถูกคืนซ้ำ ≥100) — server ตัดตาม createdAt desc แถวที่ไม่ได้มาจึงเก่ากว่าใบเก่าสุดที่ได้มาเสมอ |
+| **R29** | เปิดห้องที่ merge cache+initial: id ที่มีทั้งสองชุดใช้สำเนาที่ `messageVersion` = max(createdAt, updatedAt) ใหม่กว่า เท่ากันใช้ cache | `resolveOpeningMessages()` + `messageVersion()` (`chat-message-merge.ts`) — `watermarksOf` ใช้ตัวเดียวกัน | กลับห้องเดิมภายใน 30 วิ router cache คืน RSC ก่อนรีแอ็กชัน/สถานะส่ง และ watermark ของ cache ข้ามการแก้นั้นไปแล้ว ⇒ ถ้า initial ชนะ ค่าเก่าค้างถาวร |
+| **R31** | client ส่ง `afterUpdatedAt = watermark − 5 วินาที` (แกน seq ไม่ถอย) | `deltaAfterUpdatedAt()` (`chat-delta-query.ts`) | seq/updatedAt กำหนดตอนรันคำสั่งแต่มองเห็นตอน commit — `$transaction` commit สลับลำดับได้ + นาฬิกา app server เหลื่อม · แถวที่ถูกคืนซ้ำ idempotent (identity/ไม่นับ/ไม่ดัง) |
+| **R33** | poll ที่ store ไม่มี watermark (ขอ `take=30`) แล้วหน้าแรกต่อกับจอไม่ติด (`nextCursor` ไม่ null และใบเก่าสุดของหน้าใหม่กว่าใบล่าสุดบนจอ) → ไปทางแทนที่ (ใช้หน้าที่ได้มาแล้ว) เคารพ R16 | `firstPageLeavesGap()` (`chat-thread-scroll.ts`) | merge แล้วได้ช่องว่างกลางเธรดที่ loadOlder ไม่มีวันเติม |
+| **R34** | ถอด `ThreadCache.stale`/`markThreadStale` และการเรียกใน `InboxList` | — | state ที่ไม่มีใครอ่าน — เปิดห้องยิง delta reconcile เสมออยู่แล้ว |
 | **R14/R15** | เปิดห้องที่มีทั้ง cache และ initial (จาก RSC): คาบเกี่ยวกัน → `mergeMessages` แล้ว **ไม่ส่ง `fetched`** (watermark คงของ cache) · ไม่คาบเกี่ยว (initial ใหม่กว่าทั้งชุด) → ใช้ initial อย่างเดียว + ตั้ง watermark ใหม่ | `resolveOpeningMessages()` (`chat-message-merge.ts:100-122`) + เรียกจาก effect เปิดห้อง (`useSellerChatThread.ts:907-922`) | initial (RSC) เก่าได้แค่ ~30 วิ (router cache) ส่วน cache เก่าได้ถึง 30 นาที — ถ้า cache ชนะเฉยๆ ข้อความล่าสุดที่รายการแชทเพิ่งโชว์จะหายจากห้องจนกว่า delta จะกลับมา |
 | **R18** | backfill bump `lastMessageAt`/`lastInboundAt` **ทุกหน้า** ทันทีหลัง insert ด้วย `updateMany` ที่มี `lt`/`OR null` ใน `WHERE` (raise-only) — ไม่ใช่ครั้งเดียวหลังลูปตามแผนเดิม | `channel-chat.service.ts:420-442` | bump ครั้งเดียวหลังลูปพัง 3 ทาง: (1) race — ร้านตอบระหว่างไล่หลายสิบวินาที ค่าที่อ่านไว้ตอนต้นเก่ากว่าแล้ว (2) `after()` เพดาน `maxDuration=120` ตัดกลางทาง — insert ไปแล้วแต่ bump ไม่เคยรัน (3) throw ที่หน้า ≥2 — catch ข้าม bump ถาวร |
 | **R19–R21, R25, R26** | เวลาเต็มใช้ `title` + `<span className="sr-only">` แทน `aria-label` บน `<div>` (ไม่มี role รองรับชื่อผู้เขียน) · ปุ่ม "ข้อความใหม่" มี `role="status"` แยกอยู่ **นอก** `<button>` · `tabIndex` ของกล่อง scroll ใส่ผ่าน `setAttribute`/ถอดตอน `blur` ไม่ใช่ JSX ค้าง (กัน iOS คีย์บอร์ดหุบตอนแตะเธรด) · แถวเวลาอัลบั้มรูปได้ `flex-wrap` เหมือนแถวข้อความเดี่ยว | `ChatThread.tsx:3903-3906, 3978, 3992-4021, 3123-3125` | ux gate (Hard Rule 8) + `docs/conventions/aria-name-requires-supporting-role.md` + `ios-fixed-overlay-visual-viewport` + `flex-header-truncation.md` |
@@ -53,16 +58,24 @@
 | `ChatMessage` | `@@index([conversationId, updatedAt])` (`ChatMessage_conversationId_updatedAt_idx`) | ให้ query แกน `updatedAt` ของ delta ไม่ full-scan ตารางที่ใหญ่ที่สุดในระบบ |
 | `Conversation` | `metaBackfilledAt DateTime?` | `null` = ยังไม่เคยไล่ backfill ครบถึง `conversation.createdAt` (เปิดห้องครั้งถัดไปจะไล่ต่อ) · มีค่า = ไล่ครบแล้ว รอบถัดไปดึงหน้าเดียวพอ |
 
-Migration `prisma/migrations/20260914150000_chat_message_updated_at/migration.sql`:
+Migration 2 ไฟล์ (แยกกันโดยตั้งใจ — R30):
+
+`prisma/migrations/20260914150000_chat_message_updated_at/migration.sql`:
 ```sql
+SET lock_timeout = '5s';
 ALTER TABLE "ChatMessage" ADD COLUMN "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT '1970-01-01 00:00:00';
 ALTER TABLE "ChatMessage" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP;
-CREATE INDEX "ChatMessage_conversationId_updatedAt_idx" ON "ChatMessage"("conversationId", "updatedAt");
 ALTER TABLE "Conversation" ADD COLUMN "metaBackfilledAt" TIMESTAMP(3);
+RESET lock_timeout;
+```
+
+`prisma/migrations/20260914150100_chat_message_updated_at_index/migration.sql`:
+```sql
+CREATE INDEX IF NOT EXISTS "ChatMessage_conversationId_updatedAt_idx" ON "ChatMessage"("conversationId", "updatedAt");
 ```
 🛑 เจตนาแยก `ADD COLUMN` (constant default = fast default, ไม่ rewrite ตาราง) จาก `SET DEFAULT` (คนละคำสั่ง คนละ lock — คำสั่งที่สองแค่แก้ catalog ของคอลัมน์ที่มีอยู่แล้ว) — **ห้ามรวมเป็น `ADD COLUMN … DEFAULT CURRENT_TIMESTAMP` คำสั่งเดียว** เพราะ `CURRENT_TIMESTAMP` ไม่ใช่ค่าคงที่ ⇒ Postgres จะ rewrite ทั้งตาราง (ค้างเหมือน `UPDATE` ทุกแถว)
 
-`CREATE INDEX` ไม่ใช้ `CONCURRENTLY` (parked — ดู §6) เพราะ Prisma ห่อทุก migration ในทรานแซกชันเดียวซึ่ง `CONCURRENTLY` ทำในทรานแซกชันไม่ได้ — ถือ `SHARE` lock บล็อกการเขียน (ไม่บล็อกการอ่าน) ระหว่างสร้าง index บน ~106k แถว
+🛑 ทุกคำสั่งในไฟล์ migration เดียวกันรันในทรานแซกชันเดียว ⇒ ACCESS EXCLUSIVE ของ `ADD COLUMN` (บล็อก **ทั้งอ่านและเขียน**) ถูกถือจน COMMIT — ถ้า `CREATE INDEX` อยู่ไฟล์เดียวกัน lock นั้นจะค้างตลอดการสร้าง index บน ~106k แถว (บันทึกของ Task 1 ที่ว่า "ไม่บล็อกการอ่าน" ผิด) ⇒ ไฟล์แรกเหลือแต่คำสั่ง metadata + `lock_timeout 5s` (ได้ lock ไม่ทัน = build ล้ม ของเดิมยังเสิร์ฟ — HR15) · ไฟล์ที่สองถือแค่ `SHARE` lock: การอ่านไหลต่อ การเขียน ChatMessage รอจนสร้างเสร็จ · ไม่ใช้ `CONCURRENTLY` เพราะทำในทรานแซกชันที่ Prisma ห่อไม่ได้ · `IF NOT EXISTS` เพราะฐาน local สร้างไปแล้วจากไฟล์รุ่นก่อนแยก
 
 ## 4. API contract ที่เปลี่ยน
 
@@ -146,14 +159,16 @@ flowchart LR
 | ผู้ใช้เลื่อนอ่านของเก่า + มีข้อความใหม่ | ไม่เลื่อนจอ (R9) — ขึ้นปุ่ม "ข้อความใหม่" (นับเฉพาะ BUYER, R24) |
 | 2 แท็บเปิดห้องเดียวกัน | ต่างคนต่าง store ไม่ sync กัน — ยอมรับได้ (ทั้งคู่ reconcile จาก DB ชุดเดียวกัน) |
 | `seq` ของใบ backfill ใหม่กว่าใบที่เห็นอยู่ | delta คว้าได้ → `mergeMessages` แทรกตามเวลา (D-8) |
-| delta คืนครบเพดาน (100 ใบ) | R13/R16 — แทนที่ทันทีถ้า atBottom, เลื่อนออกไปถ้าไม่ใช่ |
+| delta คืนครบเพดาน (100 ใบ) | ทุกแถวอยู่ในหน้าต่างของจอ → R13/R16 แทนที่ทันทีถ้า atBottom เลื่อนออกไปถ้าไม่ใช่ · ใบเก่าสุดที่ได้มาเก่ากว่าหน้าต่าง → merge เฉพาะแถวในหน้าต่าง (R28) |
+| หลังไล่ backfill >100 ใบ | watermark ตอนแทนที่ครอบแถว delta (R28) · แถวที่คืนซ้ำเพราะระยะเผื่อ R31 อยู่นอกหน้าต่างของจอ → ไม่แทนที่ซ้ำ |
 | เปิดห้องที่มีทั้ง cache และ RSC initial | R14/R15 — merge หรือใช้ initial อย่างเดียว แล้วแต่คาบเกี่ยว |
 
 ## 8. หนี้ที่ยังเปิดอยู่ / parked
 
 | หนี้ | รายละเอียด | Ruling |
 |---|---|---|
-| CREATE INDEX ไม่ใช้ CONCURRENTLY | ถือ SHARE lock บล็อกการเขียน ChatMessage ระหว่างสร้าง index ~106k แถว (ไม่บล็อกการอ่าน) — Prisma ห่อ migration ในทรานแซกชันเดียว ทำ CONCURRENTLY ไม่ได้ | Task 1 parked |
+| CREATE INDEX ไม่ใช้ CONCURRENTLY | แยกไฟล์แล้ว (R30) ถือ SHARE lock บล็อกเฉพาะการเขียน ChatMessage ระหว่างสร้าง index ~106k แถว — การอ่านไหลต่อ | R30 (แทน Task 1 parked ที่อ้างผิดว่าไม่บล็อกการอ่าน) |
+| แถว backfill ที่ถูกตัดทิ้งจาก delta เต็มเพดาน (seq สูงกว่าทุกแถวที่ได้มา) | เข้าเงื่อนไข delta ต่อทุก poll จนกว่ามีข้อความใหม่ยก seq ข้าม ⇒ poll ละ 100 แถว + enrich (ไม่ re-render ไม่แทนที่จอ ไม่ sync) | final fix wave — ต้นทุนเท่านั้น แก้จริงต้องให้ delta เรียงตาม seq/updatedAt (มติ spec ใหม่) |
 | ไม่เก็บ cursor ข้ามรอบ backfill | เธรดที่มีข้อความเกิน ~2,000 ใบ ไม่มีวันได้ธง `metaBackfilledAt` — Graph 20 calls ทุกครั้งที่เปิดห้อง (หลัง throttle 5 นาที) | Task 6 parked — เก็บ cursor ต้องมีมติ spec ใหม่ (Meta แนะนำไม่ให้เก็บ cursor ข้าม request) |
 | Race เสี้ยววินาที: reload สำเร็จแล้วผู้ใช้เลื่อนขึ้นก่อน poll ที่ค้างมาถึง | ปุ่ม "1 ใหม่" ปลอมหนึ่งครั้ง + reload เกินหนึ่งรอบ / นับ-beep ซ้ำได้หนึ่งครั้ง | Task 4 parked — ไม่เสียข้อมูล self-heal รอบถัดไป |
 | ระหว่าง defer (staleFor ติดธง) ทุก poll ยังดึง+enrich 100 ใบทุก 12 วิ ไม่มีกำหนด | ถ้าผู้ใช้อยู่ด้านบนตลอด | deferred |
