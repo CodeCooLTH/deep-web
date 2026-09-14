@@ -42,7 +42,10 @@ describe('[blocker] GET .../messages — sync ต้องไม่บล็อ�
   })
 
   it('ยังเรียกเฉพาะตอนไม่มี cursor เหมือนเดิม (เลื่อนดูประวัติเก่าไม่ต้อง sync)', () => {
-    expect(code).toMatch(/if\s*\(\s*!parsed\.output\.cursor\s*\)/)
+    // 2026-09-14: เพิ่มเงื่อนไข !isDeltaRequest(...) เข้ามาด้วย (poll แบบ delta ก็ไม่ต้อง sync
+    // เหมือนกัน — ดู chat-delta-query.test.ts) แต่ `!parsed.output.cursor` ยังต้องเป็นส่วนหนึ่ง
+    // ของเงื่อนไขเสมอ ไม่งั้นเลื่อนดูประวัติเก่าจะ trigger sync กลับมาเหมือนบั๊กเดิม
+    expect(code).toMatch(/if\s*\(\s*!parsed\.output\.cursor\s*&&\s*!isDeltaRequest\(parsed\.output\)\s*\)/)
   })
 
   it('ยังปล่อย Server-Timing ออกไป — ครั้งหน้าที่มีคนบอกว่าช้าจะได้ไม่ต้องเริ่มจากศูนย์', () => {

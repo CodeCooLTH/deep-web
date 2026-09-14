@@ -41,15 +41,20 @@ export async function getThreadMessagesPage(params: {
   userId: string
   cursor?: string
   take?: number
+  /** delta สองแกน (2026-09-14) — ดู src/lib/chat-delta-query.ts */
+  afterSeq?: number
+  afterUpdatedAt?: string
   /** ตัวจับเวลาของผู้เรียก (route มี Server-Timing, หน้า RSC ไม่มี) — ไม่ส่งมาก็ได้ */
   mark?: (label: string, detail?: string) => void
 }) {
-  const { conversationId, userId, cursor, take } = params
+  const { conversationId, userId, cursor, take, afterSeq, afterUpdatedAt } = params
   const mark = params.mark ?? (() => {})
 
     const result = await getMessages(conversationId, userId, {
       cursor: cursor,
       take: take,
+      afterSeq: afterSeq,
+      afterUpdatedAt: afterUpdatedAt,
     });
     mark("msgs", `n=${result.items.length}`);
 
@@ -340,6 +345,9 @@ export async function getThreadMessagesPage(params: {
        * ฝั่ง API ไม่เปลี่ยนพฤติกรรมเลย — `JSON.stringify(new Date())` ให้สตริงชุดเดียวกันเป๊ะ
        */
       createdAt: m.createdAt.toISOString(),
+      // 🛑 แปลงเหมือน createdAt ด้วยเหตุผลเดียวกัน (เส้น RSC) — ถ้าปล่อยเป็น Date ข้ามไป client
+      // watermarksOf() ใน chat-message-store.ts เทียบเป็นสตริง แล้ว watermark พังเงียบ (2026-09-14)
+      updatedAt: m.updatedAt.toISOString(),
       // ลูกค้าแก้ข้อความนี้ทีหลังหรือเปล่า (message_edits, 2026-08-03) — ร่องรอยเก็บใน rawMessage.edit
       // ไม่ได้เพิ่มคอลัมน์ (ดู ingestMessageEdit); UI ใช้ขึ้นป้าย "แก้ไขแล้ว" ท้ายบับเบิล
       edited: !!(m as { rawMessage?: { edit?: unknown } | null }).rawMessage?.edit,

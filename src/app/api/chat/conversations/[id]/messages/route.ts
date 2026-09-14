@@ -18,6 +18,7 @@ import { syncMissingMessagesFromMeta, type SendFailedError } from "@/services/ch
 import { enqueueOutbound, deliverRoom } from "@/services/chat-outbox.service";
 import { getProductsByIds } from "@/services/product.service";
 import { getThreadMessagesPage, isQuotable } from "@/services/chat-thread-messages.service";
+import { isDeltaRequest } from "@/lib/chat-delta-query";
 import { pushNewChatMessage } from "@/services/seller-push.service";
 import { SendChatMessageSchema, ChatMessagesQuerySchema } from "@/lib/validations";
 import {
@@ -254,6 +255,8 @@ export async function GET(
   const input = {
     cursor: searchParams.get("cursor") ?? undefined,
     take: rawTake === null ? undefined : Number(rawTake),
+    afterSeq: searchParams.get("afterSeq") === null ? undefined : Number(searchParams.get("afterSeq")),
+    afterUpdatedAt: searchParams.get("afterUpdatedAt") ?? undefined,
   };
   const parsed = v.safeParse(ChatMessagesQuerySchema, input);
   if (!parsed.success) {
@@ -285,11 +288,17 @@ export async function GET(
      *
      * แลกไปข้อเดียว: เดิมข้อความที่เติมอยู่ใน response เดียวกัน ตอนนี้มาช้ากว่านั้น ≤6 วินาที
      */
-    if (!parsed.output.cursor) {
+    /**
+     * ไล่เก็บข้อความที่ webhook ไม่เคยส่งมา — ผูกกับ "การเปิดห้อง" เท่านั้น
+     * 🛑 คำขอแบบ delta คือ poll ที่ยิงทุก 12 วินาที ถ้าปล่อยให้ trigger ด้วย จะกลายเป็นการ
+     *    ยิง Graph ตามรอบ poll (throttle 5 นาทีกันไว้ชั้นหนึ่ง แต่ไม่ควรพึ่ง throttle
+     *    เป็นด่านเดียว — เจตนาของโค้ดต้องอ่านออกจากเงื่อนไขเอง)
+     */
+    if (!parsed.output.cursor && !isDeltaRequest(parsed.output)) {
       after(syncMissingMessagesFromMeta(id));
       timer.mark("sync", "deferred");
     } else {
-      timer.mark("sync", "skipped-cursor");
+      timer.mark("sync", "skipped");
     }
 
     /**
@@ -303,6 +312,8 @@ export async function GET(
       userId,
       cursor: parsed.output.cursor,
       take: parsed.output.take,
+      afterSeq: parsed.output.afterSeq,
+      afterUpdatedAt: parsed.output.afterUpdatedAt,
       mark: (label, detail) => timer.mark(label, detail),
     });
     return NextResponse.json(
