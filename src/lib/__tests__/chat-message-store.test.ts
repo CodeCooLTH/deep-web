@@ -1,0 +1,93 @@
+import { beforeEach, describe, expect, it } from 'vitest'
+import {
+  MAX_THREADS,
+  markThreadStale,
+  readThread,
+  resetThreadStoreForTest,
+  watermarksOf,
+  writeThread,
+} from '@/lib/chat-message-store'
+import type { ChatMessageView } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
+
+const item = (id: string, over: Partial<ChatMessageView> = {}): ChatMessageView =>
+  ({
+    id,
+    conversationId: 'c1',
+    senderUserId: null,
+    senderRole: 'BUYER',
+    type: 'TEXT',
+    body: id,
+    imageUrl: null,
+    createdAt: '2026-09-14T09:00:00.000Z',
+    seq: 1,
+    ...over,
+  }) as ChatMessageView
+
+describe('[blocker] chat-message-store', () => {
+  beforeEach(() => resetThreadStoreForTest())
+
+  it('อ่านห้องที่ไม่เคยเขียนได้ null', () => {
+    expect(readThread('nope')).toBeNull()
+  })
+
+  it('เขียนแล้วอ่านกลับได้ พร้อม watermark', () => {
+    writeThread('c1', { items: [item('a')], lastSeq: 5, lastUpdatedAt: '2026-09-14T09:00:00.000Z' })
+    const got = readThread('c1')
+    expect(got?.items.map((m) => m.id)).toEqual(['a'])
+    expect(got?.lastSeq).toBe(5)
+  })
+
+  it('markThreadStale ไม่ลบข้อมูล แค่ปักธง', () => {
+    writeThread('c1', { items: [item('a')], lastSeq: 5, lastUpdatedAt: '2026-09-14T09:00:00.000Z' })
+    markThreadStale('c1')
+    expect(readThread('c1')?.stale).toBe(true)
+    expect(readThread('c1')?.items).toHaveLength(1)
+  })
+
+  it('markThreadStale กับห้องที่ไม่มี cache ต้องไม่สร้างแถวเปล่า', () => {
+    markThreadStale('ghost')
+    expect(readThread('ghost')).toBeNull()
+  })
+
+  it(`เก็บได้ไม่เกิน ${MAX_THREADS} ห้อง — ห้องที่ถูกแตะนานสุดหลุดก่อน`, () => {
+    for (let i = 0; i < MAX_THREADS + 1; i++) {
+      writeThread(`c${i}`, { items: [item('a')], lastSeq: 1, lastUpdatedAt: '2026-09-14T09:00:00.000Z' })
+    }
+    expect(readThread('c0')).toBeNull()
+    expect(readThread(`c${MAX_THREADS}`)).not.toBeNull()
+  })
+
+  it('การอ่านนับเป็นการแตะ — ห้องที่เพิ่งอ่านต้องไม่ใช่ตัวที่ถูกไล่ออก', () => {
+    for (let i = 0; i < MAX_THREADS; i++) {
+      writeThread(`c${i}`, { items: [item('a')], lastSeq: 1, lastUpdatedAt: '2026-09-14T09:00:00.000Z' })
+    }
+    readThread('c0') // แตะห้องเก่าสุด
+    writeThread('newcomer', { items: [item('a')], lastSeq: 1, lastUpdatedAt: '2026-09-14T09:00:00.000Z' })
+    expect(readThread('c0')).not.toBeNull()
+    expect(readThread('c1')).toBeNull()
+  })
+})
+
+describe('[blocker] watermarksOf', () => {
+  it('แถวเก่า (updatedAt=1970 fast default) ต้องไม่ลาก watermark ย้อนกลับ — ใช้ createdAt แทน (R6)', () => {
+    const out = watermarksOf([
+      item('a', { createdAt: '2026-09-14T09:00:00.000Z', updatedAt: '1970-01-01T00:00:00.000Z', seq: 7 }),
+    ])
+    expect(out).toEqual({ lastSeq: 7, lastUpdatedAt: '2026-09-14T09:00:00.000Z' })
+  })
+
+  it('แถวที่ updatedAt ใหม่กว่า createdAt จริง (แก้ไข/ลบ) ต้องใช้ updatedAt', () => {
+    const out = watermarksOf([
+      item('a', { createdAt: '2026-09-14T09:00:00.000Z', updatedAt: '2026-09-14T10:00:00.000Z', seq: 1 }),
+    ])
+    expect(out.lastUpdatedAt).toBe('2026-09-14T10:00:00.000Z')
+  })
+
+  it('ข้อความ optimistic ที่ไม่มี seq ไม่นับเข้า lastSeq แต่นับ createdAt ของมันด้วย', () => {
+    const out = watermarksOf([
+      item('local-1', { createdAt: '2026-09-14T11:00:00.000Z', seq: undefined, updatedAt: undefined }),
+    ])
+    expect(out.lastSeq).toBe(0)
+    expect(out.lastUpdatedAt).toBe('2026-09-14T11:00:00.000Z')
+  })
+})
