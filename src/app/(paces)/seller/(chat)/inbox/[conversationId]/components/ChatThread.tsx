@@ -3163,7 +3163,7 @@ export default function ChatThread({
                         )}
                         {/* R19/P2-b: div ไม่รองรับ aria-label — เวลาเต็มเป็นข้อความจริง วางหลังเนื้อหา
                             (ต้นไม่ได้ ไม่งั้นทุกบับเบิลถูกอ่านเวลาก่อนเนื้อหา) · ไม่อยู่ใต้เงื่อนไขแถวเวลา */}
-                        <span className="sr-only">เวลา {formatDateTimeTH(last.createdAt)}</span>
+                        <span className="sr-only">{fmt(t.inbox.messageTimeSr, { date: formatDateTimeTH(last.createdAt) })}</span>
                       </div>
                       {/**
                        * feature 00048 — อัลบั้ม "ฝั่งลูกค้า" ไม่เคยมีชุดปุ่ม hover เลย (ของเดิมมีเฉพาะ
@@ -3560,12 +3560,12 @@ export default function ChatThread({
                         <AutoReplyTag isTest={mExt.autoReplyKind === 'AUTO_TEST'} trace={m.autoReply ?? null} />
                       ) : channel === 'MESSENGER' && metaAiMessageIds.has(m.id) ? (
                         <span
-                          title="เอเจนต์ AI ของ Meta ตอบข้อความนี้แทนร้าน"
+                          title={t.inbox.metaAiBadgeExplain}
                           className="border-default-300 bg-card text-default-700 absolute top-0 end-2.5 z-20 inline-flex -translate-y-1/2 items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium whitespace-nowrap shadow"
                         >
                           <Icon icon="brand-meta" className="text-xs" aria-hidden="true" />
-                          <span aria-hidden="true">AI ของ Meta</span>
-                          <span className="sr-only">เอเจนต์ AI ของ Meta ตอบข้อความนี้แทนร้าน</span>
+                          <span aria-hidden="true">{t.inbox.metaAiBadge}</span>
+                          <span className="sr-only">{t.inbox.metaAiBadgeExplain}</span>
                         </span>
                       ) : null}
                       {/* reply quote (feature 00018 Phase 3) — กล่องจาง ๆ เยื้องเหนือบับเบิล ให้เห็นชัดว่าเป็น
@@ -3976,7 +3976,7 @@ export default function ChatThread({
                         </div>
                       )}
                       {/* R19/P2-b: เวลาเต็มเป็นข้อความจริงหลังเนื้อหา (ชุดเดียวกับ sr-only "ส่งโดย") */}
-                      <span className="sr-only">เวลา {formatDateTimeTH(m.createdAt)}</span>
+                      <span className="sr-only">{fmt(t.inbox.messageTimeSr, { date: formatDateTimeTH(m.createdAt) })}</span>
                     </div>
                     {!mine && actionCluster}
                   </div>
@@ -4010,7 +4010,7 @@ export default function ChatThread({
             className="btn bg-primary hover:bg-primary-hover pointer-events-auto inline-flex items-center gap-1.5 rounded-full text-nowrap text-white shadow-lg"
           >
             <Icon icon="arrow-down" className="size-4.5" aria-hidden="true" />
-            ข้อความใหม่
+            {t.inbox.newMessagesButton}
             <span className="badge bg-card text-primary-ink rounded-full tabular-nums">
               {unseenNewCount > 99 ? '99+' : unseenNewCount}
             </span>
@@ -4019,7 +4019,7 @@ export default function ChatThread({
       )}
       {/* mount ค้างตลอด — live region ที่เพิ่ง mount พร้อมข้อความมักไม่ถูกอ่าน */}
       <span role="status" className="sr-only">
-        {unseenNewCount > 0 ? `มีข้อความใหม่ ${unseenNewCount} ข้อความ` : ''}
+        {unseenNewCount > 0 ? fmt(t.inbox.newMessagesAnnounce, { count: unseenNewCount }) : ''}
       </span>
       </div>
 

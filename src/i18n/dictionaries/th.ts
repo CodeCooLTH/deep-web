@@ -718,6 +718,16 @@ export const th = {
     /** ป้ายบนกล่องอ้างอิงข้อความที่กำลังตอบ — {name} = ชื่อผู้ส่ง หรือคำว่า "ข้อความของร้าน" */
     quotedReplyTo: 'ตอบกลับ{name}',
     quotedShopMessage: 'ข้อความของร้าน',
+    /**
+     * ห้องแชทเปิดแล้วเห็นทันที (00018 ส่วนขยาย 2026-09-14) — ย้ายจากสตริงดิบใน ChatThread
+     * `newMessagesAnnounce` = live region (sr-only) · `{count}` ต้องมี 1 ตัวทุกภาษา (เทส [blocker])
+     * `messageTimeSr` = sr-only หลังเนื้อหาบับเบิล `{date}` = formatDateTimeTH (ห้าม format วันที่เองในคำแปล)
+     */
+    newMessagesButton: 'ข้อความใหม่',
+    newMessagesAnnounce: 'มีข้อความใหม่ {count} ข้อความ',
+    metaAiBadge: 'AI ของ Meta',
+    metaAiBadgeExplain: 'เอเจนต์ AI ของ Meta ตอบข้อความนี้แทนร้าน',
+    messageTimeSr: 'เวลา {date}',
     /** คิวไฟล์แนบเหนือช่องพิมพ์ (2026-08-14) — ย้ายออกจากสตริงดิบใน ChatThread */
     attachUploading: 'กำลังอัปโหลด {done}/{total}',
     attachRemove: 'เอา {name} ออก',

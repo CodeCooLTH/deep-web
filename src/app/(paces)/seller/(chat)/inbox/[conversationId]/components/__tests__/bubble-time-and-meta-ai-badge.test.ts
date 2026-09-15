@@ -7,7 +7,8 @@
 //   (b) R19/R23/P2-b — data-message-bubble เป็น <div> (role generic) aria-label ถูกทิ้งเงียบ ๆ ⇒
 //       sr-only "เวลา …" หลังเนื้อหา ครบ 2 เส้นทาง (บับเบิลเดี่ยว + อัลบั้ม) · ห้าม title ที่ระดับบับเบิล
 //       (ลูกที่กดได้รับ tooltip ไปซ้อน popover) — title อยู่ที่ <p> ของเนื้อข้อความแทน
-//   (c) ป้าย Meta AI: ไอคอน brand-meta · ห้ามสี primary (One Voice) · ป้ายไทยพร้อมประโยค sr-only
+//   (c) ป้าย Meta AI: ไอคอน brand-meta · ห้ามสี primary (One Voice) · ป้ายสั้นพร้อมประโยค sr-only
+//   (d) 00047: ข้อความทั้งหมดของ Task 7 มาจาก t.inbox.* — ห้ามสตริงไทยดิบกลับมา (โหมด EN จะเห็นไทย)
 //
 // 🛑 ตัดคอมเมนต์ก่อนสแกนเสมอ — ChatThread เขียนคำเตือนของกฎเหล่านี้ไว้ในคอมเมนต์ด้วย
 
@@ -132,7 +133,7 @@ describe('[blocker] ChatThread — เวลาบนบับเบิล / ป
       // ปลายแท็กเปิด = `>` ตัวแรกที่ไม่ใช่ `=>`
       const tagEnd = r.src.search(/[^=]>/) + 1
       expect(r.src.slice(0, tagEnd)).not.toMatch(/\btitle=/)
-      const sr = r.src.indexOf('<span className="sr-only">เวลา {formatDateTimeTH(')
+      const sr = r.src.indexOf('<span className="sr-only">{fmt(t.inbox.messageTimeSr, { date: formatDateTimeTH(')
       expect(sr).toBeGreaterThan(r.src.indexOf(r.anchor))
       expect(r.src.indexOf(r.anchor)).toBeGreaterThan(-1)
       expect(r.src).toContain('{formatChatBubbleTime(')
@@ -141,13 +142,27 @@ describe('[blocker] ChatThread — เวลาบนบับเบิล / ป
     expect(code).toMatch(/<p\s+title=\{formatDateTimeTH\(m\.createdAt\)\}\s+className=\{`[^`]*`\}\s*>\s*\{m\.body\}/)
   })
 
-  it('(c) ป้าย Meta AI: brand-meta · ไม่มี primary · ป้ายไทย + ประโยค sr-only', () => {
+  it('(c) ป้าย Meta AI: brand-meta · ไม่มี primary · ป้ายสั้น + ประโยค sr-only', () => {
     const badge = code.match(
-      /<span\b(?:(?!<span\b)[\s\S])*?icon="brand-meta"[\s\S]*?<span className="sr-only">เอเจนต์ AI ของ Meta ตอบข้อความนี้แทนร้าน<\/span>\s*<\/span>/,
+      /<span\b(?:(?!<span\b)[\s\S])*?icon="brand-meta"[\s\S]*?<span className="sr-only">\{t\.inbox\.metaAiBadgeExplain\}<\/span>\s*<\/span>/,
     )
     expect(badge).not.toBeNull()
     expect(badge![0]).not.toMatch(/\b(bg|text|border)-primary\b/)
-    expect(badge![0]).toContain('<span aria-hidden="true">AI ของ Meta</span>')
-    expect(badge![0]).toContain('title="เอเจนต์ AI ของ Meta ตอบข้อความนี้แทนร้าน"')
+    expect(badge![0]).toContain('<span aria-hidden="true">{t.inbox.metaAiBadge}</span>')
+    expect(badge![0]).toContain('title={t.inbox.metaAiBadgeExplain}')
+  })
+
+  it('(d) 00047: ปุ่ม/live region ใช้ t.inbox.* · ไม่มีสตริงไทยของ Task 7 เหลือในโค้ด', () => {
+    const cond = code.search(/\{unseenNewCount > 0 && !quickOpen && \(/)
+    const [s, e] = parenBlock(code, cond)
+    expect(code.slice(s, e)).toContain('{t.inbox.newMessagesButton}')
+    expect(code).toMatch(
+      /<span role="status" className="sr-only">\s*\{unseenNewCount > 0 \? fmt\(t\.inbox\.newMessagesAnnounce, \{ count: unseenNewCount \}\) : ''\}\s*<\/span>/,
+    )
+    // code ตัดคอมเมนต์แล้ว ⇒ คำเหล่านี้ที่ยังโผล่ = สตริงที่ผู้ใช้เห็น/SR อ่าน ไม่ใช่คำอธิบาย
+    // ('AI ของ Meta' เปล่า ๆ ไม่ได้ — แถบ "ตอบเองแทน AI ของ Meta" ของ 00018 เดิมยังเป็นไทยดิบ นอกขอบเขตรอบนี้)
+    for (const literal of ['ข้อความใหม่', '>AI ของ Meta<', 'เอเจนต์ AI ของ Meta ตอบข้อความนี้แทนร้าน', 'className="sr-only">เวลา']) {
+      expect(code).not.toContain(literal)
+    }
   })
 })
