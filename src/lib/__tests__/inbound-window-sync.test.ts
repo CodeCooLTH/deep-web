@@ -224,6 +224,22 @@ describe('[blocker] ห้องแชท: watermark ตอน merge เปิ�
     expect(code).toMatch(/void reloadFirstPage\(staleDeltaRef\.current\)/)
   })
 
+  it('asOf: ยก watermark เฉพาะ response ที่นำไปใช้ — ไม่ใช่ตอนเลื่อนการแทนที่ ไม่ใช่ loadOlder ไม่ใช่หน้าแรกของ R33 ที่ merge', async () => {
+    const code = await read()
+    // (c) กิ่งเลื่อนการแทนที่ (R16) จบด้วย return โดยไม่เขียน store
+    const deferStart = code.indexOf('const firstDefer = staleForRef.current !== conversationId')
+    const deferEnd = code.indexOf('const incoming = plan.inWindow', deferStart)
+    expect(deferStart).toBeGreaterThan(-1)
+    expect(code.slice(deferStart, deferEnd)).not.toMatch(/saveThreadView|asOf/)
+    // (d) loadOlder ไม่ส่ง fetched/asOf
+    expect(code).toMatch(/saveThreadView\(conversationId, next, data\.nextCursor\)\n/)
+    // ทางที่ต้องส่ง: delta merge (เฉพาะมี cache) · หน้าแรกที่แทนที่จอ 3 ทาง (loadInitial / reloadFirstPage / RSC)
+    expect(code).toMatch(/fetched: data\.items,\n\s*asOf: cache \? data\.asOf : undefined,/)
+    expect(code).toContain('{ fetched: data.items, replace: true, asOf: data.asOf }')
+    expect(code).toContain('{ fetched, replace: true, asOf: page.asOf }')
+    expect(code).toMatch(/fetched: initial\.items,\n\s*replace: true,\n\s*asOf: initial\.asOf,/)
+  })
+
   it('แถวที่เข้าจอมาจาก planDeltaApply(...).inWindow — ห้าม merge data.items ทั้งชุด (แถวเก่ากว่าหน้าต่างวางบนสุดแบบมีช่องว่าง)', async () => {
     const code = await read()
     expect(code).toMatch(/const incoming = plan\.inWindow/)
