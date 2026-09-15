@@ -62,11 +62,9 @@ Migration 2 ไฟล์ (แยกกันโดยตั้งใจ — R30)
 
 `prisma/migrations/20260914150000_chat_message_updated_at/migration.sql`:
 ```sql
-SET lock_timeout = '5s';
 ALTER TABLE "ChatMessage" ADD COLUMN "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT '1970-01-01 00:00:00';
 ALTER TABLE "ChatMessage" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE "Conversation" ADD COLUMN "metaBackfilledAt" TIMESTAMP(3);
-RESET lock_timeout;
 ```
 
 `prisma/migrations/20260914150100_chat_message_updated_at_index/migration.sql`:
@@ -75,7 +73,7 @@ CREATE INDEX IF NOT EXISTS "ChatMessage_conversationId_updatedAt_idx" ON "ChatMe
 ```
 🛑 เจตนาแยก `ADD COLUMN` (constant default = fast default, ไม่ rewrite ตาราง) จาก `SET DEFAULT` (คนละคำสั่ง คนละ lock — คำสั่งที่สองแค่แก้ catalog ของคอลัมน์ที่มีอยู่แล้ว) — **ห้ามรวมเป็น `ADD COLUMN … DEFAULT CURRENT_TIMESTAMP` คำสั่งเดียว** เพราะ `CURRENT_TIMESTAMP` ไม่ใช่ค่าคงที่ ⇒ Postgres จะ rewrite ทั้งตาราง (ค้างเหมือน `UPDATE` ทุกแถว)
 
-🛑 ทุกคำสั่งในไฟล์ migration เดียวกันรันในทรานแซกชันเดียว ⇒ ACCESS EXCLUSIVE ของ `ADD COLUMN` (บล็อก **ทั้งอ่านและเขียน**) ถูกถือจน COMMIT — ถ้า `CREATE INDEX` อยู่ไฟล์เดียวกัน lock นั้นจะค้างตลอดการสร้าง index บน ~106k แถว (บันทึกของ Task 1 ที่ว่า "ไม่บล็อกการอ่าน" ผิด) ⇒ ไฟล์แรกเหลือแต่คำสั่ง metadata + `lock_timeout 5s` (ได้ lock ไม่ทัน = build ล้ม ของเดิมยังเสิร์ฟ — HR15) · ไฟล์ที่สองถือแค่ `SHARE` lock: การอ่านไหลต่อ การเขียน ChatMessage รอจนสร้างเสร็จ · ไม่ใช้ `CONCURRENTLY` เพราะทำในทรานแซกชันที่ Prisma ห่อไม่ได้ · `IF NOT EXISTS` เพราะฐาน local สร้างไปแล้วจากไฟล์รุ่นก่อนแยก
+🛑 ทุกคำสั่งในไฟล์ migration เดียวกันรันในทรานแซกชันเดียว ⇒ ACCESS EXCLUSIVE ของ `ADD COLUMN` (บล็อก **ทั้งอ่านและเขียน**) ถูกถือจน COMMIT — ถ้า `CREATE INDEX` อยู่ไฟล์เดียวกัน lock นั้นจะค้างตลอดการสร้าง index บน ~106k แถว (บันทึกของ Task 1 ที่ว่า "ไม่บล็อกการอ่าน" ผิด) ⇒ ไฟล์แรกเหลือแต่คำสั่ง metadata (ได้ lock แล้วถือเสี้ยววินาที — ช่วงเสี่ยงเดียวคือรอคิว lock ต่อจากทรานแซกชันยาวที่ถือ `ChatMessage` อยู่ ระหว่างนั้นคำขอที่มาทีหลังต่อคิวด้วย = ค้างชั่วคราวแล้วคลายเองเมื่อทรานแซกชันนั้นจบ) · 🛑 **จงใจไม่ใส่ `lock_timeout`**: migration ที่ล้มเพราะหมดเวลาถูกบันทึกเป็น failed ใน `_prisma_migrations` แล้ว `migrate deploy` ครั้งถัดไปทุกครั้งหยุดด้วย **P3009** จนกว่าจะมีคนรัน `prisma migrate resolve --rolled-back` ชี้ prod ด้วยมือ — push ใหม่แก้ไม่ได้ และขัด HR15 · ไฟล์ที่สองถือแค่ `SHARE` lock: การอ่านไหลต่อ การเขียน ChatMessage รอจนสร้างเสร็จ · ไม่ใช้ `CONCURRENTLY` เพราะทำในทรานแซกชันที่ Prisma ห่อไม่ได้ · `IF NOT EXISTS` เพราะฐาน local สร้างไปแล้วจากไฟล์รุ่นก่อนแยก
 
 ## 4. API contract ที่เปลี่ยน
 
