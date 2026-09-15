@@ -129,12 +129,13 @@ export function watermarksOf(items: ChatMessageView[]): { lastSeq: number; lastU
  *    - ตัดเหลือ MAX ใบทำ watermark ถอยหลัง ⇒ delta ดึงของเดิมซ้ำทุกรอบ poll ตลอดไป
  *    `replace: true` = response นี้คือความจริงทั้งหมดของห้อง (โหลดหน้าแรกใหม่) เริ่ม watermark ใหม่จาก `fetched`
  *    ไม่มี `fetched` และยังไม่มี store = ไม่เขียน (ไม่มีอะไรที่ server ยืนยันให้ตั้ง watermark)
+ *    `asOf` = เวลาฝั่ง server ก่อน query ของ response นี้ — ดู nextWatermarks
  */
 export function saveThreadView(
   conversationId: string,
   items: ChatMessageView[],
   oldestCursor: string | null,
-  opts: { fetched?: ChatMessageView[]; replace?: boolean } = {},
+  opts: { fetched?: ChatMessageView[]; replace?: boolean; asOf?: string } = {},
 ): void {
   const prev = readThread(conversationId)
   if (!prev && !opts.fetched) return
@@ -143,13 +144,32 @@ export function saveThreadView(
   const kept = capMessages(real, MAX_MESSAGES_PER_THREAD)
   const oldest = kept.find((m) => typeof m.seq === 'number')
   const cursor = kept.length < real.length && oldest ? `${oldest.createdAt}|${oldest.seq}` : oldestCursor
+  writeThread(conversationId, { items: kept, oldestCursor: cursor, ...nextWatermarks(prev, opts) })
+}
+
+/**
+ * watermark ถัดไปของห้อง — กฎเดียวของ saveThreadView (R8 + asOf, post-review 2026-09-15)
+ *
+ * = max(watermark เดิม, watermarksOf(fetched), asOf) · `replace` ทิ้งของเดิม · ไม่มี `fetched` = คงของเดิม
+ *
+ * 🛑 ทำไมต้องมี `asOf`: watermark ที่มาจาก "ค่าในแถว" อย่างเดียวค้างอยู่ที่เวลาเขียนล่าสุด T ⇒ client ส่ง
+ *    T − 5 วิ (R31) ทุกรอบ poll ⇒ ห้องที่เงียบคืนแถวช่วง (T−5, T] ซ้ำทุก 12 วิไปตลอด (ห้องหลัง backfill
+ *    ≥100 ใบ = 100 แถวทุกรอบ) · `asOf` คือเวลาฝั่ง server ก่อนรัน query ⇒ ทุกแถวที่เปลี่ยนก่อนเวลานั้นอยู่ใน
+ *    response นี้แล้ว (หรือถูกตัดทิ้งเพราะเก่ากว่าหน้าต่างของจอ — planDeltaApply) ยก watermark ไปถึงได้เลย
+ *    แถวที่ยังเสี่ยงหลุดคือ commit ที่ช้ากว่า 5 วิ ซึ่ง R31 ยอมรับไว้แล้ว
+ * 🛑 `asOf` นับเฉพาะเมื่อมี `fetched` — response ที่ "ถูกนำไปใช้" จริง (delta ที่ merge แล้ว / หน้าแรกที่
+ *    แทนที่จอ) ห้ามส่งมาจาก loadOlder (response นั้นไม่ได้ตอบว่า "อะไรเปลี่ยนตั้งแต่ watermark") และห้าม
+ *    ขยับระหว่างเลื่อนการแทนที่ไว้ (R16 — ตัว hook ไม่เขียน store ในกิ่งนั้นเลย)
+ */
+export function nextWatermarks(
+  prev: { lastSeq: number; lastUpdatedAt: string } | null,
+  opts: { fetched?: ChatMessageView[]; replace?: boolean; asOf?: string },
+): { lastSeq: number; lastUpdatedAt: string } {
   // นาฬิกาเครื่อง client ของบับเบิล optimistic ห้ามเข้า watermark (ข้ามการแก้ฝั่ง server ที่เวลาเก่ากว่า)
-  const fresh = watermarksOf((opts.fetched ?? []).filter(isReal))
+  const fresh = watermarksOf((opts.fetched ?? []).filter((m) => !m.id.startsWith('local-')))
   const base = opts.replace || !prev ? null : prev
-  writeThread(conversationId, {
-    items: kept,
-    oldestCursor: cursor,
-    lastSeq: Math.max(base?.lastSeq ?? 0, fresh.lastSeq),
-    lastUpdatedAt: base && base.lastUpdatedAt > fresh.lastUpdatedAt ? base.lastUpdatedAt : fresh.lastUpdatedAt,
-  })
+  let lastUpdatedAt = base && base.lastUpdatedAt > fresh.lastUpdatedAt ? base.lastUpdatedAt : fresh.lastUpdatedAt
+  if (!opts.fetched) return { lastSeq: base?.lastSeq ?? 0, lastUpdatedAt }
+  if (opts.asOf && opts.asOf > lastUpdatedAt) lastUpdatedAt = opts.asOf
+  return { lastSeq: Math.max(base?.lastSeq ?? 0, fresh.lastSeq), lastUpdatedAt }
 }

@@ -328,6 +328,7 @@ export async function GET(
       {
         items: page.items,
         nextCursor: page.nextCursor,
+        asOf: page.asOf,
         externalReadAt: page.externalReadAt,
         externalDeliveredAt: page.externalDeliveredAt,
       },

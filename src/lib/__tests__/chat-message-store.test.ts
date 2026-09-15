@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   MAX_THREADS,
+  nextWatermarks,
   readThread,
   MAX_MESSAGES_PER_THREAD,
   resetThreadStoreForTest,
@@ -10,6 +11,7 @@ import {
 } from '@/lib/chat-message-store'
 import { firstPageReplacement } from '@/lib/chat-message-merge'
 import { deltaAfterUpdatedAt } from '@/lib/chat-delta-query'
+import { planDeltaApply } from '@/lib/chat-thread-scroll'
 import type { ChatMessageView } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
 
 const item = (id: string, over: Partial<ChatMessageView> = {}): ChatMessageView =>
@@ -181,7 +183,7 @@ describe('[blocker] แทนที่จอด้วยหน้าแรกห
   const matchesDelta = (row: ChatMessageView, w: { afterSeq: number; afterUpdatedAt: string }) =>
     (row.seq ?? 0) > w.afterSeq || new Date(row.updatedAt ?? row.createdAt) > new Date(w.afterUpdatedAt)
 
-  it('แถว backfill (seq สูง · createdAt เก่า · updatedAt = ตอน insert) ต้องไม่เข้าเงื่อนไข delta อีกหลังแทนที่', () => {
+  it('แถว backfill (seq สูง · createdAt เก่า · updatedAt = ตอน insert) หลังแทนที่: คืนซ้ำได้อีกรอบเดียวโดยไม่แทนที่จอ แล้วหลุดด้วย asOf', () => {
     // หน้าแรก 30 ใบ = ข้อความล่าสุดจริง — แถว backfill เก่ากว่าหน้าแรกทั้งหมด จึงไม่อยู่ในหน้านั้น
     const page = Array.from({ length: 30 }, (_, i) =>
       item(`p${i}`, { seq: 1000 + i, createdAt: `2026-09-14T08:${String(i).padStart(2, '0')}:00.000Z` }),
@@ -194,10 +196,19 @@ describe('[blocker] แทนที่จอด้วยหน้าแรกห
       }),
     )
     const { items, fetched } = firstPageReplacement({ screen: [], pageDesc: page, triggeredBy: backfill })
-    saveThreadView('c1', items, 'cursor', { fetched, replace: true })
+    // หน้าแรกถูกขอทันทีหลัง delta ที่ trigger ⇒ asOf ของหน้านั้นห่างจาก updatedAt ของ backfill ไม่ถึง 5 วิ
+    saveThreadView('c1', items, 'cursor', { fetched, replace: true, asOf: '2026-09-14T09:30:01.000Z' })
     const got = readThread('c1')!
-    const w = { afterSeq: got.lastSeq, afterUpdatedAt: got.lastUpdatedAt }
-    expect(backfill.filter((r) => matchesDelta(r, w))).toEqual([])
+    const sent = () => {
+      const s = readThread('c1')!
+      return { afterSeq: s.lastSeq, afterUpdatedAt: deltaAfterUpdatedAt(s.lastUpdatedAt) }
+    }
+    // ค่าที่ hook ส่งจริง (ถอย 5 วิ) ยังคืน backfill ชุดนี้อีกรอบเดียว — ต้องไม่ทำให้แทนที่จอซ้ำ (เก่ากว่าหน้าต่าง)
+    expect(backfill.filter((r) => matchesDelta(r, sent()))).toHaveLength(100)
+    expect(planDeltaApply({ screen: items, hasOlder: true, incoming: backfill, take: 100 }).replace).toBe(false)
+    // รอบ poll นั้นถูกนำไปใช้ (merge) พร้อม asOf ของมัน ⇒ คำขอถัดไปไม่คืน backfill อีก (ไม่มี asOf = คืน 100 ใบทุกรอบ)
+    saveThreadView('c1', items, 'cursor', { fetched: backfill, asOf: '2026-09-14T09:30:13.000Z' })
+    expect(backfill.filter((r) => matchesDelta(r, sent()))).toEqual([])
     // จอยังแสดงแค่หน้าแรก — ของเก่ากว่ามาจาก loadOlder
     expect(got.items.map((m) => m.id)).toEqual(items.map((m) => m.id))
     expect(got.items.some((m) => m.id.startsWith('bf'))).toBe(false)
@@ -208,5 +219,59 @@ describe('[blocker] แทนที่จอด้วยหน้าแรกห
     const late = item('late', { seq: 1, createdAt: '2026-09-14T09:29:58.000Z', updatedAt: '2026-09-14T09:29:58.000Z' })
     expect(matchesDelta(late, { afterSeq: 99, afterUpdatedAt: w })).toBe(false)
     expect(matchesDelta(late, { afterSeq: 99, afterUpdatedAt: deltaAfterUpdatedAt(w) })).toBe(true)
+  })
+})
+
+/**
+ * [blocker] asOf ของ server ยก watermark (post-review 2026-09-15)
+ *
+ * 🛑 ไม่มี asOf: watermark มาจากค่าในแถวอย่างเดียว ⇒ ค้างที่เวลาเขียนล่าสุด T และ client ถอย 5 วิทุกรอบ
+ *    (R31) ⇒ ห้องที่เงียบคืนแถวช่วง (T−5, T] ซ้ำทุก 12 วิไปตลอด · ห้องหลัง backfill ≥100 ใบ = 100 แถวทุกรอบ
+ */
+describe('[blocker] nextWatermarks — asOf', () => {
+  beforeEach(() => resetThreadStoreForTest())
+  const matchesDelta = (row: ChatMessageView, w: { afterSeq: number; afterUpdatedAt: string }) =>
+    (row.seq ?? 0) > w.afterSeq || new Date(row.updatedAt ?? row.createdAt) > new Date(w.afterUpdatedAt)
+  const sent = (id: string) => {
+    const got = readThread(id)!
+    return { afterSeq: got.lastSeq, afterUpdatedAt: deltaAfterUpdatedAt(got.lastUpdatedAt) }
+  }
+
+  it('(a) ห้องเงียบ: poll ที่ asOf = T+12 วิ ⇒ คำขอถัดไปไม่คืนแถวที่เขียนตอน T อีก', () => {
+    const T = '2026-09-14T09:30:00.000Z'
+    const row = item('last', { seq: 42, createdAt: T, updatedAt: T })
+    saveThreadView('c1', [row], null, { fetched: [row], replace: true, asOf: T })
+    // คำขอถัดไปยังคืนแถวนี้ (อยู่ในระยะเผื่อ 5 วิ) — นี่คือรอบที่ต้องยก watermark ด้วย asOf
+    expect(matchesDelta(row, sent('c1'))).toBe(true)
+    saveThreadView('c1', [row], null, { fetched: [row], asOf: '2026-09-14T09:30:12.000Z' })
+    expect(matchesDelta(row, sent('c1'))).toBe(false)
+  })
+
+  it('(b) asOf ไม่มีวันลด watermark — ทั้งเทียบกับของเดิมและกับแถวที่เพิ่งได้มา', () => {
+    const prev = { lastSeq: 9, lastUpdatedAt: '2026-09-14T10:00:00.000Z' }
+    const older = item('o', { seq: 3, createdAt: '2026-09-14T08:00:00.000Z' })
+    expect(nextWatermarks(prev, { fetched: [older], asOf: '2026-09-14T09:00:00.000Z' })).toEqual(prev)
+    const newer = item('n', { seq: 10, createdAt: '2026-09-14T10:05:00.000Z' })
+    expect(nextWatermarks(prev, { fetched: [newer], asOf: '2026-09-14T10:01:00.000Z' }).lastUpdatedAt).toBe(
+      '2026-09-14T10:05:00.000Z',
+    )
+    // replace เริ่มใหม่จากหน้า — asOf ที่เก่ากว่าแถวในหน้าก็ยังไม่ดึงลง
+    expect(nextWatermarks(prev, { fetched: [newer], replace: true, asOf: '2026-09-14T09:00:00.000Z' })).toEqual({
+      lastSeq: 10,
+      lastUpdatedAt: '2026-09-14T10:05:00.000Z',
+    })
+  })
+
+  it('(c)(d) asOf ที่ไม่มี response ถูกนำไปใช้ (เลื่อนการแทนที่ไว้ / loadOlder) ห้ามขยับ watermark', () => {
+    const prev = { lastSeq: 9, lastUpdatedAt: '2026-09-14T10:00:00.000Z' }
+    expect(nextWatermarks(prev, { asOf: '2026-09-14T11:00:00.000Z' })).toEqual(prev)
+    saveThreadView('c1', [item('a', { seq: 9, createdAt: prev.lastUpdatedAt })], null, {
+      fetched: [item('a', { seq: 9, createdAt: prev.lastUpdatedAt })],
+      replace: true,
+    })
+    saveThreadView('c1', [item('a', { seq: 9, createdAt: prev.lastUpdatedAt })], 'older', {
+      asOf: '2026-09-14T11:00:00.000Z',
+    })
+    expect(readThread('c1')!.lastUpdatedAt).toBe(prev.lastUpdatedAt)
   })
 })

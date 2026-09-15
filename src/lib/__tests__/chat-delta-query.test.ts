@@ -50,3 +50,16 @@ describe('[blocker] RSC boundary: updatedAt ต้องแปลงเป็น
     expect(src).toContain('updatedAt: m.updatedAt.toISOString()')
   })
 })
+
+describe('[blocker] asOf ของ response (post-review 2026-09-15)', () => {
+  it('service จับ asOf ก่อน query ข้อความ และคืนออกไป · route ส่งต่อใน JSON', () => {
+    const svc = readFileSync(join(process.cwd(), 'src/services/chat-thread-messages.service.ts'), 'utf8')
+    const at = svc.indexOf('const asOf = new Date().toISOString()')
+    expect(at).toBeGreaterThan(-1)
+    // จับหลัง query = แถวที่เขียนระหว่าง query ถูกข้ามถาวร
+    expect(at).toBeLessThan(svc.indexOf('await getMessages('))
+    expect(svc).toMatch(/nextCursor: result\.nextCursor,\n\s*asOf,/)
+    const route = readFileSync(join(process.cwd(), 'src/app/api/chat/conversations/[id]/messages/route.ts'), 'utf8')
+    expect(route).toContain('asOf: page.asOf,')
+  })
+})

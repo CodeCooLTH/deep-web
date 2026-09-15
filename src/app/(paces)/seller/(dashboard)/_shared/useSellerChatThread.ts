@@ -301,6 +301,8 @@ export type ChatMessageView = {
 type MessagesApiResponse = {
   items: ChatMessageView[]
   nextCursor: string | null
+  /** เวลาฝั่ง server ก่อน query (ISO) — ยก watermark ของ store ให้ห้องที่เงียบ poll ได้ 0 แถว (nextWatermarks) */
+  asOf?: string
   /** watermark "ลูกค้าอ่านถึงเวลานี้" (feature 00018 read receipt) — มากับทุก GET เพื่อให้ป้าย
    *  "ส่งแล้ว → อ่านแล้ว" อัปเดตได้เองโดยไม่ต้องรีโหลดหน้า (read event ไม่ทริกเกอร์ realtime) */
   externalReadAt?: string | null
@@ -383,6 +385,8 @@ export type InitialThreadMessages = {
   /** เรียงใหม่→เก่า เหมือน API (hook กลับด้านให้เองตอน seed) */
   items: ChatMessageView[]
   nextCursor: string | null
+  /** เวลาฝั่ง server ก่อน query — ดู MessagesApiResponse.asOf */
+  asOf?: string
   externalReadAt: string | null
   externalDeliveredAt: string | null
 }
@@ -614,7 +618,7 @@ export function useSellerChatThread(
         setMessages(loaded)
         setOldestCursor(data.nextCursor)
         // หน้าแรกคือความจริงทั้งหมดของห้อง ณ ตอนนี้ ⇒ เขียนทับ store + เริ่ม watermark ใหม่จากหน้านี้
-        saveThreadView(conversationId, loaded, data.nextCursor, { fetched: data.items, replace: true })
+        saveThreadView(conversationId, loaded, data.nextCursor, { fetched: data.items, replace: true, asOf: data.asOf })
         if (data.externalReadAt !== undefined) setExternalReadAt(data.externalReadAt)
         if (data.externalDeliveredAt !== undefined) setExternalDeliveredAt(data.externalDeliveredAt)
         scrollToBottom()
@@ -746,7 +750,7 @@ export function useSellerChatThread(
         setMessages((prev) => [...loaded, ...prev.filter((m) => m.id.startsWith('local-'))])
         setOldestCursor(page.nextCursor)
         oldestCursorRef.current = page.nextCursor
-        saveThreadView(conversationId, loaded, page.nextCursor, { fetched, replace: true })
+        saveThreadView(conversationId, loaded, page.nextCursor, { fetched, replace: true, asOf: page.asOf })
         if (atBottomRef.current) scrollToBottom()
       } catch {
         // เงียบเหมือน refetchNewer — รอบ poll ถัดไปจะเจอ delta ครบเพดานแล้วลองใหม่เอง
@@ -770,7 +774,8 @@ export function useSellerChatThread(
         const cache = readThread(conversationId)
         const params = new URLSearchParams()
         if (cache) {
-          // delta สองแกน: แถวใหม่ (seq) + แถวเก่าที่ค่าเปลี่ยน (updatedAt) — ส่วนใหญ่คืน 0 แถว
+          // delta สองแกน: แถวใหม่ (seq) + แถวเก่าที่ค่าเปลี่ยน (updatedAt) — ห้องที่ไม่มีอะไรเขียนมาเกิน 5 วิ
+          // คืน 0 แถว เพราะ watermark ถูกยกถึง asOf ของ response ก่อนหน้า (nextWatermarks)
           params.set('take', String(DELTA_TAKE))
           params.set('afterSeq', String(cache.lastSeq))
           // R31: ถอยแกน updatedAt 5 วิ กันแถวที่ commit ช้ากว่าเพื่อน/นาฬิกา server เหลื่อม (ดู chat-delta-query.ts)
@@ -872,8 +877,14 @@ export function useSellerChatThread(
           // แต่ messagesRef ยังไม่ตามทัน) · StrictMode เรียก updater 2 ครั้งด้วย prev เดียวกัน ⇒ ได้ next
           // เท่ากัน ⇒ เขียนซ้ำได้ผลเดิม (idempotent) ไม่เป็นอันตราย
           // ไม่ตัด state บนจอให้เหลือ MAX — ผู้ใช้ที่เลื่อนโหลดของเก่าไว้ต้องไม่เห็นมันหายกลางการอ่าน
-          // (saveThreadView ตัดเฉพาะภาพที่ลง store) · watermark มาจาก data.items เท่านั้น (R8)
-          saveThreadView(conversationId, next, oldestCursorRef.current, { fetched: data.items })
+          // (saveThreadView ตัดเฉพาะภาพที่ลง store) · watermark มาจาก data.items เท่านั้น (R8) + asOf
+          // 🛑 asOf เฉพาะ delta: แถวที่ไม่ได้มาในคำขอนี้คือแถวที่เก่ากว่าหน้าต่างของจอ (planDeltaApply) ·
+          // หน้าแรกของ R33 (ไม่มี cache) ห้ามใส่ — จออาจถือแถวเก่ากว่าหน้า 30 ใบที่ถูกแก้ระหว่างนั้น
+          // ซึ่ง response นี้ไม่ได้ตอบ ถ้ายก watermark ถึง asOf การแก้นั้นจะไม่มากับ delta อีกเลย
+          saveThreadView(conversationId, next, oldestCursorRef.current, {
+            fetched: data.items,
+            asOf: cache ? data.asOf : undefined,
+          })
           return next
         })
         // เสียงเตือน (user สั่ง 2026-07-23) — เฉพาะข้อความใหม่ของฝั่งลูกค้า
@@ -954,7 +965,11 @@ export function useSellerChatThread(
     if (initial) {
       const initialAsc = [...initial.items].reverse()
       if (opening.replaceStore) {
-        saveThreadView(conversationId, initialAsc, initial.nextCursor, { fetched: initial.items, replace: true })
+        saveThreadView(conversationId, initialAsc, initial.nextCursor, {
+          fetched: initial.items,
+          replace: true,
+          asOf: initial.asOf,
+        })
       } else {
         saveThreadView(conversationId, opening.items, opening.oldestCursor)
       }
@@ -1042,7 +1057,8 @@ export function useSellerChatThread(
   // realtime socket ฝั่ง browser หลุด/ไม่ทำงาน (user report 2026-07-26 "ไม่ realtime"). หยุดเมื่อแท็บ
   // ถูกซ่อน — ไม่กิน request ตอนไม่มีคนดู
   // 12 วิ (เดิม 6, 2026-09-14) — realtime เป็นตัวหลัก poll เหลือหน้าที่กันกรณี channel หลุดเงียบ
-  // และตอนนี้แต่ละรอบเป็น delta ที่คืน 0 แถวเป็นส่วนใหญ่ ไม่ใช่การดึง 30 ใบทั้งก้อน
+  // และตอนนี้แต่ละรอบเป็น delta ที่คืน 0 แถวเมื่อห้องไม่มีอะไรเขียนมาเกิน 5 วิ (watermark ยกถึง asOf ของ
+  // response ก่อนหน้า — R31 ถอย 5 วิ) ไม่ใช่การดึง 30 ใบทั้งก้อน
   useEffect(() => {
     const tick = () => {
       if (document.visibilityState === 'visible') refetchNewer()

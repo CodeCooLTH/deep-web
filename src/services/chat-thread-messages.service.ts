@@ -50,6 +50,13 @@ export async function getThreadMessagesPage(params: {
   const { conversationId, userId, cursor, take, afterSeq, afterUpdatedAt } = params
   const mark = params.mark ?? (() => {})
 
+    /**
+     * asOf (post-review 2026-09-15) — เวลาฝั่ง server ที่จับ **ก่อน** query ข้อความ: ทุกแถวที่เปลี่ยนก่อน
+     * เวลานี้ (และ commit แล้ว) อยู่ในผลของ query นี้ ⇒ client ยก watermark ถึงค่านี้ได้ ห้องที่เงียบจึง
+     * poll ได้ 0 แถว (ดู nextWatermarks ใน src/lib/chat-message-store.ts) · 🛑 ห้ามย้ายไปจับหลัง query —
+     * แถวที่เขียนระหว่าง query จะถูกข้ามถาวร · field เสริมล้วน ผู้เรียกที่ไม่รู้จัก (แชทฝั่งผู้ซื้อ) ไม่กระทบ
+     */
+    const asOf = new Date().toISOString();
     const result = await getMessages(conversationId, userId, {
       cursor: cursor,
       take: take,
@@ -430,6 +437,7 @@ export async function getThreadMessagesPage(params: {
   return {
     items,
     nextCursor: result.nextCursor,
+    asOf,
     externalReadAt: conv?.externalReadAt ? conv.externalReadAt.toISOString() : null,
     externalDeliveredAt: conv?.externalDeliveredAt ? conv.externalDeliveredAt.toISOString() : null,
   }
