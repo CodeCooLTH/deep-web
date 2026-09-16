@@ -72,6 +72,12 @@ export default function OAuthErrorNotice() {
    * แค่ยังตั้งค่าร้านไม่เสร็จ ⇒ บอกว่า "ไม่พบบัญชี" คือบอกข้อเท็จจริงผิด (ดู proxy.ts)
    */
   const setupIncompleteInApp = useSearchParams().get('app_setup_required') === '1'
+  /**
+   * next-auth เด้งกลับหน้านี้พร้อม `?csrf=true` เมื่อคุกกี้ CSRF ยังไม่พร้อมตอน POST
+   * (`node_modules/next-auth/core/index.js:242`) — **เดิมไม่มีใครอ่าน** ผู้ใช้จึงเห็นแค่
+   * "กดแล้วไม่ไปไหน" ซึ่งเป็นอาการเดียวกับบั๊ก 2.1(a) ที่ Apple เคยตีกลับ
+   */
+  const csrfNotReady = useSearchParams().get('csrf') === 'true'
 
   useEffect(() => {
     if (blockedInApp) {
@@ -82,11 +88,15 @@ export default function OAuthErrorNotice() {
       pacesToast.error(t.auth.signIn.oauthError.sellerSetupIncompleteInApp)
       return
     }
+    if (csrfNotReady) {
+      pacesToast.error(t.auth.signIn.oauthError.csrfNotReady)
+      return
+    }
     if (!code) return
     pacesToast.error(messageFor(code, t))
     // t เปลี่ยนตอนสลับภาษาเท่านั้น — ไม่ใส่ใน deps เพราะจะยิง toast ซ้ำทุกครั้งที่สลับ
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, blockedInApp, setupIncompleteInApp])
+  }, [code, blockedInApp, setupIncompleteInApp, csrfNotReady])
 
   return null
 }

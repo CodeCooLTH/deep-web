@@ -28,10 +28,10 @@
 
 import { Icon as BxIcon } from '@iconify/react'
 import { yupResolver } from '@hookform/resolvers/yup'
-import { signIn } from 'next-auth/react'
+import { getCsrfToken, signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
@@ -114,6 +114,45 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
   })
   /** ผลของการขอ OTP ครั้งล่าสุด — เก็บเป็น "รหัสเหตุผล" แล้วค่อยแปลเป็นคำตอนแสดง */
   const [otpError, setOtpError] = useState<SigninOtpFailReason | null>(null)
+
+  /**
+   * ปุ่มล็อกอินพร้อมให้กดหรือยัง — แก้อาการ "กดครั้งแรกแล้วไม่ไปไหน" (หัวหน้าเจอ 2026-09-16)
+   *
+   * ## อาการ
+   *
+   * ลบแอปแล้วติดตั้งใหม่ → เปิดครั้งแรก → กด Sign in with Apple → **ไม่เกิดอะไรขึ้นเลย**
+   * ต้องกดครั้งที่สองถึงจะไป · เจอหลายจุดไม่ใช่เฉพาะปุ่มนี้
+   *
+   * ## ตัวเดียวปิดสองสาเหตุพร้อมกัน
+   *
+   * **1. ช่วงที่หน้าแสดงผลแล้วแต่ยังไม่ hydrate** — เปลือกแอปเอาโครงหน้า (skeleton) ออกตอน
+   * `onLoadEnd` ซึ่งเกิด **ก่อน** React ผูก `onClick` เสร็จ ⇒ ผู้ใช้เห็นปุ่มครบทุกปุ่มและกดได้
+   * แต่ไม่มีอะไรรับการกดนั้น · ติดตั้งใหม่ = ไม่มี cache = ช่วงนี้ยาวที่สุด
+   *
+   * **2. คุกกี้ CSRF ยังไม่ทันถูกเก็บ** — โปรเจกต์นี้ไม่มี `SessionProvider` และไม่เคยเรียก
+   * `getCsrfToken()` ที่ไหนเลย ⇒ คุกกี้ถูกสร้าง **ตอนกดปุ่มครั้งแรกพอดี** แล้ว `signIn()`
+   * ยิง POST ตามมาทันที · ถ้า WebView ยังเขียนคุกกี้ไม่ลง next-auth จะตอบ
+   * `redirect: /signin?csrf=true` (`core/index.js:242`) ⇒ **เด้งกลับหน้าเดิมเงียบ ๆ**
+   * ซึ่งผู้ใช้อ่านว่า "กดแล้วไม่ไปไหน" เหมือนกันเป๊ะ
+   *
+   * เปิดปุ่มหลัง `getCsrfToken()` จบ ⇒ ได้ทั้ง "hydrate แล้วแน่นอน" (useEffect ทำงาน = hydrate
+   * เสร็จ) และ "คุกกี้พร้อมแล้ว" ในกลไกเดียว
+   *
+   * 🛑 **ล้มก็ต้องเปิดปุ่ม** — ถ้าเน็ตสะดุดตอนอุ่นคุกกี้แล้วเราปล่อยปุ่มปิดไว้ ผู้ใช้จะล็อกอิน
+   * ไม่ได้เลยทั้งหน้า ซึ่งแย่กว่าอาการเดิมมาก ⇒ `finally` เสมอ ไม่ใช่ `then`
+   */
+  const [oauthReady, setOauthReady] = useState(false)
+  useEffect(() => {
+    let alive = true
+    void getCsrfToken()
+      .catch(() => null)
+      .finally(() => {
+        if (alive) setOauthReady(true)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   /**
    * Sign in with Apple — App Store Guideline 4.8 (rejection 2026-08-04)
@@ -200,7 +239,8 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
         <button
           type="button"
           onClick={handleApple}
-          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full"
+          disabled={!oauthReady}
+          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full disabled:opacity-60"
         >
           <BxIcon
             icon="bxl:apple"
@@ -216,7 +256,8 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
         <button
           type="button"
           onClick={handleFacebook}
-          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full"
+          disabled={!oauthReady}
+          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full disabled:opacity-60"
         >
           {/* BxIcon = raw Iconify เพราะ Facebook icon อยู่ใน boxicons set (bxl:)
               ขณะที่ Icon wrapper ของโปรเจกต์ fix prefix เป็น tabler: เท่านั้น */}
@@ -234,7 +275,8 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
         <button
           type="button"
           onClick={handleLine}
-          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full"
+          disabled={!oauthReady}
+          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full disabled:opacity-60"
         >
           {/* LINE brand green #06C755 — brand asset exception จาก Paces token (Hard Rule 6) */}
           <BxIcon
@@ -252,7 +294,8 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
           <button
             type="button"
             onClick={handleInstagram}
-            className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full"
+            disabled={!oauthReady}
+            className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full disabled:opacity-60"
           >
             {/* Instagram brand pink #E1306C — brand asset exception จาก Paces token (Hard Rule 6) */}
             <BxIcon
