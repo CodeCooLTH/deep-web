@@ -921,6 +921,7 @@ export const en: Dictionary = {
         noSellerAccountInApp: 'No seller account was found for these sign-in details.',
         /* Different case: this person already has an account — only the shop setup is unfinished */
         sellerSetupIncompleteInApp: 'This account has not finished its shop setup, so it cannot be used in the app yet.',
+        csrfNotReady: 'Sign-in was not ready yet. Please tap the button again.',
       },
     },
   },
