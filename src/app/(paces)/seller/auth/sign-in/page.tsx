@@ -9,6 +9,11 @@
  * - ตัด Google/GitHub/Facebook OAuth + divider — ใช้ SignInForm (username+password)
  */
 
+import { getServerSession } from 'next-auth'
+import { redirect } from 'next/navigation'
+import { authOptions } from '@/lib/auth'
+import { sessionUserId } from '@/lib/session-user'
+import { safeCallbackUrl } from '@/lib/safe-callback-url'
 import AuthLogo from '@/components/AuthLogo'
 import { shouldHideSignUp } from '@/lib/app-shell-server'
 import { currentYear, META_DATA } from '@/config/constants'
@@ -31,7 +36,29 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t.auth.signIn.pageTitle }
 }
 
-export default async function SellerSignInPage() {
+export default async function SellerSignInPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
+  /**
+   * 🛑 ล็อกอินอยู่แล้วต้องไม่เห็นฟอร์มล็อกอิน — ตาข่ายชั้นสองของบั๊ก 2026-09-17
+   *
+   * อาการ: ยืนยันกับ Apple สำเร็จ แต่ถูกส่งกลับมาหน้านี้ ⇒ ผู้ใช้เห็นฟอร์มล็อกอินทั้งที่
+   * **session ถูกตั้งเรียบร้อยแล้ว** แล้วสรุปว่า "ล็อกอินไม่ได้" ทั้งที่เข้าได้แล้ว
+   *
+   * ต้นเหตุจริงแก้ที่ `callbacks.redirect` (ดู `src/lib/post-auth-redirect.ts`) — ด่านนี้
+   * เป็นชั้นสองที่ครอบ **ทุกทาง** ที่พาคนล็อกอินแล้วมาโผล่ที่นี่ ไม่ใช่เฉพาะทาง OAuth
+   * (`proxy.ts` ยกเว้น `/auth` จากด่านทุกด่าน จึงไม่มีใครกันให้เลยก่อนหน้านี้)
+   *
+   * เคารพ `?callbackUrl=` เหมือนฟอร์ม — คนที่ถูกเด้งมาจากหน้าที่ต้องล็อกอินจะได้กลับไปถูกที่
+   */
+  const session = await getServerSession(authOptions)
+  if (sessionUserId(session)) {
+    const params = await searchParams
+    redirect(safeCallbackUrl(typeof params?.callbackUrl === 'string' ? params.callbackUrl : null))
+  }
+
   /* ในแอป iOS ห้ามมีทางไปสมัครบัญชี — ส่งต่อให้ SignInForm ด้วย (ลิงก์ในผล OTP "ยังไม่มีบัญชี") */
   const hideSignUp = await shouldHideSignUp()
 
