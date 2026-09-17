@@ -75,6 +75,17 @@ If a purchase is confirmed but the entitlement does not appear immediately,
 the app recovers it automatically the next time it is opened; the Restore
 Purchases button on the same screen also recovers it on demand.
 
+── If you sign in with your own Apple ID ───────────────────────────────────
+
+Creating a NEW merchant account is intentionally not available inside the app.
+We removed it in response to your earlier guidance ("Remove the account
+registration features for business and organizations").
+
+So if you sign in with an Apple ID that has never been used with Deep, you will
+reach a screen saying the account has not joined any shop yet. That screen is the
+expected result, not an error. Please use the demo account above to review the
+app's functionality.
+
 ── Sign in with Apple ──────────────────────────────────────────────────────
 
 Sign in with Apple remains available and is presented as the first login

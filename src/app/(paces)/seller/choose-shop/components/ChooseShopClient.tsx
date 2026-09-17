@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { chooseShopEmptySubtitle } from '@/lib/choose-shop-copy'
 import { generateInitials } from '@/utils/helpers'
 
 export interface ShopOption {
@@ -156,7 +157,9 @@ export default function ChooseShopClient({
           </div>
         </div>
         <h3 className="mb-1.25 text-xl font-bold">ยังไม่มีร้านค้าของคุณ</h3>
-        <p className="text-default-400 mb-5">เริ่มขายของออนไลน์ได้ทันที หรือวางลิงก์เชิญถ้ามีคนแชร์มาให้</p>
+        {/* คำโปรยต่างกันตาม shell — ในแอปไม่มีปุ่มเปิดร้าน จึงห้ามชวนให้หาปุ่มที่ไม่มี
+            (เหตุผลเต็ม + ข้อความที่ Apple สั่งมา อยู่ที่ `src/lib/choose-shop-copy.ts`) */}
+        <p className="text-default-400 mb-5">{chooseShopEmptySubtitle(hideOpenShop)}</p>
 
         {!hideOpenShop && (
           <button
