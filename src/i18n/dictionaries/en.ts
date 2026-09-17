@@ -35,6 +35,19 @@ export const en: Dictionary = {
     somethingWentWrong: 'Something went wrong. Please try again.',
   },
 
+  authCallbackLoading: {
+    title: 'Signing you in',
+    subLabel: 'Setting up your account',
+    error: {
+      apple: 'Could not sign in with Apple. Please try again.',
+      facebook: 'Could not sign in with Facebook. Please try again.',
+      line: 'Could not sign in with LINE. Please try again.',
+      instagram: 'Could not sign in with Instagram. Please try again.',
+      generic: 'Could not sign in. Please try again.',
+    },
+  },
+
+
   appLoading: {
     title: 'Opening Deep',
     subLabel: 'Just a moment while we get things ready',

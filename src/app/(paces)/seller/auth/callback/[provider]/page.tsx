@@ -18,7 +18,9 @@
  *   (border spinner: border-primary size-* animate-spin rounded-full border-3 border-t-transparent)
  */
 
-import AuthLogo from '@/components/AuthLogo'
+import BrandLoading from '@/components/paces/BrandLoading'
+import type { Dictionary } from '@/i18n/dictionaries/th'
+import { useT } from '@/i18n/LocaleProvider'
 import { pacesToast } from '@/lib/paces-toast'
 import { safeCallbackUrl } from '@/lib/safe-callback-url'
 import { useSession } from 'next-auth/react'
@@ -46,49 +48,52 @@ const MIN_DISPLAY_MS = 1500
 const SESSION_RETRY_COUNT = 2
 const SESSION_RETRY_DELAY_MS = 700
 
-// ข้อความ error ตาม provider — ให้ UX แตกต่างกันตาม brand
-const providerErrorMessage = (provider: string): string => {
+/**
+ * ข้อความ error ตาม provider — คำอยู่ในระบบแปลภาษา ไม่ฝังลงไฟล์นี้
+ *
+ * 🛑 หน้านี้อยู่บนเส้นทางที่ทีมรีวิวของ Apple เดินผ่าน ⇒ คนที่ตั้งภาษาอังกฤษต้องไม่เห็นไทย
+ * (ด่าน `boot-loading.test.ts` บังคับว่าไฟล์นี้ห้ามมีอักษรไทย)
+ */
+type CallbackErrors = Dictionary['authCallbackLoading']['error']
+
+const providerErrorMessage = (provider: string, e: CallbackErrors): string => {
   switch (provider) {
-    case 'facebook':
-      return 'เข้าสู่ระบบด้วย Facebook ไม่สำเร็จ กรุณาลองใหม่'
-    case 'line':
-      return 'เข้าสู่ระบบด้วย LINE ไม่สำเร็จ กรุณาลองใหม่'
-    case 'instagram':
-      return 'เข้าสู่ระบบด้วย Instagram ไม่สำเร็จ กรุณาลองใหม่'
-    /* Apple เข้ามาใช้หน้านี้ตั้งแต่ 2026-09-17 — ไม่มี case = ได้ข้อความกลาง ๆ ที่ไม่บอกว่าเจ้าไหน */
     case 'apple':
-      return 'เข้าสู่ระบบด้วย Apple ไม่สำเร็จ กรุณาลองใหม่'
+      return e.apple
+    case 'facebook':
+      return e.facebook
+    case 'line':
+      return e.line
+    case 'instagram':
+      return e.instagram
     default:
-      return 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่'
+      return e.generic
   }
 }
 
-/** หน้าจอ loading — แยกออกมาเพื่อใช้เป็น Suspense fallback ได้ด้วย (ผู้ใช้เห็นภาพเดียวกันตลอด) */
+/**
+ * หน้าจอ loading — **ใช้ตัวเดียวกับจอตอนเปิดแอปครั้งแรก** (รวมเป็นหนึ่งเดียว 2026-09-17)
+ *
+ * 🛑 เดิมหน้านี้มีจอโหลดเป็นของตัวเอง (โลโก้เต็ม + สปินเนอร์แยกข้างล่าง + คำไทยตายตัว)
+ * ซึ่งไม่เหมือนจอเปิดแอปเลย — หัวหน้าเห็นแล้วทักว่า "มันมีอยู่แล้วปะ ใช้แบบเดียวกันสิ"
+ * ของสิ่งเดียวกันสองหน้าตา = Hard Rule 16 · และคำที่ฝังไว้ตรง ๆ ทำให้คนตั้งภาษาอังกฤษ
+ * (รวมทีมรีวิวของ Apple) เห็นไทย
+ *
+ * แยกเป็นฟังก์ชันไว้เพราะใช้เป็น Suspense fallback ด้วย — ผู้ใช้เห็นภาพเดียวกันตลอดทาง
+ */
 function CallbackScreen() {
+  const t = useT()
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-default-100">
-      <div className="mb-2">
-        <AuthLogo />
-      </div>
-
-      {/* Border spinner — Base: theme ui/spinners (primary, size-10) */}
-      <div
-        className="border-primary inline-block size-10 animate-spin rounded-full border-3 border-t-transparent"
-        role="status"
-        aria-label="กำลังโหลด"
-      >
-        <span className="sr-only">กำลังโหลด...</span>
-      </div>
-
-      <div className="flex flex-col items-center gap-1.5 text-center">
-        <p className="text-default-600 text-sm font-medium">กำลังเข้าสู่ระบบ...</p>
-        <p className="text-default-400 text-xs">กำลังตั้งค่าบัญชีของคุณ</p>
-      </div>
-    </div>
+    <BrandLoading
+      title={t.authCallbackLoading.title}
+      subLabel={t.authCallbackLoading.subLabel}
+      ariaLabel={t.appLoading.ariaLabel}
+    />
   )
 }
 
 function OAuthCallbackRedirector() {
+  const t = useT()
   const { status, update } = useSession()
   const router = useRouter()
   const params = useParams()
@@ -117,9 +122,9 @@ function OAuthCallbackRedirector() {
     }
 
     // ถามครบแล้วยังไม่มี — provider ไม่สำเร็จ / เปิดหน้านี้ตรง ๆ โดยไม่มี session
-    pacesToast.error(providerErrorMessage(provider))
+    pacesToast.error(providerErrorMessage(provider, t.authCallbackLoading.error))
     router.replace('/auth/sign-in')
-  }, [status, router, provider, next, update])
+  }, [status, router, provider, next, update, t])
 
   return <CallbackScreen />
 }

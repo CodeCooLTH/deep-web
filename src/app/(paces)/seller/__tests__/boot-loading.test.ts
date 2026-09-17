@@ -71,7 +71,13 @@ describe('[blocker] จอโหลดโซนผู้ขาย', () => {
    *
    * เพิ่มไฟล์เข้ารายการนี้ได้เรื่อย ๆ เมื่อ 00047 ไล่แปลถึง — ห้ามถอดออก
    */
-  const I18N_REQUIRED = [BOOT, `${SELLER}/NavigationLoader.tsx`, `${SELLER}/(fullscreen)/loading.tsx`]
+  const I18N_REQUIRED = [
+    BOOT,
+    `${SELLER}/NavigationLoader.tsx`,
+    `${SELLER}/(fullscreen)/loading.tsx`,
+    /* จอโหลดร่วมของทั้งระบบ — รับคำเป็น prop เท่านั้น ห้ามฝังคำลงไปเอง (รวมจอ 2026-09-17) */
+    'src/components/paces/BrandLoading.tsx',
+  ]
 
   for (const rel of I18N_REQUIRED) {
     it(`${rel.split('/').slice(-2).join('/')} — ห้ามฝังภาษาไทยตายตัว`, () => {
@@ -103,8 +109,37 @@ describe('[blocker] จอโหลดโซนผู้ขาย', () => {
       .filter(({ l }) => banned.test(l))
       .map(({ l, i }) => `${BOOT}:${i}  ${l.trim().slice(0, 70)}`)
     expect(hits, 'ใช้โลโก้ Deep (logo-deep-mark) เท่านั้น').toEqual([])
-    // และต้องใช้โลโก้ Deep จริง ๆ ไม่ใช่สปินเนอร์เปล่า — นี่คือสิ่งที่หัวหน้าขอ
-    expect(code, 'จอเปิดครั้งแรกต้องมีโลโก้ Deep').toMatch(/logo-deep-mark/)
+
+    /**
+     * 🛑 เดิมข้อนี้ตรวจว่า **ไฟล์นี้** มีสตริง `logo-deep-mark` — พอยกหน้าตาไปไว้ที่
+     * `BrandLoading` (จอโหลดร่วมของทั้งระบบ 2026-09-17) ด่านก็แดงทั้งที่เจตนายังถูกครบ
+     * ⇒ ตรวจ **เจตนา** แทน: จอเปิดครั้งแรกต้องเรนเดอร์จอแบรนด์ร่วม และจอร่วมนั้นต้องใช้
+     * โลโก้ Deep จริง ไม่ใช่สปินเนอร์เปล่า (สิ่งที่หัวหน้าขอไว้ 2026-08-20)
+     */
+    expect(code, 'จอเปิดครั้งแรกต้องใช้จอแบรนด์ร่วม').toMatch(/<BrandLoading/)
+    expect(
+      read('src/components/paces/BrandLoading.tsx'),
+      'จอแบรนด์ร่วมต้องมีโลโก้ Deep',
+    ).toMatch(/logo-deep-mark/)
+  })
+
+  /**
+   * ## 4. จอโหลดแบรนด์ต้องมี **แบบเดียว** ทั้งระบบ (รวมจอ 2026-09-17)
+   *
+   * หัวหน้าเห็นจอโหลดหลังล็อกอินแล้วทักทันทีว่า *"มันมีอยู่แล้วปะนะ ใช้แบบเดียวกันสิ"* —
+   * ตอนนั้นหน้ารอ OAuth มีจอโหลดเป็นของตัวเอง (โลโก้เต็ม + สปินเนอร์แยกข้างล่าง)
+   * ซึ่งไม่เหมือนจอเปิดแอปเลย · ของสิ่งเดียวกันสองหน้าตา = Hard Rule 16
+   *
+   * 🛑 ไม่มี gate ไหนจับได้เลย — ทั้งสองจอ "ถูก" ในตัวเอง สิ่งที่ผิดคือมันไม่เหมือนกัน
+   */
+  it('[blocker] จอโหลดหลังล็อกอินต้องใช้จอแบรนด์ร่วม ไม่ใช่วาดเอง', () => {
+    const code = read('src/app/(paces)/seller/auth/callback/[provider]/page.tsx')
+
+    expect(code, 'ต้องใช้ BrandLoading ตัวเดียวกับจอเปิดแอป').toMatch(/<BrandLoading/)
+    expect(code, 'ห้ามวาดสปินเนอร์เอง — จะกลายเป็นจอโหลดแบบที่สองอีก').not.toMatch(
+      /animate-spin/,
+    )
+    expect(code, 'ห้ามฝังคำไทยตายตัว — ทีมรีวิวของ Apple เห็นจอนี้ด้วย').not.toMatch(THAI)
   })
 
   /**
@@ -142,10 +177,12 @@ describe('[blocker] จอโหลดโซนผู้ขาย', () => {
 
     /* สคริปต์ต้องอยู่ **ต่อท้าย** div ที่มันจะซ่อน — ก่อน div มัน `previousElementSibling`
        ยังไม่มีตัวตน แล้วสคริปต์จะเงียบ ๆ ไม่ทำอะไรเลยโดยไม่มีอะไรฟ้อง */
-    const divAt = code.indexOf('role="status"')
+    /* 🛑 เดิมอ้าง `role="status"` ซึ่งย้ายเข้าไปอยู่ใน `BrandLoading` แล้ว (รวมจอ 2026-09-17)
+       — สิ่งที่ต้องบังคับคือ "สคริปต์อยู่หลัง element ที่มันจะซ่อน" ไม่ใช่ชื่อ attribute */
+    const divAt = code.indexOf('<BrandLoading')
     const scriptAt = code.indexOf('dangerouslySetInnerHTML')
     expect(divAt, 'ต้องมีจอโหลด').toBeGreaterThan(-1)
-    expect(scriptAt, 'สคริปต์ต้องอยู่หลัง div').toBeGreaterThan(divAt)
+    expect(scriptAt, 'สคริปต์ต้องอยู่หลังจอโหลด').toBeGreaterThan(divAt)
 
     /* พังแล้วต้อง **แสดงจอต่อไปตามปกติ** ไม่ใช่ซ่อน — sessionStorage โยนได้ในโหมดส่วนตัว
        เห็นจอซ้ำยังดีกว่าจอขาวเปล่า */
