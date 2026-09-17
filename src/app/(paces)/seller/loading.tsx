@@ -58,7 +58,7 @@
  * ⇒ ผู้ใช้ไม่เห็นอะไรเลย (แพตเทิร์นเดียวกับสคริปต์กันจอกะพริบตอนสลับธีม)
  */
 
-import logoMark from '@/assets/images/logo-deep-mark.png'
+import BrandLoading from '@/components/paces/BrandLoading'
 import { useT } from '@/i18n/LocaleProvider'
 
 /**
@@ -90,31 +90,13 @@ export default function SellerBootLoading() {
 
   return (
     <>
-    <div
-      className="fixed inset-0 z-100 flex flex-col items-center justify-center gap-3 bg-white"
-      role="status"
-      aria-live="polite"
-      aria-label={t.appLoading.ariaLabel}
-      /* สคริปต์ข้างล่างแก้ `style` ของ node นี้นอก React — บอก React ไม่ต้องเทียบตอน hydrate
-         (ค่านี้ไม่เคยถูก React เขียนทับ เพราะ fallback ตัวนี้ render ครั้งเดียวแล้วถูกทิ้ง) */
-      suppressHydrationWarning
-    >
-      <div className="relative flex items-center justify-center">
-        {/* eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ที่ import มาแล้ว
-            next/image จะเพิ่ม JS + layout pass ให้จอที่ต้องขึ้นเร็วที่สุดในแอปโดยไม่ได้อะไรกลับมา */}
-        <img src={logoMark.src} alt="" className="size-14 object-contain" />
-        {/* วงแหวนบางวิ่งรอบมาร์ก — ตัวเดียวกับ ShopSwitchOverlay ให้จอโหลดทั้งแอปพูดภาษาเดียวกัน */}
-        <span
-          className="border-primary absolute -inset-2 animate-spin rounded-full border-2 border-t-transparent"
-          aria-hidden="true"
-        />
-      </div>
-      <p className="text-default-800 text-sm font-semibold">{t.appLoading.title}</p>
-      <p className="text-default-500 text-xs">{t.appLoading.subLabel}</p>
-    </div>
-    {/* 🛑 ต้องเป็น inline + sync และอยู่ **ต่อท้าย div** เท่านั้น — `async`/`defer`/`next/script`
-        ทำงานหลังจอถูกวาดไปแล้ว ซึ่งคือสิ่งที่กำลังแก้อยู่พอดี · ย้ายขึ้นไปก่อน div ก็ไม่ได้
-        เพราะตอนนั้น `previousElementSibling` ยังไม่มีตัวตน */}
+    {/* 🛑 หน้าตาอยู่ที่ `BrandLoading` ที่เดียวทั้งระบบ — จอโหลดหลังล็อกอินก็ใช้ตัวเดียวกันนี้
+        (รวมเป็นหนึ่งเดียว 2026-09-17 · ก่อนหน้านั้นเป็นคนละหน้าตากัน) */}
+    <BrandLoading
+      title={t.appLoading.title}
+      subLabel={t.appLoading.subLabel}
+      ariaLabel={t.appLoading.ariaLabel}
+    />
     <script dangerouslySetInnerHTML={{ __html: SKIP_IF_BOOTED }} />
     </>
   )
