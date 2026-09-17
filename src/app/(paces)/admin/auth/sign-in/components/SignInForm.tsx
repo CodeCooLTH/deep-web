@@ -13,8 +13,8 @@
 'use client'
 
 import { yupResolver } from '@hookform/resolvers/yup'
+import { goAfterLogin } from '@/lib/go-after-login'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import * as Yup from 'yup'
@@ -27,7 +27,6 @@ const schema = Yup.object({
 type FormValues = Yup.InferType<typeof schema>
 
 export default function SignInForm() {
-  const router = useRouter()
   const [serverError, setServerError] = useState<string | null>(null)
 
   const {
@@ -48,7 +47,8 @@ export default function SignInForm() {
     })
     if (result?.ok) {
       // proxy rewrite /dashboard → /admin/dashboard บน admin subdomain อัตโนมัติ
-      router.push('/dashboard')
+      // 🛑 goAfterLogin ไม่ใช่ router.push — ดูเหตุผลเต็มใน src/lib/go-after-login.ts
+      await goAfterLogin('/dashboard')
       return
     }
     // generic error — ไม่บอกว่าผิด username หรือ password เพื่อกัน user enumeration

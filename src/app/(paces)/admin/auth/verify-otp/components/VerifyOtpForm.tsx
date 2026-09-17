@@ -1,5 +1,6 @@
 'use client'
 
+import { goAfterLogin } from '@/lib/go-after-login'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, type FormEvent } from 'react'
@@ -59,7 +60,8 @@ export default function VerifyOtpForm() {
         redirect: false,
       })
       if (result?.ok) {
-        router.push('/')
+        // 🛑 goAfterLogin ไม่ใช่ router.push/refresh — ดูเหตุผลเต็มใน src/lib/go-after-login.ts
+        await goAfterLogin('/')
         return
       }
       setErrorMsg('รหัสไม่ถูกต้องหรือหมดอายุ ลองอีกครั้ง')

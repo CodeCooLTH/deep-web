@@ -60,21 +60,5 @@ describe('[blocker] รอจนเห็น session ก่อนพาไปห
   })
 })
 
-describe('[blocker] หน้าล็อกอินต้องเรียกใช้จริง', () => {
-  it('🛑 `onSubmit` ต้องรอ session ก่อน push และต้อง refresh ล้างของที่ client เก็บไว้', async () => {
-    const fs = await import('fs')
-    const code = fs
-      .readFileSync('src/app/(paces)/seller/auth/sign-in/components/SignInForm.tsx', 'utf8')
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-
-    const at = code.indexOf('result?.ok')
-    expect(at, 'ไม่พบเส้นทางล็อกอินสำเร็จ').toBeGreaterThan(-1)
-    const block = code.slice(at, at + 400)
-
-    expect(block, 'ไม่รอ session = ต้องรีเฟรชเองเหมือนเดิม').toContain('waitForSession(')
-    expect(block, 'App Router เก็บผลหน้าไว้ฝั่ง client — ต้องสั่งล้าง').toContain('router.refresh()')
-
-    /* ลำดับสำคัญ: รอ → refresh → push · push ก่อนรอ = ไปทั้งที่ยังไม่รู้ว่าเห็นคุกกี้ไหม */
-    expect(block.indexOf('waitForSession(')).toBeLessThan(block.indexOf('router.push('))
-  })
-})
+/* ส่วน "หน้าล็อกอินเรียกใช้จริงไหม" ย้ายไป go-after-login.test.ts แล้ว — ทุกหน้าเรียกผ่าน
+   ตัวกลาง `goAfterLogin` ตัวเดียว เทสจึงควรกวาดที่ตัวกลางนั้นทีเดียว ไม่ใช่ไล่ทีละหน้า */
