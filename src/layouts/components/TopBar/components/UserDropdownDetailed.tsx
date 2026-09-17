@@ -1,10 +1,11 @@
 'use client'
 
 import AccountAvatar from '@/components/AccountAvatar'
+import { signOutSeller } from '@/lib/sign-out-seller'
 import ShopSwitchOverlay from '@/components/paces/ShopSwitchOverlay'
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
-import { signOut, useSession } from 'next-auth/react'
+import { useSession } from 'next-auth/react'
 import { Fragment, useEffect, useState } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import { pacesToast } from '@/lib/paces-toast'
@@ -137,7 +138,7 @@ const UserDropdown = () => {
   const handleItemClick = (e: React.MouseEvent<HTMLAnchorElement>, item: UserProfileMenuType) => {
     if (item.action === 'sign-out') {
       e.preventDefault()
-      signOut({ callbackUrl: '/auth/sign-in' })
+      signOutSeller('/auth/sign-in')
     }
   }
 

@@ -7,15 +7,16 @@
  * - copy session-access pattern เดียวกันกับ UserDropdownDetailed.tsx
  * - ตัด Profile / Account Settings / Lock Screen ออก (ยังไม่มี route จริงใน seller/admin — กัน 404)
  * - เหลือเฉพาะ header ต้อนรับ + Log Out จนกว่าจะมีหน้า profile/settings จริง
- * - wire Log Out ผ่าน signOut({ callbackUrl: '/auth/sign-in' }) เหมือน UserDropdownDetailed
+ * - wire Log Out ผ่าน signOutSeller('/auth/sign-in') เหมือน UserDropdownDetailed
  */
 'use client'
 
 import bgPattern from '@/assets/images/user-bg-pattern.svg'
+import { signOutSeller } from '@/lib/sign-out-seller'
 import AccountAvatar from '@/components/AccountAvatar'
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
-import { signOut, useSession } from 'next-auth/react'
+import { useSession } from 'next-auth/react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 
 const UserProfileSettings = () => {
@@ -38,7 +39,7 @@ const UserProfileSettings = () => {
 
   const handleSignOut = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault()
-    signOut({ callbackUrl: '/auth/sign-in' })
+    signOutSeller('/auth/sign-in')
   }
 
   return (

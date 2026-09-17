@@ -24,7 +24,8 @@
  */
 
 import { Icon as BxIcon } from '@iconify/react'
-import { signIn, signOut, useSession } from 'next-auth/react'
+import { signOutSeller } from '@/lib/sign-out-seller'
+import { signIn, useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -188,7 +189,7 @@ export default function InviteLandingClient({
         <p className="mt-5 text-center">
           <button
             type="button"
-            onClick={() => signOut({ callbackUrl })}
+            onClick={() => signOutSeller(callbackUrl)}
             className="text-default-400 underline underline-offset-4 text-sm"
           >
             ไม่ใช่บัญชีของคุณ? เข้าสู่ระบบด้วยบัญชีอื่น

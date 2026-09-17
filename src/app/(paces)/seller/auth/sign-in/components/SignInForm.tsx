@@ -164,7 +164,29 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
    * ซึ่งผ่าน callback ของ NextAuth ที่ตั้ง session cookie ให้ก่อน redirect อยู่แล้ว
    */
   const handleApple = async () => {
-    await signIn('apple', { callbackUrl })
+    /**
+     * 🛑 ต้องเดินผ่านหน้ารอ `/auth/callback/apple` **ห้ามชี้ตรงปลายทาง**
+     *
+     * เดิมชี้ตรง `/dashboard` โดยให้เหตุผลว่า "NextAuth ตั้ง session cookie ก่อน redirect
+     * อยู่แล้ว" — **จริงในเบราว์เซอร์ปกติ แต่ไม่จริงใน WebView ทันทีหลังเพิ่งออกจากระบบ**
+     *
+     * บั๊กจริง (หัวหน้าเจอ 2026-09-17 บน iPhone): ออกจากระบบ → กด Apple → ยืนยันสำเร็จ
+     * → **ไม่ไปไหน ต้องกดใหม่อีกรอบ** · ติดตั้งใหม่ครั้งแรกไม่เป็น
+     *
+     * กลไก: `signOut` เพิ่งสั่งลบคุกกี้ `next-auth.session-token` แล้ว callback ตั้งคุกกี้
+     * **ชื่อเดียวกัน** ทันที ⇒ คำขอถัดไป (`/dashboard`) อาจยังไม่เห็นคุกกี้ ⇒ proxy เตะกลับ
+     * หน้าล็อกอิน · กดรอบสองผ่านเพราะไม่มีการลบค้างแล้ว
+     *
+     * หน้ารอถาม session ด้วย **คำขอแยกหลังหน้าโหลดเสร็จ** (`useSession`) ⇒ คุกกี้ลงตัวแล้วแน่นอน
+     * — เป็นท่าที่ LINE/Instagram ใช้อยู่แล้วและไม่เคยมีอาการนี้
+     *
+     * ⚠️ ไม่แตะ Facebook โดยตั้งใจ: มันถูกทำให้ชี้ตรงเพื่อลด redirect chain แก้ปัญหา
+     * Safe Browsing false-positive (2026-06-20) ⇒ เปลี่ยนแล้วอาจปลุกปัญหาเก่า
+     * ถ้าวันหนึ่ง FB มีอาการเดียวกัน ค่อยย้ายตามพร้อมทดสอบเรื่องนั้นซ้ำ
+     */
+    await signIn('apple', {
+      callbackUrl: `/auth/callback/apple?next=${encodeURIComponent(callbackUrl)}`,
+    })
   }
 
   const handleFacebook = async () => {

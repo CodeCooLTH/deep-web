@@ -11,6 +11,7 @@
  */
 
 import AuthCardShell from '../auth/components/AuthCardShell'
+import { signOutSeller } from '@/lib/sign-out-seller'
 import AuthLogo from '@/components/AuthLogo'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
@@ -20,7 +21,7 @@ import {
   type OAuthProviderKey,
 } from '@/lib/oauth-provider-display'
 import Swal from 'sweetalert2'
-import { useSession, signOut } from 'next-auth/react'
+import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { MOBILE_PHONE_RE } from '@/lib/phone'
@@ -83,7 +84,7 @@ async function phoneTakenDialog() {
     buttonsStyling: false,
     customClass: { confirmButton: 'btn bg-primary text-white hover:bg-primary-hover me-2 mt-2', cancelButton: 'btn bg-light text-dark hover:bg-light-hover mt-2' },
   })
-  if (r.isConfirmed) signOut({ callbackUrl: '/auth/sign-in' })
+  if (r.isConfirmed) signOutSeller('/auth/sign-in')
 }
 
 export default function RegisterClient() {
@@ -332,7 +333,7 @@ export default function RegisterClient() {
                 buttonsStyling: false,
                 customClass: { confirmButton: 'btn bg-danger text-white hover:bg-danger-hover me-2', cancelButton: 'btn bg-light text-dark hover:bg-light-hover' },
               })
-              if (r.isConfirmed) signOut({ callbackUrl: '/auth/sign-in' })
+              if (r.isConfirmed) signOutSeller('/auth/sign-in')
             }} className="btn border border-default-300 text-default-700 hover:bg-default-50 mt-2 w-full">ยกเลิก</button>
           </>
         )}

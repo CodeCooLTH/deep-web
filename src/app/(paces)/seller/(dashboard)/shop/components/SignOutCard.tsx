@@ -21,14 +21,15 @@
  *   `bg-light/15 border-dashed` section header) ซึ่ง Base เดิมมาจาก
  *   theme/paces/Admin/TS/src/app/(admin)/apps/users/account-settings/page.tsx
  * Logic reused from: src/layouts/components/Sidenav/components/UserProfileSettings.tsx:41
- *   (signOut({ callbackUrl: '/auth/sign-in' }) — callbackUrl เดียวกันเป๊ะ ไม่แตกทางออกเป็นสองแบบ)
+ *   (signOutSeller('/auth/sign-in') — callbackUrl เดียวกันเป๊ะ ไม่แตกทางออกเป็นสองแบบ)
  * Confirm: pacesConfirm.danger — blocking dialog ต้องเป็น Sweet Alerts ตาม src/lib/paces-swal.ts
  *   (ห้าม window.confirm) และต้องถามก่อนเพราะปุ่มอยู่ในหน้าที่ผู้ใช้เข้ามาแก้ข้อมูลร้าน กดพลาดได้
  */
 
 import Icon from '@/components/wrappers/Icon'
+import { signOutSeller } from '@/lib/sign-out-seller'
 import { pacesConfirm } from '@/lib/paces-swal'
-import { signOut, useSession } from 'next-auth/react'
+import { useSession } from 'next-auth/react'
 
 export default function SignOutCard() {
   const { data: session } = useSession()
@@ -78,7 +79,7 @@ export default function SignOutCard() {
     )
     if (!confirmed) return
     await revokePushToken()
-    signOut({ callbackUrl: '/auth/sign-in' })
+    signOutSeller('/auth/sign-in')
   }
 
   return (

@@ -28,8 +28,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { signOutSeller } from '@/lib/sign-out-seller'
 import Link from 'next/link'
-import { signOut } from 'next-auth/react'
 
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
@@ -165,7 +165,7 @@ export default function DeleteAccountCard() {
       if (res.ok) {
         pacesToast.success('ลบบัญชีเรียบร้อย')
         // callbackUrl เดียวกับ SignOutCard — ไม่แตกทางออกเป็นสองแบบ
-        signOut({ callbackUrl: '/auth/sign-in' })
+        signOutSeller('/auth/sign-in')
         return
       }
 

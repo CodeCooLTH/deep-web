@@ -28,6 +28,24 @@ import { Suspense, useEffect, useRef } from 'react'
 // หน่วงขั้นต่ำให้ spinner โชว์ลื่น (อยู่ในช่วง 1-3s ที่ต้องการ)
 const MIN_DISPLAY_MS = 1500
 
+/**
+ * 🛑 `unauthenticated` ครั้งแรก **ไม่ใช่คำตอบสุดท้าย** — ต้องถามซ้ำก่อนยอมแพ้
+ *
+ * บั๊กจริง (หัวหน้าเจอ 2026-09-17): ออกจากระบบ → ล็อกอิน Apple → ยืนยันสำเร็จ แต่ไม่ไปไหน
+ * ต้องกดใหม่ · ติดตั้งใหม่ครั้งแรกไม่เป็น
+ *
+ * กลไก: `signOut` เพิ่งสั่งลบคุกกี้ `next-auth.session-token` แล้ว callback ตั้งคุกกี้
+ * **ชื่อเดียวกัน** ทันที ⇒ ใน WebView คำขอ `/api/auth/session` ที่ยิงทันทีอาจยังไม่เห็นคุกกี้
+ * ⇒ ได้ `unauthenticated` ทั้งที่ล็อกอินสำเร็จแล้วจริง ๆ
+ *
+ * ถามซ้ำอีก 2 ครั้งห่างกัน 700ms ก่อนตัดสินว่าล้มเหลว — ผู้ใช้เห็นแค่สปินเนอร์ที่มีอยู่แล้ว
+ * (ยาวขึ้นอย่างมาก 1.4 วิ) แลกกับการไม่เตะคนที่ล็อกอินสำเร็จกลับหน้าล็อกอิน
+ *
+ * 🛑 ต้องมีเพดาน ห้ามวนไม่รู้จบ — คนที่เปิดหน้านี้ตรง ๆ โดยไม่มี session ต้องได้คำตอบ
+ */
+const SESSION_RETRY_COUNT = 2
+const SESSION_RETRY_DELAY_MS = 700
+
 // ข้อความ error ตาม provider — ให้ UX แตกต่างกันตาม brand
 const providerErrorMessage = (provider: string): string => {
   switch (provider) {
@@ -37,6 +55,9 @@ const providerErrorMessage = (provider: string): string => {
       return 'เข้าสู่ระบบด้วย LINE ไม่สำเร็จ กรุณาลองใหม่'
     case 'instagram':
       return 'เข้าสู่ระบบด้วย Instagram ไม่สำเร็จ กรุณาลองใหม่'
+    /* Apple เข้ามาใช้หน้านี้ตั้งแต่ 2026-09-17 — ไม่มี case = ได้ข้อความกลาง ๆ ที่ไม่บอกว่าเจ้าไหน */
+    case 'apple':
+      return 'เข้าสู่ระบบด้วย Apple ไม่สำเร็จ กรุณาลองใหม่'
     default:
       return 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่'
   }
@@ -68,7 +89,7 @@ function CallbackScreen() {
 }
 
 function OAuthCallbackRedirector() {
-  const { status } = useSession()
+  const { status, update } = useSession()
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
@@ -77,6 +98,8 @@ function OAuthCallbackRedirector() {
   // ปลายทางหลัง session พร้อม — sanitize เพราะ ?next= มาจาก URL ที่แก้ได้
   const next = safeCallbackUrl(searchParams.get('next'))
   const mountedAt = useRef(Date.now())
+  /* นับครั้งที่ถามซ้ำแล้ว — ref ไม่ใช่ state เพราะไม่ต้องให้จอ re-render เพราะตัวเลขนี้ */
+  const retriesLeft = useRef(SESSION_RETRY_COUNT)
 
   useEffect(() => {
     if (status === 'loading') return
@@ -85,10 +108,18 @@ function OAuthCallbackRedirector() {
       const t = setTimeout(() => router.replace(next), wait)
       return () => clearTimeout(t)
     }
-    // unauthenticated — provider ไม่สำเร็จ / เปิดหน้านี้ตรง ๆ โดยไม่มี session
+
+    /* ยังไม่เห็น session — อาจเป็นเพราะคุกกี้ยังไม่ลงตัว ไม่ใช่เพราะล็อกอินไม่ผ่าน (ดูหัวไฟล์) */
+    if (retriesLeft.current > 0) {
+      retriesLeft.current -= 1
+      const t = setTimeout(() => void update(), SESSION_RETRY_DELAY_MS)
+      return () => clearTimeout(t)
+    }
+
+    // ถามครบแล้วยังไม่มี — provider ไม่สำเร็จ / เปิดหน้านี้ตรง ๆ โดยไม่มี session
     pacesToast.error(providerErrorMessage(provider))
     router.replace('/auth/sign-in')
-  }, [status, router, provider, next])
+  }, [status, router, provider, next, update])
 
   return <CallbackScreen />
 }

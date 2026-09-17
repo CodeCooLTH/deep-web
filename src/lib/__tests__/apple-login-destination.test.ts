@@ -39,14 +39,38 @@ describe('ล็อกอิน Apple ต้องจบที่หน้าแ
     expect(safeCallbackUrl('//evil.com')).toBe('/dashboard')
   })
 
+  /**
+   * 🛑 ด่านนี้เคยปักหมุด **รูปแบบการเขียน** ไว้ (`signIn('apple', { callbackUrl }`) ซึ่งแดง
+   * ทันทีที่ปลายทางเปลี่ยนเป็นหน้ารอ ทั้งที่ **เจตนายังถูกครบทุกข้อ** — ปรับเป็นตรวจเจตนาแทน
+   *
+   * ทำไมปลายทางเปลี่ยน (2026-09-17): ชี้ตรง `/dashboard` ทำให้คำขอถัดไปอาจยังไม่เห็นคุกกี้
+   * session ที่ callback เพิ่งตั้ง (ชนกับการลบคุกกี้ชื่อเดียวกันตอน `signOut`)
+   * ⇒ ผู้ใช้ล็อกอินสำเร็จแต่ถูกเตะกลับหน้าล็อกอิน ต้องกดใหม่ · ดู `sign-out-seller.ts`
+   *
+   * เจตนาเดิมที่ยังต้องบังคับเหมือนเดิมทุกข้อ:
+   *   1. ต้องส่ง callbackUrl (ไม่ส่ง = NextAuth ถอยไป root ของ subdomain ที่ไม่มีหน้า)
+   *   2. ค่าต้องมาจากตัว sanitize ไม่ใช่อ่านดิบจาก query (open-redirect)
+   */
   it('[blocker] ปุ่ม Apple ในหน้าล็อกอินต้องส่ง callbackUrl ที่ผ่าน safeCallbackUrl', () => {
     const form = read('src/app/(paces)/seller/auth/sign-in/components/SignInForm.tsx')
 
+    const at = form.indexOf("signIn('apple'")
+    expect(at, 'ไม่พบการเรียก signIn ของ Apple').toBeGreaterThan(-1)
+    const call = form.slice(at, at + 300)
+
     // ไม่ส่ง callbackUrl เลย = NextAuth ถอยไป baseUrl ซึ่งเป็น root ที่ไม่มีหน้า
-    expect(form, 'ปุ่ม Apple ต้องส่ง callbackUrl').toMatch(/signIn\('apple',\s*\{\s*callbackUrl\s*\}/)
+    expect(call, 'ปุ่ม Apple ต้องส่ง callbackUrl').toContain('callbackUrl')
+
+    // 🛑 ห้ามอ่านดิบจาก query ตรงจุดเรียก — ต้องใช้ตัวแปรที่ผ่าน sanitize มาแล้ว
+    expect(call, 'อ่านดิบจาก query = open-redirect').not.toContain('searchParams.get')
 
     // callbackUrl ต้องมาจากตัว sanitize ไม่ใช่อ่านดิบจาก query (open-redirect + ปลายทางมั่ว)
     expect(form).toContain("safeCallbackUrl(searchParams.get('callbackUrl'))")
+
+    // ต้องเดินผ่านหน้ารอ — เหตุผลอยู่หัว it() นี้
+    expect(call, 'ชี้ตรงปลายทาง = คุกกี้ session อาจยังไม่ทันลงตัว').toContain(
+      '/auth/callback/apple',
+    )
   })
 
   it('[blocker] ปลายทาง /account สงวนให้ link mode เท่านั้น ห้ามหลุดมาเส้นล็อกอิน', () => {
