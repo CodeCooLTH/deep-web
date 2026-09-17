@@ -9,7 +9,7 @@
  * - masked phone text-2xl font-bold text-center
  * - countdown 60s: >0 = text จาง; =0 = link ส่งอีกครั้ง
  * - mobile OTP: gap-1.5 / text-lg ให้ tap ได้ที่ 375px (OQ-4)
- * - mode=signup: อ่าน sessionStorage signupDraft → signIn('phone-otp') → clear draft → /dashboard
+ * - mode=signup: อ่าน sessionStorage signupDraft → signIn('phone-otp') → clear draft → goAfterLogin('/dashboard')
  * - mode=signin: signIn('phone-otp') เปล่า ๆ (ไม่มี draft ให้ carry เพราะไม่ได้สมัครใหม่) →
  *   callbackUrl. ทางเข้านี้มีไว้ให้บัญชีที่มีอยู่แล้วแต่ไม่มีรหัสผ่าน (สมัครด้วย OTP ล้วน)
  *   เข้าฝั่งผู้ขายได้ — ถ้ายังไม่มีร้าน layout จะพาไป /choose-shop ให้กด "เปิดร้านของฉัน" ต่อเอง
@@ -20,6 +20,7 @@
 
 import { pacesToast } from '@/lib/paces-toast'
 import { distributeOtpPaste, otpFocusIndexAfterPaste } from '@/lib/otp-paste'
+import { goAfterLogin } from '@/lib/go-after-login'
 import { safeCallbackUrl } from '@/lib/safe-callback-url'
 import { cn } from '@/utils/helpers'
 import { signIn } from 'next-auth/react'
@@ -156,7 +157,8 @@ export default function VerifyOtpForm() {
           if (result?.ok) {
             // clear draft ทันทีหลัง signIn สำเร็จ — password หมดอายุใช้งาน
             sessionStorage.removeItem('signupDraft')
-            router.push('/dashboard')
+            // 🛑 goAfterLogin ไม่ใช่ router.push — ดูเหตุผลเต็มใน src/lib/go-after-login.ts
+            await goAfterLogin('/dashboard')
             return
           }
 
@@ -173,7 +175,8 @@ export default function VerifyOtpForm() {
           })
 
           if (result?.ok) {
-            router.push(callbackUrl)
+            // 🛑 goAfterLogin ไม่ใช่ router.push — ดูเหตุผลเต็มใน src/lib/go-after-login.ts
+            await goAfterLogin(callbackUrl)
             return
           }
 

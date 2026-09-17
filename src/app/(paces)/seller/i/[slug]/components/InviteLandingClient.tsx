@@ -27,9 +27,9 @@ import { Icon as BxIcon } from '@iconify/react'
 import { signOutSeller } from '@/lib/sign-out-seller'
 import { signIn, useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import { goAfterLogin } from '@/lib/go-after-login'
 import { pacesToast } from '@/lib/paces-toast'
 import { generateInitials } from '@/utils/helpers'
 import PhoneAuthSteps from './PhoneAuthSteps'
@@ -86,7 +86,6 @@ export default function InviteLandingClient({
   slug,
   hasSession,
 }: InviteLandingClientProps) {
-  const router = useRouter()
   const { update } = useSession()
   const [accepting, setAccepting] = useState(false)
   // guest เท่านั้น: 'choose' = เลือกวิธีเข้าสู่ระบบ, 'phone' = ฟอร์มเบอร์โทร 3 ขั้น
@@ -119,7 +118,9 @@ export default function InviteLandingClient({
       if (res.ok) {
         const data = await res.json()
         await update({ activeShopId: data.shopId })
-        router.push('/dashboard')
+        // 🛑 hard-navigate ไม่ใช่ router.push — เปลี่ยนร้าน active แล้วทุกหน้าที่เรนเดอร์ฝั่ง
+        // เซิร์ฟเวอร์ต้องคิดใหม่หมด (ท่าเดียวกับ useShopSwitcher) ดู src/lib/go-after-login.ts
+        await goAfterLogin('/dashboard')
         return
       }
       // map error ตาม status/body (feedback_service_error_route_mapping)

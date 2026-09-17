@@ -15,6 +15,7 @@ import Typography from '@mui/material/Typography'
 // Third-party Imports
 import { yupResolver } from '@hookform/resolvers/yup'
 import { Icon } from '@iconify/react'
+import { goAfterLogin } from '@/lib/go-after-login'
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -96,7 +97,8 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
     try {
       const res = await signIn('buyer-credentials', { username, password, redirect: false })
       if (res?.ok) {
-        router.push(safeCallbackUrl)
+        // 🛑 goAfterLogin ไม่ใช่ router.push — ดูเหตุผลเต็มใน src/lib/go-after-login.ts
+        await goAfterLogin(safeCallbackUrl)
         return
       }
       // error รวม — ไม่บอกว่า username หรือ password ผิด (กัน user enumeration)

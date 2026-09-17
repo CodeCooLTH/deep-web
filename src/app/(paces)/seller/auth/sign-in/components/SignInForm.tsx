@@ -11,7 +11,7 @@
  * - เพิ่ม Facebook button (w-full, icon bxl:facebook-circle) + dashed divider
  * - เพิ่ม link "ลืมรหัสผ่าน?" → /auth/reset-pass
  * - form state จัดการด้วย react-hook-form + Yup (แทน useState ของ base)
- * - onSubmit: signIn('seller-credentials') → ok router.push('/dashboard');
+ * - onSubmit: signIn('seller-credentials') → ok hard-navigate ไป callbackUrl;
  *   fail → setError('root') inline แทน toast (generic กัน enumeration)
  * - loading state: "กำลังเข้าสู่ระบบ..." + disabled
  * - login error แสดง inline ใต้ submit (errors.root) ไม่ใช่ toast
@@ -28,7 +28,7 @@
 
 import { Icon as BxIcon } from '@iconify/react'
 import { yupResolver } from '@hookform/resolvers/yup'
-import { getCsrfToken, getSession, signIn } from 'next-auth/react'
+import { getCsrfToken, signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
@@ -36,8 +36,8 @@ import { useForm } from 'react-hook-form'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
-import { waitForSession } from '@/lib/wait-for-session'
 import type { Dictionary } from '@/i18n/dictionaries/th'
+import { goAfterLogin } from '@/lib/go-after-login'
 import { MOBILE_RULE_TEXT, isLoginPhone } from '@/lib/phone'
 import { safeCallbackUrl } from '@/lib/safe-callback-url'
 import { cn } from '@/utils/helpers'
@@ -218,22 +218,13 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
 
     if (result?.ok) {
       /**
-       * 🛑 `ok: true` แปลว่า "เซิร์ฟเวอร์ยอมรับรหัสผ่าน" ไม่ได้แปลว่า "เบราว์เซอร์เก็บคุกกี้แล้ว"
+       * บั๊กจริง (หัวหน้าเจอ 2026-09-17): ล็อกอิน `appreview` ด้วยรหัสผ่านแล้ว **ไม่พาเข้าไป
+       * ต้องรีเฟรชเอง** — ตระกูลเดียวกับบั๊ก Apple (#66) ต่างกันแค่ทางเข้า
        *
-       * บั๊กจริง (หัวหน้าเจอ 2026-09-17): ล็อกอิน `appreview` แล้ว **ไม่พาเข้าไป ต้องรีเฟรชเอง**
-       * — `router.push` ที่ยิงตามมาทันทีอาจไปโดยที่คำขอนั้นยังไม่มีคุกกี้ ⇒ proxy เตะกลับ
-       * ตระกูลเดียวกับบั๊ก Apple (#66) ต่างกันแค่ทางเข้า: Apple เดินผ่านหน้ารอที่ถาม session
-       * อยู่แล้ว ส่วนรหัสผ่านยิง push ตรง ๆ
-       *
-       * `router.refresh()` เพิ่มมาด้วยเพราะ App Router เก็บผลของหน้าไว้ฝั่ง client —
-       * ไปถึงแล้วอาจได้ของที่เรนเดอร์ตอนยังไม่ล็อกอิน
-       *
-       * 🛑 ถามไม่เห็นก็ต้องไปต่อ ไม่ใช่ค้าง — ผู้ใช้กดปุ่มแล้วต้องได้ผลลัพธ์เสมอ
-       * (ถ้าไปแล้วโดนเตะกลับจริง อย่างน้อยเขาได้เห็นหน้าล็อกอินพร้อมลองใหม่ ดีกว่าจอค้าง)
+       * 🛑 ทั้ง "รอ session" และ "hard-navigate" จำเป็นทั้งคู่และแก้คนละปัญหา —
+       * เหตุผลเต็มอยู่ใน src/lib/go-after-login.ts (ตัวกลางของทุกจุดที่ล็อกอินแล้วเปลี่ยนหน้า)
        */
-      await waitForSession(getSession)
-      router.refresh()
-      router.push(callbackUrl)
+      await goAfterLogin(callbackUrl)
     } else {
       // generic error — ไม่บอก username/password อันไหนผิดเพื่อกัน enumeration
       // ทั้ง 2 field ขึ้น border แดงโดยไม่โชว์ text ซ้อน; ข้อความรวมอยู่ที่ errors.root

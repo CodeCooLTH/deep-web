@@ -13,6 +13,7 @@ import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
 
 // Third-party Imports
+import { goAfterLogin } from '@/lib/go-after-login'
 import { signIn } from 'next-auth/react'
 import { toast } from 'react-toastify'
 
@@ -90,7 +91,8 @@ export default function VerifyOtpCard() {
       })
       if (result?.ok) {
         if (mode === 'signup') sessionStorage.removeItem('signupDraft')
-        router.push(safeCallbackUrl)
+        // 🛑 goAfterLogin ไม่ใช่ router.push — ดูเหตุผลเต็มใน src/lib/go-after-login.ts
+        await goAfterLogin(safeCallbackUrl)
         return
       }
       setErrorMsg('รหัสไม่ถูกต้องหรือหมดอายุ ลองอีกครั้ง')

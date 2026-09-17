@@ -24,8 +24,8 @@
  * UX Spec: docs/superpowers/specs/2026-08-01-invite-admins-modal-and-accept-mockup.html §B2
  */
 
+import { goAfterLogin } from '@/lib/go-after-login'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
@@ -68,8 +68,6 @@ function readDraft(): Draft | null {
 }
 
 export default function PhoneAuthSteps({ shopName, onBack }: PhoneAuthStepsProps) {
-  const router = useRouter()
-
   const [step, setStep] = useState<Step>('phone')
   const [phone, setPhone] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -183,8 +181,10 @@ export default function PhoneAuthSteps({ shopName, onBack }: PhoneAuthStepsProps
       })
       if (result?.ok) {
         clearDraft()
-        // RSC ของหน้า /i/[slug] อ่าน session ใหม่แล้ว render หน้ารับคำเชิญแทนฟอร์มนี้
-        router.refresh()
+        // โหลดหน้า /i/[slug] ใหม่ทั้งหน้า → RSC อ่าน session ใหม่แล้ว render หน้ารับคำเชิญแทนฟอร์มนี้
+        // 🛑 ไม่ใช่ router.refresh() — ดูเหตุผลเต็มใน src/lib/go-after-login.ts
+        // (ไม่ส่งปลายทาง = โหลดหน้าเดิมใหม่ เพราะผู้ถูกเชิญต้องอยู่ที่ลิงก์คำเชิญเดิม)
+        await goAfterLogin()
         return
       }
       pacesToast.error('รหัสไม่ถูกต้องหรือหมดอายุ กรุณาลองใหม่')
