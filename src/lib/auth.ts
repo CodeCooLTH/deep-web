@@ -11,6 +11,7 @@ import { verifyLinkIntent, signReclaimTicket, LINK_INTENT_COOKIE } from "@/lib/l
 import { classifyLinkConflict } from "@/lib/link-conflict";
 import { getPersonalShop, isShopMember } from "@/lib/shop-context";
 import { resolveOnboardingGate, resolveDefaultActiveShopId } from "@/lib/onboarding-gate";
+import { resolvePostAuthRedirect } from "@/lib/post-auth-redirect";
 // ลบบัญชี (App Store 5.1.1(v)) — ทุก provider ต้องปฏิเสธบัญชีที่ deletedAt มีค่า
 // 🛑 ใช้ helper ตัวนี้ที่เดียว ห้ามเขียนเงื่อนไข deletedAt เองซ้ำ: มีทางเข้า 6 ทาง
 // (phone-otp / seller / buyer / admin credentials / mobile-ticket / OAuth) พลาดทางเดียว
@@ -838,14 +839,16 @@ export const authOptions: NextAuthOptions = {
     // the browser resolves them against the current origin; same-origin
     // absolute URLs pass through; cross-origin URLs fall back to baseUrl to
     // prevent open-redirect abuse.
+    /**
+     * ปลายทางหลังล็อกอินสำเร็จ — กฎอยู่ที่ `src/lib/post-auth-redirect.ts` (SSOT + เทส)
+     *
+     * 🛑 ห้ามกลับไปเขียน `if (url.startsWith("/")) return url` ตรง ๆ อีก — ท่านั้นปล่อยให้
+     * `/auth/sign-in` ที่ค้างอยู่ในคุกกี้ `callback-url` (จาก `signOut` รอบก่อน) กลายเป็น
+     * ปลายทางหลังล็อกอิน ⇒ ผู้ใช้ **ล็อกอินสำเร็จแล้วแต่นั่งมองฟอร์มล็อกอิน**
+     * (บั๊ก prod 2026-09-17 — เหตุผลเต็มอยู่ที่ SSOT)
+     */
     async redirect({ url, baseUrl }) {
-      if (url.startsWith("/")) return url;
-      try {
-        if (new URL(url).origin === new URL(baseUrl).origin) return url;
-      } catch {
-        /* invalid URL — fall through */
-      }
-      return baseUrl;
+      return resolvePostAuthRedirect(url, baseUrl);
     },
     async jwt({ token, user, account, trigger, session }) {
       if (user) {
