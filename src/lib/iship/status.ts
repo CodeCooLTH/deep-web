@@ -226,6 +226,33 @@ export function carrierTrackingSettled(row: {
 }
 
 /**
+ * storedTracesReachedEnd — ไทม์ไลน์ที่เก็บไว้ "ไปถึงปลายทางแล้วจริง" หรือยัง
+ *
+ * 🛑 บั๊กที่แก้ (ร้านแจ้งบน prod 2026-09-17 — TH060748657459 ขนส่ง SPX): หัวการ์ดขึ้น
+ * "ส่งคืนสำเร็จ" แต่ไทม์ไลน์ค้างที่ 15 ก.ย. ขณะที่ iShip มีเหตุการณ์ถึง 17 ก.ย.
+ * `carrierTrackingSettled` ตอบว่า *สถานะ* จบแล้ว แต่ไม่ได้ตอบว่า *แถวที่เก็บไว้* ครบแล้ว —
+ * สถานะปลายทางมักมาทางรอบ poll/webhook ซึ่งไม่ดึง trace ⇒ แถวที่เก็บไว้คือของรอบที่มีคน
+ * เปิดดูครั้งสุดท้ายตอนของยังเดินอยู่ แล้วด่าน "จบแล้วไม่ต้องยิง" ก็แช่มันไว้ตลอดกาล
+ * (prod วันที่พบ: ตีกลับ 20/27 · ส่งถึง 12/12 ใบที่ไทม์ไลน์ไม่มีขั้นสุดท้าย)
+ *
+ * ห้ามเทียบด้วยเวลา (`createdAt` vs `carrierStatusAt`) — trace ของ iShip ไม่มีขั้น
+ * `payment_success` เลย ใบ COD จึงจบที่ `delivered` ซึ่งเก่ากว่าเวลาเงินเข้าเสมอ
+ * ⇒ จะยิงซ้ำทุกครั้งที่เปิดดูไปตลอดกาล
+ */
+export function storedTracesReachedEnd(
+  carrierStatus: string | null | undefined,
+  storedStatuses: readonly string[],
+): boolean {
+  if (storedStatuses.length === 0) return false;
+  if (carrierStatus === "return_success") return storedStatuses.includes("return_success");
+  if (carrierStatus === "delivered" || carrierStatus === "payment_success") {
+    return storedStatuses.includes("delivered");
+  }
+  // is_expired/close/cancelled — trace ไม่มีขั้นที่ตรงกัน และไม่มีอะไรตามมาอีก
+  return true;
+}
+
+/**
  * describeCarrierStatus — แปลรหัสสถานะเป็นข้อความ/สี
  *
  * รหัสที่ไม่รู้จัก (ผู้ให้บริการเพิ่มสถานะใหม่) ต้องไม่ทำให้หน้าจอพัง —

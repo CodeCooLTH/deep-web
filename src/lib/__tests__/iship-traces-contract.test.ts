@@ -19,6 +19,7 @@ import { describe, it, expect } from 'vitest'
 import {
   FINAL_CARRIER_STATUSES,
   carrierTrackingSettled,
+  storedTracesReachedEnd,
   isTerminalCarrierStatus,
 } from '../iship/status'
 
@@ -94,8 +95,25 @@ describe('carrierTrackingSettled — เลิกยิง iShip เมื่อ
     const block = src.slice(i, i + 400)
     expect(block).toContain('shipmentEvent.findMany')
     expect(block).toContain('return { events: stored')
-    // 🛑 ต้องมีของเก่าอยู่จริงถึงจะข้ามได้ ไม่งั้นใบที่ไม่เคยดึงเลยจะว่างตลอดไปกู้ไม่ได้
-    expect(block).toContain('stored.length > 0')
+    // 🛑 ต้องมีขั้นสุดท้ายในของเก่าจริงถึงจะข้ามได้ — แค่ "มีแถว" = แช่ไทม์ไลน์ค้าง (prod 2026-09-17)
+    expect(block).toContain('storedTracesReachedEnd(row.carrierStatus')
+    expect(block).not.toContain('if (stored.length > 0) return')
+  })
+
+  it('[blocker] storedTracesReachedEnd — แถวที่ดึงไว้ตอนของยังเดินอยู่ ห้ามถือว่าครบ', () => {
+    // TH060748657459: สถานะ return_success แต่แถวล่าสุดที่เก็บไว้คือ in_transit ของ 15 ก.ย.
+    expect(storedTracesReachedEnd('return_success', ['order_success', 'in_transit', 'issue'])).toBe(false)
+    expect(storedTracesReachedEnd('return_success', ['in_transit', 'return', 'return_success'])).toBe(true)
+    expect(storedTracesReachedEnd('delivered', ['picked_up', 'in_transit'])).toBe(false)
+    expect(storedTracesReachedEnd('delivered', ['in_transit', 'delivered'])).toBe(true)
+    // trace ของ iShip ไม่มีขั้น payment_success — ใบ COD จบที่ delivered ต้องนับว่าครบ
+    // ไม่งั้นยิงซ้ำทุกครั้งที่เปิดดูตลอดกาล
+    expect(storedTracesReachedEnd('payment_success', ['in_transit', 'delivered'])).toBe(true)
+    expect(storedTracesReachedEnd('payment_success', ['in_transit'])).toBe(false)
+    expect(storedTracesReachedEnd('cancelled', ['order_success'])).toBe(true)
+    // ไม่เคยดึงเลย = ต้องยิงครั้งแรกเสมอ
+    expect(storedTracesReachedEnd('cancelled', [])).toBe(false)
+    expect(storedTracesReachedEnd('return_success', [])).toBe(false)
   })
 
   /**

@@ -25,6 +25,7 @@ import { IShipError } from "@/lib/iship/errors";
 import {
   carrierStatusCodeFromId,
   carrierTrackingSettled,
+  storedTracesReachedEnd,
   EVIDENCE_CARRIER_STATUSES,
   shouldCaptureEvidence,
   describeCarrierStatus,
@@ -1630,7 +1631,8 @@ export async function getTraces(
    *
    * 🛑 ต้องมีเหตุการณ์เก็บไว้แล้วถึงจะข้ามได้ — ใบที่จบเส้นทางโดยที่ยังไม่เคยดึงไทม์ไลน์เลย
    * (ปิดจากฝั่ง webhook/poller ล้วน) ยังต้องยิงครั้งแรกให้ ไม่งั้นมันจะว่างเปล่าตลอดไป
-   * โดยไม่มีทางกู้
+   * โดยไม่มีทางกู้ — และ "มีแถว" ไม่พอ ต้องมีขั้นสุดท้ายด้วย (ดู `storedTracesReachedEnd`:
+   * แถวที่ดึงไว้ตอนของยังเดินอยู่ถูกแช่ค้างมาแล้วบน prod 2026-09-17)
    *
    * 🛑 เกณฑ์ต้องเป็น `carrierTrackingSettled` ไม่ใช่ `isTerminalCarrierStatus` — `delivered`
    * ของใบ COD ยังมี `payment_success` ตามมาทีหลัง (BR-ISHIP-49)
@@ -1640,7 +1642,9 @@ export async function getTraces(
       where: { shipmentId: row.id },
       orderBy: { occurredAt: "asc" },
     });
-    if (stored.length > 0) return { events: stored, carrier: carrierStateOf(row) };
+    if (storedTracesReachedEnd(row.carrierStatus, stored.map((e) => e.status))) {
+      return { events: stored, carrier: carrierStateOf(row) };
+    }
   }
 
   /**
