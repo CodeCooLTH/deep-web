@@ -47,6 +47,19 @@ function isAuthLandingPath(pathname: string): boolean {
  *
  * รักษาพฤติกรรมเดิมทุกอย่าง (relative ผ่าน · same-origin ผ่าน · นอก origin ตกไป baseUrl)
  * แล้วเพิ่มกฎเดียว: ห้ามลงเอยที่หน้ายืนยันตัวตน
+ *
+ * 🛑 **คืนเป็น URL เต็มเสมอ ห้ามคืน path ลอย ๆ** (แก้ 2026-09-18)
+ *
+ * ค่านี้ไม่ได้ถูกใช้แค่เป็น `Location` ของ 302 (ซึ่งรับ path ได้ — Apple จึงไม่เป็นอะไร)
+ * แต่ยังถูกส่งกลับเป็น `data.url` ให้ `signIn(..., { redirect: false })` ฝั่งหน้าเว็บ
+ * ซึ่งทำ `new URL(data.url)` ⇒ path ลอย ๆ ทำให้ **throw หลังคุกกี้ session ตั้งไปแล้ว**
+ * ⇒ ปุ่มกลับเป็น "เข้าสู่ระบบ" เฉย ๆ ไม่เปลี่ยนหน้า รีเฟรชแล้วถึงเข้าได้
+ * (หัวหน้าเจอกับรหัสผ่าน `appreview` บน iPhone · กระทบทุกทางเข้า `redirect: false`
+ * จากหน้า `/auth/*` ทั้งผู้ขาย แอดมิน ผู้ซื้อ — ตั้งแต่ #64)
+ *
+ * ต่อ path ด้วยการต่อสตริง **ไม่ใช่ `new URL(path, baseUrl)`** — แบบหลังตีความ
+ * `//evil.com` เป็นโดเมนอื่น (open-redirect) · แบบต่อสตริงคือสัญญาเดียวกับ callback
+ * ปริยายของ next-auth (`core/lib/default-callbacks.js`)
  */
 export function resolvePostAuthRedirect(
   url: string,
@@ -62,13 +75,13 @@ export function resolvePostAuthRedirect(
      * ทำอะไรเลย ⇒ ตัดทิ้งแทนที่จะเก็บไว้ให้คนถัดไปเข้าใจผิดว่ามันกันอะไรอยู่
      * (มีเทสปักหมุดเคสที่หลอกตาที่สุดไว้: `/auth/sign-in?next=/auth/callback/line`)
      */
-    return isAuthLandingPath(url) ? fallback : url
+    return `${baseUrl}${isAuthLandingPath(url) ? fallback : url}`
   }
 
   try {
     const parsed = new URL(url)
     if (parsed.origin !== new URL(baseUrl).origin) return baseUrl
-    return isAuthLandingPath(parsed.pathname) ? fallback : url
+    return isAuthLandingPath(parsed.pathname) ? `${baseUrl}${fallback}` : url
   } catch {
     /* URL ใช้ไม่ได้ — ถอยไปที่เดิมเหมือนพฤติกรรมเดิม */
     return baseUrl
