@@ -112,6 +112,16 @@ export const CONNECT_SCOPES = [
   'instagram_manage_messages',
 ].join(',')
 
+// Configuration ของ Facebook Login for Business ("Deep Page Connect" สร้าง 2026-09-19) — สิทธิ์ 7 ตัว
+// ตรงกับ CONNECT_SCOPES ทุกตัว (User access token)
+//
+// 🛑 แอปแชทเป็นแอปประเภท Business ที่ใช้ Facebook Login for Business ⇒ คนนอก role ต้องเข้าผ่าน
+// `config_id` เท่านั้น ส่ง `scope` ตรง ๆ = "ฟีเจอร์ไม่พร้อมใช้งาน" แม้ทุก scope จะได้ Advanced แล้ว
+// (พิสูจน์บน prod 2026-09-19: ตัด scope ที่ไม่ผ่านรีวิวออกหมดแล้ว ลูกค้ายังเจอหน้าเดิม)
+// แก้สิทธิ์ใน Configuration ที่ App Dashboard → Facebook Login for Business → Configurations
+// แล้วต้องแก้ CONNECT_SCOPES ให้ตรงกันด้วย (ตัวหลังยังใช้กับบัญชีทีมที่มี role)
+export const CONNECT_CONFIG_ID = '1080845061590909'
+
 // scope ที่ยังไม่ได้ Advanced Access (ใบรีวิวรอบ 3 `1739136693971389`) — ขอเฉพาะผู้ใช้ที่มี role บนแอป
 // (อัดคลิปรีวิว/ทดสอบ) ผ่าน env `FB_CHAT_ROLE_USER_IDS` ดู connect/route.ts
 export const PENDING_REVIEW_SCOPES = [

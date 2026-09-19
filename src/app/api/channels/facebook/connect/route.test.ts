@@ -10,7 +10,7 @@ beforeAll(() => {
 
 import { GET } from '@/app/api/channels/facebook/connect/route'
 import { getServerSession } from 'next-auth'
-import { PENDING_REVIEW_SCOPES } from '@/lib/facebook/constants'
+import { CONNECT_CONFIG_ID, PENDING_REVIEW_SCOPES } from '@/lib/facebook/constants'
 
 const req = () => new NextRequest('https://seller.deepthailand.app/api/channels/facebook/connect')
 
@@ -28,25 +28,27 @@ describe('GET /api/channels/facebook/connect', () => {
     const loc = new URL(res.headers.get('location')!)
     expect(loc.hostname).toBe('www.facebook.com')
     expect(loc.searchParams.get('client_id')).toBe('1570859340799126')
-    expect(loc.searchParams.get('scope')).toContain('pages_messaging')
+    expect(loc.searchParams.get('config_id')).toBe(CONNECT_CONFIG_ID)
     expect(loc.searchParams.get('state')).toBeTruthy()
     // state ต้องถูกผูกไว้ใน cookie httpOnly เพื่อเทียบตอน callback
     expect(res.headers.get('set-cookie')).toContain('HttpOnly')
   })
 
-  // [blocker] ขอ scope ที่ยังไม่ผ่านรีวิวกับคนไม่มี role ⇒ Facebook ขึ้น "ฟีเจอร์ไม่พร้อมใช้งาน" (2026-09-19)
-  it('[blocker] ผู้ใช้ทั่วไปได้เฉพาะ scope ที่ผ่านรีวิวแล้ว · คนใน FB_CHAT_ROLE_USER_IDS ได้ครบ', async () => {
+  // [blocker] แอปแชทเป็น Facebook Login for Business — คนนอก role ต้องเข้าผ่าน config_id ห้ามส่ง scope
+  // (ส่ง scope = Facebook ขึ้น "ฟีเจอร์ไม่พร้อมใช้งาน" · 2026-09-19)
+  it('[blocker] ผู้ใช้ทั่วไปได้ config_id ไม่มี scope · คนใน FB_CHAT_ROLE_USER_IDS ได้ scope ครบ', async () => {
     process.env.FB_CHAT_ROLE_USER_IDS = ' role1 ,role2'
-    const scopeFor = async (id: string) => {
+    const paramsFor = async (id: string) => {
       ;(getServerSession as ReturnType<typeof vi.fn>).mockResolvedValue({ user: { id } })
-      return new URL((await GET(req())).headers.get('location')!).searchParams.get('scope')!.split(',')
+      return new URL((await GET(req())).headers.get('location')!).searchParams
     }
-    const pending = PENDING_REVIEW_SCOPES.split(',')
-    const customer = await scopeFor('u1')
-    for (const s of pending) expect(customer).not.toContain(s)
-    expect(customer).toContain('pages_messaging')
-    const role = await scopeFor('role1')
-    for (const s of pending) expect(role).toContain(s)
+    const customer = await paramsFor('u1')
+    expect(customer.get('config_id')).toBe(CONNECT_CONFIG_ID)
+    expect(customer.has('scope')).toBe(false)
+    const role = await paramsFor('role1')
+    expect(role.has('config_id')).toBe(false)
+    const scopes = role.get('scope')!.split(',')
+    for (const s of PENDING_REVIEW_SCOPES.split(',')) expect(scopes).toContain(s)
     delete process.env.FB_CHAT_ROLE_USER_IDS
   })
 })
