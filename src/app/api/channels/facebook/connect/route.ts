@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { GRAPH_VERSION, CONNECT_SCOPES } from '@/lib/facebook/constants'
+import { GRAPH_VERSION, CONNECT_SCOPES, PENDING_REVIEW_SCOPES } from '@/lib/facebook/constants'
+import { sessionUserId } from '@/lib/session-user'
 
 // เริ่ม OAuth เชื่อม Facebook Page (feature 00018)
 //
@@ -17,6 +18,14 @@ export const OAUTH_STATE_COOKIE = 'fb_channel_oauth_state'
 
 export function callbackUrl(request: NextRequest): string {
   return `${request.nextUrl.origin}/api/channels/facebook/callback`
+}
+
+// scope ที่ยังไม่ผ่านรีวิวขอได้เฉพาะคนที่มี role บนแอป — ขอกับคนอื่น = Facebook ขึ้น
+// "ฟีเจอร์ไม่พร้อมใช้งาน" ทั้งหน้า (ดู CONNECT_SCOPES) ⇒ allow-list ด้วย User.id ของเรา
+// ponytail: รายชื่อใน env ต้องตรงกับ role บน App Dashboard เอง — ผ่านรีวิวครบแล้วลบทิ้งทั้งกลไก
+export function connectScopes(userId: string | null): string {
+  const roleUsers = (process.env.FB_CHAT_ROLE_USER_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+  return userId && roleUsers.includes(userId) ? `${CONNECT_SCOPES},${PENDING_REVIEW_SCOPES}` : CONNECT_SCOPES
 }
 
 export async function GET(request: NextRequest) {
@@ -36,7 +45,7 @@ export async function GET(request: NextRequest) {
   const authorizeUrl = new URL(`https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth`)
   authorizeUrl.searchParams.set('client_id', appId)
   authorizeUrl.searchParams.set('redirect_uri', callbackUrl(request))
-  authorizeUrl.searchParams.set('scope', CONNECT_SCOPES)
+  authorizeUrl.searchParams.set('scope', connectScopes(sessionUserId(session)))
   authorizeUrl.searchParams.set('response_type', 'code')
   authorizeUrl.searchParams.set('state', state)
 

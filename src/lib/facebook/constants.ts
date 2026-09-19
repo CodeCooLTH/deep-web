@@ -95,20 +95,32 @@ export const MESSENGER_SUBSCRIBED_FIELDS = [
 
 // scope ที่ขอตอนเชื่อม Page — business_management เป็น dependency บังคับของ
 // pages_messaging / pages_show_list / instagram_manage_messages (Meta docs)
+//
+// 🛑 ต้องมีแต่ scope ที่ได้ **Advanced Access** แล้วเท่านั้น (2026-09-19) — แอป Live ที่ขอ scope ที่ยัง
+// Standard/ไม่ผ่านรีวิว ⇒ คนที่ไม่มี role บนแอปเจอหน้า Facebook "ฟีเจอร์ไม่พร้อมใช้งาน" ทั้งกระบวนการ
+// (ลูกค้าจริงรายแรกเจอ 2026-09-19 · ทุกเพจที่เคยเชื่อมสำเร็จบน prod เป็นของ shinobu22/metareview
+// ซึ่งมี role จึงไม่มีใครเห็นมาก่อน · อาการเดียวกับ `email` ของแอป login เมื่อ 2026-07-04)
+// scope ที่ยังรอรีวิวอยู่ใน PENDING_REVIEW_SCOPES ข้างล่าง — ผ่านรีวิวตัวไหน ย้ายขึ้นมาตัวนั้น
+// เช็คสถานะด้วย Meta DevTools MCP `devtools_app_review` action=privileges → access_level ต้องเป็น advanced
 export const CONNECT_SCOPES = [
   'pages_show_list',
   'pages_messaging',
   'pages_manage_metadata',
   'pages_read_engagement',
+  'business_management',
+  'instagram_basic',
+  'instagram_manage_messages',
+].join(',')
+
+// scope ที่ยังไม่ได้ Advanced Access (ใบรีวิวรอบ 3 `1739136693971389`) — ขอเฉพาะผู้ใช้ที่มี role บนแอป
+// (อัดคลิปรีวิว/ทดสอบ) ผ่าน env `FB_CHAT_ROLE_USER_IDS` ดู connect/route.ts
+export const PENDING_REVIEW_SCOPES = [
   // feature 00029 (คอมเมนต์บนโพสต์) — เพิ่ม 2026-08-03 หลังเพิ่ม use case "Manage everything on
   // your Page" ใน App Dashboard. **token ที่ออกไปก่อนหน้านี้ไม่มีสิทธิ์ 2 ตัวนี้** (scope ติดตัว
   // token ตอนกดอนุญาต ไม่ใช่ตอนแอปประกาศ) → ร้านที่เชื่อมไว้แล้วต้องกดเชื่อมเพจใหม่ครั้งเดียว
   // ไม่งั้นตอบคอมเมนต์จะได้ (#200) Permissions error และ backfill คอมเมนต์เก่าก็ดึงไม่ได้
   'pages_read_user_content',  // อ่านคอมเมนต์ที่ผู้ใช้เขียนบนเพจ + ดึงคอมเมนต์ย้อนหลัง
   'pages_manage_engagement',  // ตอบ/จัดการคอมเมนต์ในนามเพจ
-  'business_management',
-  'instagram_basic',
-  'instagram_manage_messages',
   /**
    * instagram_manage_insights — ยอดวิว Reels ของร้านเอง (feature 00021)
    *
