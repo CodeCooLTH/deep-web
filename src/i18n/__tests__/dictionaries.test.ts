@@ -143,6 +143,15 @@ describe('applyMenuLocale — ทุกเมนูต้องมีคำแ�
       expect(dict.inbox.windowStatusHumanAgentDetail.split('{date}')).toHaveLength(2)
     }
   })
+
+  it('[blocker] placeholder ของห้องแชท (00018 ส่วนขยาย 2026-09-14) ครบ 1 ตัวทุกภาษา', () => {
+    // fmt คง placeholder ที่ไม่มีค่าไว้ตามเดิม แต่คำแปลที่ "ลืมใส่" placeholder จะทิ้งตัวเลข/วันที่เงียบ ๆ
+    // ⇒ screen reader อ่าน "มีข้อความใหม่ ข้อความ" / "เวลา" โดยไม่มีค่า
+    for (const dict of [th, en]) {
+      expect(dict.inbox.newMessagesAnnounce.split('{count}')).toHaveLength(2)
+      expect(dict.inbox.messageTimeSr.split('{date}')).toHaveLength(2)
+    }
+  })
 })
 
 describe('toLocale / isLocale — fail-closed (BR-I18N-05)', () => {

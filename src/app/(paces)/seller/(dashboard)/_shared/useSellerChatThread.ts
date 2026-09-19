@@ -31,6 +31,19 @@ import {
 // type-only — ถูกลบตอน compile จึงไม่ลาก prisma เข้ามาใน client bundle
 import type { AiAnswerContext } from '@/services/chat.service'
 import { uploadToStorage } from '@/lib/upload-client'
+// ห้องแชทเปิดแล้วเห็นทันที + delta (ส่วนขยาย 00018, 2026-09-14)
+import { firstPageReplacement, mergeMessages, resolveOpeningMessages } from '@/lib/chat-message-merge'
+import { readThread, saveThreadView } from '@/lib/chat-message-store'
+import { deltaAfterUpdatedAt } from '@/lib/chat-delta-query'
+import {
+  canAutoLoadOlder,
+  pickNewIncoming,
+  countUnseenIncrement,
+  shouldDeferFullDeltaReplace,
+  planDeltaApply,
+  firstPageLeavesGap,
+  shouldFollowNewMessages,
+} from '@/lib/chat-thread-scroll'
 
 // chat-attachment.ts เป็น pure module จึง import ฝั่ง client ได้ (ต่างจาก '@/lib/storage' ที่ barrel
 // ดึง driver local/s3 (fs/server-only) เข้า client bundle) — เพดาน/deny-list จึงไม่ต้อง duplicate อีก
@@ -175,6 +188,9 @@ export type ChatMessageView = {
   attachmentName?: string | null
   attachmentSize?: number | null
   createdAt: string
+  /** watermark แกนที่ 2 ของ delta (2026-09-14) — optional เพราะข้อความ optimistic ยังไม่มี
+   *  🛑 แถวที่มีก่อน migration มีค่า 1970-01-01 ห้ามอ่านตรง ๆ ว่าเป็น "เวลาแก้ล่าสุด" ใช้ watermarksOf() */
+  updatedAt?: string
   productCard?: ChatProductCard | null
   /** การ์ดสินค้าหลายชิ้นในข้อความเดียว (ส่วนขยาย 2026-08-11) — `null` = ใบเดียว (ใช้ productCard เดิม)
    *  สมาชิกที่เป็น `null` = สินค้าถูกลบหลังส่ง ต้องคงตำแหน่งไว้เพื่อวาด "ไม่พบสินค้านี้แล้ว" */
@@ -285,6 +301,8 @@ export type ChatMessageView = {
 type MessagesApiResponse = {
   items: ChatMessageView[]
   nextCursor: string | null
+  /** เวลาฝั่ง server ก่อน query (ISO) — ยก watermark ของ store ให้ห้องที่เงียบ poll ได้ 0 แถว (nextWatermarks) */
+  asOf?: string
   /** watermark "ลูกค้าอ่านถึงเวลานี้" (feature 00018 read receipt) — มากับทุก GET เพื่อให้ป้าย
    *  "ส่งแล้ว → อ่านแล้ว" อัปเดตได้เองโดยไม่ต้องรีโหลดหน้า (read event ไม่ทริกเกอร์ realtime) */
   externalReadAt?: string | null
@@ -330,6 +348,9 @@ const QUOTE_LABEL: Record<string, string> = {
   PRODUCT: '[สินค้า]',
 }
 
+/** เพดานของ delta ต่อคำขอ — คืนครบเพดานนี้ = อาจมีมากกว่านี้ที่ไม่ได้มา (R13) */
+const DELTA_TAKE = 100
+
 /** จัดกลุ่มข้อความตามวัน — formatDate (sanctioned lib, ห้าม Intl ตรง ตาม date-format.md) */
 export function groupByDate(messages: ChatMessageView[]) {
   const todayStr = formatDate(new Date())
@@ -364,6 +385,8 @@ export type InitialThreadMessages = {
   /** เรียงใหม่→เก่า เหมือน API (hook กลับด้านให้เองตอน seed) */
   items: ChatMessageView[]
   nextCursor: string | null
+  /** เวลาฝั่ง server ก่อน query — ดู MessagesApiResponse.asOf */
+  asOf?: string
   externalReadAt: string | null
   externalDeliveredAt: string | null
 }
@@ -374,7 +397,27 @@ export function useSellerChatThread(
   beepEnabled = true,
   initial?: InitialThreadMessages | null,
 ) {
-  const [messages, setMessages] = useState<ChatMessageView[]>(initial ? [...initial.items].reverse() : [])
+  /**
+   * cache ของห้องนี้ใน store (2026-09-14) — อ่านครั้งเดียวต่อ mount ผ่าน lazy initializer
+   * (ห้ามเรียก readThread ตรง ๆ ในตัว render: ทุก render จะแตะ LRU ใหม่)
+   *
+   * ไม่มีปัญหา hydration: store อยู่ใน memory ของแท็บ ⇒ โหลดหน้าใหม่ทั้งหน้า (ครั้งเดียวที่มี SSR)
+   * store ว่างเสมอ ได้ null ตรงกับฝั่ง server · cache มีค่าได้เฉพาะตอนเปลี่ยนหน้าฝั่ง client ซึ่งไม่มี hydrate
+   */
+  const [cached] = useState(() => (typeof window !== 'undefined' ? readThread(conversationId) : null))
+  /**
+   * ข้อความชุดแรกบนจอ — cache กับ RSC ตัดสินด้วย resolveOpeningMessages (R14): คาบเกี่ยวกัน = merge
+   * · initial ใหม่กว่า cache ทั้งชุด = initial อย่างเดียว (cache เก่าได้ 30 นาที ห้ามชนะของสดจาก RSC)
+   */
+  const [opening] = useState(() =>
+    resolveOpeningMessages({
+      cached,
+      initial: initial ? { items: [...initial.items].reverse(), nextCursor: initial.nextCursor } : null,
+    }),
+  )
+  const [messages, setMessages] = useState<ChatMessageView[]>(opening.items)
+  /** เปิดห้องนี้จาก cache — ใช้ได้ครั้งเดียว ผูกกับ conversationId เหตุผลเดียวกับ seededForRef ข้างล่าง */
+  const fromCacheForRef = useRef<string | null>(cached ? conversationId : null)
   /**
    * กระจกของ `messages` ที่อ่านได้ทันทีใน event handler — ไม่ใช่ของประดับ
    *
@@ -394,9 +437,14 @@ export function useSellerChatThread(
   const me = _session?.user as { displayName?: string; avatar?: string | null } | undefined
   const optimisticSender = me?.displayName ? { name: me.displayName, avatar: me.avatar ?? null } : null
 
-  const [oldestCursor, setOldestCursor] = useState<string | null>(initial?.nextCursor ?? null)
-  // มีข้อความมาพร้อมหน้าแล้ว = ไม่มีอะไรต้อง "โหลด" ⇒ สเกเลตันของ ChatThread ไม่ต้องโผล่เลย
-  const [loadingInitial, setLoadingInitial] = useState(!initial)
+  const [oldestCursor, setOldestCursor] = useState<string | null>(opening.oldestCursor)
+  /** กระจกของ oldestCursor ให้ refetchNewer เขียน store ได้โดยไม่ต้องใส่ state ลง deps (เหตุผลเดียวกับ messagesRef) */
+  const oldestCursorRef = useRef<string | null>(oldestCursor)
+  useEffect(() => {
+    oldestCursorRef.current = oldestCursor
+  }, [oldestCursor])
+  // มีข้อความมาพร้อมหน้าแล้ว (cache หรือ RSC) = ไม่มีอะไรต้อง "โหลด" ⇒ สเกเลตันของ ChatThread ไม่ต้องโผล่เลย
+  const [loadingInitial, setLoadingInitial] = useState(!cached && !initial)
   const [externalReadAt, setExternalReadAt] = useState<string | null>(initial?.externalReadAt ?? null)
   const [externalDeliveredAt, setExternalDeliveredAt] = useState<string | null>(initial?.externalDeliveredAt ?? null)
   /**
@@ -472,8 +520,31 @@ export function useSellerChatThread(
   // user อยู่ล่างสุด (ภายใน 120px) หรือเปล่า — ตัดสินว่าจะ auto-scroll ตอนข้อความใหม่เข้ามาไหม
   // (persistent ต่างจาก pinned ใน effect initial ที่อยู่แค่ 4 วิ) default true = เปิดเธรดมาอยู่ล่างสุด
   const atBottomRef = useRef(true)
+  /**
+   * จำนวนข้อความใหม่ที่เข้ามาตอนผู้ใช้เลื่อนขึ้นไปอ่านของเก่า (R4, spec §5.4) — ตัวเลขของปุ่ม
+   * "ข้อความใหม่" ที่ ChatThread วาด · ล้างเป็น 0 ทุกครั้งที่เลื่อนลงล่างสุด (ด้วยโค้ดหรือด้วยมือ)
+   */
+  const [unseenNewCount, setUnseenNewCount] = useState(0)
+  /**
+   * ผู้ใช้เลื่อนจอเองแล้วอย่างน้อยหนึ่งครั้งในห้องนี้ — ด่านของการโหลดข้อความเก่าอัตโนมัติ
+   * (ดู canAutoLoadOlder) ติดธงจาก wheel/touchmove เท่านั้น ไม่ใช่ `scroll`: scrollToBottom() ของเรา
+   * เองก็ยิง `scroll` ⇒ ถ้าฟัง `scroll` ธงจะติดตั้งแต่ mount แล้วด่านนี้ไม่มีผลอะไรเลย
+   */
+  const userHasScrolledRef = useRef(false)
+  /**
+   * R16: ห้องที่ delta คืนครบเพดานตอนผู้ใช้กำลังอ่านของเก่า — การโหลดหน้าแรกใหม่ถูกเลื่อนไว้
+   * ผูกกับ conversationId (ไม่ใช่ boolean) กันธงของห้องเดิมไปทำงานในห้องใหม่
+   */
+  const staleForRef = useRef<string | null>(null)
+  /** id ที่นับเข้าปุ่ม "ข้อความใหม่" ไปแล้วระหว่างรอแทนที่ — poll ถัดไปคืนชุดเดิมซ้ำ (watermark ไม่ขยับ) ห้ามนับ/ดังซ้ำ */
+  const staleCountedIdsRef = useRef<Set<string>>(new Set())
+  /** แถวของ delta ล่าสุดที่ทำให้ต้องแทนที่ระหว่างรอ — ส่งต่อให้ reloadFirstPage ตั้ง watermark ให้ครอบ (R28) */
+  const staleDeltaRef = useRef<ChatMessageView[]>([])
+  /** ตัวแทนที่ที่ถูกเลื่อนไว้ — listener ของ scroll ประกาศก่อนฟังก์ชันจริง จึงเรียกผ่าน ref */
+  const reloadIfStaleRef = useRef<() => void>(() => {})
 
   const scrollToBottom = useCallback(() => {
+    setUnseenNewCount(0)
     // double rAF — เฟรมแรก React commit DOM, เฟรมสอง layout เสร็จ แล้วค่อยเลื่อน (single rAF เดิม
     // เลื่อนก่อน paint บ่อย → ไม่ถึงล่างสุด, user report 2026-07-23)
     requestAnimationFrame(() => {
@@ -502,7 +573,8 @@ export function useSellerChatThread(
    * ข้างล่างรับช่วงต่อเองอยู่แล้ว ตัวนี้แค่กันเฟรมแรกไม่ให้กระตุก
    */
   useIsomorphicLayoutEffect(() => {
-    if (!initial) return
+    // closure ของ render แรก (deps ว่าง) ⇒ `cached` คือค่าตอน mount
+    if (!initial && !cached) return
     scrollToBottom()
     // deps ว่างโดยตั้งใจ — เฟรมแรกครั้งเดียวเท่านั้น (การเลื่อนรอบหลังเป็นหน้าที่ของตัวปักหมุด
     // ล่างสุดด้วย ResizeObserver ข้างล่าง) · eslint ไม่ทักเพราะทุกค่าที่อ้างมี identity คงที่
@@ -512,6 +584,16 @@ export function useSellerChatThread(
   useEffect(() => {
     let cancelled = false
     didInitialScrollRef.current = false // เปลี่ยนเธรด → ให้เลื่อนลงล่างสุดใหม่อีกรอบ
+    // มี cache = จอมีเนื้อหาแล้วตั้งแต่เฟรมแรก ไม่ต้องโหลดอะไร — reconcile ด้วย delta ใน effect
+    // "เช็คซ้ำตอนเปิดห้อง" ข้างล่าง · ต้องมาก่อนกิ่ง seed: มีทั้งคู่ state มาจาก cache ไม่ใช่ initial
+    if (fromCacheForRef.current === conversationId) {
+      fromCacheForRef.current = null
+      seededForRef.current = null
+      fetch(`/api/chat/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {})
+      return () => {
+        cancelled = true
+      }
+    }
     // เซิร์ฟเวอร์ส่งข้อความชุดแรกมาพร้อมหน้าแล้ว → ข้ามการยิงซ้ำ แต่ยัง mark-read เหมือนเดิม
     // (การเลื่อนลงล่างสุดย้ายไป layout effect ข้างล่าง เพื่อให้เกิด **ก่อนเบราว์เซอร์วาด**)
     if (seededForRef.current === conversationId) {
@@ -532,8 +614,11 @@ export function useSellerChatThread(
         if (!res.ok) throw new Error('load failed')
         const data: MessagesApiResponse = await res.json()
         if (cancelled) return
-        setMessages([...data.items].reverse())
+        const loaded = [...data.items].reverse()
+        setMessages(loaded)
         setOldestCursor(data.nextCursor)
+        // หน้าแรกคือความจริงทั้งหมดของห้อง ณ ตอนนี้ ⇒ เขียนทับ store + เริ่ม watermark ใหม่จากหน้านี้
+        saveThreadView(conversationId, loaded, data.nextCursor, { fetched: data.items, replace: true, asOf: data.asOf })
         if (data.externalReadAt !== undefined) setExternalReadAt(data.externalReadAt)
         if (data.externalDeliveredAt !== undefined) setExternalDeliveredAt(data.externalDeliveredAt)
         scrollToBottom()
@@ -605,10 +690,24 @@ export function useSellerChatThread(
     if (!root) return
     const update = () => {
       atBottomRef.current = root.scrollHeight - root.scrollTop - root.clientHeight < 120
+      // ผู้ใช้เลื่อนลงมาถึงของล่าสุดเอง = เห็นข้อความใหม่แล้ว (ค่าเดิม 0 → React ไม่ re-render)
+      if (atBottomRef.current) {
+        setUnseenNewCount(0)
+        // R16: การแทนที่ที่ถูกเลื่อนไว้ ทำตอนผู้ใช้ลงมาถึงล่างสุดเอง (ตัวมันเช็คธงก่อน ไม่มีธง = ไม่ทำอะไร)
+        reloadIfStaleRef.current()
+      }
+    }
+    const onScroll = () => {
+      update()
+      // R12: คีย์บอร์ด (PageUp/Home/ลูกศร) · ลากแถบเลื่อน · screen reader ไม่ยิง wheel/touchmove เลย
+      // (WCAG 2.1.1) — การเลื่อนด้วยโค้ดของเรา (scrollToBottom/ตัวปักหมุด) ลงที่ล่างสุดเสมอ ⇒ scroll
+      // ที่ห่างจากล่างสุดเกินเกณฑ์ = ผู้ใช้เลื่อนเอง · ไม่ติดธงตอนเรียก update() ครั้งแรกข้างล่าง
+      // (ตอน mount scrollTop ยังเป็น 0 ก่อนเลื่อนลงล่าง)
+      if (!atBottomRef.current) userHasScrolledRef.current = true
     }
     update()
-    root.addEventListener('scroll', update, { passive: true })
-    return () => root.removeEventListener('scroll', update)
+    root.addEventListener('scroll', onScroll, { passive: true })
+    return () => root.removeEventListener('scroll', onScroll)
   }, [loadingInitial])
 
   // ── auto-scroll เมื่อมีข้อความใหม่ (realtime/poll/ส่งเอง) ถ้า user อยู่ล่างสุดอยู่แล้ว ──
@@ -622,52 +721,223 @@ export function useSellerChatThread(
     if (atBottomRef.current) scrollToBottom()
   }, [lastMsgId, scrollToBottom])
 
-  // ── refetch "newer" — signal-only realtime (ไม่เชื่อ payload, GET หน้าแรกเสมอแล้ว merge) ──
-  const refetchNewer = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/chat/conversations/${conversationId}/messages?take=30`)
-      if (!res.ok) return
-      const data: MessagesApiResponse = await res.json()
-      if (data.externalReadAt !== undefined) setExternalReadAt(data.externalReadAt)
-      if (data.externalDeliveredAt !== undefined) setExternalDeliveredAt(data.externalDeliveredAt)
-      setMessages((prev) => {
-        const map = new Map(prev.map((m) => [m.id, m]))
-        // เสียงเตือน (user สั่ง 2026-07-23) — ดังเฉพาะข้อความ "ใหม่จริง" ของฝั่งลูกค้า: ต้องไม่เคย
-        // มีใน state มาก่อน (กัน refetch ซ้ำแล้วดังซ้ำ) และไม่ใช่ข้อความที่ร้านส่งเอง/echo จากแอป
-        const hasNewFromBuyer = data.items.some((m) => m.senderRole === 'BUYER' && !map.has(m.id))
-        for (const m of data.items) map.set(m.id, m)
-        // beepEnabled=false บนหน้า inbox — ปล่อยให้ InboxList เป็นเจ้าของ beep (กันเสียงเบิ้ล 2 ครั้ง)
-        if (hasNewFromBuyer && beepEnabled) playChatBeep({ shopId, conversationId })
-        // seq เป็นตัวตัดสินเมื่อ createdAt เท่ากัน (Meta ส่งเวลาข้อความระบบมาแค่ระดับวินาที)
-        // ให้ตรงกับลำดับที่ server จัดมา — ข้อความ optimistic ยังไม่มี seq จึงถือว่าอยู่ท้ายสุด
-        const merged = Array.from(map.values()).sort((a, b) => {
-          const dt = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          if (dt !== 0) return dt
-          return (a.seq ?? Number.MAX_SAFE_INTEGER) - (b.seq ?? Number.MAX_SAFE_INTEGER)
+  // ── refetch "newer" — signal-only realtime (ไม่เชื่อ payload) · delta จาก watermark ของ store ──
+  /**
+   * แทนที่ข้อความบนจอ/cursor/store ด้วยหน้าแรก (R13) — ใช้เมื่อ delta อาจมีช่องว่างบนจอ (planDeltaApply)
+   * หรือหน้าแรกของ poll ที่ไม่มี watermark ต่อกับจอไม่ติด (R33, ส่ง `known` มาไม่ต้องยิงซ้ำ)
+   * คงบับเบิล optimistic ไว้ท้ายสุด (ยังรอ POST ตอบอยู่ — ทิ้งแล้ว postMessage หาใบที่จะแทนไม่เจอ)
+   * 🛑 R28: `triggeredBy` = แถวของ delta ที่ทำให้แทนที่ ต้องเข้า watermark ด้วย (ดู firstPageReplacement)
+   */
+  const reloadFirstPage = useCallback(
+    async (triggeredBy: ChatMessageView[], known?: MessagesApiResponse) => {
+      // การแทนที่ครั้งนี้ครอบการแทนที่ที่ถูกเลื่อนไว้ด้วย (ทางอยู่ล่างสุดทันที) — ไม่ล้างธง ลงมาถึงล่างสุดทีหลังจะโหลดซ้ำ
+      staleForRef.current = null
+      staleCountedIdsRef.current = new Set()
+      staleDeltaRef.current = []
+      try {
+        let page = known
+        if (!page) {
+          const pageRes = await fetch(`/api/chat/conversations/${conversationId}/messages?take=30`)
+          if (!pageRes.ok) return
+          page = (await pageRes.json()) as MessagesApiResponse
+        }
+        const { items: loaded, fetched } = firstPageReplacement({
+          screen: messagesRef.current,
+          pageDesc: page.items,
+          triggeredBy,
         })
-        // reconcile บับเบิลคลุมเครือ (เน็ตหลุดตอนส่งกริด — ดู reconcileIdsRef): แถวจริงของรูปใบ
-        // เดียวกันโผล่มา = การส่งนั้นถึง server จริง ลบบับเบิลแดงทิ้ง เหลือแถวจริงใบเดียว
-        // จับคู่: รูป/ไฟล์ = fileId (unique ต่อการอัปโหลด — แม่นเสมอ); แคปชัน TEXT = body ตรงกัน
-        // ในกรอบเวลาใกล้เคียง (กัน false-positive จากข้อความซ้ำ ๆ อย่าง "ขอบคุณครับ" ในอดีต)
-        if (reconcileIdsRef.current.size === 0) return merged
-        return merged.filter((m) => {
-          if (!reconcileIdsRef.current.has(m.id)) return true
-          const notBefore = new Date(m.createdAt).getTime() - 120_000
-          const landed = merged.some(
-            (r) =>
-              !r.id.startsWith('local-') &&
-              r.senderRole === 'SHOP' &&
-              new Date(r.createdAt).getTime() >= notBefore &&
-              (m.imageUrl ? r.imageUrl === m.imageUrl : r.type === 'TEXT' && !!m.body && r.body === m.body),
+        messagesRef.current = [...loaded, ...messagesRef.current.filter((m) => m.id.startsWith('local-'))]
+        setMessages((prev) => [...loaded, ...prev.filter((m) => m.id.startsWith('local-'))])
+        setOldestCursor(page.nextCursor)
+        oldestCursorRef.current = page.nextCursor
+        saveThreadView(conversationId, loaded, page.nextCursor, { fetched, replace: true, asOf: page.asOf })
+        if (atBottomRef.current) scrollToBottom()
+      } catch {
+        // เงียบเหมือน refetchNewer — รอบ poll ถัดไปจะเจอ delta ครบเพดานแล้วลองใหม่เอง
+      }
+    },
+    [conversationId, scrollToBottom],
+  )
+
+  /** R16: ทำการแทนที่ที่ถูกเลื่อนไว้ของห้องนี้ (ถ้ามี) */
+  const reloadIfStale = useCallback(() => {
+    if (staleForRef.current !== conversationId) return
+    void reloadFirstPage(staleDeltaRef.current) // ล้างธงแบบ synchronous ก่อน await แรก — scroll event ถัดไปเห็นธงว่างแล้ว
+  }, [conversationId, reloadFirstPage])
+  useEffect(() => {
+    reloadIfStaleRef.current = reloadIfStale
+  }, [reloadIfStale])
+
+  const fetchNewerOnce = useCallback(
+    async (sync: boolean) => {
+      try {
+        const cache = readThread(conversationId)
+        const params = new URLSearchParams()
+        if (cache) {
+          // delta สองแกน: แถวใหม่ (seq) + แถวเก่าที่ค่าเปลี่ยน (updatedAt) — ห้องที่ไม่มีอะไรเขียนมาเกิน 5 วิ
+          // คืน 0 แถว เพราะ watermark ถูกยกถึง asOf ของ response ก่อนหน้า (nextWatermarks)
+          params.set('take', String(DELTA_TAKE))
+          params.set('afterSeq', String(cache.lastSeq))
+          // R31: ถอยแกน updatedAt 5 วิ กันแถวที่ commit ช้ากว่าเพื่อน/นาฬิกา server เหลื่อม (ดู chat-delta-query.ts)
+          params.set('afterUpdatedAt', deltaAfterUpdatedAt(cache.lastUpdatedAt))
+        } else {
+          params.set('take', '30') // ยังไม่มี watermark (store หมดอายุ/ถูกไล่ออก) → ขอหน้าแรกเหมือนเดิม
+        }
+        // R7: ไล่เก็บข้อความที่ webhook ไม่ส่ง (Meta AI / standby / ตอบโฆษณา) — เฉพาะครั้งแรกหลังเปิดห้อง
+        if (sync) params.set('sync', '1')
+        const res = await fetch(`/api/chat/conversations/${conversationId}/messages?${params}`)
+        if (!res.ok) return
+        const data: MessagesApiResponse = await res.json()
+        if (data.externalReadAt !== undefined) setExternalReadAt(data.externalReadAt)
+        if (data.externalDeliveredAt !== undefined) setExternalDeliveredAt(data.externalDeliveredAt)
+        if (data.items.length === 0) return // ไม่มีอะไรเปลี่ยน = ไม่แตะ state เลย (ไม่ re-render)
+
+        /**
+         * R13: delta อาจมีช่องว่างบนจอ (ตัดเต็มเพดานโดยใบเก่าสุดที่ได้มายังอยู่ในหน้าต่างของจอ — ห้องที่ปิดไป
+         * นานแล้วคุยกันยาว) ⇒ merge แล้วจะได้ช่องว่างกลางเธรดที่ไม่มีอะไรฟ้อง และ loadOlder ไม่มีวันเติม
+         * ⇒ ทิ้งผล delta แล้วโหลดหน้าแรกใหม่ (reloadFirstPage) · R33: ไม่มี watermark แล้ว poll ได้หน้าแรกที่
+         * ต่อกับจอไม่ติด = ช่องว่างแบบเดียวกัน · แต่ R16: กำลังอ่านของเก่าอยู่ = ห้ามแทนที่ตอนนี้ (จอเด้ง)
+         * ⇒ ปักธงไว้ ขึ้นปุ่มข้อความใหม่ + ดังเสียงตามปกติ ไม่แตะ messages/store/watermark แล้วแทนที่ตอน
+         * ผู้ใช้ลงมาถึงล่างสุดหรือกดปุ่ม
+         */
+        const plan = cache
+          ? planDeltaApply({
+              screen: messagesRef.current,
+              hasOlder: oldestCursorRef.current !== null,
+              incoming: data.items,
+              take: DELTA_TAKE,
+            })
+          : {
+              replace: firstPageLeavesGap({
+                screen: messagesRef.current,
+                pageDesc: data.items,
+                nextCursor: data.nextCursor,
+              }),
+              inWindow: data.items,
+            }
+        if (plan.replace) {
+          if (!shouldDeferFullDeltaReplace({ atBottom: atBottomRef.current })) {
+            // หน้าแรกของ R33 อยู่ในมือแล้ว ไม่ต้องยิงซ้ำ · delta (R13) ต้องโหลดหน้าแรกจริง
+            await (cache ? reloadFirstPage(data.items) : reloadFirstPage([], data))
+            return
+          }
+          const firstDefer = staleForRef.current !== conversationId
+          if (firstDefer) {
+            staleForRef.current = conversationId
+            staleCountedIdsRef.current = new Set()
+          }
+          staleDeltaRef.current = data.items
+          const unseen = pickNewIncoming(messagesRef.current, data.items).filter(
+            (m) => !staleCountedIdsRef.current.has(m.id),
           )
-          if (landed) reconcileIdsRef.current.delete(m.id)
-          return !landed
+          for (const m of unseen) staleCountedIdsRef.current.add(m.id)
+          if (beepEnabled && unseen.some((m) => m.senderRole === 'BUYER')) playChatBeep({ shopId, conversationId })
+          // R24: นับเฉพาะข้อความลูกค้า ไม่มีขั้นต่ำ 1 — ไม่มีข้อความลูกค้าก็ไม่ขึ้นปุ่ม
+          // (การแทนที่ยังเกิดตอนผู้ใช้ลงมาถึงล่างสุดเอง ดู countUnseenIncrement)
+          const add = countUnseenIncrement(unseen)
+          if (add > 0) setUnseenNewCount((n) => n + add)
+          return
+        }
+        // แถวที่เข้าจอได้ (แถวที่เก่ากว่าหน้าต่างของจอให้ loadOlder ดึงเอง) · watermark ยังใช้ data.items ทั้งชุด
+        const incoming = plan.inWindow
+
+        // แถวใหม่จริง (R10) — ที่เดียวที่ตัดสินเสียง/การเลื่อนตาม/ตัวนับปุ่ม "ข้อความใหม่"
+        // อ่านจาก messagesRef ไม่ใช่ข้างใน updater เพราะ updater รันทีหลัง (ดู reactToMessage)
+        const fresh = pickNewIncoming(messagesRef.current, incoming)
+        // R11: เขียนกระจกล่วงหน้าทันที — รอบถัดไปของ single-flight เริ่มก่อน React commit ได้
+        // ถ้ารอ effect อัปเดตกระจก รอบนั้นจะเห็นแถวชุดนี้เป็น "ใหม่" ซ้ำ = นับ/ดังซ้ำ
+        // (effect ของ messages เขียนทับด้วย state จริงตอน commit อยู่แล้ว)
+        messagesRef.current = mergeMessages(messagesRef.current, incoming)
+
+        setMessages((prev) => {
+          // แทรกตามเวลา + ใบที่ไม่เปลี่ยนคง object เดิม (chat-message-merge.ts)
+          const merged = mergeMessages(prev, incoming)
+          // reconcile บับเบิลคลุมเครือ (เน็ตหลุดตอนส่งกริด — ดู reconcileIdsRef): แถวจริงของรูปใบ
+          // เดียวกันโผล่มา = การส่งนั้นถึง server จริง ลบบับเบิลแดงทิ้ง เหลือแถวจริงใบเดียว
+          // จับคู่: รูป/ไฟล์ = fileId (unique ต่อการอัปโหลด — แม่นเสมอ); แคปชัน TEXT = body ตรงกัน
+          // ในกรอบเวลาใกล้เคียง (กัน false-positive จากข้อความซ้ำ ๆ อย่าง "ขอบคุณครับ" ในอดีต)
+          // 🛑 ต้องอยู่หลัง merge เสมอ — ถอดออกแล้วทุกข้อความที่ร้านกดส่งตอนเน็ตหลุดจะค้างซ้ำสองใบ
+          const next =
+            reconcileIdsRef.current.size === 0
+              ? merged
+              : merged.filter((m) => {
+                  if (!reconcileIdsRef.current.has(m.id)) return true
+                  const notBefore = new Date(m.createdAt).getTime() - 120_000
+                  const landed = merged.some(
+                    (r) =>
+                      !r.id.startsWith('local-') &&
+                      r.senderRole === 'SHOP' &&
+                      new Date(r.createdAt).getTime() >= notBefore &&
+                      (m.imageUrl ? r.imageUrl === m.imageUrl : r.type === 'TEXT' && !!m.body && r.body === m.body),
+                  )
+                  if (landed) reconcileIdsRef.current.delete(m.id)
+                  return !landed
+                })
+          // เขียน store ใน updater โดยตั้งใจ: ต้องใช้ `prev` ตัวจริง (มีข้อความที่เพิ่ง setMessages ไป
+          // แต่ messagesRef ยังไม่ตามทัน) · StrictMode เรียก updater 2 ครั้งด้วย prev เดียวกัน ⇒ ได้ next
+          // เท่ากัน ⇒ เขียนซ้ำได้ผลเดิม (idempotent) ไม่เป็นอันตราย
+          // ไม่ตัด state บนจอให้เหลือ MAX — ผู้ใช้ที่เลื่อนโหลดของเก่าไว้ต้องไม่เห็นมันหายกลางการอ่าน
+          // (saveThreadView ตัดเฉพาะภาพที่ลง store) · watermark มาจาก data.items เท่านั้น (R8) + asOf
+          // 🛑 asOf เฉพาะ delta: แถวที่ไม่ได้มาในคำขอนี้คือแถวที่เก่ากว่าหน้าต่างของจอ (planDeltaApply) ·
+          // หน้าแรกของ R33 (ไม่มี cache) ห้ามใส่ — จออาจถือแถวเก่ากว่าหน้า 30 ใบที่ถูกแก้ระหว่างนั้น
+          // ซึ่ง response นี้ไม่ได้ตอบ ถ้ายก watermark ถึง asOf การแก้นั้นจะไม่มากับ delta อีกเลย
+          saveThreadView(conversationId, next, oldestCursorRef.current, {
+            fetched: data.items,
+            asOf: cache ? data.asOf : undefined,
+          })
+          return next
         })
-      })
-    } catch {
-      // เงียบ — รอ broadcast ถัดไป/focus fallback
-    }
-  }, [conversationId, shopId, beepEnabled])
+        // เสียงเตือน (user สั่ง 2026-07-23) — เฉพาะข้อความใหม่ของฝั่งลูกค้า
+        // beepEnabled=false บนหน้า inbox — ปล่อยให้ InboxList เป็นเจ้าของ beep (กันเสียงเบิ้ล 2 ครั้ง)
+        if (beepEnabled && fresh.some((m) => m.senderRole === 'BUYER')) playChatBeep({ shopId, conversationId })
+        if (fresh.length > 0) {
+          if (shouldFollowNewMessages({ atBottom: atBottomRef.current })) scrollToBottom()
+          else {
+            // R24: ตามจอยังดูทุกแถวใหม่ (atBottom) แต่ตัวนับปุ่มนับเฉพาะข้อความลูกค้า
+            const add = countUnseenIncrement(fresh)
+            if (add > 0) setUnseenNewCount((n) => n + add)
+          }
+        }
+      } catch {
+        // เงียบ — รอ broadcast ถัดไป/focus fallback
+      }
+    },
+    [conversationId, shopId, beepEnabled, scrollToBottom, reloadFirstPage],
+  )
+
+  /**
+   * R11: single-flight + รอบตามหลังได้หนึ่งรอบ — realtime ยิง broadcast หนึ่งครั้งต่อหนึ่งแถว ⇒ อัลบั้ม
+   * 8 รูป = เรียก 8 ครั้งติดกัน ถ้าปล่อยวิ่งขนานกัน ทุกคำขอเห็นกระจกชุดเดียวกัน นับซ้ำ/ดังซ้ำ และยิง
+   * delta จาก watermark เดิมซ้ำ 8 ใบ · เรียกระหว่างที่มีรอบวิ่งอยู่ = ปักธงไว้แล้วคืน promise ของรอบนั้น
+   * (ซึ่งจะจบหลังรอบตามหลัง) ⇒ ผู้ที่ `await refetchNewer()` เพื่อรอแถวจริง (sendSticker) ยังได้ของครบ
+   * `sync` ของคำขอที่ถูกรวบไว้ไม่หาย (OR กัน)
+   */
+  const flightRef = useRef<Promise<void> | null>(null)
+  const pendingRef = useRef<{ sync: boolean } | null>(null)
+  const refetchNewer = useCallback(
+    (opts?: { sync?: boolean }): Promise<void> => {
+      const sync = opts?.sync === true
+      if (flightRef.current) {
+        pendingRef.current = { sync: (pendingRef.current?.sync ?? false) || sync }
+        return flightRef.current
+      }
+      const run = async () => {
+        try {
+          let job: { sync: boolean } | null = { sync }
+          while (job) {
+            pendingRef.current = null
+            await fetchNewerOnce(job.sync)
+            job = pendingRef.current
+          }
+        } finally {
+          flightRef.current = null
+        }
+      }
+      flightRef.current = run()
+      return flightRef.current
+    },
+    [fetchNewerOnce],
+  )
 
   /**
    * ข้อความที่เซิร์ฟเวอร์ส่งมากับหน้า **อาจไม่ใช่ล่าสุด** — เช็คซ้ำทันทีที่เปิดห้อง
@@ -681,11 +951,32 @@ export function useSellerChatThread(
    * ยิงทันทีตอน mount ⇒ ช่องว่างเหลือแค่ **1 round trip** แทนที่จะเป็น 6 วินาที และผู้ใช้ยังเห็น
    * เนื้อหาตั้งแต่เฟรมแรก (ไม่กลับไปเป็นจอเปล่าเหมือนก่อนมี initialMessages)
    *
-   * ทำเฉพาะตอน seed — ทางที่ไม่ได้ seed ยิง `loadInitial()` สดอยู่แล้ว ไม่ต้องยิงซ้ำ
+   * ทำเฉพาะตอนจอมีเนื้อหาแล้ว (seed จาก RSC หรือเปิดจาก cache) — ทางที่ไม่มีทั้งคู่ยิง
+   * `loadInitial()` สดอยู่แล้ว ไม่ต้องยิงซ้ำ · cache อาจเก่าได้ถึง THREAD_TTL_MS จึงต้องเช็คทุกครั้ง
    */
   useEffect(() => {
-    if (!initial) return
-    void refetchNewer()
+    if (!initial && !cached) return
+    // seed store จาก RSC ก่อนเช็ค ⇒ refetchNewer ได้ watermark ไปขอ delta เลย แทนที่จะดึง 30 ใบ
+    // ทั้งหน้าซ้ำกับที่ RSC เพิ่งส่งมา · R14: initial ใหม่กว่า cache ทั้งชุด = เขียนทับ store จาก initial
+    // · คาบเกี่ยว = เขียนภาพที่ merge แล้ว **ไม่ส่ง fetched** (R15): watermark ต้องคงของ cache ไว้
+    //   ยกด้วยแถวของ initial แล้ว การแก้/รีแอ็กชันของแถว cache ที่เก่ากว่า initial และแถว backfill
+    //   ในช่วงนั้นจะไม่มีวันมากับ delta (loadOlder ก็เริ่มจาก cursor ของ cache) · delta รอบถัดไปคืน
+    //   แถวของ initial ซ้ำ แต่ mergeMessages คง object เดิม ไม่ re-render
+    if (initial) {
+      const initialAsc = [...initial.items].reverse()
+      if (opening.replaceStore) {
+        saveThreadView(conversationId, initialAsc, initial.nextCursor, {
+          fetched: initial.items,
+          replace: true,
+          asOf: initial.asOf,
+        })
+      } else {
+        saveThreadView(conversationId, opening.items, opening.oldestCursor)
+      }
+    }
+    // R7: ครั้งเดียวต่อการเปิดห้องที่ขอให้ server ไล่เก็บข้อความที่ webhook ไม่ส่ง — การเปิดห้องเป็น
+    // delta แล้ว ถ้าไม่ขอตรงนี้ route จะไม่ sync เลย (poll/realtime/กลับมาที่แท็บ ห้ามส่ง sync)
+    void refetchNewer({ sync: true })
     // deps ว่างโดยตั้งใจ — ครั้งเดียวตอนเปิดห้อง (รอบถัดไปเป็นหน้าที่ของ poll/realtime)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -763,13 +1054,16 @@ export function useSellerChatThread(
 
   // poll เบา ๆ ระหว่างเปิดเธรดอยู่ — 2 หน้าที่: (1) read receipt ของ Meta มาทาง webhook โดย **ไม่
   // insert ChatMessage** จึงไม่มี realtime broadcast ให้เกาะ; (2) safety-net ของข้อความใหม่เผื่อ
-  // realtime socket ฝั่ง browser หลุด/ไม่ทำงาน (user report 2026-07-26 "ไม่ realtime") — ลด 20s→6s
-  // ให้ข้อความโผล่ภายใน ≤6s แม้ realtime ไม่ส่ง. หยุดเมื่อแท็บถูกซ่อน — ไม่กิน request ตอนไม่มีคนดู
+  // realtime socket ฝั่ง browser หลุด/ไม่ทำงาน (user report 2026-07-26 "ไม่ realtime"). หยุดเมื่อแท็บ
+  // ถูกซ่อน — ไม่กิน request ตอนไม่มีคนดู
+  // 12 วิ (เดิม 6, 2026-09-14) — realtime เป็นตัวหลัก poll เหลือหน้าที่กันกรณี channel หลุดเงียบ
+  // และตอนนี้แต่ละรอบเป็น delta ที่คืน 0 แถวเมื่อห้องไม่มีอะไรเขียนมาเกิน 5 วิ (watermark ยกถึง asOf ของ
+  // response ก่อนหน้า — R31 ถอย 5 วิ) ไม่ใช่การดึง 30 ใบทั้งก้อน
   useEffect(() => {
     const tick = () => {
       if (document.visibilityState === 'visible') refetchNewer()
     }
-    const t = setInterval(tick, 6_000)
+    const t = setInterval(tick, 12_000)
     return () => clearInterval(t)
   }, [refetchNewer])
 
@@ -785,9 +1079,10 @@ export function useSellerChatThread(
       if (!res.ok) throw new Error('load-older failed')
       const data: MessagesApiResponse = await res.json()
       setMessages((prev) => {
-        const existing = new Set(prev.map((m) => m.id))
-        const older = [...data.items].reverse().filter((m) => !existing.has(m.id))
-        return [...older, ...prev]
+        const next = mergeMessages(prev, data.items)
+        // เขียน store ใน updater เหตุผลเดียวกับ refetchNewer (ต้องใช้ prev ตัวจริง, idempotent)
+        saveThreadView(conversationId, next, data.nextCursor)
+        return next
       })
       setOldestCursor(data.nextCursor)
       requestAnimationFrame(() => {
@@ -800,20 +1095,65 @@ export function useSellerChatThread(
     }
   }, [conversationId, oldestCursor, loadingOlder])
 
+  // เปลี่ยนห้อง = เริ่มนับใหม่ว่าผู้ใช้เลื่อนเองหรือยัง
+  useEffect(() => {
+    userHasScrolledRef.current = false
+    staleForRef.current = null
+    staleCountedIdsRef.current = new Set()
+  }, [conversationId])
+
+  /** sentinel บนสุดอยู่ในจอตอนนี้ไหม — ให้การเลื่อนครั้งแรกโหลดของเก่าได้แม้ observer ไม่ยิงซ้ำ */
+  const sentinelVisibleRef = useRef(false)
+  /** loadOlder ตัวล่าสุด — listener ของ wheel/touchmove ไม่ต้องถอดติดใหม่ทุกครั้งที่ cursor เปลี่ยน */
+  const loadOlderRef = useRef(loadOlder)
+  useEffect(() => {
+    loadOlderRef.current = loadOlder
+  }, [loadOlder])
+
+  useEffect(() => {
+    const root = scrollRef.current
+    if (!root) return
+    const mark = () => {
+      if (userHasScrolledRef.current) return
+      userHasScrolledRef.current = true
+      // เธรดที่เนื้อหาไม่ล้นจอ: sentinel มองเห็นอยู่ตั้งแต่ mount และ IntersectionObserver จะไม่ยิงอีก
+      // เพราะไม่มีอะไรเลื่อนได้ ⇒ ถ้าไม่ลองตรงนี้ ผู้ใช้จะเข้าไม่ถึงข้อความเก่าเลย
+      // (loadOlder มีด่าน cursor/loading ของตัวเองอยู่แล้ว)
+      if (sentinelVisibleRef.current) void loadOlderRef.current()
+    }
+    root.addEventListener('wheel', mark, { passive: true })
+    root.addEventListener('touchmove', mark, { passive: true })
+    return () => {
+      root.removeEventListener('wheel', mark)
+      root.removeEventListener('touchmove', mark)
+    }
+  }, [loadingInitial])
+
   useEffect(() => {
     const root = scrollRef.current
     const sentinel = topSentinelRef.current
-    if (!root || !sentinel || !oldestCursor) return
+    if (!root || !sentinel) return
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) loadOlder()
+        const visible = !!entries[0]?.isIntersecting
+        sentinelVisibleRef.current = visible
+        if (!visible) return
+        if (
+          !canAutoLoadOlder({
+            userHasScrolled: userHasScrolledRef.current,
+            hasCursor: !!oldestCursor,
+            loading: loadingOlder,
+          })
+        )
+          return
+        loadOlder()
       },
       { root, threshold: 0.1 },
     )
     observer.observe(sentinel)
     return () => observer.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadOlder ผูก closure ของ oldestCursor/loadingOlder ปัจจุบันอยู่แล้ว
-  }, [oldestCursor, messages.length])
+  }, [oldestCursor, messages.length, loadingOlder])
 
   // ── แนบไฟล์ (auto-upload ทันที — pattern ProductImagesCardV2.tsx) ────
   //
@@ -1164,7 +1504,13 @@ export function useSellerChatThread(
           pacesToast.error(body?.error ?? 'ยกเลิกข้อความไม่สำเร็จ')
           return false
         }
-        setMessages((prev) => prev.filter((m) => m.id !== messageId))
+        setMessages((prev) => {
+          const next = prev.filter((m) => m.id !== messageId)
+          // 🛑 ต้องเขียน store ด้วย — DELETE ลบแถวจริงทิ้ง (hard delete) ⇒ delta ไม่มีวันคืนแถวนี้มา
+          // ถ้าไม่เขียนตรงนี้ เปิดห้องจาก cache ครั้งหน้าบับเบิลที่ยกเลิกไปแล้วจะกลับมาค้างถาวร
+          saveThreadView(conversationId, next, oldestCursorRef.current)
+          return next
+        })
         return true
       } catch {
         pacesToast.error('ยกเลิกข้อความไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
@@ -1361,8 +1707,18 @@ export function useSellerChatThread(
     [conversationId],
   )
 
+  /** ปุ่ม "ข้อความใหม่" (Task 7) — เลื่อนลงล่างสุด ซึ่งล้างตัวนับให้ในตัว */
+  const clearUnseen = useCallback(() => {
+    scrollToBottom()
+    // R16: ปุ่มคือทางหนึ่งในสองทางที่ทำการแทนที่ที่ถูกเลื่อนไว้
+    reloadIfStale()
+  }, [scrollToBottom, reloadIfStale])
+
   return {
     messages,
+    /** ข้อความใหม่ที่เข้ามาตอนผู้ใช้เลื่อนขึ้นไปอ่านของเก่า (R4) — 0 = ไม่ต้องแสดงปุ่ม */
+    unseenNewCount,
+    clearUnseen,
     oldestCursor,
     loadingInitial,
     loadingOlder,

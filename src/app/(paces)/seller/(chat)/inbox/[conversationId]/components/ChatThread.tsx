@@ -88,13 +88,14 @@ import Zoom from 'yet-another-react-lightbox/plugins/zoom'
 import LightboxDownload from 'yet-another-react-lightbox/plugins/download'
 import { generateInitials } from '@/utils/helpers'
 // user 2026-07-31: แถวเวลาแสดงแค่ ชม.:นาที — วินาทีไม่ใช่ข้อมูลที่ใช้ตัดสินใจอะไรในแชท
-// แต่ยังเก็บเวลาเต็มไว้ใน title ให้ชี้ดูได้ (formatTimeHM มีอยู่แล้ว ไม่ต้องเขียน formatter ใหม่)
-import { formatTime, formatTimeHM, formatDateTime } from '@/lib/format-date'
+// เวลาเต็ม (วัน+เวลา พ.ศ.) อยู่ที่ title + sr-only ของบับเบิลทุกใบ (Task 7, 2026-09-14 — ruling R19)
+// เพราะบับเบิลเก่าหลายวันแสดงแค่ ชม.:นาที ผู้ขายต้องรู้ได้ว่า "วันไหน" โดยไม่ต้องไล่หาตัวคั่นวัน
+import { formatTimeHM, formatDateTime, formatDateTimeTH, formatChatBubbleTime } from '@/lib/format-date'
 import { burstIdentity, computeBurstEndIds } from '@/lib/chat-message-burst'
 import { isSelfContainedBubble } from '@/lib/chat-bubble-frame'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
 import { hidesDownloadAffordance } from '@/lib/chat-sticker'
-import { parseMetaSystemNotice, parseMetaAiHandoffNotice, readMetaAiControlMarker } from '@/lib/meta-system-notice'
+import { parseMetaSystemNotice, parseMetaAiHandoffNotice, readMetaAiControlMarker, attributeMetaAi } from '@/lib/meta-system-notice'
 import { META_BUSINESS_SUITE_INBOX_URL } from '@/lib/meta-system-notice'
 // SSOT ของ "ผลลัพธ์นี้ทำให้หน้าจอทำอะไร + พูดว่าอะไร" — ห้ามตัดสินใจซ้ำที่นี่ (HR16)
 import { describeThreadControlOutcome, type ThreadControlOutcomeName } from '@/lib/thread-control-ui'
@@ -1539,6 +1540,8 @@ export default function ChatThread({
   const attachDisabled = false
   const {
     messages,
+    unseenNewCount,
+    clearUnseen,
     oldestCursor,
     loadingInitial,
     loadingOlder,
@@ -1662,6 +1665,13 @@ export default function ChatThread({
     }
     return false
   }, [isExternal, messages])
+
+  // ป้าย "Meta AI" รายบับเบิล (Task 7, 2026-09-14) — derive จาก marker ชุดเดียวกับ aiAgentActive
+  // ไม่มี marker = ไม่ติดป้าย (ดูเหตุผลที่ attributeMetaAi) · เฉพาะ Messenger เพราะ marker มาจากที่นั่นที่เดียว
+  const metaAiMessageIds = useMemo(
+    () => (channel === 'MESSENGER' ? attributeMetaAi(messages) : new Set<string>()),
+    [channel, messages],
+  )
 
   // ผลของการขอสิทธิ์คุมเธรดจาก Meta (2026-08-26 — เดิมเป็น client gate ล้วน ๆ ไม่ยิง API เลย)
   //
@@ -3097,6 +3107,7 @@ export default function ChatThread({
                           )}
                         </div>
                       )}
+                      {/* R23: ไม่มี title ที่ระดับบับเบิล — ลูกที่กดได้ (รูป/ปุ่ม) จะรับ tooltip ไปด้วย */}
                       <div data-message-bubble className={`min-w-0 ${highlightClass(ms[0].id)}`}>
                         <PhotoAlbum ms={ms} onOpen={(id) => setLightboxIndex(slideIndexByMessageId.get(id) ?? -1)} />
                         {/* ชิปรีแอ็กชันของก้อน (ผูกกับ ms[0] ตามที่ Meta เก็บ) */}
@@ -3108,11 +3119,11 @@ export default function ChatThread({
                           </span>
                         )}
                         {(showTime || (mine && (atBurstEnd || queued || albumFailed || last.id === lastShopMsgId))) && (
-                          <div className={`text-default-700 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
+                          <div className={`text-default-700 mt-1 flex flex-wrap items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
                             {showTime && (
-                              <span className="flex items-center gap-1" title={formatTime(last.createdAt)}>
+                              <span className="flex items-center gap-1 whitespace-nowrap" title={formatDateTimeTH(last.createdAt)} aria-hidden="true">
                                 <Icon icon="clock" />
-                                {formatTimeHM(last.createdAt)}
+                                {formatChatBubbleTime(last.createdAt)}
                               </span>
                             )}
                             {/* 🛑 (P5 2026-08-23) เดิมบล็อกนี้เขียนบันไดเองแยกจากบับเบิลเดี่ยว แล้วหลุดจากกันจริง:
@@ -3150,6 +3161,9 @@ export default function ChatThread({
                             )}
                           </div>
                         )}
+                        {/* R19/P2-b: div ไม่รองรับ aria-label — เวลาเต็มเป็นข้อความจริง วางหลังเนื้อหา
+                            (ต้นไม่ได้ ไม่งั้นทุกบับเบิลถูกอ่านเวลาก่อนเนื้อหา) · ไม่อยู่ใต้เงื่อนไขแถวเวลา */}
+                        <span className="sr-only">{fmt(t.inbox.messageTimeSr, { date: formatDateTimeTH(last.createdAt) })}</span>
                       </div>
                       {/**
                        * feature 00048 — อัลบั้ม "ฝั่งลูกค้า" ไม่เคยมีชุดปุ่ม hover เลย (ของเดิมมีเฉพาะ
@@ -3534,13 +3548,26 @@ export default function ChatThread({
                     {/* data-message-bubble: จุดที่ MessageActionBubble โคลนไปลอยเหนือฉากเบลอตอน
                         กดค้าง — ต้องอยู่ที่คอลัมน์นี้ (ไม่ใช่แถวด้านนอกที่กว้างเต็มบรรทัด) เพราะ
                         ที่ผู้ใช้ "เพ่ง" คือเนื้อข้อความ + quote + ป้ายระบบตอบ ไม่ใช่ avatar/ปุ่ม hover */}
+                    {/* R23: ไม่มี title ที่ระดับบับเบิล — ลูกที่กดได้ (ป้าย DeepBot/รูป/การ์ด/quote/ยกเลิก)
+                        จะรับ tooltip ไปซ้อน popover · เวลาเต็มอยู่ที่ <p> ของเนื้อข้อความ + แถวเวลา + sr-only */}
                     <div
                       data-message-bubble
                       className={`relative min-w-0 max-w-96 break-words ${highlightClass(m.id)}`}
                     >
-                      {mExt.autoReplyKind && (
+                      {/* ป้ายลอยเกยขอบบนมีช่องเดียว — ป้ายบอทของเราชนะเสมอถ้าเกิดพร้อมกัน
+                          ป้าย Meta AI เป็น span ไม่ใช่ปุ่ม: ไม่มีข้อมูลเงื่อนไขของ Meta ให้เปิดดู */}
+                      {mExt.autoReplyKind ? (
                         <AutoReplyTag isTest={mExt.autoReplyKind === 'AUTO_TEST'} trace={m.autoReply ?? null} />
-                      )}
+                      ) : channel === 'MESSENGER' && metaAiMessageIds.has(m.id) ? (
+                        <span
+                          title={t.inbox.metaAiBadgeExplain}
+                          className="border-default-300 bg-card text-default-700 absolute top-0 end-2.5 z-20 inline-flex -translate-y-1/2 items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium whitespace-nowrap shadow"
+                        >
+                          <Icon icon="brand-meta" className="text-xs" aria-hidden="true" />
+                          <span aria-hidden="true">{t.inbox.metaAiBadge}</span>
+                          <span className="sr-only">{t.inbox.metaAiBadgeExplain}</span>
+                        </span>
+                      ) : null}
                       {/* reply quote (feature 00018 Phase 3) — กล่องจาง ๆ เยื้องเหนือบับเบิล ให้เห็นชัดว่าเป็น
                           quote คนละก้อนกับข้อความตอบ (user report 2026-07-25: ดูยาก) */}
                       {mExt.replyTo && (
@@ -3726,7 +3753,10 @@ export default function ChatThread({
                               // whitespace-pre-wrap: คงการเว้นบรรทัด (\n) ที่ลูกค้า/เพจพิมพ์มา — ไม่งั้น
                               // เบราว์เซอร์ยุบเป็นช่องว่างเดียว เลข list/ย่อหน้าติดกันเป็นพรืดอ่านยาก
                               // (เดียวกับ note ใน CustomerCrmSection ที่ใช้ pattern นี้อยู่แล้ว)
-                              <p className={`text-sm whitespace-pre-wrap ${mine ? 'text-white' : 'text-default-800'} ${m.type === 'IMAGE' ? 'mt-2' : ''} mb-0`}>
+                              <p
+                                title={formatDateTimeTH(m.createdAt)}
+                                className={`text-sm whitespace-pre-wrap ${mine ? 'text-white' : 'text-default-800'} ${m.type === 'IMAGE' ? 'mt-2' : ''} mb-0`}
+                              >
                                 {m.body}
                               </p>
                             )}
@@ -3871,9 +3901,9 @@ export default function ChatThread({
                               เปลี่ยนได้ทั้งนั้น) เนื้อความที่แสดงคือของใหม่เสมอ */}
                           {m.edited && <span className="text-default-600">แก้ไขแล้ว</span>}
                           {showTime && (
-                            <span className="flex items-center gap-1" title={formatTime(m.createdAt)}>
+                            <span className="flex items-center gap-1 whitespace-nowrap" title={formatDateTimeTH(m.createdAt)} aria-hidden="true">
                               <Icon icon="clock" />
-                              {formatTimeHM(m.createdAt)}
+                              {formatChatBubbleTime(m.createdAt)}
                             </span>
                           )}
                           {/* !failed: บับเบิลที่ยิงไม่ออกเคยขึ้น "ส่งแล้ว" ควบคู่กับแถบแดง เพราะเงื่อนไข
@@ -3945,6 +3975,8 @@ export default function ChatThread({
                             ))}
                         </div>
                       )}
+                      {/* R19/P2-b: เวลาเต็มเป็นข้อความจริงหลังเนื้อหา (ชุดเดียวกับ sr-only "ส่งโดย") */}
+                      <span className="sr-only">{fmt(t.inbox.messageTimeSr, { date: formatDateTimeTH(m.createdAt) })}</span>
                     </div>
                     {!mine && actionCluster}
                   </div>
@@ -3954,6 +3986,41 @@ export default function ChatThread({
           ))
         )}
       </div>
+      {/* ปุ่ม "ข้อความใหม่" (Task 7) — Base: orders/components/BulkActionBar.tsx (pill กึ่งกลาง) แต่เป็น
+          absolute ใน wrapper นี้ ทับกล่อง scroll โดยไม่ทับหัวแชท/composer · ซ่อนตอนแผงข้อความสำเร็จรูป
+          คลุมพื้นที่ข้อความ (quickOpen) · z-20 = ระดับเดียวกับป้ายบนบับเบิล แต่มาทีหลังใน DOM จึงอยู่บน
+          R20: ห้ามใส่ role ที่ปุ่ม (role="status" เขียนทับ role ปุ่ม) — ประกาศผ่าน span ด้านล่างแทน */}
+      {unseenNewCount > 0 && !quickOpen && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center">
+          <button
+            type="button"
+            onClick={() => {
+              // P1-c: ปุ่ม unmount ทันทีหลังกด ⇒ ย้ายโฟกัสไปกล่องข้อความก่อน ไม่งั้นตกไป <body>
+              // R25: tabindex ใส่ชั่วคราวแล้วถอดตอน blur — ห้ามใส่ถาวรใน JSX เพราะ iOS Safari
+              // ย้ายโฟกัสไปกล่องที่ focus ได้เมื่อแตะเธรด = คีย์บอร์ดหุบกลางการพิมพ์
+              // preventScroll กันแย่งกับการเลื่อนลงล่างของ clearUnseen
+              const el = scrollRef.current
+              if (el) {
+                el.setAttribute('tabindex', '-1')
+                el.addEventListener('blur', () => el.removeAttribute('tabindex'), { once: true })
+                el.focus({ preventScroll: true })
+              }
+              clearUnseen()
+            }}
+            className="btn bg-primary hover:bg-primary-hover pointer-events-auto inline-flex items-center gap-1.5 rounded-full text-nowrap text-white shadow-lg"
+          >
+            <Icon icon="arrow-down" className="size-4.5" aria-hidden="true" />
+            {t.inbox.newMessagesButton}
+            <span className="badge bg-card text-primary-ink rounded-full tabular-nums">
+              {unseenNewCount > 99 ? '99+' : unseenNewCount}
+            </span>
+          </button>
+        </div>
+      )}
+      {/* mount ค้างตลอด — live region ที่เพิ่ง mount พร้อมข้อความมักไม่ถูกอ่าน */}
+      <span role="status" className="sr-only">
+        {unseenNewCount > 0 ? fmt(t.inbox.newMessagesAnnounce, { count: unseenNewCount }) : ''}
+      </span>
       </div>
 
       {/* composer — pattern ChatPage.tsx:99-109 + auto-upload preview chip

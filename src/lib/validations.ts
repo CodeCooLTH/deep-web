@@ -940,6 +940,13 @@ export const StartConversationSchema = v.object({
 export const ChatMessagesQuerySchema = v.object({
   cursor: v.optional(v.string()), // ISO datetime ของ createdAt ข้อความเก่าสุดที่เห็น
   take: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)), 30),
+  // delta สองแกน (2026-09-14) — ดู src/lib/chat-delta-query.ts
+  // 🛑 minValue(0) ไม่ใช่ minValue(1): ห้องที่ยังไม่มีข้อความส่ง afterSeq=0 มาเป็นปกติ
+  afterSeq: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
+  afterUpdatedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
+  // R7 (2026-09-14): ขอให้ไล่เก็บข้อความที่ webhook ไม่ส่ง (Meta) แม้คำขอเป็น delta — hook ส่งมา
+  // **เฉพาะครั้งแรกหลังเปิดห้อง** เท่านั้น (poll/realtime/กลับมาที่แท็บ ไม่ส่ง) ดู route GET
+  sync: v.optional(v.literal('1')),
 });
 
 // T1 (feature 00018): filter/ค้นหา ฝั่ง seller inbox — channel/shopChannelId/q เป็น optional ทั้งหมด
