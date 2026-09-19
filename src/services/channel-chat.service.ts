@@ -1147,7 +1147,14 @@ export async function ingestInboundMessage(params: {
   const { provider, pageExternalId, event } = params
 
   // event ที่ไม่ใช่ข้อความ (delivery/read receipt ฯลฯ) — ไม่ใช่ error แค่ไม่สนใจ
-  if (!event.message?.mid) return { status: 'IGNORED' }
+  if (!event.message?.mid) {
+    // มี message แต่ไม่มี mid (เจอบน prod 2026-09-19) — ยังไม่รู้ว่าเป็น event ชนิดไหน log แค่คีย์
+    // (ไม่ log เนื้อหา) ให้พอตัดสินได้ว่าต้องรับเข้าระบบหรือทิ้งถาวร
+    if (event.message) {
+      console.warn('[fb-webhook] message ไม่มี mid', JSON.stringify({ provider, keys: Object.keys(event.message) }))
+    }
+    return { status: 'IGNORED' }
+  }
 
   const channel = await getChannelByExternalId(provider, pageExternalId)
   // Page ที่ไม่มีร้านไหนเชื่อม — ตอบ 200 ให้ Meta เสมอ ไม่งั้นจะ retry ไม่จบ

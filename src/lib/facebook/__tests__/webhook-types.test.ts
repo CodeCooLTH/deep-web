@@ -26,6 +26,20 @@ describe('WebhookBodySchema', () => {
     expect(parsed.success).toBe(true)
   })
 
+  // [blocker] prod 2026-09-19: message ไม่มี mid ทำให้ทั้ง request ตก = event อื่นใน batch หายด้วย
+  it('[blocker] message ที่ไม่มี mid ไม่ทำให้ทั้ง batch ตก', () => {
+    const body = structuredClone(TEXT_EVENT)
+    body.entry[0].messaging.push({
+      sender: { id: 'PSID_2' },
+      recipient: { id: '111222333' },
+      timestamp: 1750000000001,
+      message: { text: 'ไม่มี mid' } as { mid: string; text: string },
+    })
+    const parsed = v.safeParse(WebhookBodySchema, body)
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(extractMessagingEvents(parsed.output)).toHaveLength(2)
+  })
+
   it('ปฏิเสธ payload ที่ไม่มี entry', () => {
     expect(v.safeParse(WebhookBodySchema, { object: 'page' }).success).toBe(false)
   })

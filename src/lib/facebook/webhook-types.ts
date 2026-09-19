@@ -101,7 +101,13 @@ const ReactionSchema = v.object({
 })
 
 const MessageSchema = v.object({
-  mid: v.string(),
+  /**
+   * 🛑 optional (2026-09-19) — prod เจอ `message` ที่ไม่มี `mid` แล้ว Valibot ตี **ทั้ง request** ตก
+   * (`entry.0.messaging.0.message.mid`) = ทุก event ใน batch นั้นหายเงียบ ไม่ใช่แค่ตัวที่ขาด mid
+   * ตัวตัดสินอยู่ที่ `ingestInboundMessage` ซึ่งทิ้ง event ที่ไม่มี mid อยู่แล้ว (กันซ้ำไม่ได้ถ้าไม่มี mid)
+   * + log คีย์ของ message ไว้ให้รู้ว่าเป็น event ชนิดไหน
+   */
+  mid: v.optional(v.string()),
   text: v.optional(v.string()),
   // is_echo = ข้อความที่ "ฝั่งเพจ" ส่ง — เกิดเมื่อ seller ตอบจากแอป Messenger โดยตรง
   // หรือเป็น echo ของข้อความที่ระบบเราส่งออกไปเอง
