@@ -65,7 +65,12 @@ export default async function AccountPage() {
           จะไปเพิ่มแรงเสียดทานให้ผู้ถูกเชิญ ซึ่งเป็นกลุ่มเดียวกับที่ feature นี้เพิ่งลดให้
           Base: theme/paces/Admin/TS/src/app/(admin)/ui/alerts/page.tsx:60 (soft alert bg-{semantic}/15) */}
       {!dbUser.phone && dbUser.passwordHash == null && (
-        <div className="bg-warning/15 text-warning-ink mb-4 flex max-w-2xl items-start gap-2.5 rounded px-4 py-3" role="alert">
+        /* เพดานความกว้างต้องผูก breakpoint เดียวกับการ์ดข้างล่าง (xl) ไม่งั้นบน iPad
+           แถบเตือนจะแคบกว่าการ์ดที่มันเตือนถึง แล้วดูเป็นของคนละชุดกัน */
+        <div
+          className="bg-warning/15 text-warning-ink mb-4 flex w-full items-start gap-2.5 rounded px-4 py-3 xl:max-w-2xl"
+          role="alert"
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width={18}
@@ -91,9 +96,12 @@ export default async function AccountPage() {
         </div>
       )}
 
-      {/* max-w-2xl ตามสเปกต้นฉบับ — ฟอร์มนี้เป็นคอลัมน์เดียว (4 ฟิลด์ ไม่ใช่ 20 แบบ theme ต้นฉบับ)
-          ถ้าปล่อยการ์ดกว้างเต็ม main content จะเหลือคอลัมน์ว่างมหาศาลทางขวาที่จอ 1440px */}
-      <div className="max-w-2xl">
+      {/* เพดานความกว้างมีไว้กันคอลัมน์ว่างมหาศาลทางขวาที่จอเดสก์ท็อป 1440px (สเปกต้นฉบับ)
+          🛑 แต่ต้องเริ่มที่ **เดสก์ท็อปจริง (xl = 1280px)** ไม่ใช่ทุกขนาด — เดิมเป็น
+          `max-w-2xl` เปล่า ๆ ⇒ บน iPad (820px แนวตั้ง / 935px แนวนอน) การ์ดถูกบีบเหลือ
+          672px ทั้งที่มีที่ว่างเหลือเฟือ และดูไม่เข้าพวกกับหน้าอื่นที่กว้างเต็ม
+          (หัวหน้าเจอบน iPad 2026-09-20) · วัดจริง: 820→672px · 1180→672px */}
+      <div className="w-full xl:max-w-2xl">
         <ProfileForm
         user={{
           displayName: dbUser.displayName,
