@@ -54,8 +54,20 @@ export default async function SellerSignInPage({
    * เคารพ `?callbackUrl=` เหมือนฟอร์ม — คนที่ถูกเด้งมาจากหน้าที่ต้องล็อกอินจะได้กลับไปถูกที่
    */
   const session = await getServerSession(authOptions)
-  if (sessionUserId(session)) {
-    const params = await searchParams
+  const params = await searchParams
+  /**
+   * 🛑 ยกเว้นคนที่ "ด่านในแอปเป็นคนส่งมาที่นี่" — ไม่งั้นกลายเป็นลูปที่ผู้ใช้เห็นเป็นจอขาว
+   *
+   * ด่าน 3.1.1 ใน `proxy.ts` เตะมาที่ `?app_no_account=1` / `?app_setup_required=1` พร้อมสั่ง
+   * ลบคุกกี้ session — ถ้าการลบนั้นไม่มีผล (เคยไม่มีผลจริงบน prod ดู `expire-cookie.ts`)
+   * บรรทัดข้างล่างจะส่งเขากลับ `/dashboard` แล้วโดนด่านเตะกลับมาอีก **วนไม่รู้จบ**
+   * WebView จึงค้างที่หน้าเปล่า (หัวหน้าเจอบน iPad 2026-09-20: จอขาว เลื่อนไม่ได้)
+   *
+   * ตาข่ายนี้ทำให้ต่อให้คุกกี้ล้างไม่ออกด้วยเหตุอื่นในอนาคต ผู้ใช้ก็ยัง **เห็นข้อความบอกเหตุผล**
+   * (OAuthErrorNotice อ่านพารามิเตอร์ 2 ตัวนี้อยู่แล้ว) แทนที่จะเจอจอขาว
+   */
+  const blockedByAppGate = params?.app_no_account === '1' || params?.app_setup_required === '1'
+  if (!blockedByAppGate && sessionUserId(session)) {
     redirect(safeCallbackUrl(typeof params?.callbackUrl === 'string' ? params.callbackUrl : null))
   }
 

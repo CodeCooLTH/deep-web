@@ -93,7 +93,21 @@ describe('[blocker] proxy ต้องบังคับใช้ด่านน
       '__Secure-next-auth.session-token',
     )
     expect(src, 'ขาดชื่อคุกกี้ของ dev').toContain('next-auth.session-token')
-    expect(src, 'ต้องลบคุกกี้จริง ไม่ใช่แค่ redirect').toMatch(/cookies\.delete/)
+    /**
+     * 🛑 แก้เกณฑ์ 2026-09-20 — เดิมบรรทัดนี้เขียนว่า `toMatch(/cookies\.delete/)`
+     *
+     * เจตนาถูก ("ต้องล้างคุกกี้จริง ไม่ใช่แค่ redirect") แต่ไปปักหมุดที่ **ชื่อเมธอด**
+     * ซึ่งเป็นเมธอดที่ **ล้มเงียบบน prod**: `res.cookies.delete()` ส่ง `Set-Cookie`
+     * ที่ไม่มีแฟล็ก `Secure` ⇒ ชื่อที่ขึ้นต้น `__Secure-` ถูกเบราว์เซอร์ทิ้งทั้งใบ
+     * ⇒ session ไม่เคยถูกล้าง ⇒ ด่านเตะ ↔ หน้า sign-in ส่งกลับ **วนไม่จบ = จอขาวบน iPad**
+     *
+     * เทสตัวนี้จึงเขียวมาตลอดในขณะที่สิ่งที่มันอ้างว่ากันอยู่ ไม่เคยทำงานเลยสักครั้ง
+     * เกณฑ์ใหม่ผูกกับตัวที่ล้างได้จริง (ดู `src/lib/expire-cookie.ts`)
+     */
+    expect(src, 'ต้องลบคุกกี้จริง ไม่ใช่แค่ redirect').toMatch(/expireCookies\(/)
+    expect(src, 'delete() ตรง ๆ = คำสั่งถูกเบราว์เซอร์ทิ้ง = ลูปจอขาวกลับมา').not.toMatch(
+      /cookies\.delete\(/,
+    )
   })
 
   it('🛑 ด่านต้องมาก่อน force-redirect ไป /register — ไม่งั้นเด้งเข้าหน้าสมัครไปแล้ว', () => {

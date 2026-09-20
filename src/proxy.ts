@@ -4,6 +4,7 @@ import { getSubdomain } from '@/lib/subdomain'
 import { isAllowedOrigin } from '@/lib/csrf-origin'
 import { checkApiRateLimit, clientIp } from '@/lib/api-rate-limit'
 import { SHELL_COOKIE_NAME, resolveAppShell, shouldBlockAppRegistration } from '@/lib/app-shell'
+import { expireCookies } from '@/lib/expire-cookie'
 
 /**
  * ชื่อคุกกี้ session ของ NextAuth — **ต้องลบทั้งสองชื่อ**
@@ -258,7 +259,10 @@ export async function proxy(request: NextRequest) {
        */
       const reason = t?.needsRegistration ? 'app_no_account' : 'app_setup_required'
       const res = NextResponse.redirect(new URL(`/auth/sign-in?${reason}=1`, request.url))
-      for (const name of SESSION_COOKIES) res.cookies.delete(name)
+      /* 🛑 ต้องใช้ expireCookies ไม่ใช่ res.cookies.delete() — ชื่อที่ขึ้นต้น `__Secure-`
+         ต้องมีแฟล็ก Secure ไม่งั้นเบราว์เซอร์ทิ้งคำสั่งลบเงียบ ๆ แล้วด่านนี้จะวนเป็นลูป
+         (จอขาวบน iPad 2026-09-20 — เหตุผลเต็มที่ src/lib/expire-cookie.ts) */
+      expireCookies(res, SESSION_COOKIES)
       return res
     }
 
