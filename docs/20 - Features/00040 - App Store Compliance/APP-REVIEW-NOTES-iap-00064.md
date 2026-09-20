@@ -82,10 +82,11 @@ We removed it in response to your earlier guidance ("Remove the account
 registration features for business and organizations").
 
 So if you sign in with an Apple ID that has never been used with Deep, Apple
-authentication succeeds and the app then returns you to the sign-in screen with
-the message "ไม่พบบัญชีผู้ขายสำหรับข้อมูลที่ใช้เข้าสู่ระบบนี้" ("No merchant
-account was found for these sign-in details"). This is the expected result of
-the change you asked for, not an error or a failed login.
+authentication succeeds and you reach a screen headed "ยังไม่มีร้านค้าของคุณ"
+("You do not have a shop yet"). It explains that the app is for merchants who
+already have a shop, and offers a field where a staff invitation link can be
+pasted to join an existing shop. This is the expected result of the change you
+asked for, not an error or a failed login.
 
 Please use the demo account above to review the app's functionality. If you
 would like to verify Sign in with Apple end to end, sign in with the demo
