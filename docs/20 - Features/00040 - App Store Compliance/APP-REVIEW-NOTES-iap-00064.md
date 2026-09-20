@@ -81,10 +81,17 @@ Creating a NEW merchant account is intentionally not available inside the app.
 We removed it in response to your earlier guidance ("Remove the account
 registration features for business and organizations").
 
-So if you sign in with an Apple ID that has never been used with Deep, you will
-reach a screen saying the account has not joined any shop yet. That screen is the
-expected result, not an error. Please use the demo account above to review the
-app's functionality.
+So if you sign in with an Apple ID that has never been used with Deep, Apple
+authentication succeeds and the app then returns you to the sign-in screen with
+the message "ไม่พบบัญชีผู้ขายสำหรับข้อมูลที่ใช้เข้าสู่ระบบนี้" ("No merchant
+account was found for these sign-in details"). This is the expected result of
+the change you asked for, not an error or a failed login.
+
+Please use the demo account above to review the app's functionality. If you
+would like to verify Sign in with Apple end to end, sign in with the demo
+account, open Account, and use the "วิธีเข้าสู่ระบบ" (Sign-in methods) section
+to link your own Apple ID to it; you can then sign out and sign back in with
+Sign in with Apple.
 
 ── Sign in with Apple ──────────────────────────────────────────────────────
 
