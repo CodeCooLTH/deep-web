@@ -301,8 +301,14 @@ export default function ShopForm({
           OrderStatusBand) ที่อยู่ใน wrapper full-bleed แต่ยังมีมุมมนปกติ */}
       <div className="card -mx-4 lg:mx-0">
         <div className="card-body">
-          {/* Layout: sidebar nav (step list) + content area — จาก Paces settings page */}
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-base">
+          {/* Layout: sidebar nav (step list) + content area — จาก Paces settings page
+              🛑 กริดต้องแตกคอลัมน์ **ที่ breakpoint เดียวกับที่ sidebar โผล่** เท่านั้น (lg)
+              เดิมเขียน `md:grid-cols-3` + เนื้อหา `md:col-span-2` ขณะที่ sidebar เป็น
+              `hidden lg:block` ⇒ ช่วง 768–1023px (iPad แนวตั้ง) กริดแตกเป็น 3 คอลัมน์
+              แต่เจ้าของคอลัมน์แรก **กว้าง 0 เพราะถูกซ่อน — ที่ในกริดยังถูกจองอยู่**
+              ⇒ ฟอร์มเหลือ 2/3 และมีช่องว่างเปล่า 1/3 ทางขวา (หัวหน้าเจอบน iPad 2026-09-20)
+              วัดจริงที่ 820px: กริด 3×246.66px · ลูกที่ซ่อน = 0px · ช่อง "ชื่อร้าน" = 513/780 = 66% */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-base">
 
             {/* Sidebar: step navigation — เดสก์ท็อปเท่านั้น
                 มือถือไม่มี step (เลื่อนเดียวจบ) ถ้าปล่อยไว้ grid-cols-1 จะทำให้รายการ step
@@ -360,7 +366,9 @@ export default function ShopForm({
             </div>
 
             {/* Content area */}
-            <div className="md:col-span-2 lg:col-span-3">
+            {/* 🛑 ห้ามใส่ `md:col-span-*` กลับมา — ต่ำกว่า lg กริดมีคอลัมน์เดียว
+                การ span ที่ breakpoint ที่ไม่มีคอลัมน์ให้ span คือที่มาของช่องว่าง 1/3 เดิม */}
+            <div className="lg:col-span-3">
               {/* กรอบเส้นประ + padding เฉพาะเดสก์ท็อป — บนมือถือ card-body มี padding อยู่แล้ว
                   กรอบอีกชั้นทำให้เป็นกล่องซ้อน 3 ชั้น (page > card > กรอบ) บีบความกว้างที่ใช้กรอกจริง */}
               <div className="lg:p-7.5 lg:border lg:border-default-300 lg:border-dashed">
