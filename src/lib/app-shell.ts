@@ -12,11 +12,28 @@
  * ไม่ได้ครอบเว็บไซต์ ถ้าไปเช็คขนาดจอหรือ user-agent ว่าเป็นมือถือ ผู้ขายที่เปิด Safari บนมือถือ
  * (ซึ่ง Apple ไม่มีอำนาจอะไรด้วยเลย) จะเติมเงินไม่ได้ไปด้วย = เสียของโดยไม่จำเป็น
  *
- * ── วิธีตรวจ: สัญญาณ 2 ชั้น ─────────────────────────────────────────────
- *   ชั้นที่ 1  cookie `deep_shell=app`  → "อยู่ในเปลือกแอป"
+ * ── วิธีตรวจ: สัญญาณ 3 ชั้น ─────────────────────────────────────────────
+ *   ชั้นที่ 1  User-Agent มี `DeepSellerApp` → "อยู่ในเปลือกแอป" (ตั้งแต่คำขอแรก)
+ *             SellerWebView ตั้งผ่าน `applicationNameForUserAgent` ซึ่งอยู่ในทุกคำขอที่ออกจาก
+ *             WebView รวม **คำขอแรกสุดตอนเปิดแอป**
+ *   ชั้นที่ 2  cookie `deep_shell=app`  → "อยู่ในเปลือกแอป" (ของเดิม ยังต้องมี)
  *             SellerWebView ตั้งผ่าน injectedJavaScriptBeforeContentLoaded ทุกครั้งที่โหลดหน้า
- *   ชั้นที่ 2  User-Agent มี iPhone/iPad/iPod → "เป็น iOS"
+ *   ชั้นที่ 3  User-Agent มี iPhone/iPad/iPod → "เป็น iOS"
  *             WKWebView ส่งมาเองอัตโนมัติ ไม่ต้องตั้งอะไรเพิ่ม
+ *
+ * 🛑 **ทำไมต้องมีชั้นที่ 1 ทั้งที่ cookie ทำงานอยู่แล้ว** (แก้ 2026-09-20)
+ *
+ * cookie ถูกเขียนด้วย **จาวาสคริปต์ในหน้าเว็บ** ⇒ มันเกิดขึ้น *หลัง* เซิร์ฟเวอร์เรนเดอร์หน้าแรกไปแล้ว
+ * ⇒ **คำขอแรกสุดหลังติดตั้งแอปใหม่ ไม่มี cookie นี้** เซิร์ฟเวอร์จึงเรนเดอร์หน้าล็อกอินแบบเว็บ
+ * ซึ่ง **มีลิงก์ "สมัครสมาชิก" ติดมาด้วย** = สิ่งที่ Apple สั่งให้เอาออกตั้งแต่ 2026-08-23 (3.1.1)
+ *
+ * เครื่องที่ใช้อยู่ประจำไม่เจอ เพราะ cookie อายุ 30 วันยังค้างอยู่ — **แต่คนตรวจของ Apple
+ * ติดตั้งใหม่เสมอ จอแรกที่เขาเห็นคือจอที่มีลิงก์นั้น** (ยืนยันกับ prod 2026-09-20: ยิงคำขอ
+ * ที่ไม่มี cookie ได้หน้าที่มีคำว่า "สมัครสมาชิก" · ยิงพร้อม cookie ไม่มี) หัวหน้าเจอเองบน iPad
+ * ที่เพิ่งติดตั้ง — ไม่ใช่เรื่องเฉพาะ iPad แต่เป็น **การติดตั้งใหม่ทุกเครื่อง** รวม iPhone
+ *
+ * 🛑 ห้ามถอด cookie ทิ้งแล้วเหลือแต่ UA — build ที่ปล่อยไปแล้วก่อนรอบนี้ยังไม่มี marker ใน UA
+ * (สัญญาณต้องเป็น OR เสมอ ไม่ใช่แทนที่กัน) และ marker จะมาถึงเครื่องผู้ใช้ผ่าน OTA เท่านั้น
  *
  * 🛑 ทำไมต้องใช้ของที่ "มีอยู่แล้วทั้งคู่" ไม่ออกแบบสัญญาณใหม่ให้ชัดกว่านี้: binary ที่ Apple
  * กำลังรีวิวอยู่ (1.0 build 2) ตั้ง cookie เป็นค่า `app` เฉย ๆ ไม่มีข้อมูลแพลตฟอร์ม ถ้าเราออกแบบ
@@ -44,6 +61,29 @@ const SHELL_COOKIE_VALUE = 'app'
  */
 const PAYMENT_RESTRICTED_SHELLS: readonly AppShell[] = ['ios']
 
+/**
+ * ชื่อที่แอปผู้ขายต่อท้าย User-Agent ของ WebView (`applicationNameForUserAgent`)
+ *
+ * 🛑 ค่านี้เป็น **สัญญาข้ามรีโป** — ต้องตรงกับ `APP_UA_MARKER` ใน deep-seller-app
+ * (`src/features/webview/SellerWebView.tsx`) ตัวอักษรต่อตัวอักษร แก้ที่เดียวไม่พอ
+ * ทั้งสองฝั่งมีเทสที่ปักค่านี้ไว้ ถ้าใครเปลี่ยนข้างเดียวจะแดงทันที
+ *
+ * ไม่ใส่เลขเวอร์ชันในตัวที่เทียบ — แอปส่ง `DeepSellerApp/1.0` แต่เราเทียบแค่ชื่อ
+ * เพื่อให้เวอร์ชันถัดไปไม่ต้องมาแก้ฝั่งเว็บ
+ */
+export const APP_UA_MARKER = 'DeepSellerApp'
+
+/**
+ * UA นี้มาจากเปลือกแอปของเราไหม
+ *
+ * เทียบแบบตรงตัวพิมพ์ (case-sensitive) — marker เป็นสตริงที่เราเป็นคนตั้งเองทั้งสองฝั่ง
+ * การยอมรับตัวพิมพ์เล็ก/ใหญ่ปนกันแปลว่ายอมรับค่าที่เราไม่เคยส่ง ซึ่งไม่ช่วยอะไรนอกจาก
+ * เปิดช่องให้ UA ของคนอื่นบังเอิญชนแล้วซ่อนปุ่มจ่ายเงินให้ผู้ขายที่ใช้เว็บปกติ
+ */
+function hasAppUserAgentMarker(userAgent: string): boolean {
+  return userAgent.includes(APP_UA_MARKER)
+}
+
 /** UA ของ WKWebView บน iPhone/iPad — iPadOS รุ่นใหม่อาจอ้างตัวเป็น Macintosh (ดู fallback) */
 function detectPlatform(userAgent: string): 'ios' | 'android' {
   if (/iPhone|iPad|iPod/i.test(userAgent)) return 'ios'
@@ -62,7 +102,8 @@ function detectPlatform(userAgent: string): 'ios' | 'android' {
  * ต้องมีเทสยืนยันทุกช่อง ไม่ใช่เชื่อว่าเขียนถูก
  */
 export function resolveAppShell(shellCookie: string | undefined, userAgent: string): AppShell {
-  if (shellCookie !== SHELL_COOKIE_VALUE) return 'web'
+  const inApp = shellCookie === SHELL_COOKIE_VALUE || hasAppUserAgentMarker(userAgent)
+  if (!inApp) return 'web'
   return detectPlatform(userAgent)
 }
 
