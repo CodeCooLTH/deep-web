@@ -186,11 +186,28 @@ order means a buyer may have paid and not yet received their goods. Cancel the
 listed orders from Orders > open the order > "Cancel order", and the delete
 button becomes active.
 
-IMPORTANT — creating a brand new account is not practical from outside
-Thailand. Registration requires verifying a Thai mobile number by SMS. This
-applies to every sign-in method, including Sign in with Apple: after Apple
-authentication the user reaches our phone verification step. Please use the
-demo account above to review the app's functionality.
+IMPORTANT — PLEASE USE THE DEMO ACCOUNT ABOVE, NOT Sign in with Apple.
+
+Following your guidance in the 23 August review, we removed the business
+account registration feature from the app. The app now offers sign-in only,
+for merchants who already have an account.
+
+As a result, signing in with an Apple ID that is not already linked to an
+existing Deep merchant account will return you to the sign-in screen with the
+message "ไม่พบบัญชีผู้ขายสำหรับข้อมูลที่ใช้เข้าสู่ระบบนี้" ("No merchant
+account was found for these sign-in details"). This is the intended behaviour
+of the change you requested, not a defect: there is deliberately no way to
+create a merchant account inside the app.
+
+Sign in with Apple is fully functional for merchants whose Apple ID is
+already linked to their account. If you would like to verify it, sign in with
+the demo account, open the Account page and use the "วิธีเข้าสู่ระบบ"
+(Sign-in methods) section to link your own Apple ID to the demo account. You
+can then sign out and sign back in using Sign in with Apple.
+
+Creating a new merchant account is also not practical from outside Thailand
+in any case, because registration requires verifying a Thai mobile number
+by SMS.
 
 ────────────────────────────────────────────────────────────────────────────
 5. EXTERNAL SERVICES USED
