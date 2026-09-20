@@ -12,12 +12,16 @@
  */
 import { NextResponse } from 'next/server'
 
+import { expireCookies } from '@/lib/expire-cookie'
 import { STALE_AUTH_COOKIES } from '@/lib/stale-auth-cookies'
 
 export async function POST() {
   const res = NextResponse.json({ ok: true })
   /* ลบทั้งชื่อแบบ `__Secure-` (prod/https) และชื่อธรรมดา (dev/http) — ไม่รู้ว่าอยู่ฝั่งไหน
      และการลบชื่อที่ไม่มีอยู่ไม่มีผลข้างเคียง */
-  for (const name of STALE_AUTH_COOKIES) res.cookies.delete(name)
+  /* 🛑 expireCookies ไม่ใช่ res.cookies.delete() — คุกกี้ OAuth ทั้งชุดบน prod ใช้ชื่อขึ้นต้น
+     `__Secure-` ซึ่งเบราว์เซอร์จะทิ้งคำสั่งลบที่ไม่มีแฟล็ก Secure ⇒ ที่ผ่านมาล้างไม่ออกเลย
+     (ดู src/lib/expire-cookie.ts) */
+  expireCookies(res, STALE_AUTH_COOKIES)
   return res
 }
