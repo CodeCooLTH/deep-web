@@ -336,6 +336,17 @@ export default function ShipmentStatusView({
       ].filter((l): l is string => Boolean(l && l.trim()))
     : []
 
+  /**
+   * 🛑 ต้องอยู่เหนือ early return ของ FAILED ข้างล่าง (hook ทุกตัวต้องถูกเรียกครบทุก render) —
+   * เคยอยู่ใต้มัน (b120c02d) ⇒ ใบ FAILED → กด "ลองใหม่" สำเร็จ → กลายเป็น CREATED ในคอมโพเนนต์
+   * ตัวเดิม = hook เพิ่ม 1 ตัว ⇒ React #310 จอขาวทั้งหน้า (ลูกค้าเจอบน prod 2026-09-21 หลังเติม
+   * เครดิต iShip แล้วกดลองใหม่) · ด่าน: __tests__/shipment-status-view-hooks.test.ts
+   *
+   * ใหม่ → เก่า ก่อนสไลซ์เสมอ — API คืนมาเก่าสุดก่อน (ดู @/lib/iship/traces) ถ้าสไลซ์จากอาเรย์ดิบ
+   * โหมดย่อจะโชว์ 3 เหตุการณ์ "เก่าสุด" และจุดน้ำเงิน `i === 0` จะไปเกาะเหตุการณ์แรกสุดของพัสดุ
+   */
+  const orderedTraces = useMemo(() => (traces ? sortTracesNewestFirst(traces) : null), [traces])
+
   // ── สร้างไม่สำเร็จ — ไม่แสดง kv/timeline เพราะยังไม่มีพัสดุจริงให้ติดตาม
   if (shipment.status === 'FAILED') {
     /**
@@ -546,11 +557,6 @@ export default function ShipmentStatusView({
     : describeShipmentStatus(carrier.status)
   const badgeText = carrier.carrierStatusText ?? badge.text
 
-  /**
-   * ใหม่ → เก่า ก่อนสไลซ์เสมอ — API คืนมาเก่าสุดก่อน (ดู @/lib/iship/traces) ถ้าสไลซ์จากอาเรย์ดิบ
-   * โหมดย่อจะโชว์ 3 เหตุการณ์ "เก่าสุด" และจุดน้ำเงิน `i === 0` จะไปเกาะเหตุการณ์แรกสุดของพัสดุ
-   */
-  const orderedTraces = useMemo(() => (traces ? sortTracesNewestFirst(traces) : null), [traces])
   const shownTraces = orderedTraces
     ? showAllTraces
       ? orderedTraces
