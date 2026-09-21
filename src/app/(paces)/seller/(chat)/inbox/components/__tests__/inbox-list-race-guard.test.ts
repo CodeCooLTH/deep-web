@@ -49,7 +49,10 @@ describe('InboxList — ด่านเทียบลายเซ็นตั�
     // เทสต้องผูกกับ *เจตนา* ไม่ใช่ *การจัดวางตัวอักษร*: (1) มีการเทียบลายเซ็นของชุดที่อยู่ใน state
     // กับลายเซ็นของผลที่เพิ่งได้ (2) base มาจากผลการเทียบนั้น ไม่ใช่ prev ตรง ๆ
     expect(src).toMatch(/itemsSignatureRef\.current\s*===\s*sig/)
-    expect(src).toMatch(/const\s+base\s*=\s*\w+\s*\?\s*prev\s*:\s*\[\]/)
+    // 🛑 อัปเดต 2026-09-21: การเลือก base ย้ายเข้า `mergeRefreshedFirstPage` (src/lib/inbox-refresh-merge.ts
+    // — เทสพฤติกรรมอยู่ที่ src/lib/__tests__/inbox-refresh-merge.test.ts) ⇒ ที่นี่ปักแค่ว่าผลการเทียบ
+    // ลายเซ็น (`comparable`) ถูกส่งเข้าไปจริง ไม่ใช่ true ตายตัว
+    expect(src).toMatch(/mergeRefreshedFirstPage\(\s*prev\s*,\s*data\.items\s*,\s*\{\s*comparable\s*,/)
     // และห้ามกลับไปเป็นรูปเดิมที่ merge prev ทั้งก้อน
     expect(src).not.toMatch(/\[\s*\.\.\.data\.items,\s*\.\.\.prev\.filter/)
   })

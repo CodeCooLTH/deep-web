@@ -91,6 +91,7 @@ import {
 // ป้ายพฤติกรรมลูกค้า — SSOT เดียวกับหัวแผงลูกค้าในเธรด และป้ายท้ายชื่อในตาราง /orders (HR16)
 import { customerBadges, type CustomerBehavior } from '@/lib/customer-behavior'
 import { orderStageChipLabel } from '@/lib/order-stage'
+import { mergeRefreshedFirstPage } from '@/lib/inbox-refresh-merge'
 import { generateInitials } from '@/utils/helpers'
 import { formatChatListTime } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
@@ -949,7 +950,6 @@ export default function InboxList({
       // ตัวกรองเปลี่ยนระหว่างรอ → ทิ้ง ห้าม merge (merge คือทางที่แถวข้ามตัวกรองเข้ามาได้)
       if (sig !== listSignatureRef.current) return
       setItems((prev) => {
-        const freshIds = new Set(data.items.map((i) => i.id))
         // เสียงเตือนข้อความใหม่จากลูกค้า (user สั่ง 2026-07-23) — เทียบกับ state เดิม: เธรดใหม่ทั้งห้อง
         // หรือเธรดเดิมที่ lastMessageAt ขยับ **และ** ข้อความล่าสุดมาจากลูกค้า (ไม่ใช่ที่ร้านเพิ่งส่งเอง)
         // playChatBeep throttle ให้เองแล้วเมื่อหน้าเธรดดังพร้อมกัน (ดู comment ใน chat-sound.ts)
@@ -971,9 +971,11 @@ export default function InboxList({
         // `base`: ต่อท้ายด้วยของเดิมได้ **เฉพาะเมื่อของเดิมเป็นชุดของตัวกรองเดียวกัน** — ถ้าผลของ
         // ตัวกรองใหม่มาถึงก่อนที่ fetchList(replace) จะตอบ (poll ยิงทุก 20 วิ ชนได้ง่าย) prev ยัง
         // เป็นแถวของแท็บก่อนหน้าอยู่ การ merge จะพาแถวเหล่านั้นเข้ามาอยู่ในแท็บใหม่
-        const base = comparable ? prev : []
-        return [...data.items, ...base.filter((p) => !freshIds.has(p.id))]
+        // หน้าแรกไม่มีหน้าถัดไป = ครบทุกแถวแล้ว ⇒ แถวเดิมที่หายไปคือแถวที่หลุดตัวกรอง ต้องทิ้ง
+        // (เดิม merge เก็บไว้ตลอด — แถว "พัสดุมีปัญหา" ค้างชิปเก่าข้ามคืน 2026-09-21)
+        return mergeRefreshedFirstPage(prev, data.items, { comparable, hasMore: data.nextCursor != null })
       })
+      if (itemsSignatureRef.current === sig && data.nextCursor == null) setNextCursor(null)
       itemsSignatureRef.current = sig
     } catch {
       // เงียบ — รอ broadcast/focus รอบถัดไป (เหมือน refetchNewer ของ useSellerChatThread)
