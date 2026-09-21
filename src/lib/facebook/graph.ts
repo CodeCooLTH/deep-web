@@ -299,26 +299,77 @@ export async function fetchThreadMessages(
   const json = await graphFetch('/me/conversations', pageToken, {
     query: {
       user_id: contactExternalId,
-      fields: `messages.limit(${limit}){id,created_time,from,message,attachments}`,
+      fields: `messages.limit(${limit}){${THREAD_MESSAGE_FIELDS}}`,
     },
   })
-  const threads = (json.data ?? []) as Array<{
-    messages?: { data?: Array<Record<string, unknown>> }
-  }>
-  const rows = threads[0]?.messages?.data ?? []
+  const threads = (json.data ?? []) as Array<{ messages?: GraphMessagesEdge }>
+  return (threads[0]?.messages?.data ?? []).map(toGraphThreadMessage)
+}
 
-  return rows.map((r) => {
-    const from = r.from as { id?: string } | undefined
-    const atts = (r.attachments as { data?: Array<Record<string, unknown>> } | undefined)?.data ?? []
+const THREAD_MESSAGE_FIELDS = 'id,created_time,from,message,attachments'
+
+type GraphMessagesEdge = {
+  data?: Array<Record<string, unknown>>
+  paging?: { cursors?: { after?: string }; next?: string }
+}
+
+/** map แถวข้อความดิบของ Graph → GraphThreadMessage — ใช้ร่วมกันทุกทางที่ดึงข้อความเธรด (HR16) */
+export function toGraphThreadMessage(r: Record<string, unknown>): GraphThreadMessage {
+  const from = r.from as { id?: string } | undefined
+  const atts = (r.attachments as { data?: Array<Record<string, unknown>> } | undefined)?.data ?? []
+  return {
+    id: String(r.id),
+    createdTime: new Date(String(r.created_time)),
+    fromId: from?.id ?? null,
+    // Graph คืน message เป็น "" (ไม่ใช่ null) เมื่อเป็นการ์ด/template — normalize ให้เป็น null
+    text: typeof r.message === 'string' && r.message.length > 0 ? r.message : null,
+    attachments: atts.map(toThreadAttachment),
+  }
+}
+
+/**
+ * "ยังมีหน้าถัดไปไหม" ตัดสินจาก `paging.next` เท่านั้น — เอกสาร Graph (Paginated Results):
+ * "next: … If not included, this is the last page of data" และ Graph ส่ง `cursors.after` มาแม้เป็น
+ * หน้าสุดท้าย ถ้าเชื่อ cursor อย่างเดียวจะวนขอหน้าว่างจนชนเพดานทุกเธรด
+ */
+function nextAfter(edge: GraphMessagesEdge | undefined): string | null {
+  return edge?.paging?.next ? (edge.paging.cursors?.after ?? null) : null
+}
+
+/**
+ * ไล่ข้อความในเธรดทีละหน้า (ส่วนขยาย 00018, 2026-09-14) — เรียงใหม่→เก่าตามที่ Graph คืน
+ *
+ * `fetchThreadMessages` ใช้ nested field บน `/me/conversations` ซึ่งไล่หน้าต่อไม่ได้ (โยน `paging`
+ * ทิ้ง และ `graphFetch` เติม GRAPH_BASE หน้า path เสมอ จึงเอา `paging.next` ที่เป็น URL เต็มมายิงไม่ได้)
+ * ⇒ หน้าแรกขอ thread id มาด้วย แล้วหน้าถัดไปยิง edge `/{threadId}/messages?after=` ตรง
+ * - ไม่ส่ง `cursor` = หน้าแรก (thread id + หน้าแรก ในคำขอเดียว)
+ * - ส่ง `cursor` = หน้าถัดไป
+ */
+export async function fetchThreadMessagesPage(
+  contactExternalId: string,
+  pageToken: string,
+  opts: { limit?: number; cursor?: { threadId: string; after: string } } = {},
+): Promise<{ items: GraphThreadMessage[]; threadId: string | null; nextAfter: string | null }> {
+  const limit = opts.limit ?? 100
+  if (opts.cursor) {
+    const edge = (await graphFetch(`/${opts.cursor.threadId}/messages`, pageToken, {
+      query: { fields: THREAD_MESSAGE_FIELDS, limit: String(limit), after: opts.cursor.after },
+    })) as GraphMessagesEdge
     return {
-      id: String(r.id),
-      createdTime: new Date(String(r.created_time)),
-      fromId: from?.id ?? null,
-      // Graph คืน message เป็น "" (ไม่ใช่ null) เมื่อเป็นการ์ด/template — normalize ให้เป็น null
-      text: typeof r.message === 'string' && r.message.length > 0 ? r.message : null,
-      attachments: atts.map(toThreadAttachment),
+      items: (edge.data ?? []).map(toGraphThreadMessage),
+      threadId: opts.cursor.threadId,
+      nextAfter: nextAfter(edge),
     }
+  }
+  const json = await graphFetch('/me/conversations', pageToken, {
+    query: { user_id: contactExternalId, fields: `id,messages.limit(${limit}){${THREAD_MESSAGE_FIELDS}}` },
   })
+  const thread = ((json.data ?? []) as Array<{ id?: string; messages?: GraphMessagesEdge }>)[0]
+  return {
+    items: (thread?.messages?.data ?? []).map(toGraphThreadMessage),
+    threadId: thread?.id ?? null,
+    nextAfter: nextAfter(thread?.messages),
+  }
 }
 
 // คู่ตรงข้ามของ subscribePageToApp — บอก Meta ให้เลิกส่ง webhook ของเพจนี้มาที่แอปเรา

@@ -1,0 +1,11 @@
+-- index ของแกนที่ 2 ของ delta (ChatMessage.updatedAt) — @@index([conversationId, updatedAt]) ใน schema.prisma
+--
+-- 🛑 ทำไมต้องเป็นไฟล์แยกจาก 20260914150000_chat_message_updated_at (R30): Prisma ห่อทุกคำสั่งในไฟล์
+-- เดียวกันไว้ในทรานแซกชันเดียว ถ้า CREATE INDEX อยู่ไฟล์เดียวกับ ADD COLUMN จะถือ ACCESS EXCLUSIVE
+-- (บล็อกทั้งอ่านและเขียน) ไว้ตลอดการสร้าง index ทั้งตาราง (~106,000 แถวบน prod 2026-09-14)
+-- แยกไฟล์แล้วคำสั่งนี้ถือแค่ SHARE lock: **การอ่านไหลต่อได้** มีเฉพาะการเขียน ChatMessage (~3 ใบ/นาที)
+-- ที่รอจนสร้างเสร็จ
+--
+-- ไม่ใช้ CONCURRENTLY เพราะใช้ในทรานแซกชันที่ Prisma ห่อไม่ได้
+-- IF NOT EXISTS เพราะฐาน local ของ dev สร้าง index นี้ไปแล้วจากไฟล์รุ่นก่อนแยก (prod ยังไม่เคยรันทั้งคู่)
+CREATE INDEX IF NOT EXISTS "ChatMessage_conversationId_updatedAt_idx" ON "ChatMessage"("conversationId", "updatedAt");

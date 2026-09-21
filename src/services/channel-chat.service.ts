@@ -3,9 +3,10 @@ import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getLastInboundTime, fetchMessageText, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, sendSenderAction, claimThreadControl, GraphApiError, type GraphThreadMessage, type GraphThreadAttachment, type ThreadControlFailureReason } from '@/lib/facebook/graph'
+import { getLastInboundTime, fetchMessageText, fetchAdPostContent, fetchThreadMessagesPage, sendMessageReaction, sendSenderAction, claimThreadControl, GraphApiError, type GraphThreadMessage, type GraphThreadAttachment, type ThreadControlFailureReason } from '@/lib/facebook/graph'
 import type { ChannelAdapter, ChannelContext, OutboundMessagePart } from '@/lib/channels/adapter'
 import { MetaAdapter } from '@/lib/channels/meta-adapter'
+import { decideBackfillStep, MAX_BACKFILL_PAGES } from '@/lib/meta-backfill-bound'
 // (S-6, feature 00025) LineAdapter (S-4) + prefix builder (TD-005) — ตัวเดียวที่ประกอบ
 // ChatMessage.externalMessageId ของ LINE ห้ามประกอบ string นี้เองที่ไฟล์นี้
 import { LineAdapter, buildLineExternalMessageId } from '@/lib/channels/line-adapter'
@@ -248,6 +249,70 @@ export async function syncInboundWindowFromMeta(conversationId: string): Promise
   return realLast
 }
 
+type InsertedBatch = {
+  added: number
+  /** ใบที่เวลาใหม่สุดในชุดที่เพิ่ง insert พร้อม preview ของมัน — null = ไม่ได้ insert อะไร */
+  newest: { createdTime: Date; preview: string; senderRole: 'SHOP' | 'BUYER' } | null
+  newestInboundAt: Date | null
+}
+
+/** หน้าหนึ่งของ backfill: หาใบที่ขาด → แปลงเนื้อหา → createMany แล้วคืนของที่ใช้ตัดสิน bump */
+async function insertMissingPage(
+  conversationId: string,
+  shopId: string,
+  pageId: string,
+  remote: GraphThreadMessage[],
+): Promise<InsertedBatch> {
+  if (remote.length === 0) return { added: 0, newest: null, newestInboundAt: null }
+  const known = new Set(
+    (
+      await prisma.chatMessage.findMany({
+        where: { conversationId, externalMessageId: { in: remote.map((m) => m.id) } },
+        select: { externalMessageId: true },
+      })
+    ).map((m) => m.externalMessageId),
+  )
+  const missing = remote.filter((m) => !known.has(m.id))
+  if (missing.length === 0) return { added: 0, newest: null, newestInboundAt: null }
+
+  // แปลงเนื้อหา (รวม mirror ไฟล์แนบ) ให้เสร็จก่อนเขียน — ต้องใช้ผลชุดเดียวกันทั้งตอน createMany
+  // และตอนอัปเดต preview ไม่งั้นสองที่จะเขียนคนละเรื่องกับข้อความเดียวกัน
+  // feature 00051 (S-3): shopId มาจาก conv.shopChannel.shopId ของเธรดจริง
+  const contents = await resolveBackfillBatch(missing, shopId)
+
+  // createMany + skipDuplicates — กัน race กับ webhook ที่อาจยิง mid เดียวกันเข้ามาพร้อมกัน
+  // (unique constraint จะ throw ถ้าใช้ create ธรรมดา แล้วทั้งชุดจะล้มเพราะข้อความเดียว)
+  const result = await prisma.chatMessage.createMany({
+    data: missing.map((m, i) => ({
+      conversationId,
+      senderRole: m.fromId === pageId ? 'SHOP' : 'BUYER',
+      ...contents[i]!,
+      // Json? ของ Prisma ไม่รับ `null` ตรง ๆ (ต้องเป็น JsonNull/DbNull) — ไม่มีการ์ดก็ไม่ต้องส่งคีย์
+      ...(contents[i]!.cards ? { cards: contents[i]!.cards as Prisma.InputJsonValue } : { cards: undefined }),
+      createdAt: m.createdTime,
+      externalMessageId: m.id,
+      // ทางเข้าที่สอง: ข้อความที่ webhook ไม่เคยส่งมา แล้วเราไปดึงจาก Graph เอง — ติด source ไว้แยกตอนสืบ
+      rawMessage: toRawMessage('facebook', m, 'graph-backfill'),
+    })),
+    skipDuplicates: true,
+  })
+
+  const newestIdx = missing.reduce((best, m, i) => (m.createdTime > missing[best]!.createdTime ? i : best), 0)
+  const newest = missing[newestIdx]!
+  const inbound = missing.filter((m) => m.fromId !== pageId)
+  return {
+    added: result.count,
+    newest: {
+      createdTime: newest.createdTime,
+      preview: backfillPreview(contents[newestIdx]!),
+      senderRole: newest.fromId === pageId ? 'SHOP' : 'BUYER',
+    },
+    newestInboundAt: inbound.length
+      ? inbound.reduce((a, m) => (m.createdTime > a ? m.createdTime : a), inbound[0]!.createdTime)
+      : null,
+  }
+}
+
 /**
  * ผลของ syncMissingMessagesFromMeta — `outcome` มีไว้ให้ผู้เรียก **วัด** ได้ว่ารอบนั้นจบเพราะอะไร
  *
@@ -275,6 +340,11 @@ export type SyncMissingResult = {
  * idempotent ด้วย `externalMessageId @unique` — ยิงซ้ำกี่รอบก็ไม่เกิดข้อความซ้ำ
  * ไม่ throw: sync ไม่ได้ = เห็นเท่าที่ webhook ให้มา (พฤติกรรมเดิม) ดีกว่าเปิดเธรดไม่ได้เลย
  *
+ * ส่วนขยาย 2026-09-14: ไล่ย้อนทีละหน้าจนถึง Conversation.createdAt ครั้งเดียวแล้วปักธง metaBackfilledAt
+ * (เพดาน MAX_BACKFILL_PAGES ต่อรอบ — ชนเพดาน = ไม่ปักธง) ดู src/lib/meta-backfill-bound.ts
+ * ข้อจำกัดที่รู้ตัว: ไม่เก็บ cursor ข้ามรอบ ทุกรอบเริ่มที่หน้า 1 ⇒ เธรดที่มีข้อความตั้งแต่ createdAt
+ * เกิน ~2,000 ใบ (20×100) จะไล่ 20 หน้าเดิมซ้ำทุกครั้งที่เปิดห้อง (หลัง throttle 5 นาที) และไม่มีวันได้ธง
+ *
  * ข้อจำกัดที่ยังแก้ไม่ได้: Instagram — endpoint /me/conversations ฝั่ง IG ตอบ error 2207085
  * (ดู comment ที่ getContactProfile) จึง sync ได้เฉพาะ MESSENGER
  */
@@ -285,6 +355,8 @@ export async function syncMissingMessagesFromMeta(
   // ถ้าไม่กัน จะได้ Graph call ทุกไม่กี่วินาทีต่อคนที่เปิดแชทค้างไว้ (โดนจำกัดอัตราแน่นอน)
   // in-memory + globalThis: pattern เดียวกับ lib/api-rate-limit.ts — known-gap เดียวกันคือ
   // serverless หลาย instance ต่างคนต่างนับ (ยอมรับได้: ผลเสียสูงสุดคือ sync ถี่กว่าที่ตั้งไว้เล็กน้อย)
+  // ⇒ สอง instance อาจไล่ได้คนละ 20 หน้ากับเธรดเดียวกันพร้อมกัน: ความถูกต้องยังอยู่ (createMany
+  // skipDuplicates + externalMessageId @unique) แต่ค่า Graph/mirror เป็นสองเท่า
   const now = Date.now()
   const store = (globalThis as { __fbSyncAt?: Map<string, number> }).__fbSyncAt ??
     ((globalThis as { __fbSyncAt?: Map<string, number> }).__fbSyncAt = new Map())
@@ -309,87 +381,90 @@ export async function syncMissingMessagesFromMeta(
     }
 
     const pageToken = decryptToken(conv.shopChannel.accessTokenEnc)
-    const remote = await fetchThreadMessages(conv.externalContact.externalUserId, pageToken, 50)
-    if (remote.length === 0) return { added: 0, outcome: 'nothing-missing' }
-
-    const known = new Set(
-      (
-        await prisma.chatMessage.findMany({
-          where: { conversationId, externalMessageId: { in: remote.map((m) => m.id) } },
-          select: { externalMessageId: true },
-        })
-      ).map((m) => m.externalMessageId),
-    )
-    const missing = remote.filter((m) => !known.has(m.id))
-    if (missing.length === 0) return { added: 0, outcome: 'nothing-missing' }
-
     // pageId = externalId ของ ShopChannel — ใช้แยกว่าใครเป็นคนส่ง (Graph คืน from.id ของเพจสำหรับ
     // ข้อความฝั่งร้าน รวมถึงข้อความที่ระบบอัตโนมัติส่งแทนเพจด้วย)
     const pageId = conv.shopChannel.externalId
+    // ส่วนขยาย 2026-09-14: เดิมดึงแค่ 50 ใบล่าสุดหน้าเดียวตลอดกาล เธรดที่ขาดเกินนั้นไม่เคยถูกเติม
+    // ⇒ ไล่ย้อนทีละหน้าจนถึงวันที่สร้างเธรด "ครั้งเดียว" แล้วปักธง metaBackfilledAt
+    // เธรดที่ปักธงแล้วดึงหน้าเดียวพอ (เก็บข้อความอัตโนมัติของ Meta รอบล่าสุดที่ webhook ไม่ส่ง)
+    const alreadyComplete = conv.metaBackfilledAt !== null
+    let cursor: { threadId: string; after: string } | undefined
+    let pageNo = 0
+    let added = 0
 
-    // แปลงเนื้อหา (รวม mirror ไฟล์แนบ) ให้เสร็จก่อนเขียน — ต้องใช้ผลชุดเดียวกันทั้งตอน createMany
-    // และตอนอัปเดต preview ด้านล่าง ไม่งั้นสองที่จะเขียนคนละเรื่องกับข้อความเดียวกัน
-    // feature 00051 (S-3): shopId มาจาก conv.shopChannel.shopId — conv ผ่านการเช็ค
-    // !conv.shopChannel ด้านบนมาแล้ว (บรรทัด 288) จึงไม่มีทาง null ตรงนี้
-    const contents = await resolveBackfillBatch(missing, conv.shopChannel.shopId)
-
-    // createMany + skipDuplicates — กัน race กับ webhook ที่อาจยิง mid เดียวกันเข้ามาพร้อมกัน
-    // (unique constraint จะ throw ถ้าใช้ create ธรรมดา แล้วทั้งชุดจะล้มเพราะข้อความเดียว)
-    const result = await prisma.chatMessage.createMany({
-      data: missing.map((m, i) => ({
-        conversationId,
-        senderRole: m.fromId === pageId ? 'SHOP' : 'BUYER',
-        ...contents[i]!,
-        // Json? ของ Prisma ไม่รับ `null` ตรง ๆ (ต้องเป็น JsonNull/DbNull) — ไม่มีการ์ดก็ไม่ต้องส่งคีย์
-        // ท่าเดียวกับฝั่ง webhook ใน ingestInboundMessage
-        ...(contents[i]!.cards ? { cards: contents[i]!.cards as Prisma.InputJsonValue } : { cards: undefined }),
-        createdAt: m.createdTime,
-        externalMessageId: m.id,
-        // ทางเข้าที่สอง: ข้อความที่ webhook ไม่เคยส่งมา แล้วเราไปดึงจาก Graph เอง — ต้นทางคนละแบบ
-        // กับ webhook (โครง response ต่างกัน) จึงติด source ไว้ให้แยกออกตอนสืบ
-        rawMessage: toRawMessage('facebook', m, 'graph-backfill'),
-      })),
-      skipDuplicates: true,
-    })
-
-    // อัปเดตสรุปเธรดเฉพาะเมื่อมีข้อความที่ "ใหม่กว่า" ที่เราเคยรู้ — ข้อความเก่าที่เพิ่งเติมย้อนหลัง
-    // ต้องไม่ไปเปลี่ยน preview/เวลาในรายการแชทให้ดูเหมือนมีความเคลื่อนไหวใหม่
-    const newestIdx = missing.reduce((best, m, i) => (m.createdTime > missing[best]!.createdTime ? i : best), 0)
-    const newest = missing[newestIdx]!
-    const bumpMessage = !conv.lastMessageAt || newest.createdTime > conv.lastMessageAt
-
-    // BUG-SORT-1 (00018 ext 2026-09-09): เดิมที่นี่อัปเดตแต่ `lastMessageAt` ⇒ ข้อความของ
-    // **ลูกค้า** ที่กู้คืนมาทีหลัง (webhook พลาด) ไม่ขยับ "เวลาที่ลูกค้าพิมพ์ล่าสุด" เลย ผลคือ
-    //   1. หน้าต่าง 24 ชม. ของ Meta ไม่เปิดกลับ → ร้านกดส่งแล้วโดน (#10) โดยไม่มีเหตุผลบนจอ
-    //   2. (หลังมีโหมดเรียง LAST_CUSTOMER_MESSAGE) เธรดจมทั้งที่ลูกค้าเพิ่งทักมา
-    // บน prod พบ 8 เธรด คลาดเคลื่อนสูงสุด 1 ชม. 40 นาที
-    //
-    // 🛑 ต้องคิดแยกจาก bumpMessage ไม่ใช่ซ้อนอยู่ในนั้น — ชุดที่ดึงมาอาจมีข้อความของร้าน
-    // (echo ที่พลาด) เป็นใบใหม่สุด ขณะที่ใบของลูกค้าซึ่งใหม่กว่าค่าที่เก็บไว้ก็อยู่ในชุดเดียวกัน
-    // ถ้าผูกไว้ด้วยกันจะพลาดเคสนั้นทั้งเคส
-    const newestInbound = missing.reduce<(typeof missing)[number] | null>(
-      (best, m) => (m.fromId !== pageId && (!best || m.createdTime > best.createdTime) ? m : best),
-      null,
-    )
-    const bumpInbound = newestInbound !== null && (!conv.lastInboundAt || newestInbound.createdTime > conv.lastInboundAt)
-
-    if (bumpMessage || bumpInbound) {
-      await prisma.conversation.update({
-        where: { id: conversationId },
-        data: {
-          ...(bumpMessage
-            ? {
-                lastMessageAt: newest.createdTime,
-                lastMessagePreview: backfillPreview(contents[newestIdx]!),
-                lastSenderRole: newest.fromId === pageId ? 'SHOP' : 'BUYER',
-              }
-            : {}),
-          ...(bumpInbound ? { lastInboundAt: newestInbound!.createdTime } : {}),
-        },
+    for (;;) {
+      pageNo += 1
+      const page = await fetchThreadMessagesPage(conv.externalContact.externalUserId, pageToken, {
+        limit: 100,
+        cursor,
       })
+      const batch = await insertMissingPage(conversationId, conv.shopChannel.shopId, pageId, page.items)
+      added += batch.added
+
+      // 🛑 ขยับสรุปเธรด "ทุกหน้าทันทีหลัง insert" แบบยกขึ้นอย่างเดียว โดยเงื่อนไขอยู่ใน WHERE ของฐาน
+      // ไม่ใช่เทียบกับ `conv` ที่อ่านไว้ตอนต้นฟังก์ชัน — เพราะค่าที่อ่านไว้ตอนต้นเก่าได้ 3 ทาง:
+      //   1. race: รอบแรกหลัง deploy ไล่หลายหน้าหลายสิบวินาที ระหว่างนั้นร้านตอบ (send/webhook เขียน
+      //      lastMessageAt/preview ทับเสมอ) ถ้าเทียบกับค่าตอนต้น backfill จะเขียนเวลาที่ "เก่ากว่า"
+      //      + preview ของข้อความ Meta AI ทับคำตอบของร้าน ⇒ เธรดจมในรายการ preview ผิดจนมีข้อความใหม่
+      //   2. ถูกตัด: after() มีเพดาน maxDuration=120 (mirror ไฟล์แนบกินเวลา) ถ้า bump รอหลังลูป แถวถูก
+      //      insert แล้วแต่ bump ไม่เคยรัน และรอบหน้าหน้า 1 เป็น "known" หมด ⇒ ไม่มีวันขยับอีก
+      //   3. throw ที่หน้า ≥2 (rate limit/cursor หมดอายุ/Prisma) ⇒ catch ข้าม bump ถาวร
+      //      (lastInboundAt ผิด = หน้าต่าง 24 ชม. + การเรียงผิด)
+      // updateMany + `lt` ใน WHERE = ฐานตัดสินเองว่าค่าที่มีอยู่ ณ ตอนเขียนใหม่กว่าหรือไม่ ⇒ หน้าที่เก่ากว่า
+      // ไม่มีทางดึงเวลาถอยหลัง ไม่ว่าจะมาก่อนหรือหลังใคร (กฎเดิม: ใบเก่าที่เติมย้อนหลังห้ามขยับรายการ)
+      //
+      // BUG-SORT-1 (00018 ext 2026-09-09): lastInboundAt ต้องขยับด้วย ไม่งั้นข้อความลูกค้าที่กู้คืนมา
+      // ไม่เปิดหน้าต่าง 24 ชม. กลับ + เธรดจมในโหมดเรียง LAST_CUSTOMER_MESSAGE (prod พบ 8 เธรด)
+      // 🛑 คิดแยกจาก lastMessageAt — ใบใหม่สุดของหน้าอาจเป็น echo ของร้าน ขณะที่ใบของลูกค้าที่ใหม่กว่า
+      // ค่าที่เก็บไว้ก็อยู่ในหน้าเดียวกัน
+      if (batch.newest) {
+        await prisma.conversation.updateMany({
+          where: {
+            id: conversationId,
+            // lastMessageAt เป็น DateTime ไม่ null (@default(now())) จึงไม่มีกิ่ง null — ต่างจาก lastInboundAt
+            lastMessageAt: { lt: batch.newest.createdTime },
+          },
+          data: {
+            lastMessageAt: batch.newest.createdTime,
+            lastMessagePreview: batch.newest.preview,
+            lastSenderRole: batch.newest.senderRole,
+          },
+        })
+      }
+      if (batch.newestInboundAt) {
+        await prisma.conversation.updateMany({
+          where: {
+            id: conversationId,
+            OR: [{ lastInboundAt: null }, { lastInboundAt: { lt: batch.newestInboundAt } }],
+          },
+          data: { lastInboundAt: batch.newestInboundAt },
+        })
+      }
+
+      if (alreadyComplete) break
+      // Graph ไม่คืนเธรด (glitch ชั่วคราว/ยังหาเธรดไม่เจอ) ⇒ ห้ามปักธง ไม่งั้นประวัติทั้งเธรดถูกประกาศว่า
+      // ครบตลอดไปจากคำตอบว่างครั้งเดียว
+      if (page.threadId === null) break
+
+      const oldest = page.items.reduce<Date | null>(
+        (min, m) => (min === null || m.createdTime < min ? m.createdTime : min),
+        null,
+      )
+      const step = decideBackfillStep({
+        oldestInPage: oldest,
+        conversationCreatedAt: conv.createdAt,
+        pageNo,
+        hasNextPage: page.nextAfter !== null,
+        maxPages: MAX_BACKFILL_PAGES,
+      })
+      if (step.markComplete) {
+        await prisma.conversation.update({ where: { id: conversationId }, data: { metaBackfilledAt: new Date() } })
+      }
+      if (step.stop) break
+      cursor = { threadId: page.threadId, after: page.nextAfter! }
     }
 
-    return { added: result.count, outcome: 'added' }
+    return { added, outcome: added > 0 ? 'added' : 'nothing-missing' }
   } catch (e) {
     console.error(
       '[fb-sync] ดึงข้อความย้อนหลังไม่สำเร็จ',

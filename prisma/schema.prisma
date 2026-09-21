@@ -1917,6 +1917,11 @@ model Conversation {
   // lastInboundAt: เวลาที่ "ลูกค้า" ส่งข้อความล่าสุด — ฐานคำนวณ 24h messaging window ของ Meta
   // ต่างจาก lastMessageAt ที่ขยับเมื่อฝั่งไหนส่งก็ได้
   lastInboundAt       DateTime?
+  /**
+   * เวลาที่ไล่ดึงข้อความย้อนหลังจาก Meta "จนถึงวันที่สร้างเธรด" สำเร็จครบ (2026-09-14)
+   * null = ยังไม่เคยครบ ⇒ เปิดห้องครั้งถัดไปจะไล่ต่อ · มีค่า = ไล่ครบแล้ว รอบถัดไปดึงหน้าเดียวพอ
+   */
+  metaBackfilledAt    DateTime?
   // S-7 (ผลตัดสิน Q-4): ปักหมุด / ซ่อน / ปิดงาน ต่อเธรด — ใส่มาพร้อมกันในไฟล์ migration
   // เดียวเพราะ DB dev=prod แชร์กัน การ ALTER รอบสองมีต้นทุนความเสี่ยงมากกว่าการเพิ่มตอนนี้
   // ใช้กับเธรด DEEP ได้ด้วย ไม่ผูกกับช่องทางนอกอย่างเดียว
@@ -2213,6 +2218,23 @@ model ChatMessage {
   // โยน error ทันทีเมื่อถูกส่งออกทาง API; Int รองรับ 2.1 พันล้านแถว เกินพอ
   seq Int @unique @default(autoincrement())
 
+  /**
+   * watermark "แถวนี้ถูกแก้ครั้งล่าสุดเมื่อไร" (2026-09-14) — แกนที่ 2 ของ delta
+   *
+   * ทำไมต้องมี: ฟิลด์ที่เปลี่ยนค่าหลังแถวถูกสร้างมีอย่างน้อย 6 ตัว (reactionEmoji, isDeleted,
+   * body จาก message_edits, deliveryStatus, failureReason, cards) — เดิมจอเห็นการเปลี่ยนแปลง
+   * พวกนี้ได้เพราะ client ดึงข้อความ 30 ใบล่าสุด "ทั้งก้อน" ใหม่ทุก 6 วินาที ซึ่งทำหน้าที่นี้
+   * อยู่โดยบังเอิญ พอเปลี่ยนเป็น delta ด้วย seq อย่างเดียว (ซึ่งจับได้แค่ "ใบใหม่") การกดลบ
+   * ข้อความจะค้างในจอร้านตลอดไปจนกว่าจะรีเฟรช
+   *
+   * `@updatedAt` ให้ Prisma เขียนเองทุก write path — ห้ามเขียนมือ และห้าม raw SQL เขียนตาราง
+   * นี้ (มีด่าน src/lib/__tests__/chat-message-no-raw-write.test.ts กันไว้)
+   *
+   * แถวที่มีอยู่ก่อน migration นี้มีค่า 1970-01-01 (fast default ไม่ rewrite ตาราง) ⇒ ห้ามอ่าน
+   * คอลัมน์นี้ตรง ๆ เป็น "เวลาแก้ล่าสุด" ต้องใช้ max(createdAt, updatedAt)
+   */
+  updatedAt DateTime @updatedAt @default(now())
+
   // --- feature 00061: การ์ดผลลัพธ์ของตัวสร้างออเดอร์อัตโนมัติ (additive) ---
   //
   // `type = 'AUTO_ORDER_RESULT'` = ข้อความภายในที่ **ลูกค้าต้องไม่เห็นเด็ดขาด** (BR-ACO-21)
@@ -2240,6 +2262,7 @@ model ChatMessage {
   autoReplyJob  AutoReplyJob?
 
   @@index([conversationId, createdAt]) // thread pagination cursor-based เรียงเก่า→ใหม่ (FR-CHAT-08-AC-01/FR-CHAT-10-AC-01)
+  @@index([conversationId, updatedAt]) // delta แกนที่ 2 — "ใบเก่าที่เพิ่งถูกแก้" (2026-09-14)
   @@index([conversationId, autoReplyKind, createdAt]) // หา "ข้อความคนล่าสุด" ของเธรด (feature 00023)
   // lookup ย้อนกลับ fileId → ข้อความ สำหรับ auth gate ของเอกสารแนบใน /api/files (2026-08-02)
   // ไม่มี index นี้ = full scan ของตารางที่ใหญ่ที่สุดในระบบ ทุกครั้งที่มีคนเปิดไฟล์

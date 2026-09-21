@@ -42,7 +42,20 @@ describe('[blocker] GET .../messages — sync ต้องไม่บล็อ�
   })
 
   it('ยังเรียกเฉพาะตอนไม่มี cursor เหมือนเดิม (เลื่อนดูประวัติเก่าไม่ต้อง sync)', () => {
-    expect(code).toMatch(/if\s*\(\s*!parsed\.output\.cursor\s*\)/)
+    // 2026-09-14: เพิ่มเงื่อนไข !isDeltaRequest(...) เข้ามาด้วย (poll แบบ delta ไม่ต้อง sync)
+    // แต่ `!parsed.output.cursor` ยังต้องเป็นส่วนหนึ่งของเงื่อนไขเสมอ ไม่งั้นเลื่อนดูประวัติเก่าจะ
+    // trigger sync กลับมาเหมือนบั๊กเดิม
+    // R7: การเปิดห้องเป็น delta แล้ว ⇒ delta ที่ขอ `sync === '1'` ต้อง sync ด้วย ไม่งั้นข้อความที่
+    // webhook ไม่ส่ง (Meta AI / standby / ตอบโฆษณา) จะไม่มีวันโผล่
+    expect(code).toMatch(
+      /if\s*\(\s*!parsed\.output\.cursor\s*&&\s*\(\s*!isDeltaRequest\(parsed\.output\)\s*\|\|\s*parsed\.output\.sync\s*===\s*'1'\s*\)\s*\)/,
+    )
+  })
+
+  it('[blocker] route อ่าน query `sync` ส่งเข้า schema จริง (R7)', () => {
+    // ถ้าเงื่อนไขอ้าง parsed.output.sync แต่ input ไม่เคยใส่ค่านี้ ค่าจะเป็น undefined ตลอดไป
+    // tsc ไม่ฟ้อง (field เป็น optional) และการเปิดห้องจะไม่ sync อีกเลยแบบเงียบ ๆ
+    expect(code).toMatch(/sync:\s*searchParams\.get\(["']sync["']\)/)
   })
 
   it('ยังปล่อย Server-Timing ออกไป — ครั้งหน้าที่มีคนบอกว่าช้าจะได้ไม่ต้องเริ่มจากศูนย์', () => {

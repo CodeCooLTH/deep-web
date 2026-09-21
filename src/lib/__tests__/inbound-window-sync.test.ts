@@ -144,8 +144,28 @@ describe('[blocker] เปิดห้องแล้วต้อง reconcile �
       .split('\n')
       .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
       .join('\n')
-    // ต้องมี effect ที่ "ถ้ามี initial ให้ refetchNewer" — ไม่ใช่แค่มีฟังก์ชันลอย ๆ
-    expect(code).toMatch(/if \(!initial\) return\s*\n\s*void refetchNewer\(\)/)
+    // ต้องมี effect ที่ "ถ้าจอมีเนื้อหาแล้ว (initial จาก RSC หรือ cache ของ store) ให้ refetchNewer"
+    // — ไม่ใช่แค่มีฟังก์ชันลอย ๆ · 2026-09-14: กิ่ง cache + บล็อก seed store (R14) คั่นกลางได้
+    expect(code).toMatch(/if \(!initial && !cached\) return\n[\s\S]{0,800}?void refetchNewer\(\{ sync: true \}\)/)
+  })
+
+  /**
+   * [blocker] R7 — การเปิดห้องเป็น delta แล้ว route จึง sync ก็ต่อเมื่อ hook ขอ `sync=1` เท่านั้น
+   * ⇒ ขอครั้งเดียวตอนเปิดห้อง (ข้อความที่ webhook ไม่ส่งจะโผล่) · poll/realtime/กลับมาที่แท็บห้ามขอ
+   * (ไม่งั้นยิง Graph ตามรอบ poll ทุก 12 วินาที)
+   */
+  it('[blocker] sync=1 เฉพาะ refetch ตอนเปิดห้อง ไม่ใช่ poll/realtime/visibility (R7)', async () => {
+    const fs = await import('fs')
+    const code = fs
+      .readFileSync('src/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread.ts', 'utf8')
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
+      .join('\n')
+    expect(code).toMatch(/if \(sync\) params\.set\('sync', '1'\)/)
+    // ผู้ขอ sync มีที่เดียว (effect ตอนเปิดห้อง ตรวจข้างบน)
+    expect(code.match(/refetchNewer\(\{ sync: true \}\)/g) ?? []).toHaveLength(1)
+    // poll เรียกเปล่า ๆ
+    expect(code).toMatch(/const tick = \(\) => \{\n\s*if \(document\.visibilityState === 'visible'\) refetchNewer\(\)\n\s*\}/)
   })
 })
 
@@ -167,5 +187,63 @@ describe('[blocker] คืนตำแหน่งรายการต้อง
     expect(code).toMatch(/requestAnimationFrame\(pin\)/)
     // ต้องเทียบกับค่าเป้าก่อนเขียนทับ (ไม่ใช่ยัด scrollTop รัวทุกเฟรมจนสู้กับนิ้วผู้ใช้)
     expect(code).toMatch(/Math\.abs\(node\.scrollTop - pinTo\)/)
+  })
+})
+
+/**
+ * [blocker] R15/R16 — การต่อสายใน hook ที่ tsc/เทสฟังก์ชันบริสุทธิ์มองไม่เห็น (รีโปไม่มี jsdom)
+ */
+describe('[blocker] ห้องแชท: watermark ตอน merge เปิดห้อง + delta ครบเพดาน', () => {
+  const read = async () => {
+    const fs = await import('fs')
+    return fs
+      .readFileSync('src/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread.ts', 'utf8')
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
+      .join('\n')
+  }
+
+  it('R15: กิ่ง merge ของ cache+initial เขียน store โดยไม่ส่ง fetched (watermark ของ cache ต้องคงอยู่)', async () => {
+    // ส่ง fetched: initial.items = ยก watermark ข้ามการแก้ของแถว cache ที่เก่ากว่า initial ทั้งช่วง
+    expect(await read()).toMatch(/saveThreadView\(conversationId, opening\.items, opening\.oldestCursor\)\n/)
+  })
+
+  it('R16: การแทนที่จอ (R13/R33) ต้องผ่าน shouldDeferFullDeltaReplace ก่อน · R28 ส่งแถว delta ต่อ', async () => {
+    const code = await read()
+    expect(code).toMatch(
+      /if \(plan\.replace\) \{\n\s*if \(!shouldDeferFullDeltaReplace\(\{ atBottom: atBottomRef\.current \}\)\) \{\n\s*await \(cache \? reloadFirstPage\(data\.items\)/,
+    )
+    // สองทางที่ทำการแทนที่ที่ถูกเลื่อนไว้: ลงมาถึงล่างสุด (scroll listener) และปุ่ม (clearUnseen)
+    expect(code).toMatch(/setUnseenNewCount\(0\)\n\s*reloadIfStaleRef\.current\(\)/)
+    expect(code).toMatch(/const clearUnseen = useCallback\(\(\) => \{\n\s*scrollToBottom\(\)\n\s*reloadIfStale\(\)/)
+  })
+
+  it('R28: การแทนที่ที่ถูกเลื่อนไว้ต้องส่งแถว delta ที่ค้างไว้ต่อ (ไม่งั้น watermark จากหน้าแรกอย่างเดียว = วนแทนที่ทุก poll)', async () => {
+    const code = await read()
+    expect(code).toMatch(/staleDeltaRef\.current = data\.items/)
+    expect(code).toMatch(/void reloadFirstPage\(staleDeltaRef\.current\)/)
+  })
+
+  it('asOf: ยก watermark เฉพาะ response ที่นำไปใช้ — ไม่ใช่ตอนเลื่อนการแทนที่ ไม่ใช่ loadOlder ไม่ใช่หน้าแรกของ R33 ที่ merge', async () => {
+    const code = await read()
+    // (c) กิ่งเลื่อนการแทนที่ (R16) จบด้วย return โดยไม่เขียน store
+    const deferStart = code.indexOf('const firstDefer = staleForRef.current !== conversationId')
+    const deferEnd = code.indexOf('const incoming = plan.inWindow', deferStart)
+    expect(deferStart).toBeGreaterThan(-1)
+    expect(code.slice(deferStart, deferEnd)).not.toMatch(/saveThreadView|asOf/)
+    // (d) loadOlder ไม่ส่ง fetched/asOf
+    expect(code).toMatch(/saveThreadView\(conversationId, next, data\.nextCursor\)\n/)
+    // ทางที่ต้องส่ง: delta merge (เฉพาะมี cache) · หน้าแรกที่แทนที่จอ 3 ทาง (loadInitial / reloadFirstPage / RSC)
+    expect(code).toMatch(/fetched: data\.items,\n\s*asOf: cache \? data\.asOf : undefined,/)
+    expect(code).toContain('{ fetched: data.items, replace: true, asOf: data.asOf }')
+    expect(code).toContain('{ fetched, replace: true, asOf: page.asOf }')
+    expect(code).toMatch(/fetched: initial\.items,\n\s*replace: true,\n\s*asOf: initial\.asOf,/)
+  })
+
+  it('แถวที่เข้าจอมาจาก planDeltaApply(...).inWindow — ห้าม merge data.items ทั้งชุด (แถวเก่ากว่าหน้าต่างวางบนสุดแบบมีช่องว่าง)', async () => {
+    const code = await read()
+    expect(code).toMatch(/const incoming = plan\.inWindow/)
+    expect(code).toMatch(/const merged = mergeMessages\(prev, incoming\)/)
+    expect(code).not.toMatch(/mergeMessages\(prev, data\.items\)\n\s*\/\/ reconcile/)
   })
 })
