@@ -54,6 +54,12 @@ export const th = {
    */
   /* จอโหลดหลังล็อกอิน (หน้ารอ OAuth) — ใช้ BrandLoading ตัวเดียวกับ appLoading
      🛑 ห้ามฝังคำลงในหน้านั้นตรง ๆ: ทีมรีวิวของ Apple เห็นจอนี้ด้วย */
+  /** หน้า error ของ (paces) — `src/app/(paces)/error.tsx` (แทนจอขาว "Application error" ของ Next) */
+  errorPage: {
+    title: 'หน้านี้แสดงผลไม่ได้',
+    description: 'ระบบบันทึกปัญหาไว้แล้ว ลองโหลดใหม่อีกครั้ง หรือกลับไปหน้าก่อนหน้า',
+  },
+
   authCallbackLoading: {
     title: 'กำลังเข้าสู่ระบบ',
     subLabel: 'กำลังตั้งค่าบัญชีของคุณ',

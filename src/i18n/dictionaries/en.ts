@@ -35,6 +35,12 @@ export const en: Dictionary = {
     somethingWentWrong: 'Something went wrong. Please try again.',
   },
 
+  /** หน้า error ของ (paces) — `src/app/(paces)/error.tsx` (แทนจอขาว "Application error" ของ Next) */
+  errorPage: {
+    title: "This page couldn't load",
+    description: 'We logged the problem. Try reloading, or go back to the previous page.',
+  },
+
   authCallbackLoading: {
     title: 'Signing you in',
     subLabel: 'Setting up your account',
