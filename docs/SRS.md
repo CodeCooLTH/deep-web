@@ -1244,6 +1244,24 @@ enum** — ระหว่างนี้ป้ายบนโปรไฟล์
 `updateMany` (`usedCount < capacity`) ห้าม read-then-write แยกคำสั่ง · cron สร้างแถวเดือนถัดไป
 ล่วงหน้าให้เองแบบ upsert idempotent โดยคัดลอก `capacity` ของเดือนปัจจุบัน
 
+### 6.65 ใบเสร็จรับเงินของร้านบริการ (feature 00065, implement เสร็จ 2026-09-24)
+
+> เฉพาะร้าน `Shop.vertical === 'SERVICE_QUEUE'` — vertical อื่นไม่มีทั้งการ์ดตั้งค่าและปุ่มพิมพ์เลย
+> (ไม่ใช่ disabled) เอกสารต้นทาง: `docs/20 - Features/00065 - Service Receipt Printing/
+> {PRD,BRD,SRS,SDS,DATABASE,API,TestCase}.md`
+
+3 ตารางใหม่ทั้งหมด (additive, ไม่แตะ `Shop`/`Order`/`User` เดิม):
+
+| Model | ความสัมพันธ์ | หน้าที่ |
+|---|---|---|
+| `ShopReceiptProfile` | 1:1 `Shop` (unique `shopId`) | ข้อมูลหัวใบเสร็จที่ร้านตั้งเอง — `legalName`/`address`/`taxId`(CHECK 13 หลัก, unmanaged SQL)/`phone`/`stamp`(fileId) ทุกช่อง optional; ไม่มีแถว = ยังไม่เคยตั้งค่า ไม่ใช่ error |
+| `OrderReceipt` | 1:1 `Order` (unique `orderId`) | ใบเสร็จที่ออกแล้ว — `receiptNo` (unique ร่วมกับ `shopId`), `issuedAt`, `issuedByUserId` (FK→User, nullable, audit เบา — **คนละความหมายกับ "ผู้ขาย" ที่พิมพ์บนเอกสาร ซึ่งมาจาก `Order.createdByUserId` เสมอ**, HR16) |
+| `ShopReceiptCounter` | composite PK `(shopId, period)` | ตัวนับเลขที่รายเดือน — `period` = `"YYYYMM"` **ปี ค.ศ.** (ต่างจากมาตรฐาน พ.ศ. ทั้งระบบโดยตั้งใจ — `receiptPeriodTH()` ใน `format-date.ts` แยกจาก `orderPeriodTH()`), `lastSeq` (CHECK > 0) |
+
+**เลขที่ใบเสร็จ:** `"CA" + period(YYYYMM ค.ศ.) + lastSeq pad 4 หลัก` เช่น `CA2026090043` — ออกแบบ atomic ผ่าน `INSERT ... ON CONFLICT (shopId, period) DO UPDATE SET lastSeq = lastSeq + 1 RETURNING lastSeq` ในทรานแซกชันเดียวกับ `INSERT OrderReceipt` (`src/services/receipt.service.ts::issueOrReadReceipt`) — ชนกัน (`P2002` บน `orderId`) → rollback ทั้งทรานแซกชัน (ตัวนับย้อนคืน ไม่มีเลขข้าม) แล้วอ่านใบที่อีก request สร้างสำเร็จคืนแทน ทั้งสอง request ได้เลขเดียวกัน
+
+🛑 **ใบที่ออกแล้วเปิดได้เสมอแม้ออเดอร์ถูกยกเลิกภายหลัง** (`issueOrReadReceipt` เช็ค `order.receipt` ก่อนเช็ค vertical/status ใด ๆ เสมอ) — เลขที่ของใบที่ถูกยกเลิกก็ห้ามถูกนำไปออกซ้ำให้ออเดอร์อื่น (`ShopReceiptCounter` ไม่เคยถูกย้อนคืนตอนยกเลิกออเดอร์)
+
 ---
 
 ## §7 API Reference
@@ -1751,6 +1769,22 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 (ห้ามปล่อยให้เทียบกับ `Bearer undefined` แล้วผ่าน) · ต้อง export ทั้ง `GET` (Vercel ยิง GET) และ
 `POST` (manual trigger) ไม่งั้นได้ 405 และไม่เคยรันจริงโดยไม่มีอะไรฟ้อง
 
+### 7.21 ใบเสร็จรับเงิน (feature 00065)
+
+> เฉพาะร้าน `SERVICE_QUEUE` — เช็คซ้ำที่ server เสมอ (`NOT_SERVICE_SHOP`) ไม่ใช่แค่ซ่อน UI
+> 🛑 **ไม่มี `GET /api/shops/receipt-profile`** — การ์ดตั้งค่าที่ `/shop` อ่าน `ShopReceiptProfile`
+> ผ่าน RSC (`getReceiptProfile()` เรียกตรงจาก `shop/page.tsx`) ไม่ผ่าน HTTP
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| POST | `/api/orders/[token]/receipt` | `requireShopMember()` | ออกเลขใบเสร็จครั้งแรก หรือคืนเลขเดิมถ้าเคยออกแล้ว (idempotent) — ไม่มี body |
+| PATCH | `/api/shops/receipt-profile` | `requireShopMember()` | บันทึกข้อมูลออกใบเสร็จของร้าน active — ช่องที่ไม่ส่งไม่เปลี่ยนค่าเดิม, ส่งค่าว่าง `""` = ล้างเป็น `null` |
+
+error: `ORDER_NOT_FOUND`(404, scope `shopId` ใน `WHERE`) · `NOT_SERVICE_SHOP`(403) ·
+`ORDER_NOT_ISSUABLE`(409, ออเดอร์ `CANCELLED`/`DRAFTED` ที่ไม่เคยออกใบมาก่อน) ·
+`VALIDATION_ERROR`(400, เฉพาะ PATCH — envelope `{error, message}` **string เดี่ยว ไม่ใช่ `issues`
+รายฟิลด์**) — ดู §8 `ReceiptErrorCode`
+
 ---
 
 ## §8 Enums & Constants
@@ -2064,6 +2098,12 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 `ttlDays` มาจาก metadata ของแต่ละ `checkKey` ผ่านฟังก์ชัน `ttlDays(checkKey, planStep)` — **ไม่ใช่ค่า
 คงที่ต่อคีย์**: ร้านขั้นที่ 4 ต้องทวน `video_tour`/`operating_evidence` ทุก **90 วัน** (ไม่ใช่ 180)
 เพราะขั้นที่สูงกว่าตรวจถี่กว่า — ผูกกับ **`lastConfirmedAt`** ของแถวผลตรวจ ไม่ใช่ `checkedAt`
+
+### 8.9 ใบเสร็จรับเงิน — `ReceiptErrorCode` (`src/services/receipt.service.ts`, feature 00065)
+
+`ORDER_NOT_FOUND` \| `NOT_SERVICE_SHOP` \| `ORDER_NOT_ISSUABLE` — throw เป็น `ReceiptError`
+(class ประกาศอยู่ในไฟล์ service เดียวกัน 🛑 **ไม่มี `src/lib/receipt-error.ts` แยก**) route แปลเป็น
+HTTP ตามตาราง §7.21
 
 ---
 
@@ -2590,6 +2630,18 @@ SSOT: **`src/lib/inspection/checks.ts`** (checkKey allow-list 18 ค่า + `tt
 
 ที่มา: `docs/20 - Features/00060 - Shop Inspection Plan/{SRS,API}.md`
 
+### §10.17 ข้อมูลออกใบเสร็จของร้าน — `UpdateReceiptProfileSchema` (`src/lib/receipt.ts`, feature 00065)
+
+ทุกช่อง optional — trim แล้วค่าว่าง (`""`) กลายเป็น `null`:
+
+| ฟิลด์ | กฎ |
+|---|---|
+| `legalName` | maxLength 200 |
+| `address` | maxLength 500 |
+| `phone` | maxLength 30 |
+| `taxId` | ตัดขีด/ช่องว่างออกก่อน แล้วต้องเป็นตัวเลข 13 หลักพอดี (`/^[0-9]{13}$/`) หรือว่าง — ไม่ผ่าน = `VALIDATION_ERROR` (400) |
+| `stamp` | maxLength 300 — fileId จาก `uploadFileId(file, 'IMAGE')` |
+
 ### 10.11 หมายเหตุ
 
 - **Valibot (backend):** ใช้กับ API routes ทุกตัวที่มี mutation — `v.safeParse()` ก่อน service call
@@ -2597,6 +2649,17 @@ SSOT: **`src/lib/inspection/checks.ts`** (checkKey allow-list 18 ค่า + `tt
 - **ไม่มี email+password schema** — ตัดถาวร (FR-1.6)
 
 ---
+
+_อัปเดต 2026-09-24: sync ตามโค้ดจริงของ feature 00065 (พิมพ์ใบเสร็จรับเงิน — Service Receipt
+Printing) ซึ่ง implement เสร็จครบทั้งฟีเจอร์แล้ว (HR11 — sync เอกสารระบบเมื่อแตะ data
+model/API/enum/validation) เพิ่ม §6.65 (โมเดล 3 ตาราง) · §7.21 (2 endpoint — ไม่มี GET) · §8.9
+(`ReceiptErrorCode`) · §10.17 (`UpdateReceiptProfileSchema`). เอกสารฟีเจอร์ต้นทาง 4 ไฟล์
+(SRS/SDS/API/TestCase ของ 00065) ก็ถูกแก้ในรอบเดียวกันให้ตรงกับโค้ดจริง — ดราฟต์เดิมของทั้ง 4 ไฟล์
+เขียนก่อน implement เสร็จ จึงมีจุดที่ implement เบี่ยงไปจริง (ไม่มี `GET /api/shops/receipt-profile`
+· ไม่มี `src/lib/receipt-error.ts` แยก (`ReceiptError` อยู่ใน `receipt.service.ts`) · ไม่มี route
+group `(print)` ใหม่ (หน้าพิมพ์อยู่ใต้ `(fullscreen)` เดิม) · ปุ่มพิมพ์ไม่ได้ wiring ผ่าน
+`order-action-set.ts` (อยู่ในเมนู ⋯ ของ `OrderDetailClient.tsx` ตรง ๆ) · `getReceiptView` คืน
+`ReceiptView | null` ไม่ใช่ 3-kind union)._
 
 _อัปเดต 2026-08-29: sync ล่วงหน้าตามเอกสาร feature 00060 (แผนการตรวจสอบร้านค้า — Shop Inspection
 Plan) ซึ่ง PRD/BRD/DATABASE/API ผ่าน draft รอบสุดท้ายแล้วแต่ **ยังไม่ implement โค้ดจริง** (Hard Rule 11
