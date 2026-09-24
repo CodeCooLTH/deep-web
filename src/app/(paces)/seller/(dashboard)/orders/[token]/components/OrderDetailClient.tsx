@@ -46,6 +46,7 @@ import dynamic from 'next/dynamic'
 import OrderSummary, { type OrderSummaryProps } from './OrderSummary'
 import type { OrderFactsItem } from './order-detail-shared'
 import { getOrderActionSet } from './order-action-set'
+import { showReceiptButton } from '@/lib/receipt'
 // feature 00050 — ปุ่มเรื่องเงินของร้านคิวงาน: **ตัวตัดสินว่าเห็นปุ่มอะไร** อยู่ที่ไลบรารีเดียวกับแชท
 // ห้ามเขียนเงื่อนไข `outstanding > 0` ของตัวเองที่นี่ (เหตุผลเต็มอยู่หัวไฟล์ chat-order-actions.ts)
 import { chatOrderActions } from '@/lib/chat-order-actions'
@@ -191,6 +192,11 @@ export interface OrderDetailClientProps {
    * ไม่ใช่ออเดอร์นัดรับ ใช้คำนวณ flag isPickupHandedOver ให้ order-action-set.ts (แถบล่าง <1024)
    */
   handedOverAtISO: string | null
+  /**
+   * feature 00065 — เลขใบเสร็จที่ออกแล้ว (null = ยังไม่เคยออก) ใช้เลือกคำบนเมนู
+   * "พิมพ์ใบเสร็จ" (ออกเลขใหม่) กับ "ดูใบเสร็จ" (เปิดใบเดิม ไม่ยิง POST ซ้ำ)
+   */
+  receiptNo?: string | null
 }
 
 export default function OrderDetailClient({
@@ -240,6 +246,7 @@ export default function OrderDetailClient({
   isCod,
   paymentConfirmedByLabel,
   handedOverAtISO,
+  receiptNo = null,
 }: OrderDetailClientProps) {
   // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
   const hidePayments = useHidePayments()
@@ -248,6 +255,8 @@ export default function OrderDetailClient({
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
   // ชีตคืนของ (feature 00056) — เปิดจากเมนู ⋮ ไม่ใช่การ์ดเดี่ยวในหน้า
   const [returnOpen, setReturnOpen] = useState(false)
+  // feature 00065 — กำลังออกเลขใบเสร็จ (กันกดซ้ำ + เปลี่ยนคำบนเมนู)
+  const [receiptBusy, setReceiptBusy] = useState(false)
   const isOnlineSales = vertical === 'ONLINE_SALES'
   /** ร้านคิวงาน — เจ้าของคำถาม "ได้เงินยัง" คือบัญชี `OrderPayment` ไม่ใช่ธงใบเดียวของ 00062 */
   const isServiceQueue = vertical === 'SERVICE_QUEUE'
@@ -306,7 +315,7 @@ export default function OrderDetailClient({
    * ไม่ซ่อนตามเกณฑ์ที่จอเดาเอง — แสดงเสมอ (ยกเว้นใบยกเลิก/ร้านที่ไม่ขายของ) แล้วให้ชีต
    * บอกเหตุผลจาก `canCreateReturn()` ตัวเดียว ไม่งั้นสองที่ตัดสินไม่ตรงกันวันที่เกณฑ์เปลี่ยน
    */
-  const withReturn =
+  const withReturnOnly =
     isOnlineSales && status !== 'CANCELLED'
       ? {
           ...baseActionSet,
@@ -316,6 +325,24 @@ export default function OrderDetailClient({
           ],
         }
       : baseActionSet
+
+  /**
+   * feature 00065 — ใบเสร็จรับเงินของร้านบริการ อยู่ในเมนู ⋯ แบบเดียวกับ "คืนของ" (vertical-gated)
+   * เงื่อนไขมาจาก `showReceiptButton` ที่เดียว (ใบที่ออกแล้วเปิดได้แม้ยกเลิกภายหลัง — BR-RCP-09)
+   */
+  const withReturn = showReceiptButton({ vertical, status, hasReceipt: Boolean(receiptNo) })
+    ? {
+        ...withReturnOnly,
+        menu: [
+          {
+            key: 'print-receipt',
+            label: receiptNo ? 'ดูใบเสร็จ' : receiptBusy ? 'กำลังออกใบเสร็จ...' : 'พิมพ์ใบเสร็จ',
+            icon: receiptNo ? 'receipt' : 'printer',
+          },
+          ...withReturnOnly.menu,
+        ],
+      }
+    : withReturnOnly
 
   /**
    * "รับเงินแล้ว" ขึ้นเป็น **ปุ่มหลัก** และดันตัวเดิมลงไปเป็นปุ่มรอง (ไม่ทิ้ง)
@@ -596,12 +623,49 @@ export default function OrderDetailClient({
     }
   }
 
+  /**
+   * feature 00065 — ออกเลขครั้งแรก (idempotent ที่ server) แล้วไปหน้าพิมพ์ในแท็บเดิม
+   * แท็บใหม่ใน WebView ของแอปมักถูกบล็อกหรือหลุด session (UX spec S1)
+   */
+  const handlePrintReceipt = async () => {
+    const target = `/orders/${publicToken}/receipt`
+    if (receiptNo) {
+      router.push(target)
+      return
+    }
+    if (receiptBusy) return
+    setReceiptBusy(true)
+    try {
+      const res = await fetch(`/api/orders/${publicToken}/receipt`, { method: 'POST' })
+      if (res.ok) {
+        router.push(target)
+        return
+      }
+      const code = (await res.json().catch(() => ({})))?.error
+      // บอกให้ลองใหม่เฉพาะกรณีที่ลองใหม่แล้วมีโอกาสผ่าน (บทเรียน iShip "ลองใหม่" ที่ไม่มีวันผ่าน)
+      if (code === 'ORDER_NOT_ISSUABLE') {
+        pacesToast.error(`${vocab.noun}นี้ถูกยกเลิกแล้ว จึงออกใบเสร็จไม่ได้`)
+        router.refresh()
+      } else if (code === 'NOT_SERVICE_SHOP') {
+        pacesToast.error('ใบเสร็จใช้ได้เฉพาะร้านประเภทสินค้าและบริการ')
+      } else {
+        pacesToast.error('ออกใบเสร็จไม่สำเร็จ กรุณาลองใหม่')
+      }
+    } catch {
+      pacesToast.error('ออกใบเสร็จไม่สำเร็จ กรุณาลองใหม่')
+    }
+    setReceiptBusy(false)
+  }
+
   // ปุ่ม action ทั้งหมดของหน้านี้ (StatusHero inline/stuck + OrderActionBar variant="bottom") วิ่งเข้า
   // handler เดียวนี้ผ่าน key จาก order-action-set.ts — ดูตาราง key → พฤติกรรมในรายงาน T11
   const handleAction = (key: string) => {
     switch (key) {
       case 'return-order':
         setReturnOpen(true)
+        return
+      case 'print-receipt':
+        void handlePrintReceipt()
         return
       case 'record-payment':
         setPayOpen(true)
@@ -705,6 +769,7 @@ export default function OrderDetailClient({
             serviceMoney={serviceMoney}
             actionSet={actionSet}
             createdAtISO={createdAtISO}
+            receiptNo={receiptNo}
             internalNote={internalNote}
             isCod={isCod}
             discount={discount}

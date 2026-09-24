@@ -63,12 +63,14 @@ export default async function FullscreenLayout({ children }: { children: React.R
   return (
     /* safe-area (2026-08-06, viewportFit:'cover'): shell นี้ fixed inset-0 = ทับเต็มจอจริง ๆ
        รวมพื้นที่ status bar/home indicator → เว้น inset ที่เปลือกชั้นเดียว ข้างในไม่ต้องรู้เรื่อง
-       (หัวหน้า FullscreenPageHeader เป็น sticky top-0 ของ main ซึ่งอยู่ใต้ padding นี้แล้ว) */
-    <div className="fixed inset-0 z-50 bg-card flex flex-col overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"> {/* carve-out: safe-area ไม่มี token */}
+       (หัวหน้า FullscreenPageHeader เป็น sticky top-0 ของ main ซึ่งอยู่ใต้ padding นี้แล้ว)
+       print:* (feature 00065 ใบเสร็จ) — เปลือก fixed+overflow-hidden ทำให้งานพิมพ์ถูกตัดเหลือเท่าจอ
+       โดยไม่มี error ใด ๆ ⇒ ตอนพิมพ์ปลดเป็น static/overflow-visible (มีผลเฉพาะ print media) */
+    <div className="fixed inset-0 z-50 bg-card flex flex-col overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] print:static print:block print:overflow-visible print:bg-transparent print:p-0"> {/* carve-out: safe-area ไม่มี token */}
       {/* scroll-pb-24: กัน element ที่ถูก scrollIntoView ไปนอนใต้แถบล่างที่ fixed อยู่ —
           ต้องอยู่ที่ "กล่องที่เลื่อน" เท่านั้น เขียนไว้ที่ลูก (เดิมอยู่บน <form>) ไม่มีผลใด ๆ */}
-      <main className="flex-1 overflow-y-auto scroll-pb-24">
-        <div className="w-full p-4 md:p-8">{children}</div>
+      <main className="flex-1 overflow-y-auto scroll-pb-24 print:overflow-visible">
+        <div className="w-full p-4 md:p-8 print:p-0">{children}</div>
       </main>
     </div>
   )

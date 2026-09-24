@@ -48,6 +48,8 @@ export type OrderSummaryProps = {
    *  (การ์ดการจัดส่งใต้หัวนี้พูดความจริงสด ๆ อยู่แล้ว สองอันต้องไม่ขัดกัน) */
   carrierStatus?: string | null
   createdAtISO: string
+  /** feature 00065 — เลขใบเสร็จที่ออกแล้ว แสดงเป็นข้อมูลอ่านอย่างเดียว (การพิมพ์อยู่ที่เมนู ⋯) */
+  receiptNo?: string | null
   salesChannel: string | null
   /** รูปเพจที่ลูกค้าทักมา — null = ใช้โลโก้แพลตฟอร์มเดิม (user 2026-08-06) */
   pageLogoUrl?: string | null
@@ -100,6 +102,7 @@ export default function OrderSummary({
   shippingStage,
   carrierStatus = null,
   createdAtISO,
+  receiptNo = null,
   salesChannel,
   pageLogoUrl = null,
   internalNote,
@@ -166,9 +169,16 @@ export default function OrderSummary({
             {/* ไม่มีชื่อผู้ซื้อตรงนี้แล้ว (user บอก 2026-08-06 ว่าซ้ำ) — การ์ด "ผู้ซื้อ" ขวามือ
                 เป็นเจ้าของข้อมูลคนซื้อ (รูป+ชื่อ+ที่มาของชื่อ+เบอร์+จำนวนครั้งที่สั่ง) หัวการ์ดนี้
                 ตอบคำถามคนละชุด: ใบไหน · มาจากช่องทางไหน · เมื่อไร · สถานะอะไร (= โครงเดิมของธีม) */}
-            <p className="text-default-700 mb-3.5 flex items-center gap-1 text-xs">
+            <p className="text-default-700 mb-3.5 flex flex-wrap items-center gap-1 text-xs">
               <Icon icon="calendar" className="align-middle" aria-hidden="true" />
               {formatDateTimeTH(createdAtISO)}
+              {/* recap panel = ข้อมูลเท่านั้น ห้ามเป็นปุ่ม (seller-action-placement.md §1) */}
+              {receiptNo ? (
+                <span className="text-default-700 inline-flex items-center gap-1 sm:ms-2">
+                  <Icon icon="receipt" className="align-middle" aria-hidden="true" />
+                  ใบเสร็จเลขที่ {receiptNo}
+                </span>
+              ) : null}
             </p>
             <div className="flex flex-wrap items-center gap-1.5">
               <span className={cn('badge badge-label text-2xs font-semibold', meta.cls)}>

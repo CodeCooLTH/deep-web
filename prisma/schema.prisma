@@ -134,6 +134,9 @@ model User {
   autoOrderConfigsCreated AutoOrderAgentConfig[] @relation("AutoOrderConfigsCreated")
   autoOrderConfigsUpdated AutoOrderAgentConfig[] @relation("AutoOrderConfigsUpdated")
 
+  // feature 00065 — ใครกดออกใบเสร็จ (audit เบา, pattern เดียวกับ Order.createdByUserId)
+  receiptsIssued OrderReceipt[] @relation("OrderReceiptIssuedBy")
+
   // cron account-purge สแกน "ถูกลบแล้วแต่ยังไม่ล้าง" ทุกคืน — index คู่นี้ทำให้ scan ไม่ full-table
   // (มิเรอร์ Shop_deletedAt_purgedAt_idx)
 
@@ -379,6 +382,11 @@ model Shop {
   customerFiles CustomerFile[] // ไฟล์ที่ทีมร้านคัดเข้าคลังของลูกค้าแต่ละราย
 
   autoOrderAgentConfig AutoOrderAgentConfig? // feature 00061 — ชุดตั้งค่าตัวสร้างออเดอร์อัตโนมัติ (1 ร้าน 1 ชุด)
+
+  // --- Service Receipt Printing (feature 00065, additive) ---
+  receiptProfile  ShopReceiptProfile? // ข้อมูลออกใบเสร็จของร้าน (1:1, optional)
+  orderReceipts   OrderReceipt[] // ใบเสร็จที่ออกแล้วทั้งหมดของร้านนี้ (denorm จาก Order.shopId)
+  receiptCounters ShopReceiptCounter[] // ตัวนับเลขที่ใบเสร็จรายเดือนของร้านนี้
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -1042,6 +1050,7 @@ model Order {
   shipmentTracking       ShipmentTracking?
   review                 Review?
   smsCodes               SmsCode[]
+  receipt                OrderReceipt? // feature 00065 — ใบเสร็จรับเงินของออเดอร์นี้ (1:1, ออกได้ครั้งเดียวต่อใบ)
   // NEW (feature 00022) — พัสดุที่เปิดกับขนส่งสำหรับออเดอร์นี้ (active ได้ **ขาไป 1 + ขากลับ 1**
   // บังคับด้วย partial unique index `OrderShipment_active_order_key` บน ("orderId","direction")
   // — unmanaged SQL ดู DATABASE.md §4 · เดิมเป็น ("orderId") ล้วน ซึ่งทำให้ระบบคืนของ 00056
@@ -4754,4 +4763,74 @@ model AutoOrderAgentTestThread {
 
   @@unique([configId, conversationId])
   @@index([conversationId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Service Receipt Printing (feature 00065, additive)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// ShopReceiptProfile — ข้อมูลออกใบเสร็จของร้าน (feature 00065) — 1:1 กับ Shop
+///
+/// 🛑 ทุกฟิลด์เป็น optional โดยเจตนา — ร้านที่ยังไม่ได้ตั้งค่าอะไรเลยยังพิมพ์ใบเสร็จได้
+/// (legalName=null → หน้าพิมพ์ fallback ไปใช้ Shop.shopName) หน้าตั้งค่าเป็นออปชันแยก
+/// ไม่ใช่ onboarding บังคับ — ไม่มีแถวของร้านไหน = ร้านนั้นยังไม่เคยเปิดหน้าตั้งค่านี้เลย
+model ShopReceiptProfile {
+  id        String  @id @default(uuid())
+  shopId    String  @unique
+  /// ชื่อที่ใช้ออกใบเสร็จ (นิติบุคคล/บุคคล) — null = ใช้ Shop.shopName แทน
+  legalName String?
+  address   String?
+  /// เลขผู้เสียภาษี 13 หลัก — CHECK บังคับรูปแบบที่ระดับ DB เป็น unmanaged SQL
+  /// (`ShopReceiptProfile_taxId_check`, NULL ผ่านได้เสมอ) ดู migration.sql
+  taxId     String?
+  phone     String?
+  /// ตราประทับ/ลายเซ็น — เก็บ storage key/fileId เดียวกับรูปแบบของ Shop.logo แสดงผ่าน toFileUrl()
+  stamp     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+}
+
+/// OrderReceipt — ใบเสร็จรับเงินที่ออกแล้วของออเดอร์ (feature 00065) — 1:1 กับ Order
+///
+/// เลขที่ใบเสร็จ (`receiptNo`) ออกด้วย ShopReceiptCounter แบบ atomic ในทรานแซกชันเดียวกับ
+/// insert แถวนี้ (`INSERT ... ON CONFLICT (shopId, period) DO UPDATE SET "lastSeq" = "lastSeq" + 1
+/// RETURNING "lastSeq"`) ⇒ ไม่ซ้ำ ไม่ข้าม แม้กดออกพร้อมกันหลายคำขอ — รูปแบบเลขคือ
+/// "CA" + period(YYYYMM ค.ศ. เวลาไทย) + lastSeq pad 4 หลัก เช่น CA2026090043 ประกอบที่ app layer
+/// (ไม่มี CHECK บังคับรูปแบบ receiptNo ที่ DB — ตัวที่บังคับความไม่ซ้ำจริงคือ unique(shopId, receiptNo) ด้านล่าง)
+model OrderReceipt {
+  id             String   @id @default(uuid())
+  orderId        String   @unique
+  /// denorm จาก Order.shopId — ไว้ query/unique เลขที่ใบเสร็จต่อร้านโดยไม่ต้อง join Order
+  shopId         String
+  receiptNo      String
+  issuedAt       DateTime @default(now())
+  /// ใครกดออกใบเสร็จ — audit เบา (pattern เดียวกับ Order.createdByUserId) — null = ไม่ทราบ/ออกโดยระบบ
+  issuedByUserId String?
+
+  order    Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shop     Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  issuedBy User? @relation("OrderReceiptIssuedBy", fields: [issuedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([shopId, receiptNo])
+  @@index([shopId, issuedAt]) // ประวัติใบเสร็จของร้าน เรียงตามเวลาออก
+}
+
+/// ShopReceiptCounter — ตัวนับเลขที่ใบเสร็จต่อร้านต่อเดือน (feature 00065)
+///
+/// PK composite (shopId, period) แทน id เดี่ยว เพราะแถวนี้ *คือ* ตัวนับของคู่ร้าน+เดือนนั้นโดยตรง
+/// ไม่มีตัวตนอื่นให้ต้องอ้างถึง — ออกเลขด้วย upsert อะตอมมิก (ดูคอมเมนต์ที่ OrderReceipt.receiptNo)
+model ShopReceiptCounter {
+  shopId  String
+  /// รูปแบบ YYYYMM (ปี ค.ศ., ตัดเดือนตามเวลาไทย) เช่น "202609" — CHECK รูปแบบเป็น unmanaged SQL
+  /// (`ShopReceiptCounter_period_check`) ดู migration.sql
+  period  String
+  /// เลขลำดับล่าสุดที่ออกไปแล้วของคู่ (shopId, period) นี้ — CHECK (`lastSeq > 0`) unmanaged SQL
+  lastSeq Int
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@id([shopId, period])
 }

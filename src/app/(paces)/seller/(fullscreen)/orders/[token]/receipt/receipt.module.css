@@ -1,0 +1,202 @@
+/*
+ * ใบเสร็จรับเงิน A4 (feature 00065)
+ *
+ * carve-out (HR7): นี่คือ "เอกสารพิมพ์" ไม่ใช่ chrome ของแอป — ต้องใช้หน่วยกายภาพ mm/pt
+ * ตาม CSS print spec และ Paces ไม่มี token ของขนาดกระดาษ จึงเขียนเป็น CSS Module
+ * (ปุ่ม/แถบเตือนรอบกระดาษยังเป็น class ของ Paces ตามปกติ — ดู page.tsx)
+ *
+ * สีเขียวเอกสาร (--doc-green) = asset ของใบเสร็จจริงที่ร้านส่งมา (HR6) ใช้ในไฟล์นี้เท่านั้น
+ * ห้ามหลุดไปใช้กับปุ่ม/badge ของแอป (สีแอป = token ของ Paces)
+ *
+ * ฟอนต์: สืบทอด Anuphan จาก root layout — ห้ามตั้ง font-family ที่นี่ (HR5)
+ */
+
+/* named page — @page ในไฟล์ CSS ใช้ทั้งเอกสาร และ Next ไม่ถอด CSS หลังเปลี่ยนหน้าแบบ client
+   ⇒ ถ้าไม่ตั้งชื่อ หน้าอื่นที่กด Ctrl+P ทีหลังจะเสียขอบกระดาษไปด้วย */
+@page receipt {
+  size: A4;
+  margin: 0;
+}
+
+.stack {
+  /* สีกระดาษตายตัว — token default-* ของ Paces กลับขาวดำใน dark mode แต่กระดาษพิมพ์ต้องขาวเสมอ */
+  --doc-green: #1f6b36; /* carve-out HR7: สีของใบเสร็จจริงที่ร้านส่งมา (HR6 asset) */
+  --paper: #fff; /* carve-out HR7: กระดาษพิมพ์ ไม่ตาม dark mode */
+  --ink: #1c1c1c; /* carve-out HR7: หมึกกระดาษ ไม่ตาม dark mode */
+  --ink-soft: #555; /* carve-out HR7: หมึกรอง ไม่ตาม dark mode */
+  --rule: #bdbdbd; /* carve-out HR7: เส้นตาราง ไม่ตาม dark mode */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.sheet {
+  position: relative;
+  box-sizing: border-box;
+  page: receipt;
+  width: 210mm;
+  /* min-height ไม่ใช่ height — รายการยาวต้องไหลไปหน้าถัดไป ไม่ใช่ถูกตัดยอดรวม/ลายเซ็นทิ้งเงียบ ๆ */
+  min-height: 297mm;
+  padding: 14mm 14mm 12mm;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 9.5pt;
+  line-height: 1.45;
+  box-shadow: var(--shadow-lg);
+}
+
+/* ย่อทั้งแผ่นให้พอดีจอมือถือด้วย CSS ล้วน — ห้ามวัด DOM ด้วย JS
+   (docs/conventions/measurement-must-not-decide-what-it-measures.md) */
+@media screen and (max-width: 860px) {
+  .sheet { zoom: 0.62; }
+}
+@media screen and (max-width: 540px) {
+  .sheet { zoom: 0.52; }
+}
+@media screen and (max-width: 420px) {
+  .sheet { zoom: 0.42; }
+}
+@media screen and (max-width: 380px) {
+  .sheet { zoom: 0.36; }
+}
+
+@media print {
+  .stack { gap: 0; display: block; }
+  /* 296mm ไม่ใช่ 297 — Chrome ปัดเศษแล้วดันแผ่นสุดท้ายเกินมาเป็นหน้าว่าง */
+  .sheet { zoom: 1; min-height: 296mm; box-shadow: none; break-after: page; }
+  .sheet:last-child { break-after: auto; }
+}
+
+/* สามเหลี่ยมเลขหน้ามุมขวาบน — ตามใบจริง */
+.corner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 22mm;
+  height: 22mm;
+  background: var(--doc-green);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.cornerNo {
+  position: absolute;
+  top: 3mm;
+  right: 4mm;
+  color: var(--paper);
+  font-size: 14pt;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: 1fr 78mm;
+  gap: 8mm;
+}
+.logo {
+  max-height: 22mm;
+  max-width: 80mm;
+  object-fit: contain;
+  margin-bottom: 2mm;
+}
+.titleBlock { text-align: center; padding-top: 4mm; }
+.title { color: var(--doc-green); font-size: 20pt; line-height: 1.2; }
+.copyLabel { color: var(--doc-green); font-size: 9pt; }
+.metaGrid {
+  display: grid;
+  grid-template-columns: 22mm 1fr;
+  row-gap: 0.5mm;
+  margin-top: 3mm;
+  padding: 3mm 2mm;
+  border-top: 0.3mm solid var(--rule);
+  border-bottom: 0.3mm solid var(--rule);
+  text-align: left;
+}
+.label { color: var(--doc-green); }
+
+.customer { margin-top: 5mm; }
+
+.items {
+  width: 100%;
+  margin-top: 6mm;
+  border-collapse: collapse;
+}
+.items th {
+  font-weight: 500;
+  padding: 1.5mm 2mm;
+  border-top: 0.3mm solid var(--rule);
+  border-bottom: 0.3mm solid var(--rule);
+}
+.items td {
+  padding: 2mm;
+  vertical-align: top;
+}
+.items tr { break-inside: avoid; }
+.items tbody tr:last-child td { border-bottom: 0.3mm solid var(--rule); }
+.num { text-align: right; white-space: nowrap; }
+.center { text-align: center; }
+.desc { color: var(--ink-soft); white-space: pre-line; }
+
+.totals {
+  display: grid;
+  grid-template-columns: 1fr auto 32mm;
+  column-gap: 6mm;
+  row-gap: 3mm;
+  margin-top: 5mm;
+  align-items: end;
+}
+.totals .label { text-align: right; }
+.totalWords { grid-column: 1; }
+
+.footer { margin-top: auto; padding-top: 8mm; break-inside: avoid; } /* ลายเซ็นไม่ถูกแยกข้ามหน้าเมื่อรายการยาว */
+.payRow { display: flex; flex-wrap: wrap; align-items: center; gap: 3mm 5mm; }
+.box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.2mm;
+  height: 4.2mm;
+  margin-right: 1.5mm;
+  border: 0.3mm solid var(--ink-soft);
+  border-radius: 1mm; /* หน่วยกระดาษ ≈ rounded.sm (4px) */
+  font-size: 9pt;
+  line-height: 1;
+  vertical-align: middle;
+}
+.fillRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4mm;
+  margin-top: 4mm;
+}
+.fill { display: flex; gap: 1.5mm; white-space: nowrap; }
+.fill::after { content: ''; flex: 1; border-bottom: 0.3mm dotted var(--ink-soft); }
+
+.signArea {
+  display: grid;
+  grid-template-columns: 1fr 34mm 1fr;
+  margin-top: 7mm;
+}
+.signSide { display: flex; flex-direction: column; justify-content: space-between; min-height: 30mm; }
+.signSideRight { text-align: right; }
+.stamp { width: 30mm; height: 30mm; object-fit: contain; justify-self: center; }
+.lines { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+.line { border-top: 0.3mm solid var(--ink-soft); padding-top: 1mm; text-align: center; }
+
+/* ลายน้ำ "ยกเลิก" (BR-RCP-09) — สีอันตรายของธีม ไม่ตั้ง hex ใหม่ */
+.void {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: var(--color-danger);
+  opacity: 0.16;
+  font-size: 90pt;
+  font-weight: 700;
+  transform: rotate(-30deg);
+}

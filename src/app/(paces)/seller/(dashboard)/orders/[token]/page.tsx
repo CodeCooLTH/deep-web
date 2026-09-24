@@ -37,6 +37,7 @@ import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { prisma } from '@/lib/prisma'
 import { getOrderForShop } from '@/services/order.service'
+import { getReceiptNoForOrder } from '@/services/receipt.service'
 import { getActiveReturnForTimeline } from '@/services/order-return.service'
 import { computeOrderMoneyFromSerialized, hasMoneyStory } from '@/lib/order-payment'
 import { resolveServiceOrderBadge } from '@/lib/order-display'
@@ -120,6 +121,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // cast any เพื่อรองรับ field ที่เข้าถึงแบบ dynamic (เช่น order.buyer ที่ไม่มีใน Prisma include)
   // runtime จะ return undefined ตามปกติ — ไม่กระทบ logic
   const order: any = orderRaw
+  // feature 00065 — ไม่กั้นด้วย vertical: ใบที่ออกแล้วต้องเปิดได้เสมอ (BR-RCP-09) · query เดียวบน unique index
+  const receiptNo = await getReceiptNoForOrder(orderRaw.id)
 
   /**
    * เงินที่ได้รับจริงของใบนี้ (feature 00050) — null = ไม่มีเรื่องเงินให้พูดถึง
@@ -473,6 +476,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
         paymentConfirmedByLabel={null}
         // feature 00062 (U16) — ส่งให้ order-action-set.ts คำนวณ isPickupHandedOver (แถบล่าง <1024)
         handedOverAtISO={order.handedOverAt ? (order.handedOverAt as Date).toISOString() : null}
+        // feature 00065 — เลขใบเสร็จที่ออกแล้ว (เมนู ⋯ "พิมพ์ใบเสร็จ"/"ดูใบเสร็จ")
+        receiptNo={receiptNo}
         shippingActivity={<ShippingActivity events={orderEvents} orderNoun={vocab.noun} createLabel={vocab.createLabel} />}
         customerCard={
           <CustomerDetails

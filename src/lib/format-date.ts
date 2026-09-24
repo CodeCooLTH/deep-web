@@ -89,6 +89,19 @@ export function orderPeriodTH(input: Date | string | number | null | undefined):
 }
 
 /**
+ * "202609" — ปี ค.ศ. + เดือน (timezone ไทย) สำหรับรอบนับเลขที่ใบเสร็จ (feature 00065)
+ *
+ * ต่างจาก `orderPeriodTH` ที่ใช้ พ.ศ. โดยตั้งใจ — เลขที่ใบเสร็จ `CA2026090043` ยึดรูปแบบใบเสร็จจริง
+ * ของร้าน (PRD 00065 §4.3) ไม่ใช่วันที่ที่ผู้ใช้อ่าน · วางติดกันตาม Hard Rule 16
+ */
+export function receiptPeriodTH(input: Date | string | number): string {
+  const d = toValidDate(input)
+  if (!d) return ''
+  const p = partsInBangkok(d)
+  return `${p.year}${p.month}`
+}
+
+/**
  * "2026/07/25" — เส้นทางโฟลเดอร์ชาร์ดไฟล์อัปโหลด ปี ค.ศ./เดือน/วัน (timezone ไทย)
  * NOTE: ใช้ ค.ศ. (Gregorian) ไม่ใช่ พ.ศ. — path เก็บไฟล์ควรเป็นปีสากล; กันไฟล์กองรวมโฟลเดอร์เดียว
  * (storage: uploads/YYYY/MM/DD/uuid.ext). caller ส่ง `new Date()` เข้ามา (runtime — pure ที่นี่)

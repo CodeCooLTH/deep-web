@@ -20,6 +20,8 @@ import SignOutCard from './components/SignOutCard'
 import { BUSINESS_DELETE_RETENTION_DAYS } from '@/lib/business-package'
 import { shouldHidePayments } from '@/lib/app-shell-server'
 import ShopQuickLinks from './components/ShopQuickLinks'
+import ShopReceiptProfileField from './components/ShopReceiptProfileField'
+import { getReceiptProfile } from '@/services/receipt.service'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDateTime } from '@/lib/format-date'
 import { verticalRequiresStorefrontLocation } from '@/lib/lodging'
@@ -70,6 +72,8 @@ export default async function ShopSettingsPage() {
   }
 
   const isExisting = !!shop
+  const receiptProfileSetup =
+    isExisting && shop.vertical === 'SERVICE_QUEUE' ? { profile: await getReceiptProfile(shop.id) } : null
 
   /**
    * URL หน้าร้านสาธารณะ (feature: ที่ตั้ง slug 2026-08-07) — คำนวณที่ server เพราะต้องข้าม
@@ -152,6 +156,12 @@ export default async function ShopSettingsPage() {
             : undefined
         }
       />
+
+      {/* feature 00065 — ข้อมูลออกใบเสร็จ เฉพาะร้านบริการ (ร้านอื่นไม่มีการ์ดนี้เลย ไม่ใช่ disabled)
+          ตรวจ vertical ซ้ำที่ server (updateReceiptProfile) เสมอ */}
+      {receiptProfileSetup ? (
+        <ShopReceiptProfileField shopName={shop.shopName} profile={receiptProfileSetup.profile} />
+      ) : null}
 
       {/* รายการ "จัดการร้าน" + ออกจากระบบ — เฉพาะ <1024px
           `.seller-mobile-shell` ซ่อน TopBar + Sidenav บนจอเล็ก ซึ่งเป็นที่อยู่ของทั้งเมนูร้าน
