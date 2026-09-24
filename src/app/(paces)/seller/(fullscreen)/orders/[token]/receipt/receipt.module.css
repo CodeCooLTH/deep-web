@@ -5,7 +5,9 @@
  * ตาม CSS print spec และ Paces ไม่มี token ของขนาดกระดาษ จึงเขียนเป็น CSS Module
  * (ปุ่ม/แถบเตือนรอบกระดาษยังเป็น class ของ Paces ตามปกติ — ดู page.tsx)
  *
- * สีเขียวเอกสาร (--doc-green) = asset ของใบเสร็จจริงที่ร้านส่งมา (HR6) ใช้ในไฟล์นี้เท่านั้น
+ * สีเน้นเอกสาร (--doc-accent) = น้ำเงินหลักของ Deep (#236dc9 = --color-primary ของ skin ตั้งต้น)
+ * user เลือก 2026-09-24 แทนเขียวของใบ BT Premium (สีของร้านเดียวไม่ควรติดไปทุกร้าน)
+ * ปักค่าตายตัว ไม่อ่าน var(--color-primary) เพราะ skin อื่น/dark mode เปลี่ยนค่านั้น แต่กระดาษต้องเหมือนเดิมเสมอ
  * ห้ามหลุดไปใช้กับปุ่ม/badge ของแอป (สีแอป = token ของ Paces)
  *
  * ฟอนต์: สืบทอด Anuphan จาก root layout — ห้ามตั้ง font-family ที่นี่ (HR5)
@@ -20,7 +22,7 @@
 
 .stack {
   /* สีกระดาษตายตัว — token default-* ของ Paces กลับขาวดำใน dark mode แต่กระดาษพิมพ์ต้องขาวเสมอ */
-  --doc-green: #1f6b36; /* carve-out HR7: สีของใบเสร็จจริงที่ร้านส่งมา (HR6 asset) */
+  --doc-accent: #236dc9; /* carve-out HR7: น้ำเงิน Deep ตายตัว — กระดาษไม่ตาม skin/dark mode */
   --paper: #fff; /* carve-out HR7: กระดาษพิมพ์ ไม่ตาม dark mode */
   --ink: #1c1c1c; /* carve-out HR7: หมึกกระดาษ ไม่ตาม dark mode */
   --ink-soft: #555; /* carve-out HR7: หมึกรอง ไม่ตาม dark mode */
@@ -77,7 +79,7 @@
   right: 0;
   width: 22mm;
   height: 22mm;
-  background: var(--doc-green);
+  background: var(--doc-accent);
   clip-path: polygon(0 0, 100% 0, 100% 100%);
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
@@ -102,8 +104,8 @@
   margin-bottom: 2mm;
 }
 .titleBlock { text-align: center; padding-top: 4mm; }
-.title { color: var(--doc-green); font-size: 20pt; line-height: 1.2; }
-.copyLabel { color: var(--doc-green); font-size: 9pt; }
+.title { color: var(--doc-accent); font-size: 20pt; line-height: 1.2; }
+.copyLabel { color: var(--doc-accent); font-size: 9pt; }
 .metaGrid {
   display: grid;
   grid-template-columns: 22mm 1fr;
@@ -114,7 +116,7 @@
   border-bottom: 0.3mm solid var(--rule);
   text-align: left;
 }
-.label { color: var(--doc-green); }
+.label { color: var(--doc-accent); }
 
 .customer { margin-top: 5mm; }
 

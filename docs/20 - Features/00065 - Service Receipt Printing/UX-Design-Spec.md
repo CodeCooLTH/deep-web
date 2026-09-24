@@ -1,5 +1,7 @@
 # Design Spec: 00065 — Service Receipt Printing
 
+> 🛑 **แก้มติ 2026-09-24:** ทุกที่ในเอกสารนี้ที่พูดถึง "สีเขียวเอกสาร" / `docGreen` / `#1F6B36` ให้อ่านเป็น **น้ำเงิน Deep `#236dc9`** (`--doc-accent` ใน `receipt.module.css`) — user เลือกเพราะเขียวเป็นสีของร้าน BT Premium ร้านเดียว. ยังปักค่าตายตัว (ไม่อ่าน `var(--color-primary)`) เพราะ skin/dark mode เปลี่ยนค่านั้นแต่กระดาษต้องคงที่
+
 > Worktree: `/Users/craftman/Projects/safepay-receipt` (read-only). ทุก path อ้างอิงจาก root นี้.
 
 ---
