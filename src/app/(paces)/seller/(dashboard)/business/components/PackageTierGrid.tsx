@@ -20,6 +20,9 @@ import Icon from '@/components/wrappers/Icon'
 import {
   BUSINESS_PACKAGE_TIER_CONFIG,
   TIER_ORDER,
+  /* 🛑 คำบรรยายสิทธิ์ย้ายไปเป็น SSOT ที่ `lib/business-package` แล้ว (Apple 3.1.2(c) 2026-09-24)
+     — จอขายในแอปต้องใช้ข้อความชุดเดียวกัน ห้ามก็อปกลับมาเขียนในไฟล์นี้อีก */
+  tierQuotaFeatures,
   type BusinessPackageTier,
   type BusinessPackageStatusApp,
 } from '@/lib/business-package'
@@ -38,17 +41,6 @@ export interface PackageTierGridProps {
 // ตัวเลข 0/0 ตรงตาม Design Spec Constants: "Free ฿0(0/-)"
 const FREE_TIER = { priceBaht: 0, maxBusinesses: 0, maxAdminsPerBusiness: null as number | null, label: 'Free' }
 
-function quotaFeatures(maxBusinesses: number | null, maxAdminsPerBusiness: number | null): string[] {
-  if (maxBusinesses === 0) {
-    return ['ใช้ Personal shop ได้ตามปกติ (ฟรีตลอดไป)', 'สร้าง Business account ไม่ได้']
-  }
-  return [
-    `สร้างได้ ${maxBusinesses === null ? 'ไม่จำกัด' : maxBusinesses} ธุรกิจ`,
-    `${maxAdminsPerBusiness === null ? 'ไม่จำกัด' : maxAdminsPerBusiness} ผู้ดูแลต่อธุรกิจ`,
-    'Product/Order/Wallet แยกเป็นของตัวเอง',
-  ]
-}
-
 const TIERS: { tier: BusinessPackageTier; label: string }[] = [
   { tier: 'GROWTH', label: 'Growth' },
   { tier: 'PRO', label: 'Pro' },
@@ -65,7 +57,7 @@ export default function PackageTierGrid({ statusApp, currentTier, ownedBusinesse
       <TierCard
         label="Free"
         price={FREE_TIER.priceBaht}
-        features={quotaFeatures(FREE_TIER.maxBusinesses, FREE_TIER.maxAdminsPerBusiness)}
+        features={tierQuotaFeatures(FREE_TIER.maxBusinesses, FREE_TIER.maxAdminsPerBusiness)}
         isCurrent={statusApp === 'NOT_SUBSCRIBED'}
         cta={
           statusApp === 'NOT_SUBSCRIBED' ? null : isActive ? (
@@ -109,7 +101,7 @@ export default function PackageTierGrid({ statusApp, currentTier, ownedBusinesse
             key={tier}
             label={label}
             price={config.priceBaht}
-            features={quotaFeatures(config.maxBusinesses, config.maxAdminsPerBusiness)}
+            features={tierQuotaFeatures(config.maxBusinesses, config.maxAdminsPerBusiness)}
             isCurrent={isCurrent}
             cta={cta}
           />
