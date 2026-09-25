@@ -575,3 +575,197 @@ fixed เหนือเมนูล่าง (user: *"ปุ่มเหมื�
 - **ไม่ได้ผ่าน `safepay-ux` (HR8) และ `/impeccable critique`** — session ห้ามเรียก subagent
   (หนี้เดียวกับ 3 รอบก่อนหน้า)
 - soft delete ยังไม่ปล่อยคอลัมน์ unique คืน (จงใจ — ดู convention doc)
+
+---
+
+# ภาคผนวก 7 (2026-09-25) — Sign in with Apple ต้องเป็น "แผ่นของระบบ" ไม่ใช่หน้าเว็บ
+
+> สถานะ: **เอกสารออกแบบ เขียนก่อนลงมือ** (Hard Rule 11) · หัวข้อ "การพิสูจน์" เติมหลังทำเสร็จ
+
+## ที่มา — Apple ตีกลับ 2026-09-24 · Guideline 4 (Design)
+
+ทีมรีวิวแนบภาพหน้าจอมา 3 ใบ ทุกใบเป็นหน้า **`appleid.apple.com`** ที่ถาม
+*"Email or Phone Number"* พร้อมช่องรหัสผ่าน — คือหน้าเว็บของ Apple ที่โหลดอยู่ใน WebView
+ของเรา ไม่ใช่แผ่น (sheet) ที่ระบบ iOS เปิดให้แล้วยืนยันด้วย Face ID
+
+Apple ต้องการให้แอป iOS เรียก **`AuthenticationServices` / `ASAuthorizationAppleIDProvider`**
+ของระบบ ⇒ ผู้ใช้เห็นแผ่นที่ใช้ Apple ID ที่ล็อกอินอยู่บนเครื่องอยู่แล้ว ไม่ต้องพิมพ์อะไรเลย
+
+## 🛑 "ทำหน้าใหม่แยกสำหรับแอป" แก้ไม่ได้ — คำถามแรกของหัวหน้า
+
+ปัญหาไม่ได้อยู่ที่ *หน้าไหน* แต่อยู่ที่ *ใครเป็นคนเปิดจอของ Apple*
+
+ปุ่มปัจจุบันอยู่ใน `SignInForm.tsx` และเรียก `signIn('apple')` ของ NextAuth ซึ่ง **บังคับ**
+พาไป `appleid.apple.com` เสมอ เพราะนั่นคือนิยามของ OAuth ฝั่งเว็บ ⇒ ต่อให้ทำหน้าใหม่
+สวยแค่ไหน ปลายทางก็ยังเป็นหน้าเว็บของ Apple อยู่ดี
+
+สิ่งเดียวที่เปลี่ยนผลลัพธ์ได้คือ **ให้โค้ด native เป็นคนเรียก API ของระบบ** แล้วส่งผลกลับเข้าเว็บ
+
+## ทางเลือกที่ไม่เลือก
+
+| ทางเลือก | ทำไมไม่เลือก |
+|---|---|
+| ถอดปุ่ม Apple/Facebook/LINE ออกจากแอป (เหลือรหัสผ่าน+OTP) | ข้อ 4.8 จะไม่บังคับอีกต่อไป ⇒ ข้อ 4 หายทั้งข้อ และ **แก้เว็บอย่างเดียว ไม่ต้อง build ใหม่** แต่ผู้ขายที่เข้าได้ทาง OAuth ทางเดียวจะเข้าแอปไม่ได้ — **หัวหน้าเคาะ 2026-09-25: "เราไม่เอาออกนิ"** |
+| ทำจอล็อกอิน native ทั้งจอ | ผิด Hard Rule 1 ของ `seller-webview` (ห้ามทำ UI เนื้อหาใน native) และได้ล็อกอิน 2 ชุดที่หลุด sync กัน |
+| ใช้ `ASWebAuthenticationSession` แทน WebView | ยังเป็นหน้าเว็บของ Apple เหมือนเดิม = โดนข้อเดิมซ้ำ |
+
+## 🛑 ข้อเท็จจริง 4 ข้อที่ตัดสินรูปร่างของงานนี้
+
+### 1. `aud` ของโทเคนจะเป็น **bundle id** ไม่ใช่ Services ID
+
+ทางเว็บ Apple ออกโทเคนให้ `aud = com.deepthailand.seller.web` (Services ID)
+ทาง native จะได้ `aud = com.deepthailand.seller` (bundle id)
+
+⇒ ตัวตรวจต้องรับ **ทั้งสองค่า** ไม่ใช่ค่าเดียว ไม่งั้นทางใดทางหนึ่งพังทันที
+(ยืนยันจากเธรด Apple Developer #706607 ซึ่งเจอ `invalid_grant` เพราะสลับสองค่านี้)
+
+### 2. `sub` จะเท่ากันก็ต่อเมื่อ **จัดกลุ่ม identifier ไว้แล้ว**
+
+`sub` คือสิ่งที่เราเก็บใน `AuthAccount.providerAccountId` ⇒ ถ้าค่าที่ได้จาก native
+ไม่ตรงกับที่ผูกไว้ทางเว็บ **ผู้ขายที่เคยเชื่อม Apple จะกลายเป็นคนละบัญชี**
+
+เอกสารของ Apple (*Group apps for Sign in with Apple*) เขียนว่า
+> "Your users will need to provide consent for their information to be shared with you.
+> To ensure this is only done once for each of your related apps or websites, we recommend
+> grouping related identifiers together."
+
+การให้ความยินยอม "ครั้งเดียว" ข้ามแอปกับเว็บ เป็นไปได้ก็ต่อเมื่อ Apple มองว่าเป็นคนเดียวกัน
+
+🛑 **แต่ห้ามเดิมพันกับการอนุมานนี้** ⇒ ออกแบบให้ **ล้มแบบปลอดภัย**:
+โทเคน native ที่หา `AuthAccount` ไม่เจอ **ห้ามสร้างบัญชีใหม่** ให้ตกลงทาง
+`needsRegistration` เดิมซึ่งในแอปถูกปิดอยู่แล้ว (Guideline 3.1.1 · `shouldBlockAppRegistration`)
+⇒ กรณีแย่สุดคือผู้ขายเห็น "ยังไม่มีบัญชีผู้ขาย" ซึ่ง **ดังและย้อนกลับได้**
+ไม่ใช่บัญชีซ้ำเงียบ ๆ ที่แก้ไม่ได้
+
+### 3. identity token ใช้ **JWKS** ไม่ใช่ `x5c` ⇒ `apple/jws.ts` ใช้ไม่ได้
+
+`jws.ts` ที่มีอยู่ตรวจใบเสร็จ StoreKit ซึ่ง Apple แนบห่วงโซ่ใบรับรองมาในโทเคน (`x5c`, ES256)
+ส่วน identity token ของ Sign in with Apple เป็น **RS256** ที่ต้องไปดึงกุญแจจาก
+`https://appleid.apple.com/auth/keys` แล้วจับคู่ด้วย `kid`
+
+⇒ ต้องเขียนตัวตรวจใหม่ **ห้ามดัดแปลง `jws.ts`** (คนละกลไก คนละความเสี่ยง)
+และ **ไม่เพิ่ม dependency**: Node 22 มี `crypto.createPublicKey({ key: jwk, format: 'jwk' })`
+ครบแล้ว — เหตุผลเดียวกับที่ `jws.ts` เขียนไว้เองว่าทำไมไม่ใช้ไลบรารี JOSE
+(`jose` มีใน `node_modules` แต่ติดมาทาง next-auth เท่านั้น **ห้ามพึ่ง** — `server-api.ts:22`
+เขียนเตือนไว้เองแล้ว)
+
+### 4. ชื่อผู้ใช้ Apple ส่งมา **ครั้งเดียวตลอดชีพของบัญชี**
+
+กับดักเดิมที่ทำให้โดนตีกลับ 2 รอบ (2026-08-19 · 08-21) ⇒ ฝั่ง native ก็เหมือนกัน:
+`fullName` มาเฉพาะครั้งแรกสุดที่ผู้ใช้ยินยอม ครั้งถัดไปเป็น `null`
+⇒ ต้องส่งชื่อผ่านสะพานไปด้วยตั้งแต่ครั้งแรก และฝั่งเว็บต้องใช้กลไก
+`takeAppleSignupName` ตัวเดิม ห้ามเขียนทางใหม่
+
+## สถาปัตยกรรม
+
+```mermaid
+sequenceDiagram
+    participant U as ผู้ขาย
+    participant W as หน้าเว็บ (ใน WebView)
+    participant N as เปลือก native
+    participant A as ระบบ iOS / Apple
+    participant S as เซิร์ฟเวอร์ deep-web
+
+    Note over W: อ่าน window.__DEEP_NATIVE_CAPS__<br/>ถ้าไม่มี 'apple-signin' → ใช้ signIn('apple') แบบเดิม
+    U->>W: กดปุ่ม "เข้าสู่ระบบด้วย Apple"
+    W->>N: postMessage deep:apple-signin (requestId, nonce)
+    N->>A: AppleAuthentication.signInAsync(nonce ที่ hash แล้ว)
+    A-->>U: แผ่นของระบบ + Face ID
+    A-->>N: identityToken (JWT) + fullName (ครั้งแรกเท่านั้น)
+    N->>W: __DEEP_APPLE_RESULT__ + event deep:apple-result
+    W->>S: signIn('apple-native', identityToken, nonce, name)
+    S->>A: ดึง JWKS (แคชไว้) แล้วตรวจลายเซ็น RS256
+    S->>S: ตรวจ iss/aud/exp/nonce → หา AuthAccount ตาม sub
+    S-->>W: ตั้ง session แล้วพาไปปลายทาง
+```
+
+## สัญญาข้ามรีโป
+
+🛑 ไฟล์คู่แฝดคนละรีโป ไม่มี type ตัวไหนเชื่อมให้ — ชื่อต่างกันแม้ตัวเดียวจะ **เงียบสนิท
+โดยไม่มี error** (บทเรียนเดิมของ `deep:push-permission` และ `deep:iap-result`)
+⇒ ค่าคงที่ทุกตัวต้องมีเทสปักหมุดทั้งสองฝั่ง
+
+| ทิศทาง | ช่อง | ค่า |
+|---|---|---|
+| เว็บ → แอป | `ReactNativeWebView.postMessage` | `{ type: 'deep:apple-signin', requestId, nonce }` |
+| แอป → เว็บ | ตัวแปร | `window.__DEEP_APPLE_RESULT__` |
+| แอป → เว็บ | event | `deep:apple-result` |
+| แอป → เว็บ | ความสามารถ | `window.__DEEP_NATIVE_CAPS__` + event `deep:native-caps` |
+
+ผลลัพธ์ที่ native ส่งกลับ:
+
+```
+{ requestId, ok: true,  identityToken, nonce, fullName?: { givenName?, familyName? }, email? }
+{ requestId, ok: false, reason: 'CANCELLED' | 'UNAVAILABLE' | 'FAILED' }
+```
+
+🛑 **ตั้งค่าลง `window` ก่อน แล้วค่อยยิง event เสมอ** — ฝั่งเว็บอ่านค่าตอน event ยิง
+ไม่ใช่ตอน subscribe (กติกาเดียวกับ `iap-transport.ts` ซึ่งเขียนเหตุผลไว้แล้ว)
+
+🛑 **`nonce` ต้องสร้างฝั่งเว็บ ไม่ใช่ฝั่ง native** — ตัวที่ตรวจคือเซิร์ฟเวอร์ ถ้า native
+เป็นคนสร้าง โทเคนที่ถูกดักมาจะถูกเล่นซ้ำได้โดยเซิร์ฟเวอร์ไม่มีทางรู้ · Apple ใส่
+**SHA-256 ของ nonce** ลงโทเคน ⇒ ฝั่ง native ต้อง hash ก่อนส่งให้ Apple และฝั่งเซิร์ฟเวอร์
+ต้อง hash ค่าดิบแล้วเทียบ
+
+## เส้นทางถอย — ห้ามมีทางที่ปุ่มกดแล้วเงียบ
+
+| สถานการณ์ | พฤติกรรม |
+|---|---|
+| เปิดในเบราว์เซอร์ / Android | ไม่มี `ReactNativeWebView` ⇒ ใช้ `signIn('apple')` เดิมทันที ไม่รออะไรเลย |
+| แอปรุ่นเก่า (ยังไม่มีโมดูล native) | ไม่มี `apple-signin` ใน `__DEEP_NATIVE_CAPS__` ⇒ ใช้ทางเว็บเดิมทันที |
+| แผ่นระบบล้ม / ผู้ใช้กดยกเลิก | `CANCELLED` = เงียบ (ผู้ใช้ตั้งใจ) · `FAILED`/`UNAVAILABLE` = ถอยไปทางเว็บ |
+| native ไม่ตอบใน 60 วินาที | ถือเป็น `TIMEOUT` แล้วถอยไปทางเว็บ (กติกาเดียวกับ `iap-client`) |
+
+🛑 **ห้ามถอด `appleid.apple.com` / `idmsa.apple.com` ออกจาก `OAUTH_HOSTS` ของแอป** —
+เส้นทางถอยทุกเส้นข้างบนวิ่งผ่านโดเมนนั้น ถอดออก = เส้นทางถอยพังทั้งหมดพร้อมกัน
+(บั๊กคลาสเดียวกับภาคผนวก 2)
+
+## ขอบเขต — 2 จุด ไม่ใช่จุดเดียว
+
+| จุด | ไฟล์ | ทำอะไรกับโทเคน |
+|---|---|---|
+| หน้าล็อกอินผู้ขาย | `seller/auth/sign-in/components/SignInForm.tsx` | `signIn('apple-native', …)` |
+| การ์ด "วิธีเข้าสู่ระบบ" | `seller/(dashboard)/account/components/ConnectedAccountsClient.tsx` | `POST /api/account/link/apple-native` |
+
+🛑 **ต้องทำทั้งสองจุด** — ทีมรีวิวของ Apple เดินเข้าหน้า `/account` ได้ (เป็นที่ที่ปุ่ม
+"ลบบัญชี" อยู่ ซึ่ง Guideline 5.1.1(v) บังคับให้เขาไปตรวจ) ถ้าที่นั่นยังเป็นหน้าเว็บ
+จะโดนข้อเดิมซ้ำทั้งที่แก้หน้าล็อกอินไปแล้ว
+
+## สิ่งที่ต้องตั้งในพอร์ทัล Apple ก่อน (ทำด้วยมือ ไม่ใช่โค้ด)
+
+1. Certificates, Identifiers & Profiles → Identifiers → **`com.deepthailand.seller`**
+2. Capabilities → **Sign in with Apple** → Configure
+3. ต้องเป็น **primary** และมี **`com.deepthailand.seller.web` (Services ID) อยู่ในกลุ่ม**
+4. ถ้าไม่ได้จัดกลุ่มไว้ ⇒ `sub` จะไม่ตรงกัน (ดูข้อเท็จจริงข้อ 2)
+
+## รายการงานตามลำดับ
+
+| # | งาน | รีโป |
+|---|---|---|
+| 1 | เอกสารฉบับนี้ + sync `docs/SRS.md` | deep-web |
+| 2 | `src/lib/apple/identity-token.ts` — ดึง JWKS + ตรวจ RS256 + ตรวจ claim | deep-web |
+| 3 | `src/lib/apple-bridge-protocol.ts` — สัญญาข้ามรีโป (โมดูลบริสุทธิ์) | deep-web |
+| 4 | provider `apple-native` ใน `lib/auth.ts` + endpoint เชื่อมบัญชี | deep-web |
+| 5 | ต่อปุ่มทั้ง 2 จุด + เส้นทางถอย | deep-web |
+| 6 | เทส `[blocker]` + พิสูจน์ด้วย mutation | deep-web |
+| 7 | `expo-apple-authentication` + entitlement | deep-seller-app |
+| 8 | `src/features/apple-auth/` + ต่อเข้า `SellerWebView` | deep-seller-app |
+| 9 | build ใหม่ → TestFlight → เลือกบิลด์ → ส่งรีวิว | — |
+
+## ความเสี่ยงที่รู้ตัว
+
+- **ต้อง build ใหม่เสมอ** — `expo-apple-authentication` เป็นโมดูล native ⇒ `eas update` (OTA)
+  ไม่พอ ผู้ใช้ที่ยังไม่อัปเดตจะตกไปเส้นทางถอย (ทางเว็บ) ซึ่งยังใช้งานได้ปกติ
+- **`sub` ไม่ตรง** — กันด้วยการล้มแบบปลอดภัย (ข้อเท็จจริงข้อ 2) แต่ยังต้องยืนยันด้วยการ
+  ล็อกอินจริงด้วย Apple ID ที่เคยผูกไว้ทางเว็บ **ก่อน**ส่งรีวิว
+- **`APPLE_*` env ไม่เกี่ยวกับเส้นทาง native เลย** — ตัวตรวจใหม่ใช้กุญแจสาธารณะจาก JWKS
+  ⇒ ถ้าวันหนึ่ง `APPLE_PRIVATE_KEY` หมดอายุ ทางเว็บพังแต่ทาง native ยังใช้ได้
+  (ต่างจากที่เดาไว้ตอนแรก — ตรงนี้เป็นข้อดี ไม่ใช่ข้อเสีย)
+
+## การพิสูจน์
+
+> เติมหลังลงมือ
+
+## ยังไม่ได้ทำ
+
+> เติมหลังลงมือ
