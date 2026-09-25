@@ -52,8 +52,32 @@ export async function runAppleNativeSignIn(
   const transport = createWindowAppleTransport(win)
   if (!transport) return { kind: 'fallback-to-web' }
 
+  const doFetch = deps.fetchImpl ?? fetch
+
+  /**
+   * ขอ nonce จากเซิร์ฟเวอร์ก่อนเปิดแผ่น
+   *
+   * 🛑 เซิร์ฟเวอร์เก็บค่าเดียวกันไว้ในคุกกี้ httpOnly แล้วใช้ค่านั้นเป็นตัวเทียบ ⇒ หน้าเว็บ
+   * แก้ไม่ได้ และโทเคนเก่าที่ขโมยมาถือ nonce ของรอบอื่นจึงไม่มีวันตรง
+   * (ร่างแรกให้หน้าเว็บสุ่มเอง — เป็นด่านที่ดูเหมือนมีแต่ไม่กันอะไร ดู `start/route.ts`)
+   */
+  let nonce: string
+  try {
+    const startRes = await doFetch('/api/login/apple-native/start', {
+      method: 'POST',
+      credentials: 'include',
+    })
+    const startBody = (await startRes.json().catch(() => null)) as { nonce?: string } | null
+    if (!startRes.ok || typeof startBody?.nonce !== 'string' || startBody.nonce.length < 8) {
+      return { kind: 'fallback-to-web' }
+    }
+    nonce = startBody.nonce
+  } catch {
+    return { kind: 'fallback-to-web' }
+  }
+
   const client = createAppleNativeClient(transport, { timeoutMs: deps.timeoutMs })
-  const { result, nonce } = await client.signIn()
+  const result = await client.signIn(nonce)
 
   if (!result.ok) {
     /* ผู้ใช้ปัดทิ้งเอง = เขาเลือกที่จะไม่ล็อกอิน · เด้งไปหน้าเว็บของ Apple ต่อคือการ
@@ -61,7 +85,6 @@ export async function runAppleNativeSignIn(
     return result.reason === 'CANCELLED' ? { kind: 'cancelled' } : { kind: 'fallback-to-web' }
   }
 
-  const doFetch = deps.fetchImpl ?? fetch
   let res: Response
   try {
     res = await doFetch('/api/login/apple-native', {
@@ -69,12 +92,10 @@ export async function runAppleNativeSignIn(
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       /**
-       * 🛑 ส่ง `nonce` ที่ **เราสร้าง** ไม่ใช่ `result.nonce` ที่ native ส่งกลับมา —
-       * ถ้าใช้ค่าจาก native แอปที่ถูกแก้ไขจะกำหนด nonce เองได้ ซึ่งทำให้การกันเล่นซ้ำ
-       * หมดความหมายทั้งอัน (ตัว client เทียบสองค่านี้ให้แล้ว แต่การส่งค่าที่ถูกต้อง
-       * ต้องไม่พึ่งว่าด่านนั้นยังอยู่)
+       * 🛑 **ไม่ส่ง nonce ไปด้วย** — เซิร์ฟเวอร์อ่านจากคุกกี้ httpOnly ที่ตัวเองตั้งไว้
+       * ค่าที่ client ส่งมาจะถูกเมินทั้งหมด ซึ่งเป็นเหตุผลทั้งหมดที่ด่านนี้กันอะไรได้จริง
        */
-      body: JSON.stringify({ identityToken: result.identityToken, nonce }),
+      body: JSON.stringify({ identityToken: result.identityToken }),
     })
   } catch {
     /* เน็ตหลุดตอนยิงเข้าเซิร์ฟเวอร์ — ทางเว็บใช้เครือข่ายเดียวกันและน่าจะล้มเหมือนกัน

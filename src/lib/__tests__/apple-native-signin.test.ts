@@ -58,32 +58,59 @@ const okReply = (req: { requestId: string; nonce: string }) => ({
   nonce: req.nonce,
 })
 
-const jsonFetch = (body: unknown, status = 200) =>
-  vi.fn(async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch
+/** nonce ที่ "เซิร์ฟเวอร์" ออกให้ในเทส — ของจริงมาจากคุกกี้ httpOnly ที่ client แตะไม่ได้ */
+const SERVER_NONCE = 'nonce-ที่เซิร์ฟเวอร์ออกให้-0123456789'
+
+/**
+ * fetch จำลองที่ตอบ **สอง** ปลายทางตามของจริง:
+ *   `/start` → ออก nonce · ปลายทางหลัก → ผลการตรวจโทเคน
+ *
+ * คืนตัวนับแยกให้ด้วย เพราะเทสหลายเคสต้องพิสูจน์ว่า **ไม่เคยยิง** ปลายทางหลัก
+ */
+function fakeFetch(verifyBody: unknown, status = 200) {
+  const verifyCalls: RequestInit[] = []
+  const fn = vi.fn(async (url: unknown, init?: RequestInit) => {
+    if (String(url).endsWith('/start')) {
+      return new Response(JSON.stringify({ nonce: SERVER_NONCE }))
+    }
+    verifyCalls.push(init ?? {})
+    return new Response(JSON.stringify(verifyBody), { status })
+  })
+  return { fetchImpl: fn as unknown as typeof fetch, verifyCalls }
+}
 
 describe('[blocker] เส้นทางสำเร็จ', () => {
   it('ได้ตั๋วกลับมาเมื่อ native และเซิร์ฟเวอร์ผ่านทั้งคู่', async () => {
     const { win } = appWindow(okReply)
-    const out = await runAppleNativeSignIn({
-      win,
-      fetchImpl: jsonFetch({ ok: true, ticket: 'tkt-1' }),
+    const { fetchImpl } = fakeFetch({ ok: true, ticket: 'tkt-1' })
+    expect(await runAppleNativeSignIn({ win, fetchImpl })).toEqual({
+      kind: 'ticket',
+      ticket: 'tkt-1',
     })
-    expect(out).toEqual({ kind: 'ticket', ticket: 'tkt-1' })
   })
 
-  it('🛑 nonce ที่ส่งให้เซิร์ฟเวอร์ ต้องเป็นตัวที่ *เว็บ* สร้าง ไม่ใช่ที่ native ส่งกลับ', async () => {
-    /* ถ้าส่งค่าจาก native แอปที่ถูกแก้ไขจะกำหนด nonce เองได้ ⇒ การกันเล่นโทเคนซ้ำ
-       หมดความหมายทั้งอัน เพราะผู้โจมตีเลือกค่าที่ตัวเองเตรียมโทเคนไว้แล้วได้ */
+  it('🛑 nonce ที่ส่งให้ native ต้องเป็นตัวที่ *เซิร์ฟเวอร์* ออกให้ ไม่ใช่สุ่มเองฝั่งเว็บ', async () => {
+    /**
+     * ร่างแรกให้หน้าเว็บสุ่ม nonce เอง แล้วส่งมาพร้อมโทเคน — **กันการเล่นโทเคนซ้ำไม่ได้เลย**
+     * เพราะผู้โจมตีคุมทั้งสองฝั่งของการเทียบ (ส่งโทเคนที่ขโมยมา พร้อมค่า nonce ที่อ่านออกมา
+     * จากโทเคนใบนั้นเอง) · ตอนนี้เซิร์ฟเวอร์เก็บค่าไว้ในคุกกี้ httpOnly ที่หน้าเว็บแตะไม่ได้
+     */
     const { win, posted } = appWindow(okReply)
-    const fetchImpl = jsonFetch({ ok: true, ticket: 'tkt-1' })
+    const { fetchImpl, verifyCalls } = fakeFetch({ ok: true, ticket: 'tkt-1' })
     await runAppleNativeSignIn({ win, fetchImpl })
-    const body = JSON.parse(
-      (fetchImpl as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0][1]
-        .body as string,
-    )
     expect(posted).toHaveLength(1)
-    expect(body.nonce).toBe(posted[0].nonce)
-    expect(body.identityToken).toBe(TOKEN)
+    expect(posted[0].nonce).toBe(SERVER_NONCE)
+
+    /* 🛑 และ **ห้ามส่ง nonce กลับไปใน body** — ค่าที่ client ส่งมาต้องไม่มีผลต่อการตัดสิน */
+    const body = JSON.parse(verifyCalls[0].body as string)
+    expect(body).toEqual({ identityToken: TOKEN })
+  })
+
+  it('🛑 ขอ nonce ไม่สำเร็จ → ถอยไปทางเว็บ และห้ามเปิดแผ่นโดยไม่มี nonce', async () => {
+    const { win, posted } = appWindow(okReply)
+    const fetchImpl = vi.fn(async () => new Response('boom', { status: 500 })) as unknown as typeof fetch
+    expect(await runAppleNativeSignIn({ win, fetchImpl })).toEqual({ kind: 'fallback-to-web' })
+    expect(posted, 'เปิดแผ่นทั้งที่ยังไม่มี nonce = เปิดรอบที่เซิร์ฟเวอร์ตรวจไม่ได้').toHaveLength(0)
   })
 })
 
@@ -102,10 +129,9 @@ describe('[blocker] ทุกเส้นทางที่ไม่สำเร
   it('🛑 ผู้ใช้ปัดแผ่นทิ้ง → เงียบ และ **ห้ามยิงเข้าเซิร์ฟเวอร์**', async () => {
     /* เด้งไปหน้าเว็บของ Apple ต่อ = ไม่ฟังสิ่งที่ผู้ใช้เพิ่งบอก */
     const { win } = appWindow((req) => ({ requestId: req.requestId, ok: false, reason: 'CANCELLED' }))
-    const fetchImpl = jsonFetch({ ok: true, ticket: 'ไม่ควรถูกเรียก' })
-    const out = await runAppleNativeSignIn({ win, fetchImpl })
-    expect(out).toEqual({ kind: 'cancelled' })
-    expect(fetchImpl).not.toHaveBeenCalled()
+    const { fetchImpl, verifyCalls } = fakeFetch({ ok: true, ticket: 'ไม่ควรถูกเรียก' })
+    expect(await runAppleNativeSignIn({ win, fetchImpl })).toEqual({ kind: 'cancelled' })
+    expect(verifyCalls, 'ยิงโทเคนเข้าเซิร์ฟเวอร์ทั้งที่ผู้ใช้ยกเลิก').toHaveLength(0)
   })
 
   it('แผ่นระบบล้ม (FAILED) → ถอยไปทางเว็บ', async () => {
@@ -123,25 +149,20 @@ describe('[blocker] ทุกเส้นทางที่ไม่สำเร
     /* ถ้าตอบ fallback ผู้ใช้จะถูกพาไปหน้าเว็บของ Apple แล้ววนกลับมาที่เดิม
        — ทีมรีวิวของ Apple เดินเส้นนี้เสมอ เพราะเขาไม่มีบัญชี Deep */
     const { win } = appWindow(okReply)
-    const out = await runAppleNativeSignIn({
-      win,
-      fetchImpl: jsonFetch({ ok: false, reason: 'NO_ACCOUNT' }),
-    })
-    expect(out).toEqual({ kind: 'no-account' })
+    const { fetchImpl } = fakeFetch({ ok: false, reason: 'NO_ACCOUNT' })
+    expect(await runAppleNativeSignIn({ win, fetchImpl })).toEqual({ kind: 'no-account' })
   })
 
   it('เซิร์ฟเวอร์ปฏิเสธโทเคน → ถอยไปทางเว็บ (ทางเว็บไม่ได้รับผลจากการตั้งค่าที่ผิด)', async () => {
     const { win } = appWindow(okReply)
-    const out = await runAppleNativeSignIn({
-      win,
-      fetchImpl: jsonFetch({ ok: false, reason: 'INVALID_TOKEN' }, 401),
-    })
-    expect(out).toEqual({ kind: 'fallback-to-web' })
+    const { fetchImpl } = fakeFetch({ ok: false, reason: 'INVALID_TOKEN' }, 401)
+    expect(await runAppleNativeSignIn({ win, fetchImpl })).toEqual({ kind: 'fallback-to-web' })
   })
 
   it('เน็ตหลุดตอนยิงเข้าเซิร์ฟเวอร์ → ถอยไปทางเว็บ ไม่ throw ออกไปให้หน้าพัง', async () => {
     const { win } = appWindow(okReply)
-    const fetchImpl = vi.fn(async () => {
+    const fetchImpl = vi.fn(async (url: unknown) => {
+      if (String(url).endsWith('/start')) return new Response(JSON.stringify({ nonce: SERVER_NONCE }))
       throw new Error('offline')
     }) as unknown as typeof fetch
     expect(await runAppleNativeSignIn({ win, fetchImpl })).toEqual({ kind: 'fallback-to-web' })
@@ -164,15 +185,15 @@ describe('[blocker] ทุกเส้นทางที่ไม่สำเร
       identityToken: TOKEN,
       nonce: 'nonce-ที่เปลือกกำหนดเอง',
     }))
-    const fetchImpl = jsonFetch({ ok: true, ticket: 'ไม่ควรถูกเรียก' })
+    const { fetchImpl, verifyCalls } = fakeFetch({ ok: true, ticket: 'ไม่ควรถูกเรียก' })
     expect(await runAppleNativeSignIn({ win, fetchImpl })).toEqual({ kind: 'fallback-to-web' })
-    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(verifyCalls).toHaveLength(0)
   })
 
   it('คำตอบรูปร่างแปลก (ok=true แต่ไม่มีตั๋ว) → ถอยไปทางเว็บ ห้ามเดินต่อทั้งที่ไม่มีตั๋ว', async () => {
     const { win } = appWindow(okReply)
-    const out = await runAppleNativeSignIn({ win, fetchImpl: jsonFetch({ ok: true }) })
-    expect(out).toEqual({ kind: 'fallback-to-web' })
+    const { fetchImpl } = fakeFetch({ ok: true })
+    expect(await runAppleNativeSignIn({ win, fetchImpl })).toEqual({ kind: 'fallback-to-web' })
   })
 })
 

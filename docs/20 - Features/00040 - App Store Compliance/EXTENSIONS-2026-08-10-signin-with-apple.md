@@ -668,15 +668,17 @@ sequenceDiagram
 
     Note over W: อ่าน window.__DEEP_NATIVE_CAPS__<br/>ถ้าไม่มี 'apple-signin' → ใช้ signIn('apple') แบบเดิม
     U->>W: กดปุ่ม "เข้าสู่ระบบด้วย Apple"
+    W->>S: POST /api/login/apple-native/start
+    S-->>W: nonce + คุกกี้ httpOnly (เก็บค่าเดียวกัน)
     W->>N: postMessage deep:apple-signin (requestId, nonce)
     N->>A: AppleAuthentication.signInAsync(nonce ที่ hash แล้ว)
     A-->>U: แผ่นของระบบ + Face ID
     A-->>N: identityToken (JWT) + fullName (ครั้งแรกเท่านั้น)
     N->>W: __DEEP_APPLE_RESULT__ + event deep:apple-result
-    W->>S: signIn('apple-native', identityToken, nonce, name)
+    W->>S: POST /api/login/apple-native (identityToken)
     S->>A: ดึง JWKS (แคชไว้) แล้วตรวจลายเซ็น RS256
-    S->>S: ตรวจ iss/aud/exp/nonce → หา AuthAccount ตาม sub
-    S-->>W: ตั้ง session แล้วพาไปปลายทาง
+    S->>S: ตรวจ iss/aud/exp + nonce จากคุกกี้ → หา AuthAccount ตาม sub
+    S-->>W: ตั๋วใช้ครั้งเดียว → signIn('mobile-ticket') → ตั้ง session
 ```
 
 ## สัญญาข้ามรีโป
@@ -687,6 +689,7 @@ sequenceDiagram
 
 | ทิศทาง | ช่อง | ค่า |
 |---|---|---|
+| เว็บ → เซิร์ฟเวอร์ | `POST /api/login/apple-native/start` | คืน `{ nonce }` + ตั้งคุกกี้ httpOnly ชื่อเดียวกัน |
 | เว็บ → แอป | `ReactNativeWebView.postMessage` | `{ type: 'deep:apple-signin', requestId, nonce }` |
 | แอป → เว็บ | ตัวแปร | `window.__DEEP_APPLE_RESULT__` |
 | แอป → เว็บ | event | `deep:apple-result` |
@@ -702,10 +705,24 @@ sequenceDiagram
 🛑 **ตั้งค่าลง `window` ก่อน แล้วค่อยยิง event เสมอ** — ฝั่งเว็บอ่านค่าตอน event ยิง
 ไม่ใช่ตอน subscribe (กติกาเดียวกับ `iap-transport.ts` ซึ่งเขียนเหตุผลไว้แล้ว)
 
-🛑 **`nonce` ต้องสร้างฝั่งเว็บ ไม่ใช่ฝั่ง native** — ตัวที่ตรวจคือเซิร์ฟเวอร์ ถ้า native
-เป็นคนสร้าง โทเคนที่ถูกดักมาจะถูกเล่นซ้ำได้โดยเซิร์ฟเวอร์ไม่มีทางรู้ · Apple ใส่
-**SHA-256 ของ nonce** ลงโทเคน ⇒ ฝั่ง native ต้อง hash ก่อนส่งให้ Apple และฝั่งเซิร์ฟเวอร์
-ต้อง hash ค่าดิบแล้วเทียบ
+### 🛑 แก้ระหว่างทาง: `nonce` ต้องมาจาก **เซิร์ฟเวอร์** ไม่ใช่หน้าเว็บ
+
+ร่างแรกของเอกสารนี้เขียนว่า "หน้าเว็บสุ่ม nonce แล้วส่งมาพร้อมโทเคน" — **ผิด และเป็นด่าน
+ที่ดูเหมือนมีแต่ไม่กันอะไรเลย**: ผู้โจมตีคุมทั้งสองฝั่งของการเทียบ เขาส่งโทเคนที่ขโมยมา
+พร้อมกับค่า `nonce` ที่อ่านออกมาจากโทเคนใบนั้นเอง แล้วด่านก็ผ่านทุกครั้ง
+
+⇒ เซิร์ฟเวอร์เป็นคนออก nonce แล้วเก็บไว้ใน **คุกกี้ httpOnly** (จาวาสคริปต์ในหน้าอ่าน
+หรือแก้ไม่ได้) · ตัวตรวจอ่านค่าจากคุกกี้ **ไม่ใช่จาก body** และลบคุกกี้ทิ้งทุกทางออก
+⇒ ใช้ได้ครั้งเดียวจริง และโทเคนเก่าที่ถือ nonce ของรอบอื่นไม่มีวันตรง
+
+จับได้ตอนทบทวนก่อน merge — คลาสเดียวกับ `docs/conventions/value-fate-decided-at-write-site.md`
+(เขียนคำอ้างเรื่องพฤติกรรมโค้ดลงเอกสารก่อนชี้บรรทัดที่บังคับมันได้)
+
+**เรื่อง hash:** `expo-apple-authentication` ส่ง `nonce` ให้ Apple **ตามที่ให้มาโดยไม่แปลง**
+(ยืนยันจาก type ของ v57.0.2: *"An arbitrary string that is used to prevent replay attacks"*)
+⇒ ไม่ต้องเพิ่ม `expo-crypto` มาทำ SHA-256 ซึ่งเป็น native module อีกตัวที่ต้อง build ใหม่
+ตัวตรวจฝั่งเซิร์ฟเวอร์รับ **ทั้งค่าดิบและค่า hash** อยู่แล้ว (ทั้งคู่ผูกกับค่าสุ่มเดียวกัน
+จึงไม่ได้ลดความปลอดภัย แต่ตัดปัญหา "ไม่ตรงเงียบ ๆ" ที่หาสาเหตุยากมากทิ้งไป)
 
 ## เส้นทางถอย — ห้ามมีทางที่ปุ่มกดแล้วเงียบ
 
@@ -745,7 +762,7 @@ sequenceDiagram
 | 1 | เอกสารฉบับนี้ + sync `docs/SRS.md` | deep-web |
 | 2 | `src/lib/apple/identity-token.ts` — ดึง JWKS + ตรวจ RS256 + ตรวจ claim | deep-web |
 | 3 | `src/lib/apple-bridge-protocol.ts` — สัญญาข้ามรีโป (โมดูลบริสุทธิ์) | deep-web |
-| 4 | provider `apple-native` ใน `lib/auth.ts` + endpoint เชื่อมบัญชี | deep-web |
+| 4 | endpoint `/api/login/apple-native` (+ `/start`) — ไม่แตะ `lib/auth.ts` | deep-web |
 | 5 | ต่อปุ่มทั้ง 2 จุด + เส้นทางถอย | deep-web |
 | 6 | เทส `[blocker]` + พิสูจน์ด้วย mutation | deep-web |
 | 7 | `expo-apple-authentication` + entitlement | deep-seller-app |

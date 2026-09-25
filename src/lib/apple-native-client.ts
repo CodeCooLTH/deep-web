@@ -45,25 +45,6 @@ export const APPLE_NATIVE_TIMEOUT_MS = 300_000
 export interface AppleNativeClientOptions {
   timeoutMs?: number
   newId?: () => string
-  /** สร้าง nonce ดิบ — ฉีดเข้ามาได้เพื่อให้เทสคาดเดาค่าได้ */
-  newNonce?: () => string
-}
-
-/**
- * ค่าสุ่มสำหรับ nonce — ใช้ `crypto.getRandomValues` ไม่ใช่ `Math.random`
- *
- * 🛑 `Math.random` เดาได้ ⇒ ผู้โจมตีที่เดา nonce ล่วงหน้าได้ จะเตรียมโทเคนที่ผ่านด่าน
- * กันเล่นซ้ำของเซิร์ฟเวอร์ไว้ก่อนได้ · ทุกเบราว์เซอร์ที่เรารองรับมี `crypto` อยู่แล้ว
- * แต่ยัง fallback ไว้เพื่อไม่ให้หน้าพังทั้งหน้าในสภาพแวดล้อมแปลก ๆ (เช่นตอน SSR)
- */
-function defaultNonce(): string {
-  const g = globalThis as { crypto?: Crypto }
-  if (g.crypto?.getRandomValues) {
-    const buf = new Uint8Array(32)
-    g.crypto.getRandomValues(buf)
-    return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('')
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
 /**
@@ -75,21 +56,21 @@ export function createAppleNativeClient(
   options: AppleNativeClientOptions = {},
 ) {
   const newId = options.newId ?? (() => `apple-${Math.random().toString(36).slice(2)}-${Date.now()}`)
-  const newNonce = options.newNonce ?? defaultNonce
 
   /**
-   * ขอให้ native เปิดแผ่น — คืนผลพร้อม **nonce ดิบ** ที่ผู้เรียกต้องส่งต่อให้เซิร์ฟเวอร์
+   * ขอให้ native เปิดแผ่น
    *
-   * 🛑 ผู้เรียกต้องใช้ nonce ที่ฟังก์ชันนี้คืนมา **ห้ามใช้ค่าที่ native ส่งกลับ** —
-   * ค่าที่ native ส่งมามีไว้ให้เทียบเท่านั้น ถ้าเอาไปใช้ตรง ๆ แอปที่ถูกแก้ไขจะกำหนด
-   * nonce เองได้ ซึ่งทำให้การกันเล่นซ้ำหมดความหมายทั้งอัน
+   * @param nonce ค่าที่ **เซิร์ฟเวอร์ออกให้** (`POST /api/login/apple-native/start`)
+   *
+   * 🛑 ห้ามสุ่มเองฝั่งนี้ — เซิร์ฟเวอร์เก็บค่าเดียวกันไว้ในคุกกี้ httpOnly แล้วใช้ค่านั้น
+   * เป็นตัวเทียบ · ถ้าฝั่ง client เป็นคนสุ่ม ผู้โจมตีจะคุมทั้งสองฝั่งของการเทียบ
+   * แล้วด่านกันเล่นโทเคนซ้ำจะไม่กันอะไรเลย (เหตุผลเต็มอยู่ใน `start/route.ts`)
    */
-  function signIn(): Promise<{ result: AppleSignInResult; nonce: string }> {
+  function signIn(nonce: string): Promise<AppleSignInResult> {
     const requestId = newId()
-    const nonce = newNonce()
 
     if (!transport) {
-      return Promise.resolve({ result: { requestId, ok: false, reason: 'UNAVAILABLE' }, nonce })
+      return Promise.resolve({ requestId, ok: false, reason: 'UNAVAILABLE' })
     }
 
     return new Promise((resolve) => {
@@ -103,7 +84,7 @@ export function createAppleNativeClient(
         done = true
         if (timer) clearTimeout(timer)
         unsubscribe?.()
-        resolve({ result, nonce })
+        resolve(result)
       }
 
       unsubscribe = transport.subscribe((raw) => {

@@ -34,12 +34,23 @@ import { verifyAppleIdentityToken } from '@/lib/apple/identity-token'
 import { isDeletedUser } from '@/lib/account-deletion'
 import { createMobileTicket } from '@/lib/mobile-ticket'
 import { prisma } from '@/lib/prisma'
+import { APPLE_NONCE_COOKIE } from './start/route'
+
+/**
+ * ตอบพร้อม **ลบคุกกี้ nonce ทิ้งเสมอ** — ใช้ได้ครั้งเดียวจริง ๆ
+ *
+ * 🛑 ต้องลบทุกทางออก ไม่ใช่เฉพาะทางที่สำเร็จ: ถ้าลบเฉพาะตอนผ่าน คนที่ยิงโทเคนผิดจะยัง
+ * มีคุกกี้เดิมให้ลองซ้ำได้เรื่อย ๆ ซึ่งคือสิ่งที่ "ใช้ครั้งเดียว" มีไว้กัน
+ */
+function replyClearingNonce(body: unknown, status = 200) {
+  const res = NextResponse.json(body, { status })
+  res.cookies.set(APPLE_NONCE_COOKIE, '', { path: '/', maxAge: 0 })
+  return res
+}
 
 const BodySchema = v.object({
   /* JWT ของ Apple — 4096 พอสำหรับโทเคนจริง (ราว 900 ตัวอักษร) และกันของยาวผิดปกติ */
   identityToken: v.pipe(v.string(), v.minLength(1), v.maxLength(4096)),
-  /* nonce **ดิบ** ที่หน้าเว็บสร้างไว้ตอนกดปุ่ม — ตัวที่ผูกโทเคนใบนี้เข้ากับคำขอครั้งนี้ */
-  nonce: v.pipe(v.string(), v.minLength(8), v.maxLength(256)),
 })
 
 export async function POST(request: Request) {
@@ -48,8 +59,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, reason: 'BAD_REQUEST' }, { status: 400 })
   }
 
+  /**
+   * 🛑 nonce ต้องมาจาก **คุกกี้ที่เซิร์ฟเวอร์ตั้งเอง** ห้ามรับจาก body
+   *
+   * รับจาก body = ผู้โจมตีคุมทั้งสองฝั่งของการเทียบ (ส่งโทเคนที่ขโมยมา พร้อม `nonce`
+   * ที่อ่านออกมาจากโทเคนใบนั้นเอง) แล้วด่านผ่านทุกครั้ง — เป็นด่านที่ดูเหมือนมีแต่ไม่กันอะไร
+   * เหตุผลเต็มอยู่ที่ `./start/route.ts`
+   */
+  const { cookies } = await import('next/headers')
+  const jar = await cookies()
+  const expectedNonce = jar.get(APPLE_NONCE_COOKIE)?.value ?? null
+  if (!expectedNonce) {
+    /* ไม่มีคุกกี้ = ไม่ได้เริ่มรอบนี้กับเรา (หรือเริ่มไว้นานเกิน 10 นาทีจนหมดอายุ)
+       ให้เริ่มใหม่ ดีกว่าปล่อยผ่านโดยไม่ตรวจอะไรเลย */
+    return NextResponse.json({ ok: false, reason: 'INVALID_TOKEN' }, { status: 401 })
+  }
+
   const verified = await verifyAppleIdentityToken(parsed.output.identityToken, {
-    expectedNonce: parsed.output.nonce,
+    expectedNonce,
   })
   if (!verified.ok) {
     /**
@@ -58,7 +85,7 @@ export async function POST(request: Request) {
      * ส่วนเราต้องอ่านมันให้ออกตอนตั้งค่าผิด ซึ่งเป็นสาเหตุที่เป็นไปได้มากที่สุดในวันแรก
      */
     console.error('[apple-native] โทเคนไม่ผ่าน:', verified.reason)
-    return NextResponse.json({ ok: false, reason: 'INVALID_TOKEN' }, { status: 401 })
+    return replyClearingNonce({ ok: false, reason: 'INVALID_TOKEN' }, 401)
   }
 
   const account = await prisma.authAccount.findUnique({
@@ -79,7 +106,7 @@ export async function POST(request: Request) {
    * ไม่ใช่ความผิดพลาดที่ต้องขึ้น "ลองใหม่อีกครั้ง"
    */
   if (!account || isDeletedUser(account.user)) {
-    return NextResponse.json({ ok: false, reason: 'NO_ACCOUNT' })
+    return replyClearingNonce({ ok: false, reason: 'NO_ACCOUNT' })
   }
 
   /**
@@ -89,5 +116,5 @@ export async function POST(request: Request) {
    * provider `mobile-ticket` ที่เขียนไว้ใน `lib/auth.ts`)
    */
   const ticket = await createMobileTicket(account.userId, 'enter')
-  return NextResponse.json({ ok: true, ticket })
+  return replyClearingNonce({ ok: true, ticket })
 }

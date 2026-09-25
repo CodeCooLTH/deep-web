@@ -137,7 +137,7 @@ describe('[blocker] ตัวขอ — จับคู่คำขอและ�
   it('🛑 ไม่มีท่อ (เบราว์เซอร์ / เปลือกเก่า) → UNAVAILABLE ทันที ไม่รอหมดเวลา', async () => {
     const client = createAppleNativeClient(null)
     const started = Date.now()
-    const { result } = await client.signIn()
+    const result = await client.signIn('n1')
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('UNAVAILABLE')
     /* ถ้าตรงนี้ช้า แปลว่าผู้ใช้บนเบราว์เซอร์จะเห็นปุ่มหมุนห้านาทีก่อนถอยไปทางเว็บ */
@@ -146,36 +146,30 @@ describe('[blocker] ตัวขอ — จับคู่คำขอและ�
 
   it('ส่งคำสั่งพร้อม nonce แล้วคืนผลเมื่อ native ตอบ', async () => {
     const { transport, sent, emit } = fakeTransport()
-    const client = createAppleNativeClient(transport, { newId: () => 'r1', newNonce: () => 'n1' })
-    const p = client.signIn()
+    const client = createAppleNativeClient(transport, { newId: () => 'r1' })
+    const p = client.signIn('n1')
+    /* 🛑 ต้องส่ง nonce ที่ **เซิร์ฟเวอร์ออกให้** ต่อไปยัง native ตรง ๆ ห้ามสุ่มใหม่ */
     expect(sent).toEqual([{ type: 'deep:apple-signin', requestId: 'r1', nonce: 'n1' }])
     emit({ requestId: 'r1', ok: true, identityToken: TOKEN, nonce: 'n1' })
-    const { result, nonce } = await p
-    expect(result.ok).toBe(true)
-    /* 🛑 ต้องเป็น nonce ที่ **เราสร้าง** ไม่ใช่ที่ native ส่งกลับ */
-    expect(nonce).toBe('n1')
+    expect((await p).ok).toBe(true)
   })
 
   it('🛑 คำตอบของคำขออื่นต้องถูกเมิน ไม่ใช่เอามาจบคำขอนี้', async () => {
     const { transport, emit } = fakeTransport()
-    const client = createAppleNativeClient(transport, {
-      newId: () => 'r1',
-      newNonce: () => 'n1',
-      timeoutMs: 40,
-    })
-    const p = client.signIn()
+    const client = createAppleNativeClient(transport, { newId: () => 'r1', timeoutMs: 40 })
+    const p = client.signIn('n1')
     emit({ requestId: 'ของคำขออื่น', ok: true, identityToken: TOKEN, nonce: 'n1' })
-    const { result } = await p
+    const result = await p
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('TIMEOUT')
   })
 
   it('🛑 nonce ที่ตอบกลับไม่ตรงกับที่ส่งไป → ปฏิเสธ ไม่ส่งต่อให้เซิร์ฟเวอร์', async () => {
     const { transport, emit } = fakeTransport()
-    const client = createAppleNativeClient(transport, { newId: () => 'r1', newNonce: () => 'n1' })
-    const p = client.signIn()
+    const client = createAppleNativeClient(transport, { newId: () => 'r1' })
+    const p = client.signIn('n1')
     emit({ requestId: 'r1', ok: true, identityToken: TOKEN, nonce: 'nonce-ของคนอื่น' })
-    const { result } = await p
+    const result = await p
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('FAILED')
   })
@@ -183,7 +177,7 @@ describe('[blocker] ตัวขอ — จับคู่คำขอและ�
   it('native เงียบ → TIMEOUT แล้วเลิกฟัง (ห้ามทิ้ง listener ค้าง)', async () => {
     const { transport, listeners } = fakeTransport()
     const client = createAppleNativeClient(transport, { timeoutMs: 20 })
-    const { result } = await client.signIn()
+    const result = await client.signIn('n1')
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('TIMEOUT')
     expect(listeners).toHaveLength(0)
@@ -191,12 +185,8 @@ describe('[blocker] ตัวขอ — จับคู่คำขอและ�
 
   it('คำตอบที่มาหลังหมดเวลาแล้ว ต้องไม่เขียนทับผลที่จบไปแล้ว', async () => {
     const { transport, emit } = fakeTransport()
-    const client = createAppleNativeClient(transport, {
-      newId: () => 'r1',
-      newNonce: () => 'n1',
-      timeoutMs: 15,
-    })
-    const { result } = await client.signIn()
+    const client = createAppleNativeClient(transport, { newId: () => 'r1', timeoutMs: 15 })
+    const result = await client.signIn('n1')
     expect(result.ok).toBe(false)
     emit({ requestId: 'r1', ok: true, identityToken: TOKEN, nonce: 'n1' })
     expect(result.ok).toBe(false)
@@ -208,13 +198,6 @@ describe('[blocker] ตัวขอ — จับคู่คำขอและ�
     expect(APPLE_NATIVE_TIMEOUT_MS).toBeGreaterThanOrEqual(120_000)
   })
 
-  it('nonce ตั้งต้นต้องสุ่มจริง ไม่ซ้ำกันระหว่างสองครั้ง', async () => {
-    const client = createAppleNativeClient(null)
-    const a = await client.signIn()
-    const b = await client.signIn()
-    expect(a.nonce).not.toBe(b.nonce)
-    expect(a.nonce.length).toBeGreaterThanOrEqual(32)
-  })
 })
 
 // ─── ท่อที่ต่อกับ window จริง ────────────────────────────────────────────────
