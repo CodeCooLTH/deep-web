@@ -29,7 +29,7 @@ import { useRouter } from 'next/navigation'
 
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
-import { TIER_ORDER, type BusinessPackageTier } from '@/lib/business-package'
+import { TIER_ORDER, featuresForTier, type BusinessPackageTier } from '@/lib/business-package'
 import { tierFromAppleProductId } from '@/lib/apple/product-ids'
 import { createIapClient } from '@/lib/iap-client'
 import { iapFailureMessage, IAP_VERIFY_PENDING_MESSAGE } from '@/lib/iap-failure-message'
@@ -187,6 +187,7 @@ export default function IapSubscribeClient({ subscription, mainSiteOrigin }: Pro
                 <ProductCard
                   key={product.productId}
                   product={product}
+                  tier={tier}
                   isCurrent={isCurrent}
                   /* ดาวน์เกรดไม่ให้กดในแอป — ดูเหตุผลหัวไฟล์ */
                   disabled={isCurrent || isLower}
@@ -271,6 +272,7 @@ function Unavailable({ reason, onRetry }: { reason: IapFailure; onRetry: () => v
 
 function ProductCard({
   product,
+  tier,
   isCurrent,
   disabled,
   disabledLabel,
@@ -279,6 +281,8 @@ function ProductCard({
   onBuy,
 }: {
   product: IapProduct
+  /** null = รหัสสินค้าที่โค้ดยังไม่รู้จัก — ไม่แสดงสิทธิ์ ดีกว่าเดาแล้วบอกผิด (fail-closed) */
+  tier: BusinessPackageTier | null
   isCurrent: boolean
   disabled: boolean
   disabledLabel: string
@@ -293,6 +297,22 @@ function ProductCard({
         {/* ราคาจาก StoreKit — จัดรูปแบบและสกุลเงินมาแล้ว ห้ามแตะ */}
         <p className="text-4xl font-semibold">{product.displayPrice}</p>
         <p className="text-default-500 text-sm">ต่อเดือน · ต่ออายุอัตโนมัติ</p>
+
+        {/* 🛑 "จ่ายแล้วได้อะไร" — Apple ตีกลับ 2026-09-24 (Guideline 3.1.2(c)) เพราะการ์ดมีแค่
+            ชื่อ+ราคา+ปุ่ม ผู้ซื้อแยกไม่ออกว่าสามแพ็กเกจต่างกันตรงไหน
+            คำมาจาก SSOT เดียวกับกริดฝั่งเว็บ (`tierQuotaFeatures`) ห้ามพิมพ์ซ้ำที่นี่ (HR16)
+            Base: theme/paces/Admin/TS/src/app/(admin)/pages/pricing/page.tsx (feature-tick ul)
+            — มิเรอร์ `TierCard` ใน PackageTierGrid.tsx ให้สองจอหน้าตาเป็นชุดเดียวกัน */}
+        {tier && (
+          <ul className="mt-4 space-y-2.5 text-start">
+            {featuresForTier(tier).map((feature) => (
+              <li className="flex items-center gap-3 text-sm" key={feature}>
+                <Icon icon="check" className="text-success text-sm shrink-0" aria-hidden="true" />
+                {feature}
+              </li>
+            ))}
+          </ul>
+        )}
 
         {disabled ? (
           <span
