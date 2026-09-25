@@ -1284,6 +1284,9 @@ enum** — ระหว่างนี้ป้ายบนโปรไฟล์
 | POST | `/api/account/link/send-otp` | Seller | ส่ง OTP ยืนยันก่อนถอดการเชื่อม — **400 ถ้าบัญชีไม่มีเบอร์** | `lib/otp.ts` |
 | POST | `/api/account/link/remove` | Seller | ถอดการเชื่อม (ต้องมี OTP) | `lib/auth.ts` |
 | POST | `/api/account/link/reclaim` | Seller | ย้ายการเชื่อมคืนจากบัญชีค้าง **หลังผู้ใช้กดยืนยัน** — รับ ticket เซ็นชื่อ (HMAC, TTL 10 นาที, ผูก `userId` ผู้ขอ) แล้ว **ตรวจสถานะซ้ำทั้งหมดอีกรอบ** ก่อนย้าย+ปิดบัญชีค้างในทรานแซกชันเดียว | `lib/link-conflict.ts` |
+| POST | `/api/account/link/apple-native` | Seller | 🆕 ผูก Apple ด้วย identity token จาก **แผ่นของระบบ iOS** (Guideline 4) — อ่าน `userId` จาก session ตรง ๆ **ไม่ใช้ link-intent cookie** เพราะคำขอนี้มี session อยู่แล้ว · ใช้ `services/oauth-link.service` ตัวเดียวกับทางเว็บ | `lib/apple/identity-token.ts` |
+| POST | `/api/login/apple-native/start` | สาธารณะ | 🆕 ออก `nonce` ของรอบล็อกอิน + ตั้งคุกกี้ httpOnly ชื่อเดียวกัน (อายุ 10 นาที) — **ห้ามให้ client เป็นคนสร้าง** ไม่งั้นด่านกันเล่นโทเคนซ้ำไม่กันอะไรเลย | `api/login/apple-native/start` |
+| POST | `/api/login/apple-native` | สาธารณะ | 🆕 แลก identity token เป็น **ตั๋วใช้ครั้งเดียว** (`mobile-ticket`) — ตรวจลายเซ็น RS256 กับ JWKS ของ Apple + `iss`/`aud`/`exp` + `nonce` **จากคุกกี้** · 🛑 **ไม่สร้างบัญชีใหม่เด็ดขาด** (ต่างจากทางเว็บ): ไม่เจอ `AuthAccount` → `NO_ACCOUNT` เพราะ 3.1.1 ห้ามสมัครในแอปอยู่แล้ว และกันบัญชีซ้ำถ้า `sub` ไม่ตรง | `lib/apple/identity-token.ts` |
 
 ### 7.2 Users
 

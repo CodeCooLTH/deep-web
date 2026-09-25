@@ -764,10 +764,36 @@ sequenceDiagram
 | 3 | `src/lib/apple-bridge-protocol.ts` — สัญญาข้ามรีโป (โมดูลบริสุทธิ์) | deep-web |
 | 4 | endpoint `/api/login/apple-native` (+ `/start`) — ไม่แตะ `lib/auth.ts` | deep-web |
 | 5 | ต่อปุ่มทั้ง 2 จุด + เส้นทางถอย | deep-web |
+| 5b | สกัด LINK MODE → `services/oauth-link.service` + `lib/oauth-link-outcome` | deep-web |
 | 6 | เทส `[blocker]` + พิสูจน์ด้วย mutation | deep-web |
 | 7 | `expo-apple-authentication` + entitlement | deep-seller-app |
 | 8 | `src/features/apple-auth/` + ต่อเข้า `SellerWebView` | deep-seller-app |
 | 9 | build ใหม่ → TestFlight → เลือกบิลด์ → ส่งรีวิว | — |
+
+## ไฟล์ที่เพิ่ม/แก้
+
+**deep-web**
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `lib/apple/identity-token.ts` | ตรวจ JWKS/RS256 + claim · **ด่านความปลอดภัยของทั้งเรื่อง** |
+| `lib/apple-bridge-protocol.ts` | สัญญาข้ามรีโป (คู่แฝดอยู่ในแอป) |
+| `lib/apple-native-client.ts` · `-transport.ts` | จับคู่คำขอ · timeout · ต่อกับ `window` |
+| `lib/apple-native-signin.ts` | ขั้นตอนเต็ม + เส้นทางถอย (ใช้ร่วม 2 จุด) |
+| `api/login/apple-native/start` | ออก nonce ลงคุกกี้ httpOnly |
+| `api/login/apple-native` | ตรวจโทเคน → ตั๋วใช้ครั้งเดียว |
+| `api/account/link/apple-native` | ตรวจโทเคน → ผูกบัญชี |
+| `services/oauth-link.service.ts` | LINK MODE ที่สกัดจาก `auth.ts` |
+| `lib/oauth-link-outcome.ts` | ชนิดผลลัพธ์ + ปลายทาง (บริสุทธิ์) |
+
+**deep-seller-app**
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `features/apple-auth/protocol.ts` | คู่แฝดของสัญญา + สคริปต์ที่ inject กลับ |
+| `features/apple-auth/service.ts` | เรียก `ASAuthorizationAppleIDProvider` |
+| `features/webview/SellerWebView.tsx` | `onMessage` allow-list + ประกาศความสามารถ |
+| `app.config.ts` | ปลั๊กอิน + entitlement `com.apple.developer.applesignin` |
 
 ## ความเสี่ยงที่รู้ตัว
 
@@ -781,8 +807,71 @@ sequenceDiagram
 
 ## การพิสูจน์
 
-> เติมหลังลงมือ
+| ด่าน | ผล |
+|---|---|
+| `tsc --noEmit` ทั้ง 2 รีโป | 0 |
+| `eslint` ไฟล์ที่แตะ | 0 (4 `any` ใน `auth.ts` มีอยู่ก่อนแล้วบน `main` — จำนวนเท่าเดิม) |
+| `vitest src/` (deep-web) | **5,836 เขียว** (+38 เทสใหม่) |
+| `vitest` (deep-seller-app) | **97 เขียว** (+16 เทสใหม่) |
+| `theme-guard` | 5 รายการเท่ากับก่อนแก้ (สีแบรนด์ที่มีอยู่ก่อน) |
 
-## ยังไม่ได้ทำ
+**mutation** — รวม 30 แบบ:
 
-> เติมหลังลงมือ
+| กลุ่ม | ผล |
+|---|---|
+| ตัวตรวจ identity token | 9/9 แดง (ถอดลายเซ็น · รับทุก alg · ไม่ตรวจ iss/aud/exp/nonce · หยิบกุญแจผิด · ไม่รีเฟรชกุญแจ · Apple ล่มแล้ว throw) |
+| สะพาน | 9/9 แดง |
+| ขั้นตอนเต็ม (ล็อกอิน) | 7/7 แดง |
+| เชื่อมบัญชี + ด่านที่ย้าย | 5/5 แดง |
+| ฝั่งแอป | 7/7 แดง |
+
+🛑 **3 mutation ที่รอบแรกเขียว — แยกสาเหตุคนละแบบ ห้ามเหมารวม**
+(`docs/conventions/mutation-silence-means-weak-corpus.md`)
+
+1. *ถอด `if (done) return` ในตัวจับคู่คำขอ* → **ไม่เปลี่ยนพฤติกรรม** (`resolve()` ซ้ำเป็น
+   no-op และทุกเส้นทางของ `finish` เลิกฟังก่อนอยู่แล้ว) ⇒ เปลี่ยนไปใช้ mutation ที่มีผลจริง
+2. *ส่ง `result.nonce` แทน `nonce`* → **ไม่เปลี่ยนพฤติกรรม** เพราะด่านเทียบ nonce ในตัว client
+   ทำให้สองค่าเท่ากันเสมอบนเส้นทางสำเร็จ ⇒ เติมเคสที่ปักด่านนั้นไว้โดยตรง แล้วยืนยันว่า
+   ถอดด่านออกเมื่อไหร่แดงทันที
+3. *ลบสาขา "ผู้ใช้ยกเลิก" ในการ์ด `/account`* → **เทสอ่อนจริง** (คุมแค่ "เรียกทาง native ไหม"
+   ไม่ได้คุมว่าทำอะไรกับผลแต่ละแบบ) ⇒ เติมเคสแล้วแดง
+
+## 🛑 ด่านเดิม 5 ตัวที่ต้องซ่อม — 3 ตัวแดงเพราะตัวเอง
+
+| ด่าน | อาการ |
+|---|---|
+| `apple-login-destination` | `indexOf("signIn('apple'")` ไปเจอ **คอมเมนต์** ที่อธิบายว่าทำไมต้องเลิกใช้ทางนั้น |
+| `sign-out-clears-stale` | หน้าต่าง `i + 400` ตัวอักษรตายตัว — `handleApple` ยาวขึ้นเลยตัดจบก่อนถึงบรรทัดที่ต้องตรวจ |
+| `apple/jws` | `includes('verifyAppleJwsWithRoot')` ไปเจอคอมเมนต์ที่เทียบสองกลไกให้เห็น |
+| `apple-login-destination` (เคส `/account`) | ตรรกะย้ายไฟล์ — ให้ตามไปคุมที่ใหม่ + ห้ามเขียนสตริงสดใน `auth.ts` อีก |
+| `link-reclaim-guard` | เดิมคุมเฉพาะ `auth.ts` ⇒ ก็อปตรรกะไปที่อื่นแล้วมองไม่เห็น · ตอนนี้ครอบ 3 ไฟล์ |
+
+สามตัวแรกเป็น **คลาสเดียวกันทั้งหมด**: สแกนซอร์สโดยไม่ตัดคอมเมนต์ แล้วไปเจอคอมเมนต์ที่
+อธิบายกฎของตัวเอง — รอยเดิมที่รีโปบันทึกไว้แล้วถึง 2 ครั้ง (grep gate ของ Hard Rule 9
+เมื่อ 2026-08-02→03 · `component-declared-in-render.md`) **แต่ยังเกิดซ้ำ เพราะบทเรียนที่
+เขียนเป็นเอกสารอย่างเดียวกันการซ้ำไม่ได้**
+
+พิสูจน์ว่าไม่มีตัวไหนอ่อนลง — mutation คืนของเดิมกลับไปแล้วแดงครบทั้ง 3
+
+## ยังไม่ได้ทำ / ต้องทำต่อ
+
+🛑 **ตามลำดับนี้ ข้ามข้อ 1 ไม่ได้**
+
+1. **จัดกลุ่ม identifier ในพอร์ทัล Apple** — `com.deepthailand.seller.web` (Services ID)
+   ต้องอยู่ในกลุ่มของ primary App ID `com.deepthailand.seller` · ไม่จัดกลุ่ม = `sub` ไม่ตรง
+   ⇒ ผู้ขายที่เคยเชื่อม Apple ทางเว็บจะเห็น "ยังไม่มีบัญชีผู้ขาย" ในแอป
+2. **build ใหม่ → TestFlight** (native module · OTA ไม่พอ)
+3. **ยืนยันด้วย Apple ID ที่เคยผูกไว้ทางเว็บ** ว่าเข้าได้บัญชีเดิมจริง — ข้อนี้คือตัวพิสูจน์
+   ข้อ 1 และ **ต้องทำก่อนส่งรีวิว**
+4. ทดสอบเส้นทางถอย: เปิดในเบราว์เซอร์ · เครื่องที่ปิด Sign in with Apple · กดยกเลิกแผ่น
+
+**หนี้ที่รู้ตัว**
+
+- **ยังไม่เคยเปิดหน้าจริงสักครั้ง** — ทุกอย่างพิสูจน์ด้วยเทสกับ mutation เท่านั้น
+- **ไม่ได้ผ่าน `safepay-ux` (HR8) และ `/impeccable critique`** — รอบนี้ไม่ได้เพิ่ม UI ใหม่
+  (ปุ่มเดิม หน้าเดิม เปลี่ยนแค่พฤติกรรมเมื่อกด) แต่ยังเป็นหนี้ตามกติกา
+- **Android ยังใช้หน้าเว็บของ Apple** — ถูกต้องแล้ว (Guideline 4 เป็นกฎของ App Store
+  ไม่ใช่ของ Google Play และ Android ไม่มีแผ่นนี้ให้ใช้) แต่วันที่ปล่อย Android ต้องยืนยันซ้ำ
+- **ไม่ได้ hash nonce** — `expo-apple-authentication` ส่งค่าให้ Apple ตามที่ให้มา และตัวตรวจ
+  รับทั้งค่าดิบและค่า hash · ถ้าวันหนึ่งเพิ่ม `expo-crypto` แล้ว hash ฝั่งแอป จะใช้ได้ทันที
+  โดยไม่ต้องแก้เซิร์ฟเวอร์
