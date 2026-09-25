@@ -17,7 +17,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 
 import { APPLE_RESULT_EVENT, CAP_APPLE_SIGNIN } from '@/lib/apple-bridge-protocol'
-import { canUseAppleNative, runAppleNativeSignIn } from '@/lib/apple-native-signin'
+import { canUseAppleNative, runAppleNativeLink, runAppleNativeSignIn } from '@/lib/apple-native-signin'
+import { linkOutcomeRedirect } from '@/lib/oauth-link-outcome'
 
 const TOKEN = 'eyJhbGciOiJSUzI1NiJ9.payload.sig'
 
@@ -208,6 +209,50 @@ function code(rel: string): string {
 }
 
 const SIGN_IN_FORM = 'src/app/(paces)/seller/auth/sign-in/components/SignInForm.tsx'
+const ACCOUNT_CARD =
+  'src/app/(paces)/seller/(dashboard)/account/components/ConnectedAccountsClient.tsx'
+
+describe('[blocker] เชื่อมบัญชี Apple ที่ /account ก็ต้องใช้แผ่นของระบบ', () => {
+  it('🛑 ผ่านแล้วต้องได้ปลายทางที่หน้าจออ่านผลลัพธ์ได้', async () => {
+    const { win } = appWindow(okReply)
+    const { fetchImpl } = fakeFetch({ ok: true, kind: 'linked', redirect: '/account?linked=apple' })
+    expect(await runAppleNativeLink({ win, fetchImpl })).toEqual({
+      kind: 'done',
+      redirect: '/account?linked=apple',
+    })
+  })
+
+  it('🛑 ผู้ใช้ปัดแผ่นทิ้ง → เงียบ ห้ามยิงเข้าเซิร์ฟเวอร์และห้ามเด้งหน้าเว็บ Apple', async () => {
+    const { win } = appWindow((req) => ({ requestId: req.requestId, ok: false, reason: 'CANCELLED' }))
+    const { fetchImpl, verifyCalls } = fakeFetch({ ok: true, redirect: '/account?linked=apple' })
+    expect(await runAppleNativeLink({ win, fetchImpl })).toEqual({ kind: 'cancelled' })
+    expect(verifyCalls).toHaveLength(0)
+  })
+
+  it('เบราว์เซอร์ / บิลด์เก่า → ถอยไปทางเว็บ (คุกกี้ link-intent + signIn)', async () => {
+    expect(await runAppleNativeLink({ win: undefined })).toEqual({ kind: 'fallback-to-web' })
+  })
+
+  it('เซิร์ฟเวอร์ปฏิเสธ หรือคำตอบไม่มีปลายทาง → ถอยไปทางเว็บ', async () => {
+    const { win } = appWindow(okReply)
+    const { fetchImpl } = fakeFetch({ ok: false, reason: 'INVALID_TOKEN' }, 401)
+    expect(await runAppleNativeLink({ win, fetchImpl })).toEqual({ kind: 'fallback-to-web' })
+
+    const { win: w2 } = appWindow(okReply)
+    const { fetchImpl: f2 } = fakeFetch({ ok: true })
+    expect(await runAppleNativeLink({ win: w2, fetchImpl: f2 })).toEqual({ kind: 'fallback-to-web' })
+  })
+
+  it('🛑 ปลายทางต้องมาจาก SSOT เดียวกับทางเว็บ ไม่ใช่สตริงที่ endpoint แต่งเอง', () => {
+    /* ถ้าสองทางพาไปคนละที่ ผู้ใช้จะเห็นผลลัพธ์บ้างไม่เห็นบ้างแล้วแต่ว่าเข้าทางไหน (HR16) */
+    expect(linkOutcomeRedirect('apple', { kind: 'linked' })).toBe('/account?linked=apple')
+    expect(linkOutcomeRedirect('apple', { kind: 'already-linked' })).toBe('/account?linked=apple')
+    expect(linkOutcomeRedirect('apple', { kind: 'taken' })).toBe('/account?link_error=taken')
+    expect(linkOutcomeRedirect('apple', { kind: 'reclaimable', ticket: 'a b/c' })).toBe(
+      '/account?link_error=reclaimable&ticket=a%20b%2Fc',
+    )
+  })
+})
 
 describe('[blocker] ปุ่มในหน้าล็อกอินต้องเรียกใช้จริง ไม่ใช่แค่มีโมดูล', () => {
   it('🛑 หน้าล็อกอินต้องเรียก runAppleNativeSignIn — import เฉย ๆ คือบั๊กเดิมที่ Apple ตีกลับ', () => {
@@ -223,5 +268,35 @@ describe('[blocker] ปุ่มในหน้าล็อกอินต้อ
 
   it('🛑 เส้นทาง no-account ต้องใช้ธงเดียวกับด่าน 3.1.1 ไม่ mint ข้อความใหม่ (HR16)', () => {
     expect(code(SIGN_IN_FORM)).toMatch(/app_no_account=1/)
+  })
+
+  it('🛑 การ์ด "วิธีเข้าสู่ระบบ" ที่ /account ต้องเรียกทาง native ด้วย', () => {
+    /* แก้เฉพาะหน้าล็อกอินแล้วยังโดนข้อเดิมได้ — ปุ่มนี้พาไป appleid.apple.com เหมือนกัน
+       และทีมรีวิวเดินเข้าหน้านี้แน่นอนเพราะปุ่ม "ลบบัญชี" อยู่ที่นี่ (Guideline 5.1.1(v)) */
+    const src = code(ACCOUNT_CARD)
+    expect(src).toMatch(/canUseAppleNative\(/)
+    expect(src).toMatch(/await runAppleNativeLink\(/)
+  })
+
+  it('🛑 การ์ดนั้นต้องยังมีทางถอยไป signIn ทางเว็บอยู่', () => {
+    expect(code(ACCOUNT_CARD)).toMatch(/await signIn\(provider,/)
+  })
+
+  it('🛑 ผู้ใช้ยกเลิกแผ่น → ต้องหยุด **ก่อน** ถึงทางเว็บ ไม่ใช่เด้งหน้า Apple ตาม', () => {
+    /**
+     * เคสนี้ถูกเพิ่มเพราะ mutation "ลบสาขา cancelled ทิ้ง" **ไม่แดง** — ตรวจแล้วพบว่า
+     * เทสชุดเดิมคุมแค่ "เรียกทาง native ไหม" ไม่ได้คุมว่า "ทำอะไรกับผลลัพธ์แต่ละแบบ"
+     * ⇒ ชุดข้อมูลทดสอบอ่อนจริง ไม่ใช่ mutation ไม่เกี่ยว
+     * (`docs/conventions/mutation-silence-means-weak-corpus.md`)
+     *
+     * ⚠️ ยอมรับข้อจำกัด: รีโปไม่มี jsdom ⇒ mount การ์ดนี้ในเทสไม่ได้ · สแกนซอร์สจับได้แค่
+     * "สาขานั้นมีอยู่และอยู่ก่อนทางเว็บ" ซึ่งเป็นสิ่งที่หายไปจริงตอน mutation
+     */
+    const src = code(ACCOUNT_CARD)
+    const at = src.indexOf("outcome.kind === 'cancelled'")
+    expect(at, 'ไม่มีสาขารับ "ผู้ใช้ยกเลิก" — กดยกเลิกแล้วจะถูกเด้งไปหน้าเว็บของ Apple').toBeGreaterThan(-1)
+    const web = src.indexOf('await signIn(provider,')
+    expect(web, 'หาเส้นทางถอยไม่เจอ').toBeGreaterThan(-1)
+    expect(at, 'สาขายกเลิกอยู่หลังทางเว็บ = ไม่มีผล').toBeLessThan(web)
   })
 })

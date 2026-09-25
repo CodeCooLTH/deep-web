@@ -17,6 +17,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { canUseAppleNative, runAppleNativeLink } from '@/lib/apple-native-signin'
 import { signIn, useSession } from 'next-auth/react'
 /**
  * 🛑 ต้องเป็น wrapper ไม่ใช่ `{ Icon } from '@iconify/react'` ตรง ๆ
@@ -502,6 +503,34 @@ export function ConnectedAccountsClient({
   const handleConnect = useCallback(async (provider: ProviderKey) => {
     setRedirecting(provider)
     try {
+      /**
+       * ── ในแอป iOS: Apple ต้องเป็น "แผ่นของระบบ" (Guideline 4 · ตีกลับ 2026-09-24) ──
+       *
+       * 🛑 **ต้องแก้ที่นี่ด้วย ไม่ใช่แค่หน้าล็อกอิน** — ปุ่มนี้พาไป `appleid.apple.com`
+       * เหมือนกันเป๊ะ และทีมรีวิวของ Apple เดินเข้าหน้านี้แน่นอน เพราะปุ่ม "ลบบัญชี"
+       * อยู่ที่นี่ ซึ่ง Guideline 5.1.1(v) บังคับให้เขาไปตรวจ
+       *
+       * ไม่ต้องมีคุกกี้ link-intent ในเส้นนี้: คำขอมี session อยู่แล้ว เซิร์ฟเวอร์จึงอ่าน
+       * `userId` ได้ตรง ๆ (คุกกี้นั้นมีไว้เพราะ `signIn` callback ไม่มี session ให้อ่าน)
+       *
+       * ทุกทางที่ไม่สำเร็จตกลงไปทางเว็บด้านล่างซึ่งใช้งานได้อยู่แล้วทุกประการ
+       */
+      if (provider === 'apple' && canUseAppleNative(typeof window === 'undefined' ? undefined : window)) {
+        const outcome = await runAppleNativeLink()
+        if (outcome.kind === 'done') {
+          /* hard-navigate — แถบผลลัพธ์ถูกอ่านโดย effect ที่ดู searchParams และหน้านี้
+             ต้องเรนเดอร์ใหม่จากเซิร์ฟเวอร์เพื่อให้รายการ "เชื่อมแล้ว" ตรงกับความจริง */
+          window.location.assign(outcome.redirect)
+          return
+        }
+        if (outcome.kind === 'cancelled') {
+          /* ผู้ใช้ปัดแผ่นทิ้งเอง — คืนจอให้กดต่อได้ ห้ามเด้งหน้าเว็บของ Apple ตาม */
+          setRedirecting(null)
+          return
+        }
+        /* fallback-to-web → เดินต่อลงไปทางเดิมข้างล่าง */
+      }
+
       // ขั้น 1: บอก backend เตรียม link-intent cookie ก่อน
       const res = await fetch('/api/account/link/start', {
         method: 'POST',

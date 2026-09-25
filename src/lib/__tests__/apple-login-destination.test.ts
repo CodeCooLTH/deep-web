@@ -94,17 +94,41 @@ describe('ล็อกอิน Apple ต้องจบที่หน้าแ
     const auth = read('src/lib/auth.ts')
 
     /**
-     * ทุกบรรทัดที่ return `/account` ต้องอยู่ **หลัง** จุดที่ตัดสินว่าเป็น link mode
+     * ทุกจุดที่พา `/account` ต้องอยู่ **หลัง** ด่านที่ตัดสินว่าเป็น link mode
      * (`if (!intent || intent.provider !== account.provider) return true;`)
      * ถ้ามีตัวไหนอยู่ก่อนหน้านั้น = การล็อกอินธรรมดาจะถูกลากไป /account ด้วย
+     *
+     * 🛑 ปรับ 2026-09-25: ตรรกะ link mode ถูกสกัดไป `services/oauth-link.service.ts`
+     * เพราะมีผู้เรียกรายที่สอง (`/api/account/link/apple-native` — Apple สั่งให้แอป iOS
+     * ใช้แผ่นของระบบ) ⇒ `auth.ts` เหลือ **จุดเดียว** คือ `linkOutcomeRedirect(...)`
+     *
+     * ด่านไม่ได้อ่อนลง — มันยังตอบคำถามเดิมเป๊ะว่า "ของที่พาไป /account อยู่หลังด่านไหม"
+     * แค่ตอนนี้มีของให้ตรวจชิ้นเดียวแทนที่จะเป็นสี่ชิ้น และ **สตริงปลายทางถูกปักหมุด
+     * ที่ไฟล์ปลายทางแทน** (เคสถัดไป) ซึ่งกันได้กว้างกว่าเดิมเพราะครอบผู้เรียกทั้งสองราย
      */
     const gate = auth.indexOf('intent.provider !== account.provider')
     expect(gate, 'หาด่านแยก link mode ใน auth.ts ไม่เจอ').toBeGreaterThan(-1)
 
-    const accountReturns = [...auth.matchAll(/return\s+"\/account\?/g)].map((m) => m.index ?? -1)
-    expect(accountReturns.length, 'ต้องมี return /account ของ link mode อยู่จริง').toBeGreaterThan(0)
-    for (const at of accountReturns) {
-      expect(at, `return "/account?..." ที่ตำแหน่ง ${at} อยู่ก่อนด่าน link mode`).toBeGreaterThan(gate)
+    const at = auth.indexOf('linkOutcomeRedirect(')
+    expect(at, 'auth.ts ต้องยังพา /account ผ่าน linkOutcomeRedirect อยู่').toBeGreaterThan(-1)
+    expect(at, 'ตัวพาไป /account อยู่ก่อนด่าน link mode').toBeGreaterThan(gate)
+
+    /* ห้ามมีใครแอบเขียนสตริงปลายทางสดใน auth.ts อีก — ของแบบนั้นจะหลุดด่านข้างบนได้ */
+    expect(auth, 'auth.ts ห้ามเขียน "/account?..." สดอีกแล้ว').not.toMatch(/"\/account\?/)
+  })
+
+  it('[blocker] ปลายทางของ link mode ต้องเป็น /account ที่เดียว ไม่ใช่ /settings', () => {
+    /**
+     * เคสนี้ย้ายตามตรรกะมาจาก `auth.ts` — `/settings` กลายเป็นหน้า "การจัดส่ง" ตั้งแต่
+     * feature 00026 และ **ไม่มีใครอ่าน `?linked=` / `?link_error=` ที่นั่น**
+     * ⇒ เชื่อมสำเร็จก็เงียบ ล้มเหลวก็เงียบ (เจอจริง 2026-08-12)
+     */
+    /* ส่วนบริสุทธิ์ (ชนิดผลลัพธ์ + ปลายทาง) แยกออกมาเพื่อให้ import เข้าเทสได้โดยไม่ต้องมี
+       NEXTAUTH_SECRET — ตัวที่แตะฐานข้อมูลยังอยู่ที่ `services/oauth-link.service.ts` */
+    const svc = read('src/lib/oauth-link-outcome.ts')
+    for (const s of ['/account?linked=', '/account?link_error=taken', '/account?link_error=reclaimable']) {
+      expect(svc, `หายไป: ${s}`).toContain(s)
     }
+    expect(svc, 'ปลายทาง /settings คือหน้าที่ไม่มีใครอ่านผลลัพธ์').not.toContain('/settings?')
   })
 })

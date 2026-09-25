@@ -45,9 +45,20 @@ export function canUseAppleNative(win: Window | undefined): boolean {
   return nativeSupportsAppleSignIn(win)
 }
 
-export async function runAppleNativeSignIn(
-  deps: AppleNativeSignInDeps = {},
-): Promise<AppleNativeOutcome> {
+/** ผลของขั้น "ขอโทเคนจากแผ่นของระบบ" — ส่วนที่ผู้เรียกทั้งสองรายใช้ร่วมกัน */
+type TokenStep =
+  | { kind: 'token'; identityToken: string; doFetch: typeof fetch }
+  | { kind: 'cancelled' }
+  | { kind: 'fallback-to-web' }
+
+/**
+ * ขอ nonce → เปิดแผ่น → ได้โทเคน
+ *
+ * 🛑 แยกออกมาเพราะมี **ผู้เรียก 2 ราย** (ล็อกอิน · เชื่อมบัญชีที่ `/account`) ที่ต้อง
+ * ตัดสินใจเรื่องเดียวกันเป๊ะว่า "เมื่อไหร่ถอยไปใช้ทางเว็บ" — ปล่อยให้เขียนเอง วันหนึ่ง
+ * จะมีที่หนึ่งถอย อีกที่ค้าง แล้วไม่มี gate ไหนฟ้อง (Hard Rule 16)
+ */
+async function obtainAppleToken(deps: AppleNativeSignInDeps): Promise<TokenStep> {
   const win = deps.win ?? (typeof window === 'undefined' ? undefined : window)
   const transport = createWindowAppleTransport(win)
   if (!transport) return { kind: 'fallback-to-web' }
@@ -85,6 +96,16 @@ export async function runAppleNativeSignIn(
     return result.reason === 'CANCELLED' ? { kind: 'cancelled' } : { kind: 'fallback-to-web' }
   }
 
+  return { kind: 'token', identityToken: result.identityToken, doFetch }
+}
+
+export async function runAppleNativeSignIn(
+  deps: AppleNativeSignInDeps = {},
+): Promise<AppleNativeOutcome> {
+  const step = await obtainAppleToken(deps)
+  if (step.kind !== 'token') return step
+  const { identityToken, doFetch } = step
+
   let res: Response
   try {
     res = await doFetch('/api/login/apple-native', {
@@ -95,7 +116,7 @@ export async function runAppleNativeSignIn(
        * 🛑 **ไม่ส่ง nonce ไปด้วย** — เซิร์ฟเวอร์อ่านจากคุกกี้ httpOnly ที่ตัวเองตั้งไว้
        * ค่าที่ client ส่งมาจะถูกเมินทั้งหมด ซึ่งเป็นเหตุผลทั้งหมดที่ด่านนี้กันอะไรได้จริง
        */
-      body: JSON.stringify({ identityToken: result.identityToken }),
+      body: JSON.stringify({ identityToken }),
     })
   } catch {
     /* เน็ตหลุดตอนยิงเข้าเซิร์ฟเวอร์ — ทางเว็บใช้เครือข่ายเดียวกันและน่าจะล้มเหมือนกัน
@@ -119,5 +140,47 @@ export async function runAppleNativeSignIn(
    * พอร์ทัล Apple ยังไม่ครบ** (identifier ยังไม่ถูกจัดกลุ่ม) ซึ่งทางเว็บไม่ได้รับผลกระทบ
    * ⇒ ผู้ใช้ยังล็อกอินได้ ส่วนเราเห็นเหตุผลจริงใน log ของเซิร์ฟเวอร์
    */
+  return { kind: 'fallback-to-web' }
+}
+
+/** ผลของ "เชื่อมบัญชี Apple" ในแอป */
+export type AppleNativeLinkOutcome =
+  /** จบแล้ว — พาไป `redirect` เพื่อให้แถบผลลัพธ์ (`?linked=` / `?link_error=`) ถูกอ่าน */
+  | { kind: 'done'; redirect: string }
+  | { kind: 'cancelled' }
+  /** ถอยไปใช้ทางเว็บ (`signIn('apple')` + คุกกี้ link-intent) เหมือนเดิมทุกประการ */
+  | { kind: 'fallback-to-web' }
+
+/**
+ * เชื่อม Apple เข้าบัญชีที่ล็อกอินอยู่ ด้วยแผ่นของระบบ
+ *
+ * 🛑 ต้องมีทางนี้ ไม่ใช่แก้แค่หน้าล็อกอิน — ปุ่ม "เชื่อมบัญชี Apple" ที่ `/account`
+ * พาไป `appleid.apple.com` เหมือนกัน และทีมรีวิวของ Apple เดินเข้าหน้านั้นแน่นอน
+ * เพราะปุ่ม "ลบบัญชี" อยู่ที่นั่น ซึ่ง Guideline 5.1.1(v) บังคับให้เขาไปตรวจ
+ */
+export async function runAppleNativeLink(
+  deps: AppleNativeSignInDeps = {},
+): Promise<AppleNativeLinkOutcome> {
+  const step = await obtainAppleToken(deps)
+  if (step.kind !== 'token') return step
+  const { identityToken, doFetch } = step
+
+  let res: Response
+  try {
+    res = await doFetch('/api/account/link/apple-native', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identityToken }),
+    })
+  } catch {
+    return { kind: 'fallback-to-web' }
+  }
+
+  const body = (await res.json().catch(() => null)) as { ok?: boolean; redirect?: string } | null
+  if (body?.ok === true && typeof body.redirect === 'string' && body.redirect.length > 0) {
+    return { kind: 'done', redirect: body.redirect }
+  }
+  /* โทเคนไม่ผ่าน / คำตอบรูปร่างแปลก → ทางเว็บยังใช้ได้ (ไม่ได้รับผลจากการตั้งค่าที่ผิด) */
   return { kind: 'fallback-to-web' }
 }

@@ -38,11 +38,26 @@ describe('ยึดคืนการเชื่อมบัญชี — ต�
      * signIn callback ทำงาน "ระหว่างทางกลับจาก OAuth" ซึ่งไม่มีทางถามผู้ใช้ได้เลย
      * ⇒ อะไรที่ทำตรงนั้น = ทำโดยไม่ได้รับความยินยอม โดยนิยาม
      */
-    expect(auth, 'auth.ts ห้ามเขียน deletedAt (ปิดบัญชีคนอื่น)').not.toMatch(/deletedAt:\s*new Date\(\)/)
-    expect(auth, 'auth.ts ห้ามย้ายเจ้าของ AuthAccount').not.toMatch(/authAccount\.update\(/)
-    // ต้องออกตั๋วแทน
-    expect(auth).toContain('signReclaimTicket(')
-    expect(auth).toContain('link_error=reclaimable')
+    /**
+     * 🛑 ปรับ 2026-09-25: ตรรกะย้ายไป `services/oauth-link.service.ts` (มีผู้เรียกรายที่สอง
+     * คือ `/api/account/link/apple-native`) ⇒ ด่านต้องคุม **ทั้งสองไฟล์**
+     *
+     * ด่านกว้างขึ้นไม่ใช่อ่อนลง: เดิมคุมเฉพาะ `auth.ts` ถ้าใครก็อปตรรกะไปไว้ที่อื่น
+     * ด่านนี้จะมองไม่เห็นเลย — ตอนนี้ครอบตัวที่ทำงานจริงด้วย
+     */
+    const svc = readFileSync(join(ROOT, 'src/services/oauth-link.service.ts'), 'utf8')
+    const outcome = readFileSync(join(ROOT, 'src/lib/oauth-link-outcome.ts'), 'utf8')
+    for (const [name, code] of [
+      ['auth.ts', auth],
+      ['oauth-link.service.ts', svc],
+      ['oauth-link-outcome.ts', outcome],
+    ] as const) {
+      expect(code, `${name} ห้ามเขียน deletedAt (ปิดบัญชีคนอื่น)`).not.toMatch(/deletedAt:\s*new Date\(\)/)
+      expect(code, `${name} ห้ามย้ายเจ้าของ AuthAccount`).not.toMatch(/authAccount\.update\(/)
+    }
+    // ต้องออกตั๋วแทน — ตัวออกตั๋วอยู่ที่ service ส่วนปลายทางอยู่ที่ไฟล์บริสุทธิ์
+    expect(svc).toContain('signReclaimTicket(')
+    expect(outcome).toContain('link_error=reclaimable')
   })
 
   it('[blocker] ต้องจัดการคอลัมน์ @unique ของ User ให้ครบทุกตัว ไม่ใช่ไล่ปะทีละอาการ', () => {
