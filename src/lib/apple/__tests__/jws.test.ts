@@ -176,8 +176,23 @@ describe('[blocker] ห้ามมีทางลัดข้ามการต
   it('🛑 โค้ดจริงห้ามเรียก `verifyAppleJwsWithRoot` — มีไว้ให้เทสเท่านั้น', () => {
     /* ตัวนั้นรับใบรากจากผู้เรียก ⇒ ถ้าโค้ดจริงเรียกได้ วันหนึ่งจะมีคนส่งใบของตัวเองเข้าไป
        (rule-must-be-enforced-not-described.md — คอมเมนต์ "ห้ามเรียก" กันได้แค่คนที่อ่านเจอ) */
+    /**
+     * 🛑 ตัดคอมเมนต์ก่อนสแกน (เพิ่ม 2026-09-25)
+     *
+     * ไฟล์ที่ทำถูกตามกฎ คือไฟล์ที่อธิบายกฎนั้นไว้ด้วย — `apple/identity-token.ts` เขียน
+     * เทียบให้เห็นว่ามันต่างจาก `jws.ts` ยังไง จึงเอ่ยชื่อฟังก์ชันนี้ในคอมเมนต์ แล้วโดนจับ
+     * ทั้งที่ไม่เคยเรียกสักครั้ง (คลาสเดียวกับ grep gate ของ HR9 เมื่อ 2026-08-02→03)
+     *
+     * ไม่ได้ทำให้ด่านอ่อนลง: คอมเมนต์ไม่ทำงาน — สิ่งที่ด่านนี้กันคือ **การเรียกจริง**
+     */
+    const stripComments = (s: string) =>
+      s
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1')
     const offenders = walk('src').filter(
-      (f) => f !== 'src/lib/apple/jws.ts' && readFileSync(join(ROOT_DIR, f), 'utf8').includes('verifyAppleJwsWithRoot'),
+      (f) =>
+        f !== 'src/lib/apple/jws.ts' &&
+        stripComments(readFileSync(join(ROOT_DIR, f), 'utf8')).includes('verifyAppleJwsWithRoot'),
     )
     expect(offenders, `เรียกตัวที่ฉีดใบรากได้: ${offenders.join(', ')}`).toEqual([])
   })

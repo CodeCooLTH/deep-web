@@ -29,6 +29,23 @@ function read(rel: string): string {
   return readFileSync(join(ROOT, rel), 'utf8')
 }
 
+/**
+ * อ่านซอร์สโดย **ตัดคอมเมนต์ทิ้งก่อน** — ใช้กับด่านที่ค้นหาข้อความในโค้ด
+ *
+ * 🛑 เพิ่ม 2026-09-25 เพราะด่านนี้แดงผิดตัว: ไฟล์ที่ทำถูกตามกฎ คือไฟล์ที่เขียนคำอธิบาย
+ * ของกฎนั้นไว้ด้วย ⇒ `indexOf("signIn('apple'")` ไปเจอ **คอมเมนต์** ที่อธิบายว่าทำไมต้อง
+ * เลิกใช้ทางนั้นในแอป แล้วตรวจผิดที่ทั้งเคส (คลาสเดียวกับ grep gate ของ HR9 เมื่อ
+ * 2026-08-02→03 และของ `component-declared-in-render.md` ซึ่งเขียนกติกานี้ไว้แล้ว)
+ *
+ * ไม่ได้ทำให้ด่านอ่อนลง: คอมเมนต์ไม่ทำงาน การตัดออกคือการเลิกตรวจของที่ไม่เคยมีผล
+ */
+function readCode(rel: string): string {
+  return read(rel)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+}
+
 describe('ล็อกอิน Apple ต้องจบที่หน้าแรก', () => {
   it('[blocker] ปลายทางตั้งต้นของฝั่งร้านคือ /dashboard', () => {
     // /dashboard = "หน้าหลัก" ในเมนูล่าง (SellerBottomNav) — root ของ subdomain seller ไม่มีหน้า
@@ -52,7 +69,7 @@ describe('ล็อกอิน Apple ต้องจบที่หน้าแ
    *   2. ค่าต้องมาจากตัว sanitize ไม่ใช่อ่านดิบจาก query (open-redirect)
    */
   it('[blocker] ปุ่ม Apple ในหน้าล็อกอินต้องส่ง callbackUrl ที่ผ่าน safeCallbackUrl', () => {
-    const form = read('src/app/(paces)/seller/auth/sign-in/components/SignInForm.tsx')
+    const form = readCode('src/app/(paces)/seller/auth/sign-in/components/SignInForm.tsx')
 
     const at = form.indexOf("signIn('apple'")
     expect(at, 'ไม่พบการเรียก signIn ของ Apple').toBeGreaterThan(-1)
