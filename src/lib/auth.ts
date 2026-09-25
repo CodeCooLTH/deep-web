@@ -7,8 +7,8 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { evaluateSignupYearBadge } from "@/services/badge.service";
 import bcrypt from "bcryptjs";
-import { verifyLinkIntent, signReclaimTicket, LINK_INTENT_COOKIE } from "@/lib/link-intent";
-import { classifyLinkConflict } from "@/lib/link-conflict";
+import { verifyLinkIntent, LINK_INTENT_COOKIE } from "@/lib/link-intent";
+import { linkOAuthAccount, linkOutcomeRedirect } from "@/services/oauth-link.service";
 import { getPersonalShop, isShopMember } from "@/lib/shop-context";
 import { resolveOnboardingGate, resolveDefaultActiveShopId } from "@/lib/onboarding-gate";
 import { resolvePostAuthRedirect } from "@/lib/post-auth-redirect";
@@ -719,117 +719,21 @@ export const authOptions: NextAuthOptions = {
         /* mutate cookie ไม่ได้ใน context นี้ → พึ่ง TTL 5 นาที + exp ใน payload */
       }
 
-      // ตรวจว่า AuthAccount(provider,providerAccountId) นี้มีใครถืออยู่แล้วไหม
-      const existing = await prisma.authAccount.findUnique({
-        where: {
-          provider_providerAccountId: {
-            provider: providerEnum,
-            providerAccountId: account.providerAccountId,
-          },
-        },
-        select: { userId: true },
+      /**
+       * 🛑 ตรรกะทั้งก้อนย้ายไป `services/oauth-link.service.ts` แล้ว (2026-09-25)
+       *
+       * เพราะมีผู้เรียกรายที่สอง: `POST /api/account/link/apple-native` ซึ่งไม่ได้เดินผ่าน
+       * OAuth callback เลย (Apple สั่งให้แอป iOS ใช้แผ่นของระบบ — Guideline 4)
+       * ⇒ เกณฑ์ "ใครถือ id นี้อยู่" กับ "ยึดคืนได้ไหม" ต้องมีที่เดียว ไม่งั้นสองก้อนจะ
+       * drift กันโดยไม่มี gate ไหนฟ้อง เพราะทั้งคู่เป็นโค้ดที่ถูกในตัวเอง (Hard Rule 16)
+       */
+      const outcome = await linkOAuthAccount({
+        userId: intent.userId,
+        provider: providerEnum,
+        providerAccountId: account.providerAccountId,
+        accessToken: account.access_token ?? null,
       });
-
-      if (existing) {
-        if (existing.userId !== intent.userId) {
-          /**
-           * มีคนถืออยู่แล้ว — แต่ "ใครถือ" สำคัญกว่า "ถืออยู่ไหม"
-           *
-           * 🛑 เดิมตอบ `link_error=taken` ทุกกรณี ซึ่งสร้างทางตันถาวรบน prod (2026-08-15):
-           * ผู้ใช้กดปุ่ม Apple ที่หน้าล็อกอินโดยไม่ตั้งใจ (บนมือถือ Face ID ผ่านให้ในวินาทีเดียว
-           * โดยไม่ต้องกรอกอะไร) ได้บัญชีค้างที่ไม่มีเบอร์ ⇒ ถอดการเชื่อมไม่ได้ (ต้อง OTP ทางเบอร์)
-           * · ใส่เบอร์ไม่ได้ (เบอร์อยู่กับบัญชีจริง) · ลบบัญชีเองไม่ได้ (proxy ขังไว้ที่ /register)
-           * · เอา Apple ID ไปเชื่อมบัญชีจริงไม่ได้ (ตกมาที่บรรทัดนี้)
-           * ⇒ **Apple ID นั้นใช้กับ Deep ไม่ได้อีกเลยตลอดกาล**
-           *
-           * คนที่มายืนตรงนี้เพิ่งพิสูจน์กับผู้ให้บริการเมื่อกี้ว่าคุม id นั้นจริง — ถ้าปลายทาง
-           * ไม่มีตัวตนอะไรเลย การให้เขาย้ายตัวตนของตัวเองกลับมาไม่ใช่การยึดของคนอื่น
-           * เกณฑ์ตัดสินอยู่ใน `classifyLinkConflict()` (ฟังก์ชันบริสุทธิ์ + เทส [blocker] +
-           * พิสูจน์ด้วย mutation) — ห้ามย้ายตรรกะนี้กลับเข้ามาเขียนสดตรงนี้
-           */
-          const holder = await prisma.user.findUnique({
-            where: { id: existing.userId },
-            select: {
-              deletedAt: true,
-              phone: true,
-              passwordHash: true,
-              _count: { select: { shopMemberships: true } },
-              shops: { where: { deletedAt: null }, select: { slug: true, _count: { select: { orders: true } } } },
-              authAccounts: { where: { provider: { not: providerEnum } }, select: { id: true } },
-            },
-          });
-
-          // หา user ไม่เจอทั้งที่ AuthAccount ชี้อยู่ = ข้อมูลไม่สอดคล้อง → fail-closed
-          if (!holder) return "/account?link_error=taken";
-
-          const verdict = classifyLinkConflict({
-            deletedAt: holder.deletedAt,
-            phone: holder.phone,
-            passwordHash: holder.passwordHash,
-            completedShopCount: holder.shops.filter((s) => s.slug !== null).length,
-            orderCount: holder.shops.reduce((n, s) => n + s._count.orders, 0),
-            shopMemberCount: holder._count.shopMemberships,
-            otherAuthAccountCount: holder.authAccounts.length,
-          });
-
-          if (verdict === "BLOCKED") {
-            // บัญชีปลายทางมีตัวตนจริง — ห้ามแตะ ให้เจ้าตัวไปถอด/ลบเอง (ข้อความอยู่ฝั่ง UI)
-            return "/account?link_error=taken";
-          }
-
-          /**
-           * ยึดคืนได้ — **แต่ห้ามทำตรงนี้ ต้องถามผู้ใช้ก่อน**
-           *
-           * 🛑 ตรงนี้คือจุดที่ผมออกแบบพลาดรอบแรกแล้ว user ทักท้วง (2026-08-15): ตอนแรกให้
-           * ปิดบัญชีค้างอัตโนมัติเลยเพราะ "มันว่างเปล่า ไม่มีข้อมูลอะไรจะเสีย" ซึ่งผิด 2 ชั้น —
-           *   1. เราไม่มีทางรู้ว่าเขา *ตั้งใจ* ทิ้งบัญชีนั้นจริงไหม (อาจกำลังสมัครค้างไว้อีกเครื่อง)
-           *   2. การลบของผู้ใช้โดยไม่ถาม คือสิ่งที่แพลตฟอร์มซึ่งขายเรื่องความน่าเชื่อถือทำไม่ได้
-           * "ข้อมูลว่างเปล่า" ตอบว่า *ความเสียหายน้อย* ไม่ได้ตอบว่า *มีสิทธิ์ทำโดยไม่ถามไหม*
-           *
-           * จึงคืนสถานะ `reclaimable` พร้อม **ตั๋วเซ็นชื่อ** ให้ฝั่ง UI ถามยืนยัน แล้วค่อยยิง
-           * `POST /api/account/link/reclaim` ตอนผู้ใช้กดตกลง — ที่นั่นตรวจซ้ำทุกอย่างอีกรอบ
-           *
-           * ตั๋วต้องเซ็น ไม่ใช่ส่ง providerAccountId เปล่า ๆ ใน URL — ไม่งั้นใครก็ยิง endpoint
-           * ด้วย id ของคนอื่นเพื่อยึดบัญชีค้างของเขาได้ (มูลค่าต่ำแต่ก็ยังผิด) และตั๋วผูกกับ
-           * `userId` ผู้ขอ ⇒ ต่อให้ตั๋วหลุด คนอื่นเอาไปใช้ไม่ได้เพราะ session ไม่ตรง
-           */
-          const ticket = signReclaimTicket({
-            userId: intent.userId,
-            provider: account.provider,
-            providerAccountId: account.providerAccountId,
-            holderUserId: existing.userId,
-          });
-          return `/account?link_error=reclaimable&ticket=${encodeURIComponent(ticket)}`;
-        }
-        // AuthAccount มีอยู่แล้วและเป็นของ intent.userId → ผูกแล้ว (idempotent) → ok
-        return "/account?linked=" + account.provider;
-      }
-
-      // AuthAccount ว่าง → สร้างผูกกับ intent.userId (ไม่ใช่ user ที่ OAuth ส่งมา)
-      try {
-        await prisma.authAccount.create({
-          data: {
-            userId: intent.userId,
-            provider: providerEnum,
-            providerAccountId: account.providerAccountId,
-            accessToken: account.access_token ?? null,
-          },
-        });
-      } catch (err: unknown) {
-        // P2002 = race: อีก request สร้าง AuthAccount เดียวกันระหว่างนี้ (security R1) → ตรวจเจ้าของ
-        if (err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "P2002") {
-          const raced = await prisma.authAccount.findUnique({
-            where: { provider_providerAccountId: { provider: providerEnum, providerAccountId: account.providerAccountId } },
-            select: { userId: true },
-          });
-          // เป็นของ user อื่น → block; เป็นของ intent.userId เอง → idempotent ผ่าน
-          if (raced && raced.userId !== intent.userId) return "/account?link_error=taken";
-        } else {
-          throw err;
-        }
-      }
-
-      return "/account?linked=" + account.provider;
+      return linkOutcomeRedirect(account.provider, outcome);
     },
 
     // Multi-subdomain redirect: NextAuth's default redirect prefixes relative

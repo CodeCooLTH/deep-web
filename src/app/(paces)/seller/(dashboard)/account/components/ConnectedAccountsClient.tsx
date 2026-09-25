@@ -17,6 +17,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { canUseAppleNative, runAppleNativeLink } from '@/lib/apple-native-signin'
 import { signIn, useSession } from 'next-auth/react'
 /**
  * 🛑 ต้องเป็น wrapper ไม่ใช่ `{ Icon } from '@iconify/react'` ตรง ๆ
@@ -78,11 +79,11 @@ const LineIcon = () => (
     {/* Hard Rule 6 exception: LINE brand color #06C755 — brand asset ใช้ได้ตาม ref */}
     <path
       d="M19.952 12.255c0-3.78-3.79-6.855-8.452-6.855S3.048 8.475 3.048 12.255c0 3.39 3.006 6.23 7.068 6.768.275.059.65.182.745.418.085.213.056.549.028.764l-.12.726c-.037.213-.17.833.728.454.9-.38 4.86-2.862 6.63-4.9 1.222-1.341 1.825-2.703 1.825-4.23z"
-      fill="#06C755"
+      fill="#06C755" /* HR6 carve-out: LINE brand green — แบรนด์กำหนดค่าตายตัว ใช้ token แทนไม่ได้ */
     />
     <path
       d="M10.26 10.49H9.577a.197.197 0 0 0-.197.197v4.24c0 .109.088.197.197.197h.682a.197.197 0 0 0 .197-.197v-4.24a.197.197 0 0 0-.197-.197zm4.673 0h-.682a.197.197 0 0 0-.197.197v2.518l-1.942-2.624a.196.196 0 0 0-.016-.02l-.001-.002a.202.202 0 0 0-.014-.013l-.004-.004a.202.202 0 0 0-.013-.009l-.005-.003a.198.198 0 0 0-.014-.008l-.005-.002a.198.198 0 0 0-.015-.005l-.005-.002a.198.198 0 0 0-.015-.003H11.3a.197.197 0 0 0-.197.197v4.24c0 .109.088.197.197.197h.682a.197.197 0 0 0 .197-.197v-2.518l1.944 2.627a.196.196 0 0 0 .05.048l.002.001a.198.198 0 0 0 .051.02l.007.001a.2.2 0 0 0 .05.007h.65a.197.197 0 0 0 .197-.197v-4.24a.197.197 0 0 0-.197-.197zm-6.396 3.362H7.463v-3.165a.197.197 0 0 0-.197-.197h-.682a.197.197 0 0 0-.197.197v4.24c0 .053.021.1.055.136l.003.003.003.003a.196.196 0 0 0 .136.055h3.953a.197.197 0 0 0 .197-.197v-.682a.197.197 0 0 0-.197-.193zm10.017-3.362h-3.953a.197.197 0 0 0-.197.197v4.24a.197.197 0 0 0 .197.197h3.953a.197.197 0 0 0 .197-.197v-.682a.197.197 0 0 0-.197-.197h-3.074v-.73h3.074a.197.197 0 0 0 .197-.197v-.682a.197.197 0 0 0-.197-.197h-3.074v-.73h3.074a.197.197 0 0 0 .197-.197v-.682a.197.197 0 0 0-.197-.193z"
-      fill="#fff"
+      fill="#fff" /* HR6 carve-out: ตัวอักษรขาวในมาร์ก LINE — เป็นส่วนหนึ่งของโลโก้ ไม่ใช่สีข้อความ */
     />
   </svg>
 )
@@ -502,6 +503,34 @@ export function ConnectedAccountsClient({
   const handleConnect = useCallback(async (provider: ProviderKey) => {
     setRedirecting(provider)
     try {
+      /**
+       * ── ในแอป iOS: Apple ต้องเป็น "แผ่นของระบบ" (Guideline 4 · ตีกลับ 2026-09-24) ──
+       *
+       * 🛑 **ต้องแก้ที่นี่ด้วย ไม่ใช่แค่หน้าล็อกอิน** — ปุ่มนี้พาไป `appleid.apple.com`
+       * เหมือนกันเป๊ะ และทีมรีวิวของ Apple เดินเข้าหน้านี้แน่นอน เพราะปุ่ม "ลบบัญชี"
+       * อยู่ที่นี่ ซึ่ง Guideline 5.1.1(v) บังคับให้เขาไปตรวจ
+       *
+       * ไม่ต้องมีคุกกี้ link-intent ในเส้นนี้: คำขอมี session อยู่แล้ว เซิร์ฟเวอร์จึงอ่าน
+       * `userId` ได้ตรง ๆ (คุกกี้นั้นมีไว้เพราะ `signIn` callback ไม่มี session ให้อ่าน)
+       *
+       * ทุกทางที่ไม่สำเร็จตกลงไปทางเว็บด้านล่างซึ่งใช้งานได้อยู่แล้วทุกประการ
+       */
+      if (provider === 'apple' && canUseAppleNative(typeof window === 'undefined' ? undefined : window)) {
+        const outcome = await runAppleNativeLink()
+        if (outcome.kind === 'done') {
+          /* hard-navigate — แถบผลลัพธ์ถูกอ่านโดย effect ที่ดู searchParams และหน้านี้
+             ต้องเรนเดอร์ใหม่จากเซิร์ฟเวอร์เพื่อให้รายการ "เชื่อมแล้ว" ตรงกับความจริง */
+          window.location.assign(outcome.redirect)
+          return
+        }
+        if (outcome.kind === 'cancelled') {
+          /* ผู้ใช้ปัดแผ่นทิ้งเอง — คืนจอให้กดต่อได้ ห้ามเด้งหน้าเว็บของ Apple ตาม */
+          setRedirecting(null)
+          return
+        }
+        /* fallback-to-web → เดินต่อลงไปทางเดิมข้างล่าง */
+      }
+
       // ขั้น 1: บอก backend เตรียม link-intent cookie ก่อน
       const res = await fetch('/api/account/link/start', {
         method: 'POST',
@@ -744,13 +773,13 @@ export function ConnectedAccountsClient({
       key: 'apple',
       show: true,
       // Hard Rule 6 exception: โลโก้ Apple สีดำตาม Human Interface Guidelines
-      icon: <Icon icon="bxl:apple" width={22} height={22} style={{ color: '#000000' }} aria-label="Apple" />,
+      icon: <Icon icon="bxl:apple" width={22} height={22} style={{ color: '#000000' }} aria-label="Apple" />, // HR6 carve-out: โลโก้ Apple ต้องดำตาม Human Interface Guidelines
     },
     {
       key: 'facebook',
       show: true,
       // Hard Rule 6 exception: Facebook brand color #1877F2 — brand asset ใช้ได้ตาม ref
-      icon: <Icon icon="bxl:facebook-circle" width={22} height={22} style={{ color: '#1877F2' }} aria-label="Facebook" />,
+      icon: <Icon icon="bxl:facebook-circle" width={22} height={22} style={{ color: '#1877F2' }} aria-label="Facebook" />, // HR6 carve-out: Facebook brand blue
     },
     { key: 'line', show: true, icon: <LineIcon /> },
     {
@@ -758,7 +787,7 @@ export function ConnectedAccountsClient({
       key: 'instagram',
       show: enableIg,
       // Hard Rule 6 exception: Instagram brand color #E1306C — brand asset ใช้ได้ตาม ref
-      icon: <Icon icon="bxl:instagram" width={22} height={22} style={{ color: '#E1306C' }} aria-label="Instagram" />,
+      icon: <Icon icon="bxl:instagram" width={22} height={22} style={{ color: '#E1306C' }} aria-label="Instagram" />, // HR6 carve-out: Instagram brand pink
     },
   ]
 

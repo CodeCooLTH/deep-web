@@ -104,7 +104,18 @@ describe('[blocker] Apple ต้องเดินผ่านหน้ารอ
 
     const i = code.indexOf('const handleApple')
     expect(i, 'ไม่พบ handleApple').toBeGreaterThan(-1)
-    const body = code.slice(i, i + 400)
+    /**
+     * 🛑 ตัดถึง **ตัวจัดการถัดไป** ไม่ใช่นับตัวอักษรตายตัว (เดิม `i + 400`)
+     *
+     * เพิ่ม 2026-09-25 ตอนทำ Sign in with Apple แบบ native: `handleApple` ยาวขึ้นเพราะ
+     * ต้องลองทาง native ก่อนแล้วค่อยถอยมาทางเว็บ ⇒ หน้าต่าง 400 ตัวอักษรตัดจบ **ก่อน**
+     * ถึงบรรทัดที่ด่านนี้ต้องการ แล้วแดงทั้งที่เจตนายังถูกครบทุกข้อ
+     *
+     * ด่านที่ผูกกับ *ความยาวของโค้ด* จะแดงทุกครั้งที่มีคนเพิ่มเส้นทาง — ซึ่งสอนให้คนถัดไป
+     * ผ่อนด่านเพื่อให้เขียว แทนที่จะอ่านว่ามันกันอะไรอยู่
+     */
+    const next = code.indexOf('const handleFacebook', i)
+    const body = code.slice(i, next > -1 ? next : i + 2000)
     expect(
       body,
       'ชี้ตรงปลายทาง = คำขอถัดไปอาจยังไม่เห็นคุกกี้ session ที่เพิ่งตั้ง',

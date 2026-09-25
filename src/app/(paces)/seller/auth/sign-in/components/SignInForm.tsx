@@ -37,6 +37,7 @@ import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
 import type { Dictionary } from '@/i18n/dictionaries/th'
+import { canUseAppleNative, runAppleNativeSignIn } from '@/lib/apple-native-signin'
 import { goAfterLogin } from '@/lib/go-after-login'
 import { MOBILE_RULE_TEXT, isLoginPhone } from '@/lib/phone'
 import { safeCallbackUrl } from '@/lib/safe-callback-url'
@@ -165,6 +166,46 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
    * ซึ่งผ่าน callback ของ NextAuth ที่ตั้ง session cookie ให้ก่อน redirect อยู่แล้ว
    */
   const handleApple = async () => {
+    /**
+     * ── ในแอป iOS: ต้องเป็น "แผ่นของระบบ" ไม่ใช่หน้าเว็บ (Guideline 4 · ตีกลับ 2026-09-24) ──
+     *
+     * ทีมรีวิวแนบภาพหน้า `appleid.apple.com` ที่ถาม *"Email or Phone Number"* มา 3 ใบ —
+     * นั่นคือหน้าเว็บของ Apple ที่ `signIn('apple')` พาไป ซึ่ง Apple ไม่ยอมรับในแอป iOS
+     *
+     * 🛑 **ปุ่มหน้าตาเหมือนเดิมทุกอย่าง ไม่มีหน้าใหม่** — สิ่งที่เปลี่ยนคือ *ใครเป็นคนเปิด
+     * จอของ Apple* เท่านั้น · ทำหน้าใหม่แยกสำหรับแอปไม่ช่วยเลย เพราะปุ่มในหน้านั้นก็ยัง
+     * ต้องไป `appleid.apple.com` อยู่ดี
+     *
+     * 🛑 **ทุกเส้นทางที่ไม่สำเร็จต้องถอยไปทางเว็บ ห้ามค้าง** — เบราว์เซอร์ปกติ · แอปรุ่นเก่า
+     * ที่ยังไม่มีโมดูล native · แผ่นระบบล้ม · เซิร์ฟเวอร์ปฏิเสธโทเคน ⇒ ตกมาบรรทัดล่างสุด
+     * ซึ่งเป็นทางเดิมที่ใช้งานได้อยู่แล้วทุกประการ (เกณฑ์รวมอยู่ใน `runAppleNativeSignIn`)
+     */
+    if (canUseAppleNative(typeof window === 'undefined' ? undefined : window)) {
+      const outcome = await runAppleNativeSignIn()
+
+      if (outcome.kind === 'ticket') {
+        const result = await signIn('mobile-ticket', { ticket: outcome.ticket, redirect: false })
+        if (result?.ok) {
+          await goAfterLogin(callbackUrl)
+          return
+        }
+        /* ตั๋วหมดอายุ/ถูกใช้ไปแล้ว (อายุ 60 วินาที) — เกิดได้ถ้าผู้ใช้ค้างแผ่นไว้นาน
+           ให้ลองใหม่ทางเว็บ ดีกว่าขึ้น error ที่เขาทำอะไรกับมันไม่ได้ */
+      } else if (outcome.kind === 'cancelled') {
+        /* ผู้ใช้ปัดแผ่นทิ้งเอง — เงียบถูกแล้ว ห้ามเด้งหน้าเว็บของ Apple ต่อ */
+        return
+      } else if (outcome.kind === 'no-account') {
+        /**
+         * Apple ID นี้ไม่มีบัญชีผู้ขาย — พาไปหน้าเดิมพร้อมธงที่ `OAuthErrorNotice` อ่านอยู่แล้ว
+         *
+         * 🛑 ใช้ธงเดียวกับด่าน 3.1.1 ใน `proxy.ts` ไม่ mint ข้อความใหม่ — ไม่งั้นผู้ใช้จะได้ยิน
+         * คำอธิบายคนละอย่างจากสองทางที่หมายถึงเรื่องเดียวกัน (Hard Rule 16)
+         */
+        router.replace('/auth/sign-in?app_no_account=1')
+        return
+      }
+    }
+
     /**
      * 🛑 ต้องเดินผ่านหน้ารอ `/auth/callback/apple` **ห้ามชี้ตรงปลายทาง**
      *
