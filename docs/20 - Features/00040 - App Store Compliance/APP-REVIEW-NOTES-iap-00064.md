@@ -26,81 +26,31 @@
 ```
 Hello App Review Team,
 
-This build adds In-App Purchase for our subscription plans, which was the
-issue raised in the previous review. Everything below is new in this build.
+We have addressed all three issues from your 23 August review.
 
-── Guideline 3.1.1 — In-App Purchase ───────────────────────────────────────
+1. Guideline 3.1.1 - In-App Purchase
+Our subscription plans are now sold only through In-App Purchase
+(auto-renewable subscriptions). There is no other purchase method and no
+external purchase link in the app.
+Purchase screen: Shop > Manage shop > My package.
 
-Subscriptions are now sold through StoreKit as auto-renewable in-app
-purchases. There is no other purchase path anywhere in the iOS app: no
-account top-up, no payment-slip upload, and no link pointing to a purchase
-page outside the app.
+2. Guideline 3.1.1 - Account registration
+Business account registration has been removed from the app. The app now
+offers sign-in only, for existing merchants. If you sign in with an Apple ID
+that is not linked to a Deep account, you will see the screen
+"ยังไม่มีร้านค้าของคุณ" (You do not have a shop yet). This is expected.
 
-Purchases are validated on our server using the App Store Server API and
-App Store Server Notifications V2, so entitlements are granted only after
-Apple confirms the transaction.
+3. Guideline 2.1(a) - Sign in with Apple on iPad
+The issue where the app stayed on the login screen after Sign in with Apple
+has been fixed and tested on iPad and iPhone.
 
-── Where to find the purchase screen ───────────────────────────────────────
-
-From the bottom tab bar:
-
-  Shop  ->  Manage shop  ->  My package
-
-That screen lists the three plans with the price supplied by StoreKit, the
-renewal period, a Restore Purchases button, and links to our Terms of Service
-and Privacy Policy.
-
-To change or cancel a plan, the screen directs the user to the iOS
-Subscriptions settings, as required.
-
-── Demo account ────────────────────────────────────────────────────────────
-
+Demo account
 Username: appreview
-Password: (as provided in the App Review Information fields)
+Password: provided in the App Review Information fields
+This account has no active subscription, so the purchase buttons are visible
+for testing.
 
-This account intentionally has NO active subscription, so the purchase
-buttons are visible and can be exercised. The demo shop also contains sample
-products, orders and chat threads.
-
-── Testing notes ───────────────────────────────────────────────────────────
-
-The app is a business tool for merchants in Thailand. Its interface is in
-Thai. The purchase screen is titled "แพ็กเกจธุรกิจ" (Business packages) and
-the purchase buttons read "สมัคร" (Subscribe).
-
-Purchases made from a TestFlight or sandbox environment are accepted by our
-server and grant the entitlement, so the full flow can be verified end to end.
-
-If a purchase is confirmed but the entitlement does not appear immediately,
-the app recovers it automatically the next time it is opened; the Restore
-Purchases button on the same screen also recovers it on demand.
-
-── If you sign in with your own Apple ID ───────────────────────────────────
-
-Creating a NEW merchant account is intentionally not available inside the app.
-We removed it in response to your earlier guidance ("Remove the account
-registration features for business and organizations").
-
-So if you sign in with an Apple ID that has never been used with Deep, Apple
-authentication succeeds and you reach a screen headed "ยังไม่มีร้านค้าของคุณ"
-("You do not have a shop yet"). It explains that the app is for merchants who
-already have a shop, and offers a field where a staff invitation link can be
-pasted to join an existing shop. This is the expected result of the change you
-asked for, not an error or a failed login.
-
-Please use the demo account above to review the app's functionality. If you
-would like to verify Sign in with Apple end to end, sign in with the demo
-account, open Account, and use the "วิธีเข้าสู่ระบบ" (Sign-in methods) section
-to link your own Apple ID to it; you can then sign out and sign back in with
-Sign in with Apple.
-
-── Sign in with Apple ──────────────────────────────────────────────────────
-
-Sign in with Apple remains available and is presented as the first login
-option on the sign-in screen, on the staff invitation screen, and in Account
-Settings.
-
-Thank you for your time.
+Thank you.
 ```
 
 ---
