@@ -18,7 +18,6 @@ import {
   APPLE_RESULT_EVENT,
   CAP_APPLE_SIGNIN,
   NATIVE_CAPS_EVENT,
-  appleDisplayName,
   buildAppleSignInRequest,
   parseAppleSignInResult,
 } from '@/lib/apple-bridge-protocol'
@@ -27,17 +26,15 @@ import {
   createAppleNativeClient,
   type AppleNativeTransport,
 } from '@/lib/apple-native-client'
-import {
-  createWindowAppleTransport,
-  nativeSupportsAppleSignIn,
-  subscribeNativeCaps,
-} from '@/lib/apple-native-transport'
+import { createWindowAppleTransport, nativeSupportsAppleSignIn } from '@/lib/apple-native-transport'
 
 const TOKEN = 'eyJhbGciOiJSUzI1NiJ9.payload.sig'
 
 describe('[blocker] ค่าคงที่ที่ต้องตรงกับฝั่งแอป', () => {
   it('🛑 ชื่อ event และคำสั่ง ห้ามเปลี่ยนโดยไม่แก้อีกรีโปพร้อมกัน', () => {
     expect(APPLE_RESULT_EVENT).toBe('deep:apple-result')
+    /* ฝั่งเว็บไม่มีตัวฟัง event นี้แล้ว (ปุ่มอ่านค่าตอนกด) แต่ **แอปยังยิงจริง** และค่านี้
+       เป็นสัญญาข้ามรีโป ⇒ ต้องปักหมุดไว้ ไม่งั้นวันที่เว็บกลับมาฟัง จะเงียบโดยไม่มี error */
     expect(NATIVE_CAPS_EVENT).toBe('deep:native-caps')
     expect(CAP_APPLE_SIGNIN).toBe('apple-signin')
     expect(buildAppleSignInRequest('r1', 'n1')).toEqual({
@@ -111,11 +108,6 @@ describe('[blocker] แปลผลจาก native — รูปร่างไ
     expect(r && r.ok && r.fullName).toEqual({ givenName: 'สมชาย' })
   })
 
-  it('appleDisplayName ประกอบชื่อที่เดียวทั้งระบบ (HR16)', () => {
-    expect(appleDisplayName({ givenName: 'สมชาย', familyName: 'ใจดี' })).toBe('สมชาย ใจดี')
-    expect(appleDisplayName({ familyName: 'ใจดี' })).toBe('ใจดี')
-    expect(appleDisplayName(undefined)).toBeNull()
-  })
 })
 
 // ─── ท่อจำลอง ───────────────────────────────────────────────────────────────
@@ -279,15 +271,15 @@ describe('[blocker] เส้นทางถอย — บิลด์เก่�
     expect(seen).toHaveLength(1)
   })
 
-  it('🛑 ต้องฟังประกาศความสามารถที่มาช้ากว่า hydrate', () => {
-    /* inject เกิดหลังหน้าโหลดเสร็จ ซึ่งอาจช้ากว่าที่ React hydrate ⇒ ปุ่มที่อ่านครั้งเดียว
-       ตอน mount จะสรุปว่า "ไม่รองรับ" ทุกครั้ง แล้วถอยไปทางเว็บ = บั๊กที่ Apple ตีกลับพอดี */
+  it('🛑 ความสามารถที่ประกาศมาทีหลัง ต้องมีผลทันทีโดยไม่ต้อง mount ใหม่', () => {
+    /**
+     * เปลือก inject หลังหน้าโหลดเสร็จ ซึ่งอาจช้ากว่าที่ React hydrate ⇒ โค้ดที่อ่านค่า
+     * **ครั้งเดียวตอน mount** แล้วจำไว้ จะได้ `false` ค้างตลอดแล้วถอยไปหน้าเว็บของ Apple
+     * ทุกครั้ง = บั๊กที่ Apple ตีกลับพอดี · ตัวนี้จึงต้องอ่านสดทุกครั้งที่ถูกเรียก
+     */
     const w = fakeWindow({ ReactNativeWebView: { postMessage: () => {} } })
-    const seen: boolean[] = []
-    const off = subscribeNativeCaps(w, (s) => seen.push(s))
+    expect(nativeSupportsAppleSignIn(w)).toBe(false)
     ;(w as unknown as Record<string, unknown>).__DEEP_NATIVE_CAPS__ = [CAP_APPLE_SIGNIN]
-    w.dispatch(NATIVE_CAPS_EVENT)
-    expect(seen).toEqual([true])
-    off()
+    expect(nativeSupportsAppleSignIn(w), 'อ่านค่าครั้งเดียวแล้วจำไว้ = ปุ่มจะไม่มีวันใช้ทาง native').toBe(true)
   })
 })

@@ -17,7 +17,8 @@
  * "คณิตศาสตร์ของลายเซ็นถูกบังคับจริง" ไม่ใช่ "สตริงชุดนี้ผ่าน"
  */
 import { createHash, generateKeyPairSync, createSign, type KeyObject } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -363,5 +364,78 @@ describe('[blocker] สัญญาข้ามรีโป', () => {
   it('hashNonce ต้องเป็น SHA-256 hex — รูปแบบที่ทุกแพลตฟอร์มใช้', () => {
     expect(hashNonce('abc')).toBe(createHash('sha256').update('abc').digest('hex'))
     expect(hashNonce('abc')).toHaveLength(64)
+  })
+})
+
+describe('[blocker] ห้ามมีทางลัดข้ามการตรวจ', () => {
+  /** ไล่ไฟล์ซอร์สจริงทั้งหมด (ข้ามเทส) — แพตเทิร์นเดียวกับด่านของ `apple/jws.ts` */
+  function walk(dir: string, out: string[] = []): string[] {
+    for (const name of readdirSync(join(process.cwd(), dir))) {
+      const rel = `${dir}/${name}`
+      if (statSync(join(process.cwd(), rel)).isDirectory()) {
+        if (name === 'node_modules' || name === '__tests__') continue
+        walk(rel, out)
+      } else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(rel)
+    }
+    return out
+  }
+
+  const stripComments = (s: string) =>
+    s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+  it('🛑 โค้ดจริงห้ามเรียก `verifyAppleIdentityTokenWithKeys` — มีไว้ให้เทสเท่านั้น', () => {
+    /**
+     * ตัวนั้นรับ **ชุดกุญแจจากผู้เรียก** ⇒ ถ้าโค้ดจริงเรียกได้ วันหนึ่งจะมีคนส่งกุญแจของ
+     * ตัวเองเข้าไปแล้วโทเคนปลอมผ่านด่านทั้งหมด · ตัวที่ถูกต้องคือ `verifyAppleIdentityToken`
+     * ซึ่งดึงกุญแจจาก Apple เอง
+     *
+     * ด่านนี้ลอกมาจาก `apple/jws.ts` ที่ปิดช่องเดียวกันไว้แล้ว — **ตัวตรวจใหม่ตกสำรวจ
+     * ตอนเขียนรอบแรก** เจอตอนไล่ตรวจซ้ำ 2026-09-25 (กฎที่ "มีอยู่แล้วที่อื่น" ไม่ได้ตาม
+     * มาเองเมื่อมีโค้ดคลาสเดียวกันเพิ่ม — `rule-must-be-enforced-not-described.md`)
+     *
+     * 🛑 ตัดคอมเมนต์ก่อนสแกน: ไฟล์ที่ทำถูกคือไฟล์ที่อธิบายกฎนี้ไว้ด้วย
+     */
+    const offenders = walk('src').filter(
+      (f) =>
+        f !== 'src/lib/apple/identity-token.ts' &&
+        stripComments(readFileSync(join(process.cwd(), f), 'utf8')).includes(
+          'verifyAppleIdentityTokenWithKeys',
+        ),
+    )
+    expect(offenders, `เรียกตัวที่ฉีดกุญแจได้: ${offenders.join(', ')}`).toEqual([])
+  })
+
+  it('🛑 ทุก route ที่ตรวจโทเคน ต้องอ่าน nonce จาก **คุกกี้** ไม่ใช่จาก body', () => {
+    /**
+     * รับ nonce จาก body = ผู้โจมตีคุมทั้งสองฝั่งของการเทียบ แล้วด่านผ่านทุกครั้ง
+     * — เป็นด่านที่ดูเหมือนมีแต่ไม่กันอะไร (ร่างแรกของงานนี้เป็นแบบนั้นจริง)
+     *
+     * ไล่หา **ทุกไฟล์ที่เรียกตัวตรวจ** ไม่ใช่รายชื่อ route ที่ฮาร์ดโค้ดไว้ ⇒ route ใหม่ที่
+     * เพิ่มทีหลังถูกจับได้เองโดยไม่ต้องมีใครจำมาแก้เทส
+     */
+    const callers = walk('src').filter(
+      (f) =>
+        f !== 'src/lib/apple/identity-token.ts' &&
+        stripComments(readFileSync(join(process.cwd(), f), 'utf8')).includes(
+          'verifyAppleIdentityToken(',
+        ),
+    )
+    expect(callers.length, 'ไม่เจอผู้เรียกเลย — ด่านนี้กำลังตรวจความว่างเปล่า').toBeGreaterThan(0)
+    for (const f of callers) {
+      const code = stripComments(readFileSync(join(process.cwd(), f), 'utf8'))
+      /**
+       * 🛑 ต้องจับ **การอ่านค่า** (`.get(APPLE_NONCE_COOKIE)`) ไม่ใช่แค่ชื่อที่โผล่ที่ไหนก็ได้
+       *
+       * ร่างแรกเช็ก `toContain('APPLE_NONCE_COOKIE')` เฉย ๆ แล้ว mutation พิสูจน์ว่าจับไม่ได้:
+       * เปลี่ยนค่าที่อ่านเป็นค่าคงที่แล้วเทสยังเขียว เพราะ **บรรทัด `import` ก็ match**
+       * (รอยเดิมที่รีโปเตือนไว้เองใน `rule-must-be-enforced-not-described.md`)
+       */
+      expect(code, `${f}: ไม่ได้อ่าน nonce จากคุกกี้`).toMatch(/\.get\(APPLE_NONCE_COOKIE\)/)
+      /* และค่าที่ส่งเข้าตัวตรวจต้องเป็นตัวแปรที่มาจากคุกกี้นั้น ไม่ใช่ค่าที่แต่งขึ้นทีหลัง */
+      expect(code, `${f}: ค่าที่ส่งเข้าตัวตรวจไม่ได้มาจากคุกกี้`).toMatch(
+        /expectedNonce\s*=\s*[^\n]*APPLE_NONCE_COOKIE/,
+      )
+      expect(code, `${f}: รับ nonce จาก body = ด่านที่ไม่กันอะไร`).not.toMatch(/nonce:\s*v\./)
+    }
   })
 })

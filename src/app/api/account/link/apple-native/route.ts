@@ -28,7 +28,7 @@ import { verifyAppleIdentityToken } from '@/lib/apple/identity-token'
 import { authOptions } from '@/lib/auth'
 import { sessionUserId } from '@/lib/session-user'
 import { linkOAuthAccount, linkOutcomeRedirect } from '@/services/oauth-link.service'
-import { APPLE_NONCE_COOKIE } from '@/app/api/login/apple-native/start/route'
+import { APPLE_NONCE_COOKIE, replyClearingAppleNonce } from '@/lib/apple/native-nonce'
 
 const BodySchema = v.object({
   identityToken: v.pipe(v.string(), v.minLength(1), v.maxLength(4096)),
@@ -51,16 +51,9 @@ export async function POST(request: Request) {
 
   const verified = await verifyAppleIdentityToken(parsed.output.identityToken, { expectedNonce })
 
-  /** ลบคุกกี้ทุกทางออก — ใช้ได้ครั้งเดียวจริง (เหตุผลเดียวกับฝั่งล็อกอิน) */
-  const reply = (body: unknown, status = 200) => {
-    const res = NextResponse.json(body, { status })
-    res.cookies.set(APPLE_NONCE_COOKIE, '', { path: '/', maxAge: 0 })
-    return res
-  }
-
   if (!verified.ok) {
     console.error('[apple-native-link] โทเคนไม่ผ่าน:', verified.reason)
-    return reply({ ok: false, reason: 'INVALID_TOKEN' }, 401)
+    return replyClearingAppleNonce({ ok: false, reason: 'INVALID_TOKEN' }, 401)
   }
 
   const outcome = await linkOAuthAccount({
@@ -81,5 +74,5 @@ export async function POST(request: Request) {
    *
    * ใช้ `linkOutcomeRedirect` ตัวเดียวกับทางเว็บ — ปลายทางจึงไม่มีทาง drift กัน
    */
-  return reply({ ok: true, kind: outcome.kind, redirect: linkOutcomeRedirect('apple', outcome) })
+  return replyClearingAppleNonce({ ok: true, kind: outcome.kind, redirect: linkOutcomeRedirect('apple', outcome) })
 }

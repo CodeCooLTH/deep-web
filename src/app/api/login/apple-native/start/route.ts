@@ -25,14 +25,7 @@ import { randomBytes } from 'node:crypto'
 
 import { NextResponse } from 'next/server'
 
-/** ชื่อคุกกี้ที่ถือ nonce ของรอบนี้ — **ตัวตรวจต้องอ่านชื่อเดียวกันนี้** */
-export const APPLE_NONCE_COOKIE = 'deep_apple_nonce'
-
-/**
- * 10 นาที — ยาวพอให้ผู้ใช้ผ่าน Face ID / รหัส Apple ID / 2FA ซึ่ง Apple เป็นเจ้าของเวลา
- * และสั้นพอที่คุกกี้ค้างจะหมดอายุก่อนจะมีใครเอาไปทำอะไรได้ (เท่าอายุของ identity token พอดี)
- */
-export const APPLE_NONCE_MAX_AGE_SEC = 600
+import { APPLE_NONCE_COOKIE, APPLE_NONCE_MAX_AGE_SEC } from '@/lib/apple/native-nonce'
 
 export async function POST() {
   const nonce = randomBytes(32).toString('hex')

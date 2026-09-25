@@ -11,12 +11,7 @@
  *   เว็บ → แอป : `ReactNativeWebView.postMessage(JSON)` · แอปกรองด้วย allow-list ตาม `type`
  *   แอป → เว็บ : ตั้งค่าลง `window` แล้วยิง event
  */
-import {
-  APPLE_RESULT_EVENT,
-  CAP_APPLE_SIGNIN,
-  NATIVE_CAPS_EVENT,
-  type AppleSignInRequest,
-} from '@/lib/apple-bridge-protocol'
+import { APPLE_RESULT_EVENT, CAP_APPLE_SIGNIN, type AppleSignInRequest } from '@/lib/apple-bridge-protocol'
 import type { AppleNativeTransport } from '@/lib/apple-native-client'
 
 type AppleWindow = Window & {
@@ -35,30 +30,18 @@ type AppleWindow = Window & {
  * ไปทางเว็บ ไม่ใช่สั่งไปแล้วรอจนหมดเวลา (ผู้ใช้จะเห็นปุ่มหมุนห้านาทีโดยไม่มีเหตุผล)
  *
  * `false` ทั้งในเบราว์เซอร์ปกติและตอน render บนเซิร์ฟเวอร์ — ทั้งสองกรณีต้องใช้ทางเว็บ
+ *
+ * 🛑 **อ่านตอนผู้ใช้กดปุ่ม ไม่ใช่ตอน mount** — เปลือกประกาศความสามารถผ่าน `injectJavaScript`
+ * ซึ่งรันหลังหน้าโหลดเสร็จ อาจช้ากว่าที่ React hydrate · อ่านตอน mount แล้วจำค่าไว้
+ * จะได้ `false` ค้างตลอดแล้วถอยไปหน้าเว็บของ Apple ทุกครั้ง = บั๊กที่ Apple ตีกลับพอดี
+ * (เคยมี `subscribeNativeCaps` ไว้ให้ติดตาม event แต่ **ไม่มีใครเรียก** เพราะการอ่านตอนกด
+ * เพียงพอและตรงกว่า — ถอดออก 2026-09-25 ตามกติกา "โค้ดที่ไม่มีใครเรียกคือหนี้ ไม่ใช่ของเผื่อ")
  */
 export function nativeSupportsAppleSignIn(win: Window | undefined): boolean {
   const w = win as AppleWindow | undefined
   if (!w?.ReactNativeWebView) return false
   const caps = w.__DEEP_NATIVE_CAPS__
   return Array.isArray(caps) && caps.includes(CAP_APPLE_SIGNIN)
-}
-
-/**
- * ติดตามความสามารถที่ native ประกาศ — คืน cleanup
- *
- * ต้องมี event ไม่ใช่อ่านครั้งเดียวตอน mount: native ตั้งค่าผ่าน `injectJavaScript` ซึ่งรัน
- * "หลังหน้าโหลดเสร็จ" ซึ่งอาจช้ากว่าที่ React hydrate เสร็จ ⇒ ปุ่มที่อ่านครั้งเดียวจะสรุปว่า
- * "ไม่รองรับ" แล้วถอยไปทางเว็บทุกครั้ง ทั้งที่เปลือกทำได้ — คือบั๊กที่ Apple ตีกลับพอดี
- * (บทเรียนตัวเดียวกับ `__DEEP_PUSH_PERMISSION__` ที่ `native-bridge.ts` เขียนเตือนไว้แล้ว)
- */
-export function subscribeNativeCaps(
-  win: Window | undefined,
-  onChange: (supported: boolean) => void,
-): () => void {
-  if (!win) return () => {}
-  const handler = () => onChange(nativeSupportsAppleSignIn(win))
-  win.addEventListener(NATIVE_CAPS_EVENT, handler)
-  return () => win.removeEventListener(NATIVE_CAPS_EVENT, handler)
 }
 
 /**
