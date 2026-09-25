@@ -22,6 +22,7 @@ import { useSession } from 'next-auth/react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { chooseShopEmptySubtitle } from '@/lib/choose-shop-copy'
+import { signOutSeller } from '@/lib/sign-out-seller'
 import { generateInitials } from '@/utils/helpers'
 
 export interface ShopOption {
@@ -35,6 +36,39 @@ const ROLE_LABEL: Record<ShopOption['role'], string> = { OWNER: 'เจ้าข
 const ROLE_BADGE: Record<ShopOption['role'], string> = {
   OWNER: 'bg-primary/15 text-primary',
   ADMIN: 'bg-info/15 text-info',
+}
+
+/**
+ * ทางออกของหน้านี้ — **ต้องมีเสมอ ทุกสถานะ**
+ *
+ * ## 🛑 บั๊กที่แก้ (หัวหน้าเจอบน TestFlight 2026-09-25)
+ *
+ * ล็อกอินด้วย Apple ID ที่ผูกกับบัญชีซึ่ง **ยังไม่มีร้าน** → มาโผล่หน้านี้ → **ออกไปไหนไม่ได้เลย**
+ * ไม่มีปุ่มออกจากระบบ ไม่มีปุ่มย้อนกลับ และในแอปไม่มีแถบนำทางของเบราว์เซอร์ให้กดถอย
+ * ⇒ ต้องปิดแอปทิ้งแล้วเปิดใหม่ ซึ่งก็กลับมาที่เดิมเพราะ session ยังอยู่
+ *
+ * **ทำไมเรื่องนี้ใหญ่กว่าที่เห็น:** ทีมรีวิวของ Apple ไม่มีบัญชี Deep ⇒ ถ้าเขากดปุ่ม Apple
+ * ก่อนล็อกอิน `appreview` เขาจะมาติดที่นี่แล้ว **ทดสอบต่อไม่ได้ทั้งแอป** ⇒ ตีกลับ
+ * (เป็นทางตันคลาสเดียวกับ "บัญชีค้าง" ที่ภาคผนวก 6 ใช้เวลาทั้งวันแก้)
+ *
+ * 🛑 **ไม่มี confirm โดยตั้งใจ** — นี่คือทางออก *ทางเดียว* ของหน้าที่ขังผู้ใช้อยู่
+ * การใส่ด่านถามซ้ำบนทางออกเดียว คือการทำให้ทางตันแน่นขึ้น · ต่างจาก `/register`
+ * ที่ถามก่อน เพราะที่นั่นผู้ใช้กำลังกรอกข้อมูลค้างอยู่ (มีของจะเสีย) ที่นี่ไม่มี
+ *
+ * 🛑 ต้องเรียก `signOutSeller` ไม่ใช่ `signOut()` ดิบ — ตัวหลังล้างแค่คุกกี้ session ตัวเดียว
+ * แล้ว `callback-url` ที่ค้างจะพาผู้ใช้กลับมาที่เดิมหลังล็อกอินรอบหน้า (บั๊ก prod 2026-09-17)
+ */
+function SignOutEscape() {
+  return (
+    <button
+      type="button"
+      onClick={() => signOutSeller('/auth/sign-in')}
+      className="btn text-default-500 hover:text-default-700 hover:bg-default-50 mt-4 inline-flex w-full items-center justify-center gap-1.5 text-sm"
+    >
+      <Icon icon="logout" aria-hidden="true" />
+      ออกจากระบบ
+    </button>
+  )
 }
 
 /** avatar ร้าน — รูปจริง (Shop.logo เป็น URL ตรง ตาม SellerHeader.tsx) + fallback initials */
@@ -195,6 +229,9 @@ export default function ChooseShopClient({
             ไป
           </button>
         </div>
+
+        {/* ทางออกของหน้า — เหตุผลเต็มอยู่ที่ SignOutEscape */}
+        <SignOutEscape />
       </div>
     )
   }
@@ -240,6 +277,10 @@ export default function ChooseShopClient({
           </p>
         </>
       )}
+
+      {/* ต้องมีที่นี่ด้วย ไม่ใช่เฉพาะจอ 0 ร้าน — คนที่ล็อกอินผิดบัญชีแต่บังเอิญมีหลายร้าน
+          ก็ยังต้องสลับบัญชีได้โดยไม่ต้องเดินเข้าร้านไหนสักร้านก่อน */}
+      <SignOutEscape />
     </div>
   )
 }

@@ -31,6 +31,7 @@ import { useEffect, useRef, useState } from 'react'
 import { signOutSeller } from '@/lib/sign-out-seller'
 import Link from 'next/link'
 
+import { revokeDevicePushToken } from '@/lib/native-bridge'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { ACCOUNT_DELETE_ERROR, type DeletionPreflight } from '@/lib/account-deletion'
@@ -116,45 +117,17 @@ export default function DeleteAccountCard() {
   }
 
   /**
-   * ถอน push token ของเครื่องนี้ก่อนลบบัญชี
+   * 🛑 ถอน push token **ก่อน** เรียก /api/account/delete — endpoint นั้น auth ด้วยคุกกี้ session
+   * ถ้าถอนทีหลัง (หรือปล่อยให้ `signOutSeller` ถอนให้) บัญชีถูกลบไปแล้ว คำขอจะได้ 401
+   * แล้ว token ค้างอยู่ในฐานตลอดไป
    *
-   * 🛑 ต้องยิง "ก่อน" POST /api/account/delete เสมอ — endpoint auth ด้วย session cookie
-   * ถ้ายิงหลังบัญชีถูกปิดจะได้ 401 แล้ว token ค้างในฐาน (เหตุผลเดียวกับ SignOutCard.tsx)
-   *
-   * ฝั่ง server ลบ PushToken ทุกแถวให้อยู่แล้วใน transaction เดียวกับการปิดบัญชี — ตัวนี้เป็น
-   * ชั้นเสริมที่ทำงานเร็วกว่า (ไม่ต้องรอ transaction) และครอบกรณีที่ transaction ล้มกลางทาง
-   *
-   * ผลข้างเคียงที่ยอมรับ: ถ้า POST ล้มทีหลัง (เช่น server ตรวจซ้ำแล้วเจอออเดอร์ใหม่เข้ามา)
-   * ผู้ใช้จะเสียการแจ้งเตือนไปชั่วคราวทั้งที่บัญชียังอยู่ — หายเองเมื่อโหลดหน้าใหม่ เพราะ
-   * SellerWebView ฉีดสคริปต์ลงทะเบียน token ทุกครั้งที่หน้าโหลดเสร็จ (ดู buildPushScript)
-   * สลับลำดับไม่ได้: หลังบัญชีถูกปิด cookie ใช้ไม่ได้แล้ว DELETE จะได้ 401 แล้ว token
-   * ค้างในฐานถาวร ซึ่งแย่กว่ามาก (เครื่องเก่าได้ noti ของบัญชีที่ลบไปแล้ว)
-   *
-   * timeout 2 วิ + กลืน error: เน็ตช้าต้องไม่ทำให้ปุ่มลบค้าง
+   * ตัวฟังก์ชันย้ายไป `@/lib/native-bridge` แล้ว (2026-09-25) — เดิมก็อปไว้ 2 ไฟล์
    */
-  const revokePushToken = async () => {
-    const token = (window as unknown as { __DEEP_PUSH_TOKEN__?: string }).__DEEP_PUSH_TOKEN__
-    if (!token) return
-    try {
-      await Promise.race([
-        fetch('/api/seller/push-token', {
-          method: 'DELETE',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token }),
-        }),
-        new Promise((resolve) => setTimeout(resolve, 2000)),
-      ])
-    } catch {
-      // เงียบ — ดูเหตุผลใน comment ด้านบน
-    }
-  }
-
   const handleDelete = async () => {
     setSubmitting(true)
     setErrorMsg('')
     try {
-      await revokePushToken()
+      await revokeDevicePushToken()
       const res = await fetch('/api/account/delete', {
         method: 'POST',
         credentials: 'include',

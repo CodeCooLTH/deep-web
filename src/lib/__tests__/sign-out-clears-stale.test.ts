@@ -13,8 +13,14 @@
  * โผล่กลับมาในแอป iOS** ⇒ ไม่มีใครสังเกตจนกว่าจะถูก Apple ตีกลับ
  * ล้าง `csrf-token` = ปลุกบั๊ก "กดครั้งแรกไม่ไปไหน" ที่เพิ่งแก้ไปเมื่อ 2026-09-16
  */
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
+const ROOT = process.cwd()
+
+import { APPLE_NONCE_COOKIE } from '@/lib/apple/native-nonce'
 import { NEVER_CLEAR_COOKIES, STALE_AUTH_COOKIES } from '@/lib/stale-auth-cookies'
 
 describe('[blocker] รายชื่อคุกกี้ที่ล้างตอนออกจากระบบ', () => {
@@ -30,6 +36,21 @@ describe('[blocker] รายชื่อคุกกี้ที่ล้าง
       expect(STALE_AUTH_COOKIES, `ขาด ${base}`).toContain(`__Secure-next-auth.${base}`)
       expect(STALE_AUTH_COOKIES, `ขาด ${base} (ชื่อ dev)`).toContain(`next-auth.${base}`)
     }
+  })
+
+  it('🛑 ต้องล้าง `deep_link_intent` — ค้างไว้ = รอบหน้าถูกตีความว่ากำลังเชื่อมบัญชี', () => {
+    /* เพิ่ม 2026-09-25: mutation พิสูจน์ว่าถอดชื่อนี้ออกแล้วเทสยังเขียว — ไฟล์นิยามอธิบาย
+       ความสำคัญไว้ครบ แต่ **ไม่มีเคสไหนคุมมันเลย** (ชุดข้อมูลทดสอบอ่อน ไม่ใช่กฎไม่สำคัญ) */
+    expect(STALE_AUTH_COOKIES).toContain('deep_link_intent')
+  })
+
+  it('🛑 ต้องล้าง nonce ของรอบล็อกอินด้วยแผ่นของระบบ (feature 00040)', () => {
+    /* ของใช้ครั้งเดียวทิ้งเหมือน pkce/state — ตัวตรวจลบให้ทุกทางออกอยู่แล้ว แต่ถ้าผู้ใช้
+       กดออกจากระบบ **กลางทาง** มันจะค้างไว้ 10 นาที */
+    expect(STALE_AUTH_COOKIES).toContain(APPLE_NONCE_COOKIE)
+    expect(APPLE_NONCE_COOKIE, 'ชื่อคุกกี้เปลี่ยน = ตัวตรวจกับตัวล้างหลุดจากกัน').toBe(
+      'deep_apple_nonce',
+    )
   })
 
   it('🛑 ห้ามล้าง `deep_shell` — ล้างแล้วด่าน App Store ทั้งชุดหลุดโดยไม่มีอะไรฟ้อง', () => {
@@ -54,25 +75,46 @@ describe('[blocker] รายชื่อคุกกี้ที่ล้าง
   })
 })
 
-describe('[blocker] ทุกจุดที่ออกจากระบบฝั่งผู้ขายต้องผ่านตัวกลาง', () => {
-  const SELLER_SIGNOUT_FILES = [
-    'src/app/(paces)/seller/(dashboard)/shop/components/SignOutCard.tsx',
-    'src/app/(paces)/seller/(dashboard)/account/components/DeleteAccountCard.tsx',
-    'src/layouts/components/Sidenav/components/UserProfileSettings.tsx',
-    'src/layouts/components/TopBar/components/UserDropdownDetailed.tsx',
-    'src/app/(paces)/seller/register/RegisterClient.tsx',
-    'src/app/(paces)/seller/i/[slug]/components/InviteLandingClient.tsx',
-  ]
+/** ไล่ไฟล์ซอร์สจริงทั้งหมด (ข้ามเทส) */
+function walkSrc(dir = 'src', out: string[] = []): string[] {
+  for (const name of readdirSync(join(ROOT, dir))) {
+    const rel = `${dir}/${name}`
+    if (statSync(join(ROOT, rel)).isDirectory()) {
+      if (name === 'node_modules' || name === '__tests__') continue
+      walkSrc(rel, out)
+    } else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(rel)
+  }
+  return out
+}
 
-  it('🛑 ห้ามเรียก `signOut()` ตรง ๆ — จะได้คุกกี้ค้างเฉพาะทางนั้น', async () => {
-    const fs = await import('fs')
-    for (const rel of SELLER_SIGNOUT_FILES) {
-      const code = fs
-        .readFileSync(rel, 'utf8')
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/(^|[^:])\/\/.*$/gm, '$1')
+const stripComments = (s: string) =>
+  s
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+const codeOf = (rel: string) => stripComments(readFileSync(join(ROOT, rel), 'utf8'))
+
+describe('[blocker] ทุกจุดที่ออกจากระบบฝั่งผู้ขายต้องผ่านตัวกลาง', () => {
+  /**
+   * 🛑 **ไล่หาผู้เรียกเอง ไม่ฮาร์ดโค้ดรายชื่อไฟล์** (เปลี่ยน 2026-09-25)
+   *
+   * รายชื่อเดิมเขียนตายไว้ 6 ไฟล์ ⇒ จอ `ChooseShopClient` ที่เพิ่งได้ปุ่มออกจากระบบ
+   * **ไม่เคยถูกด่านนี้ตรวจเลย** · ทางออกใหม่ที่เพิ่มทีหลังจะหลุดทุกครั้งโดยไม่มีใครรู้
+   * (บทเรียนเดียวกับ `go-after-login.test.ts` ที่กวาดทั้ง `src/` ด้วยเหตุผลนี้)
+   */
+  const signOutCallers = walkSrc().filter(
+    (f) => f !== 'src/lib/sign-out-seller.ts' && codeOf(f).includes('signOutSeller('),
+  )
+
+  it('🛑 ต้องเจอผู้เรียกจริง — เจอ 0 แปลว่าด่านนี้กำลังตรวจความว่างเปล่า', () => {
+    expect(signOutCallers.length).toBeGreaterThanOrEqual(6)
+  })
+
+  it('🛑 ห้ามเรียก `signOut()` ตรง ๆ — จะได้คุกกี้ค้างเฉพาะทางนั้น', () => {
+    for (const rel of signOutCallers) {
+      const code = codeOf(rel)
       expect(/[^A-Za-z]signOut\(/.test(code), `${rel} ยังเรียก signOut() ตรง ๆ`).toBe(false)
-      expect(code, `${rel} ไม่ได้ใช้ตัวกลาง`).toContain('signOutSeller(')
     }
   })
 
@@ -92,6 +134,41 @@ describe('[blocker] ทุกจุดที่ออกจากระบบฝ
     const fs = await import('fs')
     const code = fs.readFileSync('src/lib/sign-out-seller.ts', 'utf8')
     expect(code, 'เน็ตล่ม = กดออกจากระบบไม่ได้ ซึ่งแย่กว่าคุกกี้ค้าง').toContain('catch')
+  })
+})
+
+describe('[blocker] ออกจากระบบต้องถอน push token ของเครื่องด้วย', () => {
+  /**
+   * ## บั๊กที่ทำให้ต้องมีด่านนี้ (พบ 2026-09-25 ตอนไล่ตรวจจอ "ยังไม่มีร้านค้าของคุณ")
+   *
+   * การถอน token เคยถูก **ก็อปไว้ใน 2 ไฟล์** (`SignOutCard`, `DeleteAccountCard`)
+   * ⇒ ทางออกจากระบบอีก **5 ทางไม่เคยถอนเลย** รวมทั้ง **ดรอปดาวน์มุมขวาบน** กับ
+   * **เมนูในแถบข้าง** ซึ่งเป็นทางที่ผู้ใช้จริงใช้บ่อยที่สุด
+   *
+   * ผลที่ผู้ใช้เจอ: ออกจากระบบแล้ว **เครื่องยังได้แจ้งเตือนแชทลูกค้าของบัญชีเดิมต่อไป**
+   * คนถัดไปที่หยิบเครื่อง (หรือพนักงานที่ลาออก) เห็นข้อความลูกค้าที่ไม่ใช่ของตัวเองบนจอล็อก
+   *
+   * 🛑 ไม่มี gate ไหนจับได้เลย — tsc/build/เทสผ่านหมด เพราะโค้ดถูกทุกบรรทัด
+   * สิ่งที่ผิดคือ **มันอยู่ผิดที่** (Hard Rule 16)
+   */
+  it('🛑 `signOutSeller` ต้องถอน token ให้ทุกทางออก', () => {
+    expect(codeOf('src/lib/sign-out-seller.ts')).toMatch(/revokeDevicePushToken\(\)/)
+  })
+
+  it('🛑 ต้องถอน **ก่อน** signOut — หลังจากนั้นคุกกี้หายแล้ว จะได้ 401 แล้ว token ค้างถาวร', () => {
+    const code = codeOf('src/lib/sign-out-seller.ts')
+    const revokeAt = code.indexOf('revokeDevicePushToken()')
+    const signOutAt = code.indexOf('signOut({')
+    expect(revokeAt).toBeGreaterThan(-1)
+    expect(revokeAt, 'ถอนหลัง signOut = ไม่มีโอกาสสำเร็จ').toBeLessThan(signOutAt)
+  })
+
+  it('🛑 ต้องมีนิยามเดียว — ห้ามใครก็อป `__DEEP_PUSH_TOKEN__` ไปอ่านเองอีก', () => {
+    /* นี่คือรูปร่างของบั๊กเดิมเป๊ะ: โค้ดถูกทุกบรรทัด แต่มีแค่บางไฟล์ที่มี */
+    const offenders = walkSrc().filter(
+      (f) => f !== 'src/lib/native-bridge.ts' && codeOf(f).includes('__DEEP_PUSH_TOKEN__'),
+    )
+    expect(offenders, `อ่าน token เองแทนใช้ตัวกลาง: ${offenders.join(', ')}`).toEqual([])
   })
 })
 

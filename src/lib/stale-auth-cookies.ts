@@ -20,6 +20,8 @@
  * | `session-token` | next-auth ล้างเองอยู่แล้ว — ล้างซ้ำจากที่อื่นเสี่ยงชนจังหวะกัน |
  */
 
+import { APPLE_NONCE_COOKIE } from '@/lib/apple/native-nonce'
+
 /** ชื่อคุกกี้ที่ค้างหลัง `signOut` และไม่มีประโยชน์ต่อรอบถัดไป */
 export const STALE_AUTH_COOKIES: readonly string[] = [
   /* ปลายทางหลังล็อกอินของรอบก่อน — ตัวที่ทำให้เกิดบั๊ก 2026-09-17 */
@@ -34,6 +36,9 @@ export const STALE_AUTH_COOKIES: readonly string[] = [
   'next-auth.pkce.code_verifier',
   /* ความตั้งใจ "จะเชื่อมบัญชี" ของรอบก่อน — ค้างไว้ = รอบหน้าถูกตีความว่ากำลังเชื่อม */
   'deep_link_intent',
+  /* nonce ของรอบล็อกอินด้วยแผ่นของระบบ (feature 00040) — ของใช้ครั้งเดียวทิ้งเหมือน pkce/state
+     ตัวตรวจลบให้อยู่แล้วทุกทางออก แต่ถ้าผู้ใช้กดออกจากระบบ **กลางทาง** มันจะค้างไว้ 10 นาที */
+  APPLE_NONCE_COOKIE,
 ]
 
 /**

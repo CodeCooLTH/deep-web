@@ -17,10 +17,20 @@
  */
 import { signOut } from 'next-auth/react'
 
+import { revokeDevicePushToken } from '@/lib/native-bridge'
+
 /** เพดานเวลารอการล้าง — เน็ตช้าต้องไม่ทำให้ "ออกจากระบบ" ค้าง */
 const CLEANUP_TIMEOUT_MS = 2000
 
 export async function signOutSeller(callbackUrl = '/auth/sign-in'): Promise<void> {
+  /**
+   * 🛑 ถอน push token ของเครื่องนี้ก่อน — ไม่ถอน = เครื่องยังได้แจ้งเตือนของบัญชีเดิมต่อไป
+   * และคนถัดไปที่หยิบเครื่องจะเห็นแชทลูกค้าที่ไม่ใช่ของตัวเองบนจอล็อก
+   *
+   * เคยอยู่ใน `SignOutCard`/`DeleteAccountCard` เท่านั้น ⇒ ทางออกอีก 5 ทางไม่เคยถอนเลย
+   * (พบ 2026-09-25) · ย้ายมาที่นี่เพราะไฟล์นี้คือตัวที่ประกาศว่า "ล้างของที่ค้างให้ครบ"
+   */
+  await revokeDevicePushToken()
   try {
     await Promise.race([
       fetch('/api/auth/cleanup', { method: 'POST', credentials: 'include' }),
