@@ -60,10 +60,17 @@ describe('[blocker] ปุ่มล็อกอินต้องไม่ตา
       const i = form.indexOf(`onClick={${h}}`)
       expect(i, `ไม่พบปุ่ม ${h}`).toBeGreaterThan(-1)
       /* ดูเฉพาะช่วงสั้น ๆ หลัง onClick — กันไปแมตช์ disabled ของปุ่มอื่น */
+      const found = form.slice(i, i + 160).match(/disabled=\{([^}]*)\}/)
+      expect(found, `ปุ่ม ${h} ไม่มี disabled เลย = กดได้ก่อนหน้าพร้อม`).not.toBeNull()
+      /**
+       * 🛑 เทียบ "เทิร์ม" ไม่ใช่ทั้งสตริง — ปุ่มที่มีสถานะของตัวเองต้องปิดเพิ่มได้
+       * (`!oauthReady || appleBusy` = ปิดมากกว่าเดิม ไม่ใช่น้อยกว่า) แต่ต้องเชื่อมด้วย `||`
+       * เท่านั้น เพราะ `!oauthReady && x` **ผ่อน** ด่านนี้ลงเงียบ ๆ ทั้งที่หน้าตายังเหมือนเดิม
+       */
       expect(
-        form.slice(i, i + 120),
-        `ปุ่ม ${h} ยังกดได้ก่อนหน้าพร้อม = ตายเงียบเหมือนเดิม`,
-      ).toContain('disabled={!oauthReady}')
+        found![1],
+        `ปุ่ม ${h} ยังกดได้ก่อนหน้าพร้อม = ตายเงียบเหมือนเดิม (disabled=${found![1]})`,
+      ).toMatch(/(^|\|\|)\s*!oauthReady\s*(\||$)/)
     }
   })
 

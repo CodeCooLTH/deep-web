@@ -30,6 +30,7 @@ import { useEffect } from 'react'
 
 import { useT } from '@/i18n/LocaleProvider'
 import type { Dictionary } from '@/i18n/dictionaries/th'
+import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 
 /**
@@ -98,5 +99,51 @@ export default function OAuthErrorNotice() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, blockedInApp, setupIncompleteInApp, csrfNotReady])
 
-  return null
+  /**
+   * 🛑 **แถบที่ค้างอยู่บนหน้า ไม่ใช่แค่ toast** (เพิ่ม 2026-09-27 · Apple ตีกลับ 2.1(a))
+   *
+   * ## บั๊กที่เพิ่มบรรทัดพวกนี้มาแก้
+   *
+   * ทีมรีวิวกดปุ่ม Apple บน iPad → แผ่นของระบบขึ้น → สแกนหน้าผ่าน → ได้ผลว่า
+   * "ไม่พบบัญชีผู้ขาย" → **แต่ระหว่างที่แผ่นกำลังหุบ toast ก็หายไปพอดี**
+   * พอเขามองกลับมาที่จอ **หน้าเหมือนเดิมทุกพิกเซล** ⇒ รายงานว่า *"no action took place"*
+   *
+   * หัวหน้าทำซ้ำได้เป๊ะบน iPad เครื่องจริง (2026-09-27) — เทียบภาพก่อน/หลังแล้วต่างกัน
+   * แค่แถบที่หายไปเอง
+   *
+   * 🛑 **ของที่หายเอง = ของที่ไม่มีอยู่จริง สำหรับคนที่ไม่ได้จ้องจออยู่พอดี**
+   * ไฟล์นี้ถูกสร้างมาแก้อาการ "กดแล้วไม่มีอะไรเกิดขึ้น" ตั้งแต่ 2026-08-19 แล้ว
+   * แต่แก้ด้วย toast ซึ่งเป็นของชั่วคราว ⇒ อาการเดิมกลับมาในรูปแบบเดิมเป๊ะ
+   *
+   * ⚠️ **ห้ามถอด `pacesToast` ออก** — `oauth-error-surfaced.test.ts` ปักไว้เป็น [blocker]
+   * และ toast ยังมีประโยชน์กับคนที่มองจออยู่ · สองอย่างนี้เสริมกัน ไม่ใช่แทนกัน
+   */
+  const persistent = blockedInApp
+    ? t.auth.signIn.oauthError.noSellerAccountInApp
+    : setupIncompleteInApp
+      ? t.auth.signIn.oauthError.sellerSetupIncompleteInApp
+      : csrfNotReady
+        ? t.auth.signIn.oauthError.csrfNotReady
+        : code
+          ? messageFor(code, t)
+          : null
+
+  if (!persistent) return null
+
+  /* บอกทางต่อเฉพาะเคสที่ "ทางต่อ" มีอยู่จริง — คนที่มีบัญชีแล้วแต่ตั้งค่าร้านไม่เสร็จ
+     เข้าด้วยรหัสผ่านก็เจอกำแพงเดิม บอกไปก็พาไปชนที่เดิม */
+  const hint = blockedInApp ? t.auth.signIn.oauthError.useUsernameInstead : null
+
+  return (
+    <div
+      className="bg-danger/15 text-danger-ink mb-4 flex w-full items-start gap-2.5 rounded px-4 py-3"
+      role="alert"
+    >
+      <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+      <span className="text-sm">
+        {persistent}
+        {hint && <span className="mt-1 block opacity-90">{hint}</span>}
+      </span>
+    </div>
+  )
 }

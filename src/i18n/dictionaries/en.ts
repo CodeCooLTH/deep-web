@@ -940,6 +940,9 @@ export const en: Dictionary = {
         noSellerAccountInApp: 'No seller account was found for these sign-in details.',
         /* Different case: this person already has an account — only the shop setup is unfinished */
         sellerSetupIncompleteInApp: 'This account has not finished its shop setup, so it cannot be used in the app yet.',
+        useUsernameInstead: 'You can sign in with the username and password below instead.',
+        appleCancelled: 'Sign in with Apple was cancelled.',
+        appleUnavailable: 'Could not open Sign in with Apple.',
         csrfNotReady: 'Sign-in was not ready yet. Please tap the button again.',
       },
     },

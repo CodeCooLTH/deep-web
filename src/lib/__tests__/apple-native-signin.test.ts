@@ -17,7 +17,13 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 
 import { APPLE_RESULT_EVENT, CAP_APPLE_SIGNIN } from '@/lib/apple-bridge-protocol'
-import { canUseAppleNative, runAppleNativeLink, runAppleNativeSignIn } from '@/lib/apple-native-signin'
+import { APPLE_NATIVE_TIMEOUT_MS } from '@/lib/apple-native-client'
+import {
+  APPLE_NATIVE_API_TIMEOUT_MS,
+  canUseAppleNative,
+  runAppleNativeLink,
+  runAppleNativeSignIn,
+} from '@/lib/apple-native-signin'
 import { linkOutcomeRedirect } from '@/lib/oauth-link-outcome'
 
 const TOKEN = 'eyJhbGciOiJSUzI1NiJ9.payload.sig'
@@ -195,6 +201,73 @@ describe('[blocker] ทุกเส้นทางที่ไม่สำเร
     const { win } = appWindow(okReply)
     const { fetchImpl } = fakeFetch({ ok: true })
     expect(await runAppleNativeSignIn({ win, fetchImpl })).toEqual({ kind: 'fallback-to-web' })
+  })
+})
+
+describe('[blocker] เซิร์ฟเวอร์ไม่ตอบ (ไม่ใช่ปฏิเสธ) ต้องหมดเวลา ไม่ใช่หมุนตลอดกาล', () => {
+  /**
+   * 🛑 นี่คือรูปร่างของ **2.1(a) ที่ Apple ตีกลับ 2026-09-27** เป๊ะที่สุด: ไม่มี error
+   * ไม่มีอะไรบนจอเปลี่ยน ปุ่มหมุนแล้วจบ · `fetch` **ไม่ reject** เมื่อซ็อกเก็ตค้าง
+   * (มือถือสลับ Wi-Fi↔เซลลูลาร์ทำท่านี้เป็นปกติ) ⇒ `try/catch` ไม่มีอะไรให้จับ
+   *
+   * เทสนี้ผูก **พฤติกรรม** ไม่ใช่การมีอยู่ของ `AbortController` — ถอด timeout ออกแล้ว
+   * เทสจะค้างจนหมดเวลาของ vitest ซึ่งนับเป็นแดง
+   */
+  const hang = () => new Promise<Response>(() => {})
+
+  it('🛑 ขอ nonce แล้วเซิร์ฟเวอร์ไม่ตอบ → ถอยไปทางเว็บ และห้ามเปิดแผ่น', async () => {
+    const { win, posted } = appWindow(okReply)
+    const fetchImpl = vi.fn(hang) as unknown as typeof fetch
+    expect(await runAppleNativeSignIn({ win, fetchImpl, apiTimeoutMs: 20 })).toEqual({
+      kind: 'fallback-to-web',
+    })
+    expect(posted, 'เปิดแผ่นทั้งที่ยังไม่มี nonce').toHaveLength(0)
+  })
+
+  it('🛑 ส่งโทเคนไปตรวจแล้วเซิร์ฟเวอร์ไม่ตอบ → ถอยไปทางเว็บ', async () => {
+    const { win } = appWindow(okReply)
+    const fetchImpl = vi.fn(async (url: unknown) => {
+      if (String(url).endsWith('/start')) return new Response(JSON.stringify({ nonce: SERVER_NONCE }))
+      return hang()
+    }) as unknown as typeof fetch
+    expect(await runAppleNativeSignIn({ win, fetchImpl, apiTimeoutMs: 20 })).toEqual({
+      kind: 'fallback-to-web',
+    })
+  })
+
+  it('🛑 ตอบหัวมาแล้วค้างกลางเนื้อ → ต้องหมดเวลาด้วย (กันแค่ตอนเชื่อมต่อไม่พอ)', async () => {
+    const { win } = appWindow(okReply)
+    const fetchImpl = vi.fn(async (url: unknown) => {
+      if (String(url).endsWith('/start')) return new Response(JSON.stringify({ nonce: SERVER_NONCE }))
+      /* Response ที่มีหัวครบแต่ `json()` ไม่ยอม settle — เลียนแบบสตรีมที่ค้างกลางทาง */
+      return { ok: true, json: () => new Promise(() => {}) } as unknown as Response
+    }) as unknown as typeof fetch
+    expect(await runAppleNativeSignIn({ win, fetchImpl, apiTimeoutMs: 20 })).toEqual({
+      kind: 'fallback-to-web',
+    })
+  })
+
+  it('🛑 เชื่อมบัญชีที่ /account ก็ต้องมีเพดานเดียวกัน', async () => {
+    const { win } = appWindow(okReply)
+    const fetchImpl = vi.fn(async (url: unknown) => {
+      if (String(url).endsWith('/start')) return new Response(JSON.stringify({ nonce: SERVER_NONCE }))
+      return hang()
+    }) as unknown as typeof fetch
+    expect(await runAppleNativeLink({ win, fetchImpl, apiTimeoutMs: 20 })).toEqual({
+      kind: 'fallback-to-web',
+    })
+  })
+
+  it('🛑 เพดานของ "เซิร์ฟเวอร์เรา" ต้องสั้นกว่าเพดานของ "แผ่นที่ Apple เป็นเจ้าของ" มาก', () => {
+    /**
+     * สองค่านี้ตอบคนละคำถาม และเคยมีคนอยากยุบรวม: `APPLE_NATIVE_TIMEOUT_MS` ยาว 300 วิ
+     * เพราะผู้ใช้กำลังรอ SMS ของ 2FA (ตั้งสั้น = โกหกว่าล้มเหลว — บทเรียน TestFlight
+     * 2026-09-10) ส่วนตัวนี้ไม่มีมนุษย์อยู่ในนั้นเลย · เอาค่ายาวมาใช้กับ API
+     * = ปุ่มหมุน 5 นาทีก่อนบอกอะไรผู้ใช้ ซึ่งคือ 2.1(a) กลับมาอีกรอบ
+     */
+    expect(APPLE_NATIVE_API_TIMEOUT_MS).toBeLessThanOrEqual(30_000)
+    expect(APPLE_NATIVE_API_TIMEOUT_MS).toBeGreaterThanOrEqual(5_000)
+    expect(APPLE_NATIVE_API_TIMEOUT_MS).toBeLessThan(APPLE_NATIVE_TIMEOUT_MS)
   })
 })
 
