@@ -37,7 +37,73 @@ export interface AppleNativeSignInDeps {
   win?: Window
   /* ฉีดเข้ามาได้เพื่อเทส — ไม่ต้องมี DOM หรือเครือข่ายจริง */
   fetchImpl?: typeof fetch
+  /** เพดานเวลารอ **แผ่นของระบบ** (ค่าตั้งต้น `APPLE_NATIVE_TIMEOUT_MS`) */
   timeoutMs?: number
+  /** เพดานเวลารอ **เซิร์ฟเวอร์ของเรา** (ค่าตั้งต้น `APPLE_NATIVE_API_TIMEOUT_MS`) */
+  apiTimeoutMs?: number
+}
+
+/**
+ * เพดานเวลาของคำขอที่ **เราเป็นเจ้าของเวลาเอง** (มิลลิวินาที)
+ *
+ * 🛑 **แยกจาก `APPLE_NATIVE_TIMEOUT_MS` (300 วิ) โดยตั้งใจ ห้ามยุบรวม** — ตัวนั้นคือเวลาที่
+ * **Apple** เป็นเจ้าของ (ผู้ใช้กรอกรหัส Apple ID · รอ SMS ของ 2FA) ตั้งสั้นแล้วเราจะโกหก
+ * ว่าล้มเหลวทั้งที่เขายังทำอยู่ · ตัวนี้คือเวลาที่ **เซิร์ฟเวอร์เรา** ใช้ตอบ
+ * ซึ่งไม่มีมนุษย์อยู่ในนั้นเลย เกิน 15 วินาที = ไม่ได้ช้า แต่ไม่มา
+ *
+ * 🛑 **ไม่มีเพดาน = ปุ่มหมุนค้างตลอดกาล** — `fetch` ไม่ reject เมื่อซ็อกเก็ตค้าง (มือถือ
+ * สลับ Wi-Fi↔เซลลูลาร์ทำท่านี้เป็นปกติ: ไม่มีใครปฏิเสธการเชื่อมต่อ มันแค่ไม่มีคำตอบ)
+ * และ "ปุ่มหมุนแล้วไม่มีอะไรเกิดขึ้น" คือถ้อยคำที่ Apple ใช้ตีกลับข้อ **2.1(a)** เป๊ะ ๆ
+ */
+export const APPLE_NATIVE_API_TIMEOUT_MS = 15_000
+
+/** คำตอบที่ได้กลับมาจริง — `null` = ไม่มีคำตอบเลย (เน็ตล้ม / หมดเวลา) */
+type ApiReply = { ok: boolean; body: unknown }
+
+/**
+ * ยิง POST โดยมีเพดานเวลา
+ *
+ * 🛑 **นับเวลาคลุมการอ่านเนื้อคำตอบด้วย ไม่ใช่แค่ตอนเชื่อมต่อ** — เซิร์ฟเวอร์ที่ส่งหัวมาแล้ว
+ * ค้างกลางเนื้อ ทำให้ `res.json()` ค้างได้เหมือนกัน กันแค่ครึ่งแรกจึงไม่ได้กันอะไร
+ *
+ * 🛑 **ต้องใช้ทั้ง `AbortController` และการแข่งกับตัวจับเวลา — อย่างใดอย่างเดียวไม่พอ**
+ * `abort()` ปล่อยซ็อกเก็ตทิ้งได้ (ดีต่อเครื่อง) แต่ **มีผลเฉพาะเมื่อฝั่งรับ signal ทำตาม**
+ * ส่วนการแข่งเป็นตัวรับประกันว่า "ผู้เรียกได้คำตอบแน่ ๆ ภายในเวลานี้" ซึ่งเป็นสิ่งเดียวที่
+ * ผู้ใช้สนใจ (และเป็นสิ่งที่ผูกด้วยเทสได้ — ท่าที่พึ่ง `abort` ล้วนพิสูจน์ไม่ได้ว่ากันได้จริง)
+ */
+async function postWithTimeout(
+  doFetch: typeof fetch,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<ApiReply | null> {
+  /* เปลือกเก่า/สภาพแวดล้อมเทสบางตัวไม่มี AbortController — ไม่มีก็ยิงต่อ ดีกว่าโยน error */
+  const ctrl = typeof AbortController === 'undefined' ? null : new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+
+  const expired = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      ctrl?.abort()
+      resolve(null)
+    }, timeoutMs)
+  })
+
+  /* 🛑 ตัวนี้ห้าม reject — ถ้า reject หลังการแข่งจบไปแล้วจะกลายเป็น unhandled rejection */
+  const attempt = (async (): Promise<ApiReply | null> => {
+    try {
+      const res = await doFetch(url, ctrl ? { ...init, signal: ctrl.signal } : init)
+      const body = await res.json().catch(() => null)
+      return { ok: res.ok, body }
+    } catch {
+      return null
+    }
+  })()
+
+  try {
+    return await Promise.race([attempt, expired])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** เปลือกรุ่นนี้ทำได้ไหม — ผู้เรียกใช้ตัดสินว่าจะเรียกตัวล่างหรือไปทางเว็บเลย */
@@ -47,7 +113,7 @@ export function canUseAppleNative(win: Window | undefined): boolean {
 
 /** ผลของขั้น "ขอโทเคนจากแผ่นของระบบ" — ส่วนที่ผู้เรียกทั้งสองรายใช้ร่วมกัน */
 type TokenStep =
-  | { kind: 'token'; identityToken: string; doFetch: typeof fetch }
+  | { kind: 'token'; identityToken: string; doFetch: typeof fetch; apiTimeoutMs: number }
   | { kind: 'cancelled' }
   | { kind: 'fallback-to-web' }
 
@@ -64,6 +130,7 @@ async function obtainAppleToken(deps: AppleNativeSignInDeps): Promise<TokenStep>
   if (!transport) return { kind: 'fallback-to-web' }
 
   const doFetch = deps.fetchImpl ?? fetch
+  const apiTimeoutMs = deps.apiTimeoutMs ?? APPLE_NATIVE_API_TIMEOUT_MS
 
   /**
    * ขอ nonce จากเซิร์ฟเวอร์ก่อนเปิดแผ่น
@@ -72,20 +139,17 @@ async function obtainAppleToken(deps: AppleNativeSignInDeps): Promise<TokenStep>
    * แก้ไม่ได้ และโทเคนเก่าที่ขโมยมาถือ nonce ของรอบอื่นจึงไม่มีวันตรง
    * (ร่างแรกให้หน้าเว็บสุ่มเอง — เป็นด่านที่ดูเหมือนมีแต่ไม่กันอะไร ดู `start/route.ts`)
    */
-  let nonce: string
-  try {
-    const startRes = await doFetch('/api/login/apple-native/start', {
-      method: 'POST',
-      credentials: 'include',
-    })
-    const startBody = (await startRes.json().catch(() => null)) as { nonce?: string } | null
-    if (!startRes.ok || typeof startBody?.nonce !== 'string' || startBody.nonce.length < 8) {
-      return { kind: 'fallback-to-web' }
-    }
-    nonce = startBody.nonce
-  } catch {
+  const startReply = await postWithTimeout(
+    doFetch,
+    '/api/login/apple-native/start',
+    { method: 'POST', credentials: 'include' },
+    apiTimeoutMs,
+  )
+  const startBody = startReply?.body as { nonce?: string } | null | undefined
+  if (!startReply?.ok || typeof startBody?.nonce !== 'string' || startBody.nonce.length < 8) {
     return { kind: 'fallback-to-web' }
   }
+  const nonce = startBody.nonce
 
   const client = createAppleNativeClient(transport, { timeoutMs: deps.timeoutMs })
   const result = await client.signIn(nonce)
@@ -96,7 +160,7 @@ async function obtainAppleToken(deps: AppleNativeSignInDeps): Promise<TokenStep>
     return result.reason === 'CANCELLED' ? { kind: 'cancelled' } : { kind: 'fallback-to-web' }
   }
 
-  return { kind: 'token', identityToken: result.identityToken, doFetch }
+  return { kind: 'token', identityToken: result.identityToken, doFetch, apiTimeoutMs }
 }
 
 export async function runAppleNativeSignIn(
@@ -104,11 +168,14 @@ export async function runAppleNativeSignIn(
 ): Promise<AppleNativeOutcome> {
   const step = await obtainAppleToken(deps)
   if (step.kind !== 'token') return step
-  const { identityToken, doFetch } = step
+  const { identityToken, doFetch, apiTimeoutMs } = step
 
-  let res: Response
-  try {
-    res = await doFetch('/api/login/apple-native', {
+  /* ไม่มีคำตอบ (เน็ตหลุด/หมดเวลา) — ทางเว็บใช้เครือข่ายเดียวกันและน่าจะล้มเหมือนกัน
+     แต่อย่างน้อยผู้ใช้จะได้เห็นข้อความจากที่นั่น ไม่ใช่ปุ่มที่กดแล้วเงียบ */
+  const reply = await postWithTimeout(
+    doFetch,
+    '/api/login/apple-native',
+    {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -117,16 +184,11 @@ export async function runAppleNativeSignIn(
        * ค่าที่ client ส่งมาจะถูกเมินทั้งหมด ซึ่งเป็นเหตุผลทั้งหมดที่ด่านนี้กันอะไรได้จริง
        */
       body: JSON.stringify({ identityToken }),
-    })
-  } catch {
-    /* เน็ตหลุดตอนยิงเข้าเซิร์ฟเวอร์ — ทางเว็บใช้เครือข่ายเดียวกันและน่าจะล้มเหมือนกัน
-       แต่อย่างน้อยผู้ใช้จะได้เห็นข้อความจากที่นั่น ไม่ใช่ปุ่มที่กดแล้วเงียบ */
-    return { kind: 'fallback-to-web' }
-  }
+    },
+    apiTimeoutMs,
+  )
 
-  const body = (await res.json().catch(() => null)) as
-    | { ok?: boolean; ticket?: string; reason?: string }
-    | null
+  const body = reply?.body as { ok?: boolean; ticket?: string; reason?: string } | null | undefined
 
   if (body?.ok === true && typeof body.ticket === 'string' && body.ticket.length > 0) {
     return { kind: 'ticket', ticket: body.ticket }
@@ -163,21 +225,21 @@ export async function runAppleNativeLink(
 ): Promise<AppleNativeLinkOutcome> {
   const step = await obtainAppleToken(deps)
   if (step.kind !== 'token') return step
-  const { identityToken, doFetch } = step
+  const { identityToken, doFetch, apiTimeoutMs } = step
 
-  let res: Response
-  try {
-    res = await doFetch('/api/account/link/apple-native', {
+  const reply = await postWithTimeout(
+    doFetch,
+    '/api/account/link/apple-native',
+    {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identityToken }),
-    })
-  } catch {
-    return { kind: 'fallback-to-web' }
-  }
+    },
+    apiTimeoutMs,
+  )
 
-  const body = (await res.json().catch(() => null)) as { ok?: boolean; redirect?: string } | null
+  const body = reply?.body as { ok?: boolean; redirect?: string } | null | undefined
   if (body?.ok === true && typeof body.redirect === 'string' && body.redirect.length > 0) {
     return { kind: 'done', redirect: body.redirect }
   }

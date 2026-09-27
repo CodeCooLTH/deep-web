@@ -29,6 +29,7 @@ import { signIn, useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import { canUseAppleNative, runAppleNativeSignIn } from '@/lib/apple-native-signin'
 import { goAfterLogin } from '@/lib/go-after-login'
 import { pacesToast } from '@/lib/paces-toast'
 import { generateInitials } from '@/utils/helpers'
@@ -90,6 +91,9 @@ export default function InviteLandingClient({
   const [accepting, setAccepting] = useState(false)
   // guest เท่านั้น: 'choose' = เลือกวิธีเข้าสู่ระบบ, 'phone' = ฟอร์มเบอร์โทร 3 ขั้น
   const [guestMode, setGuestMode] = useState<'choose' | 'phone'>('choose')
+  /* ผลของทาง native ที่ต้องค้างบนจอ — toast หายเองก่อนคนอ่าน (บทเรียน 2.1(a) 2026-09-27) */
+  const [appleBusy, setAppleBusy] = useState(false)
+  const [appleNotice, setAppleNotice] = useState<string | null>(null)
 
   const callbackUrl = `/i/${slug}`
 
@@ -98,8 +102,50 @@ export default function InviteLandingClient({
    *
    * ต้องมีที่นี่ด้วย ไม่ใช่เฉพาะหน้าล็อกอินหลัก: หน้ารับคำเชิญเป็น "ทางเข้าระบบ" อีกทางหนึ่งที่มี
    * ปุ่ม Facebook/LINE อยู่ — กฎ 4.8 ผูกกับ "ทุกที่ที่ให้ล็อกอินด้วยเจ้าอื่น" ไม่ใช่หน้าใดหน้าหนึ่ง
+   *
+   * 🛑 **และด้วยเหตุผลเดียวกันเป๊ะ Guideline 4 ก็ผูกกับทุกที่ด้วย** — หน้านี้เคยเรียก
+   * `signIn('apple')` ตรง ๆ ทั้งที่หน้าล็อกอินหลักกับ `/account` แก้ไปแล้วทั้งคู่ (2026-09-25)
+   * ⇒ ในแอปมันเปิด `appleid.apple.com` = ภาพเดียวกับที่ Apple แนบมาตีกลับ 3 ใบ
+   * ไฟล์นี้เขียนเหตุผลของกฎ 4.8 ไว้เองบนโค้ดที่ละเมิดกฎ 4 อยู่ (พลาดเพราะตอนไล่ขอบเขต
+   * นับแค่ "หน้าที่มีฟอร์มล็อกอิน" 2 หน้า ทั้งที่เกณฑ์จริงคือ "ปุ่มล็อกอินเจ้าอื่นอยู่ที่ไหน" 3 ที่)
    */
   const handleApple = async () => {
+    if (canUseAppleNative(typeof window === 'undefined' ? undefined : window)) {
+      setAppleNotice(null)
+      setAppleBusy(true)
+      const outcome = await runAppleNativeSignIn()
+
+      if (outcome.kind === 'ticket') {
+        const result = await signIn('mobile-ticket', { ticket: outcome.ticket, redirect: false })
+        if (result?.ok) {
+          /* ค้างสปินเนอร์ไว้ — หน้านี้กำลังถูกทิ้งทั้งหน้า (เหตุผลเต็มอยู่ที่ SignInForm) */
+          await goAfterLogin(callbackUrl)
+          return
+        }
+      }
+
+      setAppleBusy(false)
+
+      if (outcome.kind === 'cancelled') {
+        setAppleNotice('ยกเลิกการเข้าสู่ระบบด้วย Apple แล้ว')
+        return
+      }
+      if (outcome.kind === 'no-account') {
+        /**
+         * 🛑 ยังไม่มีบัญชี Deep — ชี้ไป **ปุ่มเบอร์โทรที่อยู่ในหน้าเดียวกันนี้แล้ว**
+         *
+         * ต่างจากหน้าล็อกอินผู้ขายที่ชี้ไปช่องชื่อผู้ใช้/รหัสผ่าน เพราะหน้านี้ออกแบบมาสำหรับ
+         * **ผู้ถูกเชิญที่ยังไม่มีบัญชี** โดยเฉพาะ และมี `PhoneAuthSteps` (สมัครสั้น ไม่สร้างร้าน)
+         * เป็นทางที่ถูกต้องอยู่แล้ว ⇒ ห้ามก็อปคำของหน้าล็อกอินมาใช้ มันจะชี้ไปช่องที่ไม่มีในหน้านี้
+         */
+        setAppleNotice('ยังไม่มีบัญชี Deep สำหรับ Apple ID นี้ — ใช้ปุ่ม "เบอร์โทรศัพท์" ด้านล่างเพื่อเข้าร่วมร้าน')
+        return
+      }
+      /* ในแอปแล้วล้มเหลว — ห้ามถอยไปหน้าเว็บของ Apple (Guideline 4 จะกลับมา) */
+      setAppleNotice('เปิด Sign in with Apple ไม่สำเร็จ — ใช้ปุ่ม "เบอร์โทรศัพท์" ด้านล่างแทนได้')
+      return
+    }
+
     await signIn('apple', { callbackUrl })
   }
 
@@ -217,13 +263,26 @@ export default function InviteLandingClient({
         </div>
       </div>
 
+      {/* ผลลัพธ์ของทาง native ที่ต้องค้างไว้บนจอ — ห้ามเป็น toast ที่หายเอง */}
+      {appleNotice && (
+        <div
+          className="bg-warning/15 text-warning-ink mb-4 flex w-full items-start gap-2.5 rounded px-4 py-3"
+          role="status"
+        >
+          <Icon icon="info-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+          <span className="text-sm">{appleNotice}</span>
+        </div>
+      )}
+
       {/* กลุ่มปุ่มเข้าสู่ระบบ — stack แนวตั้ง (copy จาก SignInForm.tsx) */}
       <div className="flex flex-col gap-3">
         {/* Apple อยู่บนสุด — Guideline 4.8 บังคับให้อยู่ระดับเดียวกับล็อกอินเจ้าอื่น ห้ามลดชั้น */}
         <button
           type="button"
           onClick={handleApple}
-          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full"
+          disabled={appleBusy}
+          aria-busy={appleBusy}
+          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full disabled:opacity-60"
         >
           <BxIcon
             icon="bxl:apple"
@@ -232,6 +291,10 @@ export default function InviteLandingClient({
             className="me-2 flex-shrink-0"
             style={{ color: '#000000' }} // brand asset Apple — carve-out จาก Paces token (Hard Rule 6)
           />
+          {/* สปินเนอร์ต้องขึ้นตั้งแต่วินาทีที่กด ไม่ใช่รอให้แผ่นของระบบโผล่ */}
+          {appleBusy && (
+            <Icon icon="loader-2" className="me-2 animate-spin text-base" aria-hidden="true" />
+          )}
           เข้าสู่ระบบด้วย Apple
         </button>
 

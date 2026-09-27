@@ -143,6 +143,17 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
    * 🛑 **ล้มก็ต้องเปิดปุ่ม** — ถ้าเน็ตสะดุดตอนอุ่นคุกกี้แล้วเราปล่อยปุ่มปิดไว้ ผู้ใช้จะล็อกอิน
    * ไม่ได้เลยทั้งหน้า ซึ่งแย่กว่าอาการเดิมมาก ⇒ `finally` เสมอ ไม่ใช่ `then`
    */
+  /**
+   * ปุ่ม Apple กำลังทำงานอยู่ไหม + ผลลัพธ์ที่ต้องค้างไว้บนจอ (แก้ 2.1(a) · 2026-09-27)
+   *
+   * 🛑 Apple ตีกลับเพราะ *"no action took place when we using Sign in with Apple"* —
+   * กดปุ่มแล้ว **จอไม่ขยับเลยสักพิกเซล** ระหว่างรอแผ่นของระบบ และถ้าผู้ใช้ปัดแผ่นทิ้ง
+   * โค้ดเดิม `return` เฉย ๆ ⇒ เงียบสนิทตั้งแต่ต้นจนจบ
+   *
+   * ⇒ ทุกเส้นทางต้องทิ้งร่องรอยไว้บนจอ: ระหว่างรอมีสปินเนอร์ · จบแล้วมีข้อความค้าง
+   */
+  const [appleBusy, setAppleBusy] = useState(false)
+  const [appleNotice, setAppleNotice] = useState<string | null>(null)
   const [oauthReady, setOauthReady] = useState(false)
   useEffect(() => {
     let alive = true
@@ -180,52 +191,48 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
      * ที่ยังไม่มีโมดูล native · แผ่นระบบล้ม · เซิร์ฟเวอร์ปฏิเสธโทเคน ⇒ ตกมาบรรทัดล่างสุด
      * ซึ่งเป็นทางเดิมที่ใช้งานได้อยู่แล้วทุกประการ (เกณฑ์รวมอยู่ใน `runAppleNativeSignIn`)
      */
-    if (canUseAppleNative(typeof window === 'undefined' ? undefined : window)) {
+    const inApp = canUseAppleNative(typeof window === 'undefined' ? undefined : window)
+    if (inApp) {
+      setAppleNotice(null)
+      setAppleBusy(true)
       const outcome = await runAppleNativeSignIn()
 
       if (outcome.kind === 'ticket') {
         const result = await signIn('mobile-ticket', { ticket: outcome.ticket, redirect: false })
         if (result?.ok) {
+          /* 🛑 ห้ามล้าง appleBusy ตรงนี้ — หน้ากำลังจะถูกทิ้งทั้งหน้า ปล่อยสปินเนอร์ค้างไว้
+             คือคำตอบที่ถูก (บทเรียนเดียวกับ ConnectedAccountsClient 2026-08-12) */
           await goAfterLogin(callbackUrl)
           return
         }
-        /* ตั๋วหมดอายุ/ถูกใช้ไปแล้ว (อายุ 60 วินาที) — เกิดได้ถ้าผู้ใช้ค้างแผ่นไว้นาน
-           ให้ลองใหม่ทางเว็บ ดีกว่าขึ้น error ที่เขาทำอะไรกับมันไม่ได้ */
-      } else if (outcome.kind === 'cancelled') {
-        /* ผู้ใช้ปัดแผ่นทิ้งเอง — เงียบถูกแล้ว ห้ามเด้งหน้าเว็บของ Apple ต่อ */
+      }
+
+      setAppleBusy(false)
+
+      if (outcome.kind === 'cancelled') {
+        /* 🛑 เดิม `return` เฉย ๆ = เงียบสนิท ซึ่งแยกไม่ออกจาก "ปุ่มเสีย"
+           และเป็นเส้นทางที่ทีมรีวิวเดินมากที่สุด (เขาไม่อยากผูก Apple ID ส่วนตัว) */
+        setAppleNotice(t.auth.signIn.oauthError.appleCancelled)
         return
-      } else if (outcome.kind === 'no-account') {
-        /**
-         * Apple ID นี้ไม่มีบัญชีผู้ขาย — พาไปหน้าเดิมพร้อมธงที่ `OAuthErrorNotice` อ่านอยู่แล้ว
-         *
-         * 🛑 ใช้ธงเดียวกับด่าน 3.1.1 ใน `proxy.ts` ไม่ mint ข้อความใหม่ — ไม่งั้นผู้ใช้จะได้ยิน
-         * คำอธิบายคนละอย่างจากสองทางที่หมายถึงเรื่องเดียวกัน (Hard Rule 16)
-         */
+      }
+      if (outcome.kind === 'no-account') {
         router.replace('/auth/sign-in?app_no_account=1')
         return
       }
+
+      /**
+       * 🛑 อยู่ในแอปแล้วทาง native ล้มเหลว — **ห้ามถอยไปเปิดหน้าเว็บของ Apple**
+       *
+       * หน้านั้นคือสิ่งที่ Apple เพิ่งยอมรับว่าเราเอาออกแล้ว (Guideline 4 · ผ่านรอบ 27 ก.ย.)
+       * เปิดกลับมาเมื่อไหร่ = เอาข้อที่แก้ผ่านแล้วกลับมาแลกกับข้อที่กำลังแก้
+       * ⇒ บอกให้ชัดแล้วชี้ไปช่องชื่อผู้ใช้/รหัสผ่านซึ่งอยู่บนหน้าเดียวกันอยู่แล้ว
+       */
+      setAppleNotice(
+        `${t.auth.signIn.oauthError.appleUnavailable} — ${t.auth.signIn.oauthError.useUsernameInstead}`,
+      )
+      return
     }
 
-    /**
-     * 🛑 ต้องเดินผ่านหน้ารอ `/auth/callback/apple` **ห้ามชี้ตรงปลายทาง**
-     *
-     * เดิมชี้ตรง `/dashboard` โดยให้เหตุผลว่า "NextAuth ตั้ง session cookie ก่อน redirect
-     * อยู่แล้ว" — **จริงในเบราว์เซอร์ปกติ แต่ไม่จริงใน WebView ทันทีหลังเพิ่งออกจากระบบ**
-     *
-     * บั๊กจริง (หัวหน้าเจอ 2026-09-17 บน iPhone): ออกจากระบบ → กด Apple → ยืนยันสำเร็จ
-     * → **ไม่ไปไหน ต้องกดใหม่อีกรอบ** · ติดตั้งใหม่ครั้งแรกไม่เป็น
-     *
-     * กลไก: `signOut` เพิ่งสั่งลบคุกกี้ `next-auth.session-token` แล้ว callback ตั้งคุกกี้
-     * **ชื่อเดียวกัน** ทันที ⇒ คำขอถัดไป (`/dashboard`) อาจยังไม่เห็นคุกกี้ ⇒ proxy เตะกลับ
-     * หน้าล็อกอิน · กดรอบสองผ่านเพราะไม่มีการลบค้างแล้ว
-     *
-     * หน้ารอถาม session ด้วย **คำขอแยกหลังหน้าโหลดเสร็จ** (`useSession`) ⇒ คุกกี้ลงตัวแล้วแน่นอน
-     * — เป็นท่าที่ LINE/Instagram ใช้อยู่แล้วและไม่เคยมีอาการนี้
-     *
-     * ⚠️ ไม่แตะ Facebook โดยตั้งใจ: มันถูกทำให้ชี้ตรงเพื่อลด redirect chain แก้ปัญหา
-     * Safe Browsing false-positive (2026-06-20) ⇒ เปลี่ยนแล้วอาจปลุกปัญหาเก่า
-     * ถ้าวันหนึ่ง FB มีอาการเดียวกัน ค่อยย้ายตามพร้อมทดสอบเรื่องนั้นซ้ำ
-     */
     await signIn('apple', {
       callbackUrl: `/auth/callback/apple?next=${encodeURIComponent(callbackUrl)}`,
     })
@@ -300,6 +307,17 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
 
   return (
     <>
+      {/* ผลลัพธ์ของทาง native ที่ต้องค้างไว้บนจอ — เหตุผลเต็มอยู่ที่ appleNotice */}
+      {appleNotice && (
+        <div
+          className="bg-warning/15 text-warning-ink mb-4 flex w-full items-start gap-2.5 rounded px-4 py-3"
+          role="status"
+        >
+          <Icon icon="info-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+          <span className="text-sm">{appleNotice}</span>
+        </div>
+      )}
+
       {/* กลุ่มปุ่ม Social Login — stack แนวตั้ง */}
       <div className="flex flex-col gap-3">
         {/* ปุ่ม Sign in with Apple — วางบนสุดของกลุ่ม
@@ -310,7 +328,8 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
         <button
           type="button"
           onClick={handleApple}
-          disabled={!oauthReady}
+          disabled={!oauthReady || appleBusy}
+          aria-busy={appleBusy}
           className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full disabled:opacity-60"
         >
           <BxIcon
@@ -320,7 +339,12 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
             className="me-2 flex-shrink-0"
             style={{ color: '#000000' }} // brand asset Apple — carve-out จาก Paces token (Hard Rule 6)
           />
-          {t.auth.signIn.withApple}
+          {/* 🛑 สปินเนอร์ต้องขึ้นตั้งแต่วินาทีที่กด — ไม่ใช่รอให้แผ่นของระบบโผล่
+              คนตรวจของ Apple เห็น "จอไม่ขยับ" แล้วสรุปว่าปุ่มเสีย (2.1(a) 2026-09-27) */}
+          {appleBusy && (
+            <Icon icon="loader-2" className="me-2 animate-spin text-base" aria-hidden="true" />
+          )}
+          {appleBusy ? t.auth.signIn.loading : t.auth.signIn.withApple}
         </button>
 
         {/* ปุ่ม Facebook OAuth */}
