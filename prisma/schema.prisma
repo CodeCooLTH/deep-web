@@ -146,6 +146,9 @@ model User {
   inspectionRounds         InspectionRound[]     @relation("InspectionRoundInspector")
   inspectorRoleChangesOnMe InspectorRoleChange[] @relation("InspectorRoleChangeTarget")
   inspectorRoleChangesByMe InspectorRoleChange[] @relation("InspectorRoleChangeActor")
+  followUpsAssigned        CustomerFollowUp[]    @relation("FollowUpAssignee") // feature 00066
+  followUpsDone            CustomerFollowUp[]    @relation("FollowUpDoneBy")
+  followUpsCreated         CustomerFollowUp[]    @relation("FollowUpCreator")
 
   @@index([deletedAt, purgedAt], map: "User_deletedAt_purgedAt_idx")
 }
@@ -396,6 +399,7 @@ model Shop {
   inspectionRounds           InspectionRound[]
   inspectionResults          InspectionResult[]
   inspectionTermsAcceptances InspectionTermsAcceptance[] // หลักฐานการรับทราบเงื่อนไขทุกครั้งที่จ่ายเงิน
+  followUps                  CustomerFollowUp[] // feature 00066
 
   @@index([categories], type: Gin, map: "Shop_categories_gin_idx")
   @@index([salesChannels], type: Gin, map: "Shop_salesChannels_gin_idx")
@@ -1900,6 +1904,7 @@ model ExternalContact {
 
   @@unique([shopChannelId, externalUserId]) // PSID เป็น page-scoped — ห้าม dedup ข้าม Page
   @@index([avatarUrl]) // feature 00051 — query ย้อนกลับหาผู้อ้างอิงก่อนลบไฟล์ (dedup backfill)
+  @@index([customerId]) // feature 00066 — cluster query ห้อง→Customer
 }
 
 model Conversation {
@@ -2017,6 +2022,7 @@ model Conversation {
   // back-relation ของ Order.conversationId (2026-08-12) — ออเดอร์ที่ถูกสร้างจากเธรดนี้ (0..N,
   // ปกติมีไม่กี่ใบต่อเธรด) ดูคอมเมนต์เต็มที่ field ใน model Order — nullable, ไม่ backfill ย้อนหลัง
   orders               Order[]
+  followUps            CustomerFollowUp[] // feature 00066
 
   @@unique([buyerUserId, shopId]) // BR-CHAT-02: 1 conversation ต่อคู่ (buyer, shop) เท่านั้น — กัน race ที่ getOrCreateConversation
   @@unique([shopChannelId, externalContactId]) // 1 เธรดต่อ (Page, PSID) — กัน race แบบเดียวกับ BR-CHAT-02
@@ -2038,6 +2044,7 @@ model Conversation {
   // แล้ว query ที่เหลือ JOIN ต่อจากชุดนั้น. ห้ามเปลี่ยนไปใช้ lastMessageAt แทน — ค่านั้นขยับ
   // ทุกครั้งที่มีคนพิมพ์ เธรดเก่าจึงกระโดดเข้ามาในช่วงของวันนี้พร้อมเวลาตอบครั้งแรกของเดือนก่อน
   @@index([shopId, createdAt])
+  @@index([externalContactId]) // feature 00066 — cluster query (unique เดิมขึ้นต้น shopChannelId ใช้ไม่ได้)
 }
 
 // ChatGroup — กลุ่ม/แท็บจัดหมวดแชทที่ร้านตั้งเอง (feature 00018, user request 2026-07-23)
@@ -4856,4 +4863,38 @@ model ShopReceiptCounter {
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   @@id([shopId, period])
+}
+
+// feature 00066 — รายการติดตามลูกค้า (ผูก "ห้องแชท" ไม่ผูก Customer — SDS TD-FU-1)
+// 🛑 CHECK ทั้งชุด + partial index 4 ตัว = unmanaged SQL (Prisma DSL ประกาศไม่ได้)
+//    ห้าม `prisma db pull` / `migrate dev` — ดู DATABASE.md §4.1 และ Shop_userId_personal_key ที่ Shop
+model CustomerFollowUp {
+  id              String    @id @default(uuid())
+  shopId          String
+  conversationId  String
+  type            String    @default("FOLLOW_UP")
+  title           String
+  note            String?
+  dueAt           DateTime  @db.Timestamptz(3)
+  allDay          Boolean   @default(false)
+  assigneeUserId  String?
+  status          String    @default("OPEN")
+  outcome         String?
+  doneAt          DateTime? @db.Timestamptz(3)
+  doneByUserId    String?
+  snoozeCount     Int       @default(0)
+  createdByUserId String?
+  remindedFor     DateTime? @db.Timestamptz(3)
+  remindedAt      DateTime? @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+
+  shop         Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  assignee     User?        @relation("FollowUpAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull)
+  doneBy       User?        @relation("FollowUpDoneBy", fields: [doneByUserId], references: [id], onDelete: SetNull)
+  createdBy    User?        @relation("FollowUpCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, dueAt], map: "CustomerFollowUp_shopId_dueAt_idx")
+  @@index([conversationId, status, dueAt], map: "CustomerFollowUp_conversationId_status_dueAt_idx")
 }
