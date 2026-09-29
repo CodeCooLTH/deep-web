@@ -1046,6 +1046,44 @@ export const ChatCrmPatchSchema = v.object({
   phones: v.optional(v.array(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(20)))),
 });
 
+// ── feature 00066 ติดตามลูกค้า (API.md §4) ──────────────────────────────────────
+// ตัวเลข/รูปแบบวัน-เวลาเป็นเวลาไทย; ช่วงวันที่ที่ยอมรับตัดสินที่ resolveDue (INVALID_DUE) ไม่ใช่ที่นี่
+const FollowUpDate = v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/, "รูปแบบวันที่ไม่ถูกต้อง"));
+const FollowUpTime = v.nullable(v.pipe(v.string(), v.regex(/^([01]\d|2[0-3]):[0-5]\d$/, "รูปแบบเวลาไม่ถูกต้อง")));
+const FollowUpTitle = v.pipe(v.string(), v.trim(), v.minLength(1, "กรุณากรอกหัวข้อ"), v.maxLength(200, "หัวข้อยาวเกินไป"));
+const FollowUpNote = v.nullable(v.pipe(v.string(), v.maxLength(1000, "โน้ตยาวเกินไป")));
+const FollowUpTypeSchema = v.picklist(["FOLLOW_UP", "MEET_CUSTOMER", "OTHER"]);
+
+export const CreateFollowUpSchema = v.object({
+  title: FollowUpTitle,
+  type: v.optional(FollowUpTypeSchema),
+  date: FollowUpDate,
+  time: FollowUpTime,
+  note: v.optional(FollowUpNote),
+  assigneeUserId: v.optional(v.pipe(v.string(), v.uuid())),
+});
+
+// assigneeUserId ห้าม null (ล้างผู้รับผิดชอบไม่ได้ — API.md §4.3)
+export const UpdateFollowUpSchema = v.object({
+  title: v.optional(FollowUpTitle),
+  type: v.optional(FollowUpTypeSchema),
+  note: v.optional(FollowUpNote),
+  date: v.optional(FollowUpDate),
+  time: v.optional(FollowUpTime),
+  assigneeUserId: v.optional(v.pipe(v.string(), v.uuid())),
+});
+
+export const CompleteFollowUpSchema = v.object({
+  outcome: v.optional(v.nullable(v.picklist(["REACHED", "NO_ANSWER", "CALL_LATER", "NOT_INTERESTED"]))),
+});
+
+export const SnoozeFollowUpSchema = v.union([
+  v.object({ preset: v.picklist(["TOMORROW_9", "IN_3_DAYS", "NEXT_WEEK"]) }),
+  v.object({ date: FollowUpDate, time: FollowUpTime }),
+]);
+
+export const FollowUpIdSchema = v.pipe(v.string(), v.uuid());
+
 // ── feature 00013 Pin Products (SRS §4 / API §4.3) ───────────────────────────
 // body ของ POST /api/seller/pin-slots/buy — ซื้อ slot ฿99 + ปักหมุด productId ในธุรกรรมเดียว
 export const BuyPinSlotSchema = v.object({

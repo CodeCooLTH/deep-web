@@ -43,6 +43,7 @@ Provider: Next.js 16 Route Handlers ในรีโปนี้ · ผู้บ�
 ```ts
 FollowUpDto = {
   id: string; conversationId: string; shopId: string
+  shopName: string         // ส่วนขยาย (Q-10): โหมดหลายร้านต้องบอกว่าแถวนี้ของร้านไหน
   type: 'FOLLOW_UP'|'MEET_CUSTOMER'|'OTHER'
   title: string; note: string|null
   dueAt: string            // ISO instant
