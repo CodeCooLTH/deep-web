@@ -26,6 +26,7 @@ const full: InboxPreference = {
     readState: 'unread',
     tags: ['VIP', 'ค้างชำระ'],
     shipment: 'problem',
+    followUp: ['late', 'done'],
   },
   channelTab: 'MESSENGER',
   pageFilter: 'ch-123',

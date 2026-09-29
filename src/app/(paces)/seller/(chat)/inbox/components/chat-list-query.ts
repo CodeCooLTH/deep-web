@@ -17,6 +17,8 @@
  * import ได้ตรง ๆ ไม่ต้องลาก tsx/iconify เข้ามาด้วย
  */
 
+import type { FilterState as FollowUpFilterValue } from '@/lib/follow-up-rules'
+
 export type ShipmentFilterValue = 'all' | 'none' | 'unprinted' | 'printed' | 'problem'
 
 export type ChatFilterState = {
@@ -30,6 +32,8 @@ export type ChatFilterState = {
   tags: string[]
   /** สถานะพัสดุของออเดอร์ล่าสุด (เฉพาะร้านที่เชื่อม iShip) */
   shipment: ShipmentFilterValue
+  /** 00066 — ติดตามลูกค้า: OR ในหมวด (เลือกหลายค่า = อันใดอันหนึ่ง) · [] = ไม่กรอง */
+  followUp: FollowUpFilterValue[]
 }
 
 export const DEFAULT_CHAT_FILTER: ChatFilterState = {
@@ -42,6 +46,7 @@ export const DEFAULT_CHAT_FILTER: ChatFilterState = {
   readState: 'all',
   tags: [],
   shipment: 'all',
+  followUp: [],
 }
 
 type ChatListQueryOptions = {
@@ -102,6 +107,7 @@ export function buildChatListParams(
   // แท็ก: ส่งเป็น CSV (route แยกเอง) — ไม่ส่งเมื่อไม่ได้เลือก
   if (filter.tags.length > 0) params.set('tags', filter.tags.join(','))
   if (filter.shipment !== 'all') params.set('shipment', filter.shipment)
+  if (filter.followUp.length > 0) params.set('followUp', filter.followUp.join(','))
   if (opts.chatGroupId) params.set('chatGroupId', opts.chatGroupId)
   if (filter.readState !== 'all') params.set('readState', filter.readState)
   return params
@@ -138,6 +144,7 @@ export function isChatListFiltering(input: {
     filter.hidden !== DEFAULT_CHAT_FILTER.hidden ||
     filter.readState !== DEFAULT_CHAT_FILTER.readState ||
     filter.shipment !== DEFAULT_CHAT_FILTER.shipment ||
-    filter.tags.length > 0
+    filter.tags.length > 0 ||
+    filter.followUp.length > 0
   )
 }

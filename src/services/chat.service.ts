@@ -18,6 +18,8 @@ import { detectAutoOrderTrigger } from '@/services/auto-order-detect.service'
 import { runAfterResponse } from '@/lib/run-after-response'
 import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
 import { buildDeltaWhere, isDeltaRequest } from '@/lib/chat-delta-query'
+import { conversationIdsByFollowUpState } from '@/services/customer-follow-up.service'
+import type { FilterState as FollowUpFilterState } from '@/lib/follow-up-rules'
 
 export type SenderRole = 'BUYER' | 'SHOP'
 // CALL = เหตุการณ์การโทรที่ Meta แจ้งมา (icon-template) — ไม่ใช่ข้อความที่ใครพิมพ์ ไม่มีใครส่งได้เอง
@@ -351,6 +353,8 @@ export async function listConversationsForShops(
     tags?: string[]
     // shipment (user สั่ง 2026-07-31): สถานะพัสดุของออเดอร์ล่าสุด — เฉพาะร้านที่เชื่อม iShip
     shipment?: ShipmentFilter
+    // followUp (00066): สถานะติดตามลูกค้า — OR ในหมวด, AND กับตัวกรองอื่น; ห้ามที่ cluster ของลูกค้าอยู่ในสถานะนั้น
+    followUp?: FollowUpFilterState[]
     /**
      * sort (00018 ext 2026-09-09): ลำดับเธรด — มาจากค่าตั้งรายคน × ร้าน (SellerChatPreference)
      * ไม่ระบุ = โหมดเดิม ⇒ ผู้เรียกที่ยังไม่รู้จักฟีเจอร์นี้ได้ผลลัพธ์เท่าเดิมทุกประการ
@@ -400,6 +404,11 @@ export async function listConversationsForShops(
   if (opts.shipment) {
     const ids = await conversationIdsByShipmentState(shopIds, opts.shipment)
     orParts.push({ id: { in: ids } })
+  }
+
+  // 00066 — id ห้องใน cluster ที่อยู่ในสถานะที่เลือก · ใส่ AND-array (คีย์ id ชนกับ readIdFilter/shipment)
+  if (opts.followUp && opts.followUp.length > 0) {
+    orParts.push({ id: { in: await conversationIdsByFollowUpState(shopIds, opts.followUp) } })
   }
 
   return listConversations(

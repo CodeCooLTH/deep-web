@@ -18,6 +18,8 @@ import { enrichWithThreadAgents } from "@/services/thread-agents.service";
 // ป้ายพฤติกรรมลูกค้าในแถว — ต้องเรียกทั้งที่นี่และ inbox/page.tsx ด้วยเหตุผลเดียวกับ orderStage
 // (enrich ทางเดียว = ป้ายไม่ขึ้นตอนโหลดหน้าแรกแล้วค่อยโผล่หลัง refetch ซึ่งดูเหมือนบั๊ก)
 import { enrichWithCustomerBehavior } from "@/services/customer-behavior.service";
+import { parseFollowUpQuery } from "@/lib/follow-up-inbox";
+import { enrichWithFollowUpCounts } from "@/services/customer-follow-up.service";
 import { StartConversationSchema, ChatConversationsQuerySchema } from "@/lib/validations";
 import { getInboxPreference, getInboxSortMode } from "@/services/chat-preference.service";
 import { inboxPreferenceToListOptions } from "@/lib/inbox-filter-pref";
@@ -220,6 +222,8 @@ export async function GET(request: NextRequest) {
       ? searchParams.get("tags")!.split(",").map((t) => t.trim()).filter(Boolean)
       : undefined,
     shipment: searchParams.get("shipment") ?? undefined,
+    // 00066 — ค่าแปลก = ไม่กรอง (parseFollowUpQuery ทิ้งเอง ไม่ 400)
+    followUp: parseFollowUpQuery(searchParams.get("followUp")),
     // feature 00037 — ตัวกรอง "ร้าน" ในกล่องแชทรวม (ไม่ใช่ขอบเขต ดู comment ที่ schema)
     shopId: searchParams.get("shopId") ?? undefined,
     // 00018 ext 2026-09-09 — โหมดเรียงที่หน้าจอใช้อยู่ (ดู chat-list-query.ts ว่าทำไมมาจาก client)
@@ -277,6 +281,7 @@ export async function GET(request: NextRequest) {
       spam: parsed.output.spam,
       tags: parsed.output.tags,
       shipment: parsed.output.shipment,
+      followUp: parsed.output.followUp,
     });
     // B1: seller เห็น counterparty = buyer identity
     const enriched = await enrichWithBuyerCounterparty(result.items);
@@ -307,14 +312,16 @@ export async function GET(request: NextRequest) {
     // จากการกรอง (route นี้) จะแสดงไม่เหมือนกัน — บทเรียนเดียวกับ enrichWithOrderStage
     const withBehavior = await enrichWithCustomerBehavior(withStage, scopedShopIds);
     const withBadge = await enrichWithAutoReplyBadge(withBehavior);
+    // 00066 — ป้าย "ค้างอยู่/เลยกำหนด" ก้อนเดียวต่อหน้า (RSC ใน inbox/page.tsx ใช้ฟังก์ชันเดียวกัน)
+    const withFollowUp = await enrichWithFollowUpCounts(withBadge, scopedShopIds);
 
     // feature 00061 — badge "ร่างค้าง" ต่อแถว · enrich ที่นี่ด้วยฟังก์ชันเดียวกับ RSC
     // (ทำทางเดียว badge จะไม่ขึ้นตอนโหลดหน้าแรกแล้วค่อยโผล่หลัง refetch = ดูเหมือนบั๊ก)
     const draftMap = await countDraftedOrdersByConversation(
       scopedShopIds,
-      withBadge.map((c) => c.id),
+      withFollowUp.map((c) => c.id),
     );
-    const withDraft = withBadge.map((c) => ({ ...c, draftOrderCount: draftMap.get(c.id) ?? 0 }));
+    const withDraft = withFollowUp.map((c) => ({ ...c, draftOrderCount: draftMap.get(c.id) ?? 0 }));
     // กองรูปแอดมินที่ตอบ (user สั่ง 2026-09-10) — enrich ทั้ง 2 ทางเหมือนตัวอื่นทุกตัว
     // (RSC อยู่ที่ inbox/page.tsx) ทำทางเดียว = กองรูปไม่ขึ้นตอนโหลดหน้าแรกแล้วค่อยโผล่
     const items = await enrichWithThreadAgents(withDraft);

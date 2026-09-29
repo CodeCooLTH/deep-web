@@ -63,6 +63,7 @@ import { countDraftedOrdersByConversation } from '@/services/auto-order-detect.s
 import { enrichWithCustomerBehavior } from '@/services/customer-behavior.service'
 import { enrichWithAutoReplyBadge } from '@/services/auto-reply.service'
 import { enrichWithThreadAgents } from '@/services/thread-agents.service'
+import { enrichWithFollowUpCounts } from '@/services/customer-follow-up.service'
 import { isShopChatMuted } from '@/services/notification-pref.service'
 import { syncShipmentStatuses } from '@/services/iship.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
@@ -280,6 +281,11 @@ export default async function SellerInboxPage() {
       (await enrichWithThreadAgents(result.items)).map((r) => [r.id, r.threadAgents]),
     )
 
+    // 00066 — ป้ายติดตามลูกค้า ก้อนเดียวต่อหน้า (ฟังก์ชันเดียวกับ route ไม่งั้นหน้าแรกกับ refetch ไม่ตรงกัน)
+    const followUpMap = new Map(
+      (await enrichWithFollowUpCounts(result.items, shopIds)).map((r) => [r.id, r.followUp]),
+    )
+
     // serialize ก่อนข้าม RSC boundary — Date → ISO string (pattern movements/[productId]/page.tsx)
     // allow-list ทีละ field (RSC PII rule) — ห้าม spread ...c
     items = result.items.map((c) => {
@@ -325,6 +331,7 @@ export default async function SellerInboxPage() {
         customerBehavior: behaviorMap.get(c.id) ?? null,
         // feature 00061 — 0 = ไม่มีร่างค้าง (UI ไม่โชว์ badge)
         draftOrderCount: draftMap.get(c.id) ?? 0,
+        followUp: followUpMap.get(c.id) ?? { open: 0, late: 0 },
         // S-20 — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
         lastMessageAutoReplyKind: autoReplyBadgeMap.get(c.id)?.kind ?? null,
         lastMessageIsAiEnhanced: autoReplyBadgeMap.get(c.id)?.isAi ?? false,

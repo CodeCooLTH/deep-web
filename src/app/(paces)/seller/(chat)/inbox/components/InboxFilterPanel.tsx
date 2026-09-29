@@ -29,6 +29,8 @@ import { PageAvatar } from './PageFilterDropdown'
 export { DEFAULT_CHAT_FILTER } from './chat-list-query'
 export type { ChatFilterState, ShipmentFilterValue } from './chat-list-query'
 import type { ChatFilterState, ShipmentFilterValue } from './chat-list-query'
+import type { FilterState as FollowUpFilterValue } from '@/lib/follow-up-rules'
+import { formatCount } from '@/lib/follow-up-view'
 import { INBOX_SORT_MODES, type InboxSortMode } from '@/lib/inbox-sort'
 import { DEFAULT_CHAT_FILTER } from './chat-list-query'
 import { useT } from '@/i18n/LocaleProvider'
@@ -46,6 +48,7 @@ export function countActiveFilters(f: ChatFilterState, pageFilter = ''): number 
   if (f.readState !== DEFAULT_CHAT_FILTER.readState) n++
   if (f.tags.length > 0) n++
   if (f.shipment !== DEFAULT_CHAT_FILTER.shipment) n++
+  if (f.followUp.length > 0) n++ // นับเป็น 1 ไม่ว่าเลือกกี่ค่า (แบบ tags)
   if (pageFilter) n++
   return n
 }
@@ -148,6 +151,8 @@ type Props = {
   allTags: string[]
   /** ร้านเชื่อม iShip แล้วหรือยัง — ไม่เชื่อม = ไม่ต้องเห็นหัวข้อ "พัสดุ" */
   hasShipping: boolean
+  /** 00066 — ตัวเลขห้องต่อค่า (null = ยังไม่โหลด) · ซ่อนหมวดเมื่อ 0 ทั้งสามและไม่มีค่าที่เลือกค้าง */
+  followUpCounts: Record<FollowUpFilterValue, number> | null
 }
 
 export default function InboxFilterPanel({
@@ -162,6 +167,7 @@ export default function InboxFilterPanel({
   pageOptions,
   allTags,
   hasShipping,
+  followUpCounts,
 }: Props) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
@@ -204,6 +210,20 @@ export default function InboxFilterPanel({
       ...d,
       tags: d.tags.includes(t) ? d.tags.filter((x) => x !== t) : [...d.tags, t],
     }))
+
+  const toggleFollowUp = (k: FollowUpFilterValue) =>
+    setDraft((d) => ({
+      ...d,
+      followUp: d.followUp.includes(k) ? d.followUp.filter((x) => x !== k) : [...d.followUp, k],
+    }))
+  const followUpKeys: { key: FollowUpFilterValue; label: string }[] = [
+    { key: 'late', label: t.followUps.filterLate },
+    { key: 'upcoming', label: t.followUps.filterUpcoming },
+    { key: 'done', label: t.followUps.filterDone },
+  ]
+  const showFollowUp =
+    draft.followUp.length > 0 ||
+    (followUpCounts !== null && (followUpCounts.late > 0 || followUpCounts.upcoming > 0 || followUpCounts.done > 0))
 
   return (
     // ไม่มี `relative` ที่ root โดยตั้งใจ — popover อ้างอิง "แถวตัวกรอง" (relative ที่ InboxList)
@@ -308,6 +328,19 @@ export default function InboxFilterPanel({
               <Section title={t.inbox.tagsLabel} hint={t.inbox.filterPanel.tagsHint}>
                 {allTags.map((t) => (
                   <Chip key={t} on={draft.tags.includes(t)} label={t} onClick={() => toggleTag(t)} />
+                ))}
+              </Section>
+            )}
+
+            {showFollowUp && (
+              <Section title={t.followUps.filterSection} hint={t.followUps.filterSectionHint}>
+                {followUpKeys.map((o) => (
+                  <Chip
+                    key={o.key}
+                    on={draft.followUp.includes(o.key)}
+                    label={followUpCounts ? `${o.label} (${formatCount(followUpCounts[o.key])})` : o.label}
+                    onClick={() => toggleFollowUp(o.key)}
+                  />
                 ))}
               </Section>
             )}

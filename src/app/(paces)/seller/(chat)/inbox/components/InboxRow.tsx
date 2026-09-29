@@ -16,6 +16,9 @@ import { memo } from 'react'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { fileUrlOf } from '@/lib/file-url'
+import { rowBadge } from '@/lib/follow-up-inbox'
+import { formatCount } from '@/lib/follow-up-view'
+import { fmt } from '@/i18n/fmt'
 import { customerBadges } from '@/lib/customer-behavior'
 import { orderStageChipLabel } from '@/lib/order-stage'
 import { generateInitials } from '@/utils/helpers'
@@ -81,6 +84,12 @@ function InboxRowImpl({
       const isResolved = c.resolvedAt !== null
       const salesStatus = c.contactSalesStatus ?? 'UNSPECIFIED'
       const contactTags = c.contactTags ?? []
+      // 00066 — ป้ายติดตามลูกค้า: ป้ายเดียวต่อแถว เลยกำหนดชนะค้างอยู่ (rowBadge เป็นฟังก์ชันบริสุทธิ์)
+      const followBadge = rowBadge(c.followUp)
+      const followBadgeText =
+        followBadge === 'late' && c.followUp
+          ? fmt(t.followUps.rowLateAria, { late: c.followUp.late, open: c.followUp.open })
+          : fmt(t.followUps.rowOpen, { n: c.followUp?.open ?? 0 })
       // ป้ายพฤติกรรมลูกค้า — SSOT เดียวกับหัวแผงลูกค้า/ตาราง /orders
       // `hasHistory` = ผูกกับลูกค้าในระบบแล้ว (null = ยังไม่ผูก → ไม่มีป้ายเลย)
       const behaviorBadges = c.customerBehavior
@@ -323,9 +332,25 @@ function InboxRowImpl({
                 {(salesStatus !== 'UNSPECIFIED' ||
                   contactTags.length > 0 ||
                   !!c.referralAdId ||
+                  followBadge !== null ||
                   behaviorBadges.length > 0 ||
                   (c.lastSenderRole === 'SHOP' && !!c.lastMessageAutoReplyKind)) && (
                   <span className="mt-1 flex flex-wrap items-center gap-1">
+                    {/* 00066 (e) — ชิปแรกในบรรทัดป้าย · เลยกำหนด = แดงอ่อน+ไอคอน · ค้างอยู่ = เทา
+                        aria-label เต็ม + title เดียวกัน (มือถือไม่มี hover จึงห้ามพึ่ง title อย่างเดียว) */}
+                    {followBadge !== null && c.followUp && (
+                      <span
+                        role="img"
+                        className={`badge text-2xs ${followBadge === 'late' ? 'bg-danger/15 text-danger-ink' : 'bg-default-100 text-default-700'}`}
+                        aria-label={followBadgeText}
+                        title={followBadgeText}
+                      >
+                        <Icon icon={followBadge === 'late' ? 'clock-exclamation' : 'list-check'} className="size-3 shrink-0" />
+                        {fmt(followBadge === 'late' ? t.followUps.rowLate : t.followUps.rowOpen, {
+                          n: formatCount(followBadge === 'late' ? c.followUp.late : c.followUp.open),
+                        })}
+                      </span>
+                    )}
                     {/* ป้ายพฤติกรรมลูกค้า — user สั่ง 2026-08-11
                         รอบแรกผมทำเป็น **ไอคอนล้วนไม่มีคำ** เพราะ critique 2026-08-09 เพิ่งตัดชิป
                         ในแถวนี้จาก "ชิงพื้นที่ได้ถึง 6 ใบ" เหลือ 1 — ผลคือมันขึ้นจริงแต่ผู้ขาย

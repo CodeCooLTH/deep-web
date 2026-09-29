@@ -40,6 +40,7 @@ const STATUS_VALUES = ['open', 'resolved', 'all'] as const
 const CUSTOMER_LINKED_VALUES = ['all', 'linked', 'unlinked'] as const
 const READ_STATE_VALUES = ['all', 'unread', 'read'] as const
 const SHIPMENT_VALUES = ['all', 'none', 'unprinted', 'printed', 'problem'] as const
+const FOLLOW_UP_VALUES = ['late', 'upcoming', 'done'] as const
 const CHANNEL_TAB_VALUES = ['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM', 'LINE'] as const
 
 function pick<T extends readonly string[]>(allowed: T, raw: unknown, fallback: T[number]): T[number] {
@@ -64,6 +65,11 @@ function tags(raw: unknown): string[] {
     .slice(0, 20)
 }
 
+function followUp(raw: unknown): ChatFilterState['followUp'] {
+  if (!Array.isArray(raw)) return []
+  return FOLLOW_UP_VALUES.filter((k) => raw.includes(k))
+}
+
 export function parseInboxFilterPreference(rawFilter: unknown, rawSort: unknown): InboxPreference {
   const sort = parseInboxSortMode(rawSort)
   if (rawFilter === null || typeof rawFilter !== 'object' || Array.isArray(rawFilter)) {
@@ -85,6 +91,7 @@ export function parseInboxFilterPreference(rawFilter: unknown, rawSort: unknown)
       readState: pick(READ_STATE_VALUES, f.readState, DEFAULT_CHAT_FILTER.readState),
       tags: tags(f.tags),
       shipment: pick(SHIPMENT_VALUES, f.shipment, DEFAULT_CHAT_FILTER.shipment) as ShipmentFilterValue,
+      followUp: followUp(f.followUp),
     },
     channelTab: pick(CHANNEL_TAB_VALUES, o.channelTab, CHANNEL_TAB_VALUES[0]),
     // pageFilter เป็น id ของ ShopChannel — ตรวจรูปร่างได้แค่ "เป็นสตริงสั้น ๆ" เท่านั้น
@@ -117,6 +124,7 @@ export function isSameInboxPreference(a: InboxPreference, b: InboxPreference): b
     a.filter.hidden === b.filter.hidden &&
     a.filter.readState === b.filter.readState &&
     a.filter.shipment === b.filter.shipment &&
+    [...a.filter.followUp].sort().join(' ') === [...b.filter.followUp].sort().join(' ') &&
     a.filter.tags.length === b.filter.tags.length &&
     [...a.filter.tags].sort().join(' ') === [...b.filter.tags].sort().join(' ')
   )
@@ -145,5 +153,6 @@ export function inboxPreferenceToListOptions(pref: InboxPreference) {
     readState: f.readState === 'all' ? undefined : f.readState,
     tags: f.tags.length > 0 ? f.tags : undefined,
     shipment: f.shipment === 'all' ? undefined : f.shipment,
+    followUp: f.followUp.length > 0 ? f.followUp : undefined,
   }
 }

@@ -972,6 +972,8 @@ export const ChatConversationsQuerySchema = v.object({
   tags: v.optional(v.pipe(v.array(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(40))), v.maxLength(20))),
   // user สั่ง 2026-07-31 — สถานะพัสดุของออเดอร์ล่าสุด (เฉพาะร้านที่เชื่อม iShip)
   shipment: v.optional(v.picklist(['none', 'unprinted', 'printed', 'problem'])),
+  // 00066 — ติดตามลูกค้า (route แยก CSV + ทิ้งค่าแปลกด้วย parseFollowUpQuery ก่อนถึงตรงนี้)
+  followUp: v.optional(v.array(v.picklist(['late', 'upcoming', 'done']))),
   // feature 00037 — กรองเฉพาะร้านเดียวในกล่องแชทรวม
   // 🛑 ค่านี้ไม่ใช่ "ขอบเขต" แต่เป็น "ตัวกรองภายในขอบเขต" — route ต้องเอาไปผ่าน
   //    intersectScopedShopIds() กับ scope ที่ระบบคำนวณเองเสมอ ห้ามส่งเข้า service ตรง ๆ (BR-UNI-01/02)

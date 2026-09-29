@@ -158,6 +158,8 @@ export type ConversationListItem = {
    * optional เผื่อ payload เก่าที่ยัง cache อยู่ฝั่ง client
    */
   draftOrderCount?: number
+  /** 00066 — ป้ายติดตามลูกค้า (plain object ให้ isEqual ของ mergeRefreshedFirstPage เทียบได้) · optional เผื่อ payload เก่า */
+  followUp?: { open: number; late: number }
   // feature 00018 CRM — ชื่อในแชท (alias) + tag/สถานะขาย (badge ในแถว) — optional เผื่อ payload เก่า
   alias?: string | null
   contactTags?: string[]
@@ -701,7 +703,7 @@ export default function InboxList({
     }
     fetchList({ append: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchList ผูก closure ของ filter ปัจจุบันอยู่แล้ว
-  }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden, filter.readState, filter.spam, filter.tags, filter.shipment, activeGroupId])
+  }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden, filter.readState, filter.spam, filter.tags, filter.shipment, filter.followUp, activeGroupId])
 
   /**
    * ขอบเขตร้านเปลี่ยน (สลับโหมดรวม↔ร้านเดียว) — โหลดรายการใหม่ "ด้วยตัวกรองเดิม" (ux gate 2026-08-08)
@@ -1029,6 +1031,22 @@ export default function InboxList({
    * เพราะรายการเป็น cursor pagination ทีละ 20 เคสที่อยู่หน้าถัดไปจะหายจากตัวเลขทันที
    * throttle 60 วิเหมือน spamUnread ด้วยเหตุผลเดียวกัน (list ถูกยิงทุก 20 วิและ mount 2 ตัว)
    */
+  // 00066 — ตัวเลขต่อค่าของตัวกรองติดตามลูกค้า: ดึงตอนเปิดแผงตัวกรอง (ไม่ยิงทุก poll — สแกนหนัก)
+  // ล้ม = null = หมวดไม่โผล่ (ข้อมูลเสริม ไม่กระทบรายการ)
+  const [followUpCounts, setFollowUpCounts] = useState<{ late: number; upcoming: number; done: number } | null>(null)
+  useEffect(() => {
+    if (openPanel !== 'filter') return
+    let live = true
+    fetch('/api/follow-ups/inbox-counts', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (live && d && typeof d.late === 'number') setFollowUpCounts({ late: d.late, upcoming: d.upcoming, done: d.done })
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [openPanel])
   const [problemCount, setProblemCount] = useState(0)
   const problemFetchedAt = useRef(0)
   const refreshProblemCount = useCallback(
@@ -1273,6 +1291,7 @@ export default function InboxList({
             pageOptions={channels}
             allTags={allTags}
             hasShipping={hasShipping}
+            followUpCounts={followUpCounts}
           />
 
 
