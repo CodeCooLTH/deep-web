@@ -240,8 +240,11 @@ const Bubble = ({ align }: { align: 'start' | 'end' }) => (
  *  → พอสูงเต็ม แถบ composer จะถูกดันไปติดล่างเองเหมือนหน้าจริง ไม่ต้องใส่ mt-auto */
 export const SellerThreadSkeleton = ({ className }: { className?: string } = {}) => (
   <div className={`card ${className ?? ''}`}>
-    <div className="card-header">
+    {/* py-3 + flex-nowrap = หัวเธรดจริง (ChatThread card-header) ให้สูงเท่ากัน ไม่ให้เธรดกระตุกตอนของจริงมาแทน
+        ปุ่มกลับ lg:hidden ตรงกับหัวจริงบนมือถือ */}
+    <div className="card-header flex-nowrap py-3">
       <div className="flex items-center gap-3">
+        <PulseBar className="size-9 shrink-0 rounded lg:hidden" />
         <PulseBar className="size-9 rounded-full" />
         <PulseBar className="h-4 w-32" />
       </div>
