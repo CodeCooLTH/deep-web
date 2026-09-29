@@ -486,6 +486,14 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     resolveLibraryOwner({ id: conversation.id, externalContactId: conversation.externalContactId }),
   )
 
+  // S6: เริ่มยิงทันทีที่ได้ conversation (ไม่ขึ้นกับ linkedCustomer/orders) แล้ว await ท้ายสุด
+  // `.catch` ติดตั้งตั้งแต่ตรงนี้ ⇒ ถ้ามี throw/early return ก่อนถึงจุด await จะไม่มี rejection ลอย
+  const initialMessagesPromise = getThreadMessagesPage({
+    conversationId: conversation.id,
+    userId: user.id as string,
+    take: 30,
+  }).catch(() => null)
+
   let linkedCustomer: { id: string; phone: string; createdAt: Date } | null = null
   if (conversation.channel !== 'DEEP') {
     if (conversation.externalContact?.customer) {
@@ -690,11 +698,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
    *
    * ล้มแล้วต้องไม่ทำให้เปิดห้องไม่ได้ — คืน null แล้วปล่อยให้ ChatThread ยิงเองเหมือนเดิม
    */
-  const initialMessages = await getThreadMessagesPage({
-    conversationId: conversation.id,
-    userId: user.id as string,
-    take: 30,
-  }).catch(() => null)
+  const initialMessages = await initialMessagesPromise
   mark('initialMessages')
 
   mark('savedFileIds')

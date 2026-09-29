@@ -43,6 +43,7 @@ import {
   planDeltaApply,
   firstPageLeavesGap,
   shouldFollowNewMessages,
+  scrollTopAfterPrepend,
 } from '@/lib/chat-thread-scroll'
 
 // chat-attachment.ts เป็น pure module จึง import ฝั่ง client ได้ (ต่างจาก '@/lib/storage' ที่ barrel
@@ -1068,26 +1069,40 @@ export function useSellerChatThread(
   }, [refetchNewer])
 
   // ── load-older: sentinel บนสุด + preserve scroll position ──────────────
+  const pendingPrependRef = useRef<{ prevHeight: number; prevTop: number } | null>(null)
+  useIsomorphicLayoutEffect(() => {
+    const pending = pendingPrependRef.current
+    const root = scrollRef.current
+    if (!pending || !root) return
+    pendingPrependRef.current = null
+    root.scrollTop = scrollTopAfterPrepend({
+      prevTop: pending.prevTop,
+      prevHeight: pending.prevHeight,
+      nextHeight: root.scrollHeight,
+    })
+  }, [messages])
   const loadOlder = useCallback(async () => {
     if (!oldestCursor || loadingOlder) return
     setLoadingOlder(true)
     const root = scrollRef.current
-    const prevHeight = root?.scrollHeight ?? 0
     try {
       const params = new URLSearchParams({ cursor: oldestCursor, take: '30' })
       const res = await fetch(`/api/chat/conversations/${conversationId}/messages?${params.toString()}`)
       if (!res.ok) throw new Error('load-older failed')
       const data: MessagesApiResponse = await res.json()
+      // S3: จดตำแหน่งก่อน setState แล้วชดเชยใน layout effect (ก่อน paint) — rAF หลัง setState ไม่รับประกันว่า commit แล้ว
+      pendingPrependRef.current =
+        root && data.items.length > 0 ? { prevHeight: root.scrollHeight, prevTop: root.scrollTop } : null
       setMessages((prev) => {
         const next = mergeMessages(prev, data.items)
         // เขียน store ใน updater เหตุผลเดียวกับ refetchNewer (ต้องใช้ prev ตัวจริง, idempotent)
         saveThreadView(conversationId, next, data.nextCursor)
+        // ข้อความซ้ำล้วน ⇒ merge คืน array เดิม ⇒ layout effect ไม่รัน ⇒ ต้องล้างเอง ไม่งั้นค้างไปชดเชย
+        // ผิดจังหวะตอนข้อความใหม่เข้าครั้งถัดไป (จอกระโดด)
+        if (next === prev) pendingPrependRef.current = null
         return next
       })
       setOldestCursor(data.nextCursor)
-      requestAnimationFrame(() => {
-        if (root) root.scrollTop = root.scrollHeight - prevHeight
-      })
     } catch {
       pacesToast.error('โหลดข้อความเก่าไม่สำเร็จ ลองใหม่อีกครั้ง')
     } finally {

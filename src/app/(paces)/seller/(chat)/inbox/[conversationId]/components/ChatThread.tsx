@@ -91,6 +91,7 @@ import { generateInitials } from '@/utils/helpers'
 // เวลาเต็ม (วัน+เวลา พ.ศ.) อยู่ที่ title + sr-only ของบับเบิลทุกใบ (Task 7, 2026-09-14 — ruling R19)
 // เพราะบับเบิลเก่าหลายวันแสดงแค่ ชม.:นาที ผู้ขายต้องรู้ได้ว่า "วันไหน" โดยไม่ต้องไล่หาตัวคั่นวัน
 import { formatTimeHM, formatDateTime, formatDateTimeTH, formatChatBubbleTime } from '@/lib/format-date'
+import { chatClockIntervalMs } from '@/lib/chat-thread-scroll'
 import { burstIdentity, computeBurstEndIds } from '@/lib/chat-message-burst'
 import { isSelfContainedBubble } from '@/lib/chat-bubble-frame'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
@@ -1280,9 +1281,9 @@ export default function ChatThread({
    *
    * Base: แพตเทิร์น matchMedia + addEventListener('change') จาก EmojiPicker.tsx:277-287
    */
-  const [isXlUp, setIsXlUp] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches,
-  )
+  // เริ่ม false เสมอ (S5) — lazy init ที่อ่าน matchMedia ทำให้ server (false) กับ client (true บนจอ ≥1280)
+  // เรนเดอร์คนละแบบ = hydration mismatch · effect ด้านล่าง sync ค่าจริงทันทีหลัง mount
+  const [isXlUp, setIsXlUp] = useState(false)
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1280px)')
     const sync = () => setIsXlUp(mq.matches)
@@ -1433,12 +1434,15 @@ export default function ChatThread({
     setExpiryTs(Date.now() + msRemaining)
   }, [msRemaining, windowOpen])
   const [nowTs, setNowTs] = useState(() => Date.now())
+  const liveRemaining = Math.max(0, expiryTs - nowTs)
+  // S1: 1 วิเฉพาะตอนมีตัวเลขวินาทีบนจอ (LINE / เหลือ ≤4 ชม.) นอกนั้น 30 วิ — ทุก tick วาด ChatThread ทั้งเธรดใหม่
+  // (primitive เข้า deps ⇒ effect รันใหม่เฉพาะตอนความถี่เปลี่ยนจริง)
+  const clockMs = chatClockIntervalMs({ isLine: channel === 'LINE', remainingMs: liveRemaining })
   useEffect(() => {
     if (!isExternal || !windowOpen) return // นับเฉพาะช่องทางนอกที่ window ยังเปิดตอนโหลด
-    const timer = setInterval(() => setNowTs(Date.now()), 1000)
+    const timer = setInterval(() => setNowTs(Date.now()), clockMs)
     return () => clearInterval(timer)
-  }, [isExternal, windowOpen])
-  const liveRemaining = Math.max(0, expiryTs - nowTs)
+  }, [isExternal, windowOpen, clockMs])
   const liveWindowOpen = windowOpen && liveRemaining > 0
   // tick หยาบ ๆ (ทุก 15 วิ) ให้เวลาข้อความล่าสุด "หายไปเอง" หลังส่งเกิน 1 นาที (user request 2026-07-23)
   const [, setMetaTick] = useState(0)
@@ -3007,7 +3011,7 @@ export default function ChatThread({
         className="card-body min-h-0 grow overflow-y-auto overscroll-contain pt-4 pb-0 [&>*:last-child>*:last-child]:mb-3"
       >
         {oldestCursor && (
-          <div ref={topSentinelRef} className="flex justify-center py-2">
+          <div ref={topSentinelRef} className="flex h-9 items-center justify-center">
             {loadingOlder && (
               <div
                 className="border-primary size-5 animate-spin rounded-full border-2 border-t-transparent"

@@ -153,3 +153,31 @@ export function firstPageLeavesGap<T extends Row>(input: {
   if (!newest || !oldestPage) return true
   return compareMessages(oldestPage, newest) > 0
 }
+
+/**
+ * scrollTop หลังเติมข้อความเก่าไว้บนสุด — คงตำแหน่งที่ผู้ใช้อ่านอยู่ (S3, 2026-09-29)
+ *
+ * 🛑 ต้องบวก `prevTop` ด้วย: สูตรเดิม `scrollHeight - prevHeight` ถูกเฉพาะตอนผู้ใช้อยู่บนสุดพอดี (top=0)
+ *    แต่ sentinel ทำงานก่อนถึงขอบ (top > 0) ⇒ เลื่อนไม่ครบ จอกระโดดลงมา
+ * ใช้ค่านี้ใน layout effect (ก่อน paint) ไม่ใช่ rAF หลัง setState ซึ่งไม่รับประกันว่า commit แล้ว
+ */
+export function scrollTopAfterPrepend(input: { prevTop: number; prevHeight: number; nextHeight: number }): number {
+  return input.prevTop + Math.max(0, input.nextHeight - input.prevHeight)
+}
+
+/**
+ * ความถี่ตัวจับเวลาหน้าต่างตอบ (S1, 2026-09-29) — ms ต่อ tick
+ *
+ * ป้ายที่ผู้ใช้เห็น: LINE = ปุ่มส่งนับถอยหลังเป็น "วินาที" ตลอด · ช่องอื่น = ป้าย "เหลือ M:SS" เฉพาะเมื่อ
+ * เหลือ ≤ 4 ชม. (ที่เหลือไม่มีอะไรบนจอให้ขยับ นอกจากขอบเขตปิดหน้าต่าง) ⇒ ป้ายไม่ค้างผิดเกิน 1 วินาที
+ * (หน่วยที่แสดง) เมื่อ tick 1 วิในช่วงที่มีตัวเลขบนจอ; นอกช่วงนั้น 30 วิพอ (ขอบ 4 ชม. เลื่อนช้าได้ ≤30 วิ
+ * แล้ว tick ถัดไปสลับเป็น 1 วิเอง)
+ * ⚠️ ไม่ใช้เกณฑ์ "<2 นาที" ตามข้อเสนอแรก เพราะป้ายช่องอื่นโชว์วินาทีตั้งแต่ 4 ชม. สุดท้าย
+ */
+export const CHAT_CLOCK_FAST_MS = 1000
+export const CHAT_CLOCK_SLOW_MS = 30_000
+export const CHAT_CLOCK_LABEL_WINDOW_MS = 4 * 60 * 60 * 1000
+
+export function chatClockIntervalMs(input: { isLine: boolean; remainingMs: number }): number {
+  return input.isLine || input.remainingMs <= CHAT_CLOCK_LABEL_WINDOW_MS ? CHAT_CLOCK_FAST_MS : CHAT_CLOCK_SLOW_MS
+}

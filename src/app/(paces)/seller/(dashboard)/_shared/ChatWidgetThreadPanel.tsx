@@ -161,7 +161,7 @@ export default function ChatWidgetThreadPanel({ conversationId, buyerName, buyer
       {/* scroll body — plain div + ref (ต้อง programmatic scroll เหมือน full-page) */}
       <div ref={scrollRef} className="min-h-0 grow overflow-y-auto px-3 py-3">
         {oldestCursor && (
-          <div ref={topSentinelRef} className="flex justify-center py-2">
+          <div ref={topSentinelRef} className="flex h-9 items-center justify-center">
             {loadingOlder && (
               <div
                 className="border-primary size-5 animate-spin rounded-full border-2 border-t-transparent"

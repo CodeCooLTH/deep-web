@@ -69,6 +69,7 @@ import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmp
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import InboxList, { type ConversationListItem, type ChannelFilterOption } from './components/InboxList'
 import { getT } from '@/i18n/server'
+import MinWidthGate from '../_components/MinWidthGate'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
 
@@ -363,6 +364,8 @@ export default async function SellerInboxPage() {
       {/* railMode: ในเลย์เอาต์ (chat) ChatHeader แสดงช่องค้นหาให้ทุกจอแล้ว (เขียนลง ChatSearchContext)
           → InboxList ต้องอ่านจาก context ไม่ render ช่องของตัวเอง ไม่งั้นมือถือเห็นช่องค้นหาซ้ำ 2 อัน
           (user เจอจริงบน prod) — prop ชื่อ railMode คงเดิม แต่ความหมายตอนนี้ = "ค้นหาอยู่ที่ header" */}
+      {/* S2: mount เฉพาะ <1024 หลัง sync — คงคลาส lg:hidden ไว้ เพราะรอบแรก gate mount ทุกจอ */}
+      <MinWidthGate px={1024} below>
       <div className="lg:hidden">
         {/* ไม่ใส่ key แล้ว (ux gate 2026-08-08): InboxList โหลดรายการใหม่เองด้วย "ตัวกรองเดิม"
             เมื่อขอบเขตเปลี่ยน — remount จะล้างตัวกรอง/แท็บ/คำค้นที่ผู้ใช้ตั้งไว้ทิ้งไปด้วย */}
@@ -386,6 +389,7 @@ export default async function SellerInboxPage() {
           persistScroll
         />
       </div>
+      </MinWidthGate>
       {/* bug fix: ≥1024px ต้องเป็น 3 คอลัมน์ตั้งแต่หน้าแรก [rail][กลาง][ขวา] — เดิมมีแค่ 2
           (rail อยู่ที่ (chat)/layout.tsx แล้ว — ChatRail.tsx; ที่นี่คุมแค่กลาง+ขวา) ต้อง mirror
           โครง flex ของ /inbox/[conversationId]/page.tsx เป๊ะ (ไม่มี gap, ขวา w-96 shrink-0) ไม่งั้น
