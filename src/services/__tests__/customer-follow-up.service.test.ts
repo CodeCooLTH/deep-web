@@ -40,6 +40,7 @@ import {
   FollowUpNotFoundError,
   FollowUpStateError,
   completeFollowUp,
+  setFollowUpOutcome,
   countsForConversations,
   conversationIdsByFollowUpState,
   createFollowUp,
@@ -166,6 +167,27 @@ describe('completeFollowUp', () => {
     m.fu.updateMany.mockResolvedValue({ count: 0 })
     m.fu.findFirst.mockResolvedValue(null)
     await expect(completeFollowUp('u', [SHOP], 'x', null, NOW)).rejects.toBeInstanceOf(FollowUpNotFoundError)
+  })
+})
+
+describe('setFollowUpOutcome', () => {
+  it('[blocker] เขียนเฉพาะ outcome บนแถว DONE ใน scope ร้าน — ไม่แตะ doneAt/doneByUserId', async () => {
+    m.fu.updateMany.mockResolvedValue({ count: 1 })
+    m.fu.findFirst.mockResolvedValue(row({ status: 'DONE', outcome: 'REACHED' }))
+    await setFollowUpOutcome([SHOP], 'f1', 'REACHED', NOW)
+    const a = m.fu.updateMany.mock.calls[0][0]
+    expect(a.where).toEqual({ id: 'f1', shopId: { in: [SHOP] }, status: 'DONE' })
+    expect(a.data).toEqual({ outcome: 'REACHED' })
+  })
+  it('รายการยังเปิดอยู่ → StateError (ห้ามผลโผล่บนรายการ OPEN)', async () => {
+    m.fu.updateMany.mockResolvedValue({ count: 0 })
+    m.fu.findFirst.mockResolvedValue({ status: 'OPEN' })
+    await expect(setFollowUpOutcome([SHOP], 'f1', 'REACHED', NOW)).rejects.toBeInstanceOf(FollowUpStateError)
+  })
+  it('ไม่มีแถว/ร้านอื่น → NotFound', async () => {
+    m.fu.updateMany.mockResolvedValue({ count: 0 })
+    m.fu.findFirst.mockResolvedValue(null)
+    await expect(setFollowUpOutcome([SHOP], 'x', 'REACHED', NOW)).rejects.toBeInstanceOf(FollowUpNotFoundError)
   })
 })
 

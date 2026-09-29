@@ -32,8 +32,10 @@ import { formatDateTH, formatRelativeDayTime, formatDayMonthTH } from '@/lib/for
 import { quickSnooze } from '@/lib/follow-up-time'
 import { FOLLOW_UP_OUTCOMES, SNOOZE_PRESETS, type FollowUpOutcome, type SnoozePreset } from '@/lib/follow-up-constants'
 import {
+  canSetOutcome,
   cardBadges,
   doneButtonIsSolid,
+  snoozeDateBounds,
   formatDueLabel,
   needsNoteToggle,
   typeIcon,
@@ -58,7 +60,7 @@ export interface FollowUpCardProps {
   now?: Date
 }
 
-type Reveal = null | 'done' | 'snooze'
+type Reveal = null | 'outcome' | 'snooze'
 type T = Dictionary['followUps']
 
 const OUTCOME_KEY: Record<FollowUpOutcome, keyof T> = {
@@ -207,8 +209,8 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
   const [cDate, setCDate] = useState('')
   const [cTime, setCTime] = useState('09:00')
   const [cAllDay, setCAllDay] = useState(false)
-  const [cErr, setCErr] = useState<'errDateRequired' | 'errTimeRequired' | null>(null)
-  const doneBtn = useRef<HTMLButtonElement>(null)
+  const [cErr, setCErr] = useState<'errDateRequired' | 'errDateRange' | 'errTimeRequired' | null>(null)
+  const outcomeBtn = useRef<HTMLButtonElement>(null)
   const snoozeBtn = useRef<HTMLButtonElement>(null)
   const revealRef = useRef<HTMLDivElement>(null)
 
@@ -216,7 +218,8 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
   const notify = variant === 'panel' ? pacesToast.chat : pacesToast
   const isOpen = item.status === 'OPEN'
   const badges = cardBadges(item)
-  const dueLabel = formatDueLabel(t, item, now, formatDateTH)
+  const dueLabel = formatDueLabel(t, item, now, formatDayMonthTH)
+  const snoozeBounds = snoozeDateBounds(now)
   const chatHref = `/inbox/${item.conversationId}`
 
   // เปิดแถวต่อท้าย → โฟกัสชิปแรก (UX §โฟกัส)
@@ -229,7 +232,7 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
     setReveal(null)
     setCustom(false)
     setCErr(null)
-    if (returnFocus) (which === 'snooze' ? snoozeBtn : doneBtn).current?.focus()
+    if (returnFocus) (which === 'snooze' ? snoozeBtn : outcomeBtn).current?.focus()
   }
 
   /** ทุก action ผ่านที่นี่: busy กันกดซ้ำ · 404 = ถูกลบ/เปลี่ยนโดยอีกคน → บอก + ให้ผู้เรียกรีเฟรช */
@@ -251,12 +254,18 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
     notify.error(t.errAction)
   }
 
-  const complete = (outcome: FollowUpOutcome | null) =>
-    run(`/api/follow-ups/${item.id}/complete`, 'POST', { outcome }, (next) => {
+  // ปิดทันทีทุกพื้นผิว ไม่ถามผลก่อน — ผลใส่ทีหลังได้ที่ชิปในการ์ดที่ปิดแล้ว (setOutcome)
+  const complete = () =>
+    run(`/api/follow-ups/${item.id}/complete`, 'POST', { outcome: null }, (next) => {
       setReveal(null)
       if (next) onChange({ kind: 'upsert', item: next })
-      // bubble ปิดทันทีไม่ถามผล — toast ชี้ทางเปิดกลับที่มีจริง (ไม่สัญญา undo)
       notify.success(t.toastDone)
+    })
+
+  const setOutcome = (outcome: FollowUpOutcome) =>
+    run(`/api/follow-ups/${item.id}/outcome`, 'POST', { outcome }, (next) => {
+      setReveal(null)
+      if (next) onChange({ kind: 'upsert', item: next })
     })
 
   const snooze = (body: { preset: SnoozePreset } | { date: string; time: string | null }) =>
@@ -265,7 +274,7 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
       setCustom(false)
       if (next) {
         onChange({ kind: 'upsert', item: next })
-        notify.success(fmt(t.toastSnoozed, { when: formatDueLabel(t, next, new Date(), formatDateTH) }))
+        notify.success(fmt(t.toastSnoozed, { when: formatDueLabel(t, next, new Date(), formatDayMonthTH) }))
       }
     })
 
@@ -288,7 +297,7 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
   }
 
   function submitCustom() {
-    const err = validateSnoozeCustom(cDate, cTime, cAllDay)
+    const err = validateSnoozeCustom(cDate, cTime, cAllDay, now)
     setCErr(err)
     if (!err) void snooze({ date: cDate, time: cAllDay ? null : cTime })
   }
@@ -308,7 +317,7 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
         <button
           type="button"
           disabled={busy}
-          onClick={() => void complete(null)}
+          onClick={() => void complete()}
           aria-label={`${t.done}: ${item.title}`}
           title={t.done}
           className="btn btn-icon min-h-11 min-w-11 shrink-0 border border-default-300 text-default-800 hover:bg-default-100"
@@ -325,6 +334,21 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
     ...(isBoard ? [{ key: 'chat', icon: 'message-circle', label: t.openChat, href: chatHref }] : []),
     { key: 'delete', icon: 'trash', label: t.delete, danger: true, onSelect: () => void remove() },
   ]
+
+  // board: ผู้รับผิดชอบเป็น avatar เล็กท้ายบรรทัดกำหนด (ไม่เป็นแถวแยก) — ชื่ออยู่ใน title/sr-only
+  const assigneeChip = item.assigneeRemoved ? (
+    <span className="inline-flex items-center gap-1" title={t.assigneeRemoved}>
+      <Icon icon="user-off" className="text-sm" />
+      <span className="sr-only">{t.assigneeRemoved}</span>
+    </span>
+  ) : item.assignee ? (
+    <span className="inline-flex items-center" title={item.assignee.name}>
+      <AccountAvatar src={item.assignee.avatar} kind="personal" className="size-5" />
+      <span className="sr-only">{item.assignee.name}</span>
+    </span>
+  ) : (
+    <span>{t.filterUnassigned}</span>
+  )
 
   const outcomeText = item.outcome ? (t[OUTCOME_KEY[item.outcome]] as string) : t.done
 
@@ -345,7 +369,7 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
             <Icon icon={typeIcon(item.type)} className="text-default-700 mt-0.5 shrink-0 text-base" role="img" aria-label={typeLabel(t, item.type)} />
             <div className="min-w-0 flex-1">
               {isBoard ? (
-                <Link href={chatHref} className="text-default-900 line-clamp-2 text-sm font-semibold hover:text-primary" title={item.title}>
+                <Link href={chatHref} className="text-default-900 line-clamp-2 text-sm font-semibold underline-offset-2 hover:text-primary hover:underline" title={item.title}>
                   {item.title}
                 </Link>
               ) : (
@@ -380,6 +404,7 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
                   {fmt(t.badgeSnoozed, { n: badges.snoozed })}
                 </span>
               )}
+              {isBoard && assigneeChip}
             </p>
           ) : (
             <p className="text-default-700 mb-0 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
@@ -391,7 +416,8 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
             </p>
           )}
 
-          {/* ผู้รับผิดชอบ = แถวของตัวเอง (ไม่ปนกับป้าย) */}
+          {/* ผู้รับผิดชอบ = แถวของตัวเอง (ไม่ปนกับป้าย) — board ยุบไปอยู่บรรทัดกำหนดแล้ว (เฉพาะรายการที่เปิดอยู่) */}
+          {(!isBoard || !isOpen) && (
           <p className="text-default-700 mb-0 mt-1 flex min-w-0 items-center gap-1.5 text-xs">
             {item.assigneeRemoved ? (
               <>
@@ -407,6 +433,7 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
               <span className="truncate">{t.filterUnassigned}</span>
             )}
           </p>
+          )}
 
           {isBoard && item.customerName && (
             <p className="text-default-800 mb-0 mt-1 flex min-w-0 items-center gap-1.5 text-xs">
@@ -415,7 +442,7 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
             </p>
           )}
 
-          {item.room && (
+          {item.room && !isBoard && (
             <p className="mb-0 mt-1 min-w-0 text-xs">
               <Link href={`/inbox/${item.room.id}`} className="text-default-700 inline-block max-w-full truncate hover:text-primary">
                 {fmt(t.fromRoom, { room: item.room.label })}
@@ -445,13 +472,13 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
           {isOpen ? (
             <>
               <button
-                ref={doneBtn}
                 type="button"
                 disabled={busy}
-                aria-expanded={reveal === 'done'}
-                onClick={() => (reveal === 'done' ? closeReveal() : setReveal('done'))}
+                onClick={() => void complete()}
                 className={`btn min-h-11 gap-1 lg:min-h-0 ${
-                  doneButtonIsSolid(item) ? 'bg-primary text-white hover:bg-primary-hover' : 'bg-primary/15 text-primary-ink'
+                  doneButtonIsSolid(item)
+                    ? 'bg-primary text-white hover:bg-primary-hover'
+                    : 'border border-default-300 text-default-800 hover:bg-default-100'
                 }`}
               >
                 <Icon icon="check" className="text-base" />
@@ -470,14 +497,28 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
               </button>
             </>
           ) : (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void reopen()}
-              className="btn min-h-11 border border-default-300 text-default-800 hover:bg-default-100 lg:min-h-0"
-            >
-              {t.reopen}
-            </button>
+            <>
+              {canSetOutcome(item) && (
+                <button
+                  ref={outcomeBtn}
+                  type="button"
+                  disabled={busy}
+                  aria-expanded={reveal === 'outcome'}
+                  onClick={() => (reveal === 'outcome' ? closeReveal() : setReveal('outcome'))}
+                  className="btn min-h-11 border border-default-300 text-default-800 hover:bg-default-100 lg:min-h-0"
+                >
+                  {t.outcomeSet}
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void reopen()}
+                className="btn min-h-11 border border-default-300 text-default-800 hover:bg-default-100 lg:min-h-0"
+              >
+                {t.reopen}
+              </button>
+            </>
           )}
           <div className="hidden @lg:block">
             <RowMenu items={menuItems} label={t.more} />
@@ -485,18 +526,15 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
         </div>
       </div>
 
-      {reveal === 'done' && (
+      {reveal === 'outcome' && (
         <div ref={revealRef} className="border-default-200 mt-3 border-t border-dashed pt-3">
           <p className="text-default-800 mb-2 text-xs font-medium">{t.outcomePrompt}</p>
           <div className="flex flex-wrap gap-2">
             {FOLLOW_UP_OUTCOMES.map((o) => (
-              <button key={o} type="button" disabled={busy} className={CHIP} onClick={() => void complete(o)}>
+              <button key={o} type="button" disabled={busy} className={CHIP} onClick={() => void setOutcome(o)}>
                 {t[OUTCOME_KEY[o]] as string}
               </button>
             ))}
-            <button type="button" disabled={busy} className={CHIP} onClick={() => void complete(null)}>
-              {t.outcomeSkip}
-            </button>
             <button type="button" className="text-default-700 hover:bg-default-100 badge min-h-11 lg:min-h-0" onClick={() => closeReveal()}>
               {t.cancel}
             </button>
@@ -510,7 +548,7 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
           <div className="flex flex-wrap gap-2">
             {SNOOZE_PRESETS.map((p) => {
               // แสดงวันที่จริงในชิป (server คำนวณค่าจริงด้วยฟังก์ชันเดียวกัน — เวลาไทยตายตัว BR-ACT-12)
-              const label = p === 'TOMORROW_9' ? (t[PRESET_KEY[p]] as string) : `${t[PRESET_KEY[p]] as string} · ${formatDayMonthTH(quickSnooze(p, now).dueAt)}`
+              const label = `${t[PRESET_KEY[p]] as string} · ${formatDayMonthTH(quickSnooze(p, now).dueAt)}`
               return (
                 <button key={p} type="button" disabled={busy} className={CHIP} onClick={() => void snooze({ preset: p })}>
                   {label}
@@ -535,9 +573,11 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
                   <input
                     id={`${item.id}-cd`}
                     type="date"
-                    className={`form-input ${cErr === 'errDateRequired' ? 'is-invalid' : ''}`}
+                    className={`form-input ${cErr === 'errDateRequired' || cErr === 'errDateRange' ? 'is-invalid' : ''}`}
                     value={cDate}
-                    aria-invalid={cErr === 'errDateRequired'}
+                    min={snoozeBounds.min}
+                    max={snoozeBounds.max}
+                    aria-invalid={cErr === 'errDateRequired' || cErr === 'errDateRange'}
                     aria-describedby={cErr ? `${item.id}-ce` : undefined}
                     onChange={(e) => setCDate(e.target.value)}
                   />
@@ -564,7 +604,9 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
               </label>
               {cErr && (
                 <p id={`${item.id}-ce`} role="alert" className="text-danger-ink mb-0 text-xs">
-                  {t[cErr]}
+                  {cErr === 'errDateRange'
+                    ? fmt(t.errDateRange, { from: formatDateTH(snoozeBounds.min), to: formatDateTH(snoozeBounds.max) })
+                    : t[cErr]}
                 </p>
               )}
               <button type="button" disabled={busy} onClick={submitCustom} className="btn bg-primary min-h-11 text-white hover:bg-primary-hover lg:min-h-0">

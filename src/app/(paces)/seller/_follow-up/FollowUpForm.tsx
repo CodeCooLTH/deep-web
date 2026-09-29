@@ -23,10 +23,14 @@ import Icon from '@/components/wrappers/Icon'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { pacesToast } from '@/lib/paces-toast'
 import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
+import { formatDateTH } from '@/lib/format-date'
 import { FOLLOW_UP_TYPES, NOTE_MAX, TITLE_MAX } from '@/lib/follow-up-constants'
 import {
   buildPayload,
   defaultFormValues,
+  dueDateBounds,
+  pastDueWarning,
   saveErrorKey,
   typeLabel,
   validateForm,
@@ -54,6 +58,10 @@ export default function FollowUpForm({ conversationId, item, assignees, inChat =
   const uid = useId()
   const mode: 'create' | 'edit' = item ? 'edit' : 'create'
   const closed = item?.status === 'DONE'
+  const now = new Date()
+  const bounds = dueDateBounds(now)
+  // ข้อความ error ที่มีช่วงวันที่ต้องเติมค่าจริง (ไม่ใช่ template ดิบ)
+  const rangeText = fmt(t.errDateRange, { from: formatDateTH(bounds.min), to: formatDateTH(bounds.max) })
   useLockBodyScroll(true)
 
   const [v, setV] = useState<FormValues>(() => (item ? valuesFromItem(item) : defaultFormValues(new Date())))
@@ -102,7 +110,7 @@ export default function FollowUpForm({ conversationId, item, assignees, inChat =
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (saving) return
-    const errs = validateForm(v, closed)
+    const errs = validateForm(v, closed, new Date())
     setErrors(errs)
     setSaveErr(null)
     if (Object.keys(errs).length > 0) return
@@ -114,7 +122,8 @@ export default function FollowUpForm({ conversationId, item, assignees, inChat =
         : await callFollowUpApi(`/api/chat/conversations/${conversationId}/follow-ups`, 'POST', payload)
     setSaving(false)
     if (!r.ok || !r.item) {
-      setSaveErr(t[saveErrorKey(r.ok ? undefined : r.code ?? (r.status === 404 ? 'NOT_FOUND' : undefined))])
+      const key = saveErrorKey(r.ok ? undefined : r.code ?? (r.status === 404 ? 'NOT_FOUND' : undefined))
+      setSaveErr(key === 'errDateRange' ? rangeText : t[key])
       return
     }
     const notify = inChat ? pacesToast.chat : pacesToast
@@ -210,6 +219,8 @@ export default function FollowUpForm({ conversationId, item, assignees, inChat =
                 type="date"
                 className={`form-input ${errors.date ? 'is-invalid' : ''}`}
                 value={v.date}
+                min={bounds.min}
+                max={bounds.max}
                 disabled={closed}
                 aria-invalid={!!errors.date}
                 aria-describedby={errId('date')}
@@ -217,7 +228,13 @@ export default function FollowUpForm({ conversationId, item, assignees, inChat =
               />
               {errors.date && (
                 <p id={id('date-err')} role="alert" className="text-danger-ink mb-0 mt-1 text-xs">
-                  {t[errors.date]}
+                  {errors.date === 'errDateRange' ? rangeText : t[errors.date]}
+                </p>
+              )}
+              {mode === 'create' && !errors.date && pastDueWarning(v, now) && (
+                <p id={id('date-warn')} role="status" className="text-warning-ink mb-0 mt-1 flex items-center gap-1 text-xs">
+                  <Icon icon="clock-exclamation" className="shrink-0 text-sm" />
+                  {t.warnPastDue}
                 </p>
               )}
             </div>

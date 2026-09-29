@@ -10,7 +10,7 @@
  * 🛑 ปุ่มเพิ่มผูกกับ `addConversationId` = ห้องของออเดอร์ล่าสุดเท่านั้น (BR-CUSTP-07) — ห้องที่ได้จาก
  * FK `ExternalContact.customerId` ใช้ "อ่าน" ได้ แต่ห้ามเอามาเลือกห้องให้ปุ่มเพิ่ม
  */
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
@@ -30,7 +30,9 @@ export default function FollowUpProfileSection({ data, addConversationId }: Prop
   const t = useT().followUps
   const router = useRouter()
   const [form, setForm] = useState<{ item?: FollowUpDto } | null>(null)
-  const refresh = () => router.refresh()
+  // pending = ปุ่มลองใหม่ต้องบอกว่ากำลังโหลด (กดซ้ำไม่มีปฏิกิริยา = ผู้ใช้กดรัว)
+  const [pending, startTransition] = useTransition()
+  const refresh = () => startTransition(() => router.refresh())
 
   const empty = data && data.open.length === 0 && data.recentDone.length === 0
   const canAdd = data !== null && addConversationId !== null
@@ -62,8 +64,8 @@ export default function FollowUpProfileSection({ data, addConversationId }: Prop
         {data === null ? (
           <div className="py-3 text-center">
             <p className="text-default-700 mb-2 text-sm">{t.panelLoadError}</p>
-            <button type="button" onClick={refresh} className="btn border-default-300 min-h-11 border">
-              <Icon icon="refresh" className="me-1" /> {t.retry}
+            <button type="button" onClick={refresh} disabled={pending} aria-busy={pending} className="btn border-default-300 min-h-11 border disabled:opacity-60">
+              <Icon icon="refresh" className={`me-1 ${pending ? 'animate-spin' : ''}`} /> {t.retry}
             </button>
           </div>
         ) : addConversationId === null && empty ? (

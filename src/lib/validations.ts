@@ -1079,6 +1079,11 @@ export const CompleteFollowUpSchema = v.object({
   outcome: v.optional(v.nullable(v.picklist(["REACHED", "NO_ANSWER", "CALL_LATER", "NOT_INTERESTED"]))),
 });
 
+// ตั้งผลให้รายการที่ปิดแล้ว (00066 ปิดทันที ผลเป็น optional) — ต้องมีค่า ไม่รับ null
+export const SetFollowUpOutcomeSchema = v.object({
+  outcome: v.picklist(["REACHED", "NO_ANSWER", "CALL_LATER", "NOT_INTERESTED"]),
+});
+
 export const SnoozeFollowUpSchema = v.union([
   v.object({ preset: v.picklist(["TOMORROW_9", "IN_3_DAYS", "NEXT_WEEK"]) }),
   v.object({ date: FollowUpDate, time: FollowUpTime }),

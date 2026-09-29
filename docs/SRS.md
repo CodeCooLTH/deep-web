@@ -1868,6 +1868,7 @@ error: `ORDER_NOT_FOUND`(404, scope `shopId` ใน `WHERE`) · `NOT_SERVICE_SHO
 | DELETE | `/api/follow-ups/[id]` | ลบ (hard delete) | — | `{ ok: true }` · ไม่พบ = 404 (client ถือ 404 เป็นสำเร็จ) |
 | POST | `/api/follow-ups/[id]/complete` | ปิดงาน | `CompleteFollowUpSchema` (body ว่างได้ = ข้าม `outcome`) | `{ item }` · ปิดซ้ำ = คืนแถวเดิม ไม่เขียนผู้ปิดทับ (idempotent) |
 | POST | `/api/follow-ups/[id]/reopen` | เปิดกลับ | — | `{ item }` · ล้าง `doneAt`/`doneByUserId`/`outcome` · เปิดอยู่แล้ว = คืนเดิม |
+| POST | `/api/follow-ups/[id]/outcome` | บันทึกผลลัพธ์ย้อนหลังให้รายการที่ปิดแล้ว (critique 2026-09-29: ทำแล้ว = ปิดทันที ผลเป็น optional) | `SetFollowUpOutcomeSchema` `{ outcome }` (ห้าม null) | `{ item }` · เขียนเฉพาะ `outcome` บนแถว DONE ไม่แตะ `doneAt`/`doneByUserId` · ยังเปิดอยู่ = 409 · ไม่พบ = 404 |
 | POST | `/api/follow-ups/[id]/snooze` | เลื่อน | `SnoozeFollowUpSchema` (preset หรือ date+time) | `{ item }` · `snoozeCount +1` · เฉพาะ `OPEN` |
 | GET | `/api/follow-ups/mine` | bubble "ของฉัน" — `OPEN` ที่เลยกำหนด/ครบสิ้นวันนี้ไทยของ `assigneeUserId=ฉัน` | `?shopId=` | `{ rows[≤8], total, lateCount, tone, href:'/follow-ups?mine=1' }` |
 | GET | `/api/follow-ups/board` | หน้ารวม — `view=board` (default) หรือ `view=calendar` | `?view=&shopId=&mine=1&assignee=<uuid\|unassigned>&tags=a,b&q=&month=YYYY-MM` | board: `{ columns{late,today,week,later,done7d}, counts, truncated, assignees }` · calendar: รายการของเดือนนั้น ทุกสถานะ (`month` ไม่ส่ง/ผิดรูป = เดือนปัจจุบันไทย ไม่ 400) · `view` ผิด = 400 · ค่า filter ที่ parse ไม่ได้ = ไม่กรอง |

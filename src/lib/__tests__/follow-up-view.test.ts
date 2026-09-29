@@ -14,6 +14,12 @@ import {
   validateForm,
   validateSnoozeCustom,
   valuesFromItem,
+  bubbleLabels,
+  calCellAriaText,
+  canSetOutcome,
+  dueDateBounds,
+  pastDueWarning,
+  snoozeDateBounds,
 } from '@/lib/follow-up-view'
 
 const t = th.followUps
@@ -129,17 +135,17 @@ describe('ฟอร์ม', () => {
     expect(valuesFromItem({ ...base, dueAt: '2026-09-29T17:00:00.000Z', allDay: true })).toMatchObject({ date: '2026-09-30', time: '09:00', allDay: true })
   })
   it('saveErrorKey แมปรหัส API → ข้อความที่บอกทางออก', () => {
-    expect(saveErrorKey('INVALID_DUE')).toBe('errDateRequired')
+    expect(saveErrorKey('INVALID_DUE')).toBe('errDateRange')
     expect(saveErrorKey('ASSIGNEE_NOT_MEMBER')).toBe('errAssignee')
     expect(saveErrorKey('NOT_FOUND')).toBe('errNotFound')
     expect(saveErrorKey(undefined)).toBe('errSaveFailed')
     expect(saveErrorKey('อะไรก็ไม่รู้')).toBe('errSaveFailed')
   })
   it('validateSnoozeCustom ใช้กฎเดียวกับฟอร์ม', () => {
-    expect(validateSnoozeCustom('', '09:00', false)).toBe('errDateRequired')
-    expect(validateSnoozeCustom('2026-10-01', '', false)).toBe('errTimeRequired')
-    expect(validateSnoozeCustom('2026-10-01', '', true)).toBeNull()
-    expect(validateSnoozeCustom('2026-10-01', '09:00', false)).toBeNull()
+    expect(validateSnoozeCustom('', '09:00', false, NOW)).toBe('errDateRequired')
+    expect(validateSnoozeCustom('2026-10-01', '', false, NOW)).toBe('errTimeRequired')
+    expect(validateSnoozeCustom('2026-10-01', '', true, NOW)).toBeNull()
+    expect(validateSnoozeCustom('2026-10-01', '09:00', false, NOW)).toBeNull()
   })
 })
 
@@ -148,5 +154,70 @@ describe('typeIcon (มติ user 2026-09-29)', () => {
     expect(typeIcon('FOLLOW_UP')).toBe('message-circle')
     expect(typeIcon('MEET_CUSTOMER')).toBe('phone-call')
     expect(typeIcon('OTHER')).toBe('list-check')
+  })
+})
+
+
+describe('ช่วงวันที่ (00066 critique P2)', () => {
+  const base = { ...defaultFormValues(NOW), title: 'x' }
+  it('[blocker] bounds คิดจากวันนี้ไทย: -365 / +730', () => {
+    expect(dueDateBounds(NOW)).toEqual({ min: '2025-09-29', max: '2028-09-28' })
+    // 00:30 ไทย วันที่ 30 = 17:30Z ของวันที่ 29 → ต้องนับเป็นวันที่ 30 ไม่ใช่ TZ เครื่อง
+    expect(dueDateBounds(new Date('2026-09-29T17:30:00.000Z')).min).toBe('2025-09-30')
+  })
+  it('[blocker] validateForm: นอกช่วง = errDateRange (ไม่ใช่ errDateRequired) · ขอบช่วงผ่าน', () => {
+    expect(validateForm({ ...base, date: '2025-09-28' }, false, NOW).date).toBe('errDateRange')
+    expect(validateForm({ ...base, date: '2025-09-29' }, false, NOW).date).toBeUndefined()
+    expect(validateForm({ ...base, date: '2028-09-28' }, false, NOW).date).toBeUndefined()
+    expect(validateForm({ ...base, date: '2028-09-29' }, false, NOW).date).toBe('errDateRange')
+    expect(validateForm({ ...base, date: '' }, false, NOW).date).toBe('errDateRequired')
+  })
+  it('[blocker] เลื่อน "เลือกเอง": min = วันนี้ไทย (เมื่อวานไม่ได้) · วันนี้ได้', () => {
+    expect(snoozeDateBounds(NOW).min).toBe('2026-09-29')
+    expect(validateSnoozeCustom('2026-09-28', '09:00', false, NOW)).toBe('errDateRange')
+    expect(validateSnoozeCustom('2026-09-29', '09:00', false, NOW)).toBeNull()
+    expect(validateSnoozeCustom('2028-09-29', '09:00', false, NOW)).toBe('errDateRange')
+  })
+})
+
+describe('pastDueWarning', () => {
+  // NOW = 12:00 ไทย วันที่ 2026-09-29
+  it('[blocker] มีเวลาที่ผ่านแล้ว = เตือน · อนาคต = ไม่เตือน', () => {
+    expect(pastDueWarning({ date: '2026-09-29', time: '11:59', allDay: false }, NOW)).toBe(true)
+    expect(pastDueWarning({ date: '2026-09-29', time: '12:01', allDay: false }, NOW)).toBe(false)
+    expect(pastDueWarning({ date: '2026-09-28', time: '23:00', allDay: false }, NOW)).toBe(true)
+  })
+  it('[blocker] ทั้งวัน: วันนี้ยังไม่เลย (ไม่เตือน) · เมื่อวานเลยแล้ว (เตือน)', () => {
+    expect(pastDueWarning({ date: '2026-09-29', time: '00:00', allDay: true }, NOW)).toBe(false)
+    expect(pastDueWarning({ date: '2026-09-28', time: '09:00', allDay: true }, NOW)).toBe(true)
+  })
+  it('ค่าไม่ถูกต้อง = ไม่เตือน (ให้ error ของช่องทำงานแทน)', () => {
+    expect(pastDueWarning({ date: '', time: '09:00', allDay: false }, NOW)).toBe(false)
+    expect(pastDueWarning({ date: '2020-01-01', time: '09:00', allDay: false }, NOW)).toBe(false)
+  })
+})
+
+describe('canSetOutcome', () => {
+  it('[blocker] ใส่ผลได้เฉพาะ DONE ที่ยังไม่มีผล', () => {
+    expect(canSetOutcome({ status: 'DONE', outcome: null })).toBe(true)
+    expect(canSetOutcome({ status: 'DONE', outcome: 'REACHED' })).toBe(false)
+    expect(canSetOutcome({ status: 'OPEN', outcome: null })).toBe(false)
+  })
+})
+
+describe('bubbleLabels', () => {
+  it('[blocker] เลยกำหนด: มือถือ "เลย n" · เดสก์ท็อป "เลยกำหนด n" · ปกติ: "วันนี้ n" ทั้งคู่', () => {
+    expect(bubbleLabels(t, 'late', { late: 3, total: 5 })).toEqual({ full: 'เลยกำหนด 3', short: 'เลย 3' })
+    expect(bubbleLabels(t, 'normal', { late: 0, total: 5 })).toEqual({ full: 'วันนี้ 5', short: 'วันนี้ 5' })
+    expect(bubbleLabels(t, 'late', { late: 150, total: 200 }).short).toBe('เลย 99+')
+  })
+})
+
+describe('calCellAriaText', () => {
+  const d = '29 ก.ย. 2569'
+  it('[blocker] ไม่อ่านสถานะที่เป็น 0 · ไม่มีอะไรเลย = "ไม่มีรายการ"', () => {
+    expect(calCellAriaText(t, d, { late: 2, today: 0, normal: 0, done: 1 })).toBe(`${d}: เลยกำหนด 2 ทำแล้ว 1`)
+    expect(calCellAriaText(t, d, undefined)).toBe(`${d}: ไม่มีรายการ`)
+    expect(calCellAriaText(t, d, { late: 0, today: 0, normal: 0, done: 0 })).toBe(`${d}: ไม่มีรายการ`)
   })
 })

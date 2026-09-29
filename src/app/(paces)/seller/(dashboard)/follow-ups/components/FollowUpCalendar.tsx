@@ -24,6 +24,7 @@ import FullCalendar from '@fullcalendar/react'
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
+import { calCellAriaText } from '@/lib/follow-up-view'
 import { formatDateTH, formatMonthYearTH, formatTimeHM, thaiDayKey, weekdayShortTH } from '@/lib/format-date'
 import { buildMonthGrid, groupByDay, itemTone, monthOfDay, type DayTone } from '@/lib/follow-up-page'
 import type { FollowUpDto } from '@/services/customer-follow-up.service'
@@ -231,13 +232,7 @@ export default function FollowUpCalendar({ month, todayKey, items, truncated, on
                       type="button"
                       role="gridcell"
                       onClick={() => onOpenDay(c.key)}
-                      aria-label={fmt(t.calCellAria, {
-                        date: formatDateTH(new Date(`${c.key}T05:00:00Z`)),
-                        late: n?.late ?? 0,
-                        today: n?.today ?? 0,
-                        normal: n?.normal ?? 0,
-                        done: n?.done ?? 0,
-                      })}
+                      aria-label={calCellAriaText(t, formatDateTH(new Date(`${c.key}T05:00:00Z`)), n)}
                       className="hover:bg-default-100 flex min-h-11 flex-col items-center gap-1 rounded-lg pt-1"
                     >
                       {/* ตัวแบกความหมายคือ "เลขตัวหนา + ขีดใต้" ของวันที่มีเลยกำหนด — จุดเล็กเป็น non-text ตก 3:1 */}

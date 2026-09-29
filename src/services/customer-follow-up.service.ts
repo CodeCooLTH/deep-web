@@ -394,6 +394,27 @@ export async function completeFollowUp(
   return reload(shopIds, id, now)
 }
 
+/**
+ * ตั้งผลของรายการที่ "ปิดแล้ว" (ปิดทันทีก่อน ผลใส่ทีหลังได้ — 00066 critique P1)
+ * เขียนเฉพาะ outcome: ห้ามแตะ doneAt/doneByUserId (ผู้ปิดจริงต้องไม่ถูกทับโดยคนที่มาใส่ผล)
+ */
+export async function setFollowUpOutcome(
+  shopIds: string[],
+  id: string,
+  outcome: FollowUpOutcome,
+  now: Date = new Date(),
+): Promise<FollowUpDto> {
+  const { count } = await prisma.customerFollowUp.updateMany({
+    where: { id, shopId: { in: shopIds }, status: 'DONE' },
+    data: { outcome },
+  })
+  if (count === 0) {
+    const row = await prisma.customerFollowUp.findFirst({ where: { id, shopId: { in: shopIds } }, select: { status: true } })
+    throw row ? new FollowUpStateError() : new FollowUpNotFoundError()
+  }
+  return reload(shopIds, id, now)
+}
+
 export async function reopenFollowUp(
   shopIds: string[],
   id: string,

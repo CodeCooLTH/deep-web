@@ -31,6 +31,7 @@ Provider: Next.js 16 Route Handlers ในรีโปนี้ · ผู้บ�
 | PATCH | `/api/follow-ups/{id}` | แก้ไข |
 | DELETE | `/api/follow-ups/{id}` | ลบ |
 | POST | `/api/follow-ups/{id}/complete` | ปิดงาน |
+| POST | `/api/follow-ups/{id}/outcome` | ตั้งผลให้รายการที่ปิดแล้ว |
 | POST | `/api/follow-ups/{id}/reopen` | เปิดกลับ |
 | POST | `/api/follow-ups/{id}/snooze` | เลื่อน |
 | GET | `/api/follow-ups/mine` | ข้อมูล bubble |
@@ -88,6 +89,9 @@ Body (ทุกฟิลด์ optional; `undefined`=ไม่แตะ): `title
 
 ### 4.4 `POST /api/follow-ups/{id}/complete`
 Body: `{ "outcome": "REACHED"|"NO_ANSWER"|"CALL_LATER"|"NOT_INTERESTED"|null }` (null = "ข้าม") — **200** `{ item }` · idempotent: ปิดแล้วคืนแถวเดิม ไม่เขียนผู้ปิดทับ · 400 · 401 · 404.
+
+### 4.4a `POST /api/follow-ups/{id}/outcome`
+ปิดทันทีก่อน แล้วใส่ผลทีหลัง (optional). Body: `{ "outcome": "REACHED"|"NO_ANSWER"|"CALL_LATER"|"NOT_INTERESTED" }` (ห้าม null) — เขียนเฉพาะ `outcome` **ไม่แตะ `doneAt`/`doneByUserId`** · ใช้ได้เฉพาะ `status=DONE` · **200** `{ item }` · 400 `VALIDATION` · 401 · 404 · 409 `INVALID_STATE` (รายการยังเปิดอยู่). ป้ายไทย: ลูกค้าตอบแล้ว · สนใจต่อ / ลูกค้ายังไม่ตอบ / นัดคุยใหม่ / ไม่สนใจแล้ว (ค่า enum ไม่เปลี่ยน).
 
 ### 4.5 `POST /api/follow-ups/{id}/reopen`
 Body ว่าง `{}` · **200** `{ item }` (เปิดอยู่แล้วก็ 200) · 401 · 404.

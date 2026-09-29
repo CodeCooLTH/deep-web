@@ -27,7 +27,7 @@ import { fmt } from '@/i18n/fmt'
 import { useMinWidth } from '@/hooks/useMinWidth'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { bubbleModel } from '@/lib/follow-up-rules'
-import { formatCount, type FollowUpChange } from '@/lib/follow-up-view'
+import { bubbleLabels, formatCount, type FollowUpChange } from '@/lib/follow-up-view'
 import { applyBubbleChange, bubbleLift, isComposerPath, type BubbleData, type BubbleLift } from '@/lib/follow-up-bubble'
 import type { FollowUpDto } from '@/services/customer-follow-up.service'
 
@@ -146,7 +146,7 @@ export default function FollowUpBubble({ unified }: { unified: boolean }) {
   const late = data.lateCount
   const isLate = model.tone === 'late'
   const count = formatCount(data.total)
-  const label = isLate ? fmt(tf.bubbleLate, { n: formatCount(late) }) : fmt(tf.bubbleToday, { n: count })
+  const label = bubbleLabels(tf, isLate ? 'late' : 'normal', { late, total: data.total })
   const aria = isLate
     ? fmt(tf.bubbleAriaLate, { n: count, late: formatCount(late) })
     : fmt(tf.bubbleAria, { n: count })
@@ -242,8 +242,8 @@ export default function FollowUpBubble({ unified }: { unified: boolean }) {
         }`}
       >
         <Icon icon={isLate ? 'clock-exclamation' : 'list-check'} className="text-lg" />
-        <span className="hidden lg:inline">{label}</span>
-        <span className="lg:hidden">{isLate ? formatCount(late) : count}</span>
+        <span className="hidden lg:inline">{label.full}</span>
+        <span className="lg:hidden">{label.short}</span>
       </button>
     </div>
   )

@@ -18,6 +18,7 @@ import { mapFollowUpError } from '../_shared'
 import * as convRoute from '@/app/api/chat/conversations/[id]/follow-ups/route'
 import * as idRoute from '../[id]/route'
 import * as completeRoute from '../[id]/complete/route'
+import * as outcomeRoute from '../[id]/outcome/route'
 import * as reopenRoute from '../[id]/reopen/route'
 import * as snoozeRoute from '../[id]/snooze/route'
 import * as mineRoute from '../mine/route'
@@ -38,6 +39,7 @@ const handlers: [string, (r: NextRequest, c: typeof params) => Promise<Response>
   ['PATCH', idRoute.PATCH, 'PATCH'],
   ['DELETE', idRoute.DELETE, 'DELETE'],
   ['complete', completeRoute.POST, 'POST'],
+  ['outcome', outcomeRoute.POST, 'POST'],
   ['reopen', reopenRoute.POST, 'POST'],
   ['snooze', snoozeRoute.POST, 'POST'],
   ['mine', mineRoute.GET as never, 'GET'],

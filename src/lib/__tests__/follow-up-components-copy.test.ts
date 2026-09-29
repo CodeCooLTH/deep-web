@@ -59,4 +59,15 @@ describe('follow-up components: a11y', () => {
     expect(btn).not.toBeNull()
     expect(btn![0]).not.toContain('aria-label')
   })
+
+  it('[blocker] ปุ่ม "ทำแล้ว" ปิดทันที: ไม่มีสถานะ reveal "done" (ห้ามถามผลก่อนปิด) และ complete ส่ง outcome: null', () => {
+    const code = read(FILES[0]!)
+    expect(code).not.toMatch(/setReveal\(\s*'done'\s*\)/)
+    expect(code).not.toContain("reveal === 'done'")
+    // 2 จุด: ปุ่ม ✓ ของ bubble + ปุ่ม "ทำแล้ว" ของการ์ด (mutation: เปลี่ยนปุ่มหลักไปเปิดแถวถามผล → เหลือ 1)
+    expect(code.match(/onClick=\{\(\) => void complete\(\)\}/g) ?? []).toHaveLength(2)
+    expect(code).toMatch(/\{\s*outcome:\s*null\s*\}/)
+    // ผลตั้งทีหลังผ่าน endpoint แยกที่ไม่แตะผู้ปิด
+    expect(code).toContain('/outcome`')
+  })
 })
