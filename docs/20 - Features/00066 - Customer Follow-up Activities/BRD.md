@@ -11,7 +11,7 @@ related: ["[[PRD]]", "[[REFERENCE-gochat-v3]]"]
 > **ประเภทเอกสาร:** Business Requirements Document (BRD) - NON-TECHNICAL
 > **เวอร์ชัน:** 0.1
 > **วันที่จัดทำ:** 2026-09-29
-> **สถานะ:** Draft — รอ user ตัดสิน Open Questions (§13)
+> **สถานะ:** Reviewed — user ตัดสิน Q1/Q2/Q4/Q5 แล้ว (§13.3)
 > **เจ้าของเอกสาร:** BA (ดู [[Feature-Docs-Ownership]])
 
 # BRD: ติดตามลูกค้า (Customer Follow-up Activities) (Business Requirements Document)
@@ -602,3 +602,13 @@ flowchart TD
 **หมายเหตุ:**
 สำหรับความต้องการทางธุรกิจระดับภาพรวม/personas/KPI ดู [[PRD]] ของโมดูลนี้
 สำหรับ technical specification (architecture/API/data/NFR) ดู [[SRS]] ของโมดูลนี้ (ยังไม่มี — ต้องผ่านการรีวิว PRD+BRD ก่อน ตาม HR11)
+
+### 13.3 มติ user (2026-09-29)
+
+| # | มติ |
+|---|---|
+| Q1 | **ติดตามลูกค้า** / รายการติดตาม / ชนิด ตามเรื่อง · นัดคุยกับลูกค้า · อื่น ๆ (ตามข้อเสนอ) |
+| Q2 | **ไม่หัก `chatEnabled`** — push เตือนเสมอ; สวิตช์แยกเป็นเฟสถัดไป |
+| Q4 | **ห้องจากประวัติออเดอร์ + ห้องที่ `ExternalContact.customerId` ตรงกัน** (FK จริง ไม่นับเป็นการเดา) ⇒ ต้องแก้ถ้อยคำ BR-CUSTP-07 ของ 00057 ให้ชัดในรอบ SRS (HR11 sync) |
+| Q5 | **นับทุกร้านที่กำลังดูรวม** (ตรงกับตัวกรองแท็ก) |
+| อื่น ๆ | Q3/Q6/Q7/Q8/Q9/Q10/Q11/Q12/Q14/Q15 ใช้คำแนะนำในตาราง 13.2 ไปก่อน — ถ้าจะเปลี่ยนให้แจ้ง · Q13 ต้องเปิดโค้ด deep-mobile-seller ยืนยันก่อนเขียน SRS |
