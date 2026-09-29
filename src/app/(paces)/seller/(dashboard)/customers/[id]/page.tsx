@@ -29,6 +29,8 @@ import { resolveCustomerByKey } from '@/services/customer-directory.service'
 import { getBuyerReputation } from '@/services/buyer-reputation.service'
 import CustomerProfileHeader from './components/CustomerProfileHeader'
 import CustomerProfileOrders from './components/CustomerProfileOrders'
+import FollowUpProfileSection from './components/FollowUpProfileSection'
+import { listForCustomerProfile } from '@/services/customer-follow-up.service'
 
 export const metadata: Metadata = { title: 'ลูกค้า' }
 
@@ -98,9 +100,20 @@ export default async function CustomerProfilePage({ params }: PageProps) {
   /**
    * เธรดของ "ปุ่มเปิดแชท" บนหัวโปรไฟล์ = ออเดอร์ล่าสุดที่ผูกเธรดไว้จริง
    * `entry.orders` เรียงใหม่→เก่าอยู่แล้ว ⇒ `find` ตัวแรกคือใบล่าสุดที่มีค่า
-   * 🛑 ไม่มีเลย → ไม่ render ปุ่ม **ห้ามเดาเธรดจากเบอร์/Customer** (BR-CUSTP-07)
+   * 🛑 ไม่มีเลย → ไม่ render ปุ่ม **ห้ามเดาเธรดจากเบอร์/ชื่อ** (BR-CUSTP-07 ถ้อยคำแก้ตาม 00066 มติ Q4)
+   * ปุ่มเปิดแชท + ปุ่มเพิ่มรายการติดตามใช้ค่านี้เท่านั้น — ส่วน "อ่านรายการติดตาม" ต่างออกไป:
+   * ขยายห้องผ่าน FK จริง `ExternalContact.customerId` ได้ (ไม่นับเป็นการเดา) แต่ห้ามใช้เลือกห้องให้ปุ่ม
    */
   const latestConversationId = entry.orders.find((o) => o.conversationId)?.conversationId ?? null
+
+  // ฐานล้มไม่ล้มทั้งหน้า — ส่ง null ให้การ์ดขึ้น error + ลองใหม่ (ข้อมูลโหลดที่ server ไม่ส่ง PII เกินที่การ์ดใช้)
+  const followUps = await listForCustomerProfile(shop.id, {
+    conversationIds: [...new Set(entry.orders.flatMap((o) => (o.conversationId ? [o.conversationId] : [])))],
+    customerId: entry.customerId,
+  }).catch((e) => {
+    console.error('[customers/[id]/page] follow-ups failed', e)
+    return null
+  })
 
   /**
    * ที่อยู่ล่าสุด = ใบล่าสุด **ที่มีที่อยู่** ไม่ใช่ใบล่าสุดเฉย ๆ (ใบล่าสุดอาจเป็นการรับหน้าร้าน
@@ -137,7 +150,8 @@ export default async function CustomerProfilePage({ params }: PageProps) {
         ประวัติออเดอร์ก่อนแล้วต้องเลื่อนลงไปหาข้อมูลตัวคน
       */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-10">
-        <div className="order-2 xl:order-1 xl:col-span-7">
+        <div className="order-2 flex flex-col gap-5 xl:order-1 xl:col-span-7">
+          <FollowUpProfileSection data={followUps} addConversationId={latestConversationId} />
           <CustomerProfileOrders orders={entry.orders} vocabNoun={vocab.noun} />
         </div>
         <div className="order-1 flex flex-col gap-5 xl:order-2 xl:col-span-3">

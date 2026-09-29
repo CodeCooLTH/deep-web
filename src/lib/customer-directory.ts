@@ -31,7 +31,8 @@ export type CustomerDirectoryOrder = {
   createdAtRaw: number
   /**
    * เธรดแชทที่สร้างออเดอร์ใบนี้จริง ๆ (BR-CUSTP-07)
-   * null = ใบนี้ไม่ได้เกิดจากแชท → **ห้ามเดาเธรดจากเบอร์/Customer** ให้ไม่แสดงปุ่มไปเลย
+   * null = ใบนี้ไม่ได้เกิดจากแชท → **ห้ามเดาเธรดจากเบอร์/ชื่อ** ให้ไม่แสดงปุ่มไปเลย
+   * (ปุ่มเพิ่มรายการติดตาม 00066 ใช้กฎเดียวกัน; อ่านรายการผ่าน FK ExternalContact.customerId ได้ ไม่นับเป็นการเดา)
    */
   conversationId: string | null
   /** ใบนี้นับเป็นยอดขายไหม (`countsAsRevenue` — SSOT เดียวกับ dashboard/รายงาน) */

@@ -111,6 +111,8 @@ flowchart LR
 
 `conversationId` select ตรงจาก `Order` (ไม่ join ผ่าน Customer/contact) · ปุ่มต่อออเดอร์ = ค่าของใบนั้นตรง ๆ · ปุ่มหัวโปรไฟล์ = `entry.orders.find(o => o.conversationId != null)?.conversationId` (orders เรียง desc อยู่แล้ว = ใบล่าสุดที่มีค่าชนะ)
 
+> 00066 มติ Q4: ปุ่มเพิ่มรายการติดตามใช้ค่าเดียวกันนี้ · ส่วน "อ่านรายการติดตาม" ขยายห้องผ่าน FK `ExternalContact.customerId` ได้ (ไม่นับเป็นการเดา) แต่ห้ามใช้เลือกห้องให้ปุ่ม — ดู BR-CUSTP-07 ใน BRD
+
 ### TFR-008: ทางเข้า 3 จุด
 **Trace:** FR-012, BR-CUSTP-08
 
