@@ -1249,6 +1249,7 @@ export const th = {
     dueTodayAllDay: 'วันนี้ · ทั้งวัน',
     dueTomorrowAllDay: 'พรุ่งนี้ · ทั้งวัน',
     dueYesterdayAllDay: 'เมื่อวาน · ทั้งวัน',
+    assigneeMe: 'ฉัน',
     assignee: 'ผู้รับผิดชอบ',
     assigneeRemoved: 'ทีมงานที่ถูกถอดออกแล้ว',
     closedBy: 'ปิดโดย {name} · {time}',

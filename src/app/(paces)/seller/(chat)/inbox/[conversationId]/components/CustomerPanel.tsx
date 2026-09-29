@@ -64,6 +64,7 @@ import { ChannelBadge } from '../../components/ChannelBadge'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import type { Dictionary } from '@/i18n/dictionaries/th'
+import FollowUpPanel from './FollowUpPanel'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import OrderCardView from '../../../_components/OrderCardView'
@@ -879,6 +880,10 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
           <ChannelBadge channel={data.channel} label={data.channelName} />
         </div>
       </div>
+
+      {/* 00066 ติดตามลูกค้า — แถวพับปักหมุดเหนือแถบแท็บ (ไม่ใช่แท็บที่ 5: งบแท็บเต็ม 384px + ห้าม slide)
+          key = ห้อง: เปลี่ยนห้อง mount ใหม่ → คำนวณ "กางเอง" ใหม่ตาม UX §a */}
+      <FollowUpPanel key={data.conversationId} conversationId={data.conversationId} />
 
       {/* แถบสรุป 1 บรรทัดเหนือแท็บถูกย้ายลงไปเป็น "แถวสถิติ" ในแท็บข้อมูลลูกค้าแทน (user สั่ง 2026-07-24
           ส่งภาพรูปแบบ label-ซ้าย/ค่า-ขวามาให้) — เดิมโชว์ count+total เหนือแท็บ ซึ่งจะซ้ำกับแถวใหม่

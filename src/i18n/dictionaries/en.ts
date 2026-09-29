@@ -987,6 +987,7 @@ export const en: Dictionary = {
     dueTodayAllDay: 'Today · all day',
     dueTomorrowAllDay: 'Tomorrow · all day',
     dueYesterdayAllDay: 'Yesterday · all day',
+    assigneeMe: 'Me',
     assignee: 'Assignee',
     assigneeRemoved: 'Former team member',
     closedBy: 'Closed by {name} · {time}',
