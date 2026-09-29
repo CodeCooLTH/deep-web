@@ -343,6 +343,8 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | Auth (sign-in/sign-up/verify-otp/reset-pass/new-pass) | `/auth/*` |
 | **แผนการตรวจสอบ (feature 00060 — backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ)** | **`/inspection`** — เฉพาะร้าน `vertical='LODGING'`; OWNER จัดการเต็ม ADMIN ดูอย่างเดียว |
 
+| **ติดตามลูกค้า (feature 00066)** | **`/follow-ups`** — เมนู slug `seller:follow-ups` (icon `list-check`, กลุ่มเดียวกับ `/customers`) · 🛑 **เห็นทุก vertical** ห้ามใส่ slug นี้ใน `*_ONLY_SLUGS` · query `?mine=1&shopId=` (ลิงก์จาก push/bubble) · ไม่มีตัวเลขบนเมนู · ดู §7.22 |
+
 > path ฝั่ง seller **ไม่มี** `/settings/` prefix (sync ตามโค้ดจริง)
 > **force-redirect:** seller authed + `needsOnboarding` → proxy redirect ทุก route → `/onboarding` (ยกเว้น `/auth/*`, `/api/*`)
 
@@ -475,6 +477,9 @@ ShopChannel (1) ─── (N) CommentReplyLog          [feature 00038 — onDele
 PageComment (1) ─── (0..1) CommentReplyLog       [feature 00038 — commentId, onDelete Cascade]
 ExternalContact (1) ─ (N) CustomerFile           [feature 00048 — onDelete Cascade]
 Conversation (1) ──── (N) CustomerFile           [feature 00048 — เฉพาะเธรด DEEP ที่ไม่มี ExternalContact]
+Shop (1) ──────── (N) CustomerFollowUp           [feature 00066 — onDelete Cascade]
+Conversation (1) ─ (N) CustomerFollowUp          [feature 00066 — onDelete Cascade · ผูก "ห้องแชท" ไม่ผูก Customer]
+User (1) ──────── (N) CustomerFollowUp           [feature 00066 — 3 บทบาท assignee/doneBy/createdBy ทั้งหมด onDelete SetNull]
 
 Order (1) ──────── (N) OrderItem
 Order (1) ──────── (0..1) ShipmentTracking
@@ -1275,6 +1280,51 @@ enum** — ระหว่างนี้ป้ายบนโปรไฟล์
 
 🛑 **ใบที่ออกแล้วเปิดได้เสมอแม้ออเดอร์ถูกยกเลิกภายหลัง** (`issueOrReadReceipt` เช็ค `order.receipt` ก่อนเช็ค vertical/status ใด ๆ เสมอ) — เลขที่ของใบที่ถูกยกเลิกก็ห้ามถูกนำไปออกซ้ำให้ออเดอร์อื่น (`ShopReceiptCounter` ไม่เคยถูกย้อนคืนตอนยกเลิกออเดอร์)
 
+### 6.66 ติดตามลูกค้า — `CustomerFollowUp` (feature 00066)
+
+> เอกสารต้นทาง: `docs/20 - Features/00066 - Customer Follow-up Activities/` · migration
+> `20260929100000_customer_follow_up` + `20260929100100_follow_up_cluster_indexes` (additive ตารางใหม่ว่าง)
+> 🛑 **ผูกกับ "ห้องแชท" (`conversationId`) ไม่ผูก `Customer`** (SDS TD-FU-1) — ลูกค้าจำนวนมากไม่มีแถว `Customer`
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `id` | String PK (uuid) | |
+| `shopId` | String FK→Shop | Cascade |
+| `conversationId` | String FK→Conversation | Cascade |
+| `type` | String default `FOLLOW_UP` | `FOLLOW_UP`/`MEET_CUSTOMER`/`OTHER` (§8.10) |
+| `title` | String | trim แล้ว 1–200 ตัวอักษร |
+| `note` | String? | ≤1000 · ค่าว่างเก็บเป็น `null` |
+| `dueAt` | Timestamptz(3) | เวลาครบกำหนด · `allDay` = เที่ยงคืนไทยของวันนั้น |
+| `allDay` | Boolean default false | |
+| `assigneeUserId` | String? FK→User | SetNull · ต้องเป็นสมาชิกร้าน (เจ้าของ ∪ `ShopMember`) ตอนตั้ง |
+| `status` | String default `OPEN` | `OPEN`/`DONE` |
+| `outcome` | String? | `REACHED`/`NO_ANSWER`/`CALL_LATER`/`NOT_INTERESTED` — เฉพาะตอน `DONE` (ข้ามได้ = `null`) |
+| `doneAt` / `doneByUserId` | Timestamptz(3)? / String? FK→User | SetNull |
+| `snoozeCount` | Int default 0 | เพิ่มทีละ 1 ตอนเลื่อน (แก้เวลาผ่าน PATCH ไม่นับ) |
+| `createdByUserId` | String? FK→User | SetNull |
+| `remindedFor` | Timestamptz(3)? | ค่า `fireAt` ที่ "จอง" เตือนไปแล้ว — กัน cron เตือนซ้ำ (idempotency key ของ cron) |
+| `remindedAt` | Timestamptz(3)? | เวลาที่จอง |
+| `createdAt` / `updatedAt` | Timestamptz(3) | |
+
+**Index:** managed 2 ตัว — `(shopId, dueAt)` · `(conversationId, status, dueAt)` · **unmanaged partial 4 ตัว** —
+`(shopId, dueAt) WHERE status='OPEN'` · `(assigneeUserId, dueAt) WHERE status='OPEN'` ·
+`(dueAt) WHERE status='OPEN'` · `(shopId, doneAt) WHERE status='DONE'`
+· **index ธรรมดาใหม่บนตารางเดิม 2 ตัว (สำหรับ cluster query):** `ExternalContact(customerId)` ·
+`Conversation(externalContactId)` (migration แยกไฟล์ `…follow_up_cluster_indexes`, `IF NOT EXISTS`, ไม่ใช้ `CONCURRENTLY`
+เพราะ Prisma ห่อทรานแซกชัน — ถือ SHARE lock บล็อกการเขียนช่วงสร้าง)
+
+**CHECK (unmanaged SQL — Prisma มองไม่เห็น ⇒ 🛑 ห้าม `prisma db pull`/`migrate dev`):**
+`_type_check` · `_status_check` · `_outcome_check` (`NULL` หรือ 4 ค่า) ·
+`_done_fields_check` (`OPEN` ⇒ `doneAt`/`doneByUserId`/`outcome` เป็น `NULL` ทั้งหมด · `DONE` ⇒ `doneAt NOT NULL`) ·
+`_title_len_check` (`char_length(btrim(title))` 1–200) · `_note_len_check` (≤1000) · `_snooze_nonneg_check` ·
+`_allday_midnight_check` (`allDay` ⇒ `dueAt` ตามเวลา `Asia/Bangkok` ต้องเป็น 00:00:00 พอดี).
+รายชื่อค่าใน CHECK เป็นสแนปช็อต — เพิ่มค่า enum ต้องใช้ท่า additive (`docs/conventions/migration-check-constraint-additive.md`)
+
+**"ลูกค้าเดียวกัน" (cluster) = `shopId:ExternalContact.customerId`** — ห้องที่ไม่มี contact/ไม่มี customer (รวมห้อง DEEP)
+มีคีย์ของตัวเอง `v:<conversationId>` จึงไม่รวมกับใคร · นิยามอยู่ที่ `clusterKeySql()`
+(`src/services/follow-up-scope.ts`) ที่เดียว — ห้ามเขียน join/เงื่อนไข cluster ที่อื่น (HR16) ·
+แผงห้อง/ป้ายแถว/ตัวกรองกล่องแชทจึงนับรายการของทุกห้องใน cluster เดียวกัน
+
 ---
 
 ## §7 API Reference
@@ -1777,6 +1827,7 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 | `/api/cron/comment-attachment-repair` | `0 17 * * *` | 00:00 |
 | `/api/cron/chat-outbox` | `* * * * *` | ทุกนาที |
 | **`/api/cron/inspection-lifecycle`** (feature 00060 — **backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ**) | **`0 16 * * *`** | **23:00** |
+| **`/api/cron/follow-up-reminders`** (feature 00066 — `vercel.json` ยืนยัน) | **`*/5 * * * *`** | **ทุก 5 นาที** |
 
 **`/api/cron/inspection-lifecycle` (เมื่อ implement แล้ว) ทำ 4 งานในครั้งเดียว:** (1) ตัดเครดิตรอบ
 30 วัน + จัดการ `canceledAt`/`graceUntil`/`status`/`lapsedReason` (2) รันข้อตรวจอัตโนมัติของขั้น 1
@@ -1801,6 +1852,54 @@ error: `ORDER_NOT_FOUND`(404, scope `shopId` ใน `WHERE`) · `NOT_SERVICE_SHO
 `ORDER_NOT_ISSUABLE`(409, ออเดอร์ `CANCELLED`/`DRAFTED` ที่ไม่เคยออกใบมาก่อน) ·
 `VALIDATION_ERROR`(400, เฉพาะ PATCH — envelope `{error, message}` **string เดี่ยว ไม่ใช่ `issues`
 รายฟิลด์**) — ดู §8 `ReceiptErrorCode`
+
+### 7.22 ติดตามลูกค้า (`/api/follow-ups/**`, `/api/chat/conversations/[id]/follow-ups`) — feature 00066
+
+> เอกสารต้นทาง: `docs/20 - Features/00066 - Customer Follow-up Activities/` · ทุก response ตั้ง
+> `Cache-Control: private, no-store` (`json()` ใน `src/app/api/follow-ups/_shared.ts`) · ตัวตนผ่าน `sessionUserId()` เท่านั้น (ไม่มี id = 401)
+> · **ขอบเขตร้านมาจาก server เสมอ** — route ใต้ `/api/follow-ups/**` ใช้ `resolveChatScope()` (`requireScope`, resolve ไม่ได้ = 404
+> ไม่ fallback ไป PERSONAL) · route ใต้ห้องใช้ `resolveConversationShopId()` (ร้านของห้อง ไม่ใช่ `activeShopId`) · ห้ามรับรายชื่อร้านจาก client
+
+| Method | Path | Purpose | Body / Query | Response |
+|---|---|---|---|---|
+| GET | `/api/chat/conversations/[id]/follow-ups` | แผงห้อง — รายการของ cluster "ลูกค้าเดียวกัน" | — | `{ open[], recentDone[≤3], openCount, lateCount, expanded, truncated, assignees }` |
+| POST | `/api/chat/conversations/[id]/follow-ups` | สร้างรายการ | `CreateFollowUpSchema` (§10.18) | **201** `{ item }` · ผู้รับผิดชอบไม่ส่ง = ผู้สร้าง |
+| PATCH | `/api/follow-ups/[id]` | แก้ไข | `UpdateFollowUpSchema` | `{ item }` · แก้เวลา = re-arm การเตือน (ไม่แตะ `snoozeCount`) |
+| DELETE | `/api/follow-ups/[id]` | ลบ (hard delete) | — | `{ ok: true }` · ไม่พบ = 404 (client ถือ 404 เป็นสำเร็จ) |
+| POST | `/api/follow-ups/[id]/complete` | ปิดงาน | `CompleteFollowUpSchema` (body ว่างได้ = ข้าม `outcome`) | `{ item }` · ปิดซ้ำ = คืนแถวเดิม ไม่เขียนผู้ปิดทับ (idempotent) |
+| POST | `/api/follow-ups/[id]/reopen` | เปิดกลับ | — | `{ item }` · ล้าง `doneAt`/`doneByUserId`/`outcome` · เปิดอยู่แล้ว = คืนเดิม |
+| POST | `/api/follow-ups/[id]/snooze` | เลื่อน | `SnoozeFollowUpSchema` (preset หรือ date+time) | `{ item }` · `snoozeCount +1` · เฉพาะ `OPEN` |
+| GET | `/api/follow-ups/mine` | bubble "ของฉัน" — `OPEN` ที่เลยกำหนด/ครบสิ้นวันนี้ไทยของ `assigneeUserId=ฉัน` | `?shopId=` | `{ rows[≤8], total, lateCount, tone, href:'/follow-ups?mine=1' }` |
+| GET | `/api/follow-ups/board` | หน้ารวม — `view=board` (default) หรือ `view=calendar` | `?view=&shopId=&mine=1&assignee=<uuid\|unassigned>&tags=a,b&q=&month=YYYY-MM` | board: `{ columns{late,today,week,later,done7d}, counts, truncated, assignees }` · calendar: รายการของเดือนนั้น ทุกสถานะ (`month` ไม่ส่ง/ผิดรูป = เดือนปัจจุบันไทย ไม่ 400) · `view` ผิด = 400 · ค่า filter ที่ parse ไม่ได้ = ไม่กรอง |
+| GET | `/api/follow-ups/inbox-counts` | ตัวเลขต่อค่าของตัวกรอง "ติดตามลูกค้า" ในกล่องแชท (นับห้อง/cluster ทั้งขอบเขตร้านที่เห็น ไม่ขึ้นกับตัวกรองอื่น) | `?shopId=` | `{ late, upcoming, done }` |
+| GET | `/api/cron/follow-up-reminders` | เตือนรายการที่ถึงกำหนด (§7.20) | `Authorization: Bearer ${CRON_SECRET}` | `{ ok, scanned, due, reserved, sent, noToken, failed, droppedNonMember }` |
+
+**query ใหม่ของ `GET /api/chat/conversations`:** `followUp=late,upcoming,done` (CSV, OR ในหมวด) — `parseFollowUpQuery()`
+(`src/lib/follow-up-inbox.ts`) ทิ้งค่าที่ไม่รู้จัก/ซ้ำ · ไม่เหลือเลย = **ไม่กรอง** (ไม่ใช่กรองแล้วว่าง) · Valibot รับ
+`v.picklist(['late','upcoming','done'])` · แถวใน response แต่ละใบมี `followUp: { open, late }` (`enrichWithFollowUpCounts`) ให้ป้ายแถว ·
+ตัวกรองใช้ **cluster** เป็นหน่วย (รายการของห้องอื่นในลูกค้าคนเดียวกันก็ทำให้ห้องนี้ผ่านตัวกรอง)
+
+**กติกาเวลา (เวลาไทยล้วน — `src/lib/follow-up-time.ts`):** `date`+`time` เป็นเวลาไทย · `time=null` = ทั้งวัน (`dueAt` = เที่ยงคืนไทย) ·
+ช่วงวันที่ที่ยอมรับ = วันนี้ไทย −365 … +730 วัน (`DUE_MIN_DAYS`/`DUE_MAX_DAYS`) วันที่ไม่มีจริง (`2026-02-30`)/นอกช่วง = `INVALID_DUE` ·
+ปุ่มลัดเลื่อน: `TOMORROW_9` = พรุ่งนี้ 09:00 · `IN_3_DAYS` = +3 วันทั้งวัน · `NEXT_WEEK` = +7 วันทั้งวัน
+
+**นิยาม "เลยกำหนด" ที่เดียว (`isOverdue`, `src/lib/follow-up-rules.ts`):** ต้อง `OPEN` ก่อนเสมอ · ทั้งวัน = เลยเมื่อขึ้นวันใหม่ไทย ·
+มีเวลา = `dueAt < now` (เท่ากันพอดียังไม่เลย) — จอทุกจอ (แผง/ป้าย/bubble/กระดาน/ตัวกรอง) ต้องมาจาก symbol นี้ (HR16)
+
+**การเตือน (cron ทุก 5 นาที — `follow-up-reminder.service`):** `fireAt` = `dueAt` (มีเวลา) หรือ 09:00 ไทยของวันนั้น (ทั้งวัน) ·
+เตือนเมื่อ `fireAt ≤ now ≤ fireAt+6ชม.` (ทั้งวัน = ถึงสิ้นวันเดียวกัน) และ `remindedFor ≠ fireAt` · 🛑 **จอง (`updateMany` เงื่อนไข
+`remindedFor` ต่างจาก `fireAt`, `count===1`) ก่อนส่งเสมอ** กัน 2 instance/ผู้ใช้เลื่อนระหว่างทาง · สร้าง/แก้เวลา/เปิดกลับ/เลื่อนด้วยเวลาที่ `fireAt`
+ผ่านไปแล้ว = จองค่าไว้ทันที (`initialRemindedFor`) ไม่ยิงย้อนหลัง · ส่งเฉพาะ push (`pushToUsersWithStatus`) หาผู้รับผิดชอบที่ยังเป็นสมาชิกร้าน
+ณ ตอนส่ง — ไม่ใช่สมาชิก = ทิ้ง (`droppedNonMember`) · `NO_TOKEN` คงจอง (ไม่วนซ้ำ) · `FAILED` ปล่อยจองให้รอบถัดไปลองใหม่ ·
+1 push ต่อ (ร้าน, ผู้รับผิดชอบ) · payload อ่านเฉพาะ allow-list (ไม่มี `note`/เบอร์) · **ไม่ผ่านตัวส่งข้อความขาออก และไม่หัก `chatEnabled`** ·
+ร้านที่ `deletedAt`/`purgedAt` ไม่ null ข้าม · scan ≤500 แถว/รอบ
+
+**Error (`mapFollowUpError`):** `NOT_FOUND`(404 — รวมห้อง/รายการที่ไม่มีสิทธิ์ ไม่แยกจากไม่มีอยู่) · `ASSIGNEE_NOT_MEMBER`(400) ·
+`INVALID_DUE`(400) · `INVALID_STATE`(409 — เช่น แก้ประเภท/เวลา/ผู้รับผิดชอบของรายการที่ `DONE`, เลื่อนรายการที่ปิดแล้ว, สถานะเปลี่ยนระหว่างทาง) ·
+`VALIDATION`(400) · `UNAUTHORIZED`(401) · `INTERNAL`(500 ข้อความกลาง) · ทุก `*Error` ที่ service export ต้องมี branch ใน mapper (เทส `[blocker]`)
+
+**เพดาน (`src/lib/follow-up-constants.ts`):** `LIST_MAX=200` (แผงห้อง/กระดานปิด 7 วัน) · `OPEN_SCAN_MAX=2000` (กระดาน/ตัวกรอง/bubble) ·
+`CAL_MAX=1000` · `BUBBLE_MAX=8` · `DONE_IN_PANEL=3` — เกินเพดานคืน `truncated: true`
 
 ---
 
@@ -2122,6 +2221,25 @@ error: `ORDER_NOT_FOUND`(404, scope `shopId` ใน `WHERE`) · `NOT_SERVICE_SHO
 (class ประกาศอยู่ในไฟล์ service เดียวกัน 🛑 **ไม่มี `src/lib/receipt-error.ts` แยก**) route แปลเป็น
 HTTP ตามตาราง §7.21
 
+### 8.10 ติดตามลูกค้า (`src/lib/follow-up-constants.ts`, feature 00066)
+
+| ค่าคงที่ | ค่า | หมายเหตุ |
+|---|---|---|
+| `FOLLOW_UP_TYPES` | `FOLLOW_UP` (ตั้งต้น) · `MEET_CUSTOMER` · `OTHER` | `CustomerFollowUp.type` — CHECK ที่ฐานด้วย |
+| `FOLLOW_UP_STATUSES` | `OPEN` · `DONE` | |
+| `FOLLOW_UP_OUTCOMES` | `REACHED` · `NO_ANSWER` · `CALL_LATER` · `NOT_INTERESTED` | ผลการติดต่อตอนปิดงาน ไม่บังคับ (`null` = ข้าม) |
+| `SNOOZE_PRESETS` | `TOMORROW_9` · `IN_3_DAYS` · `NEXT_WEEK` | |
+| `FilterState` (`follow-up-rules.ts`) | `late` · `upcoming` · `done` | สถานะต่อ cluster ของตัวกรองกล่องแชท: มี `OPEN` ⇒ (มี late ⇒ `late` ไม่งั้น `upcoming`) · ไม่มี `OPEN` แต่เคยมี `DONE` ⇒ `done` · ไม่เคยมีรายการ = ไม่มีสถานะ (ไม่ตก `done`) |
+| `Bucket` | `late` · `today` · `week` · `later` · `done` | คอลัมน์กระดาน (`done` แสดงเป็น `done7d` = ปิดใน 7 วัน) |
+| `TITLE_MAX`/`NOTE_MAX` | 200 / 1000 | |
+| `DUE_MIN_DAYS`/`DUE_MAX_DAYS` | −365 / +730 | นับจากวันนี้ไทย |
+| `REMINDER_HOUR_ALLDAY`/`REMIND_WINDOW_MS` | 9 / 6 ชม. | |
+| `LIST_MAX`/`OPEN_SCAN_MAX`/`CAL_MAX`/`BUBBLE_MAX`/`DONE_IN_PANEL` | 200 / 2000 / 1000 / 8 / 3 | |
+| `PUSH_TITLE_MAX` | 60 | ตัดหัวข้อใน push ด้วย `…` (นับ code point) |
+
+`FollowUpErrorCode` ไม่มี type รวม — error เป็น 4 class ใน `customer-follow-up.service.ts` /
+`follow-up-time.ts` (`FollowUpNotFoundError`, `AssigneeNotMemberError`, `FollowUpStateError`, `FollowUpDueError`) แปลงที่ `mapFollowUpError` (§7.22)
+
 ---
 
 ## §9 Authorization Matrix
@@ -2257,6 +2375,19 @@ HTTP ตามตาราง §7.21
 
 🛑 **ไม่มีวิธี self-service ตั้ง `User.isInspector`** ในสัญญาที่ล็อกแล้ว — ตั้งผ่าน DB โดยตรง
 เหมือน `User.isAdmin` (ดู §9.6)
+
+### 9.9 ติดตามลูกค้า (feature 00066)
+
+| ผู้เรียก | เข้าถึงได้ |
+|---|---|
+| เจ้าของร้าน ∪ `ShopMember` (ทุก role — `OWNER`/`ADMIN`) | ทำได้ทุกอย่างกับรายการของร้านตน: สร้าง/แก้/ลบ/ปิด/เปิดกลับ/เลื่อน/ดูกระดาน — **รวมของคนอื่นและรายการที่ไม่มีผู้รับผิดชอบ** (ไม่มีสิทธิ์รายรายการ ตามมติ) |
+| ผู้ที่ไม่ใช่สมาชิกของร้านนั้น | **404** เสมอ (ไม่ใช่ 403 — ไม่ยืนยันว่ารายการ/ห้องมีอยู่) |
+| ไม่ล็อกอิน/ไม่มี `sessionUserId` | 401 |
+
+- ขอบเขตอยู่ที่ `WHERE shopId IN (ขอบเขตของผู้เรียก)` ทุกคำสั่ง (`updateMany`/`deleteMany`/`findFirst` ใส่ `shopId` ใน `WHERE` — ไม่ดึงมาแล้วเทียบทีหลัง) · สลับดูรวมหลายร้านได้ตามขอบเขตของกล่องแชท (`resolveChatScope`)
+- **ผู้รับผิดชอบ (`assigneeUserId`)** ต้องเป็นสมาชิกร้านนั้น (เจ้าของ ∪ `ShopMember`) → ไม่ใช่ = `ASSIGNEE_NOT_MEMBER`(400) · ผู้รับผิดชอบที่ถูกถอดจากร้านทีหลังนับเป็น "ยังไม่มีคนรับ" (`isUnassigned`) และไม่ได้รับ push
+- **ร้าน `PERSONAL` (ไม่มี `ShopMember`)** = เจ้าของเป็นผู้รับผิดชอบเสมอ (`assignees` ใน response เป็น `null` — ไม่มีตัวเลือกคน)
+- ไม่ผูกธง `Shop.staffCanViewFinance` (ไม่ใช่ข้อมูลการเงิน) · เมนูเห็นทุก vertical
 
 ---
 
@@ -2659,6 +2790,20 @@ SSOT: **`src/lib/inspection/checks.ts`** (checkKey allow-list 18 ค่า + `tt
 | `taxId` | ตัดขีด/ช่องว่างออกก่อน แล้วต้องเป็นตัวเลข 13 หลักพอดี (`/^[0-9]{13}$/`) หรือว่าง — ไม่ผ่าน = `VALIDATION_ERROR` (400) |
 | `stamp` | maxLength 300 — fileId จาก `uploadFileId(file, 'IMAGE')` |
 
+### §10.18 ติดตามลูกค้า (`src/lib/validations.ts`, feature 00066)
+
+Valibot 5 schema + `FollowUpIdSchema` (`uuid` — id ผิดรูปที่ route = 400 `รหัสไม่ถูกต้อง`) · body ที่ parse JSON ไม่ได้ = 400 `Invalid input`
+
+| Schema | ฟิลด์ / กฎ |
+|---|---|
+| `CreateFollowUpSchema` | `title` บังคับ (trim, 1–200) · `type?` picklist 3 ค่า · `date` บังคับ `YYYY-MM-DD` · `time` บังคับแต่ **nullable** `HH:mm` 00:00–23:59 (`null` = ทั้งวัน) · `note?` nullable ≤1000 · `assigneeUserId?` uuid |
+| `UpdateFollowUpSchema` | ทุกฟิลด์ optional (ชุดเดียวกับ Create) · 🛑 **`assigneeUserId` ห้าม `null`** (ล้างผู้รับผิดชอบไม่ได้) · ส่ง `time` โดยไม่ส่ง `date` = `INVALID_DUE` · รายการ `DONE` แก้ได้แค่ `title`/`note` (นอกนั้น `INVALID_STATE`) |
+| `CompleteFollowUpSchema` | `outcome?` nullable picklist 4 ค่า (§8.10) |
+| `SnoozeFollowUpSchema` | union: `{ preset }` (3 ค่า) **หรือ** `{ date, time }` |
+
+- รูปแบบ (regex) ตัดสินที่ Valibot · **ช่วงวันที่/วันที่ไม่มีจริงตัดสินที่ `resolveDue` (`INVALID_DUE`)** ไม่ใช่ที่ schema · เวลาทั้งหมดเป็นเวลาไทย
+- ฐานข้อมูลกันซ้ำอีกชั้นด้วย CHECK (§6.66) — ความยาว title/note, `allDay ⇒ เที่ยงคืนไทย`, ฟิลด์ปิดงานสอดคล้องกับ `status`
+
 ### 10.11 หมายเหตุ
 
 - **Valibot (backend):** ใช้กับ API routes ทุกตัวที่มี mutation — `v.safeParse()` ก่อน service call
@@ -2666,6 +2811,13 @@ SSOT: **`src/lib/inspection/checks.ts`** (checkKey allow-list 18 ค่า + `tt
 - **ไม่มี email+password schema** — ตัดถาวร (FR-1.6)
 
 ---
+
+_อัปเดต 2026-09-29: sync ตามโค้ดจริงของ feature 00066 (ติดตามลูกค้า — Customer Follow-up Activities,
+HR11) เพิ่ม §3.4 (route `/follow-ups`) · §6.1 ER lines · §6.66 (`CustomerFollowUp` + index/CHECK + index ใหม่บน
+`ExternalContact`/`Conversation` + นิยาม cluster) · §7.20 (cron `follow-up-reminders` ทุก 5 นาที) · §7.22 (endpoint 10 ตัว +
+query `followUp` ของ `GET /api/chat/conversations` + กติกาเวลา/การเตือน/error) · §8.10 (enum/ค่าคงที่) · §9.9 (สิทธิ์: ทุกคนในร้านทำได้ทุกอย่าง
+· ร้านอื่น 404) · §10.18 (validation). เขียนจาก `prisma/schema.prisma` + migration 2 ไฟล์ + `src/app/api/follow-ups/**` +
+`customer-follow-up.service` + `follow-up-*.ts` — ไม่ได้คัดจากเอกสารฟีเจอร์._
 
 _อัปเดต 2026-09-24: sync ตามโค้ดจริงของ feature 00065 (พิมพ์ใบเสร็จรับเงิน — Service Receipt
 Printing) ซึ่ง implement เสร็จครบทั้งฟีเจอร์แล้ว (HR11 — sync เอกสารระบบเมื่อแตะ data
