@@ -39,16 +39,21 @@ type ExpoMessage = {
 
 type ExpoTicket = { status?: string; details?: { error?: string } }
 
-/** ส่ง push → คืน list ของ token ที่ "เสีย" (DeviceNotRegistered) ให้ caller ลบทิ้ง */
-export async function sendExpoPush(
+export const isExpoToken = (t: string) => t.startsWith('ExponentPushToken') || t.startsWith('ExpoPushToken')
+
+/**
+ * ส่ง push แบบคืนสถานะ (00066 TD-FU-4) — `delivered` = Expo รับคำขอ (`res.ok`) ไม่ใช่ "ถึงเครื่อง"
+ * ไม่มี token ที่ใช้ได้ / fetch ล้ม / HTTP ไม่ ok → delivered=false (ไม่ throw)
+ */
+export async function sendExpoPushWithStatus(
   tokens: string[],
   title: string,
   body: string,
   data?: Record<string, unknown>,
   options?: { subtitle?: string },
-): Promise<string[]> {
-  const valid = tokens.filter((t) => t.startsWith('ExponentPushToken') || t.startsWith('ExpoPushToken'))
-  if (valid.length === 0) return []
+): Promise<{ invalid: string[]; delivered: boolean }> {
+  const valid = tokens.filter(isExpoToken)
+  if (valid.length === 0) return { invalid: [], delivered: false }
   const messages: ExpoMessage[] = valid.map((to) => ({
     to,
     title,
@@ -74,9 +79,20 @@ export async function sendExpoPush(
         invalid.push(valid[i])
       }
     })
-    return invalid
+    return { invalid, delivered: res.ok === true }
   } catch (e) {
     console.error('[expo-push] send failed', e)
-    return []
+    return { invalid: [], delivered: false }
   }
+}
+
+/** ส่ง push → คืน list ของ token ที่ "เสีย" (DeviceNotRegistered) ให้ caller ลบทิ้ง — wrapper ของ WithStatus */
+export async function sendExpoPush(
+  tokens: string[],
+  title: string,
+  body: string,
+  data?: Record<string, unknown>,
+  options?: { subtitle?: string },
+): Promise<string[]> {
+  return (await sendExpoPushWithStatus(tokens, title, body, data, options)).invalid
 }

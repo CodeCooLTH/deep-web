@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { sendExpoPush } from './expo-push'
+import { sendExpoPush, sendExpoPushWithStatus } from './expo-push'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -32,5 +32,41 @@ describe('sendExpoPush', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network')))
     const invalid = await sendExpoPush(['ExponentPushToken[x]'], 't', 'b')
     expect(invalid).toEqual([])
+  })
+})
+
+describe('sendExpoPushWithStatus (00066)', () => {
+  it('res.ok → delivered=true + คืน invalid', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [{ status: 'ok' }] }) }),
+    )
+    const r = await sendExpoPushWithStatus(['ExponentPushToken[a]'], 't', 'b')
+    expect(r).toEqual({ invalid: [], delivered: true })
+  })
+  it('HTTP ไม่ ok → delivered=false', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => null }))
+    const r = await sendExpoPushWithStatus(['ExponentPushToken[a]'], 't', 'b')
+    expect(r.delivered).toBe(false)
+  })
+  it('fetch throw → delivered=false ไม่ throw', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('x')))
+    expect((await sendExpoPushWithStatus(['ExponentPushToken[a]'], 't', 'b')).delivered).toBe(false)
+  })
+  it('ไม่มี token รูป Expo → ไม่ยิง fetch', async () => {
+    const f = vi.fn()
+    vi.stubGlobal('fetch', f)
+    expect(await sendExpoPushWithStatus(['x'], 't', 'b')).toEqual({ invalid: [], delivered: false })
+    expect(f).not.toHaveBeenCalled()
+  })
+  it('sendExpoPush เดิมยังคืนแค่ invalid แม้ ok=true (wrapper)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: [{ status: 'error', details: { error: 'DeviceNotRegistered' } }] }),
+      }),
+    )
+    expect(await sendExpoPush(['ExponentPushToken[z]'], 't', 'b')).toEqual(['ExponentPushToken[z]'])
   })
 })

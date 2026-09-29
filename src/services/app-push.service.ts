@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { sendExpoPush } from '@/lib/expo-push'
+import { sendExpoPush, sendExpoPushWithStatus, isExpoToken } from '@/lib/expo-push'
 
 /**
  * ส่ง push ให้ user "หลายคน" พร้อมกัน — best-effort
@@ -19,25 +19,36 @@ export async function pushToUsers(
   /** subtitle = บรรทัดกลาง (iOS เท่านั้น) — ดูเหตุผลที่ ExpoMessage.subtitle ใน lib/expo-push */
   options?: { subtitle?: string },
 ): Promise<void> {
-  if (userIds.length === 0) return
+  await pushToUsersWithStatus(userIds, title, body, data, options)
+}
+
+/**
+ * เหมือน pushToUsers แต่คืนสถานะ (00066 TD-FU-4) — ไม่ throw
+ * NO_TOKEN = ไม่มีอุปกรณ์ที่ส่งได้ (ไม่มีแถว/ไม่มี token รูป Expo) · FAILED = DB/Expo ล้ม · SENT = Expo รับคำขอ (res.ok)
+ */
+export async function pushToUsersWithStatus(
+  userIds: string[],
+  title: string,
+  body: string,
+  data?: Record<string, unknown>,
+  options?: { subtitle?: string },
+): Promise<'SENT' | 'NO_TOKEN' | 'FAILED'> {
+  if (userIds.length === 0) return 'NO_TOKEN'
   try {
     const rows = await prisma.pushToken.findMany({
       where: { userId: { in: userIds } },
       select: { token: true },
     })
-    if (rows.length === 0) return
-    const invalid = await sendExpoPush(
-      rows.map((r) => r.token),
-      title,
-      body,
-      data,
-      options,
-    )
+    const tokens = rows.map((r) => r.token).filter(isExpoToken)
+    if (tokens.length === 0) return 'NO_TOKEN'
+    const { invalid, delivered } = await sendExpoPushWithStatus(tokens, title, body, data, options)
     if (invalid.length > 0) {
       await prisma.pushToken.deleteMany({ where: { token: { in: invalid } } })
     }
+    return delivered ? 'SENT' : 'FAILED'
   } catch (e) {
     console.error('[app-push] pushToUsers failed', e)
+    return 'FAILED'
   }
 }
 
