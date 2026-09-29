@@ -948,7 +948,10 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
       {/* ทุกแท็บ mount ค้างไว้ ซ่อนด้วย `hidden` (ไม่ใช่ conditional render) — ไม่งั้นสลับแท็บแล้ว
           CustomerCrmSection ถูก unmount: โน้ตที่พิมพ์ค้างหายเงียบ ๆ + re-fetch + skeleton กระพริบ
           ทุกครั้ง (critique P0-1) */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+      <div
+        // เว้นท้ายเนื้อหาไม่ให้ปุ่มลอย "งานของฉัน" (FollowUpBubble) ทับ — bubble ตั้งธงบน <html>
+        className={'min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 [html[data-follow-up-bubble]_&]:pb-20' /* HR7 carve-out: variant ผูกธงข้ามคอมโพเนนต์ ไม่มี token */}
+      >
         <div
           role="tabpanel"
           id={`${uid}-panel-customer`}

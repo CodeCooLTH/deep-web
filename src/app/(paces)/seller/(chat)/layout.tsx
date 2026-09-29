@@ -39,6 +39,7 @@ import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import ChatHeader from './_components/ChatHeader'
 import ChatNavRail from './_components/ChatNavRail'
 import ChatRailColumn from './_components/ChatRailColumn'
+import FollowUpBubble from './_components/FollowUpBubble'
 import InboxTabs from './_components/InboxTabs'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import { resolveSellerMenuItems } from '@/lib/seller-menu-server'
@@ -327,6 +328,9 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
           </div>
         </div>
       </div>
+      {/* 00066 พื้นผิว (b) — ปุ่มลอย "งานของฉัน" (ไม่มีงาน = ไม่ render) พี่น้องของ .chat-shell
+          เพราะ fixed ต้องไม่ถูก overflow-hidden ของ shell ตัด · ไม่มีร้าน active = ไม่มีรายการให้ดึง */}
+      {scope?.activeShopId && <FollowUpBubble unified={scope.mode === 'UNIFIED'} />}
     </ChatSearchProvider>
   )
 

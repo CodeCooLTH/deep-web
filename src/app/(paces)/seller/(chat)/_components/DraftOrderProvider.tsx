@@ -199,6 +199,8 @@ function DraftAvatar({
  */
 type DraftOrderContextValue = {
   openDraft: (input: OpenDraftInput) => void
+  /** dock ชิปร่างที่ย่อไว้กำลังแสดงอยู่ไหม (00066 — ปุ่มลอย "งานของฉัน" ต้องยกหนีไม่ให้ทับชิป) */
+  dockVisible: boolean
   /** คลังคำของร้านที่ active — ผู้เรียกที่รู้ร้านของตัวเองควรใช้ vocabFor() แทน */
   vocab: OrderVocab
   /** คลังคำของร้านที่ระบุ (feature 00037) — รายการแชทรวมหลายร้านต้องเรียกรายการให้ถูกชื่อรายแถว */
@@ -272,6 +274,11 @@ export function useDraftOrders(): DraftOrderContextValue & {
  */
 export function useOrderVocab(): OrderVocab {
   return useContext(DraftOrderContext)?.vocab ?? ORDER_VOCAB.ONLINE_SALES
+}
+
+/** dock ร่างออเดอร์แสดงอยู่ไหม — ไม่มี Provider = false (ผู้ใช้ไม่มีร้านไม่มี dock) */
+export function useDraftDockVisible(): boolean {
+  return useContext(DraftOrderContext)?.dockVisible ?? false
 }
 
 /** คลังคำตามร้าน (feature 00037) — ไม่มี Provider/ไม่รู้จักร้านนั้น → ชุดคำ ONLINE_SALES (fail-safe เดิม) */
@@ -683,7 +690,7 @@ export default function DraftOrderProvider({
   const minimized = drafts.filter((d) => d.state === 'minimized')
 
   return (
-    <DraftOrderContext.Provider value={{ openDraft: openDraftWithContext, vocab, vocabFor, appointmentCtxFor }}>
+    <DraftOrderContext.Provider value={{ openDraft: openDraftWithContext, dockVisible: !expanded && minimized.length > 0, vocab, vocabFor, appointmentCtxFor }}>
       {children}
 
       {/* ทุก draft mount ฟอร์มค้างไว้ (hidden เมื่อไม่ได้ขยาย) กันข้อมูลที่กรอกหาย — expanded เห็นทีละ 1 */}
