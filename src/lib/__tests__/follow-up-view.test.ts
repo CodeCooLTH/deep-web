@@ -206,10 +206,10 @@ describe('canSetOutcome', () => {
 })
 
 describe('bubbleLabels', () => {
-  it('[blocker] เลยกำหนด: มือถือ "เลย n" · เดสก์ท็อป "เลยกำหนด n" · ปกติ: "วันนี้ n" ทั้งคู่', () => {
-    expect(bubbleLabels(t, 'late', { late: 3, total: 5 })).toEqual({ full: 'เลยกำหนด 3', short: 'เลย 3' })
+  it('[blocker] เลยกำหนด: มือถือและเดสก์ท็อป "เลยกำหนด n" (clarify 2026-09-29: "เลย n" กำกวม) · ปกติ: "วันนี้ n" ทั้งคู่', () => {
+    expect(bubbleLabels(t, 'late', { late: 3, total: 5 })).toEqual({ full: 'เลยกำหนด 3', short: 'เลยกำหนด 3' })
     expect(bubbleLabels(t, 'normal', { late: 0, total: 5 })).toEqual({ full: 'วันนี้ 5', short: 'วันนี้ 5' })
-    expect(bubbleLabels(t, 'late', { late: 150, total: 200 }).short).toBe('เลย 99+')
+    expect(bubbleLabels(t, 'late', { late: 150, total: 200 }).short).toBe('เลยกำหนด 99+')
   })
 })
 
