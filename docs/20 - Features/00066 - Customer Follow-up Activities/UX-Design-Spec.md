@@ -706,3 +706,10 @@ Base โครง: `theme/.../apps/projects/kanban/components/Board.tsx` (แถ
 - **Q-12** Impeccable/`frontend-design` ไม่ได้รัน critique (ทำไม่ได้ — เป็นหน้าที่ Controller หลัง build). ยังไม่ได้ส่ง `=== DEEP-HANDOFF ===` เพราะถูกเรียกตรงจาก team-lead ไม่ใช่สายพาน; ถ้าเป็นสายพานบอกได้ ฉันจะต่อท้ายบล็อก (`Theme Source:` = ตาราง Mapping · `ป้ายถัดไป:` = `stage:build`).
 
 **ป้ายถัดไป:** `stage:build` (หลัง user/Controller ตอบ Q-1, Q-3, Q-4, Q-6, Q-7).
+
+---
+
+## มติ user (2026-09-29)
+- **Q-1 ไอคอนชนิด:** ตามที่เสนอ — ตามเรื่อง=`message-circle` · นัดคุยกับลูกค้า=`phone-call` · อื่น ๆ=`list-check` · **ปุ่ม "เลื่อน" = `clock-play`** (ไม่ใช้ `refresh` เพราะซ้ำความหมาย "โหลดใหม่"; ป้าย "เลื่อนมา N ครั้ง" ใช้ `clock-play` ด้วย)
+- **Q-3/Q-4:** เห็นชอบ — แผงพับปักหมุดเหนือแท็บ (แทนแท็บที่ 5) · ปฏิทินเปิดชีตวันแทน popover · bubble ประกอบจาก `btn` pill + `.card shadow-lg`
+- Q-2/Q-6/Q-7/Q-8/Q-10/Q-11 = เรื่องเทคนิค Controller/developer ตัดสินตอน build · Q-5 ใช้ค่าตั้งต้นที่ ux เสนอ
