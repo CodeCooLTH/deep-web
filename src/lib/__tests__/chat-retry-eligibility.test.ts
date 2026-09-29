@@ -193,13 +193,15 @@ describe('[blocker] UNCERTAIN_RESEND_CONFIRM — ถ้อยคำของ con
 // ── ด่านฝั่งผู้เรียก: เกณฑ์ที่ถูกไม่มีค่าถ้าไม่มีใครเรียกมันก่อนยิงคำขอ ──────────────────────
 // (rule-must-be-enforced-not-described.md) — สแกนซอร์สเพราะรีโปนี้ไม่มี jsdom ให้ render ปุ่มจริง
 describe('[blocker] ChatThread ต้องเรียกด่านนี้ก่อนส่งซ้ำจริง', () => {
-  const src = readFileSync(
-    new URL(
-      '../../app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx',
-      import.meta.url,
-    ),
-    'utf8',
-  )
+  // บับเบิล (ปุ่มลองใหม่/ยกเลิก) ย้ายไป ThreadMessageList.tsx (M1 2026-09-29) — สแกนทั้งสองไฟล์
+  const src = ['ChatThread.tsx', 'ThreadMessageList.tsx']
+    .map((f) =>
+      readFileSync(
+        new URL(`../../app/(paces)/seller/(chat)/inbox/[conversationId]/components/${f}`, import.meta.url),
+        'utf8',
+      ),
+    )
+    .join('\n')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/(^|[^:])\/\/.*$/gm, '$1')
 

@@ -62,6 +62,10 @@ function stripComments(src: string): string {
 }
 
 const code = stripComments(readFileSync(join(process.cwd(), CHAT_THREAD), 'utf8'))
+// บับเบิลย้ายไป ThreadMessageList.tsx (M1 2026-09-29)
+const list = stripComments(
+  readFileSync(join(process.cwd(), CHAT_THREAD.replace('ChatThread.tsx', 'ThreadMessageList.tsx')), 'utf8'),
+)
 
 /** ช่วง [เปิด, ปิด] ของวงเล็บ `(` ตัวแรกหลัง `from` — ข้ามสตริง (stripComments ตัดคอมเมนต์แล้ว) */
 function parenBlock(src: string, from: number): [number, number] {
@@ -122,12 +126,11 @@ describe('[blocker] ChatThread — เวลาบนบับเบิล / ป
   })
 
   it('(b) R23 + P2-b: บับเบิลไม่มี title · sr-only "เวลา" อยู่หลังเนื้อหา ครบ 2 เส้นทาง', () => {
-    const hits = [...code.matchAll(/<div\s+data-message-bubble\b/g)].map((h) => h.index)
+    const hits = [...list.matchAll(/<div\s+data-message-bubble\b/g)].map((h) => h.index)
     expect(hits.length).toBe(2)
-    const end = code.indexOf('unseenNewCount > 0 &&', hits[1])
     const regions = [
-      { anchor: '<PhotoAlbum', src: code.slice(hits[0], hits[1]) },
-      { anchor: '{m.body}', src: code.slice(hits[1], end) },
+      { anchor: '<PhotoAlbum', src: list.slice(hits[0], hits[1]) },
+      { anchor: '{m.body}', src: list.slice(hits[1]) },
     ]
     for (const r of regions) {
       // ปลายแท็กเปิด = `>` ตัวแรกที่ไม่ใช่ `=>`
@@ -139,11 +142,11 @@ describe('[blocker] ChatThread — เวลาบนบับเบิล / ป
       expect(r.src).toContain('{formatChatBubbleTime(')
     }
     // title เวลาเต็มย้ายไปอยู่ที่ <p> ของเนื้อข้อความ (ไม่ใช่กล่องที่มีปุ่ม/การ์ด/รูป)
-    expect(code).toMatch(/<p\s+title=\{formatDateTimeTH\(m\.createdAt\)\}\s+className=\{`[^`]*`\}\s*>\s*\{m\.body\}/)
+    expect(list).toMatch(/<p\s+title=\{formatDateTimeTH\(m\.createdAt\)\}\s+className=\{`[^`]*`\}\s*>\s*\{m\.body\}/)
   })
 
   it('(c) ป้าย Meta AI: brand-meta · ไม่มี primary · ป้ายสั้น + ประโยค sr-only', () => {
-    const badge = code.match(
+    const badge = list.match(
       /<span\b(?:(?!<span\b)[\s\S])*?icon="brand-meta"[\s\S]*?<span className="sr-only">\{t\.inbox\.metaAiBadgeExplain\}<\/span>\s*<\/span>/,
     )
     expect(badge).not.toBeNull()

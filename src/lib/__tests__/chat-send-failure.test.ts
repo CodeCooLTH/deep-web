@@ -595,8 +595,14 @@ describe('[blocker] describeSendFailure — ถ้อยคำต้องตร
 // **สิ่งที่โค้ดทำ** (ส่ง `channel` เข้าไปไหม) ไม่ใช่แค่ว่ามีคำนั้นอยู่ในไฟล์
 // ══════════════════════════════════════════════════════════════════════════
 describe('[blocker] ผู้เรียก describeSendFailure ต้องส่งช่องทางเข้ามา', () => {
+  // THREAD = ChatThread.tsx + ThreadMessageList.tsx (บับเบิลย้ายไปไฟล์หลัง — M1 2026-09-29)
   const read = (rel: string) =>
-    readFileSync(new URL(rel, import.meta.url), 'utf8')
+    (rel === THREAD
+      ? [rel, rel.replace('ChatThread.tsx', 'ThreadMessageList.tsx')]
+          .map((r) => readFileSync(new URL(r, import.meta.url), 'utf8'))
+          .join('\n')
+      : readFileSync(new URL(rel, import.meta.url), 'utf8')
+    )
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/(^|[^:])\/\/.*$/gm, '$1')
 

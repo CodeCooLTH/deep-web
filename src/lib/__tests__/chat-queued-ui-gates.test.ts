@@ -77,7 +77,9 @@ function stripComments(src: string): string {
 }
 
 function code(rel: string): string {
-  return stripComments(readFileSync(join(ROOT, rel), 'utf8'))
+  // บับเบิลย้ายไป ThreadMessageList.tsx (M1 2026-09-29) — ChatThread = สองไฟล์ต่อกัน
+  const files = rel === CHAT_THREAD ? [rel, rel.replace('ChatThread.tsx', 'ThreadMessageList.tsx')] : [rel]
+  return stripComments(files.map((f) => readFileSync(join(ROOT, f), 'utf8')).join('\n'))
 }
 
 /** ตัดข้อความยาว ๆ ให้อ่านง่ายตอนเทสแดง (ไม่มีผลกับการตัดสิน) */
