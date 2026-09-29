@@ -124,6 +124,9 @@ export const sellerMenuItems: MenuItemType[] = [
       // feature 00017 P3 — icon 'users' verified มีจริงใน tabler
       { url: '/housekeepers', slug: 'seller:housekeepers', label: 'แม่บ้าน', icon: 'users' },
       { url: '/customers', slug: 'seller:customers', label: 'ลูกค้า', icon: 'user-circle' },
+      // feature 00066 — หน้ารวมติดตามลูกค้า · เห็นทุก vertical (มติ Q14: ทุกร้านที่มีแชท) ⇒ ห้ามใส่ slug นี้ใน *_ONLY_SLUGS
+      // ไม่ใส่ตัวเลขบนเมนู (BRD) · icon 'list-check' ตาม UX spec §Theme mapping
+      { url: '/follow-ups', slug: 'seller:follow-ups', label: 'ติดตามลูกค้า', icon: 'list-check' },
       // feature 00016 (Expense & Cost Tracking, Unit 5A) — conditional render ด้วย applyExpenseMenu ด้านล่าง
       // icon 'report-money' ยืนยันแล้วใน UX-Design-Spec.md §Resolved Decisions #1 (tabler set มีจริง)
       { url: '/expenses', slug: 'seller:expenses', label: 'ค่าใช้จ่าย', icon: 'report-money' },
@@ -852,6 +855,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:inspection': m.inspection,
     'seller:housekeepers': m.housekeepers,
     'seller:customers': m.customers,
+    'seller:follow-ups': m.followUps,
     'seller:expenses': m.expenses,
     'seller:inbox': m.inbox,
     'seller:settings-auto-reply': m.settingsAutoReply,

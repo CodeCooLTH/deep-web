@@ -181,6 +181,41 @@
     --fc-event-text-color: var(--color-danger-ink);
 }
 
+/**
+ * .follow-up-calendar — ปฏิทินหน้า /follow-ups (feature 00066 พื้นผิว c) ตามแบบ .appointment-calendar
+ * สีตามแผนที่สถานะเดียวทุกพื้นผิว (UX §0.2): เลยกำหนด=danger · ครบวันนี้=warning · ปกติ=primary · ทำแล้ว=เทา
+ * ไม่มีเขียว (ทำแล้ว ไม่ใช่ verified) และไม่ใช้ opacity จางกับงานที่ปิดแล้ว (ตก AA) — ใช้พื้นเทา + ตัวอักษรเข้ม
+ * ตัวแปรของ FullCalendar เท่านั้น ไม่ทับด้วยคลาส Tailwind (เหตุผลเดียวกับ appt-ev-*)
+ */
+.follow-up-calendar .fc {
+    --fc-today-bg-color: transparent;
+}
+.follow-up-calendar .fc-event.fu-ev-late {
+    --fc-event-bg-color: color-mix(in srgb, var(--color-danger) 20%, white);
+    --fc-event-border-color: var(--color-danger);
+    --fc-event-text-color: var(--color-danger-ink);
+}
+.follow-up-calendar .fc-event.fu-ev-today {
+    --fc-event-bg-color: color-mix(in srgb, var(--color-warning) 20%, white);
+    --fc-event-border-color: var(--color-warning);
+    --fc-event-text-color: var(--color-warning-ink);
+}
+.follow-up-calendar .fc-event.fu-ev-normal {
+    --fc-event-bg-color: color-mix(in srgb, var(--color-primary) 20%, white);
+    --fc-event-border-color: var(--color-primary);
+    --fc-event-text-color: var(--color-primary-ink);
+}
+.follow-up-calendar .fc-event.fu-ev-done {
+    --fc-event-bg-color: var(--color-default-100);
+    --fc-event-border-color: var(--color-default-300);
+    --fc-event-text-color: var(--color-default-700);
+}
+.follow-up-calendar .fc-event-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* ป้ายนัดในช่องแคบต้องตัดด้วย ellipsis ไม่ใช่ตัดดิบ ๆ
    (ที่ 375px ช่องกว้างจริง ~45px เดิมได้ "ช่างสม" ห้วน ๆ อ่านไม่รู้เรื่อง) */
 .appointment-calendar .fc-event-title {

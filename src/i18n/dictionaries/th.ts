@@ -1373,6 +1373,15 @@ export const th = {
     rowOpen: 'ค้างอยู่ {n}',
     rowLate: 'เลยกำหนด {n}',
     rowLateAria: 'เลยกำหนด {late} รายการ จากรายการติดตาม {open} รายการ',
+    boardTruncated: 'แสดงไม่ครบ — รายการที่ยังเปิดอยู่มีมากเกินไป ลองกรองตามผู้รับผิดชอบเพื่อดูส่วนที่เหลือ',
+    scopeAria: 'ขอบเขตรายการ',
+    viewAria: 'มุมมอง',
+    tabsAria: 'คอลัมน์ของกระดาน',
+    dayPrev: 'วันก่อนหน้า',
+    dayNext: 'วันถัดไป',
+    daySheetAria: 'รายการติดตามของ {date}',
+    loading: 'กำลังโหลด',
+    calCellAria: '{date}: เลยกำหนด {late} ครบวันนี้ {today} ปกติ {normal} ทำแล้ว {done}',
   },
 }
 

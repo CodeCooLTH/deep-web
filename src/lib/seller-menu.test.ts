@@ -47,6 +47,8 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:customers',
         'seller:dashboard',
         'seller:expenses',
+        // เพิ่ม 2026-09-29 — เมนู "ติดตามลูกค้า" (feature 00066) slug ใหม่ล้วน
+        'seller:follow-ups',
         'seller:housekeepers',
         'seller:inbox',
         // เพิ่ม 2026-09-05 — เมนู "แผนการตรวจสอบ" (feature 00060) เห็นเฉพาะ LODGING
