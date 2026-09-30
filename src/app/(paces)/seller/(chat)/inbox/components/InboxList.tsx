@@ -1117,6 +1117,11 @@ export default function InboxList({
   // ต่างจาก thread ที่มี poll 20s อยู่แล้ว → เพิ่ม poll คู่กันให้ list อัปเดต preview/ลำดับ ≤20s เสมอ
   // หยุดเมื่อแท็บถูกซ่อน — ไม่กิน request ตอนไม่มีคนดู (pattern เดียวกับ useSellerChatThread)
   useEffect(() => {
+    // sync ทันทีตอน mount (bug prod 2026-09-29: กดเข้าห้องที่มี unread แล้วกลับมา badge ไม่หาย จนปิดแอป)
+    // initialItems มาจาก router cache ได้ — staleTimes.dynamic 30 วิ และ back/forward (ปัดกลับใน WebView)
+    // ใช้ของเก่า **ไม่จำกัดอายุ** · มือถือ list unmount ทุกครั้งที่เข้าห้อง ⇒ localReadAt หายด้วย
+    // ⇒ ห้ามเชื่อ initialItems ต้องดึงของสดเสมอ (server mark-read ไปแล้วตั้งแต่เปิดห้อง)
+    scheduleRefresh()
     const t = setInterval(() => {
       if (document.visibilityState === 'visible') scheduleRefresh()
     }, 20_000)
