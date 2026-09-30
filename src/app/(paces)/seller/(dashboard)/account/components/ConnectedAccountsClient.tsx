@@ -17,6 +17,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { NATIVE_CAPS_EVENT } from '@/lib/apple-bridge-protocol'
 import { canUseAppleNative, runAppleNativeLink } from '@/lib/apple-native-signin'
 import { signIn, useSession } from 'next-auth/react'
 /**
@@ -201,8 +202,10 @@ function ProviderRow({
   linked,
   busy,
   disabled,
+  showRelinkInApp,
   onConnect,
   onDisconnect,
+  onRelink,
 }: {
   provider: ProviderKey
   label: string
@@ -211,8 +214,11 @@ function ProviderRow({
   busy: boolean
   /** มีงานอื่นค้างอยู่ (เช่น กำลังพาไป OAuth) → กดแถวอื่นไม่ได้ กัน flow ซ้อนกัน */
   disabled: boolean
+  /** โชว์ปุ่ม "เชื่อมในแอป" — เหตุผลเต็มอยู่ที่ `handleRelinkInApp` */
+  showRelinkInApp: boolean
   onConnect: (p: ProviderKey) => void
   onDisconnect: (p: ProviderKey) => void
+  onRelink: (p: ProviderKey) => void
 }) {
   return (
     <AccountRow
@@ -220,14 +226,21 @@ function ProviderRow({
       title={label}
       badge={<StatusBadge on={linked} onLabel="เชื่อมแล้ว" offLabel="ยังไม่เชื่อม" />}
       action={
-        <ActionButton
-          busy={busy}
-          disabled={disabled}
-          tone={linked ? 'danger' : 'primary'}
-          onClick={() => (linked ? onDisconnect(provider) : onConnect(provider))}
-        >
-          {linked ? 'ยกเลิก' : 'เชื่อมต่อ'}
-        </ActionButton>
+        <div className="flex shrink-0 items-center gap-2">
+          {showRelinkInApp && (
+            <ActionButton busy={busy} disabled={disabled} tone="primary" onClick={() => onRelink(provider)}>
+              เชื่อมในแอป
+            </ActionButton>
+          )}
+          <ActionButton
+            busy={busy && !showRelinkInApp}
+            disabled={disabled}
+            tone={linked ? 'danger' : 'primary'}
+            onClick={() => (linked ? onDisconnect(provider) : onConnect(provider))}
+          >
+            {linked ? 'ยกเลิก' : 'เชื่อมต่อ'}
+          </ActionButton>
+        </div>
       }
     />
   )
@@ -500,6 +513,69 @@ export function ConnectedAccountsClient({
   }, [searchParams, markLinked, askReclaim])
 
   // ─── Connect Handler ────────────────────────────────────────────────────────
+  /**
+   * เปลือกแอปรองรับแผ่นของระบบไหม — อ่านครั้งเดียวหลัง hydrate
+   *
+   * 🛑 อ่านใน `useEffect` ไม่ใช่ตอน render: `__DEEP_NATIVE_CAPS__` ถูก inject หลังหน้าโหลดเสร็จ
+   * ซึ่งอาจช้ากว่าที่ React hydrate ⇒ อ่านตอน render จะได้ false ตลอดแล้วปุ่มไม่มีวันโผล่
+   * (บทเรียนเดียวกับที่ `apple-native-transport` ต้องยิง event ไม่ใช่ตั้งตัวแปรเฉย ๆ)
+   */
+  const [appleNativeAvailable, setAppleNativeAvailable] = useState(false)
+  useEffect(() => {
+    const read = () => setAppleNativeAvailable(canUseAppleNative(window))
+    read()
+    window.addEventListener(NATIVE_CAPS_EVENT, read)
+    return () => window.removeEventListener(NATIVE_CAPS_EVENT, read)
+  }, [])
+
+  /**
+   * "เชื่อมในแอป" — เพิ่ม Apple ID ตัวนี้ให้บัญชีเดิม **ทั้งที่เชื่อม Apple ไว้แล้ว**
+   *
+   * ## ทำไมต้องมีปุ่มนี้
+   *
+   * Apple ออก `sub` (เลขประจำตัวผู้ใช้) **แยกตาม `aud`** และเรามี 2 ค่า:
+   *   ทางเว็บ  → Services ID `com.deepthailand.seller.web`
+   *   ในแอป    → bundle id   `com.deepthailand.seller`
+   *
+   * ทั้งคู่จะได้ `sub` เท่ากันก็ต่อเมื่อ identifier ทั้งสองถูก **จัดกลุ่มใต้ primary App ID**
+   * ในพอร์ทัลของ Apple · ถ้าไม่ได้จัดกลุ่ม ผู้ขายที่เคยเชื่อม Apple **ทางเว็บ** จะกดล็อกอิน
+   * ด้วย Apple ในแอปแล้วได้ "ไม่พบบัญชีผู้ขาย" ทั้งที่เป็นคนเดียวกัน (เจอจริง 2026-09-27)
+   *
+   * ## ทำไมปุ่มนี้แก้ได้จริง
+   *
+   * `AuthAccount` ใช้ `@@unique([provider, providerAccountId])` ⇒ **หนึ่งบัญชีมีหลาย Apple sub
+   * ได้** · กดปุ่มนี้ในแอปจะส่งโทเคนที่ `aud` เป็น bundle id ไปผูกเพิ่ม ⇒ ครั้งต่อไปล็อกอิน
+   * ด้วย Apple ในแอปเจอบัญชีเดิมทันที · ถ้าจัดกลุ่มถูกอยู่แล้ว `sub` จะซ้ำของเดิมและเซิร์ฟเวอร์
+   * ตอบ `already-linked` ⇒ **กดแล้วไม่เสียหายทั้งสองทาง**
+   *
+   * 🛑 ทางเลือกที่ **ไม่** เลือก: จับคู่ด้วยอีเมลจาก Apple — เปิดช่องยึดบัญชีให้คนที่คุม
+   * กล่องอีเมลนั้น ทั้งที่ระบบนี้ใช้ "เบอร์" เป็นตัวตนหลักและไม่มีการกู้บัญชีทางอีเมลเลย
+   * (กติกาเดียวกับ security R1 ที่ห้าม trust email claim ของ LINE/IG)
+   */
+  const handleRelinkInApp = useCallback(async (provider: ProviderKey) => {
+    if (provider !== 'apple') return
+    setBusyProvider('apple')
+    try {
+      const outcome = await runAppleNativeLink()
+      if (outcome.kind === 'done') {
+        window.location.assign(outcome.redirect)
+        return
+      }
+      setBusyProvider(null)
+      if (outcome.kind === 'cancelled') return
+      /* ล้มเหลวในแอป — ห้ามถอยไปเปิด appleid.apple.com (Guideline 4) เหตุผลเต็มที่ handleConnect */
+      void pacesAlert({
+        icon: 'warning',
+        title: 'เชื่อม Apple ไม่สำเร็จ',
+        html: 'ลองกดอีกครั้งได้เลย<br/>ถ้ายังไม่ได้ ให้เชื่อมจากเว็บ seller.deepthailand.app บนคอมพิวเตอร์',
+        confirmButtonText: 'เข้าใจแล้ว',
+      })
+    } catch {
+      setBusyProvider(null)
+      pacesToast.error('เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่')
+    }
+  }, [])
+
   const handleConnect = useCallback(async (provider: ProviderKey) => {
     setRedirecting(provider)
     try {
@@ -864,8 +940,10 @@ export function ConnectedAccountsClient({
               // ระหว่างกำลังพาไป OAuth ปิดทุกปุ่ม — ไม่งั้นกดเจ้าที่สองซ้อนได้ แล้ว link-intent
               // cookie ของเจ้าแรกถูกเขียนทับ (มีใบเดียว) = เชื่อมผิดเจ้าโดยไม่มีอะไรฟ้อง
               disabled={redirecting !== null || (busyProvider !== null && busyProvider !== p.key)}
+              showRelinkInApp={p.key === 'apple' && linkedMap.apple && appleNativeAvailable}
               onConnect={handleConnect}
               onDisconnect={handleDisconnect}
+              onRelink={handleRelinkInApp}
             />
           ))}
       </div>
