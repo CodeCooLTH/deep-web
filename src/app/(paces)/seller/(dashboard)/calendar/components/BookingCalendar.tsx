@@ -21,6 +21,7 @@ import FullCalendar from '@fullcalendar/react'
 import type { DatesSetArg, EventClickArg, EventInput } from '@fullcalendar/core'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { thaiDayKey } from '@/lib/format-date'
 
 type RoomAvailability = {
   roomId: string
@@ -42,8 +43,12 @@ const STATUS_CLASS: Record<string, string> = {
   CONFIRMED: 'bg-success border-success text-white',
 }
 
+/**
+ * FullCalendar คืนเที่ยงคืน local — toISOString() เคยเลื่อนช่วงถอยไป 1 วันบนเครื่องในไทย
+ * (เที่ยงคืนไทย = 17:00 UTC ของวันก่อน) ⇒ ตัดวันด้วยเวลาไทยจากตัวกลาง
+ */
 function toISODate(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  return thaiDayKey(d)
 }
 
 export default function BookingCalendar({ rooms }: Props) {

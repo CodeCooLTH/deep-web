@@ -33,6 +33,7 @@ import CustomAvatar from '@core/components/mui/Avatar'
 import { getInitials } from '@/utils/getInitials'
 import type { BidDTO } from '@/services/auction.service'
 import { fileUrlOf } from '@/lib/file-url'
+import { relativeTimeTh } from '@/lib/relative-time-th'
 
 type Props = {
   open: boolean
@@ -59,16 +60,6 @@ const LEVEL_STYLE: Record<number, { bg: string; color: string }> = {
   3: { bg: 'primary.lighterOpacity', color: 'primary.main' },
   2: { bg: 'action.selected', color: 'text.secondary' },
   1: { bg: 'action.selected', color: 'text.secondary' },
-}
-
-function relativeTimeTh(atMs: number, nowMs: number): string {
-  const diffSec = Math.max(0, Math.floor((nowMs - atMs) / 1000))
-  if (diffSec < 60) return `${diffSec} วินาทีที่แล้ว`
-  const diffMin = Math.floor(diffSec / 60)
-  if (diffMin < 60) return `${diffMin} นาทีที่แล้ว`
-  const diffHour = Math.floor(diffMin / 60)
-  if (diffHour < 24) return `${diffHour} ชั่วโมงที่แล้ว`
-  return `${Math.floor(diffHour / 24)} วันที่แล้ว`
 }
 
 export default function AuctionBidHistoryModal({ open, onClose, auctionId, bidCount, initialBids, latestBid, connectionState }: Props) {

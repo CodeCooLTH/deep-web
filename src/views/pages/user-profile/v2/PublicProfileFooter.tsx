@@ -5,6 +5,7 @@ import NextLink from 'next/link'
 import themeConfig from '@configs/themeConfig'
 
 import { HELP_CENTER_HREF } from '@/lib/public-links'
+import { formatYearTH } from '@/lib/format-date'
 
 /**
  * PublicProfileFooter — ท้ายหน้าโปรไฟล์ร้านสาธารณะ (`/b/[slug]` + `/u/[username]`)
@@ -34,7 +35,7 @@ const LINKS = [
 export default function PublicProfileFooter() {
   /* ปี พ.ศ. คำนวณจากเวลาจริง ไม่ hardcode — footer ที่ค้างปีเก่าคือสัญญาณว่าเว็บไม่มีคนดูแล
      ซึ่งบั่นทอนสิ่งเดียวกับที่หน้านี้พยายามสร้าง (RSC render ฝั่งเซิร์ฟเวอร์ ไม่มีปัญหา hydration) */
-  const yearBE = new Date().getFullYear() + 543
+  const yearBE = formatYearTH(new Date())
 
   return (
     <Box

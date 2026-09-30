@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { thaiDayKey } from '@/lib/format-date'
 
 /**
  * ai-context.service — ประกอบ "บริบทร้าน" ที่จะส่งให้ผู้ให้บริการ AI (feature 00019)
@@ -146,7 +147,7 @@ export async function buildCustomerBlock(
   if (orders.length === 0) return ''
 
   const lines = orders.map((o) => {
-    const d = o.createdAt.toISOString().slice(0, 10)
+    const d = thaiDayKey(o.createdAt)
     return `- ${d} ยอด ${o.totalAmount.toFixed(2)} บาท สถานะ ${o.status}`
   })
   return ['[ประวัติออเดอร์ของลูกค้ารายนี้กับร้านนี้]', ...lines].join('\n')

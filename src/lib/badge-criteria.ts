@@ -12,6 +12,8 @@
  * 🛑 ชนิดที่ไม่รู้จัก → คืน null แล้ว UI ไม่ render บรรทัดนั้นเลย ไม่ใช่เดาข้อความกลาง ๆ
  * ถ้าวันหนึ่งมีเกณฑ์ชนิดใหม่ เหรียญนั้นจะแค่ไม่มีคำอธิบาย ไม่ใช่มีคำอธิบายที่ผิด
  */
+import { toBuddhistYear } from '@/lib/format-date'
+
 type Criteria = { type?: string; [k: string]: unknown }
 
 const num = (v: unknown): number | null => (typeof v === 'number' ? v : null)
@@ -60,7 +62,7 @@ export function badgeCriteriaLabel(criteria: unknown): string | null {
     case 'SIGNUP_YEAR': {
       const y = num(c.year)
       // ปี ค.ศ. ในเกณฑ์ → พ.ศ. บนหน้าจอ ให้ตรงกับวันที่ที่เหลือทั้งระบบ
-      return y ? `สมาชิกตั้งแต่ปี ${y + 543}` : null
+      return y ? `สมาชิกตั้งแต่ปี ${toBuddhistYear(y)}` : null
     }
     case 'AUCTION_HOSTED': {
       const n = num(c.count)

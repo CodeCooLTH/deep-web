@@ -65,9 +65,22 @@ const SalesChart = ({ daily, summary }: Props) => {
         categories,
         axisBorder: { show: false },
         axisTicks: { show: false },
-        // 30 วันชนกันแน่บนจอแคบ — ให้ Apex thin label เอง + ซ่อนตัวที่ทับ
-        tickAmount: 10,
-        labels: { hideOverlappingLabels: true, rotate: 0, style: { fontSize: '13px' } },
+        /**
+         * ป้ายวันที่ตั้งแนวตั้งเสมอ (user สั่ง 2026-09-30 — มือถือเดิมทับกันจนอ่านไม่ออก)
+         * 🛑 เดิม `rotate: 0` + `tickAmount` ใช้ไม่ได้: แกน category ไม่ thin ป้ายตาม tickAmount
+         * ป้าย "2569-09-01" กว้าง ~70px × 30 วัน ล้นทุกจอที่แคบกว่า ~2,100px
+         * แนวตั้งกินที่แนวนอนแค่ความสูงตัวอักษร (~11px) ⇒ 30 วันพอดีจอ 320px
+         * `hideOverlappingLabels` ยังเปิดไว้เป็นตาข่ายรอง: จอที่แคบกว่านั้น Apex เว้นวันเว้นวันเอง
+         * รูปแบบป้ายมาจาก formatDate (ตัวกลาง) ที่ RSC — ห้ามจัดรูปใหม่ที่นี่
+         */
+        labels: {
+          rotate: -90,
+          rotateAlways: true,
+          hideOverlappingLabels: true,
+          trim: false,
+          maxHeight: 90,
+          style: { fontSize: '11px' },
+        },
       },
       yaxis: { labels: { formatter: (val: number) => formatBaht(val) } },
       grid: { strokeDashArray: 4 },

@@ -26,6 +26,7 @@ import {
 import type { TokenUsage } from '@/lib/ai-pricing'
 import { generateText } from '@/lib/gemini'
 import { redactPii } from '@/lib/pii-redact'
+import { formatTimeHM } from '@/lib/format-date'
 
 const DEFAULT_TONE = 'สุภาพ เป็นกันเอง อ่านง่าย'
 
@@ -472,13 +473,8 @@ export function isChatbotWithinWindow(
   const e = parse(end)
   if (s === null || e === null) return true // ค่าเสีย = ไม่ปิดกั้น ดีกว่าเงียบโดยไม่มีเหตุผล
 
-  // เวลาไทยจาก Intl — ห้ามใช้ getHours() ของเครื่อง (serverless รันบน UTC)
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hour12: false,
-  }).formatToParts(now)
-  const hh = Number(parts.find((p) => p.type === 'hour')?.value ?? '0')
-  const mm = Number(parts.find((p) => p.type === 'minute')?.value ?? '0')
-  const cur = hh * 60 + mm
+  // เวลาไทยจากตัวกลาง — ห้ามใช้ getHours() ของเครื่อง (serverless รันบน UTC)
+  const cur = parse(formatTimeHM(now)) ?? 0
 
   // ช่วงข้ามเที่ยงคืน (18:00-09:00) = "อยู่หลังเวลาเริ่ม หรือ ก่อนเวลาจบ"
   return s <= e ? cur >= s && cur < e : cur >= s || cur < e

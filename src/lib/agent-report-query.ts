@@ -10,6 +10,7 @@
 
 import { resolveDateRange, thaiMidnightUtc } from '@/lib/date-range'
 import { CHAT_CHANNELS } from '@/lib/chat-channel'
+import { thaiDayKey } from '@/lib/format-date'
 import type { ReportFilters } from '@/lib/agent-performance'
 
 /**
@@ -53,7 +54,7 @@ function parseIsoDay(value: string | null | undefined): [number, number, number]
   return [y, m - 1, d]
 }
 
-const isoOf = (d: Date) => new Date(d.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10)
+const isoOf = (d: Date) => thaiDayKey(d)
 
 /**
  * ค่าตั้งต้น = **7 วันล่าสุด** ตามนิยามของ `resolveDateRange('7d')` ที่ระบบใช้อยู่แล้ว

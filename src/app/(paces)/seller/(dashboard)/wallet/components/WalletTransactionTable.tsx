@@ -10,7 +10,7 @@
  * - page size: 10/25/50 (ตาม spec แทน 5/8/10/15/20 ของ OrdersList)
  * - DeleteConfirmationModal: stripped (ไม่มี delete บน ledger)
  * - Link column: stripped (ไม่มี action ลิงก์)
- * - createdAt: รับ ISO string แล้ว format เป็น th-TH toLocaleString (ตาม spec)
+ * - createdAt: รับ ISO string แล้ว format ผ่าน formatDateTime ตัวกลาง (date-format.md)
  * - table caption "ประวัติเงินเข้า-ออก" เพื่อ a11y
  * - badge aria-label สำหรับ TOPUP/DEDUCT
  * - states: loading skeleton (ไม่มีใน RSC pass แต่ client side no-data handled), empty, populated
@@ -22,6 +22,7 @@
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
+import { formatDateTime } from '@/lib/format-date'
 import { cn } from '@/utils/helpers'
 import {
   ColumnFiltersState,
@@ -120,22 +121,13 @@ const WalletTransactionTable = ({ transactions }: Props) => {
           </span>
         ),
       }),
-      // คอลัมน์วันเวลา — toLocaleString('th-TH') ตาม spec
+      // คอลัมน์วันเวลา — formatDateTime ตัวกลาง (docs/conventions/date-format.md: ธุรกรรม = วันที่+เวลา ISO)
       columnHelper.accessor('createdAtISO', {
         header: 'วันเวลา',
         cell: ({ getValue }) => {
-          const d = new Date(getValue())
           return (
             <span className="text-default-400 text-sm whitespace-nowrap">
-              {isNaN(d.getTime())
-                ? '—'
-                : d.toLocaleString('th-TH', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
+              {formatDateTime(getValue())}
             </span>
           )
         },
@@ -259,16 +251,7 @@ const WalletTransactionTable = ({ transactions }: Props) => {
             const iconBg = isTopup ? 'bg-success-50 text-success' : 'bg-danger-50 text-danger'
             const amountColor = isTopup ? 'text-success' : 'text-danger'
             const amountSign = isTopup ? '+' : '−'
-            const d = new Date(t.createdAtISO)
-            const dateStr = isNaN(d.getTime())
-              ? '—'
-              : d.toLocaleString('th-TH', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })
+            const dateStr = formatDateTime(t.createdAtISO)
             return (
               <div className="flex items-center gap-3 px-1 py-3.5">
                 {/* leading: icon วงกลมสีตาม type — tap target ≥44px */}
@@ -283,17 +266,17 @@ const WalletTransactionTable = ({ transactions }: Props) => {
                 </div>
                 {/* main: รายละเอียด + วันเวลา */}
                 <div className="min-w-0 flex-1">
-                  <p className="text-[14px] font-medium text-ink truncate">
+                  <p className="text-sm font-medium text-ink truncate">
                     {t.description ?? meta.label}
                   </p>
-                  <p className="text-[12px] text-default-500 truncate">{dateStr}</p>
+                  <p className="text-xs text-default-500 truncate">{dateStr}</p>
                 </div>
                 {/* trailing: จำนวน +/- + คงเหลือเล็ก ๆ */}
                 <div className="shrink-0 text-right">
-                  <p className={cn('text-[14px] font-semibold leading-tight tabular-nums', amountColor)}>
+                  <p className={cn('text-sm font-semibold leading-tight tabular-nums', amountColor)}>
                     {amountSign}฿{t.amount.toLocaleString('th-TH')}
                   </p>
-                  <p className="text-[11px] text-default-400 leading-tight tabular-nums">
+                  <p className="text-2xs text-default-400 leading-tight tabular-nums">
                     คงเหลือ ฿{t.balanceAfter.toLocaleString('th-TH')}
                   </p>
                 </div>

@@ -40,6 +40,8 @@ const baseColumns = [
   columnHelper.accessor('label', {
     header: 'วันที่',
     enableColumnFilter: false,
+    // วันที่ห้ามตัดบรรทัด — มือถือเคยหักเป็น "2569-09-" / "01" (user แจ้ง 2026-09-30)
+    cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue()}</span>,
   }),
   columnHelper.accessor('orders', {
     header: 'ออเดอร์',

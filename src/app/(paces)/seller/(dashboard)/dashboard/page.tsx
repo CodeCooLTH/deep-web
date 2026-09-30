@@ -87,6 +87,7 @@ import TopSellingProducts from './components/TopSellingProducts'
 import RecentActivityFeed from './components/RecentActivityFeed'
 import ProvinceSalesMap from '@/components/safepay/ProvinceSalesMap'
 import { sellerContactDisplay } from '@/lib/seller-contact-display'
+import { formatMonthYearTH, thaiDayKey } from '@/lib/format-date'
 
 /**
  * ชื่อแท็บเบราว์เซอร์ต้องตามภาษาที่ผู้ใช้เลือกด้วย ⇒ ต้องเป็น `generateMetadata` (async)
@@ -453,12 +454,13 @@ export default async function SellerDashboardPage() {
         // ─── monthly series สำหรับ SalesReport chart ─────────────────────────
         // group rawOrders by ปี-เดือน (YYYY-MM) → คำนวณรายได้ + จำนวนออเดอร์ต่อเดือน
         // ใช้ JS ธรรมดา ใน RSC — ไม่ query ซ้ำ (มี rawOrders array แล้ว)
-        const thMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
+        // 🛑 ตัดเดือนด้วยเวลาไทย (thaiDayKey) ไม่ใช่ getMonth() — server บน Vercel เป็น UTC
+        // ออเดอร์ 00:00–07:00 น. ของวันที่ 1 เคยตกไปเป็นยอดของเดือนก่อน (แก้ 2026-09-30)
         const monthMap = new Map<string, { revenue: number; orderCount: number; label: string }>()
         for (const o of rawOrders) {
           const d = o.createdAt
-          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-          const label = `${thMonths[d.getMonth()]} ${d.getFullYear() + 543}` // พ.ศ.
+          const key = thaiDayKey(d).slice(0, 7)
+          const label = formatMonthYearTH(d)
           const existing = monthMap.get(key)
           if (existing) {
             existing.revenue += Number(o.totalAmount)

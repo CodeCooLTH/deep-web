@@ -11,6 +11,7 @@ import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { INSPECTION_STEP_LABEL_TH, type InspectionStep } from '@/lib/inspection/checks'
+import { THAI_MONTHS_FULL, toBuddhistYear } from '@/lib/format-date'
 
 type QuotaRow = { step: InspectionStep; capacity: number; used: number; remaining: number; seeded: boolean }
 
@@ -19,11 +20,6 @@ type Props = {
   initialMonth: number
   initialQuotas: QuotaRow[]
 }
-
-const THAI_MONTHS = [
-  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
-]
 
 export default function QuotaFormClient({ initialYear, initialMonth, initialQuotas }: Props) {
   const [year, setYear] = useState(initialYear)
@@ -116,7 +112,7 @@ export default function QuotaFormClient({ initialYear, initialMonth, initialQuot
             <Icon icon="chevron-left" className="size-4" aria-hidden="true" />
           </button>
           <span className="min-w-32 text-center text-sm font-semibold text-default-800">
-            {THAI_MONTHS[month - 1]} {year}
+            {THAI_MONTHS_FULL[month - 1]} {toBuddhistYear(year)}
           </span>
           <button type="button" onClick={() => shiftMonth(1)} disabled={loadingMonth} className="btn btn-icon btn-sm border border-default-300 text-default-800">
             <Icon icon="chevron-right" className="size-4" aria-hidden="true" />

@@ -73,7 +73,7 @@ export default function FinanceTabs({ active, panelId }: Props) {
   return (
     <nav
       ref={navRef}
-      className="nav-tabs border-default-200 mb-1.25 flex h-auto flex-nowrap border-b px-2"
+      className="nav-tabs border-default-200 me-0 mt-0 mb-1.25 flex h-auto flex-nowrap border-b px-2"
       role="tablist"
       aria-label="มุมมองการเงินของร้าน"
       onKeyDown={onKeyDown}

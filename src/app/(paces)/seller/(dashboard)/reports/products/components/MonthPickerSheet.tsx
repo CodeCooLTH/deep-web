@@ -24,11 +24,8 @@ import Icon from '@/components/wrappers/Icon'
 import useDialogFocus from '@/hooks/useDialogFocus'
 import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 import { MIN_MONTH_ISO, maxSelectableMonth } from '@/lib/product-sales-month'
+import { THAI_MONTHS_ABBR as MONTHS_TH, toBuddhistYear } from '@/lib/format-date'
 
-const MONTHS_TH = [
-  'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
-]
 
 type Props = {
   /** ปี ค.ศ. + เดือน 0-based ของเดือนที่กำลังดูอยู่ */
@@ -117,7 +114,7 @@ export default function MonthPickerSheet({ year, month0, onClose }: Props) {
           </button>
           <span className="text-default-900 text-base font-semibold tabular-nums">
             {/* ปี พ.ศ. — ทั้งระบบใช้ พ.ศ. ตาม docs/conventions/date-format.md */}
-            {viewYear + 543}
+            {toBuddhistYear(viewYear)}
           </span>
           <button
             type="button"
