@@ -16,6 +16,7 @@ import { prisma } from '@/lib/prisma'
 import { sha256Hex } from '@/lib/media-hash'
 import { saveFile, getFile, deleteFile } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
+import { recordImageSize } from '@/lib/image-dimensions.server'
 // reuse ของเดิม ห้ามเขียนใหม่ (SRS §7.2 dependency table) — ยังไม่เคยพิสูจน์กับ composite unique
 // มาก่อน (R-4) พิสูจน์จริงที่ tests/integration/media-asset-dedup.test.ts::TC-RACE-01
 import { isUniqueViolationOn } from '@/services/channel-chat.service'
@@ -108,11 +109,14 @@ export async function writeDedupedFile(
   opts: { shopId: string; filenamePrefix: string; sourceKey?: string },
 ): Promise<string> {
   const hash = sha256Hex(buffer)
+  const isImage = contentType.startsWith('image/')
 
   const existing = await findMediaAssetByHash(opts.shopId, hash)
   if (existing) {
     // hit — ไม่เขียนไฟล์ + claim sourceKey แบบ best-effort ถ้ามี (ไม่กระทบผลลัพธ์หลักถ้าล้ม)
     if (opts.sourceKey) await claimSourceKey(opts.shopId, hash, opts.sourceKey)
+    // บันทึกขนาดของ fileId ที่คืนจริง — ไฟล์เดิมอาจถูกอัปก่อน M3 จึงยังไม่มีแถวขนาด
+    if (isImage) await recordImageSize(existing.fileId, buffer)
     return existing.fileId
   }
 
@@ -132,14 +136,19 @@ export async function writeDedupedFile(
       size,
       sourceKey: opts.sourceKey,
     })
-    if (claim.isNewRegistration) return fileId
+    if (claim.isNewRegistration) {
+      if (isImage) await recordImageSize(fileId, buffer)
+      return fileId
+    }
     // แพ้ race — ลบไฟล์ที่ตัวเองเพิ่งเขียนทิ้ง (best-effort, DATABASE.md §5 ขั้นตอน 5)
     await deleteFile(fileId).catch(() => {})
+    if (isImage) await recordImageSize(claim.survivorFileId, buffer)
     return claim.survivorFileId
   } catch {
     // TFR-CMD-01 ข้อ 5 / TC-SAFE-04: claimMediaAsset โยน error ที่ไม่ใช่ P2002 หลัง saveFile()
     // สำเร็จไปแล้ว — คืน fileId ที่เขียนสำเร็จจริง แทนที่จะปล่อย exception ลอยไปถึง catch-all ของ
     // mirrorRemoteImage ซึ่งจะตีความว่า "mirror ล้มเหลว" (regression ร้ายแรงกว่าไม่มีฟีเจอร์นี้เลย)
+    if (isImage) await recordImageSize(fileId, buffer)
     return fileId
   }
 }
@@ -170,6 +179,11 @@ export async function reconcileUploadedFile(opts: {
     contentType: opts.contentType,
     size: opts.size,
   })
+
+  // buffer อยู่ในมือแล้ว (ห้ามดาวน์โหลดเพิ่ม) — ผู้เรียกจำกัดเฉพาะ CHAT
+  if (opts.contentType.startsWith('image/')) {
+    await recordImageSize(claim.isNewRegistration ? opts.fileId : claim.survivorFileId, existingFile.buffer)
+  }
 
   if (claim.isNewRegistration) return { fileId: opts.fileId }
 
