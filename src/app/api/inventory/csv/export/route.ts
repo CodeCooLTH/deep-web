@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { getShopByUserId } from "@/services/shop.service";
 import { isProActive } from "@/services/inventory-entitlement.service";
 import { exportStockToCsv } from "@/services/inventory-stock.service";
-import { formatDate } from "@/lib/format-date";
+import { formatDateStampBE } from "@/lib/format-date";
 import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
 
 /**
@@ -40,10 +40,10 @@ export async function GET() {
   // 4. gen CSV จาก service แล้วส่งเป็นไฟล์แนบ
   const csv = await exportStockToCsv(shop.id);
 
-  // filename YYYYMMDD — ใช้ formatDate (SSOT src/lib/format-date.ts) แล้วตัด "-" ออก
-  // หมายเหตุ: formatDate คืนปี พ.ศ. ตามกฎระบบ (docs/conventions/date-format.md) เพื่อความ
-  // สอดคล้องทั้งระบบ แม้เป็นชื่อไฟล์ก็ยังถือเป็นสิ่งที่ผู้ใช้ (seller) เห็นโดยตรง
-  const yyyymmdd = formatDate(new Date()).replace(/-/g, "");
+  // filename ปี(พ.ศ.)เดือนวัน ติดกัน — เรียงตามวันในโฟลเดอร์ได้
+  // 🛑 ห้ามใช้ formatDate ตัด "-" (เดิมทำแบบนั้น) — formatDate เป็น วัน-เดือน-ปี แล้ว (2026-10-01)
+  // ชื่อไฟล์จะกลายเป็น 01102569 ที่เรียงข้ามเดือนไม่ได้
+  const yyyymmdd = formatDateStampBE(new Date());
   const filename = `deep-stock-export-${shop.id}-${yyyymmdd}.csv`;
 
   return new NextResponse(csv, {

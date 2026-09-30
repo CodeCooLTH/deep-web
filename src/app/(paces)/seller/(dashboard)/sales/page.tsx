@@ -12,8 +12,6 @@ import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
 import { resolveExpenseAccess } from '@/services/expense-access.service'
 import { requireActiveShop } from '@/lib/shop-context'
-// feature 00033 §5.3 — เที่ยงคืนตามปฏิทินไทย (ไม่ใช่ของ server ซึ่งเป็น UTC) ใช้ตัวเดียวกับ date-range.ts
-import { thaiMidnightUtc } from '@/lib/date-range'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -21,7 +19,7 @@ import SalesChart from './components/SalesChart'
 import SalesTable from './components/SalesTable'
 import SalesDateRange from './components/SalesDateRange'
 import type { DailyRow, SummaryData } from './components/data'
-import { resolveDateRange, type DateRangePreset } from '@/lib/date-range'
+import { resolveRangeFromParams } from '@/lib/date-range'
 import { resolveShopVertical } from '@/lib/lodging'
 import { resolveOrderVocab, FINANCE_MENU_LABEL } from '@/lib/seller-menu'
 import { resolveFinanceTab, resolveDataCompleteness, FINANCE_TAB_PARAM } from '@/lib/finance-tabs'
@@ -35,44 +33,7 @@ import ReceivableList from './components/ReceivableList'
 import PnlReportCard from '../expenses/components/PnlReportCard'
 import ExpenseWorkspace from '../expenses/components/ExpenseWorkspace'
 
-/** preset ที่ยอมรับจาก ?range= — ชุดเดียวกับหน้า /expenses (ห้ามมีสองชุด) */
-const RANGE_PRESETS = ['today', '7d', '30d', 'month', 'custom'] as const
-
 export const metadata: Metadata = { title: 'ภาพรวมยอดขาย' }
-
-function parseDate(s?: string, fallback?: Date): Date {
-  if (!s) return fallback ?? new Date()
-  const d = new Date(s)
-  return isNaN(d.getTime()) ? (fallback ?? new Date()) : d
-}
-
-/**
- * "YYYY-MM-DD" จาก getter ตาม server-local ของ Date instance (I-1, 2026-08-06)
- *
- * ใช้คู่กับ from/toExcl ที่สร้างจาก getter ชุดเดียวกัน (thaiMidnightUtc(fromLocal.getFullYear()/
- * getMonth()/getDate())) ด้านล่าง — ห้ามใช้ thaiDayKey(instant) กับ toLocal เพราะ monthRange()
- * ปิดท้ายด้วย to.setHours(23,59,59,999) แบบ server-local: บน prod (Vercel, TZ=UTC)
- * instant นั้นตกไปอยู่ 06:59 น. ของ "วันถัดไป" ตามเวลาไทย → thaiDayKey อ่านผิดวันไปหนึ่งวัน
- * (ชิปเขียน "1 ก.ย." ทั้งที่กราฟ/ตารางข้างล่างยังถูก เพราะ from/toExcl ใช้ getter ตัวนี้อยู่แล้ว)
- * บั๊กนี้ไม่ reproduce บนเครื่อง dev ที่ TZ=Asia/Bangkok — ต้องทดสอบด้วย TZ=UTC เท่านั้น
- */
-function localDayKey(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function monthRange(): { from: Date; to: Date } {
-  const from = new Date()
-  from.setDate(1)
-  from.setHours(0, 0, 0, 0)
-  const to = new Date(from)
-  to.setMonth(to.getMonth() + 1)
-  to.setDate(0)
-  to.setHours(23, 59, 59, 999)
-  return { from, to }
-}
 
 /**
  * สร้างรายการวันตามปฏิทินไทย จาก from (เที่ยงคืนไทย, รวม) ถึง toExcl (เที่ยงคืนไทย, ไม่รวม)
@@ -95,8 +56,6 @@ export default async function SalesPage({
   searchParams: Promise<{ from?: string; to?: string; tab?: string; range?: string; start?: string; end?: string }>
 }) {
   const sp = await searchParams
-  const { from: fromStr, to: toStr } = sp
-
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
@@ -105,14 +64,22 @@ export default async function SalesPage({
   if (!active) redirect('/shop')
   const shop = active.shop
 
-  const { from: defFrom, to: defTo } = monthRange()
-  const fromLocal = parseDate(fromStr, defFrom)
-  const toLocal = parseDate(toStr, defTo)
-  // feature 00033 §5.3 — ขอบวันต้องเป็นเที่ยงคืน "เวลาไทย" ไม่ใช่ของ server (ซึ่งเป็น UTC บน Vercel)
-  // เดิม to.setHours(23,59,59,999) = 23:59 UTC = 06:59 น. ของวันถัดไปตามเวลาไทย
-  // → ออเดอร์เช้ามืดของวันถัดไปถูกนับเข้าช่วงนี้ ส่วนออเดอร์เที่ยงคืนถึงเช้าของวันแรกหลุดออก
-  const from = thaiMidnightUtc(fromLocal.getFullYear(), fromLocal.getMonth(), fromLocal.getDate())
-  const toExcl = thaiMidnightUtc(toLocal.getFullYear(), toLocal.getMonth(), toLocal.getDate() + 1)
+  /**
+   * ช่วงเวลา — **ชุดเดียวทุกแท็บ** (`?range=` + `start`/`end`) ผ่าน resolveRangeFromParams (2026-10-01)
+   *
+   * 🛑 เดิมแท็บยอดเก็บเงินอ่าน `?from=&to=` แต่แท็บกำไร/ค่าใช้จ่ายอ่าน `?range=` ⇒ สลับแท็บแล้ว
+   * ช่วงเวลาหาย และ default ไม่ตรงกัน (ทั้งเดือน vs 30 วัน) · ตอนนี้ default = "เดือนนี้" ทุกแท็บ
+   * (วันที่ 1 ถึงวันนี้ ตามนิยามเดียวของ resolveDateRange) · `?from=&to=` ยังรับเป็นลิงก์เก่า
+   *
+   * ขอบวันเป็นเที่ยงคืนเวลาไทยจาก resolveDateRange (feature 00033 §5.3) — ห้ามคำนวณจาก getter
+   * ของ Date ที่ server (UTC บน Vercel) ซึ่งเคยทำให้ออเดอร์เช้ามืดตกไปผิดวัน
+   */
+  const period = resolveRangeFromParams(sp, 'month')
+  const from = period.resolved.orderRange.gte
+  const toExcl = period.resolved.orderRange.lt
+  /** ป้ายช่วงเวลาที่ผู้ใช้อ่าน — วัน-เดือน-ปี พ.ศ. ผ่านตัวกลาง (เดิมหัวการ์ดกำไรโชว์ "2026-09-01" ดิบ) */
+  const periodLabel = `${formatDate(period.resolved.label.start)} – ${formatDate(period.resolved.label.end)}`
+  const rangeFilter = <SalesDateRange range={period.preset} customDates={period.custom} />
 
   /**
    * ค่าใช้จ่าย (feature 00016) มี gate สิทธิ์ของตัวเอง — หน้านี้ไม่มี. ไม่ผ่าน gate = ไม่ query
@@ -137,25 +104,12 @@ export default async function SalesPage({
   const tab = isServiceQueue ? resolveFinanceTab(sp[FINANCE_TAB_PARAM]) : 'collect'
   const vocab = resolveOrderVocab(shop.vertical)
 
-  /**
-   * ช่วงเวลาของแท็บกำไร/ค่าใช้จ่ายใช้ `?range=` (ชุดเดียวกับหน้า /expenses)
-   * ส่วนแท็บยอดเก็บเงินใช้ `?from=&to=` ตามที่ SalesDateRange/SalesChart ใช้อยู่เดิม
-   *
-   * 🛑 ตั้งใจให้แต่ละแท็บถือของเดิมของตัวเอง ไม่บังคับรวมในรอบนี้ — การเปลี่ยนแกนเวลาของ
-   * SalesChart/SalesTable กระทบร้าน vertical อื่นที่ใช้คอมโพเนนต์ชุดเดียวกันอยู่ ซึ่งอยู่นอก
-   * ขอบเขตที่เคาะไว้ (ทั้งสองพารามิเตอร์ถูกคงไว้ใน URL เสมอ ดู FinanceTabs + ExpenseWorkspace.syncUrl)
-   */
-  const preset = (RANGE_PRESETS as readonly string[]).includes(sp.range ?? '')
-    ? (sp.range as DateRangePreset)
-    : '30d'
-  const usablePreset = preset === 'custom' && (!sp.start || !sp.end) ? '30d' : preset
-
   if (isServiceQueue && canSeeFinance && tab !== 'collect') {
-    const range = resolveDateRange(usablePreset, sp.start, sp.end)
-    const rangeQs = new URLSearchParams({ range: usablePreset })
-    if (usablePreset === 'custom' && sp.start && sp.end) {
-      rangeQs.set('start', sp.start)
-      rangeQs.set('end', sp.end)
+    const range = period.resolved
+    const rangeQs = new URLSearchParams({ range: period.preset })
+    if (period.custom) {
+      rangeQs.set('start', period.custom[0])
+      rangeQs.set('end', period.custom[1])
     }
 
     if (tab === 'expense') {
@@ -172,8 +126,8 @@ export default async function SalesPage({
           <FinanceTabs active={tab} panelId="finance-panel" />
           <div id="finance-panel" role="tabpanel" aria-labelledby={`finance-tab-${tab}`}>
             <ExpenseWorkspace
-              initialRange={usablePreset}
-              initialCustom={usablePreset === 'custom' && sp.start && sp.end ? [sp.start, sp.end] : null}
+              initialRange={period.preset}
+              initialCustom={period.custom}
               initialReport={report}
               initialExpenses={expenses.map(serializeExpense)}
               hasAnyExpenseEver={everRecorded}
@@ -203,6 +157,8 @@ export default async function SalesPage({
         <PageBreadcrumb title={FINANCE_MENU_LABEL} trail={[{ label: 'ธุรกิจ' }]} />
         <FinanceTabs active={tab} panelId="finance-panel" />
         <div id="finance-panel" role="tabpanel" aria-labelledby={`finance-tab-${tab}`}>
+          {/* แท็บนี้เคยไม่มีตัวเลือกช่วงเวลาเลย — เปลี่ยนได้ทาง URL อย่างเดียว (พบ 2026-10-01) */}
+          <div className="mb-1.25 flex min-w-0 justify-start sm:justify-end">{rangeFilter}</div>
           <IncompleteDataNotice
             completeness={completeness}
             costNoun={vocab.costNoun}
@@ -212,7 +168,7 @@ export default async function SalesPage({
           <PnlReportCard
             report={report}
             expenses={expenses.map(serializeExpense)}
-            rangeLabel={`${range.label.start} – ${range.label.end}`}
+            rangeLabel={periodLabel}
             orderNoun={vocab.noun}
             costNoun={vocab.costNoun}
             capped={!completeness.complete}
@@ -398,7 +354,7 @@ export default async function SalesPage({
       ? await getReceivables(shop.id, {
           orderRange: { gte: from, lt: toExcl },
           expenseRange: { gte: from, lt: toExcl },
-          label: { start: localDayKey(fromLocal), end: localDayKey(toLocal) },
+          label: period.resolved.label,
           prevRange: {
             orderRange: { gte: prevFrom, lt: from },
             expenseRange: { gte: prevFrom, lt: from },
@@ -417,13 +373,11 @@ export default async function SalesPage({
 
       {/* เลิกใช้ single-card ครอบทั้งหน้า — SalesChart render การ์ดสรุปแยกใบเองแล้ว (แบบหน้าสินค้า)
           ถ้ายังครอบอยู่จะกลายเป็นการ์ดซ้อนการ์ด ซึ่ง DESIGN.md §anti-slop ห้าม */}
-      <div className="mb-1.25 flex flex-wrap items-center justify-end gap-3">
-        {/* ใช้ fromLocal/toLocal (วันที่ตามที่เลือกจริง ไม่ shift) — from/toExcl ใช้เฉพาะกรอง order เท่านั้น
-            localDayKey ไม่ใช่ thaiDayKey — ดูเหตุผลที่นิยามฟังก์ชันด้านบน (I-1) */}
-        <SalesDateRange from={localDayKey(fromLocal)} to={localDayKey(toLocal)} />
+      <div className="mb-1.25 flex min-w-0 flex-wrap items-center justify-start gap-3 sm:justify-end">
+        {rangeFilter}
       </div>
 
-      <SalesChart daily={daily} summary={summary} />
+      <SalesChart daily={daily} summary={summary} periodLabel={periodLabel} />
 
       <div className="card mt-1.25">
         <SalesTable rows={daily} showFinance={canSeeFinance} />
@@ -435,7 +389,7 @@ export default async function SalesPage({
             summary={receivables.summary}
             initialItems={receivables.items}
             initialCursor={receivables.nextCursor}
-            rangeQuery={`range=custom&start=${localDayKey(fromLocal)}&end=${localDayKey(toLocal)}`}
+            rangeQuery={`range=custom&start=${period.resolved.label.start}&end=${period.resolved.label.end}`}
             basisNote={RECEIVABLE_BASIS_NOTE}
           />
         </div>

@@ -173,13 +173,14 @@ export default async function InventoryPage() {
     balance,
   )
 
-  // serialize ก่อนข้าม RSC boundary — Date→string (formatDateTime), images(Json)→image (string|null)
+  // serialize ก่อนข้าม RSC boundary — Date→ISO string (ตารางจัดรูปเอง), images(Json)→image (string|null)
   const rows: InventoryProductRow[] = products.map((p) => ({
     id: p.id,
     name: p.name,
     image: Array.isArray(p.images) && p.images.length > 0 ? (p.images[0] as string) : null,
     stockQty: p.stockQty,
-    updatedAt: formatDateTime(p.updatedAt),
+    // ISO ดิบ — ตารางต้องเรียงจากค่านี้ (ข้อความ วัน-เดือน-ปี เรียงเป็นสตริงไม่ได้) แล้วค่อยจัดรูปตอนแสดง
+    updatedAt: p.updatedAt.toISOString(),
   }))
 
   return (
