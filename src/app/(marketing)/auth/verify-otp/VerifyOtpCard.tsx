@@ -27,7 +27,8 @@ import AuthIllustrationWrapper from '@/views/pages/auth/AuthIllustrationWrapper'
 import OtpSlots from '@/app/(marketing)/_components/OtpSlots'
 
 // Config Imports
-import { currentYear, META_DATA } from '@/config/constants'
+import { META_DATA } from '@/config/constants'
+import { formatYearTH } from '@/lib/format-date'
 
 // Utils — กัน open-redirect ก่อนใช้ ?callbackUrl= ที่ carry มาจาก sign-in/sign-up (OQ-2)
 import { getSafeCallbackUrl } from '../_lib/safe-callback-url'
@@ -183,7 +184,7 @@ export default function VerifyOtpCard() {
             </form>
 
             <Typography className='mt-7 text-center text-[13px]' color='text.disabled'>
-              &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
+              &copy; {formatYearTH(new Date())} {META_DATA.name} — by {META_DATA.author}
             </Typography>
           </CardContent>
         </Card>

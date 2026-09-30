@@ -132,6 +132,7 @@ export default async function SalesPage({
               initialExpenses={expenses.map(serializeExpense)}
               hasAnyExpenseEver={everRecorded}
               orderNoun={vocab.noun}
+              costNoun={vocab.costNoun}
             />
           </div>
         </>
@@ -361,7 +362,7 @@ export default async function SalesPage({
    * รายการที่ยังเก็บเงินไม่ครบ — เฉพาะแท็บ "ยอดเก็บเงิน" ของร้านบริการที่มีสิทธิ์ดูการเงิน
    * ร้าน vertical อื่นไม่ยิง query นี้เลยสักครั้ง (NFR-01)
    *
-   * 🛑 ใช้ช่วงเดียวกับ `?from=&to=` ที่ตารางด้านล่างใช้ ไม่ใช่ `?range=` ของแท็บอื่น —
+   * 🛑 ใช้ช่วงเดียวกับการ์ด/กราฟ/ตารางของแท็บนี้ (`period` จาก resolveRangeFromParams ตัวเดียวทุกแท็บ) —
    * ยอดรวมบนการ์ดกับรายการที่ตามเก็บต้องมาจากช่วงเดียวกัน ไม่งั้นสองก้อนบนจอเดียวขัดกันเอง
    */
   const receivables =
@@ -413,6 +414,10 @@ export default async function SalesPage({
       {receivables && (
         <div className="mt-1.25">
           <ReceivableList
+            /* key = ช่วงเวลา — ReceivableList ก๊อป initialItems/cursor ลง useState และ Next 16 คง state ของ
+               client component ข้ามการเปลี่ยน search params ⇒ ไม่มี key จะค้างรายการของช่วงเก่า แล้ว
+               "ดูเพิ่ม" ส่ง cursor เก่าไปกับช่วงใหม่ ได้บิลปนกันสองช่วง (review 2026-10-01) */
+            key={`${period.resolved.label.start}_${period.resolved.label.end}`}
             summary={receivables.summary}
             initialItems={receivables.items}
             initialCursor={receivables.nextCursor}

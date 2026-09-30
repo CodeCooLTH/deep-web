@@ -25,6 +25,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { MOBILE_PHONE_RE } from '@/lib/phone'
+import { formatYearTH } from '@/lib/format-date'
 
 type Step = 'info' | 'warning' | 'otp' | 'success'
 type Check = 'idle' | 'checking' | 'ok' | 'taken' | 'invalid'
@@ -379,7 +380,7 @@ export default function RegisterClient() {
         )}
       </div>
 
-      {step !== 'success' && <p className="text-default-400 mt-7.5 text-center text-xs">© {new Date().getFullYear()} Deep</p>}
+      {step !== 'success' && <p className="text-default-400 mt-7.5 text-center text-xs">© {formatYearTH(new Date())} Deep</p>}
     </AuthCardShell>
   )
 }

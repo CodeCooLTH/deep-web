@@ -35,7 +35,6 @@ const LINKS = [
 export default function PublicProfileFooter() {
   /* ปี พ.ศ. คำนวณจากเวลาจริง ไม่ hardcode — footer ที่ค้างปีเก่าคือสัญญาณว่าเว็บไม่มีคนดูแล
      ซึ่งบั่นทอนสิ่งเดียวกับที่หน้านี้พยายามสร้าง (RSC render ฝั่งเซิร์ฟเวอร์ ไม่มีปัญหา hydration) */
-  const yearBE = formatYearTH(new Date())
 
   return (
     <Box
@@ -91,7 +90,7 @@ export default function PublicProfileFooter() {
       </Box>
 
       <Typography variant='caption' color='text.disabled' sx={{ display: 'block', mt: 2 }} /* `mbs` ไม่ใช่คีย์ `sx` — no-op */>
-        {`© ${yearBE} ${themeConfig.templateName}`}
+        {`© ${formatYearTH(new Date())} ${themeConfig.templateName}`}
       </Typography>
     </Box>
   )

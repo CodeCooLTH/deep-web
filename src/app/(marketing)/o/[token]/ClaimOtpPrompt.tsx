@@ -32,7 +32,8 @@ import Logo from '@components/layout/shared/Logo'
 
 import AuthIllustrationWrapper from '@/views/pages/auth/AuthIllustrationWrapper'
 import OtpSlots from '@/app/(marketing)/_components/OtpSlots'
-import { currentYear, META_DATA } from '@/config/constants'
+import { META_DATA } from '@/config/constants'
+import { formatYearTH } from '@/lib/format-date'
 
 type Props = {
   /** publicToken ของ order — ใช้เรียก POST /api/orders/[token]/claim */
@@ -182,7 +183,7 @@ export default function ClaimOtpPrompt({ token, phone, maskedPhone }: Props) {
 
             {/* text.secondary ไม่ใช่ text.disabled — 0.4 ได้ 2.30:1 ตก AA (audit 2026-08-11) */}
             <Typography className='mt-7 text-center text-[13px]' color='text.secondary'>
-              &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
+              &copy; {formatYearTH(new Date())} {META_DATA.name} — by {META_DATA.author}
             </Typography>
           </CardContent>
         </Card>

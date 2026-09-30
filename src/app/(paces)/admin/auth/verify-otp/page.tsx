@@ -1,7 +1,8 @@
 import authCard from '@/assets/images/auth-card-bg.svg'
 import authImg from '@/assets/images/auth.jpg'
 import AuthLogo from '@/components/AuthLogo'
-import { currentYear, META_DATA } from '@/config/constants'
+import { META_DATA } from '@/config/constants'
+import { formatYearTH } from '@/lib/format-date'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import { Suspense } from 'react'
@@ -24,7 +25,7 @@ export default function AdminVerifyOtpPage() {
 
             <div className="card rounded-2xl">
               <div className="grid grid-cols-1 lg:grid-cols-2">
-                <div className="card-body relative p-12.5 min-h-[580px]">
+                <div className={'card-body relative p-12.5 min-h-[580px]' /* HR7 carve-out: ความสูงการ์ดคู่ภาพ auth ของธีม Paces (ไม่มี token ขนาดนี้) */}>
                   <div className="mb-7.5 flex flex-col items-center justify-center text-center">
                     <AuthLogo />
                     <h4 className="mt-5 mb-2 text-base font-bold">ยืนยันรหัส OTP</h4>
@@ -51,12 +52,12 @@ export default function AdminVerifyOtpPage() {
                       → ถ้าใช้ var() เฉพาะ stop แรก พอ useLayoutContext สลับเป็น dark (รวมโหมด system ตาม OS)
                       stop แรกจะกลายเป็น #4b4d5c ขณะที่อีก 2 stop ยังเป็นโทนเดิม = ไล่สีขาด ไม่ต่อเนื่อง
                       scrim นี้ต้องเป็นโทนเดียวคงที่ทุกธีม จึงคง literal ไว้ (Impeccable audit 2026-07-22 S-A9: WONTFIX) */}
-                  <div className="absolute inset-0 flex items-end justify-center rounded-e-sm p-9 [background:linear-gradient(to_top,#313a46,rgba(49,58,70,.8),rgba(49,58,70,.5))]"></div>
+                  <div className={'absolute inset-0 flex items-end justify-center rounded-e-sm p-9 [background:linear-gradient(to_top,#313a46,rgba(49,58,70,.8),rgba(49,58,70,.5))]' /* HR7 carve-out: scrim โทนคงที่ทุกธีม — เหตุผลเต็มในคอมเมนต์ด้านบน (S-A9 WONTFIX) */}></div>
                 </div>
               </div>
             </div>
             <p className="text-default-400 mt-5 text-center text-sm">
-              &copy; {currentYear} {META_DATA.name} - by <span>{META_DATA.author}</span>
+              &copy; {formatYearTH(new Date())} {META_DATA.name} - by <span>{META_DATA.author}</span>
             </p>
           </div>
         </div>

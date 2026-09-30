@@ -120,6 +120,7 @@ import Icon from '@/components/wrappers/Icon'
 import ApexChart from '@/components/wrappers/ApexChart'
 import { getColor } from '@/utils/helpers'
 import { formatMonthYearTH, toBuddhistYear } from '@/lib/format-date'
+import { todayThaiIsoDate } from '@/lib/date-range'
 import { formatNumberNoSymbol, pctChangeVsPrev } from '@/lib/format-money'
 import type { ApexOptions } from 'apexcharts'
 import type { SalesSeries } from '../_constants/command-center'
@@ -363,9 +364,8 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
   // overlay นี้ mount เฉพาะตอนเปิด จึงตรึงหน้าข้างหลังตลอดอายุของมัน (ดู useLockBodyScroll)
   useLockBodyScroll(true)
 
-  const now = new Date()
-  const nowYear = now.getFullYear()
-  const nowMonth = now.getMonth() + 1
+  // "เดือนนี้" ตามปฏิทินไทย ไม่ใช่ของเบราว์เซอร์ — ตัวเดียวกับที่ server ตัดยอด (review 2026-10-01)
+  const [nowYear, nowMonth] = todayThaiIsoDate().split('-').map(Number)
 
   /**
    * แท็บการเงิน (00067) — เปิดเฉพาะร้านบริการ ร้าน vertical อื่นไม่เห็นแถบนี้เลย

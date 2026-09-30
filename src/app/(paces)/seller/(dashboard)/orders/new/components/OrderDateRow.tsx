@@ -212,7 +212,7 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
                   min={toDatetimeLocalValue(new Date(minMs))}
                   max={toDatetimeLocalValue(new Date(maxMs))}
                   // helper (ขอบเขตที่เลือกได้) ต้องถูกอ่านเสมอ ไม่ใช่โผล่ตอนพลาดไปแล้ว — มันคือสิ่งที่กันไม่ให้พลาด
-                  aria-describedby={rejectReason ? `${errorId} ${helperId} ${inputId}-be` : `${helperId} ${inputId}-be`}
+                  aria-describedby={rejectReason ? `${errorId} ${helperId}` : `${helperId} ${inputId}-be`}
                   onChange={(e) => field.onChange(e.target.value || undefined)}
                 />
                 <button
@@ -232,7 +232,9 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
               </div>
               {/* ช่อง datetime-local ของเบราว์เซอร์โชว์ปีตามเครื่อง — กำกับ พ.ศ. ให้ตรงกับทั้งระบบ */}
               {/* ไม่มีค่า = ช่องโชว์ "ตอนนี้" → ป้ายต้องโชว์ค่าเดียวกัน ไม่ใช่หายไป */}
-              <BeDateHint id={`${inputId}-be`} value={field.value ?? toDatetimeLocalValue(now)} withTime />
+              {!rejectReason && (
+                <BeDateHint id={`${inputId}-be`} value={field.value ?? toDatetimeLocalValue(now)} withTime />
+              )}
               {rejectReason && (
                 <p id={errorId} className="mt-1 text-xs text-danger-ink" role="alert">
                   {rejectReason}

@@ -227,10 +227,10 @@ export default function BookingForm({ rooms }: { rooms: Room[] }) {
               <label className="form-label">
                 วันเข้าพัก<span className="text-danger ms-0.5">*</span>
               </label>
-              <input type="date" className="form-input" aria-describedby="booking-checkin-be" {...register('checkIn')} />
+              <input type="date" className="form-input" aria-describedby={errors.checkIn ? 'booking-checkin-err' : 'booking-checkin-be'} {...register('checkIn')} />
               {/* มี error แล้วซ่อนป้าย พ.ศ. — กติกาเดียวกับ ExpenseFormModal (ข้อความ error คือสิ่งที่ต้องอ่าน) */}
               {!errors.checkIn && <BeDateHint id="booking-checkin-be" value={checkIn} />}
-              {errors.checkIn && <p className="text-danger mt-1 text-sm">{errors.checkIn.message}</p>}
+              {errors.checkIn && <p id="booking-checkin-err" className="text-danger mt-1 text-sm">{errors.checkIn.message}</p>}
             </div>
 
             <div>
@@ -241,11 +241,11 @@ export default function BookingForm({ rooms }: { rooms: Room[] }) {
                 type="date"
                 className="form-input"
                 min={checkIn || undefined}
-                aria-describedby="booking-checkout-be"
+                aria-describedby={errors.checkOut ? 'booking-checkout-err' : 'booking-checkout-be'}
                 {...register('checkOut')}
               />
               {!errors.checkOut && <BeDateHint id="booking-checkout-be" value={watch('checkOut')} />}
-              {errors.checkOut && <p className="text-danger mt-1 text-sm">{errors.checkOut.message}</p>}
+              {errors.checkOut && <p id="booking-checkout-err" className="text-danger mt-1 text-sm">{errors.checkOut.message}</p>}
             </div>
           </div>
 

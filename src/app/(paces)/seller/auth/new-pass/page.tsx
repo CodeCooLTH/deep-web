@@ -10,7 +10,8 @@
  */
 
 import AuthLogo from '@/components/AuthLogo'
-import { currentYear, META_DATA } from '@/config/constants'
+import { META_DATA } from '@/config/constants'
+import { formatYearTH } from '@/lib/format-date'
 import type { Metadata } from 'next'
 import NewPassForm from './components/NewPassForm'
 import AuthCardShell from '../components/AuthCardShell'
@@ -37,7 +38,7 @@ export default function SellerNewPassPage() {
       </div>
 
       <p className="text-default-400 mt-7.5 text-center">
-        &copy; {currentYear} {META_DATA.name}
+        &copy; {formatYearTH(new Date())} {META_DATA.name}
       </p>
     </AuthCardShell>
   )

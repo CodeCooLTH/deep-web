@@ -16,7 +16,8 @@ import { sessionUserId } from '@/lib/session-user'
 import { safeCallbackUrl } from '@/lib/safe-callback-url'
 import AuthLogo from '@/components/AuthLogo'
 import { shouldHideSignUp } from '@/lib/app-shell-server'
-import { currentYear, META_DATA } from '@/config/constants'
+import { META_DATA } from '@/config/constants'
+import { formatYearTH } from '@/lib/format-date'
 import { getT } from '@/i18n/server'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -117,7 +118,7 @@ export default async function SellerSignInPage({
       </div>
 
       <p className="text-default-400 mt-7.5 text-center">
-        &copy; {currentYear} {META_DATA.name}
+        &copy; {formatYearTH(new Date())} {META_DATA.name}
       </p>
     </AuthCardShell>
   )

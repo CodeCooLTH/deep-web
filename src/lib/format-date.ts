@@ -70,6 +70,24 @@ export function formatDate(input: Date | string | number | null | undefined): st
 }
 
 /**
+ * วันที่ตาม **ปฏิทินของเครื่องผู้ใช้** (local getters) — สำหรับค่าจากตัวเลือกวันที่ฝั่ง client เท่านั้น
+ * (Flatpickr / FullCalendar คืน Date เที่ยงคืน local ของวันที่ผู้ใช้จิ้ม)
+ *
+ * 🛑 ห้ามใช้ thaiDayKey/formatDate กับค่าพวกนี้ — สองตัวนั้นตัดวันด้วยเวลาไทย เครื่องที่อยู่โซนตะวันออก
+ * ของ UTC+7 (เช่น ญี่ปุ่น UTC+9) เที่ยงคืน local = 22:00 ของวันก่อนตามเวลาไทย ⇒ วันเลื่อนไป 1 วัน
+ * (review 2026-10-01) · ค่าที่เป็น "เวลาจริงของเหตุการณ์" (createdAt ฯลฯ) ยังต้องใช้เวลาไทยตามเดิม
+ */
+export function localDayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** "07-06-2569" ของวันที่ตามปฏิทินเครื่อง (คู่กับ localDayKey) — ใช้แสดงค่าที่ตัวเลือกวันที่ถืออยู่ */
+export function formatLocalCalendarDate(d: Date): string {
+  if (isNaN(d.getTime())) return '—'
+  return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear() + BE_OFFSET}`
+}
+
+/**
  * "07-06" — วัน-เดือน ไม่มีปี (ป้ายแกนกราฟรายวันที่ที่แคบ)
  * ปีดูได้จากช่วงวันที่ที่หัวการ์ด และ tooltip ของกราฟใช้ formatDate เต็ม
  */
