@@ -765,21 +765,31 @@ export const FINANCE_MENU_SLUGS = { sales: 'seller:sales', expenses: 'seller:exp
 /** ป้ายของเมนูเรื่องเงินเมื่อสองหน้าถูกรวมเป็นหน้าเดียว (feature 00067) */
 export const FINANCE_MENU_LABEL = 'การเงินร้าน'
 
+/** ปลายทางของเมนู "ค่าใช้จ่าย" เมื่อหน้านั้นถูกยกไปเป็นแท็บแล้ว */
+export const FINANCE_EXPENSE_TAB_URL = '/sales?tab=expense'
+
 /**
- * applyFinanceMenu — ยุบเมนูเรื่องเงินให้เหลือรายการเดียวสำหรับร้านบริการ (feature 00067 FR-FIN-04)
+ * applyFinanceMenu — ชี้เมนูเรื่องเงินของร้านบริการให้ไปที่หน้าเดียวกัน (feature 00067 FR-FIN-04)
  *
  * ร้าน `SERVICE_QUEUE` เข้าถึงทั้งกำไรขาดทุน ยอดเก็บเงิน และค่าใช้จ่าย ผ่านแท็บของ `/sales`
- * รายการ `seller:expenses` จึงพาไปที่เดียวกับ `seller:sales` — เมนูสองรายการที่พาไปหน้าเดียวกัน
- * อ่านเป็นสองที่คนละเรื่อง ทั้งที่มันคือที่เดียวกัน
+ *   · `seller:sales`    → ป้าย "การเงินร้าน" (หน้ารวม เปิดที่แท็บกำไรขาดทุน)
+ *   · `seller:expenses` → ป้ายเดิม แต่ **ชี้ไปที่แท็บค่าใช้จ่ายโดยตรง**
  *
- * 🛑 **ลบรายการ ไม่ใช่ลบ slug** — `SellerShortcutPreference` ของผู้ใช้ผูกกับ `seller:expenses`
- * ไว้แล้ว การคง slug ไว้ในระบบ (และให้ route เดิม redirect) ทำให้ shortcut ที่ตั้งไว้ยังกดได้
+ * 🛑 **แก้ 2026-09-30 หลัง user เจอบนเครื่องจริง: เปลี่ยนจาก "ลบรายการ" เป็น "ชี้ใหม่"**
+ *
+ * รอบแรกผมถอด `seller:expenses` ออกจากเมนูทั้งรายการ — ซึ่งพังกว่าที่คิด เพราะ
+ * `buildEligibleCatalog()` ของเมนูลัด (`shortcut.service.ts`) สร้าง catalog จากเมนูชุดนี้
+ * ⇒ slug ที่ถูกถอดจะตกไปอยู่ในกอง `unavailable` ของ `buildState()` แล้วโผล่ในชีตแก้ไขเมนูลัด
+ * ว่า **"ไม่พร้อมใช้งาน"** ทั้งที่ของยังใช้ได้ปกติ (ข้อมูลจริงบน prod: 2 ใน 3 คนของร้านอ้างอิง
+ * ปักเมนูลัดนี้ไว้) — ผู้ใช้อ่านว่าระบบพัง ไม่ใช่ว่าเมนูถูกย้าย
+ *
+ * การชี้ใหม่แก้ได้ทั้งสองทางพร้อมกัน: เมนูลัดที่ผู้ใช้ตั้งไว้ยังกดได้และพาไปถูกแท็บ ·
+ * ไม่มีรายการ "ไม่พร้อมใช้งาน" · และเมนูซ้ายยังพาไปหน้าเดียวกันทั้งคู่ (คนละแท็บ ไม่ใช่คนละเรื่อง)
  *
  * 🛑 อยู่นอกสุดของ pipeline โดยตั้งใจ — ต้องรันหลัง `applyExpenseMenu` ซึ่งอาจถอด
- * `seller:expenses` ไปแล้วเมื่อไม่มีสิทธิ์ (ถอดซ้ำไม่มีผล) และหลัง `applyOrderLabel`
- * ซึ่งแตะป้ายของเมนูออเดอร์คนละรายการกัน
+ * `seller:expenses` ไปแล้วเมื่อไม่มีสิทธิ์ (ชี้ใหม่ให้รายการที่ถูกถอดไปแล้วไม่มีผล ถูกต้องแล้ว)
  *
- * vertical ที่ไม่รู้จัก → ไม่แตะอะไรเลย (fail-safe: เมนูเดิมครบดีกว่าเมนูที่หายไปโดยไม่มีคนสั่ง)
+ * vertical ที่ไม่รู้จัก → ไม่แตะอะไรเลย (fail-safe: เมนูเดิมครบดีกว่าเมนูที่เพี้ยนโดยไม่มีคนสั่ง)
  */
 export function applyFinanceMenu(items: MenuItemType[], vertical: string): MenuItemType[] {
   if (vertical !== 'SERVICE_QUEUE') return items
@@ -788,11 +798,12 @@ export function applyFinanceMenu(items: MenuItemType[], vertical: string): MenuI
       ? group
       : {
           ...group,
-          children: group.children
-            .filter((child) => child.slug !== FINANCE_MENU_SLUGS.expenses)
-            .map((child) =>
-              child.slug === FINANCE_MENU_SLUGS.sales ? { ...child, label: FINANCE_MENU_LABEL } : child,
-            ),
+          children: group.children.map((child) => {
+            if (child.slug === FINANCE_MENU_SLUGS.sales) return { ...child, label: FINANCE_MENU_LABEL }
+            if (child.slug === FINANCE_MENU_SLUGS.expenses)
+              return { ...child, url: FINANCE_EXPENSE_TAB_URL }
+            return child
+          }),
         },
   )
 }
