@@ -50,6 +50,14 @@
 - ชื่อไฟล์: `formatDateStampBE` (ปีนำหน้า) ไม่ใช่ `formatDate(...).replace(/-/g, '')`
 - เทียบ "วันเดียวกันไหม" ด้วยความเท่ากันของ `formatDate` ยังใช้ได้ (ไม่ได้เรียงลำดับ) แต่ `thaiDayKey`/`isSameBangkokDay` ชัดกว่า
 
+## ช่องเลือกวันที่ (2026-10-01)
+
+- **Flatpickr** (ตัวกรองช่วงเวลา) ใช้ `DateRangeControl` เท่านั้น — แสดงค่าผ่าน `formatDate` (พ.ศ.) + locale ไทย +
+  หัวปฏิทินเป็นปี พ.ศ. (`syncBuddhistYear`) · ห้ามตั้ง `dateFormat` ของ Flatpickr เอง
+- **ช่องของเบราว์เซอร์** (`<input type="date|datetime-local">`) แสดงปีตามเครื่อง เว็บคุมไม่ได้ ⇒ ใต้ช่องต้องมี
+  `<BeDateHint id=… value=… />` (`src/components/safepay/BeDateHint.tsx`) และผูก `id` เข้า `aria-describedby` ของช่อง
+  · มี error อยู่ให้ซ่อนป้าย (ข้อความ error คือสิ่งที่ต้องอ่าน)
+
 ## 🛑 กฎ
 
 1. **ห้าม format วันที่เองทุกกรณี** — ห้ามเรียก `toLocaleDateString` / `toLocaleTimeString` / `toLocaleString` (กับ Date) / `Intl.DateTimeFormat` / ต่อ string `getFullYear()+543` เองในไฟล์ component/page/view ใด ๆ

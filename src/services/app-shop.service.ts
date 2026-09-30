@@ -8,6 +8,7 @@
 import { prisma } from '@/lib/prisma'
 import { toAuctionDTO } from '@/services/auction.service'
 import { getTierDisplay } from '@/services/trust-score.service'
+import { formatMonthYearTH } from '@/lib/format-date'
 
 const PAGE_SIZE = 20
 
@@ -125,7 +126,8 @@ export async function getShopDetail(id: string) {
   ])
 
   const joined = s.createdAt
-  const joinedMonth = `${joined.getMonth() + 1}/${joined.getFullYear()}`
+  // "ก.ย. 2569" — ปี พ.ศ. + เดือนตามเวลาไทยผ่านตัวกลาง (เดิม "9/2026" ค.ศ. และตัดเดือนด้วย tz ของ server)
+  const joinedMonth = formatMonthYearTH(joined)
 
   return {
     id: s.id,

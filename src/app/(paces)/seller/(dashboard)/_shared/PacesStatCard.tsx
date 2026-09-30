@@ -42,6 +42,13 @@ export type PacesStatCardProps = {
   bulletClass: string
   metric: string
   metricValue: string
+  /**
+   * ข้อความเตือนที่ **ต้องเห็นบนจอ** (ไม่ใช่ tooltip) — มือถือไม่มี hover ข้อความใน `note` จึงไม่มีใครเห็น
+   * ใช้เมื่อตัวเลขบนการ์ดเป็นเพดานบน/ข้อมูลไม่ครบ (2026-10-01 · review HR8)
+   */
+  caption?: string
+  /** `neutral` = ทิศทางขึ้น/ลงไม่ได้แปลว่าดี/แย่ (เช่นยอดที่ยังรอยืนยัน) → badge สีกลาง ไม่ใช่เขียว/แดง */
+  changeTone?: 'semantic' | 'neutral'
 }
 
 export default function PacesStatCard({
@@ -56,6 +63,8 @@ export default function PacesStatCard({
   bulletClass,
   metric,
   metricValue,
+  caption,
+  changeTone = 'semantic',
 }: PacesStatCardProps) {
   return (
     <div className="card">
@@ -65,7 +74,8 @@ export default function PacesStatCard({
             {title}
           </h5>
           {note && (
-            <span className="text-default-700 shrink-0" title={note} aria-label={note}>
+            // role="img" — aria-label บน span เปล่าถูก screen reader ทิ้ง (aria-name-requires-supporting-role.md)
+            <span role="img" className="text-default-700 shrink-0" title={note} aria-label={note}>
               <Icon icon="info-circle" className="text-base" />
             </span>
           )}
@@ -81,7 +91,11 @@ export default function PacesStatCard({
               title={changeHint ?? 'เทียบช่วงก่อนหน้า'}
               className={cn(
                 'badge ms-auto shrink-0 py-0 text-xs font-medium',
-                changePercent >= 0 ? 'bg-success/15 text-success-ink' : 'bg-danger/15 text-danger-ink',
+                changeTone === 'neutral'
+                  ? 'bg-light text-dark'
+                  : changePercent >= 0
+                    ? 'bg-success/15 text-success-ink'
+                    : 'bg-danger/15 text-danger-ink',
               )}
             >
               {changePercent >= 0 ? '+' : ''}
@@ -99,6 +113,7 @@ export default function PacesStatCard({
           </span>
           <span className="shrink-0 font-semibold">{metricValue}</span>
         </div>
+        {caption && <p className="text-warning-ink mt-2 mb-0 text-xs">{caption}</p>}
       </div>
     </div>
   )

@@ -15,14 +15,15 @@
  * ⇒ ยกเป็นตัวเดียว ใช้ร่วมกัน ไม่ให้แต่ละแท็บมีตัวกรองคนละแบบอีก
  *
  * 🛑 ปฏิทินแสดงผลผ่าน formatDate ตัวกลาง (วัน-เดือน-ปี พ.ศ.) — ห้ามตั้ง dateFormat ของ Flatpickr เอง
- * (หัวปฏิทินด้านในยังเป็นปี ค.ศ. เพราะ Flatpickr ไม่มีโหมด พ.ศ. — ช่องที่อ่านค่าเป็น พ.ศ. ถูกต้อง)
+ * หัวปฏิทินด้านใน: Flatpickr ไม่มีโหมด พ.ศ. (ช่องปีเป็น <input type=number> ค.ศ.) ⇒ syncBuddhistYear
+ * ซ่อนช่องนั้นแล้ววางป้ายปี พ.ศ. แทน (เลื่อนปีด้วยลูกศรเดือนได้เหมือนเดิม) — 2026-10-01
  */
 import { useMemo } from 'react'
 import { Thai } from 'flatpickr/dist/l10n/th'
 import Flatpickr from '@/components/wrappers/Flatpickr'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
-import { formatDate, thaiDayKey } from '@/lib/format-date'
+import { formatDate, thaiDayKey, toBuddhistYear } from '@/lib/format-date'
 import { DATE_RANGE_OPTIONS, type DateRangePreset } from '@/lib/date-range'
 
 type Props = {
@@ -33,6 +34,28 @@ type Props = {
   onCustomChange: (dates: [string, string]) => void
   /** กำลังโหลดผลของช่วงใหม่ — ปิดปุ่มกันกดซ้อน */
   pending?: boolean
+}
+
+type FlatpickrLike = { currentYear: number; yearElements?: HTMLInputElement[] }
+
+/**
+ * แทนช่องปี ค.ศ. บนหัวปฏิทินด้วยป้าย พ.ศ. — เรียกทุกครั้งที่เปิด/เปลี่ยนเดือน/เปลี่ยนปี
+ * ทำงานกับ DOM ของ Flatpickr ตรง ๆ เพราะไม่มี option ให้ตั้งปฏิทินพุทธศักราช
+ */
+function syncBuddhistYear(_d: Date[], _s: string, fp: FlatpickrLike) {
+  for (const input of fp.yearElements ?? []) {
+    const wrapper = input.parentElement
+    if (!wrapper) continue
+    wrapper.style.display = 'none'
+    let label = wrapper.nextElementSibling as HTMLElement | null
+    if (!label || !label.classList.contains('fp-be-year')) {
+      label = document.createElement('span')
+      // คลาส Tailwind ปกติ (ไม่ใช่ inline style) — ป้ายนี้แค่อ่าน เปลี่ยนปีด้วยลูกศรเดือนของ Flatpickr
+      label.className = 'fp-be-year ps-1 font-semibold'
+      wrapper.after(label)
+    }
+    label.textContent = String(toBuddhistYear(fp.currentYear))
+  }
 }
 
 /** "YYYY-MM-DD" → Date เที่ยงคืน local (Flatpickr ทำงานบน local time ของเบราว์เซอร์) */
@@ -50,6 +73,10 @@ export default function DateRangeControl({ range, customDates, onRangeChange, on
       formatDate: (d: Date) => formatDate(d),
       defaultDate: customDates ? customDates.map(isoToLocalDate) : undefined,
       disableMobile: true,
+      onReady: syncBuddhistYear,
+      onOpen: syncBuddhistYear,
+      onMonthChange: syncBuddhistYear,
+      onYearChange: syncBuddhistYear,
     }),
     [customDates],
   )
@@ -68,8 +95,9 @@ export default function DateRangeControl({ range, customDates, onRangeChange, on
           <button
             key={opt.value}
             type="button"
-            disabled={pending}
-            onClick={() => onRangeChange(opt.value)}
+            // aria-disabled ไม่ใช่ disabled — disabled ดึงโฟกัสออกจากปุ่มที่เพิ่งกด (คีย์บอร์ด/screen reader หลุดตำแหน่ง)
+            aria-disabled={pending || undefined}
+            onClick={() => !pending && onRangeChange(opt.value)}
             aria-pressed={range === opt.value}
             className={cn(
               'btn btn-sm min-h-11 shrink-0 rounded-full',
@@ -87,8 +115,9 @@ export default function DateRangeControl({ range, customDates, onRangeChange, on
           <button
             key={opt.value}
             type="button"
-            disabled={pending}
-            onClick={() => onRangeChange(opt.value)}
+            // aria-disabled ไม่ใช่ disabled — disabled ดึงโฟกัสออกจากปุ่มที่เพิ่งกด (คีย์บอร์ด/screen reader หลุดตำแหน่ง)
+            aria-disabled={pending || undefined}
+            onClick={() => !pending && onRangeChange(opt.value)}
             aria-pressed={range === opt.value}
             className={cn(
               'btn btn-sm',
@@ -117,7 +146,13 @@ export default function DateRangeControl({ range, customDates, onRangeChange, on
       )}
 
       {pending && (
-        <Icon icon="loader-2" className="text-default-500 size-4 animate-spin" aria-label="กำลังโหลด" />
+        <span className="inline-flex items-center">
+          <Icon icon="loader-2" className="text-default-500 size-4 animate-spin" aria-hidden="true" />
+          {/* ไอคอน iconify ใส่ aria-hidden เอง — ประกาศสถานะผ่าน role="status" แทน */}
+          <span role="status" className="sr-only">
+            กำลังโหลด
+          </span>
+        </span>
       )}
     </div>
   )

@@ -73,6 +73,28 @@ describe('[blocker] วันที่ทั้งระบบผ่าน forma
     expect(offenders(/\+\s*543\b/, [CENTRAL, 'src/lib/order-search-sql.ts'])).toEqual([])
   })
 
+  it('ห้ามโชว์ปี ค.ศ. จาก getFullYear() ในข้อความ — ใช้ formatYearTH / formatMonthYearTH', () => {
+    // จับ template literal ที่ getFullYear() อยู่ติดข้อความไทย/©/ตัวคั่นเดือน-ปี "m/y"
+    // (คีย์ภายใน "YYYY-MM-DD" ของ input ไม่โดน เพราะไม่มีตัวอักษรไทย/© และคั่นด้วย "-")
+    // ที่มา 2026-10-01: footer หน้า buyer โชว์ "© 2026" และ API ร้านคืน "9/2026"
+    expect(
+      offenders(
+        /`[^`]*[\u0E00-\u0E7F©][^`]*\$\{[^}]*get(UTC)?FullYear\(\)|\$\{[^}]*get(UTC)?FullYear\(\)[^}]*\}[^`]*[\u0E00-\u0E7F©]|\}\/\$\{[^}]*get(UTC)?FullYear\(\)/,
+        [CENTRAL],
+      ),
+    ).toEqual([])
+  })
+
+  it('ช่องวันที่ของเบราว์เซอร์ต้องมีป้าย พ.ศ. กำกับ (BeDateHint หรือข้อความผ่านตัวกลาง)', () => {
+    // ช่อง date/datetime-local แสดงปีตามเครื่อง (ส่วนใหญ่ ค.ศ.) — ที่มา 2026-10-01 "วันที่เราใช้ พ.ศ. แปลงให้ครบ"
+    const withNative = FILES.filter((f) => /type=["'](date|datetime-local)["']/.test(f.src))
+    expect(withNative.length, 'ไม่เจอช่องวันที่เลย — ด่านนี้สแกนไม่เจออะไร').toBeGreaterThan(5)
+    const bad = withNative
+      .filter((f) => !/<BeDateHint\b|\bformatDate(TH|Time|TimeTH)?\(/.test(f.src))
+      .map((f) => f.rel)
+    expect(bad).toEqual([])
+  })
+
   it('ห้ามประกาศตารางชื่อเดือนไทยเอง — ใช้ THAI_MONTHS_ABBR / THAI_MONTHS_FULL', () => {
     expect(offenders(/['"`](ม\.ค\.|มกราคม)['"`]\s*,/, [CENTRAL])).toEqual([])
   })

@@ -31,9 +31,9 @@ import {
   type ExpenseCategory,
 } from '@/lib/expense'
 import { todayThaiIsoDate, shiftIsoDate } from '@/lib/date-range'
-import { formatDateTH } from '@/lib/format-date'
 import type { SerializedExpense } from '@/services/expense.service'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
+import BeDateHint from '@/components/safepay/BeDateHint'
 
 const schema = Yup.object({
   category: Yup.string()
@@ -341,12 +341,11 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
                 type="date"
                 className="form-input"
                 aria-invalid={!!errors.expenseDate}
+                aria-describedby="expenseDate-be"
                 {...register('expenseDate')}
               />
               {/* ช่อง date ของเบราว์เซอร์แสดง ค.ศ. เสมอ — เขียน พ.ศ. กำกับไว้ให้ตรงกับที่เห็นในรายการ */}
-              {expenseDate && !errors.expenseDate && (
-                <p className="text-default-700 mt-1 text-2xs">{formatDateTH(expenseDate)}</p>
-              )}
+              {!errors.expenseDate && <BeDateHint id="expenseDate-be" value={expenseDate} />}
               {errors.expenseDate && <p className="text-danger-ink mt-1 text-sm">{errors.expenseDate.message}</p>}
             </div>
 
