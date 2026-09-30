@@ -188,6 +188,9 @@ export type ChatMessageView = {
   // Messenger/IG (Meta ไม่ส่งชื่อมา) → UI fallback ด้วย attachmentDisplayName()
   attachmentName?: string | null
   attachmentSize?: number | null
+  /** ขนาดจริงของรูป (M3) — null/undefined = ไม่รู้ (รูปเก่า/ยังไม่วัด) ⇒ เรนเดอร์แบบเดิม */
+  imageWidth?: number | null
+  imageHeight?: number | null
   createdAt: string
   /** watermark แกนที่ 2 ของ delta (2026-09-14) — optional เพราะข้อความ optimistic ยังไม่มี
    *  🛑 แถวที่มีก่อน migration มีค่า 1970-01-01 ห้ามอ่านตรง ๆ ว่าเป็น "เวลาแก้ล่าสุด" ใช้ watermarksOf() */

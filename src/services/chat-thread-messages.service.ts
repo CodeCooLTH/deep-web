@@ -336,6 +336,23 @@ export async function getThreadMessagesPage(params: {
     const senderMap = new Map(
       senderRows.map((u) => [u.id, { name: u.displayName, avatar: u.avatar }]),
     );
+    // M3 (2026-09-30) ขนาดรูป — จองกล่องก่อนรูปโหลดกันเธรดกระโดด · 1 query ต่อหน้า (รวมรูปในอัลบั้ม
+    // เพราะแต่ละรูปคือ 1 แถว) · ล้ม = ไม่มีขนาดทั้งชุด (พฤติกรรมเดิม) ห้ามทำให้หน้าเสีย
+    const imageFileIds = Array.from(
+      new Set(result.items.filter((m) => m.type === "IMAGE" && m.imageUrl).map((m) => m.imageUrl as string)),
+    );
+    let sizeMap = new Map<string, { width: number; height: number }>();
+    if (imageFileIds.length > 0) {
+      try {
+        const rows = await prisma.mediaImageSize.findMany({
+          where: { fileId: { in: imageFileIds } },
+          select: { fileId: true, width: true, height: true },
+        });
+        sizeMap = new Map(rows.map((r) => [r.fileId, { width: r.width, height: r.height }]));
+      } catch (err) {
+        console.error("[chat-thread] mediaImageSize lookup failed", err);
+      }
+    }
     // 4 query ข้างบนนี้ (สินค้า/ออเดอร์/ข้อความที่ถูกอ้างถึง/ผู้ส่ง) เรียงต่อกันทีละตัว — วัดรวมไว้
     // ก่อน ถ้าเลขก้อนนี้โต ค่อยแยกวัดทีละตัวแล้วพิจารณายุบเป็น Promise.all
     mark("enrich", `p=${productIds.length},o=${orderTokens.length},r=${replyMids.length},s=${senderIds.length}`);
@@ -370,6 +387,8 @@ export async function getThreadMessagesPage(params: {
        * เป็น uuid ใหม่ทิ้งชื่อไฟล์เดิม — ชื่อนั้นไม่เคยไปถึง storage
        */
       isSticker: isStickerRawMessage((m as { rawMessage?: unknown }).rawMessage),
+      imageWidth: (m.type === "IMAGE" && m.imageUrl ? sizeMap.get(m.imageUrl)?.width : undefined) ?? null,
+      imageHeight: (m.type === "IMAGE" && m.imageUrl ? sizeMap.get(m.imageUrl)?.height : undefined) ?? null,
       // null = ไม่มีคนส่ง (webhook/บอท) → UI แสดงรูปเพจ; มีค่า = แสดงรูปคนนั้น + ชื่อตอน hover
       sender:
         m.senderRole === "SHOP" && m.senderUserId ? senderMap.get(m.senderUserId) ?? null : null,

@@ -193,3 +193,24 @@ describe('[blocker] firstPageReplacement — แทนที่จอด้ว�
     expect(fetched).toContain(bf)
   })
 })
+
+describe('[blocker] sameMessage รวมขนาดรูป (M3)', () => {
+  it('ขนาดที่มาทีหลัง (updatedAt เท่าเดิม) ต้องแทนที่ใบเดิม', () => {
+    const base = { id: 'i', createdAt: '2026-09-30T10:00:00.000Z', seq: 1, type: 'IMAGE' as const, imageUrl: 'f1' }
+    const prev = [msg(base)]
+    const out = mergeMessages(prev, [msg({ ...base, imageWidth: 800, imageHeight: 600 })])
+    expect(out[0]).not.toBe(prev[0])
+    expect(out[0]!.imageWidth).toBe(800)
+    expect(out[0]!.imageHeight).toBe(600)
+  })
+  it.each([['imageWidth'], ['imageHeight']] as const)('เปลี่ยน %s ตัวเดียวก็ต้องแทนที่ (กันเทียบไม่ครบ)', (k) => {
+    const base = { id: 'i', createdAt: '2026-09-30T10:00:00.000Z', seq: 1, type: 'IMAGE' as const, imageUrl: 'f1', imageWidth: 800, imageHeight: 600 }
+    const prev = [msg(base)]
+    expect(mergeMessages(prev, [msg({ ...base, [k]: 801 })])[0]).not.toBe(prev[0])
+  })
+  it('undefined กับ null ถือว่าเท่ากัน (คง object เดิม)', () => {
+    const base = { id: 'i', createdAt: '2026-09-30T10:00:00.000Z', seq: 1 }
+    const prev = [msg(base)]
+    expect(mergeMessages(prev, [msg({ ...base, imageWidth: null, imageHeight: null })])[0]).toBe(prev[0])
+  })
+})

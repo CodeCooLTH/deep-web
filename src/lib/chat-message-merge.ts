@@ -28,6 +28,9 @@ function sameMessage(a: ChatMessageView, b: ChatMessageView): boolean {
   return (
     a.body === b.body &&
     a.imageUrl === b.imageUrl &&
+    // ขนาดรูปอาจมาทีหลัง (วัดหลัง insert) — ไม่เทียบ = กล่องจองไม่ขึ้นจอจน updatedAt ขยับ
+    (a.imageWidth ?? null) === (b.imageWidth ?? null) &&
+    (a.imageHeight ?? null) === (b.imageHeight ?? null) &&
     a.reactionEmoji === b.reactionEmoji &&
     a.isDeleted === b.isDeleted &&
     a.edited === b.edited &&
