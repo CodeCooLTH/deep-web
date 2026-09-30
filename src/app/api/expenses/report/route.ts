@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
 import { PnlReportQuerySchema } from "@/lib/validations";
 import { resolveExpenseAccess } from "@/services/expense-access.service";
-import { resolveDateRange } from "@/lib/date-range";
+import { resolveDateRange, isValidCustomRange } from "@/lib/date-range";
 import { getPnlReport } from "@/services/pnl.service";
 import { getCostCoverage } from "@/services/cost-coverage.service";
 import { listExpenses, serializeExpense } from "@/services/expense.service";
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
 
   const { range: preset, start, end } = parsed.output;
-  if (preset === "custom" && (!start || !end)) {
+  if (preset === "custom" && !isValidCustomRange(start, end)) {
     return NextResponse.json({ error: "CUSTOM_RANGE_REQUIRES_START_END" }, { status: 400 });
   }
 

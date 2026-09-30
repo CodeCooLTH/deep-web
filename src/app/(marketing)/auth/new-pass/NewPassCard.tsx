@@ -27,7 +27,8 @@ import Logo from '@components/layout/shared/Logo'
 import AuthIllustrationWrapper from '@/views/pages/auth/AuthIllustrationWrapper'
 
 // Config Imports
-import { currentYear, META_DATA } from '@/config/constants'
+import { META_DATA } from '@/config/constants'
+import { formatYearTH } from '@/lib/format-date'
 
 const schema = Yup.object({
   password: Yup.string()
@@ -174,7 +175,7 @@ export default function NewPassCard() {
               </Typography>
             </form>
             <Typography className='mt-7 text-center text-[13px]' color='text.disabled'>
-              &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
+              &copy; {formatYearTH(new Date())} {META_DATA.name} — by {META_DATA.author}
             </Typography>
           </CardContent>
         </Card>

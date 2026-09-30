@@ -4,7 +4,7 @@ import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
 import { ReceivableQuerySchema } from "@/lib/validations";
 import { resolveExpenseAccess } from "@/services/expense-access.service";
-import { resolveDateRange } from "@/lib/date-range";
+import { resolveDateRange, isValidCustomRange } from "@/lib/date-range";
 import { getReceivables } from "@/services/receivable.service";
 import { resolveShopVertical } from "@/lib/lodging";
 
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "INVALID_RANGE" }, { status: 400 });
 
   const { range: preset, start, end, cursor, limit } = parsed.output;
-  if (preset === "custom" && (!start || !end)) {
+  if (preset === "custom" && !isValidCustomRange(start, end)) {
     return NextResponse.json({ error: "INVALID_RANGE" }, { status: 400 });
   }
 

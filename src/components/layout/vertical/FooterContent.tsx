@@ -10,7 +10,8 @@ import useVerticalNav from '@menu/hooks/useVerticalNav'
 import { verticalLayoutClasses } from '@layouts/utils/layoutClasses'
 
 // Config
-import { currentYear, META_DATA } from '@/config/constants'
+import { META_DATA } from '@/config/constants'
+import { formatYearTH } from '@/lib/format-date'
 
 const FooterContent = () => {
   // Hooks
@@ -21,7 +22,7 @@ const FooterContent = () => {
       className={classnames(verticalLayoutClasses.footerContent, 'flex items-center justify-between flex-wrap gap-4')}
     >
       <p>
-        <span className='text-textSecondary'>{`© ${currentYear} ${META_DATA.name} — by `}</span>
+        <span className='text-textSecondary'>{`© ${formatYearTH(new Date())} ${META_DATA.name} — by `}</span>
         <span className='text-primary font-medium'>{META_DATA.author}</span>
       </p>
       {!isBreakpointReached && (

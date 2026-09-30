@@ -42,8 +42,7 @@ export default async function ExpensesPage({
 }) {
   const sp = await searchParams
   const session = await getServerSession(authOptions)
-  const user = (session as any)?.user
-  if (!user) redirect('/auth/sign-in')
+  if (!session?.user) redirect('/auth/sign-in')
 
   // fail-closed (TFR-007) — resolve decision ก่อนถึง Promise.all ใด ๆ ด้านล่าง
   const decision = await resolveExpenseAccess(
@@ -134,6 +133,7 @@ export default async function ExpensesPage({
         hasAnyExpenseEver={everRecorded}
         // คำผันตามประเภทกิจการ — ร้านคิวงานไม่มี "ออเดอร์" ให้เฉลี่ยต่อใบ (ORDER_VOCAB)
         orderNoun={resolveOrderVocab(decision.shop.vertical).noun}
+        costNoun={resolveOrderVocab(decision.shop.vertical).costNoun}
       />
     </>
   )

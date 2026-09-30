@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
 import CustomAvatar from '@core/components/mui/Avatar'
-import { formatTimeHM, formatDateTH } from '@/lib/format-date'
+import { formatTimeHM, formatDateTH, isSameBangkokDay } from '@/lib/format-date'
 
 type SenderRole = 'BUYER' | 'SHOP'
 type ConversationListItem = {
@@ -23,13 +23,8 @@ const isUnread = (it: ConversationListItem) =>
   it.lastSenderRole === 'SHOP' && (it.buyerLastReadAt === null || it.lastMessageAt > it.buyerLastReadAt)
 
 // วันนี้ → เวลา HH:mm, ไม่ใช่วันนี้ → วันที่ไทย
-const inboxTime = (iso: string) => {
-  const d = new Date(iso)
-  const now = new Date()
-  const sameDay =
-    d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
-  return sameDay ? formatTimeHM(iso) : formatDateTH(iso)
-}
+// "วันนี้" ตามปฏิทินไทย (isSameBangkokDay ตัวกลาง) — ไม่ใช่วันของเบราว์เซอร์ ซึ่งไม่ตรงกับเวลาที่โชว์ (เวลาไทย)
+const inboxTime = (iso: string) => (isSameBangkokDay(iso) ? formatTimeHM(iso) : formatDateTH(iso))
 
 export default function MessagesInbox() {
   const [items, setItems] = useState<ConversationListItem[]>([])

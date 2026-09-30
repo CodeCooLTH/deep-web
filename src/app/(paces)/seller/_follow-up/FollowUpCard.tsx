@@ -579,10 +579,10 @@ export default function FollowUpCard({ item, variant, onChange, onEdit, now: now
                     min={snoozeBounds.min}
                     max={snoozeBounds.max}
                     aria-invalid={cErr === 'errDateRequired' || cErr === 'errDateRange'}
-                    aria-describedby={cErr ? `${item.id}-ce ${item.id}-cd-be` : `${item.id}-cd-be`}
+                    aria-describedby={cErr ? `${item.id}-ce` : `${item.id}-cd-be`}
                     onChange={(e) => setCDate(e.target.value)}
                   />
-                  <BeDateHint id={`${item.id}-cd-be`} value={cDate} />
+                  {!cErr && <BeDateHint id={`${item.id}-cd-be`} value={cDate} />}
                 </div>
                 <div>
                   <label className="form-label mb-1 text-xs" htmlFor={`${item.id}-ct`}>

@@ -224,10 +224,10 @@ export default function FollowUpForm({ conversationId, item, assignees, inChat =
                 max={bounds.max}
                 disabled={closed}
                 aria-invalid={!!errors.date}
-                aria-describedby={[errId('date'), id('date-be')].filter(Boolean).join(' ')}
+                aria-describedby={errors.date ? errId('date') : id('date-be')}
                 onChange={(e) => set('date', e.target.value)}
               />
-              <BeDateHint id={id('date-be')} value={v.date} />
+              {!errors.date && <BeDateHint id={id('date-be')} value={v.date} />}
               {errors.date && (
                 <p id={id('date-err')} role="alert" className="text-danger-ink mb-0 mt-1 text-xs">
                   {errors.date === 'errDateRange' ? rangeText : t[errors.date]}

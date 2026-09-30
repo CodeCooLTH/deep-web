@@ -1,8 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { formatDate, formatDateTime, formatDayMonth, formatDateStampBE } from '@/lib/format-date'
-import { resolveRangeFromParams, MAX_CUSTOM_RANGE_DAYS, DATE_RANGE_OPTIONS } from '@/lib/date-range'
+import {
+  formatDate,
+  formatDateTime,
+  formatDayMonth,
+  formatDateStampBE,
+  localDayKey,
+  formatLocalCalendarDate,
+} from '@/lib/format-date'
+import { resolveRangeFromParams, MAX_CUSTOM_RANGE_DAYS, DATE_RANGE_OPTIONS, isValidCustomRange } from '@/lib/date-range'
 import { formatBahtCompact } from '@/lib/format-money'
 
 /**
@@ -132,3 +139,55 @@ describe('formatBahtCompact — ป้ายแกนกราฟ', () => {
     expect(formatBahtCompact(0)).toBe('฿0')
   })
 })
+
+describe('[blocker] review 2026-10-01 — ตัวเลือกวันที่ / ช่วงเวลา / รายการค้างรับ', () => {
+  const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
+
+  it('ค่าจากตัวเลือกวันที่ใช้ปฏิทินเครื่อง (local) ไม่ตัดด้วยเวลาไทย — เครื่องโซน UTC+9', () => {
+    // เปลี่ยนโซนของ process ชั่วคราว (Node อ่าน TZ ใหม่ทันที) — ถ้าไม่ทำ เครื่อง dev/CI ที่เป็น
+    // Bangkok/UTC จะให้ผลเท่ากันทุกวิธี แล้วเทสนี้เขียวแม้ใช้ getUTC*/thaiDayKey ผิด (mutation พิสูจน์แล้ว)
+    const prev = process.env.TZ
+    process.env.TZ = 'Asia/Tokyo'
+    try {
+      const localMidnight = new Date(2026, 8, 2) // เที่ยงคืน 2 ก.ย. ของโตเกียว = 22:00 1 ก.ย. เวลาไทย
+      expect(localDayKey(localMidnight)).toBe('2026-09-02')
+      expect(formatLocalCalendarDate(localMidnight)).toBe('02-09-2569')
+    } finally {
+      if (prev === undefined) delete process.env.TZ
+      else process.env.TZ = prev
+    }
+  })
+
+  it('isValidCustomRange — ตัวเดียวทั้งหน้าและ API', () => {
+    expect(isValidCustomRange('2026-09-01', '2026-09-30')).toBe(true)
+    expect(isValidCustomRange('2026-09-30', '2026-09-01')).toBe(false)
+    expect(isValidCustomRange('2026-02-31', '2026-03-05')).toBe(false)
+    expect(isValidCustomRange('2020-01-01', '2026-01-01')).toBe(false)
+    expect(isValidCustomRange(undefined, '2026-01-01')).toBe(false)
+    for (const api of ['src/app/api/finance/receivables/route.ts', 'src/app/api/expenses/report/route.ts']) {
+      expect(read(api), api).toMatch(/preset === "custom" && !isValidCustomRange\(start, end\)/)
+    }
+  })
+
+  it('DateRangeControl ห้ามส่ง onChange เป็น prop ของ Flatpickr (react-flatpickr สะสม handler ใน options)', () => {
+    const src = read('src/app/(paces)/seller/(dashboard)/_shared/DateRangeControl.tsx')
+    // หา JSX จริง (บรรทัดที่ขึ้นต้นด้วย <Flatpickr ตามด้วยขึ้นบรรทัดใหม่) — คำว่า <Flatpickr ในคอมเมนต์ไม่นับ
+    const tag = src.match(/^\s*<Flatpickr\s*\n[\s\S]*?\/>/m)?.[0] ?? ''
+    expect(tag).toMatch(/options=\{pickerOptions\}/)
+    expect(tag).not.toMatch(/onChange=/)
+    expect(src).toMatch(/onCustomChangeRef\.current\(pair\)/)
+  })
+
+  it('รายการต้องตามเก็บบน /sales รีเซ็ตเมื่อช่วงเปลี่ยน (key)', () => {
+    const page = read('src/app/(paces)/seller/(dashboard)/sales/page.tsx')
+    const at = page.indexOf('<ReceivableList')
+    expect(page.slice(at, at + 600)).toMatch(/key=\{`\$\{period\.resolved\.label\.start\}/)
+  })
+
+  it('การ์ดกำไรสุทธิในแท็บค่าใช้จ่าย//expenses ได้ capped + costNoun', () => {
+    const ws = read('src/app/(paces)/seller/(dashboard)/expenses/components/ExpenseWorkspace.tsx')
+    expect(ws).toMatch(/capped=\{!resolveDataCompleteness\(/)
+    expect(ws).toMatch(/costNoun=\{costNoun\}/)
+  })
+})
+

@@ -8,7 +8,8 @@ export const META_DATA = {
   version: '0.2.0',
 }
 
-export const currentYear = new Date().getFullYear()
+// 🛑 ไม่มี `currentYear` แล้ว (ลบ 2026-10-01) — เดิมเป็นปี ค.ศ. และคำนวณครั้งเดียวตอนโหลดโมดูล
+// (server ที่รันข้ามปีใหม่จะค้างปีเก่า) · ปีบนจอใช้ formatYearTH(new Date()) จาก @/lib/format-date
 
 type CurrencyType = '฿' | '$' | '€'
 

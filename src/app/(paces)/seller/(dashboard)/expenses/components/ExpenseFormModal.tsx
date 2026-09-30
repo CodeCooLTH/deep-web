@@ -341,12 +341,12 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
                 type="date"
                 className="form-input"
                 aria-invalid={!!errors.expenseDate}
-                aria-describedby="expenseDate-be"
+                aria-describedby={errors.expenseDate ? 'expenseDate-err' : 'expenseDate-be'}
                 {...register('expenseDate')}
               />
               {/* ช่อง date ของเบราว์เซอร์แสดง ค.ศ. เสมอ — เขียน พ.ศ. กำกับไว้ให้ตรงกับที่เห็นในรายการ */}
               {!errors.expenseDate && <BeDateHint id="expenseDate-be" value={expenseDate} />}
-              {errors.expenseDate && <p className="text-danger-ink mt-1 text-sm">{errors.expenseDate.message}</p>}
+              {errors.expenseDate && <p id="expenseDate-err" className="text-danger-ink mt-1 text-sm">{errors.expenseDate.message}</p>}
             </div>
 
             <div>

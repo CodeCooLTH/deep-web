@@ -85,6 +85,12 @@ describe('[blocker] วันที่ทั้งระบบผ่าน forma
     ).toEqual([])
   })
 
+  it('ปีลิขสิทธิ์ (©) ต้องเป็น พ.ศ. ผ่าน formatYearTH — รวมรูป JSX และค่าคงที่ currentYear เดิม', () => {
+    // ด่านรอบก่อนจับแค่ template literal — review 2026-10-01 เจออีก 18 ไฟล์ที่เขียน {currentYear} / {new Date().getFullYear()}
+    expect(offenders(/(©|&copy;)\s*\{(?!\s*formatYearTH\()|(©|&copy;)\s*\$\{(?!\s*formatYearTH\()/)).toEqual([])
+    expect(offenders(/\bcurrentYear\b[^\n]*from ['"]@\/config\/constants['"]/)).toEqual([])
+  })
+
   it('ช่องวันที่ของเบราว์เซอร์ต้องมีป้าย พ.ศ. กำกับ (BeDateHint หรือข้อความผ่านตัวกลาง)', () => {
     // ช่อง date/datetime-local แสดงปีตามเครื่อง (ส่วนใหญ่ ค.ศ.) — ที่มา 2026-10-01 "วันที่เราใช้ พ.ศ. แปลงให้ครบ"
     const withNative = FILES.filter((f) => /type=["'](date|datetime-local)["']/.test(f.src))

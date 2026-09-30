@@ -11,7 +11,8 @@
  */
 import authCard from '@/assets/images/auth-card-bg.svg'
 import AuthLogo from '@/components/AuthLogo'
-import { currentYear, META_DATA } from '@/config/constants'
+import { META_DATA } from '@/config/constants'
+import { formatYearTH } from '@/lib/format-date'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import SignInForm from './components/SignInForm'
@@ -49,7 +50,7 @@ export default function AdminSignInPage() {
             </div>
 
             <p className="text-default-400 mt-7.5 text-center">
-              &copy; {currentYear} {META_DATA.name} - by <span>{META_DATA.author}</span>
+              &copy; {formatYearTH(new Date())} {META_DATA.name} - by <span>{META_DATA.author}</span>
             </p>
           </div>
         </div>

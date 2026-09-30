@@ -54,6 +54,13 @@
 
 - **Flatpickr** (ตัวกรองช่วงเวลา) ใช้ `DateRangeControl` เท่านั้น — แสดงค่าผ่าน `formatDate` (พ.ศ.) + locale ไทย +
   หัวปฏิทินเป็นปี พ.ศ. (`syncBuddhistYear`) · ห้ามตั้ง `dateFormat` ของ Flatpickr เอง
+- **ค่าที่ตัวเลือกวันที่คืนมา** (Flatpickr/FullCalendar = เที่ยงคืน local ของวันที่ผู้ใช้จิ้ม) ตัดวันด้วย
+  `localDayKey` และแสดงด้วย `formatLocalCalendarDate` — **ห้าม** `thaiDayKey`/`formatDate` กับค่าพวกนี้
+  (เครื่องโซน UTC+8 ขึ้นไป เที่ยงคืน local = วันก่อนตามเวลาไทย ⇒ วันเลื่อน) · ค่าที่เป็นเวลาจริงของเหตุการณ์ยังใช้เวลาไทย
+- **ห้ามส่ง `onChange` เป็น prop ของ `<Flatpickr>`** — react-flatpickr v4 push handler เข้า object options เดิมทุก render
+  (options ที่ memo ไว้จะสะสม handler) ⇒ ใส่ใน `options.onChange` แล้วเรียกของล่าสุดผ่าน ref (ดู `DateRangeControl`)
+- ช่วงกำหนดเอง validate ด้วย `isValidCustomRange` ตัวเดียว ทั้งหน้า (`resolveRangeFromParams`) และ API
+- ปีลิขสิทธิ์ `©` ใช้ `formatYearTH(new Date())` — ค่าคงที่ `currentYear` (ค.ศ., คำนวณครั้งเดียวตอนโหลดโมดูล) ถูกลบแล้ว
 - **ช่องของเบราว์เซอร์** (`<input type="date|datetime-local">`) แสดงปีตามเครื่อง เว็บคุมไม่ได้ ⇒ ใต้ช่องต้องมี
   `<BeDateHint id=… value=… />` (`src/components/safepay/BeDateHint.tsx`) และผูก `id` เข้า `aria-describedby` ของช่อง
   · มี error อยู่ให้ซ่อนป้าย (ข้อความ error คือสิ่งที่ต้องอ่าน)

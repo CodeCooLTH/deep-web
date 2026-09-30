@@ -18,13 +18,14 @@
  * หัวปฏิทินด้านใน: Flatpickr ไม่มีโหมด พ.ศ. (ช่องปีเป็น <input type=number> ค.ศ.) ⇒ syncBuddhistYear
  * ซ่อนช่องนั้นแล้ววางป้ายปี พ.ศ. แทน (เลื่อนปีด้วยลูกศรเดือนได้เหมือนเดิม) — 2026-10-01
  */
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Thai } from 'flatpickr/dist/l10n/th'
 import Flatpickr from '@/components/wrappers/Flatpickr'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
-import { formatDate, thaiDayKey, toBuddhistYear } from '@/lib/format-date'
-import { DATE_RANGE_OPTIONS, type DateRangePreset } from '@/lib/date-range'
+import { formatLocalCalendarDate, localDayKey, toBuddhistYear } from '@/lib/format-date'
+import { DATE_RANGE_OPTIONS, MAX_CUSTOM_RANGE_DAYS, isValidCustomRange, type DateRangePreset } from '@/lib/date-range'
+import { pacesToast } from '@/lib/paces-toast'
 
 type Props = {
   range: DateRangePreset
@@ -65,12 +66,33 @@ function isoToLocalDate(iso: string): Date {
 }
 
 export default function DateRangeControl({ range, customDates, onRangeChange, onCustomChange, pending }: Props) {
+  /**
+   * 🛑 ห้ามส่ง onChange เป็น prop ของ <Flatpickr> — react-flatpickr v4 **push handler จาก prop เข้าไปใน
+   * object options ทุกครั้งที่ render** (mergeHooks แก้ object เดิม) และ options ของเราถูก memo ไว้
+   * ⇒ handler สะสมข้ามรอบ เลือกวันครั้งเดียวยิง router.push หลายครั้งด้วย closure เก่า (review 2026-10-01)
+   * ⇒ ใส่ onChange ไว้ใน options เอง แล้วเรียก handler ล่าสุดผ่าน ref
+   */
+  const onCustomChangeRef = useRef(onCustomChange)
+  useEffect(() => {
+    onCustomChangeRef.current = onCustomChange
+  }, [onCustomChange])
+
   const pickerOptions = useMemo(
     () => ({
       mode: 'range' as const,
       locale: Thai,
-      // แสดงผลด้วยตัวกลาง — "01-09-2569 ถึง 30-09-2569"
-      formatDate: (d: Date) => formatDate(d),
+      // แสดงผล วัน-เดือน-ปี พ.ศ. ตามวันที่ที่ผู้ใช้จิ้ม (ปฏิทินเครื่อง — ไม่ตัดด้วยเวลาไทย ดู localDayKey)
+      formatDate: (d: Date) => formatLocalCalendarDate(d),
+      onChange: (selected: Date[]) => {
+        if (selected.length !== 2) return
+        const pair: [string, string] = [localDayKey(selected[0]), localDayKey(selected[1])]
+        // กติกาเดียวกับหน้า/API — เกินเพดานแล้วเงียบไปจะได้หน้าที่ถอยไป "เดือนนี้" เองโดยไม่รู้สาเหตุ
+        if (!isValidCustomRange(pair[0], pair[1])) {
+          pacesToast.warning(`เลือกช่วงได้ไม่เกิน ${MAX_CUSTOM_RANGE_DAYS} วัน`)
+          return
+        }
+        onCustomChangeRef.current(pair)
+      },
       defaultDate: customDates ? customDates.map(isoToLocalDate) : undefined,
       disableMobile: true,
       onReady: syncBuddhistYear,
@@ -80,12 +102,6 @@ export default function DateRangeControl({ range, customDates, onRangeChange, on
     }),
     [customDates],
   )
-
-  const handlePicked = (selected: Date[]) => {
-    if (selected.length !== 2) return
-    // Flatpickr คืนเที่ยงคืน local — toISOString() จะเลื่อนถอยไป 1 วัน ต้องตัดวันด้วยเวลาไทย
-    onCustomChange([thaiDayKey(selected[0]), thaiDayKey(selected[1])])
-  }
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-3" aria-busy={pending || undefined}>
@@ -140,7 +156,6 @@ export default function DateRangeControl({ range, customDates, onRangeChange, on
             placeholder="เลือกวันเริ่ม – วันสิ้นสุด"
             aria-label="เลือกช่วงวันที่"
             options={pickerOptions}
-            onChange={handlePicked}
           />
         </div>
       )}

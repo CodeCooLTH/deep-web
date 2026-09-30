@@ -18,6 +18,7 @@ import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDate } from '@/lib/format-date'
+import { resolveDataCompleteness } from '@/lib/finance-tabs'
 import { thaiDayKey } from '@/lib/format-date'
 import type { PnlReport } from '@/services/pnl.service'
 import type { SerializedExpense } from '@/services/expense.service'
@@ -57,6 +58,8 @@ type Props = {
   hasAnyExpenseEver: boolean
   /** ชื่อของ "ใบ" ที่เอามาเฉลี่ย/นับ ผันตามประเภทกิจการ (ORDER_VOCAB.noun) */
   orderNoun?: string
+  /** คำเรียกต้นทุนตามประเภทกิจการ (ORDER_VOCAB.costNoun) — การ์ดต้นทุนใน P&L */
+  costNoun?: string
 }
 
 export default function ExpenseWorkspace({
@@ -66,6 +69,7 @@ export default function ExpenseWorkspace({
   initialExpenses,
   hasAnyExpenseEver,
   orderNoun = 'ออเดอร์',
+  costNoun = 'ต้นทุนสินค้า',
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -211,7 +215,17 @@ export default function ExpenseWorkspace({
         </div>
       )}
 
-      <PnlReportCard report={report} expenses={expenses} loading={loading} rangeLabel={range === 'custom' && customDates ? `${formatDate(customDates[0])} – ${formatDate(customDates[1])}` : RANGE_LABEL[range]} orderNoun={orderNoun} />
+      <PnlReportCard report={report} expenses={expenses} loading={loading} rangeLabel={range === 'custom' && customDates ? `${formatDate(customDates[0])} – ${formatDate(customDates[1])}` : RANGE_LABEL[range]} orderNoun={orderNoun}
+        costNoun={costNoun}
+        /* ข้อมูลไม่ครบ (ต้นทุนหาย/ยังไม่มีค่าใช้จ่าย) = เพดานบน — นิยามเดียวกับแท็บกำไรขาดทุน
+           (resolveDataCompleteness) เดิมไม่ส่ง capped การ์ดนี้จึงเขียวพร้อม % ขณะที่การ์ดข้าง ๆ เตือน (review 2026-10-01) */
+        capped={!resolveDataCompleteness({
+          hasMissingCost: report.hasMissingCost,
+          expenseCount: expenses.length,
+          uncostedItemCount: 0,
+          soldItemCount: 0,
+        }).complete}
+      />
 
       {expenses.length > 0 && (
         <ExpenseBreakdownCard

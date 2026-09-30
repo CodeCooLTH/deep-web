@@ -47,6 +47,16 @@ function isRealIsoDay(v: unknown): v is string {
 export const MAX_CUSTOM_RANGE_DAYS = 366
 
 /**
+ * ช่วงกำหนดเองใช้ได้ไหม — วันจริงทั้งคู่ · ไม่กลับด้าน · ไม่เกินเพดาน
+ * 🛑 ตัวเดียวทั้งหน้า (resolveRangeFromParams) และ API (/api/expenses/report, /api/finance/receivables)
+ * เดิม API เช็คแค่รูปแบบ \d{4}-\d{2}-\d{2} ⇒ 2026-02-31 ม้วนไปมีนาคม · start > end ได้รายการว่างเงียบ ๆ
+ */
+export function isValidCustomRange(start: unknown, end: unknown): start is string {
+  if (!isRealIsoDay(start) || !isRealIsoDay(end) || start > end) return false
+  return (Date.parse(end) - Date.parse(start)) / DAY_MS + 1 <= MAX_CUSTOM_RANGE_DAYS
+}
+
+/**
  * อ่านช่วงเวลาจาก query string ของหน้าการเงิน — ตัวเดียวทุกแท็บ (feature 00067 ส่วนขยาย 2026-10-01)
  *
  * 🛑 ก่อนหน้านี้แท็บยอดเก็บเงินอ่าน `?from=&to=` ส่วนแท็บกำไร/ค่าใช้จ่ายอ่าน `?range=` ⇒ สลับแท็บแล้ว
@@ -68,11 +78,8 @@ export function resolveRangeFromParams(
     end = sp.to
   }
   if (preset === 'custom') {
-    if (isRealIsoDay(start) && isRealIsoDay(end) && start <= end) {
-      const days = (Date.parse(end) - Date.parse(start)) / DAY_MS + 1
-      if (days <= MAX_CUSTOM_RANGE_DAYS) {
-        return { preset: 'custom', custom: [start, end], resolved: resolveDateRange('custom', start, end) }
-      }
+    if (isValidCustomRange(start, end)) {
+      return { preset: 'custom', custom: [start, end as string], resolved: resolveDateRange('custom', start, end as string) }
     }
     return { preset: fallback, custom: null, resolved: resolveDateRange(fallback) }
   }
