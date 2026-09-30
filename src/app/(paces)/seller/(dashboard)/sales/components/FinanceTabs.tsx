@@ -73,7 +73,7 @@ export default function FinanceTabs({ active, panelId }: Props) {
   return (
     <nav
       ref={navRef}
-      className="nav-tabs border-default-200 mb-1.25 flex h-auto flex-nowrap border-b px-4"
+      className="nav-tabs border-default-200 mb-1.25 flex h-auto flex-nowrap border-b px-2"
       role="tablist"
       aria-label="มุมมองการเงินของร้าน"
       onKeyDown={onKeyDown}
@@ -91,11 +91,19 @@ export default function FinanceTabs({ active, panelId }: Props) {
             aria-controls={panelId}
             tabIndex={selected ? 0 : -1}
             onClick={() => go(tab)}
-            className={`nav-link -mb-px inline-flex min-h-11 min-w-0 flex-1 items-center justify-center px-2 py-3 text-sm ${
-              selected ? 'border-b-2 border-primary text-primary font-semibold' : 'border-b-2 border-transparent'
-            }`}
+            className="nav-link -mb-px inline-flex min-h-11 min-w-0 flex-1 items-end justify-center px-1 pt-3 pb-0 text-sm"
           >
-            <span className="truncate">{TAB_LABEL[tab]}</span>
+              {/* 🛑 เส้นใต้ต้อง "กอดตัวหนังสือ" ไม่ใช่กินเต็มช่อง 1/3 ของแถบ — ปุ่มยังเป็น flex-1
+                 เพื่อให้พื้นที่นิ้วเท่ากันทุกแท็บ (44px) แต่ขีดอยู่ที่ <span> ชั้นในซึ่งกว้างเท่าคำ
+                 ⇒ ขีดยาวไม่เท่ากันตามความยาวคำ ซึ่งเป็นพฤติกรรมปกติของ .nav-tabs
+                 (ของเดิมขีดกว้างเท่ากันหมดแต่ยาวกว่าคำมาก user ทักว่า "เมนูมันบัค" 2026-09-30) */}
+            <span
+              className={`max-w-full truncate border-b-2 px-1 pb-2.5 ${
+                selected ? 'border-primary text-primary font-semibold' : 'border-transparent'
+              }`}
+            >
+              {TAB_LABEL[tab]}
+            </span>
           </button>
         )
       })}

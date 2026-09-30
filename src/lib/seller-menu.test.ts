@@ -13,6 +13,7 @@ import {
   applyFinanceMenu,
   applyOrderLabel,
   FINANCE_MENU_LABEL,
+  FINANCE_EXPENSE_TAB_URL,
   flattenSellerMenu,
   resolveOrderMenuLabel,
   resolveOrderVocab,
@@ -326,24 +327,40 @@ describe('applyFinanceMenu — ยุบเมนูเรื่องเงิ�
   const labelOf = (items: ReturnType<typeof applyFinanceMenu>, slug: string) =>
     items.flatMap((g) => g.children ?? []).find((c) => c.slug === slug)?.label
 
-  it('[blocker] SERVICE_QUEUE — ถอด seller:expenses และเปลี่ยนป้าย seller:sales', () => {
+  const urlOf = (items: ReturnType<typeof applyFinanceMenu>, slug: string) =>
+    items.flatMap((g) => g.children ?? []).find((c) => c.slug === slug)?.url
+
+  it('[blocker] SERVICE_QUEUE — เปลี่ยนป้าย seller:sales และชี้ seller:expenses ไปที่แท็บ', () => {
     const out = applyFinanceMenu(menu(), 'SERVICE_QUEUE')
-    expect(slugs(out)).not.toContain('seller:expenses')
-    expect(slugs(out)).toContain('seller:sales')
     expect(labelOf(out, 'seller:sales')).toBe(FINANCE_MENU_LABEL)
+    expect(urlOf(out, 'seller:expenses')).toBe(FINANCE_EXPENSE_TAB_URL)
+  })
+
+  it('[blocker] ห้ามถอด seller:expenses ออกจากเมนู — เมนูลัดของผู้ใช้จะกลายเป็น "ไม่พร้อมใช้งาน"', () => {
+    /**
+     * `buildEligibleCatalog()` ของเมนูลัดสร้าง catalog จากเมนูชุดนี้ — slug ที่ถูกถอด
+     * จะตกไปกอง `unavailable` ของ `buildState()` แล้วโผล่ในชีตแก้ไขว่า "ไม่พร้อมใช้งาน"
+     * ทั้งที่ของยังใช้ได้ปกติ (ข้อมูลจริงบน prod 2026-09-30: 2 ใน 3 คนของร้านอ้างอิงปักไว้)
+     * user เจอเองบนเครื่องจริง — ด่านนี้กันไม่ให้ถอดซ้ำ
+     */
+    const out = applyFinanceMenu(menu(), 'SERVICE_QUEUE')
+    expect(slugs(out)).toContain('seller:expenses')
+    expect(labelOf(out, 'seller:expenses')).toBe('ค่าใช้จ่าย')
   })
 
   it('[blocker] ONLINE_SALES / LODGING — ต้องไม่ถูกแตะเลยสักรายการ', () => {
     for (const vertical of ['ONLINE_SALES', 'LODGING']) {
       const out = applyFinanceMenu(menu(), vertical)
       expect(slugs(out)).toContain('seller:expenses')
+      expect(urlOf(out, 'seller:expenses')).toBe('/expenses')
       expect(labelOf(out, 'seller:sales')).toBe('ภาพรวมกำไร/ขาดทุน')
     }
   })
 
-  it('vertical ที่ไม่รู้จัก → ไม่แตะอะไร (เมนูครบดีกว่าเมนูหายโดยไม่มีคนสั่ง)', () => {
+  it('vertical ที่ไม่รู้จัก → ไม่แตะอะไร (เมนูครบดีกว่าเมนูเพี้ยนโดยไม่มีคนสั่ง)', () => {
     const out = applyFinanceMenu(menu(), 'SOMETHING_NEW')
     expect(slugs(out)).toContain('seller:expenses')
+    expect(urlOf(out, 'seller:expenses')).toBe('/expenses')
   })
 
   it('ไม่แตะรายการอื่นในกลุ่มเดียวกัน', () => {
