@@ -42,7 +42,7 @@ interface ShopMobileHeroProps {
   onCoverChange: (e: React.ChangeEvent<HTMLInputElement>) => void
 }
 
-const ACCEPT = 'image/png,image/jpeg,image/webp'
+const ACCEPT = 'image/png,image/jpeg,image/webp,.jfif'
 
 export default function ShopMobileHero({
   shopName,

@@ -465,7 +465,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
                   <input
                     id="bcm-logo"
                     type="file"
-                    accept="image/png,image/jpeg,image/webp"
+                    accept="image/png,image/jpeg,image/webp,.jfif"
                     className="form-input"
                     onChange={handleLogoUpload}
                     disabled={logoUploading}

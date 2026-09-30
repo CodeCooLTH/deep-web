@@ -72,7 +72,11 @@ const ReportForm = () => {
       for (const file of files) {
         // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
         // (รูปหลักฐานจากมือถือเกิน 4.5MB เป็นเรื่องปกติ — ดู upload-policy.ts)
-        evidence.push(await uploadFileId(file, 'IMAGE'))
+        // DOCUMENT ไม่ใช่ IMAGE (2026-10-01): purpose IMAGE ทำให้ commit สร้าง variant `.thumb/.lg.webp`
+        // ซึ่ง **ไม่ผ่านด่าน scam-evidence (PDPA)** ใน /api/files → หลักฐานหลุดเป็นไฟล์สาธารณะ
+        // DOCUMENT ไม่สร้าง variant และรับ PDF ได้จริงตามที่ช่องเลือกไฟล์โฆษณา (IMAGE ปฏิเสธ PDF ทุกครั้ง)
+        // compress 'off' — หลักฐานต้องคงต้นฉบับทุกไบต์
+        evidence.push(await uploadFileId(file, 'DOCUMENT', { compress: 'off' }))
       }
 
       const res = await fetch('/api/scam-reports', {

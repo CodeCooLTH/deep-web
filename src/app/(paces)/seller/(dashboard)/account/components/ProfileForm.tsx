@@ -27,7 +27,7 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
 
-const ACCEPT = 'image/png,image/jpeg,image/webp'
+const ACCEPT = 'image/png,image/jpeg,image/webp,.jfif'
 // รูปแบบเดียวกับ UpdateProfileSchema ฝั่ง server — client เช็คก่อนเพื่อบอกเร็ว ไม่ใช่เพื่อกัน
 const USERNAME_RE = /^[a-z0-9_]{3,30}$/
 type Check = 'idle' | 'checking' | 'ok' | 'taken' | 'invalid'

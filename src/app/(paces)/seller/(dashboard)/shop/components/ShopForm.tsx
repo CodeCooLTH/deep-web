@@ -549,7 +549,7 @@ export default function ShopForm({
                         <label className="form-label">โลโก้ร้านค้า</label>
                         <input
                           type="file"
-                          accept="image/png,image/jpeg,image/webp"
+                          accept="image/png,image/jpeg,image/webp,.jfif"
                           className="form-input"
                           onChange={handleLogoUpload}
                           disabled={logoUploading}
@@ -586,7 +586,7 @@ export default function ShopForm({
                         <label className="form-label">ภาพหน้าปกร้าน</label>
                         <input
                           type="file"
-                          accept="image/png,image/jpeg,image/webp"
+                          accept="image/png,image/jpeg,image/webp,.jfif"
                           className="form-input"
                           onChange={handleCoverUpload}
                           disabled={coverUploading}

@@ -84,8 +84,17 @@ export default async function ScamReportDetailPage({ params }: PageProps) {
                       intrinsic ratio ของตัวเอง สั่ง aspect-ratio ทับไม่ได้ผล และ object-cover ไม่มี
                       อะไรให้ครอปเพราะความสูงยัง auto → รูปหลักฐานแต่ละใบสูงไม่เท่ากันในกริดเดียวกัน */}
                   <span className="relative block aspect-square w-full overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/api/files/${fid}`} alt="หลักฐาน" className="absolute inset-0 size-full object-cover" />
+                    {/* หลักฐานเป็น PDF ได้ (ReportForm อัปด้วย purpose DOCUMENT ตั้งแต่ 2026-10-01) —
+                        <img> ของ PDF = ไอคอนรูปแตก จึงแสดงเป็นกล่องไฟล์ที่กดเปิดได้แทน */}
+                    {fid.toLowerCase().endsWith('.pdf') ? (
+                      <span className="bg-default-100 text-default-600 absolute inset-0 flex flex-col items-center justify-center gap-1">
+                        <Icon icon="file-type-pdf" className="size-10" aria-hidden="true" />
+                        <span className="text-xs">เปิดไฟล์ PDF</span>
+                      </span>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={`/api/files/${fid}`} alt="หลักฐาน" className="absolute inset-0 size-full object-cover" />
+                    )}
                   </span>
                 </a>
               ))}

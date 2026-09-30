@@ -58,6 +58,9 @@ const CONTENT_TYPE_TO_EXT: Record<string, string> = {
 /** นามสกุล → content-type สำหรับ serve (/api/files). ต้องครอบทุก ext ที่ CONTENT_TYPE_TO_EXT ผลิต */
 export const EXT_TO_MIME: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  // .jfif = JPEG (2026-10-01) — ไฟล์แชทที่เคยถูกเก็บเป็น .jfif ก่อนมี normalize กลับมาเปิดเป็นรูปได้
+  // (ไฟล์ใหม่ถูก normalize เป็น .jpg ตั้งแต่ ticket แล้ว — upload-policy.ts `normalizeUploadExt`)
+  jfif: 'image/jpeg',
   png: 'image/png', webp: 'image/webp', gif: 'image/gif',
   heic: 'image/heic', heif: 'image/heif', bmp: 'image/bmp', tiff: 'image/tiff', svg: 'image/svg+xml',
   mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', '3gp': 'video/3gpp',
@@ -79,7 +82,7 @@ export const EXT_TO_MIME: Record<string, string> = {
  *  svg ไม่อยู่ในนี้โดยตั้งใจ: serve inline ได้ก็จริงแต่เปิดตรง ๆ ใน browser จะรัน inline script ใน
  *  ไฟล์ (stored XSS) — บังคับดาวน์โหลด (attachment) ปลอดภัยกว่า, ไฟล์ public ใครมี fileId ก็เปิดได้ */
 const INLINE_EXTS = new Set([
-  'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp',
+  'jpg', 'jpeg', 'jfif', 'png', 'webp', 'gif', 'bmp',
   'mp4', 'webm', 'mov',
   'mp3', 'm4a', 'aac', 'ogg', 'weba', 'wav',
   'pdf',

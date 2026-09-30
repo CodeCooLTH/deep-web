@@ -19,13 +19,11 @@
 import Icon from '@/components/wrappers/Icon'
 import { useEffect, useRef, useState } from 'react'
 import { pacesToast } from '@/lib/paces-toast'
+import { pickSizeError } from '@/lib/image-compress'
 import { uploadFileId } from '@/lib/upload-client'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
-// MAX_FILE_SIZE: copy จาก VerificationForm.tsx (5 MB)
-const MAX_FILE_SIZE = 5 * 1024 * 1024
-
 // preset packages ตาม Design Spec
 const PRESETS = [100, 300, 500, 1000] as const
 
@@ -114,8 +112,10 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
   const handleSlipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null
     if (!file) return
-    if (file.size > MAX_FILE_SIZE) {
-      pacesToast.error('ไฟล์สลิปต้องไม่เกิน 5 MB')
+    // เพดานจากตัวกลาง (2026-10-01) — รูปสลิปใหญ่ถูกบีบเบา ๆ ก่อนส่ง (profile document)
+    const sizeError = pickSizeError(file, 'DOCUMENT', undefined, 'ไฟล์สลิป')
+    if (sizeError) {
+      pacesToast.error(sizeError)
       e.target.value = ''
       return
     }
@@ -327,14 +327,14 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
                 <input
                   ref={slipInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.jfif"
                   className="hidden"
                   onChange={handleSlipChange}
                   disabled={isBusy}
                 />
               </div>
               <p className="mt-1 text-xs text-default-400">
-                รองรับ JPG / PNG ขนาดสูงสุด 5 MB
+                รองรับรูปภาพ JPG / PNG — รูปใหญ่ระบบย่อให้อัตโนมัติ
               </p>
 
               {/* Slip preview thumbnail */}

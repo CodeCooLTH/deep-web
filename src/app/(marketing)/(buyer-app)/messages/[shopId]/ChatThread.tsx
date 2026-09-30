@@ -52,6 +52,7 @@ import CustomIconButton from '@core/components/mui/IconButton'
 import { getInitials } from '@/utils/getInitials'
 import { formatDateTH, formatTimeHM } from '@/lib/format-date'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { normalizeUploadFile, pickSizeError } from '@/lib/image-compress'
 import { uploadFileId } from '@/lib/upload-client'
 // คลังคำตามประเภทกิจการ — SSOT เดียวทั้งฝั่งร้านและฝั่งลูกค้า (HR16) ห้ามพิมพ์คำซ้ำที่นี่
 import { resolveOrderVocab } from '@/lib/seller-menu'
@@ -111,9 +112,9 @@ type ConversationSummary = {
 
 type MessagesResponse = { items: ChatMessageView[]; nextCursor: string | null }
 
-const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp'
+// `.jfif` = JPEG (2026-10-01) — ตัวกลาง image-compress เปลี่ยนเป็น .jpg และบีบให้ก่อนส่ง
+const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,.jfif'
 const IMAGE_MIME_ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp'])
-const IMAGE_MAX_SIZE = 5 * 1024 * 1024
 
 type PendingImage = { file: File; previewUrl: string }
 
@@ -356,8 +357,14 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
     const file = e.target.files?.[0]
     e.target.value = '' // เคลียร์เพื่อเลือกไฟล์เดิมซ้ำได้
     if (!file) return
-    if (!IMAGE_MIME_ALLOWED.has(file.type) || file.size > IMAGE_MAX_SIZE) {
-      toast.error('รองรับเฉพาะ JPG/PNG/WEBP ≤5MB')
+    // ตรวจจากไฟล์ที่ normalize แล้ว (.jfif ที่ mime ว่าง = image/jpeg) · เพดาน "ก่อนบีบ" จากตัวกลาง
+    if (!IMAGE_MIME_ALLOWED.has(normalizeUploadFile(file).type)) {
+      toast.error('รองรับเฉพาะรูป JPG/PNG/WEBP')
+      return
+    }
+    const sizeError = pickSizeError(file, 'IMAGE', undefined, 'รูป')
+    if (sizeError) {
+      toast.error(sizeError)
       return
     }
     setPendingImage({ file, previewUrl: URL.createObjectURL(file) })

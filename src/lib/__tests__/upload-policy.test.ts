@@ -13,8 +13,11 @@
 
 import { describe, it, expect } from 'vitest'
 import {
+  MAX_RAW_IMAGE_INPUT,
   STORAGE_HARD_MAX,
   checkUploadPolicy,
+  normalizeUploadExt,
+  normalizeUploadMime,
   oversizeMessage,
   uploadMaxSize,
   type UploadPurpose,
@@ -111,5 +114,47 @@ describe('oversizeMessage', () => {
     const msg = oversizeMessage({ kind: 'IMAGE', size: 12.5 * MB, maxSize: 10 * MB })
     expect(msg).toMatch(/13|12\.5/)
     expect(msg).toContain('10MB')
+  })
+})
+
+// ── .jfif / .jpe (2026-10-01) ─────────────────────────────────────────────
+// ผู้ขายลากรูป .jfif (JPEG ที่ Windows/Chrome ตั้งชื่อตอน "บันทึกรูปจากเว็บ") แล้วโดนปฏิเสธทุกใบ
+// เพราะ mime ผ่าน (image/jpeg) แต่ ext ไม่อยู่ใน allow-list — มันคือ JPEG ทุกไบต์ จึงรับเป็น jpg
+describe('normalizeUploadExt / normalizeUploadMime', () => {
+  it('ชื่อเรียกอื่นของ JPEG → jpg', () => {
+    for (const e of ['jfif', 'JFIF', 'jpe', 'pjpeg', 'pjp']) expect(normalizeUploadExt(e)).toBe('jpg')
+  })
+  it('ext อื่นไม่ถูกแตะ', () => {
+    for (const e of ['jpg', 'jpeg', 'png', 'pdf', 'mp4', '']) expect(normalizeUploadExt(e)).toBe(e)
+  })
+  it('mime แปลกของ JPEG → image/jpeg', () => {
+    expect(normalizeUploadMime('image/pjpeg', 'jpg')).toBe('image/jpeg')
+    expect(normalizeUploadMime('image/jpg', 'jpg')).toBe('image/jpeg')
+    expect(normalizeUploadMime('IMAGE/JPEG', 'jpg')).toBe('image/jpeg')
+  })
+  it('mime ว่าง + ext เป็น JPEG → image/jpeg · ext อื่นคงว่าง', () => {
+    expect(normalizeUploadMime('', 'jfif')).toBe('image/jpeg')
+    expect(normalizeUploadMime('', 'png')).toBe('')
+  })
+})
+
+describe('checkUploadPolicy รับ .jfif', () => {
+  it('IMAGE/DOCUMENT/CHAT รับ .jfif (image/jpeg)', () => {
+    for (const p of ['IMAGE', 'DOCUMENT', 'CHAT'] as UploadPurpose[]) {
+      expect(checkUploadPolicy(p, f('photo.jfif', 2 * MB, 'image/jpeg'))).toEqual({ ok: true })
+    }
+  })
+  it('.jfif ที่ mime ว่าง (บาง OS ไม่รู้จัก) ก็ผ่าน', () => {
+    expect(checkUploadPolicy('IMAGE', f('photo.jfif', 2 * MB, ''))).toEqual({ ok: true })
+  })
+  it('ปลอม ext เป็น jfif แต่ mime ไม่ใช่รูป → ไม่ผ่าน', () => {
+    expect(checkUploadPolicy('IMAGE', f('x.jfif', 1000, 'application/pdf')).ok).toBe(false)
+  })
+})
+
+describe('MAX_RAW_IMAGE_INPUT', () => {
+  it('เพดานก่อนบีบ = 40MB (ใหญ่กว่าเพดาน server เพราะตัวบีบย่อให้ก่อนส่ง)', () => {
+    expect(MAX_RAW_IMAGE_INPUT).toBe(40 * MB)
+    expect(MAX_RAW_IMAGE_INPUT).toBeGreaterThan(uploadMaxSize('IMAGE'))
   })
 })

@@ -24,6 +24,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import { uploadFileId } from '@/lib/upload-client'
 import FileUploader from '@/components/FileUploader'
 import { MAX_ROOM_IMAGES } from '@/lib/lodging'
+import { MAX_RAW_IMAGE_INPUT } from '@/lib/upload-policy'
 import { fileUrlOf } from '@/lib/file-url'
 
 interface RoomImagesProps {
@@ -122,7 +123,7 @@ export default function RoomImages({ value, onChange }: RoomImagesProps) {
       <div className="card-header p-5">
         <h4 className="card-title mb-1.25">รูปภาพห้องพัก</h4>
         <p className="text-default-400">
-          รองรับ .png .jpg .jpeg .webp ขนาดไม่เกิน 10 MB — รูปแรกคือรูปหลักที่แสดงบนโปรไฟล์ร้าน
+          รองรับ .png .jpg .jpeg .webp .jfif — รูปใหญ่ระบบย่อให้อัตโนมัติ · รูปแรกคือรูปหลักที่แสดงบนโปรไฟล์ร้าน
         </p>
         <p className="text-default-500 mt-2 text-sm">
           {value.length + uploading.length} / {MAX_ROOM_IMAGES} รูป
@@ -133,8 +134,9 @@ export default function RoomImages({ value, onChange }: RoomImagesProps) {
         <FileUploader
           files={[]}
           setFiles={handleSetFiles}
-          accept={{ 'image/*': ['.png', '.jpg', '.jpeg', '.webp'] }}
-          maxSize={1024 * 1024 * 10}
+          accept={{ 'image/*': ['.png', '.jpg', '.jpeg', '.jfif', '.webp'] }}
+          // เพดาน "ก่อนบีบ" (2026-10-01) — ตัวกลาง image-compress ย่อรูปก่อนส่ง server ตรวจเพดานจริงหลังบีบ
+          maxSize={MAX_RAW_IMAGE_INPUT}
           maxFileCount={MAX_ROOM_IMAGES}
           multiple
           disabled={isFull}

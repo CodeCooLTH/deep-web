@@ -81,6 +81,19 @@ const meta = await uploadToStorage(file, { purpose: 'CHAT', conversationId }) //
 - **`ContentType` ถูกผนวกในลายเซ็น presigned PUT** → client ต้องส่ง header `content-type`
   ค่าตรงกันเป๊ะ (ticket คืน `headers` ที่ต้องใช้มาให้ ห้ามให้ผู้เรียกเดาเอง)
 
+## ตัวกลางบีบรูปก่อนส่ง (2026-10-01)
+
+🛑 **ทุกการอัปโหลดต้องผ่าน `uploadToStorage`/`uploadFileId` ซึ่งเรียก `prepareUploadFile` (`src/lib/image-compress.ts`) ก่อนขอ ticket เสมอ** — user สั่งเป็นกฎถาวร ห้ามหน้าไหนยิง `/api/uploads/ticket|commit` เอง หรือบีบรูปด้วย canvas เอง
+
+- ระดับการบีบเลือกตาม purpose: IMAGE/CHAT = `standard` · DOCUMENT = `document` (บีบเบา ภาพหน้าจอสลิป <1.5MB ผ่านไปตามเดิม)
+- ส่ง `compress: 'off'` เฉพาะไฟล์ที่ต้องคงต้นฉบับทุกไบต์: **หลักฐาน** (EXIF เวลา/พิกัด) และ **รูปที่ขนาดพิกเซลตายตัว** (LINE rich menu 2500×1686)
+- ผลลัพธ์ไม่ใช้ WebP — รูป IMAGE บางจุด (ข้อความด่วน/ตอบคอมเมนต์) ถูกส่งต่อเข้า IG/LINE ที่ไม่รับ webp
+- บีบไม่ได้/ไม่เล็กลง = ส่งไฟล์เดิม **การอัปโหลดห้ามพังเพราะการบีบ**
+- เพดานบนหน้าจอใช้ `pickSizeLimit`/`pickSizeError` ห้ามเขียนเลขเอง — รูปที่บีบได้ใช้เพดาน "ก่อนบีบ" 40MB (`MAX_RAW_IMAGE_INPUT`) เพราะเพดาน 5MB เดิมตัดรูปกล้องทิ้งก่อนตัวบีบได้ทำงาน
+- `.jfif/.jpe` คือ JPEG — client เปลี่ยนชื่อเป็น `.jpg` · server (`normalizeUploadExt`) เป็น safety net ให้ client เก่า
+- 🛑 **หลักฐานที่มีด่านสิทธิ์ห้ามใช้ purpose IMAGE** — IMAGE สร้าง variant (00054) ที่คีย์ไม่ผ่านด่านใดใน `/api/files` (เคยเกิดกับ `ReportForm` จนถึง 2026-10-01)
+- เทสกัน: `src/lib/__tests__/upload-compress-wiring.test.ts` · `image-compress.test.ts`
+
 ## เพดานที่ยกไม่ได้
 
 **Meta Send API รับไฟล์แนบ 25MB** — คลิปที่ยาวกว่านั้นส่งเข้า Messenger/Instagram ไม่ได้

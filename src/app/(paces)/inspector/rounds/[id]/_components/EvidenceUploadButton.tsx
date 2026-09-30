@@ -50,7 +50,8 @@ export default function EvidenceUploadButton({ label, kind, multiple = false, di
     setBusy(true)
     try {
       for (const file of Array.from(files)) {
-        const uploaded = await uploadToStorage(file, { purpose: PURPOSE_OF[kind] })
+        // compress 'off' — หลักฐานต้องคงต้นฉบับทุกไบต์ (EXIF เวลา/พิกัดที่ถ่าย = ส่วนหนึ่งของหลักฐาน)
+        const uploaded = await uploadToStorage(file, { purpose: PURPOSE_OF[kind], compress: 'off' })
         onUploaded(uploaded.fileId)
       }
     } catch (e) {

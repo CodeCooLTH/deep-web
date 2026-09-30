@@ -5,6 +5,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-toastify'
+import { normalizeUploadFile, pickSizeError } from '@/lib/image-compress'
 import { uploadFileId } from '@/lib/upload-client'
 
 type VerificationRecord = {
@@ -89,13 +90,15 @@ export default function VerificationMobile({ phoneVerified, records }: Props) {
   const bizInput = useRef<HTMLInputElement>(null)
 
   const validateFile = (f: File, allowPdf = false): boolean => {
+    // ชนิดตรวจจากไฟล์ที่ normalize แล้ว (.jfif = JPEG) · เพดานจากตัวกลาง (2026-10-01)
     const ok = ['image/jpeg', 'image/png', 'image/webp', ...(allowPdf ? ['application/pdf'] : [])]
-    if (!ok.includes(f.type)) {
+    if (!ok.includes(normalizeUploadFile(f).type)) {
       toast.error(allowPdf ? 'รองรับ JPG / PNG / WEBP / PDF' : 'รองรับ JPG / PNG / WEBP')
       return false
     }
-    if (f.size > 5 * 1024 * 1024) {
-      toast.error('ไฟล์ใหญ่เกิน 5MB')
+    const sizeError = pickSizeError(f, 'DOCUMENT')
+    if (sizeError) {
+      toast.error(sizeError)
       return false
     }
     return true
@@ -245,7 +248,7 @@ export default function VerificationMobile({ phoneVerified, records }: Props) {
             <input
               ref={idCardInput}
               type='file'
-              accept='image/png, image/jpeg, image/webp'
+              accept='image/png, image/jpeg, image/webp, .jfif'
               hidden
               onChange={e => {
                 const f = e.target.files?.[0]
@@ -256,7 +259,7 @@ export default function VerificationMobile({ phoneVerified, records }: Props) {
             <input
               ref={selfieInput}
               type='file'
-              accept='image/png, image/jpeg, image/webp'
+              accept='image/png, image/jpeg, image/webp, .jfif'
               hidden
               onChange={e => {
                 const f = e.target.files?.[0]
@@ -284,7 +287,7 @@ export default function VerificationMobile({ phoneVerified, records }: Props) {
             <input
               ref={bizInput}
               type='file'
-              accept='image/png, image/jpeg, image/webp, application/pdf'
+              accept='image/png, image/jpeg, image/webp, .jfif, application/pdf'
               hidden
               onChange={e => {
                 const f = e.target.files?.[0]

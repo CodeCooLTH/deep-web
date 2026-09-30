@@ -198,7 +198,7 @@ export default function ShopReceiptProfileField({
                 <input
                   id="receipt-stamp"
                   type="file"
-                  accept="image/png,image/jpeg,image/webp"
+                  accept="image/png,image/jpeg,image/webp,.jfif"
                   className="form-input"
                   onChange={handleStampUpload}
                   disabled={busy}

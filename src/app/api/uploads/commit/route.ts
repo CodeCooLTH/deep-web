@@ -11,7 +11,7 @@ import {
   oversizeMessage,
   sanitizeAttachmentName,
 } from "@/lib/chat-attachment";
-import { checkUploadPolicy } from "@/lib/upload-policy";
+import { checkUploadPolicy, normalizeUploadMime } from "@/lib/upload-policy";
 import { verifyUploadTicket } from "@/lib/upload-ticket";
 import { resolveChatChannelForUser } from "../_shared";
 import { reconcileUploadedFile } from "@/services/media-asset.service";
@@ -44,8 +44,6 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-  const { mime } = parsed.output;
-
   const claim = verifyUploadTicket(parsed.output.ticket);
   if (!claim) {
     // หมดอายุ = เคสปกติที่เกิดได้จริง (อัปโหลดไฟล์ใหญ่บนเน็ตช้าเกิน 15 นาที) ไม่ใช่การโจมตี
@@ -72,6 +70,8 @@ export async function POST(request: NextRequest) {
   // ext ต้องมาจาก key ที่ **เราเป็นคนตั้ง** ตอนจ่าย ticket ไม่ใช่จากชื่อไฟล์ที่ client ส่งมารอบนี้
   // (ไม่งั้น commit เปลี่ยนชนิดไฟล์ที่ผ่านกฎไปแล้วได้ด้วยการเปลี่ยนแค่ `name`)
   const ext = meta.ext;
+  // mime ของ JPEG ที่แปลก/ว่าง (client เก่าที่ส่ง .jfif) → image/jpeg ให้ตรงกับที่ ticket ใช้ (2026-10-01)
+  const mime = normalizeUploadMime(parsed.output.mime, ext);
   const kind = attachmentKind(mime, ext);
 
   const reject = async (status: number, error: string) => {
