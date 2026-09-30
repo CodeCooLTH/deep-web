@@ -815,6 +815,8 @@ function ThreadMessageListImpl({
                               <ChatImageMessage
                                 storageKey={m.imageUrl}
                                 isStickerHint={m.isSticker}
+                                imageWidth={m.imageWidth}
+                                imageHeight={m.imageHeight}
                                 onOpen={() => openSlide(m.id)}
                               />
                             )}

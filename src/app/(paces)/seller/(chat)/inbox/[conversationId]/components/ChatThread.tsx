@@ -164,6 +164,7 @@ import QuickMessageBar from './QuickMessageBar'
 import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
 import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
+import { knownChatImageSize, shouldShowImagePlaceholder } from '@/lib/chat-image-reserve'
 // feature 00048 — คลังไฟล์ต่อลูกค้า (คำทั้งหมดมาจาก SSOT เดียว ห้ามพิมพ์ซ้ำที่นี่ — HR16)
 import { LIBRARY_ICONS, isLibraryEligible, emitLibraryChanged } from '@/lib/customer-file-library'
 import { toFileUrl, fileUrlOf } from '@/lib/file-url'
@@ -528,14 +529,22 @@ export function ChatImageMessage({
   storageKey,
   onOpen,
   isStickerHint = false,
+  imageWidth,
+  imageHeight,
 }: {
   storageKey: string
   onOpen: () => void
+  /** ขนาดจริงจาก server (M3) — รู้ทั้งคู่ = จองกล่องก่อนโหลด กัน layout shift */
+  imageWidth?: number | null
+  imageHeight?: number | null
   /** ธงจาก server (rawMessage) — แม่นกว่าการวัดขนาดรูป และรู้ได้ก่อนรูปโหลดเสร็จ จึงไม่มีจังหวะ
    *  ที่สติกเกอร์ถูกวาดใหญ่แล้วหุบลง (สติกเกอร์ LINE ขนาดจริง 320–370px หลุดเกณฑ์ 240px) */
   isStickerHint?: boolean
 }) {
   const [isSticker, setIsSticker] = useState(isStickerHint)
+  const [loaded, setLoaded] = useState(false)
+  const size = knownChatImageSize(imageWidth, imageHeight)
+  const showBg = shouldShowImagePlaceholder({ known: size !== null, isSticker, loaded })
   return (
     <>
       {/* คลิก/กด Enter ที่รูป → เปิดเต็มจอ (user request 2026-07-23). ใช้ <button>
@@ -551,8 +560,11 @@ export function ChatImageMessage({
           // ส่วน max-w-60 (240px) ทำให้สติกเกอร์ LINE (ขนาดจริง 320–370px) เต็มบับเบิลจนอ่านเหมือน
           // รูปที่ลูกค้าส่ง (user เจอเองบน prod 2026-08-10) — สติกเกอร์ Meta 100×100 ไม่กระทบเพราะ
           // max-w ไม่ขยายรูปที่เล็กกว่าเพดานอยู่แล้ว
-          className={`chat-media rounded ${isSticker ? 'max-w-36' : 'max-w-60'}`}
+          // รู้ขนาด: attr width/height + h-auto ให้เบราว์เซอร์จอง aspect-ratio ก่อนโหลด (ไม่ใส่ max-h)
+          {...(size ?? {})}
+          className={`chat-media rounded ${size ? 'h-auto ' : ''}${isSticker ? 'max-w-36' : 'max-w-60'}${showBg ? ' bg-default-100' : ''}`}
           onLoad={(e) => {
+            setLoaded(true)
             const el = e.currentTarget
             if (el.naturalWidth <= STICKER_MAX_PX && el.naturalHeight <= STICKER_MAX_PX) setIsSticker(true)
           }}

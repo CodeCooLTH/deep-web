@@ -12,8 +12,9 @@
  */
 import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import { initialAlbumShape, shapeFromRatio, type TileShape } from '@/lib/chat-image-reserve'
 
-type AlbumMsg = { id: string; imageUrl: string | null }
+type AlbumMsg = { id: string; imageUrl: string | null; imageWidth?: number | null; imageHeight?: number | null }
 
 /** cell รูปเดี่ยว — จับ error โหลดไม่ขึ้นต่อช่อง (ไม่ให้ทั้งกริดพัง) */
 function AlbumCell({
@@ -78,10 +79,9 @@ function AlbumCell({
  * ไม่พร้อมกัน. ชุดจริงเกือบทั้งหมดเป็นรูปแนวเดียวกันหมด (ถ่ายจากกล้องชุดเดียว / สกรีนช็อตชุดเดียว)
  * การให้ทั้งกริดใช้ทรงเดียวตามรูปนำจึงได้ผลใกล้เคียง แต่ขอบยังเรียบและวางได้ทันทีที่รูปแรกโหลด
  *
- * ทำไมไม่เก็บ w/h ตอนรับรูป: `ChatMessage` ไม่มีคอลัมน์ขนาดภาพ (มีแค่ attachmentName/Size) — เพิ่มคอลัมน์
- * = migration บนฐานที่แชร์กับ prod และยังต้องมี backfill ให้รูปเก่าอยู่ดี วัดตอน onLoad ถูกกว่าและครอบของเก่า
+ * ขนาดรูป: server เก็บ w/h ใน MediaImageSize (M3) แล้วส่งมากับ message — รูปนำที่รู้ขนาดเริ่มทรงถูกตั้งแต่
+ * render แรก ไม่กระโดด; รูปเก่าที่ไม่มีขนาดยังเริ่ม SQUARE แล้ววัดตอน onLoad (onMeasure) เป็น fallback
  */
-type TileShape = 'PORTRAIT' | 'SQUARE' | 'LANDSCAPE'
 
 const TILE_ASPECT: Record<TileShape, string> = {
   // fraction utility ของ Tailwind 4 (aspect-3/4) ไม่ใช่ arbitrary value ในวงเล็บ — HR7 ผ่าน
@@ -90,16 +90,10 @@ const TILE_ASPECT: Record<TileShape, string> = {
   LANDSCAPE: 'aspect-4/3',
 }
 
-/** เกณฑ์กว้าง ๆ — รูปที่เกือบจัตุรัส (0.85–1.2) ให้เป็นจัตุรัสไปเลย ไม่ต้องเปลี่ยนทรงเพราะเอียงไปนิดเดียว */
-function shapeFromRatio(ratio: number): TileShape {
-  if (ratio <= 0.85) return 'PORTRAIT'
-  if (ratio >= 1.2) return 'LANDSCAPE'
-  return 'SQUARE'
-}
-
 export default function PhotoAlbum({ ms, onOpen }: { ms: AlbumMsg[]; onOpen: (id: string) => void }) {
-  // เริ่มที่ SQUARE เพื่อให้จองพื้นที่ได้ทันทีก่อนรูปโหลด แล้วปรับครั้งเดียวเมื่อรูปนำโหลดเสร็จ
-  const [shape, setShape] = useState<TileShape>('SQUARE')
+  // เริ่มจากขนาดรูปนำที่ server ส่งมา (ถ้ามี) ไม่งั้น SQUARE แล้วปรับครั้งเดียวเมื่อรูปนำโหลดเสร็จ
+  const lead = ms.find((m) => m.imageUrl)
+  const [shape, setShape] = useState<TileShape>(() => initialAlbumShape(lead?.imageWidth, lead?.imageHeight))
   const tile = TILE_ASPECT[shape]
 
   const imgs = ms.filter((m) => m.imageUrl)
