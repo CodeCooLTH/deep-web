@@ -48,7 +48,14 @@ import type { DatesSetArg } from '@fullcalendar/core'
 import type { DateClickArg } from '@fullcalendar/interaction'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
-import { formatMonthYearTH, formatWeekdayDateTH, formatDateTH, formatTimeHM } from '@/lib/format-date'
+import {
+  formatMonthYearTH,
+  formatWeekdayDateTH,
+  formatDateTH,
+  formatTimeHM,
+  WEEKDAY_SHORT_TH as DOW_SHORT,
+  WEEKDAY_TH as DOW_FULL,
+} from '@/lib/format-date'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import {
   isAllDayAppointment,
@@ -166,8 +173,6 @@ const DEFAULT_HOUR_FROM = 8
 const DEFAULT_HOUR_TO = 20
 
 /** หัวคอลัมน์วัน — index = getDay() (0 = อาทิตย์ ตรงกับ firstDay={0} ของปฏิทิน) */
-const DOW_SHORT = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
-const DOW_FULL = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์']
 
 
 export default function AppointmentDateSheet({

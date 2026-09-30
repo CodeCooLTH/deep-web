@@ -51,7 +51,7 @@ import {
   isAllDayAppointment,
   type AppointmentStatus,
 } from '@/lib/appointments'
-import { formatDateTH, formatMonthYearTH } from '@/lib/format-date'
+import { formatDateTH, formatMonthYearTH, thaiDayKey } from '@/lib/format-date'
 
 type ResourceOption = { id: string; name: string; capacity: number }
 
@@ -132,12 +132,11 @@ const STATUS_ORDER: AppointmentStatus[] = [
 // ตัวตัดสินจริงคือ EXCLUDE constraint ตอนบันทึก — วันที่ขึ้นว่าเต็มจึงกันแค่ปุ่มลัด
 // ไม่ได้กันการสร้างออเดอร์ผ่านเส้นทางปกติ
 
-const BKK_OFFSET_MS = 7 * 60 * 60 * 1000
 const DAY_MS = 86_400_000
 
 /** คีย์ "YYYY-MM-DD" ตามปฏิทินไทย — ใช้จับนัดเข้ากับช่องวันของ FullCalendar */
 function bangkokDayKey(d: Date): string {
-  return new Date(d.getTime() + BKK_OFFSET_MS).toISOString().slice(0, 10)
+  return thaiDayKey(d)
 }
 
 /** ช่องวันของ FullCalendar เป็นเวลาเครื่อง — แปลงเป็นคีย์เดียวกันเพื่อเทียบกันได้ */

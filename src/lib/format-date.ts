@@ -113,10 +113,46 @@ export function uploadDatePrefix(input: Date | string | number): string {
   return `${p.year}/${p.month}/${p.day}`
 }
 
-const THAI_MONTHS_ABBR = [
+/**
+ * ชื่อเดือนไทยแบบย่อ — SSOT เดียวของทั้งระบบ (index 0 = ม.ค.)
+ *
+ * 🛑 export ตั้งแต่ 2026-09-30 — เดิมเป็น private ทำให้ไฟล์อื่นเขียนตารางชื่อเดือนซ้ำเอง
+ * **5 ที่** (dashboard/page · dashboard.service · MonthPickerSheet · AvailabilityCalendar ·
+ * QuotaFormClient) ห้ามประกาศตารางชื่อเดือนที่อื่นอีก — มีเทสสแกนซอร์สบังคับไว้
+ * (`src/lib/__tests__/date-format-single-source.test.ts`)
+ */
+export const THAI_MONTHS_ABBR = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
-]
+] as const
+
+/** ชื่อเดือนไทยแบบเต็ม (index 0 = มกราคม) — ใช้กับหัวปฏิทิน/ตัวเลือกเดือนที่มีที่พอ */
+export const THAI_MONTHS_FULL = [
+  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
+] as const
+
+/**
+ * แปลงปี ค.ศ. ที่ถืออยู่เป็นตัวเลข → ปี พ.ศ. — SSOT ของค่า +543
+ *
+ * ใช้เมื่อถือ "ปี" เป็นตัวเลขอยู่แล้ว (state ของตัวเลือกเดือน/ปี, เกณฑ์เหรียญ)
+ * ถ้าถือเป็น Date ให้ใช้ `formatYearTH(d)` แทน เพราะต้องตัดปีด้วย timezone ไทย
+ */
+export function toBuddhistYear(ceYear: number): number {
+  return ceYear + BE_OFFSET
+}
+
+/**
+ * "2569" — ปี พ.ศ. ของเวลาหนึ่ง ตัดด้วย **timezone ไทย**
+ *
+ * 🛑 ห้ามเขียน `new Date().getFullYear() + 543` เอง — server เป็น UTC บน Vercel
+ * ช่วง 00:00–07:00 น. ของวันที่ 1 ม.ค. ตามเวลาไทย `getFullYear()` ยังคืนปีเก่า
+ */
+export function formatYearTH(input: Date | string | number | null | undefined): string {
+  const d = toValidDate(input)
+  if (!d) return '—'
+  return String(Number(partsInBangkok(d).year) + BE_OFFSET)
+}
 
 /**
  * "มิ.ย. 2568" — เดือนย่อไทย + ปี พ.ศ. (ไม่มีวัน, timezone ไทย)
@@ -302,7 +338,8 @@ export function weekdayShortTH(
   return WEEKDAY_SHORT_TH[idx]
 }
 
-const WEEKDAY_TH = [
+/** ชื่อวันเต็ม (index = getDay(), 0 = อาทิตย์) — SSOT เดียวทั้งระบบ ห้ามประกาศซ้ำที่อื่น */
+export const WEEKDAY_TH = [
   'อาทิตย์',
   'จันทร์',
   'อังคาร',
@@ -312,7 +349,8 @@ const WEEKDAY_TH = [
   'เสาร์',
 ] as const
 
-const WEEKDAY_SHORT_TH = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'] as const
+/** ชื่อวันย่อ (index = getDay()) — หัวคอลัมน์ปฏิทิน */
+export const WEEKDAY_SHORT_TH = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'] as const
 
 // Bangkok = UTC+7 ตายตัว ไม่มี DST → คำนวณ "วันที่ตามปฏิทินไทย" ด้วย offset คงที่ได้ปลอดภัย
 const BKK_OFFSET_MS = 7 * 60 * 60 * 1000

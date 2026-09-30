@@ -9,15 +9,11 @@
 import { prisma } from '@/lib/prisma'
 import { withoutDrafted } from '@/lib/order-visibility'
 import { TZ_OFFSET_MS } from '@/lib/date-range'
+import { THAI_MONTHS_ABBR } from '@/lib/format-date'
 import { countsAsRevenue } from '@/lib/order-revenue'
 import { deriveShippingStage } from '@/lib/order-stage'
 import { canonicalProvince, isKnownProvince } from '@/lib/parse-order-message'
 
-// เดือนไทยแบบย่อ — label แกน x โหมดรายเดือน
-const THAI_MONTHS_ABBR = [
-  'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
-]
 
 export type SalesSeriesMode = 'daily' | 'monthly'
 

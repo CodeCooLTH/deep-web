@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { intersectScopedShopIds } from '@/lib/chat-scope'
+import { thaiDayKey } from '@/lib/format-date'
 import { listBoard, listCalendarMonth, type BoardParams } from '@/services/customer-follow-up.service'
 import { fail, json, mapFollowUpError, requireScope, requireUser } from '../_shared'
 
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     if (view === 'board') return json(await listBoard(params))
     const m = sp.get('month')
     // month ไม่มี/ผิดรูป = เดือนปัจจุบันเวลาไทย (ไม่ 400)
-    const month = m && MONTH_RE.test(m) ? m : new Date().toLocaleDateString('sv', { timeZone: 'Asia/Bangkok' }).slice(0, 7)
+    const month = m && MONTH_RE.test(m) ? m : thaiDayKey(new Date()).slice(0, 7)
     return json(await listCalendarMonth({ ...params, month }))
   } catch (e) {
     return mapFollowUpError(e, 'GET follow-ups/board')

@@ -17,6 +17,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { thaiDayKey } from '@/lib/format-date'
 import type { PnlReport } from '@/services/pnl.service'
 import type { SerializedExpense } from '@/services/expense.service'
 import type { DateRangePreset } from '@/lib/date-range'
@@ -158,8 +159,9 @@ export default function ExpenseWorkspace({
   const handleCustomChange = (selectedDates: Date[]) => {
     if (selectedDates.length === 2) {
       const next: [string, string] = [
-        selectedDates[0].toISOString().slice(0, 10),
-        selectedDates[1].toISOString().slice(0, 10),
+        // Flatpickr คืนเที่ยงคืน local — toISOString() เลื่อนถอยไป 1 วัน (แบบเดียวกับ SalesDateRange)
+        thaiDayKey(selectedDates[0]),
+        thaiDayKey(selectedDates[1]),
       ]
       setCustomDates(next)
       syncUrl('custom', next)

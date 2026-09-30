@@ -119,7 +119,7 @@ import { useState, useEffect, useRef } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import ApexChart from '@/components/wrappers/ApexChart'
 import { getColor } from '@/utils/helpers'
-import { formatMonthYearTH } from '@/lib/format-date'
+import { formatMonthYearTH, toBuddhistYear } from '@/lib/format-date'
 import { formatNumberNoSymbol, pctChangeVsPrev } from '@/lib/format-money'
 import type { ApexOptions } from 'apexcharts'
 import type { SalesSeries } from '../_constants/command-center'
@@ -547,7 +547,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
   const periodLabel =
     mode === 'daily'
       ? formatMonthYearTH(new Date(Date.UTC(year, month - 1, 15)))
-      : `ปี ${year + 543}`
+      : `ปี ${toBuddhistYear(year)}`
 
   const compareWord = mode === 'daily' ? 'เดือนก่อน' : 'ปีก่อน'
 
@@ -636,9 +636,10 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
                 ผ่าน precedent (chat)/inbox/[conversationId]/components/CustomerPanel.tsx:912
           🛑 flex-nowrap — .nav-tabs ของ Paces เป็น flex-wrap ถ้าไม่ปิด 3 แท็บไทยจะตกบรรทัดที่ 320px
              และการใส่ truncate อย่างเดียวไม่มีผล (docs/conventions/flex-header-truncation.md) */}
+      {/* 🛑 my-0 me-0: .nav-tabs ของ Paces มี -my-3.75 (ใช้ใน card-header เท่านั้น) นอกการ์ดจะดึงเนื้อหาขึ้นมาทับแถบ 15px */}
       {isService && (
         <nav
-          className="nav-tabs border-default-200 flex h-auto shrink-0 flex-nowrap border-b px-2"
+          className="nav-tabs border-default-200 my-0 me-0 flex h-auto shrink-0 flex-nowrap border-b px-2"
           role="tablist"
           aria-label="มุมมองการเงินของร้าน"
         >

@@ -23,11 +23,8 @@ import IconButton from '@mui/material/IconButton'
 
 import { Icon } from '@iconify/react'
 
-const WEEKDAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
-const MONTHS_TH = [
-  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
-]
+import { THAI_MONTHS_FULL, thaiDayKey, toBuddhistYear, WEEKDAY_SHORT_TH as WEEKDAYS } from '@/lib/format-date'
+
 
 export type AvailabilityData = {
   totalRooms: number
@@ -50,7 +47,7 @@ export default function AvailabilityCalendar({ data }: { data: AvailabilityData 
 
   const firstWeekday = new Date(Date.UTC(year, month, 1)).getUTCDay()
   const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
-  const todayIso = new Date().toISOString().slice(0, 10)
+  const todayIso = thaiDayKey(new Date())
 
   const cells: (number | null)[] = [
     ...Array.from({ length: firstWeekday }, () => null),
@@ -67,7 +64,7 @@ export default function AvailabilityCalendar({ data }: { data: AvailabilityData 
           <Icon icon='lucide:chevron-left' width={18} />
         </IconButton>
         <Typography className='font-medium'>
-          {`${MONTHS_TH[month]} ${year + 543}`}
+          {`${THAI_MONTHS_FULL[month]} ${toBuddhistYear(year)}`}
         </Typography>
         <IconButton
           size='small'

@@ -13,6 +13,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { formatTimeHM } from '@/lib/format-date'
 
 type Props = {
   conversationId: string
@@ -63,11 +64,7 @@ export default function BotPausedBanner({ conversationId, pausedUntil, handoffAt
   const { show, isHandedOff, minsLeft } = getBotPausedSummary(pausedUntil, handoffAt)
   if (!show) return null
 
-  const until = pausedUntil
-    ? new Intl.DateTimeFormat('th-TH', {
-        timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hour12: false,
-      }).format(new Date(pausedUntil))
-    : null
+  const until = pausedUntil ? formatTimeHM(pausedUntil) : null
 
   async function resume() {
     if (busy) return

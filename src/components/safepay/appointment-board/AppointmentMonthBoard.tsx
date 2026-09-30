@@ -38,15 +38,20 @@ import Icon from '@/components/wrappers/Icon'
    เท่ากันเป๊ะแต่ **สร้าง Intl.DateTimeFormat ใหม่ทุกครั้งที่เรียก** (format-date.ts เขียนคอมเมนต์
    ไว้เองว่าการ construct formatter แพงกว่าการ format มาก จึง cache เป็น singleton) —
    ฟังก์ชันนี้ถูกเรียกต่อนัดต่อวันใน countByDay/dayItems ซึ่งรันใหม่ทุกครั้งที่จิ้มวัน (HR16) */
-import { formatDateTH, formatMonthYearTH, formatWeekdayDateTH, thaiDayKey } from '@/lib/format-date'
+import {
+  formatDateTH,
+  formatMonthYearTH,
+  formatWeekdayDateTH,
+  thaiDayKey,
+  WEEKDAY_SHORT_TH as DOW_SHORT,
+  WEEKDAY_TH as DOW_FULL,
+} from '@/lib/format-date'
 import AppointmentDayCell from './AppointmentDayCell'
 import AppointmentDayRows from './AppointmentDayRows'
 import AppointmentDaySheet from './AppointmentDaySheet'
 import { localDateKey, type AppointmentBoardItem } from './types'
 
 /** หัวคอลัมน์วัน — index = getDay() (0 = อาทิตย์ ตรงกับ firstDay={0} ของปฏิทิน) */
-const DOW_SHORT = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
-const DOW_FULL = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์']
 
 const DAY_MS = 86_400_000
 
