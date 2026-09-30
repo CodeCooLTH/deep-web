@@ -58,7 +58,9 @@ const SellerEmptyState = ({
       <p className="font-semibold text-default-700 text-base mb-1">{title}</p>
 
       {description && (
-        <p className="text-sm text-default-400 mt-1 max-w-xs">{description}</p>
+        // default-700 ไม่ใช่ -400 — -400 บนพื้นการ์ดคอนทราสต์ ~2.5:1 ตก AA (review HR8 2026-10-01)
+        // ปรับแค่ความเข้มของเทาเดิม ไม่เปลี่ยนเฉด (contrast-fix-keeps-hue.md)
+        <p className="text-sm text-default-700 mt-1 max-w-xs">{description}</p>
       )}
 
       {action && (

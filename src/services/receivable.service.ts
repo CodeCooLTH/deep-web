@@ -17,9 +17,8 @@ import { thaiDayKey } from '@/lib/format-date'
 import { withoutDrafted } from '@/lib/order-visibility'
 import type { ResolvedDateRange } from '@/lib/date-range'
 
-/** นิยามที่ต้อง render ให้ผู้ใช้เห็น ห้ามเก็บไว้ในคอมเมนต์ (Hard Rule 16) */
-export const RECEIVABLE_BASIS_NOTE =
-  'นับทุกบิลที่เปิดจริงและยังไม่ถูกยกเลิก ไม่ต้องรอลูกค้ายืนยัน · ค้างรับ คือยอดที่ยังไม่ได้บันทึกการรับเงิน ไม่ได้แปลว่าลูกค้าไม่จ่าย'
+/** ตัวข้อความอยู่ที่ lib (client component ใช้ได้ — ไฟล์นี้ import prisma) · re-export ให้ผู้เรียกเดิม */
+export { RECEIVABLE_BASIS_NOTE } from '@/lib/finance-tabs'
 
 export interface ReceivableSummary {
   /** ยอดบิลรวมในช่วง (ไม่นับใบที่ยกเลิก) */

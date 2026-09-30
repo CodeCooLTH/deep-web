@@ -20,6 +20,7 @@ import SalesTable from './components/SalesTable'
 import SalesDateRange from './components/SalesDateRange'
 import type { DailyRow, SummaryData } from './components/data'
 import { resolveRangeFromParams } from '@/lib/date-range'
+import { DRAFTED_STATUS } from '@/lib/order-visibility'
 import { resolveShopVertical } from '@/lib/lodging'
 import { resolveOrderVocab, FINANCE_MENU_LABEL } from '@/lib/seller-menu'
 import { resolveFinanceTab, resolveDataCompleteness, FINANCE_TAB_PARAM } from '@/lib/finance-tabs'
@@ -57,8 +58,7 @@ export default async function SalesPage({
 }) {
   const sp = await searchParams
   const session = await getServerSession(authOptions)
-  const user = (session as any)?.user
-  if (!user) redirect('/auth/sign-in')
+  if (!session?.user) redirect('/auth/sign-in')
 
   const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
   if (!active) redirect('/shop')
@@ -190,7 +190,12 @@ export default async function SalesPage({
    * ไม่ query ตาราง `Expense` ที่หน้านี้แล้ว (มติ user 2026-08-09) — หน้านี้เหลือ
    * ยอดขาย − (ต้นทุนสินค้า + ค่าส่ง) เท่านั้น ค่าใช้จ่ายอื่นของร้านยังอยู่ที่หน้า /expenses
    */
-  const allOrders = await getOrdersByShop(shop.id)
+  /**
+   * 🛑 ตัดร่างออเดอร์ (DRAFTED, feature 00061) ทิ้ง — getOrdersByShop คืนทุกสถานะ แล้ว else-branch ข้างล่าง
+   * (ไม่ใช่ CONFIRMED/CANCELLED) เคยนับร่างเป็น "รอลูกค้ายืนยัน" + จำนวนออเดอร์ ทั้งที่ร่างยังไม่ใช่บิลจริง
+   * (พบ 2026-10-01 ตอนเทียบกับ receivable.service ซึ่งใช้ withoutDrafted อยู่แล้ว — ชุดแถวต้องตรงกัน)
+   */
+  const allOrders = (await getOrdersByShop(shop.id)).filter((o) => o.status !== DRAFTED_STATUS)
 
   // ใช้ type จริงจาก return value ของ getOrdersByShop — ป้องกัน silent break ถ้า schema เปลี่ยน
   type OrderItem = Awaited<ReturnType<typeof getOrdersByShop>>[number]
@@ -235,6 +240,8 @@ export default async function SalesPage({
   // ยอดที่ลูกค้ายังไม่กดยืนยัน (ไม่นับที่ยกเลิก) — ชีตยอดขายบนมือถือแยกสองยอดนี้มาตั้งแต่แรก
   // แต่หน้าเว็บเก็บแค่ยอดที่ยืนยันแล้ว ทำให้สอง surface เล่าเรื่องคนละแบบจากข้อมูลชุดเดียวกัน
   const unconfirmedPerDay: Record<string, number> = {}
+  /** บิลที่ไม่ถูกยกเลิกต่อวัน — คู่กับยอดบิล (revenue + unconfirmed) ของตารางร้านบริการ */
+  const billPerDay: Record<string, number> = {}
 
   // COGS ต่อวัน — ต้องคิดด้วยถึงจะได้ "กำไรสุทธิ" สูตรเดียวกับการ์ด P&L ใน /expenses
   // (revenue − COGS − expense) ถ้าใช้แค่ revenue − expense ตัวเลขสองหน้าจะไม่ตรงกัน
@@ -245,18 +252,24 @@ export default async function SalesPage({
   const pendingShipmentPerDay: Record<string, number> = {}
   /** ยอดค่าธรรมเนียม COD ทั้งช่วง — ส่วนย่อยของค่าส่งข้างบน ใช้โชว์บนการ์ดเท่านั้น */
   let codFeeTotal = 0
+  /** มีรายการที่ยืนยันแล้วแต่ยังไม่ตั้งต้นทุน — กำไร/อัตรากำไรเป็นเพดานบน (นิยามเดียวกับ isMissingCost) */
+  let hasMissingCost = false
 
   for (const o of inRange) {
     // feature 00033 §5.3 — ตัดวันตามปฏิทินไทย ต้องเป็นคีย์รูปแบบเดียวกับที่ eachDay() สร้าง
     // ไม่งั้นค่าใน map นี้จะไม่ตรงกับวันที่ eachDay ไล่มา แล้วกราฟกลายเป็น 0 ทั้งแถบโดยไม่มี error
     const day = thaiDayKey(o.createdAt)
     ordersPerDay[day] = (ordersPerDay[day] ?? 0) + 1
+    if (o.status !== 'CANCELLED') billPerDay[day] = (billPerDay[day] ?? 0) + 1
     if (o.status === 'CONFIRMED') {
       completedPerDay[day] = (completedPerDay[day] ?? 0) + 1
       revenuePerDay[day] = (revenuePerDay[day] ?? 0) + Number(o.totalAmount ?? 0)
       for (const item of o.items) {
         // cost = null คือ "ยังไม่ตั้งต้นทุน" ไม่ใช่ "ต้นทุน 0" — ข้ามไป (การ์ด P&L เตือนเรื่องนี้อยู่แล้ว)
-        if (item.cost == null) continue
+        if (item.cost == null) {
+          hasMissingCost = true
+          continue
+        }
         cogsPerDay[day] = (cogsPerDay[day] ?? 0) + Number(item.cost) * item.qty
       }
       /**
@@ -299,11 +312,12 @@ export default async function SalesPage({
     const avgOrder = completed > 0 ? revenue / completed : 0
     const label = formatDate(date)
     const unconfirmedRevenue = unconfirmedPerDay[date] ?? 0
-    if (!canSeeFinance) return { date, label, orders, completed, revenue, unconfirmedRevenue, avgOrder }
+    const billCount = billPerDay[date] ?? 0
+    if (!canSeeFinance) return { date, label, orders, completed, revenue, unconfirmedRevenue, avgOrder, billCount }
     const shippingCost = shippingCostPerDay[date] ?? 0
     const pendingShipmentCount = pendingShipmentPerDay[date] ?? 0
     return {
-      date, label, orders, completed, revenue, unconfirmedRevenue, avgOrder,
+      date, label, orders, completed, revenue, unconfirmedRevenue, avgOrder, billCount,
       shippingCost,
       netProfit: revenue - (cogsPerDay[date] ?? 0) - shippingCost,
       pendingShipmentCount,
@@ -339,6 +353,7 @@ export default async function SalesPage({
       netProfit: daily.reduce((s, d) => s + (d.netProfit ?? 0), 0),
       prevShippingCost: prevShippingTotal,
       pendingShipmentCount: daily.reduce((s, d) => s + (d.pendingShipmentCount ?? 0), 0),
+      hasMissingCost,
     }),
   }
 
@@ -377,10 +392,22 @@ export default async function SalesPage({
         {rangeFilter}
       </div>
 
-      <SalesChart daily={daily} summary={summary} periodLabel={periodLabel} />
+      <SalesChart
+        daily={daily}
+        summary={summary}
+        periodLabel={periodLabel}
+        isServiceQueue={isServiceQueue}
+        collect={receivables?.summary}
+      />
 
       <div className="card mt-1.25">
-        <SalesTable rows={daily} showFinance={canSeeFinance} />
+        <SalesTable
+          rows={daily}
+          showFinance={canSeeFinance && !isServiceQueue}
+          countNoun={isServiceQueue ? 'งาน' : 'ออเดอร์'}
+          moneyAxis={isServiceQueue && receivables != null}
+          profitCapped={summary.hasMissingCost === true}
+        />
       </div>
 
       {receivables && (

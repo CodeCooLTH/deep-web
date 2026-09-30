@@ -37,6 +37,7 @@ import {
 import { formatOrderDateLabel, formatDateTH } from '@/lib/format-date'
 import { cn } from '@/utils/helpers'
 import type { FormValues } from './OrderCreateForm'
+import BeDateHint from '@/components/safepay/BeDateHint'
 
 /** ทางลัด P1-3 — เปลี่ยนแค่ "วัน" อ้างอิงจาก now แต่คงเวลาของ base (ค่าที่กรอกอยู่/now) ไว้เดิมเป๊ะ */
 function shiftDayKeepTime(base: Date, referenceNow: Date, daysAgo: number): Date {
@@ -211,7 +212,7 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
                   min={toDatetimeLocalValue(new Date(minMs))}
                   max={toDatetimeLocalValue(new Date(maxMs))}
                   // helper (ขอบเขตที่เลือกได้) ต้องถูกอ่านเสมอ ไม่ใช่โผล่ตอนพลาดไปแล้ว — มันคือสิ่งที่กันไม่ให้พลาด
-                  aria-describedby={rejectReason ? `${errorId} ${helperId}` : helperId}
+                  aria-describedby={rejectReason ? `${errorId} ${helperId} ${inputId}-be` : `${helperId} ${inputId}-be`}
                   onChange={(e) => field.onChange(e.target.value || undefined)}
                 />
                 <button
@@ -229,6 +230,9 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
                   ใช้เวลาปัจจุบัน
                 </button>
               </div>
+              {/* ช่อง datetime-local ของเบราว์เซอร์โชว์ปีตามเครื่อง — กำกับ พ.ศ. ให้ตรงกับทั้งระบบ */}
+              {/* ไม่มีค่า = ช่องโชว์ "ตอนนี้" → ป้ายต้องโชว์ค่าเดียวกัน ไม่ใช่หายไป */}
+              <BeDateHint id={`${inputId}-be`} value={field.value ?? toDatetimeLocalValue(now)} withTime />
               {rejectReason && (
                 <p id={errorId} className="mt-1 text-xs text-danger-ink" role="alert">
                   {rejectReason}

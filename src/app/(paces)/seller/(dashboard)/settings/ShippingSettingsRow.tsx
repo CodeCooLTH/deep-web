@@ -753,12 +753,12 @@ export default function ShippingSettingsRow({
             </div>
           }
         >
-          {/* nav-tabs นอก card-header ต้องคุม margin/border เอง (precedent CustomerPanel) */}
+          {/* nav-tabs นอก card-header ต้องคุม margin/border เอง (precedent CustomerPanel) — 🛑 mt-0: .nav-tabs ของ Paces มี -my-3.75 ถ้าไม่ปิดบนจะถูกดึงขึ้นไปทับหัว */}
           <div
             role="tablist"
             aria-label="หมวดการตั้งค่า"
             onKeyDown={onTabKeyDown}
-            className="nav-tabs -mx-5 mb-4 flex h-auto gap-1 border-b border-default-200 px-5"
+            className="nav-tabs -mx-5 mt-0 mb-4 flex h-auto flex-nowrap gap-1 overflow-x-auto border-b border-default-200 px-5"
           >
             {TABS.map((t) => (
               <button
@@ -769,7 +769,7 @@ export default function ShippingSettingsRow({
                 aria-controls={`iship-panel-${t.key}`}
                 tabIndex={tab === t.key ? 0 : -1}
                 onClick={() => setTab(t.key)}
-                className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium ${
+                className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium whitespace-nowrap ${
                   tab === t.key
                     ? 'border-primary text-primary'
                     : 'border-transparent text-default-500 hover:text-default-800'
@@ -779,6 +779,7 @@ export default function ShippingSettingsRow({
                 {t.label}
                 {tabHasError(t.key) && (
                   <span
+                    role="img"
                     className="size-1.5 rounded-full bg-danger"
                     aria-label="มีข้อมูลที่ยังไม่ถูกต้อง"
                   />

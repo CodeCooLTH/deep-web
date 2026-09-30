@@ -95,3 +95,10 @@ export function shouldOfferCostSetup(c: DataCompleteness): boolean {
 export function shouldOfferExpenseSetup(c: DataCompleteness): boolean {
   return c.missingExpense
 }
+
+/**
+ * นิยามของ "ยอดค้างรับ" ที่ต้อง render ให้ผู้ใช้เห็น ห้ามเก็บไว้ในคอมเมนต์ (Hard Rule 16)
+ * อยู่ที่ lib (ไม่ใช่ receivable.service) เพื่อให้ชีตบนหน้าหลักซึ่งเป็น client component ใช้ข้อความเดียวกันได้
+ */
+export const RECEIVABLE_BASIS_NOTE =
+  'นับทุกบิลที่เปิดจริงและยังไม่ถูกยกเลิก ไม่ต้องรอลูกค้ายืนยัน · ค้างรับ คือยอดที่ยังไม่ได้บันทึกการรับเงิน ไม่ได้แปลว่าลูกค้าไม่จ่าย'

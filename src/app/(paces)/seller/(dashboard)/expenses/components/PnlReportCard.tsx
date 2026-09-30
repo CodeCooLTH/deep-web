@@ -95,7 +95,17 @@ export default function PnlReportCard({
         changePercent={pctChangeVsPrev(report.netProfit, report.prevNetProfit)}
         bulletClass={capped ? (profit.positive ? 'text-warning' : 'text-danger') : profit.positive ? 'text-success' : 'text-danger'}
         metric="อัตรากำไรสุทธิ"
-        metricValue={report.revenue > 0 ? pct((report.netProfit / report.revenue) * 100) : 'ยังไม่มียอดขาย'}
+        /* ข้อมูลไม่ครบ = อัตราเป็นตัวเลขไม่ได้ — ร้านที่ไม่เคยตั้งต้นทุนเคยเห็น "100%" (user ทัก 2026-10-01) */
+        metricValue={
+          report.revenue <= 0
+            ? 'ยังไม่มียอดขาย'
+            : !capped
+              ? pct((report.netProfit / report.revenue) * 100)
+              : // บอกว่าขาดอะไร = บอกทางแก้ (ต้นทุนมาก่อน เพราะกระทบทั้งกำไรขั้นต้นและสุทธิ)
+                report.hasMissingCost
+                ? 'ตั้งต้นทุนไม่ครบ'
+                : 'ยังไม่บันทึกค่าใช้จ่าย'
+        }
       />
       <PacesStatCard
         icon="cash"
@@ -111,7 +121,7 @@ export default function PnlReportCard({
       <PacesStatCard
         icon="package"
         iconClass="bg-default-200 text-default-700"
-        title="ต้นทุนสินค้า"
+        title={costNoun}
         text={formatBaht(report.cogs)}
         valueClass="text-default-800"
         // ต้นทุนเพิ่มขึ้นไม่ใช่ข่าวดี — invert ทิศทางสีก่อนส่งเข้า badge
@@ -124,13 +134,21 @@ export default function PnlReportCard({
       <PacesStatCard
         icon="calculator"
         iconClass="bg-info/15 text-info-ink"
-        title="กำไรก่อนหักค่าใช้จ่าย"
+        // ต้นทุนไม่ครบ = เพดานบน → คำ "ไม่เกิน" ชุดเดียวกับการ์ดกำไรสุทธิที่ capped และการ์ด /sales
+        title={report.hasMissingCost && report.grossProfit >= 0 ? 'กำไรก่อนหักค่าใช้จ่ายไม่เกิน' : 'กำไรก่อนหักค่าใช้จ่าย'}
         text={formatBaht(report.grossProfit)}
-        valueClass={report.grossProfit >= 0 ? 'text-success-ink' : 'text-danger-ink'}
+        // ตั้งต้นทุนไม่ครบ = เพดานบน ห้ามเขียว (Verified-Means-Green) — สีเดียวกับการ์ดกำไรสุทธิที่ capped
+        valueClass={report.grossProfit < 0 ? 'text-danger-ink' : report.hasMissingCost ? 'text-warning-ink' : 'text-success-ink'}
         changePercent={pctChangeVsPrev(report.grossProfit, report.prevGrossProfit)}
-        bulletClass="text-info"
+        bulletClass={report.hasMissingCost ? 'text-warning' : 'text-info'}
         metric="อัตรากำไรขั้นต้น"
-        metricValue={report.revenue > 0 ? pct((report.grossProfit / report.revenue) * 100) : 'ยังไม่มียอดขาย'}
+        metricValue={
+          report.revenue <= 0
+            ? 'ยังไม่มียอดขาย'
+            : report.hasMissingCost
+              ? 'ตั้งต้นทุนไม่ครบ'
+              : pct((report.grossProfit / report.revenue) * 100)
+        }
       />
       <PacesStatCard
         icon="receipt"

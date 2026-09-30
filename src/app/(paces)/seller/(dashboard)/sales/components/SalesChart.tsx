@@ -32,35 +32,65 @@ import PacesStatCard from '../../_shared/PacesStatCard'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import { useCallback } from 'react'
 import type { DailyRow, SummaryData } from './data'
+import type { ReceivableSummary } from '@/services/receivable.service'
 
 type Props = {
   daily: DailyRow[]
   summary: SummaryData
   /** "01-09-2569 – 30-09-2569" — ปีของป้ายแกน x (ที่ตัดปีออก) อ่านได้จากตรงนี้ */
   periodLabel: string
+  /**
+   * ร้านบริการ (feature 00067): แท็บนี้คือ "ยอดเก็บเงิน" — ไม่แสดงกำไร/ค่าส่ง (กำไรอยู่แท็บกำไรขาดทุน
+   * ที่ดึงจาก SSOT เดียวกับ /expenses) และนับเป็น "งาน" ไม่ใช่ "ออเดอร์" — กติกาเดียวกับชีตบนหน้าหลัก
+   */
+  isServiceQueue?: boolean
+  /**
+   * แกนเงินของร้านบริการ (รับจริง + ค้างรับ = ยอดขาย) จาก receivable.service — ตัวเดียวกับรายการ
+   * "ต้องตามเก็บ" ใต้การ์ด และชุดเดียวกับชีตบนหน้าหลัก (review HR8 2026-10-01 P1: เดิมแท็บนี้พูดแกน
+   * "ยืนยันแล้ว/รอยืนยัน" ขณะที่ชีตแท็บชื่อเดียวกันพูดแกนเงิน — user เคยถาม "ทำไมไม่ตรงกัน" มาแล้ว 2 รอบ)
+   * undefined = ไม่มีสิทธิ์ดูการเงิน → ถอยไปแกนเดิม
+   */
+  collect?: ReceivableSummary
 }
 
-const SalesChart = ({ daily, summary, periodLabel }: Props) => {
+const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, collect }: Props) => {
+  const moneyAxis = isServiceQueue && collect != null
+  const noun = isServiceQueue ? 'งาน' : 'ออเดอร์'
   // category = ISO ดิบ ("2026-09-01") — จัดรูปตอนแสดงเท่านั้น ทั้งแกน (สั้น) และ tooltip (เต็ม)
   const categories = daily.map((d) => d.date)
   const revenueSeries = daily.map((d) => d.revenue)
   const unconfirmedSeries = daily.map((d) => d.unconfirmedRevenue)
   // ค่าส่ง (feature 00016 ส่วนขยาย 2026-08-09) — undefined ทั้งชุด = ไม่มีสิทธิ์ดูข้อมูลการเงิน
   // ซ่อนทั้ง series และการ์ด (ไม่ใช่ส่ง 0 ลงไปแล้วให้ดูเหมือนไม่มีค่าส่ง)
-  const showFinance = summary.totalShippingCost != null
+  const showFinance = summary.totalShippingCost != null && !isServiceQueue
   const shippingSeries = daily.map((d) => d.shippingCost ?? 0)
   const profit = profitDisplay(summary.netProfit ?? 0)
+  /**
+   * ยังตั้งต้นทุนไม่ครบ = กำไรเป็นเพดานบน (ต้นทุนที่ขาดถูกข้าม) — คำ "ไม่เกิน/อย่างน้อย" ชุดเดียวกับ
+   * กำไรรายใบ (order-profit-presentation.ts) · สีเตือนไม่ใช่เขียว (Verified-Means-Green) ·
+   * อัตรากำไรห้ามเป็นตัวเลข (เดิมร้านที่ไม่เคยตั้งต้นทุนเห็น "100%")
+   */
+  const profitCapped = summary.hasMissingCost === true
+  const profitTitle = profit.positive
+    ? profitCapped ? 'กำไรจากการขายไม่เกิน' : 'กำไรจากการขาย'
+    : profitCapped ? 'ขาดทุนจากการขายอย่างน้อย' : 'ขาดทุนจากการขาย'
+  const profitTone = profitCapped && profit.positive ? 'text-warning-ink' : profit.toneClass
 
   /**
    * ยืนยันแล้ว + รอยืนยัน stack กันใน group 'sales' (เงินก้อนเดียวกันคนละสถานะ)
    * ค่าใช้จ่ายอยู่ group 'expense' จึงวางเป็นแท่งแยกข้างกัน ไม่ต่อยอดทับ
    * — โครงเดียวกับชีตยอดขายบนมือถือเป๊ะ เพื่อให้สอง surface เล่าเรื่องเดียวกัน
    */
-  const series = [
-    { name: 'ยืนยันแล้ว', group: 'sales', data: revenueSeries },
-    { name: 'รอยืนยัน', group: 'sales', data: unconfirmedSeries },
-    ...(showFinance ? [{ name: 'ค่าส่ง', group: 'expense', data: shippingSeries }] : []),
-  ]
+  const series = moneyAxis
+    ? /* แกนเงิน: แท่งเดียว = ยอดบิลของวันนั้น (ยืนยันแล้ว + รอยืนยัน · ไม่นับยกเลิก/ร่าง) — ผลรวมทั้งช่วง
+         เท่ากับ "ยอดขาย" บนแถบ legend (salesTotal) เพราะเป็นชุดแถวเดียวกัน
+         ยังไม่มีข้อมูลรับจริงรายวันในหน้านี้ จึงไม่แยกสีรับจริง/ค้างรับรายแท่ง */
+      [{ name: 'ยอดขาย', group: 'sales', data: daily.map((d) => d.revenue + d.unconfirmedRevenue) }]
+    : [
+        { name: 'ยืนยันแล้ว', group: 'sales', data: revenueSeries },
+        { name: 'รอยืนยัน', group: 'sales', data: unconfirmedSeries },
+        ...(showFinance ? [{ name: 'ค่าส่ง', group: 'expense', data: shippingSeries }] : []),
+      ]
   const hasAnyValue = daily.some((d) => d.revenue > 0 || d.unconfirmedRevenue > 0 || (d.shippingCost ?? 0) > 0)
 
   /**
@@ -92,9 +122,11 @@ const SalesChart = ({ daily, summary, periodLabel }: Props) => {
       // legend ของ Apex ถูกแทนด้วยแถบในหัวการ์ด (จุดสี = ซีรีส์ 1:1 + ยอดรวม)
       legend: { show: false },
       // token เท่านั้น (Hard Rule 10) — เขียว=ยืนยันแล้ว เหลือง=รอยืนยัน แดง=ค่าส่ง (ชุดเดียวกับชีตหน้าหลัก)
-      colors: showFinance
-        ? [getColor('success'), getColor('warning'), getColor('chart-beta')]
-        : [getColor('success'), getColor('warning')],
+      colors: moneyAxis
+        ? [getColor('primary')]
+        : showFinance
+          ? [getColor('success'), getColor('warning'), getColor('chart-beta')]
+          : [getColor('success'), getColor('warning')],
       xaxis: {
         categories,
         axisBorder: { show: false },
@@ -132,7 +164,7 @@ const SalesChart = ({ daily, summary, periodLabel }: Props) => {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [daily, showFinance],
+    [daily, showFinance, moneyAxis],
   )
 
   return (
@@ -140,6 +172,56 @@ const SalesChart = ({ daily, summary, periodLabel }: Props) => {
       {/* การ์ดสรุป — โครง 3 แถวของธีม ผ่าน PacesStatCard ที่ใช้ร่วมกับ /expenses
           เดิมเป็น SummaryCard ที่เขียนซ้ำในไฟล์นี้เองและมีแค่ 2 แถว (ไม่มี badge ไม่มีแถวล่าง) */}
       <div className={`mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 ${showFinance ? 'lg:grid-cols-3 xl:grid-cols-6' : 'lg:grid-cols-4'}`}>
+        {moneyAxis && collect ? (
+          <>
+            <PacesStatCard
+              icon="cash"
+              iconClass="bg-success/15 text-success-ink"
+              title="เงินที่รับจริง"
+              text={formatBaht(collect.receivedTotal)}
+              valueClass="text-success-ink"
+              changePercent={null}
+              bulletClass="text-success"
+              metric="เฉลี่ยต่อวัน"
+              metricValue={summary.days > 0 ? formatBaht(collect.receivedTotal / summary.days) : '—'}
+            />
+            <PacesStatCard
+              icon="clock"
+              iconClass="bg-warning/15 text-warning-ink"
+              title="ค้างรับ"
+              note="ยอดที่ยังไม่ได้บันทึกการรับเงิน ไม่ได้แปลว่าลูกค้าไม่จ่าย"
+              text={formatBaht(collect.outstandingTotal)}
+              valueClass="text-warning-ink"
+              changePercent={null}
+              bulletClass="text-warning"
+              metric="ค้างอยู่"
+              metricValue={`${collect.outstandingCount.toLocaleString('th-TH')} ${noun}`}
+            />
+            <PacesStatCard
+              icon="receipt-2"
+              iconClass="bg-primary/15 text-primary"
+              title={`${noun}ทั้งหมด`}
+              text={collect.orderCount.toLocaleString('th-TH')}
+              valueClass="text-default-800"
+              changePercent={null}
+              bulletClass="text-primary"
+              metric="ยกเลิก"
+              metricValue={`${summary.cancelledCount.toLocaleString('th-TH')} ${noun}`}
+            />
+            <PacesStatCard
+              icon="calculator"
+              iconClass="bg-info/15 text-info-ink"
+              title={`เฉลี่ย/${noun}`}
+              text={formatBaht(collect.orderCount > 0 ? collect.salesTotal / collect.orderCount : 0)}
+              valueClass="text-default-800"
+              changePercent={null}
+              bulletClass="text-info"
+              metric="ยอดขายรวม"
+              metricValue={formatBaht(collect.salesTotal)}
+            />
+          </>
+        ) : (
+          <>
         <PacesStatCard
           icon="cash"
           iconClass="bg-success/15 text-success-ink"
@@ -158,32 +240,36 @@ const SalesChart = ({ daily, summary, periodLabel }: Props) => {
           text={formatBaht(summary.totalUnconfirmed)}
           valueClass="text-warning-ink"
           changePercent={pctChangeVsPrev(summary.totalUnconfirmed, summary.prevUnconfirmed)}
+          // ยอดรอยืนยันเพิ่มขึ้นไม่ใช่ข่าวดีหรือร้าย — badge สีกลาง ไม่ใช่เขียว (Verified-Means-Green)
+          changeTone="neutral"
           bulletClass="text-warning"
           metric="รอยืนยัน"
-          metricValue={`${summary.unconfirmedCount.toLocaleString('th-TH')} ออเดอร์`}
+          metricValue={`${summary.unconfirmedCount.toLocaleString('th-TH')} ${noun}`}
         />
         <PacesStatCard
           icon="receipt-2"
           iconClass="bg-primary/15 text-primary"
-          title="ออเดอร์ทั้งหมด"
+          title={`${noun}ทั้งหมด`}
           text={summary.totalOrders.toLocaleString('th-TH')}
           valueClass="text-default-800"
           changePercent={pctChangeVsPrev(summary.totalOrders, summary.prevOrders)}
           bulletClass="text-primary"
           metric="ยกเลิก"
-          metricValue={`${summary.cancelledCount.toLocaleString('th-TH')} ออเดอร์`}
+          metricValue={`${summary.cancelledCount.toLocaleString('th-TH')} ${noun}`}
         />
         <PacesStatCard
           icon="calculator"
           iconClass="bg-info/15 text-info-ink"
-          title="เฉลี่ย/ออเดอร์"
+          title={`เฉลี่ย/${noun}`}
           text={formatBaht(summary.avgOrderValue)}
           valueClass="text-default-800"
           changePercent={pctChangeVsPrev(summary.avgOrderValue, summary.prevAvgOrder)}
           bulletClass="text-info"
-          metric="จากออเดอร์สำเร็จ"
-          metricValue={`${summary.totalCompleted.toLocaleString('th-TH')} ออเดอร์`}
+          metric={`จาก${noun}สำเร็จ`}
+          metricValue={`${summary.totalCompleted.toLocaleString('th-TH')} ${noun}`}
         />
+          </>
+        )}
         {showFinance && (
           <>
             <PacesStatCard
@@ -208,22 +294,36 @@ const SalesChart = ({ daily, summary, periodLabel }: Props) => {
               metricValue={formatBaht(summary.totalCodFee ?? 0)}
             />
             <PacesStatCard
-              icon={profit.positive ? 'trending-up' : 'trending-down'}
-              iconClass={profit.positive ? 'bg-success/15 text-success-ink' : 'bg-danger/15 text-danger-ink'}
+              icon={profitCapped ? 'alert-triangle' : profit.positive ? 'trending-up' : 'trending-down'}
+              iconClass={
+                profitCapped && profit.positive
+                  ? 'bg-warning/15 text-warning-ink'
+                  : profit.positive
+                    ? 'bg-success/15 text-success-ink'
+                    : 'bg-danger/15 text-danger-ink'
+              }
               /* 🛑 ห้ามใช้คำว่า "กำไรสุทธิ" ที่หน้านี้ — ตัวเลขนี้ยังไม่หักค่าใช้จ่ายอื่นของร้าน
                  จึงไม่เท่ากับกำไรสุทธิที่หน้า /expenses (ดู SALES_PROFIT_FORMULA) การใช้คำเดียวกัน
                  กับตัวเลขคนละสูตรคือคลาสของบั๊กที่ critique จับได้เมื่อ 2026-08-08 */
-              title={profit.positive ? 'กำไรจากการขาย' : 'ขาดทุนจากการขาย'}
-              note={SALES_PROFIT_FORMULA}
+              title={profitTitle}
+              note={
+                profitCapped
+                  ? `${SALES_PROFIT_FORMULA} · บางรายการยังไม่ได้ตั้งต้นทุน กำไรจริงต่ำกว่านี้`
+                  : SALES_PROFIT_FORMULA
+              }
               text={profit.text}
-              valueClass={profit.toneClass}
+              valueClass={profitTone}
               changePercent={null}
-              bulletClass={profit.positive ? 'text-success' : 'text-danger'}
-              metric="อัตรากำไรสุทธิ"
+              bulletClass={profitCapped && profit.positive ? 'text-warning' : profit.positive ? 'text-success' : 'text-danger'}
+              /* "อัตรากำไร" ไม่ใช่ "อัตรากำไรสุทธิ" — หน้านี้ห้ามใช้คำว่ากำไรสุทธิ (ดูคอมเมนต์ข้างบน) */
+              caption={profitCapped ? 'ยังตั้งต้นทุนไม่ครบ — กำไรจริงต่ำกว่านี้' : undefined}
+              metric="อัตรากำไร"
               metricValue={
-                summary.totalRevenue > 0
-                  ? `${(((summary.netProfit ?? 0) / summary.totalRevenue) * 100).toFixed(1)}%`
-                  : 'ยังไม่มียอดขาย'
+                summary.totalRevenue <= 0
+                  ? 'ยังไม่มียอดขาย'
+                  : profitCapped
+                    ? 'ตั้งต้นทุนไม่ครบ'
+                    : `${(((summary.netProfit ?? 0) / summary.totalRevenue) * 100).toFixed(1)}%`
               }
             />
           </>
@@ -236,11 +336,27 @@ const SalesChart = ({ daily, summary, periodLabel }: Props) => {
           <span className="text-default-500 shrink-0 text-xs whitespace-nowrap">{periodLabel}</span>
         </div>
         {/* แถบนี้คือ legend ของกราฟ — จุดสี = สีแท่ง 1:1 พร้อมยอดรวมของช่วง */}
-        <div className="border-default-200 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-b border-dashed px-5 py-2.5">
-          <LegendItem dot="bg-success" label="ยืนยันแล้ว" value={summary.totalRevenue} />
-          <LegendItem dot="bg-warning" label="รอยืนยัน" value={summary.totalUnconfirmed} />
-          {showFinance && <LegendItem dot="bg-danger" label="ค่าส่ง" value={summary.totalShippingCost ?? 0} />}
-        </div>
+        {/* ไม่มียอดเลย = ไม่มีอะไรให้อธิบาย — ซ่อนแถบ ไม่โชว์ ฿0 ซ้อนเหนือ empty state */}
+        {hasAnyValue && (
+          <div className="border-default-300 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-dashed px-5 py-2.5">
+            {moneyAxis && collect ? (
+              /* สมการที่ไล่บวกตามได้ ชุดเดียวกับแถบหัวชีตบนหน้าหลัก — จุดสีเฉพาะ "ยอดขาย" ที่เป็นแท่งในกราฟ */
+              <>
+                <LegendItem label="รับจริง" value={collect.receivedTotal} />
+                <span className="text-default-700 text-xs" aria-hidden="true">+</span>
+                <LegendItem label="ค้างรับ" value={collect.outstandingTotal} />
+                <span className="text-default-700 text-xs" aria-hidden="true">=</span>
+                <LegendItem dot="bg-primary" label="ยอดขาย" value={collect.salesTotal} />
+              </>
+            ) : (
+              <>
+                <LegendItem dot="bg-success" label="ยืนยันแล้ว" value={summary.totalRevenue} />
+                <LegendItem dot="bg-warning" label="รอยืนยัน" value={summary.totalUnconfirmed} />
+                {showFinance && <LegendItem dot="bg-danger" label="ค่าส่ง" value={summary.totalShippingCost ?? 0} />}
+              </>
+            )}
+          </div>
+        )}
         <div className="card-body px-1 pt-3 pb-1 sm:px-3">
           {hasAnyValue ? (
             <ApexChart getOptions={getOptions} series={series} type="bar" height={320} />
@@ -256,11 +372,12 @@ const SalesChart = ({ daily, summary, periodLabel }: Props) => {
 export default SalesChart
 
 /** ช่องหนึ่งของแถบ legend — จุดสีต้องตรงกับสีซีรีส์ในกราฟเสมอ (Base: SalesChartSheet.tsx::LegendCell) */
-function LegendItem({ dot, label, value }: { dot: string; label: string; value: number }) {
+function LegendItem({ dot, label, value }: { dot?: string; label: string; value: number }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs whitespace-nowrap">
-      <span className={`size-2 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
-      <span className="text-default-600">{label}</span>
+      {/* ไม่มี dot = ช่องนี้ไม่มีแท่งในกราฟ (ตัวเลขประกอบสมการ) — ใส่จุดให้จะทำให้จุดสีเลิกแปลว่า "แท่งไหน" */}
+      {dot && <span className={`size-2 shrink-0 rounded-full ${dot}`} aria-hidden="true" />}
+      <span className="text-default-700">{label}</span>
       <span className="text-default-800 font-semibold tabular-nums">{formatBaht(value)}</span>
     </span>
   )

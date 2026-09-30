@@ -15,6 +15,7 @@
  */
 import type { UseFormRegister, FieldErrors, UseFormWatch } from 'react-hook-form'
 import type { AuctionFormValues } from './AuctionForm.types'
+import BeDateHint from '@/components/safepay/BeDateHint'
 
 interface AuctionTimeCardProps {
   mode: 'create' | 'edit'
@@ -83,9 +84,10 @@ export default function AuctionTimeCard({
                   type="datetime-local"
                   className="form-input"
                   disabled={disabled}
-                  aria-describedby={errors.startTime ? 'auc-start-time-error' : undefined}
+                  aria-describedby={errors.startTime ? 'auc-start-time-error auc-start-time-be' : 'auc-start-time-be'}
                   {...register('startTime')}
                 />
+                <BeDateHint id="auc-start-time-be" value={watch('startTime')} withTime />
                 {errors.startTime && (
                   <p id="auc-start-time-error" className="text-danger mt-1 text-sm">
                     {errors.startTime.message}
@@ -112,9 +114,10 @@ export default function AuctionTimeCard({
             type="datetime-local"
             className="form-input"
             disabled={disabled}
-            aria-describedby={errors.endTime ? 'auc-end-time-error' : undefined}
+            aria-describedby={errors.endTime ? 'auc-end-time-error auc-end-time-be' : 'auc-end-time-be'}
             {...register('endTime')}
           />
+          <BeDateHint id="auc-end-time-be" value={watch('endTime')} withTime />
           {errors.endTime && (
             <p id="auc-end-time-error" className="text-danger mt-1 text-sm">
               {errors.endTime.message}

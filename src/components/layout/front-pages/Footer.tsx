@@ -25,6 +25,7 @@ import { frontLayoutClasses } from '@layouts/utils/layoutClasses'
 
 // Styles Imports
 import frontCommonStyles from '@views/front-pages/styles.module.css'
+import { formatYearTH } from '@/lib/format-date'
 
 // คลาสลิงก์ footer — ขาวจางแล้วสว่างเต็มเมื่อ hover (text-white ชัวร์กว่า color='white' ที่ palette ไม่มี)
 /**
@@ -161,7 +162,7 @@ const Footer = ({ mode }: { mode: Mode }) => {
         >
           <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
             <Typography variant='body2' className='text-white/90'>
-              {`© ${new Date().getFullYear()} Deep — ซื้อขายออนไลน์อย่างมั่นใจ`}
+              {`© ${formatYearTH(new Date())} Deep — ซื้อขายออนไลน์อย่างมั่นใจ`}
             </Typography>
             {/* ลิงก์กฎหมาย standard legal footer position ที่ Meta/Facebook ต้องการ */}
             <Typography component={Link} href='/privacy' variant='body2' className={footerLink}>

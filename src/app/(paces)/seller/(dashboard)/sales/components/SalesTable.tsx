@@ -20,7 +20,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { formatBaht } from '@/lib/format-money'
 import type { DailyRow } from './data'
@@ -29,6 +29,12 @@ type Props = {
   rows: DailyRow[]
   /** มีสิทธิ์ดูข้อมูลการเงิน (feature 00016) — false = ไม่ render คอลัมน์ค่าใช้จ่าย/กำไรสุทธิเลย */
   showFinance?: boolean
+  /** คำนับ — "งาน" สำหรับร้านบริการ (ชุดเดียวกับชีตหน้าหลัก) · ค่าเริ่มต้น "ออเดอร์" */
+  countNoun?: string
+  /** ร้านบริการ: แกนเงิน — วันที่ | งาน | ยอดขาย(ยอดบิล) ชุดเดียวกับการ์ดและชีตหน้าหลัก */
+  moneyAxis?: boolean
+  /** ต้นทุนยังตั้งไม่ครบ — คอลัมน์กำไรเป็นเพดานบน: สีเตือน + "(ไม่เกิน)" ให้ตรงกับการ์ดข้างบน */
+  profitCapped?: boolean
 }
 
 const columnHelper = createColumnHelper<DailyRow>()
@@ -36,7 +42,7 @@ const columnHelper = createColumnHelper<DailyRow>()
 // formatter ฿ สกุลบาท — client-side เท่านั้น (Date→ISO ทำที่ RSC boundary แล้ว)
 // รูปแบบเงินใช้ SSOT กลาง (src/lib/format-money.ts)
 
-const baseColumns = [
+const buildBaseColumns = (noun: string) => [
   columnHelper.accessor('label', {
     header: 'วันที่',
     enableColumnFilter: false,
@@ -46,7 +52,7 @@ const baseColumns = [
     sortingFn: (a, b) => a.original.date.localeCompare(b.original.date),
   }),
   columnHelper.accessor('orders', {
-    header: 'ออเดอร์',
+    header: noun,
     enableColumnFilter: false,
   }),
   columnHelper.accessor('completed', {
@@ -59,14 +65,14 @@ const baseColumns = [
     cell: ({ getValue }) => formatBaht(getValue()),
   }),
   columnHelper.accessor('avgOrder', {
-    header: 'เฉลี่ย/ออเดอร์',
+    header: `เฉลี่ย/${noun}`,
     enableColumnFilter: false,
     cell: ({ getValue }) => formatBaht(getValue()),
   }),
 ]
 
 // คอลัมน์การเงิน (feature 00016) — ต่อท้ายเฉพาะร้านที่ผ่าน gate สิทธิ์ค่าใช้จ่าย
-const financeColumns = [
+const buildFinanceColumns = (capped: boolean) => [
   columnHelper.accessor('shippingCost', {
     header: 'ค่าส่ง',
     enableColumnFilter: false,
@@ -82,12 +88,13 @@ const financeColumns = [
     ),
   }),
   columnHelper.accessor('netProfit', {
-    header: 'กำไร',
+    header: capped ? 'กำไร (ไม่เกิน)' : 'กำไร',
     enableColumnFilter: false,
     cell: ({ row }) => {
       const v = row.original.netProfit ?? 0
       return (
-        <span className={`font-semibold ${v >= 0 ? 'text-success-ink' : 'text-danger-ink'}`}>
+        // เพดานบนห้ามเขียว (Verified-Means-Green) — สีเดียวกับการ์ดกำไรที่ capped
+        <span className={`font-semibold ${v < 0 ? 'text-danger-ink' : capped ? 'text-warning-ink' : 'text-success-ink'}`}>
           {formatBaht(v)}
         </span>
       )
@@ -95,8 +102,28 @@ const financeColumns = [
   }),
 ]
 
-const SalesTable = ({ rows, showFinance = false }: Props) => {
-  const columns = showFinance ? [...baseColumns, ...financeColumns] : baseColumns
+const buildMoneyColumns = (noun: string) => [
+  columnHelper.accessor('label', {
+    header: 'วันที่',
+    enableColumnFilter: false,
+    cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue()}</span>,
+    sortingFn: (a, b) => a.original.date.localeCompare(b.original.date),
+  }),
+  columnHelper.accessor('billCount', { header: noun, enableColumnFilter: false }),
+  columnHelper.accessor((r) => r.revenue + r.unconfirmedRevenue, {
+    id: 'billTotal',
+    header: 'ยอดขาย',
+    enableColumnFilter: false,
+    cell: ({ getValue }) => formatBaht(getValue()),
+  }),
+]
+
+const SalesTable = ({ rows, showFinance = false, countNoun = 'ออเดอร์', moneyAxis = false, profitCapped = false }: Props) => {
+  const columns = useMemo(() => {
+    if (moneyAxis) return buildMoneyColumns(countNoun)
+    const base = buildBaseColumns(countNoun)
+    return showFinance ? [...base, ...buildFinanceColumns(profitCapped)] : base
+  }, [showFinance, countNoun, moneyAxis, profitCapped])
 
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
