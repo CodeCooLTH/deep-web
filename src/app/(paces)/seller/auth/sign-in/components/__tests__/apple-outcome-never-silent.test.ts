@@ -168,10 +168,28 @@ describe('[blocker] ทุกที่ที่มีปุ่ม Apple ต้�
        * `docs/conventions/rule-must-be-enforced-not-described.md`
        */
       const lines = src.split('\n')
+      /**
+       * 🛑 **ต้องจับ "บรรทัดที่ตัดสินใจ" ไม่ใช่ทุกที่ที่ชื่อนี้โผล่**
+       *
+       * `ConnectedAccountsClient` มี `canUseAppleNative()` **2 ที่**: ตัวที่อ่านความสามารถ
+       * เก็บใส่ state (`const read = () => setAppleNativeAvailable(canUseAppleNative(window))`)
+       * กับตัวที่เป็นเงื่อนไขของสาขาจริง (`if (provider === 'apple' && canUseAppleNative(...))`)
+       * ตัวแรกอยู่ก่อนในไฟล์ ⇒ ด่านรุ่นก่อนไปตัดบล็อกผิดก้อนแล้วแดงทั้งที่โค้ดถูก
+       * (เจอตอนเพิ่มปุ่ม "เชื่อมในแอป" 2026-09-30)
+       *
+       * เกณฑ์: บรรทัดนั้นต้องเป็น `if (...)` หรือ `const x = canUseAppleNative(...)`
+       * ซึ่งเป็นสองรูปเดียวที่ใช้ตัดสินใจจริงในรีโปนี้
+       */
       const callLine = lines.findIndex(
-        (ln) => ln.includes('canUseAppleNative(') && !/^\s*import\b/.test(ln),
+        (ln) =>
+          ln.includes('canUseAppleNative(') &&
+          !/^\s*import\b/.test(ln) &&
+          (/\bif\s*\(/.test(ln) || /^\s*const\s+\w+\s*=\s*canUseAppleNative\(/.test(ln)),
       )
-      expect(callLine, 'มีแต่บรรทัด import — ไม่มีใครเรียกจริง = โค้ดที่ไม่มีใครเรียก').toBeGreaterThan(-1)
+      expect(
+        callLine,
+        'ไม่มีบรรทัดไหนใช้ canUseAppleNative ตัดสินใจเลย = มีแต่ import หรือเก็บค่าไว้เฉย ๆ',
+      ).toBeGreaterThan(-1)
 
       /**
        * 🛑 **ตัดขอบสาขาด้วยการนับปีกกา ไม่ใช่ "ตัดถึงบรรทัดที่เรียกทางเว็บ"**
