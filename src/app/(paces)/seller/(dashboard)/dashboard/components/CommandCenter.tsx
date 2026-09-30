@@ -14,6 +14,7 @@
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/page.tsx
  */
+import { resolveOrderVocab } from '@/lib/seller-menu'
 import type { CommandCenterData } from '../_constants/command-center'
 import CompactHero from './CompactHero'
 import OrderStatusBand from './OrderStatusBand'
@@ -54,7 +55,14 @@ export default function CommandCenter({ data }: Props) {
       {/* 🛑 แถว "รับจริงวันนี้" เคยอยู่ท้ายการ์ดนี้ — ถอดออก 2026-08-23 ตามที่ user สั่ง
           เงินรับจริงย้ายไปเป็น **คอลัมน์รายวัน** (มัดจำ/รับจริง/ค้างรับ) ในตารางของชีตยอดขาย
           ซึ่งตอบได้ทั้ง "วันนี้เท่าไหร่" และ "วันไหนยังค้าง" ต่างจากแถวเดิมที่บอกได้แค่วันนี้ */}
-      <SalesChartCard initialSeries={data.salesSeries ?? null} orderNoun={data.orderNoun} />
+      {/* costNoun อ่านจาก ORDER_VOCAB ตรง ๆ (ไม่ผ่าน dictionary) — แผงการเงินทั้งชุด
+          (PnlReportCard · /expenses · /sales) เป็นภาษาไทยตายตัวอยู่แล้วทั้ง section
+          จะแปลก็ต้องแปลพร้อมกันทั้งชุด ไม่ใช่แปลคำเดียวแล้วปนกันครึ่ง ๆ (feature 00067) */}
+      <SalesChartCard
+        initialSeries={data.salesSeries ?? null}
+        orderNoun={data.orderNoun}
+        costNoun={resolveOrderVocab(data.shopVertical ?? '').costNoun}
+      />
 
       {/* คำสั่งซื้อ — ร้านขายออนไลน์ได้ชุด "ของอยู่ไหน" (รอเลขพัสดุ/รอรับเข้า/กำลังจัดส่ง/มีปัญหา)
           vertical อื่นได้ชุดสถานะการขายเดิม (บ้านพัก/คิวงานไม่มีพัสดุให้ไล่)

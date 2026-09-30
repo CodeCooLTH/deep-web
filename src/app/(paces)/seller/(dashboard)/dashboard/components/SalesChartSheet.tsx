@@ -126,6 +126,8 @@ import type { SalesSeries } from '../_constants/command-center'
 import { axisAnchorDays } from './sales-chart-axis'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
+import FinancePanels from './FinancePanels'
+import { FINANCE_TABS, type FinanceTab } from '@/lib/finance-tabs'
 
 /**
  * คำนามของ "จำนวนใบ" — ร้านบริการเรียกว่า "งาน"
@@ -138,9 +140,21 @@ import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
  */
 const countNounOf = (isService: boolean) => (isService ? 'งาน' : 'คำสั่งซื้อ')
 
+/** ป้ายแท็บการเงิน (00067) — คำเดียวกับหน้า /sales เป๊ะ (คำต่างกันสองที่ = ของคนละอย่างในสายตาผู้ใช้) */
+const FINANCE_TAB_LABEL: Record<FinanceTab, string> = {
+  pnl: 'กำไรขาดทุน',
+  collect: 'ยอดเก็บเงิน',
+  expense: 'ค่าใช้จ่าย',
+}
+
 type Mode = 'daily' | 'monthly'
 
 type Props = {
+  /**
+   * คำเรียกต้นทุนผันตามประเภทกิจการ (ORDER_VOCAB.costNoun) — ใช้เฉพาะแท็บการเงิน (00067)
+   * default = คำของร้านขายของออนไลน์ ⇒ ผู้เรียกเดิมที่ไม่ส่งค่านี้ไม่กระทบ
+   */
+  costNoun?: string
   initialSeries: SalesSeries
   onClose: () => void
 }
@@ -344,7 +358,7 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
   }
 }
 
-export default function SalesChartSheet({ initialSeries, onClose }: Props) {
+export default function SalesChartSheet({ initialSeries, onClose, costNoun = 'ต้นทุนสินค้า' }: Props) {
   // overlay นี้ mount เฉพาะตอนเปิด จึงตรึงหน้าข้างหลังตลอดอายุของมัน (ดู useLockBodyScroll)
   useLockBodyScroll(true)
 
@@ -352,6 +366,13 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
   const nowYear = now.getFullYear()
   const nowMonth = now.getMonth() + 1
 
+  /**
+   * แท็บการเงิน (00067) — เปิดเฉพาะร้านบริการ ร้าน vertical อื่นไม่เห็นแถบนี้เลย
+   * 🛑 เริ่มที่ 'collect' ไม่ใช่ 'pnl' ต่างจากหน้า /sales โดยตั้งใจ — ชีตนี้ผู้ขายกดเข้ามาจาก
+   * การ์ด "ยอดขาย" บนหน้าหลัก สิ่งที่เขาเพิ่งกดคือยอดขาย การสลับเนื้อหาใต้นิ้วทันทีที่เปิด
+   * คือการตอบคำถามที่เขาไม่ได้ถาม (หน้า /sales มาจากเมนู "การเงินร้าน" จึงเริ่มที่กำไรถูกแล้ว)
+   */
+  const [financeTab, setFinanceTab] = useState<FinanceTab>('collect')
   const [mode, setMode] = useState<Mode>('daily')
   const [year, setYear] = useState(nowYear)
   const [month, setMonth] = useState(nowMonth)
@@ -467,6 +488,18 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
    * (ถ้ารับ prop แยก วันหนึ่งจะมีหน้าที่ส่ง vertical ถูกแต่ service ไม่ได้คิดชุดข้อมูลมา
    *  แล้วตารางจะโชว์หัวคอลัมน์ "รับจริง" ที่ว่างทั้งคอลัมน์)
    */
+  /**
+   * ช่วงวันที่ของแท็บการเงิน — ผูกกับช่วงที่ชีตกำลังแสดงอยู่เป๊ะ (เดือนนั้น หรือทั้งปีนั้น)
+   * 🛑 ต้องเป็นช่วงเดียวกับที่หัวชีตเขียนไว้ ไม่งั้นผู้ใช้เลื่อนเดือนแล้วตัวเลขกำไรไม่ขยับตาม
+   * ⇒ อ่านเป็น "ระบบคำนวณผิด" ทันที · เดือนใช้ day 0 ของเดือนถัดไป = วันสุดท้ายของเดือนนี้
+   */
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const financeStart = mode === 'daily' ? `${year}-${pad(month)}-01` : `${year}-01-01`
+  const financeEnd =
+    mode === 'daily'
+      ? `${year}-${pad(month)}-${pad(new Date(Date.UTC(year, month, 0)).getUTCDate())}`
+      : `${year}-12-31`
+
   const isService = series.receivedValues != null
 
   // ไม่ผ่าน gate สิทธิ์ → ไม่มีค่าใช้จ่าย/กำไรเลย: hero กลับไปเป็นยอดขายเหมือนเดิม ไม่ใช่โชว์ 0
@@ -564,7 +597,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
 
   return (
     // HR7: fixed inset-0 z-80 = full-screen viewport-lock (Paces ไม่มี token) — pattern เดียวกับ AddressSearchSheet
-    <div className="fixed inset-0 z-80 flex flex-col bg-card" role="dialog" aria-label={isService ? 'รายงานยอดขายและการเก็บเงิน' : 'รายงานยอดขายและกำไร'}>
+    <div className="fixed inset-0 z-80 flex flex-col bg-card" role="dialog" aria-label={isService ? 'การเงินร้าน' : 'รายงานยอดขายและกำไร'}>
       <div className="flex shrink-0 items-center gap-3 border-b border-default-200 px-4 py-3">
         <button type="button" onClick={onClose} aria-label="ปิด" className="shrink-0 text-default-700">
           <Icon icon="chevron-left" className="size-6" />
@@ -572,7 +605,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
         {/* ร้านบริการไม่มีต้นทุนสินค้า ⇒ "กำไร" = ยอดขายเป๊ะ ๆ · ชื่อหน้าจึงต้องพูดถึงสิ่งที่
                     หน้านี้บอกเขาได้จริง คือ "เก็บเงินได้เท่าไหร่แล้ว" (ดูเหตุผลเต็มที่ heroLabel) */}
               <h3 className="flex-1 text-base font-semibold text-dark">
-                {isService ? 'ยอดขายและการเก็บเงิน' : 'ยอดขายและกำไร'}
+                {isService ? 'การเงินร้าน' : 'ยอดขายและกำไร'}
               </h3>
 
         {/* segmented [รายวัน|รายเดือน] — ไม่มี named component ใน theme (Preline) — utility ล้วน ไม่ arbitrary */}
@@ -597,6 +630,40 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
           </button>
         </div>
       </div>
+
+      {/* แถบแท็บการเงิน (00067) — เฉพาะร้านบริการ · อยู่นอกกล่องเลื่อนจึงค้างอยู่เสมอ
+          Base: theme/paces/Admin/TS/src/app/(admin)/ui/tabs/page.tsx (.nav-tabs/.nav-link)
+                ผ่าน precedent (chat)/inbox/[conversationId]/components/CustomerPanel.tsx:912
+          🛑 flex-nowrap — .nav-tabs ของ Paces เป็น flex-wrap ถ้าไม่ปิด 3 แท็บไทยจะตกบรรทัดที่ 320px
+             และการใส่ truncate อย่างเดียวไม่มีผล (docs/conventions/flex-header-truncation.md) */}
+      {isService && (
+        <nav
+          className="nav-tabs border-default-200 flex h-auto shrink-0 flex-nowrap border-b px-2"
+          role="tablist"
+          aria-label="มุมมองการเงินของร้าน"
+        >
+          {FINANCE_TABS.map((tabKey) => {
+            const selected = financeTab === tabKey
+            return (
+              <button
+                key={tabKey}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => setFinanceTab(tabKey)}
+                className={`nav-link -mb-px inline-flex min-h-11 min-w-0 flex-1 items-center justify-center px-2 py-3 text-sm ${
+                  selected
+                    ? 'border-primary text-primary border-b-2 font-semibold'
+                    : 'border-b-2 border-transparent'
+                }`}
+              >
+                <span className="truncate">{FINANCE_TAB_LABEL[tabKey]}</span>
+              </button>
+            )
+          })}
+        </nav>
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-[env(safe-area-inset-bottom)]">
         {/* tablet: content จำกัดความกว้าง max-w-lg (mobile เต็มจอ) */}
@@ -627,6 +694,14 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
             </button>
           </div>
 
+          {/* แท็บกำไรขาดทุน / ค่าใช้จ่าย — โหลดตอนเปิดแท็บเท่านั้น
+              คนที่เปิดชีตมาดูยอดเก็บเงินอย่างเดียวไม่ต้องจ่ายค่า query ของแท็บอื่น */}
+          {isService && financeTab !== 'collect' && (
+            <FinancePanels tab={financeTab} start={financeStart} end={financeEnd} costNoun={costNoun} />
+          )}
+
+          {(!isService || financeTab === 'collect') && (
+          <>
           {/* HERO = กำไร/ขาดทุนของช่วงนี้ (ร้านที่ไม่ผ่าน gate สิทธิ์ = ยอดขายแทน)
               ไม่มี ฿ — user สั่งตรง ๆ ว่าแค่ตัวเลขพอ (2026-08-04) ทิศทางสื่อด้วยเครื่องหมายลบ + สี
               ป้ายบอก "มันคือตัวเลขอะไร" ตรง ๆ ว่า "กำไร/ขาดทุน" (user สั่ง 2026-08-07 — เดิมเขียนว่า
@@ -964,6 +1039,8 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
               </div>
               )}
             </div>
+          )}
+          </>
           )}
         </div>
       </div>
