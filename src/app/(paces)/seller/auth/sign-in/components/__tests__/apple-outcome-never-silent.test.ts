@@ -47,11 +47,63 @@ describe('[blocker] ในแอป: ปุ่ม Apple ต้องบอกผ
     return form.slice(at, web)
   })()
 
-  it('🛑 กดแล้วต้องขึ้นสปินเนอร์ทันที + บอก AT ว่ากำลังทำงาน', () => {
-    /* จอที่ไม่ขยับเลยหลังกด = คนตรวจสรุปว่าปุ่มเสีย ซึ่งคือคำที่เขาเขียนมาเป๊ะ ๆ */
-    expect(form, 'ไม่มีสถานะ "กำลังทำงาน" = จอไม่ขยับตอนกด').toMatch(/setAppleBusy\(true\)/)
-    expect(form, 'ไม่บอก assistive tech ว่ากำลังทำงาน').toMatch(/aria-busy=\{appleBusy\}/)
-    expect(form, 'ไม่มีสปินเนอร์ในปุ่ม').toMatch(/appleBusy && \(/)
+  it('🛑 ปุ่ม OAuth **ทุกเจ้า** ต้องขึ้นสปินเนอร์ทันทีที่กด + บอก AT ว่ากำลังทำงาน', () => {
+    /**
+     * จอที่ไม่ขยับเลยหลังกด = ผู้ใช้กดซ้ำ — และคนตรวจของ Apple สรุปว่าปุ่มเสีย
+     * ซึ่งคือคำที่เขาเขียนมาเป๊ะ ๆ ใน 2.1(a) *"no action took place"*
+     *
+     * 🛑 **ต้องครบทุกเจ้า ไม่ใช่เฉพาะ Apple** — `signIn()` ตั้ง `window.location.href`
+     * แล้ว resolve promise ทันทีโดยเบราว์เซอร์ยังไม่ไปไหน (`next-auth/react/index.js:263`)
+     * ⇒ Facebook/LINE/Instagram มีอาการเดียวกันเป๊ะ แค่ไม่มีใครรายงาน
+     * (หัวหน้าเป็นคนทักเอง 2026-09-30: "Facebook กับ line ตอน login ต้อง loading เหมือน apple")
+     *
+     * ด่านนี้จึงไล่ **ทุกปุ่มที่มี handler** ไม่ใช่เช็คชื่อ state ตัวใดตัวหนึ่ง —
+     * ชื่อ state เปลี่ยนได้ แต่ "กดแล้วต้องมีอะไรขยับ" เปลี่ยนไม่ได้
+     */
+    for (const h of ['handleApple', 'handleFacebook', 'handleLine', 'handleInstagram']) {
+      const at = form.indexOf(`onClick={${h}}`)
+      expect(at, `ไม่พบปุ่ม ${h}`).toBeGreaterThan(-1)
+      const end = form.indexOf('</button>', at)
+      const btn = form.slice(at, end > -1 ? end : at + 900)
+      expect(btn, `ปุ่ม ${h} ไม่บอก assistive tech ว่ากำลังทำงาน`).toMatch(/aria-busy=\{/)
+      expect(btn, `ปุ่ม ${h} ไม่มีสปินเนอร์`).toMatch(/icon="loader-2"/)
+    }
+  })
+
+  it('🛑 ทุก handler ต้องตั้งสถานะ "กำลังทำงาน" **ก่อน** await — ไม่ใช่หลัง', () => {
+    /* ตั้งหลัง await = สปินเนอร์ขึ้นตอนที่หน้ากำลังจะหายไปแล้ว ซึ่งไม่ช่วยอะไรเลย */
+    for (const h of ['handleApple', 'handleFacebook', 'handleLine', 'handleInstagram']) {
+      const at = form.indexOf(`const ${h} =`)
+      expect(at, `ไม่พบ ${h}`).toBeGreaterThan(-1)
+      /**
+       * 🛑 รับการ **มอบต่อ** ด้วย — handler ของ FB/LINE/IG เรียก `goToProvider` ตัวเดียวกัน
+       * (ไม่งั้นต้องก็อปโค้ดตั้งสถานะ 3 ที่ ซึ่งวันหนึ่งจะตกไปที่หนึ่ง) ⇒ ถ้า handler มอบต่อ
+       * ให้ตรวจในตัวที่รับมอบแทน
+       */
+      const raw = form.slice(at, at + 600)
+      const helperAt = raw.includes('goToProvider(') ? form.indexOf('const goToProvider =') : -1
+      const body = helperAt > -1 ? form.slice(helperAt, helperAt + 600) : raw
+      const busyAt = body.search(/setOauthBusy\(/)
+      const awaitAt = body.search(/await\s+(signIn|goToProvider|runAppleNativeSignIn)\(/)
+      expect(busyAt, `${h} ไม่ได้ตั้งสถานะกำลังทำงานเลย`).toBeGreaterThan(-1)
+      if (awaitAt > -1) {
+        expect(busyAt, `${h} ตั้งสถานะหลัง await = สปินเนอร์ไม่ทันขึ้น`).toBeLessThan(awaitAt)
+      }
+    }
+  })
+
+  it('🛑 กดเจ้าหนึ่งแล้วต้องปิดปุ่มที่เหลือ — กันคุกกี้ระหว่างเดินทางถูกเขียนทับ', () => {
+    /**
+     * กดเจ้าที่สองซ้อนระหว่างที่เจ้าแรกกำลังพาออกไป = คุกกี้ state/pkce/callback-url
+     * ของเจ้าแรกถูกเขียนทับ แล้วจบที่หน้า error โดยไม่มีอะไรบอกว่าทำไม
+     * (ปัญหาเดียวกับที่ `ConnectedAccountsClient` แก้ด้วย prop `disabled` เมื่อ 2026-08-12)
+     */
+    for (const h of ['handleApple', 'handleFacebook', 'handleLine', 'handleInstagram']) {
+      const at = form.indexOf(`onClick={${h}}`)
+      expect(form.slice(at, at + 200), `ปุ่ม ${h} ไม่ปิดตอนเจ้าอื่นทำงาน`).toMatch(
+        /oauthBusy !== null/,
+      )
+    }
   })
 
   it('🛑 ผู้ใช้ปัดแผ่นทิ้ง → ต้องมีข้อความ ห้าม return เปล่า', () => {

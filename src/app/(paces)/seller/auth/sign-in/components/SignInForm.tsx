@@ -152,7 +152,18 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
    *
    * ⇒ ทุกเส้นทางต้องทิ้งร่องรอยไว้บนจอ: ระหว่างรอมีสปินเนอร์ · จบแล้วมีข้อความค้าง
    */
-  const [appleBusy, setAppleBusy] = useState(false)
+  /**
+   * ปุ่มไหนกำลังทำงาน — **ตัวเดียวคุมทุกเจ้า** ไม่ใช่ state แยกต่อ provider
+   *
+   * 🛑 ต้องเป็นตัวเดียว เพราะนอกจากโชว์สปินเนอร์แล้วมันต้อง **ปิดปุ่มที่เหลือ** ด้วย —
+   * กดเจ้าที่สองซ้อนระหว่างที่เจ้าแรกกำลังพาออกไป = คุกกี้ระหว่างเดินทาง (state/pkce/
+   * callback-url) ของเจ้าแรกถูกเขียนทับ แล้วจบที่หน้า error โดยไม่มีอะไรบอกว่าทำไม
+   * (ปัญหาเดียวกับที่ `ConnectedAccountsClient` แก้ด้วย prop `disabled` เมื่อ 2026-08-12)
+   */
+  const [oauthBusy, setOauthBusy] = useState<'apple' | 'facebook' | 'line' | 'instagram' | null>(
+    null,
+  )
+  const appleBusy = oauthBusy === 'apple'
   const [appleNotice, setAppleNotice] = useState<string | null>(null)
   const [oauthReady, setOauthReady] = useState(false)
   useEffect(() => {
@@ -194,7 +205,7 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
     const inApp = canUseAppleNative(typeof window === 'undefined' ? undefined : window)
     if (inApp) {
       setAppleNotice(null)
-      setAppleBusy(true)
+      setOauthBusy('apple')
       const outcome = await runAppleNativeSignIn()
 
       if (outcome.kind === 'ticket') {
@@ -207,7 +218,7 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
         }
       }
 
-      setAppleBusy(false)
+      setOauthBusy(null)
 
       if (outcome.kind === 'cancelled') {
         /* 🛑 เดิม `return` เฉย ๆ = เงียบสนิท ซึ่งแยกไม่ออกจาก "ปุ่มเสีย"
@@ -238,21 +249,49 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
     })
   }
 
+  /**
+   * พาออกไปหน้าผู้ให้บริการ — ใช้ร่วมกันทั้ง Facebook / LINE / Instagram
+   *
+   * 🛑 **ต้องตั้งสปินเนอร์ก่อน `await` เสมอ** — `signIn()` ตั้ง `window.location.href` แล้ว
+   * **resolve promise ทันที** โดยเบราว์เซอร์ยังไม่ไปไหน (`next-auth/react/index.js:263`)
+   * ⇒ ถ้าไม่มีอะไรขยับ ผู้ใช้จะเห็นจอนิ่ง ๆ อีกครึ่งวินาทีถึงหลายวินาที **แล้วกดซ้ำ**
+   * ซึ่งคืออาการเดียวกับที่ Apple ตีกลับด้วยข้อ 2.1(a) *"no action took place"*
+   *
+   * 🛑 **ห้ามล้าง `oauthBusy` หลัง `await`** — หน้ากำลังจะถูกทิ้งทั้งหน้า การล้างตรงนั้นทำให้
+   * สปินเนอร์วาบเดียวแล้วกลับมานิ่งก่อนหน้าจะเปลี่ยนจริง = อาการ "แวบ ๆ" ที่หัวหน้ารายงาน
+   * เมื่อ 2026-08-12 · ล้างเฉพาะตอน **โยน error** ซึ่งแปลว่าไม่ได้ไปไหนแน่นอน
+   */
+  const goToProvider = async (
+    provider: 'facebook' | 'line' | 'instagram',
+    options: Parameters<typeof signIn>[1],
+  ) => {
+    setAppleNotice(null)
+    setOauthBusy(provider)
+    try {
+      await signIn(provider, options)
+    } catch {
+      setOauthBusy(null)
+      setAppleNotice(t.auth.signIn.oauthError.oauthSignin)
+    }
+  }
+
   const handleFacebook = async () => {
     // ชี้ตรงปลายทาง (ไม่ผ่านหน้า loading กลาง /auth/callback/facebook) เพื่อลด redirect chain
     // — NextAuth set session cookie ก่อน 302, proxy อ่าน JWT เด้ง onboarding/register ถูกอยู่แล้ว.
     //   redirect chain สั้นลงช่วยลด phishing-heuristic false-positive ของ Safe Browsing (2026-06-20)
-    await signIn('facebook', { callbackUrl })
+    await goToProvider('facebook', { callbackUrl })
   }
 
   const handleLine = async () => {
     // LINE/IG ยังผ่านหน้า loading กลางเพื่อรอ session ให้นิ่งก่อน (ต่างจาก FB) — ส่งปลายทางจริง
     // ต่อไปทาง ?next= ให้หน้านั้น redirect ต่อ แทนที่จะจบตายตัวที่ /dashboard
-    await signIn('line', { callbackUrl: `/auth/callback/line?next=${encodeURIComponent(callbackUrl)}` })
+    await goToProvider('line', {
+      callbackUrl: `/auth/callback/line?next=${encodeURIComponent(callbackUrl)}`,
+    })
   }
 
   const handleInstagram = async () => {
-    await signIn('instagram', {
+    await goToProvider('instagram', {
       callbackUrl: `/auth/callback/instagram?next=${encodeURIComponent(callbackUrl)}`,
     })
   }
@@ -328,7 +367,7 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
         <button
           type="button"
           onClick={handleApple}
-          disabled={!oauthReady || appleBusy}
+          disabled={!oauthReady || oauthBusy !== null}
           aria-busy={appleBusy}
           className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full disabled:opacity-60"
         >
@@ -351,7 +390,8 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
         <button
           type="button"
           onClick={handleFacebook}
-          disabled={!oauthReady}
+          disabled={!oauthReady || oauthBusy !== null}
+          aria-busy={oauthBusy === 'facebook'}
           className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full disabled:opacity-60"
         >
           {/* BxIcon = raw Iconify เพราะ Facebook icon อยู่ใน boxicons set (bxl:)
@@ -363,14 +403,18 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
             className="me-2 flex-shrink-0"
             style={{ color: '#1877f2' }} // brand asset Facebook — carve-out จาก Paces token (Hard Rule 6)
           />
-          {t.auth.signIn.withFacebook}
+          {oauthBusy === 'facebook' && (
+            <Icon icon="loader-2" className="me-2 animate-spin text-base" aria-hidden="true" />
+          )}
+          {oauthBusy === 'facebook' ? t.auth.signIn.loading : t.auth.signIn.withFacebook}
         </button>
 
         {/* ปุ่ม LINE OAuth — mirror structure เดียวกับ FB */}
         <button
           type="button"
           onClick={handleLine}
-          disabled={!oauthReady}
+          disabled={!oauthReady || oauthBusy !== null}
+          aria-busy={oauthBusy === 'line'}
           className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full disabled:opacity-60"
         >
           {/* LINE brand green #06C755 — brand asset exception จาก Paces token (Hard Rule 6) */}
@@ -381,7 +425,10 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
             className="me-2 flex-shrink-0"
             style={{ color: '#06C755' }} // brand asset LINE — carve-out จาก Paces token (Hard Rule 6)
           />
-          {t.auth.signIn.withLine}
+          {oauthBusy === 'line' && (
+            <Icon icon="loader-2" className="me-2 animate-spin text-base" aria-hidden="true" />
+          )}
+          {oauthBusy === 'line' ? t.auth.signIn.loading : t.auth.signIn.withLine}
         </button>
 
         {/* ปุ่ม Instagram OAuth — flag-off by default (NEXT_PUBLIC_ENABLE_IG_LOGIN) */}
@@ -389,7 +436,8 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
           <button
             type="button"
             onClick={handleInstagram}
-            disabled={!oauthReady}
+            disabled={!oauthReady || oauthBusy !== null}
+            aria-busy={oauthBusy === 'instagram'}
             className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full disabled:opacity-60"
           >
             {/* Instagram brand pink #E1306C — brand asset exception จาก Paces token (Hard Rule 6) */}
@@ -400,7 +448,10 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
               className="me-2 flex-shrink-0"
               style={{ color: '#E1306C' }} // brand asset Instagram — carve-out จาก Paces token (Hard Rule 6)
             />
-            {t.auth.signIn.withInstagram}
+            {oauthBusy === 'instagram' && (
+              <Icon icon="loader-2" className="me-2 animate-spin text-base" aria-hidden="true" />
+            )}
+            {oauthBusy === 'instagram' ? t.auth.signIn.loading : t.auth.signIn.withInstagram}
           </button>
         )}
       </div>
