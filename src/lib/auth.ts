@@ -52,6 +52,33 @@ const PHONE_OTP_CLAIM_SKIP_WINDOW_MS = 5 * 60 * 1000;
  * "สมัครในแอป" ซึ่งเป็นเรื่องกติกาของ App Store ไม่ใช่ด่านความปลอดภัย การ fail-closed
  * จะกลายเป็น "ล็อกอินด้วย OAuth ไม่ได้ทั้งเว็บ" ทันทีที่ context เพี้ยน ซึ่งแย่กว่ามาก
  */
+/**
+ * ปลายทางที่ผู้ใช้ตั้งไว้ก่อนออกไปหน้าผู้ให้บริการ — next-auth เก็บไว้ในคุกกี้
+ *
+ * 🛑 **ต้องอ่านทั้งสองชื่อ** — prod ใช้ prefix `__Secure-` (ตั้งเองใน `crossSiteOAuthCookies`)
+ * ส่วน dev ใช้ชื่อเปล่าเพราะฟังก์ชันนั้นคืน `undefined` เมื่อไม่ใช่ production
+ * อ่านชื่อเดียว = ข้อยกเว้น "หน้ารับคำเชิญ" ทำงานแค่ฝั่งเดียว แล้วจะจับได้ตอนขึ้น prod เท่านั้น
+ * (บทเรียนเดียวกับคุกกี้ session ใน `proxy.ts` ที่ต้องล้างทั้งสองชื่อ)
+ */
+const CALLBACK_URL_COOKIES = [
+  "__Secure-next-auth.callback-url",
+  "next-auth.callback-url",
+] as const;
+
+async function pendingCallbackUrl(): Promise<string | null> {
+  try {
+    const { cookies } = await import("next/headers");
+    const jar = await cookies();
+    for (const name of CALLBACK_URL_COOKIES) {
+      const v = jar.get(name)?.value;
+      if (v) return v;
+    }
+  } catch {
+    /* ไม่มี request context — ถือว่าไม่รู้ปลายทาง */
+  }
+  return null;
+}
+
 async function currentAppShell(): Promise<AppShell> {
   let shellCookie: string | undefined;
   let userAgent = "";
@@ -753,7 +780,13 @@ export const authOptions: NextAuthOptions = {
          * 🛑 **ไม่กรองตาม provider** — เกณฑ์คือ "เปิดจากในแอปไหม" ไม่ใช่ "มาจากเจ้าไหน"
          * (ด่านใน proxy ก็เป็นแบบนี้) ⇒ เพิ่ม provider ใหม่วันหน้าได้โดยไม่ต้องแก้ตรงนี้
          */
-        if (shouldBlockOAuthSignup(await currentAppShell(), Boolean(linkedAccount))) {
+        if (
+          shouldBlockOAuthSignup(
+            await currentAppShell(),
+            Boolean(linkedAccount),
+            await pendingCallbackUrl(),
+          )
+        ) {
           return "/auth/sign-in?app_no_account=1";
         }
         return true;
