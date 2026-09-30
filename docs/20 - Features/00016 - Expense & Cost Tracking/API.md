@@ -9,6 +9,11 @@ tags: [feature, expense, cost, profit, pnl, seller, api]
 related: ["[[SDS]]", "[[SRS]]", "[[Feature-Docs-Ownership]]"]
 ---
 
+> ## 🔄 หมายเหตุ 2026-09-30 — feature 00067 ไม่แก้สัญญาใน API ฉบับนี้
+>
+> `/api/expenses`, `/api/expenses/[id]`, `/api/expenses/report` **คงเดิมทุกช่อง** — 00067 เรียกใช้ตามสัญญานี้
+> และเพิ่ม endpoint ใหม่แยกไว้ที่ `/api/finance/receivables` (ดู `00067/API.md` และ `docs/SRS.md` §7.23)
+
 > **โมดูล:** M00016-ExpenseCostTracking
 > **ประเภทเอกสาร:** API Contract
 > **เวอร์ชัน:** 1.0

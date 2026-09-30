@@ -1904,6 +1904,38 @@ error: `ORDER_NOT_FOUND`(404, scope `shopId` ใน `WHERE`) · `NOT_SERVICE_SHO
 
 ---
 
+### 7.23 การเงินร้าน — แท็บ + ยอดที่ยังเก็บไม่ครบ (`/api/finance/**`) — feature 00067
+
+> 🛑 **เฉพาะร้าน `Shop.vertical = 'SERVICE_QUEUE'`** — ร้าน `ONLINE_SALES`/`LODGING` เรียกได้แต่คืน `404 NOT_FOUND`
+> (ไม่ใช่ 403 เพราะสำหรับร้านประเภทนั้น endpoint นี้ไม่มีอยู่) · สิทธิ์ใช้ `resolveExpenseAccess()` ตัวเดียวกับ §7.13 ทุกประการ
+
+| Method | Path | Auth | Purpose | Service |
+|--------|------|------|---------|---------|
+| GET | `/api/finance/receivables` | Seller (`GRANTED`) + `SERVICE_QUEUE` | บิลที่ยังเก็บเงินไม่ครบ + สรุป `รับจริง/ค้างรับ/ยอดขาย` | `receivable.service` |
+
+**Query:** `range` (`today|7d|30d|month|custom`, default `month`) · `from`/`to` (เมื่อ `custom`) · `cursor` · `limit` (1–50, default 20) —
+schema สืบทอดช่วงเวลามาจาก `PnlReportQuerySchema` ตัวเดิม **ห้ามเขียนกฎ range ชุดที่สอง** (Hard Rule 16)
+
+**Response:** `summary{ salesTotal, receivedTotal, outstandingTotal, orderCount, outstandingCount }` · `items[]` · `nextCursor`
+
+🛑 **นิยาม "ยอดขาย" ของ endpoint นี้ต่างจาก §7.13 โดยเจตนา** —
+ที่นี่ `salesTotal` นับออเดอร์ที่ `status != 'CANCELLED'` (ต้องเห็นบิลที่ยังไม่ยืนยันเพื่อไปตามเก็บ)
+ส่วน `/api/expenses/report` นับด้วย `revenueOrderWhere` (ยืนยันแล้ว/ขนส่งรับของแล้ว) ⇒ **สองตัวนี้ไม่มีวันเท่ากัน**
+หน้าจอทั้งสองแท็บ **ต้อง** เขียนนิยามของตัวเองกำกับ ไม่ใช่เก็บไว้ในคอมเมนต์ (มิเรอร์เหตุผลเดียวกับ `SALES_BASIS_NOTE`)
+
+**กฎของ payload:** `outstandingTotal = salesTotal − receivedTotal` เสมอ (client ห้ามคำนวณเอง) ·
+`receivedTotal` นับเฉพาะ `OrderPayment.voidedAt IS NULL` ·
+`items[]` มีเฉพาะ `outstandingAmount > 0` เรียง `createdAt` เก่าสุดก่อน ·
+บิลที่รับเงินเกินยอด (`receivedAmount > totalAmount`) **ไม่อยู่ใน `items`** แต่ยังนับใน `summary` ตามจริง ·
+`daysOutstanding` นับด้วยวันปฏิทินไทย (`thaiDayKey`) ไม่ใช่ผลต่าง timestamp ·
+`conversationId` เป็น `null` ได้ ⇒ client ตกไปลิงก์หน้าบิล
+
+**Error:** `INVALID_RANGE`(400) · `INVALID_CURSOR`(400) · `UNAUTHORIZED`(401) · `NO_SHOP`(403) · `STAFF_NOT_ALLOWED`(403) · `NOT_FOUND`(404) · `INTERNAL`(500)
+
+**ไม่มี endpoint เขียน** — การบันทึก/แก้/ลบค่าใช้จ่ายยังผ่าน `/api/expenses*` ของ §7.13 เหมือนเดิมทุกช่อง
+
+---
+
 ## §8 Enums & Constants
 
 > enum ทั้งหมดเป็น String ใน Prisma (ไม่ใช่ PostgreSQL enum type) — convention ของ project
@@ -2237,6 +2269,21 @@ HTTP ตามตาราง §7.21
 | `REMINDER_HOUR_ALLDAY`/`REMIND_WINDOW_MS` | 9 / 6 ชม. | |
 | `LIST_MAX`/`OPEN_SCAN_MAX`/`CAL_MAX`/`BUBBLE_MAX`/`DONE_IN_PANEL` | 200 / 2000 / 1000 / 8 / 3 | |
 | `PUSH_TITLE_MAX` | 60 | ตัดหัวข้อใน push ด้วย `…` (นับ code point) |
+
+### 8.11 คำเรียกต้นทุนต่อประเภทกิจการ (`ORDER_VOCAB.costNoun`, `src/lib/seller-menu.ts`, feature 00067)
+
+| `Shop.vertical` | `costNoun` | ใช้ที่ |
+|---|---|---|
+| `ONLINE_SALES` | `ต้นทุนสินค้า` | คำเดิม ไม่เปลี่ยน |
+| `SERVICE_QUEUE` | `ต้นทุนอะไหล่` | **ใหม่** |
+| `LODGING` | `ต้นทุนต่อห้อง` | **ใหม่** |
+
+🛑 เดิม `NET_PROFIT_FORMULA` ใน `src/lib/format-money.ts` เป็น **สตริงคงที่ที่ฝังคำว่า "ต้นทุนสินค้า" ไว้ตายตัว** —
+ร้านบริการและที่พักอ่านแล้วไม่ตรงกับธุรกิจตัวเอง จึงเปลี่ยนเป็น `netProfitFormula(costNoun)` และคง export เดิมไว้เป็น alias
+ที่เรียกด้วย `'ต้นทุนสินค้า'` เพื่อไม่ให้ผู้เรียกเดิมพัง
+
+🛑 **เทสบังคับ:** ทุกคีย์ของ `ORDER_VOCAB` ต้องมี `costNoun` ที่ไม่ว่าง (มิเรอร์เทสเดิมที่บังคับว่าคีย์ของ `PRODUCT_VOCAB`
+ต้องเท่ากับ `ORDER_VOCAB` — vertical ที่สี่ที่เพิ่มมาแล้วลืมเติมคำจะตกไปใช้คำของร้านขายของเงียบ ๆ)
 
 `FollowUpErrorCode` ไม่มี type รวม — error เป็น 4 class ใน `customer-follow-up.service.ts` /
 `follow-up-time.ts` (`FollowUpNotFoundError`, `AssigneeNotMemberError`, `FollowUpStateError`, `FollowUpDueError`) แปลงที่ `mapFollowUpError` (§7.22)

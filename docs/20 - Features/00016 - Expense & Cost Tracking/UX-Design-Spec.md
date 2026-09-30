@@ -9,6 +9,18 @@ tags: [feature, expense, cost, pnl, seller, ux, paces, design-spec]
 related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]"]
 ---
 
+> ## 🔄 หมายเหตุ 2026-09-30 — ถูกต่อยอดโดย feature 00067 (Shop Finance Tabs)
+>
+> **เฉพาะร้าน `Shop.vertical = 'SERVICE_QUEUE'`** หน้า `/seller/expenses` **ไม่ใช่หน้าเดี่ยวอีกต่อไป** —
+> เนื้อหาทั้งหมด (`ExpenseWorkspace`, `ExpenseList`, `ExpenseFormModal`, `ExpenseBreakdownCard`, `PnlReportCard`)
+> ถูกยกไปเป็น **แท็บ "ค่าใช้จ่าย"** ของหน้า `/seller/sales` และ route เดิม `redirect` ไป `?tab=expense`
+>
+> **ร้าน `ONLINE_SALES` และ `LODGING` ใช้หน้าเดิมทุกพิกเซล** — สเปกในเอกสารฉบับนี้ยังเป็นความจริงสำหรับสองประเภทนั้น
+>
+> สิ่งที่ 00067 **ไม่** เปลี่ยน: สิทธิ์ (`resolveExpenseAccess`) · สูตร (`pnl.service`) · component ภายใน · API
+>
+> ดู `docs/20 - Features/00067 - Shop Finance Tabs/UX-Design-Spec.md`
+
 > **โมดูล:** M00016-ExpenseCostTracking
 > **ประเภทเอกสาร:** UX Design Spec (Hard Rule 8 mandatory gate output)
 > **เวอร์ชัน:** 1.0
