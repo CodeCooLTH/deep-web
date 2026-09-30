@@ -10,7 +10,9 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  applyFinanceMenu,
   applyOrderLabel,
+  FINANCE_MENU_LABEL,
   flattenSellerMenu,
   resolveOrderMenuLabel,
   resolveOrderVocab,
@@ -131,21 +133,21 @@ describe('applyOrderLabel', () => {
   })
 })
 
-describe('resolveOrderVocab — คลังคำ 10 ช่อง (00030 + dateLabel/00033 + fulfillLabel/00036 + itemsLabel,buyerConfirmLabel/00041 + viewLabel,stageOrderedLabel/2026-08-12)', () => {
+describe('resolveOrderVocab — คลังคำ 11 ช่อง (00030 + dateLabel/00033 + fulfillLabel/00036 + itemsLabel,buyerConfirmLabel/00041 + viewLabel,stageOrderedLabel/2026-08-12 + costNoun/00067)', () => {
   it.each([
     // fulfillLabel = ขั้น "ร้านลงมือทำตามที่รับงานมาแล้ว" ในเช็กลิสต์สถานะของตารางรายการ
     // SERVICE_QUEUE ต้องไม่ใช่ 'ให้บริการแล้ว' เปล่า ๆ — ชนกับ APPOINTMENT_STATUS_LABEL.COMPLETED
     // ซึ่งผูกกับคอลัมน์คนละตัว (appointmentStatus) และติ๊กถูกคนละจังหวะกัน
-    ['ONLINE_SALES', 'คำสั่งซื้อ', 'คำสั่งซื้อ', 'สร้างคำสั่งซื้อ', 'สร้างคำสั่งซื้อ', 'วันที่สั่งซื้อ', 'ยืนยันการจัดส่ง', 'รายการสินค้า', 'ยืนยันรับสินค้า', 'ดูคำสั่งซื้อ', 'สั่งซื้อแล้ว'],
+    ['ONLINE_SALES', 'คำสั่งซื้อ', 'คำสั่งซื้อ', 'สร้างคำสั่งซื้อ', 'สร้างคำสั่งซื้อ', 'วันที่สั่งซื้อ', 'ยืนยันการจัดส่ง', 'รายการสินค้า', 'ยืนยันรับสินค้า', 'ดูคำสั่งซื้อ', 'สั่งซื้อแล้ว', 'ต้นทุนสินค้า'],
     // nounShort ย่อจาก 'เข้ารับบริการ' → 'บริการ' (user เคาะ 2026-08-05) — หัวหน้าต่างโมดัลในแชท
     // และแท็บล่างมือถือประกอบคำจากช่องนี้ ("บริการใหม่" แทน "การเข้ารับบริการใหม่")
     // dateLabel ไม่ใช่ "วันที่" + noun — LODGING/SERVICE_QUEUE มีคอลัมน์วันใช้บริการแยกอยู่แล้ว
     // 'วันที่สร้าง' ไม่ใช่ 'วันที่รับงาน' (user เคาะ 2026-08-07) — ร้านคิวงานเปิดบิลตอนลูกค้ามาถึง
     // createLabelShort 'เข้ารับบริการใหม่' → 'งานใหม่' (user สั่ง 2026-08-07) — ปุ่มท้ายแถบเครื่องมือ
     // แชทถูกตัดหายครึ่งคำบนจอ 390px จริง
-    ['SERVICE_QUEUE', 'การเข้ารับบริการ', 'บริการ', 'สร้างการเข้ารับบริการ', 'งานใหม่', 'วันที่สร้าง', 'เริ่มให้บริการแล้ว', 'รายการบริการ', 'ยืนยันรับบริการ', 'ดูรายละเอียดบริการ', 'รับงานแล้ว'],
-    ['LODGING', 'บิลเข้าพัก', 'บิลเข้าพัก', 'เปิดบิลเข้าพัก', 'เปิดบิลเข้าพัก', 'วันที่เปิดบิล', 'รับเข้าพักแล้ว', 'รายการห้องพัก', 'ยืนยันเข้าพักแล้ว', 'ดูบิลเข้าพัก', 'เปิดบิลแล้ว'],
-  ])('%s', (vertical, noun, nounShort, createLabel, createLabelShort, dateLabel, fulfillLabel, itemsLabel, buyerConfirmLabel, viewLabel, stageOrderedLabel) => {
+    ['SERVICE_QUEUE', 'การเข้ารับบริการ', 'บริการ', 'สร้างการเข้ารับบริการ', 'งานใหม่', 'วันที่สร้าง', 'เริ่มให้บริการแล้ว', 'รายการบริการ', 'ยืนยันรับบริการ', 'ดูรายละเอียดบริการ', 'รับงานแล้ว', 'ต้นทุนอะไหล่'],
+    ['LODGING', 'บิลเข้าพัก', 'บิลเข้าพัก', 'เปิดบิลเข้าพัก', 'เปิดบิลเข้าพัก', 'วันที่เปิดบิล', 'รับเข้าพักแล้ว', 'รายการห้องพัก', 'ยืนยันเข้าพักแล้ว', 'ดูบิลเข้าพัก', 'เปิดบิลแล้ว', 'ต้นทุนต่อห้อง'],
+  ])('%s', (vertical, noun, nounShort, createLabel, createLabelShort, dateLabel, fulfillLabel, itemsLabel, buyerConfirmLabel, viewLabel, stageOrderedLabel, costNoun) => {
     expect(resolveOrderVocab(vertical)).toEqual({
       noun,
       nounShort,
@@ -157,6 +159,7 @@ describe('resolveOrderVocab — คลังคำ 10 ช่อง (00030 + date
       buyerConfirmLabel,
       viewLabel,
       stageOrderedLabel,
+      costNoun,
     })
   })
 
@@ -174,6 +177,38 @@ describe('resolveOrderVocab — คลังคำ 10 ช่อง (00030 + date
     for (const v of Object.keys(ORDER_VOCAB)) {
       const { noun, nounShort } = ORDER_VOCAB[v]
       expect(nounShort.length).toBeLessThanOrEqual(noun.length)
+    }
+  })
+
+  /**
+   * feature 00067 TC-026 — ทุก vertical ต้องมีคำเรียกต้นทุนของตัวเอง
+   *
+   * 🛑 vertical ที่สี่ที่เพิ่มเข้ามาแล้วลืมเติมช่องนี้ จะได้ `undefined` ไหลเข้าสูตรกำไร
+   * แล้วผู้ขายอ่านว่า "กำไรสุทธิ = ยอดขายที่ยืนยันแล้ว − undefined − ค่าใช้จ่าย" บนหน้าจอจริง
+   * โดยที่ tsc ไม่ฟ้อง (Record<string, OrderVocab> ไม่บังคับคีย์) — เทสนี้คือด่านเดียว
+   */
+  it('[blocker] ทุก vertical ต้องมี costNoun ที่ไม่ว่าง', () => {
+    const keys = Object.keys(ORDER_VOCAB)
+    expect(keys.length).toBeGreaterThan(0)
+    for (const v of keys) {
+      const costNoun = ORDER_VOCAB[v].costNoun
+      expect(typeof costNoun).toBe('string')
+      expect(costNoun.trim().length).toBeGreaterThan(0)
+    }
+  })
+
+  it('[blocker] costNoun ต้องต่างกันจริงต่อ vertical — ไม่ใช่ก็อปคำของร้านขายของไปทุกช่อง', () => {
+    // ถ้าวันหนึ่งมีคนเติม vertical ใหม่ด้วยการก็อปบล็อกเดิม ค่านี้จะซ้ำโดยไม่มีใครสังเกต
+    // แล้วเหตุผลทั้งหมดที่ช่องนี้ถูกสร้างขึ้นมาก็หายไปเงียบ ๆ
+    const values = Object.keys(ORDER_VOCAB).map((v) => ORDER_VOCAB[v].costNoun)
+    expect(new Set(values).size).toBe(values.length)
+  })
+
+  it('[blocker] costNoun ห้ามผันจาก noun ด้วยการต่อสตริง', () => {
+    // "ต้นทุน" + noun ได้ "ต้นทุนการเข้ารับบริการ" ซึ่งอ่านว่าเป็นเงินที่ลูกค้าจ่าย ไม่ใช่ของร้าน
+    for (const v of Object.keys(ORDER_VOCAB)) {
+      const { noun, costNoun } = ORDER_VOCAB[v]
+      expect(costNoun).not.toBe(`ต้นทุน${noun}`)
     }
   })
 })
@@ -257,5 +292,63 @@ describe('resolveVisibleSellerMenu — ตัวกรองยังทำง�
       ),
     )
     expect(personal).not.toContain('seller:admins')
+  })
+})
+
+/**
+ * feature 00067 TC-005 — เมนูเรื่องเงินของร้านบริการเหลือรายการเดียว
+ */
+describe('applyFinanceMenu — ยุบเมนูเรื่องเงินสำหรับร้านบริการ (00067)', () => {
+  const menu = () => [
+    {
+      key: 'analytics',
+      label: 'รายงาน',
+      isTitle: false,
+      children: [
+        { key: 'sales', slug: 'seller:sales', label: 'ภาพรวมกำไร/ขาดทุน', url: '/sales' },
+        { key: 'agents', slug: 'seller:reports-agents', label: 'ผลงานทีม', url: '/reports/agents' },
+      ],
+    },
+    {
+      key: 'money',
+      label: 'การเงิน',
+      isTitle: false,
+      children: [
+        { key: 'wallet', slug: 'seller:wallet', label: 'กระเป๋าเงิน', url: '/wallet' },
+        { key: 'expenses', slug: 'seller:expenses', label: 'ค่าใช้จ่าย', url: '/expenses' },
+      ],
+    },
+  ] as unknown as Parameters<typeof applyFinanceMenu>[0]
+
+  const slugs = (items: ReturnType<typeof applyFinanceMenu>) =>
+    items.flatMap((g) => (g.children ?? []).map((c) => c.slug))
+
+  const labelOf = (items: ReturnType<typeof applyFinanceMenu>, slug: string) =>
+    items.flatMap((g) => g.children ?? []).find((c) => c.slug === slug)?.label
+
+  it('[blocker] SERVICE_QUEUE — ถอด seller:expenses และเปลี่ยนป้าย seller:sales', () => {
+    const out = applyFinanceMenu(menu(), 'SERVICE_QUEUE')
+    expect(slugs(out)).not.toContain('seller:expenses')
+    expect(slugs(out)).toContain('seller:sales')
+    expect(labelOf(out, 'seller:sales')).toBe(FINANCE_MENU_LABEL)
+  })
+
+  it('[blocker] ONLINE_SALES / LODGING — ต้องไม่ถูกแตะเลยสักรายการ', () => {
+    for (const vertical of ['ONLINE_SALES', 'LODGING']) {
+      const out = applyFinanceMenu(menu(), vertical)
+      expect(slugs(out)).toContain('seller:expenses')
+      expect(labelOf(out, 'seller:sales')).toBe('ภาพรวมกำไร/ขาดทุน')
+    }
+  })
+
+  it('vertical ที่ไม่รู้จัก → ไม่แตะอะไร (เมนูครบดีกว่าเมนูหายโดยไม่มีคนสั่ง)', () => {
+    const out = applyFinanceMenu(menu(), 'SOMETHING_NEW')
+    expect(slugs(out)).toContain('seller:expenses')
+  })
+
+  it('ไม่แตะรายการอื่นในกลุ่มเดียวกัน', () => {
+    const out = applyFinanceMenu(menu(), 'SERVICE_QUEUE')
+    expect(slugs(out)).toContain('seller:wallet')
+    expect(slugs(out)).toContain('seller:reports-agents')
   })
 })

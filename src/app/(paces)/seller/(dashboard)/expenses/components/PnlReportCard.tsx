@@ -18,7 +18,7 @@
  */
 import { cn } from '@/utils/helpers'
 import Icon from '@/components/wrappers/Icon'
-import { formatBaht, profitDisplay, NET_PROFIT_FORMULA, pctChangeVsPrev } from '@/lib/format-money'
+import { formatBaht, profitDisplay, netProfitFormula, pctChangeVsPrev } from '@/lib/format-money'
 import { EXPENSE_CATEGORY_LABEL_TH, groupExpensesByCategory } from '@/lib/expense'
 import type { SerializedExpense } from '@/services/expense.service'
 import type { PnlReport } from '@/services/pnl.service'
@@ -29,8 +29,8 @@ import PacesStatCard from '../../_shared/PacesStatCard'
  * คำนี้ถูกกับทุก vertical จึงไม่ต้องแตกประโยคเป็นชุด ๆ และไม่ต้องมีสาขาที่เทียบสตริง
  * (ตรรกะ `noun === 'ออเดอร์' ? A : B` จะเงียบเมื่อมีประเภทร้านที่สี่ — บทเรียน 00028)
  */
-const calcNote = (orderNoun: string) =>
-  `คิดจาก${orderNoun}ที่ลูกค้ายืนยันแล้วเท่านั้น · ${NET_PROFIT_FORMULA}`
+const calcNote = (orderNoun: string, costNoun: string) =>
+  `คิดจาก${orderNoun}ที่ลูกค้ายืนยันแล้วเท่านั้น · ${netProfitFormula(costNoun)}`
 
 type Props = {
   report: PnlReport
@@ -41,10 +41,31 @@ type Props = {
   rangeLabel: string
   /** ชื่อของ "ใบ" ที่นับ/เฉลี่ย ผันตามประเภทกิจการ (ORDER_VOCAB.noun) */
   orderNoun?: string
+  /**
+   * true = ข้อมูลยังไม่ครบ (ยังไม่ตั้งราคาทุน หรือยังไม่มีรายการค่าใช้จ่ายในช่วงนี้)
+   * ⇒ ตัวเลขที่แสดงเป็น **เพดานบน** ต้องเปลี่ยนคำและสีตาม `profitDisplay(n, { capped })`
+   * ห้ามเรียกว่า "กำไรสุทธิ" (feature 00067 FR-FIN-10)
+   *
+   * default `false` = พฤติกรรมเดิมทุกประการ — หน้า /expenses ของ vertical อื่นไม่ถูกแตะ
+   */
+  capped?: boolean
+  /**
+   * คำเรียกต้นทุนของประเภทกิจการนี้ (ORDER_VOCAB.costNoun) — ร้านบริการอ่านว่า "ต้นทุนอะไหล่"
+   * default 'ต้นทุนสินค้า' = คำเดิม จึงไม่กระทบผู้เรียกที่ยังไม่ส่งค่านี้มา
+   */
+  costNoun?: string
 }
 
-export default function PnlReportCard({ report, expenses, loading = false, rangeLabel, orderNoun = 'ออเดอร์' }: Props) {
-  const profit = profitDisplay(report.netProfit)
+export default function PnlReportCard({
+  report,
+  expenses,
+  loading = false,
+  rangeLabel,
+  orderNoun = 'ออเดอร์',
+  capped = false,
+  costNoun = 'ต้นทุนสินค้า',
+}: Props) {
+  const profit = profitDisplay(report.netProfit, { capped })
   const topCategory = groupExpensesByCategory(expenses)[0]
   const pct = (v: number) => `${v.toFixed(1)}%`
 
@@ -57,14 +78,22 @@ export default function PnlReportCard({ report, expenses, loading = false, range
     >
       {/* การ์ดแรก = คำตอบของหน้า — เด่นด้วยลำดับการอ่าน ไม่ใช่ขนาด */}
       <PacesStatCard
-        icon={profit.positive ? 'trending-up' : 'trending-down'}
-        iconClass={profit.positive ? 'bg-success/15 text-success-ink' : 'bg-danger/15 text-danger-ink'}
+        icon={profit.icon}
+        iconClass={
+          capped
+            ? profit.positive
+              ? 'bg-warning/15 text-warning-ink'
+              : 'bg-danger/15 text-danger-ink'
+            : profit.positive
+              ? 'bg-success/15 text-success-ink'
+              : 'bg-danger/15 text-danger-ink'
+        }
         title={`${profit.label} · ${rangeLabel}`}
-        note={calcNote(orderNoun)}
+        note={calcNote(orderNoun, costNoun)}
         text={profit.text}
         valueClass={profit.toneClass}
         changePercent={pctChangeVsPrev(report.netProfit, report.prevNetProfit)}
-        bulletClass={profit.positive ? 'text-success' : 'text-danger'}
+        bulletClass={capped ? (profit.positive ? 'text-warning' : 'text-danger') : profit.positive ? 'text-success' : 'text-danger'}
         metric="อัตรากำไรสุทธิ"
         metricValue={report.revenue > 0 ? pct((report.netProfit / report.revenue) * 100) : 'ยังไม่มียอดขาย'}
       />

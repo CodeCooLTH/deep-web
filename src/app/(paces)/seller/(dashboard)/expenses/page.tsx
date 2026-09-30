@@ -23,6 +23,7 @@ import { authOptions } from '@/lib/auth'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { resolveExpenseAccess } from '@/services/expense-access.service'
+import { resolveShopVertical } from '@/lib/lodging'
 import { listExpenses, serializeExpense, hasAnyExpense } from '@/services/expense.service'
 import { getPnlReport } from '@/services/pnl.service'
 import { resolveDateRange, type DateRangePreset } from '@/lib/date-range'
@@ -78,6 +79,25 @@ export default async function ExpensesPage({
         <ExpenseLockedCard />
       </>
     )
+  }
+
+  /**
+   * ร้านบริการ: หน้านี้ถูกยกไปเป็นแท็บ "ค่าใช้จ่าย" ของ /sales แล้ว (feature 00067 FR-FIN-03)
+   *
+   * 🛑 redirect ไม่ใช่ 404 — ผู้ใช้บุ๊กมาร์กหน้านี้ไว้ และ `SellerShortcutPreference` ของบางคน
+   * ผูก slug `seller:expenses` ไว้แล้ว ลิงก์เดิมต้องยังพาไปที่ที่ถูกเสมอ
+   *
+   * 🛑 อยู่ **หลัง** ด่านสิทธิ์ทั้งสองตัว — คนที่ไม่มีสิทธิ์ต้องเห็นจอปฏิเสธของหน้านี้ตามเดิม
+   * ไม่ใช่ถูกส่งไปอีกหน้าแล้วเจอจอปฏิเสธที่นั่นแทน (ปลายทางเปลี่ยน ข้อความเดิม = สับสนเปล่า ๆ)
+   *
+   * คงพารามิเตอร์ช่วงเวลาที่ผู้ใช้ถืออยู่ไปด้วย — เปิดลิงก์ที่มี ?range=month แล้วต้องได้เดือนนั้น
+   */
+  if (resolveShopVertical(decision.shop.vertical) === 'SERVICE_QUEUE') {
+    const qs = new URLSearchParams({ tab: 'expense' })
+    if (sp.range) qs.set('range', sp.range)
+    if (sp.start) qs.set('start', sp.start)
+    if (sp.end) qs.set('end', sp.end)
+    redirect(`/sales?${qs.toString()}`)
   }
 
   // GRANTED — ผ่าน gate แล้วเท่านั้นถึง query ข้อมูลจริง
