@@ -145,6 +145,23 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  /**
+   * 🛑 `/.well-known/*` — ยกเว้นด้วย **path** ไม่ใช่ **นามสกุล**
+   *
+   * allow-list ข้างบนจับจากนามสกุลไฟล์ แต่ `apple-app-site-association`
+   * **ห้ามมีนามสกุล** (Apple กำหนดชื่อไฟล์ตายตัว) ⇒ ไม่มีทางแมตช์ regex นั้นได้เลย
+   * ถ้าไม่ดักตรงนี้จะโดน rewrite เป็น `/seller/.well-known/...` = **404 เฉพาะบน subdomain**
+   * ซึ่งเป็นบั๊กคลาสเดียวกับที่รีโปนี้โดนมาแล้ว **2 ครั้ง** และ user เป็นคนเจอทั้งสองครั้ง:
+   * เสียงแจ้งเตือน `.m4a` (2026-07-24) และ `.webmanifest` ของ PWA (2026-08-05)
+   * — ดู `docs/conventions/root-served-assets-and-proxy.md`
+   *
+   * ครอบทั้งโฟลเดอร์เพราะมาตรฐาน `.well-known` ออกไฟล์ใหม่เรื่อย ๆ (AASA, assetlinks,
+   * security.txt) และทุกตัวต้องอยู่ที่ root ของโดเมนเสมอตามสเปกของมันเอง
+   */
+  if (pathname.startsWith('/.well-known/')) {
+    return NextResponse.next()
+  }
+
   // Cookies are per-hostname → this token is specific to this subdomain's session
   const token = await getToken({ req: request })
   const isAuthed = !!token
