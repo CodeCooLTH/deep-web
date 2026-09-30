@@ -8,6 +8,12 @@ import { prisma } from "@/lib/prisma";
 import { evaluateSignupYearBadge } from "@/services/badge.service";
 import bcrypt from "bcryptjs";
 import { verifyLinkIntent, LINK_INTENT_COOKIE } from "@/lib/link-intent";
+import {
+  SHELL_COOKIE_NAME,
+  resolveAppShell,
+  shouldBlockOAuthSignup,
+  type AppShell,
+} from "@/lib/app-shell";
 import { linkOAuthAccount, linkOutcomeRedirect } from "@/services/oauth-link.service";
 import { getPersonalShop, isShopMember } from "@/lib/shop-context";
 import { resolveOnboardingGate, resolveDefaultActiveShopId } from "@/lib/onboarding-gate";
@@ -36,6 +42,34 @@ const PHONE_OTP_CLAIM_SKIP_WINDOW_MS = 5 * 60 * 1000;
 
 // upsertOAuthUser — helper รวม logic upsert สำหรับทุก OAuth provider (FB/LINE/IG)
 // แยกออกมาจาก jwt callback เพื่อให้ reuse ได้ (FR-LO-14/15) ลอจิกเหมือน FB block เดิมเป๊ะ
+/**
+ * เปลือกของ **คำขอที่กำลังทำงานอยู่** — ใช้ใน `signIn` callback ซึ่งไม่มี request object ให้
+ *
+ * 🛑 อ่านคุกกี้กับ user-agent **แยก try กัน** — ถ้ารวมไว้ก้อนเดียว การที่ `headers()` โยน
+ * จะทำให้สัญญาณจากคุกกี้ (ซึ่งเป็นตัวหลัก เปลือกแอปตั้ง `deep_shell=app` เอง) หายไปด้วย
+ *
+ * 🛑 อ่านไม่ได้ = คืน `'web'` (**fail-open** = พฤติกรรมเดิมก่อนมีด่านนี้) — ด่านนี้กัน
+ * "สมัครในแอป" ซึ่งเป็นเรื่องกติกาของ App Store ไม่ใช่ด่านความปลอดภัย การ fail-closed
+ * จะกลายเป็น "ล็อกอินด้วย OAuth ไม่ได้ทั้งเว็บ" ทันทีที่ context เพี้ยน ซึ่งแย่กว่ามาก
+ */
+async function currentAppShell(): Promise<AppShell> {
+  let shellCookie: string | undefined;
+  let userAgent = "";
+  try {
+    const { cookies } = await import("next/headers");
+    shellCookie = (await cookies()).get(SHELL_COOKIE_NAME)?.value;
+  } catch {
+    /* ไม่มี request context — ปล่อยให้ตัวถัดไปลองต่อ */
+  }
+  try {
+    const { headers } = await import("next/headers");
+    userAgent = (await headers()).get("user-agent") ?? "";
+  } catch {
+    /* เหมือนกัน */
+  }
+  return resolveAppShell(shellCookie, userAgent);
+}
+
 async function upsertOAuthUser(
   account: Account,
   user: User | undefined,
@@ -696,7 +730,34 @@ export const authOptions: NextAuthOptions = {
       }
 
       // ไม่มี intent หรือ provider ไม่ตรง = login ปกติ (ไม่ใช่ link mode)
-      if (!intent || intent.provider !== account.provider) return true;
+      if (!intent || intent.provider !== account.provider) {
+        /**
+         * 🛑 **ในแอป iOS: ปุ่ม OAuth ต้องไม่กลายเป็นการสมัครบัญชี** (Guideline 3.1.1)
+         *
+         * วางไว้ตรงนี้เพราะเป็นจุดเดียวที่ครบทั้ง 3 เงื่อนไข และอยู่ **ก่อน** `jwt` callback
+         * ซึ่งเป็นตัวเรียก `upsertOAuthUser` (= ตัวสร้าง `User`) ⇒ คืน redirect ที่นี่
+         * แล้ว next-auth `return` ทันที (core/routes/callback.js:88) **บัญชีจึงไม่ถูกสร้างเลย**
+         *
+         * ต่างจากด่านใน `proxy.ts` ที่ทำงาน **หลัง** สร้างบัญชีแล้ว — มันเตะออกได้แต่
+         * แถวที่สร้างไปแล้วยังอยู่ ⇒ บัญชีกำพร้าที่เจ้าตัวเข้าไม่ถึงและถอดการเชื่อมไม่ได้
+         * (เกิดจริงบน prod 12 ราย) · **ด่านนั้นยังต้องอยู่** เพราะจับคนที่มีบัญชีแล้วแต่
+         * ยังไม่มีเบอร์/ยังตั้งค่าร้านไม่เสร็จ ซึ่งตัวนี้จับไม่ได้
+         *
+         * เกณฑ์อยู่ใน `shouldBlockOAuthSignup` (ฟังก์ชันบริสุทธิ์ + เทส + พิสูจน์ด้วย mutation)
+         * — **ห้ามเขียนเงื่อนไขสดตรงนี้** (`ui-boolean-needs-a-testable-home.md`)
+         *
+         * 🛑 ใช้ธง `app_no_account=1` **ตัวเดียวกับด่าน 3.1.1 ใน proxy** ⇒ ได้แถบข้อความ
+         * และคำชุดเดียวกันทันที ไม่ต้องมินต์คำใหม่ (HR16) · ห้ามใส่ลิงก์ชวนไปสมัครที่เว็บ
+         * เพราะ Apple ถือเป็นความผิดข้อ 3.1.1 ข้อเดียวกัน
+         *
+         * 🛑 **ไม่กรองตาม provider** — เกณฑ์คือ "เปิดจากในแอปไหม" ไม่ใช่ "มาจากเจ้าไหน"
+         * (ด่านใน proxy ก็เป็นแบบนี้) ⇒ เพิ่ม provider ใหม่วันหน้าได้โดยไม่ต้องแก้ตรงนี้
+         */
+        if (shouldBlockOAuthSignup(await currentAppShell(), Boolean(linkedAccount))) {
+          return "/auth/sign-in?app_no_account=1";
+        }
+        return true;
+      }
 
       /**
        * === LINK MODE ===
