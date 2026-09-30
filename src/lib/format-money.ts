@@ -24,6 +24,22 @@ export const formatBaht = (n: number): string => {
   return '฿' + (hasSatang(abs) ? GROUP_2 : GROUP_0).format(abs)
 }
 
+const COMPACT_1 = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 1 })
+
+/**
+ * "฿40k" / "฿1.2M" / "฿900" — ตัวเลขสั้นสำหรับ **ป้ายแกนกราฟ** เท่านั้น (2026-10-01)
+ *
+ * แกน y ที่เขียน "฿40,000" กินความกว้างของจอมือถือไป ~60px จนแท่งกราฟแคบ (user: "กราฟให้ใหญ่กว่านี้")
+ * ห้ามใช้กับตัวเลขที่ผู้ใช้ต้องอ่านค่าเป๊ะ — tooltip/การ์ด/ตารางยังใช้ formatBaht
+ * คืนค่าสัมบูรณ์เหมือน formatBaht (แกนเงินเริ่มที่ 0 เสมอ)
+ */
+export const formatBahtCompact = (n: number): string => {
+  const abs = Math.abs(n)
+  if (abs >= 1_000_000) return `฿${COMPACT_1.format(abs / 1_000_000)}M`
+  if (abs >= 1_000) return `฿${COMPACT_1.format(abs / 1_000)}k`
+  return `฿${GROUP_0.format(abs)}`
+}
+
 /**
  * ตัวเลขเงินบาทแบบ **ไม่มี ฿ และคงเครื่องหมายลบไว้** — `7,200` / `-1,623.70`
  *

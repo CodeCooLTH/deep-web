@@ -40,8 +40,10 @@ const baseColumns = [
   columnHelper.accessor('label', {
     header: 'วันที่',
     enableColumnFilter: false,
-    // วันที่ห้ามตัดบรรทัด — มือถือเคยหักเป็น "2569-09-" / "01" (user แจ้ง 2026-09-30)
+    // วันที่ห้ามตัดบรรทัด — มือถือเคยหักเป็นสองบรรทัด (user แจ้ง 2026-09-30)
     cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue()}</span>,
+    // 🛑 เรียงจาก row.date (ISO) ไม่ใช่ข้อความ — "01-10-2569" < "30-09-2569" ถ้าเรียงเป็นสตริง
+    sortingFn: (a, b) => a.original.date.localeCompare(b.original.date),
   }),
   columnHelper.accessor('orders', {
     header: 'ออเดอร์',

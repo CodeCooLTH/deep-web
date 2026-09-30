@@ -19,6 +19,67 @@ export const TZ_OFFSET_MS = 7 * 60 * 60 * 1000
 
 export type DateRangePreset = 'today' | '7d' | '30d' | 'month' | 'custom'
 
+/**
+ * ป้ายของช่วงเวลา — SSOT เดียวของตัวกรองช่วงเวลาฝั่งร้าน (HR16)
+ * เดิมอยู่ใน ExpenseToolbar ไฟล์เดียว แล้วหน้า /sales แท็บยอดเก็บเงินไม่มีตัวเลือกพวกนี้เลย (มีแต่ปฏิทิน)
+ */
+export const DATE_RANGE_OPTIONS: readonly { value: DateRangePreset; label: string }[] = [
+  { value: 'today', label: 'วันนี้' },
+  { value: '7d', label: '7 วัน' },
+  { value: '30d', label: '30 วัน' },
+  { value: 'month', label: 'เดือนนี้' },
+  { value: 'custom', label: 'กำหนดเอง' },
+]
+
+const PRESETS = new Set<string>(DATE_RANGE_OPTIONS.map((o) => o.value))
+export const isDateRangePreset = (v: unknown): v is DateRangePreset => typeof v === 'string' && PRESETS.has(v)
+
+const ISO_DAY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/** "YYYY-MM-DD" ที่เป็นวันจริง (กัน 2026-02-31 ที่ Date.UTC ม้วนไปเดือนถัดไปเงียบ ๆ) */
+function isRealIsoDay(v: unknown): v is string {
+  if (typeof v !== 'string' || !ISO_DAY_RE.test(v)) return false
+  const [y, m, d] = v.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toISOString().slice(0, 10) === v
+}
+
+/** เพดานช่วงกำหนดเอง — ตาราง/กราฟรายวันสร้างแถวทุกวัน ช่วงหลายปีคือหลายพันแถวต่อการเปิดหน้า */
+export const MAX_CUSTOM_RANGE_DAYS = 366
+
+/**
+ * อ่านช่วงเวลาจาก query string ของหน้าการเงิน — ตัวเดียวทุกแท็บ (feature 00067 ส่วนขยาย 2026-10-01)
+ *
+ * 🛑 ก่อนหน้านี้แท็บยอดเก็บเงินอ่าน `?from=&to=` ส่วนแท็บกำไร/ค่าใช้จ่ายอ่าน `?range=` ⇒ สลับแท็บแล้ว
+ * ช่วงเวลาหาย · ตอนนี้ทุกแท็บอ่าน `?range=` (+`start`/`end` ถ้ากำหนดเอง) ชุดเดียว
+ * `?from=&to=` ยังรับเป็นลิงก์เก่า (ตีความเป็นกำหนดเอง) ไม่ให้บุ๊กมาร์กเดิมพัง
+ *
+ * ค่าผิดรูป/กลับด้าน/ยาวเกินเพดาน → ตกไป `fallback` ไม่ throw (URL มาจากใครก็ได้)
+ */
+export function resolveRangeFromParams(
+  sp: { range?: string; start?: string; end?: string; from?: string; to?: string },
+  fallback: Exclude<DateRangePreset, 'custom'> = 'month',
+): { preset: DateRangePreset; custom: [string, string] | null; resolved: ResolvedDateRange } {
+  let start = sp.start
+  let end = sp.end
+  let preset: string | undefined = sp.range
+  if (!preset && sp.from && sp.to) {
+    preset = 'custom'
+    start = sp.from
+    end = sp.to
+  }
+  if (preset === 'custom') {
+    if (isRealIsoDay(start) && isRealIsoDay(end) && start <= end) {
+      const days = (Date.parse(end) - Date.parse(start)) / DAY_MS + 1
+      if (days <= MAX_CUSTOM_RANGE_DAYS) {
+        return { preset: 'custom', custom: [start, end], resolved: resolveDateRange('custom', start, end) }
+      }
+    }
+    return { preset: fallback, custom: null, resolved: resolveDateRange(fallback) }
+  }
+  const p = isDateRangePreset(preset) ? preset : fallback
+  return { preset: p, custom: null, resolved: resolveDateRange(p) }
+}
+
 export interface ResolvedDateRange {
   /** สำหรับ query field timestamptz (Order.createdAt) — ต้อง shift เข้า Thai TZ ก่อน bucket */
   orderRange: { gte: Date; lt: Date }

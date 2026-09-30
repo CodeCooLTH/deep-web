@@ -11,6 +11,14 @@
  *      ตัด series "ออเดอร์" ทิ้ง — มันบังคับให้มีแกนขวาคนละหน่วยจนเทียบความสูงแท่งไม่ได้
  *      และจำนวนออเดอร์อ่านได้จากการ์ดสรุปกับตารางด้านล่างอยู่แล้ว
  *
+ * v4 (2026-10-01) — การ์ดกราฟออกแบบใหม่ (user: "ไม่สวยเลย · วันที่ยาวไป · กราฟให้ใหญ่และสวยกว่านี้")
+ *   Base: dashboard/components/SalesChartSheet.tsx (ภาษาเดียวกับชีตบนหน้าหลักที่ user อนุมัติแล้ว)
+ *   - legend ของ Apex (2 แถวลอยขวา กินพื้นที่เหนือกราฟ ~110px บนมือถือ) → แถบจุดสี+ยอดรวมในหัวการ์ด
+ *   - ป้ายแกน x "2569-09-01" แนวตั้ง → "01-09" แนวนอน (formatDayMonth ตัวกลาง) · วันที่เต็มอยู่ใน tooltip
+ *   - แกน y "฿40,000" → "฿40k" (formatBahtCompact) คืนความกว้างให้แท่ง · แท่งกว้างขึ้น มุมโค้งบนสุด
+ *   - สีเขียว = ยืนยันแล้ว ให้ตรงกับการ์ดสรุปข้างบนและชีตหน้าหลัก (เดิมน้ำเงิน — สถานะเดียวสองสี)
+ *   - ปิด drag-to-zoom (จิ้มลากบนมือถือแล้วเกิดกล่อง selection ค้าง — บั๊กเดียวกับที่ชีตแก้ไปแล้ว)
+ *
  * series ทั้งหมดมาจาก real DailyRow[] ที่ RSC คำนวณ — ไม่มี demo data จาก theme
  * PDPA: ข้อมูลเป็น aggregate ตามวัน ไม่มี buyer PII ใด ๆ
  */
@@ -18,18 +26,23 @@
 
 import ApexChart from '@/components/wrappers/ApexChart'
 import { getColor } from '@/utils/helpers'
-import { formatBaht, profitDisplay, SALES_PROFIT_FORMULA, pctChangeVsPrev } from '@/lib/format-money'
+import { formatBaht, formatBahtCompact, profitDisplay, SALES_PROFIT_FORMULA, pctChangeVsPrev } from '@/lib/format-money'
+import { formatDate, formatDayMonth } from '@/lib/format-date'
 import PacesStatCard from '../../_shared/PacesStatCard'
+import SellerEmptyState from '../../_shared/SellerEmptyState'
 import { useCallback } from 'react'
 import type { DailyRow, SummaryData } from './data'
 
 type Props = {
   daily: DailyRow[]
   summary: SummaryData
+  /** "01-09-2569 – 30-09-2569" — ปีของป้ายแกน x (ที่ตัดปีออก) อ่านได้จากตรงนี้ */
+  periodLabel: string
 }
 
-const SalesChart = ({ daily, summary }: Props) => {
-  const categories = daily.map((d) => d.label)
+const SalesChart = ({ daily, summary, periodLabel }: Props) => {
+  // category = ISO ดิบ ("2026-09-01") — จัดรูปตอนแสดงเท่านั้น ทั้งแกน (สั้น) และ tooltip (เต็ม)
+  const categories = daily.map((d) => d.date)
   const revenueSeries = daily.map((d) => d.revenue)
   const unconfirmedSeries = daily.map((d) => d.unconfirmedRevenue)
   // ค่าส่ง (feature 00016 ส่วนขยาย 2026-08-09) — undefined ทั้งชุด = ไม่มีสิทธิ์ดูข้อมูลการเงิน
@@ -44,47 +57,79 @@ const SalesChart = ({ daily, summary }: Props) => {
    * — โครงเดียวกับชีตยอดขายบนมือถือเป๊ะ เพื่อให้สอง surface เล่าเรื่องเดียวกัน
    */
   const series = [
-    { name: 'ลูกค้ายืนยันแล้ว', group: 'sales', data: revenueSeries },
-    { name: 'รอลูกค้ายืนยัน', group: 'sales', data: unconfirmedSeries },
+    { name: 'ยืนยันแล้ว', group: 'sales', data: revenueSeries },
+    { name: 'รอยืนยัน', group: 'sales', data: unconfirmedSeries },
     ...(showFinance ? [{ name: 'ค่าส่ง', group: 'expense', data: shippingSeries }] : []),
   ]
+  const hasAnyValue = daily.some((d) => d.revenue > 0 || d.unconfirmedRevenue > 0 || (d.shippingCost ?? 0) > 0)
 
+  /**
+   * ยืนยันแล้ว + รอยืนยัน stack กันใน group 'sales' (เงินก้อนเดียวกันคนละสถานะ)
+   * ค่าส่งอยู่ group 'expense' จึงวางเป็นแท่งแยกข้างกัน ไม่ต่อยอดทับ — โครงเดียวกับชีตบนหน้าหลัก
+   */
   const getOptions = useCallback(
     () => ({
       series,
-      chart: { type: 'bar' as const, height: 320, stacked: true, toolbar: { show: false } },
-      plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },
+      chart: {
+        type: 'bar' as const,
+        height: 320,
+        stacked: true,
+        toolbar: { show: false },
+        zoom: { enabled: false },
+        selection: { enabled: false },
+        parentHeightOffset: 0,
+        fontFamily: 'inherit',
+      },
+      plotOptions: {
+        bar: {
+          columnWidth: daily.length > 20 ? '72%' : '55%',
+          borderRadius: 3,
+          borderRadiusApplication: 'end' as const,
+          borderRadiusWhenStacked: 'last' as const,
+        },
+      },
       dataLabels: { enabled: false },
-      // token เท่านั้น (Hard Rule 10 ห้าม hardcode hex)
-      // น้ำเงิน = ยืนยันแล้ว, เหลือง = รอยืนยัน, แดง = ค่าส่ง — ชุดสีเดียวกับชีตมือถือ
+      // legend ของ Apex ถูกแทนด้วยแถบในหัวการ์ด (จุดสี = ซีรีส์ 1:1 + ยอดรวม)
+      legend: { show: false },
+      // token เท่านั้น (Hard Rule 10) — เขียว=ยืนยันแล้ว เหลือง=รอยืนยัน แดง=ค่าส่ง (ชุดเดียวกับชีตหน้าหลัก)
       colors: showFinance
-        ? [getColor('chart-primary'), getColor('warning'), getColor('chart-beta')]
-        : [getColor('chart-primary'), getColor('warning')],
-      legend: { show: true, position: 'top' as const, horizontalAlign: 'right' as const, fontSize: '13px' },
+        ? [getColor('success'), getColor('warning'), getColor('chart-beta')]
+        : [getColor('success'), getColor('warning')],
       xaxis: {
         categories,
         axisBorder: { show: false },
         axisTicks: { show: false },
-        /**
-         * ป้ายวันที่ตั้งแนวตั้งเสมอ (user สั่ง 2026-09-30 — มือถือเดิมทับกันจนอ่านไม่ออก)
-         * 🛑 เดิม `rotate: 0` + `tickAmount` ใช้ไม่ได้: แกน category ไม่ thin ป้ายตาม tickAmount
-         * ป้าย "2569-09-01" กว้าง ~70px × 30 วัน ล้นทุกจอที่แคบกว่า ~2,100px
-         * แนวตั้งกินที่แนวนอนแค่ความสูงตัวอักษร (~11px) ⇒ 30 วันพอดีจอ 320px
-         * `hideOverlappingLabels` ยังเปิดไว้เป็นตาข่ายรอง: จอที่แคบกว่านั้น Apex เว้นวันเว้นวันเอง
-         * รูปแบบป้ายมาจาก formatDate (ตัวกลาง) ที่ RSC — ห้ามจัดรูปใหม่ที่นี่
-         */
+        tooltip: { enabled: false },
         labels: {
-          rotate: -90,
-          rotateAlways: true,
+          // "01-09" สั้นพอวางแนวนอน — จอแคบ Apex ข้ามบางวันเอง (hideOverlappingLabels) ไม่มีวันทับกัน
+          rotate: 0,
           hideOverlappingLabels: true,
           trim: false,
-          maxHeight: 90,
-          style: { fontSize: '11px' },
+          style: { fontSize: '11px', colors: getColor('default-500') },
+          formatter: (v: string) => formatDayMonth(v),
         },
       },
-      yaxis: { labels: { formatter: (val: number) => formatBaht(val) } },
-      grid: { strokeDashArray: 4 },
-      tooltip: { shared: true, intersect: false, y: { formatter: (val: number) => formatBaht(val) } },
+      yaxis: {
+        min: 0,
+        forceNiceScale: true,
+        tickAmount: 4,
+        labels: {
+          style: { fontSize: '11px', colors: getColor('default-500') },
+          formatter: (val: number) => formatBahtCompact(val),
+        },
+      },
+      grid: {
+        strokeDashArray: 4,
+        borderColor: getColor('default-200'),
+        xaxis: { lines: { show: false } },
+        padding: { top: -8, right: 8, bottom: 0, left: 4 },
+      },
+      tooltip: {
+        shared: true,
+        intersect: false,
+        x: { formatter: (_v: unknown, o?: { dataPointIndex?: number }) => formatDate(daily[o?.dataPointIndex ?? -1]?.date) },
+        y: { formatter: (val: number) => formatBaht(val) },
+      },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [daily, showFinance],
@@ -186,8 +231,22 @@ const SalesChart = ({ daily, summary }: Props) => {
       </div>
 
       <div className="card">
-        <div className="card-body">
-          <ApexChart getOptions={getOptions} series={series} type="bar" height={320} />
+        <div className="card-header flex-nowrap gap-2">
+          <h5 className="card-title min-w-0 truncate">ยอดขายรายวัน</h5>
+          <span className="text-default-500 shrink-0 text-xs whitespace-nowrap">{periodLabel}</span>
+        </div>
+        {/* แถบนี้คือ legend ของกราฟ — จุดสี = สีแท่ง 1:1 พร้อมยอดรวมของช่วง */}
+        <div className="border-default-200 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-b border-dashed px-5 py-2.5">
+          <LegendItem dot="bg-success" label="ยืนยันแล้ว" value={summary.totalRevenue} />
+          <LegendItem dot="bg-warning" label="รอยืนยัน" value={summary.totalUnconfirmed} />
+          {showFinance && <LegendItem dot="bg-danger" label="ค่าส่ง" value={summary.totalShippingCost ?? 0} />}
+        </div>
+        <div className="card-body px-1 pt-3 pb-1 sm:px-3">
+          {hasAnyValue ? (
+            <ApexChart getOptions={getOptions} series={series} type="bar" height={320} />
+          ) : (
+            <SellerEmptyState compact icon="chart-bar-off" title="ยังไม่มียอดขายในช่วงนี้" />
+          )}
         </div>
       </div>
     </div>
@@ -195,3 +254,14 @@ const SalesChart = ({ daily, summary }: Props) => {
 }
 
 export default SalesChart
+
+/** ช่องหนึ่งของแถบ legend — จุดสีต้องตรงกับสีซีรีส์ในกราฟเสมอ (Base: SalesChartSheet.tsx::LegendCell) */
+function LegendItem({ dot, label, value }: { dot: string; label: string; value: number }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs whitespace-nowrap">
+      <span className={`size-2 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
+      <span className="text-default-600">{label}</span>
+      <span className="text-default-800 font-semibold tabular-nums">{formatBaht(value)}</span>
+    </span>
+  )
+}

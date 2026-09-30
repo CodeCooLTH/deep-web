@@ -25,7 +25,7 @@
  *   ค้าง) ปุ่ม trigger จึงมี label ว่าง + chevron ติดมาด้วย (ไม่ใช่ 3-dot ล้วน) — ยอมรับเพื่อกัน
  *   re-render opacity bug (บทเรียน OrderCardMenu 2026-06-15) แทนการเขียน raw hs-dropdown ใหม่
  * - คอลัมน์ "สถานะติดตาม" / "สถานะสต็อก": badge token ตาม Design Spec (bg-primary/15, bg-danger/15)
- * - updatedAt รับเป็น string ที่ parent format ด้วย formatDateTime แล้ว (RSC boundary — ไม่ format ซ้ำที่นี่)
+ * - updatedAt รับเป็น ISO string ดิบ (เรียงได้) แล้ว format ด้วย formatDateTime ตอนแสดง
  * - empty state (ไม่มี PHYSICAL product เลย): การ์ด + icon package + CTA /products/new
  * - mobileCard: ผสม leading-thumbnail (ProductStockTable) เข้ากับโครง card list ของ WalletTransactionTable
  */
@@ -52,12 +52,14 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import ManualAdjustModal from './ManualAdjustModal'
+import { formatDateTime } from '@/lib/format-date'
 
 export type InventoryProductRow = {
   id: string
   name: string
   image: string | null
   stockQty: number | null
+  /** ISO string ดิบ — เรียงจากค่านี้ แล้วจัดรูปด้วย formatDateTime ตอนแสดง */
   updatedAt: string
 }
 
@@ -142,11 +144,11 @@ const InventoryManagementTable = ({ products, isPro = false }: Props) => {
           return <span className="text-default-400">—</span>
         },
       }),
-      // คอลัมน์อัปเดตล่าสุด — รับ formatDateTime string จาก parent แล้ว (RSC boundary)
+      // คอลัมน์อัปเดตล่าสุด — ค่าเป็น ISO (เรียงถูกตามเวลา) จัดรูป วัน-เดือน-ปี ตอนแสดงเท่านั้น
       columnHelper.accessor('updatedAt', {
         header: 'อัปเดตล่าสุด',
         cell: ({ getValue }) => (
-          <span className="text-default-400 text-sm whitespace-nowrap">{getValue()}</span>
+          <span className="text-default-400 text-sm whitespace-nowrap">{formatDateTime(getValue())}</span>
         ),
       }),
       // Actions (S-16 extend) — แก้ไข (Link เดิม, ไม่มี inline stock edit — TD-005) +

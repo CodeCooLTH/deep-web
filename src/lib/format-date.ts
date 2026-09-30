@@ -2,8 +2,14 @@
  * format-date — ฟอร์แมตวันที่/เวลามาตรฐานเดียวของทั้งระบบ (กฎ: docs/conventions/date-format.md)
  *
  * รูปแบบมาตรฐาน (ห้าม format วันที่เองที่อื่น — ใช้ 2 ฟังก์ชันนี้เท่านั้น):
- *   - formatDateTime(d) → "2569-06-07 10:06:13"  (พ.ศ. + เวลา HH:mm:ss)
- *   - formatDate(d)     → "2569-06-07"            (พ.ศ. วันที่ล้วน)
+ *   - formatDateTime(d) → "07-06-2569 10:06:13"  (วัน-เดือน-ปี พ.ศ. + เวลา HH:mm:ss)
+ *   - formatDate(d)     → "07-06-2569"            (วัน-เดือน-ปี พ.ศ. วันที่ล้วน)
+ *
+ * 🛑 เรียง **วัน-เดือน-ปี** (user สั่ง 2026-10-01: "ต้องเรียงแบบนี้หมด วัน-เดือน-ปี = 02-09-2569")
+ * เดิมเป็น ปี-เดือน-วัน ซึ่งเรียงตามตัวอักษรได้ — รูปแบบใหม่ **เรียงเป็นสตริงไม่ได้แล้ว**
+ * ⇒ ตาราง/รายการที่ต้องเรียงตามวันที่ ต้องเรียงจากค่าดิบ (ISO/Date/thaiDayKey) เสมอ
+ *   ห้าม sort ด้วยข้อความที่ได้จากไฟล์นี้ (ดู sortingFn ของ SalesTable / InventoryManagementTable)
+ * ⇒ ชื่อไฟล์ที่ต้องเรียงได้ใช้ formatDateStampBE() ไม่ใช่ formatDate()
  *
  * รายละเอียด:
  *   - ปี = พ.ศ. (ค.ศ. + 543)
@@ -45,22 +51,44 @@ function toValidDate(input: Date | string | number | null | undefined): Date | n
   return isNaN(d.getTime()) ? null : d
 }
 
-/** "2569-06-07 10:06:13" — วันที่ + เวลา (พ.ศ., timezone ไทย) */
+/** "07-06-2569 10:06:13" — วันที่ + เวลา (วัน-เดือน-ปี พ.ศ., timezone ไทย) */
 export function formatDateTime(input: Date | string | number | null | undefined): string {
   const d = toValidDate(input)
   if (!d) return '—'
   const p = partsInBangkok(d)
   const year = Number(p.year) + BE_OFFSET
-  return `${year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`
+  return `${p.day}-${p.month}-${year} ${p.hour}:${p.minute}:${p.second}`
 }
 
-/** "2569-06-07" — วันที่ล้วน (พ.ศ., timezone ไทย) */
+/** "07-06-2569" — วันที่ล้วน (วัน-เดือน-ปี พ.ศ., timezone ไทย) */
 export function formatDate(input: Date | string | number | null | undefined): string {
   const d = toValidDate(input)
   if (!d) return '—'
   const p = partsInBangkok(d)
   const year = Number(p.year) + BE_OFFSET
-  return `${year}-${p.month}-${p.day}`
+  return `${p.day}-${p.month}-${year}`
+}
+
+/**
+ * "07-06" — วัน-เดือน ไม่มีปี (ป้ายแกนกราฟรายวันที่ที่แคบ)
+ * ปีดูได้จากช่วงวันที่ที่หัวการ์ด และ tooltip ของกราฟใช้ formatDate เต็ม
+ */
+export function formatDayMonth(input: Date | string | number | null | undefined): string {
+  const d = toValidDate(input)
+  if (!d) return '—'
+  const p = partsInBangkok(d)
+  return `${p.day}-${p.month}`
+}
+
+/**
+ * "25690607" — ปี พ.ศ.+เดือน+วัน ติดกัน สำหรับ **ชื่อไฟล์** ที่ต้องเรียงตามวันในโฟลเดอร์ได้
+ * (ห้ามใช้แสดงผล — แสดงผลใช้ formatDate)
+ */
+export function formatDateStampBE(input: Date | string | number | null | undefined): string {
+  const d = toValidDate(input)
+  if (!d) return ''
+  const p = partsInBangkok(d)
+  return `${Number(p.year) + BE_OFFSET}${p.month}${p.day}`
 }
 
 /**

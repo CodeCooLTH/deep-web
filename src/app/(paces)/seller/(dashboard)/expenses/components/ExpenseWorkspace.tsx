@@ -17,6 +17,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { formatDate } from '@/lib/format-date'
 import { thaiDayKey } from '@/lib/format-date'
 import type { PnlReport } from '@/services/pnl.service'
 import type { SerializedExpense } from '@/services/expense.service'
@@ -156,16 +157,10 @@ export default function ExpenseWorkspace({
     syncUrl(next, customDates)
   }
 
-  const handleCustomChange = (selectedDates: Date[]) => {
-    if (selectedDates.length === 2) {
-      const next: [string, string] = [
-        // Flatpickr คืนเที่ยงคืน local — toISOString() เลื่อนถอยไป 1 วัน (แบบเดียวกับ SalesDateRange)
-        thaiDayKey(selectedDates[0]),
-        thaiDayKey(selectedDates[1]),
-      ]
-      setCustomDates(next)
-      syncUrl('custom', next)
-    }
+  // DateRangeControl ตัดวันด้วยเวลาไทยให้แล้ว (thaiDayKey) — ที่นี่รับคู่ "YYYY-MM-DD" สำเร็จรูป
+  const handleCustomChange = (next: [string, string]) => {
+    setCustomDates(next)
+    syncUrl('custom', next)
   }
 
   const openCreate = () => setModal({ mode: 'create' })
@@ -174,6 +169,7 @@ export default function ExpenseWorkspace({
     <div className="flex flex-col gap-5">
       <ExpenseToolbar
         range={range}
+        customDates={customDates}
         onRangeChange={handleRangeChange}
         onCustomChange={handleCustomChange}
         onAdd={openCreate}
@@ -215,7 +211,7 @@ export default function ExpenseWorkspace({
         </div>
       )}
 
-      <PnlReportCard report={report} expenses={expenses} loading={loading} rangeLabel={RANGE_LABEL[range]} orderNoun={orderNoun} />
+      <PnlReportCard report={report} expenses={expenses} loading={loading} rangeLabel={range === 'custom' && customDates ? `${formatDate(customDates[0])} – ${formatDate(customDates[1])}` : RANGE_LABEL[range]} orderNoun={orderNoun} />
 
       {expenses.length > 0 && (
         <ExpenseBreakdownCard
