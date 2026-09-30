@@ -39,6 +39,8 @@ type Props = {
   initialSeries: SalesSeries | null | undefined
   /** ชื่อของสิ่งที่นับเป็น "ใบ" ผันตาม vertical (ORDER_VOCAB.noun) — default = ชุด ONLINE_SALES */
   orderNoun?: string
+  /** คำเรียกต้นทุนผันตาม vertical (ORDER_VOCAB.costNoun) — ใช้ในแท็บการเงินของชีต (00067) */
+  costNoun?: string
   /**
    * เงินที่ร้าน **ยืนยันว่าได้รับจริง** วันนี้ (feature 00050 · AC-SQ-04)
    * `undefined` = ไม่ใช่ร้าน SERVICE_QUEUE ⇒ การ์ดเหมือนเดิมทุก node
@@ -69,7 +71,7 @@ const RECENT_DAYS = 14
  */
 const TODAY_AXIS_ANCHOR_INDEXES = [0, 4, 7, 10, RECENT_DAYS - 1]
 
-export default function SalesChartCard({ initialSeries, orderNoun }: Props) {
+export default function SalesChartCard({ initialSeries, orderNoun, costNoun }: Props) {
   const t = useT()
   const noun = orderNoun || t.vocab.orderNoun.ONLINE_SALES
   const [open, setOpen] = useState(false)
@@ -540,7 +542,9 @@ export default function SalesChartCard({ initialSeries, orderNoun }: Props) {
             (seller-menu.ts:84 slug seller:expenses) จึงไม่มีทางเข้าไหนหายไปจากการตัดนี้ */}
       </div>
 
-      {open && <SalesChartSheet initialSeries={initialSeries} onClose={() => setOpen(false)} />}
+      {open && (
+        <SalesChartSheet initialSeries={initialSeries} onClose={() => setOpen(false)} costNoun={costNoun} />
+      )}
     </>
   )
 }
