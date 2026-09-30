@@ -4368,6 +4368,18 @@ model MediaAsset {
   @@index([shopId, sourceKey])
 }
 
+/// ขนาดจริง (px) ของรูปในแชท — SSOT ของ width/height ต่อไฟล์ (M3 chat image size reserve)
+///
+/// fileId = ค่าเดียวกับ ChatMessage.imageUrl / MediaAsset.fileId — ไม่ผูก FK เพราะไฟล์อยู่ใน storage
+/// เขียนที่ writeDedupedFile + reconcileUploadedFile เท่านั้น (ห้ามเขียนที่อื่น)
+/// CHECK width>0 AND height>0 = unmanaged SQL ใน migration (ห้าม prisma db pull)
+model MediaImageSize {
+  fileId    String   @id
+  width     Int
+  height    Int
+  createdAt DateTime @default(now())
+}
+
 /// Ice Breakers — คำถามยอดฮิตที่ Meta แสดงให้ลูกค้า **ก่อนเริ่มแชทครั้งแรก** (2026-08-27)
 ///
 /// ลูกค้าแตะแล้ว Meta ส่ง `postback` มาให้เรา (ไม่ใช่ `message`) ⇒ ระบบตอบ `answer` กลับไปเอง
