@@ -1594,7 +1594,7 @@ enum** — ระหว่างนี้ป้ายบนโปรไฟล์
 | GET | `/api/expenses` | Seller (`GRANTED`) | รายการค่าใช้จ่าย | `expense.service` |
 | PATCH | `/api/expenses/[id]` | Seller (`GRANTED`) | แก้ค่าใช้จ่าย | `expense.service` |
 | DELETE | `/api/expenses/[id]` | Seller (`GRANTED`) | ลบค่าใช้จ่าย | `expense.service` |
-| GET | `/api/expenses/report` | Seller (`GRANTED`) | รายงาน P&L + `expenses[]` + `prevNetProfit` | `pnl.service` |
+| GET | `/api/expenses/report` | Seller (`GRANTED`) | รายงาน P&L + `expenses[]` + `prevNetProfit` + **`coverage{soldItemCount,uncostedItemCount}`** (feature 00067 · additive) | `pnl.service` · `cost-coverage.service` |
 | PATCH | `/api/business/shops/[shopId]/finance-visibility` | **Seller-owner เท่านั้น** | toggle `staffCanViewFinance` | `expense.service` |
 | GET | `/api/seller/sales-series` | Seller | ยอดขายรายวัน + field การเงินเมื่อ `GRANTED` | `dashboard.service` |
 
