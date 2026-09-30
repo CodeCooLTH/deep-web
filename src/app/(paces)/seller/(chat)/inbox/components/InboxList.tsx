@@ -1,4 +1,5 @@
 'use client'
+import { localReadAtOf, markLocalRead } from '@/lib/chat-local-read'
 import { useOrderVocab } from '../../_components/DraftOrderProvider'
 import { useStableCallback } from '@/hooks/useStableCallback'
 import { InboxRow } from './InboxRow'
@@ -248,6 +249,13 @@ const CHANNEL_TABS: ChannelTab[] = ['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM', 'LI
  *  localReadAt = mark-read เชิงบวกฝั่ง client (เวลาที่กดเปิดบทสนทนาในรอบนี้) — ถ้าอ่านหลังข้อความ
  *  ล่าสุดแล้วถือว่าเคลียร์หมด ไม่ต้องรอ server refetch (บน desktop rail ไม่ unmount ตอน navigate)
  */
+/** ค่าที่ใหม่กว่าของเวลา ISO สองค่า (ไม่มี = undefined) */
+function latestIso(a?: string, b?: string): string | undefined {
+  if (!a) return b
+  if (!b) return a
+  return a > b ? a : b
+}
+
 function unreadCountOf(c: ConversationListItem, localReadAt?: string): number {
   // user request 2026-07-25: ข้อความล่าสุดเป็นฝั่งเรา (SHOP — ตอบจาก Deep/admin คนอื่น/echo จากเพจตรง)
   // = ถือว่าอ่านแล้ว → ไม่ขึ้น badge, ตัวหนังสือเทา (backend ก็ตัดออกแล้วที่ countUnreadByConversation
@@ -1150,6 +1158,7 @@ export default function InboxList({
     if (!activeConversationId) return
     // เธรดที่เพิ่งเปิดอาจเป็นสแปม → badge ต้องลดทันที ไม่ต้องรอ throttle
     void refreshSpamUnreadRef.current(true)
+    markLocalRead(activeConversationId)
     setLocalReadAt((prev) => ({ ...prev, [activeConversationId]: new Date().toISOString() }))
   }, [activeConversationId])
 
@@ -1653,7 +1662,7 @@ export default function InboxList({
         >
           {items.map((c, index) => {
             // บทสนทนาที่กำลังเปิดอยู่ = อ่านแล้วเสมอ (ไม่ต้องรอ localReadAt/DB ตามทัน)
-            const unreadCount = c.id === activeConversationId ? 0 : unreadCountOf(c, localReadAt[c.id])
+            const unreadCount = c.id === activeConversationId ? 0 : unreadCountOf(c, latestIso(localReadAt[c.id], localReadAtOf(c.id)))
             // ชื่อกลุ่มที่เธรดนี้อยู่ — โชว์เฉพาะแท็บ "ทั้งหมด" (activeGroupId===null); ในแท็บกลุ่มเองไม่ต้อง
             // ย้ำ. หาจาก groups ที่โหลดมาแล้ว (ไม่ query เพิ่ม) — กลุ่มถูกลบ = หาไม่เจอ → ไม่โชว์ชิป
             const groupChip =

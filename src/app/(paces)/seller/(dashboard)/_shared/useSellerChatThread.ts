@@ -11,6 +11,7 @@
  * ยกมาตรง ๆ ไม่เปลี่ยน behavior; render/JSX ยังอยู่ที่ caller แต่ละที่ (full page การ์ด/header
  * ต่างจาก widget panel ที่ h-full ไม่มี .card ซ้ำ)
  */
+import { markLocalRead } from '@/lib/chat-local-read'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect'
 import { useSession } from 'next-auth/react'
@@ -48,6 +49,12 @@ import {
 
 // chat-attachment.ts เป็น pure module จึง import ฝั่ง client ได้ (ต่างจาก '@/lib/storage' ที่ barrel
 // ดึง driver local/s3 (fs/server-only) เข้า client bundle) — เพดาน/deny-list จึงไม่ต้อง duplicate อีก
+
+/** ยิง mark-read ที่ server + จดฝั่ง client ให้รายการแชทที่ remount ทีหลังรู้ทันที (chat-local-read.ts) */
+function postMarkRead(conversationId: string): void {
+  markLocalRead(conversationId)
+  fetch(`/api/chat/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {})
+}
 
 /**
  * อ่านคำตอบของ "ส่งการ์ดสินค้าหลายใบ" แล้วแปลงเป็นผลลัพธ์ที่แผงเลือกสินค้าเอาไปใช้ต่อ
@@ -562,7 +569,7 @@ export function useSellerChatThread(
   const markReadDebounced = useCallback(() => {
     if (markReadTimer.current) clearTimeout(markReadTimer.current)
     markReadTimer.current = setTimeout(() => {
-      fetch(`/api/chat/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {})
+      postMarkRead(conversationId)
     }, 500)
   }, [conversationId])
 
@@ -593,7 +600,7 @@ export function useSellerChatThread(
     if (fromCacheForRef.current === conversationId) {
       fromCacheForRef.current = null
       seededForRef.current = null
-      fetch(`/api/chat/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {})
+      postMarkRead(conversationId)
       return () => {
         cancelled = true
       }
@@ -602,7 +609,7 @@ export function useSellerChatThread(
     // (การเลื่อนลงล่างสุดย้ายไป layout effect ข้างล่าง เพื่อให้เกิด **ก่อนเบราว์เซอร์วาด**)
     if (seededForRef.current === conversationId) {
       seededForRef.current = null
-      fetch(`/api/chat/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {})
+      postMarkRead(conversationId)
       return () => {
         cancelled = true
       }
@@ -627,7 +634,7 @@ export function useSellerChatThread(
         if (data.externalDeliveredAt !== undefined) setExternalDeliveredAt(data.externalDeliveredAt)
         scrollToBottom()
         // mark-read ทันทีตอนเปิด thread (ไม่ debounce รอบแรก)
-        fetch(`/api/chat/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {})
+        postMarkRead(conversationId)
       } catch {
         if (!cancelled) setErrorState(true)
       } finally {
