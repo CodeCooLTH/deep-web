@@ -92,7 +92,10 @@ export default function InviteLandingClient({
   // guest เท่านั้น: 'choose' = เลือกวิธีเข้าสู่ระบบ, 'phone' = ฟอร์มเบอร์โทร 3 ขั้น
   const [guestMode, setGuestMode] = useState<'choose' | 'phone'>('choose')
   /* ผลของทาง native ที่ต้องค้างบนจอ — toast หายเองก่อนคนอ่าน (บทเรียน 2.1(a) 2026-09-27) */
-  const [appleBusy, setAppleBusy] = useState(false)
+  /* ปุ่มไหนกำลังทำงาน — ตัวเดียวคุมทุกเจ้า เพื่อโชว์สปินเนอร์ **และ** ปิดปุ่มที่เหลือ
+     (เหตุผลเต็มอยู่ที่ SignInForm: กดซ้อนแล้วคุกกี้ระหว่างเดินทางของเจ้าแรกถูกเขียนทับ) */
+  const [oauthBusy, setOauthBusy] = useState<'apple' | 'facebook' | 'line' | null>(null)
+  const appleBusy = oauthBusy === 'apple'
   const [appleNotice, setAppleNotice] = useState<string | null>(null)
 
   const callbackUrl = `/i/${slug}`
@@ -112,7 +115,7 @@ export default function InviteLandingClient({
   const handleApple = async () => {
     if (canUseAppleNative(typeof window === 'undefined' ? undefined : window)) {
       setAppleNotice(null)
-      setAppleBusy(true)
+      setOauthBusy('apple')
       const outcome = await runAppleNativeSignIn()
 
       if (outcome.kind === 'ticket') {
@@ -124,7 +127,7 @@ export default function InviteLandingClient({
         }
       }
 
-      setAppleBusy(false)
+      setOauthBusy(null)
 
       if (outcome.kind === 'cancelled') {
         setAppleNotice('ยกเลิกการเข้าสู่ระบบด้วย Apple แล้ว')
@@ -149,12 +152,28 @@ export default function InviteLandingClient({
     await signIn('apple', { callbackUrl })
   }
 
+  /**
+   * พาออกไปหน้าผู้ให้บริการ — ต้องตั้งสปินเนอร์ **ก่อน** `await` เสมอ
+   * `signIn()` ตั้ง `window.location.href` แล้ว resolve ทันทีโดยเบราว์เซอร์ยังไม่ไปไหน
+   * ⇒ ไม่มีอะไรขยับ ผู้ใช้กดซ้ำ (เหตุผลเต็มอยู่ที่ `SignInForm.goToProvider`)
+   */
+  const goToProvider = async (provider: 'facebook' | 'line') => {
+    setAppleNotice(null)
+    setOauthBusy(provider)
+    try {
+      await signIn(provider, { callbackUrl })
+    } catch {
+      setOauthBusy(null)
+      setAppleNotice('เริ่มเข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง')
+    }
+  }
+
   const handleFacebook = async () => {
-    await signIn('facebook', { callbackUrl })
+    await goToProvider('facebook')
   }
 
   const handleLine = async () => {
-    await signIn('line', { callbackUrl })
+    await goToProvider('line')
   }
 
   const handleAccept = async () => {
@@ -280,7 +299,7 @@ export default function InviteLandingClient({
         <button
           type="button"
           onClick={handleApple}
-          disabled={appleBusy}
+          disabled={oauthBusy !== null}
           aria-busy={appleBusy}
           className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full disabled:opacity-60"
         >
@@ -301,7 +320,9 @@ export default function InviteLandingClient({
         <button
           type="button"
           onClick={handleFacebook}
-          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full"
+          disabled={oauthBusy !== null}
+          aria-busy={oauthBusy === 'facebook'}
+          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full disabled:opacity-60"
         >
           <BxIcon
             icon="bxl:facebook-circle"
@@ -310,13 +331,18 @@ export default function InviteLandingClient({
             className="me-2 flex-shrink-0"
             style={{ color: '#1877f2' }} // brand asset Facebook — carve-out จาก Paces token (Hard Rule 6)
           />
-          เข้าสู่ระบบด้วย Facebook
+          {oauthBusy === 'facebook' && (
+            <Icon icon="loader-2" className="me-2 animate-spin text-base" aria-hidden="true" />
+          )}
+          {oauthBusy === 'facebook' ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบด้วย Facebook'}
         </button>
 
         <button
           type="button"
           onClick={handleLine}
-          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full"
+          disabled={oauthBusy !== null}
+          aria-busy={oauthBusy === 'line'}
+          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full disabled:opacity-60"
         >
           <BxIcon
             icon="ri:line-fill"
@@ -325,7 +351,10 @@ export default function InviteLandingClient({
             className="me-2 flex-shrink-0"
             style={{ color: '#06C755' }} // brand asset LINE — carve-out จาก Paces token (Hard Rule 6)
           />
-          เข้าสู่ระบบด้วย LINE
+          {oauthBusy === 'line' && (
+            <Icon icon="loader-2" className="me-2 animate-spin text-base" aria-hidden="true" />
+          )}
+          {oauthBusy === 'line' ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบด้วย LINE'}
         </button>
 
         {/* ทางเข้าสำหรับคนที่ไม่มี FB/LINE — สมัครสั้นด้วยเบอร์โทร ไม่ต้องเปิดร้าน */}
