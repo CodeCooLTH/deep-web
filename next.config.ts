@@ -1,6 +1,24 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  /**
+   * `apple-app-site-association` ต้องเสิร์ฟเป็น **JSON** แต่ไฟล์นี้ **ห้ามมีนามสกุล**
+   * (Apple กำหนดชื่อตายตัว) ⇒ Next เดา content-type ไม่ได้ แล้วจะส่งเป็น
+   * `application/octet-stream` ซึ่งเครื่องมือตรวจของ Apple ไม่รับ
+   *
+   * 🛑 ตั้งเป็นไฟล์ static ใน `public/` ไม่ใช่ route handler — path ที่ขึ้นต้นด้วยจุด
+   * ทำให้ **ตัวสร้าง type ของ Next พังทั้งไฟล์** (`.next/dev/types/routes.d.ts`
+   * ออกมาเป็น TS ที่ parse ไม่ได้) ⇒ `tsc --noEmit` แดงทั้งโปรเจกต์ทั้งที่โค้ดเราถูก
+   * ทดลองแล้วทั้งสองทางเมื่อ 2026-09-30
+   */
+  async headers() {
+    return [
+      {
+        source: '/.well-known/apple-app-site-association',
+        headers: [{ key: 'content-type', value: 'application/json' }],
+      },
+    ]
+  },
   allowedDevOrigins: ['deepth.local', 'seller.deepth.local', 'admin.deepth.local'],
   images: {
     remotePatterns: [
