@@ -6,6 +6,7 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { toast } from 'react-toastify'
+import { pickSizeError } from '@/lib/image-compress'
 import { uploadFileId } from '@/lib/upload-client'
 
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -22,8 +23,10 @@ export default function AvatarEditable({ src, fallback, size = 70 }: Props) {
     const file = e.target.files?.[0]
     e.target.value = '' // uncontrolled — reset กันเลือกไฟล์เดิมซ้ำไม่ trigger
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('ไฟล์ใหญ่เกิน 5MB')
+    // เพดาน "ก่อนบีบ" จากตัวกลาง (2026-10-01) — รูปถูกย่อให้ก่อนส่ง
+    const sizeError = pickSizeError(file, 'IMAGE', undefined, 'รูป')
+    if (sizeError) {
+      toast.error(sizeError)
       return
     }
     setBusy(true)
@@ -64,7 +67,7 @@ export default function AvatarEditable({ src, fallback, size = 70 }: Props) {
       <input
         ref={inputRef}
         type='file'
-        accept='image/png, image/jpeg, image/webp'
+        accept='image/png, image/jpeg, image/webp, .jfif'
         hidden
         onChange={handleChange}
       />

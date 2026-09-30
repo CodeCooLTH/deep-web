@@ -22,6 +22,7 @@ import { uploadFileId } from '@/lib/upload-client'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { pickSizeError } from '@/lib/image-compress'
 
 type SessionUser = {
   displayName?: string
@@ -64,8 +65,10 @@ export default function AccountSidebar() {
   const handleAvatarChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('ไฟล์ต้องไม่เกิน 5MB')
+    // เพดาน "ก่อนบีบ" จากตัวกลาง (2026-10-01) — รูปถูกย่อให้ก่อนส่ง
+    const sizeError = pickSizeError(file, 'IMAGE', undefined, 'รูป')
+    if (sizeError) {
+      toast.error(sizeError)
       e.target.value = ''
       return
     }
@@ -129,7 +132,7 @@ export default function AccountSidebar() {
             id='sidebar-avatar-upload'
             type='file'
             hidden
-            accept='image/png, image/jpeg, image/webp'
+            accept='image/png, image/jpeg, image/webp, .jfif'
             onChange={handleAvatarChange}
             disabled={uploading}
           />

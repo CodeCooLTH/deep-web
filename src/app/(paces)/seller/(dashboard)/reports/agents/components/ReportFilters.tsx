@@ -20,6 +20,7 @@ import { CHAT_CHANNELS, getChannelLabel } from '@/lib/chat-channel'
 import { REPORT_SOURCES } from '@/lib/agent-report-query'
 import { shiftIsoDate, todayThaiIsoDate } from '@/lib/date-range'
 import { SOURCE_LABEL } from './data'
+import { formatDate } from '@/lib/format-date'
 
 type Props = {
   from: string
@@ -89,6 +90,7 @@ export default function ReportFilters(props: Props) {
               className="form-input w-40"
               value={props.from}
               max={props.to}
+              aria-describedby="report-range-be"
               onChange={(e) => push({ from: e.target.value })}
             />
             <span className="text-default-500">–</span>
@@ -99,9 +101,16 @@ export default function ReportFilters(props: Props) {
               className="form-input w-40"
               value={props.to}
               min={props.from}
+              aria-describedby="report-range-be"
               onChange={(e) => push({ to: e.target.value })}
             />
           </div>
+          {/* ช่องวันที่ของเบราว์เซอร์โชว์ปีตามเครื่อง — กำกับช่วงเป็น พ.ศ. ผ่านตัวกลาง */}
+          {props.from && props.to && (
+            <p id="report-range-be" className="text-default-700 mb-0 w-full text-xs sm:order-last">
+              {formatDate(props.from)} – {formatDate(props.to)}
+            </p>
+          )}
 
           <div className="flex items-center gap-2">
             {/* 🛑 `btn-light` **ไม่มีอยู่จริงในธีม** — ที่ grep เจอคือ `.btn-light.active` ของ

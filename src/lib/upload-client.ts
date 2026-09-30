@@ -14,6 +14,7 @@
  */
 
 import type { AttachmentKind } from '@/lib/chat-attachment'
+import { defaultCompressProfile, prepareUploadFile, type CompressProfile } from '@/lib/image-compress'
 import type { UploadPurpose } from '@/lib/upload-policy'
 
 export type UploadedFile = {
@@ -31,6 +32,13 @@ export type UploadOptions = {
   /** 0–100 — ค่าจาก event ของ XHR ตรง ๆ ไม่ปัดเพิ่ม */
   onProgress?: (percent: number) => void
   signal?: AbortSignal
+  /**
+   * ระดับการบีบรูปก่อนส่ง (2026-10-01 · `image-compress.ts`) — ไม่ส่ง = ตาม purpose
+   * (IMAGE/CHAT → standard, DOCUMENT → document)
+   * 🛑 ส่ง `'off'` เฉพาะไฟล์ที่ต้องคงต้นฉบับทุกไบต์: หลักฐาน (EXIF เวลา/พิกัด) และรูปที่ขนาดพิกเซล
+   * ถูกกำหนดตายตัว (LINE rich menu 2500×1686 ที่บีบมาเองแล้ว)
+   */
+  compress?: CompressProfile
 }
 
 type TicketResponse = {
@@ -100,7 +108,11 @@ function putWithProgress(
  *
  * `size` ที่คืนมาจึงเชื่อได้ ต่างจากเดิมที่ทุก call site ส่ง `file.size` ของตัวเองต่อเข้า DB
  */
-export async function uploadToStorage(file: File, opts: UploadOptions): Promise<UploadedFile> {
+export async function uploadToStorage(input: File, opts: UploadOptions): Promise<UploadedFile> {
+  // บีบ/แก้ชื่อ **ก่อน** ขอ ticket — ชื่อ ชนิด และขนาดที่ server ตรวจต้องเป็นของไฟล์ที่จะถูก PUT จริง
+  // (ContentType ถูกผนวกในลายเซ็น presigned PUT ถ้าไม่ตรงกัน storage ตอบ 403)
+  // ไม่ throw ในทุกกรณี — บีบไม่ได้ = ได้ไฟล์เดิม
+  const file = await prepareUploadFile(input, opts.compress ?? defaultCompressProfile(opts.purpose))
   const ticketRes = await fetch('/api/uploads/ticket', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

@@ -11,7 +11,12 @@ import {
   sanitizeAttachmentName,
 } from "@/lib/chat-attachment";
 import { contentTypeToExt } from "@/lib/attachment-mime";
-import { checkUploadPolicy, uploadMaxSize } from "@/lib/upload-policy";
+import {
+  checkUploadPolicy,
+  normalizeUploadExt,
+  normalizeUploadMime,
+  uploadMaxSize,
+} from "@/lib/upload-policy";
 import { signUploadTicket, TICKET_TTL_SECONDS } from "@/lib/upload-ticket";
 import { resolveChatChannelForUser, safeStorageExt } from "../_shared";
 
@@ -43,12 +48,18 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-  const { purpose, size, mime, conversationId } = parsed.output;
+  const { purpose, size, conversationId } = parsed.output;
 
   const name = sanitizeAttachmentName(parsed.output.name);
   if (!name) {
     return NextResponse.json({ error: "ชื่อไฟล์ไม่ถูกต้อง" }, { status: 400 });
   }
+
+  // .jfif/.jpe → jpg และ mime ของ JPEG ที่แปลก/ว่าง → image/jpeg (2026-10-01) — ตัว client ใหม่แก้ให้
+  // ก่อนส่งแล้ว ที่นี่คือ safety net ให้ client เก่า/แท็บที่ยังไม่รีเฟรช: คีย์ต้องเป็น .jpg ไม่งั้น
+  // `/api/files` เสิร์ฟเป็นไฟล์ดาวน์โหลด (derive Content-Type จาก ext) และไม่ได้ variant
+  const rawExt = extFromName(name);
+  const mime = normalizeUploadMime(parsed.output.mime, rawExt);
 
   const policy = checkUploadPolicy(purpose, { name, size, mime });
   if (!policy.ok) {
@@ -56,7 +67,7 @@ export async function POST(request: NextRequest) {
   }
 
   // กฎเฉพาะช่องทางของแชท (IG รับแต่ PDF ฯลฯ) — ต้องรู้ channel ของเธรดก่อน
-  const ext = safeStorageExt(extFromName(name) || contentTypeToExt(mime));
+  const ext = safeStorageExt(normalizeUploadExt(rawExt) || contentTypeToExt(mime));
   // conversationId เป็น optional โดยตั้งใจ — parity กับ `/api/chat/upload` เดิม: ส่งมา = ตรวจกฎ
   // เฉพาะช่องทางให้ด้วย (ผู้ใช้เห็นปัญหาตั้งแต่ตอนแนบ) ไม่ส่ง = ตรวจแค่กฎกลาง
   // (ตอบคอมเมนต์ Facebook แนบรูปโดยไม่มีเธรด — `CommentsClient.pickFile`)

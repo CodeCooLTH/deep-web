@@ -19,6 +19,7 @@ import Typography from '@mui/material/Typography'
 import { useRouter } from 'next/navigation'
 import { useRef, useState } from 'react'
 import { toast } from 'react-toastify'
+import { normalizeUploadFile, pickSizeError } from '@/lib/image-compress'
 import { uploadFileId } from '@/lib/upload-client'
 
 type VerificationRecord = {
@@ -141,16 +142,17 @@ export default function VerificationClient({ phoneVerified, records }: Props) {
     }
   }
 
+  // ชนิดตรวจจากไฟล์ที่ normalize แล้ว (.jfif = JPEG) · เพดานจากตัวกลาง (2026-10-01): รูปเอกสาร
+  // ถูกบีบเบา ๆ ก่อนส่ง จึงรับรูปกล้องใหญ่ได้ ส่วน PDF ส่งตามเดิมใช้เพดานของ purpose
   const validateFile = (f: File): boolean => {
-    if (
-      !['image/jpeg', 'image/png', 'image/webp'].includes(f.type) &&
-      f.type !== 'application/pdf'
-    ) {
+    const type = normalizeUploadFile(f).type
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(type) && type !== 'application/pdf') {
       toast.error('รองรับเฉพาะ JPG, PNG, WEBP, PDF')
       return false
     }
-    if (f.size > 5 * 1024 * 1024) {
-      toast.error('ไฟล์ต้องไม่เกิน 5MB')
+    const sizeError = pickSizeError(f, 'DOCUMENT')
+    if (sizeError) {
+      toast.error(sizeError)
       return false
     }
     return true
@@ -247,7 +249,7 @@ export default function VerificationClient({ phoneVerified, records }: Props) {
                 <input
                   ref={idCardInput}
                   type='file'
-                  accept='image/jpeg,image/png,image/webp'
+                  accept='image/jpeg,image/png,image/webp,.jfif'
                   hidden
                   onChange={(e) => {
                     const f = e.target.files?.[0]
@@ -258,7 +260,7 @@ export default function VerificationClient({ phoneVerified, records }: Props) {
                 <input
                   ref={selfieInput}
                   type='file'
-                  accept='image/jpeg,image/png,image/webp'
+                  accept='image/jpeg,image/png,image/webp,.jfif'
                   hidden
                   onChange={(e) => {
                     const f = e.target.files?.[0]
@@ -325,7 +327,7 @@ export default function VerificationClient({ phoneVerified, records }: Props) {
                 <input
                   ref={bizInput}
                   type='file'
-                  accept='image/jpeg,image/png,image/webp,application/pdf'
+                  accept='image/jpeg,image/png,image/webp,.jfif,application/pdf'
                   hidden
                   onChange={(e) => {
                     const f = e.target.files?.[0]

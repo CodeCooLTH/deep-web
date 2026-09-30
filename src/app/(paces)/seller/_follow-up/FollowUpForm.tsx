@@ -40,6 +40,7 @@ import {
 } from '@/lib/follow-up-view'
 import type { FollowUpDto, PersonDto } from '@/services/customer-follow-up.service'
 import { callFollowUpApi } from './follow-up-client'
+import BeDateHint from '@/components/safepay/BeDateHint'
 
 export interface FollowUpFormProps {
   /** สร้างใหม่: ห้องที่จะผูก · แก้ไข: ส่ง item แทน */
@@ -223,9 +224,10 @@ export default function FollowUpForm({ conversationId, item, assignees, inChat =
                 max={bounds.max}
                 disabled={closed}
                 aria-invalid={!!errors.date}
-                aria-describedby={errId('date')}
+                aria-describedby={[errId('date'), id('date-be')].filter(Boolean).join(' ')}
                 onChange={(e) => set('date', e.target.value)}
               />
+              <BeDateHint id={id('date-be')} value={v.date} />
               {errors.date && (
                 <p id={id('date-err')} role="alert" className="text-danger-ink mb-0 mt-1 text-xs">
                   {errors.date === 'errDateRange' ? rangeText : t[errors.date]}

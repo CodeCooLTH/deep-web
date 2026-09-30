@@ -24,7 +24,24 @@ type Props = {
   /** query string ของช่วงเวลาปัจจุบัน (เช่น `range=month`) — ต้องตรงกับที่ RSC ใช้คำนวณ summary */
   rangeQuery: string
   basisNote: string
+  /**
+   * `card` = การ์ด Paces บนหน้า /sales · `plain` = ส่วนหนึ่งของชีต "การเงินร้าน" บนหน้าหลัก
+   * (ชีตไม่มีการ์ดซ้อนเลยสักใบ — วางการ์ดลงไปจะกลายเป็นกล่องลอยต่างภาษากับส่วนอื่นของชีต)
+   */
+  variant?: 'card' | 'plain'
 }
+
+const LOOK = {
+  card: { root: 'card', header: 'card-header', title: 'card-title', body: 'card-body', row: 'px-5' },
+  plain: {
+    // เส้นประ default-300 = ภาษาเดียวกับเส้นคั่นส่วนอื่นของชีต
+    root: 'mt-5 border-t border-dashed border-default-300',
+    header: 'flex items-center justify-between gap-2 py-2.5',
+    title: 'text-default-800 mb-0 text-sm font-semibold',
+    body: 'py-4',
+    row: 'px-1',
+  },
+} as const
 
 export default function ReceivableList({
   summary,
@@ -32,7 +49,9 @@ export default function ReceivableList({
   initialCursor,
   rangeQuery,
   basisNote,
+  variant = 'card',
 }: Props) {
+  const look = LOOK[variant]
   const [items, setItems] = useState(initialItems)
   const [cursor, setCursor] = useState(initialCursor)
   const [loading, setLoading] = useState(false)
@@ -60,16 +79,17 @@ export default function ReceivableList({
   }, [cursor, loading, rangeQuery])
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <h4 className="card-title">ต้องตามเก็บ</h4>
+    <div className={look.root}>
+      <div className={look.header}>
+        <h4 className={look.title}>ต้องตามเก็บ</h4>
         {summary.outstandingCount > 0 && (
-          <span className="badge bg-warning/15 text-warning-ink">{summary.outstandingCount} รายการ</span>
+          // "งาน" — รายการนี้มีเฉพาะร้านบริการ ใช้คำนับชุดเดียวกับการ์ด/ตาราง/ชีต
+          <span className="badge bg-warning/15 text-warning-ink">{summary.outstandingCount} งาน</span>
         )}
       </div>
 
       {items.length === 0 ? (
-        <div className="card-body">
+        <div className={look.body}>
           <SellerEmptyState
             icon="circle-check"
             title="เก็บเงินครบทุกงานแล้ว"
@@ -88,7 +108,7 @@ export default function ReceivableList({
               */}
               <Link
                 href={it.conversationId ? `/inbox/${it.conversationId}` : `/orders/${it.publicToken}`}
-                className="hover:bg-default-100 flex min-h-11 items-center gap-3 px-5 py-3.5"
+                className={`hover:bg-default-100 flex min-h-11 items-center gap-3 py-3.5 ${look.row}`}
               >
                 <span className="bg-warning/15 flex size-9 shrink-0 items-center justify-center rounded-full">
                   <Icon
@@ -121,7 +141,7 @@ export default function ReceivableList({
       )}
 
       {(cursor || failed) && (
-        <div className="card-body pt-0 text-center">
+        <div className={`${look.body} pt-0 text-center`}>
           {failed && <p className="text-danger-ink mb-2 text-xs">โหลดรายการเพิ่มไม่สำเร็จ</p>}
           {/* `bg-light text-dark` ไม่ใช่ `btn-light` — คลาสนั้นไม่มีนิยามใน CSS ที่คอมไพล์แล้ว
               (มีเทส paces-phantom-btn-classes คุมอยู่) precedent: ExpenseList.tsx:201 */}
@@ -138,7 +158,7 @@ export default function ReceivableList({
       )}
 
       {/* นิยามยอดขายของแท็บนี้ — ต่างจากแท็บกำไรโดยเจตนา ต้องอยู่บนจอเสมอ (Hard Rule 16) */}
-      <div className="card-body border-default-200 text-default-700 border-t border-dashed pt-4 text-xs leading-relaxed">
+      <div className={`${look.body} border-default-200 text-default-700 border-t border-dashed pt-4 text-xs leading-relaxed`}>
         {basisNote}
       </div>
     </div>

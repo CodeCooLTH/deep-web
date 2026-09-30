@@ -209,7 +209,9 @@ export default function RichMenuEditor(props: {
       const { blob } = await renderRichMenuImage(buttons)
       const file = new File([blob], 'rich-menu.jpg', { type: 'image/jpeg' })
       // ผ่าน direct upload เท่านั้น — ห้ามส่งไฟล์ผ่าน body ของ route (เพดาน 4.5MB ของ function)
-      fileId = (await uploadToStorage(file, { purpose: 'IMAGE' })).fileId
+      // compress 'off' — LINE บังคับขนาดพิกเซลตายตัว (2500×1686) และ render มาเป็น JPEG ≤1MB แล้ว
+      // ตัวบีบกลางจะย่อด้านยาวเหลือ 2048 → LINE ปฏิเสธภาพ
+      fileId = (await uploadToStorage(file, { purpose: 'IMAGE', compress: 'off' })).fileId
     }
     const res = await fetch('/api/channels/line/rich-menu', {
       method: 'PUT',
@@ -240,7 +242,8 @@ export default function RichMenuEditor(props: {
         setImageError(prepared.reasons)
         return
       }
-      const uploaded = await uploadToStorage(prepared.file, { purpose: 'IMAGE' })
+      // compress 'off' — prepareCustomMenuImage บีบ/จัดขนาดให้ตรงสเปก LINE มาแล้ว (ดู handler ด้านบน)
+      const uploaded = await uploadToStorage(prepared.file, { purpose: 'IMAGE', compress: 'off' })
       setCustomFileId(uploaded.fileId)
       setCustomUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev)

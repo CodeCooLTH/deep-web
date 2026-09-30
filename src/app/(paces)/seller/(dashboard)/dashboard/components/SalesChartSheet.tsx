@@ -127,6 +127,7 @@ import { axisAnchorDays } from './sales-chart-axis'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import FinancePanels from './FinancePanels'
+import ReceivablesPanel from './ReceivablesPanel'
 import { FINANCE_TABS, type FinanceTab } from '@/lib/finance-tabs'
 
 /**
@@ -1047,6 +1048,9 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
               )}
             </div>
           )}
+          {/* ต้องตามเก็บ — เฉพาะร้านบริการที่ดูการเงินได้ ช่วงเดียวกับที่ชีตแสดง (2026-10-01)
+              เดิมมีแค่หน้า /sales ซึ่งแถบล่างของแอปไปไม่ถึง */}
+          {isService && hasFinance && <ReceivablesPanel start={financeStart} end={financeEnd} />}
           </>
           )}
         </div>

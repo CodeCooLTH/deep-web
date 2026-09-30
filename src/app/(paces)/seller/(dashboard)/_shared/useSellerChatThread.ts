@@ -22,7 +22,6 @@ import { playChatBeep } from '@/lib/chat-sound'
 // SSOT ของ "กดอิโมจิตัวนี้แล้วได้อะไร" — ค่าที่คืนคือ payload ที่ยิงขึ้น Meta ตรง ๆ
 import { resolveReactionToggle } from '@/lib/chat-reaction-toggle'
 import {
-  ATTACHMENT_MAX_SIZE,
   BLOCKED_EXT,
   attachmentKind,
   extFromName,
@@ -31,6 +30,7 @@ import {
 } from '@/lib/chat-attachment'
 // type-only — ถูกลบตอน compile จึงไม่ลาก prisma เข้ามาใน client bundle
 import type { AiAnswerContext } from '@/services/chat.service'
+import { pickSizeLimit } from '@/lib/image-compress'
 import { uploadToStorage } from '@/lib/upload-client'
 // ห้องแชทเปิดแล้วเห็นทันที + delta (ส่วนขยาย 00018, 2026-09-14)
 import { firstPageReplacement, mergeMessages, resolveOpeningMessages } from '@/lib/chat-message-merge'
@@ -1195,10 +1195,13 @@ export function useSellerChatThread(
       pacesToast.error(`ไฟล์ชนิด .${ext} ส่งไม่ได้ด้วยเหตุผลด้านความปลอดภัย`)
       return
     }
-    if (file.size > ATTACHMENT_MAX_SIZE) {
+    // รูป jpg/png/webp ถูกตัวกลาง (image-compress) ย่อก่อนส่ง จึงใช้เพดาน "ก่อนบีบ" (2026-10-01)
+    // ไฟล์อื่นยังชนเพดาน 25MB ของ Meta ตรง ๆ
+    const maxInput = pickSizeLimit(file, 'CHAT')
+    if (file.size > maxInput) {
       // ข้อความบอกทางออกด้วย ไม่ใช่แค่ตัวเลข — คลิปจาก iPhone ชนเพดานนี้เป็นปกติ (1 นาที = 40–90MB)
       // และเพดานนี้เป็นของ Meta ด้วย (Send API 25MB) จึงยกให้ไม่ได้ ต้องให้ผู้ใช้ย่อไฟล์เอง
-      pacesToast.error(oversizeMessage({ kind, size: file.size, maxSize: ATTACHMENT_MAX_SIZE }))
+      pacesToast.error(oversizeMessage({ kind, size: file.size, maxSize: maxInput }))
       return
     }
     // objectURL เฉพาะชนิดที่พรีวิวได้จริง — ไฟล์เอกสารสร้างไปก็ไม่มีใครใช้ แถมต้องคอย revoke

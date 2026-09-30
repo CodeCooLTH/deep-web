@@ -19,13 +19,11 @@
 import Icon from '@/components/wrappers/Icon'
 import { useEffect, useRef, useState } from 'react'
 import { pacesToast } from '@/lib/paces-toast'
+import { pickSizeError } from '@/lib/image-compress'
 import { uploadFileId } from '@/lib/upload-client'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
-// MAX_FILE_SIZE: copy จาก VerificationForm.tsx (5 MB)
-const MAX_FILE_SIZE = 5 * 1024 * 1024
-
 // preset packages ตาม Design Spec
 const PRESETS = [100, 300, 500, 1000] as const
 
@@ -114,8 +112,10 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
   const handleSlipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null
     if (!file) return
-    if (file.size > MAX_FILE_SIZE) {
-      pacesToast.error('ไฟล์สลิปต้องไม่เกิน 5 MB')
+    // เพดานจากตัวกลาง (2026-10-01) — รูปสลิปใหญ่ถูกบีบเบา ๆ ก่อนส่ง (profile document)
+    const sizeError = pickSizeError(file, 'DOCUMENT', undefined, 'ไฟล์สลิป')
+    if (sizeError) {
+      pacesToast.error(sizeError)
       e.target.value = ''
       return
     }
@@ -210,7 +210,7 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
       {/* ใช้ items-start + py-4 บน wrapper ทำให้ card ไม่ถูก clamp ตรงกลาง
           และ overflow-y-auto บน wrapper ทำให้ทั้ง card scroll ได้เมื่อจอเตี้ย
           (แก้ปัญหา footer หลุดจอบน 360×640 เมื่อแสดง slip preview) */}
-      <div className="ease-in-out transition-all duration-200 lg:max-w-lg md:max-w-md md:w-full w-[calc(100%-24px)] m-3 md:mx-auto flex items-center">
+      <div className={'ease-in-out transition-all duration-200 lg:max-w-lg md:max-w-md md:w-full w-[calc(100%-24px)] m-3 md:mx-auto flex items-center' /* carve-out HR7: กว้างเต็มจอลบขอบ m-3 สองข้างบนมือถือ — Paces ไม่มี token ของ "เต็มลบ margin" (โครงเดิมของโมดัล ไม่ได้เปลี่ยน layout) */}>
         <div className="w-full flex flex-col card pointer-events-auto">
           {/* ─── Header ───────────────────────────────────────────────────── */}
           <div className="card-header p-5">
@@ -327,14 +327,14 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
                 <input
                   ref={slipInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.jfif"
                   className="hidden"
                   onChange={handleSlipChange}
                   disabled={isBusy}
                 />
               </div>
               <p className="mt-1 text-xs text-default-400">
-                รองรับ JPG / PNG ขนาดสูงสุด 5 MB
+                รองรับรูปภาพ JPG / PNG — รูปใหญ่ระบบย่อให้อัตโนมัติ
               </p>
 
               {/* Slip preview thumbnail */}

@@ -66,6 +66,37 @@ export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number]
 const IMAGE_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const
 const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'webp', 'gif'] as const
 
+/**
+ * ชื่อเรียกอื่นของ JPEG (2026-10-01) — `.jfif` คือชื่อที่ Windows/Chrome ตั้งให้ตอน "บันทึกรูปจากเว็บ"
+ * เนื้อไฟล์เป็น JPEG ทุกไบต์ แต่ ext ไม่อยู่ใน allow-list → ผู้ขายลากรูปเข้าหน้าสินค้าแล้วโดนปฏิเสธทุกใบ
+ *
+ * normalize เป็น `jpg` **ก่อน** ตรวจ และ ticket ใช้ค่าที่ normalize แล้วตั้ง storage key ด้วย —
+ * ถ้าเก็บเป็น `.jfif` จริง `/api/files` (derive Content-Type จาก ext) จะเสิร์ฟเป็นไฟล์ดาวน์โหลด
+ * และ variant (00054) จะไม่ถูกสร้าง
+ */
+const JPEG_EXT_ALIASES: Record<string, 'jpg'> = { jfif: 'jpg', jpe: 'jpg', pjpeg: 'jpg', pjp: 'jpg' }
+const JPEG_EXTS = new Set(['jpg', 'jpeg', 'jfif', 'jpe', 'pjpeg', 'pjp'])
+
+export function normalizeUploadExt(ext: string): string {
+  return JPEG_EXT_ALIASES[(ext || '').toLowerCase()] ?? ext
+}
+
+/** mime ของ JPEG ที่เบราว์เซอร์/OS บางตัวรายงานแปลก ๆ (หรือว่างสำหรับ .jfif) → `image/jpeg` */
+export function normalizeUploadMime(mime: string, ext: string): string {
+  const m = (mime || '').toLowerCase()
+  if (m === 'image/pjpeg' || m === 'image/jpg') return 'image/jpeg'
+  if (!m && JPEG_EXTS.has((ext || '').toLowerCase())) return 'image/jpeg'
+  return m
+}
+
+/**
+ * เพดาน "ก่อนบีบ" ของรูปฝั่ง client (2026-10-01) — ตัวบีบ (`image-compress.ts`) ย่อรูปกล้องมือถือ
+ * 8–15MB ให้เหลือราว 0.3–1MB ก่อนส่ง เพดานหน้าจอที่ปฏิเสธรูปใหญ่ **ก่อน** ตัวบีบได้ทำงานจึงตัดรูป
+ * ที่จะผ่านได้ทิ้งโดยไม่จำเป็น · ด่านจริงยังเป็นเพดานของ purpose ที่ server ตรวจหลังบีบเหมือนเดิม
+ * ใช้กับ **รูป** เท่านั้น — PDF/วิดีโอไม่ถูกบีบ ต้องใช้เพดานของ purpose ตรง ๆ
+ */
+export const MAX_RAW_IMAGE_INPUT = 40 * 1024 * 1024
+
 type Policy = {
   /** เพดานต่อไฟล์ของ purpose นี้ */
   maxSize: number
@@ -120,8 +151,9 @@ export function checkUploadPolicy(
   file: { name: string; size: number; mime: string },
 ): PolicyCheck {
   const policy = POLICIES[purpose]
-  const ext = extFromName(file.name)
-  const mime = (file.mime || '').toLowerCase()
+  const rawExt = extFromName(file.name)
+  const ext = normalizeUploadExt(rawExt)
+  const mime = normalizeUploadMime(file.mime, rawExt)
   const kind = attachmentKind(mime, ext)
 
   if (file.size <= 0) {

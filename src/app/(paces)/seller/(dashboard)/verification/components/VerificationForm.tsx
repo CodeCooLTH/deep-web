@@ -5,12 +5,10 @@ import { useRouter } from 'next/navigation'
 import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { pacesToast } from '@/lib/paces-toast'
+import { pickSizeError } from '@/lib/image-compress'
 import { uploadFileId } from '@/lib/upload-client'
 import * as Yup from 'yup'
 import { yupResolver } from '@hookform/resolvers/yup'
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB per NFR-1.3
 
 // ─── L2 Form ──────────────────────────────────────────────────────────────────
 const schemaL2 = Yup.object({
@@ -40,10 +38,11 @@ async function uploadFile(file: File): Promise<string> {
   return uploadFileId(file, 'DOCUMENT')
 }
 
+// เพดานจากตัวกลาง (2026-10-01) — รูปถ่ายเอกสารจากกล้องถูกบีบเบา ๆ ก่อนส่ง (profile document)
+// เพดาน "ก่อนบีบ" ของรูปจึงสูงกว่า PDF ซึ่งส่งตามเดิม (10MB ตาม purpose DOCUMENT)
 function validateFileSize(file: File | null | undefined, label: string): string | null {
   if (!file) return `กรุณาเลือกไฟล์ ${label}`
-  if (file.size > MAX_FILE_SIZE) return `ไฟล์ ${label} ต้องไม่เกิน 5 MB`
-  return null
+  return pickSizeError(file, 'DOCUMENT', undefined, `ไฟล์ ${label} `)
 }
 
 // ─── File input component ─────────────────────────────────────────────────────
@@ -72,7 +71,7 @@ function FileField({
         {/* mdi:file-upload-outline → tabler:file-upload (ผ่าน wrapper) */}
         <Icon icon="file-upload" className="size-5 text-default-400 shrink-0" />
         <span className="text-sm text-default-500 truncate flex-1">
-          {fileName ?? 'คลิกเพื่อเลือกไฟล์ (รูปภาพ / PDF, ≤ 5 MB)'}
+          {fileName ?? 'คลิกเพื่อเลือกไฟล์ (รูปภาพ / PDF)'}
         </span>
         {fileName && (
           /* mdi:check-circle → tabler:circle-check (ผ่าน wrapper) */
@@ -81,7 +80,7 @@ function FileField({
         <input
           ref={inputRef}
           type="file"
-          accept="image/*,application/pdf"
+          accept="image/*,.jfif,application/pdf"
           className="hidden"
           onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
         />

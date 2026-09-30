@@ -16,9 +16,28 @@
 import { Icon } from '@iconify/react'
 import Image from 'next/image'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useDropzone } from 'react-dropzone'
+import { useDropzone, type FileRejection } from 'react-dropzone'
 import { pacesToast } from '@/lib/paces-toast'
 import { uploadFileId } from '@/lib/upload-client'
+import { formatSizeMB } from '@/lib/chat-attachment'
+import { MAX_RAW_IMAGE_INPUT } from '@/lib/upload-policy'
+
+/**
+ * ชนิดที่ช่องนี้รับ (2026-10-01) — `.jfif` = JPEG ที่ Windows/Chrome ตั้งชื่อตอนบันทึกรูปจากเว็บ
+ * ตัวกลาง `image-compress.ts` เปลี่ยนเป็น `.jpg` ให้ก่อนส่ง
+ * `maxSize` = เพดาน "ก่อนบีบ" — รูปกล้องมือถือ 8–15MB ถูกย่อเหลือไม่ถึง 1MB ก่อนออกจากเครื่อง
+ * (เพดานจริง 10MB อยู่ที่ server ซึ่งตรวจหลังบีบ)
+ */
+const DROPZONE_ACCEPT = { 'image/*': ['.png', '.jpg', '.jpeg', '.jfif', '.webp'] }
+
+/** react-dropzone ปฏิเสธเงียบ ๆ ถ้าไม่ดัก — ผู้ขายลากรูปแล้วไม่มีอะไรเกิดขึ้นเลย */
+function toastRejections(rejections: FileRejection[]) {
+  for (const { file, errors } of rejections) {
+    const code = errors[0]?.code
+    if (code === 'file-too-large') pacesToast.error(`${file.name}: รูปใหญ่เกินไป (สูงสุด ${formatSizeMB(MAX_RAW_IMAGE_INPUT)} MB)`)
+    else if (code === 'file-invalid-type') pacesToast.error(`${file.name}: รองรับเฉพาะรูป .jpg .png .webp .jfif`)
+  }
+}
 
 interface ProductImagesCardV2Props {
   value: string[]
@@ -54,8 +73,7 @@ export default function ProductImagesCardV2({
 
   const uploadOne = useCallback(async (file: File, key: string) => {
     try {
-      // direct upload (2026-08-10) — เดิมรูปเกิน 4.5MB ตายที่เพดาน body ของ Vercel ทั้งที่การ์ดนี้
-      // ตั้ง maxSize ไว้ 10MB (ดู upload-policy.ts)
+      // direct upload (2026-08-10) + บีบรูปก่อนส่งผ่านตัวกลาง (2026-10-01 — image-compress.ts)
       return await uploadFileId(file, 'IMAGE')
     } catch (err) {
       // ข้อความจาก server บอกเหตุจริง (ชนิด/ขนาด) — ดีกว่า "ลองใหม่อีกครั้ง" ที่ไม่บอกอะไร
@@ -103,8 +121,9 @@ export default function ProductImagesCardV2({
   // hero state กับ +tile state ใช้ DOM ต่างกันโดยสิ้นเชิง
   const heroDropzone = useDropzone({
     onDrop: acceptFiles,
-    accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp'] },
-    maxSize: 1024 * 1024 * 10,
+    onDropRejected: toastRejections,
+    accept: DROPZONE_ACCEPT,
+    maxSize: MAX_RAW_IMAGE_INPUT,
     multiple: true,
     disabled: isFull,
     noClick: false,
@@ -113,8 +132,9 @@ export default function ProductImagesCardV2({
 
   const addTileDropzone = useDropzone({
     onDrop: acceptFiles,
-    accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp'] },
-    maxSize: 1024 * 1024 * 10,
+    onDropRejected: toastRejections,
+    accept: DROPZONE_ACCEPT,
+    maxSize: MAX_RAW_IMAGE_INPUT,
     multiple: true,
     disabled: isFull,
   })

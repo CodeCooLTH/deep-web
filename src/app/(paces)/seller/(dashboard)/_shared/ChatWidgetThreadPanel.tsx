@@ -274,7 +274,7 @@ export default function ChatWidgetThreadPanel({ conversationId, buyerName, buyer
           <label className="btn btn-icon btn-sm border-default-300 shrink-0 cursor-pointer" aria-label="แนบรูปภาพ">
             <input
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/jpeg,image/png,image/webp,.jfif"
               className="hidden"
               onChange={handleFileChange}
               disabled={uploading || sending}

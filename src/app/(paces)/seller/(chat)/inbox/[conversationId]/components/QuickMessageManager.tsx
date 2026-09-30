@@ -34,6 +34,8 @@ import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import Icon from '@/components/wrappers/Icon'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { pacesToast } from '@/lib/paces-toast'
+import { formatSizeMB } from '@/lib/chat-attachment'
+import { normalizeUploadFile, pickSizeLimit } from '@/lib/image-compress'
 import { uploadFileId } from '@/lib/upload-client'
 import { pacesConfirm } from '@/lib/paces-swal'
 
@@ -69,8 +71,14 @@ type Props = {
   onChanged: () => void // ให้ parent refetch หลังสร้าง/แก้/ลบ
 }
 
-const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif'
-const IMAGE_MAX = 5 * 1024 * 1024
+const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+// `.jfif` ต่อท้าย — บาง OS ไม่ผูกนามสกุลนี้กับ image/jpeg จึงไม่โผล่ในตัวเลือกไฟล์ (2026-10-01)
+const IMAGE_ACCEPT = [...IMAGE_MIMES, '.jfif'].join(',')
+/**
+ * เพดานของไฟล์ที่ "ไม่ถูกบีบ" (gif) — รูปข้อความด่วนถูกส่งต่อเข้า IG (8MB)/LINE (10MB) จึงคงเพดานเดิม
+ * รูป jpg/png/webp ใช้เพดาน "ก่อนบีบ" จากตัวกลางแทน เพราะถูกย่อเหลือไม่ถึง 1MB ก่อนส่ง
+ */
+const UNCOMPRESSED_IMAGE_MAX = 5 * 1024 * 1024
 
 /** รูปของรายการหนึ่ง — รวม field เก่า (เดี่ยว) กับใหม่ (อาร์เรย์) ให้เหลือรูปเดียวกันทั้งไฟล์ */
 function imagesOf(qm: QuickMessage): string[] {
@@ -241,12 +249,15 @@ export default function QuickMessageManager({
     setUploading(true)
     try {
       for (const file of files.slice(0, room)) {
-        if (!IMAGE_ACCEPT.split(',').includes(file.type)) {
+        // ตรวจชนิดจากไฟล์ที่ normalize แล้ว — `.jfif` ที่ mime ว่างต้องนับเป็น image/jpeg
+        const normalized = normalizeUploadFile(file)
+        if (!IMAGE_MIMES.includes(normalized.type)) {
           pacesToast.error(`${file.name}: รองรับเฉพาะไฟล์รูปภาพ (jpg, png, webp, gif)`)
           continue
         }
-        if (file.size > IMAGE_MAX) {
-          pacesToast.error(`${file.name}: ไฟล์รูปต้องไม่เกิน 5MB`)
+        const limit = normalized.type === 'image/gif' ? UNCOMPRESSED_IMAGE_MAX : pickSizeLimit(normalized, 'IMAGE')
+        if (file.size > limit) {
+          pacesToast.error(`${file.name}: ไฟล์รูปต้องไม่เกิน ${formatSizeMB(limit)}MB`)
           continue
         }
         // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB

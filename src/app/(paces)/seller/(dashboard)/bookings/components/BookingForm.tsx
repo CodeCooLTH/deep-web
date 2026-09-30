@@ -19,6 +19,7 @@ import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { CANCEL_REASONS } from '@/lib/lodging'
+import BeDateHint from '@/components/safepay/BeDateHint'
 
 type Room = { id: string; name: string; pricePerNight: string }
 
@@ -226,7 +227,9 @@ export default function BookingForm({ rooms }: { rooms: Room[] }) {
               <label className="form-label">
                 วันเข้าพัก<span className="text-danger ms-0.5">*</span>
               </label>
-              <input type="date" className="form-input" {...register('checkIn')} />
+              <input type="date" className="form-input" aria-describedby="booking-checkin-be" {...register('checkIn')} />
+              {/* มี error แล้วซ่อนป้าย พ.ศ. — กติกาเดียวกับ ExpenseFormModal (ข้อความ error คือสิ่งที่ต้องอ่าน) */}
+              {!errors.checkIn && <BeDateHint id="booking-checkin-be" value={checkIn} />}
               {errors.checkIn && <p className="text-danger mt-1 text-sm">{errors.checkIn.message}</p>}
             </div>
 
@@ -234,7 +237,14 @@ export default function BookingForm({ rooms }: { rooms: Room[] }) {
               <label className="form-label">
                 วันเช็คเอาท์<span className="text-danger ms-0.5">*</span>
               </label>
-              <input type="date" className="form-input" min={checkIn || undefined} {...register('checkOut')} />
+              <input
+                type="date"
+                className="form-input"
+                min={checkIn || undefined}
+                aria-describedby="booking-checkout-be"
+                {...register('checkOut')}
+              />
+              {!errors.checkOut && <BeDateHint id="booking-checkout-be" value={watch('checkOut')} />}
               {errors.checkOut && <p className="text-danger mt-1 text-sm">{errors.checkOut.message}</p>}
             </div>
           </div>
