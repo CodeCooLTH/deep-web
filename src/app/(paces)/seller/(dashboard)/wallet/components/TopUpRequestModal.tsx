@@ -210,7 +210,7 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
       {/* ใช้ items-start + py-4 บน wrapper ทำให้ card ไม่ถูก clamp ตรงกลาง
           และ overflow-y-auto บน wrapper ทำให้ทั้ง card scroll ได้เมื่อจอเตี้ย
           (แก้ปัญหา footer หลุดจอบน 360×640 เมื่อแสดง slip preview) */}
-      <div className="ease-in-out transition-all duration-200 lg:max-w-lg md:max-w-md md:w-full w-[calc(100%-24px)] m-3 md:mx-auto flex items-center">
+      <div className={'ease-in-out transition-all duration-200 lg:max-w-lg md:max-w-md md:w-full w-[calc(100%-24px)] m-3 md:mx-auto flex items-center' /* carve-out HR7: กว้างเต็มจอลบขอบ m-3 สองข้างบนมือถือ — Paces ไม่มี token ของ "เต็มลบ margin" (โครงเดิมของโมดัล ไม่ได้เปลี่ยน layout) */}>
         <div className="w-full flex flex-col card pointer-events-auto">
           {/* ─── Header ───────────────────────────────────────────────────── */}
           <div className="card-header p-5">
