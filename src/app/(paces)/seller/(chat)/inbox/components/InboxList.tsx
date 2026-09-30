@@ -545,6 +545,7 @@ export default function InboxList({
    * และถ้าเปิดด้วยจะเขียนทับ snapshot ของมือถือมั่วไปหมด (คนละกล่อง scroll กัน)
    * เหตุผลว่าทำไมต้องจำ items ด้วย ไม่ใช่แค่ scrollTop → ดูหัวไฟล์ inbox-scroll-restore.ts
    */
+  const RESTORE_REVEAL_MAX_MS = 1500
   const restoreEnabled = persistScroll
   const scrollTopRef = useRef(0)
   /** ตำแหน่งที่รอคืน — null = ไม่มีอะไรค้าง (ตั้งครั้งเดียวตอน mount) */
@@ -553,6 +554,12 @@ export default function InboxList({
 
   /** จำนวนแถวที่ต้องมีก่อนถึงจะเลื่อนกลับได้ — null = ไม่มีอะไรค้าง */
   const restoreTargetRef = useRef<number | null>(null)
+  /**
+   * L2 (audit 2026-09-29): ซ่อนรายการ (visibility ไม่ใช่ display — ต้องยังวัด scrollHeight ได้) ระหว่างไล่โหลด+คืนตำแหน่ง
+   * ไม่งั้นผู้ใช้เห็นรายการวาดบนสุดก่อนแล้วกระโดด. ธงนี้เป็นแค่ "ตัวแสดงผล" — ไม่อยู่ใน deps ของ effect คืนตำแหน่ง
+   * (วัดแล้วเปลี่ยนสิ่งที่วัดวนเป็นวง = measurement-must-not-decide-what-it-measures.md) และมีเพดานเวลากันค้างถ้าโหลดล้ม
+   */
+  const [restoring, setRestoring] = useState(false)
 
   /**
    * อ่าน "เป้าหมาย" ที่จำไว้ตอน mount — **ไม่ใช่ข้อมูล**
@@ -567,6 +574,9 @@ export default function InboxList({
     if (!snap) return
     restoreTargetRef.current = snap.loadedCount
     pendingRestoreRef.current = snap.scrollTop
+    setRestoring(true)
+    const timer = window.setTimeout(() => setRestoring(false), RESTORE_REVEAL_MAX_MS)
+    return () => window.clearTimeout(timer)
   }, [])
 
   /**
@@ -624,6 +634,7 @@ export default function InboxList({
       if (!node) return
       if (Math.abs(node.scrollTop - pinTo) > 4) node.scrollTop = pinTo
       if (frames++ < 6) requestAnimationFrame(pin)
+      else setRestoring(false) // ผ่านช่วงที่ Next รีเซ็ตเป็น 0 แล้ว — เปิดให้เห็น
     }
     pin()
   }, [items, nextCursor, loading])
@@ -1629,7 +1640,7 @@ export default function InboxList({
         // handlers ของกดค้างอยู่ที่ container ตัวเดียว (hook เรียกในลูปไม่ได้) — ตัวที่ถูกกดหาย้อนกลับ
         // จาก data-conversation-id ของแถว
         <div
-          className="card-body divide-y divide-dashed divide-default-300 !p-0"
+          className={`card-body divide-y divide-dashed divide-default-300 !p-0${restoring ? ' invisible' : ''}`}
           {...longPress.handlers}
           // กดค้างครบแล้วปล่อยนิ้ว เบราว์เซอร์ยังยิง click ตามมา → จะเด้งเข้าห้องแชททับเมนูที่เพิ่งเปิด
           // ต้องกลืนใน capture (ก่อนถึง <Link> และก่อน onClickCapture ของ SwipeableRow)
@@ -1640,7 +1651,7 @@ export default function InboxList({
             }
           }}
         >
-          {items.map((c) => {
+          {items.map((c, index) => {
             // บทสนทนาที่กำลังเปิดอยู่ = อ่านแล้วเสมอ (ไม่ต้องรอ localReadAt/DB ตามทัน)
             const unreadCount = c.id === activeConversationId ? 0 : unreadCountOf(c, localReadAt[c.id])
             // ชื่อกลุ่มที่เธรดนี้อยู่ — โชว์เฉพาะแท็บ "ทั้งหมด" (activeGroupId===null); ในแท็บกลุ่มเองไม่ต้อง
@@ -1651,6 +1662,7 @@ export default function InboxList({
               <InboxRow
                 key={c.id}
                 c={c}
+                index={index}
                 isActive={c.id === activeConversationId}
                 unreadCount={unreadCount}
                 groupChip={groupChip}

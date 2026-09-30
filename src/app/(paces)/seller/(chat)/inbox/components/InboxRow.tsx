@@ -34,9 +34,13 @@ import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { salesStatusMeta } from '../[conversationId]/components/CustomerCrmSection'
 import type { InboxSortMode } from '@/lib/inbox-sort'
+import { PrefetchKind } from 'next/dist/client/components/router-reducer/router-reducer-types'
+import { shouldPrefetchRow } from '@/lib/inbox-row-prefetch'
 
 export type InboxRowProps = {
   c: ConversationListItem
+  /** ลำดับแถวในรายการ — primitive; ใช้ตัดสิน prefetch (inbox-row-prefetch.ts) */
+  index: number
   /** ห้องที่กำลังเปิดอยู่ — boolean ต่อแถว ไม่ส่ง activeConversationId ให้ทุกแถว */
   isActive: boolean
   unreadCount: number
@@ -58,6 +62,7 @@ export type InboxRowProps = {
 }
 
 function InboxRowImpl({
+  index,
   c,
   isActive,
   unreadCount,
@@ -208,7 +213,9 @@ function InboxRowImpl({
              * แถวที่เลื่อนผ่าน = เรนเดอร์เธรดจริงฝั่งเซิร์ฟเวอร์ 1 ครั้ง ⇒ ถ้าค่า invocation
              * บน Vercel พุ่ง ให้ลดเป็น `prefetch={undefined}` (กลับค่าเดิม) หรือจำกัดตาม index
              */
-            prefetch
+            prefetch={shouldPrefetchRow(index)}
+            // แถวที่ไม่ได้ prefetch ตอนเข้าจอ (L1 audit 2026-09-29): ดึงตอนนิ้ว/เมาส์กดลง ก่อน click จริง
+            onPointerDown={shouldPrefetchRow(index) ? undefined : () => router.prefetch(`/inbox/${c.id}`, { kind: PrefetchKind.FULL }) /* FULL = เท่ากับ Link prefetch={true} · ค่าเริ่มต้น AUTO ได้แค่ loading boundary เมื่อไม่เปิด PPR */}
             className="flex min-w-0 flex-1 justify-between gap-3 py-3 pe-3.75 ps-3.75"
           >
             <div className="flex min-w-0 flex-1 items-center gap-3">
