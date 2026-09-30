@@ -171,9 +171,51 @@ export function isSignUpRestricted(shell: AppShell): boolean {
  * @param alreadyLinked มี `AuthAccount` ของ (provider, id) นี้อยู่แล้วไหม —
  *   มีแล้ว = **ล็อกอินของคนเดิม ไม่ใช่การสมัคร** ⇒ ต้องปล่อยผ่านเสมอ
  */
-export function shouldBlockOAuthSignup(shell: AppShell, alreadyLinked: boolean): boolean {
+export function shouldBlockOAuthSignup(
+  shell: AppShell,
+  alreadyLinked: boolean,
+  callbackUrl: string | null,
+): boolean {
   if (alreadyLinked) return false
+  if (isInviteAcceptance(callbackUrl)) return false
   return isSignUpRestricted(shell)
+}
+
+/**
+ * ปลายทางหลังล็อกอินคือ **หน้ารับคำเชิญ** `/i/{slug}` ไหม
+ *
+ * 🛑 **ต้องยกเว้นทางนี้ ไม่งั้นด่านจะปิดทางเข้าที่ตั้งใจให้มี**
+ *
+ * เอกสาร `FIXED-LOG-app-login-and-iap.md` ระบุไว้เองว่าในแอปเหลือ **2 ทางเข้า**:
+ * *"ล็อกอินของคนที่มีร้านแล้ว"* กับ ***"เข้าร่วมร้านผ่านลิงก์เชิญ"*** — ทางที่สองต้องสร้าง
+ * บัญชีให้คนใหม่เสมอ เพราะผู้ถูกเชิญยังไม่มีบัญชี Deep
+ *
+ * และมันไม่ใช่ "การลงทะเบียนธุรกิจ" ตามภาษาของ Apple: `PhoneAuthSteps` ในหน้านั้นเขียน
+ * ไว้เองว่า **สมัครสั้น ไม่สร้างร้าน** ⇒ ผู้ถูกเชิญได้บัญชีเปล่าที่ไม่มีร้านเลย แล้วไป
+ * *เข้าร่วม* ร้านของคนอื่น ⇒ `activeShopId` เป็น null ⇒ ธง gate ทั้งสองตัวเป็น false
+ * (ยืนยันกับ `resolveDefaultActiveShopId` + `resolveOnboardingGate`)
+ *
+ * 🛑 **เรื่องนี้เกือบหลุด** — ด่านรุ่นแรก (PR #82) ไม่มีข้อยกเว้นนี้ ⇒ ผู้ถูกเชิญกด
+ * Facebook/LINE ในแอปแล้วถูกปฏิเสธทั้งที่ทางนั้นถูกต้อง · จับได้ตอนไล่ทั้งระบบ
+ * และข้อมูลจริงยืนยัน: บัญชีที่ถูกมองว่า "กำพร้า" 6 ใน 14 ราย **เป็นสมาชิกร้านที่ทำงานอยู่จริง**
+ * (รายหนึ่งส่งข้อความไป 1,513 ใบ) ⇒ พวกเขาเข้ามาทางนี้ทั้งนั้น
+ *
+ * ⚠️ **ข้อแลกที่รู้ตัว**: ใครตั้ง `callbackUrl=/i/x` เองก็สมัครในแอปได้ — แต่ต้องจงใจ
+ * ประกอบ URL เอง ไม่ใช่เส้นทางที่มีปุ่มพาไป และไม่ได้สิทธิ์อะไรเพิ่ม (ยังต้องมีคำเชิญจริง
+ * ถึงจะเข้าร้านได้) ⇒ รับความเสี่ยงนี้เพื่อไม่ให้ทางเข้าที่ตั้งใจให้มีถูกปิด
+ */
+function isInviteAcceptance(callbackUrl: string | null): boolean {
+  if (!callbackUrl) return false
+  let path: string
+  try {
+    /* รับทั้ง path เปล่า (`/i/abc`) และ URL เต็ม — next-auth เก็บได้ทั้งสองแบบ */
+    path = callbackUrl.startsWith('/') ? callbackUrl : new URL(callbackUrl).pathname
+  } catch {
+    return false
+  }
+  const [, first, slug] = path.split('?')[0].split('#')[0].split('/')
+  /* ต้องมี slug จริง — `/i` เปล่า ๆ ไม่ใช่คำเชิญของใคร */
+  return first === 'i' && Boolean(slug)
 }
 
 /**

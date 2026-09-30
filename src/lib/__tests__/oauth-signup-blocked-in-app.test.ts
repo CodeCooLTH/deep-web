@@ -30,20 +30,49 @@ const inApp = (ua: string) => resolveAppShell('app', ua)
 
 describe('shouldBlockOAuthSignup — ใครถูกปฏิเสธก่อนสร้างบัญชี', () => {
   it('🛑 แอป iOS + ยังไม่เคยผูก = กำลังสมัคร → บล็อก', () => {
-    expect(shouldBlockOAuthSignup(inApp(IOS), false)).toBe(true)
-    expect(shouldBlockOAuthSignup(inApp(IPAD), false)).toBe(true)
+    expect(shouldBlockOAuthSignup(inApp(IOS), false, null)).toBe(true)
+    expect(shouldBlockOAuthSignup(inApp(IPAD), false, null)).toBe(true)
   })
 
   it('🛑 ผูกไว้แล้ว = ล็อกอินของคนเดิม → ต้องผ่านเสมอ แม้อยู่ในแอป', () => {
     /* เป็นเงื่อนไขที่แยก "สมัคร" ออกจาก "ล็อกอิน" — พลาดข้อนี้ = ผู้ขายเดิมเข้าแอปไม่ได้ทั้งหมด */
-    expect(shouldBlockOAuthSignup(inApp(IOS), true)).toBe(false)
-    expect(shouldBlockOAuthSignup(inApp(IPAD), true)).toBe(false)
+    expect(shouldBlockOAuthSignup(inApp(IOS), true, null)).toBe(false)
+    expect(shouldBlockOAuthSignup(inApp(IPAD), true, null)).toBe(false)
   })
 
   it('เว็บ / Safari บนมือถือ / แอป Android → ไม่บล็อก (กฎของ Apple ใช้กับแอป iOS เท่านั้น)', () => {
-    expect(shouldBlockOAuthSignup(resolveAppShell(undefined, IOS), false)).toBe(false)
-    expect(shouldBlockOAuthSignup(resolveAppShell(undefined, DESKTOP), false)).toBe(false)
-    expect(shouldBlockOAuthSignup(inApp(ANDROID), false)).toBe(false)
+    expect(shouldBlockOAuthSignup(resolveAppShell(undefined, IOS), false, null)).toBe(false)
+    expect(shouldBlockOAuthSignup(resolveAppShell(undefined, DESKTOP), false, null)).toBe(false)
+    expect(shouldBlockOAuthSignup(inApp(ANDROID), false, null)).toBe(false)
+  })
+
+  it('🛑 ปลายทางเป็นหน้ารับคำเชิญ `/i/{slug}` → ต้องผ่าน แม้อยู่ในแอปและยังไม่เคยผูก', () => {
+    /**
+     * เอกสารระบุเองว่าในแอปเหลือ 2 ทางเข้า: ล็อกอินของคนที่มีร้านแล้ว และ **เข้าร่วมร้าน
+     * ผ่านลิงก์เชิญ** — ทางที่สองต้องสร้างบัญชีให้คนใหม่เสมอ เพราะผู้ถูกเชิญยังไม่มีบัญชี
+     *
+     * 🛑 เคสนี้คือ regression ที่ด่านรุ่นแรกทำไว้จริง (PR #82) — จับได้ตอนไล่ทั้งระบบ
+     */
+    expect(shouldBlockOAuthSignup(inApp(IOS), false, '/i/my-shop')).toBe(false)
+    expect(shouldBlockOAuthSignup(inApp(IPAD), false, 'https://seller.deepthailand.app/i/my-shop')).toBe(false)
+  })
+
+  it('🛑 ปลายทางอื่นยังต้องถูกบล็อกตามเดิม — ข้อยกเว้นต้องแคบ', () => {
+    for (const cb of ['/dashboard', '/auth/sign-in', '/i', '/inbox', '/imaginary', null]) {
+      expect(shouldBlockOAuthSignup(inApp(IOS), false, cb), `หลุดที่ ${cb}`).toBe(true)
+    }
+  })
+
+  it('🛑 `/i` เปล่า ๆ ไม่ใช่คำเชิญของใคร — ต้องมี slug จริง', () => {
+    expect(shouldBlockOAuthSignup(inApp(IOS), false, '/i')).toBe(true)
+    expect(shouldBlockOAuthSignup(inApp(IOS), false, '/i/')).toBe(true)
+  })
+
+  it('ปลายทางพิลึกต้องไม่ทำให้พัง (ไม่ throw) และไม่ถูกตีเป็นคำเชิญ', () => {
+    for (const cb of ['ไม่ใช่ url', 'javascript:alert(1)', '//evil.com/i/x', '']) {
+      expect(() => shouldBlockOAuthSignup(inApp(IOS), false, cb)).not.toThrow()
+    }
+    expect(shouldBlockOAuthSignup(inApp(IOS), false, 'ไม่ใช่ url')).toBe(true)
   })
 
   it('🛑 ต้องใช้เกณฑ์ของ "การสมัคร" ไม่ใช่เกณฑ์ของ "การจ่ายเงิน"', () => {
@@ -106,6 +135,17 @@ describe('[blocker] `signIn` callback ต้องบังคับด่าน
     /* ส่งค่าคงที่ไปแทน = ผู้ขายเดิมที่ล็อกอินด้วย Facebook เข้าแอปไม่ได้ทั้งหมด */
     const at = auth.indexOf('shouldBlockOAuthSignup(')
     expect(auth.slice(at, at + 120)).toMatch(/linkedAccount/)
+  })
+
+  it('🛑 ต้องส่ง "ปลายทาง" เข้าไปด้วย ไม่งั้นข้อยกเว้นหน้ารับคำเชิญไม่มีทางทำงาน', () => {
+    const at = auth.indexOf('shouldBlockOAuthSignup(')
+    expect(auth.slice(at, at + 200), 'ไม่ได้อ่านคุกกี้ปลายทาง').toMatch(/pendingCallbackUrl\(\)/)
+  })
+
+  it('🛑 ต้องอ่านคุกกี้ปลายทาง **ทั้งสองชื่อ** — prod มี prefix __Secure- ส่วน dev ไม่มี', () => {
+    /* อ่านชื่อเดียว = ข้อยกเว้นทำงานแค่ฝั่งเดียว แล้วจะจับได้ตอนขึ้น prod เท่านั้น */
+    expect(auth).toMatch(/__Secure-next-auth\.callback-url/)
+    expect(auth).toMatch(/"next-auth\.callback-url"/)
   })
 
   it('🛑 ด่านใน proxy ต้องยังอยู่ — สองด่านจับคนละเคส ถอดตัวไหนก็มีรูทันที', () => {
