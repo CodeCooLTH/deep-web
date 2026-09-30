@@ -13,7 +13,7 @@
  * Design Spec: docs/superpowers/specs/2026-08-02-expenses-redesign-design-spec.md §4.1–4.5
  */
 import { useEffect, useRef, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
@@ -67,6 +67,7 @@ export default function ExpenseWorkspace({
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   // seed จาก URL ที่ RSC อ่านมาแล้ว — ไม่ hardcode ค่าเริ่มต้นซ้ำที่นี่ ไม่งั้นสองที่หลุดจากกันได้
   const [range, setRange] = useState<DateRangePreset>(initialRange)
   const [customDates, setCustomDates] = useState<[string, string] | null>(initialCustom)
@@ -126,12 +127,25 @@ export default function ExpenseWorkspace({
     router.refresh()
   }
 
-  /** เขียนช่วงเวลาลง URL ด้วย replace — กด back ควรออกจากหน้านี้ ไม่ใช่ไล่ย้อนทุกช่วงที่เคยกด */
+  /**
+   * เขียนช่วงเวลาลง URL ด้วย replace — กด back ควรออกจากหน้านี้ ไม่ใช่ไล่ย้อนทุกช่วงที่เคยกด
+   *
+   * 🛑 **ต้อง seed จาก searchParams ปัจจุบัน ห้ามสร้าง URLSearchParams เปล่า** (feature 00067)
+   * component นี้ถูก render ในสองที่แล้ว: `/expenses` (ไม่มีพารามิเตอร์อื่น) และแท็บ "ค่าใช้จ่าย"
+   * ของ `/sales` ซึ่งถือ `?tab=expense` อยู่ — สร้างก้อนใหม่ทั้งดุ้นจะลบ `tab` ทิ้ง แล้วผู้ใช้ที่
+   * แค่เปลี่ยนช่วงเวลาจะถูกเด้งกลับไปแท็บแรกโดยไม่มีอะไรบอกว่าทำไม
+   * (ไม่มี tsc/เทสตัวไหนจับได้ เพราะ URL ที่ได้ถูกต้องตามรูปแบบทุกตัวอักษร)
+   */
   const syncUrl = (next: DateRangePreset, dates: [string, string] | null) => {
-    const params = new URLSearchParams({ range: next })
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('range', next)
     if (next === 'custom' && dates) {
       params.set('start', dates[0])
       params.set('end', dates[1])
+    } else {
+      // เลิกใช้ช่วงกำหนดเอง → ต้องล้างของเก่าทิ้ง ไม่งั้นค้างใน URL แล้วรีเฟรชได้ช่วงผิด
+      params.delete('start')
+      params.delete('end')
     }
     router.replace(`${pathname}?${params.toString()}`, { scroll: false })
   }

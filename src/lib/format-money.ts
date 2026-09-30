@@ -46,8 +46,19 @@ export const formatNumberNoSymbol = (n: number): string => {
  * นิยามของกำไรสุทธิ — เขียนที่เดียว ให้ทุก surface import ไปใช้
  * เดิมเขียนไว้ 2 ที่ด้วยคำไม่เหมือนกัน ("รายได้" ที่หนึ่ง "ยอดขายที่ยืนยันแล้ว" อีกที่หนึ่ง)
  * ทั้งที่หมายถึงเงินก้อนเดียวกันเป๊ะ
+ *
+ * 🛑 คำว่า "ต้นทุนสินค้า" ผันตามประเภทกิจการ (feature 00067) — ร้านบริการอ่านว่า "ต้นทุนอะไหล่"
+ * ที่พักอ่านว่า "ต้นทุนต่อห้อง" ⇒ ผู้เรียกต้องส่ง `ORDER_VOCAB[vertical].costNoun` เข้ามา
+ * ห้ามพิมพ์คำเอง (Hard Rule 16 — คำเดียวกันสองที่ที่เขียนแยกกันจะ drift โดยไม่มี gate ฟ้อง)
  */
-export const NET_PROFIT_FORMULA = 'กำไรสุทธิ = ยอดขายที่ยืนยันแล้ว − ต้นทุนสินค้า − ค่าใช้จ่าย'
+export const netProfitFormula = (costNoun: string) =>
+  `กำไรสุทธิ = ยอดขายที่ยืนยันแล้ว − ${costNoun} − ค่าใช้จ่าย`
+
+/**
+ * รูปเดิมของสูตรข้างบน (ร้านขายของออนไลน์) — คงไว้ให้ผู้เรียกเดิมไม่พัง
+ * ของใหม่ให้เรียก `netProfitFormula()` แทน
+ */
+export const NET_PROFIT_FORMULA = netProfitFormula('ต้นทุนสินค้า')
 
 /**
  * นิยามของกำไร **ขั้นต้น** — คนละตัวกับกำไรสุทธิข้างบน วางติดกันโดยตั้งใจ
@@ -85,13 +96,39 @@ export const SALES_PROFIT_FORMULA =
  * (ก) เป็นศัพท์ทางการที่ขัดน้ำเสียงแบรนด์ และ (ข) ทำให้ดูเหมือนเป็นตัวเลขคนละตัวกับตอนเป็นบวก
  * `text` ไม่มีคำนำหน้า — ทิศทางสื่อผ่าน label + สี ทุก surface จึงต้อง render label ด้วยเสมอ
  */
-export const profitDisplay = (n: number) => {
+export const profitDisplay = (n: number, opts?: { capped?: boolean }) => {
   const positive = n >= 0
+
+  /**
+   * `capped` = ตัวเลขนี้คำนวณจากข้อมูลไม่ครบ (ยังไม่ตั้งราคาทุน หรือยังไม่บันทึกค่าใช้จ่าย)
+   * ค่าจริงต่ำกว่าหรือเท่ากับเสมอ — feature 00067
+   *
+   * 🛑 คำที่ใช้ต้องเป็นชุดเดียวกับกำไร **รายใบ** ใน `order-profit-presentation.ts` เป๊ะ
+   * ("ไม่เกิน" / "อย่างน้อย") — ที่นั่นเคยตัดคำว่า "ขั้นสูง" ทิ้งเพราะภาษาไทยอ่านเป็น advanced
+   * ไม่ใช่ "มากที่สุดที่เป็นไปได้" ถ้าที่นี่คิดคำที่สามขึ้นมา ผู้ขายจะเจอสองคำของสิ่งเดียวกัน
+   * คนละหน้าจอโดยไม่มี tsc/grep ตัวไหนฟ้อง (Hard Rule 16)
+   *
+   * 🛑 ห้ามใช้เขียวแม้ตัวเลขเป็นบวก — Verified-Means-Green สงวนสีนั้นให้ค่าที่ยืนยันแล้ว
+   * ทิศลบยังใช้แดงได้ เพราะ "เพดานบนยังติดลบ" แปลว่าขาดทุนแน่นอนแล้ว (ยืนยันแล้วจริง ๆ)
+   */
+  if (opts?.capped) {
+    return {
+      positive,
+      capped: true,
+      label: positive ? 'กำไรสุทธิไม่เกิน' : 'ขาดทุนสุทธิอย่างน้อย',
+      text: formatBaht(n),
+      toneClass: positive ? 'text-warning-ink' : 'text-danger-ink',
+      icon: 'alert-triangle',
+    }
+  }
+
   return {
     positive,
+    capped: false,
     label: positive ? 'กำไรสุทธิ' : 'ขาดทุนสุทธิ',
     text: formatBaht(n),
     toneClass: positive ? 'text-success-ink' : 'text-danger-ink',
+    icon: positive ? 'trending-up' : 'trending-down',
   }
 }
 

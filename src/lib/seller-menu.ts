@@ -52,7 +52,11 @@ export const sellerMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/dashboard', slug: 'seller:dashboard', label: 'ภาพรวมร้านค้า', icon: 'dashboard' },
-      // ป้ายเดิม "ภาพรวมยอดขาย" บอกไม่ครบ — หน้านี้คำนวณ netProfit (revenue − COGS − expense)
+      // ป้ายเดิม "ภาพรวมยอดขาย" บอกไม่ครบ — หน้านี้คำนวณกำไรจากการขาย
+      // 🛑 แก้คอมเมนต์ 2026-09-30: ที่เคยเขียนว่า `revenue − COGS − expense` **ผิด**
+      // หน้านี้เลิก query ตาราง Expense ไปตั้งแต่มติ user 2026-08-09 สูตรจริงคือ
+      // `revenue − COGS − ค่าส่ง` (ดู SALES_PROFIT_FORMULA + sales/page.tsx:118)
+      // เอกสารที่อ้างพฤติกรรมโค้ดผิดคือกับดักที่วางไว้รอคนถัดไป (Hard Rule 16 ทิศกลับ)
       // รายวันอยู่แล้วตั้งแต่ feature 00016 (ดู sales/components/data.ts::DailyRow)
       { url: '/sales', slug: 'seller:sales', label: 'ภาพรวมกำไร/ขาดทุน', icon: 'chart-line' },
       // feature 00059 — ผลงานของคนในร้าน (ความเร็วตอบแชท / การปิดการขาย / ยอดขายรายคน)
@@ -437,6 +441,17 @@ export function applyVerticalMenu(
 export type OrderVocab = {
   /** ชื่อของสิ่งนั้น — เมนู, breadcrumb, page title, หัวข้อ, แท็บ */
   noun: string
+  /**
+   * คำเรียก "ต้นทุนของสิ่งที่ขายไป" บนหน้าจอการเงิน (feature 00067)
+   *
+   * [สำคัญ] เดิมสูตรกำไรใน `format-money.ts` ฝังคำว่า "ต้นทุนสินค้า" ไว้ตายตัวคำเดียวทั้งระบบ
+   * ร้านบริการที่ขายงานติดตั้งอ่านแล้วไม่ตรงกับธุรกิจตัวเอง (ของเขาคืออะไหล่) และที่พักยิ่งไม่ตรง
+   * ตอนนี้ผันตามประเภทกิจการแล้ว — ผู้เรียกส่งค่านี้เข้า `netProfitFormula()` ห้ามพิมพ์คำเอง
+   *
+   * ห้ามผันเป็น `"ต้นทุน" + noun` — จะได้ "ต้นทุนการเข้ารับบริการ" ซึ่งอ่านว่าเป็นค่าใช้จ่ายที่
+   * ลูกค้าจ่ายเพื่อเข้ารับบริการ ไม่ใช่ต้นทุนของร้าน (ปัญหาเดียวกับ dateLabel/itemsLabel)
+   */
+  costNoun: string
   /** คู่สั้นสำหรับที่แคบ (<120px) — แท็บล่าง, chip */
   nounShort: string
   /** ปุ่มหลัก/หัวฟอร์ม/title ของ /orders/new */
@@ -500,6 +515,7 @@ export type OrderVocab = {
 export const ORDER_VOCAB: Record<string, OrderVocab> = {
   ONLINE_SALES: {
     noun: 'คำสั่งซื้อ',
+    costNoun: 'ต้นทุนสินค้า',
     nounShort: 'คำสั่งซื้อ',
     createLabel: 'สร้างคำสั่งซื้อ',
     createLabelShort: 'สร้างคำสั่งซื้อ',
@@ -512,6 +528,8 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
   },
   SERVICE_QUEUE: {
     noun: 'การเข้ารับบริการ',
+    // ร้านบริการซื้ออะไหล่/ของที่ใช้ไปกับงาน ไม่ได้ซื้อ 'สินค้า' มาขายต่อ
+    costNoun: 'ต้นทุนอะไหล่',
     // 'เข้ารับบริการ' → 'บริการ' (user เคาะ 2026-08-05: "การเข้ารับบริการใหม่ ... ยาวไป")
     // ช่องนี้มีไว้สำหรับที่แคบโดยเฉพาะ — แท็บล่างมือถือและหัวหน้าต่างโมดัลในแชทที่มี avatar
     // ชื่อลูกค้า และปุ่มย่อ/ปิด เบียดกันอยู่แล้ว คำเต็มอยู่ที่ noun ตามเดิมไม่ได้หายไปไหน
@@ -548,6 +566,8 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
   },
   LODGING: {
     noun: 'บิลเข้าพัก',
+    // ต้นทุนของที่พักผูกกับห้อง (ผ้าปู ของใช้ ค่าทำความสะอาด) ไม่ใช่กับบิล
+    costNoun: 'ต้นทุนต่อห้อง',
     nounShort: 'บิลเข้าพัก',
     createLabel: 'เปิดบิลเข้าพัก',
     createLabelShort: 'เปิดบิลเข้าพัก',
@@ -717,7 +737,8 @@ export function resolveVisibleSellerMenu(
   // applyPaymentRestriction อยู่ "ในสุด" (ทำก่อนใคร) โดยตั้งใจ: มันลบ badge ที่ applyInventoryGate
   // เพิ่งใส่ให้ไม่ได้ถ้ารันก่อน — จึงต้องรันทีหลัง แต่ต้องอยู่ก่อนตัวกรองอื่นที่อาจลบ item ทิ้ง
   // ไปแล้ว (ลบไปแล้วก็ไม่มีอะไรให้ถอด badge) → วางถัดจาก applyInventoryGate ทันที
-  return applyOrderLabel(
+  return applyFinanceMenu(
+    applyOrderLabel(
     applyVerticalMenu(
       applyExpenseMenu(
         applyStaffMenu(
@@ -733,6 +754,46 @@ export function resolveVisibleSellerMenu(
       ctx.shop.vertical,
     ),
     ctx.shop.vertical,
+    ),
+    ctx.shop.vertical,
+  )
+}
+
+/** slug ของเมนูเรื่องเงิน — เขียนที่เดียว ผู้เรียกห้ามพิมพ์สตริงเอง */
+export const FINANCE_MENU_SLUGS = { sales: 'seller:sales', expenses: 'seller:expenses' } as const
+
+/** ป้ายของเมนูเรื่องเงินเมื่อสองหน้าถูกรวมเป็นหน้าเดียว (feature 00067) */
+export const FINANCE_MENU_LABEL = 'การเงินร้าน'
+
+/**
+ * applyFinanceMenu — ยุบเมนูเรื่องเงินให้เหลือรายการเดียวสำหรับร้านบริการ (feature 00067 FR-FIN-04)
+ *
+ * ร้าน `SERVICE_QUEUE` เข้าถึงทั้งกำไรขาดทุน ยอดเก็บเงิน และค่าใช้จ่าย ผ่านแท็บของ `/sales`
+ * รายการ `seller:expenses` จึงพาไปที่เดียวกับ `seller:sales` — เมนูสองรายการที่พาไปหน้าเดียวกัน
+ * อ่านเป็นสองที่คนละเรื่อง ทั้งที่มันคือที่เดียวกัน
+ *
+ * 🛑 **ลบรายการ ไม่ใช่ลบ slug** — `SellerShortcutPreference` ของผู้ใช้ผูกกับ `seller:expenses`
+ * ไว้แล้ว การคง slug ไว้ในระบบ (และให้ route เดิม redirect) ทำให้ shortcut ที่ตั้งไว้ยังกดได้
+ *
+ * 🛑 อยู่นอกสุดของ pipeline โดยตั้งใจ — ต้องรันหลัง `applyExpenseMenu` ซึ่งอาจถอด
+ * `seller:expenses` ไปแล้วเมื่อไม่มีสิทธิ์ (ถอดซ้ำไม่มีผล) และหลัง `applyOrderLabel`
+ * ซึ่งแตะป้ายของเมนูออเดอร์คนละรายการกัน
+ *
+ * vertical ที่ไม่รู้จัก → ไม่แตะอะไรเลย (fail-safe: เมนูเดิมครบดีกว่าเมนูที่หายไปโดยไม่มีคนสั่ง)
+ */
+export function applyFinanceMenu(items: MenuItemType[], vertical: string): MenuItemType[] {
+  if (vertical !== 'SERVICE_QUEUE') return items
+  return items.map((group) =>
+    !group.children
+      ? group
+      : {
+          ...group,
+          children: group.children
+            .filter((child) => child.slug !== FINANCE_MENU_SLUGS.expenses)
+            .map((child) =>
+              child.slug === FINANCE_MENU_SLUGS.sales ? { ...child, label: FINANCE_MENU_LABEL } : child,
+            ),
+        },
   )
 }
 

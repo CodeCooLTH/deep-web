@@ -1132,6 +1132,30 @@ export const PnlReportQuerySchema = v.object({
   end: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
 });
 
+/**
+ * ReceivableQuerySchema — ยอดที่ยังเก็บเงินไม่ครบ (feature 00067 · GET /api/finance/receivables)
+ *
+ * 🛑 **สืบทอดช่องช่วงเวลามาจาก `PnlReportQuerySchema` ด้วย `v.object({ ...entries })`**
+ * ห้ามพิมพ์กฎ range ชุดที่สอง — สองแท็บอยู่หน้าเดียวกันและผู้ใช้สลับไปมา ถ้ากฎ/ค่าตั้งต้น
+ * ของช่วงเวลาไม่ตรงกัน ตัวเลขจะกระโดดตอนสลับแท็บโดยไม่มีอะไรบอกว่าทำไม (Hard Rule 16)
+ * และวันที่มีคนเพิ่ม preset ใหม่ที่ข้างบน ที่นี่จะได้ตามอัตโนมัติ ไม่ต้องไล่แก้สองที่
+ */
+export const ReceivableQuerySchema = v.object({
+  ...PnlReportQuerySchema.entries,
+  /** id ของรายการสุดท้ายในหน้าก่อน — ไม่มี = หน้าแรก */
+  cursor: v.optional(v.pipe(v.string(), v.maxLength(64))),
+  /** จำนวนต่อหน้า — service เป็นคนบังคับเพดานสุดท้ายอีกชั้น (RECEIVABLE_LIMIT_MAX) */
+  limit: v.optional(
+    v.pipe(
+      v.string(),
+      v.regex(/^\d{1,2}$/),
+      v.transform((s) => Number(s)),
+      v.minValue(1),
+      v.maxValue(50),
+    ),
+  ),
+});
+
 // ── feature 00017 Lodging Vertical (Phase 1) ─────────────────────────────────
 // SSOT: docs/20 - Features/00017 - Lodging Vertical/{BRD,SRS,API}.md
 

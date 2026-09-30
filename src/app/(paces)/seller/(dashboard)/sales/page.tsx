@@ -21,6 +21,22 @@ import SalesChart from './components/SalesChart'
 import SalesTable from './components/SalesTable'
 import SalesDateRange from './components/SalesDateRange'
 import type { DailyRow, SummaryData } from './components/data'
+import { resolveDateRange, type DateRangePreset } from '@/lib/date-range'
+import { resolveShopVertical } from '@/lib/lodging'
+import { resolveOrderVocab, FINANCE_MENU_LABEL } from '@/lib/seller-menu'
+import { resolveFinanceTab, resolveDataCompleteness, FINANCE_TAB_PARAM } from '@/lib/finance-tabs'
+import { getPnlReport } from '@/services/pnl.service'
+import { listExpenses, serializeExpense, hasAnyExpense } from '@/services/expense.service'
+import { getCostCoverage } from '@/services/cost-coverage.service'
+import { getReceivables, RECEIVABLE_BASIS_NOTE } from '@/services/receivable.service'
+import FinanceTabs from './components/FinanceTabs'
+import IncompleteDataNotice from './components/IncompleteDataNotice'
+import ReceivableList from './components/ReceivableList'
+import PnlReportCard from '../expenses/components/PnlReportCard'
+import ExpenseWorkspace from '../expenses/components/ExpenseWorkspace'
+
+/** preset ที่ยอมรับจาก ?range= — ชุดเดียวกับหน้า /expenses (ห้ามมีสองชุด) */
+const RANGE_PRESETS = ['today', '7d', '30d', 'month', 'custom'] as const
 
 export const metadata: Metadata = { title: 'ภาพรวมยอดขาย' }
 
@@ -76,9 +92,10 @@ function eachDay(from: Date, toExcl: Date): string[] {
 export default async function SalesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>
+  searchParams: Promise<{ from?: string; to?: string; tab?: string; range?: string; start?: string; end?: string }>
 }) {
-  const { from: fromStr, to: toStr } = await searchParams
+  const sp = await searchParams
+  const { from: fromStr, to: toStr } = sp
 
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
@@ -105,6 +122,105 @@ export default async function SalesPage({
     session as unknown as { user: { id: string; activeShopId?: string | null } },
   )
   const canSeeFinance = expenseAccess.kind === 'GRANTED'
+
+  /**
+   * ── การเงินร้าน 3 แท็บ (feature 00067) ─────────────────────────────────────
+   *
+   * 🛑 ตัดสิน vertical ที่นี่ **จุดเดียว** ไม่กระจายเงื่อนไขลงไปในคอมโพเนนต์ลูก —
+   * เงื่อนไขที่กระจายจะเงียบเมื่อมี vertical ที่สี่ (บทเรียน 00028) และ `resolveShopVertical`
+   * fail-closed ให้แล้ว ห้ามเทียบสตริงเอง
+   *
+   * 🛑 ร้าน vertical อื่นต้องไม่เห็นความเปลี่ยนแปลงใด ๆ — โค้ดข้างล่างทั้งหมดคงเดิมทุกบรรทัด
+   * และไม่มีการ import คอมโพเนนต์แท็บเข้ามาในเส้นทางนั้น
+   */
+  const isServiceQueue = resolveShopVertical(shop.vertical) === 'SERVICE_QUEUE'
+  const tab = isServiceQueue ? resolveFinanceTab(sp[FINANCE_TAB_PARAM]) : 'collect'
+  const vocab = resolveOrderVocab(shop.vertical)
+
+  /**
+   * ช่วงเวลาของแท็บกำไร/ค่าใช้จ่ายใช้ `?range=` (ชุดเดียวกับหน้า /expenses)
+   * ส่วนแท็บยอดเก็บเงินใช้ `?from=&to=` ตามที่ SalesDateRange/SalesChart ใช้อยู่เดิม
+   *
+   * 🛑 ตั้งใจให้แต่ละแท็บถือของเดิมของตัวเอง ไม่บังคับรวมในรอบนี้ — การเปลี่ยนแกนเวลาของ
+   * SalesChart/SalesTable กระทบร้าน vertical อื่นที่ใช้คอมโพเนนต์ชุดเดียวกันอยู่ ซึ่งอยู่นอก
+   * ขอบเขตที่เคาะไว้ (ทั้งสองพารามิเตอร์ถูกคงไว้ใน URL เสมอ ดู FinanceTabs + ExpenseWorkspace.syncUrl)
+   */
+  const preset = (RANGE_PRESETS as readonly string[]).includes(sp.range ?? '')
+    ? (sp.range as DateRangePreset)
+    : '30d'
+  const usablePreset = preset === 'custom' && (!sp.start || !sp.end) ? '30d' : preset
+
+  if (isServiceQueue && canSeeFinance && tab !== 'collect') {
+    const range = resolveDateRange(usablePreset, sp.start, sp.end)
+    const rangeQs = new URLSearchParams({ range: usablePreset })
+    if (usablePreset === 'custom' && sp.start && sp.end) {
+      rangeQs.set('start', sp.start)
+      rangeQs.set('end', sp.end)
+    }
+
+    if (tab === 'expense') {
+      // แท็บนี้คือหน้า /expenses ทั้งหน้า — ดึงชุดเดียวกับที่หน้านั้นดึง ไม่แตะ getOrdersByShop
+      // (การ query ออเดอร์ทั้งร้านเพื่อแสดงรายการค่าใช้จ่ายคือการจ่ายฟรี — NFR-01/03)
+      const [report, expenses, everRecorded] = await Promise.all([
+        getPnlReport(shop.id, range),
+        listExpenses(shop.id, { range: range.expenseRange }),
+        hasAnyExpense(shop.id),
+      ])
+      return (
+        <>
+          <PageBreadcrumb title={FINANCE_MENU_LABEL} trail={[{ label: 'ธุรกิจ' }]} />
+          <FinanceTabs active={tab} panelId="finance-panel" />
+          <div id="finance-panel" role="tabpanel" aria-labelledby={`finance-tab-${tab}`}>
+            <ExpenseWorkspace
+              initialRange={usablePreset}
+              initialCustom={usablePreset === 'custom' && sp.start && sp.end ? [sp.start, sp.end] : null}
+              initialReport={report}
+              initialExpenses={expenses.map(serializeExpense)}
+              hasAnyExpenseEver={everRecorded}
+              orderNoun={vocab.noun}
+            />
+          </div>
+        </>
+      )
+    }
+
+    // tab === 'pnl'
+    const [report, expenses, coverage] = await Promise.all([
+      getPnlReport(shop.id, range),
+      listExpenses(shop.id, { range: range.expenseRange }),
+      getCostCoverage(shop.id, range),
+    ])
+    const completeness = resolveDataCompleteness({
+      // ธงมาจาก pnl.service ตัวเดียว ห้ามคำนวณซ้ำที่นี่ (สูตรเดียวต้องอยู่ที่เดียว)
+      hasMissingCost: report.hasMissingCost,
+      expenseCount: expenses.length,
+      uncostedItemCount: coverage.uncostedItemCount,
+      soldItemCount: coverage.soldItemCount,
+    })
+
+    return (
+      <>
+        <PageBreadcrumb title={FINANCE_MENU_LABEL} trail={[{ label: 'ธุรกิจ' }]} />
+        <FinanceTabs active={tab} panelId="finance-panel" />
+        <div id="finance-panel" role="tabpanel" aria-labelledby={`finance-tab-${tab}`}>
+          <IncompleteDataNotice
+            completeness={completeness}
+            costNoun={vocab.costNoun}
+            costSetupHref="/products?cost=missing"
+            expenseSetupHref={`/sales?${FINANCE_TAB_PARAM}=expense&${rangeQs.toString()}`}
+          />
+          <PnlReportCard
+            report={report}
+            expenses={expenses.map(serializeExpense)}
+            rangeLabel={`${range.label.start} – ${range.label.end}`}
+            orderNoun={vocab.noun}
+            costNoun={vocab.costNoun}
+            capped={!completeness.complete}
+          />
+        </div>
+      </>
+    )
+  }
 
   /**
    * ช่วงก่อนหน้า — ยาวเท่ากัน ต่อเนื่องกันทันทีก่อน `from` (นิยามเดียวกับ pnl.service)
@@ -270,9 +386,34 @@ export default async function SalesPage({
     }),
   }
 
+  /**
+   * รายการที่ยังเก็บเงินไม่ครบ — เฉพาะแท็บ "ยอดเก็บเงิน" ของร้านบริการที่มีสิทธิ์ดูการเงิน
+   * ร้าน vertical อื่นไม่ยิง query นี้เลยสักครั้ง (NFR-01)
+   *
+   * 🛑 ใช้ช่วงเดียวกับ `?from=&to=` ที่ตารางด้านล่างใช้ ไม่ใช่ `?range=` ของแท็บอื่น —
+   * ยอดรวมบนการ์ดกับรายการที่ตามเก็บต้องมาจากช่วงเดียวกัน ไม่งั้นสองก้อนบนจอเดียวขัดกันเอง
+   */
+  const receivables =
+    isServiceQueue && canSeeFinance
+      ? await getReceivables(shop.id, {
+          orderRange: { gte: from, lt: toExcl },
+          expenseRange: { gte: from, lt: toExcl },
+          label: { start: localDayKey(fromLocal), end: localDayKey(toLocal) },
+          prevRange: {
+            orderRange: { gte: prevFrom, lt: from },
+            expenseRange: { gte: prevFrom, lt: from },
+          },
+        })
+      : null
+
   return (
     <>
-      <PageBreadcrumb title="ภาพรวมยอดขาย" trail={[{ label: 'ภาพรวม' }]} />
+      <PageBreadcrumb
+        title={isServiceQueue ? FINANCE_MENU_LABEL : 'ภาพรวมยอดขาย'}
+        trail={[{ label: 'ภาพรวม' }]}
+      />
+      {isServiceQueue && canSeeFinance && <FinanceTabs active="collect" panelId="finance-panel" />}
+      <div id="finance-panel" role={isServiceQueue && canSeeFinance ? 'tabpanel' : undefined} aria-labelledby={isServiceQueue && canSeeFinance ? 'finance-tab-collect' : undefined}>
 
       {/* เลิกใช้ single-card ครอบทั้งหน้า — SalesChart render การ์ดสรุปแยกใบเองแล้ว (แบบหน้าสินค้า)
           ถ้ายังครอบอยู่จะกลายเป็นการ์ดซ้อนการ์ด ซึ่ง DESIGN.md §anti-slop ห้าม */}
@@ -286,6 +427,19 @@ export default async function SalesPage({
 
       <div className="card mt-1.25">
         <SalesTable rows={daily} showFinance={canSeeFinance} />
+      </div>
+
+      {receivables && (
+        <div className="mt-1.25">
+          <ReceivableList
+            summary={receivables.summary}
+            initialItems={receivables.items}
+            initialCursor={receivables.nextCursor}
+            rangeQuery={`range=custom&start=${localDayKey(fromLocal)}&end=${localDayKey(toLocal)}`}
+            basisNote={RECEIVABLE_BASIS_NOTE}
+          />
+        </div>
+      )}
       </div>
     </>
   )
