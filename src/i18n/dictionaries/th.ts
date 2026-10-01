@@ -73,6 +73,20 @@ export const th = {
     },
   },
 
+  /* OAuth ผ่าน Custom Tab ของแอป Android (2026-10-01) — จอระหว่างทางสลับ WebView ↔ เบราว์เซอร์ */
+  appOAuth: {
+    startTitle: 'กำลังเปิดหน้าเข้าสู่ระบบ',
+    startSubLabel: 'รอสักครู่',
+    returnTitle: 'กำลังกลับไปที่แอป Deep',
+    returnSubLabel: 'รอสักครู่',
+    enterTitle: 'กำลังเข้าสู่ระบบ',
+    enterSubLabel: 'กำลังตั้งค่าบัญชีของคุณ',
+    failedTitle: 'ทำรายการไม่สำเร็จ',
+    failedBody: 'ลิงก์หมดอายุหรือถูกใช้ไปแล้ว — กลับไปที่แอปแล้วกดอีกครั้ง',
+    backToApp: 'กลับไปที่แอป',
+    backToSignIn: 'กลับไปหน้าเข้าสู่ระบบ',
+  },
+
   appLoading: {
     title: 'กำลังเปิด Deep',
     subLabel: 'กรุณารอสักครู่ ระบบกำลังเตรียมข้อมูล',
