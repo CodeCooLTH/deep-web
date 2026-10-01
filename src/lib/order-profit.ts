@@ -9,6 +9,7 @@
 // component เลือกไม่ render" คือการปล่อยตัวเลขกำไรไว้ให้เปิด view-source อ่านได้
 
 import { round2 } from './round2'
+import { netOfReturns, costNetOfReturns, type ReturnAdjustment } from './order-return'
 
 /** รายการในออเดอร์เท่าที่สูตรกำไรต้องใช้ — `cost` เป็น Decimal|null จาก Prisma จึงรับเป็น unknown */
 export type ProfitLineItem = { cost: unknown; qty: number }
@@ -34,10 +35,14 @@ export type OrderProfit = {
  * กำไรจึงสูงกว่าจริง — นี่คือเหตุผลที่ `hasMissingCost` ต้องถูกแสดงบนหน้าจอเสมอ
  * ไม่ใช่ข้อมูลเสริมที่ตัดทิ้งได้ตอนที่ว่างไม่พอ
  */
-export function computeOrderProfit(order: {
-  totalAmount: unknown
-  items: ProfitLineItem[]
-}): OrderProfit {
+export function computeOrderProfit(
+  order: {
+    totalAmount: unknown
+    items: ProfitLineItem[]
+  },
+  /** คืนบางส่วนที่รับของแล้ว — หักยอดคืน + ต้นทุนชิ้นที่คืน (ตัวกลาง return-adjustment · มติ 2026-10-01) */
+  returns?: ReturnAdjustment,
+): OrderProfit {
   let cogs = 0
   let hasMissingCost = false
   for (const item of order.items) {
@@ -47,7 +52,10 @@ export function computeOrderProfit(order: {
     }
     cogs += Number(item.cost) * item.qty
   }
-  return { amount: round2(Number(order.totalAmount) - cogs), hasMissingCost }
+  return {
+    amount: round2(netOfReturns(Number(order.totalAmount), returns) - costNetOfReturns(cogs, returns)),
+    hasMissingCost,
+  }
 }
 
 /**

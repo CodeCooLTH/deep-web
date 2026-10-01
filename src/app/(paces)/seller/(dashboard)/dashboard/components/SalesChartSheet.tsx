@@ -61,6 +61,16 @@
  * - แถบสมการ: ช่อง "ต้นทุนสินค้า" ไม่มีจุดสี เพราะกราฟไม่มีซีรีส์นี้ (จุดสี = ซีรีส์ในกราฟ 1:1
  *   ใส่จุดให้ของที่ไม่มีในกราฟจะกลายเป็นคำโกหกเรื่องสี) — แถบนี้ทำหน้าที่สมการเป็นหลักอยู่แล้ว
  *
+ * ── v10 2026-10-01 (user เลือก "ใช้สูตรเดียวกันทุกจอ") ─────────────────────────────────────
+ * - 🛑 **ยกเลิกสูตร v5/v6 ของร้านขายของ** (ยอดขายทุกบิลรวมรอยืนยัน − ต้นทุนทุกบิล − ค่าส่งทุกบิล)
+ *   เดือนเดียวกันชีตกับ /sales ได้กำไรคนละตัวเลข (ข้อมูลจริง ส.ค.: ชีต 54,011 vs หน้าอื่นคนละค่า)
+ *   ⇒ กำไร = **กำไรจากการขาย** = ยืนยันแล้ว − ต้นทุน(ใบที่ยืนยัน) − ค่าส่ง(ใบที่ยืนยัน) = `series.netProfit`
+ *   สูตรเดียวกับ /sales (SALES_PROFIT_FORMULA) · ทุกอย่างที่ลบออกอยู่ในขอบเขตเดียวกับตัวตั้ง
+ * - แถบสมการ: `ยืนยันแล้ว − ต้นทุนสินค้า − ค่าส่ง = กำไร` · "รอยืนยัน" อยู่ช่องแรกแยกจากสมการ (ไม่มีเครื่องหมาย)
+ * - ตาราง: ยอดขาย/ต้นทุน/ค่าส่ง ของใบที่ยืนยันแล้ว — ทุกแถวยังลบลงตัวเป็นกำไร และตรงกับตาราง /sales
+ * - ต้นทุนไม่ครบ ⇒ "กำไรจากการขายไม่เกิน" (ชุดคำเดียวกับ /sales และกำไรรายใบ)
+ * - ร้านบริการ (แกนเงิน v9) ไม่เปลี่ยน
+ *
  * ── v7 2026-08-23 (user สั่ง: ทำ vertical บริการ · เอาแถว "รับจริงวันนี้" ออกจากหน้าแรก) ──────
  * - [สำคัญ] **ตารางมีสองหน้าตาแล้ว ตัดสินด้วย `isService`** (= `series.receivedValues != null`)
  *     · ร้านขายออนไลน์ — คอลัมน์เดิม `ต้นทุน · ค่าส่ง · กำไร` ไม่แตะเลย ทุก invariant ของ v5/v6 คงอยู่
@@ -173,7 +183,9 @@ type Props = {
  * โดยรับข้อแลกเปลี่ยนเรื่องการอ่านความสูงรวมไว้แล้ว
  */
 export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOptions => {
-  const { labels, confirmedValues, unconfirmedValues, orderCounts, shippingValues, futureFromIndex } = series
+  const { labels, confirmedValues, unconfirmedValues, orderCounts, futureFromIndex } = series
+  // แท่ง "ค่าส่ง" = ค่าส่งของใบที่ยืนยันแล้ว — ชุดเดียวกับแถบสมการและตาราง (v10)
+  const shippingValues = series.shippingConfirmedValues ?? series.shippingValues
   /* ร้านบริการอ่านกราฟด้วยแกนเงิน — ตัวเดียวกับที่ตารางกับแถบสมการใช้ (ดู v9 หัวไฟล์) */
   const isServiceChart = series.receivedValues != null
   const receivedSeries = series.receivedValues ?? []
@@ -519,22 +531,29 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
 
   // ไม่ผ่าน gate สิทธิ์ → ไม่มีค่าใช้จ่าย/กำไรเลย: hero กลับไปเป็นยอดขายเหมือนเดิม ไม่ใช่โชว์ 0
   const hasFinance = series.totalShipping != null
-  const shippingTotal = series.totalShipping ?? 0
-  const cogsTotal = series.totalCogs ?? 0
+  // v10: ต้นทุน/ค่าส่ง เฉพาะใบที่นับเป็นยอดขายแล้ว — ขอบเขตเดียวกับ "ยืนยันแล้ว" ที่มันลบออก
+  const shippingTotal = (series.shippingConfirmedValues ?? []).reduce((a, b) => a + b, 0)
+  const cogsTotal = (series.cogsConfirmedValues ?? []).reduce((a, b) => a + b, 0)
   /**
    * กำไร = ยอดขายทั้งหมด (ยืนยันแล้ว + รอยืนยัน) − ต้นทุนสินค้า − ค่าใช้จ่าย (user เคาะ 2026-08-08)
    * ต้องเป็นสูตรเดียวกับคอลัมน์ "กำไร" ในตารางข้างล่างเป๊ะ ๆ ไม่งั้นแถวทั้งเดือนบวกกันแล้วไม่ได้
    * ตัวเลขนี้ — invariant ที่เป็นเหตุผลทั้งหมดที่หน้านี้ไม่ใช้ netProfit ของ service ตรง ๆ
    * (ดูหมายเหตุ v5 หัวไฟล์ — /expenses ลบออกจาก "ยืนยันแล้ว" สองหน้าจึงไม่เท่ากันโดยตั้งใจ)
    */
-  const profit = series.total - cogsTotal - shippingTotal
+  // v10 (user เลือก 2026-10-01): กำไรจากการขาย — สูตรเดียวกับ /sales ทุกตัวอักษร (= series.netProfit)
+  const profit = confirmedTotal - cogsTotal - shippingTotal
+  /** ต้นทุนไม่ครบ = เพดานบน — คำชุดเดียวกับ /sales และกำไรรายใบ */
+  const profitCapped = series.hasMissingCostConfirmed === true
 
   /* ── ร้านบริการ: ทั้งหน้าใช้แกนเงิน ────────────────────────────────────────────────── */
   /** นับงานตามสถานะทั้งช่วง — undefined = ไม่ใช่ร้านบริการ ⇒ ไม่แสดงแถวสถานะเลย */
   const jobs = series.jobStatusCounts
   const receivedTotal = (series.receivedValues ?? []).reduce((a, b) => a + b, 0)
   /** ค้างรับรวม = ยอดขาย − รับจริง (ทั้งคู่ผูกกับวันที่ขายชุดเดียวกัน จึงไม่ติดลบ) */
-  const outstandingTotal = Math.max(0, series.total - receivedTotal)
+  // net ไม่ clamp — แถบหัวชีตเป็นสมการ "รับจริง + ค้างรับ = ยอดขาย" ต้องลงตัวเสมอ และต้องเท่ากับ
+  // outstandingTotal ของ receivable.service (/sales · รายการต้องตามเก็บ) · ติดลบได้เมื่อบันทึกรับเกินบิล
+  // (แท่งกราฟรายวันยัง clamp 0 ตามเดิม — แท่งติดลบซ้อนอ่านไม่ออก) audit 2026-10-01
+  const outstandingTotal = series.total - receivedTotal
 
   /**
    * 🛑 ตัวเลขใหญ่ของร้านบริการคือ **เงินที่รับจริง** ไม่ใช่ "กำไร"
@@ -550,13 +569,20 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
    * 🛑 invariant ยังอยู่: ผลรวมคอลัมน์ "รับจริง" ในตารางทุกแถว = ตัวเลขใหญ่ตัวนี้พอดี
    */
   const heroValue = isService ? receivedTotal : hasFinance ? profit : series.total
-  const heroLabel = isService ? 'เงินที่รับจริง' : hasFinance ? 'กำไร/ขาดทุน' : 'ยอดขาย'
+  /** คำของกำไรร้านขายของ (v10) — ชุดเดียวกับการ์ด /sales: "ไม่เกิน/อย่างน้อย" เมื่อต้นทุนไม่ครบ */
+  const salesProfitLabel =
+    profit >= 0
+      ? profitCapped ? 'กำไรจากการขายไม่เกิน' : 'กำไรจากการขาย'
+      : profitCapped ? 'ขาดทุนจากการขายอย่างน้อย' : 'ขาดทุนจากการขาย'
+  const heroLabel = isService ? 'เงินที่รับจริง' : hasFinance ? salesProfitLabel : 'ยอดขาย'
   const heroTone = isService
     ? 'text-dark'
     : !hasFinance
       ? 'text-dark'
       : profit >= 0
-        ? 'text-success-ink'
+        ? profitCapped
+          ? 'text-warning-ink' // เพดานบน ห้ามเขียว (Verified-Means-Green) — ชุดเดียวกับ /sales
+          : 'text-success-ink'
         : 'text-danger-ink'
 
   const periodLabel =
@@ -591,10 +617,11 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
       // วันที่โชว์เลขล้วน "1, 2, 3" (user สั่ง 2026-08-07) — ชื่อเดือนอยู่บนหัวชีตบรรทัดเดียวกันอยู่แล้ว
       label,
       orders: series.orderCounts[i] ?? 0,
-      value: series.values[i] ?? 0,
-      // ต้นทุนของ "ทุกออเดอร์" ใน bucket — ชุดเดียวกับ value ที่มันจะถูกลบออก (ดู v5 หัวไฟล์)
-      cogs: series.cogsValues?.[i] ?? 0,
-      expense: series.shippingValues?.[i] ?? 0,
+      // ร้านบริการ = ยอดบิลทั้งหมด (แกนเงิน v9) · ร้านขายของ = ยอดที่ยืนยันแล้ว (v10 สูตรเดียวกับ /sales)
+      value: (isService ? series.values[i] : series.confirmedValues[i]) ?? 0,
+      // ต้นทุน/ค่าส่ง ขอบเขตเดียวกับ value ที่มันจะถูกลบออก — ทุกแถว ยอดขาย − ต้นทุน − ค่าส่ง = กำไร
+      cogs: series.cogsConfirmedValues?.[i] ?? 0,
+      expense: series.shippingConfirmedValues?.[i] ?? 0,
       /* เงินที่ "เข้าจริง" ในช่องนั้น — เฉพาะร้านบริการ (undefined = ไม่ใช่ร้านบริการ) */
       received: series.receivedValues?.[i] ?? 0,
       /* ยอดขายของใบที่ยังไม่เคยบันทึกรับเงินเลยในช่องนั้น — ตัวแยก "ค้างจริง" ออกจาก "ไม่รู้" */
@@ -781,8 +808,9 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
               </>
             ) : (
               <>
-            <LegendCell color="bg-warning" label="รอยืนยัน" value={unconfirmedTotal} />
-            <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">+</span>
+            {/* v10: "รอยืนยัน" ยังไม่นับเป็นยอดขาย ⇒ อยู่ช่องแรก **นอกสมการ** (ไม่มีเครื่องหมายต่อท้าย)
+                สมการเริ่มที่ ยืนยันแล้ว − ต้นทุนสินค้า − ค่าส่ง = ตัวเลขใหญ่ (กำไรจากการขาย) */}
+            <LegendCell color="bg-warning" label="รอยืนยัน (ยังไม่นับ)" value={unconfirmedTotal} />
             <LegendCell color="bg-success" label="ยืนยันแล้ว" value={confirmedTotal} />
             {hasFinance && (
               <>

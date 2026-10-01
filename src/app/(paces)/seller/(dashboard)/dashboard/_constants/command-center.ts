@@ -170,6 +170,11 @@ export type SalesSeries = {
    */
   cogsValues?: number[]
   cogsConfirmedValues?: number[]
+  /** ค่าส่งเฉพาะใบที่นับเป็นยอดขาย — คู่กับ confirmedValues (v10 กำไรจากการขาย สูตรเดียวกับ /sales) */
+  shippingConfirmedValues?: number[]
+  /** มีรายการที่ยังไม่ตั้งต้นทุนในช่วงนี้ — ทุกใบ / เฉพาะใบที่นับเป็นยอดขาย (กำไรเป็นเพดานบน) */
+  hasMissingCost?: boolean
+  hasMissingCostConfirmed?: boolean
   /** ต้นทุนสินค้ารวมทั้งช่วง (ชุดทุกออเดอร์ — คู่กับ `total`) */
   totalCogs?: number
   totalShipping?: number

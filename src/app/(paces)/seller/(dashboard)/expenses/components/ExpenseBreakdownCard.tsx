@@ -4,7 +4,8 @@
  * ExpenseBreakdownCard — สัดส่วนค่าใช้จ่ายแยกหมวดในช่วงที่เลือก (feature 00016 redesign)
  *
  * คำนวณจาก `expenses` ที่ parent ถืออยู่ (ก้อนเดียวกับที่ list และ P&L ใช้) — ไม่ fetch เอง
- * จึงไม่มีทางที่ยอดรวมในการ์ดนี้จะขัดกับ "ค่าใช้จ่าย" บนการ์ด P&L
+ * + `returnShippingCost` (ค่าส่งคืนสินค้า, 00056) ที่ P&L นับเป็นค่าใช้จ่ายด้วย ⇒ "รวม" ตรงกับ
+ *   "ค่าใช้จ่าย" บนการ์ด P&L เสมอ (เดิมไม่บวกก้อนนี้ สองการ์ดหน้าเดียวกันเลขไม่เท่ากัน — audit 2026-10-01)
  *
  * Base:
  *   - card + card-header/card-body: docs/system/ui-guideline/paces-component-reference.md §1
@@ -37,23 +38,34 @@ type Props = {
   revenue: number
   /** จำนวนวันในช่วงที่เลือก — ใช้คิดค่าเฉลี่ยต่อวัน */
   days: number
+  /** ค่าส่งคืนสินค้าที่ P&L นับเป็นค่าใช้จ่าย (pnl.service returnShippingCost) — 0 = ไม่มี */
+  returnShippingCost?: number
+  /** ค่าส่งขาไปที่จ่ายขนส่งจริง (pnl.service shippingCost · D-EXT-10) — 0 = ไม่มี */
+  shippingCost?: number
   loading?: boolean
 }
 
-export default function ExpenseBreakdownCard({ expenses, revenue, days, loading = false }: Props) {
+export default function ExpenseBreakdownCard({
+  expenses,
+  revenue,
+  days,
+  returnShippingCost = 0,
+  shippingCost = 0,
+  loading = false,
+}: Props) {
   const [expanded, setExpanded] = useState(false)
 
   const { rows, total } = useMemo(
     () => ({
       // ใช้ util กลางร่วมกับ PnlReportCard — เขียนสูตร group-by แยกกันเมื่อไหร่จะหลุดจากกัน
       rows: groupExpensesByCategory(expenses),
-      total: expenses.reduce((s, e) => s + e.amount, 0),
+      total: expenses.reduce((s, e) => s + e.amount, 0) + shippingCost + returnShippingCost,
     }),
-    [expenses],
+    [expenses, shippingCost, returnShippingCost],
   )
 
   // ไม่มีรายการในช่วงนี้ = ไม่มีอะไรให้แบ่งสัดส่วน — ซ่อนทั้งการ์ดดีกว่าโชว์การ์ดว่างที่ไม่บอกอะไร
-  if (rows.length === 0) return null
+  if (rows.length === 0 && shippingCost <= 0 && returnShippingCost <= 0) return null
 
   const hiddenCount = rows.length - MOBILE_PREVIEW_ROWS
   const perDay = days > 0 ? total / days : 0
@@ -114,6 +126,26 @@ export default function ExpenseBreakdownCard({ expenses, revenue, days, loading 
             )
           })}
         </ul>
+
+        {/* ค่าส่งคืนสินค้าไม่มีหมวดในตาราง Expense (คิดสดจากพัสดุขากลับ) — แสดงเป็นบรรทัดแยกท้ายรายการ */}
+        {shippingCost > 0 && (
+          <p className="border-default-300 text-default-800 mt-2.5 mb-0 flex items-center justify-between gap-2 border-t border-dashed pt-2.5 text-xs">
+            <span className="flex min-w-0 items-center gap-2.5">
+              <Icon icon="truck" className="text-default-700 shrink-0 text-base" aria-hidden="true" />
+              <span className="truncate">ค่าส่ง (จ่ายขนส่ง)</span>
+            </span>
+            <span className="text-default-900 font-semibold">{formatBaht(shippingCost)}</span>
+          </p>
+        )}
+        {returnShippingCost > 0 && (
+          <p className="border-default-300 text-default-800 mt-2.5 mb-0 flex items-center justify-between gap-2 border-t border-dashed pt-2.5 text-xs">
+            <span className="flex min-w-0 items-center gap-2.5">
+              <Icon icon="truck-return" className="text-default-700 shrink-0 text-base" aria-hidden="true" />
+              <span className="truncate">ค่าส่งคืนสินค้า</span>
+            </span>
+            <span className="text-default-900 font-semibold">{formatBaht(returnShippingCost)}</span>
+          </p>
+        )}
 
         {hiddenCount > 0 && !expanded && (
           <button

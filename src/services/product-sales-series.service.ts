@@ -19,6 +19,7 @@
  * ขนาดข้อมูลรองรับได้: ร้านใหญ่สุดบน prod ~500 ออเดอร์/เดือน ⇒ OrderItem หลักพันแถว
  */
 import { prisma } from '@/lib/prisma'
+import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { thaiDayKey } from '@/lib/format-date'
 import { thaiMidnightUtc } from '@/lib/date-range'
 import { fileUrlOf } from '@/lib/file-url'
@@ -100,16 +101,19 @@ export async function getProductSalesMonth(
   // Date.UTC รับ month=12 แล้วข้ามปีให้เอง — ไม่ต้องคำนวณปีเอง
   const lt = thaiMidnightUtc(year, month0 + 1, 1)
 
-  const [items, products] = await Promise.all([
+  const [items, products, returnAdj] = await Promise.all([
     prisma.orderItem.findMany({
       where: {
         // feature 00061 — ร่างจากแชทไม่ใช่ยอดขาย: ตัดออกพร้อมใบที่ยกเลิกด้วย `notIn` ตัวเดียว
         // (เขียน `status: { not: 'CANCELLED' }` คู่กับตัวตัดร่างไม่ได้ — Prisma รับคีย์ `status`
         // ครั้งเดียว ตัวหลังทับตัวหน้าเงียบ ๆ) วันนี้ร่างยังไม่มี `OrderItem` สักแถวจึงไม่โผล่อยู่แล้ว
         // แต่ตัวกรองต้องพูดจากกฎ ไม่ใช่จากสภาพข้อมูลชั่วคราวของวันนี้
-        order: { shopId, ...withoutDrafted('CANCELLED'), createdAt: { gte, lt } },
+        // + RETURNED (คืนของครบทั้งใบ) — การขายถูกยกเลิกแล้ว (มติ 2026-10-01 ชุดเดียวกับ /sales · ชีต · receivable)
+        //   ต้องคู่กับ getBestSellerProducts เสมอ (SALES_BASIS_DETAIL อ้างว่าเกณฑ์เดียวกัน)
+        order: { shopId, ...withoutDrafted(['CANCELLED', 'RETURNED']), createdAt: { gte, lt } },
       },
       select: {
+        id: true,
         productId: true,
         name: true,
         qty: true,
@@ -128,6 +132,8 @@ export async function getProductSalesMonth(
       select: { id: true, name: true, images: true, isActive: true, price: true, stockQty: true },
       orderBy: { createdAt: 'desc' },
     }),
+    // คืนบางส่วนที่รับของแล้ว — หักจำนวน/ยอดของชิ้นที่คืน (ตัวกลางเดียวกับทุกจอ · มติ 2026-10-01)
+    getReturnAdjustments(shopId),
   ])
 
   const truncated = items.length > MAX_ITEM_ROWS
@@ -170,7 +176,9 @@ export async function getProductSalesMonth(
       }
       acc.set(key, a)
     }
-    const qty = it.qty
+    // หักชิ้นที่คืนบางส่วน (รับของแล้ว) — ราคาต่อหน่วยเดียวกับตอนขาย (OrderReturnItem แช่แข็งไว้ = OrderItem.price)
+    const qty = it.qty - (returnAdj.get(it.orderId)?.returnedQtyByItem[it.id] ?? 0)
+    if (qty <= 0) continue
     // 🛑 ไม่รวมส่วนลด/VAT — ทั้งสองอย่างอยู่ที่ระดับ Order ไม่มีรายบรรทัด (MONEY_MODE_CAVEAT)
     const amount = qty * Number(it.price)
     a.qty[idx] += qty

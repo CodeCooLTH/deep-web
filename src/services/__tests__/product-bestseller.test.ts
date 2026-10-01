@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // mock prisma ทั้ง module (test env ไม่มี DB) — pattern เดียวกับ badge.service.test
+// ยอดคืนบางส่วนมาจากตัวกลาง return-adjustment (2026-10-01) — เทสไฟล์นี้ตรวจตรรกะเดิม ⇒ "ไม่มีการคืน"
+// การหักยอดคืนพิสูจน์แยกที่ src/lib/__tests__/return-adjustment.test.ts
+vi.mock('@/services/return-adjustment.service', () => ({
+  getReturnAdjustments: async () => new Map(),
+  getReturnedQtyByProduct: async () => new Map(),
+}))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     orderItem: { groupBy: vi.fn() },
@@ -44,7 +50,7 @@ describe('getBestSellerProducts', () => {
         by: ['productId'],
         where: {
           productId: { not: null },
-          order: { shopId: 'shopX', status: { notIn: ['DRAFTED', 'CANCELLED'] } },
+          order: { shopId: 'shopX', status: { notIn: ['DRAFTED', 'CANCELLED', 'RETURNED'] } },
         },
         _sum: { qty: true },
         orderBy: { _sum: { qty: 'desc' } },
@@ -79,7 +85,8 @@ describe('getBestSellerProducts', () => {
       order: { status?: { notIn?: string[] } }
     }
     // เทียบเป็นเซ็ต ไม่ใช่ลำดับ — สิ่งที่ต้องล็อกคือ "ตัดสองค่านี้ออก" ไม่ใช่วิธีเขียน
-    expect(new Set(where.order.status?.notIn)).toEqual(new Set(['CANCELLED', 'DRAFTED']))
+    // + RETURNED (คืนของครบทั้งใบ = การขายถูกยกเลิก · มติ 2026-10-01)
+    expect(new Set(where.order.status?.notIn)).toEqual(new Set(['CANCELLED', 'DRAFTED', 'RETURNED']))
   })
 
   it('product ที่ถูกปิด (isActive=false) หลุดจาก findMany → ไม่อยู่ในผลลัพธ์ (คงลำดับที่เหลือ)', async () => {

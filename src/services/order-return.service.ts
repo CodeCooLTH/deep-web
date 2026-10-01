@@ -477,7 +477,7 @@ export async function receiveOrderReturn(shopId: string, userId: string | null, 
 
     /**
      * `Order.status = 'RETURNED'` เมื่อ **ทุกรายการถูกคืนครบ** เท่านั้น (BR-RT-06)
-     * คืนบางส่วน = สถานะเดิมไม่เปลี่ยน (ยอดขายหักตามจริงอยู่แล้วผ่าน refundAmount)
+     * คืนบางส่วน = สถานะเดิมไม่เปลี่ยน — ยอดคืนถูกหักทุกจอผ่าน getReturnAdjustments (return-adjustment.service)
      *
      * อ่านสถานะการคืนใหม่ทั้งหมด **ในทรานแซกชันเดียวกัน** ไม่ใช้ค่าที่อ่านมาก่อนหน้า —
      * ระหว่างนั้นอาจมีใบคืนอื่นของออเดอร์เดียวกันถูกยืนยันไปแล้ว

@@ -152,11 +152,19 @@ function PnlPanel({
       <div className="border-default-200 mb-3 flex rounded border border-dashed">
         <Cell label="ยอดขายที่ยืนยันแล้ว" value={data.revenue} dot="bg-success" />
         <Cell label={costNoun} value={-data.cogs} dot="bg-warning" />
-        <Cell label="ค่าใช้จ่ายร้าน" value={-data.totalExpense} dot="bg-danger" />
+        {/* "ค่าใช้จ่าย" ไม่ใช่ "ค่าใช้จ่ายร้าน" — ตัวเลขนี้รวมค่าส่งที่จ่ายขนส่งด้วย (D-EXT-10 · แก้ 2026-10-01) */}
+        <Cell label="ค่าใช้จ่าย" value={-data.totalExpense} dot="bg-danger" />
       </div>
 
       <p className="text-default-700 mb-4 text-center text-xs leading-relaxed">
         {netProfitFormula(costNoun)}
+        {data.shippingCost > 0 && (
+          <>
+            <br />
+            ค่าใช้จ่ายรวมค่าส่งที่จ่ายขนส่ง {formatNumberNoSymbol(data.shippingCost)}
+            {data.returnShippingCost > 0 && <> และค่าส่งคืนสินค้า {formatNumberNoSymbol(data.returnShippingCost)}</>}
+          </>
+        )}
       </p>
 
       {(shouldOfferCostSetup(completeness) || shouldOfferExpenseSetup(completeness)) && (
@@ -196,6 +204,14 @@ function PnlPanel({
 function ExpensePanel({ data, costNoun }: { data: ReportPayload; costNoun: string }) {
   const byCategory = groupExpensesByCategory(data.expenses)
   const outflow = data.cogs + data.totalExpense
+  /**
+   * ก้อนที่ระบบคิดให้ (ไม่ใช่แถว Expense) — ต้องอยู่ในรายการด้วย ไม่งั้นผลรวมรายการไม่เท่ากับ "ค่าใช้จ่าย"
+   * ข้างบน (D-EXT-10 ค่าส่งขาไป · 00056 ค่าส่งขากลับ) audit 2026-10-01
+   */
+  const systemRows = [
+    { key: 'shipping', label: 'ค่าส่ง (จ่ายขนส่ง)', amount: data.shippingCost },
+    { key: 'return-shipping', label: 'ค่าส่งคืนสินค้า', amount: data.returnShippingCost },
+  ].filter((r) => r.amount > 0)
 
   return (
     <>
@@ -206,10 +222,10 @@ function ExpensePanel({ data, costNoun }: { data: ReportPayload; costNoun: strin
 
       <div className="border-default-200 mb-4 flex rounded border border-dashed">
         <Cell label={costNoun} value={data.cogs} dot="bg-warning" />
-        <Cell label="ค่าใช้จ่ายร้าน" value={data.totalExpense} dot="bg-danger" />
+        <Cell label="ค่าใช้จ่าย" value={data.totalExpense} dot="bg-danger" />
       </div>
 
-      {byCategory.length > 0 ? (
+      {byCategory.length > 0 || systemRows.length > 0 ? (
         <ul className="divide-default-200 border-default-200 mb-4 divide-y rounded border">
           {byCategory.map((c) => (
             <li key={c.category} className="px-4 py-2.5">
@@ -223,6 +239,14 @@ function ExpensePanel({ data, costNoun }: { data: ReportPayload; costNoun: strin
                   ที่ 390px อ่านสัดส่วนจากแถบง่ายกว่าวงกลม จึงไม่ทำ donut */}
               <div className="bg-default-100 mt-1.5 h-1 overflow-hidden rounded-full">
                 <div className="bg-danger h-full rounded-full" style={{ width: `${c.percent}%` }} />
+              </div>
+            </li>
+          ))}
+          {systemRows.map((r) => (
+            <li key={r.key} className="px-4 py-2.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-default-700">{r.label}</span>
+                <span className="text-default-800 font-semibold tabular-nums">{formatNumberNoSymbol(r.amount)}</span>
               </div>
             </li>
           ))}

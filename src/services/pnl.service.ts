@@ -3,6 +3,9 @@
  * SSOT: docs/20 - Features/00016 - Expense & Cost Tracking/SDS.md §4.2 (copy เป๊ะ); SRS.md TFR-006/007/008
  */
 import { prisma } from '@/lib/prisma'
+import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
+import { netOfReturns, costNetOfReturns, type ReturnAdjustment } from '@/lib/order-return'
+import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { round2 } from '@/lib/round2'
 import { revenueOrderWhere } from '@/lib/order-revenue'
 import { RETURN_STATUS, sumReturnShippingCost } from '@/lib/order-return'
@@ -45,28 +48,66 @@ export interface PnlReport {
    * (docs/conventions/partial-data-must-be-labeled-or-filled.md)
    */
   returnShippingUnknownCount: number
+  /**
+   * ค่าส่ง **ขาไป** ที่จ่ายขนส่งจริง (ราคาจริง → ราคาประมาณ) + ค่าธรรมเนียม COD ของใบที่นับเป็นยอดขาย
+   * รวมอยู่ใน `totalExpense`/`netProfit` แล้ว — D-EXT-10 / FR-EXP-18 (user 2026-08-09: "ค่าส่งคือค่าใช้จ่าย
+   * ไปลดกำไรสุทธิ") ซึ่ง **ไม่เคยถูก implement ที่นี่** จนถึง 2026-10-01 ⇒ กำไรสุทธิเคยสูงกว่า "กำไรจากการขาย"
+   * ของ /sales (เป็นไปไม่ได้ตามนิยาม) · กติการาคา/ขอบเขตเดียวกับ /sales และชีตหน้าหลักเป๊ะ
+   */
+  shippingCost: number
+  /** ใบที่ค่าส่งยังเป็นราคาประมาณ (ขนส่งยังไม่ชั่ง) — ต้องติดป้าย ห้ามแสดงเงียบ ๆ */
+  shippingPendingCount: number
 }
 
 /** โครง select เดียวกันทั้งช่วงปัจจุบันและช่วงก่อนหน้า — กันสูตรสองชุดหลุดจากกัน */
-const ORDER_SELECT = { totalAmount: true, items: { select: { cost: true, qty: true } } } as const
+const ORDER_SELECT = {
+  id: true,
+  totalAmount: true,
+  items: { select: { cost: true, qty: true } },
+  // พัสดุขาไปใบล่าสุดที่ active — ชุดเดียวกับ /sales (orderListInclude) และชีต (find FORWARD CREATED)
+  shipments: {
+    where: ACTIVE_FORWARD_SHIPMENT,
+    orderBy: { createdAt: 'desc' },
+    take: 1,
+    select: { carrierPrice: true, estimatedPrice: true, codFee: true },
+  },
+} as const
 
-type PnlOrder = { totalAmount: unknown; items: { cost: unknown; qty: number }[] }
+type PnlOrder = {
+  id: string
+  totalAmount: unknown
+  items: { cost: unknown; qty: number }[]
+  shipments: { carrierPrice: unknown; estimatedPrice: unknown; codFee: unknown }[]
+}
 
 /** รวมยอดจากออเดอร์ที่นับเป็นยอดขายแล้ว — คืน revenue/cogs และธงว่ามีสินค้าที่ยังไม่ตั้งต้นทุนไหม */
-function sumOrders(orders: PnlOrder[]): { revenue: number; cogs: number; hasMissingCost: boolean } {
-  let revenue = 0, cogs = 0, hasMissingCost = false
+function sumOrders(
+  orders: PnlOrder[],
+  returns: Map<string, ReturnAdjustment>,
+): { revenue: number; cogs: number; hasMissingCost: boolean; shipping: number; shippingPending: number } {
+  let revenue = 0, cogs = 0, hasMissingCost = false, shipping = 0, shippingPending = 0
   for (const o of orders) {
-    revenue += Number(o.totalAmount)
+    const adj = returns.get(o.id)
+    // คืนบางส่วนที่รับของแล้ว: หักยอดคืน + ต้นทุนชิ้นที่คืน (มติ 2026-10-01 · ตัวกลาง return-adjustment)
+    revenue += netOfReturns(Number(o.totalAmount), adj)
+    let orderCogs = 0
     for (const item of o.items) {
       if (item.cost == null) { hasMissingCost = true; continue }
-      cogs += Number(item.cost) * item.qty
+      orderCogs += Number(item.cost) * item.qty
+    }
+    cogs += costNetOfReturns(orderCogs, adj)
+    // ค่าส่งขาไป: ราคาจริง → ราคาประมาณ + COD fee (กติกาเดียวกับ /sales · ชีต — D-EXT-10)
+    const sp = o.shipments[0]
+    if (sp) {
+      shipping += Number(sp.carrierPrice ?? sp.estimatedPrice ?? 0) + Number(sp.codFee ?? 0)
+      if (sp.carrierPrice == null) shippingPending += 1
     }
   }
-  return { revenue, cogs, hasMissingCost }
+  return { revenue, cogs, hasMissingCost, shipping, shippingPending }
 }
 
 export async function getPnlReport(shopId: string, range: ResolvedDateRange): Promise<PnlReport> {
-  const [orders, expenseAgg, prevOrders, prevExpenseAgg, returnRows, prevReturnRows] =
+  const [orders, expenseAgg, prevOrders, prevExpenseAgg, returnRows, prevReturnRows, returnAdj] =
     await Promise.all([
     prisma.order.findMany({
       // ยอดขายนับ CONFIRMED + ใบที่ขนส่งรับของไปแล้วจริง (SSOT: lib/order-revenue.ts)
@@ -126,9 +167,10 @@ export async function getPnlReport(shopId: string, range: ResolvedDateRange): Pr
         shipment: { select: { carrierPrice: true, estimatedPrice: true } },
       },
     }),
+    getReturnAdjustments(shopId),
   ])
 
-  const { revenue, cogs, hasMissingCost } = sumOrders(orders)
+  const { revenue, cogs, hasMissingCost, shipping, shippingPending } = sumOrders(orders, returnAdj)
   const grossProfit = round2(revenue - cogs)
 
   /**
@@ -154,12 +196,15 @@ export async function getPnlReport(shopId: string, range: ResolvedDateRange): Pr
   const prevReturnCost = sumReturnShippingCost(prevReturnRows.map(toCostInput))
 
   const returnShippingCost = round2(returnCost.total)
-  const totalExpense = round2(Number(expenseAgg._sum.amount ?? 0) + returnShippingCost)
+  const shippingCost = round2(shipping)
+  // ค่าใช้จ่าย = ที่ร้านบันทึกเอง + ค่าส่งขาไปที่จ่ายจริง (D-EXT-10) + ค่าส่งขากลับของใบคืน (00056)
+  const totalExpense = round2(Number(expenseAgg._sum.amount ?? 0) + shippingCost + returnShippingCost)
   const netProfit = round2(grossProfit - totalExpense)
 
-  const prevExpense = round2(Number(prevExpenseAgg._sum.amount ?? 0) + prevReturnCost.total)
   // ไม่มีทั้งออเดอร์และค่าใช้จ่ายในช่วงก่อนหน้า = ไม่มีฐานให้เทียบ (ไม่ใช่ "กำไร 0")
-  const prevSums = sumOrders(prevOrders)
+  const prevSums = sumOrders(prevOrders, returnAdj)
+  // ช่วงก่อนหน้าต้องนับด้วยเกณฑ์เดียวกันเป๊ะ (รวมค่าส่งขาไป) ไม่งั้น %เทียบเทียบของคนละชนิด
+  const prevExpense = round2(Number(prevExpenseAgg._sum.amount ?? 0) + prevSums.shipping + prevReturnCost.total)
   const prevNetProfit =
     prevOrders.length === 0 && prevExpense === 0
       ? null
@@ -176,5 +221,7 @@ export async function getPnlReport(shopId: string, range: ResolvedDateRange): Pr
     prevExpense,
     returnShippingCost,
     returnShippingUnknownCount: returnCost.unknownCount,
+    shippingCost,
+    shippingPendingCount: shippingPending,
   }
 }

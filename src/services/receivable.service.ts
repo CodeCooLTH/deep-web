@@ -15,6 +15,8 @@ import { round2 } from '@/lib/round2'
 import { formatOrderNo } from '@/lib/order-no'
 import { thaiDayKey } from '@/lib/format-date'
 import { withoutDrafted } from '@/lib/order-visibility'
+import { netOfReturns } from '@/lib/order-return'
+import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import type { ResolvedDateRange } from '@/lib/date-range'
 
 /** ตัวข้อความอยู่ที่ lib (client component ใช้ได้ — ไฟล์นี้ import prisma) · re-export ให้ผู้เรียกเดิม */
@@ -161,6 +163,8 @@ export async function getReceivables(
    * 🛑 `summary` ต้องคิดจาก **ทุกแถวในช่วง** ไม่ใช่จากหน้าที่กำลังแสดง — ไม่งั้นยอดรวมบนหัว
    * จะเปลี่ยนไปเรื่อย ๆ ตามหน้าที่ผู้ใช้เลื่อนถึง
    */
+  // คืนบางส่วนที่รับของแล้ว — ลูกค้าไม่ต้องจ่ายส่วนที่คืน ⇒ หักออกจากยอดบิล (หลักใบลดหนี้ · มติ 2026-10-01)
+  const returnAdjPromise = getReturnAdjustments(shopId)
   const rows = (await prisma.order.findMany({
     where: {
       shopId,
@@ -183,7 +187,10 @@ export async function getReceivables(
     orderBy: { createdAt: 'asc' },
   })) as unknown as OrderRow[]
 
-  const all = rows.map((r) => toItem(r, now))
+  const returnAdj = await returnAdjPromise
+  const all = rows.map((r) =>
+    toItem({ ...r, totalAmount: netOfReturns(Number(r.totalAmount), returnAdj.get(r.id)) }, now),
+  )
 
   let salesTotal = 0
   let receivedTotal = 0

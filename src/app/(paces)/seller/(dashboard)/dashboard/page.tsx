@@ -88,6 +88,9 @@ import RecentActivityFeed from './components/RecentActivityFeed'
 import ProvinceSalesMap from '@/components/safepay/ProvinceSalesMap'
 import { sellerContactDisplay } from '@/lib/seller-contact-display'
 import { formatMonthYearTH, thaiDayKey } from '@/lib/format-date'
+import { DRAFTED_STATUS } from '@/lib/order-visibility'
+import { netOfReturns, type ReturnAdjustment } from '@/lib/order-return'
+import { getReturnAdjustments } from '@/services/return-adjustment.service'
 
 /**
  * ชื่อแท็บเบราว์เซอร์ต้องตามภาษาที่ผู้ใช้เลือกด้วย ⇒ ต้องเป็น `generateMetadata` (async)
@@ -414,27 +417,41 @@ export default async function SellerDashboardPage() {
         else console.error('[dashboard] getProvinceSales failed', provinceRes.reason)
 
         const rawOrders = ordersRes.status === 'fulfilled' ? ordersRes.value : []
+        /**
+         * ตัวเลขทุกตัวด้านล่างไม่นับ **ร่างออเดอร์ (DRAFTED, 00061)** — ร่างยังไม่ใช่บิลจริง
+         * (audit 2026-10-01: การ์ด "ออเดอร์" นับร่างอยู่ ขณะที่โดนัทหน้าเดียวกันใช้ withoutDrafted ⇒ เลขไม่เท่ากัน)
+         * รายการล่าสุด (recentOrders) ยังใช้ rawOrders ตามเดิม — เป็นรายการ ไม่ใช่ตัวเลขสรุป
+         */
+        const liveOrders = rawOrders.filter((o) => o.status !== DRAFTED_STATUS)
+        // คืนบางส่วนที่รับของแล้ว — หักยอดผ่านตัวกลางเดียวกับ P&L/ชีต/sales (มติ 2026-10-01)
+        // ล้มแล้วไม่ทำให้ทั้งหน้าพัง (ตัวเลขเท่าเดิมก่อนมีการหัก) แต่ต้อง log
+        const returnAdj = await getReturnAdjustments(shop.id).catch((e) => {
+          console.error('[dashboard] getReturnAdjustments failed', e)
+          return new Map<string, ReturnAdjustment>()
+        })
+        const netAmount = (o: { id: string; totalAmount: unknown }) =>
+          netOfReturns(Number(o.totalAmount), returnAdj.get(o.id))
 
         // คำนวณ stat จาก rawOrders ที่ fetch มาแล้ว — ไม่ query ซ้ำ
-        orderCount = rawOrders.length
+        orderCount = liveOrders.length
         // รวมยอดของใบที่ "นับเป็นยอดขายแล้ว" — ผู้ซื้อยืนยันรับของ หรือขนส่งรับของไปแล้วจริง
         // (SSOT: lib/order-revenue.ts — ต้องตรงกับ P&L และกราฟยอดขาย ห้ามเขียนเกณฑ์ซ้ำที่นี่)
         // หาร 1000 เพราะ StatisticCard ใช้ suffix:'k' เป็น literal text — value ต้องเป็นหน่วยพัน
         // ตัวอย่าง: ฿12,400 → 12.4 → แสดงเป็น ฿12.4k
-        const completedRevenueBaht = rawOrders
+        const completedRevenueBaht = liveOrders
           .filter((o) => countsAsRevenue(o))
-          .reduce((sum, o) => sum + Number(o.totalAmount), 0)
+          .reduce((sum, o) => sum + netAmount(o), 0)
         revenueK = completedRevenueBaht / 1000
 
         // ─── stat card เดสก์ท็อปตาม filter วันนี้/เดือนนี้ ────────────────────
         // นับใบไม่รวม CANCELLED ให้ตรงนิยามเดียวกับโดนัทช่องทางการขาย (ไม่งั้นเลขบนการ์ด
         // กับเลขกลางโดนัทในหน้าเดียวกันไม่เท่ากันทั้งที่ป้ายบอกช่วงเดียวกัน)
         const inRange = (o: { createdAt: Date }) => o.createdAt >= rangeGte && o.createdAt < rangeLt
-        rangeOrderCount = rawOrders.filter((o) => inRange(o) && o.status !== 'CANCELLED').length
+        rangeOrderCount = liveOrders.filter((o) => inRange(o) && o.status !== 'CANCELLED').length
         rangeRevenueK =
-          rawOrders
+          liveOrders
             .filter((o) => inRange(o) && countsAsRevenue(o))
-            .reduce((sum, o) => sum + Number(o.totalAmount), 0) / 1000
+            .reduce((sum, o) => sum + netAmount(o), 0) / 1000
 
         // เอา 8 รายการล่าสุด; map เป็น OrderType ที่ client component รับได้
         // totalAmount เป็น Prisma Decimal → ต้อง Number() ก่อนส่งผ่าน RSC boundary
@@ -456,17 +473,22 @@ export default async function SellerDashboardPage() {
         // ใช้ JS ธรรมดา ใน RSC — ไม่ query ซ้ำ (มี rawOrders array แล้ว)
         // 🛑 ตัดเดือนด้วยเวลาไทย (thaiDayKey) ไม่ใช่ getMonth() — server บน Vercel เป็น UTC
         // ออเดอร์ 00:00–07:00 น. ของวันที่ 1 เคยตกไปเป็นยอดของเดือนก่อน (แก้ 2026-09-30)
+        // 🛑 รายได้รายเดือน = countsAsRevenue (SSOT) ชุดเดียวกับ "รายได้รวม" ของการ์ดนี้ — เดิมบวก totalAmount
+        //    ทุกสถานะ (รวมยกเลิก/ร่าง/คืนของ) แท่งกราฟจึงไม่ตรงกับตัวเลขหัวการ์ด (audit 2026-10-01)
+        //    จำนวนออเดอร์รายเดือนไม่นับยกเลิก — นิยามเดียวกับการ์ด "ออเดอร์"
         const monthMap = new Map<string, { revenue: number; orderCount: number; label: string }>()
-        for (const o of rawOrders) {
+        for (const o of liveOrders) {
+          if (o.status === 'CANCELLED') continue
           const d = o.createdAt
           const key = thaiDayKey(d).slice(0, 7)
           const label = formatMonthYearTH(d)
+          const amt = countsAsRevenue(o) ? netAmount(o) : 0
           const existing = monthMap.get(key)
           if (existing) {
-            existing.revenue += Number(o.totalAmount)
+            existing.revenue += amt
             existing.orderCount += 1
           } else {
-            monthMap.set(key, { revenue: Number(o.totalAmount), orderCount: 1, label })
+            monthMap.set(key, { revenue: amt, orderCount: 1, label })
           }
         }
         // เรียง key chronologically แล้ว build series array
@@ -474,7 +496,7 @@ export default async function SellerDashboardPage() {
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([, v]) => ({ label: v.label, revenue: v.revenue, orderCount: v.orderCount }))
 
-        // summary — totalRevenue ใช้ยอด CONFIRMED เหมือนกับ revenueK stat; totalOrders = ทั้งหมด
+        // summary — totalRevenue = countsAsRevenue ชุดเดียวกับแท่งรายเดือน · totalOrders = ไม่นับร่าง (รวมยกเลิก ตามความหมายเดิม "ตลอดชีพ")
         salesSummary = {
           totalRevenue: completedRevenueBaht,
           totalOrders: orderCount,
