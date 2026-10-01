@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { sendExpoPush, sendExpoPushWithStatus } from './expo-push'
+import { composeForPlatform, sendExpoPush, sendExpoPushWithStatus } from './expo-push'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -68,5 +68,42 @@ describe('sendExpoPushWithStatus (00066)', () => {
       }),
     )
     expect(await sendExpoPush(['ExponentPushToken[z]'], 't', 'b')).toEqual(['ExponentPushToken[z]'])
+  })
+})
+
+/**
+ * [blocker] Android ไม่มีบรรทัด subtitle — ส่งชุดเดียวกับ iOS = "ใครทัก" หายเงียบ ๆ
+ * (แชทผู้ขาย: เพจ / คนส่ง / ข้อความ — user กำหนดลำดับ 2026-08-08)
+ */
+describe('[blocker] composeForPlatform — Android ได้ชื่อคนส่งนำหน้าข้อความ', () => {
+  const lines = { title: 'BT Premium', subtitle: 'สมชาย', body: 'สนใจครับ' }
+  it('android → ยกบรรทัดกลางไปนำหน้า body · ไม่ส่ง subtitle', () => {
+    expect(composeForPlatform('android', lines)).toEqual({ title: 'BT Premium', body: 'สมชาย: สนใจครับ' })
+  })
+  it('ios / ไม่รู้ platform → คงเดิม (แถวเก่ามาจากแอป iOS ล้วน)', () => {
+    expect(composeForPlatform('ios', lines)).toEqual(lines)
+    expect(composeForPlatform(null, lines)).toEqual(lines)
+  })
+  it('android ไม่มี subtitle → body เดิม ไม่มี ": " ลอย ๆ', () => {
+    expect(composeForPlatform('android', { title: 't', body: 'b' })).toEqual({ title: 't', body: 'b' })
+    expect(composeForPlatform('android', { title: 't', subtitle: '  ', body: 'b' })).toEqual({ title: 't', body: 'b' })
+  })
+  it('payload ที่ยิงจริง: แต่ละเครื่องได้ข้อความตาม platform ของตัวเอง', async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) })
+    vi.stubGlobal('fetch', f)
+    await sendExpoPushWithStatus(
+      [
+        { token: 'ExponentPushToken[i]', platform: 'ios' },
+        { token: 'ExponentPushToken[a]', platform: 'android' },
+      ],
+      'BT Premium',
+      'สนใจครับ',
+      undefined,
+      { subtitle: 'สมชาย' },
+    )
+    const sent = JSON.parse(f.mock.calls[0][1].body)
+    expect(sent[0]).toMatchObject({ to: 'ExponentPushToken[i]', subtitle: 'สมชาย', body: 'สนใจครับ' })
+    expect(sent[1]).toMatchObject({ to: 'ExponentPushToken[a]', body: 'สมชาย: สนใจครับ' })
+    expect(sent[1].subtitle).toBeUndefined()
   })
 })

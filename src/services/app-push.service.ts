@@ -16,7 +16,7 @@ export async function pushToUsers(
   title: string,
   body: string,
   data?: Record<string, unknown>,
-  /** subtitle = บรรทัดกลาง (iOS เท่านั้น) — ดูเหตุผลที่ ExpoMessage.subtitle ใน lib/expo-push */
+  /** subtitle = บรรทัดกลาง — iOS เป็นบรรทัดแยก · Android ยกไปนำหน้า body (composeForPlatform) */
   options?: { subtitle?: string },
 ): Promise<void> {
   await pushToUsersWithStatus(userIds, title, body, data, options)
@@ -37,9 +37,10 @@ export async function pushToUsersWithStatus(
   try {
     const rows = await prisma.pushToken.findMany({
       where: { userId: { in: userIds } },
-      select: { token: true },
+      // platform ต้องมาด้วย — Android ไม่มีบรรทัด subtitle ต้องประกอบข้อความต่างจาก iOS
+      select: { token: true, platform: true },
     })
-    const tokens = rows.map((r) => r.token).filter(isExpoToken)
+    const tokens = rows.filter((r) => isExpoToken(r.token))
     if (tokens.length === 0) return 'NO_TOKEN'
     const { invalid, delivered } = await sendExpoPushWithStatus(tokens, title, body, data, options)
     if (invalid.length > 0) {
@@ -60,10 +61,10 @@ export async function pushToUser(
   data?: Record<string, unknown>,
 ): Promise<void> {
   try {
-    const rows = await prisma.pushToken.findMany({ where: { userId }, select: { token: true } })
+    const rows = await prisma.pushToken.findMany({ where: { userId }, select: { token: true, platform: true } })
     if (rows.length === 0) return
     const invalid = await sendExpoPush(
-      rows.map((r) => r.token),
+      rows,
       title,
       body,
       data,
