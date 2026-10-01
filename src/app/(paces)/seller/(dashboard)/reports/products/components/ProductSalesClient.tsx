@@ -238,7 +238,7 @@ export default function ProductSalesClient({
         * `paces-sticky-z-index.test.ts` บังคับข้อนี้ และมันจับตัวนี้ได้จริงตอนเขียน
         */}
       <div
-        className="bg-body-bg border-default-200 sticky z-20 -mx-4 mb-3 flex items-center gap-2 border-b px-4 py-2 md:hidden top-[calc(4.25rem+env(safe-area-inset-top))]" /* carve-out HR7: ความสูงหัวแอป + safe-area ไม่มี token ในธีม */
+        className="bg-body-bg border-default-200 sticky z-20 -mx-4 mb-3 flex items-center gap-2 border-b px-4 py-2 lg:hidden top-[calc(4.25rem+env(safe-area-inset-top))]" /* carve-out HR7: ความสูงหัวแอป + safe-area ไม่มี token ในธีม */
       >
         <span className="min-w-0 flex-1">
           <MonthSwitcher
@@ -253,7 +253,8 @@ export default function ProductSalesClient({
       </div>
 
       {/* เดสก์ท็อป: เดือนอยู่บนหัวหน้าอยู่แล้ว เหลือแค่ปุ่มหน่วย */}
-      <div className="mb-4 hidden justify-end md:flex">{unitToggle}</div>
+      {/* lg ไม่ใช่ md — ต้องสลับพร้อมหัวแอป (SellerMobileHeader โชว์ใต้ 1024) ไม่งั้น tablet ไม่มีแถบเดือนติดหัว */}
+      <div className="mb-4 hidden justify-end lg:flex">{unitToggle}</div>
 
       {unit === 'baht' && (
         /* 🛑 แสดงเฉพาะโหมดบาท — โหมดจำนวนชิ้นไม่มีปัญหานี้ การขึ้นเตือนตลอดเวลาจะทำให้

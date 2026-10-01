@@ -107,7 +107,8 @@ export default function ExpenseBreakdownCard({ expenses, revenue, days, loading 
                 <span className="text-default-800 min-w-0 flex-1 truncate">
                   {EXPENSE_CATEGORY_LABEL_TH[r.category]}
                 </span>
-                <span className="text-default-700 w-12 text-end">{r.percent.toFixed(1)}%</span>
+                {/* % ซ่อนบนจอแคบ — ที่ 320 ช่องชื่อหมวดเหลือ ~40px จนอ่านไม่ออก (audit 2026-10-01) แท่งสีบอกสัดส่วนอยู่แล้ว */}
+                <span className="text-default-700 hidden w-12 text-end sm:inline">{r.percent.toFixed(1)}%</span>
                 <span className="text-default-900 w-24 text-end font-semibold">{formatBaht(r.amount)}</span>
               </li>
             )

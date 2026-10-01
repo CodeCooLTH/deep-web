@@ -5,22 +5,23 @@
  *
  * Base (toolbar/dropdown): src/components/safepay/FilterDropdown.tsx
  *   ซึ่ง copy markup มาจาก theme/paces/Admin/TS/src/app/(admin)/ui/dropdowns/page.tsx
- * Base (ช่องวันที่ + ปุ่ม preset): src/app/(paces)/seller/(dashboard)/sales/components/SalesDateRange.tsx
- *   (แพตเทิร์นเดิมของโปรเจกต์: input type="date" คู่กับ ?from=&to= ใน URL ไม่ใช่ Flatpickr)
+ * Base (ช่วงเวลา): ../../../_shared/DateRangeControl.tsx — ตัวเดียวกับหน้าการเงิน (2026-10-01)
+ *   เดิมเป็นช่องวันที่ของเบราว์เซอร์ 2 ช่อง + ปุ่ม 7/30 วัน คนละหน้าตากับหน้ารายงานพี่น้องทุกหน้า
+ *   และที่ 320px ช่องวันที่เหลือ ~88px จนวันที่ถูกตัด (audit responsive) · URL ยังเป็น ?from=&to= เหมือนเดิม
  *
  * 🛑 ตัวกรองอยู่ใน URL ไม่ใช่ใน React state — ผู้จัดการต้องส่งลิงก์ของ "ช่วงที่กำลังดูอยู่"
  * ให้กันได้ และปุ่มย้อนกลับของเบราว์เซอร์ต้องพากลับไปที่ช่วงเดิม
  */
-import { useCallback, useTransition } from 'react'
+import { useCallback, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import Icon from '@/components/wrappers/Icon'
 import { CHAT_CHANNELS, getChannelLabel } from '@/lib/chat-channel'
 import { REPORT_SOURCES } from '@/lib/agent-report-query'
-import { shiftIsoDate, todayThaiIsoDate } from '@/lib/date-range'
+import { DATE_RANGE_OPTIONS, resolveDateRange, type DateRangePreset } from '@/lib/date-range'
+import DateRangeControl from '../../../_shared/DateRangeControl'
 import { SOURCE_LABEL } from './data'
-import { formatDate } from '@/lib/format-date'
 
 type Props = {
   from: string
@@ -56,92 +57,44 @@ export default function ReportFilters(props: Props) {
   )
 
   /**
-   * ปุ่มลัด: N วันล่าสุด (รวมวันนี้)
-   *
-   * 🛑 ใช้ `todayThaiIsoDate()` ตัวเดียวกับทั้งระบบ ไม่คำนวณ +7 ชั่วโมงเอง — "วันนี้ตามเวลาไทย"
-   * มี SSOT อยู่แล้วที่ `date-range.ts` การเขียนซ้ำคือนิยามที่สองของค่าเดียวกัน (HR16)
-   * และเป็นสิ่งที่ `SalesDateRange` (Base ของแถบนี้) อธิบายไว้ว่าทำไมถึงห้ามทำ
+   * preset ไหนตรงกับ from/to ที่อยู่ใน URL — คำนวณจาก resolveDateRange ตัวเดียวกับหน้าการเงิน
+   * (ไม่ตรงตัวไหน = กำหนดเอง) · ลิงก์ที่แชร์กันจึงยังเป็น ?from=&to= ตรง ๆ ไม่ผูกกับชื่อ preset
    */
-  const preset = (days: number) => {
-    const end = todayThaiIsoDate()
-    push({ from: shiftIsoDate(end, -(days - 1)), to: end })
-  }
+  const urlRange: DateRangePreset =
+    DATE_RANGE_OPTIONS.map((o) => o.value)
+      .filter((v): v is Exclude<DateRangePreset, 'custom'> => v !== 'custom')
+      .find((v) => {
+        const l = resolveDateRange(v).label
+        return l.start === props.from && l.end === props.to
+      }) ?? 'custom'
 
-  /** ช่วงที่เลือกอยู่ตรงกับปุ่มลัดตัวไหนไหม — ปุ่มที่ active ต้องดูออกว่ากด/ไม่กด */
-  const activePreset = (days: number) => {
-    const end = todayThaiIsoDate()
-    return props.to === end && props.from === shiftIsoDate(end, -(days - 1))
+  // กด "กำหนดเอง" = เปิดปฏิทินก่อน ยังไม่ยิงหน้าใหม่ · URL เปลี่ยนจากทางอื่น (back) → ตามค่าใน URL
+  const [localRange, setLocalRange] = useState<DateRangePreset>(urlRange)
+  const [prevUrlRange, setPrevUrlRange] = useState<DateRangePreset>(urlRange)
+  if (urlRange !== prevUrlRange) {
+    setPrevUrlRange(urlRange)
+    setLocalRange(urlRange)
   }
 
   return (
     <div className="card mb-4">
       <div className="card-body flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex min-w-0 items-center gap-2" role="group" aria-label="ช่วงเวลาของรายงาน">
-            {/* 🛑 label ต้องบอกว่าเป็น "ตั้งแต่วันที่" ไม่ใช่ "ช่วงเวลา" — เดิมผูก htmlFor กับ
-                ช่อง from ทำให้ screen reader อ่านวันเริ่มต้นว่า "ช่วงเวลา" ส่วนวันจบอ่านถูก
-                (ชื่อของสองช่องจึงไม่เป็นคู่กัน) ชื่อกลุ่มไปอยู่ที่ aria-label ของ wrapper แทน */}
-            <label className="text-default-700 shrink-0 text-sm" htmlFor="report-from">
-              ตั้งแต่
-            </label>
-            <input
-              id="report-from"
-              type="date"
-              className="form-input w-40"
-              value={props.from}
-              max={props.to}
-              aria-describedby="report-range-be"
-              onChange={(e) => push({ from: e.target.value })}
-            />
-            <span className="text-default-500">–</span>
-            <input
-              id="report-to"
-              type="date"
-              aria-label="ถึงวันที่"
-              className="form-input w-40"
-              value={props.to}
-              min={props.from}
-              aria-describedby="report-range-be"
-              onChange={(e) => push({ to: e.target.value })}
-            />
-          </div>
-          {/* ช่องวันที่ของเบราว์เซอร์โชว์ปีตามเครื่อง — กำกับช่วงเป็น พ.ศ. ผ่านตัวกลาง */}
-          {props.from && props.to && (
-            <p id="report-range-be" className="text-default-700 mb-0 w-full text-xs sm:order-last">
-              {formatDate(props.from)} – {formatDate(props.to)}
-            </p>
-          )}
-
-          <div className="flex items-center gap-2">
-            {/* 🛑 `btn-light` **ไม่มีอยู่จริงในธีม** — ที่ grep เจอคือ `.btn-light.active` ของ
-                toolbar กราฟใน `plugins/_apexcharts.css` ไม่ใช่ปุ่ม variant (มีคน ship คลาสนี้
-                ขึ้น prod แล้วได้ตัวหนังสือลอยไม่มีพื้นหลัง 2026-08-15)
-                ของจริงใน `_buttons.css` มีแค่ .btn/.btn-lg/.btn-sm/.btn-icon ⇒ ต้องต่อสีเอง */}
-            <button
-              type="button"
-              aria-pressed={activePreset(7)}
-              /* min-h-11 = พื้นที่นิ้ว 44px ตามที่ PRODUCT.md ประกาศไว้ (หน้าพี่น้องก็ใส่) */
-              className={`btn btn-sm min-h-11 lg:min-h-0 ${
-                activePreset(7)
-                  ? 'bg-primary text-white'
-                  : 'bg-light text-dark hover:bg-light-hover'
-              }`}
-              onClick={() => preset(7)}>
-              7 วัน
-            </button>
-            <button
-              type="button"
-              aria-pressed={activePreset(30)}
-              /* min-h-11 = พื้นที่นิ้ว 44px ตามที่ PRODUCT.md ประกาศไว้ (หน้าพี่น้องก็ใส่) */
-              className={`btn btn-sm min-h-11 lg:min-h-0 ${
-                activePreset(30)
-                  ? 'bg-primary text-white'
-                  : 'bg-light text-dark hover:bg-light-hover'
-              }`}
-              onClick={() => preset(30)}>
-              30 วัน
-            </button>
-          </div>
+          <DateRangeControl
+            range={localRange}
+            customDates={[props.from, props.to]}
+            pending={pending}
+            onRangeChange={(next) => {
+              setLocalRange(next)
+              if (next === 'custom') return
+              const l = resolveDateRange(next).label
+              push({ from: l.start, to: l.end })
+            }}
+            onCustomChange={([from, to]) => {
+              setLocalRange('custom')
+              push({ from, to })
+            }}
+          />
 
           <div className="ms-auto flex flex-wrap items-center gap-2">
             <FilterDropdown

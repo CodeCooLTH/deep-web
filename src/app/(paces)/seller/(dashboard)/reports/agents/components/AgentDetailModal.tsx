@@ -165,7 +165,7 @@ export default function AgentDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
+      className={'fixed inset-0 z-50 flex items-center justify-center p-3 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:p-6' /* carve-out: safe-area ไม่มี token — แอป WebView เต็มจอ หัวการ์ดต้องพ้นรอยบาก */}
       role="dialog"
       aria-modal="true"
       aria-label={`รายละเอียดการตอบแชทของ ${agentName}`}>
@@ -181,7 +181,7 @@ export default function AgentDetailModal({
         ขนาด 90% ของจอตามที่ user สั่ง (2026-08-27) — เว้น 10% ไว้โดยตั้งใจเพื่อให้ยังเห็นว่า
         มีหน้าอยู่ข้างหลังและกดออกได้ ไม่ใช่เต็มจอจนกลายเป็นการย้ายหน้า
       */}
-      <div className={'card relative flex h-[90vh] w-full max-w-[90rem] flex-col overflow-hidden sm:w-[90vw]' /* HR7 carve-out: ธีมไม่มีโทเคนของ "เกือบเต็มจอ" (หน่วยของธีมเป็น rem คงที่ ยืดตามจอไม่ได้) */}>
+      <div className={'card relative flex h-[90dvh] max-h-full w-full max-w-[90rem] flex-col overflow-hidden sm:w-[90vw]' /* HR7 carve-out: ธีมไม่มีโทเคนของ "เกือบเต็มจอ" · dvh ไม่ใช่ vh — iOS Safari vh = จอใหญ่ (ไม่หักแถบเครื่องมือ) หัวการ์ด+ปุ่มปิดถูกตัด (audit 2026-10-01) */}>
         <div className="card-header shrink-0">
           <div className="flex min-w-0 items-center gap-2">
             <h4 className="card-title truncate">{agentName}</h4>

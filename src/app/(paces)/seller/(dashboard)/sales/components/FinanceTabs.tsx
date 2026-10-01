@@ -91,8 +91,10 @@ export default function FinanceTabs({ active, panelId }: Props) {
             aria-controls={panelId}
             tabIndex={selected ? 0 : -1}
             onClick={() => go(tab)}
-            className="nav-link -mb-px inline-flex min-h-11 min-w-0 flex-1 items-end justify-center px-1 pt-3 pb-0 text-sm"
+            className="nav-link -mb-px inline-flex min-h-11 min-w-0 flex-1 items-end justify-center px-1 pt-3 pb-0 text-sm lg:flex-none lg:px-4"
           >
+              {/* lg: ปุ่มกว้างตามคำ (flex-none) — จอ desktop ~1155px แบ่ง 3 ช่องเท่ากัน คำลอยห่างกันช่องละ ~385px
+                  มือถือยังแบ่งเท่ากันเพื่อพื้นที่กดเต็มแถบ (audit 2026-10-01) */}
               {/* 🛑 เส้นใต้ต้อง "กอดตัวหนังสือ" ไม่ใช่กินเต็มช่อง 1/3 ของแถบ — ปุ่มยังเป็น flex-1
                  เพื่อให้พื้นที่นิ้วเท่ากันทุกแท็บ (44px) แต่ขีดอยู่ที่ <span> ชั้นในซึ่งกว้างเท่าคำ
                  ⇒ ขีดยาวไม่เท่ากันตามความยาวคำ ซึ่งเป็นพฤติกรรมปกติของ .nav-tabs

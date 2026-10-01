@@ -33,7 +33,7 @@ type PageBreadcrumbProps = {
    * ซ่อน `<h4>` ชื่อหน้าต่ำกว่า `md` — สำหรับหน้าที่ `SellerMobileHeader` แสดงชื่อเดียวกันแล้ว
    * default `false` ⇒ ผู้เรียกเดิมทุกรายไม่เปลี่ยนพฤติกรรม
    */
-  hideTitleBelowMd?: boolean
+  hideTitleBelowLg?: boolean
 }
 
 const PageBreadcrumb = ({
@@ -43,7 +43,7 @@ const PageBreadcrumb = ({
   homeHref = '/',
   homeLabel,
   action,
-  hideTitleBelowMd = false,
+  hideTitleBelowLg = false,
 }: PageBreadcrumbProps) => {
   // ป้าย "หน้าหลัก" เป็นคำของเรา ไม่ใช่ของผู้ใช้ ⇒ ต้องตามภาษาที่เลือก
   // (ผู้เรียกส่ง homeLabel มาเองได้เมื่อหน้านั้นอยากเรียกจุดตั้งต้นด้วยชื่ออื่น)
@@ -78,14 +78,14 @@ const PageBreadcrumb = ({
   return (
     <div className="page-title-head">
       {/**
-        * `hideTitleBelowMd` — เลือกซ่อนชื่อหน้าบนมือถือได้ (default `false` ⇒ ไม่กระทบผู้เรียกเดิม)
+        * `hideTitleBelowLg` — เลือกซ่อนชื่อหน้าใต้ 1024px ได้ (เส้นเดียวกับที่ SellerMobileHeader โผล่ — เดิมชื่อ BelowMd/768 ทำให้ tablet เห็นชื่อซ้ำสองที่ · 2026-10-01) (default `false` ⇒ ไม่กระทบผู้เรียกเดิม)
         *
         * มีไว้ให้หน้าที่ `SellerMobileHeader` แสดงชื่อเดียวกันอยู่แล้ว ไม่ต้องพิมพ์ซ้ำสองที่
         * ห่างกัน 40px โดยไม่ให้ข้อมูลใหม่ — 🛑 ใช้ได้เฉพาะเมื่อ **ยืนยันแล้วว่าหัวแอปแสดงชื่อ
         * ที่ถูกต้องจริง** (`getSellerPageTitle` ถอยไป "Deep ผู้ขาย" เมื่อ route ไม่อยู่ในเมนู)
         * ผู้เรียกควรมีเทสปักหมุดข้อสมมตินี้ไว้ ไม่งั้นวันที่เมนูเปลี่ยนหน้าจะไม่มีชื่อเหลือเลย
         */}
-      <h4 className={hideTitleBelowMd ? 'page-main-title max-md:hidden' : 'page-main-title'}>
+      <h4 className={hideTitleBelowLg ? 'page-main-title max-lg:hidden' : 'page-main-title'}>
         {title}
       </h4>
       {action ? (

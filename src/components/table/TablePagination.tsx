@@ -78,16 +78,23 @@ const TablePagination = ({
   const pageWindows = buildPageWindows(pageCount, pageIndex)
 
   return (
-    <div className={cn('items-center w-full flex text-center text-sm-start', showInfo ? 'justify-between' : 'justify-end')}>
+    // flex-wrap — จอ 320 การ์ดเหลือ ~248px แต่ปุ่มหน้า (44px/ปุ่มบนมือถือ) + ข้อความรวม ~334px
+    // เดิมเป็นแถวไม่ตัดบรรทัด แล้ว body overflow-x:hidden ตัดปุ่ม "ถัดไป" หายไปเลย = ไปหน้าถัดไปไม่ได้ (audit 2026-10-01)
+    <div
+      className={cn(
+        'flex w-full flex-wrap items-center gap-x-3 gap-y-2 text-center',
+        showInfo ? 'justify-center sm:justify-between' : 'justify-center sm:justify-end',
+      )}
+    >
       {showInfo && (
-        <div className="text-default-400">
+        <div className="text-default-700 w-full sm:w-auto sm:text-start">
           {/* ข้อความภาษาไทย แทน "Showing X to Y of N items" */}
           แสดง <span className="font-semibold">{start}</span>–<span className="font-semibold">{end}</span> จาก <span className="font-semibold">{totalItems}</span> {itemsName}
         </div>
       )}
       <div className="mt-sm-0">
         <div>
-          <ul className="pagination pagination-boxed pagination-sm flex mb-0 justify-center">
+          <ul className="pagination pagination-boxed pagination-sm mb-0 flex flex-wrap justify-center gap-y-1">
             <li className="page-item">
               <button className="page-link" onClick={() => previousPage()} disabled={!canPreviousPage}>
                 <span>

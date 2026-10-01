@@ -108,7 +108,7 @@ export default function ProductDetailSheet({
   return (
     <div
       ref={panelRef}
-      className="bg-card fixed inset-0 z-50 flex flex-col"
+      className={'bg-card fixed inset-0 z-50 flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' /* carve-out: safe-area ไม่มี token — เปลือก fixed รับ inset */}
       role="dialog"
       aria-modal="true"
       aria-label={`แนวโน้มการขายของ ${row.name}`}>

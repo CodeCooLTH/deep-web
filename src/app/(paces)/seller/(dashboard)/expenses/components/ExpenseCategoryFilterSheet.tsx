@@ -75,7 +75,7 @@ export default function ExpenseCategoryFilterSheet({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="bg-card max-h-dvh w-full overflow-y-auto rounded-t-2xl">
+      <div className={'bg-card max-h-dvh w-full overflow-y-auto overscroll-contain rounded-t-2xl pb-[env(safe-area-inset-bottom)]' /* carve-out: safe-area ไม่มี token — ตัวเลือกสุดท้ายต้องพ้นแถบ home indicator */}>
         <div className="bg-default-300 mx-auto mt-2.5 h-1 w-9 rounded-full" aria-hidden="true" />
 
         <div className="card-header">

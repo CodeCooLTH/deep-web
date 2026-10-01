@@ -179,7 +179,10 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
     <div>
       {/* การ์ดสรุป — โครง 3 แถวของธีม ผ่าน PacesStatCard ที่ใช้ร่วมกับ /expenses
           เดิมเป็น SummaryCard ที่เขียนซ้ำในไฟล์นี้เองและมีแค่ 2 แถว (ไม่มี badge ไม่มีแถวล่าง) */}
-      <div className={`mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 ${showFinance ? 'lg:grid-cols-3 xl:grid-cols-6' : 'lg:grid-cols-4'}`}>
+      {/* 6 ใบ → 3 คอลัมน์ตั้งแต่ lg (3×2) · 4 ใบ → 4 คอลัมน์เฉพาะ ≥xl
+          เดิม xl:grid-cols-6 ที่ 1280 เหลือใบละ ~122px และ lg:grid-cols-4 ที่ 1024 เหลือ ~141px
+          ตัวเลขเงิน 6–7 หลัก + badge ล้นการ์ด (audit 2026-10-01 — 1024 แคบกว่า tablet เพราะ sidebar 245px) */}
+      <div className={`mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 ${showFinance ? 'lg:grid-cols-3' : 'xl:grid-cols-4'}`}>
         {moneyAxis && collect ? (
           <>
             <PacesStatCard

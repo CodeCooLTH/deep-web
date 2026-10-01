@@ -40,7 +40,10 @@ export default function MonthPickerSheet({ year, month0, onClose }: Props) {
   const panelRef = useRef<HTMLDivElement>(null)
   const pushedRef = useRef(false)
   const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
+  // อัปเดต ref หลัง render ไม่ใช่ระหว่าง render (react-hooks/refs) — ผู้ใช้ ref อยู่ใน effect/handler ทั้งหมด
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!pushedRef.current) {
@@ -86,7 +89,7 @@ export default function MonthPickerSheet({ year, month0, onClose }: Props) {
   return (
     <div
       ref={panelRef}
-      className="bg-card fixed inset-0 z-50 flex flex-col"
+      className={'bg-card fixed inset-0 z-50 flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' /* carve-out: safe-area ไม่มี token — เปลือก fixed รับ inset */}
       role="dialog"
       aria-modal="true"
       aria-label="เลือกเดือน">
@@ -103,7 +106,8 @@ export default function MonthPickerSheet({ year, month0, onClose }: Props) {
         </h2>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+      {/* เนื้อหากว้างไม่เกิน max-w-md กึ่งกลาง — จอ desktop ปุ่มเดือน 3 คอลัมน์เคยยืดเป็นปุ่มละ ~380px (audit 2026-10-01) */}
+      <div className="mx-auto min-h-0 w-full max-w-md flex-1 overflow-y-auto overscroll-contain p-4">
         <div className="mb-4 flex items-center justify-between gap-2">
           <button
             type="button"
@@ -160,7 +164,7 @@ export default function MonthPickerSheet({ year, month0, onClose }: Props) {
         </div>
 
         {!yearHasAny && (
-          <p className="text-default-400 mt-4 text-center text-sm">
+          <p className="text-default-700 mt-4 text-center text-sm">
             ยังไม่มีข้อมูลของปีนี้
           </p>
         )}
