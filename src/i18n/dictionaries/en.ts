@@ -54,6 +54,19 @@ export const en: Dictionary = {
   },
 
 
+  appOAuth: {
+    startTitle: 'Opening sign-in',
+    startSubLabel: 'One moment',
+    returnTitle: 'Returning to the Deep app',
+    returnSubLabel: 'One moment',
+    enterTitle: 'Signing you in',
+    enterSubLabel: 'Setting up your account',
+    failedTitle: 'Something went wrong',
+    failedBody: 'This link has expired or was already used. Go back to the app and try again.',
+    backToApp: 'Back to the app',
+    backToSignIn: 'Back to sign in',
+  },
+
   appLoading: {
     title: 'Opening Deep',
     subLabel: 'Just a moment while we get things ready',

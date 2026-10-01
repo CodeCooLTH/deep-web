@@ -46,8 +46,12 @@ describe('[blocker] Deep Stock ต้องไม่โผล่ในแอป 
     for (const fn of [isPaymentRestricted, isSignUpRestricted, isPaidFeatureRestricted]) {
       expect(fn('ios')).toBe(true)
       expect(fn('web')).toBe(false)
-      expect(fn('android')).toBe(false)
     }
+    /* Android (2026-10-01) — หลักฐานว่าแยกกันจริง: ห้ามจ่ายเงิน **แต่** ยังใช้ของที่ซื้อจากเว็บได้
+       (Google ห้ามแค่การพาไปจ่ายนอก Play ไม่ห้ามใช้ของที่ซื้อแล้ว) และการสมัครเป็นกฎของ Apple */
+    expect(isPaymentRestricted('android')).toBe(true)
+    expect(isSignUpRestricted('android')).toBe(false)
+    expect(isPaidFeatureRestricted('android')).toBe(false)
     /* ทั้งสามต้องเป็นฟังก์ชันคนละตัวจริง ๆ ไม่ใช่ alias ของกันและกัน */
     const src = strip(read('src/lib/app-shell.ts'))
     for (const name of ['PAYMENT_RESTRICTED_SHELLS', 'SIGNUP_RESTRICTED_SHELLS', 'PAID_FEATURE_RESTRICTED_SHELLS']) {

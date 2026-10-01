@@ -105,6 +105,8 @@ type ActiveShop = NonNullable<Awaited<ReturnType<typeof requireActiveShop>>>
 export type ShellRestrictions = {
   hidePayments: boolean
   hidePaidFeatures: boolean
+  /** มีหน้าซื้อในแอป (IAP) ไหม — Android ไม่มี ⇒ ทางลัด "แพ็กเกจ" ต้องหาย (2026-10-01) */
+  offerIap: boolean
 }
 
 async function buildEligibleCatalog(
@@ -139,6 +141,7 @@ async function buildEligibleCatalog(
     shop: { kind: active.kind, vertical: shop.vertical },
     hidePayments: shell.hidePayments,
     hidePaidFeatures: shell.hidePaidFeatures,
+    offerIap: shell.offerIap,
   })
 
   return flattenSellerMenu(visible)

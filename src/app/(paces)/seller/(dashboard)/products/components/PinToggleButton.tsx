@@ -73,6 +73,16 @@ export default function PinToggleButton({
   const isPinned = pinnedAt !== null
 
   const openBuySlotDialog = async () => {
+    /**
+     * 🛑 ในแอป (iOS/Android) ห้ามขายสล็อตเพิ่ม — สล็อตปักหมุดคือสินค้าดิจิทัลที่ใช้ในแอป
+     * การซื้อด้วยเครดิตกระเป๋าเงิน (ที่เติมนอกสโตร์) = ช่องทางจ่ายเงินนอก App Store/Google Play
+     * (เดิมหลุดด่าน: dialog "ซื้อสล็อต ฿99" เปิดได้แม้ hidePayments · พบตอนเตรียม Android 2026-10-01)
+     * บอกแค่ว่าเต็มแล้ว ให้ถอดหมุดตัวอื่นก่อน — ไม่บอกทางไปซื้อที่อื่น
+     */
+    if (hidePayments) {
+      pacesToast.info(`สล็อตปักหมุดเต็มแล้ว (${pinnedCount}/${pinSlots}) — ถอดหมุดสินค้าอื่นก่อนแล้วลองใหม่`)
+      return
+    }
     // Base: SubscribeButton.handleOpenDialog — confirm + fetch ใน flow เดียว, error ค้าง dialog ผ่าน showValidationMessage
     const result = await Swal.fire({
       buttonsStyling: false,

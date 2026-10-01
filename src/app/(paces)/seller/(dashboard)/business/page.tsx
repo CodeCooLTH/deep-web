@@ -21,7 +21,7 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
-import { shouldHidePayments } from '@/lib/app-shell-server'
+import { shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
 import { prisma } from '@/lib/prisma'
 import { getPersonalShop } from '@/lib/shop-context'
 import { getSubscriptionStatus } from '@/services/business-package.service'
@@ -61,7 +61,8 @@ export default async function BusinessPackagePage() {
    *
    * 🛑 หน้าปลายทางต้องไม่มีโค้ดฝั่งกระเป๋าเงินอยู่เลย — ดูเหตุผลที่หัวไฟล์ subscribe/page.tsx
    */
-  if (await shouldHidePayments()) redirect('/business/subscribe')
+  /* Android ห้ามจ่ายเงินแต่ไม่มี IAP (2026-10-01) ⇒ ไม่มีหน้าซื้อให้ไป → กลับหน้าแรก */
+  if (await shouldHidePayments()) redirect((await shouldOfferIap()) ? '/business/subscribe' : '/dashboard')
 
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user

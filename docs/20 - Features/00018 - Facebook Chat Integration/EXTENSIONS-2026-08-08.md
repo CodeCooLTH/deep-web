@@ -239,6 +239,11 @@ import ตรง ๆ เท่ากับลาก React + icon set เข้�
 ระหว่างนี้ใส่ `channel` + `channelName` ลง `data` ไปด้วยแล้ว → ฝั่งแอปหยิบไปทำเองได้ทันที
 (จัดกลุ่ม noti ตามเพจ / วาดหน้าตาเอง / รองรับ Android) โดยไม่ต้องแก้เว็บซ้ำแล้วรอ deploy อีกรอบ
 
+**ปิดหนี้แล้ว 2026-10-01 (แอปผู้ขาย Android):** `composeForPlatform()` ใน `src/lib/expo-push.ts`
+อ่าน `PushToken.platform` รายเครื่อง — Android ได้ `title` = ชื่อเพจ · `body` = `ชื่อคนส่ง: ข้อความ`
+(ไม่ส่ง `subtitle`) ส่วน iOS/ไม่รู้ platform ได้ 3 บรรทัดเหมือนเดิม · ลำดับ เพจ → คนส่ง → ข้อความ
+คงเดิมทั้งสองระบบ · เทส `[blocker]` ใน `expo-push.test.ts` ยืนยันจาก payload ที่ยิงจริง (mutation แดง)
+
 ### E2.7 การพิสูจน์
 
 - `npx tsc --noEmit` — 0 error (ต้องรัน `prisma generate` ก่อน เพราะ client ในเวิร์กทรีเก่ากว่า

@@ -23,7 +23,7 @@ import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
 import { sessionUserId } from '@/lib/session-user'
-import { shouldHidePayments } from '@/lib/app-shell-server'
+import { shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import type { BusinessPackageTier } from '@/lib/business-package'
 
@@ -49,6 +49,10 @@ async function mainSiteOrigin(): Promise<string> {
 export default async function IapSubscribePage() {
   /* 🛑 ด่านกลับด้าน — ดูเหตุผลหัวไฟล์ */
   if (!(await shouldHidePayments())) redirect('/business')
+  /* 🛑 Android: ห้ามจ่ายเงินเหมือน iOS แต่ **ไม่มี IAP** (2026-10-01) — หน้านี้คุยกับ StoreKit
+     ซึ่ง Android ไม่มี ⇒ ถ้าปล่อยเข้า จะรอราคา 60 วิแล้วขึ้น "แอปไม่ตอบสนอง" พร้อมคำว่า
+     แพ็กเกจ/Apple ID · ไป /dashboard ไม่ใช่ /business (หน้านั้นเด้งกลับมาที่นี่ = วน) */
+  if (!(await shouldOfferIap())) redirect('/dashboard')
 
   const session = await getServerSession(authOptions)
   const ownerId = sessionUserId(session)

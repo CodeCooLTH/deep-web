@@ -38,7 +38,8 @@ const reasonLabel = (reason: string, hidePayments: boolean): string | undefined 
     ? 'ยกเลิกโดยเจ้าของร้าน'
     : reason === 'RENEWAL_FAILED'
       ? hidePayments
-        ? 'ต่ออายุไม่สำเร็จ (เครดิตไม่พอ) — จัดการการชำระเงินได้จากเว็บไซต์ Deep'
+        ? /* 🛑 ในแอปห้ามบอกทางไปจ่ายที่เว็บ (anti-steering ของ Apple และ Google) — บอกแค่สถานะ */
+          'ต่ออายุไม่สำเร็จ (เครดิตไม่พอ)'
         : 'ต่ออายุไม่สำเร็จ (เครดิตไม่พอ) — เติมเครดิตแล้วสมัครใหม่ได้'
       : undefined
 
@@ -146,9 +147,8 @@ export default function PlanStatusCard({ plan, canManage, hidePayments = false }
             <p className="text-warning-ink text-sm">
               ค้างชำระค่าตรวจ — เหลือเวลาอีก {plan.graceDaysLeft} วัน
               (ถึง {formatDate(plan.graceUntil)})
-              {hidePayments
-                ? ' จัดการการชำระเงินได้จากเว็บไซต์ Deep'
-                : ' เติมเงินในกระเป๋าร้านแล้วระบบจะตัดให้อัตโนมัติ'}
+              {/* 🛑 ในแอปไม่บอกวิธีจ่าย — สถานะ "ค้างชำระ" + วันครบกำหนดคือข้อมูลบัญชี ไม่ใช่คำเชิญ */}
+              {hidePayments ? '' : ' เติมเงินในกระเป๋าร้านแล้วระบบจะตัดให้อัตโนมัติ'}
               {' '}ระหว่างนี้ป้ายบนโปรไฟล์ยังแสดงตามปกติ
             </p>
           </div>
@@ -163,7 +163,8 @@ export default function PlanStatusCard({ plan, canManage, hidePayments = false }
             </p>
             {!isLapsed && (
               <p className="text-default-400 text-sm">
-                {PRICING_BLOCKED ? 'ราคาจะประกาศเร็ว ๆ นี้' : `${formatBaht(monthlyPrice)}/เดือน`}
+                {/* ในแอปไม่แสดงราคา — ดูเหตุผลที่ StepLadder */}
+                {hidePayments ? null : PRICING_BLOCKED ? 'ราคาจะประกาศเร็ว ๆ นี้' : `${formatBaht(monthlyPrice)}/เดือน`}
                 {/* วันตัดเงินรอบถัดไป — ร้านต้องรู้ล่วงหน้าว่าจะถูกหักเมื่อไร ไม่ใช่รู้ตอนถูกหักแล้ว
                     · แผนที่แจ้งยกเลิกไว้แล้วไม่แสดงบรรทัดนี้ เพราะแถบด้านล่างบอกวันสิ้นสุดอยู่แล้ว */}
                 {!cancelPending && !inGrace && ` · ต่ออายุ ${formatDate(plan.nextRenewalAt)}`}

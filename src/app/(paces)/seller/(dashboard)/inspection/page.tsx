@@ -87,7 +87,8 @@ export default async function InspectionPage() {
     <>
       <PageBreadcrumb title="แผนการตรวจสอบ" />
       <p className="text-default-400 -mt-2 mb-6 text-sm">
-        จ่ายค่าแรงให้ Deep ไปตรวจสอบร้านคุณต่อเนื่อง ผลตรวจที่ผ่านจะแสดงบนโปรไฟล์สาธารณะของร้าน
+        {/* ในแอปไม่พูดถึงการจ่ายเงิน (App Store 3.1.1 · Google Play Payments) */}
+        {hidePayments ? 'Deep ไปตรวจสอบร้านคุณต่อเนื่อง' : 'จ่ายค่าแรงให้ Deep ไปตรวจสอบร้านคุณต่อเนื่อง'} ผลตรวจที่ผ่านจะแสดงบนโปรไฟล์สาธารณะของร้าน
       </p>
 
       <div className="space-y-base">

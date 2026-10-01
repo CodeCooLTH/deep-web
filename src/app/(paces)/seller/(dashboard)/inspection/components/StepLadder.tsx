@@ -144,7 +144,9 @@ export default function StepLadder({ plan, canManage, intake, hidePayments = fal
                   </h3>
 
                   <div className="my-4">
-                    {PRICING_BLOCKED ? (
+                    {/* 🛑 ในแอป (iOS/Android) ไม่แสดงราคา — สมัครในแอปไม่ได้ ราคาที่ไม่มีปุ่มซื้อ
+                        คือคำเชิญให้ไปจ่ายที่อื่น (Google Play Payments policy · App Store 3.1.1) */}
+                    {hidePayments ? null : PRICING_BLOCKED ? (
                       <p className={cn('text-sm', isCurrent ? 'text-white/70' : 'text-default-400')}>
                         ราคาจะประกาศเร็ว ๆ นี้
                       </p>
@@ -195,10 +197,11 @@ export default function StepLadder({ plan, canManage, intake, hidePayments = fal
                         // 🛑 "เต็มแล้ว" กับ "ยังไม่เปิดรับ" ต้องเป็นคนละข้อความ (TFR-007) — วันที่ทีม
                         // ลืมตั้งโควตา ทุกขั้นจะขึ้นว่าเต็มทั้งที่ยังไม่มีใครสมัครสักคน แล้วจะไม่มีใคร
                         // เอะใจไปสืบ เพราะ "เต็ม" เป็นคำอธิบายที่ฟังขึ้นสมบูรณ์ · เหตุผลมาจาก server
+                        // 🛑 ในแอปห้ามบอกทางไปสมัคร/จ่ายที่เว็บ (anti-steering ของทั้ง Apple และ Google)
+                        //    เดิมเขียน "สมัครและจัดการแผนได้จากเว็บไซต์ Deep" = คำเชิญไปจ่ายนอกสโตร์ตรงตัว
+                        hidePayments ? null : (
                         <p className="text-default-400 text-xs">
-                          {hidePayments
-                            ? 'สมัครและจัดการแผนได้จากเว็บไซต์ Deep'
-                            : PRICING_BLOCKED
+                          {PRICING_BLOCKED
                             ? 'ยังไม่เปิดให้สมัคร'
                             : `${
                                 intake.stepStatus[step] === 'FULL'
@@ -208,6 +211,7 @@ export default function StepLadder({ plan, canManage, intake, hidePayments = fal
                                 intake.nextOpenAt ? ` — เปิดรับรอบถัดไป ${formatDateTH(intake.nextOpenAt)}` : ''
                               }`}
                         </p>
+                        )
                       )}
                       {error && <p className="text-danger mt-2 text-xs">{error}</p>}
                     </>

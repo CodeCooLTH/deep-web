@@ -55,11 +55,33 @@ const SHELL_COOKIE_VALUE = 'app'
 /**
  * 🛑 แพลตฟอร์มที่ "ห้ามมีช่องทางจ่ายเงินในแอป"
  *
- * ตอนนี้มีแค่ iOS เพราะเป็นที่เดียวที่เราปล่อยแอป — **ก่อนส่งขึ้น Google Play ต้องเพิ่ม
- * 'android' เข้ามาด้วย** Google Play Billing มีกฎเดียวกันเป๊ะสำหรับสินค้าดิจิทัล ถ้าลืมจะโดน
- * ตีกลับด้วยเหตุผลเดียวกันอีกรอบ และคราวนั้นจะไม่มีใครนึกออกว่าเคยเจอมาแล้ว
+ * iOS (Guideline 3.1.1 · รอบ 2026-08-04) + **Android** (Google Play Payments policy — เพิ่มเมื่อ
+ * 2026-10-01 ตอนเตรียมขึ้น Google Play) · กฎของ Google: *"apps may not lead users to a payment
+ * method other than Google Play's billing system … via in-app webviews, buttons, links, messaging"*
  */
-const PAYMENT_RESTRICTED_SHELLS: readonly AppShell[] = ['ios']
+const PAYMENT_RESTRICTED_SHELLS: readonly AppShell[] = ['ios', 'android']
+
+/**
+ * 🛑 แพลตฟอร์มที่ "มีการซื้อในแอป (IAP) ให้ใช้" — ตอนนี้ **iOS เท่านั้น**
+ *
+ * ── ทำไมเป็นตัวที่สี่ แยกจาก `isPaymentRestricted` ─────────────────────────────
+ *
+ * บน iOS "ห้ามจ่ายเงินนอกสโตร์" มาพร้อม "แต่ซื้อผ่าน Apple ได้" (feature 00064) ⇒ หลายจุดเขียน
+ * ว่า *ถูกห้าม ⇒ พาไปหน้าซื้อผ่าน StoreKit* (`/business/subscribe`) และ skill `app-store-surfaces`
+ * บังคับให้มีทางเข้าหน้าซื้อ **พอดี 1 ทาง** บนมือถือ ไม่งั้น Apple สรุปว่าไม่ได้ทำ IAP
+ *
+ * Android **ไม่มี IAP เลย** (user สั่ง 2026-10-01: ไม่ทำ Play Billing ปิดการจ่ายเงินทั้งหมด) ⇒ ถ้าใช้
+ * กฎเดิม ผู้ขาย Android จะถูกพาไปหน้าซื้อที่คุยกับ StoreKit ซึ่งไม่มีอยู่ → รอราคา 60 วิแล้วขึ้น
+ * "แอปไม่ตอบสนอง" = หน้าซื้อที่ตาย และยังมีคำว่าแพ็กเกจ/ราคา/Apple ID โผล่ให้คนตรวจของ Google เห็น
+ *
+ * ⇒ ทุกจุดที่ตัดสินว่า "จะมีทางเข้าหน้าซื้อในแอปไหม" ต้องถามตัวนี้ ไม่ใช่ `isPaymentRestricted`
+ * (ตัวนั้นตอบแค่ "ห้ามช่องทางนอกสโตร์ไหม") · วันที่ทำ Play Billing ค่อยเพิ่ม 'android' ที่นี่
+ */
+const IAP_SHELLS: readonly AppShell[] = ['ios']
+
+export function hasInAppPurchase(shell: AppShell): boolean {
+  return IAP_SHELLS.includes(shell)
+}
 
 /**
  * ชื่อที่แอปผู้ขายต่อท้าย User-Agent ของ WebView (`applicationNameForUserAgent`)

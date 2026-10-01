@@ -43,7 +43,7 @@ import FollowUpBubble from './_components/FollowUpBubble'
 import InboxTabs from './_components/InboxTabs'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import { resolveSellerMenuItems } from '@/lib/seller-menu-server'
-import { shouldHidePaidFeatures, shouldHidePayments } from '@/lib/app-shell-server'
+import { shouldHidePaidFeatures, shouldOfferIap, shouldHidePayments } from '@/lib/app-shell-server'
 import { getUnreadCountForShop } from '@/services/chat.service'
 import type { MenuItemType } from '@/types'
 import { prisma } from '@/lib/prisma'
@@ -193,6 +193,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       unreadChatCount,
       hidePayments,
       hidePaidFeatures: await shouldHidePaidFeatures(),
+    offerIap: await shouldOfferIap(),
     })
 
     // ระบบนัดหมายเปิดให้เฉพาะ vertical=SERVICE_QUEUE (BR-RSV-01) — ร้านอื่นไม่ได้รับทรัพยากรเลย

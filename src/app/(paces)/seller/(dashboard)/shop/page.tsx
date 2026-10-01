@@ -18,7 +18,7 @@ import type { Metadata } from 'next'
 import ShopForm from './components/ShopForm'
 import SignOutCard from './components/SignOutCard'
 import { BUSINESS_DELETE_RETENTION_DAYS } from '@/lib/business-package'
-import { shouldHidePayments } from '@/lib/app-shell-server'
+import { shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
 import ShopQuickLinks from './components/ShopQuickLinks'
 import ShopReceiptProfileField from './components/ShopReceiptProfileField'
 import { getReceiptProfile } from '@/services/receipt.service'
@@ -168,7 +168,9 @@ export default async function ShopSettingsPage() {
           และปุ่มออกจากระบบ ทำให้มือถือเข้าไม่ถึงเลยทั้งสองอย่าง (ดู comment หัวไฟล์ทั้งสองตัว)
           ≥1024px ไม่ render — sidebar + UserDropdownDetailed ทำหน้าที่นี้อยู่แล้ว */}
       <div className="lg:hidden">
-        <ShopQuickLinks shopKind={shopKind} shopRole={shopRole} hidePayments={await shouldHidePayments()} />
+        <ShopQuickLinks shopKind={shopKind} shopRole={shopRole} hidePayments={await shouldHidePayments()}
+          offerIap={await shouldOfferIap()}
+        />
         <SignOutCard />
       </div>
 

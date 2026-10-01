@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rejectInAppPurchase } from "@/lib/app-purchase-guard";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -18,6 +19,9 @@ import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
  * Request body: { package: 'BASIC' | 'PRO' } — API.md §4.1 (BREAKING feature 00009 — เดิม {})
  */
 export async function POST(request: NextRequest) {
+  // ในแอป (iOS/Android) ห้ามจ่ายเงินให้ Deep นอกสโตร์ — ด่านจริง ไม่ใช่แค่ซ่อนปุ่ม (app-purchase-guard.ts)
+  const inAppBlocked = await rejectInAppPurchase()
+  if (inAppBlocked) return inAppBlocked
   // 1. auth gate — ไม่มี session = 401
   const session = await getServerSession(authOptions);
   if (!session?.user) {

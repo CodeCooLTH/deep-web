@@ -46,6 +46,8 @@ export type SellerMenuContext = {
   hidePayments: boolean
   /** เปิดจากในแอป iOS ที่ห้ามใช้ฟีเจอร์ซึ่งไม่มีขายเป็น IAP (3.1.3(b) · feature 00064) */
   hidePaidFeatures: boolean
+  /** มีหน้าซื้อในแอป (IAP) ไหม — iOS ใช่ · Android ไม่ใช่ (`shouldOfferIap()`) */
+  offerIap: boolean
 }
 
 export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<MenuItemType[]> {
@@ -86,6 +88,7 @@ export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<Me
         shop: { kind: ctx.kind, vertical: ctx.vertical },
         hidePayments: ctx.hidePayments,
         hidePaidFeatures: ctx.hidePaidFeatures,
+        offerIap: ctx.offerIap,
       }),
       ctx.unreadChatCount,
     ),

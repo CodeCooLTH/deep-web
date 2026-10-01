@@ -46,6 +46,7 @@ describe('[blocker] ทางเข้าหน้าซื้อในแอป
         hidePayments: true,
         entitlementStatus: 'NOT_SUBSCRIBED',
         hidePaidFeatures: true,
+        offerIap: true,
       }),
     )
     expect(got, 'ซ่อนเมนูนี้ = ทีมรีวิวของ Apple จะสรุปว่าเรายังไม่ได้ทำ IAP').toContain(
@@ -59,9 +60,23 @@ describe('[blocker] ทางเข้าหน้าซื้อในแอป
         hidePayments: true,
         entitlementStatus: 'ACTIVE',
         hidePaidFeatures: true,
+        offerIap: true,
       }),
     )
     expect(got).not.toContain('seller:inventory')
+  })
+
+  it('🛑 Android (ห้ามจ่ายเงินแต่ไม่มี IAP) — เมนูแพ็กเกจต้องหาย · ของที่ซื้อจากเว็บแล้วยังใช้ได้', () => {
+    const got = slugsOf(
+      applyPaymentRestriction(menu, {
+        hidePayments: true,
+        entitlementStatus: 'ACTIVE',
+        hidePaidFeatures: false,
+        offerIap: false,
+      }),
+    )
+    expect(got, 'ไม่มี IAP = ไม่มีหน้าซื้อให้ไป เมนูนี้จะพาไปหน้าตาย').not.toContain('seller:subscriptions')
+    expect(got, 'Google อนุญาตให้ใช้ของที่ซื้อจากเว็บ').toContain('seller:inventory')
   })
 
   it('บนเว็บไม่ถูกแตะเลย', () => {
@@ -70,6 +85,7 @@ describe('[blocker] ทางเข้าหน้าซื้อในแอป
         hidePayments: false,
         entitlementStatus: 'ACTIVE',
         hidePaidFeatures: false,
+        offerIap: false,
       }),
     )
     expect(got).toEqual(['seller:subscriptions', 'seller:inventory', 'seller:orders'])
@@ -89,7 +105,7 @@ describe('[blocker] ปลายทางของเมนูนั้นต้
     expect(
       code,
       'เด้งไป /dashboard = ผู้ใช้กดเมนูแล้วเด้งกลับหน้าแรกโดยไม่มีคำอธิบาย (บั๊กที่หัวหน้าเจอบน TestFlight 2026-08-19)',
-    ).toMatch(/redirect\('\/business\/subscribe'\)/)
+    ).toMatch(/redirect\(\(await shouldOfferIap\(\)\) \? '\/business\/subscribe' : '\/dashboard'\)/)
   })
 })
 

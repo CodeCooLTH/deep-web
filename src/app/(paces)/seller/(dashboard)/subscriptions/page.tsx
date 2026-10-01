@@ -25,7 +25,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
-import { shouldHidePayments } from '@/lib/app-shell-server'
+import { shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
 import { prisma } from '@/lib/prisma'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import { resolveActiveShopContext } from '@/lib/shop-context'
@@ -182,7 +182,8 @@ export default async function SubscriptionsPage() {
   /* 🛑 feature 00064 — เด้งไปหน้าซื้อผ่าน Apple ไม่ใช่ `/dashboard`
      เด้งกลับหน้าแรกคือบั๊กที่หัวหน้าเจอบน TestFlight (2026-08-19): กดเมนูแล้วเงียบ
      ไม่มีคำอธิบาย ซึ่ง "แย่กว่าไม่มีเมนู" · ตอนนี้มีปลายทางที่ถูกกฎแล้วจึงพาไปที่นั่น */
-  if (await shouldHidePayments()) redirect('/business/subscribe')
+  /* Android ห้ามจ่ายเงินแต่ไม่มี IAP (2026-10-01) ⇒ ไม่มีหน้าซื้อให้ไป → กลับหน้าแรก */
+  if (await shouldHidePayments()) redirect((await shouldOfferIap()) ? '/business/subscribe' : '/dashboard')
 
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user

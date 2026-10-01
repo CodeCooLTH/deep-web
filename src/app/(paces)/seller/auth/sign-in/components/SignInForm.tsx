@@ -29,6 +29,7 @@
 import { Icon as BxIcon } from '@iconify/react'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { getCsrfToken, signIn } from 'next-auth/react'
+import { startAppOAuth } from '@/lib/app-oauth-client'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
@@ -202,6 +203,17 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
      * ที่ยังไม่มีโมดูล native · แผ่นระบบล้ม · เซิร์ฟเวอร์ปฏิเสธโทเคน ⇒ ตกมาบรรทัดล่างสุด
      * ซึ่งเป็นทางเดิมที่ใช้งานได้อยู่แล้วทุกประการ (เกณฑ์รวมอยู่ใน `runAppleNativeSignIn`)
      */
+    /* แอป Android: ไม่มีแผ่น Apple ของระบบ และทั้งสาย OAuth ต้องทำใน Custom Tab
+       (สเปก 2026-10-01-android-oauth-custom-tabs) — วางก่อนสาขา iOS ด้านล่าง ไม่ปนกัน */
+    if (
+      await startAppOAuth({
+        kind: 'signin',
+        provider: 'apple',
+        callbackUrl: `/auth/callback/apple?next=${encodeURIComponent(callbackUrl)}`,
+      })
+    )
+      return
+
     const inApp = canUseAppleNative(typeof window === 'undefined' ? undefined : window)
     if (inApp) {
       setAppleNotice(null)
@@ -268,6 +280,16 @@ export default function SignInForm({ hideSignUp = false }: { hideSignUp?: boolea
     setAppleNotice(null)
     setOauthBusy(provider)
     try {
+      /**
+       * แอป Android: Facebook ปิดล็อกอินใน WebView ⇒ ทั้งสายต้องไปทำใน Custom Tab แล้วส่งตั๋วกลับ
+       * (สเปก `docs/superpowers/specs/2026-10-01-android-oauth-custom-tabs-design.md`)
+       * แท็บทับจอแล้ว ⇒ คืนปุ่มได้ทันที ผู้ใช้ปิดแท็บกลางทางจะกลับมาเห็นปุ่มที่กดได้ ไม่ใช่สปินเนอร์ค้าง
+       */
+      const cb = typeof options?.callbackUrl === 'string' ? options.callbackUrl : callbackUrl
+      if (await startAppOAuth({ kind: 'signin', provider, callbackUrl: cb })) {
+        setOauthBusy(null)
+        return
+      }
       await signIn(provider, options)
     } catch {
       setOauthBusy(null)

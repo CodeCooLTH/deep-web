@@ -729,6 +729,13 @@ export function resolveVisibleSellerMenu(
     hidePayments?: boolean
     /** เปิดจากในแอปที่ห้ามใช้ฟีเจอร์ซึ่งไม่มีขายเป็น IAP (iOS) — feature 00064 */
     hidePaidFeatures?: boolean
+    /**
+     * มีหน้าซื้อในแอป (IAP) ให้พาไปไหม — iOS ใช่ · Android ไม่ใช่ (ดู `hasInAppPurchase`)
+     * มีผลเฉพาะเมื่อ `hidePayments` เป็น true · ไม่ส่ง = true (= พฤติกรรมเดิมของ iOS)
+     * 🛑 ผู้เรียกจริงทุกรายต้องส่ง — ชั้นบน (`SellerMenuContext` · `ShellRestrictions`) บังคับไว้
+     * แล้ว · ค่าเริ่มต้นมีไว้ให้เทสเดิมที่ไม่ได้แตะเรื่องจ่ายเงินเท่านั้น
+     */
+    offerIap?: boolean
   },
 ): MenuItemType[] {
   // applyOrderLabel อยู่นอกสุด — แค่เปลี่ยนป้าย ไม่กรองอะไร วางหลังตัวกรองทุกตัวจึงไม่ต่างกัน
@@ -746,6 +753,7 @@ export function resolveVisibleSellerMenu(
             hidePayments: ctx.hidePayments ?? false,
             entitlementStatus: ctx.entitlement.status,
             hidePaidFeatures: ctx.hidePaidFeatures ?? false,
+            offerIap: ctx.offerIap ?? true,
           }),
           ctx.staff,
         ),
@@ -832,6 +840,8 @@ export function applyPaymentRestriction(
     entitlementStatus: EntitlementStatus
     /** ซ่อนฟีเจอร์ที่จ่ายเงินแล้วแต่ไม่มีขายเป็น IAP ในแอป — ดู `isPaidFeatureRestricted` */
     hidePaidFeatures: boolean
+    /** มีหน้าซื้อในแอป (IAP) ไหม — ดู `hasInAppPurchase` */
+    offerIap: boolean
   },
 ): MenuItemType[] {
   if (!ctx.hidePayments && !ctx.hidePaidFeatures) return items
@@ -847,6 +857,10 @@ export function applyPaymentRestriction(
        แล้วตีกลับข้อเดิม — ดู `iap-entry-point-in-app.test.ts` */
     // ยังไม่ได้สมัคร = เข้าไปก็มีแต่หน้าให้เลือกแพ็กเกจ ซึ่งห้ามแสดง → ซ่อนเมนูไปเลย
     if (ctx.entitlementStatus !== 'ACTIVE') removed.add('seller:inventory')
+    /* 🛑 Android (2026-10-01) — ห้ามจ่ายเงินเหมือน iOS แต่ **ไม่มี IAP** ⇒ "แพ็กเกจของฉัน" ไม่มี
+       ปลายทางที่ถูกกฎให้ไป (`/subscriptions` เด้งกลับหน้าแรก) จึงซ่อนเมนูไปเลย
+       iOS ยังเก็บไว้ตามเหตุผลด้านบน — ต้องมีทางเข้าหน้าซื้อพอดี 1 ทาง */
+    if (!ctx.offerIap) removed.add('seller:subscriptions')
   }
   /* 🛑 feature 00064 — ซ่อน Deep Stock **แม้คนที่สมัครแล้ว** (status ACTIVE)
      เดิมตรงนี้จงใจปล่อยให้คนที่จ่ายเงินแล้วเห็นเมนูต่อ โดยให้เหตุผลว่า badge 'Pro'

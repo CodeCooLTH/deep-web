@@ -36,6 +36,11 @@ interface ShopQuickLinksProps {
    * ซึ่งคือรูปร่างของบั๊กที่ prop นี้ถูกสร้างมาแก้พอดี ให้ tsc บังคับให้ส่งทุก call site
    */
   hidePayments: boolean
+  /**
+   * มีหน้าซื้อในแอป (IAP) ไหม — iOS ใช่ · Android ไม่ใช่ (`shouldOfferIap()` · 2026-10-01)
+   * 🛑 บังคับส่งเหมือน `hidePayments` — ค่าเริ่มต้นแบบใดก็พังหนึ่งแพลตฟอร์ม
+   */
+  offerIap: boolean
 }
 
 interface QuickLink {
@@ -77,6 +82,15 @@ const LINKS: QuickLink[] = [
  */
 const PAYMENT_LINK_URLS = new Set<string>([])
 
+/**
+ * 🛑 ทางเข้าหน้าซื้อ **ผ่าน IAP** — มีปลายทางที่ถูกกฎเฉพาะแพลตฟอร์มที่มี IAP (iOS)
+ *
+ * Android ห้ามจ่ายเงินในแอปเหมือน iOS แต่ **ไม่มี IAP** (user สั่ง 2026-10-01) ⇒ แถวนี้บน Android
+ * จะพาไปหน้าซื้อที่คุยกับ StoreKit ซึ่งไม่มีอยู่ (`/subscriptions` เด้งกลับหน้าแรกแล้ว) ⇒ ซ่อน
+ * ส่วน iOS ต้องเก็บไว้ตามเหตุผลด้านบน — ทางเข้าพอดี 1 ทาง
+ */
+const IAP_LINK_URLS = new Set<string>(['/subscriptions'])
+
 // เมนู "พนักงาน" เห็นเฉพาะ owner ของร้าน BUSINESS — เงื่อนไขเดียวกับ applyStaffMenu()
 // ใน _seller-menu.ts เป๊ะ (ซ่อน ไม่ใช่ disable เพราะ role อื่นไม่มี use-case ให้เห็นเลย)
 const STAFF_LINK: QuickLink = {
@@ -86,8 +100,10 @@ const STAFF_LINK: QuickLink = {
   hint: 'เชิญและจัดการทีมงาน',
 }
 
-export default function ShopQuickLinks({ shopKind, shopRole, hidePayments }: ShopQuickLinksProps) {
-  const base = hidePayments ? LINKS.filter((l) => !PAYMENT_LINK_URLS.has(l.url)) : LINKS
+export default function ShopQuickLinks({ shopKind, shopRole, hidePayments, offerIap }: ShopQuickLinksProps) {
+  const base = hidePayments
+    ? LINKS.filter((l) => !PAYMENT_LINK_URLS.has(l.url) && (offerIap || !IAP_LINK_URLS.has(l.url)))
+    : LINKS
   const links = shopKind === 'BUSINESS' && shopRole === 'OWNER' ? [...base, STAFF_LINK] : base
 
   return (

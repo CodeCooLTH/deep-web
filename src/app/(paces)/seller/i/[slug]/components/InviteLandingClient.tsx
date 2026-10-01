@@ -26,6 +26,7 @@
 import { Icon as BxIcon } from '@iconify/react'
 import { signOutSeller } from '@/lib/sign-out-seller'
 import { signIn, useSession } from 'next-auth/react'
+import { startAppOAuth } from '@/lib/app-oauth-client'
 import Link from 'next/link'
 import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
@@ -149,6 +150,8 @@ export default function InviteLandingClient({
       return
     }
 
+    /* แอป Android: ออกไป Custom Tab (สเปก 2026-10-01-android-oauth-custom-tabs) */
+    if (await startAppOAuth({ kind: 'signin', provider: 'apple', callbackUrl })) return
     await signIn('apple', { callbackUrl })
   }
 
@@ -161,6 +164,11 @@ export default function InviteLandingClient({
     setAppleNotice(null)
     setOauthBusy(provider)
     try {
+      /* แอป Android: ทำทั้งสายใน Custom Tab — แท็บทับจอแล้ว คืนปุ่มทันที (เหตุผลเต็มที่ SignInForm) */
+      if (await startAppOAuth({ kind: 'signin', provider, callbackUrl })) {
+        setOauthBusy(null)
+        return
+      }
       await signIn(provider, { callbackUrl })
     } catch {
       setOauthBusy(null)

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import NavigationLoader from './NavigationLoader'
+import AppOAuthBridge from '@/components/paces/AppOAuthBridge'
 import { PaymentRestrictionProvider } from '@/components/paces/PaymentRestrictionProvider'
 import { shouldHidePayments } from '@/lib/app-shell-server'
 
@@ -24,6 +25,9 @@ export default async function SellerLayout({ children }: { children: React.React
       <Suspense fallback={null}>
         <NavigationLoader />
       </Suspense>
+      {/* OAuth ผ่าน Custom Tab ของแอป Android — ทำงานทั้งในแท็บ (ส่งกลับแอป) และใน WebView (ดักลิงก์เชื่อมเพจ)
+          วางชั้นนอกสุดเพราะหน้าปลายทางของ OAuth กระจายทุกโซน: /auth · (dashboard) · /register · /onboarding */}
+      <AppOAuthBridge />
       {children}
     </PaymentRestrictionProvider>
   )

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { rejectInAppPurchase } from "@/lib/app-purchase-guard";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { reactivateBusinessPackage } from "@/services/business-package.service";
@@ -11,6 +12,9 @@ import { reactivateBusinessPackage } from "@/services/business-package.service";
  * Request body: ไม่มี ({}) — API.md §4.6
  */
 export async function POST() {
+  // ในแอป (iOS/Android) ห้ามจ่ายเงินให้ Deep นอกสโตร์ — ด่านจริง ไม่ใช่แค่ซ่อนปุ่ม (app-purchase-guard.ts)
+  const inAppBlocked = await rejectInAppPurchase()
+  if (inAppBlocked) return inAppBlocked
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });

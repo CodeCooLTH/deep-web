@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { APP_UA_MARKER, isPaymentRestricted, isSignUpRestricted, resolveAppShell } from '@/lib/app-shell'
+import { APP_UA_MARKER, isPaymentRestricted, isSignUpRestricted, resolveAppShell, hasInAppPurchase } from '@/lib/app-shell'
 
 /**
  * เกณฑ์นี้ตัดสินว่า "ผู้ขายคนไหนเห็นปุ่มเติมเงิน" ซึ่งผูกกับการผ่าน/ไม่ผ่าน App Store
@@ -131,9 +131,20 @@ describe('isPaymentRestricted', () => {
     expect(isPaymentRestricted('web')).toBe(false)
   })
 
-  it('Android ยังไม่ถูกจำกัด (ยังไม่ปล่อยบน Play)', () => {
-    // 🛑 ก่อนส่งขึ้น Google Play ต้องกลับมาแก้เทสนี้พร้อมกับ PAYMENT_RESTRICTED_SHELLS
-    // — Google Play Billing มีกฎเดียวกันเป๊ะสำหรับสินค้าดิจิทัล
-    expect(isPaymentRestricted('android')).toBe(false)
+  it('[blocker] Android ถูกจำกัดด้วย — Google Play Payments policy (เตรียมขึ้น Play 2026-10-01)', () => {
+    // ถ้าเทสนี้แดง = แอป Android โชว์ปุ่มเติมเงิน/สมัครแพ็กเกจ = Google ตีกลับ
+    expect(isPaymentRestricted('android')).toBe(true)
+  })
+})
+
+describe('hasInAppPurchase — มีหน้าซื้อในแอปไหม (แยกจากการห้ามจ่ายเงิน)', () => {
+  it('[blocker] iOS มี IAP — ต้องมีทางเข้าหน้าซื้อผ่าน StoreKit', () => {
+    expect(hasInAppPurchase('ios')).toBe(true)
+  })
+  it('[blocker] Android ไม่มี IAP (user สั่ง 2026-10-01) — ห้ามพาไปหน้าซื้อ', () => {
+    expect(hasInAppPurchase('android')).toBe(false)
+  })
+  it('เว็บไม่ใช่ IAP', () => {
+    expect(hasInAppPurchase('web')).toBe(false)
   })
 })

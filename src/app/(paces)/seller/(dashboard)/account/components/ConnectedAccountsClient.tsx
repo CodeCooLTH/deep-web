@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { NATIVE_CAPS_EVENT } from '@/lib/apple-bridge-protocol'
 import { canUseAppleNative, runAppleNativeLink } from '@/lib/apple-native-signin'
 import { signIn, useSession } from 'next-auth/react'
+import { startAppOAuth } from '@/lib/app-oauth-client'
 /**
  * 🛑 ต้องเป็น wrapper ไม่ใช่ `{ Icon } from '@iconify/react'` ตรง ๆ
  *
@@ -624,6 +625,16 @@ export function ConnectedAccountsClient({
           html: 'ลองกดเชื่อมต่ออีกครั้งได้เลย<br/>ถ้ายังไม่ได้ ให้เชื่อมจากเว็บ seller.deepthailand.app บนคอมพิวเตอร์',
           confirmButtonText: 'เข้าใจแล้ว',
         })
+        return
+      }
+
+      /**
+       * แอป Android: เชื่อมบัญชีทั้งสายใน Custom Tab (คุกกี้ link-intent ต้องอยู่ jar เดียวกับ callback)
+       * แท็บทำ `link/start` + `signIn` เองหลังรับ session ผ่านตั๋ว แล้วส่งกลับมาที่ /account
+       * (สเปก `docs/superpowers/specs/2026-10-01-android-oauth-custom-tabs-design.md`)
+       */
+      if (await startAppOAuth({ kind: 'link', provider })) {
+        setRedirecting(null)
         return
       }
 

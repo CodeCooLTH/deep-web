@@ -9,9 +9,8 @@ type ExpoMessage = {
    * ทั้งคู่จะยาวเกินเพดานแล้ว `…` ไปลงตรงส่วนที่ผู้ใช้อยากอ่านพอดี (แชทผู้ขายใช้เป็น
    * ชื่อเพจ / ชื่อคนส่ง / ข้อความ — ดู pushNewChatMessage ใน seller-push.service)
    *
-   * 🛑 วันที่ปล่อยแอป Android ต้องประกอบข้อความให้ใหม่ ไม่ใช่ก็อปชุดของ iOS ไปตรง ๆ — ตอนนี้
-   * ตาราง PushToken เก็บแค่ userId+token ไม่มี platform จึงแยกรูปแบบรายเครื่องไม่ได้ และสิ่งที่
-   * อยู่ใน subtitle จะ **หายไปเงียบ ๆ บน Android** (ไม่ error ไม่ได้แปลว่าไม่มีใครต้องการ)
+   * 🛑 Android ไม่มีบรรทัดนี้ — ห้ามส่ง subtitle ไปเครื่อง Android ตรง ๆ (หายเงียบ ๆ ไม่ error)
+   * ประกอบข้อความรายเครื่องผ่าน `composeForPlatform()` เสมอ (อ่าน `PushToken.platform`)
    */
   subtitle?: string
   body: string
@@ -41,30 +40,58 @@ type ExpoTicket = { status?: string; details?: { error?: string } }
 
 export const isExpoToken = (t: string) => t.startsWith('ExponentPushToken') || t.startsWith('ExpoPushToken')
 
+/** ผู้รับหนึ่งเครื่อง — สตริงเปล่า = ไม่รู้ platform (ถือเป็น iOS ดู composeForPlatform) */
+export type PushTarget = string | { token: string; platform?: string | null }
+
+type PushLines = { title: string; subtitle?: string; body: string }
+
+/**
+ * ประกอบ 3 บรรทัด (หัวเรื่อง / บรรทัดกลาง / เนื้อหา) ให้เข้ากับเครื่องปลายทาง
+ *
+ * iOS แสดง `subtitle` เป็นบรรทัดของตัวเอง · **Android ไม่มีบรรทัดนี้เลย** และ Expo ไม่ error
+ * ⇒ ถ้าส่งชุดเดียวกัน Android เสียบรรทัดกลางไปเงียบ ๆ (แชทผู้ขาย = เสีย "ใครทัก")
+ * Android จึงยกบรรทัดกลางไปนำหน้าเนื้อหาเป็น `ชื่อ: ข้อความ` — รูปที่แอปแชทบน Android ใช้กันเป็นปกติ
+ * และคงลำดับ เพจ → คนส่ง → ข้อความ ที่ user กำหนดไว้ (2026-08-08)
+ *
+ * 🛑 platform ไม่รู้ (null) = iOS: แถวก่อนมีคอลัมน์นี้มาจากแอปที่ปล่อยแค่ iOS ทั้งหมด
+ * และแอป Android ส่ง `platform:'android'` ตั้งแต่บิลด์แรก (SellerWebView.registerPushToken)
+ */
+export function composeForPlatform(platform: string | null | undefined, lines: PushLines): PushLines {
+  if (platform !== 'android') return lines
+  const sub = lines.subtitle?.trim()
+  return { title: lines.title, body: sub ? `${sub}: ${lines.body}` : lines.body }
+}
+
 /**
  * ส่ง push แบบคืนสถานะ (00066 TD-FU-4) — `delivered` = Expo รับคำขอ (`res.ok`) ไม่ใช่ "ถึงเครื่อง"
  * ไม่มี token ที่ใช้ได้ / fetch ล้ม / HTTP ไม่ ok → delivered=false (ไม่ throw)
  */
 export async function sendExpoPushWithStatus(
-  tokens: string[],
+  tokens: PushTarget[],
   title: string,
   body: string,
   data?: Record<string, unknown>,
   options?: { subtitle?: string },
 ): Promise<{ invalid: string[]; delivered: boolean }> {
-  const valid = tokens.filter(isExpoToken)
+  const targets = tokens
+    .map((t) => (typeof t === 'string' ? { token: t, platform: null } : t))
+    .filter((t) => isExpoToken(t.token))
+  const valid = targets.map((t) => t.token)
   if (valid.length === 0) return { invalid: [], delivered: false }
-  const messages: ExpoMessage[] = valid.map((to) => ({
-    to,
-    title,
-    // undefined ถูก JSON.stringify ตัดทิ้งอยู่แล้ว — ไม่ต้อง spread แบบมีเงื่อนไขให้อ่านยาก
-    subtitle: options?.subtitle,
-    body,
-    data,
-    sound: 'default',
-    priority: 'high',
-    channelId: 'default',
-  }))
+  const messages: ExpoMessage[] = targets.map((t) => {
+    const lines = composeForPlatform(t.platform, { title, subtitle: options?.subtitle, body })
+    return {
+      to: t.token,
+      title: lines.title,
+      // undefined ถูก JSON.stringify ตัดทิ้งอยู่แล้ว — ไม่ต้อง spread แบบมีเงื่อนไขให้อ่านยาก
+      subtitle: lines.subtitle,
+      body: lines.body,
+      data,
+      sound: 'default',
+      priority: 'high',
+      channelId: 'default',
+    }
+  })
   try {
     const res = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
@@ -88,7 +115,7 @@ export async function sendExpoPushWithStatus(
 
 /** ส่ง push → คืน list ของ token ที่ "เสีย" (DeviceNotRegistered) ให้ caller ลบทิ้ง — wrapper ของ WithStatus */
 export async function sendExpoPush(
-  tokens: string[],
+  tokens: PushTarget[],
   title: string,
   body: string,
   data?: Record<string, unknown>,

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { rejectInAppPurchase } from '@/lib/app-purchase-guard'
 import * as v from 'valibot'
 import { SubscribeInspectionSchema } from '@/lib/validations'
 import { subscribeInspectionPlan } from '@/services/inspection-plan.service'
@@ -13,6 +14,9 @@ import { errorResponse, mapInspectionError, requireInspectionShop } from '../_sh
  *    เพราะกฎ "ไม่คืนเงิน" เป็นของเราเอง
  */
 export async function POST(request: Request) {
+  // ในแอป (iOS/Android) ห้ามจ่ายเงินให้ Deep นอกสโตร์ — ด่านจริง ไม่ใช่แค่ซ่อนปุ่ม (app-purchase-guard.ts)
+  const inAppBlocked = await rejectInAppPurchase()
+  if (inAppBlocked) return inAppBlocked
   const auth = await requireInspectionShop()
   if ('response' in auth) return auth.response
 
