@@ -272,7 +272,9 @@ export async function getSalesSeries(
   const [rows, jobStatusRows] = await Promise.all([
     prisma.order.findMany({
       // 00061: `notIn` ตัวเดียว — เขียนแยก 2 key `status` ไม่ได้ (ตัวหลังทับตัวหน้าเงียบ ๆ)
-      where: { shopId, ...withoutDrafted('CANCELLED'), createdAt: { gte: prevGte, lt } },
+      // + RETURNED (คืนของครบทั้งใบ) — การขายถูกยกเลิกแล้ว ไม่ใช่ยอดรอยืนยัน/ค้างรับ (มติ 2026-10-01
+      // หลักใบลดหนี้) ชุดเดียวกับ /sales และ receivable.service ไม่งั้นชีตกับหน้า /sales เลขไม่ตรงกัน
+      where: { shopId, ...withoutDrafted(['CANCELLED', 'RETURNED']), createdAt: { gte: prevGte, lt } },
       select: {
         totalAmount: true,
         createdAt: true,

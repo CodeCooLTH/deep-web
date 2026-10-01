@@ -191,3 +191,17 @@ describe('[blocker] review 2026-10-01 — ตัวเลือกวันท�
   })
 })
 
+describe('[blocker] ชิปช่วงเวลาจอแคบไม่ต้องเลื่อน (มติ 2026-10-01)', () => {
+  const src = readFileSync(join(process.cwd(), 'src/app/(paces)/seller/(dashboard)/_shared/DateRangeControl.tsx'), 'utf8')
+  const mobile = src.slice(src.indexOf('flex w-full items-center gap-1.5 sm:hidden'), src.indexOf('จอ ≥sm'))
+
+  it('แถวมือถือไม่ใช่แถบเลื่อน — ชิปแบ่งความกว้าง + ปุ่มปฏิทินแยกสำหรับกำหนดเอง', () => {
+    expect(mobile.length).toBeGreaterThan(100)
+    expect(mobile).not.toMatch(/overflow-x-auto/)
+    expect(mobile).toMatch(/o\.value !== 'custom'/)
+    expect(mobile).toMatch(/flex-1/)
+    expect(mobile).toMatch(/aria-label="กำหนดเอง"/)
+    expect(mobile).toMatch(/size-11 shrink-0/)
+  })
+})
+

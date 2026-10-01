@@ -16,6 +16,9 @@ export type DailyRow = {
   avgOrder: number  // revenue / completed (or 0)
   /** จำนวนบิลที่ไม่ถูกยกเลิก (ไม่นับร่าง) — "งาน" ของร้านบริการ ชุดเดียวกับยอดบิล revenue + unconfirmedRevenue */
   billCount: number
+  /** เงินที่บันทึกรับจริงของบิลที่เปิดวันนั้น (ร้านบริการ · จาก receivable.service.daily) — undefined = ไม่ใช่แกนเงิน
+   *  ค้างรับของวัน = (revenue + unconfirmedRevenue) − received */
+  received?: number
   /** ค่าส่งจริง + ค่าธรรมเนียม COD ที่ขนส่งคิดของวันนั้น (D-EXT-10, 2026-08-09)
    *
    *  undefined = ร้านนี้ไม่มีสิทธิ์ดูข้อมูลการเงิน ทั้งคอลัมน์จะไม่ถูก render เลย

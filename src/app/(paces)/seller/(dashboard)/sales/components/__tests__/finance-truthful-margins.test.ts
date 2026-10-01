@@ -99,8 +99,20 @@ describe('[blocker] แท็บยอดเก็บเงินร้านบ
     expect(table).toMatch(/if \(moneyAxis\) return buildMoneyColumns\(countNoun\)/)
   })
 
-  it('ร่างออเดอร์ (DRAFTED) ไม่ถูกนับในหน้านี้ — ชุดแถวเดียวกับ receivable.service', () => {
-    expect(page).toMatch(/getOrdersByShop\(shop\.id\)\)\.filter\(\(o\) => o\.status !== DRAFTED_STATUS\)/)
+  it('ร่าง (DRAFTED) + คืนของครบใบ (RETURNED) ไม่ถูกนับ — ชุดแถวเดียวกับ receivable.service และชีต', () => {
+    expect(page).toMatch(/o\.status !== DRAFTED_STATUS && o\.status !== 'RETURNED'/)
+    const recv = readFileSync(join(process.cwd(), 'src/services/receivable.service.ts'), 'utf8')
+    expect(recv).toMatch(/withoutDrafted\(\['CANCELLED', 'RETURNED'\]\)/)
+    const dash = readFileSync(join(process.cwd(), 'src/services/dashboard.service.ts'), 'utf8')
+    expect(dash).toMatch(/withoutDrafted\(\['CANCELLED', 'RETURNED'\]\), createdAt: \{ gte: prevGte/)
+  })
+
+  it('กราฟ/ตารางร้านบริการแยก รับจริง | ค้างรับ รายวัน จาก receivable.daily', () => {
+    expect(page).toMatch(/received: receivables\.daily\[d\.date\]\?\.received \?\? 0/)
+    expect(chart).toMatch(/name: 'รับจริง', group: 'sales'/)
+    expect(chart).toMatch(/name: 'ค้างรับ',\s*group: 'sales'/)
+    expect(table).toMatch(/id: 'received'/)
+    expect(table).toMatch(/id: 'outstanding'/)
   })
 
   it('คำเตือนกำไรเพดานบนต้องเห็นบนจอ (caption) ไม่ใช่แค่ tooltip', () => {

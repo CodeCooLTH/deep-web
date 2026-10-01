@@ -116,6 +116,28 @@ const buildMoneyColumns = (noun: string) => [
     enableColumnFilter: false,
     cell: ({ getValue }) => formatBaht(getValue()),
   }),
+  // เรียงตามเส้นทางของเงิน ยอดขาย → รับจริง → ค้างรับ (ชุดเดียวกับตารางในชีตหน้าหลัก) · ทุกแถว รับจริง + ค้างรับ = ยอดขาย
+  columnHelper.accessor((r) => r.received ?? 0, {
+    id: 'received',
+    header: 'รับจริง',
+    enableColumnFilter: false,
+    cell: ({ getValue }) => <span className="text-success-ink">{formatBaht(getValue())}</span>,
+  }),
+  columnHelper.accessor((r) => r.revenue + r.unconfirmedRevenue - (r.received ?? 0), {
+    id: 'outstanding',
+    header: 'ค้างรับ',
+    enableColumnFilter: false,
+    cell: ({ getValue }) => {
+      const v = getValue()
+      // ติดลบ = บันทึกรับเกินบิล (คีย์ผิด/รวมบิลอื่น) — บอกด้วยคำ "เกิน" ไม่ใช่เครื่องหมายลบ
+      // (นโยบาย format-money: ทิศทางเป็นหน้าที่ของคำ + สี) · ไม่ซ่อนเป็น 0 เพราะร้านต้องเห็นเพื่อแก้
+      return (
+        <span className={v > 0 ? 'text-warning-ink' : 'text-default-700'}>
+          {v < 0 ? `รับเกิน ${formatBaht(v)}` : formatBaht(v)}
+        </span>
+      )
+    },
+  }),
 ]
 
 const SalesTable = ({ rows, showFinance = false, countNoun = 'ออเดอร์', moneyAxis = false, profitCapped = false }: Props) => {

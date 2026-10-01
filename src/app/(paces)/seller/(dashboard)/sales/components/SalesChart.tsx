@@ -82,10 +82,18 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
    * — โครงเดียวกับชีตยอดขายบนมือถือเป๊ะ เพื่อให้สอง surface เล่าเรื่องเดียวกัน
    */
   const series = moneyAxis
-    ? /* แกนเงิน: แท่งเดียว = ยอดบิลของวันนั้น (ยืนยันแล้ว + รอยืนยัน · ไม่นับยกเลิก/ร่าง) — ผลรวมทั้งช่วง
-         เท่ากับ "ยอดขาย" บนแถบ legend (salesTotal) เพราะเป็นชุดแถวเดียวกัน
-         ยังไม่มีข้อมูลรับจริงรายวันในหน้านี้ จึงไม่แยกสีรับจริง/ค้างรับรายแท่ง */
-      [{ name: 'ยอดขาย', group: 'sales', data: daily.map((d) => d.revenue + d.unconfirmedRevenue) }]
+    ? /* แกนเงิน: แท่งซ้อน รับจริง (เขียว) + ค้างรับ (เหลือง) = ยอดขายของบิลที่เปิดวันนั้น
+         ชุดสีและการตัดวันเดียวกับชีตหน้าหลัก · รับจริงรายวันมาจาก receivable.service.daily
+         (แถวชุดเดียวกับ summary ⇒ ผลรวมทั้งช่วงเท่ากับแถบ legend พอดี)
+         ค้างรับติดลบ (บันทึกรับเกินบิล) วาดเป็น 0 — แท่งติดลบซ้อนอ่านไม่ออก ตัวเลขจริงยังอยู่ในตาราง */
+      [
+        { name: 'รับจริง', group: 'sales', data: daily.map((d) => d.received ?? 0) },
+        {
+          name: 'ค้างรับ',
+          group: 'sales',
+          data: daily.map((d) => Math.max(0, d.revenue + d.unconfirmedRevenue - (d.received ?? 0))),
+        },
+      ]
     : [
         { name: 'ยืนยันแล้ว', group: 'sales', data: revenueSeries },
         { name: 'รอยืนยัน', group: 'sales', data: unconfirmedSeries },
@@ -123,7 +131,7 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
       legend: { show: false },
       // token เท่านั้น (Hard Rule 10) — เขียว=ยืนยันแล้ว เหลือง=รอยืนยัน แดง=ค่าส่ง (ชุดเดียวกับชีตหน้าหลัก)
       colors: moneyAxis
-        ? [getColor('primary')]
+        ? [getColor('success'), getColor('warning')]
         : showFinance
           ? [getColor('success'), getColor('warning'), getColor('chart-beta')]
           : [getColor('success'), getColor('warning')],
@@ -340,13 +348,14 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
         {hasAnyValue && (
           <div className="border-default-300 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-dashed px-5 py-2.5">
             {moneyAxis && collect ? (
-              /* สมการที่ไล่บวกตามได้ ชุดเดียวกับแถบหัวชีตบนหน้าหลัก — จุดสีเฉพาะ "ยอดขาย" ที่เป็นแท่งในกราฟ */
+              /* สมการที่ไล่บวกตามได้ ชุดเดียวกับแถบหัวชีตบนหน้าหลัก — จุดสี = แท่งในกราฟ 1:1
+                 "ยอดขาย" ไม่มีจุดเพราะเป็นผลรวมของสองแท่ง ไม่ใช่ซีรีส์ */
               <>
-                <LegendItem label="รับจริง" value={collect.receivedTotal} />
+                <LegendItem dot="bg-success" label="รับจริง" value={collect.receivedTotal} />
                 <span className="text-default-700 text-xs" aria-hidden="true">+</span>
-                <LegendItem label="ค้างรับ" value={collect.outstandingTotal} />
+                <LegendItem dot="bg-warning" label="ค้างรับ" value={collect.outstandingTotal} />
                 <span className="text-default-700 text-xs" aria-hidden="true">=</span>
-                <LegendItem dot="bg-primary" label="ยอดขาย" value={collect.salesTotal} />
+                <LegendItem label="ยอดขาย" value={collect.salesTotal} />
               </>
             ) : (
               <>

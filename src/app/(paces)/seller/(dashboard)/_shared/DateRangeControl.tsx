@@ -105,24 +105,39 @@ export default function DateRangeControl({ range, customDates, onRangeChange, on
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-3" aria-busy={pending || undefined}>
-      {/* จอแคบ: ชิปเลื่อนแนวนอน (segmented 5 ปุ่มไม่พอกว้าง แตกบรรทัดแล้วอ่านเป็นคนละกลุ่ม) */}
-      <div className="-mx-1 flex max-w-full gap-1.5 overflow-x-auto px-1 sm:hidden" role="group" aria-label="ช่วงเวลา">
-        {DATE_RANGE_OPTIONS.map((opt) => (
+      {/* จอแคบ: ชิป 4 ช่วงแบ่งความกว้างเท่ากัน + ปุ่มปฏิทิน 44px สำหรับ "กำหนดเอง" (มติ 2026-10-01)
+          เดิมเป็นแถบเลื่อนแนวนอน 5 ชิป ~300px ในพื้นที่ 288px (จอ 320) ⇒ "กำหนดเอง" ถูกตัดครึ่ง
+          และไม่มีอะไรบอกว่าเลื่อนได้ · แพตเทิร์นเดียวกับแอปบัญชี (ช่วงสำเร็จรูป + ไอคอนปฏิทิน) ไม่ต้องเลื่อน */}
+      <div className="flex w-full items-center gap-1.5 sm:hidden" role="group" aria-label="ช่วงเวลา">
+        {DATE_RANGE_OPTIONS.filter((o) => o.value !== 'custom').map((opt) => (
           <button
             key={opt.value}
             type="button"
-            // aria-disabled ไม่ใช่ disabled — disabled ดึงโฟกัสออกจากปุ่มที่เพิ่งกด (คีย์บอร์ด/screen reader หลุดตำแหน่ง)
             aria-disabled={pending || undefined}
             onClick={() => !pending && onRangeChange(opt.value)}
             aria-pressed={range === opt.value}
             className={cn(
-              'btn btn-sm min-h-11 shrink-0 rounded-full',
+              'btn btn-sm min-h-11 min-w-0 flex-1 rounded-full px-1 whitespace-nowrap',
               range === opt.value ? 'bg-primary/15 text-primary-ink font-semibold' : 'bg-light text-dark',
             )}
           >
             {opt.label}
           </button>
         ))}
+        <button
+          type="button"
+          aria-disabled={pending || undefined}
+          onClick={() => !pending && onRangeChange('custom')}
+          aria-pressed={range === 'custom'}
+          aria-label="กำหนดเอง"
+          title="กำหนดเอง"
+          className={cn(
+            'btn btn-icon size-11 shrink-0 rounded-full',
+            range === 'custom' ? 'bg-primary/15 text-primary-ink' : 'bg-light text-dark',
+          )}
+        >
+          <Icon icon="calendar-event" className="text-lg" aria-hidden="true" />
+        </button>
       </div>
 
       {/* จอ ≥sm: segmented ติดกันเป็นแถบเดียว */}
