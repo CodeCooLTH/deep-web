@@ -40,6 +40,7 @@ import MonthSwitcher from './MonthSwitcher'
 import ProductDetailSheet from './ProductDetailSheet'
 import ProductMobileList from './ProductMobileList'
 import ProductSalesChart, { type ChartSeries } from './ProductSalesChart'
+import { useMinWidth } from '@/hooks/useMinWidth'
 import ProductSalesTable from './ProductSalesTable'
 import {
   UNIT_LABELS,
@@ -91,6 +92,7 @@ export default function ProductSalesClient({
   nextHref,
   freshnessNote,
 }: Props) {
+  const isDesktop = useMinWidth(1024) === true
   const [unit, setUnit] = useState<SalesUnit>('qty')
   const [showZero, setShowZero] = useState(false)
   /**
@@ -318,6 +320,9 @@ export default function ProductSalesClient({
             unit={unit}
             futureFrom={futureFrom}
             days={days}
+            // จอ ≥1024 กราฟกว้าง ~1,100px ที่สูง 240 แบนเกินอ่าน (audit responsive 2026-10-01)
+            // 320 = ความสูงเดียวกับกราฟ /sales · ยังไม่รู้ขนาดจอ (null ตอน SSR) = ค่าเดิม 240
+            height={isDesktop ? 320 : 240}
           />
           {/**
             * 🛑 `SALES_BASIS_NOTE` **ต้องมองเห็นได้เสมอ ห้ามซ่อนหลังปุ่ม** — คอมเมนต์ที่ตัว

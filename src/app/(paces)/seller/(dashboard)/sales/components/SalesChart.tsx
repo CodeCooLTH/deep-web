@@ -28,6 +28,7 @@ import ApexChart from '@/components/wrappers/ApexChart'
 import { getColor } from '@/utils/helpers'
 import { formatBaht, formatBahtCompact, profitDisplay, SALES_PROFIT_FORMULA, pctChangeVsPrev } from '@/lib/format-money'
 import { formatDate, formatDayMonth } from '@/lib/format-date'
+import { bucketForChart } from '@/lib/sales-chart-buckets'
 import PacesStatCard from '../../_shared/PacesStatCard'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import { useCallback } from 'react'
@@ -57,13 +58,18 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
   const moneyAxis = isServiceQueue && collect != null
   const noun = isServiceQueue ? 'งาน' : 'ออเดอร์'
   // category = ISO ดิบ ("2026-09-01") — จัดรูปตอนแสดงเท่านั้น ทั้งแกน (สั้น) และ tooltip (เต็ม)
-  const categories = daily.map((d) => d.date)
-  const revenueSeries = daily.map((d) => d.revenue)
-  const unconfirmedSeries = daily.map((d) => d.unconfirmedRevenue)
+  /**
+   * ช่วงยาวเกิน 62 วัน → รวมเป็นแท่งรายสัปดาห์ (เฉพาะกราฟ — ตารางยังรายวัน) · ดู lib/sales-chart-buckets
+   * ชื่อการ์ดและ tooltip ต้องบอกด้วยว่าเป็นรายสัปดาห์ ไม่งั้นผู้ใช้อ่านแท่งเป็นยอดวันเดียว
+   */
+  const { weekly, buckets } = bucketForChart(daily)
+  const categories = buckets.map((b) => b.start)
+  const revenueSeries = buckets.map((b) => b.revenue)
+  const unconfirmedSeries = buckets.map((b) => b.unconfirmedRevenue)
   // ค่าส่ง (feature 00016 ส่วนขยาย 2026-08-09) — undefined ทั้งชุด = ไม่มีสิทธิ์ดูข้อมูลการเงิน
   // ซ่อนทั้ง series และการ์ด (ไม่ใช่ส่ง 0 ลงไปแล้วให้ดูเหมือนไม่มีค่าส่ง)
   const showFinance = summary.totalShippingCost != null && !isServiceQueue
-  const shippingSeries = daily.map((d) => d.shippingCost ?? 0)
+  const shippingSeries = buckets.map((b) => b.shippingCost)
   const profit = profitDisplay(summary.netProfit ?? 0)
   /**
    * ยังตั้งต้นทุนไม่ครบ = กำไรเป็นเพดานบน (ต้นทุนที่ขาดถูกข้าม) — คำ "ไม่เกิน/อย่างน้อย" ชุดเดียวกับ
@@ -87,11 +93,11 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
          (แถวชุดเดียวกับ summary ⇒ ผลรวมทั้งช่วงเท่ากับแถบ legend พอดี)
          ค้างรับติดลบ (บันทึกรับเกินบิล) วาดเป็น 0 — แท่งติดลบซ้อนอ่านไม่ออก ตัวเลขจริงยังอยู่ในตาราง */
       [
-        { name: 'รับจริง', group: 'sales', data: daily.map((d) => d.received ?? 0) },
+        { name: 'รับจริง', group: 'sales', data: buckets.map((b) => b.received) },
         {
           name: 'ค้างรับ',
           group: 'sales',
-          data: daily.map((d) => Math.max(0, d.revenue + d.unconfirmedRevenue - (d.received ?? 0))),
+          data: buckets.map((b) => Math.max(0, b.revenue + b.unconfirmedRevenue - b.received)),
         },
       ]
     : [
@@ -167,7 +173,13 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
       tooltip: {
         shared: true,
         intersect: false,
-        x: { formatter: (_v: unknown, o?: { dataPointIndex?: number }) => formatDate(daily[o?.dataPointIndex ?? -1]?.date) },
+        x: {
+          formatter: (_v: unknown, o?: { dataPointIndex?: number }) => {
+            const b = buckets[o?.dataPointIndex ?? -1]
+            if (!b) return '—'
+            return b.start === b.end ? formatDate(b.start) : `${formatDate(b.start)} – ${formatDate(b.end)}`
+          },
+        },
         y: { formatter: (val: number) => formatBaht(val) },
       },
     }),
@@ -343,7 +355,7 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
 
       <div className="card">
         <div className="card-header flex-nowrap gap-2">
-          <h5 className="card-title min-w-0 truncate">ยอดขายรายวัน</h5>
+          <h5 className="card-title min-w-0 truncate">{weekly ? 'ยอดขายรายสัปดาห์' : 'ยอดขายรายวัน'}</h5>
           <span className="text-default-500 shrink-0 text-xs whitespace-nowrap">{periodLabel}</span>
         </div>
         {/* แถบนี้คือ legend ของกราฟ — จุดสี = สีแท่ง 1:1 พร้อมยอดรวมของช่วง */}
