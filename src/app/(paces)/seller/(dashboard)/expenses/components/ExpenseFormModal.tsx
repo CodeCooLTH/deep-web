@@ -220,7 +220,7 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
       aria-modal="true"
       aria-labelledby="expenseFormModalTitle"
       tabIndex={-1}
-      className="size-full bg-dark/40 fixed top-0 start-0 z-80 flex items-end overflow-x-hidden overflow-y-auto sm:items-center sm:p-3"
+      className="size-full bg-dark/40 fixed top-0 start-0 z-80 flex items-end overflow-x-hidden overflow-y-auto overscroll-contain sm:items-center sm:p-3"
       onClick={(e) => {
         if (e.target === e.currentTarget) dismiss()
       }}
@@ -252,7 +252,7 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
             </button>
           </div>
 
-          <div className="card-body grid gap-4 overflow-y-auto">
+          <div className="card-body grid gap-4 overflow-y-auto overscroll-contain">
             {/* จำนวนเงิน — มาก่อนเพราะเป็นข้อมูลที่ผู้ใช้ถืออยู่ในมือตอนเปิดโมดัล */}
             <div>
               <label htmlFor="expenseAmount" className="form-label">
@@ -269,7 +269,8 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
                   // ล้อเมาส์ทับช่อง type=number แล้วค่าจะเปลี่ยนโดยผู้ใช้ไม่รู้ตัว — ถอด focus ทิ้งก่อน
                   onWheel={(e) => e.currentTarget.blur()}
                   placeholder="0.00"
-                  className="form-input text-2xl font-bold"
+                  // `text-2xl!` — .form-input (text-sm) ไม่อยู่ใน @layer ชนะ utility ธรรมดา ช่องจำนวนเงินจึงเคยเล็ก 14px
+                  className="form-input text-2xl! font-bold"
                   aria-invalid={!!errors.amount}
                   {...register('amount', { valueAsNumber: true })}
                 />

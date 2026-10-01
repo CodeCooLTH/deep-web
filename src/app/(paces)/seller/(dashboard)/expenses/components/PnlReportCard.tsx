@@ -72,12 +72,15 @@ export default function PnlReportCard({
   return (
     <div
       className={cn(
-        'grid grid-cols-1 gap-1.25 transition-opacity md:grid-cols-2 lg:grid-cols-5',
+        // 5 ใบ: การ์ดคำตอบเต็มแถว + 2×2 จนถึง 2xl แล้วค่อย 5 คอลัมน์ (audit 2026-10-01)
+        // เดิม lg:grid-cols-5 ที่ 1024 เหลือใบละ ~104px ตัวเลขล้น · md 2 คอลัมน์ 5 ใบมีใบกำพร้า
+        'grid grid-cols-1 gap-1.25 transition-opacity md:grid-cols-2 2xl:grid-cols-5',
         loading && 'opacity-50',
       )}
     >
       {/* การ์ดแรก = คำตอบของหน้า — เด่นด้วยลำดับการอ่าน ไม่ใช่ขนาด */}
       <PacesStatCard
+        className="md:col-span-2 2xl:col-span-1"
         icon={profit.icon}
         iconClass={
           capped

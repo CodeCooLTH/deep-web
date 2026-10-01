@@ -143,8 +143,8 @@ export default async function ProductSalesReportPage({
     <PageBreadcrumb
       title={TITLE}
       subtitle={SUBTITLE}
-      hideTitleBelowMd
-      action={<span className="max-md:hidden">{monthNav}</span>}
+      hideTitleBelowLg
+      action={<span className="max-lg:hidden">{monthNav}</span>}
     />
   )
 

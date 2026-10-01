@@ -364,6 +364,20 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
   // overlay นี้ mount เฉพาะตอนเปิด จึงตรึงหน้าข้างหลังตลอดอายุของมัน (ดู useLockBodyScroll)
   useLockBodyScroll(true)
 
+  /**
+   * ชีตนี้อยู่ใต้ wrapper `lg:hidden` ของ CommandCenter — หมุน iPad จากแนวตั้ง (820) เป็นแนวนอน (1180)
+   * ชีตหายไปจากจอแต่ยัง mount อยู่ ⇒ ล็อก scroll ค้าง หน้าเลื่อนไม่ได้จนรีโหลด (audit 2026-10-01)
+   * ⇒ ข้ามเส้น lg (1024) เมื่อไหร่ ปิดชีตเลย (ปลดล็อกตาม unmount)
+   */
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const onChange = (e: MediaQueryListEvent) => {
+      if (e.matches) onClose()
+    }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [onClose])
+
   // "เดือนนี้" ตามปฏิทินไทย ไม่ใช่ของเบราว์เซอร์ — ตัวเดียวกับที่ server ตัดยอด (review 2026-10-01)
   const [nowYear, nowMonth] = todayThaiIsoDate().split('-').map(Number)
 
@@ -598,9 +612,10 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
 
   return (
     // HR7: fixed inset-0 z-80 = full-screen viewport-lock (Paces ไม่มี token) — pattern เดียวกับ AddressSearchSheet
-    <div className="fixed inset-0 z-80 flex flex-col bg-card" role="dialog" aria-label={isService ? 'การเงินร้าน' : 'รายงานยอดขายและกำไร'}>
+    <div className="fixed inset-0 z-80 flex flex-col bg-card pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" role="dialog" aria-label={isService ? 'การเงินร้าน' : 'รายงานยอดขายและกำไร'}> {/* carve-out: safe-area ไม่มี token — เปลือก fixed inset-0 เป็นคนรับ inset (ios-safe-area.md) */}
       <div className="flex shrink-0 items-center gap-3 border-b border-default-200 px-4 py-3">
-        <button type="button" onClick={onClose} aria-label="ปิด" className="shrink-0 text-default-700">
+        {/* 44px — ปุ่มเปล่าไม่มี .btn จึงไม่โดนกฎ 44px ของระบบ เดิมพื้นที่กดเท่าไอคอน 24px (audit 2026-10-01) */}
+        <button type="button" onClick={onClose} aria-label="ปิด" className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center text-default-700">
           <Icon icon="chevron-left" className="size-6" />
         </button>
         {/* ร้านบริการไม่มีต้นทุนสินค้า ⇒ "กำไร" = ยอดขายเป๊ะ ๆ · ชื่อหน้าจึงต้องพูดถึงสิ่งที่
@@ -673,7 +688,8 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
         </nav>
       )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-[env(safe-area-inset-bottom)]">
+      {/* inset ล่างย้ายไปที่เปลือกแล้ว (กันนับซ้ำ) · overscroll-contain กันเลื่อนทะลุไปหน้าข้างหลัง */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4">
         {/* tablet: content จำกัดความกว้าง max-w-lg (mobile เต็มจอ) */}
         <div className="mx-auto w-full max-w-lg py-4">
           <div className="mb-4 flex items-center justify-between gap-2">

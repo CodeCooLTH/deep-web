@@ -209,7 +209,7 @@ export default function ExpenseWorkspace({
             <Icon icon="alert-triangle" className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
             กำไรที่แสดงสูงกว่าความจริง — มีสินค้าที่ยังไม่ได้ใส่ต้นทุนในช่วงนี้
           </span>
-          <Link href="/products" className="font-semibold underline min-h-11 lg:min-h-0">
+          <Link href="/products" className="inline-flex min-h-11 items-center font-semibold underline lg:min-h-0">
             ใส่ต้นทุนตอนนี้ →
           </Link>
         </div>
@@ -248,10 +248,11 @@ export default function ExpenseWorkspace({
       {/* ปุ่มหลักบนมือถือ — fixed เหนือ SellerBottomNav (ดู carve-out ในคอมเมนต์ด้านล่าง) */}
       <div
         className="bg-card border-default-200 fixed inset-x-0 z-20 border-t px-4 py-3 sm:hidden"
-        /* carve-out safe-area + ความสูงเมนูล่าง (Hard Rule 7): SellerBottomNav เป็น fixed สูง 4rem
+        /* carve-out safe-area + ความสูงเมนูล่าง (Hard Rule 7): SellerBottomNav เป็น fixed สูง 4.5rem
+           (แก้ 2026-10-01 — เดิมเขียน 4rem แถบนี้จึงจมใต้เมนู 8px ปุ่มเหลือระยะห่างเมนูแค่ 4px)
            ทับพอดีตำแหน่งนี้ ต้องยกตัวเองพ้น + เผื่อ home indicator ของเครื่อง
            precedent: shop/components/ShopForm.tsx (z-20 ต่ำกว่า SellerBottomNav z-30 จึงไม่บังเมนู) */
-        style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}
+        style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom))' }}
       >
         <button
           type="button"

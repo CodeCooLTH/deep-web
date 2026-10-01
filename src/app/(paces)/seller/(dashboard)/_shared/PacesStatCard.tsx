@@ -49,6 +49,8 @@ export type PacesStatCardProps = {
   caption?: string
   /** `neutral` = ทิศทางขึ้น/ลงไม่ได้แปลว่าดี/แย่ (เช่นยอดที่ยังรอยืนยัน) → badge สีกลาง ไม่ใช่เขียว/แดง */
   changeTone?: 'semantic' | 'neutral'
+  /** คลาสเพิ่มที่ตัวการ์ด — ใช้กับตำแหน่งใน grid เท่านั้น (เช่น col-span) ไม่ใช่แต่งหน้าตา */
+  className?: string
 }
 
 export default function PacesStatCard({
@@ -65,9 +67,10 @@ export default function PacesStatCard({
   metricValue,
   caption,
   changeTone = 'semantic',
+  className,
 }: PacesStatCardProps) {
   return (
-    <div className="card">
+    <div className={cn('card', className)}>
       <div className="card-body">
         <div className="mb-2 flex items-center gap-1.5">
           <h5 className="card-title text-sm" title={title}>
@@ -81,11 +84,12 @@ export default function PacesStatCard({
           )}
         </div>
 
-        <div className="my-5 flex items-center gap-2.5">
+        {/* flex-wrap + min-w-0 — การ์ดแคบ (grid หลายคอลัมน์บนจอ 1024) badge ตกบรรทัดแทนที่จะล้นไปทับการ์ดข้าง ๆ */}
+        <div className="my-5 flex min-w-0 flex-wrap items-center gap-2.5">
           <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-full', iconClass)}>
             <Icon icon={icon} className="text-2xl" />
           </div>
-          <h3 className={cn('text-xl font-semibold', valueClass)}>{text}</h3>
+          <h3 className={cn('min-w-0 text-xl font-semibold', valueClass)}>{text}</h3>
           {changePercent != null && (
             <span
               title={changeHint ?? 'เทียบช่วงก่อนหน้า'}
