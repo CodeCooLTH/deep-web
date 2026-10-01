@@ -17,7 +17,7 @@ import { getUnreadCountForShop } from '@/services/chat.service'
 import OnboardingGate from './dashboard/components/OnboardingGate'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
-import { shouldHidePaidFeatures, shouldHidePayments } from '@/lib/app-shell-server'
+import { shouldHidePaidFeatures, shouldOfferIap, shouldHidePayments } from '@/lib/app-shell-server'
 import ShopPackageSidenavCard from './_shared/ShopPackageSidenavCard'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -137,6 +137,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     unreadChatCount,
     hidePayments,
     hidePaidFeatures: await shouldHidePaidFeatures(),
+    offerIap: await shouldOfferIap(),
   })
 
   // ป้ายเมนู/แท็บของ /orders ต้องเป็นคำเดียวกันทั้ง sidebar, แถบล่างมือถือ และชื่อหน้าบนมือถือ
@@ -198,7 +199,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* IapRecoveryListener (00064): รับธุรกรรม Apple ที่ค้างจากรอบก่อนแล้วเปิดสิทธิ์ให้เอง
           — mount ที่ layout เพราะคนที่จ่ายเงินแล้วสิทธิ์ไม่เปิดจะไม่เดินกลับไปหน้าแพ็กเกจเอง
           บนเบราว์เซอร์ปกติตัวนี้ไม่แขวน listener ใด ๆ (ไม่มี ReactNativeWebView) */}
-      <IapRecoveryListener />
+      {/* เฉพาะเปลือกที่มี IAP (iOS) — Android ไม่มีการซื้อในแอป (2026-10-01) */}
+      {(await shouldOfferIap()) && <IapRecoveryListener />}
       {/* SellerChatWidget (floating bubble มุมขวาล่าง) ถอด mount ออกตามที่ user สั่ง 2026-07-29 —
           ทับพื้นที่เดียวกับ toast แจ้งข้อความใหม่ และซ้ำกับเมนู "แชท" ที่มีอยู่แล้วทั้ง sidenav
           (desktop) และ SellerBottomNav (mobile). ไฟล์ widget ยังอยู่ในโปรเจกต์ (SellerChatWidget /

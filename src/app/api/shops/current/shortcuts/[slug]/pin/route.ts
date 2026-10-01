@@ -5,7 +5,7 @@
 import { NextResponse } from 'next/server'
 import { pinShortcut } from '@/services/shortcut.service'
 import { getSessionOr401, validateSlug, respond, handleShortcutError } from '../../_shared'
-import { shouldHidePaidFeatures, shouldHidePayments } from '@/lib/app-shell-server'
+import { shouldHidePaidFeatures, shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +22,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ slug: 
     return respond(await pinShortcut(session, slug, {
         hidePayments: await shouldHidePayments(),
         hidePaidFeatures: await shouldHidePaidFeatures(),
+        offerIap: await shouldOfferIap(),
       }))
   } catch (e) {
     return handleShortcutError(e, 'POST /api/shops/current/shortcuts/[slug]/pin')

@@ -18,7 +18,7 @@
  * กดวนไปมาแล้วมีโอกาสไปโผล่ปุ่มซื้อ — จ่ายสองทางพร้อมกัน
  */
 import type { AppShell } from '@/lib/app-shell'
-import { isPaymentRestricted } from '@/lib/app-shell'
+import { hasInAppPurchase } from '@/lib/app-shell'
 import { isWalletBilled } from '@/lib/subscription-source'
 import type { BusinessPackageTier } from '@/lib/business-package'
 import type { IapFailure, IapProduct } from '@/lib/iap-bridge-protocol'
@@ -45,10 +45,11 @@ export type AppPurchaseView =
   | { kind: 'unavailable'; reason: IapFailure }
 
 export function resolveAppPurchaseView(input: AppPurchaseInput): AppPurchaseView {
-  /* เปลือกที่ไม่ได้ถูกห้ามช่องทางจ่ายเงิน = เว็บปกติ/Android → ของเดิมทั้งหมด
-     ผูกกับ `isPaymentRestricted` ตัวเดียวกับที่ซ่อนปุ่มเติมเงิน เพื่อไม่ให้มีนิยาม
-     "อยู่ในแอปหรือเปล่า" สองชุดที่เผลอเปลี่ยนไม่พร้อมกัน */
-  if (!isPaymentRestricted(input.shell)) return { kind: 'web' }
+  /* เปลือกที่ไม่มี IAP (เว็บปกติ/Android) → ของเดิมทั้งหมด — ไม่ใช่หน้าซื้อผ่าน StoreKit
+     🛑 เดิมผูกกับ `isPaymentRestricted` ซึ่งถูกตอนมีแค่ iOS · พอ Android ถูกห้ามจ่ายเงินด้วย
+     (2026-10-01) แต่ไม่มี IAP ตัวนั้นจะพา Android เข้าทาง StoreKit ที่ไม่มีอยู่ ⇒ ใช้ hasInAppPurchase
+     (หน้า `/business/subscribe` เองก็ redirect Android ออกก่อนถึงตรงนี้ — ตัวนี้คือชั้นที่สอง) */
+  if (!hasInAppPurchase(input.shell)) return { kind: 'web' }
 
   const sub = input.subscription
   if (sub) {

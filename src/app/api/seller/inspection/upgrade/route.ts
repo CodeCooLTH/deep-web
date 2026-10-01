@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { rejectInAppPurchase } from '@/lib/app-purchase-guard'
 import * as v from 'valibot'
 import { UpgradeInspectionSchema } from '@/lib/validations'
 import { changeInspectionPlanStep } from '@/services/inspection-plan.service'
@@ -14,6 +15,9 @@ import { errorResponse, mapInspectionError, requireInspectionShop } from '../_sh
  * 🛑 ต้องรับทราบเงื่อนไข **ซ้ำทุกครั้งที่จ่ายเงิน** (AC-INS-10-3) ไม่ใช่ครั้งเดียวตอนสมัคร
  */
 export async function POST(request: Request) {
+  // ในแอป (iOS/Android) ห้ามจ่ายเงินให้ Deep นอกสโตร์ — ด่านจริง ไม่ใช่แค่ซ่อนปุ่ม (app-purchase-guard.ts)
+  const inAppBlocked = await rejectInAppPurchase()
+  if (inAppBlocked) return inAppBlocked
   const auth = await requireInspectionShop()
   if ('response' in auth) return auth.response
 

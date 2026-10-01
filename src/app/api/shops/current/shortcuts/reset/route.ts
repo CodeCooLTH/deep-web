@@ -6,7 +6,7 @@
  */
 import { resetShortcuts } from '@/services/shortcut.service'
 import { getSessionOr401, respond, handleShortcutError } from '../_shared'
-import { shouldHidePaidFeatures, shouldHidePayments } from '@/lib/app-shell-server'
+import { shouldHidePaidFeatures, shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +18,7 @@ export async function POST() {
     return respond(await resetShortcuts(session, {
         hidePayments: await shouldHidePayments(),
         hidePaidFeatures: await shouldHidePaidFeatures(),
+        offerIap: await shouldOfferIap(),
       }))
   } catch (e) {
     return handleShortcutError(e, 'POST /api/shops/current/shortcuts/reset')

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rejectInAppPurchase } from "@/lib/app-purchase-guard";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -17,6 +18,9 @@ import {
  * idempotent ต่อ double-charge: productId ปักหมุดอยู่แล้ว → คืน state ไม่หักซ้ำ (service layer)
  */
 export async function POST(request: NextRequest) {
+  // ในแอป (iOS/Android) ห้ามจ่ายเงินให้ Deep นอกสโตร์ — ด่านจริง ไม่ใช่แค่ซ่อนปุ่ม (app-purchase-guard.ts)
+  const inAppBlocked = await rejectInAppPurchase()
+  if (inAppBlocked) return inAppBlocked
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "กรุณาเข้าสู่ระบบ", code: "UNAUTHORIZED" }, { status: 401 });

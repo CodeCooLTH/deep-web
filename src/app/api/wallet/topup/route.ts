@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { rejectInAppPurchase } from "@/lib/app-purchase-guard";
 import { getServerSession } from "next-auth";
 import { safeParse } from "valibot";
 import { authOptions } from "@/lib/auth";
@@ -29,6 +30,9 @@ import { requireActiveShop } from "@/lib/shop-context";
  * error log ใช้แค่ shopId (non-PII internal ref) ไม่มี slipFileId/amount.
  */
 export async function POST(request: Request) {
+  // ในแอป (iOS/Android) ห้ามจ่ายเงินให้ Deep นอกสโตร์ — ด่านจริง ไม่ใช่แค่ซ่อนปุ่ม (app-purchase-guard.ts)
+  const inAppBlocked = await rejectInAppPurchase()
+  if (inAppBlocked) return inAppBlocked
   // 1. auth gate — session ต้องมีก่อน (ไม่มี = 401)
   const session = await getServerSession(authOptions);
   if (!session?.user) {

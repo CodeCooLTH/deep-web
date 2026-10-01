@@ -5,6 +5,7 @@ import { cookies, headers } from 'next/headers'
 
 import {
   SHELL_COOKIE_NAME,
+  hasInAppPurchase,
   isPaidFeatureRestricted,
   isPaymentRestricted,
   isSignUpRestricted,
@@ -52,3 +53,14 @@ export async function shouldHideSignUp(): Promise<boolean> {
 export async function shouldHidePaidFeatures(): Promise<boolean> {
   return isPaidFeatureRestricted(await getAppShell())
 }
+
+/**
+ * มีหน้าซื้อในแอป (IAP) ให้พาไปไหม — iOS ใช่ · Android/เว็บ ไม่ใช่ (ดู `hasInAppPurchase`)
+ *
+ * 🛑 ใช้ตัวนี้ทุกครั้งที่จะ redirect/ลิงก์ไป `/business/subscribe` หรือโชว์เมนู "แพ็กเกจของฉัน"
+ * ภายใต้ `shouldHidePayments()` — Android ห้ามจ่ายเงินแต่ไม่มีหน้าซื้อให้ไป
+ */
+export async function shouldOfferIap(): Promise<boolean> {
+  return hasInAppPurchase(await getAppShell())
+}
+
