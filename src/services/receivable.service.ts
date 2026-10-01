@@ -57,6 +57,12 @@ export interface ReceivableResult {
   summary: ReceivableSummary
   items: ReceivableItem[]
   nextCursor: string | null
+  /**
+   * ยอดขาย/รับจริงรายวัน (คีย์ = thaiDayKey ของวันเปิดบิล) — คิดจาก **แถวชุดเดียวกับ summary**
+   * จึงรวมกันได้ summary พอดี · ใช้แยกแท่ง "รับจริง/ค้างรับ" ในกราฟรายวันของ /sales
+   * (bucket ตามวันเปิดบิล เหมือนชีตหน้าหลัก `dashboard.service` — ไม่ใช่วันที่รับเงิน)
+   */
+  daily: Record<string, { sales: number; received: number }>
 }
 
 /** เพดานต่อหน้า — ผู้เรียกส่งมาได้ แต่ service เป็นคนบังคับขอบเขตสุดท้าย */
@@ -164,7 +170,13 @@ export async function getReceivables(
        * จะนับร่างเป็นยอดค้างรับ แล้วร้านไปทวงเงินจากบิลที่ยังไม่เคยเปิดจริง
        * (Prisma รับ key `status` ได้ครั้งเดียว ⇒ เขียนสองบรรทัดจะทับกันเงียบ ๆ ต้องรวมเป็น notIn)
        */
-      ...withoutDrafted('CANCELLED'),
+      /**
+       * 🛑 `RETURNED` (คืนของครบทั้งใบ, feature 00056) ตัดออกด้วย — การขายถูกยกเลิกไปแล้ว
+       * หลักเดียวกับใบลดหนี้ในระบบบัญชี: คืนของ = ไม่มีหนี้ให้ตามเก็บ และ P&L (revenueOrderWhere)
+       * กับยอดออเดอร์บนโปรไฟล์ (public-order-count) ก็ไม่นับใบนี้อยู่แล้ว (มติ 2026-10-01)
+       * คืน **บางส่วน** ไม่เปลี่ยน Order.status ⇒ ยังนับเต็มใบ (ตรงกับ P&L ปัจจุบัน)
+       */
+      ...withoutDrafted(['CANCELLED', 'RETURNED']),
       createdAt: { gte: range.orderRange.gte, lt: range.orderRange.lt },
     },
     select: ORDER_SELECT,
@@ -175,9 +187,14 @@ export async function getReceivables(
 
   let salesTotal = 0
   let receivedTotal = 0
+  const daily: Record<string, { sales: number; received: number }> = {}
   for (const it of all) {
     salesTotal += it.totalAmount
     receivedTotal += it.receivedAmount
+    const day = thaiDayKey(it.createdAt)
+    const d = (daily[day] ??= { sales: 0, received: 0 })
+    d.sales = round2(d.sales + it.totalAmount)
+    d.received = round2(d.received + it.receivedAmount)
   }
   salesTotal = round2(salesTotal)
   receivedTotal = round2(receivedTotal)
@@ -205,5 +222,6 @@ export async function getReceivables(
     },
     items: page,
     nextCursor,
+    daily,
   }
 }

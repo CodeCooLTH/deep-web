@@ -51,7 +51,7 @@ describe('getSalesSeries — daily', () => {
     expect(res.futureFromIndex).toBe(31)
   })
 
-  it('CANCELLED + DRAFTED ไม่ถูกนับ (where filter)', async () => {
+  it('CANCELLED + DRAFTED + RETURNED ไม่ถูกนับ (where filter)', async () => {
     findMany.mockResolvedValue([{ totalAmount: 100, createdAt: thaiNoon(2026, 3, 2) }] as never)
     const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 })
     expect(res.total).toBe(100)
@@ -59,7 +59,8 @@ describe('getSalesSeries — daily', () => {
     const arg = findMany.mock.calls[0][0] as { where: Record<string, unknown> }
     expect(arg.where.shopId).toBe('shop1')
     expect(new Set((arg.where.status as { notIn: string[] }).notIn)).toEqual(
-      new Set(['CANCELLED', 'DRAFTED']),
+      // RETURNED (คืนของครบทั้งใบ) = การขายถูกยกเลิก — มติ 2026-10-01 ชุดเดียวกับ /sales + receivable
+      new Set(['CANCELLED', 'DRAFTED', 'RETURNED']),
     )
   })
 })

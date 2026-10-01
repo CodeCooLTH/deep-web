@@ -99,7 +99,8 @@ related: ["[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
       "daysOutstanding": 23
     }
   ],
-  "nextCursor": null
+  "nextCursor": null,
+  "daily": { "2026-09-07": { "sales": 900.00, "received": 0.00 } }
 }
 ```
 
@@ -107,9 +108,10 @@ related: ["[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
 
 | กฎ | รายละเอียด |
 |----|-----------|
-| **R1** | `salesTotal` นับด้วย `withoutDrafted('CANCELLED')` — ตัดทั้งใบที่ยกเลิกและ**ร่างออเดอร์ (`DRAFTED`, feature 00061)** 🛑 เขียนแค่ `status: { not: 'CANCELLED' }` จะนับร่างเป็นยอดค้างรับ แล้วร้านไปทวงเงินจากบิลที่ยังไม่เคยเปิดจริง — **คนละนิยามกับแท็บกำไร** ต้องมีข้อความกำกับบนหน้าจอ (ดู [[SRS]] TFR-005) |
+| **R1** | `salesTotal` นับด้วย `withoutDrafted(['CANCELLED', 'RETURNED'])` — ตัดใบที่ยกเลิก · **คืนของครบทั้งใบ (`RETURNED`, เพิ่ม 2026-10-01)** · และ**ร่างออเดอร์ (`DRAFTED`, feature 00061)** 🛑 เขียนแค่ `status: { not: 'CANCELLED' }` จะนับร่างเป็นยอดค้างรับ แล้วร้านไปทวงเงินจากบิลที่ยังไม่เคยเปิดจริง — **คนละนิยามกับแท็บกำไร** ต้องมีข้อความกำกับบนหน้าจอ (ดู [[SRS]] TFR-005) |
 | **R2** | `receivedTotal` นับเฉพาะ `OrderPayment.voidedAt IS NULL` |
 | **R3** | `outstandingTotal = salesTotal − receivedTotal` เสมอ — ฝั่ง client ห้ามคำนวณเอง |
+| **R4** | `daily` (เพิ่ม 2026-10-01) — คีย์ `thaiDayKey` ของวันเปิดบิล · คิดจาก**แถวชุดเดียวกับ summary** ⇒ Σ`sales` = `salesTotal`, Σ`received` = `receivedTotal` · ใช้แยกแท่ง รับจริง/ค้างรับ รายวันใน `/sales` |
 | **R4** | `items` มีเฉพาะ `outstandingAmount > 0` เรียง `createdAt` เก่าสุดก่อน |
 | **R5** | บิลที่ `receivedAmount > totalAmount` **ไม่อยู่ใน `items`** แต่ยังนับใน `summary` ตามจริง |
 | **R6** | `conversationId` เป็น `null` ได้ — client ต้องตกไปลิงก์หน้าบิลแทน |

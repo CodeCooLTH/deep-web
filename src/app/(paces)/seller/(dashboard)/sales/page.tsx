@@ -196,7 +196,10 @@ export default async function SalesPage({
    * (ไม่ใช่ CONFIRMED/CANCELLED) เคยนับร่างเป็น "รอลูกค้ายืนยัน" + จำนวนออเดอร์ ทั้งที่ร่างยังไม่ใช่บิลจริง
    * (พบ 2026-10-01 ตอนเทียบกับ receivable.service ซึ่งใช้ withoutDrafted อยู่แล้ว — ชุดแถวต้องตรงกัน)
    */
-  const allOrders = (await getOrdersByShop(shop.id)).filter((o) => o.status !== DRAFTED_STATUS)
+  // + `RETURNED` (คืนของครบทั้งใบ) ตัดเหมือนกัน — การขายถูกยกเลิกแล้ว หลักใบลดหนี้ · ตรงกับ P&L/receivable (มติ 2026-10-01)
+  const allOrders = (await getOrdersByShop(shop.id)).filter(
+    (o) => o.status !== DRAFTED_STATUS && o.status !== 'RETURNED',
+  )
 
   // ใช้ type จริงจาก return value ของ getOrdersByShop — ป้องกัน silent break ถ้า schema เปลี่ยน
   type OrderItem = Awaited<ReturnType<typeof getOrdersByShop>>[number]
@@ -378,6 +381,14 @@ export default async function SalesPage({
         })
       : null
 
+  /**
+   * แกนเงินของร้านบริการ: เติม "รับจริง" รายวันจาก receivable.service (แถวชุดเดียวกับ summary)
+   * ⇒ กราฟ/ตารางแยก รับจริง | ค้างรับ ได้ทุกวัน เหมือนชีตหน้าหลัก (เดิมแท่งเดียวเพราะไม่มีข้อมูลนี้)
+   */
+  const dailyView: DailyRow[] = receivables
+    ? daily.map((d) => ({ ...d, received: receivables.daily[d.date]?.received ?? 0 }))
+    : daily
+
   return (
     <>
       <PageBreadcrumb
@@ -394,7 +405,7 @@ export default async function SalesPage({
       </div>
 
       <SalesChart
-        daily={daily}
+        daily={dailyView}
         summary={summary}
         periodLabel={periodLabel}
         isServiceQueue={isServiceQueue}
@@ -403,7 +414,7 @@ export default async function SalesPage({
 
       <div className="card mt-1.25">
         <SalesTable
-          rows={daily}
+          rows={dailyView}
           showFinance={canSeeFinance && !isServiceQueue}
           countNoun={isServiceQueue ? 'งาน' : 'ออเดอร์'}
           moneyAxis={isServiceQueue && receivables != null}
