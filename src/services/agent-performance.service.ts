@@ -225,7 +225,12 @@ async function fetchOrders(shopId: string, f: ReportFilters): Promise<OrderRow[]
       o."orderNo"           AS "orderNo",
       o."createdAt"         AS "createdAt",
       o."createdByUserId"   AS "createdByUserId",
-      o."totalAmount"       AS "amount",
+      -- หักคืนบางส่วนที่รับของแล้ว (มติ 2026-10-01 · กติกาเดียวกับ return-adjustment.service ฝั่ง TS)
+      -- ใบ RETURNED ทั้งใบไม่นับเป็นยอดขายอยู่แล้ว (revenueOrderSql) จึงไม่ต้องกรองซ้ำในซับคิวรี
+      (o."totalAmount" - COALESCE((
+        SELECT SUM(r."refundAmount") FROM "OrderReturn" r
+        WHERE r."orderId" = o."id" AND r."status" = 'RECEIVED'
+      ), 0))                AS "amount",
       ${Prisma.raw(revenueOrderSql('o'))} AS "isRevenue",
       (o."status" = 'CANCELLED') AS "isCancelled",
       own.owner_user_id     AS "ownerUserId"

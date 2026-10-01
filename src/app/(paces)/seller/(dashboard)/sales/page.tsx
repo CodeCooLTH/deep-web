@@ -21,6 +21,9 @@ import SalesDateRange from './components/SalesDateRange'
 import type { DailyRow, SummaryData } from './components/data'
 import { resolveRangeFromParams } from '@/lib/date-range'
 import { DRAFTED_STATUS } from '@/lib/order-visibility'
+import { countsAsRevenue } from '@/lib/order-revenue'
+import { netOfReturns } from '@/lib/order-return'
+import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { resolveShopVertical } from '@/lib/lodging'
 import { resolveOrderVocab, FINANCE_MENU_LABEL } from '@/lib/seller-menu'
 import { resolveFinanceTab, resolveDataCompleteness, FINANCE_TAB_PARAM } from '@/lib/finance-tabs'
@@ -197,7 +200,12 @@ export default async function SalesPage({
    * (พบ 2026-10-01 ตอนเทียบกับ receivable.service ซึ่งใช้ withoutDrafted อยู่แล้ว — ชุดแถวต้องตรงกัน)
    */
   // + `RETURNED` (คืนของครบทั้งใบ) ตัดเหมือนกัน — การขายถูกยกเลิกแล้ว หลักใบลดหนี้ · ตรงกับ P&L/receivable (มติ 2026-10-01)
-  const allOrders = (await getOrdersByShop(shop.id)).filter(
+  // คืนบางส่วนที่รับของแล้ว — หักยอด/ต้นทุนผ่านตัวกลางเดียวกับ P&L และชีต (มติ 2026-10-01)
+  const [shopOrders, returnAdj] = await Promise.all([getOrdersByShop(shop.id), getReturnAdjustments(shop.id)])
+  /** ยอดบิลหลังหักคืนบางส่วน — ใช้แทน totalAmount ดิบทุกจุดในหน้านี้ */
+  const amountOf = (o: { id: string; totalAmount: unknown }) =>
+    netOfReturns(Number(o.totalAmount ?? 0), returnAdj.get(o.id))
+  const allOrders = shopOrders.filter(
     (o) => o.status !== DRAFTED_STATUS && o.status !== 'RETURNED',
   )
 
@@ -217,11 +225,13 @@ export default async function SalesPage({
   const sumWindow = (rows: OrderItem[]) => {
     let revenue = 0, unconfirmed = 0, completed = 0, cancelled = 0
     for (const o of rows) {
-      if (o.status === 'CONFIRMED') { revenue += Number(o.totalAmount ?? 0); completed++ }
-      else if (o.status === 'CANCELLED') cancelled++
-      else { unconfirmed += Number(o.totalAmount ?? 0) }
+      // 🛑 countsAsRevenue (SSOT order-revenue.ts) ไม่ใช่ status==='CONFIRMED' — ดูหมายเหตุที่ลูปรายวัน
+      if (o.status === 'CANCELLED') cancelled++
+      else if (countsAsRevenue(o)) { revenue += amountOf(o); completed++ }
+      else { unconfirmed += amountOf(o) }
     }
-    return { revenue, unconfirmed, completed, cancelled, orders: rows.length }
+    // orders = ไม่นับใบยกเลิก — นิยามเดียวกับ orderCounts ของชีตหน้าหลัก (ใบยกเลิกโชว์แยกในแถว "ยกเลิก")
+    return { revenue, unconfirmed, completed, cancelled, orders: rows.length - cancelled }
   }
   const prevWindow = sumWindow(inPrevRange)
 
@@ -231,7 +241,7 @@ export default async function SalesPage({
    * ตัวเทียบไม่รวม → ขึ้นเป็น "เพิ่มขึ้นมหาศาล" ทุกร้านในวันที่ deploy ทั้งที่ไม่มีใครจ่ายเพิ่มสักบาท
    */
   const prevShippingTotal = inPrevRange.reduce((sum: number, o: OrderItem) => {
-    if (o.status !== 'CONFIRMED') return sum
+    if (!countsAsRevenue(o)) return sum
     const sp = o.shipments?.[0]
     if (!sp) return sum
     return sum + Number(sp.carrierPrice ?? sp.estimatedPrice ?? 0) + Number(sp.codFee ?? 0)
@@ -263,11 +273,24 @@ export default async function SalesPage({
     // feature 00033 §5.3 — ตัดวันตามปฏิทินไทย ต้องเป็นคีย์รูปแบบเดียวกับที่ eachDay() สร้าง
     // ไม่งั้นค่าใน map นี้จะไม่ตรงกับวันที่ eachDay ไล่มา แล้วกราฟกลายเป็น 0 ทั้งแถบโดยไม่มี error
     const day = thaiDayKey(o.createdAt)
-    ordersPerDay[day] = (ordersPerDay[day] ?? 0) + 1
-    if (o.status !== 'CANCELLED') billPerDay[day] = (billPerDay[day] ?? 0) + 1
-    if (o.status === 'CONFIRMED') {
+    if (o.status !== 'CANCELLED') {
+      // "ออเดอร์" ของวันไม่นับใบยกเลิก — นิยามเดียวกับชีตหน้าหลัก (orderCounts) · ใบยกเลิกนับแยกที่การ์ด
+      ordersPerDay[day] = (ordersPerDay[day] ?? 0) + 1
+      billPerDay[day] = (billPerDay[day] ?? 0) + 1
+    }
+    /**
+     * 🛑 "ขายแล้ว/ยืนยันแล้ว" = countsAsRevenue (SSOT `lib/order-revenue.ts` — user เคาะ 2026-08-05:
+     * ลูกค้ากดยืนยัน **หรือ** ขนส่งรับของไปแล้วจริง) ไม่ใช่ status==='CONFIRMED' อย่างเดียว
+     * เดิมหน้านี้ใช้ CONFIRMED ล้วน ขณะที่ชีตหน้าหลัก/P&L/การ์ดหน้าแรกใช้ SSOT ⇒ ป้าย "ยืนยันแล้ว"
+     * เดียวกันคนละตัวเลข (ข้อมูลจริง ส.ค.: ชีต 114,230 · /sales 86,040 — audit 2026-10-01)
+     * COGS/ค่าส่ง/hasMissingCost ใช้ชุดแถวเดียวกัน (ตัวลบต้องอยู่ในขอบเขตเดียวกับตัวตั้ง)
+     */
+    if (o.status !== 'CANCELLED' && countsAsRevenue(o)) {
       completedPerDay[day] = (completedPerDay[day] ?? 0) + 1
-      revenuePerDay[day] = (revenuePerDay[day] ?? 0) + Number(o.totalAmount ?? 0)
+      revenuePerDay[day] = (revenuePerDay[day] ?? 0) + amountOf(o)
+      // ต้นทุนของชิ้นที่คืนบางส่วน — หักครั้งเดียวต่อใบ (ตัวกลาง return-adjustment)
+      const returnedCost = returnAdj.get(o.id)?.returnedCost ?? 0
+      if (returnedCost) cogsPerDay[day] = (cogsPerDay[day] ?? 0) - returnedCost
       for (const item of o.items) {
         // cost = null คือ "ยังไม่ตั้งต้นทุน" ไม่ใช่ "ต้นทุน 0" — ข้ามไป (การ์ด P&L เตือนเรื่องนี้อยู่แล้ว)
         if (item.cost == null) {
@@ -302,8 +325,8 @@ export default async function SalesPage({
         }
       }
     } else if (o.status !== 'CANCELLED') {
-      // PENDING/SHIPPED = ขายได้แล้วแต่ยังไม่ถูกนับเป็นรายได้ (ตรงนิยามเดียวกับ getSalesSeries)
-      unconfirmedPerDay[day] = (unconfirmedPerDay[day] ?? 0) + Number(o.totalAmount ?? 0)
+      // ยังไม่นับเป็นยอดขาย (ลูกค้ายังไม่ยืนยัน และขนส่งยังไม่รับของ) — นิยามเดียวกับ getSalesSeries ของชีต
+      unconfirmedPerDay[day] = (unconfirmedPerDay[day] ?? 0) + amountOf(o)
     }
   }
 
@@ -335,7 +358,8 @@ export default async function SalesPage({
   const avgOrderValue = totalCompleted > 0 ? totalRevenue / totalCompleted : 0
 
   const cancelledCount = inRange.filter((o: OrderItem) => o.status === 'CANCELLED').length
-  const unconfirmedCount = totalOrders - totalCompleted - cancelledCount
+  // totalOrders ไม่รวมใบยกเลิกแล้ว ⇒ รอยืนยัน = ทั้งหมด − ขายแล้ว
+  const unconfirmedCount = totalOrders - totalCompleted
   const prevAvgOrder = prevWindow.completed > 0 ? prevWindow.revenue / prevWindow.completed : 0
 
   const summary: SummaryData = {

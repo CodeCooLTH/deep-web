@@ -71,6 +71,7 @@ import OrderProfitCard from './components/OrderProfitCard'
 import { resolveExpenseAccess } from '@/services/expense-access.service'
 import { countsAsRevenue } from '@/lib/order-revenue'
 import { computeOrderProfit } from '@/lib/order-profit'
+import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { resolveOrderSource } from '@/lib/order-source-channel'
 import { toFileUrl } from '@/lib/file-url'
 
@@ -256,9 +257,13 @@ export default async function OrderDetailPage({ params }: PageProps) {
   )
   const canSeeProfit = expenseAccess.kind === 'GRANTED'
   // countsAsRevenue ต้องได้ shipments มาด้วย — getOrderForShop include ไว้แล้ว (select แคบ 3 field)
+  // คืนบางส่วนที่รับของแล้วของใบนี้ — หักในกำไรรายใบด้วย ชุดเดียวกับทุกจอ (มติ 2026-10-01)
   const orderProfit =
     canSeeProfit && countsAsRevenue(order)
-      ? computeOrderProfit({ totalAmount: order.totalAmount, items: order.items })
+      ? computeOrderProfit(
+          { totalAmount: order.totalAmount, items: order.items },
+          (await getReturnAdjustments(shop.id)).get(order.id),
+        )
       : null
 
   // แปลง Date → ISO string ก่อนส่งข้ามขอบเขต RSC → component

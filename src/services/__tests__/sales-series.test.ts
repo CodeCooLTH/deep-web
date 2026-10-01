@@ -9,6 +9,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// ยอดคืนบางส่วนมาจากตัวกลาง return-adjustment (2026-10-01) — เทสไฟล์นี้ตรวจตรรกะเดิม ⇒ "ไม่มีการคืน"
+// การหักยอดคืนพิสูจน์แยกที่ src/lib/__tests__/return-adjustment.test.ts
+// shipment fixture มี direction: 'FORWARD' — แถวจริงมีคอลัมน์นี้เสมอ และชีตกรองพัสดุขาไป (audit 2026-10-01)
+vi.mock('@/services/return-adjustment.service', () => ({
+  getReturnAdjustments: async () => new Map(),
+  getReturnedQtyByProduct: async () => new Map(),
+}))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     order: { findMany: vi.fn() },
@@ -72,7 +79,7 @@ describe('getSalesSeries — daily', () => {
  */
 describe('getSalesSeries — รอเงิน COD ต่อวัน', () => {
   const activeShipment = (carrierStatus: string) => [
-    { status: 'CREATED', isDryRun: false, carrierStatus, createdAt: thaiNoon(2026, 3, 5) },
+    { status: 'CREATED', direction: 'FORWARD', isDryRun: false, carrierStatus, createdAt: thaiNoon(2026, 3, 5) },
   ]
 
   it('ใบ COD ที่ส่งถึงแล้วแต่ร้านยังไม่กดรับเงิน → เข้า codPendingValues ของวันนั้น', async () => {
@@ -141,7 +148,7 @@ describe('getSalesSeries — รอเงิน COD ต่อวัน', () => {
         fulfillmentMode: 'SHIPPED',
         codReceivedAt: null,
         shipments: [
-          { status: 'CREATED', isDryRun: true, carrierStatus: 'delivered', createdAt: thaiNoon(2026, 3, 7) },
+          { status: 'CREATED', direction: 'FORWARD', isDryRun: true, carrierStatus: 'delivered', createdAt: thaiNoon(2026, 3, 7) },
         ],
       },
     ] as never)
@@ -212,14 +219,14 @@ describe('getSalesSeries — ต้นทุนสินค้า (COGS) สอ�
         totalAmount: 1000,
         createdAt: thaiNoon(2026, 3, 5),
         status: 'CONFIRMED',
-        shipments: [{ status: 'CREATED', isDryRun: false, carrierPrice: 34, codFee: 7.7 }],
+        shipments: [{ status: 'CREATED', direction: 'FORWARD', isDryRun: false, carrierPrice: 34, codFee: 7.7 }],
         items: [{ cost: 200, qty: 2 }], // COGS 400
       },
       {
         totalAmount: 500,
         createdAt: thaiNoon(2026, 3, 5),
         status: 'PENDING', // ยอดอยู่ใน values แล้ว แต่ยังไม่เป็นรายได้
-        shipments: [{ status: 'CREATED', isDryRun: false, carrierPrice: 30, codFee: 0 }],
+        shipments: [{ status: 'CREATED', direction: 'FORWARD', isDryRun: false, carrierPrice: 30, codFee: 0 }],
         items: [],
       },
     ] as never)
@@ -246,14 +253,14 @@ describe('getSalesSeries — ต้นทุนสินค้า (COGS) สอ�
         totalAmount: 500,
         createdAt: thaiNoon(2026, 3, 11),
         status: 'CONFIRMED',
-        shipments: [{ status: 'CREATED', isDryRun: false, carrierPrice: 34, codFee: 7.7 }],
+        shipments: [{ status: 'CREATED', direction: 'FORWARD', isDryRun: false, carrierPrice: 34, codFee: 7.7 }],
         items: [],
       },
       {
         totalAmount: 500,
         createdAt: thaiNoon(2026, 3, 11),
         status: 'CONFIRMED',
-        shipments: [{ status: 'CREATED', isDryRun: false, carrierPrice: null, codFee: null }],
+        shipments: [{ status: 'CREATED', direction: 'FORWARD', isDryRun: false, carrierPrice: null, codFee: null }],
         items: [],
       },
       {
@@ -286,7 +293,7 @@ describe('getSalesSeries — ต้นทุนสินค้า (COGS) สอ�
         createdAt: thaiNoon(2026, 3, 13),
         status: 'CONFIRMED',
         shipments: [
-          { status: 'CREATED', isDryRun: false, carrierPrice: null, estimatedPrice: 29, codFee: 12.63 },
+          { status: 'CREATED', direction: 'FORWARD', isDryRun: false, carrierPrice: null, estimatedPrice: 29, codFee: 12.63 },
         ],
         items: [],
       },
@@ -307,7 +314,7 @@ describe('getSalesSeries — ต้นทุนสินค้า (COGS) สอ�
         createdAt: thaiNoon(2026, 3, 15),
         status: 'CONFIRMED',
         shipments: [
-          { status: 'CREATED', isDryRun: false, carrierPrice: 34, estimatedPrice: 29, codFee: 7.7 },
+          { status: 'CREATED', direction: 'FORWARD', isDryRun: false, carrierPrice: 34, estimatedPrice: 29, codFee: 7.7 },
         ],
         items: [],
       },
@@ -328,7 +335,7 @@ describe('getSalesSeries — ต้นทุนสินค้า (COGS) สอ�
         // codFee มาแล้วแต่ carrierPrice ยังไม่มา — เคสนี้คือตัวที่พิสูจน์ว่า guard ทำงานจริง
         // (ถ้าเช็คแค่ "มีพัสดุไหม" แล้วบวกทั้งคู่ Number(null)=0 จะได้ค่าส่ง 12 บาทโผล่มาจากไหนไม่รู้
         //  ทั้งที่ยังไม่รู้ราคาส่งเลยสักบาท — ตัวเลขบางส่วนที่ดูเหมือนครบ อันตรายกว่าไม่มีตัวเลข)
-        shipments: [{ status: 'CREATED', isDryRun: false, carrierPrice: null, estimatedPrice: null, codFee: 12 }],
+        shipments: [{ status: 'CREATED', direction: 'FORWARD', isDryRun: false, carrierPrice: null, estimatedPrice: null, codFee: 12 }],
         items: [{ cost: 100, qty: 1 }],
       },
     ] as never)
@@ -351,8 +358,8 @@ describe('getSalesSeries — ต้นทุนสินค้า (COGS) สอ�
         createdAt: thaiNoon(2026, 3, 9),
         status: 'CONFIRMED',
         shipments: [
-          { status: 'CANCELLED', isDryRun: false, carrierPrice: 99, codFee: 9 },
-          { status: 'CREATED', isDryRun: true, carrierPrice: 88, codFee: 8 },
+          { status: 'CANCELLED', direction: 'FORWARD', isDryRun: false, carrierPrice: 99, codFee: 9 },
+          { status: 'CREATED', direction: 'FORWARD', isDryRun: true, carrierPrice: 88, codFee: 8 },
         ],
         items: [],
       },

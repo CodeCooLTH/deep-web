@@ -11,6 +11,9 @@ import { withoutDrafted } from '@/lib/order-visibility'
 import { TZ_OFFSET_MS } from '@/lib/date-range'
 import { THAI_MONTHS_ABBR } from '@/lib/format-date'
 import { countsAsRevenue } from '@/lib/order-revenue'
+import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
+import { netOfReturns, costNetOfReturns } from '@/lib/order-return'
+import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { deriveShippingStage } from '@/lib/order-stage'
 import { canonicalProvince, isKnownProvince } from '@/lib/parse-order-message'
 
@@ -174,9 +177,16 @@ export interface SalesSeries {
   totalCogs?: number
   /** ต้นทุนสินค้าเฉพาะใบที่นับเป็นรายได้แล้ว ต่อ bucket — คู่กับ `confirmedValues` (ดูบล็อกบน) */
   cogsConfirmedValues?: number[]
+  /** ค่าส่งเฉพาะใบที่นับเป็นยอดขายแล้ว ต่อ bucket — คู่กับ confirmedValues (ชีตใช้คิดกำไรจากการขาย ตรงกับ /sales) */
+  shippingConfirmedValues?: number[]
   /** กำไรต่อ bucket = ยอดที่ยืนยันแล้ว − ต้นทุนสินค้า(เฉพาะใบที่ยืนยัน) − ค่าส่ง(เฉพาะใบที่ยืนยัน)
    *  🛑 ไม่หักค่าใช้จ่ายอื่นของร้าน จึง **ไม่เท่ากับ** กำไรสุทธิที่หน้า /expenses (SALES_PROFIT_FORMULA) */
   netProfitValues?: number[]
+  /** มีรายการที่ยังไม่ตั้งต้นทุน (cost = null) ในช่วงนี้ — กำไรที่โชว์เป็น **เพดานบน** ต้องติดป้าย "ไม่เกิน"
+   *  (audit 2026-10-01: ชีตไม่เคยรู้เรื่องนี้ ขณะที่ /sales และ P&L เตือนแล้ว)
+   *  `hasMissingCost` = ชุดทุกใบ (คู่กับ totalCogs) · `hasMissingCostConfirmed` = เฉพาะใบที่นับเป็นยอดขาย (คู่กับ netProfit) */
+  hasMissingCost?: boolean
+  hasMissingCostConfirmed?: boolean
   /** ค่าส่งรวมทั้งช่วง (คู่กับ `total`) */
   totalShipping?: number
   /**
@@ -252,30 +262,15 @@ export async function getSalesSeries(
     futureFromIndex = year === nowYear ? nowMonth0 + 1 : bucketCount
   }
 
-  /**
-   * ขอบเขตของค่าใช้จ่ายต่างจากออเดอร์ 7 ชั่วโมง — Expense.expenseDate เก็บเป็น UTC midnight ของ
-   * วันตามปฏิทิน ส่วน Order.createdAt เป็น timestamptz ที่ต้อง shift เข้าเวลาไทยก่อน bucket
-   * ถ้าใช้ขอบเดียวกัน ค่าใช้จ่ายของวันที่ 1 เดือนถัดไปจะหลุดเข้ามาในเดือนนี้
-   * (ดู "Dual Boundary Design" ใน src/lib/date-range.ts)
-   */
-  const utcMonthStart = (y: number, m0: number) => new Date(Date.UTC(y, m0, 1))
-  const expGte =
-    mode === 'daily'
-      ? utcMonthStart(period.year, (period.month ?? 1) - 1)
-      : utcMonthStart(period.year, 0)
-  const expLt =
-    mode === 'daily'
-      ? utcMonthStart(period.year, (period.month ?? 1))
-      : utcMonthStart(period.year + 1, 0)
-
   // query ช่วงปัจจุบัน + ช่วงก่อนหน้ารวมทีเดียว (prevGte..lt) แล้วแยกบัคเก็ต — ช่วงเล็ก (≤2 เดือน / 2 ปี)
-  const [rows, jobStatusRows] = await Promise.all([
+  const [rows, jobStatusRows, returnAdj] = await Promise.all([
     prisma.order.findMany({
       // 00061: `notIn` ตัวเดียว — เขียนแยก 2 key `status` ไม่ได้ (ตัวหลังทับตัวหน้าเงียบ ๆ)
       // + RETURNED (คืนของครบทั้งใบ) — การขายถูกยกเลิกแล้ว ไม่ใช่ยอดรอยืนยัน/ค้างรับ (มติ 2026-10-01
       // หลักใบลดหนี้) ชุดเดียวกับ /sales และ receivable.service ไม่งั้นชีตกับหน้า /sales เลขไม่ตรงกัน
       where: { shopId, ...withoutDrafted(['CANCELLED', 'RETURNED']), createdAt: { gte: prevGte, lt } },
       select: {
+        id: true,
         totalAmount: true,
         createdAt: true,
         status: true,
@@ -346,6 +341,8 @@ export async function getSalesSeries(
           _count: { _all: true },
         })
       : Promise.resolve(null),
+    // คืนบางส่วนที่รับของแล้ว — หักยอด/ต้นทุนแบบเดียวกับ P&L และ /sales (ตัวกลาง return-adjustment)
+    getReturnAdjustments(shopId),
   ])
 
   const values = new Array<number>(bucketCount).fill(0)
@@ -354,6 +351,8 @@ export async function getSalesSeries(
   const orderCounts = new Array<number>(bucketCount).fill(0)
   const codPendingValues = new Array<number>(bucketCount).fill(0)
   const cogsValues = new Array<number>(bucketCount).fill(0)
+  let hasMissingCost = false
+  let hasMissingCostConfirmed = false
   const cogsConfirmedValues = new Array<number>(bucketCount).fill(0)
   /** ค่าส่งจริง+ค่าธรรมเนียม COD ต่อ bucket — คู่กับ `values` (ทุกใบ) เหมือน cogsValues */
   const shippingValues = new Array<number>(bucketCount).fill(0)
@@ -387,7 +386,9 @@ export async function getSalesSeries(
   const last14Unconfirmed = isCurrentDaily ? new Array<number>(RECENT_DAYS).fill(0) : undefined
 
   for (const r of rows) {
-    const amt = Number(r.totalAmount) // Prisma Decimal → number
+    const adj = returnAdj.get(r.id)
+    // Prisma Decimal → number · หักยอดคืนบางส่วน (มติ 2026-10-01 หลักใบลดหนี้ — ตัวกลางเดียวกับ P&L/sales)
+    const amt = netOfReturns(Number(r.totalAmount), adj)
     const created = r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt)
 
     // นับแยกจากบล็อกช่วงปัจจุบัน/ก่อนหน้าด้านล่าง เพราะหน้าต่าง 14 วันคาบเกี่ยวสองเดือนได้
@@ -427,12 +428,21 @@ export async function getSalesSeries(
          */
         const items = (r as { items?: { cost: unknown; qty: number }[] }).items
         let rowCogs = 0
+        let rowMissingCost = false
         for (const item of items ?? []) {
           // cost = null คือ "ยังไม่ตั้งต้นทุน" ไม่ใช่ "ต้นทุน 0" — ข้ามไป
-          if (item.cost == null) continue
+          if (item.cost == null) {
+            rowMissingCost = true
+            continue
+          }
           rowCogs += Number(item.cost) * item.qty
         }
+        rowCogs = costNetOfReturns(rowCogs, adj)
         cogsValues[idx] += rowCogs
+        if (rowMissingCost) {
+          hasMissingCost = true
+          if (countsAsRevenue(r)) hasMissingCostConfirmed = true
+        }
 
         /**
          * ค่าส่งจริง + ค่าธรรมเนียมเก็บเงินปลายทางของใบนี้ (D-EXT-10, 2026-08-09)
@@ -451,9 +461,12 @@ export async function getSalesSeries(
               carrierPrice: unknown
               estimatedPrice: unknown
               codFee: unknown
+              direction: string
             }[]
           }
-        ).shipments?.find((sp) => sp.status === 'CREATED' && !sp.isDryRun)
+          // 🛑 ต้องเป็นพัสดุ **ขาไป** (feature 00056) — ไม่กรอง direction ใบคืนบางส่วนจะหยิบพัสดุขากลับ
+          //    มานับเป็นค่าส่งของการขาย (audit 2026-10-01) · นิยามเดียวกับ ACTIVE_FORWARD_SHIPMENT
+        ).shipments?.find((sp) => sp.status === 'CREATED' && !sp.isDryRun && sp.direction === FORWARD_SHIPMENT)
         let rowShipping = 0
         if (activeShipment) {
           /**
@@ -561,10 +574,13 @@ export async function getSalesSeries(
     netProfitValues,
     cogsValues,
     cogsConfirmedValues,
+    shippingConfirmedValues,
     totalCogs: cogsValues.reduce((s, v) => s + v, 0),
     totalShipping: shippingValues.reduce((s, v) => s + v, 0),
     pendingShipmentCount: pendingShipmentValues.reduce((s, v) => s + v, 0),
     netProfit: netProfitValues.reduce((s, v) => s + v, 0),
+    hasMissingCost,
+    hasMissingCostConfirmed,
   }
 }
 

@@ -167,6 +167,23 @@ export default function PnlReportCard({
         metricValue={topCategory ? EXPENSE_CATEGORY_LABEL_TH[topCategory.category] : 'ยังไม่มีรายการ'}
       />
 
+      {/* ค่าส่งขาไปที่จ่ายขนส่งจริง (D-EXT-10) — อยู่ใน "ค่าใช้จ่าย" แล้ว แต่ไม่ใช่แถวที่ร้านบันทึกเอง
+          ต้องบอกที่มา ไม่งั้นร้านบวกรายการในตารางแล้วไม่เท่าการ์ด · ราคาประมาณต้องบอกว่ายังไม่ครบ */}
+      {report.shippingCost > 0 && (
+        <p className="text-default-700 col-span-full mb-0 flex items-start gap-2 text-xs">
+          <Icon icon="truck" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+          <span>
+            ในค่าใช้จ่ายรวมค่าส่งที่จ่ายขนส่ง <span className="font-semibold">{formatBaht(report.shippingCost)}</span>
+            {report.shippingPendingCount > 0 && (
+              <span className="text-warning-ink">
+                {' '}
+                · {report.shippingPendingCount} ใบยังเป็นราคาประมาณ (ขนส่งยังไม่ชั่งจริง)
+              </span>
+            )}
+          </span>
+        </p>
+      )}
+
       {/* ค่าส่งขากลับของใบคืน (feature 00056) — อยู่ใน "ค่าใช้จ่าย" ข้างบนแล้ว แต่ไม่ได้อยู่ใน
           รายการที่ /expenses แสดง (มันคิดสดจากใบคืน ไม่ใช่แถว Expense) ⇒ ถ้าไม่บอกตรงนี้
           ร้านจะบวกรายการในตารางแล้วได้ไม่เท่ากับการ์ด แล้วเลิกเชื่อทั้งหน้า

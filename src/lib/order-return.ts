@@ -105,10 +105,40 @@ export function computeRefundAmount(lines: ReturnLine[]): number {
 }
 
 /**
+ * ผลของการคืน **บางส่วน** ที่รับของแล้ว ต่อออเดอร์หนึ่งใบ (มติ 2026-10-01 — หลักใบลดหนี้)
+ *
+ * คืนบางส่วนไม่เปลี่ยน `Order.status` ⇒ ถ้าไม่หัก ยอดเต็มบิลยังถูกนับเป็นยอดขาย/ต้นทุน/ค้างรับทุกจอ
+ * (ก่อน 2026-10-01 คอมเมนต์ในระบบอ้างว่า "หักตามจริงอยู่แล้วผ่าน refundAmount" — ไม่จริง ไม่มีจอไหนหัก)
+ * ⇒ ทุกจอที่รวมเงินต้องเรียก `netOfReturns` / หัก `returnedCost` ผ่าน `getReturnAdjustments` ตัวเดียว
+ *
+ * - คืน **ครบทั้งใบ** (`RETURNED`) ไม่อยู่ในนี้ — ใบนั้นถูกตัดออกจากยอดขายทั้งใบแล้ว
+ * - นับตาม **วันของบิลเดิม** (ไม่ใช่วันรับคืน) — แกนเดียวกับการตัดใบ RETURNED ทั้งใบ
+ * - `returnedCost` นับเฉพาะรายการที่ตั้งต้นทุนไว้ (cost = null ไม่เคยถูกนับใน COGS ตั้งแต่แรก)
+ */
+export type ReturnAdjustment = {
+  /** ยอดเงินที่คืน (refundAmount ที่แช่แข็งตอนรับคืน) */
+  refund: number
+  /** ต้นทุนของชิ้นที่คืน (qty × cost ของรายการเดิม) */
+  returnedCost: number
+  /** จำนวนชิ้นที่คืนต่อ OrderItem.id — ใช้กับรายงานรายสินค้า */
+  returnedQtyByItem: Record<string, number>
+}
+
+/** ยอดบิลหลังหักการคืนบางส่วน — ไม่มีการคืน = ยอดเดิม */
+export function netOfReturns(totalAmount: number, adj?: ReturnAdjustment): number {
+  return adj ? totalAmount - adj.refund : totalAmount
+}
+
+/** ต้นทุนหลังหักชิ้นที่คืน — ไม่มีการคืน = ต้นทุนเดิม */
+export function costNetOfReturns(cogs: number, adj?: ReturnAdjustment): number {
+  return adj ? cogs - adj.returnedCost : cogs
+}
+
+/**
  * isFullyReturned — คืนครบทุกรายการหรือยัง (BR-RT-06)
  *
  * ใช้ตัดสินว่า `Order.status` ควรเป็น `RETURNED` ไหม — **คืนบางส่วนไม่เปลี่ยนสถานะออเดอร์**
- * (ยอดขายหักตามจริงอยู่แล้ว แต่ใบนั้นยังเป็นการขายที่สำเร็จบางส่วน)
+ * (ใบนั้นยังเป็นการขายที่สำเร็จบางส่วน — ยอดคืนถูกหักผ่าน ReturnAdjustment/netOfReturns ด้านบน)
  *
  * 🛑 ต้องเทียบ "ทุกรายการ" ไม่ใช่ "ผลรวมจำนวน" — ซื้อ A×1 B×3 แล้วคืน A×0 B×4 ไม่มีทางเกิด
  * เพราะด่าน BR-RT-04 กันไว้ แต่ถ้าเทียบผลรวมอย่างเดียว การคืน B ครบ 3 + A 1 = 4 จะเท่ากับ

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getReturnedQtyByProduct } from "@/services/return-adjustment.service";
 import { withoutDrafted } from "@/lib/order-visibility";
 import { COUNTABLE_CARRIER_STATUSES } from "@/lib/public-order-count";
 import { Prisma } from "@prisma/client";
@@ -484,17 +485,25 @@ export async function getProductsByShop(
 export async function getBestSellerProducts(shopId: string, take = 8) {
   const grouped = await prisma.orderItem.groupBy({
     by: ["productId"],
-    where: { productId: { not: null }, order: { shopId, ...withoutDrafted("CANCELLED") } },
+    // + RETURNED (คืนของครบทั้งใบ = การขายถูกยกเลิก · มติ 2026-10-01) — คู่กับรายงานยอดขายรายสินค้าเสมอ
+    where: { productId: { not: null }, order: { shopId, ...withoutDrafted(["CANCELLED", "RETURNED"]) } },
     _sum: { qty: true },
     orderBy: { _sum: { qty: "desc" } },
     take,
   });
-  const ids = grouped
-    .map((g) => g.productId)
-    .filter((v): v is string => Boolean(v));
+  // หักชิ้นที่คืนบางส่วน (รับของแล้ว) — ตัวกลางเดียวกับรายงานรายสินค้า/หน้าร้าน (มติ 2026-10-01)
+  // แล้วเรียงใหม่ เพราะลำดับจาก DB คิดก่อนหักคืน
+  const groupedIds = grouped.map((g) => g.productId).filter((v): v is string => Boolean(v));
+  const returnedQty = await getReturnedQtyByProduct({ shopId, productIds: groupedIds });
+  const qtyById = new Map(
+    grouped
+      .filter((g) => g.productId)
+      .map((g) => [g.productId as string, (g._sum.qty ?? 0) - (returnedQty.get(g.productId as string) ?? 0)]),
+  );
+  const ids = groupedIds
+    .filter((id) => (qtyById.get(id) ?? 0) > 0)
+    .sort((a, b) => (qtyById.get(b) ?? 0) - (qtyById.get(a) ?? 0));
   if (ids.length === 0) return [];
-  // จำนวนขายรวม (sum qty) ต่อ product — แนบเป็น soldCount ให้ UI โชว์ "ขายไป X ชิ้น"
-  const qtyById = new Map(grouped.map((g) => [g.productId, g._sum.qty ?? 0]));
   const products = await prisma.product.findMany({
     where: { id: { in: ids }, shopId, isActive: true },
     include: { tags: true },
@@ -537,14 +546,16 @@ export async function getConfirmedOrderCountByProduct(
     by: ["productId"],
     where: {
       productId: { in: productIds },
-      order: { ...withoutDrafted("CANCELLED") },
+      // เกณฑ์เดียวกับ getBestSellerProducts เป๊ะ (user สั่ง 2026-08-11) — + RETURNED + หักคืนบางส่วน (2026-10-01)
+      order: { ...withoutDrafted(["CANCELLED", "RETURNED"]) },
     },
     _sum: { qty: true },
   });
+  const returnedQty = await getReturnedQtyByProduct({ productIds });
 
   for (const row of grouped) {
     if (!row.productId) continue;
-    result.set(row.productId, row._sum.qty ?? 0);
+    result.set(row.productId, Math.max(0, (row._sum.qty ?? 0) - (returnedQty.get(row.productId) ?? 0)));
   }
   return result;
 }

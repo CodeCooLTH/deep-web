@@ -15,6 +15,8 @@
 import { prisma } from '@/lib/prisma'
 import { makeCustomerRowKey } from '@/lib/customer-row-key'
 import { countsAsRevenue } from '@/lib/order-revenue'
+import { netOfReturns } from '@/lib/order-return'
+import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { summarizeCustomerBehavior, type CustomerOrderEvidence } from '@/lib/customer-behavior'
 import { summarizeBuyerReputation, type BuyerOrderEvidence } from '@/lib/buyer-reputation'
@@ -43,9 +45,12 @@ type Accumulator = Omit<CustomerDirectoryEntry, 'behavior' | 'shopReputation'> &
  * เพดานที่ยอมรับตาม SRS §6 คือ ~2,000 ออเดอร์ต่อร้าน
  */
 export async function aggregateShopCustomers(shopId: string): Promise<CustomerDirectoryEntry[]> {
+  // คืนบางส่วนที่รับของแล้ว — ยอดซื้อสะสมของลูกค้าหักส่วนที่คืน (ตัวกลางเดียวกับทุกจอ · มติ 2026-10-01)
+  const returnAdjPromise = getReturnAdjustments(shopId)
   const orders = await prisma.order.findMany({
     where: { shopId },
     select: {
+      id: true,
       publicToken: true,
       orderNo: true,
       status: true,
@@ -81,11 +86,12 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
 
   const map = new Map<string, Accumulator>()
 
+  const returnAdj = await returnAdjPromise
   for (const o of orders) {
     const key = makeCustomerRowKey(o.customerId, o.buyerUserId, o.buyerContact)
     const createdAtRaw = o.createdAt.getTime()
     const isRevenue = countsAsRevenue(o)
-    const amount = Number(o.totalAmount)
+    const amount = netOfReturns(Number(o.totalAmount), returnAdj.get(o.id))
 
     /**
      * "พัสดุของใบนี้" สำหรับตัดสินพฤติกรรมลูกค้า = ใบล่าสุดที่ยังไม่ถูกยกเลิก **และเป็นขาไป**
