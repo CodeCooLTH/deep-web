@@ -87,10 +87,11 @@ import TopSellingProducts from './components/TopSellingProducts'
 import RecentActivityFeed from './components/RecentActivityFeed'
 import ProvinceSalesMap from '@/components/safepay/ProvinceSalesMap'
 import { sellerContactDisplay } from '@/lib/seller-contact-display'
-import { formatMonthYearTH, thaiDayKey } from '@/lib/format-date'
+import { formatMonthYearTH, thaiDayKey, THAI_MONTHS_ABBR, toBuddhistYear } from '@/lib/format-date'
 import { DRAFTED_STATUS } from '@/lib/order-visibility'
 import { netOfReturns, type ReturnAdjustment } from '@/lib/order-return'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
 
 /**
  * ชื่อแท็บเบราว์เซอร์ต้องตามภาษาที่ผู้ใช้เลือกด้วย ⇒ ต้องเป็น `generateMetadata` (async)
@@ -422,13 +423,21 @@ export default async function SellerDashboardPage() {
          * (audit 2026-10-01: การ์ด "ออเดอร์" นับร่างอยู่ ขณะที่โดนัทหน้าเดียวกันใช้ withoutDrafted ⇒ เลขไม่เท่ากัน)
          * รายการล่าสุด (recentOrders) ยังใช้ rawOrders ตามเดิม — เป็นรายการ ไม่ใช่ตัวเลขสรุป
          */
-        const liveOrders = rawOrders.filter((o) => o.status !== DRAFTED_STATUS)
+        /**
+         * 🛑 กติกาชุดใหม่ (ตัดร่าง · หักคืนบางส่วน · กราฟรายเดือนนับเฉพาะรายได้ · ตัดเดือนเวลาไทย)
+         * ใช้กับ **ร้านบริการเท่านั้น** — ร้านอื่นกลับเป็นของเดิม (มติ user 2026-10-02 · src/lib/finance-rules.ts)
+         */
+        const newRules = usesServiceFinanceRules(shop.vertical)
+        const liveOrders = newRules ? rawOrders.filter((o) => o.status !== DRAFTED_STATUS) : rawOrders
         // คืนบางส่วนที่รับของแล้ว — หักยอดผ่านตัวกลางเดียวกับ P&L/ชีต/sales (มติ 2026-10-01)
         // ล้มแล้วไม่ทำให้ทั้งหน้าพัง (ตัวเลขเท่าเดิมก่อนมีการหัก) แต่ต้อง log
-        const returnAdj = await getReturnAdjustments(shop.id).catch((e) => {
-          console.error('[dashboard] getReturnAdjustments failed', e)
-          return new Map<string, ReturnAdjustment>()
-        })
+        // ร้านที่ไม่ใช่บริการ: Map ว่าง ⇒ netAmount = totalAmount ตามเดิม
+        const returnAdj = newRules
+          ? await getReturnAdjustments(shop.id).catch((e) => {
+              console.error('[dashboard] getReturnAdjustments failed', e)
+              return new Map<string, ReturnAdjustment>()
+            })
+          : new Map<string, ReturnAdjustment>()
         const netAmount = (o: { id: string; totalAmount: unknown }) =>
           netOfReturns(Number(o.totalAmount), returnAdj.get(o.id))
 
@@ -476,13 +485,17 @@ export default async function SellerDashboardPage() {
         // 🛑 รายได้รายเดือน = countsAsRevenue (SSOT) ชุดเดียวกับ "รายได้รวม" ของการ์ดนี้ — เดิมบวก totalAmount
         //    ทุกสถานะ (รวมยกเลิก/ร่าง/คืนของ) แท่งกราฟจึงไม่ตรงกับตัวเลขหัวการ์ด (audit 2026-10-01)
         //    จำนวนออเดอร์รายเดือนไม่นับยกเลิก — นิยามเดียวกับการ์ด "ออเดอร์"
+        // ร้านที่ไม่ใช่บริการ: ของเดิมทุกตัวอักษร — บวก totalAmount ทุกใบ · ตัดเดือนด้วย getMonth()
+        // (ป้าย "ต.ค. 2569" ผ่านตัวกลาง THAI_MONTHS_ABBR/toBuddhistYear — ผลลัพธ์เท่ากับตารางเดิมทุกตัวอักษร)
         const monthMap = new Map<string, { revenue: number; orderCount: number; label: string }>()
         for (const o of liveOrders) {
-          if (o.status === 'CANCELLED') continue
+          if (newRules && o.status === 'CANCELLED') continue
           const d = o.createdAt
-          const key = thaiDayKey(d).slice(0, 7)
-          const label = formatMonthYearTH(d)
-          const amt = countsAsRevenue(o) ? netAmount(o) : 0
+          const key = newRules
+            ? thaiDayKey(d).slice(0, 7)
+            : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+          const label = newRules ? formatMonthYearTH(d) : `${THAI_MONTHS_ABBR[d.getMonth()]} ${toBuddhistYear(d.getFullYear())}`
+          const amt = newRules ? (countsAsRevenue(o) ? netAmount(o) : 0) : Number(o.totalAmount)
           const existing = monthMap.get(key)
           if (existing) {
             existing.revenue += amt

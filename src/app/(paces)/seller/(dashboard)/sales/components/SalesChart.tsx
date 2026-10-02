@@ -56,6 +56,13 @@ type Props = {
 
 const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, collect }: Props) => {
   const moneyAxis = isServiceQueue && collect != null
+  /**
+   * ถ้อยคำ/สีชุดเดิม (ก่อน 00067) สำหรับร้านที่ไม่ใช่บริการ — มติ user 2026-10-02 "กลับเป็นคำเดิมด้วย"
+   * (src/lib/finance-rules.ts) · หน้าตา/โครงการ์ดที่ใหม่ (หัวการ์ด · แถบ legend · แกน · รายสัปดาห์) ใช้ทุกร้าน
+   */
+  const legacyWords = !isServiceQueue
+  const confirmedName = legacyWords ? 'ลูกค้ายืนยันแล้ว' : 'ยืนยันแล้ว'
+  const unconfirmedName = legacyWords ? 'รอลูกค้ายืนยัน' : 'รอยืนยัน'
   const noun = isServiceQueue ? 'งาน' : 'ออเดอร์'
   // category = ISO ดิบ ("2026-09-01") — จัดรูปตอนแสดงเท่านั้น ทั้งแกน (สั้น) และ tooltip (เต็ม)
   /**
@@ -101,8 +108,8 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
         },
       ]
     : [
-        { name: 'ยืนยันแล้ว', group: 'sales', data: revenueSeries },
-        { name: 'รอยืนยัน', group: 'sales', data: unconfirmedSeries },
+        { name: confirmedName, group: 'sales', data: revenueSeries },
+        { name: unconfirmedName, group: 'sales', data: unconfirmedSeries },
         ...(showFinance ? [{ name: 'ค่าส่ง', group: 'expense', data: shippingSeries }] : []),
       ]
   const hasAnyValue = daily.some((d) => d.revenue > 0 || d.unconfirmedRevenue > 0 || (d.shippingCost ?? 0) > 0)
@@ -139,8 +146,8 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
       colors: moneyAxis
         ? [getColor('success'), getColor('warning')]
         : showFinance
-          ? [getColor('success'), getColor('warning'), getColor('chart-beta')]
-          : [getColor('success'), getColor('warning')],
+          ? [getColor(legacyWords ? 'chart-primary' : 'success'), getColor('warning'), getColor('chart-beta')]
+          : [getColor(legacyWords ? 'chart-primary' : 'success'), getColor('warning')],
       xaxis: {
         categories,
         axisBorder: { show: false },
@@ -184,7 +191,7 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [daily, showFinance, moneyAxis],
+    [daily, showFinance, moneyAxis, legacyWords],
   )
 
   return (
@@ -264,7 +271,7 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
           valueClass="text-warning-ink"
           changePercent={pctChangeVsPrev(summary.totalUnconfirmed, summary.prevUnconfirmed)}
           // ยอดรอยืนยันเพิ่มขึ้นไม่ใช่ข่าวดีหรือร้าย — badge สีกลาง ไม่ใช่เขียว (Verified-Means-Green)
-          changeTone="neutral"
+          changeTone={legacyWords ? undefined : 'neutral'}
           bulletClass="text-warning"
           metric="รอยืนยัน"
           metricValue={`${summary.unconfirmedCount.toLocaleString('th-TH')} ${noun}`}
@@ -340,7 +347,7 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
               bulletClass={profitCapped && profit.positive ? 'text-warning' : profit.positive ? 'text-success' : 'text-danger'}
               /* "อัตรากำไร" ไม่ใช่ "อัตรากำไรสุทธิ" — หน้านี้ห้ามใช้คำว่ากำไรสุทธิ (ดูคอมเมนต์ข้างบน) */
               caption={profitCapped ? 'ยังตั้งต้นทุนไม่ครบ — กำไรจริงต่ำกว่านี้' : undefined}
-              metric="อัตรากำไร"
+              metric={legacyWords ? 'อัตรากำไรสุทธิ' : 'อัตรากำไร'}
               metricValue={
                 summary.totalRevenue <= 0
                   ? 'ยังไม่มียอดขาย'
@@ -374,8 +381,8 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
               </>
             ) : (
               <>
-                <LegendItem dot="bg-success" label="ยืนยันแล้ว" value={summary.totalRevenue} />
-                <LegendItem dot="bg-warning" label="รอยืนยัน" value={summary.totalUnconfirmed} />
+                <LegendItem dot={legacyWords ? 'bg-primary' : 'bg-success'} label={confirmedName} value={summary.totalRevenue} />
+                <LegendItem dot="bg-warning" label={unconfirmedName} value={summary.totalUnconfirmed} />
                 {showFinance && <LegendItem dot="bg-danger" label="ค่าส่ง" value={summary.totalShippingCost ?? 0} />}
               </>
             )}

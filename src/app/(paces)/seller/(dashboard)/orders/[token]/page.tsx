@@ -72,6 +72,7 @@ import { resolveExpenseAccess } from '@/services/expense-access.service'
 import { countsAsRevenue } from '@/lib/order-revenue'
 import { computeOrderProfit } from '@/lib/order-profit'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { resolveOrderSource } from '@/lib/order-source-channel'
 import { toFileUrl } from '@/lib/file-url'
 
@@ -262,7 +263,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
     canSeeProfit && countsAsRevenue(order)
       ? computeOrderProfit(
           { totalAmount: order.totalAmount, items: order.items },
-          (await getReturnAdjustments(shop.id)).get(order.id),
+          // หักคืนบางส่วน — กติกาใหม่ ร้านบริการเท่านั้น · ร้านอื่นของเดิม (มติ user 2026-10-02 · finance-rules.ts)
+          usesServiceFinanceRules(shop.vertical) ? (await getReturnAdjustments(shop.id)).get(order.id) : undefined,
         )
       : null
 

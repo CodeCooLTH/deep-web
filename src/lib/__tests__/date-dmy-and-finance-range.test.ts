@@ -186,8 +186,14 @@ describe('[blocker] review 2026-10-01 — ตัวเลือกวันท�
 
   it('การ์ดกำไรสุทธิในแท็บค่าใช้จ่าย//expenses ได้ capped + costNoun', () => {
     const ws = read('src/app/(paces)/seller/(dashboard)/expenses/components/ExpenseWorkspace.tsx')
-    expect(ws).toMatch(/capped=\{!resolveDataCompleteness\(/)
+    // capped เฉพาะร้านบริการ (แท็บค่าใช้จ่ายของ /sales) · หน้า /expenses ของร้านอื่นได้ของเดิม (มติ user 2026-10-02)
+    expect(ws).toMatch(/capped=\{serviceRules && !resolveDataCompleteness\(/)
     expect(ws).toMatch(/costNoun=\{costNoun\}/)
+    const exp = read('src/app/(paces)/seller/(dashboard)/expenses/page.tsx')
+    expect(exp).not.toMatch(/costNoun=/)
+    expect(exp).not.toMatch(/serviceRules/)
+    // คำเดิม "ช่วงที่เลือก" สำหรับร้านที่ไม่ใช่บริการ (มติ 2026-10-02 "กลับเป็นคำเดิมด้วย")
+    expect(ws).toMatch(/rangeLabel=\{serviceRules && range === 'custom' && customDates \?/)
   })
 })
 

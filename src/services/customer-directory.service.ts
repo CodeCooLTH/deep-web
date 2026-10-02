@@ -15,7 +15,8 @@
 import { prisma } from '@/lib/prisma'
 import { makeCustomerRowKey } from '@/lib/customer-row-key'
 import { countsAsRevenue } from '@/lib/order-revenue'
-import { netOfReturns } from '@/lib/order-return'
+import { netOfReturns, type ReturnAdjustment } from '@/lib/order-return'
+import { shopUsesServiceFinanceRules } from '@/services/finance-rules.service'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { summarizeCustomerBehavior, type CustomerOrderEvidence } from '@/lib/customer-behavior'
@@ -46,7 +47,10 @@ type Accumulator = Omit<CustomerDirectoryEntry, 'behavior' | 'shopReputation'> &
  */
 export async function aggregateShopCustomers(shopId: string): Promise<CustomerDirectoryEntry[]> {
   // คืนบางส่วนที่รับของแล้ว — ยอดซื้อสะสมของลูกค้าหักส่วนที่คืน (ตัวกลางเดียวกับทุกจอ · มติ 2026-10-01)
-  const returnAdjPromise = getReturnAdjustments(shopId)
+  // กติกาใหม่ (หักคืนบางส่วน) — ร้านบริการเท่านั้น · ร้านอื่นของเดิม (มติ user 2026-10-02)
+  const returnAdjPromise = shopUsesServiceFinanceRules(shopId).then((newRules) =>
+    newRules ? getReturnAdjustments(shopId) : new Map<string, ReturnAdjustment>(),
+  )
   const orders = await prisma.order.findMany({
     where: { shopId },
     select: {

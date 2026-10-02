@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   // การ์ดแยกหมวด, การ์ดสรุปเร็ว และตัวรายการ จากก้อนนี้ก้อนเดียว จึงไม่มีทางที่ตัวเลขสองส่วนขัดกันเอง
   // (เดิม list ดึงทั้งหมดไม่ผูกช่วง แต่ P&L ผูกช่วง — คนละฐานกัน)
   const [report, expenses, coverage] = await Promise.all([
-    getPnlReport(decision.shop.id, range),
+    getPnlReport(decision.shop.id, range, decision.shop.vertical),
     listExpenses(decision.shop.id, { range: range.expenseRange }),
     // feature 00067 — ตัวนับ "ยังไม่ได้ตั้งต้นทุน n จาก m รายการ" ของป้ายเตือนข้อมูลไม่ครบ
     // เพิ่มเป็นช่องใหม่ (additive) ผู้เรียกเดิมที่ไม่อ่านช่องนี้ไม่ได้รับผลกระทบ

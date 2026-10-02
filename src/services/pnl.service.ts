@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { netOfReturns, costNetOfReturns, type ReturnAdjustment } from '@/lib/order-return'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { round2 } from '@/lib/round2'
 import { revenueOrderWhere } from '@/lib/order-revenue'
 import { RETURN_STATUS, sumReturnShippingCost } from '@/lib/order-return'
@@ -106,7 +107,17 @@ function sumOrders(
   return { revenue, cogs, hasMissingCost, shipping, shippingPending }
 }
 
-export async function getPnlReport(shopId: string, range: ResolvedDateRange): Promise<PnlReport> {
+export async function getPnlReport(
+  shopId: string,
+  range: ResolvedDateRange,
+  /**
+   * ประเภทกิจการของร้าน — **บังคับส่ง** (ไม่มีค่าเริ่มต้น) เพราะมันตัดสินกติกาการเงิน
+   * ร้านบริการ: ค่าส่งขาไปเป็นค่าใช้จ่าย + หักคืนบางส่วน (00067) · ร้านอื่น: ของเดิม (มติ user 2026-10-02)
+   * ดู src/lib/finance-rules.ts
+   */
+  vertical: string | null | undefined,
+): Promise<PnlReport> {
+  const newRules = usesServiceFinanceRules(vertical)
   const [orders, expenseAgg, prevOrders, prevExpenseAgg, returnRows, prevReturnRows, returnAdj] =
     await Promise.all([
     prisma.order.findMany({
@@ -167,7 +178,8 @@ export async function getPnlReport(shopId: string, range: ResolvedDateRange): Pr
         shipment: { select: { carrierPrice: true, estimatedPrice: true } },
       },
     }),
-    getReturnAdjustments(shopId),
+    // ร้านที่ไม่ใช่บริการ: Map ว่าง ⇒ ไม่หักคืนบางส่วน (ของเดิม)
+    newRules ? getReturnAdjustments(shopId) : Promise.resolve(new Map<string, ReturnAdjustment>()),
   ])
 
   const { revenue, cogs, hasMissingCost, shipping, shippingPending } = sumOrders(orders, returnAdj)
@@ -196,15 +208,18 @@ export async function getPnlReport(shopId: string, range: ResolvedDateRange): Pr
   const prevReturnCost = sumReturnShippingCost(prevReturnRows.map(toCostInput))
 
   const returnShippingCost = round2(returnCost.total)
-  const shippingCost = round2(shipping)
-  // ค่าใช้จ่าย = ที่ร้านบันทึกเอง + ค่าส่งขาไปที่จ่ายจริง (D-EXT-10) + ค่าส่งขากลับของใบคืน (00056)
+  // ร้านที่ไม่ใช่บริการ: ค่าส่งขาไปไม่อยู่ในค่าใช้จ่าย (ของเดิม) ⇒ 0 ทั้งตัวเลขและแถวที่ UI แสดง
+  const shippingCost = newRules ? round2(shipping) : 0
+  // ค่าใช้จ่าย = ที่ร้านบันทึกเอง + ค่าส่งขาไปที่จ่ายจริง (D-EXT-10 · ร้านบริการ) + ค่าส่งขากลับของใบคืน (00056)
   const totalExpense = round2(Number(expenseAgg._sum.amount ?? 0) + shippingCost + returnShippingCost)
   const netProfit = round2(grossProfit - totalExpense)
 
   // ไม่มีทั้งออเดอร์และค่าใช้จ่ายในช่วงก่อนหน้า = ไม่มีฐานให้เทียบ (ไม่ใช่ "กำไร 0")
   const prevSums = sumOrders(prevOrders, returnAdj)
   // ช่วงก่อนหน้าต้องนับด้วยเกณฑ์เดียวกันเป๊ะ (รวมค่าส่งขาไป) ไม่งั้น %เทียบเทียบของคนละชนิด
-  const prevExpense = round2(Number(prevExpenseAgg._sum.amount ?? 0) + prevSums.shipping + prevReturnCost.total)
+  const prevExpense = round2(
+    Number(prevExpenseAgg._sum.amount ?? 0) + (newRules ? prevSums.shipping : 0) + prevReturnCost.total,
+  )
   const prevNetProfit =
     prevOrders.length === 0 && prevExpense === 0
       ? null
@@ -222,6 +237,6 @@ export async function getPnlReport(shopId: string, range: ResolvedDateRange): Pr
     returnShippingCost,
     returnShippingUnknownCount: returnCost.unknownCount,
     shippingCost,
-    shippingPendingCount: shippingPending,
+    shippingPendingCount: newRules ? shippingPending : 0,
   }
 }
