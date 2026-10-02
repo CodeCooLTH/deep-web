@@ -221,7 +221,7 @@ export default function ExpenseWorkspace({
         </div>
       )}
 
-      <PnlReportCard report={report} expenses={expenses} loading={loading} rangeLabel={range === 'custom' && customDates ? `${formatDate(customDates[0])} – ${formatDate(customDates[1])}` : RANGE_LABEL[range]} orderNoun={orderNoun}
+      <PnlReportCard report={report} expenses={expenses} loading={loading} rangeLabel={serviceRules && range === 'custom' && customDates ? `${formatDate(customDates[0])} – ${formatDate(customDates[1])}` : RANGE_LABEL[range]} orderNoun={orderNoun}
         costNoun={costNoun}
         /* ข้อมูลไม่ครบ (ต้นทุนหาย/ยังไม่มีค่าใช้จ่าย) = เพดานบน — นิยามเดียวกับแท็บกำไรขาดทุน
            (resolveDataCompleteness) เดิมไม่ส่ง capped การ์ดนี้จึงเขียวพร้อม % ขณะที่การ์ดข้าง ๆ เตือน (review 2026-10-01) */

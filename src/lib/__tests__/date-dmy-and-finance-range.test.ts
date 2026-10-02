@@ -192,6 +192,8 @@ describe('[blocker] review 2026-10-01 — ตัวเลือกวันท�
     const exp = read('src/app/(paces)/seller/(dashboard)/expenses/page.tsx')
     expect(exp).not.toMatch(/costNoun=/)
     expect(exp).not.toMatch(/serviceRules/)
+    // คำเดิม "ช่วงที่เลือก" สำหรับร้านที่ไม่ใช่บริการ (มติ 2026-10-02 "กลับเป็นคำเดิมด้วย")
+    expect(ws).toMatch(/rangeLabel=\{serviceRules && range === 'custom' && customDates \?/)
   })
 })
 
