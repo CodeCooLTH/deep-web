@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { shopUsesServiceFinanceRules } from '@/services/finance-rules.service'
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
@@ -217,6 +218,14 @@ async function fetchResponsePairs(shopId: string, f: ReportFilters): Promise<Pai
 }
 
 async function fetchOrders(shopId: string, f: ReportFilters): Promise<OrderRow[]> {
+  // หักคืนบางส่วน — กติกาใหม่ ร้านบริการเท่านั้น · ร้านอื่นยอดดิบตามเดิม (มติ user 2026-10-02 · finance-rules.ts)
+  const newRules = await shopUsesServiceFinanceRules(shopId)
+  const amountSql = newRules
+    ? Prisma.sql`(o."totalAmount" - COALESCE((
+        SELECT SUM(r."refundAmount") FROM "OrderReturn" r
+        WHERE r."orderId" = o."id" AND r."status" = 'RECEIVED'
+      ), 0))`
+    : Prisma.sql`o."totalAmount"`
   return prisma.$queryRaw<OrderRow[]>(Prisma.sql`
     WITH ${convCte(shopId, f)}
     SELECT
@@ -227,10 +236,7 @@ async function fetchOrders(shopId: string, f: ReportFilters): Promise<OrderRow[]
       o."createdByUserId"   AS "createdByUserId",
       -- หักคืนบางส่วนที่รับของแล้ว (มติ 2026-10-01 · กติกาเดียวกับ return-adjustment.service ฝั่ง TS)
       -- ใบ RETURNED ทั้งใบไม่นับเป็นยอดขายอยู่แล้ว (revenueOrderSql) จึงไม่ต้องกรองซ้ำในซับคิวรี
-      (o."totalAmount" - COALESCE((
-        SELECT SUM(r."refundAmount") FROM "OrderReturn" r
-        WHERE r."orderId" = o."id" AND r."status" = 'RECEIVED'
-      ), 0))                AS "amount",
+      ${amountSql}          AS "amount",
       ${Prisma.raw(revenueOrderSql('o'))} AS "isRevenue",
       (o."status" = 'CANCELLED') AS "isCancelled",
       own.owner_user_id     AS "ownerUserId"

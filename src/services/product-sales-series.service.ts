@@ -20,6 +20,8 @@
  */
 import { prisma } from '@/lib/prisma'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
+import { shopUsesServiceFinanceRules } from '@/services/finance-rules.service'
+import type { ReturnAdjustment } from '@/lib/order-return'
 import { thaiDayKey } from '@/lib/format-date'
 import { thaiMidnightUtc } from '@/lib/date-range'
 import { fileUrlOf } from '@/lib/file-url'
@@ -101,6 +103,8 @@ export async function getProductSalesMonth(
   // Date.UTC รับ month=12 แล้วข้ามปีให้เอง — ไม่ต้องคำนวณปีเอง
   const lt = thaiMidnightUtc(year, month0 + 1, 1)
 
+  // กติกาใหม่ (ตัด RETURNED + หักคืนบางส่วน) — ร้านบริการเท่านั้น · ร้านอื่นของเดิม (มติ user 2026-10-02)
+  const newRules = await shopUsesServiceFinanceRules(shopId)
   const [items, products, returnAdj] = await Promise.all([
     prisma.orderItem.findMany({
       where: {
@@ -110,7 +114,11 @@ export async function getProductSalesMonth(
         // แต่ตัวกรองต้องพูดจากกฎ ไม่ใช่จากสภาพข้อมูลชั่วคราวของวันนี้
         // + RETURNED (คืนของครบทั้งใบ) — การขายถูกยกเลิกแล้ว (มติ 2026-10-01 ชุดเดียวกับ /sales · ชีต · receivable)
         //   ต้องคู่กับ getBestSellerProducts เสมอ (SALES_BASIS_DETAIL อ้างว่าเกณฑ์เดียวกัน)
-        order: { shopId, ...withoutDrafted(['CANCELLED', 'RETURNED']), createdAt: { gte, lt } },
+        order: {
+          shopId,
+          ...withoutDrafted(newRules ? ['CANCELLED', 'RETURNED'] : 'CANCELLED'),
+          createdAt: { gte, lt },
+        },
       },
       select: {
         id: true,
@@ -133,7 +141,7 @@ export async function getProductSalesMonth(
       orderBy: { createdAt: 'desc' },
     }),
     // คืนบางส่วนที่รับของแล้ว — หักจำนวน/ยอดของชิ้นที่คืน (ตัวกลางเดียวกับทุกจอ · มติ 2026-10-01)
-    getReturnAdjustments(shopId),
+    newRules ? getReturnAdjustments(shopId) : Promise.resolve(new Map<string, ReturnAdjustment>()),
   ])
 
   const truncated = items.length > MAX_ITEM_ROWS
@@ -178,7 +186,8 @@ export async function getProductSalesMonth(
     }
     // หักชิ้นที่คืนบางส่วน (รับของแล้ว) — ราคาต่อหน่วยเดียวกับตอนขาย (OrderReturnItem แช่แข็งไว้ = OrderItem.price)
     const qty = it.qty - (returnAdj.get(it.orderId)?.returnedQtyByItem[it.id] ?? 0)
-    if (qty <= 0) continue
+    // ร้านที่ไม่ใช่บริการ: ไม่ข้ามแถว (ของเดิมนับทุกแถว) — Map ว่างทำให้ qty = it.qty อยู่แล้ว
+    if (newRules && qty <= 0) continue
     // 🛑 ไม่รวมส่วนลด/VAT — ทั้งสองอย่างอยู่ที่ระดับ Order ไม่มีรายบรรทัด (MONEY_MODE_CAVEAT)
     const amount = qty * Number(it.price)
     a.qty[idx] += qty

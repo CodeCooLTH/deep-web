@@ -18,7 +18,8 @@ describe('[blocker] อัตรากำไรห้ามเป็นตัว
   const pnl = read('expenses/components/PnlReportCard.tsx')
 
   it('การ์ดกำไร /sales: ต้นทุนไม่ครบ → "ตั้งต้นทุนไม่ครบ" มาก่อนสูตร %', () => {
-    const at = chart.indexOf("metric=\"อัตรากำไร\"")
+    // ป้ายแถวผันตามประเภทร้าน (ร้านอื่น = คำเดิม "อัตรากำไรสุทธิ" — มติ user 2026-10-02)
+    const at = chart.indexOf("metric={legacyWords ? 'อัตรากำไรสุทธิ' : 'อัตรากำไร'}")
     expect(at, 'ไม่พบแถวอัตรากำไร').toBeGreaterThan(-1)
     const block = chart.slice(at, at + 400)
     expect(block).toMatch(/profitCapped\s*\?\s*'ตั้งต้นทุนไม่ครบ'/)
@@ -31,8 +32,12 @@ describe('[blocker] อัตรากำไรห้ามเป็นตัว
     expect(read('sales/page.tsx')).toMatch(/hasMissingCost = true/)
   })
 
-  it('หน้า /sales ห้ามมีคำว่า "กำไรสุทธิ" ในการ์ด (Hard Rule 16 — ตัวเลขนี้ไม่หักค่าใช้จ่ายร้าน)', () => {
-    expect(chart).not.toMatch(/กำไรสุทธิ/)
+  it('หน้า /sales: คำว่า "กำไรสุทธิ" อยู่ได้เฉพาะกิ่งคำเดิมของร้านที่ไม่ใช่บริการ (มติ user 2026-10-02)', () => {
+    // ร้านบริการ (กติกาใหม่) ห้ามเห็นคำนี้ — ตัวเลขไม่หักค่าใช้จ่ายร้าน (HR16)
+    // ร้านขายออนไลน์/บ้านพัก ได้คำเดิมก่อน 00067 กลับมาตามที่ user สั่ง "กลับเป็นคำเดิมด้วย"
+    const hits = chart.match(/[^\n]*กำไรสุทธิ[^\n]*/g) ?? []
+    expect(hits.length).toBeGreaterThan(0)
+    for (const line of hits) expect(line, line).toMatch(/legacyWords \? 'อัตรากำไรสุทธิ' : 'อัตรากำไร'/)
   })
 
   it('การ์ด P&L: อัตรากำไรสุทธิ/ขั้นต้น ต้องไม่เป็น % เมื่อ capped / ต้นทุนไม่ครบ', () => {
@@ -104,7 +109,9 @@ describe('[blocker] แท็บยอดเก็บเงินร้านบ
     const recv = readFileSync(join(process.cwd(), 'src/services/receivable.service.ts'), 'utf8')
     expect(recv).toMatch(/withoutDrafted\(\['CANCELLED', 'RETURNED'\]\)/)
     const dash = readFileSync(join(process.cwd(), 'src/services/dashboard.service.ts'), 'utf8')
-    expect(dash).toMatch(/withoutDrafted\(\['CANCELLED', 'RETURNED'\]\), createdAt: \{ gte: prevGte/)
+    // ร้านบริการเท่านั้นที่ตัด RETURNED (ร้านอื่นของเดิม — มติ user 2026-10-02)
+    expect(dash).toMatch(/withoutDrafted\(newRules \? \['CANCELLED', 'RETURNED'\] : 'CANCELLED'\)/)
+    expect(page).toMatch(/const allOrders = newRules\s*\?\s*shopOrders\.filter/)
   })
 
   it('กราฟ/ตารางร้านบริการแยก รับจริง | ค้างรับ รายวัน จาก receivable.daily', () => {

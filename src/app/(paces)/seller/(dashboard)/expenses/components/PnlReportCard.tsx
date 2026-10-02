@@ -50,6 +50,11 @@ type Props = {
    */
   capped?: boolean
   /**
+   * กติกาการเงินชุดใหม่ (00067) — ป้าย "ไม่เกิน/ตั้งต้นทุนไม่ครบ" บนการ์ดกำไรขั้นต้น
+   * ร้านบริการเท่านั้น · ร้านอื่นแสดงแบบเดิม (มติ user 2026-10-02 · src/lib/finance-rules.ts)
+   */
+  serviceRules?: boolean
+  /**
    * คำเรียกต้นทุนของประเภทกิจการนี้ (ORDER_VOCAB.costNoun) — ร้านบริการอ่านว่า "ต้นทุนอะไหล่"
    * default 'ต้นทุนสินค้า' = คำเดิม จึงไม่กระทบผู้เรียกที่ยังไม่ส่งค่านี้มา
    */
@@ -64,7 +69,10 @@ export default function PnlReportCard({
   orderNoun = 'ออเดอร์',
   capped = false,
   costNoun = 'ต้นทุนสินค้า',
+  serviceRules = false,
 }: Props) {
+  /** ต้นทุนไม่ครบ → เตือนบนการ์ดกำไรขั้นต้น — กติกาใหม่ ร้านบริการเท่านั้น */
+  const costWarn = serviceRules && report.hasMissingCost
   const profit = profitDisplay(report.netProfit, { capped })
   const topCategory = groupExpensesByCategory(expenses)[0]
   const pct = (v: number) => `${v.toFixed(1)}%`
@@ -138,17 +146,17 @@ export default function PnlReportCard({
         icon="calculator"
         iconClass="bg-info/15 text-info-ink"
         // ต้นทุนไม่ครบ = เพดานบน → คำ "ไม่เกิน" ชุดเดียวกับการ์ดกำไรสุทธิที่ capped และการ์ด /sales
-        title={report.hasMissingCost && report.grossProfit >= 0 ? 'กำไรก่อนหักค่าใช้จ่ายไม่เกิน' : 'กำไรก่อนหักค่าใช้จ่าย'}
+        title={costWarn && report.grossProfit >= 0 ? 'กำไรก่อนหักค่าใช้จ่ายไม่เกิน' : 'กำไรก่อนหักค่าใช้จ่าย'}
         text={formatBaht(report.grossProfit)}
         // ตั้งต้นทุนไม่ครบ = เพดานบน ห้ามเขียว (Verified-Means-Green) — สีเดียวกับการ์ดกำไรสุทธิที่ capped
-        valueClass={report.grossProfit < 0 ? 'text-danger-ink' : report.hasMissingCost ? 'text-warning-ink' : 'text-success-ink'}
+        valueClass={report.grossProfit < 0 ? 'text-danger-ink' : costWarn ? 'text-warning-ink' : 'text-success-ink'}
         changePercent={pctChangeVsPrev(report.grossProfit, report.prevGrossProfit)}
-        bulletClass={report.hasMissingCost ? 'text-warning' : 'text-info'}
+        bulletClass={costWarn ? 'text-warning' : 'text-info'}
         metric="อัตรากำไรขั้นต้น"
         metricValue={
           report.revenue <= 0
             ? 'ยังไม่มียอดขาย'
-            : report.hasMissingCost
+            : costWarn
               ? 'ตั้งต้นทุนไม่ครบ'
               : pct((report.grossProfit / report.revenue) * 100)
         }

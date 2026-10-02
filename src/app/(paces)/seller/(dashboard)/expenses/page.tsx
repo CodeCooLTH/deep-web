@@ -117,7 +117,7 @@ export default async function ExpensesPage({
   const usable = preset === 'custom' && (!sp.start || !sp.end) ? '30d' : preset
   const range = resolveDateRange(usable, sp.start, sp.end)
   const [report, expenses, everRecorded] = await Promise.all([
-    getPnlReport(decision.shop.id, range),
+    getPnlReport(decision.shop.id, range, decision.shop.vertical),
     listExpenses(decision.shop.id, { range: range.expenseRange }),
     hasAnyExpense(decision.shop.id),
   ])
@@ -133,7 +133,6 @@ export default async function ExpensesPage({
         hasAnyExpenseEver={everRecorded}
         // คำผันตามประเภทกิจการ — ร้านคิวงานไม่มี "ออเดอร์" ให้เฉลี่ยต่อใบ (ORDER_VOCAB)
         orderNoun={resolveOrderVocab(decision.shop.vertical).noun}
-        costNoun={resolveOrderVocab(decision.shop.vertical).costNoun}
       />
     </>
   )

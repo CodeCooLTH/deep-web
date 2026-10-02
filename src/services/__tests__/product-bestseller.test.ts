@@ -11,13 +11,19 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     orderItem: { groupBy: vi.fn() },
     product: { findMany: vi.fn() },
+    // ประเภทกิจการ — ตัดสินกติกาการเงิน (src/lib/finance-rules.ts · มติ user 2026-10-02)
+    shop: { findUnique: vi.fn() },
   },
 }))
 
 import { prisma } from '@/lib/prisma'
 import { getBestSellerProducts } from '@/services/product.service'
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  // ค่าเริ่มต้นของไฟล์นี้ = ร้านขายออนไลน์ (กติกาเดิม) · เคสร้านบริการตั้งเองในเทส
+  vi.mocked(prisma.shop.findUnique).mockResolvedValue({ vertical: 'ONLINE_SALES' } as never)
+})
 
 describe('getBestSellerProducts', () => {
   it('เรียงตามยอดขาย (sum qty) มากสุดก่อน + คงลำดับ best-seller (findMany ไม่การันตีลำดับ)', async () => {
@@ -50,7 +56,7 @@ describe('getBestSellerProducts', () => {
         by: ['productId'],
         where: {
           productId: { not: null },
-          order: { shopId: 'shopX', status: { notIn: ['DRAFTED', 'CANCELLED', 'RETURNED'] } },
+          order: { shopId: 'shopX', status: { notIn: ['DRAFTED', 'CANCELLED'] } },
         },
         _sum: { qty: true },
         orderBy: { _sum: { qty: 'desc' } },
@@ -85,8 +91,35 @@ describe('getBestSellerProducts', () => {
       order: { status?: { notIn?: string[] } }
     }
     // เทียบเป็นเซ็ต ไม่ใช่ลำดับ — สิ่งที่ต้องล็อกคือ "ตัดสองค่านี้ออก" ไม่ใช่วิธีเขียน
-    // + RETURNED (คืนของครบทั้งใบ = การขายถูกยกเลิก · มติ 2026-10-01)
+    // ร้านขายออนไลน์ = เกณฑ์เดิม (ไม่ตัด RETURNED) — มติ user 2026-10-02
+    expect(new Set(where.order.status?.notIn)).toEqual(new Set(['CANCELLED', 'DRAFTED']))
+  })
+
+  it('[blocker] ร้านบริการเท่านั้นที่ตัดใบคืนของทั้งใบ (RETURNED) — กติกาใหม่ 00067', async () => {
+    vi.mocked(prisma.shop.findUnique).mockResolvedValue({ vertical: 'SERVICE_QUEUE' } as never)
+    vi.mocked(prisma.orderItem.groupBy).mockResolvedValue([{ productId: 'p1', _sum: { qty: 2 } }] as never)
+    vi.mocked(prisma.product.findMany).mockResolvedValue([{ id: 'p1' }] as never)
+
+    await getBestSellerProducts('shopX')
+
+    const where = vi.mocked(prisma.orderItem.groupBy).mock.calls[0][0].where as {
+      order: { status?: { notIn?: string[] } }
+    }
     expect(new Set(where.order.status?.notIn)).toEqual(new Set(['CANCELLED', 'DRAFTED', 'RETURNED']))
+  })
+
+  it('[blocker] ร้านขายออนไลน์/บ้านพัก: ลำดับตาม DB เดิม ไม่กรองหรือเรียงใหม่ (ของเดิม)', async () => {
+    for (const vertical of ['ONLINE_SALES', 'LODGING']) {
+      vi.mocked(prisma.shop.findUnique).mockResolvedValue({ vertical } as never)
+      vi.mocked(prisma.orderItem.groupBy).mockResolvedValue([
+        { productId: 'p2', _sum: { qty: 50 } },
+        { productId: 'p1', _sum: { qty: 0 } },
+      ] as never)
+      vi.mocked(prisma.product.findMany).mockResolvedValue([{ id: 'p1' }, { id: 'p2' }] as never)
+      const res = await getBestSellerProducts('shop1')
+      // qty 0 ยังอยู่ในรายการเหมือนของเดิม (กติกาใหม่ของร้านบริการจะตัดทิ้ง)
+      expect(res.map((p) => [p.id, p.soldCount]), vertical).toEqual([['p2', 50], ['p1', 0]])
+    }
   })
 
   it('product ที่ถูกปิด (isActive=false) หลุดจาก findMany → ไม่อยู่ในผลลัพธ์ (คงลำดับที่เหลือ)', async () => {

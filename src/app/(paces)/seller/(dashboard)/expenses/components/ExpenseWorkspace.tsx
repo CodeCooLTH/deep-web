@@ -60,6 +60,11 @@ type Props = {
   orderNoun?: string
   /** คำเรียกต้นทุนตามประเภทกิจการ (ORDER_VOCAB.costNoun) — การ์ดต้นทุนใน P&L */
   costNoun?: string
+  /**
+   * กติกาการเงินชุดใหม่ (00067): การ์ด "ไม่เกิน" + แถวค่าส่งในรายการค่าใช้จ่าย — ร้านบริการเท่านั้น
+   * หน้า /expenses (ร้านที่ไม่ใช่บริการ) ไม่ส่ง = ของเดิม (มติ user 2026-10-02 · src/lib/finance-rules.ts)
+   */
+  serviceRules?: boolean
 }
 
 export default function ExpenseWorkspace({
@@ -70,6 +75,7 @@ export default function ExpenseWorkspace({
   hasAnyExpenseEver,
   orderNoun = 'ออเดอร์',
   costNoun = 'ต้นทุนสินค้า',
+  serviceRules = false,
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -219,7 +225,8 @@ export default function ExpenseWorkspace({
         costNoun={costNoun}
         /* ข้อมูลไม่ครบ (ต้นทุนหาย/ยังไม่มีค่าใช้จ่าย) = เพดานบน — นิยามเดียวกับแท็บกำไรขาดทุน
            (resolveDataCompleteness) เดิมไม่ส่ง capped การ์ดนี้จึงเขียวพร้อม % ขณะที่การ์ดข้าง ๆ เตือน (review 2026-10-01) */
-        capped={!resolveDataCompleteness({
+        serviceRules={serviceRules}
+        capped={serviceRules && !resolveDataCompleteness({
           hasMissingCost: report.hasMissingCost,
           expenseCount: expenses.length,
           uncostedItemCount: 0,
@@ -227,13 +234,13 @@ export default function ExpenseWorkspace({
         }).complete}
       />
 
-      {(expenses.length > 0 || report.shippingCost > 0 || report.returnShippingCost > 0) && (
+      {(expenses.length > 0 || (serviceRules && (report.shippingCost > 0 || report.returnShippingCost > 0))) && (
         <ExpenseBreakdownCard
           expenses={expenses}
           revenue={report.revenue}
           days={daysInRange(report.range)}
-          returnShippingCost={report.returnShippingCost}
-          shippingCost={report.shippingCost}
+          returnShippingCost={serviceRules ? report.returnShippingCost : 0}
+          shippingCost={serviceRules ? report.shippingCost : 0}
           loading={loading}
         />
       )}

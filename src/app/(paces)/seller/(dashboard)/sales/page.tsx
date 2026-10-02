@@ -7,7 +7,7 @@
  * ข้อมูลทั้งหมดมาจาก real orders ของ shop — ไม่มี Paces demo series ใด ๆ ใน runtime.
  */
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { formatDate, thaiDayKey } from '@/lib/format-date'
+import { formatDate, thaiDayKey, localDayKey } from '@/lib/format-date'
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
 import { resolveExpenseAccess } from '@/services/expense-access.service'
@@ -19,10 +19,11 @@ import SalesChart from './components/SalesChart'
 import SalesTable from './components/SalesTable'
 import SalesDateRange from './components/SalesDateRange'
 import type { DailyRow, SummaryData } from './components/data'
-import { resolveRangeFromParams } from '@/lib/date-range'
+import { resolveRangeFromParams, thaiMidnightUtc } from '@/lib/date-range'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { DRAFTED_STATUS } from '@/lib/order-visibility'
 import { countsAsRevenue } from '@/lib/order-revenue'
-import { netOfReturns } from '@/lib/order-return'
+import { netOfReturns, type ReturnAdjustment } from '@/lib/order-return'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { resolveShopVertical } from '@/lib/lodging'
 import { resolveOrderVocab, FINANCE_MENU_LABEL } from '@/lib/seller-menu'
@@ -54,6 +55,26 @@ function eachDay(from: Date, toExcl: Date): string[] {
   return days
 }
 
+/**
+ * "เดือนนี้" แบบเดิมของร้านที่ไม่ใช่บริการ — **ทั้งเดือนปฏิทิน** (วันที่ 1 ถึงวันสุดท้าย) ไม่ใช่ 1 ถึงวันนี้
+ * คัดลอกจากโค้ดก่อน 00067 (commit e3a52782 · monthRange + parseDate) ทุกบรรทัด — ร้านขายของ/บ้านพัก
+ * ต้องได้ตัวเลขและ %เทียบช่วงก่อนเท่าเดิม (มติ user 2026-10-02 · src/lib/finance-rules.ts)
+ */
+function legacyMonthRange(): { from: Date; toExcl: Date; label: { start: string; end: string } } {
+  const fromLocal = new Date()
+  fromLocal.setDate(1)
+  fromLocal.setHours(0, 0, 0, 0)
+  const toLocal = new Date(fromLocal)
+  toLocal.setMonth(toLocal.getMonth() + 1)
+  toLocal.setDate(0)
+  toLocal.setHours(23, 59, 59, 999)
+  return {
+    from: thaiMidnightUtc(fromLocal.getFullYear(), fromLocal.getMonth(), fromLocal.getDate()),
+    toExcl: thaiMidnightUtc(toLocal.getFullYear(), toLocal.getMonth(), toLocal.getDate() + 1),
+    label: { start: localDayKey(fromLocal), end: localDayKey(toLocal) },
+  }
+}
+
 export default async function SalesPage({
   searchParams,
 }: {
@@ -78,10 +99,18 @@ export default async function SalesPage({
    * ของ Date ที่ server (UTC บน Vercel) ซึ่งเคยทำให้ออเดอร์เช้ามืดตกไปผิดวัน
    */
   const period = resolveRangeFromParams(sp, 'month')
-  const from = period.resolved.orderRange.gte
-  const toExcl = period.resolved.orderRange.lt
+  /**
+   * กติกาการเงินชุดใหม่ (00067) — **ร้านบริการเท่านั้น** · ร้านอื่นกลับเป็นของเดิม (มติ user 2026-10-02)
+   * ของเดิม: นับยอดจาก status === 'CONFIRMED' · ไม่ตัดร่าง/คืนของ · ไม่หักคืนบางส่วน · นับใบยกเลิกในจำนวนออเดอร์
+   * · "เดือนนี้" = ทั้งเดือนปฏิทิน · ถ้อยคำ/สีเดิมของกราฟ/ตาราง
+   */
+  const newRules = usesServiceFinanceRules(shop.vertical)
+  const legacyMonth = !newRules && period.preset === 'month' ? legacyMonthRange() : null
+  const from = legacyMonth?.from ?? period.resolved.orderRange.gte
+  const toExcl = legacyMonth?.toExcl ?? period.resolved.orderRange.lt
+  const rangeLabelDays = legacyMonth?.label ?? period.resolved.label
   /** ป้ายช่วงเวลาที่ผู้ใช้อ่าน — วัน-เดือน-ปี พ.ศ. ผ่านตัวกลาง (เดิมหัวการ์ดกำไรโชว์ "2026-09-01" ดิบ) */
-  const periodLabel = `${formatDate(period.resolved.label.start)} – ${formatDate(period.resolved.label.end)}`
+  const periodLabel = `${formatDate(rangeLabelDays.start)} – ${formatDate(rangeLabelDays.end)}`
   const rangeFilter = <SalesDateRange range={period.preset} customDates={period.custom} />
 
   /**
@@ -119,7 +148,7 @@ export default async function SalesPage({
       // แท็บนี้คือหน้า /expenses ทั้งหน้า — ดึงชุดเดียวกับที่หน้านั้นดึง ไม่แตะ getOrdersByShop
       // (การ query ออเดอร์ทั้งร้านเพื่อแสดงรายการค่าใช้จ่ายคือการจ่ายฟรี — NFR-01/03)
       const [report, expenses, everRecorded] = await Promise.all([
-        getPnlReport(shop.id, range),
+        getPnlReport(shop.id, range, shop.vertical),
         listExpenses(shop.id, { range: range.expenseRange }),
         hasAnyExpense(shop.id),
       ])
@@ -136,6 +165,7 @@ export default async function SalesPage({
               hasAnyExpenseEver={everRecorded}
               orderNoun={vocab.noun}
               costNoun={vocab.costNoun}
+              serviceRules
             />
           </div>
         </>
@@ -144,7 +174,7 @@ export default async function SalesPage({
 
     // tab === 'pnl'
     const [report, expenses, coverage] = await Promise.all([
-      getPnlReport(shop.id, range),
+      getPnlReport(shop.id, range, shop.vertical),
       listExpenses(shop.id, { range: range.expenseRange }),
       getCostCoverage(shop.id, range),
     ])
@@ -176,6 +206,7 @@ export default async function SalesPage({
             orderNoun={vocab.noun}
             costNoun={vocab.costNoun}
             capped={!completeness.complete}
+            serviceRules
           />
         </div>
       </>
@@ -201,13 +232,19 @@ export default async function SalesPage({
    */
   // + `RETURNED` (คืนของครบทั้งใบ) ตัดเหมือนกัน — การขายถูกยกเลิกแล้ว หลักใบลดหนี้ · ตรงกับ P&L/receivable (มติ 2026-10-01)
   // คืนบางส่วนที่รับของแล้ว — หักยอด/ต้นทุนผ่านตัวกลางเดียวกับ P&L และชีต (มติ 2026-10-01)
-  const [shopOrders, returnAdj] = await Promise.all([getOrdersByShop(shop.id), getReturnAdjustments(shop.id)])
+  // ร้านที่ไม่ใช่บริการ: ไม่ดึง/ไม่หักยอดคืน และไม่ตัดร่าง/คืนของ — ของเดิม (Map ว่าง ⇒ amountOf = totalAmount)
+  const [shopOrders, returnAdj] = await Promise.all([
+    getOrdersByShop(shop.id),
+    newRules ? getReturnAdjustments(shop.id) : Promise.resolve(new Map<string, ReturnAdjustment>()),
+  ])
   /** ยอดบิลหลังหักคืนบางส่วน — ใช้แทน totalAmount ดิบทุกจุดในหน้านี้ */
   const amountOf = (o: { id: string; totalAmount: unknown }) =>
     netOfReturns(Number(o.totalAmount ?? 0), returnAdj.get(o.id))
-  const allOrders = shopOrders.filter(
-    (o) => o.status !== DRAFTED_STATUS && o.status !== 'RETURNED',
-  )
+  const allOrders = newRules
+    ? shopOrders.filter((o) => o.status !== DRAFTED_STATUS && o.status !== 'RETURNED')
+    : shopOrders
+  /** นับเป็นยอดขายไหม — ร้านบริการ: countsAsRevenue (SSOT) · ร้านอื่น: status === 'CONFIRMED' ตามเดิม */
+  const isSale = (o: (typeof shopOrders)[number]) => (newRules ? countsAsRevenue(o) : o.status === 'CONFIRMED')
 
   // ใช้ type จริงจาก return value ของ getOrdersByShop — ป้องกัน silent break ถ้า schema เปลี่ยน
   type OrderItem = Awaited<ReturnType<typeof getOrdersByShop>>[number]
@@ -227,11 +264,11 @@ export default async function SalesPage({
     for (const o of rows) {
       // 🛑 countsAsRevenue (SSOT order-revenue.ts) ไม่ใช่ status==='CONFIRMED' — ดูหมายเหตุที่ลูปรายวัน
       if (o.status === 'CANCELLED') cancelled++
-      else if (countsAsRevenue(o)) { revenue += amountOf(o); completed++ }
+      else if (isSale(o)) { revenue += amountOf(o); completed++ }
       else { unconfirmed += amountOf(o) }
     }
-    // orders = ไม่นับใบยกเลิก — นิยามเดียวกับ orderCounts ของชีตหน้าหลัก (ใบยกเลิกโชว์แยกในแถว "ยกเลิก")
-    return { revenue, unconfirmed, completed, cancelled, orders: rows.length - cancelled }
+    // orders = ร้านบริการไม่นับใบยกเลิก (นิยามเดียวกับชีต) · ร้านอื่นนับทุกใบตามเดิม
+    return { revenue, unconfirmed, completed, cancelled, orders: newRules ? rows.length - cancelled : rows.length }
   }
   const prevWindow = sumWindow(inPrevRange)
 
@@ -241,7 +278,7 @@ export default async function SalesPage({
    * ตัวเทียบไม่รวม → ขึ้นเป็น "เพิ่มขึ้นมหาศาล" ทุกร้านในวันที่ deploy ทั้งที่ไม่มีใครจ่ายเพิ่มสักบาท
    */
   const prevShippingTotal = inPrevRange.reduce((sum: number, o: OrderItem) => {
-    if (!countsAsRevenue(o)) return sum
+    if (o.status === 'CANCELLED' || !isSale(o)) return sum
     const sp = o.shipments?.[0]
     if (!sp) return sum
     return sum + Number(sp.carrierPrice ?? sp.estimatedPrice ?? 0) + Number(sp.codFee ?? 0)
@@ -277,6 +314,9 @@ export default async function SalesPage({
       // "ออเดอร์" ของวันไม่นับใบยกเลิก — นิยามเดียวกับชีตหน้าหลัก (orderCounts) · ใบยกเลิกนับแยกที่การ์ด
       ordersPerDay[day] = (ordersPerDay[day] ?? 0) + 1
       billPerDay[day] = (billPerDay[day] ?? 0) + 1
+    } else if (!newRules) {
+      // ร้านที่ไม่ใช่บริการ: นับใบยกเลิกในจำนวนออเดอร์ของวันตามเดิม
+      ordersPerDay[day] = (ordersPerDay[day] ?? 0) + 1
     }
     /**
      * 🛑 "ขายแล้ว/ยืนยันแล้ว" = countsAsRevenue (SSOT `lib/order-revenue.ts` — user เคาะ 2026-08-05:
@@ -285,7 +325,7 @@ export default async function SalesPage({
      * เดียวกันคนละตัวเลข (ข้อมูลจริง ส.ค.: ชีต 114,230 · /sales 86,040 — audit 2026-10-01)
      * COGS/ค่าส่ง/hasMissingCost ใช้ชุดแถวเดียวกัน (ตัวลบต้องอยู่ในขอบเขตเดียวกับตัวตั้ง)
      */
-    if (o.status !== 'CANCELLED' && countsAsRevenue(o)) {
+    if (o.status !== 'CANCELLED' && isSale(o)) {
       completedPerDay[day] = (completedPerDay[day] ?? 0) + 1
       revenuePerDay[day] = (revenuePerDay[day] ?? 0) + amountOf(o)
       // ต้นทุนของชิ้นที่คืนบางส่วน — หักครั้งเดียวต่อใบ (ตัวกลาง return-adjustment)
@@ -358,8 +398,8 @@ export default async function SalesPage({
   const avgOrderValue = totalCompleted > 0 ? totalRevenue / totalCompleted : 0
 
   const cancelledCount = inRange.filter((o: OrderItem) => o.status === 'CANCELLED').length
-  // totalOrders ไม่รวมใบยกเลิกแล้ว ⇒ รอยืนยัน = ทั้งหมด − ขายแล้ว
-  const unconfirmedCount = totalOrders - totalCompleted
+  // ร้านบริการ: totalOrders ไม่รวมใบยกเลิกแล้ว ⇒ รอยืนยัน = ทั้งหมด − ขายแล้ว · ร้านอื่น: สูตรเดิม (หักยกเลิก)
+  const unconfirmedCount = newRules ? totalOrders - totalCompleted : totalOrders - totalCompleted - cancelledCount
   const prevAvgOrder = prevWindow.completed > 0 ? prevWindow.revenue / prevWindow.completed : 0
 
   const summary: SummaryData = {
@@ -381,7 +421,8 @@ export default async function SalesPage({
       netProfit: daily.reduce((s, d) => s + (d.netProfit ?? 0), 0),
       prevShippingCost: prevShippingTotal,
       pendingShipmentCount: daily.reduce((s, d) => s + (d.pendingShipmentCount ?? 0), 0),
-      hasMissingCost,
+      // ป้าย "ไม่เกิน" เมื่อตั้งต้นทุนไม่ครบ — กติกาใหม่ ร้านบริการเท่านั้น (ร้านอื่นแสดงแบบเดิม)
+      ...(newRules && { hasMissingCost }),
     }),
   }
 

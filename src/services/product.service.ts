@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getReturnedQtyByProduct } from "@/services/return-adjustment.service";
+import { shopUsesServiceFinanceRules, productsUseServiceFinanceRules } from "@/services/finance-rules.service";
 import { withoutDrafted } from "@/lib/order-visibility";
 import { COUNTABLE_CARRIER_STATUSES } from "@/lib/public-order-count";
 import { Prisma } from "@prisma/client";
@@ -483,10 +484,15 @@ export async function getProductsByShop(
  * ซึ่ง**ไม่ได้เปลี่ยน**ตามรอบนี้ — ห้ามลามเกณฑ์นี้ไปหน้าสาธารณะ (ร้านปั่นยอดโชว์ผู้ซื้อได้)
  */
 export async function getBestSellerProducts(shopId: string, take = 8) {
+  // กติกาใหม่ (ตัด RETURNED + หักคืนบางส่วน) — ร้านบริการเท่านั้น · ร้านอื่นของเดิม (มติ user 2026-10-02)
+  const newRules = await shopUsesServiceFinanceRules(shopId);
   const grouped = await prisma.orderItem.groupBy({
     by: ["productId"],
     // + RETURNED (คืนของครบทั้งใบ = การขายถูกยกเลิก · มติ 2026-10-01) — คู่กับรายงานยอดขายรายสินค้าเสมอ
-    where: { productId: { not: null }, order: { shopId, ...withoutDrafted(["CANCELLED", "RETURNED"]) } },
+    where: {
+      productId: { not: null },
+      order: { shopId, ...withoutDrafted(newRules ? ["CANCELLED", "RETURNED"] : "CANCELLED") },
+    },
     _sum: { qty: true },
     orderBy: { _sum: { qty: "desc" } },
     take,
@@ -494,15 +500,20 @@ export async function getBestSellerProducts(shopId: string, take = 8) {
   // หักชิ้นที่คืนบางส่วน (รับของแล้ว) — ตัวกลางเดียวกับรายงานรายสินค้า/หน้าร้าน (มติ 2026-10-01)
   // แล้วเรียงใหม่ เพราะลำดับจาก DB คิดก่อนหักคืน
   const groupedIds = grouped.map((g) => g.productId).filter((v): v is string => Boolean(v));
-  const returnedQty = await getReturnedQtyByProduct({ shopId, productIds: groupedIds });
+  const returnedQty = newRules
+    ? await getReturnedQtyByProduct({ shopId, productIds: groupedIds })
+    : new Map<string, number>();
   const qtyById = new Map(
     grouped
       .filter((g) => g.productId)
       .map((g) => [g.productId as string, (g._sum.qty ?? 0) - (returnedQty.get(g.productId as string) ?? 0)]),
   );
-  const ids = groupedIds
-    .filter((id) => (qtyById.get(id) ?? 0) > 0)
-    .sort((a, b) => (qtyById.get(b) ?? 0) - (qtyById.get(a) ?? 0));
+  // ร้านที่ไม่ใช่บริการ: ลำดับและรายการตาม DB ตรง ๆ แบบเดิม (ไม่กรอง/ไม่เรียงใหม่)
+  const ids = newRules
+    ? groupedIds
+        .filter((id) => (qtyById.get(id) ?? 0) > 0)
+        .sort((a, b) => (qtyById.get(b) ?? 0) - (qtyById.get(a) ?? 0))
+    : groupedIds;
   if (ids.length === 0) return [];
   const products = await prisma.product.findMany({
     where: { id: { in: ids }, shopId, isActive: true },
@@ -542,16 +553,18 @@ export async function getConfirmedOrderCountByProduct(
   if (productIds.length === 0) return result;
 
   // ⚠️ ไม่มี shopId ที่นี่โดยตั้งใจ — productIds ถูก scope ด้วยร้านมาแล้วจากผู้เรียก
+  // กติกาใหม่ (ตัด RETURNED + หักคืนบางส่วน) — ร้านบริการเท่านั้น · ร้านอื่นของเดิม (มติ user 2026-10-02)
+  const newRules = await productsUseServiceFinanceRules(productIds);
   const grouped = await prisma.orderItem.groupBy({
     by: ["productId"],
     where: {
       productId: { in: productIds },
       // เกณฑ์เดียวกับ getBestSellerProducts เป๊ะ (user สั่ง 2026-08-11) — + RETURNED + หักคืนบางส่วน (2026-10-01)
-      order: { ...withoutDrafted(["CANCELLED", "RETURNED"]) },
+      order: { ...withoutDrafted(newRules ? ["CANCELLED", "RETURNED"] : "CANCELLED") },
     },
     _sum: { qty: true },
   });
-  const returnedQty = await getReturnedQtyByProduct({ productIds });
+  const returnedQty = newRules ? await getReturnedQtyByProduct({ productIds }) : new Map<string, number>();
 
   for (const row of grouped) {
     if (!row.productId) continue;

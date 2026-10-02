@@ -61,39 +61,82 @@ describe('[blocker] คืนบางส่วน — ตัวกลางเ�
   })
 })
 
-describe('[blocker] นิยามเดียวกันทุกจอ', () => {
-  it('/sales นับยอดขายด้วย countsAsRevenue (SSOT) ไม่ใช่ status === CONFIRMED', () => {
+/**
+ * 🛑 มติ user 2026-10-02 — "นิยามเดียวกันทุกจอ" ใช้กับ **ร้านบริการเท่านั้น**
+ * ลูกค้าร้านขายของรายงานว่าชีตขึ้นกำไร 0 / ต้นทุน — หลัง #97 ⇒ ร้านขายออนไลน์/บ้านพักกลับเป็นของเดิมทุกจุด
+ * ตัวตัดสินกลาง: usesServiceFinanceRules (src/lib/finance-rules.ts) · พฤติกรรมจริงพิสูจน์ใน
+ * src/services/__tests__/finance-rules-by-vertical.test.ts — ไฟล์นี้ปักหมุดว่าทุกจุด "แยกตามประเภทร้าน" จริง
+ */
+describe('[blocker] นิยามใหม่ใช้กับร้านบริการ — ร้านอื่นได้ของเดิม', () => {
+  it('/sales: ร้านบริการนับ countsAsRevenue · ร้านอื่นนับ status === CONFIRMED ตามเดิม', () => {
     const page = read(D + 'sales/page.tsx')
-    expect(page).not.toMatch(/status === 'CONFIRMED'/)
-    expect(page).toMatch(/o\.status !== 'CANCELLED' && countsAsRevenue\(o\)/)
+    expect(page).toMatch(/const newRules = usesServiceFinanceRules\(shop\.vertical\)/)
+    expect(page).toMatch(/const isSale = \(o: \(typeof shopOrders\)\[number\]\) => \(newRules \? countsAsRevenue\(o\) : o\.status === 'CONFIRMED'\)/)
+    expect(page).toMatch(/o\.status !== 'CANCELLED' && isSale\(o\)/)
+    // ห้ามมีที่ไหนเรียก countsAsRevenue ตรง ๆ แบบไม่ผ่าน isSale (จะหลุดไปใช้กับร้านขายของ)
+    expect(page.match(/countsAsRevenue\(o\)/g)?.length).toBe(1)
   })
 
-  it('ชีตหน้าหลัก: กำไรจากการขาย = ยืนยันแล้ว − ต้นทุน(ยืนยัน) − ค่าส่ง(ยืนยัน) — สูตรเดียวกับ /sales', () => {
+  it('ชีตหน้าหลัก: ร้านบริการ = ยืนยันแล้ว − … · ร้านอื่น = ยอดทุกบิล − ต้นทุนทุกบิล − ค่าส่งทุกบิล (สูตรเดิม)', () => {
     const sheet = read(D + 'dashboard/components/SalesChartSheet.tsx')
-    expect(sheet).toMatch(/const profit = confirmedTotal - cogsTotal - shippingTotal/)
-    expect(sheet).toMatch(/const cogsTotal = \(series\.cogsConfirmedValues \?\? \[\]\)/)
-    expect(sheet).toMatch(/const shippingTotal = \(series\.shippingConfirmedValues \?\? \[\]\)/)
-    expect(sheet).toMatch(/value: \(isService \? series\.values\[i\] : series\.confirmedValues\[i\]\)/)
+    expect(sheet).toMatch(
+      /const profit = isService \? confirmedTotal - cogsTotal - shippingTotal : series\.total - cogsTotal - shippingTotal/,
+    )
+    expect(sheet).toMatch(/: \(series\.totalCogs \?\? 0\)/)
+    expect(sheet).toMatch(/: \(series\.totalShipping \?\? 0\)/)
+    // ตาราง: ยอดบิลทั้งหมด + ต้นทุน/ค่าส่งทุกใบ (คำว่า "—" ในคอลัมน์ต้นทุนกลับมาแปลว่า "ไม่ได้ตั้งต้นทุน" อย่างเดียว)
+    expect(sheet).toMatch(/value: series\.values\[i\] \?\? 0,/)
+    expect(sheet).toMatch(/cogs: series\.cogsValues\?\.\[i\] \?\? 0,/)
+    // คำเดิมของร้านที่ไม่ใช่บริการ
+    expect(sheet).toMatch(/hasFinance \? 'กำไร\/ขาดทุน' : 'ยอดขาย'/)
+    expect(sheet).toMatch(/label="รอยืนยัน" value=\{unconfirmedTotal\}/)
   })
 
-  it('ชีตนับค่าส่งเฉพาะพัสดุขาไป', () => {
-    expect(read('src/services/dashboard.service.ts')).toMatch(/sp\.direction === FORWARD_SHIPMENT/)
+  it('ชีต/การ์ด: ค่าส่งเฉพาะพัสดุขาไป + ตัด RETURNED — ร้านบริการเท่านั้น', () => {
+    const svc = read('src/services/dashboard.service.ts')
+    expect(svc).toMatch(/const newRules = usesServiceFinanceRules\(vertical\)/)
+    expect(svc).toMatch(/\(!newRules \|\| sp\.direction === FORWARD_SHIPMENT\)/)
+    expect(svc).toMatch(/withoutDrafted\(newRules \? \['CANCELLED', 'RETURNED'\] : 'CANCELLED'\)/)
+    expect(svc).toMatch(/newRules \? getReturnAdjustments\(shopId\) : Promise\.resolve\(new Map/)
   })
 
-  it('P&L นับค่าส่งขาไปเป็นค่าใช้จ่าย (D-EXT-10) — กำไรสุทธิไม่มีทางสูงกว่ากำไรจากการขาย', () => {
+  it('P&L: ค่าส่งขาไปเป็นค่าใช้จ่าย + หักคืน — ร้านบริการเท่านั้น · vertical เป็นพารามิเตอร์บังคับ', () => {
     const pnl = read('src/services/pnl.service.ts')
-    expect(pnl).toMatch(/Number\(expenseAgg\._sum\.amount \?\? 0\) \+ shippingCost \+ returnShippingCost/)
-    expect(pnl).toMatch(/prevSums\.shipping \+ prevReturnCost\.total/)
+    expect(pnl).toMatch(/vertical: string \| null \| undefined,\n\): Promise<PnlReport>/)
+    expect(pnl).toMatch(/const shippingCost = newRules \? round2\(shipping\) : 0/)
+    expect(pnl).toMatch(/\(newRules \? prevSums\.shipping : 0\)/)
+    // ผู้เรียกทุกรายต้องส่ง vertical (ไม่มีค่าเริ่มต้นให้หลุดไปทางใดทางหนึ่งเงียบ ๆ)
+    for (const f of [D + 'sales/page.tsx', D + 'expenses/page.tsx', 'src/app/api/expenses/report/route.ts']) {
+      const src = read(f)
+      const calls = src.match(/getPnlReport\([^)]*\)/g) ?? []
+      expect(calls.length, f).toBeGreaterThan(0)
+      for (const c of calls) expect(c, f).toMatch(/\.vertical\)$/)
+    }
   })
 
-  it('การ์ดหน้าแรกไม่นับร่าง และแท่งรายเดือนใช้ countsAsRevenue', () => {
+  it('หน้าแรก desktop: ตัดร่าง/หักคืน/กราฟรายเดือนแบบใหม่ — ร้านบริการเท่านั้น', () => {
     const home = read(D + 'dashboard/page.tsx')
-    expect(home).toMatch(/const liveOrders = rawOrders\.filter\(\(o\) => o\.status !== DRAFTED_STATUS\)/)
-    expect(home).toMatch(/const amt = countsAsRevenue\(o\) \? netAmount\(o\) : 0/)
+    expect(home).toMatch(/const newRules = usesServiceFinanceRules\(shop\.vertical\)/)
+    expect(home).toMatch(/const liveOrders = newRules \? rawOrders\.filter\(\(o\) => o\.status !== DRAFTED_STATUS\) : rawOrders/)
+    expect(home).toMatch(/const amt = newRules \? \(countsAsRevenue\(o\) \? netAmount\(o\) : 0\) : Number\(o\.totalAmount\)/)
   })
 
-  it('สินค้าขายดี / รายงานรายสินค้า / หน้าร้านสาธารณะ ไม่นับใบคืนของทั้งใบ', () => {
-    expect(read('src/services/product-sales-series.service.ts')).toMatch(/withoutDrafted\(\['CANCELLED', 'RETURNED'\]\)/)
-    expect(read('src/services/product.service.ts').match(/withoutDrafted\(\["CANCELLED", "RETURNED"\]\)/g)?.length).toBe(2)
+  it('สินค้าขายดี / รายงานรายสินค้า / หน้าร้าน / ลูกค้า / รายงานแอดมิน / กำไรรายใบ — ถามประเภทร้านก่อนใช้กติกาใหม่', () => {
+    const prod = read('src/services/product.service.ts')
+    expect(prod.match(/withoutDrafted\(newRules \? \["CANCELLED", "RETURNED"\] : "CANCELLED"\)/g)?.length).toBe(2)
+    expect(read('src/services/product-sales-series.service.ts')).toMatch(
+      /withoutDrafted\(newRules \? \['CANCELLED', 'RETURNED'\] : 'CANCELLED'\)/,
+    )
+    for (const f of [
+      'src/services/product.service.ts',
+      'src/services/product-sales-series.service.ts',
+      'src/services/customer-directory.service.ts',
+      'src/services/agent-performance.service.ts',
+    ]) {
+      expect(read(f), f).toMatch(/shopUsesServiceFinanceRules\(|productsUseServiceFinanceRules\(/)
+    }
+    expect(read(D + 'orders/[token]/page.tsx')).toMatch(
+      /usesServiceFinanceRules\(shop\.vertical\) \? \(await getReturnAdjustments\(shop\.id\)\)\.get\(order\.id\) : undefined/,
+    )
   })
 })

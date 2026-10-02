@@ -18,7 +18,8 @@ vi.mock('@/services/return-adjustment.service', () => ({
 }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    order: { findMany: vi.fn() },
+    // groupBy = นับงานตามสถานะ (jobStatusCounts) — ร้านบริการเท่านั้นที่ยิง
+    order: { findMany: vi.fn(), groupBy: vi.fn(async () => []) },
     // includeFinance=true เท่านั้นที่แตะตารางนี้ — เทสชุด COGS ด้านล่างต้องมีให้ mock
     expense: { findMany: vi.fn() },
   },
@@ -58,9 +59,9 @@ describe('getSalesSeries — daily', () => {
     expect(res.futureFromIndex).toBe(31)
   })
 
-  it('CANCELLED + DRAFTED + RETURNED ไม่ถูกนับ (where filter)', async () => {
+  it('ร้านบริการ: CANCELLED + DRAFTED + RETURNED ไม่ถูกนับ (where filter · กติกาใหม่ 00067)', async () => {
     findMany.mockResolvedValue([{ totalAmount: 100, createdAt: thaiNoon(2026, 3, 2) }] as never)
-    const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 })
+    const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 }, false, 'SERVICE_QUEUE')
     expect(res.total).toBe(100)
     // ยืนยัน where ตัดทั้งใบยกเลิกและร่างจากแชท (00061) + scope ร้าน
     const arg = findMany.mock.calls[0][0] as { where: Record<string, unknown> }
@@ -69,6 +70,18 @@ describe('getSalesSeries — daily', () => {
       // RETURNED (คืนของครบทั้งใบ) = การขายถูกยกเลิก — มติ 2026-10-01 ชุดเดียวกับ /sales + receivable
       new Set(['CANCELLED', 'DRAFTED', 'RETURNED']),
     )
+  })
+
+  it('[blocker] ร้านที่ไม่ใช่บริการ: ตัดแค่ CANCELLED + DRAFTED เหมือนเดิม (ไม่ตัด RETURNED — มติ user 2026-10-02)', async () => {
+    for (const vertical of [undefined, 'ONLINE_SALES', 'LODGING']) {
+      findMany.mockClear()
+      findMany.mockResolvedValue([{ totalAmount: 100, createdAt: thaiNoon(2026, 3, 2) }] as never)
+      await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 }, false, vertical)
+      const arg = findMany.mock.calls[0][0] as { where: Record<string, unknown> }
+      expect(new Set((arg.where.status as { notIn: string[] }).notIn), String(vertical)).toEqual(
+        new Set(['CANCELLED', 'DRAFTED']),
+      )
+    }
   })
 })
 

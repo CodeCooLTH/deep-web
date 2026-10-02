@@ -12,7 +12,8 @@ import { TZ_OFFSET_MS } from '@/lib/date-range'
 import { THAI_MONTHS_ABBR } from '@/lib/format-date'
 import { countsAsRevenue } from '@/lib/order-revenue'
 import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
-import { netOfReturns, costNetOfReturns } from '@/lib/order-return'
+import { netOfReturns, costNetOfReturns, type ReturnAdjustment } from '@/lib/order-return'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { deriveShippingStage } from '@/lib/order-stage'
 import { canonicalProvince, isKnownProvince } from '@/lib/parse-order-message'
@@ -224,6 +225,11 @@ export async function getSalesSeries(
 ): Promise<SalesSeries> {
   /** ร้านบริการไหม — ตัวเดียวที่เปิดคอลัมน์เงินรับจริง (ไม่ใช่ร้านบริการ = ไม่เสีย query ให้เลย) */
   const isServiceShop = vertical === 'SERVICE_QUEUE'
+  /**
+   * กติกาการเงินชุดใหม่ (00067) — ตัด RETURNED · หักคืนบางส่วน · ค่าส่งเฉพาะขาไป
+   * 🛑 ร้านที่ไม่ใช่บริการได้ของเดิม (มติ user 2026-10-02 — ดู src/lib/finance-rules.ts)
+   */
+  const newRules = usesServiceFinanceRules(vertical)
 
   // "ตอนนี้" ตามเวลาไทย — ใช้ตัดสินว่า bucket ไหนเป็นอนาคต
   const thaiNow = new Date(Date.now() + TZ_OFFSET_MS)
@@ -268,7 +274,11 @@ export async function getSalesSeries(
       // 00061: `notIn` ตัวเดียว — เขียนแยก 2 key `status` ไม่ได้ (ตัวหลังทับตัวหน้าเงียบ ๆ)
       // + RETURNED (คืนของครบทั้งใบ) — การขายถูกยกเลิกแล้ว ไม่ใช่ยอดรอยืนยัน/ค้างรับ (มติ 2026-10-01
       // หลักใบลดหนี้) ชุดเดียวกับ /sales และ receivable.service ไม่งั้นชีตกับหน้า /sales เลขไม่ตรงกัน
-      where: { shopId, ...withoutDrafted(['CANCELLED', 'RETURNED']), createdAt: { gte: prevGte, lt } },
+      where: {
+        shopId,
+        ...withoutDrafted(newRules ? ['CANCELLED', 'RETURNED'] : 'CANCELLED'),
+        createdAt: { gte: prevGte, lt },
+      },
       select: {
         id: true,
         totalAmount: true,
@@ -342,7 +352,8 @@ export async function getSalesSeries(
         })
       : Promise.resolve(null),
     // คืนบางส่วนที่รับของแล้ว — หักยอด/ต้นทุนแบบเดียวกับ P&L และ /sales (ตัวกลาง return-adjustment)
-    getReturnAdjustments(shopId),
+    // ร้านที่ไม่ใช่บริการ: Map ว่าง ⇒ netOfReturns/costNetOfReturns คืนค่าเดิม (ของเดิมไม่หักคืน)
+    newRules ? getReturnAdjustments(shopId) : Promise.resolve(new Map<string, ReturnAdjustment>()),
   ])
 
   const values = new Array<number>(bucketCount).fill(0)
@@ -466,7 +477,9 @@ export async function getSalesSeries(
           }
           // 🛑 ต้องเป็นพัสดุ **ขาไป** (feature 00056) — ไม่กรอง direction ใบคืนบางส่วนจะหยิบพัสดุขากลับ
           //    มานับเป็นค่าส่งของการขาย (audit 2026-10-01) · นิยามเดียวกับ ACTIVE_FORWARD_SHIPMENT
-        ).shipments?.find((sp) => sp.status === 'CREATED' && !sp.isDryRun && sp.direction === FORWARD_SHIPMENT)
+        ).shipments?.find(
+          (sp) => sp.status === 'CREATED' && !sp.isDryRun && (!newRules || sp.direction === FORWARD_SHIPMENT),
+        )
         let rowShipping = 0
         if (activeShipment) {
           /**
