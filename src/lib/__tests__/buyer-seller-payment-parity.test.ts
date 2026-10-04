@@ -36,7 +36,7 @@ describe('[blocker] จอผู้ซื้อ 2 แบบ ต้องตอ�
     /* `const serviceMoney = …` ต้องอยู่เหนือ `if (!session || !viewerUserId)` ซึ่งเป็นจุดที่
        เส้นทางแยกเป็น guest / ล็อกอิน — คำนวณใต้จุดนั้นแปลว่ามีสองชุดที่เพี้ยนจากกันได้ */
     const declIdx = c.indexOf('const serviceMoney =')
-    const branchIdx = c.indexOf('if (!session || !viewerUserId)')
+    const branchIdx = c.indexOf('if (!session || !viewerUserId') // ต้นเงื่อนไข — สาขา guest มีเงื่อนไขต่อท้ายได้ (เช่น viaSmsLink)
     expect(declIdx, 'ไม่เจอการประกาศ serviceMoney').toBeGreaterThan(-1)
     expect(branchIdx, 'ไม่เจอจุดแยกสาขา guest/ล็อกอิน').toBeGreaterThan(-1)
     expect(declIdx, 'serviceMoney ต้องประกาศก่อนแยกสาขา').toBeLessThan(branchIdx)

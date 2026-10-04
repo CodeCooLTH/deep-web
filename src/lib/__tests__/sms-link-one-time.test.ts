@@ -24,4 +24,10 @@ describe('[blocker] SMS order link = one-time, เผาตอนยืนยั
     expect(upsert).toBeGreaterThan(consume)
     expect(link).toBeGreaterThan(upsert)
   })
+
+  it('ทุกทางเข้าที่มีลิงก์ใช้ได้ไม่ต้องกรอกเบอร์: ล็อกอินบัญชีอื่นค้าง + ใบจอง', () => {
+    expect(page).toMatch(/if \(!session \|\| !viewerUserId \|\| viaSmsLink\)/)
+    expect(page).toMatch(/viaSmsLink = !!smsCode && order\.buyerUserId !== viewerUserId/)
+    expect(page).toMatch(/<SmsLinkPrompt/)
+  })
 })

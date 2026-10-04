@@ -28,6 +28,8 @@ import { authOptions } from '@/lib/auth'
 import { getOrderByToken } from '@/services/order.service'
 import { resolveOrderAccess, guaranteeOrderLink } from '@/services/order-access.service'
 import { peekSmsCode } from '@/services/sms-code.service'
+import { ORDER_VOCAB } from '@/lib/seller-menu'
+import SmsLinkPrompt from './SmsLinkPrompt'
 import { hasOpenDispute } from '@/services/order-dispute.service'
 import {
   approvedVerificationWhere,
@@ -144,9 +146,31 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
     // 🛑 สิ่งที่ **ไม่** เปลี่ยน: ทุก action ที่ผูกตัวตนยังบังคับ login เหมือนเดิมทุกประการ —
     // กติกา ownership/claim ของ 00015 อยู่ใต้บรรทัดนี้ทั้งหมดและไม่ถูกแตะเลย
     // ที่เปลี่ยนคือ "ก่อน login เห็นอะไรได้บ้าง" เท่านั้น
-    if (!session || !viewerUserId) {
-      // BOOKING ยังคง redirect เหมือนเดิม — flow การจองไม่อยู่ในขอบเขตรอบนี้ (SRS §1.2)
+    // ?sms= มาจาก /api/o/sms/[code] — ยืนยันซ้ำว่าโค้ดยังใช้ได้และเป็นของออเดอร์ใบนี้จริง
+    // (ห้ามเชื่อพารามิเตอร์เปล่า ๆ) ถึงจะโชว์ปุ่มเข้าสู่ระบบด้วยลิงก์แบบไม่ต้องกรอกเบอร์
+    const smsCode =
+      sms && SMS_CODE_RE.test(sms) && (await peekSmsCode(sms))?.publicToken === order.publicToken
+        ? sms
+        : undefined
+
+    // ล็อกอินอยู่แต่ยังไม่ใช่เจ้าของออเดอร์ + มีลิงก์ SMS ที่ใช้ได้ → ใช้ทาง guest เดียวกัน
+    // (ไม่งั้นจะตกไปจอ OTP/ยืนยันเบอร์ ซึ่งขัดกับ "เปิดจากลิงก์ SMS ไม่ต้องกรอกเบอร์")
+    // กดแล้ว session ถูกสลับเป็นบัญชีของเบอร์นั้น — เบอร์ = ตัวตน (หลักเดียวกับ verify-phone)
+    const viaSmsLink = !!smsCode && order.buyerUserId !== viewerUserId
+
+    if (!session || !viewerUserId || viaSmsLink) {
       if (order.type === 'BOOKING') {
+        // ใบจองไม่มีจอ guest — มีลิงก์ SMS ให้กดปุ่มเดียว ไม่มีก็ไปหน้าเข้าสู่ระบบเหมือนเดิม
+        if (smsCode) {
+          return (
+            <SmsLinkPrompt
+              code={smsCode}
+              publicToken={order.publicToken}
+              shopName={order.shop.shopName}
+              label={(ORDER_VOCAB[order.shop.vertical] ?? ORDER_VOCAB.LODGING).viewLabel}
+            />
+          )
+        }
         redirect('/auth/sign-in?callbackUrl=' + encodeURIComponent('/o/' + token))
       }
 
@@ -190,13 +214,6 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
 
       const confirmedCount = statusGroups.find((g) => g.status === 'CONFIRMED')?._count._all ?? 0
       const reviewCount = ratingAgg._count._all
-
-      // ?sms= มาจาก /api/o/sms/[code] — ยืนยันซ้ำว่าโค้ดยังใช้ได้และเป็นของออเดอร์ใบนี้จริง
-      // (ห้ามเชื่อพารามิเตอร์เปล่า ๆ) ถึงจะโชว์ปุ่มยืนยันแบบไม่ต้องกรอกเบอร์
-      const smsCode =
-        sms && SMS_CODE_RE.test(sms) && (await peekSmsCode(sms))?.publicToken === order.publicToken
-          ? sms
-          : undefined
 
       return (
         <GuestOrderView
