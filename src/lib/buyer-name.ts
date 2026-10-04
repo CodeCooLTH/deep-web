@@ -12,7 +12,12 @@
  *    ชื่อบัญชีเป็นบรรทัดรอง
  *
  * ทุกจอที่โชว์ชื่อลูกค้าของออเดอร์ฝั่งร้านต้องผ่านฟังก์ชันนี้ ห้ามเขียน `displayName ?? buyerName` เอง (HR16)
+ *
+ * 🛑 **ร้านบริการเท่านั้น** (มติ user 2026-10-04 หลัง #103 ขึ้นทุกประเภทร้าน): ร้านขายของ/บ้านพัก
+ *    กลับเป็นพฤติกรรมเดิมทุกอย่าง (ชื่อบัญชีมาก่อน · ไม่มีบรรทัดรอง · การ์ดผู้ซื้อโชว์ `@username`)
+ *    ตัวตัดสินเดียวคือ `usesTypedBuyerName()` — ห้ามเขียน `vertical === 'SERVICE_QUEUE'` สดที่จุดใช้งาน
  */
+import { resolveShopVertical } from '@/lib/lodging'
 
 /**
  * ชื่อบัญชีที่ระบบตั้งให้เอง ไม่ใช่ชื่อคน — โชว์แล้วไม่มีประโยชน์
@@ -52,4 +57,56 @@ export function resolveOrderBuyerName(input: {
   if (!typed) return { name: account || null, accountName: null }
   const sameAsTyped = account.toLowerCase() === typed.toLowerCase()
   return { name: typed, accountName: account && !sameAsTyped ? account : null }
+}
+
+/** ร้านนี้ใช้กติกา "ชื่อที่ร้านกรอกเป็นชื่อหลัก" ไหม — ร้านบริการเท่านั้น · ค่าแปลก/ว่าง = กติกาเดิม */
+export function usesTypedBuyerName(vertical: string | null | undefined): boolean {
+  return resolveShopVertical(vertical) === 'SERVICE_QUEUE'
+}
+
+/**
+ * ชื่อลูกค้าตามประเภทร้าน — ร้านบริการได้กติกาใหม่ ร้านอื่นได้ **ของเดิมก่อน #103 ทุกตัวอักษร**
+ * (ของเดิม = `displayName ?? buyerName` ไม่มีบรรทัดรอง)
+ */
+export function resolveOrderBuyerNameForShop(
+  vertical: string | null | undefined,
+  input: { typedName: string | null | undefined; accountName: string | null | undefined },
+): OrderBuyerName {
+  if (usesTypedBuyerName(vertical)) return resolveOrderBuyerName(input)
+  return { name: input.accountName ?? input.typedName ?? null, accountName: null }
+}
+
+/**
+ * ชื่อบนการ์ด "ผู้ซื้อ" หน้ารายละเอียดออเดอร์ — ชื่อหลัก + บรรทัดรอง (คำพร้อมแสดง)
+ *
+ * - ร้านบริการ (`typedNameFirst`): ชื่อที่ร้านกรอก / `บัญชี: <ชื่อบัญชี>` — เลิกโชว์ `@username`
+ *   เพราะเป็นรหัสที่ระบบตั้งให้ (`fb1234…`) ร้านอ่านแล้วไม่รู้ว่าใคร
+ * - ร้านอื่น: **ของเดิมก่อน #103 ทุกตัวอักษร** — ชื่อบัญชี/username มาก่อน · บรรทัดรอง `@username`
+ */
+export function resolveBuyerCardNames(input: {
+  typedNameFirst: boolean
+  typedName: string | null | undefined
+  accountName: string | null | undefined
+  username: string | null | undefined
+  hasContact: boolean
+}): { displayName: string | null; subLabel: string; hasBuyerInfo: boolean } {
+  if (!input.typedNameFirst) {
+    const registeredName = input.accountName || input.username || null
+    const displayName = registeredName || input.typedName || null
+    const subLabel = input.username
+      ? `@${input.username}`
+      : registeredName
+        ? 'ผู้ซื้อที่ลงทะเบียนแล้ว'
+        : 'ชื่อที่ร้านบันทึก'
+    return { displayName, subLabel, hasBuyerInfo: Boolean(input.hasContact || displayName) }
+  }
+  const { name, accountName } = resolveOrderBuyerName({ typedName: input.typedName, accountName: input.accountName })
+  // ใบเก่าที่ร้านไม่ได้กรอกชื่อ และบัญชีมีแต่ชื่อที่ระบบตั้งให้ — ถอยไป username ตามพฤติกรรมเดิม
+  const displayName = name || input.username || null
+  const subLabel = accountName
+    ? `บัญชี: ${accountName}`
+    : input.username
+      ? 'ผู้ซื้อที่ลงทะเบียนแล้ว'
+      : 'ชื่อที่ร้านบันทึก'
+  return { displayName, subLabel, hasBuyerInfo: Boolean(input.hasContact || displayName) }
 }
