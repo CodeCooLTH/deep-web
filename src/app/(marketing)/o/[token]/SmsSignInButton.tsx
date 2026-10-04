@@ -33,7 +33,7 @@ export default function SmsSignInButton({ code, publicToken, height, children }:
     } catch {
       // เครือข่ายหลุด/throw = ยังไม่ได้ไปไหน (โค้ดยังไม่ถูกเผา) → ให้กดใหม่ได้ ไม่ค้าง spinner
       setBusy(false)
-      toast.error('เชื่อมต่อไม่สำเร็จ ลองกดอีกครั้ง')
+      toast.error('เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
     }
   }
 
