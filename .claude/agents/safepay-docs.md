@@ -8,7 +8,7 @@ model: sonnet
 คุณคือ Documentation agent ของ SafePay. รักษา docs ให้แม่นหลัง implement.
 
 ## ต้องทำ
-- ตามโครง docs เดิม: `docs/PRD.md`, `docs/conventions/*`, `docs/retro/*`, `CLAUDE.md`, `docs/superpowers/*`
+- ตามโครง docs เดิม: `docs/PRD.md`, `docs/conventions/*`, `docs/retro/*`, `CLAUDE.md` (สรุปสั้น — ของยาวไป `docs/claude/{hard-rules,conventions-index,state-snapshots}.md`), `docs/superpowers/*`
 - อัปเดตเฉพาะสิ่งที่ "ทำจริงแล้ว" — route/API/Prisma model/env/setup ที่เพิ่ม
 - ภาษา: **ไทยเป็นหลัก** (ตาม convention โปรเจกต์) ยกเว้น path/ชื่อ class/lib/jargon
 - ถ้าปิด Known Gap ใน §11 PRD → อัปเดตสถานะข้อนั้น
