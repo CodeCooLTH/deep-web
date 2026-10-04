@@ -14,6 +14,8 @@
  *
  * 🛑 ทุกปุ่มที่ผูกตัวตนที่นี่เป็น "ลิงก์ไปหน้า login" ไม่ใช่ปุ่มที่ยิง API — ห้ามมี mutation
  * ใด ๆ จากมุมมองนี้ (BR-BOE-06/07; ต่อให้มี server ก็ปฏิเสธอยู่แล้ว แต่ UI ต้องไม่หลอกให้กด)
+ * ยกเว้นเดียว: `SmsSignInButton` (เมื่อเปิดจากลิงก์ SMS) ซึ่งทำได้แค่ sign-in ด้วยโค้ดในลิงก์
+ * ไม่แตะสถานะออเดอร์ — อย่าถอดทิ้งเพราะเห็นกฎบรรทัดบน
  */
 
 import Link from 'next/link'
@@ -28,7 +30,7 @@ import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFoot
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { resolveVerifyBadge } from '@/lib/verify-badge'
 import AuthPingLink from './AuthPingLink'
-import SmsConfirmButton from './SmsConfirmButton'
+import SmsSignInButton from './SmsSignInButton'
 import SectionTitle from './SectionTitle'
 import { formatOrderNo } from '@/lib/order-no'
 import { formatDateTimeTH, formatTimeHM, formatTimeRangeHM, formatWeekdayDateTH } from '@/lib/format-date'
@@ -647,9 +649,9 @@ export default function GuestOrderView({ order, smsCode }: { order: GuestOrderDa
       >
         <Box sx={orderContentWidthSx}>
           {smsCode ? (
-            <SmsConfirmButton code={smsCode} publicToken={order.publicToken} height={CTA_BUTTON_HEIGHT}>
-              {isClosed ? `ดูรายละเอียด${vocab.noun}` : vocab.buyerConfirmLabel}
-            </SmsConfirmButton>
+            <SmsSignInButton code={smsCode} publicToken={order.publicToken} height={CTA_BUTTON_HEIGHT}>
+              {vocab.viewLabel}
+            </SmsSignInButton>
           ) : (
             <AuthPingLink
               href={loginHref}
@@ -676,7 +678,9 @@ export default function GuestOrderView({ order, smsCode }: { order: GuestOrderDa
             }}
           >
             {smsCode
-              ? 'ลิงก์นี้ส่งเข้าเบอร์ของคุณ ไม่ต้องกรอกเบอร์หรือรหัส OTP · ใช้ได้ครั้งเดียว'
+              ? isClosed
+                ? 'ลิงก์ส่งเข้าเบอร์ของคุณ จึงไม่ต้องกรอกเบอร์หรือ OTP'
+                : 'ลิงก์ส่งเข้าเบอร์ของคุณ จึงไม่ต้องกรอกเบอร์หรือ OTP · กดยืนยันได้ในหน้าถัดไป'
               : 'ต้องเข้าสู่ระบบก่อนยืนยัน แนบสลิป เขียนรีวิว หรือแจ้งปัญหา'}
           </Typography>
         </Box>

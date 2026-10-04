@@ -14,7 +14,8 @@ export default function SmsExpiredToast() {
 
   useEffect(() => {
     if (smsExpired !== '1') return
-    toast.warning('ลิงก์หมดอายุ กรุณาเข้าสู่ระบบ')
+    // ลิงก์ SMS ใช้ได้ครั้งเดียว (2026-10-04) — สาเหตุที่พบบ่อยตอนนี้คือ "ใช้ไปแล้ว" ไม่ใช่แค่หมดอายุ
+    toast.warning('ลิงก์นี้ใช้ไปแล้วหรือหมดอายุ เข้าสู่ระบบด้วยเบอร์โทรเพื่อดูคำสั่งซื้อต่อ')
   }, [smsExpired])
 
   return null
