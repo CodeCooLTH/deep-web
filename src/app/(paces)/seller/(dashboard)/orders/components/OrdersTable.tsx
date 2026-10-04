@@ -514,6 +514,17 @@ export default function OrdersTable({
                   DOM ที่ render ออกมาเหมือนเดิมทุกคลาส */}
               <CustomerBehaviorIcons badges={behaviorBadges} />
             </p>
+            {/* บรรทัดรอง: ชื่อบัญชีของลูกค้าที่ล็อกอินแล้ว — ชุดเดียวกับการ์ดมือถือ (OrderCard)
+                ชื่อหลักข้างบนเป็นชื่อที่ร้านกรอกเสมอ (มติ user 2026-10-04 · lib/buyer-name.ts) */}
+            {row.original.buyerAccountLabel && (
+              <p className="mb-0 flex min-w-0 items-center gap-1 text-xs text-default-700">
+                <Icon icon="user" className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+                <span className="truncate">
+                  <span className="sr-only">บัญชีลูกค้า: </span>
+                  <HighlightText text={row.original.buyerAccountLabel} query={searchQuery} />
+                </span>
+              </p>
+            )}
             {/* select-all: คลิกเดียวเลือกทั้งเบอร์ ไม่ต้องลาก */}
             <p className="mb-0 select-all text-xs tabular-nums text-default-500">
               <HighlightText text={row.original.buyerPhone ?? row.original.buyer} query={searchQuery} />

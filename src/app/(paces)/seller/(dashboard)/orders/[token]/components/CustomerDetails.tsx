@@ -48,7 +48,7 @@ export default function CustomerDetails({
    */
   profileKey: string | null
 }) {
-  const { registeredName, displayName, hasBuyerInfo } = resolveBuyerNames(buyer)
+  const { displayName, accountName, isRegistered, hasBuyerInfo } = resolveBuyerNames(buyer)
   const channelLabel = salesChannel ? getSalesChannelDisplay(salesChannel).label : null
 
   return (
@@ -110,9 +110,11 @@ export default function CustomerDetails({
                   {displayName ?? 'ไม่ระบุชื่อ'}
                 </h5>
                 <p className="text-default-700 text-xs">
-                  {buyer.buyerUsername
-                    ? `@${buyer.buyerUsername}`
-                    : registeredName
+                  {/* บรรทัดรอง: ชื่อบัญชีของลูกค้า (มติ user 2026-10-04) — เลิกโชว์ `@username`
+                      เพราะเป็นรหัสที่ระบบตั้งให้ (`fb1234…`) ร้านอ่านแล้วไม่รู้ว่าใคร */}
+                  {accountName
+                    ? `บัญชี: ${accountName}`
+                    : isRegistered
                       ? 'ผู้ซื้อที่ลงทะเบียนแล้ว'
                       : 'ชื่อที่ร้านบันทึก'}
                 </p>

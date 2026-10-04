@@ -6,6 +6,7 @@
  * การ์ดเขียนเอง สูตรคิดเงินจะเพี้ยนกันเองวันใดวันหนึ่งโดยไม่มีอะไรเตือน
  */
 
+import { resolveOrderBuyerName } from '@/lib/buyer-name'
 import Image from 'next/image'
 import Icon from '@/components/wrappers/Icon'
 
@@ -129,9 +130,24 @@ export function ItemThumbnail({
   )
 }
 
-/** ชื่อผู้ซื้อที่จะแสดง — ลงทะเบียนแล้วมาก่อน แล้วค่อยชื่อที่ร้านบันทึกเอง */
+/**
+ * ชื่อผู้ซื้อที่จะแสดง — **ชื่อที่ร้านกรอกเป็นชื่อหลักเสมอ** ชื่อบัญชีเป็นบรรทัดรอง (มติ user 2026-10-04)
+ *
+ * 🛑 เดิม "ลงทะเบียนแล้วมาก่อน" (`displayName || username || buyerName`) ⇒ พอลูกค้าล็อกอินยืนยัน
+ *    ชื่อที่ร้านกรอก (เช่นทะเบียนรถ) หายจากจอ เหลือชื่อ Facebook หรือ username ที่ระบบตั้งให้
+ *    กติกาอยู่ที่ `resolveOrderBuyerName` (lib/buyer-name.ts) ที่เดียว — หน้ารายการใช้ตัวเดียวกัน
+ */
 export function resolveBuyerNames(buyer: OrderFactsBuyer) {
-  const registeredName = buyer.buyerDisplayName || buyer.buyerUsername || null
-  const displayName = registeredName || buyer.buyerName || null
-  return { registeredName, displayName, hasBuyerInfo: Boolean(buyer.buyerContact || displayName) }
+  const { name, accountName } = resolveOrderBuyerName({
+    typedName: buyer.buyerName,
+    accountName: buyer.buyerDisplayName,
+  })
+  // ใบเก่าที่ร้านไม่ได้กรอกชื่อ และบัญชีมีแต่ชื่อที่ระบบตั้งให้ — ถอยไป username ตามพฤติกรรมเดิม
+  const displayName = name || buyer.buyerUsername || null
+  return {
+    displayName,
+    accountName,
+    isRegistered: Boolean(buyer.buyerUsername),
+    hasBuyerInfo: Boolean(buyer.buyerContact || displayName),
+  }
 }

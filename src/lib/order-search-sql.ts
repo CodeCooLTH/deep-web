@@ -120,6 +120,7 @@ export function buildOrderSearchSql(
     `left(${o}."publicToken", 8)`,
     `${o}."buyerName"`,
     `${a.buyerUser}."username"`,
+    `${a.buyerUser}."displayName"`,
     `${o}."buyerContact"`,
     trackingNo(s, t),
   ]

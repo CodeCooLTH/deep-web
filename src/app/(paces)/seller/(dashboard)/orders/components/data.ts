@@ -149,6 +149,8 @@ export type OrderRow = {
   // component จะ fallback เป็น masked contact / placeholder เอง (T3-T6)
   buyerName: string | null
   buyerUsername: string | null
+  /** บรรทัดรองใต้ชื่อ — ชื่อบัญชีลูกค้า (null = ไม่ต้องโชว์ · กติกาอยู่ที่ `resolveOrderBuyerName`) */
+  buyerAccountLabel: string | null
   /** avatar ของ registered buyer (User.avatar) — null = guest → fallback initial */
   buyerAvatar: string | null
   /** ช่องทางการขาย (STOREFRONT|FACEBOOK|LINE|TIKTOK|OTHER) → icon ผ่าน SALES_CHANNEL_ICONS */
