@@ -45,6 +45,23 @@ export function profileSoldLine(
   return `ขายแล้ว ${formattedCount} ชิ้น`
 }
 
+/**
+ * ป้ายของตัวเลข "งานที่ปิดสำเร็จ" ของร้านบริการ — SSOT เดียว (HR16)
+ *
+ * 🛑 เดิมหน้าโปรไฟล์ร้านบริการเขียนว่า "นัดหมาย" ทั้งที่ตัวเลขคือ **งานที่สำเร็จแล้ว**
+ *    (`completedOrders`) ⇒ ผู้ซื้ออ่านเป็น "ร้านมีนัด 5 นัด" (user ชี้หน้าจอจริง 2026-10-04 · BT Premium)
+ *    ใช้คำนี้ทุกจอที่โชว์ตัวเลขชุดนี้ของร้านบริการ: หน้าโปรไฟล์ · หน้าออเดอร์ `/o/` · หน้าเข้าสู่ระบบจากลิงก์ออเดอร์
+ */
+export const SERVICE_COMPLETED_LABEL = 'งานสำเร็จ'
+
+/**
+ * ป้ายสั้นใต้ตัวเลข "ปิดสำเร็จ" บนหน้าออเดอร์ `/o/` และหน้าเข้าสู่ระบบจากลิงก์ออเดอร์
+ * ร้านบริการ = "งานสำเร็จ" · ร้านอื่น = "ออเดอร์สำเร็จ" ตามเดิม (มติ user: แก้แค่ร้านบริการ)
+ */
+export function shopCompletedLabel(isServiceQueue: boolean): string {
+  return isServiceQueue ? SERVICE_COMPLETED_LABEL : 'ออเดอร์สำเร็จ'
+}
+
 export function shopStatVocab(isLodging?: boolean, isServiceQueue?: boolean): ShopStatVocab {
   if (isLodging) {
     return {
@@ -58,7 +75,7 @@ export function shopStatVocab(isLodging?: boolean, isServiceQueue?: boolean): Sh
   }
   if (isServiceQueue) {
     return {
-      orders: 'นัดหมาย',
+      orders: SERVICE_COMPLETED_LABEL,
       customers: 'ลูกค้า',
       repeat: 'ใช้ซ้ำ',
       verb: 'ปิดงานสำเร็จ',

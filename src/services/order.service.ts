@@ -1,3 +1,4 @@
+import { shopCompletedLabel } from "@/lib/shop-stat-vocab";
 import { randomBytes } from "node:crypto";
 import { ACTIVE_FORWARD_SHIPMENT, LATEST_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { Prisma } from "@prisma/client";
@@ -2563,6 +2564,7 @@ export async function getOrderSummaryForSignIn(publicToken: string) {
           createdAt: true,
           // ต้องมี kind — ระดับยืนยันของร้าน BUSINESS กับ PERSONAL อ่านคนละ scope (FR-2.7)
           kind: true,
+          vertical: true,
           user: { select: { id: true, username: true, trustScore: true } },
           // ช่องทางที่ร้านเชื่อมไว้ — ผู้ซื้อเพิ่งคุยกับเพจนี้อยู่ในแชทเมื่อครู่
           // เอาเฉพาะ ACTIVE: เพจที่ถอดออกแล้วไม่ใช่หลักฐานว่าติดต่อร้านได้
@@ -2640,6 +2642,7 @@ export async function getOrderSummaryForSignIn(publicToken: string) {
     // สถิติ: ส่ง null เมื่อยังไม่มีประวัติ ให้ UI ซ่อนทั้งแถบแทนการโชว์เลขศูนย์
     // การโชว์ "0 ออเดอร์" หรือแต่งตัวเลขให้ดูดีคือสิ่งที่ระบบนี้ตั้งใจกำจัด
     completedOrders: confirmedCount > 0 ? confirmedCount : null,
+    completedLabel: shopCompletedLabel(order.shop.vertical === "SERVICE_QUEUE"),
     completionRate,
     avgRating: ratingAgg._count._all > 0 ? Number(ratingAgg._avg.rating?.toFixed(1)) : null,
     reviewCount: ratingAgg._count._all,

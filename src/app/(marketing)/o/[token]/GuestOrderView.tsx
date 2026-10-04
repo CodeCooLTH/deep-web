@@ -46,6 +46,7 @@ import ShopCover from './ShopCover'
 import ShopEvidence from './ShopEvidence'
 import TrustPill, { VERIFIED_BG, VERIFIED_INK } from './TrustPill'
 import type { GuestOrderData } from './guest-order-data'
+import { shopCompletedLabel } from '@/lib/shop-stat-vocab'
 
 
 /**
@@ -254,6 +255,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
           {/* ── หลักฐานของร้าน — ใช้ร่วมกับจอหลังล็อกอิน (ShopEvidence) ── */}
           <ShopEvidence
             completedOrders={order.completedOrders}
+            completedLabel={shopCompletedLabel(order.shop.vertical === 'SERVICE_QUEUE')}
             avgRating={order.avgRating}
             reviewCount={order.reviewCount}
             channels={order.channels}

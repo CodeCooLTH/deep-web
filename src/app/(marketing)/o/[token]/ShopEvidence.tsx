@@ -33,6 +33,8 @@ import { ORDER_TWO_COL_MQ } from './content-width'
 
 export type ShopEvidenceData = {
   completedOrders: number | null
+  /** ป้ายใต้ตัวเลข — `shopCompletedLabel()` (ร้านบริการ "งานสำเร็จ" · ร้านอื่น "ออเดอร์สำเร็จ") */
+  completedLabel: string
   avgRating: number | null
   reviewCount: number
   channels: OfficialChannel[]
@@ -95,6 +97,7 @@ const metricBox = {
 
 export function ShopStats({
   completedOrders,
+  completedLabel,
   avgRating,
   reviewCount,
 }: Omit<ShopEvidenceData, 'channels' | 'originChannel'>) {
@@ -169,7 +172,7 @@ export function ShopStats({
               {completedOrders.toLocaleString('th-TH')}
             </Typography>
             <Typography variant='caption' color='text.secondary'>
-              ออเดอร์สำเร็จ
+              {completedLabel}
             </Typography>
           </Box>
         </Box>
@@ -274,7 +277,12 @@ export default function ShopEvidence(p: ShopEvidenceData) {
   return (
     <>
       <ShopChannels channels={p.channels} originChannel={p.originChannel} />
-      <ShopStats completedOrders={p.completedOrders} avgRating={p.avgRating} reviewCount={p.reviewCount} />
+      <ShopStats
+        completedOrders={p.completedOrders}
+        completedLabel={p.completedLabel}
+        avgRating={p.avgRating}
+        reviewCount={p.reviewCount}
+      />
     </>
   )
 }
