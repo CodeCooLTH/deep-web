@@ -6,7 +6,7 @@
  * การ์ดเขียนเอง สูตรคิดเงินจะเพี้ยนกันเองวันใดวันหนึ่งโดยไม่มีอะไรเตือน
  */
 
-import { resolveOrderBuyerName } from '@/lib/buyer-name'
+import { resolveBuyerCardNames } from '@/lib/buyer-name'
 import Image from 'next/image'
 import Icon from '@/components/wrappers/Icon'
 
@@ -26,6 +26,11 @@ export type OrderFactsBuyer = {
   buyerUsername: string | null
   /** ชื่อที่ร้านบันทึกตอนสร้างออเดอร์ (ผู้ซื้ออาจยังไม่ลงทะเบียน) */
   buyerName: string | null
+  /**
+   * ใช้กติกา "ชื่อที่ร้านกรอกเป็นชื่อหลัก" ไหม — ร้านบริการเท่านั้น (`usesTypedBuyerName`)
+   * false = ของเดิมก่อน #103 ทุกตัวอักษร (ชื่อบัญชีมาก่อน · บรรทัดรองเป็น `@username`)
+   */
+  typedNameFirst: boolean
   /** avatar URL (Facebook CDN / null) — ไม่ใช่ PII เพราะเป็น URL สาธารณะ */
   avatar: string | null
   shippingAddr: ShippingAddressData | null
@@ -131,23 +136,15 @@ export function ItemThumbnail({
 }
 
 /**
- * ชื่อผู้ซื้อที่จะแสดง — **ชื่อที่ร้านกรอกเป็นชื่อหลักเสมอ** ชื่อบัญชีเป็นบรรทัดรอง (มติ user 2026-10-04)
- *
- * 🛑 เดิม "ลงทะเบียนแล้วมาก่อน" (`displayName || username || buyerName`) ⇒ พอลูกค้าล็อกอินยืนยัน
- *    ชื่อที่ร้านกรอก (เช่นทะเบียนรถ) หายจากจอ เหลือชื่อ Facebook หรือ username ที่ระบบตั้งให้
- *    กติกาอยู่ที่ `resolveOrderBuyerName` (lib/buyer-name.ts) ที่เดียว — หน้ารายการใช้ตัวเดียวกัน
+ * ชื่อผู้ซื้อบนการ์ด — กติกาอยู่ที่ `resolveBuyerCardNames` (lib/buyer-name.ts) ที่เดียว
+ * ร้านบริการ: ชื่อที่ร้านกรอกเป็นชื่อหลัก + "บัญชี: …" · ร้านอื่น: แบบเดิมก่อน #103 (มติ user 2026-10-04)
  */
 export function resolveBuyerNames(buyer: OrderFactsBuyer) {
-  const { name, accountName } = resolveOrderBuyerName({
+  return resolveBuyerCardNames({
+    typedNameFirst: buyer.typedNameFirst,
     typedName: buyer.buyerName,
     accountName: buyer.buyerDisplayName,
+    username: buyer.buyerUsername,
+    hasContact: Boolean(buyer.buyerContact),
   })
-  // ใบเก่าที่ร้านไม่ได้กรอกชื่อ และบัญชีมีแต่ชื่อที่ระบบตั้งให้ — ถอยไป username ตามพฤติกรรมเดิม
-  const displayName = name || buyer.buyerUsername || null
-  return {
-    displayName,
-    accountName,
-    isRegistered: Boolean(buyer.buyerUsername),
-    hasBuyerInfo: Boolean(buyer.buyerContact || displayName),
-  }
 }

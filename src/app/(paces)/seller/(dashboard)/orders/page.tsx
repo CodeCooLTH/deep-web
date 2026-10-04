@@ -39,7 +39,7 @@ import { RETURNED_CARRIER_STATUSES } from '@/lib/iship/status'
 import { cancelReasonCountsAgainstGuest } from '@/lib/lodging'
 import { toFileUrl } from '@/lib/file-url'
 import { sellerContactDisplay } from '@/lib/seller-contact-display'
-import { resolveOrderBuyerName } from '@/lib/buyer-name'
+import { resolveOrderBuyerNameForShop, usesTypedBuyerName } from '@/lib/buyer-name'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ จึงเป็น generateMetadata ไม่ใช่ constant
@@ -391,14 +391,14 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     createdAtISO: o.createdAt ? new Date(o.createdAt).toISOString() : '',
     // Phase A Unit A: buyer identity (null = guest ยังไม่ register)
     // `buyer` ด้านบนเป็นค่าเต็มแล้วตั้งแต่ D-13 (2026-08-24) — ดู lib/seller-contact-display.ts
-    // ชื่อที่ร้านกรอกเป็นชื่อหลักเสมอ ชื่อบัญชีเป็นบรรทัดรอง (มติ user 2026-10-04 — SSOT `lib/buyer-name.ts`)
-    // 🛑 เดิม `o.buyer?.displayName ?? o.buyerName` ⇒ ลูกค้าล็อกอินแล้วชื่อที่ร้านกรอก (เช่นทะเบียนรถ) หายและค้นไม่เจอ
+    // ร้านบริการ: ชื่อที่ร้านกรอกเป็นชื่อหลัก ชื่อบัญชีเป็นบรรทัดรอง (มติ user 2026-10-04 — SSOT `lib/buyer-name.ts`)
+    // ร้านขายของ/บ้านพัก: ของเดิมทุกตัวอักษร `o.buyer?.displayName ?? o.buyerName` ไม่มีบรรทัดรอง
     ...(() => {
-      const names = resolveOrderBuyerName({ typedName: o.buyerName, accountName: o.buyer?.displayName })
+      const names = resolveOrderBuyerNameForShop(shop.vertical, { typedName: o.buyerName, accountName: o.buyer?.displayName })
       return { buyerName: names.name, buyerAccountLabel: names.accountName }
     })(),
-    // ชื่อบัญชีดิบสำหรับค้นหาอย่างเดียว (ค้นด้วยชื่อ Facebook ของลูกค้าก็ยังเจอ) — ไม่ใช้แสดงผล
-    buyerAccountName: o.buyer?.displayName ?? null,
+    // ชื่อบัญชีดิบสำหรับค้นหา (ร้านบริการเท่านั้น — ร้านอื่น `buyerName` เป็นชื่อบัญชีอยู่แล้ว ค้นได้เหมือนเดิม)
+    buyerAccountName: usesTypedBuyerName(shop.vertical) ? (o.buyer?.displayName ?? null) : null,
     buyerUsername: o.buyer?.username ?? null,
     buyerAvatar: o.buyer?.avatar ?? null,
     salesChannel: o.salesChannel ?? null,

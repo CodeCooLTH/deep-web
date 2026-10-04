@@ -75,7 +75,7 @@ import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { resolveOrderSource } from '@/lib/order-source-channel'
 import { toFileUrl } from '@/lib/file-url'
-import { resolveOrderBuyerName } from '@/lib/buyer-name'
+import { resolveOrderBuyerNameForShop, usesTypedBuyerName } from '@/lib/buyer-name'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ (constant ไม่รู้จัก shop ของ request)
@@ -497,6 +497,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
               buyerDisplayName: order.buyer?.displayName ?? null,
               buyerUsername: order.buyer?.username ?? null,
               buyerName: order.buyerName ?? null,
+              // ร้านบริการเท่านั้นที่ใช้ชื่อที่ร้านกรอกเป็นชื่อหลัก (มติ user 2026-10-04)
+              typedNameFirst: usesTypedBuyerName(shop.vertical),
               avatar: order.buyer?.avatar ?? null,
               shippingAddr
             }}
@@ -534,8 +536,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
                     appointmentStatus: order.appointmentStatus,
                   }) ?? 'SCHEDULED'
                 }
-                // ชื่อในกล่องยืนยัน — ชื่อที่ร้านกรอกก่อน (lib/buyer-name.ts · มติ user 2026-10-04)
-                buyerLabel={resolveOrderBuyerName({ typedName: order.buyerName, accountName: order.buyer?.displayName }).name}
+                // ชื่อในกล่องยืนยัน — ร้านบริการใช้ชื่อที่ร้านกรอกก่อน · ร้านอื่นแบบเดิม (lib/buyer-name.ts)
+                buyerLabel={resolveOrderBuyerNameForShop(shop.vertical, { typedName: order.buyerName, accountName: order.buyer?.displayName }).name}
               />
             )}
             <ShippingAddressCard

@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { resolveOrderBuyerName, isPlaceholderAccountName } from '@/lib/buyer-name'
+import {
+  resolveOrderBuyerName,
+  isPlaceholderAccountName,
+  usesTypedBuyerName,
+  resolveOrderBuyerNameForShop,
+  resolveBuyerCardNames,
+} from '@/lib/buyer-name'
 import { searchOrders, type SearchableOrder } from '@/lib/order-search'
 
 /**
@@ -83,26 +89,69 @@ describe('[blocker] ค้นหาเจอทั้งชื่อที่ร
   })
 })
 
-describe('[blocker] ทุกจอฝั่งร้านใช้กติกาเดียว — ห้ามกลับไปเอาชื่อบัญชีทับ', () => {
-  it('หน้ารายการ: ชื่อหลักมาจาก resolveOrderBuyerName ไม่ใช่ displayName ก่อน', () => {
+describe('[blocker] ร้านบริการเท่านั้น — ร้านขายของ/บ้านพักได้ของเดิมก่อน #103 ทุกตัวอักษร', () => {
+  const input = { typedName: '4กฐ9100 คุณบุญคอง', accountName: 'Boonkong Saelee' }
+
+  it('ตัวตัดสิน: SERVICE_QUEUE เท่านั้น · ค่าแปลก/ว่าง = ของเดิม', () => {
+    expect(usesTypedBuyerName('SERVICE_QUEUE')).toBe(true)
+    for (const v of ['ONLINE_SALES', 'LODGING', 'GENERAL', '', null, undefined]) {
+      expect(usesTypedBuyerName(v), String(v)).toBe(false)
+    }
+  })
+
+  it('หน้ารายการ: ร้านบริการ = ชื่อที่ร้านกรอก + บรรทัดบัญชี · ร้านอื่น = displayName ?? buyerName ไม่มีบรรทัดรอง', () => {
+    expect(resolveOrderBuyerNameForShop('SERVICE_QUEUE', input)).toEqual({
+      name: '4กฐ9100 คุณบุญคอง',
+      accountName: 'Boonkong Saelee',
+    })
+    for (const v of ['ONLINE_SALES', 'LODGING']) {
+      expect(resolveOrderBuyerNameForShop(v, input), v).toEqual({ name: 'Boonkong Saelee', accountName: null })
+      // ของเดิมใช้ ?? — ชื่อที่ระบบตั้งให้ก็ยังชนะเหมือนเดิม (ไม่เปลี่ยนพฤติกรรมร้านอื่นแม้แต่เคสนี้)
+      expect(resolveOrderBuyerNameForShop(v, { typedName: 'คุณสมใจ', accountName: 'User' }).name).toBe('User')
+      expect(resolveOrderBuyerNameForShop(v, { typedName: 'คุณสมใจ', accountName: null }).name).toBe('คุณสมใจ')
+    }
+  })
+
+  it('การ์ดผู้ซื้อ: ร้านบริการ = "บัญชี: …" · ร้านอื่น = ชื่อบัญชี + @username แบบเดิม', () => {
+    const base = { ...input, username: 'fb1234567890', hasContact: true }
+    expect(resolveBuyerCardNames({ ...base, typedNameFirst: true })).toEqual({
+      displayName: '4กฐ9100 คุณบุญคอง',
+      subLabel: 'บัญชี: Boonkong Saelee',
+      hasBuyerInfo: true,
+    })
+    expect(resolveBuyerCardNames({ ...base, typedNameFirst: false })).toEqual({
+      displayName: 'Boonkong Saelee',
+      subLabel: '@fb1234567890',
+      hasBuyerInfo: true,
+    })
+    // ลูกค้ายังไม่สมัคร — สองร้านเหมือนกัน
+    const guest = { typedName: 'คุณสมใจ', accountName: null, username: null, hasContact: true }
+    expect(resolveBuyerCardNames({ ...guest, typedNameFirst: true }).subLabel).toBe('ชื่อที่ร้านบันทึก')
+    expect(resolveBuyerCardNames({ ...guest, typedNameFirst: false }).subLabel).toBe('ชื่อที่ร้านบันทึก')
+    // ร้านบริการ: ชื่อบัญชีที่ระบบตั้งให้ ⇒ ไม่โชว์ "บัญชี: User"
+    expect(resolveBuyerCardNames({ ...base, accountName: 'User', typedNameFirst: true }).subLabel).toBe('ผู้ซื้อที่ลงทะเบียนแล้ว')
+  })
+})
+
+describe('[blocker] ทุกจอส่งประเภทร้านเข้าตัวตัดสิน — ห้ามเขียนกติกาเองที่จุดใช้งาน', () => {
+  it('หน้ารายการ: ผ่าน resolveOrderBuyerNameForShop(shop.vertical) · ชื่อบัญชีสำหรับค้นหาเฉพาะร้านบริการ', () => {
     const page = read(D + 'page.tsx')
-    expect(page).toMatch(/resolveOrderBuyerName\(\{ typedName: o\.buyerName, accountName: o\.buyer\?\.displayName \}\)/)
+    expect(page).toMatch(/resolveOrderBuyerNameForShop\(shop\.vertical, \{ typedName: o\.buyerName, accountName: o\.buyer\?\.displayName \}\)/)
     expect(page).toMatch(/buyerName: names\.name, buyerAccountLabel: names\.accountName/)
+    expect(page).toMatch(/buyerAccountName: usesTypedBuyerName\(shop\.vertical\) \? \(o\.buyer\?\.displayName \?\? null\) : null/)
     expect(page).not.toMatch(/buyerName: o\.buyer\?\.displayName/)
   })
 
-  it('การ์ดมือถือ + ตารางเดสก์ท็อป โชว์บรรทัดชื่อบัญชี', () => {
+  it('การ์ดมือถือ + ตารางเดสก์ท็อป โชว์บรรทัดชื่อบัญชีเฉพาะเมื่อมีค่า (ร้านอื่นเป็น null เสมอ)', () => {
     expect(read(D + 'components/OrderCard.tsx')).toMatch(/order\.buyerAccountLabel && \(/)
     expect(read(D + 'components/OrdersTable.tsx')).toMatch(/row\.original\.buyerAccountLabel && \(/)
   })
 
-  it('หน้ารายละเอียด: การ์ดผู้ซื้อ + กล่องยืนยันนัด ใช้ชื่อที่ร้านกรอกก่อน · เลิกโชว์ @username', () => {
-    expect(read(D + '[token]/components/order-detail-shared.tsx')).toMatch(/resolveOrderBuyerName\(\{\s*typedName: buyer\.buyerName,/)
-    const card = read(D + '[token]/components/CustomerDetails.tsx')
-    expect(card).toMatch(/`บัญชี: \$\{accountName\}`/)
-    expect(card).not.toMatch(/`@\$\{buyer\.buyerUsername\}`/)
+  it('หน้ารายละเอียด: การ์ดผู้ซื้อ + กล่องยืนยันนัด ได้ประเภทร้านจาก shop.vertical', () => {
+    expect(read(D + '[token]/components/order-detail-shared.tsx')).toMatch(/return resolveBuyerCardNames\(\{\s*typedNameFirst: buyer\.typedNameFirst,/)
+    expect(read(D + '[token]/components/CustomerDetails.tsx')).toMatch(/\{subLabel\}/)
     const page = read(D + '[token]/page.tsx')
-    expect(page).toMatch(/buyerLabel=\{resolveOrderBuyerName\(/)
-    expect(page).not.toMatch(/buyerLabel=\{order\.buyer\?\.displayName/)
+    expect(page).toMatch(/typedNameFirst: usesTypedBuyerName\(shop\.vertical\),/)
+    expect(page).toMatch(/buyerLabel=\{resolveOrderBuyerNameForShop\(shop\.vertical,/)
   })
 })
