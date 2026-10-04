@@ -27,6 +27,7 @@ import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth'
 import { getOrderByToken } from '@/services/order.service'
 import { resolveOrderAccess, guaranteeOrderLink } from '@/services/order-access.service'
+import { peekSmsCode } from '@/services/sms-code.service'
 import { hasOpenDispute } from '@/services/order-dispute.service'
 import {
   approvedVerificationWhere,
@@ -47,7 +48,7 @@ import GuestOrderView from './GuestOrderView'
 import { buildGuestOrderData } from './guest-order-data'
 import { sessionUserId } from '@/lib/session-user'
 
-type Props = { params: Promise<{ token: string }> }
+type Props = { params: Promise<{ token: string }>; searchParams: Promise<{ sms?: string }> }
 
 export const metadata: Metadata = { title: 'คำสั่งซื้อ' }
 
@@ -68,8 +69,9 @@ function maskPhone(phone: string): string {
   return `${'*'.repeat(Math.max(0, phone.length - 4))}${phone.slice(-4)}`
 }
 
-export default async function PublicOrderPage({ params }: Props) {
+export default async function PublicOrderPage({ params, searchParams }: Props) {
   const { token } = await params
+  const { sms } = await searchParams
 
   // ── Discriminator ลำดับ 1: UUID v4 → force-login gate + resolveOrderAccess ─────────
   if (UUID_V4_RE.test(token)) {
@@ -189,8 +191,16 @@ export default async function PublicOrderPage({ params }: Props) {
       const confirmedCount = statusGroups.find((g) => g.status === 'CONFIRMED')?._count._all ?? 0
       const reviewCount = ratingAgg._count._all
 
+      // ?sms= มาจาก /api/o/sms/[code] — ยืนยันซ้ำว่าโค้ดยังใช้ได้และเป็นของออเดอร์ใบนี้จริง
+      // (ห้ามเชื่อพารามิเตอร์เปล่า ๆ) ถึงจะโชว์ปุ่มยืนยันแบบไม่ต้องกรอกเบอร์
+      const smsCode =
+        sms && SMS_CODE_RE.test(sms) && (await peekSmsCode(sms))?.publicToken === order.publicToken
+          ? sms
+          : undefined
+
       return (
         <GuestOrderView
+          smsCode={smsCode}
           order={buildGuestOrderData(order, guestMaxVerifyLevel, {
             // 🛑 `null` ไม่ใช่ `0` — 0 แปลว่า "นับแล้วได้ศูนย์" ซึ่งเป็นข้อเท็จจริงที่ต้องบอก
             // แต่เราเลือกไม่แสดงบล็อกเลยเมื่อยังไม่มีประวัติ (ไม่ประจานร้านใหม่ด้วยเลข 0 ตัวโต)

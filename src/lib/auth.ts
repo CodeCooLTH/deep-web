@@ -315,6 +315,151 @@ function crossSiteOAuthCookies(): NextAuthOptions["cookies"] {
   };
 }
 
+/**
+ * หา/สร้าง User จากเบอร์ที่ "พิสูจน์แล้ว" — ใช้ร่วมกันระหว่าง phone-otp (พิสูจน์ด้วย OTP)
+ * กับ sms-link (พิสูจน์ด้วยการถือลิงก์ SMS ที่ส่งเข้าเบอร์นั้น) ผู้เรียกต้องพิสูจน์เบอร์มาก่อนเสมอ
+ * 🛑 ห้ามเรียกจาก authorize ที่ยังไม่ได้พิสูจน์เบอร์ — ฟังก์ชันนี้ไม่ตรวจอะไรเรื่องความเป็นเจ้าของเบอร์เลย
+ */
+type PhoneUserCredentials = {
+  phone: string;
+  mode?: string;
+  displayName?: string;
+  username?: string;
+  shopName?: string;
+  password?: string;
+  category?: string;
+};
+
+async function upsertVerifiedPhoneUser(credentials: PhoneUserCredentials) {
+
+    let user = await prisma.user.findFirst({
+      where: { phone: credentials.phone },
+    });
+
+    // บัญชีที่ถูกลบยัง "จอง" เบอร์ไว้ตลอด 30 วัน retention (User.phone @unique ยังไม่ถูกล้าง)
+    // ต้อง return null ที่นี่ ไม่ปล่อยให้หล่นไปสาขา !user ด้านล่างแล้วสร้างบัญชีใหม่ —
+    // จะชน unique constraint กลายเป็น 500 และ (ร้ายกว่า) ถ้าชนไม่โดนก็เท่ากับปลุกบัญชีที่สั่งลบไปแล้ว
+    if (isDeletedUser(user)) return null;
+
+    if (!user) {
+      const displayName =
+        credentials.displayName?.trim() ||
+        `User_${credentials.phone.slice(-4)}`;
+      const username =
+        credentials.username?.trim() || `user_${Date.now()}`;
+
+      // password (optional): buyer signup ก็ตั้งรหัสได้ (เดิม logic นี้อยู่เฉพาะ branch seller/shopName)
+      // ต้อง strong เสมอถ้าส่งมา — server guard กัน Yup bypass
+      let signupPasswordHash: string | undefined;
+      if (credentials.password) {
+        const { isStrongPassword, hashPassword } = await import("@/lib/password");
+        if (!isStrongPassword(credentials.password)) return null;
+        signupPasswordHash = await hashPassword(credentials.password);
+      }
+
+      try {
+        user = await prisma.user.create({
+          data: {
+            phone: credentials.phone,
+            displayName,
+            username,
+            passwordHash: signupPasswordHash,
+            authAccounts: {
+              create: {
+                provider: "PHONE",
+                providerAccountId: credentials.phone,
+              },
+            },
+            // PRD FR-2.2: phone OTP = L1 auto-approved. สร้าง
+            // VerificationRecord เลยเพื่อให้ calcVerificationScore +
+            // BADGE_CHECKS.Fully_Verified เจอ L1 ได้ (ก่อนหน้านี้ UI
+            // fake L1 chip ด้วย user.phone truthy แต่ไม่มี record →
+            // Fully Verified badge เป็นไปไม่ได้)
+            verifications: {
+              create: {
+                type: "PHONE_OTP",
+                level: 1,
+                status: "APPROVED",
+                reviewedAt: new Date(),
+              },
+            },
+          },
+        });
+        // Auto-link any orders/reviews placed as a guest with this phone (PRD FR-8, B-4)
+        const { linkBuyerHistory } = await import("@/services/user.service");
+        await linkBuyerHistory(user.id, credentials.phone);
+
+        // สร้าง Shop ทันทีที่ signup seller ถ้า shopName ถูกส่งมา
+        // (mode=signup + shopName ไม่ว่าง) — ป้องกัน layout fallback override ชื่อที่ผู้ใช้ตั้ง.
+        // ไม่ใช้ createShop service เพราะ service ต้องการ businessType ซึ่งยังไม่มีใน onboarding นี้
+        // — prisma direct create เหมือน layout fallback แต่ใช้ชื่อที่ผู้ใช้ตั้ง + set isShop=true.
+        // Layout fallback ยังคงอยู่เป็น safety net สำหรับ Facebook signup / buyer ที่เปิดร้านทีหลัง
+        const trimmedShopName = credentials.shopName?.trim();
+        if (credentials.mode === "signup" && trimmedShopName) {
+          if (trimmedShopName.length > 100) return null;
+
+          // password ถูกตั้งไปแล้วตอน user.create ข้างบน (signupPasswordHash) — ไม่ต้อง hash ซ้ำที่นี่
+          // category (optional) — ต้องเป็น key ที่รู้จัก
+          const { isShopCategory } = await import("@/lib/shop-categories");
+          const category =
+            credentials.category && isShopCategory(credentials.category)
+              ? credentials.category
+              : undefined;
+
+          // ห่อทั้ง shop.create + user.update ใน transaction เดียว —
+          // ถ้า user.update ล้มเหลว Prisma จะ rollback shop.create อัตโนมัติ
+          // ป้องกัน orphan shop + isShop stuck false ซึ่ง layout fallback ไม่สามารถแก้ไขได้ (userId unique constraint)
+          await prisma.$transaction(async (tx) => {
+            await tx.shop.create({
+              data: {
+                userId: user!.id,
+                shopName: trimmedShopName,
+                businessType: "INDIVIDUAL",
+                ...(category ? { category } : {}),
+              },
+            });
+            await tx.user.update({
+              where: { id: user!.id },
+              data: { isShop: true },
+            });
+          });
+        }
+      } catch (err: unknown) {
+        // P2002 = unique constraint on username or phone; surface as auth failure
+        if (err && typeof err === "object" && "code" in err && err.code === "P2002") return null;
+        throw err;
+      }
+      // best-effort badge evaluation — ต้องอยู่นอก try ข้างบนเพื่อไม่ให้ badge error
+      // ถูก rethrow เป็น auth failure (security must-fix Phase-3)
+      try { await evaluateSignupYearBadge(user.id) } catch (e) { console.error('[auth] evaluateSignupYearBadge (phone) failed', e) }
+    }
+
+    // ensure L1 PHONE_OTP record สำหรับ user ที่มีอยู่แล้ว (seeded / สร้างก่อน logic นี้มี):
+    // — user ใหม่มี record จาก nested create ข้างบนแล้ว → findFirst เจอ → ไม่ create ซ้ำ (idempotent)
+    // — user เก่าที่ไม่มี record → findFirst ไม่เจอ → create ให้ครั้งเดียว
+    // ห่อ try/catch best-effort: DB error ของ ensure ไม่ควรทำให้ login พัง
+    try {
+      const existing = await prisma.verificationRecord.findFirst({
+        where: { userId: user.id, type: "PHONE_OTP", level: 1 },
+      });
+      if (!existing) {
+        await prisma.verificationRecord.create({
+          data: {
+            userId: user.id,
+            type: "PHONE_OTP",
+            level: 1,
+            status: "APPROVED",
+            reviewedAt: new Date(),
+          },
+        });
+      }
+    } catch (e) {
+      console.error("[auth] ensure L1 VerificationRecord failed", e);
+    }
+
+    return { id: user.id, name: user.displayName, email: user.email };
+}
+
 export const authOptions: NextAuthOptions = {
   cookies: crossSiteOAuthCookies(),
   providers: [
@@ -369,133 +514,7 @@ export const authOptions: NextAuthOptions = {
 
         const { verifyOtp } = await import("@/lib/otp");
         if (!(await verifyOtp(credentials.phone, credentials.otp))) return null;
-
-        let user = await prisma.user.findFirst({
-          where: { phone: credentials.phone },
-        });
-
-        // บัญชีที่ถูกลบยัง "จอง" เบอร์ไว้ตลอด 30 วัน retention (User.phone @unique ยังไม่ถูกล้าง)
-        // ต้อง return null ที่นี่ ไม่ปล่อยให้หล่นไปสาขา !user ด้านล่างแล้วสร้างบัญชีใหม่ —
-        // จะชน unique constraint กลายเป็น 500 และ (ร้ายกว่า) ถ้าชนไม่โดนก็เท่ากับปลุกบัญชีที่สั่งลบไปแล้ว
-        if (isDeletedUser(user)) return null;
-
-        if (!user) {
-          const displayName =
-            credentials.displayName?.trim() ||
-            `User_${credentials.phone.slice(-4)}`;
-          const username =
-            credentials.username?.trim() || `user_${Date.now()}`;
-
-          // password (optional): buyer signup ก็ตั้งรหัสได้ (เดิม logic นี้อยู่เฉพาะ branch seller/shopName)
-          // ต้อง strong เสมอถ้าส่งมา — server guard กัน Yup bypass
-          let signupPasswordHash: string | undefined;
-          if (credentials.password) {
-            const { isStrongPassword, hashPassword } = await import("@/lib/password");
-            if (!isStrongPassword(credentials.password)) return null;
-            signupPasswordHash = await hashPassword(credentials.password);
-          }
-
-          try {
-            user = await prisma.user.create({
-              data: {
-                phone: credentials.phone,
-                displayName,
-                username,
-                passwordHash: signupPasswordHash,
-                authAccounts: {
-                  create: {
-                    provider: "PHONE",
-                    providerAccountId: credentials.phone,
-                  },
-                },
-                // PRD FR-2.2: phone OTP = L1 auto-approved. สร้าง
-                // VerificationRecord เลยเพื่อให้ calcVerificationScore +
-                // BADGE_CHECKS.Fully_Verified เจอ L1 ได้ (ก่อนหน้านี้ UI
-                // fake L1 chip ด้วย user.phone truthy แต่ไม่มี record →
-                // Fully Verified badge เป็นไปไม่ได้)
-                verifications: {
-                  create: {
-                    type: "PHONE_OTP",
-                    level: 1,
-                    status: "APPROVED",
-                    reviewedAt: new Date(),
-                  },
-                },
-              },
-            });
-            // Auto-link any orders/reviews placed as a guest with this phone (PRD FR-8, B-4)
-            const { linkBuyerHistory } = await import("@/services/user.service");
-            await linkBuyerHistory(user.id, credentials.phone);
-
-            // สร้าง Shop ทันทีที่ signup seller ถ้า shopName ถูกส่งมา
-            // (mode=signup + shopName ไม่ว่าง) — ป้องกัน layout fallback override ชื่อที่ผู้ใช้ตั้ง.
-            // ไม่ใช้ createShop service เพราะ service ต้องการ businessType ซึ่งยังไม่มีใน onboarding นี้
-            // — prisma direct create เหมือน layout fallback แต่ใช้ชื่อที่ผู้ใช้ตั้ง + set isShop=true.
-            // Layout fallback ยังคงอยู่เป็น safety net สำหรับ Facebook signup / buyer ที่เปิดร้านทีหลัง
-            const trimmedShopName = credentials.shopName?.trim();
-            if (credentials.mode === "signup" && trimmedShopName) {
-              if (trimmedShopName.length > 100) return null;
-
-              // password ถูกตั้งไปแล้วตอน user.create ข้างบน (signupPasswordHash) — ไม่ต้อง hash ซ้ำที่นี่
-              // category (optional) — ต้องเป็น key ที่รู้จัก
-              const { isShopCategory } = await import("@/lib/shop-categories");
-              const category =
-                credentials.category && isShopCategory(credentials.category)
-                  ? credentials.category
-                  : undefined;
-
-              // ห่อทั้ง shop.create + user.update ใน transaction เดียว —
-              // ถ้า user.update ล้มเหลว Prisma จะ rollback shop.create อัตโนมัติ
-              // ป้องกัน orphan shop + isShop stuck false ซึ่ง layout fallback ไม่สามารถแก้ไขได้ (userId unique constraint)
-              await prisma.$transaction(async (tx) => {
-                await tx.shop.create({
-                  data: {
-                    userId: user!.id,
-                    shopName: trimmedShopName,
-                    businessType: "INDIVIDUAL",
-                    ...(category ? { category } : {}),
-                  },
-                });
-                await tx.user.update({
-                  where: { id: user!.id },
-                  data: { isShop: true },
-                });
-              });
-            }
-          } catch (err: unknown) {
-            // P2002 = unique constraint on username or phone; surface as auth failure
-            if (err && typeof err === "object" && "code" in err && err.code === "P2002") return null;
-            throw err;
-          }
-          // best-effort badge evaluation — ต้องอยู่นอก try ข้างบนเพื่อไม่ให้ badge error
-          // ถูก rethrow เป็น auth failure (security must-fix Phase-3)
-          try { await evaluateSignupYearBadge(user.id) } catch (e) { console.error('[auth] evaluateSignupYearBadge (phone) failed', e) }
-        }
-
-        // ensure L1 PHONE_OTP record สำหรับ user ที่มีอยู่แล้ว (seeded / สร้างก่อน logic นี้มี):
-        // — user ใหม่มี record จาก nested create ข้างบนแล้ว → findFirst เจอ → ไม่ create ซ้ำ (idempotent)
-        // — user เก่าที่ไม่มี record → findFirst ไม่เจอ → create ให้ครั้งเดียว
-        // ห่อ try/catch best-effort: DB error ของ ensure ไม่ควรทำให้ login พัง
-        try {
-          const existing = await prisma.verificationRecord.findFirst({
-            where: { userId: user.id, type: "PHONE_OTP", level: 1 },
-          });
-          if (!existing) {
-            await prisma.verificationRecord.create({
-              data: {
-                userId: user.id,
-                type: "PHONE_OTP",
-                level: 1,
-                status: "APPROVED",
-                reviewedAt: new Date(),
-              },
-            });
-          }
-        } catch (e) {
-          console.error("[auth] ensure L1 VerificationRecord failed", e);
-        }
-
-        return { id: user.id, name: user.displayName, email: user.email };
+        return upsertVerifiedPhoneUser({ ...credentials, phone: credentials.phone });
       },
     }),
     CredentialsProvider({
@@ -663,6 +682,32 @@ export const authOptions: NextAuthOptions = {
 
         // (i) สำเร็จ — return shape เดียวกับ phone-otp ให้ jwt callback รับ token.userId ได้
         return { id: user.id, name: user.displayName, email: user.email };
+      },
+    }),
+    CredentialsProvider({
+      id: "sms-link",
+      name: "SMS Order Link",
+      credentials: {
+        code: { label: "Code", type: "text" },
+      },
+      // ลิงก์ SMS ออเดอร์ = หลักฐานว่าถือเบอร์นั้นจริง (ส่งเข้าเบอร์นั้นเท่านั้น) จึงใช้แทน OTP ได้
+      // consumeSmsCode เผาโค้ดแบบ atomic (one-time) — กดซ้ำ/ส่งต่อลิงก์ = null ทุกครั้ง
+      // แล้วสร้าง/หา User ด้วยเบอร์นั้น + ผูก Customer และออเดอร์ทันที (guaranteeOrderLink)
+      async authorize(credentials) {
+        if (!credentials?.code) return null;
+        const { consumeSmsCode } = await import("@/services/sms-code.service");
+        const result = await consumeSmsCode(credentials.code);
+        const order = result?.order;
+        const { normalizePhone } = await import("@/lib/phone");
+        const phone = order?.buyerContact ? normalizePhone(order.buyerContact) : null;
+        if (!order || !phone) return null;
+
+        const user = await upsertVerifiedPhoneUser({ phone });
+        if (!user) return null;
+
+        const { guaranteeOrderLink } = await import("@/services/order-access.service");
+        await guaranteeOrderLink({ orderId: order.id, userId: user.id, phone });
+        return user;
       },
     }),
     CredentialsProvider({
@@ -1072,7 +1117,7 @@ export const authOptions: NextAuthOptions = {
           // feature 00015 TD-002 — skip-window 5 นาทีหลัง sign-in ด้วย phone-otp เท่านั้น
           // (ใช้ที่ order-access.service.ts::resolveOrderAccess ตัดสิน PHONE_MATCH_AUTO_CLAIM)
           const justAuthedViaPhoneOtp =
-            (token as { authProvider?: string }).authProvider === "phone-otp" &&
+            ["phone-otp", "sms-link"].includes((token as { authProvider?: string }).authProvider ?? "") &&
             Date.now() - ((token as { authAt?: number }).authAt ?? 0) < PHONE_OTP_CLAIM_SKIP_WINDOW_MS;
 
           (session as any).user = {

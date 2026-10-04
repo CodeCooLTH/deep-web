@@ -201,3 +201,17 @@ export async function markSmsCodeDelivery(
     data: { deliveryStatus: status },
   });
 }
+
+/**
+ * ดูว่าโค้ดยังใช้ได้ไหม **โดยไม่เผา** — ใช้ตอนเปิดลิงก์ (GET) เท่านั้น
+ *
+ * ทำไมไม่เผาตอนเปิด: แอปแชท/SMS ยิง GET ลิงก์ไปทำ preview เอง ถ้าเผาตอนนั้น ลูกค้าจะกดเข้ามา
+ * เจอลิงก์ตายทั้งที่ยังไม่เคยเปิดเลย ⇒ เผาตอนลูกค้ากดยืนยันจริง (provider `sms-link`) แทน
+ */
+export async function peekSmsCode(rawCode: string): Promise<{ publicToken: string } | null> {
+  const smsCode = await prisma.smsCode.findFirst({
+    where: { codeHash: hashCode(rawCode), usedAt: null, expiresAt: { gt: new Date() } },
+    select: { order: { select: { publicToken: true } } },
+  });
+  return smsCode ? { publicToken: smsCode.order.publicToken } : null;
+}

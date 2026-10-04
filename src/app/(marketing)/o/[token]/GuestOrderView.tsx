@@ -28,6 +28,7 @@ import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFoot
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { resolveVerifyBadge } from '@/lib/verify-badge'
 import AuthPingLink from './AuthPingLink'
+import SmsConfirmButton from './SmsConfirmButton'
 import SectionTitle from './SectionTitle'
 import { formatOrderNo } from '@/lib/order-no'
 import { formatDateTimeTH, formatTimeHM, formatTimeRangeHM, formatWeekdayDateTH } from '@/lib/format-date'
@@ -76,7 +77,11 @@ const baht = new Intl.NumberFormat('th-TH', {
   maximumFractionDigits: 0,
 })
 
-export default function GuestOrderView({ order }: { order: GuestOrderData }) {
+/**
+ * `smsCode` = เปิดมาจากลิงก์ SMS ที่ยังไม่ถูกใช้ (page.tsx ตรวจกับออเดอร์ใบนี้แล้ว) — ปุ่มหลัก
+ * เปลี่ยนเป็นเข้าสู่ระบบด้วยลิงก์นั้นเลย ไม่ต้องกรอกเบอร์ (ลิงก์ส่งเข้าเบอร์นั้น = พิสูจน์เบอร์แล้ว)
+ */
+export default function GuestOrderView({ order, smsCode }: { order: GuestOrderData; smsCode?: string }) {
   const loginHref = `/auth/sign-in?callbackUrl=${encodeURIComponent(`/o/${order.publicToken}`)}`
   const tierLabel = getTierLabel(order.shop.user.trustScore)
   const tierColor = getTierColor(order.shop.user.trustScore)
@@ -641,16 +646,22 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
         }}
       >
         <Box sx={orderContentWidthSx}>
-          <AuthPingLink
-            href={loginHref}
-            publicToken={order.publicToken}
-            fullWidth
-            variant='contained'
-            size='large'
-            sx={{ minHeight: CTA_BUTTON_HEIGHT }}
-          >
-            {ctaLabel}
-          </AuthPingLink>
+          {smsCode ? (
+            <SmsConfirmButton code={smsCode} publicToken={order.publicToken} height={CTA_BUTTON_HEIGHT}>
+              {isClosed ? `ดูรายละเอียด${vocab.noun}` : vocab.buyerConfirmLabel}
+            </SmsConfirmButton>
+          ) : (
+            <AuthPingLink
+              href={loginHref}
+              publicToken={order.publicToken}
+              fullWidth
+              variant='contained'
+              size='large'
+              sx={{ minHeight: CTA_BUTTON_HEIGHT }}
+            >
+              {ctaLabel}
+            </AuthPingLink>
+          )}
           {/* 🛑 ระยะห่าง 10px + lineHeight 1.7 ไม่ใช่ 6px ที่ค่าเริ่มต้นให้ — ปุ่ม contained ของ
               Vuexy มีเงาสีม่วงแผ่ลงมาใต้กล่องตัวเอง และสระบนของไทย (ื ่ ) กินที่เหนือบรรทัด
               สองอย่างรวมกันทำให้บรรทัดนี้ดูเหมือนถูกปุ่มทับ ทั้งที่ระยะตามกล่องยังไม่ชนกัน */}
@@ -664,7 +675,9 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
               lineHeight: `${CTA_CAPTION_LINE}px`,
             }}
           >
-            ต้องเข้าสู่ระบบก่อนยืนยัน แนบสลิป เขียนรีวิว หรือแจ้งปัญหา
+            {smsCode
+              ? 'ลิงก์นี้ส่งเข้าเบอร์ของคุณ ไม่ต้องกรอกเบอร์หรือรหัส OTP · ใช้ได้ครั้งเดียว'
+              : 'ต้องเข้าสู่ระบบก่อนยืนยัน แนบสลิป เขียนรีวิว หรือแจ้งปัญหา'}
           </Typography>
         </Box>
       </Box>

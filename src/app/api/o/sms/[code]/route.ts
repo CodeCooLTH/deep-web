@@ -1,7 +1,9 @@
 /**
  * GET /api/o/sms/[code] — SMS short-code consume endpoint
  *
- * ที่เดียวที่ consume SmsCode แล้ว redirect ไปหน้า sign-in พร้อม prefill เบอร์
+ * ตรวจโค้ด (ไม่เผา) แล้ว redirect ไป /o/{publicToken}?sms={code} — หน้าออเดอร์โชว์ปุ่มยืนยัน
+ * ที่ไม่ต้องกรอกเบอร์ (provider `sms-link` เผาโค้ด + สร้างบัญชี/ลูกค้าจากเบอร์นั้น)
+ * (เดิม: consume ตรงนี้แล้วพาไป sign-in พร้อม prefill เบอร์ — ลูกค้ายังต้องกรอก OTP)
  * (feature 00015 Order Claim & Forced Login — TFR-003: เลิก set cookie/auto-unlock,
  *  ให้ buyer login ผ่าน force-login gate ปกติแทน — ดู SDS.md §4.3, API.md §4.2)
  *
@@ -15,7 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { checkSmsConsumeRateLimit } from '@/lib/sms-consume-rl'
-import { consumeSmsCode } from '@/services/sms-code.service'
+import { peekSmsCode } from '@/services/sms-code.service'
 
 // charset เป๊ะจาก sms-code.service.ts line 7 (ห้าม drift)
 const SMS_CODE_RE = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}$/
@@ -57,22 +59,18 @@ export async function GET(
     return NextResponse.redirect(new URL('/o/link-invalid', BUYER_BASE))
   }
 
-  // RC-8: ห้าม log code/hash/phone/orderId — consumeSmsCode รับ rawCode ภายใน
-  const result = await consumeSmsCode(code)
+  // ไม่เผาโค้ดตรงนี้ — GET ถูกยิงโดยตัว preview ของแอปแชทได้ (ดู peekSmsCode)
+  // เผาตอนลูกค้ากดยืนยันบนหน้าออเดอร์ผ่าน provider `sms-link` แทน (one-time)
+  const peek = await peekSmsCode(code)
 
-  if (!result || !result.order) {
-    // TFR-003: consume ล้มเหลว (not-found/expired/used/phone-mismatch) → sign-in เปล่า
-    // แทน /o/link-invalid — fall back เข้า flow login ปกติ ไม่ hard-error (TD-003)
+  if (!peek) {
+    // หมดอายุ/ใช้ไปแล้ว → sign-in เปล่า (fall back เข้า flow login ปกติ — TD-003)
     const url = new URL('/auth/sign-in', BUYER_BASE)
     url.searchParams.set('smsExpired', '1')
     return NextResponse.redirect(url)
   }
 
-  // สำเร็จ: redirect ไปหน้า sign-in พร้อม callbackUrl กลับมา order นี้ + prefill เบอร์
-  // RC-6 การันตีว่า buyerContact ไม่ null เมื่อ consume สำเร็จ (service ปิด open-claim
-  // ใน tx เดียวกัน) — non-null assertion ปลอดภัยตาม guarantee นี้ ไม่ใช่ TS type เอง
-  const url = new URL('/auth/sign-in', BUYER_BASE)
-  url.searchParams.set('callbackUrl', '/o/' + result.order.publicToken)
-  url.searchParams.set('prefillPhone', result.order.buyerContact!)
+  const url = new URL('/o/' + peek.publicToken, BUYER_BASE)
+  url.searchParams.set('sms', code)
   return NextResponse.redirect(url)
 }
