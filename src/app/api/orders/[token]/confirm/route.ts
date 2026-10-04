@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { omitServiceReference } from "@/lib/service-reference";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { confirmOrder, OrderOwnershipError, BookingConfirmViaShopError } from "@/services/order.service";
@@ -24,7 +25,8 @@ export async function POST(
 
   try {
     const order = await confirmOrder(token, buyerUserId);
-    return NextResponse.json(order);
+    // ผู้ซื้อเป็นคนเรียก — ตัดข้อมูลอ้างอิงของร้านออก (แถวนี้ไม่มี select)
+    return NextResponse.json(omitServiceReference(order));
   } catch (err: unknown) {
     if (err instanceof BookingConfirmViaShopError) {
       // feature 00017 TFR-006 — ผู้จองยืนยันการจองตัวเองไม่ได้

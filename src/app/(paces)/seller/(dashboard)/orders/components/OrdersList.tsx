@@ -13,6 +13,7 @@
 
 'use client'
 
+import { orderSearchPlaceholder } from '@/lib/service-reference'
 import Icon from '@/components/wrappers/Icon'
 import type { OrderVocab } from '@/lib/seller-menu'
 import Link from 'next/link'
@@ -761,7 +762,7 @@ export default function OrdersList({
               className="form-input w-full rounded-full bg-white !pl-9 !pr-9"
               /* ข้อความเดียวกับเดสก์ท็อป — จอเดียวกันต้องสัญญาเรื่องเดียวกัน (HR16).
                  ของเดิมเขียนว่าค้นเบอร์ได้ทั้งที่โค้ดเทียบกับค่าที่ปิดบังไว้ = จอโกหกมาตลอด */
-              placeholder={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์ / เลขพัสดุ / สินค้า`}
+              placeholder={orderSearchPlaceholder(vocab.noun, vertical)}
               value={search}
               /* setSearch อยู่นอก transition โดยตั้งใจ — controlled input ที่ถูก defer จะพิมพ์
                  ตามนิ้วไม่ทัน; แผงเปิดด้วย begin() แทน แล้วหุบเองหลังหยุดพิมพ์ */

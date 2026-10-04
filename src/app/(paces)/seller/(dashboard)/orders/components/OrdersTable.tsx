@@ -9,6 +9,7 @@
 
 'use client'
 
+import { orderSearchPlaceholder } from '@/lib/service-reference'
 import DataTable from '@/components/table/DataTable'
 import { isSearchActive, searchOrders } from '@/lib/order-search'
 import HighlightText from './HighlightText'
@@ -493,6 +494,12 @@ export default function OrdersTable({
               {row.original.buyerUsername && (
                 <Icon icon="rosette-discount-check-filled" className="shrink-0 text-sm text-primary" />
               )}
+              {/* ข้อมูลอ้างอิง (ร้านบริการ) — ป้ายหน้าชื่อ แทนการที่ร้านพิมพ์ทะเบียนรวมไว้ในช่องชื่อ · ร้านอื่น null เสมอ */}
+              {row.original.serviceReference && (
+                <span className="bg-primary/10 text-primary-ink max-w-40 shrink-0 truncate rounded px-1.5 py-0.5 text-xs font-semibold">
+                  <HighlightText text={row.original.serviceReference} query={searchQuery} />
+                </span>
+              )}
               <span className="truncate">
                 <HighlightText text={displayName} query={searchQuery} />
               </span>
@@ -923,10 +930,10 @@ export default function OrdersTable({
               type="text"
               /* ข้อความเดียวกับมือถือ — จอเดียวกันต้องสัญญาเรื่องเดียวกัน (HR16) */
               className="form-input"
-              placeholder={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์ / เลขพัสดุ / สินค้า`}
+              placeholder={orderSearchPlaceholder(vocab.noun, vertical)}
               /* กันเคสที่ยืดกล่องแล้วยังไม่พอ (ร้านคิวงานมี vocab.noun ยาวกว่า) — tooltip
                  ของเบราว์เซอร์เอง ไม่ต้องสร้าง element ใหม่ให้แถบนี้สูงขึ้น */
-              title={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์ / เลขพัสดุ / สินค้า`}
+              title={orderSearchPlaceholder(vocab.noun, vertical)}
               value={search}
               /* onSearchChange อยู่นอก transition โดยตั้งใจ — controlled input ที่ถูก defer
                  จะพิมพ์ตามนิ้วไม่ทัน; แผงเปิดด้วย begin() แล้วหุบเองหลังหยุดพิมพ์

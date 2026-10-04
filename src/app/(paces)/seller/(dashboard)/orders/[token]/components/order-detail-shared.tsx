@@ -28,6 +28,8 @@ export type OrderFactsBuyer = {
   /** avatar URL (Facebook CDN / null) — ไม่ใช่ PII เพราะเป็น URL สาธารณะ */
   avatar: string | null
   shippingAddr: ShippingAddressData | null
+  /** ข้อมูลอ้างอิง (ร้านบริการ · 2026-10-04) — page.tsx ส่ง null ให้ร้านอื่นเสมอ · ฝั่งร้านเท่านั้น */
+  serviceReference?: string | null
 }
 
 export type OrderFactsItem = {

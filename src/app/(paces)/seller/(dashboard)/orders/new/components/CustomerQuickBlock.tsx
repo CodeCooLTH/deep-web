@@ -7,6 +7,7 @@
  * wand tool → PasteParseSheet; locality field → AddressSearchSheet; ที่อยู่แสดงเมื่อ salesChannel !== STOREFRONT
  */
 
+import ServiceReferenceField from './ServiceReferenceField'
 import { useState, useRef, useEffect } from 'react'
 import { useController, useWatch } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
@@ -36,6 +37,8 @@ interface Props {
   prefillParseText?: string
   /** feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" เฉพาะร้าน ONLINE_SALES (SSOT: OrderCreateForm) */
   showDeliveryToggle?: boolean
+  /** ช่อง "ข้อมูลอ้างอิง" — ร้านบริการเท่านั้น (SSOT: acceptsServiceReference ใน OrderCreateForm) */
+  showServiceReference?: boolean
 }
 
 export default function CustomerQuickBlock({
@@ -45,6 +48,7 @@ export default function CustomerQuickBlock({
   needsShipping,
   prefillParseText,
   showDeliveryToggle = false,
+  showServiceReference = false,
 }: Props) {
   const [pasteOpen, setPasteOpen] = useState(false)
   /** ข้อความตั้งต้นในชีตกระจาย — มีค่าเมื่อเปิดชีตเพราะกระจายได้ไม่ครบ (ให้ร้านแก้ต่อจากของเดิม) */
@@ -352,6 +356,11 @@ export default function CustomerQuickBlock({
           errorMessage={contactErrorMessage}
         />
       </div>
+
+      {/* ข้อมูลอ้างอิง — ร้านบริการเท่านั้น · ไม่บังคับ · ใช้ค้นหางาน (2026-10-04) */}
+      {showServiceReference && (
+        <ServiceReferenceField control={control} errors={errors} id="cq-service-reference" className="mb-2.5" />
+      )}
 
       {/* วิธีส่งมอบ — ปุ่มคู่ "จัดส่ง | นัดรับ" (feature 00062 U15, เฉพาะร้าน ONLINE_SALES) */}
       {showDeliveryToggle && (

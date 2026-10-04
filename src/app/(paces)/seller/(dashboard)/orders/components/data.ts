@@ -148,6 +148,8 @@ export type OrderRow = {
   // Phase A Unit A: buyer identity fields (null = guest ยังไม่ register)
   // component จะ fallback เป็น masked contact / placeholder เอง (T3-T6)
   buyerName: string | null
+  /** ข้อมูลอ้างอิง — ร้านบริการเท่านั้น (page.tsx ส่ง null ให้ร้านอื่นเสมอ) */
+  serviceReference?: string | null
   buyerUsername: string | null
   /** avatar ของ registered buyer (User.avatar) — null = guest → fallback initial */
   buyerAvatar: string | null

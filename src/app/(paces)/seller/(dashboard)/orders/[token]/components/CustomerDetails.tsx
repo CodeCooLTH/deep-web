@@ -29,6 +29,7 @@ import Icon from '@/components/wrappers/Icon'
 import { formatDateTH } from '@/lib/format-date'
 import { SalesChannelLogo, getSalesChannelDisplay } from '@/components/safepay/SalesChannelBadge'
 import { resolveBuyerNames, type OrderFactsBuyer } from './order-detail-shared'
+import { SERVICE_REFERENCE_LABEL } from '@/lib/service-reference'
 
 export default function CustomerDetails({
   buyer,
@@ -169,6 +170,20 @@ export default function CustomerDetails({
                   )}
                 </div>
               </li>
+              {/* ข้อมูลอ้างอิง (ร้านบริการ) — ไม่ได้กรอก = ไม่มีแถวนี้ (ไม่โชว์ "—" ลอย ๆ) */}
+              {buyer.serviceReference && (
+                <li>
+                  <div className="flex items-center gap-2.5">
+                    <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
+                      <Icon icon="tag" className="text-sm" aria-hidden="true" />
+                    </span>
+                    <span className="text-default-700 min-w-0 text-sm">
+                      {SERVICE_REFERENCE_LABEL}:{' '}
+                      <span className="text-default-800 font-medium break-words">{buyer.serviceReference}</span>
+                    </span>
+                  </div>
+                </li>
+              )}
             </ul>
           </>
         )}

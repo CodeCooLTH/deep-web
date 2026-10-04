@@ -215,6 +215,12 @@ export default function OrderCard({
                 {isVerifiedBuyer && (
                   <Icon icon="solar:verified-check-bold-duotone" className="shrink-0 text-base text-primary" />
                 )}
+                {/* ข้อมูลอ้างอิง (ร้านบริการ) — ป้ายหน้าชื่อ แทนการที่ร้านพิมพ์ทะเบียนรวมไว้ในช่องชื่อ · ร้านอื่น null เสมอ */}
+                {order.serviceReference && (
+                  <span className="bg-primary/10 text-primary-ink max-w-40 shrink-0 truncate rounded px-1.5 py-0.5 text-xs font-semibold">
+                    <HighlightText text={order.serviceReference} query={searchQuery} />
+                  </span>
+                )}
                 <span className="truncate">
                   <HighlightText text={order.buyerName ?? 'ลูกค้า'} query={searchQuery} />
                 </span>

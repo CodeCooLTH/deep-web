@@ -27,6 +27,12 @@
  */
 
 import { isNumericSearchToken, searchDigitsOnly, tokenizeSearchQuery } from './order-search'
+import { compactForReferenceSearch } from './service-reference'
+
+/** ข้อมูลอ้างอิงในรูปเทียบ — ตรงกับ compactForReferenceSearch() (ตัวเล็ก + ตัดช่องว่าง/ขีด/จุด/ทับ) */
+function compactRefSql(order: string): string {
+  return `regexp_replace(lower(coalesce(${order}."serviceReference", '')), '[[:space:]._/-]', '', 'g')`
+}
 
 /** ชื่อ alias ของตารางที่ผู้เรียกใช้ */
 export type SearchSqlAliases = {
@@ -122,6 +128,8 @@ export function buildOrderSearchSql(
     `${a.buyerUser}."username"`,
     `${o}."buyerContact"`,
     trackingNo(s, t),
+    // ข้อมูลอ้างอิง (ร้านบริการ · 2026-10-04) — ตรงกับ textFieldsOf()
+    `${o}."serviceReference"`,
   ]
 
   /** ฟิลด์ที่คำตัวเลขเทียบแบบตัดสัญลักษณ์ได้ — ตรงกับ `numericFieldsOf()` */
@@ -155,6 +163,18 @@ export function buildOrderSearchSql(
     return `(${parts.join(' OR ')})`
   })
 
+  /**
+   * ข้อมูลอ้างอิงเทียบทั้งคำค้นแบบตัดช่องว่าง/ขีด (เพิ่ม ไม่ใช่แทน) — ตรงกับ referenceMatchesQuery()
+   * ในฝั่ง TS: ทะเบียน "4กฐ 9100" ต้องเจอเมื่อพิมพ์ "4กฐ9100"
+   */
+  const compact = compactForReferenceSearch(query)
+  if (compact) {
+    const refLike = p(`%${compact.replace(/[\\%_]/g, (m) => `\\${m}`)}%`)
+    return {
+      where: `((${clauses.join(' AND ')}) OR ${compactRefSql(a.order)} LIKE ${refLike})`,
+      params,
+    }
+  }
   return { where: clauses.join(' AND '), params }
 }
 
@@ -189,5 +209,8 @@ export function buildExactMatchSql(
       parts.push(`${digitsOnlySql(`${a.order}."buyerContact"`)} = ${p(digits)}`)
     }
   }
+  // ข้อมูลอ้างอิงตรงเต็มค่า (ไม่สนช่องว่าง/ขีด) — ตรงกับ isExactIdentifierMatch()
+  const compact = compactForReferenceSearch(q)
+  if (compact) parts.push(`${compactRefSql(a.order)} = ${p(compact)}`)
   return { where: `(${parts.join(' OR ')})`, params }
 }

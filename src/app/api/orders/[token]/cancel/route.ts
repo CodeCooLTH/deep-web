@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { omitServiceReference } from "@/lib/service-reference";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { cancelOrder, CancelReasonRequiredError, InvalidCancelReasonError } from "@/services/order.service";
@@ -60,7 +61,8 @@ export async function POST(
 
     // cancelOrder → assertTransition → throw ถ้า cancel-after-CONFIRMED
     const updated = await cancelOrder(token, initiator, reason, sessionUserId ?? null);
-    return NextResponse.json(updated);
+    // เรียกได้ทั้งผู้ซื้อและร้าน — ตัดข้อมูลอ้างอิงออกเสมอ (แถวนี้ไม่มี select)
+    return NextResponse.json(omitServiceReference(updated));
   } catch (err: unknown) {
     if (err instanceof CancelReasonRequiredError) {
       // feature 00039 — ข้อความเดิมเขียนว่า "การจอง" เพราะตอนนั้นบังคับเหตุผลเฉพาะ BOOKING

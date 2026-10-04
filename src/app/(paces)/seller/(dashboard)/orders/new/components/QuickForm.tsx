@@ -63,6 +63,8 @@ interface Props {
   orderDateLabel?: string
   /** feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" เฉพาะร้าน ONLINE_SALES (SSOT: OrderCreateForm) */
   showDeliveryToggle?: boolean
+  /** ช่อง "ข้อมูลอ้างอิง" — ร้านบริการเท่านั้น (SSOT: acceptsServiceReference ใน OrderCreateForm) */
+  showServiceReference?: boolean
 }
 
 export default function QuickForm({
@@ -89,6 +91,7 @@ export default function QuickForm({
   shipsGoods = true,
   channelLocked = false,
   showDeliveryToggle = false,
+  showServiceReference = false,
 }: Props) {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null)
 
@@ -134,6 +137,7 @@ export default function QuickForm({
           needsShipping={needsShipping}
           prefillParseText={prefillParseText}
           showDeliveryToggle={showDeliveryToggle}
+          showServiceReference={showServiceReference}
         />
       </section>
 

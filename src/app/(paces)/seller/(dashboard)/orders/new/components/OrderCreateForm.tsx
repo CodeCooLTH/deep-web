@@ -11,6 +11,7 @@
  */
 'use client'
 
+import { acceptsServiceReference, SERVICE_REFERENCE_MAX } from '@/lib/service-reference'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -174,6 +175,8 @@ export interface FormValues {
   salesChannel?: string        // STOREFRONT|FACEBOOK|LINE|TIKTOK|OTHER
   paymentMethod?: string       // CASH|TRANSFER|PROMPTPAY|CARD|COD|OTHER
   internalNote?: string
+  /** ข้อมูลอ้างอิง — ร้านบริการเท่านั้น (ช่องไม่ render ในร้านอื่น ค่าจึงว่างเสมอ) */
+  serviceReference?: string
   discount?: number            // baht ≥0
   vatRate?: number             // PERCENT as typed (e.g. 7); convert to 0..1 at submit
   shippingAddress?: {
@@ -255,6 +258,7 @@ const schema = Yup.object({
     .oneOf(['CASH', 'TRANSFER', 'PROMPTPAY', 'CARD', 'COD', 'OTHER'])
     .optional(),
   internalNote: Yup.string().optional(),
+  serviceReference: Yup.string().max(SERVICE_REFERENCE_MAX, `ข้อมูลอ้างอิงยาวได้ไม่เกิน ${SERVICE_REFERENCE_MAX} ตัวอักษร`).optional(),
   discount: Yup.number()
     .min(0, 'ส่วนลดต้องไม่ติดลบ')
     .transform((v) => (isNaN(v) ? undefined : v))
@@ -340,6 +344,8 @@ export default function OrderCreateForm({
   // feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" เฉพาะร้าน ONLINE_SALES (UX-Design-Spec §A1:
   // "ร้าน SERVICE_QUEUE/LODGING ไม่เห็นแถวนี้เลย ไม่ใช่ disabled") ไม่ผูกกับ shipsGoods เพราะคนละคำถาม
   const showDeliveryToggle = shopVertical === 'ONLINE_SALES'
+  // ช่อง "ข้อมูลอ้างอิง" (2026-10-04) — ร้านบริการเท่านั้น · ตัวตัดสินเดียวกับที่ service ใช้กันฝั่งเขียน
+  const showServiceReference = acceptsServiceReference(shopVertical)
   /**
    * คำเรียก "ของที่ร้านขาย" ตามประเภทกิจการ (SSOT: PRODUCT_VOCAB) — ร้านคิวงานเรียก "บริการ"
    * ร้านบ้านพักเรียก "ห้องพัก". ทั้งฟอร์มนี้เคยเขียน "สินค้า" ตายตัวทุกจุด ทั้งที่หน้าอื่นของ
@@ -391,6 +397,7 @@ export default function OrderCreateForm({
       salesChannel: initialSalesChannel ?? 'STOREFRONT',
       paymentMethod: 'CASH',
       internalNote: '',
+      serviceReference: '',
       discount: undefined,
       vatRate: undefined,
       shippingAddress: {
@@ -443,6 +450,7 @@ export default function OrderCreateForm({
           salesChannel: o.salesChannel ?? 'STOREFRONT',
           paymentMethod: o.paymentMethod ?? 'CASH',
           internalNote: o.internalNote ?? '',
+          serviceReference: o.serviceReference ?? '',
           discount: o.discount ?? undefined,
           // DB เก็บ vatRate เป็น decimal 0..1 — ฟอร์มใช้ % → คูณ 100
           vatRate: o.vatRate != null ? Math.round(o.vatRate * 100) : undefined,
@@ -797,7 +805,7 @@ export default function OrderCreateForm({
     // ── Body — mirror CreateOrderSchema field names (validated against validations.ts) ─
     // buyerName, buyerContact, salesChannel, internalNote, discount,
     // vatRate (0..1), vatAmount, shippingAddress (new keys: subdistrict/district/postcode)
-    const { buyerContact, buyerName, salesChannel, paymentMethod, internalNote, discount, vatRate, shippingAddress } = values
+    const { buyerContact, buyerName, salesChannel, paymentMethod, internalNote, serviceReference, discount, vatRate, shippingAddress } = values
 
     // ตัด subfield ที่เป็น '' ออกก่อนส่ง — กัน JSON column shippingAddress มี key ว่างเปล่า
     const cleanShipping = shippingAddress
@@ -844,6 +852,8 @@ export default function OrderCreateForm({
       ...(salesChannel ? { salesChannel } : {}),
       ...(paymentMethod ? { paymentMethod } : {}),
       ...(internalNote ? { internalNote } : {}),
+      // ไม่ส่ง key เมื่อว่าง = ล้างค่าตอนแก้ไข (updateOrder เขียน null) · ร้านอื่นไม่มีช่องนี้ ค่าว่างเสมอ
+      ...(serviceReference?.trim() ? { serviceReference: serviceReference.trim() } : {}),
       ...(discount != null ? { discount } : {}),
       // vatRate ส่ง API เป็น decimal (0..1) ตาม CreateOrderSchema vatRate maxValue(1)
       ...(vatRate != null && vatRate > 0 ? { vatRate: vatRate / 100 } : {}),
@@ -1070,6 +1080,7 @@ export default function OrderCreateForm({
           orderDateMessageTooOld={effectivePrefillTooOld}
           orderDateLabel={vocab.dateLabel}
           showDeliveryToggle={showDeliveryToggle}
+          showServiceReference={showServiceReference}
         />
       </div>
 
@@ -1103,6 +1114,7 @@ export default function OrderCreateForm({
             orderDateMessageTooOld={effectivePrefillTooOld}
             orderDateLabel={vocab.dateLabel}
             showDeliveryToggle={showDeliveryToggle}
+            showServiceReference={showServiceReference}
           />
         </div>
       </div>

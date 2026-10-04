@@ -377,6 +377,8 @@ export const CreateOrderSchema = v.object({
   fulfillmentMode: v.optional(v.picklist(["SHIPPED", "PICKUP"])),
   salesChannel: v.optional(v.string()),
   internalNote: v.optional(v.string()),
+  // ข้อมูลอ้างอิง (ร้านบริการ · 2026-10-04) — ข้อความสั้นไว้ค้นหางาน · ร้านอื่นถูกทิ้งที่ service
+  serviceReference: v.optional(v.pipe(v.string(), v.maxLength(100, "ข้อมูลอ้างอิงยาวได้ไม่เกิน 100 ตัวอักษร"))),
   // discount/vatRate/vatAmount เป็นตัวเลข: minValue(0) กัน negative
   discount: v.optional(v.pipe(v.number(), v.minValue(0))),
   // vatRate เก็บเป็น decimal fraction (0.07 = 7%) — maxValue(1) ป้องกัน input ผิด (เช่น 7 แทน 0.07)

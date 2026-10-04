@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { omitServiceReference } from "@/lib/service-reference";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
@@ -22,7 +23,8 @@ export async function GET(request: NextRequest) {
 
   if (role === "buyer") {
     const orders = await getOrdersByBuyer(userId);
-    return NextResponse.json(orders);
+    // ผู้ซื้อห้ามเห็นข้อมูลอ้างอิงของร้าน (ร้านบริการ — ดู lib/service-reference)
+    return NextResponse.json(orders.map(omitServiceReference));
   }
 
   // Default: seller orders

@@ -81,6 +81,8 @@ interface Props {
   orderDateLabel?: string
   /** feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" เฉพาะร้าน ONLINE_SALES (SSOT: OrderCreateForm) */
   showDeliveryToggle?: boolean
+  /** ช่อง "ข้อมูลอ้างอิง" — ร้านบริการเท่านั้น (SSOT: acceptsServiceReference ใน OrderCreateForm) */
+  showServiceReference?: boolean
 }
 
 export default function CartPanel({
@@ -100,6 +102,7 @@ export default function CartPanel({
   orderDateLabel,
   shipsGoods = true,
   showDeliveryToggle = false,
+  showServiceReference = false,
 }: Props) {
   const items = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' }) as string | undefined
@@ -242,7 +245,7 @@ export default function CartPanel({
    * ผลคือกดบันทึกแล้ว "ไม่มีอะไรเกิดขึ้น" ผู้ขายกดซ้ำแล้วสรุปว่าระบบเสีย
    * (impeccable critique 2026-07-31 P0) ใช้ idiom เดียวกับ shippingOpen
    */
-  const customerHasError = !!errors?.buyerName || !!errors?.buyerContact
+  const customerHasError = !!errors?.buyerName || !!errors?.buyerContact || !!errors?.serviceReference
   const customerOpen = openKey === 'customer' || customerHasError
 
   /** ตะกร้าว่างตอนกดบันทึก — ข้อความ error มีอยู่แล้วที่ footer แต่ตัวตะกร้าเองไม่เคยบอกว่ามันคือจุดที่ผิด */
@@ -321,7 +324,13 @@ export default function CartPanel({
         </button>
         {customerOpen && (
           <div className="px-2 pb-2">
-            <CustomerSelectBlock control={control} errors={errors} variant="embedded" setValue={setValue} />
+            <CustomerSelectBlock
+              control={control}
+              errors={errors}
+              variant="embedded"
+              setValue={setValue}
+              showServiceReference={showServiceReference}
+            />
           </div>
         )}
       </div>

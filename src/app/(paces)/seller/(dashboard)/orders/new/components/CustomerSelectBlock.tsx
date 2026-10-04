@@ -15,6 +15,7 @@
  */
 'use client'
 
+import ServiceReferenceField from './ServiceReferenceField'
 import { useCallback, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useController } from 'react-hook-form'
@@ -44,11 +45,19 @@ export interface Props {
   /** S-1: ปุ่ม "วางจากแชท" (เฉพาะ variant embedded) ต้องใช้ setValue เติมฟิลด์จาก parseOrderMessage */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setValue?: UseFormSetValue<any>
+  /** ช่อง "ข้อมูลอ้างอิง" — ร้านบริการเท่านั้น (SSOT: acceptsServiceReference ใน OrderCreateForm) */
+  showServiceReference?: boolean
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function CustomerSelectBlock({ control, errors, variant = 'card', setValue }: Props) {
+export default function CustomerSelectBlock({
+  control,
+  errors,
+  variant = 'card',
+  setValue,
+  showServiceReference = false,
+}: Props) {
   const embedded = variant === 'embedded'
   const { field: buyerNameField } = useController({ control, name: 'buyerName', defaultValue: '' })
   const { field: buyerContactField } = useController({ control, name: 'buyerContact', defaultValue: '' })
@@ -291,6 +300,10 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
               </p>
             ) : null}
           </div>
+          {/* ข้อมูลอ้างอิง — ร้านบริการเท่านั้น · ไม่บังคับ · ใช้ค้นหางาน (2026-10-04) */}
+          {showServiceReference && (
+            <ServiceReferenceField control={control} errors={errors} id="cust-service-reference" className="sm:col-span-2" />
+          )}
         </div>
       </div>
     </div>

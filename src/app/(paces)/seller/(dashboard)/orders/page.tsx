@@ -392,6 +392,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     // `buyer` ด้านบนเป็นค่าเต็มแล้วตั้งแต่ D-13 (2026-08-24) — ดู lib/seller-contact-display.ts
     // registered → displayName; guest → ชื่อที่ seller กรอกตอนสร้างออเดอร์ (o.buyerName); ไม่มีจริง ๆ → null
     buyerName: o.buyer?.displayName ?? o.buyerName ?? null,
+    // ข้อมูลอ้างอิง — ร้านบริการเท่านั้น (ค้นหาได้ + ป้ายหน้าชื่อ) · ร้านอื่น null เสมอ
+    serviceReference: isServiceQueue ? (o.serviceReference ?? null) : null,
     buyerUsername: o.buyer?.username ?? null,
     buyerAvatar: o.buyer?.avatar ?? null,
     salesChannel: o.salesChannel ?? null,

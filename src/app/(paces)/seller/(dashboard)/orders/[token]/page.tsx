@@ -31,6 +31,7 @@
  * `Number()` ที่ server boundary นี้ก่อนส่งทุกจุด (เหมือน Date→ISO ที่ทำอยู่แล้ว)
  */
 
+import { acceptsServiceReference } from '@/lib/service-reference'
 import { getServerSession } from 'next-auth'
 import { resolveShopVertical } from '@/lib/lodging'
 import { authOptions } from '@/lib/auth'
@@ -497,7 +498,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
               buyerUsername: order.buyer?.username ?? null,
               buyerName: order.buyerName ?? null,
               avatar: order.buyer?.avatar ?? null,
-              shippingAddr
+              shippingAddr,
+              // ข้อมูลอ้างอิง — ร้านบริการเท่านั้น (ร้านอื่นไม่มีช่องนี้)
+              serviceReference: acceptsServiceReference(shop.vertical) ? (order.serviceReference ?? null) : null,
             }}
           />
         }

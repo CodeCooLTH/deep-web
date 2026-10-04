@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { acceptsServiceReference, normalizeServiceReference } from "@/lib/service-reference";
 import { ACTIVE_FORWARD_SHIPMENT, LATEST_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -295,6 +296,8 @@ export async function createOrder(shopId: string, data: {
   fulfillmentMode?: "SHIPPED" | "PICKUP";
   salesChannel?: string;
   internalNote?: string;
+  /** ข้อมูลอ้างอิง (ร้านบริการเท่านั้น — ร้านอื่นถูกทิ้งเป็น null ที่ service นี้เสมอ) */
+  serviceReference?: string;
   discount?: number;
   vatRate?: number;
   vatAmount?: number;
@@ -572,6 +575,10 @@ export async function createOrder(shopId: string, data: {
     paymentMethod: data.paymentMethod ?? undefined,
     salesChannel: data.salesChannel ?? undefined,
     internalNote: data.internalNote ?? undefined,
+    // ข้อมูลอ้างอิง — ด่านเดียวที่ทุกทางเข้าต้องผ่าน: ร้านที่ไม่ใช่บริการไม่มีช่องนี้ ส่งมาก็ไม่เก็บ
+    serviceReference: acceptsServiceReference(shopRow?.vertical)
+      ? (normalizeServiceReference(data.serviceReference) ?? undefined)
+      : undefined,
     discount: data.discount ?? undefined,
     vatRate: data.vatRate ?? undefined,
     vatAmount: data.vatAmount ?? undefined,
@@ -932,6 +939,10 @@ async function promoteDraftCore(
         paymentMethod: data.paymentMethod ?? null,
         salesChannel: data.salesChannel ?? null,
         internalNote: data.internalNote ?? null,
+        // ร้านที่ไม่ใช่บริการ = null เสมอ (ไม่มีช่องนี้) · ร้านบริการ: ไม่ส่ง key = ล้างค่า (เหมือน internalNote)
+        serviceReference: acceptsServiceReference(shopRow?.vertical)
+          ? normalizeServiceReference(data.serviceReference)
+          : null,
         discount: data.discount ?? null,
         vatRate: data.vatRate ?? null,
         vatAmount: data.vatAmount ?? null,
@@ -1107,7 +1118,7 @@ export async function updateOrder(
         // 🛑 เธรดที่ออเดอร์ใบนี้ถือกำเนิด — ต้องอ่านจากแถว ไม่ใช่รอ client ส่ง `conversationId` มา
         // (2026-09-05: หน้า /orders/[token]/edit ไม่เคยส่งมาเลย ⇒ เธรดไม่ย้ายตามเบอร์ที่แก้)
         conversationId: true,
-        buyerName: true, paymentMethod: true, salesChannel: true, internalNote: true,
+        buyerName: true, paymentMethod: true, salesChannel: true, internalNote: true, serviceReference: true,
         discount: true, vatRate: true, vatAmount: true, shippingAddress: true,
         createdAt: true, publicToken: true,
         // feature 00062 (U11) — fulfillmentMode/handedOverAt ตัดสิน "ต้องล้าง handedOver ไหม"
@@ -1227,6 +1238,10 @@ export async function updateOrder(
         paymentMethod: data.paymentMethod ?? null,
         salesChannel: data.salesChannel ?? null,
         internalNote: data.internalNote ?? null,
+        // ร้านที่ไม่ใช่บริการ = null เสมอ (ไม่มีช่องนี้) · ร้านบริการ: ไม่ส่ง key = ล้างค่า (เหมือน internalNote)
+        serviceReference: acceptsServiceReference(shopRowForShipping?.vertical)
+          ? normalizeServiceReference(data.serviceReference)
+          : null,
         discount: data.discount ?? null,
         vatRate: data.vatRate ?? null,
         vatAmount: data.vatAmount ?? null,
@@ -1335,6 +1350,12 @@ export async function updateOrder(
       strEq(existing.paymentMethod, data.paymentMethod),
       strEq(existing.salesChannel, data.salesChannel),
       strEq(existing.internalNote, data.internalNote),
+      strEq(
+        existing.serviceReference,
+        acceptsServiceReference(shopRowForShipping?.vertical)
+          ? normalizeServiceReference(data.serviceReference)
+          : null,
+      ),
       numEq(existing.discount, data.discount),
       numEq(existing.vatRate, data.vatRate),
       numEq(existing.vatAmount, data.vatAmount),

@@ -695,6 +695,7 @@ InspectionResult (0..1) ─ (N) InspectionEvidence     [feature 00060 — option
 | `conversationId` | String? FK → Conversation *(SetNull)* | **ห้องแชทที่ออเดอร์ใบนี้ถือกำเนิด** (2026-07-31) — เขียนครั้งเดียวตอน `createOrder` จากเธรดที่ผ่าน `WHERE shopId` แล้ว **ไม่มีหน้าจอไหนแก้ได้ทีหลัง**. 🛑 เป็นตัวตัดสินร่วมว่า "ใบไหนควรอยู่ในแผงของห้องแชทนี้" คู่กับ `customerId` — ดู `resolveThreadOrderFilter()` (`src/lib/chat-thread-orders.ts`): กรองด้วย `customerId` อย่างเดียวไม่ได้ เพราะ `Customer.phone` เป็น unique ทั้งระบบ ⇒ คีย์เบอร์ใหม่ = ลูกค้าคนละแถว แล้วเธรดถูก *สลับ* ไปคนใหม่ ⇒ ใบเก่าหายจากแผงเงียบ ๆ (user report 2026-09-05). ออเดอร์ก่อน 2026-07-31 เป็น `NULL` (282/824 ใบบน prod) กู้เข้าห้องด้วยเกณฑ์นี้ไม่ได้ |
 | `internalNote` | String? `@db.Text` | Phase B — note ภายใน seller |
 | `buyerName` | String? | Phase B — ชื่อผู้ซื้อ |
+| `serviceReference` | String? `@db.VarChar(100)` | *(migration `20261004100000`)* **"ข้อมูลอ้างอิง" ของงานร้านบริการ** — ข้อความสั้นที่ร้านพิมพ์ไว้จำ/ค้นหางาน (ทะเบียนรถ รุ่นมือถือ ฯลฯ) ไม่บังคับ. 🛑 **เก็บเฉพาะร้าน `SERVICE_QUEUE`** — ทุกจุดเขียน (`createOrder` · ยืนยันร่าง · `updateOrder`) ผ่าน `acceptsServiceReference()` ร้านอื่นส่งมาก็ไม่ถูกเก็บ · 🛑 **ฝั่งร้านเท่านั้น ห้ามถึงผู้ซื้อ** (endpoint ที่ผู้ซื้อเรียกได้ตัดด้วย `omitServiceReference()`) · คนละช่องกับ `internalNote` ซึ่ง **จงใจไม่ให้ค้นหา** (00058 D-2) — ห้ามยุบรวม · SSOT `src/lib/service-reference.ts` · ดู `docs/20 - Features/00058 - Order List Search/EXTENSIONS-2026-10-04-service-reference.md` |
 | `discount` | Decimal(12,2)? | Phase B — ≥0 |
 | `vatRate` | Decimal(5,4)? | Phase B — decimal fraction (0.07 = 7%, maxValue 1) |
 | `vatAmount` | Decimal(12,2)? | Phase B — ≥0 |
@@ -1439,9 +1440,9 @@ enum** — ระหว่างนี้ป้ายบนโปรไฟล์
 
 | Method | Path | Auth | Purpose | Service |
 |--------|------|------|---------|---------|
-| GET | `/api/orders` | Buyer/Seller | ดู order list — `?role=buyer` สำหรับ buyer, default = seller | `order.service` |
+| GET | `/api/orders` | Buyer/Seller | ดู order list — `?role=buyer` สำหรับ buyer, default = seller · 🛑 `role=buyer` ตัด `serviceReference` ออกก่อนตอบ (เช่นเดียวกับ confirm/cancel ที่คืน Order ทั้งแถว) | `order.service` |
 | POST | `/api/orders` | Seller | สร้าง order → คืน `publicToken` — body: `CreateOrderSchema` (มี `createdAt` optional, feature 00033) + **`shopId` optional** (ดู 🛑 ใต้ตาราง) | `order.service` |
-| GET | `/api/orders/[token]` | Seller | prefill ฟอร์มแก้ไข — รับ **`?shopId=`** optional (ความหมายเดียวกับ POST) | — |
+| GET | `/api/orders/[token]` | Seller | prefill ฟอร์มแก้ไข — รับ **`?shopId=`** optional (ความหมายเดียวกับ POST) · คืน `serviceReference` ด้วย (ไม่คืน = กดบันทึกแล้วค่าเดิมถูกล้าง) | — |
 | PATCH | `/api/orders/[token]` | Seller-owner | แก้ไข order เต็มรูป — body เดียวกับ POST (`CreateOrderSchema`) + **`shopId` optional** | `order.service` |
 | GET | `/api/orders/customers` | Seller | autocomplete ลูกค้าเดิม `?q=<term>` (≥2 chars) | — |
 | GET | `/api/seller/customers/{key}/contact` | Seller-owner | **เปิดเผยข้อมูลติดต่อเต็ม (unmasked) ของลูกค้า 1 คน** — `key` = opaque row key เดียวกับ `/customers/[id]` · คืน `{ contact }` · `cache-control: private, no-store` · 🛑 `INVALID_KEY` กับ `NOT_FOUND` ตอบ **404 เหมือนกันโดยตั้งใจ** (กัน cross-shop enumeration) · authorization อยู่ที่ `where: { shopId }` ตั้งแต่ SELECT ไม่ใช่กรองทีหลัง (feature 00057) | `customer-directory.service` |
@@ -2540,6 +2541,7 @@ HTTP ตามตาราง §7.21
 | `type` | picklist: `PHYSICAL` / `DIGITAL` / `SERVICE` / `SUBSCRIPTION` |
 | `buyerContact` | string **บังคับ** — regex `MOBILE_PHONE_RE` = `^0[689][0-9]{8}$` (มือถือไทย 10 หลัก ขึ้นต้น 06/08/09). บังคับมาตั้งแต่ FR ของ 00015 (TFR-009) · เข้มขึ้นจาก `^0[0-9]{9}$` เมื่อ 2026-08-21 |
 | `buyerName` | string (optional) |
+| `serviceReference` | string ≤100 ตัวอักษร (optional) — เก็บเฉพาะร้าน `SERVICE_QUEUE` · service ยุบช่องว่างซ้อน/ตัดหัวท้าย · ว่าง = `null` (`normalizeServiceReference`) |
 | `paymentMethod` | string (optional) |
 | `salesChannel` | string (optional) |
 | `internalNote` | string (optional) |

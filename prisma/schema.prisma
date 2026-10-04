@@ -786,6 +786,10 @@ model Order {
   salesChannel  String?
   internalNote  String?  @db.Text
   buyerName     String?
+  // serviceReference: "ข้อมูลอ้างอิง" ของงานร้านบริการ (SERVICE_QUEUE เท่านั้น · 2026-10-04) — ข้อความสั้นที่ร้าน
+  // พิมพ์ไว้ใช้ค้นหางาน เช่น ทะเบียนรถ/รุ่นมือถือ · ไม่บังคับ · ฝั่งร้านเท่านั้น ห้ามส่งถึงผู้ซื้อ
+  // ต่างจาก internalNote (หมายเหตุยาว จงใจไม่ให้ค้นหา — 00058 D-2) · เขียนผ่าน API ที่ gate vertical แล้วเท่านั้น
+  serviceReference String? @db.VarChar(100)
   // customerId: ผูก Customer กลาง (feat 00014) — server derive จาก buyerContact (เบอร์) ตอน createOrder;
   // buyerName/buyerContact ยังคง denormalized ไว้ (display per-order + backward compat)
   customerId    String?

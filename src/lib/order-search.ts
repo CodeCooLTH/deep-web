@@ -26,6 +26,7 @@
  */
 
 import { formatOrderNo } from './order-no'
+import { compactForReferenceSearch, referenceMatchesQuery } from './service-reference'
 
 /**
  * ต่ำกว่านี้ไม่กรอง — 1 ตัวอักษรจะตรงเกือบทุกใบในชุดฟิลด์นี้ ซึ่งอ่านเหมือนช่องค้นหาพัง
@@ -52,6 +53,8 @@ export type SearchableOrder = {
   /** null = ยังไม่มีพัสดุ · undefined = ร้านที่ไม่ใช่ ONLINE_SALES (ไม่มีแกนนี้เลย) */
   shipment?: { trackingNo: string | null } | null
   items: { name: string }[]
+  /** ข้อมูลอ้างอิง (ร้านบริการ · 2026-10-04) — ร้านอื่นเป็น null/ไม่มีเสมอ */
+  serviceReference?: string | null
 }
 
 export type OrderSearchHit<T extends SearchableOrder> = {
@@ -107,6 +110,7 @@ function textFieldsOf(order: SearchableOrder): string[] {
     order.buyerUsername ?? '',
     order.buyerPhone ?? '',
     order.shipment?.trackingNo ?? '',
+    order.serviceReference ?? '',
   ]
   for (const item of order.items) fields.push(item.name)
   return fields.filter(Boolean)
@@ -191,6 +195,12 @@ export function isExactIdentifierMatch(order: SearchableOrder, query: string): b
   const lower = q.toLowerCase()
   const identifiers = [orderNoOf(order), order.id, order.shortCode ?? '', order.shipment?.trackingNo ?? '']
   if (identifiers.filter(Boolean).some((v) => v.toLowerCase() === lower)) return true
+  // ข้อมูลอ้างอิงตรงเต็มค่า (ไม่สนช่องว่าง/ขีด) = งานที่ร้านตั้งใจหา ⇒ ลอยขึ้นบนสุด
+  if (
+    order.serviceReference &&
+    compactForReferenceSearch(order.serviceReference) === compactForReferenceSearch(q)
+  )
+    return true
   if (isNumericToken(q) && order.buyerPhone) {
     const digits = digitsOnly(q)
     return digits.length > 0 && digitsOnly(order.buyerPhone) === digits
@@ -220,7 +230,11 @@ export function searchOrders<T extends SearchableOrder>(orders: T[], query: stri
   const tokens = tokenize(query)
   const hits: OrderSearchHit<T>[] = []
   for (const order of orders) {
-    if (!tokens.every((t) => tokenMatches(order, t))) continue
+    /**
+     * ข้อมูลอ้างอิงเทียบแบบ "ตัดช่องว่าง/ขีด" ทั้งคำค้น (เพิ่ม ไม่ใช่แทน) — ทะเบียน "4กฐ 9100" ที่บันทึกไว้
+     * ต้องเจอเมื่อพิมพ์ "4กฐ9100" ด้วย (ทางกลับเจออยู่แล้วเพราะคำที่มีเว้นวรรคถูกแยกเป็นหลายคำ AND กัน)
+     */
+    if (!tokens.every((t) => tokenMatches(order, t)) && !referenceMatchesQuery(order.serviceReference, query)) continue
     hits.push({
       order,
       isExactMatch: isExactIdentifierMatch(order, query),

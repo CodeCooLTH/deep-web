@@ -50,12 +50,14 @@ async function loadAll(): Promise<SearchableOrder[]> {
       buyerContact: string | null
       trackingNo: string | null
       itemNames: string[] | null
+      serviceReference: string | null
     }[]
   >(`
     SELECT o."id", o."publicToken", o."shortCode", o."createdAt",
            o."buyerName", bu."username" AS "buyerUsername", o."buyerContact",
            coalesce(s."trackingNo", t."trackingNo") AS "trackingNo",
-           (SELECT array_agg(oi."name") FROM "OrderItem" oi WHERE oi."orderId" = o."id") AS "itemNames"
+           (SELECT array_agg(oi."name") FROM "OrderItem" oi WHERE oi."orderId" = o."id") AS "itemNames",
+           o."serviceReference"
     FROM "Order" o
     ${LATERAL_AND_TRACKING}
   `)
@@ -70,6 +72,7 @@ async function loadAll(): Promise<SearchableOrder[]> {
     buyerPhone: r.buyerContact,
     shipment: r.trackingNo ? { trackingNo: r.trackingNo } : null,
     items: (r.itemNames ?? []).map((name) => ({ name })),
+    serviceReference: r.serviceReference,
   }))
 }
 
