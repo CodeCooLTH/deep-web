@@ -64,9 +64,16 @@ export default function PublicOrderClient({ order }: Props) {
     // คู่ค้าที่ยืนยันแล้ว และประวัติของร้านได้หลักฐานเพิ่มหนึ่งชิ้นซึ่งร้านเขียนเองไม่ได้
     // (คือสิ่งเดียวที่ Deep มีไว้ทำ) ของเดิมเขียน "ขอบคุณครับ" ซึ่งนอกจากไม่บอกอะไรแล้ว
     // ยังเป็นคำลงท้ายที่ระบุเพศของผู้พูด ทั้งที่คนพูดคือระบบ
-    toast.success('ยืนยันรับสินค้าแล้ว — บันทึกลงประวัติของร้านเรียบร้อย')
+    // ยังไม่มีรีวิว = แผ่นให้คะแนน (ReviewSheet) จะขึ้นและพูดประโยคเดียวกันที่หัวแผ่นอยู่แล้ว
+    // ยิง toast ซ้ำบนแผ่นคือพูดเรื่องเดียวสองที่ — ยิงเฉพาะตอนไม่มีแผ่นให้พูดแทน
+    if (orderState.hasReview) toast.success('ยืนยันรับสินค้าแล้ว — บันทึกลงประวัติของร้านเรียบร้อย')
     // Optimistic update → re-render detail with new status (status จาก response)
-    setOrderState((prev) => ({ ...prev, status: data.status ?? 'CONFIRMED' }))
+    // ตราประทับขึ้นทันทีโดยไม่ต้องรีโหลด — ผู้ซื้อเพิ่งกดเอง จึงเป็นตรา "ได้รับแล้ว" ณ เวลานี้
+    setOrderState((prev) => ({
+      ...prev,
+      status: data.status ?? 'CONFIRMED',
+      confirmation: { byBuyer: true, atIso: new Date().toISOString() },
+    }))
   }
 
   // canCancel: PENDING เท่านั้น (parent — ownership ตรวจแล้วที่ server ก่อน render component นี้)

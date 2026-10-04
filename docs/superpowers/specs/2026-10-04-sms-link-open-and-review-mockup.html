@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ลิงก์ SMS ออเดอร์ + รีวิวหลังยืนยัน — 5 แนวทาง</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script>
+  tailwind.config = { theme: { extend: {
+    colors: { primary: '#7367F0', primarydk: '#675DD8', verified: '#28C76F', verifiedink: '#18804A',
+      ink: '#2F2B3D', slate: '#808390', mist: '#F8F7FA', warn: '#FF9F43' },
+    fontFamily: { sans: ['Anuphan', 'sans-serif'] } } } }
+</script>
+<style>
+  body { font-family: Anuphan, sans-serif; color: #2F2B3D; }
+  .phone { width: 360px; height: 740px; border-radius: 36px; border: 10px solid #1f1d2b; background: #F8F7FA;
+    position: relative; overflow: hidden; flex: none; box-shadow: 0 10px 30px rgba(47,43,61,.18); }
+  .notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 120px; height: 22px;
+    background: #1f1d2b; border-radius: 0 0 14px 14px; z-index: 50; }
+  .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(47,43,61,.08); }
+  .btn { height: 48px; border-radius: 8px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
+  .btn-primary { background: #7367F0; color: #fff; box-shadow: 0 2px 6px rgba(115,103,240,.3); }
+  .btn-success { background: #28C76F; color: #fff; }
+  .btn-ghost { color: #675DD8; }
+  .scrim { position: absolute; inset: 0; background: rgba(47,43,61,.5); z-index: 30; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 20px 20px 0 0; z-index: 40; padding: 12px 20px 28px; }
+  .grab { width: 40px; height: 4px; border-radius: 4px; background: #d6d5dc; margin: 0 auto 14px; }
+  .star { font-size: 40px; color: #d6d5dc; }
+  .star.on { color: #FF9F43; }
+  .chip { border: 1px solid #2F2B3D1F; border-radius: 999px; padding: 8px 14px; font-size: 14px; }
+  .chip.on { border-color: #7367F0; background: #7367F01a; color: #675DD8; font-weight: 600; }
+  .spin { width: 28px; height: 28px; border: 3px solid #7367F033; border-top-color: #7367F0; border-radius: 50%; animation: s 0.9s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg) } }
+  .shimmer { background: linear-gradient(90deg,#eceaf1 0%,#f6f5f9 50%,#eceaf1 100%); border-radius: 8px; }
+  .lbl { font-size: 13px; color: #808390; text-align: center; margin-top: 10px; }
+  .vchip { display: inline-flex; align-items: center; gap: 4px; background: #28C76F29; color: #18804A; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
+</style>
+</head>
+<body class="bg-white">
+<div class="max-w-[1240px] mx-auto px-8 py-10">
+  <h1 class="text-3xl font-bold">เปิดลิงก์ SMS → หน้าออเดอร์ → รีวิวหลังยืนยันรับ</h1>
+  <p class="text-slate mt-2">5 แนวทาง · แต่ละแนวมี 3 จอ: (1) ตอนเปิดลิงก์ (2) หน้าออเดอร์ (3) หลังกดยืนยันรับ · ข้อมูลจริงจากร้าน BT Premium (ชื่อยาวที่สุด) · ปุ่ม/สี = ธีมผู้ซื้อ (Vuexy)</p>
+
+  <!-- ===================== แนวทาง 1 ===================== -->
+  <section id="v1" class="mt-12 pt-6">
+    <h2 class="text-2xl font-bold">แนวทาง 1 — เรียบที่สุด · แผ่นดาวแบบ Grab</h2>
+    <p class="text-slate mt-1 mb-6">เปิดลิงก์เห็นแค่ชื่อร้าน + วงหมุน 1 วิ · หน้าออเดอร์เดิม · ยืนยันแล้วแผ่นดาวเลื่อนขึ้นจากล่าง ข้ามได้</p>
+    <div class="flex gap-8">
+      <div><div class="phone"><div class="notch"></div>
+        <div class="h-full flex flex-col items-center justify-center px-8 text-center bg-white">
+          <div class="w-20 h-20 rounded-full bg-mist flex items-center justify-center text-3xl font-bold text-slate">B</div>
+          <div class="mt-4 text-lg font-bold leading-snug">BT Premium Auto Xeon - สาขาสุขสวัสดิ์</div>
+          <div class="mt-2"><span class="vchip"><iconify-icon icon="tabler:phone-check"></iconify-icon>ยืนยันเบอร์แล้ว</span></div>
+          <div class="spin mt-10"></div>
+          <div class="mt-4 text-slate">กำลังเปิดคำสั่งซื้อของคุณ</div>
+        </div></div><div class="lbl">(1) เปิดลิงก์ — ไม่มีปุ่ม ไม่ต้องกรอก</div></div>
+
+      <div><div class="phone"><div class="notch"></div>
+        <div class="h-full overflow-hidden">
+          <div class="h-28 bg-gradient-to-br from-amber-700 to-amber-400"></div>
+          <div class="px-4 -mt-8 space-y-3">
+            <div class="card p-4">
+              <div class="text-xs text-slate">DP25690816100C0B · 16 ส.ค. 2569</div>
+              <div class="text-xl font-bold mt-1">กำลังจัดส่ง</div>
+              <div class="flex items-center gap-2 mt-3 text-sm"><iconify-icon icon="tabler:truck" class="text-primary text-xl"></iconify-icon>Flash Express · TH0123456789</div>
+              <div class="flex gap-1 mt-3"><div class="h-1.5 flex-1 rounded bg-primary"></div><div class="h-1.5 flex-1 rounded bg-primary"></div><div class="h-1.5 flex-1 rounded bg-primary"></div><div class="h-1.5 flex-1 rounded bg-mist border"></div></div>
+            </div>
+            <div class="card p-4">
+              <div class="font-semibold">รายการสินค้า</div>
+              <div class="flex justify-between mt-2 text-sm"><span>ฟิล์มกรองแสง Crystalline รอบคัน × 1</span><span class="font-semibold">฿12,900</span></div>
+              <div class="flex justify-between mt-3 pt-3 border-t text-sm"><span class="text-slate">ยอดรวม</span><span class="font-bold">฿12,900</span></div>
+            </div>
+          </div>
+          <div class="absolute bottom-0 left-0 right-0 bg-white border-t px-4 pt-3 pb-6">
+            <div class="btn btn-primary">ยืนยันรับสินค้า</div>
+          </div>
+        </div></div><div class="lbl">(2) หน้าออเดอร์เต็ม — ปุ่มงานจริงทันที</div></div>
+
+      <div><div class="phone"><div class="notch"></div>
+        <div class="h-full opacity-60"><div class="h-28 bg-gradient-to-br from-amber-700 to-amber-400"></div></div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="flex items-center gap-2 text-verifiedink font-semibold"><iconify-icon icon="tabler:circle-check-filled" class="text-verified text-2xl"></iconify-icon>ยืนยันรับสินค้าแล้ว</div>
+          <div class="text-xl font-bold mt-4">ร้านนี้เป็นอย่างไรบ้าง?</div>
+          <div class="text-slate text-sm mt-1">คะแนนของคุณช่วยให้คนถัดไปตัดสินใจซื้อได้มั่นใจขึ้น</div>
+          <div class="flex justify-between mt-6 px-2">
+            <iconify-icon icon="tabler:star-filled" class="star"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star"></iconify-icon>
+          </div>
+          <div class="text-center text-sm text-slate mt-2">แตะดาวเพื่อให้คะแนน</div>
+          <div class="btn btn-primary mt-6 opacity-40">ส่งคะแนน</div>
+          <div class="btn btn-ghost mt-1">ไว้ทีหลัง</div>
+        </div></div><div class="lbl">(3) แผ่นดาว — ส่งได้เมื่อแตะดาว · ข้ามได้</div></div>
+    </div>
+  </section>
+
+  <!-- ===================== แนวทาง 2 ===================== -->
+  <section id="v2" class="mt-16 pt-6">
+    <h2 class="text-2xl font-bold">แนวทาง 2 — จบงานเต็มจอ (แบบจบทริป Grab)</h2>
+    <p class="text-slate mt-1 mb-6">ยืนยันรับแล้วเปลี่ยนทั้งจอเป็นหน้าสรุป "เรียบร้อย" + ใบเสร็จย่อ + ดาวใหญ่ · ให้น้ำหนักกับช่วงเวลาที่ดีลจบ</p>
+    <div class="flex gap-8">
+      <div><div class="phone"><div class="notch"></div>
+        <div class="h-full flex flex-col items-center justify-center px-8 text-center">
+          <div class="text-primary font-bold text-2xl tracking-tight">Deep</div>
+          <div class="w-full h-1.5 bg-white rounded mt-10 overflow-hidden"><div class="h-full w-2/3 bg-primary rounded"></div></div>
+          <div class="mt-4 text-slate">กำลังเปิดคำสั่งซื้อจาก</div>
+          <div class="font-bold leading-snug mt-1">BT Premium Auto Xeon - สาขาสุขสวัสดิ์</div>
+        </div></div><div class="lbl">(1) แถบโหลดสั้น ๆ บนพื้นแบรนด์</div></div>
+
+      <div><div class="phone"><div class="notch"></div>
+        <div class="px-4 pt-10 space-y-3">
+          <div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-white card flex items-center justify-center font-bold text-slate">B</div><div class="min-w-0"><div class="font-semibold truncate">BT Premium Auto Xeon - สาขาสุขสวัสดิ์</div><span class="vchip">ยืนยันเบอร์แล้ว</span></div></div>
+          <div class="card p-4"><div class="text-xs text-slate">DP25690816100C0B</div><div class="text-xl font-bold mt-1">พัสดุถึงแล้ว</div><div class="text-sm text-slate mt-1">ส่งถึงเมื่อ 17 ส.ค. 2569 14:20</div></div>
+          <div class="card p-4"><div class="flex justify-between text-sm"><span>ฟิล์มกรองแสง Crystalline รอบคัน × 1</span><span class="font-semibold">฿12,900</span></div></div>
+        </div>
+        <div class="absolute bottom-0 left-0 right-0 bg-white border-t px-4 pt-3 pb-6"><div class="btn btn-primary">ยืนยันรับสินค้า</div></div>
+      </div><div class="lbl">(2) หน้าออเดอร์ — ร้านอยู่บนสุดแบบย่อ</div></div>
+
+      <div><div class="phone"><div class="notch"></div>
+        <div class="h-full bg-white flex flex-col px-6 pt-16 pb-8">
+          <div class="mx-auto w-20 h-20 rounded-full bg-verified/15 flex items-center justify-center"><iconify-icon icon="tabler:check" class="text-verified text-5xl"></iconify-icon></div>
+          <div class="text-center text-2xl font-bold mt-4">รับสินค้าเรียบร้อย</div>
+          <div class="text-center text-sm text-slate mt-1">บันทึกลงประวัติของร้านแล้ว</div>
+          <div class="mt-5 rounded-xl bg-mist p-4 text-sm space-y-1.5">
+            <div class="flex justify-between"><span class="text-slate">คำสั่งซื้อ</span><span>DP25690816100C0B</span></div>
+            <div class="flex justify-between"><span class="text-slate">ยอดรวม</span><span class="font-bold">฿12,900</span></div>
+          </div>
+          <div class="text-center font-semibold mt-6">ให้คะแนน BT Premium Auto Xeon - สาขาสุขสวัสดิ์</div>
+          <div class="flex justify-center gap-2 mt-3">
+            <iconify-icon icon="tabler:star-filled" class="star on"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star on"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star on"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star on"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star"></iconify-icon>
+          </div>
+          <div class="mt-auto"><div class="btn btn-primary">ส่งคะแนน</div><div class="btn btn-ghost mt-1">ข้ามไปก่อน</div></div>
+        </div></div><div class="lbl">(3) หน้าจบงาน + ใบเสร็จย่อ + ดาว</div></div>
+    </div>
+  </section>
+
+  <!-- ===================== แนวทาง 3 ===================== -->
+  <section id="v3" class="mt-16 pt-6">
+    <h2 class="text-2xl font-bold">แนวทาง 3 — บอกทุกขั้นให้เห็น · รีวิวในหน้า ไม่มีป๊อปอัป</h2>
+    <p class="text-slate mt-1 mb-6">ตอนเปิดบอกว่าระบบทำอะไรให้ (ตรวจลิงก์ · ยืนยันเบอร์) · หน้าออเดอร์ขึ้น "สิ่งที่ต้องทำ" ไว้บนสุด · ยืนยันแล้วการ์ดเดียวกันกลายเป็นที่ให้ดาว</p>
+    <div class="flex gap-8">
+      <div><div class="phone"><div class="notch"></div>
+        <div class="h-full flex flex-col justify-center px-8 bg-white">
+          <div class="text-xl font-bold">กำลังเปิดคำสั่งซื้อ</div>
+          <div class="text-slate text-sm mt-1">BT Premium Auto Xeon - สาขาสุขสวัสดิ์</div>
+          <div class="mt-8 space-y-5">
+            <div class="flex items-center gap-3"><iconify-icon icon="tabler:circle-check-filled" class="text-verified text-2xl"></iconify-icon><span>ลิงก์ถูกต้อง</span></div>
+            <div class="flex items-center gap-3"><iconify-icon icon="tabler:circle-check-filled" class="text-verified text-2xl"></iconify-icon><span>ยืนยันเบอร์ ***-***-4567 จากลิงก์ SMS</span></div>
+            <div class="flex items-center gap-3"><div class="spin" style="width:22px;height:22px"></div><span class="font-semibold">เปิดรายละเอียดคำสั่งซื้อ</span></div>
+          </div>
+          <div class="text-xs text-slate mt-10">ไม่ต้องกรอกเบอร์หรือรหัส OTP</div>
+        </div></div><div class="lbl">(1) เห็นว่าระบบทำอะไรให้บ้าง</div></div>
+
+      <div><div class="phone"><div class="notch"></div>
+        <div class="px-4 pt-10 space-y-3">
+          <div class="card p-4 border-2 border-primary">
+            <div class="text-xs font-semibold text-primary">สิ่งที่ต้องทำตอนนี้</div>
+            <div class="text-lg font-bold mt-1">โอนเงิน ฿12,900</div>
+            <div class="mt-3 rounded-lg bg-mist p-3 text-sm"><div class="text-slate">กสิกรไทย · บจก. บีที พรีเมียม</div><div class="font-bold text-base mt-0.5 flex items-center justify-between">123-4-56789-0 <iconify-icon icon="tabler:copy" class="text-primary"></iconify-icon></div></div>
+            <div class="btn btn-primary mt-3"><iconify-icon icon="tabler:upload"></iconify-icon>แนบสลิป</div>
+          </div>
+          <div class="card p-4"><div class="text-xs text-slate">DP25690816100C0B · 16 ส.ค. 2569</div><div class="font-bold mt-1">รอชำระเงิน</div></div>
+          <div class="card p-4"><div class="flex justify-between text-sm"><span>ฟิล์มกรองแสง Crystalline รอบคัน × 1</span><span class="font-semibold">฿12,900</span></div></div>
+        </div>
+      </div><div class="lbl">(2) "สิ่งที่ต้องทำ" อยู่บนสุดตามสถานะ (ตัวอย่าง: รอโอน)</div></div>
+
+      <div><div class="phone"><div class="notch"></div>
+        <div class="px-4 pt-10 space-y-3">
+          <div class="card p-4 border-2 border-verified">
+            <div class="flex items-center gap-2 text-verifiedink font-semibold"><iconify-icon icon="tabler:circle-check-filled" class="text-verified text-xl"></iconify-icon>ยืนยันรับสินค้าแล้ว</div>
+            <div class="text-lg font-bold mt-3">ให้คะแนนร้านนี้</div>
+            <div class="flex justify-between mt-3">
+              <iconify-icon icon="tabler:star-filled" class="star on"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star on"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star on"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star on"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star on"></iconify-icon>
+            </div>
+            <textarea class="w-full mt-3 rounded-lg border p-3 text-sm h-20" placeholder="เล่าให้คนถัดไปฟัง (ไม่บังคับ)"></textarea>
+            <div class="btn btn-primary mt-3">ส่งรีวิว</div>
+          </div>
+          <div class="card p-4"><div class="text-xs text-slate">DP25690816100C0B</div><div class="font-bold mt-1">สำเร็จ</div></div>
+        </div>
+      </div><div class="lbl">(3) การ์ดบนสุดกลายเป็นที่ให้ดาว — ไม่มีอะไรเด้งทับ</div></div>
+    </div>
+  </section>
+
+  <!-- ===================== แนวทาง 4 ===================== -->
+  <section id="v4" class="mt-16 pt-6">
+    <h2 class="text-2xl font-bold">แนวทาง 4 — โครงหน้าโผล่ก่อน · รีวิวแบบแตะชิป</h2>
+    <p class="text-slate mt-1 mb-6">ตอนเปิดเห็นโครงหน้าออเดอร์ทันที (รู้สึกเร็ว) · รีวิวถามทีละข้อ: ดาว → แตะชิปสิ่งที่ชอบ → พิมพ์เพิ่มถ้าอยาก · พิมพ์น้อยที่สุด</p>
+    <div class="flex gap-8">
+      <div><div class="phone"><div class="notch"></div>
+        <div class="h-28 shimmer rounded-none"></div>
+        <div class="px-4 -mt-8 space-y-3">
+          <div class="card p-4 space-y-2"><div class="shimmer h-3 w-1/2"></div><div class="shimmer h-6 w-2/3"></div><div class="shimmer h-3 w-full"></div></div>
+          <div class="card p-4 space-y-2"><div class="shimmer h-4 w-1/3"></div><div class="shimmer h-3 w-full"></div><div class="shimmer h-3 w-4/5"></div></div>
+        </div>
+        <div class="absolute top-36 left-1/2 -translate-x-1/2 bg-ink text-white text-sm rounded-full px-4 py-2 flex items-center gap-2 whitespace-nowrap"><iconify-icon icon="tabler:message-check"></iconify-icon>เปิดด้วยลิงก์ SMS · ไม่ต้องกรอกเบอร์</div>
+      </div><div class="lbl">(1) โครงหน้า + ป้ายบอกว่าเปิดด้วยลิงก์</div></div>
+
+      <div><div class="phone"><div class="notch"></div>
+        <div class="h-28 bg-gradient-to-br from-amber-700 to-amber-400"></div>
+        <div class="px-4 -mt-8 space-y-3">
+          <div class="card p-4"><div class="text-xs text-slate">DP25690816100C0B</div><div class="text-xl font-bold mt-1">พัสดุถึงแล้ว</div><div class="text-sm text-slate mt-1">ได้ของครบแล้ว? กดยืนยันรับด้านล่าง</div></div>
+          <div class="card p-4"><div class="flex justify-between text-sm"><span>ฟิล์มกรองแสง Crystalline รอบคัน × 1</span><span class="font-semibold">฿12,900</span></div></div>
+        </div>
+        <div class="absolute bottom-0 left-0 right-0 bg-white border-t px-4 pt-3 pb-6"><div class="btn btn-primary">ยืนยันรับสินค้า</div></div>
+      </div><div class="lbl">(2) หน้าออเดอร์ (โหลดเสร็จ)</div></div>
+
+      <div><div class="phone"><div class="notch"></div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="flex items-center justify-between"><div class="text-sm text-verifiedink font-semibold flex items-center gap-1"><iconify-icon icon="tabler:circle-check-filled" class="text-verified"></iconify-icon>รับสินค้าแล้ว</div><div class="text-xs text-slate">ข้อ 2 จาก 2</div></div>
+          <div class="flex gap-1.5 mt-4">
+            <iconify-icon icon="tabler:star-filled" class="star on" style="font-size:28px"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star on" style="font-size:28px"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star on" style="font-size:28px"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star on" style="font-size:28px"></iconify-icon><iconify-icon icon="tabler:star-filled" class="star on" style="font-size:28px"></iconify-icon>
+          </div>
+          <div class="text-lg font-bold mt-4">ชอบอะไรบ้าง?</div>
+          <div class="flex flex-wrap gap-2 mt-3">
+            <span class="chip on">ส่งไว</span><span class="chip on">ตรงปก</span><span class="chip">แพ็คดี</span><span class="chip on">ตอบแชทไว</span><span class="chip">ราคาคุ้ม</span>
+          </div>
+          <div class="mt-4 rounded-lg border p-3 text-sm text-slate">พิมพ์เพิ่มเติม (ไม่บังคับ)</div>
+          <div class="btn btn-primary mt-4">ส่งรีวิว</div>
+          <div class="btn btn-ghost mt-1">ไว้ทีหลัง</div>
+        </div>
+      </div><div class="lbl">(3) แตะชิปแทนการพิมพ์ — ต้องเพิ่ม field ชิปใน DB</div></div>
+    </div>
+  </section>
+
+  <!-- ===================== แนวทาง 5 ===================== -->
+  <section id="v5" class="mt-16 pt-6">
+    <h2 class="text-2xl font-bold">แนวทาง 5 — ความเชื่อใจนำ · ดาวมีคำกำกับ</h2>
+    <p class="text-slate mt-1 mb-6">ระหว่างเปิด โชว์บัตรร้าน (ยืนยันแล้ว · คะแนน · ออเดอร์สำเร็จ) ให้อุ่นใจก่อนเห็นยอดเงิน · ดาวแต่ละดวงมีคำบอกความหมาย อ่านง่ายสำหรับผู้สูงวัย</p>
+    <div class="flex gap-8">
+      <div><div class="phone"><div class="notch"></div>
+        <div class="h-full flex flex-col justify-center px-6">
+          <div class="card p-6 text-center">
+            <div class="w-16 h-16 mx-auto rounded-full bg-mist flex items-center justify-center text-2xl font-bold text-slate">B</div>
+            <div class="font-bold text-lg mt-3 leading-snug">BT Premium Auto Xeon - สาขาสุขสวัสดิ์</div>
+            <div class="mt-2"><span class="vchip"><iconify-icon icon="tabler:phone-check"></iconify-icon>ยืนยันเบอร์แล้ว (ระดับ 1)</span></div>
+            <div class="flex justify-center gap-8 mt-5 pt-4 border-t">
+              <div><div class="text-xl font-bold">4.7</div><div class="text-xs text-slate">จาก 3 รีวิว</div></div>
+              <div><div class="text-xl font-bold">4</div><div class="text-xs text-slate">ออเดอร์สำเร็จ</div></div>
+            </div>
+          </div>
+          <div class="flex items-center justify-center gap-3 mt-8 text-slate"><div class="spin" style="width:20px;height:20px"></div>กำลังเปิดคำสั่งซื้อของคุณ</div>
+        </div></div><div class="lbl">(1) บัตรร้านระหว่างรอ</div></div>
+
+      <div><div class="phone"><div class="notch"></div>
+        <div class="px-4 pt-10 space-y-3">
+          <div class="card p-3 flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-mist flex items-center justify-center font-bold text-slate">B</div><div class="min-w-0 flex-1"><div class="font-semibold truncate text-sm">BT Premium Auto Xeon - สาขาสุขสวัสดิ์</div><div class="text-xs text-slate">4.7 จาก 3 รีวิว · 4 ออเดอร์สำเร็จ</div></div><span class="vchip">ยืนยันแล้ว</span></div>
+          <div class="card p-4"><div class="text-xs text-slate">DP25690816100C0B</div><div class="text-xl font-bold mt-1">กำลังจัดส่ง</div><div class="text-sm mt-2 flex items-center gap-2"><iconify-icon icon="tabler:truck" class="text-primary"></iconify-icon>Flash Express · TH0123456789</div></div>
+          <div class="card p-4"><div class="flex justify-between text-sm"><span>ฟิล์มกรองแสง Crystalline รอบคัน × 1</span><span class="font-semibold">฿12,900</span></div></div>
+        </div>
+        <div class="absolute bottom-0 left-0 right-0 bg-white border-t px-4 pt-3 pb-6"><div class="btn btn-primary">ยืนยันรับสินค้า</div></div>
+      </div><div class="lbl">(2) แถบร้านค้างอยู่บนสุดตลอด</div></div>
+
+      <div><div class="phone"><div class="notch"></div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="flex items-center gap-2 text-verifiedink font-semibold"><iconify-icon icon="tabler:circle-check-filled" class="text-verified text-2xl"></iconify-icon>ยืนยันรับสินค้าแล้ว</div>
+          <div class="text-xl font-bold mt-4">ให้คะแนนร้านนี้</div>
+          <div class="grid grid-cols-5 mt-5 text-center">
+            <div><iconify-icon icon="tabler:star-filled" class="star on"></iconify-icon><div class="text-xs text-slate">แย่</div></div>
+            <div><iconify-icon icon="tabler:star-filled" class="star on"></iconify-icon><div class="text-xs text-slate">พอใช้</div></div>
+            <div><iconify-icon icon="tabler:star-filled" class="star on"></iconify-icon><div class="text-xs text-slate">ดี</div></div>
+            <div><iconify-icon icon="tabler:star-filled" class="star on"></iconify-icon><div class="text-xs text-slate">ดีมาก</div></div>
+            <div><iconify-icon icon="tabler:star-filled" class="star"></iconify-icon><div class="text-xs text-slate">ยอดเยี่ยม</div></div>
+          </div>
+          <div class="text-center text-2xl font-bold text-ink mt-4">ดีมาก</div>
+          <div class="mt-4 flex gap-2"><div class="flex-1 rounded-lg border p-3 text-sm text-slate flex items-center gap-2"><iconify-icon icon="tabler:message"></iconify-icon>เขียนความเห็น</div><div class="rounded-lg border p-3 text-sm text-slate flex items-center gap-2"><iconify-icon icon="tabler:camera"></iconify-icon>รูป</div></div>
+          <div class="btn btn-primary mt-4">ส่งคะแนน</div>
+          <div class="btn btn-ghost mt-1">ไว้ทีหลัง</div>
+        </div>
+      </div><div class="lbl">(3) ดาวมีคำกำกับ · ความเห็น/รูปพับไว้</div></div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

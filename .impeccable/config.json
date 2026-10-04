@@ -98,6 +98,12 @@
         "value": "rgba(40,34,76,.08)",
         "createdAt": "2026-09-05T07:15:41.333Z",
         "reason": "ค่าเดิมของการ์ดตระกูลนี้ทั้งหน้า (SIDE_CARD_SX/TABS_CARD_SX ใน ShopProfile.tsx, ShopExtraPages.tsx) — InspectionBlock ใช้กรอบการ์ดชุดเดียวกันตาม UX-Design-Spec ไม่ใช่สีใหม่"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "1.25rem",
+        "createdAt": "2026-10-04T15:17:55.605Z",
+        "reason": "DESIGN.md §Metric & Dense steps documents Metric 20px (32/22/20); same value as ShopEvidence.tsx stat numbers — assistant triage"
       }
     ]
   }

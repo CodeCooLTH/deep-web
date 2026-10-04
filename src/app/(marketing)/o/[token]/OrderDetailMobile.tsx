@@ -80,6 +80,8 @@ import ShopCover from './ShopCover'
 import { ShopChannels, ShopStats } from './ShopEvidence'
 import TrustPill, { VERIFIED_INK } from './TrustPill'
 import ReviewForm from './ReviewForm'
+import ReviewSheet from './ReviewSheet'
+import ConfirmStamp from './ConfirmStamp'
 import SectionTitle from './SectionTitle'
 // feature 00024 — การ์ดนัดหมาย (render เฉพาะออเดอร์ที่มีนัด)
 import AppointmentCard, { type PublicAppointment } from './AppointmentCard'
@@ -108,6 +110,11 @@ export type PublicOrderData = {
   totalAmount: number
   createdAtIso: string
   hasReview: boolean
+  /**
+   * ใบที่ปิดแล้ว (CONFIRMED) — ใช้วาดตราประทับบนคำสั่งซื้อ · `null` = ยังไม่ปิด
+   * `byBuyer` = ผู้ซื้อกดยืนยันเอง (ตรา "ได้รับแล้ว") · อื่น ๆ (COD/ระบบ/ใบเก่าไม่มี event) = ตรา "สำเร็จ"
+   */
+  confirmation: { byBuyer: boolean; atIso: string | null } | null
   review: {
     rating: number
     comment: string | null
@@ -793,6 +800,7 @@ function ItemThumbnail({
 
 export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: Props) {
   const [submitting, setSubmitting] = useState(false)
+  const [reviewSheetOpen, setReviewSheetOpen] = useState(false)
   // state สำหรับ tracking copy icon (เปลี่ยน icon → tabler-check 2 วิ)
   const [copied, setCopied] = useState(false)
   /* 🛑 แยกจาก `copied` ของเลขพัสดุ — ใช้ตัวเดียวกันแล้วกดคัดลอกเลขงาน จะทำให้เช็กถูก
@@ -911,10 +919,9 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
     return () => ro.disconnect()
   }, [canConfirm])
 
-  // review เมื่อ CONFIRMED หรือ SHIPPED (spec §3 public order gate)
-  const canReview =
-    !order.hasReview &&
-    (order.status === 'CONFIRMED' || order.status === 'SHIPPED')
+  // รีวิวได้หลังยืนยันรับแล้วเท่านั้น (2026-10-04 "ย้ายรีวิวไปหลังยืนยัน เหมือน Grab")
+  // server บังคับชุดเดียวกันที่ review.service.ts::createReview
+  const canReview = !order.hasReview && order.status === 'CONFIRMED'
   /**
    * ป้ายสถานะที่จะแสดง — ร้านบริการได้ป้ายจากเงิน ที่เหลือได้ป้ายเดิม
    * (คำ/สี/โทน มาจาก SSOT ตัวเดียวทั้งคู่ ห้ามประกอบเองที่นี่ — HR16)
@@ -954,6 +961,9 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
     setSubmitting(true)
     try {
       await onConfirmAction()
+      // แบบ Grab: ยืนยันรับสำเร็จ → แผ่นให้คะแนนขึ้นทันที (ข้ามได้ การ์ดรีวิวบนหน้ายังอยู่)
+      // เปิดหลัง await เท่านั้น — Dialog ยืนยันถูกปิดไปก่อนยิงแล้ว สองแผ่นจึงไม่มีทางซ้อนกัน
+      if (!order.hasReview) setReviewSheetOpen(true)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'ยืนยันไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
       toast.error(message)
@@ -2035,6 +2045,19 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 </Typography>
               </Box>
             </Box>
+            {/* ตราประทับเป็นแถบของตัวเองท้ายการ์ด — ห้ามลอยทับยอดรวม/ชื่อรายการ (ม็อกอัพ 2026-10-04) */}
+            {order.confirmation && (
+              <ConfirmStamp
+                label={
+                  order.confirmation.byBuyer
+                    ? order.isServiceShop
+                      ? 'รับบริการแล้ว'
+                      : 'ได้รับแล้ว'
+                    : 'สำเร็จ'
+                }
+                atIso={order.confirmation.atIso}
+              />
+            )}
           </Card>
           </Box>
 
@@ -2892,6 +2915,21 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ReviewSheet
+        open={reviewSheetOpen}
+        onClose={() => setReviewSheetOpen(false)}
+        token={order.publicToken}
+        shopName={order.shop.shopName}
+        shopAvatar={order.shop.user.avatar}
+        headline={
+          order.isServiceShop
+            ? 'ยืนยันรับบริการแล้ว'
+            : order.fulfillmentMode !== 'SHIPPED'
+              ? 'ยืนยันว่าได้รับแล้ว'
+              : 'ยืนยันรับสินค้าแล้ว'
+        }
+      />
 
       <Dialog
         fullWidth

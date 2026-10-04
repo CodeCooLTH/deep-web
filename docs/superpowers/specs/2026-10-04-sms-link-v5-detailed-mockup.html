@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>แนวทาง 5 (ละเอียด) — เปิดลิงก์ SMS → ยืนยันรับ → ให้ดาว</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+<style>
+  :root {
+    --violet: #7367F0; --violet-dk: #675DD8; --violet-15: rgba(115,103,240,.15); --violet-08: rgba(115,103,240,.08);
+    --green: #28C76F; --green-ink: #18804A; --green-15: rgba(40,199,111,.15);
+    --amber: #FF9F43; --ink: #2F2B3D; --ink-2: rgba(47,43,61,.72); --ink-3: rgba(47,43,61,.55);
+    --line: rgba(47,43,61,.12); --mist: #F8F7FA; --paper: #fff;
+    --shadow: 0 1px 2px rgba(47,43,61,.06), 0 10px 28px -14px rgba(47,43,61,.28);
+  }
+  * { box-sizing: border-box; }
+  ::selection { background: var(--violet-15); color: var(--ink); }
+  body { margin: 0; font-family: Anuphan, sans-serif; color: var(--ink); background: #EEECF3; -webkit-font-smoothing: antialiased; }
+  .num { font-variant-numeric: tabular-nums; }
+  .wrap { max-width: 1680px; margin: 0 auto; padding: 48px 40px 80px; }
+  h1.page { font-size: 34px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+  .lead { color: var(--ink-2); margin: 10px 0 0; font-size: 17px; line-height: 1.7; max-width: 920px; }
+  h2.row { font-size: 24px; font-weight: 700; margin: 64px 0 6px; }
+  .rowsub { color: var(--ink-2); margin: 0 0 26px; }
+  .strip { display: flex; flex-wrap: wrap; gap: 34px 26px; }
+  .step { width: 360px; }
+  .step-cap { display: flex; gap: 10px; align-items: baseline; margin-bottom: 12px; }
+  .step-cap b { font-size: 15px; color: var(--violet-dk); font-weight: 700; }
+  .step-cap span { font-size: 15px; font-weight: 600; }
+  .note { font-size: 13.5px; color: var(--ink-2); line-height: 1.65; margin-top: 12px; }
+
+  /* ── phone ── */
+  .phone { width: 360px; height: 760px; border-radius: 44px; padding: 10px; background: #15131c; box-shadow: 0 24px 50px -24px rgba(21,19,28,.55); }
+  .screen { position: relative; width: 100%; height: 100%; border-radius: 34px; overflow: hidden; background: var(--mist); }
+  .sbar { position: absolute; top: 0; left: 0; right: 0; height: 46px; display: flex; align-items: center; justify-content: space-between; padding: 6px 28px 0 30px; font-size: 14px; font-weight: 600; z-index: 60; }
+  .sbar .isl { position: absolute; left: 50%; top: 9px; transform: translateX(-50%); width: 108px; height: 31px; border-radius: 20px; background: #000; }
+  .sbar .ic { display: flex; gap: 5px; font-size: 16px; }
+  .body { position: absolute; inset: 46px 0 0 0; overflow: hidden; }
+  .home { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 120px; height: 5px; border-radius: 3px; background: rgba(21,19,28,.85); z-index: 70; }
+
+  /* ── shared ── */
+  .card { background: var(--paper); border-radius: 12px; box-shadow: var(--shadow); }
+  .btn { height: 50px; border-radius: 10px; border: 0; font: 600 16px Anuphan; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
+  .btn-v { background: var(--violet); color: #fff; box-shadow: 0 6px 16px -8px rgba(115,103,240,.8); }
+  .btn-g { background: transparent; color: var(--ink-2); height: 44px; font-weight: 500; }
+  .btn-o { background: #fff; color: var(--violet-dk); border: 1px solid rgba(115,103,240,.45); }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; padding: 4px 9px; border-radius: 7px; }
+  .pill-n { background: rgba(47,43,61,.07); color: var(--ink-2); }
+  .pill-g { background: var(--green-15); color: var(--green-ink); }
+  .av { border-radius: 50%; overflow: hidden; background: #fff; box-shadow: 0 0 0 3px #fff, 0 6px 16px -6px rgba(47,43,61,.35); flex: none; }
+  .av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .muted { color: var(--ink-2); }
+  .faint { color: var(--ink-3); }
+  .sep { height: 1px; background: var(--line); }
+  .dots { flex: 1; border-bottom: 1.5px dotted rgba(47,43,61,.25); margin: 0 8px 5px; }
+
+  /* slip — ขอบล่างแบบฉีกจากเครื่องพิมพ์ */
+  .slip { background: #fff; border-radius: 14px 14px 0 0; box-shadow: var(--shadow); position: relative; padding-bottom: 14px;
+    -webkit-mask: radial-gradient(circle at 8px 100%, transparent 6.5px, #000 7px) 0 0 / 16px 100% repeat-x; mask: radial-gradient(circle at 8px 100%, transparent 6.5px, #000 7px) 0 0 / 16px 100% repeat-x; }
+  .slip-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1.5px dashed var(--line); }
+  .deep { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: 15px; letter-spacing: -.01em; }
+  .deep i { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, #8F85F3, #675DD8); display: inline-block; }
+  .ledger { padding: 12px 18px 0; display: flex; flex-direction: column; gap: 11px; font-size: 14.5px; }
+  .ledger .r { display: flex; align-items: flex-end; }
+  .ledger .r .ic { font-size: 18px; margin-right: 8px; color: var(--ink-3); transform: translateY(2px); }
+
+  /* stamp */
+  .stamp { position: absolute; right: 16px; bottom: 22px; transform: rotate(-9deg); border: 3px solid var(--green-ink); border-radius: 10px; padding: 6px 12px 5px; color: var(--green-ink); text-align: center; background: rgba(255,255,255,.55); box-shadow: inset 0 0 0 2px rgba(255,255,255,.7), inset 0 0 0 4px rgba(24,128,74,.55); }
+  .stamp b { display: block; font-size: 19px; font-weight: 800; letter-spacing: .01em; line-height: 1.2; }
+  .stamp small { font-size: 11px; font-weight: 600; }
+
+  /* sheet */
+  .scrim { position: absolute; inset: 0; background: rgba(21,19,28,.48); z-index: 40; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 50; background: #fff; border-radius: 22px 22px 0 0; padding: 10px 22px 30px; box-shadow: 0 -12px 30px -16px rgba(21,19,28,.4); }
+  .grab { width: 38px; height: 5px; border-radius: 3px; background: rgba(47,43,61,.16); margin: 0 auto 16px; }
+  .stars { display: grid; grid-template-columns: repeat(5, 1fr); text-align: center; }
+  .stars div { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; border-radius: 10px; }
+  .stars .ic { font-size: 40px; color: rgba(47,43,61,.16); }
+  .stars .on .ic { color: var(--amber); }
+  .stars span { font-size: 12.5px; color: var(--ink-3); }
+  .stars .sel span { color: var(--ink); font-weight: 700; }
+  .field { border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; font-size: 14.5px; color: var(--ink); min-height: 74px; line-height: 1.6; }
+  .ph { width: 58px; height: 58px; border-radius: 10px; overflow: hidden; position: relative; }
+  .ph img { width: 100%; height: 100%; object-fit: cover; }
+  .add { width: 58px; height: 58px; border-radius: 10px; border: 1.5px dashed rgba(47,43,61,.25); display: grid; place-items: center; color: var(--ink-3); font-size: 20px; }
+
+  /* order page */
+  .top { display: flex; align-items: center; gap: 12px; padding: 12px 16px 14px; background: #fff; box-shadow: 0 1px 0 var(--line); margin-bottom: 12px; }
+  .top .name { font-weight: 700; font-size: 17.5px; letter-spacing: -.005em; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .rail { display: flex; align-items: center; gap: 0; margin-top: 14px; }
+  .rail .d { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; color: #fff; flex: none; }
+  .rail .l { flex: 1; height: 3px; border-radius: 2px; }
+  .rail-lbl { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; font-size: 11.5px; color: var(--ink-3); margin-top: 7px; }
+  .rail-lbl span:nth-child(2) { text-align: center; } .rail-lbl span:nth-child(3) { text-align: center; } .rail-lbl span:last-child { text-align: right; }
+  .cta-bar { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px 28px; background: #fff; box-shadow: 0 -1px 0 var(--line); z-index: 20; }
+  .item { display: flex; gap: 12px; align-items: center; }
+  .item .thumb { width: 56px; height: 56px; border-radius: 10px; overflow: hidden; flex: none; }
+  .item .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .toast { position: absolute; left: 14px; right: 14px; top: 8px; z-index: 80; background: var(--ink); color: #fff; border-radius: 12px; padding: 12px 14px; font-size: 14px; display: flex; gap: 10px; align-items: center; box-shadow: 0 12px 24px -12px rgba(21,19,28,.6); }
+  .sms { background: #fff; }
+  .bubble { background: #E9E9EB; border-radius: 18px 18px 18px 6px; padding: 10px 14px; font-size: 15.5px; line-height: 1.5; max-width: 82%; }
+  .bubble a { color: #0A66D9; text-decoration: underline; word-break: break-all; }
+  .linkcard { margin-top: 6px; border-radius: 14px; overflow: hidden; background: #E9E9EB; max-width: 82%; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; color: var(--violet-dk); background: var(--violet-08); padding: 3px 8px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 class="page">เปิดลิงก์ SMS → หน้าออเดอร์ → ยืนยันรับ → ให้ดาว</h1>
+  <p class="lead">แนวทาง 5 ฉบับละเอียด · แกนภาพคือ <b>"สลิป"</b> ของที่ผู้ซื้อไทยคุ้นที่สุด — หลักฐานของร้านพิมพ์ออกมาเป็นสลิประหว่างระบบเปิดให้ · หน้าออเดอร์เป็นใบเสร็จที่มี "สิ่งที่ต้องทำ" อยู่บนสุด · ยืนยันรับแล้วประทับตรา "ได้รับแล้ว" ลงใบเสร็จ แล้วแผ่นให้ดาวเลื่อนขึ้น · ธีมผู้ซื้อ (Vuexy: ม่วง #7367F0 · Anuphan · เขียวเฉพาะสิ่งที่ยืนยันจริง) · ชื่อร้าน/ยอด/เลขพัสดุมาจากฐานข้อมูลจริง · รูปสินค้าเป็นภาพตัวอย่างจาก Unsplash</p>
+
+  <!-- ═══════════════════════ ร้านขายของ ═══════════════════════ -->
+  <h2 class="row">ร้านขายของ — ธนภัทร์ อะไหล่มอเตอร์ไซค์</h2>
+  <p class="rowsub">ออเดอร์ล้อแม็ก ฿2,400 · ส่งด้วย Flash Express</p>
+  <div class="strip">
+
+    <!-- 1 SMS -->
+    <div class="step"><div class="step-cap"><b>1</b><span>ได้รับ SMS</span></div>
+      <div class="phone"><div class="screen sms">
+        <div class="sbar"><span class="num">9:41</span><div class="isl"></div><div class="ic"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18v-3m4 3v-6m4 6V9m4 9V6"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 18h.01m-2.838-2.828a4 4 0 0 1 5.656 0m-8.485-2.829a8 8 0 0 1 11.314 0"/><path d="M3.515 9.515c4.686-4.687 12.284-4.687 17 0"/></g></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h11a2 2 0 0 1 2 2v.5a.5.5 0 0 0 .5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5a.5.5 0 0 0-.5.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2m1 3v4m3-4v4m3-4v4"/></svg></span></div></div>
+        <div class="body">
+          <div style="text-align:center;padding:10px 0 14px;border-bottom:1px solid #eee">
+            <div style="width:52px;height:52px;border-radius:50%;background:#C7C7CC;margin:0 auto;display:grid;place-items:center;color:#fff;font-weight:700;font-size:20px">D</div>
+            <div style="font-size:13px;margin-top:6px">Deep</div>
+          </div>
+          <div style="padding:16px 14px">
+            <div style="text-align:center;font-size:12px;color:#8E8E93;margin-bottom:12px">วันนี้ 14:02</div>
+            <div class="bubble">Deep: ลิงก์คำสั่งซื้อของคุณ <a>https://deepthailand.app/o/H3YKY6UX29DP</a></div>
+            <div class="linkcard">
+              <div style="padding:10px 14px"><div style="font-size:14px;font-weight:600">คำสั่งซื้อ · Deep</div><div style="font-size:12.5px;color:#8E8E93">deepthailand.app</div></div>
+            </div>
+          </div>
+        </div><div class="home"></div></div></div>
+      <div class="note">ข้อความ SMS ตามจริงจากระบบ · การ์ดพรีวิวลิงก์ที่แอปข้อความดึงมา <b>ไม่เผาลิงก์</b> (มันอ่านแค่ HTML)</div>
+    </div>
+
+    <!-- 2 opening slip -->
+    <div class="step"><div class="step-cap"><b>2</b><span>เปิดลิงก์ — เห็นร้านก่อน</span></div>
+      <div class="phone"><div class="screen">
+        <div class="sbar"><span class="num">9:41</span><div class="isl"></div><div class="ic"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18v-3m4 3v-6m4 6V9m4 9V6"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 18h.01m-2.838-2.828a4 4 0 0 1 5.656 0m-8.485-2.829a8 8 0 0 1 11.314 0"/><path d="M3.515 9.515c4.686-4.687 12.284-4.687 17 0"/></g></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h11a2 2 0 0 1 2 2v.5a.5.5 0 0 0 .5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5a.5.5 0 0 0-.5.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2m1 3v4m3-4v4m3-4v4"/></svg></span></div></div>
+        <div class="body" style="padding:54px 22px 0">
+          <div class="slip">
+            <div class="slip-head"><span class="deep"><i></i>Deep</span><span class="faint" style="font-size:12.5px">หลักฐานของร้าน</span></div>
+            <div style="padding:20px 18px 6px;text-align:center">
+              <div class="av" style="width:104px;height:104px;margin:0 auto;box-shadow:0 0 0 4px #fff,0 10px 24px -8px rgba(47,43,61,.4)"><img src="assets/spokes.jpg" alt=""></div>
+              <div style="font-size:24px;font-weight:700;margin-top:16px;line-height:1.3;letter-spacing:-.01em">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+            </div>
+            <div class="ledger">
+              <div class="r"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2m10 2l2 2l4-4"/></svg></span>ยืนยันเบอร์แล้ว<span class="dots"></span><span class="pill pill-n">ระดับ 1</span></div>
+              <div class="r"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m12 3l8 4.5v9L12 21l-8-4.5v-9zm0 9l8-4.5M12 12v9m0-9L4 7.5m12-2.25l-8 4.5"/></svg></span>ออเดอร์สำเร็จ<span class="dots"></span><b class="num">38 ครั้ง</b></div>
+              <div class="r"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m12 17.75l-6.172 3.245l1.179-6.873l-5-4.867l6.9-1l3.086-6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873z"/></svg></span>คะแนนรีวิว<span class="dots"></span><b class="num">4.7</b><span class="faint num" style="margin-left:4px">· 12 รีวิว</span></div>
+            </div>
+            <div style="font-size:12px;color:var(--ink-3);padding:14px 18px 4px;line-height:1.6">ตัวเลขจากระบบ Deep ร้านแก้เองไม่ได้</div>
+          </div>
+          <div style="margin-top:34px;text-align:center">
+            <div style="display:inline-flex;gap:10px;align-items:center;font-size:15.5px"><span class="ic" style="color:var(--violet);font-size:20px"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3a9 9 0 1 0 9 9"/></svg></span>กำลังเปิดคำสั่งซื้อของคุณ…</div>
+            <div class="muted" style="font-size:13.5px;margin-top:6px">ลิงก์นี้ส่งเข้าเบอร์ของคุณ จึงไม่ต้องกรอกเบอร์หรือรหัส OTP</div>
+          </div>
+        </div><div class="home"></div></div></div>
+      <div class="note">ไม่มีปุ่ม — ระบบเข้าสู่ระบบให้เองแล้วพาไปหน้าออเดอร์ (~1 วิ) · หลักฐานร้านใช้คำเดียวกับระบบ (ยืนยันเบอร์แล้ว · ออเดอร์สำเร็จ · คะแนนรีวิว) ไม่อ้างเกินที่ข้อมูลบอก · ไม่มีรายละเอียดออเดอร์จนกว่าจะยืนยันตัวตนเสร็จ · <b>การเคลื่อนไหว:</b> สลิปค่อย ๆ เลื่อนออกมาจากบนลงล่าง 1 ครั้ง</div>
+    </div>
+
+    <!-- 2b net fail -->
+    <div class="step"><div class="step-cap"><b>2ข</b><span>ถ้าเน็ตหลุดตอนเปิด</span></div>
+      <div class="phone"><div class="screen">
+        <div class="sbar"><span class="num">9:41</span><div class="isl"></div><div class="ic"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18v-3m4 3v.01m4-.01v.01m4-.01v.01"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01m-2.838-2.828a4 4 0 0 1 5.656 0m-8.485-2.829a7.96 7.96 0 0 1 3.864-2.14m4.163.155a8 8 0 0 1 3.287 2M3.515 9.515A12 12 0 0 1 7.059 7.06m3.101-.92a12 12 0 0 1 10.325 3.374M3 3l18 18"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h11a2 2 0 0 1 2 2v.5a.5.5 0 0 0 .5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5a.5.5 0 0 0-.5.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2m1 3v4m3-4v4m3-4v4"/></svg></span></div></div>
+        <div class="body" style="padding:54px 22px 0">
+          <div class="slip">
+            <div class="slip-head"><span class="deep"><i></i>Deep</span><span class="faint" style="font-size:12.5px">หลักฐานของร้าน</span></div>
+            <div style="padding:20px 18px 6px;text-align:center">
+              <div class="av" style="width:104px;height:104px;margin:0 auto;box-shadow:0 0 0 4px #fff,0 10px 24px -8px rgba(47,43,61,.4)"><img src="assets/spokes.jpg" alt=""></div>
+              <div style="font-size:24px;font-weight:700;margin-top:16px;line-height:1.3;letter-spacing:-.01em">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+            </div>
+            <div class="ledger">
+              <div class="r"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2m10 2l2 2l4-4"/></svg></span>ยืนยันเบอร์แล้ว<span class="dots"></span><span class="pill pill-n">ระดับ 1</span></div>
+              <div class="r"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m12 3l8 4.5v9L12 21l-8-4.5v-9zm0 9l8-4.5M12 12v9m0-9L4 7.5m12-2.25l-8 4.5"/></svg></span>ออเดอร์สำเร็จ<span class="dots"></span><b class="num">38 ครั้ง</b></div>
+              <div class="r"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m12 17.75l-6.172 3.245l1.179-6.873l-5-4.867l6.9-1l3.086-6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873z"/></svg></span>คะแนนรีวิว<span class="dots"></span><b class="num">4.7</b><span class="faint num" style="margin-left:4px">· 12 รีวิว</span></div>
+            </div>
+            <div style="height:14px"></div>
+          </div>
+          <div style="margin-top:26px;text-align:center">
+            <span class="ic" style="font-size:28px;color:var(--ink-2)"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01m-2.838-2.828a4 4 0 0 1 5.656 0m-8.485-2.829a7.96 7.96 0 0 1 3.864-2.14m4.163.155a8 8 0 0 1 3.287 2M3.515 9.515A12 12 0 0 1 7.059 7.06m3.101-.92a12 12 0 0 1 10.325 3.374M3 3l18 18"/></svg></span>
+            <div style="font-size:18px;font-weight:700;margin-top:6px">ยังเปิดลิงก์ไม่ได้</div>
+            <div class="muted" style="font-size:14px;margin-top:4px">สัญญาณอินเทอร์เน็ตอาจหลุด กรุณาตรวจสัญญาณแล้วลองใหม่</div>
+            <button class="btn btn-v" style="margin-top:18px">ลองอีกครั้ง</button>
+            <button class="btn btn-g">เข้าสู่ระบบด้วยเบอร์โทรแทน</button>
+          </div>
+        </div><div class="home"></div></div></div>
+      <div class="note">ลิงก์ยังไม่ถูกใช้ กดลองใหม่ได้ · ถ้าเปิดค้างเกิน 6 วิ จะมีลิงก์ "เข้าสู่ระบบด้วยเบอร์โทรแทน" โผล่ใต้สลิปเอง</div>
+    </div>
+
+    <!-- 3 order pay -->
+    <div class="step"><div class="step-cap"><b>3</b><span>หน้าคำสั่งซื้อ — ถ้ายังไม่ได้โอน</span></div>
+      <div class="phone"><div class="screen">
+        <div class="sbar"><span class="num">9:41</span><div class="isl"></div><div class="ic"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18v-3m4 3v-6m4 6V9m4 9V6"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 18h.01m-2.838-2.828a4 4 0 0 1 5.656 0m-8.485-2.829a8 8 0 0 1 11.314 0"/><path d="M3.515 9.515c4.686-4.687 12.284-4.687 17 0"/></g></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h11a2 2 0 0 1 2 2v.5a.5.5 0 0 0 .5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5a.5.5 0 0 0-.5.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2m1 3v4m3-4v4m3-4v4"/></svg></span></div></div>
+        <div class="body">
+          <div class="top"><div class="av" style="width:52px;height:52px;box-shadow:0 0 0 2px #fff"><img src="assets/spokes.jpg" alt=""></div><div style="min-width:0;flex:1"><div class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div><div class="muted" style="font-size:13px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">4.7 ดาว · ออเดอร์สำเร็จ 38 ครั้ง</div></div><span class="ic" style="font-size:22px;color:var(--violet)"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m3 20l1.3-3.9C1.976 12.663 2.874 8.228 6.4 5.726c3.526-2.501 8.59-2.296 11.845.48c3.255 2.777 3.695 7.266 1.029 10.501S11.659 20.922 7.7 19z"/></svg></span></div>
+          <div style="padding:4px 14px 0;display:flex;flex-direction:column;gap:12px">
+            <div class="card" style="padding:16px 16px 14px">
+              <div style="font-size:21px;font-weight:700" class="num">โอน ฿2,400 ให้ร้าน</div>
+              <div class="muted" style="font-size:13.5px;margin-top:2px">โอนแล้วแนบสลิปเพื่อแจ้งร้าน</div>
+              <div style="margin-top:12px;border-radius:10px;background:var(--mist);padding:11px 12px;display:flex;align-items:center;gap:10px">
+                <div style="width:36px;height:36px;border-radius:9px;background:#138F2D;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px">K</div>
+                <div style="flex:1;min-width:0"><div class="faint" style="font-size:12.5px;white-space:nowrap">กสิกรไทย · ธนภัทร์ ศรีสุข</div><div class="num" style="font-weight:700;font-size:16px;letter-spacing:.02em;white-space:nowrap">123-4-56789-0</div></div>
+                <button class="btn btn-o" aria-label="คัดลอกเลขบัญชี" style="width:40px;height:40px;padding:0;font-size:18px;flex:none"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M7 9.667A2.667 2.667 0 0 1 9.667 7h8.666A2.667 2.667 0 0 1 21 9.667v8.666A2.667 2.667 0 0 1 18.333 21H9.667A2.667 2.667 0 0 1 7 18.333z"/><path d="M4.012 16.737A2 2 0 0 1 3 15V5c0-1.1.9-2 2-2h10c.75 0 1.158.385 1.5 1"/></g></svg></span></button>
+              </div>
+              <button class="btn btn-v" style="margin-top:12px"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16l-3-2l-2 2l-2-2l-2 2l-2-2zM9 7h6m-6 4h6m-2 4h2"/></svg></span>แนบสลิป</button>
+            </div>
+            <div class="slip" style="border-radius:12px 12px 0 0">
+              <div class="slip-head" style="padding:12px 16px"><span style="font-weight:700;font-size:14.5px">คำสั่งซื้อ</span><span class="faint num" style="font-size:12.5px">DP256910A6E2C3B9 · 04 ต.ค. 2569</span></div>
+              <div style="padding:14px 16px 4px" class="item"><div class="thumb"><img src="assets/goldwheel.jpg" alt=""></div><div style="flex:1;min-width:0"><div style="font-size:14.5px;font-weight:500">ล้อแม็ก WAVE ลายใหม่ 1.4x17</div><div class="faint num" style="font-size:13px">1 × ฿2,400</div></div><b class="num">฿2,400</b></div>
+              <div style="display:flex;padding:12px 16px 0;border-top:1.5px dashed var(--line);margin-top:12px"><span class="muted">ยอดรวม</span><span style="flex:1"></span><b class="num" style="font-size:18px">฿2,400</b></div>
+            </div>
+          </div>
+        </div><div class="home"></div></div></div>
+      <div class="note">งานที่ต้องทำขึ้นเป็นพระเอกบนสุดตามสถานะ · ร้านอยู่เป็นหัวบนสุดตลอด (กดแชทได้) · คำสั่งซื้อเป็นสลิปที่มีรูปสินค้าและเลขคำสั่งซื้อเต็ม</div>
+    </div>
+
+    <!-- 4 order shipped -->
+    <div class="step"><div class="step-cap"><b>4</b><span>หน้าคำสั่งซื้อ — ร้านส่งของแล้ว</span></div>
+      <div class="phone"><div class="screen">
+        <div class="sbar"><span class="num">9:41</span><div class="isl"></div><div class="ic"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18v-3m4 3v-6m4 6V9m4 9V6"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 18h.01m-2.838-2.828a4 4 0 0 1 5.656 0m-8.485-2.829a8 8 0 0 1 11.314 0"/><path d="M3.515 9.515c4.686-4.687 12.284-4.687 17 0"/></g></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h11a2 2 0 0 1 2 2v.5a.5.5 0 0 0 .5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5a.5.5 0 0 0-.5.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2m1 3v4m3-4v4m3-4v4"/></svg></span></div></div>
+        <div class="body">
+          <div class="top"><div class="av" style="width:52px;height:52px;box-shadow:0 0 0 2px #fff"><img src="assets/spokes.jpg" alt=""></div><div style="min-width:0;flex:1"><div class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div><div class="muted" style="font-size:13px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">4.7 ดาว · ออเดอร์สำเร็จ 38 ครั้ง</div></div><span class="ic" style="font-size:22px;color:var(--violet)"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m3 20l1.3-3.9C1.976 12.663 2.874 8.228 6.4 5.726c3.526-2.501 8.59-2.296 11.845.48c3.255 2.777 3.695 7.266 1.029 10.501S11.659 20.922 7.7 19z"/></svg></span></div>
+          <div style="padding:4px 14px 0;display:flex;flex-direction:column;gap:12px">
+            <div class="card" style="padding:16px">
+              <div style="font-size:21px;font-weight:700">กำลังจัดส่ง</div>
+              <div class="muted num" style="font-size:13.5px;margin-top:2px">Flash Express · TH0154A8K29Z3B <span class="ic" style="color:var(--violet);vertical-align:-2px"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M7 9.667A2.667 2.667 0 0 1 9.667 7h8.666A2.667 2.667 0 0 1 21 9.667v8.666A2.667 2.667 0 0 1 18.333 21H9.667A2.667 2.667 0 0 1 7 18.333z"/><path d="M4.012 16.737A2 2 0 0 1 3 15V5c0-1.1.9-2 2-2h10c.75 0 1.158.385 1.5 1"/></g></svg></span></div>
+              <div class="rail">
+                <div class="d" style="background:var(--violet)"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 12l5 5L20 7"/></svg></span></div><div class="l" style="background:var(--violet)"></div>
+                <div class="d" style="background:var(--violet)"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 12l5 5L20 7"/></svg></span></div><div class="l" style="background:var(--violet)"></div>
+                <div class="d" style="background:#fff;box-shadow:inset 0 0 0 6px var(--violet)"></div><div class="l" style="background:var(--line)"></div>
+                <div class="d" style="background:#fff;box-shadow:inset 0 0 0 2px var(--line)"></div>
+              </div>
+              <div class="rail-lbl"><span>รอส่งของ</span><span>รับเข้าระบบแล้ว</span><span style="color:var(--ink);font-weight:600">กำลังจัดส่ง</span><span>ส่งสำเร็จ</span></div>
+            </div>
+            <div class="slip" style="border-radius:12px 12px 0 0">
+              <div class="slip-head" style="padding:12px 16px"><span style="font-weight:700;font-size:14.5px">คำสั่งซื้อ</span><span class="faint num" style="font-size:12.5px">DP256910A6E2C3B9 · 04 ต.ค. 2569</span></div>
+              <div style="padding:14px 16px 4px" class="item"><div class="thumb"><img src="assets/goldwheel.jpg" alt=""></div><div style="flex:1;min-width:0"><div style="font-size:14.5px;font-weight:500">ล้อแม็ก WAVE ลายใหม่ 1.4x17</div><div class="faint num" style="font-size:13px">1 × ฿2,400</div></div><b class="num">฿2,400</b></div>
+              <div style="display:flex;padding:12px 16px 0;border-top:1.5px dashed var(--line);margin-top:12px;align-items:center"><span class="muted">ยอดรวม</span><span style="flex:1"></span><span class="pill pill-g" style="margin-right:8px">ร้านยืนยันรับเงินแล้ว</span><b class="num" style="font-size:18px">฿2,400</b></div>
+            </div>
+            <div class="card" style="padding:14px 16px;display:flex;gap:12px;align-items:center">
+              <span class="ic" style="font-size:22px;color:var(--ink-3)"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m12 17.75l-6.172 3.245l1.179-6.873l-5-4.867l6.9-1l3.086-6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873z"/></svg></span>
+              <div class="muted" style="font-size:13.5px;line-height:1.55">ให้คะแนนร้านได้หลังกด "ยืนยันรับสินค้า"</div>
+            </div>
+          </div>
+          <div class="cta-bar"><button class="btn btn-v">ยืนยันรับสินค้า</button><div class="faint" style="text-align:center;font-size:12.5px;margin-top:8px">กดเมื่อได้ของครบแล้วเท่านั้น</div></div>
+        </div><div class="home"></div></div></div>
+      <div class="note">รีวิวยังล็อก — บอกตรง ๆ ว่าเปิดเมื่อไร · ปุ่มยืนยันรับอยู่ล่างจอในโซนนิ้วโป้ง</div>
+    </div>
+
+    <!-- 5 confirm -->
+    <div class="step"><div class="step-cap"><b>5</b><span>ถามซ้ำก่อนยืนยัน</span></div>
+      <div class="phone"><div class="screen">
+        <div class="sbar"><span class="num">9:41</span><div class="isl"></div><div class="ic"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18v-3m4 3v-6m4 6V9m4 9V6"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 18h.01m-2.838-2.828a4 4 0 0 1 5.656 0m-8.485-2.829a8 8 0 0 1 11.314 0"/><path d="M3.515 9.515c4.686-4.687 12.284-4.687 17 0"/></g></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h11a2 2 0 0 1 2 2v.5a.5.5 0 0 0 .5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5a.5.5 0 0 0-.5.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2m1 3v4m3-4v4m3-4v4"/></svg></span></div></div>
+        <div class="body">
+          <div class="top"><div class="av" style="width:52px;height:52px"><img src="assets/spokes.jpg" alt=""></div><div class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div></div>
+          <div class="scrim"></div>
+          <div class="card" style="position:absolute;left:22px;right:22px;top:180px;z-index:50;padding:26px 22px 18px;text-align:center;border-radius:16px">
+            <div style="width:60px;height:60px;border-radius:50%;background:var(--green-15);display:grid;place-items:center;margin:0 auto"><span class="ic" style="font-size:30px;color:var(--green-ink)"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m12 3l8 4.5v9L12 21l-8-4.5v-9zm0 9l8-4.5M12 12v9m0-9L4 7.5m12-2.25l-8 4.5"/></svg></span></div>
+            <div style="font-size:20px;font-weight:700;margin-top:14px">ยืนยันว่าได้รับสินค้าแล้ว?</div>
+            <div class="muted" style="font-size:14px;line-height:1.65;margin-top:6px">ยืนยันแล้วจะแจ้งปัญหากับคำสั่งซื้อนี้ไม่ได้อีก — ถ้ายังไม่ได้รับของ อย่าเพิ่งกดยืนยัน</div>
+            <div style="display:flex;gap:10px;margin-top:20px"><button class="btn" style="background:var(--mist);color:var(--ink)">ยังไม่ยืนยัน</button><button class="btn" style="background:var(--green-ink);color:#fff">ได้รับแล้ว</button></div>
+          </div>
+        </div><div class="home"></div></div></div>
+      <div class="note">คงด่านถามซ้ำเดิม (ย้อนกลับไม่ได้) — เขียวได้เพราะเป็นการยืนยันจริงที่ผู้ซื้อกดเอง</div>
+    </div>
+
+    <!-- 6 stamp + sheet -->
+    <div class="step"><div class="step-cap"><b>6</b><span>ประทับตรา + แผ่นให้ดาว</span></div>
+      <div class="phone"><div class="screen">
+        <div class="sbar"><span class="num">9:41</span><div class="isl"></div><div class="ic"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18v-3m4 3v-6m4 6V9m4 9V6"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 18h.01m-2.838-2.828a4 4 0 0 1 5.656 0m-8.485-2.829a8 8 0 0 1 11.314 0"/><path d="M3.515 9.515c4.686-4.687 12.284-4.687 17 0"/></g></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h11a2 2 0 0 1 2 2v.5a.5.5 0 0 0 .5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5a.5.5 0 0 0-.5.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2m1 3v4m3-4v4m3-4v4"/></svg></span></div></div>
+        <div class="body">
+          <div class="top"><div class="av" style="width:52px;height:52px"><img src="assets/spokes.jpg" alt=""></div><div class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div></div>
+          <div style="padding:4px 14px">
+            <div class="slip" style="border-radius:12px 12px 0 0;position:relative">
+              <div class="slip-head" style="padding:12px 16px"><span style="font-weight:700;font-size:14.5px">คำสั่งซื้อ</span><span class="faint num" style="font-size:12.5px">DP256910A6E2C3B9</span></div>
+              <div style="padding:14px 16px 4px" class="item"><div class="thumb"><img src="assets/goldwheel.jpg" alt=""></div><div style="flex:1"><div style="font-size:14.5px;font-weight:500">ล้อแม็ก WAVE ลายใหม่ 1.4x17</div><div class="faint num" style="font-size:13px">1 × ฿2,400</div></div></div>
+              <div style="height:64px"></div>
+              <div class="stamp"><b>ได้รับแล้ว</b><small class="num">06 ต.ค. 2569</small></div>
+            </div>
+          </div>
+          <div class="scrim" style="top:0"></div>
+          <div class="sheet">
+            <div class="grab"></div>
+            <div style="display:flex;gap:12px;align-items:center">
+              <div style="width:40px;height:40px;border-radius:50%;background:var(--green-15);display:grid;place-items:center;flex:none"><span class="ic" style="font-size:22px;color:var(--green-ink)"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 12l5 5L20 7"/></svg></span></div>
+              <div><div style="font-weight:700;font-size:17px">ยืนยันรับสินค้าแล้ว</div><div class="muted" style="font-size:13.5px">บันทึกลงประวัติของร้านเรียบร้อย</div></div>
+            </div>
+            <div class="sep" style="margin:18px 0"></div>
+            <div style="font-size:15px;font-weight:600" class="muted">ให้คะแนนร้านนี้</div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:8px"><div class="av" style="width:48px;height:48px"><img src="assets/spokes.jpg" alt=""></div><div style="font-size:19px;font-weight:700;line-height:1.3">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div></div>
+            <div class="stars" style="margin-top:14px">
+              <div><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>แย่มาก</span></div>
+              <div><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>แย่</span></div>
+              <div><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>พอใช้</span></div>
+              <div><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>ดี</span></div>
+              <div><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>ดีมาก</span></div>
+            </div>
+            <div class="muted" style="text-align:center;font-size:14px;margin-top:12px">แตะดาวเพื่อให้คะแนน</div>
+            <button class="btn btn-g" style="margin-top:14px">ไว้ทีหลัง</button>
+            <div class="faint" style="text-align:center;font-size:12.5px">เขียนได้ทีหลังที่การ์ด "รีวิวร้านค้า" ในหน้านี้</div>
+          </div>
+        </div><div class="home"></div></div></div>
+      <div class="note"><b>การเคลื่อนไหว:</b> ตรา "ได้รับแล้ว" กระแทกลงใบเสร็จ (0.3 วิ) แล้วแผ่นดาวเลื่อนขึ้น · ไม่มีปุ่มส่งจนกว่าจะแตะดาว · ปิดได้ด้วย "ไว้ทีหลัง"</div>
+    </div>
+
+    <!-- 7 rated -->
+    <div class="step"><div class="step-cap"><b>7</b><span>แตะดาว → ช่องความเห็นกางออก</span></div>
+      <div class="phone"><div class="screen">
+        <div class="sbar"><span class="num">9:41</span><div class="isl"></div><div class="ic"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18v-3m4 3v-6m4 6V9m4 9V6"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 18h.01m-2.838-2.828a4 4 0 0 1 5.656 0m-8.485-2.829a8 8 0 0 1 11.314 0"/><path d="M3.515 9.515c4.686-4.687 12.284-4.687 17 0"/></g></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h11a2 2 0 0 1 2 2v.5a.5.5 0 0 0 .5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5a.5.5 0 0 0-.5.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2m1 3v4m3-4v4m3-4v4"/></svg></span></div></div>
+        <div class="body">
+          <div class="scrim" style="top:0"></div>
+          <div class="sheet" style="padding-top:10px">
+            <div class="grab"></div>
+            <div style="display:flex;gap:12px;align-items:center">
+              <div style="width:40px;height:40px;border-radius:50%;background:var(--green-15);display:grid;place-items:center;flex:none"><span class="ic" style="font-size:22px;color:var(--green-ink)"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 12l5 5L20 7"/></svg></span></div>
+              <div><div style="font-weight:700;font-size:17px">ยืนยันรับสินค้าแล้ว</div><div class="muted" style="font-size:13.5px">บันทึกลงประวัติของร้านเรียบร้อย</div></div>
+            </div>
+            <div class="sep" style="margin:16px 0"></div>
+            <div style="display:flex;align-items:center;gap:12px"><div class="av" style="width:48px;height:48px"><img src="assets/spokes.jpg" alt=""></div><div><div class="muted" style="font-size:13.5px;font-weight:600">ให้คะแนนร้านนี้</div><div style="font-size:18px;font-weight:700">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div></div></div>
+            <div class="stars" style="margin-top:10px">
+              <div class="on"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>แย่มาก</span></div>
+              <div class="on"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>แย่</span></div>
+              <div class="on"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>พอใช้</span></div>
+              <div class="on sel"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>ดี</span></div>
+              <div><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>ดีมาก</span></div>
+            </div>
+            <div style="margin-top:12px;font-size:13px;font-weight:600">ความคิดเห็น <span class="faint" style="font-weight:400">(ไม่บังคับ)</span></div>
+            <div class="field" style="margin-top:6px">ล้อสวยตรงปก แพ็กมาแน่นหนา ส่งไว 2 วันถึง</div>
+            <div style="margin-top:12px;font-size:13px;font-weight:600">แนบรูป <span class="faint" style="font-weight:400">(ไม่บังคับ สูงสุด 4 รูป)</span></div>
+            <div style="display:flex;gap:8px;margin-top:6px">
+              <div class="ph"><img src="assets/goldwheel.jpg" alt=""></div>
+              <div class="ph"><img src="assets/wheel.jpg" alt=""></div>
+              <div class="add"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 20H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1a2 2 0 0 0 2-2a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1a2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v3.5M16 19h6m-3-3v6"/><path d="M9 13a3 3 0 1 0 6 0a3 3 0 0 0-6 0"/></g></svg></span></div>
+            </div>
+            <button class="btn btn-v" style="margin-top:14px">ส่งรีวิว</button>
+            <div class="faint" style="text-align:center;font-size:12.5px;margin-top:6px">แก้ไขหรือลบรีวิวได้ภายใน 24 ชั่วโมงหลังส่ง</div>
+            <button class="btn btn-g">ไว้ทีหลัง</button>
+          </div>
+        </div><div class="home"></div></div></div>
+      <div class="note">คำกำกับดาวสมดุล (3 ดาว = พอใช้ ไม่เอียงไปทางบวก) · ความเห็น/รูปไม่บังคับ — ส่วนใหญ่จบใน 2 แตะ (ดาว → ส่ง)</div>
+    </div>
+
+    <!-- 8 done -->
+    <div class="step"><div class="step-cap"><b>8</b><span>เสร็จ — ใบเสร็จมีตรา + รีวิวของคุณ</span></div>
+      <div class="phone"><div class="screen">
+        <div class="sbar"><span class="num">9:41</span><div class="isl"></div><div class="ic"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18v-3m4 3v-6m4 6V9m4 9V6"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 18h.01m-2.838-2.828a4 4 0 0 1 5.656 0m-8.485-2.829a8 8 0 0 1 11.314 0"/><path d="M3.515 9.515c4.686-4.687 12.284-4.687 17 0"/></g></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h11a2 2 0 0 1 2 2v.5a.5.5 0 0 0 .5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5a.5.5 0 0 0-.5.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2m1 3v4m3-4v4m3-4v4"/></svg></span></div></div>
+        <div class="body">
+          <div class="toast"><span class="ic" style="color:var(--green);font-size:20px"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="M17 3.34a10 10 0 1 1-14.995 8.984L2 12l.005-.324A10 10 0 0 1 17 3.34m-1.293 5.953a1 1 0 0 0-1.32-.083l-.094.083L11 12.585l-1.293-1.292l-.094-.083a1 1 0 0 0-1.403 1.403l.083.094l2 2l.094.083a1 1 0 0 0 1.226 0l.094-.083l4-4l.083-.094a1 1 0 0 0-.083-1.32"/></svg></span>ส่งรีวิวแล้ว · แก้ไขหรือลบได้ภายใน 24 ชม.</div>
+          <div class="top" style="margin-top:56px"><div class="av" style="width:52px;height:52px"><img src="assets/spokes.jpg" alt=""></div><div class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div></div>
+          <div style="padding:4px 14px 0;display:flex;flex-direction:column;gap:12px">
+            <div class="slip" style="border-radius:12px 12px 0 0;position:relative">
+              <div class="slip-head" style="padding:12px 16px"><span style="font-weight:700;font-size:14.5px">คำสั่งซื้อ</span><span class="faint num" style="font-size:12.5px">DP256910A6E2C3B9</span></div>
+              <div style="padding:14px 16px 4px" class="item"><div class="thumb"><img src="assets/goldwheel.jpg" alt=""></div><div style="flex:1"><div style="font-size:14.5px;font-weight:500">ล้อแม็ก WAVE ลายใหม่ 1.4x17</div><div class="faint num" style="font-size:13px">1 × ฿2,400</div></div></div>
+              <div style="display:flex;padding:12px 16px 0;border-top:1.5px dashed var(--line);margin-top:12px"><span class="muted">ยอดรวม</span><span style="flex:1"></span><b class="num" style="font-size:18px">฿2,400</b></div>
+              <div style="height:84px"></div>
+              <div class="stamp" style="bottom:12px"><b>ได้รับแล้ว</b><small class="num">06 ต.ค. 2569</small></div>
+            </div>
+            <div class="card" style="padding:16px">
+              <div style="display:flex;align-items:center;justify-content:space-between"><b style="font-size:15.5px">รีวิวของคุณ</b><span class="faint" style="font-size:12.5px">แก้ไขได้อีก 23 ชม.</span></div>
+              <div style="margin-top:8px;color:var(--amber);font-size:18px"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span class="ic" style="color:rgba(47,43,61,.16)"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span> <span style="color:var(--ink);font-size:14px;font-weight:600;vertical-align:3px">ดี</span></div>
+              <div style="font-size:14.5px;margin-top:6px;line-height:1.6">ล้อสวยตรงปก แพ็กมาแน่นหนา ส่งไว 2 วันถึง</div>
+              <div style="display:flex;gap:8px;margin-top:10px"><div class="ph"><img src="assets/goldwheel.jpg" alt=""></div><div class="ph"><img src="assets/wheel.jpg" alt=""></div></div>
+            </div>
+          </div>
+        </div><div class="home"></div></div></div>
+      <div class="note">ตราค้างบนใบเสร็จถาวร = หลักฐานที่ผู้ซื้อกดเอง · รีวิวขึ้นการ์ดทันทีไม่ต้องรีโหลด</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ ร้านบริการ ═══════════════════════ -->
+  <h2 class="row">ร้านบริการ — BT Premium Auto Xeon - สาขาสุขสวัสดิ์</h2>
+  <p class="rowsub">งานติดฟิล์มกรองแสง ฿12,900 · มีนัดหมาย · คำบนจอผันตามร้านบริการทุกจุด</p>
+  <div class="strip">
+
+    <div class="step"><div class="step-cap"><b>1</b><span>เปิดลิงก์ — เห็นร้านก่อน</span></div>
+      <div class="phone"><div class="screen">
+        <div class="sbar"><span class="num">9:41</span><div class="isl"></div><div class="ic"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18v-3m4 3v-6m4 6V9m4 9V6"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 18h.01m-2.838-2.828a4 4 0 0 1 5.656 0m-8.485-2.829a8 8 0 0 1 11.314 0"/><path d="M3.515 9.515c4.686-4.687 12.284-4.687 17 0"/></g></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h11a2 2 0 0 1 2 2v.5a.5.5 0 0 0 .5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5a.5.5 0 0 0-.5.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2m1 3v4m3-4v4m3-4v4"/></svg></span></div></div>
+        <div class="body" style="padding:54px 22px 0">
+          <div class="slip">
+            <div class="slip-head"><span class="deep"><i></i>Deep</span><span class="faint" style="font-size:12.5px">หลักฐานของร้าน</span></div>
+            <div style="padding:20px 18px 6px;text-align:center">
+              <div class="av" style="width:104px;height:104px;margin:0 auto;background:#1d1b24;display:grid;place-items:center;color:#fff;font-weight:800;font-size:34px;letter-spacing:-.02em;box-shadow:0 0 0 4px #fff,0 10px 24px -8px rgba(47,43,61,.4)">BT</div>
+              <div style="font-size:24px;font-weight:700;margin-top:16px;line-height:1.3;letter-spacing:-.01em">BT Premium Auto Xeon - สาขาสุขสวัสดิ์</div>
+            </div>
+            <div class="ledger">
+              <div class="r"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2m10 2l2 2l4-4"/></svg></span>ยืนยันเบอร์แล้ว<span class="dots"></span><span class="pill pill-n">ระดับ 1</span></div>
+              <div class="r"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 10h3V7L6.5 3.5a6 6 0 0 1 8 8l6 6a2 2 0 0 1-3 3l-6-6a6 6 0 0 1-8-8z"/></svg></span>ออเดอร์สำเร็จ<span class="dots"></span><b class="num">4 ครั้ง</b></div>
+              <div class="r"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m12 17.75l-6.172 3.245l1.179-6.873l-5-4.867l6.9-1l3.086-6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873z"/></svg></span>คะแนนรีวิว<span class="dots"></span><b class="num">4.7</b><span class="faint num" style="margin-left:4px">· 3 รีวิว</span></div>
+            </div>
+            <div style="font-size:12px;color:var(--ink-3);padding:14px 18px 4px;line-height:1.6">ตัวเลขจากระบบ Deep ร้านแก้เองไม่ได้</div>
+          </div>
+          <div style="margin-top:34px;text-align:center">
+            <div style="display:inline-flex;gap:10px;align-items:center;font-size:15.5px"><span class="ic" style="color:var(--violet);font-size:20px"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3a9 9 0 1 0 9 9"/></svg></span>กำลังเปิดรายละเอียดบริการของคุณ…</div>
+            <div class="muted" style="font-size:13.5px;margin-top:6px">ลิงก์นี้ส่งเข้าเบอร์ของคุณ จึงไม่ต้องกรอกเบอร์หรือรหัส OTP</div>
+          </div>
+        </div><div class="home"></div></div></div>
+      <div class="note">ชื่อร้านยาวที่สุดในระบบ (38 ตัวอักษร) — ตัดเป็น 2 บรรทัดได้ ไม่ดันจอ · ร้านไม่มีโลโก้ใช้อักษรย่อ</div>
+    </div>
+
+    <div class="step"><div class="step-cap"><b>2</b><span>หน้ารายละเอียดบริการ</span></div>
+      <div class="phone"><div class="screen">
+        <div class="sbar"><span class="num">9:41</span><div class="isl"></div><div class="ic"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18v-3m4 3v-6m4 6V9m4 9V6"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 18h.01m-2.838-2.828a4 4 0 0 1 5.656 0m-8.485-2.829a8 8 0 0 1 11.314 0"/><path d="M3.515 9.515c4.686-4.687 12.284-4.687 17 0"/></g></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h11a2 2 0 0 1 2 2v.5a.5.5 0 0 0 .5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5a.5.5 0 0 0-.5.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2m1 3v4m3-4v4m3-4v4"/></svg></span></div></div>
+        <div class="body">
+          <div class="top"><div class="av" style="width:52px;height:52px;background:#1d1b24;display:grid;place-items:center;color:#fff;font-weight:800;font-size:17px;box-shadow:0 0 0 2px #fff">BT</div><div style="min-width:0;flex:1"><div class="name">BT Premium Auto Xeon - สาขาสุขสวัสดิ์</div><div class="muted" style="font-size:13px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">4.7 ดาว · ออเดอร์สำเร็จ 4 ครั้ง</div></div><span class="ic" style="font-size:22px;color:var(--violet)"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m3 20l1.3-3.9C1.976 12.663 2.874 8.228 6.4 5.726c3.526-2.501 8.59-2.296 11.845.48c3.255 2.777 3.695 7.266 1.029 10.501S11.659 20.922 7.7 19z"/></svg></span></div>
+          <div style="padding:4px 14px 0;display:flex;flex-direction:column;gap:12px">
+            <div class="card" style="padding:16px;display:flex;gap:14px;align-items:center">
+              <div style="width:58px;border-radius:10px;overflow:hidden;text-align:center;box-shadow:0 0 0 1px var(--line);flex:none">
+                <div style="background:var(--violet);color:#fff;font-size:12px;font-weight:600;padding:3px 0">ต.ค.</div>
+                <div class="num" style="font-size:24px;font-weight:800;padding:2px 0 0">18</div><div class="faint" style="font-size:11.5px;padding-bottom:4px">เสาร์</div>
+              </div>
+              <div style="min-width:0"><div style="font-size:19px;font-weight:700" class="num">นัดเข้ารับบริการ 10:00</div><div class="muted" style="font-size:13.5px">ใช้เวลาประมาณ 3 ชม. · ช่างโอ๊ต</div><div class="muted" style="font-size:13.5px;display:none"><span class="ic" style="color:var(--violet);vertical-align:-2px"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12.5 21H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5m-4-9v4M8 3v4m-4 4h16m-4 8h6m-3-3v6"/></svg></span></div></div>
+            </div>
+            <div class="slip" style="border-radius:12px 12px 0 0">
+              <div class="slip-head" style="padding:12px 16px"><span style="font-weight:700;font-size:14.5px">การเข้ารับบริการ</span><span class="faint num" style="font-size:12.5px">DP2569107D41E0B2</span></div>
+              <div style="padding:14px 16px 4px" class="item"><div class="thumb"><img src="assets/carwindow.jpg" alt=""></div><div style="flex:1;min-width:0"><div style="font-size:14.5px;font-weight:500">ติดฟิล์มกรองแสง 3M Crystalline รอบคัน</div><div class="faint num" style="font-size:13px">1 × ฿12,900</div></div></div>
+              <div style="padding:12px 16px 0;border-top:1.5px dashed var(--line);margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:14px">
+                <div style="display:flex"><span class="muted">ยอดรวม</span><span style="flex:1"></span><span class="num">฿12,900</span></div>
+                <div style="display:flex;align-items:center"><span class="muted">มัดจำ</span><span style="flex:1"></span><span class="pill pill-g" style="margin-right:8px">ร้านยืนยันรับแล้ว</span><span class="num">฿2,000</span></div>
+                <div style="display:flex"><b>ยังค้างชำระ</b><span style="flex:1"></span><b class="num" style="font-size:18px">฿10,900</b></div>
+              </div>
+            </div>
+          </div>
+        <div class="cta-bar"><button class="btn btn-v">ยืนยันว่ารับบริการแล้ว</button><div class="faint" style="text-align:center;font-size:12.5px;margin-top:8px">กดเมื่อรับบริการเรียบร้อยแล้วเท่านั้น</div></div>
+        </div><div class="home"></div></div></div>
+      <div class="note">ร้านบริการ: พระเอกคือ "วันนัด" · ปุ่มยืนยันอยู่ล่างจอตามระบบจริง (กดได้ตั้งแต่ก่อนถึงวันนัด จึงมีคำกำกับว่ากดเมื่อรับบริการแล้วเท่านั้น) · ยอดค้างใช้คำ "ยังค้างชำระ" ชุดเดียวกับทั้งระบบ</div>
+    </div>
+
+    <div class="step"><div class="step-cap"><b>3</b><span>ประทับตรา + ให้ดาว</span></div>
+      <div class="phone"><div class="screen">
+        <div class="sbar"><span class="num">9:41</span><div class="isl"></div><div class="ic"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18v-3m4 3v-6m4 6V9m4 9V6"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 18h.01m-2.838-2.828a4 4 0 0 1 5.656 0m-8.485-2.829a8 8 0 0 1 11.314 0"/><path d="M3.515 9.515c4.686-4.687 12.284-4.687 17 0"/></g></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h11a2 2 0 0 1 2 2v.5a.5.5 0 0 0 .5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5a.5.5 0 0 0-.5.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2m1 3v4m3-4v4m3-4v4"/></svg></span></div></div>
+        <div class="body">
+          <div style="padding:58px 14px 0">
+            <div class="slip" style="border-radius:12px 12px 0 0;position:relative">
+              <div class="slip-head" style="padding:12px 16px"><span style="font-weight:700;font-size:14.5px">การเข้ารับบริการ</span><span class="faint num" style="font-size:12.5px">DP2569107D41E0B2</span></div>
+              <div style="padding:14px 16px 4px" class="item"><div class="thumb"><img src="assets/carwindow.jpg" alt=""></div><div style="flex:1"><div style="font-size:14.5px;font-weight:500">ติดฟิล์มกรองแสง 3M Crystalline รอบคัน</div></div></div>
+              <div style="height:64px"></div>
+              <div class="stamp"><b>รับบริการแล้ว</b><small class="num">18 ต.ค. 2569</small></div>
+            </div>
+          </div>
+          <div class="scrim" style="top:0"></div>
+          <div class="sheet">
+            <div class="grab"></div>
+            <div style="display:flex;gap:12px;align-items:center">
+              <div style="width:40px;height:40px;border-radius:50%;background:var(--green-15);display:grid;place-items:center;flex:none"><span class="ic" style="font-size:22px;color:var(--green-ink)"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 12l5 5L20 7"/></svg></span></div>
+              <div><div style="font-weight:700;font-size:17px">ยืนยันรับบริการแล้ว</div><div class="muted" style="font-size:13.5px">บันทึกลงประวัติของร้านเรียบร้อย</div></div>
+            </div>
+            <div class="sep" style="margin:16px 0"></div>
+            <div style="font-size:15px;font-weight:600" class="muted">ให้คะแนนร้านนี้</div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:8px"><div class="av" style="width:48px;height:48px;background:#1d1b24;display:grid;place-items:center;color:#fff;font-weight:800;font-size:16px">BT</div><div style="font-size:19px;font-weight:700;line-height:1.3">BT Premium Auto Xeon - สาขาสุขสวัสดิ์</div></div>
+            <div class="stars" style="margin-top:10px">
+              <div class="on"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>แย่มาก</span></div>
+              <div class="on"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>แย่</span></div>
+              <div class="on"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>พอใช้</span></div>
+              <div class="on"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>ดี</span></div>
+              <div class="on sel"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span>ดีมาก</span></div>
+            </div>
+            <div class="field" style="margin-top:12px;min-height:56px">ช่างโอ๊ตเก็บงานเนียนมาก ไม่มีฟองอากาศเลย</div>
+            <button class="btn btn-v" style="margin-top:12px">ส่งรีวิว</button>
+            <button class="btn btn-g">ไว้ทีหลัง</button>
+          </div>
+        </div><div class="home"></div></div></div>
+      <div class="note">ตราเปลี่ยนคำตามประเภทร้าน ("รับบริการแล้ว") · แผ่นดาวชุดเดียวกับร้านขายของ</div>
+    </div>
+
+    <div class="step"><div class="step-cap"><b>4</b><span>เสร็จ</span></div>
+      <div class="phone"><div class="screen">
+        <div class="sbar"><span class="num">9:41</span><div class="isl"></div><div class="ic"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18v-3m4 3v-6m4 6V9m4 9V6"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 18h.01m-2.838-2.828a4 4 0 0 1 5.656 0m-8.485-2.829a8 8 0 0 1 11.314 0"/><path d="M3.515 9.515c4.686-4.687 12.284-4.687 17 0"/></g></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h11a2 2 0 0 1 2 2v.5a.5.5 0 0 0 .5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5a.5.5 0 0 0-.5.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2m1 3v4m3-4v4m3-4v4"/></svg></span></div></div>
+        <div class="body">
+          <div class="toast"><span class="ic" style="color:var(--green);font-size:20px"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="M17 3.34a10 10 0 1 1-14.995 8.984L2 12l.005-.324A10 10 0 0 1 17 3.34m-1.293 5.953a1 1 0 0 0-1.32-.083l-.094.083L11 12.585l-1.293-1.292l-.094-.083a1 1 0 0 0-1.403 1.403l.083.094l2 2l.094.083a1 1 0 0 0 1.226 0l.094-.083l4-4l.083-.094a1 1 0 0 0-.083-1.32"/></svg></span>ส่งรีวิวแล้ว · แก้ไขหรือลบได้ภายใน 24 ชม.</div>
+          <div class="top" style="margin-top:56px"><div class="av" style="width:52px;height:52px;background:#1d1b24;display:grid;place-items:center;color:#fff;font-weight:800;font-size:17px">BT</div><div class="name">BT Premium Auto Xeon - สาขาสุขสวัสดิ์</div></div>
+          <div style="padding:4px 14px 0;display:flex;flex-direction:column;gap:12px">
+            <div class="slip" style="border-radius:12px 12px 0 0;position:relative">
+              <div class="slip-head" style="padding:12px 16px"><span style="font-weight:700;font-size:14.5px">การเข้ารับบริการ</span><span class="faint num" style="font-size:12.5px">DP2569107D41E0B2</span></div>
+              <div style="padding:14px 16px 4px" class="item"><div class="thumb"><img src="assets/carwindow.jpg" alt=""></div><div style="flex:1"><div style="font-size:14.5px;font-weight:500">ติดฟิล์มกรองแสง 3M Crystalline รอบคัน</div><div class="faint num" style="font-size:13px">ชำระครบ ฿12,900</div></div></div>
+              <div style="height:64px"></div>
+              <div class="stamp"><b>รับบริการแล้ว</b><small class="num">18 ต.ค. 2569</small></div>
+            </div>
+            <div class="card" style="padding:16px">
+              <div style="display:flex;align-items:center;justify-content:space-between"><b style="font-size:15.5px">รีวิวของคุณ</b><span class="faint" style="font-size:12.5px">แก้ไขได้อีก 23 ชม.</span></div>
+              <div style="margin-top:8px;color:var(--amber);font-size:18px"><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span><span class="ic"><svg aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;flex:none" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="m8.243 7.34l-6.38.925l-.113.023a1 1 0 0 0-.44 1.684l4.622 4.499l-1.09 6.355l-.013.11a1 1 0 0 0 1.464.944l5.706-3l5.693 3l.1.046a1 1 0 0 0 1.352-1.1l-1.091-6.355l4.624-4.5l.078-.085a1 1 0 0 0-.633-1.62l-6.38-.926l-2.852-5.78a1 1 0 0 0-1.794 0z"/></svg></span> <span style="color:var(--ink);font-size:14px;font-weight:600;vertical-align:3px">ดีมาก</span></div>
+              <div style="font-size:14.5px;margin-top:6px">ช่างโอ๊ตเก็บงานเนียนมาก ไม่มีฟองอากาศเลย</div>
+            </div>
+          </div>
+        </div><div class="home"></div></div></div>
+      <div class="note">จบในหน้าเดียว ไม่เด้งออกไปไหน</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

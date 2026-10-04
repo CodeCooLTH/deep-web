@@ -14,8 +14,7 @@
  *
  * 🛑 ทุกปุ่มที่ผูกตัวตนที่นี่เป็น "ลิงก์ไปหน้า login" ไม่ใช่ปุ่มที่ยิง API — ห้ามมี mutation
  * ใด ๆ จากมุมมองนี้ (BR-BOE-06/07; ต่อให้มี server ก็ปฏิเสธอยู่แล้ว แต่ UI ต้องไม่หลอกให้กด)
- * ยกเว้นเดียว: `SmsSignInButton` (เมื่อเปิดจากลิงก์ SMS) ซึ่งทำได้แค่ sign-in ด้วยโค้ดในลิงก์
- * ไม่แตะสถานะออเดอร์ — อย่าถอดทิ้งเพราะเห็นกฎบรรทัดบน
+ * (เปิดจากลิงก์ SMS ไม่ผ่านจอนี้แล้ว — ไปจอ `SmsAutoEnter` แทน)
  */
 
 import Link from 'next/link'
@@ -30,7 +29,6 @@ import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFoot
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { resolveVerifyBadge } from '@/lib/verify-badge'
 import AuthPingLink from './AuthPingLink'
-import SmsSignInButton from './SmsSignInButton'
 import SectionTitle from './SectionTitle'
 import { formatOrderNo } from '@/lib/order-no'
 import { formatDateTimeTH, formatTimeHM, formatTimeRangeHM, formatWeekdayDateTH } from '@/lib/format-date'
@@ -79,11 +77,7 @@ const baht = new Intl.NumberFormat('th-TH', {
   maximumFractionDigits: 0,
 })
 
-/**
- * `smsCode` = เปิดมาจากลิงก์ SMS ที่ยังไม่ถูกใช้ (page.tsx ตรวจกับออเดอร์ใบนี้แล้ว) — ปุ่มหลัก
- * เปลี่ยนเป็นเข้าสู่ระบบด้วยลิงก์นั้นเลย ไม่ต้องกรอกเบอร์ (ลิงก์ส่งเข้าเบอร์นั้น = พิสูจน์เบอร์แล้ว)
- */
-export default function GuestOrderView({ order, smsCode }: { order: GuestOrderData; smsCode?: string }) {
+export default function GuestOrderView({ order }: { order: GuestOrderData }) {
   const loginHref = `/auth/sign-in?callbackUrl=${encodeURIComponent(`/o/${order.publicToken}`)}`
   const tierLabel = getTierLabel(order.shop.user.trustScore)
   const tierColor = getTierColor(order.shop.user.trustScore)
@@ -648,22 +642,16 @@ export default function GuestOrderView({ order, smsCode }: { order: GuestOrderDa
         }}
       >
         <Box sx={orderContentWidthSx}>
-          {smsCode ? (
-            <SmsSignInButton code={smsCode} publicToken={order.publicToken} height={CTA_BUTTON_HEIGHT}>
-              {vocab.viewLabel}
-            </SmsSignInButton>
-          ) : (
-            <AuthPingLink
-              href={loginHref}
-              publicToken={order.publicToken}
-              fullWidth
-              variant='contained'
-              size='large'
-              sx={{ minHeight: CTA_BUTTON_HEIGHT }}
-            >
-              {ctaLabel}
-            </AuthPingLink>
-          )}
+          <AuthPingLink
+            href={loginHref}
+            publicToken={order.publicToken}
+            fullWidth
+            variant='contained'
+            size='large'
+            sx={{ minHeight: CTA_BUTTON_HEIGHT }}
+          >
+            {ctaLabel}
+          </AuthPingLink>
           {/* 🛑 ระยะห่าง 10px + lineHeight 1.7 ไม่ใช่ 6px ที่ค่าเริ่มต้นให้ — ปุ่ม contained ของ
               Vuexy มีเงาสีม่วงแผ่ลงมาใต้กล่องตัวเอง และสระบนของไทย (ื ่ ) กินที่เหนือบรรทัด
               สองอย่างรวมกันทำให้บรรทัดนี้ดูเหมือนถูกปุ่มทับ ทั้งที่ระยะตามกล่องยังไม่ชนกัน */}
@@ -677,11 +665,7 @@ export default function GuestOrderView({ order, smsCode }: { order: GuestOrderDa
               lineHeight: `${CTA_CAPTION_LINE}px`,
             }}
           >
-            {smsCode
-              ? isClosed
-                ? 'ลิงก์ส่งเข้าเบอร์ของคุณ จึงไม่ต้องกรอกเบอร์หรือ OTP'
-                : 'ลิงก์ส่งเข้าเบอร์ของคุณ จึงไม่ต้องกรอกเบอร์หรือ OTP · กดยืนยันได้ในหน้าถัดไป'
-              : 'ต้องเข้าสู่ระบบก่อนยืนยัน แนบสลิป เขียนรีวิว หรือแจ้งปัญหา'}
+            ต้องเข้าสู่ระบบก่อนยืนยัน แนบสลิป เขียนรีวิว หรือแจ้งปัญหา
           </Typography>
         </Box>
       </Box>

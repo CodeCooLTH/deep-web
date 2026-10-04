@@ -29,7 +29,7 @@ import { getOrderByToken } from '@/services/order.service'
 import { resolveOrderAccess, guaranteeOrderLink } from '@/services/order-access.service'
 import { peekSmsCode } from '@/services/sms-code.service'
 import { ORDER_VOCAB } from '@/lib/seller-menu'
-import SmsLinkPrompt from './SmsLinkPrompt'
+import SmsAutoEnter from './SmsAutoEnter'
 import { hasOpenDispute } from '@/services/order-dispute.service'
 import {
   approvedVerificationWhere,
@@ -159,18 +159,8 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
     const viaSmsLink = !!smsCode && order.buyerUserId !== viewerUserId
 
     if (!session || !viewerUserId || viaSmsLink) {
-      if (order.type === 'BOOKING') {
-        // ใบจองไม่มีจอ guest — มีลิงก์ SMS ให้กดปุ่มเดียว ไม่มีก็ไปหน้าเข้าสู่ระบบเหมือนเดิม
-        if (smsCode) {
-          return (
-            <SmsLinkPrompt
-              code={smsCode}
-              publicToken={order.publicToken}
-              shopName={order.shop.shopName}
-              label={(ORDER_VOCAB[order.shop.vertical] ?? ORDER_VOCAB.LODGING).viewLabel}
-            />
-          )
-        }
+      // ใบจองไม่มีจอ guest — มีลิงก์ SMS ไปจอเปิดอัตโนมัติด้านล่าง ไม่มีก็ไปหน้าเข้าสู่ระบบเหมือนเดิม
+      if (order.type === 'BOOKING' && !smsCode) {
         redirect('/auth/sign-in?callbackUrl=' + encodeURIComponent('/o/' + token))
       }
 
@@ -215,31 +205,46 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
       const confirmedCount = statusGroups.find((g) => g.status === 'CONFIRMED')?._count._all ?? 0
       const reviewCount = ratingAgg._count._all
 
-      return (
-        <GuestOrderView
-          smsCode={smsCode}
-          order={buildGuestOrderData(order, guestMaxVerifyLevel, {
-            // 🛑 `null` ไม่ใช่ `0` — 0 แปลว่า "นับแล้วได้ศูนย์" ซึ่งเป็นข้อเท็จจริงที่ต้องบอก
-            // แต่เราเลือกไม่แสดงบล็อกเลยเมื่อยังไม่มีประวัติ (ไม่ประจานร้านใหม่ด้วยเลข 0 ตัวโต)
-            completedOrders: confirmedCount > 0 ? confirmedCount : null,
-            avgRating: ratingAgg._avg.rating != null ? Math.round(ratingAgg._avg.rating * 10) / 10 : null,
-            reviewCount,
-            channels,
-            latestReview: latestReview?.comment
-              ? { rating: latestReview.rating, comment: latestReview.comment }
-              : null,
-            /* ชุดเดียวกับที่จอล็อกอินได้รับ — ไม่คำนวณซ้ำ ไม่มีทางตอบต่างกัน (HR16) */
-            money: serviceMoney
-              ? {
-                  totalAmount: serviceMoney.totalAmount,
-                  totalReceived: serviceMoney.totalReceived,
-                  outstanding: serviceMoney.outstanding,
-                  fullyPaid: serviceMoney.fullyPaid,
-                }
-              : null,
-          })}
-        />
-      )
+      const guestData = buildGuestOrderData(order, guestMaxVerifyLevel, {
+        // 🛑 `null` ไม่ใช่ `0` — 0 แปลว่า "นับแล้วได้ศูนย์" ซึ่งเป็นข้อเท็จจริงที่ต้องบอก
+        // แต่เราเลือกไม่แสดงบล็อกเลยเมื่อยังไม่มีประวัติ (ไม่ประจานร้านใหม่ด้วยเลข 0 ตัวโต)
+        completedOrders: confirmedCount > 0 ? confirmedCount : null,
+        avgRating: ratingAgg._avg.rating != null ? Math.round(ratingAgg._avg.rating * 10) / 10 : null,
+        reviewCount,
+        channels,
+        latestReview: latestReview?.comment
+          ? { rating: latestReview.rating, comment: latestReview.comment }
+          : null,
+        /* ชุดเดียวกับที่จอล็อกอินได้รับ — ไม่คำนวณซ้ำ ไม่มีทางตอบต่างกัน (HR16) */
+        money: serviceMoney
+          ? {
+              totalAmount: serviceMoney.totalAmount,
+              totalReceived: serviceMoney.totalReceived,
+              outstanding: serviceMoney.outstanding,
+              fullyPaid: serviceMoney.fullyPaid,
+            }
+          : null,
+      })
+
+      // ── เปิดจากลิงก์ SMS: จอบัตรร้าน + เข้าสู่ระบบอัตโนมัติ (แนวทาง 5 ที่ user เลือก 2026-10-04) ──
+      // ส่งเฉพาะข้อมูลระดับโปรไฟล์ร้านสาธารณะ — ยังไม่ผ่าน grant ห้ามส่งรายละเอียดออเดอร์/PII ลง client
+      if (smsCode) {
+        return (
+          <SmsAutoEnter
+            code={smsCode}
+            publicToken={order.publicToken}
+            shopName={guestData.shop.shopName}
+            avatarUrl={guestData.shop.user.avatar}
+            maxVerifyLevel={guestMaxVerifyLevel}
+            avgRating={guestData.avgRating}
+            reviewCount={guestData.reviewCount}
+            completedOrders={guestData.completedOrders}
+            switchingAccount={!!viewerUserId}
+          />
+        )
+      }
+
+      return <GuestOrderView order={guestData} />
     }
 
     const sessionUser = session.user as { justAuthedViaPhoneOtp?: boolean }
@@ -362,8 +367,27 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
       )
     }
 
+    // ตราประทับบนคำสั่งซื้อ (2026-10-04) — ต้องรู้ว่า "ใคร" ปิดใบนี้ เพราะ CONFIRMED เกิดได้ 3 ทาง
+    // (ผู้ซื้อกดเอง · COD เคลียร์ · ระบบปิดเองหลังส่งถึง 7 วัน) ตราห้ามอ้างว่า "ผู้ซื้อได้รับแล้ว"
+    // ถ้าคนปิดไม่ใช่ผู้ซื้อ — ไม่มี event (ใบเก่า) = ไม่รู้ ⇒ ตราแบบกลาง ไม่มีวันที่
+    const confirmEvent =
+      order.status === 'CONFIRMED'
+        ? await prisma.orderEvent.findFirst({
+            where: { orderId: order.id, type: { in: ['BUYER_CONFIRMED', 'SYSTEM_CONFIRMED'] } },
+            orderBy: { occurredAt: 'desc' },
+            select: { type: true, occurredAt: true },
+          })
+        : null
+
     // Flatten Prisma → plain object ที่ข้าม RSC→client ได้ (Decimal/Date → plain)
     const data: PublicOrderData = {
+      confirmation:
+        order.status === 'CONFIRMED'
+          ? {
+              byBuyer: confirmEvent?.type === 'BUYER_CONFIRMED',
+              atIso: confirmEvent?.occurredAt.toISOString() ?? null,
+            }
+          : null,
       publicToken: order.publicToken,
       status: order.status as PublicOrderData['status'],
       type: order.type as 'PHYSICAL' | 'DIGITAL' | 'SERVICE' | 'SUBSCRIPTION',
@@ -541,7 +565,9 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
           : null,
     }
 
-    return <PublicOrderClient order={data} />
+    // key ผูกสถานะ+รีวิว: PublicOrderClient ถือ order ใน useState ซึ่งไม่ซิงก์ prop ใหม่หลัง
+    // router.refresh() (เช่นส่งรีวิวจากแผ่นแล้ว การ์ดต้องเปลี่ยนเป็น "รีวิวของคุณ") → remount แทน
+    return <PublicOrderClient key={`${data.status}-${data.hasReview}`} order={data} />
   }
 
   // ── Discriminator ลำดับ 2: 12-char short-code → route handler consume ──────────

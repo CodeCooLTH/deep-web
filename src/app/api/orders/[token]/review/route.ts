@@ -39,8 +39,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const review = await createReview(token, { ...parsed.output, reviewerUserId: userId });
     return NextResponse.json(review, { status: 201 });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+  } catch (err: unknown) {
+    // ห้ามส่ง err.message ดิบ — service โยนข้อความอังกฤษ ("Cannot review order in status…")
+    // ซึ่งผู้ซื้อจะเห็นตรง ๆ ในแผ่นรีวิว
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.startsWith("Cannot review order")) {
+      return NextResponse.json({ error: "รีวิวได้หลังยืนยันรับแล้วเท่านั้น" }, { status: 409 });
+    }
+    if (msg.startsWith("Review already exists")) {
+      return NextResponse.json({ error: "คำสั่งซื้อนี้รีวิวไปแล้ว" }, { status: 409 });
+    }
+    console.error("[review POST]", err);
+    return NextResponse.json({ error: "ส่งรีวิวไม่สำเร็จ กรุณาลองใหม่อีกครั้ง" }, { status: 400 });
   }
 }
 

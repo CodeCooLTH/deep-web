@@ -108,6 +108,7 @@ describe('หน้าต่างแก้ไขรีวิว 24 ชม.', ()
     const src = read('ReviewForm.tsx')
 
     expect(src).toContain('แก้ไขหรือลบรีวิวได้ภายใน 24 ชั่วโมงหลังส่ง')
-    expect(src).toContain('แก้ไขได้ภายใน 24 ชม.')
+    // toast หลังส่ง (2026-10-04 เปลี่ยนเป็นบอกผลลัพธ์ + ลบได้ด้วย ตาม review-window จริง)
+    expect(src).toContain('แก้ไขหรือลบได้ภายใน 24 ชม.')
   })
 })

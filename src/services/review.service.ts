@@ -18,10 +18,13 @@ export async function createReview(orderToken: string, data: {
   // ถ้าเผลอกรองออก แถวเก่าจะมองไม่เห็น → สร้างใหม่ได้ → createdAt ใหม่ → หน้าต่างแก้ไข 24 ชม.
   // เริ่มนับใหม่ ⇒ ลบ-สร้างใหม่ทุก 23 ชม. ก็แก้รีวิวได้ตลอดกาล (ทำลาย BR-BOE-17 ทั้งข้อ)
   if (order.review) throw new Error("Review already exists for this order");
-  // State guard — รีวิวได้เฉพาะหลัง buyer ยืนยัน (CONFIRMED / SHIPPED); COMPLETED ถูกลบออกจาก OMS redesign
+  // State guard — รีวิวได้เฉพาะหลัง buyer ยืนยันรับแล้ว (CONFIRMED) เท่านั้น
   // PRD FR-7.1: "Buyer ให้ review + rating ได้หลัง confirm order"
-  if (!["CONFIRMED", "SHIPPED"].includes(order.status)) {
-    throw new Error(`Cannot review order in status ${order.status} (must be CONFIRMED or later)`);
+  // 2026-10-04 (user สั่ง "ย้ายรีวิวไปหลังยืนยัน เหมือน Grab"): ตัด SHIPPED ออก — เดิมรีวิวได้
+  // ตั้งแต่ร้านกดส่งของ ซึ่งแปลว่าผู้ซื้อให้ดาวร้านได้ทั้งที่ยังไม่ได้ยืนยันว่าได้ของ
+  // รีวิวเก่าที่เขียนตอน SHIPPED ไปแล้วยังอยู่ตามเดิม (ด่านนี้กันเฉพาะการเขียนใหม่)
+  if (order.status !== "CONFIRMED") {
+    throw new Error(`Cannot review order in status ${order.status} (must be CONFIRMED)`);
   }
 
   const review = await prisma.review.create({
