@@ -47,6 +47,8 @@ export type SearchableOrder = {
   createdAtISO: string
   buyerName: string | null
   buyerUsername: string | null
+  /** ชื่อบัญชีดิบของลูกค้าที่ล็อกอินแล้ว (`User.displayName`) — ค้นหาได้ ไม่ได้ใช้แสดงผล */
+  buyerAccountName?: string | null
   /** เบอร์จริงไม่ปิดบัง — **ห้ามส่ง `OrderRow.buyer` มาแทน** นั่นคือค่าที่ถูกปิดบังแล้ว */
   buyerPhone: string | null
   /** null = ยังไม่มีพัสดุ · undefined = ร้านที่ไม่ใช่ ONLINE_SALES (ไม่มีแกนนี้เลย) */
@@ -105,6 +107,7 @@ function textFieldsOf(order: SearchableOrder): string[] {
     order.id,
     order.buyerName ?? '',
     order.buyerUsername ?? '',
+    order.buyerAccountName ?? '',
     order.buyerPhone ?? '',
     order.shipment?.trackingNo ?? '',
   ]

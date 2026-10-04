@@ -39,6 +39,7 @@ import { RETURNED_CARRIER_STATUSES } from '@/lib/iship/status'
 import { cancelReasonCountsAgainstGuest } from '@/lib/lodging'
 import { toFileUrl } from '@/lib/file-url'
 import { sellerContactDisplay } from '@/lib/seller-contact-display'
+import { resolveOrderBuyerName } from '@/lib/buyer-name'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ จึงเป็น generateMetadata ไม่ใช่ constant
@@ -390,8 +391,14 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     createdAtISO: o.createdAt ? new Date(o.createdAt).toISOString() : '',
     // Phase A Unit A: buyer identity (null = guest ยังไม่ register)
     // `buyer` ด้านบนเป็นค่าเต็มแล้วตั้งแต่ D-13 (2026-08-24) — ดู lib/seller-contact-display.ts
-    // registered → displayName; guest → ชื่อที่ seller กรอกตอนสร้างออเดอร์ (o.buyerName); ไม่มีจริง ๆ → null
-    buyerName: o.buyer?.displayName ?? o.buyerName ?? null,
+    // ชื่อที่ร้านกรอกเป็นชื่อหลักเสมอ ชื่อบัญชีเป็นบรรทัดรอง (มติ user 2026-10-04 — SSOT `lib/buyer-name.ts`)
+    // 🛑 เดิม `o.buyer?.displayName ?? o.buyerName` ⇒ ลูกค้าล็อกอินแล้วชื่อที่ร้านกรอก (เช่นทะเบียนรถ) หายและค้นไม่เจอ
+    ...(() => {
+      const names = resolveOrderBuyerName({ typedName: o.buyerName, accountName: o.buyer?.displayName })
+      return { buyerName: names.name, buyerAccountLabel: names.accountName }
+    })(),
+    // ชื่อบัญชีดิบสำหรับค้นหาอย่างเดียว (ค้นด้วยชื่อ Facebook ของลูกค้าก็ยังเจอ) — ไม่ใช้แสดงผล
+    buyerAccountName: o.buyer?.displayName ?? null,
     buyerUsername: o.buyer?.username ?? null,
     buyerAvatar: o.buyer?.avatar ?? null,
     salesChannel: o.salesChannel ?? null,

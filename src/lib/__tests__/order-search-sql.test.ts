@@ -47,13 +47,14 @@ async function loadAll(): Promise<SearchableOrder[]> {
       createdAt: Date
       buyerName: string | null
       buyerUsername: string | null
+      buyerAccountName: string | null
       buyerContact: string | null
       trackingNo: string | null
       itemNames: string[] | null
     }[]
   >(`
     SELECT o."id", o."publicToken", o."shortCode", o."createdAt",
-           o."buyerName", bu."username" AS "buyerUsername", o."buyerContact",
+           o."buyerName", bu."username" AS "buyerUsername", bu."displayName" AS "buyerAccountName", o."buyerContact",
            coalesce(s."trackingNo", t."trackingNo") AS "trackingNo",
            (SELECT array_agg(oi."name") FROM "OrderItem" oi WHERE oi."orderId" = o."id") AS "itemNames"
     FROM "Order" o
@@ -67,6 +68,7 @@ async function loadAll(): Promise<SearchableOrder[]> {
     createdAtISO: r.createdAt.toISOString(),
     buyerName: r.buyerName,
     buyerUsername: r.buyerUsername,
+    buyerAccountName: r.buyerAccountName,
     buyerPhone: r.buyerContact,
     shipment: r.trackingNo ? { trackingNo: r.trackingNo } : null,
     items: (r.itemNames ?? []).map((name) => ({ name })),

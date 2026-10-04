@@ -219,6 +219,17 @@ export default function OrderCard({
                   <HighlightText text={order.buyerName ?? 'ลูกค้า'} query={searchQuery} />
                 </span>
               </p>
+              {/* บรรทัดรอง: ชื่อบัญชีของลูกค้าที่ล็อกอินแล้ว — ชื่อหลักข้างบนเป็นชื่อที่ร้านกรอกเสมอ
+                  (มติ user 2026-10-04 · null = ไม่มีบัญชี/ชื่อซ้ำ/ชื่อที่ระบบตั้งให้ — ดู lib/buyer-name.ts) */}
+              {order.buyerAccountLabel && (
+                <p className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-default-700">
+                  <Icon icon="tabler:user" className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+                  <span className="truncate">
+                    <span className="sr-only">บัญชีลูกค้า: </span>
+                    <HighlightText text={order.buyerAccountLabel} query={searchQuery} />
+                  </span>
+                </p>
+              )}
               {/* meta: ช่องทาง(โลโก้สี) · วิธีชำระ · เบอร์โทร */}
               <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-default-500">
                 {hasChannel && (
