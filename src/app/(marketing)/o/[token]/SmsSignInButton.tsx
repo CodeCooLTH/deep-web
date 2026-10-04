@@ -16,6 +16,8 @@ import CircularProgress from '@mui/material/CircularProgress'
 import { signIn } from 'next-auth/react'
 import { toast } from 'react-toastify'
 
+import { goAfterLogin } from '@/lib/go-after-login'
+
 type Props = { code: string; publicToken: string; height: number; children: React.ReactNode }
 
 export default function SmsSignInButton({ code, publicToken, height, children }: Props) {
@@ -27,9 +29,11 @@ export default function SmsSignInButton({ code, publicToken, height, children }:
     try {
       const res = await signIn('sms-link', { code, redirect: false })
       // ทั้งสองทางเป็นการเปลี่ยนหน้าเต็ม — ไม่คืน busy (กันกดซ้ำระหว่างเปลี่ยนหน้า)
-      window.location.href = res?.ok
-        ? back
-        : `/auth/sign-in?smsExpired=1&callbackUrl=${encodeURIComponent(back)}`
+      if (res?.ok) {
+        await goAfterLogin(back) // ตัวกลางเดียวของทุกทางเข้าระบบ (รอ session แล้ว hard-navigate)
+        return
+      }
+      window.location.href = `/auth/sign-in?smsExpired=1&callbackUrl=${encodeURIComponent(back)}`
     } catch {
       // เครือข่ายหลุด/throw = ยังไม่ได้ไปไหน (โค้ดยังไม่ถูกเผา) → ให้กดใหม่ได้ ไม่ค้าง spinner
       setBusy(false)
