@@ -16,7 +16,7 @@ description: Use เมื่อ phase ของ SafePay/Deep เสร็จ (�
 - **Action items** — numbered, concrete
 
 ## 2. Promote convention
-- กฎที่ Claude ต้องทำทุก session → `CLAUDE.md` (ตาราง HARD RULES) + `docs/conventions/<topic>.md` (workflow เต็ม) + พิจารณาทำเป็น skill ใหม่ใน `.claude/skills/`
+- กฎที่ Claude ต้องทำทุก session → `CLAUDE.md` (ตาราง HARD RULES — แก่นบรรทัดเดียวเท่านั้น; เหตุผล/เคสจริงไปที่ `docs/claude/hard-rules.md`) + `docs/conventions/<topic>.md` (workflow เต็ม) + พิจารณาทำเป็น skill ใหม่ใน `.claude/skills/`
 - personal-Claude reminder → `~/.claude/projects/-Users-craftman-Projects-safepay/memory/feedback_<topic>.md` + เพิ่ม 1 บรรทัดใน `MEMORY.md`
 - team process → `docs/conventions/` อย่างเดียว
 
