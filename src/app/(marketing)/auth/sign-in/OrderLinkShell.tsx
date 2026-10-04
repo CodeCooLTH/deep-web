@@ -41,6 +41,8 @@ export type OrderLinkShopContext = {
   trustScore: number
   maxVerifyLevel: number
   completedOrders: number | null
+  /** ป้ายใต้ตัวเลข — `shopCompletedLabel()` ที่ server (ร้านบริการ "งานสำเร็จ" · ร้านอื่น "ออเดอร์สำเร็จ") */
+  completedLabel: string
   completionRate: number | null
   avgRating: number | null
   reviewCount: number
@@ -153,7 +155,7 @@ export default function OrderLinkShell({
                 {ctx.completedOrders != null && (
                   <div>
                     <div className='text-lg font-extrabold tabular-nums'>{ctx.completedOrders}</div>
-                    ออเดอร์สำเร็จ
+                    {ctx.completedLabel}
                   </div>
                 )}
                 {ctx.avgRating != null && (

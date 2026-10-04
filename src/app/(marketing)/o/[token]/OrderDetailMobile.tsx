@@ -85,6 +85,7 @@ import SectionTitle from './SectionTitle'
 import AppointmentCard, { type PublicAppointment } from './AppointmentCard'
 import PaymentSummaryCard from './PaymentSummaryCard'
 import { getChannelLabel } from '@/lib/chat-channel'
+import { shopCompletedLabel } from '@/lib/shop-stat-vocab'
 
 export type PublicOrderData = {
   publicToken: string
@@ -1472,6 +1473,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             <Box sx={{ width: '100%', ...cardInlinePadSx, [ORDER_TWO_COL_MQ]: { px: 0, mt: 1 } }}>
               <ShopStats
                 completedOrders={order.completedOrders}
+                completedLabel={shopCompletedLabel(order.isServiceShop)}
                 avgRating={order.avgRating}
                 reviewCount={order.reviewCount}
               />

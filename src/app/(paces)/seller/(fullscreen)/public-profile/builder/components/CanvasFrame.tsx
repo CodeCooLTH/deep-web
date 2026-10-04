@@ -77,10 +77,11 @@ const HERO_STAT_LABELS = {
     rateCaption: 'อัตราความสำเร็จจากการเข้าพักทั้งหมดบน Deep',
   },
   serviceQueue: {
-    orders: 'นัดหมาย',
+    // ตรงกับหน้าโปรไฟล์จริง (SERVICE_COMPLETED_LABEL ใน lib/shop-stat-vocab.ts) — ตัวเลขคือ "งานที่สำเร็จ" ไม่ใช่นัดทั้งหมด
+    orders: 'งานสำเร็จ',
     customers: 'จำนวนลูกค้า',
     repeat: 'ลูกค้าใช้บริการซ้ำ',
-    rateCaption: 'อัตราความสำเร็จจากนัดหมายทั้งหมดบน Deep',
+    rateCaption: 'อัตราความสำเร็จจากงานทั้งหมดบน Deep',
   },
 } as const
 
