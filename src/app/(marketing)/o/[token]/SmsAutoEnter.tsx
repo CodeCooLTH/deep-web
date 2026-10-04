@@ -175,7 +175,7 @@ export default function SmsAutoEnter(props: Props) {
               component='h1'
               sx={{
                 mt: 4,
-                fontSize: '1.5rem',
+                fontSize: '1.75rem' /* Headline ใน DESIGN.md — ชื่อร้านเป็นพระเอกของจอ (user สั่งให้เด่น) */,
                 fontWeight: 700,
                 lineHeight: 1.3,
                 textWrap: 'balance',

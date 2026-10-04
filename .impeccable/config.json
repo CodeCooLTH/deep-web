@@ -104,6 +104,12 @@
         "value": "1.25rem",
         "createdAt": "2026-10-04T15:17:55.605Z",
         "reason": "DESIGN.md §Metric & Dense steps documents Metric 20px (32/22/20); same value as ShopEvidence.tsx stat numbers — assistant triage"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "12px",
+        "createdAt": "2026-10-04T15:43:05.966Z",
+        "reason": "DESIGN.md §Components 'Corner: 12px ฝั่ง buyer' (card override @core/theme/overrides/card.ts) — assistant triage"
       }
     ]
   }
