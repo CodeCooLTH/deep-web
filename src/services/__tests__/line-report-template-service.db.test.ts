@@ -72,6 +72,8 @@ describe.skipIf(!isLocal)('00070 EXT template service (DB)', () => {
     const d = (await getGroupDetail(A, g)).group
     expect(d.template).toBeNull()
     expect(d.effectiveTemplate.v).toBe(1)
+    // ส่งจริง fallback ไปคอลัมน์แล้ว ⇒ PATCH คอลัมน์ต้องทำได้ ไม่งั้นเจ้าของติดกับดัก (security Low-1)
+    expect(await code(updateSettings(A, g, { showCancelled: false }))).toBeNull()
   })
 
   it('expectedVersion ไม่ตรง → TEMPLATE_STALE และไม่เขียนอะไร', async () => {

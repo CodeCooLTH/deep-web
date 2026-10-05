@@ -215,11 +215,12 @@ export async function updateSettings(ownerId: string, groupId: string, patch: Up
       },
     })
     const { template, ...state } = cur
+    // เทมเพลตเสียในฐาน = การส่ง fallback ไปคอลัมน์แล้ว (report-config) ⇒ ต้องปล่อยให้แก้คอลัมน์ได้ ไม่งั้นเจ้าของติดกับดัก (security Low-1)
+    const parsed = template !== null ? validateTemplate(template) : null
     // มีเทมเพลต = flag derive จากเทมเพลตเท่านั้น — ปล่อยให้ PATCH แก้ได้จะเกิดสองแหล่งความจริงที่ขัดกัน (AC-EXT-07-2)
-    if (template !== null && FLAG_KEYS.some((k) => patch[k] !== undefined)) throw new LineReportError('FLAGS_DERIVED_FROM_TEMPLATE')
+    if (parsed?.ok && FLAG_KEYS.some((k) => patch[k] !== undefined)) throw new LineReportError('FLAGS_DERIVED_FROM_TEMPLATE')
     const next = mergeSettings(state, patch, new Date())
     // เปิดรายเดือนกลับมาหลังปิด (E-8): cache attachCycleToDaily ตามที่เทมเพลตขอ — ปิดแล้ว mergeSettings ล้างไปแล้ว
-    const parsed = template !== null ? validateTemplate(template) : null
     if (parsed?.ok && patch.monthlyEnabled !== undefined) next.attachCycleToDaily = next.monthlyEnabled && deriveFlags(parsed.template).attachCycleToDaily
     await tx.lineReportGroup.update({ where: { id: groupId }, data: next })
   })
