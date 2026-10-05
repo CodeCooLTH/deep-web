@@ -18,11 +18,9 @@ import DateRangeControl from '../../_shared/DateRangeControl'
 type Props = {
   range: DateRangePreset
   customDates: [string, string] | null
-  /** ชื่อกลุ่มปุ่มสำหรับ screen reader (ไม่ส่ง = "ช่วงเวลา" ตามเดิม) */
-  ariaLabel?: string
 }
 
-const SalesDateRange = ({ range, customDates, ariaLabel }: Props) => {
+const SalesDateRange = ({ range, customDates }: Props) => {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -57,7 +55,6 @@ const SalesDateRange = ({ range, customDates, ariaLabel }: Props) => {
       range={localRange}
       customDates={customDates}
       pending={pending}
-      ariaLabel={ariaLabel}
       onRangeChange={(next) => {
         setLocalRange(next)
         if (next !== 'custom') go(next, null)

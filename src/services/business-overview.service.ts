@@ -12,30 +12,18 @@ import { resolveDataCompleteness } from '@/lib/finance-tabs'
 import {
   financeHrefFor,
   marginPercent,
-  summarizeOverview,
-  sumSeries,
   periodRange,
   aggregateSalesSeries,
   buildStack,
   buildPortfolio,
-  type OverviewCard,
-  type OverviewTotals,
   type PortfolioMode,
   type AdditiveSalesSeries,
   type ComparisonRow,
   type PortfolioTotals,
 } from '@/lib/business-overview'
-import { resolveDateRange, type ResolvedDateRange } from '@/lib/date-range'
+import { resolveDateRange } from '@/lib/date-range'
 import { getPnlReport } from '@/services/pnl.service'
 import { getSalesSeries } from '@/services/dashboard.service'
-
-export type BusinessOverview = {
-  totals: OverviewTotals
-  cards: OverviewCard[]
-  series: { labels: string[]; revenue: number[]; netProfit: number[] } | null
-  /** "YYYY-MM" ของเดือนที่กราฟแสดง (เดือนที่ช่วงเวลาจบ) */
-  seriesMonth: string
-}
 
 /**
  * ร้านที่ผู้ใช้เห็นในภาพรวม — query เดียว แยกออกมาให้หน้าเช็คก่อน render
@@ -75,81 +63,6 @@ export async function listOverviewShops(userId: string) {
 }
 
 export type OverviewShop = Awaited<ReturnType<typeof listOverviewShops>>[number]
-
-/**
- * @param preloaded ผลจาก listOverviewShops — ไม่ส่ง = query เอง
- * @returns null = ไม่มีร้านเข้าเงื่อนไข → ไม่ render ส่วนนี้
- */
-export async function getBusinessOverview(
-  userId: string,
-  range: ResolvedDateRange,
-  rangeQs: string,
-  preloaded?: OverviewShop[],
-): Promise<BusinessOverview | null> {
-  const shops = preloaded ?? (await listOverviewShops(userId))
-  if (shops.length === 0) return null
-
-  // label.end = วันที่ปฏิทินไทย "YYYY-MM-DD" ⇒ ไม่ต้องคำนวณ timezone เอง
-  const [year, month] = range.label.end.split('-').map(Number)
-
-  const results = await Promise.allSettled(
-    shops.map(async (shop) => {
-      const [report, expenseCount, series] = await Promise.all([
-        getPnlReport(shop.id, range, shop.vertical),
-        prisma.expense.count({
-          where: { shopId: shop.id, expenseDate: { gte: range.expenseRange.gte, lt: range.expenseRange.lt } },
-        }),
-        getSalesSeries(shop.id, 'daily', { year, month }, true, shop.vertical),
-      ])
-      return { report, expenseCount, series }
-    }),
-  )
-
-  const cards: OverviewCard[] = []
-  const seriesList: Parameters<typeof sumSeries>[0] = []
-  shops.forEach((shop, i) => {
-    const base = {
-      shopId: shop.id,
-      shopName: shop.shopName,
-      logoUrl: toFileUrl(shop.logo ?? null),
-      vertical: shop.vertical,
-      href: financeHrefFor(shop.vertical, rangeQs),
-    }
-    const r = results[i]
-    if (r.status === 'rejected') {
-      console.error('[business-overview] shop failed', shop.id, r.reason)
-      cards.push({ ...base, status: 'ERROR', revenue: 0, netProfit: 0, marginPct: null, orderCount: 0, missingCost: false, missingExpense: false })
-      return
-    }
-    const { report, expenseCount, series } = r.value
-    // ใช้แค่ missingCost/missingExpense — การ์ดไม่มีปุ่มตั้งราคาทุน จึงไม่ต้องนับรายการ
-    const completeness = resolveDataCompleteness({
-      hasMissingCost: report.hasMissingCost,
-      expenseCount,
-      uncostedItemCount: 0,
-      soldItemCount: 0,
-    })
-    cards.push({
-      ...base,
-      status: 'OK',
-      revenue: report.revenue,
-      netProfit: report.netProfit,
-      marginPct: marginPercent(report.revenue, report.netProfit),
-      orderCount: report.orderCount,
-      missingCost: completeness.missingCost,
-      missingExpense: completeness.missingExpense,
-    })
-    seriesList.push(series)
-  })
-
-  const { totals, cards: sorted } = summarizeOverview(cards)
-  return {
-    totals,
-    cards: sorted,
-    series: sumSeries(seriesList),
-    seriesMonth: `${year}-${String(month).padStart(2, '0')}`,
-  }
-}
 
 // ─── v1.1 (2026-10-05) — SDS ส่วนแก้ไข v1.1 V1.1-3 ─────────────────────────────────────────
 

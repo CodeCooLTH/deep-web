@@ -4,16 +4,8 @@
  * แยกจาก JSX เพื่อให้เทสจับได้ (docs/conventions/ui-boolean-needs-a-testable-home.md)
  * ไม่มีสูตรเงินใหม่ — รับตัวเลขจาก business-overview.ts อย่างเดียว
  */
-import { DATE_RANGE_OPTIONS, type DateRangePreset } from '@/lib/date-range'
-import { formatDate, formatMonthYearTH } from '@/lib/format-date'
-
-/** % margin บนการ์ด: ยอดขาย 0 → "—" · ข้อมูลไม่ครบ (เพดานบน) → "ไม่เกิน x%" ตาม precedent 00067 */
-export function marginText(marginPct: number | null, incomplete: boolean): string {
-  if (marginPct === null) return '—'
-  // ติดลบ = ขาดทุนแน่นอนแล้ว ไม่ใช่เพดาน จึงไม่ใส่ "ไม่เกิน"
-  if (incomplete && marginPct >= 0) return `ไม่เกิน ${marginPct.toFixed(1)}%`
-  return `อัตรากำไร ${marginPct.toFixed(1)}%`
-}
+import { formatMonthYearTH, toBuddhistYear } from '@/lib/format-date'
+import type { PortfolioMode } from '@/lib/business-overview'
 
 /** ป้ายข้อมูลไม่ครบบนการ์ดร้าน — ขาดทั้งคู่ = 2 ป้าย */
 export function shopIncompleteBadges(
@@ -44,28 +36,97 @@ export function financeBasisNote(mixedFinanceRules: boolean): string | null {
     : null
 }
 
-/** ยอดรวมไม่รวมร้านที่คำนวณล้ม */
-export function excludedShopsNote(failedShopNames: string[]): string | null {
-  return failedShopNames.length > 0 ? `ยอดรวมยังไม่รวมร้าน ${failedShopNames.join(', ')}` : null
+// ─── v1.1 (2026-10-05) ช่วงเวลารายวัน/รายเดือน + กราฟแท่งซ้อน + ตารางเทียบ ─────────────────────────
+
+export const PORTFOLIO_TITLE = 'ภาพรวมทุกธุรกิจ'
+/** หัวการ์ดบนมือถือ + หัวชีต (spec: "ยอดขายทุกธุรกิจ") */
+export const PORTFOLIO_CARD_TITLE = 'ยอดขายทุกธุรกิจ'
+export const PORTFOLIO_BASIS_NOTE = 'ยอดขาย = ยืนยันแล้ว + รอยืนยัน · กำไรสุทธิ = ตามหน้าการเงินของร้าน'
+export const PORTFOLIO_PERSONAL_BADGE = 'ส่วนตัว · ไม่นับในยอดรวม'
+export const PORTFOLIO_EMPTY_TITLE = 'ช่วงนี้ยังไม่มียอดขาย — ลองเลื่อนไปช่วงก่อนหน้า'
+export const PORTFOLIO_ERROR_TEXT = 'โหลดข้อมูลไม่สำเร็จ ลองอีกครั้ง'
+export const PORTFOLIO_ROW_ERROR_TEXT = 'ดึงข้อมูลร้านนี้ไม่ได้'
+export const PORTFOLIO_INCOMPLETE_BADGE = 'ข้อมูลยังไม่ครบ'
+export const PORTFOLIO_INCOMPLETE_HINT = 'มีร้านที่ยังไม่ตั้งราคาทุนหรือยังไม่บันทึกค่าใช้จ่าย กำไรจริงจะน้อยกว่าตัวเลขนี้'
+
+/**
+ * โทเคนสีของกราฟแท่งซ้อนตามลำดับร้าน (ยอดมาก→น้อย) — เฉพาะสีกลาง
+ * ห้ามเขียว (alpha = ยืนยันแล้ว) · แดง/เหลือง (beta/gamma = error/warning) · chart-secondary (ม่วงบน skin อื่น)
+ * ชุดนี้มี chart-* กลางแค่ 4 ตัว แต่ buildStack ให้ได้ถึง 5 ซีรีส์ (≤5 ร้านไม่มี "อื่น ๆ") ⇒ ตัวที่ 5 ใช้เทากลาง
+ */
+export const STACK_COLOR_TOKENS = ['chart-primary', 'chart-dark', 'chart-delta', 'chart-zeta', 'default-600'] as const
+export const OTHERS_COLOR_TOKEN = 'default-400'
+
+/** โทเคนสีของซีรีส์ลำดับที่ index — "อื่น ๆ" เป็นเทาอ่อนเสมอ ไม่กินสีลำดับ */
+export function stackColorToken(index: number, key: string, othersKey = 'others'): string {
+  if (key === othersKey) return OTHERS_COLOR_TOKEN
+  return STACK_COLOR_TOKENS[index % STACK_COLOR_TOKENS.length]
 }
 
-/** "เดือนนี้ · 01-10-2569 – 05-10-2569" */
-export function rangeSubtitle(preset: DateRangePreset, label: { start: string; end: string }): string {
-  const name = DATE_RANGE_OPTIONS.find((o) => o.value === preset)?.label ?? ''
-  return `${name} · ${formatDate(label.start)} – ${formatDate(label.end)}`
+/**
+ * จุดสีของแถวในตาราง — ต้องตรงกับแท่งในกราฟทุกร้าน
+ * ร้านที่ถูกรวมเป็น "อื่น ๆ" = เทาอ่อน · Personal/ร้านล้ม (ไม่อยู่ในกราฟ) = null (ไม่มีจุด)
+ */
+export function rowDotToken(
+  stack: { key: string }[],
+  row: { shopId: string; isPersonal: boolean; status: 'OK' | 'ERROR' },
+  othersKey = 'others',
+): string | null {
+  if (row.isPersonal || row.status === 'ERROR') return null
+  const i = stack.findIndex((s) => s.key === row.shopId)
+  if (i >= 0) return stackColorToken(i, row.shopId, othersKey)
+  return stack.some((s) => s.key === othersKey) ? OTHERS_COLOR_TOKEN : null
 }
 
-/** กราฟแสดงทั้งเดือนที่ช่วงจบเสมอ — ถ้าช่วงที่เลือกไม่ใช่ "เดือนนี้" ต้องบอก */
-export function chartMonthNote(preset: DateRangePreset, seriesMonth: string): string | null {
-  return preset === 'month' ? null : `กราฟแสดงทั้งเดือน ${formatMonthYearTH(`${seriesMonth}-01`)} ไม่ได้ตามช่วงที่เลือก`
+/** "อื่น ๆ (N ร้าน)" — N = จำนวนร้านที่ถูกรวม = ร้านใน stack ทั้งหมดที่ไม่ได้ถูกแยก */
+export function othersLabel(count: number): string {
+  return `อื่น ๆ (${count} ร้าน)`
 }
 
-/** มีกราฟให้วาดไหม — ยอดขาย 0 ทุกวัน = empty state (การ์ดร้านยังแสดงตามปกติ) */
-export function hasChartData(series: { revenue: number[] } | null): boolean {
-  return !!series && series.revenue.some((v) => v > 0)
+/** บรรทัด "ยอดรวมนี้ยังไม่รวม n ร้าน" — เฉพาะ BUSINESS ที่ล้ม */
+export function excludedCountNote(failedCount: number): string | null {
+  return failedCount > 0 ? `ยอดรวมนี้ยังไม่รวม ${failedCount} ร้าน` : null
 }
 
-/** label ของ getSalesSeries daily คือ "1".."31" → ISO "YYYY-MM-DD" เพื่อให้ formatDate/formatDayMonth ใช้ต่อได้ */
-export function chartDates(seriesMonth: string, labels: string[]): string[] {
-  return labels.map((l) => `${seriesMonth}-${l.padStart(2, '0')}`)
+export type PortfolioPeriod = { mode: PortfolioMode; year: number; month: number }
+
+/** "ต.ค. 2569" / "ปี 2569" */
+export function portfolioPeriodLabel(p: PortfolioPeriod): string {
+  return p.mode === 'daily'
+    ? formatMonthYearTH(new Date(Date.UTC(p.year, p.month - 1, 15)))
+    : `ปี ${toBuddhistYear(p.year)}`
+}
+
+/** ช่วงที่เลือกเป็นช่วงปัจจุบัน (หรืออนาคต) ไหม — ปิดปุ่ม › */
+export function isCurrentOrFuturePeriod(p: PortfolioPeriod, now: { year: number; month: number }): boolean {
+  return p.mode === 'daily' ? p.year * 12 + p.month >= now.year * 12 + now.month : p.year >= now.year
+}
+
+/** เลื่อนช่วง ‹ › — ข้ามปีได้ · เลื่อนไปอนาคตไม่ได้ (คืนค่าเดิม) */
+export function shiftPeriod(p: PortfolioPeriod, dir: -1 | 1, now: { year: number; month: number }): PortfolioPeriod {
+  if (dir === 1 && isCurrentOrFuturePeriod(p, now)) return p
+  if (p.mode === 'monthly') return { ...p, year: p.year + dir }
+  const idx = p.year * 12 + (p.month - 1) + dir
+  return { ...p, year: Math.floor(idx / 12), month: (idx % 12) + 1 }
+}
+
+/** สลับโหมด → กลับไปช่วงปัจจุบันของโหมดนั้นเสมอ (ชุดเดียวกับ SalesChartSheet) */
+export function switchPeriodMode(mode: PortfolioMode, now: { year: number; month: number }): PortfolioPeriod {
+  return { mode, year: now.year, month: now.month }
+}
+
+/** query ของ GET /api/seller/portfolio-series — monthly ไม่ส่ง month */
+export function portfolioSeriesQuery(p: PortfolioPeriod): string {
+  const qs = new URLSearchParams({ mode: p.mode, year: String(p.year) })
+  if (p.mode === 'daily') qs.set('month', String(p.month))
+  return qs.toString()
+}
+
+/** aria ของกราฟ — role="img" ต้องมีสรุปตัวเลข */
+export function portfolioChartAria(totalSales: string, periodLabel: string): string {
+  return `กราฟแท่งซ้อนยอดขายแยกตามธุรกิจ ${periodLabel} ยอดขายรวม ${totalSales}`
+}
+
+export function rowAriaLabel(shopName: string): string {
+  return `เปิดร้าน ${shopName}`
 }

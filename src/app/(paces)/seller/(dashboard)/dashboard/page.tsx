@@ -47,9 +47,8 @@ import { getT } from '@/i18n/server'
 import { byVertical } from '@/i18n/vertical'
 import { getServerSession } from 'next-auth'
 import { sessionUserId } from '@/lib/session-user'
-import { resolveRangeFromParams } from '@/lib/date-range'
-import PortfolioOverview from './components/PortfolioOverview'
-import { listOverviewShops, type OverviewShop } from '@/services/business-overview.service'
+import PortfolioPanel from './components/PortfolioPanel'
+import { getPortfolioSeries, listOverviewShops, type OverviewShop, type PortfolioSeries } from '@/services/business-overview.service'
 import RecentOrder from './components/RecentOrder'
 import SalesReport from './components/SalesReport'
 import StatisticCard from './components/StatisticCard'
@@ -120,13 +119,7 @@ const LEVEL_COLOR: Record<string, string> = {
 
 // stat card data รับ live values จากนั้น fallback 0 ถ้ายังไม่มี session
 
-export default async function SellerDashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ range?: string; start?: string; end?: string; from?: string; to?: string }>
-}) {
-  // ช่วงเวลาของส่วน "ภาพรวมทุกธุรกิจ" (00069) — ?range=&start=&end= แยกจาก cookie seller_dashboard_range ด้านล่าง
-  const portfolioRange = resolveRangeFromParams(await searchParams, 'month')
+export default async function SellerDashboardPage() {
   // filter ช่วงเวลา (desktop) — ค่าที่ไม่รู้จัก/ไม่มี cookie ตกเป็น 'month' (พฤติกรรมเดิมของหน้า)
   const range: DashboardRange =
     (await cookies()).get('seller_dashboard_range')?.value === 'today' ? 'today' : 'month'
@@ -211,6 +204,9 @@ export default async function SellerDashboardPage({
   // บริบท Personal เท่านั้นที่เห็น "ภาพรวมทุกธุรกิจ" — resolve ใน try ด้านล่างจาก requireActiveShop
   // ร้านที่เข้าเงื่อนไข (query เดียว) — ว่าง = ไม่ mount ส่วนนี้ ไม่มี skeleton วาบ
   let portfolioShops: OverviewShop[] = []
+  // ยอดรวมทุกธุรกิจของเดือนปัจจุบัน (รายวัน) — ผลก้อนเดียวใช้ทั้งการ์ดมือถือ (aggregate) และแผง desktop
+  // null = ไม่เข้าเงื่อนไข หรือล้มทั้งก้อน → มือถือใช้ series ของร้าน Personal ตามเดิม · desktop ไม่ render ส่วนนี้
+  let portfolio: PortfolioSeries | null = null
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -334,6 +330,15 @@ export default async function SellerDashboardPage({
 
         // perf: query เหล่านี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
         // wall time = max(query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
+        // 00069 v1.1: ยิงขนานกับ query ชุดล่าง (เริ่มก่อน await) — .catch ในตัวกัน unhandled rejection ระหว่างรอ
+        const portfolioPromise: Promise<PortfolioSeries | null> =
+          active?.kind === 'PERSONAL' && portfolioShops.length > 0
+            ? getPortfolioSeries(portfolioShops, shop, 'daily', currentYear, currentMonth).catch((err) => {
+                console.error('[portfolio-series] page', err)
+                return null
+              })
+            : Promise.resolve(null)
+
         const [statusRes, shippingStageRes, appointmentTodayRes, balanceRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes, channelRes, activityRes, provinceRes] =
           await Promise.allSettled([
             getOrderStatusCounts(shop.id),
@@ -426,6 +431,13 @@ export default async function SellerDashboardPage({
         // Sales Chart mini card — fallback null ถ้าล้ม → SalesChartCard ซ่อนตัวเอง (honest-hide)
         if (salesSeriesRes.status === 'fulfilled') mobileSalesSeries = salesSeriesRes.value
         else console.error('[dashboard] getSalesSeries failed', salesSeriesRes.reason)
+
+        // 00069 v1.1: การ์ดมือถือ = ยอดรวมทุกธุรกิจ (ชุดเดียวกับแผง desktop) · aggregate ว่าง (ทุกร้านธุรกิจล้ม) = ไม่มีกราฟให้วาด
+        // → คงการ์ดของร้าน Personal ไว้ แต่แผง desktop ยังแสดงแถว ERROR ให้ผู้ใช้เห็นว่าดึงอะไรไม่ได้
+        portfolio = await portfolioPromise
+        if (portfolio && portfolio.aggregate.labels.length > 0) {
+          mobileSalesSeries = portfolio.aggregate as SalesChartSeries
+        }
 
         // ช่องทางการขาย — ล้ม = [] → การ์ดขึ้น empty state ("เดือนนี้ยังไม่มีออเดอร์")
         if (channelRes.status === 'fulfilled') salesChannels = channelRes.value
@@ -573,18 +585,6 @@ export default async function SellerDashboardPage({
 
   return (
     <>
-      {/* ภาพรวมทุกธุรกิจ (00069) — mount ครั้งเดียวเหนือทั้งสอง tree: ถ้าวางซ้ำแล้วซ่อนด้วย CSS
-          ApexChart จะ mount 2 ตัว (ตัวใน display:none วัดความกว้างได้ 0) และ query ยิงสองรอบ */}
-      {portfolioShops.length > 0 && (
-        <PortfolioOverview
-          userId={sessionUserId(session) as string}
-          shops={portfolioShops}
-          preset={portfolioRange.preset}
-          custom={portfolioRange.custom}
-          resolved={portfolioRange.resolved}
-        />
-      )}
-
       {/* Onboarding checklist + modal ย้ายไป sidebar (seller layout sidenavFooterSlot) — ไม่อยู่ใน dashboard body แล้ว */}
 
       {/* ─── Mobile: Command Center (< lg) ─────────────────────────────────────
@@ -623,6 +623,9 @@ export default async function SellerDashboardPage({
             bestSellers,
             // Sales Chart การ์ด mini — ยอดขายรายวันเดือนปัจจุบัน (null=ซ่อนการ์ด)
             salesSeries: mobileSalesSeries,
+            // 00069 v1.1: มีค่า = หัวการ์ดเป็น "ยอดขายทุกธุรกิจ" + กดเปิดชีตรวม (ต้องไปคู่กับ salesSeries = aggregate)
+            portfolio:
+              portfolio && portfolio.aggregate.labels.length > 0 ? { initial: portfolio } : null,
             // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero)
             packageStatus,
             packageTier,
@@ -646,6 +649,13 @@ export default async function SellerDashboardPage({
             DashboardRangeFade จางเนื้อหาระหว่างรอ RSC refresh ตอนสลับช่วง */}
         <DashboardRangeProvider initialRange={range}>
           <PageBreadcrumb title={t.dashboard.pageTitle} trail={[{ label: t.dashboard.breadcrumbOverview }]} action={<DashboardRangePills />} />
+          {/* ภาพรวมทุกธุรกิจ (00069 v1.1) — แถวแรกของ tree desktop เท่านั้น (มือถือใช้การ์ดยอดขายทุกธุรกิจแทน)
+              ช่วงเวลามีตัวควบคุมของตัวเอง จึงอยู่นอก DashboardRangeFade (ไม่ให้จางตามฟิลเตอร์วันนี้/เดือนนี้ของหน้า) */}
+          {portfolio && (
+            <div className="mb-base">
+              <PortfolioPanel initial={portfolio} variant="card" />
+            </div>
+          )}
           <DashboardRangeFade>
 
         {/* แถว 1: UserCard + StatCards (5 คอล) | ช่องทางการขาย (7 คอล)

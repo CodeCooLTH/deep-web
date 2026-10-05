@@ -12,6 +12,8 @@
 // import มาใช้ใน CommandCenterData + re-export เพื่อ backward compat กับ component ที่ import จาก _constants
 // ไม่ circular: _constants ไม่ถูก import โดย activity.service → OK
 import type { ActivityItem } from '@/services/activity.service'
+// type-only (ลบทิ้งตอน compile) — ไม่พา prisma เข้า client bundle
+import type { PortfolioSeries } from '@/services/business-overview.service'
 export type { ActivityItem }
 
 // ─── Business Package (แถบแพ็กเกจร้านค้าบนมือถือ — Row 3 ของ CompactHero) ────
@@ -92,6 +94,8 @@ export type CommandCenterData = {
   // Sales Chart (feature Quick Create + Sales Chart) — ยอดขายรายวัน (เดือนปัจจุบัน) สำหรับการ์ด mini + full sheet
   // null/undefined = fetch ล้ม → SalesChartCard ซ่อนตัวเอง (honest-hide ไม่ใช่ error state บน command center)
   salesSeries?: SalesSeries | null
+  // 00069 v1.1: บริบท Personal + มีร้านธุรกิจจ่ายแล้ว → การ์ดยอดขายเป็น "ยอดขายทุกธุรกิจ" (salesSeries = initial.aggregate)
+  portfolio?: { initial: PortfolioSeries } | null
   // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero) — ตั้งชื่อ packageStatus/packageTier
   // (ไม่ใช่ tier/tierLabel เปล่า ๆ) กันชนกับ tierName (trust tier ด้านบน — คนละเรื่อง)
   // มิเรอร์ businessPackageStatus/businessPackageTier ใน (dashboard)/layout.tsx
