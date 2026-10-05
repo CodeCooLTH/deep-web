@@ -14,7 +14,7 @@
 
 import logoSm from '@/assets/images/logo-deep-mark.png'
 import { relativeTimeTh } from '@/lib/relative-time-th'
-import type { ChatMessageToastPayload, PacesToastType } from '@/lib/paces-toast'
+import type { ChatMessageToastPayload, PacesToastOptions, PacesToastType } from '@/lib/paces-toast'
 import { ChannelBadgeOverlay } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
 import { generateInitials } from '@/utils/helpers'
 import { Icon } from '@iconify/react'
@@ -71,9 +71,11 @@ interface Props {
   onClose: (id: number) => void
   /** มีค่า = toast แจ้งข้อความใหม่ (หน้าตาแบบ notification) แทน alert ปกติ */
   chatMessage?: ChatMessageToastPayload
+  /** ปุ่มทำต่อ (Base: ui/notifications/page.tsx ~135 "Take action") — alert ปกติเท่านั้น */
+  action?: PacesToastOptions['action']
 }
 
-export default function PacesToastItem({ id, type, message, duration, onClose, chatMessage }: Props) {
+export default function PacesToastItem({ id, type, message, duration, onClose, chatMessage, action }: Props) {
   const router = useRouter()
   const [visible, setVisible] = useState(false)
   const [leaving, setLeaving] = useState(false)
@@ -220,6 +222,20 @@ export default function PacesToastItem({ id, type, message, duration, onClose, c
         <Icon icon={variant.icon} className={`${variant.color} mt-0.5 size-4 shrink-0`} />
         <span className="text-default-700">{message}</span>
       </div>
+      {action && (
+        <div className="px-3 pb-3">
+          <button
+            type="button"
+            onClick={() => {
+              action.onClick()
+              dismiss()
+            }}
+            className="btn bg-primary hover:bg-primary-hover min-h-11 text-white lg:min-h-0"
+          >
+            {action.label}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

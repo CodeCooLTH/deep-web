@@ -25,6 +25,11 @@ export interface PacesToastOptions {
   duration?: number
   /** มุมที่จะแสดง — default 'top-right' (action) */
   placement?: PacesToastPlacement
+  /**
+   * ปุ่มทำต่อบน toast (เช่น "ย้อนกลับ") — กดแล้วเรียก onClick และปิด toast
+   * ทำไม: การกระทำที่ไม่ถามก่อน (เอาบล็อกออก) ต้องมีทางถอยที่เห็นทันที แทน modal (feature 00070 FR-EXT-11 AC-9)
+   */
+  action?: { label: string; onClick: () => void }
 }
 
 export interface PacesToastDetail {
@@ -32,6 +37,7 @@ export interface PacesToastDetail {
   message: string
   duration: number
   placement: PacesToastPlacement
+  action?: PacesToastOptions['action']
   /** payload ของ toast แจ้งข้อความใหม่ — มีเฉพาะตอนเรียกผ่าน pacesToast.chat.message() */
   chatMessage?: ChatMessageToastPayload
 }
@@ -81,6 +87,7 @@ function emit(
     message,
     duration: options?.duration ?? DEFAULT_DURATION,
     placement: options?.placement ?? 'top-right',
+    ...(options?.action ? { action: options.action } : {}),
     ...(chatMessage ? { chatMessage } : {}),
   }
   window.dispatchEvent(new CustomEvent<PacesToastDetail>(PACES_TOAST_EVENT, { detail }))
