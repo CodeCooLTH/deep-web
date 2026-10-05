@@ -4978,6 +4978,12 @@ model LineReportGroup {
   skipWhenNoOrders   Boolean               @default(false)
   attachCycleToDaily Boolean               @default(false)
   profitEnabledAt    DateTime?
+  // 🛑 CHECK ที่ Prisma ไม่รู้จัก (เขียนมือใน migration 20261005200000_line_report_template — ห้าม db pull/migrate dev ทับ):
+  //   LineReportGroup_template_size_chk (template NULL หรือ octet_length(template::text) <= 16384)
+  //   LineReportGroup_template_version_chk (templateVersion >= 0)
+  // template NULL = แบบมาตรฐาน · templateVersion = ตัวนับ optimistic lock (+1 ทุก PUT/DELETE)
+  template           Json?
+  templateVersion    Int                   @default(0)
   finalNoticeSentAt  DateTime?
   alertKind          LineReportAlertKind?
   alertAt            DateTime?
