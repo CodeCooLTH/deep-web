@@ -1,5 +1,5 @@
 /**
- * line-report-send.service.ts — ส่งรายงานเข้ากลุ่ม LINE: claim → คำนวณ → เก็บ payload → push → จัดผล (00068 · SRS TFR-10/12/18/19 · SDS §3.4)
+ * line-report-send.service.ts — ส่งรายงานเข้ากลุ่ม LINE: claim → คำนวณ → เก็บ payload → push → จัดผล (00070 · SRS TFR-10/12/18/19 · SDS §3.4)
  *
  * 🛑 ที่เดียวที่เรียก `pushToGroup` (command.service ใช้ reply เท่านั้น)
  * 🛑 claim ใช้ `claimSlots` (createMany skipDuplicates) — ห้ามดัก error unique (insert-then-catch เขียน ERROR ลง log ทุกใบ)

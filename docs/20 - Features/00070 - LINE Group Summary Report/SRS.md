@@ -1,5 +1,5 @@
 ---
-title: "SRS — 00068 รายงานสรุปยอดเข้ากลุ่ม LINE (Technical)"
+title: "SRS — 00070 รายงานสรุปยอดเข้ากลุ่ม LINE (Technical)"
 owner: shinobu22
 status: approved
 module: M68-LineGroupSummary
@@ -9,7 +9,7 @@ tags: [feature, srs, line, report, cron, webhook, flex]
 related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[LINE-API-Facts]]", "[[SDS]]", "[[API]]"]
 ---
 
-> **โมดูล:** M68-LineGroupSummary (00068) · **ประเภท:** SRS (Technical) · **เวอร์ชัน:** 1.0 · **วันที่:** 2026-10-05 · **สถานะ:** Approved 2026-10-05 (Controller ตัดสิน NOTES แล้ว — ดู [[SDS]] §12)
+> **โมดูล:** M68-LineGroupSummary (00070) · **ประเภท:** SRS (Technical) · **เวอร์ชัน:** 1.0 · **วันที่:** 2026-10-05 · **สถานะ:** Approved 2026-10-05 (Controller ตัดสิน NOTES แล้ว — ดู [[SDS]] §12)
 > **เจ้าของเอกสาร:** SA · ต้นทาง: [[PRD]] + [[BRD]] (อนุมัติแล้ว) · สัญญาข้อมูล: [[DATABASE]] (ห้ามเปลี่ยนชื่อโมเดล/ฟิลด์ — ปัญหาที่พบยกเป็น issue ท้าย SRS) · ข้อเท็จจริง LINE: [[LINE-API-Facts]]
 
 # SRS: รายงานสรุปยอดเข้ากลุ่ม LINE

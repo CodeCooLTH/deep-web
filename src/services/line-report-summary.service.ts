@@ -1,5 +1,5 @@
 /**
- * line-report-summary.service.ts — ประกอบตัวเลขสรุปของกลุ่ม LINE (00068 · SDS §3.3 · SRS TFR-LGS-13/14)
+ * line-report-summary.service.ts — ประกอบตัวเลขสรุปของกลุ่ม LINE (00070 · SDS §3.3 · SRS TFR-LGS-13/14)
  *
  * 🛑 HR16: ไม่มีสูตรยอดขาย/กำไรของตัวเองในไฟล์นี้ — เรียก SSOT เดิมแล้ว "ตัดวัน/บวก" เท่านั้น
  *   ออเดอร์/ยอดขาย/ยังไม่นับ → getSalesSeries · ยกเลิก → countCancelledOrders

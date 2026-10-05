@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
   try {
     // service ตรวจ blockers + ข้อความยืนยันซ้ำเองทั้งคู่ (fail-closed) — route ไม่ต้องเช็คก่อน
     const { purgeAt, lineGroupsToLeave } = await deleteAccount(userId, confirmText)
-    // บอทรายงานกลุ่ม LINE (00068 TFR-24) ออกจากกลุ่มที่เคย ACTIVE — best-effort หลัง commit:
+    // บอทรายงานกลุ่ม LINE (00070 TFR-24) ออกจากกลุ่มที่เคย ACTIVE — best-effort หลัง commit:
     // ล้ม/ช้าต้องไม่ทำให้การลบบัญชีล้ม (บัญชีถูกปิดไปแล้ว) · ไม่ log ข้อความ error (อาจมี URL/id)
     await Promise.allSettled(lineGroupsToLeave.map((id) => leaveGroup(id)))
     return NextResponse.json({ ok: true, purgeAt: purgeAt.toISOString() })

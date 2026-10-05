@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * GroupDetailClient — หน้าตั้งค่ากลุ่ม LINE (ผูกแล้ว / บอทถูกนำออก): แบนเนอร์ + ตั้งค่า autosave + พรีวิว + คำสั่ง + ประวัติ · feature 00068 · E3
+ * GroupDetailClient — หน้าตั้งค่ากลุ่ม LINE (ผูกแล้ว / บอทถูกนำออก): แบนเนอร์ + ตั้งค่า autosave + พรีวิว + คำสั่ง + ประวัติ · feature 00070 · E3
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/pages/pricing/page.tsx (page shell ที่ [groupId]/page.tsx) · ui/cards/page.tsx (.card ทุกใบ)
  *   · form/elements/components/ChecksRadioSwitches.tsx + InputTextfieldType.tsx (ฟอร์ม) · plugins/sweet-alerts/components/SweetAlerts.tsx (confirm)

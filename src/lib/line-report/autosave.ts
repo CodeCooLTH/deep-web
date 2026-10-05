@@ -1,5 +1,5 @@
 /**
- * autosave — ส่วน pure ของ useAutosave (00068 · addendum E §4.4) · ตัดสินว่า patch รวมกันอย่างไร / response ทับ state ตรงไหน / error ทำอะไร
+ * autosave — ส่วน pure ของ useAutosave (00070 · addendum E §4.4) · ตัดสินว่า patch รวมกันอย่างไร / response ทับ state ตรงไหน / error ทำอะไร
  *
  * ทำไมแยกจาก hook: กติกา "response ของคำขอเก่าห้ามกระโดดทับสิ่งที่ผู้ใช้เพิ่งกด" ต้องมีเทส mutation จับ
  */

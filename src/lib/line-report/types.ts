@@ -1,5 +1,5 @@
 /**
- * types.ts — สัญญาข้อมูลของ feature 00068 (รายงานสรุปยอดเข้ากลุ่ม LINE) · SDS §3.1/§3.2
+ * types.ts — สัญญาข้อมูลของ feature 00070 (รายงานสรุปยอดเข้ากลุ่ม LINE) · SDS §3.1/§3.2
  *
  * 🛑 string union ด้านล่างต้อง **ตรงกับ enum ใน prisma/schema.prisma** (DATABASE.md §3) ทุกตัวอักษร —
  * ไม่ import `@prisma/client` ตั้งใจ: lib ชุดนี้เป็น pure ใช้เทสได้โดยไม่ต้อง generate schema

@@ -1,5 +1,5 @@
 /**
- * line-report-shop.service.ts — ร้านที่รวมในรายงานกลุ่ม LINE (00068 · SRS TFR-08/16)
+ * line-report-shop.service.ts — ร้านที่รวมในรายงานกลุ่ม LINE (00070 · SRS TFR-08/16)
  *
  * 🛑 reportable = `userId=owner ∧ ¬deleted ∧ ¬purged ∧ ¬locked` กรองที่ query แรก — ห้ามใช้ `listAccessibleShopIds`
  * (นั่นรวมร้านที่เป็น ADMIN ของเจ้าของอื่น = รั่วตัวเลขร้านคนอื่นเข้ากลุ่ม)

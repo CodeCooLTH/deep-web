@@ -199,7 +199,7 @@ export const sellerMenuItems: MenuItemType[] = [
       // แสดงเฉพาะ owner ของ Business shop (ซ่อน runtime ด้วย applyStaffMenu ด้านล่าง — mirror applyInventoryGate)
       // icon 'users-group' verified มีจริงใน tabler set (api.iconify.design/tabler.json?icons=users-group → found)
       { url: '/admins', slug: 'seller:admins', label: 'พนักงาน', icon: 'users-group' },
-      // feature 00068 — รายงานสรุปยอดเข้ากลุ่ม LINE · เฉพาะ owner (ซ่อนด้วย applyLineReportMenu)
+      // feature 00070 — รายงานสรุปยอดเข้ากลุ่ม LINE · เฉพาะ owner (ซ่อนด้วย applyLineReportMenu)
       // 🛑 ห้ามใส่ slug นี้ใน *_ONLY_SLUGS (เห็นทุก vertical) และห้ามผูก hidePaidFeatures/hidePayments —
       // หน้าอธิบายเองว่าล็อกเพราะอะไรและ CTA ตามกฎ shell (ดู TFR-LGS-02) · icon 'brand-line' ยืนยันมีใน tabler
       { url: '/business/line-reports', slug: 'seller:line-reports', label: 'รายงานเข้ากลุ่ม LINE', icon: 'brand-line' },
@@ -327,7 +327,7 @@ export function applyStaffMenu(
 }
 
 /**
- * applyLineReportMenu — ซ่อนเมนูรายงานเข้ากลุ่ม LINE จากผู้ที่ไม่ใช่ owner (feature 00068 TFR-LGS-03)
+ * applyLineReportMenu — ซ่อนเมนูรายงานเข้ากลุ่ม LINE จากผู้ที่ไม่ใช่ owner (feature 00070 TFR-LGS-03)
  *
  * ทำไมเช็คแค่ role: กลุ่มรายงานเป็นของ "เจ้าของบัญชี" (ผูกกับ User ไม่ใช่ร้าน) แอดมินร้านไม่มีสิทธิ์เลย
  * จึงซ่อนทั้งเมนู (ไม่ใช่ disable) — ด่านจริงอยู่ที่ route/service (`resolveReportAccess`)

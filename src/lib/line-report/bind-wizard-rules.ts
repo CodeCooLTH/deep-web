@@ -1,5 +1,5 @@
 /**
- * bind-wizard-rules — boolean/ข้อความที่ wizard ผูกกลุ่ม LINE ตัดสิน (00068 · addendum E §4.1) · pure
+ * bind-wizard-rules — boolean/ข้อความที่ wizard ผูกกลุ่ม LINE ตัดสิน (00070 · addendum E §4.1) · pure
  *
  * ทำไมอยู่ใน lib: ตามคอนเวนชัน `ui-boolean-needs-a-testable-home` — ปุ่มสร้างโค้ดกดได้เมื่อไหร่ต้องมีเทส mutation จับ
  * 🛑 ห้าม import `bind-code.ts` (ใช้ node crypto) — รูปโค้ดมีขีดมาจาก API แล้ว

@@ -1,5 +1,5 @@
 ---
-title: "TestCase — รายงานสรุปยอดเข้ากลุ่ม LINE (00068)"
+title: "TestCase — รายงานสรุปยอดเข้ากลุ่ม LINE (00070)"
 owner: shinobu22
 status: draft
 created: 2026-10-05
@@ -7,7 +7,7 @@ tags: [feature, test, line, report]
 related: ["[[BRD]]", "[[PRD]]", "[[DATABASE]]", "[[LINE-API-Facts]]"]
 ---
 
-> **โมดูล:** 00068 — LINE Group Summary Report
+> **โมดูล:** 00070 — LINE Group Summary Report
 > **ประเภทเอกสาร:** Test Case
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-05
@@ -549,7 +549,7 @@ flowchart TD
 
 ## 6. สรุป (Summary)
 
-เอกสารนี้กำหนดชุดเคสทดสอบของ **รายงานสรุปยอดเข้ากลุ่ม LINE (00068)** ที่ trace กลับ AC-LGS ใน [[BRD]] ทุกข้อ ครบ 8 ระดับ (unit · integration · route/webhook · cron · parity · App Store 3 shell · Playwright 3 viewport · mutation) · เคสสำคัญที่มักหลุด: `userId` หายใน payload, `mode: standby`, redelivery, 409 → SENT, 400 → ยืนยันด้วย summary 404, retry ด้วย payload เดิมทุกไบต์, รอบคร่อมเดือน, ร้านผสม vertical
+เอกสารนี้กำหนดชุดเคสทดสอบของ **รายงานสรุปยอดเข้ากลุ่ม LINE (00070)** ที่ trace กลับ AC-LGS ใน [[BRD]] ทุกข้อ ครบ 8 ระดับ (unit · integration · route/webhook · cron · parity · App Store 3 shell · Playwright 3 viewport · mutation) · เคสสำคัญที่มักหลุด: `userId` หายใน payload, `mode: standby`, redelivery, 409 → SENT, 400 → ยืนยันด้วย summary 404, retry ด้วย payload เดิมทุกไบต์, รอบคร่อมเดือน, ร้านผสม vertical
 
 **Open Questions:**
 - จำนวน route จริงใน `src/app/api/line-report/**` (TC-LGS-212) ยืนยันหลัง SRS/API.md ล็อก

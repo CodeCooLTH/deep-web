@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * BindWizard — ผูกกลุ่ม LINE 3 ขั้น (create / resume PENDING / rebind INACTIVE) · feature 00068 · E2
+ * BindWizard — ผูกกลุ่ม LINE 3 ขั้น (create / resume PENDING / rebind INACTIVE) · feature 00070 · E2
  *
  * Base: ไม่พบ theme match สำหรับ stepper (addendum E §9 ข้อ 2) — ใช้แพตเทิร์น `<ol>` + วงกลมเลขขั้นของ
  *   src/app/(paces)/seller/(dashboard)/settings/channels/LineChannelCard.tsx (LineConnectWizard)

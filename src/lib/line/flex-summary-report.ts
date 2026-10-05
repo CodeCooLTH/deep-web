@@ -1,5 +1,5 @@
 /**
- * flex-summary-report — Flex ของรายงานสรุปยอดเข้ากลุ่ม LINE (feature 00068 · SDS §3.1)
+ * flex-summary-report — Flex ของรายงานสรุปยอดเข้ากลุ่ม LINE (feature 00070 · SDS §3.1)
  *
  * pure: ไม่รู้จัก prisma/network · เงินใช้ `formatBaht` · กำไรใช้ `profitDisplay` (HR16) ·
  * วันที่/เวลาใช้ format-date กลาง — ห้ามเขียนรูปแบบเองในไฟล์นี้

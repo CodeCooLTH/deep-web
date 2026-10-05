@@ -1,5 +1,5 @@
 /**
- * feature 00068 U14 — ทางเข้า "รายงานเข้ากลุ่ม LINE" บน ShopQuickLinks + จุดแดง SellerBottomNav
+ * feature 00070 U14 — ทางเข้า "รายงานเข้ากลุ่ม LINE" บน ShopQuickLinks + จุดแดง SellerBottomNav
  * render จริงแล้วดู HTML (ไม่ใช่สแกนไฟล์) — กฎ app-store-surfaces: ยืนยันจากผลลัพธ์ของ component
  */
 import React from 'react'

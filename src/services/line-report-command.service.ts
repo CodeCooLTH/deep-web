@@ -1,5 +1,5 @@
 /**
- * line-report-command.service.ts — ประมวลผล event จาก webhook ของบอทรายงาน (00068 · SRS TFR-05/06/07/20 · SDS §4.2/§4.3)
+ * line-report-command.service.ts — ประมวลผล event จาก webhook ของบอทรายงาน (00070 · SRS TFR-05/06/07/20 · SDS §4.2/§4.3)
  *
  * 🛑 ตอบด้วย reply token เท่านั้น — ไฟล์นี้ห้าม import/เรียกฟังก์ชันส่งแบบ "ส่งหาเอง" ใด ๆ (เทสสแกนซอร์สไฟล์นี้)
  *    reply ไม่นับโควตา LINE; reply ล้ม/หมดอายุ = บันทึก log แล้วจบ ห้ามหาทางส่งแทน

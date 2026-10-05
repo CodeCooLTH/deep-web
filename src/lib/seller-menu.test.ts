@@ -55,7 +55,7 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:follow-ups',
         'seller:housekeepers',
         'seller:inbox',
-        // เพิ่ม 2026-10-05 — เมนู "รายงานเข้ากลุ่ม LINE" (feature 00068) slug ใหม่ล้วน = เพิ่มอย่างปลอดภัย
+        // เพิ่ม 2026-10-05 — เมนู "รายงานเข้ากลุ่ม LINE" (feature 00070) slug ใหม่ล้วน = เพิ่มอย่างปลอดภัย
         'seller:line-reports',
         // เพิ่ม 2026-09-05 — เมนู "แผนการตรวจสอบ" (feature 00060) เห็นเฉพาะ LODGING
         'seller:inspection',
@@ -373,7 +373,7 @@ describe('applyFinanceMenu — ยุบเมนูเรื่องเงิ�
   })
 })
 
-describe('applyLineReportMenu — เมนูรายงานเข้ากลุ่ม LINE (00068 TFR-LGS-03)', () => {
+describe('applyLineReportMenu — เมนูรายงานเข้ากลุ่ม LINE (00070 TFR-LGS-03)', () => {
   const has = (items: ReturnType<typeof resolveVisibleSellerMenu>) => slugsOf(flattenSellerMenu(items)).includes('seller:line-reports')
 
   it('OWNER เห็นทุก vertical · url/กลุ่ม/ไอคอนตามสเปก', () => {

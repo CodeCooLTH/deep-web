@@ -1,5 +1,5 @@
 /**
- * cancelled-order-count.service.ts — นับใบที่ยกเลิก "ที่เปิดในช่วงนี้" (00068 · TFR-LGS-13)
+ * cancelled-order-count.service.ts — นับใบที่ยกเลิก "ที่เปิดในช่วงนี้" (00070 · TFR-LGS-13)
  *
  * 🛑 SSOT ของคำว่า "ยกเลิก" ในรายงานกลุ่ม LINE — ต้องเท่ากับ `jobStatusCounts.cancelled` ของ
  * `getSalesSeries` (dashboard.service.ts: `status === 'CANCELLED'`, แกนเวลา `createdAt`)

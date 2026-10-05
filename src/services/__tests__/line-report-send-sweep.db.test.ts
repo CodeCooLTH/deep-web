@@ -1,5 +1,5 @@
 /**
- * 00068 U8 — integration ของ send.service + sweep.service กับ DB local (LINE mock ทั้งหมด · นาฬิกาปลอม)
+ * 00070 U8 — integration ของ send.service + sweep.service กับ DB local (LINE mock ทั้งหมด · นาฬิกาปลอม)
  *
  * 🛑 HR13/HR14: รันเฉพาะ DATABASE_URL = localhost:5434 (นอกนั้น skip) · ข้อมูลทุกชิ้นสร้างด้วย prefix `lrx-<run>` และลบ scope ด้วย id ที่เทสสร้าง
  * · `now` ปลอมอยู่ปี 2000 ⇒ predicate เวลาของ cleanup/sweep ไม่แตะแถวจริงของฐาน · `runSweep` ส่ง `groupIds` จำกัดวง
@@ -112,7 +112,7 @@ const row = (groupId: string, slotKey: string) => prisma.lineReportDelivery.find
 const grp = (id: string) => prisma.lineReportGroup.findUniqueOrThrow({ where: { id } })
 const SLOT = `D:${D}@18:00`
 
-describe.skipIf(!isLocal)('00068 send/sweep (DB, LINE mock)', () => {
+describe.skipIf(!isLocal)('00070 send/sweep (DB, LINE mock)', () => {
   let owner: string
   let shopA: string
   let shopB: string

@@ -1,4 +1,4 @@
-# Design Spec addendum: 00068 LINE Group Summary Report, UI phase E1/E2/E3/E4
+# Design Spec addendum: 00070 LINE Group Summary Report, UI phase E1/E2/E3/E4
 
 ผู้ออก: `safepay-ux` · 2026-10-05 · เสริมต่อจาก `docs/superpowers/specs/2026-10-05-line-group-summary-report-design.md` ("base spec")
 เมื่อขัดกัน **addendum นี้ชนะ base spec** ในจุดที่ระบุ ส่วนที่ไม่ได้พูดถึงให้ยึด base spec และ mockup ตามเดิม
@@ -6,7 +6,7 @@
 **อ่านแล้วก่อนเขียน:**
 - PRODUCT.md, DESIGN.md
 - impeccable `shape.md`, `operate.md`, `craft-floor.md` (พบที่ `~/.claude/plugins/cache/impeccable/impeccable/4.1.1/skills/impeccable/reference/`)
-- `API.md` ของ 00068, `presenter.ts`, `flex-summary-report.ts`, `bind-code.ts`, `config.ts`, `types.ts`
+- `API.md` ของ 00070, `presenter.ts`, `flex-summary-report.ts`, `bind-code.ts`, `config.ts`, `types.ts`
 - `line-report-access.service.ts`, `line-report-group.service.ts`, `line-report-shop.service.ts`
 - `ShopQuickLinks.tsx`, `SellerBottomNav.tsx`, `(dashboard)/layout.tsx`, `shop/page.tsx`, `business/page.tsx`, `QuotaUsageCard.tsx`, `LockedStateBanner.tsx`
 - `OrderAgentClient.tsx`, `FinanceVisibilityToggle.tsx`, `CopyLinkButton.tsx`, `app-shell-server.ts`, `paces-toast.ts`, `paces-swal.ts`
@@ -514,7 +514,7 @@ interface ShopQuickLinksProps {
 **ไฟล์ที่เกี่ยวข้อง (absolute):**
 - `/Users/craftman/orca/workspaces/safepay/Line-Group-Summary-Reports/docs/superpowers/specs/2026-10-05-line-group-summary-report-design.md`
 - `/Users/craftman/orca/workspaces/safepay/Line-Group-Summary-Reports/docs/superpowers/specs/2026-10-05-line-group-summary-report-mockup.html`
-- `/Users/craftman/orca/workspaces/safepay/Line-Group-Summary-Reports/docs/20 - Features/00068 - LINE Group Summary Report/API.md`
+- `/Users/craftman/orca/workspaces/safepay/Line-Group-Summary-Reports/docs/20 - Features/00070 - LINE Group Summary Report/API.md`
 - `/Users/craftman/orca/workspaces/safepay/Line-Group-Summary-Reports/src/lib/line-report/presenter.ts`
 - `/Users/craftman/orca/workspaces/safepay/Line-Group-Summary-Reports/src/lib/line/flex-summary-report.ts`
 - `/Users/craftman/orca/workspaces/safepay/Line-Group-Summary-Reports/src/app/(paces)/seller/(dashboard)/shop/components/ShopQuickLinks.tsx`

@@ -1,5 +1,5 @@
 /**
- * line-report-services.db.test.ts — integration ของ access/shop/group service กับ DB local (00068 U4)
+ * line-report-services.db.test.ts — integration ของ access/shop/group service กับ DB local (00070 U4)
  *
  * 🛑 HR13/HR14: รันเฉพาะ DATABASE_URL = localhost:5434 (นอกนั้น skip) · ข้อมูลสร้างด้วย prefix `lrs-<run>` และลบ scope ด้วย id
  * ที่เทสสร้างตามลำดับ Delivery → BindCode → GroupShop → Group → Shop → User (Restrict บังคับลำดับ) — ไม่มี deleteMany เปล่า
@@ -48,7 +48,7 @@ const mkSub = (ownerId: string, tier: string, source: string, status: 'ACTIVE' |
   })
 const code = async (p: Promise<unknown>) => { try { await p; return null } catch (e) { return (e as { code?: string }).code ?? `RAW:${(e as Error).message}` } }
 
-describe.skipIf(!isLocal)('00068 line-report services (DB)', () => {
+describe.skipIf(!isLocal)('00070 line-report services (DB)', () => {
   let A: string, B: string, ADM: string
   let A1: string, A2: string, A3: string, A4: string, B1: string
 

@@ -1,5 +1,5 @@
 ---
-title: "API — 00068 รายงานสรุปยอดเข้ากลุ่ม LINE"
+title: "API — 00070 รายงานสรุปยอดเข้ากลุ่ม LINE"
 owner: shinobu22
 status: approved
 module: M68-LineGroupSummary
@@ -9,7 +9,7 @@ tags: [feature, api, line, report, webhook, cron]
 related: ["[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[LINE-API-Facts]]"]
 ---
 
-> **โมดูล:** M68-LineGroupSummary (00068) · **ประเภท:** API Contract · **เวอร์ชัน:** 1.0 · **วันที่:** 2026-10-05 · **สถานะ:** Approved 2026-10-05
+> **โมดูล:** M68-LineGroupSummary (00070) · **ประเภท:** API Contract · **เวอร์ชัน:** 1.0 · **วันที่:** 2026-10-05 · **สถานะ:** Approved 2026-10-05
 
 # API Contract: รายงานสรุปยอดเข้ากลุ่ม LINE
 

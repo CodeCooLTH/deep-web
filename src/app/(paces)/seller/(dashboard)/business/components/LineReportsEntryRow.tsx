@@ -1,5 +1,5 @@
 /**
- * LineReportsEntryRow — แถวทางเข้า "รายงานเข้ากลุ่ม LINE" ใต้ QuotaUsageCard (feature 00068, web-only)
+ * LineReportsEntryRow — แถวทางเข้า "รายงานเข้ากลุ่ม LINE" ใต้ QuotaUsageCard (feature 00070, web-only)
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/cards/page.tsx (.card ใบเดียว)
  *   + src/app/(paces)/seller/(dashboard)/shop/components/ShopQuickLinks.tsx (แถวลิงก์: วงกลมไอคอน → ข้อความ → chevron)

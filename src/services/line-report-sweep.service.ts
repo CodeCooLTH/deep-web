@@ -1,5 +1,5 @@
 /**
- * line-report-sweep.service.ts — กวาดส่งรายงานตามเวลาทุก 30 นาที + cleanup (00068 · SRS TFR-17/19/23 · SDS §4.1)
+ * line-report-sweep.service.ts — กวาดส่งรายงานตามเวลาทุก 30 นาที + cleanup (00070 · SRS TFR-17/19/23 · SDS §4.1)
  *
  * ทำทีละกลุ่ม (TD-009) · try/catch ต่อกลุ่ม (AC-19-5) · หยุด "เริ่ม" กลุ่มใหม่เมื่อเกิน budget — slot ที่เหลือรอ tick ถัดไปในหน้าต่าง 60 นาที
  */

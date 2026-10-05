@@ -1,5 +1,5 @@
 /**
- * _shared.ts — ด่านร่วมของ owner API ชุด line-report (00068 · SRS §4.3 · API §2/§5)
+ * _shared.ts — ด่านร่วมของ owner API ชุด line-report (00070 · SRS §4.3 · API §2/§5)
  * error map อยู่ที่นี่ที่เดียว: route ทุกตัวห่อด้วย `handle()` แล้ว throw LineReportError ได้เลย
  */
 import { NextResponse } from 'next/server'

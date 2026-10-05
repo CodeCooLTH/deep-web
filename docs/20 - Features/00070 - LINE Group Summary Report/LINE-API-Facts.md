@@ -1,12 +1,12 @@
 ---
-title: "00068 — ข้อเท็จจริง LINE Messaging API ที่ยืนยันแล้ว"
+title: "00070 — ข้อเท็จจริง LINE Messaging API ที่ยืนยันแล้ว"
 created: 2026-10-05
 status: verified
 ---
 
 # ข้อเท็จจริง LINE Messaging API (ยืนยันจากเอกสารทางการ 2026-10-05)
 
-> ตาม convention `external-payload-schema` — SRS/DATABASE/API ของ 00068 ต้องอ้างไฟล์นี้ ไม่ใช่ความจำ
+> ตาม convention `external-payload-schema` — SRS/DATABASE/API ของ 00070 ต้องอ้างไฟล์นี้ ไม่ใช่ความจำ
 > ยังต้องพิสูจน์ซ้ำด้วย payload จริงจาก OA ทดสอบก่อนล็อก validator (เก็บ payload ดิบก่อน validator)
 
 แหล่ง: REF = https://developers.line.biz/en/reference/messaging-api/ · GROUPS = https://developers.line.biz/en/docs/messaging-api/group-chats/ · PRICING = https://developers.line.biz/en/docs/messaging-api/pricing/ · RETRY = https://developers.line.biz/en/docs/messaging-api/retrying-api-request/

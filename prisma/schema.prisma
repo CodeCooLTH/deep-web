@@ -4915,7 +4915,7 @@ model CustomerFollowUp {
 }
 
 // ============================================================================
-// 00068 — LINE Group Summary Report (รายงานสรุปยอดเข้ากลุ่ม LINE)
+// 00070 — LINE Group Summary Report (รายงานสรุปยอดเข้ากลุ่ม LINE)
 // 🛑 unmanaged SQL ใน migration 20261005100000_line_group_summary_reports ที่ Prisma DSL ประกาศไม่ได้:
 //   - partial UNIQUE LineReportGroup_lineGroupId_active_key (lineGroupId WHERE status='ACTIVE')
 //   - partial UNIQUE LineReportBindCode_codeHash_live_key / _ownerId_live_key (WHERE usedAt/revokedAt IS NULL)

@@ -1,5 +1,5 @@
 /**
- * line-report-bind.service.ts — โค้ดผูกกลุ่ม + ตัวนับกันเดา (00068 · SRS TFR-04/06/07 · SDS §3.2/§4.2)
+ * line-report-bind.service.ts — โค้ดผูกกลุ่ม + ตัวนับกันเดา (00070 · SRS TFR-04/06/07 · SDS §3.2/§4.2)
  *
  * 🛑 ลำดับล็อกทุกเส้นทาง: แถว User ก่อน แล้วค่อยแถว Group (removeGroup ล็อกแค่ Group จึงไม่ deadlock)
  * 🛑 ห้ามดัก P2002 ตอนสร้างโค้ด — ใช้ createMany({skipDuplicates}) (insert-then-catch เขียน ERROR ลง log Postgres ทุกใบ)

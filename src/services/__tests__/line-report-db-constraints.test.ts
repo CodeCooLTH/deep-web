@@ -1,5 +1,5 @@
 /**
- * line-report-db-constraints.test.ts — เทส constraint ของ DB สำหรับ 00068 (DATABASE.md §5.2/§10)
+ * line-report-db-constraints.test.ts — เทส constraint ของ DB สำหรับ 00070 (DATABASE.md §5.2/§10)
  *
  * 🛑 HR13/HR14: integration กับฐานจริง ⇒ ปฏิเสธรันถ้า DATABASE_URL ไม่ใช่ localhost:5434
  * ข้อมูลทุกแถวสร้างด้วย id/prefix เฉพาะรอบเทส และลบ scope ด้วย id นั้นตามลำดับ
@@ -35,7 +35,7 @@ async function mkCode(ownerId: string, groupId: string, codeHash: string, extra:
   })
 }
 
-describe.skipIf(!isLocal)('00068 line-report DB constraints', () => {
+describe.skipIf(!isLocal)('00070 line-report DB constraints', () => {
   let u1: string
   let u2: string
 
@@ -135,7 +135,7 @@ describe.skipIf(!isLocal)('00068 line-report DB constraints', () => {
 })
 
 // AC-LGS-06-5: ไม่เก็บ LINE userId/เนื้อข้อความของสมาชิก — ไม่ต้องใช้ DB
-describe('00068 schema ไม่มีคอลัมน์ PII ของสมาชิก LINE', () => {
+describe('00070 schema ไม่มีคอลัมน์ PII ของสมาชิก LINE', () => {
   it('โมเดล LineReport* ไม่มี field userId/lineUserId/message/text', () => {
     const schema = readFileSync(join(process.cwd(), 'prisma/schema.prisma'), 'utf8')
     const models = [...schema.matchAll(/^model (LineReport\w+) \{([\s\S]*?)^\}/gm)]

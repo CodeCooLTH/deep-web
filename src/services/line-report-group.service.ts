@@ -1,5 +1,5 @@
 /**
- * line-report-group.service.ts — กลุ่มรายงาน LINE: รายการ/รายละเอียด/ตั้งค่า/ลบ/แจ้งเตือน (00068 · SRS TFR-07/09/11/22 · API §4.1/4.4/4.5/4.8/4.9)
+ * line-report-group.service.ts — กลุ่มรายงาน LINE: รายการ/รายละเอียด/ตั้งค่า/ลบ/แจ้งเตือน (00070 · SRS TFR-07/09/11/22 · API §4.1/4.4/4.5/4.8/4.9)
  *
  * 🛑 ทุก query ที่รับ id จากภายนอก scope `ownerId` ตั้งแต่ query แรก → ไม่ใช่ของตน/REMOVED = GROUP_NOT_FOUND (404 ไม่ใช่ 403)
  * service นี้ไม่เรียก LINE — `removeGroup` คืน lineGroupId ให้ผู้เรียกทำ leave best-effort หลัง commit

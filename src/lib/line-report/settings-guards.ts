@@ -1,5 +1,5 @@
 /**
- * settings-guards — boolean/ตัวเลือกที่หน้าตั้งค่ากลุ่ม LINE ตัดสิน (00068 · addendum E §4.2) · pure
+ * settings-guards — boolean/ตัวเลือกที่หน้าตั้งค่ากลุ่ม LINE ตัดสิน (00070 · addendum E §4.2) · pure
  *
  * ทำไมอยู่ใน lib: ปุ่ม × / checkbox ตัวสุดท้าย / ปุ่มเพิ่มเวลา เป็น boolean ที่ตัดสินว่ากดได้ไหม ต้องมีเทส mutation จับ
  * (convention `ui-boolean-needs-a-testable-home`) · server ยังเป็นด่านจริง (INVALID_SETTINGS) — ที่นี่กันไม่ให้ผู้ใช้เจอ error จากปุ่มที่ไม่ควรกดได้

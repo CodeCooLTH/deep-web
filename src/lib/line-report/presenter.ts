@@ -1,5 +1,5 @@
 /**
- * presenter — boolean/ป้ายที่ UI ของรายงานเข้ากลุ่ม LINE ตัดสิน (feature 00068 · SDS §3.1)
+ * presenter — boolean/ป้ายที่ UI ของรายงานเข้ากลุ่ม LINE ตัดสิน (feature 00070 · SDS §3.1)
  *
  * ทำไมอยู่ใน lib ไม่ใช่ในคอมโพเนนต์: boolean ที่ตัดสินว่าปุ่มกดได้/แบนเนอร์ขึ้นไหมต้องมีที่ให้เทส mutation จับ
  * (convention `ui-boolean-needs-a-testable-home`) · copy/สี/ไอคอนยึด UX spec 2026-10-05

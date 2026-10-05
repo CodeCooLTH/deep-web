@@ -357,8 +357,8 @@ describe('checkAccountDeletable — ฝั่งผู้ซื้อ', () => {
   })
 })
 
-// ─── 00068 TFR-24: รายงานกลุ่ม LINE ────────────────────────────────────────────
-describe('00068 deleteAccount × กลุ่มรายงาน LINE', () => {
+// ─── 00070 TFR-24: รายงานกลุ่ม LINE ────────────────────────────────────────────
+describe('00070 deleteAccount × กลุ่มรายงาน LINE', () => {
   it('กลุ่มที่ยังไม่ REMOVED -> REMOVED + เพิกถอนโค้ด · คืน lineGroupId เฉพาะกลุ่ม ACTIVE ให้ leave หลัง commit', async () => {
     arrangeHealthyAccount()
     tx.lineReportGroup.findMany.mockResolvedValue([

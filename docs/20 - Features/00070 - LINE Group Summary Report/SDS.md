@@ -1,5 +1,5 @@
 ---
-title: "SDS — 00068 รายงานสรุปยอดเข้ากลุ่ม LINE"
+title: "SDS — 00070 รายงานสรุปยอดเข้ากลุ่ม LINE"
 owner: shinobu22
 status: approved
 module: M68-LineGroupSummary
@@ -9,7 +9,7 @@ tags: [feature, sds, line, cron, flex, architecture]
 related: ["[[SRS]]", "[[API]]", "[[DATABASE]]", "[[BRD]]", "[[PRD]]", "[[LINE-API-Facts]]"]
 ---
 
-> **โมดูล:** M68-LineGroupSummary (00068) · **ประเภท:** SDS · **เวอร์ชัน:** 1.0 · **วันที่:** 2026-10-05 · **สถานะ:** Approved 2026-10-05 (Controller ตัดสิน NOTES — §12)
+> **โมดูล:** M68-LineGroupSummary (00070) · **ประเภท:** SDS · **เวอร์ชัน:** 1.0 · **วันที่:** 2026-10-05 · **สถานะ:** Approved 2026-10-05 (Controller ตัดสิน NOTES — §12)
 > ผู้อ่าน: Controller / DEV / QA · ทุกชื่อไฟล์/ฟังก์ชันของโค้ดเดิมที่อ้างถึงตรวจกับ repo จริงแล้ว (HR16) · ชื่อไฟล์ใหม่ = ข้อเสนอสัญญา
 
 # SDS: รายงานสรุปยอดเข้ากลุ่ม LINE

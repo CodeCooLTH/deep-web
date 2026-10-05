@@ -1,5 +1,5 @@
 /**
- * /business/line-reports/new — ผูกกลุ่ม LINE ใหม่ (feature 00068 · E2) · RSC
+ * /business/line-reports/new — ผูกกลุ่ม LINE ใหม่ (feature 00070 · E2) · RSC
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/pages/pricing/page.tsx (page shell + PageBreadcrumb)
  *   chase ผ่าน ../page.tsx (guard เดียวกับรายการ) · ฟอร์มอยู่ใน _components/BindWizard.tsx

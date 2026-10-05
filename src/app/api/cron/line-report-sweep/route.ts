@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { runSweep } from '@/services/line-report-sweep.service'
 
 /**
- * GET /api/cron/line-report-sweep — Vercel Cron ทุก 30 นาที (feature 00068, SRS TFR-17)
+ * GET /api/cron/line-report-sweep — Vercel Cron ทุก 30 นาที (feature 00070, SRS TFR-17)
  *
  * ส่งรายงานสรุปยอดเข้ากลุ่ม LINE ตามเวลาที่เจ้าของตั้ง · cleanup รวมอยู่ใน tick แรกหลัง 03:00 ไทย (ไม่เพิ่ม cron)
  * maxDuration 300 (default ของ Vercel) — service หยุดเริ่มกลุ่มใหม่เมื่อครบ 240s เหลือ 60s กันงานค้างกลางทาง

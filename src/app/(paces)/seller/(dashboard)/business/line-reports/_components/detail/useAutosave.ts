@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * useAutosave — บันทึกอัตโนมัติของหน้าตั้งค่ากลุ่ม LINE (00068 · addendum E §4.4)
+ * useAutosave — บันทึกอัตโนมัติของหน้าตั้งค่ากลุ่ม LINE (00070 · addendum E §4.4)
  *
  * กติกา: patch ที่ยังไม่ส่งรวมเป็นก้อนเดียว (คีย์ซ้ำทับ) · trailing debounce 500ms (PUT ร้าน 800ms แยกคิว) ·
  * ส่งทีละคำขอ (proxy จำกัด mutation 30/นาที/IP และ server ล็อกกลุ่มต่อคำขอ) · `confirmProfit` ไม่ debounce และไปพร้อม `showProfit:true` ·

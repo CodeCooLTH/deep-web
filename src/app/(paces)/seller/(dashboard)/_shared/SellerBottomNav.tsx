@@ -123,7 +123,7 @@ interface SellerBottomNavProps {
    *  เพื่อให้ปุ่มแรกของ FAB ใช้เกณฑ์ตัวเดียวกับ guard ของหน้า `/settings/job-types` เป๊ะ */
   shopKind?: string | null
   /**
-   * feature 00068 — มีกลุ่มรายงาน LINE ที่ alert ยังไม่รับทราบ → จุดแดงที่ช่อง "ร้านค้า"
+   * feature 00070 — มีกลุ่มรายงาน LINE ที่ alert ยังไม่รับทราบ → จุดแดงที่ช่อง "ร้านค้า"
    * 🛑 บังคับส่ง ไม่มี default (ผู้เรียกที่ลืม = จุดไม่ขึ้นเงียบ ๆ) · ไม่ผูก hidePayments (ไม่มีทางจ่ายเงิน)
    */
   shopAlert: boolean

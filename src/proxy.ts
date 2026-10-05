@@ -42,7 +42,7 @@ async function guardApi(request: NextRequest): Promise<NextResponse> {
   // x-line-signature ที่ตัว route ตรวจเอง จึงไม่มี CSRF surface (CSRF อาศัย cookie ที่
   // browser แนบให้). rate-limit ยัง apply ปกติ — ลืมข้อนี้ = webhook โดน 403 ทั้งหมด
   // แบบเงียบสนิท (ดู scope baseline 00025 §S-6)
-  // ยกเว้น /api/line-report/webhook (feature 00068) — LINE ยิง server-to-server ไม่มี Origin header;
+  // ยกเว้น /api/line-report/webhook (feature 00070) — LINE ยิง server-to-server ไม่มี Origin header;
   // authentication คือลายเซ็น x-line-signature ที่ route ตรวจเอง จึงไม่มี CSRF surface. เทียบตรงตัว
   // (ไม่ใช้ startsWith) เพื่อไม่เปิด exemption ให้ route owner API อื่นใต้ /api/line-report/* ที่ใช้ cookie
   // ยกเว้น /api/webhooks/* — ผู้ให้บริการภายนอก (iShip feat 00022) ยิง server-to-server
@@ -87,7 +87,7 @@ async function guardApi(request: NextRequest): Promise<NextResponse> {
   //    การโดน 429 ตรงนี้แพงกว่าปกติมากเพราะผู้ตรวจ **ยืนอยู่หน้างานจริง** และงานที่ทำไปแล้ว
   //    อาจหายครึ่ง ๆ กลาง ๆ · ทุก route ในกลุ่มนี้มีด่าน isInspector + inspectorUserId ของตัวเอง
   //    ครบก่อนแตะข้อมูล การยกเพดานจึงไม่เปิดช่องอะไรใหม่
-  //  - POST /api/line-report/webhook (00068): bucket แยก เพดาน 1200/นาที — IP ของ LINE ไม่กี่ตัวยิงแทนทุกกลุ่ม
+  //  - POST /api/line-report/webhook (00070): bucket แยก เพดาน 1200/นาที — IP ของ LINE ไม่กี่ตัวยิงแทนทุกกลุ่ม
   //    ถ้าใช้เพดาน unauth mutation 100/นาที กลุ่มที่คุยหนาแน่นจะทำให้ 429 แล้วคำสั่ง `ผูก`/`สรุปวันนี้` หายเงียบ
   //    (LINE ไม่ยิงซ้ำให้) · ตัว route ตรวจลายเซ็นก่อนแตะข้อมูลเสมอ การยกเพดานจึงไม่เปิดช่องใหม่
   const token = await getToken({ req: request })

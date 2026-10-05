@@ -1,5 +1,5 @@
 /**
- * 00068 FR-LGS-12 — ธงตัวชี้วัดของกลุ่มต้องไปถึง builder ในทุกทางส่ง (scheduled · test · command-reply)
+ * 00070 FR-LGS-12 — ธงตัวชี้วัดของกลุ่มต้องไปถึง builder ในทุกทางส่ง (scheduled · test · command-reply)
  * ตรวจที่ซอร์ส: ทุกการเรียก buildSummaryReportFlex ต้องส่ง `flags` ที่มาจาก group และห้ามเหลือ `showProfit:` เดี่ยว ๆ
  * (บั๊กเดิม: ส่งแค่ showProfit → ปิดออเดอร์/ยอดขาย/ยกเลิก/Top3 ไม่มีผลกับข้อความที่ส่งจริง)
  */

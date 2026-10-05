@@ -1,5 +1,5 @@
 /**
- * order-word — คำเรียก "ใบ" ในหน้าตั้งค่ารายงาน (00068 · addendum E §6)
+ * order-word — คำเรียก "ใบ" ในหน้าตั้งค่ารายงาน (00070 · addendum E §6)
  *
  * ห่อ `reportOrderWord` (เจ้าของตรรกะ) — ห้ามนับ vertical เองซ้ำ · ร้านที่ไม่ใช่ OK ถือเป็น EXCLUDED
  * ตามที่ builder ทำ (ไม่ OK ทั้งหมด → helper ถอยไปใช้ vertical ของทุกร้านเอง)

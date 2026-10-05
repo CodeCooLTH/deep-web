@@ -1,5 +1,5 @@
 /**
- * line-report-unit.test.ts — unit (mock) ของ access + กฎ settings ของ 00068 (U4)
+ * line-report-unit.test.ts — unit (mock) ของ access + กฎ settings ของ 00070 (U4)
  * ไม่แตะ DB: prisma + business-package.service ถูก mock ทั้ง module (HR13)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'

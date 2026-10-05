@@ -1,5 +1,5 @@
 /**
- * feature 00068 U13 — BindWizard (render จริงแล้วดู HTML): ปุ่มสร้างโค้ด disabled จนกว่าเลือกร้าน+ติ๊ก, ร้านเดียว preselect, resume ไม่มีโค้ดเดิม
+ * feature 00070 U13 — BindWizard (render จริงแล้วดู HTML): ปุ่มสร้างโค้ด disabled จนกว่าเลือกร้าน+ติ๊ก, ร้านเดียว preselect, resume ไม่มีโค้ดเดิม
  */
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'

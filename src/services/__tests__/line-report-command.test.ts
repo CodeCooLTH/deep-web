@@ -1,5 +1,5 @@
 /**
- * line-report-command.service (00068 TFR-05/06/20) — ส่วนที่ไม่แตะ DB: payload ตัวอย่างตามรูป LINE-API-Facts §1
+ * line-report-command.service (00070 TFR-05/06/20) — ส่วนที่ไม่แตะ DB: payload ตัวอย่างตามรูป LINE-API-Facts §1
  * (bind/leave ถูก mock; เส้นทางที่ใช้ DB จริงอยู่ใน line-report-bind.db.test.ts)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'

@@ -1,5 +1,5 @@
 /**
- * proxy.ts ของ 00068 (SRS TFR-05 · AC-05-2 · SDS §12 #7) — เรียก `proxy()` จริงด้วย NextRequest
+ * proxy.ts ของ 00070 (SRS TFR-05 · AC-05-2 · SDS §12 #7) — เรียก `proxy()` จริงด้วย NextRequest
  * (1) path ใหม่ไม่โดน CSRF 403 แบบเทียบตรงตัว · path อื่นใต้ /api/line-report/ ยังโดน
  * (2) bucket rate-limit แยก เพดาน 1200/นาที ไม่ปนกับ bucket mutation ปกติ (100)
  */

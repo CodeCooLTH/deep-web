@@ -3,7 +3,7 @@ import { validateSignature } from '@/lib/line/signature'
 import { getReportBotConfig } from '@/lib/line-report/config'
 import { handleEvents } from '@/services/line-report-command.service'
 
-// Webhook ของบอทรายงานกลุ่ม LINE (00068 · SRS TFR-05) — OA กลางตัวเดียวของ Deep (env LINE_REPORT_BOT_*)
+// Webhook ของบอทรายงานกลุ่ม LINE (00070 · SRS TFR-05) — OA กลางตัวเดียวของ Deep (env LINE_REPORT_BOT_*)
 // ไม่ใช่ /api/channels/line/webhook (OA ของแต่ละร้าน) และห้ามแก้ route นั้น
 //
 // ลายเซ็น x-line-signature คือ authentication อย่างเดียวของ route นี้ (proxy.ts ยกเว้น CSRF ให้ path นี้ + bucket rate-limit แยก)

@@ -1,5 +1,5 @@
 /**
- * line-report-bind.db.test.ts — integration ของ bind + command service กับ DB local (00068 U7)
+ * line-report-bind.db.test.ts — integration ของ bind + command service กับ DB local (00070 U7)
  *
  * 🛑 HR13/HR14: รันเฉพาะ DATABASE_URL = localhost:5434 (นอกนั้น skip) · LINE ทั้งหมด mock (ไม่มีการยิงจริง)
  * ข้อมูลสร้างด้วย prefix `lrb-<run>` และลบ scope ด้วย id/lineGroupId ที่เทสสร้างเท่านั้น (ไม่มี deleteMany เปล่า)
@@ -77,7 +77,7 @@ const say = (groupId: string, text: string, extra: Record<string, unknown> = {})
   ev('message', groupId, { message: { id: randomUUID(), type: 'text', text }, ...extra })
 const lastReply = () => lc.replyTo.mock.calls.at(-1)?.[1]?.[0] as { altText: string } | undefined
 
-describe.skipIf(!isLocal)('00068 line-report bind + command (DB)', () => {
+describe.skipIf(!isLocal)('00070 line-report bind + command (DB)', () => {
   beforeAll(() => {
     process.env.NEXTAUTH_SECRET ||= 'test-secret-lrb'
     process.env.LINE_REPORT_BOT_CHANNEL_SECRET = 'sec'

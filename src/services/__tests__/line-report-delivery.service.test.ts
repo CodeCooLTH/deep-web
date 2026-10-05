@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto'
 const isLocal = /@(localhost|127\.0\.0\.1):5434\//.test(process.env.DATABASE_URL ?? '')
 const run = randomUUID().slice(0, 8)
 
-describe.skipIf(!isLocal)('00068 line-report-delivery.service', () => {
+describe.skipIf(!isLocal)('00070 line-report-delivery.service', () => {
   let svc: typeof import('../line-report-delivery.service')
   let prisma: typeof import('@/lib/prisma').prisma
   let userId: string

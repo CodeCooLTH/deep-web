@@ -1,5 +1,5 @@
 /**
- * /business/line-reports — รายการกลุ่ม LINE ที่รับรายงานสรุปยอด (feature 00068 · E1) · RSC
+ * /business/line-reports — รายการกลุ่ม LINE ที่รับรายงานสรุปยอด (feature 00070 · E1) · RSC
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/pages/pricing/page.tsx (page shell + PageBreadcrumb)
  *   chase ผ่าน src/app/(paces)/seller/(dashboard)/business/page.tsx + business/[shopId]/invites/page.tsx (session guard)

@@ -150,7 +150,7 @@ export default async function BusinessPackagePage() {
     }
   }
 
-  // feature 00068 — แถวทางเข้ารายงานกลุ่ม LINE (เจ้าของเท่านั้น · query ล้ม = ไม่โชว์แถว ไม่ให้หน้าแพ็กเกจพัง)
+  // feature 00070 — แถวทางเข้ารายงานกลุ่ม LINE (เจ้าของเท่านั้น · query ล้ม = ไม่โชว์แถว ไม่ให้หน้าแพ็กเกจพัง)
   let lineReportAlerts: number | null = null
   try {
     const access = await resolveReportAccess(session)

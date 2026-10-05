@@ -87,7 +87,7 @@ describe('ทุกเส้นทางที่สร้างออเดอ�
     const found = out
       .split('\n')
       .filter(Boolean)
-      // fixture ในไฟล์เทสไม่ใช่เส้นทางสร้างออเดอร์ของระบบ (00068 parity test สร้างแถวด้วย id ของเทสเอง)
+      // fixture ในไฟล์เทสไม่ใช่เส้นทางสร้างออเดอร์ของระบบ (00070 parity test สร้างแถวด้วย id ของเทสเอง)
       .filter((f) => !/(^|\/)__tests__\/|\.test\.ts$/.test(f))
       .filter((f) => /(tx|prisma)\.order\.create\(/.test(stripComments(read(f))))
       .sort()

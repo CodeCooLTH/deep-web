@@ -1,4 +1,4 @@
-/** mergeSettings ตรวจ dailyTimes/cutoffDay ซ้ำที่ service (00068 follow-up U4) — ค่านอกชุด = VALIDATION ไม่ใช่ raw CHECK error */
+/** mergeSettings ตรวจ dailyTimes/cutoffDay ซ้ำที่ service (00070 follow-up U4) — ค่านอกชุด = VALIDATION ไม่ใช่ raw CHECK error */
 import { describe, it, expect } from 'vitest'
 import { mergeSettings } from '@/services/line-report-group.service'
 

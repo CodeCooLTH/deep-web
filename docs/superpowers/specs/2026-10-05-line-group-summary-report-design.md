@@ -1,4 +1,4 @@
-# Design Spec: 00068 LINE Group Summary Report (รายงานเข้ากลุ่ม LINE)
+# Design Spec: 00070 LINE Group Summary Report (รายงานเข้ากลุ่ม LINE)
 
 > ผู้ออก: `safepay-ux` (2026-10-05) · mockup: [`2026-10-05-line-group-summary-report-mockup.html`](2026-10-05-line-group-summary-report-mockup.html) (3 จอ: 375 / 768 / 1180)
 > Surface: Paces seller `(paces)/seller/(dashboard)/business/line-reports/**`

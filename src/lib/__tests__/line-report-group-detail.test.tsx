@@ -1,5 +1,5 @@
 /**
- * feature 00068 U15 — GroupDetailClient (render จริงแล้วดู HTML): canEdit=false ปิดฟอร์มแต่ยกเลิกผูกยังใช้ได้ · กำไรท้ายสุดคั่นเส้นประ ·
+ * feature 00070 U15 — GroupDetailClient (render จริงแล้วดู HTML): canEdit=false ปิดฟอร์มแต่ยกเลิกผูกยังใช้ได้ · กำไรท้ายสุดคั่นเส้นประ ·
  * ไม่มีคำว่า "ออเดอร์" · คำเรียกตาม vertical · ตัวนับทดสอบจาก presenter · ประวัติว่าง/มีแถว
  */
 import React from 'react'

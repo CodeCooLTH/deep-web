@@ -1,5 +1,5 @@
 /**
- * line-report-summary.parity.test.ts — integration parity (00068 · AC-LGS-14-3/14-4/14-5)
+ * line-report-summary.parity.test.ts — integration parity (00070 · AC-LGS-14-3/14-4/14-5)
  *
  * ตัวเลขใน buildGroupSummary ต้อง "ต่าง 0" จาก SSOT ที่เรียกตรง (getSalesSeries / getPnlReport /
  * jobStatusCounts.cancelled) ทั้ง 3 vertical × (วันนี้ · เมื่อวาน · รอบคร่อมเดือน)
@@ -53,7 +53,7 @@ const YESTERDAY = shiftIsoDate(TODAY, -1)
 const CYCLE = { startIso: '2026-08-25', endIso: '2026-09-05' }
 const STATUSES = ['CONFIRMED', 'PENDING', 'DRAFTED', 'CANCELLED', 'RETURNED', 'CONFIRMED'] as const
 
-describe.skipIf(!isLocal)('00068 parity: buildGroupSummary vs SSOT', () => {
+describe.skipIf(!isLocal)('00070 parity: buildGroupSummary vs SSOT', () => {
   const shopOf: Record<string, string> = {}
   // จำนวนใบ CANCELLED ที่ตั้งใจสร้างต่อร้านในแต่ละวัน (ไว้ตรวจนับยกเลิกแบบไม่อ้างสูตรของ service)
   const cancelledOn = new Map<string, number>()

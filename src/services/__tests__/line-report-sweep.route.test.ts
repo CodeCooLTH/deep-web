@@ -1,5 +1,5 @@
 /**
- * 00068 U8 — เทสที่ไม่ต้องใช้ DB: cron auth 3 เคส (AC-19-2) · vercel.json (AC-19-1) · สแกนซอร์สของ send.service (AC-20-2, AC-23-1)
+ * 00070 U8 — เทสที่ไม่ต้องใช้ DB: cron auth 3 เคส (AC-19-2) · vercel.json (AC-19-1) · สแกนซอร์สของ send.service (AC-20-2, AC-23-1)
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'

@@ -1,5 +1,5 @@
 ---
-title: "BRD — 00068 รายงานสรุปยอดเข้ากลุ่ม LINE (LINE Group Summary Report)"
+title: "BRD — 00070 รายงานสรุปยอดเข้ากลุ่ม LINE (LINE Group Summary Report)"
 owner: shinobu22
 status: approved
 module: M68-LineGroupSummary
@@ -9,7 +9,7 @@ tags: [feature, brd, line, report, business-package, cron, flex]
 related: ["[[PRD]]", "[[SRS]]", "[[Feature-Docs-Ownership]]", "[[00064 - LINE Shop Status Bot]]", "[[00008 - Business Account & Packages]]", "[[00067 - Shop Finance Tabs]]", "[[00063 - Product Sales Time Series]]"]
 ---
 
-> **โมดูล:** M68-LineGroupSummary (00068)
+> **โมดูล:** M68-LineGroupSummary (00070)
 > **ประเภทเอกสาร:** Business Requirements Document (BRD) - NON-TECHNICAL
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-05
@@ -835,7 +835,7 @@ flowchart TD
 
 | # | งาน | เหตุผล/ผู้รับผิดชอบ |
 |---|-----|-------------------|
-| 1 | **sync `docs/SRS.md`** — data model (กลุ่มรายงาน, ร้านในกลุ่ม, โค้ดผูก, log การส่ง, ตัวนับเดาโค้ด/ถามถี่), API (`/api/line-report/*`, webhook, cron), enum (สถานะกลุ่ม/สถานะ log/ชนิดการส่ง), authorization matrix, validation (Valibot) | HR11 — แตะ data model/API/enum ต้อง sync SRS; ต้องจัดทำ SRS/API/DATABASE ของ 00068 หลัง PRD+BRD ผ่าน |
+| 1 | **sync `docs/SRS.md`** — data model (กลุ่มรายงาน, ร้านในกลุ่ม, โค้ดผูก, log การส่ง, ตัวนับเดาโค้ด/ถามถี่), API (`/api/line-report/*`, webhook, cron), enum (สถานะกลุ่ม/สถานะ log/ชนิดการส่ง), authorization matrix, validation (Valibot) | HR11 — แตะ data model/API/enum ต้อง sync SRS; ต้องจัดทำ SRS/API/DATABASE ของ 00070 หลัง PRD+BRD ผ่าน |
 | 2 | **UX ต้องผ่าน `safepay-ux` ก่อนทุกชิ้น** (HR8): หน้ารายการกลุ่ม · wizard · หน้ากลุ่ม · หน้าล็อก 3 shell · ข้อความ Flex; ผูก UI กับ `docs/system/ui-guideline/README.md`, `DESIGN.md`, `PRODUCT.md`, `.impeccable/design.json`; commit ที่แตะ UI ต้องมี `Base: theme/...` (HR3) | gate ของ frontend ทุก task |
 | 3 | **env ใหม่ของ OA กลาง** — เสนอชื่อ: `LINE_REPORT_BOT_CHANNEL_SECRET` (ตรวจลายเซ็น webhook), `LINE_REPORT_BOT_CHANNEL_ACCESS_TOKEN` (เรียก Messaging API), `LINE_REPORT_BOT_BASIC_ID` (แสดงลิงก์เพิ่มเพื่อนในหน้าตั้งค่า) · ห้ามใช้ `LINE_CHANNEL_ID`/`LINE_CHANNEL_SECRET` ที่เป็นของ LINE Login (`src/lib/auth.ts:339-340`) · ตั้งใน Vercel (prod) และ `.env.local` (dev) · ไม่ commit ค่าจริง | ops + dev |
 | 4 | **ตั้งค่า LINE Developers** — สร้าง OA/Messaging API channel, ตั้ง webhook URL เป็น `/api/line-report/webhook`, เปิด "Allow bot to join group chats", เลือกแผน OA | ops (ไม่ใช่งานโค้ด) |
@@ -847,7 +847,7 @@ flowchart TD
 | 10 | **ยืนยัน payload ของจริงจาก LINE** ก่อนล็อก SRS: event `join`/`leave`/`message` ของกลุ่ม, การดึงชื่อกลุ่ม/จำนวนสมาชิก, ข้อจำกัดขนาด Flex/altText/จำนวนข้อความต่อ push | convention `external-payload-schema` |
 | 11 | **เทส DB ต้องไม่แตะฐานนอก scope** — สร้างข้อมูลด้วย id ของเทสเอง ห้าม `deleteMany()` เปล่า; รันที่ localhost (HR13/HR14; เครื่อง dev ชี้ Supabase prod ต้อง override `DATABASE_URL` เป็น 5434) | |
 | 12 | **หลัง migrate**: ห้ามสั่ง migrate ชี้ prod เอง — push `main` = deploy migrate (HR15) ต้องแจ้ง user 3 ข้อก่อน | |
-| 13 | **เลขฟีเจอร์ 00068 ว่าง** (ตรวจ `docs/20 - Features/` เมื่อ 2026-10-05) แต่มีโฟลเดอร์ 00064 สองอัน (LINE Shop Status Bot และ Apple In-App Purchase) — เอกสารนี้อ้าง `[[00064 - LINE Shop Status Bot]]` ชัดเจนเพื่อไม่สับสน | feedback เลขฟีเจอร์ชนกัน |
+| 13 | **เลขฟีเจอร์ 00070 ว่าง** (ตรวจ `docs/20 - Features/` เมื่อ 2026-10-05) แต่มีโฟลเดอร์ 00064 สองอัน (LINE Shop Status Bot และ Apple In-App Purchase) — เอกสารนี้อ้าง `[[00064 - LINE Shop Status Bot]]` ชัดเจนเพื่อไม่สับสน | feedback เลขฟีเจอร์ชนกัน |
 
 ---
 
@@ -903,7 +903,7 @@ flowchart TD
 
 | คำศัพท์ | ความหมาย |
 |---------|----------|
-| **Deep รายงานยอด** | ชื่อ OA กลางของ 00068 (คนละตัวกับบอทของ 00064) |
+| **Deep รายงานยอด** | ชื่อ OA กลางของ 00070 (คนละตัวกับบอทของ 00064) |
 | **กลุ่มรายงาน** | กลุ่ม LINE หนึ่งกลุ่มที่ผูกกับเจ้าของหนึ่งราย พร้อมการตั้งค่าและร้านที่รวม |
 | **สถานะกลุ่ม** | `PENDING` รอผูก · `ACTIVE` ใช้งาน · `INACTIVE` บอทถูกเตะ · `REMOVED` เจ้าของลบ (การหยุดเพราะแพ็กเกจอ่านสดจากเจ้าของ ไม่ใช่สถานะที่เก็บ) |
 | **slot / slotKey** | เวลาที่กำหนดส่งของกลุ่มในหนึ่งวัน และกุญแจ idempotency ของมัน |
@@ -924,7 +924,7 @@ flowchart TD
 
 ## 10. สรุป
 
-เอกสาร BRD นี้อธิบายความต้องการหลักของ **รายงานสรุปยอดเข้ากลุ่ม LINE (00068)** แบบไม่ใช่เทคนิค
+เอกสาร BRD นี้อธิบายความต้องการหลักของ **รายงานสรุปยอดเข้ากลุ่ม LINE (00070)** แบบไม่ใช่เทคนิค
 
 **จุดเด่นของระบบ:**
 - ตัวเลขในกลุ่มตรงกับ Deep ทุกบาท เพราะใช้นิยามเดิมทีละร้านและมีเทส parity บังคับ

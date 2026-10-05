@@ -92,7 +92,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   }
 
-  // feature 00068 — จุดแดงที่แท็บ "ร้านค้า": กลุ่มรายงาน LINE ของ *เจ้าของ* ที่ alert ยังไม่รับทราบ
+  // feature 00070 — จุดแดงที่แท็บ "ร้านค้า": กลุ่มรายงาน LINE ของ *เจ้าของ* ที่ alert ยังไม่รับทราบ
   // ผูกกับ User (ไม่ใช่ shop.userId) · fail-closed → false ไม่ให้ layout crash · ไม่ใช่เจ้าของ = นับได้ 0 เอง
   let shopAlert = false
   const reportOwnerId = sessionUserId(session)

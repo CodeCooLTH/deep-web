@@ -72,7 +72,7 @@ export default async function ShopSettingsPage() {
     shop = null
   }
 
-  // feature 00068 — แถวรายงานกลุ่ม LINE: เฉพาะ owner (ANON/NOT_OWNER → null) · LOCKED ยังเห็นแถว
+  // feature 00070 — แถวรายงานกลุ่ม LINE: เฉพาะ owner (ANON/NOT_OWNER → null) · LOCKED ยังเห็นแถว
   // (หน้าปลายทางอธิบายเองว่าล็อกเพราะอะไร) · query ล้ม = ไม่มีจุดแดง ไม่ให้หน้าร้านพัง
   let lineReports: { hasAlert: boolean } | null = null
   try {

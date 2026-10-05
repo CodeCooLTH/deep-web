@@ -1,5 +1,5 @@
 /**
- * line-report-summary.test.ts — unit (mock SSOT) ของ buildGroupSummary (00068 · AC-14-2/14-7 · 15-2/15-3 · 16-4/16-6/16-7)
+ * line-report-summary.test.ts — unit (mock SSOT) ของ buildGroupSummary (00070 · AC-14-2/14-7 · 15-2/15-3 · 16-4/16-6/16-7)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'

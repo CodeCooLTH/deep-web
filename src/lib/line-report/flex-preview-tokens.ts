@@ -1,5 +1,5 @@
 /**
- * flex-preview-tokens — แปลงค่าสี hex ในโหนด Flex เป็นคลาส Paces สำหรับพรีวิว (00068 · addendum E §4.5)
+ * flex-preview-tokens — แปลงค่าสี hex ในโหนด Flex เป็นคลาส Paces สำหรับพรีวิว (00070 · addendum E §4.5)
  *
  * ทำไมอยู่นอก `(paces)/**`: hex ในโค้ดหน้าจอชน grep HR7 · ค่า hex อ้างจาก `FLEX_COLORS` ของ builder
  * (ไม่พิมพ์ซ้ำ) เพื่อให้ builder เปลี่ยนสีแล้วพรีวิวไม่ลืมตาม — เทสคุมว่าแต่ละสีมีคลาสของมัน

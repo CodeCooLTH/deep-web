@@ -42,7 +42,7 @@ interface ShopQuickLinksProps {
    */
   offerIap: boolean
   /**
-   * feature 00068 — แถว "รายงานเข้ากลุ่ม LINE" · null = ซ่อนแถว (ไม่ใช่ owner / ไม่ได้ login)
+   * feature 00070 — แถว "รายงานเข้ากลุ่ม LINE" · null = ซ่อนแถว (ไม่ใช่ owner / ไม่ได้ login)
    * hasAlert = มีกลุ่มที่ alert ยังไม่รับทราบ → จุดแดง
    * 🛑 ไม่มี default — ผู้เรียกที่ลืมส่ง = แถวหายเงียบ ให้ tsc บังคับทุก call site (เหมือน hidePayments)
    */
@@ -106,7 +106,7 @@ const STAFF_LINK: QuickLink = {
   hint: 'เชิญและจัดการทีมงาน',
 }
 
-// feature 00068 — label/icon/url ตรง seller-menu.ts slug `seller:line-reports` เป๊ะ
+// feature 00070 — label/icon/url ตรง seller-menu.ts slug `seller:line-reports` เป๊ะ
 // 🛑 ไม่อยู่ใน LINKS/PAYMENT_LINK_URLS/IAP_LINK_URLS โดยตั้งใจ: แถวนี้ไม่มีทางจ่ายเงิน (ถูก 3.1.1 ทุกเชลล์)
 // จึงต้องไม่ถูกกรองด้วย hidePayments/offerIap — แทรกแบบมีเงื่อนไข lineReports !== null แทน
 const LINE_REPORTS_LINK: QuickLink = {
