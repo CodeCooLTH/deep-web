@@ -149,6 +149,29 @@ export const profitDisplay = (n: number, opts?: { capped?: boolean }) => {
 }
 
 /**
+ * ค่าใช้จ่ายในรายงานกลุ่ม LINE (EXT-EXP FR-03) — ยังไม่มีบันทึก ≠ ฿0 (BR-LGS-32)
+ * คำ "อย่างน้อย/ไม่เกิน" ชุดเดียวกับ profitDisplay — ห้ามคิดคำที่สาม (HR16)
+ * คืนเฉพาะ label/text — สีเป็นหน้าที่ผู้เรียก (ในรายงานนี้ห้ามแดง/เขียว)
+ */
+export const expenseDisplay = (n: number, opts: { recorded: boolean }) => {
+  if (opts.recorded) return { label: 'ค่าใช้จ่าย', text: formatBaht(n), capped: false }
+  if (n > 0) return { label: 'ค่าใช้จ่ายอย่างน้อย', text: formatBaht(n), capped: true }
+  return { label: 'ค่าใช้จ่าย', text: 'ยังไม่มีบันทึก', capped: true }
+}
+
+/**
+ * ยอดขายหลังหักค่าใช้จ่าย (ไม่ใช่กำไร — ยังไม่หักต้นทุนสินค้า) · ติดลบสื่อด้วยคำ + ค่าสัมบูรณ์ ไม่มี `฿-` (F-6)
+ * `capped` = ค่าใช้จ่ายยังไม่มีบันทึก ⇒ ยอดจริงต่ำกว่าที่เห็น
+ */
+export const netSalesDisplay = (n: number, opts: { capped: boolean }) => {
+  const positive = n >= 0
+  const label = positive
+    ? opts.capped ? 'ยอดขายหลังหักค่าใช้จ่ายไม่เกิน' : 'ยอดขายหลังหักค่าใช้จ่าย'
+    : opts.capped ? 'ยอดขายต่ำกว่าค่าใช้จ่ายอย่างน้อย' : 'ยอดขายต่ำกว่าค่าใช้จ่าย'
+  return { positive, capped: opts.capped, label, text: formatBaht(n) }
+}
+
+/**
  * %เปลี่ยนแปลงเทียบช่วงก่อนหน้า — helper กลาง กันสูตรหลุดกันตามจุดที่ใช้
  * คืน null เมื่อ "เทียบแล้วอ่านไม่รู้เรื่อง": ไม่มีฐาน (null) หรือฐาน ≤ 0 ซึ่งเปอร์เซ็นต์อ่านกลับหัว
  * UI ต้องซ่อน badge ทั้งก้อนเมื่อได้ null — ห้ามแสดง 0% หรือ +100% จากฐานศูนย์

@@ -49,6 +49,16 @@ export type Top3Row = { name: string; qty: number; amount: number }
 /** กำไรของร้านเดียว — `capped` = ข้อมูลไม่ครบ (ป้ายเพดานจาก profitDisplay) */
 export type ShopProfit = { netProfit: number; capped: boolean }
 
+/** ผลการเงินของร้านเดียวจาก getPnlReport ชุดเดียวกับกำไร — เติมเมื่อ needExpense (EXT-EXP) */
+export type ShopFinance = {
+  /** = report.totalExpense */
+  expense: number
+  /** = round2(report.revenue − report.totalExpense) ติดลบได้ */
+  netSales: number
+  /** = listExpenses(...).length > 0 (เกณฑ์เดียวกับ resolveDataCompleteness) */
+  expenseRecorded: boolean
+}
+
 /**
  * ผลของร้านเดียว · `orders`/`cancelled` = จำนวนใบ · `confirmed`/`unconfirmed` = ยอดเงินบาท
  * (confirmedValues / unconfirmedValues ของ getSalesSeries) · ERROR/EXCLUDED ไม่นับในยอดรวม
@@ -69,6 +79,8 @@ export type ShopSummary = {
   /** getProductSalesMonth ตัดข้อมูลเพราะชนเพดาน (เดือนใดเดือนหนึ่งในช่วง) — อันดับคำนวณจากข้อมูลบางส่วน ต้องมีหมายเหตุ */
   top3Truncated?: boolean
   profit?: ShopProfit
+  /** ฟิลด์แยกจาก profit (ไม่ปะปนสิทธิ์ "กำไรเปิดไหม") */
+  finance?: ShopFinance
   /** เติมเมื่อเทมเพลตมีบล็อกกราฟแนวโน้ม (needTrend7) */
   trend?: Trend
 }

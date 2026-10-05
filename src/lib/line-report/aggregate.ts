@@ -3,7 +3,8 @@
  * ไม่มีสูตรยอดขาย/กำไร — รับค่าที่ SSOT (getSalesSeries ฯลฯ) คำนวณแล้วมาตัดวัน/บวกเท่านั้น (HR16)
  */
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
-import type { ShopRef, ShopSummary, Top3Row, Totals, Trend } from './types'
+import { round2 } from '@/lib/round2'
+import type { ShopFinance, ShopRef, ShopSummary, Top3Row, Totals, Trend } from './types'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -108,4 +109,17 @@ export function isMixedFinanceRules(shops: readonly Pick<ShopRef, 'vertical'>[])
 /** รวมกำไรข้ามร้านได้ก็ต่อเมื่อทุกร้านใช้กติกาเดียวกัน — ไม่ใช่ = กำไรรายร้านเท่านั้น + หมายเหตุ */
 export function canSumProfit(shops: readonly Pick<ShopRef, 'vertical'>[]): boolean {
   return !isMixedFinanceRules(shops)
+}
+
+/**
+ * รวมค่าใช้จ่าย/ยอดหลังหักค่าใช้จ่ายของร้าน OK เท่านั้น (ERROR/EXCLUDED ไม่นับ) · round2
+ * `expenseRecorded` รวมแบบ ∧ (ครบก็ต่อเมื่อทุกร้านมีบันทึก) · ร้าน OK ที่ไม่มี finance → undefined (รวมบางส่วนไม่ได้ ไม่ประมาณ)
+ * ผู้เรียกตัดสินเรื่อง canSumProfit/ERROR เอง — ที่นี่รวมตามที่ได้รับ
+ */
+export function combineFinance(shops: readonly ShopSummary[]): ShopFinance | undefined {
+  const ok = shops.filter((s) => s.state === 'OK')
+  if (!ok.length || ok.some((s) => !s.finance)) return undefined
+  let expense = 0, netSales = 0
+  for (const s of ok) { expense += s.finance!.expense; netSales += s.finance!.netSales }
+  return { expense: round2(expense), netSales: round2(netSales), expenseRecorded: ok.every((s) => s.finance!.expenseRecorded) }
 }

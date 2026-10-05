@@ -18,6 +18,8 @@ export type Block =
   | { id: string; type: 'shops'; top3: boolean; profit: boolean }
   | { id: string; type: 'cycle' }
   | { id: string; type: 'profit' }
+  | { id: string; type: 'expense' }
+  | { id: string; type: 'net_sales' }
   | { id: string; type: 'text'; style: { bold: boolean; size: 's' | 'm' | 'l'; color: 'ink' | 'slate' | 'accent' }; runs: Run[] }
   | { id: string; type: 'separator' }
   | { id: string; type: 'chart_trend'; measure: 'sales' | 'orders' }
@@ -59,7 +61,7 @@ const TOKEN_BY_LABEL = new Map<string, TokenKey>(TOKEN_KEYS.map((k) => [TOKENS[k
 
 /** ชนิดที่ใส่ได้ไม่เกินเท่านี้ (ที่ไม่ระบุ = 1) */
 export const BLOCK_LIMITS: Record<BlockType, number> = {
-  orders: 1, sales: 1, cancelled: 1, shops: 1, cycle: 1, profit: 1, chart_trend: 1, chart_compare: 1, text: 6, separator: 8,
+  orders: 1, sales: 1, cancelled: 1, shops: 1, cycle: 1, profit: 1, chart_trend: 1, chart_compare: 1, expense: 1, net_sales: 1, text: 6, separator: 8,
 }
 export const MAX_BLOCKS = 20
 export const MAX_TEXT_LENGTH = 120
@@ -125,6 +127,19 @@ export function deriveFlags(t: TemplateV1): DerivedFlags {
   }
 }
 
+/**
+ * เทมเพลตเปิดเผยค่าใช้จ่าย/ยอดหลังหักค่าใช้จ่ายให้ทั้งกลุ่มเห็นไหม (EXT-EXP FR-02/05)
+ * 🛑 ฟังก์ชันแยก ไม่ใช่ key ใน deriveFlags — deriveFlags ถูกเขียนลง prisma.update ตรง ๆ (key แปลก = Prisma ล้ม)
+ * รอบนี้มีทางเข้าเดียว: บล็อก expense | net_sales (ตัวเลือกต่อร้าน/โทเคน ตัดไปรอบหน้า)
+ */
+export const deriveExposure = (t: TemplateV1): { expense: boolean } => ({
+  expense: t.blocks.some((b) => b.type === 'expense' || b.type === 'net_sales'),
+})
+
+/** เปิดเพิ่มต้องยืนยัน: false→true เทียบกับเทมเพลตที่บันทึกไว้เดิม (null = ยังไม่เคยมี = false) */
+export const needsExpenseConfirm = (prev: TemplateV1 | null, next: TemplateV1): boolean =>
+  deriveExposure(next).expense && !(prev && deriveExposure(prev).expense)
+
 export type TemplateNeeds = DerivedFlags & {
   needSeries: boolean
   needTrend7: boolean
@@ -132,6 +147,8 @@ export type TemplateNeeds = DerivedFlags & {
   needCancelled: boolean
   needTop3: boolean
   needPnl: boolean
+  /** ต้องดึง getPnlReport เพื่อค่าใช้จ่าย/ยอดหลังหักค่าใช้จ่าย (EXT-EXP) — แยกจาก needPnl (กำไร) */
+  needExpense: boolean
   needCycle: boolean
 }
 
@@ -151,6 +168,7 @@ export function deriveNeeds(t: TemplateV1): TemplateNeeds {
     needCancelled: f.showCancelled || toks.has('cancelled_count'),
     needTop3: f.showTopProducts,
     needPnl: f.showProfit,
+    needExpense: deriveExposure(t).expense,
     needCycle: f.attachCycleToDaily,
   }
 }

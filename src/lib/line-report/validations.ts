@@ -107,6 +107,8 @@ const BlockSchema = v.variant(
     v.strictObject({ id: IdSchema, type: v.literal('shops'), top3: v.boolean(), profit: v.boolean() }),
     v.strictObject({ id: IdSchema, type: v.literal('cycle') }),
     v.strictObject({ id: IdSchema, type: v.literal('profit') }),
+    v.strictObject({ id: IdSchema, type: v.literal('expense') }),
+    v.strictObject({ id: IdSchema, type: v.literal('net_sales') }),
     TextBlockSchema,
     v.strictObject({ id: IdSchema, type: v.literal('separator') }),
     v.strictObject({ id: IdSchema, type: v.literal('chart_trend'), measure: MeasureSchema }),

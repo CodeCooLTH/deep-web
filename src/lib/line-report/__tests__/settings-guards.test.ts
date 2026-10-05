@@ -146,3 +146,10 @@ describe('พรีวิว + แบนเนอร์ info', () => {
     expect(previewState('DAILY', { dailyEnabled: false, monthlyEnabled: false }, false)).toEqual({ kind: 'DAILY', dailyDisabled: true, monthlyDisabled: true })
   })
 })
+
+describe('EXP: บล็อกใหม่ไม่นับเป็นตัวเลข', () => {
+  it('METRIC_KEYS ยังมี 5 ตัวเดิม ไม่มี expense/net_sales', async () => {
+    const { METRIC_KEYS } = await import('../settings-guards')
+    expect([...METRIC_KEYS]).toEqual(['showOrders', 'showSales', 'showCancelled', 'showTopProducts', 'showProfit'])
+  })
+})

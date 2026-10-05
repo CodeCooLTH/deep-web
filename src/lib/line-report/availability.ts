@@ -4,6 +4,7 @@
  * เหตุผลเดียวกันใช้สองที่: คลัง (disabled+เหตุผล) และผืนงาน (warning "ไม่ถูกส่งตอนนี้")
  * ข้อสังเกต: "ใส่ซ้ำไม่ได้/ครบเพดาน" (โครงสร้าง) แยกจาก "ข้อมูลกลุ่มไม่พร้อม" (บริบท) — อย่างแรกกันไม่ให้เพิ่ม ไม่ใช่เหตุให้ warn บล็อกที่มีอยู่
  */
+import { canSumProfit } from '@/lib/line-report/aggregate'
 import { resolveShopVertical } from '@/lib/lodging'
 import { BLOCK_LIMITS, MAX_BLOCKS, type BlockType, type TemplateV1 } from '@/lib/line-report/template'
 
@@ -19,6 +20,7 @@ export const REASON = {
   TOP3_NO_LODGING: 'ไม่มีให้ร้านบ้านพัก (ไม่มีรายการสินค้า)',
   USED_UP: 'ใช้ครบแล้ว',
   BLOCKS_FULL: 'ครบ 20 บล็อกแล้ว',
+  EXPENSE_MIXED_RULES: 'กลุ่มนี้มีร้านต่างประเภทธุรกิจ จึงไม่รวมค่าใช้จ่ายเป็นยอดเดียว',
 } as const
 
 export type Availability = { ok: true } | { ok: false; reason: string }
@@ -50,6 +52,7 @@ export function libraryAvailability(type: BlockType, t: TemplateV1, ctx: Availab
 export function blockWarning(b: TemplateV1['blocks'][number], ctx: AvailabilityContext): string | null {
   const a = contextAvailability(b.type, ctx)
   if (!a.ok) return `ไม่ถูกส่งตอนนี้ (${a.reason})`
+  if ((b.type === 'expense' || b.type === 'net_sales') && !canSumProfit(ctx.shops)) return `ไม่ถูกส่งตอนนี้ (${REASON.EXPENSE_MIXED_RULES})`
   if (b.type === 'shops' && b.top3) {
     const t = top3Availability(ctx)
     if (!t.ok) return `ขายดี 3 อันดับไม่ถูกส่งตอนนี้ (${t.reason})`

@@ -84,3 +84,20 @@ describe('validateTemplate — กรณีเสีย', () => {
     expect(types).toHaveLength(10)
   })
 })
+
+describe('EXP: บล็อก expense/net_sales ใน schema', () => {
+  const base = (blocks: unknown[]) => ({ v: 1, button: { show: true, label: 'x' }, blocks })
+  it('รับ 2 บล็อก อย่างละ 1', () => {
+    expect(validateTemplate(base([{ id: 'a', type: 'expense' }, { id: 'b', type: 'net_sales' }])).ok).toBe(true)
+  })
+  it('ซ้ำ → TYPE_LIMIT', () => {
+    expect(validateTemplate(base([{ id: 'a', type: 'expense' }, { id: 'b', type: 'expense' }]))).toMatchObject({ ok: false, rule: 'TYPE_LIMIT' })
+    expect(validateTemplate(base([{ id: 'a', type: 'net_sales' }, { id: 'b', type: 'net_sales' }]))).toMatchObject({ ok: false, rule: 'TYPE_LIMIT' })
+  })
+  it('ฟิลด์เกิน → EXTRA_FIELD', () => {
+    expect(validateTemplate(base([{ id: 'a', type: 'expense', x: 1 }]))).toMatchObject({ ok: false, rule: 'EXTRA_FIELD' })
+  })
+  it('เทมเพลตเดิมที่ไม่มีบล็อกใหม่ยัง valid', () => {
+    expect(validateTemplate(base([{ id: 'a', type: 'shops', top3: true, profit: false }, { id: 'p', type: 'profit' }])).ok).toBe(true)
+  })
+})

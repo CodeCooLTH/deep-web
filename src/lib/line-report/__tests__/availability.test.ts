@@ -34,3 +34,18 @@ describe('availability', () => {
     expect(blockWarning({ id: 'o', type: 'orders' }, ctx(false))).toBeNull()
   })
 })
+
+describe('EXP: บล็อกการเงินใหม่', () => {
+  const mixed = ctx(true, 'SERVICE_QUEUE', 'ONLINE_SALES')
+  it('กติกาผสม → warning ทั้งสองบล็อก · กติกาเดียว/ร้านเดียว → null', () => {
+    for (const type of ['expense', 'net_sales'] as const) {
+      expect(blockWarning({ id: 'a', type }, mixed)).toBe(`ไม่ถูกส่งตอนนี้ (${REASON.EXPENSE_MIXED_RULES})`)
+      expect(blockWarning({ id: 'a', type }, ctx(true, 'ONLINE_SALES', 'ONLINE_SALES'))).toBeNull()
+      expect(blockWarning({ id: 'a', type }, ctx(true, 'SERVICE_QUEUE'))).toBeNull()
+    }
+  })
+  it('คลัง: ใส่ซ้ำไม่ได้ · กติกาผสมยังเพิ่มได้ (เตือน ไม่ห้าม)', () => {
+    expect(libraryAvailability('expense', t({ id: 'a', type: 'expense' }), mixed)).toEqual({ ok: false, reason: REASON.USED_UP })
+    expect(libraryAvailability('net_sales', t(), mixed).ok).toBe(true)
+  })
+})
