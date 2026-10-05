@@ -11,6 +11,7 @@ import { LineReportError, type InvalidSettingsRule } from '@/lib/line-report/err
 import { isReportBotReady } from '@/lib/line-report/config'
 import { resolveReportConfig } from '@/lib/line-report/report-config'
 import { deriveFlags, type TemplateV1 } from '@/lib/line-report/template'
+import { measureTemplate, type TemplateMeasure } from '@/lib/line-report/template-size'
 import { nextSendAt } from '@/lib/line-report/schedule'
 import { cycleContaining, nextMonthlyFireAt } from '@/lib/line-report/cycle'
 import { describeReason, MISSED_STATUS_LABEL } from '@/lib/line-report/delivery-reasons'
@@ -231,9 +232,15 @@ const FLAG_KEYS = ['showOrders', 'showSales', 'showCancelled', 'showTopProducts'
 
 /** เพดานคอลัมน์ (DB CHECK octet_length ≤ 16384) — ตรวจก่อนถึงฐานจะได้ error ที่ UI อ่านรู้เรื่อง ไม่ใช่ raw constraint */
 const TEMPLATE_MAX_BYTES = 16384
-/** hook จุดเดียวของด่านขนาด — TODO(T6b): เรียก measureTemplate (src/lib/line-report/template-size.ts) ที่นี่ (ระดับ 3 · 30,000 ไบต์ → TEMPLATE_TOO_LARGE) */
-function assertTemplateSize(template: TemplateV1): void {
+/**
+ * ด่านขนาดจุดเดียว: octet ของคอลัมน์ (16 KB) ก่อน แล้ววัด "ทั้ง message" ระดับ 3 ด้วย measureTemplate (FR-EXT-08)
+ * — เกิน limit = TEMPLATE_TOO_LARGE · เกินแค่ระดับ 0 = ผ่านพร้อม warnings
+ */
+function assertTemplateSize(template: TemplateV1): TemplateMeasure {
   if (Buffer.byteLength(JSON.stringify(template), 'utf8') > TEMPLATE_MAX_BYTES) throw new LineReportError('TEMPLATE_TOO_LARGE')
+  const m = measureTemplate(template)
+  if (m.bytes > m.limit) throw new LineReportError('TEMPLATE_TOO_LARGE', { bytes: m.bytes, limit: m.limit })
+  return m
 }
 
 export type UpdateTemplateInput = { template: unknown; expectedVersion: number; confirmProfit?: boolean }
@@ -242,13 +249,13 @@ export type UpdateTemplateInput = { template: unknown; expectedVersion: number; 
  * บันทึกเทมเพลต (PUT) — validate → ล็อกกลุ่ม → เทียบ version → derive flag → mergeSettings เดิม → เขียนทั้งก้อนใน tx เดียว
  * ผลต่อข้อความที่ส่งไปแล้ว/รอ retry = ไม่มี (retry ใช้ pendingPayload แช่แข็ง)
  */
-export async function updateTemplate(ownerId: string, groupId: string, input: UpdateTemplateInput): Promise<GroupDetailDto> {
+export async function updateTemplate(ownerId: string, groupId: string, input: UpdateTemplateInput): Promise<GroupDetailDto & { measure: TemplateMeasure }> {
   if (!(await isOwnerPaidForReports(ownerId))) throw new LineReportError('PACKAGE_REQUIRED')
   if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 0) throw new LineReportError('VALIDATION')
   const parsed = validateTemplate(input.template)
   if (!parsed.ok) throw new LineReportError('TEMPLATE_INVALID', { rule: parsed.rule, ...(parsed.blockId ? { blockId: parsed.blockId } : {}) })
   const template = parsed.template
-  assertTemplateSize(template)
+  const measure = assertTemplateSize(template)
   await prisma.$transaction(async (tx) => {
     await lockOwnedGroup(tx, ownerId, groupId)
     const cur = await tx.lineReportGroup.findFirstOrThrow({
@@ -268,7 +275,7 @@ export async function updateTemplate(ownerId: string, groupId: string, input: Up
       data: { ...next, template: template as unknown as Prisma.InputJsonObject, templateVersion: { increment: 1 } },
     })
   })
-  return (await getGroupDetail(ownerId, groupId)).group
+  return { ...(await getGroupDetail(ownerId, groupId)).group, measure }
 }
 
 /** คืนแบบมาตรฐาน (DELETE) — flag กลับค่าตั้งต้นคอลัมน์ (A-6) · attachCycleToDaily คงเดิมถ้ายังเปิดรายเดือน */
