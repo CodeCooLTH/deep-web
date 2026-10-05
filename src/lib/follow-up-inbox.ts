@@ -1,6 +1,7 @@
 // 00066 (e) — ตัวตัดสินของตัวกรอง/ป้าย "ติดตามลูกค้า" ในกล่องแชท เป็นฟังก์ชันบริสุทธิ์
 // (ui-boolean-needs-a-testable-home.md) — ห้ามย้ายกลับไปเป็น ternary ใน JSX/route
 import type { FilterState } from '@/lib/follow-up-rules'
+import { thaiTodayBounds } from '@/lib/date-range'
 
 const STATES: readonly FilterState[] = ['late', 'upcoming', 'done']
 
@@ -18,4 +19,13 @@ export function rowBadge(c: { open: number; late: number } | null | undefined): 
   if (!c) return null
   if (c.late >= 1) return 'late'
   return c.open >= 1 ? 'open' : null
+}
+
+/** แถบงานด่วนในแถว (แบบ gochat-v3) — เลยกี่วันนับตามปฏิทินไทย ไม่ใช่ 24 ชม.
+ *  0 = เลยเวลาแต่ยังเป็นวันนี้ (มีเวลา) · null = ยังไม่เลย (ผู้เรียกใช้ formatDueLabel ของ "วันนี้") */
+export function lateDays(u: { dueAt: string; late: boolean }, now: Date): number | null {
+  if (!u.late) return null
+  const day = 24 * 3600_000
+  const due = thaiTodayBounds(new Date(u.dueAt)).from.getTime()
+  return Math.max(0, Math.round((thaiTodayBounds(now).from.getTime() - due) / day))
 }

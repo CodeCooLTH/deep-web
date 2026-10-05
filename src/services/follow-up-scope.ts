@@ -94,10 +94,10 @@ export async function conversationIdsByClusterTags(
 export async function openRowsByAnchor(
   anchorIds: string[],
   shopIds: string[],
-): Promise<{ anchor: string; status: string; dueAt: Date; allDay: boolean }[]> {
+): Promise<{ anchor: string; status: string; dueAt: Date; allDay: boolean; title: string }[]> {
   if (anchorIds.length === 0 || shopIds.length === 0) return []
   return prisma.$queryRaw`
-    SELECT a."id" AS anchor, f."status" AS status, f."dueAt" AS "dueAt", f."allDay" AS "allDay"
+    SELECT a."id" AS anchor, f."status" AS status, f."dueAt" AS "dueAt", f."allDay" AS "allDay", f."title" AS title
     FROM "Conversation" a
     LEFT JOIN "ExternalContact" ea ON ea."id" = a."externalContactId"
     JOIN "Conversation" b ON b."shopId" = a."shopId"

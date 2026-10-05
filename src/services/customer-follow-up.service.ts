@@ -31,6 +31,7 @@ import {
   isOverdue,
   isUnassigned,
   panelModel,
+  urgentOf,
   type Bucket,
   type FilterState,
 } from '@/lib/follow-up-rules'
@@ -745,21 +746,31 @@ export async function listCalendarMonth(p: BoardParams & { month: string }, now:
 }
 
 // ---------- ป้ายแถวรายการแชท + ตัวกรอง (ก้อนเดียว ไม่ N+1) ----------
+/** แถบงานด่วนในแถวกล่องแชท — dueAt เป็น ISO (ส่งผ่าน JSON/RSC ได้เหมือนกัน) */
+export type FollowUpUrgent = { title: string; dueAt: string; allDay: boolean; late: boolean; more: number }
+export type FollowUpRowInfo = { open: number; late: number; urgent: FollowUpUrgent | null }
+
 export async function countsForConversations(
   conversationIds: string[],
   shopIds: string[],
   now: Date = new Date(),
-): Promise<Map<string, { open: number; late: number }>> {
-  const out = new Map<string, { open: number; late: number }>()
-  for (const id of conversationIds) out.set(id, { open: 0, late: 0 })
+): Promise<Map<string, FollowUpRowInfo>> {
+  const out = new Map<string, FollowUpRowInfo>()
+  for (const id of conversationIds) out.set(id, { open: 0, late: 0, urgent: null })
   const rows = await openRowsByAnchor(conversationIds, shopIds)
-  const by = new Map<string, { status: string; dueAt: Date; allDay: boolean }[]>()
+  const by = new Map<string, { status: string; dueAt: Date; allDay: boolean; title: string }[]>()
   for (const r of rows) {
     const list = by.get(r.anchor) ?? []
     list.push(r)
     by.set(r.anchor, list)
   }
-  for (const [anchor, list] of by) out.set(anchor, countOpenAndLate(list, now))
+  for (const [anchor, list] of by) {
+    const u = urgentOf(list, now)
+    out.set(anchor, {
+      ...countOpenAndLate(list, now),
+      urgent: u && { title: u.item.title, dueAt: u.item.dueAt.toISOString(), allDay: u.item.allDay, late: u.late, more: u.more },
+    })
+  }
   return out
 }
 
@@ -767,9 +778,9 @@ export async function enrichWithFollowUpCounts<T extends { id: string }>(
   items: T[],
   shopIds: string[],
   now: Date = new Date(),
-): Promise<(T & { followUp: { open: number; late: number } })[]> {
+): Promise<(T & { followUp: FollowUpRowInfo })[]> {
   const counts = await countsForConversations(items.map((i) => i.id), shopIds, now)
-  return items.map((i) => ({ ...i, followUp: counts.get(i.id) ?? { open: 0, late: 0 } }))
+  return items.map((i) => ({ ...i, followUp: counts.get(i.id) ?? { open: 0, late: 0, urgent: null } }))
 }
 
 /** คีย์ cluster → สถานะ (late/upcoming/done) ทั้งขอบเขตร้านที่เห็น — ไม่ขึ้นกับตัวกรองอื่น */

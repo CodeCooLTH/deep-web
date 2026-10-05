@@ -41,6 +41,19 @@ export function countOpenAndLate(rows: DueRow[], now: Date): { open: number; lat
   return { open, late }
 }
 
+/** รายการที่ด่วนที่สุด (เลยกำหนด/ครบวันนี้ · dueAt เก่าสุดก่อน) สำหรับแถบในแถวกล่องแชท + จำนวนด่วนที่เหลือ
+ *  สัปดาห์หน้า/ไกลกว่า = ไม่ด่วน → null (ป้าย "ติดตาม" ในแถวบอกอยู่แล้วว่ามีค้าง) */
+export function urgentOf<T extends DueRow>(rows: T[], now: Date): { item: T; late: boolean; more: number } | null {
+  const urgent = rows
+    .filter((r) => {
+      const b = bucketOf(r, now)
+      return b === 'late' || b === 'today'
+    })
+    .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())
+  if (urgent.length === 0) return null
+  return { item: urgent[0], late: isOverdue(urgent[0], now), more: urgent.length - 1 }
+}
+
 export type FilterState = 'late' | 'upcoming' | 'done'
 /** สถานะต่อ cluster สำหรับตัวกรองกล่องแชท — ไม่เคยมีรายการ = null (ไม่ตก done) */
 export function filterStateOf(c: { open: number; late: number; done: number }): FilterState | null {

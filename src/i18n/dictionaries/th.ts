@@ -840,6 +840,7 @@ export const th = {
        */
       tabCustomer: 'ข้อมูล',
       tabFiles: 'ไฟล์',
+      tabFollowUp: 'ติดตาม',
       statOrderCount: 'จำนวนออเดอร์',
       statTotalSpent: 'รวมยอดซื้อ',
       statCustomerSince: 'เป็นลูกค้ามา',
@@ -1388,7 +1389,9 @@ export const th = {
     filterLate: 'เลยกำหนด',
     filterUpcoming: 'กำลังจะมาถึง',
     filterDone: 'ทำแล้ว',
-    rowOpen: 'ค้างอยู่ {n}',
+    rowOpen: 'ติดตาม {n}',
+    stripLateDays: 'เลย {n} วัน',
+    stripLateToday: 'เลยกำหนด',
     rowLate: 'เลยกำหนด {n}',
     rowLateAria: 'เลยกำหนด {late} รายการ จากรายการติดตาม {open} รายการ',
     boardTruncated: 'แสดงไม่ครบ — รายการที่ยังเปิดอยู่มีมากเกินไป ลองกรองตามผู้รับผิดชอบเพื่อดูส่วนที่เหลือ',

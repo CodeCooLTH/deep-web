@@ -331,7 +331,7 @@ export default async function SellerInboxPage() {
         customerBehavior: behaviorMap.get(c.id) ?? null,
         // feature 00061 — 0 = ไม่มีร่างค้าง (UI ไม่โชว์ badge)
         draftOrderCount: draftMap.get(c.id) ?? 0,
-        followUp: followUpMap.get(c.id) ?? { open: 0, late: 0 },
+        followUp: followUpMap.get(c.id) ?? { open: 0, late: 0, urgent: null },
         // S-20 — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
         lastMessageAutoReplyKind: autoReplyBadgeMap.get(c.id)?.kind ?? null,
         lastMessageIsAiEnhanced: autoReplyBadgeMap.get(c.id)?.isAi ?? false,

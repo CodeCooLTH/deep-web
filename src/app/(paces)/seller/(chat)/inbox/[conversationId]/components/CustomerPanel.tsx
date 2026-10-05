@@ -248,7 +248,7 @@ function StatRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-export type Tab = 'customer' | 'orders' | 'files' | 'note'
+export type Tab = 'customer' | 'orders' | 'followup' | 'files' | 'note'
 
 /**
  * คำนามของแท็บที่สอง ผันตาม vertical — ดึงจากคีย์ที่มีอยู่แล้วใน dictionary ไม่ตั้งคำชุดใหม่
@@ -265,6 +265,8 @@ function buildTabs(t: Dictionary, vertical: ShopVertical): { key: Tab; label: st
   return [
     { key: 'customer', label: t.inbox.customerPanel.tabCustomer, icon: 'user-circle' },
     { key: 'orders', label: resolveTabNoun(t, vertical), icon: 'shopping-cart' },
+    // 00066 — user สั่ง 2026-10-05 ย้ายจากแถวพับเหนือแถบแท็บมาเป็นแท็บ (กลับมติ Q-4)
+    { key: 'followup', label: t.inbox.customerPanel.tabFollowUp, icon: 'star' }, // ดาว = ติดตาม (user 2026-10-05)
     /**
      * แท็บคลังไฟล์ (2026-08-14) — user: "เวลาอยู่ใน Mobile จะเข้าไปดูไฟล์ที่ใช้ร่วมกันยากมาก"
      * เดิมคลังไฟล์อยู่ล่างสุดของแท็บ 'customer' ⇒ ทางไปไฟล์บนมือถือคือ 4 ชั้น
@@ -788,6 +790,9 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
   /** คำนามที่ผันตาม vertical — ใช้แทน `cta.tabLabel` ทุกจุดที่เป็นข้อความบนจอ */
   const tabNoun = resolveTabNoun(t, data.vertical)
   const TABS = buildTabs(t, data.vertical)
+  const [followUpCounts, setFollowUpCounts] = useState({ open: 0, late: 0 })
+  // เปลี่ยนห้อง = ล้างตัวเลขห้องเก่าก่อน FollowUpPanel ของห้องใหม่โหลดเสร็จ
+  useEffect(() => setFollowUpCounts({ open: 0, late: 0 }), [data.conversationId])
   const { openDraft } = useDraftOrders()
   // เปิดโมดัลสร้างคำสั่งซื้อ (พับได้/ค้างข้ามแชท) แทนการ navigate ไป /orders/new (user request 2026-07-24)
   const startCreateOrder = () =>
@@ -881,10 +886,6 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
         </div>
       </div>
 
-      {/* 00066 ติดตามลูกค้า — แถวพับปักหมุดเหนือแถบแท็บ (ไม่ใช่แท็บที่ 5: งบแท็บเต็ม 384px + ห้าม slide)
-          key = ห้อง: เปลี่ยนห้อง mount ใหม่ → คำนวณ "กางเอง" ใหม่ตาม UX §a */}
-      <FollowUpPanel key={data.conversationId} conversationId={data.conversationId} />
-
       {/* แถบสรุป 1 บรรทัดเหนือแท็บถูกย้ายลงไปเป็น "แถวสถิติ" ในแท็บข้อมูลลูกค้าแทน (user สั่ง 2026-07-24
           ส่งภาพรูปแบบ label-ซ้าย/ค่า-ขวามาให้) — เดิมโชว์ count+total เหนือแท็บ ซึ่งจะซ้ำกับแถวใหม่
           ถ้าเก็บไว้ทั้งคู่ (ตัวเลขเดียวกันโผล่ 2 ที่ในกรอบ 384px = สิ่งที่ critique เคยเตือน) */}
@@ -908,7 +909,8 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
             อย่างเดียวจึงไม่มีผลเลย ต้องปิด wrap ก่อนกลไกอื่นถึงจะทำงาน
             user สั่งเองว่า "ไม่อยากให้ slide ได้ด้วย ต้อง fit พอดี" ⇒ ห้ามใส่ overflow-x-auto
             งบที่ 384px: px-4 นอก 32 → เหลือ 352 · ต่อแท็บ = px-2(16) + ไอคอน 16 + gap 6 + คำ
-            คำสั้น 4 ตัว (ข้อมูล/คำสั่งซื้อ+badge/ไฟล์/โน้ต) รวม ~310px ⇒ เหลือที่ว่าง ไม่ตกบรรทัด */
+            คำสั้น 4 ตัว (ข้อมูล/คำสั่งซื้อ+badge/ไฟล์/โน้ต) รวม ~310px ⇒ เหลือที่ว่าง ไม่ตกบรรทัด
+            2026-10-05 แท็บที่ 5 "ติดตาม" (+badge) → บีบ px-2→px-1.5 · gap-1.5→gap-1 ให้ 5 แท็บยังพอดี */
         className="nav-tabs border-default-200 my-0 me-0 h-auto flex-nowrap border-b px-4"
         role="tablist"
         aria-label={t.inbox.customerInfo}
@@ -924,7 +926,7 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
             tabIndex={tab === tabDef.key ? 0 : -1}
             onKeyDown={onTabKeyDown}
             onClick={() => setTab(tabDef.key)}
-            className={`nav-link -mb-px inline-flex min-w-0 items-center gap-1.5 px-2 py-3 text-sm ${
+            className={`nav-link -mb-px inline-flex min-w-0 items-center gap-1 px-1.5 py-3 text-sm ${
               tab === tabDef.key ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent'
             }`}
           >
@@ -936,6 +938,14 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
                 ใช้ customerStats (aggregate จริง) แทน summary.count (cap 20) ให้ตรงกับแถวสถิติในแท็บ */}
             {tabDef.key === 'orders' && (data.customerStats?.orderCount ?? 0) > 0 && (
               <span className="badge bg-default-100 text-default-700 text-2xs">{data.customerStats!.orderCount}</span>
+            )}
+            {/* ตัวเลขค้าง — แดงเมื่อมีเลยกำหนด (แทน "กางเองเมื่อเลยกำหนด" ของแถวพับเดิม) */}
+            {tabDef.key === 'followup' && followUpCounts.open > 0 && (
+              <span
+                className={`badge text-2xs ${followUpCounts.late > 0 ? 'bg-danger text-white' : 'bg-success/15 text-success-ink'}`}
+              >
+                {followUpCounts.open}
+              </span>
             )}
           </button>
         ))}
@@ -1021,6 +1031,17 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
             )}
           </div>
 
+        </div>
+
+        <div
+          role="tabpanel"
+          id={`${uid}-panel-followup`}
+          aria-labelledby={`${uid}-tab-followup`}
+          className={tab === 'followup' ? '' : 'hidden'}
+        >
+          {/* mount ค้างตั้งแต่เปิดห้อง (เหมือนแท็บอื่น) — ตัวเลขบนแท็บจึงขึ้นทันทีโดยไม่ต้องกดเข้า
+              key = ห้อง: เปลี่ยนห้องแล้วล้าง state/ฟอร์มค้างของห้องเก่า */}
+          <FollowUpPanel key={data.conversationId} conversationId={data.conversationId} onCounts={setFollowUpCounts} />
         </div>
 
         {/**

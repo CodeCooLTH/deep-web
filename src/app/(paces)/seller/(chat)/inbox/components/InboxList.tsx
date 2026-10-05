@@ -1,4 +1,5 @@
 'use client'
+import type { FollowUpRowInfo } from '@/services/customer-follow-up.service'
 import { localReadAtOf, markLocalRead } from '@/lib/chat-local-read'
 import { useOrderVocab } from '../../_components/DraftOrderProvider'
 import { useStableCallback } from '@/hooks/useStableCallback'
@@ -160,7 +161,7 @@ export type ConversationListItem = {
    */
   draftOrderCount?: number
   /** 00066 — ป้ายติดตามลูกค้า (plain object ให้ isEqual ของ mergeRefreshedFirstPage เทียบได้) · optional เผื่อ payload เก่า */
-  followUp?: { open: number; late: number }
+  followUp?: FollowUpRowInfo
   // feature 00018 CRM — ชื่อในแชท (alias) + tag/สถานะขาย (badge ในแถว) — optional เผื่อ payload เก่า
   alias?: string | null
   contactTags?: string[]
