@@ -157,6 +157,7 @@ function renderBubble(input: SummaryReportInput, summary: GroupSummary, kind: Re
         const top = s.top3 ?? []
         rows.push(note(`${vocab.bestSellerTitle} 3 อันดับ · นับทุกใบที่ไม่ยกเลิก`, { margin: 'sm' }))
         if (top.length === 0) rows.push(note('ยังไม่มีรายการสินค้าที่ระบุในช่วงนี้'))
+        if (s.top3Truncated) rows.push(note('อันดับคำนวณจากข้อมูลบางส่วน (ข้อมูลเดือนนี้มากเกินกำหนด)'))
         top.forEach((r, i) =>
           rows.push({
             type: 'box',

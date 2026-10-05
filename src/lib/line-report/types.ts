@@ -63,6 +63,8 @@ export type ShopSummary = {
   unconfirmed: number
   cancelled: number
   top3?: Top3Row[]
+  /** getProductSalesMonth ตัดข้อมูลเพราะชนเพดาน (เดือนใดเดือนหนึ่งในช่วง) — อันดับคำนวณจากข้อมูลบางส่วน ต้องมีหมายเหตุ */
+  top3Truncated?: boolean
   profit?: ShopProfit
 }
 

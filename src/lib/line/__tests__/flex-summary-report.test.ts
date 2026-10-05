@@ -33,6 +33,12 @@ afterEach(() => {
 })
 
 describe('buildSummaryReportFlex', () => {
+  it('top3Truncated -> มีหมายเหตุใต้ Top 3 · ไม่ตั้ง -> ไม่มี', () => {
+    const NOTE = 'อันดับคำนวณจากข้อมูลบางส่วน (ข้อมูลเดือนนี้มากเกินกำหนด)'
+    expect(json(mk([shop(1, { top3Truncated: true })]))).toContain(NOTE)
+    expect(json(mk([shop(1)]))).not.toContain(NOTE)
+  })
+
   it('altText ≤1500 มีชื่อรายงาน ช่วง ออเดอร์ ยอดขาย กำไรตามธง', () => {
     const shops = [shop(1), shop(2)]
     const [m] = mk(shops, { showProfit: true })
