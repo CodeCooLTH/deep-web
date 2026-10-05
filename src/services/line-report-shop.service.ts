@@ -102,13 +102,18 @@ export async function lockOwnedGroup(tx: Db, ownerId: string, groupId: string): 
 
 export type GroupShopDto = { shopId: string; name: string; vertical: string; kind: string; state: ShopState }
 
-async function readGroupShops(db: Db | typeof prisma, groupId: string): Promise<GroupShopDto[]> {
+async function readGroupShops(db: Db | typeof prisma, groupId: string, ownerId: string): Promise<GroupShopDto[]> {
   const rows = await db.lineReportGroupShop.findMany({
     where: { groupId },
-    select: { shop: { select: SHOP_STATE_SELECT } },
+    select: { shop: { select: { ...SHOP_STATE_SELECT, userId: true } } },
     orderBy: { createdAt: 'asc' },
   })
-  return rows.map(({ shop }) => ({ shopId: shop.id, name: shop.shopName, vertical: shop.vertical, kind: shop.kind, state: shopState(shop) }))
+  // ร้านที่โอนเจ้าของหลักไปแล้ว (EXT 00012 transferShopOwnership) ไม่ใช่ร้านของเจ้าของกลุ่มอีก — ตัวส่งตัดออกเป็น NOT_OWNED
+  // แสดงเป็น DELETED (state ของ API §4.4 มีแค่ OK|LOCKED|DELETED · UI ไม่ต้องเปลี่ยน) ไม่ให้โชว์ OK ทั้งที่ส่งไม่ถึง
+  return rows.map(({ shop }) => {
+    const st = shopState(shop)
+    return { shopId: shop.id, name: shop.shopName, vertical: shop.vertical, kind: shop.kind, state: st === 'OK' && shop.userId !== ownerId ? 'DELETED' : st }
+  })
 }
 
 /**
@@ -127,7 +132,7 @@ export async function replaceGroupShops(ownerId: string, groupId: string, shopId
     if (added.length > 0) {
       await tx.lineReportGroupShop.createMany({ data: added.map((shopId) => ({ groupId, shopId })), skipDuplicates: true })
     }
-    return readGroupShops(tx, groupId)
+    return readGroupShops(tx, groupId, ownerId)
   })
 }
 

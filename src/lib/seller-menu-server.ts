@@ -3,6 +3,7 @@ import 'server-only'
 import { getT } from '@/i18n/server'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import { applyChatBadge, applyMenuLocale, resolveVisibleSellerMenu, sellerMenuItems } from '@/lib/seller-menu'
+import { ownsAnyShop } from '@/services/line-report-access.service'
 import { resolveExpenseAccess, type ExpenseAccessDecision } from '@/services/expense-access.service'
 import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import type { MenuItemType } from '@/types'
@@ -61,10 +62,16 @@ export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<Me
   }
   let expense: ExpenseAccessDecision = { kind: 'NO_SHOP' }
 
-  const [entitlementResult, expenseResult] = await Promise.allSettled([
+  // ownsShop fail-closed: query ล้ม → false (ซ่อนเมนูรายงาน LINE) · ยิงขนานกับตัวอื่น ไม่เพิ่ม latency
+  let ownsShop = false
+  const userId = ctx.session?.user?.id
+  const [entitlementResult, expenseResult, ownsResult] = await Promise.allSettled([
     ctx.shopId ? getEntitlementInfo(ctx.shopId) : Promise.resolve(entitlement),
     resolveExpenseAccess(ctx.session),
+    userId ? ownsAnyShop(userId) : Promise.resolve(false),
   ])
+  if (ownsResult.status === 'fulfilled') ownsShop = ownsResult.value
+  else console.error('[seller-menu] ownsAnyShop failed, fallback hide line-reports', ownsResult.reason)
   if (entitlementResult.status === 'fulfilled') entitlement = entitlementResult.value
   else console.error('[seller-menu] getEntitlementInfo failed, fallback NOT_SUBSCRIBED', entitlementResult.reason)
   if (expenseResult.status === 'fulfilled') expense = expenseResult.value
@@ -85,6 +92,7 @@ export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<Me
         entitlement,
         staff: { kind: ctx.kind, role: ctx.role },
         expense,
+        ownsShop,
         shop: { kind: ctx.kind, vertical: ctx.vertical },
         hidePayments: ctx.hidePayments,
         hidePaidFeatures: ctx.hidePaidFeatures,

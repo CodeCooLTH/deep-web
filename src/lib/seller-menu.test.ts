@@ -31,6 +31,7 @@ function ctx(vertical: string) {
     entitlement: { status: 'ACTIVE' as const, package: 'PRO' as const },
     staff: { kind: 'BUSINESS' as const, role: 'OWNER' as const },
     expense: { kind: 'GRANTED' } as never,
+    ownsShop: true,
     shop: { kind: 'BUSINESS', vertical },
   }
 }
@@ -387,8 +388,16 @@ describe('applyLineReportMenu — เมนูรายงานเข้าก�
     })
   })
 
-  it('ADMIN ไม่เห็น', () => {
-    expect(has(resolveVisibleSellerMenu(sellerMenuItems, { ...ctx('ONLINE_SALES'), staff: { kind: 'BUSINESS', role: 'ADMIN' } }))).toBe(false)
+  it('เจ้าของร่วม (role OWNER แต่ไม่ใช่ Shop.userId ของร้านใดเลย) ไม่เห็น — EXT 00012 BR-MR-08', () => {
+    expect(has(resolveVisibleSellerMenu(sellerMenuItems, { ...ctx('ONLINE_SALES'), ownsShop: false }))).toBe(false)
+  })
+
+  it('ADMIN ที่ไม่ได้เป็นเจ้าของหลักของร้านใด ไม่เห็น', () => {
+    expect(has(resolveVisibleSellerMenu(sellerMenuItems, { ...ctx('ONLINE_SALES'), staff: { kind: 'BUSINESS', role: 'ADMIN' }, ownsShop: false }))).toBe(false)
+  })
+
+  it('ADMIN ของร้านนี้ แต่เป็นเจ้าของหลักของร้านอื่น เห็น (ฟีเจอร์ระดับบัญชี ไม่ผูกกับร้านที่เปิดอยู่)', () => {
+    expect(has(resolveVisibleSellerMenu(sellerMenuItems, { ...ctx('ONLINE_SALES'), staff: { kind: 'BUSINESS', role: 'ADMIN' }, ownsShop: true }))).toBe(true)
   })
 
   it('ไม่ถูกซ่อนเพราะข้อจำกัดของแอป (hidePayments/hidePaidFeatures ทุกเปลือก)', () => {
@@ -397,10 +406,19 @@ describe('applyLineReportMenu — เมนูรายงานเข้าก�
     }
   })
 
-  it('shortcut.service.buildEligibleCatalog ใช้ pipeline เดียวกัน (ส่ง staff.role + ข้อจำกัดเปลือกเข้า resolveVisibleSellerMenu) · ไม่กรองเมนูนี้เอง', () => {
+  it('shortcut.service.buildEligibleCatalog ใช้ pipeline เดียวกัน (ส่ง ownsShop จาก ownsAnyShop + ข้อจำกัดเปลือกเข้า resolveVisibleSellerMenu) · ไม่กรองเมนูนี้เอง', () => {
     const src = readFileSync('src/services/shortcut.service.ts', 'utf8')
     expect(src).toMatch(/resolveVisibleSellerMenu\(sellerMenuItems/)
     expect(src).toMatch(/staff:\s*\{\s*kind: active\.kind, role: active\.role\s*\}/)
     expect(src).not.toContain('line-reports')
+    expect(src).toMatch(/ownsShop = await ownsAnyShop\(userId\)/)
+    expect(src).toMatch(/^\s+ownsShop,$/m)
+  })
+
+  it('seller-menu-server ใช้ ownsAnyShop เป็น predicate เดียวกัน + fail-closed (query ล้ม = ซ่อน)', () => {
+    const src = readFileSync('src/lib/seller-menu-server.ts', 'utf8')
+    expect(src).toMatch(/let ownsShop = false/)
+    expect(src).toMatch(/ownsAnyShop\(userId\)/)
+    expect(src).toMatch(/^\s+ownsShop,$/m)
   })
 })

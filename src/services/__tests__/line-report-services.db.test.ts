@@ -146,6 +146,25 @@ describe.skipIf(!isLocal)('00070 line-report services (DB)', () => {
       expect(still.map((s) => s.shopId).sort()).toEqual([A2, A3].sort())
       expect(await code(replaceGroupShops(A, g, []))).toBe('SHOP_COUNT_OUT_OF_RANGE')
     })
+    it('โอนร้านให้ B (Shop.userId เปลี่ยน): กลุ่มของ A เห็นร้านนั้นไม่ OK · ส่งแล้วตัดออก NOT_OWNED · เพิ่มกลับไม่ได้', async () => {
+      const A9 = await mkShop(A, 'a9') // ร้านโอนทั้งก้อน ไม่แตะ A1/A2 ของเคสอื่น
+      const g = await mkGroup(A, [A1, A9])
+      await prisma.shop.update({ where: { id: A9 }, data: { userId: B } })
+      // ผู้ส่งตัดออก
+      const r = await resolveSendableShops({ id: g, ownerId: A })
+      expect(r.sendable.map((s) => s.id)).toEqual([A1])
+      expect(r.excluded.map((e) => [e.shop.id, e.reason])).toEqual([[A9, 'NOT_OWNED']])
+      // ไม่นับเป็น reportable ของ A อีก และของ B ได้
+      expect((await listReportableShops(A)).map((s) => s.id)).not.toContain(A9)
+      expect((await listReportableShops(B)).map((s) => s.id)).toContain(A9)
+      // หน้ารายละเอียดต้องไม่แสดงเป็น OK — ดูผลจริงจาก getGroupDetail
+      const d = await getGroupDetail(A, g)
+      expect(d.group.shops.find((s) => s.shopId === A9)?.state).toBe('DELETED')
+      expect(d.group.shops.find((s) => s.shopId === A1)?.state).toBe('OK')
+      // replace: คงร้านเดิมที่ถูกโอนไม่ได้ก็ไม่เป็นไร (ตัดทิ้งได้) แต่เพิ่มกลับต้องไม่ผ่านด่าน reportable
+      const g2 = await mkGroup(A, [A1])
+      expect(await code(replaceGroupShops(A, g2, [A1, A9]))).toBe('SHOP_NOT_ALLOWED')
+    })
     it('replaceGroupShops ของกลุ่มคนอื่น/REMOVED = GROUP_NOT_FOUND', async () => {
       const g = await mkGroup(A, [A1])
       expect(await code(replaceGroupShops(B, g, [B1]))).toBe('GROUP_NOT_FOUND')

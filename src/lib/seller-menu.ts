@@ -327,18 +327,21 @@ export function applyStaffMenu(
 }
 
 /**
- * applyLineReportMenu — ซ่อนเมนูรายงานเข้ากลุ่ม LINE จากผู้ที่ไม่ใช่ owner (feature 00070 TFR-LGS-03)
+ * applyLineReportMenu — ซ่อนเมนูรายงานเข้ากลุ่ม LINE จากผู้ที่ไม่ใช่เจ้าของหลักของร้านใดเลย (feature 00070 TFR-LGS-03)
  *
- * ทำไมเช็คแค่ role: กลุ่มรายงานเป็นของ "เจ้าของบัญชี" (ผูกกับ User ไม่ใช่ร้าน) แอดมินร้านไม่มีสิทธิ์เลย
+ * ทำไมไม่ดู role: EXT 00012 (BR-MR-08) ทำให้ `ShopMember.role==='OWNER'` ไม่ได้แปลว่าเป็นเจ้าของจริง
+ * (เจ้าของร่วมก็ OWNER) — กลุ่มรายงานผูกกับ User และนับเฉพาะร้านที่ `Shop.userId` = ตน
+ * `ownsShop` ต้องมาจาก predicate เดียวกับ `ownsAnyShop` (line-report-access.service) เท่านั้น
+ * ผลคือ ADMIN ของร้านหนึ่งที่เป็นเจ้าของหลักของอีกร้านก็เห็นเมนู (ฟีเจอร์ระดับบัญชี หน้านี้พูดถึงร้านของเขาเอง)
  * จึงซ่อนทั้งเมนู (ไม่ใช่ disable) — ด่านจริงอยู่ที่ route/service (`resolveReportAccess`)
  * ไม่รับ hidePayments/hidePaidFeatures โดยตั้งใจ: ถูกกฎ App Store ทั้งสามเชลล์ เพราะไม่มีช่องทางจ่ายเงินในเมนูนี้
  * และ `shortcut.service.buildEligibleCatalog` ใช้ pipeline เดียวกันจึงได้ผลตามกันโดยอัตโนมัติ
  */
 export function applyLineReportMenu(
   items: MenuItemType[],
-  ctx: { role: 'OWNER' | 'ADMIN' },
+  ctx: { ownsShop: boolean },
 ): MenuItemType[] {
-  if (ctx.role === 'OWNER') return items
+  if (ctx.ownsShop) return items
   return items.map((group) => !group.children ? group : {
     ...group,
     children: group.children.filter((child) => child.slug !== 'seller:line-reports'),
@@ -748,6 +751,8 @@ export function resolveVisibleSellerMenu(
     staff: { kind: 'PERSONAL' | 'BUSINESS'; role: 'OWNER' | 'ADMIN' }
     expense: ExpenseAccessDecision
     shop: { kind: string; vertical: string }
+    /** เป็น `Shop.userId` ของร้านที่ไม่ลบอย่างน้อย 1 ร้าน (= `ownsAnyShop`) — fail-closed: ไม่รู้ = false */
+    ownsShop: boolean
     /** เปิดจากในแอปที่ห้ามมีช่องทางจ่ายเงิน (iOS) — ดู src/lib/app-shell.ts */
     hidePayments?: boolean
     /** เปิดจากในแอปที่ห้ามใช้ฟีเจอร์ซึ่งไม่มีขายเป็น IAP (iOS) — feature 00064 */
@@ -781,7 +786,7 @@ export function resolveVisibleSellerMenu(
             }),
             ctx.staff,
           ),
-          { role: ctx.staff.role },
+          { ownsShop: ctx.ownsShop },
         ),
         ctx.expense,
       ),

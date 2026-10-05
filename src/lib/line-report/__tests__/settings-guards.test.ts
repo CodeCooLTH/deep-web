@@ -107,7 +107,7 @@ describe('ร้าน', () => {
   })
   it('shopDisabledReason: ร้านถูกลบ ไม่ใช้ข้อความ "ล็อกเพราะแพ็กเกจ"', () => {
     const r = buildShopRows([{ shopId: 'd', name: 'D', vertical: 'ONLINE_SALES', kind: 'BUSINESS', state: 'DELETED' }], [])
-    expect(shopDisabledReason(r, ['d'], 'd', true)).toBe('ร้านนี้ถูกลบแล้ว จึงไม่ถูกรวมในรายงาน')
+    expect(shopDisabledReason(r, ['d'], 'd', true)).toBe('ร้านนี้ถูกลบหรือโอนให้ผู้อื่นแล้ว จึงไม่ถูกรวมในรายงาน')
   })
   it('shopDisabledReason: ล็อก → เหตุผล · ตัวสุดท้าย → ต้องเลือกอย่างน้อย 1 · ครบ 10 → แถวที่ยังไม่ติ๊ก · ปกติ null', () => {
     expect(shopDisabledReason(rows, ['a', 'l'], 'l', true)).toContain('ถูกล็อกเพราะแพ็กเกจ')

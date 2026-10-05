@@ -17,7 +17,7 @@ export const NEEDS_TIME_HELPER = 'ต้องมีอย่างน้อย 
 export const METRIC_REQUIRED_HELPER = 'ต้องแสดงตัวเลขอย่างน้อย 1 รายการ'
 export const SHOP_REQUIRED_HELPER = 'ต้องเลือกอย่างน้อย 1 ร้าน'
 export const TIMES_FULL_HELPER = 'ครบ 4 เวลาแล้ว ลบเวลาเดิมก่อนจึงจะเพิ่มได้'
-export const DELETED_SHOP_HELPER = 'ร้านนี้ถูกลบแล้ว จึงไม่ถูกรวมในรายงาน'
+export const DELETED_SHOP_HELPER = 'ร้านนี้ถูกลบหรือโอนให้ผู้อื่นแล้ว จึงไม่ถูกรวมในรายงาน'
 export const ENABLE_NEEDS_TIME_HELPER = 'เพิ่มเวลาก่อน จึงจะเปิดรายงานได้'
 
 /** เพิ่มเวลาได้เมื่อยังไม่ครบ 4 */

@@ -120,7 +120,7 @@ export async function getGroupDetail(ownerId: string, groupId: string, db: Db | 
   if (!g) throw new LineReportError('GROUP_NOT_FOUND')
 
   const [shops, liveCode, usedToday, paused] = await Promise.all([
-    readGroupShops(db, g.id),
+    readGroupShops(db, g.id, ownerId),
     db.lineReportBindCode.findFirst({ where: { groupId: g.id, usedAt: null, revokedAt: null, expiresAt: { gt: now } }, select: { expiresAt: true } }),
     // predicate เดียวกับ sendTest (testQuotaWhere) — ทุกแถว TEST ของวันไทยนี้
     db.lineReportDelivery.count({ where: testQuotaWhere(g.id, now) }),
