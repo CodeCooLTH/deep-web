@@ -345,6 +345,16 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 
 | **ติดตามลูกค้า (feature 00066)** | **`/follow-ups`** — เมนู slug `seller:follow-ups` (icon `list-check`, กลุ่มเดียวกับ `/customers`) · 🛑 **เห็นทุก vertical** ห้ามใส่ slug นี้ใน `*_ONLY_SLUGS` · query `?mine=1&shopId=` (ลิงก์จาก push/bubble) · ไม่มีตัวเลขบนเมนู · ดู §7.22 |
 
+**รายงานสรุปยอดเข้ากลุ่ม LINE (feature 00068)** — 🛑 สถานะ ณ 2026-10-05: **เมนู sidebar (`seller:line-reports`) ทำแล้ว แต่หน้า `business/line-reports/**` ยังไม่มีในโค้ด** (ไม่มี `page.tsx` ใต้ path นี้) — path ด้านล่างเป็นสัญญาของ `00068/SRS.md` TFR-LGS-02/03 ยังไม่ใช่ของที่เปิดได้จริง
+
+| เมนู | Path |
+|------|------|
+| รายการกลุ่ม (+ หน้าล็อกเมื่อแพ็กเกจไม่ ACTIVE) | `/business/line-reports` |
+| วิซาร์ดผูกกลุ่มใหม่ | `/business/line-reports/new` |
+| รายละเอียด/ตั้งค่ากลุ่ม | `/business/line-reports/[groupId]` |
+
+เป็น static segment ใต้ `/business` ไม่ชน `business/[shopId]` และ **ไม่ถูกด่านเด้งออกของ `/business` root** (`business/page.tsx` เด้งออกในแอป) · เมนูเห็นเฉพาะ `staff.role === 'OWNER'` (`applyLineReportMenu`) · **ไม่ผูก** `hidePaidFeatures`/`hidePayments` · ทุก vertical เห็น (ห้ามใส่ใน `*_ONLY_SLUGS`)
+
 > path ฝั่ง seller **ไม่มี** `/settings/` prefix (sync ตามโค้ดจริง)
 > **force-redirect:** seller authed + `needsOnboarding` → proxy redirect ทุก route → `/onboarding` (ยกเว้น `/auth/*`, `/api/*`)
 
@@ -377,6 +387,12 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 **ทุก authed route ต้อง server-side guard (proxy/server) ไม่พึ่ง client-side อย่างเดียว.**
 known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ยัง client-only — ต้องแก้ (ดู PRD §7 Known Gaps #7).
 
+**feature 00068 (รายงานกลุ่ม LINE):**
+- `/business/line-reports` · `/new` · `/[groupId]` (หน้ายังไม่ implement — ดู §3.4) = **เจ้าของร้านเท่านั้น (L1: session + เป็น `Shop.userId` ของร้านใดร้านหนึ่ง)** · แพ็กเกจธุรกิจไม่ ACTIVE = เห็นหน้าล็อก + CTA ตามกฎ shell (เว็บ → `/business` · iOS → `/business/subscribe` · Android ไม่มี CTA/ราคา) · ไม่ใช่เจ้าของ = ไม่เห็นเมนู
+- `POST /api/line-report/webhook` = **ไม่มี session** — authentication คือลายเซ็น LINE `x-line-signature` (`validateSignature`, timing-safe) ที่ route ตรวจเอง · ผิด/ไม่มี = 401 ก่อนแตะ DB
+- `GET /api/cron/line-report-sweep` = `Authorization: Bearer ${CRON_SECRET}` (ว่าง = 401)
+- ตัวตน owner API ใช้ `sessionUserId()` ห้าม cast (`session-exists-is-not-identity`) · ตาราง endpoint/สิทธิ์ → §7.24 · §9.10
+
 ---
 
 ## §4 Non-Functional Requirements
@@ -403,6 +419,9 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 | NFR-2.7 | Admin self-review block (verification) — FR-2.6 |
 | NFR-2.8 | **feature 00035** — `BuilderPreviewBridge` (postMessage ระหว่าง builder iframe กับ `/u`,`/b` โหมด draft) ต้องตรวจ `event.origin` ผ่าน `isAllowedOrigin()` (reuse `lib/csrf-origin.ts`) ก่อนรับ/ตอบข้อความทุกครั้ง — ห้าม `targetOrigin: '*'` ทั้งสองทาง |
 | NFR-2.9 | **feature 00060 (backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ)** — `InspectionEvidence.visibility='PRIVATE'` (บัตรประชาชน/โฉนด/สเตทเมนต์/บัญชีธนาคาร) ห้ามหลุดเข้า RSC flight payload ของหน้าโปรไฟล์สาธารณะไม่ว่ากรณีใด — mask/neutralize ที่ server boundary (แพตเทิร์นเดียวกับ S-C1) และ query ฝั่งสาธารณะต้องกรอง `visibility='PUBLIC'` ที่ระดับ SQL ไม่ใช่กรองหลังดึง |
+| NFR-2.10 | **feature 00068** — webhook `/api/line-report/webhook` ตรวจลายเซ็น `x-line-signature` (HMAC-SHA256 ของ body ดิบ, `validateSignature` timing-safe) ก่อนแตะข้อมูลทุกครั้ง · ผิด/ไม่มี = 401 `INVALID_SIGNATURE` · secret ว่าง = ตอบ 200 โดยไม่ประมวลผล + warn · หลังลายเซ็นผ่านตอบ 200 เสมอ · ไม่ log token/secret/ข้อความผู้ใช้ · `proxy.ts` ยกเว้น CSRF Origin-check ให้ path นี้ด้วยการเทียบ **ตรงตัว** (`pathname !== …`, ไม่ใช้ `startsWith`) เพื่อไม่เปิด exemption ให้ owner API ใต้ `/api/line-report/*` |
+| NFR-2.11 | **feature 00068** — โค้ดผูกกลุ่มเป็น **8 ตัว Crockford base32** (`XXXX-XXXX`, ~1.1×10¹², สุ่มด้วย `crypto.randomInt` ทีละตัวอักษร) อายุ 10 นาที · เก็บเฉพาะ HMAC-SHA256 (`key = HMAC(NEXTAUTH_SECRET, "line-report:bind-code:v1")`, `hash = HMAC(key, normalize(code))`) ไม่เก็บค่าดิบ · fail-closed ถ้าไม่ตั้ง `NEXTAUTH_SECRET` · เดาผิดเกิน 5 ครั้ง/10 นาที/กลุ่ม LINE = ตอบข้อความ "ไม่ถูกต้อง" เดียวกับโค้ดผิด (ไม่รั่วว่าโค้ดหมดอายุ/ใช้แล้ว/เจ้าของหมดแพ็กเกจ) · ไม่เก็บ LINE userId หรือข้อความที่ไม่ใช่คำสั่ง |
+| NFR-2.12 | **feature 00068** — rate-limit ของ webhook อยู่ใน bucket แยก `line-report-webhook` เพดาน **1200 req/นาที/IP** (`proxy.ts`) แทนเพดาน unauth mutation 100/นาที — IP ของ LINE ไม่กี่ตัวยิงแทนทุกกลุ่ม ถ้าใช้เพดานปกติคำสั่ง `ผูก`/`สรุปวันนี้` จะหายเงียบ (LINE ไม่ยิงซ้ำ) · owner API ทุกตัวตอบ `Cache-Control: no-store` |
 
 ### NFR-3: Usability
 
@@ -449,6 +468,21 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 | Analytics | Google Analytics + Google Search Console |
 | Container | Docker + Docker Compose |
 | Testing | Vitest |
+
+### 5.1 env ใหม่ของ feature 00068 (รายงานสรุปยอดเข้ากลุ่ม LINE — OA กลางของ Deep)
+
+> 🛑 **ห้ามใช้ `LINE_CHANNEL_*`** — ตัวนั้นเป็น LINE Login (`src/lib/auth.ts`) คนละ channel กับ Messaging API ของบอทรายงาน · อ่าน env ตอนเรียก (`src/lib/line-report/config.ts`) ไม่ cache ระดับ module
+
+| env | ใช้ที่ | จำเป็น | หมายเหตุ |
+|---|---|---|---|
+| `LINE_REPORT_BOT_CHANNEL_SECRET` | `validateSignature` ของ webhook | ใช่ | ว่าง = webhook ตอบ 200 ไม่ประมวลผล + warn |
+| `LINE_REPORT_BOT_CHANNEL_ACCESS_TOKEN` | ทุกคำขอขาออกไป LINE (`lineApiRequest`) | ใช่ | long-lived token · ห้าม log |
+| `LINE_REPORT_BOT_BASIC_ID` | ลิงก์/QR เพิ่มเพื่อน `https://line.me/R/ti/p/@<id>` | ไม่ | ว่าง = UI ซ่อนปุ่มเพิ่มเพื่อน |
+
+- `isReportBotReady()` = secret ∧ token มีค่า · false → API สร้างโค้ด/ส่งทดสอบตอบ 503 `BOT_NOT_CONFIGURED`, sweep คืน `{skipped:'NOT_CONFIGURED'}` ไม่ throw
+- **ไม่มี env ของ secret โค้ดผูก** — derive จาก `NEXTAUTH_SECRET` (หมุน `NEXTAUTH_SECRET` ทำให้โค้ดที่ค้างอยู่ ≤10 นาทีใช้ไม่ได้ — ยอมรับ)
+- ใช้ `CRON_SECRET` (เดิม) กับ cron · ปุ่ม "เปิด Deep" ใน Flex ใช้ `NEXT_PUBLIC_SELLER_URL` เฉพาะเมื่อเป็น `https://`
+- ตัวแปรทั้ง 3 อยู่ใน `.env.example` แล้ว
 
 ---
 
@@ -499,6 +533,13 @@ Room (1) ──────── (N) RoomImageFingerprint            [feature 0
 User (1) ──────── (N) InspectionRound [as inspector, optional]  [feature 00060]
 InspectionRound (1) ─ (N) InspectionEvidence         [feature 00060]
 InspectionResult (0..1) ─ (N) InspectionEvidence     [feature 00060 — optional]
+
+User (1) ──────── (N) LineReportGroup               [feature 00068 — ownerId, onDelete Restrict]
+User (1) ──────── (N) LineReportBindCode            [feature 00068 — onDelete Cascade]
+LineReportGroup (1) ─ (N) LineReportGroupShop ─ (1) Shop   [feature 00068 — Cascade ทั้งสองฝั่ง]
+LineReportGroup (1) ─ (N) LineReportBindCode        [feature 00068 — Cascade]
+LineReportGroup (1) ─ (N) LineReportDelivery        [feature 00068 — onDelete Restrict]
+LineReportRateEvent                                  [feature 00068 — ไม่มี FK, อ้าง lineGroupId ของ LINE ตรง ๆ]
 ```
 
 ### 6.1a `CustomerFile` (feature 00048 — คลังไฟล์ต่อลูกค้า)
@@ -1325,6 +1366,70 @@ enum** — ระหว่างนี้ป้ายบนโปรไฟล์
 (`src/services/follow-up-scope.ts`) ที่เดียว — ห้ามเขียน join/เงื่อนไข cluster ที่อื่น (HR16) ·
 แผงห้อง/ป้ายแถว/ตัวกรองกล่องแชทจึงนับรายการของทุกห้องใน cluster เดียวกัน
 
+### 6.67 รายงานสรุปยอดเข้ากลุ่ม LINE — `LineReportGroup` + 4 ตาราง (feature 00068)
+
+> เอกสารต้นทาง: `docs/20 - Features/00068 - LINE Group Summary Report/` · migration
+> `20261005100000_line_group_summary_reports` (additive ตารางใหม่ว่าง) · เขียนจาก `prisma/schema.prisma` + migration จริง
+> 🛑 **ต่างจากธรรมเนียม §8 (enum = String):** ฟีเจอร์นี้ใช้ **Prisma enum จริง (PostgreSQL enum type) 5 ตัว** — ดู §8.12 · เพิ่มค่าใหม่ต้อง `ALTER TYPE … ADD VALUE` ไม่ใช่แค่แก้ค่า String
+> 🛑 **มี unmanaged SQL** (partial unique ×3 + CHECK ×5) ที่ Prisma มองไม่เห็น ⇒ **ห้าม `prisma db pull` / `migrate dev`**
+
+```mermaid
+erDiagram
+    User ||--o{ LineReportGroup : "ownerId (Restrict)"
+    User ||--o{ LineReportBindCode : "ownerId (Cascade)"
+    LineReportGroup ||--o{ LineReportGroupShop : "Cascade"
+    Shop ||--o{ LineReportGroupShop : "Cascade"
+    LineReportGroup ||--o{ LineReportBindCode : "Cascade"
+    LineReportGroup ||--o{ LineReportDelivery : "Restrict"
+    LineReportRateEvent { string lineGroupId "ไม่มี FK" }
+```
+
+**`LineReportGroup`** — กลุ่ม LINE 1 แถว = 1 เจ้าของ (`ownerId`) · 1 กลุ่ม LINE ผูกกับ ACTIVE ได้แถวเดียว
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `id` | String PK (uuid) | |
+| `ownerId` | String FK→User | Restrict (ลบบัญชี = ย้ายแถวเป็น `REMOVED` ก่อน ไม่ใช่ลบแถว) |
+| `lineGroupId` | String? | `null` ได้ตอน `PENDING` · คงค่าเก่าไว้ตอน `INACTIVE`/`PENDING` ที่ผูกใหม่ |
+| `groupName` | String default `''` | ชื่อจาก `GET /group/{id}/summary` (ล้ม = `''`) |
+| `status` | `LineReportGroupStatus` default `PENDING` | |
+| `dailyEnabled` / `monthlyEnabled` | Boolean default false | |
+| `dailyTimes` | Int[] default `[]` | slot นาที 30..1440 ก้าว 30 · ≤4 · service เรียง asc |
+| `cutoffDay` | Int? | 1..31 · `null` = สิ้นเดือน |
+| `showOrders` / `showSales` / `showCancelled` / `showTopProducts` | Boolean default **true** | |
+| `showProfit` | Boolean default **false** | |
+| `skipWhenNoOrders` / `attachCycleToDaily` | Boolean default false | |
+| `profitEnabledAt` | DateTime? | ตั้งตอนเปิด `showProfit` (ต้อง `confirmProfit`) · ปิด = `NULL` (บังคับที่ service ไม่มี CHECK) |
+| `finalNoticeSentAt` | DateTime? | มาร์กเกอร์ข้อความสุดท้ายตอนแพ็กเกจหยุด · ล้างเมื่อกลับ ACTIVE/ผูกใหม่ |
+| `alertKind` / `alertAt` / `alertAckAt` | `LineReportAlertKind?` / DateTime? ×2 | แจ้งเจ้าของ (`raise`/`ack`/`resolve`) · "แพ็กเกจหยุด" **ไม่เก็บ** คำนวณสด |
+| `boundAt` / `leftAt` / `removedAt` | DateTime? | |
+| `createdAt` / `updatedAt` | DateTime | |
+
+**Index:** `(ownerId, status)` · `(status)` · `(lineGroupId)`
+
+**`LineReportGroupShop`** — ร้านที่รวมในกลุ่ม: `id` · `groupId` FK Cascade · `shopId` FK→Shop Cascade · `createdAt` · `@@unique(groupId, shopId)` · `@@index(shopId)` · 1–10 ร้านต่อกลุ่ม (บังคับที่ service/Valibot ไม่มี CHECK)
+
+**`LineReportBindCode`** — โค้ดผูก: `id` · `ownerId` FK→User Cascade · `groupId` FK Cascade · **`codeHash`** (HMAC hex — ไม่เก็บค่าดิบ) · `expiresAt` (= สร้าง + 10 นาที) · `usedAt?` · `revokedAt?` · `createdAt` · index `(ownerId)` `(groupId)` `(expiresAt)`
+
+**`LineReportRateEvent`** — ตัวนับกันเดา/ถามถี่ (insert-then-count): `id` · `lineGroupId` (ไม่มี FK) · `kind` `LineReportRateKind` · `createdAt` · index `(lineGroupId, kind, createdAt)` · cleanup ทิ้งที่ >1 วัน
+
+**`LineReportDelivery`** — claim + log การส่ง: `id` · `groupId` FK **Restrict** · `kind` · `slotKey` (§8.12) · `status` default `CLAIMED` · `reason?` (§8.12) · `attempt` Int default 0 · `httpStatus?` · `memberCount?` · `pushMessageCount` Int default 0 · `retryKey?` (uuidv5 ของ `groupId|slotKey`) · `pendingPayload` Json? (`{raw:<JSON string>}` — ล้างเมื่อจบ/ที่ 24 ชม.) · `payloadSha256?` · `summary?` · `sentAt?` · `createdAt` · `updatedAt` · `@@unique(groupId, slotKey)` (= ตัวกันส่งซ้ำ) · index `(groupId, createdAt)` `(status, createdAt)` `(createdAt)`
+
+**Unmanaged SQL (ใน migration — Prisma DSL ประกาศไม่ได้):**
+
+| ชื่อ | ชนิด | กฎ |
+|---|---|---|
+| `LineReportGroup_lineGroupId_active_key` | partial UNIQUE | `(lineGroupId) WHERE status='ACTIVE' AND lineGroupId IS NOT NULL` — กลุ่ม LINE หนึ่งกลุ่ม ACTIVE ได้กับ 1 แถว (= 1 เจ้าของ) |
+| `LineReportBindCode_codeHash_live_key` | partial UNIQUE | `(codeHash) WHERE usedAt IS NULL AND revokedAt IS NULL` — โค้ดสดไม่ซ้ำทั้งระบบ |
+| `LineReportBindCode_ownerId_live_key` | partial UNIQUE | `(ownerId) WHERE usedAt IS NULL AND revokedAt IS NULL` — โค้ดสดต่อเจ้าของ 1 ใบ |
+| `LineReportGroup_dailyTimes_valid_chk` | CHECK | `cardinality(dailyTimes) <= 4 AND dailyTimes <@ ARRAY[30,60,…,1440]` (48 ค่า) |
+| `LineReportGroup_cutoffDay_valid_chk` | CHECK | `cutoffDay IS NULL OR BETWEEN 1 AND 31` |
+| `LineReportGroup_metric_any_chk` | CHECK | `showOrders OR showSales OR showCancelled OR showTopProducts OR showProfit` |
+| `LineReportGroup_active_has_group_chk` | CHECK | `status <> 'ACTIVE' OR lineGroupId IS NOT NULL` |
+| `LineReportDelivery_counts_nonneg_chk` | CHECK | `attempt BETWEEN 0 AND 2 AND pushMessageCount >= 0` |
+
+ความคงที่ข้ามฟิลด์ที่ **บังคับที่ service ไม่ใช่ DB:** `(dailyEnabled ∨ monthlyEnabled) ⇒ dailyTimes.length ≥ 1` · `attachCycleToDaily` ล้างเป็น false เมื่อ `monthlyEnabled=false` · `profitEnabledAt` non-null ⇔ `showProfit` · กลุ่มต่อเจ้าของ ≤10 (`status<>'REMOVED'`) · ร้านต่อกลุ่ม ≤10
+
 ---
 
 ## §7 API Reference
@@ -1834,6 +1939,7 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 | `/api/cron/chat-outbox` | `* * * * *` | ทุกนาที |
 | **`/api/cron/inspection-lifecycle`** (feature 00060 — **backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ**) | **`0 16 * * *`** | **23:00** |
 | **`/api/cron/follow-up-reminders`** (feature 00066 — `vercel.json` ยืนยัน) | **`*/5 * * * *`** | **ทุก 5 นาที** |
+| **`/api/cron/line-report-sweep`** (feature 00068 — `vercel.json` ยืนยัน) | **`*/30 * * * *`** | **ทุก 30 นาที** · cleanup รวมใน tick แรกหลัง 03:00 ไทย (= tick ที่ตกใน 03:00–03:29) ไม่เพิ่ม cron |
 
 **`/api/cron/inspection-lifecycle` (เมื่อ implement แล้ว) ทำ 4 งานในครั้งเดียว:** (1) ตัดเครดิตรอบ
 30 วัน + จัดการ `canceledAt`/`graceUntil`/`status`/`lapsedReason` (2) รันข้อตรวจอัตโนมัติของขั้น 1
@@ -1939,6 +2045,55 @@ schema สืบทอดช่วงเวลามาจาก `PnlReportQuery
 **Error:** `INVALID_RANGE`(400) · `INVALID_CURSOR`(400) · `UNAUTHORIZED`(401) · `NO_SHOP`(403) · `STAFF_NOT_ALLOWED`(403) · `NOT_FOUND`(404) · `INTERNAL`(500)
 
 **ไม่มี endpoint เขียน** — การบันทึก/แก้/ลบค่าใช้จ่ายยังผ่าน `/api/expenses*` ของ §7.13 เหมือนเดิมทุกช่อง
+
+### 7.24 รายงานสรุปยอดเข้ากลุ่ม LINE (`/api/line-report/**`, `/api/cron/line-report-sweep`) — feature 00068
+
+> เอกสารต้นทาง: `docs/20 - Features/00068 - LINE Group Summary Report/` (`API.md` มีตัวอย่าง body/response เต็ม) · เขียนจาก `src/app/api/line-report/**` จริง
+> **L1** = session + เป็น `Shop.userId` ของร้านใดร้านหนึ่ง (อ่าน/ลบ/รับทราบ) · **L2** = L1 + `getSubscriptionStatus(ownerId).status === 'ACTIVE'` (สร้าง/แก้/ส่ง) · ตัวตนผ่าน `sessionUserId()` เท่านั้น
+> ทุก owner route ห่อด้วย `handle()` จาก `src/app/api/line-report/_shared.ts` (จุดแปลง error→HTTP จุดเดียว) · ทุก response `Cache-Control: no-store` · error envelope `{ error: <code>, message: <ไทย>, details }` · กลุ่มที่ไม่ใช่ของตน/เป็น `REMOVED`/`id` เพี้ยน = **404 `GROUP_NOT_FOUND`** (ไม่แยกจากไม่มีอยู่)
+
+| Method | Path | Auth | Purpose | Service |
+|--------|------|------|---------|---------|
+| GET | `/api/line-report/groups` | L1 | รายการกลุ่มของเจ้าของ | `line-report-group.service` |
+| POST | `/api/line-report/bind-code` | L2 + bot พร้อม | สร้างกลุ่ม `PENDING` + โค้ดผูก (body `{shopIds, acknowledged:true}`) → **201** · โค้ดดิบคืนครั้งเดียว | `line-report-bind.service` |
+| POST | `/api/line-report/groups/[id]/bind-code` | L2 + bot พร้อม | ออกโค้ดใหม่ (กลุ่ม `PENDING`) / ผูกใหม่ (กลุ่ม `INACTIVE`→`PENDING`) · ไม่ต้องรับทราบซ้ำ | `line-report-bind.service` |
+| GET | `/api/line-report/groups/[id]` | L1 | รายละเอียด + ประวัติส่ง 10 ล่าสุด (UI poll ทุก 3 วิ ตอนรอผูก) · ไม่ select `pendingPayload` | `line-report-group.service` |
+| PATCH | `/api/line-report/groups/[id]` | L2 | แก้ตั้งค่า (autosave รายฟิลด์) → `{group}` | `line-report-group.service` |
+| PUT | `/api/line-report/groups/[id]/shops` | L2 | แทนที่ร้านที่รวม → `{shops}` | `line-report-shop.service` |
+| POST | `/api/line-report/groups/[id]/test` | L2 + bot พร้อม | ส่งทดสอบ (≤5/วัน/กลุ่ม) → `{deliveryId, sentAt, remaining, summary}` · `maxDuration=60` | `line-report-send.service` |
+| DELETE | `/api/line-report/groups/[id]` | **L1** | ยกเลิกการผูก → `{removed:true, botLeft}` · บอทออกจากกลุ่ม best-effort หลัง commit (ไม่สั่งออกถ้ามีแถว ACTIVE ใหม่ถือ `lineGroupId` เดิม) | `line-report-group.service` |
+| POST | `/api/line-report/groups/[id]/ack` | L1 | รับทราบแจ้งเตือน (idempotent) | `line-report-group.service` |
+| POST | `/api/line-report/webhook` | ลายเซ็น LINE | webhook ของบอทรายงาน (OA กลาง) — event `join`/`leave`/`message(text)` ใน **กลุ่ม** · 🛑 **ไม่ใช่** `/api/channels/line/webhook` (OA รายร้าน 00025) · `maxDuration=60` · ตอบ 200 ทันที ประมวลผลใน `after()` (≤100 event/ครั้ง) | `line-report-command.service` |
+| GET | `/api/cron/line-report-sweep` | `Bearer CRON_SECRET` | ส่งรายงานตามเวลา + retry + ข้อความสุดท้ายตอนแพ็กเกจหยุด + cleanup · `maxDuration=300` · หยุดเริ่มกลุ่มใหม่ที่ 240s · 500 `sweep_failed` เฉพาะล้มทั้งรอบ | `line-report-sweep.service` |
+
+**DELETE เป็น L1 โดยตั้งใจ** (มติ user 2026-10-05: แพ็กเกจหมดแล้วยกเลิกการผูกได้อย่างเดียว)
+
+**คำสั่งในกลุ่ม (ผ่าน webhook ไม่ใช่ HTTP API):** `ผูก <โค้ด 8 ตัว>` · `สรุปวันนี้` · `สรุปเดือนนี้` — เทียบ **ทั้งข้อความ** หลัง NFKC+trim (ข้อความอื่น/มีคำต่อท้ายไม่ใช่คำสั่ง) · ตอบด้วย reply token เท่านั้น (ไม่ push) · ถามเกิน 10 ครั้ง/10 นาที/กลุ่ม = ตอบ "ถามถี่เกินไป" ครั้งที่ 11 ครั้งเดียว แล้วเงียบ
+
+**Error code (`src/lib/line-report/errors.ts` — `LINE_REPORT_ERROR_STATUS` เป็น `Record` exhaustive: เพิ่มโค้ดแล้วลืม map = `tsc` แดง):**
+
+| code | HTTP | เกิดที่ |
+|---|---|---|
+| `UNAUTHORIZED` | 401 | ทุก owner route (ไม่มี session) |
+| `NOT_OWNER` | 403 | ทุก owner route (ไม่มีร้านที่เป็น `Shop.userId`) |
+| `PACKAGE_REQUIRED` | 403 | route L2 ทั้งหมด (แพ็กเกจไม่ ACTIVE) |
+| `VALIDATION` | 400 | body ผิด/JSON เสีย — `details.fields` = ชื่อฟิลด์ที่ผิด |
+| `SHOP_NOT_ALLOWED` | 400 | ร้านที่เลือกไม่ใช่ของเจ้าของ/ถูกลบ/ล็อก |
+| `SHOP_COUNT_OUT_OF_RANGE` | 400 | ร้านไม่อยู่ใน 1–10 |
+| `INVALID_SETTINGS` | 400 | `details.rule` = `NEEDS_TIME` (เปิดส่งแต่ไม่มีเวลา) · `METRIC_REQUIRED` (ปิดตัวเลขหมด) |
+| `PROFIT_CONFIRM_REQUIRED` | 400 | เปิด `showProfit` โดยไม่ส่ง `confirmProfit:true` |
+| `GROUP_NOT_FOUND` | 404 | กลุ่มไม่มี/ไม่ใช่ของตน/`REMOVED`/id เพี้ยน |
+| `GROUP_LIMIT_REACHED` | 409 | ครบ 10 กลุ่ม (`status<>'REMOVED'`) |
+| `INVALID_STATE` | 409 | สถานะกลุ่มทำรายการนี้ไม่ได้ |
+| `SHOPS_INVALID` | 409 | ร้านในกลุ่มบางร้านไม่พร้อม — ต้องแก้รายการร้านก่อนออกโค้ด |
+| `GROUP_NOT_ACTIVE` / `NO_SENDABLE_SHOPS` / `BOT_NOT_IN_GROUP` | 409 | ส่งทดสอบ (กลุ่มไม่ ACTIVE / ทุกร้านล็อก-ลบ / LINE ตอบว่าบอทไม่อยู่ในกลุ่ม) |
+| `TEST_QUOTA_EXCEEDED` | 429 | ส่งทดสอบครบ 5 ครั้งวันนี้ไทย |
+| `LINE_UNAVAILABLE` / `BOT_UNAVAILABLE` | 502 | LINE ล่ม-timeout / token เสีย (แปลงจาก `LineApiError` — ไม่ปล่อยถึง route) |
+| `BOT_NOT_CONFIGURED` | 503 | ไม่ได้ตั้ง `LINE_REPORT_BOT_*` (สร้างโค้ด/ส่งทดสอบเท่านั้น) |
+| `INTERNAL` | 500 | error นอกชุด (log เฉพาะชื่อ error) |
+| `INVALID_SIGNATURE` | 401 | webhook ลายเซ็นผิด/ไม่มี (body `{error:'INVALID_SIGNATURE'}`) |
+
+webhook หลังลายเซ็นผ่านตอบ 200 เสมอ (แม้ภายในล้ม) · cron ที่ `CRON_SECRET` ว่าง/ไม่ตรง = 401 `{error:'unauthorized'}`
 
 ---
 
@@ -2294,6 +2449,51 @@ HTTP ตามตาราง §7.21
 `FollowUpErrorCode` ไม่มี type รวม — error เป็น 4 class ใน `customer-follow-up.service.ts` /
 `follow-up-time.ts` (`FollowUpNotFoundError`, `AssigneeNotMemberError`, `FollowUpStateError`, `FollowUpDueError`) แปลงที่ `mapFollowUpError` (§7.22)
 
+### 8.12 รายงานสรุปยอดเข้ากลุ่ม LINE (feature 00068 — `src/lib/line-report/**` + `prisma/schema.prisma`)
+
+**Prisma enum จริง 5 ตัว** (ต่างจากธรรมเนียมที่ enum เป็น String — เพิ่มค่าต้อง `ALTER TYPE … ADD VALUE`):
+
+| enum | ค่า | หมายเหตุ |
+|---|---|---|
+| `LineReportGroupStatus` | `PENDING` · `ACTIVE` · `INACTIVE` · `REMOVED` | `INACTIVE` = บอทถูกเตะ (`leave`) · `REMOVED` = เจ้าของยกเลิก/ลบบัญชี (soft) |
+| `LineReportDeliveryKind` | `DAILY` · `MONTHLY` · `TEST` · `COMMAND` · `FINAL_NOTICE` | |
+| `LineReportDeliveryStatus` | `CLAIMED` · `RETRY_PENDING` · `SENT` · `FAILED` · `SKIPPED_NO_ORDERS` · `MISSED` · `NO_SENDABLE_SHOPS` · `REPLY_FAILED` | `REPLY_FAILED` ใช้กับ `COMMAND` เท่านั้น |
+| `LineReportAlertKind` | `BOT_REMOVED` · `SEND_FAILED` · `NO_SENDABLE_SHOPS` | "แพ็กเกจหยุด" ไม่ใช่ค่าของ enum นี้ (คำนวณสด) |
+| `LineReportRateKind` | `BIND_ATTEMPT` · `COMMAND` | |
+
+**`slotKey` (`@@unique(groupId, slotKey)`):** `D:<YYYY-MM-DD>@<HH:MM>` (รายวัน) · `M:<วันสุดท้ายของรอบ>` (รายเดือน) · `T:<uuid>` (ทดสอบ) · `C:<webhookEventId>` (คำสั่งในกลุ่ม) · `F:<lockedAt ISO | YYYY-MM-DD>` (ข้อความสุดท้าย)
+
+**`reason` (`delivery-reasons.ts` — SSOT พร้อมป้ายไทย `describeReason`; ห้ามมี token/secret):** `HTTP_<status>` · `TIMEOUT` · `NETWORK` · `TOKEN_INVALID` · `BOT_NOT_IN_GROUP` · `NO_SENDABLE_SHOPS` · `ALL_SHOPS_FAILED` · `NO_ORDERS` · `PACKAGE_PAUSED` · `REPLY_TOKEN_EXPIRED` · `REPLY_REJECTED` · `IN_DAILY_PUSH` · `PAYLOAD_TOO_LARGE` · `STALE_CLAIM` · `INTERNAL` (status `MISSED` มีป้ายแยก `MISSED_STATUS_LABEL`)
+
+**โค้ดผูก (`bind-code.ts`):** 🛑 **8 ตัว Crockford base32** — alphabet `0123456789ABCDEFGHJKMNPQRSTVWXYZ` (ไม่มี I L O U) · แสดงเป็น `XXXX-XXXX` (`formatBindCode`) · parser รับตัวพิมพ์เล็ก/ไม่มีขีด และแปลง `O→0`, `I/L→1` (`normalizeBindCode`) · pattern หลัง normalize `/^[0-9A-HJKMNP-TV-Z]{8}$/` · **ไม่ใช่เลข 6 หลัก** (เปลี่ยนจาก 6 หลักหลัง security H-1 2026-10-05)
+
+**`SLOT_OPTIONS`** (`schedule.ts`) — 48 ค่า `30, 60, … 1410, 1440` นาที ↔ `00:30 … 23:30, 24:00` (`1440` = "24:00" ยิงตอน 00:00 ของวันถัดไป · **ไม่มี "00:00"**) · `slotLabel`/`parseSlot`
+
+**ค่าคงที่:**
+
+| ค่า | ค่า | ที่มา |
+|---|---|---|
+| กลุ่มต่อเจ้าของ (`status<>'REMOVED'`) | 10 | `MAX_GROUPS` (`line-report-group.service`) |
+| ร้านต่อกลุ่ม | 1–10 | `MAX_REPORT_SHOPS` (`line-report-shop.service`) |
+| เวลาส่งรายวันต่อกลุ่ม | ≤4 | CHECK `dailyTimes_valid_chk` + `DailyTimesSchema` |
+| ส่งทดสอบ | 5 ครั้ง/วัน(ไทย)/กลุ่ม | `TEST_LIMIT_PER_DAY` |
+| โค้ดผูกอายุ | 10 นาที | `BIND_CODE_TTL_MS` |
+| ผูกผิด | >5 ครั้ง/10 นาที/กลุ่ม LINE = บล็อก | `BIND_ATTEMPT_LIMIT=5`, `RATE_WINDOW_MS` |
+| คำสั่งสรุป | 10 ครั้ง/10 นาที/กลุ่ม · ครั้งที่ 11 ตอบ "ถามถี่เกินไป" · 12+ เงียบ | `COMMAND_LIMIT=10` |
+| `SLOT_WINDOW_MIN` | 60 นาที — ส่งได้เมื่อ `0 ≤ now − fireAt < 60` | `schedule.ts` |
+| `RETRY_WINDOW_MIN` | 90 นาที — เกินแล้ว `MISSED` | `schedule.ts` |
+| `MISSED_LOOKBACK_MIN` | 180 นาที — ช่วงที่บันทึก `MISSED` (ไม่ส่งย้อนหลัง) | `schedule.ts` |
+| `STALE_CLAIM_MIN` | 5 นาที — `CLAIMED` ค้างเกินนี้ = ถือเป็น retry | `line-report-delivery.service` |
+| log การส่งเก็บ | 90 วัน (`DELIVERY_RETENTION_DAYS`) · `pendingPayload` ล้างที่ 24 ชม. (`PAYLOAD_TTL_HOURS`) · `RateEvent` ทิ้งที่ >1 วัน | cleanup 03:00 ไทย |
+| sweep budget | หยุดเริ่มกลุ่มใหม่ที่ 240 วินาที (`SWEEP_BUDGET_MS`) · `maxDuration` 300 | `line-report-sweep.service` + route |
+| reply window | 50 วินาทีจาก `event.timestamp` (`REPLY_WINDOW_MS` ของ `line-report-command.service`) | reply token LINE อายุ ~60s |
+| webhook rate-limit | 1200 req/นาที/IP (bucket `line-report-webhook`) | `proxy.ts` |
+| `attempt` | 0–2 | CHECK `counts_nonneg_chk` |
+
+**บรรทัดฟีเจอร์ของแพ็กเกจธุรกิจ (`tierQuotaFeatures`, `src/lib/business-package.ts`):** เพิ่ม `'รายงานสรุปยอดเข้ากลุ่ม LINE'` ต่อท้ายรายการสิทธิ์ของ **tier ที่ขายจริงทุกตัว** (GROWTH/PRO/BUSINESS — สาขา `maxBusinesses !== 0`) · การ์ด **Free** (pseudo-tier `maxBusinesses===0`) **ไม่มี** บรรทัดนี้ · `featuresForTier(tier)` เป็นตัวช่วยที่เรียก `tierQuotaFeatures` ⇒ `PackageTierGrid` และ `IapSubscribeClient` ได้บรรทัดเดียวกันจากฟังก์ชันเดียว
+
+**เมนู:** slug `seller:line-reports` (กลุ่ม SHOPS · url `/business/line-reports` · icon `brand-line` · label "รายงานเข้ากลุ่ม LINE" · i18n `menu.lineReports`) — ซ่อนเมื่อ `staff.role !== 'OWNER'`
+
 ---
 
 ## §9 Authorization Matrix
@@ -2442,6 +2642,24 @@ HTTP ตามตาราง §7.21
 - **ผู้รับผิดชอบ (`assigneeUserId`)** ต้องเป็นสมาชิกร้านนั้น (เจ้าของ ∪ `ShopMember`) → ไม่ใช่ = `ASSIGNEE_NOT_MEMBER`(400) · ผู้รับผิดชอบที่ถูกถอดจากร้านทีหลังนับเป็น "ยังไม่มีคนรับ" (`isUnassigned`) และไม่ได้รับ push
 - **ร้าน `PERSONAL` (ไม่มี `ShopMember`)** = เจ้าของเป็นผู้รับผิดชอบเสมอ (`assignees` ใน response เป็น `null` — ไม่มีตัวเลือกคน)
 - ไม่ผูกธง `Shop.staffCanViewFinance` (ไม่ใช่ข้อมูลการเงิน) · เมนูเห็นทุก vertical
+
+### 9.10 รายงานสรุปยอดเข้ากลุ่ม LINE (feature 00068)
+
+> L1 = เป็น `Shop.userId` ของร้านใดร้านหนึ่ง (ไม่ลบ/ไม่ purge) · L2 = L1 + แพ็กเกจธุรกิจ ACTIVE (ทุก tier ทุก source นับเท่ากัน) · อ่านแพ็กเกจไม่ได้ = ถือว่าไม่ ACTIVE (fail-closed) · ADMIN/พนักงานของร้านคนอื่นไม่นับเป็นเจ้าของ
+
+| Actor | GET list/group · DELETE · ack (L1) | bind-code ×2 · PATCH · PUT shops · test (L2) | webhook | cron |
+|---|---|---|---|---|
+| ไม่ล็อกอิน | 401 `UNAUTHORIZED` | 401 | — | — |
+| ล็อกอิน แต่ไม่มีร้านที่เป็น `Shop.userId` (เช่น ADMIN ล้วน) | 403 `NOT_OWNER` | 403 `NOT_OWNER` | — | — |
+| เจ้าของ แพ็กเกจไม่ ACTIVE (ไม่มีแถว/`LOCKED_RENEWAL_FAILED`) | ได้ (อ่าน/ลบ/รับทราบ) | 403 `PACKAGE_REQUIRED` | — | — |
+| เจ้าของ แพ็กเกจ ACTIVE | ได้ เฉพาะกลุ่มของตน (กลุ่มอื่น = 404) | ได้ | — | — |
+| LINE (ลายเซ็นถูก) | — | — | ได้ | — |
+| Vercel Cron (`CRON_SECRET`) | — | — | — | ได้ |
+| สมาชิกกลุ่ม LINE (ไม่ล็อกอิน) | — | — | พิมพ์ `ผูก <โค้ด>` · `สรุปวันนี้` · `สรุปเดือนนี้` ผ่าน webhook เท่านั้น | — |
+
+- **จุดส่งจริงตรวจสิทธิ์ซ้ำเสมอ** (`isOwnerPaidForReports(group.ownerId)` ก่อนแตะ LINE: ส่งตามเวลา/ทดสอบ/ตอบคำสั่ง) — ห้ามอ่านจากแถวกลุ่ม · แพ็กเกจหยุด = ไม่ส่งรายงาน/ไม่ตอบตัวเลข (ตอบข้อความสั้นว่าหยุดชั่วคราว) · ส่ง "ข้อความสุดท้าย" 1 ครั้ง (ไม่มี ฿/ราคา/ลิงก์)
+- ทุก query ของ owner API scope ด้วย `ownerId` ที่ `WHERE` แรก (ไม่ดึงแล้วเทียบทีหลัง) · เลือกร้านเข้ากลุ่มได้เฉพาะร้านที่ `userId=ownerId ∧ ไม่ลบ ∧ ไม่ purge ∧ ไม่ล็อกแพ็กเกจ` (ร้านที่อยู่ในกลุ่มเดิมแล้วถูกล็อกภายหลังคงไว้ได้ ไม่ลบเงียบ)
+- ผูกกลุ่ม LINE ที่ ACTIVE กับเจ้าของอื่น = ตอบข้อความ "ไม่ถูกต้อง" เดียวกับโค้ดผิด (ไม่เปิดเผยเจ้าของ · ไม่เผาโค้ด)
 
 ---
 
@@ -2858,6 +3076,25 @@ Valibot 5 schema + `FollowUpIdSchema` (`uuid` — id ผิดรูปที่
 - รูปแบบ (regex) ตัดสินที่ Valibot · **ช่วงวันที่/วันที่ไม่มีจริงตัดสินที่ `resolveDue` (`INVALID_DUE`)** ไม่ใช่ที่ schema · เวลาทั้งหมดเป็นเวลาไทย
 - ฐานข้อมูลกันซ้ำอีกชั้นด้วย CHECK (§6.66) — ความยาว title/note, `allDay ⇒ เที่ยงคืนไทย`, ฟิลด์ปิดงานสอดคล้องกับ `status`
 
+### §10.19 รายงานสรุปยอดเข้ากลุ่ม LINE (`src/lib/line-report/validations.ts`, feature 00068)
+
+Valibot (feature-local, ข้อความไทย) · body ที่ parse JSON ไม่ได้ = 400 `VALIDATION` (`details.fields=[]`) · `:id` เพี้ยน = **404** ไม่ใช่ 400 · กฎข้ามฟิลด์ตรวจที่ service บน state ที่รวม patch แล้ว ไม่ใช่ที่ schema
+
+| Schema | กฎ |
+|---|---|
+| `ShopIdsSchema` | `array(string 1–64)` · ยาว 1–10 · ไม่ซ้ำ |
+| `SlotMinutesSchema` | `number` · integer · 30–1440 · หาร 30 ลงตัว |
+| `DailyTimesSchema` | `array(SlotMinutesSchema)` · ≤4 · ไม่ซ้ำ (service เรียง asc) |
+| `CutoffDaySchema` | `nullable(integer 1–31)` · `null` = สิ้นเดือน |
+| `CreateBindCodeSchema` | `object({ shopIds, acknowledged: literal(true) })` — ต้องรับทราบ บังคับที่ server |
+| `UpdateSettingsSchema` | `strictObject` (คีย์นอกชุด = 400): `dailyEnabled?` `dailyTimes?` `monthlyEnabled?` `cutoffDay?` `showOrders?` `showSales?` `showCancelled?` `showTopProducts?` `showProfit?` `skipWhenNoOrders?` `attachCycleToDaily?` `confirmProfit?` · ต้องส่งอย่างน้อย 1 ค่า |
+| `ReplaceShopsSchema` | `object({ shopIds: ShopIdsSchema })` |
+| `GroupIdParam` | `string` 1–64 |
+| webhook body | **ไม่ใช้ schema ปิด** — อ่านแบบ defensive (`unknown` + type guard) · `source.userId` optional · ไม่ใช่ JSON = ตอบ 200 |
+| โค้ดผูกใน parser | `ผูก\s*` + `[0-9A-Za-z]{4}-?[0-9A-Za-z]{4}` แล้ว `normalizeBindCode` และตรวจ `BIND_CODE_PATTERN` (8 ตัว Crockford) ซ้ำ |
+
+**กฎข้ามฟิลด์ที่ service (`updateSettings`):** `(dailyEnabled ∨ monthlyEnabled) ⇒ dailyTimes ≥ 1` (ไม่ผ่าน = `INVALID_SETTINGS`/`NEEDS_TIME`) · ต้องเปิดตัวเลขอย่างน้อย 1 รายการ (`METRIC_REQUIRED` — CHECK `metric_any_chk` กันอีกชั้น) · เปิด `showProfit` (false→true) ต้องมี `confirmProfit:true` (`PROFIT_CONFIRM_REQUIRED`) แล้วตั้ง `profitEnabledAt=now` · ปิด = `NULL` · `showProfit=false` ⇒ **ไม่เรียก `getPnlReport` เลย** ทุกช่องทาง · `attachCycleToDaily` ถูกล้างเป็น false เมื่อ `monthlyEnabled=false`
+
 ### 10.11 หมายเหตุ
 
 - **Valibot (backend):** ใช้กับ API routes ทุกตัวที่มี mutation — `v.safeParse()` ก่อน service call
@@ -2865,6 +3102,13 @@ Valibot 5 schema + `FollowUpIdSchema` (`uuid` — id ผิดรูปที่
 - **ไม่มี email+password schema** — ตัดถาวร (FR-1.6)
 
 ---
+
+_อัปเดต 2026-10-05: sync ตามโค้ดจริงของ feature 00068 (รายงานสรุปยอดเข้ากลุ่ม LINE, HR11) — backend/API/cron/เมนูเสร็จแล้ว
+**หน้า `business/line-reports/**` ยังไม่ implement** เพิ่ม §3.4 · §3.6 · NFR-2.10–2.12 · §5.1 (env `LINE_REPORT_BOT_*`) · §6.1 ER lines ·
+§6.67 (5 โมเดล + Prisma enum 5 ตัว + partial unique ×3 + CHECK ×5) · §7.20 (cron `*/30`) · §7.24 (endpoint 11 ตัว + error code) ·
+§8.12 (enum/slotKey/reason/โค้ดผูก 8 ตัว Crockford/ค่าคงที่/บรรทัดฟีเจอร์ tier) · §9.10 · §10.19. เขียนจาก `prisma/schema.prisma` + migration
+`20261005100000` + `src/app/api/line-report/**` + `src/lib/line-report/**` + `vercel.json` + `proxy.ts` + `seller-menu.ts` + `business-package.ts` —
+ไม่ได้คัดจาก `00068/SRS.md` อย่างเดียว._
 
 _อัปเดต 2026-09-29: sync ตามโค้ดจริงของ feature 00066 (ติดตามลูกค้า — Customer Follow-up Activities,
 HR11) เพิ่ม §3.4 (route `/follow-ups`) · §6.1 ER lines · §6.66 (`CustomerFollowUp` + index/CHECK + index ใหม่บน

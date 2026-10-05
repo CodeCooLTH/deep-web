@@ -40,7 +40,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[LINE-API-Facts]]", "[[SDS]]",
 | **cycle** | รอบรายเดือนตาม `cutoffDay` (null = สิ้นเดือน) |
 | **claim** | `createMany({skipDuplicates})` บน `(groupId, slotKey)` ได้ `count===1` = ผู้ชนะ |
 | **L1 / L2** | L1 = session + เป็น `Shop.userId` ของร้านใดร้านหนึ่ง (อ่าน/ลบ/รับทราบ) · L2 = L1 + `getSubscriptionStatus(ownerId)?.status === 'ACTIVE'` (สร้าง/แก้/ส่ง) |
-| **reply window** | `REPLY_WINDOW_MS − REPLY_SAFETY_MARGIN_MS` = 55 วินาที นับจาก `event.timestamp` (`src/lib/line/constants.ts`) |
+| **reply window** | 50 วินาที นับจาก `event.timestamp` (`REPLY_WINDOW_MS` ใน `line-report-command.service.ts` — เผื่อกว่า 55s ของ `src/lib/line/constants.ts`) |
 
 ## 2. ภาพรวมสถาปัตยกรรม
 
@@ -115,7 +115,7 @@ flowchart LR
 | `settings/` | ลิงก์ชี้เฉยๆ ไม่มีฟอร์มซ้ำ (AC-03-6) | — |
 
 ### TFR-LGS-04 สร้างโค้ดผูกกลุ่ม (FR-04)
-- ทำใน `prisma.$transaction` เดียว: ① `SELECT … FROM "User" WHERE id=$1 FOR UPDATE` ② ตรวจ `shopIds` ด้วย `findMany({id in, userId: ownerId, deletedAt:null, purgedAt:null, packageLockedAt:null})` ต้องได้ครบ (ไม่ใช้ `listAccessibleShopIds`) ③ นับ `status <> 'REMOVED'` ≥ 10 → `GROUP_LIMIT_REACHED` ④ สร้างแถว `PENDING` + `LineReportGroupShop` ⑤ revoke โค้ดสดทั้งหมดของเจ้าของ ⑥ สร้างโค้ดด้วย `crypto.randomInt(0, 1_000_000)` pad 8 ตัว → `createMany({skipDuplicates:true})` ถ้า `count===0` สุ่มใหม่ ≤5 ครั้ง (ห้ามดัก P2002) · `expiresAt = now + 10 นาที`
+- ทำใน `prisma.$transaction` เดียว: ① `SELECT … FROM "User" WHERE id=$1 FOR UPDATE` ② ตรวจ `shopIds` ด้วย `findMany({id in, userId: ownerId, deletedAt:null, purgedAt:null, packageLockedAt:null})` ต้องได้ครบ (ไม่ใช้ `listAccessibleShopIds`) ③ นับ `status <> 'REMOVED'` ≥ 10 → `GROUP_LIMIT_REACHED` ④ สร้างแถว `PENDING` + `LineReportGroupShop` ⑤ revoke โค้ดสดทั้งหมดของเจ้าของ ⑥ สร้างโค้ดด้วย `generateBindCode()` (สุ่มทีละตัวจาก Crockford base32 ด้วย `crypto.randomInt`) → `createMany({skipDuplicates:true})` ถ้า `count===0` สุ่มใหม่ ≤5 ครั้ง (ห้ามดัก P2002) · `expiresAt = now + 10 นาที`
 - body ต้องมี `acknowledged: true` (บังคับที่ server — ไม่ใช่แค่ปุ่ม disabled)
 - โค้ดดิบคืนใน response ครั้งเดียว ไม่มีที่ไหนเก็บค่าดิบ (AC-04-4) → หน้า PENDING ที่โหลดใหม่แสดงโค้ดเดิมไม่ได้ ต้อง regenerate (issue #2)
 - **Error:** `GROUP_LIMIT_REACHED 409` · `SHOP_NOT_ALLOWED 400` · `SHOP_COUNT_OUT_OF_RANGE 400` · `BOT_NOT_CONFIGURED 503`
@@ -131,7 +131,7 @@ flowchart LR
 ลำดับตายตัว (`consumeBindCode`):
 1. parse (`commands.ts`) → insert `RateEvent(BIND_ATTEMPT)` → นับ 10 นาทีล่าสุดของ `lineGroupId` (รวมตัวเอง) → `> 5` = ตอบข้อความ "ไม่ถูกต้อง" ชุดเดียว ไม่ตรวจโค้ด
 2. `codeHash = HMAC` → หาแถวสด `usedAt null ∧ revokedAt null ∧ expiresAt > now` ไม่เจอ = ข้อความเดียวกัน (ผิด/หมดอายุ/ใช้แล้ว เหมือนกันทุกตัวอักษร — AC-06-4)
-3. กลุ่ม LINE นี้ `ACTIVE` กับเจ้าของอื่น → `ALREADY_BOUND_OTHER` (ไม่เปิดเผยเจ้าของ, **ไม่เผาโค้ด**) · กับเจ้าของเดียวกัน → `ALREADY_BOUND_SELF` (ไม่เผา, ไม่สร้างแถว)
+3. กลุ่ม LINE นี้ `ACTIVE` กับเจ้าของอื่น → `INVALID` ข้อความเดียวกับโค้ดผิด (security M-1: ไม่เป็น oracle, **ไม่เผาโค้ด**) · กับเจ้าของเดียวกัน → `ALREADY_BOUND_SELF` (ไม่เผา, ไม่สร้างแถว)
 4. ตรวจซ้ำ: เจ้าของ `isOwnerPaidForReports` · ทุกร้านใน `LineReportGroupShop` ยัง `userId=owner ∧ ¬deleted ∧ ¬purged` · จำนวนกลุ่ม ≤10 — ผิดข้อใด = ข้อความเดียวกับข้อ 2
 5. เรียก `GET /v2/bot/group/{id}/summary` (นอก tx; ล้ม → ชื่อ `''`) 
 6. tx: `FOR UPDATE` แถว `User` → `updateMany(code: id ∧ usedAt null ∧ revokedAt null ∧ expiresAt>now → usedAt=now)` ต้อง `count===1` → **`$executeRaw` conditional update** `PENDING→ACTIVE … WHERE id=$ ∧ status='PENDING' ∧ NOT EXISTS(ACTIVE ที่ lineGroupId เดียวกัน)` ได้ 0 แถว = rollback + `ALREADY_BOUND_OTHER` (ไม่ใช้ P2002; partial unique เป็นตาข่ายชั้นสอง)
@@ -387,7 +387,7 @@ stateDiagram-v2
 | §3.6 Route Auth | 3 หน้าข้างบน = เจ้าของ (L1) + หน้าล็อก; `/api/line-report/webhook` = ลายเซ็น LINE |
 | §4 NFR-2 Security | webhook ลายเซ็น · โค้ดผูก HMAC · bucket rate-limit webhook |
 | §5 Tech stack / env | 3 env ใหม่ + หมายเหตุห้ามใช้ `LINE_CHANNEL_*` · HMAC derive จาก `NEXTAUTH_SECRET` |
-| §6 (ใหม่ §6.67) | 5 โมเดล + ERD ย่อ + partial unique ×3 + CHECK ×6 (ลอกจาก [[DATABASE]]) |
+| §6 (ใหม่ §6.67) | 5 โมเดล + ERD ย่อ + partial unique ×3 + CHECK ×5 (ลอกจาก [[DATABASE]]) |
 | §7 (ใหม่ §7.24) | ตาราง endpoint §4.1 + error code (จาก [[API]] §5) |
 | §7.20 Cron | แถว `/api/cron/line-report-sweep` `*/30 * * * *` (+ cleanup 03:00 ไทยใน tick เดียวกัน) |
 | §8 (ใหม่ §8.12) | enum 5 ตัว · slotKey · reason set · `SLOT_OPTIONS` · ค่าคงที่ (10 กลุ่ม, 10 ร้าน, 4 slot, 5 test/วัน, 5 ผิด/10 นาที, 10 คำสั่ง/10 นาที, 90 วัน log, 10 นาที โค้ด, 60/90 นาที window) |
