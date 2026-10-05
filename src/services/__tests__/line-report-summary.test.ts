@@ -14,6 +14,7 @@ vi.mock('@/services/cancelled-order-count.service', () => ({ countCancelledOrder
 import { getSalesSeries } from '@/services/dashboard.service'
 import { getPnlReport } from '@/services/pnl.service'
 import { getProductSalesMonth } from '@/services/product-sales-series.service'
+import { listExpenses } from '@/services/expense.service'
 import { countCancelledOrders } from '@/services/cancelled-order-count.service'
 import { buildGroupSummary, buildCycleCumulative, createSweepCache } from '../line-report-summary.service'
 
@@ -21,6 +22,7 @@ const series = vi.mocked(getSalesSeries)
 const pnl = vi.mocked(getPnlReport)
 const top = vi.mocked(getProductSalesMonth)
 const cancelled = vi.mocked(countCancelledOrders)
+const expenses = vi.mocked(listExpenses)
 
 const mk = (id: string, name: string, vertical: string | null = 'ONLINE_SALES') => ({ id, name, vertical })
 const win = { startIso: '2026-10-05', endIso: '2026-10-05', computedAt: '2026-10-05T10:00:00.000Z' }
@@ -210,5 +212,50 @@ describe('AC-14-1 สแกนซอร์ส', () => {
       expect(s.trend!.confirmed.at(-1)).toBe(300) // เฉพาะร้าน a
       expect(s.shops.find((x) => x.shop.id === 'b')?.trend).toBeUndefined()
     })
+  })
+})
+
+// EXT ค่าใช้จ่าย (AC-EXP-01-1/3/4/5)
+describe('needExpense -> finance', () => {
+  const off = { showOrders: false, showSales: false, showCancelled: false, showTopProducts: false, showProfit: false }
+  const run = (flags = off, needs: object = { needExpense: true }, shops = [mk('a', 'ก')], cache = createSweepCache()) =>
+    buildGroupSummary({ shops, excluded: [], window: win, flags, needs, cache })
+  beforeEach(() => {
+    pnl.mockResolvedValue({ netProfit: 120, hasMissingCost: false, revenue: 1000.1, totalExpense: 300.05 } as never)
+    expenses.mockResolvedValue([{ id: 'e' }] as never)
+  })
+
+  it('1: needExpense เปิด -> เรียก getPnlReport เติม finance (netSales=round2) แต่ไม่เติม profit', async () => {
+    const s = await run()
+    expect(pnl).toHaveBeenCalledTimes(1)
+    expect(s.shops[0].finance).toEqual({ expense: 300.05, netSales: 700.05, expenseRecorded: true })
+    expect(s.shops[0].profit).toBeUndefined()
+  })
+  it('3: ไม่มีแถวค่าใช้จ่าย -> expenseRecorded=false (expense 0 ≠ ไม่ได้บันทึก)', async () => {
+    expenses.mockResolvedValue([])
+    pnl.mockResolvedValue({ netProfit: 1, hasMissingCost: false, revenue: 500, totalExpense: 0 } as never)
+    expect((await run()).shops[0].finance).toEqual({ expense: 0, netSales: 500, expenseRecorded: false })
+  })
+  it('4: needExpense ปิด + showProfit ปิด -> ไม่เรียก pnl ไม่มี finance · showProfit เปิดอย่างเดียว -> profit ไม่มี finance', async () => {
+    const a = await run(off, {})
+    expect(pnl).not.toHaveBeenCalled()
+    expect(a.shops[0].finance).toBeUndefined()
+    const b = await run({ ...off, showProfit: true }, {})
+    expect(b.shops[0].profit).toEqual({ netProfit: 120, capped: false })
+    expect(b.shops[0].finance).toBeUndefined()
+  })
+  it('5: showProfit + needExpense พร้อมกัน -> getPnlReport ครั้งเดียว ได้ทั้งคู่', async () => {
+    const s = await run({ ...off, showProfit: true })
+    expect(pnl).toHaveBeenCalledTimes(1)
+    expect(s.shops[0].profit).toBeDefined()
+    expect(s.shops[0].finance).toBeDefined()
+  })
+  it('netSales ปัดทศนิยม 2 ตำแหน่ง (กัน float 0.3-0.1)', async () => {
+    pnl.mockResolvedValue({ netProfit: 0, hasMissingCost: false, revenue: 0.3, totalExpense: 0.1 } as never)
+    expect((await run()).shops[0].finance?.netSales).toBe(0.2)
+  })
+  it('ร้านติดลบ: ยอดหลังหักค่าใช้จ่ายติดลบได้', async () => {
+    pnl.mockResolvedValue({ netProfit: -5, hasMissingCost: false, revenue: 100, totalExpense: 250 } as never)
+    expect((await run()).shops[0].finance?.netSales).toBe(-150)
   })
 })
