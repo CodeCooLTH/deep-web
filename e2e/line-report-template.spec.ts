@@ -12,7 +12,7 @@ const URL_DB = process.env.DATABASE_URL ?? ''
 if (!/@(localhost|127\.0\.0\.1):5434\//.test(URL_DB)) throw new Error('E2E: DATABASE_URL ต้องเป็น localhost:5434')
 const prisma = new PrismaClient()
 const SHOT = '/tmp/qa-00070'
-const H = 'http://seller.deepth.local:4000'
+const H = process.env.E2E_SELLER_ORIGIN ?? 'http://seller.deepth.local:4000'
 const ids = { user: '', shops: [] as string[], group: '', token: '' }
 
 test.describe.configure({ mode: 'serial' })
@@ -133,7 +133,10 @@ test('Q2 หน้า template: layout 3/2/สลับ + ไม่ overflow', a
   console.log('768', c2)
   expect(c2.canvas).not.toBeNull()
   expect(c2.preview).not.toBeNull()
-  expect(c2.preview!).toBeGreaterThan(c2.canvas! + 100)
+  // 768 = ผืนงานกับตัวอย่างซ้อนกันคอลัมน์เดียว (audit: 2 คอลัมน์ที่ md บีบการ์ดจนตัวเลขตกบรรทัด)
+  expect(c2.preview).toBe(c2.canvas)
+  const tops = await page.evaluate(() => ['ข้อความที่จะส่ง', 'ตัวอย่างในกลุ่ม LINE'].map((n) => Math.round(document.querySelector(`section[aria-label="${n}"]`)!.getBoundingClientRect().top)))
+  expect(tops[1]).toBeGreaterThan(tops[0])
   expect(await overflow()).toBe(false)
   await shot('q2-tpl-768')
   await page.setViewportSize({ width: 375, height: 800 })

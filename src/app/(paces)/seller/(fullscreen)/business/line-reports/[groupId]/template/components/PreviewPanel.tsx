@@ -51,7 +51,7 @@ export default function PreviewPanel({
   )
   return (
     <section aria-label="ตัวอย่างในกลุ่ม LINE">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-2 flex min-h-11 items-center justify-between gap-2">
         <h2 className="text-default-900 mb-0 text-sm font-semibold">ตัวอย่างในกลุ่ม LINE</h2>
         <SegControl
           label="ชนิดตัวอย่าง"

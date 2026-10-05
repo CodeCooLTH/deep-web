@@ -47,7 +47,7 @@ export default function SegControl<T extends string>({
             disabled={off}
             title={o.title}
             onClick={() => onChange(o.value)}
-            className={cn(SEG, 'inline-flex items-center justify-center gap-1.5', fill && 'flex-1', value === o.value ? 'bg-card text-default-900 shadow-sm' : 'text-default-700 hover:text-default-900', off && 'opacity-50')}
+            className={cn(SEG, 'inline-flex items-center justify-center gap-1.5 whitespace-nowrap', fill && 'flex-1', value === o.value ? 'bg-card text-default-900 shadow-sm' : 'text-default-700 hover:text-default-900', off && 'opacity-50')}
           >
             {o.label}
           </button>

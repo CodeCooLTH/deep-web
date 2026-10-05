@@ -55,7 +55,7 @@ export default function MessageCard({ group, canEdit, serverNowIso }: { group: G
       </div>
       <div className="card-body">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <span className={cn('badge', custom ? 'bg-info/15 text-info-ink' : 'bg-default-200/60 text-default-700')}>{custom ? 'จัดเองแล้ว' : 'ใช้แบบมาตรฐานอยู่'}</span>
+          <span className={cn('badge px-2 py-1 text-xs', custom ? 'bg-info/15 text-info-ink' : 'bg-default-200/60 text-default-700')}>{custom ? 'จัดเองแล้ว' : 'ใช้แบบมาตรฐานอยู่'}</span>
           <div className="bg-light inline-flex flex-none rounded-lg p-0.5" role="radiogroup" aria-label="ชนิดตัวอย่าง">
             {(['DAILY', 'MONTHLY'] as const).map((k) => {
               const disabled = k === 'DAILY' ? dailyDisabled : monthlyDisabled
@@ -75,7 +75,7 @@ export default function MessageCard({ group, canEdit, serverNowIso }: { group: G
             })}
           </div>
         </div>
-        <FlexBubbleView contents={contents} caption="ตัวเลขในตัวอย่างเป็นค่าสมมุติ ข้อความจริงใช้ยอดของร้านที่เลือก" />
+        <FlexBubbleView className="bg-transparent p-0" contents={contents} caption="ตัวเลขในตัวอย่างเป็นค่าสมมุติ ข้อความจริงใช้ยอดของร้านที่เลือก" />
       </div>
     </section>
   )

@@ -366,7 +366,7 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
         {announcement}
       </div>
 
-      <div className="mt-4 shrink-0">
+      <div className="mt-6 shrink-0 empty:mt-0">
         {banner && <GroupBanner banner={banner} onRebind={() => router.push(`/business/line-reports/${group.id}?rebind=1`)} />}
         {state.stale && (
           <div role="alert" className="bg-warning/15 text-warning-ink mb-base flex flex-col gap-3 rounded-lg px-4 py-3 text-sm sm:flex-row sm:items-center">
@@ -379,13 +379,14 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
       </div>
 
       <DragDropContext onDragStart={onDragStart} onDragUpdate={onDragUpdate} onDragEnd={onDragEnd} dragHandleUsageInstructions={DRAG_HELP}>
-        <div className="md:grid md:grid-cols-12 md:gap-6 lg:flex lg:min-h-0 lg:flex-1 lg:gap-7">
+        {/* ระยะระหว่าง section = 24 (gap-6) ทุกขนาด · md ซ้อนกันเป็นคอลัมน์เดียว (ไม่บีบผืนงาน/พรีวิว) · lg 3 คอลัมน์ */}
+        <div className="flex flex-col gap-6 lg:min-h-0 lg:flex-1 lg:flex-row lg:gap-7">
           {!readOnly && (
-            <div data-scroll-col className={`${state.view === 'preview' ? 'hidden md:block' : ''} md:col-span-12 mb-3 lg:mb-0 lg:w-1/4 lg:min-h-0 lg:overflow-y-auto`}>
+            <div data-scroll-col className={`${state.view === 'preview' ? 'hidden md:block' : ''} lg:w-1/4 lg:min-h-0 lg:overflow-y-auto`}>
               <TemplateLibrary draft={draft} ctx={ctx} word={word} onAdd={(t) => void addBlock(t)} />
             </div>
           )}
-          <div data-scroll-col className={`${state.view === 'preview' ? 'hidden md:block' : ''} md:col-span-7 lg:min-h-0 lg:overflow-y-auto ${readOnly ? 'lg:w-7/12' : 'lg:w-5/12'}`}>
+          <div data-scroll-col className={`${state.view === 'preview' ? 'hidden md:block' : ''} lg:min-h-0 lg:overflow-y-auto ${readOnly ? 'lg:w-7/12' : 'lg:w-5/12'}`}>
             <CanvasList
               draft={draft}
               markupById={state.markupById}
@@ -407,7 +408,7 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
             />
             <SizeGauge gauge={gauge} extra={[...gaugeExtra, ...gaugeWarnings]} />
           </div>
-          <div data-scroll-col className={`${state.view === 'canvas' ? 'hidden md:block' : ''} md:col-span-5 mt-4 md:mt-0 lg:min-h-0 lg:overflow-y-auto ${readOnly ? 'lg:w-5/12' : 'lg:w-1/3'}`}>
+          <div data-scroll-col className={`${state.view === 'canvas' ? 'hidden md:block' : ''} lg:min-h-0 lg:overflow-y-auto ${readOnly ? 'lg:w-5/12' : 'lg:w-1/3'}`}>
             <PreviewPanel
               template={draft}
               shops={sampleShops}

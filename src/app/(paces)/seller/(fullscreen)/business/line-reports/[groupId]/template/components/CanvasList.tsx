@@ -19,13 +19,15 @@ import { CheckRow } from '@/app/(paces)/seller/(dashboard)/business/line-reports
 import { type Availability, type AvailabilityContext } from '@/lib/line-report/availability'
 import { MAX_BUTTON_LABEL, MAX_TITLE_LENGTH, type Block, type TemplateV1 } from '@/lib/line-report/template'
 import { cn } from '@/utils/helpers'
-import { BLOCK_ICON, blockSummary, blockTitle, measureLabel, rowWarning } from '../lib/block-meta'
+import { blockSummary, blockTitle, measureLabel, rowWarning } from '../lib/block-meta'
 import type { Action } from '../lib/reducer'
 import SegControl from './SegControl'
 import TextBlockEditor from './TextBlockEditor'
 
 export const CANVAS_DROPPABLE_ID = 'canvas-blocks'
 const ROW = 'border-default-200 border-b'
+/** รางซ้ายร่วม — grip / กุญแจ / ไอคอนปุ่ม กว้างเท่ากันทุกแถว ชื่อทุกแถวจึงเริ่มเส้นเดียวกัน (เนื้อหาเยื้อง `ps-11` ให้ตรงเส้นนี้) */
+const RAIL = 'flex w-11 shrink-0 justify-center'
 const ICON_BTN = 'btn btn-icon text-default-700 hover:bg-default-100 min-h-11 min-w-11 shrink-0 disabled:opacity-40'
 
 /** ปุ่ม/ช่องที่ผู้ใช้เห็นในแถวเปิด — ต่อชนิดบล็อก */
@@ -111,30 +113,28 @@ function BlockRow({
       {...drag?.draggableProps}
       className={cn(ROW, 'bg-card', snap?.isDragging && 'border-primary bg-primary/5 shadow-lg')}
     >
-      <div className="flex min-h-12 items-center ps-1">
-        {!readOnly && drag && (
-          <span
-            {...drag.dragHandleProps}
-            aria-label={`ลากเพื่อย้าย${title}`}
-            className="text-default-500 inline-flex min-h-11 min-w-11 shrink-0 cursor-grab touch-none items-center justify-center"
-          >
+      <div className="flex min-h-12 items-center">
+        {!readOnly && drag ? (
+          <span {...drag.dragHandleProps} aria-label={`ลากเพื่อย้าย${title}`} className={cn(RAIL, 'text-default-500 min-h-11 cursor-grab touch-none items-center')}>
             <Icon icon="grip-vertical" className="size-4" aria-hidden="true" />
           </span>
+        ) : (
+          <span className={RAIL} aria-hidden="true" />
         )}
         <button
           type="button"
           aria-expanded={open}
           aria-controls={bodyId}
           onClick={() => onToggle(block.id)}
-          className={cn('flex min-h-11 min-w-0 flex-1 items-center gap-2 py-1.5 text-start', readOnly && 'ps-3')}
+          className="flex min-h-11 min-w-0 flex-1 items-center gap-2 py-2 text-start"
         >
-          <Icon icon={warning ? 'alert-triangle' : BLOCK_ICON[block.type]} className={cn('shrink-0 text-base', warning ? 'text-warning-ink' : 'text-default-500')} aria-hidden="true" />
           <span className="min-w-0 flex-1">
             <span className="text-default-900 block truncate text-sm font-medium" title={title}>
               {title}
             </span>
             {(warning ?? summary) && (
               <span className={cn('block truncate text-xs', warning ? 'text-warning-ink' : 'text-default-700')} title={(warning ?? summary) ?? undefined}>
+                {warning && <Icon icon="alert-triangle" className="me-1 inline size-3.5 align-text-bottom" aria-hidden="true" />}
                 {warning ?? summary}
               </span>
             )}
@@ -156,7 +156,7 @@ function BlockRow({
         )}
       </div>
       {open && (
-        <div id={bodyId} className="px-4 pb-4 ps-4">
+        <div id={bodyId} className="pe-4 pb-4 ps-11">
           {children}
         </div>
       )}
@@ -247,16 +247,21 @@ export default function CanvasList(p: CanvasListProps) {
 
   return (
     <section aria-label="ข้อความที่จะส่ง">
-      <h2 className="text-default-900 mb-2 text-sm font-semibold">ข้อความที่จะส่ง</h2>
+      <div className="mb-2 flex min-h-11 items-center">
+        <h2 className="text-default-900 mb-0 text-sm font-semibold">ข้อความที่จะส่ง</h2>
+      </div>
       <div className="border-default-300 rounded-lg border">
         {/* หัวรายงาน — ตรึงบนสุด ต้องมีเสมอ (นอก Droppable) */}
         <div
-          className={cn(ROW, 'bg-light rounded-t-lg px-4 py-3')}
+          className={cn(ROW, 'bg-light rounded-t-lg py-3')}
           title="ตรึงบนสุด · ต้องมีเสมอ เพื่อให้คนในกลุ่มรู้ว่าตัวเลขเป็นของช่วงไหน ณ เวลาใด"
         >
-          <div className="flex items-center gap-2">
-            <Icon icon="lock" className="text-default-500 size-4 shrink-0" aria-hidden="true" />
-            <label htmlFor="template-title" className="text-default-900 shrink-0 text-sm font-medium">
+          <div className="flex">
+            <span className={cn(RAIL, 'pt-0.5')}>
+              <Icon icon="lock" className="text-default-500 size-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1 pe-4">
+            <label htmlFor="template-title" className="text-default-900 mb-2 block text-sm font-medium">
               หัวรายงาน
             </label>
             <input
@@ -266,13 +271,14 @@ export default function CanvasList(p: CanvasListProps) {
               readOnly={readOnly}
               placeholder={p.titlePlaceholder}
               aria-describedby="template-title-help"
-              className={cn('form-input min-w-0 flex-1', titleLen > MAX_TITLE_LENGTH && 'is-invalid')}
+              className={cn('form-input', titleLen > MAX_TITLE_LENGTH && 'is-invalid')}
               onChange={(e) => dispatch({ type: 'setTitle', title: e.target.value })}
             />
-          </div>
-          <p id="template-title-help" className={cn('mt-1 mb-0 ps-6 text-xs', titleLen > MAX_TITLE_LENGTH ? 'text-danger-ink' : 'text-default-700')}>
+          <p id="template-title-help" className={cn('mt-2 mb-0 text-xs', titleLen > MAX_TITLE_LENGTH ? 'text-danger-ink' : 'text-default-700')}>
             {titleLen > MAX_TITLE_LENGTH ? `ชื่อรายงานยาวเกิน ${MAX_TITLE_LENGTH} ตัวอักษร` : 'ใช้เป็นชื่อของข้อความแรกในแต่ละรอบ · เว้นว่างเพื่อใช้ชื่อมาตรฐาน'}
           </p>
+            </div>
+          </div>
         </div>
 
         {readOnly ? (
@@ -298,9 +304,11 @@ export default function CanvasList(p: CanvasListProps) {
         )}
 
         {/* หมายเหตุอัตโนมัติ — ล็อก เอาออกไม่ได้ */}
-        <div className={cn(ROW, 'bg-light flex items-start gap-2 px-4 py-3')} title="เอาออกไม่ได้ เพื่อไม่ให้ตัวเลขดูครบทั้งที่ไม่ครบ">
-          <Icon icon="lock" className="text-default-500 mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <div className="min-w-0">
+        <div className={cn(ROW, 'bg-light flex items-start py-3')} title="เอาออกไม่ได้ เพื่อไม่ให้ตัวเลขดูครบทั้งที่ไม่ครบ">
+          <span className={cn(RAIL, 'pt-0.5')}>
+            <Icon icon="lock" className="text-default-500 size-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1 pe-4">
             <span className="text-default-900 block text-sm font-medium">หมายเหตุอัตโนมัติ</span>
             <span className="text-default-700 block text-xs">ระบบใส่ให้เมื่อมีร้านที่ไม่ถูกรวมหรือข้อมูลไม่ครบ · เอาออกไม่ได้</span>
           </div>
@@ -313,17 +321,19 @@ export default function CanvasList(p: CanvasListProps) {
             aria-expanded={p.openId === 'button'}
             aria-controls="body-button"
             onClick={() => dispatch({ type: 'open', id: p.openId === 'button' ? null : 'button' })}
-            className="flex min-h-12 w-full items-center gap-2 px-4 py-1.5 text-start"
+            className="flex min-h-12 w-full items-center py-2 text-start"
           >
-            <Icon icon="external-link" className="text-default-500 shrink-0 text-base" aria-hidden="true" />
+            <span className={RAIL}>
+              <Icon icon="external-link" className="text-default-500 size-4" aria-hidden="true" />
+            </span>
             <span className="min-w-0 flex-1">
               <span className="text-default-900 block text-sm font-medium">ปุ่มเปิด Deep</span>
               <span className="text-default-700 block truncate text-xs">{draft.button.show ? `“${draft.button.label}” · แสดง` : 'ซ่อนอยู่'}</span>
             </span>
-            <Icon icon="chevron-down" className={cn('text-default-500 size-4 shrink-0', p.openId === 'button' && 'rotate-180')} aria-hidden="true" />
+            <Icon icon="chevron-down" className={cn('text-default-500 mx-4 size-4 shrink-0', p.openId === 'button' && 'rotate-180')} aria-hidden="true" />
           </button>
           {p.openId === 'button' && (
-            <div id="body-button" className="px-4 pb-4">
+            <div id="body-button" className="pe-4 pb-4 ps-11">
               <CheckRow checked={draft.button.show} disabled={readOnly} onChange={(show) => dispatch({ type: 'setButton', patch: { show } })} label="แสดงปุ่มนี้" />
               <label htmlFor="template-button-label" className="text-default-900 mb-1 block text-sm font-medium">
                 ป้ายปุ่ม

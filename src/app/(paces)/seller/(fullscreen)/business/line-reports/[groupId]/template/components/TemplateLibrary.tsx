@@ -73,15 +73,17 @@ export default function TemplateLibrary({
     <>
       {/* ≥lg: คอลัมน์ซ้าย */}
       <div className="hidden lg:block">
-        <h2 className="text-default-900 mb-2 text-sm font-semibold">เพิ่มบล็อก</h2>
-        {full && <p className="text-default-700 mb-0 text-xs">ครบ 20 บล็อกแล้ว เอาบล็อกออกก่อนจึงเพิ่มได้</p>}
-        {groups.length === 0 && <p className="text-default-700 mb-0 text-sm">ใส่ครบแล้ว</p>}
+        <div className="mb-2 flex min-h-11 items-center px-2">
+          <h2 className="text-default-900 mb-0 text-sm font-semibold">เพิ่มบล็อก</h2>
+        </div>
+        {full && <p className="text-default-700 mb-0 px-2 text-xs">ครบ 20 บล็อกแล้ว เอาบล็อกออกก่อนจึงเพิ่มได้</p>}
+        {groups.length === 0 && <p className="text-default-700 mb-0 px-2 text-sm">ใส่ครบแล้ว</p>}
         <Droppable droppableId={LIBRARY_DROPPABLE_ID} isDropDisabled>
           {(drop) => (
             <div ref={drop.innerRef} {...drop.droppableProps}>
               {groups.map((g) => (
-                <div key={g.title} className="mt-5 first:mt-0">
-                  <h3 className="text-default-700 mb-1 text-xs font-semibold">{g.title}</h3>
+                <div key={g.title} className="mt-6 first:mt-2">
+                  <h3 className="text-default-700 mb-2 px-2 text-xs font-semibold">{g.title}</h3>
                   {g.entries.map((e) => {
                     return (
                       <Draggable key={e.type} draggableId={libraryDraggableId(e.type)} index={indexOf(e.type)} isDragDisabled={e.disabled}>
@@ -90,7 +92,7 @@ export default function TemplateLibrary({
                             ref={drag.innerRef}
                             {...drag.draggableProps}
                             aria-disabled={e.disabled || undefined}
-                            className={cn('flex items-center gap-2 rounded-lg py-0.5 ps-2', !e.disabled && 'hover:bg-default-100', snap.isDragging && 'bg-card border-primary border shadow-lg')}
+                            className={cn('flex items-center gap-2 rounded-lg px-2 py-0.5', !e.disabled && 'hover:bg-default-100', snap.isDragging && 'bg-card border-primary border shadow-lg')}
                           >
                             {/* ที่จับลาก = ไอคอน+ชื่อ · ปุ่ม ＋ อยู่นอก element ที่มี dragHandleProps (กัน interactive ซ้อน interactive) */}
                             <div {...drag.dragHandleProps} className={cn('flex min-w-0 flex-1 items-center gap-2', e.disabled ? 'cursor-default' : 'cursor-grab')}>

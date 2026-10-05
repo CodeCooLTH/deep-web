@@ -106,18 +106,21 @@ function renderNode(n: FlexNode, key: number, parent: Layout): ReactNode {
 export default function FlexBubbleView({
   contents,
   caption = 'ตัวอย่าง ตัวเลขจริงมาจากข้อมูลของร้านที่เลือก',
+  className,
 }: {
   /** `LineFlexMessage.contents` (โหนด bubble) */
   contents: Record<string, unknown>
   /** null = ไม่แสดงคำบรรยาย (ปกติต้องแสดงเสมอ — ป้าย "ตัวอย่าง" ตามมติ) */
   caption?: string | null
+  /** ปรับกล่องพื้นเทา (เช่นถอดพื้น/padding เมื่ออยู่ใน card-body อยู่แล้ว) — ไม่แตะสี/โหนดของ bubble */
+  className?: string
 }) {
   const body = contents.body as FlexNode | undefined
   const footer = contents.footer as FlexNode | undefined
   const button = footer ? kids(footer).find((c) => c.type === 'button') : undefined
   const label = button ? str((button.action as FlexNode | undefined)?.label) : ''
   return (
-    <figure aria-label="ตัวอย่างข้อความในกลุ่ม LINE" className="bg-light mb-0 rounded-lg p-3">
+    <figure aria-label="ตัวอย่างข้อความในกลุ่ม LINE" className={cn('bg-light mb-0 rounded-lg p-3', className)}>
       <div className="text-default-700 mb-1.5 flex items-center gap-1.5 text-xs">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/images/logos/line.svg" alt="" aria-hidden="true" width={20} height={20} className="size-5 rounded-full" />
