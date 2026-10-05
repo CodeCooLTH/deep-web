@@ -91,6 +91,7 @@ export const en: Dictionary = {
     reportsAgents: 'Agent Chat Response',
     reportsProducts: 'Sales by Product',
     followUps: 'Customer follow-ups',
+    lineReports: 'LINE group reports',
     orders: {
       ONLINE_SALES: 'Orders',
       // ไม่ใช่ "Services" เฉย ๆ — ของเดิมคือ "การเข้ารับบริการ" ซึ่งหมายถึงใบงานที่ลูกค้าเข้ามารับ

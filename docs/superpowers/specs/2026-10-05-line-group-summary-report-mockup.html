@@ -255,7 +255,7 @@ function bubble(mode='daily', o={}){
       <div class="sec note">ไม่รวมร้านที่ถูกล็อก 1 ร้าน (ล้างรถ คลอง 4 โปรแคร์ ธัญบุรี)</div>
       <a class="lnk">เปิด dashboard</a>
     </div>
-    <div class="pvcap">ตัวอย่าง ตัวเลขจริงมาจากออเดอร์ของร้านที่เลือก</div>
+    <div class="pvcap">ตัวอย่าง ตัวเลขจริงมาจากข้อมูลของร้านที่เลือก</div>
   </div>`;
 }
 
@@ -343,7 +343,7 @@ const times = ['09:00','12:30','18:00','24:00'];
 const HIST = [
   ['วันนี้ 12:30','รายวัน','ok',''],['วันนี้ 10:14','คำสั่งในกลุ่ม','ok',''],['วันนี้ 09:00','รายวัน','ok',''],
   ['5 ต.ค. 24:00','รายวัน','ok',''],['5 ต.ค. 15:02','ทดสอบ','ok',''],['5 ต.ค. 12:30','รายวัน','fail','บอทไม่อยู่ในกลุ่มแล้ว'],
-  ['5 ต.ค. 09:00','รายวัน','ok',''],['4 ต.ค. 20:41','คำสั่งในกลุ่ม','ok',''],['4 ต.ค. 09:00','รายวัน','skip','ไม่มีออเดอร์ในช่วงนั้น'],
+  ['5 ต.ค. 09:00','รายวัน','ok',''],['4 ต.ค. 20:41','คำสั่งในกลุ่ม','ok',''],['4 ต.ค. 09:00','รายวัน','skip','ไม่มีรายการในช่วงนั้น'],
   ['6 ก.ย. 09:00','รายเดือน','ok',''],
 ];
 const res = r => r==='ok'?`<span class="badge b-ok">${i('circle-check')} สำเร็จ</span>`:r==='fail'?`<span class="badge b-dng">${i('circle-x')} ไม่สำเร็จ</span>`:`<span class="badge b-neu">${i('info-circle')} ข้าม</span>`;
@@ -376,7 +376,7 @@ function scrD(paused=false){
         <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap"><span class="sm">วันตัดรอบ</span><select class="sel"><option>วันที่ 6</option></select></div>
         <p class="xs muted mt2">ตัวอย่าง: ตัดรอบวันที่ 6 ได้รอบ 6 ก.ย. – 5 ต.ค. และส่งวันที่ 6 ต.ค. 09:00 (เวลาแรกของรายวัน)</p>
         <hr class="dash">
-        <div class="ckrow"><span class="ck on">${i('check')}</span><span class="t sm">ไม่ส่งถ้าไม่มีออเดอร์<span class="sub">ถ้าช่วงนั้นไม่มีออเดอร์เลย ระบบจะข้ามและบันทึกในประวัติว่าข้าม</span></span></div>
+        <div class="ckrow"><span class="ck on">${i('check')}</span><span class="t sm">ไม่ส่งถ้าไม่มีรายการ<span class="sub">ถ้าช่วงนั้นไม่มีออเดอร์เลย ระบบจะข้ามและบันทึกในประวัติว่าข้าม</span></span></div>
         <div class="ckrow"><span class="ck on">${i('check')}</span><span class="t sm">แนบยอดสะสมรอบนี้ในรายงานรายวัน<span class="sub">ใต้ยอดของวัน จะมียอดรวมตั้งแต่วันตัดรอบถึงวันนี้</span></span></div>
       </div></div>
       <div class="card o3"><div class="card-header"><h5>${i('list-numbers')} ตัวเลขที่แสดง</h5></div><div class="card-body">
@@ -406,7 +406,7 @@ function scrD(paused=false){
 const scrE1 = () => crumbs('รายงานเข้ากลุ่ม LINE','ธุรกิจ / รายงานเข้ากลุ่ม LINE') + `<div class="content"><div class="card"><div class="card-body"><div class="two">
   <div><span class="icon-sq mb3">${i('lock')}</span>
     <h5 style="margin:0 0 6px;font-size:15px">รายงานยอดเข้ากลุ่ม LINE ใช้ได้กับแพ็กเกจธุรกิจ</h5>
-    <p class="muted sm mb3">สรุปจำนวนออเดอร์และยอดขายของร้านคุณเข้ากลุ่ม LINE ของทีมทุกวันหรือทุกเดือน เลือกได้ว่ากลุ่มไหนเห็นร้านไหน</p>
+    <p class="muted sm mb3">สรุปยอดขายและจำนวนรายการของร้านคุณเข้ากลุ่ม LINE ของทีมทุกวันหรือทุกเดือน เลือกได้ว่ากลุ่มไหนเห็นร้านไหน</p>
     <button class="btn btn-primary full sm-auto">ดูแพ็กเกจธุรกิจ</button>
     <p class="xs muted mt3">แอป Android (hidePayments ไม่มี IAP): ไม่มีปุ่ม ไม่มีราคา — “รายงานเข้ากลุ่ม LINE เป็นฟีเจอร์ของบัญชีธุรกิจ บัญชีนี้ยังไม่ได้เปิดใช้”</p></div>
   <div><p class="xs muted mb2" style="text-align:center">ตัวอย่างข้อความในกลุ่ม</p>${bubble()}</div>

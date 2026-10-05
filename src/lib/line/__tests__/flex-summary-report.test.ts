@@ -39,11 +39,11 @@ describe('buildSummaryReportFlex', () => {
     expect(json(mk([shop(1)]))).not.toContain(NOTE)
   })
 
-  it('altText ≤1500 มีชื่อรายงาน ช่วง ออเดอร์ ยอดขาย กำไรตามธง', () => {
+  it('altText ≤1500 มีชื่อรายงาน ช่วง จำนวนใบ ยอดขาย กำไรตามธง', () => {
     const shops = [shop(1), shop(2)]
     const [m] = mk(shops, { showProfit: true })
     expect(m.altText.length).toBeLessThanOrEqual(1500)
-    for (const s of ['รายงานยอดรายวัน', '5 ต.ค. 2569', 'ออเดอร์ 23 รายการ', 'ยอดขาย ฿5,000', 'กำไรสุทธิ ฿500', '21:02']) {
+    for (const s of ['รายงานยอดรายวัน', '5 ต.ค. 2569', 'คำสั่งซื้อ 23 รายการ', 'ยอดขาย ฿5,000', 'กำไรสุทธิ ฿500', '21:02']) {
       expect(m.altText).toContain(s)
     }
     expect(mk(shops)[0].altText).not.toContain('กำไร')
@@ -244,5 +244,34 @@ describe('ซอร์ส', () => {
     expect(src).not.toContain('toFixed(')
     expect(src).not.toContain("toLocaleString('th")
     expect(src).not.toMatch(/safepay/i)
+  })
+})
+
+describe('ป้ายจำนวนใบผันตาม vertical (Q31 · SSOT ORDER_VOCAB.nounShort)', () => {
+  const both = (shops: ShopSummary[]) => {
+    const [m] = mk(shops)
+    return { alt: m.altText, j: json(m) }
+  }
+  it.each([
+    ['ONLINE_SALES', 'คำสั่งซื้อ'],
+    ['SERVICE_QUEUE', 'บริการ'],
+    ['LODGING', 'บิลเข้าพัก'],
+  ])('กลุ่ม %s ล้วน → ใช้ "%s" ทั้งบรรทัดยอดรวมและ altText', (v, word) => {
+    const { alt, j } = both([shop(1, {}, v), shop(2, {}, v)])
+    expect(j).toContain(`"text":"${word}"`)
+    expect(alt).toContain(`${word} 23 รายการ`)
+    expect(j).not.toContain('ออเดอร์')
+    expect(alt).not.toContain('ออเดอร์')
+  })
+  it('กลุ่มผสม → "รายการ" ตัวเลขเฉย ๆ ไม่มีคำนามของ vertical ใด', () => {
+    const { alt, j } = both([shop(1, {}, 'ONLINE_SALES'), shop(2, {}, 'SERVICE_QUEUE')])
+    expect(j).toContain('"text":"รายการ"')
+    expect(j).toContain('"text":"23"')
+    expect(alt).toContain('รายการ 23 ·')
+    for (const w of ['ออเดอร์', 'คำสั่งซื้อ', 'บิลเข้าพัก']) expect(j + alt).not.toContain(w)
+  })
+  it('ร้านที่ถูกตัด (EXCLUDED) ไม่ทำให้กลุ่มกลายเป็นผสม', () => {
+    const { alt } = both([shop(1, {}, 'SERVICE_QUEUE'), shop(2, { state: 'EXCLUDED', excludedReason: 'LOCKED' }, 'ONLINE_SALES')])
+    expect(alt).toContain('บริการ 11 รายการ')
   })
 })

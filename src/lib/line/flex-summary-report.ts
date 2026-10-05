@@ -12,7 +12,7 @@ import type { GroupSummary, ReportKind, ShopSummary, Totals } from '@/lib/line-r
 import { formatDayMonthTH, formatTimeHM, formatYearTH } from '@/lib/format-date'
 import { formatBaht, formatNumberNoSymbol, profitDisplay } from '@/lib/format-money'
 import { resolveShopVertical } from '@/lib/lodging'
-import { resolveProductVocab } from '@/lib/seller-menu'
+import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
 
 const ACCENT = '#236dc9'
 const INK = '#2F2B3D'
@@ -58,6 +58,19 @@ function titleOf(kind: ReportKind, s: GroupSummary, override?: string): string {
   return BASE_TITLE[kind] ?? 'รายงานสรุปยอด'
 }
 
+/**
+ * คำเรียก "ใบ" ของรายงานนี้ ผันตาม vertical จาก SSOT `ORDER_VOCAB.nounShort` (Q31)
+ * ทุกร้านที่นับยอด vertical เดียวกัน → คำของ vertical นั้น · ผสม → "รายการ" (กลางที่สุด ไม่ผูก vertical ใด)
+ * ห้ามพิมพ์คำเอง — ร้านบริการอ่านคำว่า "ออเดอร์" แล้วไม่ตรงกับธุรกิจตัวเอง
+ */
+export const MIXED_ORDER_WORD = 'รายการ'
+export function reportOrderWord(shops: readonly ShopSummary[]): { word: string; mixed: boolean } {
+  const counted = shops.filter((s) => s.state !== 'EXCLUDED')
+  const verticals = new Set((counted.length > 0 ? counted : shops).map((s) => resolveShopVertical(s.shop.vertical)))
+  if (verticals.size > 1) return { word: MIXED_ORDER_WORD, mixed: true }
+  return { word: resolveOrderVocab([...verticals][0] ?? 'ONLINE_SALES').nounShort, mixed: false }
+}
+
 const sortShops = (shops: readonly ShopSummary[]) =>
   [...shops].sort(
     (a, b) =>
@@ -97,6 +110,7 @@ function renderBubble(input: SummaryReportInput, summary: GroupSummary, kind: Re
   // 🛑 ไม่ใช้ summary.total — ยอดรวมที่แสดงต้องเท่าผลบวกรายร้านที่แสดงพอดี (AC-15-2)
   const t = combineTotals(summary.shops)
   const multi = listed.length > 1
+  const ow = reportOrderWord(shops)
 
   const head: Node[] = [
     {
@@ -115,7 +129,7 @@ function renderBubble(input: SummaryReportInput, summary: GroupSummary, kind: Re
   ]
 
   const totals: Node[] = [
-    kv('ออเดอร์', `${formatNumberNoSymbol(t.orders)} รายการ`),
+    kv(ow.word, `${formatNumberNoSymbol(t.orders)}${ow.mixed ? '' : ' รายการ'}`),
     kv('ยอดขาย (นับแล้ว)', formatBaht(t.confirmed), { bold: true }),
     note(`ยังไม่นับเป็นยอดขาย ${formatBaht(t.unconfirmed)} (รอยืนยัน/รอขนส่งรับ)`),
     kv('ยกเลิก', `${formatNumberNoSymbol(t.cancelled)} ใบ (ใบที่เปิดในช่วงนี้)`),
@@ -233,9 +247,10 @@ function renderBubble(input: SummaryReportInput, summary: GroupSummary, kind: Re
 
 function renderAltText(input: SummaryReportInput, summary: GroupSummary, kind: ReportKind, level: number): string {
   const t = combineTotals(summary.shops)
+  const ow = reportOrderWord(summary.shops)
   const parts = [
     `${kind === 'TEST' ? '[ทดสอบ] ' : ''}${titleOf(kind, summary, input.titleOverride)} ${rangeText(summary.window.startIso, summary.window.endIso)}`,
-    `ออเดอร์ ${formatNumberNoSymbol(t.orders)} รายการ`,
+    `${ow.word} ${formatNumberNoSymbol(t.orders)}${ow.mixed ? '' : ' รายการ'}`,
     `ยอดขาย ${formatBaht(t.confirmed)}`,
   ]
   const ok = summary.shops.filter((s) => s.state === 'OK')

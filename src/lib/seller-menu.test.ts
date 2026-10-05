@@ -7,6 +7,7 @@
  * 2. ตัวกรองตาม vertical: จัดกลุ่มเมนูใหม่ (2026-08-04) ย้าย 9 รายการข้ามกลุ่ม ถ้าตัวกรองอ่าน
  *    โครงกลุ่มผิดไป ร้านบ้านพักจะเห็นเมนูสต็อก/ประมูลของร้านขายออนไลน์โดยไม่มีใครสังเกต
  */
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -54,6 +55,8 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:follow-ups',
         'seller:housekeepers',
         'seller:inbox',
+        // เพิ่ม 2026-10-05 — เมนู "รายงานเข้ากลุ่ม LINE" (feature 00068) slug ใหม่ล้วน = เพิ่มอย่างปลอดภัย
+        'seller:line-reports',
         // เพิ่ม 2026-09-05 — เมนู "แผนการตรวจสอบ" (feature 00060) เห็นเฉพาะ LODGING
         'seller:inspection',
         'seller:inventory',
@@ -367,5 +370,37 @@ describe('applyFinanceMenu — ยุบเมนูเรื่องเงิ�
     const out = applyFinanceMenu(menu(), 'SERVICE_QUEUE')
     expect(slugs(out)).toContain('seller:wallet')
     expect(slugs(out)).toContain('seller:reports-agents')
+  })
+})
+
+describe('applyLineReportMenu — เมนูรายงานเข้ากลุ่ม LINE (00068 TFR-LGS-03)', () => {
+  const has = (items: ReturnType<typeof resolveVisibleSellerMenu>) => slugsOf(flattenSellerMenu(items)).includes('seller:line-reports')
+
+  it('OWNER เห็นทุก vertical · url/กลุ่ม/ไอคอนตามสเปก', () => {
+    for (const v of ['ONLINE_SALES', 'SERVICE_QUEUE', 'LODGING']) {
+      expect(has(resolveVisibleSellerMenu(sellerMenuItems, ctx(v))), v).toBe(true)
+    }
+    const shops = sellerMenuItems.find((g) => g.slug === 'seller-shops')!
+    expect(shops.children?.find((c) => c.slug === 'seller:line-reports')).toMatchObject({
+      url: '/business/line-reports',
+      icon: 'brand-line',
+    })
+  })
+
+  it('ADMIN ไม่เห็น', () => {
+    expect(has(resolveVisibleSellerMenu(sellerMenuItems, { ...ctx('ONLINE_SALES'), staff: { kind: 'BUSINESS', role: 'ADMIN' } }))).toBe(false)
+  })
+
+  it('ไม่ถูกซ่อนเพราะข้อจำกัดของแอป (hidePayments/hidePaidFeatures ทุกเปลือก)', () => {
+    for (const offerIap of [true, false]) {
+      expect(has(resolveVisibleSellerMenu(sellerMenuItems, { ...ctx('ONLINE_SALES'), hidePayments: true, hidePaidFeatures: true, offerIap }))).toBe(true)
+    }
+  })
+
+  it('shortcut.service.buildEligibleCatalog ใช้ pipeline เดียวกัน (ส่ง staff.role + ข้อจำกัดเปลือกเข้า resolveVisibleSellerMenu) · ไม่กรองเมนูนี้เอง', () => {
+    const src = readFileSync('src/services/shortcut.service.ts', 'utf8')
+    expect(src).toMatch(/resolveVisibleSellerMenu\(sellerMenuItems/)
+    expect(src).toMatch(/staff:\s*\{\s*kind: active\.kind, role: active\.role\s*\}/)
+    expect(src).not.toContain('line-reports')
   })
 })

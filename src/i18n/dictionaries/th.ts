@@ -127,6 +127,7 @@ export const th = {
     reportsAgents: 'การตอบแชทของแอดมิน',
     reportsProducts: 'ยอดขายรายสินค้า',
     followUps: 'ติดตามลูกค้า',
+    lineReports: 'รายงานเข้ากลุ่ม LINE',
     orders: {
       ONLINE_SALES: 'คำสั่งซื้อ',
       SERVICE_QUEUE: 'การเข้ารับบริการ',

@@ -32,7 +32,7 @@ const FIXED_LABEL: Record<(typeof FIXED_DELIVERY_REASONS)[number], string> = {
   BOT_NOT_IN_GROUP: 'บอทไม่อยู่ในกลุ่มแล้ว',
   NO_SENDABLE_SHOPS: 'ทุกร้านถูกล็อกหรือถูกลบ',
   ALL_SHOPS_FAILED: 'ดึงข้อมูลร้านไม่สำเร็จ',
-  NO_ORDERS: 'ไม่มีออเดอร์ในช่วงนั้น',
+  NO_ORDERS: 'ไม่มีรายการในช่วงนั้น',
   PACKAGE_PAUSED: 'แพ็กเกจหยุดใช้งาน',
   REPLY_TOKEN_EXPIRED: 'ตอบไม่ทันเวลา',
   REPLY_REJECTED: 'LINE ปฏิเสธข้อความตอบกลับ',
