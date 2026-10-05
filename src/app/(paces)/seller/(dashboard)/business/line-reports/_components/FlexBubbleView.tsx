@@ -5,41 +5,78 @@
  *   theme/paces/Admin/TS/src/app/(admin)/ui/cards/page.tsx (.card/.card-body) + utility ข้อความของ Paces
  *
  * ทำไม render จาก JSON จริง ไม่เขียน bubble ตัวอย่างด้วยมือ: ข้อความ/โครงที่แก้ใน flex-summary-report.ts แล้วพรีวิวต้องตามเอง (HR16)
- * สีผ่าน `flex-preview-tokens` เท่านั้น (hex อยู่นอก `(paces)`) · สีไม่รู้จัก → หมึกปกติ · ไม่ใช้ inline style
+ * สีผ่าน `flex-preview-tokens` เท่านั้น (hex อยู่นอก `(paces)`) · สีไม่รู้จัก → หมึกปกติ
+ * inline style ใช้เฉพาะค่าที่มาจากข้อมูลกราฟ (สูง/กว้างแท่ง, สัดส่วน flex) พร้อมคอมเมนต์กำกับ (HR7 carve-out)
  * margin ทำเฉพาะแนวตั้ง (`mt-*`) — builder ใช้ margin ในกล่อง vertical เท่านั้น (โหนดแนวนอนไม่มี margin)
  * ปุ่ม footer = ภาพแทน ไม่นำทาง (`aria-disabled` + `tabIndex=-1`)
  */
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/utils/helpers'
-import { flexColorClass } from '@/lib/line-report/flex-preview-tokens'
+import { flexBgClass, flexColorClass, GAP, isFlexLength, ITEMS, JUSTIFY, MARGIN, RADIUS, TEXT_SIZE } from '@/lib/line-report/flex-preview-tokens'
 
 type FlexNode = Record<string, unknown>
 type Layout = 'vertical' | 'horizontal'
 
-const MARGIN: Record<string, string> = { xs: 'mt-0.5', sm: 'mt-1', md: 'mt-2', lg: 'mt-3', xl: 'mt-4' }
-const GAP: Record<string, string> = { xs: 'gap-0.5', sm: 'gap-1', md: 'gap-2', lg: 'gap-3', xl: 'gap-4' }
-const TEXT_SIZE: Record<string, string> = { xs: 'text-xs', sm: 'text-sm', md: 'text-md' }
-const FLEX: Record<number, string> = { 0: 'shrink-0', 1: 'flex-1', 2: 'flex-2', 3: 'flex-3', 4: 'flex-4', 5: 'flex-5' }
+const LINE_CLAMP: Record<number, string> = { 1: 'line-clamp-1', 2: 'line-clamp-2' }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '')
 const kids = (n: FlexNode): FlexNode[] => (Array.isArray(n.contents) ? (n.contents as FlexNode[]) : [])
 
+/** flex: 0 = ไม่ยืด · n = สัดส่วน (LINE: grow n, basis 0) — สัดส่วนมาจาก composer (เช่น 38/62) จึงใส่ผ่าน style ไม่ใช่คลาส */
+function flexOf(n: FlexNode, parent: Layout): { className?: string; style?: CSSProperties } {
+  if (parent !== 'horizontal' || typeof n.flex !== 'number') return {}
+  if (n.flex === 0) return { className: 'shrink-0' }
+  return { style: { flex: `${n.flex} 1 0px` } } // ค่าสัดส่วนจากข้อมูลของ composer (HR7 carve-out)
+}
+
+/** กล่องที่มีลูกกำหนดความสูงเป็น % ต้องมีความสูงชัดเจน — ยืดเต็มแถวแม่ (แท่งกราฟ) ไม่งั้น % ไม่มีฐานให้คิด */
+const hasPctHeightChild = (n: FlexNode) => kids(n).some((c) => c.type === 'box' && typeof c.height === 'string' && c.height.endsWith('%'))
+
+function renderSpan(n: FlexNode, key: number): ReactNode {
+  return (
+    <span key={key} className={cn(n.weight === 'bold' && 'font-semibold', n.color ? flexColorClass(n.color) : undefined)}>
+      {str(n.text)}
+    </span>
+  )
+}
+
 function renderNode(n: FlexNode, key: number, parent: Layout): ReactNode {
   const margin = MARGIN[str(n.margin)]
-  const flex = parent === 'horizontal' && typeof n.flex === 'number' ? FLEX[n.flex] : undefined
+  const { className: flexClass, style: flexStyle } = flexOf(n, parent)
   switch (n.type) {
     case 'box': {
       const layout: Layout = n.layout === 'horizontal' ? 'horizontal' : 'vertical'
+      // ความสูง/กว้างแท่งกราฟมาจากข้อมูล (px หรือ %) — ใส่ผ่าน style ได้ (HR7 carve-out)
+      const style: CSSProperties = { ...flexStyle }
+      if (isFlexLength(n.height)) style.height = n.height // ค่าจากข้อมูลกราฟ (HR7 carve-out)
+      if (isFlexLength(n.width)) style.width = n.width // ค่าจากข้อมูลกราฟ (HR7 carve-out)
       return (
-        <div key={key} className={cn('flex min-w-0', layout === 'horizontal' ? 'items-start' : 'flex-col', GAP[str(n.spacing)], margin, flex)}>
+        <div
+          key={key}
+          style={Object.keys(style).length > 0 ? style : undefined}
+          className={cn(
+            'flex min-w-0',
+            layout === 'horizontal' ? 'items-start' : 'flex-col',
+            ITEMS[str(n.alignItems)],
+            JUSTIFY[str(n.justifyContent)],
+            GAP[str(n.spacing)],
+            RADIUS[str(n.cornerRadius)],
+            flexBgClass(n.backgroundColor),
+            hasPctHeightChild(n) && 'self-stretch',
+            margin,
+            flexClass,
+          )}
+        >
           {kids(n).map((c, i) => renderNode(c, i, layout))}
         </div>
       )
     }
-    case 'text':
+    case 'text': {
+      const spans = kids(n).filter((c) => c.type === 'span')
       return (
         <span
           key={key}
+          style={flexStyle} // HR7 carve-out: สัดส่วน flex มาจากข้อมูล Flex (ดู flexOf)
           className={cn(
             'block min-w-0',
             TEXT_SIZE[str(n.size)] ?? 'text-sm',
@@ -47,15 +84,18 @@ function renderNode(n: FlexNode, key: number, parent: Layout): ReactNode {
             n.align === 'end' && 'text-right',
             n.align === 'center' && 'text-center',
             n.wrap === false ? 'whitespace-nowrap' : 'break-words',
-            n.maxLines === 2 && 'line-clamp-2',
+            typeof n.maxLines === 'number' && LINE_CLAMP[n.maxLines],
             flexColorClass(n.color),
             margin,
-            flex,
+            flexClass,
           )}
         >
-          {str(n.text)}
+          {spans.length > 0 ? spans.map((c, i) => renderSpan(c, i)) : str(n.text)}
         </span>
       )
+    }
+    case 'filler':
+      return <div key={key} aria-hidden="true" className="flex-1" />
     case 'separator':
       return <div key={key} role="separator" className={cn('border-default-200 border-t', margin)} />
     default:
