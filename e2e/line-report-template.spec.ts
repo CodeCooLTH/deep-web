@@ -355,6 +355,27 @@ test('Q13 ร้านที่เลือกอยู่ไม่ได้อ�
   }
 })
 
+test('Q14 เพิ่มบล็อกค่าใช้จ่าย → Swal ยืนยัน · ยกเลิก=ไม่ลง · ยืนยัน=ลง+พรีวิวมีแถว · บันทึกได้', async () => {
+  await page.setViewportSize({ width: 1180, height: 900 })
+  await setTpl(null)
+  await gotoT()
+  await add('ค่าใช้จ่าย')
+  await expect(page.locator('.swal2-popup')).toContainText('แสดงค่าใช้จ่ายในกลุ่ม LINE?')
+  await page.locator('.swal2-cancel').click()
+  expect(await titles()).not.toContain('ค่าใช้จ่าย')
+  await add('ค่าใช้จ่าย')
+  await page.locator('.swal2-confirm').click()
+  await expect.poll(titles).toContain('ค่าใช้จ่าย')
+  await add('ยอดขายหลังหักค่าใช้จ่าย') // ยืนยันแล้วในเซสชันนี้ ไม่ถามซ้ำ
+  await expect.poll(titles).toContain('ยอดขายหลังหักค่าใช้จ่าย')
+  const pv = page.locator(pvSel).first()
+  await expect(pv).toContainText('ค่าใช้จ่าย')
+  await expect(pv).toContainText('ยังไม่หัก')
+  await shot('q14-expense-1180')
+  await saveBtn().click()
+  await expect.poll(async () => JSON.stringify((await row()).template)).toContain('net_sales')
+})
+
 test('Z console ไม่มี error นอกจาก 404 resource', async () => {
   console.log('console errors collected:\n' + errs.join('\n'))
   expect(errs.filter((e) => !/404/.test(e))).toEqual([])

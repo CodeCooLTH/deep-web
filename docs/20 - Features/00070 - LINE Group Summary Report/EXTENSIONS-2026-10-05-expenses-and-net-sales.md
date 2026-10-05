@@ -388,3 +388,10 @@ Sync: `API.md` (§ PUT template + error) · `docs/SRS.md` API reference/enum err
 - UI: `src/app/(paces)/seller/(fullscreen)/business/line-reports/[groupId]/template/{TemplateBuilderClient.tsx, lib/{block-meta,confirm-profit,draft-issues,preview-data,reducer}.ts, components/{CanvasList,TextBlockEditor}.tsx}`
 - เทสที่ต้องต่อยอด/ห้ามแก้ผลเดิม: `src/lib/line/__tests__/flex-summary-report.golden.test.ts` (+ `__golden__/`) · `line-report-summary.test.ts` · `line-report-summary.parity.test.ts` · `line-report-merge-settings.test.ts` · `line-report-services.db.test.ts` · `line-report-flags-wiring.test.ts`
 - convention ที่ใช้: `rule-must-be-enforced-not-described` · `partial-data-must-be-labeled-or-filled` · `one-value-many-entry-points` · `stored-flag-vs-owner-truth` (กฎ OR กั้นทุก operand) · `value-fate-decided-at-write-site` · `ui-boolean-needs-a-testable-home` · `sibling-surface-parity` · `enum-value-removal` (rename cache)
+
+---
+
+## 16. สถานะการส่งมอบ (2026-10-05)
+
+รอบแรกขึ้นแบบลดขอบเขต (ลูกค้ารอใช้): บล็อกรวม `expense` + `net_sales` · ด่านยืนยัน · พรีวิว
+**เลื่อนไปรอบหน้า:** `shops.expense` (ค่าใช้จ่ายต่อร้าน · AC-EXP-03-5, 06-2) · โทเคน `{ค่าใช้จ่าย}`/`{ยอดขายหลังหักค่าใช้จ่าย}` (FR-EXP-04, 06-3) · แก้โทเคน `{กำไร}` (Q-3)
