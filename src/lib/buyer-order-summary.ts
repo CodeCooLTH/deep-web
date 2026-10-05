@@ -6,7 +6,7 @@
  *
  * 🛑 null ≠ 0 (partial-data-must-be-labeled-or-filled.md): "ไม่รู้" ห้ามถูกพิมพ์เป็นเลข 0
  */
-import { SELLER_CONFIRMED_PAID_LABEL, canSellerConfirmPayment } from '@/lib/order-display'
+import { PAYMENT_STATE_LABEL, SELLER_CONFIRMED_PAID_LABEL, canSellerConfirmPayment } from '@/lib/order-display'
 
 /** หน่วยของคะแนนรีวิว — ค่าเดียว (มติ D-8: "คะแนนรีวิว" คือชื่อ, "ดาว" คือหน่วย) */
 export const SHOP_RATING_UNIT = 'ดาว'
@@ -43,10 +43,14 @@ export interface SlipServiceLines {
   /** null = ใบนี้ไม่มีมัดจำให้พูดถึง (BR-SQ-07) */
   deposit: { amount: number; received: boolean; label: string } | null
   outstanding: number
+  /** ชำระครบจริง (ยอด > 0 และไม่เหลือค้าง) — จอเขียน outstandingLabel พร้อมไอคอนติ๊ก ไม่พิมพ์ ฿0 (R-9) */
+  settled: boolean
   outstandingLabel: string
 }
 
 export interface SlipMoneyView {
+  /** ยอดรวมของใบ — จอสลิปพิมพ์ค่านี้ ไม่อ่าน totalAmount เอง */
+  total: number
   totalLabel: 'ยอดที่ต้องชำระ' | 'ยอดรวม'
   /** ป้าย "ร้านยืนยันรับเงินแล้ว" — เฉพาะร้านที่ไม่ใช่บริการ (money == null) · ห้ามคำว่า "ชำระแล้ว" */
   paidChip: string | null
@@ -55,6 +59,7 @@ export interface SlipMoneyView {
 }
 
 export function buildSlipMoneyView(input: {
+  totalAmount: number
   paymentConfirmedAt: string | Date | null
   /** เงื่อนไขชุดเดียวกับกิ่ง 'ร้านยืนยันรับเงินแล้ว' ของ getPaymentBadge — COD ไม่มีป้ายนี้ (HR16) */
   paymentMethod: string | null
@@ -68,17 +73,20 @@ export function buildSlipMoneyView(input: {
     hasDeposit: boolean
   } | null
 }): SlipMoneyView {
-  const { money, status, paymentConfirmedAt, paymentMethod } = input
+  const { money, status, paymentConfirmedAt, paymentMethod, totalAmount } = input
   const confirmed = paymentConfirmedAt != null
   // ใบที่ร้านรับเงินแล้วแต่ยัง PENDING ห้ามขึ้น "ยอดที่ต้องชำระ" คู่ป้ายรับแล้ว (UX §3 · SRS ขาด !confirmed)
   const totalLabel = status === 'PENDING' && money == null && !confirmed ? 'ยอดที่ต้องชำระ' : 'ยอดรวม'
   const paidChip =
     money == null && confirmed && status !== 'CANCELLED' && canSellerConfirmPayment(paymentMethod) ? SELLER_CONFIRMED_PAID_LABEL : null
 
-  if (money == null) return { totalLabel, paidChip, serviceLines: null }
+  if (money == null) return { total: totalAmount, totalLabel, paidChip, serviceLines: null }
 
   const received = money.depositReceived > 0
+  // บิลยอด 0 ห้ามอ้างว่าชำระแล้ว (กติกาเดียวกับ PaymentSummaryCard.paidPercentOf)
+  const settled = money.totalAmount > 0 && money.outstanding <= 0
   return {
+    total: totalAmount,
     totalLabel,
     paidChip,
     serviceLines: {
@@ -92,7 +100,17 @@ export function buildSlipMoneyView(input: {
           }
         : null,
       outstanding: money.outstanding,
-      outstandingLabel: SLIP_OUTSTANDING_LABEL,
+      settled,
+      outstandingLabel: settled ? PAYMENT_STATE_LABEL.paid : SLIP_OUTSTANDING_LABEL,
     },
   }
+}
+
+/**
+ * คำบนตราประทับ — ผู้ซื้อกดปิดเอง = "ได้รับแล้ว"/"รับบริการแล้ว" · อื่น ๆ (COD/ระบบปิดเอง/ใบเก่าไม่มี event) = "สำเร็จ"
+ * (ความหมายเดียวกับ OrderDetailMobile เดิม — ตราต้องตรงกับคนที่ปิดใบจริง)
+ */
+export function resolveStampLabel(byBuyer: boolean, isServiceShop: boolean): string {
+  if (!byBuyer) return 'สำเร็จ'
+  return isServiceShop ? 'รับบริการแล้ว' : 'ได้รับแล้ว'
 }

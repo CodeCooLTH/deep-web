@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildShopSummaryLine, buildSlipMoneyView } from '@/lib/buyer-order-summary'
+import { buildShopSummaryLine, buildSlipMoneyView, resolveStampLabel } from '@/lib/buyer-order-summary'
 
 describe('buildShopSummaryLine', () => {
   it('[blocker] 4 เคส: ทั้งคู่ / มีแต่ออเดอร์ / มีแต่คะแนน / ไม่มีเลย', () => {
@@ -35,7 +35,7 @@ const money = (o: Partial<NonNullable<Parameters<typeof buildSlipMoneyView>[0]['
   ...o,
 })
 const view = (o: Partial<Parameters<typeof buildSlipMoneyView>[0]> = {}) =>
-  buildSlipMoneyView({ status: 'PENDING', paymentConfirmedAt: null, paymentMethod: 'TRANSFER', money: null, ...o })
+  buildSlipMoneyView({ totalAmount: 2400, status: 'PENDING', paymentConfirmedAt: null, paymentMethod: 'TRANSFER', money: null, ...o })
 
 describe('buildSlipMoneyView', () => {
   it('[blocker] totalLabel: "ยอดที่ต้องชำระ" เฉพาะ PENDING + ไม่มี money + ร้านยังไม่ยืนยันรับ', () => {
@@ -87,5 +87,37 @@ describe('buildSlipMoneyView', () => {
     const l = view({ money: money({ hasDeposit: false, depositAgreed: 0, outstanding: 0 }) }).serviceLines!
     expect(l.deposit).toBeNull()
     expect(l.outstanding).toBe(0)
+  })
+})
+
+describe('buildSlipMoneyView — total / settled (B4-L1)', () => {
+  it('[blocker] total = totalAmount ที่ส่งเข้า ทั้งร้านขายของและร้านบริการ', () => {
+    expect(view().total).toBe(2400)
+    expect(view({ totalAmount: 0 }).total).toBe(0)
+    expect(view({ totalAmount: 12900, money: money() }).total).toBe(12900)
+  })
+  it('[blocker] R-9 ชำระครบ ⇒ settled + ป้าย "ชำระเงินแล้ว" (ไม่ใช่ "ยังค้างชำระ")', () => {
+    const l = view({ money: money({ depositReceived: 12900, outstanding: 0 }) }).serviceLines!
+    expect(l.settled).toBe(true)
+    expect(l.outstandingLabel).toBe('ชำระเงินแล้ว')
+  })
+  it('[blocker] ยังค้าง 1 บาท ⇒ ไม่ settled (ขอบ outstanding)', () => {
+    const l = view({ money: money({ outstanding: 1 }) }).serviceLines!
+    expect(l.settled).toBe(false)
+    expect(l.outstandingLabel).toBe('ยังค้างชำระ')
+  })
+  it('[blocker] บิลยอด 0 ห้าม settled (ไม่อ้างว่าชำระแล้ว)', () => {
+    const l = view({ money: money({ totalAmount: 0, outstanding: 0, hasDeposit: false }) }).serviceLines!
+    expect(l.settled).toBe(false)
+    expect(l.outstandingLabel).toBe('ยังค้างชำระ')
+  })
+})
+
+describe('resolveStampLabel', () => {
+  it('[blocker] ผู้ซื้อกดเอง ผันตามประเภทร้าน · ทางอื่น = "สำเร็จ"', () => {
+    expect(resolveStampLabel(true, false)).toBe('ได้รับแล้ว')
+    expect(resolveStampLabel(true, true)).toBe('รับบริการแล้ว')
+    expect(resolveStampLabel(false, false)).toBe('สำเร็จ')
+    expect(resolveStampLabel(false, true)).toBe('สำเร็จ')
   })
 })

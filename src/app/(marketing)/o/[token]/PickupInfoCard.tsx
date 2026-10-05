@@ -24,7 +24,7 @@ import Typography from '@mui/material/Typography'
 import { Icon } from '@iconify/react'
 
 import { formatDateTimeTH } from '@/lib/format-date'
-import { computeAutoConfirmDeadline } from '@/lib/order-pickup'
+import { computeAutoConfirmDeadline, PICKUP_CONTACT_COPY, PICKUP_NO_ADDRESS_COPY } from '@/lib/order-pickup'
 
 type Props = {
   /** ชื่อร้าน — ใช้เป็นหัวจุดนัดรับเสมอ (มีทุกใบ ต่างจากที่อยู่ที่ร้านอาจไม่ได้กรอก) */
@@ -60,7 +60,7 @@ export default function PickupInfoCard({ shopName, shopAddress, handedOverAt, st
           /* ร้านไม่ได้กรอกที่อยู่ (ไม่บังคับใน /shop) — ห้ามปล่อยว่างเฉย ๆ ไม่งั้นผู้ซื้ออ่านว่า
              "ระบบพัง" แทนที่จะรู้ว่าต้องถามร้าน (แพตเทิร์นเดียวกับ fallback ของ §B7) */
           <Typography variant='body2' color='text.secondary' sx={{ mt: 0.25 }}>
-            ร้านยังไม่ได้แจ้งที่อยู่ — ทักแชทกับร้านเพื่อนัดจุดรับได้เลย
+            {PICKUP_NO_ADDRESS_COPY}
           </Typography>
         )}
 
@@ -70,7 +70,7 @@ export default function PickupInfoCard({ shopName, shopAddress, handedOverAt, st
               ? /* 🛑 ต้องบอกทั้ง "ร้านแจ้งว่าอะไร" และ "แล้วจะเกิดอะไรขึ้นถ้าเราไม่ทำอะไร" —
                    บอกครึ่งเดียวคือปล่อยให้ระบบปิดงานเงียบ ๆ โดยผู้ซื้อไม่รู้ว่ามีนาฬิกาเดินอยู่ */
                 `ร้านแจ้งว่ามอบสินค้าให้แล้วเมื่อ ${formatDateTimeTH(handedOverAt)} — ระบบจะปิดงานอัตโนมัติ ${formatDateTimeTH(autoConfirmAt.toISOString())} หากคุณไม่ทักท้วง`
-              : 'ติดต่อร้านเพื่อนัดวันและเวลาเข้ารับ — ไม่มีการจัดส่ง'}
+              : PICKUP_CONTACT_COPY}
           </Typography>
         )}
       </Box>

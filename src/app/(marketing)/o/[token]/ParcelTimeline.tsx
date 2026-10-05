@@ -198,6 +198,8 @@ export default function ParcelTimeline({
               aria-label={`คัดลอกเลขพัสดุ ${tracking.trackingNo}`}
               sx={{
                 maxWidth: '100%',
+                // พื้นที่แตะ ≥44 (AC-BOP-06-2) — เดิมราว 32px จาก py:0.25 + แถว 28px
+                minHeight: 44,
                 gap: 0.75,
                 px: 0.5,
                 py: 0.25,

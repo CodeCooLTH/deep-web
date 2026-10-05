@@ -28,6 +28,16 @@ export const BUYER_ORDER_FILES: readonly string[] = [
   'ShopCover.tsx',
   'ShopEvidence.tsx',
   'TrustPill.tsx',
+  // 00068 B4 — การ์ดย่อยฉบับใหม่ (ยังไม่ต่อสายจนถึง W1–W4 แต่ต้องอยู่ในด่านสแกนตั้งแต่เกิด)
+  'OrderSlip.tsx',
+  'ShopHeaderBar.tsx',
+  'ShopInfoCard.tsx',
+  'NextActionCard.tsx',
+  'NextActionShell.tsx',
+  'NextActionTransfer.tsx',
+  'NextActionShipment.tsx',
+  'NextActionPickup.tsx',
+  'NextActionStatus.tsx',
 ]
 
 /** .tsx ในโฟลเดอร์เดียวกันที่ตั้งใจไม่รวม — ต้องมีเหตุผลทุกไฟล์ */

@@ -76,6 +76,11 @@ type Props = {
    * ไม่ใช่ธุรกิจของการ์ดนี้ว่าจะพาไปไหน — รับมาเป็น element สำเร็จรูป
    */
   contactShopAction: ReactNode
+  /**
+   * 00068 — ช่องที่ผู้เรียกวางปุ่ม (เช่น "แนบสลิป") ต่อจากบล็อกบัญชีและก่อน QR
+   * ทำไม: UX §2 ให้ปุ่มหลักอยู่เหนือ QR เพื่อไม่ให้ QR ดันปุ่มตกจอแรก · ไม่ส่ง = ไม่มีอะไรเปลี่ยน
+   */
+  afterAccount?: ReactNode
 }
 
 export default function PayoutAccountCard({
@@ -86,6 +91,7 @@ export default function PayoutAccountCard({
   status,
   paymentConfirmedAt,
   contactShopAction,
+  afterAccount,
 }: Props) {
   const embedded = variant === 'embedded'
   /**
@@ -292,6 +298,8 @@ export default function PayoutAccountCard({
             )}
           </>
         )}
+
+        {afterAccount}
 
         {/* ── QR พร้อมเพย์ — เฉพาะเมื่อ payload encode สำเร็จ (fail-closed, TFR-011) ──
             ตั้งบัญชีธนาคารแต่ไม่ตั้งพร้อมเพย์/เบอร์ผิดรูปแบบ = ไม่มี block นี้เลย ไม่ใช่กล่องว่าง

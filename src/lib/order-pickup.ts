@@ -22,6 +22,10 @@ import type { OrderStatusTone } from '@/lib/order-display'
  */
 export const PICKUP_AUTOCONFIRM_HOURS = 48
 
+/** ข้อความจุดนัดรับที่ผู้ซื้อเห็น — PickupInfoCard (การ์ดตามติด) กับ NextActionPickup (hero) ใช้คำเดียวกัน (HR16) */
+export const PICKUP_NO_ADDRESS_COPY = 'ร้านยังไม่ได้แจ้งที่อยู่ — ทักแชทกับร้านเพื่อนัดจุดรับได้เลย'
+export const PICKUP_CONTACT_COPY = 'ติดต่อร้านเพื่อนัดวันและเวลาเข้ารับ — ไม่มีการจัดส่ง'
+
 const HOUR_MS = 60 * 60 * 1000
 
 /** ออเดอร์นี้เป็นนัดรับไหม — ตัวเช็คกลางที่เดียว กัน string literal `'PICKUP'` กระจายไปทั่วโค้ด */
