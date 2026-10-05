@@ -116,3 +116,43 @@ describe('authoredLength', () => {
     expect(authoredLength([{ tok: 'sales_counted' }, { t: 'x' }])).toBe(Array.from('{ยอดขาย (นับแล้ว)}').length + 1)
   })
 })
+
+// ─── EXT-EXP: บล็อกค่าใช้จ่าย/ยอดหลังหักค่าใช้จ่าย ────────────────────────────────
+import { deriveExposure, needsExpenseConfirm } from '../template'
+const tpl = (...types: ('expense' | 'net_sales' | 'orders' | 'sales')[]): TemplateV1 => ({
+  v: 1, button: { show: true, label: 'x' }, blocks: types.map((type, i) => ({ id: `b${i}`, type })),
+})
+describe('EXP: deriveExposure / needsExpenseConfirm / deriveFlags', () => {
+  it('deriveExposure ครบทุกทางเข้า (รอบนี้ 2 ทาง) + ไม่มีสักทาง', () => {
+    expect(deriveExposure(tpl('expense')).expense).toBe(true)
+    expect(deriveExposure(tpl('net_sales')).expense).toBe(true)
+    expect(deriveExposure(tpl('orders', 'sales')).expense).toBe(false)
+    expect(deriveNeeds(tpl('sales', 'net_sales')).needExpense).toBe(true)
+    expect(deriveNeeds(tpl('sales')).needExpense).toBe(false)
+    expect(deriveNeeds(tpl('expense')).needPnl).toBe(false)
+  })
+  it('deriveFlags คืน key เดิม 6 ตัวเท่านั้น (AC-EXP-02-3 — กันรั่วลง prisma.update)', () => {
+    expect(Object.keys(deriveFlags(tpl('sales', 'expense', 'net_sales'))).sort()).toEqual(
+      ['attachCycleToDaily', 'showCancelled', 'showOrders', 'showProfit', 'showSales', 'showTopProducts'],
+    )
+  })
+  it('2 บล็อกใหม่ไม่พลิก show* ตัวไหน (METRIC_REQUIRED ยังทำงาน)', () => {
+    const f = deriveFlags(tpl('expense', 'net_sales'))
+    expect([f.showOrders, f.showSales, f.showCancelled, f.showTopProducts, f.showProfit]).toEqual([false, false, false, false, false])
+  })
+  it('needsExpenseConfirm: null→มี ถาม · มีอยู่แล้ว ไม่ถาม · ปิด ไม่ถาม · สลับ expense↔net_sales ไม่ถาม', () => {
+    expect(needsExpenseConfirm(null, tpl('sales', 'expense'))).toBe(true)
+    expect(needsExpenseConfirm(tpl('sales'), tpl('sales', 'net_sales'))).toBe(true)
+    expect(needsExpenseConfirm(tpl('expense'), tpl('expense', 'sales'))).toBe(false)
+    expect(needsExpenseConfirm(tpl('expense'), tpl('net_sales'))).toBe(false)
+    expect(needsExpenseConfirm(tpl('expense'), tpl('sales'))).toBe(false)
+    expect(needsExpenseConfirm(null, tpl('sales'))).toBe(false)
+  })
+  it('defaultTemplateFromFlags ไม่ปล่อยบล็อกใหม่เลยทั้ง 31 ชุด', () => {
+    for (let m = 1; m < 32; m++) {
+      const types = defaultTemplateFromFlags(group(m, { attachCycleToDaily: true, monthlyEnabled: true })).blocks.map((b) => b.type)
+      expect(types).not.toContain('expense')
+      expect(types).not.toContain('net_sales')
+    }
+  })
+})

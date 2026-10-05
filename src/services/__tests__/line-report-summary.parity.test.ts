@@ -14,6 +14,7 @@ const url = process.env.DATABASE_URL ?? ''
 const isLocal = /@(localhost|127\.0\.0\.1):5434\//.test(url)
 
 import { prisma } from '@/lib/prisma'
+import { round2 } from '@/lib/round2'
 import { getSalesSeries } from '@/services/dashboard.service'
 import { getPnlReport } from '@/services/pnl.service'
 import { buildGroupSummary, createSweepCache } from '@/services/line-report-summary.service'
@@ -104,6 +105,7 @@ describe.skipIf(!isLocal)('00070 parity: buildGroupSummary vs SSOT', () => {
 
   afterAll(async () => {
     await prisma.orderItem.deleteMany({ where: { orderId: { in: ids.orders } } })
+    await prisma.orderReturn.deleteMany({ where: { orderId: { in: ids.orders } } })
     await prisma.order.deleteMany({ where: { id: { in: ids.orders } } })
     await prisma.expense.deleteMany({ where: { id: { in: ids.expenses } } })
     await prisma.shop.deleteMany({ where: { id: { in: ids.shops } } })
@@ -172,6 +174,59 @@ describe.skipIf(!isLocal)('00070 parity: buildGroupSummary vs SSOT', () => {
       for (const s of sum.shops) expect(s.trend!.confirmed.at(-1)).toBe((await direct(s.shop.id, s.shop.vertical!, [endIso])).confirmed)
     })
   }
+
+  // AC-EXP-01-2: round2(netSales + expense) === confirmed ต่อร้าน ต่อหน้าต่าง (ผ่านเส้นทางจริง ไม่ mock)
+  for (const v of VERTICALS) {
+    for (const [label, startIso, endIso] of windows) {
+      it(`EXP ${v} · ${label}: round2(netSales+expense) = ยอดขายนับแล้ว`, async () => {
+        const shop = { id: shopOf[v], name: v, vertical: v }
+        const sum = await buildGroupSummary({
+          shops: [shop], excluded: [], flags: { ...flags, showProfit: false, showTopProducts: false }, needs: { needExpense: true },
+          cache: createSweepCache(), window: { startIso, endIso, computedAt: new Date().toISOString() },
+        })
+        const g = sum.shops[0]
+        expect(g.profit).toBeUndefined()
+        expect(g.confirmed).toBeGreaterThan(0)
+        expect(round2(g.finance!.netSales + g.finance!.expense)).toBe(round2(g.confirmed))
+      })
+    }
+  }
+
+  it('EXP: ร้านบริการมีใบคืนบางส่วน (RECEIVED) + ใบ RETURNED + ค่าใช้จ่ายที่บันทึก -> ยังต่าง 0 และ expenseRecorded ตามแถวจริง', async () => {
+    const mkShop = async (v: string) => {
+      const s = await prisma.shop.create({ data: { userId: ids.user, shopName: `par-${run}-exp-${v}`, vertical: v, kind: 'BUSINESS' }, select: { id: true } })
+      ids.shops.push(s.id)
+      return s.id
+    }
+    for (const v of ['SERVICE_QUEUE', 'ONLINE_SALES']) {
+      const id = await mkShop(v)
+      const orderIds: string[] = []
+      for (const [i, st] of (['CONFIRMED', 'RETURNED'] as const).entries()) {
+        const o = await prisma.order.create({
+          data: { publicToken: `par-${run}-exp-${v}-${i}`, shopId: id, totalAmount: 300, status: st, createdAt: at('2026-09-02', 12, 0), items: { create: [{ name: 'a', qty: 2, price: 100, cost: 40 }, { name: 'b', qty: 1, price: 100, cost: null }] } },
+          select: { id: true, items: { select: { id: true } } },
+        })
+        ids.orders.push(o.id)
+        orderIds.push(o.id)
+        if (i === 0) {
+          await prisma.orderReturn.create({
+            data: { orderId: o.id, shopId: id, status: 'RECEIVED', refundAmount: 100, receivedAt: at('2026-09-03', 12, 0), items: { create: [{ orderItemId: o.items[0].id, qty: 1, unitPrice: 100 }] } },
+          })
+        }
+      }
+      const win = { startIso: '2026-08-31', endIso: '2026-09-03', computedAt: new Date().toISOString() }
+      const go = () => buildGroupSummary({ shops: [{ id, name: v, vertical: v }], excluded: [], flags: { ...flags, showProfit: false, showTopProducts: false }, needs: { needExpense: true }, cache: createSweepCache(), window: win })
+      const a = (await go()).shops[0]
+      expect(a.finance!.expenseRecorded).toBe(false)
+      expect(round2(a.finance!.netSales + a.finance!.expense)).toBe(round2(a.confirmed))
+      const ex = await prisma.expense.create({ data: { shopId: id, category: 'OTHER', amount: 45.5, expenseDate: new Date(Date.UTC(2026, 8, 2)), createdByUserId: ids.user }, select: { id: true } })
+      ids.expenses.push(ex.id)
+      const b = (await go()).shops[0]
+      expect(b.finance!.expenseRecorded).toBe(true)
+      expect(round2(b.finance!.netSales + b.finance!.expense)).toBe(round2(b.confirmed))
+      expect(b.finance!.expense).toBeGreaterThanOrEqual(45.5)
+    }
+  })
 
   it('capped: ไม่มีค่าใช้จ่ายในช่วง = true · มีแถว Expense (02 ก.ย.) = false เมื่อต้นทุนครบ', async () => {
     // ONLINE_SALES + ช่วงที่มีใบ CONFIRMED ทุกใบต้นทุนครบ ไม่ได้ — ฟิกซ์เจอร์มี cost null สลับ จึงสร้างร้านแยกที่ต้นทุนครบ

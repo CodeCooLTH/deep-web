@@ -41,6 +41,7 @@ const worstShop = (i: number, state: ShopSummary['state'], trend: Trend): ShopSu
     ? {
         top3: [0, 1, 2].map((k) => ({ name: `${PRODUCT_60.slice(0, 59)}${k}`, qty: 99_999, amount: BIG })),
         profit: { netProfit: BIG, capped: true },
+        finance: { expense: BIG, netSales: -BIG, expenseRecorded: false },
         trend,
       }
     : {}),

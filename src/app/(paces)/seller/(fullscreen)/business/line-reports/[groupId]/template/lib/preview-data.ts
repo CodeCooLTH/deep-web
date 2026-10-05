@@ -7,8 +7,8 @@
  */
 import { buildSummaryReportFlex } from '@/lib/line/flex-summary-report'
 import { sumTrend } from '@/lib/line-report/aggregate'
-import { buildSampleSummary, sampleCycleTotals, withSampleProfit, type SampleShopInput } from '@/lib/line-report/preview-sample'
-import { deriveFlags, type Block, type TemplateV1 } from '@/lib/line-report/template'
+import { buildSampleSummary, sampleCycleTotals, withSampleFinance, withSampleProfit, type SampleShopInput } from '@/lib/line-report/preview-sample'
+import { deriveFlags, deriveNeeds, type Block, type TemplateV1 } from '@/lib/line-report/template'
 import type { PreviewKind } from '@/lib/line-report/settings-guards'
 import type { GroupSummary, ShopSummary, Trend } from '@/lib/line-report/types'
 import { todayThaiIsoDate } from '@/lib/date-range'
@@ -66,7 +66,8 @@ export function buildPreviewContents(input: {
   const base = worstify(buildSampleSummary({ shops: input.shops, window, computedAtIso: input.serverNowIso }), today)
   const template = previewTemplate(input.template)
   const flags = deriveFlags(template)
-  const summary = flags.showProfit ? withSampleProfit(base) : base
+  const withProfit = flags.showProfit ? withSampleProfit(base) : base
+  const summary = deriveNeeds(template).needExpense ? withSampleFinance(withProfit) : withProfit
   const cycleToDate =
     input.kind === 'DAILY' && flags.attachCycleToDaily && input.monthlyEnabled && input.cycle
       ? { startIso: input.cycle.startIso, endIso: today, totals: sampleCycleTotals(base) }

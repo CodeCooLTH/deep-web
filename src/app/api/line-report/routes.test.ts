@@ -290,6 +290,10 @@ describe('template PUT/DELETE (EXT T8)', () => {
     const b = await (await call(T, 'PUT', { template: { v: 1 }, expectedVersion: 0, confirmProfit: true })).json()
     expect(b).toEqual({ group: { id: 'g1' }, warnings: ['W'], size: { bytes: 12000, limit: 30000 } })
   })
+  it('PUT รับ confirmExpense (strictObject ไม่ตีเป็น VALIDATION)', async () => {
+    expect((await call(T, 'PUT', { template: { v: 1 }, expectedVersion: 0, confirmExpense: true })).status).toBe(200)
+    expect((await call(T, 'PUT', { template: { v: 1 }, expectedVersion: 0, confirmExpense: 'yes' })).status).toBe(400)
+  })
   it('DELETE สำเร็จ: { group }', async () => {
     expect(await (await call(T, 'DELETE')).json()).toEqual({ group: { id: 'g1' } })
   })

@@ -32,10 +32,16 @@ const RAIL = 'flex w-11 shrink-0 justify-center'
 const ICON_BTN = 'btn btn-icon text-default-700 hover:bg-default-100 min-h-11 min-w-11 shrink-0 disabled:opacity-40'
 
 /** ปุ่ม/ช่องที่ผู้ใช้เห็นในแถวเปิด — ต่อชนิดบล็อก */
-function ProfitBody() {
+const EXPOSURE_NOTE: Record<'profit' | 'expense' | 'net_sales', string> = {
+  profit: 'ทุกคนในกลุ่ม LINE จะเห็นตัวเลขกำไร รวมถึงคนที่ไม่ได้มีสิทธิ์ดูการเงินในร้าน',
+  expense: 'ทุกคนในกลุ่ม LINE จะเห็นค่าใช้จ่ายของร้าน รวมถึงคนที่ไม่ได้มีสิทธิ์ดูการเงินในร้าน ค่าใช้จ่ายลงตามวันที่บันทึก ไม่เฉลี่ยรายวัน',
+  net_sales: 'ทุกคนในกลุ่ม LINE จะเห็นยอดขายหลังหักค่าใช้จ่าย รวมถึงคนที่ไม่ได้มีสิทธิ์ดูการเงินในร้าน ยังไม่หักต้นทุน',
+}
+
+function ProfitBody({ kind }: { kind: 'profit' | 'expense' | 'net_sales' }) {
   return (
     <p role="status" className="bg-warning/15 text-warning-ink mb-0 rounded-lg px-3 py-2 text-sm">
-      ทุกคนในกลุ่ม LINE จะเห็นตัวเลขกำไร รวมถึงคนที่ไม่ได้มีสิทธิ์ดูการเงินในร้าน
+      {EXPOSURE_NOTE[kind]}
     </p>
   )
 }
@@ -197,7 +203,9 @@ export default function CanvasList(p: CanvasListProps) {
   const body = (b: Block): ReactNode => {
     switch (b.type) {
       case 'profit':
-        return <ProfitBody />
+      case 'expense':
+      case 'net_sales':
+        return <ProfitBody kind={b.type} />
       case 'shops':
         return <ShopsBody block={b} top3Avail={p.top3Avail} readOnly={readOnly} dispatch={dispatch} onShopsProfit={p.onShopsProfit} />
       case 'chart_trend':
@@ -223,7 +231,7 @@ export default function CanvasList(p: CanvasListProps) {
         return null
     }
   }
-  const hasBody = (b: Block) => b.type === 'profit' || b.type === 'shops' || b.type === 'text' || b.type === 'chart_trend' || b.type === 'chart_compare'
+  const hasBody = (b: Block) => b.type === 'profit' || b.type === 'expense' || b.type === 'net_sales' || b.type === 'shops' || b.type === 'text' || b.type === 'chart_trend' || b.type === 'chart_compare'
 
   const renderRow = (b: Block, i: number, drag: DraggableProvided | null, snap: DraggableStateSnapshot | null) => (
     <BlockRow

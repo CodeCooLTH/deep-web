@@ -13,6 +13,7 @@ const PutSchema = v.strictObject({
   template: v.unknown(),
   expectedVersion: v.pipe(v.number(), v.integer(), v.minValue(0)),
   confirmProfit: v.optional(v.boolean()),
+  confirmExpense: v.optional(v.boolean()),
 })
 
 /** FR-EXT-10 — L2 · บันทึกเทมเพลต (optimistic lock ด้วย expectedVersion) */

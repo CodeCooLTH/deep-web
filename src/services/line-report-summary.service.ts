@@ -3,7 +3,7 @@
  *
  * 🛑 HR16: ไม่มีสูตรยอดขาย/กำไรของตัวเองในไฟล์นี้ — เรียก SSOT เดิมแล้ว "ตัดวัน/บวก" เท่านั้น
  *   ออเดอร์/ยอดขาย/ยังไม่นับ → getSalesSeries · ยกเลิก → countCancelledOrders
- *   กำไร → getPnlReport (เรียกเฉพาะ showProfit) · Top 3 → getProductSalesMonth (ไม่ใช่ LODGING)
+ *   กำไร → getPnlReport (เรียกเฉพาะ showProfit ∨ needExpense) · Top 3 → getProductSalesMonth (ไม่ใช่ LODGING)
  * ต่อร้าน try/catch แยก — ล้ม = state ERROR (ไม่นับยอดรวม · ไม่ใช่ 0)
  */
 import { getSalesSeries, type SalesSeries } from '@/services/dashboard.service'
@@ -14,10 +14,11 @@ import { countCancelledOrders } from '@/services/cancelled-order-count.service'
 import { resolveDateRange, shiftIsoDate } from '@/lib/date-range'
 import { resolveDataCompleteness } from '@/lib/finance-tabs'
 import { resolveShopVertical } from '@/lib/lodging'
+import { round2 } from '@/lib/round2'
 import { combineTotals, isMixedFinanceRules, canSumProfit, mergeTop3, sumDays, sumDaysSparse, dailyValues, sumTrend, type TopRow } from '@/lib/line-report/aggregate'
 import { monthsInRange } from '@/lib/line-report/cycle'
 import type { TemplateNeeds } from '@/lib/line-report/template'
-import type { GroupSummary, ShopProfit, ShopRef, ShopSummary, Totals, Window } from '@/lib/line-report/types'
+import type { GroupSummary, ShopFinance, ShopProfit, ShopRef, ShopSummary, Totals, Window } from '@/lib/line-report/types'
 
 export type SummaryFlags = {
   showOrders: boolean
@@ -31,7 +32,7 @@ export type SummaryFlags = {
  * สิ่งที่เทมเพลตขอเพิ่มจาก flags (`deriveNeeds`) — ไม่ส่ง = ใช้ flags ล้วน (พฤติกรรมเดิม)
  * needTop3/needPnl = flags เดิมอยู่แล้ว จึงไม่อ่านซ้ำที่นี่ · needCycle ใช้ที่ชั้น send ไม่ใช่ที่นี่
  */
-export type SummaryNeeds = Partial<Pick<TemplateNeeds, 'needSeries' | 'needTrend7' | 'needCompare' | 'needCancelled'>>
+export type SummaryNeeds = Partial<Pick<TemplateNeeds, 'needSeries' | 'needTrend7' | 'needCompare' | 'needCancelled' | 'needExpense'>>
 
 /** แนวโน้ม 7 วัน = 6 วันก่อน endIso ถึง endIso (EXT-09) */
 const TREND_DAYS = 7
@@ -44,14 +45,15 @@ export type SweepCache = {
   series: Map<string, Promise<SalesSeries>>
   top3: Map<string, Promise<ProductSalesMonth>>
   cancelled: Map<string, Promise<number>>
-  profit: Map<string, Promise<ShopProfit>>
+  /** getPnlReport ครั้งเดียวต่อ (ร้าน,ช่วง) — ป้อนทั้งกำไร (showProfit) และค่าใช้จ่าย (needExpense) */
+  pnl: Map<string, Promise<ShopProfit & ShopFinance>>
 }
 
 export const createSweepCache = (): SweepCache => ({
   series: new Map(),
   top3: new Map(),
   cancelled: new Map(),
-  profit: new Map(),
+  pnl: new Map(),
 })
 
 function memo<T>(m: Map<string, Promise<T>>, key: string, load: () => Promise<T>): Promise<T> {
@@ -138,8 +140,8 @@ async function summarizeShop(
   }
 
   // 🛑 guard ก่อนเรียก — showProfit=false ต้องไม่แตะ getPnlReport เลย (TFR-LGS-11)
-  if (flags.showProfit) {
-    out.profit = await memo(cache.profit, `${shop.id}:${startIso}:${endIso}`, async () => {
+  if (flags.showProfit || needs.needExpense) {
+    const pnl = await memo(cache.pnl, `${shop.id}:${startIso}:${endIso}`, async () => {
       const range = resolveDateRange('custom', startIso, endIso)
       // ยิงค่าใช้จ่ายขนานกับ P&L · คงรูป `= await getPnlReport(` ไว้ให้เทสสแกน AC-14-1
       const expensesP = listExpenses(shop.id, { range: range.expenseRange })
@@ -154,8 +156,17 @@ async function summarizeShop(
         uncostedItemCount: 0,
         soldItemCount: 0,
       })
-      return { netProfit: report.netProfit, capped: !c.complete }
+      return {
+        netProfit: report.netProfit,
+        capped: !c.complete,
+        expense: report.totalExpense,
+        netSales: round2(report.revenue - report.totalExpense),
+        expenseRecorded: expenses.length > 0,
+      }
     })
+    // แยกสิทธิ์: profit เติมเฉพาะ showProfit · finance เฉพาะ needExpense (ไม่ปะปน)
+    if (flags.showProfit) out.profit = { netProfit: pnl.netProfit, capped: pnl.capped }
+    if (needs.needExpense) out.finance = { expense: pnl.expense, netSales: pnl.netSales, expenseRecorded: pnl.expenseRecorded }
   }
   return out
 }

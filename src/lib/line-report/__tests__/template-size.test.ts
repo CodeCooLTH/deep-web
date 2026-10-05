@@ -56,3 +56,16 @@ describe('measureTemplate', () => {
     }
   })
 })
+
+describe('EXT-EXP: บล็อกการเงิน (AC-EXP-03-6)', () => {
+  const finBlocks: Block[] = [...std.blocks, { id: 'x1', type: 'expense' }, { id: 'x2', type: 'net_sales' }]
+  it('การเงินเต็ม + ข้อความอิสระ 6×120 (ไม่ span) → ผลตามจริง ≤ เพดานที่ระดับ 3 และ fixture มี finance (ไบต์เพิ่มจากไม่มีบล็อก)', () => {
+    const base = [std.blocks[0], ...[0, 1, 2, 3, 4, 5].map((i) => text(i, false))]
+    const m = measureTemplate(T([...base, { id: 'x1', type: 'expense' }, { id: 'x2', type: 'net_sales' }]))
+    expect(m.bytes).toBeLessThanOrEqual(30_000)
+    expect(m.bytes).toBeGreaterThan(measureTemplate(T(base)).bytes)
+  })
+  it('แบบมาตรฐาน + การเงิน ไม่ทำให้ระดับ 3 เกินเพดาน', () => {
+    expect(measureTemplate(T(finBlocks)).bytes).toBeLessThanOrEqual(30_000)
+  })
+})

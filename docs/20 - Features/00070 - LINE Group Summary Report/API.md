@@ -163,7 +163,7 @@ autosave รายฟิลด์ — ส่งเฉพาะคีย์ที
 
 **200** `{ "group": { …รูปเดียวกับ §4.4 } }` (client ใช้ค่าที่ normalize แล้วแทนค่าที่ส่ง)
 
-Errors: 400 `VALIDATION` · 400 `INVALID_SETTINGS` · 400 `PROFIT_CONFIRM_REQUIRED` · 403 `PACKAGE_REQUIRED` · 404 · **[EXT]** 409 `FLAGS_DERIVED_FROM_TEMPLATE`
+Errors: 400 `VALIDATION` · 400 `INVALID_SETTINGS` · 400 `PROFIT_CONFIRM_REQUIRED` · 400 `EXPENSE_CONFIRM_REQUIRED` (เปิดบล็อกค่าใช้จ่าย/ยอดหลังหักครั้งแรกโดยไม่ส่ง `confirmExpense:true`) · 403 `PACKAGE_REQUIRED` · 404 · **[EXT]** 409 `FLAGS_DERIVED_FROM_TEMPLATE`
 
 ### 4.6 `PUT /api/line-report/groups/{id}/shops`
 Body `{ "shopIds": ["s1","s2"] }` (1..10) · ร้านที่ **เพิ่มใหม่** ต้อง reportable (`userId=owner ∧ ¬deleted ∧ ¬purged ∧ ¬locked`) · ร้านที่อยู่ในกลุ่มเดิมแต่ถูกล็อก/ลบภายหลัง **คงไว้ได้** (ไม่ลบเงียบ)
@@ -287,6 +287,7 @@ Errors: 400 `VALIDATION` (body ผิดรูป/JSON เสีย) · 400 `TEM
 | `PROFIT_CONFIRM_REQUIRED` | 400 | ต้องยืนยันก่อนแสดงกำไรในกลุ่ม LINE | 5, 12 |
 | `TEMPLATE_INVALID` | 400 | ข้อความรายงานไม่ถูกต้อง (`details.rule`, `details.blockId?`) — **[EXT]** | 12 |
 | `TEMPLATE_TOO_LARGE` | 400 | ข้อความรายงานยาวเกินที่ LINE รับได้ ลดบล็อกหรือข้อความลง (`details.bytes`/`limit` หรือ `details.reason='BODY'`) — **[EXT]** | 12 |
+| `EXPENSE_CONFIRM_REQUIRED` | 400 | แสดงค่าใช้จ่ายในกลุ่มต้องยืนยันก่อน — **[EXT ค่าใช้จ่าย]** | 12 |
 | `TEMPLATE_STALE` | 409 | มีการแก้ข้อความจากที่อื่นแล้ว โหลดใหม่ก่อนบันทึก (`details.currentVersion`) — **[EXT]** | 12 |
 | `FLAGS_DERIVED_FROM_TEMPLATE` | 409 | กลุ่มนี้ตั้งข้อความเอง ตัวเลขที่แสดงจึงแก้ที่หน้าจัดข้อความ — **[EXT]** | 5 |
 | `GROUP_NOT_FOUND` | 404 | ไม่พบกลุ่มนี้ | 3–9, 12, 13 |

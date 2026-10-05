@@ -191,4 +191,22 @@ describe.skipIf(!isLocal)('00070 EXT template service (DB)', () => {
     expect(d.template).toBeNull()
     expect(d.templateVersion).toBe(2)
   })
+
+  it('ค่าใช้จ่าย (FR-EXP-05): เปิดเพิ่มต้อง confirmExpense · มีอยู่แล้วแก้อื่นผ่าน · reset แล้วเพิ่มใหม่ต้องยืนยันอีก', async () => {
+    const g = await mkGroup(A)
+    const viaExpense = tpl([...OS, { id: 'e', type: 'expense' }])
+    const viaNet = tpl([...OS, { id: 'n', type: 'net_sales' }])
+    // (ก) null → expense / net_sales ไม่ confirm = 400 และไม่เขียน
+    for (const t of [viaExpense, viaNet]) expect(await code(updateTemplate(A, g, { template: t, expectedVersion: 0 }))).toBe('EXPENSE_CONFIRM_REQUIRED')
+    expect((await row(g)).templateVersion).toBe(0)
+    // (ข) confirm ผ่าน
+    await updateTemplate(A, g, { template: viaExpense, expectedVersion: 0, confirmExpense: true })
+    expect((await row(g)).templateVersion).toBe(1)
+    // (ค) มีอยู่แล้ว: แก้อย่างอื่น/สลับเป็น net_sales ไม่ต้องยืนยันซ้ำ
+    await updateTemplate(A, g, { template: tpl([...OS, { id: 'e', type: 'expense' }, { id: 'c', type: 'cancelled' }]), expectedVersion: 1 })
+    await updateTemplate(A, g, { template: viaNet, expectedVersion: 2 })
+    // (ง) reset แล้วเพิ่ม = ต้องยืนยันใหม่
+    await resetTemplate(A, g)
+    expect(await code(updateTemplate(A, g, { template: viaExpense, expectedVersion: 4 }))).toBe('EXPENSE_CONFIRM_REQUIRED')
+  })
 })

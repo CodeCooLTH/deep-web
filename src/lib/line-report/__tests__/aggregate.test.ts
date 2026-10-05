@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canSumProfit, combineTotals, isMixedFinanceRules, mergeTop3, sumDays, sumDaysSparse, dailyValues, sumTrend } from '../aggregate'
+import { canSumProfit, combineFinance, combineTotals, isMixedFinanceRules, mergeTop3, sumDays, sumDaysSparse, dailyValues, sumTrend } from '../aggregate'
 import type { ShopSummary } from '../types'
 
 const oct = { year: 2026, month0: 9 }
@@ -105,5 +105,19 @@ describe('dailyValues / sumTrend (EXT-09)', () => {
     const err = { state: 'ERROR', trend: { dates: ['a', 'b'], confirmed: [999, 999], orders: [9, 9] } } as unknown as ShopSummary
     expect(sumTrend([ok([1, 2], [1, 1]), ok([10, 20], [2, 0]), err])).toEqual({ dates: ['a', 'b'], confirmed: [11, 22], orders: [3, 1] })
     expect(sumTrend([err])).toBeUndefined()
+  })
+})
+
+describe('EXP: combineFinance', () => {
+  const fin = (expense: number, netSales: number, expenseRecorded = true) => ({ expense, netSales, expenseRecorded })
+  const sh = (id: string, state: 'OK' | 'ERROR', finance?: ReturnType<typeof fin>) =>
+    ({ shop: { id, name: id, vertical: null }, state, orders: 0, confirmed: 0, unconfirmed: 0, cancelled: 0, finance }) as never
+  it('รวมเฉพาะ OK + round2 + recorded แบบ ∧', () => {
+    const r = combineFinance([sh('a', 'OK', fin(0.1, 10)), sh('b', 'OK', fin(0.2, -3.3, false)), sh('c', 'ERROR', fin(999, 999))])
+    expect(r).toEqual({ expense: 0.3, netSales: 6.7, expenseRecorded: false })
+  })
+  it('ร้าน OK ขาด finance / ไม่มีร้าน OK → undefined (ไม่รวมบางส่วน)', () => {
+    expect(combineFinance([sh('a', 'OK', fin(1, 1)), sh('b', 'OK')])).toBeUndefined()
+    expect(combineFinance([sh('a', 'ERROR')])).toBeUndefined()
   })
 })
