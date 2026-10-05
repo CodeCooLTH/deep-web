@@ -171,3 +171,44 @@ sequenceDiagram
 
 ## 8. สรุป (Summary)
 งานนี้มีไฟล์ใหม่ 2 lib + 1 service + 2 component แล้วแทรกเข้า page.tsx 1 จุด ไม่มี API route, migration หรือสูตรเงินใหม่ ตัวเลขทุกตัวมาจาก `getPnlReport`/`getSalesSeries` ตัวเดิม
+
+---
+
+## ส่วนแก้ไข v1.1 (2026-10-05) — ชนะเนื้อหาเดิมเมื่อขัดกัน
+
+ที่มา: [[PRD]]/[[BRD]] ส่วนแก้ไข v1.1
+
+### V1.1-1 หนึ่ง component สองที่วาง
+`PortfolioPanel` (client) = ตัวควบคุมช่วง (รายวัน/รายเดือน + ‹ ›) · ตัวเลขใหญ่ (ยอดขายรวม/กำไรสุทธิรวม) · กราฟแท่งซ้อน · ตารางเทียบ
+- **desktop:** วางใน `PortfolioOverview` แทนการ์ดสรุป+กราฟ 2 เส้น+กริดการ์ดร้านเดิม (ตารางเทียบกดได้ แทนการ์ดร้าน — ข้อมูลเดียวกัน ไม่ทำซ้ำสองแบบ)
+- **มือถือ:** `PortfolioSheet` = กรอบเต็มจอ (โครงเดียวกับ `SalesChartSheet` + `useLockBodyScroll`) ห่อ `PortfolioPanel`
+- เลื่อนช่วง → `fetch('/api/seller/portfolio-series?mode&year&month')` (โครงเดียวกับ `SalesChartSheet` fetch/retry)
+
+### V1.1-2 การ์ดมือถือ
+`SalesChartCard` รับ `initialSeries` = series รวม (รูป `SalesSeries` เดิม เฉพาะฟิลด์ที่บวกกันได้ ไม่มี `receivedValues`/finance ⇒ การ์ดเข้าเส้นทาง "ร้านทั่วไป" เดิมทุกบรรทัด) + prop ใหม่ `portfolio?: { title; initial: PortfolioSeries }` → หัวการ์ดเปลี่ยนเป็น "ยอดขายทุกธุรกิจ" และกดแล้วเปิด `PortfolioSheet` แทน `SalesChartSheet`
+- page.tsx: บริบท Personal + `portfolioShops.length > 0` → `mobileSalesSeries` = ผลรวม (แทนของร้าน Personal)
+
+### V1.1-3 Service
+`getPortfolioSeries(userId, mode, period, shops, personalShop)` ใน `business-overview.service.ts`
+- ช่วงของ period: `periodRange(mode, year, month)` (lib บริสุทธิ์) → `resolveDateRange('custom', start, end)` · รายวัน = วันแรก–วันสุดท้ายของเดือน · รายเดือน = 1 ม.ค.–31 ธ.ค.
+- ต่อร้าน (BUSINESS ทุกร้าน + Personal) `Promise.allSettled`: `getSalesSeries(id, mode, period, false, vertical)` · `getPnlReport(id, range, vertical)` · `expense.count`
+- `includeFinance=false` โดยเจตนา — กำไรมาจาก `getPnlReport` เท่านั้น (ไม่มีกำไรสองแหล่ง)
+- ร้านล้ม → แถว ERROR ไม่นับ + `incomplete`
+
+### V1.1-4 lib บริสุทธิ์ (`src/lib/business-overview.ts`)
+| ฟังก์ชัน | หน้าที่ |
+|---|---|
+| `periodRange(mode, year, month?)` | `{ start, end }` ISO |
+| `aggregateSalesSeries(list)` | บวกตาม index: `values` `confirmedValues` `unconfirmedValues` `orderCounts` `codPendingValues` `last14Confirmed` `last14Unconfirmed` · บวก scalar `total` `prevTotal` `prevTotalToDate` · `labels` `futureFromIndex` `last14Labels` เอาจากตัวแรก (ค่าเดียวกันทุกร้านในช่วงเดียวกัน) |
+| `buildStack(rows, max=5)` | ≤ max ชุด: เรียงตามยอดช่วง · เกิน → (max−1) ร้าน + "อื่น ๆ" |
+| `buildComparisonRows(...)` | แถวเทียบ + `sharePct` (null เมื่อยอดรวม 0 · Personal = null) · เรียงยอดขาย · Personal ท้ายสุด |
+
+ลบของ v1.0 ที่ไม่ใช้แล้ว: `sumSeries`, `getBusinessOverview` (แทนด้วย `getPortfolioSeries`), `buildRangeQs` (ลิงก์ใช้ `range=custom&start&end` จาก `periodRange`) — ห้ามเก็บโค้ดตาย
+
+### V1.1-5 API ใหม่
+`GET /api/seller/portfolio-series` — ดู [[API]] ส่วนแก้ไข v1.1
+
+### V1.1-6 Technical Decisions
+- **TD-006 ยอดขาย = `getSalesSeries.total`** (มติ Q22) — ไม่ใช่ `getPnlReport.revenue` · TD-003 เดิม (ผลรวมกราฟ ≠ การ์ด) **หมดไป** เพราะกราฟและตัวเลขใหญ่มาจากชุดเดียวกันแล้ว
+- **TD-007 ช่วงเวลารูปแบบเดียว** (มติ Q25) — แทน TD-004
+- **TD-008 สีกราฟแท่งซ้อน** — `getColor('chart-*')` ตามลำดับชุด · "อื่น ๆ" = `default-400` · Paces chart palette ห้ามมีม่วงของ buyer (ตรวจตอน build)

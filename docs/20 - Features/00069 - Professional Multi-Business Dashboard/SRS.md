@@ -172,3 +172,18 @@ pnl.service · dashboard.service · finance-tabs · date-range · useShopSwitche
 
 ## 10. สรุป (Summary)
 ทุก TFR อ่านข้อมูลอย่างเดียว ไม่มีสูตรใหม่ ตัวตัดสินที่มีความหมาย (จ่ายแล้ว/รวมยอด/ลิงก์) อยู่ใน lib บริสุทธิ์ที่เทสได้
+
+---
+
+## ส่วนแก้ไข v1.1 (2026-10-05) — ชนะเนื้อหาเดิมเมื่อขัดกัน
+
+| TFR | ข้อกำหนด |
+|-----|---------|
+| TFR-003 (แก้) | ยอดขายต่อร้าน = `getSalesSeries(...).total` · กำไรสุทธิ = `getPnlReport(range ของ period).netProfit` · margin% = กำไร/ยอดขาย(series) |
+| TFR-005 (แทนที่) | period = `{ mode: 'daily'\|'monthly', year, month? }` · ค่าเริ่มต้น = รายวัน เดือนปัจจุบัน (เวลาไทย) · API validate ด้วย valibot ชุดเดียวกับ `/api/seller/sales-series` |
+| TFR-006 (แทนที่) | `aggregateSalesSeries` + `buildStack(max 5)` · Personal ไม่อยู่ใน aggregate/stack |
+| TFR-007 (แก้) | ลิงก์ = `financeHrefFor(vertical, 'range=custom&start=…&end=…')` จาก `periodRange` |
+| TFR-008 (ใหม่) | `GET /api/seller/portfolio-series`: 401 ไม่มี session/userId · 403 บริบทไม่ใช่ Personal · 200 `null` เมื่อไม่มีร้าน · `cache-control: private, no-store` |
+| TFR-009 (ใหม่) | มือถือ: `mobileSalesSeries` ในบริบท Personal ที่มีร้านเข้าเงื่อนไข = aggregate · การ์ดเปิด `PortfolioSheet` |
+
+Traceability เพิ่ม: FR-010 → TFR-008/009 → TC-012..TC-015

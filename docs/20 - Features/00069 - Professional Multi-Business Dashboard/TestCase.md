@@ -78,3 +78,16 @@ unit (Vitest) สำหรับ lib บริสุทธิ์ + integration �
 
 ## 6. สรุป (Summary)
 11 scenario ครอบ FR ทั้ง 9 ข้อ · TC-003 และ TC-005 เป็น blocker
+
+---
+
+## ส่วนแก้ไข v1.1 (2026-10-05)
+
+| TC | ระดับ | คาดหวัง |
+|----|------|--------|
+| TC-005 (แก้) | integration | `sales` = `getSalesSeries.total` · `netProfit` = `getPnlReport(periodRange)` ของร้านเดียวกัน ทุกบาท |
+| TC-009 (แทนที่) | unit | `aggregateSalesSeries` บวกทุกฟิลด์ตาม index · labels/futureFromIndex จากตัวแรก · `buildStack` ≤5 ชุด + "อื่น ๆ" รวมถูก |
+| TC-012 | unit | `periodRange`: ก.พ. ปีอธิกสุรทิน · รายปี 1 ม.ค.–31 ธ.ค. |
+| TC-013 | integration/route | API: ไม่มี session 401 · บริบท BUSINESS 403 · ร้าน ADMIN ไม่อยู่ใน rows · Personal อยู่ท้าย `isPersonal` ไม่อยู่ใน aggregate |
+| TC-014 | unit | `buildComparisonRows`: sharePct รวม = 100 (±0.01) · ยอดรวม 0 → null · Personal sharePct null |
+| TC-015 | E2E | มือถือ 375: การ์ด "ยอดขายทุกธุรกิจ" → ชีต → ‹ › เปลี่ยนเดือน → ตารางเปลี่ยน · กดแถวร้าน → อยู่ร้านนั้นที่หน้าการเงิน · desktop 1440 แท่งซ้อน+ตาราง |
