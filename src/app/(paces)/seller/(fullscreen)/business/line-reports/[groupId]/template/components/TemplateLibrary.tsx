@@ -73,6 +73,7 @@ export default function TemplateLibrary({
     <>
       {/* ≥lg: คอลัมน์ซ้าย */}
       <div className="hidden lg:block">
+        <h2 className="text-default-900 mb-2 text-sm font-semibold">เพิ่มบล็อก</h2>
         {full && <p className="text-default-700 mb-0 text-xs">ครบ 20 บล็อกแล้ว เอาบล็อกออกก่อนจึงเพิ่มได้</p>}
         {groups.length === 0 && <p className="text-default-700 mb-0 text-sm">ใส่ครบแล้ว</p>}
         <Droppable droppableId={LIBRARY_DROPPABLE_ID} isDropDisabled>
@@ -116,9 +117,9 @@ export default function TemplateLibrary({
       {/* <lg: แถบชิปเลื่อนแนวนอน (ไม่ลาก) */}
       <div className="lg:hidden">
         <div className="flex items-center gap-2 overflow-x-auto pb-2" role="group" aria-label="เพิ่มบล็อก">
-          <span className="text-default-700 shrink-0 text-xs">เพิ่มได้</span>
+          <span className="text-default-700 shrink-0 text-xs">เพิ่มบล็อก</span>
           {groups.length === 0 && <span className="text-default-700 text-sm">ใส่ครบแล้ว</span>}
-          {flat.map((e) => (
+          {[...flat.filter((e) => !e.disabled), ...flat.filter((e) => e.disabled)].map((e) => (
             <button
               key={e.type}
               type="button"
@@ -134,12 +135,15 @@ export default function TemplateLibrary({
             </button>
           ))}
         </div>
-        {/* เหตุผลที่ชิป disabled ต้องอ่านได้บนมือถือด้วย (ไม่มี hover) — แสดงเป็นบรรทัดเดียวของชิปแรกที่ใช้ไม่ได้ */}
-        {flat.filter((e) => e.reason).map((e) => (
-          <p key={e.type} className="text-default-700 mb-0 text-xs">
-            {e.title}: {e.reason}
-          </p>
-        ))}
+        {/* เหตุผลที่ชิป disabled ต้องอ่านได้บนมือถือด้วย (ไม่มี hover) — แสดงบรรทัดเดียวของชิปแรกที่ใช้ไม่ได้ */}
+        {(() => {
+          const e = flat.find((x) => x.reason)
+          return e ? (
+            <p className="text-default-700 mb-0 text-xs">
+              {e.title}: {e.reason}
+            </p>
+          ) : null
+        })()}
         {full && <p className="text-default-700 mb-0 text-xs">ครบ 20 บล็อกแล้ว เอาบล็อกออกก่อนจึงเพิ่มได้</p>}
       </div>
     </>

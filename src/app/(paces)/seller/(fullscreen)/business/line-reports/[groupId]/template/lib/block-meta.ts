@@ -24,11 +24,11 @@ export const blockTitle = (type: BlockType, word: string): string =>
   ({
     orders: `จำนวน${word}`,
     sales: 'ยอดขาย (นับแล้ว) และยังไม่นับ',
-    cancelled: 'ยกเลิก',
+    cancelled: `จำนวน${word}ที่ยกเลิก`,
     shops: 'รายร้าน',
     cycle: 'ยอดสะสมรอบนี้',
     profit: 'กำไร',
-    text: 'ข้อความ',
+    text: 'ข้อความพิมพ์เอง',
     separator: 'เส้นคั่น',
     chart_trend: 'แนวโน้ม 7 วันล่าสุด',
     chart_compare: 'เทียบรายร้าน',
@@ -40,15 +40,16 @@ export const TEXT_SUMMARY_LEN = 40
 export const TEXT_EMPTY_SUMMARY = 'ยังไม่ได้พิมพ์ข้อความ'
 
 /** ข้อความสั้นใต้ชื่อบล็อกตอนแถวปิด */
-export function blockSummary(b: Block, word: string, markup: string): string {
+/** null = ไม่มีอะไรเพิ่มจากชื่อบล็อก → แถวพับบรรทัดเดียว */
+export function blockSummary(b: Block, word: string, markup: string): string | null {
   switch (b.type) {
-    case 'orders': return `จำนวน${word}รวมทุกร้าน`
-    case 'sales': return 'ยอดนับแล้ว · ยังไม่นับ ติดกัน'
-    case 'cancelled': return 'ใบที่เปิดในช่วงนี้แล้วถูกยกเลิก'
+    case 'orders':
+    case 'sales':
+    case 'cancelled':
+    case 'cycle':
+    case 'profit':
+    case 'separator': return null
     case 'shops': return ['แยกรายร้าน', b.top3 ? 'ขายดี 3 อันดับ' : null, b.profit ? 'กำไรต่อร้าน' : null].filter(Boolean).join(' · ')
-    case 'cycle': return 'ยอดนับแล้วสะสมตั้งแต่วันตัดรอบ'
-    case 'profit': return 'กำไรรวมทุกร้าน'
-    case 'separator': return 'เส้นคั่น'
     case 'chart_trend': return `7 วันล่าสุด · วัดจาก ${measureLabel(b.measure, word)}`
     case 'chart_compare': return `เรียงร้านมาก→น้อย · วัดจาก ${measureLabel(b.measure, word)}`
     case 'text': {
@@ -68,7 +69,7 @@ export const LIBRARY_GROUPS: readonly { title: string; types: readonly BlockType
 
 /** ชื่อที่ผู้ใช้เห็นบนปุ่ม ＋ ของข้อความ/เส้นคั่น (aria-label) */
 export const ADD_LABEL = (type: BlockType, word: string): string =>
-  type === 'text' ? 'เพิ่มข้อความ' : type === 'separator' ? 'เพิ่มเส้นคั่น' : `เพิ่ม${blockTitle(type, word)}`
+  type === 'text' ? 'เพิ่มข้อความพิมพ์เอง' : type === 'separator' ? 'เพิ่มเส้นคั่น' : `เพิ่ม${blockTitle(type, word)}`
 
 /**
  * warning บนแถวผืนงาน — บล็อกที่มีอยู่แต่ "ไม่ถูกส่งตอนนี้" (ไม่ลบเงียบ · FR-11-4) · null = ปกติ

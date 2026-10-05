@@ -95,7 +95,7 @@ export default function TextBlockEditor({
     const { start, end } = sel()
     const r = wrapSelection(markup, start, end, marker)
     if (!r) {
-      pacesToast.info('เลือกคำในช่องพิมพ์ก่อน แล้วค่อยกด')
+      pacesToast.info('ลากคลุมคำในช่องพิมพ์ก่อน แล้วกดอีกครั้ง')
       return
     }
     apply(r)
@@ -108,7 +108,7 @@ export default function TextBlockEditor({
         rows={3}
         value={markup}
         readOnly={readOnly}
-        aria-label="ข้อความ"
+        aria-label="พิมพ์ข้อความถึงคนในกลุ่ม"
         aria-invalid={showError || undefined}
         aria-describedby={showError ? errId : undefined}
         placeholder="พิมพ์ข้อความถึงทีม เช่น สรุปยอดของ {ชื่อร้าน} วันนี้"
@@ -198,11 +198,12 @@ export default function TextBlockEditor({
             />
             <SegControl
               label="สีตัวอักษร"
+              title="ไม่มีสีเขียวและแดง เพราะในรายงานนี้เขียวหมายถึงยืนยันแล้ว แดงหมายถึงดึงข้อมูลไม่สำเร็จ"
               value={block.style.color}
               onChange={(color) => dispatch({ type: 'setStyle', id: block.id, patch: { color } })}
               options={[
                 { value: 'ink', label: (<><span className={cn('size-3 rounded-full', SWATCH.ink)} aria-hidden="true" />ปกติ</>) },
-                { value: 'slate', label: (<><span className={cn('size-3 rounded-full', SWATCH.slate)} aria-hidden="true" />รอง (ค่อนข้างจาง)</>) },
+                { value: 'slate', label: (<><span className={cn('size-3 rounded-full', SWATCH.slate)} aria-hidden="true" />รอง</>) },
                 { value: 'accent', label: (<><span className={cn('size-3 rounded-full', SWATCH.accent)} aria-hidden="true" />เน้น</>) },
               ]}
             />
@@ -216,7 +217,6 @@ export default function TextBlockEditor({
               เน้นสี
             </button>
           </div>
-          <p className="text-default-700 mb-0 text-xs">ไม่มีสีเขียวและแดง เพราะในรายงานนี้เขียวหมายถึงยืนยันแล้ว แดงหมายถึงดึงข้อมูลไม่สำเร็จ</p>
         </div>
       )}
     </div>

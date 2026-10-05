@@ -12,10 +12,10 @@ const tpl = (): TemplateV1 => defaultTemplateFromFlags({ showOrders: true, showS
 const args = { template: tpl(), shops, kind: 'DAILY' as const, monthlyEnabled: false, cycle: null, serverNowIso: '2026-10-05T05:00:00.000Z' }
 
 describe('preview-data', () => {
-  it('ใช้ composer จริง: ได้ bubble ที่มีชื่อร้าน 50 ตัวอักษรและยอดหลักล้าน', () => {
+  it('ใช้ composer จริง: ได้ bubble ที่มีชื่อร้านจริงและยอดหลักล้าน', () => {
     const json = JSON.stringify(buildPreviewContents(args))
     expect(json).toContain('18,902,340')
-    expect(json).toContain('ร้านชื่อยาวที่สุด')
+    expect(json).toContain('ร้านหนึ่ง')
     expect(json).toContain('ร้านล็อก')
   })
   it('ไม่ throw เมื่อมีบล็อกข้อความว่าง (ตัดออกก่อนส่งเข้า composer)', () => {

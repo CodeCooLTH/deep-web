@@ -147,7 +147,7 @@ describe('GroupDetailClient — ปกติ', () => {
   })
   it('พรีวิว: ติดป้ายตัวอย่าง · ใช้ Flex จริง (หัวรายงาน)', () => {
     const html = render()
-    expect(html).toContain('ตัวอย่าง ตัวเลขจริงมาจากข้อมูลของร้านที่เลือก')
+    expect(html).toContain('ตัวเลขในตัวอย่างเป็นค่าสมมุติ ข้อความจริงใช้ยอดของร้านที่เลือก')
     expect(html).toContain('รายงานยอดรายวัน')
     expect(html).not.toContain('font-mono')
   })

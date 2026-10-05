@@ -52,7 +52,7 @@ function ShopsBody({ block, top3Avail, readOnly, dispatch, onShopsProfit }: { bl
   )
 }
 
-function ChartBody({ block, word, kb, readOnly, dispatch }: { block: Extract<Block, { type: 'chart_trend' | 'chart_compare' }>; word: string; kb: string; readOnly: boolean; dispatch: Dispatch<Action> }) {
+function ChartBody({ block, word, readOnly, dispatch }: { block: Extract<Block, { type: 'chart_trend' | 'chart_compare' }>; word: string; readOnly: boolean; dispatch: Dispatch<Action> }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
       <span className="text-default-700 text-xs">วัดจาก</span>
@@ -66,7 +66,7 @@ function ChartBody({ block, word, kb, readOnly, dispatch }: { block: Extract<Blo
           { value: 'orders', label: measureLabel('orders', word) },
         ]}
       />
-      <p className="text-default-700 mb-0 w-full text-xs">ข้อความทั้งก้อนตอนนี้ ~{kb} KB · ถ้ายาวเกิน ระบบตัดกราฟก่อนตัวเลขหลัก</p>
+      <p className="text-default-700 mb-0 w-full text-xs">ถ้าข้อความยาวเกินที่ LINE รับได้ ระบบจะตัดกราฟออกก่อน ตัวเลขหลักไม่ถูกตัด</p>
     </div>
   )
 }
@@ -91,7 +91,7 @@ function BlockRow({
   index: number
   count: number
   open: boolean
-  summary: string
+  summary: string | null
   warning: string | null
   word: string
   readOnly: boolean
@@ -133,19 +133,21 @@ function BlockRow({
             <span className="text-default-900 block truncate text-sm font-medium" title={title}>
               {title}
             </span>
-            <span className={cn('block truncate text-xs', warning ? 'text-warning-ink' : 'text-default-700')} title={warning ?? summary}>
-              {warning ?? summary}
-            </span>
+            {(warning ?? summary) && (
+              <span className={cn('block truncate text-xs', warning ? 'text-warning-ink' : 'text-default-700')} title={(warning ?? summary) ?? undefined}>
+                {warning ?? summary}
+              </span>
+            )}
           </span>
           <Icon icon="chevron-down" className={cn('text-default-500 me-1 size-4 shrink-0', open && 'rotate-180')} aria-hidden="true" />
         </button>
         {open && !readOnly && (
           <>
             <button type="button" className={ICON_BTN} aria-label={`ย้าย${title}ขึ้น`} disabled={index === 0} onClick={() => dispatch({ type: 'step', id: block.id, dir: -1 })}>
-              <Icon icon="chevron-up" className="size-4" aria-hidden="true" />
+              <Icon icon="arrow-up" className="size-4" aria-hidden="true" />
             </button>
             <button type="button" className={ICON_BTN} aria-label={`ย้าย${title}ลง`} disabled={index === count - 1} onClick={() => dispatch({ type: 'step', id: block.id, dir: 1 })}>
-              <Icon icon="chevron-down" className="size-4" aria-hidden="true" />
+              <Icon icon="arrow-down" className="size-4" aria-hidden="true" />
             </button>
             <button type="button" className={ICON_BTN} aria-label={`เอา${title}ออก`} onClick={() => onRemove(block.id)}>
               <Icon icon="x" className="size-4" aria-hidden="true" />
@@ -171,8 +173,6 @@ export type CanvasListProps = {
   word: string
   ctx: AvailabilityContext
   top3Avail: Availability
-  /** ขนาดข้อความทั้งก้อน (KB) ที่แสดงในบล็อกกราฟ */
-  kb: string
   titlePlaceholder: string
   profitOn: boolean
   profitConfirmed: boolean
@@ -201,7 +201,7 @@ export default function CanvasList(p: CanvasListProps) {
         return <ShopsBody block={b} top3Avail={p.top3Avail} readOnly={readOnly} dispatch={dispatch} onShopsProfit={p.onShopsProfit} />
       case 'chart_trend':
       case 'chart_compare':
-        return <ChartBody block={b} word={word} kb={p.kb} readOnly={readOnly} dispatch={dispatch} />
+        return <ChartBody block={b} word={word} readOnly={readOnly} dispatch={dispatch} />
       case 'text':
         return (
           <TextBlockEditor
@@ -241,13 +241,13 @@ export default function CanvasList(p: CanvasListProps) {
       dispatch={dispatch}
       onRemove={p.onRemove}
     >
-      {hasBody(b) ? body(b) : <p className="text-default-700 mb-0 text-xs">ไม่มีตัวเลือกเพิ่มในบล็อกนี้</p>}
+      {hasBody(b) ? body(b) : <p className="text-default-700 mb-0 text-xs">บล็อกนี้ไม่มีอะไรให้ตั้งค่า ใช้ปุ่มด้านบนเพื่อย้ายหรือเอาออก</p>}
     </BlockRow>
   )
 
   return (
-    <section aria-label="ข้อความ">
-      <h2 className="text-default-900 mb-2 text-sm font-semibold">ข้อความ</h2>
+    <section aria-label="ข้อความที่จะส่ง">
+      <h2 className="text-default-900 mb-2 text-sm font-semibold">ข้อความที่จะส่ง</h2>
       <div className="border-default-300 rounded-lg border">
         {/* หัวรายงาน — ตรึงบนสุด ต้องมีเสมอ (นอก Droppable) */}
         <div
@@ -283,8 +283,7 @@ export default function CanvasList(p: CanvasListProps) {
               <div ref={drop.innerRef} {...drop.droppableProps} className={cn(dropSnap.isDraggingOver && 'bg-primary/5')}>
                 {draft.blocks.length === 0 && !dropSnap.isDraggingOver && (
                   <p className="text-default-700 border-default-200 mb-0 border-b p-4 text-center text-sm">
-                    ยังไม่มีข้อมูลในข้อความ เพิ่มอย่างน้อย 1 รายการจาก<span className="lg:hidden">แถบด้านบน</span>
-                    <span className="hidden lg:inline">คลัง</span>
+                    ยังไม่มีตัวเลขในข้อความ เพิ่มอย่างน้อย 1 อย่างจาก “เพิ่มบล็อก”
                   </p>
                 )}
                 {draft.blocks.map((b, i) => (

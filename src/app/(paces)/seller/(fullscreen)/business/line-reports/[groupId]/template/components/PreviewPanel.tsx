@@ -15,7 +15,7 @@ import type { TemplateV1 } from '@/lib/line-report/template'
 import { buildPreviewContents } from '../lib/preview-data'
 import SegControl from './SegControl'
 
-const CAPTION = 'ตัวอย่างด้วยชื่อร้านยาวและยอดหลักล้าน · การตัดบรรทัดในกลุ่มอาจต่างเล็กน้อย'
+const CAPTION = 'ตัวเลขในตัวอย่างเป็นค่าสมมุติ ข้อความจริงใช้ยอดของร้านคุณ · การตัดบรรทัดใน LINE อาจต่างเล็กน้อย'
 
 export default function PreviewPanel({
   template,

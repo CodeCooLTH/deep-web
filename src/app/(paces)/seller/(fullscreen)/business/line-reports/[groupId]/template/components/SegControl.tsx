@@ -22,6 +22,7 @@ export default function SegControl<T extends string>({
   disabled,
   className,
   fill,
+  title,
 }: {
   label: string
   options: readonly SegOption<T>[]
@@ -31,9 +32,10 @@ export default function SegControl<T extends string>({
   className?: string
   /** ปุ่มแบ่งความกว้างเท่ากันเต็มแถว (มือถือ) */
   fill?: boolean
+  title?: string
 }) {
   return (
-    <div className={cn('bg-light rounded-lg p-0.5', fill ? 'flex' : 'inline-flex flex-none', className)} role="radiogroup" aria-label={label}>
+    <div className={cn('bg-light rounded-lg p-0.5', fill ? 'flex' : 'inline-flex flex-none', className)} role="radiogroup" aria-label={label} title={title}>
       {options.map((o) => {
         const off = disabled || o.disabled
         return (

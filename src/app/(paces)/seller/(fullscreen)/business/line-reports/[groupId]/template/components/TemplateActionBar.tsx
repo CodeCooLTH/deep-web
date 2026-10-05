@@ -35,6 +35,8 @@ export type ActionBarProps = {
   onReset: () => void
   /** id ของข้อความเหตุผลที่ปุ่มชี้ด้วย aria-describedby */
   reasonId: string
+  /** เหตุผลที่ปุ่มกดไม่ได้ (แสดงเป็นข้อความที่มองเห็นใต้ปุ่ม) */
+  reasonText: string | null
 }
 
 function SaveLabel({ saving }: { saving: boolean }) {
@@ -74,10 +76,11 @@ export function DesktopActions(p: ActionBarProps) {
   const testIsPrimary = action.primary === 'test'
   const items: MenuItem[] = [resetItem(p)]
   return (
-    <>
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-3">
       {p.dirty && action.save.visible && (
         <span className="badge bg-warning/15 text-warning-ink" role="status">
-          ยังไม่บันทึก · บันทึกก่อนส่งทดสอบ
+          ยังไม่บันทึก
         </span>
       )}
       <TemplateMenu items={items} />
@@ -108,7 +111,13 @@ export function DesktopActions(p: ActionBarProps) {
           <SaveLabel saving={p.saving} />
         </button>
       )}
-    </>
+      </div>
+      {p.reasonText && (
+        <p id={p.reasonId} className="text-default-700 mb-0 text-xs">
+          {p.reasonText}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -129,13 +138,14 @@ export function MobileActions(p: ActionBarProps) {
       value={p.view}
       onChange={p.onView}
       options={[
-        { value: 'canvas', label: 'ข้อความ' },
+        { value: 'canvas', label: 'จัดข้อความ' },
         { value: 'preview', label: 'ตัวอย่าง' },
       ]}
     />
   )
   return (
-    <div className="mt-3 flex items-center gap-2 lg:hidden">
+    <div className="mt-3 lg:hidden">
+    <div className="flex items-center gap-2">
       {view}
       <span className="hidden flex-1 md:block" />
       <TemplateMenu items={items} />
@@ -145,7 +155,7 @@ export function MobileActions(p: ActionBarProps) {
           onClick={p.onSave}
           disabled={action.save.disabled}
           title={action.save.reason ?? undefined}
-          aria-describedby={action.save.reason ? p.reasonId : undefined}
+          aria-describedby={action.save.reason ? `${p.reasonId}-m` : undefined}
           className={PRIMARY}
         >
           <SaveLabel saving={p.saving} />
@@ -156,11 +166,17 @@ export function MobileActions(p: ActionBarProps) {
           onClick={p.onTest}
           disabled={action.test.disabled}
           title={action.test.reason ?? undefined}
-          aria-describedby={action.test.reason ? p.reasonId : undefined}
+          aria-describedby={action.test.reason ? `${p.reasonId}-m` : undefined}
           className={PRIMARY}
         >
           <TestLabel testing={p.testing} />
         </button>
+      )}
+    </div>
+      {p.reasonText && (
+        <p id={`${p.reasonId}-m`} className="text-default-700 mt-2 mb-0 text-xs">
+          {p.reasonText}
+        </p>
       )}
     </div>
   )

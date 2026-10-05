@@ -73,6 +73,29 @@ const add = (label: string) => page.locator(`button[aria-label="เพิ่ม$
 const pvSel = 'section[aria-label="ตัวอย่างในกลุ่ม LINE"]:visible'
 const titles = () => page.locator('div[id^="row-"] span.truncate.font-medium').allTextContents()
 
+test('Q0 lg: หัวคอลัมน์ไม่ถูก sticky header บัง (ก่อน/หลังโฟกัสช่องพิมพ์)', async () => {
+  await page.setViewportSize({ width: 1180, height: 900 })
+  await gotoT()
+  const measure = () =>
+    page.evaluate(() => {
+      const hdr = document.querySelector('h1')?.closest('[class*="sticky"]') as HTMLElement | null
+      const h2s = [...document.querySelectorAll('section[aria-label] h2')].filter((n) => (n as HTMLElement).offsetParent) as HTMLElement[]
+      const sc = [...document.querySelectorAll('*')].filter((n) => {
+        const e = n as HTMLElement
+        return e.scrollTop > 0
+      }).map((n) => `${n.tagName}.${(n as HTMLElement).className.toString().slice(0, 60)} top=${(n as HTMLElement).scrollTop}`)
+      return { hdrBottom: hdr ? Math.round(hdr.getBoundingClientRect().bottom) : null, h2Tops: h2s.map((h) => Math.round(h.getBoundingClientRect().top)), scrolled: sc, docScroll: window.scrollY }
+    })
+  const before = await measure()
+  console.log('Q0 before', JSON.stringify(before))
+  await add('ข้อความพิมพ์เอง')
+  await page.locator('textarea[aria-label="พิมพ์ข้อความถึงคนในกลุ่ม"]:visible').first().focus()
+  await page.waitForTimeout(400)
+  const after = await measure()
+  console.log('Q0 after', JSON.stringify(after))
+  for (const m of [before, after]) for (const t of m.h2Tops) expect(t, JSON.stringify(m)).toBeGreaterThanOrEqual(m.hdrBottom ?? 0)
+})
+
 test('Q1 การ์ดข้อความในหน้าตั้งค่า (3 viewport)', async () => {
   for (const w of [1180, 768, 375]) {
     await page.setViewportSize({ width: w, height: 900 })
@@ -93,7 +116,7 @@ test('Q2 หน้า template: layout 3/2/สลับ + ไม่ overflow', a
         const e = [...document.querySelectorAll(s)].find((n) => (n as HTMLElement).offsetParent) as HTMLElement | undefined
         return e ? Math.round(e.getBoundingClientRect().left) : null
       }
-      return { canvas: x('section[aria-label="ข้อความ"]'), preview: x('section[aria-label="ตัวอย่างในกลุ่ม LINE"]'), lib: x('h3') }
+      return { canvas: x('section[aria-label="ข้อความที่จะส่ง"]'), preview: x('section[aria-label="ตัวอย่างในกลุ่ม LINE"]'), lib: x('h3') }
     })
   await page.setViewportSize({ width: 1180, height: 900 })
   await gotoT()
@@ -118,12 +141,12 @@ test('Q2 หน้า template: layout 3/2/สลับ + ไม่ overflow', a
   expect(await overflow()).toBe(false)
   const seg = page.getByRole('radiogroup', { name: 'เลือกมุมมอง' }).locator('visible=true').first()
   await expect(seg).toBeVisible()
-  await expect(page.locator('section[aria-label="ข้อความ"]:visible')).toHaveCount(1)
+  await expect(page.locator('section[aria-label="ข้อความที่จะส่ง"]:visible')).toHaveCount(1)
   await expect(page.locator(pvSel)).toHaveCount(0)
   await shot('q2-tpl-375-canvas')
   await seg.getByRole('radio', { name: 'ตัวอย่าง' }).click()
   await expect(page.locator(pvSel)).toHaveCount(1)
-  await expect(page.locator('section[aria-label="ข้อความ"]:visible')).toHaveCount(0)
+  await expect(page.locator('section[aria-label="ข้อความที่จะส่ง"]:visible')).toHaveCount(0)
   expect(await overflow()).toBe(false)
   await shot('q2-tpl-375-preview')
 })
@@ -145,8 +168,8 @@ test('Q3 เพิ่มบล็อกจากคลัง → dirty + save pr
 
 test('Q4 บล็อกข้อความ: ตัวหนา · markup ไม่ปิด → error + บันทึกปิด + เหตุผลเห็น (มือถือด้วย)', async () => {
   await gotoT()
-  await add('ข้อความ')
-  const ta = page.locator('textarea[aria-label="ข้อความ"]')
+  await add('ข้อความพิมพ์เอง')
+  const ta = page.locator('textarea[aria-label="พิมพ์ข้อความถึงคนในกลุ่ม"]')
   await ta.fill('สรุป **{ชื่อร้าน}** วันนี้')
   const pv = page.locator(pvSel)
   await expect(pv).toContainText('ร้านทดสอบ')
@@ -230,8 +253,8 @@ test('Q8 บันทึก → toast → reload คงอยู่ · DB templa
   })
   const v0 = (await row()).templateVersion
   await gotoT()
-  await add('ข้อความ')
-  await page.locator('textarea[aria-label="ข้อความ"]').fill('สรุป **{ชื่อร้าน}** วันนี้ QA')
+  await add('ข้อความพิมพ์เอง')
+  await page.locator('textarea[aria-label="พิมพ์ข้อความถึงคนในกลุ่ม"]').fill('สรุป **{ชื่อร้าน}** วันนี้ QA')
   await saveBtn().click()
   await expect(page.getByText('บันทึกแล้ว รายงานรอบถัดไปจะใช้แบบนี้')).toBeVisible()
   await shot('q8-saved-toast')
@@ -241,7 +264,7 @@ test('Q8 บันทึก → toast → reload คงอยู่ · DB templa
   expect(JSON.stringify(r.template)).toContain('QA')
   await page.reload()
   await page.getByRole('heading', { name: 'จัดข้อความรายงาน' }).waitFor()
-  await expect(page.locator('textarea[aria-label="ข้อความ"]').first()).toBeAttached().catch(() => {})
+  await expect(page.locator('textarea[aria-label="พิมพ์ข้อความถึงคนในกลุ่ม"]').first()).toBeAttached().catch(() => {})
   await expect(page.locator('div[id^="row-"]').filter({ hasText: 'ข้อความ' }).first()).toBeVisible()
   await expect(saveBtn()).toBeDisabled()
   await shot('q8-after-reload')

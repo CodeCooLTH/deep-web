@@ -75,7 +75,7 @@ export default function MessageCard({ group, canEdit, serverNowIso }: { group: G
             })}
           </div>
         </div>
-        <FlexBubbleView contents={contents} caption="ตัวอย่าง ตัวเลขจริงมาจากข้อมูลของร้านที่เลือก" />
+        <FlexBubbleView contents={contents} caption="ตัวเลขในตัวอย่างเป็นค่าสมมุติ ข้อความจริงใช้ยอดของร้านที่เลือก" />
       </div>
     </section>
   )

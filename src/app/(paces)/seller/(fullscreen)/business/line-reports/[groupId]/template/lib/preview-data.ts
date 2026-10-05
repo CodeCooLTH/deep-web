@@ -1,7 +1,7 @@
 /**
  * preview-data — ประกอบ Flex พรีวิวของหน้าจัดข้อความ จาก composer ตัวเดียวกับที่ส่งจริง (feature 00070 EXT · spec §3.7) · pure
  *
- * ข้อมูลตัวอย่าง = กรณียาวสุด (AC-EXT-11-10): ชื่อร้านแรก 50 ตัวอักษร · ฿18,902,340 · ร้านท้ายสุด 0 ใบ ·
+ * ข้อมูลตัวอย่าง: ชื่อร้านจริงของกลุ่มทุกร้าน (ไม่แทรกชื่อยาวทดสอบ) · ตัวเลขสมมุติ ฿18,902,340 · ร้านท้ายสุด 0 ใบ ·
  * ร้านที่ล้ม 1 ร้าน (เมื่อมีร้านใช้งานได้ ≥3) · ร้านล็อก/ลบตามกลุ่มจริง — โครงสร้างกลุ่ม (จำนวนร้าน/vertical/สถานะ) ตามกลุ่มจริง
  * เพื่อให้ {คำ} และ availability ของพรีวิวตรงกับคลัง · เวลามาจาก server เสมอ (ห้ามอ่านนาฬิกา — hydration)
  */
@@ -13,7 +13,6 @@ import type { PreviewKind } from '@/lib/line-report/settings-guards'
 import type { GroupSummary, ShopSummary, Trend } from '@/lib/line-report/types'
 import { todayThaiIsoDate } from '@/lib/date-range'
 
-const NAME_50 = 'ร้านชื่อยาวที่สุดเท่าที่ระบบอนุญาตทดสอบสระซ้อนก็ได้ ๆ ๆ ๆ ๆ ๆ ๆ ๆ ๆ'.slice(0, 50)
 const BIG = 18_902_340
 
 const shiftIso = (iso: string, days: number): string => {
@@ -32,7 +31,7 @@ function worstify(base: GroupSummary, todayIso: string): GroupSummary {
   const shops: ShopSummary[] = base.shops.map((s, i) => {
     const k = okIdx.indexOf(i)
     if (k < 0) return s
-    const named = k === 0 ? { ...s, shop: { ...s.shop, name: NAME_50 }, confirmed: BIG, unconfirmed: 1_204_500, orders: 99_999 } : s
+    const named = k === 0 ? { ...s, confirmed: BIG, unconfirmed: 1_204_500, orders: 99_999 } : s
     if (okIdx.length > 1 && k === okIdx.length - 1) return { ...named, orders: 0, confirmed: 0, unconfirmed: 0, cancelled: 0, top3: [], trend: trendOf(k) }
     return { ...named, trend: trendOf(k) }
   })

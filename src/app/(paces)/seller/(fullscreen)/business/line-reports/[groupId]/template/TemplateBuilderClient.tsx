@@ -120,7 +120,16 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
 
   // เปิดแถวใหม่/แถวที่เพิ่งเพิ่ม → เลื่อนให้เห็น (nearest: ไม่กระโดดถ้าเห็นอยู่แล้ว)
   useEffect(() => {
-    if (state.openId) document.getElementById(`row-${state.openId}`)?.scrollIntoView({ block: 'nearest' })
+    const el = state.openId ? document.getElementById(`row-${state.openId}`) : null
+    if (!el) return
+    // lg: เลื่อนเฉพาะคอลัมน์ที่ overflow เอง (scrollIntoView จะลาก main ของ layout ขึ้นไปบังหัวคอลัมน์) · <lg: เลื่อนหน้า
+    const col = el.closest<HTMLElement>('[data-scroll-col]')
+    if (col && getComputedStyle(col).overflowY !== 'visible') {
+      const c = col.getBoundingClientRect()
+      const r = el.getBoundingClientRect()
+      if (r.top < c.top) col.scrollTop -= c.top - r.top
+      else if (r.bottom > c.bottom) col.scrollTop += r.bottom - c.bottom
+    } else el.scrollIntoView({ block: 'nearest' })
   }, [state.openId])
 
   // ─── เพิ่ม/เอาออก/ยืนยันกำไร ───────────────────────────────────────────────────────
@@ -334,6 +343,7 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
     onDiscard: discard,
     onReset: () => void resetToDefault(),
     reasonId: REASON_ID,
+    reasonText: visibleReason,
   }
 
   return (
@@ -341,6 +351,8 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
       onSubmit={(e) => e.preventDefault()}
       className="lg:flex lg:h-[calc(100dvh-4rem)] lg:flex-col lg:overflow-hidden" /* HR7 carve-out: หัก padding บน+ล่างของ (fullscreen)/layout.tsx (2rem+2rem) เท่านั้น — เหมือน public-profile/builder/BuilderClient.tsx */
     >
+      {/* shrink-0: ในคอลัมน์ flex ที่สูงตายตัว header ถูกบีบจนเนื้อหาใต้มันลอยขึ้นไปซ้อน (หัวคอลัมน์ถูกบัง — critique P1-2) */}
+      <div className="shrink-0">
       <FullscreenPageHeader
         title="จัดข้อความรายงาน"
         subtitle={name}
@@ -349,10 +361,7 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
         toolbarExtra={<DesktopActions {...barProps} />}
         belowContent={<MobileActions {...barProps} />}
       />
-      {/* เหตุผลที่ปุ่มกดไม่ได้ — มองเห็นได้ทุกจอ (มือถือไม่มี hover/title) · ปุ่มชี้ด้วย aria-describedby */}
-      <p id={REASON_ID} className={visibleReason ? 'text-default-700 mt-2 mb-0 text-xs lg:text-right' : 'sr-only'}>
-        {visibleReason}
-      </p>
+      </div>
       <div className="sr-only" aria-live="polite">
         {announcement}
       </div>
@@ -372,11 +381,11 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
       <DragDropContext onDragStart={onDragStart} onDragUpdate={onDragUpdate} onDragEnd={onDragEnd} dragHandleUsageInstructions={DRAG_HELP}>
         <div className="md:grid md:grid-cols-12 md:gap-6 lg:flex lg:min-h-0 lg:flex-1 lg:gap-7">
           {!readOnly && (
-            <div className={`${state.view === 'preview' ? 'hidden md:block' : ''} md:col-span-12 mb-3 lg:mb-0 lg:w-1/4 lg:min-h-0 lg:overflow-y-auto`}>
+            <div data-scroll-col className={`${state.view === 'preview' ? 'hidden md:block' : ''} md:col-span-12 mb-3 lg:mb-0 lg:w-1/4 lg:min-h-0 lg:overflow-y-auto`}>
               <TemplateLibrary draft={draft} ctx={ctx} word={word} onAdd={(t) => void addBlock(t)} />
             </div>
           )}
-          <div className={`${state.view === 'preview' ? 'hidden md:block' : ''} md:col-span-7 lg:min-h-0 lg:overflow-y-auto ${readOnly ? 'lg:w-7/12' : 'lg:w-5/12'}`}>
+          <div data-scroll-col className={`${state.view === 'preview' ? 'hidden md:block' : ''} md:col-span-7 lg:min-h-0 lg:overflow-y-auto ${readOnly ? 'lg:w-7/12' : 'lg:w-5/12'}`}>
             <CanvasList
               draft={draft}
               markupById={state.markupById}
@@ -386,7 +395,6 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
               word={word}
               ctx={ctx}
               top3Avail={top3Avail}
-              kb={(measure.bytes / 1000).toFixed(1)}
               titlePlaceholder={BASE_TITLE[state.previewKind]}
               profitOn={flags.showProfit}
               profitConfirmed={state.profitConfirmed}
@@ -399,7 +407,7 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
             />
             <SizeGauge gauge={gauge} extra={[...gaugeExtra, ...gaugeWarnings]} />
           </div>
-          <div className={`${state.view === 'canvas' ? 'hidden md:block' : ''} md:col-span-5 mt-4 md:mt-0 lg:min-h-0 lg:overflow-y-auto ${readOnly ? 'lg:w-5/12' : 'lg:w-1/3'}`}>
+          <div data-scroll-col className={`${state.view === 'canvas' ? 'hidden md:block' : ''} md:col-span-5 mt-4 md:mt-0 lg:min-h-0 lg:overflow-y-auto ${readOnly ? 'lg:w-5/12' : 'lg:w-1/3'}`}>
             <PreviewPanel
               template={draft}
               shops={sampleShops}
