@@ -1,7 +1,7 @@
 ---
 title: "PRD — หน้าคำสั่งซื้อฝั่งผู้ซื้อ ฉบับปรับใหม่ (Buyer Order Page Redesign)"
 owner: shinobu22
-status: draft
+status: approved
 created: 2026-10-05
 tags: [feature, prd, buyer, order-page, sms-link, redesign]
 related: ["[[Feature-Docs-Ownership]]", "[[BRD]]", "[[00015 - Order Claim & Forced Login]]", "[[00041 - Buyer Order Experience]]", "[[00050 - Service Queue End-to-End]]", "[[00062 - Order Pickup & Bank Transfer]]", "[[00056 - Order Return]]"]
@@ -11,7 +11,7 @@ related: ["[[Feature-Docs-Ownership]]", "[[BRD]]", "[[00015 - Order Claim & Forc
 > **ประเภทเอกสาร:** Product Requirements Document (PRD)
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-05
-> **สถานะ:** Draft — รอ user review (Hard Rule 11: ห้าม implement ก่อน PRD+BRD ผ่าน)
+> **สถานะ:** Approved 2026-10-05 (มติดู BRD §10)
 > **เจ้าของเอกสาร:** BA + PO + PM (ดู [[Feature-Docs-Ownership]]) · ร่างโดย `safepay-product`
 
 # PRD: หน้าคำสั่งซื้อฝั่งผู้ซื้อ ฉบับปรับใหม่
