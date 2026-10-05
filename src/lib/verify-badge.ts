@@ -47,6 +47,9 @@ export const VERIFY_LEVEL_TITLES: Record<1 | 2 | 3, string> = {
   3: 'จดทะเบียนธุรกิจ',
 }
 
+/** จำนวนระดับยืนยันทั้งหมด — ใช้บอกสเกล ("ระดับ 1 จาก 3") ให้ผู้ใช้ไม่ต้องเดาว่า 1 สูงหรือต่ำ */
+export const VERIFY_LEVEL_MAX = Object.keys(VERIFY_LEVEL_TITLES).length
+
 /**
  * ป้ายของแถวที่ยังไม่ผ่าน
  *

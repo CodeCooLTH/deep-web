@@ -57,3 +57,17 @@ describe('[blocker] ข้อความอำพันบนพื้นจา
     expect(pill).toMatch(/tierColor === 'warning'\s*\?\s*VERIFY_BADGE_PALETTE\.gold\.fg/)
   })
 })
+
+describe('[blocker] clarify 2026-10-05 — คำบนจอลิงก์ SMS และหลังยืนยัน', () => {
+  const sms = stripComments(readFileSync(join(process.cwd(), 'src/app/(marketing)/o/[token]/SmsAutoEnter.tsx'), 'utf8'))
+  const client = stripComments(readFileSync(join(process.cwd(), 'src/app/(marketing)/o/[token]/PublicOrderClient.tsx'), 'utf8'))
+  it('ป้ายระดับบอกสเกล "ระดับ N จาก M" จากค่าคงที่เดียว', () => {
+    expect(sms).toMatch(/ระดับ \$\{Math\.min\(maxVerifyLevel, VERIFY_LEVEL_MAX\)\} จาก \$\{VERIFY_LEVEL_MAX\}/)
+  })
+  it('ออเดอร์สำเร็จ 0 ไม่เขียน (D-11)', () => {
+    expect(sms).toMatch(/completedOrders != null && completedOrders > 0\) rows\.push/)
+  })
+  it('toast ยืนยันรับผันคำร้านบริการ', () => {
+    expect(client).toMatch(/isServiceShop \? 'ยืนยันรับบริการแล้ว' : 'ยืนยันรับสินค้าแล้ว'/)
+  })
+})

@@ -33,7 +33,7 @@ import { signIn } from 'next-auth/react'
 import Logo from '@components/layout/shared/Logo'
 
 import { goAfterLogin } from '@/lib/go-after-login'
-import { resolveVerifyBadge } from '@/lib/verify-badge'
+import { VERIFY_LEVEL_MAX, resolveVerifyBadge } from '@/lib/verify-badge'
 import TrustPill from './TrustPill'
 
 type Props = {
@@ -65,7 +65,7 @@ export default function SmsAutoEnter(props: Props) {
         await goAfterLogin(back) // ตัวกลางเดียวของทุกทางเข้าระบบ (รอ session แล้ว hard-navigate)
         return
       }
-      // โค้ดใช้ไปแล้ว/หมดอายุ → หน้าเข้าสู่ระบบด้วยเบอร์ (มี toast บอกเหตุผลอยู่แล้ว)
+      // โค้ดใช้ไปแล้ว/หมดอายุ → หน้าเข้าสู่ระบบด้วยเบอร์ (หน้านั้นแสดงแถบบอกเหตุผล + เปิดฟอร์มเบอร์ให้เลย)
       window.location.href = `/auth/sign-in?smsExpired=1&callbackUrl=${encodeURIComponent(back)}`
     } catch {
       // เน็ตหลุด = ยังไม่ได้ไปไหน (โค้ดยังไม่ถูกเผาฝั่ง server ถ้าคำขอไม่ถึง) → ให้ลองใหม่ได้
@@ -98,8 +98,9 @@ export default function SmsAutoEnter(props: Props) {
   // 🛑 คำต้องเป็นชุดเดียวกับระบบ (HR16): "ยืนยันเบอร์แล้ว" จาก verify-badge.ts · "ออเดอร์สำเร็จ" ชุดเดียวกับ
   // ShopEvidence — ห้ามเขียนว่า "ผู้ซื้อยืนยันรับของ" เพราะ CONFIRMED เกิดได้จาก COD/ระบบปิดเองด้วย (audit 2026-10-04)
   const rows: { icon: string; label: string; value: React.ReactNode }[] = []
-  if (verifyBadge) rows.push({ icon: verifyBadge.icon, label: verifyBadge.label, value: <TrustPill tone={verifyBadge.tone} label={`ระดับ ${maxVerifyLevel}`} /> })
-  if (completedOrders != null) rows.push({ icon: 'tabler-circle-check', label: 'ออเดอร์สำเร็จ', value: <b>{completedOrders} ครั้ง</b> })
+  if (verifyBadge) rows.push({ icon: verifyBadge.icon, label: verifyBadge.label, value: <TrustPill tone={verifyBadge.tone} label={`ระดับ ${Math.min(maxVerifyLevel, VERIFY_LEVEL_MAX)} จาก ${VERIFY_LEVEL_MAX}`} /> })
+  // D-11 — 0 ไม่เขียน (ป้าย "ร้านใหม่" บอกแทน) · null = ไม่รู้ ก็ไม่เขียน
+  if (completedOrders != null && completedOrders > 0) rows.push({ icon: 'tabler-circle-check', label: 'ออเดอร์สำเร็จ', value: <b>{completedOrders} ครั้ง</b> })
   if (avgRating != null)
     rows.push({
       icon: 'tabler-star',

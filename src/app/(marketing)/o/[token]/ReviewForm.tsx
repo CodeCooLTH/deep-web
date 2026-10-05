@@ -371,14 +371,14 @@ function LabeledStars({
           )
         })}
       </Box>
-      <Typography aria-live='polite' variant='h5' sx={{ textAlign: 'center', mt: 1.5, minHeight: 32 }}>
+      {/* ป้ายที่เลือกอยู่ใต้ดาวดวงนั้นแล้ว (ตัวหนา) — ไม่พิมพ์ซ้ำเป็นหัวใหญ่อีกบรรทัด (clarify 2026-10-05)
+          เหลือไว้ให้ screen reader ประกาศอย่างเดียว */}
+      <Box component='span' aria-live='polite' sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>
         {value ? STAR_LABELS[value - 1] : ''}
+      </Box>
+      <Typography variant='body2' color='text.secondary' sx={{ textAlign: 'center', mt: 1.5, minHeight: 22, visibility: value ? 'hidden' : 'visible' }}>
+        แตะดาวเพื่อให้คะแนน
       </Typography>
-      {!value && (
-        <Typography variant='body2' color='text.secondary' sx={{ textAlign: 'center', mt: -3 }}>
-          แตะดาวเพื่อให้คะแนน
-        </Typography>
-      )}
     </Box>
   )
 }

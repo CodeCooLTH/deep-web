@@ -66,7 +66,8 @@ export default function PublicOrderClient({ order }: Props) {
     // ยังเป็นคำลงท้ายที่ระบุเพศของผู้พูด ทั้งที่คนพูดคือระบบ
     // ยังไม่มีรีวิว = แผ่นให้คะแนน (ReviewSheet) จะขึ้นและพูดประโยคเดียวกันที่หัวแผ่นอยู่แล้ว
     // ยิง toast ซ้ำบนแผ่นคือพูดเรื่องเดียวสองที่ — ยิงเฉพาะตอนไม่มีแผ่นให้พูดแทน
-    if (orderState.hasReview) toast.success('ยืนยันรับสินค้าแล้ว — บันทึกลงประวัติของร้านเรียบร้อย')
+    if (orderState.hasReview)
+      toast.success(`${orderState.isServiceShop ? 'ยืนยันรับบริการแล้ว' : 'ยืนยันรับสินค้าแล้ว'} — บันทึกลงประวัติของร้านเรียบร้อย`)
     // Optimistic update → re-render detail with new status (status จาก response)
     // ตราประทับขึ้นทันทีโดยไม่ต้องรีโหลด — ผู้ซื้อเพิ่งกดเอง จึงเป็นตรา "ได้รับแล้ว" ณ เวลานี้
     setOrderState((prev) => ({
