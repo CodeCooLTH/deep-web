@@ -18,6 +18,7 @@ import {
   reportOrderWord,
   sortShops,
   text,
+  totalFinance,
   type Node,
   type Skipped,
 } from '@/lib/line/flex-report-blocks'
@@ -26,7 +27,7 @@ import { sellerDashboardUrl } from '@/lib/line-report/config'
 import { DEFAULT_BUTTON_LABEL, defaultTemplateFromFlags, deriveFlags, type TemplateV1 } from '@/lib/line-report/template'
 import type { GroupSummary, ReportKind, Totals } from '@/lib/line-report/types'
 import { formatTimeHM } from '@/lib/format-date'
-import { formatBaht, formatNumberNoSymbol, profitDisplay } from '@/lib/format-money'
+import { expenseDisplay, formatBaht, formatNumberNoSymbol, netSalesDisplay, profitDisplay } from '@/lib/format-money'
 
 // ชื่อเดิมที่โมดูลอื่น/เทสอ้างถึง — ตัวจริงย้ายไป flex-report-blocks (กัน import วน)
 export { FLEX_COLORS, MIXED_ORDER_WORD, reportOrderWord }
@@ -123,6 +124,14 @@ function renderAltText(input: SummaryReportInput, summary: GroupSummary, kind: R
       { capped: ok.some((s) => s.profit?.capped) },
     )
     parts.push(`${d.label} ${d.text}`)
+  }
+  // บล็อกการเงินใหม่ไม่มี flag ใน deriveFlags → เช็คจาก template.blocks ตรง ๆ · เงื่อนไขรวมได้เดียวกับแถวในบับเบิล (ctx เดียวกัน)
+  const tpl = templateOf(input)
+  const wantExp = tpl.blocks.some((b) => b.type === 'expense'), wantNet = tpl.blocks.some((b) => b.type === 'net_sales')
+  if (wantExp || wantNet) {
+    const fin = totalFinance(makeCtx(summary, kind, tpl, level, undefined, []))
+    if (fin && wantExp) { const d = expenseDisplay(fin.expense, { recorded: fin.expenseRecorded }); parts.push(`${d.label} ${d.text}`) }
+    if (fin && wantNet) { const d = netSalesDisplay(fin.netSales, { capped: !fin.expenseRecorded }); parts.push(`${d.label} ${d.text}`) }
   }
   if (summary.shops.some((s) => s.state === 'ERROR')) parts.push('ยอดรวมยังไม่ครบ')
   parts.push(`ข้อมูล ณ ${formatTimeHM(summary.window.computedAt)} น.`)

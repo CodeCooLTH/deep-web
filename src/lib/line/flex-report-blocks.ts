@@ -6,12 +6,12 @@
  * (ค่าคงที่สี/reportOrderWord ย้ายมาอยู่ที่นี่เพื่อไม่ให้ import วน — flex-summary-report re-export ชื่อเดิมให้)
  */
 import { compareChart, trendChart } from '@/lib/line/flex-report-charts'
-import { combineTotals } from '@/lib/line-report/aggregate'
+import { combineFinance, combineTotals } from '@/lib/line-report/aggregate'
 import { todayThaiIsoDate } from '@/lib/date-range'
 import { TOKENS, type Block, type Run, type TemplateV1, type TokenKey } from '@/lib/line-report/template'
-import type { GroupSummary, ReportKind, ShopSummary, Totals } from '@/lib/line-report/types'
+import type { GroupSummary, ReportKind, ShopFinance, ShopSummary, Totals } from '@/lib/line-report/types'
 import { formatDayMonthTH, formatTimeHM, formatYearTH } from '@/lib/format-date'
-import { formatBaht, formatNumberNoSymbol, profitDisplay } from '@/lib/format-money'
+import { expenseDisplay, formatBaht, formatNumberNoSymbol, netSalesDisplay, profitDisplay } from '@/lib/format-money'
 import { resolveShopVertical } from '@/lib/lodging'
 import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
 
@@ -48,6 +48,18 @@ export function reportOrderWord(shops: readonly Pick<ShopSummary, 'shop' | 'stat
   if (verticals.size > 1) return { word: MIXED_ORDER_WORD, mixed: true }
   return { word: resolveOrderVocab([...verticals][0] ?? 'ONLINE_SALES').nounShort, mixed: false }
 }
+
+/** "ต้นทุน…" ของยอดขายหลังหักค่าใช้จ่าย ผันตาม vertical จาก ORDER_VOCAB.costNoun · ผสม → "ต้นทุน" (กลางสุด) */
+export const MIXED_COST_NOUN = 'ต้นทุน'
+export function reportCostNoun(shops: readonly Pick<ShopSummary, 'shop' | 'state'>[]): string {
+  const counted = shops.filter((s) => s.state !== 'EXCLUDED')
+  const verticals = new Set((counted.length > 0 ? counted : shops).map((s) => resolveShopVertical(s.shop.vertical)))
+  if (verticals.size > 1) return MIXED_COST_NOUN
+  return resolveOrderVocab([...verticals][0] ?? 'ONLINE_SALES').costNoun
+}
+
+/** หมายเหตุร่วมของกำไรต่อร้านที่ capped และบล็อกการเงินใหม่ (BR-LGS-34) — ค่าเดียว ไม่ copy สตริง */
+export const EXPENSE_BY_RECORD_DATE_NOTE = 'ค่าใช้จ่ายลงตามวันที่บันทึก ไม่เฉลี่ยรายวัน'
 
 export const sortShops = (shops: readonly ShopSummary[]) =>
   [...shops].sort(
@@ -104,6 +116,16 @@ function totalProfit(c: Ctx): { netProfit: number; capped: boolean } | null {
   const withProfit = c.ok.filter((s) => s.profit)
   if (withProfit.length !== c.ok.length || c.ok.length === 0) return null
   return { netProfit: withProfit.reduce((n, s) => n + (s.profit?.netProfit ?? 0), 0), capped: withProfit.some((s) => s.profit?.capped) }
+}
+
+/**
+ * ค่าใช้จ่าย/ยอดขายหลังหักค่าใช้จ่ายรวม (BR-LGS-33): ร้านเดียว = ของร้านนั้น (OK เท่านั้น) ·
+ * หลายร้าน = กฎเดียวกับกำไรรวม (กติกาการเงินเดียวกัน ∧ ไม่มี ERROR ∧ ทุกร้าน OK มี finance)
+ */
+export function totalFinance(c: Ctx): ShopFinance | undefined {
+  if (c.listed.length === 1) return c.listed[0].state === 'OK' ? c.listed[0].finance : undefined
+  if (!(c.summary.profitSummable && c.errors.length === 0 && c.ok.length > 0)) return undefined
+  return combineFinance(c.ok)
 }
 
 /** ยอดสะสมรอบที่แสดงได้ไหม — kind/ครบทั้งวัน = ไม่เกี่ยว (เงียบ) · ไม่มี cycleToDate = ไม่พร้อม (log) */
@@ -239,11 +261,12 @@ function totalsNotes(c: Ctx): Node[] {
   return out
 }
 
-const TOTALS_TYPES = new Set<Block['type']>(['orders', 'sales', 'cancelled', 'profit'])
+const TOTALS_TYPES = new Set<Block['type']>(['orders', 'sales', 'cancelled', 'profit', 'expense', 'net_sales'])
 
 /** orders/sales/cancelled/profit ที่ติดกัน = section เดียว (เหมือน totals เดิม) · แถวเรียงตามบล็อก */
 function renderTotals(blocks: Block[], c: Ctx, withNotes: boolean): Node {
   const rows: Node[] = []
+  let hasFinance = false
   for (const b of blocks) {
     if (b.type === 'orders') rows.push(kv(c.ow.word, `${formatNumberNoSymbol(c.t.orders)}${c.ow.mixed ? '' : ' รายการ'}`))
     else if (b.type === 'sales') {
@@ -257,8 +280,21 @@ function renderTotals(blocks: Block[], c: Ctx, withNotes: boolean): Node {
       if (p) rows.push(profitRow(p))
       // ร้านเดียว = โครงสร้างไม่มีแถวรวม (ไม่ใช่ "ไม่พร้อม") → เงียบ
       else if (c.multi) c.skipped.push({ label: 'กำไร', reason: 'รวมกำไรไม่ได้ในรอบนี้' })
+    } else if (b.type === 'expense' || b.type === 'net_sales') {
+      const f = totalFinance(c)
+      if (f && b.type === 'expense') {
+        const d = expenseDisplay(f.expense, { recorded: f.expenseRecorded })
+        rows.push(kv(d.label, d.text))
+      } else if (f) {
+        const d = netSalesDisplay(f.netSales, { capped: !f.expenseRecorded })
+        rows.push(kv(d.label, d.text), note(`= ยอดขาย (นับแล้ว) − ค่าใช้จ่าย · ยังไม่หัก${reportCostNoun(c.shops)}`))
+      } else if (c.multi) {
+        c.skipped.push({ label: b.type === 'expense' ? 'ค่าใช้จ่าย' : 'ยอดขายหลังหักค่าใช้จ่าย', reason: 'รวมค่าใช้จ่ายไม่ได้ในรอบนี้' })
+      }
+      hasFinance = true
     }
   }
+  if (hasFinance) rows.push(note(EXPENSE_BY_RECORD_DATE_NOTE, { margin: 'sm' }))
   return section([...rows, ...(withNotes ? totalsNotes(c) : [])])
 }
 
@@ -311,7 +347,7 @@ function renderShops(b: Extract<Block, { type: 'shops' }>, c: Ctx): Node | null 
     foot.push(note('กำไรแต่ละร้านคิดตามกติกาของประเภทธุรกิจ จึงไม่รวมเป็นยอดเดียว', { margin: 'md' }))
   }
   if (b.profit && c.ok.some((s) => s.profit?.capped)) {
-    foot.push(note('ค่าใช้จ่ายลงตามวันที่บันทึก ไม่เฉลี่ยรายวัน', { margin: 'sm' }))
+    foot.push(note(EXPENSE_BY_RECORD_DATE_NOTE, { margin: 'sm' }))
   }
   return section([...(multi ? [note('แยกรายร้าน', { weight: 'bold' })] : []), ...shopBlocks, ...foot])
 }
