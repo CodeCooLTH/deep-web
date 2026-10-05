@@ -555,3 +555,95 @@ flowchart TD
 - จำนวน route จริงใน `src/app/api/line-report/**` (TC-LGS-212) ยืนยันหลัง SRS/API.md ล็อก
 - TC-LGS-228: พฤติกรรม "ผูกใหม่" กับกลุ่ม ACTIVE ตาม SRS
 - ชื่อ reason code ของ log/alert (TC-LGS-048) ตามที่ SRS ล็อก
+
+---
+
+## 7. ส่วนต่อขยาย EXT 2026-10-05 — เทมเพลตข้อความ + กราฟ (TC-EXT-*)
+
+> เคสด้านล่างอ้างอิง **ไฟล์เทสที่มีอยู่ในโค้ดแล้ว** (ตรวจรายชื่อไฟล์/ชื่อเคสจากโค้ด 2026-10-05) · คอลัมน์ "สถานะ" = มีเทสในโค้ด / **รอ** (ยังไม่มีเทส เพราะ UI ยังไม่ commit) — **ยังไม่ได้รันซ้ำในรอบ sync เอกสาร** จึงไม่บันทึกผล Pass/Fail ที่นี่ · รัน DB test ต้องปักหมุด `localhost:5434` (HR14) เหมือน §1.1
+
+### 7.1 Golden / composer (U)
+| ID | AC | ไฟล์เทส · เคส | สถานะ |
+|----|----|---------------|-------|
+| TC-EXT-001 | AC-EXT-01-1 | `src/lib/line/__tests__/flex-summary-report.golden.test.ts` — `template=null` ต้องออกไบต์เดิม (เทียบสตริง) + manifest sha256 ครอบทั้งชุด | มี |
+| TC-EXT-002 | AC-EXT-01-1/3 | `flex-summary-report.template.test.ts` — แบบมาตรฐานจาก `defaultTemplateFromFlags` ให้ JSON เดียวกับเส้นทาง flags ทุก 31 ชุด · `template.test.ts` — `defaultTemplateFromFlags ∘ deriveFlags` = identity ครบ 31 ชุด | มี |
+| TC-EXT-003 | AC-EXT-06-3 | ผลบวกรายร้านเท่ายอดรวมไม่ว่าบล็อกเรียงอย่างไร | มี |
+| TC-EXT-004 | AC-EXT-03-1/2 | หัวรายงานล็อก: `blocks=[]` ยังมีชื่อ/ช่วงวันที่/ข้อมูล ณ · `title` ใช้ข้อความแรกเท่านั้น · `titleOverride` ชนะ · TEST ใส่ป้ายทดสอบเอง | มี |
+| TC-EXT-005 | AC-EXT-13-1/2 | หมายเหตุอัตโนมัติติดบล็อกแม่ (มติ Q1=A) แม้ไม่มีบล็อกตัวเลข · "ไม่รวมร้าน" ยังอยู่เมื่อ `blocks=[]` | มี |
+| TC-EXT-006 | AC-EXT-04-1/2/4 | ข้อความอิสระ: ตาราง size×color×bold · span มี `contents` ไม่มี `text` บนแม่ · ไม่มี `decoration` ในทุก fixture · ไม่มี fallback "-" | มี |
+| TC-EXT-007 | AC-EXT-05-1 | โทเคน: ตัดทั้งบล็อกเมื่อคำนวณไม่ได้ + `skipped` · `{ชื่อร้าน}` ร้านเดียว · `{ยอดสะสมรอบ}` (ไม่มี/ครบทั้งวัน/MONTHLY/ทุกร้านล้ม) · `{กำไร}` (รวมได้/ต่างกติกา/ERROR/ร้านเดียว) · ป้ายผันตาม vertical · ข้อความที่ถูกตัดทุกบรรทัดยังส่งหัว+ตัวเลข (E-19) · `TOKENS` ครบ 10 | มี |
+| TC-EXT-008 | AC-EXT-06 | ยุบ separator (ต้น/ท้าย/ติดกัน/ชิดบล็อกที่ไม่ render/ล้วน) · `skipped` รอดผ่าน `fitToLimits` และไม่โผล่ใน JSON ที่ส่ง · ปุ่ม: label จากเทมเพลต · `show=false`/ไม่มี URL → ไม่มี footer | มี |
+| TC-EXT-009 | AC-EXT-04-3, AC-EXT-02-4 | `template.test.ts` — markup roundtrip 500 ตัวอย่างสุ่ม (seed คงที่) · `authoredLength` นับ code point (emoji/สระซ้อนไทย) · โทเคนนับเป็นป้ายมาตรฐาน | มี |
+| TC-EXT-010 | AC-EXT-02-1 | `template-schema.test.ts` — ตารางกรณีเสียของ `TemplateSchema` (type/เพดาน/`strictObject`/`tok`/ความยาว) | มี |
+| TC-EXT-011 | AC-EXT-11-3/4 | `availability.test.ts` — เหตุผลทุกข้อของคลัง/warning (ปิดรายเดือน · กลุ่ม 1 ร้าน · ทุกร้านบ้านพัก · ใช้ครบ · ครบ 20) | มี |
+
+### 7.2 กราฟ (U + P)
+| ID | AC | ไฟล์เทส · เคส | สถานะ |
+|----|----|---------------|-------|
+| TC-EXT-020 | AC-EXT-09-1/3/5 | `flex-report-charts.test.ts` — `trendChart`: 7 แท่ง/แท่งวันรายงาน accent · ป้ายเฉพาะแท่งสูงสุด · คร่อมเดือน · ล้านบาท · ค่าเดียว · ≥2% เมื่อ >0 · 0 ทั้งหมด = เส้นฐาน+ข้อความ · measure=orders · หมายเหตุแท่งสุดท้ายบางส่วน + ยอดไม่ครบ | มี |
+| TC-EXT-021 | AC-EXT-09-4/5 | `compareChart`: ร้าน OK <2 → ข้าม · เรียงมาก→น้อย เท่ากันเรียงชื่อ · ERROR/EXCLUDED ไม่เข้า · ชื่อ 50 ตัวอักษร `maxLines:1` · ค่า 0 ไม่มีแท่ง · ตัดที่ 10 แถว + "…และอีก N ร้าน" | มี |
+| TC-EXT-022 | AC-EXT-09-6/7 | สีทุกจุด ⊆ {ACCENT, INK, SLATE, GRID_GRAY, DANGER ของหมายเหตุเดิม} · ไม่มี `image` | มี |
+| TC-EXT-023 | AC-EXT-09-3, E-11 | รอบวันนี้ 18:00 มีหมายเหตุแท่งสุดท้าย · รอบครบทั้งวัน/เมื่อวาน ไม่มี | มี |
+| TC-EXT-024 | AC-EXT-09-2 | parity ยอดรวมต่อวันของกราฟ = `getSalesSeries` ตรง ๆ (ผลต่าง 0) ต่อ vertical × {วันนี้, เมื่อวาน, คร่อมเดือน} — `line-report-summary.parity.test.ts` "trend 7 วัน" (รวม 3 vertical = `getSalesSeries` ทีละวัน · วันสุดท้ายของ trend รายร้าน = ยอดวัน `endIso` ของร้านนั้น) | มี |
+| TC-EXT-025 | R-4 | spike LINE render กราฟ (`%`) บน OA ทดสอบจริงผ่าน `pushToGroup` · iOS + Android (user ดูจอ) | รอ — ไม่มีหลักฐานในโค้ด/เอกสาร ณ วันที่เขียน |
+
+### 7.3 ขนาด / ลำดับตัดทอน (U + I)
+| ID | AC | ไฟล์เทส · เคส | สถานะ |
+|----|----|---------------|-------|
+| TC-EXT-030 | AC-EXT-08-1 | `flex-report-charts.test.ts` "ลำดับตัดทอน" — ล้นเพดาน → Top3 → กราฟ(+หมายเหตุ) → ย่อรายร้าน · ข้อความอิสระ/หัว/ยอดรวมไม่ถูกตัด · ตัดแค่พอแล้วหยุด · ไม่มีกราฟ → ข้ามระดับกราฟ | มี |
+| TC-EXT-031 | AC-EXT-08-2/3 | `template-size.test.ts` — แบบมาตรฐานผ่าน/warning · ระดับ 0 ล้นแต่ระดับ 3 ผ่านพร้อม warning · ข้อความอิสระ 6×120 ไทย ผ่าน, span หนักเกินเพดาน · ผลเท่าเดิมทุกครั้ง · `bytesOf` = `Buffer.byteLength` | มี |
+| TC-EXT-032 | AC-EXT-08-2 | `line-report-template-size-gate.test.ts` — `bytes` เกิน limit = `TEMPLATE_TOO_LARGE` ก่อนถึง tx · `bytes = limit` ผ่านด่าน | มี |
+| TC-EXT-033 | AC-EXT-08-5 | `template/lib/__tests__/gauge-state.test.ts` (ฟังก์ชันตัดสินสถานะ gauge แยกจาก JSX) | มีไฟล์ (UI ยังไม่ commit) |
+
+### 7.4 Service / DB (I)
+| ID | AC | ไฟล์เทส · เคส | สถานะ |
+|----|----|---------------|-------|
+| TC-EXT-040 | AC-EXT-01-2, AC-EXT-10-7 | `line-report-template-db.test.ts` — แถวใหม่ `template NULL`/`templateVersion 0` · เกิน 16KB โดน CHECK · version ติดลบโดน CHECK | มี |
+| TC-EXT-041 | AC-EXT-07-1, AC-EXT-10-1 | `line-report-template-service.db.test.ts` — บันทึกสำเร็จ: template + flag ที่ derive + version+1 ครั้งเดียว · `getGroupDetail` คืน `template`/`effectiveTemplate` | มี |
+| TC-EXT-042 | AC-EXT-10-4 | `template=null` → `effectiveTemplate` = แบบมาตรฐาน · `deliveries[].summary` · template เสียในฐาน → ไม่ throw, `template` คืน null | มี |
+| TC-EXT-043 | AC-EXT-10-2, E-14 | `expectedVersion` ไม่ตรง → `TEMPLATE_STALE` ไม่เขียน · PUT ขนาน 2 ครั้งด้วย version เดียวกัน → สำเร็จ 1 / STALE 1 / version = 1 | มี |
+| TC-EXT-044 | AC-EXT-02-2, E-17 | เทมเพลตกราฟ/ข้อความอย่างเดียว → `INVALID_SETTINGS:METRIC_REQUIRED` (ไม่ใช่ raw DB error) | มี |
+| TC-EXT-045 | AC-EXT-07-3, AC-EXT-05-4 | กำไรทุกทางเข้า (บล็อก/ตัวเลือกต่อร้าน/โทเคน) ต้อง `confirmProfit` · ตั้ง `profitEnabledAt` | มี |
+| TC-EXT-046 | AC-EXT-02-3 | owner อื่น/ไม่มีกลุ่ม/`REMOVED` → `GROUP_NOT_FOUND` ทั้ง PUT/DELETE | มี |
+| TC-EXT-047 | AC-EXT-10-5 | เทมเพลตผิดรูป → `TEMPLATE_INVALID` + `rule` · เกินเพดานคอลัมน์ → `TEMPLATE_TOO_LARGE` · version ไม่ถูกต้อง → `VALIDATION` | มี |
+| TC-EXT-048 | AC-EXT-07-2 | PATCH `show*`/`attachCycleToDaily` ขณะมีเทมเพลต → `FLAGS_DERIVED_FROM_TEMPLATE` · ฟิลด์อื่นแก้ได้ · `template=null` PATCH ได้ตามเดิม | มี |
+| TC-EXT-049 | E-8 | เปิดรายเดือนกลับหลังปิด: `attachCycleToDaily` ตามที่เทมเพลตขอ | มี |
+| TC-EXT-050 | AC-EXT-10-3 | reset: `template NULL` · flag กลับค่าตั้งต้นคอลัมน์ · `profitEnabledAt NULL` · version+1 | มี |
+| TC-EXT-051 | AC-EXT-06-6, E-15 | แก้เทมเพลตระหว่าง `RETRY_PENDING` → push ที่สองไบต์เดียวกับครั้งแรก (`pendingPayload` แช่แข็ง) | ไม่พบเคสที่ชื่อชัดเจนใน `line-report-send-sweep.db.test.ts` (ตรวจด้วย grep ชื่อเคส — ยังไม่ได้อ่านทั้งไฟล์) · ต้องยืนยันก่อนติ๊ก |
+| TC-EXT-052 | AC-EXT-05-2/3 | `line-report-send-sweep.db.test.ts` — ส่งทดสอบด้วยเทมเพลต: service คืน `skipped[]` + `Delivery.summary` มี "ข้าม:" (ไม่มียอดเงิน) · ตามตาราง: แถว SENT มี `^1 ร้าน · ข้าม: ` · `template` ไม่ถูกตั้ง = ไม่มี "ข้าม:" | มี (ระดับ service — ไม่ครอบ response ของ route) |
+| TC-EXT-053 | AC-EXT-06-1, AC-EXT-07-5 | `line-report-flags-wiring.test.ts` — send/test/command ใช้ `resolveReportConfig(group)` · ไม่มี `flagsOf` | มี |
+
+### 7.5 Route (R)
+| ID | AC | ไฟล์เทส · เคส | สถานะ |
+|----|----|---------------|-------|
+| TC-EXT-060 | AC-EXT-15-1 | `src/app/api/line-report/routes.test.ts` — `groups/[id]/template PUT/DELETE` อยู่ในตารางระดับสิทธิ์ L2 (สแกน route จริง) | มี |
+| TC-EXT-061 | AC-EXT-10-1/7 | `routes.test.ts` "template PUT/DELETE (EXT T8)" — body ผิดรูป/`expectedVersion` ผิดชนิด/คีย์เกิน → 400 `VALIDATION` · body >64KB → `TEMPLATE_TOO_LARGE` | มี |
+| TC-EXT-062 | AC-EXT-10-5 | วนทุกค่าของ `LineReportErrorCode` ยืนยันมี status (รวม 4 โค้ดใหม่) | เทสเดิม (ครอบอัตโนมัติ) |
+| TC-EXT-063 | AC-EXT-05-3 | route `POST …/test` ตอบ `skipped[]` | มี — `routes.test.ts` "test คืนเฉพาะ 5 ฟิลด์ตามสัญญา" |
+
+### 7.6 UI (E / U)
+| ID | AC | ไฟล์เทส · เคส | สถานะ |
+|----|----|---------------|-------|
+| TC-EXT-070 | AC-EXT-11-5 | `template/lib/__tests__/primary-action.test.ts` — ไม่มี primary สองปุ่มทุก state | มีไฟล์ (UI ยังไม่ commit) |
+| TC-EXT-071 | AC-EXT-11-8 | `confirm-profit.test.ts` — เทมเพลตเปิดกำไรเพิ่มจากที่บันทึกไหม | มีไฟล์ (UI ยังไม่ commit) |
+| TC-EXT-072 | AC-EXT-11-13 | `markup-edit.test.ts` — แทรกที่ตำแหน่งเลือก/ห่อคำที่เลือก | มีไฟล์ (UI ยังไม่ commit) |
+| TC-EXT-073 | AC-EXT-11-2/9, AC-EXT-12-3 | `reducer.test.ts` · `draft-issues.test.ts` · `preview-data.test.ts` | มีไฟล์ (UI ยังไม่ commit) |
+| TC-EXT-074 | AC-EXT-09-8 | `src/lib/line-report/__tests__/flex-preview-tokens.test.ts` — ทุกสี/คุณสมบัติที่ composer ปล่อยมี mapping ในพรีวิว | มี |
+| TC-EXT-080 | AC-EXT-11-1/2/6/7/9/11 | Playwright 375/768/1180: ย้ายบล็อกด้วยคีย์บอร์ด · dirty→ออกหน้า Swal · reset · เอาออก+ย้อนกลับ · paused อ่านอย่างเดียว | **รอ — หน้า UI กำลังสร้าง ยังไม่มีให้เทส** |
+| TC-EXT-081 | AC-EXT-12-1/2/4 | Playwright: การ์ด "ข้อความที่ส่งเข้ากลุ่ม" แทน Metrics/Preview · ประวัติแสดง "ข้าม" | **รอ — ยังไม่ทำ** |
+
+### 7.7 Mutation ที่ต้องแดง (บังคับตอนปิดงาน — ยังไม่มีบันทึกผล)
+| ID | mutation | ต้องแดงที่ |
+|----|----------|-----------|
+| TC-EXT-701 | แก้ margin 1 จุด / ลบ separator 1 ตัว / สลับลำดับ 2 บล็อก / ย้ายหมายเหตุ | TC-EXT-001 (golden) |
+| TC-EXT-702 | ถอด `strictObject` | TC-EXT-010 |
+| TC-EXT-703 | นับความยาวด้วย `.length` | TC-EXT-009 |
+| TC-EXT-704 | render "-" แทนการตัดบล็อกที่โทเคน null | TC-EXT-007 |
+| TC-EXT-705 | เติม `decoration:'underline'` ใน span | TC-EXT-006 |
+| TC-EXT-706 | ถอดการเทียบ `templateVersion` | TC-EXT-043 |
+| TC-EXT-707 | ถอดการเรียก `measureTemplate` | TC-EXT-031/032 |
+| TC-EXT-708 | ข้าม `mergeSettings` ใน `updateTemplate` | TC-EXT-044/045 |
+| TC-EXT-709 | ถอด guard `FLAGS_DERIVED_FROM_TEMPLATE` | TC-EXT-048 |
+| TC-EXT-710 | เปลี่ยน `confirmedValues` เป็น `orderCounts` ในกราฟ | TC-EXT-024 |
+
+> ผล mutation ยังไม่ถูกบันทึกใน §5 — ห้ามติ๊กว่าปิดจนกว่าจะรันจริงและมีหลักฐาน (`mutation-silence-means-weak-corpus`)

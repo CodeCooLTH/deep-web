@@ -345,13 +345,16 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 
 | **ติดตามลูกค้า (feature 00066)** | **`/follow-ups`** — เมนู slug `seller:follow-ups` (icon `list-check`, กลุ่มเดียวกับ `/customers`) · 🛑 **เห็นทุก vertical** ห้ามใส่ slug นี้ใน `*_ONLY_SLUGS` · query `?mine=1&shopId=` (ลิงก์จาก push/bubble) · ไม่มีตัวเลขบนเมนู · ดู §7.22 |
 
-**รายงานสรุปยอดเข้ากลุ่ม LINE (feature 00070)** — 🛑 สถานะ ณ 2026-10-05: **เมนู sidebar (`seller:line-reports`) ทำแล้ว แต่หน้า `business/line-reports/**` ยังไม่มีในโค้ด** (ไม่มี `page.tsx` ใต้ path นี้) — path ด้านล่างเป็นสัญญาของ `00070/SRS.md` TFR-LGS-02/03 ยังไม่ใช่ของที่เปิดได้จริง
+**รายงานสรุปยอดเข้ากลุ่ม LINE (feature 00070)** — สถานะ ณ 2026-10-05 (ตรวจจากโค้ด): เมนู sidebar (`seller:line-reports`) + **`page.tsx` ของ 3 หน้าแรกมีในโค้ดแล้ว** (`(paces)/seller/(dashboard)/business/line-reports/{page,new/page,[groupId]/page}.tsx`) · 🛑 **หน้า `/template` (ส่วนต่อขยาย EXT) = กำลังสร้าง ยังไม่ commit — ยังไม่ใช่ของที่เปิดได้จริง**
 
-| เมนู | Path |
-|------|------|
-| รายการกลุ่ม (+ หน้าล็อกเมื่อแพ็กเกจไม่ ACTIVE) | `/business/line-reports` |
-| วิซาร์ดผูกกลุ่มใหม่ | `/business/line-reports/new` |
-| รายละเอียด/ตั้งค่ากลุ่ม | `/business/line-reports/[groupId]` |
+| เมนู | Path | สถานะ |
+|------|------|-------|
+| รายการกลุ่ม (+ หน้าล็อกเมื่อแพ็กเกจไม่ ACTIVE) | `/business/line-reports` | มีในโค้ด |
+| วิซาร์ดผูกกลุ่มใหม่ | `/business/line-reports/new` | มีในโค้ด |
+| รายละเอียด/ตั้งค่ากลุ่ม | `/business/line-reports/[groupId]` | มีในโค้ด |
+| จัดข้อความที่ส่งเข้ากลุ่ม (เต็มจอ — `(paces)/seller/(fullscreen)/business/line-reports/[groupId]/template`) | `/business/line-reports/[groupId]/template` | **กำลังสร้าง** (ยังไม่มี `page.tsx`) |
+
+หน้า `/template` ใช้ layout `(fullscreen)` (ไม่มี sidebar/bottom nav) · segment ต้องชื่อ `[groupId]` เหมือน `(dashboard)/…/[groupId]` · 🛑 ห้ามมีไฟล์ชื่อ `template.tsx` ใน `src/app` (ชื่อสงวนของ Next — โฟลเดอร์ชื่อ `template/` ปลอดภัย)
 
 เป็น static segment ใต้ `/business` ไม่ชน `business/[shopId]` และ **ไม่ถูกด่านเด้งออกของ `/business` root** (`business/page.tsx` เด้งออกในแอป) · เมนูเห็นเฉพาะ `staff.role === 'OWNER'` (`applyLineReportMenu`) · **ไม่ผูก** `hidePaidFeatures`/`hidePayments` · ทุก vertical เห็น (ห้ามใส่ใน `*_ONLY_SLUGS`)
 
@@ -388,7 +391,7 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ยัง client-only — ต้องแก้ (ดู PRD §7 Known Gaps #7).
 
 **feature 00070 (รายงานกลุ่ม LINE):**
-- `/business/line-reports` · `/new` · `/[groupId]` (หน้ายังไม่ implement — ดู §3.4) = **เจ้าของร้านเท่านั้น (L1: session + เป็น `Shop.userId` ของร้านใดร้านหนึ่ง)** · แพ็กเกจธุรกิจไม่ ACTIVE = เห็นหน้าล็อก + CTA ตามกฎ shell (เว็บ → `/business` · iOS → `/business/subscribe` · Android ไม่มี CTA/ราคา) · ไม่ใช่เจ้าของ = ไม่เห็นเมนู
+- `/business/line-reports` · `/new` · `/[groupId]` (+ `/[groupId]/template` — กำลังสร้าง ดู §3.4) = **เจ้าของร้านเท่านั้น (L1: session + เป็น `Shop.userId` ของร้านใดร้านหนึ่ง)** · แพ็กเกจธุรกิจไม่ ACTIVE = เห็นหน้าล็อก + CTA ตามกฎ shell (เว็บ → `/business` · iOS → `/business/subscribe` · Android ไม่มี CTA/ราคา) · ไม่ใช่เจ้าของ = ไม่เห็นเมนู
 - `POST /api/line-report/webhook` = **ไม่มี session** — authentication คือลายเซ็น LINE `x-line-signature` (`validateSignature`, timing-safe) ที่ route ตรวจเอง · ผิด/ไม่มี = 401 ก่อนแตะ DB
 - `GET /api/cron/line-report-sweep` = `Authorization: Bearer ${CRON_SECRET}` (ว่าง = 401)
 - ตัวตน owner API ใช้ `sessionUserId()` ห้าม cast (`session-exists-is-not-identity`) · ตาราง endpoint/สิทธิ์ → §7.24 · §9.10
@@ -1371,7 +1374,8 @@ enum** — ระหว่างนี้ป้ายบนโปรไฟล์
 > เอกสารต้นทาง: `docs/20 - Features/00070 - LINE Group Summary Report/` · migration
 > `20261005100000_line_group_summary_reports` (additive ตารางใหม่ว่าง) · เขียนจาก `prisma/schema.prisma` + migration จริง
 > 🛑 **ต่างจากธรรมเนียม §8 (enum = String):** ฟีเจอร์นี้ใช้ **Prisma enum จริง (PostgreSQL enum type) 5 ตัว** — ดู §8.12 · เพิ่มค่าใหม่ต้อง `ALTER TYPE … ADD VALUE` ไม่ใช่แค่แก้ค่า String
-> 🛑 **มี unmanaged SQL** (partial unique ×3 + CHECK ×5) ที่ Prisma มองไม่เห็น ⇒ **ห้าม `prisma db pull` / `migrate dev`**
+> 🛑 **มี unmanaged SQL** (partial unique ×3 + CHECK ×7) ที่ Prisma มองไม่เห็น ⇒ **ห้าม `prisma db pull` / `migrate dev`**
+> **EXT 2026-10-05:** migration ที่สอง `20261005200000_line_report_template` (ADD COLUMN ×2 + CHECK ×2 บน `LineReportGroup` — additive ล้วน ไม่มี backfill) · ดูแถว `template`/`templateVersion` ด้านล่าง
 
 ```mermaid
 erDiagram
@@ -1400,6 +1404,8 @@ erDiagram
 | `showProfit` | Boolean default **false** | |
 | `skipWhenNoOrders` / `attachCycleToDaily` | Boolean default false | |
 | `profitEnabledAt` | DateTime? | ตั้งตอนเปิด `showProfit` (ต้อง `confirmProfit`) · ปิด = `NULL` (บังคับที่ service ไม่มี CHECK) |
+| `template` | Json? | **[EXT]** เทมเพลตข้อความรายงานรูป `TemplateV1` (`src/lib/line-report/template.ts`) · `NULL` = แบบมาตรฐาน (สร้างจากคอลัมน์ `show*`) — กลุ่มเดิมทุกกลุ่มเป็น `NULL` ไม่มี backfill · CHECK ขนาด ≤16,384 octet |
+| `templateVersion` | Int default `0` | **[EXT]** ตัวนับ optimistic lock (`+1` ทุก PUT/DELETE `…/template`) · PUT ต้องส่ง `expectedVersion` ตรงกัน ไม่งั้น `TEMPLATE_STALE` · CHECK `>= 0` |
 | `finalNoticeSentAt` | DateTime? | มาร์กเกอร์ข้อความสุดท้ายตอนแพ็กเกจหยุด · ล้างเมื่อกลับ ACTIVE/ผูกใหม่ |
 | `alertKind` / `alertAt` / `alertAckAt` | `LineReportAlertKind?` / DateTime? ×2 | แจ้งเจ้าของ (`raise`/`ack`/`resolve`) · "แพ็กเกจหยุด" **ไม่เก็บ** คำนวณสด |
 | `boundAt` / `leftAt` / `removedAt` | DateTime? | |
@@ -1427,8 +1433,10 @@ erDiagram
 | `LineReportGroup_metric_any_chk` | CHECK | `showOrders OR showSales OR showCancelled OR showTopProducts OR showProfit` |
 | `LineReportGroup_active_has_group_chk` | CHECK | `status <> 'ACTIVE' OR lineGroupId IS NOT NULL` |
 | `LineReportDelivery_counts_nonneg_chk` | CHECK | `attempt BETWEEN 0 AND 2 AND pushMessageCount >= 0` |
+| `LineReportGroup_template_size_chk` **[EXT]** | CHECK | `template IS NULL OR octet_length(template::text) <= 16384` |
+| `LineReportGroup_template_version_chk` **[EXT]** | CHECK | `templateVersion >= 0` |
 
-ความคงที่ข้ามฟิลด์ที่ **บังคับที่ service ไม่ใช่ DB:** `(dailyEnabled ∨ monthlyEnabled) ⇒ dailyTimes.length ≥ 1` · `attachCycleToDaily` ล้างเป็น false เมื่อ `monthlyEnabled=false` · `profitEnabledAt` non-null ⇔ `showProfit` · กลุ่มต่อเจ้าของ ≤10 (`status<>'REMOVED'`) · ร้านต่อกลุ่ม ≤10
+ความคงที่ข้ามฟิลด์ที่ **บังคับที่ service ไม่ใช่ DB:** `(dailyEnabled ∨ monthlyEnabled) ⇒ dailyTimes.length ≥ 1` · `attachCycleToDaily` ล้างเป็น false เมื่อ `monthlyEnabled=false` · `profitEnabledAt` non-null ⇔ `showProfit` · กลุ่มต่อเจ้าของ ≤10 (`status<>'REMOVED'`) · ร้านต่อกลุ่ม ≤10 · **[EXT]** เมื่อ `template ≠ NULL` คอลัมน์ `show*`/`attachCycleToDaily`/`profitEnabledAt` = cache ที่ derive จากเทมเพลต (`deriveFlags`) เขียนใน transaction เดียวกับ `template` (ตัวตัดสินตอนส่งคือ `resolveReportConfig(group)` ไม่ใช่คอลัมน์) · `LineReportDelivery.summary` ต่อท้าย ` · ข้าม: …` เมื่อ composer ข้ามบล็อก/ตัดบรรทัด (ไม่เปลี่ยนสคีมา)
 
 ---
 
@@ -2057,10 +2065,12 @@ schema สืบทอดช่วงเวลามาจาก `PnlReportQuery
 | GET | `/api/line-report/groups` | L1 | รายการกลุ่มของเจ้าของ | `line-report-group.service` |
 | POST | `/api/line-report/bind-code` | L2 + bot พร้อม | สร้างกลุ่ม `PENDING` + โค้ดผูก (body `{shopIds, acknowledged:true}`) → **201** · โค้ดดิบคืนครั้งเดียว | `line-report-bind.service` |
 | POST | `/api/line-report/groups/[id]/bind-code` | L2 + bot พร้อม | ออกโค้ดใหม่ (กลุ่ม `PENDING`) / ผูกใหม่ (กลุ่ม `INACTIVE`→`PENDING`) · ไม่ต้องรับทราบซ้ำ | `line-report-bind.service` |
-| GET | `/api/line-report/groups/[id]` | L1 | รายละเอียด + ประวัติส่ง 10 ล่าสุด (UI poll ทุก 3 วิ ตอนรอผูก) · ไม่ select `pendingPayload` | `line-report-group.service` |
-| PATCH | `/api/line-report/groups/[id]` | L2 | แก้ตั้งค่า (autosave รายฟิลด์) → `{group}` | `line-report-group.service` |
+| GET | `/api/line-report/groups/[id]` | L1 | รายละเอียด + ประวัติส่ง 10 ล่าสุด (UI poll ทุก 3 วิ ตอนรอผูก) · ไม่ select `pendingPayload` · **[EXT]** `group.template` (null ถ้าแบบมาตรฐาน/ข้อมูลเสีย) · `group.templateVersion` · `group.effectiveTemplate` · `deliveries[].summary` | `line-report-group.service` |
+| PATCH | `/api/line-report/groups/[id]` | L2 | แก้ตั้งค่า (autosave รายฟิลด์) → `{group}` · **[EXT]** ขณะ `template ≠ null` ส่ง `show*`/`attachCycleToDaily` = 409 `FLAGS_DERIVED_FROM_TEMPLATE` | `line-report-group.service` |
+| PUT | `/api/line-report/groups/[id]/template` | **L2** | **[EXT]** บันทึกเทมเพลตข้อความ — body `{template: TemplateV1, expectedVersion: int≥0, confirmProfit?: boolean}` (`strictObject`, body ≤64KB) → `{group, warnings: string[], size: {bytes, limit}}` · `expectedVersion` ไม่ตรง = 409 `TEMPLATE_STALE` | `line-report-group.service.updateTemplate` |
+| DELETE | `/api/line-report/groups/[id]/template` | **L2** | **[EXT]** คืนแบบมาตรฐาน (`template=NULL`, flag กลับค่าตั้งต้น, `templateVersion+1`) → `{group}` | `line-report-group.service.resetTemplate` |
 | PUT | `/api/line-report/groups/[id]/shops` | L2 | แทนที่ร้านที่รวม → `{shops}` | `line-report-shop.service` |
-| POST | `/api/line-report/groups/[id]/test` | L2 + bot พร้อม | ส่งทดสอบ (≤5/วัน/กลุ่ม) → `{deliveryId, sentAt, remaining, summary}` · `maxDuration=60` | `line-report-send.service` |
+| POST | `/api/line-report/groups/[id]/test` | L2 + bot พร้อม | ส่งทดสอบ (≤5/วัน/กลุ่ม) → `{deliveryId, sentAt, remaining, summary, skipped}` · `maxDuration=60` · **[EXT]** ข้อความประกอบจากเทมเพลตของกลุ่ม · `skipped[]` = บล็อกที่ไม่ถูกส่ง | `line-report-send.service` |
 | DELETE | `/api/line-report/groups/[id]` | **L1** | ยกเลิกการผูก → `{removed:true, botLeft}` · บอทออกจากกลุ่ม best-effort หลัง commit (ไม่สั่งออกถ้ามีแถว ACTIVE ใหม่ถือ `lineGroupId` เดิม) | `line-report-group.service` |
 | POST | `/api/line-report/groups/[id]/ack` | L1 | รับทราบแจ้งเตือน (idempotent) | `line-report-group.service` |
 | POST | `/api/line-report/webhook` | ลายเซ็น LINE | webhook ของบอทรายงาน (OA กลาง) — event `join`/`leave`/`message(text)` ใน **กลุ่ม** · 🛑 **ไม่ใช่** `/api/channels/line/webhook` (OA รายร้าน 00025) · `maxDuration=60` · ตอบ 200 ทันที ประมวลผลใน `after()` (≤100 event/ครั้ง) | `line-report-command.service` |
@@ -2080,8 +2090,12 @@ schema สืบทอดช่วงเวลามาจาก `PnlReportQuery
 | `VALIDATION` | 400 | body ผิด/JSON เสีย — `details.fields` = ชื่อฟิลด์ที่ผิด |
 | `SHOP_NOT_ALLOWED` | 400 | ร้านที่เลือกไม่ใช่ของเจ้าของ/ถูกลบ/ล็อก |
 | `SHOP_COUNT_OUT_OF_RANGE` | 400 | ร้านไม่อยู่ใน 1–10 |
-| `INVALID_SETTINGS` | 400 | `details.rule` = `NEEDS_TIME` (เปิดส่งแต่ไม่มีเวลา) · `METRIC_REQUIRED` (ปิดตัวเลขหมด) |
-| `PROFIT_CONFIRM_REQUIRED` | 400 | เปิด `showProfit` โดยไม่ส่ง `confirmProfit:true` |
+| `INVALID_SETTINGS` | 400 | `details.rule` = `NEEDS_TIME` (เปิดส่งแต่ไม่มีเวลา) · `METRIC_REQUIRED` (ปิดตัวเลขหมด · **[EXT]** เทมเพลตที่ไม่มีบล็อก/โทเคนตัวเลขเลย — กราฟหรือข้อความอย่างเดียวไม่นับ) |
+| `PROFIT_CONFIRM_REQUIRED` | 400 | เปิด `showProfit` โดยไม่ส่ง `confirmProfit:true` (PATCH · **[EXT]** PUT template — ทุกทางเข้ากำไร: บล็อก/ตัวเลือกกำไรต่อร้าน/โทเคน `{กำไร}`) |
+| `TEMPLATE_INVALID` **[EXT]** | 400 | เทมเพลตไม่ผ่าน `TemplateSchema` — `details.rule` (`SHAPE` · `EXTRA_FIELD` · `BLOCK_TYPE` · `TYPE_LIMIT` · `TOTAL_LIMIT` · `DUPLICATE_ID` · `STYLE` · `MEASURE` · `TOKEN` · `RUN_SHAPE` · `TEXT_TOO_LONG` · `TEXT_EMPTY` · `TEXT_NEWLINE` · `TITLE` · `BUTTON_LABEL`) + `details.blockId?` |
+| `TEMPLATE_TOO_LARGE` **[EXT]** | 400 | ข้อความที่ประกอบจากเทมเพลต (ระดับ 3 กรณีเลวร้ายสุด) เกิน 30,000 ไบต์ · หรือ JSON เทมเพลต >16,384 ไบต์ · หรือ body >64KB (`details.reason='BODY'`) |
+| `TEMPLATE_STALE` **[EXT]** | 409 | `expectedVersion` ≠ `templateVersion` (`details.currentVersion`) — แก้จากอีกแท็บ/เครื่อง |
+| `FLAGS_DERIVED_FROM_TEMPLATE` **[EXT]** | 409 | PATCH ส่ง `show*`/`attachCycleToDaily` ขณะกลุ่มมีเทมเพลต |
 | `GROUP_NOT_FOUND` | 404 | กลุ่มไม่มี/ไม่ใช่ของตน/`REMOVED`/id เพี้ยน |
 | `GROUP_LIMIT_REACHED` | 409 | ครบ 10 กลุ่ม (`status<>'REMOVED'`) |
 | `INVALID_STATE` | 409 | สถานะกลุ่มทำรายการนี้ไม่ได้ |
@@ -2490,6 +2504,27 @@ HTTP ตามตาราง §7.21
 | webhook rate-limit | 1200 req/นาที/IP (bucket `line-report-webhook`) | `proxy.ts` |
 | `attempt` | 0–2 | CHECK `counts_nonneg_chk` |
 
+**ส่วนต่อขยาย EXT 2026-10-05 — เทมเพลตข้อความรายงาน (`src/lib/line-report/template.ts` · `validations.ts` · `template-size.ts`):**
+
+| ค่า | ค่า | ที่มา |
+|---|---|---|
+| ชนิดบล็อก (`BlockType`) | 10: `orders` · `sales` · `cancelled` · `shops` · `cycle` · `profit` · `text` · `separator` · `chart_trend` · `chart_compare` | `Block` |
+| บล็อกรวมต่อเทมเพลต | ≤ 20 (`MAX_BLOCKS`) | `TOTAL_LIMIT` |
+| ต่อชนิด (`BLOCK_LIMITS`) | `text` ≤6 · `separator` ≤8 · ที่เหลืออย่างละ ≤1 | `TYPE_LIMIT` |
+| ข้อความอิสระ | ≤120 code point/บล็อก (`MAX_TEXT_LENGTH`) · `runs` ≤60 · ไม่ว่าง · ไม่มี `\r\n` | `TEXT_*` |
+| `title` / `button.label` | ≤60 / ≤20 code point ไม่ว่าง (`MAX_TITLE_LENGTH` / `MAX_BUTTON_LABEL`) · ป้ายปุ่มตั้งต้น `เปิด Deep` | `TITLE` / `BUTTON_LABEL` |
+| สไตล์ข้อความ | `size` ∈ `s`/`m`/`l` (→ Flex `xs`/`sm`/`md`) · `color` ∈ `ink`/`slate`/`accent` · ต่อคำ `b` / `accent` | `STYLE` |
+| `measure` ของกราฟ | `sales` \| `orders` | `MEASURE` |
+| โทเคน (`TokenKey` / `TOKENS`) | 10: `shop_name` `{ชื่อร้าน}` · `shop_count` `{จำนวนร้าน}` · `date_range` `{วันที่}` · `computed_at` `{เวลาข้อมูล}` · `orders_count` `{จำนวนรายการ}` · `sales_counted` `{ยอดขาย (นับแล้ว)}` · `sales_pending` `{ยังไม่นับ}` · `cancelled_count` `{ยกเลิก}` · `cycle_sales` `{ยอดสะสมรอบ}` · `profit` `{กำไร}` | `TOKEN` |
+| markup | `**…**` ตัวหนา · `^^…^^` เน้นสี · `{ป้ายโทเคน}` · ไม่ครบคู่/ป้ายไม่รู้จัก = error (`MarkupErrorCode`) | `parseMarkup` |
+| JSON เทมเพลต / body PUT | ≤16,384 ไบต์ (`TEMPLATE_MAX_BYTES` + CHECK) / ≤64 KB | service / route |
+| เพดานข้อความ LINE ที่ด่านบันทึกวัด | 30,000 ไบต์ UTF-8 ของ `JSON.stringify(message)` ระดับ 3 กรณีเลวร้ายสุด (`TEMPLATE_BYTES_LIMIT`) | `measureTemplate` |
+| ระดับตัดทอน (`REPORT_MAX_LEVEL`) | 4: Top3 → กราฟ → ย่อรายร้าน → ย่อ `altText` | `fitToLimits` |
+| กราฟ | 7 วัน (`TREND_DAYS`) · เทียบรายร้านสูงสุด 10 แถว (`COMPARE_ROW_LIMIT`) · สี `ACCENT` + `GRID_GRAY` `#D9DBE0` | `flex-report-charts.ts` |
+| รูปแบบต่อท้าย `Delivery.summary` | ` · ข้าม: <ป้าย> (<เหตุผล>)` (`skippedNote`) | `line-report-send.service` |
+
+ไม่มี enum ใหม่ในฐานข้อมูล (ชนิดบล็อก/โทเคนเป็นค่าใน JSON ที่ตรวจด้วย Valibot) · `LineReportErrorCode` เพิ่ม 4 ค่า (§7.24)
+
 **บรรทัดฟีเจอร์ของแพ็กเกจธุรกิจ (`tierQuotaFeatures`, `src/lib/business-package.ts`):** เพิ่ม `'รายงานสรุปยอดเข้ากลุ่ม LINE'` ต่อท้ายรายการสิทธิ์ของ **tier ที่ขายจริงทุกตัว** (GROWTH/PRO/BUSINESS — สาขา `maxBusinesses !== 0`) · การ์ด **Free** (pseudo-tier `maxBusinesses===0`) **ไม่มี** บรรทัดนี้ · `featuresForTier(tier)` เป็นตัวช่วยที่เรียก `tierQuotaFeatures` ⇒ `PackageTierGrid` และ `IapSubscribeClient` ได้บรรทัดเดียวกันจากฟังก์ชันเดียว
 
 **เมนู:** slug `seller:line-reports` (กลุ่ม SHOPS · url `/business/line-reports` · icon `brand-line` · label "รายงานเข้ากลุ่ม LINE" · i18n `menu.lineReports`) — ซ่อนเมื่อ `staff.role !== 'OWNER'`
@@ -2647,7 +2682,7 @@ HTTP ตามตาราง §7.21
 
 > L1 = เป็น `Shop.userId` ของร้านใดร้านหนึ่ง (ไม่ลบ/ไม่ purge) · L2 = L1 + แพ็กเกจธุรกิจ ACTIVE (ทุก tier ทุก source นับเท่ากัน) · อ่านแพ็กเกจไม่ได้ = ถือว่าไม่ ACTIVE (fail-closed) · ADMIN/พนักงานของร้านคนอื่นไม่นับเป็นเจ้าของ
 
-| Actor | GET list/group · DELETE · ack (L1) | bind-code ×2 · PATCH · PUT shops · test (L2) | webhook | cron |
+| Actor | GET list/group · DELETE · ack (L1) | bind-code ×2 · PATCH · PUT shops · test · **PUT/DELETE template [EXT]** (L2) | webhook | cron |
 |---|---|---|---|---|
 | ไม่ล็อกอิน | 401 `UNAUTHORIZED` | 401 | — | — |
 | ล็อกอิน แต่ไม่มีร้านที่เป็น `Shop.userId` (เช่น ADMIN ล้วน) | 403 `NOT_OWNER` | 403 `NOT_OWNER` | — | — |
@@ -2660,6 +2695,7 @@ HTTP ตามตาราง §7.21
 - **จุดส่งจริงตรวจสิทธิ์ซ้ำเสมอ** (`isOwnerPaidForReports(group.ownerId)` ก่อนแตะ LINE: ส่งตามเวลา/ทดสอบ/ตอบคำสั่ง) — ห้ามอ่านจากแถวกลุ่ม · แพ็กเกจหยุด = ไม่ส่งรายงาน/ไม่ตอบตัวเลข (ตอบข้อความสั้นว่าหยุดชั่วคราว) · ส่ง "ข้อความสุดท้าย" 1 ครั้ง (ไม่มี ฿/ราคา/ลิงก์)
 - ทุก query ของ owner API scope ด้วย `ownerId` ที่ `WHERE` แรก (ไม่ดึงแล้วเทียบทีหลัง) · เลือกร้านเข้ากลุ่มได้เฉพาะร้านที่ `userId=ownerId ∧ ไม่ลบ ∧ ไม่ purge ∧ ไม่ล็อกแพ็กเกจ` (ร้านที่อยู่ในกลุ่มเดิมแล้วถูกล็อกภายหลังคงไว้ได้ ไม่ลบเงียบ)
 - ผูกกลุ่ม LINE ที่ ACTIVE กับเจ้าของอื่น = ตอบข้อความ "ไม่ถูกต้อง" เดียวกับโค้ดผิด (ไม่เปิดเผยเจ้าของ · ไม่เผาโค้ด)
+- **[EXT] เทมเพลตข้อความ:** PUT/DELETE `…/template` เป็น **L2** — `requireAccess('PAID')` ที่ route + `isOwnerPaidForReports` ซ้ำที่ service · เจ้าของ = `Shop.userId` ของร้านใดร้านหนึ่ง · `lockOwnedGroup` query `{id, ownerId}` ตั้งแต่แรก (ไม่ใช่ของตน/`REMOVED` = 404 `GROUP_NOT_FOUND`) · แพ็กเกจหยุด = 403 `PACKAGE_REQUIRED` แต่ **GET (L1) ยังอ่าน `template` เดิมได้** และเทมเพลตถูกเก็บไว้ (กลับ ACTIVE ใช้ต่อ) · ปลายทางปุ่มในข้อความตายตัว (`sellerDashboardUrl()`) ไม่มีฟิลด์ URL ที่ผู้ใช้ตั้งได้ · ข้อความสุดท้ายตอนแพ็กเกจหยุด (`FINAL_NOTICE`) ไม่ผ่านเทมเพลต · เนื้อหาข้อความอิสระไม่ถูก log
 
 ---
 
@@ -3089,11 +3125,15 @@ Valibot (feature-local, ข้อความไทย) · body ที่ parse 
 | `CreateBindCodeSchema` | `object({ shopIds, acknowledged: literal(true) })` — ต้องรับทราบ บังคับที่ server |
 | `UpdateSettingsSchema` | `strictObject` (คีย์นอกชุด = 400): `dailyEnabled?` `dailyTimes?` `monthlyEnabled?` `cutoffDay?` `showOrders?` `showSales?` `showCancelled?` `showTopProducts?` `showProfit?` `skipWhenNoOrders?` `attachCycleToDaily?` `confirmProfit?` · ต้องส่งอย่างน้อย 1 ค่า |
 | `ReplaceShopsSchema` | `object({ shopIds: ShopIdsSchema })` |
+| `TemplateSchema` **[EXT]** | `strictObject({ v: literal(1), title?: ≤60 ไม่ว่าง ไม่ขึ้นบรรทัด, button: strictObject({show: boolean, label: ≤20 ไม่ว่าง}), blocks: pipe(array(BlockSchema), maxLength 20, นับต่อชนิด ≤ BLOCK_LIMITS, id ไม่ซ้ำ) })` · `BlockSchema` = `variant('type', …)` 10 ชนิด ทุกตัว `strictObject` · `text`: `style{bold, size s/m/l, color ink/slate/accent}` + `runs` (1–60 · `RunSchema` = `t` XOR `tok` + `b?`/`accent?` เป็น `true` เท่านั้น · ไม่ว่างหลัง trim · ≤120 code point · ไม่มีขึ้นบรรทัด) · `chart_*`: `measure` ∈ sales/orders · `shops`: `top3`, `profit` boolean — ข้อความของ `v.check` = รหัสกฎ `TemplateRule` ที่ `validateTemplate()` แปลงเป็น `{ok:false, rule, blockId?}` (ตัวเดียวกันทั้ง client/server) |
+| route PUT template **[EXT]** | `strictObject({ template: unknown, expectedVersion: integer ≥0, confirmProfit?: boolean })` + body ≤64KB (`content-length` และความยาวจริง) — `template` เป็น `unknown` โดยตั้งใจ ให้ service ตอบ `TEMPLATE_INVALID` พร้อม `rule` |
 | `GroupIdParam` | `string` 1–64 |
 | webhook body | **ไม่ใช้ schema ปิด** — อ่านแบบ defensive (`unknown` + type guard) · `source.userId` optional · ไม่ใช่ JSON = ตอบ 200 |
 | โค้ดผูกใน parser | `ผูก\s*` + `[0-9A-Za-z]{4}-?[0-9A-Za-z]{4}` แล้ว `normalizeBindCode` และตรวจ `BIND_CODE_PATTERN` (8 ตัว Crockford) ซ้ำ |
 
 **กฎข้ามฟิลด์ที่ service (`updateSettings`):** `(dailyEnabled ∨ monthlyEnabled) ⇒ dailyTimes ≥ 1` (ไม่ผ่าน = `INVALID_SETTINGS`/`NEEDS_TIME`) · ต้องเปิดตัวเลขอย่างน้อย 1 รายการ (`METRIC_REQUIRED` — CHECK `metric_any_chk` กันอีกชั้น) · เปิด `showProfit` (false→true) ต้องมี `confirmProfit:true` (`PROFIT_CONFIRM_REQUIRED`) แล้วตั้ง `profitEnabledAt=now` · ปิด = `NULL` · `showProfit=false` ⇒ **ไม่เรียก `getPnlReport` เลย** ทุกช่องทาง · `attachCycleToDaily` ถูกล้างเป็น false เมื่อ `monthlyEnabled=false`
+
+**กฎข้ามฟิลด์ที่ service ของเทมเพลต (`updateTemplate` — ใช้ `mergeSettings` ตัวเดิม ไม่เขียนกฎซ้ำ) [EXT]:** `deriveFlags(template)` ไม่มีตัวเลขเลย (กราฟ/ข้อความ/โทเคนที่ไม่ใช่ `profit`/`cycle_sales` ไม่นับ) → `INVALID_SETTINGS`/`METRIC_REQUIRED` · `showProfit` เปลี่ยน false→true ด้วยทางใดก็ได้ (บล็อก `profit` · `shops.profit` · โทเคน `{กำไร}`) ต้อง `confirmProfit:true` ไม่งั้น `PROFIT_CONFIRM_REQUIRED` แล้วตั้ง `profitEnabledAt` · `monthlyEnabled=false` → `attachCycleToDaily` ถูกล้าง · ขนาด: JSON เทมเพลต ≤16,384 ไบต์ แล้ว `measureTemplate` (ทั้ง message ระดับ 3) ≤30,000 ไบต์ ไม่งั้น `TEMPLATE_TOO_LARGE` (เกินที่ระดับ 0 แต่ผ่านระดับ 3 = บันทึกได้พร้อม `warnings`) · `templateVersion` ต้องตรง `expectedVersion` ไม่งั้น `TEMPLATE_STALE` · `updateSettings` ปฏิเสธ flag ขณะมีเทมเพลต (`FLAGS_DERIVED_FROM_TEMPLATE`)
 
 ### 10.11 หมายเหตุ
 
@@ -3102,6 +3142,13 @@ Valibot (feature-local, ข้อความไทย) · body ที่ parse 
 - **ไม่มี email+password schema** — ตัดถาวร (FR-1.6)
 
 ---
+
+_อัปเดต 2026-10-05 (EXT T13): ต่อยอดส่วน feature 00070 ตามโค้ดที่ commit แล้วของส่วนขยาย "ตัวจัดข้อความรายงาน + บล็อกกราฟ" (HR11) —
+§3.4 (route `/template` = กำลังสร้าง · แก้ข้อความ "หน้ายังไม่ implement" ของ 3 หน้าแรกให้ตรงโค้ด) · §3.6 · §6.67 (`template`/`templateVersion` + CHECK ×2 → รวม ×7) ·
+§7.24 (PUT/DELETE `…/template` + GET/PATCH/test + error ใหม่ 4 ตัว) · §8.12 (เพดานเทมเพลต/โทเคน/ระดับตัดทอน) · §9.10 (L2 ของ PUT/DELETE) · §10.19 (`TemplateSchema` + กฎข้ามฟิลด์).
+เขียนจาก `prisma/schema.prisma` + migration `20261005200000` + `src/lib/line-report/{template,validations,report-config,availability,template-size,errors}.ts` +
+`src/lib/line/flex-report-*.ts` + `src/services/line-report-group.service.ts` + `src/app/api/line-report/groups/[id]/template/route.ts` ·
+🛑 ยังไม่ปิด: หน้า UI `/template` + การ์ด "ข้อความที่ส่งเข้ากลุ่ม" ยังไม่ commit._
 
 _อัปเดต 2026-10-05: sync ตามโค้ดจริงของ feature 00070 (รายงานสรุปยอดเข้ากลุ่ม LINE, HR11) — backend/API/cron/เมนูเสร็จแล้ว
 **หน้า `business/line-reports/**` ยังไม่ implement** เพิ่ม §3.4 · §3.6 · NFR-2.10–2.12 · §5.1 (env `LINE_REPORT_BOT_*`) · §6.1 ER lines ·

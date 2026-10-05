@@ -52,7 +52,7 @@ vi.mock('@/services/line-report-bind.service', () => ({
 }))
 vi.mock('@/services/line-report-shop.service', () => ({ replaceGroupShops: svc('shops', [{ shopId: 's1' }]) }))
 vi.mock('@/services/line-report-send.service', () => ({
-  sendTest: svc('test', { deliveryId: 'd1', sentAt: 's', remaining: 2, summary: 'x', extra: 'ต้องไม่หลุด' }),
+  sendTest: svc('test', { deliveryId: 'd1', sentAt: 's', remaining: 2, summary: 'x', skipped: [], extra: 'ต้องไม่หลุด' }),
 }))
 
 const ROOT = join(__dirname)
@@ -224,9 +224,9 @@ describe('BOT_NOT_CONFIGURED = 503 (bind-code ×2 + test)', () => {
 })
 
 describe('response shape', () => {
-  it('test คืนเฉพาะ 4 ฟิลด์ตามสัญญา', async () => {
+  it('test คืนเฉพาะ 5 ฟิลด์ตามสัญญา', async () => {
     const b = await (await call('groups/[id]/test', 'POST')).json()
-    expect(Object.keys(b).sort()).toEqual(['deliveryId', 'remaining', 'sentAt', 'summary'])
+    expect(Object.keys(b).sort()).toEqual(['deliveryId', 'remaining', 'sentAt', 'skipped', 'summary'])
   })
   it('PATCH ห่อเป็น { group }, shops ห่อเป็น { shops }', async () => {
     expect(await (await call('groups/[id]', 'PATCH', { showOrders: true })).json()).toEqual({ group: { id: 'g1' } })

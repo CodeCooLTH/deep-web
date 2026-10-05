@@ -186,7 +186,7 @@ SSOT map (ตรวจกับโค้ดแล้ว):
 
 ### TFR-LGS-15 Flex + altText (FR-17)
 - builder pure `buildSummaryReportFlex(input): LineFlexMessage[]` (ไฟล์ `src/lib/line/flex-summary-report.ts`; รูป `LineFlexMessage` จาก `flex-order-card.ts:53`) · เงินใช้ `formatBaht`, วันที่/เวลาใช้ `format-date.ts` (ห้าม `toFixed`/`toLocaleString('th')`) · ป้ายช่วงวันที่ + "ข้อมูล ณ HH:MM น." = `computedAt` (retry ส่ง payload เดิมจึงเป็นเวลาเดิม)
-- ข้อจำกัด (LINE-API-Facts §6): `altText ≤ 1500` · bubble ≤ 30KB (วัดเป็นไบต์ UTF-8 ของ `JSON.stringify`) · `messages ≤ 5` ต่อ push (เราใช้ ≤2) · ลำดับตัดทอน: Top 3 → ย่อรายร้าน → ย่อ altText — ไม่ตัดยอดรวม/ป้ายช่วงเวลา/"ข้อมูล ณ"
+- ข้อจำกัด (LINE-API-Facts §6): `altText ≤ 1500` · bubble ≤ 30KB (วัดเป็นไบต์ UTF-8 ของ `JSON.stringify`) · `messages ≤ 5` ต่อ push (เราใช้ ≤2) · ลำดับตัดทอน: Top 3 → ย่อรายร้าน → ย่อ altText — ไม่ตัดยอดรวม/ป้ายช่วงเวลา/"ข้อมูล ณ" · **[EXT 2026-10-05] ปัจจุบันเป็น 4 ระดับ Top 3 → กราฟ → ย่อรายร้าน → ย่อ altText** และ builder ขับด้วยเทมเพลต (ดู §13.4–13.5) — กลุ่มที่ `template = null` ได้ผลเหมือนเดิมทุกไบต์ (ข้ามระดับกราฟเพราะไม่มีกราฟ)
 - ปุ่ม "เปิด Deep" → `${NEXT_PUBLIC_SELLER_URL}/dashboard` เฉพาะเมื่อเป็น `https` (LINE ปฏิเสธ uri ที่ไม่ใช่ https) · label ≤20 ตัวอักษร · สี accent = น้ำเงิน seller `#236dc9` (มติ UX) · ไม่มีคำว่า SafePay
 - ข้อความกำไรจาก `profitDisplay` เท่านั้น (ถ้อยคำ SSOT: "กำไรสุทธิ" / "กำไรสุทธิไม่เกิน" / "ขาดทุนสุทธิอย่างน้อย") + หมายเหตุ "ค่าใช้จ่ายลงตามวันที่บันทึก ไม่เฉลี่ยรายวัน" (issue #3)
 
@@ -260,6 +260,8 @@ stateDiagram-v2
 | POST | `/api/line-report/groups/{id}/ack` | L1 | 24 |
 | POST | `/api/line-report/webhook` | ลายเซ็น LINE | 05–07,22 |
 | GET | `/api/cron/line-report-sweep` | `CRON_SECRET` | 19–21,23 |
+| PUT | `/api/line-report/groups/{id}/template` | L2 | EXT-02,07,08,10 (§13) |
+| DELETE | `/api/line-report/groups/{id}/template` | L2 | EXT-10 (§13) |
 
 ### 4.2 LINE API ที่เรียก (ทั้งหมดผ่าน `lineApiRequest` ด้วย token ของ OA นี้)
 `POST /v2/bot/message/push` (retry key) · `POST /v2/bot/message/reply` · `GET /v2/bot/group/{id}/summary` · `GET /v2/bot/group/{id}/members/count` · `POST /v2/bot/group/{id}/leave` — timeout 10s (ค่า default ของ client) · ไม่ใช้ `/members/ids`
@@ -271,10 +273,13 @@ stateDiagram-v2
 |---|---|---|---|
 | `UNAUTHORIZED` | 401 | `requireReportAccess` | ทุก route owner |
 | `NOT_OWNER` | 403 | `requireReportAccess` | ทุก route owner |
-| `PACKAGE_REQUIRED` | 403 | `requireReportAccess(level 'PAID')` | POST bind-code ×2 · PATCH · PUT shops · POST test |
+| `PACKAGE_REQUIRED` | 403 | `requireReportAccess(level 'PAID')` | POST bind-code ×2 · PATCH · PUT shops · POST test · **EXT:** PUT/DELETE template |
 | `VALIDATION` | 400 | `parseBody` (Valibot) | POST/PATCH/PUT ทั้งหมด |
 | `SHOP_NOT_ALLOWED` / `SHOP_COUNT_OUT_OF_RANGE` | 400 | `line-report-shop.service`, `bind.service` | POST bind-code · PUT shops |
-| `INVALID_SETTINGS` / `PROFIT_CONFIRM_REQUIRED` | 400 | `line-report-group.service.updateSettings` | PATCH |
+| `INVALID_SETTINGS` / `PROFIT_CONFIRM_REQUIRED` | 400 | `line-report-group.service.updateSettings` · **EXT:** `updateTemplate` (ผ่าน `mergeSettings`) | PATCH · PUT template |
+| `TEMPLATE_INVALID` (+`details.rule`/`blockId?`) · `TEMPLATE_TOO_LARGE` | 400 | **EXT:** `updateTemplate` (`validateTemplate` · `assertTemplateSize`) · route PUT (body >64KB → `TEMPLATE_TOO_LARGE`+`reason:'BODY'`) | PUT template |
+| `TEMPLATE_STALE` | 409 | **EXT:** `updateTemplate` (เทียบ `templateVersion` ใน tx) | PUT template |
+| `FLAGS_DERIVED_FROM_TEMPLATE` | 409 | **EXT:** `updateSettings` (มี `template` ∧ patch มี flag) | PATCH |
 | `GROUP_NOT_FOUND` | 404 | group/bind/send service (query `{id, ownerId}`) | ทุก route `groups/[id]` |
 | `GROUP_LIMIT_REACHED` | 409 | `bind.service.createBindCode` | POST bind-code |
 | `INVALID_STATE` / `SHOPS_INVALID` | 409 | `bind.service.reissueBindCode` | POST groups/{id}/bind-code · PUT shops · PATCH (กลุ่ม REMOVED = 404) |
@@ -288,7 +293,7 @@ stateDiagram-v2
 
 ## 5. ข้อมูล
 ### 5.1 โมเดล/enum
-ตาม [[DATABASE]] เป๊ะ (5 โมเดล: `LineReportGroup` · `LineReportGroupShop` · `LineReportBindCode` · `LineReportRateEvent` · `LineReportDelivery`) — SRS นี้ไม่เพิ่ม/เปลี่ยนคอลัมน์
+ตาม [[DATABASE]] เป๊ะ (5 โมเดล: `LineReportGroup` · `LineReportGroupShop` · `LineReportBindCode` · `LineReportRateEvent` · `LineReportDelivery`) — SRS นี้ไม่เพิ่ม/เปลี่ยนคอลัมน์ · **EXT 2026-10-05:** `LineReportGroup` เพิ่ม `template Json?` + `templateVersion Int` (ดู §13 และ [[DATABASE]] §3.1)
 
 ### 5.2 slotKey
 `D:<YYYY-MM-DD>@<HH:MM>` · `M:<วันสุดท้ายของรอบ>` · `T:<uuid>` · `C:<webhookEventId>` · `F:<lockedAt ISO | YYYY-MM-DD>`
@@ -318,8 +323,8 @@ stateDiagram-v2
 |---|---|---|---|---|
 | ไม่ล็อกอิน | 401 | 401 | — | — |
 | ล็อกอิน ไม่มีร้านที่เป็น `Shop.userId` (ADMIN ล้วน) | 403 `NOT_OWNER` | 403 `NOT_OWNER` | — | — |
-| เจ้าของ ไม่ ACTIVE (`LOCKED_RENEWAL_FAILED`/ไม่มีแถว) | ✅ (อ่านได้ ลบได้) | 403 `PACKAGE_REQUIRED` | — | — |
-| เจ้าของ ACTIVE (ทุก tier ทุก source) | ✅ เฉพาะกลุ่มของตน (อื่น = 404) | ✅ | — | — |
+| เจ้าของ ไม่ ACTIVE (`LOCKED_RENEWAL_FAILED`/ไม่มีแถว) | ✅ (อ่านได้ ลบได้) | 403 `PACKAGE_REQUIRED` (**EXT:** รวม PUT/DELETE template — GET ยังคืน `template` เดิม) | — | — |
+| เจ้าของ ACTIVE (ทุก tier ทุก source) | ✅ เฉพาะกลุ่มของตน (อื่น = 404) | ✅ (**EXT:** รวม PUT/DELETE template — `lockOwnedGroup` query `{id, ownerId}` ตั้งแต่แรก) | — | — |
 | LINE (ลายเซ็นถูก) | — | — | ✅ | — |
 | Vercel Cron (`CRON_SECRET`) | — | — | — | ✅ |
 | สมาชิกกลุ่ม LINE (ไม่ล็อกอิน) | — | — | พิมพ์ `สรุปวันนี้/เดือนนี้` · `ผูก` ได้ผ่าน webhook เท่านั้น | — |
@@ -335,6 +340,8 @@ stateDiagram-v2
 | `CutoffDaySchema` | `nullable(pipe(number, integer, minValue 1, maxValue 31))` (null = สิ้นเดือน) |
 | `CreateBindCodeSchema` | `object({ shopIds: ShopIdsSchema, acknowledged: literal(true) })` |
 | `UpdateSettingsSchema` | `pipe(strictObject({dailyEnabled?, dailyTimes?, monthlyEnabled?, cutoffDay?, showOrders?, showSales?, showCancelled?, showTopProducts?, showProfit?, skipWhenNoOrders?, attachCycleToDaily?, confirmProfit?}), check(≥1 คีย์))` — กฎข้ามฟิลด์ตรวจที่ service บน state ที่รวมแล้ว |
+| `TemplateSchema` **[EXT]** | `strictObject({ v: literal(1), title?: ≤60 ไม่ว่าง ไม่มีขึ้นบรรทัด, button: strictObject({show, label ≤20 ไม่ว่าง}), blocks: pipe(array(BlockSchema), maxLength 20, ต่อชนิดไม่เกิน BLOCK_LIMITS, id ไม่ซ้ำ) })` — รายละเอียดเพดานดู §13.3 · ข้อความของ `v.check` = รหัสกฎ `TemplateRule` ที่ `validateTemplate()` แปลงเป็น `{ ok:false, rule, blockId? }` |
+| route PUT template **[EXT]** | `strictObject({ template: unknown, expectedVersion: pipe(number, integer, minValue 0), confirmProfit?: boolean })` + body ≤64KB — `template` เป็น `unknown` โดยตั้งใจ เพื่อให้ service ตอบ `TEMPLATE_INVALID` พร้อม `rule` แทน `VALIDATION` เฉย ๆ |
 | `ReplaceShopsSchema` | `object({ shopIds: ShopIdsSchema })` |
 | `GroupIdParam` | `pipe(string, minLength 1, maxLength 64)` |
 | webhook body | **ไม่ใช้ schema ปิด** — อ่านแบบ defensive (`unknown` + type guard); ฟิลด์ `userId` optional |
@@ -399,3 +406,99 @@ stateDiagram-v2
 ออกแบบให้ทุกกฎเสี่ยงมีจุดบังคับเดียว: สิทธิ์ที่จุดส่ง · ไม่ส่งซ้ำที่ DB · กำไรไม่ถูกคำนวณเมื่อปิด · error → HTTP ผ่านตารางเดียว
 
 **Issues กับ contract/โค้ดจริง:** ตัดสินแล้วทั้ง #1–#14 — ดู [[SDS]] §12
+
+---
+
+## 13. ส่วนต่อขยาย EXT 2026-10-05 — ตัวจัดข้อความรายงาน (Message Template) + บล็อกกราฟ
+
+> ต้นทาง: [[EXTENSIONS-2026-10-05-message-template-and-charts]] (มติ + AC) · **เขียนจากโค้ดที่ commit แล้ว** (T2b/T3/T4/T5/T6/T7/T8) — สิ่งที่ไม่มีในโค้ดไม่ถูกอ้างในหัวข้อนี้ · ไม่แก้ความหมาย FR-LGS-01..24 เดิม
+> สถานะ: backend + API **ทำแล้ว** · หน้า UI จัดข้อความ **กำลังสร้าง** (ดู §13.9)
+
+### 13.1 สัญญาเทมเพลต (`src/lib/line-report/template.ts` — pure, ใช้ทั้ง client/server, ห้าม import prisma/`node:*`)
+- `TemplateV1 = { v:1, title?, button:{show,label}, blocks: Block[] }` · `Block` 10 ชนิด: `orders` · `sales` (ยอดขาย(นับแล้ว)+ยังไม่นับ ผูกกัน) · `cancelled` · `shops{top3,profit}` · `cycle` · `profit` · `text{style{bold,size s|m|l,color ink|slate|accent},runs}` · `separator` · `chart_trend{measure}` · `chart_compare{measure}` (`measure` = `sales`|`orders`)
+- `header` (หัวรายงาน) กับ `auto-notes` (หมายเหตุอัตโนมัติ) **ไม่อยู่ใน `blocks`** — composer ใส่ให้เอง ⇒ เอาออกไม่ได้โดยโครงสร้าง
+- `Run = ({t} | {tok}) & {b?:true, accent?:true}` · `TokenKey` 10 ตัว: `shop_name` · `shop_count` · `date_range` · `computed_at` · `orders_count` · `sales_counted` · `sales_pending` · `cancelled_count` · `cycle_sales` · `profit`
+- ฟังก์ชัน: `defaultTemplateFromFlags(group)` · `resolveTemplate(group)` (= `group.template ?? defaultTemplateFromFlags`) · `deriveFlags(t)` · `deriveNeeds(t)` · `parseMarkup/serializeMarkup` (`**…**` ตัวหนา · `^^…^^` เน้นสี · `{ป้าย}` โทเคน — ไม่ครบคู่/ป้ายไม่รู้จัก = error ไม่ถือเป็นตัวอักษรธรรมดา) · `authoredLength(runs)` (นับ code point · โทเคนนับเป็นป้ายมาตรฐาน)
+- **ป้ายโทเคน (`TOKENS`) — SSOT เดียว:** `{ชื่อร้าน}` · `{จำนวนร้าน}` · `{วันที่}` · `{เวลาข้อมูล}` · **`{จำนวนรายการ}`** · `{ยอดขาย (นับแล้ว)}` · `{ยังไม่นับ}` · `{ยกเลิก}` · `{ยอดสะสมรอบ}` · `{กำไร}` — 🛑 โทเคน `orders_count` ต้นฉบับ (ที่พิมพ์/เก็บ) ใช้ป้ายคงที่ **`{จำนวนรายการ}`** ไม่ใช่ `{จำนวน{คำ}}` ตามร่างใน EXT เพราะปีกกาซ้อน parse ไม่ได้ · ป้ายที่ **ผู้อ่านในกลุ่มเห็น** และป้ายใน diagnostics ผันตามร้านของกลุ่ม (`reportOrderWord`: "จำนวนบริการ" ฯลฯ ผสม = "รายการ") — ต้นฉบับกับที่เห็นจึงต่างกันได้โดยตั้งใจ เพื่อให้ client/server วัดความยาว ≤120 ตรงกัน (AC-EXT-02-4)
+- ป้ายโทเคน `{ยอดขาย (นับแล้ว)}` คงคำว่า "นับแล้ว" เสมอ (HR16 — นิยามเดียว)
+
+### 13.2 แหล่งความจริงเดียว: `resolveReportConfig(group) → { template, flags, needs }` (`src/lib/line-report/report-config.ts`)
+- `send` (รายวัน/รายเดือน) · `sendTest` · คำสั่งในกลุ่ม อ่านผ่านฟังก์ชันนี้เท่านั้น — ไม่อ่านคอลัมน์ `show*` ตรง ๆ (stored-flag convention)
+- `template` ในฐานเป็น `null` → `defaultTemplateFromFlags` จากคอลัมน์ (เหมือนเดิมทุกไบต์ — BR-LGS-22) · ไม่ผ่าน `validateTemplate` (ข้อมูลเสีย) → ใช้แบบมาตรฐานแทน + `console.error` เฉพาะรหัสกฎ (ไม่ log เนื้อหา) · ผ่าน → derive จากเทมเพลต
+- `needs ⊇ flags`: `needSeries` / `needTrend7` / `needCompare` / `needCancelled` / `needTop3` / `needPnl` (=`showProfit`) / `needCycle` — โทเคนหรือกราฟขอข้อมูลได้แม้ไม่มีบล็อกตัวเลข · `needCycle` ของเทมเพลตถูกปิดเมื่อ `monthlyEnabled=false` (E-8: เทมเพลตอ้างได้ แต่ไม่มีรอบให้สะสม → ข้าม)
+- `deriveFlags`: `showOrders/Sales/Cancelled` = มีบล็อก · `showTopProducts` = `shops.top3` · `showProfit` = มีบล็อก `profit` **หรือ** `shops.profit` **หรือ** โทเคน `profit` ในข้อความ · `attachCycleToDaily` = มีบล็อก `cycle` หรือโทเคน `cycle_sales` · โทเคนอื่นไม่พลิก flag
+- `showProfit=false` (derive) ⇒ ไม่เรียก `getPnlReport` (TFR-LGS-11 เดิม คงอยู่)
+
+### 13.3 TemplateSchema และเพดาน (`validations.ts` — `validateTemplate()` ใช้ทั้ง client/server)
+| เพดาน | ค่า | รหัสกฎ |
+|---|---|---|
+| บล็อกรวม | ≤ 20 | `TOTAL_LIMIT` |
+| ต่อชนิด | `orders/sales/cancelled/shops/cycle/profit/chart_trend/chart_compare` ≤1 · `text` ≤6 · `separator` ≤8 | `TYPE_LIMIT` |
+| `id` ซ้ำ | ห้าม (id ใช้เป็น React key/diagnostics ไม่ลง Flex JSON) | `DUPLICATE_ID` |
+| ข้อความอิสระ | ≤120 code point ต่อบล็อก (โทเคนนับเป็นป้ายมาตรฐาน) · ไม่ว่างหลัง trim (โทเคนนับเป็นเนื้อหา) · `runs` 1–60 · ไม่มี `\r\n` | `TEXT_TOO_LONG` · `TEXT_EMPTY` · `TEXT_NEWLINE` · `RUN_SHAPE` |
+| `title` | ≤60 code point ไม่ว่าง ไม่ขึ้นบรรทัด | `TITLE` |
+| `button.label` | ≤20 code point ไม่ว่าง (ไม่มีฟิลด์ URL — ปลายทางตายตัว `sellerDashboardUrl()`) | `BUTTON_LABEL` |
+| ค่านอกชุด | `size` ∈ s/m/l · `color` ∈ ink/slate/accent (ไม่มีเขียว/แดง) · `measure` ∈ sales/orders · `tok` ∈ `TokenKey` · `type` นอกชุด | `STYLE` · `MEASURE` · `TOKEN` · `BLOCK_TYPE` |
+| ฟิลด์เกิน | ทุก object เป็น `strictObject` | `EXTRA_FIELD` · `SHAPE` (รูปผิดอื่น) |
+- ขนาด JSON ของเทมเพลต ≤ 16,384 ไบต์ (ตรวจใน service ก่อนถึง DB CHECK) · body ของ PUT ≤ 64 KB (route)
+- กราฟอย่างเดียว/ข้อความอย่างเดียว **ไม่นับเป็นตัวเลข** → `INVALID_SETTINGS{rule:'METRIC_REQUIRED'}` (DB CHECK `metric_any_chk` อ่าน 5 flag) — ผ่าน `mergeSettings` ตัวเดิม ไม่เขียนกฎซ้ำ
+
+### 13.4 Composer — ทางเดียว (`src/lib/line/flex-summary-report.ts` + `flex-report-blocks.ts` + `flex-report-charts.ts`)
+- `buildSummaryReportFlex({ summary, kind, template, cycleToDate, monthly })` คงชื่อและที่เรียกเดิม 3 จุด (`send` ×2 · `command` ×1) + `measureTemplate` · คืน `ReportFlexMessage[]` · diagnostics (`skipped[]`) อยู่ใน `WeakMap` นอก JSON ที่ส่ง LINE · `collectSkipped(messages)` รวมที่ถูกข้ามแบบไม่ซ้ำ
+- `renderHead` (หัวรายงาน) รับจากเทมเพลตได้แค่ `title` · ป้าย "ทดสอบ" ของ kind TEST ใส่เองเสมอ · `title` ใช้กับข้อความแรกของ push เท่านั้น (ข้อความรายเดือนที่ติดมา = ชื่อมาตรฐาน) · ชนะป้าย "ครบทั้งวัน" ตามเดิม
+- `orders|sales|cancelled|profit` ที่ติดกัน = `section` เดียว (เหมือน `totals` เดิม) · `separator` ที่ต้น/ท้าย/ซ้อน/ชิดบล็อกที่ไม่ render ถูกยุบ
+- **มติ Q1 = A — หมายเหตุอัตโนมัติ "ติดบล็อกแม่":** "ยอดแต่ละร้านคิดตามกติกา…" และ "ยอดรวมยังไม่ครบ…" ต่อท้าย section ตัวเลขรวมใบสุดท้าย (ถ้าเทมเพลตไม่มีบล็อกตัวเลขรวมเลย → section สมอที่ต้นเนื้อหา) · "กำไรแต่ละร้านคิดตามกติกา… / ค่าใช้จ่ายลงตามวันที่บันทึก…" ต่อท้าย section รายร้าน · "ไม่รวมร้าน X (…)" อยู่ท้ายสุดของข้อความ — เพื่อให้ `template=null` ได้ผลเดิมทุกไบต์ (golden) · ผลคือหมายเหตุไม่อยู่ "ท้ายสุดตามตัวอักษร" 3 จาก 4 แบบ ตามที่มติยอมรับ · หมายเหตุเอาออกไม่ได้โดยโครงสร้าง (ไม่มีบล็อกหมายเหตุใน schema)
+- **ข้อความอิสระ:** 1 บล็อก = 1 ย่อหน้า · สไตล์บรรทัด `bold→weight` · `s/m/l→xs/sm/md` · `ink/slate/accent→FLEX_COLORS` · ต่อคำ `b`/`accent` → Flex `span` (`weight`/`color` เท่านั้น ไม่มี decoration) · เมื่อมี span ตัว `text` แม่ไม่มี `text` (ใช้ `contents`)
+- **โทเคนคำนวณไม่ได้ = ตัดทั้งบล็อกข้อความ** (ไม่ render "-"/"฿0") + บันทึก `skipped{label, reason:'คำนวณไม่ได้ในรอบนี้'}` (BR-LGS-25) · เงื่อนไข `null`: `shop_name` ไม่มีร้านที่นับ · `orders_count/sales_*/cancelled_count` ไม่มีร้านสถานะ OK · `cycle_sales` ไม่ใช่ DAILY / ครบทั้งวัน / ไม่มี `cycleToDate` / ทุกร้านล้ม · `profit` ร้านเดียว = กำไรร้านนั้น, หลายร้านใช้กฎเดียวกับแถวกำไรรวม · `{ยอดสะสมรอบ}` ที่ดึงสำเร็จบางร้าน = ต่อท้ายหมายเหตุ "ยอดสะสมรอบยังไม่ครบ…"
+- **kind × บล็อก:** `cycle` แสดงเฉพาะ DAILY ที่ไม่ใช่ครบทั้งวัน (ที่เหลือข้ามเงียบ) · ไม่มี `cycleToDate` (ปิดรายเดือน/มีรายเดือนใน push เดียวกัน) = ข้ามพร้อม log "ไม่มียอดสะสมรอบในรอบนี้" · ที่เหลือใช้ได้ทุก kind
+- ข้อความรายวัน+รายเดือนใน push เดียวใช้เทมเพลตเดียวกัน (ยกเว้น `title`) · retry ใช้ `pendingPayload` ที่แช่แข็ง ⇒ แก้เทมเพลตระหว่างรอ retry ไม่เปลี่ยนข้อความที่ retry
+
+### 13.5 บล็อกกราฟ + ลำดับตัดทอน 4 ระดับ
+- กราฟเป็น Flex-native (ไม่มี `image`) · สี `ACCENT` + `GRID_GRAY` (`#D9DBE0`) เท่านั้น
+  - `chart_trend` = แท่งตั้ง 7 วัน จบที่ `window.endIso` · แท่งวันรายงานสี accent · ตัวเลขเหนือแท่งสูงสุดเท่านั้น · 7 วันเป็น 0 = เส้นฐาน + "ยังไม่มียอดขายใน 7 วันนี้" (วัดจำนวน: "ยังไม่มี{คำ}ใน 7 วันนี้") · **แท่งสุดท้ายนับถึงเวลาคำนวณ** (รอบที่ `endIso` = วันนี้ ∧ ไม่ใช่ครบทั้งวัน) → หมายเหตุ "แท่งสุดท้ายนับถึง HH:MM น." · `trendPartial` (มีร้านล้ม) → บอกว่ายอดไม่ครบ
+  - `chart_compare` = แท่งนอนรายร้านเรียงค่าที่วัดมาก→น้อย (เสมอ → ชื่อ ก→ฮ) · ≤`COMPARE_ROW_LIMIT`(10) แถว · ใช้ได้เมื่อมีร้านสถานะ OK ≥2 **ณ เวลาส่ง** (ไม่ใช่ตามจำนวนร้านในกลุ่ม) ไม่ครบ = ข้ามพร้อม log
+- ข้อมูลมาจาก SSOT เดิม: `getSalesSeries` ผ่าน `summarizeShop` (`needTrend7`) → `dailyValues(series, month, startIso, endIso)` + `sumTrend` ใน `aggregate.ts` → `ShopSummary.trend` / `GroupSummary.trend` (7 วันคร่อมเดือน = ดึง 2 เดือนผ่าน memo เดิม) · ไฟล์ composer/charts ไม่มีสูตรบวกข้ามออเดอร์เอง
+- **ลำดับตัด (`level`):** 0 เต็ม → 1 ตัด Top3 → 2 ตัดกราฟ (แทนด้วยหมายเหตุ "กราฟถูกตัดเพราะข้อความยาวเกินที่ LINE รับได้" + บันทึก `skipped`) → 3 ย่อรายร้าน (ชื่อสั้น · ยอดขายอย่างเดียว · จำกัดจำนวนแถว · ตัดกำไรต่อร้าน) → 4 ย่อ `altText` · `fitToLimits` **ข้ามระดับ 2 เมื่อข้อความไม่มีกราฟ** ⇒ `template=null` ลำดับและผลสุดท้ายเหมือนเดิม · ข้อความอิสระ/หัวรายงาน/ตัวเลขหลัก/หมายเหตุอัตโนมัติ **ไม่เคยถูกตัด** · `fitToLimits` ผูกกับ object ที่ `buildSummaryReportFlex` สร้างเองเท่านั้น (WeakMap) — ข้อความที่ clone/โหลดจาก JSON ตัดได้แค่ `altText`
+- ⚠️ **ข้อสังเกตที่ยังจริง (R-3):** `fitToLimits` วัด `JSON.stringify(m.contents)` แต่ด่านสุดท้ายใน `send.service` วัดทั้ง message รวม `altText` ⇒ บับเบิลที่อยู่ช่วงใกล้เพดานอาจล้ม `PAYLOAD_TOO_LARGE` ตอนส่ง (พฤติกรรมเดิม ไม่แก้ในรอบนี้ — กระทบ golden ของ `null`) · ด่านตอนบันทึกจึงวัดแบบเข้มกว่า (ข้อ 13.6)
+- Top3 ที่ถูกตัดที่ระดับ 1 **ไม่มีหมายเหตุบอกในข้อความ** (known gap เดิม — partial-data convention · ไม่แก้ในรอบนี้เพราะกระทบ golden)
+
+### 13.6 `measureTemplate(template, ctx?)` — ด่านขนาดตอนบันทึก (`template-size.ts`, pure)
+- ประกอบข้อความด้วยข้อมูล "กรณีเลวร้ายสุด" (`worstCaseSummary`: 10 ร้าน OK ชื่อ 50 ตัวอักษร · Top3 ชื่อสินค้า 60 ตัวอักษร · กำไรเปิด + capped · 10 ร้าน EXCLUDED · cycle ล้มบางร้าน · รายวัน+รายเดือนใน push เดียว · เลข ฿18,902,340) ผ่าน `buildSummaryReportFlex` ตัวเดียวกับการส่งจริง
+- **วัดทั้ง message (`JSON.stringify(message)` รวม altText) ที่ระดับ 3** — ตัววัดเดียวกับด่านสุดท้ายใน `send.service` ที่เข้มกว่า `fitToLimits` · ใช้ใบที่ใหญ่สุดของ push · `bytesOf` ใช้ `TextEncoder` (เท่า `Buffer.byteLength` ทุกกรณี) → รันบน client ได้
+- คืน `{ bytes (ระดับ 3), limit (30,000), fullBytes (ระดับ 0), warnings }` · `bytes > limit` → `TEMPLATE_TOO_LARGE` (บันทึกไม่ได้) · `fullBytes > limit` แต่ `bytes ≤ limit` → บันทึกได้ พร้อม warning "รอบที่ข้อมูลเยอะ ระบบอาจตัดกราฟ/ขายดี 3 อันดับ"
+- ส่งจริงแล้วยังเกิน (ข้อมูลโตกว่า fixture) → พฤติกรรมเดิม `FAILED(PAYLOAD_TOO_LARGE)` + alert `SEND_FAILED` ไม่ retry
+
+### 13.7 Service/API (`line-report-group.service.ts` · route `groups/[id]/template/route.ts`)
+- `updateTemplate(ownerId, groupId, {template, expectedVersion, confirmProfit?})`: แพ็กเกจ ACTIVE → `validateTemplate` → `assertTemplateSize` → tx { `lockOwnedGroup` (`{id, ownerId}`) → เทียบ `templateVersion` (`TEMPLATE_STALE`) → `mergeSettings(cur, deriveFlags(template)+confirmProfit)` → `update` template + 5 flag + `attachCycleToDaily` + `profitEnabledAt` + `templateVersion+1` } — flag เขียนใน tx เดียวกับเทมเพลตเสมอ · คืน `GroupDetailDto & { measure }` → route ตอบ `{ group, warnings: string[], size: {bytes, limit} }`
+- `resetTemplate`: `template=NULL` · `templateVersion+1` · flag กลับค่าตั้งต้นคอลัมน์ · `attachCycleToDaily` คงเดิมเมื่อ `monthlyEnabled`
+- `updateSettings` (PATCH): มี `template` ∧ patch มี `show*`/`attachCycleToDaily` → `FLAGS_DERIVED_FROM_TEMPLATE` · เปิดรายเดือนกลับมาหลังปิด → `attachCycleToDaily` คืนตามที่เทมเพลตขอ
+- `getGroupDetail`: เพิ่ม `group.template` (null ถ้าไม่ผ่านการตรวจ) · `group.templateVersion` · `group.effectiveTemplate` · `deliveries[].summary` (select ชัดเจน — ยังไม่ select `pendingPayload`)
+- error ใหม่ 4 ตัว (`TEMPLATE_INVALID`/`TEMPLATE_TOO_LARGE` 400 · `TEMPLATE_STALE`/`FLAGS_DERIVED_FROM_TEMPLATE` 409) อยู่ใน `LINE_REPORT_ERROR_STATUS` (`Record` exhaustive) ผ่าน `toErrorResponse` จุดเดียว
+- `Delivery.summary`: ต่อท้าย ` · ข้าม: <ป้าย> (<เหตุผล>)` จาก `collectSkipped` (`skippedNote`) ทั้งรอบจริงและส่งทดสอบ · ไม่มียอดเงิน
+- `sendTest` คืน `skipped: {label, reason}[]` จาก service และ route `POST …/test` ส่งต่อใน response
+
+### 13.8 Authorization (ต่อ §7)
+| การกระทำ | ระดับ | หมายเหตุ |
+|---|---|---|
+| GET group (รวม `template`/`templateVersion`/`effectiveTemplate`) | L1 | อ่านได้แม้แพ็กเกจหยุด · scope `ownerId` |
+| PUT / DELETE `…/template` | **L2** | `requireAccess('PAID')` ที่ route + `isOwnerPaidForReports` ซ้ำที่ service · แพ็กเกจหยุด = 403 `PACKAGE_REQUIRED` และเทมเพลตเดิมถูกเก็บไว้ · เจ้าของ = `Shop.userId` ของร้านใดร้านหนึ่ง · ทุก query `{id, ownerId}` ตั้งแต่แรก → ไม่ใช่ของตน/`REMOVED`/id เพี้ยน = 404 `GROUP_NOT_FOUND` |
+| ข้อความสุดท้าย (`FINAL_NOTICE`) | — | ไม่ผ่านเทมเพลต (`buildPlainNotice` เดิม) |
+
+### 13.9 UI route (สถานะ: **กำลังสร้าง — ยังไม่ commit**)
+- route เป้าหมาย: `src/app/(paces)/seller/(fullscreen)/business/line-reports/[groupId]/template/page.tsx` (URL `/business/line-reports/[groupId]/template`) — ชื่อ segment ต้องเป็น `[groupId]` และห้ามมีไฟล์ชื่อ `template.tsx` ใน `src/app` (ชื่อสงวน Next)
+- ณ วันที่เขียน: มีเฉพาะ helper pure ใต้ `…/template/lib/` (ยังไม่ commit) — ยังไม่มี `page.tsx`/client component ที่ยืนยันได้จากโค้ด · รายละเอียดหน้าจอ (layout 3 ช่อง ฯลฯ) ดูมติใน EXT §4 FR-LGS-EXT-11/12 และ UX spec — **ยังไม่ใช่พฤติกรรมที่ตรวจจากโค้ดแล้ว**
+- การ์ด "ข้อความที่ส่งเข้ากลุ่ม" แทน `MetricsCard`+`PreviewCard` ในหน้า `[groupId]`: **ยังไม่ทำ** (ไฟล์เดิมยังอยู่ ไม่ลบจนกว่า user ตอบ)
+
+### 13.10 Traceability (EXT)
+| FR-LGS-EXT | จุดบังคับ |
+|---|---|
+| 01 โมเดล/แบบมาตรฐาน | `template.ts` `defaultTemplateFromFlags`/`resolveTemplate` · migration `20261005200000` |
+| 02 schema | `validations.ts` `TemplateSchema`/`validateTemplate` |
+| 03, 04, 05, 13, 14 หัวรายงาน/ข้อความอิสระ/โทเคน/หมายเหตุ/ปุ่ม | `flex-report-blocks.ts` |
+| 06 composer ทางเดียว | `flex-summary-report.ts` `buildSummaryReportFlex` · `report-config.ts` |
+| 07 flag derive + ยืนยันกำไร | `template.ts` `deriveFlags/deriveNeeds` · `mergeSettings` · `updateSettings` guard |
+| 08 ขนาด/ตัดทอน | `flex-summary-report.ts` `fitToLimits/rebuildAtLevel` · `template-size.ts` |
+| 09 กราฟ | `flex-report-charts.ts` · `aggregate.ts` `dailyValues/sumTrend` · `line-report-summary.service.ts` |
+| 10 API | `groups/[id]/template/route.ts` · `updateTemplate/resetTemplate` |
+| 11, 12 หน้าจัดข้อความ + การ์ด | **รอ UI** (§13.9) |
+| 15 สิทธิ์ | §13.8 · `routes.test.ts` (สแกน route จริง) |

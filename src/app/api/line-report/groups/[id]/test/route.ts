@@ -9,6 +9,6 @@ export const maxDuration = 60
 export const POST = handle(async (_req: Request, ctx: Ctx) => {
   const ownerId = await requireAccess('PAID')
   requireBotReady()
-  const { deliveryId, sentAt, remaining, summary } = await sendTest(ownerId, await groupIdOf(ctx))
-  return json({ deliveryId, sentAt, remaining, summary })
+  const { deliveryId, sentAt, remaining, summary, skipped } = await sendTest(ownerId, await groupIdOf(ctx))
+  return json({ deliveryId, sentAt, remaining, summary, skipped }) // skipped = บล็อกที่ไม่ถูกส่ง (AC-EXT-05-3)
 })

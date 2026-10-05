@@ -359,3 +359,82 @@ route (L2) → `sendTest` tx: lock แถวกลุ่ม → นับ TEST �
 | M1 โควตาส่งทดสอบ | นับ TEST ทุกสถานะของวันไทย (`testQuotaWhere`) |
 | L1 | `resolveSendableShops` กรอง `shop.userId = group.ownerId` → อื่น = NOT_OWNED "ไม่พร้อมใช้งาน" |
 | L3/L4 | cron 500 = `{error:'sweep_failed'}` · log เฉพาะชื่อ error · เช็คงบเวลาระหว่าง slot |
+
+---
+
+## 15. ส่วนต่อขยาย EXT 2026-10-05 — composer จากเทมเพลต + กราฟ
+
+> ต้นทาง: [[EXTENSIONS-2026-10-05-message-template-and-charts]] · รายละเอียดข้อกำหนด/เพดาน → [[SRS]] §13 · เขียนจากโค้ดที่ commit แล้ว · **เปลี่ยนจาก §3.1 ข้างบน:** `flex-summary-report.ts` ไม่ใช่ไฟล์เดียวอีกต่อไป (แตกเป็น 3 ไฟล์) และ `buildSummaryReportFlex` รับ `template` แทน flag
+
+### 15.1 ไฟล์ที่เพิ่ม/เปลี่ยน
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `src/lib/line-report/template.ts` (ใหม่ · pure) | `TemplateV1`/`Block`/`Run`/`TokenKey` · `TOKENS` · `BLOCK_LIMITS` · `defaultTemplateFromFlags` · `resolveTemplate` · `deriveFlags/deriveNeeds` · `parseMarkup/serializeMarkup` · `authoredLength` |
+| `src/lib/line-report/validations.ts` (แก้) | + `TemplateSchema` · `validateTemplate()` → `{ok, template}` \| `{ok:false, rule, blockId?}` · `TemplateRule` |
+| `src/lib/line-report/report-config.ts` (ใหม่ · pure) | `resolveReportConfig(group)` → `{template, flags, needs}` — ทางเดียวที่ send/test/command อ่านค่าตั้งของข้อความ |
+| `src/lib/line-report/availability.ts` (ใหม่ · pure) | `contextAvailability` · `top3Availability` · `libraryAvailability` · `blockWarning` · `REASON.*` (ใช้ร่วมกันระหว่างคลังบล็อกกับ warning บนผืนงาน) |
+| `src/lib/line-report/template-size.ts` (ใหม่ · pure) | `measureTemplate` · `worstCaseSummary` · `TEMPLATE_BYTES_LIMIT` · `TEMPLATE_LARGE_WARNING` |
+| `src/lib/line-report/aggregate.ts` (แก้) | + `dailyValues(series, month, startIso, endIso)` · `sumTrend(shops)` (ข้าง `sumDays`) |
+| `src/lib/line-report/errors.ts` (แก้) | + `TEMPLATE_INVALID` · `TEMPLATE_TOO_LARGE` · `TEMPLATE_STALE` · `FLAGS_DERIVED_FROM_TEMPLATE` (ใน `Record` exhaustive) |
+| `src/lib/line-report/types.ts` (แก้) | + `Trend` · `ShopSummary.trend?` · `GroupSummary.trend?/trendPartial?` |
+| `src/lib/line/flex-report-blocks.ts` (ใหม่) | `FLEX_COLORS` (+`GRID_GRAY`) · helper (`text/note/kv/section`) · `makeCtx` · `tokenValue` · `renderText/renderHead/renderTotals/renderShops/renderCycle/renderExcluded/renderChart` · `composeBody(template, ctx)` |
+| `src/lib/line/flex-report-charts.ts` (ใหม่) | `trendChart` · `compareChart` · `COMPARE_ROW_LIMIT` |
+| `src/lib/line/flex-summary-report.ts` (แก้) | `buildSummaryReportFlex` (หัว + `composeBody` + footer ปุ่ม + altText) · `fitToLimits` (4 ระดับ) · `rebuildAtLevel` · `collectSkipped` · `bytesOf` · `REPORT_BUBBLE_MAX_BYTES` — ผูก rebuilder/skipped/charts ต่อ message ด้วย `WeakMap` |
+| `src/services/line-report-summary.service.ts` (แก้) | `SummaryNeeds` · `summarizeShop` ดึง series ตาม `needs` (ไม่ใช่แค่ `show*`) · เติม `trend` เมื่อ `needTrend7` |
+| `src/services/line-report-send.service.ts` (แก้) | `resolveReportConfig(group)` ทุกจุด · `skippedNote` ต่อ `Delivery.summary` · `sendTest` คืน `skipped[]` |
+| `src/services/line-report-command.service.ts` (แก้) | select `template` + ใช้ `resolveReportConfig` |
+| `src/services/line-report-group.service.ts` (แก้) | `updateTemplate` · `resetTemplate` · guard `FLAGS_DERIVED_FROM_TEMPLATE` ใน `updateSettings` · `getGroupDetail` เพิ่ม `template/templateVersion/effectiveTemplate` + `deliveries[].summary` |
+| `src/app/api/line-report/groups/[id]/template/route.ts` (ใหม่) | `PUT` · `DELETE` (L2) · เพดาน body 64KB |
+
+### 15.2 Flow: ประกอบข้อความตอนส่ง (ทางเดียวทุก kind)
+```mermaid
+flowchart TD
+    A["sweep / sendTest / คำสั่งในกลุ่ม"] --> B["อ่านแถวกลุ่ม (template, templateVersion, show*)"]
+    B --> C["resolveReportConfig(group)<br/>template ?? defaultTemplateFromFlags<br/>(ข้อมูลเสีย → แบบมาตรฐาน + log รหัสกฎ)"]
+    C --> D["buildGroupSummary(needs)<br/>series / cancelled / pnl(เฉพาะ showProfit) / top3 / trend7"]
+    D --> E{"มีร้านสถานะ OK?"}
+    E -- ไม่ --> F["ALL_SHOPS_FAILED (เดิม)"]
+    E -- ใช่ --> G["buildSummaryReportFlex({template, summary, kind, cycleToDate, monthly})"]
+    G --> H["renderHead (ล็อก) + composeBody ตามลำดับบล็อก<br/>ข้ามบล็อกไม่เกี่ยว kind (เงียบ) · ไม่พร้อม (skipped) · โทเคน null (ตัดทั้งบล็อก)"]
+    H --> I["fitToLimits: L1 Top3 → L2 กราฟ+หมายเหตุ → L3 ย่อรายร้าน → L4 altText<br/>(ข้าม L2 ถ้าไม่มีกราฟ)"]
+    I --> J{"ทั้ง message ≤ 30,000 ไบต์?"}
+    J -- ไม่ --> K["FAILED PAYLOAD_TOO_LARGE + alert (เดิม)"]
+    J -- ใช่ --> L["pendingPayload แช่แข็ง + summary 'ข้าม: …' → push (retry key เดิม)"]
+```
+
+### 15.3 Flow: บันทึกเทมเพลต (PUT)
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as หน้าจัดข้อความ (กำลังสร้าง)
+    participant R as PUT …/template (route)
+    participant S as updateTemplate
+    participant M as measureTemplate (pure)
+    participant DB as PostgreSQL
+
+    UI->>R: {template, expectedVersion, confirmProfit?}
+    R->>R: requireAccess PAID · body ≤64KB · PutSchema strict
+    R->>S: updateTemplate(ownerId, groupId, body)
+    S->>S: isOwnerPaidForReports · validateTemplate (TEMPLATE_INVALID+rule)
+    S->>M: assertTemplateSize: JSON ≤16KB แล้ววัดระดับ 3 ทั้ง message (TEMPLATE_TOO_LARGE)
+    S->>DB: BEGIN · lockOwnedGroup {id, ownerId}
+    S->>S: templateVersion = expectedVersion? ไม่ใช่ → TEMPLATE_STALE
+    S->>S: mergeSettings(cur, deriveFlags + confirmProfit) → METRIC_REQUIRED / PROFIT_CONFIRM_REQUIRED
+    S->>DB: UPDATE template + 5 flag + attachCycleToDaily + profitEnabledAt + templateVersion+1 · COMMIT
+    S-->>R: group + measure
+    R-->>UI: 200 {group, warnings, size}
+```
+
+### 15.4 การตัดสินใจเชิงออกแบบที่ผูกกับโค้ด
+| # | เรื่อง | ตัดสิน | จุดบังคับ |
+|---|---|---|---|
+| EXT-TD-1 | หมายเหตุอัตโนมัติ (มติ Q1 = A) | ติดบล็อกแม่ ไม่ย้ายไปท้ายสุด — เพื่อให้ `template=null` เท่าเดิมทุกไบต์ (golden) | `totalsNotes` ใน `renderTotals`/`composeBody` |
+| EXT-TD-2 | ตัววัดขนาดตอนบันทึก | วัดทั้ง message (รวม altText) ที่ระดับ 3 — เข้มกว่า `fitToLimits` (วัดแค่ `contents`) จึงไม่มีเทมเพลตที่บันทึกได้แล้วชนช่องว่างนี้ (R-3) · ไม่แก้ `fitToLimits` | `measureTemplate` + `assertTemplateSize` |
+| EXT-TD-3 | ระดับตัดทอน | แทรก "กราฟ" เป็นระดับ 2 (เดิม 2→3, 3→4) · ข้ามระดับที่ไม่เปลี่ยนผล (ไม่มีกราฟ) | `fitToLimits` (`level === 2 && !chartsOf.get(m)`) |
+| EXT-TD-4 | ตัววัดตอนบันทึกบน client และ server | `bytesOf` ใช้ `TextEncoder` (ไม่ใช่ `Buffer`) + module pure ห้าม import prisma/`node:*` — ผลต้องเท่ากันสองฝั่ง (R-8) · server ตัดสินสุดท้ายเสมอ | `template-size.ts` · `template.ts` |
+| EXT-TD-5 | ป้ายโทเคนจำนวนรายการ | ต้นฉบับใช้ `{จำนวนรายการ}` คงที่ (ไม่ใช่ `{จำนวน{คำ}}` ที่มีปีกกาซ้อน) · ข้อความที่ผู้อ่านเห็นผันตามร้านด้วย `reportOrderWord` | `TOKENS.orders_count` · `tokenLabel` |
+| EXT-TD-6 | คอลัมน์ `show*` | cache ที่ derive เขียนคู่เทมเพลตใน tx เดียว · ตัวตัดสินตอนส่ง = `resolveReportConfig` · PATCH ที่แตะ flag ขณะมีเทมเพลต = 409 | `updateTemplate` · `updateSettings` |
+| EXT-TD-7 | `FlexBubbleView` (พรีวิว) | รองรับ `span` (`weight`/`color`) · `box` ที่มี `height`/`width` เป็น px/% · `backgroundColor`/`cornerRadius` แล้ว (ค่าจากข้อมูลกราฟใส่ผ่าน `style` — HR7 carve-out) · `flex-preview-tokens.ts` มี `GRID_GRAY` → `default-300` (โทนใกล้สุดใน ramp ของ Paces — สีพรีวิวจึงไม่เท่า `#D9DBE0` ทุกพิกเซล) | `FlexBubbleView.tsx` · `flex-preview-tokens.ts` · `flex-preview-tokens.test.ts` |
+
+### 15.5 UI (สถานะ: กำลังสร้าง)
+route เป้าหมาย `src/app/(paces)/seller/(fullscreen)/business/line-reports/[groupId]/template/**` · ณ วันที่เขียนมีเฉพาะ helper pure ใต้ `…/template/lib/` (`reducer` · `primary-action` · `gauge-state` · `markup-edit` · `confirm-profit` · `block-meta` · `draft-issues` · `preview-data` + เทส) ที่ยังไม่ commit · ไม่ระบุโครง component จนกว่าโค้ดจะเข้า

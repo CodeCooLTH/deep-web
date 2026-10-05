@@ -42,6 +42,8 @@ API ชุดนี้ให้บริการ 3 กลุ่ม: **owner API
 | 9 | POST | `/api/line-report/groups/{id}/ack` | L1 | รับทราบแจ้งเตือน |
 | 10 | POST | `/api/line-report/webhook` | ลายเซ็น LINE | event `join`/`leave`/`message` |
 | 11 | GET | `/api/cron/line-report-sweep` | `CRON_SECRET` | sweep ทุก 30 นาที |
+| 12 | PUT | `/api/line-report/groups/{id}/template` | L2 | **[EXT]** บันทึกเทมเพลตข้อความรายงาน (optimistic lock) |
+| 13 | DELETE | `/api/line-report/groups/{id}/template` | L2 | **[EXT]** คืนเป็นแบบมาตรฐาน |
 
 ## 4. Endpoint Detail
 
@@ -109,6 +111,8 @@ Errors: 403 · 404 `GROUP_NOT_FOUND` (ไม่ใช่ของตน/`REMOVED
 { "group": {
   "id": "7a1f…", "status": "ACTIVE", "groupName": "ทีมบัญชี", "paused": false,
   "boundAt": "…", "leftAt": null,
+  "template": null, "templateVersion": 0,
+  "effectiveTemplate": { "v": 1, "button": { "show": true, "label": "เปิด Deep" }, "blocks": [ "…" ] },
   "settings": {
     "dailyEnabled": true, "dailyTimes": [540, 1260], "monthlyEnabled": false, "cutoffDay": null,
     "showOrders": true, "showSales": true, "showCancelled": true, "showTopProducts": true,
@@ -121,11 +125,16 @@ Errors: 403 · 404 `GROUP_NOT_FOUND` (ไม่ใช่ของตน/`REMOVED
   "alert": null,
   "test": { "limit": 5, "usedToday": 2, "remaining": 3 },
   "deliveries": [{ "id": "d1", "at": "2026-10-05T02:00:03.000Z", "kind": "DAILY", "status": "SENT",
-                   "reason": null, "reasonLabel": null, "pushMessageCount": 12 }]
+                   "reason": null, "reasonLabel": null, "pushMessageCount": 12,
+                   "summary": "3 ร้าน · ข้าม: ยอดสะสมรอบ (ไม่มียอดสะสมรอบในรอบนี้)" }]
 } }
 ```
 | ฟิลด์ | หมายเหตุ |
 |---|---|
+| `template` | **[EXT]** อยู่ระดับ `group.*` (ไม่ใช่ใน `settings`) · `null` = แบบมาตรฐาน · เทมเพลตในฐานที่ไม่ผ่านการตรวจ (แก้มือ/ข้อมูลเสีย) คืนเป็น `null` ด้วย (ไม่ปล่อย JSON ที่ตรวจไม่ผ่านออกไป) |
+| `templateVersion` | **[EXT]** ตัวนับ optimistic lock — client เก็บไว้ส่งเป็น `expectedVersion` ของ PUT |
+| `effectiveTemplate` | **[EXT]** เทมเพลตที่ระบบใช้ส่งจริงตอนนี้ = `template` ถ้ามีและถูกต้อง · ไม่งั้น `defaultTemplateFromFlags` จากคอลัมน์ `show*` (ผ่าน `resolveReportConfig`) — UI ใช้เป็นฉบับตั้งต้นของหน้าจัดข้อความ |
+| `deliveries[].summary` | **[EXT]** `string \| null` — สรุปสั้นของรอบนั้น · มี ` · ข้าม: …` ต่อท้ายเมื่อ composer ข้ามบล็อก/ตัดบรรทัด (ไม่มียอดเงิน/เนื้อหาข้อความอิสระ) |
 | `shops[].state` | `OK` · `LOCKED` (`packageLockedAt`) · `DELETED` — อ่านสดจาก `Shop` ไม่เก็บธง |
 | `cycle` | `null` เมื่อ `monthlyEnabled=false` (ใช้แสดงตัวอย่างวันตัดรอบ) |
 | `bind` | **ไม่มีโค้ดดิบ** — มีเฉพาะ `hasLiveCode`/`expiresAt` (hash at rest) |
@@ -150,10 +159,11 @@ autosave รายฟิลด์ — ส่งเฉพาะคีย์ที
 - ปิด `monthlyEnabled` → `attachCycleToDaily` ถูกล้างเป็น `false` อัตโนมัติ (ไม่ error)
 - เปิด `showProfit` → ตั้ง `profitEnabledAt=now` · ปิด → `null`
 - แก้ได้เมื่อ `PENDING`/`ACTIVE`/`INACTIVE` (`REMOVED` = 404)
+- **[EXT]** ขณะกลุ่ม **มีเทมเพลต** (`template ≠ null`): ถ้า body มี `showOrders`/`showSales`/`showCancelled`/`showTopProducts`/`showProfit`/`attachCycleToDaily` ตัวใดตัวหนึ่ง → **409 `FLAGS_DERIVED_FROM_TEMPLATE`** (ตัวเลขที่แสดงแก้ที่เทมเพลต — ไม่ปล่อยให้สองแหล่งขัดกัน) · คีย์อื่น (เวลา/วันตัดรอบ/`skipWhenNoOrders`/`monthlyEnabled`) แก้ได้ตามปกติ · `template = null` → PATCH ใช้ flag ได้เหมือนเดิม · เปิด `monthlyEnabled` กลับมาหลังปิด → `attachCycleToDaily` คืนตามที่เทมเพลตขอ (ปิดแล้วถูกล้างเป็น `false`)
 
 **200** `{ "group": { …รูปเดียวกับ §4.4 } }` (client ใช้ค่าที่ normalize แล้วแทนค่าที่ส่ง)
 
-Errors: 400 `VALIDATION` · 400 `INVALID_SETTINGS` · 400 `PROFIT_CONFIRM_REQUIRED` · 403 `PACKAGE_REQUIRED` · 404
+Errors: 400 `VALIDATION` · 400 `INVALID_SETTINGS` · 400 `PROFIT_CONFIRM_REQUIRED` · 403 `PACKAGE_REQUIRED` · 404 · **[EXT]** 409 `FLAGS_DERIVED_FROM_TEMPLATE`
 
 ### 4.6 `PUT /api/line-report/groups/{id}/shops`
 Body `{ "shopIds": ["s1","s2"] }` (1..10) · ร้านที่ **เพิ่มใหม่** ต้อง reportable (`userId=owner ∧ ¬deleted ∧ ¬purged ∧ ¬locked`) · ร้านที่อยู่ในกลุ่มเดิมแต่ถูกล็อก/ลบภายหลัง **คงไว้ได้** (ไม่ลบเงียบ)
@@ -166,6 +176,10 @@ Errors: 400 `VALIDATION` · 400 `SHOP_COUNT_OUT_OF_RANGE` · 400 `SHOP_NOT_ALLOW
 ส่งข้อความจริงตามค่าที่บันทึก (ป้าย "ทดสอบ") เข้ากลุ่ม · push ครั้งเดียว ไม่ retry · กินโควตา push จริง · ไม่ใช้ `skipWhenNoOrders` · ผ่านด่านเดียวกับการส่งจริง (แพ็กเกจ ACTIVE ณ ตอนกด · กลุ่ม `ACTIVE` · มีร้านส่งได้)
 
 **200** `{ "deliveryId": "d9", "sentAt": "…", "remaining": 2, "summary": "2 ร้าน · ช่วง 00:00–18:02" }`
+
+**[EXT]** ข้อความที่ส่งทดสอบประกอบจากเทมเพลตของกลุ่ม (`resolveReportConfig`) — ทางเดียวกับรอบจริง · บล็อก/บรรทัดที่ถูกข้ามถูกบันทึกลง `Delivery.summary` (` · ข้าม: …`) และ **service คืน `skipped: { label, reason }[]`** (`TestResult` ของ `sendTest`)
+
+> route ส่ง `skipped` ออกใน response ด้วย: `{deliveryId, sentAt, remaining, summary, skipped}`
 
 Errors: 403 `PACKAGE_REQUIRED` · 404 · 409 `GROUP_NOT_ACTIVE` · 409 `NO_SENDABLE_SHOPS` · 409 `BOT_NOT_IN_GROUP` (กลุ่มถูกตั้งเป็น `INACTIVE` + แจ้งเตือน) · 429 `TEST_QUOTA_EXCEEDED` · 502 `LINE_UNAVAILABLE` / `BOT_UNAVAILABLE` · 503 `BOT_NOT_CONFIGURED`
 
@@ -214,6 +228,48 @@ Vercel Cron `*/30 * * * *` · `maxDuration = 300` · เริ่มกลุ่
 
 **Errors:** 401 `{ "error": "unauthorized" }` (env `CRON_SECRET` ว่าง / header ไม่ตรง — แบบ `line-token-health`) · 500 `{ "error": message }` เฉพาะล้มทั้งรอบ (ความล้มเหลวของกลุ่มเดียวไม่ทำให้ล้ม)
 
+### 4.12 `PUT /api/line-report/groups/{id}/template` — [EXT 2026-10-05]
+บันทึกเทมเพลตข้อความรายงานของกลุ่ม (L2 — `requireAccess('PAID')` + service ตรวจ `isOwnerPaidForReports` ซ้ำเอง) · ใช้กับทุก kind (DAILY/MONTHLY/TEST/COMMAND) · ไม่ autosave — เป็นการกระทำชัดแจ้งจากปุ่ม "บันทึกเทมเพลต"
+
+| ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
+|---|---|---|---|---|
+| Body | `template` | `TemplateV1` (ดู [[SRS]] ส่วน EXT) | ✅ | ตรวจด้วย `TemplateSchema` (`strictObject` — ฟิลด์เกินถูกปฏิเสธ) ที่ service (`validateTemplate`) — route ไม่ตรวจโครงเอง เพื่อให้ได้ `rule`/`blockId` กลับไป |
+| Body | `expectedVersion` | `integer ≥ 0` | ✅ | ค่า `group.templateVersion` ที่ client โหลดไว้ |
+| Body | `confirmProfit` | `boolean` | ไม่ | ต้อง `true` เมื่อเทมเพลตทำให้ `showProfit` เปลี่ยน false→true (บล็อกกำไร · ตัวเลือก "กำไรต่อร้าน" · โทเคน `{กำไร}`) |
+
+`PutSchema` เป็น `strictObject` (คีย์แปลกในชั้น body = 400 `VALIDATION`) · body ต้อง ≤ 64 KB (ตรวจทั้ง `content-length` และความยาวจริง) → เกิน = **400** `TEMPLATE_TOO_LARGE` + `details.reason = 'BODY'` (ไม่ใช่ 413)
+
+**ลำดับที่ service ทำ** (`updateTemplate` ใน `line-report-group.service.ts`): แพ็กเกจ ACTIVE → `expectedVersion` เป็นจำนวนเต็ม ≥0 → `validateTemplate` → `assertTemplateSize` (JSON ของเทมเพลต ≤ 16,384 ไบต์ แล้ว `measureTemplate` ระดับ 3) → ใน transaction: `lockOwnedGroup` (query `{id, ownerId}` — ไม่ใช่ของตน/`REMOVED` = 404) → เทียบ `templateVersion` → `mergeSettings(cur, deriveFlags(template) + confirmProfit)` (ใช้กฎเดิม: `METRIC_REQUIRED` / `PROFIT_CONFIRM_REQUIRED` / `profitEnabledAt` / ล้าง `attachCycleToDaily` เมื่อปิดรายเดือน) → เขียน `template` + flag ทั้งหมด + `templateVersion + 1` ใน `update` เดียว
+
+**200**
+```json
+{
+  "group": { "…รูปเดียวกับ GET §4.4 (มี template/templateVersion/effectiveTemplate)…" },
+  "warnings": ["รอบที่ข้อมูลเยอะ ระบบอาจตัดกราฟ/ขายดี 3 อันดับ"],
+  "size": { "bytes": 21840, "limit": 30000 }
+}
+```
+| ฟิลด์ | หมายเหตุ |
+|---|---|
+| `group` | `GroupDetailDto` ใหม่หลังบันทึก (`templateVersion` เพิ่มแล้ว) — client ใช้ค่านี้เป็นฉบับที่บันทึก |
+| `warnings` | `string[]` ข้อความไทยพร้อมแสดง (ไม่ใช่ object+code) · มี 1 ข้อเมื่อข้อความ **ระดับ 0 (ไม่ตัดอะไร)** เกิน 30,000 ไบต์ แต่ **ระดับ 3 ผ่าน** = บันทึกได้ แต่รอบที่ข้อมูลเยอะระบบอาจตัดกราฟ/ขายดี 3 อันดับ |
+| `size.bytes` | ไบต์ UTF-8 ของ `JSON.stringify(message)` ใบที่ใหญ่สุด ที่ **ระดับ 3** ด้วยข้อมูลกรณีเลวร้ายสุด (`measureTemplate`) — เกิน `limit` = บันทึกไม่ได้ |
+| `size.limit` | `30000` (`TEMPLATE_BYTES_LIMIT` = เพดาน bubble ของ composer) |
+
+Errors: 400 `VALIDATION` (body ผิดรูป/JSON เสีย) · 400 `TEMPLATE_INVALID` (`details.rule` + `details.blockId?` — เช่น `TYPE_LIMIT` · `TOTAL_LIMIT` · `TEXT_EMPTY` · `TOKEN`) · 400 `TEMPLATE_TOO_LARGE` (`details.bytes`/`details.limit` เมื่อเกิน 30KB · `details.reason='BODY'` เมื่อ body >64KB) · 400 `INVALID_SETTINGS` (`METRIC_REQUIRED` — เทมเพลตไม่มีตัวเลขเลย กราฟ/ข้อความอย่างเดียวไม่นับ) · 400 `PROFIT_CONFIRM_REQUIRED` · 403 `PACKAGE_REQUIRED` · 404 `GROUP_NOT_FOUND` · **409 `TEMPLATE_STALE`** (`details.currentVersion` — เปิดสองแท็บ/สองเครื่อง: หนึ่งสำเร็จ อีกอันถูกปฏิเสธ ไม่เขียนทับ)
+
+`details.rule` ของ `TEMPLATE_INVALID` (ชุดจาก `TemplateRule` ใน `validations.ts`): `SHAPE` · `EXTRA_FIELD` · `BLOCK_TYPE` · `TYPE_LIMIT` · `TOTAL_LIMIT` · `DUPLICATE_ID` · `STYLE` · `MEASURE` · `TOKEN` · `RUN_SHAPE` · `TEXT_TOO_LONG` · `TEXT_EMPTY` · `TEXT_NEWLINE` · `TITLE` · `BUTTON_LABEL`
+
+### 4.13 `DELETE /api/line-report/groups/{id}/template` — [EXT 2026-10-05]
+คืนเป็นแบบมาตรฐาน (L2 — `requireAccess('PAID')` + service ตรวจแพ็กเกจซ้ำ) · ไม่มี body · ใน transaction เดียว: `template = NULL` · `templateVersion + 1` · flag กลับค่าตั้งต้นคอลัมน์ (`showOrders/showSales/showCancelled/showTopProducts = true` · `showProfit = false` · `profitEnabledAt = NULL`) · `attachCycleToDaily` คงเดิมเฉพาะเมื่อ `monthlyEnabled` ยังเปิด (ไม่งั้น `false`)
+
+- ข้อความที่ส่งไปแล้ว/ที่รอ retry **ไม่เปลี่ยน** (retry ใช้ `pendingPayload` ที่แช่แข็งไว้)
+- ไม่ต้องส่ง `expectedVersion` (reset ทับเสมอ) · เรียกซ้ำตอน `template` เป็น `null` อยู่แล้ว = สำเร็จ (version ยังเพิ่ม)
+
+**200** `{ "group": { …รูปเดียวกับ §4.4 } }` · Errors: 403 `PACKAGE_REQUIRED` · 404 `GROUP_NOT_FOUND`
+
+> การแพ็กเกจหยุด: GET ยังอ่านได้ (L1) และคืน `template` เดิม · PUT/DELETE = 403 · เทมเพลตเดิม **เก็บไว้** กลับ ACTIVE แล้วใช้ต่อ
+
 ## 5. Error Code Table
 รูป error มาตรฐานของโมดูล (ตามธรรมเนียม repo: `error` = รหัส string + `message` ไทยสำหรับ UI):
 ```json
@@ -223,13 +279,17 @@ Vercel Cron `*/30 * * * *` · `maxDuration = 300` · เริ่มกลุ่
 |---|---|---|---|
 | `UNAUTHORIZED` | 401 | กรุณาเข้าสู่ระบบ | ทุกตัวของ owner API |
 | `NOT_OWNER` | 403 | ฟีเจอร์นี้สำหรับเจ้าของร้านเท่านั้น | ทุกตัวของ owner API |
-| `PACKAGE_REQUIRED` | 403 | ต้องมีแพ็กเกจธุรกิจที่ใช้งานอยู่ | 2,3,5,6,7 |
-| `VALIDATION` | 400 | ข้อมูลไม่ถูกต้อง (`details.fields` = ชื่อฟิลด์ที่ผิด) | 2,3,5,6 |
+| `PACKAGE_REQUIRED` | 403 | ต้องมีแพ็กเกจธุรกิจที่ใช้งานอยู่ | 2,3,5,6,7,12,13 |
+| `VALIDATION` | 400 | ข้อมูลไม่ถูกต้อง (`details.fields` = ชื่อฟิลด์ที่ผิด) | 2,3,5,6,12 |
 | `SHOP_NOT_ALLOWED` | 400 | เลือกได้เฉพาะร้านที่คุณเป็นเจ้าของและยังใช้งานอยู่ | 2,6 |
 | `SHOP_COUNT_OUT_OF_RANGE` | 400 | เลือกร้านได้ 1–10 ร้าน | 2,6 |
-| `INVALID_SETTINGS` | 400 | ตั้งค่านี้ไม่ได้ (`details.rule`: `NEEDS_TIME` = "ต้องมีอย่างน้อย 1 เวลา ปิดรายวันถ้าไม่ต้องการส่ง" · `METRIC_REQUIRED` = "ต้องแสดงตัวเลขอย่างน้อย 1 รายการ") | 5 |
-| `PROFIT_CONFIRM_REQUIRED` | 400 | ต้องยืนยันก่อนแสดงกำไรในกลุ่ม LINE | 5 |
-| `GROUP_NOT_FOUND` | 404 | ไม่พบกลุ่มนี้ | 3–9 |
+| `INVALID_SETTINGS` | 400 | ตั้งค่านี้ไม่ได้ (`details.rule`: `NEEDS_TIME` = "ต้องมีอย่างน้อย 1 เวลา ปิดรายวันถ้าไม่ต้องการส่ง" · `METRIC_REQUIRED` = "ต้องแสดงตัวเลขอย่างน้อย 1 รายการ") | 5, 12 |
+| `PROFIT_CONFIRM_REQUIRED` | 400 | ต้องยืนยันก่อนแสดงกำไรในกลุ่ม LINE | 5, 12 |
+| `TEMPLATE_INVALID` | 400 | ข้อความรายงานไม่ถูกต้อง (`details.rule`, `details.blockId?`) — **[EXT]** | 12 |
+| `TEMPLATE_TOO_LARGE` | 400 | ข้อความรายงานยาวเกินที่ LINE รับได้ ลดบล็อกหรือข้อความลง (`details.bytes`/`limit` หรือ `details.reason='BODY'`) — **[EXT]** | 12 |
+| `TEMPLATE_STALE` | 409 | มีการแก้ข้อความจากที่อื่นแล้ว โหลดใหม่ก่อนบันทึก (`details.currentVersion`) — **[EXT]** | 12 |
+| `FLAGS_DERIVED_FROM_TEMPLATE` | 409 | กลุ่มนี้ตั้งข้อความเอง ตัวเลขที่แสดงจึงแก้ที่หน้าจัดข้อความ — **[EXT]** | 5 |
+| `GROUP_NOT_FOUND` | 404 | ไม่พบกลุ่มนี้ | 3–9, 12, 13 |
 | `GROUP_LIMIT_REACHED` | 409 | ครบ 10 กลุ่มแล้ว ยกเลิกการผูกกลุ่มที่ไม่ได้ใช้ก่อน แล้วค่อยเพิ่มกลุ่มใหม่ | 2 |
 | `INVALID_STATE` | 409 | กลุ่มนี้อยู่ในสถานะที่ทำรายการนี้ไม่ได้ | 3 |
 | `SHOPS_INVALID` | 409 | ร้านในกลุ่มบางร้านไม่พร้อมใช้งาน แก้รายการร้านก่อน | 3 |
@@ -286,7 +346,8 @@ sequenceDiagram
 | GET `/groups` | §3.1 group.service · presenter | 03, 07, 24 |
 | POST `/bind-code`, `/groups/{id}/bind-code` | bind.service · §4.2 · TD-002/004 | 04, 07 |
 | GET `/groups/{id}` | group.service · delivery.listRecent | 05, 23 |
-| PATCH `/groups/{id}` | group.service.updateSettings | 10, 11, 12 |
+| PATCH `/groups/{id}` | group.service.updateSettings | 10, 11, 12 · EXT-07 |
+| PUT/DELETE `/groups/{id}/template` | group.service.updateTemplate / resetTemplate · `template-size.measureTemplate` | EXT-02, 07, 08, 10 |
 | PUT `/groups/{id}/shops` | shop.service.replaceGroupShops | 09 |
 | POST `/groups/{id}/test` | send.service.sendTest · §4.4 | 13 |
 | DELETE / POST ack | group.service | 08, 24 |
