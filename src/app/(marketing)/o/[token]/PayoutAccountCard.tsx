@@ -46,6 +46,7 @@ import { QRCodeCanvas } from 'qrcode.react'
 import { findThaiBank, type PayoutSnapshot } from '@/lib/shop-payout'
 import { buildPromptPayPayload } from '@/lib/promptpay-qr'
 import { ORDER_STATUS_TONE_TO_MUI, type PaymentBadge } from '@/lib/order-display'
+import { VERIFY_BADGE_PALETTE } from '@/lib/verify-badge'
 import TrustPill from './TrustPill'
 
 const baht = new Intl.NumberFormat('th-TH', {
@@ -199,10 +200,11 @@ export default function PayoutAccountCard({
             <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
               <Icon
                 icon='tabler-alert-triangle'
-                style={{ fontSize: 17, marginTop: 2, color: 'var(--mui-palette-warning-main)', flexShrink: 0 }}
+                style={{ fontSize: 17, marginTop: 2, color: VERIFY_BADGE_PALETTE.gold.fg, flexShrink: 0 }}
               />
               <Box sx={{ minWidth: 0 }}>
-                <Typography variant='body2' sx={{ fontWeight: 500, color: 'warning.main' }}>
+                {/* warning.main บนพื้นอำพัน 16% ~1.8:1 — หมึกอำพันเฉดเดิมที่เข้มขึ้น (critique 2026-10-05 P1) */}
+                <Typography variant='body2' sx={{ fontWeight: 500, color: VERIFY_BADGE_PALETTE.gold.fg }}>
                   ร้านยังไม่ได้แจ้งเลขบัญชี
                 </Typography>
                 <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.25 }}>

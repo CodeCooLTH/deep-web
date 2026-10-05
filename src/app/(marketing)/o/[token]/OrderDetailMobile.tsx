@@ -2861,7 +2861,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                       minWidth: 46,
                       px: 0,
                       flexShrink: 0,
-                      /* ข้อความโผล่เฉพาะจอที่มีที่ให้ — ไอคอนถังขยะสื่อ "ยกเลิก" ได้เองอยู่แล้ว
+                      /* ข้อความโผล่เฉพาะจอที่มีที่ให้ — ไอคอนกากบาทสื่อ "ยกเลิก" (ถังขยะอ่านเป็น "ลบ" — critique 2026-10-05)
                          และ `aria-label` + tooltip พูดคำเต็มให้ทุกจอ */
                       '& .cancel-label': { display: 'none' },
                       [ORDER_TWO_COL_MQ]: {
@@ -2871,7 +2871,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                       '&:hover': { color: 'error.main', borderColor: 'error.main' },
                     }}
                   >
-                    <Icon icon='tabler-trash' fontSize={18} />
+                    <Icon icon='tabler-x' fontSize={18} />
                     <Box component='span' className='cancel-label' sx={{ ml: 1 }}>
                       ยกเลิกคำสั่งซื้อ
                     </Box>
@@ -2879,6 +2879,10 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 </Tooltip>
               )}
             </Box>
+            {/* เตือนก่อนนิ้วแตะ (ม็อกอัพ v5) — dialog กันได้หลังแตะ ประโยคนี้กันได้ก่อน (critique 2026-10-05 P1) */}
+            <Typography variant='caption' color='text.secondary' sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
+              {order.isServiceShop ? 'กดเมื่อได้รับบริการครบแล้วเท่านั้น' : 'กดเมื่อได้ของครบแล้วเท่านั้น'}
+            </Typography>
 
 
             {/* คำอธิบายใต้ปุ่มถูกถอดออก: ของเดิมเขียนว่า "แตะเพื่อยืนยันว่าได้รับสินค้า/บริการแล้ว"
@@ -2906,7 +2910,9 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
         aria-labelledby='confirm-dialog-title'
       >
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', pt: 5, pb: 2, px: 4 }}>
-          <Icon icon='tabler-circle-check' style={{ fontSize: '3.5rem', marginBottom: '1rem', color: 'var(--mui-palette-success-main)' }} />
+          {/* ไอคอนกลาง ไม่ใช่ติ๊กเขียว — ตอนนี้ผู้ซื้อยังไม่ได้ยืนยัน เขียวคือ "ยืนยันแล้ว" เท่านั้น
+              (Verified-Means-Green · critique 2026-10-05 P1) เขียวเก็บไว้ให้แผ่นรีวิว/ตราประทับหลังกด */}
+          <Icon icon='tabler-help-circle' style={{ fontSize: '3.5rem', marginBottom: '1rem', color: 'var(--mui-palette-primary-main)' }} />
           {/* 🛑 ต้องผันคำเหมือน `ctaLabel` ของปุ่มที่เพิ่งกด — เดิมปุ่มเขียน "ยืนยันว่ารับบริการแล้ว"
               แต่ไดอะล็อกที่เด้งตามมาเขียน "ได้รับสินค้า" = คนละคำในการกดครั้งเดียว */}
           <Typography id='confirm-dialog-title' variant='h5' sx={{ mb: 1 }}>
@@ -2922,14 +2928,14 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           </Button>
           <Button
             variant='contained'
-            color='success'
+            color='primary'
             disabled={submitting}
             onClick={() => {
               setConfirmDialogOpen(false)
               void handleConfirm()
             }}
           >
-            {submitting ? 'กำลังยืนยัน...' : 'ได้รับแล้ว'}
+            {submitting ? 'กำลังยืนยัน…' : order.isServiceShop ? 'รับบริการแล้ว' : 'ได้รับแล้ว'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -4,6 +4,7 @@
 import { useState } from 'react'
 
 // MUI Imports
+import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
@@ -55,6 +56,7 @@ type PhoneFormValues = Yup.InferType<typeof phoneSchema>
 /** สรุปออเดอร์แบบ public-safe จาก getOrderSummaryForSignIn (ไม่มี PII ของคน) */
 import OrderLinkShell, { type OrderLinkShopContext } from './OrderLinkShell'
 import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
+import { VERIFY_BADGE_PALETTE } from '@/lib/verify-badge'
 
 export type SignInOrderContext = OrderLinkShopContext
 
@@ -78,8 +80,12 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
   //     บัญชี Deep การเอาฟอร์ม username/password ขึ้นก่อนทำให้ดูเหมือนทางตัน จึงให้เลือกช่องทางก่อน
   //   password = default เดิมของหน้า sign-in ปกติ
   //   otp = ฟอร์มเบอร์โทร (default ถ้ามี prefillPhone ถูกต้อง — มาจาก SMS link)
+  // ลิงก์ SMS ที่ใช้ไปแล้ว/หมดอายุ (route `/api/o/sms/[code]` → `?smsExpired=1` ไม่มี callbackUrl เพราะ
+  // code ตายแล้วจึงไม่รู้ว่าออเดอร์ไหน) — ผู้มาทางนี้คือผู้ซื้อที่มีแต่เบอร์ ไม่มี username
+  // ⇒ เปิดฟอร์มเบอร์โทรให้เลย ไม่ใช่ฟอร์มรหัสผ่าน (critique 2026-10-05 P0)
+  const smsExpired = searchParams.get('smsExpired') === '1'
   const [loginMode, setLoginMode] = useState<'channels' | 'password' | 'otp'>(
-    prefillPhone ? 'otp' : orderContext ? 'channels' : 'password',
+    prefillPhone || smsExpired ? 'otp' : orderContext ? 'channels' : 'password',
   )
   // toggle แสดง/ซ่อนรหัสผ่าน (eye icon) — consistent กับ sign-up/new-pass
   const [isPasswordShown, setIsPasswordShown] = useState(false)
@@ -147,6 +153,21 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
               : 'กรอกเบอร์โทรเพื่อรับรหัส OTP เข้าสู่ระบบ'}
         </Typography>
       </div>
+
+      {/* แถบค้างในหน้า ไม่ใช่ toast — toast หายเองใน ~5 วิ ก่อนผู้สูงวัยอ่านจบ แล้วเหลือแต่ฟอร์ม
+          ที่ไม่รู้ว่าทำไมมาอยู่ตรงนี้ (critique 2026-10-05 P0) */}
+      {smsExpired && (
+        /* สีตั้งต้นของ Alert warning ในธีมนี้เป็นส้มบนพื้นส้มจาง (~1.9:1 ตก AA — วัดจากจอจริง 2026-10-05)
+           ⇒ หมึกอำพันเฉดเดิมที่เข้มขึ้น ชุดเดียวกับ VERIFY_BADGE_PALETTE.gold (contrast-fix-keeps-hue) */
+        <Alert
+          severity='warning'
+          icon={<i className='tabler-link-off' />}
+          className='mbe-6'
+          sx={{ color: VERIFY_BADGE_PALETTE.gold.fg, '& .MuiAlert-icon': { color: VERIFY_BADGE_PALETTE.gold.fg } }}
+        >
+          ลิงก์นี้ใช้ไปแล้วหรือหมดอายุ — กรอกเบอร์ที่แจ้งร้านตอนสั่งซื้อ เพื่อดูคำสั่งซื้อต่อ
+        </Alert>
+      )}
 
       {loginMode === 'channels' ? (
               /* หน้าเลือกช่องทาง — ทุกทางเข้าต้องอยู่เหนือ fold ใน in-app browser ของ Messenger

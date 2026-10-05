@@ -5,7 +5,6 @@ import { getOrderSummaryForSignIn } from '@/services/order.service'
 
 import OAuthErrorToast from './OAuthErrorToast'
 import SignInCard from './SignInCard'
-import SmsExpiredToast from './SmsExpiredToast'
 
 export const metadata: Metadata = { title: 'เข้าสู่ระบบ' }
 
@@ -45,7 +44,6 @@ export default async function SignInPage({ searchParams }: Props) {
         <OAuthErrorToast />
       </Suspense>
       <Suspense fallback={null}>
-        <SmsExpiredToast />
       </Suspense>
       <Suspense fallback={null}>
         <SignInCard orderContext={orderContext} />

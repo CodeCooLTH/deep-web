@@ -60,7 +60,14 @@ export default function TrustPill({
    * (`getTierColor` คืนได้ 4 ค่า: secondary · info · warning · default)
    */
   const TIER_HAS_DARK = ['primary', 'secondary', 'info', 'success', 'warning', 'error']
-  const tierInk = tierColor && TIER_HAS_DARK.includes(tierColor) ? `${tierColor}.dark` : 'text.primary'
+  // warning.dark (#E68F3C) บนพื้น action.hover ได้ ~2.4:1 ตก AA — ใช้หมึกอำพันเฉดเดิมที่เข้มขึ้น
+  // ชุดเดียวกับ VERIFY_BADGE_PALETTE.gold (contrast-fix-keeps-hue · critique 2026-10-05 P1)
+  const tierInk =
+    tierColor === 'warning'
+      ? VERIFY_BADGE_PALETTE.gold.fg
+      : tierColor && TIER_HAS_DARK.includes(tierColor)
+        ? `${tierColor}.dark`
+        : 'text.primary'
 
   return (
     <Box
