@@ -12,7 +12,7 @@ import { addFriendUrl, isReportBotReady } from '@/lib/line-report/config'
 import { BIND_CODE_TTL_MS, formatBindCode, generateBindCode, hashBindCode } from '@/lib/line-report/bind-code'
 import { fetchGroupSummary } from '@/lib/line-report/line-client'
 import type { LineReportRateKind } from '@/lib/line-report/types'
-import { assertReportable, assertReportableIds, lockOwnedGroup } from '@/services/line-report-shop.service'
+import { assertReportable, assertReportableIds, lockOwnedGroup, ownedShopWhere } from '@/services/line-report-shop.service'
 import { isOwnerPaidForReports } from '@/services/line-report-access.service'
 import { MAX_GROUPS, revokeLiveCodes } from '@/services/line-report-group.service'
 
@@ -193,12 +193,12 @@ export async function consumeBindCode(i: {
   }
 }
 
-/** ทุกร้านของกลุ่มยัง userId=owner ∧ ¬deleted ∧ ¬purged (ร้านถูกล็อกตอนนี้ยังผูกได้ — ส่งจริงตัดตอนรายงาน) · ไม่มีร้านเลย = ไม่ผ่าน · นับกลุ่ม ≤ 10 */
+/** ทุกร้านของกลุ่มยังเป็นของเจ้าของ (ownedShopWhere) ∧ ¬deleted ∧ ¬purged (ร้านถูกล็อกตอนนี้ยังผูกได้ — ส่งจริงตัดตอนรายงาน) · ไม่มีร้านเลย = ไม่ผ่าน · นับกลุ่ม ≤ 10 */
 async function bindPreconditionsHold(db: Tx | typeof prisma, ownerId: string, groupId: string): Promise<boolean> {
   const links = await db.lineReportGroupShop.findMany({ where: { groupId }, select: { shopId: true } })
   if (links.length === 0) return false
   const ok = await db.shop.count({
-    where: { id: { in: links.map((l) => l.shopId) }, userId: ownerId, deletedAt: null, purgedAt: null },
+    where: { id: { in: links.map((l) => l.shopId) }, ...ownedShopWhere(ownerId), deletedAt: null, purgedAt: null },
   })
   if (ok !== links.length) return false
   return (await db.lineReportGroup.count({ where: { ownerId, status: { not: 'REMOVED' } } })) <= MAX_GROUPS

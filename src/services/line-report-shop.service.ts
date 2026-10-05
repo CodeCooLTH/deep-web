@@ -1,8 +1,12 @@
 /**
  * line-report-shop.service.ts — ร้านที่รวมในรายงานกลุ่ม LINE (00070 · SRS TFR-08/16)
  *
- * 🛑 reportable = `userId=owner ∧ ¬deleted ∧ ¬purged ∧ ¬locked` กรองที่ query แรก — ห้ามใช้ `listAccessibleShopIds`
+ * 🛑 reportable = `เป็นเจ้าของ (ownedShopWhere) ∧ ¬deleted ∧ ¬purged ∧ ¬locked` กรองที่ query แรก — ห้ามใช้ `listAccessibleShopIds`
  * (นั่นรวมร้านที่เป็น ADMIN ของเจ้าของอื่น = รั่วตัวเลขร้านคนอื่นเข้ากลุ่ม)
+ *
+ * "เป็นเจ้าของ" = เจ้าของหลัก (`Shop.userId`) **หรือเจ้าของร่วม** (`ShopMember.role='OWNER'`) — ส่วนขยาย 2026-10-05
+ * (user สั่ง: เจ้าของร่วมผูกรายงานร้านที่ตัวเองเป็นเจ้าของได้) · ไม่รั่ว: เจ้าของร่วมเห็นตัวเลขร้านนั้นทั้งหมดในแอปอยู่แล้ว
+ * ถูกลดเป็นผู้ดูแล/ถูกลบออก = ร้านหลุดจากรายงานตอนส่งเอง (`isOwnedBy` ที่จุดส่ง → NOT_OWNED)
  */
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
@@ -29,11 +33,25 @@ export function shopState(s: Pick<ShopRow, 'packageLockedAt' | 'deletedAt' | 'pu
   return 'OK'
 }
 
+/** where ของ "ร้านที่ ownerId เป็นเจ้าของ" — SSOT เดียวของทุก query ในโดเมนรายงาน (ร้าน PERSONAL ไม่มีแถว ShopMember จึงต้องมี userId ด้วย) */
+export function ownedShopWhere(ownerId: string): Prisma.ShopWhereInput {
+  return { OR: [{ userId: ownerId }, { members: { some: { userId: ownerId, role: 'OWNER' } } }] }
+}
+
+/** select คู่กับ `isOwnedBy` — ดึงแค่แถวสมาชิก OWNER ของคนนี้ (มีได้ 0..1 แถวตาม @@unique shopId+userId) */
+export const ownerMemberSelect = (ownerId: string) =>
+  ({ userId: true, members: { where: { userId: ownerId, role: 'OWNER' }, select: { id: true } } }) as const
+
+/** ฝั่ง JS ของ `ownedShopWhere` — ใช้กับแถวที่อ่านมาแล้ว (จุดส่ง/อ่านร้านของกลุ่ม) */
+export function isOwnedBy(shop: { userId: string; members: readonly unknown[] }, ownerId: string): boolean {
+  return shop.userId === ownerId || shop.members.length > 0
+}
+
 const toRef = (s: Pick<ShopRow, 'id' | 'shopName' | 'vertical'>): ShopRef => ({ id: s.id, name: s.shopName, vertical: s.vertical })
 
 export async function listReportableShops(ownerId: string): Promise<(ShopRef & { kind: string })[]> {
   const rows = await prisma.shop.findMany({
-    where: { userId: ownerId, deletedAt: null, purgedAt: null, packageLockedAt: null },
+    where: { ...ownedShopWhere(ownerId), deletedAt: null, purgedAt: null, packageLockedAt: null },
     select: { id: true, shopName: true, vertical: true, kind: true },
     orderBy: { createdAt: 'asc' },
   })
@@ -50,7 +68,7 @@ export function assertShopCount(shopIds: readonly string[]): void {
 export async function assertReportableIds(ownerId: string, shopIds: readonly string[], db: Db | typeof prisma = prisma): Promise<ShopRef[]> {
   if (shopIds.length === 0) return []
   const rows = await db.shop.findMany({
-    where: { id: { in: [...shopIds] }, userId: ownerId, deletedAt: null, purgedAt: null, packageLockedAt: null },
+    where: { id: { in: [...shopIds] }, ...ownedShopWhere(ownerId), deletedAt: null, purgedAt: null, packageLockedAt: null },
     select: { id: true, shopName: true, vertical: true },
   })
   if (rows.length !== new Set(shopIds).size) throw new LineReportError('SHOP_NOT_ALLOWED')
@@ -68,7 +86,7 @@ export type SendExcludedReason = ExcludedReason | 'NOT_OWNED'
 
 /**
  * ร้านของกลุ่ม อ่านสด ณ ตอนส่ง — ตัดร้านล็อก/ลบ/purge ออกพร้อมเหตุ (TFR-16)
- * 🛑 ตรวจ `shop.userId = group.ownerId` ซ้ำที่จุดส่งด้วย (defense in depth — แถว GroupShop เขียนผ่านด่าน reportable อยู่แล้ว
+ * 🛑 ตรวจ "ยังเป็นเจ้าของ" (`isOwnedBy`) ซ้ำที่จุดส่งด้วย (defense in depth — แถว GroupShop เขียนผ่านด่าน reportable อยู่แล้ว
  * แต่ร้านย้ายเจ้าของ/ข้อมูลหลุดด่านต้องไม่ทำให้ตัวเลขร้านคนอื่นเข้ากลุ่มของเรา)
  */
 export async function resolveSendableShops(group: { id: string; ownerId: string }): Promise<{
@@ -77,7 +95,7 @@ export async function resolveSendableShops(group: { id: string; ownerId: string 
 }> {
   const rows = await prisma.lineReportGroupShop.findMany({
     where: { groupId: group.id },
-    select: { shop: { select: { ...SHOP_STATE_SELECT, userId: true } } },
+    select: { shop: { select: { ...SHOP_STATE_SELECT, ...ownerMemberSelect(group.ownerId) } } },
     orderBy: { createdAt: 'asc' },
   })
   const sendable: ShopRef[] = []
@@ -85,7 +103,7 @@ export async function resolveSendableShops(group: { id: string; ownerId: string 
   for (const { shop } of rows) {
     const st = shopState(shop)
     if (st !== 'OK') excluded.push({ shop: toRef(shop), reason: st })
-    else if (shop.userId !== group.ownerId) excluded.push({ shop: toRef(shop), reason: 'NOT_OWNED' })
+    else if (!isOwnedBy(shop, group.ownerId)) excluded.push({ shop: toRef(shop), reason: 'NOT_OWNED' })
     else sendable.push(toRef(shop))
   }
   return { sendable, excluded }
@@ -105,14 +123,14 @@ export type GroupShopDto = { shopId: string; name: string; vertical: string; kin
 async function readGroupShops(db: Db | typeof prisma, groupId: string, ownerId: string): Promise<GroupShopDto[]> {
   const rows = await db.lineReportGroupShop.findMany({
     where: { groupId },
-    select: { shop: { select: { ...SHOP_STATE_SELECT, userId: true } } },
+    select: { shop: { select: { ...SHOP_STATE_SELECT, ...ownerMemberSelect(ownerId) } } },
     orderBy: { createdAt: 'asc' },
   })
-  // ร้านที่โอนเจ้าของหลักไปแล้ว (EXT 00012 transferShopOwnership) ไม่ใช่ร้านของเจ้าของกลุ่มอีก — ตัวส่งตัดออกเป็น NOT_OWNED
+  // ร้านที่เจ้าของกลุ่มไม่ได้เป็นเจ้าของแล้ว (โอนเจ้าของหลัก/ถูกลดเป็นผู้ดูแล/ถูกลบออก) ไม่ใช่ร้านของเขาอีก — ตัวส่งตัดออกเป็น NOT_OWNED
   // แสดงเป็น DELETED (state ของ API §4.4 มีแค่ OK|LOCKED|DELETED · UI ไม่ต้องเปลี่ยน) ไม่ให้โชว์ OK ทั้งที่ส่งไม่ถึง
   return rows.map(({ shop }) => {
     const st = shopState(shop)
-    return { shopId: shop.id, name: shop.shopName, vertical: shop.vertical, kind: shop.kind, state: st === 'OK' && shop.userId !== ownerId ? 'DELETED' : st }
+    return { shopId: shop.id, name: shop.shopName, vertical: shop.vertical, kind: shop.kind, state: st === 'OK' && !isOwnedBy(shop, ownerId) ? 'DELETED' : st }
   })
 }
 
