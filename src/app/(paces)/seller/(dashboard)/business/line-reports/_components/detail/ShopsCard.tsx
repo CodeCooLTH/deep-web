@@ -29,7 +29,7 @@ export default function ShopsCard({
   const okCount = rows.filter((r) => r.state === 'OK').length
   const okSelected = selected.filter((id) => rows.find((r) => r.id === id)?.state === 'OK').length
   return (
-    <section className="card order-1">
+    <section className="card rounded-xl border border-default-300 shadow-sm order-1">
       <div className="card-header">
         <h5 className="card-title flex items-center gap-2">
           <Icon icon="building-store" className="text-primary text-lg" aria-hidden="true" />

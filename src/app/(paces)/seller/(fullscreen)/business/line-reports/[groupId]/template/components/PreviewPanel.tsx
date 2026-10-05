@@ -7,7 +7,8 @@
  *   + ../../_components/FlexBubbleView.tsx (ไม่แก้ — T11d จะเพิ่ม span/กราฟ)
  * ข้อมูลตัวอย่างเป็นกรณียาวสุด + ธงจาก `draft` — บล็อกข้อความที่ยังว่างถูกตัดก่อนเข้า composer (กัน throw) ใน buildPreviewContents
  */
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
+import CardHead, { ROUND_CARD } from '@/app/(paces)/seller/(dashboard)/business/line-reports/_components/CardHead'
 import FlexBubbleView from '@/app/(paces)/seller/(dashboard)/business/line-reports/_components/FlexBubbleView'
 import { previewState, type PreviewKind } from '@/lib/line-report/settings-guards'
 import type { SampleShopInput } from '@/lib/line-report/preview-sample'
@@ -25,6 +26,7 @@ export default function PreviewPanel({
   settings,
   cycle,
   serverNowIso,
+  children,
 }: {
   template: TemplateV1
   shops: readonly SampleShopInput[]
@@ -33,6 +35,8 @@ export default function PreviewPanel({
   settings: { dailyEnabled: boolean; monthlyEnabled: boolean }
   cycle: { startIso: string; endIso: string } | null
   serverNowIso: string
+  /** เกจความยาวใต้ตัวอย่าง */
+  children?: ReactNode
 }) {
   const st = previewState(kind, settings, cycle !== null)
   const cycleStart = cycle?.startIso
@@ -50,20 +54,24 @@ export default function PreviewPanel({
     [template, shops, st.kind, settings.monthlyEnabled, cycleStart, cycleEnd, serverNowIso],
   )
   return (
-    <section aria-label="ตัวอย่างในกลุ่ม LINE">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-default-900 mb-0 text-sm font-semibold">ตัวอย่างในกลุ่ม LINE</h2>
+    <section aria-label="ตัวอย่างในกลุ่ม LINE" className={ROUND_CARD}>
+      <div className="card-body">
+        <CardHead icon="brand-line" tone="success" title="ตัวอย่างในกลุ่ม LINE" desc="ตัวเลขเป็นค่าสมมุติ" />
+        {/* seg แยกแถว — อยู่แถวเดียวกับหัวในคอลัมน์ 1/3 ชื่อการ์ดถูกบีบจนตกบรรทัด (audit รอบ rounded-card) */}
         <SegControl
-          label="ชนิดตัวอย่าง"
-          value={st.kind}
-          onChange={onKind}
-          options={[
-            { value: 'DAILY', label: 'รายวัน', disabled: st.dailyDisabled },
-            { value: 'MONTHLY', label: 'รายเดือน', disabled: st.monthlyDisabled },
-          ]}
-        />
+            label="ชนิดตัวอย่าง"
+            fill
+            className="mb-4 w-full"
+            value={st.kind}
+            onChange={onKind}
+            options={[
+              { value: 'DAILY', label: 'รายวัน', disabled: st.dailyDisabled },
+              { value: 'MONTHLY', label: 'รายเดือน', disabled: st.monthlyDisabled },
+            ]}
+          />
+        <FlexBubbleView className="rounded-xl" contents={contents} caption={CAPTION} />
+        {children}
       </div>
-      <FlexBubbleView contents={contents} caption={CAPTION} />
     </section>
   )
 }

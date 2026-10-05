@@ -60,7 +60,7 @@ export default function ScheduleCard({
   const timesHelper = !canAdd ? TIMES_FULL_HELPER : !canRemove ? NEEDS_TIME_HELPER : 'เลือกได้สูงสุด 4 เวลา ทีละ 30 นาที'
 
   return (
-    <section className="card order-2">
+    <section className="card rounded-xl border border-default-300 shadow-sm order-2">
       <div className="card-header">
         <h5 className="card-title flex items-center gap-2">
           <Icon icon="clock" className="text-primary text-lg" aria-hidden="true" />

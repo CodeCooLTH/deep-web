@@ -15,7 +15,7 @@ const COMMANDS = [
 
 export default function CommandsCard() {
   return (
-    <section className="card order-5">
+    <section className="card rounded-xl border border-default-300 shadow-sm order-5">
       <div className="card-header">
         <h5 className="card-title">พิมพ์ในกลุ่มได้เลย</h5>
       </div>

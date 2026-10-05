@@ -12,7 +12,7 @@ const URL_DB = process.env.DATABASE_URL ?? ''
 if (!/@(localhost|127\.0\.0\.1):5434\//.test(URL_DB)) throw new Error('E2E: DATABASE_URL ต้องเป็น localhost:5434')
 const prisma = new PrismaClient()
 const SHOT = '/tmp/qa-00070'
-const H = 'http://seller.deepth.local:4000'
+const H = process.env.E2E_SELLER_ORIGIN ?? 'http://seller.deepth.local:4000'
 const ids = { user: '', shops: [] as string[], group: '', token: '' }
 
 test.describe.configure({ mode: 'serial' })
@@ -104,12 +104,13 @@ test('Q1 การ์ดข้อความในหน้าตั้งค�
     await expect(page.getByText('ใช้แบบมาตรฐานอยู่')).toBeVisible()
     await expect(page.getByRole('link', { name: 'จัดข้อความ' })).toHaveAttribute('href', `/business/line-reports/${ids.group}/template`)
     await expect(page.getByText('รายงานยอดรายวัน').first()).toBeVisible()
-    expect(await overflow(), `overflow @${w}`).toBe(false)
+    const offenders = await page.evaluate(() => [...document.querySelectorAll('body *')].filter((e) => e.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map((e) => `${e.tagName}.${String((e as HTMLElement).className).slice(0, 80)} r=${Math.round(e.getBoundingClientRect().right)}`))
+    expect(await overflow(), `overflow @${w}\n${offenders.join('\n')}`).toBe(false)
     await shot(`q1-settings-${w}`)
   }
 })
 
-test('Q2 หน้า template: layout 3/2/สลับ + ไม่ overflow', async () => {
+test('Q2 หน้า template: layout 2 คอลัมน์ (เพิ่มบล็อก+ข้อความ | ตัวอย่าง)/ซ้อน/สลับ + ไม่ overflow', async () => {
   const cols = () =>
     page.evaluate(() => {
       const x = (s: string) => {
@@ -122,9 +123,15 @@ test('Q2 หน้า template: layout 3/2/สลับ + ไม่ overflow', a
   await gotoT()
   const c3 = await cols()
   console.log('1180', c3)
-  expect(c3.lib).not.toBeNull()
-  expect(c3.canvas!).toBeGreaterThan(c3.lib!)
-  expect(c3.preview!).toBeGreaterThan(c3.canvas!)
+  // mockup การ์ดโค้งมน (2026-10-05): คลัง "เพิ่มบล็อก" อยู่เหนือ "ข้อความที่จะส่ง" ในคอลัมน์ซ้าย · ตัวอย่างคอลัมน์ขวา
+  expect(c3.canvas).not.toBeNull()
+  expect(c3.preview!).toBeGreaterThan(c3.canvas! + 300)
+  const libAbove = await page.evaluate(() => {
+    const lib = [...document.querySelectorAll('button[aria-label^="เพิ่ม"]')].find((n) => (n as HTMLElement).offsetParent) as HTMLElement | undefined
+    const can = document.querySelector('section[aria-label="ข้อความที่จะส่ง"]') as HTMLElement
+    return !!lib && lib.getBoundingClientRect().top < can.getBoundingClientRect().top
+  })
+  expect(libAbove).toBe(true)
   expect(await overflow()).toBe(false)
   await shot('q2-tpl-1180')
   await page.setViewportSize({ width: 768, height: 900 })
@@ -133,7 +140,10 @@ test('Q2 หน้า template: layout 3/2/สลับ + ไม่ overflow', a
   console.log('768', c2)
   expect(c2.canvas).not.toBeNull()
   expect(c2.preview).not.toBeNull()
-  expect(c2.preview!).toBeGreaterThan(c2.canvas! + 100)
+  // 768 = ผืนงานกับตัวอย่างซ้อนกันคอลัมน์เดียว (audit: 2 คอลัมน์ที่ md บีบการ์ดจนตัวเลขตกบรรทัด)
+  expect(c2.preview).toBe(c2.canvas)
+  const tops = await page.evaluate(() => ['ข้อความที่จะส่ง', 'ตัวอย่างในกลุ่ม LINE'].map((n) => Math.round(document.querySelector(`section[aria-label="${n}"]`)!.getBoundingClientRect().top)))
+  expect(tops[1]).toBeGreaterThan(tops[0])
   expect(await overflow()).toBe(false)
   await shot('q2-tpl-768')
   await page.setViewportSize({ width: 375, height: 800 })

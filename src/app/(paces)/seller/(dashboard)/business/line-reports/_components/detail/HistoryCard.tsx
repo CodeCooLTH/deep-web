@@ -25,7 +25,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function HistoryCard({ deliveries }: { deliveries: GroupDetailDto['deliveries'] }) {
   return (
-    <section className="card order-6">
+    <section className="card rounded-xl border border-default-300 shadow-sm order-6">
       <div className="card-header">
         <h5 className="card-title flex items-center gap-2">
           <Icon icon="history" className="text-primary text-lg" aria-hidden="true" />

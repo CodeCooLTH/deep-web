@@ -30,6 +30,7 @@ import GroupBanner from '../_components/detail/GroupBanner'
 import HistoryCard from '../_components/detail/HistoryCard'
 import MessageCard from '../_components/detail/MessageCard'
 import ScheduleCard from '../_components/detail/ScheduleCard'
+import StatCards from '../_components/detail/StatCards'
 import ShopsCard from '../_components/detail/ShopsCard'
 import { useAutosave } from '../_components/detail/useAutosave'
 
@@ -139,14 +140,19 @@ export default function GroupDetailClient({ initialGroup, reportableShops, shell
         </div>
       </div>
 
-      <div className="mb-base flex flex-col gap-base lg:grid lg:grid-cols-5 lg:items-start">
-        <div className="contents lg:col-span-3 lg:flex lg:flex-col lg:gap-base">
+      <StatCards group={group} />
+      {/* ข้อความที่ส่งเข้ากลุ่มเต็มกว้างใต้การ์ดตัวเลข (ตาม mockup) — ตัวอย่างแสดงเต็ม */}
+      <div className="mb-base">
+        <MessageCard group={group} canEdit={editable} serverNowIso={serverNowIso} />
+      </div>
+
+      <div className="mb-base flex flex-col gap-4 lg:grid lg:grid-cols-5 lg:items-start">
+        <div className="contents lg:col-span-3 lg:flex lg:flex-col lg:gap-4">
           <ShopsCard rows={rows} selected={shopIds} canEdit={editable} onChange={updateShops} />
           <ScheduleCard settings={group.settings} cycle={group.cycle} canEdit={editable} orderWord={word} onChange={update} />
           <HistoryCard deliveries={group.deliveries} />
         </div>
-        <div className="contents lg:col-span-2 lg:flex lg:flex-col lg:gap-base">
-          <MessageCard group={group} canEdit={editable} serverNowIso={serverNowIso} />
+        <div className="contents lg:col-span-2 lg:flex lg:flex-col lg:gap-4">
           <CommandsCard />
         </div>
       </div>

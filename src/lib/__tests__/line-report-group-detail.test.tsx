@@ -191,7 +191,7 @@ describe('GroupDetailClient — การ์ดข้อความ (EXT-12)', 
     const html = render()
     expect(html).toContain('ข้อความที่ส่งเข้ากลุ่ม')
     expect(html).toContain('ใช้แบบมาตรฐานอยู่')
-    expect(html).toMatch(/<a[^>]*href="\/business\/line-reports\/g1\/template"[^>]*>จัดข้อความ<\/a>/)
+    expect(html).toMatch(/<a[^>]*href="\/business\/line-reports\/g1\/template"[^>]*>(<i[^>]*><\/i>)?จัดข้อความ<\/a>/)
     expect(html).not.toContain('ตัวอย่างในกลุ่ม LINE')
   })
   it('จัดเองแล้ว → chip "จัดเองแล้ว" · paused → ป้ายปุ่ม "ดูข้อความที่ตั้งไว้"', () => {
