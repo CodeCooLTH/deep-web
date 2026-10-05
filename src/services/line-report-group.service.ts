@@ -13,7 +13,8 @@ import { nextSendAt } from '@/lib/line-report/schedule'
 import { cycleContaining } from '@/lib/line-report/cycle'
 import { describeReason, MISSED_STATUS_LABEL } from '@/lib/line-report/delivery-reasons'
 import type { LineReportAlertKind } from '@/lib/line-report/types'
-import type { UpdateSettingsInput } from '@/lib/line-report/validations'
+import * as v from 'valibot'
+import { CutoffDaySchema, DailyTimesSchema, type UpdateSettingsInput } from '@/lib/line-report/validations'
 import { isOwnerPaidForReports } from '@/services/line-report-access.service'
 import { lockOwnedGroup, readGroupShops, type GroupShopDto } from '@/services/line-report-shop.service'
 
@@ -170,9 +171,13 @@ const invalid = (rule: InvalidSettingsRule) => new LineReportError('INVALID_SETT
  */
 export function mergeSettings(current: SettingsState, patch: UpdateSettingsInput, now: Date): SettingsState {
   const { confirmProfit, ...fields } = patch
-  const defined = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined))
+  const defined = Object.fromEntries(Object.entries(fields).filter(([, val]) => val !== undefined))
   const next: SettingsState = { ...current, ...defined }
   next.dailyTimes = [...new Set(next.dailyTimes)].sort((a, b) => a - b)
+  // ตรวจซ้ำที่ service (ไม่พึ่งแค่ route) — ไม่งั้นค่านอกชุดไปชน CHECK ของ DB แล้วได้ raw error แทน VALIDATION
+  if (!v.safeParse(DailyTimesSchema, next.dailyTimes).success || !v.safeParse(CutoffDaySchema, next.cutoffDay).success) {
+    throw new LineReportError('VALIDATION')
+  }
 
   if (next.showProfit && !current.showProfit && confirmProfit !== true) throw new LineReportError('PROFIT_CONFIRM_REQUIRED')
   // ปิดรายเดือน → ส่วนแนบรอบในรายวันหมดความหมาย ล้างเงียบ ๆ (ไม่ error)
@@ -215,6 +220,9 @@ export async function revokeLiveCodes(tx: Db, where: { groupId?: string; ownerId
  */
 export async function removeGroup(ownerId: string, groupId: string): Promise<{ removed: true; leaveLineGroupId: string | null }> {
   return prisma.$transaction(async (tx) => {
+    // ล็อกแถวก่อนอ่าน status — ไม่งั้นแข่งกับ consumeBindCode (PENDING→ACTIVE) แล้วอ่านเห็น PENDING ทั้งที่กลายเป็น ACTIVE
+    // (ผลคือบอทไม่ถูกสั่งออกจากกลุ่ม) · ลำดับล็อกของ bind = User แล้วค่อย Group; ที่นี่ล็อกแค่ Group จึงไม่ deadlock
+    await lockOwnedGroup(tx, ownerId, groupId)
     const g = await tx.lineReportGroup.findFirst({
       where: { id: groupId, ownerId, status: { not: 'REMOVED' } },
       select: { status: true, lineGroupId: true },

@@ -16,6 +16,8 @@ related: ["[[PRD]]", "[[BRD]]", "[[LINE-API-Facts]]", "[[SRS]]", "[[SDS]]"]
 
 # DATABASE: รายงานสรุปยอดเข้ากลุ่ม LINE
 
+> 🛑 **แก้ 2026-10-05 (security H-1):** โค้ดผูกเปลี่ยนจากเลข 6 หลัก (10⁶) เป็น **8 ตัว Crockford base32** (`XXXX-XXXX`, ~1.1×10¹²) เพราะเพดานเดา 5 ครั้ง/10 นาทีนับต่อกลุ่ม — คนร้ายเปิดหลายกลุ่มเดาขนานได้ (200 กลุ่ม × 50 โค้ดสด ≈ 5%/10 นาที) · parser รับตัวพิมพ์เล็ก/ไม่มีขีด และแปลง O→0, I/L→1 · ตัวเลข 10⁶/1,000,000 ในเหตุผลเดิมของเอกสารนี้คือค่าก่อนแก้
+
 > 🛑 เอกสารนี้ออกแบบอย่างเดียว — **ยังไม่ได้แก้ `prisma/schema.prisma` ยังไม่มีไฟล์ migration ยังไม่ได้รันคำสั่ง prisma/DB ใด ๆ** ชื่อ field/โมเดลเป็น "ข้อเสนอ" ที่ยืนยันกับสไตล์ schema จริงแล้ว (ดู §1.2) DEV เป็นผู้เขียน schema + migration ตามเอกสารนี้
 
 ---
@@ -193,14 +195,14 @@ erDiagram
 - ที่จุดเขียนทุกจุด (สร้างโค้ด, `PUT .../shops`) ต้องกรองร้านด้วย `Shop.userId = ownerId AND deletedAt IS NULL AND purgedAt IS NULL` ใน query แรก (BR-LGS-02) — ตารางนี้ **ไม่ได้ตรวจความเป็นเจ้าของให้**
 - ร้านที่ถูกล็อก/ลบภายหลัง **แถวยังอยู่** (AC-LGS-09-3 ห้ามลบเงียบ) — สถานะอ่านสดจาก `Shop` ตอนแสดง/ส่ง (ไม่คัดลอกธงมาเก็บ)
 
-### 3.3 `LineReportBindCode` — โค้ดผูกกลุ่ม 6 หลัก
+### 3.3 `LineReportBindCode` — โค้ดผูกกลุ่ม 8 ตัว
 
 | Column | Type | Null | Default | Key |
 |--------|------|------|---------|-----|
 | `id` | `text` (uuid) | NO | `uuid()` | PK |
 | `ownerId` | `text` | NO | — | FK → `User.id` `Cascade` · IDX |
 | `groupId` | `text` | NO | — | FK → `LineReportGroup.id` `Cascade` (แถว `PENDING`) |
-| `codeHash` | `text` | NO | — | SHA-256 hex ของโค้ด 6 หลัก (แบบ `SmsCode.codeHash`) · **partial UNIQUE** §5 |
+| `codeHash` | `text` | NO | — | SHA-256 hex ของโค้ด 8 ตัว (แบบ `SmsCode.codeHash`) · **partial UNIQUE** §5 |
 | `expiresAt` | `timestamptz` | NO | — | `createdAt + 10 นาที` (AC-LGS-04-2) |
 | `usedAt` | `timestamptz` | YES | NULL | consume แบบอะตอมมิก `updateMany where usedAt null` |
 | `revokedAt` | `timestamptz` | YES | NULL | โค้ดเก่าถูกแทนด้วยโค้ดใหม่ (AC-LGS-04-3) |
@@ -212,9 +214,9 @@ erDiagram
 - **ผลข้างเคียงที่ต้องรู้:** เพดาน 10 กลุ่ม "นับทุกสถานะที่ไม่ลบ" (AC-LGS-04-6) = นับ `status <> 'REMOVED'` รวม `PENDING` ⇒ wizard ที่ทิ้งค้างกินโควตา → cleanup §6 + เจ้าของลบ `PENDING` ได้ (`PENDING → REMOVED`, BRD §4.3) ผูกใหม่ของ `INACTIVE` ใช้แถวเดิม ไม่เพิ่มจำนวน
 - **ผูกใหม่ข้ามกลุ่ม LINE:** แถวเดิมที่ `INACTIVE→PENDING` ยังถือ `lineGroupId` เก่า (partial unique ไม่นับเพราะไม่ใช่ `ACTIVE`); พอผูกสำเร็จ `lineGroupId` ถูกทับด้วยกลุ่มที่พิมพ์โค้ดจริง ⇒ เจ้าของย้ายรายงานไปกลุ่ม LINE ใหม่ได้โดยคงค่า (ข้อ 3 ใน §9 ขอยืนยันว่าตั้งใจหรือไม่)
 
-**โค้ด 6 หลัก = space เล็ก (10⁶) → ต้องกันชนกันข้ามเจ้าของ:** ตอนพิมพ์ `ผูก 482913` ระบบหาโค้ดจากค่าอย่างเดียว (ไม่รู้เจ้าของ) ⇒ โค้ดที่ยังใช้ได้ต้อง **ไม่ซ้ำกันทั้งระบบ** → partial unique บน `codeHash` (§5); service สร้างด้วย `createMany({ skipDuplicates })` แล้วเช็ก `count === 1`, ชนก็สุ่มใหม่ (สูงสุดไม่กี่ครั้ง) — **ห้ามปล่อยชนแล้วดัก P2002** (convention insert-then-catch)
+**โค้ด 8 ตัว = space เล็ก (10⁶) → ต้องกันชนกันข้ามเจ้าของ:** ตอนพิมพ์ `ผูก K7M2-XQ4P` ระบบหาโค้ดจากค่าอย่างเดียว (ไม่รู้เจ้าของ) ⇒ โค้ดที่ยังใช้ได้ต้อง **ไม่ซ้ำกันทั้งระบบ** → partial unique บน `codeHash` (§5); service สร้างด้วย `createMany({ skipDuplicates })` แล้วเช็ก `count === 1`, ชนก็สุ่มใหม่ (สูงสุดไม่กี่ครั้ง) — **ห้ามปล่อยชนแล้วดัก P2002** (convention insert-then-catch)
 - **1 โค้ดที่ใช้ได้ต่อเจ้าของ (AC-LGS-04-3):** ใน transaction เดียวกัน `SELECT … FOR UPDATE` แถว `User` ของเจ้าของ (ตัวเดียวกับที่ serialize เพดาน 10 กลุ่ม — AC-LGS-04-6 แข่ง 2 คำขอ) → `UPDATE … SET revokedAt=now() WHERE ownerId AND usedAt IS NULL AND revokedAt IS NULL` → insert โค้ดใหม่ + partial unique `(ownerId) WHERE usedAt IS NULL AND revokedAt IS NULL` เป็นตาข่ายชั้นสองถ้ามีใครข้าม lock
-- **hash:** ตาม AC-LGS-04-4 ใช้ SHA-256 แบบ `sms-code.service` — ข้อควรรู้: 6 หลัก brute-force จาก hash ที่หลุดได้ในไม่กี่วินาที จึงพึ่ง expiry 10 นาที + ใช้ครั้งเดียว + ตัวนับเดา; ถ้า DEV ใช้ HMAC-SHA256 กับ pepper (`NEXTAUTH_SECRET`) แทน sha256 เปล่า จะแข็งกว่าและยังเป็น "hash" ตาม AC (ข้อ 4 ใน §9)
+- **hash:** ตาม AC-LGS-04-4 ใช้ SHA-256 แบบ `sms-code.service` — ข้อควรรู้: 8 ตัว brute-force จาก hash ที่หลุดได้ในไม่กี่วินาที จึงพึ่ง expiry 10 นาที + ใช้ครั้งเดียว + ตัวนับเดา; ถ้า DEV ใช้ HMAC-SHA256 กับ pepper (`NEXTAUTH_SECRET`) แทน sha256 เปล่า จะแข็งกว่าและยังเป็น "hash" ตาม AC (ข้อ 4 ใน §9)
 - ไม่ลบแถวทันทีหลังใช้ (เก็บ `usedAt` เพื่อตอบว่า "ใช้แล้ว" ภายในข้อความเดียวกับผิด/หมดอายุ — AC-LGS-06-4 ข้อความเหมือนกัน แต่ log ภายในแยกได้) cleanup §6
 
 ### 3.4 `LineReportRateEvent` — ตัวนับเดาโค้ดผิด + ถามถี่ต่อกลุ่ม
@@ -482,7 +484,7 @@ rollback note ของ enum: `ALTER TYPE … ADD VALUE` ที่เพิ่�
 1. **AC-LGS-23-3 vs retry payload:** เก็บ `pendingPayload` ชั่วคราว (ล้างเมื่อจบ/ครบ 24 ชม.) — ตีความว่าไม่ขัด ถ้า AC หมายถึง "ห้ามแม้ชั่วคราว" จะทำ AC-LGS-20-5 (ส่ง payload เดิมทุกไบต์) ไม่ได้ ⇒ ต้องเลือก: แก้ถ้อยคำ AC-23-3 หรือยอมคำนวณใหม่+key ใหม่ (เสี่ยงส่งซ้ำ ตาม LINE-API-Facts §3)
 2. **PENDING กินโควตา 10 กลุ่ม:** AC-LGS-04-6 นับ "ทุกสถานะที่ไม่ลบ" ⇒ wizard ที่ทิ้งค้างกินโควตา; เสนอ cleanup `PENDING` ไม่เคยผูก → `REMOVED` หลัง 7 วัน (เป็นข้อเสนอใหม่ ยังไม่อยู่ใน BRD) หรือเปลี่ยนนิยามเพดานเป็น "นับเฉพาะ `ACTIVE`+`INACTIVE`"
 3. **ผูกใหม่ไปกลุ่ม LINE อื่น:** การออกแบบนี้ปล่อยให้ `INACTIVE→PENDING→ACTIVE` ทับ `lineGroupId` เป็นกลุ่มใหม่ได้ (คงค่าตั้งไว้) — BRD AC-LGS-07-4 พูดแค่ "แถวเดิมกลับเป็น ACTIVE"; ถ้าต้องการให้ผูกใหม่ได้เฉพาะกลุ่มเดิม ต้องเพิ่มเงื่อนไขตรวจ `lineGroupId` ตอนใช้โค้ด
-4. **sha256 เปล่า vs HMAC สำหรับโค้ด 6 หลัก:** AC ระบุ "แบบ sms-code"; แนะนำ HMAC+pepper เพราะ space เล็ก — ขอ Controller/Security ยืนยัน
+4. **sha256 เปล่า vs HMAC สำหรับโค้ด 8 ตัว:** AC ระบุ "แบบ sms-code"; แนะนำ HMAC+pepper เพราะ space เล็ก — ขอ Controller/Security ยืนยัน
 5. **push รวมรายวัน+รายเดือน:** ใช้ 2 แถว claim ต่อ 1 push (ต้นทุนบันทึกที่แถว `D:` เท่านั้น) — ต้องให้ SRS ล็อกว่า `M:` ล้ม/สำเร็จตาม push เดียวกัน
 6. **นโยบาย purge แถว `REMOVED`:** ยังเก็บ `groupName`/`lineGroupId` ถาวรสำหรับกลุ่มที่เจ้าของลบ — ควรกำหนดอายุ (เช่น ล้าง 2 ฟิลด์หลัง 90 วัน เท่า log) หรือไม่
 7. **`pushMessageCount` = ค่าประมาณขอบบน** (รวมคนบล็อก; ยังไม่ยืนยันว่านับ OA เอง/โควตา broadcast คือ pool เดียวกัน — LINE-API-Facts §5 UNCONFIRMED) — ใช้ประเมินต้นทุนได้ ไม่ใช่บัญชี

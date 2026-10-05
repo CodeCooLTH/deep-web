@@ -77,7 +77,7 @@ Query: ไม่มี · scope `ownerId` ที่ query แรก · เรี
 Errors: 401 · 403 `NOT_OWNER`
 
 ### 4.2 `POST /api/line-report/bind-code`
-สร้างกลุ่ม `PENDING` + ร้านที่เลือก + โค้ด 6 หลักใน transaction เดียว (lock แถว `User` กันแข่งเพดาน 10 กลุ่ม)
+สร้างกลุ่ม `PENDING` + ร้านที่เลือก + โค้ด 8 ตัวใน transaction เดียว (lock แถว `User` กันแข่งเพดาน 10 กลุ่ม)
 
 | ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
 |---|---|---|---|---|
@@ -86,7 +86,7 @@ Errors: 401 · 403 `NOT_OWNER`
 
 **201**
 ```json
-{ "groupId": "7a1f…", "code": "482913", "expiresAt": "2026-10-05T10:10:00.000Z",
+{ "groupId": "7a1f…", "code": "K7M2-XQ4P", "expiresAt": "2026-10-05T10:10:00.000Z",
   "addFriendUrl": "https://line.me/R/ti/p/@123abcde", "groupCount": 4 }
 ```
 - `code` คืนครั้งเดียว ไม่มีที่ไหนเก็บค่าดิบ · `addFriendUrl` = `null` เมื่อไม่ได้ตั้ง `LINE_REPORT_BOT_BASIC_ID`
@@ -97,7 +97,7 @@ Errors: 400 `VALIDATION` · 400 `SHOP_NOT_ALLOWED` · 400 `SHOP_COUNT_OUT_OF_RAN
 ### 4.3 `POST /api/line-report/groups/{id}/bind-code`
 Body: `{}` (ไม่ต้องรับทราบซ้ำ) · `PENDING` = ออกโค้ดใหม่ (ของเก่าใช้ไม่ได้) · `INACTIVE` = เปลี่ยนเป็น `PENDING` พร้อมโค้ดใหม่ **คงค่าตั้งทั้งหมด** (ผูกใหม่ — ย้ายไปกลุ่ม LINE อื่นได้)
 
-**200** `{ "groupId": "7a1f…", "status": "PENDING", "code": "913028", "expiresAt": "…", "addFriendUrl": "…" }`
+**200** `{ "groupId": "7a1f…", "status": "PENDING", "code": "P3QX-8M2D", "expiresAt": "…", "addFriendUrl": "…" }`
 
 Errors: 403 · 404 `GROUP_NOT_FOUND` (ไม่ใช่ของตน/`REMOVED`) · 409 `INVALID_STATE` (`ACTIVE`) · 409 `SHOPS_INVALID` (ร้านในกลุ่มไม่พร้อมทั้งหมด) · 503 `BOT_NOT_CONFIGURED`
 
@@ -190,7 +190,7 @@ LINE ยิง server-to-server · ตรวจลายเซ็นก่อน
 |---|---|
 | `join` | reply ทักทาย + วิธีผูก (ทุกกรณี) |
 | `leave` | กลุ่ม `ACTIVE` → `INACTIVE` + แจ้งเตือน `BOT_REMOVED` (ไม่มีแถว/`REMOVED` = เมินเงียบ) |
-| `message` = `ผูก <6 หลัก>` | ผูกกลุ่ม (ผลเป็นข้อความ reply เดียวกันทุกเหตุผิด) |
+| `message` = `ผูก <8 ตัว>` | ผูกกลุ่ม (ผลเป็นข้อความ reply เดียวกันทุกเหตุผิด) |
 | `message` = `สรุปวันนี้` / `สรุปเดือนนี้` | reply สรุป (reply token เท่านั้น) |
 | `message` อื่น | **เงียบ** — ไม่ตอบ ไม่เก็บ |
 | แชทเดี่ยว/ห้อง | ข้อความช่วยเหลือสั้นๆ (แชทเดี่ยวเท่านั้น) · ที่เหลือเมิน |
@@ -203,7 +203,7 @@ LINE ยิง server-to-server · ตรวจลายเซ็นก่อน
   "type": "message", "mode": "active", "timestamp": 1790000000000, "webhookEventId": "01H…",
   "deliveryContext": { "isRedelivery": false },
   "source": { "type": "group", "groupId": "C…" },
-  "replyToken": "…", "message": { "type": "text", "id": "…", "text": "ผูก 482913" }
+  "replyToken": "…", "message": { "type": "text", "id": "…", "text": "ผูก K7M2-XQ4P" }
 }] }
 ```
 
@@ -270,7 +270,7 @@ sequenceDiagram
     participant L as LINE webhook
     U->>A: POST /bind-code (shopIds, acknowledged)
     A-->>U: 201 code + expiresAt
-    Note over U: เชิญบอทเข้ากลุ่ม แล้วพิมพ์ ผูก 482913
+    Note over U: เชิญบอทเข้ากลุ่ม แล้วพิมพ์ ผูก K7M2-XQ4P
     L->>L: ตรวจลายเซ็น แล้วตอบ 200 ทันที
     loop ทุก 3 วินาที
         U->>A: GET /groups/{id}

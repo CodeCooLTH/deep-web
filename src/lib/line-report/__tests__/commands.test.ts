@@ -8,11 +8,13 @@ describe('parseGroupCommand (AC-22-6)', () => {
     ['สรุปวันนี้\u3000', { type: 'TODAY' }], // ช่องว่าง ideographic หัวท้าย → NFKC + trim
     ['สรุปวันนี้\n', { type: 'TODAY' }],
     ['สรุปเดือนนี้', { type: 'MONTH' }],
-    ['ผูก 482913', { type: 'BIND', code: '482913' }],
-    ['ผูก482913', { type: 'BIND', code: '482913' }],
-    ['  ผูก   482913 ', { type: 'BIND', code: '482913' }],
-    ['ผูก ４８２９１３', { type: 'BIND', code: '482913' }], // เลขเต็มความกว้าง
-    ['ผูก 000123', { type: 'BIND', code: '000123' }],
+    ['ผูก ABCD-2345', { type: 'BIND', code: 'ABCD2345' }],
+    ['ผูก ABCD2345', { type: 'BIND', code: 'ABCD2345' }],
+    ['ผูกABCD-2345', { type: 'BIND', code: 'ABCD2345' }],
+    ['  ผูก   abcd-2345 ', { type: 'BIND', code: 'ABCD2345' }], // ตัวพิมพ์เล็ก
+    ['ผูก ＡＢＣＤ－２３４５', { type: 'BIND', code: 'ABCD2345' }], // เต็มความกว้าง (NFKC)
+    ['ผูก OIL0-1234', { type: 'BIND', code: '01101234' }], // O→0, I/L→1
+    ['ผูก 00000000', { type: 'BIND', code: '00000000' }],
   ])('%j → คำสั่ง', (input, out) => expect(parseGroupCommand(input)).toEqual(out))
 
   it.each([
@@ -26,11 +28,15 @@ describe('parseGroupCommand (AC-22-6)', () => {
     '   ',
     'ผูก',
     'ผูก 12345',
-    'ผูก 1234567',
-    'ผูก 12345a',
-    'ผูก 123 456',
-    'ผูกกลุ่ม 482913',
-    'ผูก 482913 ครับ',
-    'bind 482913',
+    'ผูก 482913', // โค้ด 6 หลักแบบเก่า
+    'ผูก ABCD-23456',
+    'ผูก ABC-D2345', // ขีดผิดตำแหน่ง
+    'ผูก AB-CD-2345', // ขีดมากกว่า 1
+    'ผูก ABCD 2345', // ช่องว่างในโค้ด
+    'ผูก ABCU-2345', // U ไม่อยู่ในชุด
+    'ผูก ABCD-23!5',
+    'ผูกกลุ่ม ABCD-2345',
+    'ผูก ABCD-2345 ครับ',
+    'bind ABCD-2345',
   ])('%j → null', (input) => expect(parseGroupCommand(input)).toBeNull())
 })

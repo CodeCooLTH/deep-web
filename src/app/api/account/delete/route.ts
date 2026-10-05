@@ -17,6 +17,7 @@ import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
 import { ACCOUNT_DELETE_ERROR } from '@/lib/account-deletion'
+import { leaveGroup } from '@/lib/line-report/line-client'
 import {
   AccountDeletionError,
   checkAccountDeletable,
@@ -67,7 +68,10 @@ export async function POST(req: NextRequest) {
 
   try {
     // service ตรวจ blockers + ข้อความยืนยันซ้ำเองทั้งคู่ (fail-closed) — route ไม่ต้องเช็คก่อน
-    const { purgeAt } = await deleteAccount(userId, confirmText)
+    const { purgeAt, lineGroupsToLeave } = await deleteAccount(userId, confirmText)
+    // บอทรายงานกลุ่ม LINE (00068 TFR-24) ออกจากกลุ่มที่เคย ACTIVE — best-effort หลัง commit:
+    // ล้ม/ช้าต้องไม่ทำให้การลบบัญชีล้ม (บัญชีถูกปิดไปแล้ว) · ไม่ log ข้อความ error (อาจมี URL/id)
+    await Promise.allSettled(lineGroupsToLeave.map((id) => leaveGroup(id)))
     return NextResponse.json({ ok: true, purgeAt: purgeAt.toISOString() })
   } catch (e) {
     if (e instanceof AccountDeletionError) {

@@ -186,7 +186,7 @@ sequenceDiagram
     W->>W: validateSignature (ผิด = 401)
     W-->>L: 200 ทันที
     W->>C: after(handleEvents)
-    C->>B: consumeBindCode (ผูก 482913)
+    C->>B: consumeBindCode (ผูก K7M2-XQ4P)
     B->>DB: insert RateEvent แล้วนับ 10 นาที
     B->>DB: หาโค้ดสดด้วย HMAC
     B->>L: GET group summary
@@ -335,3 +335,15 @@ route (L2) → `sendTest` tx: lock แถวกลุ่ม → นับ TEST �
 | 12 | LODGING + Top 3 | **ตัดสิน** — ร้าน LODGING ข้าม Top 3 (ตาม precedent 00063) · แก้ AC-LGS-16-6 แล้ว |
 | 13 | ข้อความสุดท้ายส่งเฉพาะกลุ่มที่เปิดรายงาน | **ยอมรับ** |
 | 14 | `maxDuration = 300` | **ยอมรับ** — ค่า default ของ Vercel ตอนนี้คือ 300s ทุก plan |
+
+
+## 13. มติจาก security review U7 (2026-10-05)
+
+| ข้อ | มติ |
+|---|---|
+| H-1 เดาโค้ดข้ามหลายกลุ่ม | โค้ด 8 ตัว Crockford base32 (`XXXX-XXXX`) แทนเลข 6 หลัก |
+| M-1 oracle | โค้ดสดที่ใช้ในกลุ่มที่ผูกกับเจ้าของอื่น → `BIND_FAILED_MESSAGE` (ไม่ใช่ ALREADY_BOUND_OTHER) · ALREADY_BOUND_SELF เฉพาะเจ้าของเดียวกัน |
+| M-2 race ตัวนับ | insert+count ใน tx เดียวใต้ `pg_advisory_xact_lock(hashtext(lineGroupId))` |
+| M-3 | `createBindCode`/`reissueBindCode` ตรวจ `isOwnerPaidForReports` เองที่ service |
+| L-1/L-3/L-4 | ไม่ insert เมื่อเกินเพดาน · log เฉพาะชื่อ error · ตัด events ที่ 100 |
+| L-2 | prod อยู่บน Vercel (x-real-ip ตั้งโดยแพลตฟอร์ม) — คงเพดาน 1200/นาที/IP |

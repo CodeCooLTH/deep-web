@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import * as v from 'valibot'
-import { BIND_CODE_TTL_MS, generateBindCode, hashBindCode } from '../bind-code'
+import { BIND_CODE_TTL_MS, BIND_CODE_PATTERN, formatBindCode, generateBindCode, hashBindCode, normalizeBindCode } from '../bind-code'
 import { addFriendUrl, getReportBotConfig, isReportBotReady, sellerDashboardUrl } from '../config'
 import { describeReason, FIXED_DELIVERY_REASONS, httpReason } from '../delivery-reasons'
 import {
@@ -59,25 +59,38 @@ describe('bind-code', () => {
     if (prev === undefined) delete process.env.NEXTAUTH_SECRET
     else process.env.NEXTAUTH_SECRET = prev
   })
-  it('generateBindCode = 6 หลักเสมอ (รวมขึ้นต้น 0)', () => {
-    for (let i = 0; i < 300; i++) expect(generateBindCode()).toMatch(/^\d{6}$/)
+  it('generateBindCode = 8 ตัว Crockford base32 เสมอ · format = XXXX-XXXX · normalize คืนค่าเดิม', () => {
+    for (let i = 0; i < 300; i++) {
+      const c = generateBindCode()
+      expect(c).toMatch(BIND_CODE_PATTERN)
+      expect(formatBindCode(c)).toMatch(/^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/)
+      expect(normalizeBindCode(formatBindCode(c).toLowerCase())).toBe(c)
+    }
     expect(BIND_CODE_TTL_MS).toBe(600_000)
+  })
+  it('normalizeBindCode: ตัดขีด/ช่องว่าง · พิมพ์ใหญ่ · O→0 I/L→1', () => {
+    expect(normalizeBindCode(' ab cd-oilz ')).toBe('ABCD01' + '1Z')
+  })
+  it('hash ของรูปต่างกันที่ normalize แล้วเหมือนกัน = ค่าเดียวกัน', () => {
+    process.env.NEXTAUTH_SECRET = 's1'
+    expect(hashBindCode('abcd-2345')).toBe(hashBindCode('ABCD2345'))
+    expect(hashBindCode('0000-0000')).toBe(hashBindCode('OOOO-OOOO'))
   })
   it('hash ไม่คืนค่าดิบ · คงที่ · ต่างกันตามโค้ด/secret', () => {
     process.env.NEXTAUTH_SECRET = 's1'
-    const h = hashBindCode('482913')
+    const h = hashBindCode('ABCD2345')
     expect(h).toMatch(/^[0-9a-f]{64}$/)
-    expect(h).not.toContain('482913')
-    expect(hashBindCode('482913')).toBe(h)
-    expect(hashBindCode('482914')).not.toBe(h)
+    expect(h).not.toContain('ABCD2345')
+    expect(hashBindCode('ABCD2345')).toBe(h)
+    expect(hashBindCode('ABCD2346')).not.toBe(h)
     process.env.NEXTAUTH_SECRET = 's2'
-    expect(hashBindCode('482913')).not.toBe(h)
+    expect(hashBindCode('ABCD2345')).not.toBe(h)
   })
   it('fail-closed เมื่อไม่มี NEXTAUTH_SECRET', () => {
     delete process.env.NEXTAUTH_SECRET
-    expect(() => hashBindCode('482913')).toThrow(/NEXTAUTH_SECRET/)
+    expect(() => hashBindCode('ABCD2345')).toThrow(/NEXTAUTH_SECRET/)
     process.env.NEXTAUTH_SECRET = ''
-    expect(() => hashBindCode('482913')).toThrow()
+    expect(() => hashBindCode('ABCD2345')).toThrow()
   })
 })
 

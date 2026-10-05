@@ -8,7 +8,7 @@ export const BIND_FAILED_MESSAGE =
   'ผูกกลุ่มไม่สำเร็จ โค้ดไม่ถูกต้องหรือหมดอายุ กรุณาสร้างโค้ดใหม่ที่ Deep แล้วลองอีกครั้ง'
 
 export const GREETING_MESSAGE =
-  'สวัสดีครับ ผมคือบอทรายงานสรุปยอดของ Deep\nเจ้าของร้านสร้างโค้ดผูกกลุ่มที่ Deep แล้วพิมพ์ในกลุ่มนี้ว่า ผูก ตามด้วยโค้ด 6 หลัก เช่น ผูก 123456'
+  'สวัสดีครับ ผมคือบอทรายงานสรุปยอดของ Deep\nเจ้าของร้านสร้างโค้ดผูกกลุ่มที่ Deep แล้วพิมพ์ในกลุ่มนี้ว่า ผูก ตามด้วยโค้ด 8 ตัว เช่น ผูก ABCD-1234'
 
 export function bindSuccessMessage(groupName: string, shopNames: readonly string[]): string {
   const name = groupName ? `กลุ่ม "${groupName}"` : 'กลุ่มนี้'
@@ -18,7 +18,7 @@ export function bindSuccessMessage(groupName: string, shopNames: readonly string
 export const ALREADY_BOUND_SELF_MESSAGE = 'กลุ่มนี้ผูกกับบัญชีของคุณอยู่แล้ว'
 export const ALREADY_BOUND_OTHER_MESSAGE = 'กลุ่มนี้ผูกกับบัญชีอื่นอยู่แล้ว ผูกซ้ำไม่ได้'
 export const NOT_BOUND_MESSAGE =
-  'กลุ่มนี้ยังไม่ได้ผูกกับร้านใน Deep เจ้าของร้านสร้างโค้ดผูกกลุ่มที่ Deep แล้วพิมพ์ ผูก ตามด้วยโค้ด 6 หลักในกลุ่มนี้'
+  'กลุ่มนี้ยังไม่ได้ผูกกับร้านใน Deep เจ้าของร้านสร้างโค้ดผูกกลุ่มที่ Deep แล้วพิมพ์ ผูก ตามด้วยโค้ด 8 ตัวในกลุ่มนี้'
 export const COMMAND_RATE_LIMITED_MESSAGE = 'ถามถี่เกินไป กรุณารอสักครู่แล้วลองใหม่'
 export const PACKAGE_PAUSED_MESSAGE = 'รายงานของกลุ่มนี้หยุดส่งชั่วคราว'
 export const FINAL_NOTICE_MESSAGE =

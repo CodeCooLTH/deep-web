@@ -14,6 +14,8 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[LINE-API-Facts]]", "[[SDS]]",
 
 # SRS: รายงานสรุปยอดเข้ากลุ่ม LINE
 
+> 🛑 **แก้ 2026-10-05 (security H-1):** โค้ดผูกเปลี่ยนจากเลข 6 หลัก (10⁶) เป็น **8 ตัว Crockford base32** (`XXXX-XXXX`, ~1.1×10¹²) เพราะเพดานเดา 5 ครั้ง/10 นาทีนับต่อกลุ่ม — คนร้ายเปิดหลายกลุ่มเดาขนานได้ (200 กลุ่ม × 50 โค้ดสด ≈ 5%/10 นาที) · parser รับตัวพิมพ์เล็ก/ไม่มีขีด และแปลง O→0, I/L→1 · ตัวเลข 10⁶/1,000,000 ในเหตุผลเดิมของเอกสารนี้คือค่าก่อนแก้
+
 ## 1. บทนำ
 
 ### 1.1 วัตถุประสงค์
@@ -74,7 +76,7 @@ flowchart LR
 | `LINE_REPORT_BOT_CHANNEL_SECRET` | `validateSignature` ของ webhook | ใช่ | ว่าง = webhook ตอบ 200 โดยไม่ประมวลผล + log warn |
 | `LINE_REPORT_BOT_CHANNEL_ACCESS_TOKEN` | `lineApiRequest` ทุกคำขอขาออก | ใช่ | ใช้ long-lived token · ห้าม log |
 | `LINE_REPORT_BOT_BASIC_ID` | ลิงก์/QR เพิ่มเพื่อน (`https://line.me/R/ti/p/<basicId>`) | ไม่ (ลดระดับ: ซ่อนปุ่มเพิ่มเพื่อน) | ค่ารูป `@xxxxxxxx` |
-| *(ไม่เพิ่ม)* secret โค้ดผูก | HMAC-SHA256 ของโค้ด 6 หลัก | — | **derive จาก `NEXTAUTH_SECRET`**: `key = HMAC(NEXTAUTH_SECRET, "line-report:bind-code:v1")` แล้ว `hash = HMAC(key, code)` hex (precedent: `src/lib/mobile-ticket.ts`, `link-intent.ts` ใช้ `NEXTAUTH_SECRET` + fail-closed ถ้าไม่ตั้ง) · เหตุ: ไม่เพิ่มตัวแปรให้ ops · ผลข้างเคียง: หมุน `NEXTAUTH_SECRET` ทำให้โค้ดที่ค้าง (≤10 นาที) ใช้ไม่ได้ — ยอมรับ |
+| *(ไม่เพิ่ม)* secret โค้ดผูก | HMAC-SHA256 ของโค้ด 8 ตัว | — | **derive จาก `NEXTAUTH_SECRET`**: `key = HMAC(NEXTAUTH_SECRET, "line-report:bind-code:v1")` แล้ว `hash = HMAC(key, code)` hex (precedent: `src/lib/mobile-ticket.ts`, `link-intent.ts` ใช้ `NEXTAUTH_SECRET` + fail-closed ถ้าไม่ตั้ง) · เหตุ: ไม่เพิ่มตัวแปรให้ ops · ผลข้างเคียง: หมุน `NEXTAUTH_SECRET` ทำให้โค้ดที่ค้าง (≤10 นาที) ใช้ไม่ได้ — ยอมรับ |
 
 - `isReportBotReady()` = secret ∧ token มีค่า → หน้าตั้งค่าแสดง "ฟีเจอร์ยังไม่พร้อมใช้งาน" เมื่อ false (AC-LGS-05-9) · sweep คืน `{skipped:'NOT_CONFIGURED'}` ไม่ throw
 - `.env.example` ต้องเพิ่มทั้ง 3 ตัว (ค่าว่าง + คอมเมนต์ห้ามใช้ `LINE_CHANNEL_*`)
@@ -113,7 +115,7 @@ flowchart LR
 | `settings/` | ลิงก์ชี้เฉยๆ ไม่มีฟอร์มซ้ำ (AC-03-6) | — |
 
 ### TFR-LGS-04 สร้างโค้ดผูกกลุ่ม (FR-04)
-- ทำใน `prisma.$transaction` เดียว: ① `SELECT … FROM "User" WHERE id=$1 FOR UPDATE` ② ตรวจ `shopIds` ด้วย `findMany({id in, userId: ownerId, deletedAt:null, purgedAt:null, packageLockedAt:null})` ต้องได้ครบ (ไม่ใช้ `listAccessibleShopIds`) ③ นับ `status <> 'REMOVED'` ≥ 10 → `GROUP_LIMIT_REACHED` ④ สร้างแถว `PENDING` + `LineReportGroupShop` ⑤ revoke โค้ดสดทั้งหมดของเจ้าของ ⑥ สร้างโค้ดด้วย `crypto.randomInt(0, 1_000_000)` pad 6 หลัก → `createMany({skipDuplicates:true})` ถ้า `count===0` สุ่มใหม่ ≤5 ครั้ง (ห้ามดัก P2002) · `expiresAt = now + 10 นาที`
+- ทำใน `prisma.$transaction` เดียว: ① `SELECT … FROM "User" WHERE id=$1 FOR UPDATE` ② ตรวจ `shopIds` ด้วย `findMany({id in, userId: ownerId, deletedAt:null, purgedAt:null, packageLockedAt:null})` ต้องได้ครบ (ไม่ใช้ `listAccessibleShopIds`) ③ นับ `status <> 'REMOVED'` ≥ 10 → `GROUP_LIMIT_REACHED` ④ สร้างแถว `PENDING` + `LineReportGroupShop` ⑤ revoke โค้ดสดทั้งหมดของเจ้าของ ⑥ สร้างโค้ดด้วย `crypto.randomInt(0, 1_000_000)` pad 8 ตัว → `createMany({skipDuplicates:true})` ถ้า `count===0` สุ่มใหม่ ≤5 ครั้ง (ห้ามดัก P2002) · `expiresAt = now + 10 นาที`
 - body ต้องมี `acknowledged: true` (บังคับที่ server — ไม่ใช่แค่ปุ่ม disabled)
 - โค้ดดิบคืนใน response ครั้งเดียว ไม่มีที่ไหนเก็บค่าดิบ (AC-04-4) → หน้า PENDING ที่โหลดใหม่แสดงโค้ดเดิมไม่ได้ ต้อง regenerate (issue #2)
 - **Error:** `GROUP_LIMIT_REACHED 409` · `SHOP_NOT_ALLOWED 400` · `SHOP_COUNT_OUT_OF_RANGE 400` · `BOT_NOT_CONFIGURED 503`
@@ -189,7 +191,7 @@ SSOT map (ตรวจกับโค้ดแล้ว):
 - ข้อความกำไรจาก `profitDisplay` เท่านั้น (ถ้อยคำ SSOT: "กำไรสุทธิ" / "กำไรสุทธิไม่เกิน" / "ขาดทุนสุทธิอย่างน้อย") + หมายเหตุ "ค่าใช้จ่ายลงตามวันที่บันทึก ไม่เฉลี่ยรายวัน" (issue #3)
 
 ### TFR-LGS-16 ร้านที่ไม่พร้อม (FR-18)
-`resolveSendableShops(group)` อ่านสดทุกครั้งส่ง: `packageLockedAt≠null` → `LOCKED` · `deletedAt≠null` → `DELETED` · `purgedAt≠null` → `PURGED` → ตัดออก + หมายเหตุ "ไม่รวมร้าน X (ถูกล็อก)" · ไม่เหลือ → `NO_SENDABLE_SHOPS` (ไม่ส่ง ไม่ retry, raise alert `NO_SENDABLE_SHOPS`)
+`resolveSendableShops(group)` อ่านสดทุกครั้งส่ง ตรวจตามลำดับ (สถานะปลายทางก่อน): `purgedAt≠null` → `PURGED` · `deletedAt≠null` → `DELETED` · `packageLockedAt≠null` → `LOCKED` → ตัดออก + หมายเหตุ "ไม่รวมร้าน X (ถูกล็อก)" · ไม่เหลือ → `NO_SENDABLE_SHOPS` (ไม่ส่ง ไม่ retry, raise alert `NO_SENDABLE_SHOPS`)
 
 ### TFR-LGS-17 Sweep (FR-19)
 `GET /api/cron/line-report-sweep`: auth `CRON_SECRET` (env ว่าง/ไม่ตรง → 401; แบบ `line-token-health/route.ts:22-26`) · `maxDuration = 300` (มี precedent `admin/iship/backfill-evidence` — ops ยืนยัน plan) · หยุดเริ่มกลุ่มใหม่เมื่อ `elapsed ≥ 240s` (เหลือ 60s กันงานค้างกลางทาง) · กลุ่มที่เหลือรอ tick ถัดไปภายใน SLOT_WINDOW · ต่อกลุ่ม try/catch แยก (AC-19-5) · ลำดับ: เรียงกลุ่มตาม slot ที่เก่าสุดก่อน · เลือกเฉพาะ `status='ACTIVE' ∧ (dailyEnabled ∨ monthlyEnabled)` · **cleanup รวมใน tick ที่ผ่าน 03:00 ไทย** (TFR-23) ไม่เพิ่ม cron
@@ -224,7 +226,7 @@ stateDiagram-v2
 - กลับ ACTIVE → ทำงานต่อใน tick ถัดไป ไม่ส่งย้อนหลัง · ข้อความสุดท้ายส่งเฉพาะกลุ่มที่เปิดรายงานอย่างน้อยหนึ่งชนิด (กลุ่มที่ไม่เคยได้รับอัตโนมัติไม่ต้องถูกรบกวน — issue #13)
 
 ### TFR-LGS-20 คำสั่งในกลุ่ม (FR-22)
-- parser (`commands.ts`): `NFKC` + trim + ยุบช่องว่าง แล้วเทียบ **ทั้งข้อความ**: `สรุปวันนี้` · `สรุปเดือนนี้` · `^ผูก\s*(\d{6})$` · ค่าคงที่เปรียบเทียบผ่าน normalize เดียวกัน (กัน NFKC ทำสระต่างจากค่าคงที่) · "สรุปวันนี้ครับ" ไม่ใช่คำสั่ง (AC-22-6)
+- parser (`commands.ts`): `NFKC` + trim + ยุบช่องว่าง แล้วเทียบ **ทั้งข้อความ**: `สรุปวันนี้` · `สรุปเดือนนี้` · `^ผูก\s*([0-9A-Z]{4}-?[0-9A-Z]{4})$` · ค่าคงที่เปรียบเทียบผ่าน normalize เดียวกัน (กัน NFKC ทำสระต่างจากค่าคงที่) · "สรุปวันนี้ครับ" ไม่ใช่คำสั่ง (AC-22-6)
 - ตัวนับ: ทุกคำสั่งรู้จัก insert `RateEvent(COMMAND)` → นับ 10 นาที: `=11` ตอบ "ถามถี่เกินไป" ครั้งเดียว · `>11` เงียบ (AC-22-8) · กลุ่มไม่ผูก: ตอบ "ยังไม่ได้ผูก" ภายใต้ตัวนับเดียวกัน (AC-22-9)
 - ตอบด้วย `POST /v2/bot/message/reply` เท่านั้น — handler **ไม่ import/เรียก push** (เทสสแกนซอร์ส AC-22-3) · ไม่ใช้ retry key (reply ใช้ไม่ได้ — LINE-API-Facts §4) · เกิน reply window (นับจาก `event.timestamp`) → ไม่ส่ง, log `COMMAND` `REPLY_FAILED/REPLY_TOKEN_EXPIRED` · idempotency: claim `C:<webhookEventId>` (กลุ่มที่ผูกแล้วเท่านั้นมีที่ log)
 - ชุดตัวเลขเดียวกับที่ตั้งให้กลุ่ม (กำไรปิด = ไม่คำนวณ) · ตอบเสมอแม้ 0 (ไม่ใช้ `skipWhenNoOrders`)
@@ -336,7 +338,7 @@ stateDiagram-v2
 | `ReplaceShopsSchema` | `object({ shopIds: ShopIdsSchema })` |
 | `GroupIdParam` | `pipe(string, minLength 1, maxLength 64)` |
 | webhook body | **ไม่ใช้ schema ปิด** — อ่านแบบ defensive (`unknown` + type guard); ฟิลด์ `userId` optional |
-| โค้ดผูก | `/^\d{6}$/` ใน parser เท่านั้น |
+| โค้ดผูก | `/^[0-9A-Z]{4}-?[0-9A-Z]{4}$/` ใน parser เท่านั้น |
 
 ## 9. Constraints / Assumptions / Risks
 - ข้อจำกัด: `getSalesSeries`/`getProductSalesMonth` รับได้ทีละเดือน (ไม่ตัดตามชั่วโมง) · `getPnlReport` ช่วงกำหนดเอง ≤366 วัน · กลุ่ม LINE เท่านั้น · OA 1 ตัวต่อกลุ่ม (บอกในหน้าผูก) · ต้องเปิด "Allow bot to join group chats" ใน Console
