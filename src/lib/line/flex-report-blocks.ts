@@ -5,7 +5,9 @@
  * flex-summary-report.ts เป็นเจ้าของ `buildSummaryReportFlex`/fitToLimits · ไฟล์นี้เป็นเจ้าของ "ข้างในบับเบิล"
  * (ค่าคงที่สี/reportOrderWord ย้ายมาอยู่ที่นี่เพื่อไม่ให้ import วน — flex-summary-report re-export ชื่อเดิมให้)
  */
+import { compareChart, trendChart } from '@/lib/line/flex-report-charts'
 import { combineTotals } from '@/lib/line-report/aggregate'
+import { todayThaiIsoDate } from '@/lib/date-range'
 import { TOKENS, type Block, type Run, type TemplateV1, type TokenKey } from '@/lib/line-report/template'
 import type { GroupSummary, ReportKind, ShopSummary, Totals } from '@/lib/line-report/types'
 import { formatDayMonthTH, formatTimeHM, formatYearTH } from '@/lib/format-date'
@@ -18,7 +20,8 @@ export const INK = '#2F2B3D'
 export const SLATE = '#808390'
 export const DANGER = '#d92d20'
 /** ให้พรีวิวในหน้าตั้งค่าอ้างสีชุดเดียวกัน (flex-preview-tokens) — เปลี่ยนสีที่นี่แล้วเทสพรีวิวจะฟ้อง */
-export const FLEX_COLORS = { ACCENT, INK, SLATE, DANGER } as const
+export const GRID_GRAY = '#D9DBE0'
+export const FLEX_COLORS = { ACCENT, INK, SLATE, DANGER, GRID_GRAY } as const
 
 const SHOP_NAME_COMPACT_MAX = 24
 const COMPACT_SHOP_LIMIT = 10
@@ -91,6 +94,8 @@ type Ctx = {
   ow: { word: string; mixed: boolean }
   has: (type: Block['type']) => boolean
   skipped: Skipped[]
+  /** จำนวนกราฟที่ "จะแสดง" (ระดับ 2 ขึ้นไปแสดงหมายเหตุแทน) — fitToLimits ใช้ข้ามระดับตัดกราฟเมื่อไม่มีกราฟ (EXT-08) */
+  charts: { n: number }
 }
 
 /** กำไรรวม: เฉพาะ ≥2 ร้าน ∧ รวมได้ ∧ ไม่มี ERROR ∧ ทุกร้านที่ OK มีกำไร (กฎเดิม) */
@@ -133,6 +138,7 @@ export function makeCtx(
     ow: reportOrderWord(shops),
     has: (type) => template.blocks.some((b) => b.type === type),
     skipped,
+    charts: { n: 0 },
   }
 }
 
@@ -261,22 +267,22 @@ function renderShops(b: Extract<Block, { type: 'shops' }>, c: Ctx): Node | null 
   const { level, multi } = c
   const showOrders = c.has('orders'), showSales = c.has('sales'), showCancelled = c.has('cancelled')
   const shopBlocks: Node[] = []
-  const visible = level >= 2 ? c.listed.slice(0, COMPACT_SHOP_LIMIT) : c.listed
+  const visible = level >= 3 ? c.listed.slice(0, COMPACT_SHOP_LIMIT) : c.listed
   for (const s of visible) {
     const rows: Node[] = []
-    const name = level >= 2 ? Array.from(s.shop.name).slice(0, SHOP_NAME_COMPACT_MAX).join('') : s.shop.name
+    const name = level >= 3 ? Array.from(s.shop.name).slice(0, SHOP_NAME_COMPACT_MAX).join('') : s.shop.name
     if (s.state === 'ERROR') {
       rows.push(kv(name, 'ดึงข้อมูลไม่สำเร็จ', { bold: true, color: DANGER }))
     } else {
       if (multi) {
         // ส่วนที่เปิดเท่านั้น · ออเดอร์+ยอดขายปิดหมด → ใช้ยกเลิกแทน · ไม่เหลือตัวเลข → ชื่อร้านอย่างเดียว (กำไรมีแถวของตัวเอง)
         const parts: string[] = []
-        if (showOrders && level < 2) parts.push(formatNumberNoSymbol(s.orders))
+        if (showOrders && level < 3) parts.push(formatNumberNoSymbol(s.orders))
         if (showSales) parts.push(formatBaht(s.confirmed))
         if (parts.length === 0 && showCancelled) parts.push(`ยกเลิก ${formatNumberNoSymbol(s.cancelled)} ใบ`)
         rows.push(parts.length > 0 ? kv(name, parts.join(' · '), { bold: true }) : text(name, { weight: 'bold' }))
       }
-      if (level < 2 && b.profit && s.profit) rows.push(profitRow(s.profit))
+      if (level < 3 && b.profit && s.profit) rows.push(profitRow(s.profit))
       if (level < 1 && b.top3 && resolveShopVertical(s.shop.vertical) !== 'LODGING') {
         const vocab = resolveProductVocab(resolveShopVertical(s.shop.vertical))
         const top = s.top3 ?? []
@@ -334,14 +340,49 @@ function renderCycle(c: Ctx): Node | null {
 function renderExcluded(c: Ctx): Node | null {
   if (c.excluded.length === 0) return null
   // ระดับย่อ: ตัดชื่อ + จำกัดจำนวนบรรทัด ไม่งั้นร้านที่ถูกตัดเยอะทำให้เพดาน 30KB ไม่อยู่
-  const shownEx = c.level >= 2 ? c.excluded.slice(0, 5) : c.excluded
+  const shownEx = c.level >= 3 ? c.excluded.slice(0, 5) : c.excluded
   const exNotes = shownEx.map((s) =>
     note(
-      `ไม่รวมร้าน ${c.level >= 2 ? Array.from(s.shop.name).slice(0, SHOP_NAME_COMPACT_MAX).join('') : s.shop.name} (${EXCLUDED_REASON[s.excludedReason ?? ''] ?? 'ไม่พร้อมใช้งาน'})`,
+      `ไม่รวมร้าน ${c.level >= 3 ? Array.from(s.shop.name).slice(0, SHOP_NAME_COMPACT_MAX).join('') : s.shop.name} (${EXCLUDED_REASON[s.excludedReason ?? ''] ?? 'ไม่พร้อมใช้งาน'})`,
     ),
   )
   if (shownEx.length < c.excluded.length) exNotes.push(note(`…และอีก ${c.excluded.length - shownEx.length} ร้านที่ไม่รวม`))
   return section(exNotes)
+}
+
+const CHART_CUT_NOTE = 'กราฟถูกตัดเพราะข้อความยาวเกินที่ LINE รับได้'
+
+/** กราฟ 1 บล็อก — null = ข้าม (บันทึก skipped) · ระดับ ≥2 = แทนด้วยหมายเหตุ (ข้อความอื่นไม่ถูกตัด, AC-EXT-08-1) */
+function renderChart(b: Extract<Block, { type: 'chart_trend' | 'chart_compare' }>, c: Ctx): Node | null {
+  const label = b.type === 'chart_trend' ? 'กราฟแนวโน้ม 7 วัน' : 'กราฟเทียบรายร้าน'
+  let node: Node | null
+  if (b.type === 'chart_trend') {
+    const tr = c.summary.trend
+    if (!tr || tr.dates.length === 0) {
+      c.skipped.push({ label, reason: 'ไม่มีข้อมูลแนวโน้มในรอบนี้' })
+      return null
+    }
+    // แท่งสุดท้าย = วันนี้ที่ยังไม่จบ → นับถึงเวลาคำนวณ (รอบครบทั้งวัน/ย้อนหลัง = ครบวัน ไม่ติดหมายเหตุ)
+    const w = c.summary.window
+    const partial = !w.fullDay && w.endIso === todayThaiIsoDate(new Date(w.computedAt))
+    node = trendChart({
+      trend: tr,
+      measure: b.measure,
+      word: c.ow.word,
+      partialUntil: partial ? formatTimeHM(w.computedAt) : undefined,
+      incomplete: c.summary.trendPartial,
+    })
+  } else {
+    node = compareChart(c.shops, b.measure, c.ow.word)
+    if (!node) {
+      c.skipped.push({ label, reason: 'ต้องมีร้านที่ดึงข้อมูลได้อย่างน้อย 2 ร้าน' })
+      return null
+    }
+  }
+  c.charts.n++
+  if (c.level < 2) return node
+  c.skipped.push({ label, reason: CHART_CUT_NOTE })
+  return section([note(CHART_CUT_NOTE)])
 }
 
 /**
@@ -370,8 +411,15 @@ export function composeBody(template: TemplateV1, c: Ctx): Node[] {
       let j = i
       const nodes: Node[] = []
       for (; j < blocks.length && blocks[j].type === 'text'; j++) {
-        const n = renderText(blocks[j] as Extract<Block, { type: 'text' }>, c)
-        if (n) nodes.push(n)
+        const tb = blocks[j] as Extract<Block, { type: 'text' }>
+        const n = renderText(tb, c)
+        if (n) {
+          nodes.push(n)
+          // {ยอดสะสมรอบ} ที่ดึงสำเร็จแค่บางร้าน = ยอดไม่ครบ ต้องบอก (เหมือนบล็อก cycle) · ทุกร้านล้ม → โทเคนเป็น null อยู่แล้ว
+          if ((c.cycleToDate?.failedShops ?? 0) > 0 && tb.runs.some((r) => 'tok' in r && r.tok === 'cycle_sales')) {
+            nodes.push(note('ยอดสะสมรอบยังไม่ครบ เพราะดึงข้อมูลบางร้านไม่สำเร็จ', { color: DANGER, margin: 'sm' }))
+          }
+        }
       }
       if (nodes.length > 0) items.push(section(nodes))
       i = j
@@ -384,8 +432,8 @@ export function composeBody(template: TemplateV1, c: Ctx): Node[] {
         const n = renderCycle(c)
         if (n) items.push(n)
       } else if (b.type === 'chart_trend' || b.type === 'chart_compare') {
-        // T5 เติมกราฟ — ตอนนี้ข้ามพร้อมบันทึก
-        c.skipped.push({ label: b.type === 'chart_trend' ? 'กราฟแนวโน้ม 7 วัน' : 'กราฟเทียบรายร้าน', reason: 'ยังไม่รองรับกราฟ' })
+        const n = renderChart(b, c)
+        if (n) items.push(n)
       }
       i++
     }

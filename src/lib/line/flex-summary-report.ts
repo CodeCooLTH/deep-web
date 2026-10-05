@@ -87,13 +87,14 @@ function titleOf(kind: ReportKind, s: GroupSummary, override?: string): string {
   return BASE_TITLE[kind] ?? 'รายงานสรุปยอด'
 }
 
-/** level 0 = เต็ม · 1 = ตัด Top3 · 2 = ย่อรายร้าน (ชื่อสั้น + ยอดขายอย่างเดียว) */
-function renderBubble(input: SummaryReportInput, summary: GroupSummary, kind: ReportKind, level: number, skipped: Skipped[]): Node {
+/** level 0 = เต็ม · 1 = ตัด Top3 · 2 = ตัดกราฟ (+หมายเหตุ) · 3 = ย่อรายร้าน (ชื่อสั้น + ยอดขายอย่างเดียว) · 4 = ย่อ altText (FR-EXT-08) */
+function renderBubble(input: SummaryReportInput, summary: GroupSummary, kind: ReportKind, level: number, skipped: Skipped[], meta: { charts: number }): Node {
   const template = templateOf(input)
   const c = makeCtx(summary, kind, template, level, input.cycleToDate, skipped)
   // title: titleOverride ชนะ template.title · ชนะป้ายครบทั้งวัน ตามเดิม
   const head = renderHead(titleOf(kind, summary, input.titleOverride || template.title), c)
   const bubble: Node = { type: 'bubble', size: 'mega', body: { type: 'box', layout: 'vertical', contents: [head, ...composeBody(template, c)] } }
+  meta.charts = c.charts.n
   const url = sellerDashboardUrl()
   if (url && template.button.show) {
     bubble.footer = {
@@ -125,8 +126,8 @@ function renderAltText(input: SummaryReportInput, summary: GroupSummary, kind: R
   }
   if (summary.shops.some((s) => s.state === 'ERROR')) parts.push('ยอดรวมยังไม่ครบ')
   parts.push(`ข้อมูล ณ ${formatTimeHM(summary.window.computedAt)} น.`)
-  // level ≥3 = ย่อ altText เหลือแค่ตัวเลขสรุป (ตัดรายร้าน)
-  if (level < 3) for (const s of sortShops(summary.shops)) if (s.state === 'OK' && summary.shops.length > 1) parts.push(f.showSales ? `${s.shop.name} ${formatBaht(s.confirmed)}` : s.shop.name)
+  // level ≥4 = ย่อ altText เหลือแค่ตัวเลขสรุป (ตัดรายร้าน)
+  if (level < 4) for (const s of sortShops(summary.shops)) if (s.state === 'OK' && summary.shops.length > 1) parts.push(f.showSales ? `${s.shop.name} ${formatBaht(s.confirmed)}` : s.shop.name)
   return Array.from(parts.join(' · ')).slice(0, ALT_TEXT_MAX).join('')
 }
 
@@ -137,17 +138,21 @@ export type ReportFlexMessage = LineFlexMessage & { type: 'flex' }
 const rebuilders = new WeakMap<LineFlexMessage, (level: number) => LineFlexMessage>()
 /** บล็อก/โทเคนที่ถูกข้ามในข้อความใบนั้น — อยู่นอก JSON ที่ส่ง LINE (EXT-06) */
 const skippedOf = new WeakMap<LineFlexMessage, Skipped[]>()
+/** จำนวนกราฟที่ข้อความใบนั้นแสดงอยู่ — 0 = ระดับตัดกราฟไม่เปลี่ยนผล ข้ามได้ */
+const chartsOf = new WeakMap<LineFlexMessage, number>()
 
 function build(input: SummaryReportInput, summary: GroupSummary, kind: ReportKind, level = 0): ReportFlexMessage {
   const skipped: Skipped[] = []
+  const meta = { charts: 0 }
   const msg: ReportFlexMessage = {
     // 🛑 LINE บังคับ `type` ในทุก message object — `LineFlexMessage` ของ flex-order-card ไม่มีฟิลด์นี้
     // เพราะ adapter แชท (line-adapter.ts) เติมให้ตอนส่ง แต่บอทรายงานส่ง JSON นี้ตรง → ขาดแล้ว LINE ตอบ 400
     // (เจอบน prod 2026-10-05: ส่งทดสอบ/ตอบคำสั่งล้มทุกครั้ง)
     type: 'flex',
     altText: renderAltText(input, summary, kind, level),
-    contents: renderBubble(input, summary, kind, level, skipped),
+    contents: renderBubble(input, summary, kind, level, skipped, meta),
   }
+  chartsOf.set(msg, meta.charts)
   rebuilders.set(msg, (l) => build(input, summary, kind, l))
   skippedOf.set(msg, skipped)
   return msg
@@ -184,21 +189,37 @@ export function buildPlainNotice(msg: string): ReportFlexMessage {
   }
 }
 
-const bytes = (m: LineFlexMessage) => Buffer.byteLength(JSON.stringify(m.contents), 'utf8')
+const encoder = new TextEncoder()
+/** ไบต์ UTF-8 ของสตริง — TextEncoder (รันบน client ได้) ให้ค่าเท่า Buffer.byteLength ทุกกรณี (AC-EXT-08-3) */
+export const bytesOf = (s: string) => encoder.encode(s).length
+const bytes = (m: LineFlexMessage) => bytesOf(JSON.stringify(m.contents))
+
+export const REPORT_BUBBLE_MAX_BYTES = BUBBLE_MAX_BYTES
+export const REPORT_MAX_LEVEL = 4
+
+/** ตัดทอนที่ระดับที่กำหนดตรง ๆ (ใช้ตัววัดตอนบันทึกเทมเพลต) — รับ object จาก buildSummaryReportFlex เท่านั้น */
+export function rebuildAtLevel(m: LineFlexMessage, level: number): LineFlexMessage {
+  return rebuilders.get(m)?.(level) ?? m
+}
 
 /**
  * ตัดทอนให้อยู่ในเพดาน LINE (altText ≤1500 · bubble ≤30KB · ≤5 ข้อความ)
  * 🛑 ต้องรับ object ที่ `buildSummaryReportFlex` สร้างเองเท่านั้น (ผูกด้วย identity ผ่าน WeakMap) —
  * ข้อความที่ clone/โหลดจาก JSON ตัดได้แค่ altText
- * ลำดับ: Top3 → ย่อรายร้าน → altText · ไม่แตะยอดรวม/ป้ายช่วงเวลา/ข้อมูล ณ
+ * ลำดับ (FR-EXT-08): Top3 → กราฟ → ย่อรายร้าน → ย่อ altText · ข้ามระดับกราฟเมื่อข้อความไม่มีกราฟ (ผลเท่าเดิมทุกไบต์)
+ * ไม่แตะยอดรวม/ป้ายช่วงเวลา/ข้อมูล ณ/ข้อความอิสระ
  */
 export function fitToLimits(messages: LineFlexMessage[]): LineFlexMessage[] {
   return messages.slice(0, MAX_MESSAGES).map((m) => {
     const rebuild = rebuilders.get(m)
     let cur = m
-    for (let level = 1; rebuild && bytes(cur) > BUBBLE_MAX_BYTES && level <= 3; level++) cur = rebuild(level)
+    for (let level = 1; rebuild && bytes(cur) > BUBBLE_MAX_BYTES && level <= REPORT_MAX_LEVEL; level++) {
+      if (level === 2 && !chartsOf.get(m)) continue
+      cur = rebuild(level)
+    }
     if (Array.from(cur.altText).length > ALT_TEXT_MAX) cur = { ...cur, altText: Array.from(cur.altText).slice(0, ALT_TEXT_MAX).join('') }
-    if (cur !== m) skippedOf.set(cur, skippedOf.get(m) ?? [])
+    // ใบที่ rebuild มี skipped ของตัวเองแล้ว (รวมหมายเหตุกราฟถูกตัด) — คัดลอกเฉพาะใบที่เป็น clone (ตัด altText)
+    if (cur !== m && !skippedOf.has(cur)) skippedOf.set(cur, skippedOf.get(m) ?? [])
     return cur
   })
 }

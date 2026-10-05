@@ -237,9 +237,9 @@ describe('ยุบ separator (FR-EXT-06)', () => {
 })
 
 describe('ชนิดกราฟ + ปุ่ม + diagnostics', () => {
-  it('chart_* ข้ามเงียบ ๆ ใน JSON + บันทึก skipped (T5 จะเติม)', () => {
+  it('chart_trend ไม่มี trend → ข้าม+skipped · chart_compare มี 2 ร้าน OK → วาด (รายละเอียดใน flex-report-charts.test)', () => {
     const msgs = run(T([B.orders(), { id: 'c1', type: 'chart_trend', measure: 'sales' }, { id: 'c2', type: 'chart_compare', measure: 'orders' }]))
-    expect(collectSkipped(msgs).map((s) => s.label)).toEqual(['กราฟแนวโน้ม 7 วัน', 'กราฟเทียบรายร้าน'])
+    expect(collectSkipped(msgs).map((s) => s.label)).toEqual(['กราฟแนวโน้ม 7 วัน'])
     expect(json(msgs[0].contents)).not.toContain('"image"')
   })
   it('cycle: DAILY ไม่มี cycleToDate → log · MONTHLY/ครบทั้งวัน → เงียบ', () => {
