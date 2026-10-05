@@ -55,7 +55,10 @@ const baht = new Intl.NumberFormat('th-TH', {
 })
 
 type Props = {
-  totalAmount: number
+  /** ยอดที่ผู้ซื้อต้องโอนจริง (ร้านบริการ = ยอดค้าง) — บังคับ ไม่มี default ให้ tsc ไล่ผู้เรียก (00068 TD-004) · ผู้เรียกต้องผ่าน `resolveTransferAmount` */
+  amountDue: number
+  /** 'embedded' = ไม่มีเปลือกการ์ด/หัวข้อ/แถวยอด (ฝังใน NextActionCard ที่แสดงยอดเอง) */
+  variant?: 'card' | 'embedded'
   payoutSnapshot: PayoutSnapshot | null
   /** ป้ายสถานะการชำระเงิน — จาก `getPaymentBadge()` SSOT เดียวกับฝั่งร้าน (UX-Design-Spec §B8) */
   paymentBadge: PaymentBadge
@@ -76,13 +79,15 @@ type Props = {
 }
 
 export default function PayoutAccountCard({
-  totalAmount,
+  amountDue,
+  variant = 'card',
   payoutSnapshot,
   paymentBadge,
   status,
   paymentConfirmedAt,
   contactShopAction,
 }: Props) {
+  const embedded = variant === 'embedded'
   /**
    * impeccable critique P0-2 (2026-08-29) — ออเดอร์ที่ร้านยืนยันรับเงิน/ปิดงาน/ยกเลิกแล้ว
    * ต้องถอด QR ที่สแกนจ่ายได้จริงออกทั้งบล็อก ไม่ใช่แค่ลดขนาด — โอนซ้ำ/โอนเข้าออเดอร์ที่ยกเลิก
@@ -123,15 +128,15 @@ export default function PayoutAccountCard({
 
   const bankLabel = payoutSnapshot?.bankCode ? findThaiBank(payoutSnapshot.bankCode)?.nameTh ?? 'เลขบัญชี' : 'เลขบัญชี'
 
-  // 🛑 ยอดใน QR ต้องคำนวณจาก totalAmount ปัจจุบันเสมอ (live-read) — ไม่ cache payload เก่า
+  // 🛑 ยอดใน QR ต้องคำนวณจาก amountDue ปัจจุบันเสมอ (live-read) — ไม่ cache payload เก่า
   // (TFR-011: ออเดอร์ถูกแก้ยอดทีหลัง QR ต้องเปลี่ยนตามทันที ต่างจากบัญชีที่ freeze ตอนสร้าง)
   const qrPayload = payoutSnapshot?.promptPayId
-    ? buildPromptPayPayload({ promptPayId: payoutSnapshot.promptPayId, amount: totalAmount })
+    ? buildPromptPayPayload({ promptPayId: payoutSnapshot.promptPayId, amount: amountDue })
     : null
 
-  return (
-    <Card>
-      <Box sx={{ px: 1.75, py: 1.75 }}>
+  const body = (
+    <>
+        {!embedded && (<>
         {/* ── header: icon + title (h2 semantics เดียวกับ SectionTitle) + badge (B8) ── */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
           <Icon
@@ -162,8 +167,10 @@ export default function PayoutAccountCard({
           <Typography variant='body2' color='text.secondary'>
             {isSettled ? 'ยอดที่ชำระ' : 'ยอดที่ต้องโอน'}
           </Typography>
-          <Typography sx={{ fontSize: '1.125rem', fontWeight: 700 }}>{baht.format(totalAmount)}</Typography>
+          <Typography sx={{ fontSize: '1.125rem', fontWeight: 700 }}>{baht.format(amountDue)}</Typography>
         </Box>
+
+        </>)}
 
         {/* ── ยกเลิกแล้ว — เตือนห้ามโอนตรง ๆ ไม่ใช่แค่ถอด QR เงียบ ๆ (P0-2) ── */}
         {isCancelled && (
@@ -313,7 +320,7 @@ export default function PayoutAccountCard({
                 <QRCodeCanvas ref={qrCanvasRef} value={qrPayload} size={160} />
               </Box>
               <Typography variant='caption' color='text.secondary' sx={{ textAlign: 'center', px: 1 }}>
-                สแกนแล้วยอด {baht.format(totalAmount)} จะขึ้นให้เอง — ไม่ต้องพิมพ์เลขบัญชีหรือยอดเงินเอง
+                สแกนแล้วยอด {baht.format(amountDue)} จะขึ้นให้เอง — ไม่ต้องพิมพ์เลขบัญชีหรือยอดเงินเอง
               </Typography>
               <Button
                 variant='tonal'
@@ -327,7 +334,13 @@ export default function PayoutAccountCard({
             </Box>
           </>
         )}
-      </Box>
+    </>
+  )
+
+  if (embedded) return <Box>{body}</Box>
+  return (
+    <Card>
+      <Box sx={{ px: 1.75, py: 1.75 }}>{body}</Box>
     </Card>
   )
 }

@@ -37,6 +37,7 @@ import { ORDER_VOCAB } from '@/lib/seller-menu'
 import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
 import { resolveOrderStatusHeadline } from '@/lib/order-status-headline'
 import { needsPayoutAccount } from '@/lib/shop-payout'
+import { resolveTransferAmount } from '@/lib/buyer-next-action'
 import { isPickupOrder } from '@/lib/order-pickup'
 import ParcelTimeline from './ParcelTimeline'
 import PayoutAccountCard from './PayoutAccountCard'
@@ -403,7 +404,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
               ไม่ผ่านด่านนี้ จึงไม่มีการ์ดนี้เลย ตรงกับ Edge states ข้อแรกของสเปก */}
           {needsPayoutAccount(order.paymentMethod) && (
             <PayoutAccountCard
-              totalAmount={order.totalAmount}
+              amountDue={resolveTransferAmount({ totalAmount: order.totalAmount, outstanding: order.money?.outstanding ?? null })}
               payoutSnapshot={order.payoutSnapshot}
               paymentBadge={paymentBadge}
               status={order.status}

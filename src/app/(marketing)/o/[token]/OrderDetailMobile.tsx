@@ -68,6 +68,7 @@ import { resolveVerifyBadge } from '@/lib/verify-badge'
 import { uploadFileId } from '@/lib/upload-client'
 import { uploadMaxSize } from '@/lib/upload-policy'
 import { needsPayoutAccount } from '@/lib/shop-payout'
+import { resolveTransferAmount } from '@/lib/buyer-next-action'
 import { isPickupOrder } from '@/lib/order-pickup'
 
 import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFooter'
@@ -2198,7 +2199,10 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           <Box sx={{ order: 5, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
           {needsPayoutAccount(order.paymentMethod) && (
             <PayoutAccountCard
-              totalAmount={order.totalAmount}
+              amountDue={resolveTransferAmount({
+                totalAmount: order.totalAmount,
+                outstanding: order.serviceMoney?.outstanding ?? null,
+              })}
               payoutSnapshot={order.payoutSnapshot}
               paymentBadge={paymentBadge}
               status={order.status}
