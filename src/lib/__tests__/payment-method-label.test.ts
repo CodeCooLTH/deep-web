@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import { isCashPayment, paymentMethodDetail, paymentMethodLabel } from '@/lib/order-display'
 import { needsPayoutAccount } from '@/lib/shop-payout'
+import { readBuyerOrderFile } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 /**
  * [blocker] ป้ายวิธีชำระเงินต้องแตก **3 ทาง** และต้องตรงกับ `needsPayoutAccount()` เสมอ
@@ -74,13 +75,13 @@ describe('[blocker] paymentMethodDetail', () => {
 describe('[blocker] ไม่มีใครพิมพ์ป้ายเองนอก order-display.ts', () => {
   const ROOT = join(__dirname, '..', '..')
   const FILES = [
-    join(ROOT, 'app', '(marketing)', 'o', '[token]', 'OrderDetailMobile.tsx'),
-    join(ROOT, 'app', '(marketing)', 'o', '[token]', 'PaymentSummaryCard.tsx'),
+    'OrderDetailMobile.tsx',
+    'PaymentSummaryCard.tsx',
   ]
 
   for (const f of FILES) {
-    it(`${f.split('/').pop()} ต้องเรียก paymentMethodLabel() ไม่ใช่พิมพ์ 'โอนเข้าบัญชี' เอง`, () => {
-      const src = readFileSync(f, 'utf8')
+    it(`${f} ต้องเรียก paymentMethodLabel() ไม่ใช่พิมพ์ 'โอนเข้าบัญชี' เอง`, () => {
+      const src = readBuyerOrderFile(f)
       expect(src).toContain('paymentMethodLabel(')
       expect(src).not.toContain("'โอนเข้าบัญชี'")
     })

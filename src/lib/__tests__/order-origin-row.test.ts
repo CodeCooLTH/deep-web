@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { shouldShowOrderOrigin } from '@/lib/order-display'
+import { readBuyerOrderFile } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 /**
  * [blocker] ที่มาของออเดอร์ ("ใบนี้คุยกันที่เพจไหน") ต้องมีที่ยืนที่เดียว ไม่ใช่พิมพ์ชื่อซ้ำ
@@ -75,7 +76,7 @@ const strip = (raw: string) =>
     .replace(/(?<!:)\/\/.*$/gm, (m) => ' '.repeat(m.length))
 
 const read = (rel: string) => strip(readFileSync(join(process.cwd(), rel), 'utf8'))
-const ODM = () => read('src/app/(marketing)/o/[token]/OrderDetailMobile.tsx')
+const ODM = () => strip(readBuyerOrderFile('OrderDetailMobile.tsx'))
 
 /**
  * [blocker] ป้าย "คุยกันที่นี่" — คำตอบหลักของ "ใบนี้คุยกันที่เพจไหน"
@@ -136,7 +137,7 @@ describe('[blocker] แถบช่องทางต้องติดป้า
       expect(c, `ทุกทางเรียกต้องส่ง originChannel: ${c}`).toMatch(/originChannel=\{originChannel\}/)
     }
     for (const f of ['OrderDetailMobile.tsx', 'GuestOrderView.tsx']) {
-      expect(read(`src/app/(marketing)/o/[token]/${f}`), `${f} ต้องส่ง originChannel`).toMatch(
+      expect(f === 'GuestOrderView.tsx' ? read(`src/app/(marketing)/o/[token]/${f}`) : strip(readBuyerOrderFile(f)), `${f} ต้องส่ง originChannel`).toMatch(
         /originChannel=\{/,
       )
     }
@@ -152,7 +153,7 @@ describe('[blocker] แถบช่องทางต้องติดป้า
 describe('[blocker] โครงหน้าออเดอร์ตามม็อกอัพ v5', () => {
   it('ปุ่มบนปก (ช่วยเหลือ + แชร์) ต้องมีทั้งสองจอ', () => {
     for (const f of ['OrderDetailMobile.tsx', 'GuestOrderView.tsx']) {
-      expect(read(`src/app/(marketing)/o/[token]/${f}`), `${f} ต้องส่ง actions ให้ ShopCover`).toMatch(
+      expect(f === 'GuestOrderView.tsx' ? read(`src/app/(marketing)/o/[token]/${f}`) : strip(readBuyerOrderFile(f)), `${f} ต้องส่ง actions ให้ ShopCover`).toMatch(
         /actions=\{<CoverActions/,
       )
     }

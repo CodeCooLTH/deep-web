@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+import { readBuyerOrderFile } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 /**
  * [blocker] บล็อกร้าน + โซนรีวิว บนหน้าออเดอร์ผู้ซื้อ `/o/[token]`
@@ -18,11 +19,10 @@ import { describe, expect, it } from 'vitest'
  *
  * 🛑 แดง = ห้าม merge
  */
-const REL = 'src/app/(marketing)/o/[token]/OrderDetailMobile.tsx'
 
 /** ตัดคอมเมนต์ทิ้งก่อนสแกน — ไฟล์นี้อธิบายกฎของตัวเองไว้ยาว สแกนดิบจะเจอคอมเมนต์ */
 const code = (() => {
-  const raw = readFileSync(join(process.cwd(), REL), 'utf8')
+  const raw = readBuyerOrderFile('OrderDetailMobile.tsx')
   return raw
     .replace(/\{\/\*[\s\S]*?\*\/\}|\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
     .replace(/(?<!:)\/\/.*$/gm, (m) => ' '.repeat(m.length))

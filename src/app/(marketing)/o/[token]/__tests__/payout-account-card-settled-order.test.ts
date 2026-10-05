@@ -18,12 +18,13 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
+import { readBuyerOrderFile } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 const DIR = join(process.cwd(), 'src/app/(marketing)/o/[token]')
 
 /** ตัดคอมเมนต์ก่อนตรวจ — ไฟล์เหล่านี้อธิบายบั๊กเดิมไว้ในคอมเมนต์ด้วยตัวอักษรเดียวกับที่ห้าม */
 function read(rel: string): string {
-  return readFileSync(join(DIR, rel), 'utf8')
+  return (rel === 'OrderDetailMobile.tsx' ? readBuyerOrderFile('OrderDetailMobile.tsx') : readFileSync(join(DIR, rel), 'utf8'))
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .split('\n')
     .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))

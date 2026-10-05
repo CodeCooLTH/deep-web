@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { readBuyerOrderFile } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 // [blocker] ลิงก์ SMS ออเดอร์ต้องเผาตอนลูกค้ากดยืนยัน ไม่ใช่ตอนเปิด (GET) — ตัว preview ของแอปแชท
 // ยิง GET เองได้ ถ้าเผาตอนเปิด ลูกค้าจะเจอลิงก์ตายทั้งที่ยังไม่เคยกด
@@ -49,7 +50,7 @@ describe('[blocker] รีวิวได้หลังยืนยันรั
     expect(svc).not.toMatch(/\["CONFIRMED", "SHIPPED"\]/)
   })
   it('หน้าออเดอร์เปิดการ์ดรีวิวเฉพาะ CONFIRMED', () => {
-    const ui = read('src/app/(marketing)/o/[token]/OrderDetailMobile.tsx')
+    const ui = strip(readBuyerOrderFile('OrderDetailMobile.tsx'))
     expect(ui).toMatch(/const canReview = !order\.hasReview && order\.status === 'CONFIRMED'/)
   })
 })
@@ -60,7 +61,7 @@ describe('[blocker] คำที่ป้อน Trust Score ต้องไม�
     expect(f).toMatch(/STAR_LABELS = \['แย่มาก', 'แย่', 'พอใช้', 'ดี', 'ดีมาก'\]/)
   })
   it('ตราประทับอ้างว่า "ได้รับแล้ว" เฉพาะเมื่อผู้ซื้อกดเอง', () => {
-    const ui = read('src/app/(marketing)/o/[token]/OrderDetailMobile.tsx')
+    const ui = strip(readBuyerOrderFile('OrderDetailMobile.tsx'))
     expect(ui).toMatch(/order\.confirmation\.byBuyer\s*\?[\s\S]{0,120}'ได้รับแล้ว'[\s\S]{0,40}: 'สำเร็จ'/)
     const pg = read('src/app/(marketing)/o/[token]/page.tsx')
     expect(pg).toMatch(/byBuyer: confirmEvent\?\.type === 'BUYER_CONFIRMED'/)

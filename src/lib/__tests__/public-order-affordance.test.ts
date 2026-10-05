@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+import { readBuyerOrderSource } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 /**
  * [blocker] ทุกอย่างที่กดได้บน `/o/[token]` ต้อง **ดูออกว่ากดได้ และบอกว่าจะเกิดอะไร**
@@ -19,7 +20,7 @@ const strip = (raw: string) =>
     .replace(/(?<!:)\/\/.*$/gm, (m) => ' '.repeat(m.length))
 
 const page = strip(
-  readFileSync(join(process.cwd(), 'src/app/(marketing)/o/[token]/OrderDetailMobile.tsx'), 'utf8'),
+  readBuyerOrderSource(),
 )
 const channels = strip(
   readFileSync(join(process.cwd(), 'src/views/pages/user-profile/v2/OfficialChannels.tsx'), 'utf8'),

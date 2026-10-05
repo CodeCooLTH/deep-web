@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+import { readBuyerOrderFile, readBuyerOrderSource } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 /**
  * หน้าออเดอร์ของลูกค้า `/o/[token]` — เรื่องเงิน + เพจต้นทาง (feature 00050 · AC-SQ-06)
@@ -108,7 +109,7 @@ describe('ต้องไม่กระทบออเดอร์ของ ver
     expect(page, 'ต้องคืน null เมื่อไม่มีเรื่องเงินให้พูดถึง').toMatch(
       /!hasMoneyStory\(m\)\) return null/,
     )
-    const view = stripComments(read('src/app/(marketing)/o/[token]/OrderDetailMobile.tsx'))
+    const view = stripComments(readBuyerOrderSource())
     expect(view, 'ต้อง render แบบมีเงื่อนไข').toMatch(
       /\{order\.money && <PaymentSummaryCard/,
     )
@@ -128,7 +129,7 @@ describe('ต้องไม่กระทบออเดอร์ของ ver
      *
      * วัดด้วย **ระดับการเยื้อง**: อยู่คนละ block ⇒ เยื้องเท่ากัน · ถูกซ้อน ⇒ เยื้องลึกกว่า
      */
-    const raw = read('src/app/(marketing)/o/[token]/OrderDetailMobile.tsx')
+    const raw = readBuyerOrderFile('OrderDetailMobile.tsx')
     const moneyLine = raw.split('\n').find((l) => l.includes('<PaymentSummaryCard'))
     const apptLine = raw.split('\n').find((l) => l.includes('{order.appointment && ('))
     expect(moneyLine, 'ต้องเจอการ์ดเงิน').toBeTruthy()
@@ -229,19 +230,18 @@ describe('ร้านต้องไม่รู้น้อยกว่าล�
 })
 
 describe('คำบนหน้าลูกค้าต้องตรงกับประเภทร้าน (หัวหน้า: "order detail ดูไม่รู้เรื่อง")', () => {
-  const VIEW = 'src/app/(marketing)/o/[token]/OrderDetailMobile.tsx'
 
   it('[blocker] ร้านบริการต้องไม่เห็นคำว่า "สินค้า" ในหัวรายการ', () => {
     /**
      * ลูกค้าที่จ้างล้างแอร์เปิดหน้านี้แล้วเห็น "รายการสินค้า" — คำที่ไม่ตรงกับสิ่งที่เขาซื้อ
      * คือจุดแรกที่ทำให้หน้า "ดูไม่รู้เรื่อง"
      */
-    const code = stripComments(read(VIEW))
+    const code = stripComments(readBuyerOrderSource())
     expect(code).toMatch(/isServiceShop \? 'รายการบริการ' : 'รายการสินค้า'/)
   })
 
   it('[blocker] ปุ่มยืนยันของร้านบริการต้องพูดว่า "รับบริการ" ไม่ใช่ "ได้รับ"', () => {
-    const code = stripComments(read(VIEW))
+    const code = stripComments(readBuyerOrderSource())
     expect(code).toContain('ยืนยันว่ารับบริการแล้ว')
   })
 
@@ -256,7 +256,7 @@ describe('คำบนหน้าลูกค้าต้องตรงกั�
     expect(page, 'ต้อง derive จาก vertical ตรง ๆ').toMatch(
       /isServiceShop: order\.shop\.vertical === 'SERVICE_QUEUE'/,
     )
-    const code = stripComments(read(VIEW))
+    const code = stripComments(readBuyerOrderSource())
     expect(code, 'ห้ามใช้ money ตัดสินคำ').not.toMatch(/order\.money \? 'รายการบริการ'/)
   })
 })

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+import { readBuyerOrderFile } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 /**
  * [blocker] หัวหน้าจอ + รางสถานะของหน้าออเดอร์ลูกค้า `/o/[token]`
@@ -20,11 +21,10 @@ import { describe, expect, it } from 'vitest'
  * กล่องต้องมีอยู่ · ต้องผูกกับเงื่อนไข "ยังกดผิดได้" · ต้องอ้างคำบนปุ่มจริงไม่ใช่พิมพ์ซ้ำ
  */
 const ROOT = process.cwd()
-const REL = 'src/app/(marketing)/o/[token]/OrderDetailMobile.tsx'
 
 /** ลบเนื้อคอมเมนต์แต่คงจำนวนบรรทัด — ไฟล์นี้อธิบายกฎของตัวเองไว้ยาว สแกนดิบจะเจอคอมเมนต์ */
 const code = (() => {
-  const raw = readFileSync(join(ROOT, REL), 'utf8')
+  const raw = readBuyerOrderFile('OrderDetailMobile.tsx')
   return raw
     .replace(/\{\/\*[\s\S]*?\*\/\}|\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
     .replace(/(?<!:)\/\/.*$/gm, (m) => ' '.repeat(m.length))

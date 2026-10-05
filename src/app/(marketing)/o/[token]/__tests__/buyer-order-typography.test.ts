@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+import { readBuyerOrderFile } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 /**
  * [blocker] หน้าออเดอร์ฝั่งผู้ซื้อ 2 จอ ต้องอ่านเกณฑ์ตัวอักษรชุดเดียวกัน (DESIGN.md)
@@ -33,7 +34,9 @@ const ROOT = process.cwd()
 const DIR = 'src/app/(marketing)/o/[token]'
 const SCREENS = ['GuestOrderView.tsx', 'OrderDetailMobile.tsx']
 
-const read = (f: string) => readFileSync(join(ROOT, DIR, f), 'utf8')
+// OrderDetailMobile อ่านผ่าน helper (ซอร์สรวม shell + การ์ดย่อย) — ไม่ผูก path ไฟล์เดียว
+const read = (f: string) =>
+  f === 'OrderDetailMobile.tsx' ? readBuyerOrderFile('OrderDetailMobile.tsx') : readFileSync(join(ROOT, DIR, f), 'utf8')
 
 /** ลบเนื้อคอมเมนต์แต่คงจำนวนบรรทัด — ไฟล์ที่ทำถูกคือไฟล์ที่เขียนคำเตือนของกฎนั้นไว้ด้วย */
 const blankComments = (src: string) =>

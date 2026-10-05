@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { stripComments } from './helpers/buyer-order-sources'
 
 const ROOT = join(__dirname, '../../..')
 const FILES = [
@@ -14,13 +15,7 @@ const FILES = [
   'src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/FollowUpPanel.tsx',
 ]
 
-export function stripComments(src: string): string {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .map((l) => l.replace(/(^|[^:'"`])\/\/.*$/, '$1'))
-    .join('\n')
-}
+export { stripComments }
 
 describe('follow-up components: copy', () => {
   for (const f of FILES) {

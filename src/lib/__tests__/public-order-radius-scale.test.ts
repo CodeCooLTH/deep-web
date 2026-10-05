@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+import { readBuyerOrderSource } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 /**
  * [blocker] รัศมีมุมบน `/o/[token]` ต้องพูดภาษาเดียวกันทั้งหน้า
@@ -60,7 +61,7 @@ describe('[blocker] รัศมีมุมต้องอยู่ในชุ
   it('กล่องข้อความพื้น action.hover ต้องใช้รัศมีเดียวกันทุกใบ', () => {
     /* ของที่ทำหน้าที่เหมือนกัน (กล่องอธิบาย/เหตุผล) ต้องหน้าตาเหมือนกัน —
        เดิมมี 12px กับ 18px ปนกันบนหน้าเดียว */
-    const src = strip(readFileSync(join(process.cwd(), DIR, 'OrderDetailMobile.tsx'), 'utf8'))
+    const src = strip(readBuyerOrderSource())
     const radii = new Set(
       [...src.matchAll(/bgcolor: 'action\.hover',\s*borderRadius: ([0-9.]+)/g)].map((m) => m[1]),
     )

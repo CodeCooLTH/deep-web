@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+import { readBuyerOrderFile } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 /**
  * [blocker] แถบ CTA ล่างจอเป็น `position: fixed` ⇒ **ต้องมีบล็อกกันที่ท้าย flow เสมอ**
@@ -20,10 +21,9 @@ import { describe, expect, it } from 'vitest'
  *
  * 🛑 แดง = ห้าม merge
  */
-const FILE = join(__dirname, '..', '..', 'app', '(marketing)', 'o', '[token]', 'OrderDetailMobile.tsx')
 
 describe('[blocker] ที่ว่างใต้แถบ CTA ของหน้า /o/[token]', () => {
-  const src = readFileSync(FILE, 'utf8')
+  const src = readBuyerOrderFile('OrderDetailMobile.tsx')
 
   it('แถบ fixed ต้องถูกวัดด้วย ref (ไม่ใช่ฮาร์ดโค้ดความสูง)', () => {
     expect(src).toContain('ref={ctaBarRef}')

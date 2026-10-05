@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { ORDER_STATUS_META, resolveServiceOrderBadge } from '@/lib/order-display'
 import { computeOrderMoney, type PaymentRow } from '@/lib/order-payment'
+import { readBuyerOrderSource } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 /**
  * ป้ายสถานะของงานร้านบริการ — หัวหน้าอธิบายวงจรไว้ 2 บรรทัด (2026-08-15):
@@ -106,7 +107,7 @@ describe('ต่อสายจริง — ป้ายต้องเปล�
     expect(seller).toMatch(/orderMoney\s*\n?\s*\?\s*resolveServiceOrderBadge\(/)
     expect(seller).toMatch(/:\s*null\s*\n?\s*\}/)
 
-    const buyer = read('src/app/(marketing)/o/[token]/OrderDetailMobile.tsx')
+    const buyer = readBuyerOrderSource().replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
     expect(buyer).toMatch(/order\.money\s*\n?\s*\?\s*resolveServiceOrderBadge\(/)
     expect(buyer, 'ไม่ใช่ร้านบริการต้องตกไปใช้ป้ายเดิม').toMatch(
       /:\s*resolveOrderStatusBadge\(order\.status\)/,

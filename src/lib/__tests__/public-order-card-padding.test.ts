@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+import { readBuyerOrderFile } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 /**
  * [blocker] ระยะขอบในของการ์ดบนหน้าออเดอร์ต้องมี **นิยามเดียว**
@@ -26,7 +27,6 @@ const strip = (raw: string) =>
     .replace(/(?<!:)\/\/.*$/gm, (m) => ' '.repeat(m.length))
 
 const read = (rel: string) => strip(readFileSync(join(process.cwd(), rel), 'utf8'))
-const ODM = 'src/app/(marketing)/o/[token]/OrderDetailMobile.tsx'
 
 describe('[blocker] การ์ดทุกใบต้องใช้ระยะขอบในชุดเดียวกัน', () => {
   it('มีนิยามเดียว และเป็น 20px เท่ากับการ์ดของธีม', () => {
@@ -43,7 +43,7 @@ describe('[blocker] การ์ดทุกใบต้องใช้ระย
      * ตรวจเฉพาะ `<Box>` ที่เป็น **ลูกตัวแรกของ `<Card>`** ซึ่งคือ "ตัวการ์ด" ในสายตาผู้ใช้
      * กล่องข้างในลึกลงไป (แถบยอดรวม · กล่องข้อมูล · ชิป) มีระยะของตัวเองได้ตามปกติ
      */
-    const src = read(ODM)
+    const src = strip(readBuyerOrderFile('OrderDetailMobile.tsx'))
     const bad: string[] = []
     for (const m of src.matchAll(/<Card[^>]*>\s*<Box\s+sx=\{\{?([^}]*)\}/g)) {
       const sx = m[1]
@@ -57,7 +57,7 @@ describe('[blocker] การ์ดทุกใบต้องใช้ระย
   it('ค่าที่เคยกระจัดกระจายต้องไม่กลับมา', () => {
     /* ค่าที่วัดเจอตอนนั้น — ถ้าโผล่กลับมาที่ระดับการ์ดแปลว่ามีคนตั้งเองอีก
        🛑 ผูกกับ **ค่าที่เคยผิดจริง** ไม่ใช่ "ห้ามมีตัวเลขเลย" ซึ่งจะแดงกับกล่องข้างในที่ถูกต้อง */
-    const src = read(ODM)
+    const src = strip(readBuyerOrderFile('OrderDetailMobile.tsx'))
     for (const gone of ['px: 1.75, py: 1.75', 'px: 1.75, py: 2 }', 'px: 2.25,']) {
       expect(src, `ค่าเดิมที่ไม่ควรกลับมา: ${gone}`).not.toContain(gone)
     }

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+import { readBuyerOrderFile } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 /**
  * [blocker] รางสถานะบน `/o/[token]` — สถานะต้องอ่านออกโดยไม่ต้องพึ่งสี
@@ -18,7 +19,7 @@ const strip = (raw: string) =>
     .replace(/\{\/\*[\s\S]*?\*\/\}|\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
     .replace(/(?<!:)\/\/.*$/gm, (m) => ' '.repeat(m.length))
 
-const src = strip(readFileSync(join(process.cwd(), DIR, 'OrderDetailMobile.tsx'), 'utf8'))
+const src = strip(readBuyerOrderFile('OrderDetailMobile.tsx'))
 const pill = strip(readFileSync(join(process.cwd(), DIR, 'TrustPill.tsx'), 'utf8'))
 
 describe('[blocker] a11y ของรางสถานะ', () => {
@@ -222,7 +223,8 @@ describe('[blocker] ข้อความจางต้องอ่านออ
        ไอคอนตกแต่งที่มีข้อความกำกับอยู่แล้วไม่อยู่ใต้กฎนี้ (WCAG 1.4.11 ยกเว้น) จึงตรวจเฉพาะ
        รูปแบบที่เป็น "สีของข้อความ" ตรง ๆ */
     for (const f of files) {
-      const code = strip(readFileSync(join(process.cwd(), DIR, f), 'utf8'))
+      // PhoneVerifyPrompt เป็นจอกั้น (อยู่นอก allow-list) จึงอ่านตรง — ที่เหลือผ่าน helper
+      const code = strip(f === 'PhoneVerifyPrompt.tsx' ? readFileSync(join(process.cwd(), DIR, f), 'utf8') : readBuyerOrderFile(f))
       expect(code, `${f} ห้ามมี color='text.disabled'`).not.toMatch(/color='text\.disabled'/)
     }
   })

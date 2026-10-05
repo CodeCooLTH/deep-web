@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+import { readBuyerOrderFile } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 const ROOT = process.cwd()
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8')
@@ -10,7 +11,6 @@ const code = (rel: string) =>
   read(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
 
 const BUYER_PAGE = 'src/app/(marketing)/o/[token]/page.tsx'
-const MOBILE = 'src/app/(marketing)/o/[token]/OrderDetailMobile.tsx'
 const GUEST = 'src/app/(marketing)/o/[token]/GuestOrderView.tsx'
 const GUEST_DATA = 'src/app/(marketing)/o/[token]/guest-order-data.ts'
 
@@ -53,7 +53,7 @@ describe('[blocker] จอผู้ซื้อ 2 แบบ ต้องตอ�
   })
 
   it('🛑 ป้ายของทั้งสองจอต้องกินบัญชีเงิน ไม่ใช่ `Order.status` ล้วน', () => {
-    expect(code(MOBILE), 'จอล็อกอินต้องส่งชุดเงินเข้า getPaymentBadge').toMatch(
+    expect(readBuyerOrderFile('OrderDetailMobile.tsx').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''), 'จอล็อกอินต้องส่งชุดเงินเข้า getPaymentBadge').toMatch(
       /getPaymentBadge\([\s\S]{0,240}serviceMoney/,
     )
     expect(code(GUEST), 'จอ guest ต้องส่งชุดเงินเข้า getPaymentBadge').toMatch(

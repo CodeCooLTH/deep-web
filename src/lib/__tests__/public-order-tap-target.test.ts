@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+import { readBuyerOrderSource } from '@/lib/__tests__/helpers/buyer-order-sources'
 
 /**
  * [blocker] พื้นที่แตะ 44px — `PRODUCT.md` ประกาศเป็น baseline ของทั้งระบบ
@@ -24,7 +25,7 @@ const strip = (raw: string) =>
     .replace(/(?<!:)\/\/.*$/gm, (m) => ' '.repeat(m.length))
 
 const page = strip(
-  readFileSync(join(process.cwd(), 'src/app/(marketing)/o/[token]/OrderDetailMobile.tsx'), 'utf8'),
+  readBuyerOrderSource(),
 )
 const footer = strip(
   readFileSync(join(process.cwd(), 'src/views/pages/user-profile/v2/PublicProfileFooter.tsx'), 'utf8'),
