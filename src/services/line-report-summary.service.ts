@@ -11,11 +11,12 @@ import { getPnlReport } from '@/services/pnl.service'
 import { getProductSalesMonth, type ProductSalesMonth } from '@/services/product-sales-series.service'
 import { listExpenses } from '@/services/expense.service'
 import { countCancelledOrders } from '@/services/cancelled-order-count.service'
-import { resolveDateRange } from '@/lib/date-range'
+import { resolveDateRange, shiftIsoDate } from '@/lib/date-range'
 import { resolveDataCompleteness } from '@/lib/finance-tabs'
 import { resolveShopVertical } from '@/lib/lodging'
-import { combineTotals, isMixedFinanceRules, canSumProfit, mergeTop3, sumDays, sumDaysSparse, type TopRow } from '@/lib/line-report/aggregate'
+import { combineTotals, isMixedFinanceRules, canSumProfit, mergeTop3, sumDays, sumDaysSparse, dailyValues, sumTrend, type TopRow } from '@/lib/line-report/aggregate'
 import { monthsInRange } from '@/lib/line-report/cycle'
+import type { TemplateNeeds } from '@/lib/line-report/template'
 import type { GroupSummary, ShopProfit, ShopRef, ShopSummary, Totals, Window } from '@/lib/line-report/types'
 
 export type SummaryFlags = {
@@ -25,6 +26,15 @@ export type SummaryFlags = {
   showTopProducts: boolean
   showProfit: boolean
 }
+
+/**
+ * สิ่งที่เทมเพลตขอเพิ่มจาก flags (`deriveNeeds`) — ไม่ส่ง = ใช้ flags ล้วน (พฤติกรรมเดิม)
+ * needTop3/needPnl = flags เดิมอยู่แล้ว จึงไม่อ่านซ้ำที่นี่ · needCycle ใช้ที่ชั้น send ไม่ใช่ที่นี่
+ */
+export type SummaryNeeds = Partial<Pick<TemplateNeeds, 'needSeries' | 'needTrend7' | 'needCompare' | 'needCancelled'>>
+
+/** แนวโน้ม 7 วัน = 6 วันก่อน endIso ถึง endIso (EXT-09) */
+const TREND_DAYS = 7
 
 /**
  * cache ต่อรอบ sweep — เก็บ Promise (ไม่ใช่ค่า) เพื่อให้เรียกพร้อมกันก็ยิงครั้งเดียวต่อ key (AC-16-7)
@@ -60,21 +70,22 @@ async function summarizeShop(
   months: Month[],
   { startIso, endIso }: Window,
   flags: SummaryFlags,
+  needs: SummaryNeeds,
   cache: SweepCache,
 ): Promise<ShopSummary> {
   const out: ShopSummary = { shop, state: 'OK', orders: 0, confirmed: 0, unconfirmed: 0, cancelled: 0 }
   const vertical = shop.vertical ?? undefined
 
-  if (flags.showOrders || flags.showSales) {
-    const all = await Promise.all(
-      months.map((m) =>
-        memo(cache.series, `${shop.id}:${m.year}:${m.month0}`, async () => {
-          // รูป `= await getSalesSeries(` ตั้งใจ — เทสสแกน AC-14-1 ตรวจว่าผลถูกนำไปใช้จริง
-          const series = await getSalesSeries(shop.id, 'daily', { year: m.year, month: m.month0 + 1 }, false, vertical)
-          return series
-        }),
-      ),
-    )
+  // series ผ่าน memo เดียวกันทั้งยอดช่วงและกราฟ (key = ร้าน+เดือน) ⇒ เดือนซ้อนกันยิงครั้งเดียว
+  const loadSeries = (m: Month) =>
+    memo(cache.series, `${shop.id}:${m.year}:${m.month0}`, async () => {
+      // รูป `= await getSalesSeries(` ตั้งใจ — เทสสแกน AC-14-1 ตรวจว่าผลถูกนำไปใช้จริง
+      const series = await getSalesSeries(shop.id, 'daily', { year: m.year, month: m.month0 + 1 }, false, vertical)
+      return series
+    })
+
+  if (flags.showOrders || flags.showSales || needs.needSeries || needs.needCompare) {
+    const all = await Promise.all(months.map(loadSeries))
     all.forEach((s, i) => {
       out.orders += sumDays(s.orderCounts, months[i], startIso, endIso)
       out.confirmed += sumDays(s.confirmedValues, months[i], startIso, endIso)
@@ -82,7 +93,19 @@ async function summarizeShop(
     })
   }
 
-  if (flags.showCancelled) {
+  if (needs.needTrend7) {
+    const tStart = shiftIsoDate(endIso, -(TREND_DAYS - 1))
+    const tMonths = monthsInRange(tStart, endIso)
+    const all = await Promise.all(tMonths.map(loadSeries))
+    out.trend = { dates: [], confirmed: [], orders: [] }
+    all.forEach((s, i) => {
+      out.trend!.confirmed.push(...dailyValues(s.confirmedValues, tMonths[i], tStart, endIso))
+      out.trend!.orders.push(...dailyValues(s.orderCounts, tMonths[i], tStart, endIso))
+    })
+    for (let i = 0; i < TREND_DAYS; i++) out.trend.dates.push(shiftIsoDate(tStart, i))
+  }
+
+  if (flags.showCancelled || needs.needCancelled) {
     out.cancelled = await memo(cache.cancelled, `${shop.id}:${startIso}:${endIso}`, () =>
       countCancelledOrders(shop.id, startIso, endIso),
     )
@@ -142,11 +165,14 @@ export async function buildGroupSummary(input: {
   excluded: { shop: ShopRef; reason: string }[]
   window: Window
   flags: SummaryFlags
+  /** ไม่ส่ง = flags ล้วน (พฤติกรรมเดิม) */
+  needs?: SummaryNeeds
   cache: SweepCache
 }): Promise<GroupSummary> {
   const { shops, excluded, window, flags, cache } = input
+  const needs = input.needs ?? {}
   const months = monthsInRange(window.startIso, window.endIso)
-  const settled = await Promise.allSettled(shops.map((s) => summarizeShop(s, months, window, flags, cache)))
+  const settled = await Promise.allSettled(shops.map((s) => summarizeShop(s, months, window, flags, needs, cache)))
   const results: ShopSummary[] = settled.map((r, i) => {
     if (r.status === 'fulfilled') return r.value
     // ไม่ log payload/ข้อมูลลูกค้า — แค่ id ร้าน + ข้อความ error ให้สืบได้
@@ -173,6 +199,9 @@ export async function buildGroupSummary(input: {
     ...(shops.length > 1 ? { total: combineTotals(results) } : {}),
     profitSummable: canSumProfit(shops),
     mixedFinanceRules: isMixedFinanceRules(shops),
+    ...(needs.needTrend7
+      ? { trend: sumTrend(results), ...(results.some((r) => r.state === 'ERROR') ? { trendPartial: true } : {}) }
+      : {}),
   }
 }
 

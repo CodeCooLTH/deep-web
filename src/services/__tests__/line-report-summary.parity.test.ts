@@ -146,6 +146,33 @@ describe.skipIf(!isLocal)('00070 parity: buildGroupSummary vs SSOT', () => {
     }
   }
 
+  // AC-EXT-09-2: trend รวมต่อวัน = Σ ร้าน OK ของ getSalesSeries ตรง ๆ (ต่อ vertical × วันนี้/เมื่อวาน/คร่อมเดือน)
+  for (const [label, , endIso] of [...windows, ['คร่อมเดือน (7 วันจบ 02 ก.ย.)', '', '2026-09-02'] as [string, string, string]]) {
+    it(`trend 7 วัน · ${label}: รวม 3 vertical = getSalesSeries ตรง ๆ ทีละวัน`, async () => {
+      const shops = VERTICALS.map((v) => ({ id: shopOf[v], name: v, vertical: v as string }))
+      const sum = await buildGroupSummary({
+        shops, excluded: [], flags: { ...flags, showProfit: false, showTopProducts: false }, needs: { needTrend7: true },
+        cache: createSweepCache(), window: { startIso: endIso, endIso, computedAt: new Date().toISOString() },
+      })
+      const dates = datesIn(shiftIsoDate(endIso, -6), endIso)
+      const want = { dates, confirmed: [] as number[], orders: [] as number[] }
+      for (const d of dates) {
+        let c = 0, o = 0
+        for (const v of VERTICALS) {
+          const r = await direct(shopOf[v], v, [d])
+          c += r.confirmed
+          o += r.orders
+        }
+        want.confirmed.push(c)
+        want.orders.push(o)
+      }
+      expect(sum.trend).toEqual(want)
+      expect(want.orders.some((n) => n > 0)).toBe(true)
+      // ตัวเลขกราฟ = ตัวเลขบล็อกรายร้านโดยโครงสร้าง: วันสุดท้ายของ trend รายร้าน = ยอดวัน endIso ของร้านนั้น
+      for (const s of sum.shops) expect(s.trend!.confirmed.at(-1)).toBe((await direct(s.shop.id, s.shop.vertical!, [endIso])).confirmed)
+    })
+  }
+
   it('capped: ไม่มีค่าใช้จ่ายในช่วง = true · มีแถว Expense (02 ก.ย.) = false เมื่อต้นทุนครบ', async () => {
     // ONLINE_SALES + ช่วงที่มีใบ CONFIRMED ทุกใบต้นทุนครบ ไม่ได้ — ฟิกซ์เจอร์มี cost null สลับ จึงสร้างร้านแยกที่ต้นทุนครบ
     const s = await prisma.shop.create({ data: { userId: ids.user, shopName: `par-${run}-capped`, vertical: 'ONLINE_SALES', kind: 'BUSINESS' }, select: { id: true } })

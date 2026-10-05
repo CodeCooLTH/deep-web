@@ -165,4 +165,50 @@ describe('AC-14-1 สแกนซอร์ส', () => {
     expect(src).toMatch(/=\s*await getSalesSeries\(/)
     expect(src).toMatch(/=\s*await getPnlReport\(/)
   })
+
+  describe('needs (EXT-07/09)', () => {
+    const none = { showOrders: false, showSales: false, showCancelled: false, showTopProducts: false, showProfit: false }
+    const run = (needs: object, extra: Partial<Parameters<typeof buildGroupSummary>[0]> = {}) =>
+      buildGroupSummary({ shops: [mk('a', 'ก')], excluded: [], window: win, flags: none, needs, cache: createSweepCache(), ...extra })
+
+    it('ไม่ส่ง needs + flags ปิดหมด = ไม่ดึง series/ไม่มี trend (พฤติกรรมเดิม)', async () => {
+      const s = await buildGroupSummary({ shops: [mk('a', 'ก')], excluded: [], window: win, flags: none, cache: createSweepCache() })
+      expect(series).not.toHaveBeenCalled()
+      expect(s.shops[0].trend).toBeUndefined()
+      expect(s.trend).toBeUndefined()
+    })
+    it('needSeries / needCompare ดึง series แม้ showOrders/showSales ปิด · needCancelled นับยกเลิก', async () => {
+      cancelled.mockResolvedValue(4)
+      const s = await run({ needSeries: true, needCancelled: true })
+      expect(s.shops[0]).toMatchObject({ orders: 3, confirmed: 300, cancelled: 4 })
+      vi.clearAllMocks()
+      expect((await run({ needCompare: true })).shops[0].orders).toBe(3)
+    })
+    it('needTrend7: 7 วันจบที่ endIso คร่อมเดือน = 2 เดือน (ผ่าน memo) · ยอดช่วงไม่ถูกคำนวณถ้าไม่ขอ', async () => {
+      series.mockImplementation(async (_s, _g, p) => {
+        const m = (p as { month: number }).month
+        return { orderCounts: Array.from({ length: 31 }, (_, i) => i + 1), confirmedValues: Array.from({ length: 31 }, (_, i) => (i + 1) * 100 + m), unconfirmedValues: [] } as never
+      })
+      const s = await run({ needTrend7: true }, { window: { ...win, startIso: '2026-11-03', endIso: '2026-11-03' } })
+      const t = s.shops[0].trend!
+      expect(t.dates).toEqual(['2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31', '2026-11-01', '2026-11-02', '2026-11-03'])
+      expect(t.orders).toEqual([28, 29, 30, 31, 1, 2, 3])
+      expect(t.confirmed).toEqual([2810, 2910, 3010, 3110, 111, 211, 311])
+      expect(s.shops[0].orders).toBe(0)
+      expect(series).toHaveBeenCalledTimes(2)
+      expect(s.trend).toEqual(t)
+      expect(s.trendPartial).toBeUndefined()
+    })
+    it('ร้าน ERROR ไม่เข้ากราฟรวม + ธง trendPartial', async () => {
+      series.mockImplementation(async (id) => {
+        if (id === 'b') throw new Error('boom')
+        return fakeSeries(3, 300, 0)
+      })
+      vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const s = await run({ needTrend7: true }, { shops: [mk('a', 'ก'), mk('b', 'ข')] })
+      expect(s.trendPartial).toBe(true)
+      expect(s.trend!.confirmed.at(-1)).toBe(300) // เฉพาะร้าน a
+      expect(s.shops.find((x) => x.shop.id === 'b')?.trend).toBeUndefined()
+    })
+  })
 })
