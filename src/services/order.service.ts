@@ -1666,7 +1666,7 @@ export async function getOrderByToken(publicToken: string) {
       // พร้อมเปลี่ยนสถานะออเดอร์ในทรานแซกชันเดียว ถ้าเราชิงสร้างไว้ก่อน ปุ่มแจ้งจัดส่ง
       // ของร้านจะชน P2002 ใช้ไม่ได้อีกเลย
       shipments: {
-        where: { status: 'CREATED' },
+        where: ACTIVE_FORWARD_SHIPMENT,
         // feature 00041 — เพิ่ม carrierStatus: หน้าผู้ซื้อต้องคำนวณขั้นสถานะพัสดุด้วย
         // deriveShippingStage() ตัวเดียวกับฝั่งร้าน (BR-BOE-12) ซึ่งต้องการ field นี้
         // เดิมไม่ได้ select มา ⇒ ผู้ซื้อเห็นแค่ "กำลังจัดส่ง" ค้างอยู่ตลอดแม้พัสดุจะเคลื่อนไปแล้ว

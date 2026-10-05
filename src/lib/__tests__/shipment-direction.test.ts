@@ -16,6 +16,8 @@ import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
+import { stripComments as stripAllComments } from './helpers/buyer-order-sources'
+
 import {
   ACTIVE_FORWARD_SHIPMENT,
   FORWARD_SHIPMENT,
@@ -184,5 +186,64 @@ describe('[blocker] ห้ามถาม "พัสดุของออเด�
       status: { not: 'CANCELLED' },
       direction: FORWARD_SHIPMENT,
     })
+  })
+})
+
+/**
+ * 🛑 ด่านกวาดทั้ง `src` (00068 B1-U3) — `getOrderByToken` เคยเขียน `where: { status: 'CREATED' }` เปล่า ๆ
+ * ทั้งที่ PRISMA_SITES ข้างบนมีไฟล์นั้นอยู่ (ด่านเดิมแค่ถามว่า "ไฟล์ใช้ ACTIVE_FORWARD_SHIPMENT ที่ใดที่หนึ่งไหม"
+ * ⇒ ไฟล์ใหญ่มีจุดถูกหนึ่งจุดก็ผ่านทั้งไฟล์) ⇒ สแกนซอร์สจริงทุกไฟล์ ทีละ `where: { ... }`
+ * พัสดุขากลับ/dry-run จะหลุดไปแสดงผู้ซื้อเงียบ ๆ ถ้า where ที่กรอง CREATED ไม่ระบุ direction
+ */
+const SHIPMENT_WHERE_ALLOW: Record<string, string> = {
+  'src/services/iship.service.ts':
+    'sync ตามสถานะขนส่งรายร้าน (shopId + trackingNo) ไม่ผูกออเดอร์/หน้าผู้ซื้อ — ใบขากลับก็ต้องถูกติดตามเหมือนกัน',
+}
+
+function walkSrc(dir: string, out: string[] = []): string[] {
+  for (const e of readdirSync(join(process.cwd(), dir), { withFileTypes: true })) {
+    const p = `${dir}/${e.name}`
+    if (e.isDirectory()) walkSrc(p, out)
+    else if (/\.tsx?$/.test(e.name) && !/(\.test\.tsx?$|__tests__)/.test(p)) out.push(p)
+  }
+  return out
+}
+
+/** ดึงเนื้อ `where: { ... }` แบบ brace-balanced (รองรับ OR: [{...}] ซ้อน) */
+function whereBodies(src: string): string[] {
+  const bodies: string[] = []
+  for (const m of src.matchAll(/where:\s*\{/g)) {
+    let depth = 1
+    let i = m.index! + m[0].length
+    const start = i
+    for (; i < src.length && depth > 0; i++) {
+      if (src[i] === '{') depth++
+      else if (src[i] === '}') depth--
+    }
+    bodies.push(src.slice(start, i - 1))
+  }
+  return bodies
+}
+
+describe('[blocker] where ที่กรองพัสดุ CREATED ต้องระบุ direction (กวาดทั้ง src)', () => {
+  it('ไม่มี where: { status: CREATED } ที่ไม่มี direction', () => {
+    const bad: string[] = []
+    for (const p of walkSrc('src')) {
+      if (SHIPMENT_WHERE_ALLOW[p]) continue
+      const src = stripAllComments(read(p))
+      for (const b of whereBodies(src)) {
+        if (/status:\s*['"]CREATED['"]/.test(b) && !/direction/.test(b)) bad.push(`${p}: ${b.trim().slice(0, 80)}`)
+      }
+    }
+    expect(bad, 'ใช้ ACTIVE_FORWARD_SHIPMENT หรือระบุ direction').toEqual([])
+  })
+
+  it('allow-list ต้องยังมีเหตุให้อยู่ (ไฟล์ยังมีรูปนั้นจริง)', () => {
+    for (const p of Object.keys(SHIPMENT_WHERE_ALLOW)) {
+      const hit = whereBodies(stripAllComments(read(p))).some(
+        (b) => /status:\s*['"]CREATED['"]/.test(b) && !/direction/.test(b),
+      )
+      expect(hit, `${p}: เลิกมีรูปนี้แล้ว ถอดออกจาก allow-list`).toBe(true)
+    }
   })
 })
