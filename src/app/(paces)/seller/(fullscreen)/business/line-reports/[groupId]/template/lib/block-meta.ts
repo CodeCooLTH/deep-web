@@ -47,7 +47,8 @@ export const TEXT_EMPTY_SUMMARY = 'ยังไม่ได้พิมพ์ข
 /** null = ไม่มีอะไรเพิ่มจากชื่อบล็อก → แถวพับบรรทัดเดียว */
 export function blockSummary(b: Block, word: string, markup: string): string | null {
   switch (b.type) {
-    case 'expense': return b.items ? 'แยกตามหมวด' : null
+    // บอกสถานะตัวเลือกบนแถวที่พับ — user หาไม่เจอเพราะ checkbox อยู่ในแถวที่ต้องกดเปิดก่อน
+    case 'expense': return b.items ? 'แสดงรายการย่อยตามหมวด' : 'ไม่แสดงรายการย่อย · กดเพื่อตั้งค่า'
     case 'orders':
     case 'sales':
     case 'cancelled':
