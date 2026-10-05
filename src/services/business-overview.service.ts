@@ -23,16 +23,13 @@ export type BusinessOverview = {
 }
 
 /**
- * @returns null = ไม่มีร้านเข้าเงื่อนไข → ไม่ render ส่วนนี้
+ * ร้านที่ผู้ใช้เห็นในภาพรวม — query เดียว แยกออกมาให้หน้าเช็คก่อน render
+ * (ผู้ใช้ Personal ส่วนใหญ่ไม่มีร้าน BUSINESS ที่จ่ายแล้ว — ถ้าเช็คใน Suspense จะเห็น skeleton วาบทุกครั้ง)
  *
  * userId ต้องมาจาก sessionUserId() ของผู้เรียก — สิทธิ์กรองที่ WHERE ก่อนคำนวณ (fail-closed)
  * ไม่ใช่คำนวณทุกร้านแล้วค่อยซ่อนตอน render (ค่าที่ข้าม RSC ถูก serialize ลง HTML)
  */
-export async function getBusinessOverview(
-  userId: string,
-  range: ResolvedDateRange,
-  rangeQs: string,
-): Promise<BusinessOverview | null> {
+export async function listOverviewShops(userId: string) {
   const rows = await prisma.shop.findMany({
     where: {
       kind: 'BUSINESS',
@@ -53,13 +50,28 @@ export async function getBusinessOverview(
     },
   })
   // WHERE ข้างบนแค่ตัดแถวล่วงหน้า — ตัวตัดสินจริงคือ lib ที่มีเทส
-  const shops = rows.filter((s) =>
+  return rows.filter((s) =>
     isPaidBusinessShop({
       kind: s.kind,
       packageLockedAt: s.packageLockedAt,
       ownerSubscriptionStatus: s.user.businessPackageSubscription?.status ?? null,
     }),
   )
+}
+
+export type OverviewShop = Awaited<ReturnType<typeof listOverviewShops>>[number]
+
+/**
+ * @param preloaded ผลจาก listOverviewShops — ไม่ส่ง = query เอง
+ * @returns null = ไม่มีร้านเข้าเงื่อนไข → ไม่ render ส่วนนี้
+ */
+export async function getBusinessOverview(
+  userId: string,
+  range: ResolvedDateRange,
+  rangeQs: string,
+  preloaded?: OverviewShop[],
+): Promise<BusinessOverview | null> {
+  const shops = preloaded ?? (await listOverviewShops(userId))
   if (shops.length === 0) return null
 
   // label.end = วันที่ปฏิทินไทย "YYYY-MM-DD" ⇒ ไม่ต้องคำนวณ timezone เอง

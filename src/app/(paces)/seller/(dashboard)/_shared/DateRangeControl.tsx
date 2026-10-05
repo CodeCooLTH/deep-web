@@ -35,6 +35,8 @@ type Props = {
   onCustomChange: (dates: [string, string]) => void
   /** กำลังโหลดผลของช่วงใหม่ — ปิดปุ่มกันกดซ้อน */
   pending?: boolean
+  /** ชื่อกลุ่มปุ่มสำหรับ screen reader — หน้าที่มีตัวเลือกช่วงเวลาสองชุดต้องแยกชื่อให้ต่างกัน (default "ช่วงเวลา") */
+  ariaLabel?: string
 }
 
 type FlatpickrLike = { currentYear: number; yearElements?: HTMLInputElement[] }
@@ -65,7 +67,7 @@ function isoToLocalDate(iso: string): Date {
   return new Date(y, m - 1, d)
 }
 
-export default function DateRangeControl({ range, customDates, onRangeChange, onCustomChange, pending }: Props) {
+export default function DateRangeControl({ range, customDates, onRangeChange, onCustomChange, pending, ariaLabel = 'ช่วงเวลา' }: Props) {
   /**
    * 🛑 ห้ามส่ง onChange เป็น prop ของ <Flatpickr> — react-flatpickr v4 **push handler จาก prop เข้าไปใน
    * object options ทุกครั้งที่ render** (mergeHooks แก้ object เดิม) และ options ของเราถูก memo ไว้
@@ -108,7 +110,7 @@ export default function DateRangeControl({ range, customDates, onRangeChange, on
       {/* จอแคบ: ชิป 4 ช่วงแบ่งความกว้างเท่ากัน + ปุ่มปฏิทิน 44px สำหรับ "กำหนดเอง" (มติ 2026-10-01)
           เดิมเป็นแถบเลื่อนแนวนอน 5 ชิป ~300px ในพื้นที่ 288px (จอ 320) ⇒ "กำหนดเอง" ถูกตัดครึ่ง
           และไม่มีอะไรบอกว่าเลื่อนได้ · แพตเทิร์นเดียวกับแอปบัญชี (ช่วงสำเร็จรูป + ไอคอนปฏิทิน) ไม่ต้องเลื่อน */}
-      <div className="flex w-full items-center gap-1.5 sm:hidden" role="group" aria-label="ช่วงเวลา">
+      <div className="flex w-full items-center gap-1.5 sm:hidden" role="group" aria-label={ariaLabel}>
         {DATE_RANGE_OPTIONS.filter((o) => o.value !== 'custom').map((opt) => (
           <button
             key={opt.value}
@@ -141,7 +143,7 @@ export default function DateRangeControl({ range, customDates, onRangeChange, on
       </div>
 
       {/* จอ ≥sm: segmented ติดกันเป็นแถบเดียว */}
-      <div className="hidden sm:inline-flex" role="group" aria-label="ช่วงเวลา">
+      <div className="hidden sm:inline-flex" role="group" aria-label={ariaLabel}>
         {DATE_RANGE_OPTIONS.map((opt, idx) => (
           <button
             key={opt.value}

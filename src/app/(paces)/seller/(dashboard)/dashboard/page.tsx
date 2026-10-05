@@ -46,6 +46,10 @@ import type { Metadata } from 'next'
 import { getT } from '@/i18n/server'
 import { byVertical } from '@/i18n/vertical'
 import { getServerSession } from 'next-auth'
+import { sessionUserId } from '@/lib/session-user'
+import { resolveRangeFromParams } from '@/lib/date-range'
+import PortfolioOverview from './components/PortfolioOverview'
+import { listOverviewShops, type OverviewShop } from '@/services/business-overview.service'
 import RecentOrder from './components/RecentOrder'
 import SalesReport from './components/SalesReport'
 import StatisticCard from './components/StatisticCard'
@@ -116,7 +120,13 @@ const LEVEL_COLOR: Record<string, string> = {
 
 // stat card data รับ live values จากนั้น fallback 0 ถ้ายังไม่มี session
 
-export default async function SellerDashboardPage() {
+export default async function SellerDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; start?: string; end?: string; from?: string; to?: string }>
+}) {
+  // ช่วงเวลาของส่วน "ภาพรวมทุกธุรกิจ" (00069) — ?range=&start=&end= แยกจาก cookie seller_dashboard_range ด้านล่าง
+  const portfolioRange = resolveRangeFromParams(await searchParams, 'month')
   // filter ช่วงเวลา (desktop) — ค่าที่ไม่รู้จัก/ไม่มี cookie ตกเป็น 'month' (พฤติกรรมเดิมของหน้า)
   const range: DashboardRange =
     (await cookies()).get('seller_dashboard_range')?.value === 'today' ? 'today' : 'month'
@@ -198,6 +208,10 @@ export default async function SellerDashboardPage() {
   // (user เคาะ 2026-08-05: ร้านขายหน้าร้านไม่ต้องมี panel นี้เลย ไม่ใช่โชว์การ์ดว่าง)
   let provinceSales: ProvinceSales | undefined
 
+  // บริบท Personal เท่านั้นที่เห็น "ภาพรวมทุกธุรกิจ" — resolve ใน try ด้านล่างจาก requireActiveShop
+  // ร้านที่เข้าเงื่อนไข (query เดียว) — ว่าง = ไม่ mount ส่วนนี้ ไม่มี skeleton วาบ
+  let portfolioShops: OverviewShop[] = []
+
   if (user?.id) {
     score = user.trustScore ?? 0
     level = getTrustLevel(score)
@@ -208,6 +222,14 @@ export default async function SellerDashboardPage() {
       // downstream query (orders/balance/activity/rating/liveAuction) ต้อง scope ด้วย active shop.id นี้
       const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
       const shop = active?.shop ?? null
+      const portfolioUserId = sessionUserId(session)
+      if (active?.kind === 'PERSONAL' && portfolioUserId) {
+        try {
+          portfolioShops = await listOverviewShops(portfolioUserId)
+        } catch (err) {
+          console.error('[business-overview] list shops', err)
+        }
+      }
 
       // 🛑 คะแนนบนการ์ด "ระดับความสำเร็จ" ต้องเป็นของร้านที่เปิดอยู่ ไม่ใช่ของคนที่ล็อกอิน
       // เหรียญของร้าน BUSINESS เขียนคะแนนลง `Shop.trustScore` (recalculateShopTrustScore) แต่
@@ -551,6 +573,18 @@ export default async function SellerDashboardPage() {
 
   return (
     <>
+      {/* ภาพรวมทุกธุรกิจ (00069) — mount ครั้งเดียวเหนือทั้งสอง tree: ถ้าวางซ้ำแล้วซ่อนด้วย CSS
+          ApexChart จะ mount 2 ตัว (ตัวใน display:none วัดความกว้างได้ 0) และ query ยิงสองรอบ */}
+      {portfolioShops.length > 0 && (
+        <PortfolioOverview
+          userId={sessionUserId(session) as string}
+          shops={portfolioShops}
+          preset={portfolioRange.preset}
+          custom={portfolioRange.custom}
+          resolved={portfolioRange.resolved}
+        />
+      )}
+
       {/* Onboarding checklist + modal ย้ายไป sidebar (seller layout sidenavFooterSlot) — ไม่อยู่ใน dashboard body แล้ว */}
 
       {/* ─── Mobile: Command Center (< lg) ─────────────────────────────────────
