@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  formatSharePct,
   shopIncompleteBadges, profitToneClass, profitHeading, financeBasisNote,
   stackColorToken, rowDotToken, STACK_COLOR_TOKENS, OTHERS_COLOR_TOKEN, excludedCountNote,
   portfolioPeriodLabel, isCurrentOrFuturePeriod, shiftPeriod, switchPeriodMode, portfolioSeriesQuery,
@@ -89,5 +90,15 @@ describe('ช่วงเวลา (v1.1)', () => {
   it('query: monthly ไม่ส่ง month', () => {
     expect(portfolioSeriesQuery(daily(2026, 9))).toBe('mode=daily&year=2026&month=9')
     expect(portfolioSeriesQuery({ mode: 'monthly', year: 2026, month: 9 })).toBe('mode=monthly&year=2026')
+  })
+})
+
+describe('formatSharePct', () => {
+  it('ยอดไม่เป็นศูนย์ต่ำกว่า 1% → <1% ไม่ใช่ 0%', () => {
+    expect(formatSharePct(0.29)).toBe('<1%')
+    expect(formatSharePct(0)).toBe('0%')
+    expect(formatSharePct(99.71)).toBe('100%')
+    expect(formatSharePct(48.4)).toBe('48%')
+    expect(formatSharePct(null)).toBe('—')
   })
 })

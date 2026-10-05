@@ -34,6 +34,7 @@ import {
   excludedCountNote, financeBasisNote, isCurrentOrFuturePeriod, othersLabel, portfolioChartAria,
   portfolioPeriodLabel, portfolioSeriesQuery, profitHeading, profitToneClass, rowAriaLabel, rowDotToken,
   shiftPeriod, shopIncompleteBadges, stackColorToken, switchPeriodMode, type PortfolioPeriod,
+  formatSharePct,
 } from '@/lib/portfolio-display'
 import type { PortfolioSeries } from '@/services/business-overview.service'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
@@ -126,12 +127,13 @@ function RowBody({ row, dot, nameLine }: { row: ComparisonRow; dot: string | nul
           <span className="min-w-0 truncate text-sm font-semibold" title={row.shopName}>
             {row.shopName}
           </span>
-          {nameLine && <span className="text-default-700 min-w-0 truncate text-xs">{nameLine}</span>}
+          {/* ไม่ truncate — ป้าย "ไม่นับในยอดรวม" คือข้อมูลหลักของแถวนี้ ถูกตัดแล้วความหมายหาย (QA 2026-10-05) */}
+          {nameLine && <span className="text-default-700 min-w-0 text-xs">{nameLine}</span>}
         </span>
       </span>
       <span className="col-span-4 text-end text-sm font-semibold tabular-nums md:col-span-3">{formatBaht(row.sales)}</span>
       <span className="text-default-700 col-span-2 text-end text-xs tabular-nums md:order-4 md:col-span-2 md:text-sm">
-        {row.sharePct == null ? '—' : `${row.sharePct.toFixed(0)}%`}
+        {formatSharePct(row.sharePct)}
       </span>
       <span
         className={cn(
@@ -342,7 +344,7 @@ export default function PortfolioPanel({ initial, variant }: Props) {
         <span className="col-span-4">ธุรกิจ</span>
         <span className="col-span-3 text-end">ยอดขาย</span>
         <span className="col-span-3 text-end">กำไรสุทธิ</span>
-        <span className="col-span-2 text-end">% ของยอดรวม</span>
+        <span className="col-span-2 text-end">สัดส่วน</span>
       </div>
       <ul className="divide-default-200 divide-y">
         {rows.map((row) => {
@@ -387,12 +389,12 @@ export default function PortfolioPanel({ initial, variant }: Props) {
     // loading: จางทั้งก้อนแต่ไม่ซ่อน — ตัวเลขเดิมยังอ่านได้ระหว่างรอช่วงใหม่
     <div aria-busy={loading} className={cn('transition-opacity', loading && 'opacity-50')}>
       {variant === 'card' ? (
-        <div className="grid grid-cols-1 gap-base lg:grid-cols-5">
-          <div className="min-w-0 lg:col-span-3">
+        <div className="grid grid-cols-1 gap-base lg:grid-cols-2">
+          <div className="min-w-0">
             <div className="mb-4">{hero}</div>
             {chart}
           </div>
-          <div className="min-w-0 lg:col-span-2">{table}</div>
+          <div className="min-w-0">{table}</div>
         </div>
       ) : (
         <>

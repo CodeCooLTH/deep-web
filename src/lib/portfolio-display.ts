@@ -130,3 +130,13 @@ export function portfolioChartAria(totalSales: string, periodLabel: string): str
 export function rowAriaLabel(shopName: string): string {
   return `เปิดร้าน ${shopName}`
 }
+
+/**
+ * สัดส่วนยอดขายในตารางเทียบ — ยอดไม่เป็นศูนย์ต้องไม่แสดงเป็น "0%" (QA 2026-10-05: ฿150 จาก ฿51,690
+ * ปัดเป็น 0% อ่านแล้วเหมือนร้านไม่มียอดเลย) · null = ไม่มีสัดส่วน (Personal/ร้านล้ม/ยอดรวม 0)
+ */
+export function formatSharePct(pct: number | null): string {
+  if (pct == null) return '—'
+  if (pct > 0 && pct < 1) return '<1%'
+  return `${Math.round(pct)}%`
+}
