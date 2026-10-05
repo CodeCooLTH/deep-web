@@ -5,7 +5,7 @@
  * {คำ} ผันด้วย `orderWordFor` ที่ผู้เรียกส่งเข้ามา ไม่ฮาร์ดโค้ด "ออเดอร์"
  */
 import { blockWarning, contextAvailability, type AvailabilityContext } from '@/lib/line-report/availability'
-import type { Block, BlockType } from '@/lib/line-report/template'
+import { BLOCK_LIMITS, type Block, type BlockType } from '@/lib/line-report/template'
 
 export const BLOCK_ICON: Record<BlockType, string> = {
   orders: 'list-numbers',
@@ -93,5 +93,21 @@ export function makeBlock(type: BlockType, id: string): Block {
     case 'chart_compare': return { id, type, measure: 'sales' }
     case 'text': return { id, type, style: { bold: false, size: 'm', color: 'ink' }, runs: [] }
     default: return { id, type } as Block
+  }
+}
+
+/** คำอธิบายใต้ชื่อบล็อกในคลัง — ตรวจกับพฤติกรรมจริงแล้ว: ยกเลิก = ใบที่เปิดในช่วงรายงาน (composer: "ใบที่เปิดในช่วงนี้") · ข้อความ ≤6 (BLOCK_LIMITS) */
+export function libraryDesc(type: BlockType, word: string, draft: { blocks: readonly Block[] }): string {
+  switch (type) {
+    case 'orders': return `นับ${word}รวมทุกร้าน`
+    case 'sales': return 'ยอดนับแล้ว และยังไม่นับ แสดงติดกัน'
+    case 'cancelled': return 'นับใบที่เปิดในช่วงรายงานแล้วถูกยกเลิก'
+    case 'shops': return 'แยกรายร้าน เลือกขายดี 3 อันดับหรือกำไรต่อร้านได้'
+    case 'cycle': return 'ยอดนับแล้วสะสมตั้งแต่วันตัดรอบ'
+    case 'profit': return 'ทุกคนในกลุ่มจะเห็น — ถามยืนยันก่อนเพิ่ม'
+    case 'chart_trend': return `แท่ง 7 วันล่าสุด วัดจากยอดขายหรือจำนวน${word}`
+    case 'chart_compare': return `เรียงร้านมาก→น้อย วัดจากยอดขายหรือจำนวน${word}`
+    case 'text': return `พิมพ์ถึงทีม แทรกตัวเลขได้ · เหลือ ${BLOCK_LIMITS.text - draft.blocks.filter((b) => b.type === 'text').length} อัน`
+    case 'separator': return 'แบ่งส่วนในข้อความ'
   }
 }

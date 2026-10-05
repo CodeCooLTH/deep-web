@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — จัดข้อความรายงาน LINE · สไตล์การ์ดขาวโค้งมน (00070 EXT)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<!--
+  ที่มา: docs/superpowers/specs/2026-10-05-line-report-rounded-card-mockup.md
+  token ทุกค่ามาจาก src/assets/css/config/_root.css (Paces) + .impeccable/design.json (paces-*) — ไม่มีม่วง #7367F0
+  ระยะใช้สเกล 4/8/12/16/24/32 เท่านั้น · รัศมี ปุ่ม/อินพุต 6 · แผ่นไอคอน 8 · ภาชนะ 12 · chip full
+  สลับจอด้วย container query (ไม่ใช่ media query) เพื่อให้กรอบ 375/768/1280 แสดงผลตรงตามความกว้างกรอบ
+  URL hash: #<builder|settings>-<375|768|1280>[-pv][-std]   เช่น #builder-375-pv · #settings-1280-std
+-->
+<style>
+  :root{
+    --primary:#236dc9; --primary-hover:#1e5dab; --primary-ink:#1e3a8a;
+    --primary-10:rgb(35 109 201 / .10); --primary-15:rgb(35 109 201 / .15);
+    --success:#02bc9c; --success-ink:#065f46; --success-15:rgb(2 188 156 / .15);
+    --warning:#f9bf59; --warning-ink:#92400e; --warning-15:rgb(249 191 89 / .15);
+    --info:#5bc3e1; --info-ink:#1e40af; --info-15:rgb(91 195 225 / .15);
+    --danger-ink:#7f1d1d;
+    --body-bg:#f6f7fb; --card:#fff; --light:#eef2f7;
+    --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d500:#58626b; --d700:#40454a; --d900:#313a46;
+    --shadow-sm:0 1px 2px rgba(76,76,92,.15);
+    --fx-ink:#2F2B3D; --fx-slate:#808390; --fx-accent:#236dc9; --fx-bar:#D9DBE0; /* สีที่ส่งเข้า LINE Flex จริง */
+    --r-btn:6px; --r-plate:8px; --r-box:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:Anuphan,sans-serif;font-size:14px;line-height:1.5;color:var(--d900);background:#dfe3ea}
+  button{font:inherit;color:inherit}
+  iconify-icon{display:inline-block;width:1em;height:1em;vertical-align:-.125em}
+  :focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
+  /* ───── แถบควบคุม mockup (อยู่นอกกรอบ ไม่ใช่ส่วนของ UI) ───── */
+  .mk{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:center;padding:8px 16px;background:#2b2f36;color:#fff;font-size:12px}
+  .mk b{font-weight:600;opacity:.7}
+  .mk .grp{display:flex;align-items:center;gap:4px}
+  .mk button{border:1px solid #555b66;background:transparent;color:#fff;border-radius:var(--r-btn);padding:4px 12px;cursor:pointer;min-height:32px}
+  .mk button[aria-pressed=true]{background:#fff;color:#2b2f36;border-color:#fff}
+  .frame{margin:0 auto;background:var(--body-bg);min-height:100vh;container:app / inline-size;width:1280px;max-width:100%}
+  body[data-w="375"] .frame{width:375px} body[data-w="768"] .frame{width:768px}
+
+  /* ───── primitive ───── */
+  .card{background:var(--card);border:1px solid var(--d300);border-radius:var(--r-box);box-shadow:var(--shadow-sm);padding:24px;min-width:0}
+  .card-hd{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px}
+  .plate{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:var(--r-plate);background:var(--primary-10);color:var(--primary);font-size:20px}
+  .plate.p32{width:32px;height:32px;font-size:16px}
+  .plate.success{background:var(--success-15);color:var(--success-ink)}
+  .plate.warning{background:var(--warning-15);color:var(--warning-ink)}
+  .plate.info{background:var(--info-15);color:var(--info-ink)}
+  .plate.mute{background:var(--d200);color:var(--d500)}
+  .hd-t{flex:1;min-width:0}
+  .hd-t h2{margin:0;font-size:16px;font-weight:600;line-height:1.4}
+  .hd-t p{margin:0;font-size:12px;color:var(--d700)}
+  .eyebrow{display:flex;align-items:center;gap:8px;margin:24px 0 8px;font-size:12px;font-weight:600;color:var(--d900)}
+  .eyebrow:first-of-type{margin-top:0}
+  .eyebrow span{font-weight:400;color:var(--d700)}
+  .btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 16px;border-radius:var(--r-btn);border:1px solid transparent;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;background:transparent}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-primary:hover{background:var(--primary-hover)}
+  .btn-outline{border-color:var(--d300);background:var(--card);color:var(--d900)}
+  .btn-outline:hover{background:var(--d100)}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .ibtn{display:grid;place-items:center;width:36px;height:36px;border-radius:var(--r-btn);border:1px solid transparent;background:transparent;cursor:pointer;color:var(--d700);font-size:18px;flex:none}
+  .ibtn:hover{background:var(--d100)}
+  .ibtn.round{border-radius:999px}
+  .ibtn[disabled]{opacity:.4;cursor:not-allowed}
+  .chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:0 8px;min-height:24px;font-size:12px;font-weight:500;white-space:nowrap}
+  .chip.primary{background:var(--primary-15);color:var(--primary-ink)}
+  .chip.success{background:var(--success-15);color:var(--success-ink)}
+  .chip.mute{background:var(--d200);color:var(--d700)}
+  .xs{font-size:12px} .muted{color:var(--d700)}
+  .tab{font-variant-numeric:tabular-nums}
+
+  /* สวิตช์ (Paces .form-switch) — พื้นที่กด 44px คลุมด้วย label */
+  .sw{position:relative;display:inline-flex;align-items:center;min-height:44px;cursor:pointer;flex:none}
+  .sw input{position:absolute;opacity:0;width:1px;height:1px}
+  .sw i{display:block;width:36px;height:20px;border-radius:999px;background:var(--d300);position:relative;transition:background .15s}
+  .sw i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:999px;background:#fff;box-shadow:var(--shadow-sm);transition:transform .15s}
+  .sw input:checked + i{background:var(--primary)}
+  .sw input:checked + i::after{transform:translateX(16px)}
+  .sw input:focus-visible + i{outline:2px solid var(--primary);outline-offset:2px}
+
+  /* เซกเมนต์ */
+  .seg{display:inline-flex;padding:4px;gap:4px;background:var(--d200);border-radius:var(--r-btn)}
+  .seg button{border:0;background:transparent;border-radius:4px;padding:0 12px;min-height:28px;font-size:12px;font-weight:500;color:var(--d700);cursor:pointer}
+  .seg button[aria-pressed=true]{background:var(--card);color:var(--d900);box-shadow:var(--shadow-sm)}
+
+  /* ───── หัวหน้าเต็มจอ ───── */
+  .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:12px 24px;background:var(--card);border-bottom:1px solid var(--d300)}
+  .topbar .ttl{flex:1;min-width:0}
+  .topbar h1{margin:0;font-size:16px;font-weight:600;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar .sub{font-size:12px;color:var(--d700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar .acts{display:flex;align-items:center;gap:8px}
+  .hint{font-size:12px;color:var(--d700)}
+  .page{padding:24px;display:flex;flex-direction:column;gap:16px}
+
+  /* ───── หน้าจัดข้อความ ───── */
+  .bd-cols{display:grid;grid-template-columns:minmax(0,1fr) 392px;gap:16px;align-items:start}
+  .ed-col{display:flex;flex-direction:column;gap:16px;min-width:0}
+  .pv-col{position:sticky;top:88px}
+  .mtabs{display:none}
+
+  .tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .tile{display:flex;align-items:flex-start;gap:12px;padding:12px;border:1px solid var(--d300);border-radius:var(--r-box);background:var(--card);min-width:0}
+  .tile:hover{border-color:var(--primary-15);background:var(--d100)}
+  .tile .tx{flex:1;min-width:0}
+  .tile .nm{font-size:14px;font-weight:500;line-height:1.4}
+  .tile .ds{font-size:12px;color:var(--d700);line-height:1.4}
+  .tile .add{width:44px;height:44px;margin:-4px -4px -4px 0;color:var(--primary);font-size:20px}
+  .tile.off{background:var(--d100);border-style:dashed}
+  .tile.off:hover{border-color:var(--d300)}
+  .tile.off .nm{color:var(--d700)}
+  .tile.off .plate{background:var(--d200);color:var(--d500)}
+  .tile .why{display:flex;gap:4px;align-items:flex-start;font-size:12px;color:var(--warning-ink);line-height:1.4;margin-top:4px}
+
+  /* รายการบล็อก: กรอบเดียว เส้นคั่นแถว (ไม่มีกรอบต่อบล็อก) */
+  .list{border:1px solid var(--d300);border-radius:var(--r-box);overflow:hidden}
+  .row{display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 12px 8px 8px;border-top:1px solid var(--d300);background:var(--card)}
+  .row:first-child{border-top:0}
+  .row .grip{width:24px;height:44px;display:grid;place-items:center;color:var(--d500);cursor:grab;font-size:16px;flex:none}
+  .row .grip.lock{cursor:default}
+  .row .tx{flex:1;min-width:0}
+  .row .nm{font-size:14px;font-weight:500;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .sm{font-size:12px;color:var(--d700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .val{font-size:14px;color:var(--d700);white-space:nowrap;max-width:45%;overflow:hidden;text-overflow:ellipsis}
+  .row.locked{background:var(--d100)}
+  .row.locked .grip{color:var(--d500)}
+  .row.open{border-top-color:var(--primary-15);background:var(--card);box-shadow:inset 0 0 0 1px var(--primary-15)}
+  .row .chev{color:var(--d500);font-size:16px;flex:none}
+  .row .moves{display:flex;gap:4px}
+  .panel{padding:0 16px 16px 44px;background:var(--card);box-shadow:inset 1px 0 0 var(--primary-15),inset -1px 0 0 var(--primary-15),inset 0 -1px 0 var(--primary-15)}
+  .panel textarea{display:block;width:100%;min-height:88px;resize:vertical;font:inherit;font-size:14px;color:var(--d900);border:1px solid var(--d300);border-radius:var(--r-btn);padding:8px 12px;background:var(--card)}
+  .panel .meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .panel .meta .left{margin-right:auto;font-size:12px;color:var(--d700)}
+  .tool{display:inline-flex;align-items:center;gap:4px;min-height:36px;padding:0 12px;border:1px solid var(--d300);border-radius:var(--r-btn);background:var(--card);font-size:12px;font-weight:500;cursor:pointer}
+  .tok{color:var(--primary-ink);background:var(--primary-10);border-radius:4px;padding:0 4px}
+
+  .gauge{display:flex;align-items:center;gap:12px;margin-top:16px;font-size:12px;color:var(--d700)}
+  .gauge .bar{flex:1;height:6px;border-radius:999px;background:var(--d200);overflow:hidden}
+  .gauge .bar i{display:block;height:100%;width:46%;background:var(--primary);border-radius:999px}
+
+  /* ───── bubble (ภาพแทนข้อความ LINE Flex) ───── */
+  .pvwrap{background:var(--light);border-radius:var(--r-box);padding:16px}
+  .pvhd{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--d700);margin-bottom:8px}
+  .pvhd .av{display:grid;place-items:center;width:24px;height:24px;border-radius:999px;background:#06c755;color:#fff;font-size:14px}
+  .bub{background:#fff;border-radius:var(--r-box);max-width:300px;margin:0 auto;overflow:hidden;font-size:12.5px;color:var(--fx-ink);box-shadow:var(--shadow-sm)}
+  .bub .sec{padding:8px 12px;border-top:1px solid var(--d200)}
+  .bub .sec:first-child{border-top:0;padding-top:12px}
+  .bub .title{color:var(--fx-accent);font-weight:700;font-size:14px}
+  .bub .dchip{display:inline-block;background:rgb(35 109 201 / .12);color:var(--primary-ink);border-radius:4px;padding:0 8px;font-size:11.5px;margin:4px 0}
+  .bub .kv{display:flex;justify-content:space-between;gap:8px}
+  .bub .kv span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bub .kv span:last-child{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .bub .slate{color:var(--fx-slate);font-size:11.5px}
+  .bub .lbl{font-size:11.5px;color:var(--fx-slate);font-weight:600;margin-bottom:4px}
+  .bub .b{font-weight:700}
+  .bub .lnk{display:block;text-align:center;color:#fff;background:var(--fx-accent);font-weight:600;padding:8px;margin:8px 12px 12px;border-radius:var(--r-btn)}
+  .vbars{display:flex;align-items:flex-end;gap:4px;height:84px;border-bottom:1px solid var(--d300);margin-top:4px}
+  .vb{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+  .vb i{display:block;width:100%;background:var(--fx-bar);border-radius:2px 2px 0 0}
+  .vb i.acc{background:var(--fx-accent)}
+  .vv{font-size:10px;font-weight:600;line-height:1.3;white-space:nowrap}
+  .vlabels{display:flex;gap:4px;margin-top:4px}
+  .vlabels span{flex:1;text-align:center;font-size:10px;color:var(--fx-slate);line-height:1.25}
+  .vlabels span.acc{color:var(--fx-accent);font-weight:600}
+  .pvcap{font-size:12px;color:var(--d700);text-align:center;margin-top:12px}
+  body[data-kind=d] .k-m, body[data-kind=m] .k-d{display:none}
+
+  /* ───── หน้าตั้งค่ากลุ่ม ───── */
+  .ghead{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .ghead h1{margin:0;font-size:20px;font-weight:600;line-height:1.4}
+  .crumb{font-size:12px;color:var(--d700);display:flex;align-items:center;gap:4px}
+  .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+  .stat{padding:16px}
+  .stat .lb{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--d700)}
+  .stat .num{font-size:24px;font-weight:600;line-height:1.3;margin-top:8px;font-variant-numeric:tabular-nums}
+  .stat .num small{font-size:14px;font-weight:500;color:var(--d700)}
+  .stat .ft{font-size:12px;margin-top:4px}
+  .ft.success{color:var(--success-ink)} .ft.primary{color:var(--primary-ink)} .ft.warning{color:var(--warning-ink)} .ft.mute{color:var(--d700)}
+  .msg-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start}
+  .kvrow{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 12px 8px 16px;border-top:1px solid var(--d300)}
+  .kvrow:first-child{border-top:0}
+  .kvrow .k{flex:1;min-width:0;font-size:14px}
+  .kvrow .k small{display:block;font-size:12px;color:var(--d700)}
+  .kvrow .v{font-size:14px;color:var(--d700);text-align:right;white-space:nowrap}
+  .kvrow .chev{color:var(--d500);font-size:16px}
+  .state-note{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-radius:var(--r-box);background:var(--d100);border:1px solid var(--d300);margin-bottom:16px;font-size:12px;color:var(--d700)}
+  .state-note b{display:block;font-size:14px;font-weight:600;color:var(--d900)}
+  body[data-std="1"] .s-custom, body[data-std="0"] .s-std{display:none}
+  .mini .bub{max-width:100%}
+
+.bottombar{display:none;position:sticky;bottom:0;z-index:20;flex-wrap:wrap;gap:8px;padding:12px 16px;background:var(--card);border-top:1px solid var(--d300);align-items:center}
+  .bottombar .btn{flex:1;min-height:44px}
+  .msg-cta{display:none;margin-top:16px}
+  .msg-cta .btn{flex:1;min-height:44px}
+  .bottombar .hint{flex-basis:100%;text-align:center}
+  body[data-page=builder] .pg-settings, body[data-page=settings] .pg-builder{display:none}
+
+  /* ───── < 1024: แท็บ จัดข้อความ | ตัวอย่าง ───── */
+  @container app (max-width: 1023px){
+    .bd-cols{grid-template-columns:minmax(0,1fr)}
+    .pv-col{position:static}
+    .mtabs{display:flex}
+    .mtabs .seg{width:100%}
+    .mtabs .seg button{flex:1;min-height:36px;font-size:14px}
+    body[data-tab=msg] .pv-col, body[data-tab=pv] .ed-col{display:none}
+    .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .msg-grid{grid-template-columns:minmax(0,1fr)}
+    .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  /* ───── < 640: มือถือ ───── */
+  @container app (max-width: 639px){
+    .page{padding:16px}
+    .card{padding:16px}
+    .stat{padding:16px}
+    .topbar{padding:8px 8px 8px 4px;gap:4px}
+    .topbar .acts .btn{display:none}
+    .topbar .hint{display:none}
+    .ibtn{width:44px;height:44px}
+    .tiles{grid-template-columns:minmax(0,1fr)}
+    .tile{align-items:center;padding:8px 8px 8px 12px}
+    .tile .ds{display:none}
+    .tile.off .why{margin-top:0}
+    .card-hd .btn{display:none}
+    .card-hd{flex-wrap:wrap}
+    .card-hd > .seg{flex-basis:100%}
+    .card-hd > .seg button{flex:1;min-height:36px}
+    .row .plate{display:none}
+    .panel{padding:0 12px 12px 12px}
+    .row{padding-right:8px}
+    .row .moves .ibtn{width:44px;height:44px}
+    .stats{gap:12px}
+    .stat .num{font-size:20px}
+    .bottombar{display:flex}
+    .msg-cta{display:flex}
+    .gauge{margin-top:12px}
+  }
+  </style>
+</head>
+<body data-page="builder" data-w="1280" data-tab="msg" data-std="0" data-kind="d">
+
+<div class="mk" role="toolbar" aria-label="ตัวควบคุม mockup">
+  <div class="grp"><b>หน้า</b>
+    <button data-set="page" data-v="builder">จัดข้อความ</button>
+    <button data-set="page" data-v="settings">ตั้งค่ากลุ่ม</button></div>
+  <div class="grp"><b>จอ</b>
+    <button data-set="w" data-v="375">375</button>
+    <button data-set="w" data-v="768">768</button>
+    <button data-set="w" data-v="1280">1280</button></div>
+  <div class="grp"><b>สถานะข้อความ</b>
+    <button data-set="std" data-v="0">จัดเองแล้ว</button>
+    <button data-set="std" data-v="1">ใช้แบบมาตรฐาน</button></div>
+</div>
+
+<div class="frame">
+
+<!-- ═════════════════ หน้าจัดข้อความ (เต็มจอ) ═════════════════ -->
+<div class="pg-builder">
+  <header class="topbar">
+    <a class="ibtn" href="#" aria-label="ย้อนกลับ"><iconify-icon icon="tabler:arrow-left"></iconify-icon></a>
+    <div class="ttl">
+      <h1>จัดข้อความรายงาน</h1>
+      <div class="sub">ทีมขาย สาขารังสิต · รวม 3 ร้าน</div>
+    </div>
+    <div class="acts">
+      <span class="hint">บันทึกก่อน จึงส่งทดสอบได้</span>
+      <button class="ibtn" aria-label="เมนูเพิ่มเติม"><iconify-icon icon="tabler:dots"></iconify-icon></button>
+      <button class="btn btn-outline" disabled><iconify-icon icon="tabler:send"></iconify-icon>ส่งทดสอบ</button>
+      <button class="btn btn-primary"><iconify-icon icon="tabler:device-floppy"></iconify-icon>บันทึกเทมเพลต</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="mtabs"><div class="seg" role="group" aria-label="เลือกมุมมอง">
+      <button data-set="tab" data-v="msg">จัดข้อความ</button>
+      <button data-set="tab" data-v="pv">ตัวอย่าง</button>
+    </div></div>
+
+    <div class="bd-cols">
+      <div class="ed-col">
+
+        <!-- การ์ด: เพิ่มบล็อก -->
+        <section class="card" aria-labelledby="h-lib">
+          <div class="card-hd">
+            <span class="plate"><iconify-icon icon="tabler:layout-grid-add"></iconify-icon></span>
+            <div class="hd-t"><h2 id="h-lib">เพิ่มบล็อก</h2><p>กด + เพื่อต่อท้ายข้อความ หรือลากไปวางตรงที่ต้องการ</p></div>
+            <span class="chip mute tab">7 / 20 บล็อก</span>
+          </div>
+
+          <div class="eyebrow">ข้อมูล <span>· ตัวเลขจากระบบ ใส่ได้อย่างละ 1</span></div>
+          <div class="tiles">
+            <div class="tile"><span class="plate p32"><iconify-icon icon="tabler:ban"></iconify-icon></span>
+              <div class="tx"><div class="nm">จำนวนคำสั่งซื้อที่ยกเลิก</div><div class="ds">นับใบที่เปิดในช่วงรายงาน</div></div>
+              <button class="ibtn round add" aria-label="เพิ่มจำนวนคำสั่งซื้อที่ยกเลิก"><iconify-icon icon="tabler:plus"></iconify-icon></button></div>
+            <div class="tile"><span class="plate p32"><iconify-icon icon="tabler:coin"></iconify-icon></span>
+              <div class="tx"><div class="nm">กำไร</div><div class="ds">ทุกคนในกลุ่มจะเห็น — ถามยืนยันก่อนเพิ่ม</div></div>
+              <button class="ibtn round add" aria-label="เพิ่มกำไร"><iconify-icon icon="tabler:plus"></iconify-icon></button></div>
+            <div class="tile off" aria-disabled="true"><span class="plate p32"><iconify-icon icon="tabler:history"></iconify-icon></span>
+              <div class="tx"><div class="nm">ยอดสะสมรอบนี้</div>
+                <div class="why"><iconify-icon icon="tabler:info-circle"></iconify-icon>ใช้ได้เมื่อเปิดรายงานรายเดือน</div></div></div>
+          </div>
+
+          <div class="eyebrow">กราฟ <span>· ถ้าข้อความยาวเกิน ระบบตัดกราฟก่อนตัวเลขหลัก</span></div>
+          <div class="tiles">
+            <div class="tile"><span class="plate p32"><iconify-icon icon="tabler:chart-bar"></iconify-icon></span>
+              <div class="tx"><div class="nm">เทียบรายร้าน</div><div class="ds">แท่งแนวนอน เรียงร้านมาก→น้อย</div></div>
+              <button class="ibtn round add" aria-label="เพิ่มเทียบรายร้าน"><iconify-icon icon="tabler:plus"></iconify-icon></button></div>
+          </div>
+
+          <div class="eyebrow">ข้อความของคุณ <span>· ใส่ได้หลายอัน</span></div>
+          <div class="tiles">
+            <div class="tile"><span class="plate p32"><iconify-icon icon="tabler:message-2"></iconify-icon></span>
+              <div class="tx"><div class="nm">ข้อความพิมพ์เอง</div><div class="ds">พิมพ์ถึงทีม แทรกตัวเลขได้ · เหลือ 5 อัน</div></div>
+              <button class="ibtn round add" aria-label="เพิ่มข้อความพิมพ์เอง"><iconify-icon icon="tabler:plus"></iconify-icon></button></div>
+            <div class="tile"><span class="plate p32"><iconify-icon icon="tabler:minus"></iconify-icon></span>
+              <div class="tx"><div class="nm">เส้นคั่น</div><div class="ds">แบ่งส่วนในข้อความ</div></div>
+              <button class="ibtn round add" aria-label="เพิ่มเส้นคั่น"><iconify-icon icon="tabler:plus"></iconify-icon></button></div>
+          </div>
+        </section>
+
+        <!-- การ์ด: ข้อความที่จะส่ง -->
+        <section class="card" aria-labelledby="h-canvas">
+          <div class="card-hd">
+            <span class="plate"><iconify-icon icon="tabler:list-details"></iconify-icon></span>
+            <div class="hd-t"><h2 id="h-canvas">ข้อความที่จะส่ง</h2><p>เรียงบนลงล่างตามที่คนในกลุ่มจะเห็น · แตะชื่อบล็อกเพื่อตั้งค่า</p></div>
+          </div>
+
+          <div class="eyebrow">บล็อก <span>· ลากที่มือจับเพื่อย้าย</span></div>
+          <div class="list" role="list">
+            <div class="row locked" role="listitem">
+              <span class="grip lock" title="ตรึงบนสุด · ต้องมีเสมอ เพื่อให้คนในกลุ่มรู้ว่าตัวเลขเป็นของช่วงไหน ณ เวลาใด"><iconify-icon icon="tabler:lock"></iconify-icon></span>
+              <div class="tx"><div class="nm">หัวรายงาน</div><div class="sm">ตรึงบนสุด · ต้องมีเสมอ</div></div>
+              <span class="val">รายงานยอดประจำวัน</span><iconify-icon class="chev" icon="tabler:chevron-right"></iconify-icon>
+            </div>
+            <div class="row" role="listitem">
+              <span class="grip" title="ลากเพื่อย้าย"><iconify-icon icon="tabler:grip-vertical"></iconify-icon></span>
+              <span class="plate p32 mute"><iconify-icon icon="tabler:cash"></iconify-icon></span>
+              <div class="tx"><div class="nm">ยอดขาย (นับแล้ว) และยังไม่นับ</div></div>
+              <iconify-icon class="chev" icon="tabler:chevron-down"></iconify-icon>
+            </div>
+            <div class="row" role="listitem">
+              <span class="grip" title="ลากเพื่อย้าย"><iconify-icon icon="tabler:grip-vertical"></iconify-icon></span>
+              <span class="plate p32 mute"><iconify-icon icon="tabler:list-numbers"></iconify-icon></span>
+              <div class="tx"><div class="nm">จำนวนคำสั่งซื้อ</div></div>
+              <iconify-icon class="chev" icon="tabler:chevron-down"></iconify-icon>
+            </div>
+            <div class="row" role="listitem">
+              <span class="grip" title="ลากเพื่อย้าย"><iconify-icon icon="tabler:grip-vertical"></iconify-icon></span>
+              <span class="plate p32 mute"><iconify-icon icon="tabler:building-store"></iconify-icon></span>
+              <div class="tx"><div class="nm">รายร้าน</div><div class="sm">แยกรายร้าน · ขายดี 3 อันดับ</div></div>
+              <iconify-icon class="chev" icon="tabler:chevron-down"></iconify-icon>
+            </div>
+            <!-- บล็อกที่เปิดอยู่ (ทีละอัน) -->
+            <div class="row open" role="listitem">
+              <span class="grip" title="ลากเพื่อย้าย"><iconify-icon icon="tabler:grip-vertical"></iconify-icon></span>
+              <span class="plate p32"><iconify-icon icon="tabler:message-2"></iconify-icon></span>
+              <div class="tx"><button style="all:unset;cursor:pointer;display:block;width:100%" aria-expanded="true"><div class="nm">ข้อความพิมพ์เอง</div></button></div>
+              <div class="moves">
+                <button class="ibtn" aria-label="ย้ายขึ้น"><iconify-icon icon="tabler:chevron-up"></iconify-icon></button>
+                <button class="ibtn" aria-label="ย้ายลง"><iconify-icon icon="tabler:chevron-down"></iconify-icon></button>
+                <button class="ibtn" aria-label="เอาออก"><iconify-icon icon="tabler:x"></iconify-icon></button>
+              </div>
+            </div>
+            <div class="panel">
+              <textarea aria-label="พิมพ์ข้อความถึงคนในกลุ่ม" placeholder="พิมพ์ข้อความถึงทีม เช่น สรุปยอดของ {ชื่อร้าน} วันนี้">วันนี้ทั้ง {จำนวนร้าน} ร้านทำได้ {ยอดขาย (นับแล้ว)} ขอบคุณทุกคนที่ช่วยกันปิดยอดครับ</textarea>
+              <div class="meta">
+                <span class="left tab">เหลือ 46 ตัวอักษร</span>
+                <button class="tool" aria-expanded="false"><iconify-icon icon="tabler:plus"></iconify-icon>ข้อมูล</button>
+                <button class="tool" aria-expanded="false"><iconify-icon icon="tabler:typography"></iconify-icon>จัดรูปแบบ</button>
+              </div>
+            </div>
+            <div class="row" role="listitem">
+              <span class="grip" title="ลากเพื่อย้าย"><iconify-icon icon="tabler:grip-vertical"></iconify-icon></span>
+              <span class="plate p32 mute"><iconify-icon icon="tabler:chart-line"></iconify-icon></span>
+              <div class="tx"><div class="nm">แนวโน้ม 7 วันล่าสุด</div><div class="sm">7 วันล่าสุด · วัดจาก ยอดขาย (นับแล้ว)</div></div>
+              <iconify-icon class="chev" icon="tabler:chevron-down"></iconify-icon>
+            </div>
+            <div class="row locked" role="listitem">
+              <span class="grip lock"><iconify-icon icon="tabler:lock"></iconify-icon></span>
+              <div class="tx"><div class="nm">หมายเหตุอัตโนมัติ</div><div class="sm">ระบบใส่ให้เมื่อมีร้านที่ไม่ถูกรวมหรือข้อมูลไม่ครบ · เอาออกไม่ได้</div></div>
+            </div>
+          </div>
+
+          <div class="eyebrow">ท้ายข้อความ</div>
+          <div class="list">
+            <div class="row">
+              <span class="plate p32 mute" style="margin-left:4px"><iconify-icon icon="tabler:external-link"></iconify-icon></span>
+              <div class="tx"><div class="nm">ปุ่มเปิด Deep</div><div class="sm">ป้ายปุ่ม: เปิด Deep</div></div>
+              <label class="sw" aria-label="แสดงปุ่มนี้"><input type="checkbox" checked><i></i></label>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- การ์ด: ตัวอย่างในกลุ่ม LINE -->
+      <aside class="pv-col">
+        <section class="card" aria-labelledby="h-pv">
+          <div class="card-hd">
+            <span class="plate success"><iconify-icon icon="tabler:brand-line"></iconify-icon></span>
+            <div class="hd-t"><h2 id="h-pv">ตัวอย่างในกลุ่ม LINE</h2><p>ตัวเลขเป็นค่าสมมุติ</p></div>
+            <div class="seg" role="group" aria-label="ชนิดตัวอย่าง">
+              <button data-set="kind" data-v="d">รายวัน</button><button data-set="kind" data-v="m">รายเดือน</button>
+            </div>
+          </div>
+          <div class="pvwrap">
+            <div class="pvhd"><span class="av"><iconify-icon icon="tabler:brand-line"></iconify-icon></span>Deep รายงานยอด</div>
+            <div class="bub">
+              <div class="sec">
+                <div class="title"><span class="k-d">รายงานยอดประจำวัน</span><span class="k-m">รายงานยอดรายเดือน</span></div>
+                <span class="dchip"><span class="k-d">5 ต.ค. 2569</span><span class="k-m">6 ก.ย. – 5 ต.ค. 2569</span></span>
+                <div class="slate">ข้อมูล ณ 21:02 น. · รวม 3 ร้าน</div>
+              </div>
+              <div class="sec"><div class="kv"><span>ยอดขาย (นับแล้ว)</span><span class="b"><span class="k-d">฿84,560</span><span class="k-m">฿1,284,560</span></span></div>
+                <div class="slate">ยังไม่นับเป็นยอดขาย <span class="k-d">฿6,300</span><span class="k-m">฿96,300</span> (รอยืนยัน/รอขนส่งรับ)</div></div>
+              <div class="sec"><div class="kv"><span>คำสั่งซื้อ</span><span><span class="k-d">42</span><span class="k-m">1,128</span></span></div></div>
+              <div class="sec"><div class="lbl">แยกรายร้าน</div>
+                <div class="kv"><span>ฟิล์มดี รังสิต</span><span>21 · ฿41,200</span></div>
+                <div class="slate">ขายดี: 1 ฟิล์มเซรามิก รุ่นพรีเมียม 9 · 2 ผ้าคลุมรถ 6</div>
+                <div class="kv"><span>ฟิล์มดี ลำลูกกา</span><span>14 · ฿28,960</span></div>
+                <div class="kv"><span>คาร์แคร์ คลอง 3</span><span>7 · ฿14,400</span></div></div>
+              <div class="sec">วันนี้ทั้ง 3 ร้านทำได้ ฿84,560 ขอบคุณทุกคนที่ช่วยกันปิดยอดครับ</div>
+              <div class="sec"><div class="lbl">แนวโน้ม 7 วันล่าสุด · ยอดขาย (นับแล้ว)</div>
+                <div class="vbars">
+                  <div class="vb"><i style="height:52%"></i></div>
+                  <div class="vb"><i style="height:64%"></i></div>
+                  <div class="vb"><i style="height:40%"></i></div>
+                  <div class="vb"><i style="height:58%"></i></div>
+                  <div class="vb"><span class="vv">฿91.2K</span><i style="height:78%"></i></div>
+                  <div class="vb"><i style="height:66%"></i></div>
+                  <div class="vb"><i class="acc" style="height:72%"></i></div>
+                </div>
+                <div class="vlabels"><span>อ.<br>29</span><span>พ.<br>30</span><span>พฤ.<br>1</span><span>ศ.<br>2</span><span>ส.<br>3</span><span>อา.<br>4</span><span class="acc">จ.<br>5</span></div></div>
+              <div class="sec"><div class="slate">ไม่รวมร้าน ล้างรถ คลอง 4 (ถูกล็อก)</div></div>
+              <span class="lnk">เปิด Deep</span>
+            </div>
+            <div class="pvcap">การตัดบรรทัดใน LINE อาจต่างเล็กน้อย</div>
+          </div>
+          <div class="gauge"><span id="g-l">ความยาวข้อความ</span><span class="bar" role="meter" aria-labelledby="g-l" aria-valuenow="46" aria-valuemin="0" aria-valuemax="100"><i></i></span><span class="tab">46%</span></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <div class="bottombar">
+    <span class="hint">บันทึกก่อน จึงส่งทดสอบได้</span>
+    <button class="btn btn-outline" disabled><iconify-icon icon="tabler:send"></iconify-icon>ส่งทดสอบ</button>
+    <button class="btn btn-primary"><iconify-icon icon="tabler:device-floppy"></iconify-icon>บันทึกเทมเพลต</button>
+  </div>
+</div>
+
+<!-- ═════════════════ หน้าตั้งค่ากลุ่ม (ส่วนที่เกี่ยว) ═════════════════ -->
+<div class="pg-settings">
+  <main class="page">
+    <div>
+      <div class="crumb"><iconify-icon icon="tabler:arrow-left"></iconify-icon>รายงานเข้ากลุ่ม LINE</div>
+      <div class="ghead"><h1>ทีมขาย สาขารังสิต</h1><span class="chip success"><iconify-icon icon="tabler:circle-check"></iconify-icon>ผูกแล้ว</span><span class="xs muted">ผูกเมื่อ 2 ต.ค. 2569</span></div>
+    </div>
+
+    <div class="stats">
+      <div class="card stat"><div class="lb"><span class="plate p32 success"><iconify-icon icon="tabler:send"></iconify-icon></span>ส่งแล้ววันนี้</div>
+        <div class="num">2 <small>/ 3 รอบ</small></div><div class="ft success">ล่าสุด 12:00 น. · สำเร็จ</div></div>
+      <div class="card stat"><div class="lb"><span class="plate p32"><iconify-icon icon="tabler:clock"></iconify-icon></span>รอบถัดไป</div>
+        <div class="num">18:00 <small>น.</small></div><div class="ft primary">รายวัน · อีก 2 ชม. 14 นาที</div></div>
+      <div class="card stat"><div class="lb"><span class="plate p32 warning"><iconify-icon icon="tabler:building-store"></iconify-icon></span>ร้านในกลุ่ม</div>
+        <div class="num">3 <small>ร้าน</small></div><div class="ft warning">1 ร้านถูกล็อก · ไม่ถูกรวม</div></div>
+      <div class="card stat"><div class="lb"><span class="plate p32 info"><iconify-icon icon="tabler:flask"></iconify-icon></span>ส่งทดสอบเหลือ</div>
+        <div class="num">3 <small>/ 5 ครั้ง</small></div><div class="ft mute">นับใหม่ทุกวัน</div></div>
+    </div>
+
+    <section class="card" aria-labelledby="h-msg">
+      <div class="card-hd">
+        <span class="plate"><iconify-icon icon="tabler:message-2"></iconify-icon></span>
+        <div class="hd-t"><h2 id="h-msg">ข้อความที่ส่งเข้ากลุ่ม</h2><p>แบบที่บอทใช้ส่งรายงานทุกรอบ ทั้งอัตโนมัติและเมื่อมีคนพิมพ์คำสั่ง</p></div>
+        <a class="btn btn-outline" href="#builder"><iconify-icon icon="tabler:layout-list"></iconify-icon>จัดข้อความ</a>
+      </div>
+
+      <div class="msg-grid">
+        <div>
+          <div class="state-note s-custom"><span class="plate p32"><iconify-icon icon="tabler:adjustments"></iconify-icon></span>
+            <div><b>จัดเองแล้ว</b>รายงานรอบถัดไปจะใช้แบบที่คุณจัด · แก้ล่าสุด 5 ต.ค. 2569 14:20 น.</div></div>
+          <div class="state-note s-std"><span class="plate p32 mute"><iconify-icon icon="tabler:template"></iconify-icon></span>
+            <div><b>ใช้แบบมาตรฐานอยู่</b>เลือกบล็อก เพิ่มข้อความถึงทีม หรือใส่กราฟได้ที่ "จัดข้อความ"</div></div>
+
+          <div class="eyebrow">สรุปแบบข้อความ</div>
+          <div class="list">
+            <div class="kvrow"><div class="k">ชื่อรายงาน</div><div class="v"><span class="s-custom">รายงานยอดประจำวัน</span><span class="s-std">ชื่อมาตรฐาน</span></div><iconify-icon class="chev" icon="tabler:chevron-right"></iconify-icon></div>
+            <div class="kvrow"><div class="k">บล็อกที่ส่ง<small class="s-custom">ยอดขาย · คำสั่งซื้อ · รายร้าน · ข้อความ · กราฟ</small><small class="s-std">คำสั่งซื้อ · ยอดขาย · ยกเลิก · รายร้าน</small></div><div class="v tab"><span class="s-custom">7 บล็อก</span><span class="s-std">6 บล็อก</span></div><iconify-icon class="chev" icon="tabler:chevron-right"></iconify-icon></div>
+            <div class="kvrow"><div class="k">กราฟ</div><div class="v"><span class="s-custom">แนวโน้ม 7 วัน</span><span class="s-std">ไม่มี</span></div><iconify-icon class="chev" icon="tabler:chevron-right"></iconify-icon></div>
+            <div class="kvrow"><div class="k">ความยาวข้อความ<small>ถ้าเกินที่ LINE รับได้ ระบบตัดกราฟก่อนตัวเลขหลัก</small></div><div class="v tab"><span class="s-custom">46%</span><span class="s-std">31%</span></div><iconify-icon class="chev" icon="tabler:chevron-right"></iconify-icon></div>
+          </div>
+          <div class="msg-cta"><a class="btn btn-primary" href="#builder"><iconify-icon icon="tabler:layout-list"></iconify-icon>จัดข้อความ</a></div>
+        </div>
+
+        <div class="mini">
+          <div class="eyebrow" style="justify-content:space-between">ตัวอย่างย่อ
+            <span class="seg" role="group" aria-label="ชนิดตัวอย่าง"><button data-set="kind" data-v="d">รายวัน</button><button data-set="kind" data-v="m">รายเดือน</button></span></div>
+          <div class="pvwrap">
+            <div class="bub">
+              <div class="sec"><div class="title"><span class="k-d">รายงานยอดประจำวัน</span><span class="k-m">รายงานยอดรายเดือน</span></div>
+                <span class="dchip"><span class="k-d">5 ต.ค. 2569</span><span class="k-m">6 ก.ย. – 5 ต.ค. 2569</span></span><div class="slate">ข้อมูล ณ 21:02 น. · รวม 3 ร้าน</div></div>
+              <div class="sec"><div class="kv"><span>ยอดขาย (นับแล้ว)</span><span class="b"><span class="k-d">฿84,560</span><span class="k-m">฿1,284,560</span></span></div></div>
+              <div class="sec"><div class="kv"><span>คำสั่งซื้อ</span><span><span class="k-d">42</span><span class="k-m">1,128</span></span></div></div>
+              <div class="sec"><div class="slate">+ อีก <span class="s-custom">4</span><span class="s-std">3</span> ส่วน · ดูทั้งหมดที่ "จัดข้อความ"</div></div>
+            </div>
+            <div class="pvcap">ตัวเลขในตัวอย่างเป็นค่าสมมุติ ข้อความจริงใช้ยอดของร้านที่เลือก</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+</div><!-- /frame -->
+
+<script>
+  const b = document.body
+  function sync(){
+    document.querySelectorAll('[data-set]').forEach(el => el.setAttribute('aria-pressed', String(b.dataset[el.dataset.set] === el.dataset.v)))
+    const h = [b.dataset.page, b.dataset.w]; if (b.dataset.tab==='pv') h.push('pv'); if (b.dataset.std==='1') h.push('std')
+    history.replaceState(null, '', '#' + h.join('-'))
+  }
+  document.addEventListener('click', e => {
+    const el = e.target.closest('[data-set]'); if (!el) return
+    b.dataset[el.dataset.set] = el.dataset.v; sync()
+  })
+  document.querySelectorAll('a[href="#builder"]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); b.dataset.page='builder'; sync(); scrollTo(0,0) }))
+  for (const t of location.hash.slice(1).split('-')) {
+    if (t==='builder'||t==='settings') b.dataset.page=t
+    else if (['375','768','1280'].includes(t)) b.dataset.w=t
+    else if (t==='pv') b.dataset.tab='pv'
+    else if (t==='std') b.dataset.std='1'
+  }
+  sync()
+</script>
+</body>
+</html>

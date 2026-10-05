@@ -349,7 +349,8 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
   return (
     <form
       onSubmit={(e) => e.preventDefault()}
-      className="lg:flex lg:h-[calc(100dvh-4rem)] lg:flex-col lg:overflow-hidden" /* HR7 carve-out: หัก padding บน+ล่างของ (fullscreen)/layout.tsx (2rem+2rem) เท่านั้น — เหมือน public-profile/builder/BuilderClient.tsx */
+      // พื้นเทาเต็มพื้นที่: ดึงขอบออกชน main ของ layout (-m) แล้วคืนด้วย padding เท่ากัน · lg ความสูงเต็ม main (h-dvh) เพราะ -m ชดเชย padding ของ layout แล้ว
+      className="bg-body-bg -m-4 p-4 md:-m-8 md:p-8 lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden"
     >
       {/* shrink-0: ในคอลัมน์ flex ที่สูงตายตัว header ถูกบีบจนเนื้อหาใต้มันลอยขึ้นไปซ้อน (หัวคอลัมน์ถูกบัง — critique P1-2) */}
       <div className="shrink-0">
@@ -366,7 +367,7 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
         {announcement}
       </div>
 
-      <div className="mt-6 shrink-0 empty:mt-0">
+      <div className="mt-4 shrink-0 empty:mt-0">
         {banner && <GroupBanner banner={banner} onRebind={() => router.push(`/business/line-reports/${group.id}?rebind=1`)} />}
         {state.stale && (
           <div role="alert" className="bg-warning/15 text-warning-ink mb-base flex flex-col gap-3 rounded-lg px-4 py-3 text-sm sm:flex-row sm:items-center">
@@ -379,14 +380,10 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
       </div>
 
       <DragDropContext onDragStart={onDragStart} onDragUpdate={onDragUpdate} onDragEnd={onDragEnd} dragHandleUsageInstructions={DRAG_HELP}>
-        {/* ระยะระหว่าง section = 24 (gap-6) ทุกขนาด · md ซ้อนกันเป็นคอลัมน์เดียว (ไม่บีบผืนงาน/พรีวิว) · lg 3 คอลัมน์ */}
-        <div className="flex flex-col gap-6 lg:min-h-0 lg:flex-1 lg:flex-row lg:gap-7">
-          {!readOnly && (
-            <div data-scroll-col className={`${state.view === 'preview' ? 'hidden md:block' : ''} lg:w-1/4 lg:min-h-0 lg:overflow-y-auto`}>
-              <TemplateLibrary draft={draft} ctx={ctx} word={word} onAdd={(t) => void addBlock(t)} />
-            </div>
-          )}
-          <div data-scroll-col className={`${state.view === 'preview' ? 'hidden md:block' : ''} lg:min-h-0 lg:overflow-y-auto ${readOnly ? 'lg:w-7/12' : 'lg:w-5/12'}`}>
+        {/* การ์ดขาวโค้งมนบนพื้นเทา: ห่างกัน 16 · lg 2 คอลัมน์ (ซ้าย เพิ่มบล็อก+ข้อความที่จะส่ง · ขวา ตัวอย่าง) · ต่ำกว่า lg คอลัมน์เดียว + แท็บ */}
+        <div className="mt-4 flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:flex-row">
+          <div data-scroll-col className={`${state.view === 'preview' ? 'hidden md:flex' : 'flex'} flex-col gap-4 lg:min-h-0 lg:min-w-0 lg:flex-1 lg:overflow-y-auto`}>
+            {!readOnly && <TemplateLibrary draft={draft} ctx={ctx} word={word} onAdd={(t) => void addBlock(t)} />}
             <CanvasList
               draft={draft}
               markupById={state.markupById}
@@ -406,9 +403,8 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
               onConfirmProfit={() => void confirmTypedProfit()}
               onRemove={removeBlock}
             />
-            <SizeGauge gauge={gauge} extra={[...gaugeExtra, ...gaugeWarnings]} />
           </div>
-          <div data-scroll-col className={`${state.view === 'canvas' ? 'hidden md:block' : ''} lg:min-h-0 lg:overflow-y-auto ${readOnly ? 'lg:w-5/12' : 'lg:w-1/3'}`}>
+          <div data-scroll-col className={`${state.view === 'canvas' ? 'hidden md:block' : ''} lg:min-h-0 lg:w-1/3 lg:shrink-0 lg:overflow-y-auto`}>
             <PreviewPanel
               template={draft}
               shops={sampleShops}
@@ -417,7 +413,9 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
               settings={group.settings}
               cycle={group.cycle ? { startIso: group.cycle.startIso, endIso: group.cycle.endIso } : null}
               serverNowIso={serverNowIso}
-            />
+            >
+              <SizeGauge gauge={gauge} extra={[...gaugeExtra, ...gaugeWarnings]} />
+            </PreviewPanel>
           </div>
         </div>
       </DragDropContext>

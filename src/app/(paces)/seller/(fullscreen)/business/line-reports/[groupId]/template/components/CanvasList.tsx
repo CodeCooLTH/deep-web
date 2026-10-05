@@ -15,6 +15,7 @@
 import type { Dispatch, ReactNode } from 'react'
 import { Draggable, Droppable, type DraggableProvided, type DraggableStateSnapshot } from '@hello-pangea/dnd'
 import Icon from '@/components/wrappers/Icon'
+import CardHead, { GroupLabel, ROUND_CARD } from '@/app/(paces)/seller/(dashboard)/business/line-reports/_components/CardHead'
 import { CheckRow } from '@/app/(paces)/seller/(dashboard)/business/line-reports/_components/detail/Rows'
 import { type Availability, type AvailabilityContext } from '@/lib/line-report/availability'
 import { MAX_BUTTON_LABEL, MAX_TITLE_LENGTH, type Block, type TemplateV1 } from '@/lib/line-report/template'
@@ -246,14 +247,14 @@ export default function CanvasList(p: CanvasListProps) {
   )
 
   return (
-    <section aria-label="ข้อความที่จะส่ง">
-      <div className="mb-2 flex min-h-11 items-center">
-        <h2 className="text-default-900 mb-0 text-sm font-semibold">ข้อความที่จะส่ง</h2>
-      </div>
-      <div className="border-default-300 rounded-lg border">
+    <section aria-label="ข้อความที่จะส่ง" className={ROUND_CARD}>
+      <div className="card-body">
+      <CardHead icon="list-details" title="ข้อความที่จะส่ง" desc="เรียงบนลงล่างตามที่คนในกลุ่มจะเห็น · แตะชื่อบล็อกเพื่อตั้งค่า" />
+      <GroupLabel sub={readOnly ? undefined : 'ลากที่มือจับเพื่อย้าย'}>บล็อก</GroupLabel>
+      <div className="border-default-300 rounded-xl border">
         {/* หัวรายงาน — ตรึงบนสุด ต้องมีเสมอ (นอก Droppable) */}
         <div
-          className={cn(ROW, 'bg-light rounded-t-lg py-3')}
+          className={cn(ROW, 'bg-default-100 rounded-t-xl py-3')}
           title="ตรึงบนสุด · ต้องมีเสมอ เพื่อให้คนในกลุ่มรู้ว่าตัวเลขเป็นของช่วงไหน ณ เวลาใด"
         >
           <div className="flex">
@@ -304,7 +305,7 @@ export default function CanvasList(p: CanvasListProps) {
         )}
 
         {/* หมายเหตุอัตโนมัติ — ล็อก เอาออกไม่ได้ */}
-        <div className={cn(ROW, 'bg-light flex items-start py-3')} title="เอาออกไม่ได้ เพื่อไม่ให้ตัวเลขดูครบทั้งที่ไม่ครบ">
+        <div className={cn(ROW, 'bg-default-100 flex items-start py-3')} title="เอาออกไม่ได้ เพื่อไม่ให้ตัวเลขดูครบทั้งที่ไม่ครบ">
           <span className={cn(RAIL, 'pt-0.5')}>
             <Icon icon="lock" className="text-default-500 size-4" aria-hidden="true" />
           </span>
@@ -315,7 +316,7 @@ export default function CanvasList(p: CanvasListProps) {
         </div>
 
         {/* ปุ่มเปิด Deep — ไม่อยู่ใน blocks (อยู่ใน template.button) ลากไม่ได้ */}
-        <div className="rounded-b-lg">
+        <div className="rounded-b-xl">
           <button
             type="button"
             aria-expanded={p.openId === 'button'}
@@ -354,6 +355,7 @@ export default function CanvasList(p: CanvasListProps) {
             </div>
           )}
         </div>
+      </div>
       </div>
     </section>
   )
