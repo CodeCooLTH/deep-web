@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>00068 — รายงานเข้ากลุ่ม LINE (mockup 3 จอ)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+  /* token จริงจาก src/assets/css/config/_root.css — ห้ามเดาสี (ก็อปโครงจาก 2026-09-08-auto-order-settings-mockup.html) */
+  :root{
+    --primary:#236dc9; --primary-hover:#1e5dab; --primary-ink:#1e3a8a;
+    --success:#02bc9c; --success-ink:#065f46;
+    --warning:#f9bf59; --warning-ink:#92400e;
+    --danger:#f7577e;  --danger-ink:#7f1d1d;
+    --info:#5bc3e1;    --info-ink:#1e40af;
+    --body-bg:#f6f7fb; --card:#fff; --light:#eef2f7;
+    --d50:#f8fafc; --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb;
+    --d400:#627189; --d500:#58626b; --d600:#4a5358; --d700:#40454a; --d800:#343a40; --d900:#313a46;
+    --shadow:0 1px 2px rgba(57,62,80,.15);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#e9edf3;font-family:Anuphan,system-ui,sans-serif;color:var(--d800);font-size:13px;line-height:1.55}
+  iconify-icon{display:inline-block;width:1em;height:1em;vertical-align:-.125em;flex:none}
+  .page{max-width:2500px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:20px;margin:0 0 4px}
+  .lead{color:var(--d600);margin:0 0 6px;max-width:1000px}
+  .path{font-size:12px;color:var(--d500);margin:0 0 10px}
+  code{background:var(--d200);padding:1px 6px;border-radius:4px;font-size:12px}
+  section.screen{margin-top:34px}
+  section.screen > h2{font-size:16px;margin:0 0 2px}
+  section.screen > p{margin:0 0 12px;color:var(--d600);max-width:1100px}
+  .frames{display:flex;gap:22px;align-items:flex-start;overflow-x:auto;padding-bottom:14px}
+  .frame{flex:0 0 auto}
+  .frame > .cap{font-size:12px;font-weight:600;color:var(--d700);margin:0 0 6px;display:flex;align-items:center;gap:8px}
+  .cap .w{background:var(--d800);color:#fff;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600}
+  .cap .note{font-weight:400;color:var(--d500)}
+  .device{background:var(--body-bg);border:1px solid var(--d300);border-radius:10px;overflow:hidden;box-shadow:0 6px 22px rgba(20,30,50,.10);container-type:inline-size}
+  .w375{width:375px} .w768{width:768px} .w1180{width:1180px}
+
+  /* ── app chrome: mobile shell (<1024) vs desktop shell (sidebar 245 + topbar) ── */
+  .shell{display:flex;min-height:100%}
+  .sidebar{display:none;width:245px;flex:none;background:var(--card);border-right:1px solid var(--d200);padding:14px 12px}
+  .sidebar .brand{display:block;margin:0 6px 16px}
+  .sidebar .nav{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:6px;color:var(--d600);font-size:13px}
+  .sidebar .nav.on{background:rgba(35,109,201,.10);color:var(--primary);font-weight:500}
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{height:50px;background:var(--card);border-bottom:1px solid var(--d200);display:flex;align-items:center;gap:10px;padding:0 14px}
+  .brand{font-weight:700;color:var(--primary);font-size:15px}
+  .topbar .dt{display:none;color:var(--d500);font-size:12px;margin-left:auto}
+  .crumb{padding:14px 16px 0}
+  .crumb h4{margin:0;font-size:16px;font-weight:600;color:var(--d900)}
+  .crumb .trail{font-size:12px;color:var(--d500);margin-top:2px}
+  .content{padding:14px 16px 18px}
+  .bnav{height:72px;background:var(--card);border-top:1px solid var(--d200);display:flex;justify-content:space-around;align-items:center;color:var(--d500);font-size:11px;margin-top:auto}
+  .bnav span{display:flex;flex-direction:column;align-items:center;gap:3px}
+  .bnav iconify-icon{font-size:20px}
+  .bnav .on{color:var(--primary)}
+
+  /* ── paces primitives ── */
+  .card{background:var(--card);border:1px solid var(--d200);border-radius:8px;box-shadow:var(--shadow);margin-bottom:16px}
+  .card-header{padding:11px 14px;border-bottom:1px dashed var(--d300);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .card-header h5{margin:0;font-size:14px;font-weight:600;color:var(--d800);display:flex;align-items:center;gap:7px;min-width:0}
+  .card-body{padding:14px}
+  .muted{color:var(--d700);margin:0}
+  .sm{font-size:13px} .xs{font-size:12px}
+  .mb2{margin-bottom:8px} .mb3{margin-bottom:12px} .mt2{margin-top:8px} .mt3{margin-top:12px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:6px;padding:7px 13px;font-family:inherit;font-size:12.5px;font-weight:500;cursor:pointer;text-decoration:none;line-height:1.4;min-height:44px}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-light{background:var(--light);color:var(--d700)}
+  .btn-soft-danger{background:rgba(247,87,126,.15);color:var(--danger-ink)}
+  .btn-sm{padding:5px 11px;font-size:12px}
+  .btn[disabled]{opacity:.55;cursor:not-allowed}
+  .full{width:100%}
+  .btn{white-space:nowrap}
+  .paused .o1,.paused .o2,.paused .o3{opacity:.55;pointer-events:none}
+  .badge{display:inline-flex;align-items:center;gap:4px;border-radius:5px;padding:2px 7px;font-size:11.5px;font-weight:600;white-space:nowrap}
+  .b-ok{background:rgba(2,188,156,.15);color:var(--success-ink)}
+  .b-warn{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+  .b-dng{background:rgba(247,87,126,.15);color:var(--danger-ink)}
+  .b-neu{background:var(--light);color:var(--d700)}
+  .b-pri{background:rgba(35,109,201,.15);color:var(--primary-ink)}
+  .banner{border-radius:8px;padding:11px 13px;display:flex;gap:10px;align-items:flex-start;margin-bottom:16px;font-size:13px}
+  .banner iconify-icon{font-size:17px;margin-top:2px}
+  .ban-dng{background:rgba(247,87,126,.15);color:var(--danger-ink)}
+  .ban-warn{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+  .ban-ok{background:rgba(2,188,156,.15);color:var(--success-ink)}
+  .ban-info{background:rgba(91,195,225,.15);color:var(--info-ink)}
+  .chip{display:inline-flex;align-items:center;gap:4px;background:rgba(35,109,201,.10);color:var(--primary);border-radius:4px;padding:0 4px 0 9px;font-size:12.5px;font-weight:500;min-height:32px;white-space:nowrap}
+  .chip .x{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;color:var(--primary);border-radius:99px}
+  .shopchip{display:inline-block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--light);color:var(--d700);border-radius:4px;padding:1px 7px;font-size:11.5px;vertical-align:middle}
+  .seg{display:inline-flex;background:var(--light);border-radius:8px;padding:2px}
+  .seg button{border:0;background:transparent;border-radius:6px;padding:5px 12px;font-family:inherit;font-size:12px;font-weight:500;color:var(--d600);cursor:pointer}
+  .seg button.on{background:var(--card);color:var(--d800);box-shadow:var(--shadow)}
+  .sel{border:1px solid var(--d300);border-radius:6px;padding:7px 10px;font-family:inherit;font-size:13px;color:var(--d800);background:#fff;min-height:44px}
+  .switch{width:36px;height:20px;border-radius:99px;background:var(--d300);position:relative;flex:none}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:99px;background:#fff;box-shadow:var(--shadow)}
+  .switch.on{background:var(--primary)} .switch.on::after{left:18px}
+  .ck{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--d400);flex:none;display:inline-flex;align-items:center;justify-content:center;margin-top:3px}
+  .ck.on{background:var(--primary);border-color:var(--primary);color:#fff;font-size:12px}
+  .ck.dis{background:var(--d200);border-color:var(--d300)}
+  .ckrow{display:flex;gap:10px;align-items:flex-start;min-height:44px;padding:4px 0}
+  .ckrow .t{min-width:0;word-break:break-word}
+  .ckrow .sub{display:block;font-size:12px;color:var(--d700)}
+  .dash{border:0;border-top:1px dashed var(--d300);margin:12px 0}
+  .icon-sq{width:40px;height:40px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex:none;background:var(--light);color:var(--d700);font-size:20px;position:relative}
+  .icon-sq img{position:absolute;right:-4px;bottom:-4px;width:16px;height:16px;border-radius:4px;background:#fff}
+  .tbl{width:100%;border-collapse:collapse;font-size:12px}
+  .tbl th{text-align:left;color:var(--d700);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--d200);font-size:11.5px}
+  .tbl td{padding:8px;border-bottom:1px solid var(--d100);color:var(--d700);vertical-align:top}
+  .tnum{font-variant-numeric:tabular-nums}
+  .trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+
+  /* list rows */
+  .grow{display:flex;gap:12px;padding:12px 14px;border-top:1px solid var(--d200);align-items:flex-start}
+  .grow:first-child{border-top:0}
+  .grow .body{flex:1;min-width:0}
+  .grow .name{font-weight:600;color:var(--d900);font-size:13.5px}
+  .rcols{display:flex;flex-direction:column;gap:4px}
+  .rcols .c{min-width:0}
+  .chev{color:var(--d500);font-size:18px;align-self:center}
+
+  /* steps */
+  .steps{list-style:none;margin:0;padding:0}
+  .steps li{display:flex;gap:12px;padding:14px;border-top:1px solid var(--d200)}
+  .steps li:first-child{border-top:0}
+  .num{width:26px;height:26px;border-radius:99px;background:rgba(35,109,201,.15);color:var(--primary);display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex:none}
+  .num.cur{background:var(--primary);color:#fff}
+  .codebox{background:var(--light);border-radius:8px;padding:16px;margin-top:10px}
+  .code{font-size:24px;font-weight:600;color:var(--d900);font-variant-numeric:tabular-nums;letter-spacing:.02em;margin:2px 0 10px}
+  .qr{width:128px;height:128px;border-radius:8px;background:
+      repeating-linear-gradient(90deg,var(--d800) 0 6px,#fff 6px 12px),
+      repeating-linear-gradient(0deg,var(--d800) 0 6px,#fff 6px 12px);background-blend-mode:screen;border:6px solid #fff;outline:1px solid var(--d200);flex:none}
+
+  /* flex bubble preview (ภาพแทนข้อความ LINE ไม่ใช่การ์ด UI) */
+  .pv{background:var(--light);border-radius:8px;padding:12px}
+  .pv .who{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--d700);margin-bottom:6px}
+  .pv .who img{width:20px;height:20px;border-radius:99px;background:#fff}
+  .bub{background:#fff;border:1px solid var(--d200);border-radius:10px;max-width:300px;margin:0 auto;overflow:hidden;font-size:12.5px}
+  .bub .hd{padding:10px 12px 8px}
+  .bub .hd b{color:var(--primary-ink);font-size:13.5px;display:block}
+  .bub .sec{padding:8px 12px;border-top:1px solid var(--d200)}
+  .bub .kv{display:flex;justify-content:space-between;gap:8px;padding:1px 0}
+  .bub .kv span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--d700)}
+  .bub .kv span:last-child{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .bub .lbl{font-size:11.5px;color:var(--d700);margin-bottom:2px;font-weight:600}
+  .bub .note{font-size:11.5px;color:var(--d700)}
+  .bub .lnk{display:block;text-align:center;color:var(--primary);font-weight:600;padding:9px;border-top:1px solid var(--d200)}
+  .pvcap{font-size:11.5px;color:var(--d700);text-align:center;margin-top:8px}
+
+  /* action bar */
+  .abar{position:sticky;top:0;z-index:2;background:var(--card);border-bottom:1px solid var(--d200);display:flex;align-items:center;gap:8px;padding:6px 12px}
+  .abar .sp{flex:1}
+  .ibtn{width:44px;height:44px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:0;color:var(--d700);font-size:20px}
+
+  /* มือถือ/แท็บเล็ต: คอลัมน์ละลายเป็นลำดับเดียว ร้าน→เวลา→ตัวเลข→พรีวิว→คำสั่ง→ประวัติ */
+  .lg-grid{display:flex;flex-direction:column}
+  .colL,.colR{display:contents}
+  .o1{order:1}.o2{order:2}.o3{order:3}.o4{order:4}.o5{order:5}.o6{order:6}
+  .two{display:grid;grid-template-columns:1fr;gap:16px}
+  
+  .md3{display:grid;grid-template-columns:1fr;gap:10px}
+  .md2{display:grid;grid-template-columns:1fr;gap:0 16px}
+  .hist-m{display:block} .hist-d{display:none}
+  .bind-wrap{max-width:none}
+  .step1{display:flex;flex-direction:column;gap:10px}
+  .qrwrap{display:none}
+
+  @container (min-width:700px){
+    .md3{grid-template-columns:repeat(3,1fr)}
+    .md2{grid-template-columns:1fr 1fr}
+    .hist-m{display:none} .hist-d{display:block}
+    .rcols{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,3fr) minmax(0,3fr);gap:12px;align-items:start}
+    .step1{flex-direction:row;justify-content:space-between;align-items:flex-start}
+    .qrwrap{display:block}
+    .qrbtn{display:none}
+    .sm-auto{width:auto}
+  }
+  @container (min-width:1000px){
+    .sidebar{display:block}
+    .bnav,.mhead{display:none}
+    .topbar .dt{display:block}
+    .lg-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:16px;align-items:start}
+    .colL,.colR{display:block}
+    .two .md3{grid-template-columns:1fr}
+    .lg-grid .sticky{position:sticky;top:60px}
+    .two{grid-template-columns:1fr 1fr;align-items:center}
+    .bind-wrap{max-width:768px}
+    .content{padding:16px 22px 26px} .crumb{padding:16px 22px 0}
+  }
+  .dot{position:absolute;top:-2px;right:6px;width:9px;height:9px;border-radius:99px;background:var(--danger);border:2px solid #fff}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--d600);margin:4px 0 0}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>00068 — รายงานเข้ากลุ่ม LINE</h1>
+<p class="lead">mockup จาก Design Spec ของ <code>safepay-ux</code> (<code>2026-10-05-line-group-summary-report-design.md</code>) · token สีจาก <code>_root.css</code> จริง · ฟิกซ์เจอร์ใช้ชื่อยาวสุด · ทุกหน้าวาด 3 จอจาก template เดียวด้วย container query (375 / 768 = mobile shell คอลัมน์เดียว · 1180 = sidebar 245 + topbar)</p>
+<p class="path">path: <code>/business/line-reports</code> · <code>/business/line-reports/new</code> · <code>/business/line-reports/[groupId]</code> · เห็นเฉพาะเจ้าของบัญชี (ADMIN = <code>notFound()</code>) · ข้อมูลในพรีวิวเป็น "ตัวอย่าง"</p>
+<div class="legend"><span>เขียว = ยืนยันแล้วจริงเท่านั้น (ผูกแล้ว / ส่งสำเร็จ)</span><span>เหลือง = รอ / แก้ได้</span><span>แดง = ส่งไม่ถึงจริง</span><span>ไม่มีเขียว LINE เป็นพื้น — มีแค่โลโก้จริง</span></div>
+
+<div id="screens"></div>
+</div>
+
+<script>
+const LINE = '../../../public/images/logos/line.svg';
+const i = (n, s='') => `<iconify-icon icon="tabler:${n}" ${s}></iconify-icon>`;
+
+const SHOPS = [
+  {n:'BT Premium Auto Xenon คลอง4 ธัญบุรี', k:'ร้านบริการ', o:32, s:'฿412,900'},
+  {n:'ศรีสุข อะไหล่ออนไลน์ เซ็นเตอร์ สาขารังสิต คลอง 3', k:'ร้านขายของ', o:61, s:'฿538,200'},
+  {n:'ครัวคุณยาย โฮมเมด ขนมไทยและอาหารสั่งทำ', k:'ร้านขายของ', o:24, s:'฿96,460'},
+  {n:'สมชาย ใจดี', k:'ร้านส่วนตัว', o:11, s:'฿236,000'},
+  {n:'ล้างรถ คลอง 4 โปรแคร์ ธัญบุรี', k:'ร้านบริการ', locked:true},
+];
+const G1 = 'ทีมบริหารและบัญชี BT Premium Auto Xenon คลอง 4 ธัญบุรี';
+
+/* ── Flex bubble ── */
+function bubble(mode='daily', o={}){
+  // o.full24 = รอบ 24:00 (ครบทั้งวัน) · o.profit = เปิดกำไร (กลุ่มต่างประเภท → กำไรรายร้านเท่านั้น)
+  const title = mode==='monthly' ? 'รายงานยอดรายเดือน' : o.full24 ? 'สรุปวันที่ 5 ต.ค. 2569 (ครบทั้งวัน)' : 'รายงานยอดรายวัน';
+  const chip  = mode==='monthly' ? '6 ก.ย. – 5 ต.ค. 2569' : '5 ต.ค. 2569';
+  const asof  = o.full24 ? '00:02' : '21:02';
+  const N = mode==='monthly'
+    ? {o:'3,412 รายการ', s:'฿18,902,340', p:'฿612,480', c:'97 ใบ'}
+    : {o:'128 รายการ',   s:'฿1,284,560',  p:'฿84,300',  c:'6 ใบ'};
+  const top = [
+    {shop:SHOPS[0], items:[['ฟิล์มกรองแสงเซรามิก รุ่นพรีเมียม ทุกขนาด รถเก๋ง',42],['ติดตั้งไฟซีนอน 6000K',17],['ล้างห้องเครื่อง',9]], profit:'฿148,200'},
+    {shop:SHOPS[1], items:[['ผ้าคลุมรถยนต์ กันน้ำ กันแดด UV ซีดาน',31],['น้ำยาเคลือบแก้ว 9H',18],['ใบปัดน้ำฝนซิลิโคน 24 นิ้ว',15]], profit:'≤ ฿96,500', partial:true},
+  ];
+  const kv = (k,v)=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`;
+  return `<div class="pv">
+    <div class="who"><img src="${LINE}" alt="">Deep รายงานยอด</div>
+    <div class="bub">
+      <div class="hd"><b>${title}</b><span class="badge b-pri">${chip}</span>
+        <span class="note" style="display:block;margin-top:3px">ข้อมูล ณ ${asof} น. · รวม 4 ร้าน</span></div>
+      <div class="sec">
+        ${kv('ออเดอร์',N.o)}
+        <div class="kv"><span>ยอดขาย (นับแล้ว)</span><span><b>${N.s}</b></span></div>
+        <div class="note" style="margin:1px 0 3px">ยังไม่นับเป็นยอดขาย ${N.p} (รอยืนยัน/รอขนส่งรับ)</div>
+        ${kv('ยกเลิก',N.c+' (ใบที่เปิดในช่วงนี้)')}
+        <div class="note mt2">ยอดแต่ละร้านคิดตามกติกาของประเภทธุรกิจ</div>
+      </div>
+      <div class="sec"><div class="lbl">แยกรายร้าน</div>
+        <div class="note mb2">ขายดี 3 อันดับ · นับทุกใบที่ไม่ยกเลิก</div>
+        ${top.map(t=>`<div style="margin-bottom:6px">
+          <div class="kv" style="font-weight:600"><span style="color:var(--d900)">${t.shop.n}</span><span>${t.shop.o} · ${t.shop.s}</span></div>
+          ${o.profit?`<div class="kv"><span>${t.partial?'กำไรได้มากที่สุด':'กำไร'}</span><span>${t.profit}</span></div>`:''}
+          ${t.items.map(([n,q],k)=>`<div class="kv" style="padding-left:8px"><span>${k+1} ${n}</span><span>${q}</span></div>`).join('')}
+        </div>`).join('')}
+        <div class="note">…และอีก 2 ร้าน</div>
+        ${o.profit?`<div class="note mt2">กำไรแต่ละร้านคิดตามกติกาของประเภทธุรกิจ จึงไม่รวมเป็นยอดเดียว · “ได้มากที่สุด” = ข้อมูลต้นทุนยังไม่ครบ</div>`:''}
+      </div>
+      ${mode==='daily'&&!o.full24?`<div class="sec"><div class="lbl">ยอดสะสมรอบนี้ 6 ก.ย. – 5 ต.ค.</div>${kv('ยอดขาย (นับแล้ว)','฿18,902,340')}</div>`:''}
+      <div class="sec note">ไม่รวมร้านที่ถูกล็อก 1 ร้าน (ล้างรถ คลอง 4 โปรแคร์ ธัญบุรี)</div>
+      <a class="lnk">เปิด dashboard</a>
+    </div>
+    <div class="pvcap">ตัวอย่าง ตัวเลขจริงมาจากออเดอร์ของร้านที่เลือก</div>
+  </div>`;
+}
+
+const crumbs = (title, trail) => `<div class="crumb"><h4>${title}</h4><div class="trail">${trail}</div></div>`;
+
+/* ── A. List ── */
+function listCard(paused=false){
+  const row = (ic, name, kind, chips, status, next, last, fix='') => `
+    <div class="grow">
+      <span class="icon-sq">${i(ic)}<img src="${LINE}" alt=""></span>
+      <div class="body"><div class="rcols">
+        <div class="c"><div class="name trunc" title="${name}">${name}</div>
+          <div class="xs muted" style="margin-top:2px">${kind} ${chips}</div></div>
+        <div class="c">${status}<div class="xs muted" style="margin-top:3px">${next}</div>${fix}</div>
+        <div class="c xs muted">${last}</div>
+      </div></div>
+      <span class="chev">${i('chevron-right')}</span>
+    </div>`;
+  const chips5 = `<span class="shopchip">BT Premium Auto Xenon คลอง4 ธัญบุรี</span> <span class="shopchip">ศรีสุข อะไหล่ออนไลน์ เซ็นเตอร์</span> <span class="shopchip">+3</span>`;
+  const st = paused
+    ? `<span class="badge b-warn">${i('lock')} หยุดส่งเพราะแพ็กเกจ</span>`
+    : null;
+  return `<div class="card">
+    <div class="card-header"><h5>กลุ่มรายงานของฉัน <span class="xs muted" style="font-weight:400">${paused?2:3} จาก 10 กลุ่ม</span></h5>
+      <button class="btn btn-primary btn-sm full sm-auto" ${paused?'disabled':''}>${i('plus')} เพิ่มกลุ่ม</button></div>
+    <div>
+    ${paused
+      ? row('users',G1,'กลุ่มรวม 5 ร้าน',chips5,st,'รายงานหยุดส่งไว้ก่อน จนกว่าแพ็กเกจจะกลับมาใช้งาน',`ล่าสุด 30 ก.ย. 24:00 · <span style="color:var(--success-ink)">${i('circle-check')}</span> ส่งสำเร็จ`)
+        + row('users','ครัวคุณยาย โฮมเมด','กลุ่มสาขา','<span class="shopchip">ครัวคุณยาย โฮมเมด ขนมไทยและอาหารสั่งทำ</span>',st,'รายงานหยุดส่งไว้ก่อน จนกว่าแพ็กเกจจะกลับมาใช้งาน','ล่าสุด 30 ก.ย. 18:00 · ส่งสำเร็จ')
+      : row('users','ครัวคุณยาย โฮมเมด','กลุ่มสาขา','<span class="shopchip">ครัวคุณยาย โฮมเมด ขนมไทยและอาหารสั่งทำ</span>',
+          `<span class="badge b-dng">${i('link-off')} บอทถูกนำออก</span>`,'เชิญบอทกลับเข้ากลุ่ม แล้วกดผูกใหม่',
+          `ล่าสุด เมื่อวาน 18:00 · <span style="color:var(--danger-ink)">${i('circle-x')}</span> ส่งไม่สำเร็จ`,
+          `<button class="btn btn-soft-danger btn-sm mt2">${i('refresh')} ผูกใหม่</button>`)
+        + row('users','ฝ่ายขาย ศรีสุข อะไหล่ออนไลน์ สาขารังสิต (ภายใน)','กลุ่มสาขา','<span class="shopchip">ศรีสุข อะไหล่ออนไลน์ เซ็นเตอร์ สาขารังสิต คลอง 3</span>',
+          `<span class="badge b-warn">${i('clock')} รอผูก</span>`,'รอผูก · โค้ดใช้ได้อีก <span class="tnum">07:12</span>','ยังไม่เคยส่ง')
+        + row('users',G1,'กลุ่มรวม 5 ร้าน',chips5,
+          `<span class="badge b-ok">${i('circle-check')} ผูกแล้ว</span>`,'ส่งถัดไป วันนี้ 18:00',
+          `ล่าสุด วันนี้ 09:00 · <span style="color:var(--success-ink)">${i('circle-check')}</span> ส่งสำเร็จ`)}
+    </div></div>`;
+}
+const scrA = () => crumbs('รายงานเข้ากลุ่ม LINE','ธุรกิจ / รายงานเข้ากลุ่ม LINE') + `<div class="content">${listCard()}</div>`;
+
+/* ── B. Empty ── */
+const howSteps = `<div class="md3 mt3">
+  ${[['1','เพิ่มบอทเข้ากลุ่ม LINE'],['2','รับโค้ดผูก 6 หลักจากหน้านี้'],['3','พิมพ์โค้ดในกลุ่ม แล้วเลือกร้านและเวลาส่ง']]
+    .map(([n,t])=>`<div style="display:flex;gap:10px;align-items:flex-start"><span class="num">${n}</span><span class="sm">${t}</span></div>`).join('')}</div>`;
+const scrB = () => crumbs('รายงานเข้ากลุ่ม LINE','ธุรกิจ / รายงานเข้ากลุ่ม LINE') + `<div class="content"><div class="card">
+  <div class="card-header"><h5>กลุ่มรายงานของฉัน</h5></div>
+  <div class="card-body"><div class="two">
+    <div><h5 style="margin:0 0 6px;font-size:15px">ยังไม่มีกลุ่มรายงาน</h5>
+      <p class="muted sm mb3">ให้บอท Deep รายงานยอดสรุปออเดอร์เข้ากลุ่ม LINE ของทีมคุณทุกวันหรือทุกเดือน ไม่ต้องเปิดแอปดูทีละร้าน</p>
+      <button class="btn btn-primary full sm-auto">${i('plus')} เพิ่มกลุ่มแรก</button>${howSteps}</div>
+    <div><p class="xs muted mb2" style="text-align:center">ตัวอย่างข้อความที่จะไปโผล่ในกลุ่ม</p>${bubble()}</div>
+  </div></div></div></div>`;
+
+/* ── C. Bind ── */
+const ACK = on => `<div class="ckrow mt2"><span class="ck ${on?'on':''}">${on?i('check'):''}</span><span class="t sm">รับทราบว่าทุกคนในกลุ่มจะเห็นตัวเลขที่ส่ง และ Deep ลบข้อความที่ส่งไปแล้วออกจากกลุ่มไม่ได้</span></div>`;
+const scrC = () => crumbs('ผูกกลุ่มใหม่','ธุรกิจ / รายงานเข้ากลุ่ม LINE / ผูกกลุ่มใหม่') + `<div class="content"><div class="bind-wrap">
+  <div class="card"><ol class="steps">
+    <li><span class="num">${i('check')}</span><div style="flex:1;min-width:0"><div class="step1">
+      <div><b>เพิ่ม Deep รายงานยอด เข้ากลุ่ม LINE</b>
+        <p class="muted sm mt2 mb3">เพิ่มบอทเป็นเพื่อนก่อน แล้วเชิญบอทเข้ากลุ่มที่ต้องการรับรายงาน</p>
+        <button class="btn btn-light btn-sm"><img src="${LINE}" alt="" style="width:16px;height:16px"> เปิดใน LINE</button>
+        <button class="btn btn-light btn-sm qrbtn">${i('qrcode')} แสดง QR</button></div>
+      <div class="qrwrap" style="text-align:center"><div class="qr"></div><div class="xs muted mt2">สแกนด้วย LINE บนมือถือ</div></div>
+    </div></div></li>
+    <li><span class="num cur">2</span><div style="flex:1;min-width:0"><b>สร้างโค้ดผูกกลุ่ม</b>
+      <p class="muted sm" style="margin-top:2px">โค้ดใช้ได้ 10 นาที และใช้ผูกได้ครั้งเดียว</p>
+      ${ACK(true)}
+      <div class="codebox"><div class="xs muted">พิมพ์ข้อความนี้ในกลุ่ม LINE</div>
+        <div class="code">ผูก 482913</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn btn-light btn-sm">${i('copy')} คัดลอก</button>
+          <span class="badge b-warn" aria-live="off">${i('clock')} ใช้ได้อีก <span class="tnum">09:41</span></span></div></div></div></li>
+    <li><span class="num">3</span><div style="flex:1;min-width:0"><b>พิมพ์ในกลุ่ม แล้วรอสักครู่</b>
+      <p class="muted sm mt2">${i('loader-2','style="animation:spin 1s linear infinite"')} รอรับข้อความจากกลุ่ม…</p></div></li>
+  </ol></div>
+  <p class="xs muted mb2"><b>สถานะหลังผูกสำเร็จ</b> (ขั้น 3 เปลี่ยนเป็นแบนเนอร์นี้ · ไม่ auto-redirect)</p>
+  <div class="banner ban-ok" style="flex-wrap:wrap">${i('circle-check')}<div style="flex:1;min-width:200px">ผูกกลุ่ม “${G1}” แล้ว</div>
+    <button class="btn btn-primary btn-sm">ตั้งค่ารายงานของกลุ่มนี้</button></div>
+  <a class="btn btn-light btn-sm">ยกเลิก</a>
+</div></div>`;
+
+/* ── D. Detail ── */
+const times = ['09:00','12:30','18:00','24:00'];
+const HIST = [
+  ['วันนี้ 12:30','รายวัน','ok',''],['วันนี้ 10:14','คำสั่งในกลุ่ม','ok',''],['วันนี้ 09:00','รายวัน','ok',''],
+  ['5 ต.ค. 24:00','รายวัน','ok',''],['5 ต.ค. 15:02','ทดสอบ','ok',''],['5 ต.ค. 12:30','รายวัน','fail','บอทไม่อยู่ในกลุ่มแล้ว'],
+  ['5 ต.ค. 09:00','รายวัน','ok',''],['4 ต.ค. 20:41','คำสั่งในกลุ่ม','ok',''],['4 ต.ค. 09:00','รายวัน','skip','ไม่มีออเดอร์ในช่วงนั้น'],
+  ['6 ก.ย. 09:00','รายเดือน','ok',''],
+];
+const res = r => r==='ok'?`<span class="badge b-ok">${i('circle-check')} สำเร็จ</span>`:r==='fail'?`<span class="badge b-dng">${i('circle-x')} ไม่สำเร็จ</span>`:`<span class="badge b-neu">${i('info-circle')} ข้าม</span>`;
+function scrD(paused=false){
+  
+  return crumbs('ตั้งค่ากลุ่ม',`ธุรกิจ / รายงานเข้ากลุ่ม LINE / <span class="trunc" style="display:inline-block;max-width:220px;vertical-align:bottom">${G1}</span>`) + `
+  <div class="abar"><button class="ibtn" aria-label="ย้อนกลับ">${i('chevron-left')}</button>
+    ${paused?`<span class="badge b-warn">${i('lock')} หยุดส่งเพราะแพ็กเกจ</span>`:`<span class="badge b-ok">${i('circle-check')} ผูกแล้ว</span>`}
+    <span class="sp"></span><button class="ibtn" aria-label="เมนูเพิ่มเติม">${i('dots')}</button>
+    <button class="btn btn-primary" ${paused?'disabled':''}>${i('send')} ส่งทดสอบ</button></div>
+  <div class="content ${paused?'paused':''}">
+    <p class="xs muted" style="text-align:right;margin:-6px 0 10px">${paused?'ส่งทดสอบไม่ได้ขณะแพ็กเกจหยุดใช้งาน':'เหลือ 3 จาก 5 ครั้งวันนี้'}</p>
+    ${paused?`<div class="banner ban-warn">${i('lock')}<div style="flex:1">รายงานหยุดส่งไว้ก่อนเพราะแพ็กเกจธุรกิจไม่ได้ใช้งาน ค่าที่ตั้งไว้ยังอยู่ครบ ต่อแพ็กเกจแล้วรายงานจะกลับมาส่งเองในรอบถัดไป
+      <div class="mt2"><button class="btn btn-primary btn-sm">ต่ออายุแพ็กเกจ</button></div></div></div>`:''}
+    <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:14px"><span class="icon-sq">${i('users')}<img src="${LINE}" alt=""></span>
+      <div style="min-width:0"><div style="font-size:15px;font-weight:600;color:var(--d900);word-break:break-word">${G1}</div><div class="xs muted">ผูกเมื่อ 3 ก.ย. 2569 · บันทึกอัตโนมัติ</div></div></div>
+    <div class="lg-grid"><div class="colL">
+      <div class="card o1"><div class="card-header"><h5>${i('building-store')} ร้านที่รวมในรายงาน</h5></div><div class="card-body">
+        <p class="muted xs mb2">เลือก 1 ร้านเป็นรายงานของสาขา เลือกหลายร้านเป็นรายงานรวมพร้อมแยกรายร้าน</p>
+        <div class="md2">${SHOPS.map(s=>`<div class="ckrow"><span class="ck ${s.locked?'dis':'on'}">${s.locked?'':i('check')}</span>
+          <span class="t sm" ${s.locked?'style="color:var(--d700)"':''}>${s.n}<span class="sub">${s.locked?'ถูกล็อกเพราะแพ็กเกจ จะกลับมาให้เลือกเมื่อเปิดใช้งานร้านนี้อีกครั้ง':s.k}</span></span></div>`).join('')}</div>
+      </div></div>
+      <div class="card o2"><div class="card-header"><h5>${i('clock')} เวลาส่ง</h5></div><div class="card-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>รายวัน</b><div class="xs muted">เลือกได้สูงสุด 4 เวลา ทีละ 30 นาที</div></div><span class="switch on"></span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">${times.map(t=>`<span class="chip tnum">${t}<span class="x">${i('x')}</span></span>`).join('')}</div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><select class="sel" disabled><option>เลือกเวลา</option></select><button class="btn btn-light btn-sm" disabled>${i('plus')} เพิ่มเวลา</button></div>
+        <p class="xs muted mt2">ครบ 4 เวลาแล้ว ลบเวลาเดิมก่อนจึงจะเพิ่มได้ · 24:00 — สรุปทั้งวันที่เพิ่งจบ</p>
+        <hr class="dash">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><b>รายเดือน</b><span class="switch on"></span></div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap"><span class="sm">วันตัดรอบ</span><select class="sel"><option>วันที่ 6</option></select></div>
+        <p class="xs muted mt2">ตัวอย่าง: ตัดรอบวันที่ 6 ได้รอบ 6 ก.ย. – 5 ต.ค. และส่งวันที่ 6 ต.ค. 09:00 (เวลาแรกของรายวัน)</p>
+        <hr class="dash">
+        <div class="ckrow"><span class="ck on">${i('check')}</span><span class="t sm">ไม่ส่งถ้าไม่มีออเดอร์<span class="sub">ถ้าช่วงนั้นไม่มีออเดอร์เลย ระบบจะข้ามและบันทึกในประวัติว่าข้าม</span></span></div>
+        <div class="ckrow"><span class="ck on">${i('check')}</span><span class="t sm">แนบยอดสะสมรอบนี้ในรายงานรายวัน<span class="sub">ใต้ยอดของวัน จะมียอดรวมตั้งแต่วันตัดรอบถึงวันนี้</span></span></div>
+      </div></div>
+      <div class="card o3"><div class="card-header"><h5>${i('list-numbers')} ตัวเลขที่แสดง</h5></div><div class="card-body">
+        <div class="md2">${['จำนวนออเดอร์','ยอดขาย','ยกเลิก','สินค้าขายดี 3 อันดับ'].map(t=>`<div class="ckrow"><span class="ck on">${i('check')}</span><span class="t sm">${t}</span></div>`).join('')}</div>
+        <hr class="dash">
+        <div class="ckrow"><span class="ck"></span><span class="t sm">กำไร<span class="sub">ทุกคนในกลุ่ม LINE จะเห็นตัวเลขกำไร รวมถึงคนที่ไม่ได้มีสิทธิ์ดูการเงินในร้าน — ติ๊กแล้วจะถามยืนยันก่อน</span></span></div>
+      </div></div>
+      <div class="card o6"><div class="card-header"><h5>${i('history')} ประวัติการส่ง 10 ครั้งล่าสุด</h5></div>
+        <div class="hist-d" style="overflow-x:auto"><table class="tbl"><thead><tr><th>เวลา</th><th>ประเภท</th><th>ผล</th><th>สาเหตุ</th></tr></thead><tbody>
+          ${HIST.map(([t,k,r,why])=>`<tr><td class="tnum" style="white-space:nowrap">${t}</td><td><span class="badge b-neu">${k}</span></td><td>${res(r)}</td><td>${why}</td></tr>`).join('')}</tbody></table></div>
+        <div class="hist-m">${HIST.map(([t,k,r,why])=>`<div style="padding:9px 14px;border-top:1px solid var(--d100)"><div style="display:flex;justify-content:space-between;gap:8px"><span class="sm tnum">${t} · ${k}</span>${res(r)}</div>${why?`<div class="xs muted">${why}</div>`:''}</div>`).join('')}</div>
+      </div>
+    </div>
+    <div class="colR">
+      <div class="card sticky o4"><div class="card-header"><h5>ตัวอย่างในกลุ่ม LINE</h5>
+        <div class="seg" role="radiogroup" aria-label="ตัวอย่าง"><button class="on" data-m="daily">รายวัน</button><button data-m="monthly">รายเดือน</button></div></div>
+        <div class="card-body pvhost">${bubble('daily')}</div></div>
+      <div class="card o5"><div class="card-header"><h5>พิมพ์ในกลุ่มได้เลย</h5></div><div class="card-body">
+        <div class="ckrow" style="align-items:center"><span class="chip" style="padding-right:4px">สรุปวันนี้<span class="x">${i('copy')}</span></span><span class="xs muted">ส่งสรุปยอดของวันนี้เข้ากลุ่มทันที</span></div>
+        <div class="ckrow" style="align-items:center"><span class="chip" style="padding-right:4px">สรุปเดือนนี้<span class="x">${i('copy')}</span></span><span class="xs muted">ส่งสรุปยอดของรอบตัดรอบปัจจุบันเข้ากลุ่มทันที</span></div>
+      </div></div>
+    </div></div>
+  </div>`;
+}
+
+/* ── E1. Locked ── */
+const scrE1 = () => crumbs('รายงานเข้ากลุ่ม LINE','ธุรกิจ / รายงานเข้ากลุ่ม LINE') + `<div class="content"><div class="card"><div class="card-body"><div class="two">
+  <div><span class="icon-sq mb3">${i('lock')}</span>
+    <h5 style="margin:0 0 6px;font-size:15px">รายงานยอดเข้ากลุ่ม LINE ใช้ได้กับแพ็กเกจธุรกิจ</h5>
+    <p class="muted sm mb3">สรุปจำนวนออเดอร์และยอดขายของร้านคุณเข้ากลุ่ม LINE ของทีมทุกวันหรือทุกเดือน เลือกได้ว่ากลุ่มไหนเห็นร้านไหน</p>
+    <button class="btn btn-primary full sm-auto">ดูแพ็กเกจธุรกิจ</button>
+    <p class="xs muted mt3">แอป Android (hidePayments ไม่มี IAP): ไม่มีปุ่ม ไม่มีราคา — “รายงานเข้ากลุ่ม LINE เป็นฟีเจอร์ของบัญชีธุรกิจ บัญชีนี้ยังไม่ได้เปิดใช้”</p></div>
+  <div><p class="xs muted mb2" style="text-align:center">ตัวอย่างข้อความในกลุ่ม</p>${bubble()}</div>
+</div></div></div></div>`;
+
+/* ── E2. Paused ── */
+const scrE2 = () => crumbs('รายงานเข้ากลุ่ม LINE','ธุรกิจ / รายงานเข้ากลุ่ม LINE') + `<div class="content">
+  <div class="banner ban-warn">${i('lock')}<div style="flex:1">รายงานหยุดส่งไว้ก่อนเพราะแพ็กเกจธุรกิจไม่ได้ใช้งาน ค่าที่ตั้งไว้ยังอยู่ครบ ต่อแพ็กเกจแล้วรายงานจะกลับมาส่งเองในรอบถัดไป
+    <div class="mt2"><button class="btn btn-primary btn-sm">ต่ออายุแพ็กเกจ</button></div></div></div>
+  ${listCard(true)}</div>`;
+
+/* ── shell + 3 frames ── */
+function shell(inner, dot=false){
+  return `<div class="shell">
+    <aside class="sidebar"><span class="brand">Deep</span>
+      ${[['layout-dashboard','แดชบอร์ด'],['receipt','คำสั่งซื้อ'],['message-circle','แชท'],['building-store','ธุรกิจ','on'],['settings','ตั้งค่า']]
+        .map(([ic,t,on])=>`<div class="nav ${on||''}">${i(ic)} ${t}</div>`).join('')}</aside>
+    <div class="main">
+      <div class="topbar"><span class="brand mhead">Deep</span><span class="dt">สมชาย ใจดี · เจ้าของ</span></div>
+      ${inner}
+      <nav class="bnav">${[['layout-dashboard','หน้าหลัก'],['receipt','ออเดอร์'],['message-circle','แชท'],['building-store','ธุรกิจ','on'],['menu-2','เมนู']]
+        .map(([ic,t,on])=>`<span class="${on||''}" style="position:relative">${i(ic)}${t}${dot&&on?'<b class="dot" aria-label="มีเรื่องต้องแก้"></b>':''}</span>`).join('')}</nav>
+    </div></div>`;
+}
+const SCREENS = [
+  ['A','รายการกลุ่ม','แถวมีปัญหาขึ้นก่อน → รอผูก → ปกติ · ชื่อยาว truncate + title · ทั้งแถวเป็นลิงก์ ปุ่ม "ผูกใหม่" แยก', scrA],
+  ['B','ยังไม่มีกลุ่ม (empty)','สอนวิธีใช้ + ตัวอย่างข้อความจริงแทนคำบรรยาย', scrB],
+  ['C','ผูกกลุ่ม 3 ขั้น','สถานะ: สร้างโค้ดแล้ว กำลังนับถอยหลัง · พร้อมแบนเนอร์หลังผูกสำเร็จ · เดสก์ท็อปจำกัด max-w-3xl, QR เปิดเสมอ', scrC],
+  ['D','ตั้งค่ากลุ่ม + พรีวิว','กลุ่มรวม 5 ร้าน (1 ร้านถูกล็อก) · 4 เวลา · ตัดรอบวันที่ 6 · กำไรปิด · บันทึกอัตโนมัติ · lg = 3:2 พรีวิว sticky · กดสลับ รายวัน/รายเดือน ได้', ()=>scrD()],
+  ['E1','ยังไม่มีแพ็กเกจ (locked)','แสดงสิ่งที่จะได้ด้วยตัวอย่างจริง · CTA ตามด่าน App Store', scrE1],
+  ['E2','แพ็กเกจหยุด (list + detail)','ค่าที่ตั้งไว้ยังอยู่ · ทุกแถวหยุดส่ง · หน้า detail อ่านได้แก้ไม่ได้', ()=>scrE2()],
+  ['E2·D','แพ็กเกจหยุด — หน้า detail','', ()=>scrD(true)],
+];
+const VARIANTS = () => `<section class="screen" id="s-V"><h2>V — ตัวแปรเพิ่มเติม (375px)</h2>
+  <p>มติ PRD/BRD 2026-10-05: บับเบิลรอบ 24:00 · เปิดกำไรในกลุ่มต่างประเภท · ก่อนกดสร้างโค้ด · หลังผูกเสร็จรายงานเริ่มปิด · ทางเข้าจากหน้าร้านบนมือถือ</p>
+  <div class="frames">
+    ${[['รอบ 24:00 (ครบทั้งวัน)', `<div class="content">${bubble('daily',{full24:true})}</div>`],
+       ['เมื่อเปิดกำไร', `<div class="content">${bubble('daily',{profit:true})}</div>`],
+       ['ผูก ขั้น 2 ก่อนสร้างโค้ด', `<div class="content"><div class="card"><ol class="steps"><li><span class="num cur">2</span><div style="flex:1;min-width:0"><b>สร้างโค้ดผูกกลุ่ม</b>
+          <p class="muted sm" style="margin-top:2px">โค้ดใช้ได้ 10 นาที และใช้ผูกได้ครั้งเดียว</p>${ACK(false)}
+          <button class="btn btn-primary full mt2" disabled>สร้างโค้ด</button>
+          <p class="xs muted mt2">ปุ่มกดได้เมื่อติ๊กรับทราบแล้ว</p></div></li></ol></div></div>`],
+       ['หลังผูกเสร็จ — รายงานเริ่มปิด', `<div class="content"><div class="banner ban-info">${i('info-circle')}<div>ตอนนี้ยังไม่ได้เปิดรายงานอัตโนมัติ กลุ่มนี้จะได้รับสรุปเมื่อมีคนพิมพ์ “สรุปวันนี้” หรือ “สรุปเดือนนี้” เท่านั้น</div></div>
+          <div class="card"><div class="card-header"><h5>${i('clock')} เวลาส่ง</h5></div><div class="card-body">
+          <div style="display:flex;justify-content:space-between;align-items:center"><b>รายวัน</b><span class="switch"></span></div><p class="xs muted">ปิดอยู่</p>
+          <hr class="dash"><div style="display:flex;justify-content:space-between;align-items:center"><b>รายเดือน</b><span class="switch"></span></div><p class="xs muted">ปิดอยู่</p></div></div></div>`],
+       ['ทางเข้าจากหน้าร้าน (มือถือ)', `<div class="content"><div class="card"><div class="card-header"><h5 style="width:100%;justify-content:center;border:1px dashed var(--d300);border-radius:4px;padding:5px">จัดการร้าน</h5></div>
+          ${[['crown','แพ็กเกจของฉัน','แพ็กเกจธุรกิจและสต็อก'],['message-circle','รายงานเข้ากลุ่ม LINE','สรุปยอดเข้ากลุ่มของทีม · 3 กลุ่ม',true],['truck-delivery','การจัดส่ง','เชื่อมต่อขนส่งและที่อยู่ผู้ส่ง']]
+            .map(([ic,t,h,dot])=>`<div style="display:flex;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--d200)"><span style="width:32px;height:32px;border-radius:99px;background:var(--light);display:inline-flex;align-items:center;justify-content:center;font-size:17px;position:relative">${i(ic)}${dot?'<b class="dot" style="top:-1px;right:-1px"></b>':''}</span><div style="flex:1;min-width:0"><div class="sm trunc" style="font-weight:500;color:var(--d900)">${t}</div><div class="xs muted trunc">${h}</div></div>${i('chevron-right')}</div>`).join('')}</div>
+          <p class="xs muted">ก็อปโครงจาก <code>shop/components/ShopQuickLinks.tsx</code> · ทางเข้า iOS อยู่ที่นี่ ไม่ผ่านหน้า <code>/business</code> (แอปไม่มีหน้า /business root) · จุดแดง = มีกลุ่มที่บอทถูกนำออก</p></div>`]]
+      .map(([t,html])=>`<div class="frame"><p class="cap"><span class="w">375px</span>${t}</p><div class="device w375">${html}</div></div>`).join('')}
+  </div></section>`;
+const FR = [['w375','375px','มือถือ'],['w768','768px','แท็บเล็ต — ยัง mobile shell คอลัมน์เดียว'],['w1180','1180px','เดสก์ท็อป — sidebar 245 + เนื้อหา ~935']];
+document.getElementById('screens').innerHTML = SCREENS.map(([id,t,d,fn])=>`
+  <section class="screen" id="s-${id}"><h2>${id} — ${t}</h2>${d?`<p>${d}</p>`:''}
+  <div class="frames">${FR.map(([w,px,n])=>`<div class="frame"><p class="cap"><span class="w">${px}</span>${n}</p><div class="device ${w}">${shell(fn(), id==='A')}</div></div>`).join('')}</div></section>`).join('') + VARIANTS();
+
+document.addEventListener('click', e=>{
+  const b = e.target.closest('.seg button'); if(!b) return;
+  const card = b.closest('.card');
+  card.querySelectorAll('.seg button').forEach(x=>x.classList.toggle('on', x===b));
+  card.querySelector('.pvhost').innerHTML = bubble(b.dataset.m);
+});
+</script>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+</body>
+</html>
