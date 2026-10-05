@@ -28,11 +28,23 @@ const MAX_MESSAGES = 5
 const SHOP_NAME_COMPACT_MAX = 24
 const COMPACT_SHOP_LIMIT = 10
 
+/** ธงตัวชี้วัดของกลุ่ม (FR-LGS-12) — false = ไม่มีตัวเลข/คำของตัวชี้วัดนั้นในข้อความเลย */
+export type ReportFlags = {
+  showOrders: boolean
+  showSales: boolean
+  showCancelled: boolean
+  showTopProducts: boolean
+  showProfit: boolean
+}
+
+/** DB CHECK + service บังคับ ≥1 ตัวอยู่แล้ว — กันไว้อีกชั้น: ปิดหมด = แสดงจำนวนออเดอร์ (ไม่ส่งข้อความที่ไม่มีตัวเลข) */
+const normFlags = (f: ReportFlags): ReportFlags =>
+  f.showOrders || f.showSales || f.showCancelled || f.showTopProducts || f.showProfit ? f : { ...f, showOrders: true }
+
 export type SummaryReportInput = {
   summary: GroupSummary
   kind: ReportKind
-  /** ธงของกลุ่ม — false = ไม่มีคำว่ากำไรในข้อความเลย */
-  showProfit: boolean
+  flags: ReportFlags
   /** ยอดสะสมรอบ (แสดงเฉพาะรายวันที่ไม่ใช่ครบทั้งวัน) */
   /** `failedShops` = จำนวนร้านที่ดึงยอดสะสมไม่สำเร็จ (ไม่นับในยอด) — > 0 ต้องมีหมายเหตุ · ทุกร้านล้ม = ไม่แสดง ฿0 */
   cycleToDate?: { startIso: string; endIso: string; totals: Totals; failedShops?: number }
@@ -103,7 +115,8 @@ function profitRow(p: { netProfit: number; capped: boolean }): Node {
 
 /** level 0 = เต็ม · 1 = ตัด Top3 · 2 = ย่อรายร้าน (ชื่อสั้น + ยอดขายอย่างเดียว) */
 function renderBubble(input: SummaryReportInput, summary: GroupSummary, kind: ReportKind, level: number): Node {
-  const { showProfit } = input
+  const f = normFlags(input.flags)
+  const { showProfit } = f
   const shops = sortShops(summary.shops)
   const ok = shops.filter((s) => s.state === 'OK')
   const listed = shops.filter((s) => s.state !== 'EXCLUDED')
@@ -130,12 +143,15 @@ function renderBubble(input: SummaryReportInput, summary: GroupSummary, kind: Re
     note(`ข้อมูล ณ ${formatTimeHM(summary.window.computedAt)} น.${multi ? ` · รวม ${listed.length} ร้าน` : ''}`),
   ]
 
-  const totals: Node[] = [
-    kv(ow.word, `${formatNumberNoSymbol(t.orders)}${ow.mixed ? '' : ' รายการ'}`),
-    kv('ยอดขาย (นับแล้ว)', formatBaht(t.confirmed), { bold: true }),
-    note(`ยังไม่นับเป็นยอดขาย ${formatBaht(t.unconfirmed)} (รอยืนยัน/รอขนส่งรับ)`),
-    kv('ยกเลิก', `${formatNumberNoSymbol(t.cancelled)} ใบ (ใบที่เปิดในช่วงนี้)`),
-  ]
+  const totals: Node[] = []
+  if (f.showOrders) totals.push(kv(ow.word, `${formatNumberNoSymbol(t.orders)}${ow.mixed ? '' : ' รายการ'}`))
+  if (f.showSales) {
+    totals.push(
+      kv('ยอดขาย (นับแล้ว)', formatBaht(t.confirmed), { bold: true }),
+      note(`ยังไม่นับเป็นยอดขาย ${formatBaht(t.unconfirmed)} (รอยืนยัน/รอขนส่งรับ)`),
+    )
+  }
+  if (f.showCancelled) totals.push(kv('ยกเลิก', `${formatNumberNoSymbol(t.cancelled)} ใบ (ใบที่เปิดในช่วงนี้)`))
   if (showProfit && summary.profitSummable && multi && errors.length === 0) {
     const withProfit = ok.filter((s) => s.profit)
     if (withProfit.length === ok.length && ok.length > 0) {
@@ -162,14 +178,15 @@ function renderBubble(input: SummaryReportInput, summary: GroupSummary, kind: Re
       rows.push(kv(name, 'ดึงข้อมูลไม่สำเร็จ', { bold: true, color: DANGER }))
     } else {
       if (multi) {
-        rows.push(
-          kv(name, level >= 2 ? formatBaht(s.confirmed) : `${formatNumberNoSymbol(s.orders)} · ${formatBaht(s.confirmed)}`, {
-            bold: true,
-          }),
-        )
+        // ส่วนที่เปิดเท่านั้น · ออเดอร์+ยอดขายปิดหมด → ใช้ยกเลิกแทน · ไม่เหลือตัวเลข → ชื่อร้านอย่างเดียว (กำไรมีแถวของตัวเอง)
+        const parts: string[] = []
+        if (f.showOrders && level < 2) parts.push(formatNumberNoSymbol(s.orders))
+        if (f.showSales) parts.push(formatBaht(s.confirmed))
+        if (parts.length === 0 && f.showCancelled) parts.push(`ยกเลิก ${formatNumberNoSymbol(s.cancelled)} ใบ`)
+        rows.push(parts.length > 0 ? kv(name, parts.join(' · '), { bold: true }) : text(name, { weight: 'bold' }))
       }
       if (level < 2 && showProfit && s.profit) rows.push(profitRow(s.profit))
-      if (level < 1 && resolveShopVertical(s.shop.vertical) !== 'LODGING') {
+      if (level < 1 && f.showTopProducts && resolveShopVertical(s.shop.vertical) !== 'LODGING') {
         const vocab = resolveProductVocab(resolveShopVertical(s.shop.vertical))
         const top = s.top3 ?? []
         rows.push(note(`${vocab.bestSellerTitle} 3 อันดับ · นับทุกใบที่ไม่ยกเลิก`, { margin: 'sm' }))
@@ -205,7 +222,8 @@ function renderBubble(input: SummaryReportInput, summary: GroupSummary, kind: Re
     )
   }
 
-  if (input.cycleToDate && kind === 'DAILY' && !summary.window.fullDay) {
+  // ยอดสะสมรอบมีแต่ยอดขาย → ปิดยอดขาย = ไม่มีตัวเลขให้แสดง ตัดทั้งบล็อก
+  if (f.showSales && input.cycleToDate && kind === 'DAILY' && !summary.window.fullDay) {
     const c = input.cycleToDate
     const failed = c.failedShops ?? 0
     const allFailed = failed > 0 && failed >= summary.shops.filter((x) => x.state !== 'EXCLUDED').length
@@ -250,13 +268,13 @@ function renderBubble(input: SummaryReportInput, summary: GroupSummary, kind: Re
 function renderAltText(input: SummaryReportInput, summary: GroupSummary, kind: ReportKind, level: number): string {
   const t = combineTotals(summary.shops)
   const ow = reportOrderWord(summary.shops)
-  const parts = [
-    `${kind === 'TEST' ? '[ทดสอบ] ' : ''}${titleOf(kind, summary, input.titleOverride)} ${rangeText(summary.window.startIso, summary.window.endIso)}`,
-    `${ow.word} ${formatNumberNoSymbol(t.orders)}${ow.mixed ? '' : ' รายการ'}`,
-    `ยอดขาย ${formatBaht(t.confirmed)}`,
-  ]
+  const f = normFlags(input.flags)
+  const parts = [`${kind === 'TEST' ? '[ทดสอบ] ' : ''}${titleOf(kind, summary, input.titleOverride)} ${rangeText(summary.window.startIso, summary.window.endIso)}`]
+  if (f.showOrders) parts.push(`${ow.word} ${formatNumberNoSymbol(t.orders)}${ow.mixed ? '' : ' รายการ'}`)
+  if (f.showSales) parts.push(`ยอดขาย ${formatBaht(t.confirmed)}`)
+  if (f.showCancelled) parts.push(`ยกเลิก ${formatNumberNoSymbol(t.cancelled)} ใบ`)
   const ok = summary.shops.filter((s) => s.state === 'OK')
-  if (input.showProfit && summary.profitSummable && ok.length > 1 && ok.every((s) => s.profit)) {
+  if (f.showProfit && summary.profitSummable && ok.length > 1 && ok.every((s) => s.profit)) {
     const d = profitDisplay(
       ok.reduce((n, s) => n + (s.profit?.netProfit ?? 0), 0),
       { capped: ok.some((s) => s.profit?.capped) },
@@ -266,7 +284,7 @@ function renderAltText(input: SummaryReportInput, summary: GroupSummary, kind: R
   if (summary.shops.some((s) => s.state === 'ERROR')) parts.push('ยอดรวมยังไม่ครบ')
   parts.push(`ข้อมูล ณ ${formatTimeHM(summary.window.computedAt)} น.`)
   // level ≥3 = ย่อ altText เหลือแค่ตัวเลขสรุป (ตัดรายร้าน)
-  if (level < 3) for (const s of sortShops(summary.shops)) if (s.state === 'OK' && summary.shops.length > 1) parts.push(`${s.shop.name} ${formatBaht(s.confirmed)}`)
+  if (level < 3) for (const s of sortShops(summary.shops)) if (s.state === 'OK' && summary.shops.length > 1) parts.push(f.showSales ? `${s.shop.name} ${formatBaht(s.confirmed)}` : s.shop.name)
   return Array.from(parts.join(' · ')).slice(0, ALT_TEXT_MAX).join('')
 }
 

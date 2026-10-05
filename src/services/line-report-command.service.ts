@@ -132,7 +132,7 @@ async function composeAndReply(
       : { startIso: cycleContaining(today, group.cutoffDay).startIso, endIso: today, computedAt: now.toISOString() }
   const { sendable, excluded } = await resolveSendableShops(group)
   const summary = await buildGroupSummary({ shops: sendable, excluded, window, flags: flagsOf(group), cache: createSweepCache() })
-  const messages = fitToLimits(buildSummaryReportFlex({ summary, kind: 'COMMAND', showProfit: group.showProfit }))
+  const messages = fitToLimits(buildSummaryReportFlex({ summary, kind: 'COMMAND', flags: flagsOf(group) }))
   return sentOrFailed(await replyMessages(ctx, messages))
 }
 

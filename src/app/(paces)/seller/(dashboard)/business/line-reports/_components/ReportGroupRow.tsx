@@ -85,7 +85,7 @@ export default function ReportGroupRow({ group, now }: { group: ListGroupItem; n
 
       {badge.key === 'BOT_REMOVED' && (
         <div className="px-4 pb-3 pl-17">
-          <Link href={href} className="btn btn-sm bg-danger/15 text-danger-ink hover:bg-danger/25 inline-flex items-center gap-1.5">
+          <Link href={`${href}?rebind=1`} className="btn btn-sm bg-danger/15 text-danger-ink hover:bg-danger/25 inline-flex items-center gap-1.5">
             <Icon icon="refresh" className="text-base" aria-hidden="true" />
             ผูกใหม่
           </Link>

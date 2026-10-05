@@ -171,7 +171,7 @@ async function runSlot(group: Group, ctx: SweepCtx, plan: Plan): Promise<Outcome
   }
   // 🛑 fitToLimits ต้องรับ object จาก builder โดยตรง (ผูกด้วย identity) — ห้าม clone/parse ก่อน
   const messages = fitToLimits(
-    buildSummaryReportFlex({ summary: head.summary, kind: head.kind, showProfit: group.showProfit, cycleToDate, monthly: rest[0]?.summary }),
+    buildSummaryReportFlex({ summary: head.summary, kind: head.kind, flags, cycleToDate, monthly: rest[0]?.summary }),
   )
   if (messages.some((m) => Buffer.byteLength(JSON.stringify(m)) > BUBBLE_MAX_BYTES)) {
     await raiseAlert(group.id, 'SEND_FAILED')
@@ -298,7 +298,7 @@ export async function sendTest(ownerId: string, groupId: string, now: Date = new
       await markFailed(row.id, { reason: 'GROUP_NOT_ACTIVE' })
       throw new LineReportError('GROUP_NOT_ACTIVE')
     }
-    const messages = fitToLimits(buildSummaryReportFlex({ summary, kind: 'TEST', showProfit: group.showProfit }))
+    const messages = fitToLimits(buildSummaryReportFlex({ summary, kind: 'TEST', flags: flagsOf(group) }))
     const text = `${sendable.length} ร้าน · ช่วง 00:00–${formatTimeHM(now)}`
     const raw = JSON.stringify(messages)
     const out = await pushAndSettle(group, [row], raw, retryKeyFor(group.id, row.slotKey), 0, { canRetry: false, alerts: false, summary: text })

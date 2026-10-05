@@ -11,7 +11,7 @@ import FlexBubbleView from './FlexBubbleView'
 
 export default function SampleBubble({ now }: { now: Date }) {
   const summary = buildStaticSampleSummary(todayThaiIsoDate(now), now.toISOString())
-  const [message] = buildSummaryReportFlex({ summary, kind: 'DAILY', showProfit: false })
+  const [message] = buildSummaryReportFlex({ summary, kind: 'DAILY', flags: { showOrders: true, showSales: true, showCancelled: true, showTopProducts: true, showProfit: false } })
   return (
     <div>
       <p className="text-default-700 mb-2 text-center text-xs">ตัวอย่างข้อความที่จะไปโผล่ในกลุ่ม</p>

@@ -5,6 +5,7 @@
  * ใช้เป็นอินพุตของ `buildSummaryReportFlex` (builder ผันคำเรียกใบ/จัดรูปเงินเอง ห้ามจัดรูปซ้ำที่นี่)
  * เวลา/วันที่รับจากผู้เรียก (server) — ห้ามอ่านนาฬิกาเองเพื่อกัน hydration mismatch
  */
+import { combineTotals } from '@/lib/line-report/aggregate'
 import type { GroupSummary, ShopSummary, Window } from '@/lib/line-report/types'
 
 export type SampleShopInput = {
@@ -64,4 +65,22 @@ export function buildStaticSampleSummary(todayIso: string, computedAtIso: string
     window: { startIso: todayIso, endIso: todayIso },
     computedAtIso,
   })
+}
+
+/**
+ * เติมกำไรตัวอย่างให้ร้านที่ OK — builder แสดงบรรทัดกำไรเมื่อร้านมี `profit` เท่านั้น
+ * (พรีวิวตอนติ๊ก "กำไร" ต้องเห็นว่าข้อความจะมีบรรทัดนี้) · ตัวเลขคงที่ ไม่ใช่กำไรจริงของใคร
+ */
+export function withSampleProfit(summary: GroupSummary): GroupSummary {
+  return {
+    ...summary,
+    shops: summary.shops.map((s, i) => (s.state === 'OK' ? { ...s, profit: { netProfit: 41_500 - i * 6_000, capped: false } } : s)),
+  }
+}
+
+/** ยอดสะสมรอบตัวอย่างของบรรทัด "ยอดสะสมรอบนี้" (รายวันที่แนบรอบ) — คูณจากยอดวันเพื่อให้ใหญ่กว่ายอดวันเสมอ */
+export function sampleCycleTotals(summary: GroupSummary): { orders: number; confirmed: number; unconfirmed: number; cancelled: number } {
+  const t = combineTotals(summary.shops)
+  const k = 18
+  return { orders: t.orders * k, confirmed: t.confirmed * k, unconfirmed: t.unconfirmed * k, cancelled: t.cancelled * k }
 }

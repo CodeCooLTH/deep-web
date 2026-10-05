@@ -24,8 +24,9 @@ const summary = (shops: ShopSummary[], o: Partial<GroupSummary> = {}): GroupSumm
   mixedFinanceRules: isMixedFinanceRules(shops.map((s) => s.shop)),
   ...o,
 })
+const ALL = { showOrders: true, showSales: true, showCancelled: true, showTopProducts: true, showProfit: true }
 const mk = (shops: ShopSummary[], o: Partial<SummaryReportInput> = {}, so: Partial<GroupSummary> = {}) =>
-  buildSummaryReportFlex({ summary: summary(shops, so), kind: 'DAILY', showProfit: false, ...o })
+  buildSummaryReportFlex({ summary: summary(shops, so), kind: 'DAILY', flags: { ...ALL, showProfit: false }, ...o })
 const json = (m: unknown) => JSON.stringify(m)
 
 afterEach(() => {
@@ -33,6 +34,55 @@ afterEach(() => {
 })
 
 describe('buildSummaryReportFlex', () => {
+  describe('ธงตัวชี้วัด (FR-LGS-12 · AC-12-1..3 · 17-1)', () => {
+    const cyc = { startIso: '2026-10-01', endIso: '2026-10-05', totals: { orders: 1, confirmed: 777, unconfirmed: 0, cancelled: 0 } }
+    const run = (flags: Partial<typeof ALL>, n = 2) =>
+      buildSummaryReportFlex({
+        summary: summary(Array.from({ length: n }, (_, i) => shop(i + 1)), { window: { ...win, fullDay: false } as never }),
+        kind: 'DAILY',
+        flags: { ...ALL, ...flags },
+        cycleToDate: cyc,
+      })[0]
+    const both = (m: ReturnType<typeof run>) => json(m.contents) + '\n' + m.altText
+    it('ปิดออเดอร์ → ไม่มีบรรทัดจำนวนรายการ (bubble+altText)', () => {
+      expect(both(run({ showOrders: false }))).not.toMatch(/รายการ(?!สินค้า)|ออเดอร์|คำสั่งซื้อ/)
+      expect(run({}).altText).toContain('รายการ')
+    })
+    it('ปิดยอดขาย → ไม่มี ยอดขาย/ยังไม่นับเป็นยอดขาย/ยอดสะสม/฿ ทั้ง bubble และ altText', () => {
+      const s = both(run({ showSales: false, showProfit: false }))
+      expect(s).not.toContain('ยอดขาย')
+      expect(s).not.toContain('ยอดสะสม')
+      expect(s).not.toContain('฿')
+      expect(both(run({}))).toContain('ยอดสะสม')
+    })
+    it('ปิดยกเลิก → ไม่มีคำว่า ยกเลิก', () => {
+      // หมายเหตุ Top 3 มีคำว่า "ไม่ยกเลิก" ติดมา → ปิด Top 3 ด้วยเพื่อดูเฉพาะตัวชี้วัดยกเลิก
+      expect(both(run({ showCancelled: false, showTopProducts: false }))).not.toContain('ยกเลิก')
+      expect(both(run({}))).toContain('ยกเลิก')
+    })
+    it('ปิด Top 3 → ไม่มี 3 อันดับ/ชื่อสินค้า', () => {
+      const s = both(run({ showTopProducts: false }))
+      expect(s).not.toContain('3 อันดับ')
+      expect(s).not.toContain('สินค้า 1')
+      expect(both(run({}))).toContain('3 อันดับ')
+    })
+    it('ปิดออเดอร์+ยอดขาย → แถวรายร้านใช้ยกเลิก · เหลือแต่ Top3 → ชื่อร้านอย่างเดียว ไม่มี ฿', () => {
+      expect(json(run({ showOrders: false, showSales: false }).contents)).toContain('ยกเลิก 1 ใบ')
+      const nameOnly = run({ showOrders: false, showSales: false, showCancelled: false, showProfit: false })
+      expect(json(nameOnly.contents)).toContain('ร้าน 1')
+      expect(both(nameOnly)).not.toContain('฿')
+    })
+    it('ปิดหมดทุกตัว → fallback แสดงจำนวนออเดอร์', () => {
+      const m = run({ showOrders: false, showSales: false, showCancelled: false, showTopProducts: false, showProfit: false })
+      expect(m.altText).toContain('รายการ')
+    })
+    it('ยังมี "ข้อมูล ณ" และป้ายช่วงเวลาเสมอ', () => {
+      const m = run({ showOrders: false, showSales: false, showCancelled: true, showTopProducts: false })
+      expect(both(m)).toContain('ข้อมูล ณ')
+      expect(both(m)).toContain('5 ต.ค.')
+    })
+  })
+
   it('top3Truncated -> มีหมายเหตุใต้ Top 3 · ไม่ตั้ง -> ไม่มี', () => {
     const NOTE = 'อันดับคำนวณจากข้อมูลบางส่วน (ข้อมูลเดือนนี้มากเกินกำหนด)'
     expect(json(mk([shop(1, { top3Truncated: true })]))).toContain(NOTE)
@@ -41,7 +91,7 @@ describe('buildSummaryReportFlex', () => {
 
   it('altText ≤1500 มีชื่อรายงาน ช่วง จำนวนใบ ยอดขาย กำไรตามธง', () => {
     const shops = [shop(1), shop(2)]
-    const [m] = mk(shops, { showProfit: true })
+    const [m] = mk(shops, { flags: ALL })
     expect(m.altText.length).toBeLessThanOrEqual(1500)
     for (const s of ['รายงานยอดรายวัน', '5 ต.ค. 2569', 'คำสั่งซื้อ 23 รายการ', 'ยอดขาย ฿5,000', 'กำไรสุทธิ ฿500', '21:02']) {
       expect(m.altText).toContain(s)
@@ -57,18 +107,18 @@ describe('buildSummaryReportFlex', () => {
   })
 
   it('showProfit=false → ไม่มีคำว่า กำไร ใน JSON เลย', () => {
-    expect(json(mk([shop(1), shop(2)], { showProfit: false }))).not.toContain('กำไร')
+    expect(json(mk([shop(1), shop(2)], { flags: { ...ALL, showProfit: false } }))).not.toContain('กำไร')
   })
 
   it('mixed vertical → ไม่มีกำไรรวม + มีหมายเหตุ', () => {
-    const j = json(mk([shop(1), shop(2, {}, 'SERVICE_QUEUE')], { showProfit: true }))
+    const j = json(mk([shop(1), shop(2, {}, 'SERVICE_QUEUE')], { flags: ALL }))
     expect(j).toContain('กำไรแต่ละร้านคิดตามกติกาของประเภทธุรกิจ จึงไม่รวมเป็นยอดเดียว')
     expect(j).toContain('ยอดแต่ละร้านคิดตามกติกาของประเภทธุรกิจ')
     expect((j.match(/กำไรสุทธิ"/g) ?? []).length).toBe(2) // รายร้านเท่านั้น
   })
 
   it('vertical เดียวกัน → มีกำไรรวม + ป้ายเพดานเมื่อ capped', () => {
-    const j = json(mk([shop(1), shop(2, { profit: { netProfit: 40, capped: true } })], { showProfit: true }))
+    const j = json(mk([shop(1), shop(2, { profit: { netProfit: 40, capped: true } })], { flags: ALL }))
     expect(j).toContain('กำไรสุทธิไม่เกิน')
     expect(j).toContain('ค่าใช้จ่ายลงตามวันที่บันทึก ไม่เฉลี่ยรายวัน')
   })
@@ -127,7 +177,7 @@ describe('buildSummaryReportFlex', () => {
 
   it('ไม่มี SafePay / emoji', () => {
     process.env.NEXT_PUBLIC_SELLER_URL = 'https://seller.deepthailand.app'
-    const j = json([...mk([shop(1), shop(2)], { showProfit: true, kind: 'TEST' }), buildPlainNotice('ข้อความ')])
+    const j = json([...mk([shop(1), shop(2)], { flags: ALL, kind: 'TEST' }), buildPlainNotice('ข้อความ')])
     expect(j).not.toMatch(/safepay/i)
     expect(j).not.toMatch(/\p{Extended_Pictographic}/u)
   })
@@ -197,7 +247,7 @@ describe('fitToLimits', () => {
     )
 
   it('10 ร้านใหญ่ → ≤30KB, altText ≤1500, ยอดรวม/ป้ายเวลา/ข้อมูล ณ ยังอยู่', () => {
-    const raw = mk(big(), { showProfit: true })
+    const raw = mk(big(), { flags: ALL })
     expect(Buffer.byteLength(json(raw[0].contents))).toBeGreaterThan(30_000)
     const [m] = fitToLimits(raw)
     expect(Buffer.byteLength(json(m.contents))).toBeLessThanOrEqual(30_000)
@@ -217,7 +267,7 @@ describe('fitToLimits', () => {
       ...Array.from({ length: 40 }, (_, i) => shop(100 + i, { state: 'ERROR', shop: { id: `e${i}`, name: name(i, 'ผ'), vertical: 'ONLINE_SALES' } })),
       ...Array.from({ length: 60 }, (_, i) => shop(200 + i, { state: 'EXCLUDED', excludedReason: 'LOCKED', shop: { id: `x${i}`, name: name(i, 'ล'), vertical: 'ONLINE_SALES' } })),
     ]
-    const raw = mk(shops, { showProfit: true })
+    const raw = mk(shops, { flags: ALL })
     const [m] = fitToLimits(raw)
     const j = json(m)
     expect(Buffer.byteLength(json(m.contents), 'utf8')).toBeLessThanOrEqual(30_000)

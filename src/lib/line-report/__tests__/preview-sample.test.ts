@@ -14,6 +14,8 @@ const flatText = (n: unknown): string[] => {
   ]
 }
 
+const ALL_NO_PROFIT = { showOrders: true, showSales: true, showCancelled: true, showTopProducts: true, showProfit: false }
+
 describe('preview-sample', () => {
   it('ร้านล็อก/ลบ → EXCLUDED (ได้บรรทัด "ไม่รวมร้าน" จาก builder จริง) และไม่นับยอด', () => {
     const s = buildSampleSummary({
@@ -28,7 +30,7 @@ describe('preview-sample', () => {
     expect(s.shops.map((x) => x.state)).toEqual(['OK', 'EXCLUDED', 'EXCLUDED'])
     expect(s.shops[1].excludedReason).toBe('LOCKED')
     expect(combineTotals(s.shops).orders).toBe(32)
-    const text = flatText(buildSummaryReportFlex({ summary: s, kind: 'DAILY', showProfit: false })[0].contents).join('\n')
+    const text = flatText(buildSummaryReportFlex({ summary: s, kind: 'DAILY', flags: ALL_NO_PROFIT })[0].contents).join('\n')
     expect(text).toContain('ไม่รวมร้าน ร้าน ข (ถูกล็อก)')
     expect(text).toContain('ไม่รวมร้าน ร้าน ค (ถูกลบ)')
   })
@@ -36,7 +38,7 @@ describe('preview-sample', () => {
     const a = buildStaticSampleSummary('2026-10-05', AT)
     expect(a).toEqual(buildStaticSampleSummary('2026-10-05', AT))
     expect(a.shops).toHaveLength(STATIC_SAMPLE_SHOPS.length)
-    const text = flatText(buildSummaryReportFlex({ summary: a, kind: 'DAILY', showProfit: false })[0].contents).join('\n')
+    const text = flatText(buildSummaryReportFlex({ summary: a, kind: 'DAILY', flags: ALL_NO_PROFIT })[0].contents).join('\n')
     expect(text).not.toContain('ออเดอร์')
     expect(text).toContain('คำสั่งซื้อ')
     expect(text).not.toContain('กำไร')
