@@ -2328,3 +2328,7 @@ export const UpdateInspectorRoleSchema = v.object({
   isInspector: v.boolean(),
   reason: v.pipe(v.string(), v.minLength(1, "ต้องระบุเหตุผล"), v.maxLength(500, "เหตุผลยาวได้ไม่เกิน 500 ตัวอักษร")),
 });
+
+// ส่วนขยาย 00012 (2026-10-05) — เปลี่ยนบทบาทสมาชิก / โอนเจ้าของหลัก
+export const ChangeMemberRoleSchema = v.object({ role: v.picklist(["OWNER", "ADMIN"]) });
+export const TransferOwnershipSchema = v.object({ memberId: v.pipe(v.string(), v.minLength(1)) });

@@ -9,6 +9,7 @@ import {
   expiryKeyToDate,
   type InviteExpiryKey,
 } from "@/lib/invite-link";
+import { staffCountWhere } from "@/lib/shop-member-rules";
 
 /**
  * invite-link.service.ts — Shop Staff Invite Link (feature 00012, Task 1.3)
@@ -18,6 +19,12 @@ import {
  * - quota คิดจาก BUSINESS_PACKAGE_TIER_CONFIG[tier].maxAdminsPerBusiness ต่อ 1 business (BR-BIZ-08)
  * - ไม่มี ACTIVE subscription = fail-closed (maxAdmins = 0) ไม่ใช่ unlimited
  */
+
+/** เจ้าของหลักหรือเจ้าของร่วม (EXT 2026-10-05 BR-MR-01) — ไม่ใช่ shop.userId อย่างเดียวอีกต่อไป */
+async function isOwnerMember(db: Prisma.TransactionClient, shopId: string, userId: string): Promise<boolean> {
+  const m = await db.shopMember.findUnique({ where: { shopId_userId: { shopId, userId } }, select: { role: true } });
+  return m?.role === "OWNER";
+}
 
 /** createInviteLink — TFR (feat 00012): owner สร้างลิงก์เชิญ admin เข้า Business shop
  *  ต่างจาก inviteShopMember (เชิญทีละคนผ่านเบอร์/อีเมล) ตรงที่นี่คือ "ลิงก์กลาง" ใครกดก็ accept ได้
@@ -38,13 +45,13 @@ export async function createInviteLink(
     try {
       return await prisma.$transaction(async (tx) => {
         const shop = await tx.shop.findUnique({ where: { id: shopId } });
-        if (!shop || shop.userId !== ownerId || shop.kind !== "BUSINESS") {
+        if (!shop || shop.kind !== "BUSINESS" || !(await isOwnerMember(tx, shopId, ownerId))) {
           throw new Error("NOT_OWNER");
         }
         if (shop.packageLockedAt !== null) throw new Error("SHOP_LOCKED");
 
-        // lookup tier ของ owner ผ่าน BusinessPackageSubscription (1:1 ownerId) — ไม่มี/ไม่ ACTIVE = ไม่มีสิทธิ์สร้างลิงก์
-        const sub = await tx.businessPackageSubscription.findUnique({ where: { ownerId } });
+        // lookup tier ของเจ้าของหลัก (Shop.userId) — ไม่มี/ไม่ ACTIVE = ไม่มีสิทธิ์สร้างลิงก์
+        const sub = await tx.businessPackageSubscription.findUnique({ where: { ownerId: shop.userId } });
         if (!sub || sub.status !== "ACTIVE") throw new Error("NO_ACTIVE_PACKAGE");
 
         const slug = generateInviteSlug();
@@ -91,7 +98,9 @@ export async function revokeInviteLink(
   slug: string,
 ): Promise<void> {
   const shop = await prisma.shop.findUnique({ where: { id: shopId } });
-  if (!shop || shop.userId !== ownerId || shop.kind !== "BUSINESS") throw new Error("NOT_OWNER");
+  if (!shop || shop.kind !== "BUSINESS" || !(await prisma.$transaction((tx) => isOwnerMember(tx, shopId, ownerId)))) {
+    throw new Error("NOT_OWNER");
+  }
 
   const link = await prisma.shopInviteLink.findUnique({ where: { slug } });
   if (!link || link.shopId !== shopId) throw new Error("NOT_OWNER");
@@ -161,7 +170,7 @@ export async function acceptInviteLink(
       ? BUSINESS_PACKAGE_TIER_CONFIG[sub.tier as BusinessPackageTier].maxAdminsPerBusiness
       : 0; // ไม่มี/ไม่ ACTIVE package = ไม่มีโควตาเหลือ (fail-closed)
     if (maxAdmins !== null) {
-      const adminCount = await tx.shopMember.count({ where: { shopId: link.shopId, role: "ADMIN" } });
+      const adminCount = await tx.shopMember.count({ where: staffCountWhere(link.shopId, shop.userId) });
       if (adminCount >= maxAdmins) throw new Error("ADMIN_QUOTA_EXCEEDED");
     }
 

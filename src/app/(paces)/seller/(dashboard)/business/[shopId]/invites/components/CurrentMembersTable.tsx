@@ -12,6 +12,8 @@
 import { formatDate } from '@/lib/format-date'
 import Icon from '@/components/wrappers/Icon'
 import RowActionDeleteButton from './RowActionDeleteButton'
+import MemberRoleControls from './MemberRoleControls'
+import { memberErrorText } from './member-error-text'
 
 export interface MemberRow {
   id: string
@@ -20,12 +22,16 @@ export interface MemberRow {
   createdAt: string
   /** (ส่วนขยาย 00025 2026-08-12) คนนี้ปิดแจ้งเตือนข้อความของร้านนี้อยู่ */
   notificationsOff?: boolean
+  /** (EXT 2026-10-05) เจ้าของหลัก = Shop.userId — แตะไม่ได้ */
+  isPrimary: boolean
+  /** แถวของผู้ที่เปิดหน้านี้อยู่ */
+  isSelf: boolean
 }
 
 interface CurrentMembersTableProps {
   members: MemberRow[]
   shopId: string
-  /** true = owner เท่านั้น (API §4.14 ลบสมาชิกเป็น owner-only) */
+  /** true = ผู้ดูเป็นเจ้าของ (หลักหรือร่วม) — เปลี่ยนบทบาท/ลบได้ (EXT 2026-10-05 BR-MR-01/07) */
   canManage: boolean
   /** card title — default "สมาชิกปัจจุบัน" */
   title?: string
@@ -33,9 +39,10 @@ interface CurrentMembersTableProps {
   headerRight?: React.ReactNode
 }
 
+// -ink: เฉดเดิม เข้มขึ้นให้ผ่าน AA บนพื้น /15 (contrast-fix-keeps-hue)
 const ROLE_BADGE: Record<'OWNER' | 'ADMIN', string> = {
-  OWNER: 'bg-primary/15 text-primary',
-  ADMIN: 'bg-info/15 text-info',
+  OWNER: 'bg-primary/15 text-primary-ink',
+  ADMIN: 'bg-info/15 text-info-ink',
 }
 const ROLE_LABEL: Record<'OWNER' | 'ADMIN', string> = { OWNER: 'เจ้าของ', ADMIN: 'ผู้ดูแล' }
 
@@ -46,6 +53,8 @@ export default function CurrentMembersTable({
   title = 'สมาชิกปัจจุบัน',
   headerRight,
 }: CurrentMembersTableProps) {
+  const primary = members.find((m) => m.isPrimary)
+  const viewerIsPrimary = primary?.isSelf ?? false
   return (
     <div className="card">
       <div className="card-header">
@@ -58,7 +67,7 @@ export default function CurrentMembersTable({
             <tr>
               <th>สมาชิก</th>
               <th>บทบาท</th>
-              <th>วันที่เข้าร่วม</th>
+              <th className="hidden sm:table-cell">วันที่เข้าร่วม</th>
               {canManage && <th className="text-end">จัดการ</th>}
             </tr>
           </thead>
@@ -66,8 +75,9 @@ export default function CurrentMembersTable({
             {members.map((member) => (
               <tr key={member.id}>
                 <td>
-                  <span className="flex flex-wrap items-center gap-1.5">
+                  <span className="flex flex-wrap items-center gap-1.5 break-words">
                     {member.displayName}
+                    {member.isSelf && <span className="badge bg-default-100 text-default-600 text-2xs">คุณ</span>}
                     {/* tone neutral ไม่ใช่ warning โดยตั้งใจ — S4 (เรื่องของตัวเอง) เป็น info
                         พร้อมปุ่มแก้ทันที ส่วนตรงนี้เป็นเรื่องของ "คนอื่น" ที่เจ้าของทำแทนไม่ได้
                         (ค่าผูกกับ userId ของเจ้าของค่าเอง) จึงเป็นข้อมูลสถานะ ไม่ใช่คำเตือน */}
@@ -78,25 +88,55 @@ export default function CurrentMembersTable({
                       </span>
                     )}
                   </span>
+                  {/* เหตุผลอยู่บนจอเสมอ ไม่ใช่ tooltip — มือถือไม่มี hover (ux spec) */}
+                  {member.isPrimary && (
+                    <p className="text-xs text-default-500 mt-1">
+                      {viewerIsPrimary
+                        ? `แพ็กเกจของคุณกำหนดโควตาของร้านนี้${members.length > 1 ? ' · อยากเปลี่ยน กด "โอนเจ้าของหลัก" ที่แถวของสมาชิกคนที่ต้องการ' : ''}`
+                        : 'ผูกกับแพ็กเกจที่กำหนดโควตาของร้านนี้ · เปลี่ยนบทบาทหรือลบไม่ได้'}
+                    </p>
+                  )}
                 </td>
                 <td>
-                  <span className={`badge ${ROLE_BADGE[member.role]}`}>{ROLE_LABEL[member.role]}</span>
+                  {member.isPrimary ? (
+                    <span className={`badge ${ROLE_BADGE.OWNER} inline-flex items-center gap-1`}>
+                      <Icon icon="lock" aria-hidden="true" />
+                      เจ้าของหลัก
+                    </span>
+                  ) : canManage ? (
+                    <MemberRoleControls
+                      shopId={shopId}
+                      memberId={member.id}
+                      name={member.displayName}
+                      role={member.role}
+                      isSelf={member.isSelf}
+                      primaryOwnerName={primary?.displayName ?? 'เจ้าของหลัก'}
+                      canTransfer={viewerIsPrimary}
+                    />
+                  ) : (
+                    <span className={`badge ${ROLE_BADGE[member.role]}`}>{ROLE_LABEL[member.role]}</span>
+                  )}
                 </td>
-                <td className="text-default-500">{formatDate(member.createdAt)}</td>
+                <td className="text-default-500 hidden sm:table-cell">{formatDate(member.createdAt)}</td>
                 {canManage && (
                   <td className="text-end">
-                    {member.role === 'ADMIN' && (
+                    {!member.isPrimary && !member.isSelf && (
                       <RowActionDeleteButton
                         endpoint={`/api/business/shops/${shopId}/members/${member.id}`}
                         ariaLabel={`ลบสมาชิก ${member.displayName}`}
                         icon="trash"
-                        confirmTitle="ลบสมาชิกนี้?"
-                        confirmText={`${member.displayName} จะไม่สามารถเข้าถึงร้านนี้ได้อีก`}
-                        successMessage="ลบสมาชิกสำเร็จ"
-                        errorMessages={{
-                          NOT_OWNER: 'คุณไม่มีสิทธิ์ลบสมาชิกนี้',
-                          NOT_AN_ADMIN: 'ไม่สามารถลบเจ้าของร้านได้',
-                        }}
+                        confirmTitle={`ลบ ${member.displayName} ออกจากร้าน?`}
+                        confirmText={
+                          member.role === 'OWNER'
+                            ? `${member.displayName} เป็นเจ้าของร่วม จะเข้าร้านนี้ไม่ได้อีก และต้องเชิญใหม่ถึงจะกลับเข้าร้านได้`
+                            : `${member.displayName} จะไม่สามารถเข้าถึงร้านนี้ได้อีก`
+                        }
+                        successMessage={`ลบ ${member.displayName} ออกจากร้านแล้ว`}
+                        errorMessages={Object.fromEntries(
+                          ['NOT_OWNER', 'PRIMARY_OWNER_LOCKED', 'CANNOT_REMOVE_SELF', 'SHOP_LOCKED', 'NOT_A_MEMBER'].map(
+                            (c) => [c, memberErrorText(c, member.displayName, primary?.displayName ?? 'เจ้าของหลัก')],
+                          ),
+                        )}
                       />
                     )}
                   </td>

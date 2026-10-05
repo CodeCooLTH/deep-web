@@ -72,11 +72,14 @@ const activeSub = { ownerId: OWNER_ID, status: 'ACTIVE', tier: 'PRO' }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // ผู้เรียกเป็นเจ้าของ (ShopMember OWNER) เป็นค่าตั้งต้น — EXT 00012 2026-10-05: เช็คสิทธิ์จาก membership ไม่ใช่ shop.userId
+  memberFindUnique.mockResolvedValue({ role: 'OWNER' })
 })
 
 describe('createInviteLink', () => {
   it('throws NOT_OWNER เมื่อ shop ไม่ใช่ของ owner', async () => {
     shopFindUnique.mockResolvedValue(businessShop({ userId: 'someone-else' }))
+    memberFindUnique.mockResolvedValue({ role: 'ADMIN' })
     await expect(createInviteLink(OWNER_ID, SHOP_ID, '7d')).rejects.toThrow('NOT_OWNER')
   })
 

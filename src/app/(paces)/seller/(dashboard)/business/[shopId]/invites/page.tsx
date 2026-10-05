@@ -94,6 +94,8 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
     role: m.role as 'OWNER' | 'ADMIN',
     displayName: m.user.displayName || m.user.username || 'ไม่ระบุชื่อ',
     createdAt: m.createdAt.toISOString(),
+    isPrimary: m.userId === shop.userId,
+    isSelf: m.userId === userId,
     notificationsOff: mutedUserIds.has(m.userId),
   }))
 
@@ -129,7 +131,7 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
             </div>
           </div>
         )}
-        <CurrentMembersTable members={memberRows} shopId={shopId} canManage={isOwner} />
+        <CurrentMembersTable members={memberRows} shopId={shopId} canManage={members.some((m) => m.userId === userId && m.role === 'OWNER')} />
       </div>
     </>
   )

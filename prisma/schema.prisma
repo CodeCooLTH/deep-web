@@ -182,7 +182,7 @@ model MobileAuthTicket {
 
 model Shop {
   id            String   @id @default(uuid())
-  // userId: owner-at-creation (immutable). Phase 2 cutover (feature 00008 §4/§6.3) ทำแล้ว — ตัด
+  // userId: เจ้าของหลัก — เดิม owner-at-creation (immutable) · ตั้งแต่ 2026-10-05 โอนได้ (EXT 00012 BR-MR-03, transferShopOwnership). Phase 2 cutover (feature 00008 §4/§6.3) ทำแล้ว — ตัด
   // `@unique` ออกจาก field นี้ (Prisma-managed) เพราะ 1 user ตอนนี้มีได้หลาย Shop (PERSONAL + BUSINESS
   // หลายแถว) ความ unique จริงอยู่ที่ระดับ "PERSONAL shop ต่อ user มีได้ 1 แถว" เท่านั้น ซึ่งบังคับด้วย
   // 🛑 partial unique index `Shop_userId_personal_key` ON "Shop"("userId") WHERE "kind" = 'PERSONAL'

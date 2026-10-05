@@ -55,7 +55,8 @@ export default async function AdminsPage() {
     listActiveInviteLinks(shop.id),
   ])
 
-  const adminCount = members.filter((m) => m.role === 'ADMIN').length
+  // โควตานับทุกคนยกเว้นเจ้าของหลัก — เจ้าของร่วมก็นับ (EXT 00012 BR-MR-06, staffCountWhere)
+  const adminCount = members.filter((m) => m.userId !== shop.userId).length
   const quotaLabel = tierLabel
     ? `โควตาแอดมิน ${adminCount}${maxAdmins !== null ? `/${maxAdmins}` : ''} (แพ็กเกจ ${tierLabel})`
     : `โควตาแอดมิน ${adminCount} (ไม่มีแพ็กเกจ)`
@@ -65,6 +66,8 @@ export default async function AdminsPage() {
     role: m.role as 'OWNER' | 'ADMIN',
     displayName: m.user.displayName || m.user.username || 'ไม่ระบุชื่อ',
     createdAt: m.createdAt.toISOString(),
+    isPrimary: m.userId === shop.userId,
+    isSelf: m.userId === user.id,
   }))
 
   const linkRows = links.map((l) => ({

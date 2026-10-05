@@ -1597,6 +1597,11 @@ enum** — ระหว่างนี้ป้ายบนโปรไฟล์
 | DELETE | `/api/expenses/[id]` | Seller (`GRANTED`) | ลบค่าใช้จ่าย | `expense.service` |
 | GET | `/api/expenses/report` | Seller (`GRANTED`) | รายงาน P&L + `expenses[]` + `prevNetProfit` + **`coverage{soldItemCount,uncostedItemCount}`** (feature 00067 · additive) | `pnl.service` · `cost-coverage.service` |
 | PATCH | `/api/business/shops/[shopId]/finance-visibility` | **Seller-owner เท่านั้น** | toggle `staffCanViewFinance` | `expense.service` |
+| PATCH | `/api/business/shops/[shopId]/members/[memberId]` | เจ้าของ (หลัก/ร่วม) | **ส่วนขยาย 00012 (2026-10-05)** — `{ role: 'OWNER'\|'ADMIN' }` แตะเจ้าของหลัก (`Shop.userId`) ไม่ได้ | `shop-member.service` |
+| DELETE | `/api/business/shops/[shopId]/members/[memberId]` | เจ้าของ (หลัก/ร่วม) | ลบผู้ดูแล/เจ้าของร่วม — ห้ามลบเจ้าของหลักและตัวเอง (เดิม: เจ้าของหลักลบได้แค่ ADMIN) | `shop-member.service` |
+| POST | `/api/business/shops/[shopId]/transfer` | **เจ้าของหลักเท่านั้น** | `{ memberId }` โอน `Shop.userId` · ผู้รับต้องมีแพ็กเกจ ACTIVE ที่ร้าน/สมาชิกไม่เกินโควตา · เจ้าของเดิมคง role OWNER | `shop-member.service` |
+
+> 🛑 **ส่วนขยาย 00012 (2026-10-05): "OWNER" มีสองความหมายแล้ว** — `ShopMember.role='OWNER'` = เจ้าของ (หลายคนได้, สิทธิ์จัดการร้าน/ทีม) · `Shop.userId` = **เจ้าของหลัก** (คนเดียว, แพ็กเกจของเขากำหนดโควตา, L1 ของร้านตาม FR-2.7) — **เปลี่ยนได้ผ่านการโอน** ไม่ใช่ owner-at-creation อีกต่อไป. คำถามเรื่องเงิน ("ร้านที่ฉันจ่าย", โควตาจำนวนร้าน, ปุ่มจัดการแพ็กเกจ) ต้องใช้ `Shop.userId` ห้ามใช้ `role`. โควตาแอดมินนับ **ทุกคนยกเว้นเจ้าของหลัก** (`staffCountWhere()` ใน `src/lib/shop-member-rules.ts`). เอกสาร: `docs/20 - Features/00012 - Shop Staff Invite Links/EXTENSIONS-2026-10-05-member-roles.md`
 | GET | `/api/seller/sales-series` | Seller | ยอดขายรายวัน + field การเงินเมื่อ `GRANTED` | `dashboard.service` |
 
 **🛑 COGS ใน `sales-series` มี 2 ชุด และจะไม่มีวันเท่ากัน (HR16 — วางติดกันใน `dashboard.service.ts`):**

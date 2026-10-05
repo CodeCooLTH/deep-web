@@ -100,16 +100,19 @@ export default async function BusinessPackagePage() {
 
   // 4. businesses ที่ user เป็นสมาชิก (owner หรือ admin) — มิเรอร์ GET /api/business/context §4.1
   let businesses: QuotaBusinessItem[] = []
+  const primaryShopIds = new Set<string>()
   try {
     const memberships = await prisma.shopMember.findMany({
       where: { userId: ownerId, shop: { kind: 'BUSINESS', deletedAt: null } },
       select: {
         role: true,
         // slug — เตือน "ยังไม่มีลิงก์หน้าร้าน" ที่แถวธุรกิจ (2026-08-07) โดยไม่ต้องเปิดเข้าไปดูทีละร้าน
-        shop: { select: { id: true, shopName: true, packageLockedAt: true, createdAt: true, slug: true } },
+        shop: { select: { id: true, shopName: true, packageLockedAt: true, createdAt: true, slug: true, userId: true } },
       },
       orderBy: { shop: { createdAt: 'asc' } },
     })
+    // เจ้าของร่วมก็ role OWNER แต่ไม่ได้จ่ายแพ็กเกจของร้านนั้น — "ของฉัน" ทางเงิน = Shop.userId (EXT 00012 BR-MR-08)
+    for (const m of memberships) if (m.shop.userId === ownerId) primaryShopIds.add(m.shop.id)
     businesses = memberships.map((m) => ({
       shopId: m.shop.id,
       shopName: m.shop.shopName,
@@ -124,7 +127,7 @@ export default async function BusinessPackagePage() {
   // owned เท่านั้น (kind=BUSINESS, deletedAt=null รวม LOCKED) — ใช้กับ quota + cancel/downgrade
   // มิเรอร์ TFR-006 ข้อ 2 (create/page.tsx count logic) ไม่ใช่แค่ unlocked
   const ownedBusinesses: DowngradeBusinessItem[] = businesses
-    .filter((b) => b.role === 'OWNER')
+    .filter((b) => primaryShopIds.has(b.shopId))
     .map((b) => ({ shopId: b.shopId, shopName: b.shopName, locked: b.locked }))
   const ownedCount = ownedBusinesses.length
 

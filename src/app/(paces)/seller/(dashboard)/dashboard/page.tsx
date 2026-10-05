@@ -238,7 +238,7 @@ export default async function SellerDashboardPage() {
         orderNoun = orderVocab.noun
         shopVertical = shop.vertical
 
-        packageCanManage = active?.role === 'OWNER'
+        packageCanManage = shop.userId === user?.id // เจ้าของหลักเท่านั้น (EXT 00012 BR-MR-08)
         try {
           const subscription = await getSubscriptionStatus(shop.userId)
           if (subscription) {

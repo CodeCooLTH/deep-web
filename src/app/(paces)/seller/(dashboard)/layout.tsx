@@ -183,7 +183,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <ShopPackageSidenavCard
             status={businessPackageStatus}
             tier={businessPackageTier}
-            canManage={active.role === 'OWNER'}
+            // แพ็กเกจเป็นของเจ้าของหลัก — เจ้าของร่วมกดไปก็เจอหน้าแพ็กเกจของตัวเอง ไม่ใช่ของร้านนี้ (EXT 00012 BR-MR-08)
+            canManage={active.shop.userId === user?.id}
           />
         ) : undefined
       }

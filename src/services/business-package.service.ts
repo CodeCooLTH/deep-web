@@ -9,6 +9,7 @@ import {
 } from '@/lib/business-package'
 import { isWalletBilled, MANAGED_BY_APPLE, SUBSCRIPTION_SOURCE } from '@/lib/subscription-source'
 import type { Prisma } from '@prisma/client'
+import { staffCountWhere } from '@/lib/shop-member-rules'
 
 /**
  * 🛑 ด่านกลางของ feature 00064 — "ใบนี้ให้เราหักเงิน/ขยับรอบบิลเองได้ไหม"
@@ -270,7 +271,7 @@ export async function reconcileBusinessLocksAfterQuotaChange(
     where: { userId: ownerId, kind: 'BUSINESS', deletedAt: null, packageLockedAt: null }, select: { id: true },
   })
   for (const shop of activeShops) {
-    const adminCount = await tx.shopMember.count({ where: { shopId: shop.id, role: 'ADMIN' } })
+    const adminCount = await tx.shopMember.count({ where: staffCountWhere(shop.id, ownerId) })
     if (quota.maxAdminsPerBusiness !== null && adminCount > quota.maxAdminsPerBusiness) {
       await tx.shop.update({
         where: { id: shop.id },
@@ -283,7 +284,7 @@ export async function reconcileBusinessLocksAfterQuotaChange(
     select: { id: true },
   })
   for (const shop of adminLocked) {
-    const adminCount = await tx.shopMember.count({ where: { shopId: shop.id, role: 'ADMIN' } })
+    const adminCount = await tx.shopMember.count({ where: staffCountWhere(shop.id, ownerId) })
     if (quota.maxAdminsPerBusiness === null || adminCount <= quota.maxAdminsPerBusiness) {
       await tx.shop.update({ where: { id: shop.id }, data: { packageLockedAt: null, packageLockReason: null } })
     }
