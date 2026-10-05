@@ -15,3 +15,10 @@ describe('block-meta: expense / net_sales', () => {
     expect(g.types.slice(-3)).toEqual(['profit', 'expense', 'net_sales'])
   })
 })
+
+describe('ITEMS §17: blockSummary expense', () => {
+  it('items=true → แยกตามหมวด · ไม่ใส่ → null', () => {
+    expect(blockSummary({ id: 'e', type: 'expense', items: true }, 'ออเดอร์', '')).toBe('แยกตามหมวด')
+    expect(blockSummary({ id: 'e', type: 'expense' }, 'ออเดอร์', '')).toBeNull()
+  })
+})

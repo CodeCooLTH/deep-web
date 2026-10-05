@@ -228,6 +228,40 @@ describe.skipIf(!isLocal)('00070 parity: buildGroupSummary vs SSOT', () => {
     }
   })
 
+  // §17: Σ รายการย่อย = totalExpense ต่อร้าน (แดง = แหล่งข้อมูลไม่ตรง หยุดรายงาน) · ไม่มีโน้ตหลุดมา
+  it('ITEMS: Σ รายการย่อย = expense ต่อร้าน (บริการมีค่าส่ง+ใบคืน+หลายหมวด) และไม่มีโน้ต', async () => {
+    for (const v of ['SERVICE_QUEUE', 'ONLINE_SALES']) {
+      const s = await prisma.shop.create({ data: { userId: ids.user, shopName: `par-${run}-itm-${v}`, vertical: v, kind: 'BUSINESS' }, select: { id: true } })
+      ids.shops.push(s.id)
+      for (const [i, st] of (['CONFIRMED', 'RETURNED'] as const).entries()) {
+        const o = await prisma.order.create({
+          data: { publicToken: `par-${run}-itm-${v}-${i}`, shopId: s.id, totalAmount: 300, status: st, createdAt: at('2026-09-02', 12, 0), items: { create: [{ name: 'a', qty: 2, price: 100, cost: 40 }] } },
+          select: { id: true, items: { select: { id: true } } },
+        })
+        ids.orders.push(o.id)
+        await prisma.orderReturn.create({
+          data: { orderId: o.id, shopId: s.id, status: 'RECEIVED', refundAmount: 100, shippingCost: 20, receivedAt: at('2026-09-03', 12, 0), items: { create: [{ orderItemId: o.items[0].id, qty: 1, unitPrice: 100 }] } },
+        })
+      }
+      for (const [category, amount, note] of [['RENT', 1000.1, 'โน้ตลับ-RENT'], ['RENT', 200.2, 'โน้ตลับ-RENT2'], ['ADVERTISING', 55.55, 'โน้ตลับ-ADS'], ['OTHER', 7, null]] as const) {
+        const ex = await prisma.expense.create({ data: { shopId: s.id, category, amount, note, expenseDate: new Date(Date.UTC(2026, 8, 2)), createdByUserId: ids.user }, select: { id: true } })
+        ids.expenses.push(ex.id)
+      }
+      const sum = await buildGroupSummary({
+        shops: [{ id: s.id, name: v, vertical: v }], excluded: [], flags: { ...flags, showProfit: false, showTopProducts: false },
+        needs: { needExpense: true, needExpenseItems: true }, cache: createSweepCache(),
+        window: { startIso: '2026-08-31', endIso: '2026-09-03', computedAt: new Date().toISOString() },
+      })
+      const f = sum.shops[0].finance!
+      const items = f.items!
+      expect(round2(items.reduce((a, i) => a + i.amount, 0))).toBe(f.expense)
+      expect(items.find((i) => i.key === 'RENT')!.amount).toBe(1200.3)
+      expect(items.map((i) => i.amount)).toEqual([...items.map((i) => i.amount)].sort((a, b) => b - a))
+      expect(items.some((i) => i.key === 'SYS_RETURN_SHIPPING')).toBe(true)
+      expect(JSON.stringify(sum)).not.toContain('โน้ตลับ')
+    }
+  })
+
   it('capped: ไม่มีค่าใช้จ่ายในช่วง = true · มีแถว Expense (02 ก.ย.) = false เมื่อต้นทุนครบ', async () => {
     // ONLINE_SALES + ช่วงที่มีใบ CONFIRMED ทุกใบต้นทุนครบ ไม่ได้ — ฟิกซ์เจอร์มี cost null สลับ จึงสร้างร้านแยกที่ต้นทุนครบ
     const s = await prisma.shop.create({ data: { userId: ids.user, shopName: `par-${run}-capped`, vertical: 'ONLINE_SALES', kind: 'BUSINESS' }, select: { id: true } })

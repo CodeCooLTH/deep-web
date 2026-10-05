@@ -45,6 +45,7 @@ export type Action =
   | { type: 'setMarkup'; id: string; src: string }
   | { type: 'setStyle'; id: string; patch: Partial<TextStyle> }
   | { type: 'setShops'; id: string; patch: { top3?: boolean; profit?: boolean } }
+  | { type: 'setExpenseItems'; id: string; items: boolean }
   | { type: 'setMeasure'; id: string; measure: 'sales' | 'orders' }
   | { type: 'setTitle'; title: string }
   | { type: 'setButton'; patch: Partial<TemplateV1['button']> }
@@ -140,6 +141,8 @@ export function reducer(s: State, a: Action): State {
       return mapBlock(s, a.id, (b) => (b.type === 'text' ? { ...b, style: { ...b.style, ...a.patch } } : b))
     case 'setShops':
       return mapBlock(s, a.id, (b) => (b.type === 'shops' ? { ...b, ...a.patch } : b))
+    case 'setExpenseItems':
+      return mapBlock(s, a.id, (b) => (b.type === 'expense' ? { ...b, items: a.items } : b))
     case 'setMeasure':
       return mapBlock(s, a.id, (b) => (b.type === 'chart_trend' || b.type === 'chart_compare' ? { ...b, measure: a.measure } : b))
     case 'setTitle': {

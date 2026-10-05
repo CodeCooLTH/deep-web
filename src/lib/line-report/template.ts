@@ -18,7 +18,8 @@ export type Block =
   | { id: string; type: 'shops'; top3: boolean; profit: boolean }
   | { id: string; type: 'cycle' }
   | { id: string; type: 'profit' }
-  | { id: string; type: 'expense' }
+  /** items = แสดงรายการย่อยตามหมวด (ไม่ใส่ = false) · ไม่มีโน้ต */
+  | { id: string; type: 'expense'; items?: boolean }
   | { id: string; type: 'net_sales' }
   | { id: string; type: 'text'; style: { bold: boolean; size: 's' | 'm' | 'l'; color: 'ink' | 'slate' | 'accent' }; runs: Run[] }
   | { id: string; type: 'separator' }
@@ -149,6 +150,8 @@ export type TemplateNeeds = DerivedFlags & {
   needPnl: boolean
   /** ต้องดึง getPnlReport เพื่อค่าใช้จ่าย/ยอดหลังหักค่าใช้จ่าย (EXT-EXP) — แยกจาก needPnl (กำไร) */
   needExpense: boolean
+  /** ต้องแตกค่าใช้จ่ายเป็นรายการย่อยตามหมวด (§17) */
+  needExpenseItems: boolean
   needCycle: boolean
 }
 
@@ -169,6 +172,7 @@ export function deriveNeeds(t: TemplateV1): TemplateNeeds {
     needTop3: f.showTopProducts,
     needPnl: f.showProfit,
     needExpense: deriveExposure(t).expense,
+    needExpenseItems: t.blocks.some((b) => b.type === 'expense' && !!b.items),
     needCycle: f.attachCycleToDaily,
   }
 }

@@ -48,3 +48,15 @@ describe('withSampleFinance (EXT-EXP)', () => {
     expect(f[3]).toBeUndefined()
   })
 })
+
+describe('withSampleFinance items §17', () => {
+  it('Σ items = expense ทุกร้าน · มี ค่าเช่า/ค่าโฆษณา/ค่าบรรจุภัณฑ์/ค่าส่ง', async () => {
+    const { withSampleFinance } = await import('../preview-sample')
+    const out = withSampleFinance(summary)
+    for (const s of out.shops.filter((x) => x.state === 'OK')) {
+      expect(s.finance!.items!.reduce((a, i) => a + i.amount, 0)).toBe(s.finance!.expense)
+    }
+    const labels = out.shops[0].finance!.items!.map((i) => i.label)
+    expect(labels).toEqual(expect.arrayContaining(['ค่าเช่า', 'ค่าโฆษณา', 'ค่าบรรจุภัณฑ์', 'ค่าส่งขาไป (จากระบบ)']))
+  })
+})

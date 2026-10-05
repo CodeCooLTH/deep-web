@@ -13,12 +13,13 @@ import { listExpenses } from '@/services/expense.service'
 import { countCancelledOrders } from '@/services/cancelled-order-count.service'
 import { resolveDateRange, shiftIsoDate } from '@/lib/date-range'
 import { resolveDataCompleteness } from '@/lib/finance-tabs'
+import { EXPENSE_CATEGORY_LABEL_TH, type ExpenseCategory } from '@/lib/expense'
 import { resolveShopVertical } from '@/lib/lodging'
 import { round2 } from '@/lib/round2'
 import { combineTotals, isMixedFinanceRules, canSumProfit, mergeTop3, sumDays, sumDaysSparse, dailyValues, sumTrend, type TopRow } from '@/lib/line-report/aggregate'
 import { monthsInRange } from '@/lib/line-report/cycle'
 import type { TemplateNeeds } from '@/lib/line-report/template'
-import type { GroupSummary, ShopFinance, ShopProfit, ShopRef, ShopSummary, Totals, Window } from '@/lib/line-report/types'
+import type { ExpenseItem, GroupSummary, ShopFinance, ShopProfit, ShopRef, ShopSummary, Totals, Window } from '@/lib/line-report/types'
 
 export type SummaryFlags = {
   showOrders: boolean
@@ -32,7 +33,7 @@ export type SummaryFlags = {
  * สิ่งที่เทมเพลตขอเพิ่มจาก flags (`deriveNeeds`) — ไม่ส่ง = ใช้ flags ล้วน (พฤติกรรมเดิม)
  * needTop3/needPnl = flags เดิมอยู่แล้ว จึงไม่อ่านซ้ำที่นี่ · needCycle ใช้ที่ชั้น send ไม่ใช่ที่นี่
  */
-export type SummaryNeeds = Partial<Pick<TemplateNeeds, 'needSeries' | 'needTrend7' | 'needCompare' | 'needCancelled' | 'needExpense'>>
+export type SummaryNeeds = Partial<Pick<TemplateNeeds, 'needSeries' | 'needTrend7' | 'needCompare' | 'needCancelled' | 'needExpense' | 'needExpenseItems'>>
 
 /** แนวโน้ม 7 วัน = 6 วันก่อน endIso ถึง endIso (EXT-09) */
 const TREND_DAYS = 7
@@ -41,12 +42,34 @@ const TREND_DAYS = 7
  * cache ต่อรอบ sweep — เก็บ Promise (ไม่ใช่ค่า) เพื่อให้เรียกพร้อมกันก็ยิงครั้งเดียวต่อ key (AC-16-7)
  * key: series/top3 = (shopId,y,m) · cancelled/pnl = (shopId,start,end)
  */
+/**
+ * รายการย่อยค่าใช้จ่าย (§17): รวมตามหมวด (ป้ายจาก SSOT lib/expense) + ค่าส่งของระบบ · หมวด 0 ไม่ใส่ · มาก→น้อย
+ * 🛑 ไม่อ่าน `note` — โน้ตเป็นข้อความอิสระของเจ้าของร้าน ห้ามไปอยู่ใน LINE กลุ่ม
+ * Σ items = report.totalExpense (เทส parity บนฐานจริง)
+ */
+export function expenseItems(
+  expenses: readonly { category: string; amount: unknown }[],
+  report: { shippingCost: number; returnShippingCost: number },
+): ExpenseItem[] {
+  const by = new Map<string, ExpenseItem>()
+  for (const e of expenses) {
+    const label = EXPENSE_CATEGORY_LABEL_TH[e.category as ExpenseCategory] ?? EXPENSE_CATEGORY_LABEL_TH.OTHER
+    const cur = by.get(e.category) ?? { key: e.category, label, amount: 0 }
+    cur.amount += Number(e.amount)
+    by.set(e.category, cur)
+  }
+  const out = [...by.values()]
+  if (report.shippingCost > 0) out.push({ key: 'SYS_SHIPPING', label: 'ค่าส่งขาไป (จากระบบ)', amount: report.shippingCost })
+  if (report.returnShippingCost > 0) out.push({ key: 'SYS_RETURN_SHIPPING', label: 'ค่าส่งขากลับของใบคืน', amount: report.returnShippingCost })
+  return out.map((i) => ({ ...i, amount: round2(i.amount) })).filter((i) => i.amount > 0).sort((a, b) => b.amount - a.amount)
+}
+
 export type SweepCache = {
   series: Map<string, Promise<SalesSeries>>
   top3: Map<string, Promise<ProductSalesMonth>>
   cancelled: Map<string, Promise<number>>
   /** getPnlReport ครั้งเดียวต่อ (ร้าน,ช่วง) — ป้อนทั้งกำไร (showProfit) และค่าใช้จ่าย (needExpense) */
-  pnl: Map<string, Promise<ShopProfit & ShopFinance>>
+  pnl: Map<string, Promise<ShopProfit & ShopFinance & { items: ExpenseItem[] }>>
 }
 
 export const createSweepCache = (): SweepCache => ({
@@ -162,11 +185,16 @@ async function summarizeShop(
         expense: report.totalExpense,
         netSales: round2(report.revenue - report.totalExpense),
         expenseRecorded: expenses.length > 0,
+        items: expenseItems(expenses, report),
       }
     })
     // แยกสิทธิ์: profit เติมเฉพาะ showProfit · finance เฉพาะ needExpense (ไม่ปะปน)
     if (flags.showProfit) out.profit = { netProfit: pnl.netProfit, capped: pnl.capped }
-    if (needs.needExpense) out.finance = { expense: pnl.expense, netSales: pnl.netSales, expenseRecorded: pnl.expenseRecorded }
+    if (needs.needExpense) out.finance = {
+      expense: pnl.expense, netSales: pnl.netSales, expenseRecorded: pnl.expenseRecorded,
+      // ไม่ขอ = ไม่ใส่ key (golden/JSON เดิมไม่เปลี่ยน)
+      ...(needs.needExpenseItems ? { items: pnl.items } : {}),
+    }
   }
   return out
 }

@@ -202,8 +202,20 @@ export default function CanvasList(p: CanvasListProps) {
 
   const body = (b: Block): ReactNode => {
     switch (b.type) {
-      case 'profit':
       case 'expense':
+        return (
+          <div>
+            <ProfitBody kind="expense" />
+            <CheckRow
+              checked={!!b.items}
+              disabled={readOnly}
+              onChange={(items) => dispatch({ type: 'setExpenseItems', id: b.id, items })}
+              label="แสดงรายการย่อยตามหมวด"
+              sub="ไม่แสดงโน้ตที่บันทึกไว้"
+            />
+          </div>
+        )
+      case 'profit':
       case 'net_sales':
         return <ProfitBody kind={b.type} />
       case 'shops':

@@ -47,12 +47,12 @@ export const TEXT_EMPTY_SUMMARY = 'ยังไม่ได้พิมพ์ข
 /** null = ไม่มีอะไรเพิ่มจากชื่อบล็อก → แถวพับบรรทัดเดียว */
 export function blockSummary(b: Block, word: string, markup: string): string | null {
   switch (b.type) {
+    case 'expense': return b.items ? 'แยกตามหมวด' : null
     case 'orders':
     case 'sales':
     case 'cancelled':
     case 'cycle':
     case 'profit':
-    case 'expense':
     case 'net_sales':
     case 'separator': return null
     case 'shops': return ['แยกรายร้าน', b.top3 ? 'ขายดี 3 อันดับ' : null, b.profit ? 'กำไรต่อร้าน' : null].filter(Boolean).join(' · ')

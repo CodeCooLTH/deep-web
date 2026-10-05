@@ -69,3 +69,12 @@ describe('EXT-EXP: บล็อกการเงิน (AC-EXP-03-6)', () => {
     expect(measureTemplate(T(finBlocks)).bytes).toBeLessThanOrEqual(30_000)
   })
 })
+
+describe('ITEMS §17: รายการย่อยใน worstCase', () => {
+  it('เปิดรายการย่อย 9 บรรทัด → ไบต์เพิ่ม และยังไม่เกินเพดาน (fitToLimits ตัดให้)', () => {
+    const t = (items: boolean): TemplateV1 => T([{ id: 'x1', type: 'expense', ...(items ? { items: true } : {}) }])
+    const on = measureTemplate(t(true)), off = measureTemplate(t(false))
+    expect(on.fullBytes).toBeGreaterThan(off.fullBytes)
+    expect(on.bytes).toBeLessThanOrEqual(30_000)
+  })
+})
