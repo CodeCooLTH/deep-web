@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>00070 — ตัวจัดข้อความรายงานเข้ากลุ่ม LINE · 4 ทิศทาง (mockup 3 จอ)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+  /* token จริงจาก src/assets/css/config/_root.css (ก็อปจาก 2026-10-05-line-group-summary-report-mockup.html) */
+  :root{
+    --primary:#236dc9; --primary-ink:#1e3a8a;
+    --success:#02bc9c; --success-ink:#065f46;
+    --warning:#f9bf59; --warning-ink:#92400e;
+    --danger:#f7577e;  --danger-ink:#7f1d1d;
+    --info:#5bc3e1;    --info-ink:#1e40af;
+    --body-bg:#f6f7fb; --card:#fff; --light:#eef2f7;
+    --d200:#eef2f7; --d300:#e7e9eb; --d500:#58626b; --d600:#4a5358; --d700:#40454a; --d800:#343a40; --d900:#313a46;
+    --shadow:0 1px 2px rgba(57,62,80,.15);
+    /* สีที่ Flex ส่งจริง (FLEX_COLORS) */
+    --fx-ink:#2F2B3D; --fx-slate:#808390; --fx-accent:#236dc9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#e9edf3;font-family:Anuphan,system-ui,sans-serif;color:var(--d800);font-size:13px;line-height:1.55}
+  iconify-icon{display:inline-block;width:1em;height:1em;vertical-align:-.125em;flex:none}
+  button,input,textarea,select{font-family:inherit}
+  .page{max-width:2500px;margin:0 auto;padding:24px 20px 80px}
+  h1{font-size:20px;margin:0 0 4px}
+  .lead{color:var(--d600);margin:0 0 6px;max-width:1100px}
+  code{background:var(--d200);padding:1px 6px;border-radius:4px;font-size:12px}
+
+  /* ── ตัวสลับทิศทาง ── */
+  .dirs{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0 6px}
+  .dirs a{display:block;min-width:250px;max-width:330px;flex:1;background:var(--card);border:1px solid var(--d300);border-radius:8px;padding:10px 12px;color:inherit;text-decoration:none}
+  .dirs a.on{border-color:var(--primary);box-shadow:0 0 0 2px rgba(35,109,201,.18)}
+  .dirs a b{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--d900)}
+  .dirs a span{display:block;font-size:12px;color:var(--d700);margin-top:2px}
+  .rec{background:rgba(35,109,201,.10);color:var(--primary);border-radius:5px;padding:1px 7px;font-size:11px;font-weight:600}
+  .concept{max-width:1100px;margin:10px 0 14px;color:var(--d700)}
+  .concept b{color:var(--d900)}
+
+  .frames{display:flex;gap:22px;align-items:flex-start;overflow-x:auto;padding-bottom:14px}
+  .frame{flex:0 0 auto}
+  .frame > .cap{font-size:12px;font-weight:600;color:var(--d700);margin:0 0 6px;display:flex;align-items:center;gap:8px}
+  .cap .w{background:var(--d800);color:#fff;border-radius:4px;padding:1px 6px;font-size:11px}
+  .cap .note{font-weight:400;color:var(--d500)}
+  .device{position:relative;background:var(--body-bg);border:1px solid var(--d300);border-radius:10px;overflow:hidden;box-shadow:0 6px 22px rgba(20,30,50,.10)}
+  .w375{width:375px} .w768{width:768px} .w1180{width:1180px}
+  .device.mob{height:820px;display:flex;flex-direction:column}
+  .scroll{flex:1;overflow-y:auto}
+
+  /* chrome */
+  .shell{display:flex}
+  .sidebar{width:245px;flex:none;background:var(--card);border-right:1px solid var(--d200);padding:14px 12px;min-height:820px}
+  .sidebar .brand{display:block;margin:0 6px 16px}
+  .sidebar .nav{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:6px;color:var(--d600)}
+  .sidebar .nav.on{background:rgba(35,109,201,.10);color:var(--primary);font-weight:500}
+  .main{flex:1;min-width:0}
+  .topbar{height:50px;background:var(--card);border-bottom:1px solid var(--d200);display:flex;align-items:center;gap:10px;padding:0 14px}
+  .brand{font-weight:700;color:var(--primary);font-size:15px}
+  .bnav{height:72px;background:var(--card);border-top:1px solid var(--d200);display:flex;justify-content:space-around;align-items:center;color:var(--d500);font-size:11px;flex:none}
+  .bnav span{display:flex;flex-direction:column;align-items:center;gap:3px;position:relative}
+  .bnav iconify-icon{font-size:20px}
+  .bnav .on{color:var(--primary)}
+  .bnav .fab{width:44px;height:44px;border-radius:99px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center}
+
+  /* action-bar */
+  .abar{position:sticky;top:0;z-index:20;background:var(--body-bg);display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--d200);flex-wrap:wrap}
+  .abar .gname{min-width:0;flex:1;font-weight:600;color:var(--d900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .abar .why{width:100%;text-align:right;font-size:11.5px;color:var(--d700)}
+  .content{padding:14px}
+
+  /* primitives */
+  .card{background:var(--card);border:1px solid var(--d200);border-radius:8px;box-shadow:var(--shadow);margin-bottom:14px}
+  .card-header{padding:10px 14px;border-bottom:1px dashed var(--d300);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .card-header h5{margin:0;font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px;min-width:0}
+  .card-body{padding:12px 14px}
+  .muted{color:var(--d700)} .xs{font-size:12px} .mt2{margin-top:8px} .mb2{margin-bottom:8px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:6px;padding:7px 13px;font-size:12.5px;font-weight:500;cursor:pointer;line-height:1.4;min-height:44px;white-space:nowrap;background:var(--light);color:var(--d700)}
+  .btn.primary{background:var(--primary);color:#fff}
+  .btn.outline{background:var(--card);border:1px solid var(--d300);color:var(--d700)}
+  .btn.sm{min-height:36px;padding:5px 10px;font-size:12px}
+  .btn.icon{min-width:44px;padding:0}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .badge{display:inline-flex;align-items:center;gap:4px;border-radius:5px;padding:2px 7px;font-size:11.5px;font-weight:600;white-space:nowrap}
+  .b-ok{background:rgba(2,188,156,.15);color:var(--success-ink)}
+  .b-warn{background:rgba(249,191,89,.18);color:var(--warning-ink)}
+  .b-neu{background:var(--light);color:var(--d700)}
+  .seg{display:inline-flex;background:var(--light);border-radius:8px;padding:2px}
+  .seg button{border:0;background:transparent;border-radius:6px;padding:5px 11px;font-size:12px;font-weight:500;color:var(--d600);cursor:pointer;min-height:32px}
+  .seg button.on{background:var(--card);color:var(--d900);box-shadow:var(--shadow)}
+  .chip{display:inline-flex;align-items:center;gap:4px;background:rgba(35,109,201,.10);color:var(--primary);border-radius:99px;padding:3px 10px;font-size:12px;font-weight:500;cursor:grab;border:0;white-space:nowrap}
+  .tchip{display:inline-flex;align-items:center;background:rgba(35,109,201,.10);color:var(--primary);border-radius:4px;padding:0 8px;min-height:30px;font-size:12.5px;font-weight:500}
+  .row{display:flex;align-items:center;gap:10px}
+  .grow{flex:1;min-width:0}
+  .switch{width:36px;height:20px;border-radius:99px;background:var(--d300);position:relative;flex:none}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:99px;background:#fff;box-shadow:var(--shadow)}
+  .switch.on{background:var(--primary)} .switch.on::after{left:18px}
+  .cbox{width:18px;height:18px;border-radius:4px;border:1.5px solid var(--d300);display:inline-flex;align-items:center;justify-content:center;flex:none;color:#fff;font-size:12px}
+  .cbox.on{background:var(--primary);border-color:var(--primary)}
+  .setrow{display:flex;align-items:center;gap:10px;min-height:44px;padding:4px 0;border-bottom:1px solid var(--d200)}
+  .setrow:last-child{border-bottom:0}
+  .trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  table.hist{width:100%;border-collapse:collapse;font-size:12px}
+  table.hist td,table.hist th{padding:6px 8px;border-bottom:1px solid var(--d200);text-align:left}
+  table.hist th{color:var(--d700);font-weight:600}
+
+  /* ── รายการบล็อก ── */
+  .blist{display:flex;flex-direction:column;gap:6px}
+  .blk{background:var(--card);border:1px solid var(--d300);border-radius:8px}
+  .blk.hl,.blk.sel{border-color:var(--primary);background:rgba(35,109,201,.05)}
+  .blk.dragging{opacity:.4}
+  .blk.dropbefore{box-shadow:0 -3px 0 0 var(--primary)}
+  .blk.dropafter{box-shadow:0 3px 0 0 var(--primary)}
+  .blk.locked{border-style:dashed;background:var(--body-bg)}
+  .bh{display:flex;align-items:center;gap:4px;min-height:44px;padding:0 4px 0 0}
+  .grip{width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;color:var(--d500);cursor:grab;flex:none;touch-action:none}
+  .bname{flex:1;min-width:0;font-weight:500;color:var(--d900)}
+  .bname small{display:block;font-weight:400;color:var(--d700);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mv{width:36px;min-height:36px;border:0;background:transparent;border-radius:6px;color:var(--d600);cursor:pointer;font-size:16px}
+  .mv:hover{background:var(--light)}
+  .bbody{padding:0 12px 12px 48px}
+  .bbody textarea{width:100%;min-height:60px;border:1px solid var(--d300);border-radius:6px;padding:7px 9px;font-size:13px;resize:vertical;color:var(--d900)}
+  .tool{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px}
+  .tbtn{border:1px solid var(--d300);background:var(--card);border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer;min-height:32px;color:var(--d700)}
+  .tbtn.on{background:rgba(35,109,201,.10);border-color:var(--primary);color:var(--primary)}
+  .sw{width:14px;height:14px;border-radius:99px;display:inline-block;vertical-align:-2px;margin-right:3px}
+  .tokbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .warnline{font-size:11.5px;color:var(--warning-ink);background:rgba(249,191,89,.15);border-radius:6px;padding:4px 8px;margin-top:6px}
+
+  /* palette */
+  .pal{display:flex;flex-direction:column;gap:4px}
+  .pal h6{margin:10px 0 2px;font-size:12px;color:var(--d700);font-weight:600}
+  .pitem{display:flex;align-items:center;gap:6px;min-height:44px;background:var(--card);border:1px solid var(--d300);border-radius:8px;padding:0 4px 0 0;cursor:grab}
+  .pitem.sub{margin-left:18px}
+  .pitem[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+  .pitem .why{font-size:11px;color:var(--d700)}
+  .padd{margin-left:auto;width:36px;height:36px;border:0;background:rgba(35,109,201,.10);color:var(--primary);border-radius:6px;cursor:pointer;flex:none}
+  .strip{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px}
+  .strip .chip{min-height:44px;padding:0 14px;cursor:pointer}
+
+  /* bubble (ภาพแทนข้อความ LINE) */
+  .pvwrap{background:var(--light);border-radius:8px;padding:12px}
+  .pvhd{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--d700);margin-bottom:8px}
+  .bub{min-width:0;background:#fff;border:1px solid var(--d200);border-radius:12px;max-width:300px;margin:0 auto;overflow:hidden;font-size:12.5px;color:var(--fx-ink)}
+  .bub .sec{padding:8px 12px;border-top:1px solid var(--d200);position:relative}
+  .bub .sec:first-child{border-top:0}
+  .bub .sec.hl{background:rgba(35,109,201,.08);box-shadow:inset 0 0 0 1px rgba(35,109,201,.35)}
+  .bub .sec.pick{cursor:pointer}
+  .bub .sec.pick:hover{background:rgba(35,109,201,.04)}
+  .bub .title{color:var(--fx-accent);font-weight:700;font-size:13.5px}
+  .bub .chipd{display:inline-block;background:rgba(35,109,201,.12);color:var(--primary-ink);border-radius:4px;padding:0 6px;font-size:11.5px;margin:3px 0}
+  .bub .kv{display:flex;justify-content:space-between;gap:8px}
+  .bub .kv span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bub .kv span:last-child{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .bub .slate{color:var(--fx-slate);font-size:11.5px}
+  .bub .lbl{font-size:11.5px;color:var(--fx-slate);font-weight:600}
+  .bub .free{white-space:pre-wrap;word-break:break-word}
+  .bub .sz-s{font-size:11px} .bub .sz-m{font-size:12.5px} .bub .sz-l{font-size:14px}
+  .bub .c-ink{color:var(--fx-ink)} .bub .c-slate{color:var(--fx-slate)} .bub .c-accent{color:var(--fx-accent)}
+  .bub .b{font-weight:700}
+  .bub .lnk{display:block;text-align:center;color:#fff;background:var(--fx-accent);font-weight:600;padding:9px;margin:8px 12px 12px;border-radius:6px}
+  .bub .ins{display:flex;align-items:center;gap:6px;height:22px;color:var(--primary);font-size:11px;cursor:pointer;padding:0 12px}
+  .bub .ins::before,.bub .ins::after{content:"";flex:1;height:1px;background:rgba(35,109,201,.35)}
+  /* กราฟ = Flex box ล้วน: ความสูง/กว้างเป็น % + backgroundColor (ไม่ใช่รูป) */
+  .vbars{display:flex;align-items:flex-end;gap:4px;height:84px;border-bottom:1px solid var(--d300);margin-top:6px}
+  .vb{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+  .vb:first-child{align-items:flex-start} .vb:last-child{align-items:flex-end}
+  .vb i{display:block;width:100%;background:#D9DBE0;border-radius:2px 2px 0 0}
+  .vb i.acc{background:var(--fx-accent)}
+  .vv{font-size:10px;color:var(--fx-ink);white-space:nowrap;font-weight:600;line-height:1.3}
+  .vlabels{display:flex;gap:4px;margin-top:3px}
+  .vlabels span{flex:1;min-width:0;text-align:center;font-size:10px;color:var(--fx-slate);line-height:1.25}
+  .vlabels span.acc{color:var(--fx-accent);font-weight:600}
+  .vzero{height:84px;border-bottom:1px solid var(--d300);display:flex;align-items:center;justify-content:center;color:var(--fx-slate);font-size:11.5px;margin-top:6px}
+  .hb{display:flex;align-items:center;gap:6px;margin-top:5px}
+  .hn{width:38%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px}
+  .ht{flex:1;min-width:0;height:8px}
+  .ht i{display:block;height:100%;background:#D9DBE0;border-radius:2px}
+  .ht i.acc{background:var(--fx-accent)}
+  .hv{font-size:11.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .fxseg{margin-left:auto}
+  .pvcap{font-size:11.5px;color:var(--d700);text-align:center;margin-top:8px}
+
+  /* gauge */
+  .gauge{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--d700);margin-top:10px}
+  .gauge .bar{flex:1;height:6px;background:var(--d200);border-radius:99px;overflow:hidden}
+  .gauge .bar i{display:block;height:100%;background:var(--d500)}
+  .gauge.warn .bar i{background:var(--warning)}
+
+  /* summary sentence (C, D) */
+  .sumsent{background:var(--light);border-radius:8px;padding:10px 12px;color:var(--d900);margin-bottom:12px}
+  .sumsent button{border:0;background:rgba(35,109,201,.10);color:var(--primary);border-radius:4px;padding:0 6px;font-size:12.5px;cursor:pointer;font-weight:500}
+  .tabs{display:flex;border-bottom:1px solid var(--d300);margin-bottom:12px}
+  .tabs button{flex:1;border:0;background:transparent;min-height:44px;font-size:13px;color:var(--d700);cursor:pointer;border-bottom:2px solid transparent;font-weight:500}
+  .tabs button.on{color:var(--primary);border-bottom-color:var(--primary)}
+  .tabs .dot{display:inline-block;width:6px;height:6px;border-radius:99px;background:var(--warning);margin-left:4px;vertical-align:2px}
+
+  /* sheet (D) */
+  .scrim{position:absolute;inset:0;background:rgba(49,58,70,.4);z-index:40}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:41;background:var(--card);border-radius:14px 14px 0 0;max-height:80%;display:flex;flex-direction:column;box-shadow:0 -6px 22px rgba(20,30,50,.18)}
+  .sheet.mid{left:50%;transform:translateX(-50%);width:520px}
+  .sheet .gr{width:40px;height:4px;border-radius:99px;background:var(--d300);margin:8px auto}
+  .sheet .shd{display:flex;align-items:center;justify-content:space-between;padding:0 14px 8px}
+  .sheet .sbody{overflow-y:auto;padding:0 14px 14px}
+  .sheet.collapsed{max-height:64px;overflow:hidden}
+  .sheet.collapsed .sbody,.sheet.collapsed .shd .seg{display:none}
+  .pop{position:absolute;z-index:30;background:var(--card);border:1px solid var(--d300);border-radius:8px;box-shadow:0 8px 24px rgba(20,30,50,.16);padding:10px;width:300px;max-height:420px;overflow-y:auto}
+
+  /* B floating/mobile toolbar */
+  .ftool{background:var(--d900);color:#fff;border-radius:8px;padding:6px;display:flex;gap:4px;flex-wrap:wrap;align-items:center;box-shadow:0 6px 18px rgba(20,30,50,.25)}
+  .ftool .tbtn{background:transparent;color:#fff;border-color:rgba(255,255,255,.25)}
+  .ftool .tbtn.on{background:rgba(255,255,255,.18);border-color:#fff;color:#fff}
+  .ftool.bottom{position:absolute;left:8px;right:8px;bottom:80px;z-index:25}
+  .edit-in{width:100%;min-height:54px;border:1px solid var(--primary);border-radius:6px;padding:6px 8px;font-size:12.5px;margin-top:4px}
+
+  /* toast */
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--d900);color:#fff;border-radius:8px;padding:10px 14px;display:none;align-items:center;gap:12px;z-index:100;font-size:13px}
+  #toast button{background:transparent;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;min-height:32px}
+
+  /* layouts */
+  .cols{display:grid;gap:14px;align-items:start}
+  .a3{grid-template-columns:240px minmax(0,1fr) 330px}
+  .c2{grid-template-columns:minmax(0,1fr) 300px}
+  .c55{grid-template-columns:minmax(0,55fr) minmax(0,45fr)}
+  .sticky{position:sticky;top:64px}
+  .hide{display:none!important}
+
+  /* ── direction A หลัง impeccable audit 2026-10-05: ลดความแน่น ── */
+  :focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  .dA .content{padding:20px}
+  .dA .cols.a3{gap:28px}
+  .dA .colhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;min-height:32px}
+  .dA .colhead h2{margin:0;font-size:14px;font-weight:600;color:var(--d900)}
+  .dA .pal.cmp{gap:0}
+  .dA .pal.cmp h6{margin:20px 0 4px;font-size:12px;font-weight:600;color:var(--d700)}
+  .dA .pal.cmp h6:first-child{margin-top:4px}
+  .dA .pal.cmp .pitem{border:0;background:transparent;border-radius:6px;min-height:40px}
+  .dA .pal.cmp .pitem:hover{background:var(--card)}
+  .dA .pal.cmp .pitem[aria-disabled="true"]{opacity:1;color:var(--d700)}
+  .dA .pal.cmp .pitem .grip{width:32px;color:var(--d400)}
+  .dA .blist.cmp{gap:0;border:1px solid var(--d300);border-radius:10px;background:var(--card);overflow:hidden}
+  .dA .blist.cmp .blk{border:0;border-radius:0;border-top:1px solid var(--d200);background:var(--card)}
+  .dA .blist.cmp .blk:first-child{border-top:0}
+  .dA .blist.cmp .blk.locked{background:var(--body-bg);border-style:solid}
+  .dA .blist.cmp .blk.open{background:rgba(35,109,201,.035)}
+  .dA .bsel{border:0;background:transparent;text-align:left;font:inherit;font-weight:500;color:var(--d900);cursor:pointer;min-height:48px;padding:6px 0}
+  .dA .bh .caret{color:var(--d400);margin-right:12px;font-size:16px}
+  .dA .ttl{flex:0 1 220px;min-width:0;min-height:36px;border:1px solid var(--d300);border-radius:6px;padding:4px 9px;margin-right:10px;font-size:13px}
+  .dA .bbody{padding:0 16px 16px 48px}
+  .dA .brow{display:flex;align-items:center;gap:6px;margin-top:8px}
+  .dA .tokbar{margin-top:10px}
+  .dA .tool{margin-top:10px}
+  .dA .tlab{font-size:12px;color:var(--d700);min-width:64px}
+  .dA .gauge{margin-top:14px}
+  .dA .pvcol{background:var(--light);border-radius:12px;padding:16px}
+  .dA .pvcol .colhead{margin-bottom:10px}
+  .device.mob .dA .seg button,.device.mob .dA .tbtn{min-height:44px}
+  .device.mob .dA .mv{width:44px;min-height:44px}
+  .device.mob .dA .content{padding:16px}
+  .device.mob .dA .ttl{flex-basis:140px}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>00070 — ตัวจัดข้อความรายงานเข้ากลุ่ม LINE · 4 ทิศทาง</h1>
+  <p class="lead">หน้า <code>/business/line-reports/[groupId]</code> ออกแบบใหม่ + ตัวจัดข้อความแบบลากวาง · ลากบล็อกที่มือจับ หรือใช้ปุ่มเลื่อนขึ้น/ลง · แตะ ＋ เพื่อเพิ่ม · พิมพ์ข้อความแล้วแทรกข้อมูลด้วย "+ ข้อมูล" หรือลากชิปลงช่องพิมพ์ · เลือกคำแล้วกด "ตัวหนา (คำที่เลือก)" / "เน้น (คำที่เลือก)" ได้ เพราะ LINE Flex มี <code>span</code> (ตรวจกับเอกสาร LINE แล้ว)</p>
+  <p class="lead xs">สเปก: <code>docs/superpowers/specs/2026-10-05-line-report-message-builder-design.md</code> · ตัวอย่างข้อมูลใช้ค่าที่ยาวที่สุดจริง · พรีวิว = ภาพแทนข้อความ LINE ไม่ใช่การ์ด UI · ยืนยันกำไรในของจริงใช้ Swal (mockup ใช้ confirm ของเบราว์เซอร์)</p>
+
+  <nav class="dirs" id="dirs"></nav>
+  <div class="concept" id="concept"></div>
+  <div class="frames" id="frames"></div>
+</div>
+<div id="toast"><span id="toastMsg"></span><button id="toastUndo">ย้อนกลับ</button></div>
+
+<script>
+/* ───────────── ข้อมูลตัวอย่าง (ค่าที่ยาวสุดจริง) ───────────── */
+const GROUP = 'ทีมบริหารและบัญชี BT Premium Auto Xenon คลอง 4 ธัญบุรี'
+const SHOPS = [
+  {name:'BT Premium Auto Xenon คลอง4 ธัญบุรี', v:'บริการ', orders:58, sales:'฿612,400'},
+  {name:'ศรีสุข อะไหล่ออนไลน์ เซ็นเตอร์ สาขารังสิต คลอง 3', v:'ขายออนไลน์', orders:46, sales:'฿438,960'},
+  {name:'ครัวคุณยาย โฮมเมด ขนมไทยและอาหารสั่งทำ', v:'ขายออนไลน์', orders:24, sales:'฿233,200'},
+]
+const TOK = {
+  'ชื่อร้าน':'3 ร้าน','จำนวนร้าน':'3','วันที่':'5 ต.ค. 2569','เวลาข้อมูล':'21:02 น.',
+  'จำนวนรายการ':'128','ยอดขาย (นับแล้ว)':'฿1,284,560','ยังไม่นับ':'฿96,300','ยกเลิก':'6',
+  'ยอดสะสมรอบ':'฿18,902,340','กำไร':'฿312,480',
+}
+const TOKENS = ['ชื่อร้าน','วันที่','จำนวนรายการ','ยอดขาย (นับแล้ว)','ยังไม่นับ','ยกเลิก','ยอดสะสมรอบ','กำไร']
+const LIB = {
+  orders:{name:'จำนวนรายการ', hint:'128 · คำผันตามประเภทร้าน (กลุ่มผสม = รายการ)'},
+  sales:{name:'ยอดขาย (นับแล้ว) และยังไม่นับ', hint:'฿1,284,560 · ยังไม่นับ ฿96,300'},
+  cancelled:{name:'ยกเลิก', hint:'6 ใบ (ใบที่เปิดในช่วงนี้)'},
+  shops:{name:'รายร้าน', hint:'3 ร้าน + ขายดี 3 อันดับต่อร้าน'},
+  cycle:{name:'ยอดสะสมรอบนี้', hint:'฿18,902,340 · 6 ก.ย. – 5 ต.ค.'},
+  profit:{name:'กำไร', hint:'ต้องยืนยันก่อน · ทุกคนในกลุ่มเห็น'},
+  trend:{name:'แนวโน้ม 7 วันล่าสุด', hint:'แท่งรายวัน วันนี้สีเน้น'},
+  shopbar:{name:'เทียบรายร้าน', hint:'แท่งแนวนอน เรียงจากมากไปน้อย'},
+  text:{name:'ข้อความ', hint:''},
+  sep:{name:'เส้นคั่น', hint:''},
+}
+const SINGLE = ['orders','sales','cancelled','shops','cycle','profit','trend','shopbar']
+const ICON = {orders:'tabler:list-numbers',sales:'tabler:coin',cancelled:'tabler:circle-x',shops:'tabler:building-store',cycle:'tabler:calendar-event',profit:'tabler:chart-line',text:'tabler:align-left',sep:'tabler:minus',trend:'tabler:chart-bar',shopbar:'tabler:chart-bar-popular'}
+/* ข้อมูลกราฟตัวอย่าง — 7 วันจบที่วันรายงาน (จ. 5 ต.ค. 2569) · ของจริงมาจาก getSalesSeries daily (confirmedValues / orderCounts) */
+const DAYS = [['อ.','29'],['พ.','30'],['พฤ.','1'],['ศ.','2'],['ส.','3'],['อา.','4'],['จ.','5']]
+const TREND = {sales:[152300,98400,187900,143200,211600,176840,214320], orders:[17,11,22,16,24,19,19]}
+const SHOPBAR = {sales:[612400,438960,233200], orders:[58,46,24]}
+/* ฟิกซ์เจอร์ต่อจอ (A เท่านั้น): normal · zero = 7 วันเป็น 0 ทั้งหมด · one = กลุ่มมีร้านเดียว */
+let FX = 'normal'
+const shopsFx = () => FX==='one' ? SHOPS.slice(0,1) : SHOPS
+const wordFx = () => FX==='one' ? 'บริการ' : 'รายการ'   // คำผันตามประเภทร้าน · กลุ่มผสม = รายการ
+const measureLabel = m => m==='orders' ? 'จำนวน'+wordFx() : 'ยอดขาย (นับแล้ว)'
+const fmt = (v,m) => m==='orders' ? v.toLocaleString('en-US') : '฿'+v.toLocaleString('en-US')
+/* ประมาณ byte ของ Flex JSON ต่อบล็อกกราฟ (box ต่อแท่ง ~180 B + ป้าย ~90 B) */
+const chartBytes = b => b.type==='trend' ? 2300 : b.type==='shopbar' ? (shopsFx().length>1 ? 250+420*shopsFx().length : 0) : 0
+const kb = n => n ? (n/1000).toFixed(1)+' KB' : '0 KB (ไม่ถูกส่ง)'
+let uid = 1
+const mk = (type, extra={}) => ({id:uid++, type, ...extra})
+const DEFAULT = () => [mk('header'), mk('orders'), mk('sales'), mk('cancelled'), mk('shops',{top3:true}), mk('autonote')]
+
+const DIRS = {
+  a:{label:'A · โต๊ะจัดข้อความ', one:'คลัง | ผืนงาน | พรีวิว — หน้าเต็มจอ /business/line-reports/[id]/template เปิดจากการ์ด "ข้อความที่ส่ง" · มีบล็อกกราฟ', rec:'เลือกแล้ว',
+     concept:'<b>จำได้ที่:</b> ชี้หรือโฟกัสบล็อกบนผืนงาน แล้วส่วนเดียวกันในบับเบิลขวาจะสว่างขึ้นทันที เห็นว่า "ลากตรงนี้ ไปโผล่ตรงนั้นในกลุ่ม" · <b>มติ 2026-10-05:</b> ผู้ใช้เลือกทิศทางนี้ + บล็อกกราฟ 2 ตัว (แนวโน้ม 7 วันล่าสุด · เทียบรายร้าน) เป็นแท่ง Flex ล้วน ไม่ใช่รูป · ปุ่ม "ปกติ / 7 วันเป็น 0 / กลุ่ม 1 ร้าน" เหนือแต่ละจอใช้สลับเคสขอบ'},
+  b:{label:'B · แก้บนบับเบิลเลย', one:'พรีวิวคือตัวแก้ไข — แตะส่วนไหนของข้อความก็แก้ส่วนนั้น',
+     concept:'<b>จำได้ที่:</b> เส้น "＋" บาง ๆ ระหว่างส่วนของบับเบิล และแถบเครื่องมือที่ลอยตามส่วนที่เลือก (มือถือ: ติดขอบล่าง) · ความเสี่ยงสูงสุด: ตัวเลขในบับเบิลเป็นตัวอย่าง อาจถูกเข้าใจว่าแก้ได้'},
+  c:{label:'C · ส่งอะไร · เมื่อไหร่ · ให้ร้านไหน', one:'แท็บ 3 คำถาม + ประโยคสรุปที่อ่านเป็นภาษาคน',
+     concept:'<b>จำได้ที่:</b> ประโยคสรุปใต้ชื่อกลุ่มอ่านค่าทั้งหมดเป็นภาษาคน อัปเดตสดทุกครั้งที่แก้ แตะท่อนไหนก็กระโดดไปแท็บนั้น'},
+  d:{label:'D · กองการ์ด + ชีตเลือกบล็อก', one:'ออกแบบสำหรับนิ้วโป้งก่อน · อยู่ในหน้าตั้งค่าเดิม + ยืมประโยคสรุปของ C',
+     concept:'<b>จำได้ที่:</b> ลากบล็อกจากชีตขึ้นมาแล้วชีตพับเหลือแถบ 64px ทันที เผยกองการ์ดให้เป็นที่วาง (แก้ปัญหา "ชีตบังที่วาง" ของมือถือ) · แตะ ＋ = เพิ่มต่อท้าย ชีตอยู่ต่อให้เพิ่มหลายตัวรวด · <b>แนะนำ</b>: ผู้ขายใช้มือถือเป็นหลัก คอมโพเนนต์เดียว 375 → 1180 และใช้การ์ดร้าน/เวลา/ประวัติเดิม'},
+}
+const S = {}
+for (const k of Object.keys(DIRS)) S[k] = {blocks:DEFAULT(), saved:'', title:'รายงานยอดรายวัน', kind:'d', hl:null, sel:null, tab:'msg', sheet:false, sheetCollapsed:false, pop:false, edit:null, pvMobile:'canvas', daily:true, monthly:true, times:['09:00','12:30','18:00','24:00'], cutoff:6, shopsOn:[true,true,true,false]}
+for (const k of Object.keys(S)) S[k].saved = JSON.stringify(S[k].blocks)
+const parseHash = () => { const [d, mod] = (location.hash.slice(1)||'a').split('-'); return {d: DIRS[d]?d:'a', mod} }
+let cur = parseHash().d
+
+/* ───────────── helpers ───────────── */
+const $ = (s, r=document) => r.querySelector(s)
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+const ic = (n) => `<iconify-icon icon="${n}"></iconify-icon>`
+const dirty = st => JSON.stringify(st.blocks) !== st.saved || st.titleDirty
+const has = (st,t) => st.blocks.some(b => b.type===t)
+const fillTok = s => s.replace(/\{([^}]+)\}/g, (m,k) => TOK[k] ?? m)
+/* **x** = ตัวหนาเฉพาะคำ · ^^x^^ = สีเน้นเฉพาะคำ (span) */
+function spans(txt){
+  return esc(fillTok(txt)).replace(/\*\*(.+?)\*\*/g,'<span class="b">$1</span>').replace(/\^\^(.+?)\^\^/g,'<span class="c-accent">$1</span>')
+}
+function needsWarn(b, st){
+  if (b.type==='text' && /\{ยอดสะสมรอบ\}/.test(b.txt||'') && st.kind==='m') return 'บรรทัดนี้จะไม่ถูกส่งในรายงานรายเดือน ({ยอดสะสมรอบ} ส่งได้เฉพาะรายวัน)'
+  if (b.type==='text' && /\{กำไร\}/.test(b.txt||'') && !has(st,'profit')) return 'ตัวแปร {กำไร} ใช้ได้หลังเปิดแสดงกำไรแล้ว — เพิ่มบล็อก "กำไร" แล้วยืนยันก่อน'
+  if (b.type==='shopbar' && shopsFx().length<2) return 'ไม่ถูกส่งตอนนี้: ใช้ได้เมื่อกลุ่มรวมมากกว่า 1 ร้าน'
+  if (b.type==='cycle' && !st.monthly) return 'ยอดสะสมรอบนี้ ไม่ถูกส่งตอนนี้ (รายเดือนปิดอยู่)'
+  return ''
+}
+function blockSummary(b){
+  if (b.type==='text') return b.txt ? `"${fillTok(b.txt).replace(/\*\*|\^\^/g,'').slice(0,40)}${b.txt.length>40?'…':''}"` : 'ยังไม่ได้พิมพ์'
+  if (b.type==='trend' || b.type==='shopbar') return `วัดจาก${measureLabel(b.m)} · ${chartBytes(b)?'ใช้ ~':'ใช้ '}${kb(chartBytes(b))}`
+  if (b.type==='shops') return b.top3 ? '3 ร้าน · ขายดี 3 อันดับต่อร้าน' : '3 ร้าน · ไม่แสดงขายดี'
+  return LIB[b.type]?.hint || ''
+}
+
+/* ───────────── พรีวิวบับเบิล (render จากรายการบล็อก) ───────────── */
+function bubble(st, opts={}){
+  const pick = opts.pick, ins = opts.ins
+  const seg = (b, html, cls='') => `<div class="sec ${cls} ${st.hl===b.id||st.sel===b.id?'hl':''} ${pick?'pick':''}" data-sec="${b.id}">${html}</div>`
+  let h = '', first = true
+  const insLine = (i) => ins ? `<div class="ins" data-act="ins" data-i="${i}">เพิ่มตรงนี้</div>` : ''
+  st.blocks.forEach((b, i) => {
+    if (b.type!=='header' && b.type!=='autonote') h += insLine(i)
+    if (b.type==='header') {
+      const t = st.kind==='m' ? 'รายงานยอดรายเดือน' : st.title
+      h += seg(b, `<div class="title">${opts.lockIc?ic('tabler:lock')+' ':''}${esc(t)}</div><span class="chipd">${st.kind==='m'?'6 ก.ย. – 5 ต.ค. 2569':'5 ต.ค. 2569'}</span><div class="slate">ข้อมูล ณ 21:02 น. · รวม ${shopsFx().length} ร้าน</div>`)
+    } else if (b.type==='orders') h += seg(b, `<div class="kv"><span>รายการ</span><span>128</span></div>`)
+    else if (b.type==='sales') h += seg(b, `<div class="kv"><span>ยอดขาย (นับแล้ว)</span><span class="b">฿1,284,560</span></div><div class="slate">ยังไม่นับเป็นยอดขาย ฿96,300 (รอยืนยัน/รอขนส่งรับ)</div>`)
+    else if (b.type==='cancelled') h += seg(b, `<div class="kv"><span>ยกเลิก</span><span>6 ใบ (ใบที่เปิดในช่วงนี้)</span></div>`)
+    else if (b.type==='cycle') h += st.kind==='m' ? '' : seg(b, `<div class="lbl">ยอดสะสมรอบนี้ 6 ก.ย. – 5 ต.ค.</div><div class="kv"><span>ยอดขาย (นับแล้ว)</span><span>฿18,902,340</span></div>`)
+    else if (b.type==='profit') h += seg(b, `<div class="kv"><span>กำไรสุทธิ</span><span>฿312,480</span></div><div class="slate">ยอดแต่ละร้านคิดตามกติกาของประเภทธุรกิจ</div>`)
+    else if (b.type==='shops') {
+      let x = '<div class="lbl">แยกรายร้าน</div>'
+      shopsFx().forEach((s,j) => { x += `<div class="kv"><span>${esc(s.name)}</span><span>${s.orders} · ${s.sales}</span></div>`
+        if (b.top3 && j<2) x += `<div class="slate">ขายดี: 1 ฟิล์มกรองแสงเซรามิก รุ่นพรีเมียม ทุกขนาด… 42 · 2 ผ้าคลุมรถยนต์ กันน้ำ 31</div>` })
+      h += seg(b, x)
+    }
+    else if (b.type==='text') {
+      if (opts.editId===b.id) h += seg(b, `<textarea class="edit-in" data-act="txt" data-id="${b.id}" maxlength="120" placeholder="พิมพ์ข้อความถึงทีม เช่น สรุปยอดของ {ชื่อร้าน} วันนี้">${esc(b.txt||'')}</textarea>`)
+      else h += seg(b, `<div class="free b-${b.bold?'1':'0'} sz-${b.size||'m'} c-${b.color||'ink'} ${b.bold?'b':''}">${b.txt?spans(b.txt):'<span class="slate">ข้อความว่าง</span>'}</div>`)
+    }
+    else if (b.type==='trend') {
+      const vals = FX==='zero' ? [0,0,0,0,0,0,0] : TREND[b.m||'sales'], max = Math.max(...vals), top = vals.indexOf(max)
+      let x = `<div class="lbl">แนวโน้ม 7 วันล่าสุด · ${measureLabel(b.m)}</div>`
+      if (max===0) x += `<div class="vzero">ยังไม่มียอดขายใน 7 วันนี้</div>`
+      else x += `<div class="vbars">${vals.map((v,j)=>`<div class="vb">${j===top?`<span class="vv">${fmt(v,b.m)}</span>`:''}<i class="${j===6?'acc':''}" style="height:${Math.max(2,Math.round(v/max*78))}%"></i></div>`).join('')}</div>`
+      x += `<div class="vlabels">${DAYS.map(([w,d],j)=>`<span class="${j===6?'acc':''}">${w}<br>${d}</span>`).join('')}</div>`
+      h += seg(b, x)
+    }
+    else if (b.type==='shopbar') {
+      if (shopsFx().length<2) return   // composer ไม่ส่งบล็อกนี้เมื่อกลุ่มมีร้านเดียว
+      const vals = SHOPBAR[b.m||'sales'], rows = shopsFx().map((s,j)=>({n:s.name, v:vals[j]})).sort((p,q)=>q.v-p.v), max = rows[0].v
+      h += seg(b, `<div class="lbl">เทียบรายร้าน · ${measureLabel(b.m)}</div>${rows.map((r,j)=>`<div class="hb"><span class="hn" title="${esc(r.n)}">${esc(r.n)}</span><span class="ht"><i class="${j===0?'acc':''}" style="width:${Math.max(2,Math.round(r.v/max*100))}%"></i></span><span class="hv">${fmt(r.v,b.m)}</span></div>`).join('')}`)
+    }
+    else if (b.type==='sep') h += `<div class="sec" data-sec="${b.id}" style="padding:0"></div>`
+    else if (b.type==='autonote') h += seg(b, `<div class="slate">${opts.lockIc?ic('tabler:lock')+' ':''}ไม่รวมร้าน ล้างรถ คลอง 4 โปรแคร์ ธัญบุรี (ถูกล็อก)</div>`)
+  })
+  h += `<span class="lnk">เปิด Deep</span>`
+  return `<div class="pvwrap"><div class="pvhd">${ic('simple-icons:line')} Deep รายงานยอด</div><div class="bub">${h}</div><div class="pvcap">ตัวอย่าง ตัวเลขจริงมาจากข้อมูลของร้านที่เลือก${opts.b?' · การตัดบรรทัดในกลุ่มอาจต่างเล็กน้อย':''}</div></div>`
+}
+function gauge(st, opts={}){
+  const bytes = new TextEncoder().encode(JSON.stringify(st.blocks)+'x'.repeat(5200)).length
+  const charts = st.blocks.reduce((n,b)=>n+chartBytes(b),0)
+  const pct = Math.min(100, Math.round((bytes*3+charts)/30000*100))
+  const order = charts ? 'ขายดี 3 อันดับ → กราฟ → ย่อรายร้าน' : 'ขายดี 3 อันดับ'
+  if (opts.compact) return `<div class="gauge ${pct>80?'warn':''}">ความยาวข้อความ <span class="bar" role="meter" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="ความยาวข้อความ"><i style="width:${pct}%"></i></span> ${pct}%</div>${pct>80?`<div class="warnline">ใกล้เต็มที่ LINE รับได้ ถ้าเกิน ระบบจะตัด${order}ก่อน</div>`:''}`
+  return `<div class="gauge ${pct>80?'warn':''}">ความยาวข้อความ <span class="bar"><i style="width:${pct}%"></i></span> ${pct}%</div>${charts?`<div class="xs muted">กราฟใช้ ${kb(charts)} ของ 30 KB · ถ้ายาวเกิน ระบบตัดตามลำดับ: ${order}</div>`:''}${pct>80?`<div class="warnline">ใกล้เต็มที่ LINE รับได้ ถ้าเกิน ระบบจะตัด${order}ก่อน</div>`:''}`
+}
+
+/* ───────────── รายการบล็อก (ใช้ใน A, C, D) ───────────── */
+function blockRow(st, b, i, frame, opts={}){
+  const n = st.blocks.length
+  if (opts.compact) return blockRowA(st, b, i, frame)
+  if (b.type==='header') return `<div class="blk locked" data-id="${b.id}"><div class="bh"><span class="grip" title="ตรึงบนสุด">${ic('tabler:lock')}</span><div class="bname">หัวรายงาน · ตรึงบนสุด<small>ต้องมีเสมอ เพื่อให้คนในกลุ่มรู้ว่าตัวเลขเป็นของช่วงไหนและ ณ เวลาใด แก้ได้เฉพาะชื่อรายงาน</small></div></div><div class="bbody"><label class="xs muted">ชื่อรายงาน</label><input data-act="title" value="${esc(st.title)}" maxlength="40" style="width:100%;min-height:40px;border:1px solid var(--d300);border-radius:6px;padding:6px 9px"></div></div>`
+  if (b.type==='autonote') return `<div class="blk locked" data-id="${b.id}"><div class="bh"><span class="grip">${ic('tabler:lock')}</span><div class="bname">หมายเหตุอัตโนมัติ · ใส่ให้เมื่อจำเป็น<small>เช่น ร้านที่ไม่ถูกรวม หรือดึงข้อมูลไม่ครบ เอาออกไม่ได้ เพื่อไม่ให้ตัวเลขดูครบทั้งที่ไม่ครบ</small></div></div></div>`
+  const expanded = b.type==='text' || (frame==='m' ? st.sel===b.id : true)
+  const warn = needsWarn(b, st)
+  let body = ''
+  if (b.type==='text') body = `<div class="bbody">
+      <textarea data-act="txt" data-id="${b.id}" maxlength="120" placeholder="พิมพ์ข้อความถึงทีม เช่น สรุปยอดของ {ชื่อร้าน} วันนี้">${esc(b.txt||'')}</textarea>
+      <div class="xs muted">เหลือ ${120-(b.txt||'').length} ตัวอักษร · ลากชิปข้อมูลลงช่องพิมพ์ได้</div>
+      ${textTools(b)}
+      <div class="tokbar">${TOKENS.map(t=>`<button class="chip" draggable="true" data-tok="${t}" data-act="tok" data-id="${b.id}">+ ${t}</button>`).join('')}</div></div>`
+  else if (b.type==='trend' || b.type==='shopbar') body = `<div class="bbody"><div class="xs muted">วัดจาก</div>
+      <span class="seg">${[['sales','ยอดขาย (นับแล้ว)'],['orders','จำนวน'+wordFx()]].map(([k,l])=>`<button class="${(b.m||'sales')===k?'on':''}" data-act="measure" data-v="${k}" data-id="${b.id}">${l}</button>`).join('')}</span>
+      <div class="xs muted mt2">${chartBytes(b)?'ใช้ ~':'ใช้ '}${kb(chartBytes(b))} · ถ้าข้อความยาวเกิน ระบบจะตัดกราฟก่อนตัวเลขหลัก${b.type==='trend'?' · ค่าเหนือแท่งแสดงเฉพาะแท่งสูงสุด':''}</div></div>`
+  else if (b.type==='shops') body = `<div class="bbody"><label class="row xs" data-act="top3" data-id="${b.id}" style="cursor:pointer;min-height:36px"><span class="cbox ${b.top3?'on':''}">${b.top3?ic('tabler:check'):''}</span> ขายดี 3 อันดับต่อร้าน</label></div>`
+  const moves = `<button class="mv" data-act="up" data-i="${i}" aria-label="ย้ายขึ้น" ${i<=1?'disabled':''}>${ic('tabler:chevron-up')}</button><button class="mv" data-act="down" data-i="${i}" aria-label="ย้ายลง" ${i>=n-2?'disabled':''}>${ic('tabler:chevron-down')}</button>`
+  return `<div class="blk ${st.hl===b.id?'hl':''}" data-id="${b.id}" data-i="${i}">
+    <div class="bh" data-act="selrow" data-id="${b.id}"><span class="grip" data-grip="1" title="ลากเพื่อย้าย">${ic('tabler:grip-vertical')}</span>
+      <div class="bname">${b.type==='text'?'ข้อความ':LIB[b.type].name}<small>${esc(blockSummary(b))}</small></div>
+      ${moves}<button class="mv" data-act="rm" data-i="${i}" aria-label="เอาออก">${ic('tabler:x')}</button></div>
+    ${expanded?body:''}${warn?`<div class="bbody"><div class="warnline">${ic('tabler:alert-triangle')} ${warn}</div></div>`:''}</div>`
+}
+/* A (หลัง audit 2026-10-05): แถวสรุปบรรทัดเดียว เปิดได้ทีละบล็อก · จัดรูปแบบ/ข้อมูลซ่อนหลังปุ่ม */
+function blockRowA(st, b, i, frame){
+  const n = st.blocks.length
+  if (b.type==='header') return `<div class="blk locked" data-id="${b.id}"><div class="bh"><span class="grip" title="ตรึงบนสุด · ต้องมีเสมอ เพื่อให้คนในกลุ่มรู้ว่าตัวเลขเป็นของช่วงไหน ณ เวลาใด">${ic('tabler:lock')}</span><label class="bname" for="ttl-${frame}">หัวรายงาน<small>ช่วงวันที่และเวลาข้อมูลใส่ให้อัตโนมัติ</small></label><input id="ttl-${frame}" class="ttl" data-act="title" value="${esc(st.title)}" maxlength="40" aria-label="ชื่อรายงาน"></div></div>`
+  if (b.type==='autonote') return `<div class="blk locked" data-id="${b.id}"><div class="bh"><span class="grip" title="เอาออกไม่ได้ เพื่อไม่ให้ตัวเลขดูครบทั้งที่ไม่ครบ">${ic('tabler:lock')}</span><div class="bname">หมายเหตุอัตโนมัติ<small>ระบบใส่ให้เมื่อมีร้านที่ไม่ถูกรวมหรือข้อมูลไม่ครบ</small></div></div></div>`
+  const open = st.sel===b.id
+  const warn = needsWarn(b, st)
+  const name = b.type==='text'?'ข้อความ':LIB[b.type].name
+  let body = ''
+  if (open && b.type==='text') body = `<div class="bbody">
+      <textarea data-act="txt" data-id="${b.id}" maxlength="120" aria-label="ข้อความ" placeholder="พิมพ์ข้อความถึงทีม เช่น สรุปยอดของ {ชื่อร้าน} วันนี้">${esc(b.txt||'')}</textarea>
+      <div class="brow"><span class="xs muted">เหลือ ${120-(b.txt||'').length}</span><span class="grow"></span>
+        <button class="tbtn ${st.tokOpen===b.id?'on':''}" aria-expanded="${st.tokOpen===b.id}" data-act="tokopen" data-id="${b.id}">${ic('tabler:plus')} ข้อมูล</button>
+        <button class="tbtn ${st.fmtOpen===b.id?'on':''}" aria-expanded="${st.fmtOpen===b.id}" data-act="fmtopen" data-id="${b.id}">จัดรูปแบบ</button></div>
+      ${st.tokOpen===b.id?`<div class="tokbar">${TOKENS.map(t=>`<button class="chip" draggable="true" data-tok="${t}" data-act="tok" data-id="${b.id}">${t}</button>`).join('')}</div>`:''}
+      ${st.fmtOpen===b.id?textToolsA(b):''}</div>`
+  else if (open && (b.type==='trend' || b.type==='shopbar')) body = `<div class="bbody"><span class="seg" role="radiogroup" aria-label="วัดจาก">${[['sales','ยอดขาย (นับแล้ว)'],['orders','จำนวน'+wordFx()]].map(([k,l])=>`<button role="radio" aria-checked="${(b.m||'sales')===k}" class="${(b.m||'sales')===k?'on':''}" data-act="measure" data-v="${k}" data-id="${b.id}">${l}</button>`).join('')}</span>
+      <div class="xs muted mt2">~${kb(chartBytes(b))} · ถ้าข้อความยาวเกิน ระบบตัดกราฟก่อนตัวเลขหลัก</div></div>`
+  else if (open && b.type==='shops') body = `<div class="bbody"><label class="row xs" data-act="top3" data-id="${b.id}" style="cursor:pointer;min-height:44px"><span class="cbox ${b.top3?'on':''}">${b.top3?ic('tabler:check'):''}</span> ขายดี 3 อันดับต่อร้าน</label></div>`
+  const tools = open ? `<button class="mv" data-act="up" data-i="${i}" aria-label="ย้าย${name}ขึ้น" ${i<=1?'disabled':''}>${ic('tabler:chevron-up')}</button><button class="mv" data-act="down" data-i="${i}" aria-label="ย้าย${name}ลง" ${i>=n-2?'disabled':''}>${ic('tabler:chevron-down')}</button><button class="mv" data-act="rm" data-i="${i}" aria-label="เอา${name}ออก">${ic('tabler:trash')}</button>` : ''
+  return `<div class="blk ${st.hl===b.id?'hl':''} ${open?'open':''}" data-id="${b.id}" data-i="${i}">
+    <div class="bh"><span class="grip" data-grip="1" title="ลากเพื่อย้าย">${ic('tabler:grip-vertical')}</span>
+      <button class="bname bsel" data-act="selbtn" data-id="${b.id}" aria-expanded="${open}">${name}<small>${esc(blockSummary(b))}</small></button>
+      ${tools}${open?'':ic('tabler:chevron-down').replace('<iconify-icon','<iconify-icon class="caret"')}</div>
+    ${body}${warn?`<div class="bbody"><div class="warnline">${ic('tabler:alert-triangle')} ${warn}</div></div>`:''}</div>`
+}
+function textToolsA(b){
+  const s = b.size||'m', c = b.color||'ink'
+  return `<div class="tool" role="toolbar" aria-label="รูปแบบข้อความ">
+    <span class="tlab">ทั้งบรรทัด</span>
+    <button class="tbtn ${b.bold?'on':''}" aria-pressed="${!!b.bold}" data-act="bold" data-id="${b.id}">หนา</button>
+    <span class="seg">${[['s','เล็ก'],['m','ปกติ'],['l','ใหญ่']].map(([k,l])=>`<button class="${s===k?'on':''}" data-act="size" data-v="${k}" data-id="${b.id}">${l}</button>`).join('')}</span>
+    <span class="seg">${[['ink','ปกติ','var(--fx-ink)'],['slate','รอง','var(--fx-slate)'],['accent','เน้น','var(--fx-accent)']].map(([k,l,col])=>`<button class="${c===k?'on':''}" data-act="color" data-v="${k}" data-id="${b.id}"><i class="sw" style="background:${col}"></i>${l}</button>`).join('')}</span>
+  </div><div class="tool"><span class="tlab">คำที่เลือก</span>
+    <button class="tbtn" data-act="wrapb" data-id="${b.id}">หนา</button>
+    <button class="tbtn" data-act="wrapa" data-id="${b.id}">เน้นสี</button>
+  </div>`
+}
+function textTools(b){
+  const s = b.size||'m', c = b.color||'ink'
+  return `<div class="tool" role="toolbar" aria-label="รูปแบบข้อความ">
+    <button class="tbtn ${b.bold?'on':''}" aria-pressed="${!!b.bold}" data-act="bold" data-id="${b.id}">ตัวหนา (ทั้งบรรทัด)</button>
+    <span class="seg">${[['s','เล็ก'],['m','ปกติ'],['l','ใหญ่']].map(([k,l])=>`<button class="${s===k?'on':''}" data-act="size" data-v="${k}" data-id="${b.id}">${l}</button>`).join('')}</span>
+    <span class="seg">${[['ink','ปกติ','var(--fx-ink)'],['slate','รอง','var(--fx-slate)'],['accent','เน้น','var(--fx-accent)']].map(([k,l,col])=>`<button class="${c===k?'on':''}" data-act="color" data-v="${k}" data-id="${b.id}"><i class="sw" style="background:${col}"></i>${l}</button>`).join('')}</span>
+    <button class="tbtn" data-act="wrapb" data-id="${b.id}">ตัวหนา (คำที่เลือก)</button>
+    <button class="tbtn" data-act="wrapa" data-id="${b.id}">เน้น (คำที่เลือก)</button>
+  </div><div class="xs muted mt2">เลือกคำแล้วกดตัวหนาหรือเน้น เพื่อจัดเฉพาะคำนั้น · ไม่มีสีเขียวและแดง เพราะในรายงานนี้เขียวหมายถึงยืนยันแล้ว แดงหมายถึงดึงข้อมูลไม่สำเร็จ</div>`
+}
+function blockList(st, frame, opts={}){
+  return `<div class="blist ${opts.compact?'cmp':''}" data-list="1">${st.blocks.map((b,i)=>blockRow(st,b,i,frame,opts)).join('')}</div>`
+}
+function palette(st, mode, charts, opts={}){
+  const items = ['orders','sales','cancelled','shops','cycle','profit']
+  const one = t => {
+    const used = SINGLE.includes(t) && has(st,t)
+    const one1 = t==='shopbar' && shopsFx().length<2
+    const dis = used || one1 || (t==='cycle' && !st.monthly)
+    const why = used ? 'เพิ่มแล้ว' : one1 ? 'ใช้ได้เมื่อกลุ่มรวมมากกว่า 1 ร้าน' : t==='cycle'&&!st.monthly ? 'ต้องเปิดรายเดือน' : t==='profit' ? 'ต้องยืนยันก่อน' : ''
+    return `<div class="pitem" draggable="${!dis}" data-new="${t}" aria-disabled="${dis}"><span class="grip">${ic('tabler:grip-vertical')}</span><span class="grow">${ic(ICON[t])} ${LIB[t].name}${why?` <span class="why">· ${why}</span>`:''}</span>${dis?'':`<button class="padd" data-act="add" data-t="${t}" aria-label="เพิ่ม ${LIB[t].name}">${ic('tabler:plus')}</button>`}</div>`
+  }
+  if (mode==='strip') return `<div class="xs muted">แตะเพื่อเพิ่ม</div><div class="strip">${[...items,...(charts?['trend','shopbar']:[]),'text','sep'].filter(t=>!(SINGLE.includes(t)&&has(st,t)) && !(t==='shopbar'&&shopsFx().length<2)).map(t=>`<button class="chip" data-act="add" data-t="${t}">${ic('tabler:plus')} ${LIB[t].name}</button>`).join('')}</div>`
+  if (opts.compact){ const vis = t => !(SINGLE.includes(t)&&has(st,t)); return `<nav class="pal cmp" aria-label="บล็อกที่เพิ่มได้"><h6>ข้อมูล</h6>${items.filter(vis).map(one).join('')||'<p class="xs muted">ใส่ครบแล้ว</p>'}${charts?`<h6>กราฟ</h6>${['trend','shopbar'].filter(vis).map(one).join('')||'<p class="xs muted">ใส่ครบแล้ว</p>'}`:''}<h6>ข้อความของคุณ</h6>${one('text').replace('aria-disabled="false"','')}${one('sep')}</nav>` }
+  return `<div class="pal"><h6>ข้อมูลที่ส่งได้</h6>${items.map(one).join('')}${charts?`<h6>กราฟ</h6>${one('trend')}${one('shopbar')}`:''}<h6>ข้อความของคุณ</h6>${one('text').replace('aria-disabled="false"','')}${one('sep')}</div>`
+}
+
+/* ───────────── การ์ดตั้งค่าเดิม ───────────── */
+function shopsCard(st){
+  const names = [...SHOPS.map(s=>[s.name,s.v]), ['ล้างรถ คลอง 4 โปรแคร์ ธัญบุรี','สินค้าและบริการ']]
+  return `<div class="card"><div class="card-header"><h5>${ic('tabler:building-store')} ร้านที่รวมในรายงาน</h5></div><div class="card-body">
+  <p class="xs muted" style="margin:0 0 6px">เลือก 1 ร้านเป็นรายงานของสาขา เลือกหลายร้านเป็นรายงานรวมพร้อมแยกรายร้าน</p>
+  ${names.map(([n,v],j)=>`<div class="setrow" ${j===3?'style="opacity:.6"':''}><span class="cbox ${st.shopsOn[j]?'on':''}">${st.shopsOn[j]?ic('tabler:check'):''}</span><div class="grow"><div class="trunc" title="${esc(n)}">${esc(n)}</div><div class="xs muted">${j===3?'ถูกล็อกเพราะแพ็กเกจ จะกลับมาให้เลือกเมื่อเปิดใช้งานร้านนี้อีกครั้ง':v}</div></div></div>`).join('')}</div></div>`
+}
+function scheduleCard(st){
+  return `<div class="card"><div class="card-header"><h5>${ic('tabler:clock')} เวลาส่ง</h5></div><div class="card-body">
+  <div class="setrow"><div class="grow"><b>รายวัน</b><div class="xs muted">เลือกได้สูงสุด 4 เวลา ทีละ 30 นาที</div></div><span class="switch ${st.daily?'on':''}" data-act="daily"></span></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 0">${st.times.map(t=>`<span class="tchip">${t}${t==='24:00'?' (สรุปทั้งวัน)':''}</span>`).join('')}</div>
+  <div class="setrow"><div class="grow"><b>รายเดือน</b><div class="xs muted">ตัวอย่าง: ตัดรอบวันที่ ${st.cutoff} ได้รอบ ${st.cutoff} ก.ย. – ${st.cutoff-1} ต.ค. ส่ง ${st.cutoff} ต.ค. 09:00</div></div><span class="switch ${st.monthly?'on':''}" data-act="monthly"></span></div>
+  <div class="setrow"><span class="cbox on">${ic('tabler:check')}</span><div class="grow">ไม่ส่งถ้าไม่มีรายการ<div class="xs muted">ถ้าช่วงนั้นไม่มีรายการเลย ระบบจะข้ามและบันทึกในประวัติว่าข้าม</div></div></div></div></div>`
+}
+function historyCard(){
+  const rows = [['วันนี้ 12:30','รายวัน','<span class="badge b-ok">สำเร็จ</span>',''],['วันนี้ 10:14','คำสั่งในกลุ่ม','<span class="badge b-ok">สำเร็จ</span>',''],['5 ต.ค. 12:30','รายวัน','<span class="badge" style="background:rgba(247,87,126,.15);color:var(--danger-ink)">ไม่สำเร็จ</span>','บอทไม่อยู่ในกลุ่มแล้ว'],['4 ต.ค. 09:00','รายวัน','<span class="badge b-neu">ข้าม</span>','ไม่มีรายการในช่วงนั้น']]
+  return `<div class="card"><div class="card-header"><h5>${ic('tabler:history')} ประวัติการส่ง 10 ครั้งล่าสุด</h5></div><div class="card-body" style="overflow-x:auto"><table class="hist"><tr><th>เวลา</th><th>ประเภท</th><th>ผล</th><th>สาเหตุ</th></tr>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</table></div></div>`
+}
+function commandsCard(){
+  return `<div class="card"><div class="card-header"><h5>พิมพ์ในกลุ่มได้เลย</h5></div><div class="card-body"><div class="setrow"><span class="tchip">สรุปวันนี้</span><span class="xs muted">ส่งสรุปยอดของวันนี้เข้ากลุ่มทันที</span></div><div class="setrow"><span class="tchip">สรุปเดือนนี้</span><span class="xs muted">ส่งสรุปยอดของรอบเดือนนี้ (นับตามวันตัดรอบ) เข้ากลุ่มทันที</span></div></div></div>`
+}
+function summarySentence(st){
+  const t = st.times.filter(x=>x!=='24:00'), full = st.times.includes('24:00')
+  if (!st.daily && !st.monthly) return `<div class="sumsent">ยังไม่ได้เปิดรายงานอัตโนมัติ กลุ่มนี้ได้สรุปเมื่อมีคนพิมพ์ “สรุปวันนี้” เท่านั้น</div>`
+  return `<div class="sumsent">${st.daily?`ทุกวัน <button data-act="tab" data-v="time">${t.join(' · ')}</button>${full?' และ <button data-act="tab" data-v="time">24:00 (สรุปทั้งวัน)</button>':''} `:''}ส่งยอดของ <button data-act="tab" data-v="shop">3 ร้าน</button> เข้ากลุ่มนี้${st.monthly?` · รายเดือน <button data-act="tab" data-v="time">ตัดรอบวันที่ ${st.cutoff}</button> ส่งวันที่ ${st.cutoff} เวลา 09:00`:''}</div>`
+}
+function actionBar(st, frame, saveLabel='บันทึกเทมเพลต', opts={}){
+  const d = dirty(st)
+  return `<div class="abar"><button class="btn icon" aria-label="กลับ">${ic('tabler:chevron-left')}</button><span class="badge b-ok">${ic('tabler:circle-check')} ผูกแล้ว</span>
+   <span class="gname" title="${esc(GROUP)}">${frame==='m'?'':esc(GROUP)}</span>
+   <button class="btn icon" aria-label="เมนู" title="คืนเป็นแบบมาตรฐาน / ยกเลิกการผูก" data-act="menu">${ic('tabler:dots-vertical')}</button>
+   ${d?`<button class="btn outline sm" data-act="discard">ยกเลิกการแก้</button>`:''}
+   <button class="btn ${d?'outline':'primary'}" ${d?'disabled':''}>${ic('tabler:send')} ส่งทดสอบ</button>
+   ${d?`<button class="btn primary" data-act="save">${frame==='m'?'บันทึก':saveLabel}</button>`:''}
+   ${d?`<div class="why">บันทึกก่อน จึงส่งทดสอบได้</div>`:opts.quiet?'':`<div class="why">เหลือ 3 จาก 5 ครั้งวันนี้</div>`}</div>`
+}
+function seg2(st, key, opts){ return `<span class="seg">${opts.map(([v,l])=>`<button class="${st[key]===v?'on':''}" data-act="set" data-k="${key}" data-v="${v}">${l}</button>`).join('')}</span>` }
+function msgHeader(st){
+  return `<div class="card-header"><h5>${ic('tabler:message-2')} ข้อความที่ส่งเข้ากลุ่ม</h5><span class="row"><span class="badge b-neu">${dirty(st)||JSON.stringify(st.blocks.map(b=>b.type))!==JSON.stringify(DEFAULT().map(b=>b.type))?'จัดเองแล้ว':'ใช้แบบมาตรฐานอยู่'}</span><button class="btn sm outline" data-act="reset">${ic('tabler:refresh')} คืนเป็นแบบมาตรฐาน</button></span></div>`
+}
+
+/* ───────────── shells ───────────── */
+function mobShell(inner, overlay='', nav=true){
+  if (!nav) return `<div class="scroll">${inner}</div>${overlay}`
+  return `<div class="scroll">${inner}</div><div class="bnav"><span>${ic('tabler:home')}หน้าหลัก</span><span>${ic('tabler:receipt')}คำสั่งซื้อ</span><span class="fab">${ic('tabler:plus')}</span><span>${ic('tabler:message-circle')}แชท</span><span class="on">${ic('tabler:building-store')}ร้านค้า</span></div>${overlay}`
+}
+function deskShell(inner, sidebar=true){
+  return `<div class="shell">${sidebar?`<aside class="sidebar"><span class="brand">Deep</span>${['แดชบอร์ด','คำสั่งซื้อ','แชท','ร้านค้า','รายงานเข้ากลุ่ม LINE','ตั้งค่า'].map((n,i)=>`<div class="nav ${i===4?'on':''}">${ic(['tabler:layout-dashboard','tabler:receipt','tabler:message-circle','tabler:building-store','tabler:brand-line','tabler:settings'][i])} ${n}</div>`).join('')}</aside>`:''}<div class="main"><div class="topbar"><span class="brand">${sidebar?'':'Deep'}</span><span class="xs muted" style="margin-left:auto">สมชาย ใจดี · เจ้าของ</span></div>${inner}</div></div>`
+}
+
+/* ───────────── 4 ทิศทาง ───────────── */
+function renderA(st, f){
+  const C = {compact:true}
+  const canvasHead = `<div class="colhead"><h2>ข้อความ</h2>${seg2(st,'kind',[['d','รายวัน'],['m','รายเดือน']])}</div>`
+  if (f==='d') return deskShell(`<div class="dA">${actionBar(st,f,'บันทึกเทมเพลต',{quiet:true})}<div class="content"><div class="cols a3">
+      <aside class="acol">${palette(st,null,true,C)}</aside>
+      <section class="acol">${canvasHead}${blockList(st,f,C)}${gauge(st,C)}</section>
+      <section class="acol pvcol sticky" aria-label="ตัวอย่างในกลุ่ม LINE"><div class="colhead"><h2>ตัวอย่างในกลุ่ม LINE</h2></div>${bubble(st)}</section></div></div></div>`, false)
+  if (f==='t') return mobShell(`<div class="dA">${actionBar(st,f,'บันทึกเทมเพลต',{quiet:true})}<div class="content">${palette(st,'strip',true)}<div class="cols c2"><section>${canvasHead}${blockList(st,f,C)}${gauge(st,C)}</section><section class="pvcol">${bubble(st)}</section></div></div></div>`, '', false)
+  return mobShell(`<div class="dA">${actionBar(st,f,'บันทึก',{quiet:true})}<div class="content"><div class="mb2">${seg2(st,'pvMobile',[['canvas','ข้อความ'],['pv','ตัวอย่าง']])}</div>
+    ${st.pvMobile==='pv'?bubble(st):`${palette(st,'strip',true)}${blockList(st,f,C)}${gauge(st,C)}`}</div></div>`, '', false)
+}
+function renderB(st, f){
+  const selB = st.blocks.find(b=>b.id===st.sel)
+  const tools = selB && !['header','autonote'].includes(selB.type) ? `<div class="ftool ${f==='m'?'bottom':''}" ${f!=='m'?'style="margin-bottom:8px"':''}>
+     <span style="font-size:12px;padding:0 4px">${selB.type==='text'?'ข้อความ':LIB[selB.type].name}</span>
+     ${selB.type==='text'?`<button class="tbtn ${selB.bold?'on':''}" data-act="bold" data-id="${selB.id}">ตัวหนา</button>${['s','m','l'].map((k,j)=>`<button class="tbtn ${(selB.size||'m')===k?'on':''}" data-act="size" data-v="${k}" data-id="${selB.id}">${['เล็ก','ปกติ','ใหญ่'][j]}</button>`).join('')}${['ink','slate','accent'].map((k,j)=>`<button class="tbtn ${(selB.color||'ink')===k?'on':''}" data-act="color" data-v="${k}" data-id="${selB.id}">${['ปกติ','รอง','เน้น'][j]}</button>`).join('')}<button class="tbtn" data-act="wrapb" data-id="${selB.id}">หนาคำที่เลือก</button>`:''}
+     <button class="tbtn" data-act="up" data-i="${st.blocks.indexOf(selB)}" aria-label="ย้ายขึ้น">${ic('tabler:chevron-up')}</button><button class="tbtn" data-act="down" data-i="${st.blocks.indexOf(selB)}" aria-label="ย้ายลง">${ic('tabler:chevron-down')}</button><button class="tbtn" data-act="rm" data-i="${st.blocks.indexOf(selB)}">เอาออก</button></div>` : ''
+  const stage = `<div class="card"><div class="card-header"><h5>${ic('tabler:pencil')} แก้ข้อความ</h5>${seg2(st,'kind',[['d','รายวัน'],['m','รายเดือน']])}</div><div class="card-body">
+     <p class="xs muted" style="margin:0 0 8px">แตะส่วนไหนของข้อความก็แก้ส่วนนั้น · แตะเส้น "เพิ่มตรงนี้" เพื่อแทรกบล็อก · ส่วนที่มีกุญแจแก้ไม่ได้</p>
+     ${f!=='m'?tools:''}${bubble(st,{pick:true,ins:true,lockIc:true,editId:selB&&selB.type==='text'?selB.id:null,b:true})}${gauge(st)}</div></div>`
+  const pop = st.pop!==false && st.pop!=null ? `<div class="card"><div class="card-body">${palette(st)}</div></div>` : ''
+  const right = `${shopsCard(st)}${scheduleCard(st)}${commandsCard()}${historyCard()}`
+  if (f==='d') return deskShell(`${actionBar(st,f)}<div class="content"><div class="cols c55"><div>${stage}${pop}</div><div>${right}</div></div></div>`)
+  if (f==='t') return mobShell(`${actionBar(st,f)}<div class="content">${stage}${pop}<div class="cols" style="grid-template-columns:1fr 1fr">${shopsCard(st)}${scheduleCard(st)}</div>${historyCard()}</div>`)
+  return mobShell(`${actionBar(st,f)}<div class="content">${stage}${pop}${right}</div>`, f==='m'?tools:'')
+}
+function renderC(st, f){
+  const dot = dirty(st) ? '<span class="dot" aria-label="ยังไม่บันทึก"></span>' : ''
+  const tabs = `<div class="tabs" role="tablist">${[['msg','ข้อความ'+dot],['time','เวลา'],['shop','ร้าน']].map(([k,l])=>`<button role="tab" aria-selected="${st.tab===k}" class="${st.tab===k?'on':''}" data-act="tab" data-v="${k}">${l}</button>`).join('')}</div>`
+  const msg = `<div class="card">${msgHeader(st)}<div class="card-body">${blockList(st,f)}<button class="btn outline mt2" data-act="pop" style="width:100%">${ic('tabler:plus')} เพิ่มบล็อก</button>${st.pop?`<div class="mt2">${palette(st)}</div>`:''}${gauge(st)}</div></div>`
+  const body = st.tab==='msg' ? (f==='m' ? `${msg}${bubble(st)}${commandsCard()}` : `<div class="cols c55"><div>${msg}${commandsCard()}</div><div class="sticky">${bubble(st)}</div></div>`) : st.tab==='time' ? scheduleCard(st) : shopsCard(st)
+  const inner = `${actionBar(st,f)}<div class="content"><div class="xs muted" style="font-weight:600;margin-bottom:4px" title="${esc(GROUP)}">${esc(GROUP)}</div>${summarySentence(st)}${tabs}${body}${historyCard()}</div>`
+  return f==='d' ? deskShell(inner) : mobShell(inner)
+}
+function renderD(st, f){
+  const add = f==='d'
+    ? `<div style="position:relative"><button class="btn outline mt2" data-act="pop">${ic('tabler:plus')} เพิ่มบล็อก ${ic('tabler:chevron-down')}</button>${st.pop?`<div class="pop" style="top:52px;left:0">${palette(st)}</div>`:''}</div>`
+    : `<button class="btn outline mt2" style="width:100%" data-act="sheet">${ic('tabler:plus')} เพิ่มบล็อก</button>`
+  const rowS = (label, val, icn) => `<div class="card"><div class="card-body row" style="min-height:44px;padding:8px 14px"><span>${ic(icn)}</span><span class="grow"><b>${label}</b> <span class="muted xs">${val}</span></span>${ic('tabler:chevron-right')}</div></div>`
+  const msg = `<div class="card">${msgHeader(st)}<div class="card-body">${blockList(st,f)}${add}${gauge(st)}</div></div>`
+  const stack = `${summarySentence(st)}${rowS('ร้านที่รวม','3 ร้าน · 1 ร้านถูกล็อก','tabler:building-store')}${rowS('เวลาส่ง','ทุกวัน 4 เวลา · รายเดือนตัดรอบวันที่ 6','tabler:clock')}${msg}`
+  const pv = `<div class="card"><div class="card-header"><h5>ตัวอย่างในกลุ่ม LINE</h5>${seg2(st,'kind',[['d','รายวัน'],['m','รายเดือน']])}</div><div class="card-body">${bubble(st)}</div></div>`
+  const sheet = f!=='d' && st.sheet ? `${st.sheetCollapsed?'':'<div class="scrim" data-act="sheet"></div>'}<div class="sheet ${f==='t'?'mid':''} ${st.sheetCollapsed?'collapsed':''}"><div class="gr"></div><div class="shd"><b>${st.sheetCollapsed?'วางบล็อกบนกองการ์ด หรือ':'เพิ่มบล็อก'}</b>${st.sheetCollapsed?'<button class="btn sm outline" data-act="unfold">เปิดชีต</button>':`<button class="btn icon" data-act="sheet" aria-label="ปิด">${ic('tabler:x')}</button>`}</div><div class="sbody">${palette(st)}</div></div>` : ''
+  const inner = `${actionBar(st,f)}<div class="content"><div class="xs muted" style="font-weight:600;margin-bottom:4px" title="${esc(GROUP)}">${esc(GROUP)}</div>`
+  if (f==='d') return deskShell(`${inner}<div class="cols c55"><div>${stack}${commandsCard()}${historyCard()}</div><div class="sticky">${pv}</div></div></div>`)
+  return mobShell(`${inner}${stack}${pv}${commandsCard()}${historyCard()}</div>`, sheet)
+}
+const R = {a:renderA, b:renderB, c:renderC, d:renderD}
+
+/* ───────────── render ───────────── */
+function render(){
+  $('#dirs').innerHTML = Object.entries(DIRS).map(([k,d])=>`<a href="#${k}" class="${k===cur?'on':''}"><b>${d.label}${d.rec?` <span class="rec">${d.rec}</span>`:''}</b><span>${d.one}</span></a>`).join('')
+  $('#concept').innerHTML = DIRS[cur].concept
+  const st = S[cur]
+  const caps = {m:['375','มือถือ — mobile shell + แถบล่าง'], t:['768','แท็บเล็ต — ยัง mobile shell'], d:['1180',cur==='a'?'เดสก์ท็อป — หน้าเต็มจอ (ไม่มี sidebar)':'เดสก์ท็อป — sidebar 245 + topbar']}
+  $('#frames').innerHTML = ['m','t','d'].map(f=>{
+    FX = cur==='a' ? S.a.fx[f] : 'normal'
+    const fx = cur==='a' ? `<span class="seg fxseg" title="ข้อมูลตัวอย่าง (mockup เท่านั้น)">${[['normal','ปกติ'],['zero','7 วันเป็น 0'],['one','กลุ่ม 1 ร้าน']].map(([v,l])=>`<button class="${FX===v?'on':''}" data-act="fx" data-f="${f}" data-v="${v}">${l}</button>`).join('')}</span>` : ''
+    return `<div class="frame"><div class="cap"><span class="w">${caps[f][0]}</span><span class="note">${caps[f][1]}</span>${fx}</div><div class="device ${f==='d'?'w1180':f==='t'?'w768 mob':'w375 mob'}" data-frame="${f}" data-fx="${FX}">${R[cur](st,f)}</div></div>`
+  }).join('')
+  FX = 'normal'
+}
+const fxOf = el => el.closest && el.closest('[data-frame]')?.dataset.fx || 'normal'
+function rerenderKeep(){ const a = document.activeElement; const id = a && a.dataset && a.dataset.id, act = a && a.dataset && a.dataset.act; const frame = a && a.closest && a.closest('[data-frame]')?.dataset.frame; const pos = a && a.selectionStart; render(); if (id && act){ const el = document.querySelector(`[data-frame="${frame}"] [data-act="${act}"][data-id="${id}"]`); if (el){ el.focus(); try{el.setSelectionRange(pos,pos)}catch(e){} } } }
+addEventListener('hashchange', () => { cur = parseHash().d; render() })
+
+/* ───────────── actions ───────────── */
+let undo = null, toastT
+function toast(msg, undoFn){ undo = undoFn; $('#toastMsg').textContent = msg; $('#toastUndo').style.display = undoFn?'':'none'; $('#toast').style.display='flex'; clearTimeout(toastT); toastT = setTimeout(()=>$('#toast').style.display='none', 4500) }
+$('#toastUndo').onclick = () => { if (undo) { undo(); undo = null; render() } $('#toast').style.display='none' }
+function addBlock(st, t, at){
+  if (SINGLE.includes(t) && has(st,t)) return
+  if (t==='cycle' && !st.monthly) return
+  if (t==='shopbar' && shopsFx().length<2) return
+  if (t==='profit' && !confirm('แสดงกำไรในกลุ่ม LINE?\n\nทุกคนในกลุ่มนี้จะเห็นตัวเลขกำไรของร้านที่เลือก ปิดได้ทุกเมื่อ\n\n(ของจริงใช้ Swal)')) return
+  const b = mk(t, t==='text'?{txt:'',size:'m',color:'ink'}:t==='shops'?{top3:true}:{})
+  const idx = at==null ? st.blocks.length-1 : Math.max(1, Math.min(at, st.blocks.length-1))
+  st.blocks.splice(idx, 0, b)
+  if (cur==='b' || cur==='a') st.sel = b.id
+  toast(`เพิ่มแล้ว: ${t==='text'?'ข้อความ':LIB[t].name}`)
+}
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act],[data-sec]'); if (!el) return
+  FX = fxOf(el)
+  const st = S[cur]
+  if (el.dataset.sec && !el.dataset.act) { if (cur==='b'){ const b = st.blocks.find(x=>x.id==el.dataset.sec); if (b && !['header','autonote'].includes(b.type)) { st.sel = b.id; render() } else if (b) toast('ส่วนนี้ล็อกไว้ — หัวรายงานและหมายเหตุอัตโนมัติต้องมีเสมอ') } return }
+  const a = el.dataset.act, i = +el.dataset.i, id = +el.dataset.id, b = st.blocks.find(x=>x.id===id)
+  const swap = (x,y) => { if (y<1 || y>st.blocks.length-2) return; [st.blocks[x],st.blocks[y]] = [st.blocks[y],st.blocks[x]] }
+  if (a==='up') swap(i,i-1)
+  else if (a==='down') swap(i,i+1)
+  else if (a==='rm'){ const [r] = st.blocks.splice(i,1); if (st.sel===r.id) st.sel=null; toast(`เอาออกแล้ว: ${r.type==='text'?'ข้อความ':LIB[r.type].name}`, () => st.blocks.splice(i,0,r)) }
+  else if (a==='add'){ addBlock(st, el.dataset.t); if (cur!=='d') st.pop = false }
+  else if (a==='ins'){ st.pop = +el.dataset.i; st.insAt = +el.dataset.i }
+  else if (a==='bold') b.bold = !b.bold
+  else if (a==='size') b.size = el.dataset.v
+  else if (a==='color') b.color = el.dataset.v
+  else if (a==='top3') b.top3 = !b.top3
+  else if (a==='measure') b.m = el.dataset.v
+  else if (a==='fx') S.a.fx[el.dataset.f] = el.dataset.v
+  else if (a==='wrapb' || a==='wrapa'){ const ta = document.querySelector(`[data-frame] textarea[data-id="${id}"]`); if (ta){ const s=ta.selectionStart, en=ta.selectionEnd; if (s===en){ toast('เลือกคำในช่องพิมพ์ก่อน แล้วค่อยกด'); return } const m = a==='wrapb'?'**':'^^'; b.txt = ta.value.slice(0,s)+m+ta.value.slice(s,en)+m+ta.value.slice(en) } }
+  else if (a==='tok'){ b.txt = ((b.txt||'')+' {'+el.dataset.tok+'}').trim().slice(0,120) }
+  else if (a==='set'){ st[el.dataset.k] = el.dataset.v }
+  else if (a==='save'){ st.saved = JSON.stringify(st.blocks); st.titleDirty=false; toast('บันทึกแล้ว รายงานรอบถัดไปจะใช้แบบนี้') }
+  else if (a==='discard'){ st.blocks = JSON.parse(st.saved); st.titleDirty=false; st.sel=null }
+  else if (a==='reset'){ if (!confirm('คืนเป็นแบบมาตรฐาน?\n\nบล็อกและข้อความที่คุณจัดไว้จะถูกแทนที่ด้วยแบบมาตรฐาน ข้อความที่ส่งเข้ากลุ่มไปแล้วไม่เปลี่ยน')) return; st.blocks = DEFAULT(); st.sel=null }
+  else if (a==='tab'){ st.tab = el.dataset.v; if (cur==='d') location.hash='#c' }
+  else if (a==='pop'){ st.pop = !st.pop }
+  else if (a==='sheet'){ st.sheet = !st.sheet; st.sheetCollapsed = false }
+  else if (a==='unfold'){ st.sheetCollapsed = false }
+  else if (a==='daily'){ st.daily = !st.daily }
+  else if (a==='monthly'){ st.monthly = !st.monthly }
+  else if (a==='selbtn'){ st.sel = st.sel===id?null:id; if (st.sel!==id){ st.tokOpen=null; st.fmtOpen=null } }
+  else if (a==='tokopen'){ st.tokOpen = st.tokOpen===id?null:id }
+  else if (a==='fmtopen'){ st.fmtOpen = st.fmtOpen===id?null:id }
+  else if (a==='selrow'){ if (e.target.closest('button,textarea,input,label')) return; st.sel = st.sel===id?null:id }
+  else if (a==='menu'){ toast('เมนู ⋯ : คืนเป็นแบบมาตรฐาน · ยกเลิกการผูก (ยืนยันด้วย Swal)') ; return }
+  else return
+  if (cur==='b' && a==='add' && st.insAt!=null){ const nb = st.blocks.find(x=>x.id===st.sel); if (nb){ st.blocks.splice(st.blocks.indexOf(nb),1); st.blocks.splice(Math.max(1,st.insAt),0,nb) } st.insAt=null }
+  render()
+})
+document.addEventListener('input', e => {
+  const st = S[cur], t = e.target
+  if (t.dataset.act==='txt'){ const b = st.blocks.find(x=>x.id==t.dataset.id); b.txt = t.value; rerenderKeep() }
+  if (t.dataset.act==='title'){ st.title = t.value; st.titleDirty = true; rerenderKeep() }
+})
+/* hover ไฮไลต์ข้ามคอลัมน์ (A) */
+document.addEventListener('mouseover', e => { if (cur!=='a') return; const r = e.target.closest('.blk[data-id]'); const id = r ? +r.dataset.id : null; if (S.a.hl!==id){ S.a.hl = id; document.querySelectorAll('.bub .sec').forEach(s=>s.classList.toggle('hl', +s.dataset.sec===id)); document.querySelectorAll('.blk[data-id]').forEach(s=>s.classList.toggle('hl', +s.dataset.id===id)) } })
+document.addEventListener('focusin', e => { if (cur!=='a') return; const r = e.target.closest('.blk[data-id]'); if (r){ S.a.hl=+r.dataset.id; document.querySelectorAll('.bub .sec').forEach(s=>s.classList.toggle('hl', +s.dataset.sec===S.a.hl)) } })
+
+/* ───────────── drag & drop (HTML5) ───────────── */
+let drag = null, gripDown = false
+document.addEventListener('pointerdown', e => { gripDown = !!e.target.closest('[data-grip]') })
+document.addEventListener('dragstart', e => {
+  const st = S[cur]
+  const tok = e.target.closest && e.target.closest('[data-tok]')
+  if (tok){ e.dataTransfer.setData('text/plain', '{'+tok.dataset.tok+'}'); return }
+  const p = e.target.closest && e.target.closest('[data-new]')
+  if (p){ if (p.getAttribute('aria-disabled')==='true'){ e.preventDefault(); return } drag = {new:p.dataset.new}; e.dataTransfer.setData('text/x-block','1'); e.dataTransfer.effectAllowed='copy'
+    if (cur==='d' && st.sheet){ setTimeout(()=>{ st.sheetCollapsed = true; render() }, 0) } return }
+  const r = e.target.closest && e.target.closest('.blk[data-i]')
+  if (r && gripDown){ drag = {from:+r.dataset.i}; e.dataTransfer.setData('text/x-block','1'); e.dataTransfer.effectAllowed='move'; r.classList.add('dragging') } else if (r) e.preventDefault()
+})
+document.addEventListener('mousedown', e => { const g = e.target.closest('[data-grip]'); if (g){ const r = g.closest('.blk'); r.setAttribute('draggable','true'); setTimeout(()=>r.addEventListener('dragend',()=>r.removeAttribute('draggable'),{once:true}),0) } })
+document.addEventListener('dragover', e => {
+  if (!drag) return
+  const r = e.target.closest('.blk[data-i]'); const list = e.target.closest('[data-list]')
+  if (!r && !list) return
+  e.preventDefault()
+  document.querySelectorAll('.dropbefore,.dropafter').forEach(x=>x.classList.remove('dropbefore','dropafter'))
+  if (r){ const rc = r.getBoundingClientRect(); r.classList.add(e.clientY < rc.top+rc.height/2 ? 'dropbefore':'dropafter') }
+})
+document.addEventListener('drop', e => {
+  if (!drag) return
+  const st = S[cur]
+  FX = fxOf(e.target)
+  const r = e.target.closest('.blk[data-i]'); const list = e.target.closest('[data-list]')
+  if (!r && !list) { drag=null; return }
+  e.preventDefault()
+  let to = st.blocks.length-1
+  if (r){ const rc = r.getBoundingClientRect(); to = +r.dataset.i + (e.clientY < rc.top+rc.height/2 ? 0 : 1) }
+  to = Math.max(1, Math.min(to, st.blocks.length-1))
+  if (drag.new) addBlock(st, drag.new, to)
+  else { const [b] = st.blocks.splice(drag.from,1); if (drag.from < to) to--; st.blocks.splice(Math.max(1,Math.min(to, st.blocks.length-1)),0,b); toast(`ย้าย${b.type==='text'?'ข้อความ':LIB[b.type].name}ไปตำแหน่งที่ ${to+1}`) }
+  drag = null; render()
+})
+document.addEventListener('dragend', () => { drag = null; document.querySelectorAll('.dropbefore,.dropafter,.dragging').forEach(x=>x.classList.remove('dropbefore','dropafter','dragging')) })
+
+/* เริ่มต้น: ใส่ข้อความตัวอย่าง 1 บล็อก ให้เห็นตัวแปร + span */
+for (const k of Object.keys(S)){ const st = S[k]; st.blocks.splice(1,0, mk('text',{txt:'สรุปยอดของ {ชื่อร้าน} วันที่ {วันที่} ขอบคุณทุกคน ^^ยอดวันนี้ {ยอดขาย (นับแล้ว)}^^',size:'m',color:'ink'})); st.saved = JSON.stringify(st.blocks) }
+S.d.sheet = true
+S.a.fx = {m:'normal', t:'normal', d:'normal'}
+{ const a = S.a.blocks, at = t => a.findIndex(b=>b.type===t)
+  a.splice(at('sales')+1, 0, mk('trend',{m:'sales'})); a.splice(at('shops')+1, 0, mk('shopbar',{m:'sales'})); S.a.saved = JSON.stringify(a) }
+{ const t = S.a.blocks.find(b=>b.type==='text'); if (t){ S.a.sel = t.id; S.a.fmtOpen = t.id } } // A: เปิดบล็อกข้อความไว้ให้เห็นสถานะเปิด + จัดรูปแบบ
+{ const mod = parseHash().mod   // #a-pv = มือถือเปิดแท็บตัวอย่าง · #a-edge = เคสขอบ (7 วันเป็น 0 / กลุ่ม 1 ร้าน)
+  if (mod==='pv' || mod==='edge') S.a.pvMobile = 'pv'
+  if (mod==='edge') S.a.fx = {m:'zero', t:'one', d:'one'} }
+render()
+</script>
+</body>
+</html>
