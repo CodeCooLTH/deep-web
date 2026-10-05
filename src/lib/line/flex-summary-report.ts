@@ -74,7 +74,7 @@ function templateOf(input: SummaryReportInput): TemplateV1 {
   return defaultTemplateFromFlags({ ...normFlags(input.flags ?? COLUMN_DEFAULT_FLAGS), attachCycleToDaily: true, monthlyEnabled: true })
 }
 
-const BASE_TITLE: Record<string, string> = {
+export const BASE_TITLE: Record<string, string> = {
   DAILY: 'รายงานยอดรายวัน',
   MONTHLY: 'รายงานยอดรายเดือน',
   TEST: 'รายงานยอด (ทดสอบ)',

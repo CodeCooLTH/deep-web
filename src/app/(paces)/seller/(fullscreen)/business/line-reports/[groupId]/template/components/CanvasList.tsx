@@ -66,7 +66,7 @@ function ChartBody({ block, word, kb, readOnly, dispatch }: { block: Extract<Blo
           { value: 'orders', label: measureLabel('orders', word) },
         ]}
       />
-      <p className="text-default-700 mb-0 w-full text-xs">~{kb} KB · ถ้าข้อความยาวเกิน ระบบตัดกราฟก่อนตัวเลขหลัก</p>
+      <p className="text-default-700 mb-0 w-full text-xs">ข้อความทั้งก้อนตอนนี้ ~{kb} KB · ถ้ายาวเกิน ระบบตัดกราฟก่อนตัวเลขหลัก</p>
     </div>
   )
 }
@@ -177,6 +177,8 @@ export type CanvasListProps = {
   profitOn: boolean
   profitConfirmed: boolean
   profitUnconfirmed: boolean
+  /** error ต่อบล็อก (ข้อความผิด/ว่าง) — โชว์ที่บรรทัดสรุปตอนแถวพับ */
+  rowErrors: Readonly<Record<string, string>>
   dispatch: Dispatch<Action>
   onShopsProfit: (id: string, next: boolean) => void
   onConfirmProfit: () => void
@@ -187,6 +189,8 @@ export default function CanvasList(p: CanvasListProps) {
   const { draft, readOnly, word, dispatch } = p
   const titleLen = draft.title === undefined ? 0 : Array.from(draft.title).length
   const labelLen = Array.from(draft.button.label).length
+  // ซ่อนปุ่มอยู่ (show=false) = ป้ายไม่บล็อกการบันทึก จึงไม่แดง
+  const labelBad = draft.button.show && (labelLen > MAX_BUTTON_LABEL || draft.button.label.trim() === '')
   const onToggle = (id: string) => dispatch({ type: 'open', id: p.openId === id ? null : id })
 
   const body = (b: Block): ReactNode => {
@@ -228,7 +232,7 @@ export default function CanvasList(p: CanvasListProps) {
       count={draft.blocks.length}
       open={p.openId === b.id}
       summary={blockSummary(b, word, p.markupById[b.id] ?? '')}
-      warning={rowWarning(b, p.ctx)}
+      warning={rowWarning(b, p.ctx) ?? p.rowErrors[b.id] ?? null}
       word={word}
       readOnly={readOnly}
       drag={drag}
@@ -331,11 +335,11 @@ export default function CanvasList(p: CanvasListProps) {
                 value={draft.button.label}
                 readOnly={readOnly}
                 aria-describedby="template-button-help"
-                className={cn('form-input', (labelLen > MAX_BUTTON_LABEL || draft.button.label.trim() === '') && 'is-invalid')}
+                className={cn('form-input', labelBad && 'is-invalid')}
                 onChange={(e) => dispatch({ type: 'setButton', patch: { label: e.target.value } })}
               />
               <p id="template-button-help" className="text-default-700 mt-1 mb-0 text-xs">
-                <span className={cn('tabular-nums', labelLen > MAX_BUTTON_LABEL && 'text-danger-ink')}>{labelLen > MAX_BUTTON_LABEL ? `เกิน ${labelLen - MAX_BUTTON_LABEL} ตัวอักษร` : `เหลือ ${MAX_BUTTON_LABEL - labelLen} ตัวอักษร`}</span>
+                <span className={cn('tabular-nums', labelBad && 'text-danger-ink')}>{draft.button.label.trim() === '' ? 'พิมพ์ป้ายปุ่มก่อนบันทึก' : labelLen > MAX_BUTTON_LABEL ? `เกิน ${labelLen - MAX_BUTTON_LABEL} ตัวอักษร` : `เหลือ ${MAX_BUTTON_LABEL - labelLen} ตัวอักษร`}</span>
                 {' · '}ปุ่มนี้เปิดหน้า Deep ของคุณเสมอ แก้ได้เฉพาะข้อความบนปุ่ม
               </p>
             </div>

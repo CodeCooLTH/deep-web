@@ -6,11 +6,17 @@
  */
 import { validateTemplate } from '@/lib/line-report/validations'
 import { METRIC_REQUIRED_HELPER } from '@/lib/line-report/settings-guards'
-import { authoredLength, deriveFlags, MAX_BUTTON_LABEL, MAX_TEXT_LENGTH, MAX_TITLE_LENGTH, parseMarkup, type TemplateV1 } from '@/lib/line-report/template'
+import { authoredLength, DEFAULT_BUTTON_LABEL, deriveFlags, MAX_BUTTON_LABEL, MAX_TEXT_LENGTH, MAX_TITLE_LENGTH, parseMarkup, type TemplateV1 } from '@/lib/line-report/template'
 import { profitNeedsConfirmation } from './confirm-profit'
 
 export const EMPTY_TEXT_HINT = 'พิมพ์ข้อความก่อนบันทึก'
 export const PROFIT_TOKEN_HINT = 'ตัวแปร {กำไร} ใช้ได้หลังเปิดแสดงกำไรแล้ว กดเพื่อเปิดและยืนยัน'
+
+/** ซ่อนปุ่มอยู่ = ป้ายไม่บล็อก แต่ schema ยังต้องการป้ายที่ถูก → ส่งป้ายมาตรฐานแทนตอนบันทึก */
+export function normalizeHiddenButton(t: TemplateV1): TemplateV1 {
+  const bad = t.button.label.trim() === '' || Array.from(t.button.label).length > MAX_BUTTON_LABEL
+  return !t.button.show && bad ? { ...t, button: { ...t.button, label: DEFAULT_BUTTON_LABEL } } : t
+}
 
 export type DraftIssues = {
   /** ข้อความ error ต่อบล็อกข้อความ (markup ผิด / ยาวเกิน) */
@@ -60,8 +66,8 @@ export function analyzeDraft(input: {
   else if (metricMissing) firstReason = METRIC_REQUIRED_HELPER
   else if (profitUnconfirmed) firstReason = PROFIT_TOKEN_HINT
   else if (titleLen > MAX_TITLE_LENGTH) firstReason = `ชื่อรายงานยาวเกิน ${MAX_TITLE_LENGTH} ตัวอักษร`
-  else if (draft.button.label.trim() === '' || Array.from(draft.button.label).length > MAX_BUTTON_LABEL) firstReason = `ป้ายปุ่มต้องไม่ว่างและไม่เกิน ${MAX_BUTTON_LABEL} ตัวอักษร`
+  else if (draft.button.show && (draft.button.label.trim() === '' || Array.from(draft.button.label).length > MAX_BUTTON_LABEL)) firstReason = `ป้ายปุ่มต้องไม่ว่างและไม่เกิน ${MAX_BUTTON_LABEL} ตัวอักษร`
   else if (input.tooLarge) firstReason = input.tooLargeReason
-  else if (!validateTemplate(draft).ok) firstReason = 'ข้อมูลเทมเพลตไม่ถูกต้อง โหลดหน้านี้ใหม่แล้วลองอีกครั้ง'
+  else if (!validateTemplate(normalizeHiddenButton(draft)).ok) firstReason = 'ข้อมูลเทมเพลตไม่ถูกต้อง โหลดหน้านี้ใหม่แล้วลองอีกครั้ง'
   return { textErrors, emptyTextIds, profitUnconfirmed, metricMissing, firstReason }
 }

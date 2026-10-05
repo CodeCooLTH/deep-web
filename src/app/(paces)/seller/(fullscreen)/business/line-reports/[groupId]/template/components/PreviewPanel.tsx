@@ -6,7 +6,6 @@
  * Base: src/app/(paces)/seller/(dashboard)/business/line-reports/_components/detail/PreviewCard.tsx (seg + bubble)
  *   + ../../_components/FlexBubbleView.tsx (ไม่แก้ — T11d จะเพิ่ม span/กราฟ)
  * ข้อมูลตัวอย่างเป็นกรณียาวสุด + ธงจาก `draft` — บล็อกข้อความที่ยังว่างถูกตัดก่อนเข้า composer (กัน throw) ใน buildPreviewContents
- * ทำไมไม่ memo ด้วย draft ทั้งก้อนเป็น deps ของ state อื่น: ผลคำนวณไม่เขียนกลับ draft (measurement-must-not-decide)
  */
 import { useMemo } from 'react'
 import FlexBubbleView from '@/app/(paces)/seller/(dashboard)/business/line-reports/_components/FlexBubbleView'

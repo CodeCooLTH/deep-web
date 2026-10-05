@@ -8,6 +8,7 @@
  * Base: src/app/(paces)/seller/(dashboard)/business/line-reports/_components/detail/DetailActionBar.tsx (ปุ่ม btn primary/outline + loader)
  *   + src/app/(paces)/seller/(fullscreen)/public-profile/builder/components/BuilderToolbar.tsx (toolbarExtra ≥lg + belowContent <lg)
  *   + docs/conventions/seller-action-placement.md §2 (⋯ → secondary → PRIMARY) · theme/paces/Admin/TS/src/app/(admin)/ui/buttons/page.tsx
+ * ข้อยกเว้น seller-action-placement (มติ Controller): ลำดับปุ่มเดสก์ท็อปตายตัว ส่งทดสอบ → บันทึกเทมเพลต ไม่ย้าย primary ไปขวาสุดตามสถานะ เพื่อไม่ให้ปุ่มกระโดด
  * ลำดับปุ่มบนเดสก์ท็อปคงที่ตามสเปก §3.2 (ส่งทดสอบ → บันทึกเทมเพลต) เพื่อไม่ให้ปุ่มกระโดดตามสถานะ
  * ห้ามมี primary สองปุ่ม — class primary มาจาก `action.primary` ค่าเดียว
  */

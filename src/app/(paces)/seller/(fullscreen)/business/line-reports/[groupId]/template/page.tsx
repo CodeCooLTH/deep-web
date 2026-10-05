@@ -40,8 +40,8 @@ export default async function LineReportTemplatePage({ params }: { params: Promi
   const shell = await getAppShell()
   return (
     <TemplateBuilderClient
-      // สถานะ/แพ็กเกจ/เวอร์ชันเทมเพลตเปลี่ยน (router.refresh) ต้องเริ่ม state ใหม่ — โหลดฉบับล่าสุดตอน stale ก็อาศัยข้อนี้
-      key={`${group.id}:${group.status}:${group.paused}:${group.templateVersion}`}
+      // key ไม่รวม templateVersion — router.refresh() หลังส่งทดสอบต้องไม่ทิ้งฉบับร่างที่พิมพ์ค้าง · สถานะ/แพ็กเกจเปลี่ยน = เริ่มใหม่
+      key={`${group.id}:${group.status}:${group.paused}`}
       group={group}
       shell={shell}
       lockReason={access.kind === 'LOCKED' ? access.reason : 'RENEWAL_FAILED'}

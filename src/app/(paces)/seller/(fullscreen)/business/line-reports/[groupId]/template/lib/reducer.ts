@@ -56,7 +56,7 @@ export type Action =
   | { type: 'confirmProfit' }
   | { type: 'saveStart' }
   | { type: 'saveFail' }
-  | { type: 'saveOk'; version: number }
+  | { type: 'saveOk'; version: number; template: TemplateV1; markup: Record<string, string> }
   | { type: 'markStale' }
   | { type: 'load'; template: TemplateV1; version: number; custom: boolean }
 
@@ -166,7 +166,8 @@ export function reducer(s: State, a: Action): State {
     case 'saveFail':
       return { ...s, saving: false }
     case 'saveOk':
-      return { ...s, saving: false, saved: { template: s.draft, version: a.version, custom: true, markup: s.markupById } }
+      // saved = ชุดที่ "ส่งไปจริง" ตอนกดบันทึก ไม่ใช่ draft ตอน response กลับ — ที่พิมพ์ระหว่าง PUT ต้องยัง dirty
+      return { ...s, saving: false, saved: { template: a.template, version: a.version, custom: true, markup: a.markup } }
     case 'markStale':
       return { ...s, saving: false, stale: true }
     case 'load': {

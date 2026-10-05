@@ -28,6 +28,7 @@ import { PENDING_GROUP_FALLBACK_NAME } from '@/lib/line-report/list-view'
 import { orderWordFor } from '@/lib/line-report/order-word'
 import { bannerFor, canTest, testBlockedReason, toPresenterGroup } from '@/lib/line-report/presenter'
 import { METRIC_REQUIRED_HELPER } from '@/lib/line-report/settings-guards'
+import { BASE_TITLE } from '@/lib/line/flex-summary-report'
 import { measureTemplate } from '@/lib/line-report/template-size'
 import { deriveFlags, type Block, type BlockType, type TemplateV1 } from '@/lib/line-report/template'
 import { pacesConfirm, pacesConfirmAsync } from '@/lib/paces-swal'
@@ -40,14 +41,13 @@ import { DesktopActions, MobileActions } from './components/TemplateActionBar'
 import TemplateLibrary, { LIBRARY_DROPPABLE_ID, typeOfDraggableId } from './components/TemplateLibrary'
 import { blockTitle, makeBlock } from './lib/block-meta'
 import { confirmProfitExposure } from './lib/confirm-profit'
-import { analyzeDraft } from './lib/draft-issues'
+import { analyzeDraft, EMPTY_TEXT_HINT, normalizeHiddenButton } from './lib/draft-issues'
 import { GAUGE_COPY, gaugeState } from './lib/gauge-state'
 import { getPrimaryAction } from './lib/primary-action'
 import { initState, isDirty, reducer } from './lib/reducer'
 
 const DRAG_HELP = 'กด Space เพื่อยก ใช้ลูกศรเพื่อย้าย กด Space อีกครั้งเพื่อวาง กด Esc เพื่อยกเลิก'
 const REASON_ID = 'template-action-reason'
-const TITLE_BY_KIND = { DAILY: 'รายงานยอดรายวัน', MONTHLY: 'รายงานยอดรายเดือน' } as const
 
 /** id บล็อกใหม่ — ไม่ใช้ crypto.randomUUID (ต้อง secure context · dev โดเมน http ใช้ไม่ได้) */
 const newBlockId = () => `b${Math.random().toString(36).slice(2, 10)}`
@@ -110,6 +110,8 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
     testBlockedReason: testBlockedReason(pg, paused, group.test.usedToday),
     testing,
   })
+  // แถวที่พับแต่มี error → แสดงที่บรรทัดสรุป (ไม่ซ่อนอยู่ในแถวที่ปิด)
+  const rowErrors: Record<string, string> = { ...Object.fromEntries(issues.emptyTextIds.map((id) => [id, EMPTY_TEXT_HINT])), ...issues.textErrors }
   const note = serverNote && serverNote.forDraft === draft ? serverNote : null
   const gaugeExtra = [...(issues.metricMissing ? [METRIC_REQUIRED_HELPER] : []), ...(note?.errors ?? [])]
   const gaugeWarnings = note?.warnings ?? []
@@ -196,7 +198,9 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
     if (state.saving || action.save.disabled) return
     dispatch({ type: 'touchAll' })
     dispatch({ type: 'saveStart' })
-    const body: SaveBody = { template: state.draft, expectedVersion: state.saved.version, ...(state.profitConfirmed || confirmedNow ? { confirmProfit: true } : {}) }
+    const sent = { template: normalizeHiddenButton(state.draft), markup: state.markupById } // snapshot ที่ส่งจริง
+    if (sent.template !== state.draft) dispatch({ type: 'setButton', patch: { label: sent.template.button.label } })
+    const body: SaveBody = { template: sent.template, expectedVersion: state.saved.version, ...(state.profitConfirmed || confirmedNow ? { confirmProfit: true } : {}) }
     try {
       const res = await fetch(`/api/line-report/groups/${group.id}/template`, {
         method: 'PUT',
@@ -207,8 +211,8 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        dispatch({ type: 'saveOk', version: data.group?.templateVersion ?? state.saved.version + 1 })
-        setServerNote({ forDraft: state.draft, warnings: Array.isArray(data.warnings) ? data.warnings : [], errors: [] })
+        dispatch({ type: 'saveOk', version: data.group?.templateVersion ?? state.saved.version + 1, ...sent })
+        setServerNote({ forDraft: sent.template, warnings: Array.isArray(data.warnings) ? data.warnings : [], errors: [] })
         pacesToast.info('บันทึกแล้ว รายงานรอบถัดไปจะใช้แบบนี้')
         return
       }
@@ -303,9 +307,20 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
       confirmButtonText: 'โหลดฉบับล่าสุด',
       cancelButtonText: 'อยู่ต่อ',
     })
-    if (ok) router.refresh() // key ของหน้ารวม templateVersion → client เริ่ม state ใหม่จากฉบับล่าสุด
+    if (!ok) return
+    // ดึงฉบับล่าสุดแล้วรีเซ็ต state ผ่าน reducer (ไม่ remount — ไม่ทิ้งอย่างอื่นของหน้า)
+    try {
+      const res = await fetch(`/api/line-report/groups/${group.id}`, { credentials: 'same-origin', cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.group) throw new Error('reload')
+      const g = data.group as GroupDetailDto
+      dispatch({ type: 'load', template: g.effectiveTemplate, version: g.templateVersion ?? 0, custom: g.template !== null })
+    } catch {
+      pacesToast.error('โหลดฉบับล่าสุดไม่สำเร็จ ลองอีกครั้ง')
+    }
   }
 
+  const visibleReason = action.save.reason ?? action.test.reason
   const barProps = {
     action,
     dirty,
@@ -334,9 +349,10 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
         toolbarExtra={<DesktopActions {...barProps} />}
         belowContent={<MobileActions {...barProps} />}
       />
-      <span id={REASON_ID} className="sr-only">
-        {[action.save.reason, action.test.reason].filter(Boolean).join(' · ')}
-      </span>
+      {/* เหตุผลที่ปุ่มกดไม่ได้ — มองเห็นได้ทุกจอ (มือถือไม่มี hover/title) · ปุ่มชี้ด้วย aria-describedby */}
+      <p id={REASON_ID} className={visibleReason ? 'text-default-700 mt-2 mb-0 text-xs lg:text-right' : 'sr-only'}>
+        {visibleReason}
+      </p>
       <div className="sr-only" aria-live="polite">
         {announcement}
       </div>
@@ -371,10 +387,11 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
               ctx={ctx}
               top3Avail={top3Avail}
               kb={(measure.bytes / 1000).toFixed(1)}
-              titlePlaceholder={TITLE_BY_KIND[state.previewKind]}
+              titlePlaceholder={BASE_TITLE[state.previewKind]}
               profitOn={flags.showProfit}
               profitConfirmed={state.profitConfirmed}
               profitUnconfirmed={issues.profitUnconfirmed}
+              rowErrors={rowErrors}
               dispatch={dispatch}
               onShopsProfit={(id, next) => void setShopsProfit(id, next)}
               onConfirmProfit={() => void confirmTypedProfit()}

@@ -93,11 +93,21 @@ describe('reducer', () => {
     let s = reducer(fresh(), { type: 'add', block: text('t1') })
     s = reducer(s, { type: 'setMarkup', id: 't1', src: 'a **b****c**' })
     expect(isDirty(s)).toBe(true)
-    s = reducer(reducer(s, { type: 'saveStart' }), { type: 'saveOk', version: 4 })
+    s = reducer(reducer(s, { type: 'saveStart' }), { type: 'saveOk', version: 4, template: s.draft, markup: s.markupById })
     expect(isDirty(s)).toBe(false)
     expect(s.saved).toMatchObject({ version: 4, custom: true })
     expect(s.saving).toBe(false)
     expect(isDirty(reducer(s, { type: 'setMarkup', id: 't1', src: 'x' }))).toBe(true)
+  })
+  it('พิมพ์ระหว่าง saving → หลัง saveOk ยัง dirty (saved = ชุดที่ส่งไปจริง)', () => {
+    let s = reducer(fresh(), { type: 'add', block: text('t1') })
+    s = reducer(s, { type: 'setMarkup', id: 't1', src: 'ก' })
+    const sent = { template: s.draft, markup: s.markupById }
+    s = reducer(s, { type: 'saveStart' })
+    s = reducer(s, { type: 'setMarkup', id: 't1', src: 'กข' })
+    s = reducer(s, { type: 'saveOk', version: 5, ...sent })
+    expect(isDirty(s)).toBe(true)
+    expect(s.saved.markup.t1).toBe('ก')
   })
   it('saveFail ไม่ revert ฉบับร่าง', () => {
     let s = reducer(fresh(), { type: 'add', block: { id: 'n1', type: 'cancelled' } })

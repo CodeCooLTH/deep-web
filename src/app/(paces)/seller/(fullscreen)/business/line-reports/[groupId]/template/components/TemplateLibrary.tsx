@@ -88,14 +88,16 @@ export default function TemplateLibrary({
                           <div
                             ref={drag.innerRef}
                             {...drag.draggableProps}
-                            {...drag.dragHandleProps}
                             aria-disabled={e.disabled || undefined}
-                            className={cn('flex items-center gap-2 rounded-lg py-0.5 ps-2', e.disabled ? 'cursor-default' : 'cursor-grab hover:bg-default-100', snap.isDragging && 'bg-card border-primary border shadow-lg')}
+                            className={cn('flex items-center gap-2 rounded-lg py-0.5 ps-2', !e.disabled && 'hover:bg-default-100', snap.isDragging && 'bg-card border-primary border shadow-lg')}
                           >
-                            <Icon icon={BLOCK_ICON[e.type]} className="text-default-500 shrink-0 text-base" aria-hidden="true" />
-                            <div className="min-w-0 flex-1 py-1.5">
-                              <span className={cn('block text-sm break-words', e.disabled ? 'text-default-700' : 'text-default-900')}>{e.title}</span>
-                              {e.reason && <span className="text-default-700 block text-xs">{e.reason}</span>}
+                            {/* ที่จับลาก = ไอคอน+ชื่อ · ปุ่ม ＋ อยู่นอก element ที่มี dragHandleProps (กัน interactive ซ้อน interactive) */}
+                            <div {...drag.dragHandleProps} className={cn('flex min-w-0 flex-1 items-center gap-2', e.disabled ? 'cursor-default' : 'cursor-grab')}>
+                              <Icon icon={BLOCK_ICON[e.type]} className="text-default-500 shrink-0 text-base" aria-hidden="true" />
+                              <div className="min-w-0 flex-1 py-1.5">
+                                <span className={cn('block text-sm break-words', e.disabled ? 'text-default-700' : 'text-default-900')}>{e.title}</span>
+                                {e.reason && <span className="text-default-700 block text-xs">{e.reason}</span>}
+                              </div>
                             </div>
                             {!e.disabled && <AddButton entry={e} word={word} onAdd={onAdd} />}
                           </div>
