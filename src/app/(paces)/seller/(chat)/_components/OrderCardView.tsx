@@ -7,8 +7,10 @@
  *
  * โครง: หัวน้ำเงิน (ชื่อสินค้า + "คำสั่งซื้อ · #เลข") → รายการสินค้า (รูป/ชื่อ/จำนวน/ราคา) →
  * รายการรวม + ยอดสุทธิ → footer (action ที่ caller ใส่เอง: ส่งเข้าแชท / ดูคำสั่งซื้อ)
- * onEdit = แตะตัวการ์ด (ส่วน body) เปิดโมดัลแก้ไข; footer เป็น action แยก (stopPropagation ที่ caller)
+ * onEdit = แตะตัวการ์ด (ส่วน body) เปิดโมดัลแก้ไข — เฉพาะใบที่แก้ได้และยังไม่มีเลขพัสดุ นอกนั้นแตะ =
+ *   ไปหน้ารายละเอียด /orders/{token} (`orderCardTapAction`); footer เป็น action แยก (stopPropagation ที่ caller)
  */
+import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import ShipmentStepper from './ShipmentStepper'
 import { courierLogoUrl } from '@/lib/iship/courier'
@@ -19,7 +21,7 @@ import { isAllDayAppointment } from '@/lib/appointments'
 import { formatDateTH, formatTimeHM } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
 import { resolveOrderVocab } from '@/lib/seller-menu'
-import { canEditOrder } from '@/lib/order-display'
+import { orderCardTapAction } from '@/lib/order-display'
 
 export type OrderCardViewData = {
   token: string
@@ -344,9 +346,13 @@ export default function OrderCardView({
   return (
     // ความกว้างมาจาก className ของ caller (แชท=w-64 พอดี bubble, right panel=w-full เต็มคอลัมน์)
     <div className={`border-default-200 overflow-hidden rounded-lg border ${className}`}>
-      {/* แตะเพื่อแก้ไขได้เฉพาะออเดอร์ที่ยังรอดำเนินการ — ตรงกับกฎเดียวกับปุ่มแก้ไขในหน้ารายการ/รายละเอียด
-          และกับ guard ใน updateOrder. เดิมเปิดโมดัลได้ทุกสถานะ แล้วไปเด้ง error ตอนกดบันทึก */}
-      {onEdit && canEditOrder(data.status) ? (
+      {/* แตะ body: แก้ไขได้เฉพาะใบ PENDING ที่ยังไม่มีเลขพัสดุ (ตรงกับ guard ใน updateOrder) —
+          มีเลขพัสดุแล้ว/แก้ไม่ได้ = ไปหน้ารายละเอียดเพื่อดูสถานะจัดส่ง (user 2026-10-05)
+          ไม่ใส่ onEdit = การ์ดไม่คลิก (ฝั่ง buyer — /orders/{token} เป็น route ของผู้ขาย)
+          Base ลิงก์: OrderCardBubble footer ใน ChatThread.tsx (href เดียวกัน) */}
+      {!onEdit ? (
+        body
+      ) : orderCardTapAction(data.status, data.shipment?.trackingNo) === 'edit' ? (
         <button
           type="button"
           onClick={onEdit}
@@ -356,7 +362,13 @@ export default function OrderCardView({
           {body}
         </button>
       ) : (
-        body
+        <Link
+          href={`/orders/${data.token}`}
+          aria-label={`ดูรายละเอียด${orderNoun} ${title}`}
+          className="hover:bg-default-50 block w-full text-start transition-colors"
+        >
+          {body}
+        </Link>
       )}
       {/* section พัสดุอยู่นอกปุ่มแก้ไขโดยเจตนา — ข้างในมีปุ่มคัดลอกเลขพัสดุ ถ้าอยู่ใต้ <button>
           จะเป็น nested interactive (invalid HTML + focus พัง) */}

@@ -189,6 +189,17 @@ describe('[blocker] จอโหลดโซนผู้ขาย', () => {
     expect(code, 'ต้องมี try/catch กัน sessionStorage โยน').toMatch(/try\{[\s\S]*catch/)
   })
 
+  it('[blocker] สลับร้านต้องตั้งธงก่อน hard-navigate — ไม่งั้นโลโก้ Deep ขึ้นต่อจากจอสลับร้าน', () => {
+    /* ธงใน loading.tsx ถูกตั้งเฉพาะตอนจอโลโก้ได้ขึ้นจริง — เปิดแอปเร็วจน fallback ไม่โผล่ = ไม่มีธง
+       ⇒ สลับร้านครั้งแรกเห็นโลโก้ Deep ซ้อนเป็นจอที่สอง (user เจอ 2026-10-05) */
+    const code = read('src/hooks/useShopSwitcher.ts')
+    const setAt = code.indexOf('sessionStorage.setItem(SELLER_BOOTED_KEY')
+    const navAt = code.indexOf('window.location.href = landingPath')
+    expect(setAt, 'useShopSwitcher ต้องตั้งธง SELLER_BOOTED_KEY').toBeGreaterThan(-1)
+    expect(navAt, 'ต้องตั้งธงก่อนเปลี่ยนหน้า').toBeGreaterThan(setAt)
+    expect(read(BOOT), 'loading.tsx ต้องใช้คีย์ตัวเดียวกัน').toMatch(/from '@\/lib\/seller-boot-flag'/)
+  })
+
   it('loading.tsx ระดับหน้า ต้องเป็น skeleton ไม่ใช่ overlay เต็มจอ', () => {
     const offenders = ALL_LOADING.filter((f) => f !== BOOT)
       .filter((f) => /fixed\s+inset-0/.test(read(f)))

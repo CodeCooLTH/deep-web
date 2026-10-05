@@ -315,6 +315,17 @@ export type OrderStatus =
 export function canEditOrder(status: string): boolean {
   return status === 'PENDING'
 }
+
+/**
+ * แตะการ์ดคำสั่งซื้อในแชทแล้วไปไหน — `'edit'` = เปิดฟอร์มแก้ไข · `'view'` = เปิดหน้ารายละเอียด
+ *
+ * มีเลขพัสดุแล้ว = ของออกจากร้านไปแล้ว ⇒ สิ่งที่ผู้ขายอยากรู้คือ **สถานะการจัดส่ง** ไม่ใช่แก้บิล
+ * แม้ `status` ยังเป็น `PENDING` ก็ตาม (user 2026-10-05: เดิมแตะแล้วเปิดหน้าแก้ไขเสมอ)
+ * ส่วนใบที่แก้ไม่ได้อยู่แล้วก็ไปหน้ารายละเอียด แทนที่จะเป็นการ์ดที่กดไม่ได้
+ */
+export function orderCardTapAction(status: string, trackingNo: string | null | undefined): 'edit' | 'view' {
+  return canEditOrder(status) && !trackingNo ? 'edit' : 'view'
+}
 export type TimelineState = 'done' | 'cur' | 'fin' | 'up' | 'cx' | 'mute'
 export type TimelineStep = {
   label: string
