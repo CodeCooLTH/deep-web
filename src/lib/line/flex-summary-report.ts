@@ -32,7 +32,8 @@ export type SummaryReportInput = {
   /** ธงของกลุ่ม — false = ไม่มีคำว่ากำไรในข้อความเลย */
   showProfit: boolean
   /** ยอดสะสมรอบ (แสดงเฉพาะรายวันที่ไม่ใช่ครบทั้งวัน) */
-  cycleToDate?: { startIso: string; endIso: string; totals: Totals }
+  /** `failedShops` = จำนวนร้านที่ดึงยอดสะสมไม่สำเร็จ (ไม่นับในยอด) — > 0 ต้องมีหมายเหตุ · ทุกร้านล้ม = ไม่แสดง ฿0 */
+  cycleToDate?: { startIso: string; endIso: string; totals: Totals; failedShops?: number }
   /** push รวมรายวัน+รายเดือน → ข้อความที่ 2 */
   monthly?: GroupSummary
   titleOverride?: string
@@ -190,11 +191,19 @@ function renderBubble(input: SummaryReportInput, summary: GroupSummary, kind: Re
 
   if (input.cycleToDate && kind === 'DAILY' && !summary.window.fullDay) {
     const c = input.cycleToDate
+    const failed = c.failedShops ?? 0
+    const allFailed = failed > 0 && failed >= summary.shops.filter((x) => x.state !== 'EXCLUDED').length
     body.push(
       { type: 'separator', margin: 'lg' },
       section([
         note(`ยอดสะสมรอบนี้ ${rangeText(c.startIso, c.endIso)}`, { weight: 'bold' }),
-        kv('ยอดขาย (นับแล้ว)', formatBaht(c.totals.confirmed)),
+        // ทุกร้านล้ม → ฿0 จะอ่านเป็น "ไม่มียอด" ทั้งที่จริงคือไม่รู้ (partial-data-must-be-labeled)
+        ...(allFailed
+          ? [note('ดึงข้อมูลไม่สำเร็จ', { color: DANGER })]
+          : [
+              kv('ยอดขาย (นับแล้ว)', formatBaht(c.totals.confirmed)),
+              ...(failed > 0 ? [note('ยอดรวมยังไม่ครบ เพราะดึงข้อมูลบางร้านไม่สำเร็จ', { color: DANGER, margin: 'sm' })] : []),
+            ]),
       ]),
     )
   }

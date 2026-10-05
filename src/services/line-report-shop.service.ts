@@ -62,22 +62,30 @@ export async function assertReportable(ownerId: string, shopIds: readonly string
   return assertReportableIds(ownerId, shopIds, db)
 }
 
-/** ร้านของกลุ่ม อ่านสด ณ ตอนส่ง — ตัดร้านล็อก/ลบ/purge ออกพร้อมเหตุ (TFR-16) */
-export async function resolveSendableShops(group: { id: string }): Promise<{
+/** `NOT_OWNED` = ร้านที่ไม่ใช่ของเจ้าของกลุ่ม (ข้อมูลผิดปกติ/สิทธิ์เปลี่ยนมือ) — แสดงเป็น "ไม่พร้อมใช้งาน" ไม่รั่วยอดเข้ากลุ่ม */
+export type SendExcludedReason = ExcludedReason | 'NOT_OWNED'
+
+/**
+ * ร้านของกลุ่ม อ่านสด ณ ตอนส่ง — ตัดร้านล็อก/ลบ/purge ออกพร้อมเหตุ (TFR-16)
+ * 🛑 ตรวจ `shop.userId = group.ownerId` ซ้ำที่จุดส่งด้วย (defense in depth — แถว GroupShop เขียนผ่านด่าน reportable อยู่แล้ว
+ * แต่ร้านย้ายเจ้าของ/ข้อมูลหลุดด่านต้องไม่ทำให้ตัวเลขร้านคนอื่นเข้ากลุ่มของเรา)
+ */
+export async function resolveSendableShops(group: { id: string; ownerId: string }): Promise<{
   sendable: ShopRef[]
-  excluded: { shop: ShopRef; reason: ExcludedReason }[]
+  excluded: { shop: ShopRef; reason: SendExcludedReason }[]
 }> {
   const rows = await prisma.lineReportGroupShop.findMany({
     where: { groupId: group.id },
-    select: { shop: { select: SHOP_STATE_SELECT } },
+    select: { shop: { select: { ...SHOP_STATE_SELECT, userId: true } } },
     orderBy: { createdAt: 'asc' },
   })
   const sendable: ShopRef[] = []
-  const excluded: { shop: ShopRef; reason: ExcludedReason }[] = []
+  const excluded: { shop: ShopRef; reason: SendExcludedReason }[] = []
   for (const { shop } of rows) {
     const st = shopState(shop)
-    if (st === 'OK') sendable.push(toRef(shop))
-    else excluded.push({ shop: toRef(shop), reason: st })
+    if (st !== 'OK') excluded.push({ shop: toRef(shop), reason: st })
+    else if (shop.userId !== group.ownerId) excluded.push({ shop: toRef(shop), reason: 'NOT_OWNED' })
+    else sendable.push(toRef(shop))
   }
   return { sendable, excluded }
 }

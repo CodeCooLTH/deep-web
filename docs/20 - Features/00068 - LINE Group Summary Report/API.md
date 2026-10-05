@@ -130,7 +130,7 @@ Errors: 403 · 404 `GROUP_NOT_FOUND` (ไม่ใช่ของตน/`REMOVED
 | `cycle` | `null` เมื่อ `monthlyEnabled=false` (ใช้แสดงตัวอย่างวันตัดรอบ) |
 | `bind` | **ไม่มีโค้ดดิบ** — มีเฉพาะ `hasLiveCode`/`expiresAt` (hash at rest) |
 | `deliveries` | `take 10` ล่าสุดก่อน · **ไม่คืน `pendingPayload`** · `reasonLabel` ภาษาไทยจาก SSOT |
-| `test.usedToday` | นับ `TEST` วันไทย สถานะ CLAIMED/RETRY_PENDING/SENT |
+| `test.usedToday` | นับ `TEST` ทุกสถานะของวันไทย (`testQuotaWhere` — security M1: ส่งล้มก็นับโควตา) |
 
 Errors: 401 · 403 · 404 `GROUP_NOT_FOUND`
 

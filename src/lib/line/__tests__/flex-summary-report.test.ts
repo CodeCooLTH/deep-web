@@ -164,6 +164,20 @@ describe('buildSummaryReportFlex', () => {
     expect(json(mk([shop(1)], { cycleToDate })[0])).toContain('ยอดสะสมรอบนี้')
   })
 
+  it('ยอดสะสมรอบ: บางร้านล้ม = มีหมายเหตุ "ไม่ครบ" · ทุกร้านล้ม = "ดึงข้อมูลไม่สำเร็จ" ไม่โชว์ ฿0 · ไม่ล้ม = ไม่มีหมายเหตุ', () => {
+    const base = { startIso: '2026-09-06', endIso: '2026-10-05', totals: { orders: 0, confirmed: 0, unconfirmed: 0, cancelled: 0 } }
+    const ok = json(mk([shop(1), shop(2)], { cycleToDate: base })[0])
+    expect(ok).not.toContain('ยอดรวมยังไม่ครบ')
+    const partial = json(mk([shop(1), shop(2)], { cycleToDate: { ...base, totals: { ...base.totals, confirmed: 500 }, failedShops: 1 } })[0])
+    expect(partial).toContain('ยอดรวมยังไม่ครบ เพราะดึงข้อมูลบางร้านไม่สำเร็จ')
+    expect(partial).toContain('฿500')
+    const all = json(mk([shop(1), shop(2)], { cycleToDate: { ...base, failedShops: 2 } })[0])
+    expect(all).toContain('ดึงข้อมูลไม่สำเร็จ')
+    const tail = all.slice(all.indexOf('ยอดสะสมรอบนี้'))
+    expect(tail).not.toContain('ยอดขาย (นับแล้ว)')
+    expect(tail).not.toContain('฿0')
+  })
+
   it('text ว่างไม่ถูกส่งให้ LINE (ชื่อร้านว่าง · notice ว่าง)', () => {
     const j = json(mk([shop(1, { shop: { id: 'x', name: '', vertical: null } }), shop(2)])[0])
     expect(j).not.toContain('"text":""')

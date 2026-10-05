@@ -8,17 +8,27 @@ import { sessionUserId } from '@/lib/session-user'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import { LineReportError } from '@/lib/line-report/errors'
 
+export type PaidState = 'PAID' | 'UNPAID' | 'UNKNOWN'
+
+/**
+ * อ่านสถานะแพ็กเกจแบบ 3 ค่า — แยก "ยืนยันแล้วว่าไม่ ACTIVE" (UNPAID) ออกจาก "อ่านไม่ได้" (UNKNOWN)
+ * sweep ต้องไม่เอา UNKNOWN ไปทำเหมือนหยุดแพ็กเกจ (ไม่งั้น DB สะดุดครั้งเดียว = slot ถูกบันทึก MISSED + ส่งข้อความสุดท้ายผิด ๆ)
+ */
+export async function readOwnerPaidState(ownerId: string): Promise<PaidState> {
+  try {
+    return (await getSubscriptionStatus(ownerId))?.status === 'ACTIVE' ? 'PAID' : 'UNPAID'
+  } catch {
+    return 'UNKNOWN'
+  }
+}
+
 /**
  * จ่ายแล้วไหม — fail-closed: อ่านแพ็กเกจพัง = "ไม่จ่าย" (ไม่ส่งรายงานเข้ากลุ่มเพราะเดา)
  * ทุก tier ทุก source นับเท่ากัน · ไม่มีแถว/LOCKED_RENEWAL_FAILED = false
  * จุดส่งจริงต้องเรียกซ้ำทุกครั้ง ห้ามอ่านจากแถวกลุ่ม (AC-01-6)
  */
 export async function isOwnerPaidForReports(ownerId: string): Promise<boolean> {
-  try {
-    return (await getSubscriptionStatus(ownerId))?.status === 'ACTIVE'
-  } catch {
-    return false
-  }
+  return (await readOwnerPaidState(ownerId)) === 'PAID'
 }
 
 /** เจ้าของร้านจริง (Shop.userId) — ADMIN/พนักงานของร้านคนอื่นไม่นับ */

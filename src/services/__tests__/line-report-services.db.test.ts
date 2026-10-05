@@ -121,7 +121,7 @@ describe.skipIf(!isLocal)('00068 line-report services (DB)', () => {
     })
     it('resolveSendableShops: ตัดร้านล็อก/ลบพร้อมเหตุ', async () => {
       const g = await mkGroup(A, [A1, A3, A4])
-      const r = await resolveSendableShops({ id: g })
+      const r = await resolveSendableShops({ id: g, ownerId: A })
       expect(r.sendable.map((s) => s.id)).toEqual([A1])
       expect(r.excluded.map((e) => [e.shop.id, e.reason]).sort()).toEqual([[A3, 'LOCKED'], [A4, 'DELETED']].sort())
     })
@@ -195,7 +195,7 @@ describe.skipIf(!isLocal)('00068 line-report services (DB)', () => {
   })
 
   describe('group: detail / list', () => {
-    it('detail: ไม่มี pendingPayload · deliveries ≤10 ล่าสุดก่อน · usedToday นับวันไทย+สถานะที่กินโควตา', async () => {
+    it('detail: ไม่มี pendingPayload · deliveries ≤10 ล่าสุดก่อน · usedToday นับวันไทย+ทุกสถานะที่กินโควตา', async () => {
       const g = await mkGroup(A, [A1, A3, A4], { status: 'ACTIVE', lineGroupId: `Clrs-${run}-det`, boundAt: new Date() })
       const { from } = thaiTodayBounds()
       const yesterdayThai = new Date(from.getTime() - 3_600_000)
@@ -204,12 +204,12 @@ describe.skipIf(!isLocal)('00068 line-report services (DB)', () => {
       const now = new Date()
       await mk('T:1', 'TEST', 'SENT', now)
       await mk('T:2', 'TEST', 'CLAIMED', now)
-      await mk('T:3', 'TEST', 'FAILED', now) // ไม่กินโควตา
+      await mk('T:3', 'TEST', 'FAILED', now) // ล้มก็กินโควตา (security M1)
       await mk('T:4', 'TEST', 'SENT', yesterdayThai) // เมื่อวานไทย
       await mk('T:5', 'DAILY', 'SENT', now) // ไม่ใช่ TEST
       for (let i = 0; i < 9; i++) await mk(`D:x${i}`, 'DAILY', 'SENT', new Date(now.getTime() - (i + 1) * 60_000), { pendingPayload: { raw: 'SECRET-PAYLOAD' } })
       const { group } = await getGroupDetail(A, g)
-      expect(group.test).toEqual({ limit: 5, usedToday: 2, remaining: 3 })
+      expect(group.test).toEqual({ limit: 5, usedToday: 3, remaining: 2 })
       expect(group.deliveries).toHaveLength(10)
       expect(JSON.stringify(group)).not.toContain('SECRET-PAYLOAD')
       expect(JSON.stringify(group)).not.toContain('pendingPayload')

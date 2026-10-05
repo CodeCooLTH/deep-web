@@ -133,7 +133,7 @@ describe.skipIf(!isLocal)('00068 line-report-delivery.service', () => {
     expect((await status(test.id)).status).toBe('RETRY_PENDING')
   })
 
-  it('countTestsToday: ข้ามเที่ยงคืนไทย · นับเฉพาะ 3 สถานะ', async () => {
+  it('countTestsToday: ข้ามเที่ยงคืนไทย · นับทุกสถานะ (FAILED ก็กินโควตา)', async () => {
     const g = await mkGroup()
     // 2026-10-05 00:30 ไทย = 2026-10-04T17:30Z · 23:30 ไทยของวันก่อน = 16:30Z
     const now = new Date('2026-10-04T17:45:00Z')
@@ -141,9 +141,9 @@ describe.skipIf(!isLocal)('00068 line-report-delivery.service', () => {
     await t('T:1', 'SENT', '2026-10-04T17:30:00Z') // วันนี้ (ไทย)
     await t('T:2', 'CLAIMED', '2026-10-04T17:00:00Z') // เที่ยงคืนไทยพอดี = นับ
     await t('T:3', 'RETRY_PENDING', '2026-10-04T16:59:59Z') // เมื่อวาน ไม่นับ
-    await t('T:4', 'FAILED', '2026-10-04T17:31:00Z') // ไม่นับ
+    await t('T:4', 'FAILED', '2026-10-04T17:31:00Z') // วันนี้ — ล้มก็นับ (security M1)
     await row(g, 'D:z', { status: 'SENT', createdAt: new Date('2026-10-04T17:31:00Z') }) // ไม่ใช่ TEST
-    expect(await svc.countTestsToday(g, now)).toBe(2)
+    expect(await svc.countTestsToday(g, now)).toBe(3)
   })
 
   it('listRecent: ไม่มี pendingPayload · เรียงใหม่ก่อน · จำกัด take', async () => {

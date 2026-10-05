@@ -347,3 +347,15 @@ route (L2) → `sendTest` tx: lock แถวกลุ่ม → นับ TEST �
 | M-3 | `createBindCode`/`reissueBindCode` ตรวจ `isOwnerPaidForReports` เองที่ service |
 | L-1/L-3/L-4 | ไม่ insert เมื่อเกินเพดาน · log เฉพาะชื่อ error · ตัด events ที่ 100 |
 | L-2 | prod อยู่บน Vercel (x-real-ip ตั้งโดยแพลตฟอร์ม) — คงเพดาน 1200/นาที/IP |
+
+
+## 14. มติจาก review/security U8 (2026-10-05)
+
+| ข้อ | มติ |
+|---|---|
+| ยอดสะสมรอบไม่ครบ | ส่ง `failedShops` ถึงการ์ด · มีหมายเหตุ "ยอดรวมยังไม่ครบ" · ล้มทุกร้าน = "ดึงข้อมูลไม่สำเร็จ" ไม่ใช่ ฿0 |
+| claim D:+M: | `claimSlotRows([D,M])` คำสั่งเดียว · ได้เฉพาะ M: = ส่งรายเดือนเดี่ยว · retryKey ของ M: ตั้งใน tx เดียวกับ payload |
+| M2 อ่านแพ็กเกจไม่ได้ | `readOwnerPaidState` → PAID/UNPAID/UNKNOWN · UNKNOWN = ข้ามกลุ่มรอบนั้น ไม่เขียนไม่ส่ง · final notice ต้องเป็น UNPAID ที่อ่านซ้ำ |
+| M1 โควตาส่งทดสอบ | นับ TEST ทุกสถานะของวันไทย (`testQuotaWhere`) |
+| L1 | `resolveSendableShops` กรอง `shop.userId = group.ownerId` → อื่น = NOT_OWNED "ไม่พร้อมใช้งาน" |
+| L3/L4 | cron 500 = `{error:'sweep_failed'}` · log เฉพาะชื่อ error · เช็คงบเวลาระหว่าง slot |

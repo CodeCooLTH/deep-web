@@ -24,6 +24,7 @@
     { "path": "/api/cron/auto-confirm-pickup", "schedule": "0 */6 * * *" },
     { "path": "/api/cron/inspection-lifecycle", "schedule": "0 16 * * *" },
     { "path": "/api/cron/auto-order-sweeper", "schedule": "*/2 * * * *" },
-    { "path": "/api/cron/follow-up-reminders", "schedule": "*/5 * * * *" }
+    { "path": "/api/cron/follow-up-reminders", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/line-report-sweep", "schedule": "*/30 * * * *" }
   ]
 }

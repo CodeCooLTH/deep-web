@@ -26,6 +26,11 @@ export async function claimSlots(rows: ClaimRow[]): Promise<number> {
   return r.count
 }
 
+/** เหมือน claimSlots แต่คืนแถวที่ claim ได้จริง (ใช้ตอน claim หลายแถวใน statement เดียวแล้วต้องรู้ว่าได้แถวไหน) */
+export function claimSlotRows(rows: ClaimRow[]) {
+  return prisma.lineReportDelivery.createManyAndReturn({ data: rows, skipDuplicates: true })
+}
+
 export type DeliveryPatch = {
   status?: LineReportDeliveryStatus
   reason?: string | null
@@ -127,16 +132,16 @@ export async function expireRetryable(groupId: string, now: Date): Promise<numbe
   return over.length
 }
 
+/**
+ * predicate โควตาส่งทดสอบ — SSOT เดียวของ sendTest / countTestsToday / หน้ารายละเอียด (กันนับคนละแบบ)
+ * 🛑 นับ "ทุกแถว TEST ที่สร้างวันนี้ (ปฏิทินไทย)" ไม่ว่าสถานะ — ล้ม/ค้างก็กินโควตา ไม่งั้นกดรัวตอน LINE ล่มจะยิงได้ไม่จำกัด (security M1)
+ */
+export const testQuotaWhere = (groupId: string, now: Date) =>
+  ({ groupId, kind: 'TEST', createdAt: { gte: thaiTodayBounds(now).from } }) as const
+
 /** โควตาส่งทดสอบ: นับวันตามปฏิทินไทย (TFR-12) */
 export function countTestsToday(groupId: string, now: Date): Promise<number> {
-  return prisma.lineReportDelivery.count({
-    where: {
-      groupId,
-      kind: 'TEST',
-      status: { in: ['CLAIMED', 'RETRY_PENDING', 'SENT'] },
-      createdAt: { gte: thaiTodayBounds(now).from },
-    },
-  })
+  return prisma.lineReportDelivery.count({ where: testQuotaWhere(groupId, now) })
 }
 
 /** ประวัติล่าสุด — ไม่ select pendingPayload (TFR-21) · ผู้เรียกต้องตรวจ ownership ของกลุ่มก่อน */

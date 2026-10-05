@@ -6,7 +6,7 @@
  */
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { shiftIsoDate, thaiTodayBounds, todayThaiIsoDate } from '@/lib/date-range'
+import { shiftIsoDate, todayThaiIsoDate } from '@/lib/date-range'
 import { LineReportError, type InvalidSettingsRule } from '@/lib/line-report/errors'
 import { isReportBotReady } from '@/lib/line-report/config'
 import { nextSendAt } from '@/lib/line-report/schedule'
@@ -16,6 +16,7 @@ import type { LineReportAlertKind } from '@/lib/line-report/types'
 import * as v from 'valibot'
 import { CutoffDaySchema, DailyTimesSchema, type UpdateSettingsInput } from '@/lib/line-report/validations'
 import { isOwnerPaidForReports } from '@/services/line-report-access.service'
+import { testQuotaWhere } from '@/services/line-report-delivery.service'
 import { lockOwnedGroup, readGroupShops, type GroupShopDto } from '@/services/line-report-shop.service'
 
 type Db = Prisma.TransactionClient
@@ -111,14 +112,11 @@ export async function getGroupDetail(ownerId: string, groupId: string, db: Db | 
   })
   if (!g) throw new LineReportError('GROUP_NOT_FOUND')
 
-  const { from, to } = thaiTodayBounds(now)
   const [shops, liveCode, usedToday, paused] = await Promise.all([
     readGroupShops(db, g.id),
     db.lineReportBindCode.findFirst({ where: { groupId: g.id, usedAt: null, revokedAt: null, expiresAt: { gt: now } }, select: { expiresAt: true } }),
-    // นับวันไทย + สถานะที่กินโควตา (CLAIMED/RETRY_PENDING/SENT) ตรงกับ sendTest
-    db.lineReportDelivery.count({
-      where: { groupId: g.id, kind: 'TEST', status: { in: ['CLAIMED', 'RETRY_PENDING', 'SENT'] }, createdAt: { gte: from, lt: to } },
-    }),
+    // predicate เดียวกับ sendTest (testQuotaWhere) — ทุกแถว TEST ของวันไทยนี้
+    db.lineReportDelivery.count({ where: testQuotaWhere(g.id, now) }),
     isOwnerPaidForReports(ownerId).then((p) => !p),
   ])
   const next = g.status === 'ACTIVE' && !paused ? nextSendAt(g, now) : null
