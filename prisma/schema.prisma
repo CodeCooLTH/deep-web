@@ -108,6 +108,8 @@ model User {
   // --- Business Account & Packages (feature 00008, Phase 1 additive) ---
   shopMemberships             ShopMember[]
   businessPackageSubscription BusinessPackageSubscription?
+  lineReportGroups            LineReportGroup[]
+  lineReportBindCodes         LineReportBindCode[]
   sentShopInvites             ShopInvite[]                 @relation("ShopInviteInvitedBy")
   acceptedShopInvites         ShopInvite[]                 @relation("ShopInviteAcceptedBy")
   createdShopInviteLinks      ShopInviteLink[]             @relation("ShopInviteLinkCreatedBy") // NEW (feature 00012)
@@ -408,6 +410,7 @@ model Shop {
   @@index([kind, packageLockReason, packageLockedAt], map: "Shop_kind_lockReason_lockedAt_idx") // NEW — cron: auto-soft-delete lapsed grace
   @@index([deletedAt, purgedAt], map: "Shop_deletedAt_purgedAt_idx") // NEW — cron: purge expired retention
   @@index([vertical], map: "Shop_vertical_idx") // NEW (feature 00017) — กรองธุรกิจตามประเภทกิจการ
+  lineReportGroupShops LineReportGroupShop[]
 }
 
 // Room — ห้องพักที่เปิดให้จอง (feature 00017 Lodging Vertical, Phase 1)
@@ -4909,4 +4912,155 @@ model CustomerFollowUp {
 
   @@index([shopId, dueAt], map: "CustomerFollowUp_shopId_dueAt_idx")
   @@index([conversationId, status, dueAt], map: "CustomerFollowUp_conversationId_status_dueAt_idx")
+}
+
+// ============================================================================
+// 00070 — LINE Group Summary Report (รายงานสรุปยอดเข้ากลุ่ม LINE)
+// 🛑 unmanaged SQL ใน migration 20261005100000_line_group_summary_reports ที่ Prisma DSL ประกาศไม่ได้:
+//   - partial UNIQUE LineReportGroup_lineGroupId_active_key (lineGroupId WHERE status='ACTIVE')
+//   - partial UNIQUE LineReportBindCode_codeHash_live_key / _ownerId_live_key (WHERE usedAt/revokedAt IS NULL)
+//   - CHECK: dailyTimes / cutoffDay / metric_any / active_has_group / Delivery counts
+// ห้าม `prisma db pull` / `migrate dev` — introspection ไม่เห็นของพวกนี้ อาจ DROP ทิ้ง
+// ============================================================================
+
+enum LineReportGroupStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  REMOVED
+}
+
+enum LineReportDeliveryKind {
+  DAILY
+  MONTHLY
+  TEST
+  COMMAND
+  FINAL_NOTICE
+}
+
+enum LineReportDeliveryStatus {
+  CLAIMED
+  RETRY_PENDING
+  SENT
+  FAILED
+  SKIPPED_NO_ORDERS
+  MISSED
+  NO_SENDABLE_SHOPS
+  REPLY_FAILED
+}
+
+enum LineReportAlertKind {
+  BOT_REMOVED
+  SEND_FAILED
+  NO_SENDABLE_SHOPS
+}
+
+enum LineReportRateKind {
+  BIND_ATTEMPT
+  COMMAND
+}
+
+model LineReportGroup {
+  id                 String                @id @default(uuid())
+  ownerId            String
+  lineGroupId        String?
+  groupName          String                @default("")
+  status             LineReportGroupStatus @default(PENDING)
+  dailyEnabled       Boolean               @default(false)
+  dailyTimes         Int[]                 @default([])
+  monthlyEnabled     Boolean               @default(false)
+  cutoffDay          Int?
+  showOrders         Boolean               @default(true)
+  showSales          Boolean               @default(true)
+  showCancelled      Boolean               @default(true)
+  showTopProducts    Boolean               @default(true)
+  showProfit         Boolean               @default(false)
+  skipWhenNoOrders   Boolean               @default(false)
+  attachCycleToDaily Boolean               @default(false)
+  profitEnabledAt    DateTime?
+  finalNoticeSentAt  DateTime?
+  alertKind          LineReportAlertKind?
+  alertAt            DateTime?
+  alertAckAt         DateTime?
+  boundAt            DateTime?
+  leftAt             DateTime?
+  removedAt          DateTime?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  owner      User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  shops      LineReportGroupShop[]
+  bindCodes  LineReportBindCode[]
+  deliveries LineReportDelivery[]
+
+  @@index([ownerId, status])
+  @@index([status])
+  @@index([lineGroupId])
+}
+
+model LineReportGroupShop {
+  id        String   @id @default(uuid())
+  groupId   String
+  shopId    String
+  createdAt DateTime @default(now())
+
+  group LineReportGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  shop  Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, shopId])
+  @@index([shopId])
+}
+
+model LineReportBindCode {
+  id        String    @id @default(uuid())
+  ownerId   String
+  groupId   String
+  codeHash  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  owner User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  group LineReportGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([groupId])
+  @@index([expiresAt])
+}
+
+model LineReportRateEvent {
+  id          String             @id @default(uuid())
+  lineGroupId String
+  kind        LineReportRateKind
+  createdAt   DateTime           @default(now())
+
+  @@index([lineGroupId, kind, createdAt])
+}
+
+model LineReportDelivery {
+  id               String                   @id @default(uuid())
+  groupId          String
+  kind             LineReportDeliveryKind
+  slotKey          String
+  status           LineReportDeliveryStatus @default(CLAIMED)
+  reason           String?
+  attempt          Int                      @default(0)
+  httpStatus       Int?
+  memberCount      Int?
+  pushMessageCount Int                      @default(0)
+  retryKey         String?
+  pendingPayload   Json?
+  payloadSha256    String?
+  summary          String?
+  sentAt           DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  group LineReportGroup @relation(fields: [groupId], references: [id], onDelete: Restrict)
+
+  @@unique([groupId, slotKey])
+  @@index([groupId, createdAt])
+  @@index([status, createdAt])
+  @@index([createdAt])
 }

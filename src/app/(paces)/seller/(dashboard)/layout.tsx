@@ -14,6 +14,8 @@ import ChatToastListener from './_shared/ChatToastListener'
 import IapRecoveryListener from './_shared/IapRecoveryListener'
 import { getOrderStatusCounts } from '@/services/order.service'
 import { getUnreadCountForShop } from '@/services/chat.service'
+import { countUnackedAlerts } from '@/services/line-report-access.service'
+import { sessionUserId } from '@/lib/session-user'
 import OnboardingGate from './dashboard/components/OnboardingGate'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
@@ -90,6 +92,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   }
 
+  // feature 00070 — จุดแดงที่แท็บ "ร้านค้า": กลุ่มรายงาน LINE ของ *เจ้าของ* ที่ alert ยังไม่รับทราบ
+  // ผูกกับ User (ไม่ใช่ shop.userId) · fail-closed → false ไม่ให้ layout crash · ไม่ใช่เจ้าของ = นับได้ 0 เอง
+  let shopAlert = false
+  const reportOwnerId = sessionUserId(session)
+  if (reportOwnerId) {
+    try {
+      shopAlert = (await countUnackedAlerts(reportOwnerId)) > 0
+    } catch (e) {
+      console.error('[layout] countUnackedAlerts failed, fallback shopAlert=false', e)
+    }
+  }
+
   // Business Package sidenav card — fail-closed: query error → NOT_SUBSCRIBED
   // (pattern เดียวกับ entitlementInfo บรรทัดด้านบน — ไม่ให้ layout crash จาก DB error)
   // ข้าม query ทั้งก้อนเมื่อ active เป็นบัญชีส่วนตัว — การ์ดไม่ถูก render อยู่แล้ว (ดู sidenavHeaderSlot)
@@ -161,6 +175,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <SellerBottomNav
           pendingCount={pendingCount}
           unreadChatCount={unreadChatCount}
+          shopAlert={shopAlert}
           orderVocab={orderVocab}
           shopVertical={shop.vertical}
           /* 🛑 ส่ง `kind` จริงลงไปด้วย ไม่ใช่ค่าปลอม — FAB เรียก `canUseAppointments()` ตัวเดียว

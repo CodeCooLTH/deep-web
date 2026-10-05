@@ -74,6 +74,12 @@ describe('[blocker] คำบรรยายสิทธิ์ต้องตร
     expect(new Set(sets).size, `ได้คำเหมือนกัน: ${sets[0]}`).toBe(TIERS.length)
   })
 
+  it('feature 00070: ทั้ง 3 tier มีบรรทัดรายงานเข้ากลุ่ม LINE · Free ไม่มี', () => {
+    const LINE = 'รายงานสรุปยอดเข้ากลุ่ม LINE'
+    for (const t of TIERS) expect(featuresForTier(t), t).toContain(LINE)
+    expect(tierQuotaFeatures(0, null)).not.toContain(LINE)
+  })
+
   it('การ์ด Free (0 ธุรกิจ) ใช้คำคนละชุด — ไม่ใช่ "สร้างได้ 0 ธุรกิจ"', () => {
     const free = tierQuotaFeatures(0, null)
     expect(free.join(' ')).not.toContain('สร้างได้ 0')

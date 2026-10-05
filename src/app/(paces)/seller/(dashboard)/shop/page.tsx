@@ -25,6 +25,7 @@ import { getReceiptProfile } from '@/services/receipt.service'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDateTime } from '@/lib/format-date'
 import { verticalRequiresStorefrontLocation } from '@/lib/lodging'
+import { countUnackedAlerts, resolveReportAccess } from '@/services/line-report-access.service'
 
 export const metadata: Metadata = { title: 'ตั้งค่าร้าน' }
 
@@ -69,6 +70,18 @@ export default async function ShopSettingsPage() {
     }
   } catch {
     shop = null
+  }
+
+  // feature 00070 — แถวรายงานกลุ่ม LINE: เฉพาะ owner (ANON/NOT_OWNER → null) · LOCKED ยังเห็นแถว
+  // (หน้าปลายทางอธิบายเองว่าล็อกเพราะอะไร) · query ล้ม = ไม่มีจุดแดง ไม่ให้หน้าร้านพัง
+  let lineReports: { hasAlert: boolean } | null = null
+  try {
+    const access = await resolveReportAccess(session)
+    if (access.kind === 'OK' || access.kind === 'LOCKED') {
+      lineReports = { hasAlert: (await countUnackedAlerts(access.userId)) > 0 }
+    }
+  } catch {
+    lineReports = null
   }
 
   const isExisting = !!shop
@@ -169,7 +182,7 @@ export default async function ShopSettingsPage() {
           ≥1024px ไม่ render — sidebar + UserDropdownDetailed ทำหน้าที่นี้อยู่แล้ว */}
       <div className="lg:hidden">
         <ShopQuickLinks shopKind={shopKind} shopRole={shopRole} hidePayments={await shouldHidePayments()}
-          offerIap={await shouldOfferIap()}
+          offerIap={await shouldOfferIap()} lineReports={lineReports}
         />
         <SignOutCard />
       </div>

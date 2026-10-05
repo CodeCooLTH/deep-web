@@ -19,6 +19,8 @@ const tx = {
   pushToken: { deleteMany: vi.fn() },
   shopMember: { deleteMany: vi.fn() },
   authAccount: { deleteMany: vi.fn() },
+  lineReportGroup: { findMany: vi.fn().mockResolvedValue([]), updateMany: vi.fn() },
+  lineReportBindCode: { updateMany: vi.fn() },
 }
 
 vi.mock('@/lib/prisma', () => ({
@@ -76,6 +78,7 @@ beforeEach(() => {
   tx.shopMember.deleteMany.mockResolvedValue({ count: 0 })
   tx.authAccount.deleteMany.mockResolvedValue({ count: 0 })
   tx.user.update.mockResolvedValue({})
+  tx.lineReportGroup.findMany.mockResolvedValue([])
 })
 
 // ─── checkAccountDeletable ────────────────────────────────────────────────────
@@ -351,5 +354,46 @@ describe('checkAccountDeletable — ฝั่งผู้ซื้อ', () => {
     await checkAccountDeletable(USER_ID)
     const where = vi.mocked(prisma.order.count).mock.calls[0][0]?.where as { buyerUserId: string }
     expect(where.buyerUserId).toBe(USER_ID)
+  })
+})
+
+// ─── 00070 TFR-24: รายงานกลุ่ม LINE ────────────────────────────────────────────
+describe('00070 deleteAccount × กลุ่มรายงาน LINE', () => {
+  it('กลุ่มที่ยังไม่ REMOVED -> REMOVED + เพิกถอนโค้ด · คืน lineGroupId เฉพาะกลุ่ม ACTIVE ให้ leave หลัง commit', async () => {
+    arrangeHealthyAccount()
+    tx.lineReportGroup.findMany.mockResolvedValue([
+      { id: 'g1', status: 'ACTIVE', lineGroupId: 'C1' },
+      { id: 'g2', status: 'INACTIVE', lineGroupId: 'C2' },
+      { id: 'g3', status: 'PENDING', lineGroupId: null },
+    ])
+    const r = await deleteAccount(USER_ID, 'สมชาย ใจดี')
+    expect(tx.lineReportGroup.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { ownerId: USER_ID, status: { not: 'REMOVED' } } }),
+    )
+    expect(tx.lineReportGroup.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['g1', 'g2', 'g3'] } },
+      data: { status: 'REMOVED', removedAt: r.deletedAt },
+    })
+    expect(tx.lineReportBindCode.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { ownerId: USER_ID, usedAt: null, revokedAt: null } }),
+    )
+    expect(r.lineGroupsToLeave).toEqual(['C1'])
+  })
+
+  it('ไม่มีกลุ่ม -> ไม่แตะตารางรายงาน', async () => {
+    arrangeHealthyAccount()
+    const r = await deleteAccount(USER_ID, 'สมชาย ใจดี')
+    expect(tx.lineReportGroup.updateMany).not.toHaveBeenCalled()
+    expect(tx.lineReportBindCode.updateMany).not.toHaveBeenCalled()
+    expect(r.lineGroupsToLeave).toEqual([])
+  })
+
+  it('purgeExpiredAccounts ล้าง lineGroupId + groupName ของเจ้าของ (scope ownerId)', async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: USER_ID }] as never)
+    await purgeExpiredAccounts()
+    expect(tx.lineReportGroup.updateMany).toHaveBeenCalledWith({
+      where: { ownerId: USER_ID },
+      data: { lineGroupId: null, groupName: '' },
+    })
   })
 })

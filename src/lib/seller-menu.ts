@@ -199,6 +199,10 @@ export const sellerMenuItems: MenuItemType[] = [
       // แสดงเฉพาะ owner ของ Business shop (ซ่อน runtime ด้วย applyStaffMenu ด้านล่าง — mirror applyInventoryGate)
       // icon 'users-group' verified มีจริงใน tabler set (api.iconify.design/tabler.json?icons=users-group → found)
       { url: '/admins', slug: 'seller:admins', label: 'พนักงาน', icon: 'users-group' },
+      // feature 00070 — รายงานสรุปยอดเข้ากลุ่ม LINE · เฉพาะ owner (ซ่อนด้วย applyLineReportMenu)
+      // 🛑 ห้ามใส่ slug นี้ใน *_ONLY_SLUGS (เห็นทุก vertical) และห้ามผูก hidePaidFeatures/hidePayments —
+      // หน้าอธิบายเองว่าล็อกเพราะอะไรและ CTA ตามกฎ shell (ดู TFR-LGS-02) · icon 'brand-line' ยืนยันมีใน tabler
+      { url: '/business/line-reports', slug: 'seller:line-reports', label: 'รายงานเข้ากลุ่ม LINE', icon: 'brand-line' },
     ],
   },
   {
@@ -319,6 +323,28 @@ export function applyStaffMenu(
   return items.map((group) => !group.children ? group : {
     ...group,
     children: group.children.filter((child) => child.slug !== 'seller:admins'),
+  })
+}
+
+/**
+ * applyLineReportMenu — ซ่อนเมนูรายงานเข้ากลุ่ม LINE จากผู้ที่ไม่ใช่เจ้าของหลักของร้านใดเลย (feature 00070 TFR-LGS-03)
+ *
+ * ทำไมไม่ดู role: EXT 00012 (BR-MR-08) ทำให้ `ShopMember.role==='OWNER'` ไม่ได้แปลว่าเป็นเจ้าของจริง
+ * (เจ้าของร่วมก็ OWNER) — กลุ่มรายงานผูกกับ User และนับเฉพาะร้านที่ `Shop.userId` = ตน
+ * `ownsShop` ต้องมาจาก predicate เดียวกับ `ownsAnyShop` (line-report-access.service) เท่านั้น
+ * ผลคือ ADMIN ของร้านหนึ่งที่เป็นเจ้าของหลักของอีกร้านก็เห็นเมนู (ฟีเจอร์ระดับบัญชี หน้านี้พูดถึงร้านของเขาเอง)
+ * จึงซ่อนทั้งเมนู (ไม่ใช่ disable) — ด่านจริงอยู่ที่ route/service (`resolveReportAccess`)
+ * ไม่รับ hidePayments/hidePaidFeatures โดยตั้งใจ: ถูกกฎ App Store ทั้งสามเชลล์ เพราะไม่มีช่องทางจ่ายเงินในเมนูนี้
+ * และ `shortcut.service.buildEligibleCatalog` ใช้ pipeline เดียวกันจึงได้ผลตามกันโดยอัตโนมัติ
+ */
+export function applyLineReportMenu(
+  items: MenuItemType[],
+  ctx: { ownsShop: boolean },
+): MenuItemType[] {
+  if (ctx.ownsShop) return items
+  return items.map((group) => !group.children ? group : {
+    ...group,
+    children: group.children.filter((child) => child.slug !== 'seller:line-reports'),
   })
 }
 
@@ -725,6 +751,8 @@ export function resolveVisibleSellerMenu(
     staff: { kind: 'PERSONAL' | 'BUSINESS'; role: 'OWNER' | 'ADMIN' }
     expense: ExpenseAccessDecision
     shop: { kind: string; vertical: string }
+    /** เป็น `Shop.userId` ของร้านที่ไม่ลบอย่างน้อย 1 ร้าน (= `ownsAnyShop`) — fail-closed: ไม่รู้ = false */
+    ownsShop: boolean
     /** เปิดจากในแอปที่ห้ามมีช่องทางจ่ายเงิน (iOS) — ดู src/lib/app-shell.ts */
     hidePayments?: boolean
     /** เปิดจากในแอปที่ห้ามใช้ฟีเจอร์ซึ่งไม่มีขายเป็น IAP (iOS) — feature 00064 */
@@ -748,14 +776,17 @@ export function resolveVisibleSellerMenu(
     applyOrderLabel(
     applyVerticalMenu(
       applyExpenseMenu(
-        applyStaffMenu(
-          applyPaymentRestriction(applyInventoryGate(items, ctx.entitlement), {
-            hidePayments: ctx.hidePayments ?? false,
-            entitlementStatus: ctx.entitlement.status,
-            hidePaidFeatures: ctx.hidePaidFeatures ?? false,
-            offerIap: ctx.offerIap ?? true,
-          }),
-          ctx.staff,
+        applyLineReportMenu(
+          applyStaffMenu(
+            applyPaymentRestriction(applyInventoryGate(items, ctx.entitlement), {
+              hidePayments: ctx.hidePayments ?? false,
+              entitlementStatus: ctx.entitlement.status,
+              hidePaidFeatures: ctx.hidePaidFeatures ?? false,
+              offerIap: ctx.offerIap ?? true,
+            }),
+            ctx.staff,
+          ),
+          { ownsShop: ctx.ownsShop },
         ),
         ctx.expense,
       ),
@@ -954,6 +985,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:wallet': m.wallet,
     'seller:subscriptions': m.subscriptions,
     'seller:admins': m.admins,
+    'seller:line-reports': m.lineReports,
     'seller:shop': m.shop,
     'seller:public-profile': m.publicProfile,
     'seller:settings': m.settings,

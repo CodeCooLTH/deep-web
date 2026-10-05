@@ -42,6 +42,9 @@ async function guardApi(request: NextRequest): Promise<NextResponse> {
   // x-line-signature ที่ตัว route ตรวจเอง จึงไม่มี CSRF surface (CSRF อาศัย cookie ที่
   // browser แนบให้). rate-limit ยัง apply ปกติ — ลืมข้อนี้ = webhook โดน 403 ทั้งหมด
   // แบบเงียบสนิท (ดู scope baseline 00025 §S-6)
+  // ยกเว้น /api/line-report/webhook (feature 00070) — LINE ยิง server-to-server ไม่มี Origin header;
+  // authentication คือลายเซ็น x-line-signature ที่ route ตรวจเอง จึงไม่มี CSRF surface. เทียบตรงตัว
+  // (ไม่ใช้ startsWith) เพื่อไม่เปิด exemption ให้ route owner API อื่นใต้ /api/line-report/* ที่ใช้ cookie
   // ยกเว้น /api/webhooks/* — ผู้ให้บริการภายนอก (iShip feat 00022) ยิง server-to-server
   // ไม่มี Origin header เหมือน browser; authentication ของ route กลุ่มนี้คือ secret ที่ฝัง
   // อยู่ใน path ซึ่ง route ตรวจเอง ไม่ได้อาศัย cookie จึงไม่มี CSRF surface
@@ -52,7 +55,8 @@ async function guardApi(request: NextRequest): Promise<NextResponse> {
     !pathname.startsWith('/api/cron/') &&
     !pathname.startsWith('/api/webhooks/') &&
     pathname !== '/api/channels/facebook/webhook' &&
-    pathname !== '/api/channels/line/webhook'
+    pathname !== '/api/channels/line/webhook' &&
+    pathname !== '/api/line-report/webhook'
   ) {
     if (!isAllowedOrigin(request.headers.get('origin'))) {
       return NextResponse.json({ error: 'CSRF check failed' }, { status: 403 })
@@ -83,33 +87,41 @@ async function guardApi(request: NextRequest): Promise<NextResponse> {
   //    การโดน 429 ตรงนี้แพงกว่าปกติมากเพราะผู้ตรวจ **ยืนอยู่หน้างานจริง** และงานที่ทำไปแล้ว
   //    อาจหายครึ่ง ๆ กลาง ๆ · ทุก route ในกลุ่มนี้มีด่าน isInspector + inspectorUserId ของตัวเอง
   //    ครบก่อนแตะข้อมูล การยกเพดานจึงไม่เปิดช่องอะไรใหม่
+  //  - POST /api/line-report/webhook (00070): bucket แยก เพดาน 1200/นาที — IP ของ LINE ไม่กี่ตัวยิงแทนทุกกลุ่ม
+  //    ถ้าใช้เพดาน unauth mutation 100/นาที กลุ่มที่คุยหนาแน่นจะทำให้ 429 แล้วคำสั่ง `ผูก`/`สรุปวันนี้` หายเงียบ
+  //    (LINE ไม่ยิงซ้ำให้) · ตัว route ตรวจลายเซ็นก่อนแตะข้อมูลเสมอ การยกเพดานจึงไม่เปิดช่องใหม่
   const token = await getToken({ req: request })
   const isMutation = MUTATION_METHODS.has(request.method)
   const isFileAsset = !isMutation && pathname.startsWith('/api/files/')
   const isUploadAsset = isMutation && pathname.startsWith('/api/uploads/')
   const isInspectorApi = isMutation && pathname.startsWith('/api/inspector/')
-  const limit = isFileAsset
-    ? 600
-    : isUploadAsset
-      ? 300
-      : isInspectorApi
-        ? 120
-        : isMutation
-          ? token
-            ? 30
-            : 100
-          : token
-            ? 120
-            : 200
-  const bucket = isFileAsset
-    ? 'files'
-    : isUploadAsset
-      ? 'upload'
-      : isInspectorApi
-        ? 'inspector'
-        : isMutation
-          ? 'mut'
-          : 'get'
+  const isReportWebhook = isMutation && pathname === '/api/line-report/webhook'
+  const limit = isReportWebhook
+    ? 1200
+    : isFileAsset
+      ? 600
+      : isUploadAsset
+        ? 300
+        : isInspectorApi
+          ? 120
+          : isMutation
+            ? token
+              ? 30
+              : 100
+            : token
+              ? 120
+              : 200
+  const bucket = isReportWebhook
+    ? 'line-report-webhook'
+    : isFileAsset
+      ? 'files'
+      : isUploadAsset
+        ? 'upload'
+        : isInspectorApi
+          ? 'inspector'
+          : isMutation
+            ? 'mut'
+            : 'get'
   const key = `${clientIp(request)}:${token ? 'auth' : 'pub'}:${bucket}`
   if (!checkApiRateLimit(key, limit, 60_000)) {
     return NextResponse.json(

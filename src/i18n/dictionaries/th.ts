@@ -127,6 +127,7 @@ export const th = {
     reportsAgents: 'การตอบแชทของแอดมิน',
     reportsProducts: 'ยอดขายรายสินค้า',
     followUps: 'ติดตามลูกค้า',
+    lineReports: 'รายงานเข้ากลุ่ม LINE',
     orders: {
       ONLINE_SALES: 'คำสั่งซื้อ',
       SERVICE_QUEUE: 'การเข้ารับบริการ',
@@ -382,6 +383,7 @@ export const th = {
     navCreate: 'สร้าง',
     navChat: 'แชท',
     navShop: 'ร้านค้า',
+    navShopAlertAria: 'มีรายงานเข้ากลุ่ม LINE ที่ต้องดูแล',
     navCreateOpen: 'เปิดเมนูสร้าง',
     navCreateClose: 'ปิดเมนูสร้าง',
     navCreateCategory: 'สร้างหมวดหมู่',

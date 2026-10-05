@@ -41,6 +41,8 @@ export function tierQuotaFeatures(
     `สร้างได้ ${maxBusinesses === null ? 'ไม่จำกัด' : maxBusinesses} ธุรกิจ`,
     `${maxAdminsPerBusiness === null ? 'ไม่จำกัด' : maxAdminsPerBusiness} ผู้ดูแลต่อธุรกิจ`,
     'Product/Order/Wallet แยกเป็นของตัวเอง',
+    // feature 00070 — สิทธิ์ของแพ็กเกจธุรกิจทุก tier · ไม่ใส่สาขา Free (maxBusinesses===0) เพราะใช้ไม่ได้
+    'รายงานสรุปยอดเข้ากลุ่ม LINE',
   ]
 }
 

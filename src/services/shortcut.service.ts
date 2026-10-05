@@ -12,6 +12,7 @@
  */
 import { prisma } from '@/lib/prisma'
 import { requireActiveShop } from '@/lib/shop-context'
+import { ownsAnyShop } from '@/services/line-report-access.service'
 import { resolveExpenseAccess, type ExpenseAccessDecision } from '@/services/expense-access.service'
 import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import { resolveVisibleSellerMenu, flattenSellerMenu, sellerMenuItems } from '@/lib/seller-menu'
@@ -112,6 +113,7 @@ export type ShellRestrictions = {
 async function buildEligibleCatalog(
   active: ActiveShop,
   shell: ShellRestrictions,
+  userId: string,
 ): Promise<ShortcutCatalogItem[]> {
   const shop = active.shop
 
@@ -134,10 +136,19 @@ async function buildEligibleCatalog(
     console.error('[shortcut] resolveExpenseAccess failed, fallback NO_SHOP', e)
   }
 
+  // fail-closed: query ล้ม → ไม่เห็นเมนูรายงาน LINE (predicate เดียวกับ sidebar)
+  let ownsShop = false
+  try {
+    ownsShop = await ownsAnyShop(userId)
+  } catch (e) {
+    console.error('[shortcut] ownsAnyShop failed, fallback hide LINE report menu', e)
+  }
+
   const visible = resolveVisibleSellerMenu(sellerMenuItems, {
     entitlement,
     staff: { kind: active.kind, role: active.role },
     expense,
+    ownsShop,
     shop: { kind: active.kind, vertical: shop.vertical },
     hidePayments: shell.hidePayments,
     hidePaidFeatures: shell.hidePaidFeatures,
@@ -201,7 +212,7 @@ export async function resolveShortcutState(
   const userId = session!.user!.id!
 
   const [catalog, pref] = await Promise.all([
-    buildEligibleCatalog(active, shell),
+    buildEligibleCatalog(active, shell, userId),
     prisma.sellerShortcutPreference.findUnique({
       where: { userId_shopId: { userId, shopId: active.shop.id } },
     }),
@@ -222,7 +233,7 @@ async function loadForWrite(session: SessionLike, shell: ShellRestrictions) {
   const userId = session!.user!.id!
 
   const [catalog, pref] = await Promise.all([
-    buildEligibleCatalog(active, shell),
+    buildEligibleCatalog(active, shell, userId),
     prisma.sellerShortcutPreference.findUnique({
       where: { userId_shopId: { userId, shopId: active.shop.id } },
     }),

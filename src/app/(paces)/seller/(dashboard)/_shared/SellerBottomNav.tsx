@@ -122,6 +122,11 @@ interface SellerBottomNavProps {
   /** `active.kind` (PERSONAL/BUSINESS) — ส่งเข้า `canUseAppointments()` คู่กับ vertical
    *  เพื่อให้ปุ่มแรกของ FAB ใช้เกณฑ์ตัวเดียวกับ guard ของหน้า `/settings/job-types` เป๊ะ */
   shopKind?: string | null
+  /**
+   * feature 00070 — มีกลุ่มรายงาน LINE ที่ alert ยังไม่รับทราบ → จุดแดงที่ช่อง "ร้านค้า"
+   * 🛑 บังคับส่ง ไม่มี default (ผู้เรียกที่ลืม = จุดไม่ขึ้นเงียบ ๆ) · ไม่ผูก hidePayments (ไม่มีทางจ่ายเงิน)
+   */
+  shopAlert: boolean
 }
 
 // ─── SpeedDialAction pill — sub-component (ใช้เฉพาะใน SellerBottomNav) ────────
@@ -153,6 +158,7 @@ export default function SellerBottomNav({
   orderVocab,
   shopVertical,
   shopKind,
+  shopAlert,
 }: SellerBottomNavProps) {
   const t = useT()
   const fabActions = buildFabActions(orderVocab, t, shopVertical, shopKind)
@@ -413,16 +419,28 @@ export default function SellerBottomNav({
         {/* ช่อง 5: ร้านค้า */}
         <Link
           href="/shop"
-          className={`flex h-full flex-col items-center justify-center gap-1 ${
+          className={`relative flex h-full flex-col items-center justify-center gap-1 ${
             isActive('/shop', false)
               ? 'text-primary'
               : 'text-default-500'
           }`}
-          aria-label={t.dashboard.navShop}
+          aria-label={`${t.dashboard.navShop}${shopAlert ? ` (${t.dashboard.navShopAlertAria})` : ''}`}
           aria-current={isActive('/shop', false) ? 'page' : undefined}
         >
           <Icon icon="building-store" className="text-2xl" />
           <span className="text-xs font-medium">{t.dashboard.navShop}</span>
+          {shopAlert && (
+            <span
+              aria-hidden="true"
+              className={[
+                'absolute top-[-2px] left-[calc(50%+8px)]', // carve-out: ตำแหน่ง badge เทียบ icon กลางช่อง
+                /* arbitrary: badge ตำแหน่ง offset จาก center icon — เหตุผลเดียวกับ badge "คำสั่งซื้อ" */
+                'size-2.5 rounded-full bg-danger', // จุดแดงไม่มีตัวเลข
+                /* arbitrary: badge ring 2px ขาว — เหตุผลเดียวกับ badge "คำสั่งซื้อ" */
+                'shadow-[0_0_0_2px_white]', // carve-out: ring ขาวรอบ badge
+              ].join(' ')}
+            />
+          )}
         </Link>
       </nav>
     </>
