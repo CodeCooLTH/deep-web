@@ -8,7 +8,7 @@ describe('block-meta: expense / net_sales', () => {
     expect(BLOCK_ICON.expense).toBe('report-money')
     expect(BLOCK_ICON.net_sales).toBe('wallet')
     expect(libraryDesc('expense', 'ออเดอร์', { blocks: [] })).toBe('ทุกคนในกลุ่มจะเห็น — ถามยืนยันก่อนเพิ่ม')
-    expect(blockSummary({ id: 'e', type: 'expense' }, 'ออเดอร์', '')).toBeNull()
+    expect(blockSummary({ id: 'e', type: 'expense' }, 'ออเดอร์', '')).toBe('ไม่แสดงรายการย่อย · กดเพื่อตั้งค่า')
   })
   it('อยู่ในกลุ่ม "ข้อมูล" ต่อท้าย profit', () => {
     const g = LIBRARY_GROUPS[0]
@@ -17,8 +17,8 @@ describe('block-meta: expense / net_sales', () => {
 })
 
 describe('ITEMS §17: blockSummary expense', () => {
-  it('items=true → แยกตามหมวด · ไม่ใส่ → null', () => {
-    expect(blockSummary({ id: 'e', type: 'expense', items: true }, 'ออเดอร์', '')).toBe('แยกตามหมวด')
-    expect(blockSummary({ id: 'e', type: 'expense' }, 'ออเดอร์', '')).toBeNull()
+  it('แถวพับบอกสถานะรายการย่อยเสมอ (เปิด/ปิด)', () => {
+    expect(blockSummary({ id: 'e', type: 'expense', items: true }, 'ออเดอร์', '')).toBe('แสดงรายการย่อยตามหมวด')
+    expect(blockSummary({ id: 'e', type: 'expense' }, 'ออเดอร์', '')).toBe('ไม่แสดงรายการย่อย · กดเพื่อตั้งค่า')
   })
 })
