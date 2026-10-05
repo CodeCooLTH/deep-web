@@ -189,6 +189,11 @@
     .content{padding:16px 22px 26px} .crumb{padding:16px 22px 0}
   }
   .dot{position:absolute;top:-2px;right:6px;width:9px;height:9px;border-radius:99px;background:var(--danger);border:2px solid #fff}
+  .fab{width:44px;height:44px;border-radius:99px;background:var(--primary);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:22px}
+  .bnav .fab iconify-icon{font-size:22px}
+  .codeln{display:flex;align-items:baseline;gap:8px;white-space:nowrap;margin:2px 0 6px}
+  .codeln .pre{font-size:16px;color:var(--d700);font-weight:500}
+  .codeln .cd{font-size:24px;font-weight:600;color:var(--d900);font-variant-numeric:tabular-nums;letter-spacing:.05em}
   .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--d600);margin:4px 0 0}
 </style>
 </head>
@@ -207,11 +212,11 @@ const LINE = '../../../public/images/logos/line.svg';
 const i = (n, s='') => `<iconify-icon icon="tabler:${n}" ${s}></iconify-icon>`;
 
 const SHOPS = [
-  {n:'BT Premium Auto Xenon คลอง4 ธัญบุรี', k:'ร้านบริการ', o:32, s:'฿412,900'},
-  {n:'ศรีสุข อะไหล่ออนไลน์ เซ็นเตอร์ สาขารังสิต คลอง 3', k:'ร้านขายของ', o:61, s:'฿538,200'},
-  {n:'ครัวคุณยาย โฮมเมด ขนมไทยและอาหารสั่งทำ', k:'ร้านขายของ', o:24, s:'฿96,460'},
-  {n:'สมชาย ใจดี', k:'ร้านส่วนตัว', o:11, s:'฿236,000'},
-  {n:'ล้างรถ คลอง 4 โปรแคร์ ธัญบุรี', k:'ร้านบริการ', locked:true},
+  {n:'BT Premium Auto Xenon คลอง4 ธัญบุรี', k:'สินค้าและบริการ', o:32, s:'฿412,900'},
+  {n:'ศรีสุข อะไหล่ออนไลน์ เซ็นเตอร์ สาขารังสิต คลอง 3', k:'ขายออนไลน์', o:61, s:'฿538,200'},
+  {n:'ครัวคุณยาย โฮมเมด ขนมไทยและอาหารสั่งทำ', k:'ขายออนไลน์', o:24, s:'฿96,460'},
+  {n:'สมชาย ใจดี', k:'บัญชีส่วนตัว', o:11, s:'฿236,000'},
+  {n:'ล้างรถ คลอง 4 โปรแคร์ ธัญบุรี', k:'สินค้าและบริการ', locked:true},
 ];
 const G1 = 'ทีมบริหารและบัญชี BT Premium Auto Xenon คลอง 4 ธัญบุรี';
 
@@ -222,8 +227,8 @@ function bubble(mode='daily', o={}){
   const chip  = mode==='monthly' ? '6 ก.ย. – 5 ต.ค. 2569' : '5 ต.ค. 2569';
   const asof  = o.full24 ? '00:02' : '21:02';
   const N = mode==='monthly'
-    ? {o:'3,412 รายการ', s:'฿18,902,340', p:'฿612,480', c:'97 ใบ'}
-    : {o:'128 รายการ',   s:'฿1,284,560',  p:'฿84,300',  c:'6 ใบ'};
+    ? {o:'3,412', s:'฿18,902,340', p:'฿612,480', c:'97 ใบ'}
+    : {o:'128',   s:'฿1,284,560',  p:'฿84,300',  c:'6 ใบ'};
   const top = [
     {shop:SHOPS[0], items:[['ฟิล์มกรองแสงเซรามิก รุ่นพรีเมียม ทุกขนาด รถเก๋ง',42],['ติดตั้งไฟซีนอน 6000K',17],['ล้างห้องเครื่อง',9]], profit:'฿148,200'},
     {shop:SHOPS[1], items:[['ผ้าคลุมรถยนต์ กันน้ำ กันแดด UV ซีดาน',31],['น้ำยาเคลือบแก้ว 9H',18],['ใบปัดน้ำฝนซิลิโคน 24 นิ้ว',15]], profit:'≤ ฿96,500', partial:true},
@@ -235,7 +240,7 @@ function bubble(mode='daily', o={}){
       <div class="hd"><b>${title}</b><span class="badge b-pri">${chip}</span>
         <span class="note" style="display:block;margin-top:3px">ข้อมูล ณ ${asof} น. · รวม 4 ร้าน</span></div>
       <div class="sec">
-        ${kv('ออเดอร์',N.o)}
+        ${kv('รายการ',N.o)}
         <div class="kv"><span>ยอดขาย (นับแล้ว)</span><span><b>${N.s}</b></span></div>
         <div class="note" style="margin:1px 0 3px">ยังไม่นับเป็นยอดขาย ${N.p} (รอยืนยัน/รอขนส่งรับ)</div>
         ${kv('ยกเลิก',N.c+' (ใบที่เปิดในช่วงนี้)')}
@@ -306,12 +311,17 @@ const scrB = () => crumbs('รายงานเข้ากลุ่ม LINE','
   <div class="card-header"><h5>กลุ่มรายงานของฉัน</h5></div>
   <div class="card-body"><div class="two">
     <div><h5 style="margin:0 0 6px;font-size:15px">ยังไม่มีกลุ่มรายงาน</h5>
-      <p class="muted sm mb3">ให้บอท Deep รายงานยอดสรุปออเดอร์เข้ากลุ่ม LINE ของทีมคุณทุกวันหรือทุกเดือน ไม่ต้องเปิดแอปดูทีละร้าน</p>
+      <p class="muted sm mb3">ให้บอท Deep รายงานยอดสรุปข้อมูลเข้ากลุ่ม LINE ของทีมคุณทุกวันหรือทุกเดือน ไม่ต้องเปิดแอปดูทีละร้าน</p>
       <button class="btn btn-primary full sm-auto">${i('plus')} เพิ่มกลุ่มแรก</button>${howSteps}</div>
     <div><p class="xs muted mb2" style="text-align:center">ตัวอย่างข้อความที่จะไปโผล่ในกลุ่ม</p>${bubble()}</div>
   </div></div></div></div>`;
 
 /* ── C. Bind ── */
+const CODEBOX = `<div class="codebox"><div class="xs muted">พิมพ์ข้อความนี้ในกลุ่ม LINE</div>
+        <div class="codeln"><span class="pre">ผูก</span><span class="cd">K7M2-XQ4P</span></div>
+        <p class="xs mb2" style="color:var(--d700)">ในโค้ดไม่มีตัวอักษร O, I, L — 0 และ 1 คือตัวเลข พิมพ์ตัวเล็กหรือตัวใหญ่ก็ได้</p>`;
+const SHOPPICK = (n=1) => `<div class="mt2"><div style="display:flex;justify-content:space-between;gap:8px"><span class="sm" style="font-weight:600">ร้านที่จะรวมในกลุ่มนี้</span><span class="xs muted">เลือกแล้ว ${n} จาก 5 ร้าน</span></div>
+  ${SHOPS.map((s,k)=>`<div class="ckrow"><span class="ck ${s.locked?'dis':k<n?'on':''}">${!s.locked&&k<n?i('check'):''}</span><span class="t sm" ${s.locked?'style="color:var(--d700)"':''}>${s.n}<span class="sub">${s.locked?'ถูกล็อกเพราะแพ็กเกจ':s.k}</span></span></div>`).join('')}</div>`;
 const ACK = on => `<div class="ckrow mt2"><span class="ck ${on?'on':''}">${on?i('check'):''}</span><span class="t sm">รับทราบว่าทุกคนในกลุ่มจะเห็นตัวเลขที่ส่ง และ Deep ลบข้อความที่ส่งไปแล้วออกจากกลุ่มไม่ได้</span></div>`;
 const scrC = () => crumbs('ผูกกลุ่มใหม่','ธุรกิจ / รายงานเข้ากลุ่ม LINE / ผูกกลุ่มใหม่') + `<div class="content"><div class="bind-wrap">
   <div class="card"><ol class="steps">
@@ -319,15 +329,15 @@ const scrC = () => crumbs('ผูกกลุ่มใหม่','ธุรก�
       <div><b>เพิ่ม Deep รายงานยอด เข้ากลุ่ม LINE</b>
         <p class="muted sm mt2 mb3">เพิ่มบอทเป็นเพื่อนก่อน แล้วเชิญบอทเข้ากลุ่มที่ต้องการรับรายงาน</p>
         <button class="btn btn-light btn-sm"><img src="${LINE}" alt="" style="width:16px;height:16px"> เปิดใน LINE</button>
-        <button class="btn btn-light btn-sm qrbtn">${i('qrcode')} แสดง QR</button></div>
+        <button class="btn btn-light btn-sm qrbtn">${i('qrcode')} แสดง QR</button>
+        <p class="xs mt2" style="color:var(--d700);display:flex;gap:6px;align-items:flex-start">${i('info-circle','style="margin-top:2px"')}<span>กลุ่มหนึ่งมี OA ได้ตัวเดียว — ถ้ามี OA อื่น (เช่น OA ของร้าน) ในกลุ่ม ให้นำออกก่อน</span></p></div>
       <div class="qrwrap" style="text-align:center"><div class="qr"></div><div class="xs muted mt2">สแกนด้วย LINE บนมือถือ</div></div>
     </div></div></li>
-    <li><span class="num cur">2</span><div style="flex:1;min-width:0"><b>สร้างโค้ดผูกกลุ่ม</b>
+    <li><span class="num cur">2</span><div style="flex:1;min-width:0"><b>เลือกร้านและสร้างโค้ดผูกกลุ่ม</b>
       <p class="muted sm" style="margin-top:2px">โค้ดใช้ได้ 10 นาที และใช้ผูกได้ครั้งเดียว</p>
-      ${ACK(true)}
-      <div class="codebox"><div class="xs muted">พิมพ์ข้อความนี้ในกลุ่ม LINE</div>
-        <div class="code">ผูก K7M2-XQ4P</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn btn-light btn-sm">${i('copy')} คัดลอก</button>
+      <p class="sm mt2" style="display:flex;gap:4px;min-width:0;white-space:nowrap"><span style="color:var(--d700)">ร้านที่รวม:</span><span class="trunc" title="BT Premium Auto Xenon คลอง4 ธัญบุรี">BT Premium Auto Xenon คลอง4 ธัญบุรี</span><span>และอีก 2 ร้าน</span></p>
+      ${CODEBOX}
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn btn-light btn-sm">${i('copy')} คัดลอกข้อความ</button>
           <span class="badge b-warn" aria-live="off">${i('clock')} ใช้ได้อีก <span class="tnum">09:41</span></span></div></div></div></li>
     <li><span class="num">3</span><div style="flex:1;min-width:0"><b>พิมพ์ในกลุ่ม แล้วรอสักครู่</b>
       <p class="muted sm mt2">${i('loader-2','style="animation:spin 1s linear infinite"')} รอรับข้อความจากกลุ่ม…</p></div></li>
@@ -376,11 +386,11 @@ function scrD(paused=false){
         <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap"><span class="sm">วันตัดรอบ</span><select class="sel"><option>วันที่ 6</option></select></div>
         <p class="xs muted mt2">ตัวอย่าง: ตัดรอบวันที่ 6 ได้รอบ 6 ก.ย. – 5 ต.ค. และส่งวันที่ 6 ต.ค. 09:00 (เวลาแรกของรายวัน)</p>
         <hr class="dash">
-        <div class="ckrow"><span class="ck on">${i('check')}</span><span class="t sm">ไม่ส่งถ้าไม่มีรายการ<span class="sub">ถ้าช่วงนั้นไม่มีออเดอร์เลย ระบบจะข้ามและบันทึกในประวัติว่าข้าม</span></span></div>
+        <div class="ckrow"><span class="ck on">${i('check')}</span><span class="t sm">ไม่ส่งถ้าไม่มีรายการ<span class="sub">ถ้าช่วงนั้นไม่มีรายการเลย ระบบจะข้ามและบันทึกในประวัติว่าข้าม</span></span></div>
         <div class="ckrow"><span class="ck on">${i('check')}</span><span class="t sm">แนบยอดสะสมรอบนี้ในรายงานรายวัน<span class="sub">ใต้ยอดของวัน จะมียอดรวมตั้งแต่วันตัดรอบถึงวันนี้</span></span></div>
       </div></div>
       <div class="card o3"><div class="card-header"><h5>${i('list-numbers')} ตัวเลขที่แสดง</h5></div><div class="card-body">
-        <div class="md2">${['จำนวนออเดอร์','ยอดขาย','ยกเลิก','สินค้าขายดี 3 อันดับ'].map(t=>`<div class="ckrow"><span class="ck on">${i('check')}</span><span class="t sm">${t}</span></div>`).join('')}</div>
+        <div class="md2">${['จำนวนคำสั่งซื้อ','ยอดขาย','ยกเลิก','สินค้าขายดี 3 อันดับ'].map(t=>`<div class="ckrow"><span class="ck on">${i('check')}</span><span class="t sm">${t}</span></div>`).join('')}</div>
         <hr class="dash">
         <div class="ckrow"><span class="ck"></span><span class="t sm">กำไร<span class="sub">ทุกคนในกลุ่ม LINE จะเห็นตัวเลขกำไร รวมถึงคนที่ไม่ได้มีสิทธิ์ดูการเงินในร้าน — ติ๊กแล้วจะถามยืนยันก่อน</span></span></div>
       </div></div>
@@ -427,8 +437,8 @@ function shell(inner, dot=false){
     <div class="main">
       <div class="topbar"><span class="brand mhead">Deep</span><span class="dt">สมชาย ใจดี · เจ้าของ</span></div>
       ${inner}
-      <nav class="bnav">${[['layout-dashboard','หน้าหลัก'],['receipt','ออเดอร์'],['message-circle','แชท'],['building-store','ธุรกิจ','on'],['menu-2','เมนู']]
-        .map(([ic,t,on])=>`<span class="${on||''}" style="position:relative">${i(ic)}${t}${dot&&on?'<b class="dot" aria-label="มีเรื่องต้องแก้"></b>':''}</span>`).join('')}</nav>
+      <nav class="bnav">${[['layout-dashboard','หน้าหลัก'],['receipt','คำสั่งซื้อ'],['+'],['message-circle','แชท'],['building-store','ร้านค้า','on']]
+        .map(([ic,t,on])=>ic==='+'?`<span><b class="fab" aria-label="สร้าง">${i('plus')}</b></span>`:`<span class="${on||''}" style="position:relative">${i(ic)}${t}${dot&&on?'<b class="dot" aria-label="มีเรื่องต้องแก้"></b>':''}</span>`).join('')}</nav>
     </div></div>`;
 }
 const SCREENS = [
@@ -445,10 +455,14 @@ const VARIANTS = () => `<section class="screen" id="s-V"><h2>V — ตัวแ�
   <div class="frames">
     ${[['รอบ 24:00 (ครบทั้งวัน)', `<div class="content">${bubble('daily',{full24:true})}</div>`],
        ['เมื่อเปิดกำไร', `<div class="content">${bubble('daily',{profit:true})}</div>`],
-       ['ผูก ขั้น 2 ก่อนสร้างโค้ด', `<div class="content"><div class="card"><ol class="steps"><li><span class="num cur">2</span><div style="flex:1;min-width:0"><b>สร้างโค้ดผูกกลุ่ม</b>
-          <p class="muted sm" style="margin-top:2px">โค้ดใช้ได้ 10 นาที และใช้ผูกได้ครั้งเดียว</p>${ACK(false)}
+       ['ผูก ขั้น 2 ก่อนสร้างโค้ด', `<div class="content"><div class="card"><ol class="steps"><li><span class="num cur">2</span><div style="flex:1;min-width:0"><b>เลือกร้านและสร้างโค้ดผูกกลุ่ม</b>
+          <p class="muted sm" style="margin-top:2px">โค้ดใช้ได้ 10 นาที และใช้ผูกได้ครั้งเดียว</p>${SHOPPICK(1)}${ACK(false)}
           <button class="btn btn-primary full mt2" disabled>สร้างโค้ด</button>
           <p class="xs muted mt2">ปุ่มกดได้เมื่อติ๊กรับทราบแล้ว</p></div></li></ol></div></div>`],
+       ['PENDING เปิดซ้ำ', `<div class="content"><div class="card"><ol class="steps"><li><span class="num cur">2</span><div style="flex:1;min-width:0"><b>เลือกร้านและสร้างโค้ดผูกกลุ่ม</b>
+          <div class="codebox"><p class="sm" style="margin:0 0 8px;color:var(--d800)">โค้ดที่สร้างไว้แสดงซ้ำไม่ได้</p>
+          <span class="badge b-warn">${i('clock')} โค้ดเดิมยังใช้ได้อีก <span class="tnum">06:12</span></span>
+          <div class="mt3"><button class="btn btn-primary full">สร้างโค้ดใหม่</button></div></div></div></li></ol></div></div>`],
        ['หลังผูกเสร็จ — รายงานเริ่มปิด', `<div class="content"><div class="banner ban-info">${i('info-circle')}<div>ตอนนี้ยังไม่ได้เปิดรายงานอัตโนมัติ กลุ่มนี้จะได้รับสรุปเมื่อมีคนพิมพ์ “สรุปวันนี้” หรือ “สรุปเดือนนี้” เท่านั้น</div></div>
           <div class="card"><div class="card-header"><h5>${i('clock')} เวลาส่ง</h5></div><div class="card-body">
           <div style="display:flex;justify-content:space-between;align-items:center"><b>รายวัน</b><span class="switch"></span></div><p class="xs muted">ปิดอยู่</p>
