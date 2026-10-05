@@ -1,0 +1,294 @@
+[
+ {
+  "type": "flex",
+  "altText": "รายงานยอดรายวัน 5 ต.ค. 2569 · บริการ 11 รายการ · ยอดขาย ฿2,000 · ยกเลิก 1 ใบ · ข้อมูล ณ 21:02 น.",
+  "contents": {
+   "type": "bubble",
+   "size": "mega",
+   "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+     {
+      "type": "box",
+      "layout": "vertical",
+      "margin": "lg",
+      "spacing": "xs",
+      "contents": [
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "sm",
+        "contents": [
+         {
+          "type": "text",
+          "text": "รายงานยอดรายวัน",
+          "size": "md",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "weight": "bold",
+          "flex": 1
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": "5 ต.ค. 2569",
+        "size": "sm",
+        "color": "#236dc9",
+        "wrap": true,
+        "weight": "bold"
+       },
+       {
+        "type": "text",
+        "text": "ข้อมูล ณ 21:02 น.",
+        "size": "xs",
+        "color": "#808390",
+        "wrap": true
+       }
+      ]
+     },
+     {
+      "type": "separator",
+      "margin": "lg"
+     },
+     {
+      "type": "box",
+      "layout": "vertical",
+      "margin": "lg",
+      "spacing": "xs",
+      "contents": [
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "บริการ",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "11 รายการ",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "regular"
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "ยอดขาย (นับแล้ว)",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "฿2,000",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": "ยังไม่นับเป็นยอดขาย ฿50 (รอยืนยัน/รอขนส่งรับ)",
+        "size": "xs",
+        "color": "#808390",
+        "wrap": true
+       },
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "ยกเลิก",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "1 ใบ (ใบที่เปิดในช่วงนี้)",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "regular"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "separator",
+      "margin": "lg"
+     },
+     {
+      "type": "box",
+      "layout": "vertical",
+      "margin": "lg",
+      "spacing": "xs",
+      "contents": [
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿200",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         },
+         {
+          "type": "text",
+          "text": "บริการยอดนิยม 3 อันดับ · นับทุกใบที่ไม่ยกเลิก",
+          "size": "xs",
+          "color": "#808390",
+          "wrap": true,
+          "margin": "sm"
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "1 สินค้า 1 A",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 5,
+            "maxLines": 2
+           },
+           {
+            "type": "text",
+            "text": "5 ครั้ง",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 2,
+            "align": "end"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "2 สินค้า 1 B",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 5,
+            "maxLines": 2
+           },
+           {
+            "type": "text",
+            "text": "3 ครั้ง",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 2,
+            "align": "end"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "3 สินค้า 1 C",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 5,
+            "maxLines": 2
+           },
+           {
+            "type": "text",
+            "text": "1 ครั้ง",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 2,
+            "align": "end"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "footer": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+     {
+      "type": "button",
+      "style": "primary",
+      "color": "#236dc9",
+      "height": "sm",
+      "action": {
+       "type": "uri",
+       "label": "เปิด Deep",
+       "uri": "https://seller.deepthailand.app/dashboard"
+      }
+     }
+    ]
+   }
+  }
+ }
+]

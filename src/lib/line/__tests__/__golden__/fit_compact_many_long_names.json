@@ -1,0 +1,1096 @@
+[
+ {
+  "type": "flex",
+  "altText": "รายงานยอดรายวัน 5 ต.ค. 2569 · คำสั่งซื้อ 4,040 รายการ · ยอดขาย ฿3,320,000 · ยกเลิก 3,240 ใบ · กำไรสุทธิ ฿332,000 · ข้อมูล ณ 21:02 น. · ร้าน 80กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿81,000 · ร้าน 79กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿80,000 · ร้าน 78กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿79,000 · ร้าน 77กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿78,000 · ร้าน 76กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿77,000 · ร้าน 75กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿76,000 · ร้าน 74กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿75,000 · ร้าน 73กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿74,000 · ร้าน 72กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿73,000 · ร้าน 71กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿72,000 · ร้าน 70กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿71,000 · ร้าน 69กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿70,000 · ร้าน 68กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿69,000 · ร้าน 67กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿68",
+  "contents": {
+   "type": "bubble",
+   "size": "mega",
+   "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+     {
+      "type": "box",
+      "layout": "vertical",
+      "margin": "lg",
+      "spacing": "xs",
+      "contents": [
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "sm",
+        "contents": [
+         {
+          "type": "text",
+          "text": "รายงานยอดรายวัน",
+          "size": "md",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "weight": "bold",
+          "flex": 1
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": "5 ต.ค. 2569",
+        "size": "sm",
+        "color": "#236dc9",
+        "wrap": true,
+        "weight": "bold"
+       },
+       {
+        "type": "text",
+        "text": "ข้อมูล ณ 21:02 น. · รวม 80 ร้าน",
+        "size": "xs",
+        "color": "#808390",
+        "wrap": true
+       }
+      ]
+     },
+     {
+      "type": "separator",
+      "margin": "lg"
+     },
+     {
+      "type": "box",
+      "layout": "vertical",
+      "margin": "lg",
+      "spacing": "xs",
+      "contents": [
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "คำสั่งซื้อ",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "4,040 รายการ",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "regular"
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "ยอดขาย (นับแล้ว)",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "฿3,320,000",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": "ยังไม่นับเป็นยอดขาย ฿162,000 (รอยืนยัน/รอขนส่งรับ)",
+        "size": "xs",
+        "color": "#808390",
+        "wrap": true
+       },
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "ยกเลิก",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "3,240 ใบ (ใบที่เปิดในช่วงนี้)",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "regular"
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "กำไรสุทธิ",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "฿332,000",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "regular"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "separator",
+      "margin": "lg"
+     },
+     {
+      "type": "box",
+      "layout": "vertical",
+      "margin": "lg",
+      "spacing": "xs",
+      "contents": [
+       {
+        "type": "text",
+        "text": "แยกรายร้าน",
+        "size": "xs",
+        "color": "#808390",
+        "wrap": true,
+        "weight": "bold"
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 80กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿81,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 79กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿80,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 78กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿79,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 77กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿78,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 76กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿77,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 75กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿76,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 74กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿75,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 73กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿74,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 72กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿73,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 71กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿72,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": "…และอีก 70 ร้าน",
+        "size": "xs",
+        "color": "#808390",
+        "wrap": true,
+        "margin": "md"
+       }
+      ]
+     }
+    ]
+   },
+   "footer": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+     {
+      "type": "button",
+      "style": "primary",
+      "color": "#236dc9",
+      "height": "sm",
+      "action": {
+       "type": "uri",
+       "label": "เปิด Deep",
+       "uri": "https://seller.deepthailand.app/dashboard"
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "type": "flex",
+  "altText": "รายงานยอดรายเดือน 1 ต.ค. – 5 ต.ค. 2569 · คำสั่งซื้อ 4,040 รายการ · ยอดขาย ฿3,320,000 · ยกเลิก 3,240 ใบ · กำไรสุทธิ ฿332,000 · ข้อมูล ณ 21:02 น. · ร้าน 80กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿81,000 · ร้าน 79กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿80,000 · ร้าน 78กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿79,000 · ร้าน 77กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿78,000 · ร้าน 76กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿77,000 · ร้าน 75กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿76,000 · ร้าน 74กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿75,000 · ร้าน 73กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿74,000 · ร้าน 72กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿73,000 · ร้าน 71กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿72,000 · ร้าน 70กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿71,000 · ร้าน 69กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿70,000 · ร้าน 68กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก ฿69,000 · ร้าน 67กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก",
+  "contents": {
+   "type": "bubble",
+   "size": "mega",
+   "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+     {
+      "type": "box",
+      "layout": "vertical",
+      "margin": "lg",
+      "spacing": "xs",
+      "contents": [
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "sm",
+        "contents": [
+         {
+          "type": "text",
+          "text": "รายงานยอดรายเดือน",
+          "size": "md",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "weight": "bold",
+          "flex": 1
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": "1 ต.ค. – 5 ต.ค. 2569",
+        "size": "sm",
+        "color": "#236dc9",
+        "wrap": true,
+        "weight": "bold"
+       },
+       {
+        "type": "text",
+        "text": "ข้อมูล ณ 21:02 น. · รวม 80 ร้าน",
+        "size": "xs",
+        "color": "#808390",
+        "wrap": true
+       }
+      ]
+     },
+     {
+      "type": "separator",
+      "margin": "lg"
+     },
+     {
+      "type": "box",
+      "layout": "vertical",
+      "margin": "lg",
+      "spacing": "xs",
+      "contents": [
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "คำสั่งซื้อ",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "4,040 รายการ",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "regular"
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "ยอดขาย (นับแล้ว)",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "฿3,320,000",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": "ยังไม่นับเป็นยอดขาย ฿162,000 (รอยืนยัน/รอขนส่งรับ)",
+        "size": "xs",
+        "color": "#808390",
+        "wrap": true
+       },
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "ยกเลิก",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "3,240 ใบ (ใบที่เปิดในช่วงนี้)",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "regular"
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "กำไรสุทธิ",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "฿332,000",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "regular"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "separator",
+      "margin": "lg"
+     },
+     {
+      "type": "box",
+      "layout": "vertical",
+      "margin": "lg",
+      "spacing": "xs",
+      "contents": [
+       {
+        "type": "text",
+        "text": "แยกรายร้าน",
+        "size": "xs",
+        "color": "#808390",
+        "wrap": true,
+        "weight": "bold"
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 80กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿81,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 79กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿80,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 78กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿79,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 77กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿78,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 76กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿77,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 75กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿76,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 74กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿75,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 73กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿74,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 72กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿73,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 71กกกกกกกกกกกกกกกกก",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿72,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": "…และอีก 70 ร้าน",
+        "size": "xs",
+        "color": "#808390",
+        "wrap": true,
+        "margin": "md"
+       }
+      ]
+     }
+    ]
+   },
+   "footer": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+     {
+      "type": "button",
+      "style": "primary",
+      "color": "#236dc9",
+      "height": "sm",
+      "action": {
+       "type": "uri",
+       "label": "เปิด Deep",
+       "uri": "https://seller.deepthailand.app/dashboard"
+      }
+     }
+    ]
+   }
+  }
+ }
+]
