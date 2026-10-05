@@ -18,7 +18,8 @@
  * Base: ไฟล์นี้เป็น RSC orchestrator/redirect gate ล้วน (ไม่มี JSX ของตัวเอง — delegate ทั้งหมดไป
  * PublicOrderClient/ClaimOtpPrompt/OrderAccessBlock ซึ่งแต่ละไฟล์อ้าง Base ของตัวเองแล้ว)
  */
-import { toFileUrl } from '@/lib/file-url'
+import { toFileUrl, variantUrlOf } from '@/lib/file-url'
+import { buildBuyerShipmentView } from '@/lib/order-shipment-view'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
@@ -436,6 +437,8 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
         shopName: order.shop.shopName,
         /* ปกที่ร้านตั้งเอง — เก็บเป็น storage key เหมือน `logo` จึงต้องผ่าน `toFileUrl` เช่นกัน */
         coverImage: toFileUrl(order.shop.coverImage),
+        // 00068 D-10 — รูปปกขนาด lg (00054) · null = ไม่มีปก หรือเป็น URL ภายนอกที่ไม่มี variant
+        coverImageLg: variantUrlOf(order.shop.coverImage, 'lg'),
         // feature 00062 — จุดนัดรับ (scalar ของ Shop มากับ include อยู่แล้ว ไม่เพิ่ม query)
         address: order.shop.address,
         user: {
@@ -466,21 +469,12 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
       avgRating: ratingAgg._avg.rating != null ? Math.round(ratingAgg._avg.rating * 10) / 10 : null,
       reviewCount: ratingAgg._count._all,
       channels,
-      // feature 00022 — ลำดับความสำคัญ: สิ่งที่ร้าน "แจ้งเอง" มาก่อนเสมอ
-      // แล้วค่อย fallback เป็นพัสดุ iShip ที่เปิดไว้ ผู้ซื้อจะได้เห็นเลขติดตาม
-      // ตั้งแต่ร้านเปิดพัสดุ ไม่ต้องรอจนร้านกดแจ้งจัดส่งอีกที
-      shipmentTracking: order.shipmentTracking
-        ? {
-            provider: order.shipmentTracking.provider,
-            trackingNo: order.shipmentTracking.trackingNo,
-          }
-        : order.shipments?.[0]?.trackingNo
-          ? {
-              provider:
-                order.shipments[0].courierName ?? order.shipments[0].courierCode ?? 'ขนส่ง',
-              trackingNo: order.shipments[0].trackingNo,
-            }
-          : null,
+      // feature 00022 + 00068 TD-003 — ลำดับ "ร้านแจ้งเอง → iShip" + allow-list พัสดุอยู่ที่ฟังก์ชันเดียว
+      ...buildBuyerShipmentView(order),
+      // 00068 R-7 — ธงให้ resolveBuyerNextAction ตัดสิน TRANSFER_NO_ACCOUNT (นิยามเดียวกับที่ UI เช็ค payoutSnapshot)
+      hasPayoutAccount: order.payoutSnapshot != null,
+      // 00068 D-11 — นิยามเดียวกับ ShopCover ที่ใช้อยู่ (completedOrders == null) ไม่นิยามใหม่
+      isNewShop: confirmedCount <= 0,
       paymentMethod: order.paymentMethod ?? null,
       fulfillmentMode: order.fulfillmentMode,
       // feature 00062 — ชุดเดียวกับที่ buildGuestOrderData() ส่งให้ก่อนล็อกอิน (parity);
@@ -519,6 +513,8 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
         return {
           totalAmount: m.totalAmount,
           depositAgreed: m.depositAgreed,
+          // 00068 — จาก computeOrderMoney (มัดจำที่ร้านบันทึกรับจริง) ห้ามตีความจาก depositAgreed
+          depositReceived: m.depositReceived,
           totalReceived: m.totalReceived,
           outstanding: m.outstanding,
           fullyPaid: m.fullyPaid,

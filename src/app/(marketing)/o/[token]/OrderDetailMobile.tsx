@@ -143,6 +143,8 @@ export type PublicOrderData = {
      * ปกนั้นไม่เคยโผล่บนหน้าที่ลูกค้าเปิดดูออเดอร์ (เจอ 2026-08-29)
      */
     coverImage: string | null
+    /** 00068 D-10 — ปกขนาด lg (variant 00054) · null = ไม่มีปก/ไม่มี variant */
+    coverImageLg: string | null
     /** feature 00062 — ที่อยู่ร้าน = จุดนัดรับ (ชุดเดียวกับที่ buildGuestOrderData ส่งก่อนล็อกอิน) */
     address: string | null
     user: {
@@ -177,7 +179,17 @@ export type PublicOrderData = {
    * payload ฝั่งเบราว์เซอร์เสมอ · การเข้ารหัสไว้ไม่ใช่ใบอนุญาตให้หลุดออกไป
    */
   channels: { provider: string; name: string; avatarUrl: string | null; externalId: string; followerCount: number | null }[]
-  shipmentTracking: { provider: string; trackingNo: string } | null
+  shipmentTracking: { provider: string; trackingNo: string; courierCode: string | null } | null
+  // 00068 — ฟิลด์พัสดุจาก buildBuyerShipmentView (ชุดเดียวกับ GuestOrderData)
+  carrierStatus: string | null
+  problemAt: string | null
+  returnStartedAt: string | null
+  returnedAt: string | null
+  returnDispatchedAt: string | null
+  /** 00068 R-7 — ร้านมีบัญชีรับเงินแช่แข็งในออเดอร์นี้ไหม (payoutSnapshot != null) */
+  hasPayoutAccount: boolean
+  /** 00068 D-11 — ร้านยังไม่มีออเดอร์จบสักใบ (นิยามเดียวกับ ShopCover) */
+  isNewShop: boolean
   // fields ใหม่จาก frozen contract
   paymentMethod: string | null
   // contract field (page.tsx flatten) — ยังไม่ได้ render ใน detail; เก็บไว้ให้ contract ครบ
@@ -208,6 +220,8 @@ export type PublicOrderData = {
   money: {
     totalAmount: number
     depositAgreed: number
+    /** 00068 — มัดจำที่ร้านบันทึกรับจริง (จาก computeOrderMoney) */
+    depositReceived: number
     totalReceived: number
     outstanding: number
     fullyPaid: boolean
