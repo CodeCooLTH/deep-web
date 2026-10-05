@@ -45,12 +45,14 @@ type Props = {
   avgRating: number | null
   reviewCount: number
   completedOrders: number | null
+  /** ป้ายตัวเลขสำเร็จผันตามประเภทร้าน — จาก shopCompletedLabel() ที่เดียว (ร้านบริการ = 'งานสำเร็จ' · #105) */
+  completedLabel: string
   /** ล็อกอินบัญชีอื่นค้างอยู่ — ไม่มีปุ่มให้กดยินยอมแล้ว จึงต้องบอกให้รู้ว่าจะสลับบัญชี */
   switchingAccount: boolean
 }
 
 export default function SmsAutoEnter(props: Props) {
-  const { code, publicToken, shopName, avatarUrl, maxVerifyLevel, avgRating, reviewCount, completedOrders } = props
+  const { code, publicToken, shopName, avatarUrl, maxVerifyLevel, avgRating, reviewCount, completedOrders, completedLabel } = props
   const back = `/o/${publicToken}`
   const phoneLogin = `/auth/sign-in?callbackUrl=${encodeURIComponent(back)}`
   const fired = useRef(false)
@@ -100,7 +102,7 @@ export default function SmsAutoEnter(props: Props) {
   const rows: { icon: string; label: string; value: React.ReactNode }[] = []
   if (verifyBadge) rows.push({ icon: verifyBadge.icon, label: verifyBadge.label, value: <TrustPill tone={verifyBadge.tone} label={`ระดับ ${Math.min(maxVerifyLevel, VERIFY_LEVEL_MAX)} จาก ${VERIFY_LEVEL_MAX}`} /> })
   // D-11 — 0 ไม่เขียน (ป้าย "ร้านใหม่" บอกแทน) · null = ไม่รู้ ก็ไม่เขียน
-  if (completedOrders != null && completedOrders > 0) rows.push({ icon: 'tabler-circle-check', label: 'ออเดอร์สำเร็จ', value: <b>{completedOrders} ครั้ง</b> })
+  if (completedOrders != null && completedOrders > 0) rows.push({ icon: 'tabler-circle-check', label: completedLabel, value: <b>{completedOrders} ครั้ง</b> })
   if (avgRating != null)
     rows.push({
       icon: 'tabler-star',

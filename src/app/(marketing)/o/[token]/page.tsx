@@ -20,6 +20,7 @@
  */
 import { toFileUrl, variantUrlOf } from '@/lib/file-url'
 import { buildBuyerShipmentView } from '@/lib/order-shipment-view'
+import { shopCompletedLabel } from '@/lib/shop-stat-vocab'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
@@ -240,6 +241,7 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
             avgRating={guestData.avgRating}
             reviewCount={guestData.reviewCount}
             completedOrders={guestData.completedOrders}
+            completedLabel={shopCompletedLabel(order.shop.vertical === 'SERVICE_QUEUE')}
             switchingAccount={!!viewerUserId}
           />
         )

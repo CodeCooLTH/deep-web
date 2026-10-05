@@ -71,3 +71,15 @@ describe('[blocker] clarify 2026-10-05 — คำบนจอลิงก์ SMS
     expect(client).toMatch(/isServiceShop \? 'ยืนยันรับบริการแล้ว' : 'ยืนยันรับสินค้าแล้ว'/)
   })
 })
+
+describe('[blocker] HR17 — สลิปลิงก์ SMS ใช้ป้ายตัวเลขสำเร็จจาก shopCompletedLabel (#105)', () => {
+  const sms = stripComments(readFileSync(join(process.cwd(), 'src/app/(marketing)/o/[token]/SmsAutoEnter.tsx'), 'utf8'))
+  const page = stripComments(readFileSync(join(process.cwd(), 'src/app/(marketing)/o/[token]/page.tsx'), 'utf8'))
+  it('ไม่พิมพ์ "ออเดอร์สำเร็จ" เอง', () => {
+    expect(sms).not.toContain("'ออเดอร์สำเร็จ'")
+    expect(sms).toMatch(/label: completedLabel/)
+  })
+  it('page ส่ง completedLabel ผ่าน shopCompletedLabel', () => {
+    expect(page).toMatch(/completedLabel=\{shopCompletedLabel\(order\.shop\.vertical === 'SERVICE_QUEUE'\)\}/)
+  })
+})
