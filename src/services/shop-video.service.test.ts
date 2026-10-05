@@ -16,12 +16,16 @@ const createMany = vi.fn()
 const mirrorRemoteImage = vi.fn()
 
 const channelFindFirst = vi.fn()
+const channelFindMany = vi.fn()
 
 vi.mock('@/lib/token-crypto', () => ({ decryptToken: () => 'tok' }))
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    shopChannel: { findFirst: (...a: unknown[]) => channelFindFirst(...a) },
+    shopChannel: {
+      findFirst: (...a: unknown[]) => channelFindFirst(...a),
+      findMany: (...a: unknown[]) => channelFindMany(...a),
+    },
     shopVideo: {
       findMany: (...a: unknown[]) => findMany(...a),
       deleteMany: (...a: unknown[]) => deleteMany(...a),
@@ -37,7 +41,7 @@ vi.mock('@/services/channel-chat.service', () => ({
   mirrorRemoteImage: (...a: unknown[]) => mirrorRemoteImage(...a),
 }))
 
-const { replaceShopVideos, getShopVideos, listInstagramVideos } = await import('./shop-video.service')
+const { replaceShopVideos, getShopVideos, listInstagramVideos, listFacebookVideos } = await import('./shop-video.service')
 
 const SHOP = 'shop-1'
 const clip = (videoId: string, thumbnailUrl: string | null = 'https://scontent.fbcdn.net/a.jpg') => ({
@@ -195,5 +199,45 @@ describe('listInstagramVideos — ยอดวิว', () => {
 
     expect(res.failed).toBe(false)
     expect(res.items.map((i) => [i.videoId, i.viewCount])).toEqual([['DZEzXG8Sr_f', null], ['DZfQk2aLm9x', null]])
+  })
+})
+
+// reel ของเพจ FB ต้องมาครบทุกหน้า — เดิมขอหน้าเดียว limit=25 ร้านที่มี reel เยอะเลือกคลิปเก่าไม่ได้
+// และ PUT ตรวจความเป็นเจ้าของด้วยรายการเดียวกัน คลิปที่หลุดหน้าแรกจึงบันทึกไม่ผ่านด้วย (2026-10-05)
+describe('listFacebookVideos — เดินตาม paging', () => {
+  const reel = (id: string) => ({ id })
+
+  beforeEach(() => {
+    channelFindMany.mockResolvedValue([{ externalId: 'page-1', accessTokenEnc: 'enc', name: 'เพจ' }])
+  })
+
+  it('[blocker] ตาม paging.next จนหมด แล้วรวม reel ทุกหน้า', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      calls.push(url)
+      if (url === 'https://graph/next-2') return Response.json({ data: [reel('30000003')] })
+      if (url === 'https://graph/next-1')
+        return Response.json({ data: [reel('20000002')], paging: { next: 'https://graph/next-2' } })
+      return Response.json({ data: [reel('10000001')], paging: { next: 'https://graph/next-1' } })
+    }))
+
+    const res = await listFacebookVideos(SHOP)
+
+    expect(res.failed).toBe(false)
+    expect(res.items.map((i) => i.videoId)).toEqual(['10000001', '20000002', '30000003'])
+    expect(calls).toHaveLength(3)
+  })
+
+  it('[blocker] หน้าถัดไปล้ม → failed=true ไม่ใช่คืนรายการครึ่งเดียวแบบเงียบ', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn(async (url: string) =>
+      url === 'https://graph/next-1'
+        ? new Response('', { status: 500 })
+        : Response.json({ data: [reel('10000001')], paging: { next: 'https://graph/next-1' } }),
+    ))
+
+    const res = await listFacebookVideos(SHOP)
+
+    expect(res.failed).toBe(true)
   })
 })

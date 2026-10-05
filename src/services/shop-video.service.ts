@@ -22,6 +22,9 @@ import { parseVideoUrl, MAX_SHOP_VIDEOS } from "@/lib/shop-video";
 /** SSOT อยู่ที่ lib/shop-video.ts (client-safe) — re-export ให้ผู้เรียกเดิมไม่ต้องแก้ */
 export { MAX_SHOP_VIDEOS };
 
+/** เพดานจำนวนหน้าที่เดินตาม paging ของ video_reels (หน้าละ 50) — ดู listFacebookVideos */
+const MAX_REEL_PAGES = 20;
+
 /** รายการคลิปที่ให้ร้านเลือก — รูปเดียวกันทุกแพลตฟอร์ม ต่างกันแค่ที่มา */
 export type PickableVideo = {
   provider: "INSTAGRAM" | "FACEBOOK";
@@ -192,31 +195,39 @@ export async function listFacebookVideos(
     channels.map(async (ch) => {
       try {
         const token = decryptToken(ch.accessTokenEnc);
-        const url =
+        type Reel = {
+          id: string;
+          description?: string;
+          permalink_url?: string;
+          picture?: string;
+          thumbnails?: { data?: Array<{ uri?: string; is_preferred?: boolean }> };
+          views?: number;
+          likes?: { summary?: { total_count?: number } };
+          comments?: { summary?: { total_count?: number } };
+        };
+
+        // เดินตาม paging.next ให้ครบทุก reel ของเพจ — เดิมขอหน้าเดียว limit=25 ทำให้ร้านที่มี
+        // reel เกิน 25 อันเลือกคลิปเก่ากว่านั้นไม่ได้เลย (user 2026-10-05) และ PUT ก็ตรวจความเป็น
+        // เจ้าของด้วยรายการนี้ คลิปที่หลุดหน้าแรกจึงบันทึกไม่ผ่านด้วย
+        // ponytail: เพดาน MAX_REEL_PAGES×50 reel ต่อเพจ กันลูปไม่จบ — เพจที่ใหญ่กว่านั้นค่อยทำค้นหา/โหลดเพิ่มทีละหน้า
+        const reels: Reel[] = [];
+        let url: string | undefined =
           `${GRAPH_BASE}/${ch.externalId}/video_reels` +
           // thumbnails ให้ 1080x1920 ส่วน picture เป็นรูปย่อขนาดเล็กมาก ซึ่งเบลอเห็นได้ชัดบนจอใหญ่
           `?fields=id,description,permalink_url,picture,thumbnails{uri,is_preferred},views,likes.summary(true),comments.summary(true)` +
-          `&limit=25&access_token=${encodeURIComponent(token)}`;
-        const res = await fetch(url, { cache: "no-store" });
-        if (!res.ok) {
-          console.error("[shop-video] ดึง reels ของเพจไม่สำเร็จ", { shopId, status: res.status });
-          return null; // null = ถามไม่สำเร็จ ต่างจาก [] ที่แปลว่าเพจนี้ไม่มีคลิป
+          `&limit=50&access_token=${encodeURIComponent(token)}`;
+        for (let page = 0; url && page < MAX_REEL_PAGES; page++) {
+          const res: Response = await fetch(url, { cache: "no-store" });
+          if (!res.ok) {
+            console.error("[shop-video] ดึง reels ของเพจไม่สำเร็จ", { shopId, status: res.status, page });
+            return null; // null = ถามไม่สำเร็จ ต่างจาก [] ที่แปลว่าเพจนี้ไม่มีคลิป
+          }
+          const json = (await res.json()) as { data?: Reel[]; paging?: { next?: string } };
+          reels.push(...(json.data ?? []));
+          url = json.paging?.next;
         }
 
-        const json = (await res.json()) as {
-          data?: Array<{
-            id: string;
-            description?: string;
-            permalink_url?: string;
-            picture?: string;
-            thumbnails?: { data?: Array<{ uri?: string; is_preferred?: boolean }> };
-            views?: number;
-            likes?: { summary?: { total_count?: number } };
-            comments?: { summary?: { total_count?: number } };
-          }>;
-        };
-
-        return (json.data ?? [])
+        return reels
           .filter((v) => /^[0-9]{5,30}$/.test(v.id))
           .map<PickableVideo>((v) => ({
             provider: "FACEBOOK",
