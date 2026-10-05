@@ -10,7 +10,7 @@ import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/comp
 
 const COMMANDS = [
   { text: 'สรุปวันนี้', hint: 'ส่งสรุปยอดของวันนี้เข้ากลุ่มทันที' },
-  { text: 'สรุปเดือนนี้', hint: 'ส่งสรุปยอดของรอบตัดรอบปัจจุบันเข้ากลุ่มทันที' },
+  { text: 'สรุปเดือนนี้', hint: 'ส่งสรุปยอดของรอบเดือนนี้ (นับตามวันตัดรอบ) เข้ากลุ่มทันที' },
 ] as const
 
 export default function CommandsCard() {

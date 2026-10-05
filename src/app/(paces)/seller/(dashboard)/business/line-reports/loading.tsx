@@ -18,7 +18,7 @@ export default function ReportsLoading() {
       <div className="card mb-base">
         <div className="card-header flex flex-wrap items-center justify-between gap-3">
           <PulseBar className="h-4 w-40" />
-          <PulseBar className="h-8 w-full sm:w-28" />
+          <PulseBar className="h-11 w-full sm:w-28 lg:h-8" />
         </div>
         <ul className="m-0 list-none p-0">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -27,6 +27,10 @@ export default function ReportsLoading() {
               <div className="flex-1 space-y-2">
                 <PulseBar className="h-3.5 w-3/5" />
                 <PulseBar className="h-3 w-2/5" />
+                {/* <lg แถวจริงสูง ~130px (ป้ายสถานะ + บรรทัดสถานะ + ส่งล่าสุด) — กันหน้ากระตุกตอนโหลดเสร็จ */}
+                <PulseBar className="h-5 w-20 lg:hidden" />
+                <PulseBar className="h-3 w-1/2 lg:hidden" />
+                <PulseBar className="h-3 w-2/5 lg:hidden" />
               </div>
             </li>
           ))}

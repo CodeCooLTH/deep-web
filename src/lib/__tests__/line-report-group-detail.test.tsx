@@ -99,7 +99,7 @@ describe('GroupDetailClient — ปกติ', () => {
   })
   it('กำไรอยู่แถวท้ายสุดของการ์ดตัวเลข คั่นเส้นประจากตัวเลขหลัก', () => {
     const html = render()
-    const a = html.indexOf('สินค้าขายดี 3 อันดับ')
+    const a = html.indexOf('ขายดี 3 อันดับ (แยกรายร้าน)')
     const b = html.indexOf('>กำไร<')
     expect(a).toBeGreaterThan(0)
     expect(b).toBeGreaterThan(a)

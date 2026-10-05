@@ -10,7 +10,7 @@
 import AddGroupButton, { CREATE_BLOCKED_ID } from './AddGroupButton'
 import SampleBubble from './SampleBubble'
 
-const STEPS = ['เพิ่มบอทเข้ากลุ่ม LINE', 'รับโค้ดผูก 8 ตัวจากหน้านี้', 'พิมพ์โค้ดในกลุ่ม แล้วเลือกร้านและเวลาส่ง'] as const
+const STEPS = ['เพิ่มบอทเข้ากลุ่ม LINE', 'เลือกร้านแล้วรับโค้ดผูก 8 ตัวจากหน้านี้', 'พิมพ์โค้ดในกลุ่ม แล้วตั้งเวลาส่ง'] as const
 
 export default function ReportEmptyState({ blockedReason, now }: { blockedReason: string | null; now: Date }) {
   return (

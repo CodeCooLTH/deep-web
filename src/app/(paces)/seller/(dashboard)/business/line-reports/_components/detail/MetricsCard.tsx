@@ -32,7 +32,7 @@ export default function MetricsCard({
     showOrders: `จำนวน${orderWord}`,
     showSales: 'ยอดขาย',
     showCancelled: 'ยกเลิก',
-    showTopProducts: 'สินค้าขายดี 3 อันดับ',
+    showTopProducts: 'ขายดี 3 อันดับ (แยกรายร้าน)', // คำกลาง — ร้านบริการ/สินค้าใช้คนละคำ
   }
   const main = METRIC_KEYS.filter((k): k is Exclude<MetricKey, 'showProfit'> => k !== 'showProfit')
   const anyLast = METRIC_KEYS.some((k) => isLastMetric(settings, k))
