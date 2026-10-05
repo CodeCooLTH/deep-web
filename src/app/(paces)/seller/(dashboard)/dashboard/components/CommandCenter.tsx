@@ -60,6 +60,7 @@ export default function CommandCenter({ data }: Props) {
           จะแปลก็ต้องแปลพร้อมกันทั้งชุด ไม่ใช่แปลคำเดียวแล้วปนกันครึ่ง ๆ (feature 00067) */}
       <SalesChartCard
         initialSeries={data.salesSeries ?? null}
+        portfolio={data.portfolio ?? null}
         orderNoun={data.orderNoun}
         costNoun={resolveOrderVocab(data.shopVertical ?? '').costNoun}
       />

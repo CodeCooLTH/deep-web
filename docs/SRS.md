@@ -1716,6 +1716,7 @@ erDiagram
 
 > 🛑 **ส่วนขยาย 00012 (2026-10-05): "OWNER" มีสองความหมายแล้ว** — `ShopMember.role='OWNER'` = เจ้าของ (หลายคนได้, สิทธิ์จัดการร้าน/ทีม) · `Shop.userId` = **เจ้าของหลัก** (คนเดียว, แพ็กเกจของเขากำหนดโควตา, L1 ของร้านตาม FR-2.7) — **เปลี่ยนได้ผ่านการโอน** ไม่ใช่ owner-at-creation อีกต่อไป. คำถามเรื่องเงิน ("ร้านที่ฉันจ่าย", โควตาจำนวนร้าน, ปุ่มจัดการแพ็กเกจ) ต้องใช้ `Shop.userId` ห้ามใช้ `role`. โควตาแอดมินนับ **ทุกคนยกเว้นเจ้าของหลัก** (`staffCountWhere()` ใน `src/lib/shop-member-rules.ts`). เอกสาร: `docs/20 - Features/00012 - Shop Staff Invite Links/EXTENSIONS-2026-10-05-member-roles.md`
 | GET | `/api/seller/sales-series` | Seller | ยอดขายรายวัน + field การเงินเมื่อ `GRANTED` | `dashboard.service` |
+| GET | `/api/seller/portfolio-series` | Seller (บริบท Personal) | **00069** ยอดรวมทุกร้าน BUSINESS ที่ผู้ใช้เป็น OWNER และจ่ายแล้ว + แท่งซ้อนตามร้าน + ตารางเทียบ (ยอดขาย = `getSalesSeries.total` · กำไร = `getPnlReport`) · 403 เมื่อร้านที่เลือกอยู่ไม่ใช่ Personal | `business-overview.service` |
 
 **🛑 COGS ใน `sales-series` มี 2 ชุด และจะไม่มีวันเท่ากัน (HR16 — วางติดกันใน `dashboard.service.ts`):**
 

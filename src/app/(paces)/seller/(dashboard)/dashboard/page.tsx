@@ -46,6 +46,9 @@ import type { Metadata } from 'next'
 import { getT } from '@/i18n/server'
 import { byVertical } from '@/i18n/vertical'
 import { getServerSession } from 'next-auth'
+import { sessionUserId } from '@/lib/session-user'
+import PortfolioPanel from './components/PortfolioPanel'
+import { getPortfolioSeries, listOverviewShops, type OverviewShop, type PortfolioSeries } from '@/services/business-overview.service'
 import RecentOrder from './components/RecentOrder'
 import SalesReport from './components/SalesReport'
 import StatisticCard from './components/StatisticCard'
@@ -198,6 +201,13 @@ export default async function SellerDashboardPage() {
   // (user เคาะ 2026-08-05: ร้านขายหน้าร้านไม่ต้องมี panel นี้เลย ไม่ใช่โชว์การ์ดว่าง)
   let provinceSales: ProvinceSales | undefined
 
+  // บริบท Personal เท่านั้นที่เห็น "ภาพรวมทุกธุรกิจ" — resolve ใน try ด้านล่างจาก requireActiveShop
+  // ร้านที่เข้าเงื่อนไข (query เดียว) — ว่าง = ไม่ mount ส่วนนี้ ไม่มี skeleton วาบ
+  let portfolioShops: OverviewShop[] = []
+  // ยอดรวมทุกธุรกิจของเดือนปัจจุบัน (รายวัน) — ผลก้อนเดียวใช้ทั้งการ์ดมือถือ (aggregate) และแผง desktop
+  // null = ไม่เข้าเงื่อนไข หรือล้มทั้งก้อน → มือถือใช้ series ของร้าน Personal ตามเดิม · desktop ไม่ render ส่วนนี้
+  let portfolio: PortfolioSeries | null = null
+
   if (user?.id) {
     score = user.trustScore ?? 0
     level = getTrustLevel(score)
@@ -208,6 +218,14 @@ export default async function SellerDashboardPage() {
       // downstream query (orders/balance/activity/rating/liveAuction) ต้อง scope ด้วย active shop.id นี้
       const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
       const shop = active?.shop ?? null
+      const portfolioUserId = sessionUserId(session)
+      if (active?.kind === 'PERSONAL' && portfolioUserId) {
+        try {
+          portfolioShops = await listOverviewShops(portfolioUserId)
+        } catch (err) {
+          console.error('[business-overview] list shops', err)
+        }
+      }
 
       // 🛑 คะแนนบนการ์ด "ระดับความสำเร็จ" ต้องเป็นของร้านที่เปิดอยู่ ไม่ใช่ของคนที่ล็อกอิน
       // เหรียญของร้าน BUSINESS เขียนคะแนนลง `Shop.trustScore` (recalculateShopTrustScore) แต่
@@ -312,6 +330,15 @@ export default async function SellerDashboardPage() {
 
         // perf: query เหล่านี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
         // wall time = max(query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
+        // 00069 v1.1: ยิงขนานกับ query ชุดล่าง (เริ่มก่อน await) — .catch ในตัวกัน unhandled rejection ระหว่างรอ
+        const portfolioPromise: Promise<PortfolioSeries | null> =
+          active?.kind === 'PERSONAL' && portfolioShops.length > 0
+            ? getPortfolioSeries(portfolioShops, shop, 'daily', currentYear, currentMonth).catch((err) => {
+                console.error('[portfolio-series] page', err)
+                return null
+              })
+            : Promise.resolve(null)
+
         const [statusRes, shippingStageRes, appointmentTodayRes, balanceRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes, channelRes, activityRes, provinceRes] =
           await Promise.allSettled([
             getOrderStatusCounts(shop.id),
@@ -404,6 +431,13 @@ export default async function SellerDashboardPage() {
         // Sales Chart mini card — fallback null ถ้าล้ม → SalesChartCard ซ่อนตัวเอง (honest-hide)
         if (salesSeriesRes.status === 'fulfilled') mobileSalesSeries = salesSeriesRes.value
         else console.error('[dashboard] getSalesSeries failed', salesSeriesRes.reason)
+
+        // 00069 v1.1: การ์ดมือถือ = ยอดรวมทุกธุรกิจ (ชุดเดียวกับแผง desktop) · aggregate ว่าง (ทุกร้านธุรกิจล้ม) = ไม่มีกราฟให้วาด
+        // → คงการ์ดของร้าน Personal ไว้ แต่แผง desktop ยังแสดงแถว ERROR ให้ผู้ใช้เห็นว่าดึงอะไรไม่ได้
+        portfolio = await portfolioPromise
+        if (portfolio && portfolio.aggregate.labels.length > 0) {
+          mobileSalesSeries = portfolio.aggregate as SalesChartSeries
+        }
 
         // ช่องทางการขาย — ล้ม = [] → การ์ดขึ้น empty state ("เดือนนี้ยังไม่มีออเดอร์")
         if (channelRes.status === 'fulfilled') salesChannels = channelRes.value
@@ -589,6 +623,9 @@ export default async function SellerDashboardPage() {
             bestSellers,
             // Sales Chart การ์ด mini — ยอดขายรายวันเดือนปัจจุบัน (null=ซ่อนการ์ด)
             salesSeries: mobileSalesSeries,
+            // 00069 v1.1: มีค่า = หัวการ์ดเป็น "ยอดขายทุกธุรกิจ" + กดเปิดชีตรวม (ต้องไปคู่กับ salesSeries = aggregate)
+            portfolio:
+              portfolio && portfolio.aggregate.labels.length > 0 ? { initial: portfolio } : null,
             // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero)
             packageStatus,
             packageTier,
@@ -612,6 +649,13 @@ export default async function SellerDashboardPage() {
             DashboardRangeFade จางเนื้อหาระหว่างรอ RSC refresh ตอนสลับช่วง */}
         <DashboardRangeProvider initialRange={range}>
           <PageBreadcrumb title={t.dashboard.pageTitle} trail={[{ label: t.dashboard.breadcrumbOverview }]} action={<DashboardRangePills />} />
+          {/* ภาพรวมทุกธุรกิจ (00069 v1.1) — แถวแรกของ tree desktop เท่านั้น (มือถือใช้การ์ดยอดขายทุกธุรกิจแทน)
+              ช่วงเวลามีตัวควบคุมของตัวเอง จึงอยู่นอก DashboardRangeFade (ไม่ให้จางตามฟิลเตอร์วันนี้/เดือนนี้ของหน้า) */}
+          {portfolio && (
+            <div className="mb-base">
+              <PortfolioPanel initial={portfolio} variant="card" />
+            </div>
+          )}
           <DashboardRangeFade>
 
         {/* แถว 1: UserCard + StatCards (5 คอล) | ช่องทางการขาย (7 คอล)
