@@ -10,7 +10,7 @@ import { shiftIsoDate, todayThaiIsoDate } from '@/lib/date-range'
 import { LineReportError, type InvalidSettingsRule } from '@/lib/line-report/errors'
 import { isReportBotReady } from '@/lib/line-report/config'
 import { nextSendAt } from '@/lib/line-report/schedule'
-import { cycleContaining } from '@/lib/line-report/cycle'
+import { cycleContaining, nextMonthlyFireAt } from '@/lib/line-report/cycle'
 import { describeReason, MISSED_STATUS_LABEL } from '@/lib/line-report/delivery-reasons'
 import type { LineReportAlertKind } from '@/lib/line-report/types'
 import * as v from 'valibot'
@@ -20,6 +20,13 @@ import { testQuotaWhere } from '@/services/line-report-delivery.service'
 import { lockOwnedGroup, readGroupShops, type GroupShopDto } from '@/services/line-report-shop.service'
 
 type Db = Prisma.TransactionClient
+
+/** รอบส่งถัดไป = ที่เร็วกว่าระหว่างรายวันกับรายเดือน (กลุ่มที่เปิดแต่รายเดือนต้องไม่ได้ null) */
+type ScheduleFields = { dailyEnabled: boolean; dailyTimes: readonly number[]; monthlyEnabled: boolean; cutoffDay: number | null }
+export function nextSendAtOf(g: ScheduleFields, now: Date): number | null {
+  const c = [nextSendAt(g, now), nextMonthlyFireAt(g, now)].filter((x): x is number => x !== null)
+  return c.length ? Math.min(...c) : null
+}
 export const MAX_GROUPS = 10
 export const TEST_LIMIT_PER_DAY = 5
 
@@ -53,7 +60,7 @@ export async function listGroups(ownerId: string) {
   const groups = rows
     .map((g) => {
       const verticals = new Set(g.shops.map((s) => s.shop.vertical))
-      const next = g.status === 'ACTIVE' && !paused ? nextSendAt(g, now) : null
+      const next = g.status === 'ACTIVE' && !paused ? nextSendAtOf(g, now) : null
       const last = g.deliveries[0]
       return {
         _rank: rank(g),
@@ -119,7 +126,7 @@ export async function getGroupDetail(ownerId: string, groupId: string, db: Db | 
     db.lineReportDelivery.count({ where: testQuotaWhere(g.id, now) }),
     isOwnerPaidForReports(ownerId).then((p) => !p),
   ])
-  const next = g.status === 'ACTIVE' && !paused ? nextSendAt(g, now) : null
+  const next = g.status === 'ACTIVE' && !paused ? nextSendAtOf(g, now) : null
   const cycle = g.monthlyEnabled
     ? (() => {
         const c = cycleContaining(todayThaiIsoDate(now), g.cutoffDay)
@@ -188,6 +195,8 @@ export function mergeSettings(current: SettingsState, patch: UpdateSettingsInput
 }
 
 export async function updateSettings(ownerId: string, groupId: string, patch: UpdateSettingsInput): Promise<GroupDetailDto> {
+  // service เป็นด่านเอง ไม่พึ่งแค่ route (security LOW-3)
+  if (!(await isOwnerPaidForReports(ownerId))) throw new LineReportError('PACKAGE_REQUIRED')
   await prisma.$transaction(async (tx) => {
     await lockOwnedGroup(tx, ownerId, groupId) // 404 + กัน autosave ซ้อน (state รวมต้องอ่านหลังล็อก)
     const cur = await tx.lineReportGroup.findFirstOrThrow({
@@ -235,6 +244,11 @@ export async function removeGroup(ownerId: string, groupId: string): Promise<{ r
     await revokeLiveCodes(tx, { groupId }, now)
     return { removed: true as const, leaveLineGroupId: g.status === 'ACTIVE' ? g.lineGroupId : null }
   })
+}
+
+/** มีแถว ACTIVE ถือ lineGroupId นี้อยู่ไหม — DELETE ใช้กันสั่งบอทออกจากกลุ่มที่มีคนผูกใหม่ไปแล้วระหว่างนั้น (security LOW-2) */
+export async function hasActiveBinding(lineGroupId: string): Promise<boolean> {
+  return (await prisma.lineReportGroup.count({ where: { lineGroupId, status: 'ACTIVE' } })) > 0
 }
 
 // ─── แจ้งเตือน (TFR-22) ─────────────────────────────────────────────────────────

@@ -590,6 +590,19 @@ describe.skipIf(!isLocal)('00068 send/sweep (DB, LINE mock)', () => {
       await expect(sendTest(owner, g.id)).rejects.toMatchObject({ code: 'BOT_NOT_IN_GROUP', status: 409 })
       expect(await grp(g.id)).toMatchObject({ status: 'INACTIVE', alertKind: 'BOT_REMOVED' })
     })
+    it('LOW-1: ผูกใหม่ระหว่างคำนวณสรุป (กลุ่มถูกลบ) → ไม่ push เข้า lineGroupId เดิม', async () => {
+      const g = await mkGroup(owner, [shopA])
+      const pushes = h.api.mock.calls.length
+      // จำลองคำขอ DELETE แทรกหลังผ่านด่านแรก: ตอน build สรุป (หลัง tx ที่ล็อก) ปิดกลุ่มเป็น REMOVED
+      const real = (await import('@/services/line-report-summary.service')).buildGroupSummary as unknown as { mockImplementationOnce: (f: (...a: never[]) => Promise<unknown>) => void; getMockImplementation: () => (...a: never[]) => Promise<unknown> }
+      const impl = real.getMockImplementation()
+      real.mockImplementationOnce(async (...a: never[]) => {
+        await prisma.lineReportGroup.update({ where: { id: g.id }, data: { status: 'REMOVED', removedAt: new Date() } })
+        return impl(...a)
+      })
+      await expect(sendTest(owner, g.id)).rejects.toMatchObject({ code: 'GROUP_NOT_ACTIVE', status: 409 })
+      expect(h.api.mock.calls.length).toBe(pushes) // ไม่มี push ออกไปเลย
+    })
     it('ด่านเดียวกับการส่งจริง: ไม่ใช่ของตน/INACTIVE/แพ็กเกจหยุด/ไม่เหลือร้าน', async () => {
       const g = await mkGroup(owner, [shopA])
       const other = await mkUser('other')

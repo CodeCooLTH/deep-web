@@ -8,6 +8,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { LineReportError } from '@/lib/line-report/errors'
 import type { ShopRef } from '@/lib/line-report/types'
+import { isOwnerPaidForReports } from '@/services/line-report-access.service'
 
 type Db = Prisma.TransactionClient
 export const MAX_REPORT_SHOPS = 10
@@ -116,6 +117,7 @@ async function readGroupShops(db: Db | typeof prisma, groupId: string): Promise<
  */
 export async function replaceGroupShops(ownerId: string, groupId: string, shopIds: readonly string[]): Promise<GroupShopDto[]> {
   assertShopCount(shopIds)
+  if (!(await isOwnerPaidForReports(ownerId))) throw new LineReportError('PACKAGE_REQUIRED') // ด่านระดับ service (security LOW-3)
   return prisma.$transaction(async (tx) => {
     await lockOwnedGroup(tx, ownerId, groupId)
     const current = (await tx.lineReportGroupShop.findMany({ where: { groupId }, select: { shopId: true } })).map((r) => r.shopId)

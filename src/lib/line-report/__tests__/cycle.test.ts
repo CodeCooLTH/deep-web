@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cycleContaining, cycleSlotKey, effectiveCutoff, monthlyFire, monthsInRange } from '../cycle'
+import { cycleContaining, cycleSlotKey, effectiveCutoff, monthlyFire, monthsInRange, nextMonthlyFireAt } from '../cycle'
 
 const th = (iso: string, hm: string) => new Date(`${iso}T${hm}:00+07:00`)
 
@@ -70,5 +70,42 @@ describe('monthlyFire (AC-11-4)', () => {
     const r = monthlyFire(g([540], 31), th('2026-03-01', '09:00'))
     expect(r?.cycle).toEqual({ startIso: '2026-02-01', endIso: '2026-02-28' })
     expect(monthlyFire(g([540], null), th('2026-11-01', '09:00'))?.cycle.endIso).toBe('2026-10-31')
+  })
+})
+
+describe('nextMonthlyFireAt', () => {
+  const g = { monthlyEnabled: true, cutoffDay: 5, dailyTimes: [540, 1260] }
+  it('รายเดือนอย่างเดียว ไม่เป็น null — วัน F = 6 เวลา 09:00', () => {
+    expect(nextMonthlyFireAt(g, th('2026-10-01', '12:00'))).toBe(th('2026-10-06', '09:00').getTime())
+  })
+  it('ผ่านรอบเดือนนี้แล้ว → เดือนหน้า', () => {
+    expect(nextMonthlyFireAt(g, th('2026-10-06', '10:00'))).toBe(th('2026-11-06', '09:00').getTime())
+  })
+  it('มี 24:00 → 00:00 ของ F · สิ้นเดือน (null) → วันที่ 1', () => {
+    expect(nextMonthlyFireAt({ monthlyEnabled: true, cutoffDay: null, dailyTimes: [540, 1440] }, th('2026-10-10', '12:00'))).toBe(th('2026-11-01', '00:00').getTime())
+  })
+  it('ปิด/ไม่มีเวลา → null', () => {
+    expect(nextMonthlyFireAt({ ...g, monthlyEnabled: false }, new Date())).toBeNull()
+    expect(nextMonthlyFireAt({ ...g, dailyTimes: [] }, new Date())).toBeNull()
+  })
+})
+
+describe('nextMonthlyFireAt — วันตัดรอบ 29/30/31 ในเดือนสั้น', () => {
+  const at = (cutoffDay: number, nowIso: string) =>
+    nextMonthlyFireAt({ monthlyEnabled: true, cutoffDay, dailyTimes: [540] }, th(nowIso, '12:00'))
+  it.each([
+    // [cutoff, now, วัน F ที่ควรยิง] — ก.พ. ปีปกติ (28 วัน): ทุกค่า ≥28 ตัดที่ 28 → ยิง 1 มี.ค.
+    [29, '2027-02-10', '2027-03-01'],
+    [30, '2027-02-10', '2027-03-01'],
+    [31, '2027-02-10', '2027-03-01'],
+    // ก.พ. อธิกสุรทิน (29 วัน): 29/30/31 ตัดที่ 29 → ยิง 1 มี.ค.
+    [29, '2028-02-10', '2028-03-01'],
+    [31, '2028-02-10', '2028-03-01'],
+    // เดือน 30 วัน (เม.ย.): 29 → ยิง 30 เม.ย. · 30/31 → ยิง 1 พ.ค.
+    [29, '2027-04-10', '2027-04-30'],
+    [30, '2027-04-10', '2027-05-01'],
+    [31, '2027-04-10', '2027-05-01'],
+  ])('cutoff %s จาก %s → ยิง %s 09:00', (cutoff, now, fire) => {
+    expect(at(cutoff, now)).toBe(th(fire, '09:00').getTime())
   })
 })

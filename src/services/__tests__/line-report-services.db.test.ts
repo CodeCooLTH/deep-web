@@ -106,6 +106,16 @@ describe.skipIf(!isLocal)('00068 line-report services (DB)', () => {
   })
 
   describe('shops', () => {
+    // updateSettings/replaceGroupShops เช็คแพ็กเกจที่ชั้น service แล้ว (LOW-3) — ตั้งแพ็กเกจ A หลังเทส access ที่ต้องการ A ไม่จ่าย
+    beforeAll(async () => { await mkSub(A, 'PRO', 'WALLET'); await mkSub(B, 'PRO', 'WALLET') })
+    it('LOW-3: ไม่มีแพ็กเกจ ACTIVE = PACKAGE_REQUIRED ทั้ง replaceGroupShops/updateSettings (ไม่แตะข้อมูล)', async () => {
+      const u = await mkUser('nopkg')
+      const s = await mkShop(u, 'nopkg')
+      const g = await mkGroup(u, [s])
+      expect(await code(replaceGroupShops(u, g, [s]))).toBe('PACKAGE_REQUIRED')
+      expect(await code(updateSettings(u, g, { showOrders: false }))).toBe('PACKAGE_REQUIRED')
+      expect((await prisma.lineReportGroup.findUniqueOrThrow({ where: { id: g } })).showOrders).toBe(true)
+    })
     it('listReportableShops: เฉพาะร้านของตนที่ไม่ลบ/ไม่ล็อก — ร้านที่เป็น ADMIN ไม่นับ', async () => {
       const list = await listReportableShops(A)
       expect(list.map((s) => s.id).sort()).toEqual([A1, A2].sort())
@@ -214,8 +224,8 @@ describe.skipIf(!isLocal)('00068 line-report services (DB)', () => {
       expect(JSON.stringify(group)).not.toContain('SECRET-PAYLOAD')
       expect(JSON.stringify(group)).not.toContain('pendingPayload')
       expect(group.shops.map((s) => [s.shopId, s.state]).sort()).toEqual([[A1, 'OK'], [A3, 'LOCKED'], [A4, 'DELETED']].sort())
-      expect(group.paused).toBe(true) // A ไม่มีแพ็กเกจ
-      expect(group.nextSendAt).toBeNull()
+      expect(group.paused).toBe(false) // A มีแพ็กเกจตั้งแต่ describe shops (LOW-3) — pause สดเทสแยกที่ list
+      expect(group.nextSendAt).toBeNull() // กลุ่มไม่ ACTIVE
     })
     it('detail: bind.hasLiveCode เห็นเฉพาะโค้ดที่ยังไม่หมดอายุ/ไม่ถูกใช้', async () => {
       const g = await mkGroup(A, [A1])

@@ -258,19 +258,22 @@ export type TestResult = { deliveryId: string; sentAt: string; remaining: number
  */
 export async function sendTest(ownerId: string, groupId: string, now: Date = new Date()): Promise<TestResult> {
   assertReady()
-  const group = await prisma.lineReportGroup.findFirst({ where: { id: groupId, ownerId, status: { not: 'REMOVED' } } })
-  if (!group) throw new LineReportError('GROUP_NOT_FOUND')
-  if (group.status !== 'ACTIVE' || !group.lineGroupId) throw new LineReportError('GROUP_NOT_ACTIVE')
+  const pre = await prisma.lineReportGroup.findFirst({ where: { id: groupId, ownerId, status: { not: 'REMOVED' } } })
+  if (!pre) throw new LineReportError('GROUP_NOT_FOUND')
+  if (pre.status !== 'ACTIVE' || !pre.lineGroupId) throw new LineReportError('GROUP_NOT_ACTIVE')
   if (!(await isOwnerPaidForReports(ownerId))) throw new LineReportError('PACKAGE_REQUIRED')
 
   // lock แถวกลุ่มแล้วนับ+insert ใน tx เดียว — กดแข่งกันก็เกิน 5 ไม่ได้
   // นับด้วย tx (ไม่ใช้ countTestsToday ที่วิ่งผ่าน client อื่น: pool=1 ของ pooler จะค้างรอ connection ที่ tx ถืออยู่) แต่ predicate เดียวกัน (testQuotaWhere)
-  const { row, used } = await prisma.$transaction(async (tx) => {
+  const { row, used, group } = await prisma.$transaction(async (tx) => {
     await lockOwnedGroup(tx, ownerId, groupId)
+    // 🛑 อ่านซ้ำหลังล็อก: ระหว่างด่านข้างบนกับตรงนี้กลุ่มอาจถูกลบ/ผูกใหม่ — ใช้ status/lineGroupId/ค่าตั้งจากแถวที่ล็อกแล้วเท่านั้น
+    const group = await tx.lineReportGroup.findFirstOrThrow({ where: { id: groupId, ownerId } })
+    if (group.status !== 'ACTIVE' || !group.lineGroupId) throw new LineReportError('GROUP_NOT_ACTIVE')
     const count = await tx.lineReportDelivery.count({ where: testQuotaWhere(groupId, now) })
     if (count >= TEST_LIMIT_PER_DAY) throw new LineReportError('TEST_QUOTA_EXCEEDED')
     const created = await tx.lineReportDelivery.create({ data: { groupId, kind: 'TEST', slotKey: `T:${randomUUID()}` } })
-    return { row: created, used: count + 1 }
+    return { row: created, used: count + 1, group }
   })
 
   try {
@@ -286,6 +289,14 @@ export async function sendTest(ownerId: string, groupId: string, now: Date = new
     if (!summary.shops.some((s) => s.state === 'OK')) {
       await markFailed(row.id, { reason: 'ALL_SHOPS_FAILED' })
       throw new LineReportError('INTERNAL')
+    }
+    // เช็คซ้ำก่อน push (กันลบ→ผูกใหม่ระหว่างคำนวณสรุป ที่ตัวเลขของ A จะไปตกกลุ่มของ B) · ช่องที่เหลือ = ระหว่างบรรทัดนี้ถึง push
+    const still = await prisma.lineReportGroup.findFirst({
+      where: { id: groupId, ownerId, status: 'ACTIVE', lineGroupId: group.lineGroupId }, select: { id: true },
+    })
+    if (!still) {
+      await markFailed(row.id, { reason: 'GROUP_NOT_ACTIVE' })
+      throw new LineReportError('GROUP_NOT_ACTIVE')
     }
     const messages = fitToLimits(buildSummaryReportFlex({ summary, kind: 'TEST', showProfit: group.showProfit }))
     const text = `${sendable.length} ร้าน · ช่วง 00:00–${formatTimeHM(now)}`

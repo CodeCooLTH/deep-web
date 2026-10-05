@@ -66,3 +66,24 @@ export function monthlyFire(
   }
   return null
 }
+
+/**
+ * เวลาส่งรายเดือนรอบถัดไป (ms) หลัง `now` — สูตรเวลาเดียวกับ monthlyFire (วัน F ที่ F−1 เป็นวันตัดรอบ · slot แรกสุด)
+ * ไม่เปิด/ไม่มีเวลา = null · ค้นล่วงหน้า 62 วัน (ครอบทุกวันตัดรอบ แม้ ก.พ.)
+ */
+export function nextMonthlyFireAt(
+  g: { monthlyEnabled: boolean; cutoffDay: number | null; dailyTimes: readonly number[] },
+  now: Date,
+): number | null {
+  if (!g.monthlyEnabled || g.dailyTimes.length === 0) return null
+  const firstOffset = g.dailyTimes.includes(1440) ? 0 : Math.min(...g.dailyTimes)
+  const t = todayThaiIsoDate(now)
+  for (let i = 0; i <= 62; i++) {
+    const f = shiftIsoDate(t, i)
+    const [y, m, d] = shiftIsoDate(f, -1).split('-').map(Number)
+    if (d !== effectiveCutoff(y, m, g.cutoffDay)) continue
+    const at = fireAt(f, firstOffset)
+    if (at > now.getTime()) return at
+  }
+  return null
+}
