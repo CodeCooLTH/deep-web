@@ -1,14 +1,14 @@
 'use client'
 
 /**
- * GroupDetailClient — หน้าตั้งค่ากลุ่ม LINE (ผูกแล้ว / บอทถูกนำออก): แบนเนอร์ + ตั้งค่า autosave + พรีวิว + คำสั่ง + ประวัติ · feature 00070 · E3
+ * GroupDetailClient — หน้าตั้งค่ากลุ่ม LINE (ผูกแล้ว / บอทถูกนำออก): แบนเนอร์ + ตั้งค่า autosave + การ์ดข้อความ + คำสั่ง + ประวัติ · feature 00070 · E3
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/pages/pricing/page.tsx (page shell ที่ [groupId]/page.tsx) · ui/cards/page.tsx (.card ทุกใบ)
  *   · form/elements/components/ChecksRadioSwitches.tsx + InputTextfieldType.tsx (ฟอร์ม) · plugins/sweet-alerts/components/SweetAlerts.tsx (confirm)
  *   · docs/conventions/seller-action-placement.md (action-bar) · ลำดับ/โครง `lg:grid-cols-5` ตาม base spec ส่วน D
  *
  * boolean/ป้าย/แบนเนอร์/เหตุปุ่มทดสอบ ทั้งหมดมาจาก presenter (toPresenterGroup → groupBadge/bannerFor/canEdit/canTest/testBlockedReason/testsLeft) — ห้ามคำนวณเอง
- * layout: มือถือ = ร้าน → เวลา → ตัวเลข → พรีวิว → คำสั่ง → ประวัติ (ผ่าน `order-*` + wrapper `contents`) · lg = ซ้าย 3 (ร้าน เวลา ตัวเลข ประวัติ) : ขวา 2 (พรีวิว sticky, คำสั่ง)
+ * layout: มือถือ = ร้าน → เวลา → การ์ดข้อความ → คำสั่ง → ประวัติ (ผ่าน `order-*` + wrapper `contents`) · lg = ซ้าย 3 (ร้าน เวลา ประวัติ) : ขวา 2 (การ์ดข้อความ sticky, คำสั่ง)
  * state ก้อนเดียว = ผลของ `useAutosave` · ห้ามมี hook ใต้ early return (view สลับด้วย JSX ท้ายฟังก์ชัน ไม่ return ก่อน hook)
  */
 import { useEffect, useRef, useState } from 'react'
@@ -28,8 +28,7 @@ import CommandsCard from '../_components/detail/CommandsCard'
 import DetailActionBar from '../_components/detail/DetailActionBar'
 import GroupBanner from '../_components/detail/GroupBanner'
 import HistoryCard from '../_components/detail/HistoryCard'
-import MetricsCard from '../_components/detail/MetricsCard'
-import PreviewCard from '../_components/detail/PreviewCard'
+import MessageCard from '../_components/detail/MessageCard'
 import ScheduleCard from '../_components/detail/ScheduleCard'
 import ShopsCard from '../_components/detail/ShopsCard'
 import { useAutosave } from '../_components/detail/useAutosave'
@@ -144,11 +143,10 @@ export default function GroupDetailClient({ initialGroup, reportableShops, shell
         <div className="contents lg:col-span-3 lg:flex lg:flex-col lg:gap-base">
           <ShopsCard rows={rows} selected={shopIds} canEdit={editable} onChange={updateShops} />
           <ScheduleCard settings={group.settings} cycle={group.cycle} canEdit={editable} orderWord={word} onChange={update} />
-          <MetricsCard settings={group.settings} canEdit={editable} orderWord={word} onChange={update} />
           <HistoryCard deliveries={group.deliveries} />
         </div>
         <div className="contents lg:col-span-2 lg:flex lg:flex-col lg:gap-base">
-          <PreviewCard shops={group.shops} settings={group.settings} cycle={group.cycle} serverNowIso={serverNowIso} />
+          <MessageCard group={group} canEdit={editable} serverNowIso={serverNowIso} />
           <CommandsCard />
         </div>
       </div>

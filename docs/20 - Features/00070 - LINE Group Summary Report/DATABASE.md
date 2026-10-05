@@ -160,6 +160,12 @@ erDiagram
 | `skipWhenNoOrders` | `boolean` | NO | `false` | AC-LGS-19-7 |
 | `attachCycleToDaily` | `boolean` | NO | `false` | AC-LGS-11-6 |
 | `profitEnabledAt` | `timestamptz` | YES | NULL | ตั้งเมื่อ `showProfit` false→true, **ล้างเป็น NULL เมื่อปิด** ⇒ non-null ⇔ `showProfit` (AC-LGS-12-4 "บันทึกเวลาที่เปิด") |
+| `template` | `jsonb` (`Json?`) | YES | NULL | **[EXT 2026-10-05]** เทมเพลตข้อความรายงานรูป `TemplateV1` (`src/lib/line-report/template.ts`) · **NULL = แบบมาตรฐาน** (สร้างจากเลย์เอาต์ปัจจุบันโดย `defaultTemplateFromFlags` — กลุ่มเดิมทุกกลุ่มหลัง migrate เป็น NULL ไม่มี backfill) · CHECK ขนาด §5.2 |
+| `templateVersion` | `integer` | NO | `0` | **[EXT]** ตัวนับ optimistic lock — `+1` ทุกครั้งที่ PUT/DELETE `…/template` สำเร็จ · PUT ต้องส่ง `expectedVersion` ตรงกับค่านี้ ไม่งั้น 409 `TEMPLATE_STALE` · CHECK `>= 0` |
+
+**ความหมายของคอลัมน์ `show*` หลังมี `template` [EXT]:** เมื่อ `template ≠ NULL` คอลัมน์ `showOrders/showSales/showCancelled/showTopProducts/showProfit/attachCycleToDaily/profitEnabledAt` = **cache ที่ derive จากเทมเพลต** (`deriveFlags`) เขียนใน transaction เดียวกับ `template` ทุกครั้ง (`updateTemplate`) เพื่อให้ CHECK `metric_any_chk` · หน้ารายการ · `isEmptyReport` ใช้ต่อได้ — **ตัวตัดสินตอนส่งคือ `resolveReportConfig(group)` ไม่ใช่คอลัมน์เหล่านี้** · เมื่อ `template = NULL` คอลัมน์เป็นตัวตัดสินเองเหมือนเดิม · `PATCH` ที่ส่ง flag เหล่านี้ขณะมี `template` ถูกปฏิเสธ 409 `FLAGS_DERIVED_FROM_TEMPLATE` · `DELETE …/template` (reset) ตั้ง `template=NULL` + flag กลับค่าตั้งต้นคอลัมน์ (orders/sales/cancelled/top3 = `true`, profit = `false` → `profitEnabledAt=NULL`) และคง `attachCycleToDaily` ไว้เฉพาะเมื่อ `monthlyEnabled` ยังเปิด
+
+**ข้อมูลใน `template` (ไม่ใช่ PII ลูกค้า):** ข้อความอิสระของเจ้าของ (≤6 บล็อก ≤120 ตัวอักษร) · id บล็อก (uuid ฝั่ง client — ไม่ลงใน Flex JSON) · เนื้อหาไม่ถูก log (`resolveReportConfig` log เฉพาะรหัสกฎเมื่อ template ในฐานเสีย แล้วถอยไปแบบมาตรฐาน)
 | `finalNoticeSentAt` | `timestamptz` | YES | NULL | มาร์กเกอร์ "ส่งข้อความสุดท้ายของช่วงหยุดแล้ว" (AC-LGS-21-2) — ดู §6 |
 | `alertKind` | `LineReportAlertKind` | YES | NULL | เหตุที่ค้างอยู่ — §6 |
 | `alertAt` | `timestamptz` | YES | NULL | เวลายกเหตุ |
@@ -256,7 +262,7 @@ erDiagram
 | `retryKey` | `text` | YES | NULL | UUIDv5 จาก `(groupId, slotKey)` — คงที่ข้าม retry (LINE-API-Facts §3) |
 | `pendingPayload` | `jsonb` | YES | NULL | `messages[]` ที่จะ push — **ชั่วคราว** ดูด้านล่าง |
 | `payloadSha256` | `text` | YES | NULL | hash ของ payload ที่ส่ง (หลักฐานถาวรแทนเนื้อหา) |
-| `summary` | `text` | YES | NULL | สรุปสั้นอ่านออก เช่น "2 ร้าน · ช่วง 00:00–18:02" (ไม่มียอดเงิน) |
+| `summary` | `text` | YES | NULL | สรุปสั้นอ่านออก เช่น "2 ร้าน · ช่วง 00:00–18:02" (ไม่มียอดเงิน) · **[EXT]** ต่อท้ายด้วย ` · ข้าม: <ป้ายบล็อก/โทเคน> (<เหตุผล>)` เมื่อ composer ข้ามบล็อกที่ไม่พร้อมหรือตัดบล็อกข้อความที่โทเคนคำนวณไม่ได้ (`skippedNote` ใน `line-report-send.service`) — ป้ายกับเหตุผลเป็นข้อความตายตัวของ composer ไม่มียอดเงิน/เนื้อหาข้อความอิสระ · ไม่เปลี่ยนสคีมา |
 | `sentAt` | `timestamptz` | YES | NULL | LINE รับสำเร็จเมื่อไร (รวม 409 = ถือว่า SENT) |
 | `createdAt` | `timestamptz` | NO | `now()` | = เวลา claim |
 | `updatedAt` | `timestamptz` | NO | `@updatedAt` | — |
@@ -375,7 +381,25 @@ ALTER TABLE "LineReportDelivery"
     CHECK ("attempt" BETWEEN 0 AND 2 AND "pushMessageCount" >= 0);
 ```
 
-- CHECK ทั้งหมดอยู่บน **ตารางที่สร้างใหม่ใน migration เดียวกัน** ⇒ ไม่มีแถวเดิม, ไม่ชนกับ constraint/ข้อมูลเดิม (ตามกฎ "migration CHECK ต้อง additive" — ห้ามไป `ALTER` CHECK บนตารางเดิมในฟีเจอร์นี้)
+**[EXT 2026-10-05] CHECK เพิ่ม 2 ตัว** (migration `20261005200000_line_report_template` — ตารางเดิมแต่ **คอลัมน์ใหม่ล้วน** ไม่มีแถวเดิมให้ชน = additive ปลอดภัย):
+
+```sql
+ALTER TABLE "LineReportGroup"
+  ADD COLUMN "template" JSONB,
+  ADD COLUMN "templateVersion" INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE "LineReportGroup"
+  ADD CONSTRAINT "LineReportGroup_template_size_chk"
+    CHECK ("template" IS NULL OR octet_length("template"::text) <= 16384),   -- ตาข่ายชั้นสอง (service ตรวจก่อนถึงฐาน)
+  ADD CONSTRAINT "LineReportGroup_template_version_chk"
+    CHECK ("templateVersion" >= 0);
+```
+
+- ไม่มี index ใหม่ (ไม่ query ตามเนื้อ template) · ไม่เพิ่ม enum/ตาราง · ไม่มี backfill
+- CHECK ทั้งสองไม่อยู่ใน Prisma DSL → มีคอมเมนต์ 🛑 บนโมเดลใน `schema.prisma` (ห้าม `db pull`/`migrate dev` ทับ)
+- เพดาน 16,384 octet ของคอลัมน์ ≠ เพดาน 30,000 ไบต์ของ LINE (ตัววัดคนละตัว): ด่านแรกกันก้อน JSON ที่ใหญ่ผิดปกติ · ด่านหลังคือ `measureTemplate` วัดข้อความที่ประกอบแล้ว (ดู SRS EXT)
+
+- CHECK (ชุดเดิมด้านบน) ทั้งหมดอยู่บน **ตารางที่สร้างใหม่ใน migration เดียวกัน** ⇒ ไม่มีแถวเดิม, ไม่ชนกับ constraint/ข้อมูลเดิม (ตามกฎ "migration CHECK ต้อง additive" — ห้ามไป `ALTER` CHECK บนตารางเดิมในฟีเจอร์นี้)
 - ชื่อ constraint ใหม่ไม่ซ้ำของเดิม (ขึ้นต้น `LineReport…`) — DEV ต้อง `rg` ยืนยันก่อนเขียน
 - unmanaged index/CHECK ข้างต้นต้องมีคอมเมนต์ 🛑 บนโมเดลใน `schema.prisma` (แบบ `Shop`/`UserBadge`) และ **ห้าม `prisma db pull` / `migrate dev`** หลัง apply (introspection ไม่เห็นของพวกนี้ อาจพยายาม "แก้ให้ตรง" แล้ว DROP) — ตามกฎ "ห้าม migrate dev" ของโปรเจกต์
 
@@ -475,6 +499,12 @@ rollback note ของ enum: `ALTER TYPE … ADD VALUE` ที่เพิ่�
 
 `LineReportGroupStatus` · `LineReportDeliveryKind` · `LineReportDeliveryStatus` · `LineReportAlertKind` · `LineReportRateKind` — พร้อมโมเดล 5 ตัว (data model section), รูปแบบ `slotKey`, และชุดค่า `reason` ที่ใช้ได้ (SSOT)
 
+### 8.6 [EXT 2026-10-05] migration ที่สอง — `20261005200000_line_report_template`
+
+- ไฟล์เดียว เขียนมือ (ADD COLUMN ×2 + CHECK ×2 — ดู §5.2) · additive ล้วน ไม่มี backfill/index · ไม่เพิ่ม enum
+- **Rollback:** โค้ดเก่าไม่อ่านคอลัมน์ใหม่ → ทิ้งคอลัมน์ไว้ได้ปลอดภัย · ล้างค่าเทมเพลต = `UPDATE "LineReportGroup" SET "template" = NULL` (หรือปุ่ม reset ใน UI) · ⚠️ กลุ่มที่บันทึกเทมเพลตแล้วจะส่งตาม flag ที่ derive ไว้ในคอลัมน์หลังถอยโค้ด (ใกล้เคียงแต่ไม่เท่ากับเทมเพลต)
+- HR14/HR15 ใช้เหมือนเดิม: ปักหมุด `localhost:5434` ในคำสั่ง · push `main` = `migrate deploy` บน prod ในตัว · migrate ล้ม = deploy ไม่ขึ้น
+
 ---
 
 ## 9. ข้อที่ไม่แน่ใจ / ต้องให้ Controller ตัดสิน
@@ -504,7 +534,7 @@ rollback note ของ enum: `ALTER TYPE … ADD VALUE` ที่เพิ่�
 
 | Table | BRD / Decision | สถานะ |
 |-------|----------------|-------|
-| `LineReportGroup` | FR-LGS-05..12, 21, 24 · §4.3 state · BR-LGS-03/04/05/09/15/19 | Draft |
+| `LineReportGroup` | FR-LGS-05..12, 21, 24 · §4.3 state · BR-LGS-03/04/05/09/15/19 · **EXT:** FR-LGS-EXT-01/07/10 · BR-LGS-22/26/29 (`template`, `templateVersion`) | Draft (ส่วน EXT = ทำแล้วตามโค้ด) |
 | `LineReportGroupShop` | FR-LGS-04, 09 · BR-LGS-02 · E-7/E-8/E-13 | Draft |
 | `LineReportBindCode` | FR-LGS-04, 05, 06 · BR-LGS-03 | Draft |
 | `LineReportRateEvent` | AC-LGS-06-1, AC-LGS-22-8/9 (OQ-4) | Draft |

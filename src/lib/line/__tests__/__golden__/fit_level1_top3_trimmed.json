@@ -1,0 +1,2531 @@
+[
+ {
+  "type": "flex",
+  "altText": "รายงานยอดรายวัน 5 ต.ค. 2569 · คำสั่งซื้อ 1,220 รายการ · ยอดขาย ฿860,000 · ยกเลิก 820 ใบ · กำไรสุทธิ ฿86,000 · ข้อมูล ณ 21:02 น. · ร้าน 40 ฿41,000 · ร้าน 39 ฿40,000 · ร้าน 38 ฿39,000 · ร้าน 37 ฿38,000 · ร้าน 36 ฿37,000 · ร้าน 35 ฿36,000 · ร้าน 34 ฿35,000 · ร้าน 33 ฿34,000 · ร้าน 32 ฿33,000 · ร้าน 31 ฿32,000 · ร้าน 30 ฿31,000 · ร้าน 29 ฿30,000 · ร้าน 28 ฿29,000 · ร้าน 27 ฿28,000 · ร้าน 26 ฿27,000 · ร้าน 25 ฿26,000 · ร้าน 24 ฿25,000 · ร้าน 23 ฿24,000 · ร้าน 22 ฿23,000 · ร้าน 21 ฿22,000 · ร้าน 20 ฿21,000 · ร้าน 19 ฿20,000 · ร้าน 18 ฿19,000 · ร้าน 17 ฿18,000 · ร้าน 16 ฿17,000 · ร้าน 15 ฿16,000 · ร้าน 14 ฿15,000 · ร้าน 13 ฿14,000 · ร้าน 12 ฿13,000 · ร้าน 11 ฿12,000 · ร้าน 10 ฿11,000 · ร้าน 9 ฿10,000 · ร้าน 8 ฿9,000 · ร้าน 7 ฿8,000 · ร้าน 6 ฿7,000 · ร้าน 5 ฿6,000 · ร้าน 4 ฿5,000 · ร้าน 3 ฿4,000 · ร้าน 2 ฿3,000 · ร้าน 1 ฿2,000",
+  "contents": {
+   "type": "bubble",
+   "size": "mega",
+   "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+     {
+      "type": "box",
+      "layout": "vertical",
+      "margin": "lg",
+      "spacing": "xs",
+      "contents": [
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "sm",
+        "contents": [
+         {
+          "type": "text",
+          "text": "รายงานยอดรายวัน",
+          "size": "md",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "weight": "bold",
+          "flex": 1
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": "5 ต.ค. 2569",
+        "size": "sm",
+        "color": "#236dc9",
+        "wrap": true,
+        "weight": "bold"
+       },
+       {
+        "type": "text",
+        "text": "ข้อมูล ณ 21:02 น. · รวม 40 ร้าน",
+        "size": "xs",
+        "color": "#808390",
+        "wrap": true
+       }
+      ]
+     },
+     {
+      "type": "separator",
+      "margin": "lg"
+     },
+     {
+      "type": "box",
+      "layout": "vertical",
+      "margin": "lg",
+      "spacing": "xs",
+      "contents": [
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "คำสั่งซื้อ",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "1,220 รายการ",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "regular"
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "ยอดขาย (นับแล้ว)",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "฿860,000",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "bold"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": "ยังไม่นับเป็นยอดขาย ฿41,000 (รอยืนยัน/รอขนส่งรับ)",
+        "size": "xs",
+        "color": "#808390",
+        "wrap": true
+       },
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "ยกเลิก",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "820 ใบ (ใบที่เปิดในช่วงนี้)",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "regular"
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+         {
+          "type": "text",
+          "text": "กำไรสุทธิ",
+          "size": "sm",
+          "color": "#808390",
+          "wrap": true,
+          "flex": 3
+         },
+         {
+          "type": "text",
+          "text": "฿86,000",
+          "size": "sm",
+          "color": "#2F2B3D",
+          "wrap": true,
+          "flex": 4,
+          "align": "end",
+          "weight": "regular"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": "separator",
+      "margin": "lg"
+     },
+     {
+      "type": "box",
+      "layout": "vertical",
+      "margin": "lg",
+      "spacing": "xs",
+      "contents": [
+       {
+        "type": "text",
+        "text": "แยกรายร้าน",
+        "size": "xs",
+        "color": "#808390",
+        "wrap": true,
+        "weight": "bold"
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 40",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "50 · ฿41,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿4,100",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 39",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "49 · ฿40,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿4,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 38",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "48 · ฿39,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿3,900",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 37",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "47 · ฿38,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿3,800",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 36",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "46 · ฿37,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿3,700",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 35",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "45 · ฿36,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿3,600",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 34",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "44 · ฿35,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿3,500",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 33",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "43 · ฿34,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿3,400",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 32",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "42 · ฿33,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿3,300",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 31",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "41 · ฿32,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿3,200",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 30",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "40 · ฿31,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿3,100",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 29",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "39 · ฿30,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿3,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 28",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "38 · ฿29,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿2,900",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 27",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "37 · ฿28,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿2,800",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 26",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "36 · ฿27,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿2,700",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 25",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "35 · ฿26,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿2,600",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 24",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "34 · ฿25,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿2,500",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 23",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "33 · ฿24,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿2,400",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 22",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "32 · ฿23,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿2,300",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 21",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "31 · ฿22,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿2,200",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 20",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "30 · ฿21,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿2,100",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 19",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "29 · ฿20,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿2,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 18",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "28 · ฿19,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿1,900",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 17",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "27 · ฿18,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿1,800",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 16",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "26 · ฿17,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿1,700",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 15",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "25 · ฿16,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿1,600",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 14",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "24 · ฿15,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿1,500",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 13",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "23 · ฿14,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿1,400",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 12",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "22 · ฿13,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿1,300",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 11",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "21 · ฿12,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿1,200",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 10",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "20 · ฿11,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿1,100",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 9",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "19 · ฿10,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿1,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 8",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "18 · ฿9,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿900",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 7",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "17 · ฿8,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿800",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 6",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "16 · ฿7,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿700",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 5",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "15 · ฿6,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿600",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 4",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "14 · ฿5,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿500",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 3",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "13 · ฿4,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿400",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 2",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "12 · ฿3,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿300",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "xs",
+        "contents": [
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "ร้าน 1",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "11 · ฿2,000",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "bold"
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "md",
+          "contents": [
+           {
+            "type": "text",
+            "text": "กำไรสุทธิ",
+            "size": "sm",
+            "color": "#808390",
+            "wrap": true,
+            "flex": 3
+           },
+           {
+            "type": "text",
+            "text": "฿200",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "flex": 4,
+            "align": "end",
+            "weight": "regular"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "footer": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+     {
+      "type": "button",
+      "style": "primary",
+      "color": "#236dc9",
+      "height": "sm",
+      "action": {
+       "type": "uri",
+       "label": "เปิด Deep",
+       "uri": "https://seller.deepthailand.app/dashboard"
+      }
+     }
+    ]
+   }
+  }
+ }
+]

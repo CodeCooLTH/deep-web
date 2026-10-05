@@ -4,12 +4,12 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersList.tsx (table + `badge bg-{tone}/15`)
  *   + src/app/(paces)/seller/(dashboard)/inventory/movements/[productId]/MovementHistoryTable.tsx (plain `<table class="table table-sm">` + empty state)
  *
- * ป้ายชนิด/ผล มาจาก `list-view` (deliveryKindLabel/deliveryStatusView) — เขียว = ส่งสำเร็จเท่านั้น · สาเหตุใช้ `reasonLabel` จาก API ตรง ๆ (SSOT ห้าม remap)
+ * ป้ายชนิด/ผล มาจาก `list-view` (deliveryKindLabel/deliveryStatusView) — เขียว = ส่งสำเร็จเท่านั้น · สาเหตุใช้ `reasonLabel` จาก API ตรง ๆ (SSOT ห้าม remap) + ต่อ "ข้าม: …" จาก summary (historyReasonText)
  * เวลา: ตารางใช้ `formatDateTime` (date-format.md) · แถวมือถือใช้ `formatDateTimeTH` (ค่าจาก server เป็น ISO — ไม่อ่านนาฬิกา จึงไม่ชน hydration)
  */
 import Icon from '@/components/wrappers/Icon'
 import { formatDateTime, formatDateTimeTH } from '@/lib/format-date'
-import { deliveryKindLabel, deliveryStatusView } from '@/lib/line-report/list-view'
+import { deliveryKindLabel, deliveryStatusView, historyReasonText } from '@/lib/line-report/list-view'
 import type { GroupDetailDto } from '@/services/line-report-group.service'
 import { TONE_BADGE } from '../tone'
 
@@ -58,7 +58,7 @@ export default function HistoryCard({ deliveries }: { deliveries: GroupDetailDto
                     <td>
                       <StatusBadge status={d.status} />
                     </td>
-                    <td className="text-default-700 text-sm">{d.reasonLabel ?? ''}</td>
+                    <td className="text-default-700 text-sm">{historyReasonText(d.reasonLabel, d.summary)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -73,7 +73,7 @@ export default function HistoryCard({ deliveries }: { deliveries: GroupDetailDto
                   </span>
                   <StatusBadge status={d.status} />
                 </div>
-                {d.reasonLabel && <p className="text-default-700 mt-0.5 mb-0 text-xs">{d.reasonLabel}</p>}
+                {historyReasonText(d.reasonLabel, d.summary) && <p className="text-default-700 mt-0.5 mb-0 text-xs">{historyReasonText(d.reasonLabel, d.summary)}</p>}
               </li>
             ))}
           </ul>

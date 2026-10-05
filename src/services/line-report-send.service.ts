@@ -11,10 +11,11 @@ import type { LineReportDelivery, LineReportGroup } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { todayThaiIsoDate } from '@/lib/date-range'
 import { formatTimeHM } from '@/lib/format-date'
-import { buildPlainNotice, buildSummaryReportFlex, fitToLimits } from '@/lib/line/flex-summary-report'
+import { buildPlainNotice, buildSummaryReportFlex, collectSkipped, fitToLimits } from '@/lib/line/flex-summary-report'
 import type { LineErrorKind } from '@/lib/line/client'
 import { assertReady, fetchGroupSummary, fetchMemberCount, pushToGroup } from '@/lib/line-report/line-client'
 import { LineReportError } from '@/lib/line-report/errors'
+import { resolveReportConfig } from '@/lib/line-report/report-config'
 import { FINAL_NOTICE_MESSAGE } from '@/lib/line-report/messages'
 import { retryKeyFor } from '@/lib/line-report/retry-key'
 import { parseSlot, resolveDailyWindow } from '@/lib/line-report/schedule'
@@ -40,9 +41,9 @@ export type Outcome = { state: string; reason?: string; lineKind?: LineErrorKind
 /** bubble ≤ 30KB ของ LINE — ตรวจซ้ำหลัง fitToLimits (ตัดแล้วยังเกิน = ส่งไม่ได้ ไม่ใช่ retry) */
 const BUBBLE_MAX_BYTES = 30_000
 
-const flagsOf = (g: Group): SummaryFlags => ({
-  showOrders: g.showOrders, showSales: g.showSales, showCancelled: g.showCancelled, showTopProducts: g.showTopProducts, showProfit: g.showProfit,
-})
+/** "ข้าม: …" ต่อท้าย Delivery.summary — label/reason เป็นข้อความตายตัวของ composer ไม่มียอดเงิน/เนื้อหาของเจ้าของ (EXT-06) */
+export const skippedNote = (skipped: readonly { label: string; reason: string }[]): string =>
+  skipped.length ? ` · ข้าม: ${skipped.map((s) => `${s.label} (${s.reason})`).join(', ')}` : ''
 
 const rowOf = (groupId: string, slotKey: string) =>
   prisma.lineReportDelivery.findUniqueOrThrow({ where: { groupId_slotKey: { groupId, slotKey } } })
@@ -133,9 +134,10 @@ async function runSlot(group: Group, ctx: SweepCtx, plan: Plan): Promise<Outcome
     await raiseAlert(group.id, 'NO_SENDABLE_SHOPS')
     return settleRows(rows, (id, p) => markSkipped(id, 'NO_SENDABLE_SHOPS', p), { reason: 'NO_SENDABLE_SHOPS' }, { state: 'NO_SENDABLE_SHOPS' })
   }
-  const flags = flagsOf(group)
+  // ทางเดียวที่ตัดสินว่าส่งอะไร (ไม่อ่านคอลัมน์ show* ตรง) — snapshot ตอนเริ่ม: แก้เทมเพลตระหว่าง sweep ไม่กระทบรอบนี้ (E-15)
+  const { template, flags, needs } = resolveReportConfig(group)
   const excl = excluded.map((e) => ({ shop: e.shop, reason: e.reason }))
-  const summarize = (window: Window) => buildGroupSummary({ shops: sendable, excluded: excl, window, flags, cache })
+  const summarize = (window: Window) => buildGroupSummary({ shops: sendable, excluded: excl, window, flags, needs, cache })
   const [dSummary, mSummary] = await Promise.all([
     plan.daily ? summarize(resolveDailyWindow(plan.daily.slot.minutes, plan.daily.slot.dateIso, now)) : undefined,
     plan.monthly ? summarize({ ...plan.monthly.cycle, computedAt: now.toISOString() }) : undefined,
@@ -162,7 +164,7 @@ async function runSlot(group: Group, ctx: SweepCtx, plan: Plan): Promise<Outcome
   const rows2 = live.map((p) => p.row)
   // ยอดสะสมรอบถูกข้ามเมื่อมีรายเดือนใน push เดียวกัน (AC-11-7) · 24:00 = ครบทั้งวันไม่แนบ
   let cycleToDate: { startIso: string; endIso: string; totals: Awaited<ReturnType<typeof buildCycleCumulative>>['totals']; failedShops: number } | undefined
-  if (head.kind === 'DAILY' && plan.daily && rest.length === 0 && group.attachCycleToDaily && plan.daily.slot.minutes !== 1440) {
+  if (head.kind === 'DAILY' && plan.daily && rest.length === 0 && needs.needCycle && plan.daily.slot.minutes !== 1440) {
     const cyc = cycleContaining(plan.daily.slot.dateIso, group.cutoffDay)
     const w: Window = { startIso: cyc.startIso, endIso: plan.daily.slot.dateIso, computedAt: now.toISOString() }
     const cum = await buildCycleCumulative({ shops: sendable, window: w, cache })
@@ -171,7 +173,7 @@ async function runSlot(group: Group, ctx: SweepCtx, plan: Plan): Promise<Outcome
   }
   // 🛑 fitToLimits ต้องรับ object จาก builder โดยตรง (ผูกด้วย identity) — ห้าม clone/parse ก่อน
   const messages = fitToLimits(
-    buildSummaryReportFlex({ summary: head.summary, kind: head.kind, flags, cycleToDate, monthly: rest[0]?.summary }),
+    buildSummaryReportFlex({ summary: head.summary, kind: head.kind, template, cycleToDate, monthly: rest[0]?.summary }),
   )
   if (messages.some((m) => Buffer.byteLength(JSON.stringify(m)) > BUBBLE_MAX_BYTES)) {
     await raiseAlert(group.id, 'SEND_FAILED')
@@ -188,7 +190,7 @@ async function runSlot(group: Group, ctx: SweepCtx, plan: Plan): Promise<Outcome
     prisma.lineReportDelivery.updateMany({ where: { id: { in: rest.map((p) => p.row.id) } }, data: { retryKey: key } }),
   ])
   const n = head.summary.shops.filter((s) => s.state === 'OK').length
-  return pushAndSettle(group, rows2, raw, key, head.row.attempt, { canRetry: true, alerts: true, summary: `${n} ร้าน` })
+  return pushAndSettle(group, rows2, raw, key, head.row.attempt, { canRetry: true, alerts: true, summary: `${n} ร้าน${skippedNote(collectSkipped(messages))}` })
 }
 
 /**
@@ -250,7 +252,7 @@ export async function retryDelivery(group: Group, row: Row, ctx: SweepCtx): Prom
   return settleRows([row], markMissed, { reason: 'INTERNAL' }, { state: 'MISSED', reason: 'INTERNAL' }) // slotKey ไม่รู้จัก — ไม่ retry
 }
 
-export type TestResult = { deliveryId: string; sentAt: string; remaining: number; summary: string }
+export type TestResult = { deliveryId: string; sentAt: string; remaining: number; summary: string; skipped: { label: string; reason: string }[] }
 
 /**
  * ส่งทดสอบ (TFR-12 · AC-13-1) — push ครั้งเดียว ไม่ retry · ไม่ใช้ skipWhenNoOrders · นับโควตาเฉพาะ CLAIMED/RETRY_PENDING/SENT
@@ -283,8 +285,9 @@ export async function sendTest(ownerId: string, groupId: string, now: Date = new
       throw new LineReportError('NO_SENDABLE_SHOPS')
     }
     const window = resolveDailyWindow(0, todayThaiIsoDate(now), now)
+    const { template, flags, needs } = resolveReportConfig(group)
     const summary = await buildGroupSummary({
-      shops: sendable, excluded: excluded.map((e) => ({ shop: e.shop, reason: e.reason })), window, flags: flagsOf(group), cache: createSweepCache(),
+      shops: sendable, excluded: excluded.map((e) => ({ shop: e.shop, reason: e.reason })), window, flags, needs, cache: createSweepCache(),
     })
     if (!summary.shops.some((s) => s.state === 'OK')) {
       await markFailed(row.id, { reason: 'ALL_SHOPS_FAILED' })
@@ -298,15 +301,16 @@ export async function sendTest(ownerId: string, groupId: string, now: Date = new
       await markFailed(row.id, { reason: 'GROUP_NOT_ACTIVE' })
       throw new LineReportError('GROUP_NOT_ACTIVE')
     }
-    const messages = fitToLimits(buildSummaryReportFlex({ summary, kind: 'TEST', flags: flagsOf(group) }))
+    const messages = fitToLimits(buildSummaryReportFlex({ summary, kind: 'TEST', template }))
+    const skipped = collectSkipped(messages)
     const text = `${sendable.length} ร้าน · ช่วง 00:00–${formatTimeHM(now)}`
     const raw = JSON.stringify(messages)
-    const out = await pushAndSettle(group, [row], raw, retryKeyFor(group.id, row.slotKey), 0, { canRetry: false, alerts: false, summary: text })
+    const out = await pushAndSettle(group, [row], raw, retryKeyFor(group.id, row.slotKey), 0, { canRetry: false, alerts: false, summary: `${text}${skippedNote(skipped)}` })
     if (out.state !== 'SENT') {
       if (out.reason === 'BOT_NOT_IN_GROUP') throw new LineReportError('BOT_NOT_IN_GROUP')
       throw new LineReportError(out.lineKind === 'TOKEN_INVALID' ? 'BOT_UNAVAILABLE' : 'LINE_UNAVAILABLE')
     }
-    return { deliveryId: row.id, sentAt: now.toISOString(), remaining: TEST_LIMIT_PER_DAY - used, summary: text }
+    return { deliveryId: row.id, sentAt: now.toISOString(), remaining: TEST_LIMIT_PER_DAY - used, summary: text, skipped }
   } catch (e) {
     // ถ้าแถวยัง CLAIMED (throw ที่เราไม่ได้คาด) ปล่อยค้างจะกินโควตา — ปิดเป็น FAILED
     await prisma.lineReportDelivery.updateMany({ where: { id: row.id, status: 'CLAIMED' }, data: { status: 'FAILED', reason: 'INTERNAL' } })

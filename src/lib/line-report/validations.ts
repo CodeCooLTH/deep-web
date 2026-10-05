@@ -3,6 +3,7 @@
  * กฎข้ามฟิลด์ (เช่น เปิดรายวันต้องมีเวลา) ตรวจที่ service บน state ที่รวมแล้ว ไม่ใช่ที่นี่
  */
 import * as v from 'valibot'
+import { authoredLength, BLOCK_LIMITS, MAX_BLOCKS, MAX_BUTTON_LABEL, MAX_TEXT_LENGTH, MAX_TITLE_LENGTH, TOKEN_KEYS, type BlockType, type TemplateV1 } from '@/lib/line-report/template'
 
 export const ShopIdsSchema = v.pipe(
   v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(64))),
@@ -57,3 +58,104 @@ export const GroupIdParam = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
 export type CreateBindCodeInput = v.InferOutput<typeof CreateBindCodeSchema>
 export type UpdateSettingsInput = v.InferOutput<typeof UpdateSettingsSchema>
 export type ReplaceShopsInput = v.InferOutput<typeof ReplaceShopsSchema>
+
+// ─── เทมเพลตข้อความ (EXT-02) ─────────────────────────────────────────────────────
+// ข้อความของ v.check = รหัสกฎ (TemplateRule) — validateTemplate แปลงเป็น `rule` ให้ UI/route ใช้ต่อ
+
+export type TemplateRule =
+  | 'SHAPE' | 'EXTRA_FIELD' | 'BLOCK_TYPE' | 'TYPE_LIMIT' | 'TOTAL_LIMIT' | 'DUPLICATE_ID' | 'STYLE' | 'MEASURE'
+  | 'TOKEN' | 'RUN_SHAPE' | 'TEXT_TOO_LONG' | 'TEXT_EMPTY' | 'TEXT_NEWLINE' | 'TITLE' | 'BUTTON_LABEL'
+
+const cpLen = (s: string) => Array.from(s).length
+const IdSchema = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
+const MeasureSchema = v.picklist(['sales', 'orders'], 'MEASURE')
+const flagOnly = v.optional(v.literal(true))
+
+const RunSchema = v.pipe(
+  v.strictObject({
+    t: v.optional(v.pipe(v.string(), v.minLength(1, 'RUN_SHAPE'), v.check((s) => !/[\r\n]/.test(s), 'TEXT_NEWLINE'))),
+    tok: v.optional(v.picklist(TOKEN_KEYS, 'TOKEN')),
+    b: flagOnly,
+    accent: flagOnly,
+  }),
+  v.check((r) => (r.t === undefined) !== (r.tok === undefined), 'RUN_SHAPE'),
+)
+
+const TextBlockSchema = v.pipe(
+  v.strictObject({
+    id: IdSchema,
+    type: v.literal('text'),
+    style: v.strictObject({
+      bold: v.boolean(),
+      size: v.picklist(['s', 'm', 'l'], 'STYLE'),
+      color: v.picklist(['ink', 'slate', 'accent'], 'STYLE'),
+    }),
+    runs: v.pipe(v.array(RunSchema), v.minLength(1, 'TEXT_EMPTY'), v.maxLength(60, 'TEXT_TOO_LONG')),
+  }),
+  // ข้อความว่างหลัง trim = บันทึกไม่ได้ (ไม่ส่ง "-") · โทเคนนับเป็นเนื้อหา
+  v.check((b) => b.runs.some((r) => r.tok !== undefined || (r.t ?? '').trim() !== ''), 'TEXT_EMPTY'),
+  // run ที่รูปผิด (RUN_SHAPE) ถูกรายงานไปแล้ว — ข้ามการนับแทนที่จะ throw
+  v.check((b) => !b.runs.every((r) => (r.t === undefined) !== (r.tok === undefined)) || authoredLength(b.runs as never) <= MAX_TEXT_LENGTH, 'TEXT_TOO_LONG'),
+)
+
+const BlockSchema = v.variant(
+  'type',
+  [
+    v.strictObject({ id: IdSchema, type: v.literal('orders') }),
+    v.strictObject({ id: IdSchema, type: v.literal('sales') }),
+    v.strictObject({ id: IdSchema, type: v.literal('cancelled') }),
+    v.strictObject({ id: IdSchema, type: v.literal('shops'), top3: v.boolean(), profit: v.boolean() }),
+    v.strictObject({ id: IdSchema, type: v.literal('cycle') }),
+    v.strictObject({ id: IdSchema, type: v.literal('profit') }),
+    TextBlockSchema,
+    v.strictObject({ id: IdSchema, type: v.literal('separator') }),
+    v.strictObject({ id: IdSchema, type: v.literal('chart_trend'), measure: MeasureSchema }),
+    v.strictObject({ id: IdSchema, type: v.literal('chart_compare'), measure: MeasureSchema }),
+  ],
+  'BLOCK_TYPE',
+)
+
+const nonEmptyMax = (max: number, code: TemplateRule) =>
+  v.pipe(v.string(), v.check((s) => s.trim() !== '' && cpLen(s) <= max && !/[\r\n]/.test(s), code))
+
+export const TemplateSchema = v.strictObject({
+  v: v.literal(1),
+  title: v.optional(nonEmptyMax(MAX_TITLE_LENGTH, 'TITLE')),
+  button: v.strictObject({ show: v.boolean(), label: nonEmptyMax(MAX_BUTTON_LABEL, 'BUTTON_LABEL') }),
+  blocks: v.pipe(
+    v.array(BlockSchema),
+    v.maxLength(MAX_BLOCKS, 'TOTAL_LIMIT'),
+    v.check((bs) => {
+      const n: Partial<Record<BlockType, number>> = {}
+      for (const b of bs) n[b.type] = (n[b.type] ?? 0) + 1
+      return (Object.keys(n) as BlockType[]).every((k) => n[k]! <= BLOCK_LIMITS[k])
+    }, 'TYPE_LIMIT'),
+    v.check((bs) => new Set(bs.map((b) => b.id)).size === bs.length, 'DUPLICATE_ID'),
+  ),
+})
+
+export type TemplateValidation = { ok: true; template: TemplateV1 } | { ok: false; rule: TemplateRule; blockId?: string }
+
+const KNOWN_RULES = new Set<string>([
+  'TYPE_LIMIT', 'TOTAL_LIMIT', 'DUPLICATE_ID', 'STYLE', 'MEASURE', 'TOKEN', 'RUN_SHAPE', 'TEXT_TOO_LONG', 'TEXT_EMPTY',
+  'TEXT_NEWLINE', 'TITLE', 'BUTTON_LABEL', 'BLOCK_TYPE',
+])
+
+/** ตัวเดียวกันทั้ง client (ปุ่มบันทึก) และ server (ตรวจซ้ำ) — รายงาน issue แรก + id บล็อกที่ผิด (ถ้าอยู่ในบล็อก) */
+export function validateTemplate(input: unknown): TemplateValidation {
+  const r = v.safeParse(TemplateSchema, input)
+  if (r.success) return { ok: true, template: r.output as unknown as TemplateV1 }
+  const issue = r.issues[0]
+  let blockId: string | undefined
+  const path = issue.path ?? []
+  for (let i = 1; i < path.length; i++) {
+    const item = path[i], prev = path[i - 1]
+    if (prev.key === 'blocks' && typeof item.key === 'number') {
+      const id = (item.value as { id?: unknown } | undefined)?.id
+      if (typeof id === 'string') blockId = id
+    }
+  }
+  const rule: TemplateRule =
+    issue.type === 'strict_object' && issue.expected === 'never' ? 'EXTRA_FIELD' : KNOWN_RULES.has(issue.message) ? (issue.message as TemplateRule) : 'SHAPE'
+  return blockId ? { ok: false, rule, blockId } : { ok: false, rule }
+}

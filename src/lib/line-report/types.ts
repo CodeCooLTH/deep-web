@@ -53,6 +53,9 @@ export type ShopProfit = { netProfit: number; capped: boolean }
  * ผลของร้านเดียว · `orders`/`cancelled` = จำนวนใบ · `confirmed`/`unconfirmed` = ยอดเงินบาท
  * (confirmedValues / unconfirmedValues ของ getSalesSeries) · ERROR/EXCLUDED ไม่นับในยอดรวม
  */
+/** แนวโน้มรายวัน 7 วันล่าสุดที่จบที่ window.endIso — index ตรงกันทั้งสามอาเรย์ (เก่า→ใหม่) · EXT-09 */
+export type Trend = { dates: string[]; confirmed: number[]; orders: number[] }
+
 export type ShopSummary = {
   shop: ShopRef
   state: 'OK' | 'ERROR' | 'EXCLUDED'
@@ -66,6 +69,8 @@ export type ShopSummary = {
   /** getProductSalesMonth ตัดข้อมูลเพราะชนเพดาน (เดือนใดเดือนหนึ่งในช่วง) — อันดับคำนวณจากข้อมูลบางส่วน ต้องมีหมายเหตุ */
   top3Truncated?: boolean
   profit?: ShopProfit
+  /** เติมเมื่อเทมเพลตมีบล็อกกราฟแนวโน้ม (needTrend7) */
+  trend?: Trend
 }
 
 export type Totals = { orders: number; confirmed: number; unconfirmed: number; cancelled: number }
@@ -78,4 +83,8 @@ export type GroupSummary = {
   /** false = ผสมกติกาการเงินต่างกัน ห้ามรวมกำไร */
   profitSummable: boolean
   mixedFinanceRules: boolean
+  /** Σ trend ของร้าน OK (needTrend7) */
+  trend?: Trend
+  /** มีร้าน ERROR ถูกข้าม → กราฟรวมไม่ครบ ต้องมีหมายเหตุ (partial-data convention) */
+  trendPartial?: boolean
 }

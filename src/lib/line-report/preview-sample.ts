@@ -5,8 +5,8 @@
  * ใช้เป็นอินพุตของ `buildSummaryReportFlex` (builder ผันคำเรียกใบ/จัดรูปเงินเอง ห้ามจัดรูปซ้ำที่นี่)
  * เวลา/วันที่รับจากผู้เรียก (server) — ห้ามอ่านนาฬิกาเองเพื่อกัน hydration mismatch
  */
-import { combineTotals } from '@/lib/line-report/aggregate'
-import type { GroupSummary, ShopSummary, Window } from '@/lib/line-report/types'
+import { combineTotals, sumTrend } from '@/lib/line-report/aggregate'
+import type { GroupSummary, ShopSummary, Trend, Window } from '@/lib/line-report/types'
 
 export type SampleShopInput = {
   id: string
@@ -22,8 +22,21 @@ const TOP3 = [
   { name: 'สินค้าตัวอย่าง ค', qty: 18, amount: 5400 },
 ]
 
+const shiftIso = (iso: string, days: number): string => {
+  const d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+/** แนวโน้ม 7 วันตัวอย่าง (เก่า→ใหม่) จบที่ endIso · มีวัน 0 หนึ่งวันให้เห็นแท่งว่าง · ขยับตามลำดับร้านเหมือนยอดวัน */
+function sampleTrend(endIso: string, i: number): Trend {
+  const orders = [21, 0, 28, 34, 25, 38, 32].map((v) => (v > 0 ? v + i * 9 : 0))
+  const confirmed = [78_000, 0, 96_500, 112_000, 85_400, 131_000, 128_000].map((v) => (v > 0 ? v - i * 17_500 : 0))
+  return { dates: [-6, -5, -4, -3, -2, -1, 0].map((d) => shiftIso(endIso, d)), confirmed, orders }
+}
+
 /** ตัวเลขตัวอย่างต่อร้าน — ขยับตามลำดับร้านเพื่อให้เห็นการเรียง/รวมยอด แต่คงที่ทุกครั้ง */
-function sampleShop(s: SampleShopInput, i: number): ShopSummary {
+function sampleShop(s: SampleShopInput, i: number, endIso: string): ShopSummary {
   const ref = { id: s.id, name: s.name, vertical: s.vertical }
   if (s.state !== 'OK') {
     return { shop: ref, state: 'EXCLUDED', excludedReason: s.state, orders: 0, confirmed: 0, unconfirmed: 0, cancelled: 0 }
@@ -36,6 +49,7 @@ function sampleShop(s: SampleShopInput, i: number): ShopSummary {
     unconfirmed: 12_400 - i * 1_200,
     cancelled: 2 + i,
     top3: TOP3,
+    trend: sampleTrend(endIso, i),
   }
 }
 
@@ -44,9 +58,11 @@ export function buildSampleSummary(input: {
   window: Pick<Window, 'startIso' | 'endIso' | 'fullDay'>
   computedAtIso: string
 }): GroupSummary {
+  const shops = input.shops.map((s, i) => sampleShop(s, i, input.window.endIso))
   return {
     window: { ...input.window, computedAt: input.computedAtIso },
-    shops: input.shops.map(sampleShop),
+    shops,
+    trend: sumTrend(shops),
     profitSummable: true,
     mixedFinanceRules: false,
   }

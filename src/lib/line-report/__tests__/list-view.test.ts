@@ -107,3 +107,20 @@ describe('groupKindLabel', () => {
     expect(groupKindLabel(5)).toBe('กลุ่มรวม 5 ร้าน')
   })
 })
+
+import { historyReasonText as _hrt, skippedPart as _sp } from '../list-view'
+describe('skippedPart / historyReasonText', () => {
+  it('ดึงเฉพาะส่วนหลัง " · ข้าม: "', () => {
+    expect(_sp('ยอด 3 ร้าน · ข้าม: กำไร (ซ่อน), กราฟ (เกินขนาด)')).toBe('กำไร (ซ่อน), กราฟ (เกินขนาด)')
+  })
+  it('ไม่มีส่วนข้าม/ว่าง/null → null', () => {
+    expect(_sp('ยอด 3 ร้าน')).toBeNull()
+    expect(_sp(null)).toBeNull()
+    expect(_sp('x · ข้าม: ')).toBeNull()
+  })
+  it('รวมสาเหตุ + ข้าม', () => {
+    expect(_hrt('บอทไม่อยู่', 'a · ข้าม: กำไร')).toBe('บอทไม่อยู่ · ข้าม: กำไร')
+    expect(_hrt(null, 'a · ข้าม: กำไร')).toBe('ข้าม: กำไร')
+    expect(_hrt(null, null)).toBe('')
+  })
+})

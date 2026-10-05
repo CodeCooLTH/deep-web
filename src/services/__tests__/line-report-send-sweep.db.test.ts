@@ -60,6 +60,8 @@ import { resolveSendableShops } from '@/services/line-report-shop.service'
 import { runSweep, runCleanup } from '@/services/line-report-sweep.service'
 import { sendTest, sendFinalNotice } from '@/services/line-report-send.service'
 import { countTestsToday } from '@/services/line-report-delivery.service'
+import { handleEvents } from '@/services/line-report-command.service'
+import { buildGroupSummary } from '@/services/line-report-summary.service'
 
 const isLocal = /@(localhost|127\.0\.0\.1):5434\//.test(process.env.DATABASE_URL ?? '')
 const run = randomUUID().slice(0, 8)
@@ -743,6 +745,93 @@ describe.skipIf(!isLocal)('00070 send/sweep (DB, LINE mock)', () => {
       await tick(T0, [g2.id])
       expect((await row(g2.id, SLOT)).status).toBe('NO_SENDABLE_SHOPS')
       expect(pushes(g2.lineGroupId!)).toHaveLength(0)
+    })
+  })
+
+  describe('EXT T7: เทมเพลตเข้าเส้นทางส่งจริง', () => {
+    const txt = (id: string, ...runs: unknown[]) => ({ id, type: 'text', style: { bold: false, size: 'm', color: 'ink' }, runs })
+    const tpl = (blocks: unknown[], title?: string) => ({ v: 1, ...(title ? { title } : {}), button: { show: true, label: 'เปิด Deep' }, blocks })
+    const body = (gid: string, i = 0) => JSON.stringify(pushes(gid)[i].init.body?.messages)
+    const summaryCalls = () => vi.mocked(buildGroupSummary).mock.calls.map((c) => c[0])
+
+    it('ตามตาราง: ส่ง template ของกลุ่ม (หัวรายงานที่ตั้ง) + ส่ง needs เข้า summary · ไม่อ่านคอลัมน์ show* ตรง', async () => {
+      // คอลัมน์ show* ทั้งหมดเป็น cache ที่ "ขัดกับเทมเพลตโดยตั้งใจ" — ถ้าส่งตามคอลัมน์จะเห็น flag ผิด
+      const g = await mkGroup(owner, [shopA], {
+        template: tpl([{ id: 'a', type: 'orders' }, { id: 'c', type: 'chart_trend', measure: 'sales' }], `หัว-${run}`),
+        showOrders: false, showSales: true, showCancelled: true, showTopProducts: true, showProfit: true,
+      })
+      h.nums.set(shopA, { orders: 2, cancelled: 0 })
+      vi.mocked(buildGroupSummary).mockClear()
+      await tick(T0, [g.id])
+      expect(body(g.lineGroupId!)).toContain(`หัว-${run}`)
+      const call = summaryCalls().find((c) => c.shops.some((x) => x.id === shopA))!
+      expect(call.flags).toEqual({ showOrders: true, showSales: false, showCancelled: false, showTopProducts: false, showProfit: false })
+      expect(call.needs).toMatchObject({ needTrend7: true, needSeries: true })
+    })
+
+    it('ส่งทดสอบ: ใช้เทมเพลต · คืน skipped[] · Delivery.summary มี "ข้าม:" (ไม่มียอดเงิน)', async () => {
+      const g = await mkGroup(owner, [shopA], {
+        template: tpl([{ id: 'a', type: 'orders' }, txt('t', { t: 'สะสม ' }, { tok: 'cycle_sales' })], `ทดสอบ-${run}`),
+      })
+      h.nums.set(shopA, { orders: 3, cancelled: 0 })
+      const res = await sendTest(owner, g.id)
+      expect(body(g.lineGroupId!)).toContain(`ทดสอบ-${run}`)
+      expect(res.skipped.length).toBeGreaterThan(0)
+      expect(res.skipped[0]).toMatchObject({ label: expect.any(String), reason: expect.any(String) })
+      const d = await prisma.lineReportDelivery.findUniqueOrThrow({ where: { id: res.deliveryId } })
+      expect(d.summary).toMatch(/ข้าม: .*ยอดสะสมรอบ/)
+      expect(d.summary).not.toMatch(/฿|\d{3,}/)
+    })
+
+    it('ตามตาราง: ข้ามบล็อก → Delivery.summary ของแถว SENT มี "ข้าม:"', async () => {
+      const g = await mkGroup(owner, [shopA], { template: tpl([{ id: 'a', type: 'orders' }, txt('t', { tok: 'cycle_sales' })]) })
+      h.nums.set(shopA, { orders: 1, cancelled: 0 })
+      await tick(T0, [g.id])
+      expect((await row(g.id, SLOT)).summary).toMatch(/^1 ร้าน · ข้าม: /)
+    })
+
+    it('template ไม่ถูกตั้ง = ส่งตามคอลัมน์เดิม (ไม่มี "ข้าม:")', async () => {
+      const g = await mkGroup(owner, [shopA], { showSales: false })
+      h.nums.set(shopA, { orders: 1, cancelled: 0 })
+      await tick(T0, [g.id])
+      const r = await row(g.id, SLOT)
+      expect(r.status).toBe('SENT')
+      expect(r.summary).toBe('1 ร้าน')
+    })
+
+    it('retry ใช้ payload แช่แข็ง: แก้เทมเพลตระหว่างรอ retry ไม่เปลี่ยนไบต์ที่ส่ง (AC-EXT-06-6)', async () => {
+      const g = await mkGroup(owner, [shopA], { template: tpl([{ id: 'a', type: 'orders' }], `เดิม-${run}`) })
+      h.nums.set(shopA, { orders: 1, cancelled: 0 })
+      behave.set(g.lineGroupId!, [503])
+      await tick(T0, [g.id])
+      expect((await row(g.id, SLOT)).status).toBe('RETRY_PENDING')
+      await prisma.lineReportGroup.update({ where: { id: g.id }, data: { template: tpl([{ id: 'a', type: 'orders' }], `ใหม่-${run}`) as never } })
+      await tick(T1, [g.id])
+      expect(pushes(g.lineGroupId!)).toHaveLength(2)
+      expect(body(g.lineGroupId!, 1)).toBe(body(g.lineGroupId!, 0))
+      expect(body(g.lineGroupId!, 1)).toContain(`เดิม-${run}`)
+    })
+
+    it('ตอบคำสั่ง "สรุปวันนี้" ใช้เทมเพลตของกลุ่มด้วย (reply ไม่ใช่ push)', async () => {
+      const g = await mkGroup(owner, [shopA], { template: tpl([{ id: 'a', type: 'orders' }], `คำสั่ง-${run}`), showOrders: false, showSales: true })
+      ids.rateGroups.push(g.lineGroupId!)
+      h.nums.set(shopA, { orders: 2, cancelled: 0 })
+      await handleEvents([{
+        mode: 'active', type: 'message', timestamp: Date.now(), webhookEventId: `ev-${run}`, replyToken: 'rt-x',
+        source: { type: 'group', groupId: g.lineGroupId }, message: { id: '1', type: 'text', text: 'สรุปวันนี้' },
+      }], Date.now())
+      const reply = calls().find((c) => c.path === '/v2/bot/message/reply')
+      expect(JSON.stringify(reply?.init.body?.messages)).toContain(`คำสั่ง-${run}`)
+      expect(pushes(g.lineGroupId!)).toHaveLength(0)
+    })
+
+    it('template เสียในฐาน → ส่งแบบมาตรฐานต่อ ไม่ล้ม', async () => {
+      const g = await mkGroup(owner, [shopA], { template: { v: 7, junk: true } })
+      h.nums.set(shopA, { orders: 1, cancelled: 0 })
+      const err = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      await tick(T0, [g.id])
+      err.mockRestore()
+      expect((await row(g.id, SLOT)).status).toBe('SENT')
     })
   })
 

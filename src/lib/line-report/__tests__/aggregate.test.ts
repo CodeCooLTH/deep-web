@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canSumProfit, combineTotals, isMixedFinanceRules, mergeTop3, sumDays, sumDaysSparse } from '../aggregate'
+import { canSumProfit, combineTotals, isMixedFinanceRules, mergeTop3, sumDays, sumDaysSparse, dailyValues, sumTrend } from '../aggregate'
 import type { ShopSummary } from '../types'
 
 const oct = { year: 2026, month0: 9 }
@@ -87,4 +87,23 @@ describe('canSumProfit / isMixedFinanceRules', () => {
     expect(isMixedFinanceRules([sell, sell])).toBe(false)
   })
   // mutation note: เปลี่ยน size > 1 เป็น > 0 → เคส "รวมได้" แดง · เปลี่ยนเป็น some(...) เทียบแค่ร้านแรก → เคส [sell, sell, svc] แดง
+})
+
+describe('dailyValues / sumTrend (EXT-09)', () => {
+  const feb = { year: 2028, month0: 1 } // ก.พ. 29 วัน
+  it('คืนเฉพาะวันในช่วงตามลำดับ · Σ = sumDays', () => {
+    expect(dailyValues(series, oct, '2026-10-29', '2026-11-02')).toEqual([290, 300, 310])
+    expect(dailyValues(series, nov, '2026-10-29', '2026-11-02')).toEqual([10, 20])
+    expect(dailyValues(series, oct, '2026-10-06', '2026-10-08').reduce((a, b) => a + b, 0)).toBe(sumDays(series, oct, '2026-10-06', '2026-10-08'))
+  })
+  it('วันที่ series ไม่มีค่า = 0 (ไม่ข้ามจนเลื่อน) · เดือนสั้นไม่ล้นเกินวันสุดท้าย', () => {
+    expect(dailyValues([5], oct, '2026-10-01', '2026-10-03')).toEqual([5, 0, 0])
+    expect(dailyValues(series, feb, '2028-02-27', '2028-03-03')).toEqual([270, 280, 290])
+  })
+  const ok = (c: number[], o: number[]) => ({ state: 'OK', trend: { dates: ['a', 'b'], confirmed: c, orders: o } }) as unknown as ShopSummary
+  it('sumTrend รวมเฉพาะร้าน OK · ไม่มีร้านที่มี trend = undefined', () => {
+    const err = { state: 'ERROR', trend: { dates: ['a', 'b'], confirmed: [999, 999], orders: [9, 9] } } as unknown as ShopSummary
+    expect(sumTrend([ok([1, 2], [1, 1]), ok([10, 20], [2, 0]), err])).toEqual({ dates: ['a', 'b'], confirmed: [11, 22], orders: [3, 1] })
+    expect(sumTrend([err])).toBeUndefined()
+  })
 })

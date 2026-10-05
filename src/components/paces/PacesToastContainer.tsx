@@ -66,6 +66,7 @@ export default function PacesToastContainer() {
             message={t.message}
             duration={t.duration}
             chatMessage={t.chatMessage}
+            action={t.action}
             onClose={remove}
           />
         ))}

@@ -3,7 +3,7 @@
  * ไม่มีสูตรยอดขาย/กำไร — รับค่าที่ SSOT (getSalesSeries ฯลฯ) คำนวณแล้วมาตัดวัน/บวกเท่านั้น (HR16)
  */
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
-import type { ShopRef, ShopSummary, Top3Row, Totals } from './types'
+import type { ShopRef, ShopSummary, Top3Row, Totals, Trend } from './types'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -26,6 +26,34 @@ export function sumDays(
   let sum = 0
   for (let i = 0; i < values.length; i++) if (dayInRange(month, i + 1, startIso, endIso)) sum += values[i] ?? 0
   return sum
+}
+
+/**
+ * ค่ารายวันของเดือนหนึ่งเฉพาะวันในช่วง เรียงตามวัน — วันที่ series ไม่มีค่า = 0 (ไม่ข้าม ไม่งั้น index เลื่อน)
+ * ใช้ dayInRange ตัวเดียวกับ sumDays ⇒ Σ dailyValues = sumDays โดยโครงสร้าง
+ */
+export function dailyValues(
+  values: ArrayLike<number>,
+  month: { year: number; month0: number },
+  startIso: string,
+  endIso: string,
+): number[] {
+  const last = new Date(Date.UTC(month.year, month.month0 + 1, 0)).getUTCDate()
+  const out: number[] = []
+  for (let d = 1; d <= last; d++) if (dayInRange(month, d, startIso, endIso)) out.push(values[d - 1] ?? 0)
+  return out
+}
+
+/** รวม trend ของร้านที่ state OK เท่านั้น (ERROR/EXCLUDED ไม่นับ) · ไม่มีร้านที่มี trend = undefined */
+export function sumTrend(shops: readonly ShopSummary[]): Trend | undefined {
+  let acc: Trend | undefined
+  for (const s of shops) {
+    if (s.state !== 'OK' || !s.trend) continue
+    if (!acc) acc = { dates: [...s.trend.dates], confirmed: s.trend.confirmed.map(() => 0), orders: s.trend.orders.map(() => 0) }
+    s.trend.confirmed.forEach((v, i) => (acc!.confirmed[i] += v))
+    s.trend.orders.forEach((v, i) => (acc!.orders[i] += v))
+  }
+  return acc
 }
 
 /** เหมือน `sumDays` แต่รับแบบ sparse `[dayIdx0, value][]` (รูปของ getProductSalesMonth) */

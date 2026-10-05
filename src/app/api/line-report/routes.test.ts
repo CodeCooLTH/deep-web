@@ -36,6 +36,8 @@ vi.mock('@/services/line-report-group.service', () => ({
   listGroups: svc('list', { groups: [], meta: {} }),
   getGroupDetail: svc('detail', { group: { id: 'g1' } }),
   updateSettings: svc('update', { id: 'g1' }),
+  updateTemplate: svc('tpl-put', { id: 'g1', measure: { bytes: 12000, limit: 30000, fullBytes: 31000, warnings: ['W'] } }),
+  resetTemplate: svc('tpl-del', { id: 'g1' }),
   removeGroup: vi.fn(async (...a: unknown[]) => {
     h.calls.push(`remove:${a.join(',')}`)
     if (h.throwFn) h.throwFn()
@@ -50,7 +52,7 @@ vi.mock('@/services/line-report-bind.service', () => ({
 }))
 vi.mock('@/services/line-report-shop.service', () => ({ replaceGroupShops: svc('shops', [{ shopId: 's1' }]) }))
 vi.mock('@/services/line-report-send.service', () => ({
-  sendTest: svc('test', { deliveryId: 'd1', sentAt: 's', remaining: 2, summary: 'x', extra: 'ต้องไม่หลุด' }),
+  sendTest: svc('test', { deliveryId: 'd1', sentAt: 's', remaining: 2, summary: 'x', skipped: [], extra: 'ต้องไม่หลุด' }),
 }))
 
 const ROOT = join(__dirname)
@@ -64,6 +66,8 @@ const LEVELS: Record<string, 'READ' | 'PAID'> = {
   'groups/[id] DELETE': 'READ',
   'groups/[id]/bind-code POST': 'PAID',
   'groups/[id]/shops PUT': 'PAID',
+  'groups/[id]/template PUT': 'PAID',
+  'groups/[id]/template DELETE': 'PAID',
   'groups/[id]/test POST': 'PAID',
   'groups/[id]/ack POST': 'READ',
 }
@@ -72,6 +76,7 @@ const BODY: Record<string, unknown> = {
   'bind-code POST': { shopIds: ['s1'], acknowledged: true },
   'groups/[id] PATCH': { showOrders: true },
   'groups/[id]/shops PUT': { shopIds: ['s1'] },
+  'groups/[id]/template PUT': { template: { v: 1 }, expectedVersion: 0 },
 }
 
 function scanRoutes(dir = ROOT, out: string[] = []): string[] {
@@ -219,9 +224,9 @@ describe('BOT_NOT_CONFIGURED = 503 (bind-code ×2 + test)', () => {
 })
 
 describe('response shape', () => {
-  it('test คืนเฉพาะ 4 ฟิลด์ตามสัญญา', async () => {
+  it('test คืนเฉพาะ 5 ฟิลด์ตามสัญญา', async () => {
     const b = await (await call('groups/[id]/test', 'POST')).json()
-    expect(Object.keys(b).sort()).toEqual(['deliveryId', 'remaining', 'sentAt', 'summary'])
+    expect(Object.keys(b).sort()).toEqual(['deliveryId', 'remaining', 'sentAt', 'skipped', 'summary'])
   })
   it('PATCH ห่อเป็น { group }, shops ห่อเป็น { shops }', async () => {
     expect(await (await call('groups/[id]', 'PATCH', { showOrders: true })).json()).toEqual({ group: { id: 'g1' } })
@@ -276,5 +281,48 @@ describe('DELETE → leaveGroup best-effort', () => {
     }
     expect((await call('groups/[id]', 'DELETE')).status).toBe(404)
     expect(h.leave).not.toHaveBeenCalled()
+  })
+})
+
+describe('template PUT/DELETE (EXT T8)', () => {
+  const T = 'groups/[id]/template'
+  it('PUT สำเร็จ: { group, warnings, size } และ measure ไม่หลุดเข้า group', async () => {
+    const b = await (await call(T, 'PUT', { template: { v: 1 }, expectedVersion: 0, confirmProfit: true })).json()
+    expect(b).toEqual({ group: { id: 'g1' }, warnings: ['W'], size: { bytes: 12000, limit: 30000 } })
+  })
+  it('DELETE สำเร็จ: { group }', async () => {
+    expect(await (await call(T, 'DELETE')).json()).toEqual({ group: { id: 'g1' } })
+  })
+  it.each([
+    [{ template: { v: 1 } }],
+    [{ template: { v: 1 }, expectedVersion: -1 }],
+    [{ template: { v: 1 }, expectedVersion: 1.5 }],
+    [{ template: { v: 1 }, expectedVersion: 0, extra: 1 }],
+  ])('body ผิด %j → 400 VALIDATION ไม่แตะ service', async (body) => {
+    const r = await call(T, 'PUT', body)
+    expect(r.status).toBe(400)
+    expect((await r.json()).error).toBe('VALIDATION')
+    expect(h.calls).toEqual([])
+  })
+  it('body > 64KB (ความยาวจริง) → 400 TEMPLATE_TOO_LARGE ไม่แตะ service', async () => {
+    const r = await call(T, 'PUT', undefined, JSON.stringify({ template: { v: 1, pad: 'x'.repeat(65 * 1024) }, expectedVersion: 0 }))
+    expect(r.status).toBe(400)
+    expect((await r.json()).error).toBe('TEMPLATE_TOO_LARGE')
+    expect(h.calls).toEqual([])
+  })
+  it('content-length เกิน 64KB → ตัดก่อนอ่าน body', async () => {
+    const mod = await import(/* @vite-ignore */ `./${T}/route`)
+    const req = new Request('http://seller.local/api/x', { method: 'PUT', body: '{}', headers: { 'content-length': '70000' } })
+    const r = (await mod.PUT(req, { params: Promise.resolve({ id: 'g1' }) })) as Response
+    expect(r.status).toBe(400)
+    expect(h.calls).toEqual([])
+  })
+  it.each([['TEMPLATE_INVALID', 400], ['TEMPLATE_STALE', 409], ['GROUP_NOT_FOUND', 404]] as const)('service โยน %s → %i + details', async (code, status) => {
+    h.throwFn = () => {
+      throw new LineReportError(code, { rule: 'R' })
+    }
+    const r = await call(T, 'PUT', { template: { v: 1 }, expectedVersion: 0 })
+    expect(r.status).toBe(status)
+    expect((await r.json()).details).toEqual({ rule: 'R' })
   })
 })
