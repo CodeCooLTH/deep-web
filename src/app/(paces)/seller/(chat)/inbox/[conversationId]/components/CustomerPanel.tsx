@@ -911,7 +911,7 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
             งบที่ 384px: px-4 นอก 32 → เหลือ 352 · ต่อแท็บ = px-2(16) + ไอคอน 16 + gap 6 + คำ
             คำสั้น 4 ตัว (ข้อมูล/คำสั่งซื้อ+badge/ไฟล์/โน้ต) รวม ~310px ⇒ เหลือที่ว่าง ไม่ตกบรรทัด
             2026-10-05 แท็บที่ 5 "ติดตาม" (+badge) → บีบ px-2→px-1.5 · gap-1.5→gap-1 ให้ 5 แท็บยังพอดี */
-        className="nav-tabs border-default-200 my-0 me-0 h-auto flex-nowrap border-b px-4"
+        className="nav-tabs border-default-200 my-0 me-0 h-auto flex-nowrap border-b px-2"
         role="tablist"
         aria-label={t.inbox.customerInfo}
       >
@@ -926,13 +926,17 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
             tabIndex={tab === tabDef.key ? 0 : -1}
             onKeyDown={onTabKeyDown}
             onClick={() => setTab(tabDef.key)}
-            className={`nav-link -mb-px inline-flex min-w-0 items-center gap-1 px-1.5 py-3 text-sm ${
+            title={tabDef.label}
+            /* 2026-10-05 แท็บที่ 5 → ไอคอนอยู่บน คำอยู่ล่าง (user เจอบน prod: แบบเรียงข้าง 5 แท็บโดนตัดเหลือ "ข้…/คำสั่…")
+               flex-auto (ไม่ใช่ flex-1): กว้างตามคำก่อนแล้วแบ่งที่เหลือ — flex-1 แบ่งเท่ากันทำให้ "คำสั่งซื้อ 12" โดนตัด
+               ทั้งที่ "ไฟล์"/"โน้ต" เหลือที่ว่าง · วัดแล้วพอดีทั้ง 384 และ 370px รวม "การเข้ารับบริการ"+badge 2 หลัก */
+            className={`nav-link -mb-px flex min-w-0 flex-auto flex-col items-center gap-0.5 px-1 py-2 text-xs ${
               tab === tabDef.key ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent'
             }`}
           >
-            <Icon icon={tabDef.icon} className="shrink-0 text-base" />
-            {/* truncate = ตาข่ายกันเหนียวสำหรับภาษาที่คำยาวกว่านี้ในอนาคต — ไม่ใช่ตัวแก้หลัก
-                (ตัวแก้หลักคือ flex-nowrap ที่ nav + คำสั้นใน dictionary) */}
+            <Icon icon={tabDef.icon} className="shrink-0 text-lg" />
+            <span className="flex max-w-full min-w-0 items-center gap-1">
+            {/* truncate = ตาข่ายกันเหนียวสำหรับคำยาว (เช่น "การเข้ารับบริการ") — ชื่อเต็มอยู่ใน title */}
             <span className="truncate">{tabDef.label}</span>
             {/* จำนวนออเดอร์บนแท็บ — เดิมต้องคลิกเข้าไปถึงจะรู้ว่ามี 0 (critique P1-C)
                 ใช้ customerStats (aggregate จริง) แทน summary.count (cap 20) ให้ตรงกับแถวสถิติในแท็บ */}
@@ -947,6 +951,7 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
                 {followUpCounts.open}
               </span>
             )}
+            </span>
           </button>
         ))}
       </nav>
