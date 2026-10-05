@@ -9,9 +9,11 @@ import type { PortfolioMode } from '@/lib/business-overview'
 
 /** ป้ายข้อมูลไม่ครบบนการ์ดร้าน — ขาดทั้งคู่ = 2 ป้าย */
 export function shopIncompleteBadges(
-  c: { missingCost: boolean; missingExpense: boolean },
+  c: { missingCost: boolean; missingExpense: boolean; sales: number },
   costNoun: string,
 ): string[] {
+  // ยอดขาย 0 = ไม่มีกำไรให้ "ไม่ครบ" — เตือนตรงนี้ทำให้ผู้ใช้รู้สึกว่าทำอะไรผิดทั้งที่แค่ไม่มีของขาย (critique 2026-10-05)
+  if (c.sales <= 0) return []
   const out: string[] = []
   if (c.missingCost) out.push(`ยังไม่ตั้ง${costNoun}`)
   if (c.missingExpense) out.push('ยังไม่บันทึกค่าใช้จ่าย')
@@ -32,7 +34,7 @@ export function profitHeading(netProfit: number, scope: 'total' | 'shop'): strin
 /** หมายเหตุฐานค่าส่ง — เฉพาะเมื่อมีร้านต่างกติกาการเงิน */
 export function financeBasisNote(mixedFinanceRules: boolean): string | null {
   return mixedFinanceRules
-    ? 'ร้านบริการหักค่าส่งเป็นค่าใช้จ่ายแล้ว ส่วนร้านขายของไม่หัก ใช้ดูภาพรวมได้ แต่เทียบกำไรข้ามร้านแบบเป๊ะ ๆ ไม่ได้'
+    ? 'ร้านบริการนับค่าส่งเป็นค่าใช้จ่าย ร้านขายของไม่นับ กำไรของสองแบบจึงเทียบกันตรง ๆ ไม่ได้'
     : null
 }
 
@@ -41,20 +43,24 @@ export function financeBasisNote(mixedFinanceRules: boolean): string | null {
 export const PORTFOLIO_TITLE = 'ภาพรวมทุกธุรกิจ'
 /** หัวการ์ดบนมือถือ + หัวชีต (spec: "ยอดขายทุกธุรกิจ") */
 export const PORTFOLIO_CARD_TITLE = 'ยอดขายทุกธุรกิจ'
-export const PORTFOLIO_BASIS_NOTE = 'ยอดขาย = ยืนยันแล้ว + รอยืนยัน · กำไรสุทธิ = ตามหน้าการเงินของร้าน'
+export const PORTFOLIO_BASIS_NOTE = 'ยอดขายนับทั้งที่ยืนยันแล้วและรอยืนยัน · กำไรสุทธิคิดแบบเดียวกับหน้าการเงินของแต่ละร้าน'
 export const PORTFOLIO_PERSONAL_BADGE = 'ส่วนตัว · ไม่นับในยอดรวม'
+/** ป้ายเดียวกันแบ่งเป็นท่อน — แต่ละท่อน nowrap กันคำว่า "รวม" ตกบรรทัดเดี่ยว (critique 2026-10-05) */
+export const PORTFOLIO_PERSONAL_BADGE_PARTS = ['ส่วนตัว ·', 'ไม่นับในยอดรวม'] as const
 export const PORTFOLIO_EMPTY_TITLE = 'ช่วงนี้ยังไม่มียอดขาย — ลองเลื่อนไปช่วงก่อนหน้า'
-export const PORTFOLIO_ERROR_TEXT = 'โหลดข้อมูลไม่สำเร็จ ลองอีกครั้ง'
+export const PORTFOLIO_ERROR_TEXT = 'โหลดข้อมูลไม่สำเร็จ'
 export const PORTFOLIO_ROW_ERROR_TEXT = 'ดึงข้อมูลร้านนี้ไม่ได้'
 export const PORTFOLIO_INCOMPLETE_BADGE = 'ข้อมูลยังไม่ครบ'
-export const PORTFOLIO_INCOMPLETE_HINT = 'มีร้านที่ยังไม่ตั้งราคาทุนหรือยังไม่บันทึกค่าใช้จ่าย กำไรจริงจะน้อยกว่าตัวเลขนี้'
+export const PORTFOLIO_INCOMPLETE_HINT = 'มีร้านที่ยังไม่ตั้งต้นทุนหรือยังไม่บันทึกค่าใช้จ่าย กำไรจริงจึงน้อยกว่าตัวเลขนี้'
 
 /**
  * โทเคนสีของกราฟแท่งซ้อนตามลำดับร้าน (ยอดมาก→น้อย) — เฉพาะสีกลาง
  * ห้ามเขียว (alpha = ยืนยันแล้ว) · แดง/เหลือง (beta/gamma = error/warning) · chart-secondary (ม่วงบน skin อื่น)
  * ชุดนี้มี chart-* กลางแค่ 4 ตัว แต่ buildStack ให้ได้ถึง 5 ซีรีส์ (≤5 ร้านไม่มี "อื่น ๆ") ⇒ ตัวที่ 5 ใช้เทากลาง
  */
-export const STACK_COLOR_TOKENS = ['chart-primary', 'chart-dark', 'chart-delta', 'chart-zeta', 'default-600'] as const
+// chart-dark ถูกถอด — สกิน saas เป็นน้ำเงินเข้มใกล้ chart-primary จนแยกสองร้านแรกไม่ออก (critique 2026-10-05)
+// ⇒ ชุดสีมี 4 สี · service จึงเรียก buildStack(…, STACK_COLOR_TOKENS.length) ให้ไม่มีสีวนซ้ำ
+export const STACK_COLOR_TOKENS = ['chart-primary', 'chart-delta', 'chart-zeta', 'default-600'] as const
 export const OTHERS_COLOR_TOKEN = 'default-400'
 
 /** โทเคนสีของซีรีส์ลำดับที่ index — "อื่น ๆ" เป็นเทาอ่อนเสมอ ไม่กินสีลำดับ */
@@ -128,7 +134,7 @@ export function portfolioChartAria(totalSales: string, periodLabel: string): str
 }
 
 export function rowAriaLabel(shopName: string): string {
-  return `เปิดร้าน ${shopName}`
+  return `ดูการเงินของร้าน ${shopName}`
 }
 
 /**
@@ -140,3 +146,22 @@ export function formatSharePct(pct: number | null): string {
   if (pct > 0 && pct < 1) return '<1%'
   return `${Math.round(pct)}%`
 }
+
+/** ป้าย "ข้อมูลยังไม่ครบ" ที่ยอดรวม — ไม่มียอดขายเลย = ไม่มีอะไรให้ไม่ครบ */
+export function showTotalIncompleteBadge(totals: { sales: number; incomplete: boolean }): boolean {
+  return totals.incomplete && totals.sales > 0
+}
+
+/**
+ * กำไรรวม "ยังคำนวณไม่ได้" — ทุกร้านธุรกิจที่มียอดขายยังไม่ตั้งต้นทุนเลย ⇒ ตัวเลขกำไรคือยอดยืนยันทั้งก้อน
+ * แสดงเป็นตัวเลขใหญ่แล้วผู้ขายเชื่อว่าเป็นมาร์จิ้นจริง (critique 2026-10-05 P1) · มีร้านใดร้านหนึ่งตั้งแล้ว = ยังแสดงตัวเลข+ป้าย
+ */
+export function isTotalProfitUnknown(
+  rows: { isPersonal: boolean; status: string; sales: number; missingCost: boolean }[],
+): boolean {
+  const selling = rows.filter((r) => !r.isPersonal && r.status === 'OK' && r.sales > 0)
+  return selling.length > 0 && selling.every((r) => r.missingCost)
+}
+
+export const PORTFOLIO_PROFIT_UNKNOWN = 'ยังคำนวณกำไรไม่ได้'
+export const PORTFOLIO_PROFIT_UNKNOWN_HINT = 'ร้านที่มียอดขายยังไม่ได้ตั้งต้นทุนเลย เลือกร้านด้านล่างเพื่อไปตั้งต้นทุน'

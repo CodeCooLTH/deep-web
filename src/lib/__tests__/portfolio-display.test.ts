@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  showTotalIncompleteBadge, isTotalProfitUnknown,
   formatSharePct,
   shopIncompleteBadges, profitToneClass, profitHeading, financeBasisNote,
   stackColorToken, rowDotToken, STACK_COLOR_TOKENS, OTHERS_COLOR_TOKEN, excludedCountNote,
@@ -8,9 +9,9 @@ import {
 } from '../portfolio-display'
 
 describe('shopIncompleteBadges', () => {
-  it('ครบ → ว่าง', () => expect(shopIncompleteBadges({ missingCost: false, missingExpense: false }, 'ต้นทุนสินค้า')).toEqual([]))
-  it('ขาดต้นทุน', () => expect(shopIncompleteBadges({ missingCost: true, missingExpense: false }, 'ต้นทุนอะไหล่')).toEqual(['ยังไม่ตั้งต้นทุนอะไหล่']))
-  it('ขาดทั้งคู่ → 2 ป้าย', () => expect(shopIncompleteBadges({ missingCost: true, missingExpense: true }, 'ต้นทุนสินค้า')).toHaveLength(2))
+  it('ครบ → ว่าง', () => expect(shopIncompleteBadges({ missingCost: false, missingExpense: false, sales: 100 }, 'ต้นทุนสินค้า')).toEqual([]))
+  it('ขาดต้นทุน', () => expect(shopIncompleteBadges({ missingCost: true, missingExpense: false, sales: 100 }, 'ต้นทุนอะไหล่')).toEqual(['ยังไม่ตั้งต้นทุนอะไหล่']))
+  it('ขาดทั้งคู่ → 2 ป้าย', () => expect(shopIncompleteBadges({ missingCost: true, missingExpense: true, sales: 100 }, 'ต้นทุนสินค้า')).toHaveLength(2))
 })
 
 describe('profit tone/heading', () => {
@@ -28,7 +29,7 @@ describe('profit tone/heading', () => {
 
 describe('notes', () => {
   it('ฐานค่าส่งแสดงเมื่อผสม', () => {
-    expect(financeBasisNote(true)).toContain('หักค่าส่ง')
+    expect(financeBasisNote(true)).toContain('นับค่าส่งเป็นค่าใช้จ่าย')
     expect(financeBasisNote(false)).toBeNull()
   })
   it('ร้านล้ม', () => {
@@ -37,7 +38,7 @@ describe('notes', () => {
   })
   it('อื่น ๆ', () => expect(othersLabel(3)).toBe('อื่น ๆ (3 ร้าน)'))
   it('aria', () => {
-    expect(rowAriaLabel('ร้านก')).toBe('เปิดร้าน ร้านก')
+    expect(rowAriaLabel('ร้านก')).toBe('ดูการเงินของร้าน ร้านก')
     expect(portfolioChartAria('฿100', 'ต.ค. 2569')).toContain('กราฟแท่งซ้อนยอดขายแยกตามธุรกิจ')
   })
 })
@@ -48,7 +49,7 @@ describe('สีกราฟ (v1.1)', () => {
       expect(STACK_COLOR_TOKENS).not.toContain(bad)
     expect(stackColorToken(4, 'others')).toBe(OTHERS_COLOR_TOKEN)
     expect(stackColorToken(0, 'a')).toBe('chart-primary')
-    expect(stackColorToken(1, 'b')).toBe('chart-dark')
+    expect(stackColorToken(1, 'b')).toBe('chart-delta')
   })
   it('จุดสีของแถวตรงกับสีแท่งทุกร้าน · อยู่ใน "อื่น ๆ" = เทาอ่อน · Personal/ERROR ไม่มีจุด', () => {
     const stack = [{ key: 'a' }, { key: 'b' }, { key: 'others' }]
@@ -101,4 +102,26 @@ describe('formatSharePct', () => {
     expect(formatSharePct(48.4)).toBe('48%')
     expect(formatSharePct(null)).toBe('—')
   })
+})
+
+describe('critique 2026-10-05 — เตือนเท่าที่มีความหมาย', () => {
+  it('ยอดขาย 0 → ไม่มีป้ายไม่ครบ ทั้งรายร้านและยอดรวม', () => {
+    expect(shopIncompleteBadges({ missingCost: true, missingExpense: true, sales: 0 }, 'ต้นทุนสินค้า')).toEqual([])
+    expect(showTotalIncompleteBadge({ sales: 0, incomplete: true })).toBe(false)
+    expect(showTotalIncompleteBadge({ sales: 10, incomplete: true })).toBe(true)
+    expect(showTotalIncompleteBadge({ sales: 10, incomplete: false })).toBe(false)
+  })
+  const r = (o: Partial<{ isPersonal: boolean; status: string; sales: number; missingCost: boolean }>) => ({ isPersonal: false, status: 'OK', sales: 100, missingCost: true, ...o })
+  it('กำไรรวมคำนวณไม่ได้ เมื่อทุกร้านที่มียอดยังไม่ตั้งต้นทุน', () => {
+    expect(isTotalProfitUnknown([r({}), r({ sales: 0, missingCost: false })])).toBe(true)
+  })
+  it('มีร้านที่มียอดตั้งต้นทุนแล้วอย่างน้อยหนึ่งร้าน → ยังแสดงตัวเลข', () => {
+    expect(isTotalProfitUnknown([r({}), r({ missingCost: false })])).toBe(false)
+  })
+  it('Personal / ร้านล้ม / ไม่มีใครขาย ไม่ถูกนับ', () => {
+    expect(isTotalProfitUnknown([r({ isPersonal: true })])).toBe(false)
+    expect(isTotalProfitUnknown([r({ status: 'ERROR' })])).toBe(false)
+    expect(isTotalProfitUnknown([r({ sales: 0 })])).toBe(false)
+  })
+  it('ชุดสีไม่มี chart-dark (ใกล้ chart-primary)', () => expect(STACK_COLOR_TOKENS).not.toContain('chart-dark' as never))
 })

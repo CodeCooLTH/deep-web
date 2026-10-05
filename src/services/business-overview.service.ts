@@ -6,6 +6,7 @@
  *    เพื่อให้การ์ดตรงกับหน้าการเงินของร้านนั้นทุกบาท (HR16)
  */
 import { prisma } from '@/lib/prisma'
+import { STACK_COLOR_TOKENS } from '@/lib/portfolio-display'
 import { toFileUrl } from '@/lib/file-url'
 import { isPaidBusinessShop } from '@/lib/paid-business'
 import { resolveDataCompleteness } from '@/lib/finance-tabs'
@@ -170,7 +171,8 @@ export async function getPortfolioSeries(
       labels: [], values: [], confirmedValues: [], unconfirmedValues: [], orderCounts: [], codPendingValues: [],
       total: 0, prevTotal: 0, prevTotalToDate: 0, futureFromIndex: 0,
     },
-    stack: buildStack(stackInput),
+    // ≤ จำนวนสีในชุด — เกินนี้สีจะวนซ้ำ ร้านสองร้านจะดูเป็นร้านเดียวกันในกราฟ
+    stack: buildStack(stackInput, STACK_COLOR_TOKENS.length),
     rows: sorted,
     totals,
   }

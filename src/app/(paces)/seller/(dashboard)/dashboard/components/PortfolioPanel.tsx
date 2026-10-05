@@ -24,17 +24,22 @@ import ApexChart from '@/components/wrappers/ApexChart'
 import ShopSwitchOverlay from '@/components/paces/ShopSwitchOverlay'
 import { useShopSwitcher } from '@/hooks/useShopSwitcher'
 import { cn, getColor } from '@/utils/helpers'
-import { formatBaht, formatNumberNoSymbol } from '@/lib/format-money'
+import { formatBaht, formatBahtCompact, formatNumberNoSymbol } from '@/lib/format-money'
 import { todayThaiIsoDate } from '@/lib/date-range'
 import { OTHERS_KEY, type ComparisonRow } from '@/lib/business-overview'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import {
   PORTFOLIO_BASIS_NOTE, PORTFOLIO_EMPTY_TITLE, PORTFOLIO_ERROR_TEXT, PORTFOLIO_INCOMPLETE_BADGE,
-  PORTFOLIO_INCOMPLETE_HINT, PORTFOLIO_PERSONAL_BADGE, PORTFOLIO_ROW_ERROR_TEXT, PORTFOLIO_TITLE,
+  PORTFOLIO_INCOMPLETE_HINT, PORTFOLIO_ROW_ERROR_TEXT, PORTFOLIO_TITLE,
   excludedCountNote, financeBasisNote, isCurrentOrFuturePeriod, othersLabel, portfolioChartAria,
   portfolioPeriodLabel, portfolioSeriesQuery, profitHeading, profitToneClass, rowAriaLabel, rowDotToken,
   shiftPeriod, shopIncompleteBadges, stackColorToken, switchPeriodMode, type PortfolioPeriod,
   formatSharePct,
+  showTotalIncompleteBadge,
+  isTotalProfitUnknown,
+  PORTFOLIO_PROFIT_UNKNOWN,
+  PORTFOLIO_PROFIT_UNKNOWN_HINT,
+  PORTFOLIO_PERSONAL_BADGE_PARTS,
 } from '@/lib/portfolio-display'
 import type { PortfolioSeries } from '@/services/business-overview.service'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
@@ -89,7 +94,8 @@ export function buildPortfolioChartOptions(data: PortfolioSeries): ApexOptions {
         formatter: (v: string) => (isDaily ? (anchorDays.has(Number(v)) ? v : '') : v),
       },
     },
-    yaxis: { show: false },
+    // แกน y แบบย่อ (฿12k) — ไม่มีแกนแล้วอ่านค่ารายวันไม่ได้เลย (critique 2026-10-05)
+    yaxis: { show: true, tickAmount: 3, labels: { style: { fontSize: '10px', colors: getColor('default-700') }, formatter: (v: number) => formatBahtCompact(v ?? 0) } },
     grid: {
       show: true, borderColor: getColor('chart-border-color'), strokeDashArray: 4,
       xaxis: { lines: { show: false } }, yaxis: { lines: { show: true } },
@@ -111,8 +117,11 @@ export function buildPortfolioChartOptions(data: PortfolioSeries): ApexOptions {
 }
 
 /** เนื้อแถว — ใช้ร่วมทั้งปุ่มร้านธุรกิจ และลิงก์ Personal (module level: ห้ามประกาศ component ใน render) */
-function RowBody({ row, dot, nameLine }: { row: ComparisonRow; dot: string | null; nameLine: string | null }) {
-  const incomplete = row.missingCost || row.missingExpense
+function RowBody({ row, dot, personal }: { row: ComparisonRow; dot: string | null; personal: boolean }) {
+  // ป้ายอยู่ "ในปุ่ม" ของแถว — แตะแล้วไปหน้าการเงินของร้านที่ตั้งต้นทุน/บันทึกค่าใช้จ่ายได้ (critique P1: ป้ายต้องพาไปแก้ได้)
+  const badges = shopIncompleteBadges(row, resolveOrderVocab(row.vertical).costNoun)
+  // สีเตือนตามป้ายเท่านั้น — ยอด 0 ไม่มีป้าย จึงต้องไม่ส้มด้วย (QA ยืนยัน 2026-10-05)
+  const incomplete = badges.length > 0
   return (
     <>
       <span className="col-span-6 flex min-w-0 items-center gap-2 md:col-span-4">
@@ -128,7 +137,13 @@ function RowBody({ row, dot, nameLine }: { row: ComparisonRow; dot: string | nul
             {row.shopName}
           </span>
           {/* ไม่ truncate — ป้าย "ไม่นับในยอดรวม" คือข้อมูลหลักของแถวนี้ ถูกตัดแล้วความหมายหาย (QA 2026-10-05) */}
-          {nameLine && <span className="text-default-700 min-w-0 text-xs">{nameLine}</span>}
+          {personal && (
+            <span className="text-default-700 flex min-w-0 flex-wrap gap-x-1 text-xs">
+              {PORTFOLIO_PERSONAL_BADGE_PARTS.map((part) => (
+                <span key={part} className="whitespace-nowrap">{part}</span>
+              ))}
+            </span>
+          )}
         </span>
       </span>
       <span className="col-span-4 text-end text-sm font-semibold tabular-nums md:col-span-3">{formatBaht(row.sales)}</span>
@@ -144,6 +159,12 @@ function RowBody({ row, dot, nameLine }: { row: ComparisonRow; dot: string | nul
         <span className="md:sr-only">{profitHeading(row.netProfit, 'shop')} </span>
         {formatBaht(row.netProfit)}
       </span>
+      {badges.length > 0 && (
+        <span className="text-warning-ink col-span-12 flex min-w-0 items-center gap-1.5 ps-4 text-xs md:order-5">
+          <Icon icon="info-circle" className="size-4 shrink-0" aria-hidden="true" />
+          <span className="min-w-0">{badges.join(' · ')}</span>
+        </span>
+      )}
     </>
   )
 }
@@ -162,7 +183,7 @@ function ShopRowButton({ row, dot }: { row: ComparisonRow; dot: string | null })
         onClick={() => switchShop(row.shopId, { name: row.shopName, kind: 'business', logo: row.logoUrl })}
         className={cn(ROW_GRID, 'hover:bg-default-100 focus-visible:ring-primary rounded-md focus-visible:ring-2 disabled:opacity-60')}
       >
-        <RowBody row={row} dot={dot} nameLine={null} />
+        <RowBody row={row} dot={dot} personal={false} />
       </button>
       <ShopSwitchOverlay show={switching} targetName={target?.name} targetKind={target?.kind} targetLogo={target?.logo} />
     </>
@@ -212,8 +233,6 @@ export default function PortfolioPanel({ initial, variant }: Props) {
       return
     }
     let cancelled = false
-    setLoading(true)
-    setError(false)
     fetch(`/api/seller/portfolio-series?${portfolioSeriesQuery({ mode: period.mode, year: period.year, month: period.month })}`, {
       cache: 'no-store',
     })
@@ -235,7 +254,22 @@ export default function PortfolioPanel({ initial, variant }: Props) {
     }
   }, [period, reloadKey])
 
-  const retry = useCallback(() => setReloadKey((k) => k + 1), [])
+  // ตั้ง loading ที่จุดกด ไม่ใช่ใน effect (react-hooks/set-state-in-effect) — effect ทำแค่ fetch
+  const startLoad = useCallback(() => {
+    setLoading(true)
+    setError(false)
+  }, [])
+  const retry = useCallback(() => {
+    startLoad()
+    setReloadKey((k) => k + 1)
+  }, [startLoad])
+  const changePeriod = useCallback(
+    (next: (p: PortfolioPeriod) => PortfolioPeriod) => {
+      startLoad()
+      setPeriod(next)
+    },
+    [startLoad],
+  )
   const getOptions = useCallback(() => buildPortfolioChartOptions(data), [data])
   const series = useMemo(() => buildPortfolioSeries(data), [data])
 
@@ -258,7 +292,7 @@ export default function PortfolioPanel({ initial, variant }: Props) {
             key={m}
             type="button"
             aria-pressed={period.mode === m}
-            onClick={() => period.mode !== m && setPeriod(switchPeriodMode(m, now))}
+            onClick={() => period.mode !== m && changePeriod(() => switchPeriodMode(m, now))}
             className={cn(
               'min-h-11 rounded-md px-3 text-xs font-medium transition-colors',
               period.mode === m ? 'bg-card text-primary shadow' : 'text-default-700',
@@ -271,7 +305,7 @@ export default function PortfolioPanel({ initial, variant }: Props) {
       <div className="flex items-center gap-1">
         <button
           type="button"
-          onClick={() => setPeriod((p) => shiftPeriod(p, -1, now))}
+          onClick={() => changePeriod((p) => shiftPeriod(p, -1, now))}
           aria-label="ช่วงก่อนหน้า"
           className="btn btn-icon border-default-300 min-h-11 min-w-11"
         >
@@ -280,7 +314,7 @@ export default function PortfolioPanel({ initial, variant }: Props) {
         <p className="min-w-24 text-center text-sm font-bold text-dark" aria-live="polite">{periodLabel}</p>
         <button
           type="button"
-          onClick={() => setPeriod((p) => shiftPeriod(p, 1, now))}
+          onClick={() => changePeriod((p) => shiftPeriod(p, 1, now))}
           disabled={nextDisabled}
           aria-label="ช่วงถัดไป"
           className={cn('btn btn-icon border-default-300 min-h-11 min-w-11', nextDisabled && 'pointer-events-none opacity-40')}
@@ -291,30 +325,32 @@ export default function PortfolioPanel({ initial, variant }: Props) {
     </div>
   )
 
+  const profitUnknown = isTotalProfitUnknown(rows)
   const hero = (
     <div className={cn('min-w-0', variant === 'card' ? 'text-start' : 'text-center')}>
       <p className="text-default-700 text-xs">ยอดขายรวม</p>
       <p className="text-3xl font-bold tabular-nums break-words text-dark">{formatBaht(totals.sales)}</p>
-      <p className="text-default-700 mt-2 text-xs">{profitHeading(totals.netProfit, 'total')}</p>
+      <p className="text-default-700 mt-2 text-xs">{profitHeading(profitUnknown ? 0 : totals.netProfit, 'total')}</p>
+      {profitUnknown ? (
+        <div>
+          <p className="text-default-800 text-base font-semibold">{PORTFOLIO_PROFIT_UNKNOWN}</p>
+          <p className="text-default-700 text-xs">{PORTFOLIO_PROFIT_UNKNOWN_HINT}</p>
+        </div>
+      ) : (
       <div className={cn('flex flex-wrap items-center gap-2', variant === 'sheet' && 'justify-center')}>
         <p className={cn('text-xl font-semibold tabular-nums break-words', profitToneClass(totals.netProfit, totals.incomplete))}>
           {formatBaht(totals.netProfit)}
         </p>
-        {totals.incomplete && (
+        {showTotalIncompleteBadge(totals) && (
           <span className="badge bg-warning/15 text-warning-ink gap-1.5" title={PORTFOLIO_INCOMPLETE_HINT}>
             <Icon icon="info-circle" className="text-sm" aria-hidden="true" />
             {PORTFOLIO_INCOMPLETE_BADGE}
           </span>
         )}
       </div>
-      {(basisNote || excludedNote) && (
+      )}
+      {excludedNote && (
         <div className="text-default-700 mt-2 flex flex-col gap-1 text-xs">
-          {basisNote && (
-            <p className="flex items-start gap-1.5">
-              <Icon icon="info-circle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
-              {basisNote}
-            </p>
-          )}
           {excludedNote && (
             <p className="text-warning-ink flex items-start gap-1.5">
               <Icon icon="alert-triangle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
@@ -349,7 +385,6 @@ export default function PortfolioPanel({ initial, variant }: Props) {
       <ul className="divide-default-200 divide-y">
         {rows.map((row) => {
           const dot = rowDotToken(data.stack, row, OTHERS_KEY)
-          const incompleteBadges = shopIncompleteBadges(row, resolveOrderVocab(row.vertical).costNoun)
           return (
             <li key={row.shopId}>
               {row.status === 'ERROR' ? (
@@ -360,16 +395,10 @@ export default function PortfolioPanel({ initial, variant }: Props) {
                   aria-label={rowAriaLabel(row.shopName)}
                   className={cn(ROW_GRID, 'hover:bg-default-100 focus-visible:ring-primary rounded-md focus-visible:ring-2')}
                 >
-                  <RowBody row={row} dot={dot} nameLine={PORTFOLIO_PERSONAL_BADGE} />
+                  <RowBody row={row} dot={dot} personal />
                 </Link>
               ) : (
                 <ShopRowButton row={row} dot={dot} />
-              )}
-              {row.status === 'OK' && incompleteBadges.length > 0 && (
-                <p className="text-warning-ink flex items-center gap-1.5 px-1 pb-2 text-xs">
-                  <Icon icon="info-circle" className="size-4 shrink-0" aria-hidden="true" />
-                  <span className="min-w-0 truncate">{incompleteBadges.join(' · ')}</span>
-                </p>
               )}
             </li>
           )
@@ -403,7 +432,16 @@ export default function PortfolioPanel({ initial, variant }: Props) {
           {table}
         </>
       )}
-      <p className="text-default-700 mt-4 text-xs">{PORTFOLIO_BASIS_NOTE}</p>
+      {/* หมายเหตุอยู่ท้ายแผง ใกล้ตาราง ไม่คั่นระหว่างตัวเลขกับกราฟ (critique 2026-10-05 P3) */}
+      <div className="text-default-700 mt-4 flex flex-col gap-1 text-xs">
+        <p>{PORTFOLIO_BASIS_NOTE}</p>
+        {basisNote && (
+          <p className="flex items-start gap-1.5">
+            <Icon icon="info-circle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+            {basisNote}
+          </p>
+        )}
+      </div>
     </div>
   )
 
