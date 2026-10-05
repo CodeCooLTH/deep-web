@@ -8,8 +8,7 @@
  * "โอนเข้าบัญชี" และค่าดิบของร้านโชว์เฉพาะที่บอกเกินป้าย) — ไม่มีโอน/สลิป/QR ที่นี่ ไม่ import PayoutAccountCard
  * ลิงก์ดิจิทัล (`accessUrl` + isHttpUrl) ยังเป็นการ์ดตามติดใน shell ตาม SDS §3.2 ไม่ย้ายมาในรอบนี้
  *
- * Base: theme/vuexy/typescript-version/full-version/src/views/apps/ecommerce/orders/details/OrderDetailsCard.tsx
- *   (Card + หัวเรื่อง) · การ์ด "ช่องทางการชำระเงิน" เดิมใน ./OrderDetailMobile.tsx
+ * Base: ./NextActionShell.tsx (เปลือกการ์ด) · การ์ด "ช่องทางการชำระเงิน" เดิมใน ./OrderDetailMobile.tsx
  */
 
 import Typography from '@mui/material/Typography'

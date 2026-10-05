@@ -7,8 +7,7 @@
  * - `follow` = การ์ดตามติด: เงา sm · หัวข้อ `SectionTitle` ปกติ (ห้ามแย่งความเด่นจาก hero)
  * ห้าม border-left สี/ไล่สี/เขียว (ยังไม่มีสิ่งใดถูกยืนยัน) · การ์ดย่อยห้ามถือ `order:` เอง — shell ของหน้าเป็นเจ้าของ slot
  *
- * Base: theme/vuexy/typescript-version/full-version/src/views/apps/ecommerce/orders/details/OrderDetailsCard.tsx
- *   (`<Card>` + หัวเรื่อง + `<CardContent>` — ใช้ Card ของธีมตรง ๆ ไม่ใส่คลาสรัศมีทับ)
+ * Base: ./PayoutAccountCard.tsx (`<Card>` + หัวข้อ) · ./SectionTitle.tsx — ใช้ Card ของธีมตรง ๆ ไม่ใส่คลาสรัศมีทับ
  */
 
 import type { ReactNode } from 'react'

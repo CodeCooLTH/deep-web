@@ -58,6 +58,11 @@ export interface SlipMoneyView {
   serviceLines: SlipServiceLines | null
 }
 
+/** ป้ายยอดบนสลิป: ตั้งแต่ 2 ชิ้นขึ้นไปต่อท้าย "(N รายการ)" — อยู่ใน lib เพื่อให้เทสจับได้ ไม่ใช่เทอร์นารีใน JSX */
+export function buildSlipTotalLabel(label: string, itemCount: number): string {
+  return itemCount >= 2 ? `${label} (${itemCount} รายการ)` : label
+}
+
 export function buildSlipMoneyView(input: {
   totalAmount: number
   paymentConfirmedAt: string | Date | null

@@ -36,6 +36,9 @@ describe('[blocker] ShopHeaderBar', () => {
     expect(src).toMatch(/\[lg, original\]/)
     expect(src).toMatch(/onError=\{\(\) => setFailed\(\(n\) => n \+ 1\)\}/)
     expect(src).toMatch(/failed >= sources\.length\) return null/)
+    // รูปที่ล้มก่อน hydrate ไม่ยิง onError — ต้องตรวจ naturalWidth ตอน mount
+    expect(src).toMatch(/img\.complete && img\.naturalWidth === 0/)
+    expect(src).toMatch(/\[currentSrc\]/)
   })
 
   it('ไม่มีรูปปก = ไม่ render (ไม่มีพื้นสีแทน) และซ่อนจาก assistive tech', () => {

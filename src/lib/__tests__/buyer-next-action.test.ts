@@ -57,6 +57,13 @@ describe('กิ่ง 2-3: ร้านบริการ + นัด', () => {
   it('3: outstanding=0 → APPOINTMENT ไม่มีโอน (D-4: ไม่ใช้ยอดเต็ม)', () => {
     expect(pick({ isServiceShop: true, hasAppointment: true, outstanding: 0 })).toEqual(['APPOINTMENT', null, false, true])
   })
+  it('ร้านบริการ PENDING TRANSFER ค้าง 0 ไม่มีนัด → transfer=false ทุกธง (ขอบ amountDue > 0 ไม่ใช่ >= 0)', () => {
+    // input เติมเพื่อ mutation `amountDue > 0` → `>= 0`: ต้องไม่มี outstanding>0 มาช่วยให้ผ่านโดยบังเอิญ
+    const r = run({ isServiceShop: true, hasAppointment: false, outstanding: 0 })
+    expect(r.transfer).toBe(false)
+    expect(r.transferNoAccount).toBe(false)
+    expect(r.primary).not.toBe('TRANSFER')
+  })
   it('ไม่ใช่ร้านบริการ แม้มีนัด → ไม่ใช่ APPOINTMENT', () => {
     expect(run({ isServiceShop: false, hasAppointment: true }).primary).toBe('TRANSFER')
   })

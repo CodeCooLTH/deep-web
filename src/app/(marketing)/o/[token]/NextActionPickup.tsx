@@ -10,8 +10,7 @@
  *
  * การ์ดตามติดแบบเดิม (กรณี hero เป็นกล่องโอน) ยังเป็น `PickupInfoCard` — ข้อความร่วมกันอยู่ใน `@/lib/order-pickup`
  *
- * Base: theme/vuexy/typescript-version/full-version/src/views/apps/ecommerce/orders/details/OrderDetailsCard.tsx
- *   (Card + หัวเรื่อง) · ./PickupInfoCard.tsx (เนื้อหาจุดนัดรับ)
+ * Base: ./PickupInfoCard.tsx (เนื้อหาจุดนัดรับ) · ./NextActionShell.tsx (เปลือกการ์ด)
  */
 
 import Button from '@mui/material/Button'

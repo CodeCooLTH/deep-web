@@ -13,7 +13,7 @@
  * ชั้นนอก `filter: drop-shadow` (ตามขอบฉีก) · ชั้นในใส่ `mask`. ขอบฉีกมีเฉพาะสลิปใบเดียวของหน้า
  *
  * Base: theme/vuexy/typescript-version/full-version/src/views/apps/invoice/preview/PreviewCard.tsx (Card ใบเสร็จ)
- *   + theme/vuexy/typescript-version/full-version/src/views/apps/ecommerce/orders/details/OrderDetailsCard.tsx (แถวรายการ+ยอด)
+ *   + SmsAutoEnter.tsx (mask ขอบฉีก)
  *   ขอบฉีกไม่มีในธีม — ท่า `mask` เดียวกับ SmsAutoEnter.tsx ที่ user อนุมัติ (ม็อกอัพ v5 `.slip`)
  */
 import { useState } from 'react'
@@ -29,7 +29,7 @@ import Typography from '@mui/material/Typography'
 import { Icon } from '@iconify/react'
 import { toast } from 'react-toastify'
 
-import { resolveStampLabel, type SlipMoneyView } from '@/lib/buyer-order-summary'
+import { buildSlipTotalLabel, resolveStampLabel, type SlipMoneyView } from '@/lib/buyer-order-summary'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { formatBaht } from '@/lib/format-money'
 import { resolveOrderVocab } from '@/lib/seller-menu'
@@ -167,7 +167,7 @@ export default function OrderSlip({
   const [copied, setCopied] = useState(false)
   const noun = resolveOrderVocab(isServiceShop ? 'SERVICE_QUEUE' : 'ONLINE_SALES').noun
   const count = items.length
-  const totalLabel = count >= 2 ? `${money.totalLabel} (${count} รายการ)` : money.totalLabel
+  const totalLabel = buildSlipTotalLabel(money.totalLabel, count)
   const lines = money.serviceLines
 
   const copyOrderNo = async () => {

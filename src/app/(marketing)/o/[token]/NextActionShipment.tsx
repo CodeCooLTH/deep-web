@@ -8,8 +8,8 @@
  * `ParcelTimeline` ตัวเดียวกับจอ guest — ห้ามวาดแถบหรือพิมพ์คำของ `SHIPMENT_STAGES` เองที่นี่ (rail-single-source)
  * ปุ่มคัดลอกเลข 44px อยู่ใน ParcelTimeline เอง
  *
- * Base: theme/vuexy/typescript-version/full-version/src/views/apps/ecommerce/orders/details/ShippingActivityCard.tsx
- *   (Card + หัวเรื่อง + timeline) → ใช้ `ParcelTimeline.tsx` ของเราซึ่ง port จากธีมนั้นแล้ว
+ * Base: ./NextActionShell.tsx (เปลือกการ์ด) · ./ParcelTimeline.tsx
+ *   (ParcelTimeline ยกมาจาก src/components/safepay/iship/ShipmentStatusView.tsx ฝั่งผู้ขายของเรา ไม่ใช่ ShippingActivityCard ของธีม)
  */
 
 import Typography from '@mui/material/Typography'

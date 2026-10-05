@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildShopSummaryLine, buildSlipMoneyView, resolveStampLabel } from '@/lib/buyer-order-summary'
+import { buildShopSummaryLine, buildSlipTotalLabel, buildSlipMoneyView, resolveStampLabel } from '@/lib/buyer-order-summary'
 
 describe('buildShopSummaryLine', () => {
   it('[blocker] 4 เคส: ทั้งคู่ / มีแต่ออเดอร์ / มีแต่คะแนน / ไม่มีเลย', () => {
@@ -119,5 +119,14 @@ describe('resolveStampLabel', () => {
     expect(resolveStampLabel(true, true)).toBe('รับบริการแล้ว')
     expect(resolveStampLabel(false, false)).toBe('สำเร็จ')
     expect(resolveStampLabel(false, true)).toBe('สำเร็จ')
+  })
+})
+
+describe('buildSlipTotalLabel', () => {
+  it('1 ชิ้นไม่ต่อท้าย · 2 ชิ้นขึ้นไปต่อ "(N รายการ)" (ขอบ 1/2)', () => {
+    expect(buildSlipTotalLabel('ยอดรวม', 0)).toBe('ยอดรวม')
+    expect(buildSlipTotalLabel('ยอดรวม', 1)).toBe('ยอดรวม')
+    expect(buildSlipTotalLabel('ยอดรวม', 2)).toBe('ยอดรวม (2 รายการ)')
+    expect(buildSlipTotalLabel('ยอดที่ต้องชำระ', 5)).toBe('ยอดที่ต้องชำระ (5 รายการ)')
   })
 })

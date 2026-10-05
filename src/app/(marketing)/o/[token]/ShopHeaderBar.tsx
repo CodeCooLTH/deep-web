@@ -18,7 +18,7 @@
  *
  * Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/UserProfileHeader.tsx (CardMedia cover + avatar ซ้อนขอบ + ริง backgroundPaper)
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
@@ -65,6 +65,16 @@ function CoverBand({ lg, original }: { lg: string | null; original: string | nul
   // ลำดับถอย: lg → ต้นฉบับ (ตัด null และ URL ซ้ำ ไม่ให้ลองรูปเดิมสองรอบ)
   const sources = [lg, original].filter((s, i, a): s is string => !!s && a.indexOf(s) === i)
   const [failed, setFailed] = useState(0)
+  const imgRef = useRef<HTMLImageElement>(null)
+  const currentSrc = sources[failed]
+
+  // รูปที่ล้มก่อน hydrate ไม่ยิง onError (event หายไปแล้ว) → ตรวจซ้ำตอน mount/เปลี่ยน src
+  // ไม่วน: ขยับ failed ได้เฉพาะเมื่อรูปปัจจุบันเสียจริง · รูปถัดไปเป็น <img key> ใหม่ · ครบแล้ว imgRef = null
+  useEffect(() => {
+    const img = imgRef.current
+
+    if (img && img.complete && img.naturalWidth === 0) setFailed(n => n + 1)
+  }, [currentSrc])
 
   // ไม่มีรูป หรือล้มครบทุกชั้น = ถอดแถบทั้งแถบ (ห้ามค้างกล่องเทา)
   if (failed >= sources.length) return null
@@ -100,8 +110,9 @@ function CoverBand({ lg, original }: { lg: string | null; original: string | nul
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- URL หลากโดเมน + ต้อง onError ถอยรูป */}
       <img
-        key={sources[failed]}
-        src={sources[failed]}
+        ref={imgRef}
+        key={currentSrc}
+        src={currentSrc}
         alt=''
         aria-hidden='true'
         loading='eager'

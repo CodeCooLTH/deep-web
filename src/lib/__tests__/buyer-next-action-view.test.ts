@@ -101,6 +101,12 @@ describe('buyerShipmentStatus (R-6 — stage ตัวเดียวป้อ�
     expect(buyerShipmentStatus({ ...base, carrierStatus: 'delivered' }).delivered).toBe(true)
     expect(buyerShipmentStatus({ ...base, carrierStatus: 'in_transit' }).delivered).toBe(false)
   })
+  it('COD ที่ stage = AWAITING_COD → delivered (ตัด AWAITING_COD ออกจากเงื่อนไขแล้วต้องแดง)', () => {
+    // input เติมเพื่อ mutation: ต้องเป็น COD + delivered จึงลง AWAITING_COD (ไม่ใช่ DONE)
+    const i = { ...base, paymentMethod: 'COD', carrierStatus: 'delivered' }
+    expect(buyerShipmentStatus(i).stage).toBe('AWAITING_COD')
+    expect(buyerShipmentStatus(i).delivered).toBe(true)
+  })
   it('headline กับ pill ไม่ซ้ำกันเอง (ถ้ามี pill ต้องคนละคำกับ headline)', () => {
     for (const [, i] of cases) {
       const r = buyerShipmentStatus(i)

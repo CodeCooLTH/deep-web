@@ -11,8 +11,7 @@
  * ไม่มีคำว่า "ร้านตรวจแล้ว/ร้านจะ…" — ระบบรู้แค่ว่าแนบแล้ว ไม่ได้รู้ว่าร้านตรวจ
  * ห้ามพิมพ์เลข MB ตรง ๆ — เพดานอ่านจาก `uploadMaxSize('DOCUMENT')` ตัวเดียวกับที่ /api/uploads/commit บังคับ
  *
- * Base: theme/vuexy/typescript-version/full-version/src/views/apps/ecommerce/orders/details/OrderDetailsCard.tsx
- *   (Card + หัวเรื่อง) · ./PayoutAccountCard.tsx (แถวบัญชี/QR) · ส่วนแนบสลิปยกจากบล็อกเดิมใน ./OrderDetailMobile.tsx
+ * Base: ./NextActionShell.tsx (เปลือกการ์ด) · ./PayoutAccountCard.tsx (แถวบัญชี/QR) · ส่วนแนบสลิปยกจากบล็อกเดิมใน ./OrderDetailMobile.tsx
  */
 
 import Avatar from '@mui/material/Avatar'

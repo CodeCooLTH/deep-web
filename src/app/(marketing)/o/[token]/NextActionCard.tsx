@@ -10,8 +10,7 @@
  *
  * การ์ดย่อยห้ามถือ `order:` เอง — shell เป็นเจ้าของ slot · ไม่มีอะไรเรนเดอร์ = คืน null (slot `:empty` ซ่อนเอง)
  *
- * Base: theme/vuexy/typescript-version/full-version/src/views/apps/ecommerce/orders/details/OrderDetailsCard.tsx
- *   (Card + หัวเรื่อง) · sibling ./PayoutAccountCard.tsx (`<Card>` + หัวข้อ)
+ * Base: ./PayoutAccountCard.tsx (`<Card>` + หัวข้อ) · ./PickupInfoCard.tsx — sibling ที่ยกโครงมา ไม่ได้ port ตรงจากไฟล์ธีม
  */
 
 import Box from '@mui/material/Box'
