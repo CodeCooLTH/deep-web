@@ -184,7 +184,7 @@ export async function checkAccountDeletable(userId: string): Promise<DeletionPre
 export async function deleteAccount(
   userId: string,
   confirmText: string,
-): Promise<{ deletedAt: Date; purgeAt: Date }> {
+): Promise<{ deletedAt: Date; purgeAt: Date; lineGroupsToLeave: string[] }> {
   const preflight = await checkAccountDeletable(userId)
 
   if (!matchesConfirm(confirmText, preflight.confirmLabel)) {
@@ -195,6 +195,7 @@ export async function deleteAccount(
   }
 
   const now = new Date()
+  let lineGroupsToLeave: string[] = []
 
   await prisma.$transaction(async (tx) => {
     // 1) ปิดบัญชี — ตัวนี้ตัวเดียวที่ทำให้ล็อกอินไม่ได้ (lib/auth.ts ตรวจ deletedAt ทุก provider)
@@ -219,11 +220,31 @@ export async function deleteAccount(
     // 4) ออกจากร้านที่ถูกเชิญไป — ร้านของคนอื่นต้องไม่ค้างสมาชิกที่ล็อกอินไม่ได้แล้ว
     //    (ทั้งร้านตัวเองและร้านคนอื่น: ร้านตัวเองถูก soft-delete ไปแล้วในขั้น 2 จึงไม่ต้องแยก)
     await tx.shopMember.deleteMany({ where: { userId } })
+
+    // 5) รายงานกลุ่ม LINE (00068 TFR-24) — ทุกกลุ่มที่ยังไม่ REMOVED → REMOVED + เพิกถอนโค้ดผูกที่ยังใช้ได้
+    //    เก็บ lineGroupId ของกลุ่มที่บอทยังอยู่ (ACTIVE) ไว้ให้ผู้เรียกสั่ง leave แบบ best-effort หลัง commit
+    //    (ไม่เรียก LINE ใน tx: ล้า/ล้มต้องไม่ทำให้การลบบัญชีล้ม) · log (Delivery) คงไว้ตามอายุ 90 วัน
+    const groups = await tx.lineReportGroup.findMany({
+      where: { ownerId: userId, status: { not: 'REMOVED' } },
+      select: { id: true, status: true, lineGroupId: true },
+    })
+    if (groups.length > 0) {
+      await tx.lineReportGroup.updateMany({
+        where: { id: { in: groups.map((g) => g.id) } },
+        data: { status: 'REMOVED', removedAt: now },
+      })
+      await tx.lineReportBindCode.updateMany({
+        where: { ownerId: userId, usedAt: null, revokedAt: null },
+        data: { revokedAt: now },
+      })
+      lineGroupsToLeave = groups.flatMap((g) => (g.status === 'ACTIVE' && g.lineGroupId ? [g.lineGroupId] : []))
+    }
   })
 
   return {
     deletedAt: now,
     purgeAt: new Date(now.getTime() + ACCOUNT_DELETE_RETENTION_DAYS * 86_400_000),
+    lineGroupsToLeave,
   }
 }
 
@@ -264,6 +285,8 @@ export async function purgeExpiredAccounts(): Promise<{
       await prisma.$transaction(async (tx) => {
         // ตัดการเชื่อม Facebook/LINE/IG ถาวร — ไม่งั้น provider เดิมล็อกอินกลับเข้ามาเจอแถวเปล่า
         await tx.authAccount.deleteMany({ where: { userId: id } })
+        // 00068 TFR-24: ล้างตัวระบุกลุ่ม LINE + ชื่อกลุ่ม (กลุ่มเป็น REMOVED ตั้งแต่ลบบัญชีแล้ว)
+        await tx.lineReportGroup.updateMany({ where: { ownerId: id }, data: { lineGroupId: null, groupName: '' } })
         await tx.user.update({
           where: { id },
           data: {
@@ -289,6 +312,7 @@ export async function purgeExpiredAccounts(): Promise<{
         try {
           await prisma.$transaction(async (tx) => {
             await tx.authAccount.deleteMany({ where: { userId: id } })
+            await tx.lineReportGroup.updateMany({ where: { ownerId: id }, data: { lineGroupId: null, groupName: '' } })
             await tx.user.update({
               where: { id },
               data: {
