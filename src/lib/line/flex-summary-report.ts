@@ -288,11 +288,18 @@ function renderAltText(input: SummaryReportInput, summary: GroupSummary, kind: R
   return Array.from(parts.join(' · ')).slice(0, ALT_TEXT_MAX).join('')
 }
 
+/** Flex message พร้อมส่ง LINE ตรง (มี `type: 'flex'`) */
+export type ReportFlexMessage = LineFlexMessage & { type: 'flex' }
+
 /** ตัวสร้างใหม่ตามระดับการตัดทอน — เก็บไว้ให้ fitToLimits เรียกซ้ำ (ไม่ใส่ key แปลกลง JSON ที่ส่ง LINE) */
 const rebuilders = new WeakMap<LineFlexMessage, (level: number) => LineFlexMessage>()
 
-function build(input: SummaryReportInput, summary: GroupSummary, kind: ReportKind, level = 0): LineFlexMessage {
-  const msg: LineFlexMessage = {
+function build(input: SummaryReportInput, summary: GroupSummary, kind: ReportKind, level = 0): ReportFlexMessage {
+  const msg: ReportFlexMessage = {
+    // 🛑 LINE บังคับ `type` ในทุก message object — `LineFlexMessage` ของ flex-order-card ไม่มีฟิลด์นี้
+    // เพราะ adapter แชท (line-adapter.ts) เติมให้ตอนส่ง แต่บอทรายงานส่ง JSON นี้ตรง → ขาดแล้ว LINE ตอบ 400
+    // (เจอบน prod 2026-10-05: ส่งทดสอบ/ตอบคำสั่งล้มทุกครั้ง)
+    type: 'flex',
     altText: renderAltText(input, summary, kind, level),
     contents: renderBubble(input, summary, kind, level),
   }
@@ -300,15 +307,16 @@ function build(input: SummaryReportInput, summary: GroupSummary, kind: ReportKin
   return msg
 }
 
-export function buildSummaryReportFlex(input: SummaryReportInput): LineFlexMessage[] {
+export function buildSummaryReportFlex(input: SummaryReportInput): ReportFlexMessage[] {
   const out = [build(input, input.summary, input.kind)]
   if (input.monthly) out.push(build({ ...input, titleOverride: undefined, cycleToDate: undefined }, input.monthly, 'MONTHLY'))
   return out
 }
 
 /** ข้อความสั้น ๆ (ข้อความสุดท้าย/แจ้งเตือน) — ไม่มีตัวเลขยอด */
-export function buildPlainNotice(msg: string): LineFlexMessage {
+export function buildPlainNotice(msg: string): ReportFlexMessage {
   return {
+    type: 'flex',
     altText: Array.from(msg || '-').slice(0, ALT_TEXT_MAX).join(''),
     contents: { type: 'bubble', body: { type: 'box', layout: 'vertical', contents: [text(msg)] } },
   }

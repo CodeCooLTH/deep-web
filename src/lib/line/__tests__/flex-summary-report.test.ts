@@ -325,3 +325,15 @@ describe('ป้ายจำนวนใบผันตาม vertical (Q31 · S
     expect(alt).toContain('บริการ 11 รายการ')
   })
 })
+
+// 🛑 บั๊ก prod 2026-10-05: ขาด `type` → LINE ตอบ 400 "messages[0].type May not be empty" ทุกข้อความของบอทรายงาน
+describe('ทุกข้อความต้องมี type: flex (LINE บังคับ)', () => {
+  it('buildPlainNotice', () => {
+    expect(buildPlainNotice('ทดสอบ')).toMatchObject({ type: 'flex' })
+  })
+  it('buildSummaryReportFlex + fitToLimits ทุกใบ', () => {
+    const msgs = mk([])
+    expect(msgs.length).toBeGreaterThan(0)
+    for (const m of [...msgs, ...fitToLimits(msgs)]) expect(m).toMatchObject({ type: 'flex' })
+  })
+})
