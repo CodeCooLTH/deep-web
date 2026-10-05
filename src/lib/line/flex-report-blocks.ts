@@ -81,6 +81,11 @@ export const kv = (k: string, v: string, o: { bold?: boolean; color?: string } =
     text(v, { flex: 4, align: 'end', weight: o.bold ? 'bold' : 'regular', color: o.color ?? INK }),
   ],
 })
+/** แถวย่อยเยื้อง (xs) — label SLATE, ค่า INK */
+const subKv = (k: string, v: string): Node => ({
+  type: 'box', layout: 'horizontal', spacing: 'md', paddingStart: 'md',
+  contents: [text(k, { flex: 3, size: 'xs', color: SLATE }), text(v, { flex: 4, size: 'xs', align: 'end', color: INK })],
+})
 export const section = (contents: Node[]): Node => ({ type: 'box', layout: 'vertical', margin: 'lg', spacing: 'xs', contents })
 
 function profitRow(p: { netProfit: number; capped: boolean }): Node {
@@ -285,6 +290,10 @@ function renderTotals(blocks: Block[], c: Ctx, withNotes: boolean): Node {
       if (f && b.type === 'expense') {
         const d = expenseDisplay(f.expense, { recorded: f.expenseRecorded })
         rows.push(kv(d.label, d.text))
+        // รายการย่อย (§17) — เงื่อนไขเดียวกับแถวรวม (f) · ระดับ ≥1 ตัดทิ้งพร้อม Top3 · แถวรวมไม่ถูกตัด
+        if ((b as { items?: boolean }).items && c.level < 1 && f.items?.length) {
+          for (const i of f.items) rows.push(subKv(i.label, formatBaht(i.amount)))
+        }
       } else if (f) {
         const d = netSalesDisplay(f.netSales, { capped: !f.expenseRecorded })
         rows.push(kv(d.label, d.text), note(`= ยอดขาย (นับแล้ว) − ค่าใช้จ่าย · ยังไม่หัก${reportCostNoun(c.shops)}`))

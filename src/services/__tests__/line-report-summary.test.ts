@@ -259,3 +259,30 @@ describe('needExpense -> finance', () => {
     expect((await run()).shops[0].finance?.netSales).toBe(-150)
   })
 })
+
+describe('ITEMS §17: expenseItems / needExpenseItems', () => {
+  const win2 = { startIso: '2026-10-05', endIso: '2026-10-05', computedAt: '2026-10-05T10:00:00.000Z' }
+  const off = { showOrders: false, showSales: false, showCancelled: false, showTopProducts: false, showProfit: false }
+  const run = (needs: object) => buildGroupSummary({ shops: [mk('a', 'ก')], excluded: [], window: win2, flags: off, needs, cache: createSweepCache() })
+  beforeEach(() => {
+    pnl.mockResolvedValue({ netProfit: 0, hasMissingCost: false, revenue: 1000, totalExpense: 365, shippingCost: 50, returnShippingCost: 15 } as never)
+    expenses.mockResolvedValue([
+      { category: 'RENT', amount: '100', note: 'โน้ตลับ' }, { category: 'RENT', amount: '100', note: 'โน้ตลับ2' },
+      { category: 'ADVERTISING', amount: '100', note: null }, { category: 'OTHER', amount: '0', note: null },
+    ] as never)
+  })
+  it('รวมตามหมวด ป้ายจาก SSOT + ค่าส่งระบบ · หมวด 0 ไม่ใส่ · มาก→น้อย · Σ = expense · ไม่มีโน้ต', async () => {
+    const f = (await run({ needExpense: true, needExpenseItems: true })).shops[0].finance!
+    expect(f.items).toEqual([
+      { key: 'RENT', label: 'ค่าเช่า', amount: 200 },
+      { key: 'ADVERTISING', label: 'ค่าโฆษณา', amount: 100 },
+      { key: 'SYS_SHIPPING', label: 'ค่าส่งขาไป (จากระบบ)', amount: 50 },
+      { key: 'SYS_RETURN_SHIPPING', label: 'ค่าส่งขากลับของใบคืน', amount: 15 },
+    ])
+    expect(f.items!.reduce((a, i) => a + i.amount, 0)).toBe(f.expense)
+    expect(JSON.stringify(f)).not.toContain('โน้ตลับ')
+  })
+  it('ไม่ขอ needExpenseItems → ไม่มี key items', async () => {
+    expect((await run({ needExpense: true })).shops[0].finance).not.toHaveProperty('items')
+  })
+})

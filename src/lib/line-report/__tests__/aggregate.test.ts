@@ -121,3 +121,19 @@ describe('EXP: combineFinance', () => {
     expect(combineFinance([sh('a', 'ERROR')])).toBeUndefined()
   })
 })
+
+describe('ITEMS §17: combineFinance รวมรายการย่อยข้ามร้าน', () => {
+  const fin = (items?: { key: string; label: string; amount: number }[]) => ({ expense: 0, netSales: 0, expenseRecorded: true, ...(items ? { items } : {}) })
+  const sh = (id: string, finance: ReturnType<typeof fin>) =>
+    ({ shop: { id, name: id, vertical: null }, state: 'OK', orders: 0, confirmed: 0, unconfirmed: 0, cancelled: 0, finance }) as never
+  it('รวมตาม key + round2 + มาก→น้อย', () => {
+    const r = combineFinance([
+      sh('a', fin([{ key: 'RENT', label: 'ค่าเช่า', amount: 0.1 }, { key: 'OTHER', label: 'อื่นๆ', amount: 5 }])),
+      sh('b', fin([{ key: 'RENT', label: 'ค่าเช่า', amount: 0.2 }])),
+    ])
+    expect(r!.items).toEqual([{ key: 'OTHER', label: 'อื่นๆ', amount: 5 }, { key: 'RENT', label: 'ค่าเช่า', amount: 0.3 }])
+  })
+  it('ร้านใดไม่มี items → ไม่มี items ทั้งก้อน (ไม่ประมาณ)', () => {
+    expect(combineFinance([sh('a', fin([{ key: 'RENT', label: 'ค่าเช่า', amount: 1 }])), sh('b', fin())])!.items).toBeUndefined()
+  })
+})

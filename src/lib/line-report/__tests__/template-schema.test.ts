@@ -101,3 +101,10 @@ describe('EXP: บล็อก expense/net_sales ใน schema', () => {
     expect(validateTemplate(base([{ id: 'a', type: 'shops', top3: true, profit: false }, { id: 'p', type: 'profit' }])).ok).toBe(true)
   })
 })
+
+describe('ITEMS §17: expense.items', () => {
+  it('รับ items boolean · ไม่ใส่ก็ได้ · ไม่ใช่ boolean ไม่ผ่าน', () => {
+    expect(validateTemplate(base([{ id: 'a', type: 'expense', items: true }])).ok).toBe(true)
+    expect(validateTemplate(base([{ id: 'a', type: 'expense', items: 'x' }])).ok).toBe(false)
+  })
+})

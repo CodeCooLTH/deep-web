@@ -57,7 +57,11 @@ export type ShopFinance = {
   netSales: number
   /** = listExpenses(...).length > 0 (เกณฑ์เดียวกับ resolveDataCompleteness) */
   expenseRecorded: boolean
+  /** รายการย่อยตามหมวด (เติมเมื่อ needExpenseItems) · Σ amount = expense · ไม่มีโน้ต */
+  items?: ExpenseItem[]
 }
+
+export type ExpenseItem = { key: string; label: string; amount: number }
 
 /**
  * ผลของร้านเดียว · `orders`/`cancelled` = จำนวนใบ · `confirmed`/`unconfirmed` = ยอดเงินบาท

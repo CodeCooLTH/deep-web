@@ -160,3 +160,38 @@ describe('AC-EXP-03-7 altText', () => {
     expect(alt(summary([shop(1), shop(2, {}, 'SERVICE_QUEUE')]), [EXP, NET])).not.toContain('ค่าใช้จ่าย')
   })
 })
+
+describe('ITEMS §17: รายการย่อยค่าใช้จ่าย', () => {
+  const ITEMS = [
+    { key: 'RENT', label: 'ค่าเช่า', amount: 200 },
+    { key: 'ADVERTISING', label: 'ค่าโฆษณา', amount: 100 },
+  ]
+  const withItems = (n = 1) => Array.from({ length: n }, (_, i) => shop(i + 1, { finance: { ...fin(300, 700), items: ITEMS } }))
+  const EXP_I: Block = { id: 'e', type: 'expense', items: true }
+
+  it('items=true → แถวรวมก่อน แล้วรายการย่อยตามลำดับ (ร้านเดียวและรวมหลายร้าน)', () => {
+    const t1 = texts(first(summary(withItems(1)), [EXP_I]))
+    expect(t1.slice(t1.indexOf('ค่าใช้จ่าย'), t1.indexOf('ค่าใช้จ่าย') + 5)).toEqual(['ค่าใช้จ่าย', '฿300', 'ค่าเช่า', '฿200', 'ค่าโฆษณา'])
+    const t2 = texts(first(summary(withItems(2)), [EXP_I]))
+    expect(t2).toContain('฿400') // ค่าเช่ารวม 2 ร้าน
+    expect(t2).toContain('฿200')
+  })
+  it('items ไม่ตั้ง/false → ไม่มีรายการย่อย', () => {
+    expect(texts(first(summary(withItems(1)), [EXP]))).not.toContain('ค่าเช่า')
+    expect(texts(first(summary(withItems(1)), [{ id: 'e', type: 'expense', items: false }]))).not.toContain('ค่าเช่า')
+  })
+  it('เงื่อนไขเดียวกับแถวรวม: ผสมกติกา → ไม่มีทั้งแถวรวมและรายการย่อย', () => {
+    const s = summary([withItems(1)[0], shop(2, { finance: { ...fin(300, 700), items: ITEMS } }, 'SERVICE_QUEUE')])
+    expect(texts(first(s, [EXP_I]))).not.toContain('ค่าเช่า')
+  })
+  it('ระดับ ≥1 ตัดรายการย่อย แต่แถวรวมอยู่', () => {
+    const m = first(summary(withItems(1)), [EXP_I])
+    const t = texts(rebuildAtLevel(m, 1))
+    expect(t).not.toContain('ค่าเช่า')
+    expect(t).toContain('฿300')
+  })
+  it('โน้ตไม่หลุดลง JSON (ไม่มีทางผ่านชนิดข้อมูล)', () => {
+    const s = summary(withItems(1))
+    expect(json(build(s, [EXP_I]))).not.toMatch(/โน้ตลับ/)
+  })
+})

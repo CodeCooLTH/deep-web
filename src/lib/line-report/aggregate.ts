@@ -4,7 +4,7 @@
  */
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { round2 } from '@/lib/round2'
-import type { ShopFinance, ShopRef, ShopSummary, Top3Row, Totals, Trend } from './types'
+import type { ExpenseItem, ShopFinance, ShopRef, ShopSummary, Top3Row, Totals, Trend } from './types'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -121,5 +121,16 @@ export function combineFinance(shops: readonly ShopSummary[]): ShopFinance | und
   if (!ok.length || ok.some((s) => !s.finance)) return undefined
   let expense = 0, netSales = 0
   for (const s of ok) { expense += s.finance!.expense; netSales += s.finance!.netSales }
-  return { expense: round2(expense), netSales: round2(netSales), expenseRecorded: ok.every((s) => s.finance!.expenseRecorded) }
+  // รายการย่อย: รวมตาม key ข้ามร้าน · ร้านใดไม่มี items = ไม่รวม (ไม่ประมาณ) · เรียงมาก→น้อย
+  let items: ExpenseItem[] | undefined
+  if (ok.every((s) => s.finance!.items)) {
+    const by = new Map<string, ExpenseItem>()
+    for (const s of ok) for (const i of s.finance!.items!) {
+      const cur = by.get(i.key)
+      if (cur) cur.amount += i.amount
+      else by.set(i.key, { ...i })
+    }
+    items = [...by.values()].map((i) => ({ ...i, amount: round2(i.amount) })).sort((a, b) => b.amount - a.amount)
+  }
+  return { expense: round2(expense), netSales: round2(netSales), expenseRecorded: ok.every((s) => s.finance!.expenseRecorded), ...(items ? { items } : {}) }
 }

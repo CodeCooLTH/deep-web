@@ -376,6 +376,26 @@ test('Q14 เพิ่มบล็อกค่าใช้จ่าย → Swal 
   await expect.poll(async () => JSON.stringify((await row()).template)).toContain('net_sales')
 })
 
+test('Q15 ค่าใช้จ่าย → ติ๊ก "แสดงรายการย่อยตามหมวด" → พรีวิวมี ค่าเช่า → บันทึก → DB มี items:true', async () => {
+  await page.setViewportSize({ width: 1180, height: 900 })
+  await setTpl(null)
+  await gotoT()
+  await add('ค่าใช้จ่าย')
+  await page.locator('.swal2-confirm').click()
+  await expect.poll(titles).toContain('ค่าใช้จ่าย')
+  const pv = page.locator(pvSel).first()
+  await expect(pv).not.toContainText('ค่าเช่า')
+  // แถวอาจเปิดอยู่แล้วหลังเพิ่ม — ถ้ายังไม่เห็นตัวเลือก ให้คลิกชื่อแถวเปิด
+  const opt = page.getByText('แสดงรายการย่อยตามหมวด')
+  if (!(await opt.isVisible().catch(() => false))) await page.locator('div[id^="row-"]').filter({ hasText: 'ค่าใช้จ่าย' }).first().locator('span.truncate.font-medium').click()
+  await expect(page.getByText('ไม่แสดงโน้ตที่บันทึกไว้')).toBeVisible()
+  await opt.click()
+  await expect(pv).toContainText('ค่าเช่า')
+  await shot('q15-expense-items-1180')
+  await saveBtn().click()
+  await expect.poll(async () => JSON.stringify((await row()).template)).toContain('"items":true')
+})
+
 test('Z console ไม่มี error นอกจาก 404 resource', async () => {
   console.log('console errors collected:\n' + errs.join('\n'))
   expect(errs.filter((e) => !/404/.test(e))).toEqual([])

@@ -94,6 +94,14 @@ export function withSampleProfit(summary: GroupSummary): GroupSummary {
   }
 }
 
+// Σ = 128_400 (ตรงกับ expense ตัวอย่าง) · ป้ายตรงกับ SSOT lib/expense
+const SAMPLE_ITEMS = [
+  { key: 'RENT', label: 'ค่าเช่า', amount: 60_000 },
+  { key: 'ADVERTISING', label: 'ค่าโฆษณา', amount: 40_000 },
+  { key: 'PACKAGING', label: 'ค่าบรรจุภัณฑ์', amount: 18_400 },
+  { key: 'SYS_SHIPPING', label: 'ค่าส่งขาไป (จากระบบ)', amount: 10_000 },
+]
+
 /**
  * เติมการเงินตัวอย่างให้ร้านที่ OK (EXT-EXP) — วนสามสถานะเพื่อให้พรีวิวเห็นครบ: ปกติ / ยังไม่มีบันทึกค่าใช้จ่าย / ติดลบ
  * ร้านแรกเป็น "ปกติ" เสมอ · ตัวเลขคงที่ ไม่ใช่ของจริงของใคร
@@ -105,9 +113,9 @@ export function withSampleFinance(summary: GroupSummary): GroupSummary {
     shops: summary.shops.map((s) => {
       if (s.state !== 'OK') return s
       const kind = k++ % 3
-      const finance = kind === 0 ? { expense: 128_400, netSales: s.confirmed - 128_400, expenseRecorded: true }
-        : kind === 1 ? { expense: 0, netSales: s.confirmed, expenseRecorded: false }
-        : { expense: s.confirmed + 9_500, netSales: -9_500, expenseRecorded: true }
+      const finance = kind === 0 ? { expense: 128_400, netSales: s.confirmed - 128_400, expenseRecorded: true, items: SAMPLE_ITEMS }
+        : kind === 1 ? { expense: 0, netSales: s.confirmed, expenseRecorded: false, items: [] }
+        : { expense: s.confirmed + 9_500, netSales: -9_500, expenseRecorded: true, items: [{ key: 'OTHER', label: 'อื่นๆ', amount: s.confirmed + 9_500 }] }
       return { ...s, finance }
     }),
   }
