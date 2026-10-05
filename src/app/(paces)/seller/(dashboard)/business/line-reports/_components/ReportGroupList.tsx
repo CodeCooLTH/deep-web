@@ -6,18 +6,23 @@
  *
  * เหตุที่เพิ่มกลุ่มไม่ได้มาจาก `createBlockedReason` (lib) — ที่นี่แสดงอย่างเดียว ไม่ตัดสินเอง
  */
-import { createBlockedReason, sortGroups, type ListGroupItem, type ListMeta } from '@/lib/line-report/list-view'
+import { createBlockedReason, shouldHighlightActiveShop, sortGroups, type ListGroupItem, type ListMeta } from '@/lib/line-report/list-view'
 import AddGroupButton, { CREATE_BLOCKED_ID } from './AddGroupButton'
 import ReportGroupRow from './ReportGroupRow'
 
-export default function ReportGroupList({ groups, meta, now }: { groups: ListGroupItem[]; meta: ListMeta; now: Date }) {
+export default function ReportGroupList({ groups, meta, now, activeShopId = null }: { groups: ListGroupItem[]; meta: ListMeta; now: Date; activeShopId?: string | null }) {
   const blocked = createBlockedReason(meta)
+  // เน้นร้านที่เลือกอยู่เฉพาะเมื่อมีกลุ่มที่ไม่รวมร้านนี้ (ทุกกลุ่มรวม = ไม่มีอะไรให้ต่าง)
+  const highlightShopId = shouldHighlightActiveShop(groups, activeShopId) ? activeShopId : null
   return (
     <div className="card mb-base">
       <div className="card-header flex flex-wrap items-center justify-between gap-3">
-        <h4 className="card-title">
-          กลุ่มรายงานของฉัน <span className="text-default-700 text-xs font-normal">{meta.count} จาก {meta.limit} กลุ่ม</span>
-        </h4>
+        <div className="min-w-0">
+          <h4 className="card-title">
+            กลุ่มรายงานของฉัน <span className="text-default-700 text-xs font-normal">{meta.count} จาก {meta.limit} กลุ่ม</span>
+          </h4>
+          <p className="text-default-700 mt-1 mb-0 text-xs">รายงานผูกกับบัญชีของคุณ ไม่เปลี่ยนตามร้านที่เลือกอยู่</p>
+        </div>
         <AddGroupButton canCreate={blocked === null} />
       </div>
       {blocked && (
@@ -27,7 +32,7 @@ export default function ReportGroupList({ groups, meta, now }: { groups: ListGro
       )}
       <ul className="m-0 list-none p-0">
         {sortGroups(groups).map((g) => (
-          <ReportGroupRow key={g.id} group={g} now={now} />
+          <ReportGroupRow key={g.id} group={g} now={now} highlightShopId={highlightShopId} />
         ))}
       </ul>
     </div>

@@ -335,6 +335,26 @@ test('Q12 หน้าตั้งค่าหลังบันทึก: chip 
   }
 })
 
+test('Q13 ร้านที่เลือกอยู่ไม่ได้อยู่ในกลุ่ม → ป้ายบอกขอบเขต (ไม่ใช่แดง) + รวมร้านใน subtitle', async () => {
+  // active shop ของ session = ร้าน A · ถอด A ออกจากกลุ่มชั่วคราว (scope ด้วย id ที่เทสสร้าง)
+  await prisma.lineReportGroupShop.deleteMany({ where: { groupId: ids.group, shopId: ids.shops[0] } })
+  try {
+    for (const w of [1180, 375]) {
+      await page.setViewportSize({ width: w, height: 900 })
+      await page.goto(G())
+      await expect(page.getByText('รวมร้าน ร้านทดสอบ B').first()).toBeVisible()
+      await expect(page.getByRole('status').filter({ hasText: 'กลุ่มนี้ไม่ได้รวมร้าน ร้านทดสอบ A' })).toBeVisible()
+      expect(await overflow(), `overflow @${w}`).toBe(false)
+      await shot(`q13-scope-${w}`)
+    }
+    await page.goto(`${H}/business/line-reports`)
+    await expect(page.getByText('รายงานผูกกับบัญชีของคุณ ไม่เปลี่ยนตามร้านที่เลือกอยู่')).toBeVisible()
+    await shot('q13-list')
+  } finally {
+    await prisma.lineReportGroupShop.create({ data: { groupId: ids.group, shopId: ids.shops[0] } })
+  }
+})
+
 test('Z console ไม่มี error นอกจาก 404 resource', async () => {
   console.log('console errors collected:\n' + errs.join('\n'))
   expect(errs.filter((e) => !/404/.test(e))).toEqual([])

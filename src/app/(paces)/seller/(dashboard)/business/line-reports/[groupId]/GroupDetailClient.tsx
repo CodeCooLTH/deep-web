@@ -16,6 +16,7 @@ import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import type { AppShell } from '@/lib/app-shell'
 import { formatDateTH } from '@/lib/format-date'
+import { includesShop, shopScopeLabel } from '@/lib/line-report/list-view'
 import { orderWordFor } from '@/lib/line-report/order-word'
 import { PENDING_GROUP_FALLBACK_NAME } from '@/lib/line-report/list-view'
 import { SAVE_STATUS_TEXT } from '@/lib/line-report/autosave'
@@ -41,13 +42,15 @@ export type GroupDetailClientProps = {
   shell: AppShell
   lockReason: 'NEVER' | 'RENEWAL_FAILED'
   /** เวลา server ตอนเรนเดอร์ — ใช้เป็น "ข้อมูล ณ" ของพรีวิว (ห้าม new Date() ฝั่ง client: hydration mismatch) */
+  /** ร้านที่เลือกอยู่ของ session (null = ข้ามข้อความขอบเขตทั้งหมด) */
+  activeShop?: { id: string; name: string } | null
   serverNowIso: string
   initialView?: 'settings' | 'rebind'
   /** props ของ BindWizard โหมด rebind (INACTIVE) */
   rebind: { addFriendUrl: string | null; blockedReason: string | null }
 }
 
-export default function GroupDetailClient({ initialGroup, reportableShops, shell, lockReason, serverNowIso, initialView = 'settings', rebind }: GroupDetailClientProps) {
+export default function GroupDetailClient({ initialGroup, reportableShops, shell, lockReason, activeShop = null, serverNowIso, initialView = 'settings', rebind }: GroupDetailClientProps) {
   const router = useRouter()
   const [view, setView] = useState<'settings' | 'rebind'>(initialView)
   const [sending, setSending] = useState(false)
@@ -137,8 +140,21 @@ export default function GroupDetailClient({ initialGroup, reportableShops, shell
             {group.boundAt ? `ผูกเมื่อ ${formatDateTH(group.boundAt)} · ` : ''}
             <span aria-live="polite">{SAVE_STATUS_TEXT[status]}</span>
           </p>
+          {/* ขอบเขตร้านของกลุ่ม: กลุ่มผูกระดับบัญชี ไม่ใช่ร้านที่เลือกอยู่ */}
+          <p className="text-default-700 mb-0 min-w-0 truncate text-xs" title={shopScopeLabel(group.shops, group.shops.length)}>
+            รวมร้าน {shopScopeLabel(group.shops)}
+          </p>
         </div>
       </div>
+      {activeShop && !includesShop(group.shops, activeShop.id) && (
+        <p role="status" className="bg-info/15 text-info-ink mb-base flex items-start gap-2 rounded-lg px-3 py-2 text-xs">
+          <Icon icon="info-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+          <span>
+            กลุ่มนี้ไม่ได้รวมร้าน {activeShop.name} ยอดของร้านนี้จะไม่เข้ารายงาน
+            {editable && ' ถ้าต้องการให้รวม เลือกร้านในการ์ด “ร้านที่รวมในรายงาน” ด้านล่าง'}
+          </span>
+        </p>
+      )}
 
       <StatCards group={group} />
       {/* ข้อความที่ส่งเข้ากลุ่มเต็มกว้างใต้การ์ดตัวเลข (ตาม mockup) — ตัวอย่างแสดงเต็ม */}

@@ -17,6 +17,7 @@ import { notFound, redirect } from 'next/navigation'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { getAppShell, shouldHidePayments } from '@/lib/app-shell-server'
+import { resolveActiveShopRef } from '@/lib/line-report/active-shop'
 import { addFriendUrl, isReportBotReady } from '@/lib/line-report/config'
 import { PENDING_GROUP_FALLBACK_NAME } from '@/lib/line-report/list-view'
 import { LineReportError } from '@/lib/line-report/errors'
@@ -68,7 +69,7 @@ export default async function LineReportGroupPage({
       : null
 
   if (group.status === 'ACTIVE' || group.status === 'INACTIVE') {
-    const [shell, reportableShops] = await Promise.all([getAppShell(), listReportableShops(access.userId)])
+    const [shell, reportableShops, activeShop] = await Promise.all([getAppShell(), listReportableShops(access.userId), resolveActiveShopRef(session)])
     return (
       <>
         {crumb}
@@ -79,6 +80,7 @@ export default async function LineReportGroupPage({
           reportableShops={reportableShops}
           shell={shell}
           lockReason={access.kind === 'LOCKED' ? access.reason : 'RENEWAL_FAILED'}
+          activeShop={activeShop}
           serverNowIso={new Date().toISOString()}
           initialView={group.status === 'INACTIVE' && rebind === '1' ? 'rebind' : 'settings'}
           rebind={{ addFriendUrl: addFriendUrl(), blockedReason }}
