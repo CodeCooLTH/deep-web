@@ -124,3 +124,30 @@ describe('skippedPart / historyReasonText', () => {
     expect(_hrt(null, null)).toBe('')
   })
 })
+
+import { includesShop, shopScopeLabel, shouldHighlightActiveShop } from '../list-view'
+
+describe('shopScopeLabel / includesShop / shouldHighlightActiveShop', () => {
+  it('ร้านเดียว · หลายร้าน · ไม่มีร้าน', () => {
+    expect(shopScopeLabel([{ name: 'ธนภัทร์' }])).toBe('ธนภัทร์')
+    expect(shopScopeLabel([{ name: 'ก' }, { name: 'ข' }, { name: 'ค' }])).toBe('ก และอีก 2 ร้าน')
+    expect(shopScopeLabel([])).toBe('ยังไม่มีร้านในรายงาน')
+  })
+  it('state ≠ OK ต่อท้ายสถานะ · max มากกว่า 1 แสดงหลายชื่อ', () => {
+    expect(shopScopeLabel([{ name: 'ก', state: 'LOCKED' }])).toBe('ก (ถูกล็อก)')
+    expect(shopScopeLabel([{ name: 'ก', state: 'DELETED' }])).toBe('ก (ลบแล้ว)')
+    expect(shopScopeLabel([{ name: 'ก', state: 'OK' }, { name: 'ข' }, { name: 'ค' }], 2)).toBe('ก, ข และอีก 1 ร้าน')
+  })
+  it('includesShop รับทั้ง id และ shopId · active ว่าง = true', () => {
+    expect(includesShop([{ id: 'a' }], 'a')).toBe(true)
+    expect(includesShop([{ shopId: 'a' }], 'b')).toBe(false)
+    expect(includesShop([{ id: 'a' }], null)).toBe(true)
+  })
+  it('เน้นเมื่อมีกลุ่มที่ไม่รวมร้านนี้ · ทุกกลุ่มรวม/ไม่มี active = ไม่เน้น · กลุ่มที่ชื่อร้านถูกตัดตัดสินไม่ได้ = ไม่นับ', () => {
+    const g = (ids: string[], shopCount = ids.length) => ({ shopCount, shops: ids.map((id) => ({ id, name: id, vertical: null })) })
+    expect(shouldHighlightActiveShop([g(['a']), g(['b'])], 'a')).toBe(true)
+    expect(shouldHighlightActiveShop([g(['a']), g(['a', 'b'])], 'a')).toBe(false)
+    expect(shouldHighlightActiveShop([g(['b'])], null)).toBe(false)
+    expect(shouldHighlightActiveShop([g(['b', 'c'], 3)], 'a')).toBe(false)
+  })
+})

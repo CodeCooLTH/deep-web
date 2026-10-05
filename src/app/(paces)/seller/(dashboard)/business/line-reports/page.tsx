@@ -18,6 +18,7 @@ import { notFound, redirect } from 'next/navigation'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { getAppShell, shouldHidePayments } from '@/lib/app-shell-server'
+import { resolveActiveShopRef } from '@/lib/line-report/active-shop'
 import { createBlockedReason } from '@/lib/line-report/list-view'
 import { bannerFor, lockedCta } from '@/lib/line-report/presenter'
 import { listGroups } from '@/services/line-report-group.service'
@@ -30,11 +31,12 @@ import ReportLockedState from './_components/ReportLockedState'
 export const metadata: Metadata = { title: 'รายงานเข้ากลุ่ม LINE' }
 
 export default async function LineReportsPage() {
-  const access = await resolveReportAccess(await getServerSession(authOptions))
+  const session = await getServerSession(authOptions)
+  const access = await resolveReportAccess(session)
   if (access.kind === 'ANON') redirect('/auth/sign-in')
   if (access.kind === 'NOT_OWNER') notFound()
 
-  const [shell, hidePayments, { groups, meta }] = await Promise.all([getAppShell(), shouldHidePayments(), listGroups(access.userId)])
+  const [shell, hidePayments, { groups, meta }, activeShop] = await Promise.all([getAppShell(), shouldHidePayments(), listGroups(access.userId), resolveActiveShopRef(session)])
   const now = new Date()
   const reason = access.kind === 'LOCKED' ? access.reason : 'RENEWAL_FAILED'
   // ในแอปที่ซ่อนการจ่ายเงิน /business เด้งออก → ไม่ทำ crumb เป็นลิงก์ (กดแล้วหลุดไปหน้าอื่นโดยไม่รู้ตัว)
@@ -59,7 +61,7 @@ export default async function LineReportsPage() {
     <>
       {crumb}
       {banner && <ReportBanner banner={banner} />}
-      <ReportGroupList groups={groups} meta={meta} now={now} />
+      <ReportGroupList groups={groups} meta={meta} now={now} activeShopId={activeShop?.id ?? null} />
     </>
   )
 }

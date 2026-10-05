@@ -24,7 +24,7 @@ import { useUnsavedChangesGuard } from '@/app/(paces)/seller/(fullscreen)/public
 import GroupBanner from '@/app/(paces)/seller/(dashboard)/business/line-reports/_components/detail/GroupBanner'
 import type { AppShell } from '@/lib/app-shell'
 import { libraryAvailability, top3Availability, type AvailabilityContext } from '@/lib/line-report/availability'
-import { PENDING_GROUP_FALLBACK_NAME } from '@/lib/line-report/list-view'
+import { PENDING_GROUP_FALLBACK_NAME, shopScopeLabel } from '@/lib/line-report/list-view'
 import { orderWordFor } from '@/lib/line-report/order-word'
 import { bannerFor, canTest, testBlockedReason, toPresenterGroup } from '@/lib/line-report/presenter'
 import { METRIC_REQUIRED_HELPER } from '@/lib/line-report/settings-guards'
@@ -356,7 +356,7 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
       <div className="shrink-0">
       <FullscreenPageHeader
         title="จัดข้อความรายงาน"
-        subtitle={name}
+        subtitle={`${name} · รวมร้าน ${shopScopeLabel(group.shops)}`}
         backHref={`/business/line-reports/${group.id}`}
         isDirty={dirty}
         toolbarExtra={<DesktopActions {...barProps} />}

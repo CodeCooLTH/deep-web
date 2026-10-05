@@ -16,11 +16,13 @@ import CodeCountdown from './CodeCountdown'
 import GroupStatusBadge from './GroupStatusBadge'
 import { TONE_TEXT } from './tone'
 
-export default function ReportGroupRow({ group, now }: { group: ListGroupItem; now: Date }) {
+export default function ReportGroupRow({ group, now, highlightShopId = null }: { group: ListGroupItem; now: Date; highlightShopId?: string | null }) {
   const badge = groupBadge({ status: group.status }, group.paused)
   const line = statusLine(group, now)
   const last = lastDeliveryView(group.lastDelivery, now)
   const extra = Math.max(0, group.shopCount - group.shops.length)
+  // ร้านที่เลือกอยู่ขึ้นเป็นชิปแรก (กันถูกตัดเป็น +N) — sort เสถียร ลำดับเดิมของที่เหลือไม่เปลี่ยน
+  const shops = [...group.shops].sort((a, b) => Number(b.id === highlightShopId) - Number(a.id === highlightShopId))
   // ใช้ชื่อแทนเฉพาะ PENDING (ยังไม่รู้ชื่อกลุ่ม) — สถานะอื่นที่ชื่อว่างคือข้อมูลผิดปกติ ไม่ปิดบังด้วยชื่อแทน
   const name = group.status === 'PENDING' ? group.groupName || PENDING_GROUP_FALLBACK_NAME : group.groupName
   const href = `/business/line-reports/${group.id}`
@@ -45,11 +47,15 @@ export default function ReportGroupRow({ group, now }: { group: ListGroupItem; n
             </p>
             <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
               <span className="text-default-700 text-xs">{groupKindLabel(group.shopCount)}</span>
-              {group.shops.map((s) => (
-                <span key={s.id} title={s.name} className="bg-light text-default-700 inline-block max-w-40 truncate rounded px-2 py-0.5 align-bottom text-xs">
-                  {s.name}
-                </span>
-              ))}
+              {shops.map((s) => {
+                const active = s.id === highlightShopId
+                return (
+                  <span key={s.id} title={s.name} className={`${active ? 'bg-primary/15 text-primary-ink' : 'bg-light text-default-700'} inline-block max-w-40 truncate rounded px-2 py-0.5 align-bottom text-xs`}>
+                    {s.name}
+                    {active && <span className="sr-only"> (ร้านที่เลือกอยู่)</span>}
+                  </span>
+                )
+              })}
               {extra > 0 && <span className="bg-light text-default-700 rounded px-2 py-0.5 text-xs">+{extra}</span>}
             </div>
           </div>

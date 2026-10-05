@@ -121,3 +121,32 @@ export function historyReasonText(reasonLabel: string | null | undefined, summar
   const skip = skippedPart(summary)
   return [reasonLabel, skip ? `ข้าม: ${skip}` : null].filter(Boolean).join(' · ')
 }
+
+// ─── ขอบเขตร้านของกลุ่ม (บัญชี ≠ ร้านที่เลือกอยู่) ──────────────────────────────────────────
+
+type ScopeShop = { name: string; state?: string }
+
+const STATE_SUFFIX: Record<string, string> = { LOCKED: ' (ถูกล็อก)', DELETED: ' (ลบแล้ว)', PURGED: ' (ลบแล้ว)' }
+
+/** "ธนภัทร์" · "ธนภัทร์ และอีก 2 ร้าน" · "ยังไม่มีร้านในรายงาน" — ร้านที่ state ≠ OK ต่อท้ายสถานะ (ไม่ส่ง state = ถือว่าปกติ) */
+export function shopScopeLabel(shops: readonly ScopeShop[], max = 1): string {
+  if (shops.length === 0) return 'ยังไม่มีร้านในรายงาน'
+  const shown = shops.slice(0, Math.max(1, max)).map((s) => `${s.name}${STATE_SUFFIX[s.state ?? 'OK'] ?? ''}`)
+  const rest = shops.length - shown.length
+  return rest > 0 ? `${shown.join(', ')} และอีก ${rest} ร้าน` : shown.join(', ')
+}
+
+/** กลุ่มนี้รวมร้าน activeShopId ไหม — รับทั้งรูป list (`id`) และ detail (`shopId`) · activeShopId ว่าง = true (ไม่มีอะไรให้เทียบ) */
+export function includesShop(shops: readonly { id?: string; shopId?: string }[], activeShopId: string | null | undefined): boolean {
+  if (!activeShopId) return true
+  return shops.some((s) => (s.id ?? s.shopId) === activeShopId)
+}
+
+/**
+ * ในหน้ารายการ: เน้นชิปร้านที่เลือกอยู่เฉพาะเมื่อมีกลุ่มที่ "ไม่รวม" ร้านนี้อย่างน้อย 1 กลุ่ม (ทุกกลุ่มรวมก็ไม่มีอะไรให้ต่าง)
+ * list DTO ส่งชื่อร้านแค่ 2 ร้านแรก → กลุ่มที่ร้านถูกตัด (shopCount > shops.length) ตัดสินไม่ได้ ถือว่าอาจรวมอยู่ — ไม่นับเป็นกลุ่มที่ไม่รวม
+ */
+export function shouldHighlightActiveShop(groups: readonly Pick<ListGroupItem, 'shops' | 'shopCount'>[], activeShopId: string | null | undefined): boolean {
+  if (!activeShopId) return false
+  return groups.some((g) => g.shopCount <= g.shops.length && !includesShop(g.shops, activeShopId))
+}
