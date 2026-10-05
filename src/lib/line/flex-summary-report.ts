@@ -18,6 +18,8 @@ const ACCENT = '#236dc9'
 const INK = '#2F2B3D'
 const SLATE = '#808390'
 const DANGER = '#d92d20'
+/** ให้พรีวิวในหน้าตั้งค่าอ้างสีชุดเดียวกัน (flex-preview-tokens) — เปลี่ยนสีที่นี่แล้วเทสพรีวิวจะฟ้อง */
+export const FLEX_COLORS = { ACCENT, INK, SLATE, DANGER } as const
 
 const ALT_TEXT_MAX = 1500
 /** LINE: bubble ≤ 30KB — เผื่อไว้ใช้ 30,000 ไบต์ (ไม่ใช่ 30*1024) */
@@ -64,7 +66,7 @@ function titleOf(kind: ReportKind, s: GroupSummary, override?: string): string {
  * ห้ามพิมพ์คำเอง — ร้านบริการอ่านคำว่า "ออเดอร์" แล้วไม่ตรงกับธุรกิจตัวเอง
  */
 export const MIXED_ORDER_WORD = 'รายการ'
-export function reportOrderWord(shops: readonly ShopSummary[]): { word: string; mixed: boolean } {
+export function reportOrderWord(shops: readonly Pick<ShopSummary, 'shop' | 'state'>[]): { word: string; mixed: boolean } {
   const counted = shops.filter((s) => s.state !== 'EXCLUDED')
   const verticals = new Set((counted.length > 0 ? counted : shops).map((s) => resolveShopVertical(s.shop.vertical)))
   if (verticals.size > 1) return { word: MIXED_ORDER_WORD, mixed: true }

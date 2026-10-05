@@ -6,7 +6,9 @@ import {
   groupBadge,
   lockedCta,
   TEST_SEND_DAILY_LIMIT,
+  testBlockedReason,
   testsLeft,
+  toPresenterGroup,
   type PresenterGroup,
 } from '../presenter'
 import type { LineReportGroupStatus } from '../types'
@@ -107,5 +109,31 @@ describe('bannerFor', () => {
     const b = bannerFor(g('ACTIVE'), true, 'android')
     expect(b?.action).toBeNull()
     expect(b?.message).not.toMatch(/฿|สมัคร|อัปเกรด|ราคา|ต่อแพ็กเกจ/)
+  })
+})
+
+describe('toPresenterGroup / testBlockedReason (E1)', () => {
+  const shop = (state: string) => ({ state })
+  it('allShopsLocked: ทุกร้านไม่ OK = true · มี OK สักร้าน = false · ไม่มีร้าน = false', () => {
+    expect(toPresenterGroup({ status: 'ACTIVE', shops: [shop('LOCKED'), shop('DELETED')] }).allShopsLocked).toBe(true)
+    expect(toPresenterGroup({ status: 'ACTIVE', shops: [shop('LOCKED'), shop('OK')] }).allShopsLocked).toBe(false)
+    expect(toPresenterGroup({ status: 'ACTIVE', shops: [] }).allShopsLocked).toBe(false)
+  })
+  it('ลำดับเหตุ: แพ็กเกจหยุด > บอทถูกนำออก > ร้านล็อกหมด > ครบโควตา', () => {
+    const all = { status: 'ACTIVE', allShopsLocked: true } as const
+    expect(testBlockedReason(all, true, 99)).toBe('ส่งทดสอบไม่ได้ขณะแพ็กเกจหยุดใช้งาน')
+    expect(testBlockedReason({ status: 'INACTIVE', allShopsLocked: true }, false, 99)).toBe('ส่งทดสอบไม่ได้จนกว่ากลุ่มจะผูกใหม่')
+    expect(testBlockedReason({ status: 'PENDING' }, false, 0)).toBe('ส่งทดสอบไม่ได้จนกว่ากลุ่มจะผูกสำเร็จ')
+    expect(testBlockedReason(all, false, 99)).toBe('ทุกร้านในกลุ่มนี้ถูกล็อกหรือถูกลบ รายงานจึงยังไม่ถูกส่ง')
+    expect(testBlockedReason({ status: 'ACTIVE' }, false, TEST_SEND_DAILY_LIMIT)).toBe('ครบ 5 ครั้งวันนี้แล้ว ส่งทดสอบได้อีกครั้งพรุ่งนี้')
+  })
+  it('invariant: testBlockedReason === null ⟺ canTest (ทุกชุดอินพุต)', () => {
+    for (const status of ['PENDING', 'ACTIVE', 'INACTIVE', 'REMOVED'] as const)
+      for (const paused of [true, false])
+        for (const allShopsLocked of [true, false])
+          for (const used of [0, TEST_SEND_DAILY_LIMIT - 1, TEST_SEND_DAILY_LIMIT]) {
+            const pg = { status, allShopsLocked }
+            expect(testBlockedReason(pg, paused, used) === null).toBe(canTest(pg, paused, used))
+          }
   })
 })

@@ -116,3 +116,24 @@ export function bannerFor(
   }
   return null
 }
+
+/**
+ * แปลง DTO ของกลุ่ม (GET /groups/{id}) เป็น PresenterGroup — adapter เดียว ห้ามคำนวณ allShopsLocked ในคอมโพเนนต์
+ * กลุ่มไม่มีร้านเลย = ไม่ถือว่า "ล็อกหมด" (ข้อมูลผิดปกติคนละเรื่องกับแพ็กเกจล็อก)
+ */
+export function toPresenterGroup(dto: { status: LineReportGroupStatus; shops: readonly { state: string }[] }): PresenterGroup {
+  return { status: dto.status, allShopsLocked: dto.shops.length > 0 && dto.shops.every((s) => s.state !== 'OK') }
+}
+
+/**
+ * เหตุที่ปุ่ม "ส่งทดสอบ" กดไม่ได้ — null = กดได้ (ตรงกับ `canTest` เป๊ะ · เทสคุม invariant)
+ * ลำดับ: แพ็กเกจหยุด > ยังไม่ผูก/บอทถูกนำออก > ร้านล็อกหมด > ครบโควตา (เลือกประโยคเดียว ไม่ซ้อนหลายเหตุ)
+ */
+export function testBlockedReason(group: PresenterGroup, paused: boolean, testsToday: number): string | null {
+  if (paused) return 'ส่งทดสอบไม่ได้ขณะแพ็กเกจหยุดใช้งาน'
+  if (group.status === 'INACTIVE') return 'ส่งทดสอบไม่ได้จนกว่ากลุ่มจะผูกใหม่'
+  if (group.status !== 'ACTIVE') return 'ส่งทดสอบไม่ได้จนกว่ากลุ่มจะผูกสำเร็จ'
+  if (group.allShopsLocked) return 'ทุกร้านในกลุ่มนี้ถูกล็อกหรือถูกลบ รายงานจึงยังไม่ถูกส่ง'
+  if (testsToday >= TEST_SEND_DAILY_LIMIT) return `ครบ ${TEST_SEND_DAILY_LIMIT} ครั้งวันนี้แล้ว ส่งทดสอบได้อีกครั้งพรุ่งนี้`
+  return null
+}
