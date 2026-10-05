@@ -43,9 +43,10 @@
   .tools{display:flex;flex-wrap:wrap;gap:6px}
   .btn{display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-size:12.5px;font-weight:500;padding:5px 10px;border-radius:6px;border:1px solid var(--color-default-300);background:#fff;color:var(--color-default-700);cursor:pointer}
   .btn .n{font-size:10.5px;line-height:1;padding:3px 6px;border-radius:999px;color:#fff;background:var(--color-primary)}
-  .btn.fu{border-color:var(--color-primary);color:var(--color-primary)}
+  .btn.fu{border-color:var(--color-success);color:var(--color-success-ink)}
+  .btn.fu .n{background:var(--color-success)}
   .btn.fu .n.late{background:var(--color-danger)}
-  .btn.fu.on{background:var(--color-primary);color:#fff}
+  .btn.fu.on{background:var(--color-success);color:#fff}
   .btn.fu.on .n{background:rgba(255,255,255,.25)}
   .btn.ship{border-color:var(--color-danger);color:var(--color-danger)}
   .btn.ship .n{background:var(--color-danger)}
@@ -160,6 +161,7 @@
       <div class="seg"><b class="on">ทั้งหมด</b><b>FB</b><b>IG</b><b>LINE</b></div>
       <div class="tools">
         <span class="btn"><iconify-icon icon="tabler:filter" width="16"></iconify-icon>ตัวกรอง</span>
+        <span class="btn fu new"><iconify-icon icon="tabler:star" width="16"></iconify-icon>ติดตาม<span class="n late">4</span></span>
         <span class="btn ship"><iconify-icon icon="tabler:alert-triangle" width="16"></iconify-icon>พัสดุมีปัญหา<span class="n">1</span></span>
       </div>
     </div>
@@ -191,27 +193,23 @@
     </div>
   </template>
 
-  <h2>1) รายการแชท + ตัวกรอง</h2>
+  <h2>1) รายการแชท + ชิปกรอง</h2>
   <div class="grid">
     <div class="device" style="width:390px">
       <div class="device-h"><span>มือถือ 390px</span><em>รายการแชท</em></div>
       <div data-use="listhead"></div><div data-use="rows"></div>
     </div>
     <div class="device" style="width:390px">
-      <div class="device-h"><span>มือถือ 390px</span><em>เปิดแผง "ตัวกรอง" (มีอยู่แล้ว ไม่เปลี่ยน)</em></div>
+      <div class="device-h"><span>มือถือ 390px</span><em>กดชิป "ติดตาม" แล้ว</em></div>
       <div class="lh">
         <div class="seg"><b class="on">ทั้งหมด</b><b>FB</b><b>IG</b><b>LINE</b></div>
-        <div class="tools"><span class="btn" style="border-color:var(--color-primary);color:var(--color-primary)"><iconify-icon icon="tabler:filter" width="16"></iconify-icon>ตัวกรอง</span></div>
-      </div>
-      <div style="padding:12px 15px;font-size:13px">
-        <p style="margin:0 0 2px;font-weight:600">ติดตามลูกค้า</p>
-        <p style="margin:0 0 8px;font-size:11.5px;color:var(--color-default-500)">แสดงเฉพาะแชทที่มีรายการติดตาม</p>
         <div class="tools">
-          <span class="btn" style="border-color:var(--color-primary);background:rgba(35,109,201,.12);color:var(--color-primary-ink)">เลยกำหนด (2)</span>
-          <span class="btn" style="border-color:var(--color-primary);background:rgba(35,109,201,.12);color:var(--color-primary-ink)">กำลังจะมาถึง (2)</span>
-          <span class="btn">ทำแล้ว (5)</span>
+          <span class="btn"><iconify-icon icon="tabler:filter" width="16"></iconify-icon>ตัวกรอง</span>
+          <span class="btn fu on new"><iconify-icon icon="tabler:star" width="16"></iconify-icon>ติดตาม<span class="n">4</span></span>
+          <span class="btn ship"><iconify-icon icon="tabler:alert-triangle" width="16"></iconify-icon>พัสดุมีปัญหา<span class="n">1</span></span>
         </div>
       </div>
+      <div data-use="rows" data-only="3"></div>
     </div>
   </div>
 
@@ -245,7 +243,7 @@
       <li><b>ชิป "ติดตาม n" ในแถวแชท:</b> แทนคำเดิม "ค้างอยู่ n" ที่อ่านแล้วไม่รู้ว่าค้างอะไร · สีเขียว (แบบที่ระบบทั่วไปใช้กับ "ติดตาม") และเป็นสีแดงเมื่อมีรายการเลยกำหนด · เป็นชิปแรกของบรรทัดป้าย</li>
       <li><b>แถบงานด่วนใต้ชิป</b> (แบบ gochat-v3 "เลย 5 วัน · TK-0002 ..."): แสดงรายการที่ <u>เลยกำหนดหรือครบวันนี้</u> ที่เก่าที่สุด 1 รายการ + "+n" ถ้ามีด่วนอีก ·
         เลยกำหนด = แดง "เลย n วัน" (นับวันตามปฏิทินไทย) · ครบวันนี้ = เหลือง "วันนี้ 14:00" · ถ้าครบกำหนดพรุ่งนี้หรือหลังจากนั้น จะไม่มีแถบนี้ เหลือแค่ชิป</li>
-      <li><b>ตัวกรอง:</b> อยู่ในแผง "ตัวกรอง" หัวข้อ "ติดตามลูกค้า" (เลยกำหนด / กำลังจะมาถึง / ทำแล้ว) ซึ่งมีอยู่แล้ว ไม่เพิ่มปุ่มที่หัวรายการ (user สั่ง 2026-10-05)</li>
+      <li><b>ชิปกรอง "ติดตาม"</b> ที่หัวรายการ ข้าง "พัสดุมีปัญหา" (user 2026-10-05): กดครั้งเดียวกรองเฉพาะแชทที่มีรายการติดตามค้างอยู่ (เลยกำหนด + กำลังจะมาถึง) · กดซ้ำเพื่อยกเลิก · ตัวเลขแดงเมื่อมีเลยกำหนด · ซ่อนเมื่อไม่มีค้าง · <b>ถอดหัวข้อ "ติดตามลูกค้า" ออกจากแผงตัวกรอง</b></li>
       <li><b>แผงลูกค้า:</b> ถอดแถวพับ "ติดตามลูกค้า (n)" ที่อยู่เหนือแท็บออก แล้วย้ายมาเป็นแท็บที่ 3 "ติดตาม" · ตัวเลขบนแท็บเป็นสีแดงเมื่อมีรายการเลยกำหนด ·
         ปุ่ม "+ เพิ่ม" อยู่หัวแท็บ · รายการแสดงเต็มความสูงแผง ไม่มีพับ · บีบระยะห่างของแท็บเพื่อให้ 5 แท็บพอดี 384px โดยไม่ต้องเลื่อน</li>
     </ol>

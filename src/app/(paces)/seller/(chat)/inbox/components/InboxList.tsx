@@ -1,5 +1,6 @@
 'use client'
 import type { FollowUpRowInfo } from '@/services/customer-follow-up.service'
+import { fmt } from '@/i18n/fmt'
 import { localReadAtOf, markLocalRead } from '@/lib/chat-local-read'
 import { useOrderVocab } from '../../_components/DraftOrderProvider'
 import { useStableCallback } from '@/hooks/useStableCallback'
@@ -1317,7 +1318,6 @@ export default function InboxList({
             pageOptions={channels}
             allTags={allTags}
             hasShipping={hasShipping}
-            followUpCounts={followUpCounts}
           />
 
 
@@ -1364,6 +1364,39 @@ export default function InboxList({
               </span>
             </button>
           )}
+
+          {/* 00066 — ชิป "ติดตาม" กดทีเดียวกรอง (user สั่ง 2026-10-05: "ขึ้นมาเป็น filter ง่ายๆ แบบพัสดุมีปัญหา"
+              แทนหัวข้อ "ติดตามลูกค้า" ในแผงตัวกรองที่ถอดออก) · กรอง = เลยกำหนด+กำลังจะมาถึง (ยังค้างอยู่)
+              on = มี followUp ค่าใดก็ได้ (รวมค่าจากตัวกรองเริ่มต้นที่บันทึกไว้รุ่นเก่า) → กดแล้วล้างหมด ไม่มีสถานะค้างที่ปลดไม่ได้
+              โครงเดียวกับชิปพัสดุ · เขียว = สีของ "ติดตาม" · ตัวเลขแดงเมื่อมีเลยกำหนด · ซ่อนเมื่อไม่มีค้าง */}
+          {(() => {
+            const open = followUpCounts ? followUpCounts.late + followUpCounts.upcoming : 0
+            const on = filter.followUp.length > 0
+            if (open === 0 && !on) return null
+            return (
+              <button
+                type="button"
+                onClick={() => setFilter((f) => ({ ...f, followUp: on ? [] : ['late', 'upcoming'] }))}
+                aria-pressed={on}
+                aria-label={on ? t.followUps.quickFilterOnAria : fmt(t.followUps.quickFilterAria, { n: open })}
+                className={`btn btn-sm inline-flex items-center gap-2 border ${
+                  on ? 'bg-success border-success text-white' : 'bg-card border-success text-success-ink'
+                }`}
+              >
+                <Icon icon="star" className="size-4" />
+                {t.followUps.quickFilter}
+                {open > 0 && (
+                  <span
+                    className={`badge text-2xs rounded-full px-1.5 ${
+                      on ? 'bg-white/25 text-white' : (followUpCounts?.late ?? 0) > 0 ? 'bg-danger text-white' : 'bg-success text-white'
+                    }`}
+                  >
+                    {open > 99 ? '99+' : open}
+                  </span>
+                )}
+              </button>
+            )
+          })()}
 
           {/* active-filter chips — x ในตัวเดียวกันคือปุ่มล้างตัวกรองนั้น
               ไม่มี chip ของ "เพจ" (user สั่ง 2026-07-23): ปุ่ม PageFilterDropdown แสดงชื่อเพจที่เลือก
