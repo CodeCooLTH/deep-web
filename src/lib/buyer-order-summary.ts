@@ -13,7 +13,8 @@ export const SHOP_RATING_UNIT = 'ดาว'
 
 /**
  * บรรทัดย่อหลักฐานร้านบนหัว — คืน null เมื่อไม่มีอะไรจะพูด (ไม่แสดงบรรทัดเลย)
- * avgRating ≤ 0/NaN = "ยังไม่มีรีวิว" ไม่ใช่ "0 ดาว" ; completedOrders null = ไม่รู้ (0 จริงยังแสดง)
+ * avgRating ≤ 0/NaN = "ยังไม่มีรีวิว" ไม่ใช่ "0 ดาว" ; completedOrders null = ไม่รู้
+ * completedOrders 0 = ไม่เขียน (มติ D-11 — ป้าย "ร้านใหม่" ในการ์ดหลักฐานเป็นคนบอกแทน)
  */
 export function buildShopSummaryLine(input: {
   avgRating: number | null
@@ -25,7 +26,7 @@ export function buildShopSummaryLine(input: {
       ? `${avgRating.toFixed(1)} ${SHOP_RATING_UNIT}`
       : null
   const orders =
-    completedOrders != null && Number.isFinite(completedOrders)
+    completedOrders != null && Number.isFinite(completedOrders) && completedOrders > 0
       ? `ออเดอร์สำเร็จ ${completedOrders.toLocaleString('th-TH')} ครั้ง`
       : null
   const parts = [rating, orders].filter((x): x is string => x !== null)
@@ -72,7 +73,7 @@ export function buildSlipMoneyView(input: {
   // ใบที่ร้านรับเงินแล้วแต่ยัง PENDING ห้ามขึ้น "ยอดที่ต้องชำระ" คู่ป้ายรับแล้ว (UX §3 · SRS ขาด !confirmed)
   const totalLabel = status === 'PENDING' && money == null && !confirmed ? 'ยอดที่ต้องชำระ' : 'ยอดรวม'
   const paidChip =
-    money == null && confirmed && canSellerConfirmPayment(paymentMethod) ? SELLER_CONFIRMED_PAID_LABEL : null
+    money == null && confirmed && status !== 'CANCELLED' && canSellerConfirmPayment(paymentMethod) ? SELLER_CONFIRMED_PAID_LABEL : null
 
   if (money == null) return { totalLabel, paidChip, serviceLines: null }
 

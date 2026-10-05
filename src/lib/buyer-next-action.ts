@@ -17,6 +17,8 @@ export type BuyerNextActionInput = {
   totalAmount: number
   /** order.serviceMoney?.outstanding ?? null (ร้านขายของ = null) */
   outstanding: number | null
+  /** ร้านมีบัญชีรับเงิน (payoutSnapshot) ไหม — บังคับ ไม่มี default (R-7 · AC-BOP-05-3) */
+  hasPayoutAccount: boolean
 }
 
 export type BuyerNextAction = {
@@ -25,6 +27,8 @@ export type BuyerNextAction = {
   statusVariant: 'COD' | 'CASH' | 'DIGITAL' | 'PLAIN' | null
   /** ต้องแสดงบล็อกโอน + ที่แนบสลิป */
   transfer: boolean
+  /** ต้องโอนแต่ร้านยังไม่ตั้งบัญชี — กล่องโอนต้องบอกให้ติดต่อร้าน ไม่ใช่ QR ว่าง (R-7) */
+  transferNoAccount: boolean
   /** การ์ดบัญชีรับเงินแบบสรุป (ถอด QR เมื่อ settled) — ด่าน P0-2 */
   payoutCard: boolean
   pickupCard: boolean
@@ -46,6 +50,7 @@ export function resolveBuyerNextAction(i: BuyerNextActionInput): BuyerNextAction
     open && i.status === 'PENDING' && needsPay && !i.paymentConfirmedAt && amountDue > 0
   const base = {
     transfer,
+    transferNoAccount: transfer && !i.hasPayoutAccount,
     payoutCard: needsPay && !transfer,
     pickupCard: isPickupOrder(i.fulfillmentMode),
     appointmentCard: i.hasAppointment,

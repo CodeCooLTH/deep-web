@@ -14,9 +14,12 @@ describe('buildShopSummaryLine', () => {
       expect(buildShopSummaryLine({ avgRating: r, completedOrders: null })).toBeNull()
     }
   })
-  it('[blocker] completedOrders null ห้ามกลายเป็น "0 ครั้ง" แต่ 0 จริงแสดง', () => {
+  it('[blocker] completedOrders null/0 ไม่เขียน "ครั้ง" (null = ไม่รู้ · 0 = มติ D-11)', () => {
     expect(buildShopSummaryLine({ avgRating: 4, completedOrders: null })).not.toMatch(/ครั้ง/)
-    expect(buildShopSummaryLine({ avgRating: null, completedOrders: 0 })).toBe('ออเดอร์สำเร็จ 0 ครั้ง')
+    expect(buildShopSummaryLine({ avgRating: null, completedOrders: 0 })).toBeNull()
+    expect(buildShopSummaryLine({ avgRating: 4.5, completedOrders: 0 })).toBe('4.5 ดาว')
+    // ขอบ: 1 ต้องยังแสดง (กัน mutation > 1)
+    expect(buildShopSummaryLine({ avgRating: null, completedOrders: 1 })).toBe('ออเดอร์สำเร็จ 1 ครั้ง')
   })
   it('4 → "4.0" · ปัดทศนิยม 1 ตำแหน่ง · คั่นหลักพัน', () => {
     expect(buildShopSummaryLine({ avgRating: 4, completedOrders: 1234 })).toBe('4.0 ดาว · ออเดอร์สำเร็จ 1,234 ครั้ง')
@@ -49,6 +52,11 @@ describe('buildSlipMoneyView', () => {
     expect(view().paidChip).toBeNull()
     expect(view({ paymentConfirmedAt: null }).paidChip).toBeNull()
   })
+  it('[blocker] CANCELLED ไม่มี paidChip (R-5)', () => {
+    expect(view({ status: 'CANCELLED', paymentConfirmedAt: new Date() }).paidChip).toBeNull()
+    expect(view({ status: 'CONFIRMED', paymentConfirmedAt: new Date() }).paidChip).not.toBeNull()
+  })
+
   it('[blocker] COD ไม่มี paidChip แม้มี paymentConfirmedAt — ตรงกับ getPaymentBadge', () => {
     expect(view({ paymentMethod: 'COD', paymentConfirmedAt: new Date() }).paidChip).toBeNull()
   })

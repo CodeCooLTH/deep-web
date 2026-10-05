@@ -519,3 +519,12 @@ SRS นี้กำหนดข้อกำหนดเชิงเทคนิ�
 - **O-5** ให้ `GuestOrderView` หันมาใช้ `buildBuyerShipmentView` ด้วยหรือไม่ (refactor ล้วน พฤติกรรมเท่าเดิม แยก commit ได้)
 - **O-6** ถอด `showSlipZone` (แนะนำ) หรือคงไว้แล้วแก้เป็น `!isCashPayment`
 - **งานเอกสารที่ต้องตามหลัง implement:** sync `docs/SRS.md` (มี 4 จุดที่อ้าง `/o/[token]`/`PublicOrderData`) ตามกฎ HR11
+
+---
+
+## ภาคผนวก — แก้ตามมติ 2026-10-05 (BRD §10 D-10/D-11 · R-1..R-10)
+
+- **TFR-003:** `resolveBuyerNextAction` รับ `hasPayoutAccount: boolean` (บังคับ) และคืน `transferNoAccount = transfer && !hasPayoutAccount` (R-7 · AC-BOP-05-3) · SHIPMENT = `fulfillmentMode==='SHIPPED' && hasShipment` (R-8) · COD ที่มีพัสดุ = SHIPMENT
+- **TFR-001:** `buildShopSummaryLine` ไม่เขียนออเดอร์สำเร็จเมื่อเป็น 0 หรือ null (D-11)
+- **TFR-009:** `totalLabel` = "ยอดที่ต้องชำระ" เฉพาะ `PENDING && money == null && !paymentConfirmedAt` (R-4) · `paidChip` ต้องผ่าน `canSellerConfirmPayment(paymentMethod)` (ชุดเดียวกับ `getPaymentBadge`) และ `status !== 'CANCELLED'` (R-5) — ฟังก์ชันจึงรับ `paymentMethod` เพิ่ม
+- **TFR-001/008:** รูปปกที่ร้านอัปโหลดยังแสดง (D-10) — ตำแหน่งตาม ux addendum

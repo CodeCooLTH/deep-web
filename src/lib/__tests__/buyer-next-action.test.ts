@@ -17,6 +17,7 @@ const base: BuyerNextActionInput = {
   hasShipment: false,
   totalAmount: 500,
   outstanding: null,
+  hasPayoutAccount: true,
 }
 const run = (o: Partial<BuyerNextActionInput>) => resolveBuyerNextAction({ ...base, ...o })
 const pick = (o: Partial<BuyerNextActionInput>) => {
@@ -176,3 +177,17 @@ describe('allow-list ของ open (fail-closed)', () => {
     }
   })
 })
+
+describe('[blocker] R-7 transferNoAccount — ต้องโอนแต่ร้านไม่มีบัญชี', () => {
+  const r = (o: Partial<BuyerNextActionInput>) => resolveBuyerNextAction({ ...base, ...o })
+  it('ต้องโอน + ไม่มีบัญชี = true', () => {
+    expect(r({ status: 'PENDING', paymentMethod: 'TRANSFER', hasPayoutAccount: false }).transferNoAccount).toBe(true)
+  })
+  it('ต้องโอน + มีบัญชี = false', () => {
+    expect(r({ status: 'PENDING', paymentMethod: 'TRANSFER', hasPayoutAccount: true }).transferNoAccount).toBe(false)
+  })
+  it('ไม่ต้องโอน (COD) แม้ไม่มีบัญชี = false', () => {
+    expect(r({ status: 'PENDING', paymentMethod: 'COD', hasPayoutAccount: false }).transferNoAccount).toBe(false)
+  })
+})
+
