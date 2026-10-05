@@ -185,14 +185,20 @@ export async function cancelInvite(ownerId: string, shopId: string, inviteId: st
 
 /** listMembers — สมาชิกทั้งหมดของ shop (role, userId, ข้อมูล user เท่าที่จำเป็นแสดงในหน้าจัดการสมาชิก) */
 export async function listMembers(shopId: string) {
-  return prisma.shopMember.findMany({
+  const rows = await prisma.shopMember.findMany({
     where: { shopId },
     select: {
       id: true, role: true, userId: true, createdAt: true,
-      user: { select: { displayName: true, username: true, avatar: true } },
+      // authAccounts: คอลัมน์ "ช่องทาง" ในหน้า /admins (เฉพาะชื่อ provider ไม่ดึง token)
+      user: { select: { displayName: true, username: true, avatar: true, passwordHash: true, authAccounts: { select: { provider: true } } } },
     },
     orderBy: { createdAt: "asc" },
   });
+  // แปลง passwordHash เป็น boolean ที่นี่ — hash ห้ามหลุดออกจาก service (คอลัมน์ "ช่องทาง" ต้องรู้แค่ว่ามีไหม)
+  return rows.map(({ user: { passwordHash, ...user }, ...m }) => ({
+    ...m,
+    user: { ...user, hasPassword: passwordHash !== null },
+  }));
 }
 
 /** listInvites — คำเชิญ PENDING ของ shop

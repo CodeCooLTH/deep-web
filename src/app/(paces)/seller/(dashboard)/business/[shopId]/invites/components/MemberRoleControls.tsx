@@ -6,14 +6,15 @@
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/InputTextfieldType.tsx (form-select)
  *     + theme/paces/Admin/TS/src/app/(admin)/plugins/sweet-alerts/components/SweetAlerts.tsx (confirm ผ่าน paces-swal)
- * IA อ้างอิง gochat-v3 settings/members: เปลี่ยนค่าแล้วบันทึกทันที
+ * (ปุ่มโอนย้ายไป TransferOwnershipButton บนแถวเจ้าของหลัก — critique 2026-10-05)
+ * IA อ้างอิง gochat-v3 settings/members: เปลี่ยนค่าแล้วบันทึกทันที (ยกเว้น 2 ทิศที่ถามก่อน: ลดตัวเอง · ตั้งคนอื่นเป็นเจ้าของ)
  *
  * `form-select` ปกติ ไม่ใช่ `-sm` — `-sm` สูง 30px ต่ำกว่าพื้นที่นิ้ว 44px (ux spec)
  */
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { pacesConfirm, pacesConfirmAsync } from '@/lib/paces-swal'
+import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { memberErrorText } from './member-error-text'
 
@@ -29,12 +30,10 @@ interface Props {
   role: Role
   isSelf: boolean
   primaryOwnerName: string
-  /** ผู้ดูเป็นเจ้าของหลัก → เห็นปุ่มโอน */
-  canTransfer: boolean
 }
 
 export default function MemberRoleControls({
-  shopId, memberId, name, role, isSelf, primaryOwnerName, canTransfer,
+  shopId, memberId, name, role, isSelf, primaryOwnerName,
 }: Props) {
   const router = useRouter()
   const [value, setValue] = useState<Role>(role)
@@ -52,6 +51,16 @@ export default function MemberRoleControls({
         'เปลี่ยนตัวเองเป็นผู้ดูแล?',
         'คุณจะเข้าหน้านี้ไม่ได้อีก และเปลี่ยนกลับเองไม่ได้ ต้องให้เจ้าของคนอื่นเปลี่ยนให้',
         { confirmButtonText: 'เปลี่ยนเป็นผู้ดูแล' },
+      )
+      if (!ok) return
+    }
+    // เลื่อนเป็นเจ้าของ = ได้สิทธิ์ลบคน/แก้บัญชีรับเงิน และลดสิทธิ์เราได้ก่อนเราย้อนทัน ⇒ ถามก่อน
+    // (critique 2026-10-05 P1-a · บนคอม กดลูกศรใน select ก็ยิง change ได้)
+    if (!isSelf && next === 'OWNER') {
+      const ok = await pacesConfirm.warning(
+        `ตั้ง ${name} เป็นเจ้าของ?`,
+        `${name} จะเชิญ/ลบสมาชิก เปลี่ยนบทบาทคนอื่น และแก้บัญชีรับเงินของร้านได้เหมือนคุณ`,
+        { confirmButtonText: 'ตั้งเป็นเจ้าของ' },
       )
       if (!ok) return
     }
@@ -79,31 +88,6 @@ export default function MemberRoleControls({
     }
   }
 
-  const transfer = async () => {
-    const result = await pacesConfirmAsync({
-      icon: 'warning',
-      title: `โอนความเป็นเจ้าของหลักให้ ${name}?`,
-      text: `แพ็กเกจของ ${name} จะเป็นตัวกำหนดโควตาของร้านนี้แทนแพ็กเกจของคุณ และ ${name} ต้องมีแพ็กเกจที่ยังมีที่ว่างพอสำหรับร้านนี้ คุณจะยังเป็นเจ้าของร่วมอยู่ แต่เจ้าของคนอื่นจะเปลี่ยนบทบาทหรือลบคุณได้`,
-      confirmButtonText: 'โอนเจ้าของหลัก',
-      errorText: 'ติดต่อเซิร์ฟเวอร์ไม่ได้ กดโอนอีกครั้งเมื่อเน็ตกลับมา',
-      run: async () => {
-        const res = await fetch(`/api/business/shops/${shopId}/transfer`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ memberId }),
-        })
-        if (res.ok) return { ok: true as const }
-        if (res.status >= 500) throw new Error('server') // ยิงไม่ถึง/ล่ม = กดใหม่ในโมดัลได้
-        const body = await res.json().catch(() => ({}))
-        return { ok: false as const, code: String(body.error ?? '') }
-      },
-    })
-    if (!result) return
-    if (!result.ok) return fail(result.code)
-    pacesToast.success(`โอนความเป็นเจ้าของหลักให้ ${name} แล้ว`)
-    router.refresh()
-  }
-
   return (
     <div className="flex flex-wrap items-center gap-2">
       <select
@@ -116,17 +100,6 @@ export default function MemberRoleControls({
         <option value="OWNER">{ROLE_LABEL.OWNER}</option>
         <option value="ADMIN">{ROLE_LABEL.ADMIN}</option>
       </select>
-      {canTransfer && (
-        <button
-          type="button"
-          className="btn btn-sm bg-light hover:text-default-800"
-          disabled={busy}
-          aria-label={`โอนความเป็นเจ้าของหลักให้ ${name}`}
-          onClick={transfer}
-        >
-          โอนเจ้าของหลัก
-        </button>
-      )}
     </div>
   )
 }

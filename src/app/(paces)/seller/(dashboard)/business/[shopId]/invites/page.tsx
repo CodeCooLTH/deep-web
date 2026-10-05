@@ -30,6 +30,7 @@ import { listMembers } from '@/services/shop-member.service'
 import { BUSINESS_PACKAGE_TIER_CONFIG, type BusinessPackageTier } from '@/lib/business-package'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import LockedStateBanner from '../../components/LockedStateBanner'
+import { isLoginProvider } from '@/components/safepay/LoginProviderLogo'
 import CurrentMembersTable from './components/CurrentMembersTable'
 import { listMutedUserIds } from '@/services/notification-pref.service'
 import FinanceVisibilityToggle from './components/FinanceVisibilityToggle'
@@ -93,6 +94,11 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
     id: m.id,
     role: m.role as 'OWNER' | 'ADMIN',
     displayName: m.user.displayName || m.user.username || 'ไม่ระบุชื่อ',
+    avatar: m.user.avatar,
+    providers: [
+      ...[...new Set(m.user.authAccounts.map((a) => a.provider))].filter(isLoginProvider),
+      ...(m.user.hasPassword ? (['PASSWORD'] as const) : []),
+    ],
     createdAt: m.createdAt.toISOString(),
     isPrimary: m.userId === shop.userId,
     isSelf: m.userId === userId,

@@ -44,3 +44,12 @@ error → HTTP: `NOT_OWNER`/`NOT_PRIMARY_OWNER` 403 · `NOT_A_MEMBER` 404 · อ
 
 ## Tests
 `src/lib/__tests__/shop-member-rules.test.ts` — ครอบ BR-MR-01..07 · browser QA: user ตรวจเอง
+
+## รอบ 2 (วันเดียวกัน) — รูปโปรไฟล์ · คอลัมน์ "ช่องทาง" · ปิด critique
+
+- รูปโปรไฟล์ 32px (ไม่มีรูป = อักษรแรก) ตามแพตเทิร์น `reports/agents/AgentLeaderboard.tsx`
+- คอลัมน์ "ช่องทาง" = โลโก้ทุก `AuthAccount.provider` ที่รู้จัก + กุญแจเมื่อมีรหัสผ่าน (`listMembers` แปลง `passwordHash` เป็น `hasPassword` ใน service — hash ไม่ออกนอก service)
+- โลโก้แบรนด์ย้ายเป็น SSOT `src/components/safepay/LoginProviderLogo.tsx` ใช้ร่วมกับ `/account` · Apple ใช้ `text-default-900` (ไม่หายใน dark mode)
+- `/impeccable critique` 26/40 (`.impeccable/critique/2026-10-05T04-44-52Z__…`) → แก้: ถามยืนยันเมื่อตั้งคนอื่นเป็นเจ้าของ (P1-a) · โมดัลโอนบอกผลที่ย้อนเองไม่ได้ + L1/Trust Score + ปุ่มแดง (P1-c) · ปุ่มโอนเหลือปุ่มเดียวบนแถวเจ้าของหลัก (P2) · ป้ายโควตา "สมาชิก n/m คน ไม่นับเจ้าของหลัก" (P2)
+- P1-b (ปุ่ม 30px) = false positive: `safepay-overrides.css` §"เป้าที่กดได้ = 44px" ยก `button.btn` เป็น 44px ทุกปุ่มบนจอ <1024px อยู่แล้ว
+- ม็อกอัพ: `docs/superpowers/specs/2026-10-05-member-roles-mockup.html`

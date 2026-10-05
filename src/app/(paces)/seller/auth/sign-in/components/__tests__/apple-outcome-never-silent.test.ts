@@ -196,7 +196,11 @@ describe('[blocker] ทุกที่ที่มีปุ่ม Apple ต้�
   const surfaces = readdirSync(join(ROOT, 'src/app'), { recursive: true, encoding: 'utf8' })
     .filter((rel) => rel.endsWith('.tsx'))
     .map((rel) => join('src/app', rel))
-    .filter((rel) => readFileSync(join(ROOT, rel), 'utf8').includes('bxl:apple'))
+    // โลโก้ Apple อยู่ 2 รูป: `bxl:apple` ตรง ๆ หรือผ่าน `<LoginProviderLogo provider="APPLE"` (ย้ายไปใช้ร่วม 2026-10-05)
+    .filter((rel) => {
+      const src = readFileSync(join(ROOT, rel), 'utf8')
+      return src.includes('bxl:apple') || src.includes('LoginProviderLogo provider="APPLE"')
+    })
 
   it('🛑 ต้องเจอทุกที่ที่มีปุ่ม Apple — เจอน้อยกว่า 3 ที่แปลว่าตัวค้นหาพัง ไม่ใช่ว่าของหาย', () => {
     /* ถ้า rg หาไม่เจอ (เปลี่ยนวิธีวางโลโก้/ย้ายโฟลเดอร์) ด่านทั้งบล็อกจะเงียบและผ่านฟรี

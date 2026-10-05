@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ม็อกอัพ — เปลี่ยนบทบาทสมาชิก + โอนเจ้าของหลัก (00012 ext 2026-10-05)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* โทเคนคัดจาก src/assets/css/config/_root.css (light) */
+  :root{--primary:#236dc9;--primary-ink:#1e3a8a;--info-ink:#1e40af;--danger:#f7577e;--body:#f6f7fb;
+        --d100:#f6f7fb;--d200:#e9ecef;--d500:#58626b;--d600:#4a5358;--d800:#343a40;--r:4px}
+  *{box-sizing:border-box} body{margin:0;font-family:Anuphan,sans-serif;background:#e6e8ee;color:var(--d800);font-size:14px}
+  h1{font-size:18px;margin:24px 24px 4px} .lead{margin:0 24px 16px;color:var(--d500)}
+  .row{display:flex;flex-wrap:wrap;gap:28px;padding:0 24px 32px;align-items:flex-start}
+  .dev{background:var(--body);border:1px solid #cfd3da;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .dev .bar{background:#fff;border-bottom:1px solid var(--d200);padding:8px 14px;font-size:12px;color:var(--d500)}
+  .dev .page{padding:16px}
+  .crumb{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .crumb h2{font-size:17px;margin:0}
+  .card{background:#fff;border-radius:6px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+  .card-header{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px dashed var(--d200)}
+  .card-title{font-size:15px;font-weight:600;margin:0}
+  .scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse} th,td{padding:12px 16px;text-align:left;vertical-align:middle;border-bottom:1px solid var(--d200)}
+  th{font-weight:600;font-size:13px;white-space:nowrap} tr:last-child td{border-bottom:0}
+  .end{text-align:right}
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:var(--r);font-size:12px;font-weight:600;white-space:nowrap}
+  .b-owner{background:rgba(35,109,201,.15);color:var(--primary-ink)} .b-admin{background:rgba(91,195,225,.15);color:var(--info-ink)}
+  .b-neutral{background:var(--d100);color:var(--d600);font-size:11px}
+  .hint{font-size:12px;color:var(--d500);margin:4px 0 0;max-width:360px}
+  .muted{color:var(--d500)}
+  select{font:inherit;height:44px;width:128px;padding:0 10px;border:1px solid var(--d200);border-radius:var(--r);background:#fff}
+  .ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .btn{font:inherit;height:44px;padding:0 12px;border:0;border-radius:var(--r);cursor:pointer;white-space:nowrap}
+  .btn-light{background:#eef0f4;color:var(--d800)}
+  .btn-icon{width:44px;padding:0;background:rgba(247,87,126,.15);color:var(--danger);display:inline-flex;align-items:center;justify-content:center}
+  svg{width:16px;height:16px}
+  .note{font-size:12px;color:var(--d500);margin:10px 2px 0;max-width:100%}
+  /* modal */
+  .overlay{background:rgba(0,0,0,.4);padding:24px;border-radius:6px}
+  .modal{background:#fff;border-radius:6px;padding:24px;max-width:440px;margin:0 auto;text-align:center}
+  .modal .ic{width:56px;height:56px;border-radius:50%;border:3px solid #f8bb86;color:#f8bb86;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-weight:700;font-size:28px}
+  .modal h3{font-size:18px;margin:0 0 8px} .modal p{color:var(--d600);line-height:1.6;margin:0 0 16px}
+  .btn-primary{background:var(--primary);color:#fff}
+.av{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:rgba(35,109,201,.15);color:var(--primary-ink);object-fit:cover}
+  .who{display:flex;align-items:center;gap:6px;flex-wrap:wrap} .ch{display:flex;gap:8px;align-items:center}
+  .lg{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700}
+  .toast{background:#fff;border-left:4px solid #28c76f;border-radius:6px;padding:10px 14px;box-shadow:0 4px 12px rgba(0,0,0,.1);max-width:340px;margin-top:12px}
+  .hide-sm{} @media (max-width:0){.hide-sm{}}
+</style>
+</head>
+<body>
+<h1>หน้า "พนักงาน" (/admins) — เปลี่ยนบทบาท + โอนเจ้าของหลัก</h1>
+<p class="lead">ตัวอย่างร้านมีสมาชิก 3 คน: สมชาย (เจ้าของหลัก) · มาลี (เจ้าของร่วม) · วิชัย (ผู้ดูแล) — รูปโปรไฟล์ (ไม่มีรูป = อักษรแรก) + คอลัมน์ช่องทางล็อกอิน · ภาพนิ่งตามโค้ด (<code>CurrentMembersTable</code> + <code>MemberRoleControls</code>)</p>
+
+<!-- ICONS -->
+<svg style="display:none"><symbol id="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></symbol>
+<symbol id="phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></symbol><symbol id="key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M17 6l3 3M15 8l2 2"/></symbol><symbol id="trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></symbol></svg>
+
+<div class="row">
+  <!-- DESKTOP: ผู้ดู = เจ้าของหลัก -->
+  <div class="dev" style="width:980px">
+    <div class="bar">เดสก์ท็อป 1280 · ผู้ดูคือ <b>สมชาย (เจ้าของหลัก)</b></div>
+    <div class="page">
+      <div class="crumb"><h2>พนักงาน</h2><button class="btn btn-primary">ลิงก์เชิญ</button></div>
+      <div class="card">
+        <div class="card-header"><h4 class="card-title">สมาชิกทั้งหมด (3)</h4><span class="badge b-neutral">สมาชิก 2/3 คน ไม่นับเจ้าของหลัก (แพ็กเกจ Pro)</span></div>
+        <div class="scroll"><table>
+          <thead><tr><th>สมาชิก</th><th>ช่องทาง</th><th>บทบาท</th><th>วันที่เข้าร่วม</th><th class="end">จัดการ</th></tr></thead>
+          <tbody>
+            <tr><td><span class="who"><img class="av" src="https://i.pravatar.cc/64?img=12" alt="">สมชาย ใจดี <span class="badge b-neutral">คุณ</span>
+                  </span><p class="hint">แพ็กเกจของคุณกำหนดโควตาของร้านนี้</p><button class="btn btn-light" style="margin-top:8px">โอนเจ้าของหลักให้คนอื่น…</button></td><td><span class="ch"><span class="lg" style="background:#1877F2" title="Facebook">f</span><svg style="color:#4a5358" title="เบอร์โทร"><use href="#phone"/></svg></span></td>
+                <td><span class="badge b-owner"><svg><use href="#lock"/></svg>เจ้าของหลัก</span></td>
+                <td class="muted">2569-08-01</td><td class="end"></td></tr>
+            <tr><td><span class="who"><img class="av" src="https://i.pravatar.cc/64?img=47" alt="">มาลี ศรีสุข</span></td><td><span class="ch"><span class="lg" style="background:#06C755;font-size:7px" title="LINE">LINE</span><svg style="color:#4a5358"><use href="#key"/></svg></span></td>
+                <td><div class="ctl"><select><option>เจ้าของ</option><option>ผู้ดูแล</option></select></div></td>
+                <td class="muted">2569-08-05</td><td class="end"><button class="btn btn-icon"><svg><use href="#trash"/></svg></button></td></tr>
+            <tr><td><span class="who"><span class="av">ว</span>วิชัย มั่นคง</span></td><td><span class="ch"><span class="lg" style="background:#000" title="Apple">A</span><svg style="color:#4a5358" title="เบอร์โทร"><use href="#phone"/></svg></span></td>
+                <td><div class="ctl"><select><option>ผู้ดูแล</option><option>เจ้าของ</option></select></div></td>
+                <td class="muted">2569-08-09</td><td class="end"><button class="btn btn-icon"><svg><use href="#trash"/></svg></button></td></tr>
+          </tbody></table></div>
+      </div>
+      <p class="note">เปลี่ยนค่าในช่องบทบาท = บันทึกทันที ยกเว้นตั้งคนอื่นเป็นเจ้าของ/ลดตัวเองเป็นผู้ดูแล ที่ถามยืนยันก่อน · ระหว่างบันทึก ช่องถูกปิด · ล้มเหลว = ค่ากลับเป็นเดิม + toast บอกเหตุผล</p>
+    </div>
+  </div>
+
+  <!-- TABLET: ผู้ดู = เจ้าของร่วม -->
+  <div class="dev" style="width:760px">
+    <div class="bar">แท็บเล็ต 768 · ผู้ดูคือ <b>มาลี (เจ้าของร่วม)</b> — ไม่มีปุ่มโอน · ไม่มีปุ่มลบแถวตัวเอง</div>
+    <div class="page">
+      <div class="crumb"><h2>พนักงาน</h2><button class="btn btn-primary">ลิงก์เชิญ</button></div>
+      <div class="card">
+        <div class="card-header"><h4 class="card-title">สมาชิกทั้งหมด (3)</h4><span class="badge b-neutral">สมาชิก 2/3 คน ไม่นับเจ้าของหลัก (แพ็กเกจ Pro)</span></div>
+        <div class="scroll"><table>
+          <thead><tr><th>สมาชิก</th><th>ช่องทาง</th><th>บทบาท</th><th>วันที่เข้าร่วม</th><th class="end">จัดการ</th></tr></thead>
+          <tbody>
+            <tr><td><span class="who"><img class="av" src="https://i.pravatar.cc/64?img=12" alt="">สมชาย ใจดี</span><p class="hint">ผูกกับแพ็กเกจที่กำหนดโควตาของร้านนี้ · เปลี่ยนบทบาทหรือลบไม่ได้</p></td><td><span class="ch"><span class="lg" style="background:#1877F2" title="Facebook">f</span><svg style="color:#4a5358" title="เบอร์โทร"><use href="#phone"/></svg></span></td>
+                <td><span class="badge b-owner"><svg><use href="#lock"/></svg>เจ้าของหลัก</span></td><td class="muted">2569-08-01</td><td></td></tr>
+            <tr><td><span class="who"><img class="av" src="https://i.pravatar.cc/64?img=47" alt="">มาลี ศรีสุข <span class="badge b-neutral">คุณ</span></span></td><td><span class="ch"><span class="lg" style="background:#06C755;font-size:7px" title="LINE">LINE</span><svg style="color:#4a5358"><use href="#key"/></svg></span></td>
+                <td><select><option>เจ้าของ</option><option>ผู้ดูแล</option></select></td><td class="muted">2569-08-05</td><td></td></tr>
+            <tr><td><span class="who"><span class="av">ว</span>วิชัย มั่นคง</span></td><td><span class="ch"><span class="lg" style="background:#000" title="Apple">A</span><svg style="color:#4a5358" title="เบอร์โทร"><use href="#phone"/></svg></span></td>
+                <td><select><option>ผู้ดูแล</option><option>เจ้าของ</option></select></td><td class="muted">2569-08-09</td>
+                <td class="end"><button class="btn btn-icon"><svg><use href="#trash"/></svg></button></td></tr>
+          </tbody></table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MOBILE -->
+  <div class="dev" style="width:375px">
+    <div class="bar">มือถือ 375 · ผู้ดูคือเจ้าของหลัก — ซ่อนคอลัมน์วันที่ · ส่วน "จัดการ" เลื่อนข้างในตาราง</div>
+    <div class="page">
+      <div class="crumb"><h2>พนักงาน</h2><button class="btn btn-primary">ลิงก์เชิญ</button></div>
+      <div class="card">
+        <div class="card-header"><h4 class="card-title">สมาชิกทั้งหมด (3)</h4><span class="badge b-neutral">สมาชิก 2/3 คน ไม่นับเจ้าของหลัก (แพ็กเกจ Pro)</span></div>
+        <div class="scroll"><table style="min-width:500px">
+          <thead><tr><th>สมาชิก</th><th>ช่องทาง</th><th>บทบาท</th><th class="end">จัดการ</th></tr></thead>
+          <tbody>
+            <tr><td><span class="who"><img class="av" src="https://i.pravatar.cc/64?img=12" alt="">สมชาย ใจดี <span class="badge b-neutral">คุณ</span></span><p class="hint">แพ็กเกจของคุณกำหนดโควตาของร้านนี้</p><button class="btn btn-light" style="margin-top:8px">โอนเจ้าของหลักให้คนอื่น…</button></td><td><span class="ch"><span class="lg" style="background:#1877F2" title="Facebook">f</span><svg style="color:#4a5358" title="เบอร์โทร"><use href="#phone"/></svg></span></td>
+                <td><span class="badge b-owner"><svg><use href="#lock"/></svg>เจ้าของหลัก</span></td><td></td></tr>
+            <tr><td><span class="who"><img class="av" src="https://i.pravatar.cc/64?img=47" alt="">มาลี ศรีสุข</span></td><td><span class="ch"><span class="lg" style="background:#06C755;font-size:7px" title="LINE">LINE</span><svg style="color:#4a5358"><use href="#key"/></svg></span></td><td><div class="ctl"><select><option>เจ้าของ</option></select></div></td>
+                <td class="end"><button class="btn btn-icon"><svg><use href="#trash"/></svg></button></td></tr>
+            <tr><td><span class="who"><span class="av">ว</span>วิชัย มั่นคง</span></td><td><span class="ch"><span class="lg" style="background:#000" title="Apple">A</span><svg style="color:#4a5358" title="เบอร์โทร"><use href="#phone"/></svg></span></td><td><div class="ctl"><select><option>ผู้ดูแล</option></select></div></td>
+                <td class="end"><button class="btn btn-icon"><svg><use href="#trash"/></svg></button></td></tr>
+          </tbody></table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIRM + TOAST -->
+  <div class="dev" style="width:520px">
+    <div class="bar">กด "โอนเจ้าของหลักให้คนอื่น…" บนแถวเจ้าของหลัก → เลือกคน → ยืนยัน (ปุ่มแดง เพราะเอาคืนเองไม่ได้)</div>
+    <div class="page"><div class="overlay"><div class="modal">
+      <div class="ic">!</div>
+      <h3>โอนความเป็นเจ้าของหลัก</h3>
+      <p style="text-align:left">เมื่อโอนแล้ว</p><ul style="text-align:left;color:#4a5358;line-height:1.6;margin:0 0 12px">
+      <li>แพ็กเกจของผู้รับจะกำหนดโควตาของร้านนี้แทนแพ็กเกจของคุณ</li>
+      <li>ระดับยืนยันและคะแนนความน่าเชื่อถือของร้านจะคิดจากเบอร์ของผู้รับ</li>
+      <li>คุณจะเป็นเจ้าของร่วม และเอาเจ้าของหลักคืนเองไม่ได้ ต้องให้ผู้รับโอนกลับให้</li></ul>
+      <select style="width:100%;margin-bottom:16px"><option>เลือกสมาชิกที่จะรับโอน</option><option>มาลี ศรีสุข</option><option>วิชัย มั่นคง</option></select>
+      <button class="btn" style="background:var(--danger);color:#fff">โอนเจ้าของหลัก</button> <button class="btn btn-light">ยกเลิก</button>
+    </div></div>
+    <div class="toast"><b>สำเร็จ</b><br>โอนความเป็นเจ้าของหลักให้ มาลี ศรีสุข แล้ว · ตอนนี้คุณเป็นเจ้าของร่วม</div>
+    <div class="toast" style="border-left-color:var(--danger)"><b>ไม่สำเร็จ</b><br>มาลี ศรีสุข ยังไม่มีแพ็กเกจ Business จึงรับเป็นเจ้าของหลักไม่ได้ ให้ มาลี ศรีสุข สมัครแพ็กเกจก่อน แล้วลองโอนอีกครั้ง</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

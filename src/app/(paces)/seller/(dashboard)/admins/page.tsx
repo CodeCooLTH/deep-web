@@ -27,6 +27,7 @@ import { listActiveInviteLinks } from '@/services/invite-link.service'
 import { buildInviteUrl } from '@/lib/invite-link'
 import { BUSINESS_PACKAGE_TIER_CONFIG, type BusinessPackageTier } from '@/lib/business-package'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import { isLoginProvider } from '@/components/safepay/LoginProviderLogo'
 import CurrentMembersTable from '../business/[shopId]/invites/components/CurrentMembersTable'
 import InviteLinkModal from './components/InviteLinkModal'
 
@@ -58,13 +59,18 @@ export default async function AdminsPage() {
   // โควตานับทุกคนยกเว้นเจ้าของหลัก — เจ้าของร่วมก็นับ (EXT 00012 BR-MR-06, staffCountWhere)
   const adminCount = members.filter((m) => m.userId !== shop.userId).length
   const quotaLabel = tierLabel
-    ? `โควตาแอดมิน ${adminCount}${maxAdmins !== null ? `/${maxAdmins}` : ''} (แพ็กเกจ ${tierLabel})`
-    : `โควตาแอดมิน ${adminCount} (ไม่มีแพ็กเกจ)`
+    ? `สมาชิก ${adminCount}${maxAdmins !== null ? `/${maxAdmins}` : ''} คน ไม่นับเจ้าของหลัก (แพ็กเกจ ${tierLabel})`
+    : `สมาชิก ${adminCount} คน ไม่นับเจ้าของหลัก (ไม่มีแพ็กเกจ)`
 
   const memberRows = members.map((m) => ({
     id: m.id,
     role: m.role as 'OWNER' | 'ADMIN',
     displayName: m.user.displayName || m.user.username || 'ไม่ระบุชื่อ',
+    avatar: m.user.avatar,
+    providers: [
+      ...[...new Set(m.user.authAccounts.map((a) => a.provider))].filter(isLoginProvider),
+      ...(m.user.hasPassword ? (['PASSWORD'] as const) : []),
+    ],
     createdAt: m.createdAt.toISOString(),
     isPrimary: m.userId === shop.userId,
     isSelf: m.userId === user.id,

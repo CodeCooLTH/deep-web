@@ -9,16 +9,23 @@
  * "สมาชิกปัจจุบัน" ไม่มี headerRight) กัน breaking หน้า /business/[shopId]/invites เดิม
  */
 
+import Image from 'next/image'
 import { formatDate } from '@/lib/format-date'
 import Icon from '@/components/wrappers/Icon'
 import RowActionDeleteButton from './RowActionDeleteButton'
 import MemberRoleControls from './MemberRoleControls'
+import TransferOwnershipButton from './TransferOwnershipButton'
+import LoginProviderLogo, { LOGIN_PROVIDER_LABEL, type LoginProvider } from '@/components/safepay/LoginProviderLogo'
 import { memberErrorText } from './member-error-text'
 
 export interface MemberRow {
   id: string
   role: 'OWNER' | 'ADMIN'
   displayName: string
+  /** รูปโปรไฟล์ (User.avatar) — null = แสดงอักษรแรกของชื่อแทน */
+  avatar: string | null
+  /** ช่องทางที่ใช้ล็อกอิน (AuthAccount.provider ที่รู้จัก) */
+  providers: LoginProvider[]
   createdAt: string
   /** (ส่วนขยาย 00025 2026-08-12) คนนี้ปิดแจ้งเตือนข้อความของร้านนี้อยู่ */
   notificationsOff?: boolean
@@ -66,6 +73,7 @@ export default function CurrentMembersTable({
           <thead className="font-semibold">
             <tr>
               <th>สมาชิก</th>
+              <th>ช่องทาง</th>
               <th>บทบาท</th>
               <th className="hidden sm:table-cell">วันที่เข้าร่วม</th>
               {canManage && <th className="text-end">จัดการ</th>}
@@ -76,6 +84,23 @@ export default function CurrentMembersTable({
               <tr key={member.id}>
                 <td>
                   <span className="flex flex-wrap items-center gap-1.5 break-words">
+                    {/* Base: reports/agents/components/AgentLeaderboard.tsx (รูป 32px + อักษรแรกเมื่อไม่มีรูป) */}
+                    {member.avatar ? (
+                      <Image
+                        src={member.avatar}
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="size-8 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span
+                        className="bg-primary/15 text-primary-ink flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                        aria-hidden="true"
+                      >
+                        {member.displayName.slice(0, 1)}
+                      </span>
+                    )}
                     {member.displayName}
                     {member.isSelf && <span className="badge bg-default-100 text-default-600 text-2xs">คุณ</span>}
                     {/* tone neutral ไม่ใช่ warning โดยตั้งใจ — S4 (เรื่องของตัวเอง) เป็น info
@@ -92,9 +117,29 @@ export default function CurrentMembersTable({
                   {member.isPrimary && (
                     <p className="text-xs text-default-500 mt-1">
                       {viewerIsPrimary
-                        ? `แพ็กเกจของคุณกำหนดโควตาของร้านนี้${members.length > 1 ? ' · อยากเปลี่ยน กด "โอนเจ้าของหลัก" ที่แถวของสมาชิกคนที่ต้องการ' : ''}`
+                        ? 'แพ็กเกจของคุณกำหนดโควตาของร้านนี้'
                         : 'ผูกกับแพ็กเกจที่กำหนดโควตาของร้านนี้ · เปลี่ยนบทบาทหรือลบไม่ได้'}
                     </p>
+                  )}
+                  {member.isPrimary && viewerIsPrimary && members.length > 1 && (
+                    <TransferOwnershipButton
+                      shopId={shopId}
+                      candidates={members.filter((m) => !m.isPrimary).map((m) => ({ id: m.id, name: m.displayName }))}
+                      primaryOwnerName={member.displayName}
+                    />
+                  )}
+                </td>
+                <td>
+                  {member.providers.length ? (
+                    <span className="flex items-center gap-2">
+                      {member.providers.map((p) => (
+                        <span key={p} role="img" aria-label={`ล็อกอินด้วย ${LOGIN_PROVIDER_LABEL[p]}`} title={LOGIN_PROVIDER_LABEL[p]} className="inline-flex">
+                          <LoginProviderLogo provider={p} />
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="text-default-500">-</span>
                   )}
                 </td>
                 <td>
@@ -111,7 +156,6 @@ export default function CurrentMembersTable({
                       role={member.role}
                       isSelf={member.isSelf}
                       primaryOwnerName={primary?.displayName ?? 'เจ้าของหลัก'}
-                      canTransfer={viewerIsPrimary}
                     />
                   ) : (
                     <span className={`badge ${ROLE_BADGE[member.role]}`}>{ROLE_LABEL[member.role]}</span>
@@ -129,7 +173,7 @@ export default function CurrentMembersTable({
                         confirmText={
                           member.role === 'OWNER'
                             ? `${member.displayName} เป็นเจ้าของร่วม จะเข้าร้านนี้ไม่ได้อีก และต้องเชิญใหม่ถึงจะกลับเข้าร้านได้`
-                            : `${member.displayName} จะไม่สามารถเข้าถึงร้านนี้ได้อีก`
+                            : `${member.displayName} จะเข้าร้านนี้ไม่ได้อีก จนกว่าจะเชิญใหม่`
                         }
                         successMessage={`ลบ ${member.displayName} ออกจากร้านแล้ว`}
                         errorMessages={Object.fromEntries(
