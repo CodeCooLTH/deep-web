@@ -304,6 +304,7 @@ export const en: Dictionary = {
     navCreate: 'Create',
     navChat: 'Chat',
     navShop: 'Shop',
+    navShopAlertAria: 'A LINE report group needs attention',
     navCreateOpen: 'Open create menu',
     navCreateClose: 'Close create menu',
     navCreateCategory: 'New category',

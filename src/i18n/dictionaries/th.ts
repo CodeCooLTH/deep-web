@@ -383,6 +383,7 @@ export const th = {
     navCreate: 'สร้าง',
     navChat: 'แชท',
     navShop: 'ร้านค้า',
+    navShopAlertAria: 'มีรายงานเข้ากลุ่ม LINE ที่ต้องดูแล',
     navCreateOpen: 'เปิดเมนูสร้าง',
     navCreateClose: 'ปิดเมนูสร้าง',
     navCreateCategory: 'สร้างหมวดหมู่',

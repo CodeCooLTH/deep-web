@@ -40,6 +40,8 @@ import QuotaUsageCard, { type QuotaBusinessItem } from './components/QuotaUsageC
 import BusinessCreateModalMount from './components/BusinessCreateModalMount'
 import PackageTierGrid from './components/PackageTierGrid'
 import type { DowngradeBusinessItem } from './components/DowngradeButton'
+import LineReportsEntryRow from './components/LineReportsEntryRow'
+import { countUnackedAlerts, resolveReportAccess } from '@/services/line-report-access.service'
 
 export const metadata: Metadata = { title: 'ธุรกิจ' }
 
@@ -148,6 +150,15 @@ export default async function BusinessPackagePage() {
     }
   }
 
+  // feature 00068 — แถวทางเข้ารายงานกลุ่ม LINE (เจ้าของเท่านั้น · query ล้ม = ไม่โชว์แถว ไม่ให้หน้าแพ็กเกจพัง)
+  let lineReportAlerts: number | null = null
+  try {
+    const access = await resolveReportAccess(session)
+    if (access.kind === 'OK' || access.kind === 'LOCKED') lineReportAlerts = await countUnackedAlerts(access.userId)
+  } catch {
+    lineReportAlerts = null
+  }
+
   return (
     <>
       <PageBreadcrumb title="ธุรกิจ" />
@@ -178,6 +189,8 @@ export default async function BusinessPackagePage() {
         businesses={businesses}
         canCreate={canCreate}
       />
+
+      {lineReportAlerts !== null && <LineReportsEntryRow alertCount={lineReportAlerts} />}
 
       {/* ─── 4. Tier grid (Free/Growth/Pro/Business) ──────────────────────── */}
       <PackageTierGrid statusApp={statusApp} currentTier={currentTier} ownedBusinesses={ownedBusinesses} />

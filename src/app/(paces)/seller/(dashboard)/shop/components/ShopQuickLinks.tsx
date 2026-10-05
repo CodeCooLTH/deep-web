@@ -41,6 +41,12 @@ interface ShopQuickLinksProps {
    * 🛑 บังคับส่งเหมือน `hidePayments` — ค่าเริ่มต้นแบบใดก็พังหนึ่งแพลตฟอร์ม
    */
   offerIap: boolean
+  /**
+   * feature 00068 — แถว "รายงานเข้ากลุ่ม LINE" · null = ซ่อนแถว (ไม่ใช่ owner / ไม่ได้ login)
+   * hasAlert = มีกลุ่มที่ alert ยังไม่รับทราบ → จุดแดง
+   * 🛑 ไม่มี default — ผู้เรียกที่ลืมส่ง = แถวหายเงียบ ให้ tsc บังคับทุก call site (เหมือน hidePayments)
+   */
+  lineReports: { hasAlert: boolean } | null
 }
 
 interface QuickLink {
@@ -100,11 +106,25 @@ const STAFF_LINK: QuickLink = {
   hint: 'เชิญและจัดการทีมงาน',
 }
 
-export default function ShopQuickLinks({ shopKind, shopRole, hidePayments, offerIap }: ShopQuickLinksProps) {
+// feature 00068 — label/icon/url ตรง seller-menu.ts slug `seller:line-reports` เป๊ะ
+// 🛑 ไม่อยู่ใน LINKS/PAYMENT_LINK_URLS/IAP_LINK_URLS โดยตั้งใจ: แถวนี้ไม่มีทางจ่ายเงิน (ถูก 3.1.1 ทุกเชลล์)
+// จึงต้องไม่ถูกกรองด้วย hidePayments/offerIap — แทรกแบบมีเงื่อนไข lineReports !== null แทน
+const LINE_REPORTS_LINK: QuickLink = {
+  url: '/business/line-reports',
+  label: 'รายงานเข้ากลุ่ม LINE',
+  icon: 'brand-line',
+  hint: 'สรุปยอดเข้ากลุ่ม LINE ของทีม',
+}
+
+export default function ShopQuickLinks({ shopKind, shopRole, hidePayments, offerIap, lineReports }: ShopQuickLinksProps) {
   const base = hidePayments
     ? LINKS.filter((l) => !PAYMENT_LINK_URLS.has(l.url) && (offerIap || !IAP_LINK_URLS.has(l.url)))
     : LINKS
-  const links = shopKind === 'BUSINESS' && shopRole === 'OWNER' ? [...base, STAFF_LINK] : base
+  // แทรกก่อน "การจัดส่ง" (ต่อจากแพ็กเกจ — ของที่มากับแพ็กเกจธุรกิจ) · ไม่พึ่งว่า /subscriptions ยังอยู่หรือไม่
+  const withReports = lineReports
+    ? base.flatMap((l) => (l.url === '/settings' ? [LINE_REPORTS_LINK, l] : [l]))
+    : base
+  const links = shopKind === 'BUSINESS' && shopRole === 'OWNER' ? [...withReports, STAFF_LINK] : withReports
 
   return (
     /* -mx-4: edge-to-edge เท่ากับการ์ดอื่นในหน้านี้ (หักล้าง gutter 16px ของ shell)
@@ -134,6 +154,12 @@ export default function ShopQuickLinks({ shopKind, shopRole, hidePayments, offer
               <p className="text-default-900 truncate text-sm font-medium">{link.label}</p>
               <p className="text-default-400 truncate text-xs">{link.hint}</p>
             </div>
+            {lineReports?.hasAlert && link.url === LINE_REPORTS_LINK.url && (
+              <>
+                <span aria-hidden="true" className="bg-danger size-2.5 shrink-0 rounded-full" />
+                <span className="sr-only">มีกลุ่มที่ต้องดูแล</span>
+              </>
+            )}
             <Icon icon="chevron-right" className="text-default-400 shrink-0" aria-hidden="true" />
           </Link>
         ))}
