@@ -12,6 +12,7 @@ import { todayThaiIsoDate } from '@/lib/date-range'
 import { parseGroupCommand } from '@/lib/line-report/commands'
 import { cycleContaining } from '@/lib/line-report/cycle'
 import { resolveDailyWindow } from '@/lib/line-report/schedule'
+import { resolveReportConfig, type ReportConfigGroup } from '@/lib/line-report/report-config'
 import { replyTo, type SendResult } from '@/lib/line-report/line-client'
 import {
   ALREADY_BOUND_SELF_MESSAGE,
@@ -78,7 +79,7 @@ type ReplyOutcome = { status: 'SENT' | 'REPLY_FAILED' | 'FAILED'; reason?: strin
  * ชุดตัวเลข = ธงของกลุ่ม (กำไรปิด = ไม่คำนวณ) · ตอบเสมอแม้ 0 (ไม่ใช้ skipWhenNoOrders)
  */
 export async function replyCommand(
-  group: { id: string; ownerId: string; cutoffDay: number | null } & Parameters<typeof flagsOf>[0],
+  group: { id: string; ownerId: string; cutoffDay: number | null } & ReportConfigGroup,
   command: 'TODAY' | 'MONTH',
   claimedRowId: string,
   ctx: Ctx,
@@ -99,14 +100,6 @@ export async function replyCommand(
     ...(out.status === 'SENT' ? { sentAt: new Date() } : {}),
   })
 }
-
-const flagsOf = (g: { showOrders: boolean; showSales: boolean; showCancelled: boolean; showTopProducts: boolean; showProfit: boolean }) => ({
-  showOrders: g.showOrders,
-  showSales: g.showSales,
-  showCancelled: g.showCancelled,
-  showTopProducts: g.showTopProducts,
-  showProfit: g.showProfit,
-})
 
 function sentOrFailed(r: SendResult | 'EXPIRED', okReason?: string): ReplyOutcome {
   if (r === 'EXPIRED') return { status: 'REPLY_FAILED', reason: 'REPLY_TOKEN_EXPIRED' }
@@ -131,8 +124,9 @@ async function composeAndReply(
       ? resolveDailyWindow(0, today, now)
       : { startIso: cycleContaining(today, group.cutoffDay).startIso, endIso: today, computedAt: now.toISOString() }
   const { sendable, excluded } = await resolveSendableShops(group)
-  const summary = await buildGroupSummary({ shops: sendable, excluded, window, flags: flagsOf(group), cache: createSweepCache() })
-  const messages = fitToLimits(buildSummaryReportFlex({ summary, kind: 'COMMAND', flags: flagsOf(group) }))
+  const { template, flags, needs } = resolveReportConfig(group)
+  const summary = await buildGroupSummary({ shops: sendable, excluded, window, flags, needs, cache: createSweepCache() })
+  const messages = fitToLimits(buildSummaryReportFlex({ summary, kind: 'COMMAND', template }))
   return sentOrFailed(await replyMessages(ctx, messages))
 }
 
@@ -148,7 +142,7 @@ async function handleSummaryCommand(command: 'TODAY' | 'MONTH', lineGroupId: str
   const group = await prisma.lineReportGroup.findFirst({
     where: { lineGroupId, status: 'ACTIVE' },
     select: {
-      id: true, ownerId: true, cutoffDay: true,
+      id: true, ownerId: true, cutoffDay: true, template: true, monthlyEnabled: true, attachCycleToDaily: true,
       showOrders: true, showSales: true, showCancelled: true, showTopProducts: true, showProfit: true,
     },
   })

@@ -4,17 +4,19 @@
  * 🛑 ทุก query ที่รับ id จากภายนอก scope `ownerId` ตั้งแต่ query แรก → ไม่ใช่ของตน/REMOVED = GROUP_NOT_FOUND (404 ไม่ใช่ 403)
  * service นี้ไม่เรียก LINE — `removeGroup` คืน lineGroupId ให้ผู้เรียกทำ leave best-effort หลัง commit
  */
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { shiftIsoDate, todayThaiIsoDate } from '@/lib/date-range'
 import { LineReportError, type InvalidSettingsRule } from '@/lib/line-report/errors'
 import { isReportBotReady } from '@/lib/line-report/config'
+import { resolveReportConfig } from '@/lib/line-report/report-config'
+import { deriveFlags, type TemplateV1 } from '@/lib/line-report/template'
 import { nextSendAt } from '@/lib/line-report/schedule'
 import { cycleContaining, nextMonthlyFireAt } from '@/lib/line-report/cycle'
 import { describeReason, MISSED_STATUS_LABEL } from '@/lib/line-report/delivery-reasons'
 import type { LineReportAlertKind } from '@/lib/line-report/types'
 import * as v from 'valibot'
-import { CutoffDaySchema, DailyTimesSchema, type UpdateSettingsInput } from '@/lib/line-report/validations'
+import { CutoffDaySchema, DailyTimesSchema, validateTemplate, type UpdateSettingsInput } from '@/lib/line-report/validations'
 import { isOwnerPaidForReports } from '@/services/line-report-access.service'
 import { testQuotaWhere } from '@/services/line-report-delivery.service'
 import { lockOwnedGroup, readGroupShops, type GroupShopDto } from '@/services/line-report-shop.service'
@@ -110,10 +112,11 @@ export async function getGroupDetail(ownerId: string, groupId: string, db: Db | 
       dailyEnabled: true, dailyTimes: true, monthlyEnabled: true, cutoffDay: true,
       showOrders: true, showSales: true, showCancelled: true, showTopProducts: true, showProfit: true,
       skipWhenNoOrders: true, attachCycleToDaily: true, profitEnabledAt: true,
+      template: true, templateVersion: true,
       alertKind: true, alertAt: true, alertAckAt: true,
       deliveries: {
         orderBy: { createdAt: 'desc' }, take: 10,
-        select: { id: true, createdAt: true, sentAt: true, kind: true, status: true, reason: true, pushMessageCount: true },
+        select: { id: true, createdAt: true, sentAt: true, kind: true, status: true, reason: true, pushMessageCount: true, summary: true },
       },
     },
   })
@@ -127,6 +130,8 @@ export async function getGroupDetail(ownerId: string, groupId: string, db: Db | 
     isOwnerPaidForReports(ownerId).then((p) => !p),
   ])
   const next = g.status === 'ACTIVE' && !paused ? nextSendAtOf(g, now) : null
+  const cfg = resolveReportConfig(g) // เทมเพลตเสียในฐาน → แบบมาตรฐาน (template ที่คืนเป็น null ด้วย)
+  const storedTemplate = g.template === null ? null : validateTemplate(g.template).ok ? (g.template as unknown as TemplateV1) : null
   const cycle = g.monthlyEnabled
     ? (() => {
         const c = cycleContaining(todayThaiIsoDate(now), g.cutoffDay)
@@ -137,6 +142,7 @@ export async function getGroupDetail(ownerId: string, groupId: string, db: Db | 
     group: {
       id: g.id, status: g.status as 'PENDING' | 'ACTIVE' | 'INACTIVE', groupName: g.groupName, paused,
       boundAt: iso(g.boundAt), leftAt: iso(g.leftAt),
+      template: storedTemplate, templateVersion: g.templateVersion, effectiveTemplate: cfg.template,
       settings: {
         dailyEnabled: g.dailyEnabled, dailyTimes: g.dailyTimes, monthlyEnabled: g.monthlyEnabled, cutoffDay: g.cutoffDay,
         showOrders: g.showOrders, showSales: g.showSales, showCancelled: g.showCancelled, showTopProducts: g.showTopProducts,
@@ -152,7 +158,7 @@ export async function getGroupDetail(ownerId: string, groupId: string, db: Db | 
       test: { limit: TEST_LIMIT_PER_DAY, usedToday, remaining: Math.max(0, TEST_LIMIT_PER_DAY - usedToday) },
       deliveries: g.deliveries.map((d) => ({
         id: d.id, at: (d.sentAt ?? d.createdAt).toISOString(), kind: d.kind, status: d.status,
-        ...reasonFields(d.status, d.reason), pushMessageCount: d.pushMessageCount,
+        ...reasonFields(d.status, d.reason), pushMessageCount: d.pushMessageCount, summary: d.summary,
       })),
     },
   }
@@ -204,10 +210,81 @@ export async function updateSettings(ownerId: string, groupId: string, patch: Up
       select: {
         dailyEnabled: true, dailyTimes: true, monthlyEnabled: true, cutoffDay: true, showOrders: true, showSales: true,
         showCancelled: true, showTopProducts: true, showProfit: true, skipWhenNoOrders: true, attachCycleToDaily: true, profitEnabledAt: true,
+        template: true,
       },
     })
-    const next = mergeSettings(cur, patch, new Date())
+    const { template, ...state } = cur
+    // มีเทมเพลต = flag derive จากเทมเพลตเท่านั้น — ปล่อยให้ PATCH แก้ได้จะเกิดสองแหล่งความจริงที่ขัดกัน (AC-EXT-07-2)
+    if (template !== null && FLAG_KEYS.some((k) => patch[k] !== undefined)) throw new LineReportError('FLAGS_DERIVED_FROM_TEMPLATE')
+    const next = mergeSettings(state, patch, new Date())
+    // เปิดรายเดือนกลับมาหลังปิด (E-8): cache attachCycleToDaily ตามที่เทมเพลตขอ — ปิดแล้ว mergeSettings ล้างไปแล้ว
+    const parsed = template !== null ? validateTemplate(template) : null
+    if (parsed?.ok && patch.monthlyEnabled !== undefined) next.attachCycleToDaily = next.monthlyEnabled && deriveFlags(parsed.template).attachCycleToDaily
     await tx.lineReportGroup.update({ where: { id: groupId }, data: next })
+  })
+  return (await getGroupDetail(ownerId, groupId)).group
+}
+
+const FLAG_KEYS = ['showOrders', 'showSales', 'showCancelled', 'showTopProducts', 'showProfit', 'attachCycleToDaily'] as const
+
+// ─── เทมเพลตข้อความ (EXT-10) ────────────────────────────────────────────────────
+
+/** เพดานคอลัมน์ (DB CHECK octet_length ≤ 16384) — ตรวจก่อนถึงฐานจะได้ error ที่ UI อ่านรู้เรื่อง ไม่ใช่ raw constraint */
+const TEMPLATE_MAX_BYTES = 16384
+/** hook จุดเดียวของด่านขนาด — TODO(T6b): เรียก measureTemplate (src/lib/line-report/template-size.ts) ที่นี่ (ระดับ 3 · 30,000 ไบต์ → TEMPLATE_TOO_LARGE) */
+function assertTemplateSize(template: TemplateV1): void {
+  if (Buffer.byteLength(JSON.stringify(template), 'utf8') > TEMPLATE_MAX_BYTES) throw new LineReportError('TEMPLATE_TOO_LARGE')
+}
+
+export type UpdateTemplateInput = { template: unknown; expectedVersion: number; confirmProfit?: boolean }
+
+/**
+ * บันทึกเทมเพลต (PUT) — validate → ล็อกกลุ่ม → เทียบ version → derive flag → mergeSettings เดิม → เขียนทั้งก้อนใน tx เดียว
+ * ผลต่อข้อความที่ส่งไปแล้ว/รอ retry = ไม่มี (retry ใช้ pendingPayload แช่แข็ง)
+ */
+export async function updateTemplate(ownerId: string, groupId: string, input: UpdateTemplateInput): Promise<GroupDetailDto> {
+  if (!(await isOwnerPaidForReports(ownerId))) throw new LineReportError('PACKAGE_REQUIRED')
+  if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 0) throw new LineReportError('VALIDATION')
+  const parsed = validateTemplate(input.template)
+  if (!parsed.ok) throw new LineReportError('TEMPLATE_INVALID', { rule: parsed.rule, ...(parsed.blockId ? { blockId: parsed.blockId } : {}) })
+  const template = parsed.template
+  assertTemplateSize(template)
+  await prisma.$transaction(async (tx) => {
+    await lockOwnedGroup(tx, ownerId, groupId)
+    const cur = await tx.lineReportGroup.findFirstOrThrow({
+      where: { id: groupId, ownerId },
+      select: {
+        dailyEnabled: true, dailyTimes: true, monthlyEnabled: true, cutoffDay: true, showOrders: true, showSales: true,
+        showCancelled: true, showTopProducts: true, showProfit: true, skipWhenNoOrders: true, attachCycleToDaily: true, profitEnabledAt: true,
+        templateVersion: true,
+      },
+    })
+    const { templateVersion, ...state } = cur
+    if (templateVersion !== input.expectedVersion) throw new LineReportError('TEMPLATE_STALE', { currentVersion: templateVersion })
+    // กำไร/ไม่มีตัวเลขเลย/ล้าง attachCycle เมื่อปิดรายเดือน = กฎเดียวกับ PATCH (ไม่เขียนซ้ำ)
+    const next = mergeSettings(state, { ...deriveFlags(template), confirmProfit: input.confirmProfit }, new Date())
+    await tx.lineReportGroup.update({
+      where: { id: groupId },
+      data: { ...next, template: template as unknown as Prisma.InputJsonObject, templateVersion: { increment: 1 } },
+    })
+  })
+  return (await getGroupDetail(ownerId, groupId)).group
+}
+
+/** คืนแบบมาตรฐาน (DELETE) — flag กลับค่าตั้งต้นคอลัมน์ (A-6) · attachCycleToDaily คงเดิมถ้ายังเปิดรายเดือน */
+export async function resetTemplate(ownerId: string, groupId: string): Promise<GroupDetailDto> {
+  if (!(await isOwnerPaidForReports(ownerId))) throw new LineReportError('PACKAGE_REQUIRED')
+  await prisma.$transaction(async (tx) => {
+    await lockOwnedGroup(tx, ownerId, groupId)
+    const cur = await tx.lineReportGroup.findFirstOrThrow({ where: { id: groupId, ownerId }, select: { monthlyEnabled: true, attachCycleToDaily: true } })
+    await tx.lineReportGroup.update({
+      where: { id: groupId },
+      data: {
+        template: Prisma.DbNull, templateVersion: { increment: 1 },
+        showOrders: true, showSales: true, showCancelled: true, showTopProducts: true, showProfit: false, profitEnabledAt: null,
+        attachCycleToDaily: cur.monthlyEnabled && cur.attachCycleToDaily,
+      },
+    })
   })
   return (await getGroupDetail(ownerId, groupId)).group
 }

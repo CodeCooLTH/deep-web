@@ -145,9 +145,9 @@ describe('GroupDetailClient — ประวัติ', () => {
   it('มีแถว → ชนิด/ผล/สาเหตุจาก API · ล้มเป็น danger, สำเร็จเป็น success', () => {
     const html = render({
       deliveries: [
-        { id: 'd1', at: '2026-10-05T02:00:03.000Z', kind: 'DAILY', status: 'SENT', reason: null, reasonLabel: null, pushMessageCount: 1 },
-        { id: 'd2', at: '2026-10-04T05:30:00.000Z', kind: 'TEST', status: 'FAILED', reason: 'BOT_NOT_IN_GROUP', reasonLabel: 'บอทไม่อยู่ในกลุ่มแล้ว', pushMessageCount: 0 },
-        { id: 'd3', at: '2026-10-04T02:00:00.000Z', kind: 'FINAL_NOTICE', status: 'MISSED', reason: null, reasonLabel: 'พลาดรอบส่ง ไม่ส่งย้อนหลัง', pushMessageCount: 0 },
+        { id: 'd1', at: '2026-10-05T02:00:03.000Z', kind: 'DAILY', status: 'SENT', reason: null, reasonLabel: null, pushMessageCount: 1, summary: null },
+        { id: 'd2', at: '2026-10-04T05:30:00.000Z', kind: 'TEST', status: 'FAILED', reason: 'BOT_NOT_IN_GROUP', reasonLabel: 'บอทไม่อยู่ในกลุ่มแล้ว', pushMessageCount: 0, summary: null },
+        { id: 'd3', at: '2026-10-04T02:00:00.000Z', kind: 'FINAL_NOTICE', status: 'MISSED', reason: null, reasonLabel: 'พลาดรอบส่ง ไม่ส่งย้อนหลัง', pushMessageCount: 0, summary: null },
       ],
     })
     expect(html).toContain('<table')
