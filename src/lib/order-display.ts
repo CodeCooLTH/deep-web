@@ -126,6 +126,9 @@ export function showSlipZone(
   return status === 'PENDING' && !isCODPayment(paymentMethod)
 }
 
+/** คำของ "ร้านกดยืนยันรับเงินแล้ว" — SSOT ใช้ร่วมกับป้ายบนสลิป (`buyer-order-summary.ts`, HR16) */
+export const SELLER_CONFIRMED_PAID_LABEL = 'ร้านยืนยันรับเงินแล้ว'
+
 /**
  * PaymentBadge — badge สถานะการชำระเงิน (แยกจาก ORDER_STATUS_META ที่เป็น badge สถานะออเดอร์)
  * null = ไม่แสดง badge (วิธีชำระที่ไม่รู้จัก เช่น CASH/CARD/OTHER หรือ paymentMethod ว่าง)
@@ -249,7 +252,7 @@ export function getPaymentBadge(
   }
   // feature 00062 — ต้องมาก่อนกิ่ง slipFileId เสมอ (ดูคอมเมนต์หัวฟังก์ชัน) ห้ามสลับลำดับ
   if (canSellerConfirmPayment(paymentMethod) && paymentConfirmedAt) {
-    return { label: 'ร้านยืนยันรับเงินแล้ว', cls: 'badge bg-info/15 text-info-ink', tone: 'info' }
+    return { label: SELLER_CONFIRMED_PAID_LABEL, cls: 'badge bg-info/15 text-info-ink', tone: 'info' }
   }
   // TRANSFER / PROMPTPAY
   if (paymentMethod === 'TRANSFER' || paymentMethod === 'PROMPTPAY') {
