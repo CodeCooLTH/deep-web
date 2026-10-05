@@ -16,6 +16,7 @@
  */
 
 import { pacesToast } from '@/lib/paces-toast'
+import { SELLER_BOOTED_KEY } from '@/lib/seller-boot-flag'
 import { useT } from '@/i18n/LocaleProvider'
 import { useSession } from 'next-auth/react'
 import { useCallback, useRef, useState } from 'react'
@@ -109,6 +110,14 @@ export function useShopSwitcher(options?: UseShopSwitcherOptions) {
 
       // hard-navigate เสมอ (ไม่ใช่ router.refresh) — บังคับ server data ทุกหน้า re-render ใหม่หมด
       // ไม่ setSwitching(false) ตรงนี้ — ปล่อย overlay ค้างจน browser unload หน้านี้จริง
+      // 🛑 ตั้งธง "เปิดแล้ว" ก่อนโหลดหน้าใหม่ — ไม่งั้นจอโลโก้ Deep (seller/loading.tsx) ขึ้นต่อจาก
+      // overlay นี้เป็นจอที่สอง: ธงเดิมถูกตั้งเฉพาะตอนจอโลโก้ *ได้ขึ้น* ตอนเปิดแอป ถ้าเปิดเร็วจน
+      // fallback ไม่ทันโผล่ ธงจะไม่เคยถูกตั้ง (user เจอ 2026-10-05 "logo deep ซ้อน 2 ชั้น")
+      try {
+        sessionStorage.setItem(SELLER_BOOTED_KEY, '1')
+      } catch {
+        // โหมดส่วนตัวบางเบราว์เซอร์โยน — เห็นจอโลโก้ซ้ำยังดีกว่าสลับร้านไม่ได้
+      }
       window.location.href = landingPath
     },
     // `t` เป็นค่าคงที่ระดับ module ต่อภาษา (LocaleProvider คืน dictionary ไม่ใช่ object literal)

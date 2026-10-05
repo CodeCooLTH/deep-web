@@ -60,14 +60,15 @@
 
 import BrandLoading from '@/components/paces/BrandLoading'
 import { useT } from '@/i18n/LocaleProvider'
+import { SELLER_BOOTED_KEY as BOOTED_KEY } from '@/lib/seller-boot-flag'
 
 /**
  * คีย์ธง — `sessionStorage` ไม่ใช่ `localStorage`
  *
  * ปิดแอป/แท็บแล้วเปิดใหม่ = การ "เปิดครั้งแรก" รอบใหม่จริง ๆ ควรได้จอต้อนรับอีกครั้ง
  * ส่วนการสลับร้าน/รีโหลดระหว่างใช้งาน อยู่ใน session เดียวกัน จึงข้ามไป
+ * (ค่าคีย์อยู่ที่ `@/lib/seller-boot-flag` — `useShopSwitcher` ตั้งธงเดียวกันนี้ก่อนสลับร้าน)
  */
-const BOOTED_KEY = 'deep_seller_booted'
 
 /**
  * สคริปต์กันจอซ้ำ — ทำงาน **ระหว่าง parse** ก่อน paint แรก
