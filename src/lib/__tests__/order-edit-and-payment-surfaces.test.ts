@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { canEditOrder } from '@/lib/order-display'
+import { canEditOrder, orderCardTapAction } from '@/lib/order-display'
 import { chatOrderActions } from '@/lib/chat-order-actions'
 import { computeOrderMoney } from '@/lib/order-payment'
 
@@ -30,6 +30,14 @@ describe('[blocker] แก้บิล — เกณฑ์เดียวทุ�
     }
   })
 
+  it('แตะการ์ดในแชท: มีเลขพัสดุแล้ว = ไปหน้ารายละเอียด แม้ยัง PENDING (user 2026-10-05)', () => {
+    expect(orderCardTapAction('PENDING', null)).toBe('edit')
+    expect(orderCardTapAction('PENDING', '')).toBe('edit')
+    expect(orderCardTapAction('PENDING', 'TH123456789')).toBe('view')
+    expect(orderCardTapAction('SHIPPED', null)).toBe('view')
+    expect(orderCardTapAction('CONFIRMED', 'TH123')).toBe('view')
+  })
+
   it('🛑 ด่านฝั่ง server ยังอยู่ — UI ที่ซ่อนปุ่มไม่ใช่ด่านความปลอดภัย', () => {
     const svc = read('src/services/order.service.ts')
     expect(svc, '`updateOrder` ต้องยัง throw เมื่อไม่ใช่ PENDING').toMatch(
@@ -49,7 +57,8 @@ describe('[blocker] แก้บิล — เกณฑ์เดียวทุ�
     ]
     for (const rel of SURFACES) {
       const src = read(rel)
-      expect(src, `${rel} ต้อง import canEditOrder`).toMatch(/canEditOrder/)
+      /* `orderCardTapAction` เรียก canEditOrder อยู่ข้างใน (ทดสอบข้างล่าง) — นับเป็นเกณฑ์เดียวกัน */
+      expect(src, `${rel} ต้อง import canEditOrder`).toMatch(/canEditOrder|orderCardTapAction/)
       /* ห้ามให้ `canEdit` มาจากการเทียบสถานะดิบ — ตรวจเฉพาะตัวแปรนี้
          (`canCancel = PENDING || SHIPPED` เป็นกฎคนละตัว ไม่เกี่ยวกัน ห้ามเหมารวม) */
       const raw = stripComments(src)
