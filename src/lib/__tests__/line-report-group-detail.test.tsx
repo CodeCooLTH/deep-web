@@ -17,12 +17,29 @@ vi.mock('qrcode.react', () => ({ QRCodeSVG: () => React.createElement('svg', { '
 
 import GroupDetailClient, { type GroupDetailClientProps } from '@/app/(paces)/seller/(dashboard)/business/line-reports/[groupId]/GroupDetailClient'
 import { orderWordFor } from '@/lib/line-report/order-word'
+import { defaultTemplateFromFlags } from '@/lib/line-report/template'
+import MetricsCard from '@/app/(paces)/seller/(dashboard)/business/line-reports/_components/detail/MetricsCard'
 
 type Dto = GroupDetailClientProps['initialGroup']
 
 const SHOP_SVC = { shopId: 's1', name: 'BT Premium Auto', vertical: 'SERVICE_QUEUE', kind: 'BUSINESS', state: 'OK' as const }
 const SHOP_ONL = { shopId: 's2', name: 'ศรีสุข อะไหล่', vertical: 'ONLINE_SALES', kind: 'BUSINESS', state: 'OK' as const }
 const SHOP_LOCKED = { shopId: 's3', name: 'ล้างรถ โปรแคร์', vertical: 'SERVICE_QUEUE', kind: 'BUSINESS', state: 'LOCKED' as const }
+
+const BASE_SETTINGS = {
+  dailyEnabled: true,
+  dailyTimes: [540, 720],
+  monthlyEnabled: true,
+  cutoffDay: 6,
+  showOrders: true,
+  showSales: true,
+  showCancelled: true,
+  showTopProducts: true,
+  showProfit: false,
+  skipWhenNoOrders: false,
+  attachCycleToDaily: false,
+  profitEnabledAt: null,
+}
 
 const dto = (o: Partial<Dto> = {}): Dto =>
   ({
@@ -32,6 +49,9 @@ const dto = (o: Partial<Dto> = {}): Dto =>
     paused: false,
     boundAt: '2026-09-03T03:00:00.000Z',
     leftAt: null,
+    template: null,
+    templateVersion: 0,
+    effectiveTemplate: defaultTemplateFromFlags(BASE_SETTINGS),
     settings: {
       dailyEnabled: true,
       dailyTimes: [540, 720],
@@ -69,21 +89,25 @@ const render = (o: Partial<Dto> = {}, p: Partial<GroupDetailClientProps> = {}) =
     />,
   )
 
+// MetricsCard ถูกถอดจากหน้าตั้งค่า (EXT-12 — แทนด้วย MessageCard) แต่ไฟล์ยังอยู่รอ user อนุมัติลบ → เทสตรงที่ตัวการ์ดเอง ความเข้มเท่าเดิม
+const renderMetrics = (settings = BASE_SETTINGS, shops: Dto['shops'] = [SHOP_SVC]) =>
+  renderToStaticMarkup(<MetricsCard settings={settings as Dto['settings']} canEdit orderWord={orderWordFor(shops).word} onChange={() => {}} />)
+
 const tag = (html: string, re: RegExp) => re.exec(html)?.[0] ?? ''
 const testBtn = (html: string) => tag(html, /<button[^>]*>(?:<i[^>]*><\/i>)?ส่งทดสอบ<\/button>/)
 
 describe('GroupDetailClient — ปกติ', () => {
   it('ไม่มีคำว่า "ออเดอร์" ทั้งหน้า (รวมพรีวิว) · คำเรียกตาม vertical', () => {
-    const html = render()
+    const html = render() + renderMetrics()
     expect(html).not.toContain('ออเดอร์')
     const { word } = orderWordFor([SHOP_SVC])
     expect(html).toContain(`จำนวน${word}`)
     expect(html).toContain(`ถ้าช่วงนั้นไม่มี${word}เลย`)
   })
   it('หลาย vertical ปนกัน → "รายการ" · ร้านล็อกไม่นับ', () => {
-    const mixed = render({ shops: [SHOP_SVC, SHOP_ONL] })
+    const mixed = renderMetrics(BASE_SETTINGS, [SHOP_SVC, SHOP_ONL])
     expect(mixed).toContain('จำนวนรายการ')
-    const withLocked = render({ shops: [SHOP_SVC, SHOP_LOCKED] })
+    const withLocked = renderMetrics(BASE_SETTINGS, [SHOP_SVC, SHOP_LOCKED])
     expect(withLocked).toContain(`จำนวน${orderWordFor([SHOP_SVC]).word}`)
   })
   it('ตัวนับทดสอบมาจาก presenter: ใช้ไป 2 → เหลือ 3 จาก 5 · ปุ่มกดได้', () => {
@@ -98,7 +122,7 @@ describe('GroupDetailClient — ปกติ', () => {
     expect(html).not.toContain('เหลือ 0 จาก 5')
   })
   it('กำไรอยู่แถวท้ายสุดของการ์ดตัวเลข คั่นเส้นประจากตัวเลขหลัก', () => {
-    const html = render()
+    const html = renderMetrics()
     const a = html.indexOf('ขายดี 3 อันดับ (แยกรายร้าน)')
     const b = html.indexOf('>กำไร<')
     expect(a).toBeGreaterThan(0)
@@ -106,7 +130,7 @@ describe('GroupDetailClient — ปกติ', () => {
     expect(html.slice(a, b)).toContain('border-dashed')
   })
   it('ตัวเลขสุดท้ายที่ติ๊กอยู่ disabled + helper', () => {
-    const html = render({ settings: { ...dto().settings, showOrders: false, showCancelled: false, showTopProducts: false } })
+    const html = renderMetrics({ ...BASE_SETTINGS, showOrders: false, showCancelled: false, showTopProducts: false })
     expect(html).toContain('ต้องแสดงตัวเลขอย่างน้อย 1 รายการ')
   })
   it('ร้านเดียวที่ติ๊กอยู่ disabled · ร้านล็อกแสดงเหตุผล', () => {
@@ -162,10 +186,34 @@ describe('GroupDetailClient — ประวัติ', () => {
   })
 })
 
+describe('GroupDetailClient — การ์ดข้อความ (EXT-12)', () => {
+  it('มาตรฐาน → chip "ใช้แบบมาตรฐานอยู่" + ปุ่มจัดข้อความ ลิงก์ไปหน้า template · ไม่มีการ์ดตัวเลข/พรีวิวเดิม', () => {
+    const html = render()
+    expect(html).toContain('ข้อความที่ส่งเข้ากลุ่ม')
+    expect(html).toContain('ใช้แบบมาตรฐานอยู่')
+    expect(html).toMatch(/<a[^>]*href="\/business\/line-reports\/g1\/template"[^>]*>จัดข้อความ<\/a>/)
+    expect(html).not.toContain('ตัวอย่างในกลุ่ม LINE')
+  })
+  it('จัดเองแล้ว → chip "จัดเองแล้ว" · paused → ป้ายปุ่ม "ดูข้อความที่ตั้งไว้"', () => {
+    const t = defaultTemplateFromFlags(BASE_SETTINGS)
+    const html = render({ template: t, effectiveTemplate: t, paused: true })
+    expect(html).toContain('จัดเองแล้ว')
+    expect(html).toContain('ดูข้อความที่ตั้งไว้')
+  })
+  it('ประวัติ: สาเหตุต่อท้าย "ข้าม: …" จาก summary ทั้งตารางและแถวมือถือ', () => {
+    const html = render({
+      deliveries: [{ id: 'd1', at: '2026-10-05T02:00:03.000Z', kind: 'DAILY', status: 'SENT', reason: null, reasonLabel: null, pushMessageCount: 1, summary: '3 ร้าน · ข้าม: กราฟ 7 วัน (เกินขนาด)' }],
+    })
+    expect(html.match(/ข้าม: กราฟ 7 วัน \(เกินขนาด\)/g)?.length).toBe(2)
+  })
+})
+
 describe('GroupDetailClient — canEdit=false (แพ็กเกจหยุด)', () => {
   const html = render({ paused: true })
   it('ฟอร์มทุกตัวปิด: checkbox/switch/select ไม่มีตัวไหนกดได้', () => {
-    const inputs = html.match(/<input[^>]*type="checkbox"[^>]*>/g) ?? []
+    // MetricsCard ไม่อยู่ในหน้าแล้ว → นับรวมตัวการ์ดเองแบบ canEdit=false เพื่อไม่ลดความเข้ม
+    const metricsOff = renderToStaticMarkup(<MetricsCard settings={BASE_SETTINGS as Dto['settings']} canEdit={false} orderWord="คิว" onChange={() => {}} />)
+    const inputs = (html + metricsOff).match(/<input[^>]*type="checkbox"[^>]*>/g) ?? []
     expect(inputs.length).toBeGreaterThan(5)
     for (const i of inputs) expect(i).toContain('disabled')
     for (const s of html.match(/<select[^>]*>/g) ?? []) expect(s).toContain('disabled')

@@ -108,3 +108,16 @@ export function lastDeliveryView(last: ListGroupItem['lastDelivery'], now: Date)
 }
 
 export const groupKindLabel = (shopCount: number): string => (shopCount > 1 ? `กลุ่มรวม ${shopCount} ร้าน` : 'กลุ่มสาขา')
+
+/** ส่วน "ข้าม: …" ของ Delivery.summary (ต่อท้ายด้วย ` · ข้าม: ` โดย line-report-send.service) — ไม่มี = null */
+const SKIP_MARK = ' · ข้าม: '
+export function skippedPart(summary: string | null | undefined): string | null {
+  const i = summary ? summary.indexOf(SKIP_MARK) : -1
+  return i < 0 ? null : (summary as string).slice(i + SKIP_MARK.length).trim() || null
+}
+
+/** บรรทัดสาเหตุของประวัติ: สาเหตุเดิม + "ข้าม: …" — ว่างทั้งคู่ = '' */
+export function historyReasonText(reasonLabel: string | null | undefined, summary: string | null | undefined): string {
+  const skip = skippedPart(summary)
+  return [reasonLabel, skip ? `ข้าม: ${skip}` : null].filter(Boolean).join(' · ')
+}
