@@ -11,7 +11,9 @@
  */
 import { describe, it, expect, afterEach } from 'vitest'
 import { prisma, deleteTestData } from '../setup'
-import { getBusinessOverview } from '@/services/business-overview.service'
+import { getBusinessOverview, getPortfolioSeries, listOverviewShops } from '@/services/business-overview.service'
+import { getSalesSeries } from '@/services/dashboard.service'
+import { periodRange } from '@/lib/business-overview'
 import { getPnlReport } from '@/services/pnl.service'
 import { resolveDateRange } from '@/lib/date-range'
 
@@ -113,5 +115,36 @@ d('getBusinessOverview (integration)', () => {
     expect(pnl.revenue).toBe(1334.5) // กันกรณีทั้งคู่เป็น 0 แล้วเขียวแบบว่างเปล่า
     expect(res!.totals.revenue).toBe(pnl.revenue)
     expect(card.href).toBe('/expenses?range=month')
+  })
+
+  it('v1.1 TC-005/TC-013 getPortfolioSeries: ยอดขาย = getSalesSeries.total · กำไร = getPnlReport · Personal ไม่นับ · ADMIN ไม่อยู่', async () => {
+    const me = await seedUser('ACTIVE')
+    const partner = await seedUser('ACTIVE')
+    const personal = await seedShop(me.id, { kind: 'PERSONAL', name: 'ส่วนตัว' })
+    const x = await seedShop(me.id, { name: 'X' })
+    const z = await seedShop(partner.id, { name: 'Z' })
+    await addMember(z.id, me.id, 'ADMIN')
+    await prisma.order.create({ data: { shopId: x.id, totalAmount: 500, status: 'CONFIRMED' } })
+    await prisma.order.create({ data: { shopId: personal.id, totalAmount: 9000, status: 'CONFIRMED' } })
+
+    const now = new Date(Date.now() + 7 * 3600e3) // เวลาไทย
+    const year = now.getUTCFullYear()
+    const month = now.getUTCMonth() + 1
+    const shops = await listOverviewShops(me.id)
+    const res = (await getPortfolioSeries(shops, personal, 'daily', year, month))!
+
+    const p = periodRange('daily', year, month)
+    const series = await getSalesSeries(x.id, 'daily', { year, month }, false, x.vertical)
+    const pnl = await getPnlReport(x.id, resolveDateRange('custom', p.start, p.end), x.vertical)
+    const rowX = res.rows.find((r) => r.shopId === x.id)!
+    expect(series.total).toBeGreaterThan(0) // กันเขียวว่าง
+    expect(rowX.sales).toBe(series.total)
+    expect(rowX.netProfit).toBe(pnl.netProfit)
+    expect(res.totals.sales).toBe(series.total) // Personal 9000 ไม่ถูกนับ
+    expect(res.aggregate.total).toBe(series.total)
+    expect(res.rows.at(-1)).toMatchObject({ shopId: personal.id, isPersonal: true, sharePct: null })
+    expect(res.rows.some((r) => r.shopId === z.id)).toBe(false)
+    expect(res.stack.map((st) => st.key)).toEqual([x.id])
+    expect(rowX.href).toBe(`/expenses?range=custom&start=${p.start}&end=${p.end}`)
   })
 })
