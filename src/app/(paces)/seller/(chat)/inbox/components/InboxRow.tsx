@@ -16,13 +16,13 @@ import { memo } from 'react'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { fileUrlOf } from '@/lib/file-url'
-import { rowBadge } from '@/lib/follow-up-inbox'
-import { formatCount } from '@/lib/follow-up-view'
+import { lateDays, rowBadge } from '@/lib/follow-up-inbox'
+import { formatCount, formatDueLabel } from '@/lib/follow-up-view'
 import { fmt } from '@/i18n/fmt'
 import { customerBadges } from '@/lib/customer-behavior'
 import { orderStageChipLabel } from '@/lib/order-stage'
 import { generateInitials } from '@/utils/helpers'
-import { formatChatListTime } from '@/lib/format-date'
+import { formatChatListTime, formatDate } from '@/lib/format-date'
 import { THREAD_AGENT_STACK_MAX } from '@/services/thread-agents.service'
 import SwipeableRow from './SwipeableRow'
 import { ChannelBadgeOverlay, ChannelMark, getChannelDisplay, resolveChatChannel } from './ChannelBadge'
@@ -343,19 +343,17 @@ function InboxRowImpl({
                   behaviorBadges.length > 0 ||
                   (c.lastSenderRole === 'SHOP' && !!c.lastMessageAutoReplyKind)) && (
                   <span className="mt-1 flex flex-wrap items-center gap-1">
-                    {/* 00066 (e) — ชิปแรกในบรรทัดป้าย · เลยกำหนด = แดงอ่อน+ไอคอน · ค้างอยู่ = เทา
+                    {/* 00066 (e) — ชิปแรกในบรรทัดป้าย · เลยกำหนด = แดงอ่อน+ไอคอน · ค้างอยู่ = เขียว (user 2026-10-05: "ติดตาม" ทั่วไปใช้เขียว แบบ gochat)
                         aria-label เต็ม + title เดียวกัน (มือถือไม่มี hover จึงห้ามพึ่ง title อย่างเดียว) */}
                     {followBadge !== null && c.followUp && (
                       <span
                         role="img"
-                        className={`badge text-2xs ${followBadge === 'late' ? 'bg-danger/15 text-danger-ink' : 'bg-default-100 text-default-700'}`}
+                        className={`badge text-2xs ${followBadge === 'late' ? 'bg-danger/15 text-danger-ink' : 'bg-success/15 text-success-ink'}`}
                         aria-label={followBadgeText}
                         title={followBadgeText}
                       >
-                        <Icon icon={followBadge === 'late' ? 'clock-exclamation' : 'list-check'} className="size-3 shrink-0" />
-                        {fmt(followBadge === 'late' ? t.followUps.rowLate : t.followUps.rowOpen, {
-                          n: formatCount(followBadge === 'late' ? c.followUp.late : c.followUp.open),
-                        })}
+                        <Icon icon="star" className="size-3 shrink-0" />
+                        {fmt(t.followUps.rowOpen, { n: formatCount(c.followUp.open) })}
                       </span>
                     )}
                     {/* ป้ายพฤติกรรมลูกค้า — user สั่ง 2026-08-11
@@ -454,6 +452,33 @@ function InboxRowImpl({
                           ยังอ่านได้จาก title (hover) และ aria-label (screen reader) ซึ่งรับค่า
                           เต็มเสมอ ไม่ได้ถูก CSS ตัด — precedent เดียวกับชิป ad_id ด้านบน */}
                       <span className="truncate">{stageLabel}</span>
+                    </span>
+                  )
+                })()}
+                {/* 00066 — แถบงานด่วน (แบบ gochat-v3 user สั่ง 2026-10-05): ใบที่เลยกำหนด/ครบวันนี้ที่เก่าสุด
+                    ให้เห็นจากรายการแชทเลยว่า "ต้องทำอะไรกับลูกค้าคนนี้" ไม่ต้องเปิดห้อง · ใบไกลกว่าวันนี้ไม่ขึ้น
+                    (ชิป "ติดตาม n" บอกอยู่แล้วว่ามีค้าง) · ตัวเลือกใบมาจาก urgentOf ฝั่ง server */}
+                {c.followUp?.urgent && (() => {
+                  const u = c.followUp.urgent
+                  const days = lateDays(u, new Date())
+                  const when =
+                    days === null
+                      ? formatDueLabel(t.followUps, u, new Date(), formatDate)
+                      : days === 0
+                        ? t.followUps.stripLateToday
+                        : fmt(t.followUps.stripLateDays, { n: days })
+                  return (
+                    <span
+                      className={`mt-1 flex min-w-0 items-center gap-1 rounded px-1.5 py-0.5 text-2xs ${
+                        u.late ? 'bg-danger/10 text-danger-ink' : 'bg-warning/15 text-warning-ink'
+                      }`}
+                      title={`${when} · ${u.title}`}
+                    >
+                      <Icon icon={u.late ? 'clock-exclamation' : 'clock'} className="size-3 shrink-0" aria-hidden="true" />
+                      <span className="shrink-0 font-semibold">{when}</span>
+                      <span className="shrink-0">·</span>
+                      <span className="min-w-0 truncate">{u.title}</span>
+                      {u.more > 0 && <span className="shrink-0 font-semibold">+{u.more}</span>}
                     </span>
                   )
                 })()}

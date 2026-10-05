@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ม็อกอัพ — ติดตามลูกค้า: ป้ายในรายการแชท + ชิปกรอง + ย้ายเป็นแท็บ (00066 ext)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+  :root{
+    --color-primary:#236dc9; --color-primary-ink:#1e3a8a;
+    --color-danger:#ed5565; --color-danger-ink:#9b1c1c;
+    --color-warning:#f9bf59; --color-warning-ink:#92400e;
+    --color-success:#02bc9c; --color-success-ink:#065f46;
+    --color-card:#fff; --color-body-bg:#f6f7fb;
+    --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+    --color-default-400:#627189; --color-default-500:#58626b; --color-default-600:#4a5358;
+    --color-default-700:#495057; --color-default-800:#343a40; --color-default-900:#212529;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--color-body-bg);font-family:'Anuphan',sans-serif;color:var(--color-default-800)}
+  iconify-icon{display:inline-block;vertical-align:-2px}
+  .page{max-width:1500px;margin:0 auto;padding:24px 16px 64px}
+  h1{font-size:20px;margin:0 0 4px}
+  h2{font-size:15px;margin:28px 0 10px}
+  .sub{color:var(--color-default-500);font-size:13px;margin:0 0 20px}
+  .grid{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+  .device{background:var(--color-card);border:1px solid var(--color-default-200);border-radius:12px;overflow:hidden}
+  .device-h{padding:8px 12px;border-bottom:1px solid var(--color-default-200);font-size:12px;font-weight:600;color:var(--color-default-600);display:flex;justify-content:space-between;gap:12px}
+  .device-h em{font-style:normal;font-weight:400;color:var(--color-default-400)}
+  .split{display:flex}
+  .split > .list{flex:0 0 340px;border-right:1px solid var(--color-default-200)}
+  .split > .chat{flex:1;background:var(--color-default-100);min-height:420px;display:flex;align-items:center;justify-content:center;color:var(--color-default-400);font-size:13px}
+  .split > .panel{flex:0 0 384px;border-left:1px solid var(--color-default-200)}
+
+  /* ── หัวรายการ (InboxList.tsx card-header) ── */
+  .lh{padding:12px 15px;border-bottom:1px dashed var(--color-default-300);display:flex;flex-direction:column;gap:10px}
+  .seg{display:flex;gap:2px;background:var(--color-default-200);border-radius:8px;padding:4px}
+  .seg b{flex:1;text-align:center;font-size:13px;font-weight:500;padding:6px 0;border-radius:6px;color:var(--color-default-600)}
+  .seg b.on{background:#fff;color:var(--color-default-900);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .tools{display:flex;flex-wrap:wrap;gap:6px}
+  .btn{display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-size:12.5px;font-weight:500;padding:5px 10px;border-radius:6px;border:1px solid var(--color-default-300);background:#fff;color:var(--color-default-700);cursor:pointer}
+  .btn .n{font-size:10.5px;line-height:1;padding:3px 6px;border-radius:999px;color:#fff;background:var(--color-primary)}
+  .btn.fu{border-color:var(--color-primary);color:var(--color-primary)}
+  .btn.fu .n.late{background:var(--color-danger)}
+  .btn.fu.on{background:var(--color-primary);color:#fff}
+  .btn.fu.on .n{background:rgba(255,255,255,.25)}
+  .btn.ship{border-color:var(--color-danger);color:var(--color-danger)}
+  .btn.ship .n{background:var(--color-danger)}
+  .new{outline:2px dashed #f59f00;outline-offset:2px}
+
+  /* ── แถวแชท (InboxRow.tsx) ── */
+  .row{display:flex;gap:12px;padding:12px 15px;border-bottom:1px solid var(--color-default-200)}
+  .row.sel{background:#eef4fc;box-shadow:inset 3px 0 0 var(--color-primary)}
+  .av{position:relative;flex:0 0 40px;width:40px;height:40px;border-radius:999px;background:var(--color-default-200);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--color-default-500)}
+  .av i{position:absolute;right:-2px;bottom:-2px;width:15px;height:15px;border-radius:999px;background:#0866FF;border:2px solid #fff}
+  .body{min-width:0;flex:1}
+  .l1{display:flex;align-items:center;gap:6px}
+  .nm{font-size:14px;font-weight:600;color:var(--color-default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tm{margin-left:auto;font-size:11px;color:var(--color-default-400);white-space:nowrap}
+  .pv{margin-top:2px;font-size:12.5px;color:var(--color-default-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chips{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px}
+  .chip{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;line-height:1;padding:3px 6px;border-radius:6px;background:var(--color-default-100);color:var(--color-default-700);white-space:nowrap}
+  .chip.fu{background:rgba(2,188,156,.15);color:var(--color-success-ink)}
+  .chip.fu.late{background:rgba(237,85,101,.15);color:var(--color-danger-ink)}
+  .chip.tag{background:rgba(35,109,201,.15);color:var(--color-primary-ink)}
+  .strip{margin-top:4px;display:flex;align-items:center;gap:4px;font-size:10.5px;padding:3px 6px;border-radius:4px;min-width:0}
+  .strip.late{background:rgba(237,85,101,.10);color:var(--color-danger-ink)}
+  .strip.today{background:rgba(249,191,89,.15);color:var(--color-warning-ink)}
+  .strip b{flex:none}
+  .strip .t{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+  /* ── แผงลูกค้า (CustomerPanel.tsx) ── */
+  .ph{display:flex;align-items:center;gap:12px;padding:16px 16px 12px}
+  .ph .av{flex-basis:44px;width:44px;height:44px}
+  .ph p{margin:0 0 4px;font-size:14px;font-weight:600;color:var(--color-default-900)}
+  .badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 7px;border-radius:6px;background:var(--color-default-100);color:var(--color-default-700)}
+  .tabs{display:flex;flex-wrap:nowrap;border-bottom:1px solid var(--color-default-200);padding:0 16px}
+  .tab{display:inline-flex;align-items:center;gap:4px;padding:12px 6px;font-size:14px;color:var(--color-default-700);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;min-width:0}
+  .tab.on{color:var(--color-primary);border-color:var(--color-primary)}
+  .tab .c{font-size:10.5px;padding:2px 5px;border-radius:6px;background:var(--color-default-100);color:var(--color-default-700)}
+  .tab .c.late{background:var(--color-danger);color:#fff}
+  .pc{padding:16px}
+  .fh{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .fh p{flex:1;margin:0;font-size:14px;font-weight:600;color:var(--color-default-900)}
+  .add{display:inline-flex;align-items:center;gap:4px;font-family:inherit;font-size:13px;padding:6px 12px;border:0;border-radius:6px;background:rgba(35,109,201,.15);color:var(--color-primary-ink)}
+  .grp{font-size:12px;font-weight:600;margin:6px 0 4px}
+  .grp.late{color:var(--color-danger-ink)}
+  .card{border:1px solid var(--color-default-200);border-radius:8px;padding:10px 12px;margin-bottom:8px}
+  .card .t{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:var(--color-default-900)}
+  .card .d{font-size:12.5px;color:var(--color-default-600);margin:4px 0}
+  .card .d.late{color:var(--color-danger-ink);font-weight:600}
+  .card .acts{display:flex;gap:6px;margin-top:8px}
+  .card .acts span{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;padding:6px 10px;border:1px solid var(--color-default-300);border-radius:6px}
+  .card .acts span.solid{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
+
+  .note{background:#fff;border:1px solid var(--color-default-200);border-left:3px solid var(--color-primary);border-radius:10px;padding:14px 16px;margin-top:22px;font-size:13px;line-height:1.75}
+  .note h3{margin:0 0 8px;font-size:14px}
+  .note code{background:var(--color-default-100);padding:1px 5px;border-radius:4px;font-size:12px}
+  .legend{font-size:12px;color:var(--color-default-500);margin:0 0 12px}
+  .legend span{outline:2px dashed #f59f00;outline-offset:1px;padding:0 4px;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>ติดตามลูกค้า: ป้ายในรายการแชท และย้ายไปเป็นแท็บ</h1>
+  <p class="sub">00066 ส่วนขยาย · 2026-10-05 · อ้างอิง gochat-v3 <code>src/app/inbox/rows.tsx</code> (ชิป "ติดตาม" + แถบงานด่วน) · สีตาม Paces token จริง</p>
+  <p class="legend"><span>เส้นประส้ม</span> = ของใหม่/ของที่เปลี่ยนในรอบนี้ (บนจอจริงไม่มีเส้นนี้)</p>
+
+  <!-- ═════════ แถวแชท (ใช้ซ้ำทั้ง 3 จอ) ═════════ -->
+  <template id="rows">
+    <div class="row sel">
+      <div class="av">ขช<i></i></div>
+      <div class="body">
+        <div class="l1"><span class="nm">เขมชาติ ขาวเรือง</span><span class="tm">10:42</span></div>
+        <div class="pv">คุณ: ได้ครับ รอโอนวันที่ 6 นะครับ</div>
+        <div class="chips">
+          <span class="chip fu late new"><iconify-icon icon="tabler:star" width="12"></iconify-icon>ติดตาม 2</span>
+          <span class="chip tag">ลูกค้าประจำ</span>
+        </div>
+        <div class="strip late new"><iconify-icon icon="tabler:clock-exclamation" width="12"></iconify-icon><b>เลย 2 วัน</b><span>·</span><span class="t">โทรยืนยันที่อยู่จัดส่ง</span><b>+1</b></div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="av">OT<i></i></div>
+      <div class="body">
+        <div class="l1"><span class="nm">Oil Tanapatpiboon</span><span class="tm">09:15</span></div>
+        <div class="pv">ขอเลขบัญชีอีกทีครับ</div>
+        <div class="chips">
+          <span class="chip fu new"><iconify-icon icon="tabler:star" width="12"></iconify-icon>ติดตาม 1</span>
+        </div>
+        <div class="strip today new"><iconify-icon icon="tabler:clock" width="12"></iconify-icon><b>วันนี้ 14:00</b><span>·</span><span class="t">ลูกค้าจะโอนเงินวันนี้</span></div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="av">พร<i></i></div>
+      <div class="body">
+        <div class="l1"><span class="nm">พีรวุฒิ ฤกษ์แพทย์</span><span class="tm">เมื่อวาน</span></div>
+        <div class="pv">คุณ: ส่งรูปสินค้าให้แล้วนะครับ</div>
+        <div class="chips">
+          <span class="chip fu new"><iconify-icon icon="tabler:star" width="12"></iconify-icon>ติดตาม 1</span>
+          <span class="chip">ad_id.1202…</span>
+        </div>
+        <!-- ครบกำหนดพรุ่งนี้ = ไม่ด่วน → ไม่มีแถบ เหลือแค่ชิป -->
+      </div>
+    </div>
+    <div class="row">
+      <div class="av">SC<i></i></div>
+      <div class="body">
+        <div class="l1"><span class="nm">Suwat Chanruk</span><span class="tm">อ.</span></div>
+        <div class="pv">สนใจรุ่นนี้ครับ ราคาเท่าไหร่</div>
+      </div>
+    </div>
+  </template>
+
+  <template id="listhead">
+    <div class="lh">
+      <div class="seg"><b class="on">ทั้งหมด</b><b>FB</b><b>IG</b><b>LINE</b></div>
+      <div class="tools">
+        <span class="btn"><iconify-icon icon="tabler:filter" width="16"></iconify-icon>ตัวกรอง</span>
+        <span class="btn ship"><iconify-icon icon="tabler:alert-triangle" width="16"></iconify-icon>พัสดุมีปัญหา<span class="n">1</span></span>
+      </div>
+    </div>
+  </template>
+
+  <template id="panel">
+    <div class="ph"><div class="av">ขช</div><div><p>เขมชาติ ขาวเรือง</p><span class="badge"><iconify-icon icon="tabler:brand-facebook" width="12"></iconify-icon>ธนภัทร์ อะไหล่มอเตอร์ไซค์</span></div></div>
+    <!-- แถวพับ "ติดตามลูกค้า (1)" เหนือแท็บ: ถอดออก -->
+    <div class="tabs">
+      <span class="tab"><iconify-icon icon="tabler:user-circle" width="16"></iconify-icon>ข้อมูล</span>
+      <span class="tab"><iconify-icon icon="tabler:shopping-cart" width="16"></iconify-icon>คำสั่งซื้อ<span class="c">3</span></span>
+      <span class="tab on new"><iconify-icon icon="tabler:star" width="16"></iconify-icon>ติดตาม<span class="c late">2</span></span>
+      <span class="tab"><iconify-icon icon="tabler:folder" width="16"></iconify-icon>ไฟล์</span>
+      <span class="tab"><iconify-icon icon="tabler:notes" width="16"></iconify-icon>โน้ต</span>
+    </div>
+    <div class="pc">
+      <div class="fh"><p>ติดตามลูกค้า (2)</p><span class="add"><iconify-icon icon="tabler:plus" width="16"></iconify-icon>เพิ่ม</span></div>
+      <p class="grp late">เลยกำหนด</p>
+      <div class="card">
+        <div class="t"><iconify-icon icon="tabler:phone" width="16"></iconify-icon>โทรยืนยันที่อยู่จัดส่ง</div>
+        <div class="d late">3 ต.ค. 69 · ทั้งวัน</div>
+        <div class="acts"><span class="solid"><iconify-icon icon="tabler:check" width="14"></iconify-icon>ทำแล้ว</span><span><iconify-icon icon="tabler:clock-pause" width="14"></iconify-icon>เลื่อน</span></div>
+      </div>
+      <div class="card">
+        <div class="t"><iconify-icon icon="tabler:list-check" width="16"></iconify-icon>ลูกค้ารอโอนเงินวันที่ 6/10/69</div>
+        <div class="d">พรุ่งนี้ · ทั้งวัน</div>
+        <div class="acts"><span><iconify-icon icon="tabler:check" width="14"></iconify-icon>ทำแล้ว</span><span><iconify-icon icon="tabler:clock-pause" width="14"></iconify-icon>เลื่อน</span></div>
+      </div>
+    </div>
+  </template>
+
+  <h2>1) รายการแชท + ตัวกรอง</h2>
+  <div class="grid">
+    <div class="device" style="width:390px">
+      <div class="device-h"><span>มือถือ 390px</span><em>รายการแชท</em></div>
+      <div data-use="listhead"></div><div data-use="rows"></div>
+    </div>
+    <div class="device" style="width:390px">
+      <div class="device-h"><span>มือถือ 390px</span><em>เปิดแผง "ตัวกรอง" (มีอยู่แล้ว ไม่เปลี่ยน)</em></div>
+      <div class="lh">
+        <div class="seg"><b class="on">ทั้งหมด</b><b>FB</b><b>IG</b><b>LINE</b></div>
+        <div class="tools"><span class="btn" style="border-color:var(--color-primary);color:var(--color-primary)"><iconify-icon icon="tabler:filter" width="16"></iconify-icon>ตัวกรอง</span></div>
+      </div>
+      <div style="padding:12px 15px;font-size:13px">
+        <p style="margin:0 0 2px;font-weight:600">ติดตามลูกค้า</p>
+        <p style="margin:0 0 8px;font-size:11.5px;color:var(--color-default-500)">แสดงเฉพาะแชทที่มีรายการติดตาม</p>
+        <div class="tools">
+          <span class="btn" style="border-color:var(--color-primary);background:rgba(35,109,201,.12);color:var(--color-primary-ink)">เลยกำหนด (2)</span>
+          <span class="btn" style="border-color:var(--color-primary);background:rgba(35,109,201,.12);color:var(--color-primary-ink)">กำลังจะมาถึง (2)</span>
+          <span class="btn">ทำแล้ว (5)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>2) แผงลูกค้า: "ติดตาม" ย้ายเป็นแท็บที่ 3</h2>
+  <div class="grid">
+    <div class="device" style="width:390px">
+      <div class="device-h"><span>มือถือ 390px</span><em>ชีตแผงลูกค้า</em></div>
+      <div data-use="panel"></div>
+    </div>
+    <div class="device" style="width:768px">
+      <div class="device-h"><span>แท็บเล็ต 768px</span><em>รายการ + ชีตแผงลูกค้า</em></div>
+      <div class="split"><div class="list"><div data-use="listhead"></div><div data-use="rows"></div></div><div class="panel" style="flex-basis:384px;border-left:1px solid var(--color-default-200)"><div data-use="panel"></div></div></div>
+    </div>
+  </div>
+
+  <h2>3) เดสก์ท็อป 1440px</h2>
+  <div class="grid">
+    <div class="device" style="width:1440px;max-width:100%">
+      <div class="device-h"><span>เดสก์ท็อป 1440px</span><em>รายการ 340 · แชท · แผงลูกค้า 384</em></div>
+      <div class="split">
+        <div class="list"><div data-use="listhead"></div><div data-use="rows"></div></div>
+        <div class="chat">ห้องแชท</div>
+        <div class="panel"><div data-use="panel"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <h3>สิ่งที่เปลี่ยน</h3>
+    <ol>
+      <li><b>ชิป "ติดตาม n" ในแถวแชท:</b> แทนคำเดิม "ค้างอยู่ n" ที่อ่านแล้วไม่รู้ว่าค้างอะไร · สีเขียว (แบบที่ระบบทั่วไปใช้กับ "ติดตาม") และเป็นสีแดงเมื่อมีรายการเลยกำหนด · เป็นชิปแรกของบรรทัดป้าย</li>
+      <li><b>แถบงานด่วนใต้ชิป</b> (แบบ gochat-v3 "เลย 5 วัน · TK-0002 ..."): แสดงรายการที่ <u>เลยกำหนดหรือครบวันนี้</u> ที่เก่าที่สุด 1 รายการ + "+n" ถ้ามีด่วนอีก ·
+        เลยกำหนด = แดง "เลย n วัน" (นับวันตามปฏิทินไทย) · ครบวันนี้ = เหลือง "วันนี้ 14:00" · ถ้าครบกำหนดพรุ่งนี้หรือหลังจากนั้น จะไม่มีแถบนี้ เหลือแค่ชิป</li>
+      <li><b>ตัวกรอง:</b> อยู่ในแผง "ตัวกรอง" หัวข้อ "ติดตามลูกค้า" (เลยกำหนด / กำลังจะมาถึง / ทำแล้ว) ซึ่งมีอยู่แล้ว ไม่เพิ่มปุ่มที่หัวรายการ (user สั่ง 2026-10-05)</li>
+      <li><b>แผงลูกค้า:</b> ถอดแถวพับ "ติดตามลูกค้า (n)" ที่อยู่เหนือแท็บออก แล้วย้ายมาเป็นแท็บที่ 3 "ติดตาม" · ตัวเลขบนแท็บเป็นสีแดงเมื่อมีรายการเลยกำหนด ·
+        ปุ่ม "+ เพิ่ม" อยู่หัวแท็บ · รายการแสดงเต็มความสูงแผง ไม่มีพับ · บีบระยะห่างของแท็บเพื่อให้ 5 แท็บพอดี 384px โดยไม่ต้องเลื่อน</li>
+    </ol>
+    <p>ไฟล์: <code>InboxRow.tsx</code> · <code>InboxList.tsx</code> · <code>CustomerPanel.tsx</code> · <code>FollowUpPanel.tsx</code> · <code>customer-follow-up.service.ts</code> (<code>urgentOf</code> ใน <code>follow-up-rules.ts</code>) · <code>follow-up-inbox.ts</code> (<code>lateDays</code>)</p>
+  </div>
+</div>
+<script>
+  document.querySelectorAll('[data-use]').forEach(el => {
+    const tpl = document.getElementById(el.dataset.use).content.cloneNode(true)
+    if (el.dataset.only) { const rows = [...tpl.querySelectorAll('.row')]; rows.slice(+el.dataset.only).forEach(r => r.remove()) }
+    el.replaceWith(tpl)
+  })
+</script>
+</body>
+</html>

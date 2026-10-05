@@ -48,11 +48,10 @@ describe('follow-up components: a11y', () => {
     }
   })
 
-  it('[blocker] ปุ่มพับของแผงไม่มี aria-label ทับข้อความที่เห็น ("ติดตามลูกค้า (n)" + ป้ายเลยกำหนด ต้องถูกอ่านจากข้อความ)', () => {
+  it('[blocker] หัวแท็บติดตามเป็นข้อความที่อ่านได้ ไม่ใช่ปุ่มพับ (2026-10-05 ย้ายเป็นแท็บ — ห้ามกลับไปซ่อนรายการหลังปุ่มพับ)', () => {
     const code = read(FILES[3]!)
-    const btn = code.match(/<button\b[^>]*aria-expanded=\{expanded\}[^>]*>/)
-    expect(btn).not.toBeNull()
-    expect(btn![0]).not.toContain('aria-label')
+    expect(code).not.toContain('aria-expanded')
+    expect(code).toMatch(/<p\b[^>]*>\s*\{ready \? fmt\(t\.panelTitle/)
   })
 
   it('[blocker] ปุ่ม "ทำแล้ว" ปิดทันที: ไม่มีสถานะ reveal "done" (ห้ามถามผลก่อนปิด) และ complete ส่ง outcome: null', () => {

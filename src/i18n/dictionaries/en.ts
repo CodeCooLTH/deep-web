@@ -666,6 +666,7 @@ export const en: Dictionary = {
       /** สั้นกว่าหัวข้อเต็มโดยตั้งใจ — ดูเหตุผลในไฟล์ th.ts */
       tabCustomer: 'Info',
       tabFiles: 'Files',
+      tabFollowUp: 'Follow-up',
       statOrderCount: 'Orders',
       statTotalSpent: 'Total spent',
       statCustomerSince: 'Customer for',
@@ -1125,7 +1126,9 @@ export const en: Dictionary = {
     filterLate: 'Overdue',
     filterUpcoming: 'Upcoming',
     filterDone: 'Done',
-    rowOpen: '{n} open',
+    rowOpen: 'Follow-up {n}',
+    stripLateDays: '{n}d overdue',
+    stripLateToday: 'Overdue',
     rowLate: '{n} overdue',
     rowLateAria: '{late} overdue of {open} follow-ups',
     boardTruncated: 'Not everything is shown — too many open items. Filter by assignee to see the rest.',

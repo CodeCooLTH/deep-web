@@ -281,12 +281,17 @@ describe('listForConversation', () => {
 describe('ตัวนับ', () => {
   it('countsForConversations: ทุก id ได้ค่า (ไม่มีรายการ = 0/0) และนับ late ด้วย isOverdue', async () => {
     m.openRowsByAnchor.mockResolvedValue([
-      { anchor: 'a', status: 'OPEN', dueAt: new Date('2026-09-29T03:00:00.000Z'), allDay: false }, // เลย
-      { anchor: 'a', status: 'OPEN', dueAt: new Date('2026-10-05T03:00:00.000Z'), allDay: false },
+      { anchor: 'a', status: 'OPEN', dueAt: new Date('2026-10-05T03:00:00.000Z'), allDay: false, title: 'ไกล' },
+      { anchor: 'a', status: 'OPEN', dueAt: new Date('2026-09-29T03:00:00.000Z'), allDay: false, title: 'เลย' },
     ])
     const r = await countsForConversations(['a', 'b'], [SHOP], NOW)
-    expect(r.get('a')).toEqual({ open: 2, late: 1 })
-    expect(r.get('b')).toEqual({ open: 0, late: 0 })
+    // urgent = ใบเลยกำหนดที่เก่าสุด (ไม่ใช่ใบแรกที่ query คืน) · ใบไกลไม่นับใน more
+    expect(r.get('a')).toEqual({
+      open: 2,
+      late: 1,
+      urgent: { title: 'เลย', dueAt: '2026-09-29T03:00:00.000Z', allDay: false, late: true, more: 0 },
+    })
+    expect(r.get('b')).toEqual({ open: 0, late: 0, urgent: null })
   })
   it('conversationIdsByFollowUpState + followUpStateCounts: cluster เป็นตัวตัดสิน', async () => {
     // k1: มี OPEN เลยกำหนด → late · k2: OPEN ยังไม่เลย → upcoming · k3: DONE อย่างเดียว → done
