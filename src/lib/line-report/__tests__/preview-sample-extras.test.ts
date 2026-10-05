@@ -35,3 +35,16 @@ describe('sampleCycleTotals', () => {
     expect(t.confirmed).toBeGreaterThan(summary.shops.filter((s) => s.state === 'OK').reduce((n, s) => n + s.confirmed, 0))
   })
 })
+
+describe('withSampleFinance (EXT-EXP)', () => {
+  it('ร้านแรกปกติ · วนครบ 3 สถานะ (ปกติ/ยังไม่มีบันทึก/ติดลบ) · ไม่แตะร้านที่ไม่ OK', async () => {
+    const { withSampleFinance } = await import('../preview-sample')
+    const ok = (confirmed: number) => ({ state: 'OK', confirmed }) as never
+    const out = withSampleFinance({ shops: [ok(500_000), ok(300_000), ok(100_000), { state: 'ERROR' } as never] } as never)
+    const f = out.shops.map((s) => s.finance)
+    expect(f[0]).toMatchObject({ expenseRecorded: true, expense: 128_400, netSales: 500_000 - 128_400 })
+    expect(f[1]).toMatchObject({ expenseRecorded: false, expense: 0 })
+    expect(f[2]!.netSales).toBeLessThan(0)
+    expect(f[3]).toBeUndefined()
+  })
+})

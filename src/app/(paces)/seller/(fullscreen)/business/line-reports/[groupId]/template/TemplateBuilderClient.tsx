@@ -41,6 +41,7 @@ import { DesktopActions, MobileActions } from './components/TemplateActionBar'
 import TemplateLibrary, { LIBRARY_DROPPABLE_ID, typeOfDraggableId } from './components/TemplateLibrary'
 import { blockTitle, makeBlock } from './lib/block-meta'
 import { confirmProfitExposure } from './lib/confirm-profit'
+import { confirmExpenseExposure } from './lib/confirm-expense'
 import { analyzeDraft, EMPTY_TEXT_HINT, normalizeHiddenButton } from './lib/draft-issues'
 import { GAUGE_COPY, gaugeState } from './lib/gauge-state'
 import { getPrimaryAction } from './lib/primary-action'
@@ -52,7 +53,7 @@ const REASON_ID = 'template-action-reason'
 /** id บล็อกใหม่ — ไม่ใช้ crypto.randomUUID (ต้อง secure context · dev โดเมน http ใช้ไม่ได้) */
 const newBlockId = () => `b${Math.random().toString(36).slice(2, 10)}`
 
-type SaveBody = { template: TemplateV1; expectedVersion: number; confirmProfit?: boolean }
+type SaveBody = { template: TemplateV1; expectedVersion: number; confirmProfit?: boolean; confirmExpense?: boolean }
 
 export type TemplateBuilderClientProps = {
   group: GroupDetailDto
@@ -133,6 +134,8 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
   }, [state.openId])
 
   // ─── เพิ่ม/เอาออก/ยืนยันกำไร ───────────────────────────────────────────────────────
+  const expenseConfirmed = useRef(false)
+
   async function addBlock(type: BlockType, index?: number) {
     if (readOnly || !libraryAvailability(type, state.draft, ctx).ok) return
     const block = makeBlock(type, newBlockId())
@@ -140,6 +143,12 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
       const next = deriveFlags({ ...state.draft, blocks: [...state.draft.blocks, block] })
       if (!(await confirmProfitExposure(deriveFlags(state.draft), next, state.profitConfirmed))) return
       dispatch({ type: 'confirmProfit' })
+    }
+    if (type === 'expense' || type === 'net_sales') {
+      // ถามครั้งเดียวต่อเซสชัน — ref ไม่ใช่ reducer เพราะไม่กระทบการเรนเดอร์
+      const next = { ...state.draft, blocks: [...state.draft.blocks, block] }
+      if (!(await confirmExpenseExposure(state.draft, next, expenseConfirmed.current))) return
+      expenseConfirmed.current = true
     }
     dispatch({ type: 'add', block, index })
     setAnnouncement(`เพิ่มแล้ว: ${blockTitle(type, word)}`)
@@ -209,7 +218,7 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
     dispatch({ type: 'saveStart' })
     const sent = { template: normalizeHiddenButton(state.draft), markup: state.markupById } // snapshot ที่ส่งจริง
     if (sent.template !== state.draft) dispatch({ type: 'setButton', patch: { label: sent.template.button.label } })
-    const body: SaveBody = { template: sent.template, expectedVersion: state.saved.version, ...(state.profitConfirmed || confirmedNow ? { confirmProfit: true } : {}) }
+    const body: SaveBody = { template: sent.template, expectedVersion: state.saved.version, ...(state.profitConfirmed || confirmedNow ? { confirmProfit: true } : {}), ...(expenseConfirmed.current ? { confirmExpense: true } : {}) }
     try {
       const res = await fetch(`/api/line-report/groups/${group.id}/template`, {
         method: 'PUT',
@@ -236,6 +245,12 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
           dispatch({ type: 'confirmProfit' })
           dispatch({ type: 'saveFail' })
           return void save(true)
+        }
+      } else if (code === 'EXPENSE_CONFIRM_REQUIRED') {
+        // เจอเมื่อฉบับร่างมีค่าใช้จ่ายแต่ยังไม่ผ่านด่าน (เช่น โหลดมาจากคลังแบบสำเร็จรูป) — ถามแล้วลองใหม่
+        if (!expenseConfirmed.current && (await confirmExpenseExposure({ ...state.draft, blocks: [] }, state.draft, false))) {
+          expenseConfirmed.current = true
+          return void save(confirmedNow)
         }
       } else if (code === 'TEMPLATE_INVALID') {
         // ตาข่ายชั้นสอง (client ตรวจก่อนแล้ว) — เปิดแถวที่ผิดให้เห็น

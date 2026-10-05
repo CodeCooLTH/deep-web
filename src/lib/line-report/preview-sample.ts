@@ -94,6 +94,25 @@ export function withSampleProfit(summary: GroupSummary): GroupSummary {
   }
 }
 
+/**
+ * เติมการเงินตัวอย่างให้ร้านที่ OK (EXT-EXP) — วนสามสถานะเพื่อให้พรีวิวเห็นครบ: ปกติ / ยังไม่มีบันทึกค่าใช้จ่าย / ติดลบ
+ * ร้านแรกเป็น "ปกติ" เสมอ · ตัวเลขคงที่ ไม่ใช่ของจริงของใคร
+ */
+export function withSampleFinance(summary: GroupSummary): GroupSummary {
+  let k = 0
+  return {
+    ...summary,
+    shops: summary.shops.map((s) => {
+      if (s.state !== 'OK') return s
+      const kind = k++ % 3
+      const finance = kind === 0 ? { expense: 128_400, netSales: s.confirmed - 128_400, expenseRecorded: true }
+        : kind === 1 ? { expense: 0, netSales: s.confirmed, expenseRecorded: false }
+        : { expense: s.confirmed + 9_500, netSales: -9_500, expenseRecorded: true }
+      return { ...s, finance }
+    }),
+  }
+}
+
 /** ยอดสะสมรอบตัวอย่างของบรรทัด "ยอดสะสมรอบนี้" (รายวันที่แนบรอบ) — คูณจากยอดวันเพื่อให้ใหญ่กว่ายอดวันเสมอ */
 export function sampleCycleTotals(summary: GroupSummary): { orders: number; confirmed: number; unconfirmed: number; cancelled: number } {
   const t = combineTotals(summary.shops)

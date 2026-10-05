@@ -29,4 +29,10 @@ describe('preview-data', () => {
     expect(() => buildPreviewContents({ ...args, template: t, kind: 'MONTHLY', monthlyEnabled: true, cycle })).not.toThrow()
     expect(() => buildPreviewContents({ ...args, template: t, kind: 'DAILY', monthlyEnabled: true, cycle })).not.toThrow()
   })
+  it('มี expense/net_sales: ไม่ throw และพรีวิวมีส่วนค่าใช้จ่าย (รายละเอียดบรรทัดเป็นของ composer)', () => {
+    const t: TemplateV1 = { ...tpl(), blocks: [...tpl().blocks, { id: 'e', type: 'expense' }, { id: 'n', type: 'net_sales' }] }
+    const json = JSON.stringify(buildPreviewContents({ ...args, template: t }))
+    expect(json).toContain('ค่าใช้จ่าย')
+    expect(JSON.stringify(buildPreviewContents(args))).not.toContain('ค่าใช้จ่าย')
+  })
 })

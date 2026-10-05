@@ -14,6 +14,8 @@ export const BLOCK_ICON: Record<BlockType, string> = {
   shops: 'building-store',
   cycle: 'history',
   profit: 'coin',
+  expense: 'report-money',
+  net_sales: 'wallet',
   text: 'message-2',
   separator: 'minus',
   chart_trend: 'chart-line',
@@ -28,6 +30,8 @@ export const blockTitle = (type: BlockType, word: string): string =>
     shops: 'รายร้าน',
     cycle: 'ยอดสะสมรอบนี้',
     profit: 'กำไร',
+    expense: 'ค่าใช้จ่าย',
+    net_sales: 'ยอดขายหลังหักค่าใช้จ่าย',
     text: 'ข้อความพิมพ์เอง',
     separator: 'เส้นคั่น',
     chart_trend: 'แนวโน้ม 7 วันล่าสุด',
@@ -48,6 +52,8 @@ export function blockSummary(b: Block, word: string, markup: string): string | n
     case 'cancelled':
     case 'cycle':
     case 'profit':
+    case 'expense':
+    case 'net_sales':
     case 'separator': return null
     case 'shops': return ['แยกรายร้าน', b.top3 ? 'ขายดี 3 อันดับ' : null, b.profit ? 'กำไรต่อร้าน' : null].filter(Boolean).join(' · ')
     case 'chart_trend': return `7 วันล่าสุด · วัดจาก ${measureLabel(b.measure, word)}`
@@ -62,7 +68,7 @@ export function blockSummary(b: Block, word: string, markup: string): string | n
 
 /** กลุ่มในคลัง — ลำดับตามสเปก §3.3 */
 export const LIBRARY_GROUPS: readonly { title: string; types: readonly BlockType[] }[] = [
-  { title: 'ข้อมูล', types: ['orders', 'sales', 'cancelled', 'shops', 'cycle', 'profit'] },
+  { title: 'ข้อมูล', types: ['orders', 'sales', 'cancelled', 'shops', 'cycle', 'profit', 'expense', 'net_sales'] },
   { title: 'กราฟ', types: ['chart_trend', 'chart_compare'] },
   { title: 'ข้อความของคุณ', types: ['text', 'separator'] },
 ]
@@ -104,7 +110,9 @@ export function libraryDesc(type: BlockType, word: string, draft: { blocks: read
     case 'cancelled': return 'นับใบที่เปิดในช่วงรายงานแล้วถูกยกเลิก'
     case 'shops': return 'แยกรายร้าน เลือกขายดี 3 อันดับหรือกำไรต่อร้านได้'
     case 'cycle': return 'ยอดนับแล้วสะสมตั้งแต่วันตัดรอบ'
-    case 'profit': return 'ทุกคนในกลุ่มจะเห็น — ถามยืนยันก่อนเพิ่ม'
+    case 'profit':
+    case 'expense':
+    case 'net_sales': return 'ทุกคนในกลุ่มจะเห็น — ถามยืนยันก่อนเพิ่ม'
     case 'chart_trend': return `แท่ง 7 วันล่าสุด วัดจากยอดขายหรือจำนวน${word}`
     case 'chart_compare': return `เรียงร้านมาก→น้อย วัดจากยอดขายหรือจำนวน${word}`
     case 'text': return `พิมพ์ถึงทีม แทรกตัวเลขได้ · เหลือ ${BLOCK_LIMITS.text - draft.blocks.filter((b) => b.type === 'text').length} อัน`
