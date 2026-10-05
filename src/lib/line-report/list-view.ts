@@ -25,6 +25,9 @@ export type ListGroupItem = {
   bind: { codeExpiresAt: string | null }
 }
 
+/** ชื่อแทนของกลุ่ม PENDING ที่ยังไม่เคยรู้ชื่อกลุ่ม LINE (groupName = '') — ใช้ร่วมรายการและหัวหน้ากลุ่ม */
+export const PENDING_GROUP_FALLBACK_NAME = 'กลุ่มที่รอผูก'
+
 export type ListMeta = { count: number; limit: number; canCreate: boolean; paused: boolean; botReady: boolean; unackedAlerts: number }
 
 /** มีปัญหา (0) → รอผูก (1) → ปกติ (2) · ในชั้นเดียวกันเรียงเวลาส่งถัดไปใกล้สุดก่อน (ไม่มีเวลา = ท้ายชั้น) · เสมอกัน = คงลำดับเดิม */

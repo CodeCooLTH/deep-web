@@ -11,7 +11,7 @@
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { groupBadge } from '@/lib/line-report/presenter'
-import { groupKindLabel, lastDeliveryView, statusLine, type ListGroupItem } from '@/lib/line-report/list-view'
+import { PENDING_GROUP_FALLBACK_NAME, groupKindLabel, lastDeliveryView, statusLine, type ListGroupItem } from '@/lib/line-report/list-view'
 import CodeCountdown from './CodeCountdown'
 import GroupStatusBadge from './GroupStatusBadge'
 import { TONE_TEXT } from './tone'
@@ -21,6 +21,8 @@ export default function ReportGroupRow({ group, now }: { group: ListGroupItem; n
   const line = statusLine(group, now)
   const last = lastDeliveryView(group.lastDelivery, now)
   const extra = Math.max(0, group.shopCount - group.shops.length)
+  // ใช้ชื่อแทนเฉพาะ PENDING (ยังไม่รู้ชื่อกลุ่ม) — สถานะอื่นที่ชื่อว่างคือข้อมูลผิดปกติ ไม่ปิดบังด้วยชื่อแทน
+  const name = group.status === 'PENDING' ? group.groupName || PENDING_GROUP_FALLBACK_NAME : group.groupName
   const href = `/business/line-reports/${group.id}`
 
   return (
@@ -38,8 +40,8 @@ export default function ReportGroupRow({ group, now }: { group: ListGroupItem; n
 
         <div className="min-w-0 flex-1 lg:grid lg:grid-cols-12 lg:items-center lg:gap-4">
           <div className="min-w-0 lg:col-span-5">
-            <p className="text-default-800 mb-0 truncate text-sm font-medium" title={group.groupName}>
-              {group.groupName}
+            <p className="text-default-800 mb-0 truncate text-sm font-medium" title={name}>
+              {name}
             </p>
             <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
               <span className="text-default-700 text-xs">{groupKindLabel(group.shopCount)}</span>
