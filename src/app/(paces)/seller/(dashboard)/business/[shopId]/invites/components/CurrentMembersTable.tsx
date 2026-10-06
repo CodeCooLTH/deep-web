@@ -17,6 +17,8 @@ import MemberRoleControls from './MemberRoleControls'
 import TransferOwnershipButton from './TransferOwnershipButton'
 import LoginProviderLogo, { LOGIN_PROVIDER_LABEL, type LoginProvider } from '@/components/safepay/LoginProviderLogo'
 import { memberErrorText } from './member-error-text'
+import { shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
+import { canAskToBuy } from '@/lib/purchase-prompt'
 
 export interface MemberRow {
   id: string
@@ -53,13 +55,15 @@ const ROLE_BADGE: Record<'OWNER' | 'ADMIN', string> = {
 }
 const ROLE_LABEL: Record<'OWNER' | 'ADMIN', string> = { OWNER: 'เจ้าของ', ADMIN: 'ผู้ดูแล' }
 
-export default function CurrentMembersTable({
+export default async function CurrentMembersTable({
   members,
   shopId,
   canManage,
   title = 'สมาชิกปัจจุบัน',
   headerRight,
 }: CurrentMembersTableProps) {
+  /* ถามเองที่นี่ ไม่รับเป็น prop — ตารางนี้ถูกใช้ 2 หน้า (invites + /admins) ส่ง prop = มีโอกาสลืมหน้าหนึ่ง */
+  const askToBuy = canAskToBuy(await shouldHidePayments(), await shouldOfferIap())
   const primary = members.find((m) => m.isPrimary)
   const viewerIsPrimary = primary?.isSelf ?? false
   return (
@@ -178,7 +182,7 @@ export default function CurrentMembersTable({
                         successMessage={`ลบ ${member.displayName} ออกจากร้านแล้ว`}
                         errorMessages={Object.fromEntries(
                           ['NOT_OWNER', 'PRIMARY_OWNER_LOCKED', 'CANNOT_REMOVE_SELF', 'SHOP_LOCKED', 'NOT_A_MEMBER'].map(
-                            (c) => [c, memberErrorText(c, member.displayName, primary?.displayName ?? 'เจ้าของหลัก')],
+                            (c) => [c, memberErrorText(c, member.displayName, primary?.displayName ?? 'เจ้าของหลัก', askToBuy)],
                           ),
                         )}
                       />

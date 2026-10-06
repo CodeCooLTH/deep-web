@@ -16,6 +16,7 @@
  * - client component (มี Sweet Alerts state) ต่างจาก banner ต้นทางที่เป็น server component ล้วน
  */
 
+import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
 import { useRouter } from 'next/navigation'
 import Swal from 'sweetalert2'
 import Icon from '@/components/wrappers/Icon'
@@ -35,7 +36,7 @@ function upgradeErrorMessage(status: number, apiError: string): string {
   return 'เกิดข้อผิดพลาด กรุณาลองใหม่'
 }
 
-export default function UpgradeToProCard() {
+function UpgradeToProCardInner() {
   const router = useRouter()
 
   const handleUpgrade = async () => {
@@ -101,4 +102,13 @@ export default function UpgradeToProCard() {
       </button>
     </div>
   )
+}
+
+/**
+ * 🛑 ด่านที่ตัว component เอง — ทั้งก้อนคือทางไปจ่ายเงิน/ชวนซื้อ ห้ามขึ้นในแอป (iOS 3.1.1 · Google Payments)
+ * ไม่พึ่งหน้าแม่: LockedStateBanner เคยหลุด 6 หน้าเพราะพึ่งผู้เรียก (2026-10-05) · ห่อเป็นชั้นนอก
+ * เพื่อไม่ให้ early return มาอยู่ก่อน hook ของตัวใน (rules of hooks)
+ */
+export default function UpgradeToProCard() {
+  return useHidePayments() ? null : <UpgradeToProCardInner />
 }

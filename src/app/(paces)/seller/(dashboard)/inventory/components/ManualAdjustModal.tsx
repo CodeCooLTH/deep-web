@@ -30,6 +30,7 @@
  *      → 200 ปิด 2 ชั้น + pacesToast.success + router.refresh(); error → showValidationMessage (dialog ค้าง)
  */
 
+import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
 import Icon from '@/components/wrappers/Icon'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -51,10 +52,11 @@ interface ManualAdjustModalProps {
 
 // ─── map error code จาก API (API.md §4.4) → ข้อความไทยใน Swal.showValidationMessage ──────
 // error ที่เป็นไทยอยู่แล้ว (เช่น "สต็อกไม่พอ: {productName}") ใช้ตรง ๆ ผ่าน default case
-function adjustErrorMessage(errorBody: string): string {
+function adjustErrorMessage(errorBody: string, hidePayments: boolean): string {
   switch (errorBody) {
     case 'INVENTORY_NOT_ACTIVE':
-      return 'ต้องสมัคร Deep Stock ก่อนใช้งานฟีเจอร์นี้'
+      /* ในแอป: บอกสถานะ ไม่ชวนสมัคร — Deep Stock ไม่มีขายในแอป */
+      return hidePayments ? 'ร้านนี้ยังไม่ได้เปิดใช้ Deep Stock' : 'ต้องสมัคร Deep Stock ก่อนใช้งานฟีเจอร์นี้'
     case 'PRODUCT_NOT_FOUND':
       return 'ไม่พบสินค้านี้'
     case 'PRODUCT_NOT_TRACKED':
@@ -77,6 +79,7 @@ export default function ManualAdjustModal({
   onSuccess,
 }: ManualAdjustModalProps) {
   const router = useRouter()
+  const hidePayments = useHidePayments()
 
   // ─── State ──────────────────────────────────────────────────────────────────
   // deltaInput เป็น string (ไม่ใช่ number) เพื่อรองรับ interim state ระหว่างพิมพ์ เช่น "-"
@@ -147,7 +150,7 @@ export default function ManualAdjustModal({
           })
           const data = await res.json().catch(() => ({}))
           if (!res.ok) {
-            Swal.showValidationMessage(adjustErrorMessage(data?.error ?? ''))
+            Swal.showValidationMessage(adjustErrorMessage(data?.error ?? '', hidePayments))
             return false
           }
           return data.resultingQty as number
@@ -188,7 +191,7 @@ export default function ManualAdjustModal({
         if (e.target === e.currentTarget) handleClose()
       }}
     >
-      <div className="ease-in-out transition-all duration-200 lg:max-w-lg md:max-w-md md:w-full w-[calc(100%-24px)] m-3 md:mx-auto flex items-center">
+      <div className={'ease-in-out transition-all duration-200 lg:max-w-lg md:max-w-md md:w-full w-[calc(100%-24px)] m-3 md:mx-auto flex items-center' /* carve-out HR7: กว้างเต็มจอลบขอบ m-3 สองข้างบนมือถือ — Paces ไม่มี token ของ "เต็มลบ margin" (โครงเดิมของโมดัล ไม่ได้เปลี่ยน layout · ท่าเดียวกับ TopUpRequestModal) */}>
         <div className="w-full flex flex-col card pointer-events-auto">
           {/* ─── Header ─────────────────────────────────────────────────────── */}
           <div className="card-header p-5">

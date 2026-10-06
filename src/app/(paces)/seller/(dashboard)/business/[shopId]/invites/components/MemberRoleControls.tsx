@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { memberErrorText } from './member-error-text'
+import { useCanAskToBuy } from '@/components/paces/PaymentRestrictionProvider'
 
 type Role = 'OWNER' | 'ADMIN'
 const ROLE_LABEL: Record<Role, string> = { OWNER: 'เจ้าของ', ADMIN: 'ผู้ดูแล' }
@@ -36,11 +37,12 @@ export default function MemberRoleControls({
   shopId, memberId, name, role, isSelf, primaryOwnerName,
 }: Props) {
   const router = useRouter()
+  const askToBuy = useCanAskToBuy()
   const [value, setValue] = useState<Role>(role)
   const [busy, setBusy] = useState(false)
 
   const fail = (code: string) => {
-    pacesToast.error(memberErrorText(code, name, primaryOwnerName))
+    pacesToast.error(memberErrorText(code, name, primaryOwnerName, askToBuy))
     if (STALE.has(code)) router.refresh()
   }
 

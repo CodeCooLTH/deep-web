@@ -8,6 +8,7 @@
  *
  * server component ล้วน — parent (page.tsx) คำนวณ shortfall + formatDate(nextRenewalAt) มาให้แล้ว
  */
+import { shouldHidePayments } from '@/lib/app-shell-server'
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 
@@ -18,7 +19,11 @@ export interface AdvanceWarningBannerProps {
   shortfall: number
 }
 
-export default function AdvanceWarningBanner({ nextRenewalAt, shortfall }: AdvanceWarningBannerProps) {
+export default async function AdvanceWarningBanner({ nextRenewalAt, shortfall }: AdvanceWarningBannerProps) {
+  /* 🛑 ด่านที่ตัว component เอง ไม่พึ่งหน้าแม่ — ทั้งก้อนคือทางไปจ่ายเงิน ห้ามขึ้นในแอป (iOS 3.1.1 · Google Payments)
+     หน้าแม่กันไว้แล้วก็จริง แต่ LockedStateBanner เคยหลุด 6 หน้าเพราะพึ่งผู้เรียก (2026-10-05) */
+  if (await shouldHidePayments()) return null
+
   return (
     <div
       role="alert"

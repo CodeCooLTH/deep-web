@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation'
 import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
 import { memberErrorText } from './member-error-text'
+import { useCanAskToBuy } from '@/components/paces/PaymentRestrictionProvider'
 
 const STALE = new Set(['NOT_OWNER', 'NOT_PRIMARY_OWNER', 'PRIMARY_OWNER_LOCKED', 'NOT_A_MEMBER'])
 
@@ -25,6 +26,7 @@ export default function TransferOwnershipButton({
   primaryOwnerName: string
 }) {
   const router = useRouter()
+  const askToBuy = useCanAskToBuy()
 
   const open = async () => {
     const res = await Swal.fire({
@@ -72,7 +74,7 @@ export default function TransferOwnershipButton({
     if (!res.isConfirmed || !res.value) return
     const name = candidates.find((c) => c.id === res.value.memberId)?.name ?? 'สมาชิกคนนี้'
     if (!res.value.ok) {
-      pacesToast.error(memberErrorText(res.value.code, name, primaryOwnerName))
+      pacesToast.error(memberErrorText(res.value.code, name, primaryOwnerName, askToBuy))
       if (STALE.has(res.value.code)) router.refresh()
       return
     }

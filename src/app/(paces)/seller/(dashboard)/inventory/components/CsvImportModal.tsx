@@ -25,6 +25,7 @@
  *   "สำเร็จ X · ล้มเหลว Y" + pacesToast (success ถ้า error=0, warning ถ้ามี) → ปุ่มเปลี่ยนเป็น "ปิด"
  */
 
+import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
 import Icon from '@/components/wrappers/Icon'
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -76,10 +77,13 @@ function rowErrorMessage(code: string | undefined): string {
 }
 
 // ─── map error ระดับ request ทั้งก้อน (API.md §4.7) → ข้อความไทยใน Swal.showValidationMessage ──
-function requestErrorMessage(errorBody: string): string {
+function requestErrorMessage(errorBody: string, hidePayments: boolean): string {
   switch (errorBody) {
     case 'INVENTORY_NOT_PRO':
-      return 'ต้องอัพเกรดเป็น Deep Stock Pro ก่อนใช้งานฟีเจอร์นี้'
+      /* ในแอป: บอกสถานะ ไม่ชวนอัปเกรด — Deep Stock ไม่มีขายในแอป (Google/Apple ห้ามพาไปจ่ายข้างนอก) */
+      return hidePayments
+        ? 'แพ็กเกจปัจจุบันยังไม่รวมการนำเข้าไฟล์ CSV'
+        : 'ต้องอัพเกรดเป็น Deep Stock Pro ก่อนใช้งานฟีเจอร์นี้'
     case 'Rate limit exceeded':
       return 'ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง'
     case 'Invalid input':
@@ -98,6 +102,7 @@ type ImportApiResult = {
 
 export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportModalProps) {
   const router = useRouter()
+  const hidePayments = useHidePayments()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ─── State ──────────────────────────────────────────────────────────────────
@@ -280,7 +285,7 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
           })
           const data = await res.json().catch(() => ({}))
           if (!res.ok) {
-            Swal.showValidationMessage(requestErrorMessage(data?.error ?? ''))
+            Swal.showValidationMessage(requestErrorMessage(data?.error ?? '', hidePayments))
             return false
           }
           return data as ImportApiResult

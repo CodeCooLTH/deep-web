@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveActiveShopContext } from '@/lib/shop-context'
+import { shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
+import { canAskToBuy } from '@/lib/purchase-prompt'
 
 /**
  * auto-reply-route-context — ตัวช่วยยืนยันตัวตน + ขอบเขตร้าน สำหรับ route ของ feature 00023
@@ -36,6 +38,11 @@ export type ShopRouteContext = {
   /** ร้าน Business ที่โดน package lock — อ่านได้แต่เขียนไม่ได้ (`Shop.packageLockedAt`) */
   locked: boolean
   lockReason: string | null
+  /**
+   * ข้อความ error ชวนต่ออายุแพ็กเกจได้ไหม — เว็บ/iOS ได้ · แอป Android ไม่ได้ (ไม่มีหน้าซื้อ =
+   * คำว่า "ต่ออายุแพ็กเกจ" คือพาไปจ่ายนอก Play) · ดู `canAskToBuy()` ใน `@/lib/purchase-prompt`
+   */
+  askToBuy: boolean
 }
 
 export async function requireShopContext(): Promise<ShopRouteContext | { error: NextResponse }> {
@@ -60,6 +67,7 @@ export async function requireShopContext(): Promise<ShopRouteContext | { error: 
     canEdit: (EDITABLE_ROLES as readonly string[]).includes(activeCtx.role),
     locked: activeCtx.locked,
     lockReason: activeCtx.lockReason,
+    askToBuy: canAskToBuy(await shouldHidePayments(), await shouldOfferIap()),
   }
 }
 
@@ -77,9 +85,9 @@ export function forbidIfReadOnly(ctx: ShopRouteContext): NextResponse | null {
   if (ctx.locked) {
     return NextResponse.json(
       {
-        error: ctx.lockReason
-          ? `ร้านนี้ถูกระงับการแก้ไขชั่วคราว (${ctx.lockReason}) — ต่ออายุแพ็กเกจแล้วจะกลับมาแก้ไขได้ทันที`
-          : 'ร้านนี้ถูกระงับการแก้ไขชั่วคราว — ต่ออายุแพ็กเกจแล้วจะกลับมาแก้ไขได้ทันที',
+        error: `ร้านนี้ถูกระงับการแก้ไขชั่วคราว${ctx.lockReason ? ` (${ctx.lockReason})` : ''}${
+          ctx.askToBuy ? ' — ต่ออายุแพ็กเกจแล้วจะกลับมาแก้ไขได้ทันที' : ' ตามสถานะแพ็กเกจ'
+        }`,
       },
       { status: 403 }
     )
